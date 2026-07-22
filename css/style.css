@@ -1,0 +1,516 @@
+/* ===== デザイントークン =====
+   色・フォント・影・アニメーション時間などをCSS変数にまとめておく。
+   後で色味や動きの速さを調整したいときは、ここだけ直せばよい。 */
+:root {
+  /* カラートークン */
+  --color-primary: #ff5da2;       /* メインのピンク */
+  --color-primary-dark: #e8408a;  /* 見出しや強調テキスト */
+  --color-primary-light: #ffd7ea; /* ホバー時の淡い光・背景アクセント */
+  --color-accent: #ffd166;        /* 正解演出などの強調カラー（黄） */
+  --color-danger: #ff6b6b;        /* 不正解・エラー用のやわらかい赤 */
+  --color-background-start: #fff0f6; /* 背景グラデーションの開始色 */
+  --color-background-end: #f6ecff;   /* 背景グラデーションの終了色（淡い紫寄り） */
+  --color-surface: #ffffff;       /* カードなどの背景 */
+  --color-text: #3a2233;          /* 基本の文字色 */
+
+  /* ゲームカードの影 */
+  --shadow-card: 0 12px 32px rgba(255, 93, 162, 0.25);
+
+  /* フォント：丸みのある読みやすい日本語フォントを優先し、
+     読み込めない環境ではOS標準の丸みのあるゴシックにフォールバックする */
+  --font-family-base: "M PLUS Rounded 1c", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+
+  /* モーション（アニメーションの速さ）。演出自体は後のステップで追加する */
+  --transition-fast: 120ms;
+  --transition-base: 200ms;
+  --transition-slow: 400ms;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font-family-base);
+  color: var(--color-text);
+  background: linear-gradient(135deg, var(--color-background-start), var(--color-background-end));
+
+  /* ゲームフレームを画面の中央に配置する */
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 40px 16px;
+}
+
+/* ===== ゲームフレーム =====
+   PCで開いても「スマホゲームをプレイしている」ように見せるための、中央に浮かぶカード。 */
+.game-frame {
+  width: 100%;
+  max-width: 480px;
+  background-color: var(--color-surface);
+  border-radius: 24px;
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+/* ===== 画面切り替え用の共通クラス =====
+   screens.js から .is-active を付け外しして表示を切り替える想定（次のステップで実装）。 */
+.screen {
+  display: none;
+  padding: 24px;
+}
+
+.screen.is-active {
+  display: block;
+  /* 画面が切り替わった瞬間にふわっと表示されるフェードイン演出 */
+  animation: fadeIn var(--transition-slow) ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ===== タイトル周りの装飾 ===== */
+.app-logo {
+  display: block;
+  margin: 0 auto 4px;
+  animation: logoFloat 3s ease-in-out infinite;
+}
+
+@keyframes logoFloat {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+/* ===== 見出し ===== */
+h1 {
+  margin-top: 0;
+  color: var(--color-primary-dark);
+  text-align: center;
+  font-size: 1.8rem;
+  font-weight: 800;
+}
+
+/* タイトルの左右に音符の飾りを添える */
+h1::before,
+h1::after {
+  content: "♪";
+  display: inline-block;
+  color: var(--color-accent);
+  font-size: 1.2rem;
+  margin: 0 8px;
+}
+
+h2 {
+  margin-top: 0;
+  color: var(--color-primary-dark);
+  text-align: center;
+  font-size: 1.4rem;
+  font-weight: 800;
+}
+
+/* ===== 出題数・カテゴリの選択エリア ===== */
+fieldset {
+  border: 2px solid var(--color-primary);
+  border-radius: 16px;
+  margin-bottom: 16px;
+  padding: 12px 16px;
+}
+
+legend {
+  color: var(--color-primary-dark);
+  font-weight: 700;
+  padding: 0 6px;
+}
+
+/* ラジオボタン本体は見た目上は隠すが、キーボード操作や読み上げ機能のためにDOM上には残す */
+fieldset input[type="radio"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* labelタグ自体を、チップ（丸っこいボタン）風の見た目にする */
+fieldset label {
+  display: inline-flex;
+  align-items: center;
+  position: relative;
+  margin: 4px 6px 4px 0;
+  padding: 10px 18px;
+  border: 2px solid var(--color-primary);
+  border-radius: 999px;
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
+}
+
+/* 選択されている項目は、ピンクで塗りつぶした状態にする */
+fieldset label:has(input:checked) {
+  background-color: var(--color-primary);
+  color: #ffffff;
+}
+
+fieldset label:active {
+  transform: scale(0.96);
+}
+
+@media (hover: hover) {
+  fieldset label:hover {
+    box-shadow: 0 0 0 4px var(--color-primary-light);
+  }
+}
+
+/* キーボードのTabキーで選んだときも、見た目でどこにいるか分かるようにする */
+fieldset label:has(input:focus-visible) {
+  outline: 3px solid var(--color-primary-dark);
+  outline-offset: 2px;
+}
+
+/* ===== ボタン共通 ===== */
+.primary-button {
+  display: block;
+  width: 100%;
+  margin-top: 16px;
+  padding: 14px;
+  border: none;
+  border-radius: 999px;
+  background-color: var(--color-primary);
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform var(--transition-fast), box-shadow var(--transition-base);
+}
+
+/* hidden属性が付いているときは、display:blockより優先して非表示にする */
+.primary-button[hidden] {
+  display: none;
+}
+
+/* 押した瞬間に少し縮んで、指で押している感覚を出す */
+.primary-button:active {
+  transform: scale(0.96);
+}
+
+/* マウスでホバーできる端末でだけ、軽く光らせる（スマホ等のタッチ端末では付けない） */
+@media (hover: hover) {
+  .primary-button:hover {
+    box-shadow: 0 0 0 4px var(--color-primary-light);
+  }
+}
+
+/* ===== クイズ画面：4択ボタン =====
+   通常は2×2グリッド。狭い画面向けの調整は下のメディアクエリで行う。 */
+#choice-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.choice-button {
+  position: relative; /* キラキラ演出（::after）の位置の基準にする */
+  min-height: 44px; /* タップしやすいように最小の高さを確保 */
+  padding: 14px 8px;
+  border: 2px solid var(--color-primary);
+  border-radius: 16px;
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform var(--transition-fast), box-shadow var(--transition-base);
+}
+
+.choice-button:active {
+  transform: scale(0.96);
+}
+
+@media (hover: hover) {
+  .choice-button:hover {
+    box-shadow: 0 0 0 4px var(--color-primary-light);
+  }
+}
+
+/* ===== 回答後の正解・不正解演出 ===== */
+
+/* 正解の選択肢：黄色く縁取りしつつ、軽く跳ねるように拡大縮小し、✨マークを飛ばす */
+.choice-button.is-correct {
+  border-color: var(--color-accent);
+  background-color: #fff8e1;
+  animation: correctPop var(--transition-slow) ease-out;
+}
+
+.choice-button.is-correct::after {
+  content: "✨";
+  position: absolute;
+  top: -10px;
+  right: -6px;
+  font-size: 1.2rem;
+  animation: sparkle var(--transition-slow) ease-out;
+}
+
+@keyframes correctPop {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.06);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes sparkle {
+  0% {
+    opacity: 0;
+    transform: scale(0.4) rotate(-10deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1) rotate(8deg);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.9) translateY(-6px);
+  }
+}
+
+/* 不正解として選んでしまった選択肢：赤みを帯びて、軽く横に揺れる */
+.choice-button.is-wrong {
+  border-color: var(--color-danger);
+  background-color: #fff0ee;
+  animation: shake var(--transition-slow) ease-in-out;
+}
+
+@keyframes shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-6px);
+  }
+  40% {
+    transform: translateX(5px);
+  }
+  60% {
+    transform: translateX(-4px);
+  }
+  80% {
+    transform: translateX(3px);
+  }
+}
+
+/* ===== タイマー・進捗表示 =====
+   タイマーはゲームのHUD（状態表示）なので、少し大きめ・太めにして目立たせる。 */
+#question-progress {
+  text-align: center;
+  font-weight: 700;
+}
+
+/* 出題の進み具合を示すドット。答え終えた問題・今の問題・まだの問題で見た目を変える */
+.progress-dots {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 4px;
+}
+
+.progress-dots .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid var(--color-primary);
+  background-color: var(--color-surface);
+  transition: background-color var(--transition-fast), width var(--transition-fast), height var(--transition-fast);
+}
+
+.progress-dots .dot.is-done {
+  background-color: var(--color-primary);
+}
+
+.progress-dots .dot.is-current {
+  width: 14px;
+  height: 14px;
+  background-color: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+#timer-display {
+  text-align: center;
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+}
+
+/* 残り時間がわずかになったときの緊迫感演出：赤くなって軽く拍動する */
+#timer-display.is-urgent {
+  color: var(--color-danger);
+  animation: timerPulse 1s ease-in-out infinite;
+}
+
+@keyframes timerPulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+/* ===== メッセージ類 ===== */
+.error-message {
+  color: var(--color-danger);
+  background-color: #fff0ee;
+  border: 1px solid var(--color-danger);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.feedback-message {
+  text-align: center;
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+
+/* ===== 結果画面 ===== */
+#total-score-display {
+  text-align: center;
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+}
+
+#rank-display {
+  text-align: center;
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  margin: 4px 0 8px;
+  animation: rankPop var(--transition-slow) ease-out;
+}
+
+/* Sランクだけ、金色に光らせて特別感を出す */
+#rank-display.is-rank-s {
+  font-size: 2.2rem;
+  background: linear-gradient(90deg, #d9a441, #fff3b0, #d9a441);
+  background-size: 200% auto;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  animation: rankPop var(--transition-slow) ease-out, rankShine 2s linear infinite;
+}
+
+@keyframes rankPop {
+  0% {
+    transform: scale(0.7);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes rankShine {
+  to {
+    background-position: -200% center;
+  }
+}
+
+#high-score-display {
+  text-align: center;
+  font-size: 0.95rem;
+  color: var(--color-text);
+}
+
+#new-record-badge {
+  text-align: center;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  background-color: #fff8e1;
+  border-radius: 8px;
+  padding: 6px 12px;
+  animation: rankPop var(--transition-slow) ease-out;
+}
+
+#answer-log-list {
+  list-style: none;
+  padding: 0;
+}
+
+#answer-log-list li {
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 6px;
+}
+
+/* 正解した問題は正解の選択肢と同じ黄色系トーンに、不正解は赤系トーンにして一目で分かるようにする */
+#answer-log-list li.is-correct-row {
+  background-color: #fff8e1;
+}
+
+#answer-log-list li.is-wrong-row {
+  background-color: #fff0ee;
+}
+
+/* ===== レスポンシブ：スマホ幅（520px以下） =====
+   ゲームフレームを画面幅いっぱいに広げ、カードらしい丸み・影は外して画面に馴染ませる。 */
+@media (max-width: 520px) {
+  body {
+    padding: 0;
+    align-items: stretch;
+  }
+
+  .game-frame {
+    max-width: 100%;
+    min-height: 100vh;
+    border-radius: 0;
+    box-shadow: none;
+  }
+}
+
+/* ===== レスポンシブ：非常に狭いスマホ幅（360px以下） =====
+   4択ボタンが窮屈にならないよう、2×2グリッドから縦1列表示に切り替える。 */
+@media (max-width: 360px) {
+  #choice-buttons {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ===== アクセシビリティ：モーションを減らす設定への対応 =====
+   OS/ブラウザで「視差効果を減らす」等が有効なときは、
+   すべてのアニメーション・トランジションをほぼ瞬時に終わらせる。 */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

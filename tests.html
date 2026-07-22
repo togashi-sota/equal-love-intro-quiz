@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ユニットテスト結果</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      max-width: 640px;
+      margin: 40px auto;
+      padding: 0 16px;
+      color: #3a2233;
+    }
+    #test-summary {
+      font-size: 1.2rem;
+      font-weight: bold;
+      padding: 12px;
+      border-radius: 8px;
+      background-color: #f4f4f4;
+    }
+  </style>
+</head>
+<body>
+  <h1>ユニットテスト実行結果</h1>
+  <p>各関数の計算結果が期待通りになっているかを自動でチェックしています。詳しい結果は開発者ツール（F12）のConsoleタブで確認できます。</p>
+  <div id="test-summary">実行中...</div>
+
+  <script type="module">
+    import { runScoreTests } from "./tests/score.test.js";
+    import { runQuizTests } from "./tests/quiz.test.js";
+    import { printSummary } from "./tests/test-utils.js";
+
+    runScoreTests();
+    runQuizTests();
+    const { passCount, failCount } = printSummary();
+
+    const summaryElement = document.getElementById("test-summary");
+    if (failCount === 0) {
+      summaryElement.textContent = `✅ 全${passCount}件のテストに成功しました`;
+      summaryElement.style.color = "#1b7a3d";
+    } else {
+      summaryElement.textContent = `❌ ${failCount}件のテストに失敗しました（${passCount}件成功）。詳細はConsoleを確認してください。`;
+      summaryElement.style.color = "#c0392b";
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+# 本物のイントロ音源（著作権保護のため、ローカル環境のみで使用し公開・コミットしない）
+assets/audio/local/*
+!assets/audio/local/.gitkeep
+
+# Claude Codeへの指示書（自分の作業メモのため非公開）
+CLAUDE.md

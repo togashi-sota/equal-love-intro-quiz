@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>＝LOVEイントロクイズ</title>
+
+  <!-- タブに表示されるアイコン（favicon） -->
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+
+  <!-- Google Fonts: 丸みのある読みやすい日本語フォント「M PLUS Rounded 1c」を読み込む -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- ゲームフレーム：PCで開いてもスマホゲームのように見える、中央のカード -->
+  <main class="game-frame">
+
+    <!-- スタート画面：出題数とカテゴリを選んでクイズを開始する画面 -->
+    <!-- 今はまだ画面切り替えの仕組み（screens.js）がないので、is-active を付けて仮に表示している -->
+    <section id="start-screen" class="screen is-active">
+      <!-- タイトルの飾り。ロゴ自体はfaviconと同じ絵柄で、装飾目的のため alt は空にしている -->
+      <img src="favicon.svg" alt="" class="app-logo" width="56" height="56">
+      <h1>＝LOVEイントロクイズ</h1>
+
+      <fieldset>
+        <legend>出題数</legend>
+        <label><input type="radio" name="question-count" value="5" checked> 5問</label>
+        <label><input type="radio" name="question-count" value="10"> 10問</label>
+        <label><input type="radio" name="question-count" value="all"> 全曲</label>
+      </fieldset>
+
+      <fieldset>
+        <legend>カテゴリ</legend>
+        <label><input type="radio" name="category-filter" value="all" checked> 全曲</label>
+        <label><input type="radio" name="category-filter" value="title-track"> 表題曲のみ</label>
+      </fieldset>
+
+      <!-- 曲数が足りない場合などのエラーメッセージ。普段は空・非表示 -->
+      <p id="start-error" class="error-message" hidden></p>
+
+      <button id="start-button" class="primary-button" type="button">スタート</button>
+    </section>
+
+    <!-- クイズ画面：イントロ再生、4択、タイマー、正誤表示を行う画面 -->
+    <section id="quiz-screen" class="screen">
+      <p id="question-progress">第1問 / 5問</p>
+
+      <!-- 出題の進み具合を、丸(ドット)で視覚的に示す場所。中身はJSで生成する -->
+      <div id="progress-dots" class="progress-dots"></div>
+
+      <!-- controls は付けず、シークして曲を先読みできないようにしている -->
+      <audio id="intro-audio"></audio>
+      <!-- 音源が再生できない場合のエラーメッセージ。普段は空・非表示 -->
+      <p id="audio-error" class="error-message" hidden></p>
+
+      <p id="timer-display">残り: 10秒</p>
+
+      <div id="choice-buttons">
+        <button class="choice-button" type="button">選択肢1</button>
+        <button class="choice-button" type="button">選択肢2</button>
+        <button class="choice-button" type="button">選択肢3</button>
+        <button class="choice-button" type="button">選択肢4</button>
+      </div>
+
+      <!-- 正解/不正解の結果。普段は空・非表示 -->
+      <p id="feedback" class="feedback-message" hidden></p>
+
+      <button id="next-button" class="primary-button" type="button" hidden>次へ</button>
+    </section>
+
+    <!-- 結果画面：合計得点と内訳を表示し、リトライできる画面 -->
+    <section id="result-screen" class="screen">
+      <h2>結果発表</h2>
+      <p id="total-score-display">合計得点: 0点</p>
+      <p id="rank-display">ランク: C</p>
+      <p id="high-score-display">自己ベスト: 0点</p>
+      <!-- 自己ベストを更新したときだけ表示するお知らせ。普段は空・非表示 -->
+      <p id="new-record-badge" hidden>🎉 新記録！</p>
+
+      <!-- 1問ごとの正誤・得点をJSで一覧表示する場所 -->
+      <ul id="answer-log-list"></ul>
+
+      <button id="retry-button" class="primary-button" type="button">もう一度挑戦する</button>
+    </section>
+
+  </main>
+
+  <!-- ES Modulesを使うため type="module" が必須。ローカルサーバー経由でないと動かない -->
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
