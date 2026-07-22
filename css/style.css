@@ -215,6 +215,42 @@ fieldset label:has(input:focus-visible) {
   }
 }
 
+/* ===== スキップ・答えを見るボタン =====
+   「次へ」ボタンほど目立たせたくないので、塗りつぶさず枠線だけの控えめな見た目にする。 */
+#quiz-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+#quiz-actions[hidden] {
+  display: none;
+}
+
+.secondary-button {
+  flex: 1;
+  padding: 10px;
+  border: 2px solid var(--color-primary);
+  border-radius: 999px;
+  background-color: transparent;
+  color: var(--color-primary-dark);
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform var(--transition-fast), background-color var(--transition-base);
+}
+
+.secondary-button:active {
+  transform: scale(0.96);
+}
+
+@media (hover: hover) {
+  .secondary-button:hover {
+    background-color: var(--color-primary-light);
+  }
+}
+
 /* ===== クイズ画面：4択ボタン =====
    通常は2×2グリッド。狭い画面向けの調整は下のメディアクエリで行う。 */
 #choice-buttons {
@@ -319,7 +355,7 @@ fieldset label:has(input:focus-visible) {
   }
 }
 
-/* ===== タイマー・進捗表示 =====
+/* ===== タイマー（経過秒数）・進捗表示 =====
    タイマーはゲームのHUD（状態表示）なので、少し大きめ・太めにして目立たせる。 */
 #question-progress {
   text-align: center;
@@ -361,21 +397,6 @@ fieldset label:has(input:focus-visible) {
   font-size: 2rem;
   font-weight: 800;
   color: var(--color-primary-dark);
-}
-
-/* 残り時間がわずかになったときの緊迫感演出：赤くなって軽く拍動する */
-#timer-display.is-urgent {
-  color: var(--color-danger);
-  animation: timerPulse 1s ease-in-out infinite;
-}
-
-@keyframes timerPulse {
-  0%, 100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.1);
-  }
 }
 
 /* ===== メッセージ類 ===== */
@@ -501,6 +522,10 @@ fieldset label:has(input:focus-visible) {
 @media (max-width: 360px) {
   #choice-buttons {
     grid-template-columns: 1fr;
+  }
+
+  #quiz-actions {
+    flex-direction: column;
   }
 }
 

@@ -2,15 +2,13 @@
 // フレームワークを使わないので、gameState という1つのオブジェクトに全部の情報を持たせ、
 // 状態を変えたいときは必ずこのファイルの関数を通して変更する、というルールにする。
 
-export const TIME_LIMIT_SEC = 10;
-
 export const gameState = {
   screen: "start",               // "start" | "quiz" | "result"
   questions: [],                 // このプレイで出題する問題の配列（{ song, choices } の形）
   currentIndex: 0,               // 今何問目か（0始まり）
   score: 0,                      // 合計得点
   answerLog: [],                 // 結果画面で使う、1問ごとの回答記録
-  remainingSec: TIME_LIMIT_SEC,  // タイマーの残り秒数
+  elapsedSec: 0,                 // 出題開始からの経過秒数（上限なしで数え上げる）
   timerId: null,                 // setIntervalのID（止めるときに使う）
   isAnswered: false,             // 今の問題にすでに回答済みかどうか
 };
@@ -22,7 +20,7 @@ export function resetGameState() {
   gameState.currentIndex = 0;
   gameState.score = 0;
   gameState.answerLog = [];
-  gameState.remainingSec = TIME_LIMIT_SEC;
+  gameState.elapsedSec = 0;
   gameState.timerId = null;
   gameState.isAnswered = false;
 }
@@ -56,6 +54,6 @@ export function recordAnswer(isCorrect, pointsEarned) {
 export function advanceToNextQuestion() {
   gameState.currentIndex += 1;
   gameState.isAnswered = false;
-  gameState.remainingSec = TIME_LIMIT_SEC;
+  gameState.elapsedSec = 0;
   return gameState.currentIndex < gameState.questions.length;
 }

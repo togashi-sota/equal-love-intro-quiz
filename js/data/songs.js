@@ -20,14 +20,18 @@ export const DIFFICULTY = {
 };
 
 // 曲データ本体。90曲規模まで増やすことを想定した項目構成。
-// id         : 曲を一意に識別するための文字列（音源ファイル名 `${id}.mp3` にもそのまま使う）
-// title      : クイズの選択肢や正解表示に使う曲名
-// category   : CATEGORY で定義した値のどれか
-// releaseDate: 発売日（"YYYY-MM-DD"形式。日付順の並び替えがしやすいようにハイフン区切りに統一する）
-// single     : 収録シングル/アルバム名（表示用の補足情報）
-// difficulty : DIFFICULTY で定義した値のどれか
+// id            : 曲を一意に識別するための文字列（音源ファイル名 `${id}.mp3` にもそのまま使う）
+// title         : クイズの選択肢や正解表示に使う曲名
+// category      : CATEGORY で定義した値のどれか
+// releaseDate   : 発売日（"YYYY-MM-DD"形式。日付順の並び替えがしやすいようにハイフン区切りに統一する）
+// single        : 収録シングル/アルバム名（表示用の補足情報）
+// difficulty    : DIFFICULTY で定義した値のどれか
+// introLeadInSec: 曲の頭にある無音・前奏の長さ（秒）。CDからそのまま取り込んだ音源は
+//                 曲によって鳴り始めるまでの時間がバラバラなので、採点時にこの秒数を差し引いて
+//                 曲ごとの不公平をなくす。無音がほぼない曲は0のままでよい。
 //
-// まずは動作確認用として、1st〜5thシングルの表題曲5曲だけを登録している。
+// まずは動作確認用として、CDの差し替えを最小限にするために
+// 「1stシングルに収録されている3曲」+「6thシングルの表題曲」の4曲を登録している。
 // 曲を増やすときは、この配列に要素を追加していくだけでよい。
 export const SONGS = [
   {
@@ -37,37 +41,33 @@ export const SONGS = [
     releaseDate: "2017-09-06",
     single: "1stシングル「＝LOVE」",
     difficulty: DIFFICULTY.EASY,
+    introLeadInSec: 0,
   },
   {
-    id: "bokura-no-seifuku-christmas",
-    title: "僕らの制服クリスマス",
-    category: CATEGORY.TITLE_TRACK,
-    releaseDate: "2017-12-06",
-    single: "2ndシングル「僕らの制服クリスマス」",
-    difficulty: DIFFICULTY.EASY,
-  },
-  {
-    id: "teokure-caution",
-    title: "手遅れcaution",
-    category: CATEGORY.TITLE_TRACK,
-    releaseDate: "2018-05-16",
-    single: "3rdシングル「手遅れcaution」",
+    id: "kioku-no-dokoka-de",
+    title: "記憶のどこかで",
+    category: CATEGORY.COUPLING,
+    releaseDate: "2017-09-06",
+    single: "1stシングル「＝LOVE」カップリング曲",
     difficulty: DIFFICULTY.NORMAL,
+    introLeadInSec: 0,
   },
   {
-    id: "want-you-want-you",
-    title: "Want you! Want you!",
-    category: CATEGORY.TITLE_TRACK,
-    releaseDate: "2018-10-17",
-    single: "4thシングル「Want you! Want you!」",
+    id: "start",
+    title: "スタート!",
+    category: CATEGORY.COUPLING,
+    releaseDate: "2017-09-06",
+    single: "1stシングル「＝LOVE」カップリング曲",
     difficulty: DIFFICULTY.NORMAL,
+    introLeadInSec: 0,
   },
   {
-    id: "sagase-diamond-lily",
-    title: "探せ ダイヤモンドリリー",
+    id: "zurui-yo-zurui-ne",
+    title: "ズルいよ ズルいね",
     category: CATEGORY.TITLE_TRACK,
-    releaseDate: "2019-04-24",
-    single: "5thシングル「探せ ダイヤモンドリリー」",
+    releaseDate: "2019-10-30",
+    single: "6thシングル「ズルいよ ズルいね」",
     difficulty: DIFFICULTY.NORMAL,
+    introLeadInSec: 0,
   },
 ];

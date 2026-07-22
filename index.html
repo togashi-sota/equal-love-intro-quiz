@@ -58,13 +58,19 @@
       <!-- 音源が再生できない場合のエラーメッセージ。普段は空・非表示 -->
       <p id="audio-error" class="error-message" hidden></p>
 
-      <p id="timer-display">残り: 10秒</p>
+      <p id="timer-display">経過: 0秒</p>
 
       <div id="choice-buttons">
         <button class="choice-button" type="button">選択肢1</button>
         <button class="choice-button" type="button">選択肢2</button>
         <button class="choice-button" type="button">選択肢3</button>
         <button class="choice-button" type="button">選択肢4</button>
+      </div>
+
+      <!-- 分からないときに使う、スキップ・答えを見るボタン。回答すると隠れる -->
+      <div id="quiz-actions">
+        <button id="skip-button" class="secondary-button" type="button">スキップ</button>
+        <button id="reveal-button" class="secondary-button" type="button">答えを見る</button>
       </div>
 
       <!-- 正解/不正解の結果。普段は空・非表示 -->

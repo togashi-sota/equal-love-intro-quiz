@@ -31,6 +31,8 @@ const progressDotsElement = document.getElementById("progress-dots");
 const choiceButtonElements = document.querySelectorAll(".choice-button");
 const feedbackElement = document.getElementById("feedback");
 const nextButtonElement = document.getElementById("next-button");
+const skipButtonElement = document.getElementById("skip-button");
+const revealButtonElement = document.getElementById("reveal-button");
 const audioErrorElement = document.getElementById("audio-error");
 const timerDisplayElement = document.getElementById("timer-display");
 const totalScoreElement = document.getElementById("total-score-display");
@@ -45,9 +47,6 @@ function showAudioError(message) {
   audioErrorElement.textContent = message;
   audioErrorElement.hidden = false;
 }
-
-// 残り秒数がこの値以下になったら、緊迫感を出す演出に切り替える。
-const URGENT_THRESHOLD_SEC = 3;
 
 // 得点カウントアップ演出にかける時間。
 const SCORE_COUNT_UP_DURATION_MS = 800;
@@ -77,10 +76,9 @@ function animateScoreCountUp(finalScore) {
   requestAnimationFrame(step);
 }
 
-// タイマーの残り秒数表示を更新する。残りわずかになったら赤く拍動させる。
-function updateTimerDisplay(remainingSec) {
-  timerDisplayElement.textContent = `残り: ${remainingSec}秒`;
-  timerDisplayElement.classList.toggle("is-urgent", remainingSec <= URGENT_THRESHOLD_SEC);
+// タイマーの経過秒数表示を更新する。
+function updateTimerDisplay(elapsedSec) {
+  timerDisplayElement.textContent = `経過: ${elapsedSec}秒`;
 }
 
 // 正解の選択肢に「is-correct」（キラキラ演出）、選んでしまった不正解の選択肢に
@@ -105,33 +103,40 @@ function clearChoiceButtonStates() {
   });
 }
 
-// 制限時間切れになったときの処理。
-// 「回答なし＝不正解・0点」として記録し、正解を表示して次へ進めるようにする。
-function handleTimeout() {
-  // クリックとタイムアウトがほぼ同時に起きても二重に処理しないためのガード。
-  if (gameState.isAnswered) return;
-  gameState.isAnswered = true;
+// 次の問題があればそれを表示し、なければ結果画面を表示する共通処理。
+// 「次へ」ボタン・スキップの両方から呼ばれる。
+function goToNextQuestionOrResult() {
+  const hasMoreQuestions = advanceToNextQuestion();
+  if (hasMoreQuestions) {
+    renderQuestion();
+    return;
+  }
 
-  const question = getCurrentQuestion();
-  recordAnswer(false, 0);
-  markChoiceButtons(null);
-  playWrongSound();
-  feedbackElement.textContent = `時間切れ… 不正解（正解は「${question.song.title}」）`;
-  feedbackElement.hidden = false;
-  nextButtonElement.hidden = false;
+  renderResult();
+  showScreen("result");
+}
+
+// 回答済みになったときに、スキップ・答えを見るボタンを隠す共通処理。
+// （選択肢クリック・スキップ・答えを見る、どのルートで回答済みになっても呼ぶ）
+function hideSkipAndRevealButtons() {
+  skipButtonElement.hidden = true;
+  revealButtonElement.hidden = true;
 }
 
 // 選択肢ボタンをクリックしたときの処理。
-// 正解なら残り秒数に応じたスピードボーナス、不正解なら0点として記録する。
+// 正解なら経過秒数に応じた段階式のボーナス、不正解なら0点として記録する。
 function handleChoiceClick(selectedChoice) {
-  // タイムアウトとクリックがほぼ同時に起きても二重に処理しないためのガード。
+  // 他の操作とほぼ同時に起きても二重に処理しないためのガード。
   if (gameState.isAnswered) return;
   gameState.isAnswered = true;
   stopTimer();
+  hideSkipAndRevealButtons();
 
   const question = getCurrentQuestion();
   const isCorrect = selectedChoice.id === question.song.id;
-  const points = isCorrect ? calculateScore(gameState.remainingSec) : 0;
+  const points = isCorrect
+    ? calculateScore(gameState.elapsedSec, question.song.introLeadInSec)
+    : 0;
   recordAnswer(isCorrect, points);
   markChoiceButtons(selectedChoice.id);
   if (isCorrect) {
@@ -143,6 +148,37 @@ function handleChoiceClick(selectedChoice) {
   feedbackElement.textContent = isCorrect
     ? `正解！ +${points}点`
     : `不正解…（正解は「${question.song.title}」）`;
+  feedbackElement.hidden = false;
+  nextButtonElement.hidden = false;
+}
+
+// 「スキップ」ボタンを押したときの処理。
+// 0点として記録し、正解は見せずにそのまま次の問題（または結果画面）へ進める。
+function handleSkip() {
+  if (gameState.isAnswered) return;
+  gameState.isAnswered = true;
+  stopTimer();
+  stopAudio();
+  playClickSound();
+
+  recordAnswer(false, 0);
+  goToNextQuestionOrResult();
+}
+
+// 「答えを見る」ボタンを押したときの処理。
+// 0点として記録し、正解の曲名を表示してから「次へ」ボタンで進めるようにする。
+function handleReveal() {
+  if (gameState.isAnswered) return;
+  gameState.isAnswered = true;
+  stopTimer();
+  stopAudio();
+  hideSkipAndRevealButtons();
+
+  const question = getCurrentQuestion();
+  recordAnswer(false, 0);
+  markChoiceButtons(null);
+  playWrongSound();
+  feedbackElement.textContent = `正解は「${question.song.title}」でした`;
   feedbackElement.hidden = false;
   nextButtonElement.hidden = false;
 }
@@ -175,11 +211,13 @@ function renderQuestion() {
 
   feedbackElement.hidden = true;
   nextButtonElement.hidden = true;
+  skipButtonElement.hidden = false;
+  revealButtonElement.hidden = false;
   audioErrorElement.hidden = true;
   clearChoiceButtonStates();
 
   playSongIntro(question.song, showAudioError);
-  startTimer(updateTimerDisplay, handleTimeout);
+  startTimer(updateTimerDisplay);
 }
 
 // 結果画面に、合計得点・自己ベスト・1問ごとの内訳を反映する。
@@ -242,16 +280,11 @@ document.getElementById("next-button").addEventListener("click", () => {
   playClickSound();
   stopTimer();
   stopAudio();
-
-  const hasMoreQuestions = advanceToNextQuestion();
-  if (hasMoreQuestions) {
-    renderQuestion();
-    return;
-  }
-
-  renderResult();
-  showScreen("result");
+  goToNextQuestionOrResult();
 });
+
+skipButtonElement.addEventListener("click", handleSkip);
+revealButtonElement.addEventListener("click", handleReveal);
 
 document.getElementById("retry-button").addEventListener("click", () => {
   playClickSound();

@@ -1,27 +1,22 @@
-// 1問あたり10秒のカウントダウンタイマーを担当するファイル。
+// 出題開始からの経過秒数をカウントアップするタイマー。
+// 制限時間による強制終了は行わず、プレイヤーが自分で
+// 「回答する」「スキップする」「答えを見る」のいずれかを選ぶまで数え続ける。
 
-import { gameState, TIME_LIMIT_SEC } from "./state.js";
+import { gameState } from "./state.js";
 
 // タイマーを開始する。
-// onTick    : 1秒経過するたびに、その時点の残り秒数を渡して呼ばれる
-// onTimeout : 残り時間が0になったときに1回だけ呼ばれる
-export function startTimer(onTick, onTimeout) {
-  gameState.remainingSec = TIME_LIMIT_SEC;
-  gameState.isAnswered = false;
-  onTick(gameState.remainingSec);
+// onTick : 1秒経過するたびに、その時点の経過秒数を渡して呼ばれる
+export function startTimer(onTick) {
+  gameState.elapsedSec = 0;
+  onTick(gameState.elapsedSec);
 
   gameState.timerId = setInterval(() => {
-    gameState.remainingSec -= 1;
-    onTick(gameState.remainingSec);
-
-    if (gameState.remainingSec <= 0) {
-      stopTimer();
-      onTimeout();
-    }
+    gameState.elapsedSec += 1;
+    onTick(gameState.elapsedSec);
   }, 1000);
 }
 
-// タイマーを止める。回答が確定した瞬間・画面遷移時に必ず呼ぶ。
+// タイマーを止める。回答・スキップが確定した瞬間や画面遷移時に必ず呼ぶ。
 export function stopTimer() {
   clearInterval(gameState.timerId);
   gameState.timerId = null;

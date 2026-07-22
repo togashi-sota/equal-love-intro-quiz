@@ -2,10 +2,9 @@
 // 音源ファイルが見つからない/再生に失敗しても、例外を投げっぱなしにせず
 // エラーメッセージ表示用のコールバックを呼ぶだけに留め、アプリ全体を止めないようにする。
 
-// 公開版で使うダミー音源のフォルダ。
-// 本物のイントロ音源をローカルで試したいときは、この値を "assets/audio/local/" に書き換える。
-// ローカル用フォルダは.gitignoreで除外されているため、公開・コミットには含まれない。
-const AUDIO_BASE_PATH = "assets/audio/dummy/";
+// 本物のイントロ音源を置くローカル専用フォルダ。
+// このフォルダは.gitignoreで除外されているため、GitHubには公開されない。
+const AUDIO_BASE_PATH = "assets/audio/local/";
 
 const audioElement = document.getElementById("intro-audio");
 
