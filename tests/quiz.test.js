@@ -14,13 +14,18 @@ import { assertEqual } from "./test-utils.js";
 const samplePool = [
   { id: "a", title: "曲A", category: CATEGORY.TITLE_TRACK },
   { id: "b", title: "曲B", category: CATEGORY.TITLE_TRACK },
-  { id: "c", title: "曲C", category: CATEGORY.COUPLING },
-  { id: "d", title: "曲D", category: CATEGORY.COUPLING },
-  { id: "e", title: "曲E", category: CATEGORY.COUPLING },
+  { id: "c", title: "曲C", category: CATEGORY.GROUP_SONG },
+  { id: "d", title: "曲D", category: CATEGORY.GROUP_SONG },
+  { id: "e", title: "曲E", category: CATEGORY.UNIT_SONG },
 ];
 
 export function runQuizTests() {
   assertEqual(filterSongsByCategory(samplePool, "title-track").length, 2, "表題曲のみで絞り込むと2曲になる");
+  assertEqual(
+    filterSongsByCategory(samplePool, "title-and-group").length,
+    4,
+    "表題曲＋全員曲で絞り込むと、ユニット曲を除いた4曲になる"
+  );
   assertEqual(filterSongsByCategory(samplePool, "all").length, 5, "「全曲」を選ぶと絞り込まれない");
 
   assertEqual(resolveQuestionCount("5", 5), 5, "出題数5・プール5曲 → 5問");

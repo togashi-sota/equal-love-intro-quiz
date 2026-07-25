@@ -5,10 +5,18 @@ import { CATEGORY } from "./data/songs.js";
 // 1問を作るのに最低限必要な曲数（正解1つ＋ダミー3つ＝4曲）。
 const MIN_SONGS_REQUIRED = 4;
 
-// カテゴリの選択値（"all" | "title-track"）に応じて曲を絞り込む。
+// カテゴリの選択値（"all" | "title-and-group" | "title-track"）に応じて曲を絞り込む。
+// title-track      : 表題曲のみ
+// title-and-group  : 表題曲＋全員曲（ユニット曲を除く）
+// all              : 絞り込みなし（ユニット曲も含む全曲）
 export function filterSongsByCategory(songs, categoryFilterValue) {
   if (categoryFilterValue === "title-track") {
     return songs.filter((song) => song.category === CATEGORY.TITLE_TRACK);
+  }
+  if (categoryFilterValue === "title-and-group") {
+    return songs.filter(
+      (song) => song.category === CATEGORY.TITLE_TRACK || song.category === CATEGORY.GROUP_SONG
+    );
   }
   return songs;
 }
