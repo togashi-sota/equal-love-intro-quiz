@@ -709,4 +709,13 @@ export const SONGS = [
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
   },
+  {
+    id: "866",
+    title: "866",
+    category: CATEGORY.GROUP_SONG,
+    releaseDate: "2019-09-12",
+    single: "＝LOVE 2周年記念コンサート関連曲（配信限定）",
+    difficulty: DIFFICULTY.NORMAL,
+    introLeadInSec: 0,
+  },
 ];
