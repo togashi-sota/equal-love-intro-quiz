@@ -44,6 +44,9 @@ export function startQuiz(questions, questionCountValue, categoryFilterValue) {
   gameState.screen = "quiz";
   gameState.questionCountValue = questionCountValue;
   gameState.categoryFilterValue = categoryFilterValue;
+  // 「もう一度挑戦する」はresetGameState()を経由せずここへ直接来るため、
+  // 前回プレイ最後の回答済み状態が残らないよう、ここで確実にリセットする。
+  gameState.isAnswered = false;
 }
 
 // 今出題中の問題（{ song, choices }）を取得する。

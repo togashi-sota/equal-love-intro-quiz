@@ -303,14 +303,10 @@ choiceButtonElements.forEach((button, index) => {
   });
 });
 
-// スタートボタンを押したときの処理。
-// 出題数・カテゴリの選択を読み取り、出題可能な曲プールを絞り込んで検証してから、
-// 問題一式を生成してクイズを開始する。
-document.getElementById("start-button").addEventListener("click", () => {
-  playClickSound();
-  const questionCountValue = document.querySelector('input[name="question-count"]:checked').value;
-  const categoryFilterValue = document.querySelector('input[name="category-filter"]:checked').value;
-
+// 指定した出題数・カテゴリで、曲プールの絞り込み・検証から問題生成までを行い、
+// クイズ画面を開始する共通処理。スタートボタンと、結果画面の「もう一度挑戦する」の
+// 両方から呼ばれる（後者は毎回この関数を通すことで、曲順・4択が必ず再抽選される）。
+function beginQuiz(questionCountValue, categoryFilterValue) {
   const pool = filterSongsByCategory(SONGS, categoryFilterValue);
   const errorMessage = validatePoolSize(pool);
 
@@ -327,6 +323,14 @@ document.getElementById("start-button").addEventListener("click", () => {
   renderQuestion();
 
   showScreen("quiz");
+}
+
+// スタートボタンを押したときの処理。今選ばれている出題数・カテゴリを読み取って開始する。
+document.getElementById("start-button").addEventListener("click", () => {
+  playClickSound();
+  const questionCountValue = document.querySelector('input[name="question-count"]:checked').value;
+  const categoryFilterValue = document.querySelector('input[name="category-filter"]:checked').value;
+  beginQuiz(questionCountValue, categoryFilterValue);
 });
 
 document.getElementById("next-button").addEventListener("click", () => {
@@ -339,7 +343,17 @@ document.getElementById("next-button").addEventListener("click", () => {
 skipButtonElement.addEventListener("click", handleSkip);
 revealButtonElement.addEventListener("click", handleReveal);
 
+// 「もう一度挑戦する」：スタート画面を経由せず、直前と同じ出題数・カテゴリのまま
+// クイズを再抽選して開始する。
 document.getElementById("retry-button").addEventListener("click", () => {
+  playClickSound();
+  stopTimer();
+  stopAudio();
+  beginQuiz(gameState.questionCountValue, gameState.categoryFilterValue);
+});
+
+// 「タイトルに戻る」：出題数・カテゴリの選択も含めて初期状態に戻し、スタート画面へ。
+document.getElementById("back-to-title-button").addEventListener("click", () => {
   playClickSound();
   stopTimer();
   stopAudio();
