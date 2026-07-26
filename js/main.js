@@ -22,6 +22,10 @@ import { startTimer, stopTimer } from "./timer.js";
 import { calculateScore, calculateRank } from "./score.js";
 import { getHighScore, saveHighScoreIfBetter } from "./highscore.js";
 import { playClickSound, playCorrectSound, playWrongSound, playCountUpSound } from "./sfx.js";
+import { renderBackgroundSparkles } from "./decorations.js";
+
+// 背景のキラキラ演出は、ゲームの状態と関係なく最初に1回だけ生成すればよい。
+renderBackgroundSparkles();
 
 const startScreenElement = document.getElementById("start-screen");
 const quizScreenElement = document.getElementById("quiz-screen");

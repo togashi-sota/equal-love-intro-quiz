@@ -2,19 +2,33 @@
    色・フォント・影・アニメーション時間などをCSS変数にまとめておく。
    後で色味や動きの速さを調整したいときは、ここだけ直せばよい。 */
 :root {
-  /* カラートークン */
-  --color-primary: #ff5da2;       /* メインのピンク */
-  --color-primary-dark: #e8408a;  /* 見出しや強調テキスト */
-  --color-primary-light: #ffd7ea; /* ホバー時の淡い光・背景アクセント */
-  --color-accent: #ffd166;        /* 正解演出などの強調カラー（黄） */
-  --color-danger: #ff6b6b;        /* 不正解・エラー用のやわらかい赤 */
-  --color-background-start: #fff0f6; /* 背景グラデーションの開始色 */
-  --color-background-end: #f6ecff;   /* 背景グラデーションの終了色（淡い紫寄り） */
-  --color-surface: #ffffff;       /* カードなどの背景 */
-  --color-text: #3a2233;          /* 基本の文字色 */
+  /* カラートークン：メインはパステルピンク、サブにパステルブルー、差し色にレモンイエロー。
+     ＝LOVEのCDジャケット（プールモチーフ・シトロンモチーフ）の配色を参考にしたオリジナル配色。 */
+  --color-primary: #ff6fa8;         /* メインのパステルピンク */
+  --color-primary-dark: #ff4f96;    /* 見出しや強調テキスト、濃いめのピンク */
+  --color-primary-light: #ffe1ee;   /* ホバー時の淡い光・背景アクセント */
+  --color-secondary: #6fbdf2;       /* サブカラーのパステルブルー */
+  --color-secondary-light: #dff2ff; /* 背景グラデーションや淡いアクセント */
+  --color-accent: #ffd93d;          /* レモンイエロー。正解演出やキラキラなど特別な演出の差し色 */
+  --color-accent-soft: #fff2bf;     /* 差し色の淡いバージョン（バッジや正解セルの背景など） */
+  --color-danger: #ff6b6b;          /* 不正解・エラー用のやわらかい赤 */
+  --color-danger-soft: #fff0ee;     /* 不正解セルなど、赤の淡いバージョン */
+  --color-background-start: #fff7f9; /* 背景グラデーションの開始色 */
+  --color-background-end: #dff2ff;   /* 背景グラデーションの終了色（パステルブルー） */
+  --color-surface: #ffffff;          /* 不透明な背景（結果一覧の行など） */
+  --color-surface-glass: rgba(255, 255, 255, 0.6); /* ガラス風カードの半透明背景 */
+  --color-card-border: rgba(255, 255, 255, 0.8);   /* ガラス風カードの縁取り */
+  --color-text: #4a2e42;          /* 基本の文字色 */
 
-  /* ゲームカードの影 */
-  --shadow-card: 0 12px 32px rgba(255, 93, 162, 0.25);
+  /* ガラス風カードの影・ぼかし */
+  --shadow-card: 0 24px 60px -14px rgba(255, 79, 150, 0.38), 0 6px 18px rgba(255, 79, 150, 0.16);
+  --blur-glass: 20px;
+
+  /* 背景演出の濃さ。強すぎるとカードの読みやすさを邪魔するので、控えめな値にしている */
+  --pattern-opacity: 0.28;
+  --vinyl-opacity: 0.12;
+  --blob-opacity: 0.38;
+  --sparkle-opacity: 0.85;
 
   /* フォント：丸みのある読みやすい日本語フォントを優先し、
      読み込めない環境ではOS標準の丸みのあるゴシックにフォールバックする */
@@ -31,6 +45,8 @@
 }
 
 body {
+  position: relative; /* 背景演出（光の玉・レコード盤など）の位置基準にする */
+  overflow: hidden; /* 背景演出がはみ出して横スクロールが出るのを防ぐ */
   margin: 0;
   min-height: 100vh;
   font-family: var(--font-family-base);
@@ -44,19 +60,192 @@ body {
   padding: 40px 16px;
 }
 
+/* ===== 背景演出 =====
+   うっすらギンガムチェック・ステージライトのようににじむ光・ぼかしたレコード盤・キラキラの粒で、
+   ＝LOVEらしい華やかさと音楽ゲームらしさを、カードの外側（背景）で表現する。 */
+
+/* うっすらギンガムチェック模様。＝LOVEの衣装に多いチェック柄を、控えめな透かし模様として */
+.bg-pattern {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: var(--pattern-opacity);
+  background-image:
+    linear-gradient(45deg, var(--color-primary-light) 25%, transparent 25%, transparent 75%, var(--color-primary-light) 75%),
+    linear-gradient(45deg, var(--color-primary-light) 25%, transparent 25%, transparent 75%, var(--color-primary-light) 75%);
+  background-size: 26px 26px;
+  background-position: 0 0, 13px 13px;
+}
+
+/* 背景に漂わせる、ぼかしたレコード盤のシルエット。音楽ゲームらしさを遠景でさりげなく主張する */
+.bg-vinyl {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: var(--vinyl-opacity);
+  filter: blur(1.5px);
+  background:
+    repeating-radial-gradient(circle at 50% 50%, transparent 0 9px, rgba(255, 255, 255, 0.55) 9px 10px),
+    conic-gradient(from 0deg, var(--color-primary), var(--color-secondary), var(--color-accent), var(--color-primary));
+}
+
+.bg-vinyl.v1 {
+  width: 300px;
+  height: 300px;
+  top: 4%;
+  right: -110px;
+  animation: spinSlow 46s linear infinite;
+}
+
+.bg-vinyl.v2 {
+  width: 220px;
+  height: 220px;
+  bottom: -60px;
+  left: -70px;
+  animation: spinSlow 60s linear infinite reverse;
+}
+
+@keyframes spinSlow {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ステージライトのようににじむ光の玉。3色をそれぞれゆっくり漂わせる */
+.light-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(64px);
+  opacity: var(--blob-opacity);
+  pointer-events: none;
+}
+
+.light-blob.pink {
+  width: 46vw;
+  height: 46vw;
+  max-width: 420px;
+  max-height: 420px;
+  background: radial-gradient(circle, var(--color-primary) 0%, transparent 70%);
+  top: -12%;
+  left: -14%;
+  animation: drift1 16s ease-in-out infinite;
+}
+
+.light-blob.blue {
+  width: 40vw;
+  height: 40vw;
+  max-width: 380px;
+  max-height: 380px;
+  background: radial-gradient(circle, var(--color-secondary) 0%, transparent 70%);
+  top: 8%;
+  right: -16%;
+  animation: drift2 19s ease-in-out infinite;
+}
+
+.light-blob.yellow {
+  width: 30vw;
+  height: 30vw;
+  max-width: 300px;
+  max-height: 300px;
+  background: radial-gradient(circle, var(--color-accent) 0%, transparent 72%);
+  bottom: -8%;
+  left: 18%;
+  animation: drift3 14s ease-in-out infinite;
+}
+
+@keyframes drift1 {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(4%, 5%) scale(1.08);
+  }
+}
+
+@keyframes drift2 {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(-5%, 4%) scale(1.05);
+  }
+}
+
+@keyframes drift3 {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(3%, -6%) scale(1.1);
+  }
+}
+
+/* キラキラの粒（音符・星・ハート）。生成自体はjs/decorations.jsが行う */
+.sparkle-field {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.spark {
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+  width: var(--s);
+  height: var(--s);
+  opacity: 0;
+  color: var(--spark-color, var(--color-accent));
+  animation: twinkle 3.2s ease-in-out infinite;
+  animation-delay: var(--d);
+}
+
+.spark svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+@keyframes twinkle {
+  0%, 100% {
+    opacity: 0;
+    transform: scale(0.4) rotate(0deg);
+  }
+  50% {
+    opacity: var(--sparkle-opacity);
+    transform: scale(1) rotate(20deg);
+  }
+}
+
 /* ===== ゲームフレーム =====
    PCで開いても「スマホゲームをプレイしている」ように見せるための、中央に浮かぶカード。 */
 .game-frame {
+  z-index: 2; /* 背景演出より必ず手前に表示する */
+  position: relative; /* 上端のリボンラインの位置基準にする */
   width: 100%;
   max-width: 480px;
-  background-color: var(--color-surface);
+  background: var(--color-surface-glass);
+  backdrop-filter: blur(var(--blur-glass)) saturate(150%);
+  -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(150%);
+  border: 1px solid var(--color-card-border);
   border-radius: 24px;
-  box-shadow: var(--shadow-card);
+  /* 外側のふんわりした影に、ガラスの縁が光を受けているような内側のハイライトを重ねる */
+  box-shadow: var(--shadow-card), inset 0 1px 0 rgba(255, 255, 255, 0.6);
   overflow: hidden;
 }
 
+/* カード上端の三色リボンライン。ピンク→ブルー→イエローの配色をひと目で示す */
+.game-frame::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  background: linear-gradient(90deg, var(--color-primary), var(--color-secondary) 50%, var(--color-accent));
+}
+
 /* ===== 画面切り替え用の共通クラス =====
-   screens.js から .is-active を付け外しして表示を切り替える想定（次のステップで実装）。 */
+   screens.js が .is-active を付け外しして、start/quiz/result画面の表示を切り替える。 */
 .screen {
   display: none;
   padding: 24px;
@@ -64,24 +253,70 @@ body {
 
 .screen.is-active {
   display: block;
-  /* 画面が切り替わった瞬間にふわっと表示されるフェードイン演出 */
-  animation: fadeIn var(--transition-slow) ease-out;
+  /* 画面が切り替わった瞬間、ふわっと浮かび上がるように表示する */
+  animation: screenEnter 480ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-@keyframes fadeIn {
+@keyframes screenEnter {
   from {
     opacity: 0;
+    transform: translateY(14px) scale(0.98);
   }
   to {
     opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 
 /* ===== タイトル周りの装飾 ===== */
-.app-logo {
-  display: block;
-  margin: 0 auto 4px;
-  animation: logoFloat 3s ease-in-out infinite;
+
+/* カード上端に添える小さな星の飾り。カード（.game-frame）基準の絶対位置に表示する */
+.ribbon-charm {
+  position: absolute;
+  top: 10px;
+  right: 22px;
+  width: 16px;
+  height: 16px;
+  color: var(--color-accent);
+  filter: drop-shadow(0 2px 4px rgba(255, 217, 61, 0.5));
+  animation: titleTwinkle 2.4s ease-in-out infinite;
+}
+
+.title-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* 「MUSIC INTRO QUIZ」の小さなラベルチップ */
+.eyebrow-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 14px;
+  padding: 5px 15px;
+  border-radius: 999px;
+  background: var(--color-surface-glass);
+  border: 1px solid var(--color-card-border);
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  color: var(--color-primary-dark);
+}
+
+.eyebrow-chip .mini-star {
+  width: 9px;
+  height: 9px;
+  flex: none;
+}
+
+/* ===== ロゴ：パステルカラーのレコード盤がゆっくり回転する ===== */
+.logo-badge {
+  position: relative;
+  width: 62px;
+  height: 62px;
+  margin: 0 0 14px;
+  animation: logoFloat 3.4s ease-in-out infinite;
 }
 
 @keyframes logoFloat {
@@ -93,23 +328,151 @@ body {
   }
 }
 
-/* ===== 見出し ===== */
-h1 {
-  margin-top: 0;
-  color: var(--color-primary-dark);
-  text-align: center;
-  font-size: 1.8rem;
-  font-weight: 800;
+.vinyl-spin {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background:
+    repeating-radial-gradient(circle at 50% 50%, transparent 0 6px, rgba(255, 255, 255, 0.75) 6px 7px),
+    conic-gradient(from 200deg, var(--color-primary-light), var(--color-secondary-light) 40%, var(--color-accent-soft) 70%, var(--color-primary-light));
+  border: 1px solid var(--color-card-border);
+  box-shadow: 0 10px 22px -8px rgba(255, 111, 168, 0.55), inset 0 0 0 1px rgba(255, 255, 255, 0.4);
+  animation: spinSlow 7s linear infinite;
 }
 
-/* タイトルの左右に音符の飾りを添える */
-h1::before,
-h1::after {
-  content: "♪";
-  display: inline-block;
+/* レコード盤に映り込む、光の反射 */
+.vinyl-spin::after {
+  content: "";
+  position: absolute;
+  top: 8%;
+  left: 18%;
+  width: 30%;
+  height: 14%;
+  background: rgba(255, 255, 255, 0.65);
+  border-radius: 50%;
+  filter: blur(1px);
+  transform: rotate(-25deg);
+}
+
+/* レコード盤の中心ラベル */
+.vinyl-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 22px;
+  height: 22px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, var(--color-primary), var(--color-primary-dark));
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.vinyl-center svg {
+  width: 11px;
+  height: 11px;
+  color: #ffffff;
+}
+
+/* ===== 見出し ===== */
+h1 {
+  position: relative;
+  margin: 0;
+  text-align: center;
+  font-size: clamp(1.4rem, 5vw, 1.7rem);
+  font-weight: 800;
+  color: var(--color-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+h1 .eq {
+  color: var(--color-primary-dark);
+}
+
+/* タイトル左右の、星を添えた特別仕様の音符アイコン */
+h1 .note-icon {
+  width: 1.05em;
+  height: 1.05em;
+  flex: none;
+}
+
+h1 .note-icon.left {
+  color: var(--color-secondary);
+}
+
+h1 .note-icon.right {
+  color: var(--color-primary);
+}
+
+h1 .note-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* タイトルの左右上に瞬く、小さな星 */
+.title-spark {
+  position: absolute;
+  width: 12px;
+  height: 12px;
   color: var(--color-accent);
-  font-size: 1.2rem;
-  margin: 0 8px;
+  animation: titleTwinkle 2.2s ease-in-out infinite;
+}
+
+.title-spark.tl {
+  top: -10px;
+  left: 6%;
+  animation-delay: 0.3s;
+}
+
+.title-spark.tr {
+  top: -12px;
+  right: 4%;
+  animation-delay: 0.9s;
+}
+
+@keyframes titleTwinkle {
+  0%, 100% {
+    opacity: 0.35;
+    transform: scale(0.8) rotate(0deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15) rotate(18deg);
+  }
+}
+
+/* ===== イコライザー風の飾り区切り。曲が流れているような臨場感を添える ===== */
+.eq-divider {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 4px;
+  height: 22px;
+  margin: 14px 0 20px;
+}
+
+.eq-divider span {
+  width: 3.5px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, var(--color-secondary), var(--color-primary) 60%, var(--color-accent));
+  height: 6px;
+  animation: eqBounce 1.1s ease-in-out infinite;
+}
+
+@keyframes eqBounce {
+  0%, 100% {
+    height: 5px;
+  }
+  50% {
+    height: var(--peak, 16px);
+  }
 }
 
 h2 {
@@ -159,10 +522,19 @@ fieldset label {
   transition: background-color var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
 }
 
-/* 選択されている項目は、ピンクで塗りつぶした状態にする */
+/* 選択されている項目は、ピンク→ブルーのグラデーションで塗りつぶし、左側に小さなキラキラ印を添える */
 fieldset label:has(input:checked) {
-  background-color: var(--color-primary);
+  background: linear-gradient(120deg, var(--color-primary-dark), var(--color-primary) 55%, var(--color-secondary));
   color: #ffffff;
+  border-color: transparent;
+  box-shadow: 0 6px 16px -4px rgba(255, 79, 150, 0.55);
+}
+
+fieldset label:has(input:checked)::before {
+  content: "✦";
+  margin-right: 4px;
+  font-size: 0.75em;
+  color: var(--color-accent-soft);
 }
 
 fieldset label:active {
@@ -181,21 +553,62 @@ fieldset label:has(input:focus-visible) {
   outline-offset: 2px;
 }
 
-/* ===== ボタン共通 ===== */
+/* ===== ボタン共通 =====
+   ピンク→ブルーのグラデーションに、常時ゆるく光るパルスと、
+   時々横切る光沢（シャイン）を加えて、ステージのライトのような高級感を出す。 */
 .primary-button {
+  position: relative;
   display: block;
   width: 100%;
   margin-top: 16px;
   padding: 14px;
   border: none;
   border-radius: 999px;
-  background-color: var(--color-primary);
+  overflow: hidden;
+  background: linear-gradient(120deg, var(--color-primary-dark), var(--color-primary) 45%, var(--color-secondary));
+  background-size: 200% auto;
   color: #ffffff;
   font-family: inherit;
   font-size: 1rem;
   font-weight: 700;
   cursor: pointer;
-  transition: transform var(--transition-fast), box-shadow var(--transition-base);
+  box-shadow: 0 14px 30px -10px rgba(255, 79, 150, 0.55);
+  animation: primaryButtonGlow 2.6s ease-in-out infinite;
+  transition: transform var(--transition-fast) cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow var(--transition-base), background-position 0.6s ease;
+}
+
+/* ボタンの上を斜めに横切る光沢。曲が流れるステージのスポットライットのような演出 */
+.primary-button::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -60%;
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.65), transparent);
+  transform: skewX(-20deg);
+  animation: primaryButtonShine 3.4s ease-in-out infinite;
+}
+
+@keyframes primaryButtonShine {
+  0% {
+    left: -60%;
+  }
+  35%,
+  100% {
+    left: 130%;
+  }
+}
+
+@keyframes primaryButtonGlow {
+  0%,
+  100% {
+    box-shadow: 0 14px 30px -10px rgba(255, 79, 150, 0.55);
+  }
+  50% {
+    box-shadow: 0 14px 38px -6px rgba(255, 79, 150, 0.75), 0 0 0 6px rgba(111, 189, 242, 0.12);
+  }
 }
 
 /* hidden属性が付いているときは、display:blockより優先して非表示にする */
@@ -203,15 +616,18 @@ fieldset label:has(input:focus-visible) {
   display: none;
 }
 
-/* 押した瞬間に少し縮んで、指で押している感覚を出す */
+/* 押した瞬間に少し縮んで、指で押している感覚を出す。バウンドするような戻り方にして押し心地を強調する */
 .primary-button:active {
-  transform: scale(0.96);
+  transform: scale(0.95);
+  box-shadow: 0 6px 14px -6px rgba(255, 79, 150, 0.5);
 }
 
-/* マウスでホバーできる端末でだけ、軽く光らせる（スマホ等のタッチ端末では付けない） */
+/* マウスでホバーできる端末でだけ、光沢の位置を流しつつ少し浮き上がらせる */
 @media (hover: hover) {
   .primary-button:hover {
-    box-shadow: 0 0 0 4px var(--color-primary-light);
+    background-position: 100% center;
+    box-shadow: 0 18px 36px -8px rgba(255, 79, 150, 0.65);
+    transform: translateY(-1px);
   }
 }
 
@@ -290,7 +706,7 @@ fieldset label:has(input:focus-visible) {
 /* 正解の選択肢：黄色く縁取りしつつ、軽く跳ねるように拡大縮小し、✨マークを飛ばす */
 .choice-button.is-correct {
   border-color: var(--color-accent);
-  background-color: #fff8e1;
+  background-color: var(--color-accent-soft);
   animation: correctPop var(--transition-slow) ease-out;
 }
 
@@ -333,7 +749,7 @@ fieldset label:has(input:focus-visible) {
 /* 不正解として選んでしまった選択肢：赤みを帯びて、軽く横に揺れる */
 .choice-button.is-wrong {
   border-color: var(--color-danger);
-  background-color: #fff0ee;
+  background-color: var(--color-danger-soft);
   animation: shake var(--transition-slow) ease-in-out;
 }
 
@@ -402,7 +818,7 @@ fieldset label:has(input:focus-visible) {
 /* ===== メッセージ類 ===== */
 .error-message {
   color: var(--color-danger);
-  background-color: #fff0ee;
+  background-color: var(--color-danger-soft);
   border: 1px solid var(--color-danger);
   border-radius: 8px;
   padding: 8px 12px;
@@ -475,7 +891,7 @@ fieldset label:has(input:focus-visible) {
   font-size: 1.1rem;
   font-weight: 800;
   color: var(--color-primary-dark);
-  background-color: #fff8e1;
+  background-color: var(--color-accent-soft);
   border-radius: 8px;
   padding: 6px 12px;
   animation: rankPop var(--transition-slow) ease-out;
@@ -494,11 +910,11 @@ fieldset label:has(input:focus-visible) {
 
 /* 正解した問題は正解の選択肢と同じ黄色系トーンに、不正解は赤系トーンにして一目で分かるようにする */
 #answer-log-list li.is-correct-row {
-  background-color: #fff8e1;
+  background-color: var(--color-accent-soft);
 }
 
 #answer-log-list li.is-wrong-row {
-  background-color: #fff0ee;
+  background-color: var(--color-danger-soft);
 }
 
 /* ===== レスポンシブ：スマホ幅（520px以下） =====
