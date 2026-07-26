@@ -1095,31 +1095,32 @@ fieldset label:has(input:focus-visible) {
   line-height: 1;
 }
 
-/* ワンポイントの星飾り。デフォルトでは非表示にしておき、ランクごとに必要な分だけ表示する */
+/* ワンポイントの星飾り。デフォルトでは非表示にしておき、ランクごとに必要な分だけ表示する。
+   王冠（メダルの真上）と高さ・位置をずらし、密集して見えないようにしている。 */
 .rank-medal-spark {
   display: none;
   position: absolute;
-  top: -6px;
+  top: -3px;
   width: 14px;
   height: 14px;
 }
 
 .rank-medal-spark-left {
-  left: -6px;
+  left: -9px;
 }
 
 .rank-medal-spark-right {
-  right: -6px;
+  right: -9px;
 }
 
-/* 王冠。Sランクのときだけ表示する */
+/* 王冠。Sランクのときだけ表示する。星飾りより少し小さめにして、密集感を抑えている */
 .rank-crown {
   display: none;
   position: absolute;
-  top: -15px;
+  top: -12px;
   left: 50%;
-  width: 30px;
-  height: 20px;
+  width: 26px;
+  height: 17px;
   transform: translateX(-50%);
 }
 
@@ -1176,11 +1177,17 @@ fieldset label:has(input:focus-visible) {
   }
 }
 
-/* ----- Aランク：濃いピンクのメダル。白文字＋星1つ ----- */
+/* ----- Aランク：濃いピンクのメダル。白文字＋星1つ。
+   飾りを増やすのではなく、内側の二重リングと上部のハイライトで
+   「金属的な質感のあるメダル」に近づけている（単なる丸ボタンに見えないように） ----- */
 .rank-a .rank-medal-circle {
-  border: 2px solid rgba(255, 255, 255, 0.8);
-  background: linear-gradient(160deg, var(--color-primary), var(--color-primary-dark));
-  box-shadow: 0 10px 24px -10px rgba(255, 79, 150, 0.55);
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  background:
+    radial-gradient(ellipse at 50% 14%, rgba(255, 255, 255, 0.4), transparent 55%),
+    linear-gradient(160deg, var(--color-primary), var(--color-primary-dark));
+  box-shadow:
+    0 10px 24px -10px rgba(255, 79, 150, 0.55),
+    inset 0 0 0 3px rgba(255, 255, 255, 0.22);
 }
 
 .rank-a .rank-letter {
@@ -1203,9 +1210,11 @@ fieldset label:has(input:focus-visible) {
   color: #2c6ea8;
 }
 
-/* ----- Cランク：点線の縁取り。メダルというより「よくがんばりました」に近い、優しい見た目 ----- */
+/* ----- Cランク：薄い実線の縁取り。メダルというより「よくがんばりました」に近い、優しい見た目。
+   点線は「無効状態・未設定」のUIと誤解されやすいため、薄い一重の実線に変更した（2026-07-27）。
+   光や飾りを足さず、4段階の中で一番シンプルな見た目のままにしている。 ----- */
 .rank-c .rank-medal-circle {
-  border: 2px dashed #cfc6db;
+  border: 2px solid #cfc6db;
   background: linear-gradient(160deg, #f3f0f8, #dcd6e6);
 }
 
