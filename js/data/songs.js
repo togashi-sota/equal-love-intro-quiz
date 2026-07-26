@@ -2,14 +2,19 @@
 // ここにはゲームのロジックを書かず、「曲のデータそのもの」だけを置く。
 // 曲を追加・変更したいときは、このファイルだけを編集すればよい。
 
-// 曲のカテゴリ（表題曲/全員曲/ユニット曲）を表す定数。
-// シングルでもアルバムでも、収録曲はこの3種類のどれかに分類される
+// 曲のカテゴリ（表題曲/全員曲/ユニット曲/特別枠）を表す定数。
+// シングルでもアルバムでも、通常の収録曲はこの中の3種類（表題曲/全員曲/ユニット曲）のどれかに分類される
 // （「アルバム収録」かどうかは category ではなく single フィールドで表す）。
+// SPECIALは、Overtureのように「表題曲のみ」「表題曲＋全員曲」モードには出したくないが、
+// 「全曲」モードでは出したい曲のための特別枠。
+// filterSongsByCategory（quiz.js）は「全曲」を選んだとき絞り込みを一切行わないので、
+// SPECIALの曲は自動的に「全曲」モードにだけ登場する。
 // 文字列を直接あちこちに書くと、タイプミスに気づきにくいのでここでまとめて定義する。
 export const CATEGORY = {
   TITLE_TRACK: "表題曲",
   GROUP_SONG: "全員曲",
   UNIT_SONG: "ユニット曲",
+  SPECIAL: "特別枠",
 };
 
 // 曲の難易度を表す定数。
@@ -716,6 +721,15 @@ export const SONGS = [
     releaseDate: "2019-09-12",
     single: "＝LOVE 2周年記念コンサート関連曲（配信限定）",
     difficulty: DIFFICULTY.NORMAL,
+    introLeadInSec: 0,
+  },
+  {
+    id: "overture",
+    title: "Overture",
+    category: CATEGORY.SPECIAL,
+    releaseDate: "2021-05-12",
+    single: "1stアルバム「全部、内緒。」収録（ライブオープニング定番曲）",
+    difficulty: DIFFICULTY.HARD,
     introLeadInSec: 0,
   },
 ];
