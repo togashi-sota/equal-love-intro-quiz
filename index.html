@@ -15,29 +15,32 @@
 
   <link rel="stylesheet" href="css/style.css">
 </head>
-<body>
+<body data-screen="start">
 
   <!-- 背景演出：うっすらギンガムチェック模様・ぼかしたレコード盤・ステージライトの光・キラキラの粒。
-       ゲームの内容とは無関係な飾りなので、スクリーンリーダーには読み上げさせない。 -->
-  <div class="bg-pattern" aria-hidden="true"></div>
-  <div class="bg-vinyl v1" aria-hidden="true"></div>
-  <div class="bg-vinyl v2" aria-hidden="true"></div>
-  <div class="light-blob pink" aria-hidden="true"></div>
-  <div class="light-blob blue" aria-hidden="true"></div>
-  <div class="light-blob yellow" aria-hidden="true"></div>
-  <div id="sparkle-field" class="sparkle-field" aria-hidden="true"></div>
+       ゲームの内容とは無関係な飾りなので、スクリーンリーダーには読み上げさせない。
+       画面に固定した入れ物（.bg-decorations）に収め、はみ出す部分は必ず切り取ることで、
+       ページ本体のスクロールに影響を与えないようにしている。 -->
+  <div class="bg-decorations" aria-hidden="true">
+    <div class="bg-pattern"></div>
+    <div class="bg-vinyl v1"></div>
+    <div class="bg-vinyl v2"></div>
+    <div class="light-blob pink"></div>
+    <div class="light-blob blue"></div>
+    <div class="light-blob yellow"></div>
+    <div id="sparkle-field" class="sparkle-field"></div>
+  </div>
 
   <!-- ゲームフレーム：PCで開いてもスマホゲームのように見える、中央のカード -->
   <main class="game-frame">
 
-    <!-- スタート画面：出題数とカテゴリを選んでクイズを開始する画面 -->
-    <!-- 今はまだ画面切り替えの仕組み（screens.js）がないので、is-active を付けて仮に表示している -->
-    <section id="start-screen" class="screen is-active">
-      <!-- カード上端に添える小さな星の飾り。CSS側でカード基準の絶対位置に配置する -->
-      <span class="ribbon-charm" aria-hidden="true">
-        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
-      </span>
+    <!-- カード上端に添える小さな星の飾り。どの画面でも常に表示される、カード自体の装飾 -->
+    <span class="ribbon-charm" aria-hidden="true">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+    </span>
 
+    <!-- スタート画面：出題数とカテゴリを選んでクイズを開始する画面 -->
+    <section id="start-screen" class="screen is-active">
       <div class="title-block">
         <p class="eyebrow-chip">
           <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
@@ -102,6 +105,17 @@
         <label><input type="radio" name="category-filter" value="title-track"> 表題曲のみ</label>
       </fieldset>
 
+      <!-- 選択中の出題数・カテゴリに対応する自己ベスト。ラジオボタンを切り替えるたびにJSで更新する。
+           記録の有無で見た目（トロフィー・文字の色）が変わるよう、is-emptyクラスをJS側で付け外しする。 -->
+      <p id="mode-best-chip" class="mode-best-chip is-empty">
+        <svg id="mode-best-icon" class="mode-best-icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+          <path d="M5 3h10v3a5 5 0 0 1-4 4.9V13h2v2H7v-2h2v-2.1A5 5 0 0 1 5 6V3Z"/>
+          <path d="M5 4H2v1a3 3 0 0 0 3 3V4ZM15 4h3v1a3 3 0 0 1-3 3V4Z"/>
+        </svg>
+        <span id="mode-best-condition" class="mode-best-condition">5問・全曲</span>
+        <span id="mode-best-value" class="mode-best-value">ベスト 記録なし</span>
+      </p>
+
       <!-- 曲数が足りない場合などのエラーメッセージ。普段は空・非表示 -->
       <p id="start-error" class="error-message" hidden></p>
 
@@ -131,8 +145,20 @@
 
       <!-- 分からないときに使う、スキップ・答えを見るボタン。回答すると隠れる -->
       <div id="quiz-actions">
-        <button id="skip-button" class="secondary-button" type="button">スキップ</button>
-        <button id="reveal-button" class="secondary-button" type="button">答えを見る</button>
+        <button id="skip-button" class="secondary-button" type="button">
+          <svg class="button-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M5 5v14l9-7-9-7Z" fill="currentColor"/>
+            <rect x="16" y="5" width="3" height="14" rx="1" fill="currentColor"/>
+          </svg>
+          スキップ
+        </button>
+        <button id="reveal-button" class="secondary-button" type="button">
+          <svg class="button-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M12 5c-5 0-9 4.5-10 7 1 2.5 5 7 10 7s9-4.5 10-7c-1-2.5-5-7-10-7Z" stroke="currentColor" stroke-width="1.8"/>
+            <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/>
+          </svg>
+          答えを見る
+        </button>
       </div>
 
       <!-- 正解/不正解の結果。普段は空・非表示 -->
@@ -143,17 +169,62 @@
 
     <!-- 結果画面：合計得点と内訳を表示し、リトライできる画面 -->
     <section id="result-screen" class="screen">
-      <h2>結果発表</h2>
-      <p id="total-score-display">合計得点: 0点</p>
-      <p id="rank-display">ランク: C</p>
-      <p id="high-score-display">自己ベスト: 0点</p>
-      <!-- 自己ベストを更新したときだけ表示するお知らせ。普段は空・非表示 -->
-      <p id="new-record-badge" hidden>🎉 新記録！</p>
+      <div class="title-block">
+        <p class="eyebrow-chip">
+          <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+          RESULT
+        </p>
+        <h2>
+          <span class="title-spark tl" aria-hidden="true">
+            <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+          </span>
+          結果発表
+          <span class="title-spark tr" aria-hidden="true">
+            <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+          </span>
+        </h2>
+      </div>
+      <!-- 得点・ランク・自己ベストをまとめた、達成感を演出するパネル -->
+      <div class="result-stats">
+        <p id="total-score-display">合計得点: 0点</p>
+
+        <!-- ランクバッジ：結果画面の主役。ランクに応じて rank-s/a/b/c のクラスが
+             JS側（main.js）から付け外しされ、メダルの色・縁取り・光・飾りが切り替わる。
+             将来、称号やコメントを添えたくなったら、この中に要素を1つ足すだけでよい構造にしてある。 -->
+        <div id="rank-display" class="rank-badge">
+          <p class="rank-label">ランク</p>
+          <div class="rank-medal">
+            <!-- Sランクの時だけ王冠を表示する（CSS側で .rank-s のときだけ display:block にする） -->
+            <svg class="rank-crown" viewBox="0 0 24 16" fill="currentColor" aria-hidden="true">
+              <path d="M2 14 1 5 6 9 12 2 18 9 23 5 22 14Z"/>
+            </svg>
+            <span class="rank-medal-spark rank-medal-spark-left" aria-hidden="true">
+              <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            </span>
+            <!-- 円そのもの（背景・文字・光の演出）。はみ出す飾り（王冠・星）とは別の階層にして、
+                 光の演出だけを円の中にクリップできるようにしている -->
+            <div class="rank-medal-circle">
+              <span id="rank-letter" class="rank-letter">C</span>
+            </div>
+            <span class="rank-medal-spark rank-medal-spark-right" aria-hidden="true">
+              <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            </span>
+          </div>
+        </div>
+
+        <p id="high-score-display">自己ベスト: 0点</p>
+        <!-- 自己ベストを更新したときだけ表示するお知らせ。普段は空・非表示 -->
+        <p id="new-record-badge" hidden>🎉 新記録！</p>
+      </div>
 
       <!-- 1問ごとの正誤・得点をJSで一覧表示する場所 -->
       <ul id="answer-log-list"></ul>
 
-      <button id="retry-button" class="primary-button" type="button">もう一度挑戦する</button>
+      <!-- ボタン列。今は「もう一度挑戦する」のみだが、将来「タイトルに戻る」を
+           追加したときに横並びにできるよう、あらかじめ囲んでおく -->
+      <div id="result-actions" class="button-row">
+        <button id="retry-button" class="primary-button" type="button">もう一度挑戦する</button>
+      </div>
     </section>
 
   </main>

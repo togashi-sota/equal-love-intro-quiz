@@ -45,8 +45,6 @@
 }
 
 body {
-  position: relative; /* 背景演出（光の玉・レコード盤など）の位置基準にする */
-  overflow: hidden; /* 背景演出がはみ出して横スクロールが出るのを防ぐ */
   margin: 0;
   min-height: 100vh;
   font-family: var(--font-family-base);
@@ -63,6 +61,18 @@ body {
 /* ===== 背景演出 =====
    うっすらギンガムチェック・ステージライトのようににじむ光・ぼかしたレコード盤・キラキラの粒で、
    ＝LOVEらしい華やかさと音楽ゲームらしさを、カードの外側（背景）で表現する。 */
+
+/* 背景演出をまとめて画面に固定する入れ物。
+   光の玉やレコード盤は画面の外側にはみ出す配置にしているため、
+   ここで必ず切り取ることで、ページ本体の縦スクロールに影響を与えないようにする
+   （結果画面など、内容が長くなってスクロールする画面でも、背景はここに固定されたまま動かない）。 */
+.bg-decorations {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
 
 /* うっすらギンガムチェック模様。＝LOVEの衣装に多いチェック柄を、控えめな透かし模様として */
 .bg-pattern {
@@ -214,6 +224,17 @@ body {
     opacity: var(--sparkle-opacity);
     transform: scale(1) rotate(20deg);
   }
+}
+
+/* クイズ画面だけは、プレイ中に一番長く見る画面なので、
+   問題文・タイマー・選択肢の見やすさを最優先にして背景演出を控えめにする。
+   （screens.jsがbodyのdata-screen属性を更新し、ここで画面ごとに参照している） */
+body[data-screen="quiz"] {
+  --pattern-opacity: 0.1;
+  --blob-opacity: 0.16;
+  --vinyl-opacity: 0.05;
+  --sparkle-opacity: 0.3;
+  --color-surface-glass: rgba(255, 255, 255, 0.82);
 }
 
 /* ===== ゲームフレーム =====
@@ -476,11 +497,16 @@ h1 .note-icon svg {
 }
 
 h2 {
-  margin-top: 0;
-  color: var(--color-primary-dark);
+  position: relative;
+  margin: 0;
   text-align: center;
-  font-size: 1.4rem;
+  font-size: clamp(1.3rem, 4.5vw, 1.5rem);
   font-weight: 800;
+  color: var(--color-primary-dark);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
 }
 
 /* ===== 出題数・カテゴリの選択エリア ===== */
@@ -644,6 +670,10 @@ fieldset label:has(input:focus-visible) {
 }
 
 .secondary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   flex: 1;
   padding: 10px;
   border: 2px solid var(--color-primary);
@@ -654,11 +684,17 @@ fieldset label:has(input:focus-visible) {
   font-size: 0.85rem;
   font-weight: 700;
   cursor: pointer;
-  transition: transform var(--transition-fast), background-color var(--transition-base);
+  transition: transform var(--transition-fast) cubic-bezier(0.34, 1.56, 0.64, 1), background-color var(--transition-base);
+}
+
+.secondary-button .button-icon {
+  width: 15px;
+  height: 15px;
+  flex: none;
 }
 
 .secondary-button:active {
-  transform: scale(0.96);
+  transform: scale(0.94);
 }
 
 @media (hover: hover) {
@@ -677,7 +713,7 @@ fieldset label:has(input:focus-visible) {
 }
 
 .choice-button {
-  position: relative; /* キラキラ演出（::after）の位置の基準にする */
+  position: relative; /* キラキラ演出（::after）・番号バッジ（::before）の位置の基準にする */
   min-height: 44px; /* タップしやすいように最小の高さを確保 */
   padding: 14px 8px;
   border: 2px solid var(--color-primary);
@@ -688,11 +724,44 @@ fieldset label:has(input:focus-visible) {
   font-size: 0.95rem;
   font-weight: 700;
   cursor: pointer;
-  transition: transform var(--transition-fast), box-shadow var(--transition-base);
+  transition: transform var(--transition-fast) cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow var(--transition-base);
+}
+
+/* 左上の小さな番号バッジ。キーボードの1〜4キーで選べることが一目で分かるようにする */
+.choice-button::before {
+  content: "";
+  position: absolute;
+  top: -8px;
+  left: -8px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-surface-glass);
+  border: 1px solid var(--color-card-border);
+  color: var(--color-primary-dark);
+  font-size: 0.7rem;
+  font-weight: 800;
+  box-shadow: 0 2px 6px -2px rgba(255, 79, 150, 0.4);
+}
+
+#choice-buttons .choice-button:nth-child(1)::before {
+  content: "1";
+}
+#choice-buttons .choice-button:nth-child(2)::before {
+  content: "2";
+}
+#choice-buttons .choice-button:nth-child(3)::before {
+  content: "3";
+}
+#choice-buttons .choice-button:nth-child(4)::before {
+  content: "4";
 }
 
 .choice-button:active {
-  transform: scale(0.96);
+  transform: scale(0.94);
 }
 
 @media (hover: hover) {
@@ -774,8 +843,25 @@ fieldset label:has(input:focus-visible) {
 /* ===== タイマー（経過秒数）・進捗表示 =====
    タイマーはゲームのHUD（状態表示）なので、少し大きめ・太めにして目立たせる。 */
 #question-progress {
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: fit-content;
+  margin: 0 auto 4px;
+  padding: 5px 14px;
+  border-radius: 999px;
+  background: var(--color-surface-glass);
+  border: 1px solid var(--color-card-border);
+  font-size: 0.8rem;
   font-weight: 700;
+  color: var(--color-primary-dark);
+}
+
+#question-progress::before {
+  content: "♪";
+  color: var(--color-secondary);
+  font-size: 0.9em;
 }
 
 /* 出題の進み具合を示すドット。答え終えた問題・今の問題・まだの問題で見た目を変える */
@@ -801,18 +887,97 @@ fieldset label:has(input:focus-visible) {
   background-color: var(--color-primary);
 }
 
+/* 「今の問題」のドットは、表示された瞬間に軽くポップして目に留まりやすくする */
 .progress-dots .dot.is-current {
   width: 14px;
   height: 14px;
   background-color: var(--color-accent);
   border-color: var(--color-accent);
+  animation: dotPop 320ms ease-out;
+}
+
+@keyframes dotPop {
+  0% {
+    transform: scale(0.4);
+  }
+  60% {
+    transform: scale(1.25);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
 #timer-display {
-  text-align: center;
-  font-size: 2rem;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px;
+  width: fit-content;
+  margin: 4px auto 0;
+  padding: 8px 22px;
+  border-radius: 999px;
+  background: var(--color-surface-glass);
+  border: 1px solid var(--color-card-border);
+  box-shadow: 0 6px 16px -8px rgba(255, 79, 150, 0.35);
+  font-size: 1.7rem;
   font-weight: 800;
+  font-variant-numeric: tabular-nums; /* 秒数の桁が変わっても数字の位置がガタつかないようにする */
   color: var(--color-primary-dark);
+}
+
+#timer-display::before {
+  content: "⏱";
+  font-size: 0.55em;
+  color: var(--color-secondary);
+}
+
+/* スタート画面：選択中の出題数・カテゴリに対応する自己ベストを示す、控えめなチップ。
+   主役はスタートボタンなので、目立たせすぎない小さめのサイズにしている。
+   条件部分（5問・全曲など）は控えめに、ベストの点数は少し強調して、情報の優先順位を分けている。 */
+.mode-best-chip {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px;
+  width: fit-content;
+  margin: 4px auto 18px;
+  padding: 6px 16px;
+  border-radius: 999px;
+  background: var(--color-surface-glass);
+  border: 1px solid var(--color-card-border);
+  font-size: 0.78rem;
+}
+
+.mode-best-icon {
+  width: 14px;
+  height: 14px;
+  align-self: center;
+  flex: none;
+  color: var(--color-accent);
+}
+
+.mode-best-condition {
+  color: var(--color-text);
+  opacity: 0.6;
+  font-weight: 700;
+}
+
+.mode-best-value {
+  color: var(--color-primary-dark);
+  font-weight: 800;
+}
+
+/* 記録がまだない組み合わせのときは、トロフィーと点数表示を控えめなグレー系にする。
+   「達成できていない」ことが色でも伝わるようにする。 */
+.mode-best-chip.is-empty .mode-best-icon {
+  color: var(--color-text);
+  opacity: 0.5;
+}
+
+.mode-best-chip.is-empty .mode-best-value {
+  color: var(--color-text);
+  opacity: 0.6;
 }
 
 /* ===== メッセージ類 ===== */
@@ -830,9 +995,50 @@ fieldset label:has(input:focus-visible) {
   text-align: center;
   font-size: 1.2rem;
   font-weight: 800;
+  color: var(--color-text);
+}
+
+/* 正解・不正解を、文字色でも一目で分かるようにする */
+.feedback-message.is-correct {
+  color: var(--color-primary-dark);
+  animation: feedbackPop 320ms ease-out;
+}
+
+.feedback-message.is-wrong {
+  color: var(--color-danger);
+  animation: feedbackPop 320ms ease-out;
+}
+
+@keyframes feedbackPop {
+  0% {
+    opacity: 0;
+    transform: translateY(4px) scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 /* ===== 結果画面 ===== */
+
+/* ボタンを横並びにする汎用の入れ物。結果画面で「もう一度挑戦する」に加えて
+   「タイトルに戻る」を追加する際、ここに<button>を1つ足すだけで済むようにしている */
+.button-row {
+  display: flex;
+  gap: 10px;
+}
+
+/* 得点・ランク・自己ベストをまとめる、達成感を演出するパネル */
+.result-stats {
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid var(--color-card-border);
+  border-radius: 20px;
+  padding: 18px 16px 14px;
+  margin: 4px 0 18px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
 #total-score-display {
   text-align: center;
   font-size: 1.3rem;
@@ -840,24 +1046,81 @@ fieldset label:has(input:focus-visible) {
   color: var(--color-primary-dark);
 }
 
-#rank-display {
-  text-align: center;
-  font-size: 1.8rem;
-  font-weight: 800;
-  color: var(--color-primary-dark);
-  margin: 4px 0 8px;
+/* ===== ランクバッジ =====
+   結果画面の主役。文字そのものは常に単色でくっきり読めるようにし、
+   特別感（縁取り・光・アイコン）はメダル側で段階的に表現する。
+   ランクごとの見た目は rank-s/rank-a/rank-b/rank-c のクラスで切り替わる（main.jsが付け外しする）。 */
+.rank-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin: 6px 0 10px;
+}
+
+.rank-label {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--color-text);
+  opacity: 0.6;
+}
+
+/* 外枠：王冠・星などのはみ出す飾りの位置基準。ここではクリップしない */
+.rank-medal {
+  position: relative;
+  width: 88px;
+  height: 88px;
   animation: rankPop var(--transition-slow) ease-out;
 }
 
-/* Sランクだけ、金色に光らせて特別感を出す */
-#rank-display.is-rank-s {
-  font-size: 2.2rem;
-  background: linear-gradient(90deg, #d9a441, #fff3b0, #d9a441);
-  background-size: 200% auto;
-  background-clip: text;
-  -webkit-background-clip: text;
-  color: transparent;
-  animation: rankPop var(--transition-slow) ease-out, rankShine 2s linear infinite;
+/* 円そのもの。背景・縁取り・光の演出はここに閉じ込め、円の外にははみ出させない */
+.rank-medal-circle {
+  position: relative; /* 光の演出（::after）の位置基準にする */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid transparent;
+  background: var(--color-surface);
+}
+
+.rank-letter {
+  font-size: 2.4rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+/* ワンポイントの星飾り。デフォルトでは非表示にしておき、ランクごとに必要な分だけ表示する */
+.rank-medal-spark {
+  display: none;
+  position: absolute;
+  top: -6px;
+  width: 14px;
+  height: 14px;
+}
+
+.rank-medal-spark-left {
+  left: -6px;
+}
+
+.rank-medal-spark-right {
+  right: -6px;
+}
+
+/* 王冠。Sランクのときだけ表示する */
+.rank-crown {
+  display: none;
+  position: absolute;
+  top: -15px;
+  left: 50%;
+  width: 30px;
+  height: 20px;
+  transform: translateX(-50%);
 }
 
 @keyframes rankPop {
@@ -874,10 +1137,80 @@ fieldset label:has(input:focus-visible) {
   }
 }
 
-@keyframes rankShine {
-  to {
-    background-position: -200% center;
+/* ----- Sランク：金色のメダル。縁取り・光ともに最も強く、王冠と星、光が走る演出付き ----- */
+.rank-s .rank-medal-circle {
+  border: 3px solid #f6cf6b;
+  background: radial-gradient(circle at 32% 28%, #ffe9a8 0%, #e3ab3c 55%, #b8790e 100%);
+  box-shadow: 0 0 0 5px rgba(245, 196, 81, 0.22), 0 14px 30px -10px rgba(184, 121, 14, 0.65);
+}
+
+.rank-s .rank-letter {
+  color: #5c3a08;
+}
+
+.rank-s .rank-crown,
+.rank-s .rank-medal-spark {
+  display: block;
+  color: var(--color-accent);
+}
+
+/* メダルの上を斜めに光が横切る演出（円の中だけにクリップされる） */
+.rank-s .rank-medal-circle::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -60%;
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.75), transparent);
+  transform: skewX(-20deg);
+  animation: rankMedalShine 2.6s ease-in-out infinite;
+}
+
+@keyframes rankMedalShine {
+  0% {
+    left: -60%;
   }
+  40%, 100% {
+    left: 130%;
+  }
+}
+
+/* ----- Aランク：濃いピンクのメダル。白文字＋星1つ ----- */
+.rank-a .rank-medal-circle {
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  background: linear-gradient(160deg, var(--color-primary), var(--color-primary-dark));
+  box-shadow: 0 10px 24px -10px rgba(255, 79, 150, 0.55);
+}
+
+.rank-a .rank-letter {
+  color: #ffffff;
+}
+
+.rank-a .rank-medal-spark-right {
+  display: block;
+  color: var(--color-accent);
+}
+
+/* ----- Bランク：パステルブルーの二重リング。銀メダルのような落ち着いた見た目 ----- */
+.rank-b .rank-medal-circle {
+  border: 2px solid #eaf6ff;
+  background: linear-gradient(160deg, #eaf6ff, #bfe4fb);
+  box-shadow: 0 0 0 3px var(--color-secondary), 0 8px 18px -12px rgba(111, 189, 242, 0.4);
+}
+
+.rank-b .rank-letter {
+  color: #2c6ea8;
+}
+
+/* ----- Cランク：点線の縁取り。メダルというより「よくがんばりました」に近い、優しい見た目 ----- */
+.rank-c .rank-medal-circle {
+  border: 2px dashed #cfc6db;
+  background: linear-gradient(160deg, #f3f0f8, #dcd6e6);
+}
+
+.rank-c .rank-letter {
+  color: #6b6478;
 }
 
 #high-score-display {
@@ -886,14 +1219,22 @@ fieldset label:has(input:focus-visible) {
   color: var(--color-text);
 }
 
+/* 自己ベスト更新のお知らせ。他の丸いチップ類と揃えた見た目にする */
 #new-record-badge {
-  text-align: center;
-  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: fit-content;
+  margin: 10px auto 0;
+  font-size: 1rem;
   font-weight: 800;
   color: var(--color-primary-dark);
   background-color: var(--color-accent-soft);
-  border-radius: 8px;
-  padding: 6px 12px;
+  border: 1px solid var(--color-accent);
+  border-radius: 999px;
+  padding: 8px 18px;
+  box-shadow: 0 8px 20px -10px rgba(255, 217, 61, 0.7);
   animation: rankPop var(--transition-slow) ease-out;
 }
 
@@ -903,9 +1244,41 @@ fieldset label:has(input:focus-visible) {
 }
 
 #answer-log-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   border-radius: 8px;
   padding: 8px 12px;
   margin-bottom: 6px;
+}
+
+.answer-log-text {
+  flex: 1;
+  min-width: 0; /* 曲名が長いときに、右側のバッジを押し出さず折り返せるようにする */
+}
+
+/* 回答時間を示す、時計アイコン付きの小さなバッジ */
+.answer-time-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--color-surface-glass);
+  border: 1px solid var(--color-card-border);
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-primary-dark);
+  white-space: nowrap;
+}
+
+.answer-time-badge::before {
+  content: "⏱";
+  font-size: 0.85em;
+  color: var(--color-secondary);
 }
 
 /* 正解した問題は正解の選択肢と同じ黄色系トーンに、不正解は赤系トーンにして一目で分かるようにする */

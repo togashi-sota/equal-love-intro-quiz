@@ -10,6 +10,8 @@ import {
   getCurrentQuestion,
   recordAnswer,
   advanceToNextQuestion,
+  markPlaybackStarted,
+  getElapsedMsSincePlaybackStart,
 } from "./state.js";
 import {
   filterSongsByCategory,
@@ -41,15 +43,38 @@ const audioErrorElement = document.getElementById("audio-error");
 const timerDisplayElement = document.getElementById("timer-display");
 const totalScoreElement = document.getElementById("total-score-display");
 const rankElement = document.getElementById("rank-display");
+const rankLetterElement = document.getElementById("rank-letter");
 const highScoreElement = document.getElementById("high-score-display");
 const newRecordElement = document.getElementById("new-record-badge");
 const answerLogListElement = document.getElementById("answer-log-list");
+const modeBestChipElement = document.getElementById("mode-best-chip");
+const modeBestConditionElement = document.getElementById("mode-best-condition");
+const modeBestValueElement = document.getElementById("mode-best-value");
 
 // 音源の再生に失敗したときの表示処理。
 // タイマーや得点処理は止めず、エラーメッセージを出すだけに留める。
 function showAudioError(message) {
   audioErrorElement.textContent = message;
   audioErrorElement.hidden = false;
+}
+
+// 自己ベストのチップに表示する、出題数・カテゴリの短縮ラベル。
+// 出題数の「全曲」（5問/10問/全曲）とカテゴリの「全曲（ユニット曲も含む）」が
+// どちらも「全曲」と表示されると紛らわしいため、出題数側だけ「全問」と表記して区別する。
+const QUESTION_COUNT_LABELS = { "5": "5問", "10": "10問", all: "全問" };
+const CATEGORY_LABELS = { all: "全曲", "title-and-group": "表題＋全員", "title-track": "表題のみ" };
+
+// スタート画面で選択中の出題数・カテゴリに対応する自己ベストを表示する。
+// ラジオボタンが切り替わるたびと、スタート画面に戻るたびに呼び出す。
+function updateModeBestScoreDisplay() {
+  const questionCountValue = document.querySelector('input[name="question-count"]:checked').value;
+  const categoryFilterValue = document.querySelector('input[name="category-filter"]:checked').value;
+  const best = getHighScore(questionCountValue, categoryFilterValue);
+
+  modeBestConditionElement.textContent =
+    `${QUESTION_COUNT_LABELS[questionCountValue]}・${CATEGORY_LABELS[categoryFilterValue]}`;
+  modeBestValueElement.textContent = best > 0 ? `ベスト ${best}点` : "ベスト 記録なし";
+  modeBestChipElement.classList.toggle("is-empty", best === 0);
 }
 
 // 得点カウントアップ演出にかける時間。
@@ -138,10 +163,10 @@ function handleChoiceClick(selectedChoice) {
 
   const question = getCurrentQuestion();
   const isCorrect = selectedChoice.id === question.song.id;
-  const points = isCorrect
-    ? calculateScore(gameState.elapsedSec, question.song.introLeadInSec)
-    : 0;
-  recordAnswer(isCorrect, points);
+  // 無音の頭出しはaudio.js側で再生位置をずらして対応済みなので、
+  // ここではもう曲ごとの無音秒数を差し引かない（elapsedSecがそのまま実際の聴取時間になる）。
+  const points = isCorrect ? calculateScore(gameState.elapsedSec) : 0;
+  recordAnswer(isCorrect, points, getElapsedMsSincePlaybackStart());
   markChoiceButtons(selectedChoice.id);
   if (isCorrect) {
     playCorrectSound();
@@ -152,6 +177,9 @@ function handleChoiceClick(selectedChoice) {
   feedbackElement.textContent = isCorrect
     ? `正解！ +${points}点`
     : `不正解…（正解は「${question.song.title}」）`;
+  // 正解/不正解を文字色でも一目で分かるようにするための、見た目だけのクラス切り替え
+  feedbackElement.classList.toggle("is-correct", isCorrect);
+  feedbackElement.classList.toggle("is-wrong", !isCorrect);
   feedbackElement.hidden = false;
   nextButtonElement.hidden = false;
 }
@@ -165,7 +193,7 @@ function handleSkip() {
   stopAudio();
   playClickSound();
 
-  recordAnswer(false, 0);
+  recordAnswer(false, 0, getElapsedMsSincePlaybackStart());
   goToNextQuestionOrResult();
 }
 
@@ -179,7 +207,7 @@ function handleReveal() {
   hideSkipAndRevealButtons();
 
   const question = getCurrentQuestion();
-  recordAnswer(false, 0);
+  recordAnswer(false, 0, getElapsedMsSincePlaybackStart());
   markChoiceButtons(null);
   playWrongSound();
   feedbackElement.textContent = `正解は「${question.song.title}」でした`;
@@ -214,13 +242,17 @@ function renderQuestion() {
   });
 
   feedbackElement.hidden = true;
+  feedbackElement.classList.remove("is-correct", "is-wrong");
   nextButtonElement.hidden = true;
   skipButtonElement.hidden = false;
   revealButtonElement.hidden = false;
   audioErrorElement.hidden = true;
   clearChoiceButtonStates();
 
-  playSongIntro(question.song, showAudioError);
+  // 再生を試みる直前の時刻をいったん暫定の計測起点にしておく。
+  // 曲が実際に鳴り始めたら（onPlaybackStart）、より正確な値に上書きされる。
+  markPlaybackStarted();
+  playSongIntro(question.song, showAudioError, markPlaybackStarted);
   startTimer(updateTimerDisplay);
 }
 
@@ -228,19 +260,36 @@ function renderQuestion() {
 function renderResult() {
   animateScoreCountUp(gameState.score);
   const rank = calculateRank(gameState.score, gameState.questions.length);
-  rankElement.textContent = `ランク: ${rank}`;
-  rankElement.classList.toggle("is-rank-s", rank === "S");
+  rankLetterElement.textContent = rank;
+  // ランクごとにメダルの色・縁取り・光・飾りを切り替える見た目用のクラス
+  rankElement.classList.remove("rank-s", "rank-a", "rank-b", "rank-c");
+  rankElement.classList.add(`rank-${rank.toLowerCase()}`);
 
-  const isNewRecord = saveHighScoreIfBetter(gameState.score);
-  highScoreElement.textContent = `自己ベスト: ${getHighScore()}点`;
+  const { questionCountValue, categoryFilterValue } = gameState;
+  const isNewRecord = saveHighScoreIfBetter(gameState.score, questionCountValue, categoryFilterValue);
+  highScoreElement.textContent = `このモードの自己ベスト: ${getHighScore(questionCountValue, categoryFilterValue)}点`;
   newRecordElement.hidden = !isNewRecord;
 
   answerLogListElement.innerHTML = "";
   gameState.answerLog.forEach((entry, index) => {
     const item = document.createElement("li");
     item.classList.add(entry.isCorrect ? "is-correct-row" : "is-wrong-row");
+
     const resultLabel = entry.isCorrect ? "正解" : "不正解";
-    item.textContent = `第${index + 1}問「${entry.song.title}」: ${resultLabel}（${entry.pointsEarned}点）`;
+    const textElement = document.createElement("span");
+    textElement.classList.add("answer-log-text");
+    textElement.textContent = `第${index + 1}問「${entry.song.title}」: ${resultLabel}（${entry.pointsEarned}点）`;
+    item.appendChild(textElement);
+
+    // 回答時間は、音源の再生に失敗した等の理由で計測できていない場合があるので、
+    // データがあるときだけバッジを表示する。
+    if (entry.elapsedMs !== null) {
+      const timeBadge = document.createElement("span");
+      timeBadge.classList.add("answer-time-badge");
+      timeBadge.textContent = `${(entry.elapsedMs / 1000).toFixed(1)}秒`;
+      item.appendChild(timeBadge);
+    }
+
     answerLogListElement.appendChild(item);
   });
 }
@@ -274,7 +323,7 @@ document.getElementById("start-button").addEventListener("click", () => {
   startErrorElement.hidden = true;
   const questionCount = resolveQuestionCount(questionCountValue, pool.length);
   const questions = buildQuizQuestions(pool, questionCount);
-  startQuiz(questions);
+  startQuiz(questions, questionCountValue, categoryFilterValue);
   renderQuestion();
 
   showScreen("quiz");
@@ -296,7 +345,15 @@ document.getElementById("retry-button").addEventListener("click", () => {
   stopAudio();
   resetGameState();
   showScreen("start");
+  updateModeBestScoreDisplay(); // 直前のプレイで自己ベストが更新されている可能性があるので表示し直す
 });
+
+// 出題数・カテゴリのラジオボタンが切り替わるたびに、自己ベスト表示を更新する。
+// ページを開いた直後（初期選択の状態）の分も、ここで一度呼んでおく。
+document
+  .querySelectorAll('input[name="question-count"], input[name="category-filter"]')
+  .forEach((radio) => radio.addEventListener("change", updateModeBestScoreDisplay));
+updateModeBestScoreDisplay();
 
 // キーボード操作対応。マウス・タップ操作は今まで通り使えるようにしたうえで、
 // 今表示されている画面に応じてキー入力を割り当てる。

@@ -9,10 +9,20 @@ const AUDIO_BASE_PATH = "assets/audio/local/";
 const audioElement = document.getElementById("intro-audio");
 
 // 曲のイントロを再生する。再生できなかった場合は onError を呼ぶ。
-export function playSongIntro(song, onError) {
+// onPlaybackStart : 曲が実際に鳴り始めた瞬間（playingイベント）に呼ばれる。
+//                    結果画面の回答時間表示など、正確な計測に使う。
+//
+// song.introLeadInSec が設定されている曲は、その秒数の位置まで頭出ししてから再生する
+// （曲の頭に無音区間があるケースで、その無音を聞かせないようにするため）。
+// 曲の長さなどのメタデータが読み込まれるまでは0秒以外へのシークが正しく効かないことがあるため、
+// loadedmetadataイベントを待ってから頭出しする。
+export function playSongIntro(song, onError, onPlaybackStart) {
   audioElement.onerror = () => onError("音源を再生できませんでした");
+  audioElement.onplaying = () => onPlaybackStart();
+  audioElement.onloadedmetadata = () => {
+    audioElement.currentTime = song.introLeadInSec || 0;
+  };
   audioElement.src = `${AUDIO_BASE_PATH}${song.id}.mp3`;
-  audioElement.currentTime = 0;
 
   audioElement.play().catch(() => {
     onError("音源を再生できませんでした");

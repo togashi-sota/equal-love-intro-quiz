@@ -33,9 +33,10 @@ export const DIFFICULTY = {
 // releaseDate   : 発売日（"YYYY-MM-DD"形式。日付順の並び替えがしやすいようにハイフン区切りに統一する）
 // single        : 収録シングル/アルバム名（表示用の補足情報）
 // difficulty    : DIFFICULTY で定義した値のどれか
-// introLeadInSec: 曲の頭にある無音・前奏の長さ（秒）。CDからそのまま取り込んだ音源は
-//                 曲によって鳴り始めるまでの時間がバラバラなので、採点時にこの秒数を差し引いて
-//                 曲ごとの不公平をなくす。無音がほぼない曲は0のままでよい。
+// introLeadInSec: 曲の頭にある無音区間の長さ（秒）。この秒数の位置まで頭出ししてから
+//                 再生するため、プレイヤーには無音を聞かせない（js/audio.jsが使う）。
+//                 採点（js/score.js）はこの値を使わず、実際に鳴り始めてからの経過秒数を
+//                 そのまま採点する。無音がほぼない曲は0のままでよい。
 //
 // 曲を増やすときは、この配列に要素を追加していくだけでよい。
 export const SONGS = [
@@ -154,7 +155,7 @@ export const SONGS = [
     releaseDate: "2021-05-12",
     single: "1stアルバム「全部、内緒。」収録",
     difficulty: DIFFICULTY.NORMAL,
-    introLeadInSec: 0,
+    introLeadInSec: 4.4, // イントロの無音が約4.4秒あるため、その位置まで頭出しして再生する
   },
   {
     id: "24-7",

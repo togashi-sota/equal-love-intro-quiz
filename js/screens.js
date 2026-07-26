@@ -15,4 +15,9 @@ export function showScreen(screenName) {
   for (const [name, element] of Object.entries(SCREEN_ELEMENTS)) {
     element.classList.toggle("is-active", name === screenName);
   }
+
+  // 今表示している画面名をbodyのdata属性にも反映する。
+  // CSS側（style.css）が「クイズ画面のときだけ背景演出を控えめにする」といった
+  // 画面ごとの見た目の調整をできるようにするためのフック。
+  document.body.dataset.screen = screenName;
 }
