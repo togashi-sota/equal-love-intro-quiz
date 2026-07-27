@@ -120,6 +120,10 @@
       <p id="start-error" class="error-message" hidden></p>
 
       <button id="start-button" class="primary-button" type="button">スタート</button>
+
+      <!-- 得点の仕組みなどを確認できる、ルール説明モーダルの入口。
+           スタートボタンより目立たせたくないので、下線付きの控えめなテキストリンクにしている。 -->
+      <button id="rules-link" class="rules-link" type="button">あそびかた・とくてんのルール</button>
     </section>
 
     <!-- クイズ画面：イントロ再生、4択、タイマー、正誤表示を行う画面 -->
@@ -229,6 +233,129 @@
     </section>
 
   </main>
+
+  <!-- ルール説明モーダル：得点表・ランク基準・カテゴリの意味など、ゲーム内のどこにも
+       説明されていない情報をまとめて確認できる。スタート画面の「あそびかた」リンクから開く。
+       start/quiz/result の3画面切り替え（screens.js）とは独立した、単純な表示/非表示だけの
+       オーバーレイとして実装している（表示中の画面が何であっても状態には影響しない）。 -->
+  <div id="rules-modal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="rules-modal-title">
+      <button id="rules-modal-close" class="modal-close-button" type="button" aria-label="閉じる">×</button>
+
+      <h2 id="rules-modal-title">あそびかた</h2>
+      <p class="modal-lead">流れてくるイントロを聞いて、曲名を4択から当てよう！</p>
+
+      <h3>とくてん</h3>
+      <table class="score-table">
+        <thead>
+          <tr><th>回答の早さ</th><th>得点</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>3秒以内</td><td>10点</td></tr>
+          <tr><td>5秒以内</td><td>9点</td></tr>
+          <tr><td>8秒以内</td><td>8点</td></tr>
+          <tr><td>12秒以内</td><td>7点</td></tr>
+          <tr><td>20秒以内</td><td>6点</td></tr>
+          <tr><td>30秒以内</td><td>5点</td></tr>
+          <tr><td>45秒以内</td><td>4点</td></tr>
+          <tr><td>60秒以内</td><td>3点</td></tr>
+          <tr><td>60秒超</td><td>2点</td></tr>
+          <tr><td>不正解・スキップ・答えを見る</td><td>0点</td></tr>
+        </tbody>
+      </table>
+
+      <h3>ランク判定</h3>
+      <!-- 結果画面の .rank-badge と全く同じ構造・クラスをそのまま流用し、
+           縮小版として4段階を横に並べて見せる（結果画面の見た目の予告にもなる）。
+           ランクごとの色・縁取り・光の演出は既存のCSS（rank-s/a/b/c）がそのまま効く。 -->
+      <div class="rules-rank-list">
+        <div class="rank-badge rules-rank-badge rank-s">
+          <div class="rank-medal">
+            <svg class="rank-crown" viewBox="0 0 24 16" fill="currentColor" aria-hidden="true">
+              <path d="M2 14 1 5 6 9 12 2 18 9 23 5 22 14Z"/>
+            </svg>
+            <span class="rank-medal-spark rank-medal-spark-left" aria-hidden="true">
+              <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            </span>
+            <div class="rank-medal-circle">
+              <span class="rank-letter">S</span>
+            </div>
+            <span class="rank-medal-spark rank-medal-spark-right" aria-hidden="true">
+              <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            </span>
+          </div>
+          <p class="rules-rank-condition">90%以上</p>
+        </div>
+
+        <div class="rank-badge rules-rank-badge rank-a">
+          <div class="rank-medal">
+            <svg class="rank-crown" viewBox="0 0 24 16" fill="currentColor" aria-hidden="true">
+              <path d="M2 14 1 5 6 9 12 2 18 9 23 5 22 14Z"/>
+            </svg>
+            <span class="rank-medal-spark rank-medal-spark-left" aria-hidden="true">
+              <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            </span>
+            <div class="rank-medal-circle">
+              <span class="rank-letter">A</span>
+            </div>
+            <span class="rank-medal-spark rank-medal-spark-right" aria-hidden="true">
+              <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            </span>
+          </div>
+          <p class="rules-rank-condition">70%以上</p>
+        </div>
+
+        <div class="rank-badge rules-rank-badge rank-b">
+          <div class="rank-medal">
+            <svg class="rank-crown" viewBox="0 0 24 16" fill="currentColor" aria-hidden="true">
+              <path d="M2 14 1 5 6 9 12 2 18 9 23 5 22 14Z"/>
+            </svg>
+            <span class="rank-medal-spark rank-medal-spark-left" aria-hidden="true">
+              <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            </span>
+            <div class="rank-medal-circle">
+              <span class="rank-letter">B</span>
+            </div>
+            <span class="rank-medal-spark rank-medal-spark-right" aria-hidden="true">
+              <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            </span>
+          </div>
+          <p class="rules-rank-condition">50%以上</p>
+        </div>
+
+        <div class="rank-badge rules-rank-badge rank-c">
+          <div class="rank-medal">
+            <svg class="rank-crown" viewBox="0 0 24 16" fill="currentColor" aria-hidden="true">
+              <path d="M2 14 1 5 6 9 12 2 18 9 23 5 22 14Z"/>
+            </svg>
+            <span class="rank-medal-spark rank-medal-spark-left" aria-hidden="true">
+              <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            </span>
+            <div class="rank-medal-circle">
+              <span class="rank-letter">C</span>
+            </div>
+            <span class="rank-medal-spark rank-medal-spark-right" aria-hidden="true">
+              <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            </span>
+          </div>
+          <p class="rules-rank-condition">50%未満</p>
+        </div>
+      </div>
+
+      <h3>スキップ・答えを見るの違い</h3>
+      <p>
+        スキップ：正解を見せずに、すぐ次の問題へ進みます。<br>
+        答えを見る：正解の曲名を確認してから、次の問題へ進みます。
+      </p>
+
+      <h3>カテゴリについて</h3>
+      <ul class="modal-category-list">
+        <li><strong>表題曲</strong>：シングルのタイトルになっている代表曲</li>
+        <li><strong>全員曲</strong>：その時点のメンバー全員で歌う曲</li>
+        <li><strong>ユニット曲</strong>：一部のメンバーまたはソロで歌う曲</li>
+      </ul>
+    </div>
+  </div>
 
   <!-- ES Modulesを使うため type="module" が必須。ローカルサーバー経由でないと動かない -->
   <script type="module" src="js/main.js"></script>

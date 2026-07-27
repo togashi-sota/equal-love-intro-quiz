@@ -50,6 +50,9 @@ const answerLogListElement = document.getElementById("answer-log-list");
 const modeBestChipElement = document.getElementById("mode-best-chip");
 const modeBestConditionElement = document.getElementById("mode-best-condition");
 const modeBestValueElement = document.getElementById("mode-best-value");
+const rulesLinkElement = document.getElementById("rules-link");
+const rulesModalElement = document.getElementById("rules-modal");
+const rulesModalCloseButtonElement = document.getElementById("rules-modal-close");
 
 // 音源の再生に失敗したときの表示処理。
 // タイマーや得点処理は止めず、エラーメッセージを出すだけに留める。
@@ -362,6 +365,29 @@ document.getElementById("back-to-title-button").addEventListener("click", () => 
   updateModeBestScoreDisplay(); // 直前のプレイで自己ベストが更新されている可能性があるので表示し直す
 });
 
+// ルール説明モーダルの開閉。start/quiz/resultの画面切り替え（showScreen）とは無関係な、
+// 単純な表示/非表示の切り替えのみで済ませている（出題数・カテゴリの選択状態には一切触れない）。
+function openRulesModal() {
+  playClickSound();
+  rulesModalElement.hidden = false;
+}
+
+function closeRulesModal() {
+  rulesModalElement.hidden = true;
+}
+
+rulesLinkElement.addEventListener("click", openRulesModal);
+rulesModalCloseButtonElement.addEventListener("click", closeRulesModal);
+
+// オーバーレイ部分（背景）をクリックしたときも閉じる。
+// モーダルカード自体のクリックはバブリングで拾ってしまうと誤って閉じるため、
+// クリックされた要素がオーバーレイそのものだったときだけ閉じるようにする。
+rulesModalElement.addEventListener("click", (event) => {
+  if (event.target === rulesModalElement) {
+    closeRulesModal();
+  }
+});
+
 // 出題数・カテゴリのラジオボタンが切り替わるたびに、自己ベスト表示を更新する。
 // ページを開いた直後（初期選択の状態）の分も、ここで一度呼んでおく。
 document
@@ -372,6 +398,16 @@ updateModeBestScoreDisplay();
 // キーボード操作対応。マウス・タップ操作は今まで通り使えるようにしたうえで、
 // 今表示されている画面に応じてキー入力を割り当てる。
 document.addEventListener("keydown", (event) => {
+  // ルール説明モーダルが開いているときは、Escキーで閉じる。
+  // それ以外のキー（スタート画面のEnterなど）は、モーダルを読んでいる間に
+  // 誤って反応してしまわないよう、ここで処理を止めて下の分岐に進ませない。
+  if (!rulesModalElement.hidden) {
+    if (event.key === "Escape") {
+      closeRulesModal();
+    }
+    return;
+  }
+
   // スタート画面：Enterキーでスタート
   if (startScreenElement.classList.contains("is-active") && event.key === "Enter") {
     document.getElementById("start-button").click();

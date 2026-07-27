@@ -1322,6 +1322,178 @@ fieldset label:has(input:focus-visible) {
   background-color: var(--color-danger-soft);
 }
 
+/* ===== ルール説明モーダル =====
+   スタート画面の「あそびかた」リンクから開く、得点表・ランク基準・カテゴリの意味をまとめた画面。
+   start/quiz/resultの3画面切り替えとは独立した、単純な表示/非表示のオーバーレイとして実装している。
+   結果画面ほど演出を効かせず、読みやすさを優先した見た目にしている。 */
+
+/* スタートボタンより目立たせたくないので、下線付きのテキストリンクだけの控えめな見た目にする */
+.rules-link {
+  display: block;
+  width: fit-content;
+  margin: 12px auto 0;
+  padding: 4px;
+  border: none;
+  background: none;
+  color: var(--color-text);
+  opacity: 0.65;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.rules-link:active {
+  opacity: 0.9;
+}
+
+/* 画面全体を覆うオーバーレイ。中央にモーダルカードを配置する */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20; /* 背景演出（z-index:0）・ゲームフレーム（z-index:2）より必ず手前に表示する */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(74, 46, 66, 0.45);
+}
+
+/* displayの指定がhidden属性より優先されてしまう問題への対策
+   （#new-record-badge・.secondary-buttonと同じ原因なので、同じ対策を最初から入れておく） */
+.modal-overlay[hidden] {
+  display: none;
+}
+
+/* モーダルの中身。他の画面のようなガラスの透け感は使わず、不透明な背景で文字の読みやすさを優先する */
+.modal-card {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+  max-height: 85vh;
+  overflow-y: auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-card-border);
+  border-radius: 20px;
+  padding: 26px 20px 20px;
+  box-shadow: var(--shadow-card);
+  animation: screenEnter var(--transition-slow) cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.modal-close-button {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 50%;
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.modal-close-button:active {
+  transform: scale(0.92);
+}
+
+.modal-card h3 {
+  margin: 18px 0 8px;
+  font-size: 0.95rem;
+  color: var(--color-primary-dark);
+}
+
+.modal-lead {
+  text-align: center;
+  margin: 4px 0 0;
+  font-size: 0.9rem;
+}
+
+/* 得点表。9段階を省略せずすべて表示する（自己ベストやランクに直接関わる情報なので正確さを優先する） */
+.score-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.score-table th,
+.score-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--color-card-border);
+  text-align: left;
+}
+
+.score-table th:last-child,
+.score-table td:last-child {
+  text-align: right;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+}
+
+.score-table tbody tr:nth-child(even) {
+  background: rgba(255, 111, 168, 0.06);
+}
+
+/* ランク判定の4段階を横並びで見せる場所 */
+.rules-rank-list {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+/* 結果画面の.rank-badgeを縮小して流用する。色・縁取り・光の演出はrank-s/a/b/cのCSSがそのまま効く */
+.rules-rank-badge {
+  margin: 0;
+  gap: 4px;
+}
+
+.rules-rank-badge .rank-medal {
+  width: 46px;
+  height: 46px;
+}
+
+.rules-rank-badge .rank-letter {
+  font-size: 1.2rem;
+}
+
+.rules-rank-badge .rank-crown {
+  top: -7px;
+  width: 14px;
+  height: 9px;
+}
+
+.rules-rank-badge .rank-medal-spark {
+  top: -2px;
+  width: 8px;
+  height: 8px;
+}
+
+.rules-rank-badge .rank-medal-spark-left {
+  left: -5px;
+}
+
+.rules-rank-badge .rank-medal-spark-right {
+  right: -5px;
+}
+
+.rules-rank-condition {
+  margin: 0;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--color-text);
+  opacity: 0.75;
+}
+
+.modal-category-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
 /* ===== レスポンシブ：スマホ幅（520px以下） =====
    ゲームフレームを画面幅いっぱいに広げ、カードらしい丸み・影は外して画面に馴染ませる。 */
 @media (max-width: 520px) {
