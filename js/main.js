@@ -26,6 +26,9 @@ import { getHighScore, saveHighScoreIfBetter } from "./highscore.js";
 import { playClickSound, playCorrectSound, playWrongSound, playCountUpSound } from "./sfx.js";
 import { renderBackgroundSparkles } from "./decorations.js";
 import { renderSongList, resetSongListToDefaultView, stopSongListPreview } from "./songlist.js";
+import { buildPlayResult, evaluateAndSaveTitles } from "./titleProgress.js";
+import { renderResultTitleEvents } from "./titleDisplay.js";
+import { initTitleListModal } from "./titleList.js";
 
 // 背景のキラキラ演出は、ゲームの状態と関係なく最初に1回だけ生成すればよい。
 renderBackgroundSparkles();
@@ -60,6 +63,23 @@ const rulesModalElement = document.getElementById("rules-modal");
 const rulesModalCloseButtonElement = document.getElementById("rules-modal-close");
 const songlistLinkElement = document.getElementById("songlist-link");
 const songlistBackButtonElement = document.getElementById("songlist-back-button");
+const titleEventListElement = document.getElementById("title-event-list");
+const titleListLinkFromResultElement = document.getElementById("title-list-link-from-result");
+const titleListLinkElement = document.getElementById("title-list-link");
+const titleListModalElement = document.getElementById("title-list-modal");
+const titleListModalCardElement = titleListModalElement.querySelector(".modal-card");
+const titleListModalCloseButtonElement = document.getElementById("title-list-modal-close");
+const titleListContainerElement = document.getElementById("title-list-container");
+
+// 称号一覧モーダルの開閉ロジックはtitleList.jsに閉じ込めてあるので、
+// ここでは必要なDOM要素を渡して初期化するだけでよい。
+initTitleListModal({
+  overlay: titleListModalElement,
+  modalCard: titleListModalCardElement,
+  closeButton: titleListModalCloseButtonElement,
+  listContainer: titleListContainerElement,
+  openTriggers: [titleListLinkElement, titleListLinkFromResultElement],
+});
 
 // 音源の再生に失敗したときの表示処理。
 // タイマーや得点処理は止めず、エラーメッセージを出すだけに留める。
@@ -335,6 +355,14 @@ function renderResult() {
 
     answerLogListElement.appendChild(item);
   });
+
+  // 称号（実績）の判定・保存・演出。得点や自己ベストの記録が終わったこのタイミングで行う。
+  const playResult = buildPlayResult(gameState);
+  const titleEvents = evaluateAndSaveTitles(playResult);
+  renderResultTitleEvents(titleEvents, {
+    chipContainer: titleEventListElement,
+    titleListLinkElement: titleListLinkFromResultElement,
+  });
 }
 
 // 4つの選択肢ボタンに、それぞれクリック時の処理を割り当てる。
@@ -466,6 +494,13 @@ document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       closeRulesModal();
     }
+    return;
+  }
+
+  // 称号一覧モーダルが開いているときも、他画面のショートカットを妨げないよう先に止める。
+  // 開閉（Escキーを含む）自体はtitleList.js側のリスナーがすでに処理しているので、
+  // ここでは何もせずreturnするだけでよい。
+  if (!titleListModalElement.hidden) {
     return;
   }
 

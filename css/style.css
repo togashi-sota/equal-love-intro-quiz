@@ -1343,6 +1343,129 @@ fieldset label:has(input:focus-visible) {
   display: none;
 }
 
+/* ===== 称号（実績）獲得演出 =====
+   結果画面で、称号を獲得した瞬間に1件ずつポップに登場するチップ。
+   ランクバッジ（Sランクの金メダル・Aランクのピンクメダル）と同じ配色・光の演出を流用し、
+   「称号を取ると、ランクバッジに次ぐご褒美がもらえる」という統一感を出している。 */
+
+#title-event-list {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.title-event {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 16px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  /* js/titleDisplay.jsのENTRANCE_ANIMATION_NAMEと名前を一致させる必要がある。
+     animationendを起点に次のチップへ進むキュー方式になっているため、
+     ここで名前がずれるとチップが正しいタイミングで切り替わらなくなる。 */
+  animation: title-event-enter 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* 軽い反転＋フェード＋ポップ。ランクバッジのrankPopと同じ「ポップ」の感触を保ちつつ、
+   称号らしい特別感を足すために、浅い角度のrotateXで一瞬だけ裏返るような動きを添えている
+   （perspectiveの値を大きめにして、めまいがするような強い3D回転にはしていない）。 */
+@keyframes title-event-enter {
+  0% {
+    opacity: 0;
+    transform: perspective(600px) rotateX(-55deg) scale(0.85);
+  }
+  60% {
+    opacity: 1;
+    transform: perspective(600px) rotateX(6deg) scale(1.04);
+  }
+  100% {
+    opacity: 1;
+    transform: perspective(600px) rotateX(0deg) scale(1);
+  }
+}
+
+.title-event-name {
+  font-weight: 800;
+}
+
+.title-event-caption {
+  font-weight: 700;
+  opacity: 0.85;
+}
+
+.title-event-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
+
+.title-event-badge::before {
+  content: "✦ ";
+}
+
+/* ----- unlock-and-new：初めて存在を知り、その場で手に入れた一番の見せ場。
+   Sランクの金メダルと同じグラデーション・光が走る演出を流用する ----- */
+.title-event--unlock-and-new {
+  position: relative;
+  overflow: hidden;
+  color: #5c3a08;
+  background: radial-gradient(circle at 30% 25%, #ffe9a8 0%, #ffd93d 55%, #e3ab3c 100%);
+  box-shadow: 0 0 0 3px rgba(255, 217, 61, 0.35), 0 10px 22px -10px rgba(184, 121, 14, 0.6);
+}
+
+.title-event--unlock-and-new .title-event-badge {
+  background: #5c3a08;
+  color: #ffe9a8;
+}
+
+.title-event--unlock-and-new::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -60%;
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.8), transparent);
+  transform: skewX(-20deg);
+  animation: rankMedalShine 1.6s ease-in-out 1;
+}
+
+/* ----- new：すでに存在を知っている称号を、あらためて獲得した瞬間。
+   Aランクのピンクメダルと同じ配色にして、「特別だが最上位ではない」トーンにする ----- */
+.title-event--new {
+  color: #ffffff;
+  background: linear-gradient(160deg, var(--color-primary), var(--color-primary-dark));
+  box-shadow: 0 8px 18px -10px rgba(255, 79, 150, 0.55);
+}
+
+.title-event--new .title-event-badge {
+  background: #ffffff;
+  color: var(--color-primary-dark);
+}
+
+/* ----- repeat：すでに達成済みのものを、今回も達成しただけ。
+   主役になりすぎないよう、装飾を持たない控えめな見た目にする ----- */
+.title-event--repeat {
+  color: var(--color-text);
+  background: var(--color-surface-glass);
+  border: 1px solid var(--color-card-border);
+  font-weight: 700;
+  opacity: 0.85;
+}
+
+/* .rules-linkはdisplay:blockを明示しているため、hidden属性だけでは非表示にならない。
+   #new-record-badge・.modal-overlay等と同じ原因なので、同じ対策を入れておく。 */
+.rules-link[hidden] {
+  display: none;
+}
+
 #answer-log-list {
   list-style: none;
   padding: 0;
@@ -1455,6 +1578,14 @@ fieldset label:has(input:focus-visible) {
   max-width: 400px;
   max-height: 85vh;
   overflow-y: auto;
+  /* 縦スクロールは必要だが、横方向は常に隠す。overflow-yをautoにすると仕様上overflow-xも
+     autoとして扱われてしまい、中の要素が1pxでもはみ出すと横スクロールバーが出てしまうため、
+     明示的にhiddenで打ち消しておく（×ボタンの当たり判定拡張がこの原因になった実績があるため）。 */
+  overflow-x: hidden;
+  /* 中身が長くてスクロールバーが出る/出ないで右端の見た目・当たり判定が変わらないよう、
+     スクロールバーの分の余白を常に確保しておく（対応ブラウザのみ。非対応でも実害はない）。
+     ×ボタンがスクロールバーと近い位置にあり、下側が押しづらいという指摘があったための対策。 */
+  scrollbar-gutter: stable;
   background: var(--color-surface);
   border: 1px solid var(--color-card-border);
   border-radius: 20px;
@@ -1463,12 +1594,22 @@ fieldset label:has(input:focus-visible) {
   animation: screenEnter var(--transition-slow) cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+/* ×ボタン：見た目の丸と実際のクリック領域を必ず一致させるため、
+   width/heightで固定サイズを確保したうえでdisplay:flexで×を中央揃えにする。
+   paddingはボタンのサイズ計算に混ぜたくないので0にし、サイズはwidth/heightだけで決める。
+   タップ対象として小さすぎないよう、丸の見た目自体も44×44pxを確保する
+   （ルール説明・称号一覧、両方のモーダルの×ボタンで共通して使うクラス）。 */
 .modal-close-button {
   position: absolute;
-  top: 10px;
-  right: 10px;
-  width: 30px;
-  height: 30px;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  margin: 0;
   border: none;
   border-radius: 50%;
   background: var(--color-primary-light);
@@ -1476,6 +1617,17 @@ fieldset label:has(input:focus-visible) {
   font-size: 1.1rem;
   line-height: 1;
   cursor: pointer;
+}
+
+/* 見た目の丸はそのままに、クリック判定だけを一回り広げる。
+   端ギリギリを押したときの反応を良くするための、見た目に影響しない当たり判定の拡張。
+   ボタンはモーダルカードの右端から6px（.modal-close-buttonのtop/right）の位置にあるため、
+   ここを6px以上広げるとカードの外側にはみ出し、横スクロールバーの原因になる。
+   安全に収まる4pxにとどめている。 */
+.modal-close-button::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
 }
 
 .modal-close-button:active {
@@ -1950,6 +2102,124 @@ fieldset label:has(input:focus-visible) {
 .category-pill.special {
   background: #f3f0f8;
   color: #6b6478;
+}
+
+/* ===== 称号一覧モーダル =====
+   称号1件＝1枚のカードとして、ガラス風カードの世界観に合わせたパステルな見た目にする。
+   ロック中のカードは、ランクCバッジと同じ考え方（点線ではなく、彩度を落とした一重の実線）で
+   「無効状態」に見えないよう控えめに、解放済みのカードとは対照的に表現する。 */
+#title-list-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.title-list-card {
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid var(--color-card-border);
+  max-width: 100%;
+}
+
+.title-list-card.is-unlocked {
+  background: linear-gradient(165deg, #ffffff, var(--color-primary-light) 200%);
+  border-color: rgba(255, 111, 168, 0.35);
+}
+
+.title-list-card.is-locked {
+  background: rgba(74, 46, 66, 0.035);
+  border-color: var(--color-card-border);
+}
+
+.title-list-name {
+  margin: 0 0 4px;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+}
+
+.title-list-card.is-locked .title-list-name {
+  color: var(--color-text);
+  opacity: 0.5;
+  letter-spacing: 0.1em; /* 「？？？」の字間を少し空け、伏せられている雰囲気を出す */
+}
+
+.title-list-condition,
+.title-list-hint {
+  margin: 0 0 8px;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  opacity: 0.75;
+}
+
+.title-progress {
+  margin-top: 2px;
+}
+
+/* ドットが何を表しているか一目で分かるようにする、小さな見出し */
+.title-progress-caption {
+  margin: 0 0 6px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--color-text);
+  opacity: 0.55;
+}
+
+.title-progress-dots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.title-progress-dot-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.65rem;
+  color: var(--color-text);
+  opacity: 0.75;
+}
+
+/* クイズ画面の進捗ドット（.progress-dots .dot）と同じ配色・考え方に揃える */
+.title-progress-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--color-primary-light);
+  background-color: var(--color-surface);
+}
+
+.title-progress-dot.is-done {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(255, 111, 168, 0.18);
+}
+
+.title-achieved-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 3px 12px;
+  border: 1px solid var(--color-card-border);
+  border-radius: 999px;
+  color: var(--color-text);
+  opacity: 0.6;
+}
+
+.title-achieved-badge.is-achieved {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+  font-weight: 800;
+  opacity: 1;
+}
+
+.title-achieved-badge.is-achieved::before {
+  content: "✦ ";
 }
 
 /* ===== レスポンシブ：スマホ幅（520px以下） =====

@@ -165,6 +165,7 @@
       <div class="start-footer-links">
         <button id="rules-link" class="rules-link" type="button">あそびかた・とくてんのルール</button>
         <button id="songlist-link" class="rules-link" type="button">収録曲一覧</button>
+        <button id="title-list-link" class="rules-link" type="button">称号一覧</button>
       </div>
     </section>
 
@@ -257,6 +258,11 @@
             </span>
           </div>
         </div>
+
+        <!-- 称号（実績）の獲得演出。中身はjs/titleDisplay.jsが組み立てる。普段は空 -->
+        <div id="title-event-list" class="title-event-list"></div>
+        <!-- 称号を1つでも獲得した回だけ表示される、称号一覧への入口。普段はhidden -->
+        <button id="title-list-link-from-result" class="rules-link" type="button" hidden>称号一覧を見る</button>
 
         <p id="high-score-display">自己ベスト: 0点</p>
         <!-- 自己ベストを更新したときだけ表示するお知らせ。普段は空・非表示 -->
@@ -427,6 +433,19 @@
         <li><strong>全員曲</strong>：その時点のメンバー全員で歌う曲</li>
         <li><strong>ユニット曲</strong>：一部のメンバーまたはソロで歌う曲</li>
       </ul>
+    </div>
+  </div>
+
+  <!-- 称号一覧モーダル：5つの称号の名前・獲得条件・進捗（出題数ごとのドット、または
+       達成済みバッジ）を確認できる。未解放の称号は「？？？」とヒント文だけを見せる。
+       開閉のロジック（開く入口・×ボタン・背景クリック・Escキー）はすべてjs/titleList.jsが
+       まとめて管理しており、main.jsは起点で初期化を1回呼ぶだけでよい。 -->
+  <div id="title-list-modal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="title-list-modal-title">
+      <button id="title-list-modal-close" class="modal-close-button" type="button" aria-label="閉じる">×</button>
+      <h2 id="title-list-modal-title">称号一覧</h2>
+      <!-- 5つの称号カードはjs/titleList.jsが組み立てる -->
+      <div id="title-list-container"></div>
     </div>
   </div>
 
