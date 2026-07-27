@@ -91,19 +91,58 @@
         <span style="--peak: 9px; animation-delay: 0.3s;"></span>
       </div>
 
+      <!-- 出題数：3個・2個の2段に分けて配置する（PC幅でも「全曲」だけが1個で余って
+           見えないよう、5問/10問/20問を1段目、50問/全曲を2段目に固定している）。
+           かなり狭い画面では、各段の中でさらに自然に折り返す。 -->
       <fieldset>
         <legend>出題数</legend>
-        <label><input type="radio" name="question-count" value="5" checked> 5問</label>
-        <label><input type="radio" name="question-count" value="10"> 10問</label>
-        <label><input type="radio" name="question-count" value="all"> 全曲</label>
+        <div class="option-row">
+          <label><input type="radio" name="question-count" value="5" checked> 5問</label>
+          <label><input type="radio" name="question-count" value="10"> 10問</label>
+          <label><input type="radio" name="question-count" value="20"> 20問</label>
+        </div>
+        <div class="option-row">
+          <label><input type="radio" name="question-count" value="50"> 50問</label>
+          <label><input type="radio" name="question-count" value="all"> 全曲</label>
+        </div>
       </fieldset>
 
+      <!-- カテゴリ：横幅いっぱいの行として扱い、「カテゴリ名＋曲数」のまとまりをボタン中央に配置する。
+           曲数はJS側（main.jsのupdateCategoryCountHints）が起動時に1回だけ、songs.jsから自動集計して埋める。
+           .category-option-starは、選択中だけ表示される「✦」の幅を未選択時も確保しておくための要素
+           （共通の::beforeによる✦はCSS側で打ち消し、こちらに置き換えている。選択前後で
+           カテゴリ名・曲数の位置がずれないようにするため）。 -->
       <fieldset>
         <legend>カテゴリ</legend>
-        <label><input type="radio" name="category-filter" value="all" checked> 全曲（ユニット曲も含む）</label>
-        <label><input type="radio" name="category-filter" value="title-and-group"> 表題曲＋全員曲</label>
-        <label><input type="radio" name="category-filter" value="title-track"> 表題曲のみ</label>
+        <label class="category-option">
+          <input type="radio" name="category-filter" value="title-track" checked>
+          <span class="category-option-content">
+            <span class="category-option-star" aria-hidden="true">✦</span>
+            <span class="category-option-name">表題曲のみ</span>
+            <span class="count-hint" data-category-count="title-track"></span>
+          </span>
+        </label>
+        <label class="category-option">
+          <input type="radio" name="category-filter" value="title-and-group">
+          <span class="category-option-content">
+            <span class="category-option-star" aria-hidden="true">✦</span>
+            <span class="category-option-name">表題曲＋全員曲</span>
+            <span class="count-hint" data-category-count="title-and-group"></span>
+          </span>
+        </label>
+        <label class="category-option">
+          <input type="radio" name="category-filter" value="all">
+          <span class="category-option-content">
+            <span class="category-option-star" aria-hidden="true">✦</span>
+            <span class="category-option-name">全曲</span>
+            <span class="count-hint" data-category-count="all"></span>
+          </span>
+        </label>
       </fieldset>
+
+      <!-- 選択した出題数が対象曲数を上回っているときだけ表示する案内。
+           出題数・カテゴリが変わるたびにJSで更新する。普段は空・非表示 -->
+      <p id="question-count-notice" class="question-count-notice" hidden></p>
 
       <!-- 選択中の出題数・カテゴリに対応する自己ベスト。ラジオボタンを切り替えるたびにJSで更新する。
            記録の有無で見た目（トロフィー・文字の色）が変わるよう、is-emptyクラスをJS側で付け外しする。 -->
@@ -112,7 +151,7 @@
           <path d="M5 3h10v3a5 5 0 0 1-4 4.9V13h2v2H7v-2h2v-2.1A5 5 0 0 1 5 6V3Z"/>
           <path d="M5 4H2v1a3 3 0 0 0 3 3V4ZM15 4h3v1a3 3 0 0 1-3 3V4Z"/>
         </svg>
-        <span id="mode-best-condition" class="mode-best-condition">5問・全曲</span>
+        <span id="mode-best-condition" class="mode-best-condition">5問・表題のみ</span>
         <span id="mode-best-value" class="mode-best-value">ベスト 記録なし</span>
       </p>
 
@@ -255,6 +294,9 @@
       </div>
 
       <p class="total-count-chip">全 <strong id="songlist-total-count"></strong> 曲収録</p>
+
+      <!-- カテゴリ別の内訳チップ。中身はjs/songlist.jsがSONGSから自動集計して組み立てる -->
+      <div id="songlist-breakdown" class="breakdown-chip-row"></div>
 
       <!-- シングル単位のアコーディオン本体。中身はjs/songlist.jsが組み立てる -->
       <div id="songlist-groups"></div>

@@ -16,12 +16,13 @@ const CATEGORY_PILL_INFO = {
   [CATEGORY.TITLE_TRACK]: { text: "表題曲", className: "title-track" },
   [CATEGORY.GROUP_SONG]: { text: "全員曲", className: "group-song" },
   [CATEGORY.UNIT_SONG]: { text: "ユニット曲", className: "unit-song" },
-  [CATEGORY.SPECIAL]: { text: "特別枠", className: "special" },
+  [CATEGORY.SPECIAL]: { text: CATEGORY.SPECIAL, className: "special" },
 };
 
 const previewAudioElement = document.getElementById("preview-audio");
 const groupsContainerElement = document.getElementById("songlist-groups");
 const totalCountElement = document.getElementById("songlist-total-count");
+const breakdownElement = document.getElementById("songlist-breakdown");
 
 // 今まさに試聴中の行のDOM要素。試聴していないときはnull。
 let currentlyPlayingRowElement = null;
@@ -316,9 +317,33 @@ function createSingleGroupElement(group, isInitiallyOpen) {
   return groupElement;
 }
 
+// カテゴリ別の内訳チップ（表題曲◯・全員曲◯・ユニット曲◯・特別収録曲◯）を組み立てる。
+// 曲数はHTMLに固定で書かず、songsの中身から毎回数え直すので、
+// 新曲・アルバム曲・配信限定曲を追加しても自動的に数字が更新される。
+function renderCategoryBreakdown(songs) {
+  const countsByCategory = {
+    [CATEGORY.TITLE_TRACK]: 0,
+    [CATEGORY.GROUP_SONG]: 0,
+    [CATEGORY.UNIT_SONG]: 0,
+    [CATEGORY.SPECIAL]: 0,
+  };
+  songs.forEach((song) => {
+    countsByCategory[song.category] += 1;
+  });
+
+  breakdownElement.innerHTML = "";
+  Object.entries(countsByCategory).forEach(([categoryName, count]) => {
+    const chip = document.createElement("span");
+    chip.className = "breakdown-chip";
+    chip.innerHTML = `${categoryName}<strong>${count}</strong>`;
+    breakdownElement.appendChild(chip);
+  });
+}
+
 // 収録曲一覧画面の中身を組み立てる。アプリ起動時に一度だけ呼べばよい。
 export function renderSongList(songs) {
   totalCountElement.textContent = songs.length;
+  renderCategoryBreakdown(songs);
 
   const groups = buildSongGroups(songs);
   const newestGroup = groups[0]; // orderで並び替え済みなので、先頭＝一番新しいシングル

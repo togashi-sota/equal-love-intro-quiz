@@ -36,6 +36,7 @@ renderSongList(SONGS);
 const startScreenElement = document.getElementById("start-screen");
 const quizScreenElement = document.getElementById("quiz-screen");
 const startErrorElement = document.getElementById("start-error");
+const questionCountNoticeElement = document.getElementById("question-count-notice");
 const questionProgressElement = document.getElementById("question-progress");
 const progressDotsElement = document.getElementById("progress-dots");
 const choiceButtonElements = document.querySelectorAll(".choice-button");
@@ -68,9 +69,9 @@ function showAudioError(message) {
 }
 
 // 自己ベストのチップに表示する、出題数・カテゴリの短縮ラベル。
-// 出題数の「全曲」（5問/10問/全曲）とカテゴリの「全曲（ユニット曲も含む）」が
-// どちらも「全曲」と表示されると紛らわしいため、出題数側だけ「全問」と表記して区別する。
-const QUESTION_COUNT_LABELS = { "5": "5問", "10": "10問", all: "全問" };
+// 出題数の「全曲」（5問/10問/20問/50問/全曲）とカテゴリの「全曲」が
+// どちらも同じ表記だと紛らわしいため、出題数側だけ「全問」と表記して区別する。
+const QUESTION_COUNT_LABELS = { "5": "5問", "10": "10問", "20": "20問", "50": "50問", all: "全問" };
 const CATEGORY_LABELS = { all: "全曲", "title-and-group": "表題＋全員", "title-track": "表題のみ" };
 
 // スタート画面で選択中の出題数・カテゴリに対応する自己ベストを表示する。
@@ -84,6 +85,39 @@ function updateModeBestScoreDisplay() {
     `${QUESTION_COUNT_LABELS[questionCountValue]}・${CATEGORY_LABELS[categoryFilterValue]}`;
   modeBestValueElement.textContent = best > 0 ? `ベスト ${best}点` : "ベスト 記録なし";
   modeBestChipElement.classList.toggle("is-empty", best === 0);
+}
+
+// カテゴリの選択肢に、現在の対象曲数を添える。SONGSから毎回数え直すので、
+// 新曲・アルバム曲・配信限定曲を追加しても自動的に数字が更新される。起動時に1回だけ呼べばよい。
+function updateCategoryCountHints() {
+  document.querySelectorAll(".count-hint[data-category-count]").forEach((hintElement) => {
+    const categoryFilterValue = hintElement.dataset.categoryCount;
+    const count = filterSongsByCategory(SONGS, categoryFilterValue).length;
+    hintElement.textContent = `${count}曲`;
+  });
+}
+
+// 選んだ出題数が、選んだカテゴリの対象曲数を上回っているときだけ、
+// 「実際は何問になるか」を事前に案内する。ラジオボタンが切り替わるたびに呼び出す。
+// resolveQuestionCount自体（quiz.js）はすでに曲数に収まるよう切り詰める作りなので、
+// ここでは同じ考え方でその結果を先に見せているだけで、出題ロジックには手を加えていない。
+function updateQuestionCountNotice() {
+  const questionCountValue = document.querySelector('input[name="question-count"]:checked').value;
+  const categoryFilterValue = document.querySelector('input[name="category-filter"]:checked').value;
+
+  if (questionCountValue === "all") {
+    questionCountNoticeElement.hidden = true;
+    return;
+  }
+
+  const poolSize = filterSongsByCategory(SONGS, categoryFilterValue).length;
+  const requestedCount = Number(questionCountValue);
+  if (requestedCount > poolSize) {
+    questionCountNoticeElement.textContent = `対象曲数が${questionCountValue}曲未満のため、全${poolSize}問を出題します`;
+    questionCountNoticeElement.hidden = false;
+  } else {
+    questionCountNoticeElement.hidden = true;
+  }
 }
 
 // 得点カウントアップ演出にかける時間。
@@ -408,12 +442,19 @@ songlistBackButtonElement.addEventListener("click", () => {
   showScreen("start");
 });
 
-// 出題数・カテゴリのラジオボタンが切り替わるたびに、自己ベスト表示を更新する。
+// 出題数・カテゴリのラジオボタンが切り替わるたびに、自己ベスト表示・出題数の案内を更新する。
 // ページを開いた直後（初期選択の状態）の分も、ここで一度呼んでおく。
 document
   .querySelectorAll('input[name="question-count"], input[name="category-filter"]')
-  .forEach((radio) => radio.addEventListener("change", updateModeBestScoreDisplay));
+  .forEach((radio) => {
+    radio.addEventListener("change", updateModeBestScoreDisplay);
+    radio.addEventListener("change", updateQuestionCountNotice);
+  });
 updateModeBestScoreDisplay();
+updateQuestionCountNotice();
+
+// カテゴリの選択肢に添える対象曲数は、ゲームの状態と関係なく最初に1回だけ計算すればよい。
+updateCategoryCountHints();
 
 // キーボード操作対応。マウス・タップ操作は今まで通り使えるようにしたうえで、
 // 今表示されている画面に応じてキー入力を割り当てる。

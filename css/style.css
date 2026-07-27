@@ -579,6 +579,79 @@ fieldset label:has(input:focus-visible) {
   outline-offset: 2px;
 }
 
+/* 出題数の選択肢を3個・2個の2段に固定するための行。
+   PC幅で5個を並べても最後の1個だけが余って見えないよう、段ごとに中央寄せする。
+   gapで間隔を取り、labelどうしの右マージンとの二重取りを避けるため
+   このコンテナ内だけlabelの右マージンを打ち消す。 */
+.option-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.option-row label {
+  margin: 4px 0;
+}
+
+/* カテゴリの選択肢だけ、出題数のチップ型とは違い、横幅いっぱいの1行として扱い、
+   「カテゴリ名＋曲数」のまとまりをボタン中央に配置する。
+   PC幅で余白が右だけに偏らず、スマホ幅でも同じCSSで自然に中央に来る。 */
+.category-option {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  margin: 4px 0;
+}
+
+.category-option-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+}
+
+/* 選択中だけ表示する「✦」。未選択時も同じ幅を確保しておくことで、
+   選択前後でカテゴリ名・曲数の位置がずれないようにする
+   （fieldset全体で共通の::beforeによる✦は、下の打ち消しルールでこの要素だけに置き換える）。 */
+.category-option-star {
+  flex: none;
+  font-size: 0.75em;
+  color: var(--color-accent-soft);
+  visibility: hidden;
+}
+
+.category-option:has(input:checked) .category-option-star {
+  visibility: visible;
+}
+
+.category-option:has(input:checked)::before {
+  content: none;
+}
+
+.category-option-name {
+  min-width: 0;
+}
+
+/* カテゴリの選択肢に添える、現在の対象曲数（songs.jsから自動集計、控えめな見た目） */
+.count-hint {
+  flex: none;
+  white-space: nowrap;
+  font-size: 0.8em;
+  opacity: 0.7;
+}
+
+/* 選択した出題数が対象曲数を上回っているときだけ表示する案内文 */
+.question-count-notice {
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--color-text);
+  opacity: 0.7;
+  margin: -6px 0 14px;
+}
+
 /* ===== ボタン共通 =====
    ピンク→ブルーのグラデーションに、常時ゆるく光るパルスと、
    時々横切る光沢（シャイン）を加えて、ステージのライトのような高級感を出す。 */
@@ -1551,7 +1624,7 @@ fieldset label:has(input:focus-visible) {
 .total-count-chip {
   display: block;
   width: fit-content;
-  margin: 8px auto 16px;
+  margin: 8px auto 8px;
   padding: 5px 14px;
   border-radius: 999px;
   background: var(--color-surface-glass);
@@ -1565,6 +1638,34 @@ fieldset label:has(input:focus-visible) {
 .total-count-chip strong {
   color: var(--color-primary-dark);
   opacity: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* カテゴリ別の内訳チップ。「全81曲収録」チップの下に、小さめのチップで並べる */
+.breakdown-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin: 0 0 16px;
+}
+
+.breakdown-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: var(--color-surface-glass);
+  border: 1px solid var(--color-card-border);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--color-text);
+  opacity: 0.85;
+}
+
+.breakdown-chip strong {
+  color: var(--color-primary-dark);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1864,6 +1965,11 @@ fieldset label:has(input:focus-visible) {
     min-height: 100vh;
     border-radius: 0;
     box-shadow: none;
+  }
+
+  /* スマホ幅では、カテゴリ名の折り返しを妨げないよう曲数の文字をさらに小さくする */
+  .category-option .count-hint {
+    font-size: 0.72rem;
   }
 }
 
