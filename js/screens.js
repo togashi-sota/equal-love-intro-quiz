@@ -8,6 +8,7 @@ const SCREEN_ELEMENTS = {
   start: document.getElementById("start-screen"),
   quiz: document.getElementById("quiz-screen"),
   result: document.getElementById("result-screen"),
+  songlist: document.getElementById("songlist-screen"),
 };
 
 // 指定した画面だけを表示し、それ以外の画面は隠す。

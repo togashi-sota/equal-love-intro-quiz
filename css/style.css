@@ -1327,11 +1327,20 @@ fieldset label:has(input:focus-visible) {
    start/quiz/resultの3画面切り替えとは独立した、単純な表示/非表示のオーバーレイとして実装している。
    結果画面ほど演出を効かせず、読みやすさを優先した見た目にしている。 */
 
+/* あそびかた・収録曲一覧、2つの入口をまとめる場所。スタートボタンより下に、控えめに並べる */
+.start-footer-links {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin-top: 12px;
+}
+
 /* スタートボタンより目立たせたくないので、下線付きのテキストリンクだけの控えめな見た目にする */
 .rules-link {
   display: block;
   width: fit-content;
-  margin: 12px auto 0;
+  margin: 0;
   padding: 4px;
   border: none;
   background: none;
@@ -1492,6 +1501,354 @@ fieldset label:has(input:focus-visible) {
   padding-left: 18px;
   font-size: 0.85rem;
   line-height: 1.6;
+}
+
+/* ===== 収録曲一覧画面 =====
+   81曲をシングル単位のアコーディオンで一覧し、各曲の試聴もできる画面。
+   中身（アコーディオンの各行）はjs/songlist.jsがSONGSから組み立てる。 */
+
+/* ヘッダー：左に「戻る」、中央にタイトル。両端をgridの1frずつにすることで、
+   「戻る」の実際の文字幅に関わらずタイトルが常に中央に来るようにしている。 */
+.list-header {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: start;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.list-header .title-block {
+  grid-column: 2;
+}
+
+.back-link {
+  grid-column: 1;
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 4px;
+  border: none;
+  background: none;
+  color: var(--color-primary-dark);
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.back-link-icon {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+.back-link:active {
+  transform: scale(0.94);
+}
+
+/* 総曲数チップ。自己ベストチップと同じ、控えめな見た目に揃える */
+.total-count-chip {
+  display: block;
+  width: fit-content;
+  margin: 8px auto 16px;
+  padding: 5px 14px;
+  border-radius: 999px;
+  background: var(--color-surface-glass);
+  border: 1px solid var(--color-card-border);
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--color-text);
+  opacity: 0.75;
+}
+
+.total-count-chip strong {
+  color: var(--color-primary-dark);
+  opacity: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* シングル単位の折りたたみ1つ分 */
+.single-group {
+  border: 1.5px solid var(--color-card-border);
+  border-radius: 16px;
+  margin-bottom: 10px;
+  background: rgba(255, 255, 255, 0.4);
+  overflow: hidden;
+}
+
+.single-group-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: none;
+  background: none;
+  font-family: inherit;
+  text-align: left;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.single-group-header:focus-visible {
+  outline: 2px solid var(--color-primary-dark);
+  outline-offset: -2px;
+}
+
+.chevron {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--color-primary-dark);
+  transition: transform var(--transition-base) ease;
+}
+
+.single-group.is-open .chevron {
+  transform: rotate(90deg);
+}
+
+.single-group-name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 800;
+  font-size: 0.92rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.track-count-chip {
+  flex: none;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--color-text);
+  opacity: 0.55;
+  font-variant-numeric: tabular-nums;
+}
+
+.single-group-tracks {
+  display: none;
+  padding: 0 10px 10px;
+}
+
+.single-group.is-open .single-group-tracks {
+  display: block;
+}
+
+/* 1曲分の行 */
+.track-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border-radius: 10px;
+  transition: background-color var(--transition-base) ease;
+}
+
+.track-row.is-playing {
+  background: var(--color-primary-light);
+}
+
+.play-button {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-surface);
+  color: var(--color-primary-dark);
+  box-shadow: 0 3px 8px -3px rgba(255, 79, 150, 0.4);
+  cursor: pointer;
+  transition: transform var(--transition-fast) ease;
+}
+
+.play-button:active {
+  transform: scale(0.9);
+}
+
+.play-button svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* 再生/一時停止アイコンの切り替え。
+   hidden属性・hiddenプロパティはインラインSVG要素への反映がブラウザによって不安定なため使わず、
+   行の.is-playingクラスだけで見た目を決める、より確実なクラスベースの方式にしている。 */
+.icon-pause {
+  display: none;
+}
+
+.track-row.is-playing .icon-play {
+  display: none;
+}
+
+.track-row.is-playing .icon-pause {
+  display: block;
+}
+
+.track-row.is-playing .play-button {
+  background: var(--color-primary-dark);
+  color: #ffffff;
+}
+
+.track-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* 曲名は省略せず、長い場合はここだけ自然に折り返す
+   （再生ボタン・カテゴリバッジはflex:noneで幅を保つため、押しつぶされない） */
+.track-title {
+  font-size: 0.86rem;
+  font-weight: 700;
+  overflow-wrap: break-word;
+}
+
+/* 歌唱メンバー・センター・補足説明：曲名より小さく薄い文字にし、自然に折り返す。
+   人数の多いユニット曲でも、再生ボタン・カテゴリバッジと重ならないようにしている */
+.track-meta-line {
+  font-size: 0.7rem;
+  line-height: 1.5;
+  color: var(--color-text);
+  opacity: 0.6;
+  overflow-wrap: break-word;
+}
+
+/* 試聴中の曲だけに表示する、再生位置バー */
+.track-seek {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 4px;
+}
+
+/* displayの指定がhidden属性より優先されてしまう問題への対策
+   （.modal-overlay等と同じ理由なので、同じ対策を最初から入れておく） */
+.track-seek[hidden] {
+  display: none;
+}
+
+.seek-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ネイティブのrange要素をそのまま使い、accent-colorだけでブランドカラーに合わせる。
+   トラック・つまみの形状を作り込まないことで、ブラウザごとの見た目の違いをそのまま許容し、
+   操作できることとコードのシンプルさを優先している */
+.seek-range {
+  flex: 1;
+  width: 100%;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--color-primary-dark);
+}
+
+.seek-skip-button {
+  flex: none;
+  border: none;
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-primary-dark);
+  font-size: 0.62rem;
+  font-weight: 700;
+  padding: 4px 7px;
+  cursor: pointer;
+}
+
+.seek-skip-button:active {
+  transform: scale(0.9);
+}
+
+.seek-time {
+  align-self: flex-end;
+  font-size: 0.65rem;
+  color: var(--color-text);
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 再生中だけ表示する、ブランド共通のイコライザー演出（スタート画面の.eq-dividerと同じモチーフ） */
+.now-playing-tag {
+  display: none;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+}
+
+.track-row.is-playing .now-playing-tag {
+  display: inline-flex;
+}
+
+.now-playing-eq {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 10px;
+}
+
+.now-playing-eq span {
+  width: 2.5px;
+  border-radius: 2px;
+  background: var(--color-primary-dark);
+  height: 4px;
+  animation: eqBounce 0.9s ease-in-out infinite;
+}
+
+.now-playing-eq span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.now-playing-eq span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes eqBounce {
+  0%, 100% {
+    height: 3px;
+  }
+  50% {
+    height: 10px;
+  }
+}
+
+.category-pill {
+  flex: none;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  font-weight: 700;
+}
+
+.category-pill.title-track {
+  background: var(--color-primary-dark);
+  color: #ffffff;
+}
+
+.category-pill.group-song {
+  background: var(--color-secondary-light);
+  color: #2c6ea8;
+}
+
+.category-pill.unit-song {
+  background: var(--color-accent-soft);
+  color: #8a6a10;
+}
+
+/* 特別枠（Overture）は、ランクCの落ち着いた配色（12章参照）に揃える */
+.category-pill.special {
+  background: #f3f0f8;
+  color: #6b6478;
 }
 
 /* ===== レスポンシブ：スマホ幅（520px以下） =====

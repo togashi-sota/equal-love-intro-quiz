@@ -25,9 +25,13 @@ import { calculateScore, calculateRank } from "./score.js";
 import { getHighScore, saveHighScoreIfBetter } from "./highscore.js";
 import { playClickSound, playCorrectSound, playWrongSound, playCountUpSound } from "./sfx.js";
 import { renderBackgroundSparkles } from "./decorations.js";
+import { renderSongList, resetSongListToDefaultView, stopSongListPreview } from "./songlist.js";
 
 // 背景のキラキラ演出は、ゲームの状態と関係なく最初に1回だけ生成すればよい。
 renderBackgroundSparkles();
+
+// 収録曲一覧画面の中身も、ゲームの状態と関係なく最初に1回だけ組み立てればよい。
+renderSongList(SONGS);
 
 const startScreenElement = document.getElementById("start-screen");
 const quizScreenElement = document.getElementById("quiz-screen");
@@ -53,6 +57,8 @@ const modeBestValueElement = document.getElementById("mode-best-value");
 const rulesLinkElement = document.getElementById("rules-link");
 const rulesModalElement = document.getElementById("rules-modal");
 const rulesModalCloseButtonElement = document.getElementById("rules-modal-close");
+const songlistLinkElement = document.getElementById("songlist-link");
+const songlistBackButtonElement = document.getElementById("songlist-back-button");
 
 // 音源の再生に失敗したときの表示処理。
 // タイマーや得点処理は止めず、エラーメッセージを出すだけに留める。
@@ -386,6 +392,20 @@ rulesModalElement.addEventListener("click", (event) => {
   if (event.target === rulesModalElement) {
     closeRulesModal();
   }
+});
+
+// 「収録曲一覧」リンク：開くたびに、最新のシングルだけ展開した状態から始める。
+songlistLinkElement.addEventListener("click", () => {
+  playClickSound();
+  resetSongListToDefaultView();
+  showScreen("songlist");
+});
+
+// 収録曲一覧画面の「戻る」：試聴中の曲を必ず止めてからスタート画面へ戻る。
+songlistBackButtonElement.addEventListener("click", () => {
+  playClickSound();
+  stopSongListPreview();
+  showScreen("start");
 });
 
 // 出題数・カテゴリのラジオボタンが切り替わるたびに、自己ベスト表示を更新する。

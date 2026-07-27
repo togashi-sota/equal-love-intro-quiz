@@ -121,9 +121,12 @@
 
       <button id="start-button" class="primary-button" type="button">スタート</button>
 
-      <!-- 得点の仕組みなどを確認できる、ルール説明モーダルの入口。
-           スタートボタンより目立たせたくないので、下線付きの控えめなテキストリンクにしている。 -->
-      <button id="rules-link" class="rules-link" type="button">あそびかた・とくてんのルール</button>
+      <!-- ルール説明モーダル・収録曲一覧画面への入口。
+           スタートボタンより目立たせたくないので、どちらも下線付きの控えめなテキストリンクにしている。 -->
+      <div class="start-footer-links">
+        <button id="rules-link" class="rules-link" type="button">あそびかた・とくてんのルール</button>
+        <button id="songlist-link" class="rules-link" type="button">収録曲一覧</button>
+      </div>
     </section>
 
     <!-- クイズ画面：イントロ再生、4択、タイマー、正誤表示を行う画面 -->
@@ -230,6 +233,34 @@
         <button id="retry-button" class="primary-button" type="button">もう一度挑戦する</button>
         <button id="back-to-title-button" class="secondary-button" type="button">タイトルに戻る</button>
       </div>
+    </section>
+
+    <!-- 収録曲一覧画面：81曲をシングル単位のアコーディオンで一覧し、試聴もできる画面。
+         中身（アコーディオンの各行）はjs/songlist.jsがSONGSから組み立てる。 -->
+    <section id="songlist-screen" class="screen">
+      <div class="list-header">
+        <button id="songlist-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            SONG LIST
+          </p>
+          <h2>収録曲一覧</h2>
+        </div>
+      </div>
+
+      <p class="total-count-chip">全 <strong id="songlist-total-count"></strong> 曲収録</p>
+
+      <!-- シングル単位のアコーディオン本体。中身はjs/songlist.jsが組み立てる -->
+      <div id="songlist-groups"></div>
+
+      <!-- 試聴専用の音源要素。クイズ本編（#intro-audio）とは完全に分けている -->
+      <audio id="preview-audio"></audio>
     </section>
 
   </main>

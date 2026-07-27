@@ -27,16 +27,27 @@ export const DIFFICULTY = {
 };
 
 // 曲データ本体。90曲規模まで増やすことを想定した項目構成。
-// id            : 曲を一意に識別するための文字列（音源ファイル名 `${id}.mp3` にもそのまま使う）
-// title         : クイズの選択肢や正解表示に使う曲名
-// category      : CATEGORY で定義した値のどれか
-// releaseDate   : 発売日（"YYYY-MM-DD"形式。日付順の並び替えがしやすいようにハイフン区切りに統一する）
-// single        : 収録シングル/アルバム名（表示用の補足情報）
-// difficulty    : DIFFICULTY で定義した値のどれか
-// introLeadInSec: 曲の頭にある無音区間の長さ（秒）。この秒数の位置まで頭出ししてから
-//                 再生するため、プレイヤーには無音を聞かせない（js/audio.jsが使う）。
-//                 採点（js/score.js）はこの値を使わず、実際に鳴り始めてからの経過秒数を
-//                 そのまま採点する。無音がほぼない曲は0のままでよい。
+// id             : 曲を一意に識別するための文字列（音源ファイル名 `${id}.mp3` にもそのまま使う）
+// title          : クイズの選択肢や正解表示、収録曲一覧に使う曲名（公式表記）
+// category       : CATEGORY で定義した値のどれか
+// releaseDate    : 発売日（"YYYY-MM-DD"形式。日付順の並び替えがしやすいようにハイフン区切りに統一する）
+// single         : 収録シングル/アルバム名（表示用の補足情報）
+// difficulty     : DIFFICULTY で定義した値のどれか
+// introLeadInSec : 曲の頭にある無音区間の長さ（秒）。この秒数の位置まで頭出ししてから
+//                  再生するため、プレイヤーには無音を聞かせない（js/audio.js・js/songlist.jsが使う）。
+//                  採点（js/score.js）はこの値を使わず、実際に鳴り始めてからの経過秒数を
+//                  そのまま採点する。無音がほぼない曲は0のままでよい。
+//
+// 以下は収録曲一覧画面（js/songlist.js）だけが参照する、表示用の追加情報。
+// クイズ本編（quiz.js・score.js・state.js・audio.js）はこれらのフィールドを一切参照しないため、
+// 省略しても・追加しても採点や出題ロジックには影響しない。
+// members        : 歌唱メンバーの配列（ユニット曲・ソロ曲のみ。表題曲・全員曲では省略）
+// center         : センターを務めるメンバーの配列（表題曲・全員曲、および3人以上のユニット曲で
+//                  公式にセンターが確認できた曲のみ。未確認の曲では省略する）
+// centerType     : "single"（単独センター）/ "double"（Wセンター）/ "none"（センターなしと確認済み）
+//                  centerが省略されている曲ではcenterTypeも省略する
+// releaseContext : 曲がなぜ・どんな位置付けで配信/制作されたかの短い説明（該当曲のみ）
+// description    : 曲の内容・位置付けの短い補足（該当曲のみ）
 //
 // 曲を増やすときは、この配列に要素を追加していくだけでよい。
 export const SONGS = [
@@ -48,6 +59,8 @@ export const SONGS = [
     single: "1stシングル「＝LOVE」",
     difficulty: DIFFICULTY.EASY,
     introLeadInSec: 0,
+    center: ["髙松瞳"],
+    centerType: "single",
   },
   {
     id: "kioku-no-dokoka-de",
@@ -57,15 +70,19 @@ export const SONGS = [
     single: "1stシングル「＝LOVE」収録",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["野口衣織", "諸橋沙夏"],
+    centerType: "double",
   },
   {
     id: "start",
-    title: "スタート!",
+    title: "スタート！",
     category: CATEGORY.GROUP_SONG,
     releaseDate: "2017-09-06",
     single: "1stシングル「＝LOVE」収録",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["髙松瞳"],
+    centerType: "single",
   },
   {
     id: "zurui-yo-zurui-ne",
@@ -75,6 +92,8 @@ export const SONGS = [
     single: "6thシングル「ズルいよ ズルいね」",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["齊藤なぎさ"],
+    centerType: "single",
   },
   {
     id: "bokura-no-seifuku-christmas",
@@ -84,6 +103,8 @@ export const SONGS = [
     single: "2ndシングル「僕らの制服クリスマス」",
     difficulty: DIFFICULTY.EASY,
     introLeadInSec: 0,
+    center: ["髙松瞳"],
+    centerType: "single",
   },
   {
     id: "todoite-love-you",
@@ -93,6 +114,8 @@ export const SONGS = [
     single: "2ndシングル「僕らの制服クリスマス」収録",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["齊藤なぎさ"],
+    centerType: "single",
   },
   {
     id: "youkoso-ikorabu-numa",
@@ -102,6 +125,8 @@ export const SONGS = [
     single: "2ndシングル「僕らの制服クリスマス」収録",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["髙松瞳"],
+    centerType: "single",
   },
   {
     id: "sakura-no-saku-oto-ga-shita",
@@ -111,6 +136,8 @@ export const SONGS = [
     single: "1stアルバム「全部、内緒。」",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["髙松瞳"],
+    centerType: "single",
   },
   {
     id: "oh-darling",
@@ -120,6 +147,8 @@ export const SONGS = [
     single: "1stアルバム「全部、内緒。」収録",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["髙松瞳"],
+    centerType: "single",
   },
   {
     id: "senobi-in-love",
@@ -129,6 +158,8 @@ export const SONGS = [
     single: "1stアルバム「全部、内緒。」収録",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["齋藤樹愛羅"],
+    centerType: "single",
   },
   {
     id: "cinema",
@@ -138,6 +169,8 @@ export const SONGS = [
     single: "1stアルバム「全部、内緒。」収録",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["音嶋莉沙"],
+    centerType: "single",
   },
   {
     id: "genneki-idol-chu",
@@ -147,15 +180,17 @@ export const SONGS = [
     single: "1stアルバム「全部、内緒。」収録",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    members: ["齊藤なぎさ"],
   },
   {
     id: "haikei-anata-sama",
-    title: "拝啓貴方様",
+    title: "拝啓 貴方様",
     category: CATEGORY.UNIT_SONG,
     releaseDate: "2021-05-12",
     single: "1stアルバム「全部、内緒。」収録",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 4.4, // イントロの無音が約4.4秒あるため、その位置まで頭出しして再生する
+    members: ["野口衣織"],
   },
   {
     id: "24-7",
@@ -165,6 +200,9 @@ export const SONGS = [
     single: "1stアルバム「全部、内緒。」収録",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    members: ["野口衣織", "諸橋沙夏", "髙松瞳", "山本杏奈", "齋藤樹愛羅"],
+    center: ["野口衣織", "諸橋沙夏"],
+    centerType: "double",
   },
   {
     id: "oneesan-ja-dame-desuka",
@@ -174,6 +212,9 @@ export const SONGS = [
     single: "1stアルバム「全部、内緒。」収録",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    members: ["大谷映美里", "大場花菜", "音嶋莉沙", "齊藤なぎさ", "佐々木舞香", "瀧脇笙古"],
+    center: ["大谷映美里", "佐々木舞香"],
+    centerType: "double",
   },
   {
     id: "seishun-subliminal",
@@ -183,6 +224,8 @@ export const SONGS = [
     single: "8thシングル「青春\"サブリミナル\"」",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["髙松瞳"],
+    centerType: "single",
   },
   {
     id: "shukipi",
@@ -192,6 +235,8 @@ export const SONGS = [
     single: "8thシングル「青春\"サブリミナル\"」収録",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["佐々木舞香"],
+    centerType: "single",
   },
   {
     id: "ryuseigun",
@@ -201,6 +246,7 @@ export const SONGS = [
     single: "8thシングル「青春\"サブリミナル\"」収録",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    members: ["髙松瞳", "齊藤なぎさ"],
   },
   {
     id: "teokure-caution",
@@ -210,6 +256,8 @@ export const SONGS = [
     single: "3rdシングル「手遅れcaution」",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["髙松瞳"],
+    centerType: "single",
   },
   {
     id: "bukatsuchu-ni-megaau-natte-omotteta-nda",
@@ -219,6 +267,8 @@ export const SONGS = [
     single: "3rdシングル「手遅れcaution」収録（Type-A）",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["髙松瞳"],
+    centerType: "single",
   },
   {
     id: "kiara-tasuke-ni-kita-zo",
@@ -228,15 +278,19 @@ export const SONGS = [
     single: "3rdシングル「手遅れcaution」収録（Type-B）",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["齋藤樹愛羅"],
+    centerType: "single",
   },
   {
     id: "want-you-want-you",
-    title: "Want you! Want you!",
+    title: "Want you！Want you！",
     category: CATEGORY.TITLE_TRACK,
     releaseDate: "2018-10-17",
     single: "4thシングル「Want you! Want you!」",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["髙松瞳"],
+    centerType: "single",
   },
   {
     id: "ima-kono-fune-ni-nore",
@@ -246,6 +300,8 @@ export const SONGS = [
     single: "4thシングル「Want you! Want you!」収録（Type-A/C）",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["髙松瞳", "山本杏奈"],
+    centerType: "double",
   },
   {
     id: "aikatsu-happy-end",
@@ -255,6 +311,8 @@ export const SONGS = [
     single: "4thシングル「Want you! Want you!」収録（Type-B/C）",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["髙松瞳"],
+    centerType: "single",
   },
   {
     id: "sagase-diamond-lily",
@@ -264,6 +322,8 @@ export const SONGS = [
     single: "5thシングル「探せ ダイヤモンドリリー」",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["髙松瞳"],
+    centerType: "single",
   },
   {
     id: "iranai-twintail",
@@ -273,6 +333,8 @@ export const SONGS = [
     single: "5thシングル「探せ ダイヤモンドリリー」収録（Type-A/C）",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["齋藤樹愛羅", "齊藤なぎさ"],
+    centerType: "double",
   },
   {
     id: "niji-no-moto",
@@ -282,6 +344,7 @@ export const SONGS = [
     single: "5thシングル「探せ ダイヤモンドリリー」収録（Type-B/C）",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    members: ["佐々木舞香", "野口衣織"],
   },
   {
     id: "sweetest-girl",
@@ -291,6 +354,9 @@ export const SONGS = [
     single: "6thシングル「ズルいよ ズルいね」収録（Type-A/D）",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    members: ["大谷映美里", "音嶋莉沙", "齋藤樹愛羅", "齊藤なぎさ", "諸橋沙夏"],
+    center: ["大谷映美里"],
+    centerType: "single",
   },
   {
     id: "oshi-no-iru-sekai",
@@ -300,6 +366,9 @@ export const SONGS = [
     single: "6thシングル「ズルいよ ズルいね」収録（Type-B/D）",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    members: ["大場花菜", "佐竹のん乃", "瀧脇笙古", "山本杏奈", "佐々木舞香", "野口衣織"],
+    center: ["佐竹のん乃"],
+    centerType: "single",
   },
   {
     id: "cameo",
@@ -309,6 +378,8 @@ export const SONGS = [
     single: "7thシングル「CAMEO」",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["大谷映美里", "齊藤なぎさ"],
+    centerType: "double",
   },
   {
     id: "kimi-to-watashi-no-uta",
@@ -318,6 +389,8 @@ export const SONGS = [
     single: "7thシングル「CAMEO」収録",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["野口衣織"],
+    centerType: "single",
   },
   {
     id: "my-voice-is-for-you",
@@ -327,6 +400,7 @@ export const SONGS = [
     single: "7thシングル「CAMEO」収録",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    members: ["諸橋沙夏"],
   },
   {
     id: "the-5th",
@@ -336,15 +410,19 @@ export const SONGS = [
     single: "10thシングル「The 5th」",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["髙松瞳"],
+    centerType: "single",
   },
   {
     id: "ohimesama-ni-shiteyo",
-    title: "お姫様にしてよ!",
+    title: "お姫様にしてよ！",
     category: CATEGORY.GROUP_SONG,
     releaseDate: "2021-12-15",
     single: "10thシングル「The 5th」収録",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["音嶋莉沙"],
+    centerType: "single",
   },
   {
     id: "poison-girl",
@@ -354,6 +432,8 @@ export const SONGS = [
     single: "10thシングル「The 5th」収録",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["大谷映美里"],
+    centerType: "single",
   },
   {
     id: "bpm170-no-kimi-e",
@@ -363,6 +443,9 @@ export const SONGS = [
     single: "10thシングル「The 5th」収録",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    members: ["大場花菜", "髙松瞳", "瀧脇笙古", "野口衣織", "山本杏奈"],
+    center: ["瀧脇笙古"],
+    centerType: "single",
   },
   {
     id: "ano-ko-complex",
@@ -372,6 +455,8 @@ export const SONGS = [
     single: "11thシングル「あの子コンプレックス」",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["佐々木舞香"],
+    centerType: "single",
   },
   {
     id: "egao-no-recipe",
@@ -381,6 +466,8 @@ export const SONGS = [
     single: "11thシングル「あの子コンプレックス」収録",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["山本杏奈"],
+    centerType: "single",
   },
   {
     id: "shiran-kedo",
@@ -390,6 +477,9 @@ export const SONGS = [
     single: "11thシングル「あの子コンプレックス」収録",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    members: ["野口衣織", "佐々木舞香", "諸橋沙夏"],
+    center: ["野口衣織"],
+    centerType: "single",
   },
   {
     id: "boku-no-heroine",
@@ -399,6 +489,7 @@ export const SONGS = [
     single: "11thシングル「あの子コンプレックス」収録",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    members: ["髙松瞳"],
   },
   {
     id: "takaramono-wa-green",
@@ -408,6 +499,8 @@ export const SONGS = [
     single: "配信限定シングル「宝物はグリーン」",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    members: ["諸橋沙夏"],
+    description: "2023年9月14日の初ソロコンサートで披露され、後日配信された楽曲。",
   },
   {
     id: "kimi-dake-no-hanamichi",
@@ -417,6 +510,8 @@ export const SONGS = [
     single: "配信限定シングル「君だけの花道」",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    members: ["齊藤なぎさ"],
+    description: "齊藤なぎさの卒業ソングとして、卒業コンサートで初披露されたソロ曲。",
   },
   {
     id: "okaeri-hanadayori",
@@ -426,6 +521,8 @@ export const SONGS = [
     single: "配信限定シングル「おかえり、花便り」",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    members: ["山本杏奈"],
+    description: "山本杏奈が配信アプリSHOWROOMにて、まいにちアイドル2,000日と累計3億ポイントチャレンジ企画達成した記念の楽曲。",
   },
   {
     id: "naisho-banashi",
@@ -435,6 +532,9 @@ export const SONGS = [
     single: "配信限定シングル「内緒バナシ」",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["大谷映美里"],
+    centerType: "single",
+    description: "2025年の合同コンサート「イコノイジョイ」の開催見送りに伴い、3グループによる特別企画の一環として配信された楽曲。",
   },
   {
     id: "weekend-citron",
@@ -444,6 +544,8 @@ export const SONGS = [
     single: "9thシングル「ウィークエンドシトロン」",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["髙松瞳"],
+    centerType: "single",
   },
   {
     id: "zuttomo-anken",
@@ -453,6 +555,8 @@ export const SONGS = [
     single: "9thシングル「ウィークエンドシトロン」収録",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["髙松瞳", "齊藤なぎさ"],
+    centerType: "double",
   },
   {
     id: "natsumatsuri-koishitau",
@@ -462,6 +566,8 @@ export const SONGS = [
     single: "9thシングル「ウィークエンドシトロン」収録",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["佐々木舞香"],
+    centerType: "single",
   },
   {
     id: "shukusai",
@@ -471,6 +577,8 @@ export const SONGS = [
     single: "9thシングル「ウィークエンドシトロン」収録",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["大場花菜", "野口衣織"],
+    centerType: "double",
   },
   {
     id: "kono-sora-ga-trigger",
@@ -480,6 +588,8 @@ export const SONGS = [
     single: "13thシングル「この空がトリガー」",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["佐々木舞香"],
+    centerType: "single",
   },
   {
     id: "junkies",
@@ -489,6 +599,8 @@ export const SONGS = [
     single: "13thシングル「この空がトリガー」収録",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["髙松瞳"],
+    centerType: "single",
   },
   {
     id: "love-create",
@@ -498,6 +610,8 @@ export const SONGS = [
     single: "13thシングル「この空がトリガー」収録",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["野口衣織"],
+    centerType: "single",
   },
   {
     id: "kiara-tiara",
@@ -507,6 +621,7 @@ export const SONGS = [
     single: "13thシングル「この空がトリガー」収録",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    members: ["齋藤樹愛羅"],
   },
   {
     id: "natsumatope",
@@ -516,6 +631,8 @@ export const SONGS = [
     single: "14thシングル「ナツマトペ」",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["佐々木舞香", "野口衣織"],
+    centerType: "double",
   },
   {
     id: "dakaratote",
@@ -525,6 +642,8 @@ export const SONGS = [
     single: "14thシングル「ナツマトペ」収録（Type-A）",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["野口衣織"],
+    centerType: "single",
   },
   {
     id: "heroines",
@@ -534,6 +653,8 @@ export const SONGS = [
     single: "14thシングル「ナツマトペ」収録（Type-B）",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["山本杏奈"],
+    centerType: "single",
   },
   {
     id: "love-locke",
@@ -543,6 +664,9 @@ export const SONGS = [
     single: "14thシングル「ナツマトペ」収録（Type-C）",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    members: ["大場花菜", "音嶋莉沙", "齋藤樹愛羅", "髙松瞳", "瀧脇笙古", "山本杏奈"],
+    center: ["大場花菜"],
+    centerType: "single",
   },
   {
     id: "last-note-shika-shiranai",
@@ -552,6 +676,8 @@ export const SONGS = [
     single: "15thシングル「ラストノートしか知らない」",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["齋藤樹愛羅"],
+    centerType: "single",
   },
   {
     id: "drive-date-tonai",
@@ -561,6 +687,8 @@ export const SONGS = [
     single: "15thシングル「ラストノートしか知らない」収録（Type-A/D/通常盤）",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["髙松瞳"],
+    centerType: "single",
   },
   {
     id: "kyousou-catastrophe",
@@ -570,6 +698,8 @@ export const SONGS = [
     single: "15thシングル「ラストノートしか知らない」収録",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["野口衣織"],
+    centerType: "single",
   },
   {
     id: "doko-ga-suki-ka-itte",
@@ -579,6 +709,9 @@ export const SONGS = [
     single: "15thシングル「ラストノートしか知らない」収録（Type-C/通常盤）",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    members: ["大谷映美里", "佐々木舞香", "野口衣織", "諸橋沙夏"],
+    center: [],
+    centerType: "none",
   },
   {
     id: "norotte-norotte",
@@ -588,6 +721,8 @@ export const SONGS = [
     single: "16thシングル「呪って呪って」",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["野口衣織"],
+    centerType: "single",
   },
   {
     id: "darenimo-barezuni",
@@ -597,6 +732,8 @@ export const SONGS = [
     single: "16thシングル「呪って呪って」収録",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["佐々木舞香"],
+    centerType: "single",
   },
   {
     id: "kimi-no-dai-3-button",
@@ -606,6 +743,8 @@ export const SONGS = [
     single: "16thシングル「呪って呪って」収録",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["齋藤樹愛羅"],
+    centerType: "single",
   },
   {
     id: "zettai-idol-yamenaide",
@@ -615,6 +754,8 @@ export const SONGS = [
     single: "17thシングル「絶対アイドル辞めないで」",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["佐々木舞香"],
+    centerType: "single",
   },
   {
     id: "nakanaori-shu-cream",
@@ -624,6 +765,8 @@ export const SONGS = [
     single: "17thシングル「絶対アイドル辞めないで」収録",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["髙松瞳", "野口衣織"],
+    centerType: "double",
   },
   {
     id: "umi-to-lemon-tea",
@@ -633,6 +776,8 @@ export const SONGS = [
     single: "17thシングル「絶対アイドル辞めないで」収録",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["大場花菜"],
+    centerType: "single",
   },
   {
     id: "tokubechu-shite",
@@ -642,6 +787,8 @@ export const SONGS = [
     single: "18thシングル「とくべチュ、して／恋人以上、好き未満」",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["佐々木舞香"],
+    centerType: "single",
   },
   {
     id: "koibito-ijou-suki-miman",
@@ -651,6 +798,8 @@ export const SONGS = [
     single: "18thシングル「とくべチュ、して／恋人以上、好き未満」",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["佐々木舞香"],
+    centerType: "single",
   },
   {
     id: "chotokkyu-tousouchu",
@@ -660,6 +809,8 @@ export const SONGS = [
     single: "18thシングル「とくべチュ、して／恋人以上、好き未満」収録",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["野口衣織"],
+    centerType: "single",
   },
   {
     id: "love-song-ni-osowareru",
@@ -669,6 +820,8 @@ export const SONGS = [
     single: "19thシングル「ラブソングに襲われる」",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["佐々木舞香"],
+    centerType: "single",
   },
   {
     id: "komorebi-mezzoforte",
@@ -678,6 +831,8 @@ export const SONGS = [
     single: "19thシングル「ラブソングに襲われる」収録",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["音嶋莉沙", "瀧脇笙古"],
+    centerType: "double",
   },
   {
     id: "queens",
@@ -687,6 +842,7 @@ export const SONGS = [
     single: "19thシングル「ラブソングに襲われる」収録",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    members: ["齋藤樹愛羅", "野口衣織"],
   },
   {
     id: "gekiyaku-chudoku",
@@ -696,6 +852,8 @@ export const SONGS = [
     single: "20thシングル「劇薬中毒」",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["佐々木舞香", "野口衣織"],
+    centerType: "double",
   },
   {
     id: "moratorium",
@@ -705,6 +863,8 @@ export const SONGS = [
     single: "20thシングル「劇薬中毒」収録",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["諸橋沙夏"],
+    centerType: "single",
   },
   {
     id: "ohimesama-no-tsukurikata",
@@ -714,6 +874,8 @@ export const SONGS = [
     single: "20thシングル「劇薬中毒」収録",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["齋藤樹愛羅"],
+    centerType: "single",
   },
   {
     id: "866",
@@ -723,42 +885,9 @@ export const SONGS = [
     single: "＝LOVE 2周年記念コンサート関連曲（配信限定）",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
-  },
-  {
-    id: "be-selfish",
-    title: "Be Selfish",
-    category: CATEGORY.TITLE_TRACK,
-    releaseDate: "2022-09-28",
-    single: "12thシングル「Be Selfish」",
-    difficulty: DIFFICULTY.NORMAL,
-    introLeadInSec: 0,
-  },
-  {
-    id: "sukitte-ienakatta",
-    title: "好きって、言えなかった",
-    category: CATEGORY.GROUP_SONG,
-    releaseDate: "2022-09-28",
-    single: "12thシングル「Be Selfish」収録（Type-A）",
-    difficulty: DIFFICULTY.NORMAL,
-    introLeadInSec: 0,
-  },
-  {
-    id: "watashi-mahoutsukai",
-    title: "わたし、魔法使い",
-    category: CATEGORY.UNIT_SONG,
-    releaseDate: "2022-09-28",
-    single: "12thシングル「Be Selfish」収録（Type-B）",
-    difficulty: DIFFICULTY.NORMAL,
-    introLeadInSec: 0,
-  },
-  {
-    id: "mayonaka-mermaid",
-    title: "真夜中マーメイド",
-    category: CATEGORY.UNIT_SONG,
-    releaseDate: "2022-09-28",
-    single: "12thシングル「Be Selfish」収録（Type-C）",
-    difficulty: DIFFICULTY.NORMAL,
-    introLeadInSec: 0,
+    center: [],
+    centerType: "none",
+    releaseContext: "グループ結成から866日目に開催された、デビュー2周年記念コンサートで披露された記念曲。",
   },
   {
     id: "overture",
@@ -768,5 +897,48 @@ export const SONGS = [
     single: "1stアルバム「全部、内緒。」収録（ライブオープニング定番曲）",
     difficulty: DIFFICULTY.HARD,
     introLeadInSec: 0,
+    description: "ライブやコンサートの開演時、メンバーの登場前に流れるオープニング曲。",
+  },
+  {
+    id: "be-selfish",
+    title: "Be Selfish",
+    category: CATEGORY.TITLE_TRACK,
+    releaseDate: "2022-09-28",
+    single: "12thシングル「Be Selfish」",
+    difficulty: DIFFICULTY.NORMAL,
+    introLeadInSec: 0,
+    center: ["野口衣織"],
+    centerType: "single",
+  },
+  {
+    id: "sukitte-ienakatta",
+    title: "好きって、言えなかった",
+    category: CATEGORY.GROUP_SONG,
+    releaseDate: "2022-09-28",
+    single: "12thシングル「Be Selfish」収録（Type-A）",
+    difficulty: DIFFICULTY.NORMAL,
+    introLeadInSec: 0,
+    center: ["野口衣織"],
+    centerType: "single",
+  },
+  {
+    id: "watashi-mahoutsukai",
+    title: "わたし、魔法使い",
+    category: CATEGORY.UNIT_SONG,
+    releaseDate: "2022-09-28",
+    single: "12thシングル「Be Selfish」収録（Type-B）",
+    difficulty: DIFFICULTY.NORMAL,
+    introLeadInSec: 0,
+    members: ["大谷映美里", "齊藤なぎさ"],
+  },
+  {
+    id: "mayonaka-mermaid",
+    title: "真夜中マーメイド",
+    category: CATEGORY.UNIT_SONG,
+    releaseDate: "2022-09-28",
+    single: "12thシングル「Be Selfish」収録（Type-C）",
+    difficulty: DIFFICULTY.NORMAL,
+    introLeadInSec: 0,
+    members: ["佐々木舞香"],
   },
 ];
