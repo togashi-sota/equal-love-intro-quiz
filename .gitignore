@@ -4,3 +4,7 @@ assets/audio/local/*
 
 # Claude Codeへの指示書（自分の作業メモのため非公開）
 CLAUDE.md
+
+# 開発の引き継ぎメモ（自宅のIPアドレス・音源入手方法の詳細など、
+# 公開を想定していない内部情報を含むため非公開。CLAUDE.mdと同じ扱い）
+docs/HANDOFF.md
