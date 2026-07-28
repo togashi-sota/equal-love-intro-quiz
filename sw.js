@@ -39,10 +39,6 @@ const APP_SHELL_FILES = [
   "./js/history.js",
   "./js/historyScreen.js",
   "./js/data/songs.js",
-  "./assets/sfx/click.mp3",
-  "./assets/sfx/correct.mp3",
-  "./assets/sfx/wrong.mp3",
-  "./assets/sfx/score-countup.mp3",
 ];
 
 self.addEventListener("install", (event) => {
