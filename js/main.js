@@ -29,6 +29,8 @@ import { renderSongList, resetSongListToDefaultView, stopSongListPreview } from 
 import { buildPlayResult, evaluateAndSaveTitles } from "./titleProgress.js";
 import { renderResultTitleEvents } from "./titleDisplay.js";
 import { initTitleListModal } from "./titleList.js";
+import { saveHistoryEntry } from "./history.js";
+import { initHistoryScreen, renderHistoryScreen } from "./historyScreen.js";
 
 // 背景のキラキラ演出は、ゲームの状態と関係なく最初に1回だけ生成すればよい。
 renderBackgroundSparkles();
@@ -70,6 +72,13 @@ const titleListModalElement = document.getElementById("title-list-modal");
 const titleListModalCardElement = titleListModalElement.querySelector(".modal-card");
 const titleListModalCloseButtonElement = document.getElementById("title-list-modal-close");
 const titleListContainerElement = document.getElementById("title-list-container");
+const historyLinkElement = document.getElementById("history-link");
+const historyBackButtonElement = document.getElementById("history-back-button");
+const historyClearConfirmModalElement = document.getElementById("history-clear-confirm-modal");
+const quizBackButtonElement = document.getElementById("quiz-back-button");
+const quizQuitConfirmModalElement = document.getElementById("quiz-quit-confirm-modal");
+const quizQuitCancelButtonElement = document.getElementById("quiz-quit-cancel-button");
+const quizQuitConfirmButtonElement = document.getElementById("quiz-quit-confirm-button");
 
 // 称号一覧モーダルの開閉ロジックはtitleList.jsに閉じ込めてあるので、
 // ここでは必要なDOM要素を渡して初期化するだけでよい。
@@ -79,6 +88,20 @@ initTitleListModal({
   closeButton: titleListModalCloseButtonElement,
   listContainer: titleListContainerElement,
   openTriggers: [titleListLinkElement, titleListLinkFromResultElement],
+});
+
+// プレイ履歴画面のサマリー・一覧の描画、削除確認モーダルの開閉ロジックはhistoryScreen.jsに
+// 閉じ込めてあるので、ここでは必要なDOM要素を渡して初期化するだけでよい。
+initHistoryScreen({
+  summaryPlayCount: document.getElementById("history-summary-play-count"),
+  summaryAnswerCount: document.getElementById("history-summary-answer-count"),
+  summaryAccuracy: document.getElementById("history-summary-accuracy"),
+  listContainer: document.getElementById("history-list"),
+  emptyState: document.getElementById("history-empty-state"),
+  clearButton: document.getElementById("history-clear-button"),
+  confirmModalOverlay: historyClearConfirmModalElement,
+  confirmCancelButton: document.getElementById("history-clear-cancel-button"),
+  confirmDeleteButton: document.getElementById("history-clear-delete-button"),
 });
 
 // 音源の再生に失敗したときの表示処理。
@@ -229,7 +252,7 @@ function handleChoiceClick(selectedChoice) {
   // 無音の頭出しはaudio.js側で再生位置をずらして対応済みなので、
   // ここではもう曲ごとの無音秒数を差し引かない（elapsedSecがそのまま実際の聴取時間になる）。
   const points = isCorrect ? calculateScore(gameState.elapsedSec) : 0;
-  recordAnswer(isCorrect, points, getElapsedMsSincePlaybackStart());
+  recordAnswer(isCorrect ? "correct" : "wrong", points, getElapsedMsSincePlaybackStart());
   markChoiceButtons(selectedChoice.id);
   if (isCorrect) {
     playCorrectSound();
@@ -256,7 +279,7 @@ function handleSkip() {
   stopAudio();
   playClickSound();
 
-  recordAnswer(false, 0, getElapsedMsSincePlaybackStart());
+  recordAnswer("skip", 0, getElapsedMsSincePlaybackStart());
   goToNextQuestionOrResult();
 }
 
@@ -270,7 +293,7 @@ function handleReveal() {
   hideSkipAndRevealButtons();
 
   const question = getCurrentQuestion();
-  recordAnswer(false, 0, getElapsedMsSincePlaybackStart());
+  recordAnswer("reveal", 0, getElapsedMsSincePlaybackStart());
   markChoiceButtons(null);
   playWrongSound();
   feedbackElement.textContent = `正解は「${question.song.title}」でした`;
@@ -336,9 +359,10 @@ function renderResult() {
   answerLogListElement.innerHTML = "";
   gameState.answerLog.forEach((entry, index) => {
     const item = document.createElement("li");
-    item.classList.add(entry.isCorrect ? "is-correct-row" : "is-wrong-row");
+    const isCorrect = entry.resultType === "correct";
+    item.classList.add(isCorrect ? "is-correct-row" : "is-wrong-row");
 
-    const resultLabel = entry.isCorrect ? "正解" : "不正解";
+    const resultLabel = isCorrect ? "正解" : "不正解";
     const textElement = document.createElement("span");
     textElement.classList.add("answer-log-text");
     textElement.textContent = `第${index + 1}問「${entry.song.title}」: ${resultLabel}（${entry.pointsEarned}点）`;
@@ -363,6 +387,9 @@ function renderResult() {
     chipContainer: titleEventListElement,
     titleListLinkElement: titleListLinkFromResultElement,
   });
+
+  // プレイ履歴への保存。得点・自己ベスト・称号の判定がすべて終わったこのタイミングで行う。
+  saveHistoryEntry(gameState, playResult, { rank, isNewRecord, titleEvents });
 }
 
 // 4つの選択肢ボタンに、それぞれクリック時の処理を割り当てる。
@@ -433,6 +460,43 @@ document.getElementById("back-to-title-button").addEventListener("click", () => 
   updateModeBestScoreDisplay(); // 直前のプレイで自己ベストが更新されている可能性があるので表示し直す
 });
 
+// クイズ画面の「タイトルへ」：いきなり戻らず、必ず確認モーダルを挟む。
+function openQuizQuitConfirmModal() {
+  playClickSound();
+  quizQuitConfirmModalElement.hidden = false;
+}
+
+function closeQuizQuitConfirmModal() {
+  quizQuitConfirmModalElement.hidden = true;
+}
+
+quizBackButtonElement.addEventListener("click", openQuizQuitConfirmModal);
+
+quizQuitCancelButtonElement.addEventListener("click", () => {
+  playClickSound();
+  closeQuizQuitConfirmModal();
+});
+
+// オーバーレイの背景部分をクリックしたときも閉じる（他のモーダルと同じ考え方）。
+quizQuitConfirmModalElement.addEventListener("click", (event) => {
+  if (event.target === quizQuitConfirmModalElement) {
+    closeQuizQuitConfirmModal();
+  }
+});
+
+// 確認モーダルの「タイトルに戻る」：結果画面の「タイトルに戻る」ボタンと全く同じ処理を行う。
+// renderResult()を経由しないため、自己ベスト・称号・プレイ履歴のいずれにも一切反映されない
+// （この3つはすべてrenderResult()の中でのみ保存処理が呼ばれる設計になっているため）。
+quizQuitConfirmButtonElement.addEventListener("click", () => {
+  playClickSound();
+  closeQuizQuitConfirmModal();
+  stopTimer();
+  stopAudio();
+  resetGameState();
+  showScreen("start");
+  updateModeBestScoreDisplay();
+});
+
 // ルール説明モーダルの開閉。start/quiz/resultの画面切り替え（showScreen）とは無関係な、
 // 単純な表示/非表示の切り替えのみで済ませている（出題数・カテゴリの選択状態には一切触れない）。
 function openRulesModal() {
@@ -470,6 +534,20 @@ songlistBackButtonElement.addEventListener("click", () => {
   showScreen("start");
 });
 
+// 「プレイ履歴」リンク：開くたびに最新の記録で描画し直す
+// （直前のプレイがあれば、その分もすぐ反映されるようにするため）。
+historyLinkElement.addEventListener("click", () => {
+  playClickSound();
+  renderHistoryScreen();
+  showScreen("history");
+});
+
+// プレイ履歴画面の「戻る」：スタート画面へ戻る。
+historyBackButtonElement.addEventListener("click", () => {
+  playClickSound();
+  showScreen("start");
+});
+
 // 出題数・カテゴリのラジオボタンが切り替わるたびに、自己ベスト表示・出題数の案内を更新する。
 // ページを開いた直後（初期選択の状態）の分も、ここで一度呼んでおく。
 document
@@ -504,6 +582,21 @@ document.addEventListener("keydown", (event) => {
     return;
   }
 
+  // プレイ履歴の削除確認モーダルが開いているときも、同じ理由で先に止める。
+  // Escキーでの閉じる処理自体はhistoryScreen.js側のリスナーがすでに処理している。
+  if (!historyClearConfirmModalElement.hidden) {
+    return;
+  }
+
+  // クイズ中断・確認モーダルが開いているときは、Escキーで閉じる（＝中断をキャンセル）。
+  // このモーダルの開閉ロジックはこのファイルで直接管理しているため、rulesModalと同じ書き方にする。
+  if (!quizQuitConfirmModalElement.hidden) {
+    if (event.key === "Escape") {
+      closeQuizQuitConfirmModal();
+    }
+    return;
+  }
+
   // スタート画面：Enterキーでスタート
   if (startScreenElement.classList.contains("is-active") && event.key === "Enter") {
     document.getElementById("start-button").click();
@@ -511,6 +604,15 @@ document.addEventListener("keydown", (event) => {
   }
 
   if (quizScreenElement.classList.contains("is-active")) {
+    // クイズ画面：Escキーで、クイズ中断の確認モーダルを開く。
+    // ここに到達している時点で（上のガードにより）他のモーダルは開いていないと分かっているため、
+    // 「開いていなければ開く」の判定を別途書く必要はない。Escだけで即座にタイトルへ戻ることはなく、
+    // 必ずこの確認モーダルを経由する。
+    if (event.key === "Escape") {
+      openQuizQuitConfirmModal();
+      return;
+    }
+
     // クイズ画面：1〜4キーで、対応する選択肢を選ぶ
     const choiceIndex = Number(event.key) - 1;
     if (choiceIndex >= 0 && choiceIndex < choiceButtonElements.length) {

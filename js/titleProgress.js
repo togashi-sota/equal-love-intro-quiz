@@ -89,10 +89,10 @@ function isUnlockedAfterPlay(title, storedProgress, earnedTitleIds) {
 }
 
 // gameStateから、称号の判定に必要な情報だけを取り出した「playResult」を組み立てる。
-// answerLogの中で参照するのは isCorrect と elapsedMs のみ（song・pointsEarnedは使わない）。
+// answerLogの中で参照するのは resultType と elapsedMs のみ（song・pointsEarnedは使わない）。
 export function buildPlayResult(gameState) {
   const totalQuestions = gameState.questions.length;
-  const correctEntries = gameState.answerLog.filter((entry) => entry.isCorrect);
+  const correctEntries = gameState.answerLog.filter((entry) => entry.resultType === "correct");
   const correctCount = correctEntries.length;
 
   // elapsedMsは、音源の再生に失敗した等の理由でnullになることがある（state.js参照）。

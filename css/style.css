@@ -918,6 +918,40 @@ fieldset label:has(input:focus-visible) {
   }
 }
 
+/* ===== クイズ画面：途中でタイトルへ戻る入口 =====
+   収録曲一覧・プレイ履歴画面の.back-linkと同じ見た目だが、あちらは.list-header（グリッド）専用の
+   grid-column/justify-selfを持つため、グリッドを使わないこの画面向けに専用クラスにしている。
+   進捗ピル（#question-progress、中央寄せ）とは横に並べず、その上に独立した左寄せの行として置くことで、
+   スマホ幅でも進捗表示と干渉しないようにしている。 */
+.quiz-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 0 6px;
+  padding: 6px 4px;
+  border: none;
+  background: none;
+  color: var(--color-primary-dark);
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.quiz-back-link:active {
+  transform: scale(0.94);
+}
+
+/* キーボード操作時のフォーカス表示。ブラウザ標準の黒い矩形だと世界観から浮いて見えるため、
+   .single-group-header（収録曲一覧のアコーディオン見出し）と同じ考え方でテーマカラーに寄せる。
+   .back-link（収録曲一覧・プレイ履歴の「戻る」）も同じ理由で未対応だったので、あわせて揃える。 */
+.quiz-back-link:focus-visible,
+.back-link:focus-visible {
+  outline: 2px solid var(--color-primary-dark);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
 /* ===== タイマー（経過秒数）・進捗表示 =====
    タイマーはゲームのHUD（状態表示）なので、少し大きめ・太めにして目立たせる。 */
 #question-progress {
@@ -2312,6 +2346,219 @@ fieldset label:has(input:focus-visible) {
 
 .title-achieved-badge.is-achieved::before {
   content: "✦ ";
+}
+
+/* ===== プレイ履歴画面 =====
+   過去のプレイ結果を新しい順に一覧できる画面。サマリー（総プレイ回数・総回答数・全体正答率）と、
+   履歴カードの一覧、全削除ボタンで構成する。中身はjs/historyScreen.jsが組み立てる。
+   出題数が異なると得点をそのまま比較できないため、サマリーには平均得点を置いていない。 */
+
+/* サマリー：収録曲一覧の内訳チップと似た、ガラス風の小さなチップを3つ横に並べる */
+.history-summary-row {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0 16px;
+}
+
+.history-summary-chip {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 6px;
+  border-radius: 14px;
+  background: var(--color-surface-glass);
+  border: 1px solid var(--color-card-border);
+}
+
+.history-summary-value {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  font-variant-numeric: tabular-nums;
+}
+
+.history-summary-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--color-text);
+  opacity: 0.6;
+}
+
+/* 履歴が1件もないときの案内。空っぽの画面に見えないよう、ガラス風カードの中に文章だけを収める */
+.history-empty-state {
+  margin: 24px 0;
+  padding: 20px 16px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.4);
+  border: 1px solid var(--color-card-border);
+  text-align: center;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: var(--color-text);
+  opacity: 0.75;
+}
+
+/* displayの指定がhidden属性より優先されてしまう問題への対策（.modal-overlay等と同じ理由） */
+.history-empty-state[hidden] {
+  display: none;
+}
+
+/* 履歴カード1件分 */
+.history-entry {
+  padding: 12px 14px;
+  border-radius: 14px;
+  margin-bottom: 8px;
+  background: rgba(255, 255, 255, 0.4);
+  border: 1px solid var(--color-card-border);
+}
+
+.history-entry-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.history-entry-date {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--color-text);
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ランクの色分けだけを示す小さなチップ。結果画面のメダルほど演出は付けない、一覧用の簡易表示 */
+.history-rank-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  font-size: 0.72rem;
+  font-weight: 800;
+  flex: none;
+}
+
+.history-rank-chip.rank-s {
+  background: linear-gradient(160deg, #ffe9a8, #e3ab3c);
+  color: #5c3a08;
+}
+
+.history-rank-chip.rank-a {
+  background: linear-gradient(160deg, var(--color-primary), var(--color-primary-dark));
+  color: #ffffff;
+}
+
+.history-rank-chip.rank-b {
+  background: linear-gradient(160deg, #eaf6ff, #bfe4fb);
+  color: #2c6ea8;
+}
+
+.history-rank-chip.rank-c {
+  background: linear-gradient(160deg, #f3f0f8, #dcd6e6);
+  color: #6b6478;
+}
+
+.history-new-record-mark {
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+}
+
+.history-entry-mode {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  opacity: 0.75;
+}
+
+.history-entry-score {
+  margin: 2px 0 0;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+}
+
+.history-title-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.history-title-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--color-accent-soft);
+  color: var(--color-primary-dark);
+  /* 称号名は日本語なので、文字単位で折り返されないようにする（12章の教訓と同じ対策） */
+  white-space: nowrap;
+}
+
+/* 履歴の全削除ボタン。押しやすい主ボタンとは違い、あえて控えめな見た目にして誤操作を防ぐ */
+.history-clear-button {
+  display: block;
+  width: fit-content;
+  margin: 16px auto 0;
+  padding: 6px 4px;
+  border: none;
+  background: none;
+  color: var(--color-danger);
+  opacity: 0.7;
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.history-clear-button[hidden] {
+  display: none;
+}
+
+.history-clear-button:active {
+  opacity: 1;
+}
+
+/* 削除確認モーダルのボタン列（.button-row）に上余白を足すためだけの専用クラス */
+.history-clear-confirm-actions {
+  margin-top: 16px;
+}
+
+/* クイズ中断・確認モーダルのボタン列：結果画面（#result-actions）と同じ縦2段構成にする。
+   .primary-buttonは元々横並び用にwidth:100%を持たないため、縦並びでないと2つ並べたときに崩れる。 */
+.quiz-quit-confirm-actions {
+  margin-top: 16px;
+  flex-direction: column;
+}
+
+.quiz-quit-confirm-actions .secondary-button {
+  flex: none;
+}
+
+/* 「削除する」ボタン：primary-button相当の押しやすさを保ちつつ、
+   危険な操作だと伝わるよう赤系の配色にする */
+.danger-button {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  border-radius: 999px;
+  background: var(--color-danger);
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform var(--transition-fast) cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.danger-button:active {
+  transform: scale(0.95);
 }
 
 /* ===== レスポンシブ：スマホ幅（520px以下） =====

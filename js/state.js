@@ -71,12 +71,13 @@ export function getElapsedMsSincePlaybackStart() {
 }
 
 // 回答結果を記録し、得点を加算する。
-// elapsedMsは結果画面の表示・将来の記録機能のためだけに使う値で、採点には影響しない。
-export function recordAnswer(isCorrect, pointsEarned, elapsedMs) {
+// resultTypeは "correct" | "wrong" | "skip" | "reveal" の4種類。
+// elapsedMsは結果画面の表示・プレイ履歴機能のためだけに使う値で、採点には影響しない。
+export function recordAnswer(resultType, pointsEarned, elapsedMs) {
   const question = getCurrentQuestion();
   gameState.answerLog.push({
     song: question.song,
-    isCorrect,
+    resultType,
     pointsEarned,
     elapsedMs,
   });

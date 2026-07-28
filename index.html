@@ -166,11 +166,22 @@
         <button id="rules-link" class="rules-link" type="button">あそびかた・とくてんのルール</button>
         <button id="songlist-link" class="rules-link" type="button">収録曲一覧</button>
         <button id="title-list-link" class="rules-link" type="button">称号一覧</button>
+        <button id="history-link" class="rules-link" type="button">プレイ履歴</button>
       </div>
     </section>
 
     <!-- クイズ画面：イントロ再生、4択、タイマー、正誤表示を行う画面 -->
     <section id="quiz-screen" class="screen">
+      <!-- 途中でタイトルへ戻る入口。進捗ピル（#question-progress）とは横に並べず、
+           その1行上に独立した左寄せの行として置くことで、スマホ幅でも干渉しないようにしている。
+           押すといきなり戻らず、確認モーダル（#quiz-quit-confirm-modal）を必ず挟む。 -->
+      <button id="quiz-back-button" class="quiz-back-link" type="button">
+        <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        タイトルへ
+      </button>
+
       <p id="question-progress">第1問 / 5問</p>
 
       <!-- 出題の進み具合を、丸(ドット)で視覚的に示す場所。中身はJSで生成する -->
@@ -311,6 +322,55 @@
       <audio id="preview-audio"></audio>
     </section>
 
+    <!-- プレイ履歴画面：過去のプレイ結果を新しい順に一覧できる画面。
+         中身（サマリー・履歴カード）はjs/historyScreen.jsが組み立てる。 -->
+    <section id="history-screen" class="screen">
+      <div class="list-header">
+        <button id="history-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            HISTORY
+          </p>
+          <h2>プレイ履歴</h2>
+        </div>
+      </div>
+
+      <!-- サマリー：出題数が異なると得点をそのまま比較できないため、平均得点ではなく
+           総プレイ回数・総回答数・全体正答率という比較しやすい指標を並べる。
+           中身の数値はjs/historyScreen.jsがhistory.jsの集計結果から反映する。 -->
+      <div class="history-summary-row">
+        <div class="history-summary-chip">
+          <span class="history-summary-value" id="history-summary-play-count">0回</span>
+          <span class="history-summary-label">総プレイ回数</span>
+        </div>
+        <div class="history-summary-chip">
+          <span class="history-summary-value" id="history-summary-answer-count">0問</span>
+          <span class="history-summary-label">総回答数</span>
+        </div>
+        <div class="history-summary-chip">
+          <span class="history-summary-value" id="history-summary-accuracy">―</span>
+          <span class="history-summary-label">全体正答率</span>
+        </div>
+      </div>
+
+      <!-- 履歴が1件もないときだけ表示する案内。JS側でhidden属性を切り替える -->
+      <p id="history-empty-state" class="history-empty-state" hidden>
+        まだプレイ履歴がありません。クイズを遊ぶと、ここに記録が残っていきます。
+      </p>
+
+      <!-- 履歴カードを新しい順に並べる場所。中身はjs/historyScreen.jsが組み立てる -->
+      <div id="history-list"></div>
+
+      <!-- 履歴の全削除。誤操作を防ぐため、押すと確認モーダルを挟む -->
+      <button id="history-clear-button" class="history-clear-button" type="button" hidden>履歴をすべて削除</button>
+    </section>
+
   </main>
 
   <!-- ルール説明モーダル：得点表・ランク基準・カテゴリの意味など、ゲーム内のどこにも
@@ -446,6 +506,36 @@
       <h2 id="title-list-modal-title">称号一覧</h2>
       <!-- 5つの称号カードはjs/titleList.jsが組み立てる -->
       <div id="title-list-container"></div>
+    </div>
+  </div>
+
+  <!-- プレイ履歴の全削除・確認モーダル：誤操作で大事な記録を消してしまわないよう、
+       「削除する」を押す前に必ず一度確認を挟む。開閉ロジックはjs/historyScreen.jsが管理する。
+       他の確認事項がない単純な2択のダイアログなので、他のモーダルと違い×ボタンは置かない
+       （キャンセルボタン・背景クリック・Escキーの3通りで閉じられれば十分なため）。 -->
+  <div id="history-clear-confirm-modal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="history-clear-confirm-title">
+      <h2 id="history-clear-confirm-title">履歴をすべて削除しますか？</h2>
+      <p class="modal-lead">この操作は元に戻せません。</p>
+      <div class="button-row history-clear-confirm-actions">
+        <button id="history-clear-cancel-button" class="secondary-button" type="button">キャンセル</button>
+        <button id="history-clear-delete-button" class="danger-button" type="button">削除する</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- クイズ中断・確認モーダル：「タイトルへ」を押した直後にいきなり戻らず、必ず一度確認を挟む。
+       ボタンの見た目は結果画面の2ボタン構成と揃え、「キャンセル」を主ボタン、
+       「タイトルに戻る」を副ボタンにする（結果画面でも「タイトルに戻る」は常に副ボタンのため、
+       同じ文言で見た目だけ違うと混乱を招く）。開閉ロジックはjs/main.jsが直接管理する。 -->
+  <div id="quiz-quit-confirm-modal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="quiz-quit-confirm-title">
+      <h2 id="quiz-quit-confirm-title">クイズを中断してタイトルに戻りますか？</h2>
+      <p class="modal-lead">ここまでの回答は記録されません。</p>
+      <div class="button-row quiz-quit-confirm-actions">
+        <button id="quiz-quit-cancel-button" class="primary-button" type="button">キャンセル</button>
+        <button id="quiz-quit-confirm-button" class="secondary-button" type="button">タイトルに戻る</button>
+      </div>
     </div>
   </div>
 
