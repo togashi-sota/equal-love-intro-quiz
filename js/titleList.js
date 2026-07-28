@@ -7,6 +7,7 @@
 // 称号の解放条件・保存の仕組みはこのファイルからは一切参照しない（表示に徹する）。
 
 import { getTitleListSnapshot } from "./titleProgress.js";
+import { buildTitleIconMedal, buildLockedIconMedal } from "./titleIcons.js";
 
 // 進捗ドットに表示する、出題数のラベル。
 // main.jsのQUESTION_COUNT_LABELSと同じ表記に揃えている。「全曲」ではなく「全問」なのは、
@@ -99,16 +100,27 @@ function buildAchievedBadge(isAchieved) {
   return badge;
 }
 
-// 解放済みの称号1件分のカードを組み立てる（名前・条件・進捗表示）。
+// 称号名（またはロック中の「？？？」）を、アイコンメダルと横並びにした見出し行を組み立てる。
+function buildCardHeader(iconMedal, nameText) {
+  const header = document.createElement("div");
+  header.classList.add("title-list-header");
+  header.appendChild(iconMedal);
+
+  const name = document.createElement("p");
+  name.classList.add("title-list-name");
+  name.textContent = nameText;
+  header.appendChild(name);
+
+  return header;
+}
+
+// 解放済みの称号1件分のカードを組み立てる（アイコン・名前・条件・進捗表示）。
 function buildUnlockedCard(entry) {
   const card = document.createElement("div");
   card.classList.add("title-list-card", "is-unlocked");
   card.dataset.titleId = entry.id;
 
-  const name = document.createElement("p");
-  name.classList.add("title-list-name");
-  name.textContent = entry.name;
-  card.appendChild(name);
+  card.appendChild(buildCardHeader(buildTitleIconMedal(entry.id), entry.name));
 
   const condition = document.createElement("p");
   condition.classList.add("title-list-condition");
@@ -124,16 +136,37 @@ function buildUnlockedCard(entry) {
   return card;
 }
 
+// 開発用プレビュー（dev/preview.html）専用のエクスポート。通常のゲーム本編からは呼ばれない。
+// 未解放の称号も強制的に「解放済み」の見た目にして、全カードを一覧表示する。
+// 保存データは一切書き換えず、表示だけを差し替えている。
+export function debugPreviewAllTitleCards(container) {
+  const snapshot = getTitleListSnapshot();
+  container.innerHTML = "";
+  snapshot.forEach((entry) => {
+    const previewEntry = entry.isUnlocked
+      ? entry
+      : {
+          ...entry,
+          isUnlocked: true,
+          achievedModes:
+            entry.storageScope === "perMode"
+              ? { "5": false, "10": false, "20": false, "50": false, all: false }
+              : null,
+          isAchieved: entry.storageScope === "single" ? false : null,
+        };
+    container.appendChild(buildUnlockedCard(previewEntry));
+  });
+}
+// ▲▲▲ 一時的な確認用ここまで ▲▲▲
+
 // ロック中の称号1件分のカードを組み立てる（名前は「？？？」、ヒント文だけ見せる）。
+// アイコンも称号ごとの絵柄ではなく、正体が分からない「？」だけのメダルにする。
 function buildLockedCard(entry) {
   const card = document.createElement("div");
   card.classList.add("title-list-card", "is-locked");
   card.dataset.titleId = entry.id;
 
-  const name = document.createElement("p");
-  name.classList.add("title-list-name");
-  name.textContent = "？？？";
-  card.appendChild(name);
+  card.appendChild(buildCardHeader(buildLockedIconMedal(), "？？？"));
 
   const hint = document.createElement("p");
   hint.classList.add("title-list-hint");

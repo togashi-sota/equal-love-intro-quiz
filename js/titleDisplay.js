@@ -12,6 +12,8 @@
 // destroyTitleDisplay()（進行中のキュー・タイマー・リスナーをすべて片付ける関数）を
 // 追加できる余地を残しておく。今のところ呼び出し側がいないので未実装。
 
+import { buildTitleIconMedal } from "./titleIcons.js";
+
 // 「repeat」（再獲得）のイベントを結果画面で見せるかどうか。
 // 一度取得した称号をその後も達成し続けると、毎回同じ表示が繰り返されて結果画面が
 // 賑やかになりすぎるため、現時点ではNEW系（unlock-and-new/new）だけを見せる。
@@ -125,6 +127,8 @@ function buildTitleChip(event) {
   const chip = document.createElement("div");
   chip.classList.add("title-event", `title-event--${event.type}`);
   chip.dataset.titleId = event.id;
+
+  chip.appendChild(buildTitleIconMedal(event.id));
 
   if (event.isNewProgress) {
     const badge = document.createElement("span");

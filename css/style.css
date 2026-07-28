@@ -1343,6 +1343,81 @@ fieldset label:has(input:focus-visible) {
   display: none;
 }
 
+/* ===== 称号アイコンメダル =====
+   結果画面のチップ・称号一覧のカード、両方の称号名の横に添える小さな円形アイコン。
+   js/titleIcons.jsが組み立てたSVGを、ここで称号ごとの色に染める
+   （[data-title-id]は.title-event・.title-list-cardの両方に共通して出力されている）。 */
+.title-icon-medal {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+}
+
+.title-icon-medal svg {
+  width: 58%;
+  height: 58%;
+}
+
+/* イントロマスターだけ、淡い水色×水色で視認性が低かったため、
+   ランクBバッジ・カテゴリバッジですでに使っている濃い青(#2c6ea8)をアイコン色に採用し、
+   外周にも縁取りを追加してコントラストを上げている。
+   音符のSVG自体が28×28のviewBoxの中で偏って小さめに収まっているため、
+   表示サイズも共通の58%より少し引き上げて、他の称号と存在感を揃えている。 */
+[data-title-id="introMaster"] .title-icon-medal {
+  background: var(--color-secondary-light);
+  color: #2c6ea8;
+  border: 1.5px solid var(--color-secondary);
+}
+
+[data-title-id="introMaster"] .title-icon-medal svg {
+  width: 66%;
+  height: 66%;
+}
+
+[data-title-id="lightningFast"] .title-icon-medal {
+  background: var(--color-primary-dark);
+  color: #ffffff;
+}
+
+/* 王冠のviewBox（24×16）は正方形のSVG表示枠に収める際、縦方向が余って小さく表示されてしまう
+   （横長の絵を正方形の枠に収めるので、上下に隙間ができる）ため、表示サイズを引き上げて補正している。
+   さらに、このメダルは称号を初めて獲得したとき「unlock-and-new」の金色チップの上に乗ることが多く、
+   メダルの金色とチップの金色が同化して見えにくくなるため、細い白の縁取りで輪郭を出している。 */
+[data-title-id="equalLoveKaiden"] .title-icon-medal {
+  background: radial-gradient(circle at 32% 28%, #ffe9a8 0%, #e3ab3c 55%, #b8790e 100%);
+  color: #5c3a08;
+  border: 1.5px solid rgba(255, 255, 255, 0.85);
+}
+
+[data-title-id="equalLoveKaiden"] .title-icon-medal svg {
+  width: 72%;
+  height: 72%;
+}
+
+/* ロック中（称号一覧で正体を伏せている間）の「？」だけのメダル。
+   称号ごとの色指定（上のルール群）より必ず後に書くことで、詳細度が同じでも
+   ロック中は確実にこの控えめな見た目が勝つようにする
+   （以前は金色ルールの方が後にあったため、ロック中の＝LOVE皆伝にも金色が出てしまっていた）。 */
+.title-icon-medal.is-locked {
+  background: rgba(74, 46, 66, 0.08);
+  color: var(--color-text);
+  border: none;
+  opacity: 0.55;
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+[data-title-id="inspiration"] .title-icon-medal {
+  background: var(--color-accent-soft);
+  color: #8a6a10;
+}
+
 /* ===== 称号（実績）獲得演出 =====
    結果画面で、称号を獲得した瞬間に1件ずつポップに登場するチップ。
    ランクバッジ（Sランクの金メダル・Aランクのピンクメダル）と同じ配色・光の演出を流用し、
@@ -1387,13 +1462,19 @@ fieldset label:has(input:focus-visible) {
   }
 }
 
+/* 日本語には単語間のスペースがなく、ブラウザは初期設定でどの文字の間でも改行してよいと
+   判断してしまう。チップのように横幅が窮屈になりやすい場所でこれを許すと、
+   スマホ幅で称号名が1文字ずつバラバラに折り返されてしまう。称号名・キャプション・NEWバッジは
+   どれも文字数が短く、1行のままでも画面からはみ出す心配がないため、改行させない指定にする。 */
 .title-event-name {
   font-weight: 800;
+  white-space: nowrap;
 }
 
 .title-event-caption {
   font-weight: 700;
   opacity: 0.85;
+  white-space: nowrap;
 }
 
 .title-event-badge {
@@ -1404,6 +1485,7 @@ fieldset label:has(input:focus-visible) {
   font-size: 0.68rem;
   font-weight: 800;
   letter-spacing: 0.03em;
+  white-space: nowrap;
 }
 
 .title-event-badge::before {
@@ -2132,11 +2214,21 @@ fieldset label:has(input:focus-visible) {
   border-color: var(--color-card-border);
 }
 
+.title-list-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
 .title-list-name {
-  margin: 0 0 4px;
+  margin: 0;
   font-size: 1rem;
   font-weight: 800;
   color: var(--color-primary-dark);
+  /* 結果画面チップと同じ理由（日本語は文字間で自由に改行されてしまう）で、
+     念のため称号名は1行のまま改行させないようにしておく。 */
+  white-space: nowrap;
 }
 
 .title-list-card.is-locked .title-list-name {
