@@ -71,3 +71,16 @@ export function buildQuizQuestions(pool, count) {
     choices: generateChoices(song, pool),
   }));
 }
+
+// 復習クイズの問題を作る。通常のbuildQuizQuestionsと違い、「出題する曲」と
+// 「ダミー選択肢を選ぶ元になるプール」を別々に受け取る。
+// 復習対象（questionSongs）は間違えた曲がそのまま渡される想定で、件数による間引きは行わない
+// （4曲未満でも4択が成立するよう、ダミーは常により大きいdistractorPoolから選ぶため）。
+// generateChoices自体は通常のクイズと完全に共用し、変更しない。
+export function buildReviewQuizQuestions(questionSongs, distractorPool) {
+  const shuffledQuestionSongs = shuffleArray(questionSongs);
+  return shuffledQuestionSongs.map((song) => ({
+    song,
+    choices: generateChoices(song, distractorPool),
+  }));
+}

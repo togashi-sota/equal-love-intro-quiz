@@ -1170,6 +1170,47 @@ fieldset label:has(input:focus-visible) {
   color: var(--color-primary-dark);
 }
 
+/* ===== 今回間違えた曲（結果画面・復習結果画面で共通） =====
+   通常プレイの結果でも、復習プレイの結果（まだ間違えた曲がある場合）でも、
+   同じ仕組み・同じ見た目で出し分ける。間違いが1曲もなければセクションごと隠す。 */
+.missed-songs-section {
+  margin: 4px 0 16px;
+}
+
+.missed-songs-heading {
+  margin: 0 0 8px;
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-text);
+  opacity: 0.7;
+}
+
+.missed-songs-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.missed-song-chip {
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: var(--color-danger-soft);
+  border: 1px solid var(--color-danger);
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+/* .secondary-buttonはもともと横並び用にinline-flex（幅は中身に合わせる）なので、
+   ここでは他のボタンと揃うよう、ブロック要素として全幅にする */
+.missed-songs-review-button {
+  display: block;
+  width: 100%;
+}
+
 /* ===== ランクバッジ =====
    結果画面の主役。文字そのものは常に単色でくっきり読めるようにし、
    特別感（縁取り・光・アイコン）はメダル側で段階的に表現する。

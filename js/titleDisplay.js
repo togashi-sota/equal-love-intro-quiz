@@ -189,3 +189,15 @@ export function renderResultTitleEvents(events, elements) {
 
   advanceQueue();
 }
+
+// 称号を扱わない結果表示（復習モードの結果画面）のときに呼ぶ。
+// renderResultTitleEvents()を空配列で呼ぶのとは違い、「称号一覧を見る」リンクを
+// 必ず非表示のままにする（renderResultTitleEventsは祝う対象がなくてもリンクを表示する
+// 仕様のため、そのまま流用すると復習結果でリンクが出てしまう）。
+// resetAnimationState()も呼ぶため、直前の通常プレイの称号演出が終わりきる前に
+// 復習へ進んだ場合でも、進行中のタイマー・リスナーを確実に片付けられる。
+export function clearResultTitleEvents({ chipContainer, titleListLinkElement }) {
+  resetAnimationState();
+  chipContainer.innerHTML = "";
+  titleListLinkElement.hidden = true;
+}

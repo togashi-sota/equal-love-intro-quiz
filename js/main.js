@@ -7,17 +7,21 @@ import {
   gameState,
   resetGameState,
   startQuiz,
+  startReviewQuiz,
   getCurrentQuestion,
   recordAnswer,
   advanceToNextQuestion,
   markPlaybackStarted,
   getElapsedMsSincePlaybackStart,
+  getMissedSongs,
+  setReviewSongs,
 } from "./state.js";
 import {
   filterSongsByCategory,
   resolveQuestionCount,
   validatePoolSize,
   buildQuizQuestions,
+  buildReviewQuizQuestions,
 } from "./quiz.js";
 import { playSongIntro, stopAudio } from "./audio.js";
 import { startTimer, stopTimer } from "./timer.js";
@@ -27,7 +31,7 @@ import { playClickSound, playCorrectSound, playWrongSound, playCountUpSound } fr
 import { renderBackgroundSparkles } from "./decorations.js";
 import { renderSongList, resetSongListToDefaultView, stopSongListPreview } from "./songlist.js";
 import { buildPlayResult, evaluateAndSaveTitles } from "./titleProgress.js";
-import { renderResultTitleEvents } from "./titleDisplay.js";
+import { renderResultTitleEvents, clearResultTitleEvents } from "./titleDisplay.js";
 import { initTitleListModal } from "./titleList.js";
 import { saveHistoryEntry } from "./history.js";
 import { initHistoryScreen, renderHistoryScreen } from "./historyScreen.js";
@@ -57,6 +61,12 @@ const rankLetterElement = document.getElementById("rank-letter");
 const highScoreElement = document.getElementById("high-score-display");
 const newRecordElement = document.getElementById("new-record-badge");
 const answerLogListElement = document.getElementById("answer-log-list");
+const resultEyebrowLabelElement = document.getElementById("result-eyebrow-label");
+const missedSongsSectionElement = document.getElementById("missed-songs-section");
+const missedSongsChipRowElement = document.getElementById("missed-songs-chip-row");
+const reviewMissedSongsButtonElement = document.getElementById("review-missed-songs-button");
+const returnToNormalButtonElement = document.getElementById("return-to-normal-button");
+const retryButtonElement = document.getElementById("retry-button");
 const modeBestChipElement = document.getElementById("mode-best-chip");
 const modeBestConditionElement = document.getElementById("mode-best-condition");
 const modeBestValueElement = document.getElementById("mode-best-value");
@@ -320,7 +330,10 @@ function renderProgressDots() {
 // 今の問題の内容（進捗・4択の曲名）をクイズ画面に反映し、イントロ音源とタイマーを開始する。
 function renderQuestion() {
   const question = getCurrentQuestion();
-  questionProgressElement.textContent = `第${gameState.currentIndex + 1}問 / ${gameState.questions.length}問`;
+  const progressLabel = `第${gameState.currentIndex + 1}問 / ${gameState.questions.length}問`;
+  // 復習中は進捗表示に「🔁 復習」を添えて、通常プレイと見分けられるようにする。
+  questionProgressElement.textContent =
+    gameState.playMode === "review" ? `🔁 復習 ${progressLabel}` : progressLabel;
   renderProgressDots();
 
   choiceButtonElements.forEach((button, index) => {
@@ -342,7 +355,24 @@ function renderQuestion() {
   startTimer(updateTimerDisplay);
 }
 
+// 「今回間違えた曲」セクションを描画する。通常プレイ・復習プレイどちらの結果でも呼ばれる、
+// 共通の処理。間違いが1曲もなければセクションごと隠す
+// （復習ですべて正解した場合に再復習ボタンが消えるのも、この分岐だけで自然に実現される）。
+function renderMissedSongsSection(missedSongs) {
+  const hasMissedSongs = missedSongs.length > 0;
+  missedSongsSectionElement.hidden = !hasMissedSongs;
+
+  missedSongsChipRowElement.innerHTML = "";
+  missedSongs.forEach((song) => {
+    const chip = document.createElement("span");
+    chip.classList.add("missed-song-chip");
+    chip.textContent = song.title;
+    missedSongsChipRowElement.appendChild(chip);
+  });
+}
+
 // 結果画面に、合計得点・自己ベスト・1問ごとの内訳を反映する。
+// 通常プレイと復習プレイの両方から呼ばれ、gameState.playModeに応じて表示・保存内容を出し分ける。
 function renderResult() {
   animateScoreCountUp(gameState.score);
   const rank = calculateRank(gameState.score, gameState.questions.length);
@@ -351,10 +381,34 @@ function renderResult() {
   rankElement.classList.remove("rank-s", "rank-a", "rank-b", "rank-c");
   rankElement.classList.add(`rank-${rank.toLowerCase()}`);
 
-  const { questionCountValue, categoryFilterValue } = gameState;
-  const isNewRecord = saveHighScoreIfBetter(gameState.score, questionCountValue, categoryFilterValue);
-  highScoreElement.textContent = `このモードの自己ベスト: ${getHighScore(questionCountValue, categoryFilterValue)}点`;
-  newRecordElement.hidden = !isNewRecord;
+  const isReview = gameState.playMode === "review";
+  resultEyebrowLabelElement.textContent = isReview ? "REVIEW" : "RESULT";
+
+  if (isReview) {
+    // 復習プレイは自己ベスト・称号・プレイ履歴のいずれにも反映しない。
+    // 保存処理そのものを呼ばないことに加え、前回（通常プレイ）の結果表示が
+    // 残ってしまわないよう、自己ベスト欄・称号欄を明示的に隠す／空にする。
+    highScoreElement.hidden = true;
+    newRecordElement.hidden = true;
+    clearResultTitleEvents({
+      chipContainer: titleEventListElement,
+      titleListLinkElement: titleListLinkFromResultElement,
+    });
+  } else {
+    const { questionCountValue, categoryFilterValue } = gameState;
+    const isNewRecord = saveHighScoreIfBetter(gameState.score, questionCountValue, categoryFilterValue);
+    highScoreElement.hidden = false;
+    highScoreElement.textContent = `このモードの自己ベスト: ${getHighScore(questionCountValue, categoryFilterValue)}点`;
+    newRecordElement.hidden = !isNewRecord;
+
+    const playResult = buildPlayResult(gameState);
+    const titleEvents = evaluateAndSaveTitles(playResult);
+    renderResultTitleEvents(titleEvents, {
+      chipContainer: titleEventListElement,
+      titleListLinkElement: titleListLinkFromResultElement,
+    });
+    saveHistoryEntry(gameState, playResult, { rank, isNewRecord, titleEvents });
+  }
 
   answerLogListElement.innerHTML = "";
   gameState.answerLog.forEach((entry, index) => {
@@ -380,16 +434,16 @@ function renderResult() {
     answerLogListElement.appendChild(item);
   });
 
-  // 称号（実績）の判定・保存・演出。得点や自己ベストの記録が終わったこのタイミングで行う。
-  const playResult = buildPlayResult(gameState);
-  const titleEvents = evaluateAndSaveTitles(playResult);
-  renderResultTitleEvents(titleEvents, {
-    chipContainer: titleEventListElement,
-    titleListLinkElement: titleListLinkFromResultElement,
-  });
+  // 間違えた曲の抽出・表示・復習ボタンの出し分け。通常プレイ・復習プレイどちらの結果でも
+  // 同じ処理を行う（「まだ間違えた曲」を再抽出することで、復習の連続実行に対応する）。
+  const missedSongs = getMissedSongs(gameState.answerLog);
+  setReviewSongs(missedSongs, gameState.categoryFilterValue);
+  renderMissedSongsSection(missedSongs);
 
-  // プレイ履歴への保存。得点・自己ベスト・称号の判定がすべて終わったこのタイミングで行う。
-  saveHistoryEntry(gameState, playResult, { rank, isNewRecord, titleEvents });
+  // ボタン列の出し分け：「もう一度挑戦する」（通常プレイの結果）と
+  // 「通常プレイを始める」（復習の結果）は互いに排他。「タイトルに戻る」は常に表示のまま。
+  retryButtonElement.hidden = isReview;
+  returnToNormalButtonElement.hidden = !isReview;
 }
 
 // 4つの選択肢ボタンに、それぞれクリック時の処理を割り当てる。
@@ -443,11 +497,39 @@ revealButtonElement.addEventListener("click", handleReveal);
 
 // 「もう一度挑戦する」：スタート画面を経由せず、直前と同じ出題数・カテゴリのまま
 // クイズを再抽選して開始する。
-document.getElementById("retry-button").addEventListener("click", () => {
+retryButtonElement.addEventListener("click", () => {
   playClickSound();
   stopTimer();
   stopAudio();
   beginQuiz(gameState.questionCountValue, gameState.categoryFilterValue);
+});
+
+// 「通常プレイを始める」（復習の結果画面にだけ表示）：復習に入る前と同じ出題数・カテゴリで、
+// 新しい通常クイズを始める。処理内容は「もう一度挑戦する」と全く同じ
+// （beginQuiz→startQuizが必ずplayModeを"normal"に戻すため、ここで個別に戻す必要はない）。
+returnToNormalButtonElement.addEventListener("click", () => {
+  playClickSound();
+  stopTimer();
+  stopAudio();
+  beginQuiz(gameState.questionCountValue, gameState.categoryFilterValue);
+});
+
+// 「間違えた曲だけ復習する」：直前のrenderResult()でgameState.reviewSongs/
+// reviewCategoryFilterValueに保持しておいた内容をもとに、復習クイズを組み立てて開始する。
+// 通常プレイ後・復習プレイ後のどちらの結果画面から呼ばれても、同じ処理でそのまま動く。
+function beginReviewQuiz() {
+  stopTimer();
+  stopAudio();
+  const distractorPool = filterSongsByCategory(SONGS, gameState.reviewCategoryFilterValue);
+  const questions = buildReviewQuizQuestions(gameState.reviewSongs, distractorPool);
+  startReviewQuiz(questions);
+  renderQuestion();
+  showScreen("quiz");
+}
+
+reviewMissedSongsButtonElement.addEventListener("click", () => {
+  playClickSound();
+  beginReviewQuiz();
 });
 
 // 「タイトルに戻る」：出題数・カテゴリの選択も含めて初期状態に戻し、スタート画面へ。

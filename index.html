@@ -228,9 +228,11 @@
     <!-- 結果画面：合計得点と内訳を表示し、リトライできる画面 -->
     <section id="result-screen" class="screen">
       <div class="title-block">
+        <!-- RESULT/REVIEWの文字部分だけJSから書き換えられるよう、spanでくくっている
+             （svgアイコンはこのタグの外にあるので、textContentをそのまま書き換えると消えてしまうため） -->
         <p class="eyebrow-chip">
           <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
-          RESULT
+          <span id="result-eyebrow-label">RESULT</span>
         </p>
         <h2>
           <span class="title-spark tl" aria-hidden="true">
@@ -280,13 +282,26 @@
         <p id="new-record-badge" hidden>🎉 新記録！</p>
       </div>
 
+      <!-- 今回間違えた曲（不正解・スキップ・答えを見た曲）のまとめ。通常プレイ・復習プレイどちらの
+           結果でも共通のロジックで出し分ける（間違いが1曲もなければセクションごと非表示）。
+           中身（曲名チップ）はjs/main.jsが組み立てる。 -->
+      <div id="missed-songs-section" class="missed-songs-section" hidden>
+        <p class="missed-songs-heading">今回間違えた曲</p>
+        <div id="missed-songs-chip-row" class="missed-songs-chip-row"></div>
+        <button id="review-missed-songs-button" class="secondary-button missed-songs-review-button" type="button">間違えた曲だけ復習する</button>
+      </div>
+
       <!-- 1問ごとの正誤・得点をJSで一覧表示する場所 -->
       <ul id="answer-log-list"></ul>
 
-      <!-- ボタン列。「もう一度挑戦する」を主ボタン、「タイトルに戻る」を副ボタンにして、
-           スマホで押しやすいよう縦2段に並べる -->
+      <!-- ボタン列。「もう一度挑戦する」（通常プレイの結果）と「通常プレイを始める」（復習の結果）は
+           互いに排他的に表示され、「タイトルに戻る」は常に表示される。
+           スマホで押しやすいよう縦2段（実質2ボタン）に並べる -->
       <div id="result-actions" class="button-row">
         <button id="retry-button" class="primary-button" type="button">もう一度挑戦する</button>
+        <!-- 復習の結果画面でだけ表示する。「通常プレイに戻る」だと、復習で見た曲がそのまま
+             再出題されるように誤解されかねないため、新しい通常クイズを始めることが伝わる文言にしている -->
+        <button id="return-to-normal-button" class="primary-button" type="button" hidden>通常プレイを始める</button>
         <button id="back-to-title-button" class="secondary-button" type="button">タイトルに戻る</button>
       </div>
     </section>
