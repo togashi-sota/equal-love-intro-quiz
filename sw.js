@@ -1,0 +1,80 @@
+// PWA化のためのService Worker。
+// アプリ本体（HTML/CSS/JS等）をキャッシュし、オフラインでも起動できるようにする。
+//
+// 音源ファイルはここでは扱わない。音源はネットワーク経由で配信せず、
+// 利用者が選んだファイルをIndexedDBに保存する設計になっているため
+// （js/audioStorage.js参照）、Service Workerがキャッシュする対象にはならない。
+//
+// 新しいバージョンを配信したいときは、CACHE_VERSIONの値を必ず上げること。
+// 上げないと、ブラウザが「内容が変わっていない」と判断し、更新が反映されない。
+const CACHE_VERSION = "v1";
+const CACHE_NAME = `equal-love-intro-quiz-${CACHE_VERSION}`;
+
+// キャッシュするアプリ本体のファイル一覧。
+// 新しいJSファイルなどを追加したときは、ここにも追記すること（忘れるとそのファイルだけ
+// オフライン時に読み込めなくなる）。
+const APP_SHELL_FILES = [
+  "./",
+  "./index.html",
+  "./manifest.json",
+  "./favicon.svg",
+  "./css/style.css",
+  "./js/main.js",
+  "./js/state.js",
+  "./js/quiz.js",
+  "./js/score.js",
+  "./js/timer.js",
+  "./js/audio.js",
+  "./js/audioStorage.js",
+  "./js/sfx.js",
+  "./js/highscore.js",
+  "./js/screens.js",
+  "./js/decorations.js",
+  "./js/songlist.js",
+  "./js/titleDefinitions.js",
+  "./js/titleProgress.js",
+  "./js/titleDisplay.js",
+  "./js/titleList.js",
+  "./js/titleIcons.js",
+  "./js/history.js",
+  "./js/historyScreen.js",
+  "./js/data/songs.js",
+  "./assets/sfx/click.mp3",
+  "./assets/sfx/correct.mp3",
+  "./assets/sfx/wrong.mp3",
+  "./assets/sfx/score-countup.mp3",
+];
+
+self.addEventListener("install", (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL_FILES))
+  );
+});
+
+// 古いバージョンのキャッシュを削除する。CACHE_VERSIONを上げてデプロイすると、
+// 次にアプリが開かれたときにこの処理が走り、前のバージョンのキャッシュが自動的に消える。
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches.keys().then((keys) =>
+      Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)))
+    )
+  );
+});
+
+// キャッシュ優先で返し、キャッシュになければネットワークから取得する。
+// POSTなど、GET以外のリクエスト（今のところ存在しないが将来のため）はそのままネットワークに任せる。
+self.addEventListener("fetch", (event) => {
+  if (event.request.method !== "GET") return;
+
+  event.respondWith(
+    caches.match(event.request).then((cachedResponse) => cachedResponse || fetch(event.request))
+  );
+});
+
+// ページ側から「skipWaiting」のメッセージを受け取ったら、待機中の新しいService Workerを
+// すぐに有効化する。「新しいバージョンがあります」バナーの「更新する」ボタンから送られてくる。
+self.addEventListener("message", (event) => {
+  if (event.data === "skipWaiting") {
+    self.skipWaiting();
+  }
+});

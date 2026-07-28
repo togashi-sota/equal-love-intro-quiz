@@ -4,9 +4,7 @@
 // ここでの再生開始・停止はgameStateや採点には一切影響しない。
 
 import { CATEGORY } from "./data/songs.js";
-
-// 本物のイントロ音源を置くローカル専用フォルダ（audio.jsと同じ場所）。
-const AUDIO_BASE_PATH = "assets/audio/local/";
+import { getAudioBlob } from "./audioStorage.js";
 
 // 試聴を10秒戻す/送るときの秒数。
 const SEEK_SKIP_SECONDS = 10;
@@ -26,6 +24,17 @@ const breakdownElement = document.getElementById("songlist-breakdown");
 
 // 今まさに試聴中の行のDOM要素。試聴していないときはnull。
 let currentlyPlayingRowElement = null;
+
+// 試聴用に作った再生用URL。次の曲に切り替える・試聴を止めるたびに解放する
+// （audio.jsのcurrentObjectUrlと同じ考え方）。
+let currentPreviewObjectUrl = null;
+
+function releaseCurrentPreviewObjectUrl() {
+  if (currentPreviewObjectUrl !== null) {
+    URL.revokeObjectURL(currentPreviewObjectUrl);
+    currentPreviewObjectUrl = null;
+  }
+}
 
 // 曲データの`single`表記（表示用の補足情報）から、収録曲一覧のアコーディオン区分を判定する。
 // 通常のシングル（1st〜20th）は番号ごとに区分し、アルバム・配信限定・特別収録は
@@ -135,6 +144,7 @@ function resetRowSeekUI(rowElement) {
 export function stopSongListPreview() {
   previewAudioElement.pause();
   previewAudioElement.currentTime = 0;
+  releaseCurrentPreviewObjectUrl();
   if (currentlyPlayingRowElement) {
     setRowPlayingState(currentlyPlayingRowElement, false);
     resetRowSeekUI(currentlyPlayingRowElement);
@@ -144,14 +154,23 @@ export function stopSongListPreview() {
 
 // 指定した曲の試聴を開始する。
 // クイズ本編と同じ考え方で、introLeadInSecがある曲は無音区間を飛ばして頭出しする。
-function playPreview(song, rowElement) {
+// 音源はIndexedDB（audioStorage.js）から取得するため非同期処理になる。
+// 未読み込みの曲の場合は、試聴が補助機能であることに合わせて、エラー表示は出さず
+// 静かに何もしない（再生中の見た目にもしない）。
+async function playPreview(song, rowElement) {
+  const blob = await getAudioBlob(song.id);
+  if (!blob) return;
+
+  releaseCurrentPreviewObjectUrl();
+  currentPreviewObjectUrl = URL.createObjectURL(blob);
+
   previewAudioElement.onloadedmetadata = () => {
     previewAudioElement.currentTime = song.introLeadInSec || 0;
     const rangeElement = rowElement.querySelector(".seek-range");
     rangeElement.max = previewAudioElement.duration;
     rowElement.querySelector(".seek-duration").textContent = formatTime(previewAudioElement.duration);
   };
-  previewAudioElement.src = `${AUDIO_BASE_PATH}${song.id}.mp3`;
+  previewAudioElement.src = currentPreviewObjectUrl;
 
   previewAudioElement.play().catch(() => {
     // 試聴は補助機能なので、再生に失敗してもエラー表示は出さず、再生中の見た目だけ元に戻す

@@ -469,6 +469,94 @@ h1 .note-icon svg {
   }
 }
 
+/* ===== 音源の読み込み状況（PWA対応） =====
+   音源はサーバーに置かず、利用者が選んだファイルを端末内（IndexedDB）に保存する方式のため、
+   その状況を表示し、読み込みボタンを提供する。控えめな見た目のチップ風パネルにする。 */
+.audio-import-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 10px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: var(--color-surface-glass);
+  border: 1px solid var(--color-card-border);
+  text-align: center;
+}
+
+.audio-import-status {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--color-text);
+  opacity: 0.75;
+}
+
+.audio-import-button {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 16px;
+  border: 2px solid var(--color-primary);
+  border-radius: 999px;
+  color: var(--color-primary-dark);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.audio-import-button:active {
+  transform: scale(0.96);
+}
+
+.audio-import-result {
+  margin: 0;
+  font-size: 0.7rem;
+  color: var(--color-text);
+  opacity: 0.65;
+}
+
+.audio-import-result[hidden] {
+  display: none;
+}
+
+/* ===== 新バージョン通知バナー（PWA対応） =====
+   Service Workerが新しいバージョンを検知したときだけ、画面上部に表示する。
+   どの画面が表示中でも常に見えるよう、game-frameの外・画面最上部に固定する。 */
+.update-available-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 30; /* モーダル（z-index:20）よりさらに手前に表示する */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: var(--color-primary-dark);
+  color: #ffffff;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.update-available-banner[hidden] {
+  display: none;
+}
+
+#update-reload-button {
+  padding: 4px 14px;
+  border: none;
+  border-radius: 999px;
+  background: #ffffff;
+  color: var(--color-primary-dark);
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
 /* ===== イコライザー風の飾り区切り。曲が流れているような臨場感を添える ===== */
 .eq-divider {
   display: flex;

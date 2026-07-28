@@ -1,0 +1,20 @@
+{
+  "name": "＝LOVEイントロクイズ",
+  "short_name": "＝LOVEクイズ",
+  "description": "＝LOVEの楽曲イントロを聞いて曲名を当てるクイズゲーム",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "lang": "ja",
+  "background_color": "#fff7f9",
+  "theme_color": "#ff6fa8",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

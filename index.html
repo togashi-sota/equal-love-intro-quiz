@@ -8,6 +8,21 @@
   <!-- タブに表示されるアイコン（favicon） -->
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
 
+  <!-- PWA対応：ホーム画面に追加できるようにするための設定一式 -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#ff6fa8">
+  <!-- iPhoneでホーム画面に追加した際、ブラウザのアドレスバー等を隠しアプリらしい見た目にする。
+       apple-mobile-web-app-capableはiOS Safari向け（今も必須）、
+       mobile-web-app-capableはvendor接頭辞なしの新しい標準名（Chromium系ブラウザ向け）。
+       前者だけだとEdge/Chromeで非推奨の警告が出るため、両方書いておく。 -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="＝LOVEクイズ">
+  <!-- iOSのホーム画面アイコンはmanifest.jsonのicons配列を読まず、このタグのPNGを使う。
+       assets/icons/apple-touch-icon.png（180x180のPNG）を別途用意する必要がある -->
+  <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+
   <!-- Google Fonts: 丸みのある読みやすい日本語フォント「M PLUS Rounded 1c」を読み込む -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -16,6 +31,14 @@
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body data-screen="start">
+
+  <!-- 新しいバージョンが使えるようになったときだけ表示する通知。
+       Service Workerが黙って新しいコードに切り替わると、プレイ中に予期しない動作をする
+       可能性があるため、必ず本人が「更新する」を押してから切り替える設計にしている。 -->
+  <div id="update-available-banner" class="update-available-banner" hidden>
+    <span>新しいバージョンがあります</span>
+    <button id="update-reload-button" type="button">更新する</button>
+  </div>
 
   <!-- 背景演出：うっすらギンガムチェック模様・ぼかしたレコード盤・ステージライトの光・キラキラの粒。
        ゲームの内容とは無関係な飾りなので、スクリーンリーダーには読み上げさせない。
@@ -78,6 +101,19 @@
             <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
           </span>
         </h1>
+      </div>
+
+      <!-- 音源の読み込み状況。PWA化に伴い、音源はサーバーに置かず、利用者が選んだファイルを
+           端末内（IndexedDB）に保存する方式にしている。読み込み状況を表示し、
+           ボタンからmp3ファイルをまとめて選択できる（js/audioStorage.js・js/main.js参照）。 -->
+      <div id="audio-import-section" class="audio-import-section">
+        <p id="audio-import-status" class="audio-import-status">音源の読み込み状況を確認中…</p>
+        <label class="audio-import-button">
+          音源を読み込む
+          <input id="audio-import-input" type="file" accept="audio/mpeg,.mp3" multiple hidden>
+        </label>
+        <!-- 読み込み結果（「◯曲を読み込みました」等）。普段は空・非表示 -->
+        <p id="audio-import-result" class="audio-import-result" hidden></p>
       </div>
 
       <!-- イコライザー風の飾り区切り。曲が流れているような臨場感を添える -->

@@ -35,6 +35,7 @@ import { renderResultTitleEvents, clearResultTitleEvents } from "./titleDisplay.
 import { initTitleListModal } from "./titleList.js";
 import { saveHistoryEntry } from "./history.js";
 import { initHistoryScreen, renderHistoryScreen } from "./historyScreen.js";
+import { importAudioFiles, getImportedSongIds } from "./audioStorage.js";
 
 // 背景のキラキラ演出は、ゲームの状態と関係なく最初に1回だけ生成すればよい。
 renderBackgroundSparkles();
@@ -89,6 +90,11 @@ const quizBackButtonElement = document.getElementById("quiz-back-button");
 const quizQuitConfirmModalElement = document.getElementById("quiz-quit-confirm-modal");
 const quizQuitCancelButtonElement = document.getElementById("quiz-quit-cancel-button");
 const quizQuitConfirmButtonElement = document.getElementById("quiz-quit-confirm-button");
+const audioImportStatusElement = document.getElementById("audio-import-status");
+const audioImportInputElement = document.getElementById("audio-import-input");
+const audioImportResultElement = document.getElementById("audio-import-result");
+const updateAvailableBannerElement = document.getElementById("update-available-banner");
+const updateReloadButtonElement = document.getElementById("update-reload-button");
 
 // 称号一覧モーダルの開閉ロジックはtitleList.jsに閉じ込めてあるので、
 // ここでは必要なDOM要素を渡して初期化するだけでよい。
@@ -643,6 +649,85 @@ updateQuestionCountNotice();
 
 // カテゴリの選択肢に添える対象曲数は、ゲームの状態と関係なく最初に1回だけ計算すればよい。
 updateCategoryCountHints();
+
+// 音源の読み込み状況（IndexedDBに何曲保存済みか）を表示に反映する。
+// SONGSの曲数と突き合わせ、未読み込みの曲があれば件数を案内する。
+async function updateAudioImportStatus() {
+  const importedSongIds = await getImportedSongIds();
+  const importedSet = new Set(importedSongIds);
+  const missingCount = SONGS.filter((song) => !importedSet.has(song.id)).length;
+
+  audioImportStatusElement.textContent =
+    missingCount === 0
+      ? `音源：全${SONGS.length}曲 読み込み済み`
+      : `音源：${SONGS.length - missingCount}/${SONGS.length}曲 読み込み済み（${missingCount}曲未読み込み）`;
+}
+
+// 「音源を読み込む」ボタン（実体は隠したinput[type=file]）でファイルが選ばれたときの処理。
+// 選んだファイルのうちファイル名がsongsのidと一致するものだけをIndexedDBに保存する。
+// 一部の曲だけを選んでも、選んだ分だけが追加・上書きされる（差分インポート。js/audioStorage.js参照）。
+audioImportInputElement.addEventListener("change", async () => {
+  const files = [...audioImportInputElement.files];
+  if (files.length === 0) return;
+
+  const { savedSongIds, unmatchedFileNames } = await importAudioFiles(files);
+
+  audioImportResultElement.hidden = false;
+  audioImportResultElement.textContent =
+    unmatchedFileNames.length > 0
+      ? `${savedSongIds.length}曲を読み込みました（${unmatchedFileNames.length}件はファイル名が曲データと一致しませんでした）`
+      : `${savedSongIds.length}曲を読み込みました`;
+
+  // 同じファイルをもう一度選んでも change イベントが発火するように、選択状態をリセットする
+  audioImportInputElement.value = "";
+  await updateAudioImportStatus();
+});
+
+updateAudioImportStatus();
+
+// PWA対応：Service Workerを登録し、新しいバージョンが使えるようになったらバナーで知らせる。
+// 黙って新しいコードに切り替えると、プレイ中に予期しない動作をする可能性があるため、
+// 必ず本人が「更新する」を押してから切り替える設計にしている。
+let pendingUpdateRegistration = null;
+
+function initServiceWorker() {
+  if (!("serviceWorker" in navigator)) return;
+
+  navigator.serviceWorker
+    .register("./sw.js")
+    .then((registration) => {
+      registration.addEventListener("updatefound", () => {
+        const newWorker = registration.installing;
+        if (!newWorker) return;
+        newWorker.addEventListener("statechange", () => {
+          // controllerがある（＝すでに動いているService Workerがいる）状態での
+          // installedは「新しいバージョンが準備できた」を意味する。
+          // controllerがまだない初回登録時のinstalledはただの初回セットアップなので無視する。
+          if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+            pendingUpdateRegistration = registration;
+            updateAvailableBannerElement.hidden = false;
+          }
+        });
+      });
+    })
+    .catch(() => {
+      // Service Workerが使えない環境（非対応ブラウザ等）でも、アプリ自体は問題なく動き続けられるようにする
+    });
+
+  // 新しいService Workerが有効化されたら、最新のコードを反映するために1回だけ再読み込みする。
+  let hasReloadedForUpdate = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (hasReloadedForUpdate) return;
+    hasReloadedForUpdate = true;
+    window.location.reload();
+  });
+}
+
+updateReloadButtonElement.addEventListener("click", () => {
+  pendingUpdateRegistration?.waiting?.postMessage("skipWaiting");
+});
+
+initServiceWorker();
 
 // キーボード操作対応。マウス・タップ操作は今まで通り使えるようにしたうえで、
 // 今表示されている画面に応じてキー入力を割り当てる。
