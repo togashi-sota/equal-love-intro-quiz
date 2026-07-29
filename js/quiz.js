@@ -3,7 +3,9 @@
 import { CATEGORY, SONGS } from "./data/songs.js";
 
 // 1問を作るのに最低限必要な曲数（正解1つ＋ダミー3つ＝4曲）。
-const MIN_SONGS_REQUIRED = 4;
+// オリジナル問題作成モード（customQuizScreen.js）でも、選択曲だけをダミー選択肢の
+// プールにする場合の下限として同じ値を使うため、外部公開している。
+export const MIN_SONGS_REQUIRED = 4;
 
 // カテゴリの選択値（"all" | "title-and-group" | "title-track"）に応じて曲を絞り込む。
 // title-track      : 表題曲のみ

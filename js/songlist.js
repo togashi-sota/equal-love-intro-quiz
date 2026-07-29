@@ -10,7 +10,9 @@ import { getAudioBlob } from "./audioStorage.js";
 const SEEK_SKIP_SECONDS = 10;
 
 // カテゴリごとの、バッジに表示する文字と色分け用のクラス名。
-const CATEGORY_PILL_INFO = {
+// オリジナル問題作成モードの選曲画面（customQuizScreen.js）でも同じカテゴリバッジを
+// 表示するため、外部公開している。
+export const CATEGORY_PILL_INFO = {
   [CATEGORY.TITLE_TRACK]: { text: "表題曲", className: "title-track" },
   [CATEGORY.GROUP_SONG]: { text: "全員曲", className: "group-song" },
   [CATEGORY.UNIT_SONG]: { text: "ユニット曲", className: "unit-song" },
@@ -62,7 +64,9 @@ function resolveSongGroup(song) {
 }
 
 // 曲データを、アコーディオン区分ごとにまとめる。新しいシングルが先頭にくるよう並び替える。
-function buildSongGroups(songs) {
+// オリジナル問題作成モードの選曲画面（customQuizScreen.js）でも、同じ区分ルールを
+// 重複させないよう、この関数をそのまま再利用する。
+export function buildSongGroups(songs) {
   const groupsByKey = new Map();
 
   songs.forEach((song) => {

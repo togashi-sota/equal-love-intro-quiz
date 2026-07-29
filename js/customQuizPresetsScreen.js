@@ -1,0 +1,370 @@
+// オリジナル問題作成モードのプリセット一覧画面を担当するファイル。
+// 保存済みのセット（名前・メモ・曲数・ダミー選択肢モード）を並べ、タップすると
+// 選曲画面がその内容で開く。「＋ 新しいセットを作る」からは、空の選曲画面を開ける。
+// 各プリセットの「収録曲を見る」からは、シングル単位の全曲名を確認できる詳細モーダルを開ける
+// （中身がプリセットごとに変わる動的なモーダルのため、開閉・描画ともにこのファイルで完結させる）。
+// 保存データの読み込み自体はcustomQuizPresets.jsに任せ、ここでは画面の組み立てだけを行う。
+
+import { SONGS } from "./data/songs.js";
+import { buildSongGroups } from "./songlist.js";
+import { getPresets } from "./customQuizPresets.js";
+
+// ダミー選択肢モードの表示ラベル。プリセットカード・詳細モーダルに添える。
+const DISTRACTOR_MODE_LABELS = { selected: "選択した曲だけ", all: "全収録曲" };
+
+// この画面が使うDOM要素一式。initCustomQuizPresetsScreen()で受け取って保持する。
+let elements = null;
+
+// 今の検索語。画面を離れて戻ってきても保持したままにする
+// （編集のために一覧を離れた場合、絞り込みが解除されていると探し直しになるため）。
+let searchQuery = "";
+
+// 一覧カードから直接削除しようとしているプリセット（確認モーダルを閉じている間はnull）。
+// 編集画面側の削除確認モーダル（customQuizScreen.js）とは別に、この画面専用で持つ
+// （同じモーダルを2箇所から操作すると、削除対象の取り違えが起きかねないため）。
+// idだけでなくプリセット全体を保持し、削除完了バナーにセット名をそのまま使えるようにしている。
+let pendingDeletePreset = null;
+
+// 保存完了バナーを自動で隠すためのタイマーID。連続保存で古いタイマーが後から発火して
+// 表示中のバナーを消してしまわないよう、新しく表示するたびに前のタイマーを解除する。
+let savedBannerHideTimeoutId = null;
+
+// 検索用に文字列を正規化する。今の規模（個人が作る数十件程度）を踏まえ、
+// 大文字/小文字・全角/半角数字の統一だけを行うシンプルな一致判定にしている
+// （ひらがな/カタカナの相互変換までは行わない）。
+function normalizeForSearch(text) {
+  return text
+    .toLowerCase()
+    .replace(/[０-９]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0xfee0));
+}
+
+// セット名・メモを対象に検索語と一致するか判定する。
+function matchesSearchQuery(preset, query) {
+  if (query === "") return true;
+  const haystack = normalizeForSearch(`${preset.name} ${preset.memo}`);
+  return haystack.includes(normalizeForSearch(query));
+}
+
+// 「タップで進める」ことを示すシェブロンアイコンを1つ作る（他のカードと共通の部品）。
+function createChevron() {
+  const chevron = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  chevron.setAttribute("class", "special-mode-card-chevron");
+  chevron.setAttribute("viewBox", "0 0 24 24");
+  chevron.setAttribute("fill", "none");
+  chevron.setAttribute("aria-hidden", "true");
+  const chevronPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  chevronPath.setAttribute("d", "M9 5 16 12 9 19");
+  chevronPath.setAttribute("stroke", "currentColor");
+  chevronPath.setAttribute("stroke-width", "2.4");
+  chevronPath.setAttribute("stroke-linecap", "round");
+  chevronPath.setAttribute("stroke-linejoin", "round");
+  chevron.appendChild(chevronPath);
+  return chevron;
+}
+
+// 「＋ 新しいセットを作る」カード。特別モード一覧のカードと同じ見た目・構造を流用する。
+function buildNewPresetCard() {
+  const card = document.createElement("button");
+  card.type = "button";
+  card.className = "special-mode-card";
+  card.addEventListener("click", () => elements.onCreateNew());
+
+  const content = document.createElement("div");
+  content.className = "special-mode-card-content";
+
+  const title = document.createElement("p");
+  title.className = "special-mode-card-title";
+  title.textContent = "＋ 新しいセットを作る";
+  content.appendChild(title);
+
+  card.appendChild(content);
+  card.appendChild(createChevron());
+  return card;
+}
+
+// ゴミ箱アイコン（一覧カードからの直接削除ボタン用）。
+function createTrashIcon() {
+  const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  icon.setAttribute("viewBox", "0 0 24 24");
+  icon.setAttribute("fill", "none");
+  icon.setAttribute("aria-hidden", "true");
+  icon.innerHTML =
+    '<path d="M4 7h16M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2m-8 0 1 13a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2l1-13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>';
+  return icon;
+}
+
+// 複製アイコン（一覧カードからの直接複製ボタン用）。
+function createCopyIcon() {
+  const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  icon.setAttribute("viewBox", "0 0 24 24");
+  icon.setAttribute("fill", "none");
+  icon.setAttribute("aria-hidden", "true");
+  icon.innerHTML =
+    '<rect x="9" y="9" width="11" height="11" rx="2" stroke="currentColor" stroke-width="1.8"/>' +
+    '<path d="M6 15H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>';
+  return icon;
+}
+
+// 保存済みプリセット1件分のカード。
+// 「タップで選曲・編集画面を開く」メインボタン、「複製」（コピーアイコン）、「削除」（ゴミ箱アイコン）、
+// 「▶ プレイ」（すぐ開始）、「収録曲を見る」（詳細モーダル）を、それぞれ独立した兄弟要素として
+// 分けている（ボタンの中にボタンを入れることはHTML上できないため、誤操作の防止もかねている）。
+// 複製・削除のアイコンは他の2つより小さく・控えめにし、誤って押しにくいようにしている。
+// 並び順は「メイン→複製→削除」とし、取り消しの効かない削除を一番右に置くことで、
+// 右から左に読む視線の流れでも複製と間違えて削除を押しにくいようにしている。
+function buildPresetCard(preset) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "preset-card";
+
+  const topRow = document.createElement("div");
+  topRow.className = "preset-card-top";
+
+  const mainButton = document.createElement("button");
+  mainButton.type = "button";
+  mainButton.className = "preset-card-main";
+  mainButton.addEventListener("click", () => elements.onSelectPreset(preset));
+
+  const content = document.createElement("div");
+  content.className = "special-mode-card-content";
+
+  const title = document.createElement("p");
+  title.className = "special-mode-card-title";
+  title.textContent = preset.name;
+  content.appendChild(title);
+
+  const distractorLabel = DISTRACTOR_MODE_LABELS[preset.distractorMode] ?? preset.distractorMode;
+  const description = document.createElement("p");
+  description.className = "special-mode-card-description";
+  description.textContent = `${preset.songIds.length}曲・${distractorLabel}`;
+  content.appendChild(description);
+
+  // メモは一覧では1行に省略する（はみ出す分はCSSの text-overflow:ellipsis で「…」にする）。
+  // 全文は「収録曲を見る」の詳細モーダルで確認できる。
+  if (preset.memo) {
+    const memo = document.createElement("p");
+    memo.className = "preset-card-memo";
+    memo.textContent = preset.memo;
+    content.appendChild(memo);
+  }
+
+  mainButton.appendChild(content);
+  mainButton.appendChild(createChevron());
+
+  const copyIconButton = document.createElement("button");
+  copyIconButton.type = "button";
+  copyIconButton.className = "preset-card-icon-button preset-card-copy-icon";
+  copyIconButton.setAttribute("aria-label", `「${preset.name}」を複製`);
+  copyIconButton.appendChild(createCopyIcon());
+  copyIconButton.addEventListener("click", () => elements.onDuplicatePreset(preset));
+
+  const deleteIconButton = document.createElement("button");
+  deleteIconButton.type = "button";
+  deleteIconButton.className = "preset-card-icon-button preset-card-delete-icon";
+  deleteIconButton.setAttribute("aria-label", `「${preset.name}」を削除`);
+  deleteIconButton.appendChild(createTrashIcon());
+  deleteIconButton.addEventListener("click", () => openListDeleteConfirmModal(preset));
+
+  topRow.appendChild(mainButton);
+  topRow.appendChild(copyIconButton);
+  topRow.appendChild(deleteIconButton);
+
+  const actionsRow = document.createElement("div");
+  actionsRow.className = "preset-card-actions";
+
+  const playButton = document.createElement("button");
+  playButton.type = "button";
+  playButton.className = "preset-card-play-button";
+  playButton.textContent = "▶ プレイ";
+  playButton.addEventListener("click", () => elements.onPlayPreset(preset));
+
+  const detailButton = document.createElement("button");
+  detailButton.type = "button";
+  detailButton.className = "preset-card-detail-link";
+  detailButton.textContent = "収録曲を見る";
+  detailButton.addEventListener("click", () => openPresetDetailModal(preset));
+
+  actionsRow.appendChild(playButton);
+  actionsRow.appendChild(detailButton);
+
+  wrapper.appendChild(topRow);
+  wrapper.appendChild(actionsRow);
+  return wrapper;
+}
+
+// 画面を開くたびに呼び、最新の保存内容・今の検索語で一覧を描画し直す
+// （プリセットを保存した直後にこの画面へ戻ってきたときも、必ず反映されるようにするため）。
+// 「＋新しいセットを作る」は検索語に関わらず常に先頭に表示する（検索対象にしない）。
+export function renderCustomQuizPresetsScreen() {
+  const presets = getPresets();
+  const filteredPresets = presets.filter((preset) => matchesSearchQuery(preset, searchQuery));
+
+  elements.listContainer.innerHTML = "";
+  elements.listContainer.appendChild(buildNewPresetCard());
+  filteredPresets.forEach((preset) => {
+    elements.listContainer.appendChild(buildPresetCard(preset));
+  });
+
+  elements.emptyState.hidden = filteredPresets.length > 0;
+  if (filteredPresets.length === 0) {
+    elements.emptyState.textContent =
+      presets.length === 0
+        ? "まだ保存されたセットがありません。「＋ 新しいセットを作る」から作成できます。"
+        : `「${searchQuery}」に一致するセットが見つかりませんでした`;
+  }
+}
+
+// ===== プリセット詳細モーダル（収録曲の確認） =====
+// 中身がプリセットごとに変わる動的なモーダルなので、開閉・描画をこのファイルで完結させる
+// （他の説明モーダルのようにmain.jsでは管理しない）。
+
+function isPresetDetailModalOpen() {
+  return elements !== null && !elements.detailModal.hidden;
+}
+
+function closePresetDetailModal() {
+  elements.detailModal.hidden = true;
+}
+
+// シングル区分1つ分の、読み取り専用の曲名リストを作る。
+function buildDetailGroupElement(group) {
+  const groupElement = document.createElement("div");
+  groupElement.className = "preset-detail-group";
+
+  const label = document.createElement("p");
+  label.className = "preset-detail-group-label";
+  label.textContent = `${group.label}（${group.songs.length}曲）`;
+  groupElement.appendChild(label);
+
+  const list = document.createElement("ul");
+  list.className = "preset-detail-song-list";
+  group.songs.forEach((song) => {
+    const item = document.createElement("li");
+    item.textContent = song.title;
+    list.appendChild(item);
+  });
+  groupElement.appendChild(list);
+
+  return groupElement;
+}
+
+function openPresetDetailModal(preset) {
+  elements.detailTitle.textContent = preset.name;
+
+  elements.detailMemo.hidden = !preset.memo;
+  elements.detailMemo.textContent = preset.memo;
+
+  const distractorLabel = DISTRACTOR_MODE_LABELS[preset.distractorMode] ?? preset.distractorMode;
+  elements.detailSummary.textContent = `${preset.songIds.length}曲・${distractorLabel}`;
+
+  // 開くたびにこのプリセットを対象として上書きする（onclickの代入なので、開くたびに
+  // リスナーが増えていくことはない）。一覧カードの「▶ プレイ」と同じコールバックを使う。
+  elements.detailPlayButton.onclick = () => {
+    closePresetDetailModal();
+    elements.onPlayPreset(preset);
+  };
+
+  const presetSongs = SONGS.filter((song) => preset.songIds.includes(song.id));
+  const groups = buildSongGroups(presetSongs);
+  elements.detailGroups.innerHTML = "";
+  groups.forEach((group) => {
+    elements.detailGroups.appendChild(buildDetailGroupElement(group));
+  });
+
+  elements.detailModal.hidden = false;
+}
+
+// ===== 一覧カードからの直接削除 =====
+// 編集画面（customQuizScreen.js）にも同じ見た目の削除確認モーダルがあるが、
+// あちらは「今開いている編集対象」を、こちらは「カードごとに違うプリセット」を対象にするため、
+// 削除対象の取り違えを避ける目的で、あえてモーダル自体を分けて自己完結させている。
+
+function isListDeleteConfirmModalOpen() {
+  return elements !== null && !elements.listDeleteConfirmModal.hidden;
+}
+
+function openListDeleteConfirmModal(preset) {
+  pendingDeletePreset = preset;
+  elements.listDeleteConfirmModal.hidden = false;
+}
+
+function closeListDeleteConfirmModal() {
+  elements.listDeleteConfirmModal.hidden = true;
+  pendingDeletePreset = null;
+}
+
+function handleListDeleteConfirmed() {
+  const preset = pendingDeletePreset;
+  closeListDeleteConfirmModal();
+  elements.onDeletePreset(preset);
+}
+
+// ===== 保存/更新/削除の完了バナー =====
+// 「保存する」「上書き保存する」「削除する」で一覧画面に戻ってきたときだけ、短時間表示する案内。
+// セット数が多くなると、カードの増減や位置だけでは操作が完了したことに気づきにくくなるため、
+// 明示的な完了表示を添えている。
+const ACTION_BANNER_DISPLAY_MS = 5000;
+
+export function showPresetActionBanner(message) {
+  elements.savedBanner.textContent = message;
+  elements.savedBanner.hidden = false;
+
+  if (savedBannerHideTimeoutId !== null) {
+    clearTimeout(savedBannerHideTimeoutId);
+  }
+  savedBannerHideTimeoutId = setTimeout(() => {
+    elements.savedBanner.hidden = true;
+    savedBannerHideTimeoutId = null;
+  }, ACTION_BANNER_DISPLAY_MS);
+}
+
+// プリセット一覧画面を使えるようにする。main.jsの初期化処理から1回だけ呼ぶ想定。
+//
+// elements: {
+//   listContainer: 「＋新しいセットを作る」＋プリセットカードを並べる入れ物,
+//   emptyState: 保存済みプリセットが1件もない/検索結果が0件のときに表示するメッセージ要素,
+//   searchInput: セット名・メモを検索する入力欄,
+//   savedBanner: 保存/更新が完了した直後だけ短時間表示する案内,
+//   onCreateNew: 「＋新しいセットを作る」がタップされたときに呼ばれるコールバック,
+//   onSelectPreset: 保存済みプリセットがタップされたときに呼ばれるコールバック（presetを受け取る）,
+//   onPlayPreset: 「▶ プレイ」が押されたときに呼ばれるコールバック（presetを受け取る）,
+//   onDuplicatePreset: 複製アイコンが押されたときに呼ばれるコールバック（presetを受け取る）,
+//   onDeletePreset: 一覧カードの削除が確定したときに呼ばれるコールバック（presetを受け取る）,
+//   listDeleteConfirmModal, listDeleteCancelButton, listDeleteConfirmButton: 一覧専用の削除確認モーダル一式,
+//   detailModal, detailCloseButton: 詳細モーダルの背景・閉じるボタン,
+//   detailTitle, detailMemo, detailSummary, detailGroups: 詳細モーダルの中身,
+//   detailPlayButton: 詳細モーダルの「▶ このセットでプレイ」ボタン,
+// }
+export function initCustomQuizPresetsScreen(newElements) {
+  elements = newElements;
+
+  elements.searchInput.addEventListener("input", () => {
+    searchQuery = elements.searchInput.value;
+    renderCustomQuizPresetsScreen();
+  });
+
+  elements.detailCloseButton.addEventListener("click", closePresetDetailModal);
+  elements.detailModal.addEventListener("click", (event) => {
+    if (event.target === elements.detailModal) {
+      closePresetDetailModal();
+    }
+  });
+
+  elements.listDeleteCancelButton.addEventListener("click", closeListDeleteConfirmModal);
+  elements.listDeleteConfirmButton.addEventListener("click", handleListDeleteConfirmed);
+  elements.listDeleteConfirmModal.addEventListener("click", (event) => {
+    if (event.target === elements.listDeleteConfirmModal) {
+      closeListDeleteConfirmModal();
+    }
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    if (isPresetDetailModalOpen()) {
+      closePresetDetailModal();
+      return;
+    }
+    if (isListDeleteConfirmModalOpen()) {
+      closeListDeleteConfirmModal();
+    }
+  });
+}

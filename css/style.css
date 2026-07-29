@@ -788,6 +788,19 @@ fieldset label:has(input:focus-visible) {
   }
 }
 
+/* 条件を満たしていないときの主ボタン（例：オリジナル問題作成モードで4曲未満のとき）。
+   光る演出を止め、押せない状態であることが見た目でも伝わるようにする。 */
+.primary-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+  animation: none;
+  box-shadow: none;
+}
+
+.primary-button:disabled::after {
+  content: none;
+}
+
 @keyframes primaryButtonGlow {
   0%,
   100% {
@@ -2101,7 +2114,8 @@ fieldset label:has(input:focus-visible) {
 }
 
 .single-group-header {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -2117,6 +2131,39 @@ fieldset label:has(input:focus-visible) {
 .single-group-header:focus-visible {
   outline: 2px solid var(--color-primary-dark);
   outline-offset: -2px;
+}
+
+/* オリジナル問題作成モードの選曲画面だけで使う、見出し行の入れ物。
+   「開閉」（.single-group-header）と「全選択・全解除」（.single-group-bulk-actions）を
+   別々の操作領域として横に並べる。横幅が足りないときは自然に2行へ折り返す。 */
+.single-group-header-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.single-group-bulk-actions {
+  flex: none;
+  display: flex;
+  gap: 4px;
+  padding: 8px 14px 8px 0;
+}
+
+.single-group-bulk-button {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--color-card-border);
+  background: none;
+  font-family: inherit;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.single-group-bulk-button:active {
+  background: var(--color-primary-light);
 }
 
 .chevron {
@@ -3079,6 +3126,395 @@ fieldset label:has(input:focus-visible) {
 .weak-songs-count strong {
   font-size: 1.1rem;
   color: var(--color-primary-dark);
+}
+
+/* オリジナル問題作成モードの選曲画面 */
+
+.custom-quiz-selected-count {
+  margin: 4px 0 12px;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--color-text);
+}
+
+.custom-quiz-selected-count strong {
+  font-size: 1.1rem;
+  color: var(--color-primary-dark);
+}
+
+/* 1曲分の選択行。チェック部分（.song-select-label）と試聴ボタンを横に並べる入れ物。
+   試聴ボタンをlabelの外に出しているのは、labelの中に置くと試聴ボタンを押したときに
+   チェックボックスまで反応してしまうため。 */
+.song-select-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.song-select-row[hidden] {
+  display: none;
+}
+
+/* チェックできる範囲。行のどこをタップしてもチェックできる */
+.song-select-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  padding: 8px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.song-select-label:active {
+  background: var(--color-primary-light);
+}
+
+.song-select-label input[type="checkbox"] {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--color-primary);
+}
+
+.song-select-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.86rem;
+  font-weight: 700;
+  overflow-wrap: break-word;
+}
+
+/* 試聴ボタン自体は、収録曲一覧の.play-buttonをそのまま使い回している。
+   行が試聴中（is-playing）のときのアイコン切り替え・色も、.track-rowと同じ考え方で揃える。 */
+.song-select-row.is-playing .icon-play {
+  display: none;
+}
+
+.song-select-row.is-playing .icon-pause {
+  display: block;
+}
+
+.song-select-row.is-playing .play-button {
+  background: var(--color-primary-dark);
+  color: #ffffff;
+}
+
+/* 名前・メモの入力欄と保存ボタンをまとめた入れ物。新規作成・既存プリセットを開いた場合の
+   両方で表示する（内容の埋め込み・ボタン文言の切り替えはjs/customQuizScreen.jsが行う）。 */
+#custom-quiz-save-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-card-border);
+}
+
+.custom-quiz-field {
+  display: block;
+  margin-bottom: 10px;
+}
+
+.custom-quiz-field span {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-text);
+  opacity: 0.75;
+}
+
+.custom-quiz-field input[type="text"],
+.custom-quiz-field textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1.5px solid var(--color-card-border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 0.9rem;
+}
+
+/* メモ欄：縦方向にだけ手動で広げられるようにする（横方向のresizeはレイアウトが崩れるため許可しない） */
+.custom-quiz-field textarea {
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.custom-quiz-field input[type="text"]:focus-visible,
+.custom-quiz-field textarea:focus-visible {
+  outline: 2px solid var(--color-primary-dark);
+  outline-offset: 1px;
+}
+
+/* 丸みのある検索欄。プリセット一覧の検索・選曲画面の曲名検索、両方で共通して使う */
+.pill-search-input {
+  display: block;
+  width: 100%;
+  margin: 4px 0 14px;
+  padding: 10px 12px;
+  border: 1.5px solid var(--color-card-border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 0.85rem;
+}
+
+.pill-search-input:focus-visible {
+  outline: 2px solid var(--color-primary-dark);
+  outline-offset: 1px;
+}
+
+/* オリジナル問題作成モードの選曲画面：画面全体を対象にした一括選択ボタン。
+   シングルごとの全選択/全解除（.single-group-bulk-button）と見た目を揃えつつ、
+   独立した行として配置する。 */
+.custom-quiz-bulk-actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin: 4px 0 10px;
+}
+
+/* 試聴の共通ミニプレイヤー。何か試聴中（一時停止中も含む）のときだけ表示する。
+   収録曲一覧の再生行と近い部品（.play-button・.seek-range・.seek-skip-button）を
+   そのまま流用し、見た目のトーンを揃えている。 */
+.custom-quiz-preview-player {
+  margin: 4px 0 14px;
+  padding: 10px 12px;
+  border: 1.5px solid var(--color-card-border);
+  border-radius: 14px;
+  background: var(--color-primary-light);
+}
+
+.custom-quiz-preview-player[hidden] {
+  display: none;
+}
+
+.custom-quiz-preview-title {
+  margin: 0 0 6px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+  text-align: center;
+  overflow-wrap: break-word;
+}
+
+.custom-quiz-preview-seek-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.custom-quiz-preview-time {
+  flex: none;
+  font-size: 0.68rem;
+  color: var(--color-text);
+  opacity: 0.7;
+  font-variant-numeric: tabular-nums;
+}
+
+.custom-quiz-preview-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+}
+
+/* ミニプレイヤーの再生/一時停止ボタンは.play-buttonを流用するが、
+   再生中かどうかはこのプレイヤー自身の.is-playingクラスで判定する
+   （試聴中の行のis-playingとは別に、常に「今まさに音が鳴っているか」を表す）。
+   アイコンを普段は非表示にする.icon-pauseの基本ルールは、songlist.js用の既存定義を共有する。 */
+.custom-quiz-preview-player.is-playing .icon-play {
+  display: none;
+}
+
+.custom-quiz-preview-player.is-playing .icon-pause {
+  display: block;
+}
+
+.custom-quiz-preview-player.is-playing .play-button {
+  background: var(--color-primary-dark);
+  color: #ffffff;
+}
+
+/* 「選択済みの曲だけ表示」トグル。他のチェックボックス付きラベルと同じ、
+   飾らないシンプルな見た目にする */
+.custom-quiz-selected-only-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 12px;
+  font-size: 0.8rem;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.custom-quiz-selected-only-toggle input[type="checkbox"] {
+  accent-color: var(--color-primary);
+}
+
+/* 保存/更新の完了バナー。#new-record-badgeと同じ「丸いお知らせチップ」の見た目に揃える。
+   数秒で自動的に消えるので、演出も控えめにしている。 */
+.custom-quiz-presets-saved-banner {
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto 12px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--color-accent);
+  background-color: var(--color-accent-soft);
+  color: var(--color-primary-dark);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+/* displayの指定がhidden属性より優先されてしまう問題への対策（#new-record-badge等と同じ理由） */
+.custom-quiz-presets-saved-banner[hidden] {
+  display: none;
+}
+
+#custom-quiz-save-section .secondary-button {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+}
+
+/* プリセット一覧のカード：「タップで選曲画面を開く」メインボタンと「収録曲を見る」を
+   別々の操作領域にするため、.special-mode-cardとは違い外枠（このクラス）を
+   ボタンではなく入れ物にしている。見た目は.special-mode-cardと揃える。 */
+.preset-card {
+  border-radius: 14px;
+  margin-bottom: 10px;
+  background: rgba(255, 255, 255, 0.4);
+  border: 1px solid var(--color-card-border);
+  overflow: hidden;
+}
+
+/* メインボタン（タップで選曲・編集画面を開く）と削除アイコンを横に並べる入れ物。
+   削除は独立した操作領域にし、誤操作を防ぐため小さく・控えめに配置する。 */
+.preset-card-top {
+  display: flex;
+  align-items: stretch;
+}
+
+.preset-card-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  padding: 14px;
+  border: none;
+  background: none;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.preset-card-main:active {
+  background: var(--color-primary-light);
+}
+
+/* 複製・削除、どちらも小さな独立アイコンボタンとして共通の見た目にする。
+   押したときの色だけ、複製＝テーマカラー／削除＝警告色で区別する。 */
+.preset-card-icon-button {
+  flex: none;
+  width: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  color: var(--color-text);
+  opacity: 0.4;
+  cursor: pointer;
+}
+
+.preset-card-icon-button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.preset-card-copy-icon:active {
+  opacity: 0.8;
+  color: var(--color-primary-dark);
+}
+
+.preset-card-delete-icon:active {
+  opacity: 0.8;
+  color: var(--color-danger);
+}
+
+/* メモは一覧では1行に省略する。全文は詳細モーダルで確認できる */
+.preset-card-memo {
+  margin: 2px 0 0;
+  font-size: 0.72rem;
+  color: var(--color-text);
+  opacity: 0.6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 「▶ プレイ」「収録曲を見る」の2ボタン行。カード本体（タップで選曲・編集画面を開く）
+   とは別の操作領域として、はっきり区切って並べる。 */
+.preset-card-actions {
+  display: flex;
+  border-top: 1px solid var(--color-card-border);
+}
+
+.preset-card-play-button,
+.preset-card-detail-link {
+  flex: 1;
+  padding: 8px 10px;
+  border: none;
+  background: rgba(255, 255, 255, 0.3);
+  color: var(--color-primary-dark);
+  font-family: inherit;
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-align: center;
+  cursor: pointer;
+}
+
+.preset-card-play-button {
+  border-right: 1px solid var(--color-card-border);
+}
+
+.preset-card-play-button:active,
+.preset-card-detail-link:active {
+  background: var(--color-primary-light);
+}
+
+/* プリセット詳細モーダル：曲数・ダミー選択肢モードのサマリー行 */
+.custom-quiz-preset-detail-summary {
+  margin: 4px 0 14px;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--color-text);
+  opacity: 0.75;
+}
+
+/* シングル単位の全曲名（読み取り専用）。開閉はできず、常に展開した状態で並べる */
+.preset-detail-group {
+  margin-bottom: 12px;
+}
+
+.preset-detail-group-label {
+  margin: 0 0 4px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+}
+
+.preset-detail-song-list {
+  margin: 0;
+  padding-left: 1.2em;
+  font-size: 0.82rem;
+  line-height: 1.7;
 }
 
 /* 結果画面：特別モードの結果でだけ表示する短い案内。自己ベスト欄の代わりに表示するため、

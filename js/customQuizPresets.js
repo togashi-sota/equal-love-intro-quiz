@@ -1,0 +1,119 @@
+// オリジナル問題作成モードのプリセット（名前付きの保存済み問題セット）を、
+// ブラウザのlocalStorageに保存・読み込みするファイル。
+// history.js・highscore.jsと同じく、localStorageへの読み書きは必ずこのファイルを経由し、
+// 他のファイルが直接localStorageを触ることはない。
+//
+// 各プリセットは、共有（将来のURL/QR共有・クラウド同期を見据えて）しても意味のある
+// 「中身」（name・memo・songIds・distractorMode）と、この端末だけで管理する
+// 「管理情報」（id・createdAt・updatedAt）を分けて持たせている。将来、中身だけを
+// 取り出して共有する機能を追加する際も、この構造のまま対応できる想定。
+
+const CUSTOM_QUIZ_PRESETS_KEY = "equalLoveIntroQuiz.customQuizPresets";
+const CURRENT_SCHEMA_VERSION = 1;
+
+// プレイ履歴と同じ生成方法。crypto.randomUUID()が使えない環境向けの代替も同様に用意する。
+function generatePresetId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function loadPresetsData() {
+  const empty = { schemaVersion: CURRENT_SCHEMA_VERSION, presets: [] };
+  try {
+    const stored = localStorage.getItem(CUSTOM_QUIZ_PRESETS_KEY);
+    if (!stored) return empty;
+
+    const parsed = JSON.parse(stored);
+    if (!Array.isArray(parsed.presets)) return empty;
+    return parsed;
+  } catch {
+    return empty;
+  }
+}
+
+function savePresetsData(data) {
+  try {
+    localStorage.setItem(CUSTOM_QUIZ_PRESETS_KEY, JSON.stringify(data));
+  } catch {
+    // プライベートブラウジング等でlocalStorageが使えない環境でも、アプリ自体は動き続けられるようにする
+  }
+}
+
+// 保存されているプリセットを、更新日時（updatedAt）が新しい順に返す。
+// よく使う・最近編集したセットほど一覧の上に来るようにするため。
+export function getPresets() {
+  const data = loadPresetsData();
+  return [...data.presets].sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+// 新しいプリセットを1件保存する。常に新規追加で、既存プリセットの上書きはこの関数では行わない。
+export function saveNewPreset({ name, memo, songIds, distractorMode }) {
+  const data = loadPresetsData();
+  const now = Date.now();
+  const preset = {
+    id: generatePresetId(),
+    name,
+    memo,
+    songIds,
+    distractorMode,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  data.presets.push(preset);
+  data.schemaVersion = CURRENT_SCHEMA_VERSION;
+  savePresetsData(data);
+  return preset;
+}
+
+// 既存のプリセットを1件、同じidのまま上書き保存する。createdAtは変えず、
+// updatedAtだけ現在時刻に更新する（一覧の並び順にそのまま反映される）。
+// 該当idが見つからない場合は何もしない（削除済みのプリセットを誤って復活させないため）。
+export function updatePreset(id, { name, memo, songIds, distractorMode }) {
+  const data = loadPresetsData();
+  const preset = data.presets.find((candidate) => candidate.id === id);
+  if (!preset) return;
+
+  preset.name = name;
+  preset.memo = memo;
+  preset.songIds = songIds;
+  preset.distractorMode = distractorMode;
+  preset.updatedAt = Date.now();
+
+  savePresetsData(data);
+}
+
+// 既存のプリセットを基に、新しいプリセットを1件複製する。
+// songIds・memo・distractorModeを引き継ぎ、名前には「（コピー）」を付け、
+// id・createdAt・updatedAtは新しく発行する（元のプリセットには一切手を加えない）。
+// 該当idが見つからない場合はnullを返す。
+export function duplicatePreset(id) {
+  const data = loadPresetsData();
+  const original = data.presets.find((preset) => preset.id === id);
+  if (!original) return null;
+
+  const now = Date.now();
+  const duplicate = {
+    id: generatePresetId(),
+    name: `${original.name}（コピー）`,
+    memo: original.memo,
+    songIds: [...original.songIds],
+    distractorMode: original.distractorMode,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  data.presets.push(duplicate);
+  data.schemaVersion = CURRENT_SCHEMA_VERSION;
+  savePresetsData(data);
+  return duplicate;
+}
+
+// プリセットを1件削除する。
+export function deletePreset(id) {
+  const data = loadPresetsData();
+  data.presets = data.presets.filter((preset) => preset.id !== id);
+  savePresetsData(data);
+}

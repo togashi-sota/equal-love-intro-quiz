@@ -223,7 +223,10 @@
         <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
-        タイトルへ
+        <!-- 文言は苦手曲モード・オリジナル問題作成モードのクイズ中だけ、そのモードの
+             確認/一覧画面に戻る内容に切り替わる（js/main.jsのupdateQuizQuitDisplay参照）。
+             アイコンを巻き込んで書き換えないよう、文字部分だけspanでくくっている。 -->
+        <span id="quiz-back-button-label">タイトルへ</span>
       </button>
 
       <p id="question-progress">第1問 / 5問</p>
@@ -351,10 +354,18 @@
         <!-- 復習の結果画面でだけ表示する。「通常プレイに戻る」だと、復習で見た曲がそのまま
              再出題されるように誤解されかねないため、新しい通常クイズを始めることが伝わる文言にしている -->
         <button id="return-to-normal-button" class="primary-button" type="button" hidden>通常プレイを始める</button>
+        <!-- そのモード専用の一覧画面がある場合（例：オリジナル問題作成モード）だけ表示するボタン。
+             文言・戻り先はJS側（SPECIAL_MODES_DISPLAY）が設定する。主/副どちらの見た目にするかも
+             状況に応じてクラスを切り替える。普段はhidden -->
+        <button id="back-to-mode-list-button" class="secondary-button" type="button" hidden></button>
         <button id="back-to-title-button" class="secondary-button" type="button">タイトルに戻る</button>
-        <!-- 特別モードの結果でだけ表示する副ボタン。普段はhidden -->
+        <!-- 特別モードの結果でだけ表示する副ボタン（専用の一覧画面を持たないモード用）。普段はhidden -->
         <button id="back-to-special-modes-button" class="secondary-button" type="button" hidden>特別モード一覧に戻る</button>
       </div>
+
+      <!-- そのモード専用の一覧画面がある場合（例：オリジナル問題作成モード）に、控えめな
+           「特別モード一覧に戻る」の入口として表示する。普段はhidden -->
+      <button id="back-to-special-modes-link" class="rules-link" type="button" hidden>特別モード一覧に戻る</button>
 
       <!-- 特別モードの結果でだけ表示する、控えめな「タイトルに戻る」の入口。
            副ボタン（特別モード一覧に戻る）よりさらに目立たせず、通常プレイへの復帰手段として残す。普段はhidden -->
@@ -586,6 +597,184 @@
       </p>
     </section>
 
+    <!-- オリジナル問題作成モードのプリセット一覧画面：保存済みのセット（名前・メモ・曲数・
+         ダミー選択肢モード）を並べ、タップすると選曲画面がその内容で開く。
+         「＋ 新しいセットを作る」からは、空の選曲画面を開ける。
+         中身はjs/customQuizPresetsScreen.jsが組み立てる。 -->
+    <section id="custom-quiz-presets-screen" class="screen">
+      <div class="list-header">
+        <button id="custom-quiz-presets-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            ORIGINAL QUIZ
+          </p>
+          <h2>オリジナル問題作成モード</h2>
+        </div>
+        <!-- モード全体の説明モーダルへの入口。他の画面のヘッダーには影響しない -->
+        <button id="custom-quiz-presets-rules-link" class="info-link-button" type="button" aria-label="このモードについて見る">？</button>
+      </div>
+
+      <!-- セット名・メモを対象にした検索欄。入力のたびにリアルタイムで絞り込む -->
+      <input type="text" id="custom-quiz-presets-search-input" class="pill-search-input" placeholder="セット名・メモで検索">
+
+      <!-- 保存/更新が完了した直後だけ表示する案内。数秒で自動的に消える。普段は空・非表示 -->
+      <p id="custom-quiz-presets-saved-banner" class="custom-quiz-presets-saved-banner" hidden></p>
+
+      <!-- 一覧（「＋ 新しいセットを作る」＋保存済みプリセット）。中身はjs/customQuizPresetsScreen.jsが組み立てる -->
+      <div id="custom-quiz-presets-list"></div>
+
+      <!-- 保存済みプリセットが1件もないときだけ表示する案内。プレイ履歴画面の空状態と同じ見た目にする -->
+      <p id="custom-quiz-presets-empty-state" class="history-empty-state" hidden>
+        まだ保存されたセットがありません。「＋ 新しいセットを作る」から作成できます。
+      </p>
+    </section>
+
+    <!-- オリジナル問題作成モードの選曲画面：好きな曲にチェックを入れて、自分専用の
+         問題セットを作れる。曲の一覧・グルーピングは収録曲一覧（songlist.js）の構造を
+         流用しているが、役割はあくまで「選ぶ」ことに特化させ、試聴機能は持たせない。
+         中身（曲一覧・選択数）はjs/customQuizScreen.jsが組み立てる。
+         新規作成・既存プリセットを開く、両方でこの画面を共用する
+         （既存プリセットを開いた場合、Step 2時点では「保存する」欄は表示せず、
+         その場でクイズを始めることだけができる。上書き保存・複製・削除はStep 3で対応）。 -->
+    <section id="custom-quiz-screen" class="screen">
+      <div class="list-header">
+        <button id="custom-quiz-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            ORIGINAL QUIZ
+          </p>
+          <h2>オリジナル問題作成モード</h2>
+        </div>
+        <!-- 判定ルール等の説明モーダルへの入口。他の画面のヘッダーには影響しない -->
+        <button id="custom-quiz-rules-link" class="info-link-button" type="button" aria-label="このモードについて見る">？</button>
+      </div>
+
+      <p class="custom-quiz-selected-count">選択中：<strong id="custom-quiz-selected-count-value">0</strong>曲</p>
+
+      <!-- 試聴の共通ミニプレイヤー。各曲の再生ボタンで読み込んだ曲を、ここでまとめて操作する
+           （各行には再生ボタンだけを置き、一時停止・シーク・現在位置はここに集約している）。
+           何か試聴中（一時停止中も含む）のときだけ表示し、js/customQuizScreen.jsが
+           再生中の曲の行の直後へこの要素自体を移動させる（常に1つだけなので複製はしない）。
+           普段はhidden。シークバーはタップ・ドラッグで再生位置を変更できる。 -->
+      <div id="custom-quiz-preview-player" class="custom-quiz-preview-player" hidden>
+        <p id="custom-quiz-preview-title" class="custom-quiz-preview-title"></p>
+        <div class="custom-quiz-preview-seek-row">
+          <span id="custom-quiz-preview-current-time" class="custom-quiz-preview-time">0:00</span>
+          <input type="range" id="custom-quiz-preview-seek-range" class="seek-range" min="0" value="0" step="0.1">
+          <span id="custom-quiz-preview-duration" class="custom-quiz-preview-time">0:00</span>
+        </div>
+        <div class="custom-quiz-preview-controls">
+          <button id="custom-quiz-preview-seek-back" type="button" class="seek-skip-button" aria-label="10秒戻す">−10</button>
+          <button id="custom-quiz-preview-toggle-button" type="button" class="play-button" aria-label="再生・一時停止">
+            <svg class="icon-play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7Z"/></svg>
+            <svg class="icon-pause" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="7" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+          </button>
+          <button id="custom-quiz-preview-seek-forward" type="button" class="seek-skip-button" aria-label="10秒送る">+10</button>
+        </div>
+      </div>
+
+      <!-- 試聴専用の音源要素。クイズ本編（#intro-audio）・収録曲一覧の試聴（#preview-audio）
+           とは完全に分けている -->
+      <audio id="custom-quiz-preview-audio"></audio>
+
+      <!-- 全曲を対象にした一括選択。シングルごとの全選択/全解除（各アコーディオンの見出し行）とは
+           別の、画面全体を対象にした操作。 -->
+      <div class="custom-quiz-bulk-actions">
+        <button id="custom-quiz-select-all-button" class="single-group-bulk-button" type="button">全曲選択</button>
+        <button id="custom-quiz-deselect-all-button" class="single-group-bulk-button" type="button">全曲解除</button>
+      </div>
+
+      <!-- 曲名で絞り込む検索欄。プリセット一覧の検索欄と見た目を揃える -->
+      <input type="text" id="custom-quiz-search-input" class="pill-search-input" placeholder="曲名で検索">
+
+      <!-- 選択済みの曲だけを表示する絞り込み。今どの曲を選んでいるか確認しやすくする -->
+      <label class="custom-quiz-selected-only-toggle">
+        <input type="checkbox" id="custom-quiz-selected-only-checkbox">
+        選択済みの曲だけ表示
+      </label>
+
+      <!-- シングル単位のアコーディオン。中身はjs/customQuizScreen.jsが組み立てる -->
+      <div id="custom-quiz-groups"></div>
+
+      <!-- 4曲未満のときだけ表示する案内。既存の出題数案内と同じ見た目にする -->
+      <p id="custom-quiz-min-notice" class="question-count-notice">クイズを作るには4曲以上選んでください</p>
+
+      <!-- ダミー選択肢のプール。「選択した曲だけ」の方を初期選択にする
+           （このモードの主な用途である「セトリの中で聞き分ける」練習に合わせるため）。 -->
+      <fieldset>
+        <legend>ダミー選択肢</legend>
+        <div class="option-row">
+          <label><input type="radio" name="custom-quiz-distractor-mode" value="selected" checked> 選択した曲だけ</label>
+          <label><input type="radio" name="custom-quiz-distractor-mode" value="all"> 全収録曲</label>
+        </div>
+      </fieldset>
+
+      <!-- セット名・メモ・保存ボタン。新規作成・既存プリセットを開いた場合の両方で表示する。
+           既存プリセットを開いた場合はその内容で欄を埋め、ボタン文言を「上書き保存する」に
+           切り替える（js/customQuizScreen.jsが行う）。 -->
+      <div id="custom-quiz-save-section">
+        <label class="custom-quiz-field">
+          <span>セット名</span>
+          <input type="text" id="custom-quiz-name-input" placeholder="例：8周年ライブ セトリ">
+        </label>
+        <label class="custom-quiz-field">
+          <span>メモ（任意）</span>
+          <textarea id="custom-quiz-memo-input" rows="3" placeholder="例：ライブ予習"></textarea>
+        </label>
+        <!-- セット名が未入力のまま保存しようとしたときだけ表示する案内。普段は空・非表示 -->
+        <p id="custom-quiz-name-error" class="error-message" hidden>セット名を入力してください</p>
+        <button id="custom-quiz-save-button" class="secondary-button" type="button">セットを保存する</button>
+      </div>
+
+      <button id="custom-quiz-start-button" class="primary-button" type="button">この曲でクイズを始める</button>
+
+      <!-- 既存プリセットを開いているときだけ表示する複製の入口。普段はhidden -->
+      <button id="custom-quiz-duplicate-button" class="rules-link" type="button" hidden>複製する</button>
+
+      <!-- 既存プリセットを開いているときだけ表示する削除の入口。誤操作を防ぐため、
+           押しやすい主要ボタンとは見た目を分け、確認モーダルを必ず経由する。普段はhidden -->
+      <button id="custom-quiz-delete-button" class="history-clear-button" type="button" hidden>このセットを削除する</button>
+    </section>
+
+    <!-- プリセット削除の確認モーダル：プレイ履歴の全削除確認と同じ構成
+         （見出し＋説明＋「キャンセル」「削除する」の2ボタン）。開閉ロジックはjs/customQuizScreen.jsが管理する。 -->
+    <div id="custom-quiz-delete-confirm-modal" class="modal-overlay" hidden>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="custom-quiz-delete-confirm-title">
+        <h2 id="custom-quiz-delete-confirm-title">このセットを削除しますか？</h2>
+        <p class="modal-lead">この操作は元に戻せません。</p>
+        <div class="button-row history-clear-confirm-actions">
+          <button id="custom-quiz-delete-cancel-button" class="secondary-button" type="button">キャンセル</button>
+          <button id="custom-quiz-delete-confirm-button" class="danger-button" type="button">削除する</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- プリセット一覧カードから直接削除するときの確認モーダル。見た目・構成は上の
+         編集画面用モーダルと同じだが、削除対象がカードごとに変わるため要素・idを分けている。
+         開閉ロジックはjs/customQuizPresetsScreen.jsが管理する。 -->
+    <div id="custom-quiz-presets-delete-confirm-modal" class="modal-overlay" hidden>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="custom-quiz-presets-delete-confirm-title">
+        <h2 id="custom-quiz-presets-delete-confirm-title">このセットを削除しますか？</h2>
+        <p class="modal-lead">この操作は元に戻せません。</p>
+        <div class="button-row history-clear-confirm-actions">
+          <button id="custom-quiz-presets-delete-cancel-button" class="secondary-button" type="button">キャンセル</button>
+          <button id="custom-quiz-presets-delete-confirm-button" class="danger-button" type="button">削除する</button>
+        </div>
+      </div>
+    </div>
+
   </main>
 
   <!-- ルール説明モーダル：得点表・ランク基準・カテゴリの意味など、ゲーム内のどこにも
@@ -734,6 +923,70 @@
       <p>
         通常プレイでその曲に正解し、正答率が50%以上になれば対象から外れます。苦手曲モードは練習用のモードで、ここでの結果は判定に影響しません。目標は、苦手曲を0曲にすることです。
       </p>
+    </div>
+  </div>
+
+  <!-- オリジナル問題作成モードの説明モーダル。他のモーダルと同じ見た目・開閉の仕組みを流用する。 -->
+  <!-- プリセット一覧画面の説明モーダル：モード全体の説明（できること・4曲以上必要・
+       ダミー選択肢モードの違い・保存して繰り返し使えること・記録非反映）を網羅する。
+       選曲画面側のモーダル（下）とは役割を分け、同じ説明を重複させない。 -->
+  <div id="custom-quiz-presets-rules-modal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="custom-quiz-presets-rules-modal-title">
+      <button id="custom-quiz-presets-rules-modal-close" class="modal-close-button" type="button" aria-label="閉じる">×</button>
+
+      <h2 id="custom-quiz-presets-rules-modal-title">オリジナル問題作成モードについて</h2>
+      <p class="modal-lead">好きな曲を選んで、自分専用の問題セットでクイズを楽しめるモードです。</p>
+
+      <h3>曲を選ぶ</h3>
+      <p>一覧から好きな曲にチェックを入れます。4択クイズを作るには、最低4曲選ぶ必要があります。</p>
+
+      <h3>ダミー選択肢について</h3>
+      <p>「選択した曲だけ」を選ぶと、選んだ曲同士だけで4択が作られます。ライブ前のセットリスト復習など、似た曲同士を聞き分けたいときにおすすめです。「全収録曲」を選ぶと、選んだ曲以外からもダミーの選択肢が混ざります。</p>
+
+      <h3>セットの保存について</h3>
+      <p>作成したセットは名前を付けて保存でき、この一覧からいつでも呼び出して繰り返し遊べます。</p>
+
+      <h3>このモードの結果について</h3>
+      <p>この結果は、プレイ履歴・自己ベスト・称号のいずれにも反映されません。</p>
+    </div>
+  </div>
+
+  <!-- 選曲画面の説明モーダル：今まさに操作している内容に絞った説明（4曲以上必要・
+       ダミー選択肢モードの違い）だけを載せる。モード全体の説明は上のプリセット一覧側で
+       すでに読めるため、ここでは重複させない。 -->
+  <div id="custom-quiz-rules-modal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="custom-quiz-rules-modal-title">
+      <button id="custom-quiz-rules-modal-close" class="modal-close-button" type="button" aria-label="閉じる">×</button>
+
+      <h2 id="custom-quiz-rules-modal-title">オリジナル問題作成モードについて</h2>
+
+      <h3>曲を選ぶ</h3>
+      <p>一覧から好きな曲にチェックを入れます。4択クイズを作るには、最低4曲選ぶ必要があります。</p>
+
+      <h3>ダミー選択肢について</h3>
+      <p>「選択した曲だけ」を選ぶと、選んだ曲同士だけで4択が作られます。ライブ前のセットリスト復習など、似た曲同士を聞き分けたいときにおすすめです。「全収録曲」を選ぶと、選んだ曲以外からもダミーの選択肢が混ざります。</p>
+    </div>
+  </div>
+
+  <!-- プリセットの収録曲を確認する詳細モーダル：一覧カードの「収録曲を見る」から開く。
+       セット名・メモ全文・曲数/ダミー選択肢モード・シングル単位の全曲名を表示する、閲覧専用の画面。
+       開閉ロジック・中身の描画はjs/customQuizPresetsScreen.jsが自己完結で管理する
+       （プリセットごとに中身が変わる動的なモーダルのため、他の説明モーダルと違いmain.jsでは管理しない）。 -->
+  <div id="custom-quiz-preset-detail-modal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="custom-quiz-preset-detail-title">
+      <button id="custom-quiz-preset-detail-close" class="modal-close-button" type="button" aria-label="閉じる">×</button>
+
+      <h2 id="custom-quiz-preset-detail-title"></h2>
+      <!-- メモが空のときは非表示。普段は空・非表示 -->
+      <p id="custom-quiz-preset-detail-memo" class="modal-lead" hidden></p>
+      <p id="custom-quiz-preset-detail-summary" class="custom-quiz-preset-detail-summary"></p>
+
+      <!-- 収録曲を確認してから、その場でクイズを始められる入口。一覧カードの「▶ プレイ」と
+           同じ内容で開始する（js/customQuizPresetsScreen.jsが同じonPlayPresetコールバックを使う）。 -->
+      <button id="custom-quiz-preset-detail-play-button" class="primary-button" type="button">▶ このセットでプレイ</button>
+
+      <!-- シングル単位の全曲名。中身はjs/customQuizPresetsScreen.jsが組み立てる -->
+      <div id="custom-quiz-preset-detail-groups"></div>
     </div>
   </div>
 

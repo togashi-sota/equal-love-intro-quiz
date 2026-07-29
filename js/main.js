@@ -40,6 +40,20 @@ import { initHistoryScreen, renderHistoryScreen } from "./historyScreen.js";
 import { initHistoryDetailScreen, renderHistoryDetail } from "./historyDetailScreen.js";
 import { initSpecialModesScreen } from "./specialModesScreen.js";
 import { initWeakSongsScreen, renderWeakSongsScreen, resolveWeakSongIds } from "./weakSongsScreen.js";
+import {
+  initCustomQuizScreen,
+  openCustomQuizScreenForNewPreset,
+  openCustomQuizScreenForPreset,
+  getLastStartedCustomQuizSelection,
+  setLastStartedCustomQuizSelection,
+  stopCustomQuizPreview,
+} from "./customQuizScreen.js";
+import { getPresets, saveNewPreset, updatePreset, deletePreset, duplicatePreset } from "./customQuizPresets.js";
+import {
+  initCustomQuizPresetsScreen,
+  renderCustomQuizPresetsScreen,
+  showPresetActionBanner,
+} from "./customQuizPresetsScreen.js";
 import { importAudioFiles, getImportedSongIds } from "./audioStorage.js";
 
 // 背景のキラキラ演出は、ゲームの状態と関係なく最初に1回だけ生成すればよい。
@@ -97,25 +111,80 @@ let historyListScrollY = 0;
 const specialModesLinkElement = document.getElementById("special-modes-link");
 const specialModesBackButtonElement = document.getElementById("special-modes-back-button");
 const weakSongsBackButtonElement = document.getElementById("weak-songs-back-button");
+const customQuizBackButtonElement = document.getElementById("custom-quiz-back-button");
+const customQuizPresetsBackButtonElement = document.getElementById("custom-quiz-presets-back-button");
+const customQuizRulesLinkElement = document.getElementById("custom-quiz-rules-link");
+const customQuizRulesModalElement = document.getElementById("custom-quiz-rules-modal");
+const customQuizRulesModalCloseButtonElement = document.getElementById("custom-quiz-rules-modal-close");
+const customQuizPresetsRulesLinkElement = document.getElementById("custom-quiz-presets-rules-link");
+const customQuizPresetsRulesModalElement = document.getElementById("custom-quiz-presets-rules-modal");
+const customQuizPresetsRulesModalCloseButtonElement = document.getElementById(
+  "custom-quiz-presets-rules-modal-close"
+);
+const customQuizPresetDetailModalElement = document.getElementById("custom-quiz-preset-detail-modal");
+const customQuizDeleteConfirmModalElement = document.getElementById("custom-quiz-delete-confirm-modal");
+const customQuizPresetsDeleteConfirmModalElement = document.getElementById(
+  "custom-quiz-presets-delete-confirm-modal"
+);
 const weakSongsRulesLinkElement = document.getElementById("weak-songs-rules-link");
 const weakSongsRulesModalElement = document.getElementById("weak-songs-rules-modal");
 const weakSongsRulesModalCloseButtonElement = document.getElementById("weak-songs-rules-modal-close");
 const specialModeNoticeElement = document.getElementById("special-mode-notice");
 const backToTitleButtonElement = document.getElementById("back-to-title-button");
 const backToSpecialModesButtonElement = document.getElementById("back-to-special-modes-button");
+const backToModeListButtonElement = document.getElementById("back-to-mode-list-button");
+const backToSpecialModesLinkElement = document.getElementById("back-to-special-modes-link");
 const backToTitleLinkFromSpecialElement = document.getElementById("back-to-title-link-from-special");
 
-// 特別モードごとの表示（結果画面の見出し・案内文、クイズ画面の進捗表示）をまとめた対応表。
-// 将来モードが増えるときは、ここに1件足すだけでよい。
+// 特別モードのクイズ画面から、それぞれの確認/一覧画面へ戻るための共通処理。
+// SPECIAL_MODES_DISPLAYの中で複数回参照する（結果画面の「◯◯一覧に戻る」と、
+// クイズ中断の確認モーダル確定後の戻り先で、同じ画面に戻るため）。
+function goToWeakSongsScreen() {
+  renderWeakSongsScreen();
+  showScreen("weakSongs");
+}
+
+function goToCustomQuizPresetsList() {
+  renderCustomQuizPresetsScreen();
+  showScreen("customQuizPresets");
+}
+
+// 特別モードごとの表示（結果画面の見出し・案内文、クイズ画面の進捗表示・中断時の戻り先）を
+// まとめた対応表。将来モードが増えるときは、ここに1件足すだけでよい。
+//
+// backToListLabel/onBackToListは、そのモードが専用の一覧画面を持つ場合だけ設定する
+// （例：オリジナル問題作成モードのプリセット一覧）。持たないモード（苦手曲モード）は
+// 設定しないことで、結果画面は従来通り「特別モード一覧に戻る」だけを表示する。
+//
+// quizBackLabel/quizQuitTitle/quizQuitConfirmLabel/onQuizBackは、そのモードのクイズ中
+// （playMode==="special"のとき）に「タイトルへ」の代わりに表示する文言と戻り先。
+// 設定がない場合（通常プレイ・復習）は、呼び出し側で従来通り「タイトルへ」にフォールバックする。
 const SPECIAL_MODES_DISPLAY = {
   weakSongs: {
     eyebrowLabel: "WEAK SONGS",
     progressPrefix: "🎯 苦手曲 ",
     resultNotice: "苦手曲の判定は、通常プレイの成績によって更新されます",
+    quizBackLabel: "苦手曲モードへ",
+    quizQuitTitle: "クイズを中断して苦手曲モードに戻りますか？",
+    quizQuitConfirmLabel: "苦手曲モードに戻る",
+    onQuizBack: goToWeakSongsScreen,
+  },
+  customQuiz: {
+    eyebrowLabel: "ORIGINAL QUIZ",
+    progressPrefix: "📝 オリジナル ",
+    resultNotice: "この結果は、プレイ履歴・自己ベスト・称号には反映されません",
+    backToListLabel: "オリジナル問題一覧に戻る",
+    onBackToList: goToCustomQuizPresetsList,
+    quizBackLabel: "セット一覧へ",
+    quizQuitTitle: "クイズを中断してオリジナル問題作成モードに戻りますか？",
+    quizQuitConfirmLabel: "セット一覧に戻る",
+    onQuizBack: goToCustomQuizPresetsList,
   },
 };
 const quizBackButtonElement = document.getElementById("quiz-back-button");
+const quizBackButtonLabelElement = document.getElementById("quiz-back-button-label");
 const quizQuitConfirmModalElement = document.getElementById("quiz-quit-confirm-modal");
+const quizQuitConfirmTitleElement = document.getElementById("quiz-quit-confirm-title");
 const quizQuitCancelButtonElement = document.getElementById("quiz-quit-cancel-button");
 const quizQuitConfirmButtonElement = document.getElementById("quiz-quit-confirm-button");
 const audioImportStatusElement = document.getElementById("audio-import-status");
@@ -188,8 +257,6 @@ initHistoryDetailScreen({
 });
 
 // 特別モード一覧画面：モードカードがタップされたら、対応する画面を開く。
-// 【Step 1時点の注意】現在はweakSongsのみ実際に画面を開く。他のモードはis-coming-soon扱いで
-// タップ自体できないため、ここに分岐が増えることはまだない。
 initSpecialModesScreen({
   listContainer: document.getElementById("special-modes-list"),
   onSelectMode: (modeId) => {
@@ -197,21 +264,91 @@ initSpecialModesScreen({
     if (modeId === "weakSongs") {
       renderWeakSongsScreen();
       showScreen("weakSongs");
+    } else if (modeId === "originalQuiz") {
+      renderCustomQuizPresetsScreen();
+      showScreen("customQuizPresets");
     }
   },
 });
 
+// オリジナル問題作成モードのプリセット一覧画面：「＋新しいセットを作る」／
+// 保存済みプリセットのタップ、どちらも選曲画面（#custom-quiz-screen）を開く。
+initCustomQuizPresetsScreen({
+  listContainer: document.getElementById("custom-quiz-presets-list"),
+  emptyState: document.getElementById("custom-quiz-presets-empty-state"),
+  searchInput: document.getElementById("custom-quiz-presets-search-input"),
+  savedBanner: document.getElementById("custom-quiz-presets-saved-banner"),
+  onCreateNew: () => {
+    playClickSound();
+    openCustomQuizScreenForNewPreset();
+    showScreen("customQuiz");
+  },
+  onSelectPreset: (preset) => {
+    playClickSound();
+    openCustomQuizScreenForPreset(preset);
+    showScreen("customQuiz");
+  },
+  // 「▶ プレイ」：選曲画面を経由せず直接クイズを始める。結果画面の「もう一度挑戦する」も
+  // 正しく同じ内容を再開できるよう、先に「直前の開始内容」を更新しておく。
+  onPlayPreset: (preset) => {
+    playClickSound();
+    setLastStartedCustomQuizSelection(preset.songIds, preset.distractorMode);
+    beginCustomQuiz(preset.songIds, preset.distractorMode);
+  },
+  // 複製アイコン：一覧を離れず複製し、そのまま複製した内容の編集画面を開く
+  // （複製は「少し変えて使いたい」場面が前提のため、名前や曲を調整しやすいようにする）。
+  onDuplicatePreset: (preset) => {
+    playClickSound();
+    const duplicate = duplicatePreset(preset.id);
+    if (duplicate) {
+      openCustomQuizScreenForPreset(duplicate);
+      showScreen("customQuiz");
+    }
+  },
+  // 一覧カードのゴミ箱アイコン（確認モーダルで確定後）：プリセットを削除し、一覧を描画し直す。
+  // すでにこの一覧画面にいるので、選曲画面からの削除と違いshowScreen()は不要。
+  onDeletePreset: (preset) => {
+    playClickSound();
+    deletePreset(preset.id);
+    renderCustomQuizPresetsScreen();
+    showPresetActionBanner(`「${preset.name}」を削除しました`);
+  },
+  listDeleteConfirmModal: customQuizPresetsDeleteConfirmModalElement,
+  listDeleteCancelButton: document.getElementById("custom-quiz-presets-delete-cancel-button"),
+  listDeleteConfirmButton: document.getElementById("custom-quiz-presets-delete-confirm-button"),
+  detailModal: customQuizPresetDetailModalElement,
+  detailCloseButton: document.getElementById("custom-quiz-preset-detail-close"),
+  detailTitle: document.getElementById("custom-quiz-preset-detail-title"),
+  detailMemo: document.getElementById("custom-quiz-preset-detail-memo"),
+  detailSummary: document.getElementById("custom-quiz-preset-detail-summary"),
+  detailGroups: document.getElementById("custom-quiz-preset-detail-groups"),
+  detailPlayButton: document.getElementById("custom-quiz-preset-detail-play-button"),
+});
+
 // 曲IDの配列を受け取ってクイズを組み立て、開始する共通処理。
-// 苦手曲モードだけでなく、将来のオリジナル問題作成モードなど「曲を選んでクイズを始める」系の
-// 特別モード全般で、そのまま使い回せるようにしてある（「どの曲を選ぶか」は各モードの確認画面が
-// 担当し、ここでは選ばれた曲でクイズを始めることだけに専念する）。
-// ダミー選択肢のプールは常に全曲（"all"）から選ぶ。
+// 苦手曲モードだけでなく、将来のモードなど「曲を選んでクイズを始める」系の特別モード全般で、
+// そのまま使い回せるようにしてある（「どの曲を選ぶか」は各モードの確認画面が担当し、
+// ここでは選ばれた曲でクイズを始めることだけに専念する）。
+// ダミー選択肢のプールは常に全曲（"all"）から選ぶ（苦手曲モード用）。
 function beginSpecialQuiz(songIds, questionCountValue, specialModeId) {
   stopTimer();
   stopAudio();
   const distractorPool = filterSongsByCategory(SONGS, "all");
   const questions = buildQuestionsFromSongIds(songIds, distractorPool);
   startSpecialQuiz(questions, questionCountValue, specialModeId);
+  renderQuestion();
+  showScreen("quiz");
+}
+
+// オリジナル問題作成モード用のクイズ開始処理。beginSpecialQuiz()と違い、ダミー選択肢の
+// プールを「選択した曲だけ」「全収録曲」から選べる点が異なるため、別関数にしている。
+function beginCustomQuiz(songIds, distractorMode) {
+  stopTimer();
+  stopAudio();
+  const selectedSongs = SONGS.filter((song) => songIds.includes(song.id));
+  const distractorPool = distractorMode === "selected" ? selectedSongs : filterSongsByCategory(SONGS, "all");
+  const questions = buildQuestionsFromSongIds(songIds, distractorPool);
+  startSpecialQuiz(questions, String(questions.length), "customQuiz");
   renderQuestion();
   showScreen("quiz");
 }
@@ -228,6 +365,80 @@ initWeakSongsScreen({
   onStart: (songIds, questionCountValue) => {
     playClickSound();
     beginSpecialQuiz(songIds, questionCountValue, "weakSongs");
+  },
+});
+
+// オリジナル問題作成モードの選曲画面の描画に使うDOM要素一式を渡して初期化する。
+initCustomQuizScreen({
+  groupsContainer: document.getElementById("custom-quiz-groups"),
+  selectedCountValue: document.getElementById("custom-quiz-selected-count-value"),
+  minNotice: document.getElementById("custom-quiz-min-notice"),
+  selectAllButton: document.getElementById("custom-quiz-select-all-button"),
+  deselectAllButton: document.getElementById("custom-quiz-deselect-all-button"),
+  searchInput: document.getElementById("custom-quiz-search-input"),
+  selectedOnlyCheckbox: document.getElementById("custom-quiz-selected-only-checkbox"),
+  previewAudioElement: document.getElementById("custom-quiz-preview-audio"),
+  previewPlayer: document.getElementById("custom-quiz-preview-player"),
+  previewTitle: document.getElementById("custom-quiz-preview-title"),
+  previewToggleButton: document.getElementById("custom-quiz-preview-toggle-button"),
+  previewSeekBackButton: document.getElementById("custom-quiz-preview-seek-back"),
+  previewSeekForwardButton: document.getElementById("custom-quiz-preview-seek-forward"),
+  previewSeekRange: document.getElementById("custom-quiz-preview-seek-range"),
+  previewCurrentTime: document.getElementById("custom-quiz-preview-current-time"),
+  previewDuration: document.getElementById("custom-quiz-preview-duration"),
+  nameInput: document.getElementById("custom-quiz-name-input"),
+  memoInput: document.getElementById("custom-quiz-memo-input"),
+  nameError: document.getElementById("custom-quiz-name-error"),
+  saveButton: document.getElementById("custom-quiz-save-button"),
+  deleteButton: document.getElementById("custom-quiz-delete-button"),
+  deleteConfirmModal: document.getElementById("custom-quiz-delete-confirm-modal"),
+  deleteCancelButton: document.getElementById("custom-quiz-delete-cancel-button"),
+  deleteConfirmButton: document.getElementById("custom-quiz-delete-confirm-button"),
+  duplicateButton: document.getElementById("custom-quiz-duplicate-button"),
+  startButton: document.getElementById("custom-quiz-start-button"),
+  onStart: (songIds, distractorMode) => {
+    playClickSound();
+    beginCustomQuiz(songIds, distractorMode);
+  },
+  // 「セットを保存する」：新規プリセットとして保存し、一覧画面を最新の内容で描画し直してから戻る。
+  // クイズを一度も始めなくても、この時点で保存自体は完結している
+  // （保存完了バナーは、一覧に「保存できた」ことがひと目で伝わるよう添えている）。
+  onSave: (presetData) => {
+    playClickSound();
+    saveNewPreset(presetData);
+    renderCustomQuizPresetsScreen();
+    showScreen("customQuizPresets");
+    showPresetActionBanner(`「${presetData.name}」を保存しました`);
+  },
+  // 「上書き保存する」：同じidのプリセットを更新し、一覧画面へ戻る。
+  onUpdate: (id, presetData) => {
+    playClickSound();
+    updatePreset(id, presetData);
+    renderCustomQuizPresetsScreen();
+    showScreen("customQuizPresets");
+    showPresetActionBanner(`「${presetData.name}」を更新しました`);
+  },
+  // 「削除する」（確認モーダルで確定後）：プリセットを削除し、一覧画面へ戻る
+  // （削除したカードが消えていることが分かるよう、必ず最新の内容で描画し直す）。
+  // バナーに使う名前は、削除前の保存済みデータから取得する
+  // （編集中の名前欄が保存前の未確定な入力である可能性があるため）。
+  onDelete: (id) => {
+    playClickSound();
+    const preset = getPresets().find((p) => p.id === id);
+    deletePreset(id);
+    renderCustomQuizPresetsScreen();
+    showScreen("customQuizPresets");
+    showPresetActionBanner(`「${preset?.name ?? ""}」を削除しました`);
+  },
+  // 「複製する」：複製してできた新しいプリセットを、そのまま選曲画面で開き直す
+  // （複製は「少し変えて使いたい」場面が前提のため、名前や曲を調整しやすいよう
+  // 一覧へは戻らず、この画面のまま新しいプリセットの編集に進む）。
+  onDuplicate: (id) => {
+    playClickSound();
+    const duplicate = duplicatePreset(id);
+    if (duplicate) {
+      openCustomQuizScreenForPreset(duplicate);
+    }
   },
 });
 
@@ -444,8 +655,24 @@ function renderProgressDots() {
   });
 }
 
+// クイズ画面左上の「タイトルへ」（中断ボタン）と、その確認モーダルの文言を、
+// 今のモードに合わせて切り替える。特別モードのクイズ中（playMode==="special"）だけ、
+// そのモードの確認/一覧画面に戻れるよう文言・戻り先を差し替え、それ以外（通常プレイ・復習）は
+// 従来通り常に「タイトルへ」にする。
+// 復習クイズ中は、特別モードから来た場合も含めて一律「🔁復習」表示にしている既存の方針
+// （renderQuestion内のprogressPrefix）に合わせ、ここでもreviewは対象外にしている。
+function updateQuizQuitDisplay() {
+  const isSpecial = gameState.playMode === "special";
+  const display = isSpecial ? SPECIAL_MODES_DISPLAY[gameState.specialModeId] : null;
+
+  quizBackButtonLabelElement.textContent = display?.quizBackLabel ?? "タイトルへ";
+  quizQuitConfirmTitleElement.textContent = display?.quizQuitTitle ?? "クイズを中断してタイトルに戻りますか？";
+  quizQuitConfirmButtonElement.textContent = display?.quizQuitConfirmLabel ?? "タイトルに戻る";
+}
+
 // 今の問題の内容（進捗・4択の曲名）をクイズ画面に反映し、イントロ音源とタイマーを開始する。
 function renderQuestion() {
+  updateQuizQuitDisplay();
   const question = getCurrentQuestion();
   const progressLabel = `第${gameState.currentIndex + 1}問 / ${gameState.questions.length}問`;
   // 復習中は進捗表示に「🔁 復習」を、特別モード中はモードごとの接頭辞を添えて、
@@ -582,23 +809,45 @@ function renderResult() {
   // playModeは"review"になるが、specialModeIdはstartReviewQuiz()で書き換えられずそのまま残る。
   // これを利用して「特別モードから来た復習」かどうかを判定する。
   // このケースでは、復習後に「通常プレイを始める」を出すと、特別モード側のcategoryFilterValue
-  // （常にnull）を引き継いでしまい、意図しない条件で通常クイズが始まってしまう。
-  // また、一連の練習が一区切りついた流れとして、「タイトルに戻る」を主役にする方が自然なため、
-  // 「通常プレイを始める」自体を出さない。
+  // （常にnull）を引き継いでしまい、意図しない条件で通常クイズが始まってしまうため出さない。
   const isReviewFromSpecial = isReview && gameState.specialModeId !== null;
+
+  // このモードが専用の一覧画面を持つかどうか（例：オリジナル問題作成モードのプリセット一覧）。
+  // 持たないモード（苦手曲モード）は、従来通り「特別モード一覧に戻る」がそのまま副ボタンになる。
+  const hasOwnListScreen = Boolean(specialModeDisplay?.onBackToList);
+  const isSpecialWithList = isSpecial && hasOwnListScreen;
+  const isReviewFromSpecialWithList = isReviewFromSpecial && hasOwnListScreen;
 
   // ボタン列の出し分け：「もう一度挑戦する」（通常プレイ・特別モードの結果）と
   // 「通常プレイを始める」（通常プレイ発の復習の結果）は互いに排他。
-  // 副ボタンは、特別モードの結果（特別モードから来た復習を含む）だけ「特別モード一覧に戻る」を表示する。
-  // 「タイトルに戻る」は、特別モードから来た復習のときだけ主役（primary-button）にし、
-  // それ以外（通常プレイ・通常プレイ発の復習）では従来通り副ボタンのまま、
-  // 特別モード自身の結果では控えめなテキストリンク側に表示する。
+  //
+  // 「タイトルに戻る」（#back-to-title-button）：
+  //   通常プレイ・通常プレイ発の復習では、従来通り副ボタン。
+  //   専用一覧を持たないモードから来た復習（例：苦手曲モード）では主役（primary-button）。
+  //   専用一覧を持つモードから来た復習（例：オリジナル問題作成モード）では、
+  //   「◯◯一覧に戻る」の方を主役にするため、こちらは副ボタンのまま。
+  // 「◯◯一覧に戻る」（#back-to-mode-list-button）：専用一覧を持つモードの結果でだけ表示。
+  //   そのモード自身の結果では副ボタン、そのモードから来た復習では主役にする
+  //   （元の作業に最短で戻れるようにするため）。
+  // 「特別モード一覧に戻る」：専用一覧を持たないモードでは副ボタン（従来通り）、
+  //   専用一覧を持つモードでは控えめなテキストリンクに格下げする。
   retryButtonElement.hidden = isReview;
   returnToNormalButtonElement.hidden = !isReview || isReviewFromSpecial;
+
   backToTitleButtonElement.hidden = isSpecial;
-  backToTitleButtonElement.classList.toggle("primary-button", isReviewFromSpecial);
-  backToTitleButtonElement.classList.toggle("secondary-button", !isReviewFromSpecial);
-  backToSpecialModesButtonElement.hidden = !(isSpecial || isReviewFromSpecial);
+  const showTitleAsPrimary = isReviewFromSpecial && !hasOwnListScreen;
+  backToTitleButtonElement.classList.toggle("primary-button", showTitleAsPrimary);
+  backToTitleButtonElement.classList.toggle("secondary-button", !showTitleAsPrimary);
+
+  backToModeListButtonElement.hidden = !(isSpecialWithList || isReviewFromSpecialWithList);
+  if (!backToModeListButtonElement.hidden) {
+    backToModeListButtonElement.textContent = specialModeDisplay.backToListLabel;
+  }
+  backToModeListButtonElement.classList.toggle("primary-button", isReviewFromSpecialWithList);
+  backToModeListButtonElement.classList.toggle("secondary-button", !isReviewFromSpecialWithList);
+
+  backToSpecialModesButtonElement.hidden = !(isSpecial || isReviewFromSpecial) || hasOwnListScreen;
+  backToSpecialModesLinkElement.hidden = !(isSpecialWithList || isReviewFromSpecialWithList);
   backToTitleLinkFromSpecialElement.hidden = !isSpecial;
 }
 
@@ -659,6 +908,9 @@ function retrySpecialQuiz() {
   if (gameState.specialModeId === "weakSongs") {
     const songIds = resolveWeakSongIds(gameState.questionCountValue);
     beginSpecialQuiz(songIds, gameState.questionCountValue, "weakSongs");
+  } else if (gameState.specialModeId === "customQuiz") {
+    const { songIds, distractorMode } = getLastStartedCustomQuizSelection();
+    beginCustomQuiz(songIds, distractorMode);
   }
 }
 
@@ -718,12 +970,36 @@ backToTitleButtonElement.addEventListener("click", () => {
 });
 
 // 「特別モード一覧に戻る」（特別モードの結果にだけ表示）：特別モード一覧画面へ戻る。
-backToSpecialModesButtonElement.addEventListener("click", () => {
-  playClickSound();
+function goToSpecialModes() {
   stopTimer();
   stopAudio();
   resetGameState();
   showScreen("specialModes");
+}
+
+backToSpecialModesButtonElement.addEventListener("click", () => {
+  playClickSound();
+  goToSpecialModes();
+});
+
+// 専用の一覧画面を持つモード（例：オリジナル問題作成モード）でだけ表示する「◯◯一覧に戻る」。
+// 戻り先の処理はSPECIAL_MODES_DISPLAYのonBackToListに任せる（モードが増えても分岐を足す必要がない）。
+// resetGameState()はgameState.specialModeIdをnullに戻してしまうため、必ず先にonBackToListを
+// 取り出しておく。
+backToModeListButtonElement.addEventListener("click", () => {
+  playClickSound();
+  const onBackToList = SPECIAL_MODES_DISPLAY[gameState.specialModeId]?.onBackToList;
+  stopTimer();
+  stopAudio();
+  resetGameState();
+  onBackToList?.();
+});
+
+// 専用の一覧画面を持つモードの結果でだけ表示する、控えめな「特別モード一覧に戻る」リンク。
+// 動きはボタン版（back-to-special-modes-button）と同じ。
+backToSpecialModesLinkElement.addEventListener("click", () => {
+  playClickSound();
+  goToSpecialModes();
 });
 
 // 特別モードの結果にだけ表示する、控えめな「タイトルに戻る」リンク。動きはボタン版と同じ。
@@ -756,17 +1032,27 @@ quizQuitConfirmModalElement.addEventListener("click", (event) => {
   }
 });
 
-// 確認モーダルの「タイトルに戻る」：結果画面の「タイトルに戻る」ボタンと全く同じ処理を行う。
-// renderResult()を経由しないため、自己ベスト・称号・プレイ履歴のいずれにも一切反映されない
-// （この3つはすべてrenderResult()の中でのみ保存処理が呼ばれる設計になっているため）。
+// 確認モーダルの確定ボタン：通常プレイ・復習では、結果画面の「タイトルに戻る」ボタンと
+// 全く同じ処理を行う。苦手曲モード・オリジナル問題作成モードのクイズ中（playMode==="special"）
+// だけ、それぞれの確認/一覧画面に戻る（文言もupdateQuizQuitDisplay()で切り替え済み）。
+// どちらの場合も、renderResult()を経由しないため、自己ベスト・称号・プレイ履歴の
+// いずれにも一切反映されない（この3つはすべてrenderResult()の中でのみ保存処理が呼ばれる設計）。
+// resetGameState()はgameState.specialModeIdをnullに戻してしまうため、必ず先にonQuizBackを
+// 取り出しておく（backToModeListButtonElementのクリック処理と同じ理由）。
 quizQuitConfirmButtonElement.addEventListener("click", () => {
   playClickSound();
   closeQuizQuitConfirmModal();
+  const isSpecial = gameState.playMode === "special";
+  const onQuizBack = isSpecial ? SPECIAL_MODES_DISPLAY[gameState.specialModeId]?.onQuizBack : null;
   stopTimer();
   stopAudio();
   resetGameState();
-  showScreen("start");
-  updateModeBestScoreDisplay();
+  if (onQuizBack) {
+    onQuizBack();
+  } else {
+    showScreen("start");
+    updateModeBestScoreDisplay();
+  }
 });
 
 // ルール説明モーダルの開閉。start/quiz/resultの画面切り替え（showScreen）とは無関係な、
@@ -808,6 +1094,45 @@ weakSongsRulesModalCloseButtonElement.addEventListener("click", closeWeakSongsRu
 weakSongsRulesModalElement.addEventListener("click", (event) => {
   if (event.target === weakSongsRulesModalElement) {
     closeWeakSongsRulesModal();
+  }
+});
+
+// オリジナル問題作成モードの説明モーダル。開閉の仕組みは他の説明モーダルと全く同じ。
+function openCustomQuizRulesModal() {
+  playClickSound();
+  customQuizRulesModalElement.hidden = false;
+}
+
+function closeCustomQuizRulesModal() {
+  customQuizRulesModalElement.hidden = true;
+}
+
+customQuizRulesLinkElement.addEventListener("click", openCustomQuizRulesModal);
+customQuizRulesModalCloseButtonElement.addEventListener("click", closeCustomQuizRulesModal);
+
+customQuizRulesModalElement.addEventListener("click", (event) => {
+  if (event.target === customQuizRulesModalElement) {
+    closeCustomQuizRulesModal();
+  }
+});
+
+// オリジナル問題作成モード「一覧画面」の説明モーダル（モード全体の説明）。
+// 選曲画面側の説明モーダルとは別に、開閉の仕組みだけ同じものを用意する。
+function openCustomQuizPresetsRulesModal() {
+  playClickSound();
+  customQuizPresetsRulesModalElement.hidden = false;
+}
+
+function closeCustomQuizPresetsRulesModal() {
+  customQuizPresetsRulesModalElement.hidden = true;
+}
+
+customQuizPresetsRulesLinkElement.addEventListener("click", openCustomQuizPresetsRulesModal);
+customQuizPresetsRulesModalCloseButtonElement.addEventListener("click", closeCustomQuizPresetsRulesModal);
+
+customQuizPresetsRulesModalElement.addEventListener("click", (event) => {
+  if (event.target === customQuizPresetsRulesModalElement) {
+    closeCustomQuizPresetsRulesModal();
   }
 });
 
@@ -865,6 +1190,23 @@ specialModesBackButtonElement.addEventListener("click", () => {
 
 // 苦手曲モード確認画面の「戻る」：特別モード一覧画面へ戻る（スタート画面まで一気には戻らない）。
 weakSongsBackButtonElement.addEventListener("click", () => {
+  playClickSound();
+  showScreen("specialModes");
+});
+
+// オリジナル問題作成モードの選曲画面の「戻る」：プリセット一覧画面へ戻る
+// （スタート画面まで一気には戻らない。特別モード一覧までは、プリセット一覧の「戻る」で戻る）。
+// 画面内の「複製する」で保存せずこの画面に留まったまま新しいプリセットができている場合があるため、
+// 必ず最新の内容で一覧を描画し直してから戻る。試聴中の曲があれば必ず止める。
+customQuizBackButtonElement.addEventListener("click", () => {
+  playClickSound();
+  stopCustomQuizPreview();
+  renderCustomQuizPresetsScreen();
+  showScreen("customQuizPresets");
+});
+
+// オリジナル問題作成モードのプリセット一覧画面の「戻る」：特別モード一覧画面へ戻る。
+customQuizPresetsBackButtonElement.addEventListener("click", () => {
   playClickSound();
   showScreen("specialModes");
 });
@@ -999,6 +1341,22 @@ document.addEventListener("keydown", (event) => {
     return;
   }
 
+  // オリジナル問題作成モードの説明モーダルが開いているときも、同じ考え方でEscキーに対応する。
+  if (!customQuizRulesModalElement.hidden) {
+    if (event.key === "Escape") {
+      closeCustomQuizRulesModal();
+    }
+    return;
+  }
+
+  // オリジナル問題作成モード「一覧画面」の説明モーダルも同様。
+  if (!customQuizPresetsRulesModalElement.hidden) {
+    if (event.key === "Escape") {
+      closeCustomQuizPresetsRulesModal();
+    }
+    return;
+  }
+
   // 称号一覧モーダルが開いているときも、他画面のショートカットを妨げないよう先に止める。
   // 開閉（Escキーを含む）自体はtitleList.js側のリスナーがすでに処理しているので、
   // ここでは何もせずreturnするだけでよい。
@@ -1009,6 +1367,24 @@ document.addEventListener("keydown", (event) => {
   // プレイ履歴の削除確認モーダルが開いているときも、同じ理由で先に止める。
   // Escキーでの閉じる処理自体はhistoryScreen.js側のリスナーがすでに処理している。
   if (!historyClearConfirmModalElement.hidden) {
+    return;
+  }
+
+  // オリジナル問題作成モードのプリセット詳細モーダルが開いているときも、同じ理由で先に止める。
+  // Escキーでの閉じる処理自体はcustomQuizPresetsScreen.js側のリスナーがすでに処理している。
+  if (!customQuizPresetDetailModalElement.hidden) {
+    return;
+  }
+
+  // プリセット削除の確認モーダルが開いているときも、同じ理由で先に止める。
+  // Escキーでの閉じる処理自体はcustomQuizScreen.js側のリスナーがすでに処理している。
+  if (!customQuizDeleteConfirmModalElement.hidden) {
+    return;
+  }
+
+  // 一覧カードから削除するときの確認モーダルが開いているときも、同じ理由で先に止める。
+  // Escキーでの閉じる処理自体はcustomQuizPresetsScreen.js側のリスナーがすでに処理している。
+  if (!customQuizPresetsDeleteConfirmModalElement.hidden) {
     return;
   }
 

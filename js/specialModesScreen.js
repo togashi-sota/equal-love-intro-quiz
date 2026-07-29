@@ -14,7 +14,7 @@ const SPECIAL_MODES = [
     id: "originalQuiz",
     title: "オリジナル問題作成モード",
     description: "好きな曲だけの問題セットを作れます",
-    available: false,
+    available: true,
   },
   {
     id: "timeAttack",

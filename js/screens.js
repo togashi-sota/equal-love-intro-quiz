@@ -13,6 +13,8 @@ const SCREEN_ELEMENTS = {
   historyDetail: document.getElementById("history-detail-screen"),
   specialModes: document.getElementById("special-modes-screen"),
   weakSongs: document.getElementById("weak-songs-screen"),
+  customQuizPresets: document.getElementById("custom-quiz-presets-screen"),
+  customQuiz: document.getElementById("custom-quiz-screen"),
 };
 
 // 指定した画面だけを表示し、それ以外の画面は隠す。

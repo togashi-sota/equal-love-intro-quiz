@@ -29,6 +29,10 @@ export const DIFFICULTY = {
 // 曲データ本体。90曲規模まで増やすことを想定した項目構成。
 // id             : 曲を一意に識別するための文字列（音源ファイル名 `${id}.mp3` にもそのまま使う）
 // title          : クイズの選択肢や正解表示、収録曲一覧に使う曲名（公式表記）
+// searchReading  : オリジナル問題作成モードの選曲画面（customQuizScreen.js）の曲名検索でだけ使う、
+//                  ひらがな表記の読み仮名。曲名に漢字が含まれる曲にだけ設定し、読み方が分からなくても
+//                  検索できるようにする（例：「君の第3ボタン」→「きみのだいさんぼたん」）。
+//                  カタカナ・英単語・数字のみで漢字を含まない曲名は、そのままでも検索しやすいため省略する。
 // category       : CATEGORY で定義した値のどれか
 // releaseDate    : 発売日（"YYYY-MM-DD"形式。日付順の並び替えがしやすいようにハイフン区切りに統一する）
 // single         : 収録シングル/アルバム名（表示用の補足情報）
@@ -65,6 +69,7 @@ export const SONGS = [
   {
     id: "kioku-no-dokoka-de",
     title: "記憶のどこかで",
+    searchReading: "きおくのどこかで",
     category: CATEGORY.GROUP_SONG,
     releaseDate: "2017-09-06",
     single: "1stシングル「＝LOVE」収録",
@@ -98,6 +103,7 @@ export const SONGS = [
   {
     id: "bokura-no-seifuku-christmas",
     title: "僕らの制服クリスマス",
+    searchReading: "ぼくらのせいふくくりすます",
     category: CATEGORY.TITLE_TRACK,
     releaseDate: "2017-12-06",
     single: "2ndシングル「僕らの制服クリスマス」",
@@ -109,6 +115,7 @@ export const SONGS = [
   {
     id: "todoite-love-you",
     title: "届いてLOVE YOU♡",
+    searchReading: "とどいてらぶゆー",
     category: CATEGORY.GROUP_SONG,
     releaseDate: "2017-12-06",
     single: "2ndシングル「僕らの制服クリスマス」収録",
@@ -120,6 +127,7 @@ export const SONGS = [
   {
     id: "youkoso-ikorabu-numa",
     title: "ようこそ！イコラブ沼",
+    searchReading: "ようこそいこらぶぬま",
     category: CATEGORY.GROUP_SONG,
     releaseDate: "2017-12-06",
     single: "2ndシングル「僕らの制服クリスマス」収録",
@@ -131,6 +139,7 @@ export const SONGS = [
   {
     id: "sakura-no-saku-oto-ga-shita",
     title: "桜の咲く音がした",
+    searchReading: "さくらのさくおとがした",
     category: CATEGORY.TITLE_TRACK,
     releaseDate: "2021-05-12",
     single: "1stアルバム「全部、内緒。」",
@@ -175,6 +184,7 @@ export const SONGS = [
   {
     id: "genneki-idol-chu",
     title: "現役アイドルちゅ〜",
+    searchReading: "げんえきあいどるちゅー",
     category: CATEGORY.UNIT_SONG,
     releaseDate: "2021-05-12",
     single: "1stアルバム「全部、内緒。」収録",
@@ -185,6 +195,7 @@ export const SONGS = [
   {
     id: "haikei-anata-sama",
     title: "拝啓 貴方様",
+    searchReading: "はいけいあなたさま",
     category: CATEGORY.UNIT_SONG,
     releaseDate: "2021-05-12",
     single: "1stアルバム「全部、内緒。」収録",
@@ -207,6 +218,7 @@ export const SONGS = [
   {
     id: "oneesan-ja-dame-desuka",
     title: "お姉さんじゃダメですか？",
+    searchReading: "おねえさんじゃだめですか",
     category: CATEGORY.UNIT_SONG,
     releaseDate: "2021-05-12",
     single: "1stアルバム「全部、内緒。」収録",
@@ -219,6 +231,7 @@ export const SONGS = [
   {
     id: "seishun-subliminal",
     title: "青春\"サブリミナル\"",
+    searchReading: "せいしゅんさぶりみなる",
     category: CATEGORY.TITLE_TRACK,
     releaseDate: "2020-11-25",
     single: "8thシングル「青春\"サブリミナル\"」",
@@ -241,6 +254,7 @@ export const SONGS = [
   {
     id: "ryuseigun",
     title: "流星群",
+    searchReading: "りゅうせいぐん",
     category: CATEGORY.UNIT_SONG,
     releaseDate: "2020-11-25",
     single: "8thシングル「青春\"サブリミナル\"」収録",
@@ -251,6 +265,7 @@ export const SONGS = [
   {
     id: "teokure-caution",
     title: "手遅れcaution",
+    searchReading: "ておくれこーしょん",
     category: CATEGORY.TITLE_TRACK,
     releaseDate: "2018-05-16",
     single: "3rdシングル「手遅れcaution」",
@@ -262,6 +277,7 @@ export const SONGS = [
   {
     id: "bukatsuchu-ni-megaau-natte-omotteta-nda",
     title: "「部活中に目が合うなって思ってたんだ」",
+    searchReading: "ぶかつちゅうにめがあうなっておもってたんだ",
     category: CATEGORY.GROUP_SONG,
     releaseDate: "2018-05-16",
     single: "3rdシングル「手遅れcaution」収録（Type-A）",
@@ -273,6 +289,7 @@ export const SONGS = [
   {
     id: "kiara-tasuke-ni-kita-zo",
     title: "樹愛羅、助けに来たぞ",
+    searchReading: "きあらたすけにきたぞ",
     category: CATEGORY.GROUP_SONG,
     releaseDate: "2018-05-16",
     single: "3rdシングル「手遅れcaution」収録（Type-B）",
@@ -295,6 +312,7 @@ export const SONGS = [
   {
     id: "ima-kono-fune-ni-nore",
     title: "今、この船に乗れ！",
+    searchReading: "いまこのふねにのれ",
     category: CATEGORY.GROUP_SONG,
     releaseDate: "2018-10-17",
     single: "4thシングル「Want you! Want you!」収録（Type-A/C）",
@@ -317,6 +335,7 @@ export const SONGS = [
   {
     id: "sagase-diamond-lily",
     title: "探せ ダイヤモンドリリー",
+    searchReading: "さがせだいやもんどりりー",
     category: CATEGORY.TITLE_TRACK,
     releaseDate: "2019-04-24",
     single: "5thシングル「探せ ダイヤモンドリリー」",
@@ -339,6 +358,7 @@ export const SONGS = [
   {
     id: "niji-no-moto",
     title: "虹の素",
+    searchReading: "にじのもと",
     category: CATEGORY.UNIT_SONG,
     releaseDate: "2019-04-24",
     single: "5thシングル「探せ ダイヤモンドリリー」収録（Type-B/C）",
@@ -361,6 +381,7 @@ export const SONGS = [
   {
     id: "oshi-no-iru-sekai",
     title: "推しのいる世界",
+    searchReading: "おしのいるせかい",
     category: CATEGORY.UNIT_SONG,
     releaseDate: "2019-10-30",
     single: "6thシングル「ズルいよ ズルいね」収録（Type-B/D）",
@@ -384,6 +405,7 @@ export const SONGS = [
   {
     id: "kimi-to-watashi-no-uta",
     title: "「君と私の歌」",
+    searchReading: "きみとわたしのうた",
     category: CATEGORY.GROUP_SONG,
     releaseDate: "2020-07-08",
     single: "7thシングル「CAMEO」収録",
@@ -416,6 +438,7 @@ export const SONGS = [
   {
     id: "ohimesama-ni-shiteyo",
     title: "お姫様にしてよ！",
+    searchReading: "おひめさまにしてよ",
     category: CATEGORY.GROUP_SONG,
     releaseDate: "2021-12-15",
     single: "10thシングル「The 5th」収録",
@@ -438,6 +461,7 @@ export const SONGS = [
   {
     id: "bpm170-no-kimi-e",
     title: "BPM170の君へ",
+    searchReading: "びーぴーえむひゃくななじゅうのきみへ",
     category: CATEGORY.UNIT_SONG,
     releaseDate: "2021-12-15",
     single: "10thシングル「The 5th」収録",
@@ -450,6 +474,7 @@ export const SONGS = [
   {
     id: "ano-ko-complex",
     title: "あの子コンプレックス",
+    searchReading: "あのここんぷれっくす",
     category: CATEGORY.TITLE_TRACK,
     releaseDate: "2022-05-25",
     single: "11thシングル「あの子コンプレックス」",
@@ -461,6 +486,7 @@ export const SONGS = [
   {
     id: "egao-no-recipe",
     title: "笑顔のレシピ",
+    searchReading: "えがおのれしぴ",
     category: CATEGORY.GROUP_SONG,
     releaseDate: "2022-05-25",
     single: "11thシングル「あの子コンプレックス」収録",
@@ -472,6 +498,7 @@ export const SONGS = [
   {
     id: "shiran-kedo",
     title: "知らんけど",
+    searchReading: "しらんけど",
     category: CATEGORY.UNIT_SONG,
     releaseDate: "2022-05-25",
     single: "11thシングル「あの子コンプレックス」収録",
@@ -484,6 +511,7 @@ export const SONGS = [
   {
     id: "boku-no-heroine",
     title: "僕のヒロイン",
+    searchReading: "ぼくのひろいん",
     category: CATEGORY.UNIT_SONG,
     releaseDate: "2022-05-25",
     single: "11thシングル「あの子コンプレックス」収録",
@@ -494,6 +522,7 @@ export const SONGS = [
   {
     id: "takaramono-wa-green",
     title: "宝物はグリーン",
+    searchReading: "たからものはぐりーん",
     category: CATEGORY.UNIT_SONG,
     releaseDate: "2023-11-29",
     single: "配信限定シングル「宝物はグリーン」",
@@ -505,6 +534,7 @@ export const SONGS = [
   {
     id: "kimi-dake-no-hanamichi",
     title: "君だけの花道",
+    searchReading: "きみだけのはなみち",
     category: CATEGORY.UNIT_SONG,
     releaseDate: "2023-03-22",
     single: "配信限定シングル「君だけの花道」",
@@ -516,6 +546,7 @@ export const SONGS = [
   {
     id: "okaeri-hanadayori",
     title: "おかえり、花便り",
+    searchReading: "おかえりはなだより",
     category: CATEGORY.UNIT_SONG,
     releaseDate: "2023-03-28",
     single: "配信限定シングル「おかえり、花便り」",
@@ -527,6 +558,7 @@ export const SONGS = [
   {
     id: "naisho-banashi",
     title: "内緒バナシ",
+    searchReading: "ないしょばなし",
     category: CATEGORY.GROUP_SONG,
     releaseDate: "2025-08-22",
     single: "配信限定シングル「内緒バナシ」",
@@ -550,6 +582,7 @@ export const SONGS = [
   {
     id: "zuttomo-anken",
     title: "ズッ友案件",
+    searchReading: "ずっともあんけん",
     category: CATEGORY.GROUP_SONG,
     releaseDate: "2021-08-25",
     single: "9thシングル「ウィークエンドシトロン」収録",
@@ -561,6 +594,7 @@ export const SONGS = [
   {
     id: "natsumatsuri-koishitau",
     title: "夏祭り恋慕う",
+    searchReading: "なつまつりこいしたう",
     category: CATEGORY.GROUP_SONG,
     releaseDate: "2021-08-25",
     single: "9thシングル「ウィークエンドシトロン」収録",
@@ -572,6 +606,7 @@ export const SONGS = [
   {
     id: "shukusai",
     title: "祝祭",
+    searchReading: "しゅくさい",
     category: CATEGORY.GROUP_SONG,
     releaseDate: "2021-08-25",
     single: "9thシングル「ウィークエンドシトロン」収録",
@@ -583,6 +618,7 @@ export const SONGS = [
   {
     id: "kono-sora-ga-trigger",
     title: "この空がトリガー",
+    searchReading: "このそらがとりがー",
     category: CATEGORY.TITLE_TRACK,
     releaseDate: "2023-02-22",
     single: "13thシングル「この空がトリガー」",
@@ -671,6 +707,7 @@ export const SONGS = [
   {
     id: "last-note-shika-shiranai",
     title: "ラストノートしか知らない",
+    searchReading: "らすとのーとしかしらない",
     category: CATEGORY.TITLE_TRACK,
     releaseDate: "2023-11-29",
     single: "15thシングル「ラストノートしか知らない」",
@@ -682,6 +719,7 @@ export const SONGS = [
   {
     id: "drive-date-tonai",
     title: "「ドライブ デート 都内」",
+    searchReading: "どらいぶでーととない",
     category: CATEGORY.GROUP_SONG,
     releaseDate: "2023-11-29",
     single: "15thシングル「ラストノートしか知らない」収録（Type-A/D/通常盤）",
@@ -693,6 +731,7 @@ export const SONGS = [
   {
     id: "kyousou-catastrophe",
     title: "狂想カタストロフィ",
+    searchReading: "きょうそうかたすとろふぃ",
     category: CATEGORY.GROUP_SONG,
     releaseDate: "2023-11-29",
     single: "15thシングル「ラストノートしか知らない」収録",
@@ -704,6 +743,7 @@ export const SONGS = [
   {
     id: "doko-ga-suki-ka-itte",
     title: "どこが好きか言って",
+    searchReading: "どこがすきかいって",
     category: CATEGORY.UNIT_SONG,
     releaseDate: "2023-11-29",
     single: "15thシングル「ラストノートしか知らない」収録（Type-C/通常盤）",
@@ -716,6 +756,7 @@ export const SONGS = [
   {
     id: "norotte-norotte",
     title: "呪って呪って",
+    searchReading: "のろってのろって",
     category: CATEGORY.TITLE_TRACK,
     releaseDate: "2024-03-06",
     single: "16thシングル「呪って呪って」",
@@ -727,6 +768,7 @@ export const SONGS = [
   {
     id: "darenimo-barezuni",
     title: "誰にもバレずに",
+    searchReading: "だれにもばれずに",
     category: CATEGORY.GROUP_SONG,
     releaseDate: "2024-03-06",
     single: "16thシングル「呪って呪って」収録",
@@ -738,6 +780,7 @@ export const SONGS = [
   {
     id: "kimi-no-dai-3-button",
     title: "君の第3ボタン",
+    searchReading: "きみのだいさんぼたん",
     category: CATEGORY.GROUP_SONG,
     releaseDate: "2024-03-06",
     single: "16thシングル「呪って呪って」収録",
@@ -749,6 +792,7 @@ export const SONGS = [
   {
     id: "zettai-idol-yamenaide",
     title: "絶対アイドル辞めないで",
+    searchReading: "ぜったいあいどるやめないで",
     category: CATEGORY.TITLE_TRACK,
     releaseDate: "2024-07-31",
     single: "17thシングル「絶対アイドル辞めないで」",
@@ -760,6 +804,7 @@ export const SONGS = [
   {
     id: "nakanaori-shu-cream",
     title: "仲直りシュークリーム",
+    searchReading: "なかなおりしゅーくりーむ",
     category: CATEGORY.GROUP_SONG,
     releaseDate: "2024-07-31",
     single: "17thシングル「絶対アイドル辞めないで」収録",
@@ -771,6 +816,7 @@ export const SONGS = [
   {
     id: "umi-to-lemon-tea",
     title: "海とレモンティー",
+    searchReading: "うみとれもんてぃー",
     category: CATEGORY.GROUP_SONG,
     releaseDate: "2024-07-31",
     single: "17thシングル「絶対アイドル辞めないで」収録",
@@ -793,6 +839,7 @@ export const SONGS = [
   {
     id: "koibito-ijou-suki-miman",
     title: "恋人以上、好き未満",
+    searchReading: "こいびといじょうすきみまん",
     category: CATEGORY.TITLE_TRACK,
     releaseDate: "2025-02-26",
     single: "18thシングル「とくべチュ、して／恋人以上、好き未満」",
@@ -804,6 +851,7 @@ export const SONGS = [
   {
     id: "chotokkyu-tousouchu",
     title: "超特急逃走中",
+    searchReading: "ちょうとっきゅうとうそうちゅう",
     category: CATEGORY.GROUP_SONG,
     releaseDate: "2025-02-26",
     single: "18thシングル「とくべチュ、して／恋人以上、好き未満」収録",
@@ -815,6 +863,7 @@ export const SONGS = [
   {
     id: "love-song-ni-osowareru",
     title: "ラブソングに襲われる",
+    searchReading: "らぶそんぐにおそわれる",
     category: CATEGORY.TITLE_TRACK,
     releaseDate: "2025-10-08",
     single: "19thシングル「ラブソングに襲われる」",
@@ -826,6 +875,7 @@ export const SONGS = [
   {
     id: "komorebi-mezzoforte",
     title: "木漏れ日メゾフォルテ",
+    searchReading: "こもれびめぞふぉるて",
     category: CATEGORY.GROUP_SONG,
     releaseDate: "2025-10-08",
     single: "19thシングル「ラブソングに襲われる」収録",
@@ -847,6 +897,7 @@ export const SONGS = [
   {
     id: "gekiyaku-chudoku",
     title: "劇薬中毒",
+    searchReading: "げきやくちゅうどく",
     category: CATEGORY.TITLE_TRACK,
     releaseDate: "2026-04-01",
     single: "20thシングル「劇薬中毒」",
@@ -869,6 +920,7 @@ export const SONGS = [
   {
     id: "ohimesama-no-tsukurikata",
     title: "お姫様の作り方",
+    searchReading: "おひめさまのつくりかた",
     category: CATEGORY.GROUP_SONG,
     releaseDate: "2026-04-01",
     single: "20thシングル「劇薬中毒」収録",
@@ -913,6 +965,7 @@ export const SONGS = [
   {
     id: "sukitte-ienakatta",
     title: "好きって、言えなかった",
+    searchReading: "すきっていえなかった",
     category: CATEGORY.GROUP_SONG,
     releaseDate: "2022-09-28",
     single: "12thシングル「Be Selfish」収録（Type-A）",
@@ -924,6 +977,7 @@ export const SONGS = [
   {
     id: "watashi-mahoutsukai",
     title: "わたし、魔法使い",
+    searchReading: "わたしまほうつかい",
     category: CATEGORY.UNIT_SONG,
     releaseDate: "2022-09-28",
     single: "12thシングル「Be Selfish」収録（Type-B）",
@@ -934,6 +988,7 @@ export const SONGS = [
   {
     id: "mayonaka-mermaid",
     title: "真夜中マーメイド",
+    searchReading: "まよなかまーめいど",
     category: CATEGORY.UNIT_SONG,
     releaseDate: "2022-09-28",
     single: "12thシングル「Be Selfish」収録（Type-C）",
