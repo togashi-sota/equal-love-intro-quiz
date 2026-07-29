@@ -64,9 +64,14 @@ export function startQuiz(questions, questionCountValue, categoryFilterValue) {
 }
 
 // 復習用に生成済みの問題配列を受け取って、復習クイズを開始する。
-// questionCountValue・categoryFilterValueはあえて変更しない。これにより、復習後に
-// 「通常プレイに戻る」を選んだときも、復習前と同じ出題数・カテゴリのまま再開できる。
-export function startReviewQuiz(questions) {
+// questionCountValue・categoryFilterValueは、デフォルトではあえて変更しない。これにより、
+// 結果画面から「今回のプレイ」を復習する場合、復習後に「通常プレイに戻る」を選んだときも
+// 復習前と同じ出題数・カテゴリのまま再開できる。
+//
+// modeOverride（省略可）: { questionCountValue, categoryFilterValue }
+// プレイ履歴から、今のgameStateとは違うモードだったプレイを復習する場合に使う。
+// 指定すると、この2つの値をそのモードに合わせて上書きする。
+export function startReviewQuiz(questions, modeOverride = null) {
   gameState.questions = questions;
   gameState.currentIndex = 0;
   gameState.score = 0;
@@ -74,6 +79,10 @@ export function startReviewQuiz(questions) {
   gameState.screen = "quiz";
   gameState.playMode = "review";
   gameState.isAnswered = false;
+  if (modeOverride !== null) {
+    gameState.questionCountValue = modeOverride.questionCountValue;
+    gameState.categoryFilterValue = modeOverride.categoryFilterValue;
+  }
 }
 
 // 今出題中の問題（{ song, choices }）を取得する。

@@ -74,7 +74,8 @@ function renderSummary(entries) {
 
 // 称号バッジ：new・unlock-and-newだけ表示する（repeatは結果画面と同じ考え方で間引き、
 // 履歴を賑やかしすぎないようにする。データ自体はtitleResultsにすべて保存済み）。
-function buildTitleBadges(titleResults) {
+// プレイ履歴詳細画面（historyDetailScreen.js）でも同じ見た目で使うため、外部に公開している。
+export function buildTitleBadges(titleResults) {
   const noteworthyResults = titleResults.filter(
     (result) => result.type === "new" || result.type === "unlock-and-new"
   );
@@ -91,10 +92,17 @@ function buildTitleBadges(titleResults) {
   return wrapper;
 }
 
-// 履歴1件分のカードを組み立てる。
+// 履歴1件分のカードを組み立てる。カード全体をボタンにして、タップで詳細画面を開けるようにする。
 function buildHistoryEntryCard(entry) {
-  const card = document.createElement("div");
+  const card = document.createElement("button");
+  card.type = "button";
   card.className = "history-entry";
+  card.addEventListener("click", () => elements.onSelectEntry(entry));
+
+  // 既存の中身（日時・ランク・モード・得点・称号バッジ）は、詳細への導線であることを示す
+  // シェブロンアイコンと区別できるよう、1つの入れ物にまとめる。
+  const content = document.createElement("div");
+  content.className = "history-entry-content";
 
   const header = document.createElement("div");
   header.className = "history-entry-header";
@@ -116,25 +124,42 @@ function buildHistoryEntryCard(entry) {
     header.appendChild(newRecordMark);
   }
 
-  card.appendChild(header);
+  content.appendChild(header);
 
   const modeLine = document.createElement("p");
   modeLine.className = "history-entry-mode";
   const questionCountLabel = QUESTION_COUNT_LABELS[entry.questionCountValue] ?? entry.questionCountValue;
   const categoryLabel = CATEGORY_LABELS[entry.categoryFilterValue] ?? entry.categoryFilterValue;
   modeLine.textContent = `${questionCountLabel}・${categoryLabel}`;
-  card.appendChild(modeLine);
+  content.appendChild(modeLine);
 
   const scoreLine = document.createElement("p");
   scoreLine.className = "history-entry-score";
   scoreLine.textContent =
     `${entry.score} / ${entry.maxScore}点（${entry.correctCount}/${entry.questionCount}問正解）`;
-  card.appendChild(scoreLine);
+  content.appendChild(scoreLine);
 
   const titleBadges = buildTitleBadges(entry.titleResults);
   if (titleBadges) {
-    card.appendChild(titleBadges);
+    content.appendChild(titleBadges);
   }
+
+  card.appendChild(content);
+
+  // 「タップで詳細に進める」ことを示すシェブロンアイコン。
+  const chevron = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  chevron.setAttribute("class", "history-entry-chevron");
+  chevron.setAttribute("viewBox", "0 0 24 24");
+  chevron.setAttribute("fill", "none");
+  chevron.setAttribute("aria-hidden", "true");
+  const chevronPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  chevronPath.setAttribute("d", "M9 5 16 12 9 19");
+  chevronPath.setAttribute("stroke", "currentColor");
+  chevronPath.setAttribute("stroke-width", "2.4");
+  chevronPath.setAttribute("stroke-linecap", "round");
+  chevronPath.setAttribute("stroke-linejoin", "round");
+  chevron.appendChild(chevronPath);
+  card.appendChild(chevron);
 
   return card;
 }
@@ -170,6 +195,8 @@ export function renderHistoryScreen() {
 //   clearButton: 「履歴をすべて削除」ボタン,
 //   confirmModalOverlay: 削除確認モーダルの背景要素,
 //   confirmCancelButton, confirmDeleteButton: 確認モーダル内の「キャンセル」「削除する」ボタン,
+//   onSelectEntry: 履歴カードがタップされたときに呼ばれるコールバック（entryを受け取る）。
+//                  詳細画面を開く処理自体はmain.js側が担当する。
 // }
 export function initHistoryScreen(newElements) {
   elements = newElements;

@@ -2534,13 +2534,41 @@ fieldset label:has(input:focus-visible) {
   display: none;
 }
 
-/* 履歴カード1件分 */
+/* 履歴カード1件分。タップで詳細画面を開けるよう<button>にしているため、
+   ブラウザ標準のボタンの見た目（枠線・中央寄せ等）を打ち消して元のカードの見た目に揃える。 */
 .history-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
   padding: 12px 14px;
   border-radius: 14px;
   margin-bottom: 8px;
   background: rgba(255, 255, 255, 0.4);
   border: 1px solid var(--color-card-border);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.history-entry:active {
+  transform: scale(0.98);
+}
+
+/* カードの中身（日時・ランク・モード・得点・称号バッジ）をまとめる入れ物。
+   シェブロンアイコンと区別し、曲名等が長くても幅いっぱいに広がれるようにする。 */
+.history-entry-content {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 「タップで詳細に進める」ことを示すシェブロン */
+.history-entry-chevron {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--color-primary);
+  opacity: 0.6;
 }
 
 .history-entry-header {
@@ -2688,6 +2716,210 @@ fieldset label:has(input:focus-visible) {
 
 .danger-button:active {
   transform: scale(0.95);
+}
+
+/* ===== プレイ履歴 詳細画面 =====
+   履歴一覧のカードをタップすると開く、曲別の内訳画面。中身はjs/historyDetailScreen.jsが組み立てる。 */
+
+.history-detail-summary {
+  padding: 14px;
+  border-radius: 16px;
+  margin: 12px 0 16px;
+  background: var(--color-surface-glass);
+  border: 1px solid var(--color-card-border);
+  text-align: center;
+}
+
+.history-detail-date {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--color-text);
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+}
+
+.history-detail-mode {
+  margin: 2px 0 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  opacity: 0.8;
+}
+
+/* 結果画面の.rank-badgeと同じ構造・クラスを流用し、ここでは一覧の小さなチップ（22px）よりは
+   大きく、結果画面の主役サイズ（88px）よりは控えめな、中間サイズに調整する。 */
+.history-detail-rank-badge {
+  margin: 8px auto 4px;
+}
+
+.history-detail-rank-badge .rank-medal {
+  width: 64px;
+  height: 64px;
+}
+
+.history-detail-rank-badge .rank-letter {
+  font-size: 1.8rem;
+}
+
+.history-detail-rank-badge .rank-crown {
+  top: -9px;
+  width: 20px;
+  height: 13px;
+}
+
+.history-detail-rank-badge .rank-medal-spark {
+  top: -2px;
+  width: 11px;
+  height: 11px;
+}
+
+.history-detail-rank-badge .rank-medal-spark-left {
+  left: -7px;
+}
+
+.history-detail-rank-badge .rank-medal-spark-right {
+  right: -7px;
+}
+
+.history-detail-score {
+  margin: 4px 0 0;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+}
+
+.history-detail-average-time {
+  margin: 2px 0 0;
+  font-size: 0.78rem;
+  color: var(--color-secondary);
+  font-weight: 700;
+}
+
+.history-detail-summary .history-new-record-mark {
+  display: block;
+  margin-top: 4px;
+}
+
+.history-detail-summary .history-title-badges {
+  justify-content: center;
+}
+
+/* 全問正解のとき、復習エリアの代わりに表示する一言 */
+.history-detail-all-correct-message {
+  margin: 4px 0 16px;
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--color-accent-soft);
+  border: 1px solid var(--color-card-border);
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+}
+
+.history-detail-all-correct-message[hidden] {
+  display: none;
+}
+
+.history-detail-answer-list {
+  list-style: none;
+  padding: 0;
+  margin: 4px 0 0;
+}
+
+.history-detail-answer-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  padding: 8px 4px;
+  border-top: 1px solid var(--color-card-border);
+}
+
+.history-detail-answer-row:first-child {
+  border-top: none;
+}
+
+.history-detail-answer-number {
+  flex: none;
+  width: 26px;
+  font-size: 0.75rem;
+  color: var(--color-text);
+  opacity: 0.55;
+  font-variant-numeric: tabular-nums;
+}
+
+.history-detail-answer-title {
+  flex: 1 1 100px;
+  min-width: 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+/* 結果タグ4種類。色で正解/不正解/スキップ/答えを見た、を一目で区別できるようにする */
+.history-detail-answer-tag {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.history-detail-answer-tag.is-correct {
+  background: var(--color-accent-soft);
+  color: var(--color-primary-dark);
+}
+
+.history-detail-answer-tag.is-wrong {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.history-detail-answer-tag.is-skip {
+  background: rgba(74, 46, 66, 0.08);
+  color: var(--color-text);
+  opacity: 0.75;
+}
+
+.history-detail-answer-tag.is-reveal {
+  background: var(--color-secondary-light);
+  color: #2c6ea8;
+}
+
+/* 得点・回答時間。幅が足りないときは、この2つがまとめて次の行に折り返る
+   （メディアクエリを使わず、flex-wrapだけでスマホ幅・PC幅どちらにも自然に対応する） */
+.history-detail-answer-meta {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.history-detail-answer-score {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+  font-variant-numeric: tabular-nums;
+}
+
+.history-detail-answer-time {
+  font-size: 0.72rem;
+  color: var(--color-text);
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 内訳を最後まで見たことが分かる終端表示 */
+.history-detail-list-end {
+  margin: 10px 0 0;
+  text-align: center;
+  font-size: 0.72rem;
+  color: var(--color-text);
+  opacity: 0.5;
 }
 
 /* ===== レスポンシブ：スマホ幅（520px以下） =====

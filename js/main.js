@@ -35,6 +35,7 @@ import { renderResultTitleEvents, clearResultTitleEvents } from "./titleDisplay.
 import { initTitleListModal } from "./titleList.js";
 import { saveHistoryEntry } from "./history.js";
 import { initHistoryScreen, renderHistoryScreen } from "./historyScreen.js";
+import { initHistoryDetailScreen, renderHistoryDetail } from "./historyDetailScreen.js";
 import { importAudioFiles, getImportedSongIds } from "./audioStorage.js";
 
 // 背景のキラキラ演出は、ゲームの状態と関係なく最初に1回だけ生成すればよい。
@@ -86,6 +87,9 @@ const titleListContainerElement = document.getElementById("title-list-container"
 const historyLinkElement = document.getElementById("history-link");
 const historyBackButtonElement = document.getElementById("history-back-button");
 const historyClearConfirmModalElement = document.getElementById("history-clear-confirm-modal");
+const historyDetailBackButtonElement = document.getElementById("history-detail-back-button");
+// 詳細画面を開く直前の、履歴一覧のスクロール位置。「戻る」で一覧に戻ったときに復元する。
+let historyListScrollY = 0;
 const quizBackButtonElement = document.getElementById("quiz-back-button");
 const quizQuitConfirmModalElement = document.getElementById("quiz-quit-confirm-modal");
 const quizQuitCancelButtonElement = document.getElementById("quiz-quit-cancel-button");
@@ -118,6 +122,45 @@ initHistoryScreen({
   confirmModalOverlay: historyClearConfirmModalElement,
   confirmCancelButton: document.getElementById("history-clear-cancel-button"),
   confirmDeleteButton: document.getElementById("history-clear-delete-button"),
+  onSelectEntry: (entry) => {
+    playClickSound();
+    historyListScrollY = window.scrollY;
+    renderHistoryDetail(entry);
+    showScreen("historyDetail");
+  },
+});
+
+// プレイ履歴詳細画面の描画に使うDOM要素一式と、復習ボタンのコールバックを渡して初期化する。
+initHistoryDetailScreen({
+  date: document.getElementById("history-detail-date"),
+  mode: document.getElementById("history-detail-mode"),
+  rankDisplay: document.getElementById("history-detail-rank-display"),
+  rankLetter: document.getElementById("history-detail-rank-letter"),
+  score: document.getElementById("history-detail-score"),
+  averageTime: document.getElementById("history-detail-average-time"),
+  newRecord: document.getElementById("history-detail-new-record"),
+  titleBadges: document.getElementById("history-detail-title-badges"),
+  missedSection: document.getElementById("history-detail-missed-section"),
+  missedHeading: document.getElementById("history-detail-missed-heading"),
+  missedChipRow: document.getElementById("history-detail-missed-chip-row"),
+  reviewButton: document.getElementById("history-detail-review-button"),
+  allCorrectMessage: document.getElementById("history-detail-all-correct-message"),
+  answerList: document.getElementById("history-detail-answer-list"),
+  listEnd: document.getElementById("history-detail-list-end"),
+  // 「この回の間違えた曲だけ復習する」：この履歴の出題数・カテゴリを引き継いで復習クイズを
+  // 開始する。beginReviewQuiz()（結果画面発の復習）とほぼ同じ処理だが、こちらは
+  // startReviewQuiz()にmodeOverrideを渡し、今のgameStateではなくこの履歴のモードに
+  // questionCountValue/categoryFilterValueを合わせる点が異なる。
+  onStartReview: (missedSongs, questionCountValue, categoryFilterValue) => {
+    playClickSound();
+    stopTimer();
+    stopAudio();
+    const distractorPool = filterSongsByCategory(SONGS, categoryFilterValue);
+    const questions = buildReviewQuizQuestions(missedSongs, distractorPool);
+    startReviewQuiz(questions, { questionCountValue, categoryFilterValue });
+    renderQuestion();
+    showScreen("quiz");
+  },
 });
 
 // 音源の再生に失敗したときの表示処理。
@@ -636,6 +679,18 @@ historyBackButtonElement.addEventListener("click", () => {
   showScreen("start");
 });
 
+// プレイ履歴詳細画面の「戻る」：一覧画面へ戻る。
+// renderHistoryScreen()は呼び直さない（詳細画面を見ている間に履歴データが増えることはない
+// ＝復習プレイは履歴に保存されないため、一覧を再構築する必要がない）。
+// ただし、画面はページ全体が縦スクロールする作りのため、一覧を再構築しないだけでは
+// スクロール位置は保たれない（詳細画面の表示中に、ページのスクロール位置自体が変わるため）。
+// そのため、詳細画面を開く直前の位置をhistoryListScrollYに保存しておき、ここで復元する。
+historyDetailBackButtonElement.addEventListener("click", () => {
+  playClickSound();
+  showScreen("history");
+  window.scrollTo(0, historyListScrollY);
+});
+
 // 出題数・カテゴリのラジオボタンが切り替わるたびに、自己ベスト表示・出題数の案内を更新する。
 // ページを開いた直後（初期選択の状態）の分も、ここで一度呼んでおく。
 document
@@ -690,12 +745,29 @@ updateAudioImportStatus();
 // 必ず本人が「更新する」を押してから切り替える設計にしている。
 let pendingUpdateRegistration = null;
 
+// 「更新する」バナーを表示する処理を1箇所にまとめる。
+// ①すでに待機中のバージョンがある場合（アプリを閉じている間に更新の準備が整っていた等）と、
+// ②今まさに新しいバージョンが見つかった場合（updatefound）の、2箇所から呼ばれる。
+function showUpdateBanner(registration) {
+  pendingUpdateRegistration = registration;
+  updateAvailableBannerElement.hidden = false;
+}
+
 function initServiceWorker() {
   if (!("serviceWorker" in navigator)) return;
 
   navigator.serviceWorker
     .register("./sw.js")
     .then((registration) => {
+      // ①登録が完了した時点で、すでに待機中の新しいバージョンがないかを確認する。
+      // 前回のセッション中にインストールだけ終わっていて、更新バナーを押せないまま
+      // アプリを閉じた（スマホでアプリを閉じた等）場合、updatefoundは発生し直さないため、
+      // このチェックがないと更新可能な状態のまま二度とバナーが出ない。
+      if (registration.waiting) {
+        showUpdateBanner(registration);
+      }
+
+      // ②今まさにこのセッション中に新しいバージョンが見つかった場合。
       registration.addEventListener("updatefound", () => {
         const newWorker = registration.installing;
         if (!newWorker) return;
@@ -704,8 +776,7 @@ function initServiceWorker() {
           // installedは「新しいバージョンが準備できた」を意味する。
           // controllerがまだない初回登録時のinstalledはただの初回セットアップなので無視する。
           if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
-            pendingUpdateRegistration = registration;
-            updateAvailableBannerElement.hidden = false;
+            showUpdateBanner(registration);
           }
         });
       });

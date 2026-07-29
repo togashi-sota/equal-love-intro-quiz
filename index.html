@@ -422,6 +422,72 @@
       <button id="history-clear-button" class="history-clear-button" type="button" hidden>履歴をすべて削除</button>
     </section>
 
+    <!-- プレイ履歴 詳細画面：履歴一覧の1件をタップしたときに開く、曲別の内訳画面。
+         中身（サマリー・内訳・復習エリア）はjs/historyDetailScreen.jsが組み立てる。 -->
+    <section id="history-detail-screen" class="screen">
+      <div class="list-header">
+        <button id="history-detail-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            HISTORY DETAIL
+          </p>
+          <h2>プレイ履歴詳細</h2>
+        </div>
+      </div>
+
+      <!-- サマリー：日時・出題数/カテゴリ・ランク・得点・正答数・平均回答時間・新記録・称号をまとめる。
+           ランクバッジは結果画面の.rank-badgeと同じ構造を流用し、.history-detail-rank-badgeで
+           結果画面よりは小さく、一覧のチップよりは大きい中間サイズに調整する。
+           中身の数値・ランクの色分けはjs/historyDetailScreen.jsが反映する。 -->
+      <div class="history-detail-summary">
+        <p id="history-detail-date" class="history-detail-date"></p>
+        <p id="history-detail-mode" class="history-detail-mode"></p>
+
+        <div id="history-detail-rank-display" class="rank-badge history-detail-rank-badge">
+          <div class="rank-medal">
+            <svg class="rank-crown" viewBox="0 0 24 16" fill="currentColor" aria-hidden="true">
+              <path d="M2 14 1 5 6 9 12 2 18 9 23 5 22 14Z"/>
+            </svg>
+            <span class="rank-medal-spark rank-medal-spark-left" aria-hidden="true">
+              <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            </span>
+            <div class="rank-medal-circle">
+              <span id="history-detail-rank-letter" class="rank-letter"></span>
+            </div>
+            <span class="rank-medal-spark rank-medal-spark-right" aria-hidden="true">
+              <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            </span>
+          </div>
+        </div>
+
+        <p id="history-detail-score" class="history-detail-score"></p>
+        <p id="history-detail-average-time" class="history-detail-average-time"></p>
+        <p id="history-detail-new-record" class="history-new-record-mark" hidden>🎉新記録</p>
+        <div id="history-detail-title-badges" class="history-title-badges"></div>
+      </div>
+
+      <!-- 今回間違えた曲の復習エリア。既存の.missed-songs-*クラスをそのまま流用する。
+           結果画面とはあえて順番を変え、内訳リストより先（サマリー直後）に置く。
+           出題数が多い回でも、復習ボタンにスクロールなしですぐ辿り着けるようにするため。
+           全問正解のときはこのエリアごと隠し、代わりに#history-detail-all-correct-messageを出す。 -->
+      <div id="history-detail-missed-section" class="missed-songs-section" hidden>
+        <p id="history-detail-missed-heading" class="missed-songs-heading"></p>
+        <div id="history-detail-missed-chip-row" class="missed-songs-chip-row"></div>
+        <button id="history-detail-review-button" class="secondary-button missed-songs-review-button" type="button">この回の間違えた曲だけ復習する</button>
+      </div>
+      <p id="history-detail-all-correct-message" class="history-detail-all-correct-message" hidden>🎉 全問正解でした！</p>
+
+      <!-- 1問ごとの内訳（番号・曲名・結果タグ・得点・回答時間）。中身はjs/historyDetailScreen.jsが組み立てる -->
+      <ul id="history-detail-answer-list" class="history-detail-answer-list"></ul>
+      <p id="history-detail-list-end" class="history-detail-list-end"></p>
+    </section>
+
   </main>
 
   <!-- ルール説明モーダル：得点表・ランク基準・カテゴリの意味など、ゲーム内のどこにも
