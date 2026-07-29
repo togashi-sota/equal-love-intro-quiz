@@ -11,6 +11,8 @@ const SCREEN_ELEMENTS = {
   songlist: document.getElementById("songlist-screen"),
   history: document.getElementById("history-screen"),
   historyDetail: document.getElementById("history-detail-screen"),
+  specialModes: document.getElementById("special-modes-screen"),
+  weakSongs: document.getElementById("weak-songs-screen"),
 };
 
 // 指定した画面だけを表示し、それ以外の画面は隠す。

@@ -16,10 +16,14 @@ export const gameState = {
   questionCountValue: null,      // 選択された出題数（"5" | "10" | "all"）。自己ベストを
                                   // モードごとに分けて保存するために結果画面まで持ち回す
   categoryFilterValue: null,     // 選択されたカテゴリ（"all" | "title-and-group" | "title-track"）。同上
-  playMode: "normal",            // "normal" | "review"。復習プレイ中かどうかを表す。
+  playMode: "normal",            // "normal" | "review" | "special"。"special"は苦手曲モードなど、
+                                  // 通常プレイとは別の遊び方（特別モード）をまとめて表す値。
                                   // 文字列にしているのは、将来タイムアタック等のモードが増えたときに
                                   // 値を1つ増やすだけで拡張できるようにするため（bool併用だと
                                   // 本来ありえない組み合わせを構造上防げなくなる）。
+  specialModeId: null,            // "special"のときだけ使う、どの特別モードかを表す値
+                                  // （例:"weakSongs"）。特別モードが増えるたびに値が1つ増えるだけで、
+                                  // playMode自体を増やす必要がないようにするための分離。
   reviewSongs: [],                    // 復習で出題する曲（間違えた曲。結果画面から復習を始める際に使う）
   reviewCategoryFilterValue: null,    // 復習のダミー選択肢を選ぶ際に絞り込むカテゴリ。
                                        // 元になったプレイのcategoryFilterValueをそのままコピーして持つ
@@ -42,6 +46,7 @@ export function resetGameState() {
   gameState.questionCountValue = null;
   gameState.categoryFilterValue = null;
   gameState.playMode = "normal";
+  gameState.specialModeId = null;
   gameState.reviewSongs = [];
   gameState.reviewCategoryFilterValue = null;
 }
@@ -57,7 +62,9 @@ export function startQuiz(questions, questionCountValue, categoryFilterValue) {
   gameState.screen = "quiz";
   gameState.questionCountValue = questionCountValue;
   gameState.categoryFilterValue = categoryFilterValue;
-  gameState.playMode = "normal"; // 復習からの「通常プレイに戻る」経由も含め、必ずここでnormalに戻す
+  gameState.playMode = "normal"; // 復習・特別モードからの「通常プレイに戻る/始める」経由も含め、
+  // 必ずここでnormalに戻す。
+  gameState.specialModeId = null;
   // 「もう一度挑戦する」はresetGameState()を経由せずここへ直接来るため、
   // 前回プレイ最後の回答済み状態が残らないよう、ここで確実にリセットする。
   gameState.isAnswered = false;
@@ -83,6 +90,25 @@ export function startReviewQuiz(questions, modeOverride = null) {
     gameState.questionCountValue = modeOverride.questionCountValue;
     gameState.categoryFilterValue = modeOverride.categoryFilterValue;
   }
+}
+
+// 特別モード（苦手曲モードなど）用に生成済みの問題配列を受け取って、クイズを開始する。
+// 曲を選ぶロジック自体はこの関数の外（各モードの確認画面）が担当し、ここでは
+// 「選ばれた問題でクイズを始める」ことだけに専念する。将来オリジナル問題作成モード等が
+// 増えても、specialModeIdの値を変えて呼ぶだけでそのまま使える想定。
+// review・特別モードのどちらも自己ベスト・称号・プレイ履歴には反映しないため、
+// categoryFilterValueは特に意味を持たずnullにしている。
+export function startSpecialQuiz(questions, questionCountValue, specialModeId) {
+  gameState.questions = questions;
+  gameState.currentIndex = 0;
+  gameState.score = 0;
+  gameState.answerLog = [];
+  gameState.screen = "quiz";
+  gameState.playMode = "special";
+  gameState.specialModeId = specialModeId;
+  gameState.questionCountValue = questionCountValue;
+  gameState.categoryFilterValue = null;
+  gameState.isAnswered = false;
 }
 
 // 今出題中の問題（{ song, choices }）を取得する。

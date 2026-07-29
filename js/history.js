@@ -121,3 +121,43 @@ export function computeHistorySummary(entries) {
 
   return { totalPlayCount, totalQuestionCount, overallAccuracy };
 }
+
+// 苦手曲モードの判定条件。1回だけたまたま外れた曲が「苦手」認定されるのを防ぐため、
+// 出題回数の下限を設けている（本人と相談の上で決定した値）。
+const WEAK_SONG_MIN_APPEARANCES = 3;
+const WEAK_SONG_MAX_ACCURACY = 0.5;
+
+// プレイ履歴全体（最新100件）を曲IDごとに集計し、「3回以上出題され、正答率50%未満」の曲を、
+// 正答率が低い順（同率なら不正解回数が多い順）に並べて返す。苦手曲モードの判定に使う。
+// 曲名などsongs.js側の情報は持たず、songIdだけを返す（呼び出し側でsongs.jsから引く）。
+export function computeWeakSongs(entries) {
+  const statsBySongId = new Map();
+
+  entries.forEach((entry) => {
+    entry.answers.forEach((answer) => {
+      const stats = statsBySongId.get(answer.songId) ?? { appearances: 0, correctCount: 0 };
+      stats.appearances += 1;
+      if (answer.result === "correct") {
+        stats.correctCount += 1;
+      }
+      statsBySongId.set(answer.songId, stats);
+    });
+  });
+
+  return [...statsBySongId.entries()]
+    .map(([songId, stats]) => ({
+      songId,
+      appearances: stats.appearances,
+      correctCount: stats.correctCount,
+      accuracy: stats.correctCount / stats.appearances,
+    }))
+    .filter(
+      (stat) => stat.appearances >= WEAK_SONG_MIN_APPEARANCES && stat.accuracy < WEAK_SONG_MAX_ACCURACY
+    )
+    .sort((a, b) => {
+      if (a.accuracy !== b.accuracy) return a.accuracy - b.accuracy;
+      const aWrongCount = a.appearances - a.correctCount;
+      const bWrongCount = b.appearances - b.correctCount;
+      return bWrongCount - aWrongCount;
+    });
+}

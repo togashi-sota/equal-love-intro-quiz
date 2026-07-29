@@ -204,6 +204,14 @@
         <button id="title-list-link" class="rules-link" type="button">称号一覧</button>
         <button id="history-link" class="rules-link" type="button">プレイ履歴</button>
       </div>
+
+      <!-- 特別モードへの入口。通常プレイ（スタートボタン）が主役であることが伝わるよう、
+           区切り線を挟んで独立させ、上の情報リンク群とは見た目でも分ける。 -->
+      <div class="special-modes-divider" aria-hidden="true"></div>
+      <button id="special-modes-link" class="special-modes-entry-button" type="button">
+        <span class="special-modes-entry-icon" aria-hidden="true">✦</span>
+        特別モード
+      </button>
     </section>
 
     <!-- クイズ画面：イントロ再生、4択、タイマー、正誤表示を行う画面 -->
@@ -316,6 +324,10 @@
         <p id="high-score-display">自己ベスト: 0点</p>
         <!-- 自己ベストを更新したときだけ表示するお知らせ。普段は空・非表示 -->
         <p id="new-record-badge" hidden>🎉 新記録！</p>
+
+        <!-- 特別モードの結果でだけ表示する短い案内。自己ベスト欄の代わりに、
+             苦手曲モードなど特別モードの結果は記録に反映されないことを伝える。普段は空・非表示 -->
+        <p id="special-mode-notice" class="special-mode-notice" hidden></p>
       </div>
 
       <!-- 今回間違えた曲（不正解・スキップ・答えを見た曲）のまとめ。通常プレイ・復習プレイどちらの
@@ -330,8 +342,9 @@
       <!-- 1問ごとの正誤・得点をJSで一覧表示する場所 -->
       <ul id="answer-log-list"></ul>
 
-      <!-- ボタン列。「もう一度挑戦する」（通常プレイの結果）と「通常プレイを始める」（復習の結果）は
-           互いに排他的に表示され、「タイトルに戻る」は常に表示される。
+      <!-- ボタン列。「もう一度挑戦する」（通常プレイ・特別モードの結果）と「通常プレイを始める」
+           （復習の結果）は互いに排他的に表示される。副ボタンは、通常プレイ・復習の結果では
+           「タイトルに戻る」、特別モードの結果では「特別モード一覧に戻る」を表示する。
            スマホで押しやすいよう縦2段（実質2ボタン）に並べる -->
       <div id="result-actions" class="button-row">
         <button id="retry-button" class="primary-button" type="button">もう一度挑戦する</button>
@@ -339,7 +352,13 @@
              再出題されるように誤解されかねないため、新しい通常クイズを始めることが伝わる文言にしている -->
         <button id="return-to-normal-button" class="primary-button" type="button" hidden>通常プレイを始める</button>
         <button id="back-to-title-button" class="secondary-button" type="button">タイトルに戻る</button>
+        <!-- 特別モードの結果でだけ表示する副ボタン。普段はhidden -->
+        <button id="back-to-special-modes-button" class="secondary-button" type="button" hidden>特別モード一覧に戻る</button>
       </div>
+
+      <!-- 特別モードの結果でだけ表示する、控えめな「タイトルに戻る」の入口。
+           副ボタン（特別モード一覧に戻る）よりさらに目立たせず、通常プレイへの復帰手段として残す。普段はhidden -->
+      <button id="back-to-title-link-from-special" class="rules-link" type="button" hidden>タイトルに戻る</button>
     </section>
 
     <!-- 収録曲一覧画面：81曲をシングル単位のアコーディオンで一覧し、試聴もできる画面。
@@ -488,6 +507,85 @@
       <p id="history-detail-list-end" class="history-detail-list-end"></p>
     </section>
 
+    <!-- 特別モード一覧画面：通常プレイとは違う遊び方をまとめて選べる入口。
+         中身（モードカード）はjs/specialModesScreen.jsが組み立てる。
+         モードが増えるときは、specialModesScreen.jsのSPECIAL_MODESに1件足すだけでよい。 -->
+    <section id="special-modes-screen" class="screen">
+      <div class="list-header">
+        <button id="special-modes-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            SPECIAL
+          </p>
+          <h2>特別モード</h2>
+        </div>
+      </div>
+
+      <p class="special-modes-intro">通常プレイとは違う、いろいろな遊び方を楽しめます。</p>
+
+      <!-- モード一覧。中身はjs/specialModesScreen.jsが組み立てる -->
+      <div id="special-modes-list"></div>
+    </section>
+
+    <!-- 苦手曲モード確認画面：対象曲の一覧と出題数を確認してから開始する。
+         判定ロジック自体はjs/history.jsのcomputeWeakSongs()が担い、
+         ここではjs/weakSongsScreen.jsが画面の組み立てだけを行う。 -->
+    <section id="weak-songs-screen" class="screen">
+      <div class="list-header">
+        <button id="weak-songs-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            WEAK SONGS
+          </p>
+          <h2>苦手曲モード</h2>
+        </div>
+        <!-- 判定ルールの説明モーダルへの入口。他の画面のヘッダーには影響しない -->
+        <button id="weak-songs-rules-link" class="info-link-button" type="button" aria-label="判定ルールを見る">？</button>
+      </div>
+
+      <p class="weak-songs-explanation">3回以上出題され、正答率50%未満の曲が対象です。</p>
+
+      <!-- 対象曲が1曲以上あるときの表示。中身はjs/weakSongsScreen.jsが組み立てる -->
+      <div id="weak-songs-available-section">
+        <p class="weak-songs-count"><strong id="weak-songs-count-value">0</strong>曲が対象です</p>
+        <div id="weak-songs-chip-row" class="missed-songs-chip-row"></div>
+
+        <fieldset>
+          <legend>出題数</legend>
+          <div class="option-row">
+            <label><input type="radio" name="weak-songs-question-count" value="5" checked> 5問</label>
+            <label><input type="radio" name="weak-songs-question-count" value="10"> 10問</label>
+            <label><input type="radio" name="weak-songs-question-count" value="20"> 20問</label>
+          </div>
+          <div class="option-row">
+            <label><input type="radio" name="weak-songs-question-count" value="all"> <span id="weak-songs-all-label">全対象</span></label>
+          </div>
+        </fieldset>
+
+        <!-- 選んだ出題数が対象曲数を上回るときだけ表示する案内。普段は空・非表示 -->
+        <p id="weak-songs-count-notice" class="question-count-notice" hidden></p>
+
+        <button id="weak-songs-start-button" class="primary-button" type="button">開始する</button>
+      </div>
+
+      <!-- 対象曲が1曲もないときの案内。プレイ履歴画面の空状態と同じ見た目にする -->
+      <p id="weak-songs-empty-state" class="history-empty-state" hidden>
+        まだ対象の曲がありません。プレイを重ねると判定されるようになります。
+      </p>
+    </section>
+
   </main>
 
   <!-- ルール説明モーダル：得点表・ランク基準・カテゴリの意味など、ゲーム内のどこにも
@@ -610,6 +708,32 @@
         <li><strong>全員曲</strong>：その時点のメンバー全員で歌う曲</li>
         <li><strong>ユニット曲</strong>：一部のメンバーまたはソロで歌う曲</li>
       </ul>
+    </div>
+  </div>
+
+  <!-- 苦手曲モードの判定ルール説明モーダル：あそびかたモーダルと同じ見た目・開閉の仕組みを流用する。
+       開閉ロジック自体はjs/main.jsが担う（このモーダル専用の小さな処理のため、
+       他の画面と違って専用ファイルには分けていない）。 -->
+  <div id="weak-songs-rules-modal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="weak-songs-rules-modal-title">
+      <button id="weak-songs-rules-modal-close" class="modal-close-button" type="button" aria-label="閉じる">×</button>
+
+      <h2 id="weak-songs-rules-modal-title">苦手曲モードについて</h2>
+      <p class="modal-lead">プレイ履歴から、正解しづらい曲を自動で集めて練習できるモードです。</p>
+
+      <h3>対象になる曲</h3>
+      <p>通常プレイで3回以上出題され、正答率が50%未満の曲が対象になります。判定には、保存されている最新100件までのプレイ履歴を使います。</p>
+
+      <h3>対象から外れる条件</h3>
+      <p>通常プレイでその曲に正解し、正答率が50%以上に戻ると、対象から外れます。</p>
+
+      <h3>苦手曲モードの結果について</h3>
+      <p>苦手曲モードでの正解・不正解は、苦手判定・プレイ履歴・自己ベスト・称号のいずれにも反映されません。判定はあくまで通常プレイの成績だけで更新されます。</p>
+
+      <h3>苦手曲をなくすには</h3>
+      <p>
+        通常プレイでその曲に正解し、正答率が50%以上になれば対象から外れます。苦手曲モードは練習用のモードで、ここでの結果は判定に影響しません。目標は、苦手曲を0曲にすることです。
+      </p>
     </div>
   </div>
 

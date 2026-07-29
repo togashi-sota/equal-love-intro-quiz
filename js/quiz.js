@@ -1,6 +1,6 @@
 // 出題プールの絞り込み・シャッフル・4択生成を担当するファイル。
 
-import { CATEGORY } from "./data/songs.js";
+import { CATEGORY, SONGS } from "./data/songs.js";
 
 // 1問を作るのに最低限必要な曲数（正解1つ＋ダミー3つ＝4曲）。
 const MIN_SONGS_REQUIRED = 4;
@@ -83,4 +83,16 @@ export function buildReviewQuizQuestions(questionSongs, distractorPool) {
     song,
     choices: generateChoices(song, distractorPool),
   }));
+}
+
+// 曲IDの配列から、クイズの問題データ（{ song, choices } の配列）を組み立てる。
+// 苦手曲モード・将来のオリジナル問題作成モードなど、「曲IDの配列を渡してクイズを始める」系の
+// 特別モード全般で共通して使う想定の汎用エンジン。「どの曲を選ぶか」は呼び出し側の責務とし、
+// ここでは選ばれた曲IDをsongs.jsの曲データに引き直し、buildReviewQuizQuestions（既存、
+// 出題対象とダミー選択肢のプールを別々に扱える）にそのまま渡すだけに専念する。
+export function buildQuestionsFromSongIds(songIds, distractorPool) {
+  const questionSongs = songIds
+    .map((songId) => SONGS.find((song) => song.id === songId))
+    .filter((song) => song !== undefined); // データ不整合で曲が見つからない場合は除外する
+  return buildReviewQuizQuestions(questionSongs, distractorPool);
 }

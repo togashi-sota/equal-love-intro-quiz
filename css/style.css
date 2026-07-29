@@ -2017,6 +2017,31 @@ fieldset label:has(input:focus-visible) {
   transform: scale(0.94);
 }
 
+/* 判定ルール等の説明モーダルを開く「？」ボタン。.list-headerの3列目（右端）に配置する。
+   .modal-close-button（モーダルを閉じる×ボタン）と似た円形だが、一回り小さくしている。 */
+.info-link-button {
+  grid-column: 3;
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.info-link-button:active {
+  transform: scale(0.92);
+}
+
 /* 総曲数チップ。自己ベストチップと同じ、控えめな見た目に揃える */
 .total-count-chip {
   display: block;
@@ -2920,6 +2945,149 @@ fieldset label:has(input:focus-visible) {
   font-size: 0.72rem;
   color: var(--color-text);
   opacity: 0.5;
+}
+
+/* ===== 特別モード =====
+   通常プレイ（スタートボタン）とは別の遊び方をまとめる、スタート画面の入口・一覧画面・
+   苦手曲モードの確認画面。中身はjs/specialModesScreen.js・js/weakSongsScreen.jsが組み立てる。 */
+
+/* スタート画面の情報リンク群（.start-footer-links）と、特別モードの入口を見た目で区切る線。
+   通常プレイが主役であることが伝わるよう、あえて独立した扱いにしている。 */
+.special-modes-divider {
+  width: 60%;
+  max-width: 200px;
+  height: 1px;
+  margin: 18px auto 14px;
+  background: var(--color-card-border);
+}
+
+.special-modes-entry-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: fit-content;
+  margin: 0 auto;
+  padding: 8px 20px;
+  border: 2px solid var(--color-secondary);
+  border-radius: 999px;
+  background-color: transparent;
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.special-modes-entry-button:active {
+  transform: scale(0.96);
+}
+
+.special-modes-entry-icon {
+  color: var(--color-secondary);
+}
+
+.special-modes-intro {
+  margin: 4px 0 16px;
+  text-align: center;
+  font-size: 0.82rem;
+  color: var(--color-text);
+  opacity: 0.7;
+}
+
+/* 特別モード一覧のカード1件分。プレイ履歴カードと同じ「ボタン＋シェブロン」の構成。 */
+.special-mode-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 14px;
+  border-radius: 14px;
+  margin-bottom: 10px;
+  background: rgba(255, 255, 255, 0.4);
+  border: 1px solid var(--color-card-border);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.special-mode-card:active {
+  transform: scale(0.98);
+}
+
+.special-mode-card-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.special-mode-card-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+}
+
+.special-mode-card-description {
+  margin: 2px 0 0;
+  font-size: 0.78rem;
+  color: var(--color-text);
+  opacity: 0.7;
+}
+
+.special-mode-card-chevron {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--color-primary);
+  opacity: 0.6;
+}
+
+/* まだ実装されていないモード：<button>ではなく<div>にしているのでcursor:pointerを打ち消し、
+   タップできないことが見た目でも伝わるよう全体を薄くする。 */
+.special-mode-card.is-coming-soon {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.special-mode-card-badge {
+  flex: none;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--color-surface-glass);
+  border: 1px solid var(--color-card-border);
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.weak-songs-explanation {
+  margin: 4px 0 14px;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--color-text);
+  opacity: 0.75;
+}
+
+.weak-songs-count {
+  margin: 0 0 10px;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--color-text);
+}
+
+.weak-songs-count strong {
+  font-size: 1.1rem;
+  color: var(--color-primary-dark);
+}
+
+/* 結果画面：特別モードの結果でだけ表示する短い案内。自己ベスト欄の代わりに表示するため、
+   同じ立ち位置になるよう#high-score-displayに近い見た目にする。 */
+.special-mode-notice {
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--color-text);
+  opacity: 0.75;
 }
 
 /* ===== レスポンシブ：スマホ幅（520px以下） =====

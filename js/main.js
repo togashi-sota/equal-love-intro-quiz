@@ -8,6 +8,7 @@ import {
   resetGameState,
   startQuiz,
   startReviewQuiz,
+  startSpecialQuiz,
   getCurrentQuestion,
   recordAnswer,
   advanceToNextQuestion,
@@ -22,6 +23,7 @@ import {
   validatePoolSize,
   buildQuizQuestions,
   buildReviewQuizQuestions,
+  buildQuestionsFromSongIds,
 } from "./quiz.js";
 import { playSongIntro, stopAudio } from "./audio.js";
 import { startTimer, stopTimer } from "./timer.js";
@@ -36,6 +38,8 @@ import { initTitleListModal } from "./titleList.js";
 import { saveHistoryEntry } from "./history.js";
 import { initHistoryScreen, renderHistoryScreen } from "./historyScreen.js";
 import { initHistoryDetailScreen, renderHistoryDetail } from "./historyDetailScreen.js";
+import { initSpecialModesScreen } from "./specialModesScreen.js";
+import { initWeakSongsScreen, renderWeakSongsScreen, resolveWeakSongIds } from "./weakSongsScreen.js";
 import { importAudioFiles, getImportedSongIds } from "./audioStorage.js";
 
 // 背景のキラキラ演出は、ゲームの状態と関係なく最初に1回だけ生成すればよい。
@@ -90,6 +94,26 @@ const historyClearConfirmModalElement = document.getElementById("history-clear-c
 const historyDetailBackButtonElement = document.getElementById("history-detail-back-button");
 // 詳細画面を開く直前の、履歴一覧のスクロール位置。「戻る」で一覧に戻ったときに復元する。
 let historyListScrollY = 0;
+const specialModesLinkElement = document.getElementById("special-modes-link");
+const specialModesBackButtonElement = document.getElementById("special-modes-back-button");
+const weakSongsBackButtonElement = document.getElementById("weak-songs-back-button");
+const weakSongsRulesLinkElement = document.getElementById("weak-songs-rules-link");
+const weakSongsRulesModalElement = document.getElementById("weak-songs-rules-modal");
+const weakSongsRulesModalCloseButtonElement = document.getElementById("weak-songs-rules-modal-close");
+const specialModeNoticeElement = document.getElementById("special-mode-notice");
+const backToTitleButtonElement = document.getElementById("back-to-title-button");
+const backToSpecialModesButtonElement = document.getElementById("back-to-special-modes-button");
+const backToTitleLinkFromSpecialElement = document.getElementById("back-to-title-link-from-special");
+
+// 特別モードごとの表示（結果画面の見出し・案内文、クイズ画面の進捗表示）をまとめた対応表。
+// 将来モードが増えるときは、ここに1件足すだけでよい。
+const SPECIAL_MODES_DISPLAY = {
+  weakSongs: {
+    eyebrowLabel: "WEAK SONGS",
+    progressPrefix: "🎯 苦手曲 ",
+    resultNotice: "苦手曲の判定は、通常プレイの成績によって更新されます",
+  },
+};
 const quizBackButtonElement = document.getElementById("quiz-back-button");
 const quizQuitConfirmModalElement = document.getElementById("quiz-quit-confirm-modal");
 const quizQuitCancelButtonElement = document.getElementById("quiz-quit-cancel-button");
@@ -160,6 +184,50 @@ initHistoryDetailScreen({
     startReviewQuiz(questions, { questionCountValue, categoryFilterValue });
     renderQuestion();
     showScreen("quiz");
+  },
+});
+
+// 特別モード一覧画面：モードカードがタップされたら、対応する画面を開く。
+// 【Step 1時点の注意】現在はweakSongsのみ実際に画面を開く。他のモードはis-coming-soon扱いで
+// タップ自体できないため、ここに分岐が増えることはまだない。
+initSpecialModesScreen({
+  listContainer: document.getElementById("special-modes-list"),
+  onSelectMode: (modeId) => {
+    playClickSound();
+    if (modeId === "weakSongs") {
+      renderWeakSongsScreen();
+      showScreen("weakSongs");
+    }
+  },
+});
+
+// 曲IDの配列を受け取ってクイズを組み立て、開始する共通処理。
+// 苦手曲モードだけでなく、将来のオリジナル問題作成モードなど「曲を選んでクイズを始める」系の
+// 特別モード全般で、そのまま使い回せるようにしてある（「どの曲を選ぶか」は各モードの確認画面が
+// 担当し、ここでは選ばれた曲でクイズを始めることだけに専念する）。
+// ダミー選択肢のプールは常に全曲（"all"）から選ぶ。
+function beginSpecialQuiz(songIds, questionCountValue, specialModeId) {
+  stopTimer();
+  stopAudio();
+  const distractorPool = filterSongsByCategory(SONGS, "all");
+  const questions = buildQuestionsFromSongIds(songIds, distractorPool);
+  startSpecialQuiz(questions, questionCountValue, specialModeId);
+  renderQuestion();
+  showScreen("quiz");
+}
+
+// 苦手曲モード確認画面の描画に使うDOM要素一式を渡して初期化する。
+initWeakSongsScreen({
+  availableSection: document.getElementById("weak-songs-available-section"),
+  emptyState: document.getElementById("weak-songs-empty-state"),
+  countValue: document.getElementById("weak-songs-count-value"),
+  allLabel: document.getElementById("weak-songs-all-label"),
+  chipRow: document.getElementById("weak-songs-chip-row"),
+  countNotice: document.getElementById("weak-songs-count-notice"),
+  startButton: document.getElementById("weak-songs-start-button"),
+  onStart: (songIds, questionCountValue) => {
+    playClickSound();
+    beginSpecialQuiz(songIds, questionCountValue, "weakSongs");
   },
 });
 
@@ -380,9 +448,15 @@ function renderProgressDots() {
 function renderQuestion() {
   const question = getCurrentQuestion();
   const progressLabel = `第${gameState.currentIndex + 1}問 / ${gameState.questions.length}問`;
-  // 復習中は進捗表示に「🔁 復習」を添えて、通常プレイと見分けられるようにする。
-  questionProgressElement.textContent =
-    gameState.playMode === "review" ? `🔁 復習 ${progressLabel}` : progressLabel;
+  // 復習中は進捗表示に「🔁 復習」を、特別モード中はモードごとの接頭辞を添えて、
+  // 通常プレイと見分けられるようにする。
+  let progressPrefix = "";
+  if (gameState.playMode === "review") {
+    progressPrefix = "🔁 復習 ";
+  } else if (gameState.playMode === "special") {
+    progressPrefix = SPECIAL_MODES_DISPLAY[gameState.specialModeId]?.progressPrefix ?? "";
+  }
+  questionProgressElement.textContent = `${progressPrefix}${progressLabel}`;
   renderProgressDots();
 
   choiceButtonElements.forEach((button, index) => {
@@ -431,10 +505,18 @@ function renderResult() {
   rankElement.classList.add(`rank-${rank.toLowerCase()}`);
 
   const isReview = gameState.playMode === "review";
-  resultEyebrowLabelElement.textContent = isReview ? "REVIEW" : "RESULT";
+  // 苦手曲モードなど「特別モード」も、復習と同じく自己ベスト・称号・プレイ履歴には反映しない
+  // （本人と合意済みの方針）。
+  const isSpecial = gameState.playMode === "special";
+  const specialModeDisplay = SPECIAL_MODES_DISPLAY[gameState.specialModeId];
+  resultEyebrowLabelElement.textContent = isReview
+    ? "REVIEW"
+    : isSpecial
+      ? (specialModeDisplay?.eyebrowLabel ?? "SPECIAL")
+      : "RESULT";
 
-  if (isReview) {
-    // 復習プレイは自己ベスト・称号・プレイ履歴のいずれにも反映しない。
+  if (isReview || isSpecial) {
+    // 復習プレイ・特別モードは自己ベスト・称号・プレイ履歴のいずれにも反映しない。
     // 保存処理そのものを呼ばないことに加え、前回（通常プレイ）の結果表示が
     // 残ってしまわないよう、自己ベスト欄・称号欄を明示的に隠す／空にする。
     highScoreElement.hidden = true;
@@ -443,7 +525,14 @@ function renderResult() {
       chipContainer: titleEventListElement,
       titleListLinkElement: titleListLinkFromResultElement,
     });
+
+    // 特別モードのときだけ、自己ベスト欄の代わりに「記録には反映されない」ことを伝える一言を表示する。
+    specialModeNoticeElement.hidden = !isSpecial;
+    if (isSpecial) {
+      specialModeNoticeElement.textContent = specialModeDisplay?.resultNotice ?? "";
+    }
   } else {
+    specialModeNoticeElement.hidden = true;
     const { questionCountValue, categoryFilterValue } = gameState;
     const isNewRecord = saveHighScoreIfBetter(gameState.score, questionCountValue, categoryFilterValue);
     highScoreElement.hidden = false;
@@ -489,10 +578,28 @@ function renderResult() {
   setReviewSongs(missedSongs, gameState.categoryFilterValue);
   renderMissedSongsSection(missedSongs);
 
-  // ボタン列の出し分け：「もう一度挑戦する」（通常プレイの結果）と
-  // 「通常プレイを始める」（復習の結果）は互いに排他。「タイトルに戻る」は常に表示のまま。
+  // 特別モード（苦手曲モード等）の結果画面から「間違えた曲だけ復習する」に入った場合、
+  // playModeは"review"になるが、specialModeIdはstartReviewQuiz()で書き換えられずそのまま残る。
+  // これを利用して「特別モードから来た復習」かどうかを判定する。
+  // このケースでは、復習後に「通常プレイを始める」を出すと、特別モード側のcategoryFilterValue
+  // （常にnull）を引き継いでしまい、意図しない条件で通常クイズが始まってしまう。
+  // また、一連の練習が一区切りついた流れとして、「タイトルに戻る」を主役にする方が自然なため、
+  // 「通常プレイを始める」自体を出さない。
+  const isReviewFromSpecial = isReview && gameState.specialModeId !== null;
+
+  // ボタン列の出し分け：「もう一度挑戦する」（通常プレイ・特別モードの結果）と
+  // 「通常プレイを始める」（通常プレイ発の復習の結果）は互いに排他。
+  // 副ボタンは、特別モードの結果（特別モードから来た復習を含む）だけ「特別モード一覧に戻る」を表示する。
+  // 「タイトルに戻る」は、特別モードから来た復習のときだけ主役（primary-button）にし、
+  // それ以外（通常プレイ・通常プレイ発の復習）では従来通り副ボタンのまま、
+  // 特別モード自身の結果では控えめなテキストリンク側に表示する。
   retryButtonElement.hidden = isReview;
-  returnToNormalButtonElement.hidden = !isReview;
+  returnToNormalButtonElement.hidden = !isReview || isReviewFromSpecial;
+  backToTitleButtonElement.hidden = isSpecial;
+  backToTitleButtonElement.classList.toggle("primary-button", isReviewFromSpecial);
+  backToTitleButtonElement.classList.toggle("secondary-button", !isReviewFromSpecial);
+  backToSpecialModesButtonElement.hidden = !(isSpecial || isReviewFromSpecial);
+  backToTitleLinkFromSpecialElement.hidden = !isSpecial;
 }
 
 // 4つの選択肢ボタンに、それぞれクリック時の処理を割り当てる。
@@ -546,8 +653,21 @@ revealButtonElement.addEventListener("click", handleReveal);
 
 // 「もう一度挑戦する」：スタート画面を経由せず、直前と同じ出題数・カテゴリのまま
 // クイズを再抽選して開始する。
+// 特別モードの結果では、通常のもう一度挑戦する（beginQuiz）ではなく、そのモードの判定を
+// 再計算して再開する。将来モードが増えたときは、ここに分岐を1つ足すだけでよい。
+function retrySpecialQuiz() {
+  if (gameState.specialModeId === "weakSongs") {
+    const songIds = resolveWeakSongIds(gameState.questionCountValue);
+    beginSpecialQuiz(songIds, gameState.questionCountValue, "weakSongs");
+  }
+}
+
 retryButtonElement.addEventListener("click", () => {
   playClickSound();
+  if (gameState.playMode === "special") {
+    retrySpecialQuiz();
+    return;
+  }
   stopTimer();
   stopAudio();
   beginQuiz(gameState.questionCountValue, gameState.categoryFilterValue);
@@ -582,13 +702,34 @@ reviewMissedSongsButtonElement.addEventListener("click", () => {
 });
 
 // 「タイトルに戻る」：出題数・カテゴリの選択も含めて初期状態に戻し、スタート画面へ。
-document.getElementById("back-to-title-button").addEventListener("click", () => {
-  playClickSound();
+// タイトル（スタート画面）へ戻る共通処理。「タイトルに戻る」ボタン（通常プレイ・復習の結果）と、
+// 特別モードの結果に表示する控えめなテキストリンクの、両方から呼ばれる。
+function goToTitle() {
   stopTimer();
   stopAudio();
   resetGameState();
   showScreen("start");
   updateModeBestScoreDisplay(); // 直前のプレイで自己ベストが更新されている可能性があるので表示し直す
+}
+
+backToTitleButtonElement.addEventListener("click", () => {
+  playClickSound();
+  goToTitle();
+});
+
+// 「特別モード一覧に戻る」（特別モードの結果にだけ表示）：特別モード一覧画面へ戻る。
+backToSpecialModesButtonElement.addEventListener("click", () => {
+  playClickSound();
+  stopTimer();
+  stopAudio();
+  resetGameState();
+  showScreen("specialModes");
+});
+
+// 特別モードの結果にだけ表示する、控えめな「タイトルに戻る」リンク。動きはボタン版と同じ。
+backToTitleLinkFromSpecialElement.addEventListener("click", () => {
+  playClickSound();
+  goToTitle();
 });
 
 // クイズ画面の「タイトルへ」：いきなり戻らず、必ず確認モーダルを挟む。
@@ -651,6 +792,25 @@ rulesModalElement.addEventListener("click", (event) => {
   }
 });
 
+// 苦手曲モードの判定ルール説明モーダル。開閉の仕組みはルール説明モーダルと全く同じ。
+function openWeakSongsRulesModal() {
+  playClickSound();
+  weakSongsRulesModalElement.hidden = false;
+}
+
+function closeWeakSongsRulesModal() {
+  weakSongsRulesModalElement.hidden = true;
+}
+
+weakSongsRulesLinkElement.addEventListener("click", openWeakSongsRulesModal);
+weakSongsRulesModalCloseButtonElement.addEventListener("click", closeWeakSongsRulesModal);
+
+weakSongsRulesModalElement.addEventListener("click", (event) => {
+  if (event.target === weakSongsRulesModalElement) {
+    closeWeakSongsRulesModal();
+  }
+});
+
 // 「収録曲一覧」リンク：開くたびに、最新のシングルだけ展開した状態から始める。
 songlistLinkElement.addEventListener("click", () => {
   playClickSound();
@@ -689,6 +849,24 @@ historyDetailBackButtonElement.addEventListener("click", () => {
   playClickSound();
   showScreen("history");
   window.scrollTo(0, historyListScrollY);
+});
+
+// 「特別モード」リンク：一覧画面を開く（一覧の中身は固定なので描画し直す必要はない）。
+specialModesLinkElement.addEventListener("click", () => {
+  playClickSound();
+  showScreen("specialModes");
+});
+
+// 特別モード一覧画面の「戻る」：スタート画面へ戻る。
+specialModesBackButtonElement.addEventListener("click", () => {
+  playClickSound();
+  showScreen("start");
+});
+
+// 苦手曲モード確認画面の「戻る」：特別モード一覧画面へ戻る（スタート画面まで一気には戻らない）。
+weakSongsBackButtonElement.addEventListener("click", () => {
+  playClickSound();
+  showScreen("specialModes");
 });
 
 // 出題数・カテゴリのラジオボタンが切り替わるたびに、自己ベスト表示・出題数の案内を更新する。
@@ -809,6 +987,14 @@ document.addEventListener("keydown", (event) => {
   if (!rulesModalElement.hidden) {
     if (event.key === "Escape") {
       closeRulesModal();
+    }
+    return;
+  }
+
+  // 苦手曲モードの判定ルール説明モーダルが開いているときも、同じ考え方でEscキーに対応する。
+  if (!weakSongsRulesModalElement.hidden) {
+    if (event.key === "Escape") {
+      closeWeakSongsRulesModal();
     }
     return;
   }
