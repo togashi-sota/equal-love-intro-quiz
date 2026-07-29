@@ -206,6 +206,7 @@ export const SONGS = [
   {
     id: "24-7",
     title: "24/7",
+    searchReading: "とぅうぇんてぃーふぉーせぶん",
     category: CATEGORY.UNIT_SONG,
     releaseDate: "2021-05-12",
     single: "1stアルバム「全部、内緒。」収録",
@@ -932,6 +933,7 @@ export const SONGS = [
   {
     id: "866",
     title: "866",
+    searchReading: "はちろくろく",
     category: CATEGORY.GROUP_SONG,
     releaseDate: "2019-09-12",
     single: "＝LOVE 2周年記念コンサート関連曲（配信限定）",

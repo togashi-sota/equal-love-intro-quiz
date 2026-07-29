@@ -108,13 +108,15 @@ function updateRowVisibility() {
       const checkbox = row.querySelector('input[type="checkbox"]');
       const title = row.querySelector(".song-select-title").textContent;
       // 曲名だけでなく、読み仮名（漢字を含む曲名にだけ設定されている）も検索対象にする。
-      // 読み仮名を持たない曲はdata属性が空文字列になり、includes()は常にfalseを返すため、
+      // 「の」で「お姫様の作り方」のような曲の途中に一致する曲まで出てくると分かりにくいため、
+      // 部分一致（includes）ではなく前方一致（startsWith）にしている。
+      // 読み仮名を持たない曲はdata属性が空文字列になり、startsWith()は常にfalseを返すため、
       // 曲名側の一致判定だけで自然に決まる（読み仮名の有無で分岐を書く必要はない）。
       const reading = row.dataset.searchReading;
       const matchesSearch =
         normalizedQuery === "" ||
-        normalizeForSearch(title).includes(normalizedQuery) ||
-        normalizeForSearch(reading).includes(normalizedQuery);
+        normalizeForSearch(title).startsWith(normalizedQuery) ||
+        normalizeForSearch(reading).startsWith(normalizedQuery);
       const matchesSelectedOnly = !showSelectedOnly || checkbox.checked;
       const isVisible = matchesSearch && matchesSelectedOnly;
       row.hidden = !isVisible;
