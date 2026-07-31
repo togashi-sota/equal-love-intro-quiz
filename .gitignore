@@ -2,6 +2,10 @@
 assets/audio/local/*
 !assets/audio/local/.gitkeep
 
+# 歌詞カードの画像・OCR結果・タイミングデータ（著作権保護のため、ローカル環境のみで使用し公開・コミットしない）
+assets/lyrics/local/*
+!assets/lyrics/local/.gitkeep
+
 # Claude Codeへの指示書（自分の作業メモのため非公開）
 CLAUDE.md
 
@@ -14,3 +18,7 @@ docs/サブ端末セットアップ手順.md
 
 # Claude Codeのローカルプレビュー用サーバー設定（開発環境固有のため非公開）
 .claude/
+
+# 歌詞タイミング解析用のPython環境・スクリプト（試作段階のため非公開。
+# 仮想環境（.venv）やモデルファイルなど、アプリ本体とは無関係な大きなファイルを含む）
+tools/
