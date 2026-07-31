@@ -55,6 +55,7 @@ import {
   showPresetActionBanner,
 } from "./customQuizPresetsScreen.js";
 import { importAudioFiles, getImportedSongIds } from "./audioStorage.js";
+import { analyzeLyricsFiles, saveLyricsData, getImportedLyricsSongIds } from "./lyricsStorage.js";
 
 // 背景のキラキラ演出は、ゲームの状態と関係なく最初に1回だけ生成すればよい。
 renderBackgroundSparkles();
@@ -190,6 +191,13 @@ const quizQuitConfirmButtonElement = document.getElementById("quiz-quit-confirm-
 const audioImportStatusElement = document.getElementById("audio-import-status");
 const audioImportInputElement = document.getElementById("audio-import-input");
 const audioImportResultElement = document.getElementById("audio-import-result");
+const lyricsImportStatusElement = document.getElementById("lyrics-import-status");
+const lyricsImportInputElement = document.getElementById("lyrics-import-input");
+const lyricsImportResultElement = document.getElementById("lyrics-import-result");
+const lyricsWarningPanelElement = document.getElementById("lyrics-warning-panel");
+const lyricsWarningListElement = document.getElementById("lyrics-warning-list");
+const lyricsWarningSaveButtonElement = document.getElementById("lyrics-warning-save-button");
+const lyricsWarningDiscardButtonElement = document.getElementById("lyrics-warning-discard-button");
 const updateAvailableBannerElement = document.getElementById("update-available-banner");
 const updateReloadButtonElement = document.getElementById("update-reload-button");
 
@@ -1261,6 +1269,182 @@ audioImportInputElement.addEventListener("change", async () => {
 });
 
 updateAudioImportStatus();
+
+// songIdから曲名を引く（見つからない場合はsongIdそのものを表示に使う）。
+// 歌詞インポートの結果表示・警告確認パネルで、歌詞本文の代わりに曲名を示すために使う。
+function findSongTitle(songId) {
+  const song = SONGS.find((item) => item.id === songId);
+  return song ? song.title : songId;
+}
+
+// 歌詞データの読み込み状況をスタート画面に反映する。
+// 音源の「◯/81曲」という分母付きの表示とは違い、あえて分母を出さない。
+// 歌詞データは当面すべての曲が揃う予定はないため、分母を出すと長期間「未完成」に
+// 見えてしまうのを避けるための表現上の判断（本人と合意済み）。
+async function updateLyricsImportStatus() {
+  const importedSongIds = await getImportedLyricsSongIds();
+  lyricsImportStatusElement.textContent =
+    importedSongIds.length === 0
+      ? "歌詞データ：未読み込み"
+      : `歌詞データ：${importedSongIds.length}曲分 読み込み済み`;
+}
+
+// 警告があるファイルの一覧を確認パネルへ組み立てる。
+// 歌詞本文（text）は一切表示せず、ファイル名・曲名・新規/更新・警告内容（行番号や秒数）だけを見せる。
+// innerHTMLでの文字列組み立てはファイル名に含まれる文字によって崩れる可能性があるため、
+// DOM APIで安全に組み立てる。
+function renderLyricsWarningList(warningFiles) {
+  lyricsWarningListElement.textContent = "";
+
+  warningFiles.forEach((file) => {
+    const details = document.createElement("details");
+    details.className = "lyrics-warning-item";
+
+    const summary = document.createElement("summary");
+    const songTitle = findSongTitle(file.normalizedData.songId);
+    const updateLabel = file.isUpdate ? "更新" : "新規";
+    summary.textContent = `${file.fileName}｜${songTitle}（${updateLabel}）｜警告${file.warnings.length}件`;
+    details.appendChild(summary);
+
+    const warningListElement = document.createElement("ul");
+    file.warnings.forEach((warningText) => {
+      const item = document.createElement("li");
+      item.textContent = warningText;
+      warningListElement.appendChild(item);
+    });
+    details.appendChild(warningListElement);
+
+    lyricsWarningListElement.appendChild(details);
+  });
+}
+
+// 1回のファイル選択の中で、警告確認パネルの表示中〜結果表示までの間だけ必要になる一時的な状態。
+// ファイルを選び直すたびに作り直すため、前回選択分が混ざることはない。
+let pendingLyricsWarningFiles = [];
+let pendingLyricsFailedFiles = [];
+let pendingLyricsReadyTally = { newCount: 0, updateCount: 0 };
+
+// 「問題なし／警告あり／エラー」の3行にまとめた最終結果を表示する。
+function showLyricsImportResult({ readyTally, warningOutcome, failedFiles }) {
+  const lines = [];
+
+  lines.push(
+    `問題なし：${readyTally.newCount + readyTally.updateCount}件保存（新規${readyTally.newCount}・更新${readyTally.updateCount}）`
+  );
+
+  if (warningOutcome.total > 0) {
+    lines.push(
+      warningOutcome.saved
+        ? `警告あり：${warningOutcome.total}件保存（新規${warningOutcome.newCount}・更新${warningOutcome.updateCount}）`
+        : `警告あり：${warningOutcome.total}件保存せず`
+    );
+  }
+
+  if (failedFiles.length > 0) {
+    lines.push(`エラー：${failedFiles.length}件保存失敗`);
+    failedFiles.forEach((file) => {
+      lines.push(`　- ${file.fileName}：${file.errors.join(" / ")}`);
+    });
+  }
+
+  lyricsImportResultElement.hidden = false;
+  lyricsImportResultElement.textContent = lines.join("\n");
+}
+
+// 「歌詞を読み込む」ボタン（実体は隠したinput[type=file]）でファイルが選ばれたときの処理。
+// データの解析（読み取り・正規化・検証・重複songIdの確認）はjs/lyricsStorage.jsの
+// analyzeLyricsFiles()に任せ、ここではその結果を見て「保存するかどうか」「どう表示するか」だけを扱う。
+lyricsImportInputElement.addEventListener("change", async () => {
+  const files = [...lyricsImportInputElement.files];
+  if (files.length === 0) return;
+
+  const { readyFiles, warningFiles, failedFiles } = await analyzeLyricsFiles(files);
+
+  // 警告のないファイルは、確認を待たずにその場で保存する。
+  let newCount = 0;
+  let updateCount = 0;
+  const collectedFailures = [...failedFiles];
+
+  for (const file of readyFiles) {
+    const result = await saveLyricsData(file.normalizedData);
+    if (result.saved) {
+      if (file.isUpdate) updateCount++;
+      else newCount++;
+    } else {
+      collectedFailures.push({ fileName: file.fileName, errors: result.errors });
+    }
+  }
+
+  await updateLyricsImportStatus();
+
+  pendingLyricsReadyTally = { newCount, updateCount };
+  pendingLyricsFailedFiles = collectedFailures;
+
+  if (warningFiles.length > 0) {
+    // 警告があるファイルは、1件ずつモーダルを出さず、まとめて確認してから保存するかどうかを決める。
+    pendingLyricsWarningFiles = warningFiles;
+    renderLyricsWarningList(warningFiles);
+    lyricsWarningPanelElement.hidden = false;
+    lyricsImportResultElement.hidden = true;
+  } else {
+    showLyricsImportResult({
+      readyTally: pendingLyricsReadyTally,
+      warningOutcome: { total: 0, saved: false, newCount: 0, updateCount: 0 },
+      failedFiles: pendingLyricsFailedFiles,
+    });
+  }
+
+  // 同じファイルをもう一度選んでも change イベントが発火するように、選択状態をリセットする
+  lyricsImportInputElement.value = "";
+});
+
+// 警告確認パネル：「警告があるファイルも保存する」
+lyricsWarningSaveButtonElement.addEventListener("click", async () => {
+  let warningNewCount = 0;
+  let warningUpdateCount = 0;
+
+  for (const file of pendingLyricsWarningFiles) {
+    const result = await saveLyricsData(file.normalizedData);
+    if (result.saved) {
+      if (file.isUpdate) warningUpdateCount++;
+      else warningNewCount++;
+    } else {
+      pendingLyricsFailedFiles.push({ fileName: file.fileName, errors: result.errors });
+    }
+  }
+
+  await updateLyricsImportStatus();
+  lyricsWarningPanelElement.hidden = true;
+
+  showLyricsImportResult({
+    readyTally: pendingLyricsReadyTally,
+    warningOutcome: {
+      total: pendingLyricsWarningFiles.length,
+      saved: true,
+      newCount: warningNewCount,
+      updateCount: warningUpdateCount,
+    },
+    failedFiles: pendingLyricsFailedFiles,
+  });
+
+  pendingLyricsWarningFiles = [];
+});
+
+// 警告確認パネル：「警告があるファイルは保存しない」（＝既存データはそのまま変更しない）
+lyricsWarningDiscardButtonElement.addEventListener("click", () => {
+  const discardedCount = pendingLyricsWarningFiles.length;
+  lyricsWarningPanelElement.hidden = true;
+
+  showLyricsImportResult({
+    readyTally: pendingLyricsReadyTally,
+    warningOutcome: { total: discardedCount, saved: false, newCount: 0, updateCount: 0 },
+    failedFiles: pendingLyricsFailedFiles,
+  });
+
+  pendingLyricsWarningFiles = [];
+});
+
+updateLyricsImportStatus();
 
 // PWA対応：Service Workerを登録し、新しいバージョンが使えるようになったらバナーで知らせる。
 // 黙って新しいコードに切り替えると、プレイ中に予期しない動作をする可能性があるため、

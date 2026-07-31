@@ -520,6 +520,148 @@ h1 .note-icon svg {
   display: none;
 }
 
+/* ===== 歌詞データの読み込み状況 =====
+   音源（必須）とは違い、なくても普通に遊べる任意の追加機能のため、
+   構造は.audio-import-sectionと揃えつつ、背景・縁取りを一段控えめにして
+   優先度の違いが自然に伝わるようにする。色そのものは既存のブランドカラーの範囲内で揃える。 */
+.lyrics-import-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 10px;
+  padding: 8px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.35);
+  border: 1px dashed var(--color-card-border);
+  text-align: center;
+}
+
+.lyrics-import-caption {
+  margin: 0;
+  font-size: 0.68rem;
+  color: var(--color-text);
+  opacity: 0.7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.optional-tag {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--color-secondary);
+  color: var(--color-secondary);
+  font-size: 0.62rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.lyrics-import-status {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--color-text);
+  opacity: 0.75;
+}
+
+.lyrics-import-button {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 16px;
+  border: 2px solid var(--color-secondary);
+  border-radius: 999px;
+  color: #2c6ea8;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.lyrics-import-button:active {
+  transform: scale(0.96);
+}
+
+.lyrics-import-result {
+  margin: 0;
+  font-size: 0.7rem;
+  color: var(--color-text);
+  opacity: 0.65;
+  white-space: pre-line;
+}
+
+.lyrics-import-result[hidden] {
+  display: none;
+}
+
+/* ===== 歌詞の警告確認パネル =====
+   1ファイルずつモーダルを出さず、警告があるファイルをまとめて1つのパネルに表示し、
+   「保存する/しない」をまとめて選んでもらう構成。 */
+.lyrics-warning-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  margin-top: 4px;
+  padding: 10px;
+  border-radius: 12px;
+  background: var(--color-accent-soft);
+  border: 1px solid var(--color-accent);
+  text-align: left;
+}
+
+.lyrics-warning-panel[hidden] {
+  display: none;
+}
+
+.lyrics-warning-panel-title {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.lyrics-warning-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.lyrics-warning-item {
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--color-surface);
+  font-size: 0.72rem;
+}
+
+.lyrics-warning-item summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.lyrics-warning-item ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  color: var(--color-text);
+  opacity: 0.8;
+}
+
+.lyrics-warning-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.lyrics-warning-actions .secondary-button {
+  font-size: 0.72rem;
+  padding: 8px;
+}
+
 /* ===== 新バージョン通知バナー（PWA対応） =====
    Service Workerが新しいバージョンを検知したときだけ、画面上部に表示する。
    どの画面が表示中でも常に見えるよう、game-frameの外・画面最上部に固定する。 */

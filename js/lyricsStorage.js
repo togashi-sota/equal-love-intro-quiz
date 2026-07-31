@@ -26,6 +26,10 @@ const LONG_LINE_WARNING_SEC = 20; // これより長い行は「極端に長い�
 const LONG_GAP_WARNING_SEC = 30; // 前の行のendから次の行のstartまでの間隔がこれを超えたら警告
 const MAX_REASONABLE_SONG_LENGTH_SEC = 600; // 10分。この値を超える時刻があれば「曲の想定時間を超えている可能性」として警告
 
+// 歌詞JSONは本来数十KB程度のはずなので、誤って無関係の大きなファイルを選んでも
+// 固まらないよう、1ファイルあたりの読み込み上限を設ける。
+const MAX_LYRICS_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
+
 // IndexedDBのデータベースを開く（なければ作る）。
 function openDatabase() {
   return new Promise((resolve, reject) => {
@@ -283,40 +287,149 @@ export async function deleteLyricsData(songId) {
   db.close();
 }
 
-// 選んだ複数の歌詞JSONファイルを、検証しつつまとめて保存する（差分インポートにも対応）。
-// 音源のimportAudioFiles()と同じ考え方：1ファイルごとに独立して処理するため、
-// 一部のファイルが不正な内容でも、他の正常なファイルの保存は止まらない。
+// analyzeLyricsFiles()が1ファイルずつ集めた「まだ保存していない」解析結果を、
+// 最終的な3つのグループ（保存してよい／警告あり／保存できない）へ振り分ける。
 //
-// 戻り値: { savedSongIds: string[], failedFiles: { fileName: string, reason: string }[] }
-export async function importLyricsFiles(fileList) {
-  const savedSongIds = [];
+// IndexedDBに一切触れない純粋関数のため、実際のファイル・DBを用意しなくてもテストできる。
+// ここで行う判断は「同じ選択内に同じsongIdが複数あった場合の重複除外」だけで、
+// 個々のファイルの内容そのものの正しさはvalidateLyricsData()側の役割（analyzeLyricsFiles()内で判定済み）。
+//
+// perFileResults の要素（analyzeLyricsFiles()が作る中間データ）:
+//   失敗    : { fileName, status: "failed", errors }
+//   保存可  : { fileName, status: "ready"|"warning", songId, normalizedData, warnings, isUpdate }
+export function classifyLyricsAnalysisResults(perFileResults) {
+  const readyFiles = [];
+  const warningFiles = [];
   const failedFiles = [];
 
+  // 曲ID（songId）ごとに、失敗していないファイルがいくつ選ばれているかを数える。
+  const songIdCounts = new Map();
+  for (const result of perFileResults) {
+    if (result.status === "failed") continue;
+    songIdCounts.set(result.songId, (songIdCounts.get(result.songId) || 0) + 1);
+  }
+
+  for (const result of perFileResults) {
+    if (result.status === "failed") {
+      failedFiles.push({ fileName: result.fileName, errors: result.errors });
+      continue;
+    }
+
+    // 同じ曲の歌詞データが同時に複数選択されている場合、どちらを優先すべきか自動では
+    // 判断できないため、分かりやすさを優先してどちらも保存対象から除外する（本人の方針）。
+    if (songIdCounts.get(result.songId) > 1) {
+      failedFiles.push({
+        fileName: result.fileName,
+        errors: [`同じ曲（songId: ${result.songId}）の歌詞データが同時に複数選択されています`],
+      });
+      continue;
+    }
+
+    const fileEntry = {
+      fileName: result.fileName,
+      normalizedData: result.normalizedData,
+      isUpdate: result.isUpdate,
+    };
+
+    if (result.status === "warning") {
+      warningFiles.push({ ...fileEntry, warnings: result.warnings });
+    } else {
+      readyFiles.push(fileEntry);
+    }
+  }
+
+  return { readyFiles, warningFiles, failedFiles };
+}
+
+// 選んだ複数の歌詞JSONファイルを読み取り、正規化・検証・重複songIdの確認・
+// 既存データの有無（新規／更新）の判定までを行う（＝まだ保存はしない）。
+//
+// UI側（js/main.js）は、この結果を受け取って
+// 「警告のないファイルは自動保存」「警告のあるファイルはまとめて確認してから保存」
+// といった画面表示・保存タイミングの判断だけを行う。ファイルの読み取り・JSON.parse・
+// 正規化・検証といったデータ処理は、UIを持たないこのファイル側に集約している。
+//
+// 戻り値: {
+//   readyFiles:   { fileName, normalizedData, isUpdate }[]  … 問題なし、そのまま保存してよい
+//   warningFiles: { fileName, normalizedData, isUpdate, warnings }[]  … 保存前に本人の確認が必要
+//   failedFiles:  { fileName, errors }[]  … 保存できない（JSON壊れ・検証エラー・songId重複等）
+// }
+export async function analyzeLyricsFiles(fileList) {
+  const perFileResults = [];
+
   for (const file of fileList) {
+    if (file.size > MAX_LYRICS_FILE_SIZE_BYTES) {
+      perFileResults.push({
+        fileName: file.name,
+        status: "failed",
+        errors: [`ファイルサイズが大きすぎます（上限${MAX_LYRICS_FILE_SIZE_BYTES / (1024 * 1024)}MB）`],
+      });
+      continue;
+    }
+
     let rawData;
     try {
       rawData = JSON.parse(await file.text());
     } catch (error) {
-      failedFiles.push({ fileName: file.name, reason: "JSONとして読み込めませんでした" });
+      perFileResults.push({ fileName: file.name, status: "failed", errors: ["JSONとして読み込めませんでした"] });
       continue;
     }
 
     const normalized = normalizeLyricsData(rawData);
     if (!normalized) {
-      failedFiles.push({
+      perFileResults.push({
         fileName: file.name,
-        reason: "songIdが見つからないなど、想定した形式ではありません",
+        status: "failed",
+        errors: ["songIdが見つからないなど、想定した形式ではありません"],
       });
       continue;
     }
 
-    const result = await saveLyricsData(normalized);
+    const { valid, errors, warnings } = validateLyricsData(normalized);
+    if (!valid) {
+      perFileResults.push({ fileName: file.name, status: "failed", errors });
+      continue;
+    }
+
+    const isUpdate = await hasLyricsData(normalized.songId);
+    perFileResults.push({
+      fileName: file.name,
+      status: warnings.length > 0 ? "warning" : "ready",
+      songId: normalized.songId,
+      normalizedData: normalized,
+      warnings,
+      isUpdate,
+    });
+  }
+
+  return classifyLyricsAnalysisResults(perFileResults);
+}
+
+// 選んだ複数の歌詞JSONファイルを、警告の有無に関わらずまとめて保存する簡易版。
+// 本編の歌詞インポートUI（js/main.js）は警告確認を挟むためこの関数を直接使わないが、
+// 将来「確認なしでまとめて取り込みたい」場面（開発中の一括投入など）のために残してある。
+// analyzeLyricsFiles()と同じ解析処理を再利用しており、判定ロジックの二重管理を避けている。
+//
+// 戻り値: { savedSongIds: string[], failedFiles: { fileName: string, reason: string }[] }
+export async function importLyricsFiles(fileList) {
+  const { readyFiles, warningFiles, failedFiles } = await analyzeLyricsFiles(fileList);
+  const savedSongIds = [];
+  const saveFailures = [];
+
+  for (const file of [...readyFiles, ...warningFiles]) {
+    const result = await saveLyricsData(file.normalizedData);
     if (result.saved) {
-      savedSongIds.push(normalized.songId);
+      savedSongIds.push(file.normalizedData.songId);
     } else {
-      failedFiles.push({ fileName: file.name, reason: result.errors.join(" / ") });
+      saveFailures.push({ fileName: file.fileName, reason: result.errors.join(" / ") });
     }
   }
 
-  return { savedSongIds, failedFiles };
+  return {
+    savedSongIds,
+    failedFiles: [
+      ...failedFiles.map((f) => ({ fileName: f.fileName, reason: f.errors.join(" / ") })),
+      ...saveFailures,
+    ],
+  };
 }

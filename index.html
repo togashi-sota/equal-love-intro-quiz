@@ -116,6 +116,35 @@
         <p id="audio-import-result" class="audio-import-result" hidden></p>
       </div>
 
+      <!-- 歌詞データの読み込み状況。音源とは別の任意機能（収録曲一覧の試聴時にだけ使う）のため、
+           見た目は音源より一段控えめにし、「任意」であることが伝わるようにしている
+           （js/lyricsStorage.js・js/main.js参照）。 -->
+      <div id="lyrics-import-section" class="lyrics-import-section">
+        <p class="lyrics-import-caption">
+          収録曲一覧の試聴で同期歌詞を表示できます
+          <span class="optional-tag">任意</span>
+        </p>
+        <p id="lyrics-import-status" class="lyrics-import-status">歌詞データ：未読み込み</p>
+        <label class="lyrics-import-button">
+          歌詞を読み込む
+          <input id="lyrics-import-input" type="file" accept=".json,application/json" multiple hidden>
+        </label>
+        <!-- 読み込み結果（「◯曲を保存しました」等）。普段は空・非表示 -->
+        <p id="lyrics-import-result" class="lyrics-import-result" hidden></p>
+
+        <!-- 警告があるファイルをまとめて確認するパネル。1件ずつモーダルを出さず、
+             ここに一覧表示してから、まとめて「保存する/しない」を選んでもらう。
+             警告のないファイルはこのパネルを待たずに自動保存される。 -->
+        <div id="lyrics-warning-panel" class="lyrics-warning-panel" hidden>
+          <p class="lyrics-warning-panel-title">確認が必要な歌詞データがあります</p>
+          <div id="lyrics-warning-list" class="lyrics-warning-list"></div>
+          <div class="lyrics-warning-actions">
+            <button id="lyrics-warning-save-button" type="button" class="secondary-button">警告があるファイルも保存する</button>
+            <button id="lyrics-warning-discard-button" type="button" class="secondary-button">警告があるファイルは保存しない</button>
+          </div>
+        </div>
+      </div>
+
       <!-- イコライザー風の飾り区切り。曲が流れているような臨場感を添える -->
       <div class="eq-divider" aria-hidden="true">
         <span style="--peak: 10px; animation-delay: 0s;"></span>
