@@ -10,7 +10,7 @@
 // 「上書き保存する」（同じidのまま更新）と「このセットを削除する」を表示する。
 
 import { SONGS } from "./data/songs.js";
-import { buildSongGroups, CATEGORY_PILL_INFO } from "./songlist.js";
+import { buildSongGroups, CATEGORY_PILL_INFO, normalizeForSearch, songMatchesSearch } from "./songlist.js";
 import { MIN_SONGS_REQUIRED } from "./quiz.js";
 import {
   PREVIEW_SEEK_SKIP_SECONDS,
@@ -55,22 +55,6 @@ function formatTime(totalSeconds) {
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
-// 検索用に文字列を正規化する。プリセット一覧画面（customQuizPresetsScreen.js）の
-// normalizeForSearch()（大文字/小文字・全角/半角数字の統一）に加えて、この画面では
-// 曲名の読み仮名検索（song.searchReading）と組み合わせて使うため、
-// ・カタカナ→ひらがなの統一（表記ゆれを気にせず検索できるように）
-// ・空白の無視
-// ・「・」「！」「？」など、検索の邪魔になりやすい記号の無視
-// も行う、より踏み込んだ正規化にしている。
-function normalizeForSearch(text) {
-  return text
-    .toLowerCase()
-    .replace(/[０-９]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0xfee0))
-    .replace(/[ァ-ヶ]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0x60))
-    .replace(/\s/g, "")
-    .replace(/[・！？!?「」『』"'’〜~]/g, "");
-}
-
 // 選択数・4曲未満の案内・開始/保存ボタンの有効/無効を、今の選択状況に合わせて更新する。
 function updateSelectionSummary() {
   const count = selectedSongIds.size;
@@ -95,11 +79,16 @@ function updateGroupSelectionCounts() {
 // どちらの条件も満たす行だけを表示し（AND条件）、表示する行が1つもないシングルは区分ごと隠す。
 // 絞り込みに一致した区分は、閉じたままだと該当の曲が見えないため自動的に開く
 // （一致しなくなったからといって、開いた区分を自動的に閉じることはしない）。
+// 曲名・読み仮名の一致判定は、収録曲一覧（songlist.js）のsongMatchesSearch()をそのまま使う。
+// 2画面で判定ロジックを別々に持たないことで、将来どちらかだけ仕様が
+// ずれることを防いでいる。検索結果が1曲もないときは、案内文
+// （#custom-quiz-no-results-notice）を表示する。
 // 試聴中の曲の行が絞り込みで非表示になった場合は、行が見えないままミニプレイヤーだけ
 // 残ると分かりにくいため、試聴自体を止めてミニプレイヤーも閉じる。
 function updateRowVisibility() {
   const normalizedQuery = normalizeForSearch(searchQuery);
   const hasActiveFilter = normalizedQuery !== "" || showSelectedOnly;
+  let hasAnyVisibleRow = false;
 
   elements.groupsContainer.querySelectorAll(".single-group").forEach((groupElement) => {
     let hasVisibleRow = false;
@@ -107,16 +96,9 @@ function updateRowVisibility() {
     groupElement.querySelectorAll(".song-select-row").forEach((row) => {
       const checkbox = row.querySelector('input[type="checkbox"]');
       const title = row.querySelector(".song-select-title").textContent;
-      // 曲名だけでなく、読み仮名（漢字を含む曲名にだけ設定されている）も検索対象にする。
-      // 「の」で「お姫様の作り方」のような曲の途中に一致する曲まで出てくると分かりにくいため、
-      // 部分一致（includes）ではなく前方一致（startsWith）にしている。
-      // 読み仮名を持たない曲はdata属性が空文字列になり、startsWith()は常にfalseを返すため、
-      // 曲名側の一致判定だけで自然に決まる（読み仮名の有無で分岐を書く必要はない）。
       const reading = row.dataset.searchReading;
-      const matchesSearch =
-        normalizedQuery === "" ||
-        normalizeForSearch(title).startsWith(normalizedQuery) ||
-        normalizeForSearch(reading).startsWith(normalizedQuery);
+      const aliases = row.dataset.searchAliases === "" ? [] : row.dataset.searchAliases.split("|");
+      const matchesSearch = songMatchesSearch(title, reading, aliases, normalizedQuery);
       const matchesSelectedOnly = !showSelectedOnly || checkbox.checked;
       const isVisible = matchesSearch && matchesSelectedOnly;
       row.hidden = !isVisible;
@@ -127,7 +109,10 @@ function updateRowVisibility() {
     if (hasVisibleRow && hasActiveFilter) {
       groupElement.classList.add("is-open");
     }
+    if (hasVisibleRow) hasAnyVisibleRow = true;
   });
+
+  elements.noResultsNotice.hidden = hasAnyVisibleRow;
 
   if (currentlyPreviewingRowElement && currentlyPreviewingRowElement.hidden) {
     stopPreviewAndResetUI();
@@ -223,9 +208,12 @@ export function stopCustomQuizPreview() {
 function createSongSelectRow(song) {
   const row = document.createElement("div");
   row.className = "song-select-row";
-  // 曲名検索で読み仮名も対象にできるよう、行のdata属性に持たせておく
-  // （読み仮名を持たない曲はsong.searchReadingがundefinedなので、空文字列にしておく）。
+  // 曲名検索で読み仮名・別名（愛称）も対象にできるよう、行のdata属性に持たせておく
+  // （読み仮名を持たない曲はsong.searchReadingがundefinedなので、空文字列にしておく。
+  // 別名は複数持てるよう配列（song.searchAliases）を"|"区切りの文字列にして保持する。
+  // songlist.jsの収録曲一覧の行と同じパターン）。
   row.dataset.searchReading = song.searchReading ?? "";
+  row.dataset.searchAliases = (song.searchAliases ?? []).join("|");
 
   const label = document.createElement("label");
   label.className = "song-select-label";
@@ -474,6 +462,7 @@ export function setLastStartedCustomQuizSelection(songIds, distractorMode) {
 function resetFilters() {
   searchQuery = "";
   elements.searchInput.value = "";
+  elements.searchClearButton.hidden = true;
   showSelectedOnly = false;
   elements.selectedOnlyCheckbox.checked = false;
 }
@@ -532,6 +521,8 @@ export function openCustomQuizScreenForPreset(preset) {
 //   minNotice: 4曲未満のときに表示する案内,
 //   selectAllButton, deselectAllButton: 画面全体を対象にした全曲選択/全曲解除ボタン,
 //   searchInput: 曲名検索の入力欄,
+//   searchClearButton: 検索語を消す「×」ボタン（検索語があるときだけ表示）,
+//   noResultsNotice: 検索結果が1曲もないときに表示する案内文,
 //   selectedOnlyCheckbox: 「選択済みの曲だけ表示」のチェックボックス,
 //   previewAudioElement: 試聴専用の<audio>要素,
 //   previewPlayer: 共通ミニプレイヤーの入れ物（何か試聴中のときだけ表示）,
@@ -606,7 +597,17 @@ export function initCustomQuizScreen(newElements) {
   elements.deselectAllButton.addEventListener("click", handleDeselectAllSongs);
   elements.searchInput.addEventListener("input", () => {
     searchQuery = elements.searchInput.value;
+    elements.searchClearButton.hidden = searchQuery === "";
     updateRowVisibility();
+  });
+  // 検索欄の「×」ボタン：検索語を空にし、一覧を元の状態に戻し、検索欄へフォーカスを戻す
+  // （消したあとすぐ別の語を打ち始められるようにするため。songlist.jsの検索欄と同じ挙動）。
+  elements.searchClearButton.addEventListener("click", () => {
+    searchQuery = "";
+    elements.searchInput.value = "";
+    elements.searchClearButton.hidden = true;
+    updateRowVisibility();
+    elements.searchInput.focus();
   });
   elements.selectedOnlyCheckbox.addEventListener("change", () => {
     showSelectedOnly = elements.selectedOnlyCheckbox.checked;

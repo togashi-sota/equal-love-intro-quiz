@@ -19,13 +19,44 @@ export const CATEGORY_PILL_INFO = {
   [CATEGORY.SPECIAL]: { text: CATEGORY.SPECIAL, className: "special" },
 };
 
+// 検索用に文字列を正規化する（大文字/小文字・全角/半角数字・カタカナ/ひらがな・空白・
+// 検索の邪魔になりやすい記号の違いを吸収する）。オリジナル問題作成モードの選曲画面
+// （customQuizScreen.js）でも、曲名検索の判定を完全に同じ仕様にするため、この関数と
+// 下のsongMatchesSearch()を外部公開して再利用する（2画面で別々に実装すると、
+// 将来どちらかだけ直し忘れて仕様がずれる恐れがあるため、判定ロジックを1箇所に集約する）。
+export function normalizeForSearch(text) {
+  return text
+    .toLowerCase()
+    .replace(/[０-９]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0xfee0))
+    .replace(/[ァ-ヶ]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0x60))
+    .replace(/\s/g, "")
+    .replace(/[・！？!?「」『』"'’〜~]/g, "");
+}
+
+// 曲名・読み仮名・別名（愛称）のいずれかが、正規化済みの検索語と前方一致するか判定する。
+// normalizedQueryは呼び出し側でnormalizeForSearch()済みのものを渡す想定
+// （曲ごとに何度も呼ばれるループの中で、検索語側の正規化を毎回やり直さないため）。
+// aliasesは省略可（例：「＝LOVE」に対する「国家」「こっか」のような、ファンの間の呼び方。
+// songs.jsのsearchAliasesフィールド参照）。
+export function songMatchesSearch(title, reading, aliases, normalizedQuery) {
+  if (normalizedQuery === "") return true;
+  const candidates = [title, reading ?? "", ...(aliases ?? [])];
+  return candidates.some((candidate) => normalizeForSearch(candidate).startsWith(normalizedQuery));
+}
+
 const previewAudioElement = document.getElementById("preview-audio");
 const groupsContainerElement = document.getElementById("songlist-groups");
 const totalCountElement = document.getElementById("songlist-total-count");
 const breakdownElement = document.getElementById("songlist-breakdown");
+const searchInputElement = document.getElementById("songlist-search-input");
+const searchClearButtonElement = document.getElementById("songlist-search-clear-button");
+const noResultsElement = document.getElementById("songlist-no-results-notice");
 
 // 今まさに試聴中の行のDOM要素。試聴していないときはnull。
 let currentlyPlayingRowElement = null;
+
+// 曲名検索の検索語。表示（どの行・シングルを見せるか）だけに関わる。
+let searchQuery = "";
 
 // 試聴用に作った再生用URL。次の曲に切り替える・試聴を止めるたびに解放する
 // （audio.jsのcurrentObjectUrlと同じ考え方）。
@@ -209,6 +240,12 @@ previewAudioElement.addEventListener("timeupdate", () => {
 function createTrackRow(song) {
   const row = document.createElement("div");
   row.className = "track-row";
+  // 曲名検索で読み仮名・別名（愛称）も対象にできるよう、行のdata属性に持たせておく
+  // （読み仮名を持たない曲はsong.searchReadingがundefinedなので、空文字列にしておく。
+  // 別名は複数持てるよう配列（song.searchAliases）を"|"区切りの文字列にして保持する
+  // （"|"は曲名・別名に出てこない前提。customQuizScreen.jsの選曲行と同じパターン）。
+  row.dataset.searchReading = song.searchReading ?? "";
+  row.dataset.searchAliases = (song.searchAliases ?? []).join("|");
 
   const playButton = document.createElement("button");
   playButton.type = "button";
@@ -377,11 +414,77 @@ export function renderSongList(songs) {
   });
 }
 
+// 曲名検索の検索語に合わせて、各曲行・シングル区分の表示/非表示を更新する。
+// 一致した区分は、閉じたままだと該当の曲が見えないため自動的に開く
+// （一致しなくなったからといって、開いた区分を自動的に閉じることはしない。
+// customQuizScreen.jsの絞り込みと同じ考え方）。
+// 見出しの「◯曲」チップは、絞り込み中は一致した曲数に、絞り込みがなければ
+// その区分の全曲数に、常に描画し直す（検索中に見出しの数字と実際に表示されている
+// 曲の数がずれて見えないようにするため）。
+// 検索結果が1曲もないときは、案内文（#songlist-no-results-notice）を表示する。
+// 試聴中の曲の行が検索で非表示になった場合は、行が見えないままミニプレイヤー相当の
+// 表示だけ残ると分かりにくいため、試聴自体を止める。
+function updateRowVisibility() {
+  const normalizedQuery = normalizeForSearch(searchQuery);
+  let hasAnyVisibleRow = false;
+
+  groupsContainerElement.querySelectorAll(".single-group").forEach((groupElement) => {
+    let visibleRowCount = 0;
+
+    groupElement.querySelectorAll(".track-row").forEach((row) => {
+      const title = row.querySelector(".track-title").textContent;
+      const reading = row.dataset.searchReading;
+      const aliases = row.dataset.searchAliases === "" ? [] : row.dataset.searchAliases.split("|");
+      const isVisible = songMatchesSearch(title, reading, aliases, normalizedQuery);
+      row.hidden = !isVisible;
+      if (isVisible) visibleRowCount += 1;
+    });
+
+    const hasVisibleRow = visibleRowCount > 0;
+    groupElement.hidden = !hasVisibleRow;
+    groupElement.querySelector(".track-count-chip").textContent = `${visibleRowCount}曲`;
+    if (hasVisibleRow && normalizedQuery !== "") {
+      groupElement.classList.add("is-open");
+    }
+    if (hasVisibleRow) hasAnyVisibleRow = true;
+  });
+
+  noResultsElement.hidden = hasAnyVisibleRow;
+
+  if (currentlyPlayingRowElement && currentlyPlayingRowElement.hidden) {
+    stopSongListPreview();
+  }
+}
+
+// 検索語を初期状態（空）に戻す。画面を開くたびに呼び、前回の検索を持ち越さない
+// （customQuizScreen.jsのresetFilters()と同じ考え方）。
+function resetSearch() {
+  searchQuery = "";
+  searchInputElement.value = "";
+  searchClearButtonElement.hidden = true;
+  updateRowVisibility();
+}
+
+searchInputElement.addEventListener("input", () => {
+  searchQuery = searchInputElement.value;
+  searchClearButtonElement.hidden = searchQuery === "";
+  updateRowVisibility();
+});
+
+// 検索欄の「×」ボタン：検索語を空にし、一覧を元の状態に戻し、検索欄へフォーカスを戻す
+// （消したあとすぐ別の語を打ち始められるようにするため）。
+searchClearButtonElement.addEventListener("click", () => {
+  resetSearch();
+  searchInputElement.focus();
+});
+
 // 収録曲一覧画面を開くたびに呼ぶ。最新のシングルだけ展開し、それ以外は畳んだ状態に戻す
 // （閲覧中に開閉した状態を次回に持ち越さず、毎回同じ見え方から始められるようにするため）。
+// あわせて検索語もリセットする。
 export function resetSongListToDefaultView() {
   const groupElements = groupsContainerElement.querySelectorAll(".single-group");
   groupElements.forEach((element, index) => {
     element.classList.toggle("is-open", index === 0);
   });
+  resetSearch();
 }

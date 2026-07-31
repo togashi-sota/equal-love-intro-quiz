@@ -2216,6 +2216,13 @@ fieldset label:has(input:focus-visible) {
   transition: background-color var(--transition-base) ease;
 }
 
+/* 検索で一致しない曲を隠すためのhidden属性が、display:flexに上書きされないようにする
+   （.song-select-row[hidden]と同じ対策。12章の教訓：displayを明示指定した要素に
+   hidden属性を使うときは、必ずこの上書きルールとセットにする）。 */
+.track-row[hidden] {
+  display: none;
+}
+
 .track-row.is-playing {
   background: var(--color-primary-light);
 }
@@ -3264,6 +3271,59 @@ fieldset label:has(input:focus-visible) {
 .pill-search-input:focus-visible {
   outline: 2px solid var(--color-primary-dark);
   outline-offset: 1px;
+}
+
+/* 検索欄＋「×」クリアボタンの入れ物。収録曲一覧・オリジナル問題作成モードの
+   選曲画面、両方の曲名検索で共通して使う。margin（縦の余白）は本来.pill-search-input
+   が持っていたものをこちらに移し、入力欄自体はmargin: 0にする
+   （こうしないと、上下の余白が非対称なぶん×ボタンの縦中央がずれてしまうため）。 */
+.search-field-row {
+  position: relative;
+  margin: 4px 0 14px;
+}
+
+.search-field-row .pill-search-input {
+  margin: 0;
+  padding-right: 38px;
+}
+
+/* 検索語が入っているときだけ表示する「×」ボタン。見た目の丸とクリック領域を
+   width/heightで固定したうえでdisplay:flexで×を中央揃えにする（.modal-close-buttonと同じ考え方）。
+   hidden属性とdisplay:flexが競合しないよう、[hidden]用の上書きルールを必ず用意する
+   （12章の教訓：display指定のある要素にhidden属性を使うときの定石）。 */
+.search-clear-button {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--color-text);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.search-clear-button[hidden] {
+  display: none;
+}
+
+/* 見た目の丸はそのままに、クリック判定だけを一回り広げる（.modal-close-buttonと同じ考え方）。 */
+.search-clear-button::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+}
+
+.search-clear-button:active {
+  transform: translateY(-50%) scale(0.9);
 }
 
 /* オリジナル問題作成モードの選曲画面：画面全体を対象にした一括選択ボタン。

@@ -376,6 +376,8 @@ initCustomQuizScreen({
   selectAllButton: document.getElementById("custom-quiz-select-all-button"),
   deselectAllButton: document.getElementById("custom-quiz-deselect-all-button"),
   searchInput: document.getElementById("custom-quiz-search-input"),
+  searchClearButton: document.getElementById("custom-quiz-search-clear-button"),
+  noResultsNotice: document.getElementById("custom-quiz-no-results-notice"),
   selectedOnlyCheckbox: document.getElementById("custom-quiz-selected-only-checkbox"),
   previewAudioElement: document.getElementById("custom-quiz-preview-audio"),
   previewPlayer: document.getElementById("custom-quiz-preview-player"),

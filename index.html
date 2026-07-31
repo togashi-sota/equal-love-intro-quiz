@@ -396,8 +396,18 @@
       <!-- カテゴリ別の内訳チップ。中身はjs/songlist.jsがSONGSから自動集計して組み立てる -->
       <div id="songlist-breakdown" class="breakdown-chip-row"></div>
 
+      <!-- 曲名で絞り込む検索欄。オリジナル問題作成モードの選曲画面の検索欄と
+           見た目・仕様（曲名/読み仮名・前方一致・かな/全角半角の吸収）を揃えている -->
+      <div class="search-field-row">
+        <input type="text" id="songlist-search-input" class="pill-search-input" placeholder="曲名で検索" aria-label="曲名で検索">
+        <button id="songlist-search-clear-button" class="search-clear-button" type="button" aria-label="検索語をクリア" hidden>×</button>
+      </div>
+
       <!-- シングル単位のアコーディオン本体。中身はjs/songlist.jsが組み立てる -->
       <div id="songlist-groups"></div>
+
+      <!-- 検索結果が1曲もないときだけ表示する案内 -->
+      <p id="songlist-no-results-notice" class="question-count-notice" hidden>該当する曲が見つかりませんでした</p>
 
       <!-- 試聴専用の音源要素。クイズ本編（#intro-audio）とは完全に分けている -->
       <audio id="preview-audio"></audio>
@@ -696,8 +706,11 @@
         <button id="custom-quiz-deselect-all-button" class="single-group-bulk-button" type="button">全曲解除</button>
       </div>
 
-      <!-- 曲名で絞り込む検索欄。プリセット一覧の検索欄と見た目を揃える -->
-      <input type="text" id="custom-quiz-search-input" class="pill-search-input" placeholder="曲名で検索">
+      <!-- 曲名で絞り込む検索欄。収録曲一覧の検索欄と見た目・仕様を揃える -->
+      <div class="search-field-row">
+        <input type="text" id="custom-quiz-search-input" class="pill-search-input" placeholder="曲名で検索" aria-label="曲名で検索">
+        <button id="custom-quiz-search-clear-button" class="search-clear-button" type="button" aria-label="検索語をクリア" hidden>×</button>
+      </div>
 
       <!-- 選択済みの曲だけを表示する絞り込み。今どの曲を選んでいるか確認しやすくする -->
       <label class="custom-quiz-selected-only-toggle">
@@ -707,6 +720,9 @@
 
       <!-- シングル単位のアコーディオン。中身はjs/customQuizScreen.jsが組み立てる -->
       <div id="custom-quiz-groups"></div>
+
+      <!-- 検索結果が1曲もないときだけ表示する案内 -->
+      <p id="custom-quiz-no-results-notice" class="question-count-notice" hidden>該当する曲が見つかりませんでした</p>
 
       <!-- 4曲未満のときだけ表示する案内。既存の出題数案内と同じ見た目にする -->
       <p id="custom-quiz-min-notice" class="question-count-notice">クイズを作るには4曲以上選んでください</p>
