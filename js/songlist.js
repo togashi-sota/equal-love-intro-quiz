@@ -33,15 +33,35 @@ export function normalizeForSearch(text) {
     .replace(/[・！？!?「」『』"'’〜~]/g, "");
 }
 
-// 曲名・読み仮名・別名（愛称）のいずれかが、正規化済みの検索語と前方一致するか判定する。
+// 曲名・読み仮名・別名（愛称）が検索語と一致するか判定する。
+// 正式な曲名・読み仮名（title・reading）は前方一致、略称・愛称（aliases）は完全一致、
+// と一致条件をあえて分けている。略称は読みが短いものが多く、前方一致のままだと
+// 「あ」で「青サブ」の読み「あおさぶ」まで拾ってしまうなど、正式名称の検索結果に
+// 略称由来の意図しない曲が紛れ込みやすいため（実際にこの不具合が発生し、この仕様に変更した）。
 // normalizedQueryは呼び出し側でnormalizeForSearch()済みのものを渡す想定
 // （曲ごとに何度も呼ばれるループの中で、検索語側の正規化を毎回やり直さないため）。
-// aliasesは省略可（例：「＝LOVE」に対する「国家」「こっか」のような、ファンの間の呼び方。
-// songs.jsのsearchAliasesフィールド参照）。
+// aliasesは省略可（例：「青春"サブリミナル"」に対する「青サブ」のような、ファンの間の呼び方。
+// songs.jsのsearchAliasesフィールド参照）。配列の要素は、文字列（カタカナ・ひらがな・
+// 英字だけの別名）と、{ text, reading }オブジェクト（漢字を含む別名。readingにひらがな
+// 表記を添える）のどちらも混在できる。カタカナ⇔ひらがなの違いはnormalizeForSearch()が
+// 吸収するため、完全一致であっても「あおさぶ」で「アオサブ」を探す、といったことは可能。
 export function songMatchesSearch(title, reading, aliases, normalizedQuery) {
   if (normalizedQuery === "") return true;
-  const candidates = [title, reading ?? "", ...(aliases ?? [])];
-  return candidates.some((candidate) => normalizeForSearch(candidate).startsWith(normalizedQuery));
+
+  const officialCandidates = [title, reading ?? ""];
+  if (officialCandidates.some((candidate) => normalizeForSearch(candidate).startsWith(normalizedQuery))) {
+    return true;
+  }
+
+  return (aliases ?? []).some((alias) => {
+    if (typeof alias === "string") {
+      return normalizeForSearch(alias) === normalizedQuery;
+    }
+    return (
+      normalizeForSearch(alias.text) === normalizedQuery ||
+      (alias.reading && normalizeForSearch(alias.reading) === normalizedQuery)
+    );
+  });
 }
 
 const previewAudioElement = document.getElementById("preview-audio");
@@ -242,10 +262,10 @@ function createTrackRow(song) {
   row.className = "track-row";
   // 曲名検索で読み仮名・別名（愛称）も対象にできるよう、行のdata属性に持たせておく
   // （読み仮名を持たない曲はsong.searchReadingがundefinedなので、空文字列にしておく。
-  // 別名は複数持てるよう配列（song.searchAliases）を"|"区切りの文字列にして保持する
-  // （"|"は曲名・別名に出てこない前提。customQuizScreen.jsの選曲行と同じパターン）。
+  // 別名は文字列と{ text, reading }オブジェクトが混在する配列のため、JSON文字列として
+  // 保持する。customQuizScreen.jsの選曲行と同じパターン）。
   row.dataset.searchReading = song.searchReading ?? "";
-  row.dataset.searchAliases = (song.searchAliases ?? []).join("|");
+  row.dataset.searchAliases = JSON.stringify(song.searchAliases ?? []);
 
   const playButton = document.createElement("button");
   playButton.type = "button";
@@ -434,7 +454,7 @@ function updateRowVisibility() {
     groupElement.querySelectorAll(".track-row").forEach((row) => {
       const title = row.querySelector(".track-title").textContent;
       const reading = row.dataset.searchReading;
-      const aliases = row.dataset.searchAliases === "" ? [] : row.dataset.searchAliases.split("|");
+      const aliases = JSON.parse(row.dataset.searchAliases);
       const isVisible = songMatchesSearch(title, reading, aliases, normalizedQuery);
       row.hidden = !isVisible;
       if (isVisible) visibleRowCount += 1;

@@ -97,7 +97,7 @@ function updateRowVisibility() {
       const checkbox = row.querySelector('input[type="checkbox"]');
       const title = row.querySelector(".song-select-title").textContent;
       const reading = row.dataset.searchReading;
-      const aliases = row.dataset.searchAliases === "" ? [] : row.dataset.searchAliases.split("|");
+      const aliases = JSON.parse(row.dataset.searchAliases);
       const matchesSearch = songMatchesSearch(title, reading, aliases, normalizedQuery);
       const matchesSelectedOnly = !showSelectedOnly || checkbox.checked;
       const isVisible = matchesSearch && matchesSelectedOnly;
@@ -210,10 +210,10 @@ function createSongSelectRow(song) {
   row.className = "song-select-row";
   // 曲名検索で読み仮名・別名（愛称）も対象にできるよう、行のdata属性に持たせておく
   // （読み仮名を持たない曲はsong.searchReadingがundefinedなので、空文字列にしておく。
-  // 別名は複数持てるよう配列（song.searchAliases）を"|"区切りの文字列にして保持する。
-  // songlist.jsの収録曲一覧の行と同じパターン）。
+  // 別名は文字列と{ text, reading }オブジェクトが混在する配列のため、JSON文字列として
+  // 保持する。songlist.jsの収録曲一覧の行と同じパターン）。
   row.dataset.searchReading = song.searchReading ?? "";
-  row.dataset.searchAliases = (song.searchAliases ?? []).join("|");
+  row.dataset.searchAliases = JSON.stringify(song.searchAliases ?? []);
 
   const label = document.createElement("label");
   label.className = "song-select-label";
