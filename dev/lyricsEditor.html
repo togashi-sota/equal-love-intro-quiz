@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>【開発用】歌詞タイミング編集ツール</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap" rel="stylesheet">
+
+  <!-- 色・フォント等の共通トークン（CSS変数）を再利用するため、本編と同じスタイルシートを読み込む。
+       ただしこのページ専用のレイアウト（表形式の行編集など）は、下の<style>にまとめて自己完結させ、
+       本編用のcss/style.cssには一切追記しない（本編が使わないクラスで肥大化させないため）。 -->
+  <link rel="stylesheet" href="../css/style.css">
+
+  <style>
+    body {
+      /* css/style.css側の本編用スタイルが、bodyを「display: flex」で中央寄せする指定を
+         持っているため、このページではそれを打ち消して通常の縦積みレイアウトに戻す
+         （打ち消し忘れると、各セクションが縦ではなく横に並んでしまう）。 */
+      display: block;
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 16px;
+      font-family: "M PLUS Rounded 1c", sans-serif;
+      color: var(--color-text);
+      /* 個々の要素の幅計算がずれても、ページ全体が横にスクロールしてしまわないための保険。
+         横に長い表（#editor-lines-table）だけは.editor-table-scroll側で個別にスクロールさせる。 */
+      overflow-x: hidden;
+    }
+
+    .editor-warning-banner {
+      text-align: center;
+      color: #c33;
+      font-weight: bold;
+      background: #fff3f3;
+      padding: 10px;
+      margin: 0 0 20px;
+      border-radius: 8px;
+    }
+
+    .editor-section {
+      margin-bottom: 20px;
+      padding: 14px;
+      border-radius: 12px;
+      background: var(--color-surface-glass);
+      border: 1px solid var(--color-card-border);
+    }
+
+    .editor-section h2 {
+      margin: 0 0 10px;
+      font-size: 1rem;
+    }
+
+    .editor-row-inline {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    /* ネイティブのselectは、一番長い選択肢のテキストに合わせて自分の幅を広げようとするため、
+       明示的に上限を付けないとページ全体を横に押し広げてしまう。 */
+    #editor-song-select {
+      display: block;
+      width: 100%;
+      max-width: 100%;
+      margin-bottom: 8px;
+    }
+
+    .editor-status {
+      font-size: 0.8rem;
+      white-space: pre-line;
+    }
+
+    .editor-status.is-error {
+      color: #c33;
+    }
+
+    .editor-status.is-success {
+      color: #1b7a3d;
+    }
+
+    #editor-audio {
+      width: 100%;
+    }
+
+    .editor-table-scroll {
+      width: 100%;
+      overflow-x: auto;
+    }
+
+    #editor-lines-table {
+      width: 100%;
+      min-width: 480px;
+      border-collapse: collapse;
+      font-size: 0.78rem;
+    }
+
+    #editor-lines-table th,
+    #editor-lines-table td {
+      padding: 4px 6px;
+      border-bottom: 1px solid var(--color-card-border);
+      text-align: left;
+    }
+
+    #editor-lines-table tr.is-current-editor-line {
+      background: var(--color-accent-soft);
+    }
+
+    .editor-time-input {
+      width: 64px;
+      font-size: 0.75rem;
+    }
+
+    .editor-nudge-button,
+    .editor-set-now-button {
+      font-size: 0.68rem;
+      padding: 2px 6px;
+      border-radius: 6px;
+      border: 1px solid var(--color-primary);
+      background: var(--color-surface);
+      color: var(--color-primary-dark);
+      cursor: pointer;
+    }
+
+    .editor-line-text {
+      max-width: 220px;
+      overflow-wrap: break-word;
+    }
+  </style>
+</head>
+<body>
+  <p class="editor-warning-banner">
+    【開発用】歌詞タイミング編集ツール — 本編（index.html）とは別の、本人専用の確認・編集ページです
+  </p>
+
+  <div class="editor-section">
+    <h2>1. 曲を選ぶ</h2>
+    <!-- selectは選択肢の文字幅で広がりやすいため、あえてflex行に入れず
+         ブロック要素として単独の行にし、幅の計算をシンプルにしている。 -->
+    <select id="editor-song-select"></select>
+    <div class="editor-row-inline">
+      <button id="editor-load-button" type="button">この曲を読み込む</button>
+    </div>
+    <p id="editor-load-status" class="editor-status"></p>
+  </div>
+
+  <div class="editor-section">
+    <h2>2. 外部JSONから読み込む（任意）</h2>
+    <p class="editor-status">解析ツール（tools/lyrics-pipeline）が出力したJSON、またはこのツールでエクスポートしたJSONを読み込み、編集対象の行として差し替えます。1で選んだ曲のsongIdと一致している必要があります。</p>
+    <input id="editor-json-input" type="file" accept=".json,application/json">
+    <p id="editor-json-status" class="editor-status"></p>
+  </div>
+
+  <div class="editor-section">
+    <h2>3. 再生・タイミング調整</h2>
+    <audio id="editor-audio" controls></audio>
+    <p id="editor-current-time" class="editor-status">現在の再生位置：0.00秒</p>
+    <!-- スマホ幅など横に狭い画面では、ページ全体ではなくこの入れ物の中だけを
+         横スクロールさせる（本編と同じ、幅の広いコンテンツの扱い方）。 -->
+    <div class="editor-table-scroll">
+      <table id="editor-lines-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>歌詞</th>
+            <th>start</th>
+            <th>end</th>
+          </tr>
+        </thead>
+        <tbody id="editor-lines-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="editor-section">
+    <h2>4. 保存・書き出し</h2>
+    <div class="editor-row-inline">
+      <button id="editor-save-button" type="button">IndexedDBへ保存する</button>
+      <button id="editor-export-button" type="button">JSONとして書き出す</button>
+    </div>
+    <p id="editor-save-status" class="editor-status"></p>
+  </div>
+
+  <script type="module" src="./lyricsEditor.js"></script>
+</body>
+</html>
