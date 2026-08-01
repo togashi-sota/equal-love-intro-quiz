@@ -1625,3 +1625,65 @@ document.addEventListener("keydown", (event) => {
     }
   }
 });
+
+// ==========================================================================
+// 【一時的な調査用コード】DEBUG_SAFE_AREA_INFO_V2
+// セーフエリア修正後もヘッダーが上に寄りすぎる原因を切り分けるための、
+// 画面下部のデバッグ表示（操作の邪魔にならないよう下部・pointer-events:noneで配置）。
+// 今表示中の画面に応じて0.5秒ごとに自動更新するため、実際に各画面を開きながら
+// 確認できる。歌詞本文・音源名・タイミングJSONなど著作権に関わる情報は
+// 一切表示しない。原因特定後は、このブロックごと必ず削除すること。
+// ==========================================================================
+(function DEBUG_SAFE_AREA_INFO_V2() {
+  const APP_BUILD_LABEL = "debug-v35";
+
+  function measureTop(selector) {
+    const el = document.querySelector(selector);
+    if (!el) return "要素なし";
+    const rect = el.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) return "非表示";
+    return `${rect.top.toFixed(1)}px`;
+  }
+
+  function getRawSafeAreaTop() {
+    const probeElement = document.createElement("div");
+    probeElement.style.cssText = "position:fixed; padding-top:env(safe-area-inset-top); opacity:0; pointer-events:none;";
+    document.body.appendChild(probeElement);
+    const value = getComputedStyle(probeElement).paddingTop;
+    document.body.removeChild(probeElement);
+    return value;
+  }
+
+  const debugBarElement = document.createElement("div");
+  debugBarElement.id = "debug-safe-area-bar";
+  debugBarElement.style.cssText =
+    "position:fixed; bottom:0; left:0; right:0; z-index:9999; background:rgba(0,0,0,0.85); color:#caff00; " +
+    "font-size:9px; line-height:1.4; padding:6px 8px; pointer-events:none; " +
+    "white-space:pre-wrap; font-family:monospace; max-height:55vh; overflow:hidden;";
+  document.body.appendChild(debugBarElement);
+
+  function updateDebugInfo() {
+    const visualViewportInfo = window.visualViewport ? `${window.visualViewport.offsetTop}` : "未対応";
+    const lines = [
+      `build=${APP_BUILD_LABEL}`,
+      `env(safe-area-inset-top)=${getRawSafeAreaTop()}`,
+      `body padding-top=${getComputedStyle(document.body).paddingTop}`,
+      `.game-frame top=${measureTop(".game-frame")}`,
+      `start h1 top=${measureTop("#start-screen h1")}`,
+      `start eyebrow-chip top=${measureTop("#start-screen .eyebrow-chip")}`,
+      `songlist back top=${measureTop("#songlist-back-button")}`,
+      `songlist h2 top=${measureTop("#songlist-screen h2")}`,
+      `customQuiz back top=${measureTop("#custom-quiz-presets-back-button")}`,
+      `customQuiz h2 top=${measureTop("#custom-quiz-presets-screen h2")}`,
+      `customQuiz rules top=${measureTop("#custom-quiz-presets-rules-link")}`,
+      `weakSongs back top=${measureTop("#weak-songs-back-button")}`,
+      `display-mode=${window.matchMedia("(display-mode: standalone)").matches ? "standalone" : "browser"}`,
+      `innerW/H=${window.innerWidth}/${window.innerHeight}`,
+      `visualViewport.offsetTop=${visualViewportInfo}`,
+    ];
+    debugBarElement.textContent = lines.join("\n");
+  }
+
+  updateDebugInfo();
+  setInterval(updateDebugInfo, 500);
+})();
