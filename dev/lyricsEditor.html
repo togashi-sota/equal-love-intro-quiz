@@ -130,6 +130,60 @@
       max-width: 220px;
       overflow-wrap: break-word;
     }
+
+    #editor-saved-list-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.78rem;
+      margin-top: 8px;
+    }
+
+    #editor-saved-list-table th,
+    #editor-saved-list-table td {
+      padding: 4px 6px;
+      border-bottom: 1px solid var(--color-card-border);
+      text-align: left;
+    }
+
+    .editor-delete-row-button {
+      font-size: 0.7rem;
+      padding: 3px 10px;
+      border-radius: 999px;
+      border: 1px solid #c33;
+      background: var(--color-surface);
+      color: #c33;
+      cursor: pointer;
+    }
+
+    /* 削除確認モーダル。本編のモーダル（.modal-overlay）と同じく、背景全体を覆う半透明の層＋
+       中央のカードという構成にする。 */
+    .editor-delete-confirm-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    /* displayの指定がhidden属性より優先されてしまう問題への対策（12章の教訓を踏襲） */
+    .editor-delete-confirm-modal[hidden] {
+      display: none;
+    }
+
+    .editor-delete-confirm-card {
+      max-width: 320px;
+      padding: 20px;
+      border-radius: 12px;
+      background: var(--color-surface);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+    }
+
+    #editor-delete-confirm-message {
+      margin: 0 0 14px;
+      font-size: 0.85rem;
+    }
   </style>
 </head>
 <body>
@@ -183,6 +237,37 @@
       <button id="editor-export-button" type="button">JSONとして書き出す</button>
     </div>
     <p id="editor-save-status" class="editor-status"></p>
+  </div>
+
+  <div class="editor-section">
+    <h2>5. 保存済みの歌詞データを管理する</h2>
+    <div class="editor-row-inline">
+      <button id="editor-refresh-list-button" type="button">一覧を更新する</button>
+    </div>
+    <table id="editor-saved-list-table">
+      <thead>
+        <tr>
+          <th>曲</th>
+          <th>行数</th>
+          <th>最終更新</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="editor-saved-list-tbody"></tbody>
+    </table>
+    <p id="editor-manage-status" class="editor-status"></p>
+  </div>
+
+  <!-- 削除確認モーダル。オリジナル問題作成モードのプリセット削除確認と同じ、
+       「背景クリック・Escキーでも閉じる」パターンを踏襲する。 -->
+  <div id="editor-delete-confirm-modal" class="editor-delete-confirm-modal" hidden>
+    <div class="editor-delete-confirm-card">
+      <p id="editor-delete-confirm-message"></p>
+      <div class="editor-row-inline">
+        <button id="editor-delete-cancel-button" type="button">キャンセル</button>
+        <button id="editor-delete-confirm-button" type="button">削除する</button>
+      </div>
+    </div>
   </div>
 
   <script type="module" src="./lyricsEditor.js"></script>

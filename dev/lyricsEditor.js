@@ -11,7 +11,13 @@
 
 import { SONGS } from "../js/data/songs.js";
 import { getAudioBlob } from "../js/audioStorage.js";
-import { getLyricsData, saveLyricsData, normalizeLyricsData } from "../js/lyricsStorage.js";
+import {
+  getLyricsData,
+  saveLyricsData,
+  normalizeLyricsData,
+  getImportedLyricsSongIds,
+  deleteLyricsData,
+} from "../js/lyricsStorage.js";
 import { findActiveLineIndex } from "../js/lyricsSync.js";
 
 const songSelectElement = document.getElementById("editor-song-select");
@@ -25,6 +31,13 @@ const linesTbodyElement = document.getElementById("editor-lines-tbody");
 const saveButtonElement = document.getElementById("editor-save-button");
 const exportButtonElement = document.getElementById("editor-export-button");
 const saveStatusElement = document.getElementById("editor-save-status");
+const refreshListButtonElement = document.getElementById("editor-refresh-list-button");
+const savedListTbodyElement = document.getElementById("editor-saved-list-tbody");
+const manageStatusElement = document.getElementById("editor-manage-status");
+const deleteConfirmModalElement = document.getElementById("editor-delete-confirm-modal");
+const deleteConfirmMessageElement = document.getElementById("editor-delete-confirm-message");
+const deleteCancelButtonElement = document.getElementById("editor-delete-cancel-button");
+const deleteConfirmButtonElement = document.getElementById("editor-delete-confirm-button");
 
 // 微調整ボタンの刻み幅（秒）。10-15章で挙がっていた「±0.1秒／±0.5秒」に対応する。
 const NUDGE_AMOUNTS_SEC = [-0.5, -0.1, 0.1, 0.5];
@@ -33,6 +46,13 @@ let currentSongId = null;
 let currentLines = []; // { line, text, start, end }（編集中の、まだ保存していない可能性がある内容）
 let currentAudioObjectUrl = null;
 let activeRowIndex = -1;
+let pendingDeleteSongId = null; // 削除確認モーダルを表示している間だけ、対象のsongIdを保持する
+
+// songIdから曲名を引く（見つからない場合はsongIdそのものを表示に使う）。
+function findSongTitle(songId) {
+  const song = SONGS.find((item) => item.id === songId);
+  return song ? song.title : songId;
+}
 
 // 曲選択欄を組み立てる（songs.jsのSONGS配列から、id・titleだけを使う。歌詞本文は使わない）。
 SONGS.forEach((song) => {
@@ -259,6 +279,8 @@ saveButtonElement.addEventListener("click", async () => {
 
   const warningText = result.warnings.length > 0 ? `\n警告：\n${result.warnings.join("\n")}` : "";
   setStatus(saveStatusElement, `保存しました（${currentLines.length}行）${warningText}`, "is-success");
+
+  renderSavedList();
 });
 
 // 「JSONとして書き出す」：バックアップ・Git管理外での保管・別端末への持ち出し用。
@@ -283,3 +305,94 @@ exportButtonElement.addEventListener("click", () => {
 
   URL.revokeObjectURL(url);
 });
+
+// ===== 5. 保存済みの歌詞データを管理する =====
+// 「上書き」自体はStep2〜4の保存処理（put()による全置き換え）ですでに実現できているため、
+// Step5でこの節が新しく担うのは「今どの曲にデータがあるかの一覧表示」と「削除」だけでよい。
+
+function formatUpdatedAt(timestampMs) {
+  if (typeof timestampMs !== "number") return "-";
+  return new Date(timestampMs).toLocaleString("ja-JP");
+}
+
+// 保存済みの歌詞データを一覧に描画し直す。ページを開いたとき・保存/削除の直後に呼ぶ。
+async function renderSavedList() {
+  const songIds = await getImportedLyricsSongIds();
+  savedListTbodyElement.textContent = "";
+
+  for (const songId of songIds) {
+    const record = await getLyricsData(songId);
+    const row = document.createElement("tr");
+
+    const titleCell = document.createElement("td");
+    titleCell.textContent = `${findSongTitle(songId)}（${songId}）`;
+    row.appendChild(titleCell);
+
+    const lineCountCell = document.createElement("td");
+    lineCountCell.textContent = record ? record.lines.length : "-";
+    row.appendChild(lineCountCell);
+
+    const updatedAtCell = document.createElement("td");
+    updatedAtCell.textContent = record ? formatUpdatedAt(record.updatedAt) : "-";
+    row.appendChild(updatedAtCell);
+
+    const actionCell = document.createElement("td");
+    const deleteRowButton = document.createElement("button");
+    deleteRowButton.type = "button";
+    deleteRowButton.className = "editor-delete-row-button";
+    deleteRowButton.textContent = "削除する";
+    deleteRowButton.addEventListener("click", () => openDeleteConfirmModal(songId));
+    actionCell.appendChild(deleteRowButton);
+    row.appendChild(actionCell);
+
+    savedListTbodyElement.appendChild(row);
+  }
+
+  setStatus(manageStatusElement, `保存済み：${songIds.length}曲`, null);
+}
+
+function openDeleteConfirmModal(songId) {
+  pendingDeleteSongId = songId;
+  deleteConfirmMessageElement.textContent = `「${findSongTitle(songId)}」の歌詞データを削除します。この操作は取り消せません。よろしいですか？`;
+  deleteConfirmModalElement.hidden = false;
+}
+
+function closeDeleteConfirmModal() {
+  deleteConfirmModalElement.hidden = true;
+  pendingDeleteSongId = null;
+}
+
+async function handleDeleteConfirmed() {
+  const songId = pendingDeleteSongId;
+  closeDeleteConfirmModal();
+  if (!songId) return;
+
+  await deleteLyricsData(songId);
+
+  // 今まさに編集中の曲を削除した場合は、編集画面にも古い内容が残らないようにする
+  // （削除したはずのデータを、うっかりそのまま「保存する」で復活させてしまわないため）。
+  if (songId === currentSongId) {
+    currentLines = [];
+    renderLinesTable();
+    setStatus(loadStatusElement, "歌詞データを削除しました（音源の読み込み状態は維持されています）", null);
+  }
+
+  setStatus(manageStatusElement, `「${findSongTitle(songId)}」の歌詞データを削除しました`, "is-success");
+  renderSavedList();
+}
+
+refreshListButtonElement.addEventListener("click", renderSavedList);
+deleteCancelButtonElement.addEventListener("click", closeDeleteConfirmModal);
+deleteConfirmButtonElement.addEventListener("click", handleDeleteConfirmed);
+deleteConfirmModalElement.addEventListener("click", (event) => {
+  if (event.target === deleteConfirmModalElement) {
+    closeDeleteConfirmModal();
+  }
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape") return;
+  if (deleteConfirmModalElement.hidden) return;
+  closeDeleteConfirmModal();
+});
+
+renderSavedList();
