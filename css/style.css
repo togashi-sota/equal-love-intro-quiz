@@ -58,6 +58,16 @@ body {
   padding: 40px 16px;
 }
 
+/* 歌詞の全画面表示（js/lyricsFullscreen.js）が開いている間、背後の画面がスクロールしないように
+   bodyを固定する。開く直前のスクロール位置はJS側でtopに焼き込み、閉じるときに解除して復元する
+   （iOS Safari/PWAでoverflow:hiddenだけでは背景スクロールが抜けてしまう対策）。 */
+body.has-fullscreen-lyrics-open {
+  position: fixed;
+  left: 0;
+  right: 0;
+  overflow: hidden;
+}
+
 /* ===== 背景演出 =====
    うっすらギンガムチェック・ステージライトのようににじむ光・ぼかしたレコード盤・キラキラの粒で、
    ＝LOVEらしい華やかさと音楽ゲームらしさを、カードの外側（背景）で表現する。 */
@@ -675,7 +685,9 @@ h1 .note-icon svg {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  padding: 10px 16px;
+  /* viewport-fit=cover対応：Dynamic Island・ノッチと重ならないよう、上だけセーフエリア分の
+     余白を確保する（対応端末以外ではenv()が0扱いになり、通常の10pxのまま） */
+  padding: max(10px, env(safe-area-inset-top)) 16px 10px;
   background: var(--color-primary-dark);
   color: #ffffff;
   font-size: 0.8rem;
@@ -2497,6 +2509,31 @@ fieldset label:has(input:focus-visible) {
   transform: scale(0.9);
 }
 
+/* 歌詞の全画面表示を開くボタン。±10秒ボタンと同じ行に収める小さいアイコンボタン。 */
+.lyrics-fullscreen-open-button {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--color-surface);
+  color: var(--color-primary-dark);
+  cursor: pointer;
+}
+
+.lyrics-fullscreen-open-button svg {
+  width: 13px;
+  height: 13px;
+}
+
+.lyrics-fullscreen-open-button:active {
+  transform: scale(0.9);
+}
+
 /* ===== 同期歌詞パネル（試聴中の歌詞表示、収録曲一覧・オリジナル問題作成モード共通） =====
    歌詞データがある曲を再生したときだけ、js/lyricsSync.jsが行を描画してhiddenを解除する。
    スマホでも操作ボタンを圧迫しないよう、高さを固定してスクロール領域にする。 */
@@ -2622,6 +2659,143 @@ fieldset label:has(input:focus-visible) {
   50% {
     height: 10px;
   }
+}
+
+/* ===== 歌詞の全画面表示オーバーレイ =====
+   既存の.modal-overlay（中央に小さいカードを出す用）とは別に新設。
+   一覧内の同期歌詞パネル（.synced-lyrics-panel）を、開いている間だけこの中へ移動して表示する
+   （js/lyricsFullscreen.js）。新しいaudio要素・新しい歌詞DOMはここでは作らない。 */
+.lyrics-fullscreen-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40; /* 更新通知バナー（z-index:30）よりもさらに手前に表示する */
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(135deg, var(--color-background-start), var(--color-background-end));
+  box-sizing: border-box;
+  overflow: hidden; /* 万が一の横はみ出しを防ぐ最終防衛ライン */
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+    max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+}
+
+.lyrics-fullscreen-overlay[hidden] {
+  display: none;
+}
+
+.lyrics-fullscreen-header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+}
+
+.lyrics-fullscreen-title {
+  margin: 0;
+  min-width: 0; /* text-overflow:ellipsisをflexアイテムで効かせるための定番指定 */
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lyrics-fullscreen-close-button {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.lyrics-fullscreen-close-button:active {
+  transform: scale(0.92);
+}
+
+/* 歌詞エリアは、ヘッダーと下部操作バーの間の残り全部を使う */
+.lyrics-fullscreen-lyrics-slot {
+  flex: 1;
+  min-height: 0; /* flexアイテム内でoverflow-y:autoを効かせるための定番指定 */
+  display: flex;
+}
+
+/* パネル自体は既存の.synced-lyrics-panelのまま。全画面のときだけ、このクラスで見た目を上書きする。
+   文字サイズ・行間は、まず1.15〜1.25rem程度を基準にする（実機確認後に調整予定）。 */
+.synced-lyrics-panel.is-fullscreen-lyrics {
+  flex: 1;
+  max-height: none;
+  margin-top: 0;
+  padding: 12px 14px;
+}
+
+.synced-lyrics-panel.is-fullscreen-lyrics .synced-lyrics-line {
+  font-size: 1.2rem;
+  line-height: 2;
+  padding: 6px 4px;
+}
+
+.lyrics-fullscreen-controls {
+  flex: none;
+  padding-top: 12px;
+}
+
+.lyrics-fullscreen-seek-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lyrics-fullscreen-time {
+  flex: none;
+  font-size: 0.75rem;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.lyrics-fullscreen-buttons {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  margin-top: 10px;
+}
+
+/* 全画面用の再生/一時停止ボタンは、一覧内のものより大きくタップしやすいサイズにする。
+   .play-buttonの基本スタイルはそのまま踏襲し、サイズだけこのクラスで上書きする
+   （このルールを.play-buttonより後ろに書いているため、詳細度が同じでも後勝ちで反映される）。 */
+.lyrics-fullscreen-play-button {
+  width: 56px;
+  height: 56px;
+}
+
+.lyrics-fullscreen-play-button svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* アイコンの切り替えは、ボタン自身のis-playingクラス（audio.pausedの実際の値）で判定する。
+   一覧行のis-playingとは無関係の、この全画面ボタン専用の状態。 */
+.lyrics-fullscreen-play-button .icon-pause {
+  display: none;
+}
+
+.lyrics-fullscreen-play-button.is-playing .icon-play {
+  display: none;
+}
+
+.lyrics-fullscreen-play-button.is-playing .icon-pause {
+  display: block;
 }
 
 .category-pill {

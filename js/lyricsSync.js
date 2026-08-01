@@ -9,6 +9,7 @@
 // 出さないのと同じ、このプロジェクトの一貫した方針）。
 
 import { getLyricsData } from "./lyricsStorage.js";
+import { closeFullscreenLyrics } from "./lyricsFullscreen.js";
 
 // ユーザーが手動でパネルをスクロールしてから、自動追従を再開するまでの猶予（ミリ秒）。
 const MANUAL_SCROLL_SUPPRESS_MS = 4000;
@@ -161,6 +162,11 @@ export function updateActiveLyricsLine(currentTime, options = {}) {
 // パネルの中身・購読しているイベントをすべて片付ける。
 // 曲を停止する・別の曲へ切り替える・画面を離れるときに必ず呼ぶ。
 export function destroyLyricsSync() {
+  // 全画面表示が開いたままだと、この後panelElementの中身を消してしまい、
+  // 全画面側に空のパネルが取り残される。必ず先に閉じて、パネルを元の場所へ戻す
+  // （全画面が開いていなければ何もしない安全な呼び出し）。
+  closeFullscreenLyrics();
+
   if (audioElement) {
     audioElement.removeEventListener("timeupdate", handleTimeUpdate);
     audioElement.removeEventListener("seeking", handleSeeking);

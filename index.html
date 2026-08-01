@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>＝LOVEイントロクイズ</title>
 
   <!-- タブに表示されるアイコン（favicon） -->
@@ -721,6 +721,9 @@
             <svg class="icon-pause" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="7" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
           </button>
           <button id="custom-quiz-preview-seek-forward" type="button" class="seek-skip-button" aria-label="10秒送る">+10</button>
+          <button id="custom-quiz-preview-fullscreen-button" type="button" class="lyrics-fullscreen-open-button" aria-label="歌詞を全画面表示">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+          </button>
         </div>
         <!-- 同期歌詞パネル（js/lyricsSync.js）。歌詞データがある曲を再生したときだけ、
              loadLyricsForSong()がここへ行を描画してhiddenを解除する。 -->
@@ -1077,6 +1080,33 @@
       <div class="button-row quiz-quit-confirm-actions">
         <button id="quiz-quit-cancel-button" class="primary-button" type="button">キャンセル</button>
         <button id="quiz-quit-confirm-button" class="secondary-button" type="button">タイトルに戻る</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 歌詞の全画面表示オーバーレイ。既存の同期歌詞パネル（.synced-lyrics-panel、js/lyricsSync.js）を
+       開いている間だけこの中へ移動して表示する。新しいaudio要素・新しい歌詞DOMは作らず、
+       収録曲一覧・オリジナル問題作成モードのどちらからも共通で使う（js/lyricsFullscreen.js）。 -->
+  <div id="lyrics-fullscreen-overlay" class="lyrics-fullscreen-overlay" hidden>
+    <div class="lyrics-fullscreen-header">
+      <p id="lyrics-fullscreen-title" class="lyrics-fullscreen-title"></p>
+      <button id="lyrics-fullscreen-close-button" type="button" class="lyrics-fullscreen-close-button" aria-label="全画面表示を閉じる">✕</button>
+    </div>
+    <!-- 歌詞パネル自体はここに用意しない。開いたときにjs/lyricsFullscreen.jsが移動してくる -->
+    <div id="lyrics-fullscreen-lyrics-slot" class="lyrics-fullscreen-lyrics-slot"></div>
+    <div class="lyrics-fullscreen-controls">
+      <div class="lyrics-fullscreen-seek-row">
+        <span id="lyrics-fullscreen-current-time" class="lyrics-fullscreen-time">0:00</span>
+        <input type="range" id="lyrics-fullscreen-seek-range" class="seek-range" min="0" value="0" step="0.1">
+        <span id="lyrics-fullscreen-duration" class="lyrics-fullscreen-time">0:00</span>
+      </div>
+      <div class="lyrics-fullscreen-buttons">
+        <button id="lyrics-fullscreen-seek-back" type="button" class="seek-skip-button" aria-label="10秒戻す">−10</button>
+        <button id="lyrics-fullscreen-play-pause" type="button" class="play-button lyrics-fullscreen-play-button" aria-label="再生・一時停止">
+          <svg class="icon-play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7Z"/></svg>
+          <svg class="icon-pause" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="7" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+        </button>
+        <button id="lyrics-fullscreen-seek-forward" type="button" class="seek-skip-button" aria-label="10秒送る">+10</button>
       </div>
     </div>
   </div>

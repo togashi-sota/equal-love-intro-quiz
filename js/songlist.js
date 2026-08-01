@@ -6,6 +6,7 @@
 import { CATEGORY } from "./data/songs.js";
 import { getAudioBlob } from "./audioStorage.js";
 import { loadLyricsForSong, destroyLyricsSync } from "./lyricsSync.js";
+import { openFullscreenLyrics } from "./lyricsFullscreen.js";
 
 // 試聴を10秒戻す/送るときの秒数。
 const SEEK_SKIP_SECONDS = 10;
@@ -357,10 +358,20 @@ function createTrackRow(song) {
       <button type="button" class="seek-skip-button" data-skip="back" aria-label="10秒戻す">−10</button>
       <input type="range" class="seek-range" min="0" value="0" step="0.1">
       <button type="button" class="seek-skip-button" data-skip="forward" aria-label="10秒送る">+10</button>
+      <button type="button" class="lyrics-fullscreen-open-button" aria-label="歌詞を全画面表示">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+      </button>
     </div>
     <span class="seek-time"><span class="seek-current">0:00</span> / <span class="seek-duration">0:00</span></span>
   `;
   infoBlock.appendChild(seekBlock);
+
+  // 全画面表示ボタン。歌詞データがない曲では何も起きない（静かに無視する、既存の方針と同じ）。
+  seekBlock.querySelector(".lyrics-fullscreen-open-button").addEventListener("click", () => {
+    if (currentlyPlayingRowElement === row && !lyricsPanel.hidden) {
+      openFullscreenLyrics(song.title, previewAudioElement, lyricsPanel);
+    }
+  });
 
   const rangeElement = seekBlock.querySelector(".seek-range");
   rangeElement.addEventListener("input", () => {

@@ -23,6 +23,7 @@ import {
   stopAudioPreview,
 } from "./audioPreview.js";
 import { loadLyricsForSong, destroyLyricsSync } from "./lyricsSync.js";
+import { openFullscreenLyrics } from "./lyricsFullscreen.js";
 
 // この画面が使うDOM要素一式。initCustomQuizScreen()で受け取って保持する。
 let elements = null;
@@ -588,6 +589,11 @@ export function initCustomQuizScreen(newElements) {
   });
   elements.previewSeekForwardButton.addEventListener("click", () => {
     seekAudioPreview(PREVIEW_SEEK_SKIP_SECONDS);
+  });
+  // 全画面表示ボタン。歌詞データがない曲では何も起きない（静かに無視する、既存の方針と同じ）。
+  elements.previewFullscreenButton.addEventListener("click", () => {
+    if (currentlyPreviewingRowElement === null || elements.previewLyricsPanel.hidden) return;
+    openFullscreenLyrics(elements.previewTitle.textContent, elements.previewAudioElement, elements.previewLyricsPanel);
   });
   // シークバーのタップ・ドラッグで再生位置を変更する。0秒未満・総時間超えにならないのは、
   // range要素自体のmin/max（loadedmetadataでmaxを曲の長さに設定済み）による制約に任せている。

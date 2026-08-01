@@ -56,6 +56,7 @@ import {
 } from "./customQuizPresetsScreen.js";
 import { importAudioFiles, getImportedSongIds } from "./audioStorage.js";
 import { analyzeLyricsFiles, saveLyricsData, getImportedLyricsSongIds } from "./lyricsStorage.js";
+import { closeFullscreenLyrics } from "./lyricsFullscreen.js";
 
 // 背景のキラキラ演出は、ゲームの状態と関係なく最初に1回だけ生成すればよい。
 renderBackgroundSparkles();
@@ -185,6 +186,7 @@ const SPECIAL_MODES_DISPLAY = {
 const quizBackButtonElement = document.getElementById("quiz-back-button");
 const quizBackButtonLabelElement = document.getElementById("quiz-back-button-label");
 const quizQuitConfirmModalElement = document.getElementById("quiz-quit-confirm-modal");
+const lyricsFullscreenOverlayElement = document.getElementById("lyrics-fullscreen-overlay");
 const quizQuitConfirmTitleElement = document.getElementById("quiz-quit-confirm-title");
 const quizQuitCancelButtonElement = document.getElementById("quiz-quit-cancel-button");
 const quizQuitConfirmButtonElement = document.getElementById("quiz-quit-confirm-button");
@@ -393,6 +395,7 @@ initCustomQuizScreen({
   previewToggleButton: document.getElementById("custom-quiz-preview-toggle-button"),
   previewSeekBackButton: document.getElementById("custom-quiz-preview-seek-back"),
   previewSeekForwardButton: document.getElementById("custom-quiz-preview-seek-forward"),
+  previewFullscreenButton: document.getElementById("custom-quiz-preview-fullscreen-button"),
   previewSeekRange: document.getElementById("custom-quiz-preview-seek-range"),
   previewCurrentTime: document.getElementById("custom-quiz-preview-current-time"),
   previewDuration: document.getElementById("custom-quiz-preview-duration"),
@@ -1510,6 +1513,15 @@ initServiceWorker();
 // キーボード操作対応。マウス・タップ操作は今まで通り使えるようにしたうえで、
 // 今表示されている画面に応じてキー入力を割り当てる。
 document.addEventListener("keydown", (event) => {
+  // 歌詞の全画面表示が開いているときは、Escキーで閉じる。画面全体を覆っているため、
+  // 他のモーダルより先に、最優先でここでガードする。
+  if (!lyricsFullscreenOverlayElement.hidden) {
+    if (event.key === "Escape") {
+      closeFullscreenLyrics();
+    }
+    return;
+  }
+
   // ルール説明モーダルが開いているときは、Escキーで閉じる。
   // それ以外のキー（スタート画面のEnterなど）は、モーダルを読んでいる間に
   // 誤って反応してしまわないよう、ここで処理を止めて下の分岐に進ませない。
