@@ -2409,6 +2409,16 @@ fieldset label:has(input:focus-visible) {
   display: block;
 }
 
+/* 選択中(is-playing)かつ一時停止中(is-audio-paused)は、アイコンを再生アイコンに戻す。
+   クラス数が多い分セレクタの詳細度が上がるため、上記2ルールより後ろに書かなくても優先される。 */
+.track-row.is-playing.is-audio-paused .icon-play {
+  display: block;
+}
+
+.track-row.is-playing.is-audio-paused .icon-pause {
+  display: none;
+}
+
 .track-row.is-playing .play-button {
   background: var(--color-primary-dark);
   color: #ffffff;
@@ -2545,6 +2555,12 @@ fieldset label:has(input:focus-visible) {
 
 .track-row.is-playing .now-playing-tag {
   display: inline-flex;
+}
+
+/* 「再生中」の文字とイコライザー演出は、実際に音が鳴っているときだけ表示する。
+   一時停止中は紛らわしいため隠す（アイコン切り替えと同じ考え方）。 */
+.track-row.is-playing.is-audio-paused .now-playing-tag {
+  display: none;
 }
 
 .now-playing-eq {

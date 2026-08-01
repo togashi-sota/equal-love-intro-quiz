@@ -177,14 +177,24 @@ function formatTime(totalSeconds) {
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
-// 再生中の行の見た目（背景・アイコン・シークバーの表示）を切り替える。
-// 再生/一時停止アイコンの切り替えは、hidden属性ではなく.is-playingクラスを付けた
-// 行からのCSS（.track-row.is-playing .icon-play 等）だけで行う。
+// 行が「試聴対象として選択されているか」の見た目（背景・シークバーの表示）を切り替える。
+// 一時停止中もこの状態は維持したいため、「実際に音が鳴っているか」の判定
+// （syncRowAudioPlayingIcon）とはあえて分離している。
 // SVG要素はhidden属性・hiddenプロパティの反映がブラウザによって不安定なため、
 // より確実なクラスベースの表示切り替えに統一している。
 function setRowPlayingState(rowElement, isPlaying) {
   rowElement.classList.toggle("is-playing", isPlaying);
+  rowElement.classList.remove("is-audio-paused"); // 選択し直すたびに、アイコンの状態を一旦リセットする
   rowElement.querySelector(".track-seek").hidden = !isPlaying;
+}
+
+// 再生/一時停止アイコンの切り替えだけを、audio.pausedの実際の値から行う。
+// 「行が選択中か」とは別に管理することで、一時停止してもシークバー・歌詞パネルは
+// そのまま維持され、アイコンだけが正しく切り替わる（.track-row.is-playing.is-audio-paused
+// というCSSの組み合わせで、選択中かつ一時停止中の見た目を表現する）。
+function syncRowAudioPlayingIcon() {
+  if (!currentlyPlayingRowElement) return;
+  currentlyPlayingRowElement.classList.toggle("is-audio-paused", previewAudioElement.paused);
 }
 
 // 行のシークバー・時間表示を初期状態（0秒）に戻す。
@@ -245,13 +255,20 @@ async function playPreview(song, rowElement) {
 }
 
 // 再生ボタンを押したときの処理。
-// 同じ曲をもう一度押したら停止し、別の曲を押したら前の曲を止めてから新しい曲を再生する。
+// 今まさに試聴中の行をもう一度押した場合は一時停止/再開を切り替え（位置・歌詞パネルは維持）、
+// 別の行（または何も試聴していない状態）から押した場合は、前の曲を完全に止めてから新しい曲を再生する。
 function handlePlayButtonClick(song, rowElement) {
   const isThisRowPlaying = currentlyPlayingRowElement === rowElement;
-  stopSongListPreview();
-  if (!isThisRowPlaying) {
-    playPreview(song, rowElement);
+  if (isThisRowPlaying) {
+    if (previewAudioElement.paused) {
+      previewAudioElement.play();
+    } else {
+      previewAudioElement.pause();
+    }
+    return;
   }
+  stopSongListPreview();
+  playPreview(song, rowElement);
 }
 
 // 試聴中の再生位置を、今何秒かに合わせてシークバー・時間表示に反映する。
@@ -262,6 +279,11 @@ previewAudioElement.addEventListener("timeupdate", () => {
   currentlyPlayingRowElement.querySelector(".seek-range").value = previewAudioElement.currentTime;
   currentlyPlayingRowElement.querySelector(".seek-current").textContent = formatTime(previewAudioElement.currentTime);
 });
+
+// 再生/一時停止アイコンとイコライザー演出を、実際の再生状態に確実に同期させる
+// （ボタン操作だけでなく、何らかの理由でブラウザ側から再生/一時停止された場合にも対応するため）。
+previewAudioElement.addEventListener("play", syncRowAudioPlayingIcon);
+previewAudioElement.addEventListener("pause", syncRowAudioPlayingIcon);
 
 // 1曲分の行（再生ボタン・曲名・歌唱メンバー/センター/説明・再生中表示・シークバー・カテゴリバッジ）を作る。
 function createTrackRow(song) {
