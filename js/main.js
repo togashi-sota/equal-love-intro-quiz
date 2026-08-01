@@ -1627,15 +1627,15 @@ document.addEventListener("keydown", (event) => {
 });
 
 // ==========================================================================
-// 【一時的な調査用コード】DEBUG_SAFE_AREA_INFO_V2
-// セーフエリア修正後もヘッダーが上に寄りすぎる原因を切り分けるための、
-// 画面下部のデバッグ表示（操作の邪魔にならないよう下部・pointer-events:noneで配置）。
-// 今表示中の画面に応じて0.5秒ごとに自動更新するため、実際に各画面を開きながら
-// 確認できる。歌詞本文・音源名・タイミングJSONなど著作権に関わる情報は
-// 一切表示しない。原因特定後は、このブロックごと必ず削除すること。
+// 【一時的な調査用コード】DEBUG_SAFE_AREA_INFO_V3
+// padding-topを個別プロパティにしても0pxのままだったため、max()/calc()/env()の
+// どの組み合わせが実機で壊れるのかを1回で切り分けるための診断。
+// 画面下部に表示（操作の邪魔にならないよう下部・pointer-events:noneで配置）。
+// 歌詞本文・音源名・タイミングJSONなど著作権に関わる情報は一切表示しない。
+// 原因特定後は、このブロックごと必ず削除すること。
 // ==========================================================================
-(function DEBUG_SAFE_AREA_INFO_V2() {
-  const APP_BUILD_LABEL = "debug-v35";
+(function DEBUG_SAFE_AREA_INFO_V3() {
+  const APP_BUILD_LABEL = "debug-v36";
 
   function measureTop(selector) {
     const el = document.querySelector(selector);
@@ -1645,9 +1645,11 @@ document.addEventListener("keydown", (event) => {
     return `${rect.top.toFixed(1)}px`;
   }
 
-  function getRawSafeAreaTop() {
+  // 指定したCSS値をpadding-topに設定したダミー要素を作り、実際の計算結果を確認する。
+  // どのパターンで値が壊れるかを切り分けるための、複数バリエーションのテスト。
+  function testPaddingTopValue(cssValue) {
     const probeElement = document.createElement("div");
-    probeElement.style.cssText = "position:fixed; padding-top:env(safe-area-inset-top); opacity:0; pointer-events:none;";
+    probeElement.style.cssText = `position:fixed; opacity:0; pointer-events:none; padding-top:${cssValue};`;
     document.body.appendChild(probeElement);
     const value = getComputedStyle(probeElement).paddingTop;
     document.body.removeChild(probeElement);
@@ -1657,16 +1659,23 @@ document.addEventListener("keydown", (event) => {
   const debugBarElement = document.createElement("div");
   debugBarElement.id = "debug-safe-area-bar";
   debugBarElement.style.cssText =
-    "position:fixed; bottom:0; left:0; right:0; z-index:9999; background:rgba(0,0,0,0.85); color:#caff00; " +
-    "font-size:9px; line-height:1.4; padding:6px 8px; pointer-events:none; " +
-    "white-space:pre-wrap; font-family:monospace; max-height:55vh; overflow:hidden;";
+    "position:fixed; bottom:0; left:0; right:0; z-index:9999; background:rgba(0,0,0,0.9); color:#caff00; " +
+    "font-size:8.5px; line-height:1.35; padding:6px 8px; pointer-events:none; " +
+    "white-space:pre-wrap; font-family:monospace; max-height:60vh; overflow:hidden;";
   document.body.appendChild(debugBarElement);
 
   function updateDebugInfo() {
     const visualViewportInfo = window.visualViewport ? `${window.visualViewport.offsetTop}` : "未対応";
     const lines = [
       `build=${APP_BUILD_LABEL}`,
-      `env(safe-area-inset-top)=${getRawSafeAreaTop()}`,
+      `--- どの書き方が壊れるかの切り分け ---`,
+      `A:env単体 = ${testPaddingTopValue("env(safe-area-inset-top)")}`,
+      `B:calc+env = ${testPaddingTopValue("calc(env(safe-area-inset-top) + 20px)")}`,
+      `C:max(固定,固定) = ${testPaddingTopValue("max(64px, 59px)")}`,
+      `D:max(固定,env) = ${testPaddingTopValue("max(64px, env(safe-area-inset-top))")}`,
+      `E:max(固定,calc+env)本番と同じ = ${testPaddingTopValue("max(64px, calc(env(safe-area-inset-top) + 20px))")}`,
+      `F:calc(固定+env) = ${testPaddingTopValue("calc(20px + env(safe-area-inset-top))")}`,
+      `--- 実際の画面の値 ---`,
       `body padding-top=${getComputedStyle(document.body).paddingTop}`,
       `.game-frame top=${measureTop(".game-frame")}`,
       `start h1 top=${measureTop("#start-screen h1")}`,
