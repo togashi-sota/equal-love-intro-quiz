@@ -4002,10 +4002,17 @@ fieldset label:has(input:focus-visible) {
 }
 
 /* ===== レスポンシブ：スマホ幅（520px以下） =====
-   ゲームフレームを画面幅いっぱいに広げ、カードらしい丸み・影は外して画面に馴染ませる。 */
+   ゲームフレームを画面幅いっぱいに広げ、カードらしい丸み・影は外して画面に馴染ませる。
+   【重要】このpadding: 0;が、47行目付近で指定しているセーフエリア対応のpadding-topを
+   後から上書きしてしまい、iPhoneのDynamic Island・ノッチとヘッダーが重なる不具合の
+   原因になっていた（実機調査で特定済み）。上だけセーフエリア分を維持し、
+   左右・下は既存の「画面いっぱいに表示する」デザインのまま0を維持する。 */
 @media (max-width: 520px) {
   body {
-    padding: 0;
+    padding-top: max(64px, calc(env(safe-area-inset-top) + 20px));
+    padding-right: 0;
+    padding-bottom: 0;
+    padding-left: 0;
     align-items: stretch;
   }
 
