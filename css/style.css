@@ -51,11 +51,13 @@ body {
   color: var(--color-text);
   background: linear-gradient(135deg, var(--color-background-start), var(--color-background-end));
 
-  /* ゲームフレームを画面の中央に配置する */
+  /* ゲームフレームを画面の中央に配置する。
+     viewport-fit=cover対応：上だけDynamic Island・ノッチ分のセーフエリアを確保する
+     （非対応端末ではenv()が0扱いになり、通常の40pxのまま変わらない）。 */
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  padding: 40px 16px;
+  padding: max(40px, env(safe-area-inset-top)) 16px 40px;
 }
 
 /* 歌詞の全画面表示（js/lyricsFullscreen.js）が開いている間、背後の画面がスクロールしないように
