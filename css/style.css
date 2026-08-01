@@ -2525,7 +2525,14 @@ fieldset label:has(input:focus-visible) {
   font-size: 0.72rem;
   color: var(--color-text);
   opacity: 0.5;
+  cursor: pointer;
   transition: opacity var(--transition-base), color var(--transition-base);
+}
+
+/* タップ/クリックできることが伝わるよう、ホバー時にわずかに濃くする
+   （現在行の強調＝opacity:1とは区別できる範囲にとどめる） */
+.synced-lyrics-line:hover {
+  opacity: 0.8;
 }
 
 /* 現在再生中の行だけ強調する。前後の行は薄いまま（.synced-lyrics-lineの既定opacity）にする */
@@ -2533,6 +2540,28 @@ fieldset label:has(input:focus-visible) {
   opacity: 1;
   color: var(--color-primary-dark);
   font-weight: 700;
+}
+
+/* 全文表示モードでは、どの行も同じ濃さで読みやすく表示する（ハイライトなしのため） */
+.synced-lyrics-panel.is-full-text-mode .synced-lyrics-line {
+  opacity: 1;
+}
+
+/* 表示モードの切替ボタン。パネルをスクロールしても見失わないようsticky表示にする。 */
+.lyrics-mode-toggle-button {
+  align-self: flex-end;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  flex: none;
+  font-size: 0.62rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--color-card-border);
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--color-primary-dark);
+  cursor: pointer;
 }
 
 .seek-time {

@@ -13,6 +13,22 @@ import { getLyricsData } from "./lyricsStorage.js";
 // ユーザーが手動でパネルをスクロールしてから、自動追従を再開するまでの猶予（ミリ秒）。
 const MANUAL_SCROLL_SUPPRESS_MS = 4000;
 
+// 「同期表示」（ハイライト+自動スクロール）と「全文表示」（ハイライト・自動スクロールなし、
+// 自分のペースで自由に読める）の2つの表示モード。曲ごとではなく共通の設定として
+// localStorageに保存し、次回以降も引き継ぐ。
+const DISPLAY_MODE_STORAGE_KEY = "equalLoveIntroQuiz.lyricsDisplayMode";
+const DISPLAY_MODE_SYNC = "sync";
+const DISPLAY_MODE_FULL = "full";
+
+function loadDisplayModePreference() {
+  const saved = localStorage.getItem(DISPLAY_MODE_STORAGE_KEY);
+  return saved === DISPLAY_MODE_FULL ? DISPLAY_MODE_FULL : DISPLAY_MODE_SYNC;
+}
+
+function saveDisplayModePreference(mode) {
+  localStorage.setItem(DISPLAY_MODE_STORAGE_KEY, mode);
+}
+
 let audioElement = null;
 let panelElement = null;
 let renderedLines = []; // { element, start, end }
@@ -21,6 +37,8 @@ let autoScrollEnabled = true;
 let suppressAutoScrollUntil = 0;
 let isProgrammaticScroll = false;
 let programmaticScrollResetTimerId = null;
+let displayMode = loadDisplayModePreference();
+let modeToggleButtonElement = null;
 
 function handleTimeUpdate() {
   updateActiveLyricsLine(audioElement.currentTime);
@@ -40,6 +58,34 @@ function handleEnded() {
 function handlePanelScroll() {
   if (isProgrammaticScroll) return;
   suppressAutoScrollUntil = Date.now() + MANUAL_SCROLL_SUPPRESS_MS;
+}
+
+// 切替ボタンには「今から切り替わる先」のモード名を表示する
+// （例：同期表示中は「全文表示にする」、全文表示中は「同期表示に戻す」）。
+function modeToggleButtonLabel() {
+  return displayMode === DISPLAY_MODE_FULL ? "同期表示に戻す" : "全文表示にする";
+}
+
+function updateModeToggleButtonLabel() {
+  if (modeToggleButtonElement) {
+    modeToggleButtonElement.textContent = modeToggleButtonLabel();
+  }
+}
+
+// 表示モードを切り替える。全文表示に切り替えた瞬間はハイライトを解除し、
+// 同期表示に戻した瞬間は今の再生位置に合わせて即座に追従させる。
+function handleModeToggleClick() {
+  displayMode = displayMode === DISPLAY_MODE_FULL ? DISPLAY_MODE_SYNC : DISPLAY_MODE_FULL;
+  saveDisplayModePreference(displayMode);
+  if (panelElement) {
+    panelElement.classList.toggle("is-full-text-mode", displayMode === DISPLAY_MODE_FULL);
+  }
+  updateModeToggleButtonLabel();
+  if (displayMode === DISPLAY_MODE_FULL) {
+    applyActiveIndex(-1);
+  } else if (audioElement) {
+    updateActiveLyricsLine(audioElement.currentTime, { immediate: true });
+  }
 }
 
 // 現在時刻から該当行のインデックスを求める純粋関数（DOM・音源に一切触れない）。
@@ -93,6 +139,7 @@ function scrollToLine(index, { immediate }) {
 // （シーク直後・曲の読み込み直後に使う）。
 export function updateActiveLyricsLine(currentTime, options = {}) {
   if (renderedLines.length === 0) return;
+  if (displayMode === DISPLAY_MODE_FULL) return; // 全文表示モードでは、ハイライト・自動スクロールを行わない
 
   const index = findActiveLineIndex(renderedLines, currentTime);
   const changed = applyActiveIndex(index);
@@ -135,6 +182,7 @@ export function destroyLyricsSync() {
   activeIndex = -1;
   suppressAutoScrollUntil = 0;
   isProgrammaticScroll = false;
+  modeToggleButtonElement = null;
 }
 
 // 指定した曲の歌詞データを取得し、パネルへ描画し、再生位置に合わせた同期表示を開始する。
@@ -164,11 +212,27 @@ export async function loadLyricsForSong(songId, targetAudioElement, targetPanelE
 
   panelElement.textContent = "";
   panelElement.hidden = false;
+  panelElement.classList.toggle("is-full-text-mode", displayMode === DISPLAY_MODE_FULL);
+
+  // 表示モードの切替ボタン。パネル内でsticky表示にすることで、スクロールしても
+  // 見失わない（収録曲一覧・オリジナル問題作成モードのどちらのパネルにも、ここで共通に追加される）。
+  modeToggleButtonElement = document.createElement("button");
+  modeToggleButtonElement.type = "button";
+  modeToggleButtonElement.className = "lyrics-mode-toggle-button";
+  modeToggleButtonElement.textContent = modeToggleButtonLabel();
+  modeToggleButtonElement.addEventListener("click", handleModeToggleClick);
+  panelElement.appendChild(modeToggleButtonElement);
 
   renderedLines = record.lines.map((line) => {
     const lineElement = document.createElement("p");
     lineElement.className = "synced-lyrics-line";
     lineElement.textContent = line.text;
+    // 歌詞をタップ/クリックすると、その行の開始位置へシークする
+    // （再生中/一時停止中どちらでも位置だけ移動し、再生状態自体は変えない）。
+    lineElement.addEventListener("click", () => {
+      audioElement.currentTime = line.start;
+      updateActiveLyricsLine(line.start, { immediate: true });
+    });
     panelElement.appendChild(lineElement);
     return { element: lineElement, start: line.start, end: line.end };
   });
