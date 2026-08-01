@@ -5,6 +5,7 @@
 
 import { CATEGORY } from "./data/songs.js";
 import { getAudioBlob } from "./audioStorage.js";
+import { loadLyricsForSong, destroyLyricsSync } from "./lyricsSync.js";
 
 // 試聴を10秒戻す/送るときの秒数。
 const SEEK_SKIP_SECONDS = 10;
@@ -196,10 +197,13 @@ function resetRowSeekUI(rowElement) {
 
 // 試聴中の曲を止める。収録曲一覧画面から離れるとき（戻るボタン）・
 // 再生中の曲のアコーディオンを閉じたときにも必ず呼ぶ。
+// 同期歌詞パネル（js/lyricsSync.js）の後片付けも、必ずここで一緒に行う
+// （試聴を止めるすべての場面で、歌詞パネルの表示・イベント購読も確実に消えるようにするため）。
 export function stopSongListPreview() {
   previewAudioElement.pause();
   previewAudioElement.currentTime = 0;
   releaseCurrentPreviewObjectUrl();
+  destroyLyricsSync();
   if (currentlyPlayingRowElement) {
     setRowPlayingState(currentlyPlayingRowElement, false);
     resetRowSeekUI(currentlyPlayingRowElement);
@@ -235,6 +239,9 @@ async function playPreview(song, rowElement) {
 
   currentlyPlayingRowElement = rowElement;
   setRowPlayingState(rowElement, true);
+
+  // 歌詞データがある曲だけ、同期歌詞パネルを表示する（ない曲では静かに何もしない）。
+  loadLyricsForSong(song.id, previewAudioElement, rowElement.querySelector(".track-lyrics"));
 }
 
 // 再生ボタンを押したときの処理。
@@ -350,6 +357,14 @@ function createTrackRow(song) {
       previewAudioElement.currentTime = Math.min(duration, previewAudioElement.currentTime + SEEK_SKIP_SECONDS);
     }
   });
+
+  // 同期歌詞パネル（js/lyricsSync.js）。歌詞データがある曲を再生したときだけ、
+  // loadLyricsForSong()がここへ行を描画してhiddenを解除する。歌詞データがない曲では
+  // 何も描画されず非表示のままなので、収録曲一覧の見た目には一切影響しない。
+  const lyricsPanel = document.createElement("div");
+  lyricsPanel.className = "track-lyrics synced-lyrics-panel";
+  lyricsPanel.hidden = true;
+  infoBlock.appendChild(lyricsPanel);
 
   const categoryInfo = CATEGORY_PILL_INFO[song.category];
   const categoryPill = document.createElement("span");

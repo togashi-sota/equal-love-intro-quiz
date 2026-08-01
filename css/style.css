@@ -2487,6 +2487,44 @@ fieldset label:has(input:focus-visible) {
   transform: scale(0.9);
 }
 
+/* ===== 同期歌詞パネル（試聴中の歌詞表示、収録曲一覧・オリジナル問題作成モード共通） =====
+   歌詞データがある曲を再生したときだけ、js/lyricsSync.jsが行を描画してhiddenを解除する。
+   スマホでも操作ボタンを圧迫しないよう、高さを固定してスクロール領域にする。 */
+.synced-lyrics-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 150px;
+  overflow-y: auto;
+  margin-top: 6px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid var(--color-card-border);
+  scrollbar-gutter: stable;
+}
+
+/* displayの指定がhidden属性より優先されてしまう問題への対策（12章の教訓を踏襲） */
+.synced-lyrics-panel[hidden] {
+  display: none;
+}
+
+.synced-lyrics-line {
+  margin: 0;
+  padding: 2px 4px;
+  font-size: 0.72rem;
+  color: var(--color-text);
+  opacity: 0.5;
+  transition: opacity var(--transition-base), color var(--transition-base);
+}
+
+/* 現在再生中の行だけ強調する。前後の行は薄いまま（.synced-lyrics-lineの既定opacity）にする */
+.synced-lyrics-line.is-current-lyrics-line {
+  opacity: 1;
+  color: var(--color-primary-dark);
+  font-weight: 700;
+}
+
 .seek-time {
   align-self: flex-end;
   font-size: 0.65rem;

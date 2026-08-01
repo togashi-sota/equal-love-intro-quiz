@@ -30,11 +30,13 @@
     import { runScoreTests } from "./tests/score.test.js";
     import { runQuizTests } from "./tests/quiz.test.js";
     import { runLyricsStorageTests } from "./tests/lyricsStorage.test.js";
+    import { runLyricsSyncTests } from "./tests/lyricsSync.test.js";
     import { printSummary } from "./tests/test-utils.js";
 
     runScoreTests();
     runQuizTests();
     runLyricsStorageTests();
+    runLyricsSyncTests();
     const { passCount, failCount } = printSummary();
 
     const summaryElement = document.getElementById("test-summary");

@@ -722,6 +722,9 @@
           </button>
           <button id="custom-quiz-preview-seek-forward" type="button" class="seek-skip-button" aria-label="10秒送る">+10</button>
         </div>
+        <!-- 同期歌詞パネル（js/lyricsSync.js）。歌詞データがある曲を再生したときだけ、
+             loadLyricsForSong()がここへ行を描画してhiddenを解除する。 -->
+        <div id="custom-quiz-preview-lyrics" class="synced-lyrics-panel" hidden></div>
       </div>
 
       <!-- 試聴専用の音源要素。クイズ本編（#intro-audio）・収録曲一覧の試聴（#preview-audio）

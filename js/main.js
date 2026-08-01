@@ -396,6 +396,7 @@ initCustomQuizScreen({
   previewSeekRange: document.getElementById("custom-quiz-preview-seek-range"),
   previewCurrentTime: document.getElementById("custom-quiz-preview-current-time"),
   previewDuration: document.getElementById("custom-quiz-preview-duration"),
+  previewLyricsPanel: document.getElementById("custom-quiz-preview-lyrics"),
   nameInput: document.getElementById("custom-quiz-name-input"),
   memoInput: document.getElementById("custom-quiz-memo-input"),
   nameError: document.getElementById("custom-quiz-name-error"),

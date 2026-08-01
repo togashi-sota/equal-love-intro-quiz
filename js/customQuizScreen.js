@@ -22,6 +22,7 @@ import {
   seekAudioPreview,
   stopAudioPreview,
 } from "./audioPreview.js";
+import { loadLyricsForSong, destroyLyricsSync } from "./lyricsSync.js";
 
 // この画面が使うDOM要素一式。initCustomQuizScreen()で受け取って保持する。
 let elements = null;
@@ -170,6 +171,9 @@ async function startPreviewForRow(song, row) {
   if (!started) return; // 未読み込みの曲は、収録曲一覧の試聴と同じく静かに何もしない
   elements.previewTitle.textContent = song.title;
   setPreviewingRow(row);
+
+  // 歌詞データがある曲だけ、同期歌詞パネルを表示する（ない曲では静かに何もしない）。
+  loadLyricsForSong(song.id, elements.previewAudioElement, elements.previewLyricsPanel);
 }
 
 // 曲行の再生ボタンが押されたときの処理。
@@ -190,8 +194,10 @@ function handlePreviewButtonClick(song, row) {
 
 // 試聴を完全に停止し、行・ミニプレイヤーの表示も元に戻す。
 // 画面を離れるとき（戻る）・クイズを開始するとき・保存するときに呼ぶ。
+// 同期歌詞パネル（js/lyricsSync.js）の後片付けも、必ずここで一緒に行う。
 function stopPreviewAndResetUI() {
   stopAudioPreview();
+  destroyLyricsSync();
   setPreviewingRow(null);
 }
 
