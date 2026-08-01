@@ -56,6 +56,38 @@ function putRecord(db, record) {
   });
 }
 
+// 1ファイル分のJSONを読み込み、正規化するところまでを行う共通の窓口。
+// ファイルサイズの上限チェック・JSON.parseの失敗・normalizeLyricsData()の失敗を
+// すべてここでまとめて扱うことで、Step2のインポートUI（analyzeLyricsFiles経由）と
+// dev/lyricsEditor.htmlの外部JSON読み込みの両方が、同じ安全対策（サイズ上限含む）を
+// 確実に適用できるようにしている（片方だけ対策が漏れる、という事態を構造的に防ぐ）。
+//
+// 戻り値: { normalized: object|null, reason: string|null }
+//   normalized: 正規化に成功した内部形式データ（失敗時はnull）
+//   reason    : 失敗した理由（成功時はnull）
+export async function parseAndNormalizeLyricsFile(file) {
+  if (file.size > MAX_LYRICS_FILE_SIZE_BYTES) {
+    return {
+      normalized: null,
+      reason: `ファイルサイズが大きすぎます（上限${MAX_LYRICS_FILE_SIZE_BYTES / (1024 * 1024)}MB）`,
+    };
+  }
+
+  let rawData;
+  try {
+    rawData = JSON.parse(await file.text());
+  } catch (error) {
+    return { normalized: null, reason: "JSONとして読み込めませんでした" };
+  }
+
+  const normalized = normalizeLyricsData(rawData);
+  if (!normalized) {
+    return { normalized: null, reason: "songIdが見つからないなど、想定した形式ではありません" };
+  }
+
+  return { normalized, reason: null };
+}
+
 // 解析ツール（tools/lyrics-pipeline）が出力する外部形式のJSONを、
 // アプリ内部で保存する形式（songId・lines・schemaVersion）へ変換する。
 //
@@ -219,8 +251,8 @@ export function validateLyricsData(record) {
 //
 // 【重要】呼び出し元がすでにvalidateLyricsData()でチェック済みかどうかに関わらず、
 // この関数自身が必ずvalidateLyricsData()を通してから保存する。これにより、
-// ・外部JSONのインポート（importLyricsFiles経由）
-// ・dev/lyricsEditor.htmlからの直接保存（将来）
+// ・外部JSONのインポート（Step2のインポートUI、analyzeLyricsFiles経由）
+// ・dev/lyricsEditor.htmlからの直接保存
 // ・その他将来追加される保存経路
 // のどこから呼ばれても、不正なデータが保存される心配がない
 //（呼び出し側の検証漏れが、そのままデータ破損につながらないようにするための設計）。
@@ -358,30 +390,9 @@ export async function analyzeLyricsFiles(fileList) {
   const perFileResults = [];
 
   for (const file of fileList) {
-    if (file.size > MAX_LYRICS_FILE_SIZE_BYTES) {
-      perFileResults.push({
-        fileName: file.name,
-        status: "failed",
-        errors: [`ファイルサイズが大きすぎます（上限${MAX_LYRICS_FILE_SIZE_BYTES / (1024 * 1024)}MB）`],
-      });
-      continue;
-    }
-
-    let rawData;
-    try {
-      rawData = JSON.parse(await file.text());
-    } catch (error) {
-      perFileResults.push({ fileName: file.name, status: "failed", errors: ["JSONとして読み込めませんでした"] });
-      continue;
-    }
-
-    const normalized = normalizeLyricsData(rawData);
+    const { normalized, reason } = await parseAndNormalizeLyricsFile(file);
     if (!normalized) {
-      perFileResults.push({
-        fileName: file.name,
-        status: "failed",
-        errors: ["songIdが見つからないなど、想定した形式ではありません"],
-      });
+      perFileResults.push({ fileName: file.name, status: "failed", errors: [reason] });
       continue;
     }
 

@@ -35,7 +35,9 @@
 
     runScoreTests();
     runQuizTests();
-    runLyricsStorageTests();
+    // runLyricsStorageTestsは内部でFile APIを使う非同期テストを含むため、
+    // 集計（printSummary）より前に必ず完了を待つ（module scriptはトップレベルawaitに対応している）。
+    await runLyricsStorageTests();
     runLyricsSyncTests();
     const { passCount, failCount } = printSummary();
 

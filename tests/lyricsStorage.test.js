@@ -5,7 +5,12 @@
 // 著作権保護のため、実際の＝LOVEの歌詞本文・実際のタイミングJSONはここには一切含めない。
 // すべてダミーの短い文章・機械的に生成した時刻データを使う。
 
-import { normalizeLyricsData, validateLyricsData, classifyLyricsAnalysisResults } from "../js/lyricsStorage.js";
+import {
+  normalizeLyricsData,
+  validateLyricsData,
+  classifyLyricsAnalysisResults,
+  parseAndNormalizeLyricsFile,
+} from "../js/lyricsStorage.js";
 import { assertEqual } from "./test-utils.js";
 
 // songs.jsに実在する曲のid（歌詞本文は使わず、idという識別子だけを使う）。
@@ -22,7 +27,7 @@ function buildDummyLines(count) {
   }));
 }
 
-export function runLyricsStorageTests() {
+export async function runLyricsStorageTests() {
   // ---- normalizeLyricsData：正常系 ----
 
   // 現在のPoison Girlの実データと同じ形式（song_id・word_countあり）を想定した、ダミーの外部形式データ。
@@ -267,5 +272,48 @@ export function runLyricsStorageTests() {
     const { readyFiles, failedFiles } = classifyLyricsAnalysisResults(perFileResults);
     assertEqual(readyFiles.length, 1, "songIdを持たない失敗ファイルは、他の正常なファイルを巻き込まない");
     assertEqual(failedFiles.length, 1, "失敗ファイル自体はfailedFilesに残る");
+  }
+
+  // ---- parseAndNormalizeLyricsFile：Step2のインポートUIとdev/lyricsEditor.htmlが
+  // 共通で使う、1ファイル分の読み取り窓口のテスト。実際のFile APIを使うため非同期。
+
+  {
+    const validJson = JSON.stringify({
+      song_id: EXISTING_SONG_ID,
+      lines: [{ line: 1, text: "テスト用ダミー歌詞1", start: 0, end: 1.5 }],
+    });
+    const file = new File([validJson], "sample.json", { type: "application/json" });
+    const result = await parseAndNormalizeLyricsFile(file);
+    assertEqual(result.normalized !== null, true, "正常なJSONファイルは正規化される");
+    assertEqual(result.normalized.songId, EXISTING_SONG_ID, "正規化後にsongIdになる（song_id→songId）");
+    assertEqual(result.reason, null, "正常なファイルではreasonがnullになる");
+  }
+
+  {
+    const file = new File(["{ this is not valid json,,, }"], "broken.json", { type: "application/json" });
+    const result = await parseAndNormalizeLyricsFile(file);
+    assertEqual(result.normalized, null, "壊れたJSONは正規化されずnullになる");
+    assertEqual(result.reason, "JSONとして読み込めませんでした", "壊れたJSONの理由が正しく返る");
+  }
+
+  {
+    const invalidShapeJson = JSON.stringify({ foo: "bar" }); // songId/song_idのどちらも持たない
+    const file = new File([invalidShapeJson], "no-song-id.json", { type: "application/json" });
+    const result = await parseAndNormalizeLyricsFile(file);
+    assertEqual(result.normalized, null, "songIdを持たないJSONは正規化されずnullになる");
+  }
+
+  {
+    // 5MBの上限を超えるダミーファイル（中身はJSONとして無効な文字列でよい。
+    // サイズ超過チェックはJSON.parseより先に行われるため、内容の正しさは関係ない）。
+    const oversizedContent = "a".repeat(6 * 1024 * 1024);
+    const file = new File([oversizedContent], "too-big.json", { type: "application/json" });
+    const result = await parseAndNormalizeLyricsFile(file);
+    assertEqual(result.normalized, null, "5MBを超えるファイルは正規化されずnullになる");
+    assertEqual(
+      result.reason.includes("ファイルサイズ"),
+      true,
+      "サイズ超過の理由が含まれる"
+    );
   }
 }

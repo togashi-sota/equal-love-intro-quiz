@@ -14,7 +14,7 @@ import { getAudioBlob } from "../js/audioStorage.js";
 import {
   getLyricsData,
   saveLyricsData,
-  normalizeLyricsData,
+  parseAndNormalizeLyricsFile,
   getImportedLyricsSongIds,
   deleteLyricsData,
 } from "../js/lyricsStorage.js";
@@ -225,18 +225,9 @@ jsonInputElement.addEventListener("change", async () => {
     return;
   }
 
-  let rawData;
-  try {
-    rawData = JSON.parse(await file.text());
-  } catch (error) {
-    setStatus(jsonStatusElement, "JSONとして読み込めませんでした", "is-error");
-    jsonInputElement.value = "";
-    return;
-  }
-
-  const normalized = normalizeLyricsData(rawData);
+  const { normalized, reason } = await parseAndNormalizeLyricsFile(file);
   if (!normalized) {
-    setStatus(jsonStatusElement, "songIdが見つからないなど、想定した形式ではありません", "is-error");
+    setStatus(jsonStatusElement, reason, "is-error");
     jsonInputElement.value = "";
     return;
   }
@@ -316,12 +307,15 @@ function formatUpdatedAt(timestampMs) {
 }
 
 // 保存済みの歌詞データを一覧に描画し直す。ページを開いたとき・保存/削除の直後に呼ぶ。
+// 将来80曲以上に増えても一覧表示が遅くならないよう、各曲のgetLyricsData()は
+// 1件ずつ順番に待つのではなくPromise.allでまとめて並行に読み出す。
 async function renderSavedList() {
   const songIds = await getImportedLyricsSongIds();
+  const records = await Promise.all(songIds.map((songId) => getLyricsData(songId)));
   savedListTbodyElement.textContent = "";
 
-  for (const songId of songIds) {
-    const record = await getLyricsData(songId);
+  songIds.forEach((songId, index) => {
+    const record = records[index];
     const row = document.createElement("tr");
 
     const titleCell = document.createElement("td");
@@ -346,7 +340,7 @@ async function renderSavedList() {
     row.appendChild(actionCell);
 
     savedListTbodyElement.appendChild(row);
-  }
+  });
 
   setStatus(manageStatusElement, `保存済み：${songIds.length}曲`, null);
 }
