@@ -53,13 +53,16 @@ body {
 
   /* ゲームフレームを画面の中央に配置する。
      viewport-fit=cover対応：上だけDynamic Island・ノッチ分のセーフエリアを確保する。
-     実機で env(safe-area-inset-top) の上乗せがほぼ効かないケースを確認したため、
-     env()の値をあてにせず、Dynamic Island搭載機種でも確実に収まる固定値（64px）を
-     下限にしたうえで、env()が効く環境ではさらに余裕を足す2段構えにしている。 */
+     【重要】paddingショートハンドの中でenv()・calc()・max()を組み合わせると、
+     実機のSafariで値全体が解釈できず上下左右すべて0扱いになる不具合を実機検証で確認した。
+     そのため、padding-top等を個別のプロパティとして指定している（ショートハンドに戻さないこと）。 */
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  padding: max(64px, calc(env(safe-area-inset-top) + 20px)) 16px 40px;
+  padding-top: max(64px, calc(env(safe-area-inset-top) + 20px));
+  padding-right: 16px;
+  padding-bottom: 40px;
+  padding-left: 16px;
 }
 
 /* 歌詞の全画面表示（js/lyricsFullscreen.js）が開いている間、背後の画面がスクロールしないように
@@ -690,8 +693,12 @@ h1 .note-icon svg {
   justify-content: center;
   gap: 10px;
   /* viewport-fit=cover対応：Dynamic Island・ノッチと重ならないよう、上だけセーフエリア分の
-     余白を確保する。bodyと同じ理由で、env()の上乗せをあてにせず固定値を下限にする。 */
-  padding: max(44px, calc(env(safe-area-inset-top) + 6px)) 16px 10px;
+     余白を確保する。【重要】paddingショートハンドの中でenv()・calc()・max()を組み合わせると
+     実機のSafariで値全体が無効になる不具合を確認したため、個別プロパティで指定している。 */
+  padding-top: max(44px, calc(env(safe-area-inset-top) + 6px));
+  padding-right: 16px;
+  padding-bottom: 10px;
+  padding-left: 16px;
   background: var(--color-primary-dark);
   color: #ffffff;
   font-size: 0.8rem;
@@ -2678,10 +2685,13 @@ fieldset label:has(input:focus-visible) {
   background: linear-gradient(135deg, var(--color-background-start), var(--color-background-end));
   box-sizing: border-box;
   overflow: hidden; /* 万が一の横はみ出しを防ぐ最終防衛ライン */
-  /* 上だけ、bodyと同じ理由でenv()の上乗せをあてにせず固定値を下限にする。
-     左右・下は影響が報告されていないため、従来通りenv()ベースのままにしている。 */
-  padding: max(56px, calc(env(safe-area-inset-top) + 16px)) max(16px, env(safe-area-inset-right))
-    max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  /* 【重要】paddingショートハンドの中でenv()・calc()・max()を組み合わせると実機のSafariで
+     値全体が無効になる不具合を確認したため、個別プロパティで指定している。
+     上だけ、bodyと同じ理由でenv()の上乗せをあてにせず固定値を下限にする。 */
+  padding-top: max(56px, calc(env(safe-area-inset-top) + 16px));
+  padding-right: max(16px, env(safe-area-inset-right));
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+  padding-left: max(16px, env(safe-area-inset-left));
 }
 
 .lyrics-fullscreen-overlay[hidden] {
