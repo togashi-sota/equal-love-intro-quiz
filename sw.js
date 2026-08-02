@@ -7,7 +7,7 @@
 //
 // 新しいバージョンを配信したいときは、CACHE_VERSIONの値を必ず上げること。
 // 上げないと、ブラウザが「内容が変わっていない」と判断し、更新が反映されない。
-const CACHE_VERSION = "v37";
+const CACHE_VERSION = "v51";
 const CACHE_NAME = `equal-love-intro-quiz-${CACHE_VERSION}`;
 
 // キャッシュするアプリ本体のファイル一覧。
@@ -51,7 +51,18 @@ const APP_SHELL_FILES = [
   "./js/customQuizScreen.js",
   "./js/customQuizPresets.js",
   "./js/customQuizPresetsScreen.js",
+  "./js/memberUtils.js",
+  "./js/discographyScreen.js",
+  "./js/membersScreen.js",
   "./js/data/songs.js",
+  "./js/data/members.js",
+  "./js/data/memberProfiles.js",
+  "./js/data/memberActivities.js",
+  "./js/data/groupActivities.js",
+  "./js/data/liveHistory.js",
+  "./js/data/discography.js",
+  "./js/data/groupInfo.js",
+  "./js/data/historyEvents.js",
 ];
 
 self.addEventListener("install", (event) => {

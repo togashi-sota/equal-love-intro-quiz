@@ -31,6 +31,7 @@
     import { runQuizTests } from "./tests/quiz.test.js";
     import { runLyricsStorageTests } from "./tests/lyricsStorage.test.js";
     import { runLyricsSyncTests } from "./tests/lyricsSync.test.js";
+    import { runMemberUtilsTests } from "./tests/memberUtils.test.js";
     import { printSummary } from "./tests/test-utils.js";
 
     runScoreTests();
@@ -39,6 +40,7 @@
     // 集計（printSummary）より前に必ず完了を待つ（module scriptはトップレベルawaitに対応している）。
     await runLyricsStorageTests();
     runLyricsSyncTests();
+    runMemberUtilsTests();
     const { passCount, failCount } = printSummary();
 
     const summaryElement = document.getElementById("test-summary");

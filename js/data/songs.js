@@ -79,6 +79,7 @@ export const DIFFICULTY = {
 export const SONGS = [
   {
     id: "love",
+    workId: "single-01",
     title: "＝LOVE",
     // ファンの間で「国歌」と呼ばれることがあるため、検索用の別名として登録する
     // （曲名・選択肢の表示自体は変えない、あくまで検索キーワードの追加）。
@@ -93,6 +94,7 @@ export const SONGS = [
   },
   {
     id: "kioku-no-dokoka-de",
+    workId: "single-01",
     title: "記憶のどこかで",
     searchReading: "きおくのどこかで",
     category: CATEGORY.GROUP_SONG,
@@ -105,6 +107,7 @@ export const SONGS = [
   },
   {
     id: "start",
+    workId: "single-01",
     title: "スタート！",
     category: CATEGORY.GROUP_SONG,
     releaseDate: "2017-09-06",
@@ -116,6 +119,7 @@ export const SONGS = [
   },
   {
     id: "zurui-yo-zurui-ne",
+    workId: "single-06",
     title: "ズルいよ ズルいね",
     searchAliases: ["ズルズル"],
     category: CATEGORY.TITLE_TRACK,
@@ -128,6 +132,7 @@ export const SONGS = [
   },
   {
     id: "bokura-no-seifuku-christmas",
+    workId: "single-02",
     title: "僕らの制服クリスマス",
     searchReading: "ぼくらのせいふくくりすます",
     searchAliases: [{ text: "僕クリ", reading: "ぼくくり" }],
@@ -141,6 +146,7 @@ export const SONGS = [
   },
   {
     id: "todoite-love-you",
+    workId: "single-02",
     title: "届いてLOVE YOU♡",
     searchReading: "とどいてらぶゆー",
     searchAliases: ["らぶゆー", { text: "届いて", reading: "とどいて" }],
@@ -154,6 +160,7 @@ export const SONGS = [
   },
   {
     id: "youkoso-ikorabu-numa",
+    workId: "single-02",
     title: "ようこそ！イコラブ沼",
     searchReading: "ようこそいこらぶぬま",
     searchAliases: [{ text: "沼", reading: "ぬま" }],
@@ -167,6 +174,7 @@ export const SONGS = [
   },
   {
     id: "sakura-no-saku-oto-ga-shita",
+    workId: "album-01",
     title: "桜の咲く音がした",
     searchReading: "さくらのさくおとがした",
     searchAliases: ["さくさく"],
@@ -180,6 +188,7 @@ export const SONGS = [
   },
   {
     id: "oh-darling",
+    workId: "album-01",
     title: "Oh!Darling",
     searchAliases: ["おだり", "おだりん", "おーだーりん"],
     category: CATEGORY.GROUP_SONG,
@@ -192,6 +201,7 @@ export const SONGS = [
   },
   {
     id: "senobi-in-love",
+    workId: "album-01",
     title: "セノビーインラブ",
     category: CATEGORY.GROUP_SONG,
     releaseDate: "2021-05-12",
@@ -203,6 +213,7 @@ export const SONGS = [
   },
   {
     id: "cinema",
+    workId: "album-01",
     title: "cinema",
     category: CATEGORY.GROUP_SONG,
     releaseDate: "2021-05-12",
@@ -214,6 +225,7 @@ export const SONGS = [
   },
   {
     id: "genneki-idol-chu",
+    workId: "album-01",
     title: "現役アイドルちゅ〜",
     searchReading: "げんえきあいどるちゅー",
     category: CATEGORY.UNIT_SONG,
@@ -225,6 +237,7 @@ export const SONGS = [
   },
   {
     id: "haikei-anata-sama",
+    workId: "album-01",
     title: "拝啓 貴方様",
     searchReading: "はいけいあなたさま",
     category: CATEGORY.UNIT_SONG,
@@ -236,6 +249,7 @@ export const SONGS = [
   },
   {
     id: "24-7",
+    workId: "album-01",
     title: "24/7",
     searchReading: "とぅうぇんてぃーふぉーせぶん",
     category: CATEGORY.UNIT_SONG,
@@ -249,6 +263,7 @@ export const SONGS = [
   },
   {
     id: "oneesan-ja-dame-desuka",
+    workId: "album-01",
     title: "お姉さんじゃダメですか？",
     searchReading: "おねえさんじゃだめですか",
     searchAliases: ["おねダメ"],
@@ -263,6 +278,7 @@ export const SONGS = [
   },
   {
     id: "seishun-subliminal",
+    workId: "single-08",
     title: "青春\"サブリミナル\"",
     searchReading: "せいしゅんさぶりみなる",
     searchAliases: [{ text: "青サブ", reading: "あおさぶ" }, "せいさぶ"],
@@ -276,6 +292,7 @@ export const SONGS = [
   },
   {
     id: "shukipi",
+    workId: "single-08",
     title: "しゅきぴ",
     category: CATEGORY.GROUP_SONG,
     releaseDate: "2020-11-25",
@@ -287,6 +304,7 @@ export const SONGS = [
   },
   {
     id: "ryuseigun",
+    workId: "single-08",
     title: "流星群",
     searchReading: "りゅうせいぐん",
     category: CATEGORY.UNIT_SONG,
@@ -298,6 +316,7 @@ export const SONGS = [
   },
   {
     id: "teokure-caution",
+    workId: "single-03",
     title: "手遅れcaution",
     searchReading: "ておくれこーしょん",
     category: CATEGORY.TITLE_TRACK,
@@ -310,6 +329,7 @@ export const SONGS = [
   },
   {
     id: "bukatsuchu-ni-megaau-natte-omotteta-nda",
+    workId: "single-03",
     title: "「部活中に目が合うなって思ってたんだ」",
     searchReading: "ぶかつちゅうにめがあうなっておもってたんだ",
     searchAliases: [
@@ -326,6 +346,7 @@ export const SONGS = [
   },
   {
     id: "kiara-tasuke-ni-kita-zo",
+    workId: "single-03",
     title: "樹愛羅、助けに来たぞ",
     searchReading: "きあらたすけにきたぞ",
     searchAliases: ["きあたす"],
@@ -339,6 +360,7 @@ export const SONGS = [
   },
   {
     id: "want-you-want-you",
+    workId: "single-04",
     title: "Want you！Want you！",
     searchAliases: ["うぉんちゅー"],
     category: CATEGORY.TITLE_TRACK,
@@ -351,6 +373,7 @@ export const SONGS = [
   },
   {
     id: "ima-kono-fune-ni-nore",
+    workId: "single-04",
     title: "今、この船に乗れ！",
     searchReading: "いまこのふねにのれ",
     searchAliases: [
@@ -367,6 +390,7 @@ export const SONGS = [
   },
   {
     id: "aikatsu-happy-end",
+    workId: "single-04",
     title: "アイカツハッピーエンド",
     category: CATEGORY.GROUP_SONG,
     releaseDate: "2018-10-17",
@@ -378,6 +402,7 @@ export const SONGS = [
   },
   {
     id: "sagase-diamond-lily",
+    workId: "single-05",
     title: "探せ ダイヤモンドリリー",
     searchReading: "さがせだいやもんどりりー",
     searchAliases: ["ダイリリ"],
@@ -391,6 +416,7 @@ export const SONGS = [
   },
   {
     id: "iranai-twintail",
+    workId: "single-05",
     title: "いらない ツインテール",
     searchAliases: ["いらツイ"],
     category: CATEGORY.GROUP_SONG,
@@ -403,6 +429,7 @@ export const SONGS = [
   },
   {
     id: "niji-no-moto",
+    workId: "single-05",
     title: "虹の素",
     searchReading: "にじのもと",
     searchAliases: [{ text: "虹", reading: "にじ" }],
@@ -415,6 +442,7 @@ export const SONGS = [
   },
   {
     id: "sweetest-girl",
+    workId: "single-06",
     title: "Sweetest girl",
     // 英語タイトルの曲は、カタカナ読みをsearchReadingとして登録する
     // （前方一致検索なので「すい」「スイーテスト」のような短い入力でもこれ1件でヒットする。
@@ -431,6 +459,7 @@ export const SONGS = [
   },
   {
     id: "oshi-no-iru-sekai",
+    workId: "single-06",
     title: "推しのいる世界",
     searchReading: "おしのいるせかい",
     searchAliases: [{ text: "推しセカ", reading: "おしせか" }],
@@ -445,6 +474,7 @@ export const SONGS = [
   },
   {
     id: "cameo",
+    workId: "single-07",
     title: "CAMEO",
     category: CATEGORY.TITLE_TRACK,
     releaseDate: "2020-07-08",
@@ -456,6 +486,7 @@ export const SONGS = [
   },
   {
     id: "kimi-to-watashi-no-uta",
+    workId: "single-07",
     title: "「君と私の歌」",
     searchReading: "きみとわたしのうた",
     searchAliases: [{ text: "君私", reading: "きみわた" }],
@@ -469,6 +500,7 @@ export const SONGS = [
   },
   {
     id: "my-voice-is-for-you",
+    workId: "single-07",
     title: "My Voice Is For You",
     searchReading: "まいぼいすいずふぉーゆー",
     category: CATEGORY.UNIT_SONG,
@@ -480,6 +512,7 @@ export const SONGS = [
   },
   {
     id: "the-5th",
+    workId: "single-10",
     title: "The 5th",
     searchAliases: ["ざごす"],
     category: CATEGORY.TITLE_TRACK,
@@ -492,6 +525,7 @@ export const SONGS = [
   },
   {
     id: "ohimesama-ni-shiteyo",
+    workId: "single-10",
     title: "お姫様にしてよ！",
     searchReading: "おひめさまにしてよ",
     searchAliases: [{ text: "お姫様", reading: "おひめさま" }],
@@ -505,6 +539,7 @@ export const SONGS = [
   },
   {
     id: "poison-girl",
+    workId: "single-10",
     title: "Poison Girl",
     searchReading: "ぽいずんがーる",
     category: CATEGORY.GROUP_SONG,
@@ -517,6 +552,7 @@ export const SONGS = [
   },
   {
     id: "bpm170-no-kimi-e",
+    workId: "single-10",
     title: "BPM170の君へ",
     searchReading: "びーぴーえむひゃくななじゅうのきみへ",
     // 「BPM」「bpm」「BPM170」は曲名（英語表記）の前方一致で、「ビーピーエム」
@@ -536,6 +572,7 @@ export const SONGS = [
   },
   {
     id: "ano-ko-complex",
+    workId: "single-11",
     title: "あの子コンプレックス",
     searchReading: "あのここんぷれっくす",
     searchAliases: ["あのコン"],
@@ -549,6 +586,7 @@ export const SONGS = [
   },
   {
     id: "egao-no-recipe",
+    workId: "single-11",
     title: "笑顔のレシピ",
     searchReading: "えがおのれしぴ",
     searchAliases: ["えがれぴ", "レシピ"],
@@ -562,6 +600,7 @@ export const SONGS = [
   },
   {
     id: "shiran-kedo",
+    workId: "single-11",
     title: "知らんけど",
     searchReading: "しらんけど",
     category: CATEGORY.UNIT_SONG,
@@ -575,6 +614,7 @@ export const SONGS = [
   },
   {
     id: "boku-no-heroine",
+    workId: "single-11",
     title: "僕のヒロイン",
     searchReading: "ぼくのひろいん",
     category: CATEGORY.UNIT_SONG,
@@ -586,6 +626,7 @@ export const SONGS = [
   },
   {
     id: "takaramono-wa-green",
+    workId: "digital-03",
     title: "宝物はグリーン",
     searchReading: "たからものはぐりーん",
     category: CATEGORY.UNIT_SONG,
@@ -598,6 +639,7 @@ export const SONGS = [
   },
   {
     id: "kimi-dake-no-hanamichi",
+    workId: "digital-01",
     title: "君だけの花道",
     searchReading: "きみだけのはなみち",
     category: CATEGORY.UNIT_SONG,
@@ -610,6 +652,7 @@ export const SONGS = [
   },
   {
     id: "okaeri-hanadayori",
+    workId: "digital-02",
     title: "おかえり、花便り",
     searchReading: "おかえりはなだより",
     category: CATEGORY.UNIT_SONG,
@@ -622,6 +665,7 @@ export const SONGS = [
   },
   {
     id: "naisho-banashi",
+    workId: "digital-04",
     title: "内緒バナシ",
     searchReading: "ないしょばなし",
     category: CATEGORY.GROUP_SONG,
@@ -635,6 +679,7 @@ export const SONGS = [
   },
   {
     id: "weekend-citron",
+    workId: "single-09",
     title: "ウィークエンドシトロン",
     searchAliases: ["シトロン"],
     category: CATEGORY.TITLE_TRACK,
@@ -647,6 +692,7 @@ export const SONGS = [
   },
   {
     id: "zuttomo-anken",
+    workId: "single-09",
     title: "ズッ友案件",
     searchReading: "ずっともあんけん",
     searchAliases: [{ text: "ズッ友", reading: "ずっとも" }],
@@ -660,6 +706,7 @@ export const SONGS = [
   },
   {
     id: "natsumatsuri-koishitau",
+    workId: "single-09",
     title: "夏祭り恋慕う",
     searchReading: "なつまつりこいしたう",
     searchAliases: [{ text: "夏祭り", reading: "なつまつり" }],
@@ -673,6 +720,7 @@ export const SONGS = [
   },
   {
     id: "shukusai",
+    workId: "single-09",
     title: "祝祭",
     searchReading: "しゅくさい",
     category: CATEGORY.GROUP_SONG,
@@ -685,6 +733,7 @@ export const SONGS = [
   },
   {
     id: "kono-sora-ga-trigger",
+    workId: "single-13",
     title: "この空がトリガー",
     searchReading: "このそらがとりがー",
     searchAliases: ["トリガー"],
@@ -698,6 +747,7 @@ export const SONGS = [
   },
   {
     id: "junkies",
+    workId: "single-13",
     title: "Junkies",
     category: CATEGORY.GROUP_SONG,
     releaseDate: "2023-02-22",
@@ -709,6 +759,7 @@ export const SONGS = [
   },
   {
     id: "love-create",
+    workId: "single-13",
     title: "ラブクリエイト",
     category: CATEGORY.GROUP_SONG,
     releaseDate: "2023-02-22",
@@ -720,6 +771,7 @@ export const SONGS = [
   },
   {
     id: "kiara-tiara",
+    workId: "single-13",
     title: "Kiara Tiara",
     category: CATEGORY.UNIT_SONG,
     releaseDate: "2023-02-22",
@@ -730,6 +782,7 @@ export const SONGS = [
   },
   {
     id: "natsumatope",
+    workId: "single-14",
     title: "ナツマトペ",
     searchAliases: ["マトペ"],
     category: CATEGORY.TITLE_TRACK,
@@ -742,6 +795,7 @@ export const SONGS = [
   },
   {
     id: "dakaratote",
+    workId: "single-14",
     title: "だからとて",
     category: CATEGORY.GROUP_SONG,
     releaseDate: "2023-07-19",
@@ -753,6 +807,7 @@ export const SONGS = [
   },
   {
     id: "heroines",
+    workId: "single-14",
     title: "ヒロインズ",
     category: CATEGORY.GROUP_SONG,
     releaseDate: "2023-07-19",
@@ -764,6 +819,7 @@ export const SONGS = [
   },
   {
     id: "love-locke",
+    workId: "single-14",
     title: "ラブロケ",
     category: CATEGORY.UNIT_SONG,
     releaseDate: "2023-07-19",
@@ -776,6 +832,7 @@ export const SONGS = [
   },
   {
     id: "last-note-shika-shiranai",
+    workId: "single-15",
     title: "ラストノートしか知らない",
     searchReading: "らすとのーとしかしらない",
     category: CATEGORY.TITLE_TRACK,
@@ -788,6 +845,7 @@ export const SONGS = [
   },
   {
     id: "drive-date-tonai",
+    workId: "single-15",
     title: "「ドライブ デート 都内」",
     searchReading: "どらいぶでーととない",
     category: CATEGORY.GROUP_SONG,
@@ -800,6 +858,7 @@ export const SONGS = [
   },
   {
     id: "kyousou-catastrophe",
+    workId: "single-15",
     title: "狂想カタストロフィ",
     searchReading: "きょうそうかたすとろふぃ",
     searchAliases: [{ text: "狂フィ", reading: "きょうふぃ" }],
@@ -813,6 +872,7 @@ export const SONGS = [
   },
   {
     id: "doko-ga-suki-ka-itte",
+    workId: "single-15",
     title: "どこが好きか言って",
     searchReading: "どこがすきかいって",
     searchAliases: [{ text: "どこ好き", reading: "どこすき" }],
@@ -827,6 +887,7 @@ export const SONGS = [
   },
   {
     id: "norotte-norotte",
+    workId: "single-16",
     title: "呪って呪って",
     searchReading: "のろってのろって",
     searchAliases: ["のろのろ"],
@@ -840,6 +901,7 @@ export const SONGS = [
   },
   {
     id: "darenimo-barezuni",
+    workId: "single-16",
     title: "誰にもバレずに",
     searchReading: "だれにもばれずに",
     searchAliases: [{ text: "誰バレ", reading: "だればれ" }],
@@ -853,6 +915,7 @@ export const SONGS = [
   },
   {
     id: "kimi-no-dai-3-button",
+    workId: "single-16",
     title: "君の第3ボタン",
     searchReading: "きみのだいさんぼたん",
     searchAliases: [{ text: "第3ボタン", reading: "だいさんぼたん" }],
@@ -866,6 +929,7 @@ export const SONGS = [
   },
   {
     id: "zettai-idol-yamenaide",
+    workId: "single-17",
     title: "絶対アイドル辞めないで",
     searchReading: "ぜったいあいどるやめないで",
     searchAliases: [{ text: "絶アイ", reading: "ぜつあい" }],
@@ -879,6 +943,7 @@ export const SONGS = [
   },
   {
     id: "nakanaori-shu-cream",
+    workId: "single-17",
     title: "仲直りシュークリーム",
     searchReading: "なかなおりしゅーくりーむ",
     category: CATEGORY.GROUP_SONG,
@@ -891,6 +956,7 @@ export const SONGS = [
   },
   {
     id: "umi-to-lemon-tea",
+    workId: "single-17",
     title: "海とレモンティー",
     searchReading: "うみとれもんてぃー",
     searchAliases: [{ text: "海レモ", reading: "うみれも" }],
@@ -904,6 +970,7 @@ export const SONGS = [
   },
   {
     id: "tokubechu-shite",
+    workId: "single-18",
     title: "とくべチュ、して",
     category: CATEGORY.TITLE_TRACK,
     releaseDate: "2025-02-26",
@@ -915,6 +982,7 @@ export const SONGS = [
   },
   {
     id: "koibito-ijou-suki-miman",
+    workId: "single-18",
     title: "恋人以上、好き未満",
     searchReading: "こいびといじょうすきみまん",
     category: CATEGORY.TITLE_TRACK,
@@ -927,6 +995,7 @@ export const SONGS = [
   },
   {
     id: "chotokkyu-tousouchu",
+    workId: "single-18",
     title: "超特急逃走中",
     searchReading: "ちょうとっきゅうとうそうちゅう",
     category: CATEGORY.GROUP_SONG,
@@ -939,6 +1008,7 @@ export const SONGS = [
   },
   {
     id: "love-song-ni-osowareru",
+    workId: "single-19",
     title: "ラブソングに襲われる",
     searchReading: "らぶそんぐにおそわれる",
     category: CATEGORY.TITLE_TRACK,
@@ -951,6 +1021,7 @@ export const SONGS = [
   },
   {
     id: "komorebi-mezzoforte",
+    workId: "single-19",
     title: "木漏れ日メゾフォルテ",
     searchReading: "こもれびめぞふぉるて",
     category: CATEGORY.GROUP_SONG,
@@ -963,6 +1034,7 @@ export const SONGS = [
   },
   {
     id: "queens",
+    workId: "single-19",
     title: "Queens",
     category: CATEGORY.UNIT_SONG,
     releaseDate: "2025-10-08",
@@ -973,6 +1045,7 @@ export const SONGS = [
   },
   {
     id: "gekiyaku-chudoku",
+    workId: "single-20",
     title: "劇薬中毒",
     searchReading: "げきやくちゅうどく",
     category: CATEGORY.TITLE_TRACK,
@@ -985,6 +1058,7 @@ export const SONGS = [
   },
   {
     id: "moratorium",
+    workId: "single-20",
     title: "モラトリアム",
     category: CATEGORY.GROUP_SONG,
     releaseDate: "2026-04-01",
@@ -996,6 +1070,7 @@ export const SONGS = [
   },
   {
     id: "ohimesama-no-tsukurikata",
+    workId: "single-20",
     title: "お姫様の作り方",
     searchReading: "おひめさまのつくりかた",
     searchAliases: [{ text: "姫作", reading: "ひめつく" }],
@@ -1009,6 +1084,7 @@ export const SONGS = [
   },
   {
     id: "866",
+    workId: "special-866",
     title: "866",
     searchReading: "はちろくろく",
     category: CATEGORY.GROUP_SONG,
@@ -1022,6 +1098,7 @@ export const SONGS = [
   },
   {
     id: "overture",
+    workId: "album-01",
     title: "Overture",
     category: CATEGORY.SPECIAL,
     releaseDate: "2021-05-12",
@@ -1032,6 +1109,7 @@ export const SONGS = [
   },
   {
     id: "be-selfish",
+    workId: "single-12",
     title: "Be Selfish",
     searchAliases: ["びせる", "びーせる"],
     category: CATEGORY.TITLE_TRACK,
@@ -1044,6 +1122,7 @@ export const SONGS = [
   },
   {
     id: "sukitte-ienakatta",
+    workId: "single-12",
     title: "好きって、言えなかった",
     searchReading: "すきっていえなかった",
     searchAliases: [{ text: "好き言え", reading: "すきいえ" }],
@@ -1057,6 +1136,7 @@ export const SONGS = [
   },
   {
     id: "watashi-mahoutsukai",
+    workId: "single-12",
     title: "わたし、魔法使い",
     searchReading: "わたしまほうつかい",
     searchAliases: ["わたまほ"],
@@ -1069,6 +1149,7 @@ export const SONGS = [
   },
   {
     id: "mayonaka-mermaid",
+    workId: "single-12",
     title: "真夜中マーメイド",
     searchReading: "まよなかまーめいど",
     category: CATEGORY.UNIT_SONG,

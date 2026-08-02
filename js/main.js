@@ -57,6 +57,16 @@ import {
 import { importAudioFiles, getImportedSongIds } from "./audioStorage.js";
 import { analyzeLyricsFiles, saveLyricsData, getImportedLyricsSongIds } from "./lyricsStorage.js";
 import { closeFullscreenLyrics } from "./lyricsFullscreen.js";
+import { MEMBERS } from "./data/members.js";
+import { MEMBER_PROFILES } from "./data/memberProfiles.js";
+import { MEMBER_ACTIVITIES } from "./data/memberActivities.js";
+import { GROUP_ACTIVITIES } from "./data/groupActivities.js";
+import { DISCOGRAPHY } from "./data/discography.js";
+import { GROUP_INFO } from "./data/groupInfo.js";
+import { HISTORY_EVENTS } from "./data/historyEvents.js";
+import { LIVE_EVENTS } from "./data/liveHistory.js";
+import { initDiscographyScreen, renderDiscographyScreen, openWorkDetail } from "./discographyScreen.js";
+import { initMembersScreen, renderMembersScreen, openMemberDetail } from "./membersScreen.js";
 
 // 背景のキラキラ演出は、ゲームの状態と関係なく最初に1回だけ生成すればよい。
 renderBackgroundSparkles();
@@ -202,6 +212,16 @@ const lyricsWarningSaveButtonElement = document.getElementById("lyrics-warning-s
 const lyricsWarningDiscardButtonElement = document.getElementById("lyrics-warning-discard-button");
 const updateAvailableBannerElement = document.getElementById("update-available-banner");
 const updateReloadButtonElement = document.getElementById("update-reload-button");
+const discographyLinkElement = document.getElementById("discography-link");
+const discographyBackButtonElement = document.getElementById("discography-back-button");
+const workDetailBackButtonElement = document.getElementById("work-detail-back-button");
+// 作品詳細画面を開く直前の、ディスコグラフィー画面のスクロール位置。「戻る」で復元する。
+let discographyScrollY = 0;
+const membersLinkElement = document.getElementById("members-link");
+const membersBackButtonElement = document.getElementById("members-back-button");
+const memberDetailBackButtonElement = document.getElementById("member-detail-back-button");
+// メンバー詳細画面を開く直前の、メンバー一覧画面のスクロール位置。「戻る」で復元する。
+let membersScrollY = 0;
 
 // 称号一覧モーダルの開閉ロジックはtitleList.jsに閉じ込めてあるので、
 // ここでは必要なDOM要素を渡して初期化するだけでよい。
@@ -278,6 +298,51 @@ initSpecialModesScreen({
       renderCustomQuizPresetsScreen();
       showScreen("customQuizPresets");
     }
+  },
+});
+
+// ＝LOVEの歴史・ディスコグラフィー画面：作品カード（年表・作品一覧どちらから）が
+// タップされたら作品詳細画面を開く。
+initDiscographyScreen({
+  tabButtons: {
+    about: document.getElementById("discography-tab-about"),
+    history: document.getElementById("discography-tab-history"),
+    works: document.getElementById("discography-tab-works"),
+    live: document.getElementById("discography-tab-live"),
+  },
+  tabPanels: {
+    about: document.getElementById("discography-about-panel"),
+    history: document.getElementById("discography-history-panel"),
+    works: document.getElementById("discography-works-panel"),
+    live: document.getElementById("discography-live-panel"),
+  },
+  aboutContent: document.getElementById("discography-about-content"),
+  timeline: document.getElementById("discography-timeline"),
+  workList: document.getElementById("discography-work-list"),
+  liveList: document.getElementById("discography-live-list"),
+  workDetailTitle: document.getElementById("work-detail-title"),
+  workDetailContent: document.getElementById("work-detail-content"),
+  onSelectWork: (workId) => {
+    playClickSound();
+    discographyScrollY = window.scrollY;
+    openWorkDetail(SONGS, DISCOGRAPHY, workId);
+    showScreen("workDetail");
+  },
+});
+
+// メンバー一覧画面：現役メンバーのカードがタップされたらメンバー詳細画面を開く。
+// 卒業メンバーの簡易カードはタップ不可（詳細画面を持たない仕様、13章参照）。
+initMembersScreen({
+  activeGrid: document.getElementById("members-active-grid"),
+  activeCount: document.getElementById("members-active-count"),
+  graduatedList: document.getElementById("members-graduated-list"),
+  memberDetailName: document.getElementById("member-detail-name"),
+  memberDetailContent: document.getElementById("member-detail-content"),
+  onSelectMember: (memberId) => {
+    playClickSound();
+    membersScrollY = window.scrollY;
+    openMemberDetail(SONGS, MEMBERS, MEMBER_PROFILES, MEMBER_ACTIVITIES, memberId);
+    showScreen("memberDetail");
   },
 });
 
@@ -1188,6 +1253,54 @@ historyDetailBackButtonElement.addEventListener("click", () => {
   playClickSound();
   showScreen("history");
   window.scrollTo(0, historyListScrollY);
+});
+
+// 「歴史・ディスコグラフィー」リンク：開くたびに描画し直す
+// （曲データ・メンバーデータが増えることはあっても、画面を開いたまま変わることはないが、
+// 他の画面と同じ描画パターンに揃えている）。
+discographyLinkElement.addEventListener("click", () => {
+  playClickSound();
+  renderDiscographyScreen({
+    songs: SONGS,
+    members: MEMBERS,
+    discographyEntries: DISCOGRAPHY,
+    historyEvents: HISTORY_EVENTS,
+    groupInfo: GROUP_INFO,
+    groupActivities: GROUP_ACTIVITIES,
+    liveEvents: LIVE_EVENTS,
+  });
+  showScreen("discography");
+});
+
+discographyBackButtonElement.addEventListener("click", () => {
+  playClickSound();
+  showScreen("start");
+});
+
+workDetailBackButtonElement.addEventListener("click", () => {
+  playClickSound();
+  showScreen("discography");
+  window.scrollTo(0, discographyScrollY);
+});
+
+// 「メンバー紹介」リンク：開くたびに描画し直す（選択中メンバーの強調表示を反映するため）。
+membersLinkElement.addEventListener("click", () => {
+  playClickSound();
+  renderMembersScreen(SONGS, MEMBERS, MEMBER_PROFILES);
+  showScreen("members");
+});
+
+membersBackButtonElement.addEventListener("click", () => {
+  playClickSound();
+  showScreen("start");
+});
+
+memberDetailBackButtonElement.addEventListener("click", () => {
+  playClickSound();
+  // 選択中メンバーの強調表示（is-selected）を反映するため、一覧を描画し直してから戻る。
+  renderMembersScreen(SONGS, MEMBERS, MEMBER_PROFILES);
+  showScreen("members");
+  window.scrollTo(0, membersScrollY);
 });
 
 // 「特別モード」リンク：一覧画面を開く（一覧の中身は固定なので描画し直す必要はない）。

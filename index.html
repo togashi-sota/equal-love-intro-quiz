@@ -241,6 +241,45 @@
         <span class="special-modes-entry-icon" aria-hidden="true">✦</span>
         特別モード
       </button>
+
+      <!-- ＝LOVEについて／メンバー情報ページへの入口。
+           ゲームモードの導線とは視覚的に分けるため、区切り線を挟んで独立させている。 -->
+      <div class="special-modes-divider" aria-hidden="true"></div>
+      <p class="know-more-title">＝LOVEをもっと知る</p>
+      <div class="know-more-grid">
+        <button id="discography-link" class="know-more-button" type="button">
+          <svg class="know-more-icon" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+            <path d="M16 27C8 20 3 15 3 10.5 3 5.5 7 3 11 3c2.5 0 4.3 1.3 5 3 .7-1.7 2.5-3 5-3 4 0 8 2.5 8 7.5 0 4.5-5 9.5-13 16.5Z" fill="#ff6fa8"/>
+            <rect x="8.5" y="12.2" width="15" height="2.8" rx="1.4" fill="#fff"/>
+            <rect x="8.5" y="17.6" width="15" height="2.8" rx="1.4" fill="#fff"/>
+            <circle cx="23.8" cy="25.2" r="2.6" fill="#ffd93d"/>
+            <rect x="25.7" y="15" width="1.8" height="10.5" rx="0.9" fill="#ffd93d"/>
+          </svg>
+          <span class="know-more-label">＝LOVEについて</span>
+          <span class="know-more-description">グループの由来・歴史・作品・ライブの記録を見る</span>
+        </button>
+        <button id="members-link" class="know-more-button" type="button">
+          <svg class="know-more-icon" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+            <!-- 結成時12人分のメンバーカラー（members.js準拠）を出席番号順に時計回りで配置。
+                 卒業2人（齊藤なぎさ・佐竹のん乃）は隣り合う青同士が接しないよう順を入れ替えている。 -->
+            <circle cx="16" cy="4" r="2.4" fill="#c9a8e8"/>   <!-- 1 大谷映美里 -->
+            <circle cx="22" cy="5.61" r="2.4" fill="#ff9f4d"/> <!-- 2 大場花菜 -->
+            <circle cx="26.39" cy="10" r="2.4" fill="#7dd3f0"/> <!-- 3 音嶋莉沙 -->
+            <circle cx="28" cy="16" r="2.4" fill="#ffb3d1"/>   <!-- 4 齋藤樹愛羅 -->
+            <circle cx="26.39" cy="22" r="2.4" fill="#e0e0e0"/> <!-- 5 佐々木舞香 -->
+            <circle cx="22" cy="26.39" r="2.4" fill="#ff5c5c"/> <!-- 6 髙松瞳 -->
+            <circle cx="16" cy="28" r="2.4" fill="#ffd93d"/>   <!-- 7 瀧脇笙古 -->
+            <circle cx="10" cy="26.39" r="2.4" fill="#9d6fe0"/> <!-- 8 野口衣織 -->
+            <circle cx="5.61" cy="22" r="2.4" fill="#b5d94a"/> <!-- 9 諸橋沙夏 -->
+            <circle cx="4" cy="16" r="2.4" fill="#5b9bd9"/>    <!-- 10 山本杏奈 -->
+            <circle cx="5.61" cy="10" r="2.4" fill="#ff8fc0"/> <!-- 卒業 齊藤なぎさ -->
+            <circle cx="10" cy="5.61" r="2.4" fill="#5b9bd9"/> <!-- 卒業 佐竹のん乃 -->
+            <path d="M16 20.5C12.5 17.5 10.5 15.5 10.5 13c0-2 1.5-3.5 3.5-3.5 1 0 1.7.6 2 1.3.3-.7 1-1.3 2-1.3 2 0 3.5 1.5 3.5 3.5 0 2.5-2 4.5-5.5 7.5Z" fill="#4a2e42" opacity="0.75"/>
+          </svg>
+          <span class="know-more-label">メンバー紹介</span>
+          <span class="know-more-description">現役10人と卒業メンバーを見る</span>
+        </button>
+      </div>
     </section>
 
     <!-- クイズ画面：イントロ再生、4択、タイマー、正誤表示を行う画面 -->
@@ -797,6 +836,125 @@
       <!-- 既存プリセットを開いているときだけ表示する削除の入口。誤操作を防ぐため、
            押しやすい主要ボタンとは見た目を分け、確認モーダルを必ず経由する。普段はhidden -->
       <button id="custom-quiz-delete-button" class="history-clear-button" type="button" hidden>このセットを削除する</button>
+    </section>
+
+    <!-- ＝LOVEについて画面：「＝LOVEについて／年表／作品一覧」の3タブで切り替える。
+         中身はjs/discographyScreen.jsが組み立てる。 -->
+    <section id="discography-screen" class="screen">
+      <div class="list-header">
+        <button id="discography-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            ABOUT =LOVE
+          </p>
+          <h2>＝LOVEについて</h2>
+        </div>
+      </div>
+
+      <div class="tab-row" role="tablist">
+        <button id="discography-tab-about" class="tab-button is-active" type="button" role="tab" aria-selected="true">＝LOVEについて</button>
+        <button id="discography-tab-history" class="tab-button" type="button" role="tab" aria-selected="false">年表</button>
+        <button id="discography-tab-works" class="tab-button" type="button" role="tab" aria-selected="false">作品一覧</button>
+        <button id="discography-tab-live" class="tab-button" type="button" role="tab" aria-selected="false">ライブ</button>
+      </div>
+
+      <div id="discography-about-panel" class="tab-panel is-active">
+        <div id="discography-about-content"></div>
+      </div>
+
+      <div id="discography-history-panel" class="tab-panel">
+        <div id="discography-timeline"></div>
+      </div>
+
+      <div id="discography-works-panel" class="tab-panel">
+        <div id="discography-work-list"></div>
+      </div>
+
+      <div id="discography-live-panel" class="tab-panel">
+        <div id="discography-live-list"></div>
+      </div>
+    </section>
+
+    <!-- 作品詳細画面：ディスコグラフィー画面の作品カードをタップしたときに開く画面。
+         中身はjs/discographyScreen.jsが組み立てる。 -->
+    <section id="work-detail-screen" class="screen">
+      <div class="list-header">
+        <button id="work-detail-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            WORK
+          </p>
+          <h2 id="work-detail-title">&nbsp;</h2>
+        </div>
+      </div>
+
+      <div id="work-detail-content"></div>
+    </section>
+
+    <!-- メンバー一覧画面：現役メンバー（出席番号順）と、卒業メンバーの簡易紹介をまとめる画面。
+         中身はjs/membersScreen.jsが組み立てる。 -->
+    <section id="members-screen" class="screen">
+      <div class="list-header">
+        <button id="members-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            MEMBERS
+          </p>
+          <h2>メンバー紹介</h2>
+        </div>
+      </div>
+
+      <div class="member-section-label-row">
+        <h3>現役メンバー</h3>
+        <span id="members-active-count" class="member-section-count"></span>
+      </div>
+      <div id="members-active-grid" class="member-grid"></div>
+
+      <div class="member-graduated-block">
+        <h3 class="member-section-heading">過去に在籍していたメンバー</h3>
+        <p class="member-graduated-note">＝LOVEは結成時12人体制でした。現在は卒業されたメンバーを、簡単な紹介として掲載しています。</p>
+        <div id="members-graduated-list"></div>
+      </div>
+    </section>
+
+    <!-- メンバー詳細画面：メンバー一覧の現役メンバーカードをタップしたときに開く画面。
+         中身はjs/membersScreen.jsが組み立てる。 -->
+    <section id="member-detail-screen" class="screen">
+      <div class="list-header">
+        <button id="member-detail-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            MEMBER
+          </p>
+          <h2 id="member-detail-name">&nbsp;</h2>
+        </div>
+      </div>
+
+      <div id="member-detail-content"></div>
     </section>
 
     <!-- プリセット削除の確認モーダル：プレイ履歴の全削除確認と同じ構成

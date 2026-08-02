@@ -4001,6 +4001,1042 @@ fieldset label:has(input:focus-visible) {
   opacity: 0.75;
 }
 
+/* ===== ＝LOVEをもっと知る（スタート画面の入口） ===== */
+
+.know-more-title {
+  margin: 0 0 10px;
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+}
+
+.know-more-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.know-more-button {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 8px;
+  border: 1.5px solid var(--color-card-border);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.35);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-align: center;
+  cursor: pointer;
+  transition: box-shadow 0.2s ease, transform 0.15s ease, border-color 0.2s ease;
+}
+
+/* ステージのスポットライトのような、控えめな放射状グラデーション。カードの役割を
+   色でも示す（＝LOVE全体＝ピンク寄り、メンバー個人＝ブルー寄り）。2026-08-03追加 */
+.know-more-button::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 30% 15%, rgba(255, 111, 168, 0.22), transparent 65%);
+  pointer-events: none;
+}
+
+#members-link::before {
+  background: radial-gradient(circle at 30% 15%, rgba(111, 189, 242, 0.22), transparent 65%);
+}
+
+.know-more-button > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* タイトルを主役にするため、アイコンは小さめに固定する（2026-08-03、本人希望） */
+.know-more-icon {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  filter: drop-shadow(0 0 4px rgba(255, 111, 168, 0.4));
+}
+
+#members-link .know-more-icon {
+  filter: drop-shadow(0 0 4px rgba(111, 189, 242, 0.4));
+}
+
+.know-more-label {
+  font-size: 0.8rem;
+}
+
+.know-more-description {
+  font-size: 0.66rem;
+  font-weight: 400;
+  color: var(--color-text);
+  opacity: 0.6;
+}
+
+.know-more-button:hover {
+  border-color: var(--color-primary);
+}
+
+#members-link:hover {
+  border-color: var(--color-secondary);
+}
+
+.know-more-button:active {
+  transform: scale(0.96);
+  box-shadow: 0 0 0 3px rgba(255, 111, 168, 0.18);
+}
+
+#members-link:active {
+  box-shadow: 0 0 0 3px rgba(111, 189, 242, 0.18);
+}
+
+/* ===== メンバー・ディスコグラフィー画面共通：詳細ページのパーツ =====
+   作品詳細画面（js/discographyScreen.js）とメンバー詳細画面（js/membersScreen.js）の
+   両方から使う共通クラス。役割ごとに項目を分けて縦に積む構成（10-25章までの知見と同じく、
+   情報量が多い画面ほど「見出し＋カード」で区切ると読みやすくなるため）。 */
+
+.section-heading {
+  margin: 20px 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+}
+
+.section-heading::before {
+  content: "";
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, var(--color-secondary), var(--color-primary));
+}
+
+.detail-hero {
+  text-align: center;
+  padding: 18px 14px;
+  background: rgba(255, 255, 255, 0.4);
+  border: 1px solid var(--color-card-border);
+  border-radius: 18px;
+}
+
+.type-badge {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  background: var(--color-primary-light);
+  padding: 3px 12px;
+  border-radius: 999px;
+}
+
+.fact-list {
+  margin-top: 10px;
+}
+
+.fact-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 2px;
+  border-bottom: 1px solid rgba(74, 46, 66, 0.08);
+  font-size: 0.82rem;
+}
+
+.fact-row:last-child {
+  border-bottom: none;
+}
+
+.fact-row-key {
+  color: var(--color-text);
+  opacity: 0.6;
+  flex: none;
+}
+
+.fact-row-value {
+  color: var(--color-text);
+  font-weight: 700;
+  text-align: right;
+}
+
+.fact-row-value.is-unconfirmed {
+  font-weight: 400;
+  font-style: italic;
+  opacity: 0.45;
+}
+
+/* メンバーカラー・ペンライトカラーの行だけ、色名の左に小さな色見本を添える */
+.color-fact-value {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.color-swatch-dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  flex: none;
+}
+
+.empty-state-note {
+  margin: 4px 0 0;
+  font-size: 0.78rem;
+  color: var(--color-text);
+  opacity: 0.55;
+}
+
+.official-link-button {
+  display: block;
+  padding: 10px 14px;
+  margin-bottom: 8px;
+  border: 1.5px solid var(--color-card-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.official-link-button:active {
+  transform: scale(0.98);
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.song-chip {
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: var(--color-accent-soft);
+  border: 1px solid var(--color-accent);
+  color: var(--color-text);
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+/* ===== ディスコグラフィー画面：タブ ===== */
+
+.tab-row {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: 16px;
+  background: rgba(255, 255, 255, 0.45);
+  border: 1px solid var(--color-card-border);
+  border-radius: 999px;
+}
+
+.tab-button {
+  flex: 1;
+  padding: 8px 6px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  opacity: 0.55;
+  cursor: pointer;
+}
+
+.tab-button.is-active {
+  background: linear-gradient(120deg, var(--color-primary), var(--color-primary-dark));
+  color: #fff;
+  opacity: 1;
+  box-shadow: 0 6px 14px -6px rgba(255, 79, 150, 0.5);
+}
+
+.tab-panel {
+  display: none;
+}
+
+.tab-panel.is-active {
+  display: block;
+}
+
+/* ===== ディスコグラフィー画面：年表タブ ===== */
+
+.member-count-card {
+  padding: 14px 16px;
+  margin-bottom: 18px;
+  background: var(--color-primary-light);
+  border-radius: 14px;
+}
+
+.member-count-founding {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+}
+
+.member-count-current {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(74, 46, 66, 0.15);
+  font-size: 0.8rem;
+  color: var(--color-text);
+}
+
+.member-count-badge {
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: #fff;
+  background: var(--color-secondary);
+  padding: 2px 9px;
+  border-radius: 999px;
+}
+
+.timeline {
+  position: relative;
+  padding-left: 18px;
+}
+
+.timeline::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 4px;
+  bottom: 4px;
+  width: 2px;
+  background: linear-gradient(180deg, var(--color-primary), var(--color-secondary));
+  opacity: 0.5;
+}
+
+.timeline-year {
+  margin: 18px 0 8px;
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+}
+
+.timeline-year:first-child {
+  margin-top: 0;
+}
+
+.timeline-item {
+  position: relative;
+  margin-bottom: 12px;
+}
+
+.timeline-item::before {
+  content: "";
+  position: absolute;
+  left: -17px;
+  top: 4px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  border: 2px solid var(--color-surface);
+}
+
+/* 卒業・結成発表等の節目イベントは、リリース（黄）と見分けられるよう色を変える */
+.timeline-item.type-graduation::before {
+  background: var(--color-primary);
+}
+
+.timeline-item.type-milestone::before {
+  background: var(--color-secondary);
+  width: 11px;
+  height: 11px;
+  left: -18px;
+}
+
+/* 年表の色付き丸が何を表すかの凡例。横並び・折り返し可能な小さなチップにして、
+   年表本体を圧迫しないようにする（2026-08-03追加） */
+.timeline-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-bottom: 16px;
+}
+
+.timeline-legend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.68rem;
+  color: var(--color-text);
+  opacity: 0.75;
+}
+
+.timeline-legend-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  flex: none;
+}
+
+.timeline-legend-dot.type-graduation {
+  background: var(--color-primary);
+}
+
+.timeline-legend-dot.type-milestone {
+  background: var(--color-secondary);
+}
+
+/* ライブタブ：掲載基準の注記（2026-08-03追加） */
+.live-list-notice {
+  margin: 0 0 14px;
+  font-size: 0.72rem;
+  line-height: 1.6;
+  color: var(--color-text);
+  opacity: 0.65;
+}
+
+/* ライブタブ：ライブ・ツアー履歴のカード一覧（2026-08-03追加） */
+.live-event-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.live-event-card {
+  padding: 12px 14px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-card-border);
+  border-radius: 14px;
+}
+
+.live-event-tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.live-event-tag {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  background: var(--color-primary-light);
+  padding: 1px 9px;
+  border-radius: 999px;
+}
+
+.live-event-tag.is-anniversary {
+  color: #9a5b12;
+  background: #fbedd9;
+}
+
+.live-event-tag.is-announced {
+  color: #1c5f8a;
+  background: #e1f0fa;
+}
+
+.live-event-tag.is-graduation {
+  color: #7a3b6e;
+  background: #f3e3ef;
+}
+
+.live-event-product-links {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.live-event-product-link {
+  margin-bottom: 0;
+  padding: 8px 12px;
+  font-size: 0.72rem;
+}
+
+.live-event-title {
+  margin: 0 0 4px;
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.live-event-date {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-text);
+  opacity: 0.85;
+}
+
+.live-event-venue {
+  margin: 2px 0 0;
+  font-size: 0.76rem;
+  color: var(--color-text);
+  opacity: 0.7;
+}
+
+.live-event-bluray {
+  margin: 6px 0 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+}
+
+.timeline-date {
+  margin: 0;
+  font-size: 0.7rem;
+  color: var(--color-text);
+  opacity: 0.5;
+  font-variant-numeric: tabular-nums;
+}
+
+.timeline-title {
+  margin: 1px 0 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+/* ===== ディスコグラフィー画面：作品一覧タブ／作品詳細画面 ===== */
+
+.work-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  border: 1px solid var(--color-card-border);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.4);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.work-card:active {
+  transform: scale(0.98);
+}
+
+.work-card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.work-card-type {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  background: var(--color-primary-light);
+  padding: 1px 9px;
+  border-radius: 999px;
+  margin-bottom: 3px;
+}
+
+.work-card-title {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.work-card-date {
+  margin: 2px 0 0;
+  font-size: 0.72rem;
+  color: var(--color-text);
+  opacity: 0.55;
+  font-variant-numeric: tabular-nums;
+}
+
+.work-card-chevron {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--color-primary);
+  opacity: 0.6;
+}
+
+.track-list {
+  padding: 4px 14px;
+  background: rgba(255, 255, 255, 0.4);
+  border: 1px solid var(--color-card-border);
+  border-radius: 14px;
+}
+
+.track-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 0;
+  border-bottom: 1px solid rgba(74, 46, 66, 0.08);
+  font-size: 0.82rem;
+}
+
+.track-row:last-child {
+  border-bottom: none;
+}
+
+.track-tag {
+  flex: none;
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+
+.track-tag.is-title {
+  background: var(--color-accent-soft);
+  color: #8a6d00;
+}
+
+.track-tag.is-coupling {
+  background: rgba(74, 46, 66, 0.06);
+  color: var(--color-text);
+  opacity: 0.6;
+}
+
+.track-name {
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.track-center {
+  margin-left: auto;
+  flex: none;
+  font-size: 0.7rem;
+  color: var(--color-text);
+  opacity: 0.5;
+  white-space: nowrap;
+}
+
+.work-description {
+  padding: 12px 14px;
+  margin: 0;
+  background: rgba(255, 255, 255, 0.4);
+  border: 1px solid var(--color-card-border);
+  border-radius: 14px;
+  font-size: 0.82rem;
+  color: var(--color-text);
+  opacity: 0.85;
+}
+
+/* ===== メンバー一覧画面 ===== */
+
+.member-section-label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 4px 0 10px;
+}
+
+.member-section-label-row h3 {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+}
+
+.member-section-count {
+  font-size: 0.72rem;
+  color: var(--color-text);
+  opacity: 0.5;
+}
+
+.member-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.member-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 8px 12px;
+  border: 1px solid var(--color-card-border);
+  border-radius: 16px;
+  background: var(--color-surface);
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 8px 20px -14px rgba(74, 46, 66, 0.3);
+}
+
+.member-card:active {
+  transform: scale(0.97);
+}
+
+/* 現在詳細を表示している（または直前に見た）メンバーのカードを強調する。
+   優先度低めの機能だが、実装コストが小さいため本実装から採用している。 */
+.member-card.is-selected {
+  border: 2px solid var(--color-primary);
+  box-shadow: 0 0 0 4px var(--color-primary-light), 0 10px 22px -12px rgba(255, 79, 150, 0.4);
+}
+
+.member-card-swatch {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 6px 14px -6px rgba(0, 0, 0, 0.3), inset 0 -4px 8px rgba(0, 0, 0, 0.12);
+}
+
+.member-card-name {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: var(--color-text);
+  text-align: center;
+}
+
+.member-graduated-block {
+  margin-top: 22px;
+}
+
+.member-section-heading {
+  margin: 0 0 4px;
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: var(--color-text);
+  opacity: 0.7;
+}
+
+.member-graduated-note {
+  margin: 0 0 12px;
+  font-size: 0.75rem;
+  color: var(--color-text);
+  opacity: 0.6;
+}
+
+.graduated-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  background: rgba(255, 255, 255, 0.35);
+  border: 1px dashed var(--color-card-border);
+  border-radius: 14px;
+  filter: saturate(0.75);
+}
+
+.graduated-card-swatch {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+}
+
+.graduated-card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.graduated-card-name {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.graduated-card-period,
+.graduated-card-center {
+  margin: 2px 0 0;
+  font-size: 0.68rem;
+  color: var(--color-text);
+  opacity: 0.55;
+}
+
+.graduated-card-link {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+}
+
+.graduated-card-tag {
+  flex: none;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(74, 46, 66, 0.08);
+  color: var(--color-text);
+  opacity: 0.65;
+  white-space: nowrap;
+}
+
+/* ===== メンバー詳細画面 ===== */
+
+.member-detail-swatch {
+  display: block;
+  width: 80px;
+  height: 80px;
+  margin: 0 auto 12px;
+  border-radius: 50%;
+  border: 4px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 10px 22px -8px rgba(0, 0, 0, 0.35), inset 0 -6px 12px rgba(0, 0, 0, 0.12);
+}
+
+.member-detail-name {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.member-detail-reading {
+  margin: 2px 0 0;
+  font-size: 0.72rem;
+  color: var(--color-text);
+  opacity: 0.55;
+}
+
+.member-detail-attendance {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  background: var(--color-primary-light);
+  padding: 3px 12px;
+  border-radius: 999px;
+}
+
+.member-detail-badge-row {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.member-detail-role-badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(120deg, var(--color-primary), var(--color-primary-dark));
+  padding: 3px 12px;
+  border-radius: 999px;
+}
+
+/* メンバー一覧カードの小さな役割タグ（リーダー等） */
+.member-card-role-tag {
+  font-size: 0.62rem;
+  font-weight: 800;
+  color: #fff;
+  background: var(--color-primary);
+  padding: 2px 9px;
+  border-radius: 999px;
+}
+
+/* 情報源が公式・本人発信以外（メディア報道・ファン定着）のときだけ添える小さな注記チップ */
+.source-badge {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: var(--color-text);
+  background: rgba(74, 46, 66, 0.08);
+  padding: 2px 8px;
+  border-radius: 999px;
+  vertical-align: middle;
+}
+
+/* 紹介文・加入前の活動・志望動機など、1件のテキストを見せるカード */
+.text-card {
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.4);
+  border: 1px solid var(--color-card-border);
+  border-radius: 14px;
+}
+
+.text-card-body {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.7;
+  color: var(--color-text);
+}
+
+/* 個人活動・レギュラー企画のカード一覧 */
+.activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.activity-card {
+  display: block;
+  padding: 10px 12px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-card-border);
+  border-radius: 12px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.activity-card-type {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  background: var(--color-primary-light);
+  padding: 1px 9px;
+  border-radius: 999px;
+  margin-right: 4px;
+}
+
+/* 活動の現況（continue/annual/irregular/ended/past）ごとの色分けタグ */
+.activity-card-status {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 1px 9px;
+  border-radius: 999px;
+}
+
+.activity-card-status.is-ongoing {
+  color: #1b7a3d;
+  background: #e2f5e8;
+}
+
+.activity-card-status.is-annual {
+  color: #1c5f8a;
+  background: #e1f0fa;
+}
+
+.activity-card-status.is-irregular {
+  color: #9a5b12;
+  background: #fbedd9;
+}
+
+.activity-card-status.is-ended,
+.activity-card-status.is-past {
+  color: #6b6470;
+  background: #ece7ea;
+}
+
+.activity-card-title {
+  margin: 6px 0 0;
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.activity-card-description {
+  margin: 2px 0 0;
+  font-size: 0.75rem;
+  color: var(--color-text);
+  opacity: 0.7;
+}
+
+.activity-card-link {
+  display: inline-block;
+  margin-top: 8px;
+}
+
+/* 愛称・ファンネームのチップ */
+.nickname-chip {
+  font-size: 0.78rem;
+  font-weight: 700;
+  background: var(--color-surface);
+  border: 1px solid var(--color-card-border);
+  color: var(--color-text);
+  padding: 5px 12px;
+  border-radius: 999px;
+}
+
+.nickname-chip.is-fanname {
+  background: var(--color-accent-soft);
+  border-color: var(--color-accent);
+}
+
+/* ＝LOVEについてタブ */
+.about-text-block {
+  margin-bottom: 4px;
+}
+
+.about-text-body {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.8;
+  color: var(--color-text);
+}
+
+.producer-card {
+  margin-top: 20px;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.4);
+  border: 1px solid var(--color-card-border);
+  border-radius: 14px;
+}
+
+.producer-name {
+  margin: 0 0 8px;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.producer-facts {
+  margin: 0 0 10px;
+  padding-left: 18px;
+  font-size: 0.8rem;
+  line-height: 1.7;
+  color: var(--color-text);
+  opacity: 0.85;
+}
+
+.leader-note {
+  margin: 14px 0;
+  text-align: center;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+}
+
+/* 卒業メンバーカードの拡張パーツ（齊藤なぎさ等、卒業後の活動を追加表示する場合） */
+.graduated-card-predebut,
+.graduated-card-current {
+  margin: 4px 0 0;
+  font-size: 0.68rem;
+  color: var(--color-text);
+  opacity: 0.7;
+}
+
+.graduated-card-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.graduated-card-links a {
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+}
+
 /* ===== レスポンシブ：スマホ幅（520px以下） =====
    ゲームフレームを画面幅いっぱいに広げ、カードらしい丸み・影は外して画面に馴染ませる。
    【重要】このpadding: 0;が、47行目付近で指定しているセーフエリア対応のpadding-topを

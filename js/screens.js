@@ -15,6 +15,10 @@ const SCREEN_ELEMENTS = {
   weakSongs: document.getElementById("weak-songs-screen"),
   customQuizPresets: document.getElementById("custom-quiz-presets-screen"),
   customQuiz: document.getElementById("custom-quiz-screen"),
+  discography: document.getElementById("discography-screen"),
+  workDetail: document.getElementById("work-detail-screen"),
+  members: document.getElementById("members-screen"),
+  memberDetail: document.getElementById("member-detail-screen"),
 };
 
 // 指定した画面だけを表示し、それ以外の画面は隠す。
