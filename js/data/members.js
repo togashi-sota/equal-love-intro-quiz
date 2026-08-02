@@ -209,6 +209,7 @@ export const MEMBERS = [
     penlightColors: [
       { name: "黄色", hex: "#ffd93d" },
       { name: "オレンジ", hex: "#ff9f4d" },
+      { name: "濃いピンク", hex: "#e0559a" },
     ],
     birthday: "2001-07-09",
     birthplace: "神奈川県",
