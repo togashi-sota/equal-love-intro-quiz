@@ -4193,6 +4193,23 @@ fieldset label:has(input:focus-visible) {
   flex: none;
 }
 
+/* 丸と色名（例：●黄色）が改行時にバラバラにならないよう1つのまとまりにする */
+.color-swatch-pair {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+/* ペンライトカラーが3色以上のとき、2色ごとに改行するための「見えない改行係」。
+   .color-fact-valueはdisplay:flexのため<br>が効かず、flex-basis:100%の空要素で
+   強制的に折り返す（2026-08-03、瀧脇笙古の3色表示対応）。 */
+.color-fact-linebreak {
+  flex-basis: 100%;
+  width: 0;
+  height: 0;
+}
+
 .empty-state-note {
   margin: 4px 0 0;
   font-size: 0.78rem;

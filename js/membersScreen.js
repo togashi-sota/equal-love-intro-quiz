@@ -240,13 +240,28 @@ function buildColorFactRow(label, colors) {
   } else {
     colors.forEach((color, index) => {
       if (index > 0) {
-        v.appendChild(document.createTextNode(" × "));
+        // 色が3つ以上あるときは、2つごとに改行して見やすくする（文字サイズは縮めない方針。
+        // 2026-08-03、瀧脇笙古の3色表示で行間が詰まって見づらかったことへの対応）。
+        const startsNewLine = colors.length >= 3 && index % 2 === 0;
+        if (startsNewLine) {
+          // color-fact-valueはdisplay:flexのため、<br>では改行できない。
+          // flex-basis:100%の空要素を挟むことで、flexboxの中でも強制的に折り返す。
+          const lineBreak = document.createElement("span");
+          lineBreak.className = "color-fact-linebreak";
+          v.appendChild(lineBreak);
+        } else {
+          v.appendChild(document.createTextNode(" × "));
+        }
       }
+      // 丸と色名を1つのまとまり（改行時に離れない）にする。
+      const swatch = document.createElement("span");
+      swatch.className = "color-swatch-pair";
       const dot = document.createElement("span");
       dot.className = "color-swatch-dot";
       dot.style.cssText = buildSwatchStyle(color);
-      v.appendChild(dot);
-      v.appendChild(document.createTextNode(color.name));
+      swatch.appendChild(dot);
+      swatch.appendChild(document.createTextNode(color.name));
+      v.appendChild(swatch);
     });
   }
 
