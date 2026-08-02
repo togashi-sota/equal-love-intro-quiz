@@ -249,6 +249,9 @@ function buildColorFactRow(label, colors) {
           const lineBreak = document.createElement("span");
           lineBreak.className = "color-fact-linebreak";
           v.appendChild(lineBreak);
+          // 改行後も「×」は表示し、2行目の先頭に付ける（本人希望：オレンジと濃いピンクの
+          // 間の「×」が消えて見えたため、2026-08-03追加）。
+          v.appendChild(document.createTextNode("× "));
         } else {
           v.appendChild(document.createTextNode(" × "));
         }
