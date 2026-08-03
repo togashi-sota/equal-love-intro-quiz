@@ -42,25 +42,20 @@ function wireDragHandle(handle, row, getFromIndex) {
     row.classList.add("is-dragging");
     handle.setPointerCapture(event.pointerId);
 
-    // ポインターの位置が、今の並びで隣り合う行の中間点を超えたら、その場でDOMの順番を
-    // 入れ替える（実際のキュー配列への反映は、指を離したときに一度だけ行う）。
+    // ポインターの今の位置から、置くべき場所を毎回そのまま計算し直してDOMを並び替える
+    // （実際のキュー配列への反映は、指を離したときに一度だけ行う）。
+    // 以前は「隣の行と1つだけ入れ替える」処理だったため、指を素早く大きく動かすと
+    // 移動が追いつかないことがあった（本人から「一気に動かせない」と報告）。
+    // 動かしていない行それぞれの中心位置と比べて「ポインターより下にある一番上の行」の
+    // 直前に差し込む、という計算に変えたことで、1回のドラッグでどれだけ離れた位置へでも
+    // 正しく一気に移動できるようにした（2026-08-06修正）。
     function handleMove(moveEvent) {
-      const rows = [...elements.list.children];
-      const currentPos = rows.indexOf(row);
-      for (const sibling of rows) {
-        if (sibling === row) continue;
+      const others = [...elements.list.children].filter((sibling) => sibling !== row);
+      const target = others.find((sibling) => {
         const rect = sibling.getBoundingClientRect();
-        const midpoint = rect.top + rect.height / 2;
-        const siblingPos = rows.indexOf(sibling);
-        if (moveEvent.clientY < midpoint && siblingPos < currentPos) {
-          elements.list.insertBefore(row, sibling);
-          break;
-        }
-        if (moveEvent.clientY > midpoint && siblingPos > currentPos) {
-          elements.list.insertBefore(row, sibling.nextSibling);
-          break;
-        }
-      }
+        return moveEvent.clientY < rect.top + rect.height / 2;
+      });
+      elements.list.insertBefore(row, target ?? null);
     }
 
     // ドラッグの終了処理。「finished」フラグで、複数のイベントから二重に呼ばれても
