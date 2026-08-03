@@ -4245,7 +4245,11 @@ fieldset label:has(input:focus-visible) {
 }
 
 .player-row-rename-input {
+  /* flex:1だけだとinput要素は縮まず（初期値min-width:autoのため）、横幅の狭いスマホ画面で
+     隣の✓保存ボタンが右側にはみ出して見えなくなる・押せなくなる不具合があったため、
+     min-width:0を明示して必ず縮められるようにする（2026-08-04、実機での不具合報告により追加）。 */
   flex: 1;
+  min-width: 0;
   font-family: inherit;
   font-size: 0.82rem;
   padding: 6px 10px;
@@ -4254,6 +4258,7 @@ fieldset label:has(input:focus-visible) {
 }
 
 .player-row-icon-button {
+  position: relative;
   flex: none;
   display: flex;
   align-items: center;
@@ -4267,6 +4272,14 @@ fieldset label:has(input:focus-visible) {
   border: none;
   border-radius: 50%;
   cursor: pointer;
+}
+
+/* 見た目の丸はそのままに、タップ判定だけを一回り広げる（.modal-close-button::afterと同じ手法）。
+   ボタン同士は8pxの間隔があるため、片側4pxずつ広げても隣とぶつからない（2026-08-04追加）。 */
+.player-row-icon-button::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
 }
 
 .player-row-icon-button:active {
@@ -4292,12 +4305,23 @@ fieldset label:has(input:focus-visible) {
 }
 
 .player-add-row input {
+  /* min-width:0がないと、狭い画面で入力欄が縮まずに「＋追加」ボタンの幅を圧迫し、
+     ボタンの文字が縦積みになってしまう不具合があったため追加（2026-08-04）。 */
   flex: 1;
+  min-width: 0;
   font-family: inherit;
   font-size: 0.82rem;
   padding: 9px 12px;
   border: 1.5px solid var(--color-card-border);
   border-radius: 999px;
+}
+
+/* 「＋追加」ボタン（.secondary-button）は他画面でも使う共通クラスなので、
+   ここでは横に並ぶ入力欄を圧迫しないよう、このボタンだけ幅を文字なりに固定し、
+   折り返しも禁止する（2026-08-04追加）。 */
+.player-add-row .secondary-button {
+  flex: none;
+  white-space: nowrap;
 }
 
 .know-more-title {

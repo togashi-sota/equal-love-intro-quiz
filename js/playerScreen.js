@@ -75,18 +75,34 @@ function buildPlayerRow(player) {
     input.className = "player-row-rename-input";
     row.appendChild(input);
 
+    const commitRename = () => {
+      renamePlayer(player.playerId, input.value.trim() || player.playerName);
+      renamingPlayerId = null;
+      renderPlayerModal();
+      renderPlayerSummary();
+    };
+
+    // ✓ボタンが小さくて押しづらいという指摘があったため、キーボードのEnter（改行）でも
+    // 保存できるようにする（IME変換確定中のEnterで誤って保存しないよう、isComposing中は無視する）
+    // （2026-08-04追加）。
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.isComposing) {
+        event.preventDefault();
+        commitRename();
+      }
+    });
+
     const saveButton = document.createElement("button");
     saveButton.type = "button";
     saveButton.className = "player-row-icon-button is-save";
     saveButton.textContent = "✓";
     saveButton.setAttribute("aria-label", "名前を保存する");
-    saveButton.addEventListener("click", () => {
-      renamePlayer(player.playerId, input.value.trim() || player.playerName);
-      renamingPlayerId = null;
-      renderPlayerModal();
-      renderPlayerSummary();
-    });
+    saveButton.addEventListener("click", commitRename);
     row.appendChild(saveButton);
+    // 編集開始時に自動でキーボードを出し、既存の名前を選択状態にしておく
+    // （わざわざ入力欄をもう一度タップしなくても、そのまま打ち直せるようにするため）。
+    input.focus();
+    input.select();
     return row;
   }
 
@@ -187,10 +203,14 @@ export function initPlayerScreen(newElements, allMembers) {
   elements.playerNameChip.addEventListener("click", openPlayerModal);
   elements.playerModalCloseButton.addEventListener("click", closePlayerModal);
   elements.playerModal.addEventListener("click", (event) => {
+    // 名前変更の入力中に背景（モーダルの外側）を誤タップしても、入力中の文字が消えたり
+    // モーダルが閉じて裏の画面（スタートボタン等）に誤ってタップが伝わったりしないよう、
+    // 入力中は外側タップでの閉じる動作を無効にする（2026-08-04、実機での不具合報告により追加）。
+    if (renamingPlayerId) return;
     if (event.target === elements.playerModal) closePlayerModal();
   });
 
-  elements.playerAddButton.addEventListener("click", () => {
+  const commitAddPlayer = () => {
     const name = elements.playerAddInput.value.trim();
     if (!name) return;
     const newPlayer = addPlayer(name);
@@ -199,6 +219,14 @@ export function initPlayerScreen(newElements, allMembers) {
     renderPlayerModal();
     renderPlayerSummary();
     elements.onPlayerChanged?.();
+  };
+  elements.playerAddButton.addEventListener("click", commitAddPlayer);
+  // 「＋追加」ボタンが押しづらい場合の代替手段として、キーボードのEnterでも追加できるようにする。
+  elements.playerAddInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.isComposing) {
+      event.preventDefault();
+      commitAddPlayer();
+    }
   });
 
   elements.playerDeleteCancelButton.addEventListener("click", () => {
