@@ -158,6 +158,18 @@ function closePlayerModal() {
   elements.playerModal.hidden = true;
 }
 
+// プレイヤー削除時に、そのプレイヤー専用の保存データ（自己ベスト・履歴・称号・推しメン等、
+// "equalLoveIntroQuiz.player.{playerId}.〜"の形のキー）をlocalStorageから消す。
+// 各データの保存キーはhighscore.js/history.js/titleProgress.js/oshiMembers.js側で
+// バラバラに組み立てられているため、このファイルではキー名の中身を知らなくても済むよう、
+// 接頭辞（プレフィックス）が一致するキーをまとめて探して消す方式にしている
+// （2026-08-04、最終セルフレビューで「削除してもデータが残り続ける」不具合を発見し追加）。
+function removePlayerScopedData(playerId) {
+  const prefix = `equalLoveIntroQuiz.player.${playerId}.`;
+  const keysToRemove = Object.keys(localStorage).filter((key) => key.startsWith(prefix));
+  keysToRemove.forEach((key) => localStorage.removeItem(key));
+}
+
 // elements: {
 //   playerNameChip, playerNameChipText: スタート画面のプレイヤー名チップ,
 //   oshiSummaryChip, oshiSummaryChipText: スタート画面の推しメンチップ,
@@ -195,6 +207,7 @@ export function initPlayerScreen(newElements, allMembers) {
   });
   elements.playerDeleteConfirmButton.addEventListener("click", () => {
     if (pendingDeletePlayerId) {
+      removePlayerScopedData(pendingDeletePlayerId);
       deletePlayer(pendingDeletePlayerId);
       pendingDeletePlayerId = null;
     }
