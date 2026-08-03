@@ -1744,6 +1744,20 @@ document.addEventListener("keydown", (event) => {
     return;
   }
 
+  // プレイヤー管理モーダルが開いているときも、同じ理由で先に止める。
+  // 名前入力中にEnterキーを押すと、ここでガードしないと下の「スタート画面：Enterキーでスタート」
+  // まで処理が通り抜けてしまい、裏でクイズが始まってしまう不具合があったため追加
+  // （2026-08-04、実機での不具合報告により発見）。Escキーでの閉じる処理自体はplayerScreen.js側の
+  // リスナーがすでに処理している。
+  if (!playerModalElement.hidden) {
+    return;
+  }
+
+  // プレイヤー削除確認モーダルが開いているときも、同じ理由で先に止める。
+  if (!playerDeleteConfirmModalElement.hidden) {
+    return;
+  }
+
   // クイズ中断・確認モーダルが開いているときは、Escキーで閉じる（＝中断をキャンセル）。
   // このモーダルの開閉ロジックはこのファイルで直接管理しているため、rulesModalと同じ書き方にする。
   if (!quizQuitConfirmModalElement.hidden) {

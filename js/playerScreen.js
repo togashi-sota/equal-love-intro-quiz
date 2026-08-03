@@ -83,11 +83,14 @@ function buildPlayerRow(player) {
     };
 
     // ✓ボタンが小さくて押しづらいという指摘があったため、キーボードのEnter（改行）でも
-    // 保存できるようにする（IME変換確定中のEnterで誤って保存しないよう、isComposing中は無視する）
-    // （2026-08-04追加）。
+    // 保存できるようにする（IME変換確定中のEnterで誤って保存しないよう、isComposing中は無視する）。
+    // stopPropagation()も呼び、documentのキー操作リスナー（main.js）までEnterイベントが
+    // 伝わって「スタート画面：Enterキーでスタート」等の別ショートカットが誤発火しないようにする
+    // （2026-08-04、実機で「名前確定時に裏で曲が始まる」不具合が発生したため追加）。
     input.addEventListener("keydown", (event) => {
       if (event.key === "Enter" && !event.isComposing) {
         event.preventDefault();
+        event.stopPropagation();
         commitRename();
       }
     });
@@ -222,9 +225,11 @@ export function initPlayerScreen(newElements, allMembers) {
   };
   elements.playerAddButton.addEventListener("click", commitAddPlayer);
   // 「＋追加」ボタンが押しづらい場合の代替手段として、キーボードのEnterでも追加できるようにする。
+  // stopPropagation()の理由はリネーム欄と同じ（documentのEnterショートカットへの伝播を防ぐため）。
   elements.playerAddInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && !event.isComposing) {
       event.preventDefault();
+      event.stopPropagation();
       commitAddPlayer();
     }
   });
