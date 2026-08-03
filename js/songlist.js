@@ -7,6 +7,15 @@ import { CATEGORY } from "./data/songs.js";
 import { getAudioBlob } from "./audioStorage.js";
 import { loadLyricsForSong, destroyLyricsSync } from "./lyricsSync.js";
 import { openFullscreenLyrics } from "./lyricsFullscreen.js";
+import {
+  isFavoriteSong,
+  toggleFavoriteSong,
+  areAllFavoriteSongs,
+  isAnyFavoriteSong,
+  addFavoriteSongs,
+  removeFavoriteSongs,
+} from "./favoriteSongs.js";
+import { getPlaylists, createPlaylist, addSongToPlaylist } from "./playlists.js";
 
 // 試聴を10秒戻す/送るときの秒数。
 const SEEK_SKIP_SECONDS = 10;
@@ -72,13 +81,59 @@ const totalCountElement = document.getElementById("songlist-total-count");
 const breakdownElement = document.getElementById("songlist-breakdown");
 const searchInputElement = document.getElementById("songlist-search-input");
 const searchClearButtonElement = document.getElementById("songlist-search-clear-button");
+const searchFieldRowElement = document.querySelector(".search-field-row");
 const noResultsElement = document.getElementById("songlist-no-results-notice");
+const totalCountChipElement = document.querySelector("#songlist-screen .total-count-chip");
+
+// 作品単位のお気に入り一括登録/解除を行ったときの、短時間だけ表示する完了案内。
+// js/customQuizPresetsScreen.jsのshowPresetActionBanner()と同じ考え方（2026-08-04追加）。
+const actionBannerElement = document.getElementById("songlist-action-banner");
+let actionBannerHideTimeoutId = null;
+const ACTION_BANNER_DISPLAY_MS = 3000;
+
+function showSonglistActionBanner(message) {
+  actionBannerElement.textContent = message;
+  actionBannerElement.hidden = false;
+  if (actionBannerHideTimeoutId !== null) {
+    clearTimeout(actionBannerHideTimeoutId);
+  }
+  actionBannerHideTimeoutId = setTimeout(() => {
+    actionBannerElement.hidden = true;
+    actionBannerHideTimeoutId = null;
+  }, ACTION_BANNER_DISPLAY_MS);
+}
+
+// お気に入りタブ関連のDOM要素（2026-08-04追加）。
+const tabAllButtonElement = document.getElementById("songlist-tab-all");
+const tabFavoritesButtonElement = document.getElementById("songlist-tab-favorites");
+const favoritesContainerElement = document.getElementById("songlist-favorites-container");
+const favoritesCountElement = document.getElementById("songlist-favorites-count");
+const favoritesListElement = document.getElementById("songlist-favorites-list");
+const favoritesEmptyNoticeElement = document.getElementById("songlist-favorites-empty-notice");
+
+// プレイリスト追加モーダル関連のDOM要素（2026-08-04追加）。
+const addToPlaylistModalElement = document.getElementById("add-to-playlist-modal");
+const addToPlaylistModalCloseButtonElement = document.getElementById("add-to-playlist-modal-close-button");
+const addToPlaylistSongNameElement = document.getElementById("add-to-playlist-song-name");
+const addToPlaylistListElement = document.getElementById("add-to-playlist-list");
+const addToPlaylistEmptyNoticeElement = document.getElementById("add-to-playlist-empty-notice");
+const addToPlaylistNewNameInputElement = document.getElementById("add-to-playlist-new-name-input");
+const addToPlaylistNewButtonElement = document.getElementById("add-to-playlist-new-button");
 
 // 今まさに試聴中の行のDOM要素。試聴していないときはnull。
 let currentlyPlayingRowElement = null;
 
 // 曲名検索の検索語。表示（どの行・シングルを見せるか）だけに関わる。
 let searchQuery = "";
+
+// 「すべての曲」「お気に入り」タブの現在の選択状態。
+let activeTab = "all";
+
+// renderSongList()に渡された曲データ一式。タブ切替・お気に入り一覧の再描画に使い回す。
+let allSongsRef = [];
+
+// 「＋プレイリストに追加」モーダルを開いたときの対象曲。閉じたらnullに戻す。
+let pendingAddToPlaylistSong = null;
 
 // 試聴用に作った再生用URL。次の曲に切り替える・試聴を止めるたびに解放する
 // （audio.jsのcurrentObjectUrlと同じ考え方）。
@@ -298,9 +353,16 @@ previewAudioElement.addEventListener("play", syncRowAudioPlayingIcon);
 previewAudioElement.addEventListener("pause", syncRowAudioPlayingIcon);
 
 // 1曲分の行（再生ボタン・曲名・歌唱メンバー/センター/説明・再生中表示・シークバー・カテゴリバッジ）を作る。
-function createTrackRow(song) {
+// options.playlistControls を渡すと、プレイリスト詳細画面用の「上へ/下へ/削除」ボタンを追加する
+// （js/playlistScreen.jsから再利用するため。渡さなければ収録曲一覧と同じ見た目になる。2026-08-04）。
+export function createTrackRow(song, options = {}) {
+  const { playlistControls } = options;
   const row = document.createElement("div");
   row.className = "track-row";
+  // お気に入りボタンの状態を、収録曲一覧・お気に入り一覧・プレイリスト画面など
+  // 複数箇所に同じ曲の行が同時に存在していても一括で同期できるよう、曲idを持たせておく
+  // （syncFavoriteButtons参照。2026-08-04）。
+  row.dataset.songId = song.id;
   // 曲名検索で読み仮名・別名（愛称）も対象にできるよう、行のdata属性に持たせておく
   // （読み仮名を持たない曲はsong.searchReadingがundefinedなので、空文字列にしておく。
   // 別名は文字列と{ text, reading }オブジェクトが混在する配列のため、JSON文字列として
@@ -372,6 +434,12 @@ function createTrackRow(song) {
       <button type="button" class="lyrics-fullscreen-open-button" aria-label="歌詞を全画面表示" hidden>
         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
       </button>
+      <button type="button" class="playlist-add-open-button" aria-label="プレイリストに追加">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M4 6h12M4 12h12M4 18h7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <path d="M18 14v6M15 17h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </button>
     </div>
     <span class="seek-time"><span class="seek-current">0:00</span> / <span class="seek-duration">0:00</span></span>
   `;
@@ -382,6 +450,13 @@ function createTrackRow(song) {
     if (currentlyPlayingRowElement === row && !lyricsPanel.hidden) {
       openFullscreenLyrics(song.title, previewAudioElement, lyricsPanel);
     }
+  });
+
+  // プレイリストに追加ボタン：再生中かどうかに関わらず押せてよいが、シーク欄自体が
+  // 再生中の行にしか表示されないため、実質「再生中の曲をプレイリストに追加する」導線になる
+  // （2026-08-04追加。一覧の見た目を圧迫しないよう、常時表示のボタンにはしていない）。
+  seekBlock.querySelector(".playlist-add-open-button").addEventListener("click", () => {
+    openAddToPlaylistModal(song);
   });
 
   const rangeElement = seekBlock.querySelector(".seek-range");
@@ -415,28 +490,201 @@ function createTrackRow(song) {
   categoryPill.className = `category-pill ${categoryInfo.className}`;
   categoryPill.textContent = categoryInfo.text;
 
+  const actionColumn = document.createElement("div");
+  actionColumn.className = "track-action-column";
+  actionColumn.appendChild(buildFavoriteButton(song));
+  actionColumn.appendChild(categoryPill);
+
   row.appendChild(playButton);
   row.appendChild(infoBlock);
-  row.appendChild(categoryPill);
+  row.appendChild(actionColumn);
+
+  // プレイリスト詳細画面だけで使う「上へ/下へ/削除」ボタン（js/playlistScreen.jsから
+  // options.playlistControlsを渡されたときだけ追加する。収録曲一覧・お気に入り一覧には出さない）。
+  if (playlistControls) {
+    row.appendChild(buildPlaylistControlButtons(playlistControls));
+  }
 
   return row;
 }
 
+// 曲のお気に入りハートボタンを作る。メンバー一覧の「推し」ハートと見た目の形は揃えつつ、
+// 混同しないよう色をコーラルオレンジ系（.track-favorite-button）にしている（2026-08-04）。
+const SONG_HEART_ICON_PATH =
+  "M12 20.5 4.6 13.2C2 10.6 2.3 6.4 5.3 4.4c2.3-1.5 5.2-1 6.7 1 1.5-2 4.4-2.5 6.7-1 3 2 3.3 6.2.7 8.8L12 20.5Z";
+
+function buildFavoriteButton(song) {
+  const button = document.createElement("button");
+  button.type = "button";
+  const isFavorite = isFavoriteSong(song.id);
+  button.className = "track-favorite-button";
+  button.classList.toggle("is-favorite", isFavorite);
+  button.dataset.songId = song.id;
+  button.setAttribute("aria-label", isFavorite ? "お気に入りを解除する" : "お気に入りに登録する");
+  button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${SONG_HEART_ICON_PATH}"/></svg>`;
+  button.addEventListener("click", (event) => {
+    event.stopPropagation();
+    toggleFavoriteSong(song.id);
+    syncFavoriteButtons(song.id);
+    // お気に入りタブを見ているときに解除すると、その場で一覧から消えるようにする。
+    if (activeTab === "favorites") {
+      renderFavoritesList();
+    }
+  });
+  return button;
+}
+
+// 同じ曲のハートボタンが複数箇所（収録曲一覧・お気に入り一覧・プレイリスト画面）に
+// 同時に存在していても、登録状態の見た目をまとめて正しく揃える（2026-08-04）。
+function syncFavoriteButtons(songId) {
+  const isFavorite = isFavoriteSong(songId);
+  document.querySelectorAll(`.track-favorite-button[data-song-id="${songId}"]`).forEach((button) => {
+    button.classList.toggle("is-favorite", isFavorite);
+    button.setAttribute("aria-label", isFavorite ? "お気に入りを解除する" : "お気に入りに登録する");
+  });
+}
+
+// 「すべての曲」タブのアコーディオンは、アプリ起動時に一度だけ作られてそのまま使い回される
+// （resetSongListToDefaultView()は開閉状態のリセットのみで、行そのものは作り直さない）ため、
+// プレイヤーを切り替えたときは、それまで表示していたハートの状態が前のプレイヤーのまま
+// 残ってしまう。main.js側のonPlayerChangedから呼び、画面上の全ハートボタンを今の
+// プレイヤーの状態に合わせて一括で描き直す（2026-08-04追加）。
+export function refreshAllFavoriteButtons() {
+  document.querySelectorAll(".track-favorite-button[data-song-id]").forEach((button) => {
+    const isFavorite = isFavoriteSong(button.dataset.songId);
+    button.classList.toggle("is-favorite", isFavorite);
+    button.setAttribute("aria-label", isFavorite ? "お気に入りを解除する" : "お気に入りに登録する");
+  });
+  // 作品単位の一括登録ボタン（未登録／一部登録済み／全登録済み）も同様に描き直す。
+  document.querySelectorAll(".single-group-favorite-button").forEach(refreshWorkFavoriteButtonState);
+}
+
+// プレイリスト詳細画面用の「上へ/下へ/削除」ボタン列を作る。
+function buildPlaylistControlButtons({ onRemove, onMoveUp, onMoveDown, canMoveUp, canMoveDown }) {
+  const column = document.createElement("div");
+  column.className = "track-playlist-controls";
+
+  const upButton = document.createElement("button");
+  upButton.type = "button";
+  upButton.className = "track-playlist-control-button";
+  upButton.setAttribute("aria-label", "1つ上へ移動する");
+  upButton.textContent = "↑";
+  upButton.disabled = !canMoveUp;
+  upButton.addEventListener("click", (event) => {
+    event.stopPropagation();
+    onMoveUp();
+  });
+
+  const downButton = document.createElement("button");
+  downButton.type = "button";
+  downButton.className = "track-playlist-control-button";
+  downButton.setAttribute("aria-label", "1つ下へ移動する");
+  downButton.textContent = "↓";
+  downButton.disabled = !canMoveDown;
+  downButton.addEventListener("click", (event) => {
+    event.stopPropagation();
+    onMoveDown();
+  });
+
+  const removeButton = document.createElement("button");
+  removeButton.type = "button";
+  removeButton.className = "track-playlist-control-button is-remove";
+  removeButton.setAttribute("aria-label", "プレイリストから削除する");
+  removeButton.textContent = "×";
+  removeButton.addEventListener("click", (event) => {
+    event.stopPropagation();
+    onRemove();
+  });
+
+  column.appendChild(upButton);
+  column.appendChild(downButton);
+  column.appendChild(removeButton);
+  return column;
+}
+
+// このアコーディオン区分が「単一の作品（workId）」を表しているかを判定する。
+// 「配信限定シングル」区分のように、複数の異なる作品を1つの見出しにまとめている場合や、
+// 866のようにworkIdを持たない曲だけの場合は、作品単位の一括登録ボタンを出さない
+// （どの作品を操作しているのか本人に伝わらなくなるため。2026-08-04追加）。
+function resolveGroupWorkId(groupSongs) {
+  const workIds = new Set(groupSongs.map((song) => song.workId));
+  if (workIds.size !== 1) return null;
+  const [workId] = workIds;
+  return workId ?? null;
+}
+
+// 作品単位のお気に入りボタンの見た目（未登録／一部登録済み／全登録済み）を、
+// 現在のお気に入り状態に合わせて描き直す。ボタン作成時だけでなく、プレイヤー切替時
+// （refreshAllFavoriteButtons参照）にも外から呼べるよう、対象曲idと作品名をボタン自身の
+// data属性に持たせておく（2026-08-04追加）。
+function refreshWorkFavoriteButtonState(button) {
+  const groupSongIds = JSON.parse(button.dataset.groupSongIds);
+  const groupLabel = button.dataset.groupLabel;
+  const allFavorited = areAllFavoriteSongs(groupSongIds);
+  const anyFavorited = isAnyFavoriteSong(groupSongIds);
+  button.classList.toggle("is-full", allFavorited);
+  button.classList.toggle("is-partial", !allFavorited && anyFavorited);
+  button.setAttribute(
+    "aria-label",
+    allFavorited ? `${groupLabel}の全曲をお気に入りから解除する` : `${groupLabel}の全曲をお気に入りに登録する`
+  );
+}
+
+// 作品単位のお気に入り一括登録/解除ボタンを作る。
+// 「未登録／一部登録済み／全登録済み」の3状態を見た目で区別する
+// （一部登録済みのときに押すと、残りの未登録曲だけを追加登録する）。
+function buildWorkFavoriteButton(groupLabel, groupSongIds, onChanged) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "single-group-favorite-button";
+  button.dataset.groupSongIds = JSON.stringify(groupSongIds);
+  button.dataset.groupLabel = groupLabel;
+  refreshWorkFavoriteButtonState(button);
+
+  button.innerHTML = `
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="${SONG_HEART_ICON_PATH}"/></svg>
+    <span>全曲</span>
+  `;
+  button.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const allFavorited = areAllFavoriteSongs(groupSongIds);
+    if (allFavorited) {
+      removeFavoriteSongs(groupSongIds);
+      showSonglistActionBanner(`${groupLabel}の${groupSongIds.length}曲をお気に入りから解除しました`);
+    } else {
+      const additionCount = groupSongIds.filter((songId) => !isFavoriteSong(songId)).length;
+      addFavoriteSongs(groupSongIds);
+      showSonglistActionBanner(`${groupLabel}の${additionCount}曲をお気に入りに追加しました`);
+    }
+    refreshWorkFavoriteButtonState(button);
+    groupSongIds.forEach((songId) => syncFavoriteButtons(songId));
+    onChanged();
+  });
+
+  return button;
+}
+
 // 1つのシングル区分（アコーディオン1つ分）を作る。
+// 「開閉」（.single-group-header）と「作品ごとのお気に入り登録」（.single-group-favorite-button）を
+// 別々のボタンに分けている（ボタンの中にボタンは入れられないため。オリジナル問題作成モードの
+// 選曲画面の「全選択・全解除」と同じ考え方、2026-08-04追加）。
 function createSingleGroupElement(group, isInitiallyOpen) {
   const groupElement = document.createElement("div");
   groupElement.className = "single-group";
   groupElement.classList.toggle("is-open", isInitiallyOpen);
 
-  const headerButton = document.createElement("button");
-  headerButton.type = "button";
-  headerButton.className = "single-group-header";
-  headerButton.innerHTML = `
+  const headerRow = document.createElement("div");
+  headerRow.className = "single-group-header-row";
+
+  const toggleButton = document.createElement("button");
+  toggleButton.type = "button";
+  toggleButton.className = "single-group-header";
+  toggleButton.innerHTML = `
     <svg class="chevron" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 5l7 7-7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
     <span class="single-group-name">${group.label}</span>
     <span class="track-count-chip">${group.songs.length}曲</span>
   `;
-  headerButton.addEventListener("click", () => {
+  toggleButton.addEventListener("click", () => {
     // 再生中の曲を含むアコーディオンを閉じるときは、必ず試聴を止める
     const willClose = groupElement.classList.contains("is-open");
     if (willClose && currentlyPlayingRowElement && groupElement.contains(currentlyPlayingRowElement)) {
@@ -444,6 +692,24 @@ function createSingleGroupElement(group, isInitiallyOpen) {
     }
     groupElement.classList.toggle("is-open");
   });
+  headerRow.appendChild(toggleButton);
+
+  // この区分がちょうど1つの作品（workId）だけで構成されているときだけ、
+  // 作品単位の一括お気に入りボタンを追加する。
+  const workId = resolveGroupWorkId(group.songs);
+  if (workId) {
+    const groupSongIds = group.songs.map((song) => song.id);
+    const bulkActions = document.createElement("div");
+    bulkActions.className = "single-group-bulk-actions";
+    bulkActions.appendChild(
+      buildWorkFavoriteButton(group.label, groupSongIds, () => {
+        if (activeTab === "favorites") {
+          renderFavoritesList();
+        }
+      })
+    );
+    headerRow.appendChild(bulkActions);
+  }
 
   const tracksContainer = document.createElement("div");
   tracksContainer.className = "single-group-tracks";
@@ -451,7 +717,7 @@ function createSingleGroupElement(group, isInitiallyOpen) {
     tracksContainer.appendChild(createTrackRow(song));
   });
 
-  groupElement.appendChild(headerButton);
+  groupElement.appendChild(headerRow);
   groupElement.appendChild(tracksContainer);
   return groupElement;
 }
@@ -481,6 +747,7 @@ function renderCategoryBreakdown(songs) {
 
 // 収録曲一覧画面の中身を組み立てる。アプリ起動時に一度だけ呼べばよい。
 export function renderSongList(songs) {
+  allSongsRef = songs;
   totalCountElement.textContent = songs.length;
   renderCategoryBreakdown(songs);
 
@@ -492,6 +759,45 @@ export function renderSongList(songs) {
     groupsContainerElement.appendChild(createSingleGroupElement(group, group === newestGroup));
   });
 }
+
+// 「お気に入り」タブの中身を組み立てる（シングル区分なし、曲データの並び順そのままの
+// フラットな一覧）。お気に入りの登録/解除のたびに呼び直して最新の状態に保つ（2026-08-04）。
+function renderFavoritesList() {
+  const favoriteSongs = allSongsRef.filter((song) => isFavoriteSong(song.id));
+  favoritesCountElement.textContent = `お気に入り ${favoriteSongs.length}曲`;
+  favoritesListElement.innerHTML = "";
+  favoriteSongs.forEach((song) => {
+    favoritesListElement.appendChild(createTrackRow(song));
+  });
+  favoritesEmptyNoticeElement.hidden = favoriteSongs.length > 0;
+}
+
+// 「すべての曲」「お気に入り」タブを切り替える。切替時は試聴中の曲を必ず止める
+// （別タブに移ると再生中の行が画面から消え、操作できないミニプレイヤーだけが
+// 残ってしまうのを防ぐため。single-groupの開閉時と同じ考え方）。
+function switchSonglistTab(tab) {
+  if (activeTab === tab) return;
+  stopSongListPreview();
+  activeTab = tab;
+
+  tabAllButtonElement.classList.toggle("is-active", tab === "all");
+  tabFavoritesButtonElement.classList.toggle("is-active", tab === "favorites");
+
+  const isFavoritesTab = tab === "favorites";
+  groupsContainerElement.hidden = isFavoritesTab;
+  totalCountChipElement.hidden = isFavoritesTab;
+  breakdownElement.hidden = isFavoritesTab;
+  searchFieldRowElement.hidden = isFavoritesTab;
+  noResultsElement.hidden = true; // タブを切り替えたら、前のタブの検索結果なし表示は必ず消す
+  favoritesContainerElement.hidden = !isFavoritesTab;
+
+  if (isFavoritesTab) {
+    renderFavoritesList();
+  }
+}
+
+tabAllButtonElement.addEventListener("click", () => switchSonglistTab("all"));
+tabFavoritesButtonElement.addEventListener("click", () => switchSonglistTab("favorites"));
 
 // 曲名検索の検索語に合わせて、各曲行・シングル区分の表示/非表示を更新する。
 // 一致した区分は、閉じたままだと該当の曲が見えないため自動的に開く
@@ -559,11 +865,103 @@ searchClearButtonElement.addEventListener("click", () => {
 
 // 収録曲一覧画面を開くたびに呼ぶ。最新のシングルだけ展開し、それ以外は畳んだ状態に戻す
 // （閲覧中に開閉した状態を次回に持ち越さず、毎回同じ見え方から始められるようにするため）。
-// あわせて検索語もリセットする。
+// あわせて検索語・タブ選択もリセットする。
 export function resetSongListToDefaultView() {
   const groupElements = groupsContainerElement.querySelectorAll(".single-group");
   groupElements.forEach((element, index) => {
     element.classList.toggle("is-open", index === 0);
   });
   resetSearch();
+  // 前回「お気に入り」タブを見ていても、次に開いたときは必ず「すべての曲」から始める
+  // （呼び出し元でstopSongListPreview()相当のことは既に行われている想定なので、
+  // ここではタブの見た目を戻すだけでよい）。
+  activeTab = "all";
+  tabAllButtonElement.classList.add("is-active");
+  tabFavoritesButtonElement.classList.remove("is-active");
+  groupsContainerElement.hidden = false;
+  totalCountChipElement.hidden = false;
+  breakdownElement.hidden = false;
+  searchFieldRowElement.hidden = false;
+  favoritesContainerElement.hidden = true;
 }
+
+// ---- 「＋プレイリストに追加」モーダル ----
+
+// モーダルを開き、対象曲名・登録済みプレイリスト一覧を表示する。
+function openAddToPlaylistModal(song) {
+  pendingAddToPlaylistSong = song;
+  addToPlaylistSongNameElement.textContent = song.title;
+  addToPlaylistNewNameInputElement.value = "";
+  renderAddToPlaylistList();
+  addToPlaylistModalElement.hidden = false;
+}
+
+function closeAddToPlaylistModal() {
+  addToPlaylistModalElement.hidden = true;
+  pendingAddToPlaylistSong = null;
+}
+
+// プレイリスト一覧を、それぞれ「追加する/追加済み」ボタンとして描画する。
+// 追加済みのプレイリストも一覧には出したままにする（何に入っているか確認・見返せるように）。
+function renderAddToPlaylistList() {
+  const playlists = getPlaylists();
+  addToPlaylistListElement.innerHTML = "";
+  addToPlaylistEmptyNoticeElement.hidden = playlists.length > 0;
+
+  playlists.forEach((playlist) => {
+    const isAdded = playlist.songIds.includes(pendingAddToPlaylistSong.id);
+
+    const row = document.createElement("div");
+    row.className = "add-to-playlist-row";
+
+    const nameSpan = document.createElement("span");
+    nameSpan.className = "add-to-playlist-row-name";
+    nameSpan.textContent = playlist.playlistName || "（名前未設定）";
+    row.appendChild(nameSpan);
+
+    const actionButton = document.createElement("button");
+    actionButton.type = "button";
+    actionButton.className = "add-to-playlist-row-button";
+    actionButton.classList.toggle("is-added", isAdded);
+    actionButton.textContent = isAdded ? "追加済み" : "＋ 追加する";
+    actionButton.disabled = isAdded;
+    actionButton.addEventListener("click", () => {
+      addSongToPlaylist(playlist.playlistId, pendingAddToPlaylistSong.id);
+      renderAddToPlaylistList();
+    });
+    row.appendChild(actionButton);
+
+    addToPlaylistListElement.appendChild(row);
+  });
+}
+
+// モーダル内から直接、新しいプレイリストを作ってその場で曲を追加する
+// （「プレイリスト画面で先に作ってから、また曲一覧に戻って追加する」という
+// 手戻りのある動線を避けるため。2026-08-04）。
+function commitCreatePlaylistAndAddSong() {
+  const name = addToPlaylistNewNameInputElement.value.trim();
+  if (!name || !pendingAddToPlaylistSong) return;
+  const newPlaylist = createPlaylist(name);
+  addSongToPlaylist(newPlaylist.playlistId, pendingAddToPlaylistSong.id);
+  addToPlaylistNewNameInputElement.value = "";
+  renderAddToPlaylistList();
+}
+
+addToPlaylistModalCloseButtonElement.addEventListener("click", closeAddToPlaylistModal);
+addToPlaylistModalElement.addEventListener("click", (event) => {
+  // 新規プレイリスト名の入力中に外側を誤タップして、入力中の文字が消えたりモーダルが
+  // 閉じたりしないようにする（プレイヤー名変更モーダルで発生した不具合と同じ対策）。
+  if (document.activeElement === addToPlaylistNewNameInputElement) return;
+  if (event.target === addToPlaylistModalElement) closeAddToPlaylistModal();
+});
+addToPlaylistNewButtonElement.addEventListener("click", commitCreatePlaylistAndAddSong);
+// Enterキーでも作成できるようにする。stopPropagation()で、document側のキー操作
+// リスナー（main.js）まで伝わって別のショートカットが誤発火しないようにする
+// （プレイヤー名変更モーダルで発生した不具合と同じ対策。2026-08-04）。
+addToPlaylistNewNameInputElement.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && !event.isComposing) {
+    event.preventDefault();
+    event.stopPropagation();
+    commitCreatePlaylistAndAddSong();
+  }
+});

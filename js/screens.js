@@ -19,6 +19,8 @@ const SCREEN_ELEMENTS = {
   workDetail: document.getElementById("work-detail-screen"),
   members: document.getElementById("members-screen"),
   memberDetail: document.getElementById("member-detail-screen"),
+  playlists: document.getElementById("playlist-screen"),
+  playlistDetail: document.getElementById("playlist-detail-screen"),
 };
 
 // 指定した画面だけを表示し、それ以外の画面は隠す。

@@ -595,7 +595,7 @@ function buildFactRow(label, value) {
 
 function buildTrackRow(song) {
   const row = document.createElement("div");
-  row.className = "track-row";
+  row.className = "discography-track-row";
 
   const tag = document.createElement("span");
   const isTitleTrack = song.category === CATEGORY.TITLE_TRACK;

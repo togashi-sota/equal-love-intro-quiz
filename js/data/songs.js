@@ -1160,3 +1160,10 @@ export const SONGS = [
     members: ["佐々木舞香"],
   },
 ];
+
+// 曲idから曲データを1件引く。お気に入り・プレイリスト機能のように、
+// songIdだけを保存しておいて表示のたびに曲情報を引き直す箇所で使う
+// （2026-08-04追加）。見つからない場合はundefined。
+export function getSongById(songId) {
+  return SONGS.find((song) => song.id === songId);
+}

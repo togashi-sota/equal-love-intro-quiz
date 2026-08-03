@@ -31,7 +31,12 @@ import { calculateScore, calculateRank } from "./score.js";
 import { getHighScore, saveHighScoreIfBetter } from "./highscore.js";
 import { playClickSound, playCorrectSound, playWrongSound, playCountUpSound } from "./sfx.js";
 import { renderBackgroundSparkles } from "./decorations.js";
-import { renderSongList, resetSongListToDefaultView, stopSongListPreview } from "./songlist.js";
+import {
+  renderSongList,
+  resetSongListToDefaultView,
+  stopSongListPreview,
+  refreshAllFavoriteButtons,
+} from "./songlist.js";
 import { buildPlayResult, evaluateAndSaveTitles } from "./titleProgress.js";
 import { renderResultTitleEvents, clearResultTitleEvents } from "./titleDisplay.js";
 import { initTitleListModal } from "./titleList.js";
@@ -68,6 +73,7 @@ import { LIVE_EVENTS } from "./data/liveHistory.js";
 import { initDiscographyScreen, renderDiscographyScreen, openWorkDetail } from "./discographyScreen.js";
 import { initMembersScreen, renderMembersScreen, openMemberDetail } from "./membersScreen.js";
 import { initPlayerScreen, renderPlayerSummary } from "./playerScreen.js";
+import { initPlaylistScreen, renderPlaylistList, renderPlaylistDetail } from "./playlistScreen.js";
 
 // 背景のキラキラ演出は、ゲームの状態と関係なく最初に1回だけ生成すればよい。
 renderBackgroundSparkles();
@@ -108,6 +114,21 @@ const rulesModalElement = document.getElementById("rules-modal");
 const rulesModalCloseButtonElement = document.getElementById("rules-modal-close");
 const songlistLinkElement = document.getElementById("songlist-link");
 const songlistBackButtonElement = document.getElementById("songlist-back-button");
+const addToPlaylistModalElement = document.getElementById("add-to-playlist-modal");
+const playlistLinkElement = document.getElementById("playlist-link");
+const playlistBackButtonElement = document.getElementById("playlist-back-button");
+const playlistListElement = document.getElementById("playlist-list");
+const playlistEmptyNoticeElement = document.getElementById("playlist-empty-notice");
+const playlistCreateInputElement = document.getElementById("playlist-create-input");
+const playlistCreateButtonElement = document.getElementById("playlist-create-button");
+const playlistDeleteConfirmModalElement = document.getElementById("playlist-delete-confirm-modal");
+const playlistDeleteCancelButtonElement = document.getElementById("playlist-delete-cancel-button");
+const playlistDeleteConfirmButtonElement = document.getElementById("playlist-delete-confirm-button");
+const playlistDetailBackButtonElement = document.getElementById("playlist-detail-back-button");
+const playlistDetailNameElement = document.getElementById("playlist-detail-name");
+const playlistDetailCountElement = document.getElementById("playlist-detail-count");
+const playlistDetailListElement = document.getElementById("playlist-detail-list");
+const playlistDetailEmptyNoticeElement = document.getElementById("playlist-detail-empty-notice");
 const titleEventListElement = document.getElementById("title-event-list");
 const titleListLinkFromResultElement = document.getElementById("title-list-link-from-result");
 const titleListLinkElement = document.getElementById("title-list-link");
@@ -384,10 +405,55 @@ initPlayerScreen(
     onPlayerChanged: () => {
       // プレイヤーが切り替わったら、スタート画面の自己ベスト表示も新しいプレイヤーのものに更新する。
       updateModeBestScoreDisplay();
+      // 収録曲一覧「すべての曲」タブは起動時に一度だけ作られて使い回されるため、
+      // ハートボタンの見た目も新しいプレイヤーのお気に入り状態に合わせて描き直す
+      // （お気に入りタブ・プレイリスト画面は開くたびに作り直されるため対応不要）。
+      refreshAllFavoriteButtons();
     },
   },
   MEMBERS
 );
+
+// スタート画面の「プレイリスト」リンクと、プレイリスト一覧・詳細画面（2026-08-04追加）。
+initPlaylistScreen({
+  playlistList: playlistListElement,
+  playlistEmptyNotice: playlistEmptyNoticeElement,
+  playlistCreateInput: playlistCreateInputElement,
+  playlistCreateButton: playlistCreateButtonElement,
+  playlistDeleteConfirmModal: playlistDeleteConfirmModalElement,
+  playlistDeleteCancelButton: playlistDeleteCancelButtonElement,
+  playlistDeleteConfirmButton: playlistDeleteConfirmButtonElement,
+  playlistDetailName: playlistDetailNameElement,
+  playlistDetailCount: playlistDetailCountElement,
+  playlistDetailList: playlistDetailListElement,
+  playlistDetailEmptyNotice: playlistDetailEmptyNoticeElement,
+  onSelectPlaylist: (playlistId) => {
+    playClickSound();
+    renderPlaylistDetail(playlistId);
+    showScreen("playlistDetail");
+  },
+});
+
+playlistLinkElement.addEventListener("click", () => {
+  playClickSound();
+  renderPlaylistList();
+  showScreen("playlists");
+});
+
+playlistBackButtonElement.addEventListener("click", () => {
+  playClickSound();
+  showScreen("start");
+});
+
+// プレイリスト詳細画面の「戻る」：試聴中の曲を必ず止めてから一覧へ戻る
+// （songlist-back-buttonと同じ考え方。詳細画面では曲の削除・並び替えが起きるため、
+// 一覧の曲数表示が最新になるよう描き直してから戻る）。
+playlistDetailBackButtonElement.addEventListener("click", () => {
+  playClickSound();
+  stopSongListPreview();
+  renderPlaylistList();
+  showScreen("playlists");
+});
 
 // オリジナル問題作成モードのプリセット一覧画面：「＋新しいセットを作る」／
 // 保存済みプリセットのタップ、どちらも選曲画面（#custom-quiz-screen）を開く。
@@ -1755,6 +1821,16 @@ document.addEventListener("keydown", (event) => {
 
   // プレイヤー削除確認モーダルが開いているときも、同じ理由で先に止める。
   if (!playerDeleteConfirmModalElement.hidden) {
+    return;
+  }
+
+  // 「プレイリストに追加」モーダル・プレイリスト削除確認モーダルが開いているときも、
+  // 同じ理由で先に止める（2026-08-04追加）。
+  if (!addToPlaylistModalElement.hidden) {
+    return;
+  }
+
+  if (!playlistDeleteConfirmModalElement.hidden) {
     return;
   }
 

@@ -211,6 +211,7 @@
         <button id="songlist-link" class="rules-link" type="button">収録曲一覧</button>
         <button id="title-list-link" class="rules-link" type="button">称号一覧</button>
         <button id="history-link" class="rules-link" type="button">プレイ履歴</button>
+        <button id="playlist-link" class="rules-link" type="button">プレイリスト</button>
       </div>
 
       <!-- 特別モードへの入口。通常プレイ（スタートボタン）が主役であることが伝わるよう、
@@ -489,6 +490,16 @@
         </div>
       </div>
 
+      <!-- 作品単位のお気に入り一括登録/解除をしたときだけ、短時間表示する完了案内
+           （2026-08-04追加）。 -->
+      <p id="songlist-action-banner" class="songlist-action-banner" hidden></p>
+
+      <!-- 「すべての曲」「お気に入り」の切り替えタブ（2026-08-04追加） -->
+      <div class="songlist-tab-bar">
+        <button id="songlist-tab-all" class="songlist-tab-button is-active" type="button">すべての曲</button>
+        <button id="songlist-tab-favorites" class="songlist-tab-button" type="button">♡ お気に入り</button>
+      </div>
+
       <p class="total-count-chip">全 <strong id="songlist-total-count"></strong> 曲収録</p>
 
       <!-- カテゴリ別の内訳チップ。中身はjs/songlist.jsがSONGSから自動集計して組み立てる -->
@@ -507,8 +518,77 @@
       <!-- 検索結果が1曲もないときだけ表示する案内 -->
       <p id="songlist-no-results-notice" class="question-count-notice" hidden>該当する曲が見つかりませんでした</p>
 
+      <!-- 「お気に入り」タブの中身。中身はjs/songlist.jsが組み立てる（2026-08-04追加） -->
+      <div id="songlist-favorites-container" hidden>
+        <p id="songlist-favorites-count" class="total-count-chip"></p>
+        <div id="songlist-favorites-list" class="flat-track-list"></div>
+        <p id="songlist-favorites-empty-notice" class="question-count-notice" hidden>
+          まだお気に入りの曲がありません。曲一覧のハートマークから登録できます。
+        </p>
+      </div>
+
       <!-- 試聴専用の音源要素。クイズ本編（#intro-audio）とは完全に分けている -->
       <audio id="preview-audio"></audio>
+    </section>
+
+    <!-- プレイリスト一覧画面：作成・名前変更・削除、タップで詳細画面へ。
+         中身（一覧カード）はjs/playlistScreen.jsが組み立てる（2026-08-04新設）。 -->
+    <section id="playlist-screen" class="screen">
+      <div class="list-header">
+        <button id="playlist-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            PLAYLIST
+          </p>
+          <h2>プレイリスト</h2>
+        </div>
+      </div>
+
+      <div class="playlist-create-row">
+        <input type="text" id="playlist-create-input" maxlength="20" placeholder="新しいプレイリスト名" aria-label="新しいプレイリスト名">
+        <button id="playlist-create-button" class="secondary-button" type="button">＋ 作成</button>
+      </div>
+
+      <p id="playlist-empty-notice" class="question-count-notice" hidden>
+        まだプレイリストがありません。上の欄から作成できます。
+      </p>
+
+      <!-- プレイリストカードを並べる場所。中身はjs/playlistScreen.jsが組み立てる -->
+      <div id="playlist-list"></div>
+    </section>
+
+    <!-- プレイリスト詳細画面：曲の再生・並び替え・削除。
+         中身（曲の行）はjs/playlistScreen.jsが組み立てる（js/songlist.jsのcreateTrackRowを再利用）。 -->
+    <section id="playlist-detail-screen" class="screen">
+      <div class="list-header">
+        <button id="playlist-detail-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            PLAYLIST
+          </p>
+          <h2 id="playlist-detail-name"></h2>
+        </div>
+      </div>
+
+      <p class="total-count-chip"><strong id="playlist-detail-count"></strong> 曲</p>
+
+      <p id="playlist-detail-empty-notice" class="question-count-notice" hidden>
+        まだ曲が入っていません。収録曲一覧やお気に入りの再生中に表示される「プレイリストに追加」ボタンから追加できます。
+      </p>
+
+      <div id="playlist-detail-list" class="flat-track-list"></div>
     </section>
 
     <!-- プレイ履歴画面：過去のプレイ結果を新しい順に一覧できる画面。
@@ -1020,6 +1100,43 @@
     </div>
 
   </main>
+
+  <!-- 「プレイリストに追加」モーダル。収録曲一覧・お気に入り一覧・プレイリスト画面の
+       どこからでも、再生中の曲をプレイリストへ追加できるようにする（2026-08-04追加）。
+       他のモーダル（rules-modal等）と同じく、.game-frame（backdrop-filterを使っているため
+       position:fixedの基準がずれてしまう）の外側、bodyの直下に置く必要がある
+       （main内に置いたところ、画面の下の方にずれて表示される不具合が発生したため。
+       2026-08-04、実機確認前のセルフレビューで発見）。 -->
+  <div id="add-to-playlist-modal" class="modal-overlay" hidden>
+    <div class="modal-card">
+      <button id="add-to-playlist-modal-close-button" class="modal-close-button" type="button" aria-label="閉じる">×</button>
+      <h3>プレイリストに追加</h3>
+      <p class="modal-lead"><strong id="add-to-playlist-song-name"></strong> を追加するプレイリストを選んでください。</p>
+
+      <div id="add-to-playlist-list" class="add-to-playlist-list"></div>
+      <p id="add-to-playlist-empty-notice" class="question-count-notice" hidden>
+        プレイリストがまだありません。下から新しく作成できます。
+      </p>
+
+      <div class="add-to-playlist-new-row">
+        <input type="text" id="add-to-playlist-new-name-input" maxlength="20" placeholder="新しいプレイリスト名" aria-label="新しいプレイリスト名">
+        <button id="add-to-playlist-new-button" class="secondary-button" type="button">＋ 作成</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- プレイリスト削除・確認モーダル：誤操作でデータごと消えないよう、必ず一度確認を挟む。
+       同上の理由でbody直下に置く（2026-08-04）。 -->
+  <div id="playlist-delete-confirm-modal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="playlist-delete-confirm-title">
+      <h2 id="playlist-delete-confirm-title">このプレイリストを削除しますか？</h2>
+      <p class="modal-lead">プレイリストに入っている曲の登録がすべて解除されます（曲そのものや音源・歌詞は削除されません）。この操作は元に戻せません。</p>
+      <div class="button-row">
+        <button id="playlist-delete-cancel-button" class="secondary-button" type="button">キャンセル</button>
+        <button id="playlist-delete-confirm-button" class="danger-button" type="button">削除する</button>
+      </div>
+    </div>
+  </div>
 
   <!-- ルール説明モーダル：得点表・ランク基準・カテゴリの意味など、ゲーム内のどこにも
        説明されていない情報をまとめて確認できる。スタート画面の「あそびかた」リンクから開く。

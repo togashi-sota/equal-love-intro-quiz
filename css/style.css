@@ -12,6 +12,9 @@
   --color-accent: #ffd93d;          /* レモンイエロー。正解演出やキラキラなど特別な演出の差し色 */
   --color-accent-soft: #fff2bf;     /* 差し色の淡いバージョン（バッジや正解セルの背景など） */
   --color-danger: #ff6b6b;          /* 不正解・エラー用のやわらかい赤 */
+  --color-song-favorite: #ff8a5c;   /* 曲のお気に入りハート専用のコーラルオレンジ。
+                                        メンバーの「推し」ハート（--color-primaryのピンク）と
+                                        見分けがつくよう、あえて別系統の暖色にしている（2026-08-04） */
   --color-danger-soft: #fff0ee;     /* 不正解セルなど、赤の淡いバージョン */
   --color-background-start: #fff7f9; /* 背景グラデーションの開始色 */
   --color-background-end: #dff2ff;   /* 背景グラデーションの終了色（パステルブルー） */
@@ -2260,6 +2263,66 @@ fieldset label:has(input:focus-visible) {
   transform: scale(0.92);
 }
 
+/* 作品単位のお気に入り一括登録/解除の完了案内。
+   .custom-quiz-presets-saved-bannerと同じ考え方・見た目（2026-08-04追加）。 */
+.songlist-action-banner {
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto 10px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--color-song-favorite);
+  background-color: rgba(255, 138, 92, 0.12);
+  color: var(--color-song-favorite);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.songlist-action-banner[hidden] {
+  display: none;
+}
+
+/* 「すべての曲」「お気に入り」タブ（2026-08-04追加）。カテゴリバッジと似た配色にしつつ、
+   タブであることが分かるよう、選択中は塗りつぶし・下線の代わりに背景色で強調する。 */
+.songlist-tab-bar {
+  display: flex;
+  gap: 8px;
+  margin: 4px 0 10px;
+}
+
+.songlist-tab-button {
+  flex: 1;
+  padding: 8px;
+  border: 1.5px solid var(--color-card-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  opacity: 0.6;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.15s ease, opacity 0.15s ease;
+}
+
+.songlist-tab-button.is-active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #ffffff;
+  opacity: 1;
+}
+
+/* お気に入り一覧・プレイリスト詳細で使う、シングル区分（アコーディオン）なしの
+   フラットな曲リスト。.single-group-tracksは開閉アコーディオン専用（初期状態が
+   display:noneなので流用できない）、.track-listはディスコグラフィーの別の見た目
+   （区切り線つき）を持つ既存クラスのため、あえて名前を分けている（2026-08-04追加）。 */
+.flat-track-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 /* 総曲数チップ。自己ベストチップと同じ、控えめな見た目に揃える */
 .total-count-chip {
   display: block;
@@ -2338,9 +2401,11 @@ fieldset label:has(input:focus-visible) {
   outline-offset: -2px;
 }
 
-/* オリジナル問題作成モードの選曲画面だけで使う、見出し行の入れ物。
-   「開閉」（.single-group-header）と「全選択・全解除」（.single-group-bulk-actions）を
-   別々の操作領域として横に並べる。横幅が足りないときは自然に2行へ折り返す。 */
+/* 見出し行の入れ物。「開閉」（.single-group-header）と、それとは別の操作領域
+   （.single-group-bulk-actions＝全選択・全解除、または作品単位のお気に入りボタン）を
+   横に並べる。横幅が足りないときは自然に2行へ折り返す。
+   オリジナル問題作成モードの選曲画面（全選択・全解除）と、収録曲一覧（作品単位お気に入り、
+   2026-08-04追加）の両方で使う共通クラス。 */
 .single-group-header-row {
   display: flex;
   align-items: center;
@@ -2369,6 +2434,53 @@ fieldset label:has(input:focus-visible) {
 
 .single-group-bulk-button:active {
   background: var(--color-primary-light);
+}
+
+/* 作品単位のお気に入り一括登録ボタン（収録曲一覧、2026-08-04追加）。
+   曲ごとのハート（丸いアイコンのみ）とは違い、「全曲」という文字ラベルを添えた
+   横長のピル型にして、押し間違えないよう見た目をはっきり区別している。
+   未登録／一部登録済み／全登録済みの3状態を色で示す。 */
+.single-group-favorite-button {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px 4px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--color-card-border);
+  background: none;
+  font-family: inherit;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--color-text);
+  opacity: 0.75;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.single-group-favorite-button svg {
+  width: 13px;
+  height: 13px;
+  fill: currentColor;
+}
+
+.single-group-favorite-button:active {
+  transform: scale(0.95);
+}
+
+/* 一部の曲だけ登録済み：枠線と文字をお気に入り色にして「途中」であることを示す */
+.single-group-favorite-button.is-partial {
+  border-color: var(--color-song-favorite);
+  color: var(--color-song-favorite);
+  opacity: 1;
+}
+
+/* 全曲登録済み：塗りつぶしてひと目で分かるようにする */
+.single-group-favorite-button.is-full {
+  border-color: var(--color-song-favorite);
+  background: var(--color-song-favorite);
+  color: #ffffff;
+  opacity: 1;
 }
 
 .chevron {
@@ -2590,6 +2702,31 @@ fieldset label:has(input:focus-visible) {
    ボタンが消えなかった不具合の原因はこれだった（2026-08-03）。 */
 .lyrics-fullscreen-open-button[hidden] {
   display: none;
+}
+
+/* 「プレイリストに追加」ボタン。歌詞全画面ボタンと同じ大きさ・並びにする（2026-08-04追加） */
+.playlist-add-open-button {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--color-surface);
+  color: var(--color-primary-dark);
+  cursor: pointer;
+}
+
+.playlist-add-open-button svg {
+  width: 13px;
+  height: 13px;
+}
+
+.playlist-add-open-button:active {
+  transform: scale(0.9);
 }
 
 /* ===== 同期歌詞パネル（試聴中の歌詞表示、収録曲一覧・オリジナル問題作成モード共通） =====
@@ -2888,6 +3025,93 @@ fieldset label:has(input:focus-visible) {
 .category-pill.special {
   background: #f3f0f8;
   color: #6b6478;
+}
+
+/* お気に入りハート・カテゴリバッジをまとめて右端に縦に並べる列（2026-08-04追加）。 */
+.track-action-column {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+/* 曲のお気に入りハートボタン。メンバー一覧の「推し」ハートと形は揃えつつ、
+   混同しないよう色をコーラルオレンジ系（--color-song-favorite）にしている。 */
+.track-favorite-button {
+  flex: none;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 138, 92, 0.12);
+  color: #c9bcc3;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+/* 見た目はそのままに、タップ判定だけ一回り広げる（.modal-close-button::afterと同じ手法）。 */
+.track-favorite-button::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+}
+
+.track-favorite-button svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+
+.track-favorite-button:active {
+  transform: scale(0.9);
+}
+
+.track-favorite-button.is-favorite {
+  color: var(--color-song-favorite);
+  background: rgba(255, 138, 92, 0.18);
+}
+
+/* プレイリスト詳細画面だけで使う「上へ/下へ/削除」ボタン列（2026-08-04追加）。 */
+.track-playlist-controls {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 4px;
+}
+
+.track-playlist-control-button {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 111, 168, 0.1);
+  color: var(--color-primary-dark);
+  font-size: 0.8rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.track-playlist-control-button:active {
+  transform: scale(0.9);
+}
+
+.track-playlist-control-button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.track-playlist-control-button.is-remove {
+  color: #c94b4b;
+  background: rgba(201, 75, 75, 0.1);
 }
 
 /* ===== 称号一覧モーダル =====
@@ -4324,6 +4548,201 @@ fieldset label:has(input:focus-visible) {
   white-space: nowrap;
 }
 
+/* ===== プレイリスト一覧画面 =====
+   プレイヤー管理モーダルの.player-row系と見た目・構造をほぼ揃えているが、
+   別画面（モーダルではない）である点と、「タップで詳細へ」という役割の違いがあるため、
+   クラス名は独立させている（2026-08-04新設）。 */
+.playlist-create-row {
+  display: flex;
+  gap: 8px;
+  margin: 4px 0 16px;
+}
+
+.playlist-create-row input {
+  flex: 1;
+  min-width: 0;
+  font-family: inherit;
+  font-size: 0.85rem;
+  padding: 10px 14px;
+  border: 1.5px solid var(--color-card-border);
+  border-radius: 999px;
+}
+
+.playlist-create-row .secondary-button {
+  flex: none;
+  white-space: nowrap;
+}
+
+#playlist-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.playlist-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1.5px solid var(--color-card-border);
+  border-radius: 14px;
+  background: var(--color-surface);
+}
+
+.playlist-row-open-button {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  text-align: left;
+  font-family: inherit;
+  background: transparent;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+}
+
+.playlist-row-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.playlist-row-count {
+  flex: none;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+  opacity: 0.8;
+}
+
+.playlist-row-rename-input {
+  flex: 1;
+  min-width: 0;
+  font-family: inherit;
+  font-size: 0.85rem;
+  padding: 6px 10px;
+  border: 1.5px solid var(--color-primary);
+  border-radius: 10px;
+}
+
+.playlist-row-icon-button {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  font-size: 0.85rem;
+  line-height: 1;
+  color: var(--color-primary-dark);
+  background: rgba(255, 111, 168, 0.1);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.playlist-row-icon-button::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+}
+
+.playlist-row-icon-button:active {
+  transform: scale(0.92);
+}
+
+.playlist-row-icon-button.is-save {
+  color: #fff;
+  background: var(--color-primary);
+}
+
+.playlist-row-icon-button.is-delete {
+  color: #c94b4b;
+  background: rgba(201, 75, 75, 0.1);
+}
+
+/* ===== 「プレイリストに追加」モーダル ===== */
+.add-to-playlist-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 14px 0;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.add-to-playlist-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1.5px solid var(--color-card-border);
+  border-radius: 14px;
+  background: var(--color-surface);
+}
+
+.add-to-playlist-row-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.add-to-playlist-row-button {
+  flex: none;
+  padding: 6px 12px;
+  border: 1.5px solid var(--color-primary);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-primary-dark);
+  font-family: inherit;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.add-to-playlist-row-button.is-added {
+  border-color: var(--color-card-border);
+  background: var(--color-surface-glass);
+  color: var(--color-text);
+  opacity: 0.6;
+  cursor: default;
+}
+
+.add-to-playlist-new-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--color-card-border);
+}
+
+.add-to-playlist-new-row input {
+  flex: 1;
+  min-width: 0;
+  font-family: inherit;
+  font-size: 0.82rem;
+  padding: 9px 12px;
+  border: 1.5px solid var(--color-card-border);
+  border-radius: 999px;
+}
+
+.add-to-playlist-new-row .secondary-button {
+  flex: none;
+  white-space: nowrap;
+}
+
 .know-more-title {
   margin: 0 0 10px;
   text-align: center;
@@ -4918,7 +5337,7 @@ fieldset label:has(input:focus-visible) {
   border-radius: 14px;
 }
 
-.track-row {
+.discography-track-row {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -4927,7 +5346,7 @@ fieldset label:has(input:focus-visible) {
   font-size: 0.82rem;
 }
 
-.track-row:last-child {
+.discography-track-row:last-child {
   border-bottom: none;
 }
 
