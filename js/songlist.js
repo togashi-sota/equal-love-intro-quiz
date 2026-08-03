@@ -16,6 +16,7 @@ import {
   removeFavoriteSongs,
 } from "./favoriteSongs.js";
 import { getPlaylists, createPlaylist, addSongToPlaylist } from "./playlists.js";
+import { registerPlaybackStopper, notifyPlaybackStarting } from "./playbackCoordinator.js";
 
 // 試聴を10秒戻す/送るときの秒数。
 const SEEK_SKIP_SECONDS = 10;
@@ -128,6 +129,12 @@ let searchQuery = "";
 
 // 「すべての曲」「お気に入り」タブの現在の選択状態。
 let activeTab = "all";
+
+// 連続再生画面への入口（「連続再生で聴く」リンク）が、今どちらのタブを再生元にすべきか
+// 判断するために参照する（2026-08-04追加）。
+export function getActiveSonglistTab() {
+  return activeTab;
+}
 
 // renderSongList()に渡された曲データ一式。タブ切替・お気に入り一覧の再描画に使い回す。
 let allSongsRef = [];
@@ -281,6 +288,8 @@ export function stopSongListPreview() {
   }
 }
 
+registerPlaybackStopper("preview", stopSongListPreview);
+
 // 指定した曲の試聴を開始する。
 // クイズ本編と同じ考え方で、introLeadInSecがある曲は無音区間を飛ばして頭出しする。
 // 音源はIndexedDB（audioStorage.js）から取得するため非同期処理になる。
@@ -289,6 +298,10 @@ export function stopSongListPreview() {
 async function playPreview(song, rowElement) {
   const blob = await getAudioBlob(song.id);
   if (!blob) return;
+
+  // 試聴の音声を鳴らす直前に、クイズ・連続再生など他の音声を止める
+  // （playbackCoordinator.js参照、2026-08-04追加）。
+  notifyPlaybackStarting("preview");
 
   releaseCurrentPreviewObjectUrl();
   currentPreviewObjectUrl = URL.createObjectURL(blob);
@@ -411,6 +424,27 @@ export function createTrackRow(song, options = {}) {
     descriptionElement.className = "track-meta-line";
     descriptionElement.textContent = descriptionText;
     infoBlock.appendChild(descriptionElement);
+  }
+
+  // MVを見るボタン：youtubeUrlがある曲だけ、再生前の通常表示から常に見える位置に置く
+  // （以前は試聴中だけ見えるシーク欄の中にあったが、MVだけ見たい人も一度試聴しないと
+  // ボタンが出ないのは分かりにくいという本人フィードバックを受けて移動。2026-08-05）。
+  // 公式YouTubeへ別タブで移動する（target="_blank"）。試聴中の音とMVの音が重ならないよう、
+  // タブが開くのと同時に試聴は止めておく。
+  if (song.youtubeUrl) {
+    const mvLinkButton = document.createElement("a");
+    mvLinkButton.className = "mv-link-button";
+    mvLinkButton.href = song.youtubeUrl;
+    mvLinkButton.target = "_blank";
+    mvLinkButton.rel = "noopener noreferrer";
+    mvLinkButton.innerHTML = `
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7Z"/></svg>
+      MVを見る
+    `;
+    mvLinkButton.addEventListener("click", () => {
+      stopSongListPreview();
+    });
+    infoBlock.appendChild(mvLinkButton);
   }
 
   // 再生中だけ表示する、イコライザー演出＋「再生中」の文字
@@ -606,7 +640,9 @@ function buildPlaylistControlButtons({ onRemove, onMoveUp, onMoveDown, canMoveUp
 // 「配信限定シングル」区分のように、複数の異なる作品を1つの見出しにまとめている場合や、
 // 866のようにworkIdを持たない曲だけの場合は、作品単位の一括登録ボタンを出さない
 // （どの作品を操作しているのか本人に伝わらなくなるため。2026-08-04追加）。
-function resolveGroupWorkId(groupSongs) {
+// プレイリストへの曲追加画面（playlistAddSongsScreen.js）の作品単位一括選択でも
+// 同じ判定ロジックを再利用するため、外部公開している（UI/UX再設計で追加）。
+export function resolveGroupWorkId(groupSongs) {
   const workIds = new Set(groupSongs.map((song) => song.workId));
   if (workIds.size !== 1) return null;
   const [workId] = workIds;
@@ -866,15 +902,14 @@ searchClearButtonElement.addEventListener("click", () => {
 // 収録曲一覧画面を開くたびに呼ぶ。最新のシングルだけ展開し、それ以外は畳んだ状態に戻す
 // （閲覧中に開閉した状態を次回に持ち越さず、毎回同じ見え方から始められるようにするため）。
 // あわせて検索語・タブ選択もリセットする。
-export function resetSongListToDefaultView() {
+// initialTabに"favorites"を渡すと、開いた直後から「お気に入り」タブを表示する
+// （スタート画面の「お気に入り」タイルから直接開くための入口。UI/UX再設計で追加）。
+export function resetSongListToDefaultView(initialTab = "all") {
   const groupElements = groupsContainerElement.querySelectorAll(".single-group");
   groupElements.forEach((element, index) => {
     element.classList.toggle("is-open", index === 0);
   });
   resetSearch();
-  // 前回「お気に入り」タブを見ていても、次に開いたときは必ず「すべての曲」から始める
-  // （呼び出し元でstopSongListPreview()相当のことは既に行われている想定なので、
-  // ここではタブの見た目を戻すだけでよい）。
   activeTab = "all";
   tabAllButtonElement.classList.add("is-active");
   tabFavoritesButtonElement.classList.remove("is-active");
@@ -883,6 +918,10 @@ export function resetSongListToDefaultView() {
   breakdownElement.hidden = false;
   searchFieldRowElement.hidden = false;
   favoritesContainerElement.hidden = true;
+
+  if (initialTab === "favorites") {
+    switchSonglistTab("favorites");
+  }
 }
 
 // ---- 「＋プレイリストに追加」モーダル ----

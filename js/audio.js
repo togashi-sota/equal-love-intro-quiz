@@ -7,6 +7,7 @@
 // このファイルの関数もそれに合わせて非同期（async）にしてある。
 
 import { getAudioBlob } from "./audioStorage.js";
+import { registerPlaybackStopper, notifyPlaybackStarting } from "./playbackCoordinator.js";
 
 const audioElement = document.getElementById("intro-audio");
 
@@ -41,6 +42,10 @@ export async function playSongIntro(song, onError, onPlaybackStart) {
     return;
   }
 
+  // クイズの音声を鳴らす直前に、試聴・連続再生など他の音声を止める
+  // （playbackCoordinator.js参照、2026-08-04追加）。
+  notifyPlaybackStarting("quiz");
+
   releaseCurrentObjectUrl();
   currentObjectUrl = URL.createObjectURL(blob);
 
@@ -61,3 +66,5 @@ export function stopAudio() {
   audioElement.pause();
   audioElement.currentTime = 0;
 }
+
+registerPlaybackStopper("quiz", stopAudio);

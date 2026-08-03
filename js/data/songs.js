@@ -28,6 +28,10 @@ export const DIFFICULTY = {
 
 // 曲データ本体。90曲規模まで増やすことを想定した項目構成。
 // id             : 曲を一意に識別するための文字列（音源ファイル名 `${id}.mp3` にもそのまま使う）
+// youtubeUrl     : ＝LOVE公式YouTubeチャンネルのMV（またはMVが無い曲は振り付け動画）へのリンク。
+//                  収録曲一覧の「▶ MVを見る」ボタンから開く（js/songlist.js参照）。
+//                  未設定（フィールド自体を省略）の曲では、ボタン自体を表示しない。
+//                  全81曲、本人確認済みのURLを反映済み（2026-08-05）。
 // title          : クイズの選択肢や正解表示、収録曲一覧に使う曲名（公式表記）
 // searchReading  : 収録曲一覧・オリジナル問題作成モードの選曲画面（songlist.js・customQuizScreen.js）の
 //                  曲名検索で「前方一致」の対象になる、ひらがな表記の読み仮名。
@@ -79,6 +83,7 @@ export const DIFFICULTY = {
 export const SONGS = [
   {
     id: "love",
+    youtubeUrl: "https://www.youtube.com/watch?v=xOAaBsPaPpY",
     workId: "single-01",
     title: "＝LOVE",
     // ファンの間で「国歌」と呼ばれることがあるため、検索用の別名として登録する
@@ -94,6 +99,7 @@ export const SONGS = [
   },
   {
     id: "kioku-no-dokoka-de",
+    youtubeUrl: "https://www.youtube.com/watch?v=pybEwUoWDbE",
     workId: "single-01",
     title: "記憶のどこかで",
     searchReading: "きおくのどこかで",
@@ -107,6 +113,7 @@ export const SONGS = [
   },
   {
     id: "start",
+    youtubeUrl: "https://www.youtube.com/watch?v=HshrEcPx2hs",
     workId: "single-01",
     title: "スタート！",
     category: CATEGORY.GROUP_SONG,
@@ -119,6 +126,7 @@ export const SONGS = [
   },
   {
     id: "zurui-yo-zurui-ne",
+    youtubeUrl: "https://www.youtube.com/watch?v=J5eTB_0SEeg",
     workId: "single-06",
     title: "ズルいよ ズルいね",
     searchAliases: ["ズルズル"],
@@ -132,6 +140,7 @@ export const SONGS = [
   },
   {
     id: "bokura-no-seifuku-christmas",
+    youtubeUrl: "https://www.youtube.com/watch?v=YIjPbF-dKQA",
     workId: "single-02",
     title: "僕らの制服クリスマス",
     searchReading: "ぼくらのせいふくくりすます",
@@ -146,6 +155,7 @@ export const SONGS = [
   },
   {
     id: "todoite-love-you",
+    youtubeUrl: "https://www.youtube.com/watch?v=RxcNhst20uw",
     workId: "single-02",
     title: "届いてLOVE YOU♡",
     searchReading: "とどいてらぶゆー",
@@ -160,6 +170,7 @@ export const SONGS = [
   },
   {
     id: "youkoso-ikorabu-numa",
+    youtubeUrl: "https://www.youtube.com/watch?v=z858cLcnaJo",
     workId: "single-02",
     title: "ようこそ！イコラブ沼",
     searchReading: "ようこそいこらぶぬま",
@@ -174,6 +185,7 @@ export const SONGS = [
   },
   {
     id: "sakura-no-saku-oto-ga-shita",
+    youtubeUrl: "https://www.youtube.com/watch?v=0ImFNEs7P_Q",
     workId: "album-01",
     title: "桜の咲く音がした",
     searchReading: "さくらのさくおとがした",
@@ -188,6 +200,7 @@ export const SONGS = [
   },
   {
     id: "oh-darling",
+    youtubeUrl: "https://www.youtube.com/watch?v=E-mJ15dJ3Fg",
     workId: "album-01",
     title: "Oh!Darling",
     searchAliases: ["おだり", "おだりん", "おーだーりん"],
@@ -201,6 +214,7 @@ export const SONGS = [
   },
   {
     id: "senobi-in-love",
+    youtubeUrl: "https://www.youtube.com/watch?v=9SX3F0LDdQc",
     workId: "album-01",
     title: "セノビーインラブ",
     category: CATEGORY.GROUP_SONG,
@@ -213,6 +227,7 @@ export const SONGS = [
   },
   {
     id: "cinema",
+    youtubeUrl: "https://www.youtube.com/watch?v=evMRqRppb5w",
     workId: "album-01",
     title: "cinema",
     category: CATEGORY.GROUP_SONG,
@@ -225,6 +240,7 @@ export const SONGS = [
   },
   {
     id: "genneki-idol-chu",
+    youtubeUrl: "https://www.youtube.com/watch?v=j0m03h8KD2U",
     workId: "album-01",
     title: "現役アイドルちゅ〜",
     searchReading: "げんえきあいどるちゅー",
@@ -237,6 +253,7 @@ export const SONGS = [
   },
   {
     id: "haikei-anata-sama",
+    youtubeUrl: "https://www.youtube.com/watch?v=PFBhWKdjBTQ",
     workId: "album-01",
     title: "拝啓 貴方様",
     searchReading: "はいけいあなたさま",
@@ -249,6 +266,7 @@ export const SONGS = [
   },
   {
     id: "24-7",
+    youtubeUrl: "https://www.youtube.com/watch?v=aEZJGY4_aQo",
     workId: "album-01",
     title: "24/7",
     searchReading: "とぅうぇんてぃーふぉーせぶん",
@@ -263,6 +281,7 @@ export const SONGS = [
   },
   {
     id: "oneesan-ja-dame-desuka",
+    youtubeUrl: "https://www.youtube.com/watch?v=NbEMIGOK3pA",
     workId: "album-01",
     title: "お姉さんじゃダメですか？",
     searchReading: "おねえさんじゃだめですか",
@@ -278,6 +297,7 @@ export const SONGS = [
   },
   {
     id: "seishun-subliminal",
+    youtubeUrl: "https://www.youtube.com/watch?v=8id6i_QeNJM",
     workId: "single-08",
     title: "青春\"サブリミナル\"",
     searchReading: "せいしゅんさぶりみなる",
@@ -292,6 +312,7 @@ export const SONGS = [
   },
   {
     id: "shukipi",
+    youtubeUrl: "https://www.youtube.com/watch?v=hTu7a1kRXYQ",
     workId: "single-08",
     title: "しゅきぴ",
     category: CATEGORY.GROUP_SONG,
@@ -304,6 +325,7 @@ export const SONGS = [
   },
   {
     id: "ryuseigun",
+    youtubeUrl: "https://www.youtube.com/watch?v=FbMXfjeUXXA",
     workId: "single-08",
     title: "流星群",
     searchReading: "りゅうせいぐん",
@@ -316,6 +338,7 @@ export const SONGS = [
   },
   {
     id: "teokure-caution",
+    youtubeUrl: "https://www.youtube.com/watch?v=w0N0TiOlAY0",
     workId: "single-03",
     title: "手遅れcaution",
     searchReading: "ておくれこーしょん",
@@ -329,6 +352,7 @@ export const SONGS = [
   },
   {
     id: "bukatsuchu-ni-megaau-natte-omotteta-nda",
+    youtubeUrl: "https://www.youtube.com/watch?v=vJIPN_iZnIU",
     workId: "single-03",
     title: "「部活中に目が合うなって思ってたんだ」",
     searchReading: "ぶかつちゅうにめがあうなっておもってたんだ",
@@ -346,6 +370,7 @@ export const SONGS = [
   },
   {
     id: "kiara-tasuke-ni-kita-zo",
+    youtubeUrl: "https://www.youtube.com/watch?v=Qg9344QHJDU",
     workId: "single-03",
     title: "樹愛羅、助けに来たぞ",
     searchReading: "きあらたすけにきたぞ",
@@ -360,6 +385,7 @@ export const SONGS = [
   },
   {
     id: "want-you-want-you",
+    youtubeUrl: "https://www.youtube.com/watch?v=Bot92Nn-ozk",
     workId: "single-04",
     title: "Want you！Want you！",
     searchAliases: ["うぉんちゅー"],
@@ -373,6 +399,7 @@ export const SONGS = [
   },
   {
     id: "ima-kono-fune-ni-nore",
+    youtubeUrl: "https://www.youtube.com/watch?v=canxm5HHHQc",
     workId: "single-04",
     title: "今、この船に乗れ！",
     searchReading: "いまこのふねにのれ",
@@ -390,6 +417,7 @@ export const SONGS = [
   },
   {
     id: "aikatsu-happy-end",
+    youtubeUrl: "https://www.youtube.com/watch?v=SrqqHpWIN9M",
     workId: "single-04",
     title: "アイカツハッピーエンド",
     category: CATEGORY.GROUP_SONG,
@@ -402,6 +430,7 @@ export const SONGS = [
   },
   {
     id: "sagase-diamond-lily",
+    youtubeUrl: "https://www.youtube.com/watch?v=t5r0rNwjXQU",
     workId: "single-05",
     title: "探せ ダイヤモンドリリー",
     searchReading: "さがせだいやもんどりりー",
@@ -416,6 +445,7 @@ export const SONGS = [
   },
   {
     id: "iranai-twintail",
+    youtubeUrl: "https://www.youtube.com/watch?v=hRdSH41gjx0",
     workId: "single-05",
     title: "いらない ツインテール",
     searchAliases: ["いらツイ"],
@@ -429,6 +459,7 @@ export const SONGS = [
   },
   {
     id: "niji-no-moto",
+    youtubeUrl: "https://www.youtube.com/watch?v=qoPqgiQVhok",
     workId: "single-05",
     title: "虹の素",
     searchReading: "にじのもと",
@@ -442,6 +473,7 @@ export const SONGS = [
   },
   {
     id: "sweetest-girl",
+    youtubeUrl: "https://www.youtube.com/watch?v=TA0oDNGCFHQ",
     workId: "single-06",
     title: "Sweetest girl",
     // 英語タイトルの曲は、カタカナ読みをsearchReadingとして登録する
@@ -459,6 +491,7 @@ export const SONGS = [
   },
   {
     id: "oshi-no-iru-sekai",
+    youtubeUrl: "https://www.youtube.com/watch?v=E8OqOUTLesg",
     workId: "single-06",
     title: "推しのいる世界",
     searchReading: "おしのいるせかい",
@@ -474,6 +507,7 @@ export const SONGS = [
   },
   {
     id: "cameo",
+    youtubeUrl: "https://www.youtube.com/watch?v=iEYwHScdJFQ",
     workId: "single-07",
     title: "CAMEO",
     category: CATEGORY.TITLE_TRACK,
@@ -486,6 +520,7 @@ export const SONGS = [
   },
   {
     id: "kimi-to-watashi-no-uta",
+    youtubeUrl: "https://www.youtube.com/watch?v=juImxVpogRY",
     workId: "single-07",
     title: "「君と私の歌」",
     searchReading: "きみとわたしのうた",
@@ -500,6 +535,7 @@ export const SONGS = [
   },
   {
     id: "my-voice-is-for-you",
+    youtubeUrl: "https://www.youtube.com/watch?v=v3wVAbAWrE0",
     workId: "single-07",
     title: "My Voice Is For You",
     searchReading: "まいぼいすいずふぉーゆー",
@@ -512,6 +548,7 @@ export const SONGS = [
   },
   {
     id: "the-5th",
+    youtubeUrl: "https://www.youtube.com/watch?v=Q1-yYjZqk7o",
     workId: "single-10",
     title: "The 5th",
     searchAliases: ["ざごす"],
@@ -525,6 +562,7 @@ export const SONGS = [
   },
   {
     id: "ohimesama-ni-shiteyo",
+    youtubeUrl: "https://www.youtube.com/watch?v=oCb89c0MDVk",
     workId: "single-10",
     title: "お姫様にしてよ！",
     searchReading: "おひめさまにしてよ",
@@ -539,6 +577,7 @@ export const SONGS = [
   },
   {
     id: "poison-girl",
+    youtubeUrl: "https://www.youtube.com/watch?v=2l7yxbJ2Eqc",
     workId: "single-10",
     title: "Poison Girl",
     searchReading: "ぽいずんがーる",
@@ -552,6 +591,7 @@ export const SONGS = [
   },
   {
     id: "bpm170-no-kimi-e",
+    youtubeUrl: "https://www.youtube.com/watch?v=TCTylb6qGdw",
     workId: "single-10",
     title: "BPM170の君へ",
     searchReading: "びーぴーえむひゃくななじゅうのきみへ",
@@ -572,6 +612,7 @@ export const SONGS = [
   },
   {
     id: "ano-ko-complex",
+    youtubeUrl: "https://www.youtube.com/watch?v=ShbfYtAPXuI",
     workId: "single-11",
     title: "あの子コンプレックス",
     searchReading: "あのここんぷれっくす",
@@ -586,6 +627,7 @@ export const SONGS = [
   },
   {
     id: "egao-no-recipe",
+    youtubeUrl: "https://www.youtube.com/watch?v=LKwERkGBiog",
     workId: "single-11",
     title: "笑顔のレシピ",
     searchReading: "えがおのれしぴ",
@@ -600,6 +642,7 @@ export const SONGS = [
   },
   {
     id: "shiran-kedo",
+    youtubeUrl: "https://www.youtube.com/watch?v=IplzPaWoFXo",
     workId: "single-11",
     title: "知らんけど",
     searchReading: "しらんけど",
@@ -614,6 +657,7 @@ export const SONGS = [
   },
   {
     id: "boku-no-heroine",
+    youtubeUrl: "https://www.youtube.com/watch?v=AJ1GQ-iLyEM",
     workId: "single-11",
     title: "僕のヒロイン",
     searchReading: "ぼくのひろいん",
@@ -626,6 +670,7 @@ export const SONGS = [
   },
   {
     id: "takaramono-wa-green",
+    youtubeUrl: "https://www.youtube.com/watch?v=mxKcIpKgwP0",
     workId: "digital-03",
     title: "宝物はグリーン",
     searchReading: "たからものはぐりーん",
@@ -639,6 +684,7 @@ export const SONGS = [
   },
   {
     id: "kimi-dake-no-hanamichi",
+    youtubeUrl: "https://www.youtube.com/watch?v=Rk-tGMNqWxU",
     workId: "digital-01",
     title: "君だけの花道",
     searchReading: "きみだけのはなみち",
@@ -652,6 +698,7 @@ export const SONGS = [
   },
   {
     id: "okaeri-hanadayori",
+    youtubeUrl: "https://www.youtube.com/watch?v=3qUaLsDj__M",
     workId: "digital-02",
     title: "おかえり、花便り",
     searchReading: "おかえりはなだより",
@@ -665,6 +712,7 @@ export const SONGS = [
   },
   {
     id: "naisho-banashi",
+    youtubeUrl: "https://www.youtube.com/watch?v=1Cy9oaBAxns",
     workId: "digital-04",
     title: "内緒バナシ",
     searchReading: "ないしょばなし",
@@ -679,6 +727,7 @@ export const SONGS = [
   },
   {
     id: "weekend-citron",
+    youtubeUrl: "https://www.youtube.com/watch?v=skgh3juWdFU",
     workId: "single-09",
     title: "ウィークエンドシトロン",
     searchAliases: ["シトロン"],
@@ -692,6 +741,7 @@ export const SONGS = [
   },
   {
     id: "zuttomo-anken",
+    youtubeUrl: "https://www.youtube.com/watch?v=L7QUReMgJBY",
     workId: "single-09",
     title: "ズッ友案件",
     searchReading: "ずっともあんけん",
@@ -706,6 +756,7 @@ export const SONGS = [
   },
   {
     id: "natsumatsuri-koishitau",
+    youtubeUrl: "https://www.youtube.com/watch?v=8VBDO8ZQyDo",
     workId: "single-09",
     title: "夏祭り恋慕う",
     searchReading: "なつまつりこいしたう",
@@ -720,6 +771,7 @@ export const SONGS = [
   },
   {
     id: "shukusai",
+    youtubeUrl: "https://www.youtube.com/watch?v=m8WtzVPXxwU",
     workId: "single-09",
     title: "祝祭",
     searchReading: "しゅくさい",
@@ -733,6 +785,7 @@ export const SONGS = [
   },
   {
     id: "kono-sora-ga-trigger",
+    youtubeUrl: "https://www.youtube.com/watch?v=20QJax8CwQo",
     workId: "single-13",
     title: "この空がトリガー",
     searchReading: "このそらがとりがー",
@@ -747,6 +800,7 @@ export const SONGS = [
   },
   {
     id: "junkies",
+    youtubeUrl: "https://www.youtube.com/watch?v=POBlJq_P8os",
     workId: "single-13",
     title: "Junkies",
     category: CATEGORY.GROUP_SONG,
@@ -759,6 +813,7 @@ export const SONGS = [
   },
   {
     id: "love-create",
+    youtubeUrl: "https://www.youtube.com/watch?v=11SXnMJKljk",
     workId: "single-13",
     title: "ラブクリエイト",
     category: CATEGORY.GROUP_SONG,
@@ -771,6 +826,7 @@ export const SONGS = [
   },
   {
     id: "kiara-tiara",
+    youtubeUrl: "https://www.youtube.com/watch?v=WB30LnBxwfk",
     workId: "single-13",
     title: "Kiara Tiara",
     category: CATEGORY.UNIT_SONG,
@@ -782,6 +838,7 @@ export const SONGS = [
   },
   {
     id: "natsumatope",
+    youtubeUrl: "https://www.youtube.com/watch?v=Y1Bboo5KXL4",
     workId: "single-14",
     title: "ナツマトペ",
     searchAliases: ["マトペ"],
@@ -795,6 +852,7 @@ export const SONGS = [
   },
   {
     id: "dakaratote",
+    youtubeUrl: "https://www.youtube.com/watch?v=zKkx-rtOIPo",
     workId: "single-14",
     title: "だからとて",
     category: CATEGORY.GROUP_SONG,
@@ -807,6 +865,7 @@ export const SONGS = [
   },
   {
     id: "heroines",
+    youtubeUrl: "https://www.youtube.com/watch?v=B2teLF9l4aI",
     workId: "single-14",
     title: "ヒロインズ",
     category: CATEGORY.GROUP_SONG,
@@ -819,6 +878,7 @@ export const SONGS = [
   },
   {
     id: "love-locke",
+    youtubeUrl: "https://www.youtube.com/watch?v=u_Y91a-uILM",
     workId: "single-14",
     title: "ラブロケ",
     category: CATEGORY.UNIT_SONG,
@@ -832,6 +892,7 @@ export const SONGS = [
   },
   {
     id: "last-note-shika-shiranai",
+    youtubeUrl: "https://www.youtube.com/watch?v=C8WMX7dEH7Y",
     workId: "single-15",
     title: "ラストノートしか知らない",
     searchReading: "らすとのーとしかしらない",
@@ -845,6 +906,7 @@ export const SONGS = [
   },
   {
     id: "drive-date-tonai",
+    youtubeUrl: "https://www.youtube.com/watch?v=Y3aRUM8ebKE",
     workId: "single-15",
     title: "「ドライブ デート 都内」",
     searchReading: "どらいぶでーととない",
@@ -858,6 +920,7 @@ export const SONGS = [
   },
   {
     id: "kyousou-catastrophe",
+    youtubeUrl: "https://www.youtube.com/watch?v=RG_B3gfOzLo",
     workId: "single-15",
     title: "狂想カタストロフィ",
     searchReading: "きょうそうかたすとろふぃ",
@@ -872,6 +935,7 @@ export const SONGS = [
   },
   {
     id: "doko-ga-suki-ka-itte",
+    youtubeUrl: "https://www.youtube.com/watch?v=Mdsq8dUNvrI",
     workId: "single-15",
     title: "どこが好きか言って",
     searchReading: "どこがすきかいって",
@@ -887,6 +951,7 @@ export const SONGS = [
   },
   {
     id: "norotte-norotte",
+    youtubeUrl: "https://www.youtube.com/watch?v=cyRZGtNx_a4",
     workId: "single-16",
     title: "呪って呪って",
     searchReading: "のろってのろって",
@@ -901,6 +966,7 @@ export const SONGS = [
   },
   {
     id: "darenimo-barezuni",
+    youtubeUrl: "https://www.youtube.com/watch?v=E4PVynHrfp8",
     workId: "single-16",
     title: "誰にもバレずに",
     searchReading: "だれにもばれずに",
@@ -915,6 +981,7 @@ export const SONGS = [
   },
   {
     id: "kimi-no-dai-3-button",
+    youtubeUrl: "https://www.youtube.com/watch?v=xmo-UbsUZE4",
     workId: "single-16",
     title: "君の第3ボタン",
     searchReading: "きみのだいさんぼたん",
@@ -929,6 +996,7 @@ export const SONGS = [
   },
   {
     id: "zettai-idol-yamenaide",
+    youtubeUrl: "https://www.youtube.com/watch?v=17NBPoc78oM",
     workId: "single-17",
     title: "絶対アイドル辞めないで",
     searchReading: "ぜったいあいどるやめないで",
@@ -943,6 +1011,7 @@ export const SONGS = [
   },
   {
     id: "nakanaori-shu-cream",
+    youtubeUrl: "https://www.youtube.com/watch?v=D0SfIi-0Zpo",
     workId: "single-17",
     title: "仲直りシュークリーム",
     searchReading: "なかなおりしゅーくりーむ",
@@ -956,6 +1025,7 @@ export const SONGS = [
   },
   {
     id: "umi-to-lemon-tea",
+    youtubeUrl: "https://www.youtube.com/watch?v=i024yWd9oiI",
     workId: "single-17",
     title: "海とレモンティー",
     searchReading: "うみとれもんてぃー",
@@ -970,6 +1040,7 @@ export const SONGS = [
   },
   {
     id: "tokubechu-shite",
+    youtubeUrl: "https://www.youtube.com/watch?v=F3P8vcZkIh4",
     workId: "single-18",
     title: "とくべチュ、して",
     category: CATEGORY.TITLE_TRACK,
@@ -982,6 +1053,7 @@ export const SONGS = [
   },
   {
     id: "koibito-ijou-suki-miman",
+    youtubeUrl: "https://www.youtube.com/watch?v=p-jc9qMpBb4",
     workId: "single-18",
     title: "恋人以上、好き未満",
     searchReading: "こいびといじょうすきみまん",
@@ -995,6 +1067,7 @@ export const SONGS = [
   },
   {
     id: "chotokkyu-tousouchu",
+    youtubeUrl: "https://www.youtube.com/watch?v=d20dEAtbL08",
     workId: "single-18",
     title: "超特急逃走中",
     searchReading: "ちょうとっきゅうとうそうちゅう",
@@ -1008,6 +1081,7 @@ export const SONGS = [
   },
   {
     id: "love-song-ni-osowareru",
+    youtubeUrl: "https://www.youtube.com/watch?v=_cf4UTe1qrY",
     workId: "single-19",
     title: "ラブソングに襲われる",
     searchReading: "らぶそんぐにおそわれる",
@@ -1021,6 +1095,7 @@ export const SONGS = [
   },
   {
     id: "komorebi-mezzoforte",
+    youtubeUrl: "https://www.youtube.com/watch?v=4xBmuiQNGdc",
     workId: "single-19",
     title: "木漏れ日メゾフォルテ",
     searchReading: "こもれびめぞふぉるて",
@@ -1034,6 +1109,7 @@ export const SONGS = [
   },
   {
     id: "queens",
+    youtubeUrl: "https://www.youtube.com/watch?v=Pyts1pc0u1A",
     workId: "single-19",
     title: "Queens",
     category: CATEGORY.UNIT_SONG,
@@ -1045,6 +1121,7 @@ export const SONGS = [
   },
   {
     id: "gekiyaku-chudoku",
+    youtubeUrl: "https://www.youtube.com/watch?v=Bco8bY9r_H4",
     workId: "single-20",
     title: "劇薬中毒",
     searchReading: "げきやくちゅうどく",
@@ -1058,6 +1135,7 @@ export const SONGS = [
   },
   {
     id: "moratorium",
+    youtubeUrl: "https://www.youtube.com/watch?v=ZROuG57QGls",
     workId: "single-20",
     title: "モラトリアム",
     category: CATEGORY.GROUP_SONG,
@@ -1070,6 +1148,7 @@ export const SONGS = [
   },
   {
     id: "ohimesama-no-tsukurikata",
+    youtubeUrl: "https://www.youtube.com/watch?v=2udLA8-QuD8",
     workId: "single-20",
     title: "お姫様の作り方",
     searchReading: "おひめさまのつくりかた",
@@ -1084,6 +1163,7 @@ export const SONGS = [
   },
   {
     id: "866",
+    youtubeUrl: "https://www.youtube.com/watch?v=8hsjYIlJbQE",
     workId: "special-866",
     title: "866",
     searchReading: "はちろくろく",
@@ -1098,6 +1178,7 @@ export const SONGS = [
   },
   {
     id: "overture",
+    youtubeUrl: "https://www.youtube.com/watch?v=FFcBFWI0buc",
     workId: "album-01",
     title: "Overture",
     category: CATEGORY.SPECIAL,
@@ -1109,6 +1190,7 @@ export const SONGS = [
   },
   {
     id: "be-selfish",
+    youtubeUrl: "https://www.youtube.com/watch?v=suf7S4AKdmY",
     workId: "single-12",
     title: "Be Selfish",
     searchAliases: ["びせる", "びーせる"],
@@ -1122,6 +1204,7 @@ export const SONGS = [
   },
   {
     id: "sukitte-ienakatta",
+    youtubeUrl: "https://www.youtube.com/watch?v=Jsz-Hzb4fyY",
     workId: "single-12",
     title: "好きって、言えなかった",
     searchReading: "すきっていえなかった",
@@ -1136,6 +1219,7 @@ export const SONGS = [
   },
   {
     id: "watashi-mahoutsukai",
+    youtubeUrl: "https://www.youtube.com/watch?v=nqgFDf46MZI",
     workId: "single-12",
     title: "わたし、魔法使い",
     searchReading: "わたしまほうつかい",
@@ -1149,6 +1233,7 @@ export const SONGS = [
   },
   {
     id: "mayonaka-mermaid",
+    youtubeUrl: "https://www.youtube.com/watch?v=qzFBzJ2KWwY",
     workId: "single-12",
     title: "真夜中マーメイド",
     searchReading: "まよなかまーめいど",

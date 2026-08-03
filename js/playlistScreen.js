@@ -19,6 +19,7 @@ import {
 let elements = null;
 let renamingPlaylistId = null; // 現在インライン編集中のプレイリストid（無ければnull）
 let pendingDeletePlaylistId = null; // 削除確認モーダルで対象にしているプレイリストid（一覧画面からのみ削除可能）
+let currentDetailPlaylistId = null; // 詳細画面で今表示しているプレイリストid（連続再生の入口ボタンで使う）
 
 // ---- プレイリスト一覧 ----
 
@@ -117,12 +118,16 @@ export function renderPlaylistList() {
   elements.playlistEmptyNotice.hidden = playlists.length > 0;
 }
 
+// 作成したら一覧に留まらず、作った空のプレイリストの詳細画面へそのまま移動する
+// （UI/UX再設計：以前は一覧に戻るだけで、そこからもう一度タップして詳細を開く必要があった。
+// 「作成→曲を追加する」までを一続きの操作にするため、一覧画面用のonSelectPlaylistコールバックを
+// そのまま使い回す＝main.js側で「詳細を描画してshowScreen」する処理を新たに増やさずに済む）。
 function commitCreatePlaylist() {
   const name = elements.playlistCreateInput.value.trim();
   if (!name) return;
-  createPlaylist(name);
+  const newPlaylist = createPlaylist(name);
   elements.playlistCreateInput.value = "";
-  renderPlaylistList();
+  elements.onSelectPlaylist(newPlaylist.playlistId);
 }
 
 // ---- プレイリスト詳細 ----
@@ -134,9 +139,17 @@ function commitCreatePlaylist() {
 export function renderPlaylistDetail(playlistId) {
   const playlist = getPlaylistById(playlistId);
   if (!playlist) return;
+  currentDetailPlaylistId = playlistId;
 
   elements.playlistDetailName.textContent = playlist.playlistName || "（名前未設定）";
   elements.playlistDetailCount.textContent = playlist.songIds.length;
+
+  // 0曲のときは、押せない「連続再生」ボタンを出し続けるのではなく、ボタンごと隠して
+  // アイコン＋見出し＋補足の空状態ブロックだけを見せる（本人フィードバック反映。2026-08-05、
+  // 以前は案内文が2つ同時に表示されて文字とボタンが重なる不具合があった）。
+  const isEmpty = playlist.songIds.length === 0;
+  elements.continuousPlayButton.hidden = isEmpty;
+  elements.emptyState.hidden = !isEmpty;
 
   elements.playlistDetailList.innerHTML = "";
   playlist.songIds.forEach((songId, index) => {
@@ -163,18 +176,30 @@ export function renderPlaylistDetail(playlistId) {
     });
     elements.playlistDetailList.appendChild(row);
   });
-  elements.playlistDetailEmptyNotice.hidden = playlist.songIds.length > 0;
 }
 
 // elements: {
 //   playlistList, playlistEmptyNotice: プレイリスト一覧,
 //   playlistCreateInput, playlistCreateButton: 新規作成用の入力欄・ボタン,
 //   playlistDeleteConfirmModal, playlistDeleteCancelButton, playlistDeleteConfirmButton: 削除確認モーダル,
-//   playlistDetailName, playlistDetailCount, playlistDetailList, playlistDetailEmptyNotice: 詳細画面,
-//   onSelectPlaylist: プレイリスト行がタップされたときに呼ばれるコールバック（playlistIdを受け取る）,
+//   playlistDetailName, playlistDetailCount, playlistDetailList: 詳細画面,
+//   emptyState: 0曲のときだけ見せる空状態ブロック（UI/UX再設計で追加）,
+//   continuousPlayButton: このプレイリストを連続再生する入口（0曲のときは非表示）,
+//   addSongsButton: 「＋曲を追加する」ボタン（UI/UX再設計で追加）,
+//   onSelectPlaylist: プレイリスト行がタップされたとき・新規作成直後に呼ばれるコールバック（playlistIdを受け取る）,
+//   onContinuousPlay: 連続再生ボタンが押されたときに呼ばれるコールバック（playlistIdを受け取る）,
+//   onAddSongs: 「＋曲を追加する」が押されたときに呼ばれるコールバック（playlistIdを受け取る）,
 // }
 export function initPlaylistScreen(newElements) {
   elements = newElements;
+
+  elements.continuousPlayButton.addEventListener("click", () => {
+    if (currentDetailPlaylistId) elements.onContinuousPlay(currentDetailPlaylistId);
+  });
+
+  elements.addSongsButton.addEventListener("click", () => {
+    if (currentDetailPlaylistId) elements.onAddSongs(currentDetailPlaylistId);
+  });
 
   elements.playlistCreateButton.addEventListener("click", commitCreatePlaylist);
   // Enterキーでも作成できるようにする（stopPropagationの理由は名前変更欄と同じ）。

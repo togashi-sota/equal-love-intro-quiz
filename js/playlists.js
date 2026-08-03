@@ -93,6 +93,25 @@ export function addSongToPlaylist(playlistId, songId) {
   savePlaylists(updated);
 }
 
+// 複数曲をまとめて追加する（プレイリストへの曲追加画面の「選択した曲を追加する」用）。
+// addSongToPlaylist()をsongIdの数だけ繰り返し呼ぶと、そのたびにlocalStorageへの
+// 読み書きが発生してしまうため、1回の読み書きで済むようにまとめて処理する。
+// 追加後の曲数（実際に新しく追加できた数）を返す。
+export function addSongsToPlaylist(playlistId, songIds) {
+  const playlists = loadPlaylists();
+  let addedCount = 0;
+  const updated = playlists.map((playlist) => {
+    if (playlist.playlistId !== playlistId) return playlist;
+    const existingIds = new Set(playlist.songIds);
+    const newIds = songIds.filter((songId) => !existingIds.has(songId));
+    addedCount = newIds.length;
+    if (newIds.length === 0) return playlist;
+    return { ...playlist, songIds: [...playlist.songIds, ...newIds], updatedAt: nowIso() };
+  });
+  savePlaylists(updated);
+  return addedCount;
+}
+
 export function removeSongFromPlaylist(playlistId, songId) {
   const playlists = loadPlaylists();
   const updated = playlists.map((playlist) => {

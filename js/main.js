@@ -36,6 +36,7 @@ import {
   resetSongListToDefaultView,
   stopSongListPreview,
   refreshAllFavoriteButtons,
+  getActiveSonglistTab,
 } from "./songlist.js";
 import { buildPlayResult, evaluateAndSaveTitles } from "./titleProgress.js";
 import { renderResultTitleEvents, clearResultTitleEvents } from "./titleDisplay.js";
@@ -73,7 +74,14 @@ import { LIVE_EVENTS } from "./data/liveHistory.js";
 import { initDiscographyScreen, renderDiscographyScreen, openWorkDetail } from "./discographyScreen.js";
 import { initMembersScreen, renderMembersScreen, openMemberDetail } from "./membersScreen.js";
 import { initPlayerScreen, renderPlayerSummary } from "./playerScreen.js";
+import { getFavoriteSongIds } from "./favoriteSongs.js";
+import { getPlaylists } from "./playlists.js";
 import { initPlaylistScreen, renderPlaylistList, renderPlaylistDetail } from "./playlistScreen.js";
+import { initPlaylistAddSongsScreen, renderPlaylistAddSongsScreen } from "./playlistAddSongsScreen.js";
+import { initContinuousPlayScreen, refreshContinuousPlayScreen } from "./continuousPlayScreen.js";
+import { initContinuousPlayQueueScreen, renderQueueScreen } from "./continuousPlayQueueScreen.js";
+import { initMiniPlayer } from "./miniPlayer.js";
+import { handlePlayerChanged as handleContinuousPlayerChanged } from "./continuousPlay.js";
 
 // 背景のキラキラ演出は、ゲームの状態と関係なく最初に1回だけ生成すればよい。
 renderBackgroundSparkles();
@@ -113,6 +121,9 @@ const rulesLinkElement = document.getElementById("rules-link");
 const rulesModalElement = document.getElementById("rules-modal");
 const rulesModalCloseButtonElement = document.getElementById("rules-modal-close");
 const songlistLinkElement = document.getElementById("songlist-link");
+const songlistFavoritesLinkElement = document.getElementById("songlist-favorites-link");
+const listenTileFavoritesCountElement = document.getElementById("listen-tile-favorites-count");
+const listenTilePlaylistCountElement = document.getElementById("listen-tile-playlist-count");
 const songlistBackButtonElement = document.getElementById("songlist-back-button");
 const addToPlaylistModalElement = document.getElementById("add-to-playlist-modal");
 const playlistLinkElement = document.getElementById("playlist-link");
@@ -128,7 +139,117 @@ const playlistDetailBackButtonElement = document.getElementById("playlist-detail
 const playlistDetailNameElement = document.getElementById("playlist-detail-name");
 const playlistDetailCountElement = document.getElementById("playlist-detail-count");
 const playlistDetailListElement = document.getElementById("playlist-detail-list");
-const playlistDetailEmptyNoticeElement = document.getElementById("playlist-detail-empty-notice");
+const playlistDetailEmptyStateElement = document.getElementById("playlist-detail-empty-state");
+const playlistDetailAddSongsButtonElement = document.getElementById("playlist-detail-add-songs-button");
+// プレイリストへの曲追加画面が、今どのプレイリストを対象にしているか（「戻る」で
+// どの詳細画面に戻るかの判断にも使う。UI/UX再設計で追加）。
+let playlistAddSongsTargetId = null;
+const playlistAddSongsBackButtonElement = document.getElementById("playlist-add-songs-back-button");
+const playlistAddSongsTitleElement = document.getElementById("playlist-add-songs-title");
+const playlistAddSongsGroupsElement = document.getElementById("playlist-add-songs-groups");
+const playlistAddSongsNoResultsNoticeElement = document.getElementById("playlist-add-songs-no-results-notice");
+const playlistAddSongsSearchInputElement = document.getElementById("playlist-add-songs-search-input");
+const playlistAddSongsSearchClearButtonElement = document.getElementById("playlist-add-songs-search-clear-button");
+const playlistAddSongsSelectedCountElement = document.getElementById("playlist-add-songs-selected-count");
+const playlistAddSongsSubmitButtonElement = document.getElementById("playlist-add-songs-submit-button");
+const playlistAddSongsActionBannerElement = document.getElementById("playlist-add-songs-action-banner");
+const continuousPlayLinkElement = document.getElementById("continuous-play-link");
+const continuousPlayBackButtonElement = document.getElementById("continuous-play-back-button");
+const continuousPlaySettingsIconButtonElement = document.getElementById("continuous-play-settings-icon-button");
+const continuousPlaySettingsToggleElement = document.getElementById("continuous-play-settings-toggle");
+const continuousPlaySettingsSummaryElement = document.getElementById("continuous-play-settings-summary");
+const continuousPlaySettingsPanelElement = document.getElementById("continuous-play-settings-panel");
+const continuousPlaySourceButtonElements = [
+  ...document.querySelectorAll(".continuous-play-source-button"),
+];
+const continuousPlaySourceExplainElement = document.getElementById("continuous-play-source-explain");
+const continuousPlayOrderButtonElements = [
+  ...document.querySelectorAll(".continuous-play-order-button"),
+];
+const continuousPlayOrderExplainElement = document.getElementById("continuous-play-order-explain");
+const continuousPlayRepeatButtonElement = document.getElementById("continuous-play-repeat-button");
+const continuousPlayFavoritesBlockElement = document.getElementById("continuous-play-favorites-block");
+const continuousPlayFavoritesOkElement = document.getElementById("continuous-play-favorites-ok");
+const continuousPlayFavoritesEmptyElement = document.getElementById("continuous-play-favorites-empty");
+const continuousPlayFavoritesExploreButtonElement = document.getElementById(
+  "continuous-play-favorites-explore-button"
+);
+const continuousPlayPlaylistBlockElement = document.getElementById("continuous-play-playlist-block");
+const continuousPlayPlaylistSummaryElement = document.getElementById("continuous-play-playlist-summary");
+const continuousPlayPlaylistSummaryTextElement = document.getElementById(
+  "continuous-play-playlist-summary-text"
+);
+const continuousPlayPlaylistPickerElement = document.getElementById("continuous-play-playlist-picker");
+const continuousPlayPlaylistEmptyNoticeElement = document.getElementById(
+  "continuous-play-playlist-empty-notice"
+);
+const continuousPlayApplyButtonElement = document.getElementById("continuous-play-apply-button");
+const continuousPlayEmptyMessageElement = document.getElementById("continuous-play-empty-message");
+const continuousPlayPositionElement = document.getElementById("continuous-play-position");
+const continuousPlaySongTitleElement = document.getElementById("continuous-play-song-title");
+const continuousPlaySongMetaElement = document.getElementById("continuous-play-song-meta");
+const continuousPlayStatusTextElement = document.getElementById("continuous-play-status-text");
+const continuousPlayNoticeElement = document.getElementById("continuous-play-notice");
+const continuousPlaySeekRowElement = document.querySelector("#continuous-play-screen .continuous-play-seek-row");
+const continuousPlaySeekRangeElement = document.getElementById("continuous-play-seek-range");
+const continuousPlayCurrentTimeElement = document.getElementById("continuous-play-current-time");
+const continuousPlayDurationElement = document.getElementById("continuous-play-duration");
+const continuousPlayControlsElement = document.querySelector("#continuous-play-screen .continuous-play-controls");
+const continuousPlayToggleButtonElement = document.getElementById("continuous-play-toggle-button");
+const continuousPlayPrevButtonElement = document.getElementById("continuous-play-prev-button");
+const continuousPlayNextButtonElement = document.getElementById("continuous-play-next-button");
+const continuousPlayLyricsSectionElement = document.getElementById("continuous-play-lyrics-section");
+const continuousPlayLyricsPanelElement = document.getElementById("continuous-play-lyrics-panel");
+const continuousPlayLyricsFullscreenButtonElement = document.getElementById(
+  "continuous-play-lyrics-fullscreen-button"
+);
+const continuousPlayNextCardElement = document.getElementById("continuous-play-next-card");
+const continuousPlayNextTitleElement = document.getElementById("continuous-play-next-title");
+const continuousPlayQueueLinkElement = document.getElementById("continuous-play-queue-link");
+const continuousPlayQueueLinkCountElement = document.getElementById("continuous-play-queue-link-count");
+const continuousPlayQueueBackButtonElement = document.getElementById("continuous-play-queue-back-button");
+const continuousPlayQueueSourceChipElement = document.getElementById("continuous-play-queue-source-chip");
+const continuousPlayQueueListElement = document.getElementById("continuous-play-queue-list");
+const continuousPlayQueueActionBannerElement = document.getElementById(
+  "continuous-play-queue-action-banner"
+);
+const songlistContinuousPlayLinkElement = document.getElementById("songlist-continuous-play-link");
+const miniPlayerRootElement = document.getElementById("mini-player");
+const miniPlayerMainElement = document.getElementById("mini-player-main");
+const miniPlayerTitleElement = document.getElementById("mini-player-title");
+const miniPlayerStatusElement = document.getElementById("mini-player-status");
+const miniPlayerToggleButtonElement = document.getElementById("mini-player-toggle-button");
+const miniPlayerStopButtonElement = document.getElementById("mini-player-stop-button");
+const playlistDetailContinuousPlayButtonElement = document.getElementById(
+  "playlist-detail-continuous-play-button"
+);
+// 連続再生画面を開く直前の画面名。「戻る」でここへ戻る（10-33章、1画面化に伴い追加）。
+let continuousPlayReturnScreen = "start";
+
+// 画面を離れるときのスクロール位置を覚えておき、戻ってきたときに同じ位置へ復元する仕組み。
+// screens.js（showScreen自体）は変更せず、main.js側だけで完結する薄いラッパーとして実装する
+// （「連続再生の戻り先を1つだけ覚えておく」continuousPlayReturnScreenと同じ考え方。
+// UI/UX再設計：スタート画面下部の各機能を開いて戻ると一番上に戻ってしまうのがストレスという
+// フィードバックを受けて追加。スタート⇄各機能画面、プレイリスト一覧⇄詳細、
+// プレイリスト詳細⇄曲追加、連続再生⇄再生キュー、の行き来に使う）。
+const screenScrollPositions = new Map();
+function navigateWithScrollMemory(targetScreen) {
+  const fromScreen = document.body.dataset.screen;
+  screenScrollPositions.set(fromScreen, window.scrollY);
+  showScreen(targetScreen);
+  window.scrollTo(0, screenScrollPositions.get(targetScreen) || 0);
+  if (targetScreen === "start") {
+    updateListenTileCounts();
+  }
+}
+
+// スタート画面「曲を聴く」タイルの、お気に入り・プレイリストの現在数を最新にする。
+// お気に入り・プレイリストはプレイヤーごとのデータのため、スタート画面へ戻るたびに
+// 描き直す（プレイヤー切替時はonPlayerChangedからも呼ぶ）。
+function updateListenTileCounts() {
+  listenTileFavoritesCountElement.textContent = `${getFavoriteSongIds().length}曲`;
+  listenTilePlaylistCountElement.textContent = `${getPlaylists().length}個`;
+}
 const titleEventListElement = document.getElementById("title-event-list");
 const titleListLinkFromResultElement = document.getElementById("title-list-link-from-result");
 const titleListLinkElement = document.getElementById("title-list-link");
@@ -409,6 +530,11 @@ initPlayerScreen(
       // ハートボタンの見た目も新しいプレイヤーのお気に入り状態に合わせて描き直す
       // （お気に入りタブ・プレイリスト画面は開くたびに作り直されるため対応不要）。
       refreshAllFavoriteButtons();
+      // 連続再生が「お気に入り」「プレイリスト」を再生元にしていた場合、切替後も
+      // 前のプレイヤーの曲を鳴らし続けてしまうため止める（「全曲」のときは何もしない）。
+      handleContinuousPlayerChanged();
+      // スタート画面タイルのお気に入り・プレイリスト数も、新しいプレイヤーのものに更新する。
+      updateListenTileCounts();
     },
   },
   MEMBERS
@@ -426,23 +552,32 @@ initPlaylistScreen({
   playlistDetailName: playlistDetailNameElement,
   playlistDetailCount: playlistDetailCountElement,
   playlistDetailList: playlistDetailListElement,
-  playlistDetailEmptyNotice: playlistDetailEmptyNoticeElement,
+  emptyState: playlistDetailEmptyStateElement,
+  continuousPlayButton: playlistDetailContinuousPlayButtonElement,
+  addSongsButton: playlistDetailAddSongsButtonElement,
   onSelectPlaylist: (playlistId) => {
     playClickSound();
     renderPlaylistDetail(playlistId);
-    showScreen("playlistDetail");
+    navigateWithScrollMemory("playlistDetail");
+  },
+  onContinuousPlay: openContinuousPlayFromPlaylistDetail,
+  onAddSongs: (playlistId) => {
+    playClickSound();
+    playlistAddSongsTargetId = playlistId;
+    renderPlaylistAddSongsScreen(playlistId);
+    navigateWithScrollMemory("playlistAddSongs");
   },
 });
 
 playlistLinkElement.addEventListener("click", () => {
   playClickSound();
   renderPlaylistList();
-  showScreen("playlists");
+  navigateWithScrollMemory("playlists");
 });
 
 playlistBackButtonElement.addEventListener("click", () => {
   playClickSound();
-  showScreen("start");
+  navigateWithScrollMemory("start");
 });
 
 // プレイリスト詳細画面の「戻る」：試聴中の曲を必ず止めてから一覧へ戻る
@@ -452,7 +587,157 @@ playlistDetailBackButtonElement.addEventListener("click", () => {
   playClickSound();
   stopSongListPreview();
   renderPlaylistList();
-  showScreen("playlists");
+  navigateWithScrollMemory("playlists");
+});
+
+// プレイリストへの曲追加画面（UI/UX再設計で新設）。
+initPlaylistAddSongsScreen({
+  title: playlistAddSongsTitleElement,
+  groupsContainer: playlistAddSongsGroupsElement,
+  noResultsNotice: playlistAddSongsNoResultsNoticeElement,
+  searchInput: playlistAddSongsSearchInputElement,
+  searchClearButton: playlistAddSongsSearchClearButtonElement,
+  selectedCount: playlistAddSongsSelectedCountElement,
+  submitButton: playlistAddSongsSubmitButtonElement,
+  actionBanner: playlistAddSongsActionBannerElement,
+  onSubmit: (playlistId) => {
+    playClickSound();
+    renderPlaylistDetail(playlistId);
+    navigateWithScrollMemory("playlistDetail");
+  },
+});
+
+// 曲追加画面の「戻る」：何も追加せず、対象にしていたプレイリストの詳細画面へ戻る。
+playlistAddSongsBackButtonElement.addEventListener("click", () => {
+  playClickSound();
+  if (playlistAddSongsTargetId) {
+    renderPlaylistDetail(playlistAddSongsTargetId);
+    navigateWithScrollMemory("playlistDetail");
+  } else {
+    navigateWithScrollMemory("playlists");
+  }
+});
+
+// 連続再生画面（2026-08-04新設、同日中に1画面構成へ改訂。UI/UX再設計で「次に再生」
+// カード・再生キュー入口を追加）。
+initContinuousPlayScreen({
+  settingsIconButton: continuousPlaySettingsIconButtonElement,
+  settingsToggle: continuousPlaySettingsToggleElement,
+  settingsSummary: continuousPlaySettingsSummaryElement,
+  settingsPanel: continuousPlaySettingsPanelElement,
+  sourceButtons: continuousPlaySourceButtonElements,
+  sourceExplain: continuousPlaySourceExplainElement,
+  orderButtons: continuousPlayOrderButtonElements,
+  orderExplain: continuousPlayOrderExplainElement,
+  favoritesBlock: continuousPlayFavoritesBlockElement,
+  favoritesOk: continuousPlayFavoritesOkElement,
+  favoritesEmpty: continuousPlayFavoritesEmptyElement,
+  favoritesExploreButton: continuousPlayFavoritesExploreButtonElement,
+  playlistBlock: continuousPlayPlaylistBlockElement,
+  playlistSummary: continuousPlayPlaylistSummaryElement,
+  playlistSummaryText: continuousPlayPlaylistSummaryTextElement,
+  playlistPicker: continuousPlayPlaylistPickerElement,
+  playlistEmptyNotice: continuousPlayPlaylistEmptyNoticeElement,
+  applyButton: continuousPlayApplyButtonElement,
+  position: continuousPlayPositionElement,
+  songTitle: continuousPlaySongTitleElement,
+  songMeta: continuousPlaySongMetaElement,
+  statusText: continuousPlayStatusTextElement,
+  notice: continuousPlayNoticeElement,
+  repeatButton: continuousPlayRepeatButtonElement,
+  seekRow: continuousPlaySeekRowElement,
+  seekRange: continuousPlaySeekRangeElement,
+  currentTime: continuousPlayCurrentTimeElement,
+  duration: continuousPlayDurationElement,
+  controls: continuousPlayControlsElement,
+  toggleButton: continuousPlayToggleButtonElement,
+  prevButton: continuousPlayPrevButtonElement,
+  nextButton: continuousPlayNextButtonElement,
+  nextCard: continuousPlayNextCardElement,
+  nextTitle: continuousPlayNextTitleElement,
+  queueLink: continuousPlayQueueLinkElement,
+  queueLinkCount: continuousPlayQueueLinkCountElement,
+  lyricsSection: continuousPlayLyricsSectionElement,
+  lyricsPanel: continuousPlayLyricsPanelElement,
+  lyricsFullscreenButton: continuousPlayLyricsFullscreenButtonElement,
+  emptyMessage: continuousPlayEmptyMessageElement,
+  onOpenQueue: () => {
+    playClickSound();
+    renderQueueScreen();
+    navigateWithScrollMemory("continuousPlayQueue");
+  },
+  onExploreFavorites: () => {
+    playClickSound();
+    resetSongListToDefaultView("favorites");
+    navigateWithScrollMemory("songlist");
+  },
+});
+
+// 再生キュー画面（UI/UX再設計で新設）。「戻る」は常に連続再生画面へ戻る
+// （この画面は連続再生画面からしか開かないサブ画面のため、他画面のような
+// 「開く前の画面を覚えておく」仕組みは不要と判断した）。
+initContinuousPlayQueueScreen({
+  sourceChip: continuousPlayQueueSourceChipElement,
+  list: continuousPlayQueueListElement,
+  actionBanner: continuousPlayQueueActionBannerElement,
+});
+
+continuousPlayQueueBackButtonElement.addEventListener("click", () => {
+  playClickSound();
+  navigateWithScrollMemory("continuousPlay");
+});
+
+// ミニプレイヤー（UI/UX再設計で新設）：連続再生本体・再生キュー画面以外の
+// どの画面からでも、今なにが流れているかが分かるよう常時表示する。
+// 本体をタップすると、今いた画面を戻り先として覚えたうえで連続再生画面を開く
+// （continuousPlayReturnScreen・navigateWithScrollMemoryは他の入口と共通の仕組み）。
+initMiniPlayer({
+  root: miniPlayerRootElement,
+  main: miniPlayerMainElement,
+  title: miniPlayerTitleElement,
+  status: miniPlayerStatusElement,
+  toggleButton: miniPlayerToggleButtonElement,
+  stopButton: miniPlayerStopButtonElement,
+  onOpen: () => {
+    playClickSound();
+    continuousPlayReturnScreen = document.body.dataset.screen;
+    refreshContinuousPlayScreen();
+    navigateWithScrollMemory("continuousPlay");
+  },
+});
+
+// 「連続再生」リンク（スタート画面）：開くたびに、今の再生状態（再生中ならそのまま、
+// まだ何も始めていなければ設定パネルを開いた状態）に合わせて表示し直す。
+continuousPlayLinkElement.addEventListener("click", () => {
+  playClickSound();
+  continuousPlayReturnScreen = "start";
+  refreshContinuousPlayScreen();
+  navigateWithScrollMemory("continuousPlay");
+});
+
+// 収録曲一覧の「連続再生で聴く」：今見ているタブ（すべて/お気に入り）を再生元にする。
+songlistContinuousPlayLinkElement.addEventListener("click", () => {
+  playClickSound();
+  continuousPlayReturnScreen = "songlist";
+  const prefillSource = getActiveSonglistTab() === "favorites" ? "favorites" : "all";
+  refreshContinuousPlayScreen({ source: prefillSource });
+  navigateWithScrollMemory("continuousPlay");
+});
+
+// プレイリスト詳細の「このプレイリストを連続再生」：そのプレイリストを再生元にして開く。
+function openContinuousPlayFromPlaylistDetail(playlistId) {
+  playClickSound();
+  continuousPlayReturnScreen = "playlistDetail";
+  refreshContinuousPlayScreen({ source: "playlist", playlistId });
+  navigateWithScrollMemory("continuousPlay");
+}
+
+// 連続再生画面の「戻る」：本人希望により、画面を移動しても再生は止めない
+// （クイズ・試聴を別途開始したときだけ、playbackCoordinator.js経由で自動的に
+// 一時停止される）。開いた直前の画面（スタート/収録曲一覧/プレイリスト詳細）へ戻す。
+continuousPlayBackButtonElement.addEventListener("click", () => {
+  playClickSound();
+  navigateWithScrollMemory(continuousPlayReturnScreen);
 });
 
 // オリジナル問題作成モードのプリセット一覧画面：「＋新しいセットを作る」／
@@ -1328,14 +1613,22 @@ customQuizPresetsRulesModalElement.addEventListener("click", (event) => {
 songlistLinkElement.addEventListener("click", () => {
   playClickSound();
   resetSongListToDefaultView();
-  showScreen("songlist");
+  navigateWithScrollMemory("songlist");
+});
+
+// 「お気に入り」タイル（スタート画面）：収録曲一覧画面を開いた直後から「お気に入り」タブを
+// 表示する（UI/UX再設計で追加）。
+songlistFavoritesLinkElement.addEventListener("click", () => {
+  playClickSound();
+  resetSongListToDefaultView("favorites");
+  navigateWithScrollMemory("songlist");
 });
 
 // 収録曲一覧画面の「戻る」：試聴中の曲を必ず止めてからスタート画面へ戻る。
 songlistBackButtonElement.addEventListener("click", () => {
   playClickSound();
   stopSongListPreview();
-  showScreen("start");
+  navigateWithScrollMemory("start");
 });
 
 // 「プレイ履歴」リンク：開くたびに最新の記録で描画し直す
@@ -1343,13 +1636,13 @@ songlistBackButtonElement.addEventListener("click", () => {
 historyLinkElement.addEventListener("click", () => {
   playClickSound();
   renderHistoryScreen();
-  showScreen("history");
+  navigateWithScrollMemory("history");
 });
 
 // プレイ履歴画面の「戻る」：スタート画面へ戻る。
 historyBackButtonElement.addEventListener("click", () => {
   playClickSound();
-  showScreen("start");
+  navigateWithScrollMemory("start");
 });
 
 // プレイ履歴詳細画面の「戻る」：一覧画面へ戻る。
@@ -1378,12 +1671,12 @@ discographyLinkElement.addEventListener("click", () => {
     groupActivities: GROUP_ACTIVITIES,
     liveEvents: LIVE_EVENTS,
   });
-  showScreen("discography");
+  navigateWithScrollMemory("discography");
 });
 
 discographyBackButtonElement.addEventListener("click", () => {
   playClickSound();
-  showScreen("start");
+  navigateWithScrollMemory("start");
 });
 
 workDetailBackButtonElement.addEventListener("click", () => {
@@ -1396,12 +1689,12 @@ workDetailBackButtonElement.addEventListener("click", () => {
 membersLinkElement.addEventListener("click", () => {
   playClickSound();
   renderMembersScreen(SONGS, MEMBERS, MEMBER_PROFILES);
-  showScreen("members");
+  navigateWithScrollMemory("members");
 });
 
 membersBackButtonElement.addEventListener("click", () => {
   playClickSound();
-  showScreen("start");
+  navigateWithScrollMemory("start");
   renderPlayerSummary(); // メンバー一覧で推し登録を変更した可能性があるので表示し直す
 });
 
@@ -1416,13 +1709,13 @@ memberDetailBackButtonElement.addEventListener("click", () => {
 // 「特別モード」リンク：一覧画面を開く（一覧の中身は固定なので描画し直す必要はない）。
 specialModesLinkElement.addEventListener("click", () => {
   playClickSound();
-  showScreen("specialModes");
+  navigateWithScrollMemory("specialModes");
 });
 
 // 特別モード一覧画面の「戻る」：スタート画面へ戻る。
 specialModesBackButtonElement.addEventListener("click", () => {
   playClickSound();
-  showScreen("start");
+  navigateWithScrollMemory("start");
 });
 
 // 苦手曲モード確認画面の「戻る」：特別モード一覧画面へ戻る（スタート画面まで一気には戻らない）。
@@ -1458,6 +1751,7 @@ document
   });
 updateModeBestScoreDisplay();
 updateQuestionCountNotice();
+updateListenTileCounts();
 
 // カテゴリの選択肢に添える対象曲数は、ゲームの状態と関係なく最初に1回だけ計算すればよい。
 updateCategoryCountHints();

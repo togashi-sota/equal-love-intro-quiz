@@ -21,7 +21,20 @@ const SCREEN_ELEMENTS = {
   memberDetail: document.getElementById("member-detail-screen"),
   playlists: document.getElementById("playlist-screen"),
   playlistDetail: document.getElementById("playlist-detail-screen"),
+  playlistAddSongs: document.getElementById("playlist-add-songs-screen"),
+  continuousPlay: document.getElementById("continuous-play-screen"),
+  continuousPlayQueue: document.getElementById("continuous-play-queue-screen"),
 };
+
+// 画面が切り替わるたびに呼びたい処理（ミニプレイヤーの表示/非表示など）を登録できる、
+// 軽量なpub-sub（playbackCoordinator.js・continuousPlay.jsのonPlaybackStateChangeと
+// 同じ考え方）。showScreen()自体の動き（is-activeの付け外し・body.dataset.screenの更新）は
+// 一切変更せず、末尾に通知を1行追加するだけにとどめている（2026-08-05追加）。
+const screenChangeListeners = new Set();
+
+export function onScreenChange(listener) {
+  screenChangeListeners.add(listener);
+}
 
 // 指定した画面だけを表示し、それ以外の画面は隠す。
 export function showScreen(screenName) {
@@ -33,4 +46,6 @@ export function showScreen(screenName) {
   // CSS側（style.css）が「クイズ画面のときだけ背景演出を控えめにする」といった
   // 画面ごとの見た目の調整をできるようにするためのフック。
   document.body.dataset.screen = screenName;
+
+  screenChangeListeners.forEach((listener) => listener(screenName));
 }

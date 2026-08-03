@@ -204,14 +204,59 @@
 
       <button id="start-button" class="primary-button" type="button">スタート</button>
 
-      <!-- ルール説明モーダル・収録曲一覧画面への入口。
-           スタートボタンより目立たせたくないので、どちらも下線付きの控えめなテキストリンクにしている。 -->
-      <div class="start-footer-links">
-        <button id="rules-link" class="rules-link" type="button">あそびかた・とくてんのルール</button>
-        <button id="songlist-link" class="rules-link" type="button">収録曲一覧</button>
-        <button id="title-list-link" class="rules-link" type="button">称号一覧</button>
-        <button id="history-link" class="rules-link" type="button">プレイ履歴</button>
-        <button id="playlist-link" class="rules-link" type="button">プレイリスト</button>
+      <!-- 「あそびかた・とくてんのルール」：イントロクイズ本体の説明のため、以前のように
+           画面最下部の他の機能と同列の小さいリンクに埋もれさせず、スタートボタンの直下へ
+           控えめなリンクとして置く（本人フィードバック反映。押した後の挙動・モーダルの
+           中身自体は変更していない）。 -->
+      <button id="rules-link" class="rules-link start-rules-link" type="button">あそびかた・とくてんのルール</button>
+
+      <!-- 「曲を聴く」：収録曲一覧・お気に入り・プレイリスト・連続再生をまとめたカード。
+           以前はここに6つの小さいテキストリンクが並んでいたが、機能が増えるにつれて
+           「何がどこにあるか」が伝わりにくくなったため、同じ役割（曲を聴く）でひとまとめの
+           タイルグループに再編した（UI/UX再設計、モックアップレビューを経て実装）。
+           プレイリスト・連続再生は追加されたばかりの機能なのでNEWバッジを添える。 -->
+      <div class="listen-section">
+        <p class="listen-section-title">
+          <svg class="listen-section-title-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 18V6.6a1 1 0 0 1 .8-.98l9-1.8A1 1 0 0 1 20 4.8V15a3 3 0 1 1-2-2.83V6.4l-7 1.4v9.2a3 3 0 1 1-2-2.83Z" fill="currentColor"/></svg>
+          曲を聴く
+        </p>
+        <div class="listen-grid">
+          <button id="songlist-link" class="listen-tile" type="button">
+            <span class="listen-tile-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M4 6h16M4 12h16M4 18h10" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+            </span>
+            <span class="listen-tile-label">収録曲一覧</span>
+            <span class="listen-tile-desc">全81曲から探す</span>
+          </button>
+          <!-- お気に入り／プレイリストの役割の違いが一目で伝わるよう、一言説明＋現在の数を添える
+               （UI/UX再設計：本人フィードバックで数字をさらに大きく強調）。数字はplayerScreen.jsの
+               onPlayerChangedからも呼ばれるupdateListenTileCounts()（main.js）が更新する。 -->
+          <button id="songlist-favorites-link" class="listen-tile is-coral" type="button">
+            <span class="listen-tile-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 20.5 4.6 13.2C2 10.6 2.3 6.4 5.3 4.4c2.3-1.5 5.2-1 6.7 1 1.5-2 4.4-2.5 6.7-1 3 2 3.3 6.2.7 8.8L12 20.5Z"/></svg>
+            </span>
+            <span class="listen-tile-label">お気に入り</span>
+            <span class="listen-tile-desc">♡を付けた曲</span>
+            <span id="listen-tile-favorites-count" class="listen-tile-count"></span>
+          </button>
+          <button id="playlist-link" class="listen-tile is-blue" type="button">
+            <span class="listen-tile-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M4 6h12M4 12h12M4 18h7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M18 14v6M15 17h6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+            </span>
+            <span class="listen-tile-label">プレイリスト</span>
+            <span class="listen-tile-desc">好きな曲をまとめる</span>
+            <span id="listen-tile-playlist-count" class="listen-tile-count"></span>
+            <span class="listen-tile-badge">NEW</span>
+          </button>
+          <button id="continuous-play-link" class="listen-tile is-gold" type="button">
+            <span class="listen-tile-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M4 7h13a3 3 0 0 1 3 3v1M20 17H7a3 3 0 0 1-3-3v-1" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M7 4 4 7l3 3M17 20l3-3-3-3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+            <span class="listen-tile-label">連続再生</span>
+            <span class="listen-tile-desc">続けて聴く</span>
+            <span class="listen-tile-badge">NEW</span>
+          </button>
+        </div>
       </div>
 
       <!-- 特別モードへの入口。通常プレイ（スタートボタン）が主役であることが伝わるよう、
@@ -221,6 +266,15 @@
         <span class="special-modes-entry-icon" aria-hidden="true">✦</span>
         特別モード
       </button>
+
+      <!-- 「記録を見る」：称号一覧・プレイ履歴をまとめた2つのピルボタン。
+           以前は「曲を聴く」系のリンクと見分けがつかない、同じ見た目の小さいテキストリンクだった。 -->
+      <div class="special-modes-divider" aria-hidden="true"></div>
+      <p class="know-more-title">記録を見る</p>
+      <div class="record-pill-row">
+        <button id="title-list-link" class="record-pill" type="button">🏅 称号一覧</button>
+        <button id="history-link" class="record-pill" type="button">📊 プレイ履歴</button>
+      </div>
 
       <!-- ＝LOVEについて／メンバー情報ページへの入口。
            ゲームモードの導線とは視覚的に分けるため、区切り線を挟んで独立させている。 -->
@@ -500,6 +554,10 @@
         <button id="songlist-tab-favorites" class="songlist-tab-button" type="button">♡ お気に入り</button>
       </div>
 
+      <!-- 今見ているタブ（すべて/お気に入り）を再生元にして連続再生画面を開く入口
+           （2026-08-04追加）。控えめな文字リンクにして、画面が窮屈にならないようにする。 -->
+      <button id="songlist-continuous-play-link" class="rules-link continuous-play-entry-link" type="button">🔁 連続再生で聴く</button>
+
       <p class="total-count-chip">全 <strong id="songlist-total-count"></strong> 曲収録</p>
 
       <!-- カテゴリ別の内訳チップ。中身はjs/songlist.jsがSONGSから自動集計して組み立てる -->
@@ -550,6 +608,8 @@
         </div>
       </div>
 
+      <p class="playlist-list-intro">好きな曲をまとめられます。複数作成できます。</p>
+
       <div class="playlist-create-row">
         <input type="text" id="playlist-create-input" maxlength="20" placeholder="新しいプレイリスト名" aria-label="新しいプレイリスト名">
         <button id="playlist-create-button" class="secondary-button" type="button">＋ 作成</button>
@@ -584,11 +644,262 @@
 
       <p class="total-count-chip"><strong id="playlist-detail-count"></strong> 曲</p>
 
-      <p id="playlist-detail-empty-notice" class="question-count-notice" hidden>
-        まだ曲が入っていません。収録曲一覧やお気に入りの再生中に表示される「プレイリストに追加」ボタンから追加できます。
-      </p>
+      <!-- 曲を追加する入口。0曲のときにまず押すべき主役ボタンにするため、常にここへ主ボタンとして
+           置く（UI/UX再設計：以前は専用の入口が無く、収録曲一覧の試聴中にしか追加できなかった）。 -->
+      <button id="playlist-detail-add-songs-button" class="primary-button" type="button">＋ 曲を追加する</button>
+
+      <!-- 0曲のときだけ表示する空状態。アイコン・見出し・補足説明を1つのブロックにまとめることで、
+           以前あった「連続再生ボタン＋2つの案内文」が同時に表示されて文字とボタンが重なる不具合を
+           構造的に解消する（本人フィードバック反映。2026-08-05）。 -->
+      <div id="playlist-detail-empty-state" class="playlist-detail-empty-state" hidden>
+        <span class="playlist-detail-empty-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M9 18V6.6a1 1 0 0 1 .8-.98l9-1.8A1 1 0 0 1 20 4.8V15a3 3 0 1 1-2-2.83V6.4l-7 1.4v9.2a3 3 0 1 1-2-2.83Z" fill="currentColor"/></svg>
+        </span>
+        <p class="playlist-detail-empty-heading">まだ曲が入っていません</p>
+        <p class="playlist-detail-empty-sub">曲を追加すると、このプレイリストを連続再生できます。</p>
+      </div>
+
+      <!-- このプレイリストをそのまま連続再生画面へ渡す入口。1曲以上あるときだけ表示する
+           （0曲のときは上の空状態ブロックだけを見せ、押せないボタンは出さない方針に変更。
+           UI/UX再設計、本人フィードバック反映。2026-08-05）。 -->
+      <button id="playlist-detail-continuous-play-button" class="secondary-button" type="button" hidden>
+        <svg class="button-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M4 7h13a3 3 0 0 1 3 3v1M20 17H7a3 3 0 0 1-3-3v-1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <path d="M7 4 4 7l3 3M17 20l3-3-3-3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        このプレイリストを連続再生
+      </button>
 
       <div id="playlist-detail-list" class="flat-track-list"></div>
+    </section>
+
+    <!-- プレイリストへの曲追加画面：検索・シングル単位のアコーディオンから複数曲にチェックを入れ、
+         まとめて対象のプレイリストへ追加する。すでに入っている曲はチェック済み・操作不可で表示する。
+         曲の絞り込みロジック（buildSongGroups・検索）はjs/songlist.jsのものをそのまま再利用する
+         （UI/UX再設計で新設）。中身はjs/playlistAddSongsScreen.jsが組み立てる。 -->
+    <section id="playlist-add-songs-screen" class="screen">
+      <div class="list-header">
+        <button id="playlist-add-songs-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            ADD SONGS
+          </p>
+          <h2 id="playlist-add-songs-title">プレイリストに追加</h2>
+        </div>
+      </div>
+
+      <!-- 選択数の表示と「追加する」ボタンをまとめて上部に配置し、リストが長くても
+           スクロールせずに操作できるようにする（.game-frameはoverflow:hiddenのため
+           position:stickyでは正しく画面に張り付かないと判断し、常時上部固定はしない設計）。 -->
+      <div class="add-songs-action-bar">
+        <p class="add-songs-selected-count">選択中：<strong id="playlist-add-songs-selected-count">0</strong>曲</p>
+        <button id="playlist-add-songs-submit-button" class="primary-button" type="button" disabled>選択した曲を追加する</button>
+      </div>
+
+      <div class="search-field-row">
+        <input type="text" id="playlist-add-songs-search-input" class="pill-search-input" placeholder="曲名で検索" aria-label="曲名で検索">
+        <button id="playlist-add-songs-search-clear-button" class="search-clear-button" type="button" aria-label="検索語をクリア" hidden>×</button>
+      </div>
+
+      <!-- 作品単位の一括選択を行ったときだけ、短時間表示する完了案内（UI/UX再設計で追加）。 -->
+      <p id="playlist-add-songs-action-banner" class="songlist-action-banner" hidden></p>
+
+      <div id="playlist-add-songs-groups"></div>
+
+      <p id="playlist-add-songs-no-results-notice" class="question-count-notice" hidden>該当する曲が見つかりませんでした</p>
+    </section>
+
+    <!-- 連続再生画面：全曲／お気に入り／プレイリストから再生キューを作り、順に自動再生する。
+         設定と再生操作を1画面にまとめ、再生元の変更もこの画面の中だけで完結する。
+         中身の組み立て・状態管理はjs/continuousPlay.js（キュー・再生制御）と
+         js/continuousPlayScreen.js（画面）が行う（2026-08-04新設、同日中に1画面構成へ改訂）。 -->
+    <section id="continuous-play-screen" class="screen">
+      <div class="list-header">
+        <button id="continuous-play-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            CONTINUOUS PLAY
+          </p>
+          <h2>連続再生</h2>
+        </div>
+        <!-- 再生設定への近道（ヘッダーの控えめなアイコン）。UI/UX再設計：情報の優先順位で
+             「聴くこと」を最優先にするため、以前の目立つ帯状ボタンからここへ移した。 -->
+        <button id="continuous-play-settings-icon-button" class="header-icon-button" type="button" aria-label="再生設定を開く" aria-expanded="false">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm8.94 3-.02-.2 1.86-1.62-2-3.46-2.36.8a7.6 7.6 0 0 0-1.7-1L16.3 3h-4l-.4 2.52a7.6 7.6 0 0 0-1.7 1l-2.36-.8-2 3.46L7.7 10.8l-.02.2.02.2-1.86 1.62 2 3.46 2.36-.8a7.6 7.6 0 0 0 1.7 1l.4 2.52h4l.4-2.52a7.6 7.6 0 0 0 1.7-1l2.36.8 2-3.46-1.86-1.62.02-.2Z"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- 常時表示の再生中エリア。UI/UX再設計：曲名→操作ボタン→シークバー→次の曲→歌詞→
+           キューの順に、視覚的な優先順位を並べ直した（設定・リピートは最後に控えめに置く）。 -->
+      <div id="continuous-play-now-playing">
+        <div class="continuous-play-position-row">
+          <p id="continuous-play-position" class="continuous-play-position"></p>
+          <!-- リピートは使用頻度が低いため、循環式の小さいアイコンボタンに格下げする
+               （なし→全体→1曲→なし。UI/UX再設計）。 -->
+          <button id="continuous-play-repeat-button" class="continuous-play-repeat-cycle-button" type="button" aria-label="リピートを切り替える">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h13a3 3 0 0 1 3 3v1M20 17H7a3 3 0 0 1-3-3v-1" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M7 4 4 7l3 3M17 20l3-3-3-3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+        <h3 id="continuous-play-song-title" class="continuous-play-song-title"></h3>
+        <p id="continuous-play-song-meta" class="continuous-play-song-meta"></p>
+        <p id="continuous-play-status-text" class="continuous-play-status-text"></p>
+        <p id="continuous-play-notice" class="continuous-play-notice" hidden></p>
+
+        <div class="continuous-play-controls">
+          <button id="continuous-play-prev-button" class="continuous-play-control-button" type="button" aria-label="前の曲">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 6h2v12H7zM18 6 9 12l9 6Z"/></svg>
+          </button>
+          <button id="continuous-play-toggle-button" class="continuous-play-control-button is-main" type="button" aria-label="再生/一時停止">
+            <svg class="icon-play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7Z"/></svg>
+            <svg class="icon-pause" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="7" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+          </button>
+          <button id="continuous-play-next-button" class="continuous-play-control-button" type="button" aria-label="次の曲">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M15 6h2v12h-2zM6 6l9 6-9 6Z"/></svg>
+          </button>
+        </div>
+
+        <div class="continuous-play-seek-row">
+          <span id="continuous-play-current-time" class="continuous-play-time">0:00</span>
+          <input type="range" id="continuous-play-seek-range" class="continuous-play-seek-range" min="0" value="0" step="0.1">
+          <span id="continuous-play-duration" class="continuous-play-time">0:00</span>
+        </div>
+
+        <!-- 「次に再生」プレビュー。タップすると再生キュー画面へ移動する（UI/UX再設計）。
+             次の曲が無い場合（リピートなしで最後の曲）はjs/continuousPlayScreen.js側でこのカードごと隠す。 -->
+        <button id="continuous-play-next-card" class="continuous-play-next-card" type="button" hidden>
+          <span class="continuous-play-next-label">次に再生</span>
+          <span id="continuous-play-next-title" class="continuous-play-next-title"></span>
+        </button>
+
+        <!-- 同期歌詞。歌詞データがある曲のときだけjs/lyricsSync.jsが中身を出して表示する
+             （収録曲一覧と同じモジュールを共有、歌詞データの複製はしない）。 -->
+        <div id="continuous-play-lyrics-section" class="continuous-play-lyrics-section" hidden>
+          <div id="continuous-play-lyrics-panel" class="synced-lyrics-panel continuous-play-lyrics-panel" hidden></div>
+          <button id="continuous-play-lyrics-fullscreen-button" class="lyrics-fullscreen-open-button continuous-play-lyrics-fullscreen-button" aria-label="歌詞を全画面表示" hidden>
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+          </button>
+        </div>
+
+        <!-- 再生キュー全体を見る入口。今のキューの曲数もあわせて表示する（UI/UX再設計で新設）。 -->
+        <button id="continuous-play-queue-link" class="continuous-play-queue-link" type="button">
+          <span class="continuous-play-queue-link-label">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 6h12M4 12h16M4 18h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            再生キューを見る
+          </span>
+          <span id="continuous-play-queue-link-count" class="continuous-play-queue-link-count"></span>
+        </button>
+
+        <!-- 再生設定の開閉トグル（控えめな入口）。閉じている間も、今の選択内容が要約テキストとして見える。
+             ヘッダーの⚙アイコンからも同じパネルを開ける（UI/UX再設計）。 -->
+        <button id="continuous-play-settings-toggle" class="continuous-play-settings-entry" type="button" aria-expanded="false">
+          <span id="continuous-play-settings-summary" class="continuous-play-settings-summary">再生設定</span>
+          <svg class="chevron" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M9 5l7 7-7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- 再生元・再生方式の設定パネル。開いている間だけ表示し、
+           「この内容で再生」を押すまでは実際の再生には反映しない（誤操作防止）。
+           リピートはここには置かず、常時表示エリアの循環ボタンへ移した（UI/UX再設計）。 -->
+      <div id="continuous-play-settings-panel" class="continuous-play-settings-panel" hidden>
+        <p class="continuous-play-section-label">再生元</p>
+        <div class="continuous-play-source-tabs">
+          <button class="continuous-play-source-button" data-source="all" type="button">全曲</button>
+          <button class="continuous-play-source-button" data-source="favorites" type="button">お気に入り</button>
+          <button class="continuous-play-source-button" data-source="playlist" type="button">プレイリスト</button>
+        </div>
+        <p class="continuous-play-explain" id="continuous-play-source-explain"></p>
+
+        <!-- 「お気に入り」を選んだときだけ表示する、対象曲数の案内。0曲のときは案内とお気に入りへの
+             入口を出す（UI/UX再設計：選んでも変化が分かりにくいという指摘への対応）。 -->
+        <div id="continuous-play-favorites-block" hidden>
+          <p id="continuous-play-favorites-ok" class="continuous-play-favorites-ok"></p>
+          <div id="continuous-play-favorites-empty" class="continuous-play-favorites-empty" hidden>
+            <p>お気に入りの曲がありません</p>
+            <p>収録曲一覧の♡から登録できます</p>
+            <button id="continuous-play-favorites-explore-button" class="secondary-button" type="button">お気に入りを探す</button>
+          </div>
+        </div>
+
+        <!-- 「プレイリスト」を選んだときだけ表示する、プレイリスト選択欄。選ぶと自動的に折りたたまれ、
+             選択中のプレイリストだけのコンパクト表示に切り替わる（「変更する」で再展開。UI/UX再設計）。 -->
+        <div id="continuous-play-playlist-block" hidden>
+          <button id="continuous-play-playlist-summary" class="continuous-play-playlist-summary" type="button" hidden>
+            <span><span class="continuous-play-playlist-summary-check"></span> <span id="continuous-play-playlist-summary-text"></span></span>
+            <span class="continuous-play-playlist-change-label">変更する ›</span>
+          </button>
+          <div id="continuous-play-playlist-picker" class="continuous-play-playlist-picker" hidden></div>
+          <p id="continuous-play-playlist-empty-notice" class="question-count-notice" hidden>
+            プレイリストがまだありません。スタート画面の「プレイリスト」から作成できます。
+          </p>
+        </div>
+
+        <p class="continuous-play-section-label">再生方法</p>
+        <div class="continuous-play-order-toggle">
+          <button class="continuous-play-order-button" data-order="sequential" type="button">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            順番再生
+          </button>
+          <button class="continuous-play-order-button" data-order="shuffle" type="button">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 6h3.5L15 17h5.5M3 18h3.5L9 13M15 6h5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M18 4l2.5 2-2.5 2M18 15l2.5 2-2.5 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            シャッフル
+          </button>
+        </div>
+        <p class="continuous-play-explain" id="continuous-play-order-explain"></p>
+
+        <button id="continuous-play-apply-button" class="primary-button" type="button">この内容で再生</button>
+      </div>
+
+      <p id="continuous-play-empty-message" class="continuous-play-empty-message" hidden></p>
+
+      <!-- 試聴・クイズ本編とは別の専用音源要素。playbackCoordinator.js経由で、
+           他の音声と同時に鳴らないよう調整する（js/continuousPlay.js参照）。 -->
+      <audio id="continuous-play-audio"></audio>
+    </section>
+
+    <!-- 再生キュー画面：今の再生キュー全体を、再生中の曲を強調しながら一覧できる画面。
+         曲をタップするとその曲へ移動する（並び替えは今回のスコープ外。理由はdocs/HANDOFF.md参照）。
+         再生の実体はjs/continuousPlay.jsのキューをそのまま参照するだけで、複製は行わない
+         （UI/UX再設計で新設）。中身はjs/continuousPlayQueueScreen.jsが組み立てる。 -->
+    <section id="continuous-play-queue-screen" class="screen">
+      <div class="list-header">
+        <button id="continuous-play-queue-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            QUEUE
+          </p>
+          <h2>再生キュー</h2>
+        </div>
+      </div>
+
+      <p id="continuous-play-queue-source-chip" class="total-count-chip"></p>
+
+      <!-- 並び替え完了時だけ表示する短い案内（例：「○○を3番目に移動しました」）。
+           UI/UX再設計で追加、js/songlist.jsのshowSonglistActionBanner()と同じ考え方。 -->
+      <p id="continuous-play-queue-action-banner" class="songlist-action-banner" hidden></p>
+
+      <div id="continuous-play-queue-list"></div>
     </section>
 
     <!-- プレイ履歴画面：過去のプレイ結果を新しい順に一覧できる画面。
@@ -1100,6 +1411,33 @@
     </div>
 
   </main>
+
+  <!-- 連続再生のミニプレイヤー：他の画面（メンバー紹介・＝LOVEについて・プレイ履歴など）を
+       見ている間も「今なにが流れているか」が分かるように、画面下部に常時表示する。
+       他のモーダルと同じ理由（.game-frameのbackdrop-filterがposition:fixedの基準をずらす）で、
+       .game-frameの外側・bodyの直下に置く（UI/UX再設計で追加、js/miniPlayer.js参照）。
+       再生元が無い（idle/empty）ときと、連続再生本体・再生キュー画面を見ているときは
+       js/miniPlayer.js側でhiddenを付けて隠す。 -->
+  <div id="mini-player" class="mini-player" hidden>
+    <div class="mini-player-inner">
+      <button id="mini-player-main" class="mini-player-main" type="button">
+        <span class="mini-player-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M9 18V6.6a1 1 0 0 1 .8-.98l9-1.8A1 1 0 0 1 20 4.8V15a3 3 0 1 1-2-2.83V6.4l-7 1.4v9.2a3 3 0 1 1-2-2.83Z" fill="currentColor"/></svg>
+        </span>
+        <span class="mini-player-text">
+          <span id="mini-player-title" class="mini-player-title"></span>
+          <span id="mini-player-status" class="mini-player-status"></span>
+        </span>
+      </button>
+      <button id="mini-player-toggle-button" class="mini-player-control-button" type="button" aria-label="再生/一時停止">
+        <svg class="icon-play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7Z"/></svg>
+        <svg class="icon-pause" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="7" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+      </button>
+      <button id="mini-player-stop-button" class="mini-player-control-button is-stop" type="button" aria-label="再生を止める">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6 18 18M18 6 6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+  </div>
 
   <!-- 「プレイリストに追加」モーダル。収録曲一覧・お気に入り一覧・プレイリスト画面の
        どこからでも、再生中の曲をプレイリストへ追加できるようにする（2026-08-04追加）。

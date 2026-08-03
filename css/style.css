@@ -274,6 +274,144 @@ body[data-screen="quiz"] {
   overflow: hidden;
 }
 
+/* ミニプレイヤーが表示されている間、.game-frame下端のコンテンツがミニプレイヤーの
+   裏に隠れないよう、余白を確保する（body.has-mini-playerはjs/miniPlayer.jsが付け外しする。
+   UI/UX再設計で追加）。 */
+body.has-mini-player .game-frame {
+  padding-bottom: 76px;
+}
+
+/* 連続再生のミニプレイヤー。他のモーダルと同じ理由で.game-frameの外・bodyの直下に置き、
+   常に画面の実際の下端に固定表示する（.game-frameのbackdrop-filterの影響を受けない）。
+   z-indexは背景演出（0）・.game-frame（2）より前面、モーダル（20）より背面にする。 */
+.mini-player {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 12;
+  display: flex;
+  justify-content: center;
+  padding: 0 16px;
+  padding-bottom: max(14px, env(safe-area-inset-bottom));
+}
+
+.mini-player[hidden] {
+  display: none;
+}
+
+.mini-player-inner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  max-width: 480px;
+  padding: 8px 10px;
+  border-radius: 999px;
+  background: var(--color-surface-glass);
+  backdrop-filter: blur(var(--blur-glass)) saturate(150%);
+  -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(150%);
+  border: 1px solid var(--color-card-border);
+  box-shadow: var(--shadow-card);
+}
+
+.mini-player-main {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex: 1;
+  min-width: 0;
+  padding: 4px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mini-player-icon {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+}
+
+.mini-player-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.mini-player-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.mini-player-title {
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mini-player-status {
+  font-size: 0.64rem;
+  opacity: 0.6;
+}
+
+.mini-player-control-button {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.mini-player-control-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* 再生/一時停止ボタン：連続再生画面の.continuous-play-control-buttonと同じ、
+   svgの出し分けでアイコンを切り替える方式（js/miniPlayer.jsがis-playingを付け外しする）。 */
+.mini-player-control-button .icon-pause {
+  display: none;
+}
+
+.mini-player-control-button.is-playing .icon-play {
+  display: none;
+}
+
+.mini-player-control-button.is-playing .icon-pause {
+  display: block;
+}
+
+.mini-player-control-button.is-stop {
+  width: 30px;
+  height: 30px;
+  background: rgba(74, 46, 66, 0.08);
+  color: var(--color-text);
+  opacity: 0.6;
+}
+
+.mini-player-control-button:active {
+  transform: scale(0.92);
+}
+
 /* カード上端の三色リボンライン。ピンク→ブルー→イエローの配色をひと目で示す */
 .game-frame::before {
   content: "";
@@ -1990,14 +2128,6 @@ fieldset label:has(input:focus-visible) {
    結果画面ほど演出を効かせず、読みやすさを優先した見た目にしている。 */
 
 /* あそびかた・収録曲一覧、2つの入口をまとめる場所。スタートボタンより下に、控えめに並べる */
-.start-footer-links {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  margin-top: 12px;
-}
-
 /* スタートボタンより目立たせたくないので、下線付きのテキストリンクだけの控えめな見た目にする */
 .rules-link {
   display: block;
@@ -2013,6 +2143,15 @@ fieldset label:has(input:focus-visible) {
   font-weight: 700;
   text-decoration: underline;
   cursor: pointer;
+}
+
+/* イントロクイズ本体の説明のため、スタートボタンの真下・中央に置く
+   （本人フィードバック：以前は画面最下部で他の機能と見分けがつかなかった）。 */
+.start-rules-link {
+  display: block;
+  width: fit-content;
+  margin: 10px auto 0;
+  text-align: center;
 }
 
 .rules-link:active {
@@ -2483,6 +2622,53 @@ fieldset label:has(input:focus-visible) {
   opacity: 1;
 }
 
+/* 作品単位の一括選択ボタン（プレイリストへの曲追加画面、UI/UX再設計で追加）。
+   お気に入りの一括登録ボタンと同じ「未選択／一部／全選択」3状態の考え方だが、
+   お気に入りのコーラルオレンジと混同しないよう、こちらは寒色（--color-secondary系）にする。
+   本人希望によりスマホでのタップ領域を44px前後確保する。 */
+.single-group-select-button {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 44px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1.5px solid var(--color-card-border);
+  background: var(--color-surface);
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--color-text);
+  opacity: 0.8;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.single-group-select-button svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+.single-group-select-button:active {
+  transform: scale(0.96);
+}
+
+.single-group-select-button.is-partial {
+  border-color: var(--color-secondary);
+  color: #2c6ea8;
+  opacity: 1;
+}
+
+.single-group-select-button.is-full {
+  border-color: var(--color-secondary);
+  background: var(--color-secondary);
+  color: #ffffff;
+  opacity: 1;
+}
+
 .chevron {
   flex: none;
   width: 16px;
@@ -2802,6 +2988,50 @@ fieldset label:has(input:focus-visible) {
   color: var(--color-text);
   opacity: 0.6;
   font-variant-numeric: tabular-nums;
+}
+
+/* 「MVを見る」：公式YouTubeへ別タブで飛ぶリンク（2026-08-05追加）。試聴中の操作ボタン群とは
+   役割が違う（アプリの外へ出る操作）ため、ボタンではなくリンクらしい見た目にしている。
+   再生ボタン・お気に入りハート・カテゴリバッジのどれとも混同されないよう、
+   曲情報欄（.track-info）の右下寄りに単独の行として配置し、align-self:flex-endで
+   お気に入りハートの左側に寄せる（再生前・再生中どちらでも位置が変わらない。
+   本人フィードバックで「再生前から見えるように」と移動。2026-08-05）。
+   youtubeUrlが無い曲では、songlist.js側でそもそもこの要素自体を作らない。 */
+.mv-link-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  align-self: flex-end;
+  width: fit-content;
+  margin-top: 4px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1.5px solid var(--color-danger);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+/* 見た目の大きさはそのままに、タップ判定だけ一回り広げる
+   （.track-favorite-button::afterと同じ、スマホでの誤タップ対策）。 */
+.mv-link-button::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+}
+
+.mv-link-button svg {
+  width: 12px;
+  height: 12px;
+  flex: none;
+}
+
+.mv-link-button:active {
+  transform: scale(0.96);
 }
 
 /* 再生中だけ表示する、ブランド共通のイコライザー演出（スタート画面の.eq-dividerと同じモチーフ） */
@@ -3871,6 +4101,13 @@ fieldset label:has(input:focus-visible) {
   accent-color: var(--color-primary);
 }
 
+/* すでにプレイリストに入っている曲の行（プレイリストへの曲追加画面）。
+   チェック済み・操作不可の状態を、見た目でも「もう入っている」と分かるように薄くする。 */
+.song-select-label.is-already-added {
+  opacity: 0.55;
+  cursor: default;
+}
+
 .song-select-title {
   flex: 1;
   min-width: 0;
@@ -4573,6 +4810,39 @@ fieldset label:has(input:focus-visible) {
   white-space: nowrap;
 }
 
+/* プレイリストへの曲追加画面：選択数と「追加する」ボタンを上部にまとめて、
+   曲一覧が長くてもスクロールせず操作できるようにする（UI/UX再設計で新設）。
+   .game-frameはoverflow:hiddenで内部スクロールを持たないため、position:stickyでは
+   画面に正しく張り付かないと判断し、常時上部固定にはしていない）。 */
+.add-songs-action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.add-songs-selected-count {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  opacity: 0.75;
+  white-space: nowrap;
+}
+
+.add-songs-selected-count strong {
+  color: var(--color-primary-dark);
+  font-size: 0.95rem;
+}
+
+#playlist-add-songs-submit-button {
+  flex: none;
+  width: auto;
+  margin-top: 0;
+  padding: 10px 18px;
+  font-size: 0.82rem;
+}
+
 #playlist-list {
   display: flex;
   flex-direction: column;
@@ -4666,6 +4936,79 @@ fieldset label:has(input:focus-visible) {
 .playlist-row-icon-button.is-delete {
   color: #c94b4b;
   background: rgba(201, 75, 75, 0.1);
+}
+
+/* プレイリスト詳細画面：「＋曲を追加する」（編集）と「連続再生」（聴く）は役割が違うため、
+   間隔を大きく空けて別々の操作だと自然に伝わるようにする（本人フィードバックにより2回調整）。 */
+#playlist-detail-screen .total-count-chip {
+  margin-bottom: 24px;
+}
+
+#playlist-detail-continuous-play-button {
+  display: flex;
+  width: 100%;
+  margin-top: 28px;
+}
+
+/* 0曲のときだけ見せる空状態（アイコン・見出し・補足を1つにまとめ、以前あった
+   「案内文が2つ同時に出て重なる」不具合を構造的に解消する。本人フィードバック反映）。 */
+.playlist-detail-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-top: 28px;
+  padding: 22px 16px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.4);
+  border: 1px dashed var(--color-card-border);
+}
+
+.playlist-detail-empty-state[hidden] {
+  display: none;
+}
+
+.playlist-detail-empty-icon {
+  width: 34px;
+  height: 34px;
+  margin-bottom: 8px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+}
+
+.playlist-detail-empty-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.playlist-detail-empty-heading {
+  margin: 0 0 4px;
+  font-size: 0.86rem;
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.playlist-detail-empty-sub {
+  margin: 0;
+  font-size: 0.74rem;
+  opacity: 0.6;
+  line-height: 1.6;
+}
+
+/* プレイリスト一覧：見出しの下に添える短い1行説明（本人フィードバックで短縮済み）。 */
+.playlist-list-intro {
+  margin: 0 0 14px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.6;
 }
 
 /* ===== 「プレイリストに追加」モーダル ===== */
@@ -4836,6 +5179,152 @@ fieldset label:has(input:focus-visible) {
 
 #members-link:active {
   box-shadow: 0 0 0 3px rgba(111, 189, 242, 0.18);
+}
+
+/* ===== 「曲を聴く」タイルグループ（UI/UX再設計） =====
+   以前は収録曲一覧・プレイリスト・連続再生などが、下線付きの小さいテキストリンクとして
+   横一列に並んでいるだけで、同じ役割（曲を聴く）でまとまって見えなかった。
+   カード1枚の中にタイルとして並べ、視線がひと目でグループとして認識できるようにする。 */
+.listen-section {
+  margin: 16px 0 0;
+  padding: 14px 12px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.4);
+  border: 1px solid var(--color-card-border);
+}
+
+.listen-section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 10px;
+  padding: 0 2px;
+  font-size: 0.84rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+}
+
+.listen-section-title-icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+.listen-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.listen-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  padding: 14px 8px;
+  border: 1.5px solid var(--color-card-border);
+  border-radius: 16px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s ease, transform 0.15s ease;
+}
+
+.listen-tile-icon {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+}
+
+.listen-tile-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.listen-tile.is-coral .listen-tile-icon {
+  background: rgba(255, 138, 92, 0.16);
+  color: var(--color-song-favorite);
+}
+
+.listen-tile.is-blue .listen-tile-icon {
+  background: var(--color-secondary-light);
+  color: #2c6ea8;
+}
+
+.listen-tile.is-gold .listen-tile-icon {
+  background: var(--color-accent-soft);
+  color: #8a6a10;
+}
+
+.listen-tile-desc {
+  font-size: 0.6rem;
+  font-weight: 400;
+  opacity: 0.6;
+  line-height: 1.4;
+  margin-top: -3px;
+}
+
+/* 「今いくつあるか」が一瞬で分かるよう、数字は大きく太く強調する（本人フィードバック反映）。 */
+.listen-tile-count {
+  font-size: 0.95rem;
+  font-weight: 900;
+  color: var(--color-primary-dark);
+  line-height: 1.3;
+}
+
+.listen-tile-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font-size: 0.56rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  background: var(--color-primary-dark);
+  color: #ffffff;
+  padding: 1px 7px;
+  border-radius: 999px;
+}
+
+.listen-tile:active {
+  transform: scale(0.96);
+  border-color: var(--color-primary);
+}
+
+/* 「記録を見る」：称号一覧・プレイ履歴の2つをまとめた横並びピル（UI/UX再設計）。 */
+.record-pill-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.record-pill {
+  flex: 1;
+  padding: 10px 6px;
+  border-radius: 999px;
+  border: 1.5px solid var(--color-card-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-align: center;
+  cursor: pointer;
+}
+
+.record-pill:active {
+  transform: scale(0.97);
+  border-color: var(--color-primary);
 }
 
 /* ===== メンバー・ディスコグラフィー画面共通：詳細ページのパーツ =====
@@ -5963,6 +6452,812 @@ fieldset label:has(input:focus-visible) {
   #quiz-actions {
     flex-direction: column;
   }
+}
+
+/* ===== 連続再生画面 =====（2026-08-04新設、同日中に1画面構成へ改訂）
+   設定と再生操作を1つの画面にまとめる。設定パネルは折りたたみ式にし、閉じている間も
+   要約チップ（.continuous-play-settings-summary）で今の選択内容が分かるようにする。 */
+
+/* 「聴くこと」が主役の画面のため、設定の入口は常時表示エリアの末尾に控えめに置く
+   （UI/UX再設計：以前は目立つ帯状ボタンだったが、本人フィードバックでさらにトーンを落とした）。
+   ヘッダーの⚙アイコン（.header-icon-button、汎用クラス）からも同じパネルを開ける。 */
+.continuous-play-settings-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 4px;
+  margin-top: 10px;
+  border: none;
+  border-top: 1px dashed var(--color-card-border);
+  background: none;
+  color: var(--color-text);
+  opacity: 0.45;
+  font-family: inherit;
+  font-size: 0.7rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.continuous-play-settings-summary {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.continuous-play-settings-entry .chevron {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  transition: transform var(--transition-fast) ease;
+}
+
+.continuous-play-settings-entry.is-open .chevron {
+  transform: rotate(90deg);
+}
+
+/* ヘッダーの丸いアイコンボタン（汎用）。連続再生画面の設定入口として使う。
+   聴くことを邪魔しないよう、通常時は淡く、開いている間だけ主張する。 */
+.header-icon-button {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1.5px solid var(--color-card-border);
+  background: rgba(255, 255, 255, 0.5);
+  color: var(--color-text);
+  opacity: 0.55;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.header-icon-button svg {
+  width: 15px;
+  height: 15px;
+}
+
+.header-icon-button.is-open {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #ffffff;
+  opacity: 1;
+}
+
+/* list-headerに3つ目の要素（設定アイコン）が入るときも、戻るボタン・タイトルの
+   位置関係が崩れないようにする。 */
+#continuous-play-screen .list-header {
+  align-items: center;
+}
+
+.continuous-play-settings-panel {
+  margin-bottom: 18px;
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid var(--color-card-border);
+}
+
+.continuous-play-settings-panel[hidden] {
+  display: none;
+}
+
+.continuous-play-section-label {
+  margin: 16px 0 8px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  opacity: 0.85;
+}
+
+.continuous-play-section-label:first-child {
+  margin-top: 0;
+}
+
+.continuous-play-source-tabs,
+.continuous-play-order-toggle {
+  display: flex;
+  gap: 8px;
+}
+
+.continuous-play-source-button,
+.continuous-play-order-button {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 10px 8px;
+  border: 1.5px solid var(--color-card-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  opacity: 0.55;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.15s ease, opacity 0.15s ease, box-shadow 0.15s ease;
+}
+
+.continuous-play-order-button svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+}
+
+/* 選択中のボタンは、濃いピンクの塗りつぶし＋太字＋右上のチェックバッジで、
+   未選択とのコントラストをはっきりさせる（本人・ChatGPTレビューでの指摘により強化）。 */
+.continuous-play-source-button.is-active,
+.continuous-play-order-button.is-active {
+  background: var(--color-primary-dark);
+  border-color: var(--color-primary-dark);
+  color: #ffffff;
+  opacity: 1;
+  font-weight: 800;
+  box-shadow: 0 6px 14px -6px rgba(255, 79, 150, 0.6);
+}
+
+.continuous-play-source-button.is-active::after,
+.continuous-play-order-button.is-active::after {
+  content: "✓";
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ffffff;
+  color: var(--color-primary-dark);
+  font-size: 0.6rem;
+  font-weight: 900;
+  line-height: 16px;
+  text-align: center;
+  box-shadow: 0 1px 4px rgba(74, 46, 66, 0.3);
+}
+
+/* 開いたときだけ見せる短い説明文（初見向け。UI/UX再設計で追加）。 */
+.continuous-play-explain {
+  margin: 6px 2px 0;
+  font-size: 0.68rem;
+  opacity: 0.55;
+  line-height: 1.6;
+}
+
+/* 「お気に入り」を再生元に選んだときの対象曲数表示（UI/UX再設計：選んでも変化が
+   分かりにくいという指摘への対応）。 */
+.continuous-play-favorites-ok {
+  margin: 10px 0 0;
+  padding: 9px 12px;
+  border-radius: 12px;
+  background: rgba(255, 138, 92, 0.12);
+  color: var(--color-song-favorite);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.continuous-play-favorites-empty {
+  margin-top: 10px;
+  padding: 16px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.5);
+  text-align: center;
+}
+
+.continuous-play-favorites-empty p {
+  margin: 2px 0;
+  font-size: 0.76rem;
+  opacity: 0.65;
+}
+
+.continuous-play-favorites-empty .secondary-button {
+  margin-top: 10px;
+  width: auto;
+  display: inline-flex;
+  padding: 9px 18px;
+}
+
+/* プレイリスト選択欄（「プレイリスト」を再生元に選んだときだけ表示） */
+.continuous-play-playlist-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.continuous-play-playlist-picker[hidden] {
+  display: none;
+}
+
+/* 選択済みプレイリストのコンパクト表示。選ぶと自動でここへ切り替わる
+   （UI/UX再設計：一覧を開いたままにせず、選んだら自動で閉じてほしいという指摘への対応）。 */
+.continuous-play-playlist-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1.5px solid var(--color-primary);
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.continuous-play-playlist-summary[hidden] {
+  display: none;
+}
+
+.continuous-play-playlist-summary-check {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  position: relative;
+  vertical-align: -2px;
+}
+
+.continuous-play-playlist-summary-check::after {
+  content: "✓";
+  position: absolute;
+  inset: 0;
+  color: #ffffff;
+  font-size: 0.56rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.continuous-play-playlist-change-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  opacity: 0.8;
+}
+
+.continuous-play-playlist-option {
+  padding: 10px 14px;
+  border: 1.5px solid var(--color-card-border);
+  border-radius: 14px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.continuous-play-playlist-option.is-active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+}
+
+.continuous-play-playlist-option:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+#continuous-play-apply-button {
+  display: block;
+  width: 100%;
+  margin-top: 20px;
+}
+
+/* ---- 常時表示の再生中エリア ---- */
+#continuous-play-now-playing {
+  text-align: center;
+}
+
+/* 収録曲一覧への入口リンク（songlist-screen）。他のリンクと同じ控えめな見た目にしつつ、
+   タブ列のすぐ下にまとめて視線の流れを妨げないようにする（2026-08-04追加）。 */
+.continuous-play-entry-link {
+  display: block;
+  margin: 8px 0 0;
+}
+
+/* 「次に再生」プレビューカードと「再生キューを見る」入口（UI/UX再設計で新設）。
+   今の曲だけでなく、この後どうなるかが伝わるようにする。タップすると再生キュー画面へ移動する
+   ボタンのため、widthやcursorなどボタンの初期値を上書きしておく。 */
+.continuous-play-next-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin: 14px 0 8px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1.5px dashed var(--color-card-border);
+  background: rgba(255, 255, 255, 0.4);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.continuous-play-next-card[hidden] {
+  display: none;
+}
+
+.continuous-play-next-label {
+  flex: none;
+  font-size: 0.62rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  background: var(--color-primary-light);
+  padding: 3px 9px;
+  border-radius: 999px;
+}
+
+.continuous-play-next-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.continuous-play-queue-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  border: 1.5px solid var(--color-card-border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.35);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.continuous-play-queue-link[hidden] {
+  display: none;
+}
+
+.continuous-play-queue-link-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.continuous-play-queue-link-label svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+.continuous-play-queue-link-count {
+  opacity: 0.55;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.continuous-play-queue-link:active {
+  border-color: var(--color-primary);
+}
+
+/* 再生キュー画面の1行（UI/UX再設計で新設）。再生中の曲を強調し、それ以外は
+   タップでその曲へ移動できる。ボタンの中にボタンを置けないため、行自体は<div>にし、
+   「タップで移動」部分（.queue-row-main）と「並び替え操作」部分
+   （.queue-row-reorder-controls）を兄弟要素にしている（ドラッグ並び替え追加で改訂）。 */
+.queue-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 4px 6px 4px 10px;
+  margin-bottom: 4px;
+  border-radius: 14px;
+  background: transparent;
+  color: var(--color-text);
+  transition: background-color 0.12s ease;
+}
+
+.queue-row.is-current {
+  background: var(--color-primary-light);
+}
+
+/* 次に流れる曲も薄く強調し、「次は何か」が一瞬で分かるようにする（本人フィードバック反映）。 */
+.queue-row.is-next {
+  background: rgba(255, 111, 168, 0.06);
+}
+
+/* ドラッグ中の行は、少し浮き上がったように見せて操作対象であることを分かりやすくする。 */
+.queue-row.is-dragging {
+  background: var(--color-surface);
+  box-shadow: 0 8px 20px -6px rgba(74, 46, 66, 0.35);
+  position: relative;
+  z-index: 1;
+}
+
+.queue-row-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  padding: 7px 4px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.queue-row-main:disabled {
+  cursor: default;
+}
+
+.queue-row-next-badge {
+  flex: none;
+  font-size: 0.56rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  background: var(--color-primary-light);
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+
+.queue-row-index {
+  flex: none;
+  width: 22px;
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 800;
+  opacity: 0.5;
+  font-variant-numeric: tabular-nums;
+}
+
+.queue-row.is-current .queue-row-index {
+  opacity: 1;
+  color: var(--color-primary-dark);
+}
+
+.queue-row-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.queue-row.is-current .queue-row-title {
+  color: var(--color-primary-dark);
+  font-weight: 800;
+}
+
+.queue-row-now-badge {
+  flex: none;
+  font-size: 0.6rem;
+  font-weight: 800;
+  color: #ffffff;
+  background: var(--color-primary);
+  padding: 3px 9px;
+  border-radius: 999px;
+}
+
+/* 並び替え操作（↑↓ボタン＋ドラッグハンドル）。行のタップ領域とは別に、右端にまとめる。 */
+.queue-row-reorder-controls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+}
+
+.queue-row-move-button {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(74, 46, 66, 0.06);
+  color: var(--color-text);
+  font-size: 0.7rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.queue-row-move-button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/* ドラッグハンドル：タップ領域は44px前後を確保しつつ、視覚的な大きさは控えめにする。
+   touch-action:noneで、スマホでのドラッグ中にページが一緒にスクロールしてしまうのを防ぐ
+   （本人希望：長押し・ドラッグ操作とスクロールが競合しないこと）。 */
+.queue-row-drag-handle {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--color-text);
+  opacity: 0.45;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  touch-action: none;
+}
+
+.queue-row-drag-handle svg {
+  width: 18px;
+  height: 18px;
+}
+
+.queue-row.is-dragging .queue-row-drag-handle {
+  cursor: grabbing;
+  opacity: 1;
+  color: var(--color-primary-dark);
+}
+
+.continuous-play-position-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+
+.continuous-play-position {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--color-text);
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+}
+
+/* リピートの循環ボタン（なし→全体→1曲→なし）。使用頻度が低いため、常時表示エリアの
+   中でも一番小さく控えめに置く（UI/UX再設計：以前は再生元・再生方法と同じ大きさの
+   3択ボタンだったが、本人フィードバックで格下げした）。 */
+.continuous-play-repeat-cycle-button {
+  position: relative;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1.5px solid var(--color-card-border);
+  background: rgba(255, 255, 255, 0.5);
+  color: var(--color-text);
+  opacity: 0.55;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.continuous-play-repeat-cycle-button svg {
+  width: 13px;
+  height: 13px;
+}
+
+.continuous-play-repeat-cycle-button.is-active {
+  opacity: 1;
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #ffffff;
+}
+
+.continuous-play-repeat-badge {
+  position: absolute;
+  bottom: -3px;
+  right: -3px;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #ffffff;
+  color: var(--color-primary-dark);
+  font-size: 0.52rem;
+  font-weight: 900;
+  line-height: 13px;
+  text-align: center;
+  box-shadow: 0 1px 3px rgba(74, 46, 66, 0.3);
+}
+
+/* 再生中の曲名。この画面の中で最も目立たせたい情報なので、一番大きく太くする */
+.continuous-play-song-title {
+  margin: 6px 0 2px;
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.continuous-play-song-meta {
+  margin: 0 0 4px;
+  font-size: 0.74rem;
+  color: var(--color-text);
+  opacity: 0.6;
+}
+
+.continuous-play-status-text {
+  margin: 0 0 4px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-text);
+  opacity: 0.7;
+}
+
+.continuous-play-notice {
+  margin: 4px auto 0;
+  max-width: 320px;
+  font-size: 0.72rem;
+  color: var(--color-text);
+  opacity: 0.65;
+}
+
+.continuous-play-notice[hidden] {
+  display: none;
+}
+
+/* シークバー行。見た目の線は細くても、input自体の高さを32pxにしてタップしやすくする
+   （本人フィードバック：見た目が細くても当たり判定は広めに、という指示に対応）。 */
+.continuous-play-seek-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 0 4px;
+}
+
+/* [hidden]属性はCSSのdisplay指定より優先度が低いため、display:flexを指定している
+   要素では明示的に上書きしないとhidden="true"でも消えない（このファイルの他の箇所でも
+   繰り返し踏んでいる既知の落とし穴）。 */
+.continuous-play-seek-row[hidden] {
+  display: none;
+}
+
+.continuous-play-time {
+  flex: none;
+  width: 38px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--color-text);
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+}
+
+.continuous-play-time:last-child {
+  text-align: right;
+}
+
+.continuous-play-seek-range {
+  flex: 1;
+  width: 100%;
+  height: 32px;
+  margin: 0;
+  accent-color: var(--color-primary-dark);
+}
+
+.continuous-play-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  margin: 10px 0 6px;
+}
+
+.continuous-play-controls[hidden] {
+  display: none;
+}
+
+/* 前へ/次へ・再生/一時停止ボタン。スマホでも押しやすいよう44px以上を確保し、
+   メインの再生/一時停止ボタン（.is-main）はさらに大きくして一番の主役にする。 */
+.continuous-play-control-button {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border: none;
+  border-radius: 50%;
+  background: var(--color-surface);
+  color: var(--color-primary-dark);
+  box-shadow: 0 4px 12px -4px rgba(255, 79, 150, 0.4);
+  cursor: pointer;
+  transition: transform var(--transition-fast) ease;
+}
+
+.continuous-play-control-button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.continuous-play-control-button.is-main {
+  width: 64px;
+  height: 64px;
+  background: var(--color-primary);
+  color: #ffffff;
+}
+
+.continuous-play-control-button.is-main svg {
+  width: 24px;
+  height: 24px;
+}
+
+.continuous-play-control-button:active {
+  transform: scale(0.92);
+}
+
+.continuous-play-control-button:disabled {
+  opacity: 0.35;
+  cursor: default;
+  transform: none;
+}
+
+/* 再生/一時停止アイコンの切り替え。.play-button（収録曲一覧）と同じ考え方。 */
+.continuous-play-control-button.is-main .icon-pause {
+  display: none;
+}
+
+.continuous-play-control-button.is-main.is-playing .icon-play {
+  display: none;
+}
+
+.continuous-play-control-button.is-main.is-playing .icon-pause {
+  display: block;
+}
+
+.continuous-play-empty-message {
+  margin: 20px 0;
+  padding: 16px;
+  border-radius: 14px;
+  background: var(--color-surface-glass);
+  border: 1px solid var(--color-card-border);
+  color: var(--color-text);
+  font-size: 0.85rem;
+  text-align: center;
+  line-height: 1.6;
+}
+
+.continuous-play-empty-message[hidden] {
+  display: none;
+}
+
+/* 同期歌詞エリア。歌詞データがない曲では#continuous-play-lyrics-section自体を
+   非表示にする（枠だけ残って空白になるのを防ぐ）。パネル本体は.synced-lyrics-panel
+   （収録曲一覧と共通）をそのまま使い、ここでは連続再生画面向けの微調整だけ行う。 */
+.continuous-play-lyrics-section {
+  margin-top: 16px;
+  text-align: left;
+}
+
+.continuous-play-lyrics-section[hidden] {
+  display: none;
+}
+
+.continuous-play-lyrics-panel {
+  max-height: 190px;
+}
+
+.continuous-play-lyrics-fullscreen-button {
+  margin: 6px auto 0;
 }
 
 /* ===== アクセシビリティ：モーションを減らす設定への対応 =====
