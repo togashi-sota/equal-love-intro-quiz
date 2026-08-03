@@ -67,6 +67,7 @@ import { HISTORY_EVENTS } from "./data/historyEvents.js";
 import { LIVE_EVENTS } from "./data/liveHistory.js";
 import { initDiscographyScreen, renderDiscographyScreen, openWorkDetail } from "./discographyScreen.js";
 import { initMembersScreen, renderMembersScreen, openMemberDetail } from "./membersScreen.js";
+import { initPlayerScreen, renderPlayerSummary } from "./playerScreen.js";
 
 // 背景のキラキラ演出は、ゲームの状態と関係なく最初に1回だけ生成すればよい。
 renderBackgroundSparkles();
@@ -222,6 +223,19 @@ const membersBackButtonElement = document.getElementById("members-back-button");
 const memberDetailBackButtonElement = document.getElementById("member-detail-back-button");
 // メンバー詳細画面を開く直前の、メンバー一覧画面のスクロール位置。「戻る」で復元する。
 let membersScrollY = 0;
+const playerHeroSwatchElement = document.getElementById("player-hero-swatch");
+const playerNameChipElement = document.getElementById("player-name-chip");
+const playerNameChipTextElement = document.getElementById("player-name-chip-text");
+const oshiSummaryChipElement = document.getElementById("oshi-summary-chip");
+const oshiSummaryChipTextElement = document.getElementById("oshi-summary-chip-text");
+const playerModalElement = document.getElementById("player-modal");
+const playerModalCloseButtonElement = document.getElementById("player-modal-close-button");
+const playerListElement = document.getElementById("player-list");
+const playerAddInputElement = document.getElementById("player-add-input");
+const playerAddButtonElement = document.getElementById("player-add-button");
+const playerDeleteConfirmModalElement = document.getElementById("player-delete-confirm-modal");
+const playerDeleteCancelButtonElement = document.getElementById("player-delete-cancel-button");
+const playerDeleteConfirmButtonElement = document.getElementById("player-delete-confirm-button");
 
 // 称号一覧モーダルの開閉ロジックはtitleList.jsに閉じ込めてあるので、
 // ここでは必要なDOM要素を渡して初期化するだけでよい。
@@ -345,6 +359,35 @@ initMembersScreen({
     showScreen("memberDetail");
   },
 });
+
+// スタート画面のプレイヤー名・推しメン表示と、プレイヤー管理モーダル（2026-08-03追加）。
+initPlayerScreen(
+  {
+    playerHeroSwatch: playerHeroSwatchElement,
+    playerNameChip: playerNameChipElement,
+    playerNameChipText: playerNameChipTextElement,
+    oshiSummaryChip: oshiSummaryChipElement,
+    oshiSummaryChipText: oshiSummaryChipTextElement,
+    playerModal: playerModalElement,
+    playerModalCloseButton: playerModalCloseButtonElement,
+    playerList: playerListElement,
+    playerAddInput: playerAddInputElement,
+    playerAddButton: playerAddButtonElement,
+    playerDeleteConfirmModal: playerDeleteConfirmModalElement,
+    playerDeleteCancelButton: playerDeleteCancelButtonElement,
+    playerDeleteConfirmButton: playerDeleteConfirmButtonElement,
+    onSelectOshiSummary: () => {
+      playClickSound();
+      renderMembersScreen(SONGS, MEMBERS, MEMBER_PROFILES);
+      showScreen("members");
+    },
+    onPlayerChanged: () => {
+      // プレイヤーが切り替わったら、スタート画面の自己ベスト表示も新しいプレイヤーのものに更新する。
+      updateModeBestScoreDisplay();
+    },
+  },
+  MEMBERS
+);
 
 // オリジナル問題作成モードのプリセット一覧画面：「＋新しいセットを作る」／
 // 保存済みプリセットのタップ、どちらも選曲画面（#custom-quiz-screen）を開く。
@@ -1293,6 +1336,7 @@ membersLinkElement.addEventListener("click", () => {
 membersBackButtonElement.addEventListener("click", () => {
   playClickSound();
   showScreen("start");
+  renderPlayerSummary(); // メンバー一覧で推し登録を変更した可能性があるので表示し直す
 });
 
 memberDetailBackButtonElement.addEventListener("click", () => {

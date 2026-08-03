@@ -489,17 +489,57 @@ h1 .note-icon svg {
 /* ===== 音源の読み込み状況（PWA対応） =====
    音源はサーバーに置かず、利用者が選んだファイルを端末内（IndexedDB）に保存する方式のため、
    その状況を表示し、読み込みボタンを提供する。控えめな見た目のチップ風パネルにする。 */
+/* データ管理（音源・歌詞読み込み）の折りたたみ。初回セットアップ以降はほとんど
+   使わないため、ホーム画面の一番下でdetails/summaryにより畳んでおく（2026-08-04追加）。 */
+.data-management-section {
+  margin: 18px 0 4px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.3);
+  border: 1px dashed var(--color-card-border);
+}
+
+.data-management-section summary {
+  cursor: pointer;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--color-text);
+  opacity: 0.65;
+  list-style: none;
+}
+
+.data-management-section summary::-webkit-details-marker {
+  display: none;
+}
+
+.data-management-section summary::before {
+  content: "▸";
+  display: inline-block;
+  width: 1em;
+  margin-right: 4px;
+  transition: transform 0.15s ease;
+}
+
+.data-management-section[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.data-management-section .audio-import-section {
+  margin-top: 12px;
+}
+
 .audio-import-section {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  margin: 4px 0 10px;
-  padding: 10px 14px;
+  margin: 4px 0 8px;
+  padding: 8px 14px;
   border-radius: 14px;
   background: var(--color-surface-glass);
   border: 1px solid var(--color-card-border);
   text-align: center;
+  opacity: 0.88;
 }
 
 .audio-import-status {
@@ -513,11 +553,11 @@ h1 .note-icon svg {
 .audio-import-button {
   display: inline-flex;
   align-items: center;
-  padding: 6px 16px;
-  border: 2px solid var(--color-primary);
+  padding: 5px 14px;
+  border: 1.5px solid var(--color-primary);
   border-radius: 999px;
   color: var(--color-primary-dark);
-  font-size: 0.78rem;
+  font-size: 0.74rem;
   font-weight: 700;
   cursor: pointer;
 }
@@ -588,11 +628,11 @@ h1 .note-icon svg {
 .lyrics-import-button {
   display: inline-flex;
   align-items: center;
-  padding: 6px 16px;
-  border: 2px solid var(--color-secondary);
+  padding: 5px 14px;
+  border: 1.5px solid var(--color-secondary);
   border-radius: 999px;
   color: #2c6ea8;
-  font-size: 0.78rem;
+  font-size: 0.74rem;
   font-weight: 700;
   cursor: pointer;
 }
@@ -2545,6 +2585,13 @@ fieldset label:has(input:focus-visible) {
   transform: scale(0.9);
 }
 
+/* display:flexを指定しているクラスは、hidden属性を上書きしてしまう（CSSの優先順位で
+   author側の指定がブラウザ標準の[hidden]より強くなるため）。歌詞データが無い曲で
+   ボタンが消えなかった不具合の原因はこれだった（2026-08-03）。 */
+.lyrics-fullscreen-open-button[hidden] {
+  display: none;
+}
+
 /* ===== 同期歌詞パネル（試聴中の歌詞表示、収録曲一覧・オリジナル問題作成モード共通） =====
    歌詞データがある曲を再生したときだけ、js/lyricsSync.jsが行を描画してhiddenを解除する。
    スマホでも操作ボタンを圧迫しないよう、高さを固定してスクロール領域にする。 */
@@ -4003,6 +4050,256 @@ fieldset label:has(input:focus-visible) {
 
 /* ===== ＝LOVEをもっと知る（スタート画面の入口） ===== */
 
+/* スタート画面の「プレイヤー・推しメン」カード（2026-08-03追加、2026-08-04拡大）。
+   「誰が遊んでいるか」を一番に伝える要素として、音源・歌詞の読み込みUIより
+   目立つ大きさ・存在感にしている。 */
+.player-hero-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px auto 14px;
+  padding: 12px 16px;
+  max-width: 340px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, rgba(255, 111, 168, 0.16), rgba(111, 189, 242, 0.16));
+  border: 1.5px solid var(--color-card-border);
+  box-shadow: 0 10px 24px -16px rgba(74, 46, 66, 0.35);
+}
+
+.player-hero-swatch {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  color: #fff;
+  box-shadow: 0 4px 10px -4px rgba(0, 0, 0, 0.3), inset 0 -3px 6px rgba(0, 0, 0, 0.1);
+}
+
+.player-hero-swatch svg {
+  width: 22px;
+  height: 22px;
+}
+
+.player-hero-swatch.is-placeholder {
+  background: linear-gradient(145deg, #e8dde3, #d8c8d2);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.player-hero-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.player-hero-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--color-text);
+  background: transparent;
+  border: none;
+  padding: 2px 0;
+  cursor: pointer;
+  max-width: 100%;
+}
+
+.player-hero-name span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-hero-edit-icon {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  color: var(--color-primary-dark);
+  opacity: 0.6;
+}
+
+.player-hero-oshi {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.player-hero-oshi-arrow {
+  display: none;
+  font-size: 0.78rem;
+  transition: transform 0.15s ease;
+}
+
+/* 推し未登録のときは、押せば設定できることが一目で伝わるよう、はっきりした
+   ボタン（ピル型・塗り背景・矢印つき）にする（2026-08-04追加）。 */
+.player-hero-oshi.is-empty {
+  color: #fff;
+  background: linear-gradient(120deg, var(--color-primary), #ff2f7e);
+  padding: 6px 14px;
+  border-radius: 999px;
+  box-shadow: 0 4px 10px -4px rgba(255, 47, 126, 0.6);
+}
+
+.player-hero-oshi.is-empty .player-hero-oshi-arrow {
+  display: inline-block;
+}
+
+.player-hero-oshi.is-empty:active .player-hero-oshi-arrow {
+  transform: translateX(2px);
+}
+
+.player-hero-card:active,
+.player-hero-name:active,
+.player-hero-oshi:active {
+  transform: scale(0.98);
+}
+
+/* プレイヤー管理モーダルの一覧 */
+.player-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 14px 0;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.player-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1.5px solid var(--color-card-border);
+  border-radius: 14px;
+  background: var(--color-surface);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.player-row.is-active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+}
+
+.player-row-avatar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, var(--color-primary), var(--color-primary-dark));
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.player-row-switch-button {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+  font-family: inherit;
+  background: transparent;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.player-row-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.player-row-active-tag {
+  flex: none;
+  font-size: 0.62rem;
+  font-weight: 800;
+  color: #fff;
+  background: var(--color-primary);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.player-row-rename-input {
+  flex: 1;
+  font-family: inherit;
+  font-size: 0.82rem;
+  padding: 6px 10px;
+  border: 1.5px solid var(--color-primary);
+  border-radius: 10px;
+}
+
+.player-row-icon-button {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  font-size: 0.85rem;
+  line-height: 1;
+  color: var(--color-primary-dark);
+  background: rgba(255, 111, 168, 0.1);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.player-row-icon-button:active {
+  transform: scale(0.92);
+}
+
+.player-row-icon-button.is-save {
+  color: #fff;
+  background: var(--color-primary);
+}
+
+.player-row-icon-button.is-delete {
+  color: #c94b4b;
+  background: rgba(201, 75, 75, 0.1);
+}
+
+.player-add-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--color-card-border);
+}
+
+.player-add-row input {
+  flex: 1;
+  font-family: inherit;
+  font-size: 0.82rem;
+  padding: 9px 12px;
+  border: 1.5px solid var(--color-card-border);
+  border-radius: 999px;
+}
+
 .know-more-title {
   margin: 0 0 10px;
   text-align: center;
@@ -4682,23 +4979,16 @@ fieldset label:has(input:focus-visible) {
   gap: 10px;
 }
 
+/* カード全体（詳細への遷移ボタン＋推しハートボタンをまとめる枠）。
+   2026-08-03、推しハートボタンを追加する際に、button内にbuttonを置けないため
+   「枠のdiv＋中の2つのbutton」という構造に分割した。見た目（枠線・背景・影）は
+   引き続きここで持たせる。 */
 .member-card {
   position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 14px 8px 12px;
   border: 1px solid var(--color-card-border);
   border-radius: 16px;
   background: var(--color-surface);
-  font-family: inherit;
-  cursor: pointer;
   box-shadow: 0 8px 20px -14px rgba(74, 46, 66, 0.3);
-}
-
-.member-card:active {
-  transform: scale(0.97);
 }
 
 /* 現在詳細を表示している（または直前に見た）メンバーのカードを強調する。
@@ -4706,6 +4996,109 @@ fieldset label:has(input:focus-visible) {
 .member-card.is-selected {
   border: 2px solid var(--color-primary);
   box-shadow: 0 0 0 4px var(--color-primary-light), 0 10px 22px -12px rgba(255, 79, 150, 0.4);
+}
+
+.member-card-tap-target {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 14px 8px 12px;
+  border: none;
+  border-radius: inherit;
+  background: transparent;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.member-card-tap-target:active {
+  transform: scale(0.97);
+}
+
+/* 推し・最推しバッジの凡例（2026-08-04追加） */
+.member-favorite-legend {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  margin: 0 0 10px;
+  font-size: 0.7rem;
+  color: var(--color-text);
+  opacity: 0.7;
+}
+
+.member-favorite-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.member-favorite-legend-heart {
+  color: var(--color-primary);
+  font-size: 0.85rem;
+}
+
+.member-favorite-legend-star {
+  color: #c9910a;
+  font-size: 0.8rem;
+}
+
+/* 一覧カードの「最推し（星）」「推し（ハート）」ボタン列。★→♡の順で並べ、
+   凡例（★最推し・♡推し）と同じ並び順にする。2つのボタンがくっつきすぎて
+   誤タップしないよう、間に4pxの隙間を空けている（2026-08-04、星ボタンを
+   一覧から直接押せるように分離した際にまとめて調整）。 */
+.member-card-action-row {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.member-card-favorite-button,
+.member-card-star-button {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1.5px solid rgba(255, 255, 255, 0.9);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 3px 8px -2px rgba(0, 0, 0, 0.3);
+  color: #c9bcc3;
+  transition: transform 0.15s ease;
+}
+
+.member-card-favorite-button:active,
+.member-card-star-button:active {
+  transform: scale(0.88);
+}
+
+.member-card-favorite-button svg,
+.member-card-star-button svg {
+  width: 17px;
+  height: 17px;
+  fill: currentColor;
+}
+
+.member-card-favorite-button.is-favorite {
+  color: var(--color-primary);
+}
+
+/* 最推しの星ボタンは、金色に塗りつぶしてひと目で分かるようにする。 */
+.member-card-star-button.is-most-oshi {
+  color: #fff;
+  background: linear-gradient(145deg, #ffcf4d, var(--color-accent));
+  border-color: #fff;
+  box-shadow: 0 0 0 2px rgba(255, 217, 61, 0.55), 0 4px 10px -2px rgba(255, 178, 0, 0.5);
+}
+
+.member-card-star-button.is-most-oshi svg {
+  fill: #7a4b00;
 }
 
 .member-card-swatch {
@@ -4855,6 +5248,41 @@ fieldset label:has(input:focus-visible) {
   background: linear-gradient(120deg, var(--color-primary), var(--color-primary-dark));
   padding: 3px 12px;
   border-radius: 999px;
+}
+
+/* メンバー詳細画面の「推しに登録」「最推しにする」ボタン列（2026-08-03追加） */
+.member-detail-oshi-row {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+.oshi-action-button {
+  font-family: inherit;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-card-border);
+  border-radius: 999px;
+  padding: 7px 16px;
+  cursor: pointer;
+}
+
+.oshi-action-button:active {
+  transform: scale(0.96);
+}
+
+.oshi-action-button.is-active {
+  color: #fff;
+  background: linear-gradient(120deg, var(--color-primary), var(--color-primary-dark));
+  border-color: transparent;
+}
+
+.oshi-action-button.is-most-oshi-button.is-active {
+  background: linear-gradient(120deg, #ffb545, var(--color-accent));
 }
 
 /* メンバー一覧カードの小さな役割タグ（リーダー等） */

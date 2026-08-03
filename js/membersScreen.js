@@ -18,6 +18,13 @@ import {
   getMemberProfile,
   getMemberActivities,
 } from "./memberUtils.js";
+import {
+  isFavoriteMember,
+  isMostOshiMember,
+  toggleFavoriteMember,
+  setMostOshiMember,
+  clearMostOshiMember,
+} from "./oshiMembers.js";
 
 // この画面が使うDOM要素一式。initMembersScreen()で受け取って保持する。
 let elements = null;
@@ -60,42 +67,118 @@ function toCircledNumber(number) {
 
 // ---- 現役メンバー一覧 ----
 
+// 推し登録のハート・最推し設定の星ボタン。HTMLはbuttonの中にbuttonを入れられないため、
+// カード全体（詳細へ遷移するボタン）とは別の、隣り合うbuttonとして作る
+// （2026-08-03追加、2026-08-04に星ボタンを分離してどちらも一覧から直接操作できるようにした。
+// stopPropagation()で、押してもカード本体の遷移は起きないようにする）。
+const HEART_ICON_PATH =
+  "M12 20.5 4.6 13.2C2 10.6 2.3 6.4 5.3 4.4c2.3-1.5 5.2-1 6.7 1 1.5-2 4.4-2.5 6.7-1 3 2 3.3 6.2.7 8.8L12 20.5Z";
+const STAR_ICON_PATH = "M12 2.5 14.8 8.9 21.8 9.6 16.5 14.2 18.1 21 12 17.4 5.9 21 7.5 14.2 2.2 9.6 9.2 8.9Z";
+
+function buildHeartButton(memberId, onToggle) {
+  const button = document.createElement("button");
+  button.type = "button";
+  const isFavorite = isFavoriteMember(memberId);
+  button.className = "member-card-favorite-button";
+  button.classList.toggle("is-favorite", isFavorite);
+  button.setAttribute("aria-label", isFavorite ? "推しを解除する" : "推しに登録する");
+  button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${HEART_ICON_PATH}"/></svg>`;
+  button.addEventListener("click", (event) => {
+    event.stopPropagation();
+    onToggle(memberId);
+  });
+  return button;
+}
+
+// 最推し設定の星ボタン。押すたびに「最推しにする／最推しを解除する」を切り替える
+// （すでに最推しの相手をもう一度押すと解除、他のメンバーを押すと、その人が新しい
+// 最推しになり以前の最推しは通常の推しとして残る——という既存ルールをそのまま維持）。
+function buildStarButton(memberId, onToggleMostOshi) {
+  const button = document.createElement("button");
+  button.type = "button";
+  const isMostOshi = isMostOshiMember(memberId);
+  button.className = "member-card-star-button";
+  button.classList.toggle("is-most-oshi", isMostOshi);
+  button.setAttribute("aria-label", isMostOshi ? "最推しを解除する" : "最推しにする");
+  button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${STAR_ICON_PATH}"/></svg>`;
+  button.addEventListener("click", (event) => {
+    event.stopPropagation();
+    onToggleMostOshi(memberId);
+  });
+  return button;
+}
+
 function buildActiveMemberCard(member) {
-  const card = document.createElement("button");
-  card.type = "button";
+  const card = document.createElement("div");
   card.className = "member-card";
   if (member.id === lastViewedMemberId) {
     card.classList.add("is-selected");
   }
-  card.addEventListener("click", () => elements.onSelectMember(member.id));
+
+  const tapTarget = document.createElement("button");
+  tapTarget.type = "button";
+  tapTarget.className = "member-card-tap-target";
+  tapTarget.addEventListener("click", () => elements.onSelectMember(member.id));
 
   const swatch = document.createElement("span");
   swatch.className = "member-card-swatch";
   swatch.style.cssText = buildSwatchStyle(member.memberColor);
-  card.appendChild(swatch);
+  tapTarget.appendChild(swatch);
 
   const name = document.createElement("p");
   name.className = "member-card-name";
   name.textContent = `${toCircledNumber(member.attendanceNumber)}${member.name}`;
-  card.appendChild(name);
+  tapTarget.appendChild(name);
 
   if (member.roles && member.roles.length > 0) {
     const roleTag = document.createElement("span");
     roleTag.className = "member-card-role-tag";
     roleTag.textContent = member.roles[0];
-    card.appendChild(roleTag);
+    tapTarget.appendChild(roleTag);
   }
+
+  card.appendChild(tapTarget);
+
+  // 星（最推し）→ハート（推し）の順で並べる。凡例の並び順（★最推し・♡推し）に合わせている。
+  const actionRow = document.createElement("div");
+  actionRow.className = "member-card-action-row";
+  actionRow.appendChild(
+    buildStarButton(member.id, (memberId) => {
+      if (isMostOshiMember(memberId)) {
+        clearMostOshiMember();
+      } else {
+        setMostOshiMember(memberId);
+      }
+      rerenderActiveMembers();
+    })
+  );
+  actionRow.appendChild(
+    buildHeartButton(member.id, (memberId) => {
+      toggleFavoriteMember(memberId);
+      rerenderActiveMembers();
+    })
+  );
+  card.appendChild(actionRow);
 
   return card;
 }
 
+// メンバー一覧の再描画に使う、直近に渡されたメンバー配列。推し登録の切り替え直後に
+// このファイル内から再描画するために保持する（2026-08-03追加）。
+let lastActiveMembersList = null;
+
 function renderActiveMembers(members) {
+  lastActiveMembersList = members;
   const activeMembers = getActiveMembers(members);
   elements.activeCount.textContent = `出席番号順・${activeMembers.length}人`;
   elements.activeGrid.innerHTML = "";
   activeMembers.forEach((member) => {
     elements.activeGrid.appendChild(buildActiveMemberCard(member));
   });
+}
+
+function rerenderActiveMembers() {
+  if (lastActiveMembersList) renderActiveMembers(lastActiveMembersList);
 }
 
 // ---- 卒業メンバー（簡易紹介） ----
@@ -448,6 +531,60 @@ export function buildActivityCard(activity) {
 
 // ---- メンバー詳細：画面全体の組み立て ----
 
+// メンバー詳細画面の「推しに登録」「最推しにする」ボタン列（2026-08-03追加）。
+// 押すたびにoshiMembers.jsのデータを更新し、この画面全体を再描画して見た目に反映する。
+function buildOshiActionRow(memberId) {
+  const row = document.createElement("div");
+  row.className = "member-detail-oshi-row";
+
+  const isFavorite = isFavoriteMember(memberId);
+  const isMostOshi = isMostOshiMember(memberId);
+
+  const favoriteButton = document.createElement("button");
+  favoriteButton.type = "button";
+  favoriteButton.className = "oshi-action-button";
+  favoriteButton.classList.toggle("is-active", isFavorite);
+  favoriteButton.textContent = isFavorite ? "♥ 推し登録中" : "♡ 推しに登録";
+  favoriteButton.addEventListener("click", () => {
+    toggleFavoriteMember(memberId);
+    rerenderMemberDetail();
+    rerenderActiveMembers();
+  });
+  row.appendChild(favoriteButton);
+
+  // 最推しボタンは、推しメン登録済みのときだけ出す（まだ推しでもない相手を
+  // いきなり最推しにはできない、という順序を画面上でも分かりやすくするため）。
+  if (isFavorite) {
+    const mostOshiButton = document.createElement("button");
+    mostOshiButton.type = "button";
+    mostOshiButton.className = "oshi-action-button is-most-oshi-button";
+    mostOshiButton.classList.toggle("is-active", isMostOshi);
+    mostOshiButton.textContent = isMostOshi ? "★ 最推いです" : "☆ 最推しにする";
+    mostOshiButton.addEventListener("click", () => {
+      if (isMostOshi) {
+        clearMostOshiMember();
+      } else {
+        setMostOshiMember(memberId);
+      }
+      rerenderMemberDetail();
+      rerenderActiveMembers();
+    });
+    row.appendChild(mostOshiButton);
+  }
+
+  return row;
+}
+
+// メンバー詳細画面の再描画に使う、直近に渡された引数一式。推し登録の切り替え直後に
+// このファイル内から再描画するために保持する（2026-08-03追加）。
+let lastDetailArgs = null;
+
+function rerenderMemberDetail() {
+  if (!lastDetailArgs) return;
+  const { songs, members, profiles, activities, member } = lastDetailArgs;
+  renderMemberDetail(songs, members, profiles, activities, member);
+}
+
 function renderMemberDetail(songs, members, profiles, activities, member) {
   const profile = getMemberProfile(profiles, member.id);
   const memberActivities = getMemberActivities(activities, member.id);
@@ -493,6 +630,8 @@ function renderMemberDetail(songs, members, profiles, activities, member) {
   colorFacts.appendChild(buildColorFactRow("メンバーカラー", member.memberColor ? [member.memberColor] : null));
   colorFacts.appendChild(buildColorFactRow("ペンライトカラー", member.penlightColors));
   hero.appendChild(colorFacts);
+
+  hero.appendChild(buildOshiActionRow(member.id));
 
   elements.memberDetailContent.appendChild(hero);
 
@@ -625,6 +764,7 @@ export function openMemberDetail(songs, members, profiles, activities, memberId)
   const member = members.find((candidate) => candidate.id === memberId);
   if (!member) return;
   lastViewedMemberId = memberId;
+  lastDetailArgs = { songs, members, profiles, activities, member };
   renderMemberDetail(songs, members, profiles, activities, member);
 }
 

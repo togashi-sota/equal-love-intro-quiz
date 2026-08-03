@@ -103,45 +103,24 @@
         </h1>
       </div>
 
-      <!-- 音源の読み込み状況。PWA化に伴い、音源はサーバーに置かず、利用者が選んだファイルを
-           端末内（IndexedDB）に保存する方式にしている。読み込み状況を表示し、
-           ボタンからmp3ファイルをまとめて選択できる（js/audioStorage.js・js/main.js参照）。 -->
-      <div id="audio-import-section" class="audio-import-section">
-        <p id="audio-import-status" class="audio-import-status">音源の読み込み状況を確認中…</p>
-        <label class="audio-import-button">
-          音源を読み込む
-          <input id="audio-import-input" type="file" accept="audio/mpeg,.mp3" multiple hidden>
-        </label>
-        <!-- 読み込み結果（「◯曲を読み込みました」等）。普段は空・非表示 -->
-        <p id="audio-import-result" class="audio-import-result" hidden></p>
-      </div>
-
-      <!-- 歌詞データの読み込み状況。音源とは別の任意機能（収録曲一覧の試聴時にだけ使う）のため、
-           見た目は音源より一段控えめにし、「任意」であることが伝わるようにしている
-           （js/lyricsStorage.js・js/main.js参照）。 -->
-      <div id="lyrics-import-section" class="lyrics-import-section">
-        <p class="lyrics-import-caption">
-          収録曲一覧の試聴で同期歌詞を表示できます
-          <span class="optional-tag">任意</span>
-        </p>
-        <p id="lyrics-import-status" class="lyrics-import-status">歌詞データ：未読み込み</p>
-        <label class="lyrics-import-button">
-          歌詞を読み込む
-          <input id="lyrics-import-input" type="file" accept=".json,application/json" multiple hidden>
-        </label>
-        <!-- 読み込み結果（「◯曲を保存しました」等）。普段は空・非表示 -->
-        <p id="lyrics-import-result" class="lyrics-import-result" hidden></p>
-
-        <!-- 警告があるファイルをまとめて確認するパネル。1件ずつモーダルを出さず、
-             ここに一覧表示してから、まとめて「保存する/しない」を選んでもらう。
-             警告のないファイルはこのパネルを待たずに自動保存される。 -->
-        <div id="lyrics-warning-panel" class="lyrics-warning-panel" hidden>
-          <p class="lyrics-warning-panel-title">確認が必要な歌詞データがあります</p>
-          <div id="lyrics-warning-list" class="lyrics-warning-list"></div>
-          <div class="lyrics-warning-actions">
-            <button id="lyrics-warning-save-button" type="button" class="secondary-button">警告があるファイルも保存する</button>
-            <button id="lyrics-warning-discard-button" type="button" class="secondary-button">警告があるファイルは保存しない</button>
-          </div>
+      <!-- プレイヤー・推しメンの表示（2026-08-03追加、2026-08-04デザイン改善）。
+           「このアプリを今誰が遊んでいるか」が最初に伝わるよう、スタート画面で最も
+           目立つ要素の1つにしている。プレイヤー名タップで名前変更・プレイヤー切替・
+           新規追加ができるモーダルを開く。推しメンタップでメンバー紹介画面へ移動する
+           （詳しい登録・変更はそちら側で行う）。 -->
+      <div class="player-hero-card">
+        <span id="player-hero-swatch" class="player-hero-swatch is-placeholder" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 20.5 4.6 13.2C2 10.6 2.3 6.4 5.3 4.4c2.3-1.5 5.2-1 6.7 1 1.5-2 4.4-2.5 6.7-1 3 2 3.3 6.2.7 8.8L12 20.5Z"/></svg>
+        </span>
+        <div class="player-hero-text">
+          <button id="player-name-chip" class="player-hero-name" type="button">
+            <span id="player-name-chip-text">プレイヤー名を設定</span>
+            <svg class="player-hero-edit-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 20h4L18.5 9.5a2 2 0 0 0 0-2.8L17.3 5.5a2 2 0 0 0-2.8 0L4 16v4Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+          </button>
+          <button id="oshi-summary-chip" class="player-hero-oshi" type="button">
+            <span id="oshi-summary-chip-text">推しメンを登録しよう</span>
+            <span class="player-hero-oshi-arrow" aria-hidden="true">→</span>
+          </button>
         </div>
       </div>
 
@@ -280,6 +259,57 @@
           <span class="know-more-description">現役10人と卒業メンバーを見る</span>
         </button>
       </div>
+
+      <!-- 音源・歌詞データの読み込み（データ管理）。初回セットアップ以降はほとんど
+           使わない機能のため、折りたたみ（details/summary）にしてホーム画面の主役
+           （スタートボタン・プレイヤー・＝LOVEをもっと知る）を邪魔しない位置＝
+           一番下に置く（2026-08-04デザイン改善。要素自体・IDは移動前と同じなので、
+           音源・歌詞読み込みのJSロジックは変更していない）。 -->
+      <details class="data-management-section">
+        <summary>データ管理（音源・歌詞の読み込み）</summary>
+
+        <!-- 音源の読み込み状況。PWA化に伴い、音源はサーバーに置かず、利用者が選んだファイルを
+             端末内（IndexedDB）に保存する方式にしている。読み込み状況を表示し、
+             ボタンからmp3ファイルをまとめて選択できる（js/audioStorage.js・js/main.js参照）。 -->
+        <div id="audio-import-section" class="audio-import-section">
+          <p id="audio-import-status" class="audio-import-status">音源の読み込み状況を確認中…</p>
+          <label class="audio-import-button">
+            音源を読み込む
+            <input id="audio-import-input" type="file" accept="audio/mpeg,.mp3" multiple hidden>
+          </label>
+          <!-- 読み込み結果（「◯曲を読み込みました」等）。普段は空・非表示 -->
+          <p id="audio-import-result" class="audio-import-result" hidden></p>
+        </div>
+
+        <!-- 歌詞データの読み込み状況。音源とは別の任意機能（収録曲一覧の試聴時にだけ使う）のため、
+             見た目は音源より一段控えめにし、「任意」であることが伝わるようにしている
+             （js/lyricsStorage.js・js/main.js参照）。 -->
+        <div id="lyrics-import-section" class="lyrics-import-section">
+          <p class="lyrics-import-caption">
+            収録曲一覧の試聴で同期歌詞を表示できます
+            <span class="optional-tag">任意</span>
+          </p>
+          <p id="lyrics-import-status" class="lyrics-import-status">歌詞データ：未読み込み</p>
+          <label class="lyrics-import-button">
+            歌詞を読み込む
+            <input id="lyrics-import-input" type="file" accept=".json,application/json" multiple hidden>
+          </label>
+          <!-- 読み込み結果（「◯曲を保存しました」等）。普段は空・非表示 -->
+          <p id="lyrics-import-result" class="lyrics-import-result" hidden></p>
+
+          <!-- 警告があるファイルをまとめて確認するパネル。1件ずつモーダルを出さず、
+               ここに一覧表示してから、まとめて「保存する/しない」を選んでもらう。
+               警告のないファイルはこのパネルを待たずに自動保存される。 -->
+          <div id="lyrics-warning-panel" class="lyrics-warning-panel" hidden>
+            <p class="lyrics-warning-panel-title">確認が必要な歌詞データがあります</p>
+            <div id="lyrics-warning-list" class="lyrics-warning-list"></div>
+            <div class="lyrics-warning-actions">
+              <button id="lyrics-warning-save-button" type="button" class="secondary-button">警告があるファイルも保存する</button>
+              <button id="lyrics-warning-discard-button" type="button" class="secondary-button">警告があるファイルは保存しない</button>
+            </div>
+          </div>
+        </div>
+      </details>
     </section>
 
     <!-- クイズ画面：イントロ再生、4択、タイマー、正誤表示を行う画面 -->
@@ -926,6 +956,11 @@
         <h3>現役メンバー</h3>
         <span id="members-active-count" class="member-section-count"></span>
       </div>
+      <!-- 推し・最推しバッジの凡例（2026-08-04追加）。初めて見る人にも意味が伝わるように。 -->
+      <p class="member-favorite-legend">
+        <span class="member-favorite-legend-item"><span class="member-favorite-legend-star">★</span>最推し</span>
+        <span class="member-favorite-legend-item"><span class="member-favorite-legend-heart">♡</span>推し</span>
+      </p>
       <div id="members-active-grid" class="member-grid"></div>
 
       <div class="member-graduated-block">
@@ -1223,6 +1258,35 @@
       <div class="button-row history-clear-confirm-actions">
         <button id="history-clear-cancel-button" class="secondary-button" type="button">キャンセル</button>
         <button id="history-clear-delete-button" class="danger-button" type="button">削除する</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- プレイヤー管理モーダル：名前変更・プレイヤー切替・新規追加をここで行う（2026-08-03追加）。
+       「名前を変更」と「新しいプレイヤーを追加」は別の操作として明確に分ける（本人方針）。 -->
+  <div id="player-modal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="player-modal-title">
+      <button id="player-modal-close-button" class="modal-close-button" type="button" aria-label="閉じる">×</button>
+      <h2 id="player-modal-title">プレイヤー</h2>
+      <p class="modal-lead">選択中のプレイヤーによって、履歴・自己ベスト・称号・推しメン等が切り替わります。</p>
+
+      <div id="player-list" class="player-list"></div>
+
+      <div class="player-add-row">
+        <input id="player-add-input" type="text" maxlength="20" placeholder="新しいプレイヤー名">
+        <button id="player-add-button" class="secondary-button" type="button">＋ 追加</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- プレイヤー削除・確認モーダル：誤操作でデータごと消えないよう、必ず一度確認を挟む。 -->
+  <div id="player-delete-confirm-modal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="player-delete-confirm-title">
+      <h2 id="player-delete-confirm-title">このプレイヤーを削除しますか？</h2>
+      <p class="modal-lead">プレイ履歴・自己ベスト・称号・推しメン等のデータもすべて削除されます。この操作は元に戻せません。</p>
+      <div class="button-row">
+        <button id="player-delete-cancel-button" class="secondary-button" type="button">キャンセル</button>
+        <button id="player-delete-confirm-button" class="danger-button" type="button">削除する</button>
       </div>
     </div>
   </div>

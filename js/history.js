@@ -6,7 +6,14 @@
 // ハイスコア・称号のように出題数ごとに保存キーを分けていないのは、履歴は時系列で
 // 一覧したいデータのため（1つの配列にしておけば、新しい順に並べるだけで一覧になる）。
 
-const HISTORY_KEY = "equalLoveIntroQuiz.playHistory";
+// 【2026-08-03追加】複数プレイヤー対応（HANDOFF 10-29章）：getPlayerKeyPrefix()が、
+// デフォルトプレイヤーのときは空文字列を返すため、既存のキー名は変わらない。
+// 2人目以降のプレイヤーのときだけプレイヤーごとに別々の履歴として保存される。
+import { getPlayerKeyPrefix } from "./playerProfile.js";
+
+function buildHistoryKey() {
+  return `equalLoveIntroQuiz.${getPlayerKeyPrefix()}playHistory`;
+}
 const CURRENT_SCHEMA_VERSION = 1;
 
 // 保存する履歴の最大件数。個人用の記録なので無制限には増やさず、
@@ -28,7 +35,7 @@ function generateHistoryId() {
 function loadHistoryData() {
   const empty = { schemaVersion: CURRENT_SCHEMA_VERSION, entries: [] };
   try {
-    const stored = localStorage.getItem(HISTORY_KEY);
+    const stored = localStorage.getItem(buildHistoryKey());
     if (!stored) return empty;
 
     const parsed = JSON.parse(stored);
@@ -41,7 +48,7 @@ function loadHistoryData() {
 
 function saveHistoryData(data) {
   try {
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(data));
+    localStorage.setItem(buildHistoryKey(), JSON.stringify(data));
   } catch {
     // プライベートブラウジング等でlocalStorageが使えない環境でも、アプリ自体は動き続けられるようにする
   }

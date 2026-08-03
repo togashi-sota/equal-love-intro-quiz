@@ -194,6 +194,10 @@ export function destroyLyricsSync() {
 // 指定した曲の歌詞データを取得し、パネルへ描画し、再生位置に合わせた同期表示を開始する。
 // 歌詞データがない曲では、パネル自体を表示しないまま何もしない
 // （試聴機能自体は今まで通り使える。エラー表示も出さない）。
+// 戻り値：歌詞データが見つかってパネルを表示したらtrue、無かった（何もしなかった）らfalse。
+// 呼び出し側（songlist.js等）は、この値を使って「全画面表示ボタン」の表示・非表示を
+// 判断する（曲IDをハードコードせず、実際に歌詞データがあるかどうかで自動判定するため。
+// 2026-08-03、Overtureのように歌詞が存在しない曲でボタンだけ残ってしまう問題への対応）。
 //
 // audioElement/panelElementは、収録曲一覧・オリジナル問題作成モードそれぞれが持つ
 // 実際の<audio>要素・歌詞パネル用の要素を毎回渡す想定
@@ -205,7 +209,7 @@ export async function loadLyricsForSong(songId, targetAudioElement, targetPanelE
 
   const record = await getLyricsData(songId);
   if (!record || !Array.isArray(record.lines) || record.lines.length === 0) {
-    return;
+    return false;
   }
 
   audioElement = targetAudioElement;
@@ -245,6 +249,7 @@ export async function loadLyricsForSong(songId, targetAudioElement, targetPanelE
   activeIndex = -1;
 
   updateActiveLyricsLine(audioElement.currentTime, { immediate: true });
+  return true;
 }
 
 // 自動スクロールのON/OFFを切り替える。Step3時点ではUIボタンは用意しないが、

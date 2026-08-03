@@ -6,10 +6,15 @@
 // 保存キーを組み合わせごとに分けている。出題数の選択肢自体が将来変わっても、
 // 新しい値の組み合わせは自動的に新しいキーとして扱われるだけなので、
 // 古い記録と混ざったり壊れたりすることはない。
-const HIGH_SCORE_KEY_PREFIX = "equalLoveIntroQuiz.highScore";
+//
+// 【2026-08-03追加】複数プレイヤー対応（HANDOFF 10-29章）：getPlayerKeyPrefix()が、
+// 最初のプレイヤー（デフォルトプレイヤー）のときは空文字列を返すため、既存のキー名は
+// 一切変わらない。2人目以降のプレイヤーのときだけ"player.{playerId}."が挟まり、
+// プレイヤーごとに別々のハイスコアとして保存される。
+import { getPlayerKeyPrefix } from "./playerProfile.js";
 
 function buildHighScoreKey(questionCountValue, categoryFilterValue) {
-  return `${HIGH_SCORE_KEY_PREFIX}.${questionCountValue}.${categoryFilterValue}`;
+  return `equalLoveIntroQuiz.${getPlayerKeyPrefix()}highScore.${questionCountValue}.${categoryFilterValue}`;
 }
 
 // 指定した出題数・カテゴリの組み合わせにおけるハイスコアを取得する。

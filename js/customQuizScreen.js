@@ -174,7 +174,13 @@ async function startPreviewForRow(song, row) {
   setPreviewingRow(row);
 
   // 歌詞データがある曲だけ、同期歌詞パネルを表示する（ない曲では静かに何もしない）。
-  loadLyricsForSong(song.id, elements.previewAudioElement, elements.previewLyricsPanel);
+  // 全画面表示ボタンも、実際に歌詞データが見つかった曲だけ表示する
+  // （曲IDのハードコードではなく、データの有無で自動判定する。2026-08-03）。
+  elements.previewFullscreenButton.hidden = true;
+  loadLyricsForSong(song.id, elements.previewAudioElement, elements.previewLyricsPanel).then((lyricsFound) => {
+    if (currentlyPreviewingRowElement !== row) return; // 切り替わった後の古い結果は無視する
+    elements.previewFullscreenButton.hidden = !lyricsFound;
+  });
 }
 
 // 曲行の再生ボタンが押されたときの処理。

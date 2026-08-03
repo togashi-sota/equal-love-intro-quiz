@@ -187,6 +187,10 @@ function setRowPlayingState(rowElement, isPlaying) {
   rowElement.classList.toggle("is-playing", isPlaying);
   rowElement.classList.remove("is-audio-paused"); // 選択し直すたびに、アイコンの状態を一旦リセットする
   rowElement.querySelector(".track-seek").hidden = !isPlaying;
+  // 全画面表示ボタンは、歌詞データが実際に見つかったときだけplayPreview()側で表示する
+  // （曲を選び直すたびに、まず非表示へリセットしておく。Overture等、歌詞が無い曲では
+  // ボタン自体を出さないための対応。2026-08-03）。
+  rowElement.querySelector(".lyrics-fullscreen-open-button").hidden = true;
 }
 
 // 再生/一時停止アイコンの切り替えだけを、audio.pausedの実際の値から行う。
@@ -252,7 +256,14 @@ async function playPreview(song, rowElement) {
   setRowPlayingState(rowElement, true);
 
   // 歌詞データがある曲だけ、同期歌詞パネルを表示する（ない曲では静かに何もしない）。
-  loadLyricsForSong(song.id, previewAudioElement, rowElement.querySelector(".track-lyrics"));
+  // 全画面表示ボタンも、実際に歌詞データが見つかった曲だけ表示する
+  // （曲IDのハードコードではなく、データの有無で自動判定する。2026-08-03）。
+  loadLyricsForSong(song.id, previewAudioElement, rowElement.querySelector(".track-lyrics")).then(
+    (lyricsFound) => {
+      if (currentlyPlayingRowElement !== rowElement) return; // 切り替わった後の古い結果は無視する
+      rowElement.querySelector(".lyrics-fullscreen-open-button").hidden = !lyricsFound;
+    }
+  );
 }
 
 // 再生ボタンを押したときの処理。
@@ -358,7 +369,7 @@ function createTrackRow(song) {
       <button type="button" class="seek-skip-button" data-skip="back" aria-label="10秒戻す">−10</button>
       <input type="range" class="seek-range" min="0" value="0" step="0.1">
       <button type="button" class="seek-skip-button" data-skip="forward" aria-label="10秒送る">+10</button>
-      <button type="button" class="lyrics-fullscreen-open-button" aria-label="歌詞を全画面表示">
+      <button type="button" class="lyrics-fullscreen-open-button" aria-label="歌詞を全画面表示" hidden>
         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
       </button>
     </div>

@@ -16,19 +16,25 @@
 // 「今回のプレイで新たに達成されたか」のどちらかを満たせば解放とみなす、という判定にする。
 
 import { TITLES } from "./titleDefinitions.js";
+// 【2026-08-03追加】複数プレイヤー対応（HANDOFF 10-29章）：getPlayerKeyPrefix()が、
+// デフォルトプレイヤーのときは空文字列を返すため、既存のキー名は変わらない。
+// 2人目以降のプレイヤーのときだけプレイヤーごとに別々の称号進捗として保存される。
+import { getPlayerKeyPrefix } from "./playerProfile.js";
 
-const TITLE_KEY_PREFIX = "equalLoveIntroQuiz.titles";
+function buildTitleKeyPrefix() {
+  return `equalLoveIntroQuiz.${getPlayerKeyPrefix()}titles`;
+}
 
 // perMode称号（出題数ごとに進捗を持つ称号）が対象にする、出題数の値の一覧。
 // index.htmlのラジオボタンの値・highscore.jsのキーと同じ文字列を使う。
 const QUESTION_COUNT_VALUES = ["5", "10", "20", "50", "all"];
 
 function buildPerModeKey(titleId, mode) {
-  return `${TITLE_KEY_PREFIX}.${titleId}.${mode}`;
+  return `${buildTitleKeyPrefix()}.${titleId}.${mode}`;
 }
 
 function buildSingleKey(titleId) {
-  return `${TITLE_KEY_PREFIX}.${titleId}`;
+  return `${buildTitleKeyPrefix()}.${titleId}`;
 }
 
 // 保存済みの称号進捗を、判定処理で扱いやすい形（称号IDをキーにしたオブジェクト）に整理して読み込む。
