@@ -362,9 +362,28 @@ body.has-mini-player .game-frame {
   white-space: nowrap;
 }
 
+/* 状態文（再生中/一時停止中）と経過時間を同じ行に並べる。
+   経過時間は本人からの追加要望（2026-08-06、タイトル行を増やさず1行にまとめて表示）。 */
+.mini-player-subline {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
 .mini-player-status {
   font-size: 0.64rem;
   opacity: 0.6;
+  flex: none;
+}
+
+.mini-player-time {
+  font-size: 0.64rem;
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .mini-player-control-button {

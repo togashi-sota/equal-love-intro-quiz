@@ -25,6 +25,28 @@ const STATUS_TEXT = {
   finished: "最後まで再生しました",
 };
 
+// 経過時間の表示。連続再生画面のシークバー（js/continuousPlayScreen.jsのwireSeekBar()）と
+// 同じ考え方で、<audio>要素のtimeupdateへ直接配線する（状態変化のたびに全体を描き直す
+// render()経由だと、1秒間に何度も呼ばれるtimeupdateには重すぎるため。2026-08-06追加、
+// 本人から「今何分何秒か表示してほしい」と要望あり）。
+function formatTime(totalSeconds) {
+  const safeSeconds = Number.isFinite(totalSeconds) ? Math.max(0, totalSeconds) : 0;
+  const minutes = Math.floor(safeSeconds / 60);
+  const seconds = Math.floor(safeSeconds % 60);
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+function updateTimeText() {
+  const audio = document.getElementById("continuous-play-audio");
+  elements.time.textContent = `${formatTime(audio.currentTime)} / ${formatTime(audio.duration)}`;
+}
+
+function wireElapsedTime() {
+  const audio = document.getElementById("continuous-play-audio");
+  audio.addEventListener("loadedmetadata", updateTimeText);
+  audio.addEventListener("timeupdate", updateTimeText);
+}
+
 function render() {
   const state = getPlaybackState();
   const hasQueue = state.status === "playing" || state.status === "paused" || state.status === "finished";
@@ -46,6 +68,7 @@ function render() {
 //   root: ミニプレイヤー全体の入れ物,
 //   main: タップすると連続再生画面を開く部分（曲名・状態を含む）,
 //   title, status: 曲名・状態のテキスト,
+//   time: 経過時間「現在 / 曲の長さ」のテキスト（2026-08-06追加）,
 //   toggleButton, stopButton: 再生/一時停止・停止ボタン,
 //   onOpen: mainがタップされたときに呼ばれるコールバック（連続再生画面を開く処理は
 //     main.js側で行う。戻り先の画面を覚える仕組みと連動させるため）,
@@ -70,4 +93,5 @@ export function initMiniPlayer(newElements) {
     currentScreenName = screenName;
     render();
   });
+  wireElapsedTime();
 }

@@ -218,6 +218,7 @@ const miniPlayerRootElement = document.getElementById("mini-player");
 const miniPlayerMainElement = document.getElementById("mini-player-main");
 const miniPlayerTitleElement = document.getElementById("mini-player-title");
 const miniPlayerStatusElement = document.getElementById("mini-player-status");
+const miniPlayerTimeElement = document.getElementById("mini-player-time");
 const miniPlayerToggleButtonElement = document.getElementById("mini-player-toggle-button");
 const miniPlayerStopButtonElement = document.getElementById("mini-player-stop-button");
 const playlistDetailContinuousPlayButtonElement = document.getElementById(
@@ -696,6 +697,7 @@ initMiniPlayer({
   main: miniPlayerMainElement,
   title: miniPlayerTitleElement,
   status: miniPlayerStatusElement,
+  time: miniPlayerTimeElement,
   toggleButton: miniPlayerToggleButtonElement,
   stopButton: miniPlayerStopButtonElement,
   onOpen: () => {

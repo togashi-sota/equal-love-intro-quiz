@@ -40,7 +40,16 @@ function wireDragHandle(handle, row, getFromIndex) {
 
     isDragging = true;
     row.classList.add("is-dragging");
-    handle.setPointerCapture(event.pointerId);
+    // ポインターの捕捉は、ドラッグ中に位置が動く行（handleを含む）自身にではなく、
+    // 常にDOM上の同じ場所に留まり続ける一覧の入れ物（elements.list）に対して行う。
+    // 行をinsertBeforeで動かす処理は、DOM仕様上「一旦取り外してから挿し直す」扱いになり、
+    // その一瞬だけhandle（の親であるrow）がDOMツリーから外れる。ポインターの捕捉先を
+    // handle自身にしていると、この一瞬の取り外しのたびに「捕捉が外れた」と判定されて
+    // lostpointercaptureが発火し、ドラッグが1回動かした時点で強制終了してしまっていた
+    // （本人から「PCでもスマホでも指が途中で離れた判定になる」と報告があり発覚。
+    // 前回のisDragging固着修正でlostpointercaptureも終了トリガーに加えたことで、
+    // この問題が表面化した。2026-08-06修正）。
+    elements.list.setPointerCapture(event.pointerId);
 
     // ポインターの今の位置から、置くべき場所を毎回そのまま計算し直してDOMを並び替える
     // （実際のキュー配列への反映は、指を離したときに一度だけ行う）。
@@ -72,10 +81,10 @@ function wireDragHandle(handle, row, getFromIndex) {
     function finishDrag() {
       if (finished) return;
       finished = true;
-      handle.removeEventListener("pointermove", handleMove);
-      handle.removeEventListener("pointerup", finishDrag);
-      handle.removeEventListener("pointercancel", finishDrag);
-      handle.removeEventListener("lostpointercapture", finishDrag);
+      elements.list.removeEventListener("pointermove", handleMove);
+      elements.list.removeEventListener("pointerup", finishDrag);
+      elements.list.removeEventListener("pointercancel", finishDrag);
+      elements.list.removeEventListener("lostpointercapture", finishDrag);
       row.classList.remove("is-dragging");
       isDragging = false;
 
@@ -90,10 +99,10 @@ function wireDragHandle(handle, row, getFromIndex) {
       }
     }
 
-    handle.addEventListener("pointermove", handleMove);
-    handle.addEventListener("pointerup", finishDrag);
-    handle.addEventListener("pointercancel", finishDrag);
-    handle.addEventListener("lostpointercapture", finishDrag);
+    elements.list.addEventListener("pointermove", handleMove);
+    elements.list.addEventListener("pointerup", finishDrag);
+    elements.list.addEventListener("pointercancel", finishDrag);
+    elements.list.addEventListener("lostpointercapture", finishDrag);
   });
 }
 
