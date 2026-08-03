@@ -63,12 +63,25 @@ function wireDragHandle(handle, row, getFromIndex) {
       }
     }
 
-    function handleUp(upEvent) {
-      handle.releasePointerCapture(upEvent.pointerId);
-      row.classList.remove("is-dragging");
+    // ドラッグの終了処理。「finished」フラグで、複数のイベントから二重に呼ばれても
+    // 1回しか実行されないようにする。
+    // pointerup（指を離した）だけに頼ると、スマホでドラッグの途中にOS側のジェスチャー
+    // （画面端からのスワイプ操作など）に途中で奪われてpointerupが発火しないことがあり、
+    // その場合isDraggingがtrueのまま固まって以降ずっとキュー画面が再描画されなくなる
+    // 不具合があった（本人からの「再生キューが重くなる」報告で発覚）。
+    // pointercancel・lostpointercapture（何らかの理由でポインター操作が中断／
+    // ポインターの捕捉が外れた場合に、原因を問わず必ず発火するイベント）でも
+    // 同じ終了処理を呼ぶことで、どんな中断のされ方でも必ずisDraggingが元に戻るようにした
+    // （2026-08-06修正）。
+    let finished = false;
+    function finishDrag() {
+      if (finished) return;
+      finished = true;
       handle.removeEventListener("pointermove", handleMove);
-      handle.removeEventListener("pointerup", handleUp);
-      handle.removeEventListener("pointercancel", handleUp);
+      handle.removeEventListener("pointerup", finishDrag);
+      handle.removeEventListener("pointercancel", finishDrag);
+      handle.removeEventListener("lostpointercapture", finishDrag);
+      row.classList.remove("is-dragging");
       isDragging = false;
 
       const finalIndex = [...elements.list.children].indexOf(row);
@@ -83,8 +96,9 @@ function wireDragHandle(handle, row, getFromIndex) {
     }
 
     handle.addEventListener("pointermove", handleMove);
-    handle.addEventListener("pointerup", handleUp);
-    handle.addEventListener("pointercancel", handleUp);
+    handle.addEventListener("pointerup", finishDrag);
+    handle.addEventListener("pointercancel", finishDrag);
+    handle.addEventListener("lostpointercapture", finishDrag);
   });
 }
 
@@ -201,7 +215,11 @@ function renderQueueList() {
 
 // この画面を開くたびに呼ぶ。中身を最新の状態で組み立て直したうえで、再生中の曲が
 // 画面外にあっても迷わないよう、その行までスクロールする。
+// 画面を開き直す時点では、ドラッグ操作が実際に進行中ということはあり得ないため、
+// isDraggingを必ずfalseへ戻しておく（万一何らかの理由でtrueのまま固まっていても、
+// この画面を開き直せば必ず復帰できるようにするための保険。2026-08-06追加）。
 export function renderQueueScreen() {
+  isDragging = false;
   renderQueueList();
   const currentRow = elements.list.querySelector(".queue-row.is-current");
   if (currentRow) {
