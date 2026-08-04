@@ -23,6 +23,12 @@ const SPECIAL_MODES = [
     available: true,
   },
   {
+    id: "randomPlayback",
+    title: "ランダム再生クイズ",
+    description: "曲の途中のランダムな位置から出題されます",
+    available: true,
+  },
+  {
     id: "liveCallMode",
     title: "ライブコールモード",
     description: "歌詞と一緒にコールのタイミングを確認できます",

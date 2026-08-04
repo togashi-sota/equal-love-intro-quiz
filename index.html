@@ -1392,6 +1392,111 @@
       <ul id="time-attack-history-detail-question-list" class="time-attack-history-detail-question-list"></ul>
     </section>
 
+    <!-- ===== ランダム再生クイズ（2026-08-08新設） =====
+         曲の途中のランダムな位置から数秒間だけ再生し、曲名を当てるモード。
+         進行ルール（ノーマル／ハード／LOVE連チャン）・タイマー・記録の仕組みは
+         タイムアタックと完全に共通（js/timeAttackScreen.jsをそのまま再利用）で、
+         「どこから再生するか」だけがタイムアタックと異なる（js/randomPlaybackEngine.js参照）。
+         自己ベストだけはタイムアタックと混ざらないよう、専用のjs/randomPlaybackScore.jsに保存する。 -->
+    <section id="random-playback-setup-screen" class="screen">
+      <div class="list-header">
+        <button id="random-playback-setup-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            RANDOM PLAYBACK
+          </p>
+          <h2>ランダム再生クイズ</h2>
+        </div>
+      </div>
+
+      <p class="special-modes-intro">曲の途中のランダムな位置から数秒間だけ再生されます。イントロだけでなく、曲全体を覚えているか試したいときに。進み方（ノーマル・ハード・LOVE連チャン）や記録の仕組みはタイムアタックと同じです。</p>
+
+      <fieldset>
+        <legend>出題数</legend>
+        <div class="option-row">
+          <label><input type="radio" name="random-playback-question-count" value="5" checked> 5問</label>
+          <label><input type="radio" name="random-playback-question-count" value="10"> 10問</label>
+          <label><input type="radio" name="random-playback-question-count" value="20"> 20問</label>
+        </div>
+        <div class="option-row">
+          <label><input type="radio" name="random-playback-question-count" value="50"> 50問</label>
+          <label><input type="radio" name="random-playback-question-count" value="all"> 全曲</label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>カテゴリ</legend>
+        <div class="option-row">
+          <label><input type="radio" name="random-playback-category-filter" value="title-track" checked> 表題曲のみ</label>
+          <label><input type="radio" name="random-playback-category-filter" value="title-and-group"> 表題曲＋全員曲</label>
+          <label><input type="radio" name="random-playback-category-filter" value="all"> 全曲</label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>ルール</legend>
+        <div class="option-row">
+          <label><input type="radio" name="random-playback-rule" value="normal" checked> ノーマル（間違えた選択肢が消える）</label>
+          <label><input type="radio" name="random-playback-rule" value="hard"> ハード（1回間違えたら即次へ）</label>
+          <label><input type="radio" name="random-playback-rule" value="loveChain"> LOVE連チャン（1回間違えたら即終了）</label>
+        </div>
+      </fieldset>
+
+      <!-- 選択中の出題数・カテゴリに対応する自己ベスト。ラジオボタンを切り替えるたびにJSで更新する。 -->
+      <p id="random-playback-best-chip" class="mode-best-chip is-empty">自己ベスト：記録なし</p>
+
+      <button id="random-playback-start-button" class="primary-button" type="button">開始する</button>
+      <p id="random-playback-start-error" class="error-message" hidden></p>
+    </section>
+
+    <!-- ランダム再生クイズ：結果画面。タイムアタックの結果画面と全く同じ構成
+         （合計タイム・正解数・ミス数・自己ベスト更新の有無）。 -->
+    <section id="random-playback-result-screen" class="screen">
+      <button id="random-playback-result-home-link" class="quiz-back-link" type="button">⌂ ホームへ戻る</button>
+
+      <div class="title-block">
+        <p class="eyebrow-chip">
+          <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+          RANDOM PLAYBACK RESULT
+        </p>
+        <h2>結果</h2>
+      </div>
+
+      <p id="random-playback-result-new-record" hidden>🎉 新記録！</p>
+      <p id="random-playback-result-fail-status" hidden></p>
+
+      <p class="time-attack-result-total-label">合計タイム</p>
+      <p id="random-playback-result-total-time" class="time-attack-result-total-time">0.00秒</p>
+
+      <div class="time-attack-result-stats-row">
+        <div class="time-attack-result-stat">
+          <p class="time-attack-result-stat-label">正解数</p>
+          <p id="random-playback-result-correct-count" class="time-attack-result-stat-value">0 / 0問</p>
+        </div>
+        <div class="time-attack-result-stat">
+          <p class="time-attack-result-stat-label">ミス数</p>
+          <p id="random-playback-result-miss-count" class="time-attack-result-stat-value">0回</p>
+        </div>
+        <div class="time-attack-result-stat">
+          <p class="time-attack-result-stat-label">ルール</p>
+          <p id="random-playback-result-rule-label" class="time-attack-result-stat-value">ノーマル</p>
+        </div>
+      </div>
+
+      <p id="random-playback-result-best-time" class="time-attack-result-best-time" hidden></p>
+
+      <div class="time-attack-result-actions">
+        <button id="random-playback-result-retry-button" class="primary-button" type="button">もう一度挑戦する</button>
+        <button id="random-playback-result-setup-button" class="secondary-button time-attack-result-setup-button" type="button">← ランダム再生設定へ戻る</button>
+      </div>
+    </section>
+
     <!-- ===== 対戦モード（ローカル対戦、2026-08-06新設） =====
          完全オフラインで、友達と同じ問題・同じ選択肢に挑戦し、記録を比べ合える機能。
          中身の組み立て・遷移はjs/localBattleScreen.js・js/localBattleResultScreen.jsが担う。

@@ -12,6 +12,7 @@ import {
   startTimeAttackQuiz,
   startLocalBattleQuiz,
   startOnlineBattleQuiz,
+  startRandomPlaybackQuiz,
   getCurrentQuestion,
   recordAnswer,
   advanceToNextQuestion,
@@ -28,7 +29,7 @@ import {
   buildReviewQuizQuestions,
   buildQuestionsFromSongIds,
 } from "./quiz.js";
-import { playSongIntro, stopAudio } from "./audio.js";
+import { playSongIntro, playSongFromRandomPosition, stopAudio } from "./audio.js";
 import { startTimer, stopTimer } from "./timer.js";
 import { calculateScore, calculateRank } from "./score.js";
 import { getHighScore, saveHighScoreIfBetter } from "./highscore.js";
@@ -83,6 +84,15 @@ import {
   initTimeAttackHistoryDetailScreen,
   renderTimeAttackHistoryDetail,
 } from "./timeAttackHistoryDetailScreen.js";
+import { computeRandomStartTimeSec, RANDOM_PLAYBACK_DEFAULTS } from "./randomPlaybackEngine.js";
+import { getRandomPlaybackBest } from "./randomPlaybackScore.js";
+import {
+  initRandomPlaybackScreen,
+  initRandomPlaybackResultScreen,
+  startRandomPlaybackRun,
+  getCurrentRandomPlaybackSeed,
+  renderRandomPlaybackResult,
+} from "./randomPlaybackScreen.js";
 import { buildBattleQuestions } from "./localBattle.js";
 import { initLocalBattleScreens, getCurrentBattleSession } from "./localBattleScreen.js";
 import {
@@ -376,6 +386,20 @@ const timeAttackHistoryBackButtonElement = document.getElementById("time-attack-
 const timeAttackHistoryEmptyStateElement = document.getElementById("time-attack-history-empty-state");
 const timeAttackHistoryListElement = document.getElementById("time-attack-history-list");
 const timeAttackHistoryDetailBackButtonElement = document.getElementById("time-attack-history-detail-back-button");
+const randomPlaybackSetupBackButtonElement = document.getElementById("random-playback-setup-back-button");
+const randomPlaybackStartButtonElement = document.getElementById("random-playback-start-button");
+const randomPlaybackStartErrorElement = document.getElementById("random-playback-start-error");
+const randomPlaybackBestChipElement = document.getElementById("random-playback-best-chip");
+const randomPlaybackResultNewRecordElement = document.getElementById("random-playback-result-new-record");
+const randomPlaybackResultFailStatusElement = document.getElementById("random-playback-result-fail-status");
+const randomPlaybackResultTotalTimeElement = document.getElementById("random-playback-result-total-time");
+const randomPlaybackResultCorrectCountElement = document.getElementById("random-playback-result-correct-count");
+const randomPlaybackResultMissCountElement = document.getElementById("random-playback-result-miss-count");
+const randomPlaybackResultRuleLabelElement = document.getElementById("random-playback-result-rule-label");
+const randomPlaybackResultBestTimeElement = document.getElementById("random-playback-result-best-time");
+const randomPlaybackResultRetryButtonElement = document.getElementById("random-playback-result-retry-button");
+const randomPlaybackResultSetupButtonElement = document.getElementById("random-playback-result-setup-button");
+const randomPlaybackResultHomeLinkElement = document.getElementById("random-playback-result-home-link");
 
 // 対戦モード（ローカル対戦）の画面要素一式（2026-08-06新設）。
 const battleModeSelectBackButtonElement = document.getElementById("battle-mode-select-back-button");
@@ -666,6 +690,9 @@ initSpecialModesScreen({
     } else if (modeId === "timeAttack") {
       updateTimeAttackBestChip();
       showScreen("timeAttackSetup");
+    } else if (modeId === "randomPlayback") {
+      updateRandomPlaybackBestChip();
+      showScreen("randomPlaybackSetup");
     } else if (modeId === "localBattle") {
       showScreen("battleModeSelect");
     } else if (modeId === "onlineBattle") {
@@ -1305,6 +1332,13 @@ function goToNextQuestionOrResult() {
     return;
   }
 
+  // ランダム再生クイズも、既存の結果画面（result）ではなく専用の結果画面に飛ばす。
+  // タイムアタックと同じ考え方だが、自己ベストの保存先だけが別（js/randomPlaybackScore.js）。
+  if (gameState.playMode === "randomPlayback") {
+    showRandomPlaybackResult();
+    return;
+  }
+
   renderResult();
   showScreen("result");
 }
@@ -1431,6 +1465,25 @@ function handleTimeAttackChoiceClick(selectedChoice) {
   });
 }
 
+// ランダム再生クイズ専用の結果画面表示。js/randomPlaybackScreen.jsのrenderRandomPlaybackResult()に
+// 出題数・カテゴリを渡す必要があるため、getLastTimeAttackSelection()（進行エンジンを共有している
+// ため、ここにこのプレイの出題数・カテゴリが残っている）から取得する。
+function showRandomPlaybackResult() {
+  const { questionCountValue, categoryFilterValue } = getLastTimeAttackSelection();
+  renderRandomPlaybackResult(questionCountValue, categoryFilterValue);
+  showScreen("randomPlaybackResult");
+}
+
+// ランダム再生クイズの選択肢クリック処理。ルール進行はタイムアタックと完全に共通
+// （上のhandleTimedChoiceClick）。違うのは「終わったときの行き先」だけ：
+// ランダム再生専用の結果画面へ進み、タイムアタックの自己ベスト・履歴には一切保存しない。
+function handleRandomPlaybackChoiceClick(selectedChoice) {
+  handleTimedChoiceClick(selectedChoice, {
+    onAdvance: goToNextQuestionOrResult,
+    onRunEnd: showRandomPlaybackResult,
+  });
+}
+
 // 対戦モードの選択肢クリック処理。ルール進行はタイムアタックと完全に共通（上のhandleTimedChoiceClick）。
 // 違うのは「終わったときの行き先」だけ：対戦専用の結果画面へ進み、自己ベスト・タイムアタック履歴には
 // 一切保存しない（js/localBattleScreen.jsのfinishBattlePlay参照）。
@@ -1448,6 +1501,10 @@ function handleChoiceClick(selectedChoice) {
   // （既存の通常/復習/特別モードのロジックには一切触れない）。
   if (gameState.playMode === "timeAttack") {
     handleTimeAttackChoiceClick(selectedChoice);
+    return;
+  }
+  if (gameState.playMode === "randomPlayback") {
+    handleRandomPlaybackChoiceClick(selectedChoice);
     return;
   }
   if (gameState.playMode === "localBattle") {
@@ -1544,6 +1601,7 @@ function renderProgressDots() {
 function updateQuizQuitDisplay() {
   const isSpecial = gameState.playMode === "special";
   const isTimeAttack = gameState.playMode === "timeAttack";
+  const isRandomPlayback = gameState.playMode === "randomPlayback";
   const isLocalBattle = gameState.playMode === "localBattle";
   const isOnlineBattle = gameState.playMode === "onlineBattle";
   const display = isSpecial ? SPECIAL_MODES_DISPLAY[gameState.specialModeId] : null;
@@ -1553,6 +1611,14 @@ function updateQuizQuitDisplay() {
     // 一覧テーブルは作らず、ここに直接文言を書く。
     quizBackButtonLabelElement.textContent = "設定画面へ";
     quizQuitConfirmTitleElement.textContent = "タイムアタックを中断して設定画面に戻りますか？";
+    quizQuitConfirmButtonElement.textContent = "設定画面に戻る";
+    return;
+  }
+
+  if (isRandomPlayback) {
+    // ランダム再生クイズもタイムアタックと同じ考え方（結果画面を経由せず設定画面へ戻る）。
+    quizBackButtonLabelElement.textContent = "設定画面へ";
+    quizQuitConfirmTitleElement.textContent = "ランダム再生クイズを中断して設定画面に戻りますか？";
     quizQuitConfirmButtonElement.textContent = "設定画面に戻る";
     return;
   }
@@ -1606,6 +1672,7 @@ function renderQuestion() {
   // スキップ・答えを見るボタンは表示しない（正解するか、ハードルールで間違えるまで進めない）。
   const isTimedMode =
     gameState.playMode === "timeAttack" ||
+    gameState.playMode === "randomPlayback" ||
     gameState.playMode === "localBattle" ||
     gameState.playMode === "onlineBattle";
   skipButtonElement.hidden = isTimedMode;
@@ -1616,7 +1683,27 @@ function renderQuestion() {
   // 再生を試みる直前の時刻をいったん暫定の計測起点にしておく。
   // 曲が実際に鳴り始めたら（onPlaybackStart）、より正確な値に上書きされる。
   markPlaybackStarted();
-  playSongIntro(question.song, showAudioError, markPlaybackStarted);
+  if (gameState.playMode === "randomPlayback") {
+    // ランダム再生クイズだけ、曲の任意の位置から数秒間再生するplaySongFromRandomPosition()を使う。
+    // 開始位置は、このプレイ開始時に発行したseed・曲ID・今の問題番号から純粋関数で計算する
+    // （js/randomPlaybackEngine.js参照。同じ組み合わせなら毎回同じ位置になるが、
+    // 問題番号や曲が変われば別の位置になる）。自動停止時（onAutoStop）は、
+    // 選択肢はそのまま操作できる状態を保つだけでよいため、特に何もしない。
+    const seed = getCurrentRandomPlaybackSeed();
+    const questionIndex = gameState.currentIndex;
+    const computeStartTimeSec = (durationSec) =>
+      computeRandomStartTimeSec({ seed, songId: question.song.id, questionIndex, durationSec });
+    playSongFromRandomPosition(
+      question.song,
+      computeStartTimeSec,
+      RANDOM_PLAYBACK_DEFAULTS.playDurationSec,
+      showAudioError,
+      markPlaybackStarted,
+      () => {}
+    );
+  } else {
+    playSongIntro(question.song, showAudioError, markPlaybackStarted);
+  }
   startTimer(updateTimerDisplay);
 }
 
@@ -1959,6 +2046,7 @@ quizQuitConfirmButtonElement.addEventListener("click", () => {
   closeQuizQuitConfirmModal();
   const isSpecial = gameState.playMode === "special";
   const isTimeAttack = gameState.playMode === "timeAttack";
+  const isRandomPlayback = gameState.playMode === "randomPlayback";
   const isLocalBattle = gameState.playMode === "localBattle";
   const isOnlineBattle = gameState.playMode === "onlineBattle";
   const onQuizBack = isSpecial ? SPECIAL_MODES_DISPLAY[gameState.specialModeId]?.onQuizBack : null;
@@ -1972,6 +2060,9 @@ quizQuitConfirmButtonElement.addEventListener("click", () => {
   if (isTimeAttack) {
     // タイムアタックは結果画面を経由しないため、ここでも自己ベスト等には一切反映されない。
     showScreen("timeAttackSetup");
+  } else if (isRandomPlayback) {
+    // ランダム再生クイズも結果画面を経由しないため、自己ベストには一切反映されない。
+    showScreen("randomPlaybackSetup");
   } else if (isLocalBattle) {
     // 対戦モードも結果コードを経由しないため、対戦結果としては一切残らない
     // （この対戦コード自体を使い直すことはできず、やり直すには新しく対戦を作る必要がある）。
@@ -2348,6 +2439,88 @@ timeAttackHistoryDetailBackButtonElement.addEventListener("click", () => {
   playClickSound();
   showScreen("timeAttackHistory");
   window.scrollTo(0, timeAttackHistoryListScrollY);
+});
+
+// ===== ランダム再生クイズ（2026-08-08新設） =====
+// 設定画面の選択中の出題数・カテゴリ・ルールに対応する自己ベストを表示する。
+// updateTimeAttackBestChip()と全く同じ考え方だが、保存先（randomPlaybackScore.js）が別のため、
+// getTimeAttackBest()は呼ばない。
+function updateRandomPlaybackBestChip() {
+  const questionCountValue = document.querySelector('input[name="random-playback-question-count"]:checked').value;
+  const categoryFilterValue = document.querySelector('input[name="random-playback-category-filter"]:checked').value;
+  const rule = document.querySelector('input[name="random-playback-rule"]:checked').value;
+  const bestMs = getRandomPlaybackBest(rule, questionCountValue, categoryFilterValue);
+
+  randomPlaybackBestChipElement.textContent =
+    bestMs !== null ? `自己ベスト：${(bestMs / 1000).toFixed(2)}秒` : "自己ベスト：記録なし";
+  randomPlaybackBestChipElement.classList.toggle("is-empty", bestMs === null);
+}
+
+document
+  .querySelectorAll(
+    'input[name="random-playback-question-count"], input[name="random-playback-category-filter"], input[name="random-playback-rule"]'
+  )
+  .forEach((radio) => radio.addEventListener("change", updateRandomPlaybackBestChip));
+
+randomPlaybackSetupBackButtonElement.addEventListener("click", () => {
+  playClickSound();
+  showScreen("specialModes");
+});
+
+// 指定した出題数・カテゴリ・ルールで、ランダム再生クイズの画面を開始する共通処理。
+// beginTimeAttackQuiz()と全く同じ考え方だが、問題生成自体はbuildTimeAttackQuestions()を
+// そのまま再利用する（曲・選択肢の選び方自体はタイムアタックと変える必要がないため。
+// 変わるのは「どこから再生するか」だけで、それはrenderQuestion()側で処理する）。
+function beginRandomPlaybackQuiz(questionCountValue, categoryFilterValue, rule) {
+  const questions = buildTimeAttackQuestions(questionCountValue, categoryFilterValue);
+
+  if (!questions) {
+    randomPlaybackStartErrorElement.textContent = "曲数が足りません。カテゴリの範囲を広げてください。";
+    randomPlaybackStartErrorElement.hidden = false;
+    return;
+  }
+
+  randomPlaybackStartErrorElement.hidden = true;
+  startRandomPlaybackRun(rule, questionCountValue, categoryFilterValue);
+  startRandomPlaybackQuiz(questions, questionCountValue, categoryFilterValue);
+  renderQuestion();
+  showScreen("quiz");
+}
+
+initRandomPlaybackScreen({
+  startButton: randomPlaybackStartButtonElement,
+  onStart: (questionCountValue, categoryFilterValue, rule) => {
+    playClickSound();
+    beginRandomPlaybackQuiz(questionCountValue, categoryFilterValue, rule);
+  },
+});
+
+initRandomPlaybackResultScreen({
+  newRecordBadge: randomPlaybackResultNewRecordElement,
+  failStatus: randomPlaybackResultFailStatusElement,
+  totalTime: randomPlaybackResultTotalTimeElement,
+  correctCount: randomPlaybackResultCorrectCountElement,
+  missCount: randomPlaybackResultMissCountElement,
+  ruleLabel: randomPlaybackResultRuleLabelElement,
+  bestTime: randomPlaybackResultBestTimeElement,
+});
+
+// 「もう一度挑戦する」：直前と同じ出題数・カテゴリ・ルールのまま、問題を再抽選して開始する。
+randomPlaybackResultRetryButtonElement.addEventListener("click", () => {
+  playClickSound();
+  const { questionCountValue, categoryFilterValue, rule } = getLastTimeAttackSelection();
+  beginRandomPlaybackQuiz(questionCountValue, categoryFilterValue, rule);
+});
+
+randomPlaybackResultSetupButtonElement.addEventListener("click", () => {
+  playClickSound();
+  updateRandomPlaybackBestChip();
+  showScreen("randomPlaybackSetup");
+});
+
+randomPlaybackResultHomeLinkElement.addEventListener("click", () => {
+  playClickSound();
+  showScreen("start");
 });
 
 // ===== 対戦モード（ローカル対戦、2026-08-06新設） =====

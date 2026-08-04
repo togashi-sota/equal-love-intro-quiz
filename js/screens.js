@@ -19,6 +19,8 @@ const SCREEN_ELEMENTS = {
   timeAttackResult: document.getElementById("time-attack-result-screen"),
   timeAttackHistory: document.getElementById("time-attack-history-screen"),
   timeAttackHistoryDetail: document.getElementById("time-attack-history-detail-screen"),
+  randomPlaybackSetup: document.getElementById("random-playback-setup-screen"),
+  randomPlaybackResult: document.getElementById("random-playback-result-screen"),
   customQuizPresets: document.getElementById("custom-quiz-presets-screen"),
   customQuiz: document.getElementById("custom-quiz-screen"),
   discography: document.getElementById("discography-screen"),

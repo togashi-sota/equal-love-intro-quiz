@@ -164,6 +164,25 @@ export function startOnlineBattleQuiz(questions, questionCountValue, categoryFil
   gameState.isAnswered = false;
 }
 
+// ランダム再生クイズ（曲中のランダムな位置から再生するモード）用に生成済みの問題配列を
+// 受け取って、クイズを開始する。startTimeAttackQuiz()と全く同じパターンで、
+// playModeだけ"randomPlayback"にする（2026-08-08新設、HANDOFF.md 10-59章・10-61章参照）。
+// 実行中の記録（合計タイム・ミス数等）も、タイムアタックと同じくjs/timeAttackScreen.jsの
+// モジュール内変数で完結させる（gameStateには持たせない。既存エンジンをそのまま再利用する
+// アダプター方式の一環）。
+export function startRandomPlaybackQuiz(questions, questionCountValue, categoryFilterValue) {
+  gameState.questions = questions;
+  gameState.currentIndex = 0;
+  gameState.score = 0;
+  gameState.answerLog = [];
+  gameState.screen = "quiz";
+  gameState.playMode = "randomPlayback";
+  gameState.specialModeId = null;
+  gameState.questionCountValue = questionCountValue;
+  gameState.categoryFilterValue = categoryFilterValue;
+  gameState.isAnswered = false;
+}
+
 // 今出題中の問題（{ song, choices }）を取得する。
 export function getCurrentQuestion() {
   return gameState.questions[gameState.currentIndex];
