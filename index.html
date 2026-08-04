@@ -407,6 +407,12 @@
       <!-- 出題の進み具合を、丸(ドット)で視覚的に示す場所。中身はJSで生成する -->
       <div id="progress-dots" class="progress-dots"></div>
 
+      <!-- オンライン対戦中だけ表示する、他プレイヤーの簡易進捗（js/onlineBattleScreen.js制御）。
+           正解数・ミス数・経過時間・暫定順位は出さず、「回答済み問題数／全問」と完了・切断状態だけを
+           小さく表示する（本人の要望：クイズ中は小さく、終了後の待機画面で詳しく）。
+           通常プレイ・タイムアタック・ローカル対戦では常に非表示のまま。 -->
+      <p id="online-battle-quiz-progress-strip" class="online-battle-quiz-progress-strip" hidden></p>
+
       <!-- controls は付けず、シークして曲を先読みできないようにしている -->
       <audio id="intro-audio"></audio>
       <!-- 音源が再生できない場合のエラーメッセージ。普段は空・非表示 -->
@@ -1793,19 +1799,53 @@
       </div>
     </section>
 
-    <!-- オンライン対戦：開始確認画面（Step2の到達点）。ホストが開始すると全端末がここへ遷移する。
-         同じシード・同じ設定から、js/localBattle.jsの既存ロジックで問題順を再現し、
-         全端末で本当に同じ並びになっているかを確認できるようにしている。
-         実際の出題・回答・結果同期はStep3で実装する。 -->
-    <section id="online-battle-started-screen" class="screen">
-      <div class="title-block"><h2>対戦開始！</h2></div>
-      <p class="online-battle-lead-text">全員に同じ設定・同じ問題順が配信されました（Step3で実際の出題画面につながります）。</p>
-      <div class="battle-config-summary" id="online-battle-started-config-summary"></div>
-      <p class="battle-field-label">シード値（全端末で一致するはずです）</p>
-      <p class="battle-code-value" id="online-battle-started-seed" style="font-size:1.1rem;"></p>
-      <p class="battle-field-label">問題順（先頭から、全端末で一致するか確認してください）</p>
-      <ol class="online-battle-started-question-list" id="online-battle-started-question-list"></ol>
-      <button id="online-battle-started-back-button" class="secondary-button" type="button">ロビーに戻る（Step2確認用）</button>
+    <!-- オンライン対戦：結果待機画面（Step3）。全問終了、またはLOVE連チャンで脱落して
+         自分の結果を送信し終えた直後に遷移する。固定参加者（対戦開始時点のメンバー）ごとの
+         進捗・接続状態を一覧表示し、全員そろえば自動的に結果画面へ進む。
+         ホストだけ、自分が終了した後に「結果を確定する」ボタンが現れる
+         （js/onlineBattleScreen.jsのrenderOnlineBattleWaitingList参照）。 -->
+    <section id="online-battle-waiting-screen" class="screen">
+      <div class="title-block"><h2>結果を待っています</h2></div>
+      <p class="online-battle-lead-text" id="online-battle-waiting-lead-text">あなたの結果を送信しました。他のプレイヤーの終了を待っています。</p>
+
+      <div id="online-battle-waiting-host-disconnect-notice" class="battle-warning-box" hidden>
+        ホストが切断中です。ホストが戻ると結果が確定します。
+      </div>
+      <div id="online-battle-waiting-submit-error" class="battle-warning-box" hidden>
+        結果の送信に失敗しました。通信環境をご確認のうえ、もう一度お試しください。
+        <button id="online-battle-waiting-retry-button" class="secondary-button" type="button" style="margin-top:8px;">結果を再送する</button>
+      </div>
+
+      <ul class="online-lobby-player-list" id="online-battle-waiting-player-list"></ul>
+
+      <!-- ホスト専用：未完了者がいても結果を締め切るボタン（DNF確定）。
+           少なくともホスト自身が終了した後にだけ表示する（本人の要望）。 -->
+      <button id="online-battle-waiting-finalize-button" class="secondary-button" type="button" hidden>結果を確定する</button>
+    </section>
+
+    <!-- ホストの「結果を確定する」ボタン用の確認モーダル。誤操作で未完了者をすぐDNF確定
+         してしまわないよう、必ずワンクッション挟む（本人の要望）。 -->
+    <div id="online-battle-waiting-finalize-confirm-modal" class="modal-overlay" hidden>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="online-battle-waiting-finalize-confirm-title">
+        <h2 id="online-battle-waiting-finalize-confirm-title">結果を確定しますか？</h2>
+        <p class="modal-lead">まだ終わっていない参加者は、今回の対戦では未完了（DNF）として結果に表示されます。この操作は取り消せません。</p>
+        <div class="button-row">
+          <button id="online-battle-waiting-finalize-cancel-button" class="secondary-button" type="button">キャンセル</button>
+          <button id="online-battle-waiting-finalize-confirm-button" class="danger-button" type="button">確定する</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- オンライン対戦：結果画面（Step3）。全員終了（またはホストのDNF確定）でstatusがresultに
+         なると、待機画面から自動的にここへ進む。順位判定はjs/battleModes/配下のcompareResults()を
+         そのまま使う（オフライン対戦と同じ考え方）。結果を送らなかった参加者はDNFとして
+         最下位グループに表示する。 -->
+    <section id="online-battle-result-screen" class="screen">
+      <div class="title-block"><h2>対戦結果</h2></div>
+      <p style="text-align:center;font-size:0.75rem;opacity:0.65;" id="online-battle-result-config-summary"></p>
+      <ul class="battle-rank-list" id="online-battle-result-list"></ul>
+      <p style="text-align:center;font-size:0.7rem;opacity:0.6;" id="online-battle-result-rule-note"></p>
+      <button id="online-battle-result-back-button" class="primary-button" type="button">ロビーに戻る</button>
     </section>
 
     <!-- オリジナル問題作成モードのプリセット一覧画面：保存済みのセット（名前・メモ・曲数・

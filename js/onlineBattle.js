@@ -1,11 +1,21 @@
 // オンライン対戦（Firebase Realtime Database）のルーム管理を担当するデータ層。
 // Step1：ルーム作成・参加・参加者一覧のリアルタイム監視・退出・切断検知・再接続。
 // Step2：対戦モード切り替え・対戦設定の同期・準備完了・サーバー時刻を使ったカウントダウン開始。
+// Step3：実際の出題進行・進捗共有・結果送信・全員終了判定・ホストによる結果確定。
 //
 // 【設計方針：roomId中心のデータ構造、gameModeで拡張】Realtime Database上のデータは
 // rooms/{roomId}/{version, host, createdAt, maxPlayers, status, gameMode, settings,
-//                  settingsRevision, seed, countdownStartedAt, players, results}
-// という形にしている。resultsはStep3で使う項目のため、Step2ではまだ書き込まない（空のまま）。
+//                  settingsRevision, seed, countdownStartedAt, activeMatchId, players,
+//                  matches/{matchId}/{participants, progress, results}}
+// という形にしている。
+//
+// 【Step3：matchIdによる試合単位の分離】同じルームで何度も対戦できるようにするため、
+// 進捗（progress）・結果（results）は「今の試合（activeMatchId）」ごとに完全に分けた場所へ
+// 保存する。過去の試合（別のmatchId）への書き込みは、コード側の確認（submitAnswerProgress等の
+// activeMatchIdチェック）とFirebaseセキュリティルールの両方で拒否される。matches/{matchId}/
+// participantsは、その試合の開始時点（startBattle実行時）のplayers一覧を固定したスナップショット
+// （displayName・oshiMemberId・isHost）で、対戦中に参加者が退出・切断してもplayersからは
+// 消えるが、participantsには残るため、結果画面等で名前・推しカラーを表示し続けられる。
 //
 // gameMode（"timeAttack"等）ごとの出題・結果ロジックは、このファイルからは一切参照せず、
 // js/battleModes/配下のアダプター（js/battleModes/index.js経由）に委ねている。
@@ -90,6 +100,19 @@ async function generateUniqueRoomId() {
     if (!snapshot.exists()) return candidate;
   }
   throw new Error("ルームコードの生成に失敗しました。もう一度お試しください。");
+}
+
+// 試合（1回の対戦）を一意に区別するためのID。ルームコードと違い人に伝える必要が無いので、
+// 短さより「衝突しないこと」を優先し、8文字（32^8 ≈ 1兆通り）にしている。
+// 同じルーム内で作られる試合の数は現実的に数十〜数百止まりのため、重複チェックは行わない
+// （ルームコードのgenerateUniqueRoomId()のような再試行の仕組みは、この規模では過剰と判断）。
+const MATCH_ID_LENGTH = 8;
+function generateMatchId() {
+  let id = "";
+  for (let i = 0; i < MATCH_ID_LENGTH; i++) {
+    id += BASE32_ALPHABET[Math.floor(Math.random() * BASE32_ALPHABET.length)];
+  }
+  return id;
 }
 
 // 【接続状態の自己修復（プレゼンス管理）】実機検証で発見：onDisconnect()の予約は
@@ -428,7 +451,19 @@ export async function setReady({ roomId, ready }) {
 // 各端末は、これに固定長のCOUNTDOWN_DURATION_MSを足した時刻を「開始予定時刻」として
 // 使い、.info/serverTimeOffsetで自分の時計とサーバー時計のズレを補正してから
 // カウントダウン表示・開始判定を行う（js/onlineBattleScreen.js側の実装）。
-// ホスト以外が呼んだ場合、または全員の準備が整っていない場合はreason付きで失敗を返す。
+//
+// 【Step3・matchId】同じルームで何度も対戦できるようにするため、進捗（progress）・結果（results）を
+// 「今回の試合」単位で完全に分離する。ここで新しいmatchIdを発行し、その瞬間のplayers一覧から
+// 「参加者スナップショット」（displayName・oshiMemberId・isHost）を作って、settings・seed・
+// status・countdownStartedAtと同じ1回のupdate()でまとめて確定させる。これにより、他端末が
+// status:countdownを検知した時点で、activeMatchId・参加者スナップショットも必ず揃っている
+// （本人と合意済みの設計、2026-08-08）。各参加者自身の進捗（progress）はここでは作らない。
+// 「本人だけが自分のprogressを書ける」というセキュリティルールと両立させるため、各端末が
+// activeMatchIdの変化を検知した時点で、自分の分だけを自分で初期化する
+// （initializeMyMatchProgress()参照）。
+//
+// ホスト以外が呼んだ場合、全員の準備が整っていない場合、ルームが対戦開始できる状態
+// （status: waiting）でない場合は、reason付きで失敗を返す。
 export async function startBattle({ roomId, settings }) {
   await authReady;
   const uid = getCurrentUid();
@@ -438,6 +473,7 @@ export async function startBattle({ roomId, settings }) {
   if (!snapshot.exists()) return { ok: false, reason: "not-found" };
   const room = snapshot.val();
   if (room.host !== uid) return { ok: false, reason: "not-host" };
+  if (room.status !== ROOM_STATUS.WAITING) return { ok: false, reason: "not-waiting" };
 
   const errorMessage = validateRoomSettings(room.gameMode, settings);
   if (errorMessage) return { ok: false, reason: "invalid-settings", message: errorMessage };
@@ -456,14 +492,23 @@ export async function startBattle({ roomId, settings }) {
   }
 
   const seed = generateRandomSeed(ONLINE_SEED_BITS);
+  const matchId = generateMatchId();
   const updates = {
     [`rooms/${roomId}/settings`]: settings,
     [`rooms/${roomId}/seed`]: seed,
     [`rooms/${roomId}/status`]: ROOM_STATUS.COUNTDOWN,
     [`rooms/${roomId}/countdownStartedAt`]: serverTimestamp(),
+    [`rooms/${roomId}/activeMatchId`]: matchId,
   };
+  Object.entries(players).forEach(([playerUid, player]) => {
+    updates[`rooms/${roomId}/matches/${matchId}/participants/${playerUid}`] = {
+      displayName: player.name,
+      isHost: playerUid === uid,
+      oshiMemberId: player.oshiMemberId ?? null, // nullなら未設定（Firebase上ではキー自体が作られない）
+    };
+  });
   await update(ref(database), updates);
-  return { ok: true, seed };
+  return { ok: true, seed, matchId };
 }
 
 // カウントダウンが終わったタイミングで、ホストの端末だけが呼ぶ。statusをplayingに進める。
@@ -511,6 +556,159 @@ export async function finishCountdown({ roomId }) {
     }
   }
   return { ok: false, reason: "write-failed" };
+}
+
+// ===== 公開API：Step3（試合の進捗・結果・確定）=====
+//
+// 【設計方針：各自のペースで進む】対戦中は1問ごとの同期待ちを一切行わない。各端末は
+// 独立してクイズを進め、Firebaseへは「進捗の報告」だけを一方向に送る。他プレイヤーの
+// 回答を待って自分の画面が止まる、ということは起きない。
+
+// 自分の進捗（matches/{matchId}/progress/{uid}）がまだ無ければ、0問・未完了で作成する。
+// 既に存在する場合は何もしない（再接続時に0へ巻き戻さないため）。ホストが対戦開始時に
+// 全員分をまとめて作るのではなく、各端末が自分の分だけを自分で作る設計にしている
+// （セキュリティルール上、progressは本人しか書き込めないため）。
+export async function initializeMyMatchProgress({ roomId, matchId }) {
+  await authReady;
+  const uid = getCurrentUid();
+  if (!uid) return { ok: false, reason: "not-signed-in" };
+
+  const progressRef = ref(database, `rooms/${roomId}/matches/${matchId}/progress/${uid}`);
+  try {
+    const snapshot = await get(progressRef);
+    if (snapshot.exists()) return { ok: true };
+    await set(progressRef, { answeredCount: 0, finished: false, updatedAt: serverTimestamp() });
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, reason: "write-failed" };
+  }
+}
+
+// 1問終える（正解して次へ進む、またはハードルールで1回answeredした）たびに呼ぶ。
+// answeredCountは「ここまでに完了した問題数」の絶対値（Firebase上の値を読んで+1する方式では
+// ない）。呼び出し元でイベントが二重発火したり、通信失敗後にリトライしても、
+// 同じ値を再送するだけになるため安全（冪等）。
+//
+// 【逆戻り防止】一時的な再接続・通信の遅延で、古い（小さい）answeredCountが後から遅れて
+// 届いても、進捗表示が逆戻りしないよう、現在値より大きい場合だけ実際に書き込む
+// （finishCountdown()と同じ「読む→確認する→書く」方式。単一の書き手＝本人しかいない場面
+// なので、runTransaction()は使わずシンプルな方式で十分安全）。
+// また、activeMatchIdが今の試合と一致しているかも送信前に確認し、古い試合の書き込みが
+// 混ざらないようにする（Firebaseセキュリティルール側にも同じ制約を入れている、二重の安全策）。
+export async function submitAnswerProgress({ roomId, matchId, answeredCount }) {
+  await authReady;
+  const uid = getCurrentUid();
+  if (!uid) return { ok: false, reason: "not-signed-in" };
+
+  const [activeMatchSnapshot, currentSnapshot] = await Promise.all([
+    get(ref(database, `rooms/${roomId}/activeMatchId`)),
+    get(ref(database, `rooms/${roomId}/matches/${matchId}/progress/${uid}/answeredCount`)),
+  ]);
+  if (activeMatchSnapshot.val() !== matchId) {
+    return { ok: false, reason: "stale-match" };
+  }
+  const currentValue = currentSnapshot.val() ?? 0;
+  if (answeredCount <= currentValue) {
+    return { ok: true }; // 既に同じか新しい値が反映済み（逆戻り防止）
+  }
+
+  try {
+    await update(ref(database), {
+      [`rooms/${roomId}/matches/${matchId}/progress/${uid}/answeredCount`]: answeredCount,
+      [`rooms/${roomId}/matches/${matchId}/progress/${uid}/updatedAt`]: serverTimestamp(),
+    });
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, reason: "write-failed" };
+  }
+}
+
+// 全問終了、またはLOVE連チャンで脱落が確定したときに呼ぶ。自分の結果（js/battleModes/配下の
+// createResult()の戻り値）をmatches/{matchId}/results/{uid}へ送信し、成功したら
+// progress.finished をtrueにする（この順序が重要：ホストは「全員finished」を見て結果確定を
+// 判断するため、finishedがtrueになる前に必ずresultsが保存済みである状態を保証したい）。
+//
+// 【送信失敗時の冪等な復旧】通信の一時的な不調でset()自体が失敗しても、実際にはサーバー側で
+// 保存に成功していることがある（resultsは初回作成のみ許可というルールのため、既に存在すれば
+// 「送信済み」とみなせる）。失敗のたびに存在確認を挟みながら、間隔を空けて最大3回まで試行する
+// （finishCountdown()と同じ考え方）。
+export async function finishMyMatch({ roomId, matchId, result, answeredCount }) {
+  await authReady;
+  const uid = getCurrentUid();
+  if (!uid) return { ok: false, reason: "not-signed-in" };
+
+  const resultRef = ref(database, `rooms/${roomId}/matches/${matchId}/results/${uid}`);
+  const MAX_ATTEMPTS = 3;
+  let resultSaved = false;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS && !resultSaved; attempt++) {
+    try {
+      await set(resultRef, result);
+      resultSaved = true;
+    } catch (error) {
+      try {
+        const snapshot = await get(resultRef);
+        resultSaved = snapshot.exists();
+      } catch (checkError) {
+        resultSaved = false;
+      }
+      if (!resultSaved && attempt < MAX_ATTEMPTS) {
+        await new Promise((resolve) => setTimeout(resolve, 300 * attempt));
+      }
+    }
+  }
+  if (!resultSaved) {
+    return { ok: false, reason: "result-write-failed" };
+  }
+
+  try {
+    await update(ref(database), {
+      [`rooms/${roomId}/matches/${matchId}/progress/${uid}/answeredCount`]: answeredCount,
+      [`rooms/${roomId}/matches/${matchId}/progress/${uid}/finished`]: true,
+      [`rooms/${roomId}/matches/${matchId}/progress/${uid}/updatedAt`]: serverTimestamp(),
+    });
+  } catch (error) {
+    return { ok: false, reason: "finished-flag-write-failed" };
+  }
+  return { ok: true };
+}
+
+// ホストが呼ぶ。固定参加者（matches/{matchId}/participants）全員のprogress.finishedが
+// そろっていれば、statusをresultへ進める。force:trueを指定すると、そろっていなくても
+// 強制的に進める（未完了者はDNF扱いになる＝結果画面でresultsが無い人として表示される）。
+// 何度呼んでも安全（冪等）：既にresultなら成功扱いで即終了、playing以外なら失敗を返す。
+//
+// 【呼ばれるタイミング】①待機画面に入るたび（初回表示・再接続どちらも）自動判定として、
+// force:falseで呼ばれる。②ホストが「結果を確定する」ボタンを押したとき、force:trueで呼ばれる。
+// どちらも同じ関数を使うことで、判定ロジックを2重に持たないようにしている。
+export async function finalizeMatchIfReady({ roomId, matchId, force = false }) {
+  await authReady;
+  const uid = getCurrentUid();
+  if (!uid) return { ok: false, reason: "not-signed-in" };
+
+  const snapshot = await get(ref(database, `rooms/${roomId}`));
+  if (!snapshot.exists()) return { ok: false, reason: "not-found" };
+  const room = snapshot.val();
+  if (room.host !== uid) return { ok: false, reason: "not-host" };
+  if (room.activeMatchId !== matchId) return { ok: false, reason: "stale-match" };
+  if (room.status === ROOM_STATUS.RESULT) return { ok: true, finalized: true };
+  if (room.status !== ROOM_STATUS.PLAYING) return { ok: false, reason: "not-playing" };
+
+  const match = (room.matches || {})[matchId] || {};
+  const participantUids = Object.keys(match.participants || {});
+  const progress = match.progress || {};
+  const allFinished =
+    participantUids.length > 0 && participantUids.every((participantUid) => progress[participantUid]?.finished === true);
+
+  if (!allFinished && !force) {
+    return { ok: true, finalized: false };
+  }
+
+  try {
+    await update(ref(database), { [`rooms/${roomId}/status`]: ROOM_STATUS.RESULT });
+  } catch (error) {
+    return { ok: false, reason: "write-failed" };
+  }
+  return { ok: true, finalized: true };
 }
 
 // クライアントの時計とFirebaseサーバーの時計のズレ（ミリ秒）を継続的に教えてくれる

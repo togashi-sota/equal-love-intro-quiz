@@ -147,6 +147,23 @@ export function startLocalBattleQuiz(questions, questionCountValue, categoryFilt
   gameState.isAnswered = false;
 }
 
+// オンライン対戦（Firebase）のクイズを開始する。startLocalBattleQuiz()と全く同じパターンで、
+// playModeだけ"onlineBattle"にする（Step3新設）。実行中の記録もローカル対戦と同じく
+// js/timeAttackScreen.jsのモジュール内変数で完結させ、進捗・結果の送信はjs/onlineBattleScreen.js
+// （js/onlineBattle.js経由）が別途Firebaseへ行う。
+export function startOnlineBattleQuiz(questions, questionCountValue, categoryFilterValue) {
+  gameState.questions = questions;
+  gameState.currentIndex = 0;
+  gameState.score = 0;
+  gameState.answerLog = [];
+  gameState.screen = "quiz";
+  gameState.playMode = "onlineBattle";
+  gameState.specialModeId = null;
+  gameState.questionCountValue = questionCountValue;
+  gameState.categoryFilterValue = categoryFilterValue;
+  gameState.isAnswered = false;
+}
+
 // 今出題中の問題（{ song, choices }）を取得する。
 export function getCurrentQuestion() {
   return gameState.questions[gameState.currentIndex];

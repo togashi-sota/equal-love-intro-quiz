@@ -11,6 +11,7 @@ import {
   startSpecialQuiz,
   startTimeAttackQuiz,
   startLocalBattleQuiz,
+  startOnlineBattleQuiz,
   getCurrentQuestion,
   recordAnswer,
   advanceToNextQuestion,
@@ -84,7 +85,13 @@ import {
 } from "./timeAttackHistoryDetailScreen.js";
 import { buildBattleQuestions } from "./localBattle.js";
 import { initLocalBattleScreens, getCurrentBattleSession } from "./localBattleScreen.js";
-import { initOnlineBattleScreens } from "./onlineBattleScreen.js";
+import {
+  initOnlineBattleScreens,
+  finishOnlineBattleMatch,
+  reportOnlineBattleProgress,
+  quitOnlineBattleDuringQuiz,
+} from "./onlineBattleScreen.js";
+import { calculateBattleResult } from "./battleModes/index.js";
 import { initLocalBattleResultScreens, startBattleResultCollection } from "./localBattleResultScreen.js";
 import {
   initCustomQuizScreen,
@@ -446,10 +453,20 @@ const onlineBattleLobbyStartButtonElement = document.getElementById("online-batt
 const onlineBattleLobbyStartHintElement = document.getElementById("online-battle-lobby-start-hint");
 const onlineBattleLobbyStartErrorElement = document.getElementById("online-battle-lobby-start-error");
 const onlineBattleCountdownNumberElement = document.getElementById("online-battle-countdown-number");
-const onlineBattleStartedConfigSummaryElement = document.getElementById("online-battle-started-config-summary");
-const onlineBattleStartedSeedElement = document.getElementById("online-battle-started-seed");
-const onlineBattleStartedQuestionListElement = document.getElementById("online-battle-started-question-list");
-const onlineBattleStartedBackButtonElement = document.getElementById("online-battle-started-back-button");
+const onlineBattleQuizProgressStripElement = document.getElementById("online-battle-quiz-progress-strip");
+const onlineBattleWaitingLeadTextElement = document.getElementById("online-battle-waiting-lead-text");
+const onlineBattleWaitingHostDisconnectNoticeElement = document.getElementById("online-battle-waiting-host-disconnect-notice");
+const onlineBattleWaitingSubmitErrorElement = document.getElementById("online-battle-waiting-submit-error");
+const onlineBattleWaitingRetryButtonElement = document.getElementById("online-battle-waiting-retry-button");
+const onlineBattleWaitingPlayerListElement = document.getElementById("online-battle-waiting-player-list");
+const onlineBattleWaitingFinalizeButtonElement = document.getElementById("online-battle-waiting-finalize-button");
+const onlineBattleWaitingFinalizeConfirmModalElement = document.getElementById("online-battle-waiting-finalize-confirm-modal");
+const onlineBattleWaitingFinalizeCancelButtonElement = document.getElementById("online-battle-waiting-finalize-cancel-button");
+const onlineBattleWaitingFinalizeConfirmButtonElement = document.getElementById("online-battle-waiting-finalize-confirm-button");
+const onlineBattleResultConfigSummaryElement = document.getElementById("online-battle-result-config-summary");
+const onlineBattleResultListElement = document.getElementById("online-battle-result-list");
+const onlineBattleResultRuleNoteElement = document.getElementById("online-battle-result-rule-note");
+const onlineBattleResultBackButtonElement = document.getElementById("online-battle-result-back-button");
 
 const customQuizBackButtonElement = document.getElementById("custom-quiz-back-button");
 const customQuizPresetsBackButtonElement = document.getElementById("custom-quiz-presets-back-button");
@@ -1432,6 +1449,10 @@ function handleChoiceClick(selectedChoice) {
     handleBattleChoiceClick(selectedChoice);
     return;
   }
+  if (gameState.playMode === "onlineBattle") {
+    handleOnlineBattleChoiceClick(selectedChoice);
+    return;
+  }
 
   // 他の操作とほぼ同時に起きても二重に処理しないためのガード。
   if (gameState.isAnswered) return;
@@ -1519,6 +1540,7 @@ function updateQuizQuitDisplay() {
   const isSpecial = gameState.playMode === "special";
   const isTimeAttack = gameState.playMode === "timeAttack";
   const isLocalBattle = gameState.playMode === "localBattle";
+  const isOnlineBattle = gameState.playMode === "onlineBattle";
   const display = isSpecial ? SPECIAL_MODES_DISPLAY[gameState.specialModeId] : null;
 
   if (isTimeAttack) {
@@ -1534,6 +1556,15 @@ function updateQuizQuitDisplay() {
     // 対戦モードは中断すると、その対戦自体を諦めることになる（対戦コードを作り直す必要がある）。
     quizBackButtonLabelElement.textContent = "対戦をやめる";
     quizQuitConfirmTitleElement.textContent = "対戦を中断してホームに戻りますか？（この対戦の結果コードは作られません）";
+    quizQuitConfirmButtonElement.textContent = "対戦をやめる";
+    return;
+  }
+
+  if (isOnlineBattle) {
+    // オンライン対戦も中断すると結果を送信しない（ローカル対戦と同じ考え方）。
+    // ルームからは退出するが、他の参加者はそのまま対戦を続けられる。
+    quizBackButtonLabelElement.textContent = "対戦をやめる";
+    quizQuitConfirmTitleElement.textContent = "対戦を中断してルームを退出しますか？（あなたの結果は送信されません）";
     quizQuitConfirmButtonElement.textContent = "対戦をやめる";
     return;
   }
@@ -1568,7 +1599,10 @@ function renderQuestion() {
   nextButtonElement.hidden = true;
   // タイムアタック・対戦モードは「正解！次へ」の一時停止を挟まないテンポ重視の進め方のため、
   // スキップ・答えを見るボタンは表示しない（正解するか、ハードルールで間違えるまで進めない）。
-  const isTimedMode = gameState.playMode === "timeAttack" || gameState.playMode === "localBattle";
+  const isTimedMode =
+    gameState.playMode === "timeAttack" ||
+    gameState.playMode === "localBattle" ||
+    gameState.playMode === "onlineBattle";
   skipButtonElement.hidden = isTimedMode;
   revealButtonElement.hidden = isTimedMode;
   audioErrorElement.hidden = true;
@@ -1921,6 +1955,7 @@ quizQuitConfirmButtonElement.addEventListener("click", () => {
   const isSpecial = gameState.playMode === "special";
   const isTimeAttack = gameState.playMode === "timeAttack";
   const isLocalBattle = gameState.playMode === "localBattle";
+  const isOnlineBattle = gameState.playMode === "onlineBattle";
   const onQuizBack = isSpecial ? SPECIAL_MODES_DISPLAY[gameState.specialModeId]?.onQuizBack : null;
   // タイムアタック・対戦モードの正解/不正解演出のあと、自動で次へ進む予約（setTimeout）が
   // 残っていると、この画面を離れた後にタイマーが発火して勝手に次の問題や結果画面へ飛ばされて
@@ -1936,6 +1971,13 @@ quizQuitConfirmButtonElement.addEventListener("click", () => {
     // 対戦モードも結果コードを経由しないため、対戦結果としては一切残らない
     // （この対戦コード自体を使い直すことはできず、やり直すには新しく対戦を作る必要がある）。
     showScreen("battleModeSelect");
+  } else if (isOnlineBattle) {
+    // オンライン対戦も結果は一切送信しない。ルームから退出する後片付けは
+    // js/onlineBattleScreen.js側（quitOnlineBattleDuringQuiz）に任せ、ここでは画面遷移だけ行う
+    // （他のモードと同じく、main.js側でplayClickSound()を既に呼んでいるため、
+    // elements.navigateTo経由にはせず直接showScreen()する）。
+    quitOnlineBattleDuringQuiz();
+    showScreen("onlineBattleEntry");
   } else if (onQuizBack) {
     onQuizBack();
   } else {
@@ -2402,10 +2444,23 @@ initOnlineBattleScreens({
   lobbyStartHint: onlineBattleLobbyStartHintElement,
   lobbyStartError: onlineBattleLobbyStartErrorElement,
   countdownNumber: onlineBattleCountdownNumberElement,
-  startedConfigSummary: onlineBattleStartedConfigSummaryElement,
-  startedSeed: onlineBattleStartedSeedElement,
-  startedQuestionList: onlineBattleStartedQuestionListElement,
-  startedBackButton: onlineBattleStartedBackButtonElement,
+  quizProgressStrip: onlineBattleQuizProgressStripElement,
+  waitingLeadText: onlineBattleWaitingLeadTextElement,
+  waitingHostDisconnectNotice: onlineBattleWaitingHostDisconnectNoticeElement,
+  waitingSubmitError: onlineBattleWaitingSubmitErrorElement,
+  waitingRetryButton: onlineBattleWaitingRetryButtonElement,
+  waitingPlayerList: onlineBattleWaitingPlayerListElement,
+  waitingFinalizeButton: onlineBattleWaitingFinalizeButtonElement,
+  waitingFinalizeConfirmModal: onlineBattleWaitingFinalizeConfirmModalElement,
+  waitingFinalizeCancelButton: onlineBattleWaitingFinalizeCancelButtonElement,
+  waitingFinalizeConfirmButton: onlineBattleWaitingFinalizeConfirmButtonElement,
+  resultConfigSummary: onlineBattleResultConfigSummaryElement,
+  resultList: onlineBattleResultListElement,
+  resultRuleNote: onlineBattleResultRuleNoteElement,
+  resultBackButton: onlineBattleResultBackButtonElement,
+  onStartOnlineBattleQuiz: (questions, room) => {
+    beginOnlineBattlePlay(questions, room);
+  },
 });
 
 // 対戦コードの設定から、実際にクイズを組み立てて開始する。既存のbeginTimeAttackQuiz()と
@@ -2438,6 +2493,64 @@ function finishBattlePlay() {
   const stats = getCurrentTimeAttackStats();
   startBattleResultCollection(stats);
   showScreen("battleResultCollect");
+}
+
+// ===== オンライン対戦（Firebase）Step3：実際の出題進行 =====
+// 出題・回答の進め方自体は、ローカル対戦・タイムアタックと完全に共通（handleTimedChoiceClick）。
+// 違うのは、進捗・結果をFirebase（js/onlineBattle.js経由）へ送る点と、行き先が
+// オンライン対戦専用の待機画面・結果画面になる点だけ。
+
+let onlineBattleGameMode = null; // 今の試合のgameMode（結果オブジェクトの組み立てに使うためだけ）
+
+// js/onlineBattleScreen.jsが、開始確認（status:playing検知）のタイミングで呼ぶ。
+// questionsは同じseed・settingsからjs/battleModes/index.js経由で組み立て済みのもの。
+function beginOnlineBattlePlay(questions, room) {
+  onlineBattleGameMode = room.gameMode;
+  startTimeAttackRun(room.settings.rule, room.settings.questionCountValue, room.settings.categoryFilterValue);
+  startOnlineBattleQuiz(questions, room.settings.questionCountValue, room.settings.categoryFilterValue);
+  renderQuestion();
+  showScreen("quiz");
+}
+
+function handleOnlineBattleChoiceClick(selectedChoice) {
+  handleTimedChoiceClick(selectedChoice, {
+    onAdvance: goToNextOnlineBattleQuestionOrFinish,
+    onRunEnd: finishOnlineBattlePlay,
+  });
+}
+
+// 1問終える（正解して次へ進む、またはハードルールで1回answeredした）たびに呼ばれる。
+// 今の問題（currentIndex）が完了した、という進捗をFirebaseへ一方向に報告してから、
+// 次の問題があれば進み、無ければ結果送信へ進む。
+// 【本人の要望どおりの基準】ノーマルの不正解選び直し（handleTimedChoiceClick内でisAnswered
+// をtrueにせず即return する分岐）ではこの関数自体が呼ばれないため、answeredCountは
+// 増えない。正解して次へ進んだ時点、またはハードで1回answeredした時点（正解・不正解を
+// 問わず、この関数を必ず通る）でだけ増える。
+function goToNextOnlineBattleQuestionOrFinish() {
+  reportOnlineBattleProgress(gameState.currentIndex + 1);
+  const hasMoreQuestions = advanceToNextQuestion();
+  if (hasMoreQuestions) {
+    renderQuestion();
+    return;
+  }
+  finishOnlineBattlePlay();
+}
+
+// 全問終了、またはLOVE連チャンで脱落が確定したときに呼ばれる。自分の結果
+// （js/battleModes/配下のcreateResult()の戻り値）を組み立て、js/onlineBattleScreen.js
+// （Firebaseへの送信・待機画面への遷移）に渡す。タイムアタック・ローカル対戦と違い、
+// 自己ベスト・プレイ履歴への保存は一切行わない（対戦の記録はFirebase上のresultsだけで完結する）。
+function finishOnlineBattlePlay() {
+  const stats = getCurrentTimeAttackStats();
+  const reachedQuestionNumber = stats.perQuestionResults.length;
+  const result = calculateBattleResult(onlineBattleGameMode, {
+    correctCount: stats.correctCount,
+    missCount: stats.missCount,
+    totalElapsedMs: stats.totalElapsedMs,
+    completed: !stats.runFailed,
+    reachedQuestionNumber,
+  });
+  finishOnlineBattleMatch(result, reachedQuestionNumber);
 }
 
 // カテゴリの選択肢に添える対象曲数は、ゲームの状態と関係なく最初に1回だけ計算すればよい。

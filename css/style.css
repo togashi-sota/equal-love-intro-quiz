@@ -8182,21 +8182,6 @@ fieldset label:has(input:focus-visible) {
   margin: 8px 0 0;
 }
 
-.online-battle-started-question-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin: 8px 0 20px;
-  padding-left: 1.4em;
-  font-size: 0.82rem;
-  max-height: 50vh;
-  overflow-y: auto;
-}
-
-.online-battle-started-question-list li {
-  overflow-wrap: anywhere;
-}
-
 .online-battle-countdown-wrap {
   display: flex;
   flex-direction: column;
@@ -8222,6 +8207,32 @@ fieldset label:has(input:focus-visible) {
   0% { transform: scale(0.85); opacity: 0.6; }
   30% { transform: scale(1.05); opacity: 1; }
   100% { transform: scale(1); opacity: 1; }
+}
+
+/* ===== オンライン対戦Step3：クイズ中の簡易進捗・待機画面・結果画面 ===== */
+
+/* クイズ画面の隅に小さく出す、他プレイヤーの進捗（回答数／完了・切断状態だけ）。
+   正解数・ミス数・経過時間・暫定順位は出さない（本人の要望）。 */
+.online-battle-quiz-progress-strip {
+  font-size: 0.68rem;
+  line-height: 1.5;
+  opacity: 0.65;
+  text-align: center;
+  margin: 2px 0 8px;
+  overflow-wrap: anywhere;
+}
+
+/* 待機画面の参加者一覧は、ロビーの参加者一覧（.online-lobby-player-*）と同じ見た目を再利用しつつ、
+   「進捗中」バッジだけ、既存のconnected/disconnectedのどちらでもない中立な色を新設する。 */
+.online-lobby-badge-progress {
+  background: var(--color-surface-glass);
+  color: var(--color-primary-dark);
+  border: 1px solid var(--color-card-border);
+}
+
+/* 結果を送信できなかった参加者（DNF）の行は、少し控えめな見た目にする。 */
+.battle-rank-row.is-dnf {
+  opacity: 0.55;
 }
 
 /* ===== アクセシビリティ：モーションを減らす設定への対応 =====

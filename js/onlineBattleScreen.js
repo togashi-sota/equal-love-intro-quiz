@@ -26,12 +26,17 @@ import {
   startBattle,
   finishCountdown,
   subscribeServerTimeOffset,
+  initializeMyMatchProgress,
+  submitAnswerProgress,
+  finishMyMatch,
+  finalizeMatchIfReady,
   COUNTDOWN_DURATION_MS,
   ROOM_STATUS,
 } from "./onlineBattle.js";
 import { getCurrentUid } from "./firebaseClient.js";
-import { validateRoomSettings, buildQuestionsForMode } from "./battleModes/index.js";
+import { validateRoomSettings, buildQuestionsForMode, compareBattleResults, getRuleDescription } from "./battleModes/index.js";
 import { QUESTION_COUNT_LABELS, CATEGORY_LABELS, RULE_LABELS } from "./localBattleScreen.js";
+import { computeNormalFinalRecordMs } from "./localBattleResult.js";
 import { MEMBERS } from "./data/members.js";
 import { getMemberById } from "./memberUtils.js";
 
@@ -47,6 +52,25 @@ let countdownTimerId = null; // カウントダウン表示の更新タイマー
 let countdownOffsetUnsubscribe = null; // .info/serverTimeOffsetの購読解除
 let hasFinishedCountdownLocally = false; // 自分の端末のカウントダウンが0になったことを表す
 let currentGameMode = null; // 今のルームのgameMode（設定変更ハンドラ等、room引数を持たない箇所から参照する）
+
+// Step3：試合の進行・進捗表示・結果まわりの状態。
+let currentMatchId = null; // 今参加している試合のID（開始〜結果画面まで保持）
+let currentMatchTotalQuestions = 0; // 今の試合の全問題数（進捗表示の分母、buildQuestionsForModeの結果の長さ）
+
+// 推し（最推し）が設定されていれば、色ドットの要素を1つ作って返す。未設定・不正な値
+// （既存のメンバーデータに一致しない等）の場合はnullを返す（エラーにせず何も表示しない）。
+// ロビー・待機画面・結果画面のいずれも同じ見た目のドットを使うため、共通化している。
+function createOshiDotElement(oshiMemberId) {
+  const oshiMember = oshiMemberId ? getMemberById(MEMBERS, oshiMemberId) : null;
+  if (!oshiMember?.memberColor?.hex) return null;
+
+  const dot = document.createElement("span");
+  dot.className = "online-lobby-player-oshi-dot";
+  dot.style.backgroundColor = oshiMember.memberColor.hex;
+  dot.title = `推し：${oshiMember.name}`;
+  dot.setAttribute("aria-label", `推し：${oshiMember.name}`);
+  return dot;
+}
 
 // 今どのルームにいるか（結果画面等、将来のStep2以降から読み取れるようにする窓口）。
 export function getCurrentOnlineRoomId() {
@@ -163,22 +187,27 @@ function updateStartButton(room) {
   }
 }
 
-// 対戦開始（status: playing）を検知したときの画面。同じseed・settingsから
-// js/battleModes/index.js経由で問題順を再現し、全端末で本当に一致するかを
-// 目視確認できるようにする（Step2の到達点。実際の出題画面はStep3で実装する）。
-function goToStartedScreen(room) {
-  renderSettingsChips(elements.startedConfigSummary, room.settings);
-  elements.startedSeed.textContent = String(room.seed);
-
+// 対戦開始（status: playing）を検知したときに呼ぶ（Step3）。同じseed・settingsから
+// js/battleModes/index.js経由で問題順を組み立て、実際にクイズを始める。
+// 出題・回答そのものはjs/main.js（既存のクイズエンジン）が担当するため、ここでは
+// 「今の試合の情報を覚えておく」「自分の進捗を初期化する」「main.js側に開始を依頼する」
+// ところまでを行う。
+function enterOnlineBattlePlay(room) {
+  currentMatchId = room.activeMatchId;
   const questions = buildQuestionsForMode(room.gameMode, room.settings, room.seed);
-  elements.startedQuestionList.innerHTML = "";
-  questions.forEach((question) => {
-    const item = document.createElement("li");
-    item.textContent = question.song.title;
-    elements.startedQuestionList.appendChild(item);
-  });
+  currentMatchTotalQuestions = questions.length;
 
-  elements.navigateTo("onlineBattleStarted");
+  // 自分の進捗（progress）がまだ無ければ作る。再接続時は既存の値を保つため、
+  // 既にあれば何もしない（js/onlineBattle.jsのinitializeMyMatchProgress参照）。
+  // 待ってから開始する必要は無い（Firebase側への書き込みが後追いで完了しても実害が無いため）。
+  initializeMyMatchProgress({ roomId: room.roomId, matchId: currentMatchId });
+
+  if (elements.quizProgressStrip) {
+    elements.quizProgressStrip.hidden = false;
+    elements.quizProgressStrip.textContent = "";
+  }
+
+  elements.onStartOnlineBattleQuiz(questions, room);
 }
 
 // カウントダウン画面へ遷移し、Firebaseサーバーの時刻を基準にした表示更新を開始する。
@@ -224,7 +253,7 @@ function goToCountdownScreen(room) {
         // 「START!」の表示を一瞬でも目に見えるようにしてから次の画面へ進む
         // （即座に画面遷移すると、ブラウザが再描画する前に切り替わってしまい、
         // 「START!」の文字がほぼ見えないまま終わってしまうため）。
-        setTimeout(() => goToStartedScreen(room), 500);
+        setTimeout(() => enterOnlineBattlePlay(room), 500);
       }
       return;
     }
@@ -245,6 +274,9 @@ function renderLobby(room) {
     // （本人からのテスト項目：カウントダウン中にホストが退出しても安全に終了すること）。
     stopCountdownWatching();
     lastHandledRoomStatus = null;
+    currentMatchId = null;
+    currentMatchTotalQuestions = 0;
+    if (elements.quizProgressStrip) elements.quizProgressStrip.hidden = true;
     elements.lobbyGoneNotice.hidden = false;
     elements.lobbyContent.hidden = true;
     elements.navigateTo("onlineBattleLobby");
@@ -275,15 +307,8 @@ function renderLobby(room) {
     // oshiMemberIdが無い、または既存のメンバーデータに一致しない場合（データの不整合・
     // 将来メンバーが削除された場合等）は、エラーにせず何も表示しないだけにする
     // （本人の要望：未設定時は今まで通り何も表示しない、不正な値でも安全に無視する）。
-    const oshiMember = player.oshiMemberId ? getMemberById(MEMBERS, player.oshiMemberId) : null;
-    if (oshiMember?.memberColor?.hex) {
-      const oshiDot = document.createElement("span");
-      oshiDot.className = "online-lobby-player-oshi-dot";
-      oshiDot.style.backgroundColor = oshiMember.memberColor.hex;
-      oshiDot.title = `推し：${oshiMember.name}`;
-      oshiDot.setAttribute("aria-label", `推し：${oshiMember.name}`);
-      row.appendChild(oshiDot);
-    }
+    const oshiDot = createOshiDotElement(player.oshiMemberId);
+    if (oshiDot) row.appendChild(oshiDot);
 
     const name = document.createElement("span");
     name.className = "online-lobby-player-name";
@@ -354,24 +379,335 @@ function renderLobby(room) {
       goToCountdownScreen(room);
     } else if (room.status === ROOM_STATUS.PLAYING && previousStatus !== ROOM_STATUS.COUNTDOWN) {
       // カウントダウンを経由せずplayingを検知した＝出遅れて参加/再接続した端末。
-      // 自分のローカルカウントダウンは持っていないので、直接開始確認画面へ進む。
-      goToStartedScreen(room);
+      // 自分のローカルカウントダウンは持っていないので、直接出題を開始する。
+      enterOnlineBattlePlay(room);
+    } else if (room.status === ROOM_STATUS.RESULT && document.body.dataset.screen !== "quiz") {
+      // 結果確定を検知したら結果画面へ進む。ただし、自分がまだクイズ回答中（quiz画面）の
+      // ときは絶対に割り込まない（本人の要望：各自が自分のペースで最後まで進められること。
+      // 自分が終わった後は待機画面のupdateOnlineBattlePlayUi()側でも同じ検知を行っており、
+      // ここは主に「結果確定後に新しく再接続した」場合の受け皿になる）。
+      goToResultScreen(room);
     }
   }
+
+  updateOnlineBattlePlayUi(room);
 }
 
 function goToLobby(roomId) {
   currentRoomId = roomId;
   currentGameMode = null;
+  currentMatchId = null;
+  currentMatchTotalQuestions = 0;
   lastHandledRoomStatus = null;
   suppressNextReadyChangeNotice = false;
   lastKnownMyReady = null;
   stopCountdownWatching();
   elements.lobbySettingsChangedNotice.hidden = true;
   elements.lobbyStartError.hidden = true;
+  if (elements.quizProgressStrip) elements.quizProgressStrip.hidden = true;
   stopListeningToRoom();
   unsubscribeRoom = listenToRoom(roomId, renderLobby);
   elements.navigateTo("onlineBattleLobby");
+}
+
+// ===== Step3：試合中の進捗表示・待機画面・結果画面 =====
+
+// 今の試合の固定参加者（participants）を軸に、進捗（progress）・接続状態（players）を
+// 1人ずつまとめた配列を作る。参加者が対戦中に退出・切断しても、参加者一覧の元になる
+// participantsは対戦開始時点のスナップショットのまま残るため、表示が消えることはない。
+function getOnlineBattleMatchRows(room) {
+  const match = (room.matches || {})[currentMatchId] || {};
+  const participants = match.participants || {};
+  const progress = match.progress || {};
+  const players = room.players || {};
+
+  return Object.entries(participants).map(([uid, participant]) => {
+    const playerProgress = progress[uid] || {};
+    const livePlayer = players[uid]; // 退出済みならundefined
+    return {
+      uid,
+      displayName: participant.displayName,
+      oshiMemberId: participant.oshiMemberId,
+      isHost: participant.isHost === true,
+      answeredCount: playerProgress.answeredCount ?? 0,
+      finished: playerProgress.finished === true,
+      hasLeft: !livePlayer,
+      connected: Boolean(livePlayer?.connected),
+    };
+  });
+}
+
+// クイズ画面の隅に出す、他プレイヤーの簡易進捗（自分は含めない）。
+// 正解数・ミス数・経過時間・暫定順位は一切出さず、「回答数／全問」と完了・切断・退出状態だけ。
+function renderOnlineBattleQuizStrip(rows, myUid) {
+  if (!elements.quizProgressStrip) return;
+  const text = rows
+    .filter((row) => row.uid !== myUid)
+    .map((row) => {
+      if (row.hasLeft) return `${row.displayName} 退出済み`;
+      if (row.finished) return `${row.displayName} 完了`;
+      const base = `${row.displayName} ${row.answeredCount}/${currentMatchTotalQuestions}`;
+      return row.connected ? base : `${base}（切断中）`;
+    })
+    .join("　");
+  elements.quizProgressStrip.textContent = text;
+}
+
+// 待機画面の参加者一覧・ホスト切断通知・DNF確定ボタンを描画する。
+// ホストの場合、statusがまだplayingであれば、ここで毎回finalizeMatchIfReady()を試みる
+// （全員分のprogress.finishedがそろっていれば自動的にstatus:resultへ進む。冪等なので
+// 何度呼んでも安全。これにより、ホストが待機画面を開くたび＝初回表示・再接続どちらでも、
+// 自動的に再判定される）。
+function renderOnlineBattleWaitingList(room, rows, myUid) {
+  elements.waitingPlayerList.innerHTML = "";
+  rows.forEach((row) => {
+    const li = document.createElement("li");
+    li.className = "online-lobby-player-row";
+    if (row.uid === myUid) li.classList.add("is-me");
+
+    const oshiDot = createOshiDotElement(row.oshiMemberId);
+    if (oshiDot) li.appendChild(oshiDot);
+
+    const name = document.createElement("span");
+    name.className = "online-lobby-player-name";
+    name.textContent = row.displayName + (row.uid === myUid ? "（あなた）" : "");
+    li.appendChild(name);
+
+    const badges = document.createElement("span");
+    badges.className = "online-lobby-player-badges";
+
+    if (row.isHost) {
+      const hostBadge = document.createElement("span");
+      hostBadge.className = "online-lobby-badge online-lobby-badge-host";
+      hostBadge.textContent = "ホスト";
+      badges.appendChild(hostBadge);
+    }
+
+    const statusBadge = document.createElement("span");
+    if (row.hasLeft) {
+      statusBadge.className = "online-lobby-badge online-lobby-badge-disconnected";
+      statusBadge.textContent = "退出済み";
+    } else if (row.finished) {
+      statusBadge.className = "online-lobby-badge online-lobby-badge-connected";
+      statusBadge.textContent = "完了";
+    } else {
+      statusBadge.className = "online-lobby-badge online-lobby-badge-progress";
+      statusBadge.textContent = `${row.answeredCount}/${currentMatchTotalQuestions}`;
+    }
+    badges.appendChild(statusBadge);
+
+    if (!row.hasLeft && !row.finished && !row.connected) {
+      const disconnectedBadge = document.createElement("span");
+      disconnectedBadge.className = "online-lobby-badge online-lobby-badge-disconnected";
+      disconnectedBadge.textContent = "切断中";
+      badges.appendChild(disconnectedBadge);
+    }
+
+    li.appendChild(badges);
+    elements.waitingPlayerList.appendChild(li);
+  });
+
+  const isHost = room.host === myUid;
+  const myRow = rows.find((row) => row.uid === myUid);
+  const myFinished = Boolean(myRow?.finished);
+  const allFinished = rows.length > 0 && rows.every((row) => row.finished);
+
+  const hostRow = rows.find((row) => row.isHost);
+  elements.waitingHostDisconnectNotice.hidden = !(hostRow && !hostRow.hasLeft && !hostRow.connected);
+  elements.waitingFinalizeButton.hidden = !(isHost && myFinished && !allFinished);
+
+  if (isHost && room.status === ROOM_STATUS.PLAYING) {
+    finalizeMatchIfReady({ roomId: room.roomId, matchId: currentMatchId, force: false });
+  }
+
+  if (room.status === ROOM_STATUS.RESULT) {
+    goToResultScreen(room);
+  }
+}
+
+// 今どの画面を表示しているかで、進捗表示の更新先を出し分ける（quiz画面の簡易ストリップ、
+// または待機画面の詳細一覧）。currentMatchIdが無い（オンライン対戦の試合中でない）ときは
+// 何もしない。document.body.dataset.screenはjs/screens.jsのshowScreen()が管理している。
+function updateOnlineBattlePlayUi(room) {
+  if (!currentMatchId) return;
+  const rows = getOnlineBattleMatchRows(room);
+  const myUid = getCurrentUid();
+  const currentScreen = document.body.dataset.screen;
+
+  if (currentScreen === "quiz") {
+    renderOnlineBattleQuizStrip(rows, myUid);
+  } else if (currentScreen === "onlineBattleWaiting") {
+    renderOnlineBattleWaitingList(room, rows, myUid);
+  }
+}
+
+// 結果画面を描画する。固定参加者（participants）のうち、結果を送信できた人だけを
+// js/battleModes/index.js経由のcompareBattleResults()で順位付けし、送信できなかった人は
+// DNFとして最下位グループに表示する（オフライン対戦のjs/localBattleResultScreen.jsと
+// 同じ考え方だが、結果の集まり方がFirebase経由の自動集計である点が異なる）。
+function goToResultScreen(room) {
+  const match = (room.matches || {})[currentMatchId] || {};
+  const participants = match.participants || {};
+  const results = match.results || {};
+  const myUid = getCurrentUid();
+
+  renderSettingsChips(elements.resultConfigSummary, room.settings);
+  elements.resultRuleNote.textContent = getRuleDescription(room.gameMode, room.settings);
+
+  const finishers = [];
+  const dnfEntries = [];
+  Object.entries(participants).forEach(([uid, participant]) => {
+    const result = results[uid];
+    if (result) {
+      finishers.push({ uid, participant, result });
+    } else {
+      dnfEntries.push({ uid, participant });
+    }
+  });
+  finishers.sort((a, b) => compareBattleResults(room.gameMode, a.result, b.result, room.settings));
+
+  const medalByRank = { 1: "🥇", 2: "🥈", 3: "🥉" };
+
+  function appendNameRow(container, participant, uid) {
+    const nameRow = document.createElement("p");
+    nameRow.className = "battle-rank-name";
+    const oshiDot = createOshiDotElement(participant.oshiMemberId);
+    if (oshiDot) {
+      oshiDot.style.marginRight = "6px";
+      nameRow.appendChild(oshiDot);
+    }
+    nameRow.appendChild(document.createTextNode(participant.displayName + (uid === myUid ? "（あなた）" : "")));
+    container.appendChild(nameRow);
+  }
+
+  elements.resultList.innerHTML = "";
+
+  finishers.forEach((entry, index) => {
+    const rank = index + 1;
+    const row = document.createElement("li");
+    row.className = `battle-rank-row${rank === 1 ? " is-rank-1" : ""}`;
+
+    const medal = document.createElement("div");
+    medal.className = "battle-rank-medal";
+    medal.textContent = medalByRank[rank] ?? `${rank}位`;
+    row.appendChild(medal);
+
+    const info = document.createElement("div");
+    info.className = "battle-rank-info";
+    appendNameRow(info, entry.participant, entry.uid);
+
+    const common = entry.result.common;
+    const metaParts = [`正解${common.correctCount}／ミス${common.missCount}`];
+    if (room.settings.rule === "loveChain" && !entry.result.completed) {
+      metaParts.push(`到達${entry.result.detail?.reachedQuestionNumber ?? 0}問`);
+    }
+    const meta = document.createElement("p");
+    meta.className = "battle-rank-meta";
+    meta.textContent = metaParts.join("／");
+    info.appendChild(meta);
+    row.appendChild(info);
+
+    const timeValue = document.createElement("div");
+    timeValue.className = "battle-rank-time";
+    if (room.settings.rule === "normal") {
+      const finalMs = computeNormalFinalRecordMs(
+        { totalElapsedMs: common.elapsedMs, missCount: common.missCount },
+        room.settings.penaltySeconds
+      );
+      const finalLine = document.createElement("p");
+      finalLine.className = "battle-rank-time-final";
+      finalLine.textContent = `${(finalMs / 1000).toFixed(2)}秒`;
+      const breakdownLine = document.createElement("p");
+      breakdownLine.className = "battle-rank-time-breakdown";
+      breakdownLine.textContent = `実測${(common.elapsedMs / 1000).toFixed(2)}秒＋ペナルティ${(common.missCount * room.settings.penaltySeconds).toFixed(2)}秒`;
+      timeValue.appendChild(finalLine);
+      timeValue.appendChild(breakdownLine);
+    } else {
+      timeValue.textContent = entry.result.completed
+        ? `${(common.elapsedMs / 1000).toFixed(2)}秒`
+        : `${entry.result.detail?.reachedQuestionNumber ?? 0}問目で終了`;
+    }
+    row.appendChild(timeValue);
+
+    elements.resultList.appendChild(row);
+  });
+
+  dnfEntries.forEach((entry) => {
+    const row = document.createElement("li");
+    row.className = "battle-rank-row is-dnf";
+
+    const medal = document.createElement("div");
+    medal.className = "battle-rank-medal";
+    medal.textContent = "―";
+    row.appendChild(medal);
+
+    const info = document.createElement("div");
+    info.className = "battle-rank-info";
+    appendNameRow(info, entry.participant, entry.uid);
+    const meta = document.createElement("p");
+    meta.className = "battle-rank-meta";
+    meta.textContent = "未完了（DNF）";
+    info.appendChild(meta);
+    row.appendChild(info);
+
+    const timeValue = document.createElement("div");
+    timeValue.className = "battle-rank-time";
+    timeValue.textContent = "―";
+    row.appendChild(timeValue);
+
+    elements.resultList.appendChild(row);
+  });
+
+  elements.navigateTo("onlineBattleResult");
+}
+
+// 再送ボタン用に、直前に送ろうとした結果を覚えておく。
+let pendingFinishResult = null;
+
+// クイズを終えた（全問終了、またはLOVE連チャンで脱落）直後にjs/main.jsから呼ばれる。
+// 結果を送信し、成功したら待機画面へ、失敗したら再送ボタン付きのエラー表示にする。
+export async function finishOnlineBattleMatch(result, answeredCount) {
+  if (!currentRoomId || !currentMatchId) return;
+  pendingFinishResult = { result, answeredCount };
+
+  elements.waitingSubmitError.hidden = true;
+  elements.waitingLeadText.textContent = "結果を送信しています…";
+  elements.navigateTo("onlineBattleWaiting");
+
+  const outcome = await finishMyMatch({ roomId: currentRoomId, matchId: currentMatchId, result, answeredCount });
+  if (!outcome.ok) {
+    elements.waitingLeadText.textContent = "結果の送信に失敗しました。";
+    elements.waitingSubmitError.hidden = false;
+    return;
+  }
+  pendingFinishResult = null;
+  elements.waitingLeadText.textContent = "あなたの結果を送信しました。他のプレイヤーの終了を待っています。";
+}
+
+// 1問終える（正解して次へ進む、またはハードルールで1回answeredした）たびにjs/main.jsから
+// 呼ばれる。fire-and-forget（呼び出し側はawaitしない）で構わない設計になっている
+// （js/onlineBattle.jsのsubmitAnswerProgress参照：内部で全て握りつぶし、rejectしない）。
+export function reportOnlineBattleProgress(answeredCount) {
+  if (!currentRoomId || !currentMatchId) return;
+  submitAnswerProgress({ roomId: currentRoomId, matchId: currentMatchId, answeredCount });
+}
+
+// クイズ中に「対戦をやめる」で中断したときにjs/main.jsから呼ばれる。結果は一切送信せず、
+// ルームから退出するだけ（オフライン対戦の「結果コードは作られません」と同じ考え方：
+// 「対戦の結果は送信されません」）。画面遷移自体はmain.js側が直接showScreen()するため、
+// ここでは状態の後片付けだけを行う。
+export function quitOnlineBattleDuringQuiz() {
+  const roomId = currentRoomId;
+  stopListeningToRoom();
+  stopCountdownWatching();
+  currentMatchId = null;
+  currentMatchTotalQuestions = 0;
+  currentRoomId = null;
+  lastHandledRoomStatus = null;
+  pendingFinishResult = null;
+  if (elements.quizProgressStrip) elements.quizProgressStrip.hidden = true;
+  if (roomId) leaveRoom({ roomId });
+  renderLastRoomBanner();
 }
 
 // 対戦モード画面群を使えるようにする。main.jsの初期化処理から1回だけ呼ぶ想定。
@@ -521,6 +857,7 @@ export function initOnlineBattleScreens(newElements) {
         "invalid-settings": result.message ?? "対戦設定を確認してください。",
         "not-host": "ホストのみ開始できます。",
         "not-found": "ルームが見つかりませんでした。",
+        "not-waiting": "この対戦はすでに開始・終了しています。",
       };
       elements.lobbyStartError.textContent = messages[result.reason] ?? "対戦の開始に失敗しました。通信環境をご確認のうえ、もう一度お試しください。";
       elements.lobbyStartError.hidden = false;
@@ -529,7 +866,34 @@ export function initOnlineBattleScreens(newElements) {
     }
   });
 
-  elements.startedBackButton.addEventListener("click", () => elements.navigateTo("onlineBattleLobby"));
+  // ===== Step3：待機画面・結果画面 =====
+
+  elements.waitingRetryButton.addEventListener("click", () => {
+    if (!pendingFinishResult) return;
+    finishOnlineBattleMatch(pendingFinishResult.result, pendingFinishResult.answeredCount);
+  });
+
+  elements.waitingFinalizeButton.addEventListener("click", () => {
+    elements.waitingFinalizeConfirmModal.hidden = false;
+  });
+  elements.waitingFinalizeCancelButton.addEventListener("click", () => {
+    elements.waitingFinalizeConfirmModal.hidden = true;
+  });
+  elements.waitingFinalizeConfirmButton.addEventListener("click", async () => {
+    elements.waitingFinalizeConfirmModal.hidden = true;
+    if (!currentRoomId || !currentMatchId) return;
+    await finalizeMatchIfReady({ roomId: currentRoomId, matchId: currentMatchId, force: true });
+  });
+
+  elements.resultBackButton.addEventListener("click", () => {
+    // 試合の文脈はここで終わり。currentMatchIdを残したままにすると、この後ロビー以外の
+    // 無関係なクイズ（通常プレイ等）を始めたときに、古い試合の進捗ストリップが
+    // 誤って出てしまう可能性があるため、明示的にクリアする。
+    currentMatchId = null;
+    currentMatchTotalQuestions = 0;
+    if (elements.quizProgressStrip) elements.quizProgressStrip.hidden = true;
+    elements.navigateTo("onlineBattleLobby");
+  });
 
   renderLastRoomBanner();
 }
