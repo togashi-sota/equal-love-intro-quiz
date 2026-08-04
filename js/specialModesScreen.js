@@ -20,7 +20,19 @@ const SPECIAL_MODES = [
     id: "timeAttack",
     title: "タイムアタック",
     description: "クリアタイムを記録できます",
-    available: false,
+    available: true,
+  },
+  {
+    id: "liveCallMode",
+    title: "ライブコールモード",
+    description: "歌詞と一緒にコールのタイミングを確認できます",
+    available: true,
+  },
+  {
+    id: "localBattle",
+    title: "対戦モード",
+    description: "友達と同じ問題でタイムアタックを競えます",
+    available: true,
   },
 ];
 

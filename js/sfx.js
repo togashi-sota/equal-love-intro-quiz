@@ -9,6 +9,38 @@
 // より作り込んだ効果音への磨き込みは、機能追加が一段落してから別途行う方針
 // （HANDOFF.md参照）。
 
+// 効果音のON/OFF設定。プレイヤーごとではなく端末共通の設定として保存する
+// （本人の希望：「設定はプレイヤーごとではなく端末共通でも構わない」。js/lyricsSync.jsの
+// 表示モード設定と同じ、localStorageへ直接保存するだけのシンプルな方式。2026-08-06追加）。
+const SFX_ENABLED_STORAGE_KEY = "equalLoveIntroQuiz.sfxEnabled";
+
+function loadSfxEnabledPreference() {
+  try {
+    const stored = localStorage.getItem(SFX_ENABLED_STORAGE_KEY);
+    return stored === null ? true : stored === "true"; // 未設定時は既定でON
+  } catch {
+    return true;
+  }
+}
+
+let sfxEnabled = loadSfxEnabledPreference();
+
+export function isSfxEnabled() {
+  return sfxEnabled;
+}
+
+// 効果音のON/OFFを切り替える。切り替え後の状態を返す（呼び出し側でボタンの見た目を
+// 更新するのに使う）。
+export function toggleSfxEnabled() {
+  sfxEnabled = !sfxEnabled;
+  try {
+    localStorage.setItem(SFX_ENABLED_STORAGE_KEY, String(sfxEnabled));
+  } catch {
+    // 保存できなくても、その場での切り替え自体は反映され続ける
+  }
+  return sfxEnabled;
+}
+
 let audioContext = null;
 
 // AudioContextは初めて音を鳴らすとき（＝必ずクリック等のユーザー操作の中）に作る。
@@ -45,7 +77,10 @@ function playTone(frequency, durationSec, { type = "sine", volume = 0.15, delayS
 }
 
 // 効果音の再生に失敗しても（AudioContextが使えない環境など）、ゲームの進行には影響させない。
+// OFFに設定されている間は、AudioContext自体を作らずに何もしない
+// （呼び出し側のコードは一切変更せず、この関数の中だけでON/OFFを吸収する。2026-08-06追加）。
 function playSfxSafely(playSound) {
+  if (!sfxEnabled) return;
   try {
     playSound();
   } catch {
@@ -59,16 +94,18 @@ export function playClickSound() {
 }
 
 // 正解したときの、上昇する2音チャイム。
+// 本人から「正解音が小さい」との指摘を受け、音量を約2倍に引き上げた（2026-08-06）。
 export function playCorrectSound() {
   playSfxSafely(() => {
-    playTone(880, 0.12, { volume: 0.15 });
-    playTone(1318.5, 0.16, { volume: 0.15, delaySec: 0.08 });
+    playTone(880, 0.12, { volume: 0.28 });
+    playTone(1318.5, 0.16, { volume: 0.28, delaySec: 0.08 });
   });
 }
 
 // 不正解のときの、低いブザー風の音。
+// 本人から「不正解音が小さい」との指摘を受け、音量を約2倍に引き上げた（2026-08-06）。
 export function playWrongSound() {
-  playSfxSafely(() => playTone(160, 0.25, { type: "sawtooth", volume: 0.12 }));
+  playSfxSafely(() => playTone(160, 0.25, { type: "sawtooth", volume: 0.24 }));
 }
 
 // 結果画面の得点カウントアップに合わせて鳴らす、上昇するスイープ音。

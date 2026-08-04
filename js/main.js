@@ -9,6 +9,8 @@ import {
   startQuiz,
   startReviewQuiz,
   startSpecialQuiz,
+  startTimeAttackQuiz,
+  startLocalBattleQuiz,
   getCurrentQuestion,
   recordAnswer,
   advanceToNextQuestion,
@@ -29,7 +31,14 @@ import { playSongIntro, stopAudio } from "./audio.js";
 import { startTimer, stopTimer } from "./timer.js";
 import { calculateScore, calculateRank } from "./score.js";
 import { getHighScore, saveHighScoreIfBetter } from "./highscore.js";
-import { playClickSound, playCorrectSound, playWrongSound, playCountUpSound } from "./sfx.js";
+import {
+  playClickSound,
+  playCorrectSound,
+  playWrongSound,
+  playCountUpSound,
+  isSfxEnabled,
+  toggleSfxEnabled,
+} from "./sfx.js";
 import { renderBackgroundSparkles } from "./decorations.js";
 import {
   renderSongList,
@@ -46,6 +55,36 @@ import { initHistoryScreen, renderHistoryScreen } from "./historyScreen.js";
 import { initHistoryDetailScreen, renderHistoryDetail } from "./historyDetailScreen.js";
 import { initSpecialModesScreen } from "./specialModesScreen.js";
 import { initWeakSongsScreen, renderWeakSongsScreen, resolveWeakSongIds } from "./weakSongsScreen.js";
+import {
+  initLiveCallModeScreen,
+  renderLiveCallModeList,
+  openLiveCallModePlayer,
+  closeLiveCallModePlayer,
+} from "./liveCallModeScreen.js";
+import { getTimeAttackBest } from "./timeAttackScore.js";
+import {
+  TIME_ATTACK_RULE,
+  initTimeAttackScreen,
+  initTimeAttackResultScreen,
+  startTimeAttackRun,
+  getCurrentTimeAttackRule,
+  recordTimeAttackAnswer,
+  registerTimeAttackMiss,
+  registerTimeAttackSelection,
+  markTimeAttackRunFailed,
+  renderTimeAttackResult,
+  buildTimeAttackQuestions,
+  getLastTimeAttackSelection,
+  getCurrentTimeAttackStats,
+} from "./timeAttackScreen.js";
+import { initTimeAttackHistoryScreen, renderTimeAttackHistoryScreen } from "./timeAttackHistoryScreen.js";
+import {
+  initTimeAttackHistoryDetailScreen,
+  renderTimeAttackHistoryDetail,
+} from "./timeAttackHistoryDetailScreen.js";
+import { buildBattleQuestions } from "./localBattle.js";
+import { initLocalBattleScreens, getCurrentBattleSession } from "./localBattleScreen.js";
+import { initLocalBattleResultScreens, startBattleResultCollection } from "./localBattleResultScreen.js";
 import {
   initCustomQuizScreen,
   openCustomQuizScreenForNewPreset,
@@ -88,6 +127,32 @@ renderBackgroundSparkles();
 
 // 収録曲一覧画面の中身も、ゲームの状態と関係なく最初に1回だけ組み立てればよい。
 renderSongList(SONGS);
+
+// 効果音ON/OFFボタン（スタート画面・クイズ画面の2箇所、どちらも同じ端末共通の設定を操作する。
+// 2026-08-06追加）。ボタンを押した本人にもクリック音で切替が分かるよう、ONにした瞬間だけ
+// 確認のクリック音を鳴らす（OFFにした瞬間に鳴らすと「消したのに鳴った」と紛らわしいため）。
+const sfxToggleButtonQuizElement = document.getElementById("sfx-toggle-button-quiz");
+const sfxToggleButtonStartElement = document.getElementById("sfx-toggle-button-start");
+const sfxToggleButtonStartLabelElement = document.getElementById("sfx-toggle-button-start-label");
+
+function syncSfxToggleUI() {
+  const enabled = isSfxEnabled();
+  sfxToggleButtonQuizElement.classList.toggle("is-muted", !enabled);
+  sfxToggleButtonQuizElement.setAttribute("aria-label", enabled ? "効果音を消す" : "効果音を鳴らす");
+  sfxToggleButtonStartElement.classList.toggle("is-muted", !enabled);
+  sfxToggleButtonStartElement.setAttribute("aria-label", enabled ? "効果音を消す" : "効果音を鳴らす");
+  sfxToggleButtonStartLabelElement.textContent = enabled ? "ON" : "OFF";
+}
+
+function handleSfxToggleClick() {
+  const enabledAfterToggle = toggleSfxEnabled();
+  syncSfxToggleUI();
+  if (enabledAfterToggle) playClickSound();
+}
+
+sfxToggleButtonQuizElement.addEventListener("click", handleSfxToggleClick);
+sfxToggleButtonStartElement.addEventListener("click", handleSfxToggleClick);
+syncSfxToggleUI();
 
 const startScreenElement = document.getElementById("start-screen");
 const quizScreenElement = document.getElementById("quiz-screen");
@@ -264,9 +329,85 @@ const historyClearConfirmModalElement = document.getElementById("history-clear-c
 const historyDetailBackButtonElement = document.getElementById("history-detail-back-button");
 // 詳細画面を開く直前の、履歴一覧のスクロール位置。「戻る」で一覧に戻ったときに復元する。
 let historyListScrollY = 0;
+// タイムアタック履歴一覧についても、通常プレイ履歴と同じ考え方でスクロール位置を覚えておく。
+let timeAttackHistoryListScrollY = 0;
 const specialModesLinkElement = document.getElementById("special-modes-link");
 const specialModesBackButtonElement = document.getElementById("special-modes-back-button");
 const weakSongsBackButtonElement = document.getElementById("weak-songs-back-button");
+const liveCallModeListBackButtonElement = document.getElementById("live-call-mode-list-back-button");
+const liveCallModePlayerBackButtonElement = document.getElementById("live-call-mode-player-back-button");
+const liveCallModeSongListElement = document.getElementById("live-call-mode-song-list");
+const liveCallModeListEmptyStateElement = document.getElementById("live-call-mode-list-empty-state");
+const liveCallModeSongTitleElement = document.getElementById("live-call-mode-song-title");
+const liveCallModePlayButtonElement = document.getElementById("live-call-mode-play-button");
+const liveCallModeSeekRangeElement = document.getElementById("live-call-mode-seek-range");
+const liveCallModeCurrentTimeElement = document.getElementById("live-call-mode-current-time");
+const liveCallModeDurationElement = document.getElementById("live-call-mode-duration");
+const liveCallModeSeekBackButtonElement = document.getElementById("live-call-mode-seek-back-button");
+const liveCallModeSeekForwardButtonElement = document.getElementById("live-call-mode-seek-forward-button");
+const liveCallModeAudioElement = document.getElementById("live-call-mode-audio");
+const liveCallModeLyricsPanelElement = document.getElementById("live-call-mode-lyrics-panel");
+const liveCallModeFullscreenButtonElement = document.getElementById("live-call-mode-fullscreen-button");
+const liveCallModeNoLyricsNoticeElement = document.getElementById("live-call-mode-no-lyrics-notice");
+const timeAttackSetupBackButtonElement = document.getElementById("time-attack-setup-back-button");
+const timeAttackStartButtonElement = document.getElementById("time-attack-start-button");
+const timeAttackStartErrorElement = document.getElementById("time-attack-start-error");
+const timeAttackBestChipElement = document.getElementById("time-attack-best-chip");
+const timeAttackResultNewRecordElement = document.getElementById("time-attack-result-new-record");
+const timeAttackResultFailStatusElement = document.getElementById("time-attack-result-fail-status");
+const timeAttackResultTotalTimeElement = document.getElementById("time-attack-result-total-time");
+const timeAttackResultCorrectCountElement = document.getElementById("time-attack-result-correct-count");
+const timeAttackResultMissCountElement = document.getElementById("time-attack-result-miss-count");
+const timeAttackResultRuleLabelElement = document.getElementById("time-attack-result-rule-label");
+const timeAttackResultBestTimeElement = document.getElementById("time-attack-result-best-time");
+const timeAttackResultRetryButtonElement = document.getElementById("time-attack-result-retry-button");
+const timeAttackResultSetupButtonElement = document.getElementById("time-attack-result-setup-button");
+const timeAttackResultHomeLinkElement = document.getElementById("time-attack-result-home-link");
+const timeAttackHistoryLinkElement = document.getElementById("time-attack-history-link");
+const timeAttackHistoryBackButtonElement = document.getElementById("time-attack-history-back-button");
+const timeAttackHistoryEmptyStateElement = document.getElementById("time-attack-history-empty-state");
+const timeAttackHistoryListElement = document.getElementById("time-attack-history-list");
+const timeAttackHistoryDetailBackButtonElement = document.getElementById("time-attack-history-detail-back-button");
+
+// 対戦モード（ローカル対戦）の画面要素一式（2026-08-06新設）。
+const battleModeSelectBackButtonElement = document.getElementById("battle-mode-select-back-button");
+const battleMode1v1ButtonElement = document.getElementById("battle-mode-select-1v1");
+const battleMode4pButtonElement = document.getElementById("battle-mode-select-4p");
+const battleCreateOrJoinBackButtonElement = document.getElementById("battle-create-or-join-back-button");
+const battleCreateOrJoinTitleElement = document.getElementById("battle-create-or-join-title");
+const battleCreateButtonElement = document.getElementById("battle-create-button");
+const battleJoinButtonElement = document.getElementById("battle-join-button");
+const battleSetupBackButtonElement = document.getElementById("battle-setup-back-button");
+const battleSetupCreateCodeButtonElement = document.getElementById("battle-setup-create-code-button");
+const battleSetupErrorElement = document.getElementById("battle-setup-error");
+const battleCodeShareBackButtonElement = document.getElementById("battle-code-share-back-button");
+const battleCodeShareConfigSummaryElement = document.getElementById("battle-code-share-config-summary");
+const battleCodeShareValueElement = document.getElementById("battle-code-share-value");
+const battleCodeShareStartButtonElement = document.getElementById("battle-code-share-start-button");
+const battleJoinBackButtonElement = document.getElementById("battle-join-back-button");
+const battleJoinCodeInputElement = document.getElementById("battle-join-code-input");
+const battleJoinErrorElement = document.getElementById("battle-join-error");
+const battleJoinConfirmButtonElement = document.getElementById("battle-join-confirm-button");
+const battleRuleConfirmBackButtonElement = document.getElementById("battle-rule-confirm-back-button");
+const battleRuleConfirmConfigSummaryElement = document.getElementById("battle-rule-confirm-config-summary");
+const battleRuleConfirmAudioCheckElement = document.getElementById("battle-rule-confirm-audio-check");
+const battleRuleConfirmPlayerNameElement = document.getElementById("battle-rule-confirm-player-name");
+const battleRuleConfirmStartButtonElement = document.getElementById("battle-rule-confirm-start-button");
+const battleResultCollectHomeLinkElement = document.getElementById("battle-result-collect-home-link");
+const battleResultCollectProgressElement = document.getElementById("battle-result-collect-progress");
+const battleResultCollectListElement = document.getElementById("battle-result-collect-list");
+const battleResultCollectAddSectionElement = document.getElementById("battle-result-collect-add-section");
+const battleResultCollectNameInputElement = document.getElementById("battle-result-collect-name-input");
+const battleResultCollectCodeInputElement = document.getElementById("battle-result-collect-code-input");
+const battleResultCollectErrorElement = document.getElementById("battle-result-collect-error");
+const battleResultCollectAddButtonElement = document.getElementById("battle-result-collect-add-button");
+const battleResultCollectFinishButtonElement = document.getElementById("battle-result-collect-finish-button");
+const battleResultCollectMyCodeElement = document.getElementById("battle-result-collect-my-code");
+const battleResultRankingConfigSummaryElement = document.getElementById("battle-result-ranking-config-summary");
+const battleResultRankingListElement = document.getElementById("battle-result-ranking-list");
+const battleResultRankingRuleNoteElement = document.getElementById("battle-result-ranking-rule-note");
+const battleResultRankingHomeButtonElement = document.getElementById("battle-result-ranking-home-button");
+
 const customQuizBackButtonElement = document.getElementById("custom-quiz-back-button");
 const customQuizPresetsBackButtonElement = document.getElementById("custom-quiz-presets-back-button");
 const customQuizRulesLinkElement = document.getElementById("custom-quiz-rules-link");
@@ -454,8 +595,53 @@ initSpecialModesScreen({
     } else if (modeId === "originalQuiz") {
       renderCustomQuizPresetsScreen();
       showScreen("customQuizPresets");
+    } else if (modeId === "liveCallMode") {
+      renderLiveCallModeList();
+      showScreen("liveCallModeList");
+    } else if (modeId === "timeAttack") {
+      updateTimeAttackBestChip();
+      showScreen("timeAttackSetup");
+    } else if (modeId === "localBattle") {
+      showScreen("battleModeSelect");
     }
   },
+});
+
+// ライブコールモード：曲一覧画面・再生画面。
+// 収録曲一覧（songlist.js）とは完全に独立した専用の画面（本人の希望で新設、2026-08-06）。
+initLiveCallModeScreen({
+  listContainer: liveCallModeSongListElement,
+  listEmptyState: liveCallModeListEmptyStateElement,
+  songTitle: liveCallModeSongTitleElement,
+  playButton: liveCallModePlayButtonElement,
+  seekRange: liveCallModeSeekRangeElement,
+  currentTime: liveCallModeCurrentTimeElement,
+  duration: liveCallModeDurationElement,
+  seekBackButton: liveCallModeSeekBackButtonElement,
+  seekForwardButton: liveCallModeSeekForwardButtonElement,
+  audio: liveCallModeAudioElement,
+  lyricsPanel: liveCallModeLyricsPanelElement,
+  fullscreenButton: liveCallModeFullscreenButtonElement,
+  noLyricsNotice: liveCallModeNoLyricsNoticeElement,
+  onSelectSong: (songId) => {
+    playClickSound();
+    openLiveCallModePlayer(songId);
+    showScreen("liveCallModePlayer");
+  },
+});
+
+// 曲一覧画面の「戻る」：特別モード一覧画面へ戻る。
+liveCallModeListBackButtonElement.addEventListener("click", () => {
+  playClickSound();
+  showScreen("specialModes");
+});
+
+// 再生画面の「戻る」：再生を止め、曲一覧画面へ戻る（常にこの画面からしか開かないため、
+// 他画面のような「開く前の画面を覚えておく」仕組みは不要と判断）。
+liveCallModePlayerBackButtonElement.addEventListener("click", () => {
+  playClickSound();
+  closeLiveCallModePlayer();
+  showScreen("liveCallModeList");
 });
 
 // ＝LOVEの歴史・ディスコグラフィー画面：作品カード（年表・作品一覧どちらから）が
@@ -1024,10 +1210,14 @@ function markChoiceButtons(selectedChoiceId) {
   });
 }
 
-// 次の問題を表示する前に、前の問題の演出クラスを消しておく。
+// 次の問題を表示する前に、前の問題の演出クラス・無効化状態を消しておく。
+// disabledのリセットは、タイムアタック（ノーマルルール）で前の問題で無効化した
+// ボタンが次の問題に持ち越されないようにするためのもの。他のモードでは
+// ボタンを無効化することがないため、ここで一律にリセットしても影響はない。
 function clearChoiceButtonStates() {
   choiceButtonElements.forEach((button) => {
     button.classList.remove("is-correct", "is-wrong");
+    button.disabled = false;
   });
 }
 
@@ -1037,6 +1227,14 @@ function goToNextQuestionOrResult() {
   const hasMoreQuestions = advanceToNextQuestion();
   if (hasMoreQuestions) {
     renderQuestion();
+    return;
+  }
+
+  // タイムアタックは、既存の結果画面（result）ではなく専用の結果画面に飛ばす。
+  // 自己ベスト判定・保存もrenderTimeAttackResult()の中で完結している。
+  if (gameState.playMode === "timeAttack") {
+    renderTimeAttackResult();
+    showScreen("timeAttackResult");
     return;
   }
 
@@ -1051,9 +1249,145 @@ function hideSkipAndRevealButtons() {
   revealButtonElement.hidden = true;
 }
 
+// 正解時・不正解時（ハード／LOVE連チャン）の自動遷移までの間（演出を見せる時間）。
+// 正解は一瞬でよいので短め、不正解は「どれが正解だったか」を読み取れるよう少し長めにしている。
+const TIME_ATTACK_CORRECT_ADVANCE_DELAY_MS = 200;
+const TIME_ATTACK_WRONG_REVEAL_DELAY_MS = 430;
+
+// 上記の演出時間のあいだに予約したsetTimeoutのID。「タイトルへ」で中断されたときに
+// 確実に取り消すために保持しておく（保持しないと、中断して別の画面に移った後で
+// タイマーが発火し、勝手に結果画面へ飛ばされる/次の問題が描画される、という不具合になる）。
+let pendingTimeAttackAdvanceTimeoutId = null;
+
+function scheduleTimeAttackAdvance(callback, delayMs) {
+  clearPendingTimeAttackAdvance();
+  pendingTimeAttackAdvanceTimeoutId = window.setTimeout(() => {
+    pendingTimeAttackAdvanceTimeoutId = null;
+    callback();
+  }, delayMs);
+}
+
+function clearPendingTimeAttackAdvance() {
+  if (pendingTimeAttackAdvanceTimeoutId === null) return;
+  window.clearTimeout(pendingTimeAttackAdvanceTimeoutId);
+  pendingTimeAttackAdvanceTimeoutId = null;
+}
+
+// タイムアタック専用の選択肢クリック処理。
+// 通常モードの「正解！次へ」のような手動確認は挟まず、短い演出のあと自動で次に進む。
+// ノーマルルール：不正解の選択肢はその場で無効化するだけで、問題そのものは終わらせない
+// （正解するまでgameState.isAnsweredはfalseのままにし、他の選択肢を選び直せるようにする。
+// 遅延も挟まず、テンポを落とさない）。
+// ハード・LOVE連チャンルール：1回間違えたら、押した選択肢を赤、本当の正解を黄色で少しだけ見せてから、
+// 自動で次の問題（ハード）または結果画面（LOVE連チャン）へ進む。
+// タイムアタック・対戦モード共通：正解/不正解のクリック処理の本体。
+// ノーマル/ハード/LOVE連チャンのルール分岐・ボタンの色演出・記録は、この2つのモードで
+// 完全に同じ（対戦モードは「タイムアタックと全く同じ進め方を、対戦用の問題で行う」ため）。
+// 「次の問題へ進む処理」と「（LOVE連チャンで）その場でゲームが終わったときの処理」だけを
+// 呼び出し側から受け取ることで、コードを2重に持たないようにしている。
+//
+// onAdvance : 正解した／ハードで即座に次へ進めるとき呼ぶ（残り問題があるかどうかの判定も
+//             呼び出し側の責務。既存のgoToNextQuestionOrResult()と同じ形にすること）。
+// onRunEnd  : LOVE連チャンで1回間違えて、残りの問題を待たずゲームが終わるときだけ呼ぶ。
+function handleTimedChoiceClick(selectedChoice, { onAdvance, onRunEnd }) {
+  // 他の操作とほぼ同時に起きても二重に処理しないためのガード。
+  // ノーマルルールの不正解時はisAnsweredをtrueにしないため、このガードに引っかからず
+  // 続けて他の選択肢を選べる。
+  if (gameState.isAnswered) return;
+
+  const question = getCurrentQuestion();
+  const isCorrect = selectedChoice.id === question.song.id;
+  const rule = getCurrentTimeAttackRule();
+
+  // 押した選択肢の曲名を、正解・不正解を問わず記録しておく（タイムアタック履歴の詳細表示用。
+  // 対戦モードはこの詳細を履歴として保存しないが、記録すること自体は無害なのでそのまま呼ぶ）。
+  registerTimeAttackSelection(selectedChoice.title);
+
+  if (isCorrect) {
+    gameState.isAnswered = true;
+    stopTimer();
+    stopAudio();
+    playCorrectSound();
+    markChoiceButtons(selectedChoice.id); // 押した（＝正解の）選択肢だけを黄色く光らせる
+    choiceButtonElements.forEach((button) => {
+      button.disabled = true;
+    });
+    recordTimeAttackAnswer({ elapsedMs: getElapsedMsSincePlaybackStart(), isCorrect: true, question });
+    scheduleTimeAttackAdvance(onAdvance, TIME_ATTACK_CORRECT_ADVANCE_DELAY_MS);
+    return;
+  }
+
+  playWrongSound();
+
+  if (rule === TIME_ATTACK_RULE.NORMAL) {
+    // ノーマルルール：この選択肢だけ赤くして無効化する。正解はまだ明かさず、
+    // 遅延なしですぐ残りの選択肢から選び直せるようにする（テンポを落とさない）。
+    registerTimeAttackMiss();
+    const wrongButtonIndex = question.choices.findIndex((choice) => choice.id === selectedChoice.id);
+    if (wrongButtonIndex !== -1) {
+      choiceButtonElements[wrongButtonIndex].classList.add("is-wrong");
+      choiceButtonElements[wrongButtonIndex].disabled = true;
+    }
+    return;
+  }
+
+  // ハード・LOVE連チャンは、どちらも「1回間違えたらその問題は即確定」という点までは共通。
+  // 押した選択肢を赤、本当の正解を黄色で表示してから（markChoiceButtons）、少し間を置いて進める。
+  // LOVE連チャンだけ、さらに残りの問題を待たずゲーム自体をその場で終了させる
+  // （markTimeAttackRunFailed()で「全問クリアできなかった」ことを記録する）。
+  gameState.isAnswered = true;
+  stopTimer();
+  stopAudio();
+  registerTimeAttackMiss();
+  markChoiceButtons(selectedChoice.id);
+  choiceButtonElements.forEach((button) => {
+    button.disabled = true;
+  });
+  recordTimeAttackAnswer({ elapsedMs: getElapsedMsSincePlaybackStart(), isCorrect: false, question });
+
+  if (rule === TIME_ATTACK_RULE.LOVE_CHAIN) {
+    markTimeAttackRunFailed();
+    scheduleTimeAttackAdvance(onRunEnd, TIME_ATTACK_WRONG_REVEAL_DELAY_MS);
+    return;
+  }
+
+  scheduleTimeAttackAdvance(onAdvance, TIME_ATTACK_WRONG_REVEAL_DELAY_MS);
+}
+
+function handleTimeAttackChoiceClick(selectedChoice) {
+  handleTimedChoiceClick(selectedChoice, {
+    onAdvance: goToNextQuestionOrResult,
+    onRunEnd: () => {
+      renderTimeAttackResult();
+      showScreen("timeAttackResult");
+    },
+  });
+}
+
+// 対戦モードの選択肢クリック処理。ルール進行はタイムアタックと完全に共通（上のhandleTimedChoiceClick）。
+// 違うのは「終わったときの行き先」だけ：対戦専用の結果画面へ進み、自己ベスト・タイムアタック履歴には
+// 一切保存しない（js/localBattleScreen.jsのfinishBattlePlay参照）。
+function handleBattleChoiceClick(selectedChoice) {
+  handleTimedChoiceClick(selectedChoice, {
+    onAdvance: goToNextBattleQuestionOrResult,
+    onRunEnd: finishBattlePlay,
+  });
+}
+
 // 選択肢ボタンをクリックしたときの処理。
 // 正解なら経過秒数に応じた段階式のボーナス、不正解なら0点として記録する。
 function handleChoiceClick(selectedChoice) {
+  // タイムアタック・対戦モードだけは進め方が大きく異なるため、専用の処理に完全に任せる
+  // （既存の通常/復習/特別モードのロジックには一切触れない）。
+  if (gameState.playMode === "timeAttack") {
+    handleTimeAttackChoiceClick(selectedChoice);
+    return;
+  }
+  if (gameState.playMode === "localBattle") {
+    handleBattleChoiceClick(selectedChoice);
+    return;
+  }
+
   // 他の操作とほぼ同時に起きても二重に処理しないためのガード。
   if (gameState.isAnswered) return;
   gameState.isAnswered = true;
@@ -1138,7 +1472,26 @@ function renderProgressDots() {
 // （renderQuestion内のprogressPrefix）に合わせ、ここでもreviewは対象外にしている。
 function updateQuizQuitDisplay() {
   const isSpecial = gameState.playMode === "special";
+  const isTimeAttack = gameState.playMode === "timeAttack";
+  const isLocalBattle = gameState.playMode === "localBattle";
   const display = isSpecial ? SPECIAL_MODES_DISPLAY[gameState.specialModeId] : null;
+
+  if (isTimeAttack) {
+    // タイムアタックはモードが1種類しかないため、SPECIAL_MODES_DISPLAYのような
+    // 一覧テーブルは作らず、ここに直接文言を書く。
+    quizBackButtonLabelElement.textContent = "設定画面へ";
+    quizQuitConfirmTitleElement.textContent = "タイムアタックを中断して設定画面に戻りますか？";
+    quizQuitConfirmButtonElement.textContent = "設定画面に戻る";
+    return;
+  }
+
+  if (isLocalBattle) {
+    // 対戦モードは中断すると、その対戦自体を諦めることになる（対戦コードを作り直す必要がある）。
+    quizBackButtonLabelElement.textContent = "対戦をやめる";
+    quizQuitConfirmTitleElement.textContent = "対戦を中断してホームに戻りますか？（この対戦の結果コードは作られません）";
+    quizQuitConfirmButtonElement.textContent = "対戦をやめる";
+    return;
+  }
 
   quizBackButtonLabelElement.textContent = display?.quizBackLabel ?? "タイトルへ";
   quizQuitConfirmTitleElement.textContent = display?.quizQuitTitle ?? "クイズを中断してタイトルに戻りますか？";
@@ -1168,8 +1521,11 @@ function renderQuestion() {
   feedbackElement.hidden = true;
   feedbackElement.classList.remove("is-correct", "is-wrong");
   nextButtonElement.hidden = true;
-  skipButtonElement.hidden = false;
-  revealButtonElement.hidden = false;
+  // タイムアタック・対戦モードは「正解！次へ」の一時停止を挟まないテンポ重視の進め方のため、
+  // スキップ・答えを見るボタンは表示しない（正解するか、ハードルールで間違えるまで進めない）。
+  const isTimedMode = gameState.playMode === "timeAttack" || gameState.playMode === "localBattle";
+  skipButtonElement.hidden = isTimedMode;
+  revealButtonElement.hidden = isTimedMode;
   audioErrorElement.hidden = true;
   clearChoiceButtonStates();
 
@@ -1518,11 +1874,24 @@ quizQuitConfirmButtonElement.addEventListener("click", () => {
   playClickSound();
   closeQuizQuitConfirmModal();
   const isSpecial = gameState.playMode === "special";
+  const isTimeAttack = gameState.playMode === "timeAttack";
+  const isLocalBattle = gameState.playMode === "localBattle";
   const onQuizBack = isSpecial ? SPECIAL_MODES_DISPLAY[gameState.specialModeId]?.onQuizBack : null;
+  // タイムアタック・対戦モードの正解/不正解演出のあと、自動で次へ進む予約（setTimeout）が
+  // 残っていると、この画面を離れた後にタイマーが発火して勝手に次の問題や結果画面へ飛ばされて
+  // しまうため、中断時は必ず取り消す。
+  clearPendingTimeAttackAdvance();
   stopTimer();
   stopAudio();
   resetGameState();
-  if (onQuizBack) {
+  if (isTimeAttack) {
+    // タイムアタックは結果画面を経由しないため、ここでも自己ベスト等には一切反映されない。
+    showScreen("timeAttackSetup");
+  } else if (isLocalBattle) {
+    // 対戦モードも結果コードを経由しないため、対戦結果としては一切残らない
+    // （この対戦コード自体を使い直すことはできず、やり直すには新しく対戦を作る必要がある）。
+    showScreen("battleModeSelect");
+  } else if (onQuizBack) {
     onQuizBack();
   } else {
     showScreen("start");
@@ -1754,6 +2123,230 @@ document
 updateModeBestScoreDisplay();
 updateQuestionCountNotice();
 updateListenTileCounts();
+
+// ===== タイムアタック（2026-08-06新設） =====
+// 設定画面の選択中の出題数・カテゴリに対応する自己ベストを表示する。
+// 通常プレイのupdateModeBestScoreDisplay()と同じ考え方だが、保存先（timeAttackScore.js）が
+// 完全に別のため、既存のgetHighScore()は一切呼ばない。
+function updateTimeAttackBestChip() {
+  const questionCountValue = document.querySelector('input[name="time-attack-question-count"]:checked').value;
+  const categoryFilterValue = document.querySelector('input[name="time-attack-category-filter"]:checked').value;
+  const rule = document.querySelector('input[name="time-attack-rule"]:checked').value;
+  const bestMs = getTimeAttackBest(rule, questionCountValue, categoryFilterValue);
+
+  timeAttackBestChipElement.textContent =
+    bestMs !== null ? `自己ベスト：${(bestMs / 1000).toFixed(2)}秒` : "自己ベスト：記録なし";
+  timeAttackBestChipElement.classList.toggle("is-empty", bestMs === null);
+}
+
+// ルールも自己ベストの対象（3ルールそれぞれ別々に保存する）に含まれるため、
+// 出題数・カテゴリだけでなく、ルールを切り替えたときも表示を更新する。
+document
+  .querySelectorAll(
+    'input[name="time-attack-question-count"], input[name="time-attack-category-filter"], input[name="time-attack-rule"]'
+  )
+  .forEach((radio) => radio.addEventListener("change", updateTimeAttackBestChip));
+
+// タイムアタックの設定画面の「戻る」：特別モード一覧画面へ戻る。
+timeAttackSetupBackButtonElement.addEventListener("click", () => {
+  playClickSound();
+  showScreen("specialModes");
+});
+
+// 指定した出題数・カテゴリ・ルールで、タイムアタックのクイズ画面を開始する共通処理。
+// 既存のbeginQuiz()と同じ考え方（曲プールの絞り込み・検証→問題生成→開始）だが、
+// 実際の問題生成はjs/timeAttackScreen.jsのbuildTimeAttackQuestions()に任せている
+// （既存のfilterSongsByCategory・validatePoolSize・resolveQuestionCount・buildQuizQuestionsを
+// 内部でそのまま再利用しているだけで、出題ロジック自体には一切手を加えていない）。
+function beginTimeAttackQuiz(questionCountValue, categoryFilterValue, rule) {
+  const questions = buildTimeAttackQuestions(questionCountValue, categoryFilterValue);
+
+  if (!questions) {
+    timeAttackStartErrorElement.textContent = "曲数が足りません。カテゴリの範囲を広げてください。";
+    timeAttackStartErrorElement.hidden = false;
+    return;
+  }
+
+  timeAttackStartErrorElement.hidden = true;
+  startTimeAttackRun(rule, questionCountValue, categoryFilterValue);
+  startTimeAttackQuiz(questions, questionCountValue, categoryFilterValue);
+  renderQuestion();
+  showScreen("quiz");
+}
+
+initTimeAttackScreen({
+  startButton: timeAttackStartButtonElement,
+  onStart: (questionCountValue, categoryFilterValue, rule) => {
+    playClickSound();
+    beginTimeAttackQuiz(questionCountValue, categoryFilterValue, rule);
+  },
+});
+
+initTimeAttackResultScreen({
+  newRecordBadge: timeAttackResultNewRecordElement,
+  failStatus: timeAttackResultFailStatusElement,
+  totalTime: timeAttackResultTotalTimeElement,
+  correctCount: timeAttackResultCorrectCountElement,
+  missCount: timeAttackResultMissCountElement,
+  ruleLabel: timeAttackResultRuleLabelElement,
+  bestTime: timeAttackResultBestTimeElement,
+});
+
+// 「もう一度挑戦する」：直前と同じ出題数・カテゴリ・ルールのまま、問題を再抽選して開始する。
+timeAttackResultRetryButtonElement.addEventListener("click", () => {
+  playClickSound();
+  const { questionCountValue, categoryFilterValue, rule } = getLastTimeAttackSelection();
+  beginTimeAttackQuiz(questionCountValue, categoryFilterValue, rule);
+});
+
+// 「タイムアタック設定へ戻る」：条件を変えて挑戦し直したいときの導線。設定画面のラジオボタンは
+// このボタンでは一切操作していない（＝ここまで選んでいた出題数・カテゴリ・ルールがそのまま
+// 残っている）ため、素直に画面を切り替えるだけでよい。自己ベストチップだけは、今回の結果で
+// 更新されている可能性があるため、表示し直しておく。
+timeAttackResultSetupButtonElement.addEventListener("click", () => {
+  playClickSound();
+  updateTimeAttackBestChip();
+  showScreen("timeAttackSetup");
+});
+
+// 左上の「⌂ ホームへ戻る」リンク：タイムアタックそのものを終えてタイトルへ戻る、一番奥の導線。
+timeAttackResultHomeLinkElement.addEventListener("click", () => {
+  playClickSound();
+  showScreen("start");
+});
+
+// タイムアタック履歴一覧・詳細画面の初期化。通常プレイ履歴（historyScreen.js/historyDetailScreen.js）
+// と同じ配線パターン（onSelectEntryで詳細を開く、スクロール位置を覚えておく）に揃えている。
+initTimeAttackHistoryScreen({
+  listContainer: timeAttackHistoryListElement,
+  emptyState: timeAttackHistoryEmptyStateElement,
+  onSelectEntry: (entry) => {
+    playClickSound();
+    timeAttackHistoryListScrollY = window.scrollY;
+    renderTimeAttackHistoryDetail(entry);
+    showScreen("timeAttackHistoryDetail");
+  },
+});
+
+initTimeAttackHistoryDetailScreen({
+  date: document.getElementById("time-attack-history-detail-date"),
+  mode: document.getElementById("time-attack-history-detail-mode"),
+  totalTime: document.getElementById("time-attack-history-detail-total-time"),
+  correctCount: document.getElementById("time-attack-history-detail-correct-count"),
+  missCount: document.getElementById("time-attack-history-detail-miss-count"),
+  newRecord: document.getElementById("time-attack-history-detail-new-record"),
+  failStatus: document.getElementById("time-attack-history-detail-fail-status"),
+  questionList: document.getElementById("time-attack-history-detail-question-list"),
+});
+
+// タイムアタック設定画面の「タイムアタック履歴」：開くたびに最新の内容で描画し直す
+// （直前のプレイ結果もすぐ反映されるようにするため。historyScreen.jsのrenderHistoryScreen()と同じ考え方）。
+timeAttackHistoryLinkElement.addEventListener("click", () => {
+  playClickSound();
+  renderTimeAttackHistoryScreen();
+  showScreen("timeAttackHistory");
+});
+
+timeAttackHistoryBackButtonElement.addEventListener("click", () => {
+  playClickSound();
+  showScreen("timeAttackSetup");
+});
+
+timeAttackHistoryDetailBackButtonElement.addEventListener("click", () => {
+  playClickSound();
+  showScreen("timeAttackHistory");
+  window.scrollTo(0, timeAttackHistoryListScrollY);
+});
+
+// ===== 対戦モード（ローカル対戦、2026-08-06新設） =====
+// 画面遷移・効果音はこのプロジェクトの決まりどおりmain.js側だけで扱うため、
+// js/localBattleScreen.js・js/localBattleResultScreen.js側からは、この1つの
+// navigateToコールバック経由でだけ画面を切り替えてもらう（詳細は各ファイルの冒頭コメント参照）。
+function navigateBattleScreen(screenName) {
+  playClickSound();
+  showScreen(screenName);
+}
+
+initLocalBattleScreens({
+  navigateTo: navigateBattleScreen,
+  modeSelectBackButton: battleModeSelectBackButtonElement,
+  mode1v1Button: battleMode1v1ButtonElement,
+  mode4pButton: battleMode4pButtonElement,
+  createOrJoinBackButton: battleCreateOrJoinBackButtonElement,
+  createOrJoinTitle: battleCreateOrJoinTitleElement,
+  createButton: battleCreateButtonElement,
+  joinButton: battleJoinButtonElement,
+  setupBackButton: battleSetupBackButtonElement,
+  setupCreateCodeButton: battleSetupCreateCodeButtonElement,
+  setupError: battleSetupErrorElement,
+  codeShareBackButton: battleCodeShareBackButtonElement,
+  codeShareConfigSummary: battleCodeShareConfigSummaryElement,
+  codeShareValue: battleCodeShareValueElement,
+  codeShareStartButton: battleCodeShareStartButtonElement,
+  joinBackButton: battleJoinBackButtonElement,
+  joinCodeInput: battleJoinCodeInputElement,
+  joinError: battleJoinErrorElement,
+  joinConfirmButton: battleJoinConfirmButtonElement,
+  ruleConfirmBackButton: battleRuleConfirmBackButtonElement,
+  ruleConfirmConfigSummary: battleRuleConfirmConfigSummaryElement,
+  ruleConfirmAudioCheck: battleRuleConfirmAudioCheckElement,
+  ruleConfirmPlayerName: battleRuleConfirmPlayerNameElement,
+  ruleConfirmStartButton: battleRuleConfirmStartButtonElement,
+  onStartBattle: (config) => {
+    playClickSound();
+    beginLocalBattlePlay(config);
+  },
+});
+
+initLocalBattleResultScreens({
+  navigateTo: navigateBattleScreen,
+  homeLink: battleResultCollectHomeLinkElement,
+  progress: battleResultCollectProgressElement,
+  list: battleResultCollectListElement,
+  myResultCode: battleResultCollectMyCodeElement,
+  addSection: battleResultCollectAddSectionElement,
+  nameInput: battleResultCollectNameInputElement,
+  codeInput: battleResultCollectCodeInputElement,
+  error: battleResultCollectErrorElement,
+  addButton: battleResultCollectAddButtonElement,
+  finishButton: battleResultCollectFinishButtonElement,
+  rankingConfigSummary: battleResultRankingConfigSummaryElement,
+  rankingList: battleResultRankingListElement,
+  rankingRuleNote: battleResultRankingRuleNoteElement,
+  rankingHomeButton: battleResultRankingHomeButtonElement,
+});
+
+// 対戦コードの設定から、実際にクイズを組み立てて開始する。既存のbeginTimeAttackQuiz()と
+// 全く同じ考え方（問題を組み立てる→実行中の記録をリセット→gameStateに反映→描画→画面遷移）。
+// startTimeAttackRun()をそのまま再利用しているのは、対戦モードもタイムアタックと全く同じ
+// 「ノーマル/ハード/LOVE連チャンのテンポ良い進行ルール」を使うため（handleBattleChoiceClick参照）。
+function beginLocalBattlePlay(config) {
+  const questions = buildBattleQuestions(config);
+  startTimeAttackRun(config.rule, config.questionCountValue, config.categoryFilterValue);
+  startLocalBattleQuiz(questions, config.questionCountValue, config.categoryFilterValue);
+  renderQuestion();
+  showScreen("quiz");
+}
+
+// 次の問題があれば表示し、なければ対戦の結果集計画面へ進む。
+// 既存のgoToNextQuestionOrResult()と同じ構造だが、行き先が対戦専用の画面である点だけが違う。
+function goToNextBattleQuestionOrResult() {
+  const hasMoreQuestions = advanceToNextQuestion();
+  if (hasMoreQuestions) {
+    renderQuestion();
+    return;
+  }
+  finishBattlePlay();
+}
+
+// 対戦の出題が終わった（全問終了、またはLOVE連チャンで1回間違えた）ときに呼ばれる。
+// タイムアタックのrenderTimeAttackResult()と違い、自己ベスト・履歴への保存は一切行わない
+// （対戦の記録は結果コード・結果集計画面だけで完結する、完全に別の保存領域のため）。
+function finishBattlePlay() {
+  const stats = getCurrentTimeAttackStats();
+  startBattleResultCollection(stats);
+  showScreen("battleResultCollect");
+}
 
 // カテゴリの選択肢に添える対象曲数は、ゲームの状態と関係なく最初に1回だけ計算すればよい。
 updateCategoryCountHints();

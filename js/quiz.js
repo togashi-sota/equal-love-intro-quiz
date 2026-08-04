@@ -44,33 +44,39 @@ export function validatePoolSize(pool) {
 
 // 配列をシャッフルした「新しい配列」を返す（元の配列は書き換えない）。
 // Fisher–Yatesアルゴリズムを使い、どの並び順も同じ確率で出るようにしている。
-function shuffleArray(array) {
+//
+// randomは「0以上1未満の乱数を返す関数」。デフォルトはMath.randomのため、
+// 引数を渡さない既存の呼び出し元（通常プレイ・タイムアタック・苦手曲モード等）は
+// 今までと完全に同じ動作のまま変わらない。対戦モードだけ、js/seededRandom.jsで作った
+// 「シードから毎回同じ乱数列を返す関数」を渡すことで、全端末で同じ並び順を再現できる
+// （2026-08-06、対戦モードのために追加）。
+function shuffleArray(array, random = Math.random) {
   const shuffled = [...array];
   for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(random() * (i + 1));
     [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
   }
   return shuffled;
 }
 
 // プールをシャッフルし、先頭から count 曲を「出題する曲」として取り出す。
-export function pickQuestionSongs(pool, count) {
-  return shuffleArray(pool).slice(0, count);
+export function pickQuestionSongs(pool, count, random = Math.random) {
+  return shuffleArray(pool, random).slice(0, count);
 }
 
 // 正解の曲とプール全体から、4択の選択肢（正解1つ＋ダミー3つ）を作る。
-export function generateChoices(correctSong, pool) {
+export function generateChoices(correctSong, pool, random = Math.random) {
   const distractorCandidates = pool.filter((song) => song.id !== correctSong.id);
-  const distractors = shuffleArray(distractorCandidates).slice(0, 3);
-  return shuffleArray([correctSong, ...distractors]);
+  const distractors = shuffleArray(distractorCandidates, random).slice(0, 3);
+  return shuffleArray([correctSong, ...distractors], random);
 }
 
 // 出題する曲一覧から、クイズ画面で使う問題データ（{ song, choices } の配列）を作る。
-export function buildQuizQuestions(pool, count) {
-  const questionSongs = pickQuestionSongs(pool, count);
+export function buildQuizQuestions(pool, count, random = Math.random) {
+  const questionSongs = pickQuestionSongs(pool, count, random);
   return questionSongs.map((song) => ({
     song,
-    choices: generateChoices(song, pool),
+    choices: generateChoices(song, pool, random),
   }));
 }
 

@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>【開発用】対戦モード モックアップ</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap" rel="stylesheet">
+
+  <!-- 色・フォント・ボタン等の共通トークン（CSS変数・既存クラス）を再利用するため、本編と同じ
+       スタイルシートを読み込む。このファイルは実アプリのコード（index.html・js/main.js等）とは
+       完全に独立しており、どこからも読み込まれない・実アプリの動作には一切影響しない、
+       確認専用のモックアップ（本人の指示どおり）。 -->
+  <link rel="stylesheet" href="../css/style.css">
+
+  <style>
+    body {
+      /* css/style.css側の本編用スタイル（bodyをdisplay:flexで中央寄せする指定）を打ち消し、
+         このページ専用の縦積みレイアウトに戻す（dev/lyricsEditor.htmlと同じ対処）。 */
+      display: block;
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 0;
+      font-family: "M PLUS Rounded 1c", sans-serif;
+      color: var(--color-text);
+      overflow-x: hidden;
+      min-height: 100vh;
+    }
+
+    /* ===== モックアップ操作用のナビゲーション（実際のアプリには表示されません） ===== */
+    #mockup-nav {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      padding: 10px;
+      background: #2a1f26;
+      border-bottom: 2px dashed #ffd93d;
+    }
+    #mockup-nav-label {
+      width: 100%;
+      color: #ffd93d;
+      font-size: 0.7rem;
+      font-weight: 800;
+      margin-bottom: 2px;
+    }
+    #mockup-nav button {
+      flex: 1;
+      min-width: 34px;
+      padding: 6px 2px;
+      border-radius: 8px;
+      border: none;
+      background: rgba(255,255,255,0.15);
+      color: #fff;
+      font-family: inherit;
+      font-size: 0.72rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    #mockup-nav button.is-current {
+      background: #ffd93d;
+      color: #4a2e42;
+    }
+
+    .mockup-screen {
+      display: none;
+      padding: 20px 20px 40px;
+      animation: screenEnter 320ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .mockup-screen.is-active {
+      display: block;
+    }
+
+    .mockup-step-tag {
+      display: inline-block;
+      margin: 0 0 10px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: rgba(74,46,66,0.08);
+      font-size: 0.68rem;
+      font-weight: 800;
+      color: var(--color-text);
+      opacity: 0.6;
+    }
+
+    /* ===== 対戦モード共通パーツ ===== */
+    .battle-mode-select-row {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 16px;
+    }
+    .battle-mode-big-card {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 6px;
+      width: 100%;
+      padding: 20px;
+      border-radius: 18px;
+      background: var(--color-surface-glass);
+      border: 1px solid var(--color-card-border);
+      box-shadow: var(--shadow-card);
+      font-family: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+    .battle-mode-big-card:active { transform: scale(0.98); }
+    .battle-mode-big-card-icon { font-size: 1.6rem; }
+    .battle-mode-big-card-title { margin: 0; font-size: 1.05rem; font-weight: 800; color: var(--color-primary-dark); }
+    .battle-mode-big-card-desc { margin: 0; font-size: 0.8rem; opacity: 0.75; }
+
+    .battle-code-display {
+      margin: 16px 0;
+      padding: 20px 12px;
+      border-radius: 16px;
+      background: var(--color-surface);
+      border: 2px dashed var(--color-primary);
+      text-align: center;
+    }
+    .battle-code-value {
+      font-size: 1.4rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      color: var(--color-primary-dark);
+      font-variant-numeric: tabular-nums;
+      word-break: break-all;
+    }
+    .battle-code-qr-placeholder {
+      width: 140px;
+      height: 140px;
+      margin: 14px auto 0;
+      border-radius: 12px;
+      background: repeating-conic-gradient(#4a2e42 0% 25%, #fff 0% 50%) 50% / 14px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.65rem;
+      color: #fff;
+      text-shadow: 0 0 4px #000;
+      font-weight: 700;
+    }
+
+    .battle-config-summary {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin: 12px 0;
+    }
+    .battle-config-chip {
+      padding: 5px 12px;
+      border-radius: 999px;
+      background: var(--color-secondary-light);
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #2c6ea8;
+    }
+
+    .battle-notice-box {
+      margin: 12px 0;
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: rgba(111,189,242,0.12);
+      border: 1px solid var(--color-secondary);
+      font-size: 0.76rem;
+      line-height: 1.6;
+    }
+    .battle-warning-box {
+      margin: 12px 0;
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: var(--color-danger-soft);
+      border: 1px solid var(--color-danger);
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--color-danger);
+      line-height: 1.6;
+    }
+    .battle-check-ok {
+      margin: 12px 0;
+      padding: 10px 14px;
+      border-radius: 12px;
+      background: var(--color-accent-soft);
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--color-primary-dark);
+    }
+
+    .battle-code-input {
+      width: 100%;
+      padding: 14px;
+      border-radius: 14px;
+      border: 2px solid var(--color-primary);
+      background: var(--color-surface);
+      font-family: inherit;
+      font-size: 1.1rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-align: center;
+      color: var(--color-text);
+      box-sizing: border-box;
+    }
+    .battle-code-input::placeholder { color: rgba(74,46,66,0.35); font-weight: 700; }
+
+    .battle-field-label {
+      display: block;
+      margin: 14px 0 4px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      opacity: 0.7;
+    }
+
+    .battle-player-name-input {
+      width: 100%;
+      padding: 10px 14px;
+      border-radius: 12px;
+      border: 1.5px solid var(--color-card-border);
+      background: var(--color-surface);
+      font-family: inherit;
+      font-size: 0.9rem;
+      color: var(--color-text);
+      box-sizing: border-box;
+    }
+
+    .battle-vs-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 16px 0;
+    }
+    .battle-vs-card {
+      flex: 1;
+      padding: 14px 10px;
+      border-radius: 16px;
+      background: var(--color-surface-glass);
+      border: 1px solid var(--color-card-border);
+      text-align: center;
+    }
+    .battle-vs-card.is-winner {
+      background: linear-gradient(160deg, #ffe9a8, #fff2bf);
+      border-color: var(--color-accent);
+    }
+    .battle-vs-card-crown { font-size: 1.3rem; }
+    .battle-vs-card-name { margin: 4px 0 0; font-size: 0.85rem; font-weight: 800; }
+    .battle-vs-card-time { margin: 6px 0 0; font-size: 1.3rem; font-weight: 800; color: var(--color-primary-dark); font-variant-numeric: tabular-nums; }
+    .battle-vs-card-stats { margin: 4px 0 0; font-size: 0.7rem; opacity: 0.7; }
+    .battle-vs-divider { flex: none; font-size: 0.9rem; font-weight: 800; opacity: 0.4; }
+
+    .battle-rank-list { list-style: none; margin: 16px 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+    .battle-rank-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: var(--color-surface-glass);
+      border: 1px solid var(--color-card-border);
+    }
+    .battle-rank-row.is-rank-1 { background: linear-gradient(160deg, #ffe9a8, #fff2bf); border-color: var(--color-accent); }
+    .battle-rank-medal { flex: none; font-size: 1.3rem; width: 30px; text-align: center; }
+    .battle-rank-info { flex: 1; min-width: 0; }
+    .battle-rank-name { margin: 0; font-size: 0.85rem; font-weight: 800; }
+    .battle-rank-meta { margin: 2px 0 0; font-size: 0.7rem; opacity: 0.7; }
+    .battle-rank-time { flex: none; font-size: 0.95rem; font-weight: 800; color: var(--color-primary-dark); font-variant-numeric: tabular-nums; text-align: right; }
+
+    .battle-collect-list { list-style: none; margin: 12px 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+    .battle-collect-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: var(--color-surface-glass);
+      font-size: 0.8rem;
+    }
+    .battle-collect-row-name { font-weight: 700; }
+    .battle-collect-row-check { color: var(--color-primary-dark); font-weight: 800; }
+    .battle-progress-label { margin: 10px 0 4px; font-size: 0.8rem; font-weight: 700; text-align: center; }
+
+    /* 対戦中画面：既存のクイズ画面の見た目を模した簡易版 */
+    .battle-quiz-progress { text-align: center; font-size: 0.85rem; font-weight: 700; opacity: 0.7; margin: 8px 0 4px; }
+    .battle-quiz-timer { width: fit-content; margin: 0 auto 16px; padding: 6px 16px; border-radius: 999px; background: var(--color-surface-glass); font-weight: 800; font-size: 0.95rem; }
+    .battle-quiz-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+    .mockup-final-note {
+      margin-top: 28px;
+      padding: 14px;
+      border-radius: 14px;
+      background: rgba(74,46,66,0.06);
+      font-size: 0.72rem;
+      line-height: 1.7;
+    }
+  </style>
+</head>
+<body>
+
+  <nav id="mockup-nav">
+    <div id="mockup-nav-label">モックアップ操作用ナビ（実アプリには出ません）</div>
+    <button data-goto="1">①入口</button>
+    <button data-goto="2">②選択</button>
+    <button data-goto="3">③作成/参加</button>
+    <button data-goto="4">④待機</button>
+    <button data-goto="5">⑤参加</button>
+    <button data-goto="6">⑥確認</button>
+    <button data-goto="7">⑦対戦中</button>
+    <button data-goto="8">⑧1vs1結果</button>
+    <button data-goto="9">⑨順位表</button>
+    <button data-goto="10">⑩集計</button>
+  </nav>
+
+  <!-- ① 対戦モードの入口 -->
+  <section class="mockup-screen screen" id="mockup-screen-1">
+    <div class="title-block" style="margin-top:20px;">
+      <p class="eyebrow-chip">
+        <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+        BATTLE
+      </p>
+      <h2>対戦モード</h2>
+    </div>
+    <p class="special-modes-intro">友達と同じ問題・同じ条件でタイムアタックに挑戦し、記録を比べ合えます。インターネットがない場所でも遊べます。</p>
+    <button class="primary-button" onclick="goTo(2)">はじめる</button>
+    <p class="mockup-step-tag" style="display:block;margin-top:16px;">Step 1 / 10：対戦モードの入口</p>
+  </section>
+
+  <!-- ② 1対1／4人対戦の選択画面 -->
+  <section class="mockup-screen screen" id="mockup-screen-2">
+    <div class="list-header">
+      <button class="back-link" type="button" onclick="goTo(1)">
+        <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        戻る
+      </button>
+      <div class="title-block"><h2>人数を選ぶ</h2></div>
+    </div>
+    <div class="battle-mode-select-row">
+      <button class="battle-mode-big-card" onclick="setPlayers(2); goTo(3)">
+        <span class="battle-mode-big-card-icon">⚔️</span>
+        <p class="battle-mode-big-card-title">1対1対戦</p>
+        <p class="battle-mode-big-card-desc">友達1人と同じ問題で競います</p>
+      </button>
+      <button class="battle-mode-big-card" onclick="setPlayers(4); goTo(3)">
+        <span class="battle-mode-big-card-icon">🏆</span>
+        <p class="battle-mode-big-card-title">4人対戦</p>
+        <p class="battle-mode-big-card-desc">最大4人で同じ問題に挑戦し、順位を競います</p>
+      </button>
+    </div>
+    <p class="mockup-step-tag" style="display:block;margin-top:16px;">Step 2 / 10：1対1／4人対戦の選択画面</p>
+  </section>
+
+  <!-- ③ 対戦を作る／参加する画面 -->
+  <section class="mockup-screen screen" id="mockup-screen-3">
+    <div class="list-header">
+      <button class="back-link" type="button" onclick="goTo(2)">
+        <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        戻る
+      </button>
+      <div class="title-block"><h2><span id="mockup-players-label-3">4人</span>対戦</h2></div>
+    </div>
+    <div class="battle-mode-select-row">
+      <button class="battle-mode-big-card" onclick="goTo(4)">
+        <span class="battle-mode-big-card-icon">📤</span>
+        <p class="battle-mode-big-card-title">対戦を作る</p>
+        <p class="battle-mode-big-card-desc">出題数・カテゴリ・ルールを決めて、対戦コードを発行します</p>
+      </button>
+      <button class="battle-mode-big-card" onclick="goTo(5)">
+        <span class="battle-mode-big-card-icon">📥</span>
+        <p class="battle-mode-big-card-title">対戦に参加する</p>
+        <p class="battle-mode-big-card-desc">もらった対戦コードを入力して参加します</p>
+      </button>
+    </div>
+    <p class="mockup-step-tag" style="display:block;margin-top:16px;">Step 3 / 10：対戦を作る／参加する画面</p>
+  </section>
+
+  <!-- ④ 親端末の待機画面（＝対戦コード共有画面） -->
+  <section class="mockup-screen screen" id="mockup-screen-4">
+    <div class="list-header">
+      <button class="back-link" type="button" onclick="goTo(3)">
+        <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        戻る
+      </button>
+      <div class="title-block"><h2>対戦コードを共有</h2></div>
+    </div>
+
+    <div class="battle-config-summary">
+      <span class="battle-config-chip">10問</span>
+      <span class="battle-config-chip">全曲</span>
+      <span class="battle-config-chip">ハード</span>
+      <span class="battle-config-chip" id="mockup-players-label-4">4人まで</span>
+    </div>
+
+    <div class="battle-code-display">
+      <p style="margin:0 0 6px;font-size:0.72rem;opacity:0.6;">対戦コード</p>
+      <p class="battle-code-value">K7F9-XQ3M-8LP2</p>
+      <div class="battle-code-qr-placeholder">QRコード<br>（補助機能）</div>
+    </div>
+
+    <p style="text-align:center;font-size:0.8rem;">このコードを、一緒に遊ぶ人に伝えてください。</p>
+
+    <div class="battle-notice-box">
+      オフラインで遊ぶ場合、参加人数はこの画面では分かりません。全員が挑戦し終わったら、「結果を集計する」画面（Step 10）で人数を確認できます。
+    </div>
+
+    <button class="primary-button" onclick="goTo(6)">自分も挑戦する</button>
+    <p class="mockup-step-tag" style="display:block;margin-top:16px;">Step 4 / 10：親端末の待機画面（対戦コード共有）</p>
+  </section>
+
+  <!-- ⑤ 子端末のコード入力・参加画面 -->
+  <section class="mockup-screen screen" id="mockup-screen-5">
+    <div class="list-header">
+      <button class="back-link" type="button" onclick="goTo(3)">
+        <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        戻る
+      </button>
+      <div class="title-block"><h2>対戦に参加する</h2></div>
+    </div>
+
+    <p class="battle-field-label">対戦コードを入力</p>
+    <input class="battle-code-input" type="text" placeholder="XXXX-XXXX-XXXX" value="K7F9-XQ3M-8LP2">
+    <p style="text-align:center;font-size:0.72rem;opacity:0.6;margin-top:8px;">QRコードを読み取れる端末では、下のボタンからも入力できます</p>
+    <button class="secondary-button" style="width:100%;margin-top:8px;" type="button">📷 QRコードを読み取る</button>
+
+    <!-- 入力ミスの例。実際はコード不正時だけ表示する -->
+    <div class="battle-warning-box" id="mockup-code-error" style="display:none;">
+      対戦コードが正しくありません。入力した文字を確認してください。
+    </div>
+
+    <button class="primary-button" onclick="goTo(6)">コードを確認する</button>
+    <p class="mockup-step-tag" style="display:block;margin-top:16px;">Step 5 / 10：子端末のコード入力・参加画面</p>
+  </section>
+
+  <!-- ⑥ 対戦前のルール確認画面 -->
+  <section class="mockup-screen screen" id="mockup-screen-6">
+    <div class="list-header">
+      <button class="back-link" type="button" onclick="goTo(3)">
+        <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        戻る
+      </button>
+      <div class="title-block"><h2>この内容で挑戦します</h2></div>
+    </div>
+
+    <div class="battle-config-summary">
+      <span class="battle-config-chip">10問</span>
+      <span class="battle-config-chip">全曲</span>
+      <span class="battle-config-chip">ハード</span>
+    </div>
+
+    <div class="battle-check-ok">✓ お使いの端末で、出題される曲すべての音源を確認できました</div>
+    <!-- 音源不足時の見せ方（参考として両方置いておく。実際はどちらか一方だけ表示） -->
+    <div class="battle-warning-box" style="display:none;">⚠ 3曲の音源が読み込まれていません。「音源を読み込む」から追加してください</div>
+
+    <p class="battle-field-label">あなたの表示名</p>
+    <input class="battle-player-name-input" type="text" value="がしこ">
+    <p style="font-size:0.7rem;opacity:0.6;margin:4px 0 0;">ふだん使っているプレイヤー名です。今回だけ変更できます。</p>
+
+    <button class="primary-button" onclick="goTo(7)">この内容で挑戦する</button>
+    <p class="mockup-step-tag" style="display:block;margin-top:16px;">Step 6 / 10：対戦前のルール確認画面</p>
+  </section>
+
+  <!-- ⑦ 対戦中の画面（既存タイムアタック画面の見た目を再利用するイメージ） -->
+  <section class="mockup-screen screen" id="mockup-screen-7">
+    <p class="mockup-step-tag">🎮 対戦中（ハード・全曲・10問）</p>
+    <p class="battle-quiz-progress">第3問 / 10問</p>
+    <div class="progress-dots">
+      <span class="dot is-done"></span><span class="dot is-done"></span><span class="dot is-current"></span>
+      <span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span>
+    </div>
+    <p class="battle-quiz-timer">経過: 7秒</p>
+    <div class="battle-quiz-choices">
+      <button class="choice-button" type="button" onclick="goToOwnResult()">CAMEO</button>
+      <button class="choice-button" type="button" onclick="goToOwnResult()">この空がトリガー</button>
+      <button class="choice-button" type="button" onclick="goToOwnResult()">Be Selfish</button>
+      <button class="choice-button" type="button" onclick="goToOwnResult()">＝LOVE</button>
+    </div>
+    <p style="text-align:center;font-size:0.72rem;opacity:0.6;margin-top:16px;">既存のタイムアタック画面をそのまま再利用する想定のイメージです。選択肢を押すと、選んだ人数（1対1／4人）に応じて結果画面へ進みます（モックアップ用）。</p>
+    <p class="mockup-step-tag" style="display:block;margin-top:8px;">Step 7 / 10：対戦中の画面</p>
+  </section>
+
+  <!-- ⑧ 1対1の結果画面
+       セルフレビューで発見・修正：プレイ直後は自分の結果しか分からない（相手の結果はまだ
+       手元にない）ため、最初から比較表示にするのは実際の体験と矛盾する。「自分の結果のみ」
+       →「相手コードを入力」→「比較表示」の2段階を、この1画面の中で状態として作り分けた。 -->
+  <section class="mockup-screen screen" id="mockup-screen-8">
+    <div class="title-block"><h2>あなたの結果</h2></div>
+
+    <!-- 状態A：自分の結果のみ（プレイ直後の初期状態） -->
+    <div id="mockup-own-result-only">
+      <div class="battle-vs-card" style="max-width:220px;margin:0 auto;">
+        <p class="battle-vs-card-name">がしこ（あなた）</p>
+        <p class="battle-vs-card-time">42.18秒</p>
+        <p class="battle-vs-card-stats">正解10／ミス1</p>
+      </div>
+      <p style="text-align:center;font-size:0.75rem;opacity:0.65;margin-top:10px;">相手がまだ結果コードをくれていない場合は、先にこの画面の下にある「自分の結果コード」を伝えてください。</p>
+    </div>
+
+    <!-- 状態B：相手コード入力後の比較表示（初期状態では非表示） -->
+    <div id="mockup-vs-compared" style="display:none;">
+      <div class="battle-vs-row">
+        <div class="battle-vs-card is-winner">
+          <div class="battle-vs-card-crown">🥇</div>
+          <p class="battle-vs-card-name">がしこ（あなた）</p>
+          <p class="battle-vs-card-time">42.18秒</p>
+          <p class="battle-vs-card-stats">正解10／ミス1</p>
+        </div>
+        <div class="battle-vs-divider">VS</div>
+        <div class="battle-vs-card">
+          <div class="battle-vs-card-crown">🥈</div>
+          <p class="battle-vs-card-name">がしお</p>
+          <p class="battle-vs-card-time">48.55秒</p>
+          <p class="battle-vs-card-stats">正解10／ミス2</p>
+        </div>
+      </div>
+      <p style="text-align:center;font-weight:800;color:var(--color-primary-dark);">🎉 あなたの勝ちです！</p>
+    </div>
+
+    <div class="battle-notice-box">相手から結果コードをもらったら、下に入力すると比較できます。まだの場合は、自分の結果コード（下）を先に相手へ伝えてください。</div>
+    <p class="battle-field-label">相手の結果コードを入力</p>
+    <input class="battle-code-input" type="text" placeholder="XXXX-XXXX-XXXX">
+    <button class="secondary-button" style="width:100%;margin-top:10px;" type="button" onclick="showBattleComparison()">結果を比較する</button>
+
+    <p class="battle-field-label">自分の結果コード（相手に伝える）</p>
+    <div class="battle-code-display" style="margin-top:4px;">
+      <p class="battle-code-value" style="font-size:1.1rem;">R2M8-QF31-K9XZ</p>
+    </div>
+
+    <button class="primary-button" onclick="goTo(1)">対戦モードを終える</button>
+    <p class="mockup-step-tag" style="display:block;margin-top:16px;">Step 8 / 10：1対1の結果画面</p>
+  </section>
+
+  <!-- ⑨ 4人対戦の順位結果画面 -->
+  <section class="mockup-screen screen" id="mockup-screen-9">
+    <div class="title-block"><h2>順位発表</h2></div>
+    <p style="text-align:center;font-size:0.75rem;opacity:0.65;">10問・全曲・ハード</p>
+
+    <ul class="battle-rank-list">
+      <li class="battle-rank-row is-rank-1">
+        <div class="battle-rank-medal">🥇</div>
+        <div class="battle-rank-info">
+          <p class="battle-rank-name">がしこ（あなた）</p>
+          <p class="battle-rank-meta">正解10／ミス1</p>
+        </div>
+        <div class="battle-rank-time">42.18秒</div>
+      </li>
+      <li class="battle-rank-row">
+        <div class="battle-rank-medal">🥈</div>
+        <div class="battle-rank-info">
+          <p class="battle-rank-name">がしお</p>
+          <p class="battle-rank-meta">正解10／ミス2</p>
+        </div>
+        <div class="battle-rank-time">48.55秒</div>
+      </li>
+      <li class="battle-rank-row">
+        <div class="battle-rank-medal">🥉</div>
+        <div class="battle-rank-info">
+          <p class="battle-rank-name">ゆうき</p>
+          <p class="battle-rank-meta">正解8／ミス3</p>
+        </div>
+        <div class="battle-rank-time">55.02秒</div>
+      </li>
+      <li class="battle-rank-row">
+        <div class="battle-rank-medal">4位</div>
+        <div class="battle-rank-info">
+          <p class="battle-rank-name">みさき</p>
+          <p class="battle-rank-meta">6問目で失敗</p>
+        </div>
+        <div class="battle-rank-time">到達6問</div>
+      </li>
+    </ul>
+
+    <p style="text-align:center;font-size:0.7rem;opacity:0.6;">順位は「全問クリア＞タイム＞ミス数」（LOVE連チャンは到達数を優先）で決まります</p>
+
+    <button class="primary-button" onclick="goTo(1)">対戦モードを終える</button>
+    <p class="mockup-step-tag" style="display:block;margin-top:16px;">Step 9 / 10：4人対戦の順位結果画面</p>
+  </section>
+
+  <!-- ⑩ 結果コード入力・集計画面（親端末が使う） -->
+  <section class="mockup-screen screen" id="mockup-screen-10">
+    <div class="list-header">
+      <button class="back-link" type="button" onclick="goTo(4)">
+        <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        戻る
+      </button>
+      <div class="title-block"><h2>結果を集計する</h2></div>
+    </div>
+
+    <!-- セルフレビューで修正：オフラインでは「あと何人来るか」が分からないため、
+         「3/4人」のような固定人数に対する分数表示は誤解を招く（4人に満たなくても
+         全員分そろったと思い込ませてしまう）。代わりに「これまでに入力できた人数」
+         という、上限を前提にしない表現にした。 -->
+    <p class="battle-progress-label">これまでに3人分の結果を入力しました（最大4人まで）</p>
+
+    <ul class="battle-collect-list">
+      <li class="battle-collect-row"><span class="battle-collect-row-name">がしこ（あなた）</span><span class="battle-collect-row-check">✓ 済</span></li>
+      <li class="battle-collect-row"><span class="battle-collect-row-name">がしお</span><span class="battle-collect-row-check">✓ 済</span></li>
+      <li class="battle-collect-row"><span class="battle-collect-row-name">ゆうき</span><span class="battle-collect-row-check">✓ 済</span></li>
+    </ul>
+    <p style="text-align:center;font-size:0.72rem;opacity:0.6;">全員分そろっていなくても、「順位を確定する」を押せば、今入力した人数だけで順位表を作れます。</p>
+
+    <p class="battle-field-label">結果コードを追加で入力</p>
+    <input class="battle-code-input" type="text" placeholder="XXXX-XXXX-XXXX">
+    <button class="secondary-button" style="width:100%;margin-top:10px;" type="button">📷 結果QRを読み取る（補助）</button>
+    <button class="primary-button" type="button" style="margin-top:20px;">結果コードを追加</button>
+    <button class="secondary-button" style="width:100%;margin-top:12px;" onclick="goTo(9)">この人数で順位を確定する</button>
+
+    <p class="mockup-step-tag" style="display:block;margin-top:16px;">Step 10 / 10：結果コード入力・集計画面（親端末）</p>
+  </section>
+
+  <div class="mockup-final-note">
+    このページは、対戦モードのUI/UXを確認するための独立したモックアップです（<code>dev/battleModeMockup.html</code>）。実アプリのコード（index.html・js/main.js等）からは一切読み込まれておらず、既存の機能には影響しません。ボタンの色・カード・進捗ドット等は、本編の<code>css/style.css</code>を再利用して見た目を揃えています。
+  </div>
+
+  <script>
+    let selectedPlayers = 4;
+
+    function setPlayers(n) {
+      selectedPlayers = n;
+      document.getElementById('mockup-players-label-3').textContent = n === 2 ? '1対1' : '4人';
+      document.getElementById('mockup-players-label-4').textContent = n === 2 ? '2人まで' : '4人まで';
+    }
+
+    function goTo(n) {
+      document.querySelectorAll('.mockup-screen').forEach((el) => el.classList.remove('is-active'));
+      document.getElementById('mockup-screen-' + n).classList.add('is-active');
+      document.querySelectorAll('#mockup-nav button').forEach((btn) => {
+        btn.classList.toggle('is-current', btn.dataset.goto === String(n));
+      });
+      window.scrollTo(0, 0);
+    }
+
+    // 対戦中の画面（Step7）で回答した直後の遷移先。選んだ人数によって分岐する
+    // （1対1＝Step8の1対1結果画面、4人＝Step10の結果集計画面。4人対戦は「自分が結果を
+    // 送る側」の体験として、まず自分の結果コードを確認する流れを想定している）。
+    function goToOwnResult() {
+      if (selectedPlayers === 2) {
+        // Step8は毎回「自分の結果のみ」の状態から始まる（プレイ直後は相手の結果を
+        // まだ知らないため。セルフレビューで気づいた点、詳細はコード内コメント参照）。
+        document.getElementById('mockup-own-result-only').style.display = '';
+        document.getElementById('mockup-vs-compared').style.display = 'none';
+      }
+      goTo(selectedPlayers === 2 ? 8 : 10);
+    }
+
+    // 「結果を比較する」を押したときだけ、相手との比較表示に切り替える。
+    function showBattleComparison() {
+      document.getElementById('mockup-own-result-only').style.display = 'none';
+      document.getElementById('mockup-vs-compared').style.display = '';
+    }
+
+    document.querySelectorAll('#mockup-nav button').forEach((btn) => {
+      btn.addEventListener('click', () => goTo(Number(btn.dataset.goto)));
+    });
+
+    goTo(1);
+  </script>
+</body>
+</html>

@@ -1389,6 +1389,71 @@ fieldset label:has(input:focus-visible) {
    grid-column/justify-selfを持つため、グリッドを使わないこの画面向けに専用クラスにしている。
    進捗ピル（#question-progress、中央寄せ）とは横に並べず、その上に独立した左寄せの行として置くことで、
    スマホ幅でも進捗表示と干渉しないようにしている。 */
+/* 「タイトルへ」と効果音ボタンを横並びにする行（2026-08-06追加）。 */
+.quiz-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.quiz-header-row .quiz-back-link {
+  margin-bottom: 0;
+}
+
+/* ===== 効果音ON/OFFボタン（クイズ画面・スタート画面で共用、2026-08-06追加） =====
+   アイコンの出し分けは.mini-player-control-button等と同じ、SVGの表示切り替え方式。 */
+.sfx-toggle-button .icon-sfx-off {
+  display: none;
+}
+
+.sfx-toggle-button.is-muted .icon-sfx-on {
+  display: none;
+}
+
+.sfx-toggle-button.is-muted .icon-sfx-off {
+  display: block;
+}
+
+.sfx-toggle-button.is-muted {
+  color: var(--color-danger);
+}
+
+/* スタート画面側：ラベル付きの行（データ管理の折りたたみの上、常時表示）。 */
+.sfx-settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.4);
+  border: 1px solid var(--color-card-border);
+}
+
+.sfx-settings-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-text);
+  opacity: 0.7;
+}
+
+#sfx-toggle-button-start {
+  width: auto;
+  height: auto;
+  padding: 5px 12px;
+  border-radius: 999px;
+  gap: 5px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+#sfx-toggle-button-start svg {
+  width: 14px;
+  height: 14px;
+}
+
 .quiz-back-link {
   display: inline-flex;
   align-items: center;
@@ -1668,6 +1733,34 @@ fieldset label:has(input:focus-visible) {
   font-size: 0.75rem;
   font-weight: 700;
   color: var(--color-text);
+}
+
+/* 苦手曲モード確認画面の対象曲チップ（2026-08-06変更）。.missed-song-chip（単純な丸ピル）とは
+   あえて別クラスにしている。「なぜ選ばれたか」の理由を2行目に表示する必要があり、
+   .missed-song-chipは結果画面等でも共用しているため、そちらには手を加えたくないため。
+   #weak-songs-chip-row自体は既存の.missed-songs-chip-row（flex-wrap）をそのまま流用する。 */
+.weak-song-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 12px;
+  border-radius: 14px;
+  background: var(--color-danger-soft);
+  border: 1px solid var(--color-danger);
+  max-width: 100%;
+}
+
+.weak-song-chip-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.weak-song-chip-reason {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--color-danger);
+  opacity: 0.85;
 }
 
 /* .secondary-buttonはもともと横並び用にinline-flex（幅は中身に合わせる）なので、
@@ -2982,6 +3075,159 @@ fieldset label:has(input:focus-visible) {
 /* 全文表示モードでは、どの行も同じ濃さで読みやすく表示する（ハイライトなしのため） */
 .synced-lyrics-panel.is-full-text-mode .synced-lyrics-line {
   opacity: 1;
+}
+
+/* ===== ライブコールモード：コール表示（js/callSync.jsが歌詞パネルへ差し込む）=====
+   歌詞行（.synced-lyrics-line）とひと目で区別できるよう、本人の要望どおり赤系の配色にする
+   （既存の.mv-link-buttonと同じ--color-danger系トークンを使い、配色の一貫性を保つ）。
+   2026-08-06新設。 */
+.synced-call-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 3px 6px;
+  border-radius: 6px;
+  background: var(--color-danger-soft);
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--color-danger);
+  opacity: 0.75;
+  cursor: pointer;
+  transition: opacity var(--transition-base);
+}
+
+.synced-call-line:hover {
+  opacity: 1;
+}
+
+/* 今まさに発声するタイミングのコールだけ、はっきり強調する
+   （.synced-lyrics-line.is-current-lyrics-lineと同じクラスを使って判定基準を統一している）。 */
+.synced-call-line.is-current-lyrics-line {
+  opacity: 1;
+  background: var(--color-danger);
+  color: #ffffff;
+  transform: scale(1.02);
+}
+
+.synced-call-type-badge {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.6);
+  font-size: 0.6rem;
+}
+
+.synced-call-line.is-current-lyrics-line .synced-call-type-badge {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.synced-call-text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+/* 「通常歌詞のみ」に切り替えたとき、コール行だけ非表示にする。
+   歌詞側の全文表示切替ボタン（.lyrics-mode-toggle-button）とは別の、
+   独立したコール専用の切替ボタン（左上に配置し、歌詞側の右上ボタンと重ならないようにする）。 */
+.synced-lyrics-panel.calls-hidden .synced-call-line {
+  display: none;
+}
+
+.calls-toggle-button {
+  align-self: flex-start;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  flex: none;
+  font-size: 0.62rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--color-danger);
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--color-danger);
+  cursor: pointer;
+}
+
+/* ===== ライブコールモード：曲一覧画面 =====
+   .special-mode-cardと同じ見た目の行だが、収録曲一覧（songlist.js）とは
+   コード上も完全に独立した専用のクラスにしている（本人の希望）。 */
+.live-call-song-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 14px;
+  border-radius: 14px;
+  margin-bottom: 10px;
+  background: rgba(255, 255, 255, 0.4);
+  border: 1px solid var(--color-card-border);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.live-call-song-row:active {
+  transform: scale(0.98);
+}
+
+.live-call-song-row-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+}
+
+/* ===== ライブコールモード：再生画面 ===== */
+.live-call-mode-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.live-call-mode-seek-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 160px;
+}
+
+.live-call-mode-time {
+  flex: none;
+  font-size: 0.72rem;
+  color: var(--color-text);
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 専用の再生画面のため、収録曲一覧の試聴パネルより高さに余裕を持たせる */
+#live-call-mode-lyrics-panel {
+  max-height: 320px;
+}
+
+.live-call-mode-fullscreen-button {
+  margin-top: 10px;
+}
+
+/* 再生/一時停止ボタンのアイコン切り替え。既存の.icon-play/.icon-pause出し分け方式は
+   「.track-row.is-playing 配下の.play-button」専用のセレクタしかなく、収録曲一覧の行の
+   中にないこの単独ボタン（.play-buttonにis-playingを自分自身へ付け外しする）には
+   効かなかった（実際の再生/一時停止のJS処理自体は正しく動いていたが、アイコンの見た目だけ
+   切り替わらない不具合になっていた。本人からの報告で発覚。2026-08-06修正）。
+   .mini-player-control-button.is-playingと同じ、ボタン自身にクラスが付く場合の
+   セレクタを追加する。 */
+#live-call-mode-play-button.is-playing .icon-play {
+  display: none;
+}
+
+#live-call-mode-play-button.is-playing .icon-pause {
+  display: block;
 }
 
 /* 表示モードの切替ボタン。パネルをスクロールしても見失わないようsticky表示にする。 */
@@ -7277,6 +7523,516 @@ fieldset label:has(input:focus-visible) {
 
 .continuous-play-lyrics-fullscreen-button {
   margin: 6px auto 0;
+}
+
+/* ===== タイムアタック結果画面 ===== （2026-08-06新設） */
+#time-attack-result-new-record {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: fit-content;
+  margin: 10px auto 0;
+  padding: 6px 16px;
+  border-radius: 999px;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  background-color: var(--color-accent-soft);
+}
+
+#time-attack-result-new-record[hidden] {
+  display: none;
+}
+
+/* LOVE連チャンルールで、全問クリアできずに終了したときだけ表示する（2026-08-06追加）。
+   新記録バッジ（黄色・お祝い）とは対照的に、赤系の色でひと目で「失敗」と分かるようにしている。 */
+#time-attack-result-fail-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: fit-content;
+  max-width: 100%;
+  margin: 10px auto 0;
+  padding: 6px 16px;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-align: center;
+  color: var(--color-danger);
+  background-color: var(--color-danger-soft);
+}
+
+#time-attack-result-fail-status[hidden] {
+  display: none;
+}
+
+.time-attack-result-total-label {
+  margin: 18px 0 2px;
+  text-align: center;
+  font-size: 0.8rem;
+  opacity: 0.6;
+}
+
+.time-attack-result-total-time {
+  margin: 0 0 18px;
+  text-align: center;
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  font-variant-numeric: tabular-nums;
+}
+
+.time-attack-result-stats-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.time-attack-result-stat {
+  flex: 1;
+  padding: 10px;
+  border-radius: 12px;
+  background: var(--color-surface-glass);
+  border: 1px solid var(--color-card-border);
+  text-align: center;
+}
+
+.time-attack-result-stat-label {
+  margin: 0 0 2px;
+  font-size: 0.68rem;
+  opacity: 0.6;
+}
+
+.time-attack-result-stat-value {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  font-variant-numeric: tabular-nums;
+}
+
+.time-attack-result-best-time {
+  margin: 0 0 18px;
+  text-align: center;
+  font-size: 0.82rem;
+  opacity: 0.75;
+}
+
+.time-attack-result-best-time[hidden] {
+  display: none;
+}
+
+/* 結果画面のボタン群（2026-08-06変更）：①もう一度挑戦する（主）②タイムアタック設定へ戻る（副）を
+   縦並びにし、両方とも同じ横幅にする（.secondary-buttonは本来flex:1で横並びの行の中で使う想定の
+   クラスだが、flex:noneで打ち消し、縦並びの列の中でも幅いっぱいに広がるようにしている）。
+   スマホで指が近づきすぎないよう、間隔は16pxを確保した。 */
+.time-attack-result-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.time-attack-result-actions .primary-button {
+  margin-top: 0; /* .primary-button本来のmargin-topは、行の先頭に来る前提の値なのでここでは打ち消す */
+}
+
+.time-attack-result-setup-button {
+  flex: none;
+  padding: 14px; /* 「もう一度挑戦する」と同程度の押しやすさになるよう、通常のsecondary-buttonより大きめにする */
+  font-size: 0.95rem;
+}
+
+/* タイムアタック設定画面の「タイムアタック履歴」ボタン。開始ボタンより控えめな2番手の扱いにする */
+.time-attack-history-link {
+  margin-top: 10px;
+}
+
+/* ===== タイムアタック履歴 一覧・詳細画面（2026-08-06新設） =====
+   一覧のカード構造（.history-entry系）は、通常プレイ履歴（プレイ履歴画面）のスタイルを
+   そのまま流用し、タイムアタック特有の項目（タイム・正解/ミス・失敗表示）だけ専用クラスを足す。 */
+.time-attack-history-entry-time {
+  margin: 2px 0 0;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  font-variant-numeric: tabular-nums;
+}
+
+.time-attack-history-entry-stats {
+  margin: 1px 0 0;
+  font-size: 0.75rem;
+  opacity: 0.7;
+  font-variant-numeric: tabular-nums;
+}
+
+/* LOVE連チャンで全問クリアできずに終了した回の「失敗」マーク。
+   新記録マーク（.history-new-record-mark、ピンク系）とは対照的に、赤系にして一目で区別できるようにする。 */
+.time-attack-history-fail-mark {
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: var(--color-danger);
+}
+
+/* 詳細画面のサマリー部分は、通常プレイ履歴の.history-detail-summaryをそのまま流用し、
+   合計タイム・正解/ミスの2項目だけ結果画面と同じ.time-attack-result-*クラスを流用する。 */
+.time-attack-history-detail-summary {
+  padding: 14px;
+  border-radius: 16px;
+  margin: 12px 0 16px;
+  background: var(--color-surface-glass);
+  border: 1px solid var(--color-card-border);
+  text-align: center;
+}
+
+.time-attack-history-detail-summary .time-attack-result-total-time {
+  font-size: 1.6rem;
+  margin: 6px 0 12px;
+}
+
+.time-attack-history-detail-summary .history-new-record-mark {
+  display: block;
+  margin-top: 4px;
+}
+
+#time-attack-history-detail-fail-status {
+  display: block;
+  margin: 4px 0 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-danger);
+}
+
+#time-attack-history-detail-fail-status[hidden],
+#time-attack-history-detail-new-record[hidden] {
+  display: none;
+}
+
+.time-attack-history-detail-question-list {
+  list-style: none;
+  padding: 0;
+  margin: 4px 0 0;
+}
+
+.time-attack-history-detail-question-row {
+  padding: 10px 4px;
+  border-top: 1px solid var(--color-card-border);
+}
+
+.time-attack-history-detail-question-row:first-child {
+  border-top: none;
+}
+
+.time-attack-history-detail-question-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+
+.time-attack-history-detail-question-number {
+  font-size: 0.75rem;
+  color: var(--color-text);
+  opacity: 0.55;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 正解/不正解のタグ。プレイ履歴詳細の.history-detail-answer-tagと同じ色分けにしている */
+.time-attack-history-detail-question-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.time-attack-history-detail-question-tag.is-correct {
+  background: var(--color-accent-soft);
+  color: var(--color-primary-dark);
+}
+
+.time-attack-history-detail-question-tag.is-wrong {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.time-attack-history-detail-question-answer {
+  margin: 0 0 2px;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.time-attack-history-detail-question-choices,
+.time-attack-history-detail-question-selected {
+  margin: 0 0 2px;
+  font-size: 0.76rem;
+  opacity: 0.75;
+  word-break: break-word;
+}
+
+.time-attack-history-detail-question-meta {
+  display: flex;
+  gap: 10px;
+  margin-top: 3px;
+  font-size: 0.72rem;
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ===== 対戦モード（ローカル対戦、2026-08-06新設） =====
+   モックアップ（dev/battleModeMockup.html）で検証済みの見た目を、実アプリのcss/style.cssに
+   移植したもの。既存のクラス（.primary-button・.secondary-button・.special-mode-card等）を
+   なるべく流用し、対戦モード特有の見た目だけをここに追加している。 */
+.battle-mode-select-row {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.battle-mode-big-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  width: 100%;
+  padding: 20px;
+  border-radius: 18px;
+  background: var(--color-surface-glass);
+  border: 1px solid var(--color-card-border);
+  box-shadow: var(--shadow-card);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform var(--transition-fast) cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.battle-mode-big-card:active {
+  transform: scale(0.98);
+}
+
+.battle-mode-big-card-icon {
+  font-size: 1.6rem;
+}
+
+.battle-mode-big-card-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+}
+
+.battle-mode-big-card-desc {
+  margin: 0;
+  font-size: 0.8rem;
+  opacity: 0.75;
+}
+
+.battle-code-display {
+  margin: 16px 0;
+  padding: 20px 12px;
+  border-radius: 16px;
+  background: var(--color-surface);
+  border: 2px dashed var(--color-primary);
+  text-align: center;
+}
+
+.battle-code-value {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--color-primary-dark);
+  font-variant-numeric: tabular-nums;
+  word-break: break-all;
+}
+
+.battle-config-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 12px 0;
+}
+
+.battle-config-chip {
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: var(--color-secondary-light);
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #2c6ea8;
+}
+
+.battle-notice-box {
+  margin: 12px 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(111, 189, 242, 0.12);
+  border: 1px solid var(--color-secondary);
+  font-size: 0.76rem;
+  line-height: 1.6;
+}
+
+.battle-warning-box {
+  margin: 12px 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--color-danger-soft);
+  border: 1px solid var(--color-danger);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-danger);
+  line-height: 1.6;
+}
+
+.battle-warning-box[hidden] {
+  display: none;
+}
+
+.battle-check-ok {
+  margin: 12px 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--color-accent-soft);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+}
+
+.battle-code-input {
+  width: 100%;
+  padding: 14px;
+  border-radius: 14px;
+  border: 2px solid var(--color-primary);
+  background: var(--color-surface);
+  font-family: inherit;
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-align: center;
+  color: var(--color-text);
+  box-sizing: border-box;
+}
+
+.battle-code-input::placeholder {
+  color: rgba(74, 46, 66, 0.35);
+  font-weight: 700;
+}
+
+.battle-field-label {
+  display: block;
+  margin: 14px 0 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  opacity: 0.7;
+}
+
+.battle-player-name-input {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1.5px solid var(--color-card-border);
+  background: var(--color-surface);
+  font-family: inherit;
+  font-size: 0.9rem;
+  color: var(--color-text);
+  box-sizing: border-box;
+}
+
+.battle-rank-list {
+  list-style: none;
+  margin: 16px 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.battle-rank-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--color-surface-glass);
+  border: 1px solid var(--color-card-border);
+}
+
+.battle-rank-row.is-rank-1 {
+  background: linear-gradient(160deg, #ffe9a8, #fff2bf);
+  border-color: var(--color-accent);
+}
+
+.battle-rank-medal {
+  flex: none;
+  font-size: 1.3rem;
+  width: 30px;
+  text-align: center;
+}
+
+.battle-rank-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.battle-rank-name {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+.battle-rank-meta {
+  margin: 2px 0 0;
+  font-size: 0.7rem;
+  opacity: 0.7;
+}
+
+.battle-rank-time {
+  flex: none;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.battle-collect-list {
+  list-style: none;
+  margin: 12px 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.battle-collect-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--color-surface-glass);
+  font-size: 0.8rem;
+}
+
+.battle-collect-row-name {
+  font-weight: 700;
+}
+
+.battle-collect-row-check {
+  color: var(--color-primary-dark);
+  font-weight: 800;
+}
+
+.battle-progress-label {
+  margin: 10px 0 4px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-align: center;
 }
 
 /* ===== アクセシビリティ：モーションを減らす設定への対応 =====

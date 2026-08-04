@@ -315,6 +315,17 @@
         </button>
       </div>
 
+      <!-- 効果音のON/OFF設定（2026-08-06追加）。端末共通（プレイヤーごとではない）の設定として、
+           js/sfx.js側でlocalStorageに保存する。 -->
+      <div class="sfx-settings-row">
+        <span class="sfx-settings-label">効果音</span>
+        <button id="sfx-toggle-button-start" class="sfx-toggle-button" type="button" aria-label="効果音を消す">
+          <svg class="icon-sfx-on" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 9v6h4l5 5V4L8 9H4Zm11.5 3a3.5 3.5 0 0 0-2-3.16v6.32A3.5 3.5 0 0 0 15.5 12Z"/></svg>
+          <svg class="icon-sfx-off" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 9v6h4l5 5V4L8 9H4Zm14.7-.7-1.4 1.4L19 11.4l1.4-1.4L18.7 8.3ZM19 12.6l-1.7 1.7 1.4 1.4L20.4 14 19 12.6Zm-1.7-4.3L15.6 10l1.4 1.4 1.7-1.7-1.4-1.4Z"/></svg>
+          <span id="sfx-toggle-button-start-label">ON</span>
+        </button>
+      </div>
+
       <!-- 音源・歌詞データの読み込み（データ管理）。初回セットアップ以降はほとんど
            使わない機能のため、折りたたみ（details/summary）にしてホーム画面の主役
            （スタートボタン・プレイヤー・＝LOVEをもっと知る）を邪魔しない位置＝
@@ -372,15 +383,24 @@
       <!-- 途中でタイトルへ戻る入口。進捗ピル（#question-progress）とは横に並べず、
            その1行上に独立した左寄せの行として置くことで、スマホ幅でも干渉しないようにしている。
            押すといきなり戻らず、確認モーダル（#quiz-quit-confirm-modal）を必ず挟む。 -->
-      <button id="quiz-back-button" class="quiz-back-link" type="button">
-        <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-        <!-- 文言は苦手曲モード・オリジナル問題作成モードのクイズ中だけ、そのモードの
-             確認/一覧画面に戻る内容に切り替わる（js/main.jsのupdateQuizQuitDisplay参照）。
-             アイコンを巻き込んで書き換えないよう、文字部分だけspanでくくっている。 -->
-        <span id="quiz-back-button-label">タイトルへ</span>
-      </button>
+      <!-- 「タイトルへ」リンクと効果音ON/OFFボタンを横並びにする行（2026-08-06追加）。
+           効果音ボタンはクイズ中ずっと表示され続ける必要があるため、回答すると隠れる
+           #quiz-actions内ではなく、常時表示のこの行に置いている。 -->
+      <div class="quiz-header-row">
+        <button id="quiz-back-button" class="quiz-back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <!-- 文言は苦手曲モード・オリジナル問題作成モードのクイズ中だけ、そのモードの
+               確認/一覧画面に戻る内容に切り替わる（js/main.jsのupdateQuizQuitDisplay参照）。
+               アイコンを巻き込んで書き換えないよう、文字部分だけspanでくくっている。 -->
+          <span id="quiz-back-button-label">タイトルへ</span>
+        </button>
+        <button id="sfx-toggle-button-quiz" class="header-icon-button sfx-toggle-button" type="button" aria-label="効果音を消す">
+          <svg class="icon-sfx-on" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 9v6h4l5 5V4L8 9H4Zm11.5 3a3.5 3.5 0 0 0-2-3.16v6.32A3.5 3.5 0 0 0 15.5 12Z"/></svg>
+          <svg class="icon-sfx-off" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 9v6h4l5 5V4L8 9H4Zm14.7-.7-1.4 1.4L19 11.4l1.4-1.4L18.7 8.3ZM19 12.6l-1.7 1.7 1.4 1.4L20.4 14 19 12.6Zm-1.7-4.3L15.6 10l1.4 1.4 1.7-1.7-1.4-1.4Z"/></svg>
+        </button>
+      </div>
 
       <p id="question-progress">第1問 / 5問</p>
 
@@ -1065,7 +1085,7 @@
         <button id="weak-songs-rules-link" class="info-link-button" type="button" aria-label="判定ルールを見る">？</button>
       </div>
 
-      <p class="weak-songs-explanation">3回以上出題され、正答率50%未満の曲が対象です。</p>
+      <p class="weak-songs-explanation">間違えやすい曲を自動で集めて、繰り返し練習できます。</p>
 
       <!-- 対象曲が1曲以上あるときの表示。中身はjs/weakSongsScreen.jsが組み立てる -->
       <div id="weak-songs-available-section">
@@ -1094,6 +1114,483 @@
       <p id="weak-songs-empty-state" class="history-empty-state" hidden>
         まだ対象の曲がありません。プレイを重ねると判定されるようになります。
       </p>
+    </section>
+
+    <!-- ライブコールモード：曲一覧画面。コールデータ（js/callStorage.js）が登録されている
+         曲だけを一覧表示する。収録曲一覧（songlist.js）とは完全に独立した、専用の一覧
+         （2026-08-06新設）。中身はjs/liveCallModeScreen.jsが組み立てる。 -->
+    <section id="live-call-mode-list-screen" class="screen">
+      <div class="list-header">
+        <button id="live-call-mode-list-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            LIVE CALL
+          </p>
+          <h2>ライブコールモード</h2>
+        </div>
+      </div>
+
+      <p class="special-modes-intro">コールが登録されている曲だけを一覧表示します。曲を選ぶと再生を始めます。</p>
+
+      <!-- 曲一覧。中身はjs/liveCallModeScreen.jsが組み立てる -->
+      <div id="live-call-mode-song-list"></div>
+
+      <p id="live-call-mode-list-empty-state" class="history-empty-state" hidden>
+        まだコールが登録された曲がありません。
+      </p>
+    </section>
+
+    <!-- ライブコールモード：再生画面。歌詞は既存のjs/lyricsSync.jsがそのまま同期表示し、
+         その上にjs/callSync.jsがコールを重ねて表示する。全画面表示も既存のjs/lyricsFullscreen.js
+         をそのまま利用する（歌詞パネルの中身がコールごと一緒に移動するため、追加の実装は不要）。 -->
+    <section id="live-call-mode-player-screen" class="screen">
+      <div class="list-header">
+        <button id="live-call-mode-player-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            LIVE CALL
+          </p>
+          <h2 id="live-call-mode-song-title">曲名</h2>
+        </div>
+      </div>
+
+      <div class="live-call-mode-controls">
+        <button id="live-call-mode-play-button" class="play-button" type="button" aria-label="再生する">
+          <svg class="icon-play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7Z"/></svg>
+          <svg class="icon-pause" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="7" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+        </button>
+        <div class="live-call-mode-seek-row">
+          <button id="live-call-mode-seek-back-button" type="button" class="seek-skip-button" aria-label="10秒戻す">−10</button>
+          <input type="range" id="live-call-mode-seek-range" class="seek-range" min="0" value="0" step="0.1">
+          <button id="live-call-mode-seek-forward-button" type="button" class="seek-skip-button" aria-label="10秒送る">+10</button>
+        </div>
+        <span class="live-call-mode-time">
+          <span id="live-call-mode-current-time">0:00</span> / <span id="live-call-mode-duration">0:00</span>
+        </span>
+      </div>
+
+      <audio id="live-call-mode-audio"></audio>
+
+      <!-- 歌詞パネル：既存の.synced-lyrics-panelと同じクラスにすることで、
+           歌詞の見た目・全文表示切替ボタン等の既存スタイルをそのまま流用する。 -->
+      <div id="live-call-mode-lyrics-panel" class="synced-lyrics-panel" hidden></div>
+
+      <button id="live-call-mode-fullscreen-button" class="secondary-button live-call-mode-fullscreen-button" type="button" hidden>
+        <svg class="button-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+        歌詞＋コールを全画面表示
+      </button>
+
+      <p id="live-call-mode-no-lyrics-notice" class="history-empty-state" hidden>
+        この曲にはまだ歌詞データが登録されていないため、コールだけを表示できません。歌詞データの登録が先に必要です。
+      </p>
+    </section>
+
+    <!-- タイムアタック：設定画面。出題数・カテゴリ・ルールを選んで開始する。
+         中身の組み立て・開始処理はjs/timeAttackScreen.jsとjs/main.jsが担当する
+         （既存の通常クイズと同じ、出題数・カテゴリのラジオボタンを踏襲。2026-08-06新設）。 -->
+    <section id="time-attack-setup-screen" class="screen">
+      <div class="list-header">
+        <button id="time-attack-setup-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            TIME ATTACK
+          </p>
+          <h2>タイムアタック</h2>
+        </div>
+      </div>
+
+      <p class="special-modes-intro">全問終了までの合計タイムを競います。正解するまで（ノーマル）、または1回間違えるまで（ハード・LOVE連チャン）はテンポよく次々に進みます。LOVE連チャンは1回でも間違えたらその場で終了、全問クリアしたタイムだけが記録になります。</p>
+
+      <fieldset>
+        <legend>出題数</legend>
+        <div class="option-row">
+          <label><input type="radio" name="time-attack-question-count" value="5" checked> 5問</label>
+          <label><input type="radio" name="time-attack-question-count" value="10"> 10問</label>
+          <label><input type="radio" name="time-attack-question-count" value="20"> 20問</label>
+        </div>
+        <div class="option-row">
+          <label><input type="radio" name="time-attack-question-count" value="50"> 50問</label>
+          <label><input type="radio" name="time-attack-question-count" value="all"> 全曲</label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>カテゴリ</legend>
+        <div class="option-row">
+          <label><input type="radio" name="time-attack-category-filter" value="title-track" checked> 表題曲のみ</label>
+          <label><input type="radio" name="time-attack-category-filter" value="title-and-group"> 表題曲＋全員曲</label>
+          <label><input type="radio" name="time-attack-category-filter" value="all"> 全曲</label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>ルール</legend>
+        <div class="option-row">
+          <label><input type="radio" name="time-attack-rule" value="normal" checked> ノーマル（間違えた選択肢が消える）</label>
+          <label><input type="radio" name="time-attack-rule" value="hard"> ハード（1回間違えたら即次へ）</label>
+          <label><input type="radio" name="time-attack-rule" value="loveChain"> LOVE連チャン（1回間違えたら即終了）</label>
+        </div>
+      </fieldset>
+
+      <!-- 選択中の出題数・カテゴリに対応する自己ベスト。ラジオボタンを切り替えるたびにJSで更新する。 -->
+      <p id="time-attack-best-chip" class="mode-best-chip is-empty">自己ベスト：記録なし</p>
+
+      <button id="time-attack-start-button" class="primary-button" type="button">開始する</button>
+      <p id="time-attack-start-error" class="error-message" hidden></p>
+
+      <!-- タイムアタック専用の履歴一覧への入口（2026-08-06追加）。通常プレイ履歴とは
+           完全に別画面・別データなので、ここからしか辿り着けない導線にしている。 -->
+      <button id="time-attack-history-link" class="secondary-button time-attack-history-link" type="button">タイムアタック履歴</button>
+    </section>
+
+    <!-- タイムアタック：結果画面。合計タイム・正解数・ミス数・自己ベスト更新の有無を表示する。
+         得点・ランクを扱う既存の#result-screenとは別の専用画面にすることで、
+         既存の結果画面には一切手を加えない（2026-08-06新設）。 -->
+    <section id="time-attack-result-screen" class="screen">
+      <!-- 左上の控えめな「ホームへ戻る」リンク（2026-08-06変更）。本人の要望で、結果画面から
+           一番奥（タイトル）へ戻る操作は、目立たせすぎない小さな導線にしている。 -->
+      <button id="time-attack-result-home-link" class="quiz-back-link" type="button">⌂ ホームへ戻る</button>
+
+      <div class="title-block">
+        <p class="eyebrow-chip">
+          <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+          TIME ATTACK RESULT
+        </p>
+        <h2>結果</h2>
+      </div>
+
+      <p id="time-attack-result-new-record" hidden>🎉 新記録！</p>
+      <!-- LOVE連チャンで全問クリアできずに終了したときだけ表示する（2026-08-06追加）。
+           新記録バッジとは同時に出ない（js/timeAttackScreen.jsのrenderTimeAttackResult参照）。 -->
+      <p id="time-attack-result-fail-status" hidden></p>
+
+      <p class="time-attack-result-total-label">合計タイム</p>
+      <p id="time-attack-result-total-time" class="time-attack-result-total-time">0.00秒</p>
+
+      <div class="time-attack-result-stats-row">
+        <div class="time-attack-result-stat">
+          <p class="time-attack-result-stat-label">正解数</p>
+          <p id="time-attack-result-correct-count" class="time-attack-result-stat-value">0 / 0問</p>
+        </div>
+        <div class="time-attack-result-stat">
+          <p class="time-attack-result-stat-label">ミス数</p>
+          <p id="time-attack-result-miss-count" class="time-attack-result-stat-value">0回</p>
+        </div>
+        <div class="time-attack-result-stat">
+          <p class="time-attack-result-stat-label">ルール</p>
+          <p id="time-attack-result-rule-label" class="time-attack-result-stat-value">ノーマル</p>
+        </div>
+      </div>
+
+      <p id="time-attack-result-best-time" class="time-attack-result-best-time" hidden></p>
+
+      <!-- ボタンの優先順位（本人の要望）：①もう一度挑戦する（同条件でリベンジ、主ボタン）
+           ②タイムアタック設定へ戻る（条件を変えて挑戦、副ボタン）③ホーム（上の小さなリンク、控えめ）。
+           横並びではなく縦並びにし、②も①と同じ横幅・押しやすさになるようにしている。 -->
+      <div class="time-attack-result-actions">
+        <button id="time-attack-result-retry-button" class="primary-button" type="button">もう一度挑戦する</button>
+        <button id="time-attack-result-setup-button" class="secondary-button time-attack-result-setup-button" type="button">← タイムアタック設定へ戻る</button>
+      </div>
+    </section>
+
+    <!-- タイムアタック履歴一覧画面：通常プレイ履歴（#history-screen）とは完全に別のデータ・画面
+         （2026-08-06新設）。カード1件＝タイムアタック1プレイ分。中身はjs/timeAttackHistoryScreen.jsが組み立てる。
+         見た目は#history-screenの履歴カード（.history-entry系クラス）をそのまま流用している。 -->
+    <section id="time-attack-history-screen" class="screen">
+      <div class="list-header">
+        <button id="time-attack-history-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            TIME ATTACK HISTORY
+          </p>
+          <h2>タイムアタック履歴</h2>
+        </div>
+      </div>
+
+      <!-- 履歴が1件もないときだけ表示する案内。JS側でhidden属性を切り替える -->
+      <p id="time-attack-history-empty-state" class="history-empty-state" hidden>
+        まだタイムアタックの記録がありません。プレイすると、ここに記録が残っていきます。
+      </p>
+
+      <!-- 履歴カードを新しい順に並べる場所。中身はjs/timeAttackHistoryScreen.jsが組み立てる -->
+      <div id="time-attack-history-list"></div>
+    </section>
+
+    <!-- タイムアタック履歴 詳細画面：履歴一覧の1件をタップしたときに開く、問題ごとの内訳画面。
+         中身（サマリー・問題別内訳）はjs/timeAttackHistoryDetailScreen.jsが組み立てる。
+         通常プレイの#history-detail-screenと同じ考え方だが、曲別ではなく問題（出題順）別に、
+         「表示された4択・押した順番・正解」まで見られる点が異なる。 -->
+    <section id="time-attack-history-detail-screen" class="screen">
+      <div class="list-header">
+        <button id="time-attack-history-detail-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            TIME ATTACK HISTORY DETAIL
+          </p>
+          <h2>タイムアタック履歴詳細</h2>
+        </div>
+      </div>
+
+      <div class="time-attack-history-detail-summary">
+        <p id="time-attack-history-detail-date" class="history-detail-date"></p>
+        <p id="time-attack-history-detail-mode" class="history-detail-mode"></p>
+        <p id="time-attack-history-detail-total-time" class="time-attack-result-total-time"></p>
+
+        <div class="time-attack-result-stats-row">
+          <div class="time-attack-result-stat">
+            <p class="time-attack-result-stat-label">正解数</p>
+            <p id="time-attack-history-detail-correct-count" class="time-attack-result-stat-value"></p>
+          </div>
+          <div class="time-attack-result-stat">
+            <p class="time-attack-result-stat-label">ミス数</p>
+            <p id="time-attack-history-detail-miss-count" class="time-attack-result-stat-value"></p>
+          </div>
+        </div>
+
+        <p id="time-attack-history-detail-new-record" class="history-new-record-mark" hidden>🎉新記録</p>
+        <p id="time-attack-history-detail-fail-status" class="time-attack-history-fail-mark" hidden></p>
+      </div>
+
+      <!-- 1問ごとの内訳（番号・曲名・自分が押した回答の履歴・4択・正誤・ミス数・回答時間）。
+           中身はjs/timeAttackHistoryDetailScreen.jsが組み立てる。 -->
+      <ul id="time-attack-history-detail-question-list" class="time-attack-history-detail-question-list"></ul>
+    </section>
+
+    <!-- ===== 対戦モード（ローカル対戦、2026-08-06新設） =====
+         完全オフラインで、友達と同じ問題・同じ選択肢に挑戦し、記録を比べ合える機能。
+         中身の組み立て・遷移はjs/localBattleScreen.js・js/localBattleResultScreen.jsが担う。
+         出題自体は既存のクイズ画面（#quiz-screen）をそのまま再利用する
+         （タイムアタックと同じ、gameState.playModeで出し分ける設計）。 -->
+
+    <!-- 入口＋1対1／4人対戦の選択（モックアップの「入口」「選択」2画面を1画面にまとめている。
+         タップ数が1回減るだけで内容は変わらないための簡略化）。 -->
+    <section id="battle-mode-select-screen" class="screen">
+      <div class="list-header">
+        <button id="battle-mode-select-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            BATTLE
+          </p>
+          <h2>対戦モード</h2>
+        </div>
+      </div>
+      <p class="special-modes-intro">友達と同じ問題・同じ条件でタイムアタックに挑戦し、記録を比べ合えます。インターネットがない場所でも遊べます。</p>
+      <div class="battle-mode-select-row">
+        <button id="battle-mode-select-1v1" class="battle-mode-big-card" type="button">
+          <span class="battle-mode-big-card-icon">⚔️</span>
+          <p class="battle-mode-big-card-title">1対1対戦</p>
+          <p class="battle-mode-big-card-desc">友達1人と同じ問題で競います</p>
+        </button>
+        <button id="battle-mode-select-4p" class="battle-mode-big-card" type="button">
+          <span class="battle-mode-big-card-icon">🏆</span>
+          <p class="battle-mode-big-card-title">4人対戦</p>
+          <p class="battle-mode-big-card-desc">最大4人で同じ問題に挑戦し、順位を競います</p>
+        </button>
+      </div>
+    </section>
+
+    <!-- 対戦を作る／参加するの選択 -->
+    <section id="battle-create-or-join-screen" class="screen">
+      <div class="list-header">
+        <button id="battle-create-or-join-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          戻る
+        </button>
+        <div class="title-block"><h2 id="battle-create-or-join-title">対戦</h2></div>
+      </div>
+      <div class="battle-mode-select-row">
+        <button id="battle-create-button" class="battle-mode-big-card" type="button">
+          <span class="battle-mode-big-card-icon">📤</span>
+          <p class="battle-mode-big-card-title">対戦を作る</p>
+          <p class="battle-mode-big-card-desc">出題数・カテゴリ・ルールを決めて、対戦コードを発行します</p>
+        </button>
+        <button id="battle-join-button" class="battle-mode-big-card" type="button">
+          <span class="battle-mode-big-card-icon">📥</span>
+          <p class="battle-mode-big-card-title">対戦に参加する</p>
+          <p class="battle-mode-big-card-desc">もらった対戦コードを入力して参加します</p>
+        </button>
+      </div>
+    </section>
+
+    <!-- 対戦を作る：出題数・カテゴリ・ルールの選択（既存の#time-attack-setup-screenと同じ
+         ラジオボタンの構成を踏襲。name属性だけ対戦専用にしている）。 -->
+    <section id="battle-setup-screen" class="screen">
+      <div class="list-header">
+        <button id="battle-setup-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          戻る
+        </button>
+        <div class="title-block"><h2>対戦の設定</h2></div>
+      </div>
+
+      <fieldset>
+        <legend>出題数</legend>
+        <div class="option-row">
+          <label><input type="radio" name="battle-question-count" value="5" checked> 5問</label>
+          <label><input type="radio" name="battle-question-count" value="10"> 10問</label>
+          <label><input type="radio" name="battle-question-count" value="20"> 20問</label>
+        </div>
+        <div class="option-row">
+          <label><input type="radio" name="battle-question-count" value="50"> 50問</label>
+          <label><input type="radio" name="battle-question-count" value="all"> 全曲</label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>カテゴリ</legend>
+        <div class="option-row">
+          <label><input type="radio" name="battle-category-filter" value="title-track" checked> 表題曲のみ</label>
+          <label><input type="radio" name="battle-category-filter" value="title-and-group"> 表題曲＋全員曲</label>
+          <label><input type="radio" name="battle-category-filter" value="all"> 全曲</label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>ルール</legend>
+        <div class="option-row">
+          <label><input type="radio" name="battle-rule" value="normal" checked> ノーマル（間違えた選択肢が消える）</label>
+          <label><input type="radio" name="battle-rule" value="hard"> ハード（1回間違えたら即次へ）</label>
+          <label><input type="radio" name="battle-rule" value="loveChain"> LOVE連チャン（1回間違えたら即終了）</label>
+        </div>
+      </fieldset>
+
+      <button id="battle-setup-create-code-button" class="primary-button" type="button">対戦コードを作る</button>
+      <p id="battle-setup-error" class="error-message" hidden></p>
+    </section>
+
+    <!-- 対戦を作る：対戦コードの共有画面（親端末）。完全オフラインのため、この画面では
+         「今何人参加しているか」は分からない（js/localBattleScreen.jsのコメント参照）。 -->
+    <section id="battle-code-share-screen" class="screen">
+      <div class="list-header">
+        <button id="battle-code-share-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          戻る
+        </button>
+        <div class="title-block"><h2>対戦コードを共有</h2></div>
+      </div>
+
+      <div class="battle-config-summary" id="battle-code-share-config-summary"></div>
+
+      <div class="battle-code-display">
+        <p style="margin:0 0 6px;font-size:0.72rem;opacity:0.6;">対戦コード</p>
+        <p class="battle-code-value" id="battle-code-share-value"></p>
+      </div>
+
+      <p style="text-align:center;font-size:0.8rem;">このコードを、一緒に遊ぶ人に伝えてください。</p>
+
+      <div class="battle-notice-box">オフラインで遊ぶ場合、参加人数はこの画面では分かりません。全員が挑戦し終わったら、「結果を集計する」画面で人数を確認できます。</div>
+
+      <button id="battle-code-share-start-button" class="primary-button" type="button">自分も挑戦する</button>
+    </section>
+
+    <!-- 対戦に参加する：コード入力画面 -->
+    <section id="battle-join-screen" class="screen">
+      <div class="list-header">
+        <button id="battle-join-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          戻る
+        </button>
+        <div class="title-block"><h2>対戦に参加する</h2></div>
+      </div>
+
+      <p class="battle-field-label">対戦コードを入力</p>
+      <input id="battle-join-code-input" class="battle-code-input" type="text" placeholder="XXXX-XXXX-XXX">
+      <div class="battle-warning-box" id="battle-join-error" hidden></div>
+
+      <button id="battle-join-confirm-button" class="primary-button" type="button">コードを確認する</button>
+    </section>
+
+    <!-- 対戦前の確認画面（対戦を作った側・参加した側、共通で通る） -->
+    <section id="battle-rule-confirm-screen" class="screen">
+      <div class="list-header">
+        <button id="battle-rule-confirm-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          戻る
+        </button>
+        <div class="title-block"><h2>この内容で挑戦します</h2></div>
+      </div>
+
+      <div class="battle-config-summary" id="battle-rule-confirm-config-summary"></div>
+      <div id="battle-rule-confirm-audio-check"></div>
+
+      <p class="battle-field-label">あなたの表示名</p>
+      <input id="battle-rule-confirm-player-name" class="battle-player-name-input" type="text">
+      <p style="font-size:0.7rem;opacity:0.6;margin:4px 0 0;">ふだん使っているプレイヤー名です。今回だけ変更できます。</p>
+
+      <button id="battle-rule-confirm-start-button" class="primary-button" type="button">この内容で挑戦する</button>
+    </section>
+
+    <!-- 対戦後：結果の集計画面。自分の結果は挑戦し終えた時点で自動的に追加されている。
+         最大人数（1対1なら2人、4人対戦なら4人）まで、他の参加者の結果コードを追加できる。 -->
+    <section id="battle-result-collect-screen" class="screen">
+      <button id="battle-result-collect-home-link" class="quiz-back-link" type="button">⌂ ホームへ戻る</button>
+      <div class="title-block"><h2>結果を集計する</h2></div>
+
+      <p class="battle-field-label">あなたの結果コード（他の人に伝える）</p>
+      <div class="battle-code-display">
+        <p class="battle-code-value" id="battle-result-collect-my-code"></p>
+      </div>
+
+      <p class="battle-progress-label" id="battle-result-collect-progress"></p>
+      <ul class="battle-collect-list" id="battle-result-collect-list"></ul>
+
+      <div id="battle-result-collect-add-section">
+        <p class="battle-field-label">追加する人の表示名</p>
+        <input id="battle-result-collect-name-input" class="battle-player-name-input" type="text" placeholder="表示名">
+        <p class="battle-field-label">結果コードを入力</p>
+        <input id="battle-result-collect-code-input" class="battle-code-input" type="text" placeholder="XXXX-XXXX-XXXX">
+        <div class="battle-warning-box" id="battle-result-collect-error" hidden></div>
+        <button id="battle-result-collect-add-button" class="secondary-button" style="width:100%;margin-top:10px;" type="button">結果コードを追加</button>
+      </div>
+
+      <button id="battle-result-collect-finish-button" class="primary-button" style="margin-top:20px;" type="button">この人数で順位を確定する</button>
+    </section>
+
+    <!-- 対戦の順位発表画面。1対1（2人）でも4人対戦でも、同じ画面をそのまま使う
+         （2人のときは実質「VS」表示になる。表示項目を分けずに済むための共通化）。 -->
+    <section id="battle-result-ranking-screen" class="screen">
+      <div class="title-block"><h2>結果発表</h2></div>
+      <p style="text-align:center;font-size:0.75rem;opacity:0.65;" id="battle-result-ranking-config-summary"></p>
+
+      <ul class="battle-rank-list" id="battle-result-ranking-list"></ul>
+
+      <p style="text-align:center;font-size:0.7rem;opacity:0.6;" id="battle-result-ranking-rule-note"></p>
+
+      <button id="battle-result-ranking-home-button" class="primary-button" type="button">対戦モードを終える</button>
     </section>
 
     <!-- オリジナル問題作成モードのプリセット一覧画面：保存済みのセット（名前・メモ・曲数・
@@ -1610,20 +2107,22 @@
       <button id="weak-songs-rules-modal-close" class="modal-close-button" type="button" aria-label="閉じる">×</button>
 
       <h2 id="weak-songs-rules-modal-title">苦手曲モードについて</h2>
-      <p class="modal-lead">プレイ履歴から、正解しづらい曲を自動で集めて練習できるモードです。</p>
+      <p class="modal-lead">通常プレイやタイムアタックの結果から、間違えやすい曲を自動で集めて練習できるモードです。</p>
 
-      <h3>対象になる曲</h3>
-      <p>通常プレイで3回以上出題され、正答率が50%未満の曲が対象になります。判定には、保存されている最新100件までのプレイ履歴を使います。</p>
+      <h3>苦手曲になる条件</h3>
+      <p>次のどちらかに当てはまる曲が、苦手曲として表示されます。</p>
+      <ul class="modal-category-list">
+        <li>通常プレイで3回以上出題され、正答率が50%未満の曲</li>
+        <li>タイムアタックで3回以上出題され、その半分以上で1回以上間違えている曲</li>
+      </ul>
+      <p>両方の条件に当てはまる場合は、通常プレイとタイムアタックの両方が理由として表示されます。</p>
 
-      <h3>対象から外れる条件</h3>
-      <p>通常プレイでその曲に正解し、正答率が50%以上に戻ると、対象から外れます。</p>
+      <h3>苦手曲を減らすには</h3>
+      <p>通常プレイで正解を重ねて正答率が上がるか、タイムアタックで間違える回数が減ると、その条件から外れます。通常プレイとタイムアタックの両方が理由になっている場合は、両方の成績が条件を上回ると苦手曲一覧から外れます。</p>
 
-      <h3>苦手曲モードの結果について</h3>
-      <p>苦手曲モードでの正解・不正解は、苦手判定・プレイ履歴・自己ベスト・称号のいずれにも反映されません。判定はあくまで通常プレイの成績だけで更新されます。</p>
-
-      <h3>苦手曲をなくすには</h3>
+      <h3>苦手曲モードは練習専用です</h3>
       <p>
-        通常プレイでその曲に正解し、正答率が50%以上になれば対象から外れます。苦手曲モードは練習用のモードで、ここでの結果は判定に影響しません。目標は、苦手曲を0曲にすることです。
+        苦手曲モード内での正解・不正解は、苦手曲の判定、通常のプレイ履歴、自己ベスト、称号には影響しません。苦手曲モードで練習した後、通常プレイやタイムアタックに挑戦して成績を上げることで、苦手曲を減らせます。目標は、苦手曲を0曲にすることです。
       </p>
     </div>
   </div>

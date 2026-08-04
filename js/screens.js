@@ -13,6 +13,12 @@ const SCREEN_ELEMENTS = {
   historyDetail: document.getElementById("history-detail-screen"),
   specialModes: document.getElementById("special-modes-screen"),
   weakSongs: document.getElementById("weak-songs-screen"),
+  liveCallModeList: document.getElementById("live-call-mode-list-screen"),
+  liveCallModePlayer: document.getElementById("live-call-mode-player-screen"),
+  timeAttackSetup: document.getElementById("time-attack-setup-screen"),
+  timeAttackResult: document.getElementById("time-attack-result-screen"),
+  timeAttackHistory: document.getElementById("time-attack-history-screen"),
+  timeAttackHistoryDetail: document.getElementById("time-attack-history-detail-screen"),
   customQuizPresets: document.getElementById("custom-quiz-presets-screen"),
   customQuiz: document.getElementById("custom-quiz-screen"),
   discography: document.getElementById("discography-screen"),
@@ -24,6 +30,14 @@ const SCREEN_ELEMENTS = {
   playlistAddSongs: document.getElementById("playlist-add-songs-screen"),
   continuousPlay: document.getElementById("continuous-play-screen"),
   continuousPlayQueue: document.getElementById("continuous-play-queue-screen"),
+  battleModeSelect: document.getElementById("battle-mode-select-screen"),
+  battleCreateOrJoin: document.getElementById("battle-create-or-join-screen"),
+  battleSetup: document.getElementById("battle-setup-screen"),
+  battleCodeShare: document.getElementById("battle-code-share-screen"),
+  battleJoin: document.getElementById("battle-join-screen"),
+  battleRuleConfirm: document.getElementById("battle-rule-confirm-screen"),
+  battleResultCollect: document.getElementById("battle-result-collect-screen"),
+  battleResultRanking: document.getElementById("battle-result-ranking-screen"),
 };
 
 // 画面が切り替わるたびに呼びたい処理（ミニプレイヤーの表示/非表示など）を登録できる、

@@ -276,12 +276,18 @@ function resetRowSeekUI(rowElement) {
 // 再生中の曲のアコーディオンを閉じたときにも必ず呼ぶ。
 // 同期歌詞パネル（js/lyricsSync.js）の後片付けも、必ずここで一緒に行う
 // （試聴を止めるすべての場面で、歌詞パネルの表示・イベント購読も確実に消えるようにするため）。
+//
+// destroyLyricsSync()は、currentlyPlayingRowElementがある（＝実際にこの収録曲一覧が
+// 歌詞パネルを表示していた）ときだけ呼ぶ。lyricsSync.jsは呼び出し元を問わない単一の
+// 状態を持つ設計のため、ここを無条件に呼ぶと、他の画面（ライブコールモード等）が
+// notifyPlaybackStarting()経由でこの関数を呼んだだけで、収録曲一覧では何も再生していないのに
+// 他の画面の歌詞パネルまで巻き込んで消してしまう不具合があった（2026-08-06発見・修正）。
 export function stopSongListPreview() {
   previewAudioElement.pause();
   previewAudioElement.currentTime = 0;
   releaseCurrentPreviewObjectUrl();
-  destroyLyricsSync();
   if (currentlyPlayingRowElement) {
+    destroyLyricsSync();
     setRowPlayingState(currentlyPlayingRowElement, false);
     resetRowSeekUI(currentlyPlayingRowElement);
     currentlyPlayingRowElement = null;

@@ -111,6 +111,42 @@ export function startSpecialQuiz(questions, questionCountValue, specialModeId) {
   gameState.isAnswered = false;
 }
 
+// タイムアタック用に生成済みの問題配列を受け取って、クイズを開始する。
+// タイムアタック専用の実行中の記録（合計タイム・ミス数など）はgameStateには持たせず、
+// js/timeAttackScreen.js側で完結させている（既存のスコア・称号・履歴の仕組みと
+// 混ざらないようにするため。2026-08-06新設）。ここではreview・特別モードと同じく
+// 「選ばれた問題でクイズを始める」ことだけに専念する。
+// review・特別モードと違い、questionCountValue・categoryFilterValueの両方とも
+// 自己ベストの保存キーとして実際に使うため、categoryFilterValueもnullにしない。
+export function startTimeAttackQuiz(questions, questionCountValue, categoryFilterValue) {
+  gameState.questions = questions;
+  gameState.currentIndex = 0;
+  gameState.score = 0;
+  gameState.answerLog = [];
+  gameState.screen = "quiz";
+  gameState.playMode = "timeAttack";
+  gameState.specialModeId = null;
+  gameState.questionCountValue = questionCountValue;
+  gameState.categoryFilterValue = categoryFilterValue;
+  gameState.isAnswered = false;
+}
+
+// 対戦モード（ローカル対戦）のクイズを開始する。startTimeAttackQuiz()と全く同じパターンで、
+// playModeだけ"localBattle"にする。実行中の記録（合計タイム・ミス数等）は、タイムアタックと
+// 同じくjs/timeAttackScreen.jsのモジュール内変数で完結させる（gameStateには持たせない）。
+export function startLocalBattleQuiz(questions, questionCountValue, categoryFilterValue) {
+  gameState.questions = questions;
+  gameState.currentIndex = 0;
+  gameState.score = 0;
+  gameState.answerLog = [];
+  gameState.screen = "quiz";
+  gameState.playMode = "localBattle";
+  gameState.specialModeId = null;
+  gameState.questionCountValue = questionCountValue;
+  gameState.categoryFilterValue = categoryFilterValue;
+  gameState.isAnswered = false;
+}
+
 // 今出題中の問題（{ song, choices }）を取得する。
 export function getCurrentQuestion() {
   return gameState.questions[gameState.currentIndex];

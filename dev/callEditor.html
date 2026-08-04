@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>【開発用】ライブコール入力ツール</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap" rel="stylesheet">
+
+  <!-- dev/lyricsEditor.htmlと同じ考え方：色・フォント等の共通トークンだけ本編CSSを再利用し、
+       このページ専用のレイアウトは自己完結させる（本編css/style.cssには一切追記しない）。 -->
+  <link rel="stylesheet" href="../css/style.css">
+
+  <style>
+    body {
+      display: block;
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 16px;
+      /* 音楽バーをposition:fixedで画面に固定するため、その高さぶんだけ上に空白を作り、
+         最初のセクションが隠れないようにする（2026-08-06修正）。 */
+      padding-top: 160px;
+      font-family: "M PLUS Rounded 1c", sans-serif;
+      color: var(--color-text);
+      overflow-x: hidden;
+    }
+
+    .editor-warning-banner {
+      text-align: center;
+      color: #c33;
+      font-weight: bold;
+      background: #fff3f3;
+      padding: 10px;
+      margin: 0 0 20px;
+      border-radius: 8px;
+    }
+
+    .editor-section {
+      margin-bottom: 20px;
+      padding: 14px;
+      border-radius: 12px;
+      background: var(--color-surface-glass);
+      border: 1px solid var(--color-card-border);
+    }
+
+    .editor-section h2 {
+      margin: 0 0 10px;
+      font-size: 1rem;
+    }
+
+    .editor-row-inline {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    #editor-song-select {
+      display: block;
+      width: 100%;
+      max-width: 100%;
+      margin-bottom: 8px;
+    }
+
+    .editor-status {
+      font-size: 0.8rem;
+      white-space: pre-line;
+    }
+
+    .editor-status.is-error { color: #c33; }
+    .editor-status.is-success { color: #1b7a3d; }
+
+    #editor-audio {
+      width: 100%;
+    }
+
+    /* 参考：既存歌詞の表示（読み込み専用）。本編の.synced-lyrics-panelと似た見た目にする。 */
+    #reference-lyrics-panel {
+      max-height: 140px;
+      overflow-y: auto;
+      margin-top: 8px;
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.5);
+      border: 1px solid var(--color-card-border);
+      font-size: 0.75rem;
+    }
+
+    #reference-lyrics-panel p {
+      margin: 0;
+      padding: 2px 4px;
+      opacity: 0.5;
+    }
+
+    #reference-lyrics-panel p.is-current-ref-line {
+      opacity: 1;
+      color: var(--color-primary-dark);
+      font-weight: 700;
+    }
+
+    #reference-lyrics-panel .ref-empty {
+      opacity: 0.6;
+      font-style: normal;
+    }
+
+    /* 音楽バー（再生・シーク・秒数移動）。一覧が長くなってどれだけ下へスクロールしても
+       常に画面上部に残るようにする（本人からの要望：一時停止できなくなって不便だったため）。
+       背景を不透明にして、下にスクロールした一覧の内容が透けて見えないようにしている。 */
+    /* 音楽バー（再生・シーク・秒数移動・空欄追加）。「position: sticky」は親要素（元は
+       セクション3）の範囲内でしか効かず、その親が画面外へスクロールし切ると一緒に
+       消えてしまう不具合があった（本人からの報告で発覚）。「position: fixed」に変更し、
+       ページのどの位置までスクロールしても常に画面上部に固定表示されるようにした
+       （body側の要素にする必要があるため、HTML側もbody直下へ移動している。2026-08-06修正）。 */
+    #sticky-player-bar {
+      position: fixed;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100%;
+      max-width: 720px;
+      box-sizing: border-box;
+      z-index: 20;
+      padding: 10px 14px;
+      background: #fdf3f5;
+      border-bottom: 2px solid var(--color-danger);
+    }
+
+    #sticky-player-bar #editor-audio {
+      width: 100%;
+    }
+
+    /* 「＋ 空欄で追加」ボタン：本文は空のまま、今の再生位置だけを記録する
+       （本人からの要望：下までスクロールした状態からでも、戻らずにその場で追加したい。
+       追加した行の本文は、あとで「4. 記録済みのコール一覧」の欄に直接入力する）。 */
+    #add-blank-call-button {
+      margin-top: 6px;
+      padding: 6px 14px;
+      border-radius: 999px;
+      border: 1.5px dashed var(--color-danger);
+      background: transparent;
+      color: var(--color-danger);
+      font-weight: 700;
+      font-size: 0.75rem;
+      cursor: pointer;
+    }
+
+    #add-blank-call-button:active {
+      transform: scale(0.96);
+    }
+
+    /* クイック記録ボタン：ラベル文字は本人が自由に設定し、localStorageに保存して
+       曲をまたいで引き継げるようにする（毎回同じ言葉を打ち直さずに済むようにするため）。 */
+    .quick-call-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+    }
+
+    .quick-call-type-select {
+      flex: none;
+      font-size: 0.72rem;
+    }
+
+    .quick-call-label-input {
+      flex: 1;
+      min-width: 100px;
+      font-size: 0.8rem;
+      padding: 4px 6px;
+    }
+
+    .quick-call-add-button {
+      flex: none;
+      padding: 6px 14px;
+      border-radius: 999px;
+      border: none;
+      background: var(--color-danger);
+      color: #ffffff;
+      font-weight: 700;
+      font-size: 0.78rem;
+      cursor: pointer;
+    }
+
+    .quick-call-add-button:active {
+      transform: scale(0.95);
+    }
+
+    .editor-table-scroll {
+      width: 100%;
+      overflow-x: auto;
+    }
+
+    #calls-table {
+      width: 100%;
+      min-width: 520px;
+      border-collapse: collapse;
+      font-size: 0.78rem;
+    }
+
+    #calls-table th,
+    #calls-table td {
+      padding: 6px 6px;
+      text-align: left;
+    }
+
+    /* 1行ごとの区切りをはっきりさせる（本人からの要望：一マスずつ分かりやすく区切ってほしい）。
+       ヘッダーの下だけは通常の細い線、データ行同士はオレンジ系の太めの線で区切る。 */
+    #calls-table thead tr {
+      border-bottom: 2px solid var(--color-danger);
+    }
+
+    #calls-table tbody tr {
+      border-bottom: 2px solid #ffd9d0;
+    }
+
+    #calls-table tr.is-current-editor-call {
+      background: var(--color-danger-soft);
+    }
+
+    /* 「ここへ移動」ボタン：押すと再生位置がこの行のstart秒へジャンプする
+       （本人からの要望：一覧を見ながら該当の位置へすぐ戻って聴き直したい）。 */
+    .jump-to-row-button {
+      flex: none;
+      width: 26px;
+      height: 26px;
+      padding: 0;
+      border: none;
+      border-radius: 50%;
+      background: var(--color-danger);
+      color: #ffffff;
+      cursor: pointer;
+      font-size: 0.7rem;
+    }
+
+    .jump-to-row-button:active {
+      transform: scale(0.9);
+    }
+
+    .editor-time-input {
+      width: 60px;
+      font-size: 0.75rem;
+    }
+
+    .call-text-input {
+      width: 140px;
+      font-size: 0.75rem;
+    }
+
+    .editor-nudge-button,
+    .editor-set-now-button {
+      font-size: 0.65rem;
+      padding: 2px 5px;
+      border-radius: 6px;
+      border: 1px solid var(--color-danger);
+      background: var(--color-surface);
+      color: var(--color-danger);
+      cursor: pointer;
+    }
+
+    .editor-delete-row-button {
+      font-size: 0.7rem;
+      padding: 3px 10px;
+      border-radius: 999px;
+      border: 1px solid #c33;
+      background: var(--color-surface);
+      color: #c33;
+      cursor: pointer;
+    }
+
+    #saved-list-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.78rem;
+      margin-top: 8px;
+    }
+
+    #saved-list-table th,
+    #saved-list-table td {
+      padding: 4px 6px;
+      border-bottom: 1px solid var(--color-card-border);
+      text-align: left;
+    }
+  </style>
+</head>
+<body>
+  <p class="editor-warning-banner">
+    【開発用】ライブコール入力ツール — 本編（index.html）とは別の、本人専用の入力・編集ページです。<br>
+    ここで入力した本文は、このパソコン内のIndexedDBにのみ保存されます（Gitには一切含まれません）。
+  </p>
+
+  <!-- 音楽バー（再生・シーク・秒数移動・空欄追加）。bodyの直下に置くことで、
+       特定のセクションの範囲に縛られず、ページのどこまでスクロールしても
+       画面上部に固定表示され続ける（本人からの報告で、以前の実装ではセクション3の
+       範囲を出ると消えてしまう不具合があったため。2026-08-06修正）。 -->
+  <div id="sticky-player-bar">
+    <audio id="editor-audio" controls></audio>
+    <div class="editor-row-inline" style="margin-top:6px;">
+      <button id="skip-back-10-button" class="seek-skip-button" type="button">−10秒</button>
+      <button id="skip-back-5-button" class="seek-skip-button" type="button">−5秒</button>
+      <button id="skip-forward-5-button" class="seek-skip-button" type="button">+5秒</button>
+      <button id="skip-forward-10-button" class="seek-skip-button" type="button">+10秒</button>
+    </div>
+    <p id="editor-current-time" class="editor-status">現在の再生位置：0.00秒</p>
+    <button id="add-blank-call-button" type="button">＋ 今の位置に空欄で追加</button>
+  </div>
+
+  <div class="editor-section">
+    <h2>1. 曲を選ぶ</h2>
+    <select id="editor-song-select"></select>
+    <div class="editor-row-inline">
+      <button id="editor-load-button" type="button">この曲を読み込む</button>
+    </div>
+    <p id="editor-load-status" class="editor-status"></p>
+  </div>
+
+  <div class="editor-section">
+    <h2>2. 参考：既存の歌詞（読み込み専用）</h2>
+    <p class="editor-status">歌詞データが登録されている曲では、再生位置に合わせて該当行が強調表示されます。コールを入れるタイミングの目安にしてください。</p>
+    <div id="reference-lyrics-panel"><p class="ref-empty">曲を読み込むとここに表示されます</p></div>
+  </div>
+
+  <div class="editor-section">
+    <h2>3. 再生しながらコールを記録する</h2>
+    <p class="editor-status">音楽バーは画面上部に固定表示されています（下へスクロールしても消えません）。</p>
+
+    <p class="editor-status">
+      下の欄に実際のコールの言葉を入力しておくと（曲をまたいで自動保存されます）、
+      再生しながらタイミングでボタンを押すだけで、その時刻に記録できます。
+      入力欄を空のままにはできません。
+    </p>
+    <div id="quick-call-rows"></div>
+
+    <p class="editor-status" style="margin-top:10px;">その場限りの固有コールは、こちらに直接入力して追加してください。</p>
+    <div class="editor-row-inline">
+      <select id="unique-call-type-select">
+        <option value="unique">固有コール</option>
+        <option value="mix">MIX</option>
+        <option value="member-call">メンバーコール</option>
+        <option value="callback">合いの手</option>
+      </select>
+      <input type="text" id="unique-call-text-input" class="quick-call-label-input" placeholder="コール本文">
+      <button id="unique-call-add-button" class="quick-call-add-button" type="button">今の位置に追加</button>
+    </div>
+  </div>
+
+  <div class="editor-section">
+    <h2>4. 記録済みのコール一覧（時刻の微調整・削除ができます）</h2>
+    <div class="editor-table-scroll">
+      <table id="calls-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>種類</th>
+            <th>本文</th>
+            <th>start</th>
+            <th>end</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="calls-tbody"></tbody>
+      </table>
+    </div>
+    <p id="calls-count-status" class="editor-status">0件</p>
+  </div>
+
+  <div class="editor-section">
+    <h2>5. 保存・書き出し</h2>
+    <div class="editor-row-inline">
+      <button id="editor-save-button" type="button">IndexedDBへ保存する</button>
+      <button id="editor-export-button" type="button">JSONとして書き出す</button>
+    </div>
+    <p id="editor-save-status" class="editor-status"></p>
+  </div>
+
+  <div class="editor-section">
+    <h2>6. 保存済みのコールデータを管理する</h2>
+    <div class="editor-row-inline">
+      <button id="refresh-list-button" type="button">一覧を更新する</button>
+    </div>
+    <table id="saved-list-table">
+      <thead>
+        <tr>
+          <th>曲</th>
+          <th>件数</th>
+          <th>最終更新</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="saved-list-tbody"></tbody>
+    </table>
+    <p id="manage-status" class="editor-status"></p>
+  </div>
+
+  <script type="module" src="./callEditor.js"></script>
+</body>
+</html>
