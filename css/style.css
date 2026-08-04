@@ -8114,11 +8114,17 @@ fieldset label:has(input:focus-visible) {
 
 .online-lobby-player-oshi-dot {
   flex: none;
-  width: 12px;
-  height: 12px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
-  border: 1px solid var(--color-card-border);
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.6) inset;
+  /* 白い内枠で推しカラーの発色をくっきりさせ、外側にピンク系のリングを添えて
+     「推しカラー」であることが一目で伝わるようにする（メンバー紹介ページの
+     色見本 .color-swatch-dot と同じ考え方で、球体風の立体感も加えている）。 */
+  border: 2px solid #fff;
+  box-shadow:
+    0 0 0 1.5px var(--color-primary-light),
+    0 2px 4px -1px rgba(0, 0, 0, 0.25),
+    inset 0 -2px 3px rgba(0, 0, 0, 0.15);
 }
 
 .online-lobby-player-name {
