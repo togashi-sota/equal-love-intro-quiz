@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>【開発用】歌詞クイズモード UIモックアップ</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap" rel="stylesheet">
+
+  <!-- 本編とは一切配線しない独立ファイル。dev/lyricsEditor.htmlと同じパターンで、
+       見た目確認のために本編のcss/style.cssだけを読み込む（追記は一切していない）。
+
+       【重要・著作権面の注意】出題フレーズはすべて「（1行目のダミー歌詞テキスト）」のような
+       明らかなプレースホルダーで、実在の歌詞・それらしい創作歌詞は一切含まない。
+       js/lyricsStorage.js（実際の歌詞データ）はimportしていない。曲名一覧（回答用）だけ
+       js/data/songs.jsから実データをimportしている（曲名は公開情報のため問題ない）。
+       詳しい設計の背景は docs/mode-design-random-playback-and-lyrics-quiz.md の
+       「追記⑤：歌詞クイズモードのデータ構造・データ入力ツールの確定事項」を参照。 -->
+  <link rel="stylesheet" href="../css/style.css">
+
+  <style>
+    body {
+      display: block;
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 16px;
+      font-family: "M PLUS Rounded 1c", sans-serif;
+    }
+
+    .mockup-notice {
+      text-align: center;
+      color: #c33;
+      font-weight: bold;
+      background: #fff3f3;
+      padding: 10px;
+      margin: 0 0 20px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+    }
+
+    .mockup-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+    .mockup-tab-button {
+      flex: 1;
+      padding: 8px;
+      border-radius: 8px;
+      border: 1px solid var(--color-primary);
+      background: var(--color-surface);
+      color: var(--color-primary-dark);
+      font-size: 0.8rem;
+      cursor: pointer;
+    }
+    .mockup-tab-button.is-active { background: var(--color-primary); color: white; }
+    /* 本編のcss/style.cssは「.screen { display: none; } .screen.is-active { display: block; }」
+       という仕組みで画面切り替えを行っている（screens.jsが.is-activeを付け外しする設計）。
+       このモックアップも同じ仕組みに乗せる（下のJSでは.is-activeクラスをトグルしている）。 */
+
+    .hint-phrase-card {
+      border: 1px solid var(--color-card-border);
+      background: var(--color-surface-glass);
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin-bottom: 8px;
+      font-size: 0.9rem;
+    }
+    .hint-phrase-index {
+      font-size: 0.7rem;
+      opacity: 0.6;
+      margin: 0 0 2px;
+    }
+    .hint-reveal-progress {
+      font-size: 0.75rem;
+      text-align: center;
+      opacity: 0.7;
+      margin: 4px 0 12px;
+    }
+
+    .answer-search-input {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--color-card-border);
+      font-size: 0.85rem;
+      margin-bottom: 8px;
+      box-sizing: border-box;
+    }
+    .answer-song-list {
+      max-height: 220px;
+      overflow-y: auto;
+      border: 1px solid var(--color-card-border);
+      border-radius: 8px;
+    }
+    .answer-song-row {
+      width: 100%;
+      text-align: left;
+      padding: 8px 10px;
+      border: none;
+      border-bottom: 1px solid var(--color-card-border);
+      background: var(--color-surface);
+      font-size: 0.82rem;
+      cursor: pointer;
+    }
+    .answer-song-row:last-child { border-bottom: none; }
+    .answer-song-row:hover { background: var(--color-accent-soft); }
+    .answer-song-row.is-correct { background: #dff5e1; color: #1b7a3d; font-weight: bold; }
+    .answer-song-row.is-wrong { background: #fde7e7; color: #b03030; }
+
+    .quiz-feedback { font-size: 0.85rem; text-align: center; margin: 10px 0; min-height: 1.2em; }
+  </style>
+</head>
+<body>
+  <p class="mockup-notice">
+    【開発用】歌詞クイズモード UIモックアップ — 本編とは一切配線していません。歌詞テキストはすべてダミーです。
+  </p>
+
+  <div class="mockup-tabs">
+    <button type="button" class="mockup-tab-button is-active" data-tab-target="quiz">出題画面</button>
+    <button type="button" class="mockup-tab-button" data-tab-target="result">結果画面</button>
+  </div>
+
+  <!-- ===== 出題画面 ===== -->
+  <section data-mockup-screen="quiz" class="screen is-active">
+    <div class="title-block">
+      <p class="eyebrow-chip">
+        <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+        LYRICS QUIZ
+      </p>
+      <h2>歌詞クイズ（1/5問・ダミー）</h2>
+    </div>
+
+    <div id="mockup-hint-phrases"></div>
+    <p class="hint-reveal-progress" id="mockup-reveal-progress"></p>
+    <button type="button" class="secondary-button" id="mockup-reveal-button">ヒントを見る</button>
+
+    <p style="font-weight:bold; font-size:0.85rem; margin:18px 0 4px;">曲名を探して回答</p>
+    <input type="text" class="answer-search-input" id="mockup-answer-search" placeholder="曲名で絞り込み...">
+    <div class="answer-song-list" id="mockup-answer-list"></div>
+
+    <p class="quiz-feedback" id="mockup-quiz-feedback"></p>
+  </section>
+
+  <!-- ===== 結果画面 ===== -->
+  <section data-mockup-screen="result" class="screen">
+    <div class="title-block">
+      <p class="eyebrow-chip">
+        <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+        LYRICS QUIZ RESULT
+      </p>
+      <h2>結果</h2>
+    </div>
+
+    <div class="time-attack-result-stats-row">
+      <div class="time-attack-result-stat">
+        <p class="time-attack-result-stat-label">正解数</p>
+        <p class="time-attack-result-stat-value">4 / 5問</p>
+      </div>
+      <div class="time-attack-result-stat">
+        <p class="time-attack-result-stat-label">ノーヒント正解</p>
+        <p class="time-attack-result-stat-value">1回</p>
+      </div>
+    </div>
+
+    <p style="font-size:0.8rem; opacity:0.75; margin-top:14px;">
+      （設計イメージ：1問ごとに「ヒントを何段階見て正解/不正解になったか」を記録し、
+      revealedCountAtAnswer === 1 のまま正解した回数を「ノーヒント正解」として集計する想定）
+    </p>
+
+    <div class="time-attack-result-actions">
+      <button type="button" class="primary-button">もう一度挑戦する（ダミー）</button>
+      <button type="button" class="secondary-button">← 出題範囲選択へ戻る（ダミー）</button>
+    </div>
+  </section>
+
+  <script type="module">
+    // 曲名一覧はjs/data/songs.jsから実データをimportする（公開情報のため問題ない）。
+    //
+    // 【注意】検索の正規化・一致判定（normalizeForSearch・songMatchesSearch）は、本来なら
+    // js/songlist.jsが持つ関数をそのまま再利用したいところだが、js/songlist.jsは
+    // モジュール読み込み時点で#preview-audio・#songlist-groups等、本編index.html側にしか
+    // 存在しないDOM要素を直接取得・操作するコードを持っている（トップレベルの副作用）。
+    // このモックアップ単体で開くとその要素が無く例外で止まってしまうため、
+    // 実装時に使う想定の判定ロジックだけを以下にそのまま複製している
+    // （js/songlist.jsの中身は一切変更していない。読み取って同じロジックを別ファイルに
+    // 書き写しただけ）。実装時は本体の関数をそのままimportして使う想定。
+    import { SONGS } from "../js/data/songs.js";
+
+    function normalizeForSearch(text) {
+      return text
+        .toLowerCase()
+        .replace(/[０-９]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0xfee0))
+        .replace(/[ァ-ヶ]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0x60))
+        .replace(/\s/g, "")
+        .replace(/[・！？!?「」『』"'’〜~]/g, "");
+    }
+
+    function songMatchesSearch(title, reading, aliases, normalizedQuery) {
+      if (normalizedQuery === "") return true;
+      const officialCandidates = [title, reading ?? ""];
+      if (officialCandidates.some((candidate) => normalizeForSearch(candidate).startsWith(normalizedQuery))) {
+        return true;
+      }
+      return (aliases ?? []).some((alias) => {
+        if (typeof alias === "string") {
+          return normalizeForSearch(alias) === normalizedQuery;
+        }
+        return (
+          normalizeForSearch(alias.text) === normalizedQuery ||
+          (alias.reading && normalizeForSearch(alias.reading) === normalizedQuery)
+        );
+      });
+    }
+
+    // ダミーの歌詞クイズフレーズ（difficultyの降順：5→1で並べている。設計書「追記⑤」参照）。
+    // 実在の歌詞・それらしい創作歌詞は一切含まない、明らかなプレースホルダー。
+    const DUMMY_PHRASES = [
+      { text: "（最も分かりにくい歌詞フレーズ・ダミー）", difficulty: 5 },
+      { text: "（2番目に分かりにくい歌詞フレーズ・ダミー）", difficulty: 4 },
+      { text: "（中間の歌詞フレーズ・ダミー）", difficulty: 3 },
+      { text: "（比較的分かりやすい歌詞フレーズ・ダミー）", difficulty: 2 },
+    ];
+
+    // モックアップ用の「正解の曲」。実装ではランダムに選ばれた出題曲になる想定。
+    const CORRECT_SONG = SONGS[0];
+
+    let revealedCount = 1;
+    let isAnswered = false;
+
+    // 設計書「追記⑤」の revealNextHint / getVisiblePhrases のイメージそのままの実装。
+    function revealNextHint(phrases, currentRevealedCount) {
+      return Math.min(currentRevealedCount + 1, phrases.length);
+    }
+    function getVisiblePhrases(phrases, count) {
+      return phrases.slice(0, count);
+    }
+
+    function renderHintPhrases() {
+      const container = document.getElementById("mockup-hint-phrases");
+      container.innerHTML = "";
+      getVisiblePhrases(DUMMY_PHRASES, revealedCount).forEach((phrase, index) => {
+        const card = document.createElement("div");
+        card.className = "hint-phrase-card";
+        const indexLabel = document.createElement("p");
+        indexLabel.className = "hint-phrase-index";
+        indexLabel.textContent = `ヒント${index + 1}`;
+        card.appendChild(indexLabel);
+        const text = document.createElement("p");
+        text.style.margin = "0";
+        text.textContent = phrase.text;
+        card.appendChild(text);
+        container.appendChild(card);
+      });
+
+      document.getElementById("mockup-reveal-progress").textContent =
+        `${revealedCount} / ${DUMMY_PHRASES.length} 段階のヒントを表示中`;
+
+      const revealButton = document.getElementById("mockup-reveal-button");
+      revealButton.disabled = revealedCount >= DUMMY_PHRASES.length || isAnswered;
+    }
+
+    document.getElementById("mockup-reveal-button").addEventListener("click", () => {
+      revealedCount = revealNextHint(DUMMY_PHRASES, revealedCount);
+      renderHintPhrases();
+    });
+
+    // ===== 回答用の曲一覧（songlist.jsの検索ロジックをそのまま再利用） =====
+    function renderAnswerList(query) {
+      const listContainer = document.getElementById("mockup-answer-list");
+      listContainer.innerHTML = "";
+      const normalizedQuery = normalizeForSearch(query);
+
+      const matched = SONGS.filter((song) =>
+        songMatchesSearch(song.title, song.searchReading, song.searchAliases, normalizedQuery)
+      ).slice(0, 30); // モックアップなので表示件数を絞る（実装では全件描画でよい想定）
+
+      matched.forEach((song) => {
+        const row = document.createElement("button");
+        row.type = "button";
+        row.className = "answer-song-row";
+        row.textContent = song.title;
+        row.addEventListener("click", () => handleAnswer(song, row));
+        listContainer.appendChild(row);
+      });
+    }
+
+    function handleAnswer(selectedSong, rowElement) {
+      if (isAnswered) return;
+      isAnswered = true;
+
+      const feedback = document.getElementById("mockup-quiz-feedback");
+      if (selectedSong.id === CORRECT_SONG.id) {
+        rowElement.classList.add("is-correct");
+        feedback.textContent = `正解！「${CORRECT_SONG.title}」でした（ヒント${revealedCount}段階で正解）`;
+      } else {
+        rowElement.classList.add("is-wrong");
+        feedback.textContent = `不正解...正解は「${CORRECT_SONG.title}」でした`;
+      }
+
+      document.getElementById("mockup-reveal-button").disabled = true;
+    }
+
+    document.getElementById("mockup-answer-search").addEventListener("input", (event) => {
+      renderAnswerList(event.target.value);
+    });
+
+    // タブ切り替え（画面遷移の簡易再現）。本編のscreens.jsと同じ「.is-activeクラスの
+    // 付け外しで表示を切り替える」仕組みに合わせている（hidden属性だけのトグルだと、
+    // css/style.cssの「.screen{display:none}」に上書きされて表示が崩れてしまうため）。
+    const tabButtons = document.querySelectorAll(".mockup-tab-button");
+    const screens = document.querySelectorAll("[data-mockup-screen]");
+    tabButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        screens.forEach((screen) => {
+          screen.classList.toggle("is-active", screen.dataset.mockupScreen === button.dataset.tabTarget);
+        });
+        tabButtons.forEach((b) => b.classList.toggle("is-active", b === button));
+      });
+    });
+
+    renderHintPhrases();
+    renderAnswerList("");
+  </script>
+</body>
+</html>

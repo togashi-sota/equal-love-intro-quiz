@@ -32,3 +32,58 @@
 //    マークアップを追加して、初めて画面として配線する。
 // 5. 履歴を残す場合は、js/history.jsを変更せず、js/timeAttackHistory.jsと同じパターンで
 //    専用の履歴ファイル（js/randomPlaybackHistory.js）を新設する（設計書の追記③を参照）。
+
+// ============================================================================
+// 【2026-08-04追記：MVP設計の具体化（設計書の「追記④」に対応する抜粋メモ）】
+// メインのFirebaseオンライン対戦モード実装と並行するバックグラウンド作業として、
+// ランダム再生モードのMVP設計をさらに具体化した。以下はすべて設計メモ・コード例であり、
+// このファイル自体はまだ実行可能なコードを一切含まない（コメント/コメントアウトのみ）。
+// 実際にブラウザで動かして確認できる版は dev/randomPlaybackPositionTest.html を参照。
+//
+// 【方針】最初の実装は「曲全体ランダム」1ルールだけのMVPにする（本人合意済み）。
+// データ駆動の骨格（配列の要素を増やせば新ルールを追加できる構造）は維持したまま、
+// 配列の中身を1件に絞る、というのが今回のポイント。
+//
+// // MVP版の RANDOM_PLAYBACK_RULES（案。実装時にこのファイルへ実際に書く想定）。
+// export const RANDOM_PLAYBACK_RULES = [
+//   {
+//     id: "wholeSongRandom",
+//     name: "曲全体ランダム",
+//     description: "曲のどこからでも出題されます（曲の末尾のフェードアウト部分だけは避けます）。",
+//     startRatioRange: [0, 0.9],
+//     playDurationSec: 5,
+//   },
+// ];
+//
+// // ルールとduration（曲の長さ・秒）から、実際の再生開始位置（秒）を求める純粋関数（確定版）。
+// // 境界値（曲が極端に短い・durationが取得できない等）でも例外を投げず、常に安全な値を返す。
+// // randomFnを省略するとMath.randomを使う。テスト時は固定値を返す関数を渡せる。
+// function computeRandomStartSec(rule, durationSec, randomFn = Math.random) {
+//   if (!Number.isFinite(durationSec) || durationSec <= 0) {
+//     return 0; // 曲の長さが不正な値のときは、最も安全な「曲の先頭」にフォールバックする
+//   }
+//   const [lowerRatio, upperRatio] = rule.startRatioRange;
+//   const lowerBoundSec = durationSec * lowerRatio;
+//   // 上限は再生秒数の分だけ手前に引く。曲が短すぎて上限が下限を下回る場合は
+//   // Math.maxで下限に揃える（結果として常に下限＝曲の先頭付近を返すようになる）。
+//   const upperBoundSec = Math.max(lowerBoundSec, durationSec * upperRatio - rule.playDurationSec);
+//   return lowerBoundSec + randomFn() * (upperBoundSec - lowerBoundSec);
+// }
+//
+// 上記の境界値テストケース一覧（曲が極端に短い場合／playDurationSecが曲の長さを超える場合／
+// durationSecが不正な値の場合、など）は、設計書「追記④」の表と
+// dev/randomPlaybackPositionTest.html に詳細がある。実装時はまずこの関数をそのまま移植し、
+// 既存のテストケースがすべて通ることを確認してから、audio.js側との結線（loadedmetadata→
+// この関数の呼び出し→currentTimeへセット→setTimeoutで自動停止）に進む想定。
+//
+// 【MVPの間の設定画面の作り方】
+// ルールが1件しかない間は、ラジオボタンではなく固定の説明カード1枚を表示する
+// （dev/randomPlaybackMockup.html でイメージを確認済み）。ただし画面組み立てロジック自体は
+// 「RANDOM_PLAYBACK_RULES配列をmapして描画する」という、ルールが増えても書き換え不要な
+// 汎用の作りにしておく（要素数によって表示方法だけ分岐する）。
+//
+// 【履歴の保存キー案（設計書「追記④」より）】
+// equalLoveIntroQuiz.${getPlayerKeyPrefix()}randomPlaybackHistory
+// 記録項目には ruleId（RANDOM_PLAYBACK_RULESのid）を必ず含めておくと、ルールが増えたときに
+// 「ルールごとの正答率」を後から集計できる。
+// ============================================================================

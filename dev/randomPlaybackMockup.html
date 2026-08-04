@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>【開発用】ランダム再生モード UIモックアップ</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap" rel="stylesheet">
+
+  <!-- 本編（index.html）とは配線しない独立ファイル。ただし見た目を本編に近い形で確認したいため、
+       dev/lyricsEditor.html と同じパターンで、色・フォント等の共通トークン（CSS変数）や
+       既存クラス（.screen・.fieldset・.primary-button 等）を再利用する目的で
+       本編と同じスタイルシートを読み込む。css/style.css自体への追記は一切行っていない。
+       詳しい設計の背景は docs/mode-design-random-playback-and-lyrics-quiz.md の
+       「追記④：ランダム再生モードのMVP設計を具体化」を参照。 -->
+  <link rel="stylesheet" href="../css/style.css">
+
+  <style>
+    /* css/style.cが本編用にbodyをdisplay:flexで中央寄せしているため、
+       このページでは打ち消して通常の縦積みレイアウトに戻す（lyricsEditor.htmlと同じ対策）。 */
+    body {
+      display: block;
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 16px;
+      font-family: "M PLUS Rounded 1c", sans-serif;
+    }
+
+    .mockup-notice {
+      text-align: center;
+      color: #c33;
+      font-weight: bold;
+      background: #fff3f3;
+      padding: 10px;
+      margin: 0 0 20px;
+      border-radius: 8px;
+      font-size: 0.82rem;
+    }
+
+    /* このモックアップでは画面遷移をタブ切り替えで簡易再現する（本編のようなshow/hide関数群は
+       作らず、あくまで見た目確認用の最低限の切り替えのみ）。 */
+    .mockup-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .mockup-tab-button {
+      flex: 1;
+      padding: 8px;
+      border-radius: 8px;
+      border: 1px solid var(--color-primary);
+      background: var(--color-surface);
+      color: var(--color-primary-dark);
+      font-size: 0.8rem;
+      cursor: pointer;
+    }
+    .mockup-tab-button.is-active {
+      background: var(--color-primary);
+      color: white;
+    }
+
+    /* ルールが1件しかないMVPの間だけ使う、固定ルール説明カード。
+       追記④の設計どおり「ルールが増えたらラジオボタン形式に切り替える」ことを想定した見た目にしている。 */
+    .rule-fixed-card {
+      border: 1px solid var(--color-card-border);
+      background: var(--color-surface-glass);
+      border-radius: 12px;
+      padding: 14px;
+      margin: 6px 0 16px;
+    }
+    .rule-fixed-card-name {
+      font-weight: bold;
+      margin: 0 0 4px;
+    }
+    .rule-fixed-card-desc {
+      font-size: 0.82rem;
+      margin: 0;
+      opacity: 0.85;
+    }
+    .rule-fixed-card-note {
+      font-size: 0.72rem;
+      margin: 8px 0 0;
+      opacity: 0.6;
+    }
+
+    /* 本編のcss/style.cssは「.screen { display: none; } .screen.is-active { display: block; }」
+       という仕組みで画面切り替えを行っている（screens.jsが.is-activeを付け外しする設計）。
+       このモックアップも同じ仕組みに乗せることで、hidden属性のトグルだけでは
+       .screenのdisplay:noneに上書きされて表示が崩れる、という事故を避けている。 */
+  </style>
+</head>
+<body>
+  <p class="mockup-notice">
+    【開発用】ランダム再生モード UIモックアップ — 本編とは一切配線していません（ボタンの動作もすべてダミーです）
+  </p>
+
+  <div class="mockup-tabs">
+    <button type="button" class="mockup-tab-button is-active" data-tab-target="setup">設定画面</button>
+    <button type="button" class="mockup-tab-button" data-tab-target="result">結果画面</button>
+  </div>
+
+  <!-- ===== 設定画面（既存の#time-attack-setup-screenと同じfieldset+option-rowパターンを踏襲） ===== -->
+  <section data-mockup-screen="setup" class="screen is-active">
+    <div class="list-header">
+      <button type="button" class="back-link">
+        <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        戻る
+      </button>
+      <div class="title-block">
+        <p class="eyebrow-chip">
+          <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+          RANDOM PLAYBACK
+        </p>
+        <h2>ランダム再生モード</h2>
+      </div>
+    </div>
+
+    <p class="special-modes-intro">
+      曲のランダムな位置から数秒だけ再生し、曲名を当てるモードです。イントロだけでなく、
+      サビや間奏から出題されることもあります。
+    </p>
+
+    <!-- MVPはルールが1件のみのため、ラジオボタンではなく固定の説明カードにしている
+         （追記④の設計方針どおり）。 -->
+    <p style="font-weight:bold; font-size:0.85rem; margin-bottom:4px;">ルール</p>
+    <div class="rule-fixed-card">
+      <p class="rule-fixed-card-name" id="mockup-rule-name">曲全体ランダム</p>
+      <p class="rule-fixed-card-desc" id="mockup-rule-desc">
+        曲のどこからでも出題されます（曲の末尾のフェードアウト部分だけは避けます）。
+      </p>
+      <p class="rule-fixed-card-note">※ 今後ルールが増えたら、この部分はラジオボタンでの選択式に切り替わる予定です</p>
+    </div>
+
+    <fieldset>
+      <legend>出題数</legend>
+      <div class="option-row">
+        <label><input type="radio" name="random-playback-question-count" value="5" checked> 5問</label>
+        <label><input type="radio" name="random-playback-question-count" value="10"> 10問</label>
+        <label><input type="radio" name="random-playback-question-count" value="all"> 全曲</label>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>カテゴリ</legend>
+      <div class="option-row">
+        <label><input type="radio" name="random-playback-category-filter" value="title-track" checked> 表題曲のみ（<span id="mockup-count-title-track">-</span>曲）</label>
+        <label><input type="radio" name="random-playback-category-filter" value="title-and-group"> 表題曲＋全員曲（<span id="mockup-count-title-and-group">-</span>曲）</label>
+        <label><input type="radio" name="random-playback-category-filter" value="all"> 全曲（<span id="mockup-count-all">-</span>曲）</label>
+      </div>
+    </fieldset>
+
+    <button type="button" class="primary-button" id="mockup-start-button">開始する（ダミー）</button>
+    <p style="font-size:0.75rem; text-align:center; opacity:0.6; margin-top:8px;">
+      押すと「結果画面」タブへダミーの結果を表示します
+    </p>
+  </section>
+
+  <!-- ===== 結果画面（既存の#time-attack-result-screenの統計行パターンを踏襲） ===== -->
+  <section data-mockup-screen="result" class="screen">
+    <button type="button" class="quiz-back-link">⌂ ホームへ戻る</button>
+
+    <div class="title-block">
+      <p class="eyebrow-chip">
+        <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+        RANDOM PLAYBACK RESULT
+      </p>
+      <h2>結果</h2>
+    </div>
+
+    <div class="time-attack-result-stats-row">
+      <div class="time-attack-result-stat">
+        <p class="time-attack-result-stat-label">正解数</p>
+        <p class="time-attack-result-stat-value" id="mockup-result-correct">4 / 5問</p>
+      </div>
+      <div class="time-attack-result-stat">
+        <p class="time-attack-result-stat-label">ルール</p>
+        <p class="time-attack-result-stat-value">曲全体ランダム</p>
+      </div>
+    </div>
+
+    <div class="time-attack-result-actions">
+      <button type="button" class="primary-button">もう一度挑戦する（ダミー）</button>
+      <button type="button" class="secondary-button">← 設定へ戻る（ダミー）</button>
+    </div>
+  </section>
+
+  <script type="module">
+    // 実際のjs/data/songs.jsから曲データをimportし、カテゴリごとの実際の曲数を
+    // 設定画面のダミー表示に反映させる（曲名・カテゴリは公開情報であり、
+    // 歌詞のような著作権上の懸念はないためimportして問題ない。歌詞本文は一切扱っていない）。
+    import { SONGS, CATEGORY } from "../js/data/songs.js";
+    import { filterSongsByCategory } from "../js/quiz.js";
+
+    document.getElementById("mockup-count-title-track").textContent =
+      filterSongsByCategory(SONGS, "title-track").length;
+    document.getElementById("mockup-count-title-and-group").textContent =
+      filterSongsByCategory(SONGS, "title-and-group").length;
+    document.getElementById("mockup-count-all").textContent =
+      filterSongsByCategory(SONGS, "all").length;
+
+    // タブ切り替え（画面遷移の簡易再現）。
+    const tabButtons = document.querySelectorAll(".mockup-tab-button");
+    const screens = document.querySelectorAll("[data-mockup-screen]");
+
+    function showScreen(target) {
+      // 本編のscreens.jsと同じ「.is-activeクラスの付け外しで表示を切り替える」仕組みに
+      // 合わせる（css/style.cssの「.screen{display:none} .screen.is-active{display:block}」
+      // というルールに乗せるため。hidden属性だけをトグルすると、.screenのdisplay:noneに
+      // 上書きされて表示が崩れてしまう）。
+      screens.forEach((screen) => {
+        screen.classList.toggle("is-active", screen.dataset.mockupScreen === target);
+      });
+      tabButtons.forEach((button) => {
+        button.classList.toggle("is-active", button.dataset.tabTarget === target);
+      });
+    }
+
+    tabButtons.forEach((button) => {
+      button.addEventListener("click", () => showScreen(button.dataset.tabTarget));
+    });
+
+    // 「開始する」ボタン：本来は出題→再生→回答のクイズ画面へ進むが、このモックアップでは
+    // 画面イメージの確認だけが目的のため、結果画面へ直接切り替えるだけのダミー動作にしている。
+    document.getElementById("mockup-start-button").addEventListener("click", () => {
+      showScreen("result");
+    });
+  </script>
+</body>
+</html>

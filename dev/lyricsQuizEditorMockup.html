@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>【開発用】歌詞クイズ入力ツール モックアップ</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap" rel="stylesheet">
+
+  <!-- dev/lyricsEditor.html と同じ構成パターン（本編と同じcss/style.cssを読み込み、
+       独立したscript type="module"で完結、本編には一切配線しない）を踏襲する。
+       css/style.cssへの追記は一切行っていない。
+
+       【重要・著作権面の注意】このモックアップは「既存の同期歌詞データ（js/lyricsStorage.js）を
+       参考表示して行を選ぶ」というUIフローの見た目・操作感だけを確認するためのものであり、
+       実際のjs/lyricsStorage.jsは一切importしていない。表示している歌詞行はすべて
+       「（1行目のダミー歌詞テキスト）」のような明らかなプレースホルダーで、実在の歌詞・
+       それらしい創作歌詞は一切含まない。保存もその場限り（ページ内のメモリ上）で、
+       ページを再読み込みすると内容は消える。実際のIndexedDBへの書き込みも行わない。
+       詳しい設計の背景は docs/mode-design-random-playback-and-lyrics-quiz.md の
+       「追記⑤：歌詞クイズモードのデータ構造・データ入力ツールの確定事項」を参照。 -->
+  <link rel="stylesheet" href="../css/style.css">
+
+  <style>
+    body {
+      display: block;
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 16px;
+      font-family: "M PLUS Rounded 1c", sans-serif;
+      color: var(--color-text);
+      overflow-x: hidden;
+    }
+
+    .mockup-notice {
+      text-align: center;
+      color: #c33;
+      font-weight: bold;
+      background: #fff3f3;
+      padding: 10px;
+      margin: 0 0 20px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+    }
+
+    .editor-section {
+      margin-bottom: 20px;
+      padding: 14px;
+      border-radius: 12px;
+      background: var(--color-surface-glass);
+      border: 1px solid var(--color-card-border);
+    }
+    .editor-section h2 { margin: 0 0 10px; font-size: 1rem; }
+
+    #mockup-song-select {
+      display: block;
+      width: 100%;
+      max-width: 100%;
+      margin-bottom: 8px;
+    }
+
+    .synced-line-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 0;
+      border-bottom: 1px solid var(--color-card-border);
+      font-size: 0.82rem;
+    }
+    .synced-line-text { flex: 1; }
+    .synced-line-add-button {
+      font-size: 0.72rem;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--color-primary);
+      background: var(--color-surface);
+      color: var(--color-primary-dark);
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .synced-line-add-button:disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
+
+    .candidate-row {
+      padding: 10px 0;
+      border-bottom: 1px solid var(--color-card-border);
+    }
+    .candidate-row-text {
+      font-size: 0.85rem;
+      margin: 0 0 6px;
+    }
+    .candidate-row-controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+    }
+    .difficulty-star-select {
+      display: flex;
+      gap: 2px;
+    }
+    .difficulty-star-button {
+      font-size: 1.1rem;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #ccc;
+      padding: 0 1px;
+    }
+    .difficulty-star-button.is-filled { color: #f5a623; }
+    .candidate-tags-input {
+      flex: 1;
+      min-width: 140px;
+      font-size: 0.78rem;
+      padding: 4px 6px;
+      border-radius: 6px;
+      border: 1px solid var(--color-card-border);
+    }
+    .candidate-remove-button {
+      font-size: 0.7rem;
+      padding: 3px 10px;
+      border-radius: 999px;
+      border: 1px solid #c33;
+      background: var(--color-surface);
+      color: #c33;
+      cursor: pointer;
+    }
+
+    .editor-status {
+      font-size: 0.8rem;
+      white-space: pre-line;
+    }
+    .editor-status.is-success { color: #1b7a3d; }
+
+    #mockup-empty-candidates {
+      font-size: 0.8rem;
+      opacity: 0.6;
+    }
+  </style>
+</head>
+<body>
+  <p class="mockup-notice">
+    【開発用】歌詞クイズ入力ツール モックアップ — 本編とは一切配線していません。歌詞テキストはすべてダミーです。保存もその場限りで、実際のデータには一切触れません。
+  </p>
+
+  <div class="editor-section">
+    <h2>1. 曲を選ぶ</h2>
+    <select id="mockup-song-select"></select>
+  </div>
+
+  <div class="editor-section">
+    <h2>2. 既存の同期歌詞（ダミー表示）</h2>
+    <p class="editor-status">
+      本来は js/lyricsStorage.js に保存済みの同期歌詞データ（試聴中のハイライト用）を一覧表示し、
+      その行から歌詞クイズの候補を選ぶ想定です。このモックアップでは、歌詞本文をClaude側が
+      一切扱わないよう、すべてダミーの行テキストで動きだけを確認できるようにしています。
+    </p>
+    <div id="mockup-synced-lines"></div>
+  </div>
+
+  <div class="editor-section">
+    <h2>3. 歌詞クイズ候補一覧（difficulty・tagsを設定）</h2>
+    <p id="mockup-empty-candidates">まだ候補がありません。上の「歌詞クイズ候補へ追加」ボタンを押してください。</p>
+    <div id="mockup-candidates"></div>
+  </div>
+
+  <div class="editor-section">
+    <h2>4. 保存（ダミー）</h2>
+    <button type="button" id="mockup-save-button" class="primary-button">保存する（ダミー）</button>
+    <p id="mockup-save-status" class="editor-status"></p>
+  </div>
+
+  <script type="module">
+    // 曲一覧は実際のjs/data/songs.jsからimportする（曲名は公開情報のため、歌詞のような
+    // 著作権上の懸念はない）。歌詞データ本体（js/lyricsStorage.js）は一切importしない。
+    import { SONGS } from "../js/data/songs.js";
+
+    const songSelect = document.getElementById("mockup-song-select");
+    SONGS.forEach((song) => {
+      const option = document.createElement("option");
+      option.value = song.id;
+      option.textContent = song.title;
+      songSelect.appendChild(option);
+    });
+
+    // 「既存の同期歌詞」のダミーデータ。実データの構造（js/lyricsStorage.jsのlines：
+    // { line, text, start, end }）に形だけ合わせつつ、textは明らかな仮テキストにしている。
+    // 曲を選び直しても同じダミー行を使う（モックアップなので曲ごとの実データ差はない）。
+    const DUMMY_SYNCED_LINES = [
+      { line: 1, text: "（1行目のダミー歌詞テキスト）", start: 12.0, end: 15.2 },
+      { line: 2, text: "（2行目のダミー歌詞テキスト）", start: 15.4, end: 18.6 },
+      { line: 3, text: "（3行目のダミー歌詞テキスト・サビ想定）", start: 32.0, end: 35.8 },
+      { line: 4, text: "（4行目のダミー歌詞テキスト）", start: 36.0, end: 39.1 },
+      { line: 5, text: "（5行目のダミー歌詞テキスト・間奏明け想定）", start: 55.2, end: 58.9 },
+    ];
+
+    // 歌詞クイズ候補一覧（このページのメモリ上だけで管理。保存ボタンを押しても
+    // 実際のIndexedDBには書き込まない）。1件 = { text, difficulty, tags }
+    let candidates = [];
+
+    function renderSyncedLines() {
+      const container = document.getElementById("mockup-synced-lines");
+      container.innerHTML = "";
+      DUMMY_SYNCED_LINES.forEach((line) => {
+        const row = document.createElement("div");
+        row.className = "synced-line-row";
+
+        const text = document.createElement("span");
+        text.className = "synced-line-text";
+        text.textContent = `${line.line}. ${line.text}`;
+        row.appendChild(text);
+
+        const addButton = document.createElement("button");
+        addButton.type = "button";
+        addButton.className = "synced-line-add-button";
+        addButton.textContent = "＋ 歌詞クイズ候補へ追加";
+        addButton.addEventListener("click", () => {
+          candidates.push({ text: line.text, difficulty: 3, tags: "" });
+          renderCandidates();
+        });
+        row.appendChild(addButton);
+
+        container.appendChild(row);
+      });
+    }
+
+    function buildStarSelector(candidate, index) {
+      const wrap = document.createElement("div");
+      wrap.className = "difficulty-star-select";
+      for (let star = 1; star <= 5; star++) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "difficulty-star-button" + (star <= candidate.difficulty ? " is-filled" : "");
+        button.textContent = "★";
+        button.setAttribute("aria-label", `難易度${star}`);
+        button.addEventListener("click", () => {
+          candidates[index].difficulty = star;
+          renderCandidates();
+        });
+        wrap.appendChild(button);
+      }
+      return wrap;
+    }
+
+    function renderCandidates() {
+      const container = document.getElementById("mockup-candidates");
+      const emptyNotice = document.getElementById("mockup-empty-candidates");
+      container.innerHTML = "";
+      emptyNotice.hidden = candidates.length > 0;
+
+      candidates.forEach((candidate, index) => {
+        const row = document.createElement("div");
+        row.className = "candidate-row";
+
+        const text = document.createElement("p");
+        text.className = "candidate-row-text";
+        text.textContent = candidate.text;
+        row.appendChild(text);
+
+        const controls = document.createElement("div");
+        controls.className = "candidate-row-controls";
+
+        // 難易度：★5＝最も分かりにくい、★1＝最も分かりやすい、という確定した向きで表示する
+        // （設計書「追記⑤」参照）。
+        controls.appendChild(buildStarSelector(candidate, index));
+
+        const tagsInput = document.createElement("input");
+        tagsInput.type = "text";
+        tagsInput.className = "candidate-tags-input";
+        tagsInput.placeholder = "タグ（カンマ区切り、例：eventLimited）";
+        tagsInput.value = candidate.tags;
+        tagsInput.addEventListener("input", () => {
+          candidates[index].tags = tagsInput.value;
+        });
+        controls.appendChild(tagsInput);
+
+        const removeButton = document.createElement("button");
+        removeButton.type = "button";
+        removeButton.className = "candidate-remove-button";
+        removeButton.textContent = "削除";
+        removeButton.addEventListener("click", () => {
+          candidates.splice(index, 1);
+          renderCandidates();
+        });
+        controls.appendChild(removeButton);
+
+        row.appendChild(controls);
+        container.appendChild(row);
+      });
+    }
+
+    document.getElementById("mockup-save-button").addEventListener("click", () => {
+      const statusElement = document.getElementById("mockup-save-status");
+      if (candidates.length === 0) {
+        statusElement.className = "editor-status";
+        statusElement.textContent = "候補が1件もありません。";
+        return;
+      }
+      statusElement.className = "editor-status is-success";
+      statusElement.textContent =
+        `保存しました（ダミー、実際には保存されません）。候補${candidates.length}件 / ` +
+        `選択曲：${songSelect.options[songSelect.selectedIndex].textContent}`;
+    });
+
+    renderSyncedLines();
+    renderCandidates();
+  </script>
+</body>
+</html>

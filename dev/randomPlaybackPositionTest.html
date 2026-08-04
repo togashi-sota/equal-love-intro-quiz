@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>【開発用】ランダム再生位置の計算テスト</title>
+
+  <!-- 【重要】このファイルは本体アプリのどのファイルからも参照されない、完全に独立した
+       スタンドアロンのテストファイルです。本体の js/ 配下のファイルは一切importしていません
+       （computeRandomStartSec関数の中身は、このファイルの中に直接書いています）。
+       目的は「ランダム再生モードの核となる純粋関数を、実装前にブラウザ上で動かして
+       境界値の挙動を確認する」ことだけです。見た目の作り込みは行わず、
+       本体のcss/style.cssにも依存していません（純粋にロジック確認用のため）。
+
+       詳しい設計の背景は docs/mode-design-random-playback-and-lyrics-quiz.md の
+       「追記④：ランダム再生モードのMVP設計を具体化」を参照してください。 -->
+
+  <style>
+    body {
+      font-family: system-ui, "Hiragino Sans", "Yu Gothic", sans-serif;
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #1a1a24;
+      color: #eee;
+    }
+    h1 { font-size: 1.2rem; }
+    h2 { font-size: 1rem; margin-top: 28px; border-bottom: 1px solid #444; padding-bottom: 4px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin-top: 10px; }
+    th, td { padding: 6px 8px; border-bottom: 1px solid #333; text-align: left; }
+    th { color: #9ad; }
+    .pass { color: #6f6; font-weight: bold; }
+    .fail { color: #f66; font-weight: bold; }
+    button {
+      font-size: 0.85rem;
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: 1px solid #6cf;
+      background: #24344a;
+      color: #eee;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+    button:hover { background: #2e4560; }
+    pre {
+      background: #10101a;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 0.78rem;
+      overflow-x: auto;
+    }
+    #distribution-result { margin-top: 10px; font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <h1>【開発用】ランダム再生位置の計算テスト（computeRandomStartSec）</h1>
+  <p>
+    ランダム再生モードの核になる「曲のどの位置から再生を始めるか」を決める純粋関数を、
+    実装前にこのページ単体で動作確認するためのツールです。関数の中身はこのページ内に
+    直接書いてあり、本体アプリ（js/ 配下）のファイルには一切依存していません。
+  </p>
+
+  <h2>1. 関数の実装（このページ内で完結）</h2>
+  <pre id="function-source"></pre>
+
+  <h2>2. 境界値テストケースの自動実行結果</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>ケース名</th>
+        <th>入力</th>
+        <th>結果（秒）</th>
+        <th>期待範囲</th>
+        <th>判定</th>
+      </tr>
+    </thead>
+    <tbody id="test-result-tbody"></tbody>
+  </table>
+
+  <h2>3. 大量生成での分布確認（目視チェック用）</h2>
+  <p>通常の曲（240秒想定）で1000回生成し、極端に偏っていないかを目視で確認します。</p>
+  <button id="run-distribution-button" type="button">1000回生成して分布を見る</button>
+  <div id="distribution-result"></div>
+
+  <script>
+    // ===== ここから computeRandomStartSec の実装 =====
+    // docs/mode-design-random-playback-and-lyrics-quiz.md の「追記④」に記載した確定版と同じ内容。
+    // rule は { startRatioRange: [下限割合, 上限割合], playDurationSec: 再生秒数 } の形。
+    // durationSec は曲の長さ（秒）。randomFn は「0以上1未満の乱数を返す関数」で、
+    // 省略時は Math.random を使う（テストでは固定値を返す関数を渡して再現性を持たせている）。
+    function computeRandomStartSec(rule, durationSec, randomFn) {
+      randomFn = randomFn || Math.random;
+
+      // 曲の長さが不正な値（取得失敗・0以下・NaN等）のときは、最も安全な0秒（曲の先頭）を返す。
+      if (!Number.isFinite(durationSec) || durationSec <= 0) {
+        return 0;
+      }
+
+      var lowerRatio = rule.startRatioRange[0];
+      var upperRatio = rule.startRatioRange[1];
+      var lowerBoundSec = durationSec * lowerRatio;
+      // 上限は「再生時間の分だけ手前」に引く。曲が短すぎてupperBoundSecがlowerBoundSecを
+      // 下回ってしまう場合は、Math.maxでlowerBoundSecに揃える（範囲の幅が0になり、
+      // 常にlowerBoundSecを返すようになる＝実質的に曲の先頭付近から再生する）。
+      var upperBoundSec = Math.max(lowerBoundSec, durationSec * upperRatio - rule.playDurationSec);
+
+      return lowerBoundSec + randomFn() * (upperBoundSec - lowerBoundSec);
+    }
+    // ===== ここまで =====
+
+    document.getElementById("function-source").textContent = computeRandomStartSec.toString();
+
+    // MVP版のルール定義（docs/の追記④と同じ内容）。
+    var wholeSongRandomRule = {
+      id: "wholeSongRandom",
+      name: "曲全体ランダム",
+      startRatioRange: [0, 0.9],
+      playDurationSec: 5,
+    };
+
+    // テストケース一覧。expect は「この範囲に収まっていればOK」という判定関数。
+    var testCases = [
+      {
+        name: "通常の曲の長さ",
+        durationSec: 240,
+        randomFn: undefined,
+        expectLabel: "0以上211以下",
+        expect: function (result) { return result >= 0 && result <= 240 * 0.9 - 5 + 1e-9; },
+      },
+      {
+        name: "極端に短い曲（再生秒数より短い）",
+        durationSec: 3,
+        randomFn: undefined,
+        expectLabel: "常に0",
+        expect: function (result) { return result === 0; },
+      },
+      {
+        name: "playDurationSecちょうどの長さ",
+        durationSec: 5,
+        randomFn: undefined,
+        expectLabel: "常に0",
+        expect: function (result) { return result === 0; },
+      },
+      {
+        name: "曲の長さが0秒",
+        durationSec: 0,
+        randomFn: undefined,
+        expectLabel: "常に0",
+        expect: function (result) { return result === 0; },
+      },
+      {
+        name: "曲の長さが取得できない（NaN）",
+        durationSec: NaN,
+        randomFn: undefined,
+        expectLabel: "常に0",
+        expect: function (result) { return result === 0; },
+      },
+      {
+        name: "曲の長さが負の値（防御的確認）",
+        durationSec: -10,
+        randomFn: undefined,
+        expectLabel: "常に0",
+        expect: function (result) { return result === 0; },
+      },
+      {
+        name: "上限側の境界ぎりぎり",
+        durationSec: 5.6,
+        randomFn: undefined,
+        expectLabel: "0以上0.05未満",
+        expect: function (result) { return result >= 0 && result < 0.05; },
+      },
+      {
+        name: "乱数が常に0（下限固定）",
+        durationSec: 240,
+        randomFn: function () { return 0; },
+        expectLabel: "ちょうど0",
+        expect: function (result) { return result === 0; },
+      },
+      {
+        name: "乱数が1に近い（上限付近）",
+        durationSec: 240,
+        randomFn: function () { return 0.999999; },
+        expectLabel: "211付近（durationSecを超えない）",
+        expect: function (result) {
+          var upperBound = 240 * 0.9 - 5;
+          return result <= upperBound + 1e-6 && result > upperBound - 1;
+        },
+      },
+    ];
+
+    var tbody = document.getElementById("test-result-tbody");
+    testCases.forEach(function (testCase) {
+      var result = computeRandomStartSec(wholeSongRandomRule, testCase.durationSec, testCase.randomFn);
+      var passed = testCase.expect(result);
+
+      var row = document.createElement("tr");
+      row.innerHTML =
+        "<td>" + testCase.name + "</td>" +
+        "<td>durationSec=" + testCase.durationSec + "</td>" +
+        "<td>" + (Number.isFinite(result) ? result.toFixed(4) : String(result)) + "</td>" +
+        "<td>" + testCase.expectLabel + "</td>" +
+        '<td class="' + (passed ? "pass" : "fail") + '">' + (passed ? "✅ OK" : "❌ NG") + "</td>";
+      tbody.appendChild(row);
+    });
+
+    // 大量生成による分布の目視確認（統計的な厳密さは求めない、実装前の感覚チェック用）。
+    document.getElementById("run-distribution-button").addEventListener("click", function () {
+      var results = [];
+      for (var i = 0; i < 1000; i++) {
+        results.push(computeRandomStartSec(wholeSongRandomRule, 240));
+      }
+      var min = Math.min.apply(null, results);
+      var max = Math.max.apply(null, results);
+      var avg = results.reduce(function (sum, value) { return sum + value; }, 0) / results.length;
+
+      document.getElementById("distribution-result").innerHTML =
+        "1000回生成：最小値 " + min.toFixed(2) + "秒 / 最大値 " + max.toFixed(2) +
+        "秒 / 平均値 " + avg.toFixed(2) + "秒（理論上の範囲は0〜211秒、平均は105.5秒付近になるはず）";
+    });
+  </script>
+</body>
+</html>
