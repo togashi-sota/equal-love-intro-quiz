@@ -39,21 +39,38 @@ async function generateUniqueRoomId() {
   throw new Error("ルームコードの生成に失敗しました。もう一度お試しください。");
 }
 
-// 切断検知（onDisconnect）の登録を、直近1件だけ覚えておく。
-// 退出時にこれを取り消す（cancel）ことで、「もう自分でルームを出た後に、
-// 遅れてonDisconnectが発火して幽霊のconnected:falseだけが残る」事故を防ぐ。
-let currentDisconnectRef = null;
+// 【接続状態の自己修復（プレゼンス管理）】実機検証で発見：onDisconnect()の予約は
+// 「接続が切れた瞬間に1回だけ実行される」ものでしかなく、その後アプリに戻って接続が
+// 回復しても、connected:trueへは自動的に戻らない。そのため、スマホをバックグラウンドに
+// 回して戻ってくると「切断中」の表示が直らないまま固定されてしまう不具合があった。
+//
+// 対策として、Firebase公式が推奨する「.info/connected」という特別な監視パス
+// （クライアントSDKが、サーバーとの接続の生死を常に反映してくれる仕組み）を使う。
+// 接続が確立・再確立されるたびに、自分の接続状態をconnected:trueへ書き戻し、
+// 次に切断したときのためにonDisconnectの予約も毎回張り直す。
+let presenceUnsubscribe = null;
 
-function registerDisconnectHandling(roomId, uid) {
-  const connectedRef = ref(database, `rooms/${roomId}/players/${uid}/connected`);
-  onDisconnect(connectedRef).set(false);
-  currentDisconnectRef = connectedRef;
+function startPresenceTracking(roomId, uid) {
+  stopPresenceTracking();
+  const infoConnectedRef = ref(database, ".info/connected");
+  const playerConnectedRef = ref(database, `rooms/${roomId}/players/${uid}/connected`);
+
+  const handleValue = (snapshot) => {
+    if (snapshot.val() !== true) {
+      return; // 切断中はここでは何もしない（onDisconnectの予約に任せる）
+    }
+    // 「次に切断したらfalseにする」予約を毎回張り直してから、今の接続状態をtrueにする。
+    onDisconnect(playerConnectedRef).set(false);
+    set(playerConnectedRef, true);
+  };
+  onValue(infoConnectedRef, handleValue);
+  presenceUnsubscribe = () => off(infoConnectedRef, "value", handleValue);
 }
 
-async function cancelDisconnectHandling() {
-  if (currentDisconnectRef) {
-    await onDisconnect(currentDisconnectRef).cancel();
-    currentDisconnectRef = null;
+function stopPresenceTracking() {
+  if (presenceUnsubscribe) {
+    presenceUnsubscribe();
+    presenceUnsubscribe = null;
   }
 }
 
@@ -170,7 +187,7 @@ export async function createRoom({ playerName, maxPlayers }) {
     return { ok: false, reason: "write-failed" };
   }
 
-  registerDisconnectHandling(roomId, uid);
+  startPresenceTracking(roomId, uid);
   saveLastRoom(roomId, playerName);
   return { ok: true, roomId };
 }
@@ -265,7 +282,7 @@ export async function joinRoom({ roomId, playerName }) {
     return { ok: false, reason: abortReason ?? "unknown" };
   }
 
-  registerDisconnectHandling(roomId, uid);
+  startPresenceTracking(roomId, uid);
   saveLastRoom(roomId, playerName);
   return { ok: true, roomId };
 }
@@ -278,7 +295,15 @@ export async function leaveRoom({ roomId }) {
   const uid = getCurrentUid();
   if (!uid) return;
 
-  await cancelDisconnectHandling();
+  stopPresenceTracking();
+  try {
+    // 自分で退出した後に、遅れてonDisconnectが発火して幽霊のconnected:falseだけが
+    // 残る事故を防ぐため、予約を取り消しておく。
+    await onDisconnect(ref(database, `rooms/${roomId}/players/${uid}/connected`)).cancel();
+  } catch (error) {
+    // 通信が切れている状態で退出しようとした場合など、キャンセル自体に失敗しても
+    // このあとの退出処理は続行する（致命的ではないため）。
+  }
 
   const roomRef = ref(database, `rooms/${roomId}`);
   const snapshot = await get(roomRef);
