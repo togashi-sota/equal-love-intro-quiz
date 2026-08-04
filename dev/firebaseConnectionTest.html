@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>【開発用】Firebase接続確認ツール</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap" rel="stylesheet">
+
+  <!-- 色・フォント等の共通トークン（CSS変数）を再利用するため、本編と同じスタイルシートを読み込む。
+       このページ専用のレイアウトは下の<style>に自己完結させ、本編用のcss/style.cssには追記しない。 -->
+  <link rel="stylesheet" href="../css/style.css">
+
+  <style>
+    body {
+      /* css/style.css側の本編用スタイルがbodyをdisplay:flexで中央寄せする指定を持っているため、
+         このページでは打ち消して通常の縦積みレイアウトに戻す。 */
+      display: block;
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 24px 16px 60px;
+      font-family: "M PLUS Rounded 1c", sans-serif;
+      color: var(--color-text);
+    }
+
+    h1 {
+      font-size: 1.3rem;
+      margin: 0 0 8px;
+    }
+
+    .page-description {
+      font-size: 0.85rem;
+      opacity: 0.75;
+      line-height: 1.6;
+      margin: 0 0 24px;
+    }
+
+    .status-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid var(--color-card-border);
+      margin-bottom: 20px;
+    }
+
+    .status-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      background: var(--color-surface-glass);
+      font-size: 0.85rem;
+    }
+
+    .status-label {
+      opacity: 0.7;
+      flex: none;
+    }
+
+    .status-value {
+      font-weight: 700;
+      text-align: right;
+      word-break: break-all;
+    }
+
+    .status-value.status-ok {
+      color: var(--color-primary-dark);
+    }
+
+    .status-value.status-fail {
+      color: var(--color-danger);
+    }
+
+    .status-value.status-pending {
+      opacity: 0.6;
+      font-weight: 500;
+    }
+
+    .error-box {
+      background: var(--color-danger-soft);
+      border: 1px solid var(--color-danger);
+      color: var(--color-danger);
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 0.8rem;
+      line-height: 1.6;
+      margin-bottom: 20px;
+      word-break: break-all;
+    }
+
+    .button-row {
+      display: flex;
+      gap: 10px;
+    }
+
+    .button-row button {
+      flex: 1;
+    }
+  </style>
+</head>
+<body>
+  <h1>Firebase 接続確認ツール</h1>
+  <p class="page-description">
+    ＝LOVEイントロクイズのオンライン対戦機能（Firebase）を開発する際の、接続状況を確認するためのデバッグ専用ページです。
+    本編のクイズ・対戦モードのコードとは完全に独立しており、このページの動作は本編に一切影響しません。
+  </p>
+
+  <section class="status-panel">
+    <div class="status-row">
+      <span class="status-label">Firebase SDKバージョン</span>
+      <span class="status-value" id="sdk-version">-</span>
+    </div>
+    <div class="status-row">
+      <span class="status-label">Project ID</span>
+      <span class="status-value" id="project-id">-</span>
+    </div>
+    <div class="status-row">
+      <span class="status-label">Realtime Database URL</span>
+      <span class="status-value" id="database-url">-</span>
+    </div>
+    <div class="status-row">
+      <span class="status-label">現在の認証状態</span>
+      <span class="status-value status-pending" id="auth-state">未確認</span>
+    </div>
+    <div class="status-row">
+      <span class="status-label">UID</span>
+      <span class="status-value" id="uid">-</span>
+    </div>
+    <div class="status-row">
+      <span class="status-label">匿名ログイン</span>
+      <span class="status-value status-pending" id="auth-status">未実行</span>
+    </div>
+    <div class="status-row">
+      <span class="status-label">書き込みテスト</span>
+      <span class="status-value status-pending" id="write-status">未実行</span>
+    </div>
+    <div class="status-row">
+      <span class="status-label">読み込みテスト</span>
+      <span class="status-value status-pending" id="read-status">未実行</span>
+    </div>
+  </section>
+
+  <div class="error-box" id="error-box" hidden></div>
+
+  <div class="button-row">
+    <button id="run-test-button" class="primary-button" type="button">接続テストを実行</button>
+    <button id="sign-out-button" class="secondary-button" type="button">ログアウトして状態をリセット</button>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import {
+      getAuth,
+      signInAnonymously,
+      onAuthStateChanged,
+      signOut,
+    } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+    import { getDatabase, ref, set, get } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+    // CDNから読み込んでいるSDKのバージョン。上のimport文と必ず同じ値にしておくこと
+    // （SDK自体から実行時にバージョン文字列を取得する簡単な方法がないため、手動で合わせる運用）。
+    const FIREBASE_SDK_VERSION = "10.7.1";
+
+    // Firebaseコンソールの「プロジェクトの設定」で発行された値。
+    // apiKey等はWebアプリ向けに公開されることを前提とした識別子であり、秘密鍵ではないため、
+    // このままコード・GitHubに含めて問題ない（実際のアクセス制御はRealtime Databaseの
+    // セキュリティルール側で行う）。
+    const firebaseConfig = {
+      apiKey: "AIzaSyBgkSOeXf9-6q0j2PgMpLzZ7HJuGhrB1B4",
+      authDomain: "equal-love-intro-quiz.firebaseapp.com",
+      databaseURL: "https://equal-love-intro-quiz-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "equal-love-intro-quiz",
+      storageBucket: "equal-love-intro-quiz.firebasestorage.app",
+      messagingSenderId: "394462420674",
+      appId: "1:394462420674:web:85d08546838d502291655b",
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const database = getDatabase(app);
+
+    function setStatus(elementId, text, state) {
+      const el = document.getElementById(elementId);
+      el.textContent = text;
+      el.className = "status-value" + (state ? ` status-${state}` : "");
+    }
+
+    function showError(message) {
+      const box = document.getElementById("error-box");
+      box.hidden = false;
+      box.textContent = message;
+    }
+
+    function clearError() {
+      document.getElementById("error-box").hidden = true;
+    }
+
+    // 固定情報はページを開いた時点で表示しておく（ログイン前から確認できるようにするため）。
+    document.getElementById("sdk-version").textContent = FIREBASE_SDK_VERSION;
+    document.getElementById("project-id").textContent = firebaseConfig.projectId;
+    document.getElementById("database-url").textContent = firebaseConfig.databaseURL;
+
+    // 現在の認証状態は、ボタン操作と関係なく常に監視して表示を更新する。
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setStatus("auth-state", "ログイン中", "ok");
+        setStatus("uid", user.uid, "ok");
+      } else {
+        setStatus("auth-state", "未ログイン", "pending");
+        setStatus("uid", "-", null);
+      }
+    });
+
+    async function runConnectionTest() {
+      clearError();
+      setStatus("auth-status", "実行中…", "pending");
+      setStatus("write-status", "未実行", "pending");
+      setStatus("read-status", "未実行", "pending");
+
+      let user;
+      try {
+        const credential = await signInAnonymously(auth);
+        user = credential.user;
+        setStatus("auth-status", "成功", "ok");
+      } catch (error) {
+        setStatus("auth-status", "失敗", "fail");
+        showError(`匿名ログインに失敗しました：${error.code ?? ""} ${error.message}`);
+        return;
+      }
+
+      // 参加者ごとに別の場所へ書き込むことで、複数人・複数端末で同時にこのツールを
+      // 使っても、お互いの書き込みが上書きし合わないようにしている。
+      const testPath = `connectionTests/${user.uid}`;
+      const testValue = { checkedAt: Date.now(), message: "Firebase接続確認ツールからの書き込み" };
+
+      try {
+        await set(ref(database, testPath), testValue);
+        setStatus("write-status", "成功", "ok");
+      } catch (error) {
+        setStatus("write-status", "失敗", "fail");
+        showError(`書き込みに失敗しました：${error.code ?? ""} ${error.message}`);
+        return;
+      }
+
+      try {
+        const snapshot = await get(ref(database, testPath));
+        const readBack = snapshot.val();
+        if (snapshot.exists() && readBack?.checkedAt === testValue.checkedAt) {
+          setStatus("read-status", "成功", "ok");
+        } else {
+          setStatus("read-status", "失敗（書き込んだ内容と一致しません）", "fail");
+        }
+      } catch (error) {
+        setStatus("read-status", "失敗", "fail");
+        showError(`読み込みに失敗しました：${error.code ?? ""} ${error.message}`);
+      }
+    }
+
+    document.getElementById("run-test-button").addEventListener("click", runConnectionTest);
+    document.getElementById("sign-out-button").addEventListener("click", async () => {
+      await signOut(auth);
+      setStatus("auth-status", "未実行", "pending");
+      setStatus("write-status", "未実行", "pending");
+      setStatus("read-status", "未実行", "pending");
+      clearError();
+    });
+  </script>
+</body>
+</html>
