@@ -64,8 +64,19 @@ export async function importAudioFiles(fileList) {
   return { savedSongIds, unmatchedFileNames };
 }
 
-// 指定したsongIdの音源データ（Blob）を取得する。未読み込みならnullを返す。
-export async function getAudioBlob(songId) {
+// 再試行の様子を調べたいときだけtrueにする（本番では常時falseのままにしておくこと）。
+const DEBUG_LOGGING = false;
+
+// nullだった場合に、もう一度だけ取得し直すまでに空ける待ち時間（ミリ秒）。
+const RETRY_WAIT_MS = 150;
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// IndexedDBから1回だけ取得する処理そのもの。例外（DBが開けない等）はここでは
+// 一切もみ消さず、そのまま呼び出し元へ伝える（原因を隠さないため）。
+async function getAudioBlobOnce(songId) {
   const db = await openDatabase();
   const blob = await new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, "readonly");
@@ -75,6 +86,39 @@ export async function getAudioBlob(songId) {
   });
   db.close();
   return blob;
+}
+
+// 指定したsongIdの音源データ（Blob）を取得する。未読み込みならnullを返す。
+//
+// 【nullだったときだけ1回だけ再試行する理由】オンライン対戦の参加者端末など、
+// このセッションで初めてIndexedDBへアクセスするタイミングが「1問目の音源取得」と
+// 重なるケースで、ごく稀に1回目の取得がnullになることが実機テストで報告された
+// （原因はコードレビューでは断定できていないが、症状が「参加者端末の新しいルームの
+// 1問目だけ・2試合目以降は正常」という一時的なものだったため、コールドスタート時の
+// タイミングを疑い、保険として追加した）。
+// 本当に音源が未インポートの曲を何度も再試行しないよう、このリトライは1回だけに限定する
+// （2回目もnullなら、そのまま「未読み込み」としてnullを返す＝案内が長時間遅れることもない）。
+//
+// 【呼び出し元（js/audio.js）の世代番号との関係】この再試行の待ち時間は、単に
+// getAudioBlob()の完了が少し遅れるだけなので、待っている間に呼び出し元が次の問題へ
+// 進んでいれば、js/audio.js側の世代番号チェックによって「追い越された古い呼び出し」として
+// 静かに無視される。そのための特別な連携はこちら側には持たせていない（責務を分けたまま）。
+export async function getAudioBlob(songId) {
+  const firstResult = await getAudioBlobOnce(songId);
+  if (firstResult) return firstResult;
+
+  if (DEBUG_LOGGING) console.log(`[audioStorage] ${songId}: 1回目がnullでした。${RETRY_WAIT_MS}ms待って再試行します。`);
+  await sleep(RETRY_WAIT_MS);
+
+  const secondResult = await getAudioBlobOnce(songId);
+  if (DEBUG_LOGGING) {
+    console.log(
+      secondResult
+        ? `[audioStorage] ${songId}: 再試行で取得できました。`
+        : `[audioStorage] ${songId}: 再試行してもnullでした（未読み込みと判断）。`
+    );
+  }
+  return secondResult;
 }
 
 // 読み込み済みの曲のsongId一覧を取得する。
