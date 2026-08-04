@@ -10,6 +10,8 @@
 
 import { buildBattleQuestions, validateBattleConfig, PENALTY_SECONDS_VALUES } from "../localBattle.js";
 import { computeNormalFinalRecordMs } from "../localBattleResult.js";
+import { resolveSongPool, buildQuestionsFromPool, validateSongPoolForQuestionCount } from "../questionSource.js";
+import { MIN_SONGS_REQUIRED } from "../quiz.js";
 
 export const gameMode = "timeAttack";
 export const label = "タイムアタック";
@@ -20,12 +22,52 @@ export function defaultSettings() {
 }
 
 // 設定が実際に出題できる内容か検証する。問題なければnull、問題があればエラー文言を返す。
+//
+// 【questionSourceについて、2026-08-08追加】settings.questionSourceが指定されている場合
+// （全員で選んだ曲・お気に入り・プレイリスト等から出題する場合）は、そちらを解決して
+// 曲数を検証する。指定が無い場合（既存のカテゴリ絞り込みのみの設定）は、今までと完全に
+// 同じcategoryFilterValueベースの検証を行う（後方互換。既存のオンライン対戦ルームの
+// settingsにはquestionSourceが存在しないため、この関数は今までと寸分違わず同じ結果を返す）。
 export function validateSettings(settings) {
+  if (settings.questionSource) {
+    const songPool = resolveQuestionSourceSongPool(settings.questionSource);
+    if (songPool.length < MIN_SONGS_REQUIRED) {
+      return "曲数が足りません。出題範囲を広げてください。";
+    }
+    const sizeCheck = validateSongPoolForQuestionCount(songPool, settings.questionCountValue);
+    if (!sizeCheck.ok) {
+      return `選択した曲は${sizeCheck.currentCount}曲です。${sizeCheck.requiredCount}問を出題するには${sizeCheck.requiredCount}曲以上必要です。`;
+    }
+    return null;
+  }
   return validateBattleConfig({ categoryFilterValue: settings.categoryFilterValue });
 }
 
+// settings.questionSourceからsongPool（string[]）を取り出す。
+// collaborativeSelection（オンライン共同選曲）は、確定済みのsongIdsをFirebase上に
+// 直接保存している想定のため、questionSource.js側のresolveSongPoolを経由せず、
+// settings.questionSource.songIdsをそのまま使う（他のtype同様、この呼び出し元では
+// sanitizeはしない＝Firebase書き込み時点で既にサニタイズ済みという前提。詳細はPhase2の
+// Firebaseルール案・onlineBattle.js側の実装を参照）。
+function resolveQuestionSourceSongPool(questionSource) {
+  if (questionSource.type === "collaborativeSelection") {
+    return questionSource.songIds ?? [];
+  }
+  return resolveSongPool(questionSource);
+}
+
 // seed・settingsから、全端末で完全に一致する問題セットを組み立てる。
+//
+// 【questionSourceについて、2026-08-08追加】settings.questionSourceが指定されていれば、
+// そこから解決したsongPoolだけを出題対象にする（全員で選んだ曲・お気に入り・
+// プレイリストからのオンライン対戦、js/questionSource.js参照）。指定が無い場合は
+// 今までと完全に同じ、categoryFilterValueベースのbuildBattleQuestions()を呼ぶ
+// （既存のオンライン対戦ルームの動作に一切影響しない）。
 export function buildQuestions({ seed, settings }) {
+  if (settings.questionSource) {
+    const songPool = resolveQuestionSourceSongPool(settings.questionSource);
+    return buildQuestionsFromPool({ seed, songPool, questionCountValue: settings.questionCountValue });
+  }
   return buildBattleQuestions({
     seed,
     questionCountValue: settings.questionCountValue,
