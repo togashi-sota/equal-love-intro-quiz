@@ -24,9 +24,10 @@ export function createSeededRandom(seed) {
   };
 }
 
-// 対戦コードを作るときに使う、0以上0xFFFFFFFF以下のランダムなシード値を1つ生成する。
+// 対戦コードを作るときに使う、0以上・指定ビット数未満のランダムなシード値を1つ生成する。
 // （これ自体はMath.random()由来でよい。「対戦を作る人だけが1回だけ使う」ものであり、
 // 全端末で再現する必要はないため。）
-export function generateRandomSeed() {
-  return Math.floor(Math.random() * 0xffffffff);
+// bitsは対戦コードに埋め込めるビット数に合わせて呼び出し側（js/localBattle.js）が指定する。
+export function generateRandomSeed(bits = 32) {
+  return Math.floor(Math.random() * 2 ** bits);
 }

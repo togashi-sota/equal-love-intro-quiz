@@ -1486,6 +1486,24 @@
           <label><input type="radio" name="battle-rule" value="hard"> ハード（1回間違えたら即次へ）</label>
           <label><input type="radio" name="battle-rule" value="loveChain"> LOVE連チャン（1回間違えたら即終了）</label>
         </div>
+        <p class="battle-rule-hint" id="battle-setup-rule-hint"></p>
+      </fieldset>
+
+      <!-- ノーマルのときだけ表示するミスペナルティ選択。js/localBattleScreen.jsが
+           ルールの選択に応じて表示/非表示を切り替える。 -->
+      <fieldset id="battle-setup-penalty-fieldset">
+        <legend>ミスペナルティ（ノーマルのみ）</legend>
+        <div class="option-row">
+          <label><input type="radio" name="battle-penalty" value="0"> なし（0秒）</label>
+          <label><input type="radio" name="battle-penalty" value="1"> 軽め（1秒）</label>
+          <label><input type="radio" name="battle-penalty" value="2" checked> 公式（2秒）</label>
+        </div>
+        <div class="option-row">
+          <label><input type="radio" name="battle-penalty" value="3"> 少し厳しめ（3秒）</label>
+          <label><input type="radio" name="battle-penalty" value="5"> 厳しめ（5秒）</label>
+          <label><input type="radio" name="battle-penalty" value="10"> ガチ（10秒）</label>
+        </div>
+        <p style="font-size:0.7rem;opacity:0.6;margin:6px 0 0;">ノーマルでは、ミス1回ごとに選択した秒数が最終記録へ加算されます</p>
       </fieldset>
 
       <button id="battle-setup-create-code-button" class="primary-button" type="button">対戦コードを作る</button>
@@ -1545,6 +1563,7 @@
       </div>
 
       <div class="battle-config-summary" id="battle-rule-confirm-config-summary"></div>
+      <p class="battle-rule-hint" id="battle-rule-confirm-rule-hint"></p>
       <div id="battle-rule-confirm-audio-check"></div>
 
       <p class="battle-field-label">あなたの表示名</p>

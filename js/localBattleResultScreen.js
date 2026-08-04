@@ -6,7 +6,13 @@
 // 2人のときは結果として自然に「勝ち負け」の形になる。UIを2系統持たずに済むための共通化。
 
 import { getCurrentBattleSession, RULE_LABELS } from "./localBattleScreen.js";
-import { encodeResultCode, decodeResultCode, formatResultCodeForDisplay, rankBattleParticipants } from "./localBattleResult.js";
+import {
+  encodeResultCode,
+  decodeResultCode,
+  formatResultCodeForDisplay,
+  rankBattleParticipants,
+  computeNormalFinalRecordMs,
+} from "./localBattleResult.js";
 
 const QUESTION_COUNT_LABELS = { "5": "5問", "10": "10問", "20": "20問", "50": "50問", all: "全問" };
 const CATEGORY_LABELS = { all: "全曲", "title-and-group": "表題＋全員", "title-track": "表題のみ" };
@@ -125,7 +131,7 @@ function renderRankingList() {
   const ruleLabel = RULE_LABELS[config.rule] ?? config.rule;
   elements.rankingConfigSummary.textContent = `${questionCountLabel}・${categoryLabel}・${ruleLabel}`;
 
-  const ranked = rankBattleParticipants(participants, config.rule);
+  const ranked = rankBattleParticipants(participants, config.rule, config.penaltySeconds);
 
   const medalByRank = { 1: "🥇", 2: "🥈", 3: "🥉" };
 
@@ -161,9 +167,22 @@ function renderRankingList() {
 
     const timeValue = document.createElement("div");
     timeValue.className = "battle-rank-time";
-    timeValue.textContent = result.completed
-      ? `${formatSeconds(result.totalElapsedMs)}秒`
-      : `${result.reachedQuestionNumber}問目で終了`;
+    if (config.rule === "normal") {
+      // ノーマルはペナルティ込みの最終記録を主役にし、その下に内訳（実測＋ペナルティ）を添える。
+      const finalLine = document.createElement("p");
+      finalLine.className = "battle-rank-time-final";
+      finalLine.textContent = `${formatSeconds(computeNormalFinalRecordMs(result, config.penaltySeconds))}秒`;
+      const penaltyTotalSeconds = result.missCount * config.penaltySeconds;
+      const breakdownLine = document.createElement("p");
+      breakdownLine.className = "battle-rank-time-breakdown";
+      breakdownLine.textContent = `実測${formatSeconds(result.totalElapsedMs)}秒＋ペナルティ${penaltyTotalSeconds.toFixed(2)}秒`;
+      timeValue.appendChild(finalLine);
+      timeValue.appendChild(breakdownLine);
+    } else {
+      timeValue.textContent = result.completed
+        ? `${formatSeconds(result.totalElapsedMs)}秒`
+        : `${result.reachedQuestionNumber}問目で終了`;
+    }
     row.appendChild(timeValue);
 
     elements.rankingList.appendChild(row);
@@ -172,7 +191,9 @@ function renderRankingList() {
   elements.rankingRuleNote.textContent =
     config.rule === "loveChain"
       ? "順位は「クリア＞到達問題数＞経過時間＞ミス数」で決まります"
-      : "順位は「合計タイム＞ミス数」で決まります（クリアしている人が優先されます）";
+      : config.rule === "hard"
+        ? "順位は「正解数＞合計タイム＞ミス数」で決まります"
+        : `順位は「ミスペナルティ込みの最終記録（実測タイム＋ミス1回につき${config.penaltySeconds}秒）＞ミス数」で決まります`;
 }
 
 // 対戦モード：結果集計・順位発表画面を使えるようにする。main.jsの初期化処理から1回だけ呼ぶ想定。

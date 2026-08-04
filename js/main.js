@@ -380,6 +380,8 @@ const battleJoinButtonElement = document.getElementById("battle-join-button");
 const battleSetupBackButtonElement = document.getElementById("battle-setup-back-button");
 const battleSetupCreateCodeButtonElement = document.getElementById("battle-setup-create-code-button");
 const battleSetupErrorElement = document.getElementById("battle-setup-error");
+const battleSetupRuleHintElement = document.getElementById("battle-setup-rule-hint");
+const battleSetupPenaltyFieldsetElement = document.getElementById("battle-setup-penalty-fieldset");
 const battleCodeShareBackButtonElement = document.getElementById("battle-code-share-back-button");
 const battleCodeShareConfigSummaryElement = document.getElementById("battle-code-share-config-summary");
 const battleCodeShareValueElement = document.getElementById("battle-code-share-value");
@@ -390,6 +392,7 @@ const battleJoinErrorElement = document.getElementById("battle-join-error");
 const battleJoinConfirmButtonElement = document.getElementById("battle-join-confirm-button");
 const battleRuleConfirmBackButtonElement = document.getElementById("battle-rule-confirm-back-button");
 const battleRuleConfirmConfigSummaryElement = document.getElementById("battle-rule-confirm-config-summary");
+const battleRuleConfirmRuleHintElement = document.getElementById("battle-rule-confirm-rule-hint");
 const battleRuleConfirmAudioCheckElement = document.getElementById("battle-rule-confirm-audio-check");
 const battleRuleConfirmPlayerNameElement = document.getElementById("battle-rule-confirm-player-name");
 const battleRuleConfirmStartButtonElement = document.getElementById("battle-rule-confirm-start-button");
@@ -2279,6 +2282,8 @@ initLocalBattleScreens({
   setupBackButton: battleSetupBackButtonElement,
   setupCreateCodeButton: battleSetupCreateCodeButtonElement,
   setupError: battleSetupErrorElement,
+  setupRuleHint: battleSetupRuleHintElement,
+  setupPenaltyFieldset: battleSetupPenaltyFieldsetElement,
   codeShareBackButton: battleCodeShareBackButtonElement,
   codeShareConfigSummary: battleCodeShareConfigSummaryElement,
   codeShareValue: battleCodeShareValueElement,
@@ -2289,6 +2294,7 @@ initLocalBattleScreens({
   joinConfirmButton: battleJoinConfirmButtonElement,
   ruleConfirmBackButton: battleRuleConfirmBackButtonElement,
   ruleConfirmConfigSummary: battleRuleConfirmConfigSummaryElement,
+  ruleConfirmRuleHint: battleRuleConfirmRuleHintElement,
   ruleConfirmAudioCheck: battleRuleConfirmAudioCheckElement,
   ruleConfirmPlayerName: battleRuleConfirmPlayerNameElement,
   ruleConfirmStartButton: battleRuleConfirmStartButtonElement,

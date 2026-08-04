@@ -6,125 +6,71 @@
 // 固定長の短いコードに収めにくいため）。結果コードは「タイム・正解数・ミス数・クリア状況」
 // だけを表し、プレイヤー名は結果コードを受け取った人がその場で入力する運用にする。
 // これにより、コードを常に同じ短い長さに保てる。
+//
+// 【2026-08-07・コード短縮】js/localBattle.jsと同じく、各項目を1バイト単位ではなく
+// 必要なビット数だけで詰め込む方式に作り直した（js/bitCode.js参照）。
+// 旧バージョン（16文字・1バイト単位）とは互換性がない（文字数が変わるため、
+// 古いコードは文字数チェックの時点で自然に「invalid」と判定される）。
+
+import { packFieldsToBase32, unpackBase32ToFields, computeChecksum, formatCodeForDisplay } from "./bitCode.js";
 
 // 結果コードの形式自体のバージョン。
-const RESULT_CODE_FORMAT_VERSION = 1;
+const RESULT_CODE_FORMAT_VERSION = 2;
 
-// ===== バイト列 ⇔ 結果データ の変換 =====
-//
-// 結果コードのデータ構造（10バイト＝80bit）：
-//   byte0    : 結果コード形式のバージョン
-//   byte1-2  : 対戦フィンガープリント（対戦コードのシードの下位16bit。
-//              「違う対戦の結果コードを間違えて入力した」ケースをここで検出する）
-//   byte3-5  : 合計タイム（ミリ秒、24bit＝約4.6時間まで対応。タイムアタックとしては十分すぎる余裕）
-//   byte6    : 正解数（0〜255）
-//   byte7    : ミス数（0〜255）
-//   byte8    : 到達問題数（クリアした場合は出題数と同じ値。LOVE連チャンで途中終了した場合だけ意味を持つ）
-//              最上位1bitは「クリアしたかどうか」のフラグ（1=クリア、0=途中終了）に使う。
-//   byte9    : チェック値（byte0〜8の合計を256で割った余り）
-const PAYLOAD_BYTE_LENGTH = 10;
+// ===== 結果コードのビット構成（合計57bit→Base32 12文字）=====
+//   resultCodeFormatVersion : 3bit
+//   battleFingerprint       : 8bit（対戦コードのシード下位8bit。「違う対戦の結果コードを
+//                              間違えて入力した」ケースをここで検出する。簡易チェックのため
+//                              完全な一致検出ではない）
+//   totalElapsedCentiSec    : 18bit（1/100秒＝センチ秒単位。結果画面の表示自体が
+//                              小数点以下2桁（センチ秒）までのため、精度を一切落とさずに
+//                              ミリ秒単位より少ないビット数で収められる。最大約43分まで対応）
+//   correctCount            : 7bit（0〜127。現状の最大出題数を大きく上回る余裕）
+//   missCount               : 7bit（0〜127。上限を超える極端なケースは127に切り詰める）
+//   completed               : 1bit（クリアしたかどうか）
+//   reachedQuestionNumber   : 7bit（LOVE連チャンで途中終了した場合の到達問題数）
+//   checksum                : 6bit（入力ミスの簡易検出用）
+const RESULT_CODE_FORMAT_VERSION_BITS = 3;
+const BATTLE_FINGERPRINT_BITS = 8;
+const ELAPSED_CENTISEC_BITS = 18;
+const CORRECT_COUNT_BITS = 7;
+const MISS_COUNT_BITS = 7;
+const COMPLETED_BITS = 1;
+const REACHED_QUESTION_NUMBER_BITS = 7;
+const CHECKSUM_BITS = 6;
 
-// 対戦コードのシード（32bit）から、結果コードに埋め込む短いフィンガープリント（16bit）を作る。
-// 完全な一致検出ではなく「明らかに違う対戦の結果コードを入力した」ことに気づくための簡易チェック。
+const MAX_CORRECT_COUNT = 2 ** CORRECT_COUNT_BITS - 1;
+const MAX_MISS_COUNT = 2 ** MISS_COUNT_BITS - 1;
+const MAX_ELAPSED_CENTISEC = 2 ** ELAPSED_CENTISEC_BITS - 1;
+const MAX_REACHED_QUESTION_NUMBER = 2 ** REACHED_QUESTION_NUMBER_BITS - 1;
+
+// 対戦コードのシード（24bit）から、結果コードに埋め込む短いフィンガープリントを作る。
 function computeBattleFingerprint(seed) {
-  return seed & 0xffff;
+  return seed & (2 ** BATTLE_FINGERPRINT_BITS - 1);
 }
 
-function computeChecksum(bytesWithoutChecksum) {
-  let sum = 0;
-  for (const byte of bytesWithoutChecksum) {
-    sum = (sum + byte) % 256;
-  }
-  return sum;
-}
+const FIELD_BITS_WITHOUT_CHECKSUM = [
+  RESULT_CODE_FORMAT_VERSION_BITS,
+  BATTLE_FINGERPRINT_BITS,
+  ELAPSED_CENTISEC_BITS,
+  CORRECT_COUNT_BITS,
+  MISS_COUNT_BITS,
+  COMPLETED_BITS,
+  REACHED_QUESTION_NUMBER_BITS,
+];
 
-function encodeResultToBytes({ battleSeed, totalElapsedMs, correctCount, missCount, completed, reachedQuestionNumber }) {
+function buildFieldList({ battleSeed, totalElapsedMs, correctCount, missCount, completed, reachedQuestionNumber }) {
   const fingerprint = computeBattleFingerprint(battleSeed);
-  const clampedTimeMs = Math.min(Math.round(totalElapsedMs), 0xffffff);
-
-  const bytes = new Uint8Array(PAYLOAD_BYTE_LENGTH);
-  bytes[0] = RESULT_CODE_FORMAT_VERSION;
-  bytes[1] = (fingerprint >> 8) & 0xff;
-  bytes[2] = fingerprint & 0xff;
-  bytes[3] = (clampedTimeMs >> 16) & 0xff;
-  bytes[4] = (clampedTimeMs >> 8) & 0xff;
-  bytes[5] = clampedTimeMs & 0xff;
-  bytes[6] = Math.min(correctCount, 255);
-  bytes[7] = Math.min(missCount, 255);
-  bytes[8] = (completed ? 0x80 : 0) | (Math.min(reachedQuestionNumber, 127) & 0x7f);
-  bytes[9] = computeChecksum(bytes.slice(0, 9));
-  return bytes;
-}
-
-function decodeResultFromBytes(bytes) {
-  if (bytes.length !== PAYLOAD_BYTE_LENGTH) return null;
-
-  const expectedChecksum = computeChecksum(bytes.slice(0, 9));
-  if (bytes[9] !== expectedChecksum) return null;
-
-  const fingerprint = (bytes[1] << 8) | bytes[2];
-  const totalElapsedMs = (bytes[3] << 16) | (bytes[4] << 8) | bytes[5];
-  const correctCount = bytes[6];
-  const missCount = bytes[7];
-  const completed = (bytes[8] & 0x80) !== 0;
-  const reachedQuestionNumber = bytes[8] & 0x7f;
-
-  return {
-    resultCodeFormatVersion: bytes[0],
-    battleFingerprint: fingerprint,
-    totalElapsedMs,
-    correctCount,
-    missCount,
-    completed,
-    reachedQuestionNumber,
-  };
-}
-
-// ===== バイト列 ⇔ 短い文字列（Base32） =====
-// js/localBattle.jsと全く同じ方式（Crockford's Base32、読み間違えやすい文字を除く）。
-const BASE32_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
-const PAYLOAD_BIT_LENGTH = PAYLOAD_BYTE_LENGTH * 8; // 80
-const CODE_CHAR_LENGTH = Math.ceil(PAYLOAD_BIT_LENGTH / 5); // 16
-const PADDING_BIT_LENGTH = CODE_CHAR_LENGTH * 5 - PAYLOAD_BIT_LENGTH; // 0
-
-function bytesToBase32(bytes) {
-  let value = 0n;
-  for (const byte of bytes) {
-    value = (value << 8n) | BigInt(byte);
-  }
-  value <<= BigInt(PADDING_BIT_LENGTH);
-
-  let text = "";
-  for (let i = CODE_CHAR_LENGTH - 1; i >= 0; i--) {
-    const chunk = Number((value >> BigInt(i * 5)) & 0x1fn);
-    text += BASE32_ALPHABET[chunk];
-  }
-  return text;
-}
-
-function base32ToBytes(text) {
-  const chars = text.toUpperCase().replace(/[^0-9A-Z]/g, "");
-  if (chars.length !== CODE_CHAR_LENGTH) return null;
-
-  let value = 0n;
-  for (const char of chars) {
-    const index = BASE32_ALPHABET.indexOf(char);
-    if (index === -1) return null;
-    value = (value << 5n) | BigInt(index);
-  }
-  value >>= BigInt(PADDING_BIT_LENGTH);
-
-  const bytes = new Uint8Array(PAYLOAD_BYTE_LENGTH);
-  for (let i = PAYLOAD_BYTE_LENGTH - 1; i >= 0; i--) {
-    bytes[i] = Number(value & 0xffn);
-    value >>= 8n;
-  }
-  return bytes;
-}
-
-// 表示・手入力用に、4文字ごとにハイフンを入れる。
-export function formatResultCodeForDisplay(code) {
-  return code.match(/.{1,4}/g)?.join("-") ?? code;
+  const elapsedCentiSec = Math.min(Math.round(totalElapsedMs / 10), MAX_ELAPSED_CENTISEC);
+  return [
+    { value: RESULT_CODE_FORMAT_VERSION, bits: RESULT_CODE_FORMAT_VERSION_BITS },
+    { value: fingerprint, bits: BATTLE_FINGERPRINT_BITS },
+    { value: elapsedCentiSec, bits: ELAPSED_CENTISEC_BITS },
+    { value: Math.min(correctCount, MAX_CORRECT_COUNT), bits: CORRECT_COUNT_BITS },
+    { value: Math.min(missCount, MAX_MISS_COUNT), bits: MISS_COUNT_BITS },
+    { value: completed ? 1 : 0, bits: COMPLETED_BITS },
+    { value: Math.min(reachedQuestionNumber, MAX_REACHED_QUESTION_NUMBER), bits: REACHED_QUESTION_NUMBER_BITS },
+  ];
 }
 
 // ===== 公開API：結果コードの作成・解析 =====
@@ -132,8 +78,12 @@ export function formatResultCodeForDisplay(code) {
 // 自分のプレイ結果から、結果コード（文字列）を作る。
 // battleSeed：今回参加している対戦コードのシード（対戦フィンガープリントの元になる）。
 export function encodeResultCode({ battleSeed, totalElapsedMs, correctCount, missCount, completed, reachedQuestionNumber }) {
-  const bytes = encodeResultToBytes({ battleSeed, totalElapsedMs, correctCount, missCount, completed, reachedQuestionNumber });
-  return bytesToBase32(bytes);
+  const fields = buildFieldList({ battleSeed, totalElapsedMs, correctCount, missCount, completed, reachedQuestionNumber });
+  const checksum = computeChecksum(
+    fields.map((field) => field.value),
+    CHECKSUM_BITS
+  );
+  return packFieldsToBase32([...fields, { value: checksum, bits: CHECKSUM_BITS }]);
 }
 
 // 結果コードを解析する。battleSeedを渡すと、フィンガープリントが一致するかも検証する
@@ -143,28 +93,78 @@ export function encodeResultCode({ battleSeed, totalElapsedMs, correctCount, mis
 //   { ok: false, reason: "invalid" }
 //   { ok: false, reason: "wrong-battle" }
 export function decodeResultCode(rawCode, battleSeed) {
-  const bytes = base32ToBytes(rawCode);
-  if (!bytes) return { ok: false, reason: "invalid" };
+  const values = unpackBase32ToFields(rawCode, [...FIELD_BITS_WITHOUT_CHECKSUM, CHECKSUM_BITS]);
+  if (!values) return { ok: false, reason: "invalid" };
 
-  const result = decodeResultFromBytes(bytes);
-  if (!result) return { ok: false, reason: "invalid" };
+  const [
+    resultCodeFormatVersion,
+    fingerprint,
+    elapsedCentiSec,
+    correctCount,
+    missCount,
+    completedFlag,
+    reachedQuestionNumber,
+    checksum,
+  ] = values;
 
-  if (battleSeed !== undefined && result.battleFingerprint !== computeBattleFingerprint(battleSeed)) {
+  const expectedChecksum = computeChecksum(
+    [resultCodeFormatVersion, fingerprint, elapsedCentiSec, correctCount, missCount, completedFlag, reachedQuestionNumber],
+    CHECKSUM_BITS
+  );
+  if (checksum !== expectedChecksum) return { ok: false, reason: "invalid" };
+  if (resultCodeFormatVersion !== RESULT_CODE_FORMAT_VERSION) return { ok: false, reason: "invalid" };
+
+  const result = {
+    resultCodeFormatVersion,
+    battleFingerprint: fingerprint,
+    totalElapsedMs: elapsedCentiSec * 10,
+    correctCount,
+    missCount,
+    completed: completedFlag === 1,
+    reachedQuestionNumber,
+  };
+
+  if (battleSeed !== undefined && fingerprint !== computeBattleFingerprint(battleSeed)) {
     return { ok: false, reason: "wrong-battle" };
   }
 
   return { ok: true, result };
 }
 
+// 表示・手入力用に、4文字ごとにハイフンを入れる。
+export function formatResultCodeForDisplay(code) {
+  return formatCodeForDisplay(code);
+}
+
+// ===== 公開API：ノーマルルールの「最終記録」（ペナルティ込み）=====
+//
+// ノーマルは間違えても即座に何度でも選び直せるため、実測タイムだけで競うと
+// 「深く考えず選択肢を連打する」戦法が有利になってしまう。これを防ぐため、
+// ミス1回につき指定秒数のペナルティを実測タイムに加算した「最終記録」で競う
+// （本人からの指摘・2026-08-07。ゲームデザイナー視点での検討はHANDOFF.md 10-45章参照）。
+//
+// 【2026-08-07・秒数を選択式に変更】当初は2.00秒固定だったが、初心者〜上級者まで
+// 幅広く遊べるよう、対戦を作る側がペナルティ秒数（0/1/2/3/5/10秒）を選べるようにした
+// （js/localBattle.jsのPENALTY_SECONDS_VALUES参照）。この値は対戦全体で共通の設定
+// （対戦コード側が持つ）であり、結果コード側は変更していない（12文字のまま）。
+export function computeNormalFinalRecordMs(result, penaltySecondsPerMiss) {
+  return result.totalElapsedMs + result.missCount * penaltySecondsPerMiss * 1000;
+}
+
 // ===== 公開API：順位判定 =====
 //
 // 本人の指定どおりのルール：
-//   ノーマル・ハード：①クリアしている人を上位 ②合計タイムが短い人を上位 ③同タイムはミス数が少ない人を上位
-//   LOVE連チャン    ：①全問クリアした人を上位 ②未クリアは到達問題数が多い人を上位
-//                     ③到達数が同じなら経過時間が短い人を上位 ④それも同じならミス数が少ない人を上位
-// 対戦の参加者は全員が同じ対戦コード（＝同じルール）でプレイしているため、
-// 1つの対戦の中でルールが混ざることはない。
-function compareResults(a, b, rule) {
+//   ノーマル    ：①ペナルティ込みの最終記録（実測タイム＋ミス1回につき選択した秒数）が短い人を上位
+//                 ②最終記録が同じならミス数が少ない人を上位
+//   ハード      ：①正解数が多い人を上位（1問1回勝負のため、連打で速く終わらせても正解数が
+//                 少なければ勝てない）②正解数が同じなら合計タイムが短い人を上位
+//                 ③それも同じならミス数が少ない人を上位（ただしハードは「出題数＝正解数＋ミス数」
+//                 が常に成り立つため、②で決着しない場合に③まで到達することは実質ない）
+//   LOVE連チャン：①全問クリアした人を上位 ②未クリアは到達問題数が多い人を上位
+//                 ③到達数が同じなら経過時間が短い人を上位 ④それも同じならミス数が少ない人を上位
+// 対戦の参加者は全員が同じ対戦コード（＝同じルール・同じペナルティ秒数）でプレイしているため、
+// 1つの対戦の中でルールやペナルティ設定が混ざることはない。
+function compareResults(a, b, rule, penaltySecondsPerMiss) {
   if (rule === "loveChain") {
     if (a.completed !== b.completed) return a.completed ? -1 : 1;
     if (!a.completed && a.reachedQuestionNumber !== b.reachedQuestionNumber) {
@@ -174,15 +174,23 @@ function compareResults(a, b, rule) {
     return a.missCount - b.missCount;
   }
 
-  // ノーマル・ハード（既存のタイムアタック本編の仕様上、この2ルールは必ずcompleted:trueになる）
-  if (a.completed !== b.completed) return a.completed ? -1 : 1;
-  if (a.totalElapsedMs !== b.totalElapsedMs) return a.totalElapsedMs - b.totalElapsedMs;
+  if (rule === "hard") {
+    if (a.correctCount !== b.correctCount) return b.correctCount - a.correctCount;
+    if (a.totalElapsedMs !== b.totalElapsedMs) return a.totalElapsedMs - b.totalElapsedMs;
+    return a.missCount - b.missCount;
+  }
+
+  // ノーマル
+  const finalA = computeNormalFinalRecordMs(a, penaltySecondsPerMiss);
+  const finalB = computeNormalFinalRecordMs(b, penaltySecondsPerMiss);
+  if (finalA !== finalB) return finalA - finalB;
   return a.missCount - b.missCount;
 }
 
 // 参加者一覧（{playerName, result}の配列）を、順位が高い順に並べ替えて返す。
 // 戻り値の各要素には rank（1始まりの順位）が追加される。
-export function rankBattleParticipants(participants, rule) {
-  const sorted = [...participants].sort((a, b) => compareResults(a.result, b.result, rule));
+// penaltySecondsPerMissはノーマルルールのときだけ使う（対戦全体で共通の設定）。
+export function rankBattleParticipants(participants, rule, penaltySecondsPerMiss) {
+  const sorted = [...participants].sort((a, b) => compareResults(a.result, b.result, rule, penaltySecondsPerMiss));
   return sorted.map((participant, index) => ({ ...participant, rank: index + 1 }));
 }

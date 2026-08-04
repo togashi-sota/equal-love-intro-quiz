@@ -26,6 +26,21 @@ const QUESTION_COUNT_LABELS = { "5": "5問", "10": "10問", "20": "20問", "50":
 const CATEGORY_LABELS = { all: "全曲", "title-and-group": "表題＋全員", "title-track": "表題のみ" };
 export const RULE_LABELS = { normal: "ノーマル", hard: "ハード", loveChain: "LOVE連チャン" };
 
+// 初めて遊ぶ人にも「何をすれば勝てるか」が開始前に分かるよう、対戦の設定画面・ルール確認画面で
+// 表示する短い勝敗条件の案内文（本人の要望・2026-08-07）。ノーマルだけ、選んだペナルティ秒数を
+// 差し込む必要があるため関数にしている。
+const RULE_WIN_CONDITION_HINTS = {
+  hard: "正解数が多い人が上位。同点の場合はタイムで決まります",
+  loveChain: "全問クリアを目指します。失敗時は到達問題数で競います",
+};
+
+function getRuleHintText(rule, penaltySeconds) {
+  if (rule === "normal") {
+    return `ミス1回につき+${penaltySeconds}秒。ペナルティ込みの記録で競います`;
+  }
+  return RULE_WIN_CONDITION_HINTS[rule] ?? "";
+}
+
 let elements = null;
 let selectedPlayerCount = 2; // 1対1=2、4人対戦=4
 let isHost = false; // 「対戦を作る」で来たか「参加する」で来たか
@@ -40,11 +55,15 @@ export function getCurrentBattleSession() {
 
 function buildConfigSummaryChips(container, config) {
   container.innerHTML = "";
-  [
+  const chips = [
     QUESTION_COUNT_LABELS[config.questionCountValue] ?? config.questionCountValue,
     CATEGORY_LABELS[config.categoryFilterValue] ?? config.categoryFilterValue,
     RULE_LABELS[config.rule] ?? config.rule,
-  ].forEach((text) => {
+  ];
+  if (config.rule === "normal") {
+    chips.push(`ペナルティ+${config.penaltySeconds}秒`);
+  }
+  chips.forEach((text) => {
     const chip = document.createElement("span");
     chip.className = "battle-config-chip";
     chip.textContent = text;
@@ -80,9 +99,20 @@ function renderAudioCheck(container, config) {
 
 function goToRuleConfirm() {
   buildConfigSummaryChips(elements.ruleConfirmConfigSummary, currentBattleConfig);
+  elements.ruleConfirmRuleHint.textContent = getRuleHintText(currentBattleConfig.rule, currentBattleConfig.penaltySeconds);
   elements.ruleConfirmPlayerName.value = getActivePlayer().playerName || "";
   renderAudioCheck(elements.ruleConfirmAudioCheck, currentBattleConfig);
   elements.navigateTo("battleRuleConfirm");
+}
+
+// 対戦の設定画面で、今選ばれているルール・ペナルティ秒数に合わせて勝敗条件案内を更新し、
+// ノーマル以外を選んでいるときはミスペナルティの選択欄自体を隠す（無関係な設定を見せないため）。
+function updateSetupRuleHint() {
+  const rule = document.querySelector('input[name="battle-rule"]:checked').value;
+  const penaltyRadio = document.querySelector('input[name="battle-penalty"]:checked');
+  const penaltySeconds = penaltyRadio ? Number(penaltyRadio.value) : 2;
+  elements.setupRuleHint.textContent = getRuleHintText(rule, penaltySeconds);
+  elements.setupPenaltyFieldset.hidden = rule !== "normal";
 }
 
 // 対戦モード画面群を使えるようにする。main.jsの初期化処理から1回だけ呼ぶ想定。
@@ -91,16 +121,21 @@ function goToRuleConfirm() {
 //   navigateTo(screenName)：画面遷移（効果音＋showScreen）をまとめて行うコールバック,
 //   modeSelectBackButton, mode1v1Button, mode4pButton,
 //   createOrJoinBackButton, createOrJoinTitle, createButton, joinButton,
-//   setupBackButton, setupCreateCodeButton, setupError,
+//   setupBackButton, setupCreateCodeButton, setupError, setupRuleHint, setupPenaltyFieldset,
 //   codeShareBackButton, codeShareConfigSummary, codeShareValue, codeShareStartButton,
 //   joinBackButton, joinCodeInput, joinError, joinConfirmButton,
-//   ruleConfirmBackButton, ruleConfirmConfigSummary, ruleConfirmAudioCheck,
+//   ruleConfirmBackButton, ruleConfirmConfigSummary, ruleConfirmRuleHint, ruleConfirmAudioCheck,
 //   ruleConfirmPlayerName, ruleConfirmStartButton,
 //   onStartBattle(config)：ルール確認画面の「この内容で挑戦する」が押されたときに呼ばれる。
 //                          実際にクイズを組み立てて開始する処理はmain.js側が担当する。
 // }
 export function initLocalBattleScreens(newElements) {
   elements = newElements;
+
+  document.querySelectorAll('input[name="battle-rule"], input[name="battle-penalty"]').forEach((radio) => {
+    radio.addEventListener("change", updateSetupRuleHint);
+  });
+  updateSetupRuleHint(); // 初期表示（デフォルトで選ばれているノーマル・公式ペナルティの案内を出しておく）
 
   elements.modeSelectBackButton.addEventListener("click", () => elements.navigateTo("specialModes"));
   elements.mode1v1Button.addEventListener("click", () => {
@@ -131,6 +166,7 @@ export function initLocalBattleScreens(newElements) {
     const questionCountValue = document.querySelector('input[name="battle-question-count"]:checked').value;
     const categoryFilterValue = document.querySelector('input[name="battle-category-filter"]:checked').value;
     const rule = document.querySelector('input[name="battle-rule"]:checked').value;
+    const penaltySeconds = Number(document.querySelector('input[name="battle-penalty"]:checked').value);
 
     const errorMessage = validateBattleConfig({ categoryFilterValue });
     if (errorMessage) {
@@ -140,7 +176,7 @@ export function initLocalBattleScreens(newElements) {
     }
     elements.setupError.hidden = true;
 
-    currentBattleConfig = createBattleConfig({ questionCountValue, categoryFilterValue, rule });
+    currentBattleConfig = createBattleConfig({ questionCountValue, categoryFilterValue, rule, penaltySeconds });
     const code = encodeBattleCode(currentBattleConfig);
     buildConfigSummaryChips(elements.codeShareConfigSummary, currentBattleConfig);
     elements.codeShareValue.textContent = formatBattleCodeForDisplay(code);

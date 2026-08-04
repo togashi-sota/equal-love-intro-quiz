@@ -8000,6 +8000,35 @@ fieldset label:has(input:focus-visible) {
   text-align: right;
 }
 
+/* ノーマルルールの結果行だけ、最終記録（ペナルティ込み）とその内訳を2行で表示する。 */
+.battle-rank-time-final {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  font-variant-numeric: tabular-nums;
+}
+
+.battle-rank-time-breakdown {
+  margin: 2px 0 0;
+  font-size: 0.62rem;
+  font-weight: 600;
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 対戦の設定画面・ルール確認画面で、選んだルールの勝敗条件を短く案内する。 */
+.battle-rule-hint {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(111, 189, 242, 0.1);
+  font-size: 0.72rem;
+  line-height: 1.5;
+  opacity: 0.85;
+}
+
 .battle-collect-list {
   list-style: none;
   margin: 12px 0;
