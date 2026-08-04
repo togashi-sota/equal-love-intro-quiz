@@ -49,9 +49,13 @@ async function generateUniqueRoomId() {
 // 接続が確立・再確立されるたびに、自分の接続状態をconnected:trueへ書き戻し、
 // 次に切断したときのためにonDisconnectの予約も毎回張り直す。
 let presenceUnsubscribe = null;
+let presenceRoomId = null;
+let presenceUid = null;
 
 function startPresenceTracking(roomId, uid) {
   stopPresenceTracking();
+  presenceRoomId = roomId;
+  presenceUid = uid;
   const infoConnectedRef = ref(database, ".info/connected");
   const playerConnectedRef = ref(database, `rooms/${roomId}/players/${uid}/connected`);
 
@@ -67,7 +71,26 @@ function startPresenceTracking(roomId, uid) {
   presenceUnsubscribe = () => off(infoConnectedRef, "value", handleValue);
 }
 
+// 【画面の表示/非表示による、より速く確実な切断表示】実機検証で発見：OS（特にiOS）は
+// アプリをバックグラウンドに回しても、しばらく通信を維持し続けることがあり、サーバー側の
+// 切断検知（onDisconnect）だけに頼ると、実際に画面を離れてから「切断中」と表示されるまで
+// 数分以上かかる・反映されないことがあった。
+// 「その場を離れたら、ちゃんとすぐ切断中と分かるようにしたい」という要望に対応し、
+// ページの表示/非表示が切り替わった瞬間に、自分でconnectedを書き換えることで、
+// OS側の通信維持のタイミングに左右されず、即座に反映されるようにする。
+function handlePresenceVisibilityChange() {
+  if (!presenceRoomId || !presenceUid) return;
+  const playerConnectedRef = ref(database, `rooms/${presenceRoomId}/players/${presenceUid}/connected`);
+  set(playerConnectedRef, document.visibilityState === "visible");
+}
+
+if (typeof document !== "undefined") {
+  document.addEventListener("visibilitychange", handlePresenceVisibilityChange);
+}
+
 function stopPresenceTracking() {
+  presenceRoomId = null;
+  presenceUid = null;
   if (presenceUnsubscribe) {
     presenceUnsubscribe();
     presenceUnsubscribe = null;
