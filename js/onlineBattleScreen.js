@@ -568,15 +568,24 @@ function goToResultScreen(room) {
 
   const medalByRank = { 1: "🥇", 2: "🥈", 3: "🥉" };
 
+  // 「あなた」は名前の文字列に直接連結せず、独立した小さいバッジとして分ける
+  // （本人の指摘：表示名が長いと名前＋「（あなた）」が2行に折り返りやすいため）。
   function appendNameRow(container, participant, uid) {
     const nameRow = document.createElement("p");
     nameRow.className = "battle-rank-name";
     const oshiDot = createOshiDotElement(participant.oshiMemberId);
-    if (oshiDot) {
-      oshiDot.style.marginRight = "6px";
-      nameRow.appendChild(oshiDot);
+    if (oshiDot) nameRow.appendChild(oshiDot);
+
+    const nameText = document.createElement("span");
+    nameText.textContent = participant.displayName;
+    nameRow.appendChild(nameText);
+
+    if (uid === myUid) {
+      const meBadge = document.createElement("span");
+      meBadge.className = "battle-rank-me-badge";
+      meBadge.textContent = "あなた";
+      nameRow.appendChild(meBadge);
     }
-    nameRow.appendChild(document.createTextNode(participant.displayName + (uid === myUid ? "（あなた）" : "")));
     container.appendChild(nameRow);
   }
 
@@ -676,11 +685,24 @@ export async function finishOnlineBattleMatch(result, answeredCount) {
 
   const outcome = await finishMyMatch({ roomId: currentRoomId, matchId: currentMatchId, result, answeredCount });
   if (!outcome.ok) {
+    if (outcome.reason === "result-mismatch") {
+      // 通常は起こらないはずの異常事態（Firebase上に既にある結果が、今回送ろうとした内容と
+      // 食い違っている）。再送しても解決しないため、通信エラーとは別の案内にし、
+      // 再送ボタンからは呼び出せないようにする（pendingFinishResultをnullに戻して塞ぐ）。
+      pendingFinishResult = null;
+      elements.waitingLeadText.textContent = "結果の送信中に問題が発生しました。お手数ですが、ホストにご確認のうえ、もう一度対戦をやり直してください。";
+      elements.waitingSubmitError.hidden = false;
+      elements.waitingRetryButton.hidden = true;
+      return;
+    }
     elements.waitingLeadText.textContent = "結果の送信に失敗しました。";
     elements.waitingSubmitError.hidden = false;
+    elements.waitingRetryButton.hidden = false;
     return;
   }
   pendingFinishResult = null;
+  elements.waitingSubmitError.hidden = true;
+  elements.waitingRetryButton.hidden = false;
   elements.waitingLeadText.textContent = "あなたの結果を送信しました。他のプレイヤーの終了を待っています。";
 }
 

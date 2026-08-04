@@ -7983,6 +7983,24 @@ fieldset label:has(input:focus-visible) {
   margin: 0;
   font-size: 0.85rem;
   font-weight: 800;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* 結果画面で「自分の行」だとひと目でわかる、名前の横に添える小さいバッジ。
+   名前の文字列に直接連結すると、表示名が長い参加者で2行に折り返りやすくなるため、
+   独立したバッジ要素として分けている（本人の指摘、2026-08-08）。 */
+.battle-rank-me-badge {
+  flex: none;
+  font-size: 0.62rem;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--color-accent-soft);
+  color: var(--color-primary-dark);
+  white-space: nowrap;
 }
 
 .battle-rank-meta {

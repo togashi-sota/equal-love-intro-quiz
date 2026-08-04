@@ -623,6 +623,28 @@ export async function submitAnswerProgress({ roomId, matchId, answeredCount }) {
   }
 }
 
+// 2つの値が「Firebase上での見え方として」同じかどうかを比較する。ふつうのdeep-equalと違い、
+// 「キーが無い」と「値がnull/undefined」を同じ扱いにする点がポイント（Firebaseはnull/undefinedの
+// フィールドを書き込まず、キーごと省略してしまうため。js/onlineBattle.js内の他の場所でも
+// 「nullなら未設定＝キー自体が作られない」という同じ考え方を使っている）。
+// finishMyMatch()が、送信失敗後にFirebase上の既存resultsと「今回送ろうとした内容」を
+// 比較するために使う。
+function isEquivalentIgnoringNullish(a, b) {
+  const isMissing = (value) => value === undefined || value === null;
+  if (isMissing(a) && isMissing(b)) return true;
+  if (isMissing(a) || isMissing(b)) return false;
+  if (a === b) return true;
+
+  const isPlainObject = (value) => typeof value === "object" && !Array.isArray(value);
+  if (!isPlainObject(a) || !isPlainObject(b)) return false;
+
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+  for (const key of keys) {
+    if (!isEquivalentIgnoringNullish(a[key], b[key])) return false;
+  }
+  return true;
+}
+
 // 全問終了、またはLOVE連チャンで脱落が確定したときに呼ぶ。自分の結果（js/battleModes/配下の
 // createResult()の戻り値）をmatches/{matchId}/results/{uid}へ送信し、成功したら
 // progress.finished をtrueにする（この順序が重要：ホストは「全員finished」を見て結果確定を
@@ -632,6 +654,14 @@ export async function submitAnswerProgress({ roomId, matchId, answeredCount }) {
 // 保存に成功していることがある（resultsは初回作成のみ許可というルールのため、既に存在すれば
 // 「送信済み」とみなせる）。失敗のたびに存在確認を挟みながら、間隔を空けて最大3回まで試行する
 // （finishCountdown()と同じ考え方）。
+//
+// 【本人の指摘・2026-08-08】既存のresultsが「存在するかどうか」だけで成功扱いにすると、
+// 万一Firebase上に自分以外の書き込みが紛れ込んでいた場合（本来起こらないはずだが）、
+// ローカルで計算した結果とFirebase上の結果が食い違ったまま待機画面へ進んでしまう危険がある。
+// そのため、既存のresultsが見つかった場合は「今回送ろうとしている内容と本当に同じか」を
+// isEquivalentIgnoringNullish()で確認し、一致する場合だけ成功扱いにする。内容が異なる場合は
+// （＝本来起こらないはずの異常事態のため）これ以上リトライしても意味がないので、即座に
+// reason:"result-mismatch"として処理を打ち切る。
 export async function finishMyMatch({ roomId, matchId, result, answeredCount }) {
   await authReady;
   const uid = getCurrentUid();
@@ -645,11 +675,22 @@ export async function finishMyMatch({ roomId, matchId, result, answeredCount }) 
       await set(resultRef, result);
       resultSaved = true;
     } catch (error) {
+      let existing;
       try {
         const snapshot = await get(resultRef);
-        resultSaved = snapshot.exists();
+        existing = snapshot.exists() ? snapshot.val() : undefined;
       } catch (checkError) {
-        resultSaved = false;
+        existing = undefined;
+      }
+
+      if (existing !== undefined) {
+        if (isEquivalentIgnoringNullish(existing, result)) {
+          resultSaved = true;
+        } else {
+          // 既に別の内容で保存済み。書き込みルール上、本人であっても上書きはできないため、
+          // リトライしても状況は変わらない。ここで即座に諦める。
+          return { ok: false, reason: "result-mismatch" };
+        }
       }
       if (!resultSaved && attempt < MAX_ATTEMPTS) {
         await new Promise((resolve) => setTimeout(resolve, 300 * attempt));
