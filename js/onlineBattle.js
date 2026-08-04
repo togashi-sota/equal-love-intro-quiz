@@ -752,6 +752,59 @@ export async function finalizeMatchIfReady({ roomId, matchId, force = false }) {
   return { ok: true, finalized: true };
 }
 
+// ホストが結果画面で「もう一度対戦する」を選んだときに呼ぶ。ルーム・対戦設定（settings）は
+// そのまま維持し、statusだけをwaitingへ戻して、次の対戦への準備をやり直せる状態にする。
+//
+// 【何を変えて、何を変えないか】
+//   ・変える  ：status（waiting）、現在ルームに残っている参加者全員のready・readyForRevision
+//   ・変えない：settings（前回の設定をそのまま引き継ぐ）、activeMatchId、過去のmatches/{matchId}
+//               （participants・progress・resultsは削除せず、試合の履歴としてそのまま残す）
+// activeMatchIdを今ここで消したり書き換えたりする必要はない。次にホストがstartBattle()を
+// 呼んだ時点で、新しいmatchIdが自動的に発行されて上書きされる（js/onlineBattle.jsの
+// startBattle()参照）。statusがwaitingの間は誰も出題画面へは進まないため、
+// 古いactiveMatchIdが残っていても実害が無い設計にしている。
+//
+// 【READYリセットの対象】前回の試合の参加者スナップショット（matches/{matchId}/participants）
+// ではなく、今の時点でrooms/{roomId}/playersに実際に残っている人だけを対象にする。
+// 前回の試合後に退出した人は自然に対象外になり、逆に結果確定後に新しく参加した人がいれば、
+// 次回のstartBattle()がその時点のplayers一覧から新しい参加者スナップショットを作る
+// （既存のstartBattle()の実装をそのまま利用するだけで対応できる）。
+//
+// 【冪等性】何度呼んでも安全：既にwaitingなら即座に成功扱い、result以外の状態（waiting・
+// countdown・playing等）から呼ばれた場合は失敗を返す（resultのときだけ許可）。
+export async function rematchMatch({ roomId }) {
+  await authReady;
+  const uid = getCurrentUid();
+  if (!uid) return { ok: false, reason: "not-signed-in" };
+
+  const snapshot = await get(ref(database, `rooms/${roomId}`));
+  if (!snapshot.exists()) return { ok: false, reason: "not-found" };
+  const room = snapshot.val();
+  if (room.host !== uid) return { ok: false, reason: "not-host" };
+  if (room.status === ROOM_STATUS.WAITING) return { ok: true }; // 既に目標状態（冪等）
+  if (room.status !== ROOM_STATUS.RESULT) return { ok: false, reason: "not-result" };
+
+  // statusとREADYリセットを1回のupdate()にまとめる。分けて書き込むと、一部の端末が
+  // 「statusはwaitingになったのに、READYはまだ前回のまま」という一瞬の不整合を
+  // 観測してしまう可能性があるため（本人の指摘）。
+  const players = room.players || {};
+  const updates = { [`rooms/${roomId}/status`]: ROOM_STATUS.WAITING };
+  Object.keys(players).forEach((playerUid) => {
+    updates[`rooms/${roomId}/players/${playerUid}/ready`] = false;
+    // -1は「有効なsettingsRevision（0以上の整数）とは絶対に一致しない」ことを保証するための値。
+    // readyを同時にfalseへ戻しているため実質どんな値でも安全だが、万一の食い違いも防ぐ意味で
+    // 明確な「未準備」を表す値にしている。
+    updates[`rooms/${roomId}/players/${playerUid}/readyForRevision`] = -1;
+  });
+
+  try {
+    await update(ref(database), updates);
+  } catch (error) {
+    return { ok: false, reason: "write-failed" };
+  }
+  return { ok: true };
+}
+
 // クライアントの時計とFirebaseサーバーの時計のズレ（ミリ秒）を継続的に教えてくれる
 // 特別なパス（Firebase公式の.info/serverTimeOffset）。カウントダウンの表示・判定で、
 // 「サーバー時刻で記録されたcountdownStartedAt」を「自分の時計での実時刻」に変換するために使う

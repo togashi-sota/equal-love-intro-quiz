@@ -30,6 +30,7 @@ import {
   submitAnswerProgress,
   finishMyMatch,
   finalizeMatchIfReady,
+  rematchMatch,
   COUNTDOWN_DURATION_MS,
   ROOM_STATUS,
 } from "./onlineBattle.js";
@@ -264,6 +265,18 @@ function goToCountdownScreen(room) {
   countdownTimerId = setInterval(tick, 100);
 }
 
+// カウントダウン・タイマー・進捗ストリップ・試合固有のローカル状態をまとめて後片付けする。
+// 「ルームが消えた」「対戦をやめる」「もう一度対戦する」など、今の試合の文脈から離れる
+// タイミングでは必ずこれを通す（本人の指摘：クリーンアップ処理が複数箇所に散らばっていると
+// 一部だけ漏れる事故が起きやすいため、共通処理として1箇所にまとめている）。
+function resetOnlineBattleMatchState() {
+  stopCountdownWatching();
+  currentMatchId = null;
+  currentMatchTotalQuestions = 0;
+  pendingFinishResult = null;
+  if (elements.quizProgressStrip) elements.quizProgressStrip.hidden = true;
+}
+
 // ロビー画面の参加者一覧・対戦設定・準備完了/開始ボタンを再描画する。
 // 参加者一覧・接続状態・対戦設定・READY状態・進行状態のいずれかが変わるたびに呼ばれる。
 function renderLobby(room) {
@@ -272,11 +285,8 @@ function renderLobby(room) {
     // カウントダウン中・開始確認画面を見ている最中にホストが退出した場合も、
     // ここでロビー画面へ強制的に戻し、「終了しました」の案内を必ず見せる
     // （本人からのテスト項目：カウントダウン中にホストが退出しても安全に終了すること）。
-    stopCountdownWatching();
     lastHandledRoomStatus = null;
-    currentMatchId = null;
-    currentMatchTotalQuestions = 0;
-    if (elements.quizProgressStrip) elements.quizProgressStrip.hidden = true;
+    resetOnlineBattleMatchState();
     elements.lobbyGoneNotice.hidden = false;
     elements.lobbyContent.hidden = true;
     elements.navigateTo("onlineBattleLobby");
@@ -293,6 +303,16 @@ function renderLobby(room) {
   const isHost = room.host === myUid;
   const settings = room.settings;
   const players = room.players || {};
+
+  // 状態遷移の検知は、後続の描画判定（設定変更通知の抑制など）でも使うため先に行っておく。
+  const previousStatus = lastHandledRoomStatus;
+  const statusJustChanged = room.status !== previousStatus;
+  // ホストが「もう一度対戦する」を選んだ結果のREADYリセットでは、既存の「設定が変更されました」
+  // 通知（本来は設定変更によるREADY解除用）を誤って出さないよう、別扱いにする。
+  const isRematchReset = statusJustChanged && room.status === ROOM_STATUS.WAITING && previousStatus === ROOM_STATUS.RESULT;
+  if (statusJustChanged) {
+    lastHandledRoomStatus = room.status;
+  }
   const playerList = Object.entries(players)
     .map(([uid, player]) => ({ uid, ...player }))
     .sort((a, b) => a.joinedAt - b.joinedAt);
@@ -358,9 +378,14 @@ function renderLobby(room) {
     const myReady = Boolean(myPlayer?.ready && myPlayer?.readyForRevision === (room.settingsRevision ?? 0));
     updateReadyButton(myReady);
 
-    // READYがtrue→falseに変わった瞬間（＝ホストが設定を変更してリセットされた瞬間）だけ、
-    // 「設定が変更されました」通知を出す。自分でREADYボタンを押して解除した直後は出さない。
-    if (lastKnownMyReady === true && myReady === false && !suppressNextReadyChangeNotice) {
+    if (isRematchReset) {
+      // 再戦によるREADYリセットは、設定自体は変わっていないため「設定が変更されました」
+      // 通知は出さず、代わりに専用の再戦案内を出す。
+      elements.lobbySettingsChangedNotice.hidden = true;
+      elements.lobbyRematchNotice.hidden = false;
+    } else if (lastKnownMyReady === true && myReady === false && !suppressNextReadyChangeNotice) {
+      // READYがtrue→falseに変わった瞬間（＝ホストが設定を変更してリセットされた瞬間）だけ、
+      // 「設定が変更されました」通知を出す。自分でREADYボタンを押して解除した直後は出さない。
       elements.lobbySettingsChangedNotice.hidden = false;
     }
     suppressNextReadyChangeNotice = false;
@@ -372,9 +397,7 @@ function renderLobby(room) {
   // カウントダウンを自分の端末で見ている最中は、statusのplayingへの変化を無視する
   // （goToCountdownScreen()側のローカルタイマーが、開始確認画面への遷移を担当するため。
   // 上のコメント参照：通信環境の差でタイミングがずれるのを防ぐ設計）。
-  if (room.status !== lastHandledRoomStatus) {
-    const previousStatus = lastHandledRoomStatus;
-    lastHandledRoomStatus = room.status;
+  if (statusJustChanged) {
     if (room.status === ROOM_STATUS.COUNTDOWN) {
       goToCountdownScreen(room);
     } else if (room.status === ROOM_STATUS.PLAYING && previousStatus !== ROOM_STATUS.COUNTDOWN) {
@@ -387,6 +410,13 @@ function renderLobby(room) {
       // 自分が終わった後は待機画面のupdateOnlineBattlePlayUi()側でも同じ検知を行っており、
       // ここは主に「結果確定後に新しく再接続した」場合の受け皿になる）。
       goToResultScreen(room);
+    } else if (isRematchReset) {
+      // ホストが「もう一度対戦する」を選んだ→全端末（ホスト含む）を自動的にロビーへ戻す。
+      // 前回の試合に関するローカル状態（progress/results監視の元になるcurrentMatchId、
+      // カウントダウンタイマー、進捗ストリップ等）を確実に後片付けしてから遷移する
+      // （本人の要望：次の試合を始めたときに前回の画面・データが混ざらないこと）。
+      resetOnlineBattleMatchState();
+      elements.navigateTo("onlineBattleLobby");
     }
   }
 
@@ -396,15 +426,13 @@ function renderLobby(room) {
 function goToLobby(roomId) {
   currentRoomId = roomId;
   currentGameMode = null;
-  currentMatchId = null;
-  currentMatchTotalQuestions = 0;
   lastHandledRoomStatus = null;
   suppressNextReadyChangeNotice = false;
   lastKnownMyReady = null;
-  stopCountdownWatching();
+  resetOnlineBattleMatchState();
   elements.lobbySettingsChangedNotice.hidden = true;
+  elements.lobbyRematchNotice.hidden = true;
   elements.lobbyStartError.hidden = true;
-  if (elements.quizProgressStrip) elements.quizProgressStrip.hidden = true;
   stopListeningToRoom();
   unsubscribeRoom = listenToRoom(roomId, renderLobby);
   elements.navigateTo("onlineBattleLobby");
@@ -550,6 +578,10 @@ function goToResultScreen(room) {
   const participants = match.participants || {};
   const results = match.results || {};
   const myUid = getCurrentUid();
+
+  // 「もう一度対戦する」はホスト専用（対戦設定を書き換えられるのがホストだけという
+  // 既存の権限設計と揃えている）。
+  elements.resultRematchButton.hidden = room.host !== myUid;
 
   renderSettingsChips(elements.resultConfigSummary, room.settings);
   elements.resultRuleNote.textContent = getRuleDescription(room.gameMode, room.settings);
@@ -721,13 +753,9 @@ export function reportOnlineBattleProgress(answeredCount) {
 export function quitOnlineBattleDuringQuiz() {
   const roomId = currentRoomId;
   stopListeningToRoom();
-  stopCountdownWatching();
-  currentMatchId = null;
-  currentMatchTotalQuestions = 0;
+  resetOnlineBattleMatchState();
   currentRoomId = null;
   lastHandledRoomStatus = null;
-  pendingFinishResult = null;
-  if (elements.quizProgressStrip) elements.quizProgressStrip.hidden = true;
   if (roomId) leaveRoom({ roomId });
   renderLastRoomBanner();
 }
@@ -862,6 +890,7 @@ export function initOnlineBattleScreens(newElements) {
     const nowReady = elements.lobbyReadyButton.classList.contains("is-ready");
     suppressNextReadyChangeNotice = true;
     elements.lobbySettingsChangedNotice.hidden = true;
+    elements.lobbyRematchNotice.hidden = true;
     await setReady({ roomId: currentRoomId, ready: !nowReady });
   });
 
@@ -911,10 +940,29 @@ export function initOnlineBattleScreens(newElements) {
     // 試合の文脈はここで終わり。currentMatchIdを残したままにすると、この後ロビー以外の
     // 無関係なクイズ（通常プレイ等）を始めたときに、古い試合の進捗ストリップが
     // 誤って出てしまう可能性があるため、明示的にクリアする。
-    currentMatchId = null;
-    currentMatchTotalQuestions = 0;
-    if (elements.quizProgressStrip) elements.quizProgressStrip.hidden = true;
+    resetOnlineBattleMatchState();
     elements.navigateTo("onlineBattleLobby");
+  });
+
+  // ホスト専用：「もう一度対戦する」。実際のstatus変更はrematchMatch()に任せ、ここでは
+  // ローカルの画面遷移を直接行わない（DNF確定ボタンと同じ設計：Firebase側の変化を
+  // renderLobby()側の状態遷移検知が拾って、ホスト・参加者とも自動的にロビーへ戻す。
+  // ここで直接navigateTo()もしてしまうと、その直後に届くroom更新による自動遷移と
+  // 二重に画面が切り替わってしまうため）。
+  elements.resultRematchButton.addEventListener("click", () => {
+    elements.resultRematchConfirmModal.hidden = false;
+  });
+  elements.resultRematchCancelButton.addEventListener("click", () => {
+    elements.resultRematchConfirmModal.hidden = true;
+  });
+  elements.resultRematchConfirmButton.addEventListener("click", async () => {
+    if (!currentRoomId) return;
+    // 通信遅延中の連打・二重イベントで何度も書き込みが飛ばないよう、処理中はボタンを無効化する
+    // （rematchMatch()自体も冪等だが、UI側でも素直に多重送信を防いでおく）。
+    elements.resultRematchConfirmButton.disabled = true;
+    await rematchMatch({ roomId: currentRoomId });
+    elements.resultRematchConfirmButton.disabled = false;
+    elements.resultRematchConfirmModal.hidden = true;
   });
 
   renderLastRoomBanner();

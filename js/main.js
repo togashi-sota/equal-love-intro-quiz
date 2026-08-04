@@ -448,6 +448,7 @@ const onlineBattleLobbySettingsParticipantElement = document.getElementById("onl
 const onlineBattleLobbySettingsSummaryElement = document.getElementById("online-battle-lobby-settings-summary");
 const onlineBattleLobbySettingsPenaltyFieldsetElement = document.getElementById("online-battle-lobby-settings-penalty-fieldset");
 const onlineBattleLobbySettingsChangedNoticeElement = document.getElementById("online-battle-lobby-settings-changed-notice");
+const onlineBattleLobbyRematchNoticeElement = document.getElementById("online-battle-lobby-rematch-notice");
 const onlineBattleLobbyReadyButtonElement = document.getElementById("online-battle-lobby-ready-button");
 const onlineBattleLobbyStartButtonElement = document.getElementById("online-battle-lobby-start-button");
 const onlineBattleLobbyStartHintElement = document.getElementById("online-battle-lobby-start-hint");
@@ -467,6 +468,10 @@ const onlineBattleResultConfigSummaryElement = document.getElementById("online-b
 const onlineBattleResultListElement = document.getElementById("online-battle-result-list");
 const onlineBattleResultRuleNoteElement = document.getElementById("online-battle-result-rule-note");
 const onlineBattleResultBackButtonElement = document.getElementById("online-battle-result-back-button");
+const onlineBattleResultRematchButtonElement = document.getElementById("online-battle-result-rematch-button");
+const onlineBattleResultRematchConfirmModalElement = document.getElementById("online-battle-result-rematch-confirm-modal");
+const onlineBattleResultRematchCancelButtonElement = document.getElementById("online-battle-result-rematch-cancel-button");
+const onlineBattleResultRematchConfirmButtonElement = document.getElementById("online-battle-result-rematch-confirm-button");
 
 const customQuizBackButtonElement = document.getElementById("custom-quiz-back-button");
 const customQuizPresetsBackButtonElement = document.getElementById("custom-quiz-presets-back-button");
@@ -2439,6 +2444,7 @@ initOnlineBattleScreens({
   lobbySettingsSummary: onlineBattleLobbySettingsSummaryElement,
   lobbySettingsPenaltyFieldset: onlineBattleLobbySettingsPenaltyFieldsetElement,
   lobbySettingsChangedNotice: onlineBattleLobbySettingsChangedNoticeElement,
+  lobbyRematchNotice: onlineBattleLobbyRematchNoticeElement,
   lobbyReadyButton: onlineBattleLobbyReadyButtonElement,
   lobbyStartButton: onlineBattleLobbyStartButtonElement,
   lobbyStartHint: onlineBattleLobbyStartHintElement,
@@ -2458,6 +2464,10 @@ initOnlineBattleScreens({
   resultList: onlineBattleResultListElement,
   resultRuleNote: onlineBattleResultRuleNoteElement,
   resultBackButton: onlineBattleResultBackButtonElement,
+  resultRematchButton: onlineBattleResultRematchButtonElement,
+  resultRematchConfirmModal: onlineBattleResultRematchConfirmModalElement,
+  resultRematchCancelButton: onlineBattleResultRematchCancelButtonElement,
+  resultRematchConfirmButton: onlineBattleResultRematchConfirmButtonElement,
   onStartOnlineBattleQuiz: (questions, room) => {
     beginOnlineBattlePlay(questions, room);
   },
