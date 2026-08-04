@@ -93,6 +93,51 @@ function keepAliveDuring(pathRef, work) {
   });
 }
 
+// ===== 開発者向けデバッグログ：runTransaction()のnull受信バグ調査用 =====
+// 実機テストでこの不具合がどのくらいの頻度・条件で起きるかを本人が調査できるように、
+// 発生したときだけ構造化ログをlocalStorageへ残す（本人からの明示的な依頼）。
+// UIには一切表示せず、機能の動作にも影響しない。確認は dev/onlineBattleDebugLog.html から行う。
+const DEBUG_LOG_KEY = "equalLoveIntroQuiz.onlineBattle.debugLog";
+const MAX_DEBUG_LOG_ENTRIES = 100;
+
+function recordDebugEvent(event) {
+  const record = {
+    ...event,
+    loggedAt: new Date().toISOString(),
+    online: typeof navigator !== "undefined" ? navigator.onLine : null,
+    userAgent: typeof navigator !== "undefined" ? navigator.userAgent : null,
+  };
+  console.warn("[オンライン対戦デバッグログ]", record);
+  try {
+    const raw = localStorage.getItem(DEBUG_LOG_KEY);
+    const list = raw ? JSON.parse(raw) : [];
+    list.push(record);
+    while (list.length > MAX_DEBUG_LOG_ENTRIES) {
+      list.shift(); // 古いものから捨てて、無限に増え続けないようにする
+    }
+    localStorage.setItem(DEBUG_LOG_KEY, JSON.stringify(list));
+  } catch (error) {
+    // ログの保存に失敗しても、対戦機能自体には影響させない。
+  }
+}
+
+export function getDebugLog() {
+  try {
+    const raw = localStorage.getItem(DEBUG_LOG_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (error) {
+    return [];
+  }
+}
+
+export function clearDebugLog() {
+  try {
+    localStorage.removeItem(DEBUG_LOG_KEY);
+  } catch (error) {
+    // 上と同じ理由で無視する。
+  }
+}
+
 // ===== 公開API：ルーム作成・参加・退出 =====
 
 // 新しいルームを作り、自分をホストとして登録する。
@@ -153,7 +198,10 @@ export async function joinRoom({ roomId, playerName }) {
   const MAX_JOIN_ATTEMPTS = 5;
   let abortReason = null;
   let result;
+  let attemptsUsed = 0;
+  let lastKnownHost = null; // デバッグログ用：直近のget()で分かったホストのUID
   for (let attempt = 1; attempt <= MAX_JOIN_ATTEMPTS; attempt++) {
+    attemptsUsed = attempt;
     abortReason = null;
     result = await keepAliveDuring(roomRef, () =>
       runTransaction(roomRef, (room) => {
@@ -194,8 +242,23 @@ export async function joinRoom({ roomId, playerName }) {
     if (!directCheck.exists()) {
       break; // 本当に存在しないルームコードだった
     }
+    lastKnownHost = directCheck.val()?.host ?? null;
     // 待ち時間は試行のたびに少しずつ延ばす（150ms→300ms→450ms→600ms）。
     await new Promise((resolve) => setTimeout(resolve, 150 * attempt));
+  }
+
+  // 【デバッグログ】1回目の試行で成功した通常時は記録せず、実際に再試行が発生した
+  // （＝runTransaction()がnullを受け取った）場合だけ記録する。
+  if (attemptsUsed > 1) {
+    recordDebugEvent({
+      event: "transaction-null-bug",
+      roomId,
+      outcome: result.committed ? "success" : "failure",
+      succeededOnAttempt: result.committed ? attemptsUsed : null,
+      attemptsUsed,
+      maxAttempts: MAX_JOIN_ATTEMPTS,
+      role: lastKnownHost ? (lastKnownHost === uid ? "host" : "participant") : "unknown",
+    });
   }
 
   if (!result.committed) {
