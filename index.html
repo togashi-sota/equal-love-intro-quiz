@@ -1692,8 +1692,11 @@
       <p id="online-battle-join-error" class="error-message" hidden></p>
     </section>
 
-    <!-- オンライン対戦：ロビー画面。参加者一覧をリアルタイムで表示する（Step1の中心画面）。
-         Step2で、ここに「対戦設定」「全員準備完了→開始」ボタン等が追加される予定。 -->
+    <!-- オンライン対戦：ロビー画面。参加者一覧のリアルタイム表示（Step1）に加えて、
+         Step2で対戦設定の同期・準備完了・開始ボタンを追加した。
+         ホスト向け（編集できる設定フォーム）と参加者向け（読み取り専用のチップ表示）を
+         両方マークアップしておき、js/onlineBattleScreen.js側で自分の役割に応じて
+         表示・非表示を切り替える。 -->
     <section id="online-battle-lobby-screen" class="screen">
       <button id="online-battle-lobby-leave-button" class="quiz-back-link" type="button">✕ ルームを退出する</button>
       <div class="title-block"><h2>ロビー</h2></div>
@@ -1713,8 +1716,96 @@
 
         <ul class="online-lobby-player-list" id="online-battle-lobby-player-list"></ul>
 
-        <div class="battle-notice-box">Step1の動作確認画面です。対戦設定・開始ボタンは次のステップで追加します。</div>
+        <!-- ホスト専用：対戦設定の編集フォーム（#battle-setup-screenと同じラジオ構成）。
+             変更するたびにjs/onlineBattleScreen.jsがFirebaseへ書き込み、参加者へ同期する。 -->
+        <div id="online-battle-lobby-settings-host" hidden>
+          <p class="battle-field-label">対戦設定（変更すると全員のREADYが解除されます）</p>
+          <fieldset>
+            <legend>出題数</legend>
+            <div class="option-row">
+              <label><input type="radio" name="online-battle-settings-question-count" value="5"> 5問</label>
+              <label><input type="radio" name="online-battle-settings-question-count" value="10"> 10問</label>
+              <label><input type="radio" name="online-battle-settings-question-count" value="20"> 20問</label>
+            </div>
+            <div class="option-row">
+              <label><input type="radio" name="online-battle-settings-question-count" value="50"> 50問</label>
+              <label><input type="radio" name="online-battle-settings-question-count" value="all"> 全曲</label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>カテゴリ</legend>
+            <div class="option-row">
+              <label><input type="radio" name="online-battle-settings-category" value="title-track"> 表題曲のみ</label>
+              <label><input type="radio" name="online-battle-settings-category" value="title-and-group"> 表題曲＋全員曲</label>
+              <label><input type="radio" name="online-battle-settings-category" value="all"> 全曲</label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>ルール</legend>
+            <div class="option-row">
+              <label><input type="radio" name="online-battle-settings-rule" value="normal"> ノーマル</label>
+              <label><input type="radio" name="online-battle-settings-rule" value="hard"> ハード</label>
+              <label><input type="radio" name="online-battle-settings-rule" value="loveChain"> LOVE連チャン</label>
+            </div>
+          </fieldset>
+          <fieldset id="online-battle-lobby-settings-penalty-fieldset">
+            <legend>ミスペナルティ（ノーマルのみ）</legend>
+            <div class="option-row">
+              <label><input type="radio" name="online-battle-settings-penalty" value="0"> なし</label>
+              <label><input type="radio" name="online-battle-settings-penalty" value="1"> 軽め</label>
+              <label><input type="radio" name="online-battle-settings-penalty" value="2"> 公式</label>
+              <label><input type="radio" name="online-battle-settings-penalty" value="3"> 少し厳しめ</label>
+              <label><input type="radio" name="online-battle-settings-penalty" value="5"> 厳しめ</label>
+              <label><input type="radio" name="online-battle-settings-penalty" value="10"> ガチ</label>
+            </div>
+          </fieldset>
+        </div>
+
+        <!-- 参加者専用：今の設定を読み取り専用のチップで表示するだけ（編集不可）。 -->
+        <div id="online-battle-lobby-settings-participant" hidden>
+          <p class="battle-field-label">対戦設定（ホストが選択中）</p>
+          <div class="battle-config-summary" id="online-battle-lobby-settings-summary"></div>
+        </div>
+
+        <p class="online-battle-ready-changed-notice" id="online-battle-lobby-settings-changed-notice" hidden>
+          設定が変更されました。もう一度準備完了してください。
+        </p>
+
+        <!-- 参加者専用：準備完了ボタン。ホストは開始ボタンを押すこと自体が意思表示になるため表示しない。 -->
+        <button id="online-battle-lobby-ready-button" class="secondary-button" type="button" hidden></button>
+
+        <!-- ホスト専用：開始ボタン。参加者（ホスト以外）が全員準備完了するまで押せない。 -->
+        <button id="online-battle-lobby-start-button" class="primary-button" type="button" hidden>対戦を開始する</button>
+        <p class="online-battle-start-hint" id="online-battle-lobby-start-hint" hidden></p>
+        <p id="online-battle-lobby-start-error" class="error-message" hidden></p>
       </div>
+    </section>
+
+    <!-- オンライン対戦：カウントダウン画面。ホストが開始した瞬間に全端末がここへ遷移する。
+         Firebaseサーバーの時刻を基準にした共通の開始予定時刻（countdownStartedAt＋固定の
+         待ち時間）から、各端末が自分の時計とのズレを補正して秒数を計算し直すことで、
+         通信環境が違っても、全端末でほぼ同時にカウントダウンが終わるようにしている
+         （js/onlineBattleScreen.jsの説明コメント参照）。 -->
+    <section id="online-battle-countdown-screen" class="screen">
+      <div class="online-battle-countdown-wrap">
+        <p class="online-battle-countdown-label">まもなく開始します</p>
+        <p class="online-battle-countdown-number" id="online-battle-countdown-number">3</p>
+      </div>
+    </section>
+
+    <!-- オンライン対戦：開始確認画面（Step2の到達点）。ホストが開始すると全端末がここへ遷移する。
+         同じシード・同じ設定から、js/localBattle.jsの既存ロジックで問題順を再現し、
+         全端末で本当に同じ並びになっているかを確認できるようにしている。
+         実際の出題・回答・結果同期はStep3で実装する。 -->
+    <section id="online-battle-started-screen" class="screen">
+      <div class="title-block"><h2>対戦開始！</h2></div>
+      <p class="online-battle-lead-text">全員に同じ設定・同じ問題順が配信されました（Step3で実際の出題画面につながります）。</p>
+      <div class="battle-config-summary" id="online-battle-started-config-summary"></div>
+      <p class="battle-field-label">シード値（全端末で一致するはずです）</p>
+      <p class="battle-code-value" id="online-battle-started-seed" style="font-size:1.1rem;"></p>
+      <p class="battle-field-label">問題順（先頭から、全端末で一致するか確認してください）</p>
+      <ol class="online-battle-started-question-list" id="online-battle-started-question-list"></ol>
+      <button id="online-battle-started-back-button" class="secondary-button" type="button">ロビーに戻る（Step2確認用）</button>
     </section>
 
     <!-- オリジナル問題作成モードのプリセット一覧画面：保存済みのセット（名前・メモ・曲数・

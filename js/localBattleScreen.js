@@ -22,8 +22,8 @@ import {
   formatBattleCodeForDisplay,
 } from "./localBattle.js";
 
-const QUESTION_COUNT_LABELS = { "5": "5問", "10": "10問", "20": "20問", "50": "50問", all: "全問" };
-const CATEGORY_LABELS = { all: "全曲", "title-and-group": "表題＋全員", "title-track": "表題のみ" };
+export const QUESTION_COUNT_LABELS = { "5": "5問", "10": "10問", "20": "20問", "50": "50問", all: "全問" };
+export const CATEGORY_LABELS = { all: "全曲", "title-and-group": "表題＋全員", "title-track": "表題のみ" };
 export const RULE_LABELS = { normal: "ノーマル", hard: "ハード", loveChain: "LOVE連チャン" };
 
 // 初めて遊ぶ人にも「何をすれば勝てるか」が開始前に分かるよう、対戦の設定画面・ルール確認画面で

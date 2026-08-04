@@ -436,6 +436,20 @@ const onlineBattleLobbyRoomCodeElement = document.getElementById("online-battle-
 const onlineBattleLobbyPlayerCountElement = document.getElementById("online-battle-lobby-player-count");
 const onlineBattleLobbyMaxPlayersElement = document.getElementById("online-battle-lobby-max-players");
 const onlineBattleLobbyPlayerListElement = document.getElementById("online-battle-lobby-player-list");
+const onlineBattleLobbySettingsHostElement = document.getElementById("online-battle-lobby-settings-host");
+const onlineBattleLobbySettingsParticipantElement = document.getElementById("online-battle-lobby-settings-participant");
+const onlineBattleLobbySettingsSummaryElement = document.getElementById("online-battle-lobby-settings-summary");
+const onlineBattleLobbySettingsPenaltyFieldsetElement = document.getElementById("online-battle-lobby-settings-penalty-fieldset");
+const onlineBattleLobbySettingsChangedNoticeElement = document.getElementById("online-battle-lobby-settings-changed-notice");
+const onlineBattleLobbyReadyButtonElement = document.getElementById("online-battle-lobby-ready-button");
+const onlineBattleLobbyStartButtonElement = document.getElementById("online-battle-lobby-start-button");
+const onlineBattleLobbyStartHintElement = document.getElementById("online-battle-lobby-start-hint");
+const onlineBattleLobbyStartErrorElement = document.getElementById("online-battle-lobby-start-error");
+const onlineBattleCountdownNumberElement = document.getElementById("online-battle-countdown-number");
+const onlineBattleStartedConfigSummaryElement = document.getElementById("online-battle-started-config-summary");
+const onlineBattleStartedSeedElement = document.getElementById("online-battle-started-seed");
+const onlineBattleStartedQuestionListElement = document.getElementById("online-battle-started-question-list");
+const onlineBattleStartedBackButtonElement = document.getElementById("online-battle-started-back-button");
 
 const customQuizBackButtonElement = document.getElementById("custom-quiz-back-button");
 const customQuizPresetsBackButtonElement = document.getElementById("custom-quiz-presets-back-button");
@@ -2378,6 +2392,20 @@ initOnlineBattleScreens({
   lobbyPlayerCount: onlineBattleLobbyPlayerCountElement,
   lobbyMaxPlayersText: onlineBattleLobbyMaxPlayersElement,
   lobbyPlayerList: onlineBattleLobbyPlayerListElement,
+  lobbySettingsHost: onlineBattleLobbySettingsHostElement,
+  lobbySettingsParticipant: onlineBattleLobbySettingsParticipantElement,
+  lobbySettingsSummary: onlineBattleLobbySettingsSummaryElement,
+  lobbySettingsPenaltyFieldset: onlineBattleLobbySettingsPenaltyFieldsetElement,
+  lobbySettingsChangedNotice: onlineBattleLobbySettingsChangedNoticeElement,
+  lobbyReadyButton: onlineBattleLobbyReadyButtonElement,
+  lobbyStartButton: onlineBattleLobbyStartButtonElement,
+  lobbyStartHint: onlineBattleLobbyStartHintElement,
+  lobbyStartError: onlineBattleLobbyStartErrorElement,
+  countdownNumber: onlineBattleCountdownNumberElement,
+  startedConfigSummary: onlineBattleStartedConfigSummaryElement,
+  startedSeed: onlineBattleStartedSeedElement,
+  startedQuestionList: onlineBattleStartedQuestionListElement,
+  startedBackButton: onlineBattleStartedBackButtonElement,
 });
 
 // 対戦コードの設定から、実際にクイズを組み立てて開始する。既存のbeginTimeAttackQuiz()と

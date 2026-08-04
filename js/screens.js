@@ -42,6 +42,8 @@ const SCREEN_ELEMENTS = {
   onlineBattleCreate: document.getElementById("online-battle-create-screen"),
   onlineBattleJoin: document.getElementById("online-battle-join-screen"),
   onlineBattleLobby: document.getElementById("online-battle-lobby-screen"),
+  onlineBattleCountdown: document.getElementById("online-battle-countdown-screen"),
+  onlineBattleStarted: document.getElementById("online-battle-started-screen"),
 };
 
 // 画面が切り替わるたびに呼びたい処理（ミニプレイヤーの表示/非表示など）を登録できる、
