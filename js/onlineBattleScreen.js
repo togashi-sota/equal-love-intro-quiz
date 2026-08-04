@@ -963,12 +963,20 @@ export function initOnlineBattleScreens(newElements) {
     await finalizeMatchIfReady({ roomId: currentRoomId, matchId: currentMatchId, force: true });
   });
 
-  elements.resultBackButton.addEventListener("click", () => {
-    // 試合の文脈はここで終わり。currentMatchIdを残したままにすると、この後ロビー以外の
-    // 無関係なクイズ（通常プレイ等）を始めたときに、古い試合の進捗ストリップが
-    // 誤って出てしまう可能性があるため、明示的にクリアする。
+  // 「ホームへ戻る」：room.status・players等のFirebase側データは一切変更しない。
+  // ここでロビー画面へ直接navigateTo()していた旧「ロビーに戻る」ボタンは、
+  // status=resultのままロビー表示（READY操作・設定変更・開始ボタン）ができてしまう
+  // 矛盾状態の原因だったため廃止した（本人からの実機報告・実データ確認により特定）。
+  // 「ロビーに戻る」のように見せかけの画面遷移をするのではなく、素直にタイトルへ戻り、
+  // 再入場時は必ずroom.statusを見て正しい画面へ復帰する設計（前回のルームに戻るボタン、
+  // renderLobby()のstatus分岐）に一本化する。
+  elements.resultHomeLink.addEventListener("click", () => {
+    // ホーム画面にいる間、この部屋のリアルタイム監視を続ける必要は無いため停止する
+    // （再入場時はgoToLobby()が改めてlistenToRoom()し直すので、二重登録の心配もない）。
+    stopListeningToRoom();
+    currentRoomId = null;
     resetOnlineBattleMatchState();
-    elements.navigateTo("onlineBattleLobby");
+    elements.navigateTo("start");
   });
 
   // ホスト専用：「もう一度対戦する」。実際のstatus変更はrematchMatch()に任せ、ここでは

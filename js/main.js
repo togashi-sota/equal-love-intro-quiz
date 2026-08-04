@@ -467,7 +467,7 @@ const onlineBattleWaitingFinalizeConfirmButtonElement = document.getElementById(
 const onlineBattleResultConfigSummaryElement = document.getElementById("online-battle-result-config-summary");
 const onlineBattleResultListElement = document.getElementById("online-battle-result-list");
 const onlineBattleResultRuleNoteElement = document.getElementById("online-battle-result-rule-note");
-const onlineBattleResultBackButtonElement = document.getElementById("online-battle-result-back-button");
+const onlineBattleResultHomeLinkElement = document.getElementById("online-battle-result-home-link");
 const onlineBattleResultRematchButtonElement = document.getElementById("online-battle-result-rematch-button");
 const onlineBattleResultRematchConfirmModalElement = document.getElementById("online-battle-result-rematch-confirm-modal");
 const onlineBattleResultRematchCancelButtonElement = document.getElementById("online-battle-result-rematch-cancel-button");
@@ -2463,7 +2463,7 @@ initOnlineBattleScreens({
   resultConfigSummary: onlineBattleResultConfigSummaryElement,
   resultList: onlineBattleResultListElement,
   resultRuleNote: onlineBattleResultRuleNoteElement,
-  resultBackButton: onlineBattleResultBackButtonElement,
+  resultHomeLink: onlineBattleResultHomeLinkElement,
   resultRematchButton: onlineBattleResultRematchButtonElement,
   resultRematchConfirmModal: onlineBattleResultRematchConfirmModalElement,
   resultRematchCancelButton: onlineBattleResultRematchCancelButtonElement,

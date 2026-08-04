@@ -1844,14 +1844,21 @@
          そのまま使う（オフライン対戦と同じ考え方）。結果を送らなかった参加者はDNFとして
          最下位グループに表示する。 -->
     <section id="online-battle-result-screen" class="screen">
+      <!-- 左上の控えめな「ホームへ戻る」リンク。room.statusやplayers情報は一切変更せず、
+           画面をタイトルへ戻すだけ（他の結果画面と同じ導線パターンに統一）。
+           以前あった「ロビーに戻る」ボタンは、Firebaseのstatusを変えずに画面だけを
+           ロビー表示へ切り替えてしまい、status=resultのままREADY操作等ができてしまう
+           矛盾状態を生む不具合の原因になっていたため廃止した（本人からの実機報告で発覚）。 -->
+      <button id="online-battle-result-home-link" class="quiz-back-link" type="button">⌂ ホームへ戻る</button>
       <div class="title-block"><h2>対戦結果</h2></div>
       <p style="text-align:center;font-size:0.75rem;opacity:0.65;" id="online-battle-result-config-summary"></p>
       <ul class="battle-rank-list" id="online-battle-result-list"></ul>
       <p style="text-align:center;font-size:0.7rem;opacity:0.6;" id="online-battle-result-rule-note"></p>
       <!-- ホスト専用：同じルーム・同じ設定のまま次の対戦をロビーから始め直すボタン。
-           参加者側には表示しない（ホストだけが再戦を開始できる設計）。 -->
+           参加者側には表示しない（ホストだけが再戦を開始できる設計）。参加者は、
+           ホストが再戦を選ぶまでこの結果画面で待つか、「ホームへ戻る」で離れて
+           後から「前回のルームに戻る」で戻ってくる。 -->
       <button id="online-battle-result-rematch-button" class="secondary-button" type="button" hidden>もう一度対戦する</button>
-      <button id="online-battle-result-back-button" class="primary-button" type="button">ロビーに戻る</button>
     </section>
 
     <!-- ホストの「もう一度対戦する」ボタン用の確認モーダル。誤操作で全員のREADYを
