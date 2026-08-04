@@ -34,6 +34,12 @@ const SPECIAL_MODES = [
     description: "友達と同じ問題でタイムアタックを競えます",
     available: true,
   },
+  {
+    id: "onlineBattle",
+    title: "オンライン対戦",
+    description: "ルームを作って、離れた場所の友達と対戦できます",
+    available: true,
+  },
 ];
 
 // この画面が使うDOM要素一式。initSpecialModesScreen()で受け取って保持する。

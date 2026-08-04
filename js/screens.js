@@ -38,6 +38,10 @@ const SCREEN_ELEMENTS = {
   battleRuleConfirm: document.getElementById("battle-rule-confirm-screen"),
   battleResultCollect: document.getElementById("battle-result-collect-screen"),
   battleResultRanking: document.getElementById("battle-result-ranking-screen"),
+  onlineBattleEntry: document.getElementById("online-battle-entry-screen"),
+  onlineBattleCreate: document.getElementById("online-battle-create-screen"),
+  onlineBattleJoin: document.getElementById("online-battle-join-screen"),
+  onlineBattleLobby: document.getElementById("online-battle-lobby-screen"),
 };
 
 // 画面が切り替わるたびに呼びたい処理（ミニプレイヤーの表示/非表示など）を登録できる、

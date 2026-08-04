@@ -84,6 +84,7 @@ import {
 } from "./timeAttackHistoryDetailScreen.js";
 import { buildBattleQuestions } from "./localBattle.js";
 import { initLocalBattleScreens, getCurrentBattleSession } from "./localBattleScreen.js";
+import { initOnlineBattleScreens } from "./onlineBattleScreen.js";
 import { initLocalBattleResultScreens, startBattleResultCollection } from "./localBattleResultScreen.js";
 import {
   initCustomQuizScreen,
@@ -411,6 +412,31 @@ const battleResultRankingListElement = document.getElementById("battle-result-ra
 const battleResultRankingRuleNoteElement = document.getElementById("battle-result-ranking-rule-note");
 const battleResultRankingHomeButtonElement = document.getElementById("battle-result-ranking-home-button");
 
+const onlineBattleEntryBackButtonElement = document.getElementById("online-battle-entry-back-button");
+const onlineBattleEntryCreateButtonElement = document.getElementById("online-battle-entry-create-button");
+const onlineBattleEntryJoinButtonElement = document.getElementById("online-battle-entry-join-button");
+const onlineBattleEntryLastRoomBannerElement = document.getElementById("online-battle-entry-last-room-banner");
+const onlineBattleEntryLastRoomTextElement = document.getElementById("online-battle-entry-last-room-text");
+const onlineBattleEntryLastRoomRejoinButtonElement = document.getElementById("online-battle-entry-last-room-rejoin-button");
+const onlineBattleEntryLastRoomButtonLabelElement = document.getElementById("online-battle-entry-last-room-button-label");
+const onlineBattleEntryLastRoomErrorElement = document.getElementById("online-battle-entry-last-room-error");
+const onlineBattleCreateBackButtonElement = document.getElementById("online-battle-create-back-button");
+const onlineBattleCreateNameInputElement = document.getElementById("online-battle-create-name-input");
+const onlineBattleCreateSubmitButtonElement = document.getElementById("online-battle-create-submit-button");
+const onlineBattleCreateErrorElement = document.getElementById("online-battle-create-error");
+const onlineBattleJoinBackButtonElement = document.getElementById("online-battle-join-back-button");
+const onlineBattleJoinRoomCodeInputElement = document.getElementById("online-battle-join-room-code-input");
+const onlineBattleJoinNameInputElement = document.getElementById("online-battle-join-name-input");
+const onlineBattleJoinSubmitButtonElement = document.getElementById("online-battle-join-submit-button");
+const onlineBattleJoinErrorElement = document.getElementById("online-battle-join-error");
+const onlineBattleLobbyLeaveButtonElement = document.getElementById("online-battle-lobby-leave-button");
+const onlineBattleLobbyGoneNoticeElement = document.getElementById("online-battle-lobby-gone-notice");
+const onlineBattleLobbyContentElement = document.getElementById("online-battle-lobby-content");
+const onlineBattleLobbyRoomCodeElement = document.getElementById("online-battle-lobby-room-code");
+const onlineBattleLobbyPlayerCountElement = document.getElementById("online-battle-lobby-player-count");
+const onlineBattleLobbyMaxPlayersElement = document.getElementById("online-battle-lobby-max-players");
+const onlineBattleLobbyPlayerListElement = document.getElementById("online-battle-lobby-player-list");
+
 const customQuizBackButtonElement = document.getElementById("custom-quiz-back-button");
 const customQuizPresetsBackButtonElement = document.getElementById("custom-quiz-presets-back-button");
 const customQuizRulesLinkElement = document.getElementById("custom-quiz-rules-link");
@@ -606,6 +632,8 @@ initSpecialModesScreen({
       showScreen("timeAttackSetup");
     } else if (modeId === "localBattle") {
       showScreen("battleModeSelect");
+    } else if (modeId === "onlineBattle") {
+      showScreen("onlineBattleEntry");
     }
   },
 });
@@ -2320,6 +2348,36 @@ initLocalBattleResultScreens({
   rankingList: battleResultRankingListElement,
   rankingRuleNote: battleResultRankingRuleNoteElement,
   rankingHomeButton: battleResultRankingHomeButtonElement,
+});
+
+// オンライン対戦（Firebase）画面群。navigateToは既存のnavigateBattleScreen（効果音＋showScreen）を
+// そのまま再利用する（オフライン対戦と同じ、画面数が多いモードでの確立されたパターン）。
+initOnlineBattleScreens({
+  navigateTo: navigateBattleScreen,
+  entryBackButton: onlineBattleEntryBackButtonElement,
+  entryCreateButton: onlineBattleEntryCreateButtonElement,
+  entryJoinButton: onlineBattleEntryJoinButtonElement,
+  entryLastRoomBanner: onlineBattleEntryLastRoomBannerElement,
+  entryLastRoomText: onlineBattleEntryLastRoomTextElement,
+  entryLastRoomRejoinButton: onlineBattleEntryLastRoomRejoinButtonElement,
+  entryLastRoomButtonLabel: onlineBattleEntryLastRoomButtonLabelElement,
+  entryLastRoomError: onlineBattleEntryLastRoomErrorElement,
+  createBackButton: onlineBattleCreateBackButtonElement,
+  createNameInput: onlineBattleCreateNameInputElement,
+  createSubmitButton: onlineBattleCreateSubmitButtonElement,
+  createError: onlineBattleCreateErrorElement,
+  joinBackButton: onlineBattleJoinBackButtonElement,
+  joinRoomCodeInput: onlineBattleJoinRoomCodeInputElement,
+  joinNameInput: onlineBattleJoinNameInputElement,
+  joinSubmitButton: onlineBattleJoinSubmitButtonElement,
+  joinError: onlineBattleJoinErrorElement,
+  lobbyLeaveButton: onlineBattleLobbyLeaveButtonElement,
+  lobbyGoneNotice: onlineBattleLobbyGoneNoticeElement,
+  lobbyContent: onlineBattleLobbyContentElement,
+  lobbyRoomCode: onlineBattleLobbyRoomCodeElement,
+  lobbyPlayerCount: onlineBattleLobbyPlayerCountElement,
+  lobbyMaxPlayersText: onlineBattleLobbyMaxPlayersElement,
+  lobbyPlayerList: onlineBattleLobbyPlayerListElement,
 });
 
 // 対戦コードの設定から、実際にクイズを組み立てて開始する。既存のbeginTimeAttackQuiz()と

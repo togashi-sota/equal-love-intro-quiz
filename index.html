@@ -1612,6 +1612,111 @@
       <button id="battle-result-ranking-home-button" class="primary-button" type="button">対戦モードを終える</button>
     </section>
 
+    <!-- オンライン対戦（Firebase）の入口画面：ルームを作る/参加する の2択。
+         前回参加していたルームがあれば、再接続できる案内バナーを表示する。 -->
+    <section id="online-battle-entry-screen" class="screen">
+      <div class="list-header">
+        <button id="online-battle-entry-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          戻る
+        </button>
+        <div class="title-block"><h2>オンライン対戦</h2></div>
+      </div>
+
+      <p class="online-battle-lead-text">ルームを作って、離れた場所の友達と対戦できます。ルームコードか共有リンクで1回だけ参加すれば、同じメンバーで何度でも対戦できます。</p>
+
+      <div class="battle-notice-box" id="online-battle-entry-last-room-banner" hidden>
+        <p id="online-battle-entry-last-room-text"></p>
+        <button id="online-battle-entry-last-room-rejoin-button" class="secondary-button" type="button" style="margin-top:8px;">
+          <span id="online-battle-entry-last-room-button-label">前回のルームに戻る</span>
+        </button>
+        <p id="online-battle-entry-last-room-error" class="error-message" hidden></p>
+      </div>
+
+      <div class="battle-mode-select-row">
+        <button id="online-battle-entry-create-button" class="battle-mode-big-card" type="button">
+          <span class="battle-mode-big-card-icon">📤</span>
+          <span class="battle-mode-big-card-title">ルームを作る</span>
+          <span class="battle-mode-big-card-desc">ホストとしてルームを新規作成します</span>
+        </button>
+        <button id="online-battle-entry-join-button" class="battle-mode-big-card" type="button">
+          <span class="battle-mode-big-card-icon">📥</span>
+          <span class="battle-mode-big-card-title">ルームに参加する</span>
+          <span class="battle-mode-big-card-desc">もらったルームコードで参加します</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- オンライン対戦：ルーム作成画面。表示名と最大人数を決めてルームを作る。 -->
+    <section id="online-battle-create-screen" class="screen">
+      <div class="list-header">
+        <button id="online-battle-create-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          戻る
+        </button>
+        <div class="title-block"><h2>ルームを作る</h2></div>
+      </div>
+
+      <p class="battle-field-label">あなたの表示名</p>
+      <input id="online-battle-create-name-input" class="battle-player-name-input" type="text">
+
+      <fieldset>
+        <legend>最大人数</legend>
+        <div class="option-row">
+          <label><input type="radio" name="online-battle-max-players" value="2" checked> 1対1（2人）</label>
+          <label><input type="radio" name="online-battle-max-players" value="4"> 4人対戦</label>
+        </div>
+      </fieldset>
+
+      <button id="online-battle-create-submit-button" class="primary-button" type="button">ルームを作る</button>
+      <p id="online-battle-create-error" class="error-message" hidden></p>
+    </section>
+
+    <!-- オンライン対戦：ルーム参加画面。ルームコードと表示名を入力して参加する。 -->
+    <section id="online-battle-join-screen" class="screen">
+      <div class="list-header">
+        <button id="online-battle-join-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          戻る
+        </button>
+        <div class="title-block"><h2>ルームに参加する</h2></div>
+      </div>
+
+      <p class="battle-field-label">ルームコード</p>
+      <input id="online-battle-join-room-code-input" class="battle-code-input" type="text" placeholder="XXXXXX">
+
+      <p class="battle-field-label">あなたの表示名</p>
+      <input id="online-battle-join-name-input" class="battle-player-name-input" type="text">
+
+      <button id="online-battle-join-submit-button" class="primary-button" type="button">参加する</button>
+      <p id="online-battle-join-error" class="error-message" hidden></p>
+    </section>
+
+    <!-- オンライン対戦：ロビー画面。参加者一覧をリアルタイムで表示する（Step1の中心画面）。
+         Step2で、ここに「対戦設定」「全員準備完了→開始」ボタン等が追加される予定。 -->
+    <section id="online-battle-lobby-screen" class="screen">
+      <button id="online-battle-lobby-leave-button" class="quiz-back-link" type="button">✕ ルームを退出する</button>
+      <div class="title-block"><h2>ロビー</h2></div>
+
+      <div id="online-battle-lobby-gone-notice" class="battle-warning-box" hidden>
+        このルームは終了しました（ホストが退出した可能性があります）。
+      </div>
+
+      <div id="online-battle-lobby-content">
+        <p class="battle-field-label">ルームコード（一緒に遊ぶ人に伝えてください）</p>
+        <div class="battle-code-display">
+          <p class="battle-code-value" id="online-battle-lobby-room-code"></p>
+        </div>
+
+        <p class="online-lobby-player-count" id="online-battle-lobby-player-count"></p>
+        <p class="online-lobby-max-players" id="online-battle-lobby-max-players"></p>
+
+        <ul class="online-lobby-player-list" id="online-battle-lobby-player-list"></ul>
+
+        <div class="battle-notice-box">Step1の動作確認画面です。対戦設定・開始ボタンは次のステップで追加します。</div>
+      </div>
+    </section>
+
     <!-- オリジナル問題作成モードのプリセット一覧画面：保存済みのセット（名前・メモ・曲数・
          ダミー選択肢モード）を並べ、タップすると選曲画面がその内容で開く。
          「＋ 新しいセットを作る」からは、空の選曲画面を開ける。
