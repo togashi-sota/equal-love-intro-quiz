@@ -32,6 +32,8 @@ import {
 import { getCurrentUid } from "./firebaseClient.js";
 import { validateRoomSettings, buildQuestionsForMode } from "./battleModes/index.js";
 import { QUESTION_COUNT_LABELS, CATEGORY_LABELS, RULE_LABELS } from "./localBattleScreen.js";
+import { MEMBERS } from "./data/members.js";
+import { getMemberById } from "./memberUtils.js";
 
 let elements = null;
 let currentRoomId = null;
@@ -268,6 +270,20 @@ function renderLobby(room) {
     const row = document.createElement("li");
     row.className = "online-lobby-player-row";
     if (player.uid === myUid) row.classList.add("is-me");
+
+    // 推し（最推し）が設定されていれば、名前の左に色ドットを添える。
+    // oshiMemberIdが無い、または既存のメンバーデータに一致しない場合（データの不整合・
+    // 将来メンバーが削除された場合等）は、エラーにせず何も表示しないだけにする
+    // （本人の要望：未設定時は今まで通り何も表示しない、不正な値でも安全に無視する）。
+    const oshiMember = player.oshiMemberId ? getMemberById(MEMBERS, player.oshiMemberId) : null;
+    if (oshiMember?.memberColor?.hex) {
+      const oshiDot = document.createElement("span");
+      oshiDot.className = "online-lobby-player-oshi-dot";
+      oshiDot.style.backgroundColor = oshiMember.memberColor.hex;
+      oshiDot.title = `推し：${oshiMember.name}`;
+      oshiDot.setAttribute("aria-label", `推し：${oshiMember.name}`);
+      row.appendChild(oshiDot);
+    }
 
     const name = document.createElement("span");
     name.className = "online-lobby-player-name";

@@ -33,6 +33,7 @@ import {
 import { database, authReady, getCurrentUid } from "./firebaseClient.js";
 import { BASE32_ALPHABET } from "./bitCode.js";
 import { generateRandomSeed } from "./seededRandom.js";
+import { getMostOshiMemberId } from "./oshiMembers.js";
 import { createDefaultSettings, isKnownGameMode, validateRoomSettings } from "./battleModes/index.js";
 
 const ROOM_ID_LENGTH = 6;
@@ -179,7 +180,15 @@ export async function createRoom({ playerName, maxPlayers, gameMode = DEFAULT_GA
     settings,
     settingsRevision: 0,
     players: {
-      [uid]: { name: playerName, isHost: true, joinedAt: Date.now(), connected: true, ready: false, readyForRevision: 0 },
+      [uid]: {
+        name: playerName,
+        isHost: true,
+        joinedAt: Date.now(),
+        connected: true,
+        ready: false,
+        readyForRevision: 0,
+        oshiMemberId: getMostOshiMemberId(), // nullなら未設定（Firebase上ではキー自体が作られない）
+      },
     },
   };
 
@@ -253,7 +262,9 @@ async function reservePlayerSlot({ roomId, uid, playerName, alreadyJoined }) {
   if (alreadyJoined) {
     const snapshot = await get(playerRef);
     const existing = snapshot.val() || {};
-    await set(playerRef, { ...existing, name: playerName, connected: true });
+    // 再接続のたびに推しメンも今の設定へ更新する（対戦の合間に最推しを変更していた場合、
+    // 次に同じルームへ戻ってきたときに新しい推しが反映されるようにするため）。
+    await set(playerRef, { ...existing, name: playerName, connected: true, oshiMemberId: getMostOshiMemberId() });
   } else {
     await set(playerRef, {
       name: playerName,
@@ -262,6 +273,7 @@ async function reservePlayerSlot({ roomId, uid, playerName, alreadyJoined }) {
       connected: true,
       ready: false,
       readyForRevision: 0,
+      oshiMemberId: getMostOshiMemberId(),
     });
   }
 }
@@ -459,19 +471,46 @@ export async function startBattle({ roomId, settings }) {
 // 他の参加者の端末は、自分自身のローカルなカウントダウン表示が0になった時点で、
 // このstatus変化を待たずに先に出題画面表示へ進んで構わない設計にしている
 // ＝js/onlineBattleScreen.js側が、ローカルタイマーとstatus変化のどちらか早い方で遷移する）。
+//
+// 【本人の要望：確実にplayingへ進める＋何度呼ばれても安全に】通信の一時的な不調等で
+// 書き込みに失敗した場合に備え、間隔を空けて最大3回まで再試行する。単に同じ書き込みを
+// 繰り返すのではなく、試行のたびに現在のstatusを読み直し、
+//   ・既にplaying → 目標にすでに到達しているので成功扱いで終了
+//   ・countdown   → playingへの書き込みを試みる（失敗したら間隔を空けて再試行）
+//   ・それ以外    → ルームが無い/ホストでない/そもそもcountdownでない等の確定した
+//                   状態なので、再試行しても意味がなく即座に終了する
+// という形にすることで、ホストが再接続して呼び直した場合や、複数回連続で
+// 呼ばれた場合でも安全（何度呼んでも同じ結果に収束する）。
+//
+// 【runTransaction()を使わない理由】Step1で発見した「runTransaction()が実際には
+// データが存在するのに稀にnullを受け取る」不具合（と、その対策のkeepAliveDuring・
+// 再試行の仕組み）は、"複数の書き込み元が同じ値を同時に奪い合う"状況を安全に処理する
+// ためのものだった。ここではstatusを書き込むのは常にホスト1人だけで、
+// 競合する書き込み元が存在しないため、transactionの複雑さ・既知の不具合リスクを
+// 持ち込む必要がない。read→条件確認→writeを素直に行うだけで十分安全と判断した。
 export async function finishCountdown({ roomId }) {
   await authReady;
   const uid = getCurrentUid();
   if (!uid) return { ok: false, reason: "not-signed-in" };
 
-  const snapshot = await get(ref(database, `rooms/${roomId}`));
-  if (!snapshot.exists()) return { ok: false, reason: "not-found" };
-  const room = snapshot.val();
-  if (room.host !== uid) return { ok: false, reason: "not-host" };
-  if (room.status !== ROOM_STATUS.COUNTDOWN) return { ok: false, reason: "not-countdown" };
+  const MAX_ATTEMPTS = 3;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const snapshot = await get(ref(database, `rooms/${roomId}`));
+      if (!snapshot.exists()) return { ok: false, reason: "not-found" };
+      const room = snapshot.val();
+      if (room.host !== uid) return { ok: false, reason: "not-host" };
+      if (room.status === ROOM_STATUS.PLAYING) return { ok: true }; // 既に目標状態
+      if (room.status !== ROOM_STATUS.COUNTDOWN) return { ok: false, reason: "not-countdown" };
 
-  await update(ref(database), { [`rooms/${roomId}/status`]: ROOM_STATUS.PLAYING });
-  return { ok: true };
+      await update(ref(database), { [`rooms/${roomId}/status`]: ROOM_STATUS.PLAYING });
+      return { ok: true };
+    } catch (error) {
+      if (attempt === MAX_ATTEMPTS) return { ok: false, reason: "write-failed" };
+      await new Promise((resolve) => setTimeout(resolve, 300 * attempt));
+    }
+  }
+  return { ok: false, reason: "write-failed" };
 }
 
 // クライアントの時計とFirebaseサーバーの時計のズレ（ミリ秒）を継続的に教えてくれる
