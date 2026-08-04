@@ -245,7 +245,18 @@ export async function joinRoom({ roomId, playerName }) {
     abortReason = null;
     result = await keepAliveDuring(roomRef, () =>
       runTransaction(roomRef, (room) => {
-        if (room === null) {
+        // 【実機検証で発見した追加の癖への対策】room === nullで中断すべき場面で、
+        // 稀に「host・maxPlayers・statusを持たない、中途半端な空オブジェクト」を
+        // 受け取ってしまうことがあった（このまま処理を進めると、壊れたルームが
+        // 書き込まれてしまう）。ちゃんとしたルームの形になっているかをここで確認し、
+        // 揃っていなければnullのときと同じ「not-found」として扱う。
+        const isWellFormedRoom =
+          room !== null &&
+          typeof room.host === "string" &&
+          typeof room.maxPlayers === "number" &&
+          typeof room.status === "string";
+
+        if (!isWellFormedRoom) {
           abortReason = "not-found";
           return undefined; // undefinedを返すとトランザクションを中断できる（Firebaseの仕様）
         }
