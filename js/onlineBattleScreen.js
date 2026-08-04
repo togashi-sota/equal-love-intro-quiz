@@ -167,24 +167,44 @@ function updateReadyButton(ready) {
   elements.lobbyReadyButton.classList.toggle("is-ready", ready);
 }
 
-// ホスト用の開始ボタンを、参加者（ホスト以外）が1人以上いて、かつ全員が「今の設定に対して」
-// READYのときだけ押せるようにする。readyForRevisionがsettingsRevisionと一致しない場合は
-// 「古い設定に対するREADY」とみなし、未準備扱いにする（js/onlineBattle.jsのコメント参照）。
+// ホスト用の開始ボタンを、①room.statusが実際にwaitingであり、②参加者（ホスト以外）が
+// 1人以上いて、③全員が「今の設定に対して」READYのときだけ押せるようにする。
+// readyForRevisionがsettingsRevisionと一致しない場合は「古い設定に対するREADY」とみなし、
+// 未準備扱いにする（js/onlineBattle.jsのコメント参照）。
+//
+// 【room.statusを確認する理由】以前はREADY状態だけを見ており、status（waiting/countdown/
+// playing/result等）を一切確認していなかった。そのため、何らかの理由で対戦が既に開始・終了
+// していても、READY条件さえ揃っていれば「開始できます」と表示され続けてしまい、実際に
+// 「対戦を開始する」を押すとstartBattle()側は正しくnot-waitingで拒否する、という
+// 矛盾した表示（本人からの実機報告で発覚）が起きていた。ここでstatusを見ることで、
+// 「開始できます」という案内自体が、実際に開始できない状況では出ないようにする。
 function updateStartButton(room) {
+  const isWaiting = room.status === ROOM_STATUS.WAITING;
   const players = room.players || {};
   const currentRevision = room.settingsRevision ?? 0;
   const nonHostPlayers = Object.entries(players).filter(([uid]) => uid !== room.host);
   const isPlayerReady = (player) => player.ready && player.readyForRevision === currentRevision;
   const allReady = nonHostPlayers.length > 0 && nonHostPlayers.every(([, player]) => isPlayerReady(player));
 
-  elements.lobbyStartButton.disabled = !allReady;
-  if (nonHostPlayers.length === 0) {
+  elements.lobbyStartButton.disabled = !isWaiting || !allReady;
+
+  if (!isWaiting) {
+    // 通常はstatusがwaitingでなくなった瞬間に画面遷移でロビーを離れるため、ここに来るのは
+    // 遷移の合間の一瞬程度のはずだが、念のため「開始できます」等の案内は一切出さない。
+    elements.lobbyStartHint.textContent = "";
+  } else if (nonHostPlayers.length === 0) {
     elements.lobbyStartHint.textContent = "参加者が来るのを待っています。";
   } else if (!allReady) {
     const readyCount = nonHostPlayers.filter(([, player]) => isPlayerReady(player)).length;
     elements.lobbyStartHint.textContent = `参加者の準備完了を待っています（${readyCount}/${nonHostPlayers.length}人）。`;
   } else {
     elements.lobbyStartHint.textContent = "全員の準備が完了しました。開始できます。";
+    // 「開始できます」を表示する以上、それより前に出ていたかもしれない「開始に失敗しました」
+    // 系のエラー（例：not-waiting）は、今この瞬間には矛盾する古い情報になっているため消す。
+    // 【本人からの実機報告で発覚】以前はこのエラー表示を、次にstartBattle()を試みるまで
+    // 消していなかったため、「開始できます」と「すでに開始・終了しています」が同時に
+    // 画面へ残ってしまうことがあった。
+    elements.lobbyStartError.hidden = true;
   }
 }
 
@@ -900,9 +920,16 @@ export function initOnlineBattleScreens(newElements) {
 
     elements.lobbyStartButton.disabled = true;
     const result = await startBattle({ roomId: currentRoomId, settings });
-    elements.lobbyStartButton.disabled = false;
 
     if (!result.ok) {
+      // 失敗時（設定不備・READY不足など、room.statusはwaitingのままのはず）だけ、
+      // ここで再挑戦できるようボタンを戻す。
+      // 【成功時にdisabled=falseへ戻さない理由】成功した瞬間、room.statusは既にwaiting
+      // ではなくなっている（countdown）。ここで無条件にdisabled=falseへ戻してしまうと、
+      // 本来もう押せないはずのボタンが一瞬だけ有効に見えてしまう（本人からの実機報告で発覚）。
+      // 成功後の正しいdisabled状態は、次のrenderLobby()内のupdateStartButton()が
+      // room.statusを見て設定するため、ここでは何もしない。
+      elements.lobbyStartButton.disabled = false;
       const messages = {
         "not-all-ready": "まだ準備が完了していない参加者がいます。",
         "invalid-settings": result.message ?? "対戦設定を確認してください。",
