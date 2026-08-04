@@ -32,6 +32,9 @@ docs/mode-design-random-playback-and-lyrics-quiz.md
 # タイムアタック対戦機能（ローカル対戦・オンライン対戦）の設計メモ（実装前の設計段階のため非公開。HANDOFF.mdと同じ扱い）
 docs/battle-mode-design.md
 
+# 対戦モードの実機テスト用チェックリスト（自分用の作業メモのため非公開。HANDOFF.mdと同じ扱い）
+docs/battle-mode-device-testing-checklist.md
+
 # Claude Codeのローカルプレビュー用サーバー設定（開発環境固有のため非公開）
 .claude/
 
