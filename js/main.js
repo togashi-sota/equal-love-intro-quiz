@@ -425,13 +425,18 @@ const lyricsQuizBestChipElement = document.getElementById("lyrics-quiz-best-chip
 const lyricsQuizProgressElement = document.getElementById("lyrics-quiz-progress");
 const lyricsQuizElapsedTimeElement = document.getElementById("lyrics-quiz-elapsed-time");
 const lyricsQuizHintLevelElement = document.getElementById("lyrics-quiz-hint-level");
-const lyricsQuizHintTextElement = document.getElementById("lyrics-quiz-hint-text");
+const lyricsQuizHintLevelNavElement = document.getElementById("lyrics-quiz-hint-level-nav");
+const lyricsQuizHintListElement = document.getElementById("lyrics-quiz-hint-list");
 const lyricsQuizNextHintButtonElement = document.getElementById("lyrics-quiz-next-hint-button");
 const lyricsQuizSkipButtonElement = document.getElementById("lyrics-quiz-skip-button");
 const lyricsQuizAnswerSearchRowElement = document.getElementById("lyrics-quiz-answer-search-row");
 const lyricsQuizAnswerSearchInputElement = document.getElementById("lyrics-quiz-answer-search-input");
 const lyricsQuizAnswerCountElement = document.getElementById("lyrics-quiz-answer-count");
 const lyricsQuizAnswerListElement = document.getElementById("lyrics-quiz-answer-list");
+const lyricsQuizBackButtonElement = document.getElementById("lyrics-quiz-back-button");
+const lyricsQuizQuitConfirmModalElement = document.getElementById("lyrics-quiz-quit-confirm-modal");
+const lyricsQuizQuitCancelButtonElement = document.getElementById("lyrics-quiz-quit-cancel-button");
+const lyricsQuizQuitConfirmButtonElement = document.getElementById("lyrics-quiz-quit-confirm-button");
 const lyricsQuizResultHomeLinkElement = document.getElementById("lyrics-quiz-result-home-link");
 const lyricsQuizResultNewRecordElement = document.getElementById("lyrics-quiz-result-new-record");
 const lyricsQuizResultCorrectCountElement = document.getElementById("lyrics-quiz-result-correct-count");
@@ -2685,13 +2690,23 @@ initLyricsQuizQuestionScreen({
   progress: lyricsQuizProgressElement,
   elapsedTime: lyricsQuizElapsedTimeElement,
   hintLevelLabel: lyricsQuizHintLevelElement,
-  hintText: lyricsQuizHintTextElement,
+  hintLevelNav: lyricsQuizHintLevelNavElement,
+  hintList: lyricsQuizHintListElement,
   nextHintButton: lyricsQuizNextHintButtonElement,
   skipButton: lyricsQuizSkipButtonElement,
   answerSearchRow: lyricsQuizAnswerSearchRowElement,
   answerSearchInput: lyricsQuizAnswerSearchInputElement,
   answerCount: lyricsQuizAnswerCountElement,
   answerList: lyricsQuizAnswerListElement,
+  backButton: lyricsQuizBackButtonElement,
+  quitConfirmModal: lyricsQuizQuitConfirmModalElement,
+  quitCancelButton: lyricsQuizQuitCancelButtonElement,
+  quitConfirmButton: lyricsQuizQuitConfirmButtonElement,
+  onQuit: () => {
+    playClickSound();
+    updateLyricsQuizBestChip();
+    showScreen("lyricsQuizSetup");
+  },
 });
 
 initLyricsQuizResultScreen({
@@ -3342,6 +3357,12 @@ document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       closeQuizQuitConfirmModal();
     }
+    return;
+  }
+
+  // 歌詞クイズの中断確認モーダルが開いているときも、同じ理由で先に止める。
+  // Escキーでの閉じる処理自体はjs/lyricsQuizScreen.js側のリスナーがすでに処理している。
+  if (!lyricsQuizQuitConfirmModalElement.hidden) {
     return;
   }
 

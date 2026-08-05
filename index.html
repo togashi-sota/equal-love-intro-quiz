@@ -1565,6 +1565,17 @@
 
     <!-- 歌詞クイズ：問題画面。歌詞ヒント・「次のヒント」ボタン・回答候補（一覧 or 検索付き一覧）。 -->
     <section id="lyrics-quiz-question-screen" class="screen">
+      <!-- 途中で設定画面へ戻る入口。押すといきなり戻らず、確認モーダル
+           （#lyrics-quiz-quit-confirm-modal）を必ず挟む（既存の#quiz-quit-confirm-modalと同じ考え方）。 -->
+      <div class="quiz-header-row">
+        <button id="lyrics-quiz-back-button" class="quiz-back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          設定に戻る
+        </button>
+      </div>
+
       <div class="lyrics-quiz-question-header">
         <span id="lyrics-quiz-progress" class="lyrics-quiz-progress">第1問 / 5問</span>
         <span id="lyrics-quiz-elapsed-time" class="lyrics-quiz-elapsed-time">0秒</span>
@@ -1572,7 +1583,12 @@
 
       <div class="lyrics-quiz-hint-card">
         <p id="lyrics-quiz-hint-level" class="lyrics-quiz-hint-level">ヒント 1 / 4</p>
-        <p id="lyrics-quiz-hint-text" class="lyrics-quiz-hint-text"></p>
+        <!-- 開放済みのヒント段階へ、いつでも自由に表示を切り替えられるボタン列。
+             「次のヒントを見る」（新しい段階を開放する操作）とは見た目・役割をはっきり分ける。 -->
+        <div id="lyrics-quiz-hint-level-nav" class="lyrics-quiz-hint-level-nav"></div>
+        <!-- これまでに出したヒントの行を、歌詞の登場順に積み上げて表示する枠。
+             どの段階で追加された行かがラベルで分かるようにする（js/lyricsQuizScreen.js側で組み立て）。 -->
+        <ul id="lyrics-quiz-hint-list" class="lyrics-quiz-hint-list"></ul>
         <button id="lyrics-quiz-next-hint-button" class="secondary-button lyrics-quiz-next-hint-button" type="button">次のヒントを見る</button>
       </div>
 
@@ -2817,6 +2833,22 @@
       <div class="button-row quiz-quit-confirm-actions">
         <button id="quiz-quit-cancel-button" class="primary-button" type="button">キャンセル</button>
         <button id="quiz-quit-confirm-button" class="secondary-button" type="button">タイトルに戻る</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 歌詞クイズ・中断確認モーダル：上の#quiz-quit-confirm-modalと同じ考え方だが、
+       歌詞クイズは専用の進行状態（js/lyricsQuizRunState.js）を持つ独立した画面のため、
+       開閉・後片付け（タイマー停止・保留中の自動遷移解除・進行状態の破棄）は
+       js/lyricsQuizScreen.js側で完結させている（本人の要望：画面を切り替えるだけでなく、
+       実行中の状態を必ず明示的に破棄する）。 -->
+  <div id="lyrics-quiz-quit-confirm-modal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="lyrics-quiz-quit-confirm-title">
+      <h2 id="lyrics-quiz-quit-confirm-title">歌詞クイズを終了しますか？</h2>
+      <p class="modal-lead">ここまでの回答は結果や自己ベストには保存されません。</p>
+      <div class="button-row lyrics-quiz-quit-confirm-actions">
+        <button id="lyrics-quiz-quit-cancel-button" class="primary-button" type="button">クイズを続ける</button>
+        <button id="lyrics-quiz-quit-confirm-button" class="secondary-button" type="button">今回の挑戦をやめる</button>
       </div>
     </div>
   </div>

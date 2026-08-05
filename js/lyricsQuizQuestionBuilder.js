@@ -13,7 +13,7 @@
 import { getLyricsData } from "./lyricsStorage.js";
 import { resolveSongObjects } from "./questionSource.js";
 import { resolveQuestionCount } from "./quiz.js";
-import { generateLyricsSegments, pickPrimarySegment, buildHintSequence } from "./lyricsSegmentEngine.js";
+import { generateAnchorLineCandidates, pickPrimarySegment, buildHintSequence } from "./lyricsSegmentEngine.js";
 import { generateAnswerPool, createAnswerPoolRandom } from "./lyricsQuizEngine.js";
 import { createSeededRandom } from "./seededRandom.js";
 
@@ -33,10 +33,10 @@ export async function loadSongsWithLyrics(songPool) {
   return entries.filter((entry) => entry !== null);
 }
 
-// 1曲分の { song, lines } から、出題に使える区間候補（曲名を含まない・quality>0）の件数を返す。
+// 1曲分の { song, lines } から、出題に使える基準行候補（曲名を含まない・quality>0）の件数を返す。
 function countUsableSegments(song, lines) {
-  const segments = generateLyricsSegments(lines, { title: song.title, titleAliases: song.searchAliases });
-  return segments.filter((segment) => !segment.containsTitle && segment.quality > 0).length;
+  const candidates = generateAnchorLineCandidates(lines, { title: song.title, titleAliases: song.searchAliases });
+  return candidates.filter((candidate) => !candidate.containsTitle && candidate.quality > 0).length;
 }
 
 // songsWithLyrics（{song, lines}[]）から、実際に歌詞クイズの出題対象にできる曲だけに絞り込む
@@ -100,8 +100,7 @@ function pickQuestionEntries(entries, count, randomFn) {
 //
 // 戻り値: {
 //   song,               // 正解の曲（songs.jsの曲オブジェクト）
-//   segments,           // その曲の全区間候補（デバッグ・エディター用にそのまま含める）
-//   hints,              // buildHintSequence()の戻り値（最大4段階）
+//   hints,              // buildHintSequence()の戻り値（最大4段階、各要素にsegment（text等）を含む）
 //   answerPool,         // generateAnswerPool()の戻り値（正解＋誤答の曲一覧、表示順込み）
 // }[]
 export function buildLyricsQuizQuestions({
@@ -118,15 +117,21 @@ export function buildLyricsQuizQuestions({
   const poolSongs = resolveSongObjects(songPool);
 
   return questionEntries.map((entry, questionIndex) => {
-    const segments = generateLyricsSegments(entry.lines, {
+    const candidates = generateAnchorLineCandidates(entry.lines, {
       title: entry.song.title,
       titleAliases: entry.song.searchAliases,
     });
-    const primary = pickPrimarySegment(segments, seed, entry.song.id, questionIndex);
-    const hints = primary ? buildHintSequence(segments, primary.id, 4) : [];
+    const primary = pickPrimarySegment(candidates, seed, entry.song.id, questionIndex);
+    const hints = primary
+      ? buildHintSequence(entry.lines, primary.index, {
+          title: entry.song.title,
+          titleAliases: entry.song.searchAliases,
+          maxHints: 4,
+        })
+      : [];
     const answerRandom = createAnswerPoolRandom(seed, entry.song.id, questionIndex);
     const answerPool = generateAnswerPool(poolSongs, entry.song.id, answerPoolSizeValue, answerRandom);
 
-    return { song: entry.song, segments, hints, answerPool };
+    return { song: entry.song, hints, answerPool };
   });
 }

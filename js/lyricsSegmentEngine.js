@@ -1,24 +1,20 @@
-// 歌詞クイズモード用の「歌詞区間（ヒントとして出す範囲）」を、既存の同期歌詞データ
+// 歌詞クイズモード用の「ヒントとして出す範囲」を、既存の同期歌詞データ
 // （js/lyricsStorage.jsが保持する { line, text, start, end } の配列）から自動生成する
 // 純粋関数群。UI・IndexedDBアクセスは一切行わない（js/randomPlaybackEngine.jsと同じ設計方針）。
 //
 // 【重要・著作権】このファイルは歌詞本文を一切保持しない。呼び出し側が渡したlinesデータ
 // （本人がすでに用意・保存済みの歌詞）をその場で処理して区間候補を返すだけで、
-// 区間データを新たにファイルへ保存する設計にはしていない（次の「設計方針」も参照）。
+// 区間データを新たにファイルへ保存する設計にはしていない。
 //
-// 【設計方針：区間は保存せず、常にlinesから計算し直す】
-// 本人からの依頼では `lyricsSegments/{songId}/segments` のような専用ストアへ区間を
-// 事前生成・保存する案が示されていたが、実装時に次の理由から「区間は保存せず、
-// linesさえあれば毎回同じ区間候補を再現する」方式へ変更した（無駄なデータ複製が
-// 増える場合は別案を提案してよい、という依頼どおりの判断）。
-//   1. 区間のtext・normalizedTextは、既存のlinesデータから100%再構成できる
-//      （区間だけを別ストアに保存すると、歌詞本文の複製が単純に2倍に増える）。
-//   2. 歌詞データ（lines）を読み込み直した場合、区間側も自動的に最新の内容に追従する
-//      （保存された古い区間データが残り続ける、というズレの心配がない）。
-//   3. 区間のidをstartLine-endLineから決定論的に作っているため、人間が確認・除外した
-//      結果（どのidを除外したか等）だけを軽量なオーバーレイとして別途保存すれば、
-//      区間本体を複製せずに人間の確認結果を反映できる
-//      （オーバーレイのデータ層はjs/lyricsQuizStorage.js側で扱う想定。未実装）。
+// 【設計の経緯（2026-08-09、実機プレイ後に全面書き換え）】
+// 旧方式は「1〜4行の全パターンを総当たりで事前生成し、質の高い区間を選んでは
+// 前後1行ずつ広げ、広げられなくなったら質の高い未使用区間へジャンプする」方式だったが、
+// 実際にプレイすると次の問題があった：
+//   ・ヒント1の時点で複数行の区間が選ばれることがあり、段階ごとの差が分かりにくい
+//   ・1つの区間の最大行数（4行）に達すると、次のヒントで必ず無関係な場所へジャンプし、
+//     「ヒントを増やしたのに情報が減った」ように見える
+// そのため、「基準行を1つ選び、必ずその基準行を含む範囲を1行ずつ広げる」方式へ変更した。
+// ヒントは常に単調に増え、別の場所へジャンプすることが構造的に起こらない。
 //
 // 【オンライン対戦の公平性について】区間そのものをFirebaseへ送らず、
 // computeLyricsContentHash()で作った内容ハッシュだけを送って、全端末のlinesデータが
@@ -27,23 +23,21 @@
 
 import { computeQuestionRandomValue } from "./randomPlaybackEngine.js";
 
-// 区間候補を作るときの既定値。
-// maxWindowLines   : 1つの区間に含める最大行数（1〜この値の範囲で候補を作る）
-// maxLineGapSec    : 前の行のendから次の行のstartまでの間隔がこれを超える場合、
-//                    間奏・場面転換とみなして区間をまたがない（「空行」に相当するデータが
-//                    このスキーマには存在しないため、代わりに時間の空白を区切りの目安にする）
-// minTextLength    : 正規化後の文字数がこれ未満の区間は短すぎるとみなし品質を下げる
-// idealMaxTextLength: 正規化後の文字数がこれ以下ならヒントとして読みやすい長さとみなす
+// minTextLength      : 正規化後の文字数がこれ未満の行は短すぎるとみなし品質を下げる
+// idealMaxTextLength : 正規化後の文字数がこれ以下ならヒントとして読みやすい長さとみなす
+// maxLineGapSec      : 前の行のendから次の行のstartまでの間隔がこれを超える場合、
+//                      間奏・場面転換とみなしてその方向には広げない
 export const SEGMENT_GENERATION_DEFAULTS = {
-  maxWindowLines: 4,
-  maxLineGapSec: 3,
   minTextLength: 6,
   idealMaxTextLength: 40,
+  maxLineGapSec: 3,
 };
 
-// 文の区切りとみなす記号。この記号で終わる行に達したら、それ以上windowを広げない
-// （「文章として不自然になる」ことを避けるための、句読点を使った区切り判定）。
-const TERMINAL_PUNCTUATION_PATTERN = /[。！？!?…]$/;
+// 基準行（ヒント1）として選ぶ際に優先する最低品質。これを満たす行が無い曲でも、
+// quality>0（0点=曲名を含む・文字数0）でありさえすれば基準行として使えるように、
+// pickPrimarySegment()側で段階的にゆるめる（極端に短い歌詞しかない曲を出題対象から
+// 不必要に除外しないため）。
+export const MIN_ANCHOR_QUALITY = 50;
 
 // songlist.jsのnormalizeForSearch()と同じ考え方（全角→半角・カタカナ→ひらがな・
 // 空白除去・記号除去）で、歌詞クイズ専用に正規化する関数。
@@ -62,8 +56,6 @@ export function normalizeLyricsQuizText(text) {
 }
 
 // startLine・endLineから、区間の一意なidを決定論的に作る。
-// 同じ範囲の行なら、何度計算し直しても必ず同じidになる（人間による除外設定を
-// 「id一覧」として別途保存する際に、区間本体を保存し直さずに済むようにするため）。
 function buildSegmentId(startLine, endLine) {
   return `${startLine}-${endLine}`;
 }
@@ -96,8 +88,10 @@ export function containsSongTitle(normalizedSegmentText, title, aliases = []) {
 // 区間1件分の「ヒントとしての使いやすさ」を0〜100点で評価する。
 // 0点は「候補として使わない」ことを示す（曲名を含む区間は問答無用で0点）。
 // isRepeat（同じ曲内に全く同じ正規化テキストの区間が既にある＝サビの繰り返し等）は
-// 減点はするが0点にはしない（1回だけなら出題候補として使ってよいため、呼び出し側が
-// 「同じセリフの繰り返し」をどこまで許容するかを選べるようにしている）。
+// 減点はするが0点にはしない。
+// 【評価しているもの】文字数と繰り返しだけ。行数・無音区間・句読点・時間間隔は
+// 区間をどこまで広げるかの境界判定にのみ使い、quality自体には反映しない。
+// 意味的な難易度（サビだから有名／簡単等）は一切判定していない。
 function scoreSegmentQuality(segment, { minTextLength, idealMaxTextLength }) {
   if (segment.containsTitle) return 0;
 
@@ -121,158 +115,213 @@ function scoreSegmentQuality(segment, { minTextLength, idealMaxTextLength }) {
   return score;
 }
 
-// 歌詞の行データ（lines）から、ヒント候補となる区間を自動生成する。
-//
-// 【生成方法】各行を起点に、1行〜maxWindowLines行までの「連続する行のまとまり」を
-// すべて候補として作る（行の途中で切ることは絶対にしない＝常に行の境界で区切るため、
-// 「単語の途中で切れる」問題は構造的に発生しない）。ただし次の場合はwindowをそこで止める：
-//   ・前の行との間隔がmaxLineGapSecを超える（間奏等の区切りをまたがない）
-//   ・行の末尾が句読点等（。！？…）で終わっている（文の区切りを尊重する）
-//
-// 【戻り値】{ id, startLine, endLine, text, normalizedText, containsTitle, quality, isRepeat }[]
-// 呼び出し側（js/lyricsSegmentEngine.jsのpickPrimarySegment・buildHintSequence、または
-// UI側）が、quality・containsTitleを見て実際に使う区間を選ぶ想定。
+// 歌詞の行データ（lines）から、「ヒント1の基準行」として使える1行ずつの候補を作る。
+// 【戻り値】{ id, index, startLine, endLine, text, normalizedText, containsTitle, quality, isRepeat }[]
+// indexはlines配列内での位置（0始まり）。buildHintSequence()へそのまま渡せる。
+// startLine・endLineは常に同じ値（1行だけの候補のため）。
 //
 // options.title・options.titleAliases を渡すと曲名含有判定を行う（省略時はcontainsTitleは
-// 常にfalseになる＝呼び出し側で別途曲名判定をしたい場合に対応）。
-export function generateLyricsSegments(lines, options = {}) {
+// 常にfalseになる）。
+export function generateAnchorLineCandidates(lines, options = {}) {
   if (!Array.isArray(lines) || lines.length === 0) return [];
 
-  const maxWindowLines = options.maxWindowLines ?? SEGMENT_GENERATION_DEFAULTS.maxWindowLines;
-  const maxLineGapSec = options.maxLineGapSec ?? SEGMENT_GENERATION_DEFAULTS.maxLineGapSec;
   const minTextLength = options.minTextLength ?? SEGMENT_GENERATION_DEFAULTS.minTextLength;
   const idealMaxTextLength =
     options.idealMaxTextLength ?? SEGMENT_GENERATION_DEFAULTS.idealMaxTextLength;
   const title = options.title ?? null;
   const titleAliases = options.titleAliases ?? [];
 
-  const segments = [];
-  const firstOccurrenceByNormalizedText = new Map();
+  const firstOccurrenceByNormalizedText = new Set();
 
-  for (let startIndex = 0; startIndex < lines.length; startIndex += 1) {
-    for (let windowSize = 1; windowSize <= maxWindowLines; windowSize += 1) {
-      const endIndex = startIndex + windowSize - 1;
-      if (endIndex >= lines.length) break;
+  return lines.map((line, index) => {
+    const normalizedText = normalizeLyricsQuizText(line.text);
+    const containsTitle = title ? containsSongTitle(normalizedText, title, titleAliases) : false;
+    const isRepeat = firstOccurrenceByNormalizedText.has(normalizedText);
+    if (!isRepeat) firstOccurrenceByNormalizedText.add(normalizedText);
 
-      if (windowSize > 1) {
-        const previousLine = lines[endIndex - 1];
-        const currentLine = lines[endIndex];
-        if (hasLargeGap(previousLine, currentLine, maxLineGapSec)) break;
-      }
-
-      const windowLines = lines.slice(startIndex, endIndex + 1);
-      const text = windowLines.map((line) => line.text).join("\n");
-      const normalizedText = normalizeLyricsQuizText(text);
-      const containsTitle = title ? containsSongTitle(normalizedText, title, titleAliases) : false;
-      const isRepeat = firstOccurrenceByNormalizedText.has(normalizedText);
-      if (!isRepeat) {
-        firstOccurrenceByNormalizedText.set(normalizedText, true);
-      }
-
-      const segment = {
-        id: buildSegmentId(windowLines[0].line, windowLines[windowLines.length - 1].line),
-        startLine: windowLines[0].line,
-        endLine: windowLines[windowLines.length - 1].line,
-        text,
-        normalizedText,
-        containsTitle,
-        isRepeat,
-        quality: 0,
-      };
-      segment.quality = scoreSegmentQuality(segment, { minTextLength, idealMaxTextLength });
-
-      segments.push(segment);
-
-      const lastLineText = windowLines[windowLines.length - 1].text.trim();
-      if (TERMINAL_PUNCTUATION_PATTERN.test(lastLineText)) break;
-    }
-  }
-
-  return segments;
+    const segment = {
+      id: buildSegmentId(line.line, line.line),
+      index,
+      startLine: line.line,
+      endLine: line.line,
+      text: line.text,
+      normalizedText,
+      containsTitle,
+      isRepeat,
+      quality: 0,
+    };
+    segment.quality = scoreSegmentQuality(segment, { minTextLength, idealMaxTextLength });
+    return segment;
+  });
 }
 
-// 1問分の「ヒント1として最初に見せる区間」を、候補の中から決定論的に選ぶ。
-// seed・songId・questionIndexが同じなら常に同じ区間が選ばれる
+// 1問分の「基準行（ヒント1）」を、候補の中から決定論的に選ぶ。
+// seed・songId・questionIndexが同じなら常に同じ行が選ばれる
 // （オンライン対戦で全端末が同じ問題を出題するために必須。
 // js/randomPlaybackEngine.jsのcomputeRandomStartTimeSec()と同じ設計方針）。
 //
-// 【選び方】quality上位topN件（既定5件）に絞り、その中からseedベースの乱数で1件選ぶ。
-// 「常に一番qualityが高い区間だけが毎回選ばれ続けて単調にならない」ための工夫。
-// containsTitleがtrueの区間、quality0の区間は最初から候補に含めない。
-export function pickPrimarySegment(segments, seed, songId, questionIndex, options = {}) {
-  const topN = options.topN ?? 5;
-  const usable = segments.filter((segment) => !segment.containsTitle && segment.quality > 0);
-  if (usable.length === 0) return null;
+// 【選び方】MIN_ANCHOR_QUALITY以上の候補（曲名を含まない）の中から、seedベースの
+// 乱数で均等に1件選ぶ。基準になる行を曲全体からまんべんなく選べるようにするため、
+// 上位N件に絞る方式（旧実装）はやめた（1行だけの候補は文字数の差が付きにくく、
+// 大半が同点になるため、上位数件に絞ると曲の冒頭付近に偏ってしまう）。
+// MIN_ANCHOR_QUALITY以上の候補が無い曲では、quality>0の候補全体まで条件をゆるめる
+// （極端に短い歌詞しかない曲を出題対象から不必要に除外しないため）。
+export function pickPrimarySegment(candidates, seed, songId, questionIndex, options = {}) {
+  const minQuality = options.minQuality ?? MIN_ANCHOR_QUALITY;
 
-  const sorted = [...usable].sort(
-    (a, b) => b.quality - a.quality || a.id.localeCompare(b.id)
-  );
-  const pool = sorted.slice(0, Math.min(topN, sorted.length));
+  const preferred = candidates.filter((c) => !c.containsTitle && c.quality >= minQuality);
+  const fallback = candidates.filter((c) => !c.containsTitle && c.quality > 0);
+  const pool = preferred.length > 0 ? preferred : fallback;
+  if (pool.length === 0) return null;
+
+  // idの文字列比較だと"10-10"が"9-9"より前に来てしまう（桁数違いの数値を
+  // 文字列として比較してしまうバグ）ため、startLineの数値比較で安定した順序にする。
+  const sorted = [...pool].sort((a, b) => a.startLine - b.startLine);
 
   // 回答候補の並び替え（js/lyricsQuizEngine.js）と乱数の出どころが混ざらないよう、
   // songIdに用途を表す文字列を足してからハッシュ化する。
   const randomValue = computeQuestionRandomValue(seed, `${songId}:hint`, questionIndex);
-  const index = Math.min(Math.floor(randomValue * pool.length), pool.length - 1);
-  return pool[index];
+  const index = Math.min(Math.floor(randomValue * sorted.length), sorted.length - 1);
+  return sorted[index];
 }
 
-// currentSegmentの前後どちらかに1行だけ広げた区間を、既存の候補一覧から探す。
-// 前後両方に候補がある場合は、qualityが高い方を優先する。見つからなければnull。
-function findExpandedSegment(segments, currentSegment) {
-  const candidates = segments.filter((segment) => {
-    const expandsForward =
-      segment.startLine === currentSegment.startLine && segment.endLine === currentSegment.endLine + 1;
-    const expandsBackward =
-      segment.startLine === currentSegment.startLine - 1 && segment.endLine === currentSegment.endLine;
-    return (expandsForward || expandsBackward) && segment.quality > 0 && !segment.containsTitle;
-  });
-  if (candidates.length === 0) return null;
-  return [...candidates].sort((a, b) => b.quality - a.quality)[0];
+// 歌詞データの中で、[startIdx, endIdx]範囲（lines配列のインデックス、両端含む）の
+// 正規化テキストと全く同じ範囲が、それより前（endが自分より小さいidx側）に
+// 存在するかどうかを調べる（サビの再登場等を検出するため）。
+function isRangeTextRepeatedEarlier(lines, startIdx, endIdx, normalizedText) {
+  const windowSize = endIdx - startIdx + 1;
+  for (let i = 0; i + windowSize - 1 < startIdx; i += 1) {
+    const candidateText = normalizeLyricsQuizText(
+      lines.slice(i, i + windowSize).map((line) => line.text).join("\n")
+    );
+    if (candidateText === normalizedText) return true;
+  }
+  return false;
 }
 
-// まだ使っていない区間の中から、次に使う候補（qualityが最も高いもの）を1件返す。
-// なければnull。
-function findNextBestUnusedSegment(segments, usedIds) {
-  const candidates = segments.filter(
-    (segment) => !usedIds.has(segment.id) && segment.quality > 0 && !segment.containsTitle
-  );
-  if (candidates.length === 0) return null;
-  return [...candidates].sort((a, b) => b.quality - a.quality)[0];
-}
+// [startIdx, endIdx]範囲から、ヒント用の区間オブジェクトを1件作る。
+function buildRangeSegment(lines, startIdx, endIdx, { title, titleAliases, minTextLength, idealMaxTextLength }) {
+  const windowLines = lines.slice(startIdx, endIdx + 1);
+  const text = windowLines.map((line) => line.text).join("\n");
+  const normalizedText = normalizeLyricsQuizText(text);
+  const containsTitle = title ? containsSongTitle(normalizedText, title, titleAliases) : false;
+  const isRepeat = isRangeTextRepeatedEarlier(lines, startIdx, endIdx, normalizedText);
 
-function toHintEntry(segment, hintLevel) {
-  return { hintLevel, segmentId: segment.id, startLine: segment.startLine, endLine: segment.endLine };
+  const segment = {
+    id: buildSegmentId(windowLines[0].line, windowLines[windowLines.length - 1].line),
+    startLine: windowLines[0].line,
+    endLine: windowLines[windowLines.length - 1].line,
+    text,
+    normalizedText,
+    containsTitle,
+    isRepeat,
+    quality: 0,
+  };
+  segment.quality = scoreSegmentQuality(segment, { minTextLength, idealMaxTextLength });
+  return segment;
 }
 
 // 1問分のヒント進行（最大maxHints段階、既定4段階）を決定論的に生成する。
 //
-// 【方式】同じ区間を広げる（前後に1行ずつ足す）ことを基本とし、これ以上広げられない
-// （曲の端に達した・間奏をまたぐ等で「1行広い版」の候補が存在しない）場合だけ、
-// 別の高品質な未使用区間へ切り替える（本人の指示どおりのフォールバック方式）。
+// 【方式（2026-08-09、実機プレイ後に全面書き換え）】必ず基準行（primaryLineIndex）を
+// 含む連続範囲を1行ずつ広げる。広げる方向はレベルごとに「前方向→後方向→前方向→…」と
+// 交互にし（レベル2:前方向, レベル3:後方向, レベル4:前方向, ...）、基準行が範囲の中央
+// 付近に来るようにする。希望方向に広げられない場合（曲の端・間奏をまたぐ・曲名が
+// 混入する）はもう片方の方向を試し、両方とも無理ならそこで打ち切る
+// （歌詞が短い曲の安全なフォールバック）。
+// 【重要】以前の方式にあった「別の未使用区間へジャンプする」フォールバックは廃止した。
+// ヒントは常に前段階の内容をすべて含んだまま増える（情報量が減ることは絶対にない）。
+// 句読点による打ち切りも廃止した（単調に増えることを句読点の美しさより優先する）。
 //
-// segments        : generateLyricsSegments()の戻り値（1曲分、全候補）
-// primarySegmentId: ヒント1として使う区間のid（pickPrimarySegment()の戻り値のid）
-// 戻り値: { hintLevel, segmentId, startLine, endLine }[]（要素数は1〜maxHints、
-// 候補が尽きた場合はmaxHintsより少なくなることがある）
-export function buildHintSequence(segments, primarySegmentId, maxHints = 4) {
-  const byId = new Map(segments.map((segment) => [segment.id, segment]));
-  const primary = byId.get(primarySegmentId);
-  if (!primary || primary.containsTitle) return [];
+// lines           : 歌詞の行データ全体（{ line, text, start, end }[]）
+// primaryLineIndex: 基準行のlines配列内でのインデックス（generateAnchorLineCandidates()の
+//                   戻り値のindexフィールドをそのまま渡す）
+// 戻り値: { hintLevel, segmentId, startLine, endLine, segment }[]（要素数は1〜maxHints、
+// 候補が尽きた場合はmaxHintsより少なくなることがある）。
+// maxHints未満で打ち切られた場合のみ、最後の要素に打ち切り理由stopReasonが付く
+// （"song-start" | "song-end" | "interlude-gap" | "contains-title" | "insufficient-lines"）。
+// maxHintsまで到達できた場合はstopReason:null。
+export function buildHintSequence(lines, primaryLineIndex, options = {}) {
+  const maxHints = options.maxHints ?? 4;
+  const maxLineGapSec = options.maxLineGapSec ?? SEGMENT_GENERATION_DEFAULTS.maxLineGapSec;
+  const minTextLength = options.minTextLength ?? SEGMENT_GENERATION_DEFAULTS.minTextLength;
+  const idealMaxTextLength =
+    options.idealMaxTextLength ?? SEGMENT_GENERATION_DEFAULTS.idealMaxTextLength;
+  const title = options.title ?? null;
+  const titleAliases = options.titleAliases ?? [];
+  const buildOptions = { title, titleAliases, minTextLength, idealMaxTextLength };
 
-  const hints = [toHintEntry(primary, 1)];
-  const usedIds = new Set([primary.id]);
-  let currentSegment = primary;
+  if (!Array.isArray(lines) || primaryLineIndex < 0 || primaryLineIndex >= lines.length) return [];
+
+  const anchor = buildRangeSegment(lines, primaryLineIndex, primaryLineIndex, buildOptions);
+  if (anchor.containsTitle) return [];
+
+  const hints = [{ hintLevel: 1, segmentId: anchor.id, startLine: anchor.startLine, endLine: anchor.endLine, segment: anchor }];
+  let startIdx = primaryLineIndex;
+  let endIdx = primaryLineIndex;
+
+  // direction: +1なら後ろ（endIdxを1つ広げる）、-1なら前（startIdxを1つ広げる）。
+  // 広げられた場合は{ ok:true, ... }、広げられなかった場合は{ ok:false, reason }を返す。
+  // reasonはDEBUGログ用（js/lyricsQuizScreen.jsのlogHintDebugInfo()参照）：
+  //   "song-start"     : 曲の先頭を超えて前へは広げられない
+  //   "song-end"       : 曲の末尾を超えて後ろへは広げられない
+  //   "interlude-gap"  : 間隔（間奏相当）をまたぐため広げられない
+  //   "contains-title" : 広げた先の行が曲名を含むため広げられない
+  function tryGrow(direction) {
+    const candidateStart = direction === 1 ? startIdx : startIdx - 1;
+    const candidateEnd = direction === 1 ? endIdx + 1 : endIdx;
+    if (candidateStart < 0) return { ok: false, reason: "song-start" };
+    if (candidateEnd >= lines.length) return { ok: false, reason: "song-end" };
+
+    const gapCheckPrev = direction === 1 ? lines[endIdx] : lines[startIdx - 1];
+    const gapCheckNext = direction === 1 ? lines[endIdx + 1] : lines[startIdx];
+    if (hasLargeGap(gapCheckPrev, gapCheckNext, maxLineGapSec)) return { ok: false, reason: "interlude-gap" };
+
+    const candidate = buildRangeSegment(lines, candidateStart, candidateEnd, buildOptions);
+    if (candidate.containsTitle) return { ok: false, reason: "contains-title" };
+    return { ok: true, startIdx: candidateStart, endIdx: candidateEnd, segment: candidate };
+  }
+
+  // 前方向・後方向どちらの理由で止まったかから、DEBUGログ向けの単一の理由へまとめる。
+  // 内容に関わる理由（間奏・曲名混入）を境界到達より優先して報告する
+  // （「なぜ増やせなかったか」を知りたいときに、より本質的な理由の方が有用なため）。
+  function classifyStopReason(forwardReason, backwardReason) {
+    if (forwardReason === "interlude-gap" || backwardReason === "interlude-gap") return "interlude-gap";
+    if (forwardReason === "contains-title" || backwardReason === "contains-title") return "contains-title";
+    if (forwardReason === "song-end" && backwardReason === "song-start") return "insufficient-lines";
+    return forwardReason ?? backwardReason;
+  }
+
+  let stopReason = null;
 
   for (let level = 2; level <= maxHints; level += 1) {
-    const expanded = findExpandedSegment(segments, currentSegment);
-    const next =
-      expanded && !usedIds.has(expanded.id) ? expanded : findNextBestUnusedSegment(segments, usedIds);
-    if (!next) break;
+    const preferredDirection = level % 2 === 0 ? 1 : -1; // 2:後ろ, 3:前, 4:後ろ, ...
+    const forwardResult = tryGrow(1);
+    const backwardResult = tryGrow(-1);
+    const preferredResult = preferredDirection === 1 ? forwardResult : backwardResult;
+    const fallbackResult = preferredDirection === 1 ? backwardResult : forwardResult;
+    const result = preferredResult.ok ? preferredResult : fallbackResult;
 
-    currentSegment = next;
-    usedIds.add(currentSegment.id);
-    hints.push(toHintEntry(currentSegment, level));
+    if (!result.ok) {
+      stopReason = classifyStopReason(forwardResult.reason, backwardResult.reason);
+      break;
+    }
+
+    startIdx = result.startIdx;
+    endIdx = result.endIdx;
+    hints.push({
+      hintLevel: level,
+      segmentId: result.segment.id,
+      startLine: result.segment.startLine,
+      endLine: result.segment.endLine,
+      segment: result.segment,
+    });
   }
+
+  // 途中で打ち切られた場合だけ、最後のヒントに「なぜそれ以上増やせなかったか」を記録する
+  // （js/lyricsQuizScreen.jsのDEBUGログ表示用。歌詞本文は含まない）。
+  // maxHintsまで到達できた場合はstopReason:null（打ち切られていないため理由もない）。
+  hints[hints.length - 1].stopReason = hints.length < maxHints ? stopReason : null;
 
   return hints;
 }

@@ -47,10 +47,19 @@ let currentSettings = null; // { questionCountValue, categoryFilterValue, answer
 // 「今何問目か」「各解答の記録」はjs/lyricsQuizRunState.jsの純粋関数で管理する
 // （画面のDOMを介さずに進行ロジックだけを自動テストできるようにするため）。
 let runState = null;
+// 「今どのヒント段階を画面に表示しているか」。採点に使う「到達した最大ヒント段階」
+// （runState.currentHintCount）とは別に持つ。ヒント一覧のボタンで過去のヒントへ
+// 戻って見返しても、runState.currentHintCountは変わらない＝使用ヒント数は減らない
+// （本人の指示どおり）。1〜runState.currentHintCountの範囲だけを取りうる。
+let viewingHintLevel = 1;
 let hasAnsweredCurrentQuestion = false;
 let questionStartedAt = 0;
 let runStartedAt = 0;
 let elapsedTimerId = null;
+// 正解/不正解演出のあと、自動で次の問題へ進むsetTimeoutの予約ID。
+// 途中でクイズをやめたときにこれを解除し忘れると、離脱後に古いタイマーが発火して
+// 勝手に次の問題や結果画面へ進んでしまう（quitLyricsQuizRun()参照）。
+let pendingAnswerFeedbackTimeoutId = null;
 
 // ===== 1. 設定画面 =====
 
@@ -158,8 +167,13 @@ function logInsufficientSongsForDebug(songPool, songsWithLyrics) {
 // ===== 2. 問題画面 =====
 
 // questionElements: {
-//   progress, elapsedTime, hintLevelLabel, hintText, nextHintButton, skipButton,
+//   progress, elapsedTime, hintLevelLabel, hintLevelNav, hintList, nextHintButton, skipButton,
 //   answerSearchRow, answerSearchInput, answerCount, answerList,
+//   backButton, quitConfirmModal, quitCancelButton, quitConfirmButton,
+//   onQuit: 「今回の挑戦をやめる」が確定したときに呼ばれるコールバック（引数なし）。
+//     画面遷移はmain.js側だけで行うというプロジェクトの決まりに合わせ、実際の
+//     showScreen()呼び出しはこのコールバック側（main.js）に任せる。このファイル自身は
+//     呼ぶ前に進行状態の後片付けをすべて終わらせておく（quitLyricsQuizRun()参照）。
 // }
 export function initLyricsQuizQuestionScreen(newElements) {
   questionElements = newElements;
@@ -168,6 +182,64 @@ export function initLyricsQuizQuestionScreen(newElements) {
   questionElements.answerSearchInput.addEventListener("input", () => {
     renderAnswerButtons(getCurrentQuestion(runState).answerPool, questionElements.answerSearchInput.value);
   });
+
+  questionElements.backButton.addEventListener("click", openLyricsQuizQuitConfirmModal);
+  questionElements.quitCancelButton.addEventListener("click", closeLyricsQuizQuitConfirmModal);
+  questionElements.quitConfirmButton.addEventListener("click", () => {
+    closeLyricsQuizQuitConfirmModal();
+    quitLyricsQuizRun();
+  });
+  // オーバーレイの背景部分をクリックしたときも閉じる（誤って終了しない。既存の
+  // #quiz-quit-confirm-modalと同じ考え方。event.targetがオーバーレイ自身のときだけ、
+  // つまりモーダルカードの外側をクリックしたときだけ閉じる）。
+  questionElements.quitConfirmModal.addEventListener("click", (event) => {
+    if (event.target === questionElements.quitConfirmModal) {
+      closeLyricsQuizQuitConfirmModal();
+    }
+  });
+  // Escキーは「クイズを続ける」と同じ扱いにする（誤って終了させないため、Escでは
+  // 閉じるだけで終了はしない）。このモーダルが開いているときだけ反応する。
+  document.addEventListener("keydown", (event) => {
+    if (questionElements.quitConfirmModal.hidden) return;
+    if (event.key === "Escape") closeLyricsQuizQuitConfirmModal();
+  });
+}
+
+function openLyricsQuizQuitConfirmModal() {
+  questionElements.quitConfirmModal.hidden = false;
+  // 誤ってEnterキー等で「今回の挑戦をやめる」を押してしまわないよう、
+  // 表示時は安全な方の「クイズを続ける」ボタンへフォーカスを合わせる。
+  questionElements.quitCancelButton.focus();
+}
+
+function closeLyricsQuizQuitConfirmModal() {
+  questionElements.quitConfirmModal.hidden = true;
+}
+
+// 途中で歌詞クイズをやめるときの後片付けをまとめて行う。画面をただ切り替えるだけでなく、
+// 実行中の状態を必ず明示的に破棄する（本人の要望：以前オンライン対戦で、Firebase側の
+// 状態を変えないまま画面だけ移動してしまい不整合が起きた反省から、今回はそれを避けたい）。
+// ・経過時間タイマーを止める
+// ・正解/不正解演出のあとに自動で次の問題へ進む予約（setTimeout）を解除する
+//   （解除しないと、離脱後にタイマーが発火し、もう表示されていない問題の続きが
+//   　勝手に進行してしまう）
+// ・検索欄をクリアする
+// ・runStateをnullにする（今の問題配列・currentQuestionIndex・currentHintCount・
+//   　回答履歴は、すべてrunStateの中にまとまっているため、これで一括して破棄される。
+//   　次回開始時は必ずcreateLyricsQuizRunState()から作り直すので、古い内容が
+//   　引き継がれることはない）
+// ・viewingHintLevelを1に戻す
+// 結果は一切作成せず（createLyricsQuizResult()を呼ばない）、自己ベストも更新しない。
+function quitLyricsQuizRun() {
+  stopElapsedTimer();
+  clearPendingAnswerFeedbackTimeout();
+  questionElements.answerSearchInput.value = "";
+
+  runState = null;
+  viewingHintLevel = 1;
+  hasAnsweredCurrentQuestion = false;
+
+  questionElements.onQuit();
 }
 
 function formatElapsed(ms) {
@@ -199,6 +271,7 @@ function renderCurrentQuestion() {
   const question = getCurrentQuestion(runState);
   hasAnsweredCurrentQuestion = false;
   questionStartedAt = Date.now();
+  viewingHintLevel = 1;
 
   questionElements.progress.textContent = `第${runState.currentQuestionIndex + 1}問 / ${runState.questions.length}問`;
   questionElements.skipButton.disabled = false;
@@ -207,12 +280,155 @@ function renderCurrentQuestion() {
   renderAnswerArea(question);
 }
 
-function renderHint(question) {
-  const hint = question.hints[runState.currentHintCount - 1];
-  const segment = question.segments.find((s) => s.id === hint.segmentId);
+// デバッグ用ログ（区間の選ばれ方・ヒントが止まった理由の確認用）を出すかどうか。
+// 通常のプレイでは表示しない。js/main.jsのisRandomPlaybackDebugLoggingEnabled()と
+// 同じ考え方で、ブラウザのコンソールで以下を実行してから再読み込みすると有効になる：
+//   localStorage.setItem("equalLoveIntroQuiz.debugLyricsQuiz", "1")
+// 【重要】歌詞本文（segment.text）は絶対にログへ出さない。曲名・区間の位置情報・
+// 品質スコアなど、歌詞本文を含まない情報だけを出す。
+function isLyricsQuizDebugLoggingEnabled() {
+  try {
+    return localStorage.getItem("equalLoveIntroQuiz.debugLyricsQuiz") === "1";
+  } catch {
+    return false;
+  }
+}
 
-  questionElements.hintLevelLabel.textContent = `ヒント ${runState.currentHintCount} / ${question.hints.length}`;
-  questionElements.hintText.textContent = segment.text;
+// DEBUGログに出す「今どのDOM形式（見た目の版）で動いているか」の目印。
+// 見た目を大きく変えるたびに文字列を変える。本人が実機で「今のは新しい版か」を
+// 判断したいときに、この値だけで判断できるようにするための簡易な目印
+// （キャッシュが古いままだと、そもそもこのログ自体が出ない・別の値になる）。
+const LYRICS_QUIZ_HINT_UI_VERSION = "hint-nav-v1（積み上げ表示＋段階ボタンで行き来可能）";
+
+// hintLevel段階目で新しく追加された行の行番号を返す（1段階目は基準行そのもの）。
+function computeAddedLineForLevel(hints, hintLevel) {
+  if (hintLevel === 1) return hints[0].startLine;
+  const previous = hints[hintLevel - 2];
+  const current = hints[hintLevel - 1];
+  return current.startLine < previous.startLine ? current.startLine : current.endLine;
+}
+
+function logHintDebugInfo(question, viewedHint) {
+  if (!isLyricsQuizDebugLoggingEnabled()) return;
+  const segment = viewedHint.segment;
+  const lastHint = question.hints[question.hints.length - 1];
+  console.log("[歌詞クイズ] ヒント表示", {
+    domVersion: LYRICS_QUIZ_HINT_UI_VERSION,
+    songTitle: question.song.title,
+    segmentId: segment.id,
+    hintLevel: viewedHint.hintLevel,
+    maxHintLevelReached: runState.currentHintCount,
+    lineCount: segment.endLine - segment.startLine + 1,
+    startLine: segment.startLine,
+    endLine: segment.endLine,
+    addedLine: computeAddedLineForLevel(question.hints, viewedHint.hintLevel),
+    quality: segment.quality,
+    isRepeat: segment.isRepeat,
+    containsTitle: segment.containsTitle,
+    // 途中で打ち切られた場合だけ値が入る（js/lyricsSegmentEngine.jsのbuildHintSequence()参照）。
+    growthStoppedReason: lastHint.stopReason ?? null,
+  });
+}
+
+// question.hints（各要素が { hintLevel, startLine, endLine, segment } を持つ、レベルごとに
+// 1行ずつ増える区間の列）から、「今表示すべきレベルまでで、実際に増えた行1行ずつ」を
+// 歌詞の登場順（行番号の昇順）に並べたリストを作る。
+// ヒントは前方向・後方向どちらにも増えうるため（js/lyricsSegmentEngine.jsのbuildHintSequence()
+// 参照）、隣り合うレベルのsegmentのstartLine/endLineを比較して「今回どちら側に1行増えたか」を
+// 判定し、その1行だけを取り出す。
+function computeRevealedHintLines(hints, uptoLevel) {
+  const first = hints[0];
+  const revealed = [{ lineNumber: first.startLine, text: first.segment.text, level: first.hintLevel }];
+
+  for (let i = 1; i < uptoLevel; i += 1) {
+    const previous = hints[i - 1].segment;
+    const current = hints[i].segment;
+    const lines = current.text.split("\n");
+    if (current.startLine < previous.startLine) {
+      revealed.push({ lineNumber: current.startLine, text: lines[0], level: hints[i].hintLevel });
+    } else if (current.endLine > previous.endLine) {
+      revealed.push({ lineNumber: current.endLine, text: lines[lines.length - 1], level: hints[i].hintLevel });
+    }
+  }
+
+  return revealed.sort((a, b) => a.lineNumber - b.lineNumber);
+}
+
+// 新しく表示された行が画面外にある場合、そこまで自動スクロールする。
+// prefers-reduced-motionが有効な環境ではアニメーションさせない。
+function scrollHintElementIntoView(element) {
+  const prefersReducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  element.scrollIntoView({ block: "nearest", behavior: prefersReducedMotion ? "auto" : "smooth" });
+}
+
+// これまでに公開したヒントの行を、歌詞の登場順（上から下）に、それぞれ
+// 「ヒント1」「ヒント2で追加」のようなラベル付きで表示する。過去に表示した行は消さない
+// （本人からの指摘：以前は段階が進むと別の区間へ切り替わり、前のヒントが消えて
+// 「情報が減った」ように見えることがあったため、常に積み上げ表示にする）。
+// viewingHintLevelまでの行を表示する（到達済みの段階なら、過去の段階へ戻って
+// その時点までの表示に戻すこともできる。詳しくはhandleHintLevelNavClick()参照）。
+function renderHintList(question) {
+  const revealed = computeRevealedHintLines(question.hints, viewingHintLevel);
+  questionElements.hintList.innerHTML = "";
+
+  let currentElement = null;
+  revealed.forEach((entry) => {
+    const item = document.createElement("li");
+    item.className = "lyrics-quiz-hint-line";
+
+    const badge = document.createElement("span");
+    badge.className = "lyrics-quiz-hint-line-badge";
+    badge.textContent = entry.level === 1 ? "ヒント1" : `ヒント${entry.level}で追加`;
+    item.appendChild(badge);
+
+    const text = document.createElement("p");
+    text.className = "lyrics-quiz-hint-line-text";
+    text.textContent = entry.text;
+    item.appendChild(text);
+
+    questionElements.hintList.appendChild(item);
+    if (entry.level === viewingHintLevel) {
+      item.classList.add("is-current");
+      currentElement = item;
+    }
+  });
+
+  if (currentElement) scrollHintElementIntoView(currentElement);
+}
+
+// これまでに開放した段階（1〜runState.currentHintCount）へ、いつでも自由に
+// 表示を切り替えられるボタン列を作る。未開放の段階はdisabledにする
+// （本人の指示：戻って見返せるが、まだ見ていない段階を先に覗くことはできない）。
+function renderHintLevelNav(question) {
+  questionElements.hintLevelNav.innerHTML = "";
+  question.hints.forEach((hint) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "lyrics-quiz-hint-level-button";
+    button.textContent = `ヒント${hint.hintLevel}`;
+    button.disabled = hint.hintLevel > runState.currentHintCount;
+    if (hint.hintLevel === viewingHintLevel) button.classList.add("is-active");
+    button.addEventListener("click", () => handleHintLevelNavClick(hint.hintLevel, question));
+    questionElements.hintLevelNav.appendChild(button);
+  });
+}
+
+// 開放済みのヒント段階ボタンが押されたときの処理。表示だけを切り替え、
+// runState.currentHintCount（＝採点に使う「到達した最大ヒント段階」）は変更しない
+// （戻って見返しても使用ヒント数が減らないようにするため）。
+function handleHintLevelNavClick(level, question) {
+  if (level > runState.currentHintCount) return;
+  viewingHintLevel = level;
+  renderHint(question);
+}
+
+function renderHint(question) {
+  const viewedHint = question.hints[viewingHintLevel - 1];
+  logHintDebugInfo(question, viewedHint);
+
+  questionElements.hintLevelLabel.textContent = `ヒント ${viewingHintLevel} / ${question.hints.length}`;
+  renderHintList(question);
+  renderHintLevelNav(question);
   questionElements.nextHintButton.disabled =
     hasAnsweredCurrentQuestion || runState.currentHintCount >= question.hints.length;
 }
@@ -221,6 +437,9 @@ function handleNextHintButtonClick() {
   const question = getCurrentQuestion(runState);
   if (hasAnsweredCurrentQuestion || runState.currentHintCount >= question.hints.length) return;
   runState = advanceHint(runState);
+  // 新しく開放した段階へ表示も進める（過去の段階を見ていた状態から押しても、
+  // 常に「新しく見えるようになった段階」へジャンプする、という自然な挙動にする）。
+  viewingHintLevel = runState.currentHintCount;
   renderHint(question);
 }
 
@@ -295,7 +514,7 @@ function handleAnswerSelected(selectedSongId, buttonElement) {
   questionElements.nextHintButton.disabled = true;
   disableAllAnswerButtons();
 
-  setTimeout(advanceToNextQuestionOrFinish, ANSWER_FEEDBACK_DELAY_MS);
+  scheduleAnswerFeedbackAdvance();
 }
 
 function handleSkipButtonClick() {
@@ -310,7 +529,23 @@ function handleSkipButtonClick() {
   questionElements.nextHintButton.disabled = true;
   disableAllAnswerButtons();
 
-  setTimeout(advanceToNextQuestionOrFinish, ANSWER_FEEDBACK_DELAY_MS);
+  scheduleAnswerFeedbackAdvance();
+}
+
+// 正解/不正解演出のあと、少し待ってから次の問題（または結果画面）へ自動で進める予約を入れる。
+// 途中でクイズをやめた場合は、この予約をquitLyricsQuizRun()側で必ず解除する。
+function scheduleAnswerFeedbackAdvance() {
+  clearPendingAnswerFeedbackTimeout();
+  pendingAnswerFeedbackTimeoutId = setTimeout(() => {
+    pendingAnswerFeedbackTimeoutId = null;
+    advanceToNextQuestionOrFinish();
+  }, ANSWER_FEEDBACK_DELAY_MS);
+}
+
+function clearPendingAnswerFeedbackTimeout() {
+  if (pendingAnswerFeedbackTimeoutId === null) return;
+  clearTimeout(pendingAnswerFeedbackTimeoutId);
+  pendingAnswerFeedbackTimeoutId = null;
 }
 
 function advanceToNextQuestionOrFinish() {

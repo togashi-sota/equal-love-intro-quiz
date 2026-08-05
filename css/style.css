@@ -3991,6 +3991,19 @@ fieldset label:has(input:focus-visible) {
   flex: none;
 }
 
+/* 歌詞クイズ・中断確認モーダルのボタン列も、上の.quiz-quit-confirm-actionsと全く同じ理由で
+   縦2段構成にする（このモーダルを新規追加した際、この上書きを付け忘れると、
+   .primary-buttonがwidth:100%相当に広がろうとして.secondary-buttonが極端に狭く
+   潰れてしまう不具合が起きる）。 */
+.lyrics-quiz-quit-confirm-actions {
+  margin-top: 16px;
+  flex-direction: column;
+}
+
+.lyrics-quiz-quit-confirm-actions .secondary-button {
+  flex: none;
+}
+
 /* 「削除する」ボタン：primary-button相当の押しやすさを保ちつつ、
    危険な操作だと伝わるよう赤系の配色にする */
 .danger-button {
@@ -8316,10 +8329,8 @@ fieldset label:has(input:focus-visible) {
   font-variant-numeric: tabular-nums;
 }
 
-/* 歌詞ヒントの表示カード。読みやすさを優先し、中央寄せ・十分な行間・横スクロールなしにする
-   （本人の要望どおり）。歌詞は行によって長さがまちまちなため、white-space: pre-wrapで
-   js/lyricsQuizScreen.js側が渡す改行（segment.textの\n区切り）をそのまま活かしつつ、
-   長い行は自動で折り返す。 */
+/* 歌詞ヒントの表示カード。読みやすさを優先し、十分な行間・横スクロールなしにする
+   （本人の要望どおり）。 */
 .lyrics-quiz-hint-card {
   padding: 20px 16px;
   margin-bottom: 16px;
@@ -8337,12 +8348,85 @@ fieldset label:has(input:focus-visible) {
   letter-spacing: 0.04em;
 }
 
-.lyrics-quiz-hint-text {
-  margin: 0 0 16px;
-  padding: 0 4px;
-  font-size: 1.05rem;
+/* 開放済みのヒント段階へ自由に行き来できるボタン列。「次のヒントを見る」（新しい段階を
+   開く操作）とは役割が違うため、あえて控えめな見た目（枠線のみ）にして混同を避けている。
+   タップしやすいよう、最低44px相当の高さを確保する。 */
+.lyrics-quiz-hint-level-nav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+
+.lyrics-quiz-hint-level-button {
+  min-width: 64px;
+  min-height: 40px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1.5px solid var(--color-card-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 0.85rem;
   font-weight: 700;
-  line-height: 2;
+}
+
+.lyrics-quiz-hint-level-button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.lyrics-quiz-hint-level-button.is-active {
+  border-color: var(--color-primary-dark);
+  background: var(--color-primary-dark);
+  color: #ffffff;
+}
+
+/* これまでに出したヒントの行を、歌詞の登場順に積み上げて表示する一覧。
+   段階が進んでも前のヒントを消さず、常に見返せるようにする（本人の指摘への対応：
+   以前は別の区間へ切り替わると前のヒントが消え「情報が減った」ように見えていた）。
+   answer-listより低いmax-heightにし、回答候補欄が画面外に追い出されないようにしている。 */
+.lyrics-quiz-hint-list {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 32vh;
+  overflow-y: auto;
+  text-align: left;
+}
+
+.lyrics-quiz-hint-line {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-card-border);
+}
+
+.lyrics-quiz-hint-line.is-current {
+  border-color: var(--color-primary-dark);
+}
+
+.lyrics-quiz-hint-line-badge {
+  display: inline-block;
+  margin-bottom: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--color-primary-dark);
+  color: #ffffff;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
+
+.lyrics-quiz-hint-line-text {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.8;
   color: var(--color-text);
   white-space: pre-wrap;
   overflow-wrap: break-word;
@@ -8482,11 +8566,28 @@ fieldset label:has(input:focus-visible) {
   color: var(--color-danger);
 }
 
-/* スマホ幅では歌詞ヒントの文字サイズ・行間を少し詰め、スクロールしすぎないようにする。 */
+/* スマホ幅では歌詞ヒントの文字サイズ・行間・最大高さを少し詰め、スクロールしすぎないようにする。 */
 @media (max-width: 480px) {
-  .lyrics-quiz-hint-text {
-    font-size: 0.98rem;
-    line-height: 1.8;
+  .lyrics-quiz-hint-level-nav {
+    margin-bottom: 10px;
+  }
+
+  .lyrics-quiz-hint-level-button {
+    min-width: 56px;
+    min-height: 36px;
+    padding: 4px 10px;
+    font-size: 0.8rem;
+  }
+
+  .lyrics-quiz-hint-list {
+    /* ヒント段階ボタンの分だけ縦幅を取るようになったため、その分を差し引いて
+       回答候補欄が画面外へ追い出されすぎないようにする。 */
+    max-height: 22vh;
+  }
+
+  .lyrics-quiz-hint-line-text {
+    font-size: 0.95rem;
+    line-height: 1.7;
   }
 
   .lyrics-quiz-answer-list {
