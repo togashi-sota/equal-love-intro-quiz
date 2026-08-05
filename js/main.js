@@ -144,6 +144,8 @@ import { MEMBER_ACTIVITIES } from "./data/memberActivities.js";
 import { GROUP_ACTIVITIES } from "./data/groupActivities.js";
 import { DISCOGRAPHY } from "./data/discography.js";
 import { GROUP_INFO } from "./data/groupInfo.js";
+import { SISTER_GROUPS } from "./data/sisterGroups.js";
+import { UPCOMING_RELEASE } from "./data/upcomingRelease.js";
 import { HISTORY_EVENTS } from "./data/historyEvents.js";
 import { LIVE_EVENTS } from "./data/liveHistory.js";
 import { initDiscographyScreen, renderDiscographyScreen, openWorkDetail } from "./discographyScreen.js";
@@ -2388,6 +2390,8 @@ discographyLinkElement.addEventListener("click", () => {
     groupInfo: GROUP_INFO,
     groupActivities: GROUP_ACTIVITIES,
     liveEvents: LIVE_EVENTS,
+    sisterGroups: SISTER_GROUPS,
+    upcomingRelease: UPCOMING_RELEASE,
   });
   navigateWithScrollMemory("discography");
 });

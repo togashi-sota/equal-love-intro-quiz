@@ -251,7 +251,67 @@ function buildGroupLinksSection(officialLinks) {
   return wrapper;
 }
 
-function renderAboutTab(members, groupInfo, groupActivities) {
+// 姉妹グループ（＝LOVE以外の、指原莉乃プロデュースグループ）を紹介する小さなカード列。
+// プロデューサー欄のすぐ近くに置く（本人指示）。メンバー一覧・楽曲一覧などは対象外で、
+// グループ名・一言紹介・公式リンクだけを持つ最小限の紹介にとどめる。
+function buildSisterGroupCard(group) {
+  const card = document.createElement("div");
+  card.className = "sister-group-card";
+
+  const nameRow = document.createElement("p");
+  nameRow.className = "sister-group-name";
+  nameRow.textContent = group.name;
+  const reading = document.createElement("span");
+  reading.className = "sister-group-reading";
+  reading.textContent = group.reading;
+  nameRow.appendChild(reading);
+  card.appendChild(nameRow);
+
+  const description = document.createElement("p");
+  description.className = "sister-group-description";
+  description.textContent = group.description;
+  card.appendChild(description);
+
+  const linkDefs = [
+    { key: "website", label: "公式サイト" },
+    { key: "youtube", label: "公式YouTube" },
+  ];
+  const linkRow = document.createElement("div");
+  linkRow.className = "sister-group-links";
+  linkDefs.forEach(({ key, label }) => {
+    const url = group.officialLinks?.[key];
+    if (!url) return;
+    const link = document.createElement("a");
+    link.className = "official-link-button";
+    link.href = url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = label;
+    linkRow.appendChild(link);
+  });
+  card.appendChild(linkRow);
+
+  return card;
+}
+
+function buildSisterGroupsSection(sisterGroups) {
+  const wrapper = document.createElement("div");
+  if (!sisterGroups || sisterGroups.length === 0) return wrapper;
+
+  const heading = document.createElement("p");
+  heading.className = "section-heading";
+  heading.textContent = "姉妹グループ";
+  wrapper.appendChild(heading);
+
+  const list = document.createElement("div");
+  list.className = "sister-group-list";
+  sisterGroups.forEach((group) => list.appendChild(buildSisterGroupCard(group)));
+  wrapper.appendChild(list);
+
+  return wrapper;
+}
+
+function renderAboutTab(members, groupInfo, groupActivities, sisterGroups) {
   elements.aboutContent.innerHTML = "";
 
   if (groupInfo.introduction) {
@@ -269,6 +329,8 @@ function renderAboutTab(members, groupInfo, groupActivities) {
   if (groupInfo.producer) {
     elements.aboutContent.appendChild(buildProducerCard(groupInfo.producer));
   }
+
+  elements.aboutContent.appendChild(buildSisterGroupsSection(sisterGroups));
 
   const leader = members.find((member) => member.id === groupInfo.leaderMemberId);
   if (leader) {
@@ -426,7 +488,47 @@ function buildChevron() {
   return chevron;
 }
 
-function renderWorksTab(workSummaries) {
+// 発売前の作品（js/data/upcomingRelease.js）を知らせる小さなカード。
+// 通常のwork-cardとは別枠で扱う（曲データがまだ無く、タップしても作品詳細を開けないため）。
+function buildUpcomingReleaseCard(upcomingRelease) {
+  const card = document.createElement("div");
+  card.className = "upcoming-release-card";
+
+  const badge = document.createElement("span");
+  badge.className = "upcoming-release-badge";
+  badge.textContent = "発売予定";
+  card.appendChild(badge);
+
+  const label = document.createElement("p");
+  label.className = "upcoming-release-label";
+  label.textContent = buildWorkTypeLabel(`single-${upcomingRelease.singleNumber}`, upcomingRelease.workType);
+  card.appendChild(label);
+
+  const title = document.createElement("p");
+  title.className = "upcoming-release-title";
+  title.textContent = upcomingRelease.title;
+  card.appendChild(title);
+
+  const date = document.createElement("p");
+  date.className = "upcoming-release-date";
+  date.textContent = `${formatDate(upcomingRelease.releaseDate)} 発売`;
+  card.appendChild(date);
+
+  const officialUrl = upcomingRelease.officialLinks?.official;
+  if (officialUrl) {
+    const link = document.createElement("a");
+    link.className = "official-link-button";
+    link.href = officialUrl;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = "公式サイトを見る";
+    card.appendChild(link);
+  }
+
+  return card;
+}
+
+function renderWorksTab(workSummaries, upcomingRelease) {
   // 作品一覧も年表タブと同じ古い順（結成→現在）にする。同じ画面の複数タブで
   // 読む方向が逆にならないようにするための判断（本人と合意済み、詳細は14章参照）。
   const worksAscending = [...workSummaries].sort((a, b) =>
@@ -434,6 +536,9 @@ function renderWorksTab(workSummaries) {
   );
 
   elements.workList.innerHTML = "";
+  if (upcomingRelease) {
+    elements.workList.appendChild(buildUpcomingReleaseCard(upcomingRelease));
+  }
   worksAscending.forEach((work) => {
     elements.workList.appendChild(buildWorkCard(work));
   });
@@ -716,11 +821,13 @@ export function renderDiscographyScreen({
   groupInfo,
   groupActivities,
   liveEvents,
+  sisterGroups,
+  upcomingRelease,
 }) {
   const workSummaries = buildWorkSummaries(songs, discographyEntries);
-  renderAboutTab(members, groupInfo, groupActivities);
+  renderAboutTab(members, groupInfo, groupActivities, sisterGroups);
   renderHistoryTab(members, workSummaries, historyEvents);
-  renderWorksTab(workSummaries);
+  renderWorksTab(workSummaries, upcomingRelease);
   renderLiveTab(liveEvents);
 }
 
