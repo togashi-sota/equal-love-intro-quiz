@@ -33,6 +33,7 @@
     import { runLyricsSyncTests } from "./tests/lyricsSync.test.js";
     import { runMemberUtilsTests } from "./tests/memberUtils.test.js";
     import { runAudioMetadataTests } from "./tests/audioMetadata.test.js";
+    import { runRandomPlaybackEngineTests } from "./tests/randomPlaybackEngine.test.js";
     import { printSummary } from "./tests/test-utils.js";
 
     runScoreTests();
@@ -43,6 +44,7 @@
     runLyricsSyncTests();
     runMemberUtilsTests();
     runAudioMetadataTests();
+    runRandomPlaybackEngineTests();
     const { passCount, failCount } = printSummary();
 
     const summaryElement = document.getElementById("test-summary");
