@@ -247,6 +247,22 @@ export const MEMBER_ACTIVITIES = [
     lastVerifiedDate: "2026-08-06",
   },
   {
+    id: "morohashi-tsunhashigo",
+    memberId: "morohashi-sana",
+    relatedMemberIds: [],
+    title: "つんはしご",
+    type: ACTIVITY_TYPE.YOUTUBE,
+    description:
+      "＝LOVE・≠ME・≒JOYの公式YouTube「イコノイジョイチャンネル」内の人気企画。諸橋沙夏がゲストと乾杯しながらお酒を飲む。愛称「さなつん」＋「はしご酒」が由来で、2026年8月3日の30歳の誕生日を機に始まったとされる。",
+    url: "https://www.youtube.com/watch?v=uerzc04ALGw",
+    status: ACTIVITY_STATUS.ONGOING,
+    startDate: "2026-08-03",
+    endDate: null,
+    sourceType: "official",
+    sourceUrls: ["https://www.youtube.com/watch?v=uerzc04ALGw"],
+    lastVerifiedDate: "2026-08-06",
+  },
+  {
     id: "morohashi-tv",
     memberId: "morohashi-sana",
     relatedMemberIds: [],
