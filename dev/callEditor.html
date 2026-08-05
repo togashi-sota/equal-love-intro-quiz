@@ -151,6 +151,57 @@
       transform: scale(0.96);
     }
 
+    /* キーボードショートカットの常時表示（本人からの要望：忘れないように）。 */
+    .shortcut-hint {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      margin: 6px 0 0;
+      font-size: 0.68rem;
+      opacity: 0.75;
+    }
+
+    /* 長押し記録ボタン：押している間は色が変わって発光し、「記録中」だとひと目で分かるようにする
+       （本人からの要望。2026-08-05追加）。 */
+    .record-hold-button {
+      display: block;
+      width: 100%;
+      padding: 14px;
+      border-radius: 12px;
+      border: none;
+      background: var(--color-primary-dark);
+      color: #ffffff;
+      font-weight: 800;
+      font-size: 0.9rem;
+      cursor: pointer;
+      touch-action: none;
+      user-select: none;
+    }
+
+    .record-hold-button.is-recording {
+      background: var(--color-danger);
+      animation: record-hold-glow 0.9s ease-in-out infinite;
+    }
+
+    @keyframes record-hold-glow {
+      0%, 100% { box-shadow: 0 0 6px 2px rgba(255, 60, 90, 0.5); }
+      50% { box-shadow: 0 0 16px 6px rgba(255, 60, 90, 0.85); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .record-hold-button.is-recording {
+        animation: none;
+        box-shadow: 0 0 0 3px rgba(255, 60, 90, 0.85);
+      }
+    }
+
+    .pending-range-label {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.75rem;
+    }
+
     /* クイック記録ボタン：ラベル文字は本人が自由に設定し、localStorageに保存して
        曲をまたいで引き継げるようにする（毎回同じ言葉を打ち直さずに済むようにするため）。 */
     .quick-call-row {
@@ -306,6 +357,20 @@
     </div>
     <p id="editor-current-time" class="editor-status">現在の再生位置：0.00秒</p>
     <button id="add-blank-call-button" type="button">＋ 今の位置に空欄で追加</button>
+
+    <!-- 長押しで範囲を記録する機能（本人からの要望：どれだけ下へスクロールしても、
+         音楽バーと一緒についてきてほしい。2026-08-06、音楽バー内へ移動）。
+         押している間は曲を再生し続け、離した瞬間に一時停止し、そのまま一覧へ追加する
+         （本文が空でも追加できる＝「＋今の位置に空欄で追加」と同じ考え方。2026-08-06追加）。 -->
+    <button id="record-hold-button" type="button" class="record-hold-button">押している間を記録（離すと空欄でも追加）</button>
+    <p id="record-range-display" class="editor-status">開始：--　終了：--　長さ：--</p>
+    <p id="record-range-status" class="editor-status"></p>
+
+    <!-- キーボードショートカットの一覧（本人からの要望：忘れないよう画面内に常時表示。2026-08-05追加）。 -->
+    <p class="shortcut-hint">
+      <span>Q/W/E/R：再生位置 −10 / −5 / +5 / +10秒</span>
+      <span>Z/X/C/V：直前に追加した行の開始時刻 −0.5 / −0.1 / +0.1 / +0.5秒</span>
+    </p>
   </div>
 
   <div class="editor-section">
@@ -334,7 +399,9 @@
     </p>
     <div id="quick-call-rows"></div>
 
-    <p class="editor-status" style="margin-top:10px;">その場限りの固有コールは、こちらに直接入力して追加してください。</p>
+    <p class="editor-status" style="margin-top:10px;">
+      その場限りの固有コールは、こちらに直接入力してください（入力しておくと、画面上部の「押している間を記録」で追加される行にも、この本文が使われます。空欄のままでも構いません）。
+    </p>
     <div class="editor-row-inline">
       <select id="unique-call-type-select">
         <option value="unique">固有コール</option>
@@ -342,7 +409,7 @@
         <option value="member-call">メンバーコール</option>
         <option value="callback">合いの手</option>
       </select>
-      <input type="text" id="unique-call-text-input" class="quick-call-label-input" placeholder="コール本文">
+      <input type="text" id="unique-call-text-input" class="quick-call-label-input" placeholder="コール本文（空欄可）">
       <button id="unique-call-add-button" class="quick-call-add-button" type="button">今の位置に追加</button>
     </div>
   </div>

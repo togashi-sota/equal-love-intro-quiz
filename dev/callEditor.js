@@ -25,9 +25,9 @@ import {
 } from "../js/callStorage.js";
 
 const PRESET_LABELS_STORAGE_KEY = "equalLoveIntroQuizCallEditor.presetLabels";
-// 本人からの要望で5→10枠に増やした（2026-08-06）。既存に保存済みの5枠は、
+// 本人からの要望で5→10→20枠に増やした（2026-08-05）。既存に保存済みの枠は、
 // loadPresetLabels()側の「足りない分だけ空欄で継ぎ足す」処理でそのまま引き継がれる。
-const PRESET_SLOT_COUNT = 10;
+const PRESET_SLOT_COUNT = 20;
 const SEEK_SKIP_AMOUNTS_SEC = [-10, -5, 5, 10];
 
 const CALL_TYPE_OPTIONS = [
@@ -55,6 +55,9 @@ const saveStatusElement = document.getElementById("editor-save-status");
 const refreshListButtonElement = document.getElementById("refresh-list-button");
 const savedListTbodyElement = document.getElementById("saved-list-tbody");
 const manageStatusElement = document.getElementById("manage-status");
+const recordHoldButtonElement = document.getElementById("record-hold-button");
+const recordRangeDisplayElement = document.getElementById("record-range-display");
+const recordRangeStatusElement = document.getElementById("record-range-status");
 
 let currentSongId = null;
 let currentCalls = []; // { text, start, end, type }（編集中の、まだ保存していない可能性がある内容）
@@ -62,6 +65,17 @@ let referenceLines = []; // 参考表示用の歌詞行（読み込み専用）
 let currentAudioObjectUrl = null;
 let activeRefLineIndex = -1;
 let activeCallRowIndex = -1;
+
+// ===== 長押し記録（本人からの要望で2026-08-05追加、2026-08-06に自動追加方式へ変更） =====
+// 「押している間を記録」ボタンで決めたstart/endは、離した瞬間にそのまま一覧へ追加する
+// （本文が空でも追加できる＝「＋今の位置に空欄で追加」と同じ考え方。本人からの要望で、
+// いったん仮欄で確認してから追加する方式をやめ、「今の位置に空欄で追加」ボタンと同じ
+// 即時追加の手触りに揃えた）。内部値は丸めず高精度のまま保持し、round2()は一覧へ
+// 追加する瞬間だけ適用する。
+let isRecordingRange = false;
+let recordPointerId = null;
+let recordStartSec = null;
+let lastAddedCall = null; // 直前に長押し記録で追加した1件（Z/X/C/Vでの開始時刻調整対象）
 
 function findSongTitle(songId) {
   const song = SONGS.find((item) => item.id === songId);
@@ -384,6 +398,202 @@ wireSkipButton("skip-back-10-button", -10);
 wireSkipButton("skip-back-5-button", -5);
 wireSkipButton("skip-forward-5-button", 5);
 wireSkipButton("skip-forward-10-button", 10);
+
+// ===== キーボードショートカット（Q/W/E/R＝曲全体のシーク、Z/X/C/V＝仮の開始時刻の微調整） =====
+// 本人からの要望：何時間も使う前提のツールなので、マウスを使わずキーボードだけで
+// 速く・疲れにくく操作できるようにしたい（2026-08-05追加）。
+// 入力欄（本文・プリセット名等）にフォーカスがある間は、通常の文字入力を優先するため
+// ショートカットは発動させない。
+
+const GLOBAL_SEEK_KEY_AMOUNTS_SEC = { q: -10, w: -5, e: 5, r: 10 };
+const PENDING_START_NUDGE_KEY_AMOUNTS_SEC = { z: -0.5, x: -0.1, c: 0.1, v: 0.5 };
+
+// 【本人からの報告で2026-08-06修正】以前はINPUT/SELECT/TEXTAREA全部をショートカット無効の
+// 対象にしていたが、クリック中心で操作していると数値欄（開始・終了時刻）やプルダウン（種類）に
+// カーソルが残ったままになりやすく、その状態だとキーボードがずっと反応しなくなっていた。
+// 実際に文字（q/w/e/r/z/x/c/v）を打ち込める欄（テキスト入力・テキストエリア）だけを対象にし、
+// 数値欄（文字キーはそもそも入力できない）やプルダウンは対象から外す。
+function isFocusInsideFormField() {
+  const el = document.activeElement;
+  if (!el) return false;
+  if (el.isContentEditable) return true;
+  if (el.tagName === "TEXTAREA") return true;
+  if (el.tagName === "INPUT") return el.type !== "number";
+  return false;
+}
+
+function seekAudioBy(amountSec) {
+  const duration = audioElement.duration || audioElement.currentTime;
+  // 0秒未満・曲の長さ超えのどちらにもならないようclamp。play/pauseの状態には触れない
+  // （setするだけで再生中はそのまま流れ続け、停止中はそのまま止まったままになる仕様のため）。
+  audioElement.currentTime = Math.min(duration, Math.max(0, audioElement.currentTime + amountSec));
+  updatePlaybackUI();
+}
+
+document.addEventListener("keydown", (event) => {
+  if (isFocusInsideFormField()) return;
+  if (event.ctrlKey || event.altKey || event.metaKey) return; // 修飾キー同時押しは対象外（誤爆防止）
+
+  // Spaceキーで再生⇔一時停止（本人からの要望：YouTubeのような感覚で使いたい。2026-08-05追加）。
+  // event.preventDefault()により、フォーカスがボタン上にある場合の「Spaceでボタンを押す」
+  // というブラウザ標準動作や、audio要素自体の標準のSpace割り当てとの二重発火も防いでいる。
+  if (event.code === "Space") {
+    event.preventDefault();
+    if (audioElement.paused) {
+      audioElement.play().catch(() => {});
+    } else {
+      audioElement.pause();
+    }
+    return;
+  }
+
+  const key = event.key.toLowerCase();
+
+  if (key in GLOBAL_SEEK_KEY_AMOUNTS_SEC) {
+    event.preventDefault();
+    seekAudioBy(GLOBAL_SEEK_KEY_AMOUNTS_SEC[key]);
+    return;
+  }
+
+  if (key in PENDING_START_NUDGE_KEY_AMOUNTS_SEC) {
+    event.preventDefault();
+    nudgeLastAddedCallStart(PENDING_START_NUDGE_KEY_AMOUNTS_SEC[key]);
+  }
+});
+
+// ===== 長押しで範囲を記録（本人からの要望：「押している実時間＝範囲」にしたい。2026-08-05追加。
+// 2026-08-06、押しっぱなし→離した瞬間にそのまま一覧へ追加する方式へ変更） =====
+
+function renderRecordedRangeDisplay() {
+  if (!lastAddedCall) {
+    recordRangeDisplayElement.textContent = "開始：--　終了：--　長さ：--";
+    return;
+  }
+  const { start, end } = lastAddedCall;
+  recordRangeDisplayElement.textContent = `開始：${start.toFixed(2)}秒　終了：${end.toFixed(2)}秒　長さ：${(end - start).toFixed(2)}秒`;
+}
+
+// 直前に長押し記録で追加した行の開始時刻だけをキーボードで微調整する
+// （終了時刻は既存の各行のボタン・次の記録タイミングで調整する方針のため対象外）。
+function nudgeLastAddedCallStart(deltaSec) {
+  if (!lastAddedCall) return; // まだ何も追加していなければ何もしない
+  const updated = round2(Math.min(lastAddedCall.end, Math.max(0, lastAddedCall.start + deltaSec)));
+  lastAddedCall.start = updated;
+  renderCallsTable();
+  renderRecordedRangeDisplay();
+  // 「変更後の範囲をすぐ試聴できる」ようにするため、再生位置も新しい開始時刻へ合わせておく
+  // （自動再生はしない。手元の再生ボタン・スペースキー等で確認できる状態にするだけ）。
+  audioElement.currentTime = updated;
+  updatePlaybackUI();
+}
+
+function setRecordButtonVisualState(recording) {
+  recordHoldButtonElement.classList.toggle("is-recording", recording);
+  recordHoldButtonElement.textContent = recording ? "● 記録中　離すと終了" : "押している間を記録（離すと空欄でも追加）";
+}
+
+const MIN_RECORDED_RANGE_SEC = 0.05;
+
+function startRecordingRange(pointerId) {
+  console.debug("[record] startRecordingRange 呼び出し", { pointerId, isRecordingRange, currentSongId });
+  if (isRecordingRange) return; // 二重開始防止
+  if (!currentSongId) {
+    setStatus(recordRangeStatusElement, "先に曲を読み込んでください", "is-error");
+    return;
+  }
+  isRecordingRange = true;
+  recordPointerId = pointerId;
+  recordStartSec = audioElement.currentTime; // setTimeoutを挟まず、その場でcurrentTimeを直接取得
+  console.debug("[record] 記録開始", { recordStartSec });
+  setStatus(recordRangeStatusElement, "", null);
+  setRecordButtonVisualState(true);
+  audioElement.play().catch((error) => {
+    console.debug("[record] audio.play()が失敗しました（記録状態は継続します）", error);
+  });
+}
+
+// commit=trueなら「離した瞬間」として仮の開始・終了へ反映、falseなら中断として何も反映しない
+// （pointercancel・ウィンドウのblur・タブの非表示化など、正常に離せなかった場合の安全策）。
+function stopRecordingRange({ commit, reason }) {
+  console.debug("[record] stopRecordingRange 呼び出し", { commit, reason, isRecordingRange });
+  if (!isRecordingRange) return;
+  const endSec = audioElement.currentTime; // こちらもその場で直接取得（追加の遅延を入れない）
+  isRecordingRange = false;
+  recordPointerId = null;
+  // 【本人からの要望で2026-08-06変更】離した瞬間に一時停止していたが、続けて次のコールを
+  // 記録するときに毎回また再生し直す手間が面倒とのことで、離しても曲は止めず流れ続けるようにした。
+  setRecordButtonVisualState(false);
+
+  if (!commit) {
+    console.debug("[record] 中断として扱いました（一覧へは追加していません）", { reason, recordStartSec, endSec });
+    setStatus(recordRangeStatusElement, "記録を中断しました（追加していません）", null);
+    return;
+  }
+
+  const start = recordStartSec;
+  const end = Math.max(endSec, recordStartSec); // 終了は必ず開始以上にする
+  // 本文が空でも追加する（本人からの要望：「＋今の位置に空欄で追加」と同じ手触りにしたい。
+  // 本文は「4. 記録済みのコール一覧」の欄にあとから直接入力できる）。
+  const text = uniqueCallTextInputElement.value;
+  const newCall = { text, start: round2(start), end: round2(end), type: uniqueCallTypeSelectElement.value };
+  currentCalls.push(newCall);
+  currentCalls.sort((a, b) => a.start - b.start);
+  renderCallsTable();
+  uniqueCallTextInputElement.value = ""; // 既存の「今の位置に追加」ボタンと同じく、追加後は本文欄を空に戻す
+
+  lastAddedCall = newCall;
+  renderRecordedRangeDisplay();
+  console.debug("[record] 記録終了・一覧へ追加しました", newCall);
+
+  if (end - start < MIN_RECORDED_RANGE_SEC) {
+    setStatus(recordRangeStatusElement, "非常に短い区間で追加しました。内容を確認してください", "is-error");
+  } else {
+    setStatus(recordRangeStatusElement, "一覧へ追加しました", "is-success");
+  }
+}
+
+recordHoldButtonElement.addEventListener("pointerdown", (event) => {
+  console.debug("[record] pointerdown発生", { pointerId: event.pointerId, pointerType: event.pointerType, button: event.button });
+  if (event.pointerType === "mouse" && event.button !== 0) return; // 左クリック以外は対象外
+  // 【本人からの実機報告を受けて2026-08-05修正】以前はここでevent.preventDefault()を呼んでいたが、
+  // 実機で長押しがpointerupまで届かない不具合が報告されたため、原因切り分けのため一旦外した
+  // （preventDefault自体がpointerupを妨げるとは考えにくいが、安全側に倒す）。
+  recordHoldButtonElement.setPointerCapture(event.pointerId);
+  startRecordingRange(event.pointerId);
+});
+
+recordHoldButtonElement.addEventListener("pointerup", (event) => {
+  console.debug("[record] pointerup発生", { pointerId: event.pointerId, recordPointerId });
+  if (event.pointerId !== recordPointerId) return;
+  stopRecordingRange({ commit: true, reason: "pointerup" });
+});
+
+recordHoldButtonElement.addEventListener("pointercancel", (event) => {
+  console.debug("[record] pointercancel発生（ブラウザが長押しを中断とみなしました）", { pointerId: event.pointerId, recordPointerId });
+  if (event.pointerId !== recordPointerId) return;
+  stopRecordingRange({ commit: false, reason: "pointercancel" });
+});
+
+// ボタン外へ出ても記録は継続する仕様（setPointerCaptureで既に保証されている）が、
+// ウィンドウ自体が非アクティブになる／タブが隠れるケースは安全に停止させる。
+window.addEventListener("blur", () => {
+  if (isRecordingRange) stopRecordingRange({ commit: false, reason: "window blur" });
+});
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden && isRecordingRange) stopRecordingRange({ commit: false, reason: "visibilitychange" });
+});
+
+// 長押し中に右クリックメニュー等が誤って割り込むのを防ぐ（本人からの報告を受けた念のための対策）。
+recordHoldButtonElement.addEventListener("contextmenu", (event) => event.preventDefault());
+
+// setPointerCaptureがブラウザ側の都合で暗黙的に外れた場合の診断用（本来はpointerup/pointercancelと
+// セットで発生するはずだが、単独で発生した場合は原因調査の手がかりになる）。
+recordHoldButtonElement.addEventListener("lostpointercapture", (event) => {
+  console.debug("[record] lostpointercapture発生", { pointerId: event.pointerId, isRecordingRange });
+  if (isRecordingRange && event.pointerId === recordPointerId) {
+    stopRecordingRange({ commit: false, reason: "lostpointercapture" });
+  }
+});
 
 // ===== 1. 曲を選ぶ =====
 
