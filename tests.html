@@ -36,6 +36,7 @@
     import { runRandomPlaybackEngineTests } from "./tests/randomPlaybackEngine.test.js";
     import { runLyricsSegmentEngineTests } from "./tests/lyricsSegmentEngine.test.js";
     import { runLyricsQuizEngineTests } from "./tests/lyricsQuizEngine.test.js";
+    import { runLyricsQuizQuestionBuilderTests } from "./tests/lyricsQuizQuestionBuilder.test.js";
     import { printSummary } from "./tests/test-utils.js";
 
     runScoreTests();
@@ -49,6 +50,7 @@
     runRandomPlaybackEngineTests();
     runLyricsSegmentEngineTests();
     runLyricsQuizEngineTests();
+    runLyricsQuizQuestionBuilderTests();
     const { passCount, failCount } = printSummary();
 
     const summaryElement = document.getElementById("test-summary");
