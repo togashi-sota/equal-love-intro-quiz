@@ -39,6 +39,18 @@
     import { runLyricsQuizQuestionBuilderTests } from "./tests/lyricsQuizQuestionBuilder.test.js";
     import { runLyricsQuizRunStateTests } from "./tests/lyricsQuizRunState.test.js";
     import { runLyricsQuizScoreTests } from "./tests/lyricsQuizScore.test.js";
+    import { runBattleRulesSharedDefaultsTests } from "./tests/battleRules/sharedDefaults.test.js";
+    import { runClassicRuleTests } from "./tests/battleRules/classicRule.test.js";
+    import { runStealRuleTests } from "./tests/battleRules/stealRule.test.js";
+    import { runComboRuleTests } from "./tests/battleRules/comboRule.test.js";
+    import { runBattleRulesIndexTests } from "./tests/battleRules/index.test.js";
+    import { runLyricsQuizBattleModeTests } from "./tests/battleModes/lyricsQuizBattleMode.test.js";
+    import { runLyricsQuizMatchProgressTests } from "./tests/lyricsQuizMatchProgress.test.js";
+    import { runLyricsQuizBattleFirebaseTests } from "./tests/lyricsQuizBattleFirebase.test.js";
+    import { runLyricsQuizBattleSecurityRulesTests } from "./tests/lyricsQuizBattleSecurityRules.test.js";
+    import { runLyricsQuizBattleUiTests } from "./tests/lyricsQuizBattleUi.test.js";
+    import { runLyricsQuizBattleTimingTests } from "./tests/lyricsQuizBattleTiming.test.js";
+    import { runOnlineBattleStartSettingsTests } from "./tests/onlineBattleStartSettings.test.js";
     import { printSummary } from "./tests/test-utils.js";
 
     runScoreTests();
@@ -55,6 +67,18 @@
     runLyricsQuizQuestionBuilderTests();
     runLyricsQuizRunStateTests();
     runLyricsQuizScoreTests();
+    runBattleRulesSharedDefaultsTests();
+    runClassicRuleTests();
+    runStealRuleTests();
+    runComboRuleTests();
+    runBattleRulesIndexTests();
+    runLyricsQuizBattleModeTests();
+    runLyricsQuizMatchProgressTests();
+    runLyricsQuizBattleFirebaseTests();
+    runLyricsQuizBattleSecurityRulesTests();
+    runLyricsQuizBattleUiTests();
+    runLyricsQuizBattleTimingTests();
+    runOnlineBattleStartSettingsTests();
     const { passCount, failCount } = printSummary();
 
     const summaryElement = document.getElementById("test-summary");

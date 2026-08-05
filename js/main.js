@@ -116,7 +116,9 @@ import {
   finishOnlineBattleMatch,
   reportOnlineBattleProgress,
   quitOnlineBattleDuringQuiz,
+  leaveOnlineBattleRoomView,
 } from "./onlineBattleScreen.js";
+import { initOnlineLyricsQuizBattleScreens } from "./onlineLyricsQuizBattleScreen.js";
 import { calculateBattleResult, getPlaybackType } from "./battleModes/index.js";
 import { initLocalBattleResultScreens, startBattleResultCollection } from "./localBattleResultScreen.js";
 import {
@@ -548,6 +550,31 @@ const onlineBattleResultRematchButtonElement = document.getElementById("online-b
 const onlineBattleResultRematchConfirmModalElement = document.getElementById("online-battle-result-rematch-confirm-modal");
 const onlineBattleResultRematchCancelButtonElement = document.getElementById("online-battle-result-rematch-cancel-button");
 const onlineBattleResultRematchConfirmButtonElement = document.getElementById("online-battle-result-rematch-confirm-button");
+
+// オンライン対戦：歌詞クイズ専用（Phase6新設）。
+const onlineLyricsBattleLobbySettingsHostElement = document.getElementById("online-battle-lobby-settings-host-lyrics");
+const onlineLyricsBattleLobbySettingsParticipantElement = document.getElementById("online-battle-lobby-settings-participant-lyrics");
+const onlineLyricsBattleRuleOptionsElement = document.getElementById("online-lyrics-battle-rule-options");
+const onlineLyricsBattlePoolSizeOptionsElement = document.getElementById("online-lyrics-battle-pool-size-options");
+const onlineLyricsBattleSettingsFormElement = document.getElementById("online-lyrics-battle-settings-form");
+const onlineLyricsBattleSettingsSummaryElement = document.getElementById("online-lyrics-battle-settings-summary");
+const onlineLyricsBattleReadinessStatusElement = document.getElementById("online-lyrics-battle-readiness-status");
+const onlineLyricsBattleOwnMissingElement = document.getElementById("online-lyrics-battle-own-missing");
+const onlineLyricsBattleQuitButtonElement = document.getElementById("online-lyrics-battle-quit-button");
+const onlineLyricsBattleProgressElement = document.getElementById("online-lyrics-battle-progress");
+const onlineLyricsBattleHudElement = document.getElementById("online-lyrics-battle-hud");
+const onlineLyricsBattleHintLevelElement = document.getElementById("online-lyrics-battle-hint-level");
+const onlineLyricsBattleHintLinesElement = document.getElementById("online-lyrics-battle-hint-lines");
+const onlineLyricsBattleAnswerChoicesElement = document.getElementById("online-lyrics-battle-answer-choices");
+const onlineLyricsBattleStatusMessageElement = document.getElementById("online-lyrics-battle-status-message");
+const onlineLyricsBattleErrorElement = document.getElementById("online-lyrics-battle-error");
+const onlineLyricsBattleQuitConfirmModalElement = document.getElementById("online-lyrics-battle-quit-confirm-modal");
+const onlineLyricsBattleQuitCancelButtonElement = document.getElementById("online-lyrics-battle-quit-cancel-button");
+const onlineLyricsBattleQuitConfirmButtonElement = document.getElementById("online-lyrics-battle-quit-confirm-button");
+const onlineLyricsBattleResultHomeLinkElement = document.getElementById("online-lyrics-battle-result-home-link");
+const onlineLyricsBattleResultRuleNoteElement = document.getElementById("online-lyrics-battle-result-rule-note");
+const onlineLyricsBattleResultTableElement = document.getElementById("online-lyrics-battle-result-table");
+const onlineLyricsBattleResultRematchButtonElement = document.getElementById("online-lyrics-battle-result-rematch-button");
 
 const customQuizBackButtonElement = document.getElementById("custom-quiz-back-button");
 const customQuizPresetsBackButtonElement = document.getElementById("custom-quiz-presets-back-button");
@@ -2859,6 +2886,42 @@ initOnlineBattleScreens({
   onStartOnlineBattleQuiz: (questions, room) => {
     beginOnlineBattlePlay(questions, room);
   },
+});
+
+// オンライン対戦「歌詞クイズ」専用画面（Phase6）。navigateToは既存のオンライン対戦と
+// 同じnavigateBattleScreenを再利用し、「対戦をやめる」「ホームへ戻る」の後片付けだけは
+// js/onlineBattleScreen.js側の既存処理をコールバックとして渡す（依存が一方向になるよう、
+// js/onlineLyricsQuizBattleScreen.js自身はjs/onlineBattleScreen.jsを一切importしない設計）。
+initOnlineLyricsQuizBattleScreens({
+  navigateTo: navigateBattleScreen,
+  lobbySettingsHostLyrics: onlineLyricsBattleLobbySettingsHostElement,
+  lobbySettingsParticipantLyrics: onlineLyricsBattleLobbySettingsParticipantElement,
+  lyricsRuleOptionsContainer: onlineLyricsBattleRuleOptionsElement,
+  lyricsPoolSizeOptionsContainer: onlineLyricsBattlePoolSizeOptionsElement,
+  lyricsSettingsFormContainer: onlineLyricsBattleSettingsFormElement,
+  lyricsSettingsSummaryContainer: onlineLyricsBattleSettingsSummaryElement,
+  lyricsReadinessStatusContainer: onlineLyricsBattleReadinessStatusElement,
+  lyricsOwnMissingContainer: onlineLyricsBattleOwnMissingElement,
+  battleQuitButton: onlineLyricsBattleQuitButtonElement,
+  battleProgress: onlineLyricsBattleProgressElement,
+  battleHudContainer: onlineLyricsBattleHudElement,
+  battleHintLevel: onlineLyricsBattleHintLevelElement,
+  battleHintLinesContainer: onlineLyricsBattleHintLinesElement,
+  battleAnswerChoicesContainer: onlineLyricsBattleAnswerChoicesElement,
+  battleStatusMessage: onlineLyricsBattleStatusMessageElement,
+  battleError: onlineLyricsBattleErrorElement,
+  quitConfirmModal: onlineLyricsBattleQuitConfirmModalElement,
+  quitCancelButton: onlineLyricsBattleQuitCancelButtonElement,
+  quitConfirmButton: onlineLyricsBattleQuitConfirmButtonElement,
+  resultHomeLink: onlineLyricsBattleResultHomeLinkElement,
+  resultRuleNote: onlineLyricsBattleResultRuleNoteElement,
+  resultTableContainer: onlineLyricsBattleResultTableElement,
+  resultRematchButton: onlineLyricsBattleResultRematchButtonElement,
+  // 既存のオンライン対戦結果画面が持つ「もう一度対戦する」確認モーダルをそのまま再利用する
+  // （ルーム再戦処理自体はgameModeを問わない共通ロジックのため）。
+  resultRematchConfirmModal: onlineBattleResultRematchConfirmModalElement,
+  onQuitDuringBattle: () => quitOnlineBattleDuringQuiz(),
+  onLeaveResultToHome: () => leaveOnlineBattleRoomView(),
 });
 
 // 対戦コードの設定から、実際にクイズを組み立てて開始する。既存のbeginTimeAttackQuiz()と

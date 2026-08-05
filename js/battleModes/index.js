@@ -18,10 +18,12 @@
 
 import * as timeAttackBattleMode from "./timeAttackBattleMode.js";
 import * as randomPlaybackBattleMode from "./randomPlaybackBattleMode.js";
+import * as lyricsQuizBattleMode from "./lyricsQuizBattleMode.js";
 
 const REGISTRY = {
   [timeAttackBattleMode.gameMode]: timeAttackBattleMode,
   [randomPlaybackBattleMode.gameMode]: randomPlaybackBattleMode,
+  [lyricsQuizBattleMode.gameMode]: lyricsQuizBattleMode,
 };
 
 // gameMode名からアダプターを取り出す。未登録のgameMode（対応していないモード・

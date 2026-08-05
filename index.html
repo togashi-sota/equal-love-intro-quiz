@@ -1951,6 +1951,14 @@
             <span class="game-mode-option-description">曲の途中から5秒間流れる音を聴いて当てます</span>
           </span>
         </label>
+        <!-- 2026-08-08新設（Phase6：歌詞クイズのオンライン対戦統合）。 -->
+        <label class="game-mode-option">
+          <input type="radio" name="online-battle-game-mode" value="lyricsQuiz">
+          <span class="game-mode-option-content">
+            <span class="game-mode-option-name">歌詞クイズ対戦</span>
+            <span class="game-mode-option-description">歌詞のヒントから曲を当てます（クラシック／奪い取り／コンボから選べます）</span>
+          </span>
+        </label>
       </fieldset>
 
       <fieldset>
@@ -2063,6 +2071,39 @@
           <div class="battle-config-summary" id="online-battle-lobby-settings-summary"></div>
         </div>
 
+        <!-- 歌詞クイズ専用：ホスト用設定（対戦ルール・回答方式・ヒント表示時間・出題数）。
+             js/lyricsQuizBattleUi.js（Phase5）の自動生成UIを使い、ルール名をこのHTML側は
+             一切知らない（2026-08-08新設・Phase6）。 -->
+        <div id="online-battle-lobby-settings-host-lyrics" hidden>
+          <p class="battle-field-label">対戦設定（変更すると全員のREADYが解除されます）</p>
+          <div id="online-lyrics-battle-rule-options"></div>
+          <div id="online-lyrics-battle-pool-size-options"></div>
+          <div id="online-lyrics-battle-settings-form"></div>
+          <fieldset>
+            <legend>出題数</legend>
+            <div class="option-row">
+              <label><input type="radio" name="online-lyrics-battle-question-count" value="5"> 5問</label>
+              <label><input type="radio" name="online-lyrics-battle-question-count" value="10"> 10問</label>
+              <label><input type="radio" name="online-lyrics-battle-question-count" value="20"> 20問</label>
+            </div>
+            <div class="option-row">
+              <label><input type="radio" name="online-lyrics-battle-question-count" value="50"> 50問</label>
+              <label><input type="radio" name="online-lyrics-battle-question-count" value="all"> 全曲</label>
+            </div>
+          </fieldset>
+          <p class="battle-field-hint">対象曲：歌詞データがある曲すべて（曲を絞り込むことはまだできません）</p>
+        </div>
+
+        <!-- 歌詞クイズ専用：参加者用（読み取り専用チップ）。 -->
+        <div id="online-battle-lobby-settings-participant-lyrics" hidden>
+          <p class="battle-field-label">対戦設定（ホストが選択中）</p>
+          <div class="battle-config-summary" id="online-lyrics-battle-settings-summary"></div>
+        </div>
+
+        <!-- 歌詞クイズ専用：歌詞データの充足状況（ホストは件数だけ、本人は不足曲名まで）。 -->
+        <div id="online-lyrics-battle-readiness-status"></div>
+        <div id="online-lyrics-battle-own-missing"></div>
+
         <p class="online-battle-ready-changed-notice" id="online-battle-lobby-settings-changed-notice" hidden>
           設定が変更されました。もう一度準備完了してください。
         </p>
@@ -2166,6 +2207,63 @@
         </div>
       </div>
     </div>
+
+    <!-- オンライン対戦：歌詞クイズ専用の対戦中画面（Phase6新設）。
+         既存の#quiz-screen（音源再生・選択式クイズ用）は歌詞クイズの「全員同じ問題を同時に見て、
+         ヒントが時間経過で増える／奪い取りルールでは早押しになる」という進行とは前提が異なる
+         （音源再生を伴わない・進行がホスト主導で全員同期する）ため、専用の画面として分離した。
+         js/onlineLyricsQuizBattleScreen.jsが内容を組み立てる。 -->
+    <section id="online-lyrics-battle-question-screen" class="screen">
+      <button id="online-lyrics-battle-quit-button" class="quiz-back-link" type="button">✕ 対戦をやめる</button>
+      <div class="title-block"><h2>歌詞クイズ対戦</h2></div>
+      <p class="online-lyrics-battle-progress" id="online-lyrics-battle-progress"></p>
+
+      <div id="online-lyrics-battle-hud"></div>
+
+      <div class="online-lyrics-battle-hint-box">
+        <p class="online-lyrics-battle-hint-level" id="online-lyrics-battle-hint-level"></p>
+        <div id="online-lyrics-battle-hint-lines" class="online-lyrics-battle-hint-lines"></div>
+      </div>
+
+      <div id="online-lyrics-battle-answer-choices" class="online-lyrics-battle-answer-grid"></div>
+
+      <p id="online-lyrics-battle-status-message" class="online-lyrics-battle-status-message" hidden></p>
+      <p id="online-lyrics-battle-error" class="error-message" hidden></p>
+    </section>
+
+    <!-- 「対戦をやめる」用の確認モーダル。既存の#quiz-screen用モーダルは
+         #quiz-screenの「戻る」ボタンに紐づく専用の仕組みのため、歌詞クイズ対戦画面用に
+         同じ考え方・同じ見た目で独立したモーダルを用意する。
+         【文言について・2026-08-11】歌詞クイズ対戦では、途中退出しても自分は
+         ルームから抜けるだけで対戦自体は続き、退出後の残り問題は未回答として
+         結果表にそのまま反映される（本人の実機確認で判明。「結果は送信されない」という
+         文言は実際の挙動と食い違っていた）。このモーダルは歌詞クイズ対戦専用で他モードとは
+         共有していないため、ここだけ実際の挙動に合わせて文言を修正する
+         （他モードの「結果は送信されません」は変更しない）。 -->
+    <div id="online-lyrics-battle-quit-confirm-modal" class="modal-overlay" hidden>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="online-lyrics-battle-quit-confirm-title">
+        <h2 id="online-lyrics-battle-quit-confirm-title">対戦を中断してルームを退出しますか？</h2>
+        <p class="modal-lead">退出後も対戦は続き、あなたの残りの問題は未回答として結果に反映されます。他の参加者はそのまま対戦を続けられます。</p>
+        <div class="button-row">
+          <button id="online-lyrics-battle-quit-cancel-button" class="secondary-button" type="button">キャンセル</button>
+          <button id="online-lyrics-battle-quit-confirm-button" class="danger-button" type="button">対戦をやめる</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- オンライン対戦：歌詞クイズ専用の結果画面（Phase6新設）。既存の#online-battle-result-screenは
+         正解数・ミス数・LOVE連チャンの到達数等、タイムアタック系のresult形状を前提にした固定の
+         描画（js/onlineBattleScreen.jsのgoToResultScreen()）のため流用せず、
+         js/lyricsQuizBattleUi.js（Phase5）のルール別列自動生成をそのまま使う専用画面にした。
+         「もう一度対戦する」は、既存の#online-battle-result-rematch-confirm-modalをそのまま
+         再利用する（ルーム・設定の再戦処理自体はgameModeを問わない共通ロジックのため）。 -->
+    <section id="online-lyrics-battle-result-screen" class="screen">
+      <button id="online-lyrics-battle-result-home-link" class="quiz-back-link" type="button">⌂ ホームへ戻る</button>
+      <div class="title-block"><h2>対戦結果</h2></div>
+      <p style="text-align:center;font-size:0.75rem;opacity:0.65;" id="online-lyrics-battle-result-rule-note"></p>
+      <div id="online-lyrics-battle-result-table" style="overflow-x:auto;"></div>
+      <button id="online-lyrics-battle-result-rematch-button" class="secondary-button" type="button" hidden>もう一度対戦する</button>
+    </section>
 
     <!-- オリジナル問題作成モードのプリセット一覧画面：保存済みのセット（名前・メモ・曲数・
          ダミー選択肢モード）を並べ、タップすると選曲画面がその内容で開く。

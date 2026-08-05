@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>【開発用】歌詞クイズ対戦 UI自動生成 モックアップ</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap" rel="stylesheet">
+
+  <!-- 色・フォント・ボタン等の共通トークンを再利用するため、本編と同じスタイルシートを読み込む。
+       このファイルは実アプリ（index.html・js/main.js等）とは完全に独立しており、どこからも
+       読み込まれない・実アプリの動作には一切影響しない、Phase5確認専用のモックアップ。
+       Firebaseへは一切接続せず、すべて合成データ（ダミーの曲ID・プレイヤー名）で動作する。 -->
+  <link rel="stylesheet" href="../css/style.css">
+
+  <style>
+    body {
+      display: block;
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 0;
+      font-family: "M PLUS Rounded 1c", sans-serif;
+      color: var(--color-text);
+      overflow-x: hidden;
+      min-height: 100vh;
+    }
+
+    /* ===== モックアップ操作用のナビゲーション（実際のアプリには表示されません） ===== */
+    #mockup-nav {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      padding: 10px;
+      background: #2a1f26;
+      border-bottom: 2px dashed #ffd93d;
+    }
+    #mockup-nav-label {
+      width: 100%;
+      color: #ffd93d;
+      font-size: 0.7rem;
+      font-weight: 800;
+      margin-bottom: 2px;
+    }
+    #mockup-nav button {
+      flex: 1;
+      min-width: 70px;
+      padding: 6px 4px;
+      border-radius: 8px;
+      border: none;
+      background: rgba(255, 255, 255, 0.15);
+      color: #fff;
+      font-family: inherit;
+      font-size: 0.72rem;
+      cursor: pointer;
+    }
+    #mockup-nav button.is-active {
+      background: #ffd93d;
+      color: #2a1f26;
+      font-weight: 800;
+    }
+    #mockup-view-toggle {
+      display: flex;
+      gap: 8px;
+      padding: 8px 10px;
+      background: #3a2233;
+      color: #fff;
+      font-size: 0.75rem;
+      align-items: center;
+    }
+    #mockup-view-toggle button {
+      padding: 4px 10px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      background: transparent;
+      color: #fff;
+      font-family: inherit;
+      cursor: pointer;
+    }
+    #mockup-view-toggle button.is-active {
+      background: #fff;
+      color: #3a2233;
+      font-weight: 800;
+    }
+
+    /* ===== 画面セクション ===== */
+    .mockup-screen { display: none; padding: 16px; }
+    .mockup-screen.is-active { display: block; }
+    .mockup-screen h2 { font-size: 1rem; margin: 0 0 12px; }
+
+    /* ===== ルール選択 ===== */
+    .lyrics-battle-rule-options { border: none; padding: 0; margin: 0 0 16px; }
+    .lyrics-battle-rule-options legend { font-weight: 800; margin-bottom: 6px; padding: 0; }
+    .lyrics-battle-rule-option {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 10px;
+      border-radius: 10px;
+      background: rgba(0, 0, 0, 0.04);
+      margin-bottom: 6px;
+      cursor: pointer;
+    }
+    .lyrics-battle-rule-option input { margin-top: 3px; }
+    .lyrics-battle-rule-option-description { display: block; font-size: 0.78rem; opacity: 0.75; }
+
+    /* ===== 回答方式 ===== */
+    .lyrics-battle-pool-size-options { border: none; padding: 0; margin: 0 0 16px; display: flex; flex-wrap: wrap; gap: 6px; }
+    .lyrics-battle-pool-size-options legend { width: 100%; font-weight: 800; margin-bottom: 6px; padding: 0; }
+    .lyrics-battle-pool-size-option {
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.06);
+      font-size: 0.8rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+    }
+
+    /* ===== 設定フォーム ===== */
+    .lyrics-battle-settings-field { margin-bottom: 12px; }
+    .lyrics-battle-settings-field label { display: block; font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; }
+    .lyrics-battle-settings-field select { width: 100%; padding: 8px; border-radius: 8px; border: 1px solid rgba(0, 0, 0, 0.2); }
+
+    /* ===== HUD ===== */
+    .lyrics-battle-hud {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      margin: 0;
+    }
+    .lyrics-battle-hud dt { font-size: 0.72rem; opacity: 0.7; grid-row: 1; }
+    .lyrics-battle-hud dd {
+      margin: 0;
+      font-size: 1.1rem;
+      font-weight: 800;
+      background: rgba(0, 0, 0, 0.05);
+      border-radius: 10px;
+      padding: 8px;
+    }
+
+    /* ===== 結果表 ===== */
+    .lyrics-battle-result-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    .lyrics-battle-result-table th, .lyrics-battle-result-table td {
+      padding: 8px 6px;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+      text-align: left;
+    }
+    .lyrics-battle-result-table tr.is-you { background: rgba(255, 105, 180, 0.12); }
+    .lyrics-battle-result-table tr.is-dnf { opacity: 0.5; }
+    .lyrics-battle-oshi-dot {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-right: 4px;
+    }
+    .lyrics-battle-host-badge, .lyrics-battle-you-badge {
+      display: inline-block;
+      font-size: 0.65rem;
+      padding: 1px 6px;
+      border-radius: 999px;
+      margin-left: 4px;
+      background: rgba(0, 0, 0, 0.1);
+    }
+
+    /* ===== 歌詞データ不足表示 ===== */
+    .lyrics-battle-readiness-status { padding: 10px; border-radius: 10px; font-size: 0.85rem; }
+    .lyrics-battle-readiness-status.is-ready { background: rgba(80, 200, 120, 0.15); }
+    .lyrics-battle-readiness-status.is-not-ready { background: rgba(255, 100, 100, 0.15); }
+    .lyrics-battle-readiness-status ul { margin: 6px 0 0; padding-left: 18px; }
+    .lyrics-battle-own-missing { margin-top: 10px; padding: 10px; border-radius: 10px; background: rgba(255, 200, 60, 0.15); font-size: 0.82rem; }
+
+    /* アクセシビリティ：フォーカス時に明確な輪郭を出す（アプリ全体の既存方針を踏襲） */
+    input:focus-visible, select:focus-visible, button:focus-visible {
+      outline: 3px solid #ffd93d;
+      outline-offset: 2px;
+    }
+  </style>
+</head>
+<body>
+  <div id="mockup-nav">
+    <span id="mockup-nav-label">Phase5確認用（実アプリには存在しません・Firebase未接続）</span>
+    <button type="button" data-screen="setup" class="is-active">① 設定画面</button>
+    <button type="button" data-screen="coverage">② 歌詞不足</button>
+    <button type="button" data-screen="battle">③ 対戦中HUD</button>
+    <button type="button" data-screen="result">④ 結果画面</button>
+  </div>
+  <div id="mockup-view-toggle">
+    <span>視点：</span>
+    <button type="button" data-view="host" class="is-active">ホスト</button>
+    <button type="button" data-view="participant">参加者</button>
+  </div>
+
+  <main>
+    <section id="screen-setup" class="mockup-screen is-active">
+      <h2>① ルーム設定画面</h2>
+      <div id="rule-options"></div>
+      <div id="pool-size-options"></div>
+      <div id="settings-form"></div>
+    </section>
+
+    <section id="screen-coverage" class="mockup-screen">
+      <h2>② 歌詞データ不足の表示</h2>
+      <p style="font-size:0.8rem; opacity:0.75;">ホスト視点では件数だけ、参加者本人の端末では不足曲名まで表示します（他人には曲名を一切見せません）。</p>
+      <div id="readiness-status"></div>
+      <div id="own-missing"></div>
+    </section>
+
+    <section id="screen-battle" class="mockup-screen">
+      <h2>③ 対戦中HUD</h2>
+      <div id="hud"></div>
+    </section>
+
+    <section id="screen-result" class="mockup-screen">
+      <h2>④ 結果画面</h2>
+      <div id="result-table" style="overflow-x:auto;"></div>
+    </section>
+  </main>
+
+  <script type="module" src="./lyricsQuizBattleUiMockup.js"></script>
+</body>
+</html>

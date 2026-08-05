@@ -7,7 +7,7 @@
 //
 // 新しいバージョンを配信したいときは、CACHE_VERSIONの値を必ず上げること。
 // 上げないと、ブラウザが「内容が変わっていない」と判断し、更新が反映されない。
-const CACHE_VERSION = "v114";
+const CACHE_VERSION = "v115";
 const CACHE_NAME = `equal-love-intro-quiz-${CACHE_VERSION}`;
 
 // キャッシュするアプリ本体のファイル一覧。
@@ -75,9 +75,22 @@ const APP_SHELL_FILES = [
   "./js/firebaseClient.js",
   "./js/onlineBattle.js",
   "./js/onlineBattleScreen.js",
+  "./js/onlineBattleStartSettings.js",
+  "./js/onlineLyricsQuizBattleScreen.js",
+  "./js/lyricsQuizMatchProgress.js",
+  "./js/lyricsQuizBattleFirebase.js",
+  "./js/lyricsQuizBattleFirebasePayloads.js",
+  "./js/lyricsQuizBattleTiming.js",
+  "./js/lyricsQuizBattleUi.js",
   "./js/battleModes/index.js",
   "./js/battleModes/timeAttackBattleMode.js",
   "./js/battleModes/randomPlaybackBattleMode.js",
+  "./js/battleModes/lyricsQuizBattleMode.js",
+  "./js/battleRules/index.js",
+  "./js/battleRules/sharedDefaults.js",
+  "./js/battleRules/classicRule.js",
+  "./js/battleRules/stealRule.js",
+  "./js/battleRules/comboRule.js",
   "./js/customQuizScreen.js",
   "./js/customQuizPresets.js",
   "./js/customQuizPresetsScreen.js",

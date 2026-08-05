@@ -1667,6 +1667,13 @@ fieldset label:has(input:focus-visible) {
   text-align: center;
 }
 
+/* 送信失敗ではなく「今は押せない理由」の案内用（赤いエラーに見せない）。 */
+.error-message.is-notice {
+  color: var(--color-text);
+  background-color: rgba(150, 150, 150, 0.12);
+  border: 1px solid rgba(150, 150, 150, 0.35);
+}
+
 .feedback-message {
   text-align: center;
   font-size: 1.2rem;
@@ -8592,6 +8599,266 @@ fieldset label:has(input:focus-visible) {
 
   .lyrics-quiz-answer-list {
     max-height: 38vh;
+  }
+}
+
+/* ===== 歌詞クイズ オンライン対戦（Phase6） =====
+   js/lyricsQuizBattleUi.js（Phase5）が生成するDOM構造に対応するスタイル。
+   dev/lyricsQuizBattleUiMockup.htmlのインラインスタイルで確認済みの見た目を、
+   本番のCSS変数（--color-*）を使う形に置き換えて移植した。 */
+
+.lyrics-battle-rule-options {
+  border: none;
+  padding: 0;
+  margin: 0 0 16px;
+}
+
+.lyrics-battle-rule-options legend {
+  font-weight: 800;
+  margin-bottom: 6px;
+  padding: 0;
+}
+
+.lyrics-battle-rule-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 10px;
+  background: var(--color-card-bg-soft, rgba(0, 0, 0, 0.04));
+  margin-bottom: 6px;
+  cursor: pointer;
+}
+
+.lyrics-battle-rule-option input {
+  margin-top: 3px;
+}
+
+.lyrics-battle-rule-option-description {
+  display: block;
+  font-size: 0.78rem;
+  opacity: 0.75;
+}
+
+.lyrics-battle-pool-size-options {
+  border: none;
+  padding: 0;
+  margin: 0 0 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.lyrics-battle-pool-size-options legend {
+  width: 100%;
+  font-weight: 800;
+  margin-bottom: 6px;
+  padding: 0;
+}
+
+.lyrics-battle-pool-size-option {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--color-card-bg-soft, rgba(0, 0, 0, 0.06));
+  font-size: 0.8rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.lyrics-battle-settings-field {
+  margin-bottom: 12px;
+}
+
+.lyrics-battle-settings-field label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.lyrics-battle-settings-field select {
+  width: 100%;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid var(--color-card-border);
+}
+
+.lyrics-battle-hud {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin: 0 0 16px;
+}
+
+.lyrics-battle-hud dt {
+  font-size: 0.72rem;
+  opacity: 0.7;
+  grid-row: 1;
+}
+
+.lyrics-battle-hud dd {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 800;
+  background: var(--color-card-bg-soft, rgba(0, 0, 0, 0.05));
+  border-radius: 10px;
+  padding: 8px;
+}
+
+.lyrics-battle-result-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.lyrics-battle-result-table th,
+.lyrics-battle-result-table td {
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--color-card-border);
+  text-align: left;
+}
+
+.lyrics-battle-result-table tr.is-you {
+  background: rgba(255, 105, 180, 0.12);
+}
+
+.lyrics-battle-result-table tr.is-dnf {
+  opacity: 0.5;
+}
+
+.lyrics-battle-oshi-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 4px;
+}
+
+.lyrics-battle-host-badge,
+.lyrics-battle-you-badge {
+  display: inline-block;
+  font-size: 0.65rem;
+  padding: 1px 6px;
+  border-radius: 999px;
+  margin-left: 4px;
+  background: var(--color-card-bg-soft, rgba(0, 0, 0, 0.1));
+}
+
+.lyrics-battle-readiness-status {
+  padding: 10px;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  margin-top: 8px;
+}
+
+.lyrics-battle-readiness-status.is-ready {
+  background: rgba(80, 200, 120, 0.15);
+}
+
+.lyrics-battle-readiness-status.is-not-ready {
+  background: rgba(255, 100, 100, 0.15);
+}
+
+.lyrics-battle-readiness-status.is-checking {
+  background: rgba(180, 180, 180, 0.15);
+}
+
+.lyrics-battle-readiness-status ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+.lyrics-battle-own-missing {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(255, 200, 60, 0.15);
+  font-size: 0.82rem;
+}
+
+/* ===== 歌詞クイズ対戦：対戦中画面（HUD・ヒント・回答候補）専用のレイアウト ===== */
+
+.online-lyrics-battle-progress {
+  text-align: center;
+  font-size: 0.8rem;
+  opacity: 0.7;
+  margin: 0 0 10px;
+}
+
+.online-lyrics-battle-hint-box {
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--color-card-bg-soft, rgba(0, 0, 0, 0.04));
+  margin: 0 0 16px;
+}
+
+.online-lyrics-battle-hint-level {
+  font-weight: 800;
+  font-size: 0.85rem;
+  margin: 0 0 8px;
+  opacity: 0.8;
+}
+
+.online-lyrics-battle-hint-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.online-lyrics-battle-hint-line {
+  font-size: 1.05rem;
+  line-height: 1.6;
+}
+
+.online-lyrics-battle-answer-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.online-lyrics-battle-answer-button {
+  padding: 12px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--color-card-border);
+  background: var(--color-surface);
+  font-family: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.online-lyrics-battle-answer-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.online-lyrics-battle-answer-button.is-selected {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+  font-weight: 800;
+}
+
+.online-lyrics-battle-answer-button.is-correct-answer {
+  border-color: #34a853;
+  background: rgba(80, 200, 120, 0.2);
+  font-weight: 800;
+}
+
+.online-lyrics-battle-status-message {
+  text-align: center;
+  font-size: 0.85rem;
+  padding: 8px;
+  border-radius: 8px;
+  background: var(--color-card-bg-soft, rgba(0, 0, 0, 0.05));
+  margin-bottom: 12px;
+}
+
+/* スマホ幅では回答候補ボタンを2列に固定し、タップしやすい大きさを確保する。 */
+@media (max-width: 480px) {
+  .online-lyrics-battle-answer-grid {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 

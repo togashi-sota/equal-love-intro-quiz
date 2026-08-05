@@ -21,6 +21,7 @@ import {
   leaveRoom,
   listenToRoom,
   getLastRoom,
+  clearLastRoom,
   updateRoomSettings,
   setReady,
   startBattle,
@@ -46,6 +47,27 @@ import { QUESTION_COUNT_LABELS, CATEGORY_LABELS, RULE_LABELS } from "./localBatt
 import { computeNormalFinalRecordMs } from "./localBattleResult.js";
 import { MEMBERS } from "./data/members.js";
 import { getMemberById } from "./memberUtils.js";
+// 【2026-08-08新設・Phase6】歌詞クイズ対戦だけ、進行の前提（全員同期・ホスト主導）が
+// 他のgameModeと根本的に異なるため、専用の画面ファイルへ委譲する（js/onlineLyricsQuizBattleScreen.js
+// 冒頭コメント参照）。依存は一方向（このファイル→あちら）に保ち、あちらからはこのファイルを
+// 一切importしない。gameMode名の直接比較が数箇所だけ残るが、「出題ロジック・ルールの判定文言を
+// このファイルへ持ち込まない」という上記の方針自体は変えていない（委譲するのはあくまで
+// "どの専用画面へ進めるか"の分岐だけで、歌詞クイズの中身の判定は一切ここに書かない）。
+import {
+  renderLyricsQuizLobbySettings,
+  enterLyricsQuizBattlePlay,
+  enterLyricsQuizResult,
+  handleLyricsQuizRoomUpdate,
+  resetLyricsQuizBattleState,
+} from "./onlineLyricsQuizBattleScreen.js";
+// 【2026-08-06新設・回帰防止】「対戦を開始する」時にどの設定を使うか決める判定ロジックは、
+// DOM・Firebaseに一切触れない別ファイルへ切り出し、恒久テストの対象にした
+// （js/onlineBattleStartSettings.js冒頭コメント参照）。
+import {
+  LYRICS_QUIZ_GAME_MODE,
+  resolveStartSettingsForSubmit,
+  resolveLastRoomRejoinOutcome,
+} from "./onlineBattleStartSettings.js";
 
 let elements = null;
 let currentRoomId = null;
@@ -59,6 +81,13 @@ let countdownTimerId = null; // カウントダウン表示の更新タイマー
 let countdownOffsetUnsubscribe = null; // .info/serverTimeOffsetの購読解除
 let hasFinishedCountdownLocally = false; // 自分の端末のカウントダウンが0になったことを表す
 let currentGameMode = null; // 今のルームのgameMode（設定変更ハンドラ等、room引数を持たない箇所から参照する）
+// 【2026-08-06新設】歌詞クイズの対戦設定は、既存のタイムアタック用フォーム
+// （readSettingsFromHostForm、online-battle-settings-*という名前のラジオボタン群）とは
+// 別物で、ロビーの各設定項目を触るたびにapplyLyricsQuizSettingsChange()が
+// 即座にFirebaseへ書き込んでいる（=room.settingsが常に最新）。そのため「対戦を開始する」を
+// 押した時点でフォームから読み直す必要が無く、renderLobby()のたびにここへ最新値を
+// 控えておくだけでよい。
+let currentLyricsQuizSettings = null;
 
 // Step3：試合の進行・進捗表示・結果まわりの状態。
 let currentMatchId = null; // 今参加している試合のID（開始〜結果画面まで保持）
@@ -82,6 +111,17 @@ function createOshiDotElement(oshiMemberId) {
 // 今どのルームにいるか（結果画面等、将来のStep2以降から読み取れるようにする窓口）。
 export function getCurrentOnlineRoomId() {
   return currentRoomId;
+}
+
+// 【Phase6新設】結果画面の「ホームへ戻る」で、room.status・players等のFirebase側データは
+// 一切変更せずにルーム監視だけを止める後片付け。既存の#online-battle-result-screen用
+// resultHomeLinkハンドラ（下記）と全く同じ処理を、js/onlineLyricsQuizBattleScreen.js側の
+// 「ホームへ戻る」からも呼べるように公開する（あちらはこのファイルをimportしない設計の
+// ため、js/main.js経由のコールバックとして渡す）。
+export function leaveOnlineBattleRoomView() {
+  stopListeningToRoom();
+  currentRoomId = null;
+  resetOnlineBattleMatchState();
 }
 
 function stopListeningToRoom() {
@@ -224,6 +264,14 @@ function updateStartButton(room) {
 // 「今の試合の情報を覚えておく」「自分の進捗を初期化する」「main.js側に開始を依頼する」
 // ところまでを行う。
 function enterOnlineBattlePlay(room) {
+  // 歌詞クイズだけは進行の前提が根本的に異なるため、専用画面へ完全に委譲する
+  // （currentMatchId等、このファイル自身のStep3状態は一切使わないままにしておく。
+  // js/onlineLyricsQuizBattleScreen.js冒頭コメント参照）。
+  if (room.gameMode === LYRICS_QUIZ_GAME_MODE) {
+    enterLyricsQuizBattlePlay(room);
+    return;
+  }
+
   currentMatchId = room.activeMatchId;
   const questions = buildQuestionsForMode(room.gameMode, room.settings, room.seed);
   currentMatchTotalQuestions = questions.length;
@@ -317,6 +365,7 @@ function renderLobby(room) {
     // （本人からのテスト項目：カウントダウン中にホストが退出しても安全に終了すること）。
     lastHandledRoomStatus = null;
     resetOnlineBattleMatchState();
+    resetLyricsQuizBattleState();
     elements.lobbyGoneNotice.hidden = false;
     elements.lobbyContent.hidden = true;
     elements.navigateTo("onlineBattleLobby");
@@ -331,6 +380,9 @@ function renderLobby(room) {
   // 場所に表示する（2026-08-08新設・Phase4）。
   elements.lobbyGameModeText.textContent = `モード: ${getModeLabel(room.gameMode)}`;
   currentGameMode = room.gameMode;
+  if (room.gameMode === LYRICS_QUIZ_GAME_MODE) {
+    currentLyricsQuizSettings = room.settings;
+  }
 
   const myUid = getCurrentUid();
   const isHost = room.host === myUid;
@@ -395,17 +447,29 @@ function renderLobby(room) {
   elements.lobbyPlayerCount.textContent = `${playerList.length}人 / 最大${room.maxPlayers}人`;
 
   // ===== Step2：対戦設定・準備完了・開始 =====
-  elements.lobbySettingsHost.hidden = !isHost;
-  elements.lobbySettingsParticipant.hidden = isHost;
+  const isLyricsQuiz = room.gameMode === LYRICS_QUIZ_GAME_MODE;
+  // 歌詞クイズは設定の形自体が別物（ルール選択・回答方式・ヒント秒数等）のため、
+  // 既存の設定コンテナ（timeAttack/randomPlayback用の固定ラジオ群）は隠し、
+  // js/onlineLyricsQuizBattleScreen.jsが持つ専用コンテナへ描画を委譲する。
+  elements.lobbySettingsHost.hidden = !isHost || isLyricsQuiz;
+  elements.lobbySettingsParticipant.hidden = isHost || isLyricsQuiz;
   elements.lobbyReadyButton.hidden = isHost;
   elements.lobbyStartButton.hidden = !isHost;
   elements.lobbyStartHint.hidden = !isHost;
 
   if (isHost) {
-    applySettingsToHostForm(settings);
+    if (isLyricsQuiz) {
+      renderLyricsQuizLobbySettings(room, true);
+    } else {
+      applySettingsToHostForm(settings);
+    }
     updateStartButton(room);
   } else {
-    renderSettingsChips(elements.lobbySettingsSummary, settings, room.gameMode);
+    if (isLyricsQuiz) {
+      renderLyricsQuizLobbySettings(room, false);
+    } else {
+      renderSettingsChips(elements.lobbySettingsSummary, settings, room.gameMode);
+    }
 
     const myPlayer = players[myUid];
     const myReady = Boolean(myPlayer?.ready && myPlayer?.readyForRevision === (room.settingsRevision ?? 0));
@@ -442,7 +506,11 @@ function renderLobby(room) {
       // ときは絶対に割り込まない（本人の要望：各自が自分のペースで最後まで進められること。
       // 自分が終わった後は待機画面のupdateOnlineBattlePlayUi()側でも同じ検知を行っており、
       // ここは主に「結果確定後に新しく再接続した」場合の受け皿になる）。
-      goToResultScreen(room);
+      if (isLyricsQuiz) {
+        enterLyricsQuizResult(room);
+      } else {
+        goToResultScreen(room);
+      }
     } else if (isRematchReset) {
       // ホストが「もう一度対戦する」を選んだ→全端末（ホスト含む）を自動的にロビーへ戻す。
       // 前回の試合に関するローカル状態（progress/results監視の元になるcurrentMatchId、
@@ -454,14 +522,19 @@ function renderLobby(room) {
   }
 
   updateOnlineBattlePlayUi(room);
+  if (isLyricsQuiz) {
+    handleLyricsQuizRoomUpdate(room);
+  }
 }
 
 function goToLobby(roomId) {
   currentRoomId = roomId;
   currentGameMode = null;
+  currentLyricsQuizSettings = null;
   lastHandledRoomStatus = null;
   suppressNextReadyChangeNotice = false;
   lastKnownMyReady = null;
+  resetLyricsQuizBattleState();
   resetOnlineBattleMatchState();
   elements.lobbySettingsChangedNotice.hidden = true;
   elements.lobbyRematchNotice.hidden = true;
@@ -784,13 +857,18 @@ export function reportOnlineBattleProgress(answeredCount) {
 // ルームから退出するだけ（オフライン対戦の「結果コードは作られません」と同じ考え方：
 // 「対戦の結果は送信されません」）。画面遷移自体はmain.js側が直接showScreen()するため、
 // ここでは状態の後片付けだけを行う。
-export function quitOnlineBattleDuringQuiz() {
+export async function quitOnlineBattleDuringQuiz() {
   const roomId = currentRoomId;
   stopListeningToRoom();
   resetOnlineBattleMatchState();
   currentRoomId = null;
   lastHandledRoomStatus = null;
-  if (roomId) leaveRoom({ roomId });
+  // 【本人の指摘・2026-08-11】leaveRoom()はrooms/{roomId}/players配下の書き込みに加えて
+  // clearLastRoom()も内部で行う。ここをawaitせずrenderLastRoomBanner()を呼ぶと、
+  // clearLastRoom()が終わる前に「前回のルームに戻る」バナーが（まだ消えていない
+  // 古いlastRoomの値で）表示されてしまい、実際に押した頃にはlastRoomが既に無くなっていて
+  // 無反応になる、という不具合があった。leaveRoom()の完了を待ってから再描画することで解消する。
+  if (roomId) await leaveRoom({ roomId });
   renderLastRoomBanner();
 }
 
@@ -812,20 +890,28 @@ export function initOnlineBattleScreens(newElements) {
   });
   elements.entryLastRoomRejoinButton.addEventListener("click", async () => {
     const lastRoom = getLastRoom();
-    if (!lastRoom) return;
+    if (!lastRoom) {
+      // 万一、記憶が既に消えた状態でボタンが表示されたまま押された場合も、
+      // 無反応にはせずその場でバナーごと隠す（本人の指摘・2026-08-11）。
+      renderLastRoomBanner();
+      return;
+    }
     elements.entryLastRoomButtonLabel.textContent = "再接続中…";
     elements.entryLastRoomError.hidden = true;
     const result = await joinRoom({ roomId: lastRoom.roomId, playerName: lastRoom.playerName });
     elements.entryLastRoomButtonLabel.textContent = "前回のルームに戻る";
-    if (result.ok) {
-      goToLobby(result.roomId);
+    const outcome = resolveLastRoomRejoinOutcome(result);
+    if (outcome.action === "enter-lobby") {
+      goToLobby(outcome.roomId);
       return;
     }
-    // 失敗してもここでlastRoomは消さない。ごく稀にFirebase側の一時的な通信の癖で
-    // 実際には存在するルームへの再接続が失敗することがあるため、ボタンを残して
-    // もう一度押せば再試行できるようにしておく（本当に存在しない場合は、そのまま
-    // 「ルームを作る」「ルームに参加する」を選べばよい）。
-    elements.entryLastRoomError.textContent = JOIN_ERROR_MESSAGES[result.reason] ?? "再接続に失敗しました。もう一度お試しください。";
+    // ルームが本当に存在しない場合（reason:"not-found"）は、無効な「前回のルーム」記憶を
+    // 残したままにしない。それ以外（書き込み失敗等、一時的な通信の癖の可能性がある失敗）は
+    // 記憶を残し、ボタンを残してもう一度押せば再試行できるようにしておく。
+    if (outcome.forgetLastRoom) {
+      clearLastRoom();
+    }
+    elements.entryLastRoomError.textContent = JOIN_ERROR_MESSAGES[outcome.reason] ?? "再接続に失敗しました。もう一度お試しください。";
     elements.entryLastRoomError.hidden = false;
   });
 
@@ -934,31 +1020,56 @@ export function initOnlineBattleScreens(newElements) {
 
   elements.lobbyStartButton.addEventListener("click", async () => {
     if (!currentRoomId) return;
-    const settings = readSettingsFromHostForm();
 
     elements.lobbyStartButton.disabled = true;
-    const result = await startBattle({ roomId: currentRoomId, settings });
+    elements.lobbyStartError.hidden = true;
 
-    if (!result.ok) {
-      // 失敗時（設定不備・READY不足など、room.statusはwaitingのままのはず）だけ、
-      // ここで再挑戦できるようボタンを戻す。
-      // 【成功時にdisabled=falseへ戻さない理由】成功した瞬間、room.statusは既にwaiting
-      // ではなくなっている（countdown）。ここで無条件にdisabled=falseへ戻してしまうと、
-      // 本来もう押せないはずのボタンが一瞬だけ有効に見えてしまう（本人からの実機報告で発覚）。
-      // 成功後の正しいdisabled状態は、次のrenderLobby()内のupdateStartButton()が
-      // room.statusを見て設定するため、ここでは何もしない。
+    // 【本人からの実機報告で発覚・2026-08-06修正】歌詞クイズは既存のタイムアタック用
+    // フォーム（readSettingsFromHostForm）とは全く別の設定項目を持つため、そのまま
+    // 読み込むと該当するラジオボタンが見つからず例外が発生し、しかもtry/catchが
+    // 無かったため画面には何も表示されないまま「対戦を開始する」が無反応になっていた
+    // （startBattle()自体は正しく動くため、原因の切り分けに時間がかかった）。
+    // try/catchで必ずエラーを画面へ出すようにし、歌詞クイズは「常に最新のroom.settings」
+    // （各設定項目を触るたびに即座にFirebaseへ書き込まれている値）をそのまま使う形にした。
+    try {
+      const settings = resolveStartSettingsForSubmit({
+        gameMode: currentGameMode,
+        readFormSettings: readSettingsFromHostForm,
+        lyricsQuizRoomSettings: currentLyricsQuizSettings,
+      });
+
+      const result = await startBattle({ roomId: currentRoomId, settings });
+
+      if (!result.ok) {
+        // 失敗時（設定不備・READY不足など、room.statusはwaitingのままのはず）だけ、
+        // ここで再挑戦できるようボタンを戻す。
+        // 【成功時にdisabled=falseへ戻さない理由】成功した瞬間、room.statusは既にwaiting
+        // ではなくなっている（countdown）。ここで無条件にdisabled=falseへ戻してしまうと、
+        // 本来もう押せないはずのボタンが一瞬だけ有効に見えてしまう（本人からの実機報告で発覚）。
+        // 成功後の正しいdisabled状態は、次のrenderLobby()内のupdateStartButton()が
+        // room.statusを見て設定するため、ここでは何もしない。
+        elements.lobbyStartButton.disabled = false;
+        const messages = {
+          "not-all-ready": "まだ準備が完了していない参加者がいます。",
+          "invalid-settings": result.message ?? "対戦設定が正しくありません。設定内容をご確認ください。",
+          "not-host": "ホストのみ開始できます。",
+          "not-found": "ルームが見つかりませんでした。",
+          "not-waiting": "この対戦はすでに開始・終了しています。",
+        };
+        elements.lobbyStartError.textContent = messages[result.reason] ?? "対戦の開始に失敗しました。通信環境をご確認のうえ、もう一度お試しください。";
+        elements.lobbyStartError.hidden = false;
+      } else {
+        elements.lobbyStartError.hidden = true;
+      }
+    } catch (error) {
+      // Firebaseの権限エラー・通信エラー・予期しない例外を、無反応にせず必ず画面へ出す。
       elements.lobbyStartButton.disabled = false;
-      const messages = {
-        "not-all-ready": "まだ準備が完了していない参加者がいます。",
-        "invalid-settings": result.message ?? "対戦設定を確認してください。",
-        "not-host": "ホストのみ開始できます。",
-        "not-found": "ルームが見つかりませんでした。",
-        "not-waiting": "この対戦はすでに開始・終了しています。",
-      };
-      elements.lobbyStartError.textContent = messages[result.reason] ?? "対戦の開始に失敗しました。通信環境をご確認のうえ、もう一度お試しください。";
+      const isPermissionError = error?.code === "PERMISSION_DENIED" || /permission/i.test(error?.message ?? "");
+      elements.lobbyStartError.textContent = isPermissionError
+        ? "権限エラーが発生しました（ルールの設定をご確認ください）。"
+        : error?.message || "対戦の開始に失敗しました。通信環境をご確認のうえ、もう一度お試しください。";
       elements.lobbyStartError.hidden = false;
-    } else {
-      elements.lobbyStartError.hidden = true;
+      console.error("対戦開始処理でエラーが発生しました:", error);
     }
   });
 
