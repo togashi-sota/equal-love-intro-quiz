@@ -1765,13 +1765,20 @@ function renderQuestion() {
           durationSec: fixedDurationSec,
         });
         const clampedStartTimeSec = clampStartTimeToActualDuration(canonicalStartTimeSec, actualDurationSec);
-        if (isRandomPlaybackDebugLoggingEnabled() && clampedStartTimeSec !== canonicalStartTimeSec) {
-          console.warn("[randomPlayback] 固定durationと実際の音源長がズレたためクランプしました", {
+        if (isRandomPlaybackDebugLoggingEnabled()) {
+          // 【2026-08-08追記・本人の指示】実機でMAX_DURATION_MISMATCH_SEC（0.75秒）の妥当性を
+          // 判断できるよう、クランプが発生した場合だけでなく、正常時（差が無い・小さい場合）も
+          // 毎問記録する。PC・iPhone・Androidそれぞれでこのログを見比べれば、
+          // 「同じ曲でどれくらいdurationの差が出るか」を実際の数値で確認できる。
+          const diffSec = Math.abs(actualDurationSec - fixedDurationSec);
+          console.log("[randomPlayback] duration確認", {
             matchId,
             songId,
-            canonicalStartTimeSec,
+            songTitle: question.song.title,
+            fixedDurationSec,
             actualDurationSec,
-            clampedStartTimeSec,
+            diffSec: Number(diffSec.toFixed(3)),
+            clamped: clampedStartTimeSec !== canonicalStartTimeSec,
           });
         }
         return clampedStartTimeSec;
