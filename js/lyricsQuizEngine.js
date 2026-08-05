@@ -17,6 +17,16 @@ export const LYRICS_QUIZ_ANSWER_MODE = {
 // answerPoolSizeの選択肢。"all"は「songPool全体」を意味する。
 export const ANSWER_POOL_SIZE_VALUES = ["4", "10", "30", "50", "all"];
 
+// 1問の解答結果の「内訳」。画面上の集計（正解数／不正解数）ではどちらもisCorrect:falseとして
+// まとめて扱ってよいが（本人の指示どおり）、称号・難易度分析・オンライン対戦・苦手曲判定など
+// 将来の用途のために、「実際に選んで間違えた」のか「わからずスキップした」のかを
+// 内部的には区別して保存する（本人の指示、2026-08-09追加）。
+export const LYRICS_QUIZ_ANSWER_OUTCOME = {
+  CORRECT: "correct",
+  WRONG_ANSWER: "wrongAnswer",
+  SKIPPED: "skipped",
+};
+
 // 30択・50択・全曲では「検索付き・スクロール可能な曲一覧」にする、という本人の指示に
 // 対応するため、UI側がこの値を見て一覧UIの見た目を切り替えられるようにしている
 // （このファイル自体は見た目を決めない。あくまでUI側への判断材料）。
