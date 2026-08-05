@@ -1,0 +1,590 @@
+// js/lyricsQuizMatchProgress.js（歌詞クイズ オンライン対戦・進行エンジン）のテスト。
+// Firebase・画面は一切使わず、合成データだけで1試合分の状態遷移を再現する。
+// 歌詞本文は一切扱わず、ダミーの曲ID・数値のみ使用。
+
+import {
+  createMatchProgress,
+  recordAnswer,
+  recordStealClaim,
+  tick,
+  advanceToNextQuestion,
+  setPlayerConnection,
+  markPlayerDnf,
+  canAdvanceToNextQuestion,
+  finalizeMatch,
+  restoreMatchProgressFromFirebase,
+} from "../js/lyricsQuizMatchProgress.js";
+import { createDefaultBattleRuleSettings, getBattleRuleVersion } from "../js/battleRules/index.js";
+import { deriveHintLevelFromElapsedMs, computeElapsedMs } from "../js/lyricsQuizBattleTiming.js";
+import { assertEqual } from "./test-utils.js";
+
+function buildDummyQuestions(songIds) {
+  return songIds.map((songId) => ({ song: { id: songId, title: songId }, hints: [], answerPool: [] }));
+}
+
+function withBattleRule(ruleId) {
+  return {
+    battleRuleId: ruleId,
+    battleRuleVersion: getBattleRuleVersion(ruleId),
+    ...createDefaultBattleRuleSettings(ruleId),
+  };
+}
+
+export function runLyricsQuizMatchProgressTests() {
+  // ===== 試合開始・問題1開始 =====
+  {
+    const questions = buildDummyQuestions(["song-1", "song-2"]);
+    const state = createMatchProgress({ questions, allPlayerUids: ["p1", "p2"], hostUid: "p1", nowMs: 0 });
+    assertEqual(state.status, "inProgress", "問題があれば試合はinProgressで始まる");
+    assertEqual(state.currentQuestionIndex, 0, "最初の問題は0問目");
+    assertEqual(state.currentQuestion.status, "active", "問題1は最初からactive（開始済み）");
+    assertEqual(state.currentQuestion.startedAt, 0, "問題1の開始時刻はcreateMatchProgress()に渡したnowMs");
+    assertEqual(state.historyByUid, { p1: [], p2: [] }, "履歴は全員分、空配列で初期化される");
+    assertEqual(state.comboCountByUid, { p1: 0, p2: 0 }, "コンボ数は全員0から始まる");
+  }
+
+  // ===== 複数プレイヤーの回答・1人1回答（write-once） =====
+  {
+    const questions = buildDummyQuestions(["song-1"]);
+    let state = createMatchProgress({ questions, allPlayerUids: ["p1", "p2"], hostUid: "p1", nowMs: 0 });
+    state = recordAnswer(state, "p1", { selectedSongId: "song-1", hintLevel: 1, submittedAt: 500 });
+    assertEqual(Object.keys(state.currentQuestion.answersByUid), ["p1"], "p1の回答が記録される");
+
+    const beforeSecondAttempt = state;
+    state = recordAnswer(state, "p1", { selectedSongId: "song-1", hintLevel: 2, submittedAt: 900 });
+    assertEqual(state, beforeSecondAttempt, "同じ問題に同じ人が2回目の回答をしても、1回目の内容のまま変わらない（1人1回答）");
+
+    state = recordAnswer(state, "p2", { selectedSongId: "song-2", hintLevel: 1, submittedAt: 600 });
+    assertEqual(Object.keys(state.currentQuestion.answersByUid).sort(), ["p1", "p2"], "複数プレイヤーの回答が別々に記録される");
+  }
+
+  // ===== 全員回答時の早期終了・クラシックの集計・次問題へ進む =====
+  {
+    const settings = { ...withBattleRule("classic"), hintIntervalSec: 6 };
+    const questions = buildDummyQuestions(["song-1", "song-2"]);
+    let state = createMatchProgress({ questions, allPlayerUids: ["p1", "p2"], hostUid: "p1", nowMs: 0 });
+
+    state = recordAnswer(state, "p1", { selectedSongId: "song-1", hintLevel: 1, submittedAt: 500 });
+    // p2がまだ回答していない段階では、制限時間内なら終了しない。
+    state = tick(state, settings, 1000);
+    assertEqual(state.currentQuestion.status, "active", "未回答者がいて期限前なら、tick()しても終了しない");
+
+    state = recordAnswer(state, "p2", { selectedSongId: "song-2", hintLevel: 2, submittedAt: 1200 });
+    state = tick(state, settings, 1300);
+    assertEqual(state.currentQuestion.status, "resolved", "全員回答済みになった直後のtick()で、制限時間前でも終了する");
+    assertEqual(state.historyByUid.p1.length, 1, "p1の履歴に1問分の結果が積まれる");
+    assertEqual(state.historyByUid.p1[0].outcome, "correct", "p1はsong-1を選んで正解");
+    assertEqual(state.historyByUid.p2[0].outcome, "wrongAnswer", "p2はsong-2を選んだが正解はsong-1なので不正解");
+
+    assertEqual(canAdvanceToNextQuestion(state), true, "確定済み・ホスト接続中なら次へ進められる");
+    state = advanceToNextQuestion(state, 30000);
+    assertEqual(state.currentQuestionIndex, 1, "2問目へ進む");
+    assertEqual(state.currentQuestion.status, "active", "2問目は新しくactiveから始まる");
+    assertEqual(state.currentQuestion.answersByUid, {}, "2問目の回答は空から始まる（前の問題の回答が残らない）");
+  }
+
+  // ===== ヒント4期限で終了（未回答者はスキップ扱いで補完される） =====
+  {
+    const settings = { ...withBattleRule("classic"), hintIntervalSec: 6 };
+    const questions = buildDummyQuestions(["song-1"]);
+    let state = createMatchProgress({ questions, allPlayerUids: ["p1", "p2"], hostUid: "p1", nowMs: 0 });
+
+    state = recordAnswer(state, "p1", { selectedSongId: "song-1", hintLevel: 1, submittedAt: 500 });
+    // p2は最後まで回答しない。期限（4×6秒=24000ms）前はまだ終了しない。
+    state = tick(state, settings, 20000);
+    assertEqual(state.currentQuestion.status, "active", "p2が未回答で、まだ期限前なら継続する");
+
+    state = tick(state, settings, 24000);
+    assertEqual(state.currentQuestion.status, "resolved", "期限を過ぎれば、未回答者がいても終了する");
+    assertEqual(state.historyByUid.p2[0].outcome, "skipped", "最後まで回答しなかったp2は、スキップとして補完される");
+    assertEqual(state.historyByUid.p2[0].pointsAwarded, 0, "補完されたスキップは0点");
+  }
+
+  // ===== 奪い取り：winner確定後の集計 =====
+  {
+    const settings = { ...withBattleRule("steal"), hintIntervalSec: 6 };
+    const questions = buildDummyQuestions(["song-1"]);
+    let state = createMatchProgress({ questions, allPlayerUids: ["p1", "p2"], hostUid: "p1", nowMs: 0 });
+
+    state = recordAnswer(state, "p1", { selectedSongId: "song-1", hintLevel: 1, submittedAt: 800 });
+    state = recordStealClaim(state, "p1", 800);
+    // 後から別の人が奪い取ろうとしても、write-onceなので上書きされない。
+    state = recordStealClaim(state, "p2", 900);
+    assertEqual(state.currentQuestion.winner.uid, "p1", "先にclaimしたp1がwinnerのまま（write-once）");
+
+    state = recordAnswer(state, "p2", { selectedSongId: "song-1", hintLevel: 2, submittedAt: 5000 });
+    state = tick(state, settings, 5100);
+    assertEqual(state.currentQuestion.status, "resolved", "winner確定後は、他に未回答者がいても即終了する");
+    assertEqual(state.historyByUid.p1[0].wonQuestion, true, "p1が勝者として確定する");
+    assertEqual(state.historyByUid.p1[0].pointsAwarded, 50, "p1はヒント1で獲得したので50点");
+    assertEqual(state.historyByUid.p2[0].wonQuestion, false, "p2は正解していても、winnerではないので得点なし");
+  }
+
+  // ===== コンボ：継続とリセット =====
+  {
+    const settings = { ...withBattleRule("combo"), hintIntervalSec: 6 };
+    const questions = buildDummyQuestions(["song-1", "song-2", "song-3"]);
+    let state = createMatchProgress({ questions, allPlayerUids: ["p1"], hostUid: "p1", nowMs: 0 });
+
+    // 1問目：正解（コンボ0→1）
+    state = recordAnswer(state, "p1", { selectedSongId: "song-1", hintLevel: 1, submittedAt: 500 });
+    state = tick(state, settings, 600);
+    state = advanceToNextQuestion(state, 30000);
+    assertEqual(state.comboCountByUid.p1, 1, "1問目正解でコンボ1");
+
+    // 2問目：不正解（コンボ1→0にリセット）
+    state = recordAnswer(state, "p1", { selectedSongId: "song-2の不正解", hintLevel: 1, submittedAt: 30500 });
+    state = tick(state, settings, 30600);
+    state = advanceToNextQuestion(state, 60000);
+    assertEqual(state.comboCountByUid.p1, 0, "2問目不正解でコンボが0にリセットされる");
+
+    // 3問目：正解（コンボ0→1、他人の状態に影響されず自分のコンボから再開）
+    state = recordAnswer(state, "p1", { selectedSongId: "song-3", hintLevel: 1, submittedAt: 60500 });
+    state = tick(state, settings, 60600);
+    assertEqual(state.comboCountByUid.p1, 1, "3問目正解で再びコンボ1（リセット後も正しく積み上がる）");
+  }
+
+  // ===== 最終結果生成・DNF =====
+  {
+    const settings = { ...withBattleRule("classic"), hintIntervalSec: 6 };
+    const questions = buildDummyQuestions(["song-1", "song-2"]);
+    let state = createMatchProgress({ questions, allPlayerUids: ["strong", "dnf-player"], hostUid: "strong", nowMs: 0 });
+
+    // 1問目：strongは正解、dnf-playerも一応正解してから離脱する。
+    state = recordAnswer(state, "strong", { selectedSongId: "song-1", hintLevel: 1, submittedAt: 500 });
+    state = recordAnswer(state, "dnf-player", { selectedSongId: "song-1", hintLevel: 1, submittedAt: 500 });
+    state = tick(state, settings, 600);
+    state = advanceToNextQuestion(state, 30000);
+
+    // dnf-playerがここで離脱する（2問目には参加できない）。
+    state = markPlayerDnf(state, "dnf-player");
+    state = recordAnswer(state, "strong", { selectedSongId: "song-2", hintLevel: 1, submittedAt: 30500 });
+    state = tick(state, settings, 30600);
+    assertEqual(state.currentQuestion.status, "resolved", "DNF済みの参加者は「全員回答済み」の判定対象から除外される");
+    state = advanceToNextQuestion(state, 60000);
+
+    assertEqual(state.status, "finished", "全問終えたら試合はfinishedになる");
+    const ranking = finalizeMatch(state, settings);
+    assertEqual(ranking.map((entry) => entry.uid), ["strong", "dnf-player"], "DNFした参加者は、成績に関わらず必ず下位になる");
+    assertEqual(ranking[0].result.completed, true, "完走したstrongはcompleted:true");
+    assertEqual(ranking[1].result.completed, false, "DNFしたプレイヤーはcompleted:falseへ上書きされる");
+  }
+
+  // ===== DNF：完走済み結果を上書きしない（設計⑪①） =====
+  {
+    const settings = { ...withBattleRule("classic"), hintIntervalSec: 6 };
+    const questions = buildDummyQuestions(["song-1"]);
+    let state = createMatchProgress({ questions, allPlayerUids: ["p1", "p2"], hostUid: "p1", nowMs: 0 });
+
+    // p1は最後まで正しく回答し、試合はfinishedになる（＝p1は完走済み）。
+    state = recordAnswer(state, "p1", { selectedSongId: "song-1", hintLevel: 1, submittedAt: 500 });
+    state = recordAnswer(state, "p2", { selectedSongId: "song-1", hintLevel: 1, submittedAt: 500 });
+    state = tick(state, settings, 600);
+    state = advanceToNextQuestion(state, 700);
+    assertEqual(state.status, "finished", "1問だけの試合なので、ここでfinishedになる");
+
+    const beforeDnfAttempt = state;
+    state = markPlayerDnf(state, "p1");
+    assertEqual(state, beforeDnfAttempt, "完走済みのp1をmarkPlayerDnf()しても、状態は一切変化しない");
+
+    const ranking = finalizeMatch(state, settings);
+    const p1Entry = ranking.find((entry) => entry.uid === "p1");
+    assertEqual(p1Entry.result.completed, true, "完走済みのp1は、DNFを試みてもcompleted:trueのまま");
+
+    // markPlayerDnf()を何度呼んでも結果が変わらない（冪等性）。
+    const afterFirstAttempt = state;
+    state = markPlayerDnf(state, "p1");
+    state = markPlayerDnf(state, "p1");
+    assertEqual(state, afterFirstAttempt, "markPlayerDnf()を複数回呼んでも状態は変化しない");
+  }
+
+  // ===== DNF：二重の安全策（finalizeMatch自身も完走済みを上書きしない） =====
+  {
+    // markPlayerDnf()のガードを経由せず、dnfUidsへ直接完走済みのuidが混入した
+    // 想定外の状態を作り、finalizeMatch()側の再判定だけでも完走済み結果を
+    // 守れることを確認する（本来はmarkPlayerDnf()側で防がれるが、念のための二重防御）。
+    const settings = { ...withBattleRule("classic"), hintIntervalSec: 6 };
+    const questions = buildDummyQuestions(["song-1"]);
+    let state = createMatchProgress({ questions, allPlayerUids: ["p1"], hostUid: "p1", nowMs: 0 });
+    state = recordAnswer(state, "p1", { selectedSongId: "song-1", hintLevel: 1, submittedAt: 500 });
+    state = tick(state, settings, 600);
+    state = advanceToNextQuestion(state, 700);
+    assertEqual(state.status, "finished", "1問だけの試合なので、ここでfinishedになる");
+
+    const corruptedState = { ...state, dnfUids: ["p1"] }; // 本来あり得ない、完走済みなのにdnfUidsに入っている状態
+    const ranking = finalizeMatch(corruptedState, settings);
+    assertEqual(ranking[0].result.completed, true, "dnfUidsに不正に混入していても、実際の履歴が揃っていればcompleted:trueとして扱う");
+  }
+
+  // ===== DNF後の回答は受け付けない =====
+  {
+    const questions = buildDummyQuestions(["song-1", "song-2"]);
+    let state = createMatchProgress({ questions, allPlayerUids: ["p1", "p2"], hostUid: "p1", nowMs: 0 });
+    state = markPlayerDnf(state, "p2");
+    const beforeLateAnswer = state;
+    state = recordAnswer(state, "p2", { selectedSongId: "song-1", hintLevel: 1, submittedAt: 500 });
+    assertEqual(state, beforeLateAnswer, "DNF済みの参加者からの（遅れて届いた）回答は無視される");
+  }
+
+  // ===== DNF：既存の回答履歴は削除されない =====
+  {
+    const settings = { ...withBattleRule("classic"), hintIntervalSec: 6 };
+    const questions = buildDummyQuestions(["song-1", "song-2", "song-3"]);
+    let state = createMatchProgress({ questions, allPlayerUids: ["p1", "p2"], hostUid: "p1", nowMs: 0 });
+
+    // p2は1問目だけ回答してから離脱する（2問目以降は未回答のままDNFになる）。
+    state = recordAnswer(state, "p1", { selectedSongId: "song-1", hintLevel: 1, submittedAt: 500 });
+    state = recordAnswer(state, "p2", { selectedSongId: "song-1", hintLevel: 1, submittedAt: 500 });
+    state = tick(state, settings, 600);
+    state = advanceToNextQuestion(state, 30000);
+    const historyBeforeDnf = state.historyByUid.p2;
+
+    state = markPlayerDnf(state, "p2");
+    assertEqual(state.historyByUid.p2, historyBeforeDnf, "DNF確定後も、それまでに記録済みの回答履歴（1問目の結果）は削除・変化しない");
+    assertEqual(state.historyByUid.p2.length, 1, "DNF時点までに答えた1問分の履歴はそのまま残る");
+  }
+
+  // ===== DNF：完走者1人・DNFが複数人でも正しく順位付けされる =====
+  {
+    const settings = { ...withBattleRule("classic"), hintIntervalSec: 6 };
+    const questions = buildDummyQuestions(["song-1", "song-2", "song-3"]);
+    let state = createMatchProgress({
+      questions,
+      allPlayerUids: ["winner", "dnf-early", "dnf-late"],
+      hostUid: "winner",
+      nowMs: 0,
+    });
+
+    // 1問目：全員回答。dnf-earlyはここで離脱する。
+    state = recordAnswer(state, "winner", { selectedSongId: "song-1", hintLevel: 1, submittedAt: 500 });
+    state = recordAnswer(state, "dnf-early", { selectedSongId: "song-1", hintLevel: 1, submittedAt: 500 });
+    state = recordAnswer(state, "dnf-late", { selectedSongId: "song-1", hintLevel: 1, submittedAt: 500 });
+    state = tick(state, settings, 600);
+    state = advanceToNextQuestion(state, 30000);
+    state = markPlayerDnf(state, "dnf-early");
+
+    // 2問目：winnerとdnf-lateだけ回答（dnf-earlyはDNF済みのため対象外）。dnf-lateはここで離脱する。
+    state = recordAnswer(state, "winner", { selectedSongId: "song-2", hintLevel: 1, submittedAt: 30500 });
+    state = recordAnswer(state, "dnf-late", { selectedSongId: "song-2", hintLevel: 1, submittedAt: 30500 });
+    state = tick(state, settings, 30600);
+    state = advanceToNextQuestion(state, 60000);
+    state = markPlayerDnf(state, "dnf-late");
+
+    // 3問目：winnerだけ回答。
+    state = recordAnswer(state, "winner", { selectedSongId: "song-3", hintLevel: 1, submittedAt: 60500 });
+    state = tick(state, settings, 60600);
+    state = advanceToNextQuestion(state, 90000);
+
+    assertEqual(state.status, "finished", "全問終えたら試合はfinishedになる");
+    const ranking = finalizeMatch(state, settings);
+    assertEqual(
+      ranking.map((entry) => entry.uid),
+      ["winner", "dnf-late", "dnf-early"],
+      "完走者が最上位、DNF同士は離脱が遅かった（回答できた問題数が多い）方が上位になる"
+    );
+    assertEqual(ranking[0].result.completed, true, "完走したwinnerだけがcompleted:true");
+    assertEqual(ranking[1].result.completed, false, "dnf-lateはcompleted:false");
+    assertEqual(ranking[2].result.completed, false, "dnf-earlyはcompleted:false");
+  }
+
+  // ===== DNF：全員DNFでも例外にならない =====
+  {
+    const settings = { ...withBattleRule("classic"), hintIntervalSec: 6 };
+    const questions = buildDummyQuestions(["song-1", "song-2"]);
+    let state = createMatchProgress({ questions, allPlayerUids: ["p1", "p2"], hostUid: "p1", nowMs: 0 });
+
+    // 誰も回答しないまま、両者ともDNFになる（例：開始直後に全員切断した想定）。
+    state = markPlayerDnf(state, "p1");
+    state = markPlayerDnf(state, "p2");
+    // 残っている参加者がいない状態でも、tick()は例外を投げず、
+    // 「未回答者なし（空配列に対するevery()は真）」として問題を終了させる。
+    state = tick(state, settings, 100);
+    assertEqual(state.currentQuestion.status, "resolved", "全員DNFでも、tick()は例外を投げず問題を確定できる（空配列に対する判定が正しく機能する）");
+    state = advanceToNextQuestion(state, 200);
+    state = tick(state, settings, 300);
+    state = advanceToNextQuestion(state, 400);
+
+    assertEqual(state.status, "finished", "全員DNFでも試合はfinishedまで進む（無限ループ・例外にならない）");
+    const ranking = finalizeMatch(state, settings);
+    assertEqual(ranking.length, 2, "全員分の結果が例外なく返る");
+    assertEqual(
+      ranking.every((entry) => entry.result.completed === false),
+      true,
+      "全員がcompleted:falseとして扱われる"
+    );
+  }
+
+  // ===== ホスト切断時の停止／復帰 =====
+  {
+    const settings = { ...withBattleRule("classic"), hintIntervalSec: 6 };
+    const questions = buildDummyQuestions(["song-1", "song-2"]);
+    let state = createMatchProgress({ questions, allPlayerUids: ["host", "guest"], hostUid: "host", nowMs: 0 });
+
+    state = recordAnswer(state, "host", { selectedSongId: "song-1", hintLevel: 1, submittedAt: 500 });
+    state = recordAnswer(state, "guest", { selectedSongId: "song-1", hintLevel: 1, submittedAt: 600 });
+    state = tick(state, settings, 700);
+    assertEqual(state.currentQuestion.status, "resolved", "ホストが接続中でなくても、問題の確定（tick）自体は行われる");
+
+    state = setPlayerConnection(state, "host", "disconnected");
+    assertEqual(canAdvanceToNextQuestion(state), false, "ホストが切断中は、次の問題へ進められない");
+    const beforeAdvanceAttempt = state;
+    state = advanceToNextQuestion(state, 30000);
+    assertEqual(
+      state.currentQuestionIndex,
+      beforeAdvanceAttempt.currentQuestionIndex,
+      "ホスト切断中にadvanceToNextQuestion()を呼んでも、内部でcanAdvanceToNextQuestion()と同じ条件を守るため進まない"
+    );
+
+    state = setPlayerConnection(state, "host", "connected");
+    assertEqual(canAdvanceToNextQuestion(state), true, "ホストが復帰すれば、再び次の問題へ進められるようになる");
+  }
+
+  // ===== restoreMatchProgressFromFirebase（Phase6.5新設：ホストのリロード復帰） =====
+
+  // ----- ①問題1の途中（誰かは回答済み、まだ未確定）に復帰 -----
+  {
+    const settings = { ...withBattleRule("classic"), hintIntervalSec: 6 };
+    const questions = buildDummyQuestions(["song-1", "song-2"]);
+    const match = {
+      currentQuestionIndex: 0,
+      questionStatus: "active",
+      currentQuestionStartedAt: 1000,
+      resolvedAt: null,
+      answers: { 0: { p1: { selectedSongId: "song-1", hintLevel: 1, submittedAt: 1500 } } },
+      questionClaims: {},
+    };
+    const restored = restoreMatchProgressFromFirebase({
+      questions,
+      allPlayerUids: ["p1", "p2"],
+      hostUid: "p1",
+      match,
+      settings,
+      nowMs: 2000,
+    });
+    assertEqual(restored.status, "inProgress", "1問目の途中はinProgressとして復元される");
+    assertEqual(restored.currentQuestionIndex, 0, "問題インデックスがそのまま復元される");
+    assertEqual(restored.currentQuestion.status, "active", "まだ確定していない問題はactiveとして復元される");
+    assertEqual(restored.currentQuestion.startedAt, 1000, "開始時刻はFirebaseのcurrentQuestionStartedAtがそのまま使われる（ヒント段階の再計算に必須）");
+    assertEqual(restored.currentQuestion.answersByUid, match.answers[0], "既存の回答がそのまま復元される");
+    assertEqual(restored.historyByUid, { p1: [], p2: [] }, "まだ確定していない問題なので履歴は空のまま");
+    assertEqual(restored.comboCountByUid, { p1: 0, p2: 0 }, "コンボもまだ0のまま");
+  }
+
+  // ----- ②ヒント3の途中から復帰：startedAtが正しく復元され、js/lyricsQuizBattleTiming.jsの
+  //        deriveHintLevelFromElapsedMsと組み合わせて正しいヒント段階を計算できることを確認 -----
+  {
+    const settings = { ...withBattleRule("classic"), hintIntervalSec: 6 };
+    const questions = buildDummyQuestions(["song-1"]);
+    const match = {
+      currentQuestionIndex: 0,
+      questionStatus: "active",
+      currentQuestionStartedAt: 5000,
+      resolvedAt: null,
+      answers: {},
+      questionClaims: {},
+    };
+    // 開始（5000）から13秒後（18000）に復帰した想定：6秒間隔ならヒント3の途中のはず。
+    const nowServerTimeMs = 18000;
+    const restored = restoreMatchProgressFromFirebase({
+      questions,
+      allPlayerUids: ["p1"],
+      hostUid: "p1",
+      match,
+      settings,
+      nowMs: nowServerTimeMs,
+    });
+    const elapsedMs = computeElapsedMs({ questionStartedAt: restored.currentQuestion.startedAt, nowServerTimeMs });
+    const hintLevel = deriveHintLevelFromElapsedMs({ elapsedMs, hintIntervalSec: settings.hintIntervalSec, maxHintLevel: 4 });
+    assertEqual(hintLevel, 3, "復元されたstartedAtから、13秒経過時点のヒント段階が正しく3と計算できる");
+  }
+
+  // ----- ③全員回答済みだが未resolveの状態から復帰：復帰直後にtick()を呼べば進行を再開できる -----
+  {
+    const settings = { ...withBattleRule("classic"), hintIntervalSec: 6 };
+    const questions = buildDummyQuestions(["song-1"]);
+    const match = {
+      currentQuestionIndex: 0,
+      questionStatus: "active", // Firebase上ではまだresolvedに書き込まれていない
+      currentQuestionStartedAt: 0,
+      resolvedAt: null,
+      answers: {
+        0: {
+          p1: { selectedSongId: "song-1", hintLevel: 1, submittedAt: 500 },
+          p2: { selectedSongId: "song-1", hintLevel: 1, submittedAt: 600 },
+        },
+      },
+      questionClaims: {},
+    };
+    const restored = restoreMatchProgressFromFirebase({
+      questions,
+      allPlayerUids: ["p1", "p2"],
+      hostUid: "p1",
+      match,
+      settings,
+      nowMs: 700,
+    });
+    assertEqual(restored.currentQuestion.status, "active", "Firebase上でまだresolvedになっていなければactiveのまま復元される");
+    const ticked = tick(restored, settings, 800);
+    assertEqual(ticked.currentQuestion.status, "resolved", "復帰直後にtick()を呼べば、全員回答済みのため即座に確定できる（進行の再開に成功）");
+  }
+
+  // ----- ④resolved済み問題（まだ次へ進んでいない）から復帰：そのまま次の問題へ進められる -----
+  {
+    const settings = { ...withBattleRule("classic"), hintIntervalSec: 6 };
+    const questions = buildDummyQuestions(["song-1", "song-2"]);
+    const match = {
+      currentQuestionIndex: 0,
+      questionStatus: "resolved",
+      currentQuestionStartedAt: 0,
+      resolvedAt: 5000,
+      answers: { 0: { p1: { selectedSongId: "song-1", hintLevel: 1, submittedAt: 500 } } },
+      questionClaims: {},
+    };
+    const restored = restoreMatchProgressFromFirebase({
+      questions,
+      allPlayerUids: ["p1"],
+      hostUid: "p1",
+      match,
+      settings,
+      nowMs: 6000,
+    });
+    assertEqual(restored.currentQuestion.status, "resolved", "確定済みとして復元される");
+    assertEqual(restored.historyByUid.p1.length, 1, "確定済みの問題は履歴へ積まれた状態で復元される（tick()と同じ挙動）");
+    assertEqual(canAdvanceToNextQuestion(restored), true, "復帰後、ホストが接続中なら（初期値がconnectedのため）すぐ次の問題へ進められる");
+    const advanced = advanceToNextQuestion(restored, 6100);
+    assertEqual(advanced.currentQuestionIndex, 1, "2問目へ正しく進める");
+    assertEqual(advanced.currentQuestion.status, "active", "2問目は新しくactiveから始まる");
+  }
+
+  // ----- ⑤最終問題が確定済みの状態から復帰：結果確定（finalizeMatch）まで進められる -----
+  {
+    const settings = { ...withBattleRule("classic"), hintIntervalSec: 6 };
+    const questions = buildDummyQuestions(["song-1"]);
+    const match = {
+      currentQuestionIndex: 0,
+      questionStatus: "resolved",
+      currentQuestionStartedAt: 0,
+      resolvedAt: 100,
+      answers: { 0: { p1: { selectedSongId: "song-1", hintLevel: 1, submittedAt: 50 } } },
+      questionClaims: {},
+    };
+    const restored = restoreMatchProgressFromFirebase({
+      questions,
+      allPlayerUids: ["p1"],
+      hostUid: "p1",
+      match,
+      settings,
+      nowMs: 200,
+    });
+    const advanced = advanceToNextQuestion(restored, 300);
+    assertEqual(advanced.status, "finished", "1問だけの試合で、最終問題が確定済みの状態から復帰し、advanceToNextQuestion()を呼べばfinishedに進める");
+    const ranking = finalizeMatch(advanced, settings);
+    assertEqual(ranking.length, 1, "結果確定（finalizeMatch）まで正しく進められる");
+    assertEqual(ranking[0].result.completed, true, "唯一の参加者p1はcompleted:true");
+  }
+
+  // ----- ⑥全問終了後（advance済み、currentQuestionIndexが範囲外）に復帰：finishedとして復元される -----
+  {
+    const settings = { ...withBattleRule("classic"), hintIntervalSec: 6 };
+    const questions = buildDummyQuestions(["song-1"]);
+    // 1問だけの試合で、ホストが既にadvanceToNextQuestion()まで呼んでいたが、
+    // finalizeLyricsQuizMatch()の書き込みに失敗していた、という想定
+    // （Firebase側のcurrentQuestionIndexが1＝questions.lengthまで進んでいる状態）。
+    const match = {
+      currentQuestionIndex: 1,
+      questionStatus: "resolved",
+      currentQuestionStartedAt: 0,
+      resolvedAt: 100,
+      answers: { 0: { p1: { selectedSongId: "song-1", hintLevel: 1, submittedAt: 50 } } },
+      questionClaims: {},
+    };
+    const restored = restoreMatchProgressFromFirebase({
+      questions,
+      allPlayerUids: ["p1"],
+      hostUid: "p1",
+      match,
+      settings,
+      nowMs: 200,
+    });
+    assertEqual(restored.status, "finished", "既に全問を通過済みの状態から復帰すると、即座にfinishedとして復元される");
+    const ranking = finalizeMatch(restored, settings);
+    assertEqual(ranking.length, 1, "結果確定への再試行（finalizeLyricsQuizMatchの書き込み失敗からの再開）ができる");
+  }
+
+  // ----- ⑦複数問題を経た後の復帰：コンボが正しく引き継がれて復元される -----
+  {
+    const settings = { ...withBattleRule("combo"), hintIntervalSec: 6 };
+    const questions = buildDummyQuestions(["song-1", "song-2", "song-3"]);
+    const match = {
+      currentQuestionIndex: 2,
+      questionStatus: "active",
+      currentQuestionStartedAt: 60000,
+      resolvedAt: null,
+      answers: {
+        0: { p1: { selectedSongId: "song-1", hintLevel: 1, submittedAt: 500 } }, // 正解
+        1: { p1: { selectedSongId: "song-2", hintLevel: 1, submittedAt: 30500 } }, // 正解
+      },
+      questionClaims: {},
+    };
+    const restored = restoreMatchProgressFromFirebase({
+      questions,
+      allPlayerUids: ["p1"],
+      hostUid: "p1",
+      match,
+      settings,
+      nowMs: 61000,
+    });
+    assertEqual(restored.comboCountByUid.p1, 2, "過去2問とも正解しているため、コンボが2まで正しく引き継がれて復元される");
+    assertEqual(restored.historyByUid.p1.length, 2, "確定済みの過去2問分の履歴が復元される");
+    assertEqual(restored.currentQuestionIndex, 2, "現在の問題インデックス（3問目）がそのまま復元される");
+    assertEqual(restored.currentQuestion.status, "active", "3問目はまだ進行中として復元される");
+  }
+
+  // ----- finalizeMatch()の決定論性：同一入力から3ルールいずれも常に同じ結果になる -----
+  // （本人の要望：「結果画面の3ルール集計が同一入力から決定論的に一致する」ことの裏付け。
+  // ホストが同じ状態に対してfinalizeMatch()を複数回呼んでも―リロード後の再実行を含め―
+  // 常に同じ結果が得られることを保証する）。
+  {
+    for (const ruleId of ["classic", "steal", "combo"]) {
+      const settings = { ...withBattleRule(ruleId), hintIntervalSec: 6 };
+      const questions = buildDummyQuestions(["song-1", "song-2", "song-3"]);
+      let state = createMatchProgress({ questions, allPlayerUids: ["p1", "p2"], hostUid: "p1", nowMs: 0 });
+
+      for (let i = 0; i < 3; i++) {
+        const startedAt = i * 30000;
+        state = recordAnswer(state, "p1", { selectedSongId: `song-${i + 1}`, hintLevel: 1, submittedAt: startedAt + 500 });
+        if (ruleId === "steal") state = recordStealClaim(state, "p1", startedAt + 500);
+        state = recordAnswer(state, "p2", { selectedSongId: "wrong-song", hintLevel: 2, submittedAt: startedAt + 900 });
+        state = tick(state, settings, startedAt + 1000);
+        state = advanceToNextQuestion(state, startedAt + 30000);
+      }
+      assertEqual(state.status, "finished", `${ruleId}：3問終えたら試合はfinishedになる`);
+
+      const rankingFirst = finalizeMatch(state, settings);
+      const rankingSecond = finalizeMatch(state, settings);
+      assertEqual(rankingFirst, rankingSecond, `${ruleId}：同じstateに対してfinalizeMatch()を複数回呼んでも、常に同じ結果になる（決定論的）`);
+    }
+  }
+
+  // ----- ⑧復帰処理を2回呼んでも状態が変わらない（決定論的・二重進行しないことの裏付け） -----
+  {
+    const settings = { ...withBattleRule("combo"), hintIntervalSec: 6 };
+    const questions = buildDummyQuestions(["song-1", "song-2"]);
+    const match = {
+      currentQuestionIndex: 1,
+      questionStatus: "active",
+      currentQuestionStartedAt: 30000,
+      resolvedAt: null,
+      answers: { 0: { p1: { selectedSongId: "song-1", hintLevel: 1, submittedAt: 500 } } },
+      questionClaims: {},
+    };
+    const args = { questions, allPlayerUids: ["p1"], hostUid: "p1", match, settings, nowMs: 31000 };
+    const restoredFirst = restoreMatchProgressFromFirebase(args);
+    const restoredSecond = restoreMatchProgressFromFirebase(args);
+    assertEqual(
+      restoredFirst,
+      restoredSecond,
+      "同じFirebaseスナップショットから複数回復元しても、常に同じ状態になる（決定論的）。ホスト側の復帰処理を誤って2回呼んでも、進行が二重に進んだり結果が変わったりしない"
+    );
+  }
+}
