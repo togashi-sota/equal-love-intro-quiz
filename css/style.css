@@ -4294,18 +4294,56 @@ fieldset label:has(input:focus-visible) {
   margin-bottom: 10px;
   background: rgba(255, 255, 255, 0.4);
   border: 1px solid var(--color-card-border);
+}
+
+/* カード本体のタップ領域。「？」ヘルプボタンと兄弟要素にするため、カード全体ではなく
+   ここだけを<button>にしている（<button>の中に<button>は入れられないため）。 */
+.special-mode-card-tap-target {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: none;
   font-family: inherit;
   text-align: left;
   cursor: pointer;
 }
 
-.special-mode-card:active {
+.special-mode-card-tap-target:active {
   transform: scale(0.98);
 }
 
 .special-mode-card-content {
   flex: 1;
   min-width: 0;
+}
+
+/* モードカードの「？」ヘルプボタン。weakSongsRulesLink等で使っている.info-link-buttonと
+   同じ見た目にしているが、あちらはグリッドレイアウト前提のgrid-column指定を持つため、
+   flexレイアウトのこのカードでは流用せず専用クラスにしている。 */
+.special-mode-card-help-button {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.special-mode-card-help-button:active {
+  transform: scale(0.92);
 }
 
 .special-mode-card-title {

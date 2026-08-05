@@ -2075,7 +2075,10 @@
              js/lyricsQuizBattleUi.js（Phase5）の自動生成UIを使い、ルール名をこのHTML側は
              一切知らない（2026-08-08新設・Phase6）。 -->
         <div id="online-battle-lobby-settings-host-lyrics" hidden>
-          <p class="battle-field-label">対戦設定（変更すると全員のREADYが解除されます）</p>
+          <p class="battle-field-label">
+            対戦設定（変更すると全員のREADYが解除されます）
+            <button id="battle-rules-help-link" class="info-link-button" type="button" aria-label="対戦ルールについて見る">？</button>
+          </p>
           <div id="online-lyrics-battle-rule-options"></div>
           <div id="online-lyrics-battle-pool-size-options"></div>
           <div id="online-lyrics-battle-settings-form"></div>
@@ -2838,6 +2841,150 @@
 
       <h3>ダミー選択肢について</h3>
       <p>「選択した曲だけ」を選ぶと、選んだ曲同士だけで4択が作られます。ライブ前のセットリスト復習など、似た曲同士を聞き分けたいときにおすすめです。「全収録曲」を選ぶと、選んだ曲以外からもダミーの選択肢が混ざります。</p>
+    </div>
+  </div>
+
+  <!-- 特別モード一覧の「？」から開く、各モードの説明モーダル（2026-08-06新設）。
+       見た目・開閉の仕組みは、上の苦手曲/オリジナル問題作成モードの説明モーダルと全く同じ。
+       開閉ロジックはjs/main.jsがまとめて管理する（openSpecialModeHelp()参照）。 -->
+  <div id="time-attack-rules-modal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="time-attack-rules-modal-title">
+      <button id="time-attack-rules-modal-close" class="modal-close-button" type="button" aria-label="閉じる">×</button>
+
+      <h2 id="time-attack-rules-modal-title">タイムアタックについて</h2>
+      <p class="modal-lead">出題された曲すべてに正解するまでの時間を競う、1人用のモードです。</p>
+
+      <h3>遊び方</h3>
+      <p>あそびかたと同じく、流れてくるイントロを聞いて曲名を4択から選びます。出題数（5/10/20/50/全曲）とカテゴリを選んでから開始します。</p>
+
+      <h3>3つのルール</h3>
+      <ul class="modal-category-list">
+        <li><strong>ノーマル</strong>：間違えた選択肢が消えるだけで、正解するまで選び直せます。</li>
+        <li><strong>ハード</strong>：1回間違えたら、その問題は不正解のまま次の問題へ進みます。</li>
+        <li><strong>LOVE連チャン</strong>：1回間違えた時点で、残りの問題を待たずゲームがそこで終了します（クリアできなかった扱いになります）。</li>
+      </ul>
+
+      <h3>記録について</h3>
+      <p>クリアタイムは、ルール・出題数・カテゴリの組み合わせごとに自己ベストとして保存され、プレイ履歴一覧からもあとで確認できます。オンライン対戦のゲームモードとしても選べます。</p>
+    </div>
+  </div>
+
+  <div id="random-playback-rules-modal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="random-playback-rules-modal-title">
+      <button id="random-playback-rules-modal-close" class="modal-close-button" type="button" aria-label="閉じる">×</button>
+
+      <h2 id="random-playback-rules-modal-title">ランダム再生クイズについて</h2>
+      <p class="modal-lead">曲の冒頭（イントロ）ではなく、曲の途中のランダムな位置から流れる音源を聞いて曲名を当てる、タイムアタックの上級者向けバリエーションです。</p>
+
+      <h3>遊び方</h3>
+      <p>操作方法・4択での回答方法、ノーマル/ハード/LOVE連チャンの3ルールは、タイムアタックと全く同じです。違うのは、出題される音源の位置だけです。</p>
+
+      <h3>おすすめの遊び方</h3>
+      <p>イントロだけでなく曲全体を知っている必要があるため、まずはタイムアタックでイントロを覚えてから挑戦するのがおすすめです。</p>
+
+      <h3>記録について</h3>
+      <p>クリアタイムはタイムアタックとは別に、このモード専用の自己ベストとして保存されます（プレイ履歴一覧への表示は今後の対応予定です）。オンライン対戦のゲームモードとしても選べます。</p>
+    </div>
+  </div>
+
+  <div id="live-call-mode-rules-modal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="live-call-mode-rules-modal-title">
+      <button id="live-call-mode-rules-modal-close" class="modal-close-button" type="button" aria-label="閉じる">×</button>
+
+      <h2 id="live-call-mode-rules-modal-title">ライブコールモードについて</h2>
+      <p class="modal-lead">クイズではなく、歌詞とコール（合いの手）のタイミングを一緒に確認できる、練習・予習用のモードです。得点や正解/不正解の概念はありません。</p>
+
+      <h3>使い方</h3>
+      <p>コールが登録されている曲だけが一覧に表示されます。曲を選んで再生すると、歌詞パネルの間にコールの行が差し込まれ、今再生されている行がハイライトされます。行をタップすると、その位置まで再生をシークできます。</p>
+
+      <h3>表示の切り替え</h3>
+      <p>パネル内の「コールを表示する／通常歌詞のみにする」ボタンで、コールを混ぜた表示と通常の歌詞だけの表示をいつでも切り替えられます。</p>
+
+      <h3>知っておいてほしいこと</h3>
+      <ul class="modal-category-list">
+        <li>オンライン対戦の対象ではありません（1人で使う参照ツールです）。</li>
+        <li>プレイ履歴・自己ベスト・称号には一切反映されません。</li>
+        <li>収録しているコールの内容は、権利面に配慮して本人が個別に確認・入力したものです。曲によっては未対応の場合があります。</li>
+      </ul>
+    </div>
+  </div>
+
+  <div id="lyrics-quiz-rules-modal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="lyrics-quiz-rules-modal-title">
+      <button id="lyrics-quiz-rules-modal-close" class="modal-close-button" type="button" aria-label="閉じる">×</button>
+
+      <h2 id="lyrics-quiz-rules-modal-title">歌詞クイズについて</h2>
+      <p class="modal-lead">歌詞の一部分をヒントに、曲名を当てるモードです。</p>
+
+      <h3>遊び方・回答方法</h3>
+      <p>最初は歌詞1行だけがヒントとして表示されます。時間経過またはヒントを進める操作で、1→2→3→4行と段階的にヒントが増えていきます。回答候補（4/10/30/50/全曲）から曲名を選んで答えます。</p>
+
+      <h3>採点</h3>
+      <p>ヒント段階が少ないうちに正解するほど高得点です。使用したヒント数・回答時間・ミス数も記録されます。</p>
+
+      <h3>必要なデータ</h3>
+      <p>出題対象にするには、その曲に歌詞データが登録されている必要があります。歌詞データが足りない場合は、開始できない旨が案内されます。</p>
+
+      <h3>オンライン対戦</h3>
+      <p>ルームを作って対戦できます。クラシック／奪い取り／コンボの3つの対戦ルールがあり、それぞれの詳しい内容はルーム設定画面の「？」から確認できます。対戦中に途中退出しても対戦自体は続き、残りの問題は未回答として結果に記録されます。</p>
+
+      <h3>記録について</h3>
+      <p>1人用プレイの結果は、現時点ではプレイ履歴・自己ベスト・称号には反映されません。</p>
+    </div>
+  </div>
+
+  <div id="local-battle-rules-modal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="local-battle-rules-modal-title">
+      <button id="local-battle-rules-modal-close" class="modal-close-button" type="button" aria-label="閉じる">×</button>
+
+      <h2 id="local-battle-rules-modal-title">対戦モードについて</h2>
+      <p class="modal-lead">同じ端末を順番に回して遊ぶ、その場にいる友達との対戦モードです。インターネット接続は必要ありません。</p>
+
+      <h3>遊び方</h3>
+      <p>ホストが出題数・ルール（ノーマル/ハード/LOVE連チャン）を決めると、全員が同じ問題で順番にタイムアタックに挑戦します。1人が終わったら端末を次の人に渡してください。</p>
+
+      <h3>結果の見方</h3>
+      <p>全員がプレイし終えると、クリアタイムを基準にした順位表が表示されます。プレイ履歴・自己ベストへの保存は行われません（対戦専用の記録として、その場限りで表示されます）。</p>
+    </div>
+  </div>
+
+  <div id="online-battle-rules-modal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="online-battle-rules-modal-title">
+      <button id="online-battle-rules-modal-close" class="modal-close-button" type="button" aria-label="閉じる">×</button>
+
+      <h2 id="online-battle-rules-modal-title">オンライン対戦について</h2>
+      <p class="modal-lead">ルームを作って、離れた場所にいる友達とインターネット経由で対戦できるモードです。</p>
+
+      <h3>遊び方</h3>
+      <p>ホストがルームを作成すると、参加者はルームコードを使って参加できます。全員が「準備完了」にすると、ホストが対戦を開始します。</p>
+
+      <h3>選べるゲームモード</h3>
+      <ul class="modal-category-list">
+        <li><strong>タイムアタック</strong>：ノーマル/ハード/LOVE連チャンの3ルールから選んで対戦します。</li>
+        <li><strong>ランダム再生クイズ</strong>：曲の途中から出題される、タイムアタックの上級者向けバージョンです。</li>
+        <li><strong>歌詞クイズ</strong>：クラシック／奪い取り／コンボの3つの対戦ルールがあります。ルーム設定画面の「？」から詳しく確認できます。</li>
+      </ul>
+
+      <h3>途中退出・再接続について</h3>
+      <p>対戦中に通信が切れたりアプリを閉じてしまっても、同じルームに戻って対戦を再開できます。タイムアタック/ランダム再生クイズで最後まで戻らなかった場合はDNF（完走できなかった扱い）として結果に記録され、歌詞クイズでは残りの問題が未回答として記録されます。</p>
+
+      <h3>記録について</h3>
+      <p>オンライン対戦の結果は、プレイ履歴・自己ベスト・称号には反映されません。</p>
+    </div>
+  </div>
+
+  <!-- 歌詞クイズオンライン対戦：3つの対戦ルール（クラシック/奪い取り/コンボ）の説明モーダル。
+       他の説明モーダルと違い、中身は静的なHTMLではなくjs/main.jsがjs/battleRules/index.jsの
+       label・getRuleDescription()から毎回組み立てる（本文がルールの実装から絶対にズレないように
+       するため。2026-08-06新設）。 -->
+  <div id="battle-rules-help-modal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="battle-rules-help-modal-title">
+      <button id="battle-rules-help-modal-close" class="modal-close-button" type="button" aria-label="閉じる">×</button>
+
+      <h2 id="battle-rules-help-modal-title">対戦ルールについて</h2>
+      <p class="modal-lead">歌詞クイズのオンライン対戦で選べる、3つの対戦ルールです。</p>
+
+      <div id="battle-rules-help-body"></div>
     </div>
   </div>
 

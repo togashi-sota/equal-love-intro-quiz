@@ -58,11 +58,18 @@ const SPECIAL_MODES = [
 let elements = null;
 
 // 利用可能なモードのカード。タップするとonSelectModeコールバックを呼ぶ。
+// カード全体を<button>にすると、右上の「？」ヘルプボタン（<button>の中には
+// <button>を入れられない）を置けないため、外側は<div>にし、選択用のタップ領域だけを
+// 内側の<button>（special-mode-card-tap-target）に分けている（js/membersScreen.jsの
+// member-card/member-card-tap-targetと同じ構造パターン）。
 function buildAvailableCard(mode) {
-  const card = document.createElement("button");
-  card.type = "button";
+  const card = document.createElement("div");
   card.className = "special-mode-card";
-  card.addEventListener("click", () => elements.onSelectMode(mode.id));
+
+  const tapTarget = document.createElement("button");
+  tapTarget.type = "button";
+  tapTarget.className = "special-mode-card-tap-target";
+  tapTarget.addEventListener("click", () => elements.onSelectMode(mode.id));
 
   const content = document.createElement("div");
   content.className = "special-mode-card-content";
@@ -77,7 +84,7 @@ function buildAvailableCard(mode) {
   description.textContent = mode.description;
   content.appendChild(description);
 
-  card.appendChild(content);
+  tapTarget.appendChild(content);
 
   // プレイ履歴カードと同じ、「タップで進める」ことを示すシェブロン。
   const chevron = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -92,7 +99,22 @@ function buildAvailableCard(mode) {
   chevronPath.setAttribute("stroke-linecap", "round");
   chevronPath.setAttribute("stroke-linejoin", "round");
   chevron.appendChild(chevronPath);
-  card.appendChild(chevron);
+  tapTarget.appendChild(chevron);
+
+  card.appendChild(tapTarget);
+
+  // このモードについての詳しい説明を開く「？」ボタン。tapTargetの外の兄弟要素にすることで、
+  // タップしてもカード選択（onSelectMode）が同時に発火しないようにしている。
+  const helpButton = document.createElement("button");
+  helpButton.type = "button";
+  helpButton.className = "special-mode-card-help-button";
+  helpButton.setAttribute("aria-label", `${mode.title}について見る`);
+  helpButton.textContent = "？";
+  helpButton.addEventListener("click", (event) => {
+    event.stopPropagation();
+    elements.onShowHelp(mode.id);
+  });
+  card.appendChild(helpButton);
 
   return card;
 }
@@ -139,6 +161,7 @@ function renderSpecialModesList() {
 // elements: {
 //   listContainer: モードカードを並べる入れ物,
 //   onSelectMode: 利用可能なモードのカードがタップされたときに呼ばれるコールバック（modeIdを受け取る）,
+//   onShowHelp: モードカードの「？」ボタンがタップされたときに呼ばれるコールバック（modeIdを受け取る）,
 // }
 export function initSpecialModesScreen(newElements) {
   elements = newElements;

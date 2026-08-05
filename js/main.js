@@ -120,6 +120,13 @@ import {
 } from "./onlineBattleScreen.js";
 import { initOnlineLyricsQuizBattleScreens } from "./onlineLyricsQuizBattleScreen.js";
 import { calculateBattleResult, getPlaybackType } from "./battleModes/index.js";
+// 歌詞クイズ対戦の3ルール説明モーダル用。Firebase・画面のことを一切知らない純粋関数のみのため、
+// js/firebaseClient.jsを経由せずここから直接importしてよい。
+import {
+  listAvailableBattleRules,
+  getBattleRuleDescription,
+  createDefaultBattleRuleSettings,
+} from "./battleRules/index.js";
 import { initLocalBattleResultScreens, startBattleResultCollection } from "./localBattleResultScreen.js";
 import {
   initCustomQuizScreen,
@@ -596,6 +603,29 @@ const customQuizPresetsDeleteConfirmModalElement = document.getElementById(
 const weakSongsRulesLinkElement = document.getElementById("weak-songs-rules-link");
 const weakSongsRulesModalElement = document.getElementById("weak-songs-rules-modal");
 const weakSongsRulesModalCloseButtonElement = document.getElementById("weak-songs-rules-modal-close");
+
+// 特別モード一覧の「？」から開く、各モードの説明モーダル一式（2026-08-06新設）。
+// 開閉の仕組みは苦手曲/オリジナル問題作成モードの説明モーダルと全く同じなので、
+// SPECIAL_MODE_HELP_MODALSに1件ずつまとめ、openSpecialModeHelp()で共通に開閉する。
+const timeAttackRulesModalElement = document.getElementById("time-attack-rules-modal");
+const timeAttackRulesModalCloseButtonElement = document.getElementById("time-attack-rules-modal-close");
+const randomPlaybackRulesModalElement = document.getElementById("random-playback-rules-modal");
+const randomPlaybackRulesModalCloseButtonElement = document.getElementById("random-playback-rules-modal-close");
+const liveCallModeRulesModalElement = document.getElementById("live-call-mode-rules-modal");
+const liveCallModeRulesModalCloseButtonElement = document.getElementById("live-call-mode-rules-modal-close");
+const lyricsQuizRulesModalElement = document.getElementById("lyrics-quiz-rules-modal");
+const lyricsQuizRulesModalCloseButtonElement = document.getElementById("lyrics-quiz-rules-modal-close");
+const localBattleRulesModalElement = document.getElementById("local-battle-rules-modal");
+const localBattleRulesModalCloseButtonElement = document.getElementById("local-battle-rules-modal-close");
+const onlineBattleRulesModalElement = document.getElementById("online-battle-rules-modal");
+const onlineBattleRulesModalCloseButtonElement = document.getElementById("online-battle-rules-modal-close");
+
+// 歌詞クイズオンライン対戦の3ルール説明モーダル（本文はjs/battleRules/index.jsから動的に組み立てる）。
+const battleRulesHelpLinkElement = document.getElementById("battle-rules-help-link");
+const battleRulesHelpModalElement = document.getElementById("battle-rules-help-modal");
+const battleRulesHelpModalCloseButtonElement = document.getElementById("battle-rules-help-modal-close");
+const battleRulesHelpBodyElement = document.getElementById("battle-rules-help-body");
+
 const specialModeNoticeElement = document.getElementById("special-mode-notice");
 const backToTitleButtonElement = document.getElementById("back-to-title-button");
 const backToSpecialModesButtonElement = document.getElementById("back-to-special-modes-button");
@@ -783,6 +813,7 @@ initSpecialModesScreen({
       showScreen("onlineBattleEntry");
     }
   },
+  onShowHelp: openSpecialModeHelp,
 });
 
 // ライブコールモード：曲一覧画面・再生画面。
@@ -2290,6 +2321,83 @@ weakSongsRulesModalElement.addEventListener("click", (event) => {
   }
 });
 
+// 特別モード一覧「？」の説明モーダル一式（タイムアタック・ランダム再生クイズ・
+// ライブコールモード・歌詞クイズ・対戦モード・オンライン対戦）。中身は静的なHTMLで、
+// 開閉の仕組みが6件とも完全に共通なため、他の説明モーダルのように1件ずつ関数を
+// 書かず、ここでまとめて処理する（苦手曲/オリジナル問題作成モードは、専用画面の
+// 「？」からも開ける既存の開閉関数をそのまま再利用するため、ここには含めない）。
+const SPECIAL_MODE_HELP_MODALS = {
+  timeAttack: { modal: timeAttackRulesModalElement, closeButton: timeAttackRulesModalCloseButtonElement },
+  randomPlayback: { modal: randomPlaybackRulesModalElement, closeButton: randomPlaybackRulesModalCloseButtonElement },
+  liveCallMode: { modal: liveCallModeRulesModalElement, closeButton: liveCallModeRulesModalCloseButtonElement },
+  lyricsQuiz: { modal: lyricsQuizRulesModalElement, closeButton: lyricsQuizRulesModalCloseButtonElement },
+  localBattle: { modal: localBattleRulesModalElement, closeButton: localBattleRulesModalCloseButtonElement },
+  onlineBattle: { modal: onlineBattleRulesModalElement, closeButton: onlineBattleRulesModalCloseButtonElement },
+};
+
+Object.values(SPECIAL_MODE_HELP_MODALS).forEach(({ modal, closeButton }) => {
+  closeButton.addEventListener("click", () => {
+    modal.hidden = true;
+  });
+  modal.addEventListener("click", (event) => {
+    if (event.target === modal) {
+      modal.hidden = true;
+    }
+  });
+});
+
+// 特別モード一覧の「？」ボタン（js/specialModesScreen.jsのonShowHelp）から呼ばれる窓口。
+function openSpecialModeHelp(modeId) {
+  if (modeId === "weakSongs") {
+    openWeakSongsRulesModal(); // 内部でplayClickSound()を呼ぶ
+    return;
+  }
+  if (modeId === "originalQuiz") {
+    openCustomQuizPresetsRulesModal(); // 内部でplayClickSound()を呼ぶ
+    return;
+  }
+  const entry = SPECIAL_MODE_HELP_MODALS[modeId];
+  if (!entry) return;
+  playClickSound();
+  entry.modal.hidden = false;
+}
+
+// 歌詞クイズオンライン対戦：3つの対戦ルール（クラシック/奪い取り/コンボ）の説明モーダル。
+// 本文はjs/battleRules/index.jsのlabel・getRuleDescription()から毎回組み立てる。
+// ハードコードした説明文を別に持たせないことで、ルールの実装（配点・タイブレーク順など）が
+// 変わったときにこの説明が古いまま残ってしまう事故を防ぐ（本人指示）。
+function renderBattleRulesHelpBody() {
+  battleRulesHelpBodyElement.innerHTML = "";
+  listAvailableBattleRules().forEach((rule) => {
+    const heading = document.createElement("h3");
+    heading.textContent = rule.label;
+    battleRulesHelpBodyElement.appendChild(heading);
+
+    const description = document.createElement("p");
+    const defaultSettings = createDefaultBattleRuleSettings(rule.ruleId);
+    description.textContent = getBattleRuleDescription(rule.ruleId, defaultSettings);
+    battleRulesHelpBodyElement.appendChild(description);
+  });
+}
+
+function openBattleRulesHelpModal() {
+  playClickSound();
+  renderBattleRulesHelpBody();
+  battleRulesHelpModalElement.hidden = false;
+}
+
+function closeBattleRulesHelpModal() {
+  battleRulesHelpModalElement.hidden = true;
+}
+
+battleRulesHelpLinkElement.addEventListener("click", openBattleRulesHelpModal);
+battleRulesHelpModalCloseButtonElement.addEventListener("click", closeBattleRulesHelpModal);
+battleRulesHelpModalElement.addEventListener("click", (event) => {
+  if (event.target === battleRulesHelpModalElement) {
+    closeBattleRulesHelpModal();
+  }
+});
+
 // オリジナル問題作成モードの説明モーダル。開閉の仕組みは他の説明モーダルと全く同じ。
 function openCustomQuizRulesModal() {
   playClickSound();
@@ -3343,6 +3451,23 @@ document.addEventListener("keydown", (event) => {
   if (!weakSongsRulesModalElement.hidden) {
     if (event.key === "Escape") {
       closeWeakSongsRulesModal();
+    }
+    return;
+  }
+
+  // 特別モード一覧「？」の説明モーダル（6件）が開いているときも、同じ考え方でEscキーに対応する。
+  const openSpecialModeHelpEntry = Object.values(SPECIAL_MODE_HELP_MODALS).find(({ modal }) => !modal.hidden);
+  if (openSpecialModeHelpEntry) {
+    if (event.key === "Escape") {
+      openSpecialModeHelpEntry.modal.hidden = true;
+    }
+    return;
+  }
+
+  // 歌詞クイズ対戦の3ルール説明モーダルが開いているときも、同じ考え方でEscキーに対応する。
+  if (!battleRulesHelpModalElement.hidden) {
+    if (event.key === "Escape") {
+      closeBattleRulesHelpModal();
     }
     return;
   }
