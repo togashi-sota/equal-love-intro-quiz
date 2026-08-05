@@ -35,7 +35,13 @@ import {
   ROOM_STATUS,
 } from "./onlineBattle.js";
 import { getCurrentUid } from "./firebaseClient.js";
-import { validateRoomSettings, buildQuestionsForMode, compareBattleResults, getRuleDescription } from "./battleModes/index.js";
+import {
+  validateRoomSettings,
+  buildQuestionsForMode,
+  compareBattleResults,
+  getRuleDescription,
+  getModeLabel,
+} from "./battleModes/index.js";
 import { QUESTION_COUNT_LABELS, CATEGORY_LABELS, RULE_LABELS } from "./localBattleScreen.js";
 import { computeNormalFinalRecordMs } from "./localBattleResult.js";
 import { MEMBERS } from "./data/members.js";
@@ -121,9 +127,13 @@ const JOIN_ERROR_MESSAGES = {
 // コンテナに並べる。js/localBattleScreen.jsのbuildConfigSummaryChips()と考え方は同じだが、
 // あちらは同ファイル内に閉じた非公開関数のため、ここでは同じロジックを短く再実装している。
 // 【Step2時点ではtimeAttackモードしか無いため、ラベル解決も同モード専用のものを使う】
-function renderSettingsChips(container, settings) {
+// 【2026-08-08追記・Phase4】gameModeを引数に追加し、先頭に対戦モード名のチップを
+// 必ず表示するようにした（モードが複数になったため。将来ランキング機能を作る際も、
+// 「どのモードの結果か」が画面から常に読み取れることを優先する、本人の指示どおり）。
+function renderSettingsChips(container, settings, gameMode) {
   container.innerHTML = "";
   const chips = [
+    getModeLabel(gameMode),
     QUESTION_COUNT_LABELS[settings.questionCountValue] ?? settings.questionCountValue,
     CATEGORY_LABELS[settings.categoryFilterValue] ?? settings.categoryFilterValue,
     RULE_LABELS[settings.rule] ?? settings.rule,
@@ -317,6 +327,9 @@ function renderLobby(room) {
 
   elements.lobbyRoomCode.textContent = room.roomId;
   elements.lobbyMaxPlayersText.textContent = `最大${room.maxPlayers}人`;
+  // 対戦モードは作成後に変更できない固定値のため、ホスト・参加者どちらにも常に見える
+  // 場所に表示する（2026-08-08新設・Phase4）。
+  elements.lobbyGameModeText.textContent = `モード: ${getModeLabel(room.gameMode)}`;
   currentGameMode = room.gameMode;
 
   const myUid = getCurrentUid();
@@ -392,7 +405,7 @@ function renderLobby(room) {
     applySettingsToHostForm(settings);
     updateStartButton(room);
   } else {
-    renderSettingsChips(elements.lobbySettingsSummary, settings);
+    renderSettingsChips(elements.lobbySettingsSummary, settings, room.gameMode);
 
     const myPlayer = players[myUid];
     const myReady = Boolean(myPlayer?.ready && myPlayer?.readyForRevision === (room.settingsRevision ?? 0));
@@ -507,6 +520,7 @@ function renderOnlineBattleQuizStrip(rows, myUid) {
 // 何度呼んでも安全。これにより、ホストが待機画面を開くたび＝初回表示・再接続どちらでも、
 // 自動的に再判定される）。
 function renderOnlineBattleWaitingList(room, rows, myUid) {
+  elements.waitingGameModeText.textContent = `モード: ${getModeLabel(room.gameMode)}`;
   elements.waitingPlayerList.innerHTML = "";
   rows.forEach((row) => {
     const li = document.createElement("li");
@@ -603,7 +617,7 @@ function goToResultScreen(room) {
   // 既存の権限設計と揃えている）。
   elements.resultRematchButton.hidden = room.host !== myUid;
 
-  renderSettingsChips(elements.resultConfigSummary, room.settings);
+  renderSettingsChips(elements.resultConfigSummary, room.settings, room.gameMode);
   elements.resultRuleNote.textContent = getRuleDescription(room.gameMode, room.settings);
 
   const finishers = [];
@@ -824,9 +838,13 @@ export function initOnlineBattleScreens(newElements) {
       return;
     }
     const maxPlayers = Number(document.querySelector('input[name="online-battle-max-players"]:checked').value);
+    // 2026-08-08新設（Phase4）：対戦モード選択。一度ルームを作成した後はgameModeを
+    // 変更できない仕様のため（js/onlineBattle.jsのルーム作成ルール参照）、ここで選んだ値が
+    // そのままルームの対戦モードとして固定される。
+    const gameMode = document.querySelector('input[name="online-battle-game-mode"]:checked').value;
 
     elements.createSubmitButton.disabled = true;
-    const result = await createRoom({ playerName, maxPlayers });
+    const result = await createRoom({ playerName, maxPlayers, gameMode });
     elements.createSubmitButton.disabled = false;
 
     if (!result.ok) {

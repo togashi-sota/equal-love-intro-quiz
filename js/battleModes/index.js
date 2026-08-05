@@ -17,9 +17,11 @@
 //   これだけで、onlineBattle.js・onlineBattleScreen.js本体の大きな改修は不要な設計にしている。
 
 import * as timeAttackBattleMode from "./timeAttackBattleMode.js";
+import * as randomPlaybackBattleMode from "./randomPlaybackBattleMode.js";
 
 const REGISTRY = {
   [timeAttackBattleMode.gameMode]: timeAttackBattleMode,
+  [randomPlaybackBattleMode.gameMode]: randomPlaybackBattleMode,
 };
 
 // gameMode名からアダプターを取り出す。未登録のgameMode（対応していないモード・
@@ -67,4 +69,24 @@ export function getRuleDescription(gameMode, settings) {
 
 export function getModeLabel(gameMode) {
   return getBattleMode(gameMode)?.label ?? gameMode;
+}
+
+export function getModeDescription(gameMode) {
+  return getBattleMode(gameMode)?.description ?? "";
+}
+
+// 【2026-08-08新設・Phase4】gameModeの「再生方式の識別子」を取り出す。
+// js/main.jsのrenderQuestion()が、gameMode名を直接比較する代わりにこの値を見て
+// 再生方法（イントロ再生／ランダム位置再生）を選ぶために使う。
+export function getPlaybackType(gameMode) {
+  return getBattleMode(gameMode)?.playbackType ?? "intro";
+}
+
+// ルーム作成画面のモード選択UIが、選べるgameMode一覧を表示するために使う。
+export function listAvailableGameModes() {
+  return Object.values(REGISTRY).map((mode) => ({
+    gameMode: mode.gameMode,
+    label: mode.label,
+    description: mode.description,
+  }));
 }

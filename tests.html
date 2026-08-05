@@ -32,6 +32,7 @@
     import { runLyricsStorageTests } from "./tests/lyricsStorage.test.js";
     import { runLyricsSyncTests } from "./tests/lyricsSync.test.js";
     import { runMemberUtilsTests } from "./tests/memberUtils.test.js";
+    import { runAudioMetadataTests } from "./tests/audioMetadata.test.js";
     import { printSummary } from "./tests/test-utils.js";
 
     runScoreTests();
@@ -41,6 +42,7 @@
     await runLyricsStorageTests();
     runLyricsSyncTests();
     runMemberUtilsTests();
+    runAudioMetadataTests();
     const { passCount, failCount } = printSummary();
 
     const summaryElement = document.getElementById("test-summary");

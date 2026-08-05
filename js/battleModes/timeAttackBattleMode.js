@@ -15,6 +15,11 @@ import { MIN_SONGS_REQUIRED } from "../quiz.js";
 
 export const gameMode = "timeAttack";
 export const label = "タイムアタック";
+export const description = "曲の冒頭を聴いて当てます";
+// 【2026-08-08追加・Phase4】js/main.jsのrenderQuestion()が、gameMode名を直接比較するのではなく
+// この値を見て再生方法を選べるようにするための識別子（"intro"＝曲の冒頭から再生）。
+// 詳細はjs/battleModes/randomPlaybackBattleMode.jsのコメント・HANDOFF.md参照。
+export const playbackType = "intro";
 
 // ロビー画面のホスト用設定フォームが最初に表示する既定値。
 export function defaultSettings() {

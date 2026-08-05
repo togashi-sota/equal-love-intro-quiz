@@ -1096,6 +1096,39 @@ fieldset label:has(input:focus-visible) {
   opacity: 0.7;
 }
 
+/* ===== オンライン対戦：ルーム作成画面の対戦モード選択（2026-08-08新設） =====
+   .category-optionと同じ「横幅いっぱいの行」の考え方だが、モード名の下に短い説明文を
+   添えたいため、横並びではなく縦積みにする。一度ルームを作った後はモードを変更できない
+   仕様のため、作成前にここで遊び方が伝わることを優先している。 */
+.game-mode-option {
+  display: flex;
+  width: 100%;
+  margin: 4px 0;
+}
+
+.game-mode-option-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  min-width: 0;
+}
+
+.game-mode-option-name {
+  font-weight: 700;
+}
+
+.game-mode-option-description {
+  font-size: 0.8em;
+  font-weight: 400;
+  opacity: 0.85;
+}
+
+/* 選択中の項目は文字色が白になるため、説明文の不透明度を少し上げて視認性を保つ */
+.game-mode-option:has(input:checked) .game-mode-option-description {
+  opacity: 0.95;
+}
+
 /* 選択した出題数が対象曲数を上回っているときだけ表示する案内文 */
 .question-count-notice {
   text-align: center;
@@ -8099,6 +8132,16 @@ fieldset label:has(input:focus-visible) {
 }
 
 .online-lobby-max-players {
+  text-align: center;
+  font-size: 0.7rem;
+  opacity: 0.6;
+  margin: 2px 0 14px;
+}
+
+/* 対戦モードは作成後に変更できないため、常に見える控えめな表示にする（2026-08-08新設）。
+   .online-lobby-max-playersのすぐ下に並ぶ想定で、隣接するmargin同士はCSSの仕様上
+   大きい方（14px）だけが有効になるため、二重の余白にはならない。 */
+.online-lobby-game-mode {
   text-align: center;
   font-size: 0.7rem;
   opacity: 0.6;
