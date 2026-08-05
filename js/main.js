@@ -100,6 +100,15 @@ import {
   getCurrentRandomPlaybackSeed,
   renderRandomPlaybackResult,
 } from "./randomPlaybackScreen.js";
+import {
+  initLyricsQuizSetupScreen,
+  initLyricsQuizQuestionScreen,
+  initLyricsQuizResultScreen,
+  updateBestChip as updateLyricsQuizBestChip,
+  startLyricsQuizPlay,
+  retryLyricsQuizRun,
+  renderLyricsQuizResult,
+} from "./lyricsQuizScreen.js";
 import { buildBattleQuestions } from "./localBattle.js";
 import { initLocalBattleScreens, getCurrentBattleSession } from "./localBattleScreen.js";
 import {
@@ -408,6 +417,35 @@ const randomPlaybackResultRetryButtonElement = document.getElementById("random-p
 const randomPlaybackResultSetupButtonElement = document.getElementById("random-playback-result-setup-button");
 const randomPlaybackResultHomeLinkElement = document.getElementById("random-playback-result-home-link");
 
+// 歌詞クイズモード（1人用MVP）の画面要素一式（2026-08-09新設）。
+const lyricsQuizSetupBackButtonElement = document.getElementById("lyrics-quiz-setup-back-button");
+const lyricsQuizStartButtonElement = document.getElementById("lyrics-quiz-start-button");
+const lyricsQuizStartErrorElement = document.getElementById("lyrics-quiz-start-error");
+const lyricsQuizBestChipElement = document.getElementById("lyrics-quiz-best-chip");
+const lyricsQuizProgressElement = document.getElementById("lyrics-quiz-progress");
+const lyricsQuizElapsedTimeElement = document.getElementById("lyrics-quiz-elapsed-time");
+const lyricsQuizHintLevelElement = document.getElementById("lyrics-quiz-hint-level");
+const lyricsQuizHintTextElement = document.getElementById("lyrics-quiz-hint-text");
+const lyricsQuizNextHintButtonElement = document.getElementById("lyrics-quiz-next-hint-button");
+const lyricsQuizSkipButtonElement = document.getElementById("lyrics-quiz-skip-button");
+const lyricsQuizAnswerSearchRowElement = document.getElementById("lyrics-quiz-answer-search-row");
+const lyricsQuizAnswerSearchInputElement = document.getElementById("lyrics-quiz-answer-search-input");
+const lyricsQuizAnswerCountElement = document.getElementById("lyrics-quiz-answer-count");
+const lyricsQuizAnswerListElement = document.getElementById("lyrics-quiz-answer-list");
+const lyricsQuizResultHomeLinkElement = document.getElementById("lyrics-quiz-result-home-link");
+const lyricsQuizResultNewRecordElement = document.getElementById("lyrics-quiz-result-new-record");
+const lyricsQuizResultCorrectCountElement = document.getElementById("lyrics-quiz-result-correct-count");
+const lyricsQuizResultMissCountElement = document.getElementById("lyrics-quiz-result-miss-count");
+const lyricsQuizResultTotalElapsedTimeElement = document.getElementById("lyrics-quiz-result-total-elapsed-time");
+const lyricsQuizResultTotalHintsUsedElement = document.getElementById("lyrics-quiz-result-total-hints-used");
+const lyricsQuizResultAverageHintsUsedElement = document.getElementById("lyrics-quiz-result-average-hints-used");
+const lyricsQuizResultFirstHintCorrectCountElement = document.getElementById(
+  "lyrics-quiz-result-first-hint-correct-count"
+);
+const lyricsQuizResultBreakdownListElement = document.getElementById("lyrics-quiz-result-breakdown-list");
+const lyricsQuizResultRetryButtonElement = document.getElementById("lyrics-quiz-result-retry-button");
+const lyricsQuizResultSetupButtonElement = document.getElementById("lyrics-quiz-result-setup-button");
+
 // 対戦モード（ローカル対戦）の画面要素一式（2026-08-06新設）。
 const battleModeSelectBackButtonElement = document.getElementById("battle-mode-select-back-button");
 const battleMode1v1ButtonElement = document.getElementById("battle-mode-select-1v1");
@@ -702,6 +740,9 @@ initSpecialModesScreen({
     } else if (modeId === "randomPlayback") {
       updateRandomPlaybackBestChip();
       showScreen("randomPlaybackSetup");
+    } else if (modeId === "lyricsQuiz") {
+      updateLyricsQuizBestChip();
+      showScreen("lyricsQuizSetup");
     } else if (modeId === "localBattle") {
       showScreen("battleModeSelect");
     } else if (modeId === "onlineBattle") {
@@ -2610,6 +2651,72 @@ randomPlaybackResultSetupButtonElement.addEventListener("click", () => {
 });
 
 randomPlaybackResultHomeLinkElement.addEventListener("click", () => {
+  playClickSound();
+  showScreen("start");
+});
+
+// ===== 歌詞クイズモード（1人用MVP、2026-08-09新設） =====
+// 通常クイズ・タイムアタック・ランダム再生クイズと違い、既存の#quiz-screen（4択）は使わず、
+// 「ヒントを見ながら曲名を探す」専用の問題画面（#lyrics-quiz-question-screen）を使う。
+// 進行状態（今何問目か・今のヒント段階・回答済みか等）はgameStateに乗せず、
+// js/lyricsQuizScreen.js側で完結させている。
+
+lyricsQuizSetupBackButtonElement.addEventListener("click", () => {
+  playClickSound();
+  showScreen("specialModes");
+});
+
+initLyricsQuizSetupScreen({
+  startButton: lyricsQuizStartButtonElement,
+  startError: lyricsQuizStartErrorElement,
+  bestChip: lyricsQuizBestChipElement,
+  onStart: () => {
+    playClickSound();
+    showScreen("lyricsQuizQuestion");
+    startLyricsQuizPlay();
+  },
+  onFinish: () => {
+    showScreen("lyricsQuizResult");
+    renderLyricsQuizResult();
+  },
+});
+
+initLyricsQuizQuestionScreen({
+  progress: lyricsQuizProgressElement,
+  elapsedTime: lyricsQuizElapsedTimeElement,
+  hintLevelLabel: lyricsQuizHintLevelElement,
+  hintText: lyricsQuizHintTextElement,
+  nextHintButton: lyricsQuizNextHintButtonElement,
+  skipButton: lyricsQuizSkipButtonElement,
+  answerSearchRow: lyricsQuizAnswerSearchRowElement,
+  answerSearchInput: lyricsQuizAnswerSearchInputElement,
+  answerCount: lyricsQuizAnswerCountElement,
+  answerList: lyricsQuizAnswerListElement,
+});
+
+initLyricsQuizResultScreen({
+  correctCount: lyricsQuizResultCorrectCountElement,
+  missCount: lyricsQuizResultMissCountElement,
+  totalHintsUsed: lyricsQuizResultTotalHintsUsedElement,
+  averageHintsUsed: lyricsQuizResultAverageHintsUsedElement,
+  firstHintCorrectCount: lyricsQuizResultFirstHintCorrectCountElement,
+  totalElapsedTime: lyricsQuizResultTotalElapsedTimeElement,
+  newRecordBadge: lyricsQuizResultNewRecordElement,
+  breakdownList: lyricsQuizResultBreakdownListElement,
+});
+
+lyricsQuizResultRetryButtonElement.addEventListener("click", () => {
+  playClickSound();
+  retryLyricsQuizRun();
+});
+
+lyricsQuizResultSetupButtonElement.addEventListener("click", () => {
+  playClickSound();
+  updateLyricsQuizBestChip();
+  showScreen("lyricsQuizSetup");
+});
+
+lyricsQuizResultHomeLinkElement.addEventListener("click", () => {
   playClickSound();
   showScreen("start");
 });

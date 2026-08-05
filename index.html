@@ -1497,6 +1497,151 @@
       </div>
     </section>
 
+    <!-- ===== 歌詞クイズモード（1人用MVP、2026-08-09新設） =====
+         歌詞の一部をヒントとして段階的に見せ、曲名を当てるモード。設定・問題・結果の3画面。
+         中身の組み立てはjs/lyricsQuizScreen.jsが担う。区間生成・ヒント進行・回答候補生成・
+         採点はjs/lyricsSegmentEngine.js・js/lyricsQuizEngine.js・js/lyricsQuizQuestionBuilder.js
+         の純粋関数に任せている。既存のタイムアタック・ランダム再生クイズと見た目を揃えるため、
+         設定・結果画面は同じfieldset/option-row・統計表示のクラスをそのまま使う。 -->
+    <section id="lyrics-quiz-setup-screen" class="screen">
+      <div class="list-header">
+        <button id="lyrics-quiz-setup-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            LYRICS QUIZ
+          </p>
+          <h2>歌詞クイズ</h2>
+        </div>
+      </div>
+
+      <p class="special-modes-intro">歌詞の一部分だけがヒントとして表示されます。分からなければ「次のヒント」で範囲が広がります。何個目のヒントで曲名を当てられたかが成績になります。</p>
+
+      <fieldset>
+        <legend>出題数</legend>
+        <div class="option-row">
+          <label><input type="radio" name="lyrics-quiz-question-count" value="5" checked> 5問</label>
+          <label><input type="radio" name="lyrics-quiz-question-count" value="10"> 10問</label>
+          <label><input type="radio" name="lyrics-quiz-question-count" value="20"> 20問</label>
+        </div>
+        <div class="option-row">
+          <label><input type="radio" name="lyrics-quiz-question-count" value="50"> 50問</label>
+          <label><input type="radio" name="lyrics-quiz-question-count" value="all"> 全曲</label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>カテゴリ</legend>
+        <div class="option-row">
+          <label><input type="radio" name="lyrics-quiz-category-filter" value="title-track" checked> 表題曲のみ</label>
+          <label><input type="radio" name="lyrics-quiz-category-filter" value="title-and-group"> 表題曲＋全員曲</label>
+          <label><input type="radio" name="lyrics-quiz-category-filter" value="all"> 全曲</label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>回答方式（回答候補の数）</legend>
+        <div class="option-row">
+          <label><input type="radio" name="lyrics-quiz-answer-pool-size" value="4" checked> 4択</label>
+          <label><input type="radio" name="lyrics-quiz-answer-pool-size" value="10"> 10択</label>
+          <label><input type="radio" name="lyrics-quiz-answer-pool-size" value="30"> 30択</label>
+        </div>
+        <div class="option-row">
+          <label><input type="radio" name="lyrics-quiz-answer-pool-size" value="50"> 50択</label>
+          <label><input type="radio" name="lyrics-quiz-answer-pool-size" value="all"> 全曲検索</label>
+        </div>
+      </fieldset>
+
+      <p id="lyrics-quiz-best-chip" class="mode-best-chip is-empty">自己ベスト：記録なし</p>
+
+      <button id="lyrics-quiz-start-button" class="primary-button" type="button">開始する</button>
+      <p id="lyrics-quiz-start-error" class="error-message" hidden></p>
+    </section>
+
+    <!-- 歌詞クイズ：問題画面。歌詞ヒント・「次のヒント」ボタン・回答候補（一覧 or 検索付き一覧）。 -->
+    <section id="lyrics-quiz-question-screen" class="screen">
+      <div class="lyrics-quiz-question-header">
+        <span id="lyrics-quiz-progress" class="lyrics-quiz-progress">第1問 / 5問</span>
+        <span id="lyrics-quiz-elapsed-time" class="lyrics-quiz-elapsed-time">0秒</span>
+      </div>
+
+      <div class="lyrics-quiz-hint-card">
+        <p id="lyrics-quiz-hint-level" class="lyrics-quiz-hint-level">ヒント 1 / 4</p>
+        <p id="lyrics-quiz-hint-text" class="lyrics-quiz-hint-text"></p>
+        <button id="lyrics-quiz-next-hint-button" class="secondary-button lyrics-quiz-next-hint-button" type="button">次のヒントを見る</button>
+      </div>
+
+      <div class="lyrics-quiz-answer-section">
+        <p class="lyrics-quiz-answer-label">この曲は？</p>
+        <div id="lyrics-quiz-answer-search-row" class="lyrics-quiz-answer-search-row" hidden>
+          <input id="lyrics-quiz-answer-search-input" class="lyrics-quiz-answer-search-input" type="text" placeholder="曲名で検索">
+          <span id="lyrics-quiz-answer-count" class="lyrics-quiz-answer-count">0曲</span>
+        </div>
+        <div id="lyrics-quiz-answer-list" class="lyrics-quiz-answer-list"></div>
+      </div>
+
+      <button id="lyrics-quiz-skip-button" class="secondary-button lyrics-quiz-skip-button" type="button">わからない（スキップ）</button>
+    </section>
+
+    <!-- 歌詞クイズ：結果画面。既存のタイムアタック結果画面と同じ統計表示クラスを使う。 -->
+    <section id="lyrics-quiz-result-screen" class="screen">
+      <button id="lyrics-quiz-result-home-link" class="quiz-back-link" type="button">⌂ ホームへ戻る</button>
+
+      <div class="title-block">
+        <p class="eyebrow-chip">
+          <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+          LYRICS QUIZ RESULT
+        </p>
+        <h2>結果</h2>
+      </div>
+
+      <p id="lyrics-quiz-result-new-record" hidden>🎉 新記録！</p>
+
+      <div class="time-attack-result-stats-row">
+        <div class="time-attack-result-stat">
+          <p class="time-attack-result-stat-label">正解数</p>
+          <p id="lyrics-quiz-result-correct-count" class="time-attack-result-stat-value">0 / 0問</p>
+        </div>
+        <div class="time-attack-result-stat">
+          <p class="time-attack-result-stat-label">不正解数</p>
+          <p id="lyrics-quiz-result-miss-count" class="time-attack-result-stat-value">0問</p>
+        </div>
+        <div class="time-attack-result-stat">
+          <p class="time-attack-result-stat-label">経過時間</p>
+          <p id="lyrics-quiz-result-total-elapsed-time" class="time-attack-result-stat-value">0秒</p>
+        </div>
+      </div>
+      <div class="time-attack-result-stats-row">
+        <div class="time-attack-result-stat">
+          <p class="time-attack-result-stat-label">合計ヒント使用数</p>
+          <p id="lyrics-quiz-result-total-hints-used" class="time-attack-result-stat-value">0回</p>
+        </div>
+        <div class="time-attack-result-stat">
+          <p class="time-attack-result-stat-label">平均ヒント数</p>
+          <p id="lyrics-quiz-result-average-hints-used" class="time-attack-result-stat-value">0回</p>
+        </div>
+        <div class="time-attack-result-stat">
+          <p class="time-attack-result-stat-label">ヒント1で正解</p>
+          <p id="lyrics-quiz-result-first-hint-correct-count" class="time-attack-result-stat-value">0問</p>
+        </div>
+      </div>
+
+      <details class="lyrics-quiz-breakdown-details">
+        <summary>問題ごとの内訳を見る</summary>
+        <ul id="lyrics-quiz-result-breakdown-list" class="lyrics-quiz-breakdown-list"></ul>
+      </details>
+
+      <div class="time-attack-result-actions">
+        <button id="lyrics-quiz-result-retry-button" class="primary-button" type="button">もう一度挑戦する</button>
+        <button id="lyrics-quiz-result-setup-button" class="secondary-button time-attack-result-setup-button" type="button">← 歌詞クイズ設定へ戻る</button>
+      </div>
+    </section>
+
     <!-- ===== 対戦モード（ローカル対戦、2026-08-06新設） =====
          完全オフラインで、友達と同じ問題・同じ選択肢に挑戦し、記録を比べ合える機能。
          中身の組み立て・遷移はjs/localBattleScreen.js・js/localBattleResultScreen.jsが担う。

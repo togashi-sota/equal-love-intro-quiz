@@ -35,6 +35,12 @@ const SPECIAL_MODES = [
     available: true,
   },
   {
+    id: "lyricsQuiz",
+    title: "歌詞クイズ",
+    description: "歌詞の一部分をヒントに曲名を当てます",
+    available: true,
+  },
+  {
     id: "localBattle",
     title: "対戦モード",
     description: "友達と同じ問題でタイムアタックを競えます",

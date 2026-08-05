@@ -8296,6 +8296,204 @@ fieldset label:has(input:focus-visible) {
   opacity: 0.55;
 }
 
+/* ===== 歌詞クイズモード（1人用MVP、2026-08-09新設） =====
+   設定・結果画面は既存のタイムアタック・ランダム再生クイズと同じクラス
+   （fieldset/option-row・time-attack-result-stats-row等）をそのまま使うため、
+   ここでは問題画面専用のスタイルだけを新規に定義する。 */
+
+.lyrics-quiz-question-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-text);
+  opacity: 0.75;
+}
+
+.lyrics-quiz-elapsed-time {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 歌詞ヒントの表示カード。読みやすさを優先し、中央寄せ・十分な行間・横スクロールなしにする
+   （本人の要望どおり）。歌詞は行によって長さがまちまちなため、white-space: pre-wrapで
+   js/lyricsQuizScreen.js側が渡す改行（segment.textの\n区切り）をそのまま活かしつつ、
+   長い行は自動で折り返す。 */
+.lyrics-quiz-hint-card {
+  padding: 20px 16px;
+  margin-bottom: 16px;
+  border-radius: 16px;
+  background: var(--color-surface-glass);
+  border: 1px solid var(--color-card-border);
+  text-align: center;
+}
+
+.lyrics-quiz-hint-level {
+  margin: 0 0 10px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  letter-spacing: 0.04em;
+}
+
+.lyrics-quiz-hint-text {
+  margin: 0 0 16px;
+  padding: 0 4px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 2;
+  color: var(--color-text);
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+.lyrics-quiz-next-hint-button {
+  width: 100%;
+}
+
+.lyrics-quiz-next-hint-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.lyrics-quiz-answer-section {
+  margin-bottom: 14px;
+}
+
+.lyrics-quiz-answer-label {
+  margin: 0 0 8px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  opacity: 0.75;
+}
+
+.lyrics-quiz-answer-search-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.lyrics-quiz-answer-search-input {
+  flex: 1;
+  min-height: 40px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--color-card-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 0.9rem;
+}
+
+.lyrics-quiz-answer-count {
+  flex: none;
+  font-size: 0.75rem;
+  font-weight: 700;
+  opacity: 0.6;
+  white-space: nowrap;
+}
+
+/* 回答候補一覧：4択・10択は短い一覧なのでそのまま並び、30択以上は本人の要望どおり
+   スクロール可能な一覧にする（max-heightを超えた分だけ縦スクロール）。 */
+.lyrics-quiz-answer-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 42vh;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.lyrics-quiz-answer-button {
+  width: 100%;
+  text-align: center;
+}
+
+/* .choice-buttonの番号バッジ（::before）は#choice-buttons専用のnth-childルールで数字を
+   入れる作りのため、ここでは中身のない空の丸だけが残ってしまう。歌詞クイズの回答候補は
+   曲数が可変（4〜81件）でキーボード番号選択も無いため、バッジ自体を非表示にする。 */
+.lyrics-quiz-answer-button::before {
+  content: none;
+}
+
+.lyrics-quiz-skip-button {
+  width: 100%;
+}
+
+/* ===== 歌詞クイズ：結果画面の問題ごとの内訳（折りたたみ） ===== */
+.lyrics-quiz-breakdown-details {
+  margin: 4px 0 18px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--color-surface-glass);
+  border: 1px solid var(--color-card-border);
+}
+
+.lyrics-quiz-breakdown-details summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+}
+
+.lyrics-quiz-breakdown-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lyrics-quiz-breakdown-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 4px;
+  border-top: 1px solid var(--color-card-border);
+  font-size: 0.8rem;
+}
+
+.lyrics-quiz-breakdown-row:first-child {
+  border-top: none;
+}
+
+.lyrics-quiz-breakdown-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lyrics-quiz-breakdown-status {
+  flex: none;
+  font-weight: 800;
+}
+
+.lyrics-quiz-breakdown-status.is-correct {
+  color: var(--color-primary-dark);
+}
+
+.lyrics-quiz-breakdown-status.is-wrong {
+  color: var(--color-danger);
+}
+
+/* スマホ幅では歌詞ヒントの文字サイズ・行間を少し詰め、スクロールしすぎないようにする。 */
+@media (max-width: 480px) {
+  .lyrics-quiz-hint-text {
+    font-size: 0.98rem;
+    line-height: 1.8;
+  }
+
+  .lyrics-quiz-answer-list {
+    max-height: 38vh;
+  }
+}
+
 /* ===== アクセシビリティ：モーションを減らす設定への対応 =====
    OS/ブラウザで「視差効果を減らす」等が有効なときは、
    すべてのアニメーション・トランジションをほぼ瞬時に終わらせる。 */
