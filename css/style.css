@@ -3128,26 +3128,57 @@ fieldset label:has(input:focus-visible) {
   margin: 0;
   padding: 3px 6px;
   border-radius: 6px;
+  /* 現在行になったときだけ縁取りを足す（下のis-current-lyrics-line参照）。
+     非現在行のうちから同じ太さの透明な縁を確保しておくことで、縁が付いたり消えたり
+     するタイミングで箱の大きさが変わらないようにしている（レイアウトが動かないため）。 */
+  border: 2px solid transparent;
   background: var(--color-danger-soft);
   font-size: 0.7rem;
   font-weight: 700;
   color: var(--color-danger);
   opacity: 0.75;
   cursor: pointer;
-  transition: opacity var(--transition-base);
+  transition: opacity var(--transition-base), background-color var(--transition-base),
+    color var(--transition-base), border-color var(--transition-base);
 }
 
 .synced-call-line:hover {
   opacity: 1;
 }
 
-/* 今まさに発声するタイミングのコールだけ、はっきり強調する
-   （.synced-lyrics-line.is-current-lyrics-lineと同じクラスを使って判定基準を統一している）。 */
+/* 今まさに発声するタイミングのコールを、ポップに弾む演出とともに強調する
+   （.synced-lyrics-line.is-current-lyrics-lineと同じクラスを使って判定基準を統一している）。
+   2026-08-06、本人要望によりフラットな発光演出からアップグレード：
+   ・transform/opacityとborder-color（layoutに影響しない性質）だけで演出し、
+     隣接する行を押し出さない（横幅・高さが変わらない）。
+   ・色の変化だけに頼らず、白い縁取り・拡大でも現在行だと分かるようにしている
+     （色覚特性に配慮）。
+   ・低スペック端末でも重くならないよう、animationはtransform/opacityのみ。
+   ・「視差効果を減らす」設定時は、下の共通ルール（このファイル末尾）が
+     animation-durationを一律ほぼ0にするため、このクラス側で個別対応する必要はない。
+   ・複数のコールがほぼ同時にアクティブになる場合でも、classList.toggleで
+     クラスが外れて付け直されるたびにアニメーションが最初から再生されるため、
+     見た目が壊れることはない（js/callSync.jsのapplyActiveIndex参照）。
+     ただし現状は「同時に2件を強調表示する」設計にはなっていない
+     （1件だけを現在行とする既存のfindActiveLineIndexの仕様。変更は今回のスコープ外）。 */
 .synced-call-line.is-current-lyrics-line {
   opacity: 1;
   background: var(--color-danger);
   color: #ffffff;
-  transform: scale(1.02);
+  border-color: #ffffff;
+  animation: synced-call-pop 320ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes synced-call-pop {
+  0% {
+    transform: scale(0.9);
+  }
+  55% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
 .synced-call-type-badge {
