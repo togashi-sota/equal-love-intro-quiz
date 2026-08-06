@@ -461,6 +461,12 @@ const lyricsQuizAnswerSearchRowElement = document.getElementById("lyrics-quiz-an
 const lyricsQuizAnswerSearchInputElement = document.getElementById("lyrics-quiz-answer-search-input");
 const lyricsQuizAnswerCountElement = document.getElementById("lyrics-quiz-answer-count");
 const lyricsQuizAnswerListElement = document.getElementById("lyrics-quiz-answer-list");
+const lyricsQuizAnswerSectionElement = document.getElementById("lyrics-quiz-answer-section");
+const lyricsQuizAnswerRevealElement = document.getElementById("lyrics-quiz-answer-reveal");
+const lyricsQuizAnswerRevealStatusElement = document.getElementById("lyrics-quiz-answer-reveal-status");
+const lyricsQuizAnswerRevealTitleElement = document.getElementById("lyrics-quiz-answer-reveal-title");
+const lyricsQuizAnswerRevealMetaElement = document.getElementById("lyrics-quiz-answer-reveal-meta");
+const lyricsQuizAnswerRevealNextButtonElement = document.getElementById("lyrics-quiz-answer-reveal-next-button");
 const lyricsQuizBackButtonElement = document.getElementById("lyrics-quiz-back-button");
 const lyricsQuizQuitConfirmModalElement = document.getElementById("lyrics-quiz-quit-confirm-modal");
 const lyricsQuizQuitCancelButtonElement = document.getElementById("lyrics-quiz-quit-cancel-button");
@@ -2993,10 +2999,16 @@ initLyricsQuizQuestionScreen({
   hintList: lyricsQuizHintListElement,
   nextHintButton: lyricsQuizNextHintButtonElement,
   skipButton: lyricsQuizSkipButtonElement,
+  answerSection: lyricsQuizAnswerSectionElement,
   answerSearchRow: lyricsQuizAnswerSearchRowElement,
   answerSearchInput: lyricsQuizAnswerSearchInputElement,
   answerCount: lyricsQuizAnswerCountElement,
   answerList: lyricsQuizAnswerListElement,
+  answerReveal: lyricsQuizAnswerRevealElement,
+  answerRevealStatus: lyricsQuizAnswerRevealStatusElement,
+  answerRevealTitle: lyricsQuizAnswerRevealTitleElement,
+  answerRevealMeta: lyricsQuizAnswerRevealMetaElement,
+  answerRevealNextButton: lyricsQuizAnswerRevealNextButtonElement,
   backButton: lyricsQuizBackButtonElement,
   quitConfirmModal: lyricsQuizQuitConfirmModalElement,
   quitCancelButton: lyricsQuizQuitCancelButtonElement,

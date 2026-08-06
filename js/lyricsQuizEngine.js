@@ -72,6 +72,54 @@ export function generateAnswerPool(songPool, correctSongId, answerPoolSizeValue,
   return shuffleArray([correctSong, ...distractors], randomFn);
 }
 
+// 生成された回答候補（1問分）が、出題してよい状態かどうかを検証する（2026-08-07追加）。
+// 「正解曲が選択肢や検索対象の中に存在しない」という不具合の再発を防ぐための、
+// 問題生成の最終防衛ライン。DOM・IndexedDBに一切触れない純粋関数。
+//
+// question: { song, answerPool }（song.idが正解、answerPoolがgenerateAnswerPool()の戻り値）
+// 戻り値: { ok: true } または { ok: false, reason, songId }
+//   reason: "empty-answer-pool" | "correct-answer-missing" | "correct-answer-duplicated" | "duplicate-candidate-ids"
+export function validateLyricsQuizQuestionAnswerPool(question) {
+  const songId = question?.song?.id;
+  const answerPool = question?.answerPool;
+
+  if (!Array.isArray(answerPool) || answerPool.length === 0) {
+    return { ok: false, reason: "empty-answer-pool", songId };
+  }
+
+  const correctMatches = answerPool.filter((candidate) => candidate.id === songId);
+  if (correctMatches.length === 0) {
+    return { ok: false, reason: "correct-answer-missing", songId };
+  }
+  if (correctMatches.length > 1) {
+    return { ok: false, reason: "correct-answer-duplicated", songId };
+  }
+
+  const uniqueIds = new Set(answerPool.map((candidate) => candidate.id));
+  if (uniqueIds.size !== answerPool.length) {
+    return { ok: false, reason: "duplicate-candidate-ids", songId };
+  }
+
+  return { ok: true };
+}
+
+// generateAnswerPool()の結果がvalidateLyricsQuizQuestionAnswerPool()に落ちた場合の、
+// 必ず条件を満たす作り直し（フォールバック）。乱数・シャッフルを一切使わず、
+// 「正解を先頭に置き、songPoolの並び順のまま他の曲を必要数だけ足す」だけの
+// 単純な決定論的処理にすることで、シャッフル起因の不具合があっても影響を受けない。
+// songPoolにcorrectSongId自体が存在しない場合はnullを返す（呼び出し側で、
+// その問題を出題対象から除外する判断に使う）。
+export function buildFallbackAnswerPool(songPool, correctSongId, answerPoolSizeValue) {
+  const correctSong = songPool.find((song) => song.id === correctSongId);
+  if (!correctSong) return null;
+
+  const poolSize = resolveAnswerPoolSize(answerPoolSizeValue, songPool.length);
+  const distractorCount = Math.max(0, poolSize - 1);
+  const distractors = songPool.filter((song) => song.id !== correctSongId).slice(0, distractorCount);
+
+  return [correctSong, ...distractors];
+}
+
 // オンライン対戦用：seed・songId・questionIndexから、generateAnswerPool()にそのまま
 // 渡せる「決定論的な乱数関数」を作る。全端末が同じ入力から同じ関数（＝同じ乱数列）を
 // 再現できるため、回答候補の並び順が全端末で一致する。

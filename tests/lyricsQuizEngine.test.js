@@ -7,6 +7,8 @@ import {
   createAnswerPoolRandom,
   createLyricsQuizResult,
   compareLyricsQuizResults,
+  validateLyricsQuizQuestionAnswerPool,
+  buildFallbackAnswerPool,
 } from "../js/lyricsQuizEngine.js";
 import { assertEqual } from "./test-utils.js";
 
@@ -135,4 +137,59 @@ export function runLyricsQuizEngineTests() {
     "⑤ ①〜④が同じなら、ミス数が少ない方が上位"
   );
   assertEqual(compareLyricsQuizResults(base, { ...base }), 0, "すべての項目が同じなら0（同順位）");
+
+  // ===== validateLyricsQuizQuestionAnswerPool() =====
+  // 「正解曲が選択肢に存在しない」不具合の再発防止として追加した検証関数のテスト。
+
+  {
+    const pool = buildDummySongPool(4); // song-0〜song-3
+    const validQuestion = { song: { id: "song-1" }, answerPool: pool };
+    assertEqual(validateLyricsQuizQuestionAnswerPool(validQuestion).ok, true, "正解songIdが候補に1回だけ含まれていればok:true");
+  }
+  {
+    const result = validateLyricsQuizQuestionAnswerPool({ song: { id: "missing" }, answerPool: buildDummySongPool(4) });
+    assertEqual(result.ok, false, "正解songIdが候補に無ければok:false");
+    assertEqual(result.reason, "correct-answer-missing", "reasonはcorrect-answer-missing");
+  }
+  {
+    const pool = buildDummySongPool(4);
+    const result = validateLyricsQuizQuestionAnswerPool({ song: { id: "song-1" }, answerPool: [...pool, pool[1]] });
+    assertEqual(result.ok, false, "正解songIdが候補に2回含まれていればok:false");
+    assertEqual(result.reason, "correct-answer-duplicated", "reasonはcorrect-answer-duplicated");
+  }
+  {
+    const result = validateLyricsQuizQuestionAnswerPool({ song: { id: "song-1" }, answerPool: [] });
+    assertEqual(result.ok, false, "候補が空配列ならok:false");
+    assertEqual(result.reason, "empty-answer-pool", "reasonはempty-answer-pool");
+  }
+  {
+    const dup = { id: "song-9", title: "曲9" };
+    const result = validateLyricsQuizQuestionAnswerPool({
+      song: { id: "song-1" },
+      answerPool: [{ id: "song-1", title: "曲1" }, dup, dup],
+    });
+    assertEqual(result.ok, false, "正解以外の候補にsongId重複があればok:false");
+    assertEqual(result.reason, "duplicate-candidate-ids", "reasonはduplicate-candidate-ids");
+  }
+
+  // ===== buildFallbackAnswerPool() =====
+
+  {
+    const pool = buildDummySongPool(10);
+    const fallback = buildFallbackAnswerPool(pool, "song-5", "4");
+    assertEqual(fallback.length, 4, "要求件数どおりのフォールバック候補が作られる");
+    assertEqual(fallback[0].id, "song-5", "正解曲が必ず先頭に来る");
+    const uniqueIds = new Set(fallback.map((song) => song.id));
+    assertEqual(uniqueIds.size, fallback.length, "フォールバック候補に重複がない");
+    assertEqual(
+      validateLyricsQuizQuestionAnswerPool({ song: { id: "song-5" }, answerPool: fallback }).ok,
+      true,
+      "フォールバック候補は必ず検証を通過する"
+    );
+  }
+  assertEqual(
+    buildFallbackAnswerPool(buildDummySongPool(5), "not-in-pool", "4"),
+    null,
+    "正解曲がsongPool自体に存在しない場合はnull（呼び出し側で問題を除外する判断材料）"
+  );
 }

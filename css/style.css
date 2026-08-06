@@ -9379,6 +9379,64 @@ fieldset label:has(input:focus-visible) {
   width: 100%;
 }
 
+/* ===== 歌詞クイズ：不正解・スキップ時の正解確認カード（2026-08-07追加） =====
+   10択・30択・50択・全曲検索のように、正解の選択肢が検索結果の外・スクロール先など
+   画面外になりうる回答方式で、不正解／スキップの直後に自動で次の問題へ進まず、
+   本人が「次の問題へ」を押すまでとどまるカード（js/lyricsQuizScreen.js参照）。
+   4択のときはこのカードを使わず、選択肢の中で直接光る従来演出のまま自動進行する。 */
+.lyrics-quiz-answer-reveal {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 20px 16px;
+  border-radius: 16px;
+  text-align: center;
+  background: linear-gradient(165deg, #ffffff, var(--color-primary-light) 200%);
+  border: 1px solid rgba(255, 111, 168, 0.35);
+}
+
+/* display:flexの指定がhidden属性より優先されてしまう既知の問題への対策
+   （#new-record-badge[hidden]等と同じ理由。JSのhidden切り替えを確実に効かせる）。 */
+.lyrics-quiz-answer-reveal[hidden] {
+  display: none;
+}
+
+.lyrics-quiz-answer-reveal-status {
+  margin: 0 0 4px;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--color-danger);
+}
+
+.lyrics-quiz-answer-reveal-caption {
+  margin: 0;
+  font-size: 0.78rem;
+  opacity: 0.7;
+}
+
+.lyrics-quiz-answer-reveal-title {
+  margin: 2px 0 6px;
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  line-height: 1.35;
+  /* 曲名が長くても375px幅からはみ出さないよう、必要なら折り返す
+     （結果画面チップ等とは違い、ここは1行固定にする必要がないため）。 */
+  overflow-wrap: break-word;
+  max-width: 100%;
+}
+
+.lyrics-quiz-answer-reveal-meta {
+  margin: 0 0 14px;
+  font-size: 0.74rem;
+  opacity: 0.65;
+}
+
+.lyrics-quiz-answer-reveal .primary-button {
+  width: 100%;
+}
+
 /* ===== 歌詞クイズ：結果画面の問題ごとの内訳（折りたたみ） ===== */
 .lyrics-quiz-breakdown-details {
   margin: 4px 0 18px;

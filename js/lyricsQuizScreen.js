@@ -170,7 +170,8 @@ function logInsufficientSongsForDebug(songPool, songsWithLyrics) {
 
 // questionElements: {
 //   progress, elapsedTime, hintLevelLabel, hintLevelNav, hintList, nextHintButton, skipButton,
-//   answerSearchRow, answerSearchInput, answerCount, answerList,
+//   answerSection, answerSearchRow, answerSearchInput, answerCount, answerList,
+//   answerReveal, answerRevealStatus, answerRevealTitle, answerRevealMeta, answerRevealNextButton,
 //   backButton, quitConfirmModal, quitCancelButton, quitConfirmButton,
 //   onQuit: 「今回の挑戦をやめる」が確定したときに呼ばれるコールバック（引数なし）。
 //     画面遷移はmain.js側だけで行うというプロジェクトの決まりに合わせ、実際の
@@ -181,6 +182,7 @@ export function initLyricsQuizQuestionScreen(newElements) {
   questionElements = newElements;
   questionElements.nextHintButton.addEventListener("click", handleNextHintButtonClick);
   questionElements.skipButton.addEventListener("click", handleSkipButtonClick);
+  questionElements.answerRevealNextButton.addEventListener("click", handleAnswerRevealNextButtonClick);
   questionElements.answerSearchInput.addEventListener("input", () => {
     renderAnswerButtons(getCurrentQuestion(runState).answerPool, questionElements.answerSearchInput.value);
   });
@@ -236,6 +238,7 @@ function quitLyricsQuizRun() {
   stopElapsedTimer();
   clearPendingAnswerFeedbackTimeout();
   questionElements.answerSearchInput.value = "";
+  hideAnswerReveal(); // 正解確認カードを表示したまま離脱した場合に備え、必ず隠しておく
 
   runState = null;
   viewingHintLevel = 1;
@@ -277,6 +280,7 @@ function renderCurrentQuestion() {
 
   questionElements.progress.textContent = `第${runState.currentQuestionIndex + 1}問 / ${runState.questions.length}問`;
   questionElements.skipButton.disabled = false;
+  hideAnswerReveal(); // 前の問題の正解確認カードが残っていないよう、必ず隠してから始める
 
   renderHint(question);
   renderAnswerArea(question);
@@ -497,12 +501,60 @@ function revealCorrectAnswerButton(question) {
   if (correctButton) correctButton.classList.add("is-correct");
 }
 
+// 4択（answerPoolSizeValue==="4"）は、正解の選択肢が常に画面内に見えているため、
+// 従来どおりの自動進行のままにする（本人指示：「4択については、現在の正解表示を
+// 維持して構いません」）。それ以外（10/30/50/全曲検索）は、正解が検索結果の外・
+// スクロール先など画面外になりうるため、正解確認カードで自動進行を止める。
+function isWideAnswerMode() {
+  return currentSettings?.answerPoolSizeValue !== "4";
+}
+
+// 「第X問・ヒントYまで使用」のような、正解確認カードに添える簡潔な内訳を組み立てる。
+// 歌詞本文には一切触れない（曲名・問題番号・ヒント段階だけ）。
+function buildAnswerRevealMetaText(question) {
+  const questionNumber = runState.currentQuestionIndex + 1;
+  const hintLevelUsed = runState.currentHintCount;
+  return `第${questionNumber}問・ヒント${hintLevelUsed}まで使用`;
+}
+
+// 正解確認カードを表示し、選択肢・スキップボタンを隠す（本人指示：不正解／スキップ後は
+// 自動で次へ進まず、「次の問題へ」を押すまでこのカードにとどまる）。
+function showAnswerReveal(question, statusText) {
+  questionElements.answerSection.hidden = true;
+  questionElements.skipButton.hidden = true;
+
+  questionElements.answerRevealStatus.textContent = statusText;
+  questionElements.answerRevealTitle.textContent = question.song.title;
+  questionElements.answerRevealMeta.textContent = buildAnswerRevealMetaText(question);
+  questionElements.answerReveal.hidden = false;
+  questionElements.answerRevealNextButton.disabled = false;
+}
+
+// 正解確認カードを隠し、選択肢・スキップボタンを元通り表示する。
+// 次の問題の描画（renderAnswerArea）が、隠した選択肢エリアを改めて組み立て直す。
+function hideAnswerReveal() {
+  questionElements.answerReveal.hidden = true;
+  questionElements.answerSection.hidden = false;
+  questionElements.skipButton.hidden = false;
+}
+
+// 正解確認カードの「次の問題へ」ボタン。本人指示：「何度押しても次の問題が
+// 二重に開始されないようにする」ため、クリック直後に即座に無効化する。
+function handleAnswerRevealNextButtonClick() {
+  if (questionElements.answerRevealNextButton.disabled) return;
+  questionElements.answerRevealNextButton.disabled = true;
+  advanceToNextQuestionOrFinish();
+}
+
 function handleAnswerSelected(selectedSongId, buttonElement) {
   if (hasAnsweredCurrentQuestion) return;
   hasAnsweredCurrentQuestion = true;
 
   const question = getCurrentQuestion(runState);
   const isCorrect = selectedSongId === question.song.id;
+  // 回答時間は、この時点（回答を確定した瞬間）で必ず確定させる。この後に表示する
+  // 正解確認カードをどれだけ長く見ていても、平均回答時間・称号判定・自己ベストには
+  // 一切影響しない（本人指示）。
   const elapsedMs = Date.now() - questionStartedAt;
   runState = recordAnswerAndAdvance(
     runState,
@@ -516,6 +568,12 @@ function handleAnswerSelected(selectedSongId, buttonElement) {
   questionElements.nextHintButton.disabled = true;
   disableAllAnswerButtons();
 
+  // 正解時は今までどおり自動で次へ進む。不正解時は、4択だけ自動進行のまま、
+  // それ以外（正解が画面外になりうる回答方式）は正解確認カードで自動進行を止める。
+  if (!isCorrect && isWideAnswerMode()) {
+    showAnswerReveal(question, "不正解");
+    return;
+  }
   scheduleAnswerFeedbackAdvance();
 }
 
@@ -531,6 +589,10 @@ function handleSkipButtonClick() {
   questionElements.nextHintButton.disabled = true;
   disableAllAnswerButtons();
 
+  if (isWideAnswerMode()) {
+    showAnswerReveal(question, "スキップ");
+    return;
+  }
   scheduleAnswerFeedbackAdvance();
 }
 

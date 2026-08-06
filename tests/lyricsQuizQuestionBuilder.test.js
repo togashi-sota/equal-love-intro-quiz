@@ -11,6 +11,7 @@ import {
   buildLyricsQuizQuestions,
   MIN_USABLE_SEGMENTS_REQUIRED,
 } from "../js/lyricsQuizQuestionBuilder.js";
+import { validateLyricsQuizQuestionAnswerPool } from "../js/lyricsQuizEngine.js";
 import { SONGS } from "../js/data/songs.js";
 import { assertEqual } from "./test-utils.js";
 
@@ -160,4 +161,64 @@ export function runLyricsQuizQuestionBuilderTests() {
   }
 
   assertEqual(MIN_USABLE_SEGMENTS_REQUIRED, 1, "MIN_USABLE_SEGMENTS_REQUIREDの既定値は1");
+
+  // ===== 全曲を対象にした機械的検証（2026-08-07追加） =====
+  // 「正解がヒロインズだと思われる問題で、正解曲が選択肢に存在しない」という報告の
+  // 再発防止として、特定の1曲だけをピンポイントで直すのではなく、実在する全曲を
+  // 1曲ずつ正解にして、4/10/30/50/全曲検索のどの回答方式でも正解songIdが必ず
+  // 候補に含まれることを機械的に確認する。歌詞本文は一切使わず、songId・曲名・
+  // 候補件数だけで判定する（歌詞本文を読み取ったりログへ出したりしない）。
+  {
+    const ANSWER_POOL_SIZE_VALUES_TO_CHECK = ["4", "10", "30", "50", "all"];
+
+    // ---- パターンA：全曲に歌詞データがある想定（songPoolとsongsWithLyricsが完全一致） ----
+    const allSongsWithLyrics = SONGS.map((song) => ({ song, lines: buildRichDummyLines() }));
+    const fullSongPool = SONGS.map((song) => song.id);
+
+    // ---- パターンB：一部の曲だけ歌詞データがある想定（実際の端末に近い状態。
+    //      songPool＝カテゴリ全曲だが、songsWithLyrics＝その一部だけ、という非対称な状況で
+    //      answerPool生成に使うsongPoolと出題対象songsWithLyricsがズレていないかを確認する） ----
+    const partialSongsWithLyrics = SONGS.filter((_, index) => index % 3 === 0).map((song) => ({
+      song,
+      lines: buildRichDummyLines(),
+    }));
+
+    const failures = [];
+
+    [
+      { label: "全曲に歌詞データがある場合", songsWithLyrics: allSongsWithLyrics },
+      { label: "一部の曲だけ歌詞データがある場合", songsWithLyrics: partialSongsWithLyrics },
+    ].forEach(({ label, songsWithLyrics }) => {
+      const targetSongs = songsWithLyrics.map((entry) => entry.song);
+
+      ANSWER_POOL_SIZE_VALUES_TO_CHECK.forEach((answerPoolSizeValue, sizeIndex) => {
+        const questions = buildLyricsQuizQuestions({
+          songsWithLyrics,
+          songPool: fullSongPool,
+          questionCountValue: "all",
+          answerPoolSizeValue,
+          seed: 1000 + sizeIndex,
+        });
+
+        targetSongs.forEach((song) => {
+          const question = questions.find((q) => q.song.id === song.id);
+          if (!question) {
+            failures.push({ pattern: label, songId: song.id, title: song.title, answerPoolSizeValue, reason: "question-not-generated" });
+            return;
+          }
+          const validation = validateLyricsQuizQuestionAnswerPool(question);
+          if (!validation.ok) {
+            failures.push({ pattern: label, songId: song.id, title: song.title, answerPoolSizeValue, reason: validation.reason });
+          }
+        });
+      });
+    });
+
+    assertEqual(
+      failures,
+      [],
+      `全${SONGS.length}曲×5回答方式×2パターンで、正解が候補から欠ける組み合わせが無いこと` +
+        (failures.length > 0 ? `（欠けた組み合わせ: ${JSON.stringify(failures)}）` : "")
+    );
+  }
 }

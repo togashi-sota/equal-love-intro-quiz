@@ -14,7 +14,12 @@ import { getLyricsData } from "./lyricsStorage.js";
 import { resolveSongObjects } from "./questionSource.js";
 import { resolveQuestionCount } from "./quiz.js";
 import { generateAnchorLineCandidates, pickPrimarySegment, buildHintSequence } from "./lyricsSegmentEngine.js";
-import { generateAnswerPool, createAnswerPoolRandom } from "./lyricsQuizEngine.js";
+import {
+  generateAnswerPool,
+  createAnswerPoolRandom,
+  validateLyricsQuizQuestionAnswerPool,
+  buildFallbackAnswerPool,
+} from "./lyricsQuizEngine.js";
 import { createSeededRandom } from "./seededRandom.js";
 
 // 1曲を「出題可能」とみなすために必要な、曲名を含まない・品質0でない区間候補の最低数。
@@ -116,7 +121,7 @@ export function buildLyricsQuizQuestions({
   const questionEntries = pickQuestionEntries(quizzable, questionCount, random);
   const poolSongs = resolveSongObjects(songPool);
 
-  return questionEntries.map((entry, questionIndex) => {
+  const questions = questionEntries.map((entry, questionIndex) => {
     const candidates = generateAnchorLineCandidates(entry.lines, {
       title: entry.song.title,
       titleAliases: entry.song.searchAliases,
@@ -134,4 +139,25 @@ export function buildLyricsQuizQuestions({
 
     return { song: entry.song, hints, answerPool };
   });
+
+  // 最終防衛ライン（2026-08-07追加）：「正解曲が選択肢に存在しない」不具合の再発防止。
+  // 生成された各問題を検証し、条件を満たさない場合はシャッフルを使わない決定論的な
+  // フォールバックで作り直す。フォールバックでも正解曲がsongPool自体に見つからない
+  // （＝そもそも出題対象として不適格）場合だけ、その問題を安全に除外する
+  // （不正な問題をそのまま出題することだけは絶対に避ける、という方針）。
+  return questions
+    .map((question) => {
+      if (validateLyricsQuizQuestionAnswerPool(question).ok) return question;
+
+      const fallbackAnswerPool = buildFallbackAnswerPool(poolSongs, question.song.id, answerPoolSizeValue);
+      if (!fallbackAnswerPool) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          `歌詞クイズ：正解曲(${question.song.id})がsongPoolに見つからないため、この問題を除外しました。`
+        );
+        return null;
+      }
+      return { ...question, answerPool: fallbackAnswerPool };
+    })
+    .filter((question) => question !== null);
 }

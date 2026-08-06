@@ -1657,7 +1657,7 @@
         <button id="lyrics-quiz-next-hint-button" class="secondary-button lyrics-quiz-next-hint-button" type="button">次のヒントを見る</button>
       </div>
 
-      <div class="lyrics-quiz-answer-section">
+      <div id="lyrics-quiz-answer-section" class="lyrics-quiz-answer-section">
         <p class="lyrics-quiz-answer-label">この曲は？</p>
         <div id="lyrics-quiz-answer-search-row" class="lyrics-quiz-answer-search-row" hidden>
           <input id="lyrics-quiz-answer-search-input" class="lyrics-quiz-answer-search-input" type="text" placeholder="曲名で検索">
@@ -1667,6 +1667,21 @@
       </div>
 
       <button id="lyrics-quiz-skip-button" class="secondary-button lyrics-quiz-skip-button" type="button">わからない（スキップ）</button>
+
+      <!-- 不正解・スキップ時の正解確認カード（2026-08-07追加）。
+           10択・30択・50択・全曲検索のように正解の選択肢が画面外（検索で絞り込まれている・
+           スクロールしないと見えない）になりうる回答方式では、不正解表示を一瞬見せて自動で
+           次へ進む従来方式だと、正解の曲名を確認できないまま次の問題へ進んでしまう。
+           このカードは自動では消えず、「次の問題へ」を押すまで居座ることで、
+           自分のペースで正解を確認できるようにする（js/lyricsQuizScreen.js参照。
+           4択のときはこのカードを使わず、従来どおりの自動進行のままにしている）。 -->
+      <div id="lyrics-quiz-answer-reveal" class="lyrics-quiz-answer-reveal" hidden>
+        <p id="lyrics-quiz-answer-reveal-status" class="lyrics-quiz-answer-reveal-status">不正解</p>
+        <p class="lyrics-quiz-answer-reveal-caption">正解は</p>
+        <p id="lyrics-quiz-answer-reveal-title" class="lyrics-quiz-answer-reveal-title">－</p>
+        <p id="lyrics-quiz-answer-reveal-meta" class="lyrics-quiz-answer-reveal-meta"></p>
+        <button id="lyrics-quiz-answer-reveal-next-button" class="primary-button" type="button">次の問題へ</button>
+      </div>
     </section>
 
     <!-- 歌詞クイズ：結果画面。既存のタイムアタック結果画面と同じ統計表示クラスを使う。 -->
