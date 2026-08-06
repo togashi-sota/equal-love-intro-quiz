@@ -210,11 +210,27 @@
            中身自体は変更していない）。 -->
       <button id="rules-link" class="rules-link start-rules-link" type="button">あそびかた・とくてんのルール</button>
 
+      <!-- 特別モード8件をホーム画面へ直接表示（2026-08-07、本人要望で追加）。
+           以前はここに「特別モード」ボタン1つだけがあり、押すと#special-modes-screen
+           （一覧画面）に8件が表示される2段階構成だった。8件全部をここに2列×4段で
+           直接並べることで、一覧画面を経由する手間をなくしている。
+           カードの中身（アイコン・タイトル・説明・？ヘルプ・遷移先・利用可否）は、
+           js/specialModesScreen.jsのSPECIAL_MODESを唯一の情報源として自動生成される
+           （js/main.jsのinitSpecialModesScreen呼び出し、homeGridContainer参照）。
+           並び順だけがホーム専用（同ファイルのHOME_SPECIAL_MODES_ORDER）で、
+           一覧画面（#special-modes-screen内の#special-modes-list、既存の並び順のまま）とは
+           独立して指定できる。#special-modes-screen自体は削除せず、各モードの「戻る」導線
+           （showScreen("specialModes")）が今まで通り機能するように残している。 -->
+      <div class="special-modes-divider" aria-hidden="true"></div>
+      <p class="know-more-title">特別モード</p>
+      <div id="home-special-modes-grid" class="home-special-modes-grid"></div>
+
       <!-- 「曲を聴く」：収録曲一覧・お気に入り・プレイリスト・連続再生をまとめたカード。
            以前はここに6つの小さいテキストリンクが並んでいたが、機能が増えるにつれて
            「何がどこにあるか」が伝わりにくくなったため、同じ役割（曲を聴く）でひとまとめの
            タイルグループに再編した（UI/UX再設計、モックアップレビューを経て実装）。
            プレイリスト・連続再生は追加されたばかりの機能なのでNEWバッジを添える。 -->
+      <div class="special-modes-divider" aria-hidden="true"></div>
       <div class="listen-section">
         <p class="listen-section-title">
           <svg class="listen-section-title-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 18V6.6a1 1 0 0 1 .8-.98l9-1.8A1 1 0 0 1 20 4.8V15a3 3 0 1 1-2-2.83V6.4l-7 1.4v9.2a3 3 0 1 1-2-2.83Z" fill="currentColor"/></svg>
@@ -258,14 +274,6 @@
           </button>
         </div>
       </div>
-
-      <!-- 特別モードへの入口。通常プレイ（スタートボタン）が主役であることが伝わるよう、
-           区切り線を挟んで独立させ、上の情報リンク群とは見た目でも分ける。 -->
-      <div class="special-modes-divider" aria-hidden="true"></div>
-      <button id="special-modes-link" class="special-modes-entry-button" type="button">
-        <span class="special-modes-entry-icon" aria-hidden="true">✦</span>
-        特別モード
-      </button>
 
       <!-- 「記録を見る」：称号一覧・プレイ履歴をまとめた2つのピルボタン。
            以前は「曲を聴く」系のリンクと見分けがつかない、同じ見た目の小さいテキストリンクだった。 -->

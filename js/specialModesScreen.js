@@ -3,7 +3,9 @@
 // モードが増えるときは、下のSPECIAL_MODESに1件追加するだけで一覧に反映される。
 
 // 各モードの定義。availableがfalseのものは「近日追加予定」の見た目にし、タップできないようにする。
-const SPECIAL_MODES = [
+// ホーム画面の8カード（下のHOME_SPECIAL_MODES_ORDER）と、この後の一覧画面（#special-modes-screen）
+// は、どちらもこの配列だけを情報源にする（タイトル・説明・利用可否の二重管理を避けるため）。
+export const SPECIAL_MODES = [
   {
     id: "weakSongs",
     title: "苦手曲モード",
@@ -155,15 +157,42 @@ function renderSpecialModesList() {
   });
 }
 
-// 特別モード一覧画面を使えるようにする。main.jsの初期化処理から1回だけ呼ぶ想定。
-// 一覧の内容（SPECIAL_MODES）は固定なので、履歴画面などと違い、開くたびに描画し直す必要はない。
+// ホーム画面に8モードを2列×4段で直接表示するための並び順（2026-08-07、本人指定）。
+// タイトル・説明・利用可否などの中身は一切ここに書かず、SPECIAL_MODESから探して使う
+// （並び順だけがホーム専用で、内容は一覧画面と共通の1つの情報源から自動生成される）。
+export const HOME_SPECIAL_MODES_ORDER = [
+  "randomPlayback",
+  "lyricsQuiz",
+  "timeAttack",
+  "onlineBattle",
+  "originalQuiz",
+  "liveCallMode",
+  "weakSongs",
+  "localBattle",
+];
+
+function renderHomeSpecialModesGrid() {
+  if (!elements.homeGridContainer) return;
+  elements.homeGridContainer.innerHTML = "";
+  HOME_SPECIAL_MODES_ORDER.forEach((modeId) => {
+    const mode = SPECIAL_MODES.find((entry) => entry.id === modeId);
+    if (!mode) return; // 定義漏れがあっても画面が壊れないようにする（本来起きない想定）
+    const card = mode.available ? buildAvailableCard(mode) : buildComingSoonCard(mode);
+    elements.homeGridContainer.appendChild(card);
+  });
+}
+
+// 特別モード一覧画面・ホーム画面の8カードを使えるようにする。main.jsの初期化処理から1回だけ呼ぶ想定。
+// 内容（SPECIAL_MODES）は固定なので、履歴画面などと違い、開くたびに描画し直す必要はない。
 //
 // elements: {
-//   listContainer: モードカードを並べる入れ物,
+//   listContainer: 従来の一覧画面（#special-modes-screen）でモードカードを並べる入れ物,
+//   homeGridContainer: ホーム画面で8モードを2列×4段に並べる入れ物,
 //   onSelectMode: 利用可能なモードのカードがタップされたときに呼ばれるコールバック（modeIdを受け取る）,
 //   onShowHelp: モードカードの「？」ボタンがタップされたときに呼ばれるコールバック（modeIdを受け取る）,
 // }
 export function initSpecialModesScreen(newElements) {
   elements = newElements;
   renderSpecialModesList();
+  renderHomeSpecialModesGrid();
 }

@@ -55,6 +55,7 @@
     import { runLyricsQuizBattleUiTests } from "./tests/lyricsQuizBattleUi.test.js";
     import { runLyricsQuizBattleTimingTests } from "./tests/lyricsQuizBattleTiming.test.js";
     import { runOnlineBattleStartSettingsTests } from "./tests/onlineBattleStartSettings.test.js";
+    import { runSpecialModesScreenTests } from "./tests/specialModesScreen.test.js";
     import { printSummary } from "./tests/test-utils.js";
 
     runScoreTests();
@@ -87,6 +88,7 @@
     runLyricsQuizBattleUiTests();
     runLyricsQuizBattleTimingTests();
     runOnlineBattleStartSettingsTests();
+    runSpecialModesScreenTests();
     const { passCount, failCount } = printSummary();
 
     const summaryElement = document.getElementById("test-summary");

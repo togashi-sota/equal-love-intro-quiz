@@ -384,7 +384,6 @@ const historyDetailBackButtonElement = document.getElementById("history-detail-b
 let historyListScrollY = 0;
 // タイムアタック履歴一覧についても、通常プレイ履歴と同じ考え方でスクロール位置を覚えておく。
 let timeAttackHistoryListScrollY = 0;
-const specialModesLinkElement = document.getElementById("special-modes-link");
 const specialModesBackButtonElement = document.getElementById("special-modes-back-button");
 const weakSongsBackButtonElement = document.getElementById("weak-songs-back-button");
 const liveCallModeListBackButtonElement = document.getElementById("live-call-mode-list-back-button");
@@ -824,6 +823,7 @@ initHistoryDetailScreen({
 // 特別モード一覧画面：モードカードがタップされたら、対応する画面を開く。
 initSpecialModesScreen({
   listContainer: document.getElementById("special-modes-list"),
+  homeGridContainer: document.getElementById("home-special-modes-grid"),
   onSelectMode: (modeId) => {
     playClickSound();
     if (modeId === "weakSongs") {
@@ -2625,12 +2625,6 @@ memberDetailBackButtonElement.addEventListener("click", () => {
   renderMembersScreen(SONGS, MEMBERS, MEMBER_PROFILES);
   showScreen("members");
   window.scrollTo(0, membersScrollY);
-});
-
-// 「特別モード」リンク：一覧画面を開く（一覧の中身は固定なので描画し直す必要はない）。
-specialModesLinkElement.addEventListener("click", () => {
-  playClickSound();
-  navigateWithScrollMemory("specialModes");
 });
 
 // 特別モード一覧画面の「戻る」：スタート画面へ戻る。
