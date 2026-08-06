@@ -399,6 +399,8 @@ const liveCallModeFullscreenButtonElement = document.getElementById("live-call-m
 const liveCallModeNoLyricsNoticeElement = document.getElementById("live-call-mode-no-lyrics-notice");
 const liveCallModePlayerHelpLinkElement = document.getElementById("live-call-mode-player-help-link");
 const liveCallModeGuideButtonElement = document.getElementById("live-call-mode-guide-button");
+const liveCallModeListHelpLinkElement = document.getElementById("live-call-mode-list-help-link");
+const liveCallModeListGuideButtonElement = document.getElementById("live-call-mode-list-guide-button");
 const timeAttackSetupBackButtonElement = document.getElementById("time-attack-setup-back-button");
 const timeAttackStartButtonElement = document.getElementById("time-attack-start-button");
 const timeAttackStartErrorElement = document.getElementById("time-attack-start-error");
@@ -899,6 +901,13 @@ function closeCallGuideModal() {
 }
 
 liveCallModeGuideButtonElement.addEventListener("click", openCallGuideModal);
+// 曲一覧画面（曲を選ぶ前）からも同じコールガイド・使い方説明を開けるようにする（本人要望）。
+// currentSongIdはgetCurrentLiveCallSongId()がnullを返すため、専用口上の案内バナー等は
+// 自然に非表示になる（曲を選んで再生画面から開いたときだけ表示される）。
+liveCallModeListGuideButtonElement.addEventListener("click", openCallGuideModal);
+liveCallModeListHelpLinkElement.addEventListener("click", () => {
+  openSpecialModeHelp("liveCallMode");
+});
 callGuideModalCloseButtonElement.addEventListener("click", closeCallGuideModal);
 callGuideModalElement.addEventListener("click", (event) => {
   if (event.target === callGuideModalElement) {
