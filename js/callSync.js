@@ -21,10 +21,59 @@ import { findActiveLineIndex } from "./lyricsSync.js";
 
 let audioElement = null;
 let panelElement = null;
-let renderedCalls = []; // { element, start, end }（時刻順に並べ替え済み）
+let renderedCalls = []; // { element, start, end, text }（時刻順に並べ替え済み）
 let activeIndex = -1;
 let callsVisible = true; // 「歌詞＋コール」/「通常歌詞のみ」の表示切り替え状態
 let toggleButtonElement = null;
+
+// ===== 短いコールの「飛び出しバースト」演出（2026-08-06、本人要望で追加） =====
+// 「Hi!」「Yeah!」「オレ！」のような一瞬で終わる短いコールは、歌詞パネル内の
+// 小さな行のハイライトだけでは目立ちにくいという指摘を受け、画面中央に大きく
+// 飛び出す専用の演出を追加した。長いコール（MIX全体など）はこれまで通り
+// 行のハイライトのみとし、読みやすさを優先する。
+const SHORT_CALL_MAX_LENGTH = 6;
+
+// テキストの文字数だけで「短いコールかどうか」を判定する純粋関数。
+// DOM・タイミングに一切触れないため、tests/callSync.test.jsで直接テストできる。
+export function isShortCallText(text) {
+  return typeof text === "string" && text.length > 0 && text.length <= SHORT_CALL_MAX_LENGTH;
+}
+
+let burstLayerElement = null;
+let burstHideTimeoutId = null;
+
+// バースト演出用のDOM（画面に1つだけ）を、必要になった最初のタイミングで作る。
+function ensureBurstLayer() {
+  if (burstLayerElement) return burstLayerElement;
+  burstLayerElement = document.createElement("div");
+  burstLayerElement.className = "call-burst-layer";
+  burstLayerElement.setAttribute("aria-hidden", "true"); // 装飾演出のため、スクリーンリーダーには読ませない
+  const textElement = document.createElement("span");
+  textElement.className = "call-burst-text";
+  burstLayerElement.appendChild(textElement);
+  document.body.appendChild(burstLayerElement);
+  return burstLayerElement;
+}
+
+// 短いコールがアクティブになった瞬間に、画面中央へ大きく飛び出す演出を1回再生する。
+// 同じ要素・同じクラスを毎回付け直すことで、連続して短いコールが来ても
+// そのたびにアニメーションが最初から再生される（CSSアニメーションの仕組み上、
+// 一度classを外してから付け直す必要があるため、requestAnimationFrameで1フレーム空ける）。
+function triggerCallBurst(text) {
+  const layer = ensureBurstLayer();
+  const textElement = layer.querySelector(".call-burst-text");
+  textElement.textContent = text;
+
+  layer.classList.remove("is-bursting");
+  window.clearTimeout(burstHideTimeoutId);
+  // eslint-disable-next-line no-unused-expressions
+  void layer.offsetWidth; // reflowを強制し、クラス再付与でアニメーションを確実に再生させる
+  layer.classList.add("is-bursting");
+
+  burstHideTimeoutId = window.setTimeout(() => {
+    layer.classList.remove("is-bursting");
+  }, 1000);
+}
 
 // コールの種類ごとの表示ラベル（本文そのものではなく、種類を示す小さなバッジに使う）。
 // 本文（Oh yeah!等の実際の文言）はcallStorage.js側のデータにのみ含まれ、
@@ -50,6 +99,11 @@ function applyActiveIndex(index) {
   renderedCalls.forEach((call, i) => {
     call.element.classList.toggle("is-current-lyrics-line", i === index);
   });
+
+  const newlyActiveCall = index !== -1 ? renderedCalls[index] : null;
+  if (newlyActiveCall && isShortCallText(newlyActiveCall.text)) {
+    triggerCallBurst(newlyActiveCall.text);
+  }
 }
 
 function updateActiveCallLine(currentTime) {
@@ -88,6 +142,13 @@ export function destroyCallSync() {
   renderedCalls = [];
   activeIndex = -1;
   toggleButtonElement = null;
+
+  // バースト演出も、曲切替・画面離脱のタイミングで必ず消す
+  // （前の曲の演出が再生中のまま残ってしまうことがないように）。
+  window.clearTimeout(burstHideTimeoutId);
+  if (burstLayerElement) {
+    burstLayerElement.classList.remove("is-bursting");
+  }
 }
 
 // 指定した曲のコールデータを取得し、既に描画済みの歌詞パネルへ差し込む。
@@ -160,7 +221,7 @@ export async function loadCallsForSong(songId, targetAudioElement, targetPanelEl
       panelElement.insertBefore(callElement, lyricsLineElements[targetLineIndex]);
     }
 
-    return { element: callElement, start: call.start, end: call.end };
+    return { element: callElement, start: call.start, end: call.end, text: call.text };
   });
 
   activeIndex = -1;

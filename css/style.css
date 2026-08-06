@@ -3245,6 +3245,78 @@ fieldset label:has(input:focus-visible) {
   }
 }
 
+/* ===== 短いコールの「飛び出しバースト」演出（js/callSync.jsのtriggerCallBurst）=====
+   「Hi!」「Yeah!」のような一瞬で終わる短い掛け声を、画面中央に大きく一瞬だけ
+   表示して目立たせる（本人要望：「ペンライトを振っていても一瞬でコールだと
+   分かる」インパクトを最優先）。position:fixedのため、歌詞パネルや隣接する
+   コール・歌詞行のレイアウトには一切影響しない。低スペック端末を考慮し、
+   動かすプロパティはtransform/opacityのみ（box-shadow/text-shadowは動かさず
+   固定値のまま使う）。「視差効果を減らす」設定時は、このファイル末尾の
+   共通ルールがanimation-durationを一律ほぼ0にするため、個別対応は不要。 */
+.call-burst-layer {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 500;
+  opacity: 0;
+}
+
+.call-burst-layer.is-bursting {
+  opacity: 1;
+}
+
+.call-burst-text {
+  display: inline-block;
+  max-width: 92vw;
+  padding: 14px 32px;
+  border-radius: 20px;
+  border: 4px solid #ffffff;
+  background: linear-gradient(135deg, var(--color-call-glow), var(--color-accent));
+  color: #ffffff;
+  font-size: clamp(2.2rem, 12vw, 4rem);
+  font-weight: 900;
+  text-align: center;
+  letter-spacing: 0.02em;
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.9), 0 0 20px var(--color-call-glow);
+  box-shadow: 0 0 30px 8px rgba(255, 159, 67, 0.7), 0 0 60px 16px rgba(255, 217, 61, 0.45);
+  transform: scale(0);
+}
+
+.call-burst-layer.is-bursting .call-burst-text {
+  animation: call-burst-fly-in 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* 手前へ勢いよく飛び出し、弾みながら少し引いて収まり、最後にふっと消える。 */
+@keyframes call-burst-fly-in {
+  0% {
+    transform: scale(0.2) rotate(-10deg);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  30% {
+    transform: scale(1.5) rotate(5deg);
+  }
+  45% {
+    transform: scale(1.1) rotate(-3deg);
+  }
+  60% {
+    transform: scale(1.28) rotate(2deg);
+  }
+  78% {
+    transform: scale(1.18) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.3) rotate(0deg);
+    opacity: 0;
+  }
+}
+
 .synced-call-type-badge {
   flex: none;
   padding: 1px 6px;
