@@ -35,6 +35,8 @@ import {
   advanceHint,
   recordAnswerAndAdvance,
 } from "./lyricsQuizRunState.js";
+import { evaluateAndSaveAchievements } from "./achievementProgress.js";
+import { renderAchievementUnlockEvents } from "./achievementDisplay.js";
 
 // 正解/不正解の演出（既存の.choice-buttonのis-correct/is-wrong）を見せてから次の問題へ進むまでの待ち時間。
 const ANSWER_FEEDBACK_DELAY_MS = 900;
@@ -561,7 +563,7 @@ function advanceToNextQuestionOrFinish() {
 
 // resultElements: {
 //   correctCount, missCount, totalHintsUsed, averageHintsUsed, firstHintCorrectCount, totalElapsedTime,
-//   newRecordBadge, breakdownList,
+//   newRecordBadge, breakdownList, achievementChipContainer, achievementListLink,
 // }
 export function initLyricsQuizResultScreen(newElements) {
   resultElements = newElements;
@@ -584,6 +586,31 @@ export function renderLyricsQuizResult() {
   resultElements.firstHintCorrectCount.textContent = `${result.firstHintCorrectCount}問`;
   resultElements.totalElapsedTime.textContent = formatElapsed(result.totalElapsedMs);
   resultElements.newRecordBadge.hidden = !isNewRecord;
+
+  // 称号（実績）判定（2026-08-07追加、本人指示）。歌マスター・リリックマスターの条件には
+  // 時間もヒント合計も関係しないため、averageResponseMsは渡さない（null＝判定に使われない）。
+  // maxHintLevelByQuestionは、各問題のhintsUsedCount（＝到達した最大ヒント段階、
+  // js/lyricsQuizRunState.js参照）をそのまま使う。
+  const wrongCount = runState.answers.filter(
+    (answer) => answer.outcome === LYRICS_QUIZ_ANSWER_OUTCOME.WRONG_ANSWER
+  ).length;
+  const skippedCount = runState.answers.filter(
+    (answer) => answer.outcome === LYRICS_QUIZ_ANSWER_OUTCOME.SKIPPED
+  ).length;
+  const achievementResult = evaluateAndSaveAchievements({
+    modeId: "lyricsQuiz",
+    questionCountValue: currentSettings.questionCountValue,
+    correctCount: result.correctCount,
+    wrongCount,
+    skippedCount,
+    completed: true,
+    averageResponseMs: null,
+    maxHintLevelByQuestion: runState.answers.map((answer) => answer.hintsUsedCount),
+  });
+  renderAchievementUnlockEvents(achievementResult.newlyUnlockedIds, {
+    chipContainer: resultElements.achievementChipContainer,
+    achievementListLinkElement: resultElements.achievementListLink,
+  });
 
   renderBreakdown();
   return result;

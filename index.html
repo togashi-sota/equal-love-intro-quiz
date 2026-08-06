@@ -541,8 +541,8 @@
           </div>
         </div>
 
-        <!-- 称号（実績）の獲得演出。中身はjs/titleDisplay.jsが組み立てる。普段は空 -->
-        <div id="title-event-list" class="title-event-list"></div>
+        <!-- 称号（実績）の獲得演出。中身はjs/achievementDisplay.jsが組み立てる。普段は空 -->
+        <div id="title-event-list" class="achievement-event-list"></div>
         <!-- 称号を1つでも獲得した回だけ表示される、称号一覧への入口。普段はhidden -->
         <button id="title-list-link-from-result" class="rules-link" type="button" hidden>称号一覧を見る</button>
 
@@ -1362,6 +1362,12 @@
 
       <p id="time-attack-result-best-time" class="time-attack-result-best-time" hidden></p>
 
+      <!-- 称号（実績）の獲得演出（2026-08-07追加）。中身はjs/achievementDisplay.jsが組み立てる。
+           イントロクイズの結果画面（#title-event-list）と全く同じ仕組みを、タイムアタックにも
+           適用している（本人指示：ノーミス段階称号・電光石火はタイムアタックでも取得可能）。 -->
+      <div id="time-attack-result-achievement-list" class="achievement-event-list"></div>
+      <button id="time-attack-result-achievement-list-link" class="rules-link" type="button" hidden>称号一覧を見る</button>
+
       <!-- ボタンの優先順位（本人の要望）：①もう一度挑戦する（同条件でリベンジ、主ボタン）
            ②タイムアタック設定へ戻る（条件を変えて挑戦、副ボタン）③ホーム（上の小さなリンク、控えめ）。
            横並びではなく縦並びにし、②も①と同じ横幅・押しやすさになるようにしている。 -->
@@ -1545,6 +1551,11 @@
 
       <p id="random-playback-result-best-time" class="time-attack-result-best-time" hidden></p>
 
+      <!-- 称号（実績）の獲得演出（2026-08-07追加）。中身はjs/achievementDisplay.jsが組み立てる。
+           本人指示：ランダム再生クイズの全曲ノーミスでフルコーラスマスター・メロディアスを取得可能。 -->
+      <div id="random-playback-result-achievement-list" class="achievement-event-list"></div>
+      <button id="random-playback-result-achievement-list-link" class="rules-link" type="button" hidden>称号一覧を見る</button>
+
       <div class="time-attack-result-actions">
         <button id="random-playback-result-retry-button" class="primary-button" type="button">もう一度挑戦する</button>
         <button id="random-playback-result-setup-button" class="secondary-button time-attack-result-setup-button" type="button">← ランダム再生設定へ戻る</button>
@@ -1705,6 +1716,11 @@
         <summary>問題ごとの内訳を見る</summary>
         <ul id="lyrics-quiz-result-breakdown-list" class="lyrics-quiz-breakdown-list"></ul>
       </details>
+
+      <!-- 称号（実績）の獲得演出（2026-08-07追加）。中身はjs/achievementDisplay.jsが組み立てる。
+           本人指示：歌詞クイズの全曲ノーミスで歌マスター、全問ヒント1のみでリリックマスターを取得可能。 -->
+      <div id="lyrics-quiz-result-achievement-list" class="achievement-event-list"></div>
+      <button id="lyrics-quiz-result-achievement-list-link" class="rules-link" type="button" hidden>称号一覧を見る</button>
 
       <div class="time-attack-result-actions">
         <button id="lyrics-quiz-result-retry-button" class="primary-button" type="button">もう一度挑戦する</button>

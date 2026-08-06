@@ -4,14 +4,17 @@
 // titleList.jsと同じく、この画面に関わる処理はこのファイルの中に閉じ込める。
 
 import { getHistoryEntries, computeHistorySummary, clearHistoryEntries } from "./history.js";
-import { TITLES } from "./titleDefinitions.js";
+import { ACHIEVEMENTS } from "./achievementDefinitions.js";
 
-// 出題数・カテゴリの短縮ラベル。main.js・titleList.jsと同じ表記に揃えている。
+// 出題数・カテゴリの短縮ラベル。main.js・achievementList.jsと同じ表記に揃えている。
 const QUESTION_COUNT_LABELS = { "5": "5問", "10": "10問", "20": "20問", "50": "50問", all: "全問" };
 const CATEGORY_LABELS = { all: "全曲", "title-and-group": "表題＋全員", "title-track": "表題のみ" };
 
 // 称号id→表示名の対応表。履歴に保存しているのはidだけなので、表示時にここで名前を引く。
-const TITLE_NAME_BY_ID = Object.fromEntries(TITLES.map((title) => [title.id, title.name]));
+// 旧称号システム（js/titleDefinitions.js、削除済み）時代に保存された履歴には、この対応表に
+// 無いidが残っている場合があるが、buildTitleBadges()側のフォールバック（?? result.id）で
+// 表示が壊れることはない（古い履歴データ自体も削除しない）。
+const TITLE_NAME_BY_ID = Object.fromEntries(ACHIEVEMENTS.map((achievement) => [achievement.id, achievement.name]));
 
 // この画面が使うDOM要素一式。initHistoryScreen()で受け取って保持する。
 let elements = null;

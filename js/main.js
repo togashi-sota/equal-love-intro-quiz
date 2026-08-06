@@ -3,7 +3,7 @@
 
 import { SONGS } from "./data/songs.js";
 import { AUDIO_METADATA } from "./data/audioMetadata.js";
-import { showScreen } from "./screens.js";
+import { showScreen, onScreenChange } from "./screens.js";
 import {
   gameState,
   resetGameState,
@@ -50,9 +50,9 @@ import {
   refreshAllFavoriteButtons,
   getActiveSonglistTab,
 } from "./songlist.js";
-import { buildPlayResult, evaluateAndSaveTitles } from "./titleProgress.js";
-import { renderResultTitleEvents, clearResultTitleEvents } from "./titleDisplay.js";
-import { initTitleListModal } from "./titleList.js";
+import { evaluateAndSaveAchievements, syncLegacyAchievements } from "./achievementProgress.js";
+import { renderAchievementUnlockEvents, clearAchievementUnlockEvents } from "./achievementDisplay.js";
+import { initAchievementListModal } from "./achievementList.js";
 import { saveHistoryEntry } from "./history.js";
 import { initHistoryScreen, renderHistoryScreen } from "./historyScreen.js";
 import { initHistoryDetailScreen, renderHistoryDetail } from "./historyDetailScreen.js";
@@ -416,6 +416,8 @@ const timeAttackResultCorrectCountElement = document.getElementById("time-attack
 const timeAttackResultMissCountElement = document.getElementById("time-attack-result-miss-count");
 const timeAttackResultRuleLabelElement = document.getElementById("time-attack-result-rule-label");
 const timeAttackResultBestTimeElement = document.getElementById("time-attack-result-best-time");
+const timeAttackResultAchievementListElement = document.getElementById("time-attack-result-achievement-list");
+const timeAttackResultAchievementListLinkElement = document.getElementById("time-attack-result-achievement-list-link");
 const timeAttackResultRetryButtonElement = document.getElementById("time-attack-result-retry-button");
 const timeAttackResultSetupButtonElement = document.getElementById("time-attack-result-setup-button");
 const timeAttackResultHomeLinkElement = document.getElementById("time-attack-result-home-link");
@@ -435,6 +437,10 @@ const randomPlaybackResultCorrectCountElement = document.getElementById("random-
 const randomPlaybackResultMissCountElement = document.getElementById("random-playback-result-miss-count");
 const randomPlaybackResultRuleLabelElement = document.getElementById("random-playback-result-rule-label");
 const randomPlaybackResultBestTimeElement = document.getElementById("random-playback-result-best-time");
+const randomPlaybackResultAchievementListElement = document.getElementById("random-playback-result-achievement-list");
+const randomPlaybackResultAchievementListLinkElement = document.getElementById(
+  "random-playback-result-achievement-list-link"
+);
 const randomPlaybackResultRetryButtonElement = document.getElementById("random-playback-result-retry-button");
 const randomPlaybackResultSetupButtonElement = document.getElementById("random-playback-result-setup-button");
 const randomPlaybackResultHomeLinkElement = document.getElementById("random-playback-result-home-link");
@@ -470,6 +476,10 @@ const lyricsQuizResultFirstHintCorrectCountElement = document.getElementById(
   "lyrics-quiz-result-first-hint-correct-count"
 );
 const lyricsQuizResultBreakdownListElement = document.getElementById("lyrics-quiz-result-breakdown-list");
+const lyricsQuizResultAchievementListElement = document.getElementById("lyrics-quiz-result-achievement-list");
+const lyricsQuizResultAchievementListLinkElement = document.getElementById(
+  "lyrics-quiz-result-achievement-list-link"
+);
 const lyricsQuizResultRetryButtonElement = document.getElementById("lyrics-quiz-result-retry-button");
 const lyricsQuizResultSetupButtonElement = document.getElementById("lyrics-quiz-result-setup-button");
 
@@ -757,15 +767,26 @@ const playerDeleteConfirmModalElement = document.getElementById("player-delete-c
 const playerDeleteCancelButtonElement = document.getElementById("player-delete-cancel-button");
 const playerDeleteConfirmButtonElement = document.getElementById("player-delete-confirm-button");
 
-// 称号一覧モーダルの開閉ロジックはtitleList.jsに閉じ込めてあるので、
-// ここでは必要なDOM要素を渡して初期化するだけでよい。
-initTitleListModal({
+// 称号一覧モーダルの開閉ロジックはjs/achievementList.jsに閉じ込めてあるので、
+// ここでは必要なDOM要素を渡して初期化するだけでよい（要素id自体は旧称号システム時代の
+// ままだが、中身は新しい称号システム＝js/achievementDefinitions.js準拠に置き換わっている）。
+initAchievementListModal({
   overlay: titleListModalElement,
   modalCard: titleListModalCardElement,
   closeButton: titleListModalCloseButtonElement,
   listContainer: titleListContainerElement,
-  openTriggers: [titleListLinkElement, titleListLinkFromResultElement],
+  openTriggers: [
+    titleListLinkElement,
+    titleListLinkFromResultElement,
+    timeAttackResultAchievementListLinkElement,
+    randomPlaybackResultAchievementListLinkElement,
+    lyricsQuizResultAchievementListLinkElement,
+  ],
 });
+
+// 旧称号（js/titleDefinitions.js時代）のデータが残っていれば、対応するノーミス段階称号へ
+// 読み取り専用で安全に引き継ぐ（本人指示。旧データ自体は削除しない）。アプリ起動時に1回だけ。
+syncLegacyAchievements();
 
 // プレイ履歴画面のサマリー・一覧の描画、削除確認モーダルの開閉ロジックはhistoryScreen.jsに
 // 閉じ込めてあるので、ここでは必要なDOM要素を渡して初期化するだけでよい。
@@ -1026,6 +1047,15 @@ initPlayerScreen(
   },
   MEMBERS
 );
+
+// スタート画面（推しアイコン）に戻るたびに、王冠・ダイヤの表示を最新の状態にし直す
+// （2026-08-07追加。タイムアタック・ランダム再生クイズ・歌詞クイズの結果画面で
+// ＝LOVEマスター等を新規獲得した場合でも、ホームへ戻ってきた時点で必ず反映されるようにする）。
+onScreenChange((screenName) => {
+  if (screenName === "start") {
+    renderPlayerSummary();
+  }
+});
 
 // スタート画面の「プレイリスト」リンクと、プレイリスト一覧・詳細画面（2026-08-04追加）。
 initPlaylistScreen({
@@ -2038,9 +2068,9 @@ function renderResult() {
     // 残ってしまわないよう、自己ベスト欄・称号欄を明示的に隠す／空にする。
     highScoreElement.hidden = true;
     newRecordElement.hidden = true;
-    clearResultTitleEvents({
+    clearAchievementUnlockEvents({
       chipContainer: titleEventListElement,
-      titleListLinkElement: titleListLinkFromResultElement,
+      achievementListLinkElement: titleListLinkFromResultElement,
     });
 
     // 特別モードのときだけ、自己ベスト欄の代わりに「記録には反映されない」ことを伝える一言を表示する。
@@ -2056,13 +2086,54 @@ function renderResult() {
     highScoreElement.textContent = `このモードの自己ベスト: ${getHighScore(questionCountValue, categoryFilterValue)}点`;
     newRecordElement.hidden = !isNewRecord;
 
-    const playResult = buildPlayResult(gameState);
-    const titleEvents = evaluateAndSaveTitles(playResult);
-    renderResultTitleEvents(titleEvents, {
-      chipContainer: titleEventListElement,
-      titleListLinkElement: titleListLinkFromResultElement,
+    // 称号（実績）判定用の共通結果オブジェクトを組み立てる（js/achievementEvaluation.js参照）。
+    // resultTypeのうち、"wrong"は誤答、"skip"と"reveal"（答えを見る）はどちらも
+    // 「自力で正解しなかった」という点で共通なので、未回答側にまとめている
+    // （どちらの側に数えても、称号の判定条件＝誤答・未回答なしの成立可否は変わらない）。
+    const correctEntries = gameState.answerLog.filter((entry) => entry.resultType === "correct");
+    const wrongCount = gameState.answerLog.filter((entry) => entry.resultType === "wrong").length;
+    const skippedCount = gameState.answerLog.filter(
+      (entry) => entry.resultType === "skip" || entry.resultType === "reveal"
+    ).length;
+    const timedCorrectEntries = correctEntries.filter((entry) => entry.elapsedMs !== null);
+    const averageResponseMs =
+      timedCorrectEntries.length > 0
+        ? timedCorrectEntries.reduce((sum, entry) => sum + entry.elapsedMs, 0) / timedCorrectEntries.length
+        : null;
+
+    const achievementResult = evaluateAndSaveAchievements({
+      modeId: "intro",
+      questionCountValue,
+      correctCount: correctEntries.length,
+      wrongCount,
+      skippedCount,
+      completed: true,
+      averageResponseMs,
     });
-    saveHistoryEntry(gameState, playResult, { rank, isNewRecord, titleEvents });
+    renderAchievementUnlockEvents(achievementResult.newlyUnlockedIds, {
+      chipContainer: titleEventListElement,
+      achievementListLinkElement: titleListLinkFromResultElement,
+    });
+    renderPlayerSummary(); // ＝LOVEマスター等を新規獲得した場合、推しアイコンの王冠・ダイヤを即座に反映する
+
+    // js/history.jsのsaveHistoryEntry()は、旧称号システム時代の引数の形
+    // （playResult.totalQuestions/correctCount/averageCorrectElapsedMs、titleEvents:{id,type}[]）を
+    // そのまま使い続けている（保存スキーマ自体は変更しないため）。新しい称号システムの値から、
+    // 同じ形を組み立てて渡す。type は常に"new"（このタイミングで新規解放された分だけを
+    // 渡しているため、"repeat"は発生しない）。
+    saveHistoryEntry(
+      gameState,
+      {
+        totalQuestions: gameState.questions.length,
+        correctCount: correctEntries.length,
+        averageCorrectElapsedMs: averageResponseMs,
+      },
+      {
+        rank,
+        isNewRecord,
+        titleEvents: achievementResult.newlyUnlockedIds.map((id) => ({ id, type: "new" })),
+      }
+    );
   }
 
   answerLogListElement.innerHTML = "";
@@ -2734,6 +2805,8 @@ initTimeAttackResultScreen({
   missCount: timeAttackResultMissCountElement,
   ruleLabel: timeAttackResultRuleLabelElement,
   bestTime: timeAttackResultBestTimeElement,
+  achievementChipContainer: timeAttackResultAchievementListElement,
+  achievementListLink: timeAttackResultAchievementListLinkElement,
 });
 
 // 「もう一度挑戦する」：直前と同じ出題数・カテゴリ・ルールのまま、問題を再抽選して開始する。
@@ -2864,6 +2937,8 @@ initRandomPlaybackResultScreen({
   missCount: randomPlaybackResultMissCountElement,
   ruleLabel: randomPlaybackResultRuleLabelElement,
   bestTime: randomPlaybackResultBestTimeElement,
+  achievementChipContainer: randomPlaybackResultAchievementListElement,
+  achievementListLink: randomPlaybackResultAchievementListLinkElement,
 });
 
 // 「もう一度挑戦する」：直前と同じ出題数・カテゴリ・ルールのまま、問題を再抽選して開始する。
@@ -2942,6 +3017,8 @@ initLyricsQuizResultScreen({
   totalElapsedTime: lyricsQuizResultTotalElapsedTimeElement,
   newRecordBadge: lyricsQuizResultNewRecordElement,
   breakdownList: lyricsQuizResultBreakdownListElement,
+  achievementChipContainer: lyricsQuizResultAchievementListElement,
+  achievementListLink: lyricsQuizResultAchievementListLinkElement,
 });
 
 lyricsQuizResultRetryButtonElement.addEventListener("click", () => {

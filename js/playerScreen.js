@@ -20,6 +20,7 @@ import {
 } from "./playerProfile.js";
 import { getMemberById } from "./memberUtils.js";
 import { getMostOshiMemberId } from "./oshiMembers.js";
+import { applyOshiBadgeDecorations } from "./oshiBadge.js";
 
 let elements = null;
 let members = null; // 推しメン表示用に、members.jsの配列を保持しておく
@@ -47,6 +48,9 @@ export function renderPlayerSummary() {
     const hex = mostOshiMember?.memberColor?.hex;
     elements.playerHeroSwatch.style.background = hex ?? "";
     elements.playerHeroSwatch.classList.toggle("is-placeholder", !hex);
+    // ＝LOVEマスター／＝LOVE完全制覇を取得していれば、王冠・ダイヤを重ねて表示する
+    // （2026-08-07追加、本人指示。共通関数・CSSクラスだけで行い、画面ごとに複製しない）。
+    applyOshiBadgeDecorations(elements.playerHeroSwatch);
   }
 }
 

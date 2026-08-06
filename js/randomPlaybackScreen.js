@@ -7,12 +7,20 @@
 // 差し替えるのは音源の再生開始位置・再生時間だけにする」）。このファイルが新しく持つのは、
 // ①このモード専用の再生開始位置の種（seed）の発行、②自己ベストの保存先（タイムアタックとは
 // 別のjs/randomPlaybackScore.js）、③設定・結果、2つの画面の組み立て、の3つだけに絞っている。
-import { TIME_ATTACK_RULE, startTimeAttackRun, getCurrentTimeAttackRule, getCurrentTimeAttackStats } from "./timeAttackScreen.js";
+import {
+  TIME_ATTACK_RULE,
+  startTimeAttackRun,
+  getCurrentTimeAttackRule,
+  getCurrentTimeAttackStats,
+  buildAchievementResultInput,
+} from "./timeAttackScreen.js";
 import {
   getRandomPlaybackBest,
   saveRandomPlaybackBestIfBetter,
   saveRandomPlaybackBestReachIfBetter,
 } from "./randomPlaybackScore.js";
+import { evaluateAndSaveAchievements } from "./achievementProgress.js";
+import { renderAchievementUnlockEvents } from "./achievementDisplay.js";
 
 let elements = null;
 let resultElements = null;
@@ -95,6 +103,17 @@ export function renderRandomPlaybackResult(questionCountValue, categoryFilterVal
   if (stats.runFailed) {
     resultElements.failStatus.textContent = `${stats.perQuestionResults.length}問目で失敗しました（LOVE連チャンは全問クリアのタイムだけが記録されます）`;
   }
+
+  // 称号（実績）判定（2026-08-07追加、本人指示）。ランダム再生クイズの全曲ノーミスで
+  // フルコーラスマスター・メロディアスを取得できる。判定の組み立て方はタイムアタックと
+  // 完全に共通（js/timeAttackScreen.jsのbuildAchievementResultInput参照）。
+  const achievementResult = evaluateAndSaveAchievements(
+    buildAchievementResultInput(stats, "randomPlayback", questionCountValue)
+  );
+  renderAchievementUnlockEvents(achievementResult.newlyUnlockedIds, {
+    chipContainer: resultElements.achievementChipContainer,
+    achievementListLinkElement: resultElements.achievementListLink,
+  });
 
   if (previousBest !== null) {
     resultElements.bestTime.hidden = false;

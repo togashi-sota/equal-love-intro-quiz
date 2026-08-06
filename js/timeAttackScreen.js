@@ -4,10 +4,14 @@
 // ミス数）の管理」と「設定・結果、2つの画面の組み立て」に専念する。
 //
 // 実行中の記録（合計タイム・ミス数など）は、既存のgameState（js/state.js）には一切持たせず、
-// このファイルのモジュール内変数だけで完結させている。既存の得点・自己ベスト・称号・
-// プレイ履歴のどの仕組みにも触れない、完全に独立した記録として扱うため
-// （本人の要望：「通常クイズの履歴・称号・自己ベストとは混ぜず、タイムアタック専用の
-// 記録にする」）。
+// このファイルのモジュール内変数だけで完結させている。得点・自己ベスト・プレイ履歴の
+// どの仕組みにも触れない、完全に独立した記録として扱うため（本人の要望：「通常クイズの
+// 履歴・自己ベストとは混ぜず、タイムアタック専用の記録にする」）。
+//
+// 【2026-08-07追加、本人指示による例外】称号（実績）システムだけは例外で、
+// タイムアタック（現在のイントロ形式）もイントロクイズと並ぶ「ノーミス段階称号・電光石火」の
+// 達成手段として明示的に対象にする。js/achievementProgress.jsへ渡す共通結果の組み立てだけを
+// buildAchievementResultInput()として持ち、保存先自体（自己ベスト・履歴）は今まで通り別のまま。
 
 import { SONGS } from "./data/songs.js";
 import { filterSongsByCategory, validatePoolSize, resolveQuestionCount, buildQuizQuestions } from "./quiz.js";
@@ -17,6 +21,8 @@ import {
   saveTimeAttackBestReachIfBetter,
 } from "./timeAttackScore.js";
 import { saveTimeAttackHistoryEntry } from "./timeAttackHistory.js";
+import { evaluateAndSaveAchievements } from "./achievementProgress.js";
+import { renderAchievementUnlockEvents } from "./achievementDisplay.js";
 
 // ルール（3種類）。
 // normal    ：間違えた選択肢だけ消える消去法。正解したら即次へ。ミス数を記録する。
@@ -133,6 +139,37 @@ export function initTimeAttackResultScreen(newElements) {
   resultElements = newElements;
 }
 
+// getCurrentTimeAttackStats()の生データ（1問=1エントリだが、ノーマルルールは
+// 「間違えても最終的に正解すればisCorrect:true」になる）を、称号（実績）判定用の
+// 共通結果オブジェクトへ変換する（js/achievementEvaluation.js参照）。
+// 「ノーミス」の定義は、js/randomPlaybackScreen.jsも含めて統一する：
+// 1問でもmissCountThisQuestion>0（一度でも間違った選択肢を選んだ）なら、
+// 最終的に正解していてもその問題は「誤答あり」として扱う（本人指示の「誤答なし」の趣旨、
+// 消去法で何度か外してから当てた場合まで含めてしまわないようにするため）。
+// タイムアタック・ランダム再生クイズには「スキップ」の概念が無いため、skippedCountは常に0。
+export function buildAchievementResultInput(stats, modeId, questionCountValue) {
+  const cleanCorrectCount = stats.perQuestionResults.filter(
+    (result) => result.isCorrect && result.missCountThisQuestion === 0
+  ).length;
+  const impureCount = stats.perQuestionResults.length - cleanCorrectCount;
+
+  const correctEntries = stats.perQuestionResults.filter((result) => result.isCorrect && result.elapsedMs !== null);
+  const averageResponseMs =
+    correctEntries.length > 0
+      ? correctEntries.reduce((sum, result) => sum + result.elapsedMs, 0) / correctEntries.length
+      : null;
+
+  return {
+    modeId,
+    questionCountValue,
+    correctCount: cleanCorrectCount,
+    wrongCount: impureCount,
+    skippedCount: 0,
+    completed: !stats.runFailed,
+    averageResponseMs,
+  };
+}
+
 function formatSeconds(ms) {
   return (ms / 1000).toFixed(2);
 }
@@ -190,6 +227,16 @@ export function renderTimeAttackResult() {
   if (runFailed) {
     resultElements.failStatus.textContent = `${perQuestionResults.length}問目で失敗しました（LOVE連チャンは全問クリアのタイムだけが記録されます）`;
   }
+
+  // 称号（実績）判定。「タイトルへ」で中断した場合はこの関数自体が呼ばれないため、
+  // 判定対象にはならない（既存の通常プレイと同じ考え方）。
+  const achievementResult = evaluateAndSaveAchievements(
+    buildAchievementResultInput(getCurrentTimeAttackStats(), "timeAttack", currentQuestionCountValue)
+  );
+  renderAchievementUnlockEvents(achievementResult.newlyUnlockedIds, {
+    chipContainer: resultElements.achievementChipContainer,
+    achievementListLinkElement: resultElements.achievementListLink,
+  });
 
   if (previousBest !== null) {
     resultElements.bestTime.hidden = false;

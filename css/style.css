@@ -2020,11 +2020,12 @@ fieldset label:has(input:focus-visible) {
   display: none;
 }
 
-/* ===== 称号アイコンメダル =====
+/* ===== 称号（実績）アイコンメダル =====
    結果画面のチップ・称号一覧のカード、両方の称号名の横に添える小さな円形アイコン。
-   js/titleIcons.jsが組み立てたSVGを、ここで称号ごとの色に染める
-   （[data-title-id]は.title-event・.title-list-cardの両方に共通して出力されている）。 */
-.title-icon-medal {
+   js/achievementIcons.jsが組み立てたSVGを、ここで称号ごとの色に染める
+   （.is-{iconKey}は.achievement-icon-medal自身に付く。旧.title-icon-medal／
+   [data-title-id]方式は、称号システム刷新（2026-08-07）にともない全面的に置き換えた）。 */
+.achievement-icon-medal {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2036,71 +2037,96 @@ fieldset label:has(input:focus-visible) {
   color: var(--color-primary-dark);
 }
 
-.title-icon-medal svg {
+.achievement-icon-medal svg {
   width: 58%;
   height: 58%;
 }
 
-/* イントロマスターだけ、淡い水色×水色で視認性が低かったため、
-   ランクBバッジ・カテゴリバッジですでに使っている濃い青(#2c6ea8)をアイコン色に採用し、
-   外周にも縁取りを追加してコントラストを上げている。
-   音符のSVG自体が28×28のviewBoxの中で偏って小さめに収まっているため、
-   表示サイズも共通の58%より少し引き上げて、他の称号と存在感を揃えている。 */
-[data-title-id="introMaster"] .title-icon-medal {
-  background: var(--color-secondary-light);
-  color: #2c6ea8;
-  border: 1.5px solid var(--color-secondary);
+/* ノーミス系5段階：銅→銀→金→白銀＋水色→星入り王冠、の順に色だけ変える
+   （形は共通の盾。js/achievementIcons.jsのSHIELD_PATH参照）。 */
+.achievement-icon-medal.is-no_miss_bronze {
+  background: radial-gradient(circle at 32% 28%, #e8b088 0%, #b06a3a 60%, #7a4420 100%);
+  color: #fff3e8;
 }
 
-[data-title-id="introMaster"] .title-icon-medal svg {
-  width: 66%;
-  height: 66%;
+.achievement-icon-medal.is-no_miss_silver {
+  background: radial-gradient(circle at 32% 28%, #f3f3f6 0%, #b9bfc8 60%, #8a909c 100%);
+  color: #3a3f47;
 }
 
-[data-title-id="lightningFast"] .title-icon-medal {
-  background: var(--color-primary-dark);
+.achievement-icon-medal.is-no_miss_gold {
+  background: radial-gradient(circle at 32% 28%, #ffe9a8 0%, #e3ab3c 55%, #b8790e 100%);
+  color: #5c3a08;
+}
+
+.achievement-icon-medal.is-no_miss_platinum {
+  background: radial-gradient(circle at 32% 28%, #eef9ff 0%, #bfe3f0 55%, var(--color-secondary) 100%);
+  color: #1e5470;
+  border: 1.5px solid rgba(255, 255, 255, 0.9);
+}
+
+.achievement-icon-medal.is-no_miss_master {
+  background: radial-gradient(circle at 32% 28%, #fff3c4 0%, #ffd93d 55%, #b8790e 100%);
+  color: #5c3a08;
+  border: 1.5px solid rgba(255, 255, 255, 0.85);
+}
+
+.achievement-icon-medal.is-full_chorus_master,
+.achievement-icon-medal.is-song_master {
+  background: linear-gradient(160deg, var(--color-primary), var(--color-primary-dark));
   color: #ffffff;
 }
 
-/* 王冠のviewBox（24×16）は正方形のSVG表示枠に収める際、縦方向が余って小さく表示されてしまう
+.achievement-icon-medal.is-lightning_fast {
+  background: var(--color-primary-dark);
+  color: #fff9d6;
+}
+
+.achievement-icon-medal.is-melody_ace {
+  background: linear-gradient(135deg, #b18cf0, #6fa8ff);
+  color: #ffffff;
+}
+
+.achievement-icon-medal.is-lyric_master {
+  background: linear-gradient(160deg, #ffb37a, var(--color-accent));
+  color: #5c3a08;
+}
+
+/* 王冠のviewBoxは正方形のSVG表示枠に収める際、縦方向が余って小さく表示されてしまう
    （横長の絵を正方形の枠に収めるので、上下に隙間ができる）ため、表示サイズを引き上げて補正している。
-   さらに、このメダルは称号を初めて獲得したとき「unlock-and-new」の金色チップの上に乗ることが多く、
+   さらに、このメダルは称号を初めて獲得したとき「composite」の金色チップの上に乗ることが多く、
    メダルの金色とチップの金色が同化して見えにくくなるため、細い白の縁取りで輪郭を出している。 */
-[data-title-id="equalLoveKaiden"] .title-icon-medal {
+.achievement-icon-medal.is-equal_love_master,
+.achievement-icon-medal.is-equal_love_complete {
   background: radial-gradient(circle at 32% 28%, #ffe9a8 0%, #e3ab3c 55%, #b8790e 100%);
   color: #5c3a08;
   border: 1.5px solid rgba(255, 255, 255, 0.85);
 }
 
-[data-title-id="equalLoveKaiden"] .title-icon-medal svg {
+.achievement-icon-medal.is-equal_love_master svg,
+.achievement-icon-medal.is-equal_love_complete svg {
   width: 72%;
   height: 72%;
 }
 
-/* ロック中（称号一覧で正体を伏せている間）の「？」だけのメダル。
+/* ロック中（称号一覧で未取得の間）の、鍵マークだけのメダル。
    称号ごとの色指定（上のルール群）より必ず後に書くことで、詳細度が同じでも
-   ロック中は確実にこの控えめな見た目が勝つようにする
-   （以前は金色ルールの方が後にあったため、ロック中の＝LOVE皆伝にも金色が出てしまっていた）。 */
-.title-icon-medal.is-locked {
+   ロック中は確実にこの控えめな見た目が勝つようにする。 */
+.achievement-icon-medal.is-locked {
   background: rgba(74, 46, 66, 0.08);
   color: var(--color-text);
   border: none;
   opacity: 0.55;
-  font-size: 0.85rem;
-  font-weight: 800;
-}
-
-[data-title-id="inspiration"] .title-icon-medal {
-  background: var(--color-accent-soft);
-  color: #8a6a10;
 }
 
 /* ===== 称号（実績）獲得演出 =====
    結果画面で、称号を獲得した瞬間に1件ずつポップに登場するチップ。
    ランクバッジ（Sランクの金メダル・Aランクのピンクメダル）と同じ配色・光の演出を流用し、
-   「称号を取ると、ランクバッジに次ぐご褒美がもらえる」という統一感を出している。 */
+   「称号を取ると、ランクバッジに次ぐご褒美がもらえる」という統一感を出している。
+   イントロクイズ・タイムアタック・ランダム再生クイズ・歌詞クイズの4つの結果画面すべてが、
+   同じこのクラス一式（.achievement-event-list以下）を共有する。 */
 
-#title-event-list {
+.achievement-event-list {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -2108,23 +2134,25 @@ fieldset label:has(input:focus-visible) {
   margin-top: 10px;
 }
 
-.title-event {
+.achievement-event {
   display: inline-flex;
+  flex-direction: column;
   align-items: center;
-  gap: 6px;
-  padding: 7px 16px;
-  border-radius: 999px;
+  gap: 2px;
+  padding: 9px 18px;
+  border-radius: 16px;
   font-size: 0.85rem;
-  /* js/titleDisplay.jsのENTRANCE_ANIMATION_NAMEと名前を一致させる必要がある。
+  text-align: center;
+  /* js/achievementDisplay.jsのENTRANCE_ANIMATION_NAMEと名前を一致させる必要がある。
      animationendを起点に次のチップへ進むキュー方式になっているため、
      ここで名前がずれるとチップが正しいタイミングで切り替わらなくなる。 */
-  animation: title-event-enter 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: achievement-event-enter 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 /* 軽い反転＋フェード＋ポップ。ランクバッジのrankPopと同じ「ポップ」の感触を保ちつつ、
    称号らしい特別感を足すために、浅い角度のrotateXで一瞬だけ裏返るような動きを添えている
    （perspectiveの値を大きめにして、めまいがするような強い3D回転にはしていない）。 */
-@keyframes title-event-enter {
+@keyframes achievement-event-enter {
   0% {
     opacity: 0;
     transform: perspective(600px) rotateX(-55deg) scale(0.85);
@@ -2143,18 +2171,32 @@ fieldset label:has(input:focus-visible) {
    判断してしまう。チップのように横幅が窮屈になりやすい場所でこれを許すと、
    スマホ幅で称号名が1文字ずつバラバラに折り返されてしまう。称号名・キャプション・NEWバッジは
    どれも文字数が短く、1行のままでも画面からはみ出す心配がないため、改行させない指定にする。 */
-.title-event-name {
+.achievement-event-name {
   font-weight: 800;
   white-space: nowrap;
 }
 
-.title-event-caption {
+.achievement-event-caption {
   font-weight: 700;
   opacity: 0.85;
   white-space: nowrap;
 }
 
-.title-event-badge {
+.achievement-event-condition {
+  font-size: 0.72rem;
+  opacity: 0.8;
+  max-width: 78vw;
+}
+
+/* 複合称号だけが持つ、特典・推しアイコン変化の予告（本人指示：見やすい場所に表示）。 */
+.achievement-event-reward {
+  margin-top: 2px;
+  font-size: 0.74rem;
+  font-weight: 800;
+  max-width: 78vw;
+}
+
+.achievement-event-badge {
   display: inline-flex;
   align-items: center;
   padding: 1px 8px;
@@ -2165,13 +2207,12 @@ fieldset label:has(input:focus-visible) {
   white-space: nowrap;
 }
 
-.title-event-badge::before {
+.achievement-event-badge::before {
   content: "✦ ";
 }
 
-/* ----- unlock-and-new：初めて存在を知り、その場で手に入れた一番の見せ場。
-   Sランクの金メダルと同じグラデーション・光が走る演出を流用する ----- */
-.title-event--unlock-and-new {
+/* ----- 通常の称号：Sランクの金メダルと同じグラデーション・光が走る演出を流用する ----- */
+.achievement-event--normal {
   position: relative;
   overflow: hidden;
   color: #5c3a08;
@@ -2179,12 +2220,12 @@ fieldset label:has(input:focus-visible) {
   box-shadow: 0 0 0 3px rgba(255, 217, 61, 0.35), 0 10px 22px -10px rgba(184, 121, 14, 0.6);
 }
 
-.title-event--unlock-and-new .title-event-badge {
+.achievement-event--normal .achievement-event-badge {
   background: #5c3a08;
   color: #ffe9a8;
 }
 
-.title-event--unlock-and-new::after {
+.achievement-event--normal::after {
   content: "";
   position: absolute;
   top: 0;
@@ -2196,27 +2237,49 @@ fieldset label:has(input:focus-visible) {
   animation: rankMedalShine 1.6s ease-in-out 1;
 }
 
-/* ----- new：すでに存在を知っている称号を、あらためて獲得した瞬間。
-   Aランクのピンクメダルと同じ配色にして、「特別だが最上位ではない」トーンにする ----- */
-.title-event--new {
+/* ----- 複合称号（＝LOVEマスター・＝LOVE完全制覇）：通常よりひと回り大きく、
+   虹色の光が縁を巡る、一番豪華な演出にする（本人指示：「通常より豪華な演出」） ----- */
+.achievement-event--composite {
+  position: relative;
+  overflow: hidden;
+  padding: 14px 24px;
   color: #ffffff;
-  background: linear-gradient(160deg, var(--color-primary), var(--color-primary-dark));
-  box-shadow: 0 8px 18px -10px rgba(255, 79, 150, 0.55);
+  font-size: 1rem;
+  background: linear-gradient(135deg, #b18cf0, #ff8fc0 45%, #ffd93d 100%);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.5), 0 14px 30px -12px rgba(120, 60, 140, 0.55);
+  animation: achievement-event-enter 480ms cubic-bezier(0.22, 1, 0.36, 1) both,
+    achievement-composite-glow 1400ms ease-in-out 480ms infinite;
 }
 
-.title-event--new .title-event-badge {
+@keyframes achievement-composite-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.5), 0 14px 30px -12px rgba(120, 60, 140, 0.55);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.75), 0 18px 40px -12px rgba(120, 60, 140, 0.75);
+  }
+}
+
+.achievement-event--composite .achievement-event-name {
+  font-size: 1.1rem;
+}
+
+.achievement-event--composite .achievement-event-badge {
   background: #ffffff;
-  color: var(--color-primary-dark);
+  color: #7a4a9a;
 }
 
-/* ----- repeat：すでに達成済みのものを、今回も達成しただけ。
-   主役になりすぎないよう、装飾を持たない控えめな見た目にする ----- */
-.title-event--repeat {
-  color: var(--color-text);
-  background: var(--color-surface-glass);
-  border: 1px solid var(--color-card-border);
-  font-weight: 700;
-  opacity: 0.85;
+.achievement-event--composite::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -60%;
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.9), transparent);
+  transform: skewX(-20deg);
+  animation: rankMedalShine 1.8s ease-in-out 1;
 }
 
 /* .rules-linkはdisplay:blockを明示しているため、hidden属性だけでは非表示にならない。
@@ -4206,112 +4269,96 @@ fieldset label:has(input:focus-visible) {
 
 /* ===== 称号一覧モーダル =====
    称号1件＝1枚のカードとして、ガラス風カードの世界観に合わせたパステルな見た目にする。
-   ロック中のカードは、ランクCバッジと同じ考え方（点線ではなく、彩度を落とした一重の実線）で
-   「無効状態」に見えないよう控えめに、解放済みのカードとは対照的に表現する。 */
+   未取得のカードは、彩度を落とした一重の実線・鍵アイコンで「まだ手が届いていない」ことを
+   伝えつつ、名前・条件文はロックせず常に読める状態にする（本人指示）。
+   分類（ノーミスランク・表マスター・裏称号・最終称号）ごとにセクション分けして表示する。 */
 #title-list-container {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 18px;
   margin-top: 14px;
 }
 
-.title-list-card {
+.achievement-category-heading {
+  margin: 0 0 8px;
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--color-primary-dark);
+}
+
+.achievement-card-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.achievement-card {
   padding: 14px 16px;
   border-radius: 16px;
   border: 1px solid var(--color-card-border);
   max-width: 100%;
+  min-width: 0;
 }
 
-.title-list-card.is-unlocked {
+.achievement-card.is-unlocked {
   background: linear-gradient(165deg, #ffffff, var(--color-primary-light) 200%);
   border-color: rgba(255, 111, 168, 0.35);
 }
 
-.title-list-card.is-locked {
+.achievement-card.is-locked {
   background: rgba(74, 46, 66, 0.035);
   border-color: var(--color-card-border);
+  opacity: 0.75;
 }
 
-.title-list-header {
+/* 複合称号（＝LOVEマスター・＝LOVE完全制覇）は、1段組みで幅いっぱいに使い、
+   他のカードより大きく特別に見せる（本人指示：「他より大きい特別カードにして構わない」）。 */
+.achievement-card--composite {
+  grid-column: 1 / -1;
+}
+
+.achievement-card--composite.is-unlocked {
+  background: linear-gradient(160deg, #fff7e0, #ffe3f0 60%, #eaddff 100%);
+  border-color: rgba(255, 217, 61, 0.6);
+  box-shadow: 0 10px 24px -14px rgba(184, 121, 14, 0.5);
+}
+
+.achievement-card-header {
   display: flex;
   align-items: center;
   gap: 10px;
   margin-bottom: 4px;
 }
 
-.title-list-name {
+.achievement-card-name {
   margin: 0;
-  font-size: 1rem;
+  font-size: 0.92rem;
   font-weight: 800;
   color: var(--color-primary-dark);
   /* 結果画面チップと同じ理由（日本語は文字間で自由に改行されてしまう）で、
      念のため称号名は1行のまま改行させないようにしておく。 */
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.title-list-card.is-locked .title-list-name {
+.achievement-card.is-locked .achievement-card-name {
   color: var(--color-text);
-  opacity: 0.5;
-  letter-spacing: 0.1em; /* 「？？？」の字間を少し空け、伏せられている雰囲気を出す */
+  opacity: 0.7;
 }
 
-.title-list-condition,
-.title-list-hint {
+.achievement-card-condition {
   margin: 0 0 8px;
-  font-size: 0.82rem;
+  font-size: 0.76rem;
   line-height: 1.5;
   opacity: 0.75;
 }
 
-.title-progress {
-  margin-top: 2px;
-}
-
-/* ドットが何を表しているか一目で分かるようにする、小さな見出し */
-.title-progress-caption {
-  margin: 0 0 6px;
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  color: var(--color-text);
-  opacity: 0.55;
-}
-
-.title-progress-dots {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.title-progress-dot-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  font-size: 0.65rem;
-  color: var(--color-text);
-  opacity: 0.75;
-}
-
-/* クイズ画面の進捗ドット（.progress-dots .dot）と同じ配色・考え方に揃える */
-.title-progress-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  border: 2px solid var(--color-primary-light);
-  background-color: var(--color-surface);
-}
-
-.title-progress-dot.is-done {
-  border-color: var(--color-primary);
-  background-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(255, 111, 168, 0.18);
-}
-
-.title-achieved-badge {
+.achievement-card-status {
   display: inline-flex;
   align-items: center;
-  font-size: 0.78rem;
+  font-size: 0.74rem;
   font-weight: 700;
   padding: 3px 12px;
   border: 1px solid var(--color-card-border);
@@ -4320,7 +4367,7 @@ fieldset label:has(input:focus-visible) {
   opacity: 0.6;
 }
 
-.title-achieved-badge.is-achieved {
+.achievement-card-status.is-achieved {
   border-color: var(--color-primary);
   background: var(--color-primary-light);
   color: var(--color-primary-dark);
@@ -4328,8 +4375,35 @@ fieldset label:has(input:focus-visible) {
   opacity: 1;
 }
 
-.title-achieved-badge.is-achieved::before {
+.achievement-card-status.is-achieved::before {
   content: "✦ ";
+}
+
+/* 複合称号だけが正確に計算できる進捗（例：2 / 3 達成）。 */
+.achievement-card-progress {
+  margin: 6px 0 0;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+}
+
+/* 複合称号だけが持つ、特典・推しアイコン変化の予告。未取得のうちから見せて、
+   目指す理由が一目で伝わるようにする（本人指示：見やすい場所に表示）。 */
+.achievement-card-reward {
+  margin: 8px 0 0;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: rgba(255, 217, 61, 0.25);
+  font-size: 0.76rem;
+  font-weight: 800;
+  color: #7a4a20;
+}
+
+/* 375px幅では複合称号以外も1列にし、カード内の文字がはみ出さないようにする。 */
+@media (max-width: 380px) {
+  .achievement-card-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ===== プレイ履歴画面 =====
@@ -5496,6 +5570,7 @@ fieldset label:has(input:focus-visible) {
 }
 
 .player-hero-swatch {
+  position: relative;
   flex: none;
   display: flex;
   align-items: center;
@@ -5515,6 +5590,50 @@ fieldset label:has(input:focus-visible) {
 .player-hero-swatch.is-placeholder {
   background: linear-gradient(145deg, #e8dde3, #d8c8d2);
   color: rgba(255, 255, 255, 0.85);
+}
+
+/* ===== 推しアイコンへの王冠・ダイヤ装飾（js/oshiBadge.js、2026-08-07追加） =====
+   ＝LOVEマスター取得で王冠、＝LOVE完全制覇取得でダイヤも追加する（本人指示）。
+   .has-equal-love-master／.has-equal-love-completeは、js/oshiBadge.jsのapplyOshiBadgeDecorations()が
+   称号の取得状況に応じて付け外しするクラス。クラスベースにしているのは、ホーム画面の
+   推しアイコン以外（プレイヤー切替一覧など）にも、同じCSSだけで安全に適用を広げられるため。
+   どちらの装飾も、クリック操作を邪魔しないようpointer-events:noneにしている。 */
+.has-equal-love-master::after {
+  content: "👑";
+  position: absolute;
+  top: -8px;
+  right: -6px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  line-height: 1;
+  background: radial-gradient(circle at 32% 28%, #ffe9a8 0%, #e3ab3c 70%);
+  border: 1.5px solid #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+}
+
+.has-equal-love-complete::before {
+  content: "💎";
+  position: absolute;
+  bottom: -4px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  line-height: 1;
+  background: radial-gradient(circle at 32% 28%, #e3f3ff 0%, #6fa8ff 70%);
+  border: 1.5px solid #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
 }
 
 .player-hero-text {
