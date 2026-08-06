@@ -253,7 +253,7 @@ export const MEMBER_ACTIVITIES = [
     title: "つんはしご",
     type: ACTIVITY_TYPE.YOUTUBE,
     description:
-      "＝LOVE・≠ME・≒JOYの公式YouTube「イコノイジョイチャンネル」内の人気企画。諸橋沙夏がゲストと乾杯しながらお酒を飲む。愛称「さなつん」＋「はしご酒」が由来で、2026年8月3日の30歳の誕生日を機に始まったとされる。",
+      "イコノイジョイチャンネルの大人気企画だった「はしご酒」企画が、諸橋沙夏個人の企画として独立した「つんはしご」。愛称「さなつん」＋「はしご酒」が由来。2026年8月3日、30歳の誕生日を節目に、新しい自分を見つけるために開設した。",
     url: "https://www.youtube.com/watch?v=uerzc04ALGw",
     status: ACTIVITY_STATUS.ONGOING,
     startDate: "2026-08-03",
