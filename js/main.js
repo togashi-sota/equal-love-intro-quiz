@@ -144,6 +144,7 @@ import {
 } from "./customQuizPresetsScreen.js";
 import { importAudioFiles, getImportedSongIds } from "./audioStorage.js";
 import { analyzeLyricsFiles, saveLyricsData, getImportedLyricsSongIds } from "./lyricsStorage.js";
+import { analyzeCallDataBackupFile, importCallDataSongs, getSongIdsWithCallData } from "./callStorage.js";
 import { closeFullscreenLyrics } from "./lyricsFullscreen.js";
 import { MEMBERS } from "./data/members.js";
 import { MEMBER_PROFILES } from "./data/memberProfiles.js";
@@ -695,6 +696,14 @@ const lyricsWarningPanelElement = document.getElementById("lyrics-warning-panel"
 const lyricsWarningListElement = document.getElementById("lyrics-warning-list");
 const lyricsWarningSaveButtonElement = document.getElementById("lyrics-warning-save-button");
 const lyricsWarningDiscardButtonElement = document.getElementById("lyrics-warning-discard-button");
+const callImportStatusElement = document.getElementById("call-import-status");
+const callImportInputElement = document.getElementById("call-import-input");
+const callImportResultElement = document.getElementById("call-import-result");
+const callImportConfirmModalElement = document.getElementById("call-import-confirm-modal");
+const callImportConfirmMessageElement = document.getElementById("call-import-confirm-message");
+const callImportConfirmFailedListElement = document.getElementById("call-import-confirm-failed-list");
+const callImportConfirmCancelButtonElement = document.getElementById("call-import-confirm-cancel-button");
+const callImportConfirmSaveButtonElement = document.getElementById("call-import-confirm-save-button");
 const updateAvailableBannerElement = document.getElementById("update-available-banner");
 const updateReloadButtonElement = document.getElementById("update-reload-button");
 const discographyLinkElement = document.getElementById("discography-link");
@@ -3365,6 +3374,125 @@ lyricsWarningDiscardButtonElement.addEventListener("click", () => {
 
 updateLyricsImportStatus();
 
+// ===== コールデータの読み込み（2026-08-06新設） =====
+// 音源・歌詞と違い、この端末で新規作成することはできない（PCのdev/callEditor.htmlだけで
+// 作成する運用）。別端末で書き出した専用JSON（js/callStorage.jsのexportAllCallData()が
+// 作る形式）を読み込む入口だけをここに用意する。
+
+// 歌詞と同じく、あえて分母（全何曲中）は出さない
+// （ライブコール対応曲は今後も限られた曲数のままの想定のため）。
+async function updateCallImportStatus() {
+  const importedSongIds = await getSongIdsWithCallData();
+  callImportStatusElement.textContent =
+    importedSongIds.length === 0
+      ? "コールデータ：未読み込み"
+      : `コールデータ：${importedSongIds.length}曲分 読み込み済み`;
+}
+
+// 1回のファイル選択の中で、確認モーダル表示中〜保存実行までの間だけ必要になる一時的な状態。
+let pendingCallImportReadySongs = [];
+
+// 確認モーダルの中身（曲数・件数・置き換え対象・読み込めない曲）を組み立てる。
+function renderCallImportConfirmModal({ readySongs, failedSongs }) {
+  const totalCallCount = readySongs.reduce((sum, song) => sum + song.calls.length, 0);
+  const updateSongs = readySongs.filter((song) => song.isUpdate);
+  const newSongs = readySongs.filter((song) => !song.isUpdate);
+
+  const messageLines = [`このファイルに含まれる${readySongs.length}曲・${totalCallCount}件のコールデータを読み込みます。`];
+  if (updateSongs.length > 0) {
+    messageLines.push(`同じ曲の既存コールは置き換えられます（${updateSongs.length}曲）。`);
+  }
+  if (newSongs.length > 0) {
+    messageLines.push(`新しく追加される曲：${newSongs.length}曲。`);
+  }
+  messageLines.push("ファイルに含まれない曲の既存データは、そのまま残ります。");
+  callImportConfirmMessageElement.textContent = messageLines.join(" ");
+
+  callImportConfirmFailedListElement.textContent = "";
+  if (failedSongs.length > 0) {
+    const title = document.createElement("p");
+    title.className = "lyrics-warning-panel-title";
+    title.textContent = `読み込めない曲が${failedSongs.length}件あります`;
+    callImportConfirmFailedListElement.appendChild(title);
+
+    failedSongs.forEach((failure) => {
+      const item = document.createElement("p");
+      item.textContent = `${findSongTitle(failure.songId)}（${failure.songId}）：${failure.errors.join(" / ")}`;
+      callImportConfirmFailedListElement.appendChild(item);
+    });
+    callImportConfirmFailedListElement.hidden = false;
+  } else {
+    callImportConfirmFailedListElement.hidden = true;
+  }
+}
+
+function closeCallImportConfirmModal() {
+  callImportConfirmModalElement.hidden = true;
+  pendingCallImportReadySongs = [];
+}
+
+// 「コールJSONを読み込む」ボタン（実体は隠したinput[type=file]）でファイルが選ばれたときの処理。
+// ファイル自体がコール専用バックアップとして不正な場合（歌詞JSONを間違えて選んだ場合を含む）は、
+// モーダルを出さずその場でエラー表示のみ行い、既存のコールデータには一切触れない。
+callImportInputElement.addEventListener("change", async () => {
+  const files = [...callImportInputElement.files];
+  if (files.length === 0) return;
+
+  const { fileValid, fileError, readySongs, failedSongs } = await analyzeCallDataBackupFile(files[0]);
+
+  // 同じファイルをもう一度選んでも change イベントが発火するように、選択状態をリセットする
+  callImportInputElement.value = "";
+
+  if (!fileValid) {
+    callImportResultElement.hidden = false;
+    callImportResultElement.textContent = fileError;
+    return;
+  }
+
+  if (readySongs.length === 0) {
+    callImportResultElement.hidden = false;
+    callImportResultElement.textContent =
+      failedSongs.length > 0
+        ? `読み込める曲がありませんでした（${failedSongs.length}曲がエラーのため除外されました）`
+        : "このファイルには曲データが含まれていませんでした";
+    return;
+  }
+
+  pendingCallImportReadySongs = readySongs;
+  renderCallImportConfirmModal({ readySongs, failedSongs });
+  callImportResultElement.hidden = true;
+  callImportConfirmModalElement.hidden = false;
+});
+
+callImportConfirmCancelButtonElement.addEventListener("click", closeCallImportConfirmModal);
+callImportConfirmModalElement.addEventListener("click", (event) => {
+  if (event.target === callImportConfirmModalElement) closeCallImportConfirmModal();
+});
+
+callImportConfirmSaveButtonElement.addEventListener("click", async () => {
+  const readySongs = pendingCallImportReadySongs;
+  closeCallImportConfirmModal();
+
+  const { savedSongIds, saveFailures } = await importCallDataSongs(readySongs);
+  const totalCallCount = readySongs
+    .filter((song) => savedSongIds.includes(song.songId))
+    .reduce((sum, song) => sum + song.calls.length, 0);
+
+  const lines = [`${savedSongIds.length}曲・${totalCallCount}件のコールを読み込みました`];
+  if (saveFailures.length > 0) {
+    lines.push(`保存できなかった曲：${saveFailures.length}件`);
+    saveFailures.forEach((failure) => {
+      lines.push(`　- ${findSongTitle(failure.songId)}（${failure.songId}）：${failure.reason}`);
+    });
+  }
+
+  callImportResultElement.hidden = false;
+  callImportResultElement.textContent = lines.join("\n");
+  await updateCallImportStatus();
+});
+
+updateCallImportStatus();
+
 // PWA対応：Service Workerを登録し、新しいバージョンが使えるようになったらバナーで知らせる。
 // 黙って新しいコードに切り替えると、プレイ中に予期しない動作をする可能性があるため、
 // 必ず本人が「更新する」を押してから切り替える設計にしている。
@@ -3468,6 +3596,14 @@ document.addEventListener("keydown", (event) => {
   if (!battleRulesHelpModalElement.hidden) {
     if (event.key === "Escape") {
       closeBattleRulesHelpModal();
+    }
+    return;
+  }
+
+  // コールデータ読み込みの確認モーダルが開いているときも、同じ考え方でEscキーに対応する。
+  if (!callImportConfirmModalElement.hidden) {
+    if (event.key === "Escape") {
+      closeCallImportConfirmModal();
     }
     return;
   }

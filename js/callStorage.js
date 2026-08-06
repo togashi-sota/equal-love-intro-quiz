@@ -18,6 +18,12 @@ const STORE_NAME = "callData";
 
 const LATEST_SCHEMA_VERSION = 1;
 
+// 全曲まとめて書き出す／読み込むバックアップファイルの目印（2026-08-06新設）。
+// PC（コールを作成した端末）とスマホ等の別端末との間で、コールデータだけを
+// 安全に持ち運べるようにするための仕組み。音源・歌詞・他のIndexedDB・localStorageには
+// 一切触れない（このファイルが最初から扱っているcallDataストアだけを対象にする）。
+const BACKUP_FILE_TYPE = "equal-love-call-data";
+
 // コールの種類。将来のMIX解説ページ・定番コール一覧などで、種類ごとに説明を出し分けるために使う。
 export const CALL_TYPE = {
   MIX: "mix", // MIX（曲の間奏部分などに入れる、決まった構成の合いの手）
@@ -166,4 +172,112 @@ export async function deleteCallData(songId) {
     tx.onerror = () => reject(tx.error);
   });
   db.close();
+}
+
+// ===== 全曲まとめての書き出し・別端末への読み込み（2026-08-06新設） =====
+// 音源・歌詞と違い、コールはアプリ内に「その場で読み込む」画面が無く、
+// dev/callEditor.htmlで作成した端末（主にPC）のIndexedDBにしか存在しない。
+// スマホ等の別端末でライブコールモードを使えるようにするための橋渡し役。
+
+// この端末に保存されている全曲分のコールデータを、他端末へ持ち運べる1つの
+// オブジェクトにまとめる（実際にファイルとしてダウンロードする処理はdev/callEditor.js側が行う）。
+export async function exportAllCallData() {
+  const songIds = await getSongIdsWithCallData();
+  const songs = [];
+  for (const songId of songIds) {
+    const record = await getCallData(songId);
+    if (record) {
+      songs.push({ songId: record.songId, calls: record.calls });
+    }
+  }
+
+  return {
+    type: BACKUP_FILE_TYPE,
+    schemaVersion: LATEST_SCHEMA_VERSION,
+    exportedAt: new Date().toISOString(),
+    songs,
+  };
+}
+
+// 読み込んだJSON全体が「コール専用バックアップファイル」として扱ってよい形かどうかを検証する。
+// 曲ごとの中身（calls配列の中身）はvalidateCallData()に任せ、ここではファイル全体の
+// 骨組み（type・schemaVersion・songsの有無）だけを見る。
+// DOM・IndexedDBに一切触れない純粋関数のため、tests/callStorage.test.jsで直接テストできる。
+export function validateCallDataBackupFile(data) {
+  if (!data || typeof data !== "object") {
+    return { valid: false, reason: "JSONとして読み込めませんでした" };
+  }
+  if (data.type !== BACKUP_FILE_TYPE) {
+    return { valid: false, reason: "このファイルはコールデータではありません" };
+  }
+  if (typeof data.schemaVersion !== "number" || data.schemaVersion > LATEST_SCHEMA_VERSION) {
+    return { valid: false, reason: "対応していないバージョンのコールデータファイルです" };
+  }
+  if (!Array.isArray(data.songs)) {
+    return { valid: false, reason: "songsが配列ではありません" };
+  }
+  return { valid: true, reason: null };
+}
+
+// 選んだコール専用JSONファイルを解析し、曲ごとに読み込んでよいかどうかを判定する（まだ保存はしない）。
+// 曲単位の検証には、保存時と全く同じvalidateCallData()をそのまま再利用する
+// （songs.js未登録のsongId・text空・start/endが数値でない・start>=end等は、
+// ここで新しく判定コードを書かなくても既存の検証にそのまま引っかかる）。
+//
+// 戻り値: {
+//   fileValid: boolean, fileError: string|null,
+//   readySongs: { songId, calls, isUpdate }[],
+//   failedSongs: { songId, errors }[],
+// }
+export async function analyzeCallDataBackupFile(file) {
+  let rawData;
+  try {
+    rawData = JSON.parse(await file.text());
+  } catch (error) {
+    return { fileValid: false, fileError: "JSONとして読み込めませんでした", readySongs: [], failedSongs: [] };
+  }
+
+  const fileCheck = validateCallDataBackupFile(rawData);
+  if (!fileCheck.valid) {
+    return { fileValid: false, fileError: fileCheck.reason, readySongs: [], failedSongs: [] };
+  }
+
+  const readySongs = [];
+  const failedSongs = [];
+
+  for (const songEntry of rawData.songs) {
+    const record = {
+      songId: songEntry && typeof songEntry.songId === "string" ? songEntry.songId : null,
+      calls: songEntry ? songEntry.calls : null,
+    };
+    const { valid, errors } = validateCallData(record);
+    if (!valid) {
+      failedSongs.push({ songId: record.songId ?? "(不明)", errors });
+      continue;
+    }
+    const isUpdate = (await getCallData(record.songId)) !== null;
+    readySongs.push({ songId: record.songId, calls: record.calls, isUpdate });
+  }
+
+  return { fileValid: true, fileError: null, readySongs, failedSongs };
+}
+
+// analyzeCallDataBackupFile()が判定した「読み込んでよい曲」だけを、実際に保存する。
+// 曲単位の上書き（put）のため、ファイルに含まれないsongIdの既存データには一切触れない。
+//
+// 戻り値: { savedSongIds: string[], saveFailures: { songId, reason }[] }
+export async function importCallDataSongs(readySongs) {
+  const savedSongIds = [];
+  const saveFailures = [];
+
+  for (const song of readySongs) {
+    const result = await saveCallData({ songId: song.songId, calls: song.calls });
+    if (result.saved) {
+      savedSongIds.push(song.songId);
+    } else {
+      saveFailures.push({ songId: song.songId, reason: result.errors.join(" / ") });
+    }
+  }
+
+  return { savedSongIds, saveFailures };
 }

@@ -447,7 +447,13 @@
     <h2>6. 保存済みのコールデータを管理する</h2>
     <div class="editor-row-inline">
       <button id="refresh-list-button" type="button">一覧を更新する</button>
+      <button id="export-all-button" type="button">全コールデータを書き出す</button>
     </div>
+    <p class="editor-status">
+      この端末に保存されている全曲分のコールデータを、1つのJSONファイルにまとめてダウンロードします。
+      音源・歌詞は含まれません。スマホなど別端末へ持ち運ぶときや、バックアップとして使えます。
+    </p>
+    <p id="export-all-status" class="editor-status"></p>
     <table id="saved-list-table">
       <thead>
         <tr>

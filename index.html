@@ -375,6 +375,24 @@
             </div>
           </div>
         </div>
+
+        <!-- コールデータの読み込み。音源・歌詞と違い、この端末で新規作成することはできず
+             （PCのdev/callEditor.htmlだけで作成する運用）、別端末で書き出した専用JSONを
+             読み込む入口だけを用意する。音源・歌詞用のIndexedDBには一切触れない
+             （js/callStorage.js・js/main.js参照。2026-08-06新設）。 -->
+        <div id="call-import-section" class="lyrics-import-section">
+          <p class="lyrics-import-caption">
+            ライブコールモードで使うコールデータを、この端末へ読み込みます。PCのコールエディターで書き出したファイルを選んでください（音源・歌詞は含まれません）。最初の1回だけでよく、アプリ更新のたびに読み込み直す必要はありません
+            <span class="optional-tag">任意</span>
+          </p>
+          <p id="call-import-status" class="lyrics-import-status">コールデータ：確認中…</p>
+          <label class="lyrics-import-button">
+            コールJSONを読み込む
+            <input id="call-import-input" type="file" accept=".json,application/json" hidden>
+          </label>
+          <!-- 読み込み結果（「◯曲・◯件を読み込みました」等）。普段は空・非表示 -->
+          <p id="call-import-result" class="lyrics-import-result" hidden></p>
+        </div>
       </details>
     </section>
 
@@ -2985,6 +3003,24 @@
       <p class="modal-lead">歌詞クイズのオンライン対戦で選べる、3つの対戦ルールです。</p>
 
       <div id="battle-rules-help-body"></div>
+    </div>
+  </div>
+
+  <!-- コールデータ読み込みの確認モーダル：ファイルの中身（曲数・件数・上書き対象）を確認してから、
+       実際に保存するかどうかを選んでもらう。中身はjs/main.jsが動的に組み立てる。
+       2026-08-06新設。 -->
+  <div id="call-import-confirm-modal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="call-import-confirm-title">
+      <h2 id="call-import-confirm-title">コールデータを読み込みますか？</h2>
+      <p id="call-import-confirm-message" class="modal-lead"></p>
+
+      <!-- 読み込めない曲があった場合だけ表示する一覧。普段は空・非表示 -->
+      <div id="call-import-confirm-failed-list" class="lyrics-warning-list" hidden></div>
+
+      <div class="lyrics-warning-actions">
+        <button id="call-import-confirm-cancel-button" type="button" class="secondary-button">キャンセル</button>
+        <button id="call-import-confirm-save-button" type="button" class="secondary-button">読み込む</button>
+      </div>
     </div>
   </div>
 

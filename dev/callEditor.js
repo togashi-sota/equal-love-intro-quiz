@@ -20,6 +20,7 @@ import {
   saveCallData,
   getSongIdsWithCallData,
   deleteCallData,
+  exportAllCallData,
   CALL_TYPE,
   DEFAULT_CALL_DURATION_SEC,
 } from "../js/callStorage.js";
@@ -53,6 +54,8 @@ const saveButtonElement = document.getElementById("editor-save-button");
 const exportButtonElement = document.getElementById("editor-export-button");
 const saveStatusElement = document.getElementById("editor-save-status");
 const refreshListButtonElement = document.getElementById("refresh-list-button");
+const exportAllButtonElement = document.getElementById("export-all-button");
+const exportAllStatusElement = document.getElementById("export-all-status");
 const savedListTbodyElement = document.getElementById("saved-list-tbody");
 const manageStatusElement = document.getElementById("manage-status");
 const recordHoldButtonElement = document.getElementById("record-hold-button");
@@ -677,6 +680,32 @@ exportButtonElement.addEventListener("click", () => {
 });
 
 // ===== 6. 保存済みの管理 =====
+
+// 「全コールデータを書き出す」：この端末に保存されている全曲分をまとめて1つのJSONにする。
+// 別端末（スマホ等）の「データ管理」画面にある「コールJSONを読み込む」で取り込める形式
+// （js/callStorage.jsのexportAllCallData()／validateCallDataBackupFile()参照）。
+// 書き出すだけで、この端末のIndexedDBの内容は一切変更しない。
+exportAllButtonElement.addEventListener("click", async () => {
+  const backup = await exportAllCallData();
+
+  if (backup.songs.length === 0) {
+    setStatus(exportAllStatusElement, "書き出せるコールデータがありません（まだ何も保存されていません）", "is-error");
+    return;
+  }
+
+  const totalCallCount = backup.songs.reduce((sum, song) => sum + song.calls.length, 0);
+  const dateLabel = backup.exportedAt.slice(0, 10); // "YYYY-MM-DD"部分だけをファイル名に使う
+
+  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `equal-love-calls-${dateLabel}.json`;
+  link.click();
+  URL.revokeObjectURL(url);
+
+  setStatus(exportAllStatusElement, `${backup.songs.length}曲・${totalCallCount}件のコールを書き出しました`, "is-success");
+});
 
 function formatUpdatedAt(timestampMs) {
   if (typeof timestampMs !== "number") return "-";
