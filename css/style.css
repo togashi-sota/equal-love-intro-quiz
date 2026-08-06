@@ -2793,6 +2793,23 @@ fieldset label:has(input:focus-visible) {
   opacity: 0.7;
 }
 
+.mix-type-text-lines {
+  margin: 6px 0 0;
+  padding-left: 1.4em;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.mix-type-text-reading {
+  margin-left: 4px;
+  font-size: 0.72rem;
+  font-weight: 400;
+  opacity: 0.7;
+}
+
 .mix-song-specific-banner {
   margin: 0 0 8px;
   padding: 8px 12px;

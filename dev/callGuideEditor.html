@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>【開発用】コールガイド入力ツール</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap" rel="stylesheet">
+
+  <!-- dev/callEditor.htmlと同じ考え方：色・フォント等の共通トークンだけ本編CSSを再利用し、
+       このページ専用のレイアウトは自己完結させる（本編css/style.cssには一切追記しない）。 -->
+  <link rel="stylesheet" href="../css/style.css">
+
+  <style>
+    body {
+      display: block;
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 16px;
+      font-family: "M PLUS Rounded 1c", sans-serif;
+      color: var(--color-text);
+      overflow-x: hidden;
+    }
+
+    .editor-warning-banner {
+      text-align: center;
+      color: #c33;
+      font-weight: bold;
+      background: #fff3f3;
+      padding: 10px;
+      margin: 0 0 20px;
+      border-radius: 8px;
+    }
+
+    .editor-section {
+      margin-bottom: 20px;
+      padding: 14px;
+      border-radius: 12px;
+      background: var(--color-surface-glass);
+      border: 1px solid var(--color-card-border);
+    }
+
+    .editor-section h2 {
+      margin: 0 0 10px;
+      font-size: 1rem;
+    }
+
+    .editor-row-inline {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .editor-status {
+      font-size: 0.8rem;
+      white-space: pre-line;
+    }
+
+    .editor-status.is-error { color: #c33; }
+    .editor-status.is-success { color: #1b7a3d; }
+
+    .editor-field-label {
+      display: block;
+      font-size: 0.78rem;
+      font-weight: 700;
+      margin: 10px 0 4px;
+    }
+
+    .editor-field-label:first-child {
+      margin-top: 0;
+    }
+
+    #guide-form select,
+    #guide-form input[type="text"] {
+      display: block;
+      width: 100%;
+      box-sizing: border-box;
+      font-size: 0.85rem;
+    }
+
+    #guide-form textarea {
+      display: block;
+      width: 100%;
+      box-sizing: border-box;
+      min-height: 90px;
+      font-size: 0.85rem;
+      font-family: inherit;
+      resize: vertical;
+    }
+
+    .editor-field-hint {
+      margin: 2px 0 0;
+      font-size: 0.68rem;
+      opacity: 0.7;
+    }
+
+    #guide-preview {
+      margin-top: 8px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.5);
+      border: 1px solid var(--color-card-border);
+      font-size: 0.82rem;
+      white-space: pre-line;
+    }
+
+    #saved-list-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.78rem;
+      margin-top: 8px;
+    }
+
+    #saved-list-table th,
+    #saved-list-table td {
+      padding: 4px 6px;
+      border-bottom: 1px solid var(--color-card-border);
+      text-align: left;
+    }
+
+    .editor-delete-row-button {
+      font-size: 0.7rem;
+      padding: 3px 10px;
+      border-radius: 999px;
+      border: 1px solid #c33;
+      background: var(--color-surface);
+      color: #c33;
+      cursor: pointer;
+    }
+
+    .editor-edit-row-button {
+      font-size: 0.7rem;
+      padding: 3px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--color-primary-dark);
+      background: var(--color-surface);
+      color: var(--color-primary-dark);
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <p class="editor-warning-banner">
+    【開発用】コールガイド入力ツール — 本編（index.html）とは別の、本人専用の入力・編集ページです。<br>
+    ここで入力した本文は、このパソコン内のIndexedDB（equalLoveIntroQuizCallGuide）にのみ保存されます（Gitには一切含まれません）。
+  </p>
+
+  <div class="editor-section">
+    <h2>1. 候補JSONを読み込む（任意）</h2>
+    <p class="editor-status">
+      Claudeが調査した初期候補（dev/call-guide-candidates.json、Git管理外）がある場合、ここから取り込めます。
+      内容は必ずこのあと自分で確認・修正してください。同じguideIdは上書きされます。
+    </p>
+    <div class="editor-row-inline">
+      <label class="lyrics-import-button">
+        候補JSONを読み込む
+        <input id="candidate-import-input" type="file" accept=".json,application/json" hidden>
+      </label>
+    </div>
+    <p id="candidate-import-status" class="editor-status"></p>
+  </div>
+
+  <div class="editor-section">
+    <h2>2. ガイドを選ぶ・編集する</h2>
+    <form id="guide-form">
+      <label class="editor-field-label" for="guide-id-select">対象ガイド</label>
+      <select id="guide-id-select"></select>
+      <p class="editor-field-hint">一覧はjs/data/mixAndKoujouGuide.jsの内容から自動生成しています。</p>
+
+      <label class="editor-field-label" for="guide-name-input">名称</label>
+      <input type="text" id="guide-name-input">
+
+      <label class="editor-field-label" for="guide-category-select">分類</label>
+      <select id="guide-category-select">
+        <option value="mix">基本MIX</option>
+        <option value="koujou">ガチ恋口上</option>
+        <option value="song-specific-koujou">曲専用口上</option>
+        <option value="special">その他</option>
+      </select>
+
+      <label class="editor-field-label" for="guide-song-ids-input">対象曲（songId、複数はカンマ区切り、任意）</label>
+      <input type="text" id="guide-song-ids-input" placeholder="例：umi-to-lemon-tea">
+
+      <label class="editor-field-label" for="guide-text-lines-textarea">本文（1行に1フレーズ）</label>
+      <textarea id="guide-text-lines-textarea" placeholder="1行ずつ入力してください"></textarea>
+
+      <label class="editor-field-label" for="guide-pronunciation-textarea">読み方（1行に1つ、任意）</label>
+      <textarea id="guide-pronunciation-textarea" placeholder="難しい漢字がある行の読み方など（任意）"></textarea>
+
+      <label class="editor-field-label" for="guide-segment-note-input">区切りの説明（任意）</label>
+      <input type="text" id="guide-segment-note-input" placeholder="例：4回繰り返してから次の行へ">
+
+      <label class="editor-field-label" for="guide-usage-position-input">使用位置（任意）</label>
+      <input type="text" id="guide-usage-position-input" placeholder="例：Dメロ後の間奏で">
+
+      <label class="editor-field-label" for="guide-beginner-note-input">初心者向けメモ（任意）</label>
+      <input type="text" id="guide-beginner-note-input" placeholder="例：最初はここだけ覚えればOK">
+
+      <div class="editor-row-inline" style="margin-top:12px;">
+        <button id="guide-save-button" type="button">保存する</button>
+        <button id="guide-delete-button" type="button">このガイドを削除</button>
+        <button id="guide-preview-button" type="button">プレビュー</button>
+      </div>
+      <p id="guide-save-status" class="editor-status"></p>
+      <div id="guide-preview" hidden></div>
+    </form>
+  </div>
+
+  <div class="editor-section">
+    <h2>3. 保存済みのコールガイドを管理する</h2>
+    <div class="editor-row-inline">
+      <button id="refresh-list-button" type="button">一覧を更新する</button>
+      <button id="export-all-button" type="button">全コールガイドを書き出す</button>
+    </div>
+    <p class="editor-status">
+      この端末に保存されている全コールガイドを、1つのJSONファイルにまとめてダウンロードします。
+      音源・歌詞・タイミング付きコールは含まれません。スマホなど別端末へ持ち運ぶときに使えます。
+    </p>
+    <p id="export-all-status" class="editor-status"></p>
+    <table id="saved-list-table">
+      <thead>
+        <tr>
+          <th>ガイド</th>
+          <th>分類</th>
+          <th>行数</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="saved-list-tbody"></tbody>
+    </table>
+    <p id="manage-status" class="editor-status"></p>
+  </div>
+
+  <script type="module" src="./callGuideEditor.js"></script>
+</body>
+</html>

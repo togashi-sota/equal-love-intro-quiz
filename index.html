@@ -393,6 +393,23 @@
           <!-- 読み込み結果（「◯曲・◯件を読み込みました」等）。普段は空・非表示 -->
           <p id="call-import-result" class="lyrics-import-result" hidden></p>
         </div>
+
+        <!-- コールガイド（MIX・口上の練習本文）の読み込み。既存のコールデータ（音源タイミング付き）とは
+             完全に別のIndexedDB（js/callGuideStorage.js）を使い、混ざらないようにしている
+             （2026-08-06新設）。 -->
+        <div id="call-guide-import-section" class="lyrics-import-section">
+          <p class="lyrics-import-caption">
+            MIXや曲専用口上などの練習本文を、この端末へ読み込みます。音源・歌詞・タイミング付きコールは含まれません。最初の1回だけでよく、アプリ更新のたびに読み込み直す必要はありません
+            <span class="optional-tag">任意</span>
+          </p>
+          <p id="call-guide-import-status" class="lyrics-import-status">コールガイドデータ：確認中…</p>
+          <label class="lyrics-import-button">
+            コールガイドJSONを読み込む
+            <input id="call-guide-import-input" type="file" accept=".json,application/json" hidden>
+          </label>
+          <!-- 読み込み結果（「◯項目を読み込みました」等）。普段は空・非表示 -->
+          <p id="call-guide-import-result" class="lyrics-import-result" hidden></p>
+        </div>
       </details>
     </section>
 
@@ -3052,6 +3069,21 @@
       <div class="lyrics-warning-actions">
         <button id="call-import-confirm-cancel-button" type="button" class="secondary-button">キャンセル</button>
         <button id="call-import-confirm-save-button" type="button" class="secondary-button">読み込む</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="call-guide-import-confirm-modal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="call-guide-import-confirm-title">
+      <h2 id="call-guide-import-confirm-title">コールガイドを読み込みますか？</h2>
+      <p id="call-guide-import-confirm-message" class="modal-lead"></p>
+
+      <!-- 読み込めない項目があった場合だけ表示する一覧。普段は空・非表示 -->
+      <div id="call-guide-import-confirm-failed-list" class="lyrics-warning-list" hidden></div>
+
+      <div class="lyrics-warning-actions">
+        <button id="call-guide-import-confirm-cancel-button" type="button" class="secondary-button">キャンセル</button>
+        <button id="call-guide-import-confirm-save-button" type="button" class="secondary-button">読み込む</button>
       </div>
     </div>
   </div>

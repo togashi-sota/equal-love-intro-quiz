@@ -147,6 +147,11 @@ import {
 import { importAudioFiles, getImportedSongIds } from "./audioStorage.js";
 import { analyzeLyricsFiles, saveLyricsData, getImportedLyricsSongIds } from "./lyricsStorage.js";
 import { analyzeCallDataBackupFile, importCallDataSongs, getSongIdsWithCallData } from "./callStorage.js";
+import {
+  analyzeCallGuideBackupFile,
+  importCallGuideDataEntries,
+  getAllCallGuideData,
+} from "./callGuideStorage.js";
 import { closeFullscreenLyrics } from "./lyricsFullscreen.js";
 import { MEMBERS } from "./data/members.js";
 import { MEMBER_PROFILES } from "./data/memberProfiles.js";
@@ -719,6 +724,14 @@ const callImportConfirmMessageElement = document.getElementById("call-import-con
 const callImportConfirmFailedListElement = document.getElementById("call-import-confirm-failed-list");
 const callImportConfirmCancelButtonElement = document.getElementById("call-import-confirm-cancel-button");
 const callImportConfirmSaveButtonElement = document.getElementById("call-import-confirm-save-button");
+const callGuideImportStatusElement = document.getElementById("call-guide-import-status");
+const callGuideImportInputElement = document.getElementById("call-guide-import-input");
+const callGuideImportResultElement = document.getElementById("call-guide-import-result");
+const callGuideImportConfirmModalElement = document.getElementById("call-guide-import-confirm-modal");
+const callGuideImportConfirmMessageElement = document.getElementById("call-guide-import-confirm-message");
+const callGuideImportConfirmFailedListElement = document.getElementById("call-guide-import-confirm-failed-list");
+const callGuideImportConfirmCancelButtonElement = document.getElementById("call-guide-import-confirm-cancel-button");
+const callGuideImportConfirmSaveButtonElement = document.getElementById("call-guide-import-confirm-save-button");
 const updateAvailableBannerElement = document.getElementById("update-available-banner");
 const updateReloadButtonElement = document.getElementById("update-reload-button");
 const discographyLinkElement = document.getElementById("discography-link");
@@ -886,8 +899,8 @@ liveCallModePlayerHelpLinkElement.addEventListener("click", () => {
 // （曲を切り替えてから開いた場合でも、今の曲のハイライトが正しく反映されるようにするため）。
 let activeCallGuideTab = "member";
 
-function renderActiveCallGuideTab() {
-  renderCallGuideTab(activeCallGuideTab, callGuideTabPanelElements, getCurrentLiveCallSongId());
+async function renderActiveCallGuideTab() {
+  await renderCallGuideTab(activeCallGuideTab, callGuideTabPanelElements, getCurrentLiveCallSongId());
 }
 
 function openCallGuideModal() {
@@ -3562,6 +3575,111 @@ callImportConfirmSaveButtonElement.addEventListener("click", async () => {
 
 updateCallImportStatus();
 
+// ===== コールガイド（MIX・口上の練習本文）の読み込み（2026-08-06新設） =====
+// js/callStorage.jsのコールデータ読み込みと全く同じ設計だが、対象がguideId単位・
+// 保存先が別のIndexedDB（equalLoveIntroQuizCallGuide）である点が異なる。
+// 音源・歌詞・タイミング付きコールのいずれにも一切触れない。
+
+async function updateCallGuideImportStatus() {
+  const records = await getAllCallGuideData();
+  callGuideImportStatusElement.textContent =
+    records.length === 0 ? "コールガイドデータ：未読み込み" : `コールガイドデータ：${records.length}項目 読み込み済み`;
+}
+
+let pendingCallGuideImportReadyGuides = [];
+
+function renderCallGuideImportConfirmModal({ readyGuides, failedGuides }) {
+  const updateGuides = readyGuides.filter((guide) => guide.isUpdate);
+  const newGuides = readyGuides.filter((guide) => !guide.isUpdate);
+
+  const messageLines = [`このファイルに含まれる${readyGuides.length}項目のコールガイドを読み込みます。`];
+  if (updateGuides.length > 0) {
+    messageLines.push(`同じIDの既存ガイドは置き換えられます（${updateGuides.length}項目）。`);
+  }
+  if (newGuides.length > 0) {
+    messageLines.push(`新しく追加される項目：${newGuides.length}項目。`);
+  }
+  messageLines.push("ファイルに含まれないガイドの既存データは、そのまま残ります。");
+  callGuideImportConfirmMessageElement.textContent = messageLines.join(" ");
+
+  callGuideImportConfirmFailedListElement.textContent = "";
+  if (failedGuides.length > 0) {
+    const title = document.createElement("p");
+    title.className = "lyrics-warning-panel-title";
+    title.textContent = `読み込めない項目が${failedGuides.length}件あります`;
+    callGuideImportConfirmFailedListElement.appendChild(title);
+
+    failedGuides.forEach((failure) => {
+      const item = document.createElement("p");
+      item.textContent = `${failure.guideId}：${failure.errors.join(" / ")}`;
+      callGuideImportConfirmFailedListElement.appendChild(item);
+    });
+    callGuideImportConfirmFailedListElement.hidden = false;
+  } else {
+    callGuideImportConfirmFailedListElement.hidden = true;
+  }
+}
+
+function closeCallGuideImportConfirmModal() {
+  callGuideImportConfirmModalElement.hidden = true;
+  pendingCallGuideImportReadyGuides = [];
+}
+
+callGuideImportInputElement.addEventListener("change", async () => {
+  const files = [...callGuideImportInputElement.files];
+  if (files.length === 0) return;
+
+  const { fileValid, fileError, readyGuides, failedGuides } = await analyzeCallGuideBackupFile(files[0]);
+  callGuideImportInputElement.value = "";
+
+  if (!fileValid) {
+    callGuideImportResultElement.hidden = false;
+    callGuideImportResultElement.textContent = fileError;
+    return;
+  }
+
+  if (readyGuides.length === 0) {
+    callGuideImportResultElement.hidden = false;
+    callGuideImportResultElement.textContent =
+      failedGuides.length > 0
+        ? `読み込める項目がありませんでした（${failedGuides.length}項目がエラーのため除外されました）`
+        : "このファイルには項目が含まれていませんでした";
+    return;
+  }
+
+  pendingCallGuideImportReadyGuides = readyGuides;
+  renderCallGuideImportConfirmModal({ readyGuides, failedGuides });
+  callGuideImportResultElement.hidden = true;
+  callGuideImportConfirmModalElement.hidden = false;
+});
+
+callGuideImportConfirmCancelButtonElement.addEventListener("click", closeCallGuideImportConfirmModal);
+callGuideImportConfirmModalElement.addEventListener("click", (event) => {
+  if (event.target === callGuideImportConfirmModalElement) closeCallGuideImportConfirmModal();
+});
+
+callGuideImportConfirmSaveButtonElement.addEventListener("click", async () => {
+  const readyGuides = pendingCallGuideImportReadyGuides;
+  closeCallGuideImportConfirmModal();
+
+  const { savedGuideIds, saveFailures } = await importCallGuideDataEntries(readyGuides);
+
+  const lines = [`${savedGuideIds.length}項目のコールガイドを読み込みました`];
+  if (saveFailures.length > 0) {
+    lines.push(`保存できなかった項目：${saveFailures.length}件`);
+    saveFailures.forEach((failure) => {
+      lines.push(`　- ${failure.guideId}：${failure.reason}`);
+    });
+  }
+
+  callGuideImportResultElement.hidden = false;
+  callGuideImportResultElement.textContent = lines.join("\n");
+  await updateCallGuideImportStatus();
+  renderActiveCallGuideTab();
+});
+
+updateCallGuideImportStatus();
+
 // PWA対応：Service Workerを登録し、新しいバージョンが使えるようになったらバナーで知らせる。
 // 黙って新しいコードに切り替えると、プレイ中に予期しない動作をする可能性があるため、
 // 必ず本人が「更新する」を押してから切り替える設計にしている。
@@ -3673,6 +3791,14 @@ document.addEventListener("keydown", (event) => {
   if (!callImportConfirmModalElement.hidden) {
     if (event.key === "Escape") {
       closeCallImportConfirmModal();
+    }
+    return;
+  }
+
+  // コールガイドデータ読み込みの確認モーダルが開いているときも、同じ考え方でEscキーに対応する。
+  if (!callGuideImportConfirmModalElement.hidden) {
+    if (event.key === "Escape") {
+      closeCallGuideImportConfirmModal();
     }
     return;
   }

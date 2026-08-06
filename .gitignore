@@ -41,3 +41,8 @@ docs/battle-mode-device-testing-checklist.md
 # 歌詞タイミング解析用のPython環境・スクリプト（試作段階のため非公開。
 # 仮想環境（.venv）やモデルファイルなど、アプリ本体とは無関係な大きなファイルを含む）
 tools/
+
+# コールガイド（MIX・口上）の本文候補データ（著作権保護のため、ローカル環境のみで使用し
+# 公開・コミットしない。dev/callGuideEditor.htmlの「候補JSONを読み込む」から取り込む用途。
+# 2026-08-06新設、js/callStorage.jsのコール本文と同じ方針）
+dev/call-guide-candidates.json

@@ -11,6 +11,7 @@ import { SONG_PENLIGHT_GUIDE } from "./data/songPenlightGuide.js";
 import { SONG_CALL_CREDITS } from "./data/songCallCredits.js";
 import { MIX_AND_KOUJOU_GUIDE } from "./data/mixAndKoujouGuide.js";
 import { getSongById } from "./data/songs.js";
+import { getAllCallGuideData } from "./callGuideStorage.js";
 
 const DIFFICULTY_LABELS = {
   beginner: "初心者向け",
@@ -274,7 +275,48 @@ const MIX_CATEGORY_FILTERS = [
 // （タブを切り替えるたびに毎回「すべて」に戻ると使いにくいため）。
 let activeMixCategoryFilter = "all";
 
-function buildMixGuideCard(entry, isSongSpecificHighlight) {
+function buildGuideTextSection(entry, localGuide) {
+  const container = document.createDocumentFragment();
+
+  if (localGuide && localGuide.textLines.length > 0) {
+    const list = document.createElement("ol");
+    list.className = "mix-type-text-lines";
+    localGuide.textLines.forEach((line, index) => {
+      const li = document.createElement("li");
+      li.textContent = line;
+      const reading = localGuide.pronunciationLines[index];
+      if (reading) {
+        const rt = document.createElement("span");
+        rt.className = "mix-type-text-reading";
+        rt.textContent = `（${reading}）`;
+        li.appendChild(rt);
+      }
+      list.appendChild(li);
+    });
+    container.appendChild(list);
+
+    if (localGuide.segmentNote) {
+      const segment = document.createElement("p");
+      segment.className = "mix-type-summary";
+      segment.textContent = `区切り：${localGuide.segmentNote}`;
+      container.appendChild(segment);
+    }
+  } else {
+    const notLoaded = document.createElement("p");
+    notLoaded.className = "call-guide-empty-state";
+    notLoaded.textContent = "掛け声本文は、この端末にまだ読み込まれていません。";
+    container.appendChild(notLoaded);
+
+    const guidance = document.createElement("p");
+    guidance.className = "call-guide-empty-state";
+    guidance.textContent = "データ管理からコールガイドJSONを読み込んでください。";
+    container.appendChild(guidance);
+  }
+
+  return container;
+}
+
+function buildMixGuideCard(entry, isSongSpecificHighlight, localGuideMap) {
   const card = document.createElement("div");
   card.className = "mix-type-card";
   if (isSongSpecificHighlight) card.classList.add("is-current-song");
@@ -328,11 +370,7 @@ function buildMixGuideCard(entry, isSongSpecificHighlight) {
     card.appendChild(cue);
   }
 
-  const textPlaceholder = document.createElement("p");
-  textPlaceholder.className = "call-guide-empty-state";
-  textPlaceholder.textContent =
-    entry.textLines.length > 0 ? entry.textLines.join(" ") : "掛け声本文は現在準備中です。";
-  card.appendChild(textPlaceholder);
+  card.appendChild(buildGuideTextSection(entry, localGuideMap?.get(entry.id) ?? null));
 
   if (entry.creditNote) {
     const credit = document.createElement("p");
@@ -362,8 +400,15 @@ function buildMixGuideCard(entry, isSongSpecificHighlight) {
   return card;
 }
 
-function renderMixTab(container, currentSongId) {
+// 端末に保存されているコールガイド本文（js/callGuideStorage.js）を、guideIdで引けるMapにする。
+async function loadLocalGuideMap() {
+  const records = await getAllCallGuideData();
+  return new Map(records.map((record) => [record.guideId, record]));
+}
+
+async function renderMixTab(container, currentSongId) {
   container.innerHTML = "";
+  const localGuideMap = await loadLocalGuideMap();
 
   const venueNote = document.createElement("p");
   venueNote.className = "penlight-source-note";
@@ -377,7 +422,7 @@ function renderMixTab(container, currentSongId) {
     banner.className = "mix-song-specific-banner";
     banner.textContent = "この曲には専用口上があります";
     container.appendChild(banner);
-    songSpecificEntries.forEach((entry) => container.appendChild(buildMixGuideCard(entry, true)));
+    songSpecificEntries.forEach((entry) => container.appendChild(buildMixGuideCard(entry, true, localGuideMap)));
   }
 
   const mustKnowEntries = getMustKnowMixGuide();
@@ -388,7 +433,7 @@ function renderMixTab(container, currentSongId) {
     container.appendChild(heading);
     const heroList = document.createElement("div");
     heroList.className = "mix-type-list";
-    mustKnowEntries.forEach((entry) => heroList.appendChild(buildMixGuideCard(entry, false)));
+    mustKnowEntries.forEach((entry) => heroList.appendChild(buildMixGuideCard(entry, false, localGuideMap)));
     container.appendChild(heroList);
   }
 
@@ -412,7 +457,7 @@ function renderMixTab(container, currentSongId) {
   const list = document.createElement("div");
   list.className = "mix-type-list";
   filteredEntries.forEach((entry) => {
-    list.appendChild(buildMixGuideCard(entry, false));
+    list.appendChild(buildMixGuideCard(entry, false, localGuideMap));
   });
   container.appendChild(list);
 }
@@ -427,9 +472,10 @@ const TAB_RENDERERS = {
 // tabPanels: { member, songCall, songColor, mix } の各タブ中身コンテナ。
 // currentSongId：ライブコールモード再生画面で今開いている曲（曲一覧から開いた場合はnull）。
 // 曲指定コール／ペンライト指定曲タブで、今の曲の行に.is-current-songを付けて目立たせる。
-export function renderCallGuideTab(tabId, tabPanels, currentSongId) {
+// mixタブはjs/callGuideStorage.js（IndexedDB）からの読み込みを伴うため非同期。
+export async function renderCallGuideTab(tabId, tabPanels, currentSongId) {
   const renderer = TAB_RENDERERS[tabId];
   const panel = tabPanels[tabId];
   if (!renderer || !panel) return;
-  renderer(panel, currentSongId);
+  await renderer(panel, currentSongId);
 }
