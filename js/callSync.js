@@ -75,45 +75,93 @@ function triggerCallBurst(text) {
   }, 1000);
 }
 
-// ===== 長いコールの「会場が沸くオーラ」演出（2026-08-06、本人要望で追加） =====
-// MIX・口上のような長いコールは、これまで歌詞パネル内の行の光り方
-//（.synced-call-line.is-current-lyrics-line、既存のまま変更なし）だけだったため
-// 「物足りない」という指摘を受けた。短いコールの飛び出しバーストと違い、本文が
-// 長いと画面中央に大きく表示しきれないため、本文そのものは表示せず、画面全体が
-// 光でうねるような「気配」だけを演出する。既存のバースト演出用レイヤーとは
-// 完全に別のDOM・別のCSSクラスのため、短いコール側の見た目・タイミング判定には
-// 一切影響しない。
-let surgeLayerElement = null;
-let surgeHideTimeoutId = null;
+// ===== 長いコールの「本文を主役にした持続表示」演出 =====
+// （2026-08-06：まず画面全体が沸くオーラ演出を追加／2026-08-07：本人要望により、
+//  開始時だけでなく「コールが有効な間ずっと」本文を大きく表示する方式へ拡張）
+//
+// MIX・口上のような15秒前後続く長いコールは、開始直後だけ目立っても、その後
+// 通常の行内ハイライトに戻ってしまうと「読み続けられない」という指摘を受けた。
+// このため、長いコールがアクティブな間（開始〜終了まで）ずっと、画面全体を覆う
+// 固定オーバーレイに本文を大きく表示し続ける方式にした。
+//
+// 表示のON/OFFはapplyActiveIndex()が「今アクティブなコールが変わった」と判断した
+// 瞬間だけ呼ばれる（findActiveLineIndex・updateActiveCallLine等の判定ロジック自体は
+// 一切変更していない）。そのため、このオーバーレイの表示時間は既存のタイミング判定に
+// 完全に連動しており、独自のタイマーで表示を打ち切ることはしていない
+// （短いコールのバーストのように「n秒後に消す」setTimeoutは使わず、
+//  「次にアクティブなコールが変わるまで表示し続ける」だけのシンプルな方式）。
+let longCallOverlayElement = null;
+let longCallActive = false;
 
-// オーラ演出用のDOM（画面に1つだけ）を、必要になった最初のタイミングで作る。
-function ensureSurgeLayer() {
-  if (surgeLayerElement) return surgeLayerElement;
-  surgeLayerElement = document.createElement("div");
-  surgeLayerElement.className = "call-surge-layer";
-  surgeLayerElement.setAttribute("aria-hidden", "true"); // 装飾演出のため、スクリーンリーダーには読ませない
-  const auraElement = document.createElement("div");
-  auraElement.className = "call-surge-aura";
-  surgeLayerElement.appendChild(auraElement);
-  document.body.appendChild(surgeLayerElement);
-  return surgeLayerElement;
+// 本文の長さに応じて文字サイズの段階（CSSクラス）を決める純粋関数。
+// 非常に長い本文（8〜10行のMIX・口上等）でも画面内に収まるよう、DOM計測をせずに
+// 文字数だけで4段階に振り分ける、安全で軽い方式（本人の希望通り、複雑な自動フィット
+// アルゴリズムは採用していない）。
+const LONGFORM_LENGTH_TIERS = [
+  { maxLength: 20, tier: "compact" },
+  { maxLength: 40, tier: "cozy" },
+  { maxLength: 70, tier: "roomy" },
+  { maxLength: Infinity, tier: "packed" },
+];
+
+export function getLongCallDisplayLengthTier(text) {
+  const length = typeof text === "string" ? text.length : 0;
+  const match = LONGFORM_LENGTH_TIERS.find((entry) => length <= entry.maxLength);
+  return match.tier;
 }
 
-// 長いコールがアクティブになった瞬間に、画面全体が沸き立つような光の演出を1回再生する。
-// triggerCallBurst()と同じ「クラスを外してから付け直す」方式で、連続して長いコールが
-// 来てもそのたびにアニメーションが最初から再生されるようにしている。
-function triggerLongCallSurge() {
-  const layer = ensureSurgeLayer();
+// 持続表示オーバーレイ用のDOM（画面に1つだけ）を、必要になった最初のタイミングで作る。
+// 表示/非表示はCSSのtransition（.is-active）に任せているため、ここでは要素を
+// 用意するだけで、アニメーションの開始・終了には関与しない。
+function ensureLongCallOverlay() {
+  if (longCallOverlayElement) return longCallOverlayElement;
+  longCallOverlayElement = document.createElement("div");
+  longCallOverlayElement.className = "call-longform-overlay";
+  longCallOverlayElement.setAttribute("aria-hidden", "true"); // 装飾演出のため、スクリーンリーダーには読ませない
+  const textElement = document.createElement("p");
+  textElement.className = "call-longform-overlay-text";
+  longCallOverlayElement.appendChild(textElement);
+  document.body.appendChild(longCallOverlayElement);
+  return longCallOverlayElement;
+}
 
-  layer.classList.remove("is-surging");
-  window.clearTimeout(surgeHideTimeoutId);
+// 長いコールの本文を、画面全体のオーバーレイに大きく表示する。
+// 「前のコールの表示を確実に消してから、新しい表示に切り替える」という本人要望のため、
+// 呼ばれるたびに一度非表示状態へ戻し、1フレーム空けてから改めて表示する
+// （triggerCallBurst()と同じ「クラスを外して付け直す」方式）。
+function showLongCallDisplay(text) {
+  const overlay = ensureLongCallOverlay();
+  const textElement = overlay.querySelector(".call-longform-overlay-text");
+
+  overlay.classList.remove("is-active");
   // eslint-disable-next-line no-unused-expressions
-  void layer.offsetWidth; // reflowを強制し、クラス再付与でアニメーションを確実に再生させる
-  layer.classList.add("is-surging");
+  void overlay.offsetWidth; // reflowを強制し、クラス再付与でアニメーションを確実に再生させる
 
-  surgeHideTimeoutId = window.setTimeout(() => {
-    layer.classList.remove("is-surging");
-  }, 750);
+  textElement.textContent = text;
+  textElement.className = `call-longform-overlay-text is-length-tier-${getLongCallDisplayLengthTier(text)}`;
+
+  overlay.classList.add("is-active");
+  longCallActive = true;
+}
+
+// オーバーレイを消す（CSSのtransitionにより、縮小しながらフェードアウトする）。
+function hideLongCallDisplay() {
+  if (!longCallActive) return;
+  longCallActive = false;
+  if (longCallOverlayElement) {
+    longCallOverlayElement.classList.remove("is-active");
+  }
+}
+
+// 画面遷移・曲切替のときは、フェードアウトの途中経過を次の画面に残さないよう、
+// トランジションなしで即座に消す（要素ごと作り直すことで、進行中のtransitionも
+// 確実に打ち切る）。
+function resetLongCallDisplayInstantly() {
+  longCallActive = false;
+  if (longCallOverlayElement) {
+    longCallOverlayElement.remove();
+    longCallOverlayElement = null;
+  }
 }
 
 // コールの種類ごとの表示ラベル（本文そのものではなく、種類を示す小さなバッジに使う）。
@@ -145,9 +193,12 @@ function applyActiveIndex(index) {
   if (newlyActiveCall) {
     if (isShortCallText(newlyActiveCall.text)) {
       triggerCallBurst(newlyActiveCall.text);
+      hideLongCallDisplay(); // 短⇔長を行き来した場合に、前の長文表示が残らないようにする
     } else {
-      triggerLongCallSurge();
+      showLongCallDisplay(newlyActiveCall.text);
     }
+  } else {
+    hideLongCallDisplay();
   }
 }
 
@@ -195,11 +246,9 @@ export function destroyCallSync() {
     burstLayerElement.classList.remove("is-bursting");
   }
 
-  // 長いコールのオーラ演出も同様に、曲切替・画面離脱のタイミングで必ず消す。
-  window.clearTimeout(surgeHideTimeoutId);
-  if (surgeLayerElement) {
-    surgeLayerElement.classList.remove("is-surging");
-  }
+  // 長いコールの持続表示オーバーレイも同様に、曲切替・画面離脱のタイミングで必ず消す。
+  // フェードアウトの途中経過を次の画面に残さないよう、トランジションなしで即座に消す。
+  resetLongCallDisplayInstantly();
 }
 
 // 指定した曲のコールデータを取得し、既に描画済みの歌詞パネルへ差し込む。
