@@ -11,6 +11,9 @@
   --color-secondary-light: #dff2ff; /* 背景グラデーションや淡いアクセント */
   --color-accent: #ffd93d;          /* レモンイエロー。正解演出やキラキラなど特別な演出の差し色 */
   --color-accent-soft: #fff2bf;     /* 差し色の淡いバージョン（バッジや正解セルの背景など） */
+  --color-call-glow: #ff9f43;       /* ライブコールモードの現在コール強調専用、発光のオレンジ側
+                                        （黄色側は--color-accentを流用。2026-08-06、本人要望で
+                                        「ライブ会場のペンライト」を意識した暖色の発光に変更） */
   --color-danger: #ff6b6b;          /* 不正解・エラー用のやわらかい赤 */
   --color-song-favorite: #ff8a5c;   /* 曲のお気に入りハート専用のコーラルオレンジ。
                                         メンバーの「推し」ハート（--color-primaryのピンク）と
@@ -3120,8 +3123,12 @@ fieldset label:has(input:focus-visible) {
 /* ===== ライブコールモード：コール表示（js/callSync.jsが歌詞パネルへ差し込む）=====
    歌詞行（.synced-lyrics-line）とひと目で区別できるよう、本人の要望どおり赤系の配色にする
    （既存の.mv-link-buttonと同じ--color-danger系トークンを使い、配色の一貫性を保つ）。
+   ただし「今まさに発声中」の強調（.is-current-lyrics-line）だけは、本人要望により
+   オレンジ〜黄色の発光（--color-call-glow・--color-accent）に変更している
+   （通常時の赤系との対比で、現在行がより目立つようにする狙い）。
    2026-08-06新設。 */
 .synced-call-line {
+  position: relative; /* 下の::afterリング演出を、レイアウトに影響させず重ねて出すため */
   display: flex;
   align-items: center;
   gap: 6px;
@@ -3139,23 +3146,32 @@ fieldset label:has(input:focus-visible) {
   opacity: 0.75;
   cursor: pointer;
   transition: opacity var(--transition-base), background-color var(--transition-base),
-    color var(--transition-base), border-color var(--transition-base);
+    color var(--transition-base), border-color var(--transition-base), box-shadow var(--transition-base);
 }
 
 .synced-call-line:hover {
   opacity: 1;
 }
 
-/* 今まさに発声するタイミングのコールを、ポップに弾む演出とともに強調する
+/* 今まさに発声するタイミングのコールを、ライブ会場のような派手さで強調する
    （.synced-lyrics-line.is-current-lyrics-lineと同じクラスを使って判定基準を統一している）。
-   2026-08-06、本人要望によりフラットな発光演出からアップグレード：
-   ・transform/opacityとborder-color（layoutに影響しない性質）だけで演出し、
-     隣接する行を押し出さない（横幅・高さが変わらない）。
-   ・色の変化だけに頼らず、白い縁取り・拡大でも現在行だと分かるようにしている
-     （色覚特性に配慮）。
-   ・低スペック端末でも重くならないよう、animationはtransform/opacityのみ。
+   2026-08-06、本人要望で「ペンライトを振っていて一瞬で気付けるくらい」の
+   インパクトを最優先にアップグレード（flat→ポップ→この版の順で2段階目の強化）：
+   ・登場（synced-call-pop、480ms・1回だけ）：transform（scale＋rotate）のみで、
+     手前に飛び出してから軽く弾んで震え、収まる。layoutプロパティは一切使わず、
+     隣接する歌詞・コール行は押し出さない（transformは要素の見た目だけを動かす）。
+   ・持続中のグロー（synced-call-glow-pulse、登場が終わってから緩くループ）：
+     box-shadowの色・広がりだけを揺らす。box-shadowもwidth/heightを持たないため
+     隣接行を押さない。長いコールでもずっと明滅し続けるが、周期を1.1秒とゆったり
+     させ、変化量も抑えているため、低スペック端末でも極端に重くはならない設計。
+   ・外側へのリング（下の::after、synced-call-ring-burst）：登場と同時に1回だけ、
+     縁が外側へ広がりながら消える「衝撃波」のような演出。position:absoluteのため
+     これもレイアウトには一切影響しない。
+   ・色の変化だけに頼らず、白い縁取り・拡大・文字の光彩（text-shadow）でも
+     現在行だと分かるようにしている（色覚特性に配慮）。
    ・「視差効果を減らす」設定時は、下の共通ルール（このファイル末尾）が
-     animation-durationを一律ほぼ0にするため、このクラス側で個別対応する必要はない。
+     animation-durationを一律ほぼ0にするため、このクラス側で個別対応する必要はない
+     （ループするglow-pulseも実質止まって見える）。
    ・複数のコールがほぼ同時にアクティブになる場合でも、classList.toggleで
      クラスが外れて付け直されるたびにアニメーションが最初から再生されるため、
      見た目が壊れることはない（js/callSync.jsのapplyActiveIndex参照）。
@@ -3163,21 +3179,69 @@ fieldset label:has(input:focus-visible) {
      （1件だけを現在行とする既存のfindActiveLineIndexの仕様。変更は今回のスコープ外）。 */
 .synced-call-line.is-current-lyrics-line {
   opacity: 1;
-  background: var(--color-danger);
+  background: linear-gradient(135deg, var(--color-call-glow), var(--color-accent));
   color: #ffffff;
   border-color: #ffffff;
-  animation: synced-call-pop 320ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  text-shadow: 0 0 4px rgba(255, 255, 255, 0.9), 0 0 10px var(--color-call-glow);
+  z-index: 1; /* 拡大時に隣の行の上に重なって見えるようにする（重なっても隣の位置は動かない） */
+  animation: synced-call-pop 480ms cubic-bezier(0.34, 1.56, 0.64, 1) both,
+    synced-call-glow-pulse 1100ms ease-in-out 480ms infinite;
 }
 
+/* 登場演出：手前に飛び出す→弾む→軽く震える→収まる、の4拍子。 */
 @keyframes synced-call-pop {
   0% {
-    transform: scale(0.9);
+    transform: scale(0.7) rotate(0deg);
   }
-  55% {
-    transform: scale(1.08);
+  30% {
+    transform: scale(1.45) rotate(-3deg);
+  }
+  50% {
+    transform: scale(0.92) rotate(2deg);
+  }
+  70% {
+    transform: scale(1.12) rotate(-1.5deg);
+  }
+  85% {
+    transform: scale(0.97) rotate(0.5deg);
   }
   100% {
-    transform: scale(1);
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+/* 持続中のグロー：オレンジ〜黄色の光が外側へゆっくり呼吸するように広がる。 */
+@keyframes synced-call-glow-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 10px 1px rgba(255, 159, 67, 0.55), 0 0 22px 4px rgba(255, 217, 61, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 18px 3px rgba(255, 159, 67, 0.85), 0 0 34px 8px rgba(255, 217, 61, 0.55);
+  }
+}
+
+/* 登場と同時に1回だけ、縁が衝撃波のように外側へ広がって消える演出。
+   position:absoluteのため、隣接する行のレイアウトには一切影響しない。 */
+.synced-call-line.is-current-lyrics-line::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  border: 2px solid var(--color-accent);
+  opacity: 0;
+  pointer-events: none;
+  animation: synced-call-ring-burst 480ms ease-out both;
+}
+
+@keyframes synced-call-ring-burst {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1.7);
+    opacity: 0;
   }
 }
 
@@ -3190,7 +3254,7 @@ fieldset label:has(input:focus-visible) {
 }
 
 .synced-call-line.is-current-lyrics-line .synced-call-type-badge {
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.35);
 }
 
 .synced-call-text {
