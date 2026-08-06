@@ -2557,6 +2557,284 @@ fieldset label:has(input:focus-visible) {
   transform: scale(0.92);
 }
 
+/* .list-headerの3列目に、？ボタンだけでなくコールガイドボタンも並べて置くための
+   ラッパー（2026-08-06追加）。中の.info-link-buttonはgrid-column指定を持つが、
+   このラッパー自体がgridの子要素になるため、中のgrid-column指定はブラウザに無視され問題ない。 */
+.list-header-actions {
+  grid-column: 3;
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.live-call-mode-guide-button {
+  border: none;
+  border-radius: 999px;
+  padding: 6px 12px;
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.live-call-mode-guide-button:active {
+  transform: scale(0.96);
+}
+
+/* ===== コールガイドパネル（js/callGuidePanel.js、2026-08-06新設） ===== */
+
+.call-guide-modal-card {
+  max-width: 640px;
+}
+
+.call-guide-tab-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 14px 0;
+}
+
+.call-guide-tab-button {
+  border: none;
+  border-radius: 999px;
+  padding: 7px 14px;
+  background: rgba(255, 111, 168, 0.1);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.call-guide-tab-button.is-active {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.call-guide-tab-panel {
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.call-guide-empty-state {
+  color: var(--color-text);
+  opacity: 0.7;
+  font-size: 0.88rem;
+  text-align: center;
+  padding: 12px 0;
+}
+
+.penlight-color-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px 3px 5px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.045);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.penlight-color-swatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  flex-shrink: 0;
+}
+
+.penlight-source-note {
+  margin: 4px 0 8px;
+  color: var(--color-text);
+  opacity: 0.7;
+  font-size: 0.78rem;
+}
+
+.call-credit-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(93, 111, 224, 0.14);
+  color: #4a4fc4;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.member-call-guide-list,
+.song-call-guide-list,
+.song-penlight-guide-list,
+.mix-type-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.member-call-guide-row,
+.song-call-guide-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.member-call-guide-name,
+.song-call-guide-title,
+.song-penlight-guide-title {
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.member-call-guide-chips,
+.song-call-guide-badges,
+.song-penlight-guide-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.song-penlight-guide-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+/* コールガイドを開いたときに再生中だった曲の行を目立たせる（2026-08-06）。 */
+.song-call-guide-row.is-current-song,
+.song-penlight-guide-card.is-current-song {
+  background: var(--color-primary-light);
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
+.mix-type-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.mix-type-card.is-current-song {
+  background: var(--color-primary-light);
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
+.mix-type-header-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.mix-type-label {
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.mix-type-song-specific-badge {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--color-accent-soft);
+  color: #8a6d00;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.mix-type-badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.mix-type-tag {
+  display: inline-flex;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.06);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.mix-type-tag-difficulty-beginner {
+  background: rgba(93, 200, 130, 0.18);
+  color: #1c7a44;
+}
+
+.mix-type-tag-difficulty-intermediate {
+  background: rgba(255, 179, 71, 0.2);
+  color: #93590a;
+}
+
+.mix-type-tag-difficulty-advanced {
+  background: rgba(255, 107, 107, 0.18);
+  color: #a52b2b;
+}
+
+.mix-type-summary {
+  margin: 4px 0 0;
+  font-size: 0.82rem;
+  color: var(--color-text);
+  opacity: 0.7;
+}
+
+.mix-song-specific-banner {
+  margin: 0 0 8px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+  font-weight: 700;
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+.mix-must-know-heading {
+  margin: 14px 0 8px;
+  font-weight: 800;
+  font-size: 0.88rem;
+  color: var(--color-primary-dark);
+}
+
+.mix-category-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 14px 0 10px;
+}
+
+.mix-category-filter-button {
+  border: 1px solid var(--color-secondary);
+  border-radius: 999px;
+  padding: 5px 12px;
+  background: transparent;
+  color: var(--color-secondary);
+  font-family: inherit;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mix-category-filter-button.is-active {
+  background: var(--color-secondary);
+  color: #fff;
+}
+
 /* 作品単位のお気に入り一括登録/解除の完了案内。
    .custom-quiz-presets-saved-bannerと同じ考え方・見た目（2026-08-04追加）。 */
 .songlist-action-banner {

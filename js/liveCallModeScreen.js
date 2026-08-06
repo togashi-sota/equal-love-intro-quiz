@@ -148,6 +148,12 @@ export async function openLiveCallModePlayer(songId) {
   syncPlayButtonIcon();
 }
 
+// 今再生画面で開いている曲のIDを返す（曲を選んでいなければnull）。
+// コールガイドパネルが「今の曲の指定色・コール考案者」を表示する際に使う。
+export function getCurrentLiveCallSongId() {
+  return currentSongId;
+}
+
 // この画面を離れるとき（戻る・別の曲を選び直す）に必ず呼ぶ。
 export function closeLiveCallModePlayer() {
   elements.audio.pause();

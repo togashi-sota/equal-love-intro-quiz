@@ -63,7 +63,9 @@ import {
   renderLiveCallModeList,
   openLiveCallModePlayer,
   closeLiveCallModePlayer,
+  getCurrentLiveCallSongId,
 } from "./liveCallModeScreen.js";
+import { renderCallGuideTab } from "./callGuidePanel.js";
 import { getTimeAttackBest } from "./timeAttackScore.js";
 import {
   TIME_ATTACK_RULE,
@@ -395,6 +397,8 @@ const liveCallModeAudioElement = document.getElementById("live-call-mode-audio")
 const liveCallModeLyricsPanelElement = document.getElementById("live-call-mode-lyrics-panel");
 const liveCallModeFullscreenButtonElement = document.getElementById("live-call-mode-fullscreen-button");
 const liveCallModeNoLyricsNoticeElement = document.getElementById("live-call-mode-no-lyrics-notice");
+const liveCallModePlayerHelpLinkElement = document.getElementById("live-call-mode-player-help-link");
+const liveCallModeGuideButtonElement = document.getElementById("live-call-mode-guide-button");
 const timeAttackSetupBackButtonElement = document.getElementById("time-attack-setup-back-button");
 const timeAttackStartButtonElement = document.getElementById("time-attack-start-button");
 const timeAttackStartErrorElement = document.getElementById("time-attack-start-error");
@@ -614,6 +618,15 @@ const randomPlaybackRulesModalElement = document.getElementById("random-playback
 const randomPlaybackRulesModalCloseButtonElement = document.getElementById("random-playback-rules-modal-close");
 const liveCallModeRulesModalElement = document.getElementById("live-call-mode-rules-modal");
 const liveCallModeRulesModalCloseButtonElement = document.getElementById("live-call-mode-rules-modal-close");
+const callGuideModalElement = document.getElementById("call-guide-modal");
+const callGuideModalCloseButtonElement = document.getElementById("call-guide-modal-close");
+const callGuideTabButtonElements = Array.from(document.querySelectorAll(".call-guide-tab-button"));
+const callGuideTabPanelElements = {
+  member: document.getElementById("call-guide-tab-member"),
+  songCall: document.getElementById("call-guide-tab-songCall"),
+  songColor: document.getElementById("call-guide-tab-songColor"),
+  mix: document.getElementById("call-guide-tab-mix"),
+};
 const lyricsQuizRulesModalElement = document.getElementById("lyrics-quiz-rules-modal");
 const lyricsQuizRulesModalCloseButtonElement = document.getElementById("lyrics-quiz-rules-modal-close");
 const localBattleRulesModalElement = document.getElementById("local-battle-rules-modal");
@@ -860,6 +873,53 @@ liveCallModePlayerBackButtonElement.addEventListener("click", () => {
   playClickSound();
   closeLiveCallModePlayer();
   showScreen("liveCallModeList");
+});
+
+liveCallModePlayerHelpLinkElement.addEventListener("click", () => {
+  openSpecialModeHelp("liveCallMode");
+});
+
+// コールガイド（メンバーコール／曲指定コール／ペンライト指定曲／MIX）の開閉・タブ切り替え。
+// 開くたびに、今開いているタブの中身だけを最新の状態で描画し直す
+// （曲を切り替えてから開いた場合でも、今の曲のハイライトが正しく反映されるようにするため）。
+let activeCallGuideTab = "member";
+
+function renderActiveCallGuideTab() {
+  renderCallGuideTab(activeCallGuideTab, callGuideTabPanelElements, getCurrentLiveCallSongId());
+}
+
+function openCallGuideModal() {
+  playClickSound();
+  renderActiveCallGuideTab();
+  callGuideModalElement.hidden = false;
+}
+
+function closeCallGuideModal() {
+  callGuideModalElement.hidden = true;
+}
+
+liveCallModeGuideButtonElement.addEventListener("click", openCallGuideModal);
+callGuideModalCloseButtonElement.addEventListener("click", closeCallGuideModal);
+callGuideModalElement.addEventListener("click", (event) => {
+  if (event.target === callGuideModalElement) {
+    closeCallGuideModal();
+  }
+});
+
+callGuideTabButtonElements.forEach((button) => {
+  button.addEventListener("click", () => {
+    if (button.dataset.tab === activeCallGuideTab) return;
+    activeCallGuideTab = button.dataset.tab;
+    callGuideTabButtonElements.forEach((tabButton) => {
+      const isActive = tabButton === button;
+      tabButton.classList.toggle("is-active", isActive);
+      tabButton.setAttribute("aria-selected", String(isActive));
+    });
+    Object.entries(callGuideTabPanelElements).forEach(([tabId, panel]) => {
+      panel.hidden = tabId !== activeCallGuideTab;
+    });
+    renderActiveCallGuideTab();
+  });
 });
 
 // ＝LOVEの歴史・ディスコグラフィー画面：作品カード（年表・作品一覧どちらから）が
@@ -3604,6 +3664,14 @@ document.addEventListener("keydown", (event) => {
   if (!callImportConfirmModalElement.hidden) {
     if (event.key === "Escape") {
       closeCallImportConfirmModal();
+    }
+    return;
+  }
+
+  // コールガイドパネルが開いているときも、同じ考え方でEscキーに対応する。
+  if (!callGuideModalElement.hidden) {
+    if (event.key === "Escape") {
+      closeCallGuideModal();
     }
     return;
   }

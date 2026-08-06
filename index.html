@@ -1188,6 +1188,11 @@
           </p>
           <h2 id="live-call-mode-song-title">曲名</h2>
         </div>
+        <!-- コールガイドの入口と、使い方説明モーダルへの入口。他の画面のヘッダーには影響しない -->
+        <div class="list-header-actions">
+          <button id="live-call-mode-guide-button" class="live-call-mode-guide-button" type="button">コールガイド</button>
+          <button id="live-call-mode-player-help-link" class="info-link-button" type="button" aria-label="ライブコールモードの使い方を見る">？</button>
+        </div>
       </div>
 
       <div class="live-call-mode-controls">
@@ -2909,21 +2914,42 @@
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="live-call-mode-rules-modal-title">
       <button id="live-call-mode-rules-modal-close" class="modal-close-button" type="button" aria-label="閉じる">×</button>
 
-      <h2 id="live-call-mode-rules-modal-title">ライブコールモードについて</h2>
-      <p class="modal-lead">クイズではなく、歌詞とコール（合いの手）のタイミングを一緒に確認できる、練習・予習用のモードです。得点や正解/不正解の概念はありません。</p>
+      <h2 id="live-call-mode-rules-modal-title">ライブコールモードの使い方</h2>
+      <p class="modal-lead">＝LOVEのライブでよく使われるコールを、楽曲を聴きながら練習できるモードです。得点や正解/不正解の概念はありません。</p>
 
       <h3>使い方</h3>
-      <p>コールが登録されている曲だけが一覧に表示されます。曲を選んで再生すると、歌詞パネルの間にコールの行が差し込まれ、今再生されている行がハイライトされます。行をタップすると、その位置まで再生をシークできます。</p>
+      <p>コールが登録されている曲だけが一覧に表示されます。曲を選んで再生すると、歌詞パネルの間にコールの行が差し込まれ、今再生されている行がハイライトされます。行をタップすると、その位置まで再生をシークできます。パネル内の「コールを表示する／通常歌詞のみにする」ボタンで、表示はいつでも切り替えられます。</p>
 
-      <h3>表示の切り替え</h3>
-      <p>パネル内の「コールを表示する／通常歌詞のみにする」ボタンで、コールを混ぜた表示と通常の歌詞だけの表示をいつでも切り替えられます。</p>
+      <h3>表示のタイミングについて</h3>
+      <p>表示している歌詞とコールの順番や位置は、制作時に自動処理・AIによる補助を利用しているため、実際のライブ映像と比べて一部前後している場合があります。ただし、コールの開始・終了時刻そのものは実際の音源を確認しながら、おおむね0.1秒単位で調整しています。声を出すタイミングでコール表示が光れば、そのコールのタイミングはおおよそ合っています。歌詞表示との位置関係が多少ずれていても、コール自体の光るタイミングを目安にしてください。</p>
 
-      <h3>知っておいてほしいこと</h3>
-      <ul class="modal-category-list">
-        <li>オンライン対戦の対象ではありません（1人で使う参照ツールです）。</li>
-        <li>プレイ履歴・自己ベスト・称号には一切反映されません。</li>
-        <li>収録しているコールの内容は、権利面に配慮して本人が個別に確認・入力したものです。曲によっては未対応の場合があります。</li>
-      </ul>
+      <h3>収録している範囲</h3>
+      <p>このモードに収録しているのは、すべてのコールではありません。初めてライブに参加する人でも「これだけ覚えれば、よりライブを楽しめる」という基本的なコールを中心に掲載しています。実際のライブでは、より細かいコールやMIX、メンバーコール、曲ごとの掛け声などが使われる場合があります。上級者向けのコールは今後も追加予定です（画面右上の「コールガイド」から、メンバーごとのペンライトカラー等も確認できます）。</p>
+
+      <h3>会場でのお願い</h3>
+      <p>会場や公演によって、コールの可否やルールが異なる場合があります。周囲の方への配慮と、当日の案内を優先してライブを楽しんでください。なお、このモードはオンライン対戦の対象ではなく、プレイ履歴・自己ベスト・称号にも反映されません（1人で使う参照ツールです）。</p>
+    </div>
+  </div>
+
+  <div id="call-guide-modal" class="modal-overlay" hidden>
+    <div class="modal-card call-guide-modal-card" role="dialog" aria-modal="true" aria-labelledby="call-guide-modal-title">
+      <button id="call-guide-modal-close" class="modal-close-button" type="button" aria-label="閉じる">×</button>
+
+      <h2 id="call-guide-modal-title">コールガイド</h2>
+      <p class="modal-lead">メンバーごとのペンライトカラーや、曲ごとに確認できているコール情報をまとめています。</p>
+
+      <!-- タブ切り替え。中身の組み立てはjs/callGuidePanel.jsが担当する（2026-08-06新設）。 -->
+      <div class="call-guide-tab-row" role="tablist">
+        <button type="button" class="call-guide-tab-button is-active" data-tab="member" role="tab" aria-selected="true">メンバーコール</button>
+        <button type="button" class="call-guide-tab-button" data-tab="songCall" role="tab" aria-selected="false">曲指定コール</button>
+        <button type="button" class="call-guide-tab-button" data-tab="songColor" role="tab" aria-selected="false">ペンライト指定曲</button>
+        <button type="button" class="call-guide-tab-button" data-tab="mix" role="tab" aria-selected="false">MIX・口上</button>
+      </div>
+
+      <div id="call-guide-tab-member" class="call-guide-tab-panel"></div>
+      <div id="call-guide-tab-songCall" class="call-guide-tab-panel" hidden></div>
+      <div id="call-guide-tab-songColor" class="call-guide-tab-panel" hidden></div>
+      <div id="call-guide-tab-mix" class="call-guide-tab-panel" hidden></div>
     </div>
   </div>
 
