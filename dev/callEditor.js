@@ -695,16 +695,21 @@ exportAllButtonElement.addEventListener("click", async () => {
 
   const totalCallCount = backup.songs.reduce((sum, song) => sum + song.calls.length, 0);
   const dateLabel = backup.exportedAt.slice(0, 10); // "YYYY-MM-DD"部分だけをファイル名に使う
+  const fileName = `equal-love-calls-${dateLabel}.json`;
 
   const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `equal-love-calls-${dateLabel}.json`;
+  link.download = fileName;
   link.click();
   URL.revokeObjectURL(url);
 
-  setStatus(exportAllStatusElement, `${backup.songs.length}曲・${totalCallCount}件のコールを書き出しました`, "is-success");
+  setStatus(
+    exportAllStatusElement,
+    `${backup.songs.length}曲・${totalCallCount}件のコールを書き出しました（ファイル名：${fileName}）`,
+    "is-success"
+  );
 });
 
 function formatUpdatedAt(timestampMs) {
