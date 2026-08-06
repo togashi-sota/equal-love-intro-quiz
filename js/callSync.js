@@ -75,6 +75,47 @@ function triggerCallBurst(text) {
   }, 1000);
 }
 
+// ===== 長いコールの「会場が沸くオーラ」演出（2026-08-06、本人要望で追加） =====
+// MIX・口上のような長いコールは、これまで歌詞パネル内の行の光り方
+//（.synced-call-line.is-current-lyrics-line、既存のまま変更なし）だけだったため
+// 「物足りない」という指摘を受けた。短いコールの飛び出しバーストと違い、本文が
+// 長いと画面中央に大きく表示しきれないため、本文そのものは表示せず、画面全体が
+// 光でうねるような「気配」だけを演出する。既存のバースト演出用レイヤーとは
+// 完全に別のDOM・別のCSSクラスのため、短いコール側の見た目・タイミング判定には
+// 一切影響しない。
+let surgeLayerElement = null;
+let surgeHideTimeoutId = null;
+
+// オーラ演出用のDOM（画面に1つだけ）を、必要になった最初のタイミングで作る。
+function ensureSurgeLayer() {
+  if (surgeLayerElement) return surgeLayerElement;
+  surgeLayerElement = document.createElement("div");
+  surgeLayerElement.className = "call-surge-layer";
+  surgeLayerElement.setAttribute("aria-hidden", "true"); // 装飾演出のため、スクリーンリーダーには読ませない
+  const auraElement = document.createElement("div");
+  auraElement.className = "call-surge-aura";
+  surgeLayerElement.appendChild(auraElement);
+  document.body.appendChild(surgeLayerElement);
+  return surgeLayerElement;
+}
+
+// 長いコールがアクティブになった瞬間に、画面全体が沸き立つような光の演出を1回再生する。
+// triggerCallBurst()と同じ「クラスを外してから付け直す」方式で、連続して長いコールが
+// 来てもそのたびにアニメーションが最初から再生されるようにしている。
+function triggerLongCallSurge() {
+  const layer = ensureSurgeLayer();
+
+  layer.classList.remove("is-surging");
+  window.clearTimeout(surgeHideTimeoutId);
+  // eslint-disable-next-line no-unused-expressions
+  void layer.offsetWidth; // reflowを強制し、クラス再付与でアニメーションを確実に再生させる
+  layer.classList.add("is-surging");
+
+  surgeHideTimeoutId = window.setTimeout(() => {
+    layer.classList.remove("is-surging");
+  }, 750);
+}
+
 // コールの種類ごとの表示ラベル（本文そのものではなく、種類を示す小さなバッジに使う）。
 // 本文（Oh yeah!等の実際の文言）はcallStorage.js側のデータにのみ含まれ、
 // このファイルには一切書かない。
@@ -101,8 +142,12 @@ function applyActiveIndex(index) {
   });
 
   const newlyActiveCall = index !== -1 ? renderedCalls[index] : null;
-  if (newlyActiveCall && isShortCallText(newlyActiveCall.text)) {
-    triggerCallBurst(newlyActiveCall.text);
+  if (newlyActiveCall) {
+    if (isShortCallText(newlyActiveCall.text)) {
+      triggerCallBurst(newlyActiveCall.text);
+    } else {
+      triggerLongCallSurge();
+    }
   }
 }
 
@@ -148,6 +193,12 @@ export function destroyCallSync() {
   window.clearTimeout(burstHideTimeoutId);
   if (burstLayerElement) {
     burstLayerElement.classList.remove("is-bursting");
+  }
+
+  // 長いコールのオーラ演出も同様に、曲切替・画面離脱のタイミングで必ず消す。
+  window.clearTimeout(surgeHideTimeoutId);
+  if (surgeLayerElement) {
+    surgeLayerElement.classList.remove("is-surging");
   }
 }
 
