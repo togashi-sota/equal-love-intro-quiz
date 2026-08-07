@@ -129,6 +129,7 @@ import {
   leaveOnlineBattleRoomView,
 } from "./onlineBattleScreen.js";
 import { initOnlineLyricsQuizBattleScreens } from "./onlineLyricsQuizBattleScreen.js";
+import { initOnlineBattleSongPicker } from "./onlineBattleSongPicker.js";
 import { calculateBattleResult, getPlaybackType } from "./battleModes/index.js";
 // 歌詞クイズ対戦の3ルール説明モーダル用。Firebase・画面のことを一切知らない純粋関数のみのため、
 // js/firebaseClient.jsを経由せずここから直接importしてよい。
@@ -177,7 +178,6 @@ import { initPlayerScreen, renderPlayerSummary } from "./playerScreen.js";
 import { getPlayerKeyPrefix } from "./playerProfile.js";
 import { initFanProfilesScreen, renderFanProfilesScreen } from "./fanProfilesScreen.js";
 import { syncPublicProfileIfEnabled } from "./publicProfileSync.js";
-import { backfillTimeAttackLeaderboardIfNeeded } from "./timeAttackLeaderboardSync.js";
 import { getFavoriteSongIds } from "./favoriteSongs.js";
 import { getPlaylists } from "./playlists.js";
 import { initPlaylistScreen, renderPlaylistList, renderPlaylistDetail } from "./playlistScreen.js";
@@ -597,6 +597,11 @@ const onlineBattleLobbySettingsHostElement = document.getElementById("online-bat
 const onlineBattleLobbySettingsParticipantElement = document.getElementById("online-battle-lobby-settings-participant");
 const onlineBattleLobbySettingsSummaryElement = document.getElementById("online-battle-lobby-settings-summary");
 const onlineBattleLobbySettingsPenaltyFieldsetElement = document.getElementById("online-battle-lobby-settings-penalty-fieldset");
+// 出題する曲（2026-08-08新設）。
+const onlineBattleLobbySettingsCategoryFieldsetElement = document.getElementById("online-battle-lobby-settings-category-fieldset");
+const onlineBattleLobbySettingsManualSongRowElement = document.getElementById("online-battle-settings-manual-song-row");
+const onlineBattleLobbySettingsManualSongCountElement = document.getElementById("online-battle-settings-manual-song-count");
+const onlineBattleLobbySettingsChooseSongsButtonElement = document.getElementById("online-battle-settings-choose-songs-button");
 const onlineBattleLobbySettingsChangedNoticeElement = document.getElementById("online-battle-lobby-settings-changed-notice");
 const onlineBattleLobbyRematchNoticeElement = document.getElementById("online-battle-lobby-rematch-notice");
 const onlineBattleLobbyReadyButtonElement = document.getElementById("online-battle-lobby-ready-button");
@@ -624,6 +629,20 @@ const onlineBattleResultRematchConfirmModalElement = document.getElementById("on
 const onlineBattleResultRematchCancelButtonElement = document.getElementById("online-battle-result-rematch-cancel-button");
 const onlineBattleResultRematchConfirmButtonElement = document.getElementById("online-battle-result-rematch-confirm-button");
 
+// オンライン対戦：出題する曲を選ぶ画面（2026-08-08新設）。イントロ対戦・ランダム再生対戦・
+// 歌詞クイズ対戦の3つで共通利用する。
+const onlineBattleSongPickerBackButtonElement = document.getElementById("online-battle-song-picker-back-button");
+const onlineBattleSongPickerSelectedCountValueElement = document.getElementById("online-battle-song-picker-selected-count-value");
+const onlineBattleSongPickerSelectAllButtonElement = document.getElementById("online-battle-song-picker-select-all-button");
+const onlineBattleSongPickerDeselectAllButtonElement = document.getElementById("online-battle-song-picker-deselect-all-button");
+const onlineBattleSongPickerSearchInputElement = document.getElementById("online-battle-song-picker-search-input");
+const onlineBattleSongPickerSearchClearButtonElement = document.getElementById("online-battle-song-picker-search-clear-button");
+const onlineBattleSongPickerSelectedOnlyCheckboxElement = document.getElementById("online-battle-song-picker-selected-only-checkbox");
+const onlineBattleSongPickerGroupsElement = document.getElementById("online-battle-song-picker-groups");
+const onlineBattleSongPickerNoResultsNoticeElement = document.getElementById("online-battle-song-picker-no-results-notice");
+const onlineBattleSongPickerMinNoticeElement = document.getElementById("online-battle-song-picker-min-notice");
+const onlineBattleSongPickerConfirmButtonElement = document.getElementById("online-battle-song-picker-confirm-button");
+
 // オンライン対戦：歌詞クイズ専用（Phase6新設）。
 const onlineLyricsBattleLobbySettingsHostElement = document.getElementById("online-battle-lobby-settings-host-lyrics");
 const onlineLyricsBattleLobbySettingsParticipantElement = document.getElementById("online-battle-lobby-settings-participant-lyrics");
@@ -631,6 +650,11 @@ const onlineLyricsBattleRuleOptionsElement = document.getElementById("online-lyr
 const onlineLyricsBattlePoolSizeOptionsElement = document.getElementById("online-lyrics-battle-pool-size-options");
 const onlineLyricsBattleSettingsFormElement = document.getElementById("online-lyrics-battle-settings-form");
 const onlineLyricsBattleSettingsSummaryElement = document.getElementById("online-lyrics-battle-settings-summary");
+// 出題する曲（2026-08-08新設）。
+const onlineLyricsBattleManualSongRowElement = document.getElementById("online-lyrics-battle-settings-manual-song-row");
+const onlineLyricsBattleManualSongCountElement = document.getElementById("online-lyrics-battle-settings-manual-song-count");
+const onlineLyricsBattleChooseSongsButtonElement = document.getElementById("online-lyrics-battle-settings-choose-songs-button");
+const onlineLyricsBattleSettingsErrorElement = document.getElementById("online-lyrics-battle-settings-error");
 const onlineLyricsBattleReadinessStatusElement = document.getElementById("online-lyrics-battle-readiness-status");
 const onlineLyricsBattleOwnMissingElement = document.getElementById("online-lyrics-battle-own-missing");
 const onlineLyricsBattleQuitButtonElement = document.getElementById("online-lyrics-battle-quit-button");
@@ -3314,6 +3338,10 @@ initOnlineBattleScreens({
   lobbySettingsParticipant: onlineBattleLobbySettingsParticipantElement,
   lobbySettingsSummary: onlineBattleLobbySettingsSummaryElement,
   lobbySettingsPenaltyFieldset: onlineBattleLobbySettingsPenaltyFieldsetElement,
+  lobbySettingsCategoryFieldset: onlineBattleLobbySettingsCategoryFieldsetElement,
+  lobbySettingsManualSongRow: onlineBattleLobbySettingsManualSongRowElement,
+  lobbySettingsManualSongCount: onlineBattleLobbySettingsManualSongCountElement,
+  lobbySettingsChooseSongsButton: onlineBattleLobbySettingsChooseSongsButtonElement,
   lobbySettingsChangedNotice: onlineBattleLobbySettingsChangedNoticeElement,
   lobbyRematchNotice: onlineBattleLobbyRematchNoticeElement,
   lobbyReadyButton: onlineBattleLobbyReadyButtonElement,
@@ -3377,8 +3405,30 @@ initOnlineLyricsQuizBattleScreens({
   // 既存のオンライン対戦結果画面が持つ「もう一度対戦する」確認モーダルをそのまま再利用する
   // （ルーム再戦処理自体はgameModeを問わない共通ロジックのため）。
   resultRematchConfirmModal: onlineBattleResultRematchConfirmModalElement,
+  lyricsManualSongRow: onlineLyricsBattleManualSongRowElement,
+  lyricsManualSongCount: onlineLyricsBattleManualSongCountElement,
+  lyricsChooseSongsButton: onlineLyricsBattleChooseSongsButtonElement,
+  lyricsSettingsError: onlineLyricsBattleSettingsErrorElement,
   onQuitDuringBattle: () => quitOnlineBattleDuringQuiz(),
   onLeaveResultToHome: () => leaveOnlineBattleRoomView(),
+});
+
+// オンライン対戦：出題する曲を選ぶ画面（2026-08-08新設）。イントロ対戦・ランダム再生対戦・
+// 歌詞クイズ対戦の3つが、js/onlineBattleScreen.js・js/onlineLyricsQuizBattleScreen.js経由で
+// この1つの画面を共有する（同じ機能を3回別々に実装しない、という本人の指示どおり）。
+initOnlineBattleSongPicker({
+  navigateTo: navigateBattleScreen,
+  backButton: onlineBattleSongPickerBackButtonElement,
+  selectedCountValue: onlineBattleSongPickerSelectedCountValueElement,
+  selectAllButton: onlineBattleSongPickerSelectAllButtonElement,
+  deselectAllButton: onlineBattleSongPickerDeselectAllButtonElement,
+  searchInput: onlineBattleSongPickerSearchInputElement,
+  searchClearButton: onlineBattleSongPickerSearchClearButtonElement,
+  selectedOnlyCheckbox: onlineBattleSongPickerSelectedOnlyCheckboxElement,
+  groupsContainer: onlineBattleSongPickerGroupsElement,
+  noResultsNotice: onlineBattleSongPickerNoResultsNoticeElement,
+  minNotice: onlineBattleSongPickerMinNoticeElement,
+  confirmButton: onlineBattleSongPickerConfirmButtonElement,
 });
 
 // 対戦コードの設定から、実際にクイズを組み立てて開始する。既存のbeginTimeAttackQuiz()と

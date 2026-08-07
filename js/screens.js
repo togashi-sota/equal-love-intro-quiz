@@ -49,6 +49,7 @@ const SCREEN_ELEMENTS = {
   onlineBattleCreate: document.getElementById("online-battle-create-screen"),
   onlineBattleJoin: document.getElementById("online-battle-join-screen"),
   onlineBattleLobby: document.getElementById("online-battle-lobby-screen"),
+  onlineBattleSongPicker: document.getElementById("online-battle-song-picker-screen"),
   onlineBattleCountdown: document.getElementById("online-battle-countdown-screen"),
   onlineBattleWaiting: document.getElementById("online-battle-waiting-screen"),
   onlineBattleResult: document.getElementById("online-battle-result-screen"),

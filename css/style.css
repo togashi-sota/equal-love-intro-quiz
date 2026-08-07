@@ -9264,6 +9264,37 @@ fieldset label:has(input:focus-visible) {
   display: none;
 }
 
+/* ===== オンライン対戦：出題する曲の選択（2026-08-08新設） =====
+   曲選択画面自体（.single-group系・.song-select-row等）は、オリジナル問題作成モードの
+   選曲画面と完全に同じグローバルクラスをそのまま再利用しているため、ここでは
+   ロビー内の小さな「曲を選ぶ」ボタン行だけを定義する。 */
+.battle-manual-song-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+/* display:flexを明示指定しているため、[hidden]の既定（display:none）を上書きしてしまう分の
+   対策（12章の教訓：.song-select-row[hidden]と同じパターン）。 */
+.battle-manual-song-row[hidden] {
+  display: none;
+}
+
+.battle-manual-song-row .secondary-button {
+  flex: none;
+  width: auto;
+  padding: 8px 16px;
+  font-size: 0.82rem;
+}
+
+.battle-manual-song-count {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+}
+
 /* ===== 対戦モード（ローカル対戦、2026-08-06新設） =====
    モックアップ（dev/battleModeMockup.html）で検証済みの見た目を、実アプリのcss/style.cssに
    移植したもの。既存のクラス（.primary-button・.secondary-button・.special-mode-card等）を

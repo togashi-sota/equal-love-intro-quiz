@@ -2223,7 +2223,21 @@
               <label><input type="radio" name="online-battle-settings-question-count" value="all"> 全曲</label>
             </div>
           </fieldset>
+          <!-- 出題する曲（2026-08-08新設）。「全曲から出題」を選んでいる間は、今までどおり
+               下のカテゴリ絞り込みがそのまま効く（既存動作を一切変えない）。
+               「曲を選んで出題」を選ぶと、カテゴリの代わりに選んだ曲だけが出題対象になる。 -->
           <fieldset>
+            <legend>出題する曲</legend>
+            <div class="option-row">
+              <label><input type="radio" name="online-battle-settings-song-source" value="all" checked> 全曲から出題</label>
+              <label><input type="radio" name="online-battle-settings-song-source" value="manual"> 曲を選んで出題</label>
+            </div>
+            <div id="online-battle-settings-manual-song-row" class="battle-manual-song-row" hidden>
+              <button id="online-battle-settings-choose-songs-button" class="secondary-button" type="button">🎵 曲を選ぶ</button>
+              <p id="online-battle-settings-manual-song-count" class="battle-manual-song-count"></p>
+            </div>
+          </fieldset>
+          <fieldset id="online-battle-lobby-settings-category-fieldset">
             <legend>カテゴリ</legend>
             <div class="option-row">
               <label><input type="radio" name="online-battle-settings-category" value="title-track"> 表題曲のみ</label>
@@ -2281,7 +2295,21 @@
               <label><input type="radio" name="online-lyrics-battle-question-count" value="all"> 全曲</label>
             </div>
           </fieldset>
-          <p class="battle-field-hint">対象曲：歌詞データがある曲すべて（曲を絞り込むことはまだできません）</p>
+          <!-- 出題する曲（2026-08-08新設）。歌詞クイズは元々questionSourceが常にALL_SONGS固定
+               だったため、ここではallとmanualの2択のみを追加する（既存のカテゴリ絞り込みは無い）。 -->
+          <fieldset>
+            <legend>出題する曲</legend>
+            <div class="option-row">
+              <label><input type="radio" name="online-lyrics-battle-settings-song-source" value="all" checked> 全曲から出題</label>
+              <label><input type="radio" name="online-lyrics-battle-settings-song-source" value="manual"> 曲を選んで出題</label>
+            </div>
+            <div id="online-lyrics-battle-settings-manual-song-row" class="battle-manual-song-row" hidden>
+              <button id="online-lyrics-battle-settings-choose-songs-button" class="secondary-button" type="button">🎵 曲を選ぶ</button>
+              <p id="online-lyrics-battle-settings-manual-song-count" class="battle-manual-song-count"></p>
+            </div>
+          </fieldset>
+          <p class="battle-field-hint">対象曲を絞り込んだ場合、歌詞データが必要なのは選んだ曲の分だけです。</p>
+          <p id="online-lyrics-battle-settings-error" class="error-message" hidden></p>
         </div>
 
         <!-- 歌詞クイズ専用：参加者用（読み取り専用チップ）。 -->
@@ -2309,6 +2337,52 @@
         <p class="online-battle-start-hint" id="online-battle-lobby-start-hint" hidden></p>
         <p id="online-battle-lobby-start-error" class="error-message" hidden></p>
       </div>
+    </section>
+
+    <!-- オンライン対戦：出題する曲を選ぶ画面（2026-08-08新設）。イントロ対戦・ランダム再生対戦・
+         歌詞クイズ対戦の3つで共通利用する。ホストだけが開ける。中身の組み立て・選択状態の管理は
+         js/onlineBattleSongPicker.jsが担当し、曲の一覧・検索ロジックはjs/songlist.js
+         （オリジナル問題作成モードの選曲画面と同じ）を再利用している。試聴機能は持たせない。 -->
+    <section id="online-battle-song-picker-screen" class="screen">
+      <div class="list-header">
+        <button id="online-battle-song-picker-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            SONG SELECT
+          </p>
+          <h2>出題する曲を選ぶ</h2>
+        </div>
+      </div>
+
+      <p class="custom-quiz-selected-count">選択中：<strong id="online-battle-song-picker-selected-count-value">0</strong>曲</p>
+
+      <div class="custom-quiz-bulk-actions">
+        <button id="online-battle-song-picker-select-all-button" class="single-group-bulk-button" type="button">全選択</button>
+        <button id="online-battle-song-picker-deselect-all-button" class="single-group-bulk-button" type="button">全解除</button>
+      </div>
+
+      <div class="search-field-row">
+        <input type="text" id="online-battle-song-picker-search-input" class="pill-search-input" placeholder="曲名で検索" aria-label="曲名で検索">
+        <button id="online-battle-song-picker-search-clear-button" class="search-clear-button" type="button" aria-label="検索語をクリア" hidden>×</button>
+      </div>
+
+      <label class="custom-quiz-selected-only-toggle">
+        <input type="checkbox" id="online-battle-song-picker-selected-only-checkbox">
+        選択中の曲だけ表示
+      </label>
+
+      <div id="online-battle-song-picker-groups"></div>
+
+      <p id="online-battle-song-picker-no-results-notice" class="question-count-notice" hidden>該当する曲が見つかりませんでした</p>
+      <p id="online-battle-song-picker-min-notice" class="question-count-notice">出題するには4曲以上選んでください</p>
+
+      <button id="online-battle-song-picker-confirm-button" class="primary-button" type="button">この曲で決定する</button>
     </section>
 
     <!-- オンライン対戦：カウントダウン画面。ホストが開始した瞬間に全端末がここへ遷移する。

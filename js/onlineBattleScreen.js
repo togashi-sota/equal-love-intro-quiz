@@ -68,6 +68,11 @@ import {
   resolveStartSettingsForSubmit,
   resolveLastRoomRejoinOutcome,
 } from "./onlineBattleStartSettings.js";
+// 【2026-08-08新設】出題する曲をホストが選べる機能。曲の一覧・選択UI自体は3対戦モード共通の
+// 別画面（js/onlineBattleSongPicker.js）に任せ、このファイルは「今の選択曲id配列」を
+// 保持し、settings.questionSourceへ変換するだけに専念する（gameModeを問わない設計）。
+import { openOnlineBattleSongPicker } from "./onlineBattleSongPicker.js";
+import { QUESTION_SOURCE_TYPE } from "./questionSource.js";
 
 let elements = null;
 let currentRoomId = null;
@@ -88,6 +93,17 @@ let currentGameMode = null; // 今のルームのgameMode（設定変更ハン�
 // 押した時点でフォームから読み直す必要が無く、renderLobby()のたびにここへ最新値を
 // 控えておくだけでよい。
 let currentLyricsQuizSettings = null;
+// 【2026-08-08新設】ホストが「曲を選んで出題」を選んだときの、現在の選択曲id配列。
+// room.settings.questionSource.songIdsと常に一致させる（applySettingsToHostForm()で
+// room更新のたびに同期し直す。リロード直後・他ホスト操作の反映もこの経路で行われる）。
+let hostSelectedManualSongIds = [];
+// 【2026-08-08追記】上の同期を「room.settingsRevisionが実際に変わったときだけ」に限定するための
+// 記録用。出題数に対して選択曲が足りず保存に失敗した場合、room.settingsRevisionは変わらない
+// （Firebaseへの書き込み自体が行われないため）。ここで無条件に同期してしまうと、ホストが曲を
+// 選び足している最中に他の参加者の接続状態変化などでrenderLobby()が再実行されるたびに、
+// 選択中の内容が保存済みの古い内容へ巻き戻ってしまう（js/onlineLyricsQuizBattleScreen.jsの
+// 実機検証で発見した不具合と同じ原因のため、同じ対策をこちらにも入れる）。
+let lastSyncedManualSongsRevision = null;
 
 // Step3：試合の進行・進捗表示・結果まわりの状態。
 let currentMatchId = null; // 今参加している試合のID（開始〜結果画面まで保持）
@@ -172,10 +188,16 @@ const JOIN_ERROR_MESSAGES = {
 // 「どのモードの結果か」が画面から常に読み取れることを優先する、本人の指示どおり）。
 function renderSettingsChips(container, settings, gameMode) {
   container.innerHTML = "";
+  // 【2026-08-08新設】曲を手動選択している場合は、カテゴリの代わりに「N曲から出題」を表示する
+  // （本人指示：参加者には曲数だけ見せ、対戦開始前に曲名までは見せない）。
+  const isManualSongSource = settings.questionSource?.type === QUESTION_SOURCE_TYPE.MANUAL_SELECTION;
+  const songSourceChip = isManualSongSource
+    ? `${settings.questionSource.songIds?.length ?? 0}曲から出題`
+    : CATEGORY_LABELS[settings.categoryFilterValue] ?? settings.categoryFilterValue;
   const chips = [
     getModeLabel(gameMode),
     QUESTION_COUNT_LABELS[settings.questionCountValue] ?? settings.questionCountValue,
-    CATEGORY_LABELS[settings.categoryFilterValue] ?? settings.categoryFilterValue,
+    songSourceChip,
     RULE_LABELS[settings.rule] ?? settings.rule,
   ];
   if (settings.rule === "normal") {
@@ -190,7 +212,9 @@ function renderSettingsChips(container, settings, gameMode) {
 }
 
 // ホスト用の設定フォーム（ラジオボタン群）に、現在ルームに保存されている設定値を反映する。
-function applySettingsToHostForm(settings) {
+// リロード直後・他タブでの変更後もrenderLobby()経由で必ず呼ばれるため、ここで
+// hostSelectedManualSongIds・出題する曲UIの状態も一緒に復元する（本人指示：リロード対応）。
+function applySettingsToHostForm(settings, settingsRevision) {
   const setChecked = (name, value) => {
     const input = document.querySelector(`input[name="${name}"][value="${value}"]`);
     if (input) input.checked = true;
@@ -200,15 +224,83 @@ function applySettingsToHostForm(settings) {
   setChecked("online-battle-settings-rule", settings.rule);
   setChecked("online-battle-settings-penalty", String(settings.penaltySeconds));
   elements.lobbySettingsPenaltyFieldset.hidden = settings.rule !== "normal";
+
+  // settingsRevisionが前回同期時から変わっていなければ、room.settingsは「保存済みの古い内容」の
+  // ままなので同期をスキップする（ホストが選び直している最中の内容を守るため。詳細は
+  // lastSyncedManualSongsRevisionの定義コメント参照）。
+  if (settingsRevision === lastSyncedManualSongsRevision) return;
+  lastSyncedManualSongsRevision = settingsRevision;
+  const isManualSongSource = settings.questionSource?.type === QUESTION_SOURCE_TYPE.MANUAL_SELECTION;
+  setChecked("online-battle-settings-song-source", isManualSongSource ? "manual" : "all");
+  hostSelectedManualSongIds = isManualSongSource ? (settings.questionSource.songIds ?? []) : [];
+  updateManualSongSourceUi(isManualSongSource);
+}
+
+// 「出題する曲」の選択状態に合わせて、「曲を選ぶ」ボタン・選択数表示・カテゴリ欄の
+// 表示/非表示を切り替える。カテゴリは曲を手動選択している間は意味を持たないため隠す
+// （settings.questionSourceがある間、js/battleModes/timeAttackBattleMode.jsが
+// categoryFilterValueを一切参照しないことと対応させている）。
+function updateManualSongSourceUi(isManual) {
+  elements.lobbySettingsManualSongRow.hidden = !isManual;
+  elements.lobbySettingsCategoryFieldset.hidden = isManual;
+  elements.lobbySettingsManualSongCount.textContent = `${hostSelectedManualSongIds.length}曲選択中`;
 }
 
 function readSettingsFromHostForm() {
-  return {
+  const songSourceValue =
+    document.querySelector('input[name="online-battle-settings-song-source"]:checked')?.value ?? "all";
+  const settings = {
     questionCountValue: document.querySelector('input[name="online-battle-settings-question-count"]:checked').value,
     categoryFilterValue: document.querySelector('input[name="online-battle-settings-category"]:checked').value,
     rule: document.querySelector('input[name="online-battle-settings-rule"]:checked').value,
     penaltySeconds: Number(document.querySelector('input[name="online-battle-settings-penalty"]:checked').value),
   };
+  // 「全曲から出題」のときはquestionSource自体を持たせない（今までと全く同じ、
+  // categoryFilterValueだけを見る動作を維持するため。本人指示：既存動作を変えない）。
+  if (songSourceValue === "manual") {
+    settings.questionSource = { type: QUESTION_SOURCE_TYPE.MANUAL_SELECTION, songIds: hostSelectedManualSongIds };
+  }
+  return settings;
+}
+
+// ホストの設定フォームの今の内容を検証し、問題なければFirebaseへ反映する
+// （設定ラジオの変更・曲選択画面での「決定」の両方から呼ばれる共通処理）。
+async function applyHostSettingsChangeFromForm() {
+  if (!currentRoomId) return;
+  const settings = readSettingsFromHostForm();
+  elements.lobbySettingsPenaltyFieldset.hidden = settings.rule !== "normal";
+
+  const errorMessage = validateRoomSettings(currentGameMode, settings);
+  if (errorMessage) {
+    elements.lobbyStartError.textContent = errorMessage;
+    elements.lobbyStartError.hidden = false;
+    return;
+  }
+  elements.lobbyStartError.hidden = true;
+  await updateRoomSettings({ roomId: currentRoomId, settings });
+}
+
+// 曲選択画面を開く（新規に選ぶ場合・すでに選んだ内容を編集する場合の両方で使う）。
+function openSongPickerForHost() {
+  openOnlineBattleSongPicker(
+    hostSelectedManualSongIds,
+    async (songIds) => {
+      hostSelectedManualSongIds = songIds;
+      updateManualSongSourceUi(true);
+      elements.navigateTo("onlineBattleLobby");
+      await applyHostSettingsChangeFromForm();
+    },
+    () => {
+      // キャンセル時：一度も曲を選んだことが無ければ「全曲から出題」に戻す
+      // （0曲のまま「曲を選んで出題」の状態で放置しない）。既に選択済みなら維持する。
+      if (hostSelectedManualSongIds.length === 0) {
+        const allRadio = document.querySelector('input[name="online-battle-settings-song-source"][value="all"]');
+        if (allRadio) allRadio.checked = true;
+        updateManualSongSourceUi(false);
+      }
+      elements.navigateTo("onlineBattleLobby");
+    }
+  );
 }
 
 // 参加者用のREADYボタンの見た目を、今のREADY状態に合わせて更新する。
@@ -353,6 +445,11 @@ function resetOnlineBattleMatchState() {
   currentMatchTotalQuestions = 0;
   pendingFinishResult = null;
   if (elements.quizProgressStrip) elements.quizProgressStrip.hidden = true;
+  // ルームを離れる際は必ずリセットする。次に入るルームのsettingsRevisionが
+  // たまたま同じ値（例：新規作成直後は毎回0）だった場合に、前のルームの選択曲を
+  // 誤って引き継いでしまう事故を防ぐため。
+  hostSelectedManualSongIds = [];
+  lastSyncedManualSongsRevision = null;
 }
 
 // ロビー画面の参加者一覧・対戦設定・準備完了/開始ボタンを再描画する。
@@ -461,7 +558,7 @@ function renderLobby(room) {
     if (isLyricsQuiz) {
       renderLyricsQuizLobbySettings(room, true);
     } else {
-      applySettingsToHostForm(settings);
+      applySettingsToHostForm(settings, room.settingsRevision);
     }
     updateStartButton(room);
   } else {
@@ -988,26 +1085,27 @@ export function initOnlineBattleScreens(newElements) {
 
   // ホストが設定ラジオボタンを変更するたびに、Firebaseへ書き込んで全員へ同期する
   // （js/localBattleScreen.jsのupdateSetupRuleHint()と同じ「変更のたびに反映」という考え方）。
+  // 【2026-08-08追記】出題する曲のラジオも同じ仕組みに含める。「曲を選んで出題」へ切り替えた
+  // 瞬間だけは、曲がまだ0曲で検証エラーになるのを避けるため、先に曲選択画面を開く。
   document
     .querySelectorAll(
-      'input[name="online-battle-settings-question-count"], input[name="online-battle-settings-category"], input[name="online-battle-settings-rule"], input[name="online-battle-settings-penalty"]'
+      'input[name="online-battle-settings-question-count"], input[name="online-battle-settings-category"], input[name="online-battle-settings-rule"], input[name="online-battle-settings-penalty"], input[name="online-battle-settings-song-source"]'
     )
     .forEach((radio) => {
       radio.addEventListener("change", async () => {
         if (!currentRoomId) return;
-        const settings = readSettingsFromHostForm();
-        elements.lobbySettingsPenaltyFieldset.hidden = settings.rule !== "normal";
-
-        const errorMessage = validateRoomSettings(currentGameMode, settings);
-        if (errorMessage) {
-          elements.lobbyStartError.textContent = errorMessage;
-          elements.lobbyStartError.hidden = false;
+        if (radio.name === "online-battle-settings-song-source" && radio.value === "manual") {
+          updateManualSongSourceUi(true);
+          openSongPickerForHost();
           return;
         }
-        elements.lobbyStartError.hidden = true;
-        await updateRoomSettings({ roomId: currentRoomId, settings });
+        await applyHostSettingsChangeFromForm();
       });
     });
+
+  elements.lobbySettingsChooseSongsButton.addEventListener("click", () => {
+    openSongPickerForHost();
+  });
 
   elements.lobbyReadyButton.addEventListener("click", async () => {
     if (!currentRoomId) return;

@@ -74,6 +74,10 @@ import {
   renderOwnMissingLyricsTitles,
 } from "./lyricsQuizBattleUi.js";
 import { deriveHintLevelFromElapsedMs, computeElapsedMs } from "./lyricsQuizBattleTiming.js";
+// 【2026-08-08新設】出題する曲をホストが選べる機能。他の対戦モード（js/onlineBattleScreen.js）と
+// 同じ曲選択画面を共有する（gameModeごとに別々の選曲UIを持たない、本人指示）。
+import { openOnlineBattleSongPicker } from "./onlineBattleSongPicker.js";
+import { QUESTION_SOURCE_TYPE } from "./questionSource.js";
 import { SONGS } from "./data/songs.js";
 import { MEMBERS } from "./data/members.js";
 import { getMemberById } from "./memberUtils.js";
@@ -125,6 +129,16 @@ let ownMissingSongTitlesCache = [];
 // room.players[自分のuid].lyricsCoverageだけに頼ると、送信中〜反映待ちの間は「まだ確認して
 // いない」状態を「0曲で不足」と誤表示してしまうため（本人からの指摘・2026-08-06）。
 let ownLyricsCoverageStatus = null;
+// 【2026-08-08新設】ホストが「曲を選んで出題」を選んだときの、現在の選択曲id配列。
+// js/onlineBattleScreen.jsのhostSelectedManualSongIdsと同じ考え方（room.settings.
+// questionSource.songIdsと常に一致させ、renderLyricsQuizLobbySettings()のたびに同期し直す）。
+let hostSelectedManualSongIds = [];
+// 【2026-08-08追記】上の同期を「room.settingsRevisionが実際に変わったときだけ」に限定するための
+// 記録用。出題数に対して選択曲が足りず保存に失敗した場合、room.settingsRevisionは変わらない
+// （Firebaseへの書き込み自体が行われないため）。ここで無条件に同期してしまうと、ホストが曲を
+// 選び足している最中に他の参加者の接続状態変化などでrenderLyricsQuizLobbySettings()が再実行される
+// たびに、選択中の内容が保存済みの古い内容へ巻き戻ってしまう（実機検証で発見）。
+let lastSyncedManualSongsRevision = null;
 
 function clearElement(element) {
   while (element.firstChild) element.removeChild(element.firstChild);
@@ -145,6 +159,26 @@ export function initOnlineLyricsQuizBattleScreens(newElements) {
       if (!latestRoom || latestRoom.gameMode !== lyricsQuizBattleMode.gameMode) return;
       applyLyricsQuizSettingsChange(latestRoom, { ...latestRoom.settings, questionCountValue: radio.value });
     });
+  });
+
+  // 【2026-08-08新設】出題する曲。「曲を選んで出題」へ切り替えた瞬間は、まだ0曲で
+  // 検証エラーになるのを避けるため、先に曲選択画面を開く（js/onlineBattleScreen.jsと同じ考え方）。
+  document.querySelectorAll('input[name="online-lyrics-battle-settings-song-source"]').forEach((radio) => {
+    radio.addEventListener("change", () => {
+      if (!latestRoom || latestRoom.gameMode !== lyricsQuizBattleMode.gameMode) return;
+      if (radio.value === "manual") {
+        updateLyricsManualSongSourceUi(true);
+        openLyricsSongPickerForHost();
+        return;
+      }
+      applyLyricsQuizSettingsChange(latestRoom, {
+        ...latestRoom.settings,
+        questionSource: { type: QUESTION_SOURCE_TYPE.ALL_SONGS },
+      });
+    });
+  });
+  elements.lyricsChooseSongsButton.addEventListener("click", () => {
+    openLyricsSongPickerForHost();
   });
 
   elements.battleQuitButton.addEventListener("click", () => {
@@ -196,6 +230,8 @@ export function resetLyricsQuizBattleState() {
   lyricsCoverageSubmittedHash = null;
   ownMissingSongTitlesCache = [];
   ownLyricsCoverageStatus = null;
+  hostSelectedManualSongIds = [];
+  lastSyncedManualSongsRevision = null;
 }
 
 // js/onlineBattleScreen.jsのrenderLobby()が、room更新のたびに（画面を問わず）呼ぶフック。
@@ -211,16 +247,72 @@ export function handleLyricsQuizRoomUpdate(room) {
 async function applyLyricsQuizSettingsChange(room, nextSettings) {
   const errorMessage = validateRoomSettings(room.gameMode, nextSettings);
   if (errorMessage) {
-    // Phase6.5時点では曲プールを絞り込むUIが無く常にALL_SONGS固定のため、通常はここに来ない想定。
+    // 【2026-08-08追記】出題する曲を絞り込めるようになったことで、「出題数に対して選択曲が
+    // 足りない」検証エラーが実際に起こりうるようになった（本人指示：「10問対戦を開始するには
+    // 10曲以上選択してください」等、分かりやすいエラーを表示すること）。以前はconsole.errorだけで
+    // 画面には何も出ていなかったため、ここで可視化する。
+    if (elements.lyricsSettingsError) {
+      elements.lyricsSettingsError.textContent = errorMessage;
+      elements.lyricsSettingsError.hidden = false;
+    }
     console.error("歌詞クイズ対戦設定が不正です:", errorMessage);
     return;
   }
+  if (elements.lyricsSettingsError) elements.lyricsSettingsError.hidden = true;
   await updateRoomSettings({ roomId: room.roomId, settings: nextSettings });
 }
 
 function setQuestionCountRadio(value) {
   const input = document.querySelector(`input[name="online-lyrics-battle-question-count"][value="${value}"]`);
   if (input) input.checked = true;
+}
+
+// 【2026-08-08新設】出題する曲の状態を、ホスト用フォームへ復元する。renderLyricsQuizLobbySettings()の
+// たびに呼ばれるため、リロード直後・他タブでの変更後もここで自動的に復元される
+// （js/onlineBattleScreen.jsのapplySettingsToHostForm()と同じ考え方）。
+function setLyricsSongSourceRadio(settings, settingsRevision) {
+  // settingsRevisionが前回同期時から変わっていなければ、room.settingsは「保存済みの古い内容」の
+  // ままなので同期をスキップする（ホストが選び直している最中の内容を守るため。詳細は
+  // lastSyncedManualSongsRevisionの定義コメント参照）。
+  if (settingsRevision === lastSyncedManualSongsRevision) return;
+  lastSyncedManualSongsRevision = settingsRevision;
+  const isManual = settings.questionSource?.type === QUESTION_SOURCE_TYPE.MANUAL_SELECTION;
+  const value = isManual ? "manual" : "all";
+  const input = document.querySelector(`input[name="online-lyrics-battle-settings-song-source"][value="${value}"]`);
+  if (input) input.checked = true;
+  hostSelectedManualSongIds = isManual ? (settings.questionSource.songIds ?? []) : [];
+  updateLyricsManualSongSourceUi(isManual);
+}
+
+function updateLyricsManualSongSourceUi(isManual) {
+  elements.lyricsManualSongRow.hidden = !isManual;
+  elements.lyricsManualSongCount.textContent = `${hostSelectedManualSongIds.length}曲選択中`;
+}
+
+function openLyricsSongPickerForHost() {
+  openOnlineBattleSongPicker(
+    hostSelectedManualSongIds,
+    async (songIds) => {
+      hostSelectedManualSongIds = songIds;
+      updateLyricsManualSongSourceUi(true);
+      elements.navigateTo("onlineBattleLobby");
+      if (!latestRoom) return;
+      await applyLyricsQuizSettingsChange(latestRoom, {
+        ...latestRoom.settings,
+        questionSource: { type: QUESTION_SOURCE_TYPE.MANUAL_SELECTION, songIds },
+      });
+    },
+    () => {
+      if (hostSelectedManualSongIds.length === 0) {
+        const allRadio = document.querySelector(
+          'input[name="online-lyrics-battle-settings-song-source"][value="all"]'
+        );
+        if (allRadio) allRadio.checked = true;
+        updateLyricsManualSongSourceUi(false);
+      }
+      elements.navigateTo("onlineBattleLobby");
+    }
+  );
 }
 
 function describeAnswerPoolChipLabel(size) {
@@ -233,6 +325,7 @@ function findRuleLabel(ruleId) {
 
 function renderLyricsQuizParticipantSummary(settings) {
   clearElement(elements.lyricsSettingsSummaryContainer);
+  const isManualSongSource = settings.questionSource?.type === QUESTION_SOURCE_TYPE.MANUAL_SELECTION;
   const chips = [
     "歌詞クイズ",
     findRuleLabel(settings.battleRuleId),
@@ -240,6 +333,11 @@ function renderLyricsQuizParticipantSummary(settings) {
     QUESTION_COUNT_LABELS[settings.questionCountValue] ?? settings.questionCountValue,
     `ヒント表示${settings.hintIntervalSec}秒`,
   ];
+  // 【2026-08-08新設】曲を手動選択している場合だけ、参加者にも「N曲から出題」を見せる
+  // （本人指示：曲名までは見せない）。
+  if (isManualSongSource) {
+    chips.push(`${settings.questionSource.songIds?.length ?? 0}曲から出題`);
+  }
   chips.forEach((text) => {
     const chip = document.createElement("span");
     chip.className = "battle-config-chip";
@@ -338,6 +436,7 @@ export function renderLyricsQuizLobbySettings(room, isHost) {
     });
 
     setQuestionCountRadio(settings.questionCountValue);
+    setLyricsSongSourceRadio(settings, room.settingsRevision);
   } else {
     renderLyricsQuizParticipantSummary(settings);
   }
