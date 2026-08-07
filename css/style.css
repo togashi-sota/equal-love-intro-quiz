@@ -5054,8 +5054,10 @@ fieldset label:has(input:focus-visible) {
   background: linear-gradient(155deg, #6fe0c0, #3fb894);
 }
 
+/* ペンライトの発光部分（アイコン内で#ff6fa8＝ブランドピンクを使用）が背景に埋もれないよう、
+   他のカードより一段深いプラム系の背景にしている（本人指示・2026-08-07：メガホン→ペンライト）。 */
 .special-mode-icon.is-liveCallMode {
-  background: linear-gradient(155deg, #ff8fc0, var(--color-primary));
+  background: linear-gradient(155deg, #c96fa0, #8a3f68);
 }
 
 .special-mode-icon.is-lyricsQuiz {

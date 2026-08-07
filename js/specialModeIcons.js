@@ -37,12 +37,16 @@ const ICON_DEFINITIONS = {
       '<path d="M17.5 4 20.5 6 17.5 8M17.5 15 20.5 17 17.5 19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
   },
   liveCallMode: {
-    // ライブコールモード：メガホン。
+    // ライブコールモード：ペンライト（本人指示・2026-08-07：メガホンだと直感的に伝わらないため変更）。
+    // 発光部分をブランドのピンク、持ち手を白にし、他のアイコンと同じ「currentColorの地に
+    // 白/ピンクのアクセントを乗せる」パターン（achievementIcons.jsのSHIELD_PATH等と同じ考え方）。
+    // 周囲の光の筋は発光している雰囲気を出すための最小限の装飾。
     viewBox: "0 0 24 24",
     markup:
-      '<path d="M3 10v4h3l6 4V6l-6 4Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>' +
-      '<path d="M17 9a4 4 0 0 1 0 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' +
-      '<path d="M12 18v2.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+      '<rect x="9.6" y="11.5" width="4.8" height="10" rx="2.1" fill="#fff"/>' +
+      '<ellipse cx="12" cy="8" rx="5" ry="5.6" fill="#fff" opacity="0.35"/>' +
+      '<ellipse cx="12" cy="8.3" rx="3.2" ry="3.7" fill="#ff6fa8"/>' +
+      '<path d="M12 0.8v1.8M6.4 2.9l1.2 1.3M17.6 2.9l-1.2 1.3M3.6 8.3h1.8M18.6 8.3h1.8" stroke="#fff" stroke-width="1.3" stroke-linecap="round"/>',
   },
   lyricsQuiz: {
     // 歌詞クイズ：マイク（歌詞＝歌を象徴）。
