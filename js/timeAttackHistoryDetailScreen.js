@@ -7,6 +7,7 @@
 const QUESTION_COUNT_LABELS = { "5": "5問", "10": "10問", "20": "20問", "50": "50問", all: "全問" };
 const CATEGORY_LABELS = { all: "全曲", "title-and-group": "表題＋全員", "title-track": "表題のみ" };
 const RULE_LABELS = { normal: "ノーマル", hard: "ハード", loveChain: "LOVE連チャン" };
+const VARIANT_LABELS = { intro: "🎧イントロ", randomPlayback: "🔀ランダム再生" };
 
 // この画面が使うDOM要素一式。initTimeAttackHistoryDetailScreen()で受け取って保持する。
 let elements = null;
@@ -31,7 +32,8 @@ function renderSummary(entry) {
   const questionCountLabel = QUESTION_COUNT_LABELS[entry.questionCountValue] ?? entry.questionCountValue;
   const categoryLabel = CATEGORY_LABELS[entry.categoryFilterValue] ?? entry.categoryFilterValue;
   const ruleLabel = RULE_LABELS[entry.rule] ?? entry.rule;
-  elements.mode.textContent = `${questionCountLabel}・${categoryLabel}・${ruleLabel}`;
+  const variantLabel = VARIANT_LABELS[entry.variant ?? "intro"] ?? VARIANT_LABELS.intro;
+  elements.mode.textContent = `${variantLabel}・${questionCountLabel}・${categoryLabel}・${ruleLabel}`;
 
   elements.totalTime.textContent = `${formatSeconds(entry.totalElapsedMs)}秒`;
   elements.correctCount.textContent = `${entry.correctCount} / ${entry.questions.length}問`;

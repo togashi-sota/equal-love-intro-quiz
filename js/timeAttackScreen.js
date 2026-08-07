@@ -31,6 +31,15 @@ import { renderAchievementUnlockEvents } from "./achievementDisplay.js";
 //             自己ベストは「全問クリアできたときのタイム」だけを対象にする（2026-08-06追加）。
 export const TIME_ATTACK_RULE = { NORMAL: "normal", HARD: "hard", LOVE_CHAIN: "loveChain" };
 
+// 出題タイプ（2026-08-07追加）。
+// intro         ：曲の冒頭を聴いて当てる、従来どおりのタイムアタック。
+// randomPlayback：曲の途中からランダムな位置で数秒間だけ再生する
+//                 （js/randomPlaybackEngine.jsの既存の純粋関数をそのまま再利用し、
+//                 このファイルでは種(seed)の発行だけを新しく持つ。js/randomPlaybackScreen.jsの
+//                 「アダプター方式」と同じ考え方を、今度はタイムアタック自身の中に取り込む形）。
+// 将来のメロディアス等の追加を見込み、文字列のvariantIdとして結果データに残す設計にしている。
+export const TIME_ATTACK_VARIANT = { INTRO: "intro", RANDOM_PLAYBACK: "randomPlayback" };
+
 let elements = null;
 let resultElements = null;
 
@@ -42,7 +51,10 @@ export function initTimeAttackScreen(newElements) {
     const questionCountValue = document.querySelector('input[name="time-attack-question-count"]:checked').value;
     const categoryFilterValue = document.querySelector('input[name="time-attack-category-filter"]:checked').value;
     const rule = document.querySelector('input[name="time-attack-rule"]:checked').value;
-    elements.onStart(questionCountValue, categoryFilterValue, rule);
+    // 出題タイプのラジオが無い画面（旧HTMLとの互換）でも壊れないよう、要素が無ければintro扱いにする。
+    const variant =
+      document.querySelector('input[name="time-attack-variant"]:checked')?.value ?? TIME_ATTACK_VARIANT.INTRO;
+    elements.onStart(questionCountValue, categoryFilterValue, rule, variant);
   });
 }
 
@@ -51,6 +63,11 @@ export function initTimeAttackScreen(newElements) {
 let currentRule = TIME_ATTACK_RULE.NORMAL;
 let currentQuestionCountValue = null;
 let currentCategoryFilterValue = null;
+let currentVariant = TIME_ATTACK_VARIANT.INTRO;
+// ランダム再生variantのときだけ使う、再生開始位置の種。js/randomPlaybackScreen.jsの
+// startRandomPlaybackRun()と全く同じ発行方法（Math.random()の値をそのまま種にする。
+// 1人用は「毎回違う位置になる」ことだけが目的で、複数端末間の一致は不要なため）。
+let currentSeed = 0;
 let totalElapsedMs = 0;
 let correctCount = 0;
 let missCount = 0;
@@ -60,10 +77,13 @@ let selectedAnswersThisQuestion = []; // 今の問題で、押した順に選択
 let runFailed = false; // LOVE連チャンで、全問クリアできずに終了したかどうか
 
 // タイムアタックを開始する直前に呼ぶ。実行中の記録をすべてリセットする。
-export function startTimeAttackRun(rule, questionCountValue, categoryFilterValue) {
+export function startTimeAttackRun(rule, questionCountValue, categoryFilterValue, variant = TIME_ATTACK_VARIANT.INTRO) {
   currentRule = rule;
   currentQuestionCountValue = questionCountValue;
   currentCategoryFilterValue = categoryFilterValue;
+  currentVariant = variant;
+  currentSeed =
+    variant === TIME_ATTACK_VARIANT.RANDOM_PLAYBACK ? (Math.floor(Math.random() * 0x100000000) >>> 0) : 0;
   totalElapsedMs = 0;
   correctCount = 0;
   missCount = 0;
@@ -75,6 +95,15 @@ export function startTimeAttackRun(rule, questionCountValue, categoryFilterValue
 
 export function getCurrentTimeAttackRule() {
   return currentRule;
+}
+
+export function getCurrentTimeAttackVariant() {
+  return currentVariant;
+}
+
+// ランダム再生variantの再生開始位置の種。main.js側でcomputeRandomStartTimeSec()に渡す。
+export function getCurrentTimeAttackSeed() {
+  return currentSeed;
 }
 
 // 実行中の記録を読み取り専用で取得する（保存は一切行わない）。
@@ -187,10 +216,21 @@ const RULE_LABELS = {
 // 「タイトルへ」で中断した場合はこの関数自体が呼ばれないため、履歴にも残らない
 // （既存の通常プレイ履歴と同じ考え方）。
 export function renderTimeAttackResult() {
-  const previousBest = getTimeAttackBest(currentRule, currentQuestionCountValue, currentCategoryFilterValue);
+  const previousBest = getTimeAttackBest(
+    currentRule,
+    currentQuestionCountValue,
+    currentCategoryFilterValue,
+    currentVariant
+  );
   const isNewRecord =
     !runFailed &&
-    saveTimeAttackBestIfBetter(totalElapsedMs, currentRule, currentQuestionCountValue, currentCategoryFilterValue);
+    saveTimeAttackBestIfBetter(
+      totalElapsedMs,
+      currentRule,
+      currentQuestionCountValue,
+      currentCategoryFilterValue,
+      currentVariant
+    );
 
   // LOVE連チャンだけ「最高到達記録」も判定・保存する（成功・失敗どちらでも、
   // 到達できた問題数自体は意味のある記録のため）。他の2ルールは全問必ず最後まで進むので対象外。
@@ -199,7 +239,8 @@ export function renderTimeAttackResult() {
       perQuestionResults.length,
       totalElapsedMs,
       currentQuestionCountValue,
-      currentCategoryFilterValue
+      currentCategoryFilterValue,
+      currentVariant
     );
   }
 
@@ -215,12 +256,17 @@ export function renderTimeAttackResult() {
     failedAtQuestionNumber,
     isNewRecord,
     perQuestionResults,
+    variant: currentVariant,
   });
 
   resultElements.totalTime.textContent = `${formatSeconds(totalElapsedMs)}秒`;
   resultElements.correctCount.textContent = `${correctCount} / ${perQuestionResults.length}問`;
   resultElements.missCount.textContent = `${missCount}回`;
-  resultElements.ruleLabel.textContent = RULE_LABELS[currentRule] ?? "ノーマル";
+  // ランダム再生variantのときだけ、既存の「ルール」表示に🔀マークを添えて見分けられるようにする
+  // （イントロ形式は今までどおりの表示のまま、新しいHTML要素を増やさずに区別を伝えるための工夫）。
+  const ruleLabelText = RULE_LABELS[currentRule] ?? "ノーマル";
+  resultElements.ruleLabel.textContent =
+    currentVariant === TIME_ATTACK_VARIANT.RANDOM_PLAYBACK ? `🔀${ruleLabelText}` : ruleLabelText;
 
   resultElements.newRecordBadge.hidden = !isNewRecord;
   resultElements.failStatus.hidden = !runFailed;
@@ -230,8 +276,16 @@ export function renderTimeAttackResult() {
 
   // 称号（実績）判定。「タイトルへ」で中断した場合はこの関数自体が呼ばれないため、
   // 判定対象にはならない（既存の通常プレイと同じ考え方）。
+  //
+  // 【本人指示、2026-08-07】「ノーミスマスター」「電光石火」は、あくまで既存のイントロクイズ・
+  // イントロ形式タイムアタックだけを対象にした称号のまま変更しない。新設のランダム再生
+  // タイムアタックがこれらを勝手に満たしてしまわないよう、modeIdをintro variantとは別の
+  // 文字列にしている（js/achievementEvaluation.jsのmodeId判定に一致しないため、
+  // このmodeIdからは現時点でどの称号も付与されない）。
+  const achievementModeId =
+    currentVariant === TIME_ATTACK_VARIANT.RANDOM_PLAYBACK ? "timeAttackRandomPlayback" : "timeAttack";
   const achievementResult = evaluateAndSaveAchievements(
-    buildAchievementResultInput(getCurrentTimeAttackStats(), "timeAttack", currentQuestionCountValue)
+    buildAchievementResultInput(getCurrentTimeAttackStats(), achievementModeId, currentQuestionCountValue)
   );
   renderAchievementUnlockEvents(achievementResult.newlyUnlockedIds, {
     chipContainer: resultElements.achievementChipContainer,
@@ -257,6 +311,7 @@ export function getLastTimeAttackSelection() {
     questionCountValue: currentQuestionCountValue,
     categoryFilterValue: currentCategoryFilterValue,
     rule: currentRule,
+    variant: currentVariant,
   };
 }
 

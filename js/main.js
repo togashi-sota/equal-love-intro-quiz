@@ -69,10 +69,13 @@ import { renderCallGuideTab } from "./callGuidePanel.js";
 import { getTimeAttackBest } from "./timeAttackScore.js";
 import {
   TIME_ATTACK_RULE,
+  TIME_ATTACK_VARIANT,
   initTimeAttackScreen,
   initTimeAttackResultScreen,
   startTimeAttackRun,
   getCurrentTimeAttackRule,
+  getCurrentTimeAttackVariant,
+  getCurrentTimeAttackSeed,
   recordTimeAttackAnswer,
   registerTimeAttackMiss,
   registerTimeAttackSelection,
@@ -1983,6 +1986,23 @@ function renderQuestion() {
       markPlaybackStarted,
       () => {}
     );
+  } else if (gameState.playMode === "timeAttack" && getCurrentTimeAttackVariant() === TIME_ATTACK_VARIANT.RANDOM_PLAYBACK) {
+    // タイムアタックのランダム再生variant（2026-08-07新設）：上のスタンドアロン版
+    // 「ランダム再生クイズ」と全く同じ考え方・全く同じ既存関数（js/randomPlaybackEngine.js）を
+    // そのまま再利用し、種(seed)の取得元だけがtimeAttackScreen.js（getCurrentTimeAttackSeed）に
+    // なっている。複製ではなく、同じ計算式を別の呼び出し元から使っているだけ。
+    const seed = getCurrentTimeAttackSeed();
+    const questionIndex = gameState.currentIndex;
+    const computeStartTimeSec = (durationSec) =>
+      computeRandomStartTimeSec({ seed, songId: question.song.id, questionIndex, durationSec });
+    playSongFromRandomPosition(
+      question.song,
+      computeStartTimeSec,
+      RANDOM_PLAYBACK_DEFAULTS.playDurationSec,
+      showAudioError,
+      markPlaybackStarted,
+      () => {}
+    );
   } else if (gameState.playMode === "onlineBattle" && onlineRandomPlaybackContext) {
     // 【2026-08-08新設・Phase4】オンライン対戦のランダム再生クイズ：全端末が同じ結果になる
     // ことが必須のため、乱数計算にはonlineRandomPlaybackContext.seed（試合開始時に確定した
@@ -2802,18 +2822,20 @@ function updateTimeAttackBestChip() {
   const questionCountValue = document.querySelector('input[name="time-attack-question-count"]:checked').value;
   const categoryFilterValue = document.querySelector('input[name="time-attack-category-filter"]:checked').value;
   const rule = document.querySelector('input[name="time-attack-rule"]:checked').value;
-  const bestMs = getTimeAttackBest(rule, questionCountValue, categoryFilterValue);
+  const variant =
+    document.querySelector('input[name="time-attack-variant"]:checked')?.value ?? TIME_ATTACK_VARIANT.INTRO;
+  const bestMs = getTimeAttackBest(rule, questionCountValue, categoryFilterValue, variant);
 
   timeAttackBestChipElement.textContent =
     bestMs !== null ? `自己ベスト：${(bestMs / 1000).toFixed(2)}秒` : "自己ベスト：記録なし";
   timeAttackBestChipElement.classList.toggle("is-empty", bestMs === null);
 }
 
-// ルールも自己ベストの対象（3ルールそれぞれ別々に保存する）に含まれるため、
-// 出題数・カテゴリだけでなく、ルールを切り替えたときも表示を更新する。
+// ルール・出題タイプも自己ベストの対象（それぞれ別々に保存する）に含まれるため、
+// 出題数・カテゴリだけでなく、ルール・出題タイプを切り替えたときも表示を更新する。
 document
   .querySelectorAll(
-    'input[name="time-attack-question-count"], input[name="time-attack-category-filter"], input[name="time-attack-rule"]'
+    'input[name="time-attack-question-count"], input[name="time-attack-category-filter"], input[name="time-attack-rule"], input[name="time-attack-variant"]'
   )
   .forEach((radio) => radio.addEventListener("change", updateTimeAttackBestChip));
 
@@ -2828,7 +2850,10 @@ timeAttackSetupBackButtonElement.addEventListener("click", () => {
 // 実際の問題生成はjs/timeAttackScreen.jsのbuildTimeAttackQuestions()に任せている
 // （既存のfilterSongsByCategory・validatePoolSize・resolveQuestionCount・buildQuizQuestionsを
 // 内部でそのまま再利用しているだけで、出題ロジック自体には一切手を加えていない）。
-function beginTimeAttackQuiz(questionCountValue, categoryFilterValue, rule) {
+function beginTimeAttackQuiz(questionCountValue, categoryFilterValue, rule, variant = TIME_ATTACK_VARIANT.INTRO) {
+  // 出題タイプ（イントロ／ランダム再生）は「音源をどこから再生するか」だけの違いで、
+  // 出題する曲・4択の作り方自体はどちらも同じため、問題生成はvariantによらず共通のまま
+  // （実際の再生開始位置の計算はshowQuestion()側でvariantを見て分岐する）。
   const questions = buildTimeAttackQuestions(questionCountValue, categoryFilterValue);
 
   if (!questions) {
@@ -2838,7 +2863,7 @@ function beginTimeAttackQuiz(questionCountValue, categoryFilterValue, rule) {
   }
 
   timeAttackStartErrorElement.hidden = true;
-  startTimeAttackRun(rule, questionCountValue, categoryFilterValue);
+  startTimeAttackRun(rule, questionCountValue, categoryFilterValue, variant);
   startTimeAttackQuiz(questions, questionCountValue, categoryFilterValue);
   renderQuestion();
   showScreen("quiz");
@@ -2846,9 +2871,9 @@ function beginTimeAttackQuiz(questionCountValue, categoryFilterValue, rule) {
 
 initTimeAttackScreen({
   startButton: timeAttackStartButtonElement,
-  onStart: (questionCountValue, categoryFilterValue, rule) => {
+  onStart: (questionCountValue, categoryFilterValue, rule, variant) => {
     playClickSound();
-    beginTimeAttackQuiz(questionCountValue, categoryFilterValue, rule);
+    beginTimeAttackQuiz(questionCountValue, categoryFilterValue, rule, variant);
   },
 });
 
@@ -2867,8 +2892,8 @@ initTimeAttackResultScreen({
 // 「もう一度挑戦する」：直前と同じ出題数・カテゴリ・ルールのまま、問題を再抽選して開始する。
 timeAttackResultRetryButtonElement.addEventListener("click", () => {
   playClickSound();
-  const { questionCountValue, categoryFilterValue, rule } = getLastTimeAttackSelection();
-  beginTimeAttackQuiz(questionCountValue, categoryFilterValue, rule);
+  const { questionCountValue, categoryFilterValue, rule, variant } = getLastTimeAttackSelection();
+  beginTimeAttackQuiz(questionCountValue, categoryFilterValue, rule, variant);
 });
 
 // 「タイムアタック設定へ戻る」：条件を変えて挑戦し直したいときの導線。設定画面のラジオボタンは

@@ -63,6 +63,9 @@
     import { runPublicProfilePayloadsTests } from "./tests/publicProfilePayloads.test.js";
     import { runFanProfileCardTests } from "./tests/fanProfileCard.test.js";
     import { runMembersScreenTests } from "./tests/membersScreen.test.js";
+    import { runTimeAttackScoreTests } from "./tests/timeAttackScore.test.js";
+    import { runTimeAttackHistoryTests } from "./tests/timeAttackHistory.test.js";
+    import { runTimeAttackScreenTests } from "./tests/timeAttackScreen.test.js";
     import { printSummary } from "./tests/test-utils.js";
 
     runScoreTests();
@@ -103,6 +106,9 @@
     runPublicProfilePayloadsTests();
     runFanProfileCardTests();
     runMembersScreenTests();
+    runTimeAttackScoreTests();
+    runTimeAttackHistoryTests();
+    runTimeAttackScreenTests();
     const { passCount, failCount } = printSummary();
 
     const summaryElement = document.getElementById("test-summary");

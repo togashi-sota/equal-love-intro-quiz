@@ -63,6 +63,7 @@ export function saveTimeAttackHistoryEntry({
   failedAtQuestionNumber,
   isNewRecord,
   perQuestionResults,
+  variant = "intro",
 }) {
   const data = loadHistoryData();
   const activePlayer = getActivePlayer();
@@ -75,6 +76,9 @@ export function saveTimeAttackHistoryEntry({
     questionCountValue,
     categoryFilterValue,
     rule,
+    // 出題タイプ（2026-08-07追加）。この項目が無い古い履歴データは、すべてイントロ形式で
+    // 記録されたものなので、読み取り側は entry.variant ?? "intro" として扱えばよい。
+    variant,
     totalElapsedMs: roundMs(totalElapsedMs),
     correctCount,
     missCount,

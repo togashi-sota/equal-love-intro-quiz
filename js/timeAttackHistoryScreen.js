@@ -9,6 +9,9 @@ import { getTimeAttackHistoryEntries } from "./timeAttackHistory.js";
 const QUESTION_COUNT_LABELS = { "5": "5問", "10": "10問", "20": "20問", "50": "50問", all: "全問" };
 const CATEGORY_LABELS = { all: "全曲", "title-and-group": "表題＋全員", "title-track": "表題のみ" };
 const RULE_LABELS = { normal: "ノーマル", hard: "ハード", loveChain: "LOVE連チャン" };
+// 出題タイプ（2026-08-07追加）。古い履歴データにはentry.variant自体が無いため、
+// 未設定は従来通りイントロ形式として扱う（entry.variant ?? "intro"）。
+const VARIANT_LABELS = { intro: "🎧イントロ", randomPlayback: "🔀ランダム再生" };
 
 // この画面が使うDOM要素一式。initTimeAttackHistoryScreen()で受け取って保持する。
 let elements = null;
@@ -67,7 +70,8 @@ function buildHistoryEntryCard(entry) {
   const questionCountLabel = QUESTION_COUNT_LABELS[entry.questionCountValue] ?? entry.questionCountValue;
   const categoryLabel = CATEGORY_LABELS[entry.categoryFilterValue] ?? entry.categoryFilterValue;
   const ruleLabel = RULE_LABELS[entry.rule] ?? entry.rule;
-  modeLine.textContent = `${questionCountLabel}・${categoryLabel}・${ruleLabel}`;
+  const variantLabel = VARIANT_LABELS[entry.variant ?? "intro"] ?? VARIANT_LABELS.intro;
+  modeLine.textContent = `${variantLabel}・${questionCountLabel}・${categoryLabel}・${ruleLabel}`;
   content.appendChild(modeLine);
 
   // クリアした回はタイムを主役に、LOVE連チャンで失敗した回は「何問目で終わったか」を主役にする

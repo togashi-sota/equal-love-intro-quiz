@@ -9,34 +9,40 @@
 // ルール（ノーマル／ハード／LOVE連チャン）ごとに、そもそも進み方が違うため単純に
 // タイムだけ比べても意味がない（2026-08-06追加）。そのため、キーに出題数・カテゴリだけでなく
 // ルールも含めて、3ルールそれぞれ完全に別々の自己ベストとして扱う。
+//
+// 【2026-08-07追加】出題タイプ（variant: "intro" | "randomPlayback"）ごとにも自己ベストを分ける。
+// 既存プレイヤーの記録を一切失わせないため、variantが"intro"（省略時のデフォルト）のときは
+// 今までと完全に同じキー文字列になるようにしている（キーにvariant自体を含めない）。
+// ランダム再生タイムアタックだけ、キーに"randomPlayback."を挟んだ別名前空間を新設する。
 import { getPlayerKeyPrefix } from "./playerProfile.js";
 
-function buildTimeAttackKey(rule, questionCountValue, categoryFilterValue) {
-  return `equalLoveIntroQuiz.${getPlayerKeyPrefix()}timeAttackBest.${rule}.${questionCountValue}.${categoryFilterValue}`;
+function buildTimeAttackKey(rule, questionCountValue, categoryFilterValue, variant = "intro") {
+  const variantSegment = variant === "intro" ? "" : `${variant}.`;
+  return `equalLoveIntroQuiz.${getPlayerKeyPrefix()}timeAttackBest.${variantSegment}${rule}.${questionCountValue}.${categoryFilterValue}`;
 }
 
-// 指定したルール・出題数・カテゴリの組み合わせにおける自己ベスト（合計タイム、ミリ秒）を取得する。
-// 未保存、または読み込みに失敗した場合はnullを返す（0秒ではなく「記録なし」を明示するため）。
-export function getTimeAttackBest(rule, questionCountValue, categoryFilterValue) {
+// 指定した出題タイプ・ルール・出題数・カテゴリの組み合わせにおける自己ベスト（合計タイム、ミリ秒）を
+// 取得する。未保存、または読み込みに失敗した場合はnullを返す（0秒ではなく「記録なし」を明示するため）。
+export function getTimeAttackBest(rule, questionCountValue, categoryFilterValue, variant = "intro") {
   try {
-    const stored = localStorage.getItem(buildTimeAttackKey(rule, questionCountValue, categoryFilterValue));
+    const stored = localStorage.getItem(buildTimeAttackKey(rule, questionCountValue, categoryFilterValue, variant));
     return stored ? Number(stored) : null;
   } catch {
     return null;
   }
 }
 
-// 今回の合計タイムが、同じルール・出題数・カテゴリの組み合わせでの自己ベストより短ければ保存する。
-// 新記録だったかどうかを返す（自己ベストが無い状態からの初記録も、新記録として扱う）。
-export function saveTimeAttackBestIfBetter(totalElapsedMs, rule, questionCountValue, categoryFilterValue) {
-  const currentBest = getTimeAttackBest(rule, questionCountValue, categoryFilterValue);
+// 今回の合計タイムが、同じ出題タイプ・ルール・出題数・カテゴリの組み合わせでの自己ベストより
+// 短ければ保存する。新記録だったかどうかを返す（自己ベストが無い状態からの初記録も、新記録として扱う）。
+export function saveTimeAttackBestIfBetter(totalElapsedMs, rule, questionCountValue, categoryFilterValue, variant = "intro") {
+  const currentBest = getTimeAttackBest(rule, questionCountValue, categoryFilterValue, variant);
   if (currentBest !== null && totalElapsedMs >= currentBest) {
     return false;
   }
 
   try {
     localStorage.setItem(
-      buildTimeAttackKey(rule, questionCountValue, categoryFilterValue),
+      buildTimeAttackKey(rule, questionCountValue, categoryFilterValue, variant),
       String(totalElapsedMs)
     );
   } catch {
@@ -51,15 +57,18 @@ export function saveTimeAttackBestIfBetter(totalElapsedMs, rule, questionCountVa
 // 別の記録として残したい、という要望に応えるためのもの。
 // ルールはLOVE連チャンでしか意味を持たないため、キーにルールは含めない
 // （出題数・カテゴリの組み合わせごとに1つだけ）。
-function buildTimeAttackBestReachKey(questionCountValue, categoryFilterValue) {
-  return `equalLoveIntroQuiz.${getPlayerKeyPrefix()}timeAttackBestReach.${questionCountValue}.${categoryFilterValue}`;
+// variantの扱いは上のtimeAttackBestキーと同じ考え方（"intro"は既存キーのまま、
+// randomPlaybackだけ別名前空間）。
+function buildTimeAttackBestReachKey(questionCountValue, categoryFilterValue, variant = "intro") {
+  const variantSegment = variant === "intro" ? "" : `${variant}.`;
+  return `equalLoveIntroQuiz.${getPlayerKeyPrefix()}timeAttackBestReach.${variantSegment}${questionCountValue}.${categoryFilterValue}`;
 }
 
 // 保存されている最高到達記録（{ questionsReached, elapsedMs }）を取得する。
 // questionsReachedは「何問目まで到達したか」（全問クリアならその出題数と同じ値になる）。
-export function getTimeAttackBestReach(questionCountValue, categoryFilterValue) {
+export function getTimeAttackBestReach(questionCountValue, categoryFilterValue, variant = "intro") {
   try {
-    const stored = localStorage.getItem(buildTimeAttackBestReachKey(questionCountValue, categoryFilterValue));
+    const stored = localStorage.getItem(buildTimeAttackBestReachKey(questionCountValue, categoryFilterValue, variant));
     return stored ? JSON.parse(stored) : null;
   } catch {
     return null;
@@ -69,8 +78,8 @@ export function getTimeAttackBestReach(questionCountValue, categoryFilterValue) 
 // 今回の到達記録が、保存済みの記録より良ければ保存する。
 // 比較は「①到達問題数が多い方が良い、②同じ到達問題数なら経過時間が短い方が良い」の2段階。
 // 新記録だったかどうかを返す。
-export function saveTimeAttackBestReachIfBetter(questionsReached, elapsedMs, questionCountValue, categoryFilterValue) {
-  const current = getTimeAttackBestReach(questionCountValue, categoryFilterValue);
+export function saveTimeAttackBestReachIfBetter(questionsReached, elapsedMs, questionCountValue, categoryFilterValue, variant = "intro") {
+  const current = getTimeAttackBestReach(questionCountValue, categoryFilterValue, variant);
   const isBetter =
     current === null ||
     questionsReached > current.questionsReached ||
@@ -82,7 +91,7 @@ export function saveTimeAttackBestReachIfBetter(questionsReached, elapsedMs, que
 
   try {
     localStorage.setItem(
-      buildTimeAttackBestReachKey(questionCountValue, categoryFilterValue),
+      buildTimeAttackBestReachKey(questionCountValue, categoryFilterValue, variant),
       JSON.stringify({ questionsReached, elapsedMs })
     );
   } catch {
