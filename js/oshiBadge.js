@@ -4,17 +4,25 @@
 // どちらも装飾のみでクリック操作を邪魔しないよう、CSS側でpointer-events:noneにする
 // （js/style.cssの.oshi-badge-crown/.oshi-badge-diamond参照）。
 //
-// 【今回のスコープ】本人指示どおり、まずは端末内で完結する画面（ホーム画面の推し表示）に
-// 適用する。オンライン対戦の参加者一覧・結果画面など、他プレイヤーの称号状態をFirebase経由で
-// 共有する必要がある箇所は、今回は同期の規模が大きくなるため保留とし、最終報告で明記する
-// （Firebaseのスキーマ・セキュリティルールは一切変更していない）。
+// 【2026-08-07拡張】「みんなのプロフィール」機能で、自分以外のユーザー（Firebaseの公開
+// プロフィール）にも同じ王冠・ダイヤ装飾を表示する必要が生じたため、クラスの付け外し部分を
+// applyOshiBadgeDecorationsFromState()として切り出した。ローカルの自分用（
+// applyOshiBadgeDecorations、今までどおりgetOshiBadgeState()でlocalStorageを読む）と、
+// 他人の公開プロフィール用（呼び出し側がFirebaseから取得したbooleanを渡す）の両方が、
+// 同じCSSクラス・同じ見た目のロジックを共有する（本人指示：「別実装にせず、現在の共通装飾
+// ロジックを再利用する」）。
 import { getOshiBadgeState } from "./achievementProgress.js";
 
-// 対象の要素（推しアイコンのスワッチ等）へ、現在の称号状態に応じたクラスを付け外しする。
-// element自体の位置づけは問わない（position:relativeであることを呼び出し側のCSSで保証する）。
-export function applyOshiBadgeDecorations(element) {
+// 対象の要素へ、渡された称号取得状態に応じたクラスを付け外しする（純粋な見た目の適用のみ、
+// データの取得元は問わない）。element自体の位置づけは問わない（position:relativeであることを
+// 呼び出し側のCSSで保証する）。
+export function applyOshiBadgeDecorationsFromState(element, { hasEqualLoveMaster, hasEqualLoveComplete }) {
   if (!element) return;
-  const { hasEqualLoveMaster, hasEqualLoveComplete } = getOshiBadgeState();
   element.classList.toggle("has-equal-love-master", hasEqualLoveMaster);
   element.classList.toggle("has-equal-love-complete", hasEqualLoveComplete);
+}
+
+// 今の端末・今のプレイヤーの称号状態（localStorage）を使って装飾する、従来どおりの入口。
+export function applyOshiBadgeDecorations(element) {
+  applyOshiBadgeDecorationsFromState(element, getOshiBadgeState());
 }

@@ -5835,6 +5835,179 @@ fieldset label:has(input:focus-visible) {
   pointer-events: none;
 }
 
+/* ===== みんなのプロフィール（js/fanProfilesScreen.js、2026-08-07新設） =====
+   このアプリを使っているファン同士で、表示名・推し・称号を見せ合える一覧画面。
+   対戦・ランキングではないため、派手な演出やスコア表示は使わず、白・ピンク・パステルの
+   既存トーンに合わせた落ち着いたカードにする（本人指示）。 */
+
+.fan-profiles-settings-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  border-radius: 16px;
+  background: linear-gradient(165deg, #ffffff, var(--color-primary-light) 220%);
+  border: 1px solid rgba(255, 111, 168, 0.3);
+}
+
+.fan-profiles-settings-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.fan-profiles-settings-title {
+  margin: 0 0 2px;
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+}
+
+.fan-profiles-settings-description {
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  opacity: 0.8;
+}
+
+.fan-profiles-loading,
+.fan-profiles-empty {
+  padding: 24px 16px;
+  text-align: center;
+  font-size: 0.82rem;
+  line-height: 1.6;
+  opacity: 0.75;
+}
+
+.fan-profile-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px;
+  margin-bottom: 10px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid var(--color-card-border);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.fan-profile-card:active {
+  transform: scale(0.99);
+}
+
+.fan-profile-swatch {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  color: #fff;
+  box-shadow: 0 4px 10px -4px rgba(0, 0, 0, 0.3), inset 0 -3px 6px rgba(0, 0, 0, 0.1);
+}
+
+.fan-profile-swatch.is-placeholder {
+  background: linear-gradient(145deg, #e8dde3, #d8c8d2);
+}
+
+.fan-profile-card-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.fan-profile-card-name {
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  line-height: 1.3;
+  overflow-wrap: break-word; /* 長い表示名も省略せず2行まで折り返す（称号名と同じ方針） */
+}
+
+.fan-profile-card-oshi,
+.fan-profile-card-meta {
+  font-size: 0.76rem;
+  line-height: 1.4;
+  opacity: 0.8;
+}
+
+.fan-profile-card-chevron {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--color-primary);
+  opacity: 0.6;
+}
+
+/* 375px幅ではプロフィールカードは1列（本人指示に基づき、名前・推し・称号の3行を
+   ゆったり読めるよう、特別モードの2列カードとは違い常に横に長い1行カードにする）。 */
+
+.fan-profile-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 4px 0 14px;
+}
+
+.fan-profile-detail-swatch {
+  flex: none;
+}
+
+.fan-profile-detail-swatch .fan-profile-swatch {
+  width: 52px;
+  height: 52px;
+}
+
+.fan-profile-detail-oshi {
+  margin: 2px 0 0;
+  font-size: 0.8rem;
+  opacity: 0.75;
+}
+
+.fan-profile-achievement-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.fan-profile-achievement-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid var(--color-card-border);
+}
+
+.fan-profile-achievement-name {
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--color-primary-dark);
+  overflow-wrap: break-word;
+}
+
+.fan-profile-achievement-empty {
+  padding: 12px 4px;
+  font-size: 0.8rem;
+  opacity: 0.75;
+}
+
+@media (max-width: 380px) {
+  .fan-profile-achievement-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .player-hero-text {
   flex: 1;
   min-width: 0;

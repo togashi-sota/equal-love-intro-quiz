@@ -12,6 +12,7 @@ const SCREEN_ELEMENTS = {
   history: document.getElementById("history-screen"),
   historyDetail: document.getElementById("history-detail-screen"),
   specialModes: document.getElementById("special-modes-screen"),
+  fanProfiles: document.getElementById("fan-profiles-screen"),
   weakSongs: document.getElementById("weak-songs-screen"),
   liveCallModeList: document.getElementById("live-call-mode-list-screen"),
   liveCallModePlayer: document.getElementById("live-call-mode-player-screen"),

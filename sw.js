@@ -7,7 +7,7 @@
 //
 // 新しいバージョンを配信したいときは、CACHE_VERSIONの値を必ず上げること。
 // 上げないと、ブラウザが「内容が変わっていない」と判断し、更新が反映されない。
-const CACHE_VERSION = "v131";
+const CACHE_VERSION = "v132";
 const CACHE_NAME = `equal-love-intro-quiz-${CACHE_VERSION}`;
 
 // キャッシュするアプリ本体のファイル一覧。
@@ -103,6 +103,10 @@ const APP_SHELL_FILES = [
   "./js/playerProfile.js",
   "./js/playerScreen.js",
   "./js/oshiMembers.js",
+  "./js/fanProfilesScreen.js",
+  "./js/fanProfileCard.js",
+  "./js/publicProfileSync.js",
+  "./js/publicProfilePayloads.js",
   "./js/favoriteSongs.js",
   "./js/playlists.js",
   "./js/playlistScreen.js",

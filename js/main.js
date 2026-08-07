@@ -166,6 +166,9 @@ import { LIVE_EVENTS } from "./data/liveHistory.js";
 import { initDiscographyScreen, renderDiscographyScreen, openWorkDetail } from "./discographyScreen.js";
 import { initMembersScreen, renderMembersScreen, openMemberDetail } from "./membersScreen.js";
 import { initPlayerScreen, renderPlayerSummary } from "./playerScreen.js";
+import { getPlayerKeyPrefix } from "./playerProfile.js";
+import { initFanProfilesScreen, renderFanProfilesScreen } from "./fanProfilesScreen.js";
+import { syncPublicProfileIfEnabled } from "./publicProfileSync.js";
 import { getFavoriteSongIds } from "./favoriteSongs.js";
 import { getPlaylists } from "./playlists.js";
 import { initPlaylistScreen, renderPlaylistList, renderPlaylistDetail } from "./playlistScreen.js";
@@ -385,6 +388,17 @@ let historyListScrollY = 0;
 // タイムアタック履歴一覧についても、通常プレイ履歴と同じ考え方でスクロール位置を覚えておく。
 let timeAttackHistoryListScrollY = 0;
 const specialModesBackButtonElement = document.getElementById("special-modes-back-button");
+const fanProfilesLinkElement = document.getElementById("fan-profiles-link");
+const fanProfilesBackButtonElement = document.getElementById("fan-profiles-back-button");
+const fanProfilesSharingToggleElement = document.getElementById("fan-profiles-sharing-toggle");
+const fanProfilesSharingToggleLabelElement = document.getElementById("fan-profiles-sharing-toggle-label");
+const fanProfilesListElement = document.getElementById("fan-profiles-list");
+const fanProfileDetailOverlayElement = document.getElementById("fan-profile-detail-modal");
+const fanProfileDetailCloseButtonElement = document.getElementById("fan-profile-detail-close");
+const fanProfileDetailSwatchElement = document.getElementById("fan-profile-detail-swatch");
+const fanProfileDetailNameElement = document.getElementById("fan-profile-detail-name");
+const fanProfileDetailOshiElement = document.getElementById("fan-profile-detail-oshi");
+const fanProfileDetailAchievementsElement = document.getElementById("fan-profile-detail-achievements");
 const weakSongsBackButtonElement = document.getElementById("weak-songs-back-button");
 const liveCallModeListBackButtonElement = document.getElementById("live-call-mode-list-back-button");
 const liveCallModePlayerBackButtonElement = document.getElementById("live-call-mode-player-back-button");
@@ -1016,6 +1030,22 @@ initMembersScreen({
   },
 });
 
+// 「みんなのプロフィール」画面：公開設定トグル・一覧・詳細モーダル（2026-08-07新設）。
+initFanProfilesScreen(
+  {
+    sharingToggleButton: fanProfilesSharingToggleElement,
+    sharingToggleLabel: fanProfilesSharingToggleLabelElement,
+    listContainer: fanProfilesListElement,
+    detailOverlay: fanProfileDetailOverlayElement,
+    detailCloseButton: fanProfileDetailCloseButtonElement,
+    detailSwatch: fanProfileDetailSwatchElement,
+    detailName: fanProfileDetailNameElement,
+    detailOshi: fanProfileDetailOshiElement,
+    detailAchievementList: fanProfileDetailAchievementsElement,
+  },
+  MEMBERS
+);
+
 // スタート画面のプレイヤー名・推しメン表示と、プレイヤー管理モーダル（2026-08-03追加）。
 initPlayerScreen(
   {
@@ -1057,9 +1087,16 @@ initPlayerScreen(
 // スタート画面（推しアイコン）に戻るたびに、王冠・ダイヤの表示を最新の状態にし直す
 // （2026-08-07追加。タイムアタック・ランダム再生クイズ・歌詞クイズの結果画面で
 // ＝LOVEマスター等を新規獲得した場合でも、ホームへ戻ってきた時点で必ず反映されるようにする）。
+//
+// 同じタイミングで、公開プロフィール（オン中のユーザーのみ）もFirebaseへ同期する
+// （2026-08-07追加）。表示名変更・推し変更・新しい称号獲得は、いずれもこのタイミングで
+// 必ずスタート画面を経由するため、呼び出し箇所を1つにまとめられる（本人指示のとおり
+// 「変更があった時だけ更新」は、publicProfileSync.js内の内容比較で担保している。
+// awaitしない＝プレイの流れを一切ブロックしない、失敗してもここで握りつぶす設計）。
 onScreenChange((screenName) => {
   if (screenName === "start") {
     renderPlayerSummary();
+    syncPublicProfileIfEnabled(getPlayerKeyPrefix());
   }
 });
 
@@ -2633,6 +2670,18 @@ historyLinkElement.addEventListener("click", () => {
   playClickSound();
   renderHistoryScreen();
   navigateWithScrollMemory("history");
+});
+
+// 「みんなのプロフィール」リンク：開くたびに公開設定・一覧を最新の状態で描画し直す。
+fanProfilesLinkElement.addEventListener("click", () => {
+  playClickSound();
+  renderFanProfilesScreen();
+  navigateWithScrollMemory("fanProfiles");
+});
+
+fanProfilesBackButtonElement.addEventListener("click", () => {
+  playClickSound();
+  navigateWithScrollMemory("start");
 });
 
 // プレイ履歴画面の「戻る」：スタート画面へ戻る。
