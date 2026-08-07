@@ -274,6 +274,23 @@ export function renderTimeAttackResult() {
     resultElements.failStatus.textContent = `${perQuestionResults.length}問目で失敗しました（LOVE連チャンは全問クリアのタイムだけが記録されます）`;
   }
 
+  // グローバルランキングへの送信（2026-08-07追加）。このファイル自体はFirebaseに一切触れない
+  // 設計を保つため、実際の送信処理はmain.js側のonNewRecordコールバックに任せる
+  // （js/achievementDisplay.jsの称号演出と同じ、コールバック注入のパターン）。
+  // 毎回まず非表示にリセットし、新記録のときだけmain.js側が表示・文言を差し替える。
+  if (resultElements.leaderboardStatus) {
+    resultElements.leaderboardStatus.hidden = true;
+  }
+  if (isNewRecord) {
+    resultElements.onNewRecord?.({
+      variant: currentVariant,
+      questionCountValue: currentQuestionCountValue,
+      rule: currentRule,
+      totalElapsedMs,
+      missCount,
+    });
+  }
+
   // 称号（実績）判定。「タイトルへ」で中断した場合はこの関数自体が呼ばれないため、
   // 判定対象にはならない（既存の通常プレイと同じ考え方）。
   //

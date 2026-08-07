@@ -1379,6 +1379,8 @@
       <!-- タイムアタック専用の履歴一覧への入口（2026-08-06追加）。通常プレイ履歴とは
            完全に別画面・別データなので、ここからしか辿り着けない導線にしている。 -->
       <button id="time-attack-history-link" class="secondary-button time-attack-history-link" type="button">タイムアタック履歴</button>
+      <!-- グローバルランキング（TOP10）への入口（2026-08-07追加）。 -->
+      <button id="time-attack-leaderboard-link" class="secondary-button time-attack-history-link" type="button">🏆 ランキングを見る</button>
     </section>
 
     <!-- タイムアタック：結果画面。合計タイム・正解数・ミス数・自己ベスト更新の有無を表示する。
@@ -1421,6 +1423,9 @@
       </div>
 
       <p id="time-attack-result-best-time" class="time-attack-result-best-time" hidden></p>
+      <!-- ランキングへの送信状況（2026-08-07追加）。自己ベスト更新時だけ、非公開/オフライン/
+           送信失敗/送信成功のいずれかを案内する。DOM操作はjs/main.jsが行う。 -->
+      <p id="time-attack-result-leaderboard-status" class="time-attack-result-leaderboard-status" hidden></p>
 
       <!-- 称号（実績）の獲得演出（2026-08-07追加）。中身はjs/achievementDisplay.jsが組み立てる。
            イントロクイズの結果画面（#title-event-list）と全く同じ仕組みを、タイムアタックにも
@@ -1434,6 +1439,43 @@
       <div class="time-attack-result-actions">
         <button id="time-attack-result-retry-button" class="primary-button" type="button">もう一度挑戦する</button>
         <button id="time-attack-result-setup-button" class="secondary-button time-attack-result-setup-button" type="button">← タイムアタック設定へ戻る</button>
+        <button id="time-attack-result-leaderboard-link" class="secondary-button time-attack-result-setup-button" type="button">🏆 ランキングを見る</button>
+      </div>
+    </section>
+
+    <!-- タイムアタック：グローバルランキング（TOP10）画面（2026-08-07新設）。
+         イントロ／ランダム再生 × 5/10/20/50/全曲、それぞれ完全に別々のランキングとして表示する。
+         中身の組み立てはjs/timeAttackLeaderboardScreen.jsが担当する。 -->
+    <section id="time-attack-leaderboard-screen" class="screen">
+      <div class="list-header">
+        <button id="time-attack-leaderboard-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            LEADERBOARD
+          </p>
+          <h2>タイムアタックランキング</h2>
+        </div>
+      </div>
+
+      <p class="special-modes-intro">出題タイプ・出題数ごとに、クリアタイムが速い順のTOP10を表示します。ランキングに参加するには「みんなのプロフィール」の公開設定をONにしてください。</p>
+
+      <div id="time-attack-leaderboard-variant-tabs" class="leaderboard-tab-row"></div>
+      <div id="time-attack-leaderboard-question-count-tabs" class="leaderboard-tab-row"></div>
+
+      <p id="time-attack-leaderboard-loading" class="leaderboard-state-note" hidden>読み込み中…</p>
+      <p id="time-attack-leaderboard-offline" class="leaderboard-state-note" hidden>ランキングはオンライン時に表示できます。</p>
+      <p id="time-attack-leaderboard-empty" class="leaderboard-state-note" hidden>まだ記録がありません。最初の1件を目指しましょう。</p>
+
+      <div id="time-attack-leaderboard-list" class="leaderboard-list" hidden></div>
+
+      <div id="time-attack-leaderboard-my-record" class="leaderboard-my-record" hidden>
+        <p id="time-attack-leaderboard-my-record-text"></p>
       </div>
     </section>
 

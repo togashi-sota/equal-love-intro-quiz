@@ -86,6 +86,11 @@ import {
   getCurrentTimeAttackStats,
 } from "./timeAttackScreen.js";
 import { initTimeAttackHistoryScreen, renderTimeAttackHistoryScreen } from "./timeAttackHistoryScreen.js";
+import { submitTimeAttackScoreIfBetter } from "./timeAttackLeaderboardSync.js";
+import {
+  initTimeAttackLeaderboardScreen,
+  showTimeAttackLeaderboard,
+} from "./timeAttackLeaderboardScreen.js";
 import {
   initTimeAttackHistoryDetailScreen,
   renderTimeAttackHistoryDetail,
@@ -433,16 +438,30 @@ const timeAttackResultCorrectCountElement = document.getElementById("time-attack
 const timeAttackResultMissCountElement = document.getElementById("time-attack-result-miss-count");
 const timeAttackResultRuleLabelElement = document.getElementById("time-attack-result-rule-label");
 const timeAttackResultBestTimeElement = document.getElementById("time-attack-result-best-time");
+const timeAttackResultLeaderboardStatusElement = document.getElementById("time-attack-result-leaderboard-status");
 const timeAttackResultAchievementListElement = document.getElementById("time-attack-result-achievement-list");
 const timeAttackResultAchievementListLinkElement = document.getElementById("time-attack-result-achievement-list-link");
 const timeAttackResultRetryButtonElement = document.getElementById("time-attack-result-retry-button");
 const timeAttackResultSetupButtonElement = document.getElementById("time-attack-result-setup-button");
 const timeAttackResultHomeLinkElement = document.getElementById("time-attack-result-home-link");
+const timeAttackResultLeaderboardLinkElement = document.getElementById("time-attack-result-leaderboard-link");
 const timeAttackHistoryLinkElement = document.getElementById("time-attack-history-link");
 const timeAttackHistoryBackButtonElement = document.getElementById("time-attack-history-back-button");
 const timeAttackHistoryEmptyStateElement = document.getElementById("time-attack-history-empty-state");
 const timeAttackHistoryListElement = document.getElementById("time-attack-history-list");
 const timeAttackHistoryDetailBackButtonElement = document.getElementById("time-attack-history-detail-back-button");
+const timeAttackLeaderboardLinkElement = document.getElementById("time-attack-leaderboard-link");
+const timeAttackLeaderboardBackButtonElement = document.getElementById("time-attack-leaderboard-back-button");
+const timeAttackLeaderboardVariantTabsElement = document.getElementById("time-attack-leaderboard-variant-tabs");
+const timeAttackLeaderboardQuestionCountTabsElement = document.getElementById(
+  "time-attack-leaderboard-question-count-tabs"
+);
+const timeAttackLeaderboardLoadingElement = document.getElementById("time-attack-leaderboard-loading");
+const timeAttackLeaderboardOfflineElement = document.getElementById("time-attack-leaderboard-offline");
+const timeAttackLeaderboardEmptyElement = document.getElementById("time-attack-leaderboard-empty");
+const timeAttackLeaderboardListElement = document.getElementById("time-attack-leaderboard-list");
+const timeAttackLeaderboardMyRecordElement = document.getElementById("time-attack-leaderboard-my-record");
+const timeAttackLeaderboardMyRecordTextElement = document.getElementById("time-attack-leaderboard-my-record-text");
 const randomPlaybackSetupBackButtonElement = document.getElementById("random-playback-setup-back-button");
 const randomPlaybackStartButtonElement = document.getElementById("random-playback-start-button");
 const randomPlaybackStartErrorElement = document.getElementById("random-playback-start-error");
@@ -2887,6 +2906,36 @@ initTimeAttackResultScreen({
   bestTime: timeAttackResultBestTimeElement,
   achievementChipContainer: timeAttackResultAchievementListElement,
   achievementListLink: timeAttackResultAchievementListLinkElement,
+  leaderboardStatus: timeAttackResultLeaderboardStatusElement,
+  // グローバルランキングへの送信（2026-08-07追加）。ローカルの自己ベスト更新が確定した
+  // ときだけ呼ばれる（js/timeAttackScreen.jsのrenderTimeAttackResult参照）。
+  // 呼び出し側（結果画面の表示）を絶対にブロックしないよう、awaitせず呼び捨てる
+  // （js/publicProfileSync.jsのsyncPublicProfileIfEnabled()と同じ設計方針）。
+  onNewRecord: ({ variant, questionCountValue, totalElapsedMs, missCount }) => {
+    timeAttackResultLeaderboardStatusElement.hidden = false;
+    timeAttackResultLeaderboardStatusElement.textContent = "ランキングを確認しています…";
+    submitTimeAttackScoreIfBetter({
+      variant,
+      questionCountValue,
+      clearTimeMs: totalElapsedMs,
+      missCount,
+      playerKeyPrefix: getPlayerKeyPrefix(),
+    }).then((result) => {
+      if (!result.ok) {
+        const messageByReason = {
+          "privacy-disabled": "「みんなのプロフィール」を公開するとランキングに参加できます",
+          offline: "オフラインのため、ランキングへの送信はできませんでした",
+          error: "ランキングへの送信に失敗しました",
+        };
+        timeAttackResultLeaderboardStatusElement.textContent =
+          messageByReason[result.reason] ?? "ランキングへの送信に失敗しました";
+        return;
+      }
+      timeAttackResultLeaderboardStatusElement.textContent = result.updated
+        ? "🏆 ランキングの記録を更新しました！"
+        : "ランキング上の記録はすでにこのタイム以上でした";
+    });
+  },
 });
 
 // 「もう一度挑戦する」：直前と同じ出題数・カテゴリ・ルールのまま、問題を再抽選して開始する。
@@ -2910,6 +2959,50 @@ timeAttackResultSetupButtonElement.addEventListener("click", () => {
 timeAttackResultHomeLinkElement.addEventListener("click", () => {
   playClickSound();
   showScreen("start");
+});
+
+// ===== タイムアタック：グローバルランキング（TOP10、2026-08-07新設） =====
+// どこから戻るかを覚えておき、「戻る」で元の画面（設定 or 結果）へ戻す
+// （js/timeAttackHistoryScreen.jsのスクロール位置記憶と同じ「呼び出し元を覚えておく」考え方）。
+let timeAttackLeaderboardReturnScreen = "timeAttackSetup";
+
+initTimeAttackLeaderboardScreen(
+  {
+    variantTabs: timeAttackLeaderboardVariantTabsElement,
+    questionCountTabs: timeAttackLeaderboardQuestionCountTabsElement,
+    loadingState: timeAttackLeaderboardLoadingElement,
+    offlineState: timeAttackLeaderboardOfflineElement,
+    emptyState: timeAttackLeaderboardEmptyElement,
+    listContainer: timeAttackLeaderboardListElement,
+    myRecordSection: timeAttackLeaderboardMyRecordElement,
+    myRecordText: timeAttackLeaderboardMyRecordTextElement,
+    backButton: timeAttackLeaderboardBackButtonElement,
+    onBack: () => {
+      playClickSound();
+      showScreen(timeAttackLeaderboardReturnScreen);
+    },
+  },
+  MEMBERS
+);
+
+// タイムアタック設定画面から：今選んでいる出題タイプ・出題数のランキングを最初に表示する。
+timeAttackLeaderboardLinkElement.addEventListener("click", () => {
+  playClickSound();
+  const questionCountValue = document.querySelector('input[name="time-attack-question-count"]:checked').value;
+  const variant =
+    document.querySelector('input[name="time-attack-variant"]:checked')?.value ?? TIME_ATTACK_VARIANT.INTRO;
+  timeAttackLeaderboardReturnScreen = "timeAttackSetup";
+  showTimeAttackLeaderboard(variant, questionCountValue);
+  showScreen("timeAttackLeaderboard");
+});
+
+// タイムアタック結果画面から：直前にプレイした出題タイプ・出題数のランキングを最初に表示する。
+timeAttackResultLeaderboardLinkElement.addEventListener("click", () => {
+  playClickSound();
+  const { questionCountValue, variant } = getLastTimeAttackSelection();
+  timeAttackLeaderboardReturnScreen = "timeAttackResult";
+  showTimeAttackLeaderboard(variant, questionCountValue);
+  showScreen("timeAttackLeaderboard");
 });
 
 // タイムアタック履歴一覧・詳細画面の初期化。通常プレイ履歴（historyScreen.js/historyDetailScreen.js）

@@ -20,6 +20,7 @@ const SCREEN_ELEMENTS = {
   timeAttackResult: document.getElementById("time-attack-result-screen"),
   timeAttackHistory: document.getElementById("time-attack-history-screen"),
   timeAttackHistoryDetail: document.getElementById("time-attack-history-detail-screen"),
+  timeAttackLeaderboard: document.getElementById("time-attack-leaderboard-screen"),
   randomPlaybackSetup: document.getElementById("random-playback-setup-screen"),
   randomPlaybackResult: document.getElementById("random-playback-result-screen"),
   lyricsQuizSetup: document.getElementById("lyrics-quiz-setup-screen"),

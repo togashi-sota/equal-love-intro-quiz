@@ -104,6 +104,26 @@ export function setPublicProfileSharingEnabled(playerKeyPrefix, enabled) {
   }
 }
 
+// TOP10ランキングの各行に、みんなのプロフィールと同じ王冠・ダイヤ装飾を表示するための、
+// 1人分だけの軽量な取得（2026-08-07追加）。本人指示「全ユーザー件数を毎回取得しないこと」を
+// 守るため、下のfetchAllPublicProfiles()（全件取得）は使わず、ランキングに実際に表示する
+// uidだけを個別に読む。取得できない・失敗した場合は両方falseにフォールバックし、
+// 装飾なしで表示を継続する（ランキング自体は表示できる状態を優先する）。
+export async function fetchPublicProfileBadgeState(uid) {
+  try {
+    await authReady;
+    const snapshot = await get(ref(database, `publicProfiles/${uid}`));
+    if (!snapshot.exists()) return { hasEqualLoveMaster: false, hasEqualLoveComplete: false };
+    const value = snapshot.val();
+    return {
+      hasEqualLoveMaster: value?.hasEqualLoveMaster === true,
+      hasEqualLoveComplete: value?.hasEqualLoveComplete === true,
+    };
+  } catch {
+    return { hasEqualLoveMaster: false, hasEqualLoveComplete: false };
+  }
+}
+
 // 「みんなのプロフィール」一覧に表示する、全員分の公開プロフィールを1回だけ取得する。
 // 本人指示：競争ランキングではないため常時リアルタイム監視（onValue）にはせず、
 // 一覧画面を開いたときに1回取得するだけで十分と判断（無駄なFirebase接続を避ける）。

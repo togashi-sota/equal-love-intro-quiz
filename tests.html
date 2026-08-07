@@ -66,6 +66,7 @@
     import { runTimeAttackScoreTests } from "./tests/timeAttackScore.test.js";
     import { runTimeAttackHistoryTests } from "./tests/timeAttackHistory.test.js";
     import { runTimeAttackScreenTests } from "./tests/timeAttackScreen.test.js";
+    import { runTimeAttackLeaderboardTests } from "./tests/timeAttackLeaderboard.test.js";
     import { printSummary } from "./tests/test-utils.js";
 
     runScoreTests();
@@ -109,6 +110,7 @@
     runTimeAttackScoreTests();
     runTimeAttackHistoryTests();
     runTimeAttackScreenTests();
+    runTimeAttackLeaderboardTests();
     const { passCount, failCount } = printSummary();
 
     const summaryElement = document.getElementById("test-summary");

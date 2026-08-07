@@ -9112,6 +9112,158 @@ fieldset label:has(input:focus-visible) {
   font-variant-numeric: tabular-nums;
 }
 
+/* ===== タイムアタック：グローバルランキング（TOP10、2026-08-07新設） =====
+   推しアイコン・王冠/ダイヤ装飾は.fan-profile-swatch（js/fanProfileCard.jsのbuildOshiSwatch）を
+   そのまま再利用しているため、ここでは順位バッジ・行レイアウト・タブだけを定義する。 */
+.leaderboard-tab-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0;
+}
+
+.leaderboard-tab-button {
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1.5px solid var(--color-card-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.leaderboard-tab-button.is-active {
+  color: #fff;
+  background: linear-gradient(120deg, var(--color-primary), var(--color-primary-dark));
+  border-color: transparent;
+  box-shadow: 0 4px 10px -4px rgba(255, 79, 150, 0.5);
+}
+
+.leaderboard-tab-button:active {
+  transform: scale(0.96);
+}
+
+.leaderboard-state-note {
+  text-align: center;
+  padding: 24px 12px;
+  color: var(--color-text);
+  opacity: 0.7;
+  font-size: 0.85rem;
+}
+
+.leaderboard-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.leaderboard-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--color-card-border);
+  background: var(--color-surface);
+}
+
+/* 自分の行だけ、ピンク枠で識別できるようにする（本人指示）。 */
+.leaderboard-row.is-own-row {
+  border: 2px solid var(--color-primary);
+  background: var(--color-primary-light);
+}
+
+.leaderboard-rank-badge {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: var(--color-text);
+  background: rgba(74, 46, 66, 0.08);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 上位3人（金・銀・銅）。派手すぎない程度の彩度に抑える（本人指示）。 */
+.leaderboard-rank-badge.is-gold {
+  color: #7a5300;
+  background: linear-gradient(145deg, #ffe9a8, #ffcf4d);
+}
+
+.leaderboard-rank-badge.is-silver {
+  color: #52565c;
+  background: linear-gradient(145deg, #eef0f2, #c9ced4);
+}
+
+.leaderboard-rank-badge.is-bronze {
+  color: #6b3a1c;
+  background: linear-gradient(145deg, #e8b78a, #cd8a53);
+}
+
+.leaderboard-row-body {
+  flex: 1;
+  min-width: 0; /* 表示名が長い場合に2行折り返しさせるため、flexアイテムの最小幅制限を外す */
+}
+
+.leaderboard-row-name {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--color-text);
+  word-break: break-word; /* 表示名が1行に収まらない場合は2行にしてよい（本人指示）。タイムは絶対に切らない */
+}
+
+.leaderboard-row-oshi {
+  margin: 2px 0 0;
+  font-size: 0.72rem;
+  opacity: 0.7;
+}
+
+.leaderboard-row-time {
+  flex: none;
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap; /* タイムは横スクロールなしで絶対に切れないようにする（本人指示） */
+}
+
+.leaderboard-my-record {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--color-surface-glass);
+  border: 1px dashed var(--color-primary);
+  text-align: center;
+}
+
+#time-attack-leaderboard-my-record-text {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+}
+
+/* 結果画面のランキング送信状況（成功/失敗/非公開/オフライン）。控えめな注記として表示する。 */
+.time-attack-result-leaderboard-status {
+  margin: 8px 0 0;
+  font-size: 0.78rem;
+  text-align: center;
+  opacity: 0.85;
+}
+
+.time-attack-result-leaderboard-status[hidden] {
+  display: none;
+}
+
 /* ===== 対戦モード（ローカル対戦、2026-08-06新設） =====
    モックアップ（dev/battleModeMockup.html）で検証済みの見た目を、実アプリのcss/style.cssに
    移植したもの。既存のクラス（.primary-button・.secondary-button・.special-mode-card等）を
