@@ -62,6 +62,7 @@
     import { runSpecialModeIconsTests } from "./tests/specialModeIcons.test.js";
     import { runPublicProfilePayloadsTests } from "./tests/publicProfilePayloads.test.js";
     import { runFanProfileCardTests } from "./tests/fanProfileCard.test.js";
+    import { runMembersScreenTests } from "./tests/membersScreen.test.js";
     import { printSummary } from "./tests/test-utils.js";
 
     runScoreTests();
@@ -101,6 +102,7 @@
     runSpecialModeIconsTests();
     runPublicProfilePayloadsTests();
     runFanProfileCardTests();
+    runMembersScreenTests();
     const { passCount, failCount } = printSummary();
 
     const summaryElement = document.getElementById("test-summary");

@@ -7380,6 +7380,27 @@ fieldset label:has(input:focus-visible) {
   border-radius: 16px;
   background: var(--color-surface);
   box-shadow: 0 8px 20px -14px rgba(74, 46, 66, 0.3);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+/* カード本体がタップできることを、ホバー・フォーカス時の軽い反応で伝える
+   （2026-08-07追加。カード全体をタップすると詳細が開くことに気づきにくい、という指摘への対応）。
+   スマホ（ホバー非対応）では:activeのscaleだけが効く。 */
+@media (hover: hover) {
+  .member-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 12px 24px -14px rgba(74, 46, 66, 0.4);
+    border-color: var(--color-primary-light);
+  }
+}
+
+.member-card:has(.member-card-tap-target:focus-visible) {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-light);
+}
+
+.member-card:active {
+  transform: scale(0.98);
 }
 
 /* 現在詳細を表示している（または直前に見た）メンバーのカードを強調する。
@@ -7403,9 +7424,8 @@ fieldset label:has(input:focus-visible) {
   cursor: pointer;
 }
 
-.member-card-tap-target:active {
-  transform: scale(0.97);
-}
+/* カード全体の押下反応は親.member-card側の:active（scale(0.98)）に統一しているため、
+   ここでは重ねて縮小させない。 */
 
 /* 推し・最推しバッジの凡例（2026-08-04追加） */
 .member-favorite-legend {
@@ -7684,6 +7704,24 @@ fieldset label:has(input:focus-visible) {
   background: var(--color-primary);
   padding: 2px 9px;
   border-radius: 999px;
+}
+
+/* 「プロフィールを見る ›」案内文言。カード本体タップで詳細が開くことに気づいてもらうための、
+   主張しすぎない小さな導線（2026-08-07追加）。 */
+.member-card-view-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: 2px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  opacity: 0.75;
+}
+
+.member-card-view-hint-icon {
+  width: 9px;
+  height: 9px;
 }
 
 /* 情報源が公式・本人発信以外（メディア報道・ファン定着）のときだけ添える小さな注記チップ */

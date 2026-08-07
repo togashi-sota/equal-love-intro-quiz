@@ -108,7 +108,8 @@ function buildStarButton(memberId, onToggleMostOshi) {
   return button;
 }
 
-function buildActiveMemberCard(member) {
+// 恒久テスト（tests/membersScreen.test.js）から、実際のカードDOM構造を検証するために公開している。
+export function buildActiveMemberCard(member) {
   const card = document.createElement("div");
   card.className = "member-card";
   if (member.id === lastViewedMemberId) {
@@ -136,6 +137,15 @@ function buildActiveMemberCard(member) {
     roleTag.textContent = member.roles[0];
     tapTarget.appendChild(roleTag);
   }
+
+  // カード本体がタップできることに気づきにくいという指摘への対応（2026-08-07追加）。
+  // tapTarget（button）の中に置くことで、専用のクリック処理を増やさずに
+  // 「このテキストを押しても詳細が開く」を自然に実現している。
+  const viewProfileHint = document.createElement("span");
+  viewProfileHint.className = "member-card-view-hint";
+  viewProfileHint.innerHTML =
+    'プロフィールを見る<svg class="member-card-view-hint-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6 3l5 5-5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  tapTarget.appendChild(viewProfileHint);
 
   card.appendChild(tapTarget);
 
