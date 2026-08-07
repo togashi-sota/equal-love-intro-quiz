@@ -1,6 +1,7 @@
 // 特別モード一覧画面を担当するファイル。
 // 通常プレイ（スタート画面）とは別の遊び方（苦手曲モード等）を、まとめて選べる入口画面。
 // モードが増えるときは、下のSPECIAL_MODESに1件追加するだけで一覧に反映される。
+import { buildSpecialModeIcon } from "./specialModeIcons.js";
 
 // 各モードの定義。availableがfalseのものは「近日追加予定」の見た目にし、タップできないようにする。
 // ホーム画面の8カード（下のHOME_SPECIAL_MODES_ORDER）と、この後の一覧画面（#special-modes-screen）
@@ -64,7 +65,7 @@ let elements = null;
 // <button>を入れられない）を置けないため、外側は<div>にし、選択用のタップ領域だけを
 // 内側の<button>（special-mode-card-tap-target）に分けている（js/membersScreen.jsの
 // member-card/member-card-tap-targetと同じ構造パターン）。
-function buildAvailableCard(mode) {
+export function buildAvailableCard(mode) {
   const card = document.createElement("div");
   card.className = "special-mode-card";
 
@@ -72,6 +73,12 @@ function buildAvailableCard(mode) {
   tapTarget.type = "button";
   tapTarget.className = "special-mode-card-tap-target";
   tapTarget.addEventListener("click", () => elements.onSelectMode(mode.id));
+
+  // モードを一目で見分けられるようにする色付きアイコン（本人指示・2026-08-07：
+  // 「8個すべてへアイコンを追加」）。tapTargetの中の最初の要素にすることで、
+  // 一覧画面（横並び）ではアイコンが左端、ホーム画面（縦並び）ではアイコンが上端に
+  // 自然に配置される（CSS側のflex-directionの違いだけで両方に対応できる）。
+  tapTarget.appendChild(buildSpecialModeIcon(mode.id));
 
   const content = document.createElement("div");
   content.className = "special-mode-card-content";
@@ -125,6 +132,8 @@ function buildAvailableCard(mode) {
 function buildComingSoonCard(mode) {
   const card = document.createElement("div");
   card.className = "special-mode-card is-coming-soon";
+
+  card.appendChild(buildSpecialModeIcon(mode.id));
 
   const content = document.createElement("div");
   content.className = "special-mode-card-content";

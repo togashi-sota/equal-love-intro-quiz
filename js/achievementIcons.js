@@ -86,8 +86,14 @@ function buildMedal(iconKey, extraClass) {
 }
 
 // 解放済みの称号1件分の、アイコン入りメダルを組み立てる。
-export function buildAchievementIconMedal(iconKey) {
-  return buildMedal(iconKey, "is-unlocked");
+//
+// locked:true（本人指示・2026-08-07）は、＝LOVEマスター・＝LOVE完全制覇の一覧カードだけが使う
+// 特例。他の称号は未取得中は汎用の鍵アイコン（buildLockedAchievementIconMedal）に切り替えるが、
+// この2つの複合称号だけは「未取得状態でも形（王冠・王冠+ダイヤ）や説明は見えるようにし、
+// 取得するとカラーと発光が解放される」という見せ方にするため、同じ形のままCSS側の配色だけを
+// 控えめ（is-locked-preview）に切り替える。
+export function buildAchievementIconMedal(iconKey, { locked = false } = {}) {
+  return buildMedal(iconKey, locked ? "is-locked-preview" : "is-unlocked");
 }
 
 // ロック中（未取得）の称号のメダル。形は見せず、鍵マークだけの控えめな見た目にする。

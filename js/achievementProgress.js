@@ -11,7 +11,7 @@
 // 1つのJSON文字列としてlocalStorageに保存する（旧titleProgress.jsのように称号ごとに
 // 別々のキーへ分けない）。表示名の変更・条件文の変更がこのファイルの保存内容に
 // 一切影響しないよう、保存するのは「id」と「解放日時」だけにしている。
-import { ACHIEVEMENTS } from "./achievementDefinitions.js";
+import { ACHIEVEMENTS, getAchievementById } from "./achievementDefinitions.js";
 import {
   normalizeQuizClearResult,
   evaluateDirectAchievements,
@@ -195,10 +195,18 @@ export function getAchievementListSnapshot() {
 
   return ACHIEVEMENTS.map((achievement) => {
     const isUnlocked = unlockedSet.has(achievement.id);
+    // 複合称号カードに「必要な称号の名前つきチェックリスト」を表示するための内訳。
+    // achievedCount/requiredCountは数値サマリー用に残しつつ、items（本人指示・2026-08-07：
+    // 「どの称号を集めれば最終称号になるのか」を名前入りで一目で分かるように）を追加した。
     const compositeProgress = achievement.compositeOf
       ? {
           achievedCount: achievement.compositeOf.filter((id) => unlockedSet.has(id)).length,
           requiredCount: achievement.compositeOf.length,
+          items: achievement.compositeOf.map((id) => ({
+            id,
+            name: getAchievementById(id)?.name ?? id,
+            isUnlocked: unlockedSet.has(id),
+          })),
         }
       : null;
 

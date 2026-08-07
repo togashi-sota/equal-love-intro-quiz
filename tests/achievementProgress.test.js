@@ -135,6 +135,46 @@ export function runAchievementProgressTests() {
   const secondUnlockedAt = afterSecondSyncSnapshot.find((entry) => entry.id === "no_miss_bronze").unlockedAt;
   assertEqual(firstUnlockedAt, secondUnlockedAt, "旧称号の移行処理を複数回呼んでも取得日が変わらない（冪等）");
 
+  // ---- compositeProgress.items：複合称号カードの「獲得条件」チェックリスト用データ
+  //      （本人指示・2026-08-07：「どの称号を集めれば最終称号になるのか」が名前入りで
+  //      一目で分かるように）。取得状態が正しくitemsへ反映されることを確認する。 ----
+  clearAchievementStorage();
+  localStorage.setItem(
+    ACHIEVEMENTS_KEY,
+    JSON.stringify({ schemaVersion: 2, unlockedAchievementIds: ["full_chorus_master"], unlockedAtById: {} })
+  );
+  const partialSnapshot = getAchievementListSnapshot();
+  const masterEntry = partialSnapshot.find((entry) => entry.id === "equal_love_master");
+  assertEqual(
+    masterEntry.compositeProgress.items.map((item) => item.id),
+    ["no_miss_master", "full_chorus_master", "song_master"],
+    "＝LOVEマスターの必要称号3つが、compositeOfの順番どおりitemsに並ぶ"
+  );
+  assertEqual(
+    masterEntry.compositeProgress.items.map((item) => item.name),
+    ["ノーミスマスター", "フルコーラスマスター", "歌マスター"],
+    "＝LOVEマスターの必要称号3つが、表示名つきで取得できる"
+  );
+  assertEqual(
+    masterEntry.compositeProgress.items.map((item) => item.isUnlocked),
+    [false, true, false],
+    "フルコーラスマスターだけ取得済みの状態が、itemsのisUnlockedへ正しく反映される"
+  );
+
+  const completeEntry = partialSnapshot.find((entry) => entry.id === "equal_love_complete");
+  assertEqual(
+    completeEntry.compositeProgress.items.map((item) => item.id),
+    ["lightning_fast", "melody_ace", "lyric_master"],
+    "＝LOVE完全制覇の必要称号3つが、compositeOfの順番どおりitemsに並ぶ"
+  );
+  assertEqual(
+    completeEntry.compositeProgress.items.every((item) => item.isUnlocked === false),
+    true,
+    "＝LOVE完全制覇の必要称号は、何も取得していない状態ではすべて未取得として表示される"
+  );
+
+  clearAchievementStorage();
+
   // ---- 推しアイコンの王冠・ダイヤ判定 ----
   clearAchievementStorage();
   localStorage.setItem(

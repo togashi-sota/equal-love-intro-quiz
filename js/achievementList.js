@@ -16,6 +16,11 @@ const CATEGORY_LABELS = {
   composite: "最終称号",
 };
 
+// ノーミス系5段階のうち、ブロンズ〜プラチナの4つ（本人指示・2026-08-07：
+// 「5問→ブロンズ…全曲→ノーミスマスター、と自然につながって見えるように」）。
+// ノーミスマスターは「最初の大きな目標」という別の案内文を持つため、この配列には含めない。
+const NO_MISS_STEP_IDS = ["no_miss_bronze", "no_miss_silver", "no_miss_gold", "no_miss_platinum"];
+
 let elements = null;
 
 function isModalOpen() {
@@ -53,7 +58,14 @@ function formatUnlockedDate(isoString) {
 }
 
 // 称号カード1件分を組み立てる。未取得でも名前・条件文は必ず表示する（本人指示）。
-function buildAchievementCard(entry) {
+//
+// entry.guidanceBadgeText（renderAchievementListが計算して詰める、UI専用の付加情報。
+// 保存データにもachievementProgress.jsにも一切含めない）：
+//   ・no_miss_master：未取得の間だけ「まず最初に目指す称号」であることを案内するバッジ。
+//   ・no_miss_bronze〜platinum：ノーミス段階のうち、次に狙うべき1件にだけ「次の目標」バッジ。
+// 称号名を「…」で省略しないでください（本人指示・2026-08-07）：長い称号名も2行まで
+// 折り返して全文を表示し、カードの高さは内容に合わせて可変にする（固定height指定はしない）。
+export function buildAchievementCard(entry) {
   const card = document.createElement("div");
   card.classList.add("achievement-card", entry.isUnlocked ? "is-unlocked" : "is-locked");
   if (entry.category === "composite") {
@@ -63,9 +75,17 @@ function buildAchievementCard(entry) {
 
   const header = document.createElement("div");
   header.classList.add("achievement-card-header");
-  header.appendChild(
-    entry.isUnlocked ? buildAchievementIconMedal(entry.iconKey) : buildLockedAchievementIconMedal()
-  );
+  // ＝LOVEマスター・＝LOVE完全制覇だけは、未取得でも王冠・王冠+ダイヤの形をそのまま見せ、
+  // 取得済みになったときだけ色と発光が解放されるようにする（本人指示：
+  // 「未取得状態でも形や説明は見えるようにし、取得するとカラーと発光が解放される」）。
+  // それ以外の称号は、これまでどおり未取得中は汎用の鍵アイコンにする。
+  if (entry.category === "composite") {
+    header.appendChild(buildAchievementIconMedal(entry.iconKey, { locked: !entry.isUnlocked }));
+  } else {
+    header.appendChild(
+      entry.isUnlocked ? buildAchievementIconMedal(entry.iconKey) : buildLockedAchievementIconMedal()
+    );
+  }
 
   const name = document.createElement("p");
   name.classList.add("achievement-card-name");
@@ -89,14 +109,39 @@ function buildAchievementCard(entry) {
   }
   card.appendChild(status);
 
-  // 複合称号（＝LOVEマスター・＝LOVE完全制覇）だけ、構成要素のうち何個達成したかを
-  // 正確に計算できるので表示する（本人指示：推測の進捗は表示しない。これは実データから
-  // 正確に出せる数字のため表示してよい）。
-  if (entry.compositeProgress && !entry.isUnlocked) {
-    const progress = document.createElement("p");
-    progress.classList.add("achievement-card-progress");
-    progress.textContent = `${entry.compositeProgress.achievedCount} / ${entry.compositeProgress.requiredCount} 達成`;
-    card.appendChild(progress);
+  // 初心者向けの案内バッジ（本人指示・2026-08-07）。「まずはここを目指そう」という
+  // 位置づけが一目で伝わるよう、称号名・条件文の下、達成チェックリストより前に置く。
+  if (entry.guidanceBadgeText) {
+    const guidance = document.createElement("p");
+    guidance.classList.add(
+      "achievement-card-guidance",
+      entry.id === "no_miss_master" ? "is-primary-goal" : "is-next-step"
+    );
+    guidance.textContent = entry.guidanceBadgeText;
+    card.appendChild(guidance);
+  }
+
+  // 複合称号（＝LOVEマスター・＝LOVE完全制覇）は、どの3つを集めれば取得できるのかを
+  // 名前つきで一覧表示する（本人指示・2026-08-07：「どの称号を集めれば最終称号になるのか
+  // が一目で分かる」）。数字だけの「2 / 3達成」より分かりやすいため、名前入りチェックリストに
+  // 置き換えている。未取得はグレーの○、取得済みはピンクの✓で進捗が一目で分かるようにする。
+  if (entry.compositeProgress) {
+    const requirements = document.createElement("div");
+    requirements.classList.add("achievement-card-requirements");
+
+    const title = document.createElement("p");
+    title.classList.add("achievement-card-requirements-title");
+    title.textContent = "獲得条件";
+    requirements.appendChild(title);
+
+    entry.compositeProgress.items.forEach((item) => {
+      const row = document.createElement("p");
+      row.classList.add("achievement-requirement-item", item.isUnlocked ? "is-fulfilled" : "is-pending");
+      row.textContent = item.name;
+      requirements.appendChild(row);
+    });
+
+    card.appendChild(requirements);
   }
 
   // 複合称号だけが持つ、特典・推しアイコン変化の予告。未取得のうちから見せることで、
@@ -111,8 +156,24 @@ function buildAchievementCard(entry) {
   return card;
 }
 
+// no_miss_master／ノーミス段階4件だけが持つ、初心者向けの案内バッジ文言を計算する
+// （UI専用の付加情報。achievementProgress.jsの保存データには一切含めない）。
+function computeGuidanceBadgeText(entry, snapshot) {
+  if (entry.id === "no_miss_master") {
+    return entry.isUnlocked ? null : "🎯 最初の目標";
+  }
+  if (!NO_MISS_STEP_IDS.includes(entry.id) || entry.isUnlocked) return null;
+
+  const nextStepId = NO_MISS_STEP_IDS.find((id) => !snapshot.find((e) => e.id === id)?.isUnlocked);
+  return nextStepId === entry.id ? "→ 次の目標" : null;
+}
+
 function renderAchievementList() {
-  const snapshot = getAchievementListSnapshot();
+  const rawSnapshot = getAchievementListSnapshot();
+  const snapshot = rawSnapshot.map((entry) => ({
+    ...entry,
+    guidanceBadgeText: computeGuidanceBadgeText(entry, rawSnapshot),
+  }));
   elements.listContainer.innerHTML = "";
 
   CATEGORY_ORDER.forEach((category) => {

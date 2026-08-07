@@ -58,6 +58,8 @@
     import { runSpecialModesScreenTests } from "./tests/specialModesScreen.test.js";
     import { runAchievementEvaluationTests } from "./tests/achievementEvaluation.test.js";
     import { runAchievementProgressTests } from "./tests/achievementProgress.test.js";
+    import { runAchievementListTests } from "./tests/achievementList.test.js";
+    import { runSpecialModeIconsTests } from "./tests/specialModeIcons.test.js";
     import { printSummary } from "./tests/test-utils.js";
 
     runScoreTests();
@@ -93,6 +95,8 @@
     runSpecialModesScreenTests();
     runAchievementEvaluationTests();
     runAchievementProgressTests();
+    runAchievementListTests();
+    runSpecialModeIconsTests();
     const { passCount, failCount } = printSummary();
 
     const summaryElement = document.getElementById("test-summary");

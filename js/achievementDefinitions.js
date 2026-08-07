@@ -60,7 +60,11 @@ export const ACHIEVEMENTS = [
     name: "ノーミスマスター",
     category: "noMiss",
     iconKey: "no_miss_master",
-    conditionText: "イントロクイズまたはタイムアタックで、全曲モードをノーミスクリアする",
+    // 本人指示（2026-08-07）：電光石火のような上級者向け称号と混同されないよう、
+    // 「時間は関係なく、全曲ノーミスであれば取れる」ことと「まず最初に目指す称号」であることを
+    // 明記した、初心者向けの文面に変更。
+    conditionText:
+      "イントロクイズまたはタイムアタックの全曲モードを、時間を気にせずノーミスでクリアすると獲得できます。まずはここを目指そう！",
     compositeOf: null,
     rewardNote: null,
   },
@@ -120,7 +124,11 @@ export const ACHIEVEMENTS = [
     name: "＝LOVEマスター",
     category: "composite",
     iconKey: "equal_love_master",
-    conditionText: "イントロ、ランダム再生、歌詞クイズの全曲モードを、すべてノーミスで制覇した証。",
+    // 本人指示（2026-08-07）：「どの称号を集めれば最終称号になるのか」が一目で分かるよう、
+    // 必要な3称号の名前を条件文自体に明記。あわせて「表ルート（時間を問わない側）の
+    // 完全制覇」であることを一言添え、裏ルート版（＝LOVE完全制覇）との違いが伝わるようにする。
+    conditionText:
+      "「ノーミスマスター」「フルコーラスマスター」「歌マスター」の3つをすべて獲得した、表ルート完全制覇の証。",
     compositeOf: ["no_miss_master", "full_chorus_master", "song_master"],
     rewardNote: "🎁 特典があります。推しアイコンに王冠が付きます。",
   },
@@ -129,7 +137,8 @@ export const ACHIEVEMENTS = [
     name: "＝LOVE完全制覇",
     category: "composite",
     iconKey: "equal_love_complete",
-    conditionText: "速さ、メロディー、歌詞。そのすべてを極めた、究極の＝LOVEマスター。",
+    conditionText:
+      "「電光石火」「メロディアス」「リリックマスター」の3つの裏称号をすべて獲得した者だけが手にできる、裏ルートまで極めた最高到達点の称号。",
     compositeOf: ["lightning_fast", "melody_ace", "lyric_master"],
     rewardNote: "🎁 特典があります。推しアイコンに、王冠とダイヤの両方が付きます。",
   },

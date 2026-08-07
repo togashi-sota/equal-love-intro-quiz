@@ -2119,6 +2119,18 @@ fieldset label:has(input:focus-visible) {
   opacity: 0.55;
 }
 
+/* ＝LOVEマスター・＝LOVE完全制覇専用：鍵アイコンに切り替えず、王冠・王冠+ダイヤの
+   形はそのまま見せつつ配色だけグレーに落とす（本人指示・2026-08-07：「未取得状態でも
+   形や説明は見えるようにし、取得するとカラーと発光が解放される」）。
+   is-equal_love_master／is-equal_love_complete（形・サイズ補正）より後に書き、
+   詳細度が同じでもロック中はこちらの控えめな配色が勝つようにする。 */
+.achievement-icon-medal.is-equal_love_master.is-locked-preview,
+.achievement-icon-medal.is-equal_love_complete.is-locked-preview {
+  background: rgba(74, 46, 66, 0.1);
+  color: rgba(74, 46, 66, 0.4);
+  border: 1.5px dashed rgba(74, 46, 66, 0.25);
+}
+
 /* ===== 称号（実績）獲得演出 =====
    結果画面で、称号を獲得した瞬間に1件ずつポップに登場するチップ。
    ランクバッジ（Sランクの金メダル・Aランクのピンクメダル）と同じ配色・光の演出を流用し、
@@ -4306,10 +4318,14 @@ fieldset label:has(input:focus-visible) {
   border-color: rgba(255, 111, 168, 0.35);
 }
 
+/* ロック中の見た目は、背景・縁取りの淡いトーンだけで表現する（本人指示・2026-08-07：
+   「未取得称号も文字が薄すぎて読めない状態にはしない」）。以前はカード全体にopacity:0.75を
+   掛けていたが、.achievement-card-conditionが元から持つopacity:0.75と重なり合ってしまい
+   （0.75×0.75で実質0.56相当）、条件文がかなり薄くなって読みにくくなっていたため廃止した。
+   ロック感は、アイコンの鍵マーク・称号名の色・背景色の違いだけで十分に伝わる。 */
 .achievement-card.is-locked {
   background: rgba(74, 46, 66, 0.035);
   border-color: var(--color-card-border);
-  opacity: 0.75;
 }
 
 /* 複合称号（＝LOVEマスター・＝LOVE完全制覇）は、1段組みで幅いっぱいに使い、
@@ -4318,29 +4334,69 @@ fieldset label:has(input:focus-visible) {
   grid-column: 1 / -1;
 }
 
-.achievement-card--composite.is-unlocked {
-  background: linear-gradient(160deg, #fff7e0, #ffe3f0 60%, #eaddff 100%);
-  border-color: rgba(255, 217, 61, 0.6);
+/* ＝LOVEマスター・＝LOVE完全制覇、それぞれ専用の取得済みデザイン（本人指示・2026-08-07：
+   「格上なのでカードにも特別感を、ただし派手すぎず」）。
+   ＝LOVEマスター＝ピンク＋ゴールド系で柔らかく発光、＝LOVE完全制覇＝ピンク＋水色/紫系の
+   上品なグラデーションで、ひと回り強めに発光させて格の違いを出す。
+   prefers-reduced-motionの環境では発光アニメーションを止め、静止した配色のみにする。 */
+.achievement-card--composite[data-achievement-id="equal_love_master"].is-unlocked {
+  background: linear-gradient(155deg, #fff7e0, #ffe3f0 55%, #ffd9a0 100%);
+  border-color: rgba(255, 200, 60, 0.7);
   box-shadow: 0 10px 24px -14px rgba(184, 121, 14, 0.5);
+  animation: achievementMasterCardGlow 2.6s ease-in-out infinite;
+}
+
+.achievement-card--composite[data-achievement-id="equal_love_complete"].is-unlocked {
+  background: linear-gradient(155deg, #ffe9f4, #e8e0ff 55%, #d3ecff 100%);
+  border-color: rgba(150, 130, 255, 0.55);
+  box-shadow: 0 10px 26px -12px rgba(140, 130, 255, 0.5);
+  animation: achievementCompleteCardGlow 2.2s ease-in-out infinite;
+}
+
+@keyframes achievementMasterCardGlow {
+  0%,
+  100% {
+    box-shadow: 0 10px 24px -14px rgba(255, 180, 60, 0.45);
+  }
+  50% {
+    box-shadow: 0 10px 30px -10px rgba(255, 200, 90, 0.8);
+  }
+}
+
+@keyframes achievementCompleteCardGlow {
+  0%,
+  100% {
+    box-shadow: 0 10px 26px -12px rgba(140, 130, 255, 0.5);
+  }
+  50% {
+    box-shadow: 0 12px 34px -8px rgba(120, 190, 255, 0.9);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .achievement-card--composite.is-unlocked {
+    animation: none;
+  }
 }
 
 .achievement-card-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
   margin-bottom: 4px;
 }
 
 .achievement-card-name {
   margin: 0;
+  padding-top: 3px; /* 28pxのアイコンと2行時の文字の視覚的な重心を合わせるための微調整 */
   font-size: 0.92rem;
   font-weight: 800;
+  line-height: 1.3;
   color: var(--color-primary-dark);
-  /* 結果画面チップと同じ理由（日本語は文字間で自由に改行されてしまう）で、
-     念のため称号名は1行のまま改行させないようにしておく。 */
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  /* 称号名を「…」で省略しない（本人指示・2026-08-07：「称号は名前そのものが重要」）。
+     長い名前は2行まで自然に折り返し、カードの高さは内容に合わせて可変にする
+     （.achievement-cardにheight固定は指定していない）。 */
+  overflow-wrap: break-word;
 }
 
 .achievement-card.is-locked .achievement-card-name {
@@ -4352,7 +4408,10 @@ fieldset label:has(input:focus-visible) {
   margin: 0 0 8px;
   font-size: 0.76rem;
   line-height: 1.5;
-  opacity: 0.75;
+  /* 本人指示・2026-08-07：ロック中カードで条件文が薄すぎて読みにくかったため、
+     0.75→0.85へ引き上げ（.achievement-card.is-lockedの全体opacityは廃止済みなので、
+     これが実質的な最終コントラストになる）。 */
+  opacity: 0.85;
 }
 
 .achievement-card-status {
@@ -4379,12 +4438,82 @@ fieldset label:has(input:focus-visible) {
   content: "✦ ";
 }
 
-/* 複合称号だけが正確に計算できる進捗（例：2 / 3 達成）。 */
-.achievement-card-progress {
-  margin: 6px 0 0;
-  font-size: 0.76rem;
-  font-weight: 700;
+/* 初心者向けの案内バッジ（本人指示・2026-08-07）。
+   ノーミスマスターだけは「最初の大きな目標」というやわらかい水色系、
+   ブロンズ〜プラチナの「次の目標」はピンクの点線縁取りで、称号一覧の金・銀色と被らない
+   控えめな差し色にしている。称号名・条件文と同じく、ロック中でも読みやすい濃さを保つ。 */
+.achievement-card-guidance {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  margin: 2px 0 0;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.achievement-card-guidance.is-primary-goal {
+  background: rgba(111, 189, 242, 0.22);
+  color: #1e6f8f;
+}
+
+.achievement-card-guidance.is-next-step {
+  background: rgba(255, 111, 168, 0.12);
   color: var(--color-primary-dark);
+  border: 1px dashed rgba(255, 111, 168, 0.5);
+}
+
+/* 複合称号カード内の「獲得条件」チェックリスト（本人指示・2026-08-07：
+   「どの称号を集めれば最終称号になるのか」を名前入りで一目で分かるようにする）。
+   数字だけの進捗（旧.achievement-card-progress）から、名前つきの一覧表示に置き換えた。 */
+.achievement-card-requirements {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(74, 46, 66, 0.08);
+}
+
+.achievement-card-requirements-title {
+  margin: 0 0 4px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  opacity: 0.65;
+}
+
+.achievement-requirement-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 2px 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.achievement-requirement-item.is-fulfilled {
+  color: var(--color-primary-dark);
+}
+
+.achievement-requirement-item.is-fulfilled::before {
+  content: "✓";
+  flex: none;
+  color: var(--color-primary);
+  font-weight: 900;
+}
+
+.achievement-requirement-item.is-pending {
+  color: var(--color-text);
+  opacity: 0.75;
+}
+
+.achievement-requirement-item.is-pending::before {
+  content: "○";
+  flex: none;
+  opacity: 0.55;
 }
 
 /* 複合称号だけが持つ、特典・推しアイコン変化の予告。未取得のうちから見せて、
@@ -4886,6 +5015,65 @@ fieldset label:has(input:focus-visible) {
   opacity: 0.7;
 }
 
+/* ===== 特別モードのアイコン（js/specialModeIcons.js） =====
+   本人指示（2026-08-07）：「8枚を見た瞬間、それぞれ別のモードだと視覚的に分かる」ように、
+   モードごとに異なるパステルカラーの丸背景をアイコンに付ける。生のUnicode絵文字は
+   OS・端末で見た目が変わってしまうためSVGで統一し（js/achievementIcons.jsと同じ方針）、
+   色の違いだけをここ（CSS側）で塗り分ける。カード本体の白基調・ピンクのアクセントは
+   維持しつつ、アイコン背景だけに薄いパステルカラーを使うことで世界観を壊さないようにしている。
+   装飾目的のみ（aria-hidden="true"）なので、モード名・説明文は今までどおり別途表示する。 */
+.special-mode-icon {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  color: #ffffff;
+}
+
+.special-mode-icon svg {
+  width: 55%;
+  height: 55%;
+}
+
+.special-mode-icon.is-weakSongs {
+  background: linear-gradient(155deg, #b98cf0, #8a5fd6);
+}
+
+.special-mode-icon.is-originalQuiz {
+  background: linear-gradient(155deg, #ffd766, #e3ab3c);
+}
+
+.special-mode-icon.is-timeAttack {
+  background: linear-gradient(155deg, #ffb37a, #ff8a5c);
+}
+
+.special-mode-icon.is-randomPlayback {
+  background: linear-gradient(155deg, #6fe0c0, #3fb894);
+}
+
+.special-mode-icon.is-liveCallMode {
+  background: linear-gradient(155deg, #ff8fc0, var(--color-primary));
+}
+
+.special-mode-icon.is-lyricsQuiz {
+  background: linear-gradient(155deg, #7fd0ff, var(--color-secondary));
+}
+
+.special-mode-icon.is-localBattle {
+  background: linear-gradient(155deg, #ff9d8a, #f2665f);
+}
+
+.special-mode-icon.is-onlineBattle {
+  background: linear-gradient(155deg, #9db4ff, #6f8bf2);
+}
+
+.special-mode-card.is-coming-soon .special-mode-icon {
+  filter: grayscale(45%);
+}
+
 /* 特別モード一覧のカード1件分。プレイ履歴カードと同じ「ボタン＋シェブロン」の構成。 */
 .special-mode-card {
   display: flex;
@@ -5029,6 +5217,15 @@ fieldset label:has(input:focus-visible) {
 .home-special-modes-grid .special-mode-card-content {
   width: 100%;
   min-width: 0;
+}
+
+/* ホーム画面の2列カードは縦積み（flex-direction:columnのtapTarget内で、アイコンが
+   最初の子要素として上段に来る）なので、一覧画面より小さめのサイズにして、
+   タイトル・説明の横に窮屈な余白を残さないようにする。 */
+.home-special-modes-grid .special-mode-icon {
+  width: 32px;
+  height: 32px;
+  margin-bottom: 6px;
 }
 
 .home-special-modes-grid .special-mode-card-title {
