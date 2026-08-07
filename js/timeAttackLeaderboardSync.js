@@ -33,12 +33,14 @@ import { database, authReady, getCurrentUid } from "./firebaseClient.js";
 import { getActivePlayer } from "./playerProfile.js";
 import { getMostOshiMemberId } from "./oshiMembers.js";
 import { isPublicProfileSharingEnabled } from "./publicProfilePayloads.js";
+import { getTimeAttackHistoryEntries } from "./timeAttackHistory.js";
 import {
   buildLeaderboardPath,
   buildLeaderboardEntryPayload,
   isBetterLeaderboardRecord,
   normalizeLeaderboardEntry,
   sortLeaderboardEntries,
+  findBestEntryPerVariantAndQuestionCount,
 } from "./timeAttackLeaderboard.js";
 
 // オフライン時はそもそもFirebaseへ接続を試みない（本人指示：「オフライン時は『ランキングは
@@ -116,6 +118,40 @@ export async function fetchTimeAttackLeaderboardTop10(variant, questionCountValu
   } catch (error) {
     console.warn("タイムアタックランキングの取得に失敗しました", error);
     return { ok: false, entries: [], reason: "error" };
+  }
+}
+
+function buildBackfillFlagKey(playerKeyPrefix) {
+  return `equalLoveIntroQuiz.${playerKeyPrefix}timeAttackLeaderboardBackfilled`;
+}
+
+// 「みんなのプロフィール」を新たにONにした人・すでにONだった人の両方に対応する、
+// 既存のローカル自己ベストをランキングへ一度だけ反映する処理（2026-08-07追加、本人指示）。
+// 通常の新記録時の送信（submitTimeAttackScoreIfBetter、renderTimeAttackResult経由）は
+// 「今まさに更新した記録」しか送らないため、それより前に貯まっていた自己ベストは
+// このままでは永久にランキングに反映されない。そのズレを一度だけ解消するための処理。
+// プレイヤーごとにlocalStorageのフラグで多重実行を防ぐ（毎回スタート画面へ戻るたびに
+// 全件送信し直すような無駄な通信をしないため）。
+export async function backfillTimeAttackLeaderboardIfNeeded(playerKeyPrefix) {
+  if (!isPublicProfileSharingEnabled(playerKeyPrefix)) return;
+  if (isOffline()) return; // オフライン時はフラグを立てず、次回オンライン時に再試行できるようにする
+
+  const flagKey = buildBackfillFlagKey(playerKeyPrefix);
+  try {
+    if (localStorage.getItem(flagKey) === "true") return;
+  } catch {
+    return; // localStorageが使えない環境では、多重実行防止ができないため何もしない
+  }
+
+  try {
+    const historyEntries = getTimeAttackHistoryEntries();
+    const bestEntries = findBestEntryPerVariantAndQuestionCount(historyEntries);
+    for (const best of bestEntries) {
+      await submitTimeAttackScoreIfBetter({ ...best, playerKeyPrefix });
+    }
+    localStorage.setItem(flagKey, "true");
+  } catch (error) {
+    console.warn("タイムアタック自己ベストのランキング反映に失敗しました", error);
   }
 }
 

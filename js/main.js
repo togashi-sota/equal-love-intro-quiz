@@ -86,7 +86,7 @@ import {
   getCurrentTimeAttackStats,
 } from "./timeAttackScreen.js";
 import { initTimeAttackHistoryScreen, renderTimeAttackHistoryScreen } from "./timeAttackHistoryScreen.js";
-import { submitTimeAttackScoreIfBetter } from "./timeAttackLeaderboardSync.js";
+import { submitTimeAttackScoreIfBetter, backfillTimeAttackLeaderboardIfNeeded } from "./timeAttackLeaderboardSync.js";
 import {
   initTimeAttackLeaderboardScreen,
   showTimeAttackLeaderboard,
@@ -177,6 +177,7 @@ import { initPlayerScreen, renderPlayerSummary } from "./playerScreen.js";
 import { getPlayerKeyPrefix } from "./playerProfile.js";
 import { initFanProfilesScreen, renderFanProfilesScreen } from "./fanProfilesScreen.js";
 import { syncPublicProfileIfEnabled } from "./publicProfileSync.js";
+import { backfillTimeAttackLeaderboardIfNeeded } from "./timeAttackLeaderboardSync.js";
 import { getFavoriteSongIds } from "./favoriteSongs.js";
 import { getPlaylists } from "./playlists.js";
 import { initPlaylistScreen, renderPlaylistList, renderPlaylistDetail } from "./playlistScreen.js";
@@ -1119,6 +1120,9 @@ onScreenChange((screenName) => {
   if (screenName === "start") {
     renderPlayerSummary();
     syncPublicProfileIfEnabled(getPlayerKeyPrefix());
+    // 「みんなのプロフィール」ONユーザーの、既存タイムアタック自己ベストのランキング反映
+    // （2026-08-07追加）。プレイヤーごとに1回だけ実行される（内部でフラグ管理）。
+    backfillTimeAttackLeaderboardIfNeeded(getPlayerKeyPrefix());
   }
 });
 

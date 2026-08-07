@@ -71,6 +71,34 @@ export function normalizeLeaderboardEntry(uid, raw) {
   };
 }
 
+// ローカルのタイムアタック履歴（js/timeAttackHistory.js）から、variant×questionCountの
+// 組み合わせごとに最速のクリア記録を1件ずつ抽出する（2026-08-07追加）。
+// 【本人指示の背景】ランキングへの送信は「新記録を出した瞬間」だけに起きる設計のため、
+// 「みんなのプロフィール」を後からONにした人・すでにONだった人の既存の自己ベストは、
+// そのままではランキングに一切反映されない。このズレを解消するため、履歴から
+// 「もし今日ランキング機能があったら新記録だったはずの記録」を掘り起こす。
+// ランキング自体はルール・カテゴリを分けない設計（本人指示：variant×questionCountだけで分離）
+// のため、ここでもルール・カテゴリを問わず、同じvariant×questionCountの中で最も速かった
+// 1件（LOVE連チャン失敗等、完走していない記録は除く）だけを残す。
+export function findBestEntryPerVariantAndQuestionCount(historyEntries) {
+  const bestByKey = new Map();
+  historyEntries.forEach((entry) => {
+    if (!entry.completed) return;
+    const variant = entry.variant ?? "intro";
+    const key = `${variant}.${entry.questionCountValue}`;
+    const current = bestByKey.get(key);
+    if (!current || entry.totalElapsedMs < current.clearTimeMs) {
+      bestByKey.set(key, {
+        variant,
+        questionCountValue: entry.questionCountValue,
+        clearTimeMs: entry.totalElapsedMs,
+        missCount: entry.missCount,
+      });
+    }
+  });
+  return [...bestByKey.values()];
+}
+
 // 複数の記録（正規化済み）を、ランキング表示順に並び替える。
 // ①クリアタイム昇順②ミス数昇順③登録日時昇順（早い者勝ち）。
 export function sortLeaderboardEntries(entries) {

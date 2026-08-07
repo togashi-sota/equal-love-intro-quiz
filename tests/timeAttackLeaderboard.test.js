@@ -6,6 +6,7 @@ import {
   normalizeLeaderboardEntry,
   sortLeaderboardEntries,
   findRankByUid,
+  findBestEntryPerVariantAndQuestionCount,
 } from "../js/timeAttackLeaderboard.js";
 import { assertEqual } from "./test-utils.js";
 
@@ -121,4 +122,22 @@ export function runTimeAttackLeaderboardTests() {
   // ---- 順位検索 ----
   assertEqual(findRankByUid(sorted, "b"), 3, "並び替え後の配列からuidの順位（1始まり）を取得できる");
   assertEqual(findRankByUid(sorted, "not-in-list"), null, "圏外のuidはnullを返す");
+
+  // ---- 履歴からの最速記録抽出（バックフィル用、2026-08-07追加） ----
+  const historyEntries = [
+    { variant: "intro", questionCountValue: "5", totalElapsedMs: 8000, missCount: 2, completed: true },
+    { variant: "intro", questionCountValue: "5", totalElapsedMs: 6000, missCount: 0, completed: true },
+    { variant: "intro", questionCountValue: "5", totalElapsedMs: 9000, missCount: 0, completed: false }, // LOVE連チャン失敗、対象外
+    { variant: "randomPlayback", questionCountValue: "5", totalElapsedMs: 7000, missCount: 1, completed: true },
+    { questionCountValue: "10", totalElapsedMs: 15000, missCount: 3, completed: true }, // variant省略はintro扱い
+  ];
+  const bestEntries = findBestEntryPerVariantAndQuestionCount(historyEntries);
+  assertEqual(bestEntries.length, 3, "variant×questionCountの組み合わせごとに1件だけ抽出される");
+  const introFive = bestEntries.find((e) => e.variant === "intro" && e.questionCountValue === "5");
+  assertEqual(introFive.clearTimeMs, 6000, "同じ組み合わせの中で最速の記録が採用される");
+  assertEqual(introFive.missCount, 0, "採用された記録のmissCountが正しく引き継がれる");
+  const randomFive = bestEntries.find((e) => e.variant === "randomPlayback" && e.questionCountValue === "5");
+  assertEqual(randomFive.clearTimeMs, 7000, "variantが違えば別記録として抽出される");
+  const introTen = bestEntries.find((e) => e.variant === "intro" && e.questionCountValue === "10");
+  assertEqual(introTen.clearTimeMs, 15000, "entry.variant省略（古い履歴データ）はintroとして扱われる");
 }
