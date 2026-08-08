@@ -1001,14 +1001,14 @@ initLiveCallModeScreen({
 // 曲一覧画面の「戻る」：ホーム画面へ戻る（2026-08-08修正：ホームの特別モードカードから
 // 直接この画面を開くようになったため、間に古い「特別モード一覧画面」を挟まない）。
 liveCallModeListBackButtonElement.addEventListener("click", () => {
-  playClickSound();
+  playSfx(SFX_EVENTS.UI_BACK);
   navigateWithScrollMemory("start");
 });
 
 // 再生画面の「戻る」：再生を止め、曲一覧画面へ戻る（常にこの画面からしか開かないため、
 // 他画面のような「開く前の画面を覚えておく」仕組みは不要と判断）。
 liveCallModePlayerBackButtonElement.addEventListener("click", () => {
-  playClickSound();
+  playSfx(SFX_EVENTS.UI_BACK);
   closeLiveCallModePlayer();
   showScreen("liveCallModeList");
 });
@@ -1221,7 +1221,7 @@ playlistLinkElement.addEventListener("click", () => {
 });
 
 playlistBackButtonElement.addEventListener("click", () => {
-  playClickSound();
+  playSfx(SFX_EVENTS.UI_BACK);
   navigateWithScrollMemory("start");
 });
 
@@ -1229,7 +1229,7 @@ playlistBackButtonElement.addEventListener("click", () => {
 // （songlist-back-buttonと同じ考え方。詳細画面では曲の削除・並び替えが起きるため、
 // 一覧の曲数表示が最新になるよう描き直してから戻る）。
 playlistDetailBackButtonElement.addEventListener("click", () => {
-  playClickSound();
+  playSfx(SFX_EVENTS.UI_BACK);
   stopSongListPreview();
   renderPlaylistList();
   navigateWithScrollMemory("playlists");
@@ -1254,7 +1254,7 @@ initPlaylistAddSongsScreen({
 
 // 曲追加画面の「戻る」：何も追加せず、対象にしていたプレイリストの詳細画面へ戻る。
 playlistAddSongsBackButtonElement.addEventListener("click", () => {
-  playClickSound();
+  playSfx(SFX_EVENTS.UI_BACK);
   if (playlistAddSongsTargetId) {
     renderPlaylistDetail(playlistAddSongsTargetId);
     navigateWithScrollMemory("playlistDetail");
@@ -1328,7 +1328,7 @@ initContinuousPlayQueueScreen({
 });
 
 continuousPlayQueueBackButtonElement.addEventListener("click", () => {
-  playClickSound();
+  playSfx(SFX_EVENTS.UI_BACK);
   navigateWithScrollMemory("continuousPlay");
 });
 
@@ -1382,7 +1382,7 @@ function openContinuousPlayFromPlaylistDetail(playlistId) {
 // （クイズ・試聴を別途開始したときだけ、playbackCoordinator.js経由で自動的に
 // 一時停止される）。開いた直前の画面（スタート/収録曲一覧/プレイリスト詳細）へ戻す。
 continuousPlayBackButtonElement.addEventListener("click", () => {
-  playClickSound();
+  playSfx(SFX_EVENTS.UI_BACK);
   navigateWithScrollMemory(continuousPlayReturnScreen);
 });
 
@@ -2827,7 +2827,7 @@ songlistFavoritesLinkElement.addEventListener("click", () => {
 
 // 収録曲一覧画面の「戻る」：試聴中の曲を必ず止めてからスタート画面へ戻る。
 songlistBackButtonElement.addEventListener("click", () => {
-  playClickSound();
+  playSfx(SFX_EVENTS.UI_BACK);
   stopSongListPreview();
   navigateWithScrollMemory("start");
 });
@@ -2848,13 +2848,13 @@ fanProfilesLinkElement.addEventListener("click", () => {
 });
 
 fanProfilesBackButtonElement.addEventListener("click", () => {
-  playClickSound();
+  playSfx(SFX_EVENTS.UI_BACK);
   navigateWithScrollMemory("start");
 });
 
 // プレイ履歴画面の「戻る」：スタート画面へ戻る。
 historyBackButtonElement.addEventListener("click", () => {
-  playClickSound();
+  playSfx(SFX_EVENTS.UI_BACK);
   navigateWithScrollMemory("start");
 });
 
@@ -2865,7 +2865,7 @@ historyBackButtonElement.addEventListener("click", () => {
 // スクロール位置は保たれない（詳細画面の表示中に、ページのスクロール位置自体が変わるため）。
 // そのため、詳細画面を開く直前の位置をhistoryListScrollYに保存しておき、ここで復元する。
 historyDetailBackButtonElement.addEventListener("click", () => {
-  playClickSound();
+  playSfx(SFX_EVENTS.UI_BACK);
   showScreen("history");
   window.scrollTo(0, historyListScrollY);
 });
@@ -2890,12 +2890,12 @@ discographyLinkElement.addEventListener("click", () => {
 });
 
 discographyBackButtonElement.addEventListener("click", () => {
-  playClickSound();
+  playSfx(SFX_EVENTS.UI_BACK);
   navigateWithScrollMemory("start");
 });
 
 workDetailBackButtonElement.addEventListener("click", () => {
-  playClickSound();
+  playSfx(SFX_EVENTS.UI_BACK);
   showScreen("discography");
   window.scrollTo(0, discographyScrollY);
 });
@@ -2908,13 +2908,13 @@ membersLinkElement.addEventListener("click", () => {
 });
 
 membersBackButtonElement.addEventListener("click", () => {
-  playClickSound();
+  playSfx(SFX_EVENTS.UI_BACK);
   navigateWithScrollMemory("start");
   renderPlayerSummary(); // メンバー一覧で推し登録を変更した可能性があるので表示し直す
 });
 
 memberDetailBackButtonElement.addEventListener("click", () => {
-  playClickSound();
+  playSfx(SFX_EVENTS.UI_BACK);
   // 選択中メンバーの強調表示（is-selected）を反映するため、一覧を描画し直してから戻る。
   renderMembersScreen(SONGS, MEMBERS, MEMBER_PROFILES);
   showScreen("members");
@@ -2923,14 +2923,14 @@ memberDetailBackButtonElement.addEventListener("click", () => {
 
 // 特別モード一覧画面の「戻る」：スタート画面へ戻る。
 specialModesBackButtonElement.addEventListener("click", () => {
-  playClickSound();
+  playSfx(SFX_EVENTS.UI_BACK);
   navigateWithScrollMemory("start");
 });
 
 // 苦手曲モード確認画面の「戻る」：ホーム画面へ戻る（2026-08-08修正：ホームの特別モードカードから
 // 直接この画面を開くようになったため、間に古い「特別モード一覧画面」を挟まない）。
 weakSongsBackButtonElement.addEventListener("click", () => {
-  playClickSound();
+  playSfx(SFX_EVENTS.UI_BACK);
   navigateWithScrollMemory("start");
 });
 
@@ -2939,7 +2939,7 @@ weakSongsBackButtonElement.addEventListener("click", () => {
 // 画面内の「複製する」で保存せずこの画面に留まったまま新しいプリセットができている場合があるため、
 // 必ず最新の内容で一覧を描画し直してから戻る。試聴中の曲があれば必ず止める。
 customQuizBackButtonElement.addEventListener("click", () => {
-  playClickSound();
+  playSfx(SFX_EVENTS.UI_BACK);
   stopCustomQuizPreview();
   renderCustomQuizPresetsScreen();
   showScreen("customQuizPresets");
@@ -2949,7 +2949,7 @@ customQuizBackButtonElement.addEventListener("click", () => {
 // ホームの特別モードカードから直接この画面を開くようになったため、間に古い
 // 「特別モード一覧画面」を挟まない）。
 customQuizPresetsBackButtonElement.addEventListener("click", () => {
-  playClickSound();
+  playSfx(SFX_EVENTS.UI_BACK);
   navigateWithScrollMemory("start");
 });
 
@@ -2993,7 +2993,7 @@ document
 // タイムアタックの設定画面の「戻る」：ホーム画面へ戻る（2026-08-08修正：ホームの特別モード
 // カードから直接この画面を開くようになったため、間に古い「特別モード一覧画面」を挟まない）。
 timeAttackSetupBackButtonElement.addEventListener("click", () => {
-  playClickSound();
+  playSfx(SFX_EVENTS.UI_BACK);
   navigateWithScrollMemory("start");
 });
 
@@ -3173,12 +3173,12 @@ timeAttackHistoryLinkElement.addEventListener("click", () => {
 });
 
 timeAttackHistoryBackButtonElement.addEventListener("click", () => {
-  playClickSound();
+  playSfx(SFX_EVENTS.UI_BACK);
   showScreen("timeAttackSetup");
 });
 
 timeAttackHistoryDetailBackButtonElement.addEventListener("click", () => {
-  playClickSound();
+  playSfx(SFX_EVENTS.UI_BACK);
   showScreen("timeAttackHistory");
   window.scrollTo(0, timeAttackHistoryListScrollY);
 });
@@ -3207,7 +3207,7 @@ document
 // 2026-08-08修正：ホームの特別モードカードから直接この画面を開くようになったため、
 // 「戻る」は間に古い「特別モード一覧画面」を挟まずホーム画面へ直接戻す。
 randomPlaybackSetupBackButtonElement.addEventListener("click", () => {
-  playClickSound();
+  playSfx(SFX_EVENTS.UI_BACK);
   navigateWithScrollMemory("start");
 });
 
@@ -3280,7 +3280,7 @@ randomPlaybackResultHomeLinkElement.addEventListener("click", () => {
 // 2026-08-08修正：ホームの特別モードカードから直接この画面を開くようになったため、
 // 「戻る」は間に古い「特別モード一覧画面」を挟まずホーム画面へ直接戻す。
 lyricsQuizSetupBackButtonElement.addEventListener("click", () => {
-  playClickSound();
+  playSfx(SFX_EVENTS.UI_BACK);
   navigateWithScrollMemory("start");
 });
 
@@ -3322,7 +3322,7 @@ initLyricsQuizQuestionScreen({
   quitCancelButton: lyricsQuizQuitCancelButtonElement,
   quitConfirmButton: lyricsQuizQuitConfirmButtonElement,
   onQuit: () => {
-    playClickSound();
+    playSfx(SFX_EVENTS.UI_BACK);
     updateLyricsQuizBestChip();
     showScreen("lyricsQuizSetup");
   },
