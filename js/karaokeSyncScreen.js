@@ -5,46 +5,45 @@
 // を用意し、js/lyricsSync.jsのloadLyricsForSong()に、本物の<audio>要素の代わりとして渡す。
 // このモジュールは「timeupdateイベントが来たらaudioElement.currentTimeを読む」という
 // 決まりごとだけで動いているため、本物の<audio>要素でなくても問題なく動作する。これにより、
-// 通常再生画面（js/liveCallModeScreen.js）が使っている歌詞の同期表示・全文表示切替を、
-// 1行もコピーせずにそのまま「全文を見る」パネルとして再利用できる。
+// 通常再生画面（js/liveCallModeScreen.js）が使っている歌詞の同期表示・ハイライト・自動スクロール・
+// 全文表示切替を、1行もコピーせずにそのまま「現在の歌詞」表示として再利用できる。
 //
-// 「今何秒か」の計算そのもの（同期開始時刻・offset補正・同期ポイント選定など）は
+// 「今何秒か」の計算そのもの（同期開始時刻・offset補正・一時停止・同期ポイント選定など）は
 // js/karaokeSync.jsの純粋関数にすべて任せ、このファイルはDOM操作・タイマー・
 // 端末音源の再生・localStorageへの設定保存だけを担当する。
 //
-// 【UI/UX第3版・2026-08-09】本人の実機フィードバック「機能や情報が多すぎて、カラオケ中に
-// 何を見て何を押せばいいのか分かりにくい」を受け、【設定画面】から【カラオケ中専用HUD】へ
-// 全面再設計した。主な変更点：
-//  1. js/callSync.jsの呼び出しをやめた。callSync.jsの「長いコールの持続表示」は画面全体を
-//     覆う固定オーバーレイという設計（通常再生画面の単機能プレイヤー向け）のため、
-//     複数の情報を同時に見せる必要があるカラオケHUDでは、長いMIX・口上が来るたびに
-//     画面が完全に乗っ取られてしまっていた（本人が最も強く指摘した不具合の直接原因）。
-//     この画面では、コールデータ（allCalls）を直接扱い、現在のコール／NEXT CALLを
-//     この画面専用のHUDカードとして描画する（tier別の文字サイズはgetCallDisplayTier参照）。
-//  2. 端末音源のON/OFF選択・初心者ナビのON/OFF選択という「開始前の設定」を廃止した。
-//     端末音源は読み込まれていれば常に自動再生し（読み込まれていなければ小さな通知を出して
-//     コール表示だけで続行する）、初心者ナビは既存の保存済み設定をそのまま使う
-//     （設定を変えたい場合は、同期中いつでもヘッダーの「⋯」から変更できる）。
-//  3. 頻繁には押さない操作（今！・全文を見る・初心者ナビ切替・曲を最初からやり直す）は、
-//     すべてヘッダーの「⋯」ボタンから開く別メニューへ退避した。画面の主役は
-//     「現在の歌詞・現在のコール・次のコール」であり、常時表示するのはタイミング調整
-//     （±0.1秒／±0.5秒／0秒に戻す）だけにした。
+// 【UI/UX第4版・2026-08-09】v142実機フィードバック「シンプルにしすぎて歌詞が見えなさすぎる」を
+// 受け、次の3点を中心に見直した。
+//  1. 歌詞をもう一度、複数行スクロール可能な状態で常時表示する。js/lyricsSync.jsのloadLyricsForSong()
+//     に第4引数optionsを追加してもらい（js/lyricsSync.js側の変更、既存呼び出し元は無改修）、
+//     歌詞行タップ時の処理をこの画面専用のresyncToPosition()呼び出しに差し替えている
+//     （本物の<audio>要素ではないため、既定のaudioElement.currentTime代入は意味を持たない）。
+//     これにより、ハイライト・自動追従スクロール・「全文表示にする」切替まで、通常再生画面と
+//     完全に同じロジックを1行も複製せずに再利用できている。
+//  2. 一時停止／再開を追加。js/karaokeSync.jsのpauseKaraokeSync/resumeKaraokeSyncを使い、
+//     端末音源・同期時計・歌詞ハイライト・NEXT CALLカウントダウンを同時に止め、同時に再開する。
+//  3. 「今！」は⋯メニューに残しつつ、歌詞タップという、より低摩擦で高頻度に使える補正手段を
+//     常設した。「今！」はコールデータ（手動で0.1秒単位まで調整済み、精度が高い）を基準にでき、
+//     歌詞タップは歌詞データ（一部AI補助で精度が一定でない）を基準にする、という精度の違いが
+//     あるため、両方を残す判断をした（詳細はdocs/HANDOFF.md参照）。
 //
-// 【UI/UX第2版からの継続方針】画面全体を3ゾーン（①ヘッダー②中央スクロール③下部固定）の
+// 【UI/UX第3版からの継続方針】画面全体を3ゾーン（①ヘッダー②中央スクロール③下部固定）の
 // 固定レイアウトにし、歌詞・コールの表示内容がどれだけ変わっても、下部の操作ボタンの位置は
-// 1pxも動かない（css/style.cssのカラオケ同期レイアウト定義コメント参照）。
+// 1pxも動かない。長いコールがカラオケHUDを乗っ取らないよう、js/callSync.jsは使わずコールデータを
+// 直接扱う（詳しくは各関数のコメント参照）。
 
 import { getCallData } from "./callStorage.js";
-import { getLyricsData } from "./lyricsStorage.js";
 import { getSongById } from "./data/songs.js";
 import { getAudioBlob } from "./audioStorage.js";
 import { registerPlaybackStopper, notifyPlaybackStarting } from "./playbackCoordinator.js";
-import { loadLyricsForSong, destroyLyricsSync, findActiveLineIndex } from "./lyricsSync.js";
+import { loadLyricsForSong, destroyLyricsSync } from "./lyricsSync.js";
 import {
   createKaraokeSyncState,
   startKaraokeSync,
   resetKaraokeSync,
   getKaraokePositionSec,
+  pauseKaraokeSync,
+  resumeKaraokeSync,
   adjustOffsetMs,
   resetOffsetToZero,
   resyncToPosition,
@@ -77,7 +76,7 @@ export function setKaraokeBeginnerNavEnabled(enabled) {
 
 // lyricsSync.jsに「本物の<audio>要素」の代わりとして渡す、時計だけの偽物。
 // currentTimeを外から書き換えたあとdispatchEvent(new Event("timeupdate"))するだけで、
-// 「全文を見る」パネルの同期表示ロジックがそのまま動く。
+// 歌詞の同期表示ロジックがそのまま動く。
 class KaraokeClockSource extends EventTarget {
   constructor() {
     super();
@@ -95,7 +94,6 @@ let clockSource = null;
 let currentSongId = null;
 let allCalls = []; // 曲全体のコール（start昇順）
 let syncPointCandidates = [];
-let lyricsLines = []; // 「現在の歌詞」表示用（start昇順）
 let syncState = createKaraokeSyncState();
 let tickTimerId = null;
 let toastHideTimeoutId = null;
@@ -104,7 +102,6 @@ let toastHideTimeoutId = null;
 let deviceAudioObjectUrl = null;
 
 // 同じ状態を毎回DOMへ書き込まないための「前回描画した値」の記録（変わったときだけ更新する）。
-let lastRenderedLyricText = null;
 let lastRenderedCallHudEyebrow = null;
 let lastRenderedCallHudText = null;
 let lastRenderedCallHudCountdown = null;
@@ -117,9 +114,7 @@ let lastRenderedSyncPointCall = undefined;
 function resetPerSongRuntimeState() {
   allCalls = [];
   syncPointCandidates = [];
-  lyricsLines = [];
   syncState = createKaraokeSyncState();
-  lastRenderedLyricText = null;
   lastRenderedCallHudEyebrow = null;
   lastRenderedCallHudText = null;
   lastRenderedCallHudCountdown = null;
@@ -157,11 +152,6 @@ function syncBeginnerNavUI() {
   updateBeginnerNavToggleLabel();
 }
 
-function updateFullTextToggleLabel() {
-  const visible = !elements.referencePanel.hidden;
-  elements.fullTextToggleLabel.textContent = visible ? "全文を閉じる" : "全文を見る";
-}
-
 function showToast(text) {
   window.clearTimeout(toastHideTimeoutId);
   elements.toast.textContent = text;
@@ -195,16 +185,7 @@ function renderSyncStatus() {
   }
 }
 
-function renderCurrentLyric(positionSec) {
-  const index = findActiveLineIndex(lyricsLines, positionSec);
-  const text = index !== -1 ? lyricsLines[index].text : "";
-  if (text !== lastRenderedLyricText) {
-    elements.currentLyric.textContent = text;
-    lastRenderedLyricText = text;
-  }
-}
-
-// 現在のコール／NEXT CALLを1枚のHUDカードにまとめて描画する（UI/UX第3版の中核）。
+// 現在のコール／NEXT CALLを1枚のHUDカードにまとめて描画する。
 // 「今まさに聞こえているコール」がある間は、その本文をtier別の大きさで主役として見せ、
 // 無い間は「次に来るコール＋残り秒数」を見せる（js/karaokeSync.jsのgetNextCallCountdownDisplay
 // が持つupcoming/imminent/nowの3段階をそのまま使う）。
@@ -257,10 +238,8 @@ function renderCallHud(positionSec) {
     lastRenderedCallHudTier = tier;
   }
 
-  // 長い口上・MIXが実際に鳴っている間だけ、歌詞表示を控えめにしてコール本文を主役にする
-  // （本人指示：終わったら自動で元の表示に戻す。持続表示自体は既存のcallSync.jsのような
-  // 全画面オーバーレイではなく、このHUDカード自身が広がるだけなので、下部の操作ボタンの
-  // 位置には一切影響しない）。
+  // 長い口上・MIXが実際に鳴っている間だけ、歌詞コンテキストを控えめにしてコール本文を主役にする
+  // （本人指示：歌詞を完全には消さない。終わったら自動で元の表示に戻す）。
   const longCallActive = isActive && tier === "long";
   if (longCallActive !== lastRenderedLongCallActive) {
     elements.syncPanel.classList.toggle("is-long-call-active", longCallActive);
@@ -281,11 +260,13 @@ function tick() {
   const positionSec = getKaraokePositionSec(syncState, performance.now());
   if (positionSec === null) return;
 
+  // 歌詞パネル側（js/lyricsSync.js）のハイライト・自動スクロールは、この偽時計への
+  // timeupdateイベントで駆動される。一時停止中はgetKaraokePositionSec自体が凍結された
+  // 位置を返すため、ここで改めて何かを止める必要はない（常に同じ値を返し続けるだけ）。
   clockSource.currentTime = Math.max(0, positionSec);
   clockSource.dispatchEvent(new Event("timeupdate"));
 
   renderSyncStatus();
-  renderCurrentLyric(positionSec);
   renderCallHud(positionSec);
 }
 
@@ -315,6 +296,7 @@ async function handleStartButtonClick() {
   elements.songEndBanner.hidden = true;
 
   syncBeginnerNavUI();
+  updatePauseResumeButtonUI();
   await startDeviceAudioPlayback();
 
   startTickLoop();
@@ -353,6 +335,33 @@ function handleDeviceAudioEnded() {
   elements.songEndBanner.hidden = false;
 }
 
+// ===== 一時停止／再開（UI/UX第4版で追加） =====
+// 「0秒へ戻す完全停止」ではなく、今の位置から再開できる一時停止。端末音源・同期時計・
+// 歌詞ハイライト・NEXT CALLカウントダウンを同時に止め、同時に再開する（本人の最重要要望）。
+function updatePauseResumeButtonUI() {
+  const isPaused = syncState.isPaused;
+  elements.pauseResumeButton.classList.toggle("is-paused", isPaused);
+  elements.pauseResumeButton.setAttribute("aria-label", isPaused ? "再開する" : "一時停止する");
+}
+
+function handlePauseResumeClick() {
+  const nowMs = performance.now();
+  if (syncState.isPaused) {
+    syncState = resumeKaraokeSync(syncState, nowMs);
+    if (elements.deviceAudio.src) {
+      notifyPlaybackStarting("karaokeSync");
+      elements.deviceAudio.play().catch(() => {});
+    }
+    startTickLoop();
+  } else {
+    syncState = pauseKaraokeSync(syncState, nowMs);
+    elements.deviceAudio.pause();
+    stopTickLoop();
+  }
+  updatePauseResumeButtonUI();
+  tick(); // 停止した瞬間・再開した瞬間の位置を、次のtickを待たずに即座に描画へ反映する
+}
+
 // タイミング調整だけを一瞬でリセットする「0秒に戻す」も、この画面全体の状態リセットである
 // resetToStartPanel()とは別物（前者はjs/karaokeSync.jsのresetOffsetToZero、後者はここ）。
 function applyOffsetDelta(deltaMs) {
@@ -369,12 +378,12 @@ function handleOffsetResetClick() {
 }
 
 function handleResyncButtonClick() {
-  const positionSec = getKaraokePositionSec(syncState, performance.now());
-  if (positionSec === null) {
+  if (!syncState.isSyncing) {
     closeMoreMenu();
     return;
   }
-  const syncPointCall = findCurrentOrNextSyncPoint(syncPointCandidates, positionSec);
+  const positionSec = getKaraokePositionSec(syncState, performance.now());
+  const syncPointCall = findCurrentOrNextSyncPoint(syncPointCandidates, positionSec ?? 0);
   if (!syncPointCall) {
     closeMoreMenu();
     return;
@@ -386,10 +395,21 @@ function handleResyncButtonClick() {
   closeMoreMenu();
 }
 
-function handleFullTextToggleClick() {
-  elements.referencePanel.hidden = !elements.referencePanel.hidden;
-  updateFullTextToggleLabel();
-  closeMoreMenu();
+// 歌詞行タップ（js/lyricsSync.jsのoptions.onLineClickフック経由）：端末音源・同期時計・
+// 現在歌詞・現在コール・NEXT CALL・カウントダウンを、まとめてその歌詞行のstart時刻へ合わせる。
+// 一時停止中でもタップでき、一時停止状態自体は維持される（js/karaokeSync.jsのresyncToPosition
+// 参照）。既存のoffset（早める/遅らせるの蓄積）は、この呼び出し1回で新しい値に上書きされるため、
+// 別途ゼロへ戻す処理は不要（「今！」ボタンと全く同じ仕組み）。
+function handleLyricTapSeek(line) {
+  if (!syncState.isSyncing) return;
+  const nowMs = performance.now();
+  syncState = resyncToPosition(syncState, line.start, nowMs);
+  if (elements.deviceAudio.src) {
+    elements.deviceAudio.currentTime = line.start;
+  }
+  lastRenderedOffsetLabel = null;
+  tick();
+  showToast("この位置に合わせました");
 }
 
 function handleBeginnerNavToggleClick() {
@@ -411,7 +431,7 @@ function resetToStartPanel() {
   elements.songEndBanner.hidden = true;
   elements.deviceAudioNotice.hidden = true;
   elements.syncPanel.classList.remove("is-long-call-active");
-  lastRenderedLyricText = null;
+  updatePauseResumeButtonUI();
   lastRenderedCallHudEyebrow = null;
   lastRenderedCallHudText = null;
   lastRenderedCallHudCountdown = null;
@@ -445,18 +465,10 @@ export async function openKaraokeSyncScreen(songId) {
   allCalls = callRecord && Array.isArray(callRecord.calls) ? [...callRecord.calls].sort((a, b) => a.start - b.start) : [];
   syncPointCandidates = selectSyncPointCandidates(allCalls);
 
-  // 「現在の歌詞」表示用に、歌詞データを直接読み取る（js/lyricsSync.jsの内部状態には触れない。
-  // 「全文を見る」パネル用の読み込みとは別に、この画面が自分で持つ）。
-  const lyricsRecord = await getLyricsData(songId);
-  lyricsLines =
-    lyricsRecord && Array.isArray(lyricsRecord.lines) ? [...lyricsRecord.lines].sort((a, b) => a.start - b.start) : [];
-
   clockSource = new KaraokeClockSource();
-  // 「全文を見る」パネル（js/lyricsSync.jsをそのまま再利用）。歌詞データが無い曲では
-  // 何も描画されず、パネルは常に非表示のままになる。
-  await loadLyricsForSong(songId, clockSource, elements.referencePanel);
-  elements.referencePanel.hidden = true; // ⋯メニューの「全文を見る」を押すまでは閉じておく
-  updateFullTextToggleLabel();
+  // 「現在の歌詞」表示パネル（js/lyricsSync.jsをそのまま再利用）。歌詞データが無い曲では
+  // 何も描画されず、パネルは自動的に非表示のままになる。行タップはhandleLyricTapSeek()へ。
+  await loadLyricsForSong(songId, clockSource, elements.lyricsContextPanel, { onLineClick: handleLyricTapSeek });
 
   elements.startPanel.hidden = allCalls.length === 0;
   elements.noCallsNotice.hidden = allCalls.length > 0;
@@ -469,6 +481,7 @@ export async function openKaraokeSyncScreen(songId) {
   elements.toast.hidden = true;
 
   syncBeginnerNavUI();
+  updatePauseResumeButtonUI();
 
   return { ok: true };
 }
@@ -487,16 +500,16 @@ export function closeKaraokeSyncScreen() {
 //   songTitle, noCallsNotice, moreMenuButton,
 //   startPanel, startButton,
 //   deviceAudioNotice,
-//   syncPanel, currentLyric,
+//   syncPanel, lyricsContextPanel,
 //   callHudCard, callHudEyebrow, callHudText, callHudCountdown,
 //   songEndBanner, songEndRestartButton, songEndChooseButton,
-//   referencePanel, deviceAudio,
+//   deviceAudio,
 //   footerZone, toast,
+//   pauseResumeButton,
 //   offsetMinus05Button, offsetMinus01Button, offsetResetButton, offsetPlus01Button, offsetPlus05Button,
 //   offsetLabel,
 //   moreMenuModal, moreMenuCloseButton,
 //   nowButton, syncPointLabel,
-//   fullTextToggleButton, fullTextToggleLabel,
 //   beginnerNavToggleButton, beginnerNavToggleLabel,
 //   restartSongButton,
 //   onRequestChooseSong: 「曲を選ぶ」（曲終了バナー）が押されたときに呼ばれるコールバック,
@@ -506,6 +519,7 @@ export function initKaraokeSyncScreen(newElements) {
 
   elements.startButton.addEventListener("click", handleStartButtonClick);
   elements.deviceAudio.addEventListener("ended", handleDeviceAudioEnded);
+  elements.pauseResumeButton.addEventListener("click", handlePauseResumeClick);
 
   elements.offsetMinus05Button.addEventListener("click", () => applyOffsetDelta(-OFFSET_STEP_BIG_MS));
   elements.offsetMinus01Button.addEventListener("click", () => applyOffsetDelta(-OFFSET_STEP_FINE_MS));
@@ -520,7 +534,6 @@ export function initKaraokeSyncScreen(newElements) {
   });
 
   elements.nowButton.addEventListener("click", handleResyncButtonClick);
-  elements.fullTextToggleButton.addEventListener("click", handleFullTextToggleClick);
   elements.beginnerNavToggleButton.addEventListener("click", handleBeginnerNavToggleClick);
   elements.restartSongButton.addEventListener("click", handleRestartSongButtonClick);
 

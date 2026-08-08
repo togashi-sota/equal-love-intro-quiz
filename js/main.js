@@ -445,7 +445,6 @@ const liveCallModeSeekRangeElement = document.getElementById("live-call-mode-see
 const liveCallModeCurrentTimeElement = document.getElementById("live-call-mode-current-time");
 const liveCallModeDurationElement = document.getElementById("live-call-mode-duration");
 const liveCallModeSeekBackButtonElement = document.getElementById("live-call-mode-seek-back-button");
-const liveCallModeSeekForwardButtonElement = document.getElementById("live-call-mode-seek-forward-button");
 const liveCallModeAudioElement = document.getElementById("live-call-mode-audio");
 const liveCallModeLyricsPanelElement = document.getElementById("live-call-mode-lyrics-panel");
 const liveCallModeFullscreenButtonElement = document.getElementById("live-call-mode-fullscreen-button");
@@ -472,7 +471,7 @@ const karaokeStartPanelElement = document.getElementById("karaoke-start-panel");
 const karaokeStartButtonElement = document.getElementById("karaoke-start-button");
 const karaokeDeviceAudioNoticeElement = document.getElementById("karaoke-device-audio-notice");
 const karaokeSyncPanelElement = document.getElementById("karaoke-sync-panel");
-const karaokeCurrentLyricElement = document.getElementById("karaoke-current-lyric");
+const karaokeLyricsContextPanelElement = document.getElementById("karaoke-lyrics-context-panel");
 const karaokeCallHudCardElement = document.getElementById("karaoke-call-hud-card");
 const karaokeCallHudEyebrowElement = document.getElementById("karaoke-call-hud-eyebrow");
 const karaokeCallHudTextElement = document.getElementById("karaoke-call-hud-text");
@@ -480,10 +479,10 @@ const karaokeCallHudCountdownElement = document.getElementById("karaoke-call-hud
 const karaokeSongEndBannerElement = document.getElementById("karaoke-song-end-banner");
 const karaokeSongEndRestartButtonElement = document.getElementById("karaoke-song-end-restart-button");
 const karaokeSongEndChooseButtonElement = document.getElementById("karaoke-song-end-choose-button");
-const karaokeReferencePanelElement = document.getElementById("karaoke-reference-panel");
 const karaokeDeviceAudioElement = document.getElementById("karaoke-device-audio");
 const karaokeFooterZoneElement = document.getElementById("karaoke-footer-zone");
 const karaokeToastElement = document.getElementById("karaoke-toast");
+const karaokePauseResumeButtonElement = document.getElementById("karaoke-pause-resume-button");
 const karaokeOffsetMinus05ButtonElement = document.getElementById("karaoke-offset-minus-05-button");
 const karaokeOffsetMinus01ButtonElement = document.getElementById("karaoke-offset-minus-01-button");
 const karaokeOffsetResetButtonElement = document.getElementById("karaoke-offset-reset-button");
@@ -494,8 +493,6 @@ const karaokeMoreMenuModalElement = document.getElementById("karaoke-more-menu-m
 const karaokeMoreMenuCloseButtonElement = document.getElementById("karaoke-more-menu-close");
 const karaokeNowButtonElement = document.getElementById("karaoke-now-button");
 const karaokeSyncPointLabelElement = document.getElementById("karaoke-sync-point-label");
-const karaokeFullTextToggleButtonElement = document.getElementById("karaoke-full-text-toggle-button");
-const karaokeFullTextToggleLabelElement = document.getElementById("karaoke-full-text-toggle-label");
 const karaokeBeginnerNavToggleButtonElement = document.getElementById("karaoke-beginner-nav-toggle-button");
 const karaokeBeginnerNavToggleLabelElement = document.getElementById("karaoke-beginner-nav-toggle-label");
 const karaokeRestartSongButtonElement = document.getElementById("karaoke-restart-song-button");
@@ -1034,7 +1031,6 @@ initLiveCallModeScreen({
   currentTime: liveCallModeCurrentTimeElement,
   duration: liveCallModeDurationElement,
   seekBackButton: liveCallModeSeekBackButtonElement,
-  seekForwardButton: liveCallModeSeekForwardButtonElement,
   audio: liveCallModeAudioElement,
   lyricsPanel: liveCallModeLyricsPanelElement,
   fullscreenButton: liveCallModeFullscreenButtonElement,
@@ -1121,7 +1117,7 @@ initKaraokeSyncScreen({
   startButton: karaokeStartButtonElement,
   deviceAudioNotice: karaokeDeviceAudioNoticeElement,
   syncPanel: karaokeSyncPanelElement,
-  currentLyric: karaokeCurrentLyricElement,
+  lyricsContextPanel: karaokeLyricsContextPanelElement,
   callHudCard: karaokeCallHudCardElement,
   callHudEyebrow: karaokeCallHudEyebrowElement,
   callHudText: karaokeCallHudTextElement,
@@ -1129,10 +1125,10 @@ initKaraokeSyncScreen({
   songEndBanner: karaokeSongEndBannerElement,
   songEndRestartButton: karaokeSongEndRestartButtonElement,
   songEndChooseButton: karaokeSongEndChooseButtonElement,
-  referencePanel: karaokeReferencePanelElement,
   deviceAudio: karaokeDeviceAudioElement,
   footerZone: karaokeFooterZoneElement,
   toast: karaokeToastElement,
+  pauseResumeButton: karaokePauseResumeButtonElement,
   offsetMinus05Button: karaokeOffsetMinus05ButtonElement,
   offsetMinus01Button: karaokeOffsetMinus01ButtonElement,
   offsetResetButton: karaokeOffsetResetButtonElement,
@@ -1143,8 +1139,6 @@ initKaraokeSyncScreen({
   moreMenuCloseButton: karaokeMoreMenuCloseButtonElement,
   nowButton: karaokeNowButtonElement,
   syncPointLabel: karaokeSyncPointLabelElement,
-  fullTextToggleButton: karaokeFullTextToggleButtonElement,
-  fullTextToggleLabel: karaokeFullTextToggleLabelElement,
   beginnerNavToggleButton: karaokeBeginnerNavToggleButtonElement,
   beginnerNavToggleLabel: karaokeBeginnerNavToggleLabelElement,
   restartSongButton: karaokeRestartSongButtonElement,

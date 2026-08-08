@@ -6,6 +6,8 @@ import {
   startKaraokeSync,
   resetKaraokeSync,
   getKaraokePositionSec,
+  pauseKaraokeSync,
+  resumeKaraokeSync,
   adjustOffsetMs,
   resetOffsetToZero,
   resyncToPosition,
@@ -96,6 +98,66 @@ export function runKaraokeSyncTests() {
     state = resetKaraokeSync(state);
     assertEqual(state.isSyncing, false, "やり直すとisSyncingがfalseに戻る");
     assertEqual(state.offsetMs, 0, "やり直すとoffsetもリセットされる");
+  }
+
+  // ===== 一時停止／再開（UI/UX第4版で追加） =====
+  {
+    // 5秒経過した時点で一時停止 → その後どれだけperformance.now()が進んでも位置は動かない。
+    let state = startKaraokeSync(createKaraokeSyncState(), 0);
+    state = pauseKaraokeSync(state, 5000);
+    assertEqual(state.isPaused, true, "pauseKaraokeSyncでisPausedがtrueになる");
+    assertEqual(state.pausedAtPositionSec, 5, "一時停止した瞬間の位置が凍結される");
+    assertEqual(getKaraokePositionSec(state, 5000), 5, "一時停止直後の位置");
+    assertEqual(getKaraokePositionSec(state, 20000), 5, "15秒後でも一時停止中は位置が動かない");
+    assertEqual(getKaraokePositionSec(state, 999999), 5, "どれだけ時間が経っても一時停止中は5秒のまま");
+
+    // 一時停止中にもう一度pauseを呼んでも状態は変わらない（安全な二重呼び出し防止）。
+    const pausedAgain = pauseKaraokeSync(state, 30000);
+    assertEqual(pausedAgain, state, "一時停止中に再度pauseしても状態は変化しない");
+
+    // 10秒後（実時間で5秒後）に再開 → 同じ5秒の位置から途切れなく続きが進む。
+    state = resumeKaraokeSync(state, 10000);
+    assertEqual(state.isPaused, false, "resumeKaraokeSyncでisPausedがfalseに戻る");
+    assertEqual(state.pausedAtPositionSec, null, "再開するとpausedAtPositionSecはクリアされる");
+    assertEqual(getKaraokePositionSec(state, 10000), 5, "再開した瞬間は一時停止した位置と同じ");
+    assertEqual(getKaraokePositionSec(state, 11000), 6, "再開後は1秒経過すれば1秒進む");
+
+    // 同期していない状態・再生中の状態でそれぞれ安全に無視されることを確認。
+    const notSyncing = createKaraokeSyncState();
+    assertEqual(pauseKaraokeSync(notSyncing, 1000), notSyncing, "同期前のpauseは状態を変えない");
+    assertEqual(resumeKaraokeSync(notSyncing, 1000), notSyncing, "同期前のresumeは状態を変えない");
+    const playing = startKaraokeSync(createKaraokeSyncState(), 0);
+    assertEqual(resumeKaraokeSync(playing, 1000), playing, "再生中にresumeを呼んでも状態は変わらない（すでに再生中のため）");
+  }
+
+  // ===== 一時停止中のタイミング調整（凍結位置ごと動かす） =====
+  {
+    let state = startKaraokeSync(createKaraokeSyncState(), 0);
+    state = pauseKaraokeSync(state, 4000); // 4秒の位置で一時停止
+    state = adjustOffsetMs(state, 300); // 早める+0.3秒
+    assertEqual(state.pausedAtPositionSec, 4.3, "一時停止中に早めると、凍結位置も同じ分だけ前に進む");
+    assertEqual(getKaraokePositionSec(state, 999999), 4.3, "一時停止中はどれだけ待っても4.3秒のまま");
+
+    state = adjustOffsetMs(state, -800); // 遅らせる-0.8秒
+    assertEqual(state.pausedAtPositionSec, 3.5, "一時停止中に遅らせると、凍結位置も同じ分だけ戻る");
+
+    state = resetOffsetToZero(state);
+    assertEqual(state.offsetMs, 0, "一時停止中でも0に戻すでoffsetが0になる");
+    assertEqual(state.pausedAtPositionSec, 4, "0に戻すと、それまでの補正分だけ凍結位置も巻き戻る（早める/遅らせるの合計-0.5秒を打ち消して4秒に戻る）");
+  }
+
+  // ===== 一時停止中の歌詞タップ・「今！」（resyncToPosition） =====
+  {
+    let state = startKaraokeSync(createKaraokeSyncState(), 0);
+    state = pauseKaraokeSync(state, 4000); // 4秒の位置で一時停止
+    state = resyncToPosition(state, 12, 999999); // 一時停止中に別の歌詞行（12秒）をタップ
+    assertEqual(state.isPaused, true, "歌詞タップ後も一時停止状態は維持される");
+    assertEqual(state.pausedAtPositionSec, 12, "凍結位置がタップした行の位置へ直接移動する");
+    assertEqual(getKaraokePositionSec(state, 999999), 12, "一時停止中はperformance.now()に関わらず12秒のまま");
+
+    state = resumeKaraokeSync(state, 20000);
+    assertEqual(getKaraokePositionSec(state, 20000), 12, "再開すると、タップした位置からそのまま続きが進む");
+    assertEqual(getKaraokePositionSec(state, 21000), 13, "再開後も1秒経過すれば1秒進む");
   }
 
   // ===== コール検索 =====

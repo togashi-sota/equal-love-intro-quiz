@@ -183,7 +183,8 @@ function handleFullscreenButtonClick() {
 // elements: {
 //   listContainer, listEmptyState: 曲一覧画面,
 //   songTitle, playButton, seekRange, currentTime, duration,
-//   seekBackButton, seekForwardButton, audio, lyricsPanel, fullscreenButton, noLyricsNotice: 再生画面,
+//   seekBackButton, audio, lyricsPanel, fullscreenButton, noLyricsNotice: 再生画面
+//   （UI/UX第4版で+10秒ボタン(seekForwardButton)は廃止した）,
 //   onSelectSong: 曲一覧で曲がタップされたときに呼ばれるコールバック（songIdを受け取る）,
 // }
 export function initLiveCallModeScreen(newElements) {
@@ -200,10 +201,6 @@ export function initLiveCallModeScreen(newElements) {
   });
   elements.seekBackButton.addEventListener("click", () => {
     elements.audio.currentTime = Math.max(0, elements.audio.currentTime - SEEK_SKIP_SECONDS);
-  });
-  elements.seekForwardButton.addEventListener("click", () => {
-    const duration = elements.audio.duration || elements.audio.currentTime;
-    elements.audio.currentTime = Math.min(duration, elements.audio.currentTime + SEEK_SKIP_SECONDS);
   });
 
   elements.fullscreenButton.addEventListener("click", handleFullscreenButtonClick);

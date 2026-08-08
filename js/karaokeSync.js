@@ -25,6 +25,8 @@ export function createKaraokeSyncState() {
     syncStartAtMs: null, // 同期開始時点のmonotonic時刻（ms）
     offsetMs: 0, // 「今！」・早い/遅い補正の蓄積値（このセッション内だけの一時的な値。永続化しない）
     lastResyncAtPositionSec: null, // 最後に再同期した時点の、カラオケ経過位置（表示用）
+    isPaused: false, // 一時停止中かどうか（UI/UX第4版で追加）
+    pausedAtPositionSec: null, // 一時停止した瞬間のカラオケ経過位置（isPaused中はここを凍結して返す）
   };
 }
 
@@ -38,6 +40,8 @@ export function startKaraokeSync(state, monotonicNowMs) {
     syncStartAtMs: monotonicNowMs,
     offsetMs: 0,
     lastResyncAtPositionSec: null,
+    isPaused: false,
+    pausedAtPositionSec: null,
   };
 }
 
@@ -48,9 +52,33 @@ export function resetKaraokeSync() {
 }
 
 // 現在のカラオケ経過位置（秒）。同期中でなければnullを返す。
+// 一時停止中は、経過時間の計算式を使わずpausedAtPositionSecをそのまま返す
+// （＝performance.now()がどれだけ進んでも、再開されるまで位置が動かない）。
 export function getKaraokePositionSec(state, monotonicNowMs) {
   if (!state.isSyncing || state.syncStartAtMs === null) return null;
+  if (state.isPaused) return state.pausedAtPositionSec;
   return (monotonicNowMs - state.syncStartAtMs + state.offsetMs) / 1000;
+}
+
+// ===== 一時停止／再開（UI/UX第4版で追加） =====
+// 「0秒へ戻す完全停止」ではなく、「今の位置を凍結し、同じ位置から再開できる」一時停止。
+// 呼び出し側は、これと同時に端末音源の.pause()／.play()も必ず行うこと
+// （この関数自体は音源要素に一切触れない。同期時計と音源の両方を同時に止める／再開する責務は
+// 呼び出し側＝js/karaokeSyncScreen.jsが持つ）。
+export function pauseKaraokeSync(state, monotonicNowMs) {
+  if (!state.isSyncing || state.isPaused) return state;
+  const positionSec = getKaraokePositionSec(state, monotonicNowMs);
+  return { ...state, isPaused: true, pausedAtPositionSec: positionSec };
+}
+
+// 一時停止した位置から、途切れなく再開する。内部的にはresyncToPosition()と同じ考え方
+// （「今の経過時間」から逆算してoffsetを1回で引き直す）を使い、凍結していた位置を
+// そのままの値で再開後も維持する。
+export function resumeKaraokeSync(state, monotonicNowMs) {
+  if (!state.isSyncing || !state.isPaused) return state;
+  const targetPositionSec = state.pausedAtPositionSec;
+  const resumedState = resyncToPosition({ ...state, isPaused: false, pausedAtPositionSec: null }, targetPositionSec, monotonicNowMs);
+  return resumedState;
 }
 
 // ===== タイミング調整 =====
@@ -62,23 +90,45 @@ export function getKaraokePositionSec(state, monotonicNowMs) {
 // +1000msして「早める」必要がある（実際に本来より遅れているものを早めて追いつかせる）。
 // この関係が、ここより下のresyncToPosition()の計算式（offset = target*1000 - elapsedMs）
 // とも整合していることをテスト（tests/karaokeSync.test.js）で確認している。
+//
+// 【UI/UX第4版・一時停止中の扱い】一時停止中はgetKaraokePositionSec()がoffsetMsを見ずに
+// pausedAtPositionSecをそのまま返すため、offsetMsだけ変えても画面上の凍結位置が動かず
+// 「ボタンを押しても何も起きない」ように見えてしまう。一時停止中にoffsetを変えたときは、
+// pausedAtPositionSecも同じ量（秒換算）だけ動かし、非表示中でも操作結果が一貫するようにする。
 export function adjustOffsetMs(state, deltaMs) {
+  if (state.isPaused) {
+    return {
+      ...state,
+      offsetMs: state.offsetMs + deltaMs,
+      pausedAtPositionSec: state.pausedAtPositionSec + deltaMs / 1000,
+    };
+  }
   return { ...state, offsetMs: state.offsetMs + deltaMs };
 }
 
 // タイミング調整だけを0msへ戻す。同期自体（開始時刻・経過位置・音源再生）には一切触れない
 // （本人指示：「曲そのものを最初からやり直す機能ではない。現在位置・音源再生は維持したまま、
-// タイミング補正だけを0に戻す」）。
+// タイミング補正だけを0に戻す」）。一時停止中は、上のadjustOffsetMs()と同じ考え方で、
+// 古いoffsetの分だけpausedAtPositionSecを巻き戻してから0にする（非表示のズレを防ぐ）。
 export function resetOffsetToZero(state) {
+  if (state.isPaused) {
+    return { ...state, offsetMs: 0, pausedAtPositionSec: state.pausedAtPositionSec - state.offsetMs / 1000 };
+  }
   return { ...state, offsetMs: 0 };
 }
 
-// ===== 「今！」による途中再同期 =====
-// targetPositionSec（同期ポイントとなるコールのstart）が、まさに今この瞬間に実際のカラオケで
-// 起きているとみなし、以後その前提でoffsetを引き直す。前回までの補正の積み重ねに関わらず、
-// 「今の経過時間」から逆算して1回で正しい値を出すため、offsetの古い値には依存しない。
+// ===== 「今！」・歌詞タップによる途中再同期 =====
+// targetPositionSec（同期ポイントとなるコールのstart、または歌詞行のstart）が、
+// まさに今この瞬間に実際のカラオケで起きているとみなし、以後その前提でoffsetを引き直す。
+// 前回までの補正の積み重ねに関わらず、「今の経過時間」から逆算して1回で正しい値を出すため、
+// offsetの古い値には依存しない（＝実質的に古い補正はこの1回でリセットされるのと同じ効果になる）。
+// 一時停止中に呼ばれた場合は、経過時間の計算をせずpausedAtPositionSecへ直接ターゲット位置を
+// 設定する（本人指示：一時停止中でも歌詞タップで位置合わせでき、一時停止状態自体は維持する）。
 export function resyncToPosition(state, targetPositionSec, monotonicNowMs) {
   if (!state.isSyncing || state.syncStartAtMs === null) return state;
+  if (state.isPaused) {
+    return { ...state, pausedAtPositionSec: targetPositionSec, lastResyncAtPositionSec: targetPositionSec };
+  }
   const elapsedMs = monotonicNowMs - state.syncStartAtMs;
   const newOffsetMs = targetPositionSec * 1000 - elapsedMs;
   return {

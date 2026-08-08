@@ -3989,21 +3989,82 @@ fieldset label:has(input:focus-visible) {
   color: var(--color-primary-dark);
 }
 
-/* ===== ライブコールモード：再生画面 ===== */
+/* ===== ライブコールモード：再生画面 UI/UX第4版（2026-08-09） =====
+   本人の実機フィードバック「歌詞表示領域の下に大きな白い空白がある」を受け、
+   カラオケ同期画面と同じ3ゾーン固定レイアウト（①ヘッダー②中央スクロール③下部固定）へ
+   再構成した。使える縦幅はできる限り歌詞＋コール表示（中央ゾーン）へ回す。 */
+body[data-screen="liveCallModePlayer"] {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+body[data-screen="liveCallModePlayer"] .game-frame {
+  height: 100dvh;
+  max-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+#live-call-mode-player-screen {
+  padding: 0;
+}
+
+#live-call-mode-player-screen.is-active {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.live-call-player-header-zone {
+  flex: none;
+  padding: max(16px, env(safe-area-inset-top)) 20px 10px;
+}
+
+/* ②中央ゾーン：歌詞＋コール表示だけがここに入る。内容量に関わらずここだけが縦スクロールする。 */
+.live-call-player-middle-zone {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 中央ゾーンいっぱいに広げる（従来の320px固定を廃止）。base(.synced-lyrics-panel)の
+   max-height:150pxを、専用の再生画面ではここで打ち消す。 */
+#live-call-mode-lyrics-panel {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  margin-top: 0;
+}
+
+/* ③下部ゾーン：最低限の再生操作だけを固定表示する。 */
+.live-call-player-footer-zone {
+  flex: none;
+  padding: 10px 20px max(14px, env(safe-area-inset-bottom));
+  background: var(--color-surface);
+  border-top: 1.5px solid var(--color-card-border);
+  box-shadow: 0 -10px 24px -16px rgba(74, 46, 66, 0.3);
+}
+
 .live-call-mode-controls {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin: 12px 0;
+  gap: 8px;
 }
 
-.live-call-mode-seek-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex: 1;
-  min-width: 160px;
+/* 専用の再生画面のため、一覧行の.play-buttonより一段大きくタップしやすいサイズにする。 */
+.live-call-mode-play-button {
+  width: 44px;
+  height: 44px;
+}
+
+.live-call-mode-play-button svg {
+  width: 18px;
+  height: 18px;
 }
 
 .live-call-mode-time {
@@ -4014,13 +4075,11 @@ fieldset label:has(input:focus-visible) {
   font-variant-numeric: tabular-nums;
 }
 
-/* 専用の再生画面のため、収録曲一覧の試聴パネルより高さに余裕を持たせる */
-#live-call-mode-lyrics-panel {
-  max-height: 320px;
-}
-
-.live-call-mode-fullscreen-button {
-  margin-top: 10px;
+/* 全画面表示ボタンをヘッダーへ移動（UI/UX第4版）。既存の.info-link-button（？ボタン）と
+   同じ丸アイコンの見た目を流用し、アイコンだけこのサイズで上書きする。 */
+.live-call-mode-fullscreen-icon-button svg {
+  width: 14px;
+  height: 14px;
 }
 
 /* 再生/一時停止ボタンのアイコン切り替え。既存の.icon-play/.icon-pause出し分け方式は
@@ -10933,30 +10992,63 @@ body[data-screen="liveCallModeKaraoke"] .game-frame {
   margin-top: 10px;
 }
 
-/* ===== STATE B：同期中パネル。「現在の歌詞・現在のコール・次のコール」だけを主役にする ===== */
+/* ===== STATE B：同期中パネル。UI/UX第4版で「現在の歌詞（複数行）」を復活させ、
+   「歌詞で現在位置を追える」＋「コールは通常再生より圧倒的に分かりやすい」の両立を目指す
+   （本人指示：どちらか一方に寄せすぎない）。中身（歌詞パネル・HUDカード）をflexで
+   縦に並べ、S=現在のコール＞A=NEXT CALL＞B=現在の歌詞の優先順位のまま、両方を同時に見せる。 */
+.karaoke-middle-zone {
+  display: flex;
+  flex-direction: column;
+}
+
+.karaoke-sync-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+}
+
 .karaoke-sync-panel[hidden] {
   display: none;
 }
 
-/* B：現在の歌詞（参考表示）。優先順位はコール・NEXT CALLより低いため、控えめな大きさにする。 */
-.karaoke-current-lyric {
-  min-height: 1.2em;
-  margin: 10px 4px 14px;
-  text-align: center;
+/* B：現在の歌詞（複数行・スクロール可能）。既存の.synced-lyrics-panelをそのまま流用し、
+   ハイライト・自動追従スクロール・全文表示切替・行タップ（js/karaokeSyncScreen.jsの
+   handleLyricTapSeek）まで、通常再生画面と同じロジックを1行も複製せずに再利用している。
+   base(.synced-lyrics-panel)のmax-height:150pxをここで打ち消し、flexで高さを配分する。 */
+.karaoke-lyrics-context-panel {
+  flex: 1 1 0;
+  min-height: clamp(70px, 15vh, 140px);
+  max-height: none;
+  margin-top: 0;
+  transition: flex-grow var(--transition-base), opacity var(--transition-base);
+}
+
+.karaoke-lyrics-context-panel .synced-lyrics-line {
   font-size: 0.85rem;
-  color: var(--color-text);
-  opacity: 0.7;
-  transition: opacity var(--transition-base), font-size var(--transition-base);
+  padding: 4px 6px;
+  /* ダブルタップズーム対策（本人指示：スクロール自体は妨げないtouch-action:manipulationのみ使う）。 */
+  touch-action: manipulation;
 }
 
-/* 長い口上・MIXが実際に鳴っている間だけ、歌詞表示をさらに控えめにしてコール本文へ意識を
-   集中させる（本人指示：終わったら自動で元の表示に戻ればよい）。 */
-.karaoke-sync-panel.is-long-call-active .karaoke-current-lyric {
-  opacity: 0.3;
-  font-size: 0.75rem;
+.karaoke-lyrics-context-panel .synced-lyrics-line.is-current-lyrics-line {
+  font-size: 0.95rem;
 }
 
-/* S・A：現在のコール／NEXT CALLカード。画面の主役として、常に中央ゾーンの大部分を占める。
+/* 長い口上・MIXが実際に鳴っている間だけ、歌詞コンテキストを控えめに縮めてコール本文へ意識を
+   集中させる。ただし完全には消さない（本人の最重要指示：歌詞1行表示には戻さない）。
+   終わったら自動で元の比率に戻る（js/karaokeSyncScreen.jsがクラスを付け外しするだけ）。 */
+.karaoke-sync-panel.is-long-call-active .karaoke-lyrics-context-panel {
+  flex-grow: 0.45;
+  opacity: 0.55;
+}
+
+.karaoke-sync-panel.is-long-call-active .karaoke-call-hud-card {
+  flex-grow: 2.6;
+}
+
+/* S・A：現在のコール／NEXT CALLカード。画面の主役として、中央ゾーンの過半を占める。
    色だけでなく、見出し文言・文字サイズ・アニメーションでも「今は何も言わない／もうすぐ言う／
    今言う」の3段階を伝える（本人指示、色だけに依存しない）。 */
 .karaoke-call-hud-card {
@@ -10965,14 +11057,16 @@ body[data-screen="liveCallModeKaraoke"] .game-frame {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  min-height: 42vh;
+  flex: 1.6 1 0;
+  min-height: clamp(150px, 32vh, 300px);
   padding: 24px 18px;
   border-radius: 24px;
   background: var(--color-surface-glass);
   border: 1.5px solid var(--color-card-border);
   box-shadow: var(--shadow-card);
   text-align: center;
-  transition: box-shadow var(--transition-base), background var(--transition-base), border-color var(--transition-base);
+  transition: box-shadow var(--transition-base), background var(--transition-base), border-color var(--transition-base),
+    flex-grow var(--transition-base);
 }
 
 .karaoke-call-hud-eyebrow {
@@ -11034,13 +11128,69 @@ body[data-screen="liveCallModeKaraoke"] .game-frame {
   box-shadow: 0 0 0 6px rgba(255, 217, 61, 0.4), var(--shadow-card);
 }
 
+/* SHORT：「はい！」「オレ！」のような一瞬で言う一言コール。ポンッと勢いよく拡大・発光し、
+   すぐ通常サイズへ収まる。既存の飛び出しバースト演出（.call-burst-text）と同じ色味・
+   質感を踏襲しつつ、画面全体を覆うfixedレイヤーは使わずカード内で完結させている
+   （UI/UX第3版の「長文コールが画面を乗っ取る」問題の再発を避けるため）。 */
+.karaoke-call-hud-card.is-now.is-tier-short {
+  animation: karaokeShortCallFlash 500ms ease-out;
+}
+
 .karaoke-call-hud-card.is-now.is-tier-short .karaoke-call-hud-text {
   font-size: clamp(2.2rem, 13vw, 3.4rem);
-  animation: karaokeCallPop 360ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.85), 0 0 22px var(--color-call-glow);
+  animation: karaokeCallPop 420ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes karaokeShortCallFlash {
+  0% {
+    box-shadow: 0 0 0 16px rgba(255, 217, 61, 0.55), var(--shadow-card);
+  }
+  100% {
+    box-shadow: 0 0 0 6px rgba(255, 217, 61, 0.4), var(--shadow-card);
+  }
+}
+
+@keyframes karaokeCallPop {
+  0% {
+    transform: scale(0.6) rotate(-3deg);
+    opacity: 0;
+  }
+  55% {
+    transform: scale(1.12) rotate(2deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+/* MEDIUM：短文ほど瞬間的ではない中程度のコール。文字が動きすぎて読みにくくならないよう、
+   軽く浮き上がるだけの控えめな演出にとどめる（本人指示）。 */
+.karaoke-call-hud-card.is-now.is-tier-medium {
+  animation: karaokeMediumCallLift 320ms ease-out;
 }
 
 .karaoke-call-hud-card.is-now.is-tier-medium .karaoke-call-hud-text {
   font-size: clamp(1.5rem, 7vw, 2rem);
+}
+
+@keyframes karaokeMediumCallLift {
+  0% {
+    transform: translateY(8px);
+    opacity: 0.6;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* LONG：MIX・口上のような長いコール。「読みやすさ」を最優先し、文字自体は動かさず、
+   カード周囲の光がゆっくり脈打つだけにとどめる（本人指示：画面全体の点滅・激しい動きは禁止）。
+   コールが終わるとis-now自体が外れるため、演出も自動的に解除される。 */
+.karaoke-call-hud-card.is-now.is-tier-long {
+  animation: karaokeLongCallGlow 2.2s ease-in-out infinite;
 }
 
 .karaoke-call-hud-card.is-now.is-tier-long .karaoke-call-hud-text {
@@ -11053,17 +11203,13 @@ body[data-screen="liveCallModeKaraoke"] .game-frame {
   text-align: left;
 }
 
-@keyframes karaokeCallPop {
-  0% {
-    transform: scale(0.7);
-    opacity: 0;
-  }
-  60% {
-    transform: scale(1.08);
-    opacity: 1;
-  }
+@keyframes karaokeLongCallGlow {
+  0%,
   100% {
-    transform: scale(1);
+    box-shadow: 0 0 0 6px rgba(255, 217, 61, 0.4), var(--shadow-card);
+  }
+  50% {
+    box-shadow: 0 0 0 11px rgba(255, 217, 61, 0.6), var(--shadow-card);
   }
 }
 
@@ -11122,26 +11268,6 @@ body[data-screen="liveCallModeKaraoke"] .game-frame {
   border: 1.5px solid var(--color-primary);
 }
 
-/* E：参考パネル（既存の.synced-lyrics-panelを流用した「全文を見る」）。UI/UX第3版から
-   常時表示ではなく、ヘッダー「⋯」メニューから開いたときだけ表示する副次的な要素にした。
-   歌詞行はタップしても実際の再生位置は動かせない（時計はカラオケ側にあるため）ので
-   誤操作防止でpointer-eventsを切るが、パネル内の表示切替ボタン
-   （lyricsSync.jsが描画する.lyrics-mode-toggle-button）はこの対象に含めない＝
-   クリック可能なままにする（2026-08-09修正：以前はパネル全体にpointer-events:noneを
-   かけていたため、切替ボタン自体も押せなくなっていた不具合の直接の原因だった）。 */
-.karaoke-reference-panel {
-  max-height: 40vh;
-  margin-top: 16px;
-}
-
-.karaoke-reference-panel .synced-lyrics-line {
-  pointer-events: none;
-}
-
-.karaoke-reference-panel[hidden] {
-  display: none;
-}
-
 /* ③下部ゾーン：タイミング調整だけを常時固定表示する。中央の内容がどう変わっても
    ここの位置・高さは変えない。position:relativeは、トースト（.karaoke-toast）を
    絶対配置で重ねて表示するための基準。 */
@@ -11193,8 +11319,8 @@ body[data-screen="liveCallModeKaraoke"] .game-frame {
   transform: translateX(-50%) translateY(-4px);
 }
 
-/* C：タイミング調整。「曲が流れている最中に何度も押すか？」の基準で、常時表示するのは
-   この5ボタンだけに絞った（本人指示の判断基準）。符号の向きはjs/karaokeSync.jsの
+/* 一時停止／再開＋タイミング調整。「曲が流れている最中に何度も押すか？」の基準で、
+   常時表示するのはこの6ボタンだけに絞った（本人指示の判断基準）。符号の向きはjs/karaokeSync.jsの
    adjustOffsetMs()と完全に対応させている：右（+側）＝早める、左（−側）＝遅らせる。 */
 .karaoke-timing-heading {
   margin: 0 0 6px;
@@ -11207,19 +11333,63 @@ body[data-screen="liveCallModeKaraoke"] .game-frame {
 
 .karaoke-timing-row {
   display: grid;
-  grid-template-columns: 1fr 1fr 1.3fr 1fr 1fr;
-  gap: 6px;
+  grid-template-columns: 0.85fr 1fr 1fr 1.2fr 1fr 1fr;
+  gap: 5px;
+}
+
+/* 一時停止／再開ボタン。既存の.icon-play/.icon-pause出し分け方式は「非playing時にicon-play」
+   基準の他コンポーネントと逆（カラオケは同期開始直後が「再生中」＝アイコンはicon-pauseを
+   既定表示にしたい）のため、汎用ルールに頼らずこのクラス配下だけで独自に出し分ける。 */
+.karaoke-pause-resume-button {
+  min-height: 44px;
+  padding: 8px 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--color-primary);
+  border-radius: 14px;
+  background-color: transparent;
+  color: var(--color-primary-dark);
+  cursor: pointer;
+  transition: transform var(--transition-fast) cubic-bezier(0.34, 1.56, 0.64, 1), background-color var(--transition-base);
+}
+
+.karaoke-pause-resume-button:active {
+  transform: scale(0.94);
+  background-color: var(--color-primary-light);
+}
+
+.karaoke-pause-resume-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.karaoke-pause-resume-button .icon-play {
+  display: none;
+}
+
+.karaoke-pause-resume-button.is-paused .icon-pause {
+  display: none;
+}
+
+.karaoke-pause-resume-button.is-paused .icon-play {
+  display: block;
+}
+
+.karaoke-pause-resume-button.is-paused {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
 }
 
 .karaoke-timing-button {
   min-height: 44px;
-  padding: 8px 4px;
+  padding: 8px 3px;
   border: 1.5px solid var(--color-secondary);
   border-radius: 14px;
   background-color: transparent;
   color: var(--color-secondary);
   font-family: inherit;
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   font-weight: 700;
   cursor: pointer;
   transition: transform var(--transition-fast) cubic-bezier(0.34, 1.56, 0.64, 1), background-color var(--transition-base);
@@ -11232,13 +11402,13 @@ body[data-screen="liveCallModeKaraoke"] .game-frame {
 
 .karaoke-timing-reset-button {
   min-height: 44px;
-  padding: 8px 4px;
+  padding: 8px 3px;
   border: none;
   border-radius: 16px;
   background: linear-gradient(120deg, var(--color-primary-dark), var(--color-primary));
   color: #ffffff;
   font-family: inherit;
-  font-size: 0.76rem;
+  font-size: 0.72rem;
   font-weight: 800;
   cursor: pointer;
 }

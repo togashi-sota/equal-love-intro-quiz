@@ -1292,58 +1292,67 @@
 
     <!-- ライブコールモード：再生画面。歌詞は既存のjs/lyricsSync.jsがそのまま同期表示し、
          その上にjs/callSync.jsがコールを重ねて表示する。全画面表示も既存のjs/lyricsFullscreen.js
-         をそのまま利用する（歌詞パネルの中身がコールごと一緒に移動するため、追加の実装は不要）。 -->
+         をそのまま利用する（歌詞パネルの中身がコールごと一緒に移動するため、追加の実装は不要）。
+         UI/UX第4版（2026-08-09）：本人の実機フィードバック「歌詞表示領域の下に大きな白い空白がある」
+         を受け、カラオケ同期画面と同じ3ゾーン固定レイアウト（①ヘッダー②中央スクロール③下部固定）へ
+         再構成した。使える縦幅はできる限り歌詞＋コール表示（中央ゾーン）へ回し、下部操作は
+         「10秒戻る・再生/一時停止・シークバー・時間表示」だけに絞っている（+10秒ボタンは、
+         本人指示により今回削除。戻って聞き直す操作の方が実用頻度が高いという判断）。 -->
     <section id="live-call-mode-player-screen" class="screen">
-      <div class="list-header">
-        <button id="live-call-mode-player-back-button" class="back-link" type="button">
-          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-          戻る
-        </button>
-        <div class="title-block">
-          <p class="eyebrow-chip">
-            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
-            LIVE CALL
-          </p>
-          <h2 id="live-call-mode-song-title">曲名</h2>
-        </div>
-        <!-- コールガイドの入口と、使い方説明モーダルへの入口。他の画面のヘッダーには影響しない -->
-        <div class="list-header-actions">
-          <button id="live-call-mode-guide-button" class="live-call-mode-guide-button" type="button">コールガイド</button>
-          <button id="live-call-mode-player-help-link" class="info-link-button" type="button" aria-label="ライブコールモードの使い方を見る">？</button>
+      <div class="live-call-player-header-zone">
+        <div class="list-header">
+          <button id="live-call-mode-player-back-button" class="back-link" type="button">
+            <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            戻る
+          </button>
+          <div class="title-block">
+            <p class="eyebrow-chip">
+              <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+              LIVE CALL
+            </p>
+            <h2 id="live-call-mode-song-title">曲名</h2>
+          </div>
+          <!-- コールガイド・全画面表示・使い方説明への入口。全画面表示ボタンはUI/UX第4版で
+               本文下から移動し、アイコンボタン化した（中央ゾーンを歌詞表示だけに使うため）。 -->
+          <div class="list-header-actions">
+            <button id="live-call-mode-guide-button" class="live-call-mode-guide-button" type="button">コールガイド</button>
+            <button id="live-call-mode-fullscreen-button" class="info-link-button live-call-mode-fullscreen-icon-button" type="button" aria-label="歌詞＋コールを全画面表示" hidden>
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+            </button>
+            <button id="live-call-mode-player-help-link" class="info-link-button" type="button" aria-label="ライブコールモードの使い方を見る">？</button>
+          </div>
         </div>
       </div>
 
-      <div class="live-call-mode-controls">
-        <button id="live-call-mode-play-button" class="play-button" type="button" aria-label="再生する">
-          <svg class="icon-play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7Z"/></svg>
-          <svg class="icon-pause" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="7" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
-        </button>
-        <div class="live-call-mode-seek-row">
+      <!-- 中央：内容によらずここだけが縦スクロールする。使える縦幅を可能な限り歌詞＋コール表示へ回す。 -->
+      <div class="live-call-player-middle-zone">
+        <!-- 歌詞パネル：既存の.synced-lyrics-panelと同じクラスにすることで、
+             歌詞の見た目・全文表示切替ボタン等の既存スタイルをそのまま流用する。 -->
+        <div id="live-call-mode-lyrics-panel" class="synced-lyrics-panel" hidden></div>
+
+        <p id="live-call-mode-no-lyrics-notice" class="history-empty-state" hidden>
+          この曲にはまだ歌詞データが登録されていないため、コールだけを表示できません。歌詞データの登録が先に必要です。
+        </p>
+      </div>
+
+      <!-- 下部：最低限の再生操作だけを固定表示する。 -->
+      <div class="live-call-player-footer-zone">
+        <div class="live-call-mode-controls">
           <button id="live-call-mode-seek-back-button" type="button" class="seek-skip-button" aria-label="10秒戻す">−10</button>
+          <button id="live-call-mode-play-button" class="play-button live-call-mode-play-button" type="button" aria-label="再生する">
+            <svg class="icon-play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7Z"/></svg>
+            <svg class="icon-pause" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="7" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+          </button>
           <input type="range" id="live-call-mode-seek-range" class="seek-range" min="0" value="0" step="0.1">
-          <button id="live-call-mode-seek-forward-button" type="button" class="seek-skip-button" aria-label="10秒送る">+10</button>
+          <span class="live-call-mode-time">
+            <span id="live-call-mode-current-time">0:00</span> / <span id="live-call-mode-duration">0:00</span>
+          </span>
         </div>
-        <span class="live-call-mode-time">
-          <span id="live-call-mode-current-time">0:00</span> / <span id="live-call-mode-duration">0:00</span>
-        </span>
       </div>
 
       <audio id="live-call-mode-audio"></audio>
-
-      <!-- 歌詞パネル：既存の.synced-lyrics-panelと同じクラスにすることで、
-           歌詞の見た目・全文表示切替ボタン等の既存スタイルをそのまま流用する。 -->
-      <div id="live-call-mode-lyrics-panel" class="synced-lyrics-panel" hidden></div>
-
-      <button id="live-call-mode-fullscreen-button" class="secondary-button live-call-mode-fullscreen-button" type="button" hidden>
-        <svg class="button-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
-        歌詞＋コールを全画面表示
-      </button>
-
-      <p id="live-call-mode-no-lyrics-notice" class="history-empty-state" hidden>
-        この曲にはまだ歌詞データが登録されていないため、コールだけを表示できません。歌詞データの登録が先に必要です。
-      </p>
     </section>
 
     <!-- ライブコールモード：カラオケ同期・初心者ナビ画面（2026-08-09新設、UI/UX第3版で
@@ -1357,9 +1366,13 @@
          詳しい設計はjs/karaokeSync.js・js/karaokeSyncScreen.jsの冒頭コメント参照。 -->
     <!-- UI/UX第3版：画面の主役は設定ではなく「現在の歌詞・現在のコール・次のコール」。
          開始前（最小構成）と同期中（HUD中心）の2状態で構成し、頻繁に押さない操作
-         （今！・全文を見る・初心者ナビ切替・曲を最初からやり直す）はヘッダーの「⋯」から開く
+         （今！・初心者ナビ切替・曲を最初からやり直す）はヘッダーの「⋯」から開く
          別メニューへ退避した。3ゾーン固定レイアウト（①ヘッダー②中央スクロール③下部固定）と、
          中央の内容が変わっても③の位置が1pxも動かない、というUI/UX第2版の方針は継続している。 -->
+    <!-- UI/UX第4版（2026-08-09）：「シンプルにしすぎて歌詞が見えない」という実機フィードバックを
+         受け、常時表示の複数行歌詞パネル（karaoke-lyrics-context-panel、既存のjs/lyricsSync.jsを
+         再利用）を復活させた。「全文を見る」の別メニュー項目は、この常時パネル自体がその役割を
+         兼ねるため廃止。一時停止／再開ボタンも新設した。 -->
     <section id="live-call-mode-karaoke-screen" class="screen">
       <div class="karaoke-header-zone">
         <div class="karaoke-header-row">
@@ -1389,11 +1402,15 @@
           <p class="karaoke-start-note">少しずれても大丈夫です。あとから画面下のボタンで簡単に直せます。</p>
         </div>
 
-        <!-- STATE B：同期中。現在の歌詞・現在のコール／NEXT CALLだけを主役にする。 -->
+        <!-- STATE B：同期中。現在の歌詞・現在のコール／NEXT CALLを両立させる
+             （本人指示：コールだけにも歌詞だけにも寄せない）。 -->
         <div id="karaoke-sync-panel" class="karaoke-sync-panel" hidden>
           <p id="karaoke-device-audio-notice" class="karaoke-inline-notice" hidden></p>
 
-          <p id="karaoke-current-lyric" class="karaoke-current-lyric"></p>
+          <!-- 現在の歌詞（複数行・スクロール可能）。既存の.synced-lyrics-panelをそのまま使い、
+               js/lyricsSync.jsのハイライト・自動追従スクロール・全文表示切替をすべて再利用する。
+               行タップで、コール表示も含めてその位置へ同期し直せる（js/karaokeSyncScreen.js参照）。 -->
+          <div id="karaoke-lyrics-context-panel" class="synced-lyrics-panel karaoke-lyrics-context-panel"></div>
 
           <div id="karaoke-call-hud-card" class="karaoke-call-hud-card">
             <p id="karaoke-call-hud-eyebrow" class="karaoke-call-hud-eyebrow">NEXT CALL</p>
@@ -1408,17 +1425,20 @@
               <button id="karaoke-song-end-choose-button" class="karaoke-song-end-button" type="button">曲を選ぶ</button>
             </div>
           </div>
-
-          <div id="karaoke-reference-panel" class="synced-lyrics-panel karaoke-reference-panel" hidden></div>
         </div>
       </div>
 
-      <!-- 下部：タイミング調整だけを常時固定表示する。中央の内容がどう変わってもここの位置は動かさない。 -->
+      <!-- 下部：一時停止/再開とタイミング調整だけを常時固定表示する。
+           中央の内容がどう変わってもここの位置は動かさない。 -->
       <div id="karaoke-footer-zone" class="karaoke-footer-zone" hidden>
         <p id="karaoke-toast" class="karaoke-toast" hidden></p>
 
         <p class="karaoke-timing-heading">タイミング調整</p>
         <div class="karaoke-timing-row">
+          <button id="karaoke-pause-resume-button" class="karaoke-pause-resume-button" type="button" aria-label="一時停止する">
+            <svg class="icon-pause" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
+            <svg class="icon-play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7Z"/></svg>
+          </button>
           <button id="karaoke-offset-minus-05-button" class="karaoke-timing-button" type="button">−0.5</button>
           <button id="karaoke-offset-minus-01-button" class="karaoke-timing-button" type="button">−0.1</button>
           <button id="karaoke-offset-reset-button" class="karaoke-timing-reset-button" type="button">0に戻す</button>
@@ -3328,10 +3348,13 @@
       <p>曲が始まった瞬間に「曲スタート！」を押してください。端末にこの曲の音源が読み込まれていれば、自動で一緒に再生されます（読み込まれていなくても、コール表示だけで使えます）。少しずれても大丈夫です。画面下の「タイミング調整」（−0.5／−0.1／+0.1／+0.5秒）で、ずれをいつでも直せます。</p>
 
       <h3>途中でずれてしまったら</h3>
-      <p>ヘッダーの「⋯」を開くと「今！で合わせ直す」があります。分かるコールが聞こえた瞬間に押すと、そこからタイミングを合わせ直せます。何度でも押して構いません。大きくずれて分からなくなった場合は、同じメニューの「曲を最初からやり直す」から、いつでも最初の状態に戻せます（曲データ・コールデータ・歌詞データが削除されることはありません）。</p>
+      <p>今読んでいる歌詞の行をタップすると、歌詞・コール・NEXT CALLをまとめてその位置へ合わせ直せます。大きくずれたときはこれが一番簡単です。細かい調整は「タイミング調整」の±ボタンで行ってください。ヘッダーの「⋯」を開くと「今！で合わせ直す」もあります（コールのタイミングを基準にした、より正確な合わせ直しです）。何度でも押して構いません。大きくずれて分からなくなった場合は、同じメニューの「曲を最初からやり直す」から、いつでも最初の状態に戻せます（曲データ・コールデータ・歌詞データが削除されることはありません）。</p>
 
       <h3>画面の見かた</h3>
-      <p>中央に大きく表示されるのが、今のコール（聞こえているとき）か、次に来るコールと残り秒数です。その上の小さな文字は今の歌詞（参考用）です。歌詞全体をゆっくり読みたいときは、「⋯」の「全文を見る」から開けます。</p>
+      <p>上に表示されるのが、今読んでいる歌詞を含む数行です（スクロールもできます）。その下に大きく表示されるのが、今のコール（聞こえているとき）か、次に来るコールと残り秒数です。</p>
+
+      <h3>一時停止</h3>
+      <p>画面下の一時停止ボタンで、端末音源と同期タイマーを同時に止められます。もう一度押すと、止めた位置からそのまま再開します。</p>
 
       <h3>初心者ナビ</h3>
       <p>「⋯」の「初心者ナビ」をONにすると、NEXT CALLの見出しやカウントダウンが表示されます。コールに慣れている方はOFFにすると、コール本文だけのシンプルな表示にできます。</p>
@@ -3339,8 +3362,9 @@
   </div>
 
   <!-- カラオケ同期画面の「⋯」メニュー（UI/UX第3版で新設）。頻繁には押さない操作
-       （今！・全文を見る・初心者ナビ切替・曲を最初からやり直す）をここにまとめている。
-       中身の状態管理・開閉はjs/karaokeSyncScreen.jsが担当する。 -->
+       （今！・初心者ナビ切替・曲を最初からやり直す）をここにまとめている。
+       中身の状態管理・開閉はjs/karaokeSyncScreen.jsが担当する。
+       「全文を見る」項目はUI/UX第4版で廃止した（常時表示の歌詞パネル自体がその役割を兼ねるため）。 -->
   <div id="karaoke-more-menu-modal" class="modal-overlay" hidden>
     <div class="modal-card karaoke-more-menu-card" role="dialog" aria-modal="true" aria-labelledby="karaoke-more-menu-title">
       <button id="karaoke-more-menu-close" class="modal-close-button" type="button" aria-label="閉じる">×</button>
@@ -3351,14 +3375,6 @@
         <span class="karaoke-more-menu-item-text">
           <span class="karaoke-more-menu-item-name">今！で合わせ直す</span>
           <span id="karaoke-sync-point-label" class="karaoke-more-menu-item-description">―</span>
-        </span>
-      </button>
-
-      <button id="karaoke-full-text-toggle-button" class="karaoke-more-menu-item" type="button">
-        <span class="karaoke-more-menu-item-icon" aria-hidden="true">📖</span>
-        <span class="karaoke-more-menu-item-text">
-          <span id="karaoke-full-text-toggle-label" class="karaoke-more-menu-item-name">全文を見る</span>
-          <span class="karaoke-more-menu-item-description">歌詞全体を自分のペースで読めます</span>
         </span>
       </button>
 

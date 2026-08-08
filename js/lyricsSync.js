@@ -40,6 +40,7 @@ let isProgrammaticScroll = false;
 let programmaticScrollResetTimerId = null;
 let displayMode = loadDisplayModePreference();
 let modeToggleButtonElement = null;
+let onLineClickCallback = null; // 呼び出し元が独自のタップ処理をしたい場合のフック（js/karaokeSyncScreen.js参照）
 
 function handleTimeUpdate() {
   updateActiveLyricsLine(audioElement.currentTime);
@@ -189,6 +190,7 @@ export function destroyLyricsSync() {
   suppressAutoScrollUntil = 0;
   isProgrammaticScroll = false;
   modeToggleButtonElement = null;
+  onLineClickCallback = null;
 }
 
 // 指定した曲の歌詞データを取得し、パネルへ描画し、再生位置に合わせた同期表示を開始する。
@@ -202,7 +204,14 @@ export function destroyLyricsSync() {
 // audioElement/panelElementは、収録曲一覧・オリジナル問題作成モードそれぞれが持つ
 // 実際の<audio>要素・歌詞パネル用の要素を毎回渡す想定
 // （このモジュール自体はどちらの画面の要素かを知らない）。
-export async function loadLyricsForSong(songId, targetAudioElement, targetPanelElement) {
+//
+// options.onLineClick（省略可）：歌詞行がタップされたときの処理を呼び出し元がカスタマイズしたい
+// 場合のフック（UI/UX第4版でjs/karaokeSyncScreen.jsが追加）。渡された場合、既定の
+// 「audioElement.currentTime = line.start」は行わず、代わりにonLineClick(line)を呼ぶ。
+// 省略した場合（既存の呼び出し元すべて）は今までどおりの既定動作のまま変わらない。
+// カラオケ同期画面では、渡しているaudioElementが本物の<audio>ではなく時計だけの疑似要素
+// （currentTimeへ代入しても同期エンジンには何の効果もない）のため、この既定動作は無意味になる。
+export async function loadLyricsForSong(songId, targetAudioElement, targetPanelElement, options = {}) {
   // 前の曲の表示・イベント購読を必ず先に片付けてから始める
   // （曲を切り替えたときに前の歌詞が残ってしまうことを構造的に防ぐ）。
   destroyLyricsSync();
@@ -214,6 +223,7 @@ export async function loadLyricsForSong(songId, targetAudioElement, targetPanelE
 
   audioElement = targetAudioElement;
   panelElement = targetPanelElement;
+  onLineClickCallback = typeof options.onLineClick === "function" ? options.onLineClick : null;
 
   audioElement.addEventListener("timeupdate", handleTimeUpdate);
   audioElement.addEventListener("seeking", handleSeeking);
@@ -239,7 +249,13 @@ export async function loadLyricsForSong(songId, targetAudioElement, targetPanelE
     lineElement.textContent = line.text;
     // 歌詞をタップ/クリックすると、その行の開始位置へシークする
     // （再生中/一時停止中どちらでも位置だけ移動し、再生状態自体は変えない）。
+    // onLineClickCallbackが渡されている場合（カラオケ同期画面）は、既定のシーク処理の代わりに
+    // そちらを呼ぶ（呼び出し元が同期時計・端末音源・コール表示までまとめて合わせるため）。
     lineElement.addEventListener("click", () => {
+      if (onLineClickCallback) {
+        onLineClickCallback(line);
+        return;
+      }
       audioElement.currentTime = line.start;
       updateActiveLyricsLine(line.start, { immediate: true });
     });
