@@ -923,30 +923,34 @@ initHistoryDetailScreen({
 initSpecialModesScreen({
   listContainer: document.getElementById("special-modes-list"),
   homeGridContainer: document.getElementById("home-special-modes-grid"),
+  // 【2026-08-09修正】ホームから開くときもnavigateWithScrollMemory()を通すことで、
+  // 「戻る」で押した瞬間のカード位置へ復元できるようにする（本人指示：既存のスクロール
+  // 位置復元の仕組み＝プレイリスト等と同じnavigateWithScrollMemoryを再利用し、新しい仕組みを
+  // 重複して作らない）。
   onSelectMode: (modeId) => {
     playClickSound();
     if (modeId === "weakSongs") {
       renderWeakSongsScreen();
-      showScreen("weakSongs");
+      navigateWithScrollMemory("weakSongs");
     } else if (modeId === "originalQuiz") {
       renderCustomQuizPresetsScreen();
-      showScreen("customQuizPresets");
+      navigateWithScrollMemory("customQuizPresets");
     } else if (modeId === "liveCallMode") {
       renderLiveCallModeList();
-      showScreen("liveCallModeList");
+      navigateWithScrollMemory("liveCallModeList");
     } else if (modeId === "timeAttack") {
       updateTimeAttackBestChip();
-      showScreen("timeAttackSetup");
+      navigateWithScrollMemory("timeAttackSetup");
     } else if (modeId === "randomPlayback") {
       updateRandomPlaybackBestChip();
-      showScreen("randomPlaybackSetup");
+      navigateWithScrollMemory("randomPlaybackSetup");
     } else if (modeId === "lyricsQuiz") {
       updateLyricsQuizBestChip();
-      showScreen("lyricsQuizSetup");
+      navigateWithScrollMemory("lyricsQuizSetup");
     } else if (modeId === "localBattle") {
-      showScreen("battleModeSelect");
+      navigateWithScrollMemory("battleModeSelect");
     } else if (modeId === "onlineBattle") {
-      showScreen("onlineBattleEntry");
+      navigateWithScrollMemory("onlineBattleEntry");
     }
   },
   onShowHelp: openSpecialModeHelp,
@@ -979,7 +983,7 @@ initLiveCallModeScreen({
 // 直接この画面を開くようになったため、間に古い「特別モード一覧画面」を挟まない）。
 liveCallModeListBackButtonElement.addEventListener("click", () => {
   playClickSound();
-  showScreen("start");
+  navigateWithScrollMemory("start");
 });
 
 // 再生画面の「戻る」：再生を止め、曲一覧画面へ戻る（常にこの画面からしか開かないため、
@@ -2892,7 +2896,7 @@ specialModesBackButtonElement.addEventListener("click", () => {
 // 直接この画面を開くようになったため、間に古い「特別モード一覧画面」を挟まない）。
 weakSongsBackButtonElement.addEventListener("click", () => {
   playClickSound();
-  showScreen("start");
+  navigateWithScrollMemory("start");
 });
 
 // オリジナル問題作成モードの選曲画面の「戻る」：プリセット一覧画面へ戻る
@@ -2911,7 +2915,7 @@ customQuizBackButtonElement.addEventListener("click", () => {
 // 「特別モード一覧画面」を挟まない）。
 customQuizPresetsBackButtonElement.addEventListener("click", () => {
   playClickSound();
-  showScreen("start");
+  navigateWithScrollMemory("start");
 });
 
 // 出題数・カテゴリのラジオボタンが切り替わるたびに、自己ベスト表示・出題数の案内を更新する。
@@ -2955,7 +2959,7 @@ document
 // カードから直接この画面を開くようになったため、間に古い「特別モード一覧画面」を挟まない）。
 timeAttackSetupBackButtonElement.addEventListener("click", () => {
   playClickSound();
-  showScreen("start");
+  navigateWithScrollMemory("start");
 });
 
 // 指定した出題数・カテゴリ・ルールで、タイムアタックのクイズ画面を開始する共通処理。
@@ -3169,7 +3173,7 @@ document
 // 「戻る」は間に古い「特別モード一覧画面」を挟まずホーム画面へ直接戻す。
 randomPlaybackSetupBackButtonElement.addEventListener("click", () => {
   playClickSound();
-  showScreen("start");
+  navigateWithScrollMemory("start");
 });
 
 // 指定した出題数・カテゴリ・ルールで、ランダム再生クイズの画面を開始する共通処理。
@@ -3242,7 +3246,7 @@ randomPlaybackResultHomeLinkElement.addEventListener("click", () => {
 // 「戻る」は間に古い「特別モード一覧画面」を挟まずホーム画面へ直接戻す。
 lyricsQuizSetupBackButtonElement.addEventListener("click", () => {
   playClickSound();
-  showScreen("start");
+  navigateWithScrollMemory("start");
 });
 
 initLyricsQuizSetupScreen({
@@ -3322,9 +3326,13 @@ lyricsQuizResultHomeLinkElement.addEventListener("click", () => {
 // 画面遷移・効果音はこのプロジェクトの決まりどおりmain.js側だけで扱うため、
 // js/localBattleScreen.js・js/localBattleResultScreen.js側からは、この1つの
 // navigateToコールバック経由でだけ画面を切り替えてもらう（詳細は各ファイルの冒頭コメント参照）。
+// 【2026-08-09修正】対戦モード・オンライン対戦の画面遷移すべてに、既存の
+// navigateWithScrollMemory()を通す（本人指示：新しい仕組みを重複して作らず既存を再利用）。
+// 対象になっていないtargetScreenは今までどおりscrollTo(0,0)相当の挙動のままなので、
+// 対戦フロー内の他の画面遷移に副作用はない。
 function navigateBattleScreen(screenName) {
   playClickSound();
-  showScreen(screenName);
+  navigateWithScrollMemory(screenName);
 }
 
 initLocalBattleScreens({
