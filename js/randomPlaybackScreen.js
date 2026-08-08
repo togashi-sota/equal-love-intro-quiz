@@ -21,7 +21,10 @@ import {
 } from "./randomPlaybackScore.js";
 import { evaluateAndSaveAchievements } from "./achievementProgress.js";
 import { renderAchievementUnlockEvents } from "./achievementDisplay.js";
+import { getAchievementById } from "./achievementDefinitions.js";
 import { savePlayHistoryEntry } from "./playHistory.js";
+import { formatResponseSeconds } from "./responseTime.js";
+import { describeSpeedProgressForPlay, buildSpeedProgressResultBlock } from "./speedAchievementProgress.js";
 
 let elements = null;
 let resultElements = null;
@@ -108,17 +111,46 @@ export function renderRandomPlaybackResult(questionCountValue, categoryFilterVal
   // 称号（実績）判定（2026-08-07追加、本人指示）。ランダム再生クイズの全曲ノーミスで
   // フルコーラスマスター・メロディアスを取得できる。判定の組み立て方はタイムアタックと
   // 完全に共通（js/timeAttackScreen.jsのbuildAchievementResultInput参照）。
-  const achievementResult = evaluateAndSaveAchievements(
-    buildAchievementResultInput(stats, "randomPlayback", questionCountValue)
-  );
+  const achievementInput = buildAchievementResultInput(stats, "randomPlayback", questionCountValue);
+  const achievementResult = evaluateAndSaveAchievements(achievementInput);
   renderAchievementUnlockEvents(achievementResult.newlyUnlockedIds, {
     chipContainer: resultElements.achievementChipContainer,
     achievementListLinkElement: resultElements.achievementListLink,
   });
 
+  // 平均回答時間の表示（2026-08-09新設）。称号判定に渡したのと同じachievementInputの
+  // averageResponseMsをそのまま使う（称号判定と画面表示の値が絶対にずれないようにするため）。
+  if (resultElements.averageTime) {
+    const formattedAverageResponseTime = formatResponseSeconds(achievementInput.averageResponseMs);
+    resultElements.averageTime.hidden = formattedAverageResponseTime === null;
+    if (formattedAverageResponseTime !== null) {
+      resultElements.averageTime.textContent = `平均回答時間 ${formattedAverageResponseTime}`;
+    }
+  }
+
+  // メロディアスまでの進捗（全曲モードのときだけ）。
+  if (resultElements.speedProgressContainer) {
+    const isCleanClear =
+      achievementInput.correctCount > 0 && achievementInput.wrongCount === 0 && achievementInput.completed;
+    const speedProgress = describeSpeedProgressForPlay({
+      modeId: "randomPlayback",
+      isAllSongsMode: categoryFilterValue === "all",
+      isCleanClear,
+      averageResponseMs: achievementInput.averageResponseMs,
+    });
+    resultElements.speedProgressContainer.innerHTML = "";
+    const speedProgressBlock = buildSpeedProgressResultBlock(
+      speedProgress,
+      getAchievementById("melody_ace")?.name ?? "メロディアス"
+    );
+    if (speedProgressBlock) resultElements.speedProgressContainer.appendChild(speedProgressBlock);
+  }
+
   // 【2026-08-08新設】統一プレイ履歴（js/playHistory.js）への保存。自己ベスト・称号とは
   // 別の保存先のため、この保存に失敗しても上のjs/randomPlaybackScore.jsへの自己ベスト保存・
   // 称号判定には一切影響しない。
+  // 【2026-08-09修正】averageResponseMsを称号判定と同じachievementInputの値にした
+  // （以前はnull固定で保存されており、プレイ履歴に平均回答時間が一切表示されないバグだった）。
   savePlayHistoryEntry({
     playedAt: Date.now(),
     modeId: "randomPlayback",
@@ -129,7 +161,7 @@ export function renderRandomPlaybackResult(questionCountValue, categoryFilterVal
     wrongCount: stats.missCount,
     skippedCount: null,
     score: null,
-    averageResponseMs: null,
+    averageResponseMs: achievementInput.averageResponseMs,
     completed: !stats.runFailed,
     details: {
       rule,

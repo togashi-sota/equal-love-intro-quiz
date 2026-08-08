@@ -23,6 +23,9 @@ import {
 import { saveTimeAttackHistoryEntry } from "./timeAttackHistory.js";
 import { evaluateAndSaveAchievements } from "./achievementProgress.js";
 import { renderAchievementUnlockEvents } from "./achievementDisplay.js";
+import { getAchievementById } from "./achievementDefinitions.js";
+import { calculateAverageResponseMs, formatResponseSeconds } from "./responseTime.js";
+import { describeSpeedProgressForPlay, buildSpeedProgressResultBlock } from "./speedAchievementProgress.js";
 
 // ルール（3種類）。
 // normal    ：間違えた選択肢だけ消える消去法。正解したら即次へ。ミス数を記録する。
@@ -182,11 +185,11 @@ export function buildAchievementResultInput(stats, modeId, questionCountValue) {
   ).length;
   const impureCount = stats.perQuestionResults.length - cleanCorrectCount;
 
-  const correctEntries = stats.perQuestionResults.filter((result) => result.isCorrect && result.elapsedMs !== null);
-  const averageResponseMs =
-    correctEntries.length > 0
-      ? correctEntries.reduce((sum, result) => sum + result.elapsedMs, 0) / correctEntries.length
-      : null;
+  const averageResponseMs = calculateAverageResponseMs(
+    stats.perQuestionResults
+      .filter((result) => result.isCorrect && result.elapsedMs !== null)
+      .map((result) => result.elapsedMs)
+  );
 
   return {
     modeId,
@@ -301,13 +304,45 @@ export function renderTimeAttackResult() {
   // このmodeIdからは現時点でどの称号も付与されない）。
   const achievementModeId =
     currentVariant === TIME_ATTACK_VARIANT.RANDOM_PLAYBACK ? "timeAttackRandomPlayback" : "timeAttack";
-  const achievementResult = evaluateAndSaveAchievements(
-    buildAchievementResultInput(getCurrentTimeAttackStats(), achievementModeId, currentQuestionCountValue)
+  const achievementInput = buildAchievementResultInput(
+    getCurrentTimeAttackStats(),
+    achievementModeId,
+    currentQuestionCountValue
   );
+  const achievementResult = evaluateAndSaveAchievements(achievementInput);
   renderAchievementUnlockEvents(achievementResult.newlyUnlockedIds, {
     chipContainer: resultElements.achievementChipContainer,
     achievementListLinkElement: resultElements.achievementListLink,
   });
+
+  // 平均回答時間の表示（2026-08-09新設）。称号判定（buildAchievementResultInput）に
+  // 渡したのと完全に同じaverageResponseMsを表示に使うことで、数値のズレを防ぐ。
+  if (resultElements.averageTime) {
+    const formattedAverageResponseTime = formatResponseSeconds(achievementInput.averageResponseMs);
+    resultElements.averageTime.hidden = formattedAverageResponseTime === null;
+    if (formattedAverageResponseTime !== null) {
+      resultElements.averageTime.textContent = `平均回答時間 ${formattedAverageResponseTime}`;
+    }
+  }
+
+  // 電光石火までの進捗（イントロ形式・全曲モードのときだけ。ランダム再生variantは
+  // achievementModeIdが"timeAttackRandomPlayback"のため、describeSpeedProgressForPlay内で
+  // 自動的に対象外になる＝ここで分岐を書く必要はない）。
+  if (resultElements.speedProgressContainer) {
+    const isCleanClear = achievementInput.correctCount > 0 && achievementInput.wrongCount === 0 && achievementInput.completed;
+    const speedProgress = describeSpeedProgressForPlay({
+      modeId: achievementModeId,
+      isAllSongsMode: currentQuestionCountValue === "all",
+      isCleanClear,
+      averageResponseMs: achievementInput.averageResponseMs,
+    });
+    resultElements.speedProgressContainer.innerHTML = "";
+    const speedProgressBlock = buildSpeedProgressResultBlock(
+      speedProgress,
+      getAchievementById("lightning_fast")?.name ?? "電光石火"
+    );
+    if (speedProgressBlock) resultElements.speedProgressContainer.appendChild(speedProgressBlock);
+  }
 
   if (previousBest !== null) {
     resultElements.bestTime.hidden = false;

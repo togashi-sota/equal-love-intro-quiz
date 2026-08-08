@@ -7,6 +7,10 @@
 // 未取得／取得済みの違いは、CSS側の見た目（グレー・鍵アイコン vs 発光・カラー）だけで表現する。
 import { getAchievementListSnapshot } from "./achievementProgress.js";
 import { buildAchievementIconMedal, buildLockedAchievementIconMedal } from "./achievementIcons.js";
+import { computeBestSpeedProgress, buildSpeedProgressBestBlock } from "./speedAchievementProgress.js";
+
+// 速度称号（電光石火・メロディアス）だけ、カードにベスト平均タイム・残り秒数を追加表示する。
+const SPEED_ACHIEVEMENT_IDS = new Set(["lightning_fast", "melody_ace"]);
 
 const CATEGORY_ORDER = ["noMiss", "modeMaster", "backRoute", "composite"];
 const CATEGORY_LABELS = {
@@ -108,6 +112,14 @@ export function buildAchievementCard(entry) {
     status.textContent = "未取得";
   }
   card.appendChild(status);
+
+  // 速度称号（電光石火・メロディアス）だけ、これまでのベスト平均タイム・称号までの
+  // 残り秒数を追加表示する（本人指示・2026-08-09：「自分が今どのくらいの速さなのか」
+  // 「称号まであと何秒縮めればよいのか」が分かるように）。
+  if (SPEED_ACHIEVEMENT_IDS.has(entry.id)) {
+    const bestProgress = computeBestSpeedProgress(entry.id);
+    card.appendChild(buildSpeedProgressBestBlock(bestProgress, entry.isUnlocked));
+  }
 
   // 初心者向けの案内バッジ（本人指示・2026-08-07）。「まずはここを目指そう」という
   // 位置づけが一目で伝わるよう、称号名・条件文の下、達成チェックリストより前に置く。

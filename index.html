@@ -551,6 +551,12 @@
         <!-- 自己ベストを更新したときだけ表示するお知らせ。普段は空・非表示 -->
         <p id="new-record-badge" hidden>🎉 新記録！</p>
 
+        <!-- 平均回答時間（2026-08-09新設）。称号「電光石火」の速度条件と同じ値を表示する。
+             算出できないとき（未回答のみ等）は項目ごと非表示にする。 -->
+        <p id="average-response-time-display" class="average-response-time-display" hidden></p>
+        <!-- 電光石火までの進捗（全曲モードのときだけ）。中身はjs/speedAchievementProgress.jsが組み立てる -->
+        <div id="speed-progress-container"></div>
+
         <!-- 特別モードの結果でだけ表示する短い案内。自己ベスト欄の代わりに、
              苦手曲モードなど特別モードの結果は記録に反映されないことを伝える。普段は空・非表示 -->
         <p id="special-mode-notice" class="special-mode-notice" hidden></p>
@@ -1426,6 +1432,11 @@
         </div>
       </div>
 
+      <!-- 平均回答時間（2026-08-09新設）。合計タイム（総合的に何秒で終わったか）とは別に、
+           1問あたり何秒で答えたかを表示する。称号「電光石火」の速度条件と同じ値。 -->
+      <p id="time-attack-result-average-time" class="average-response-time-display" hidden></p>
+      <div id="time-attack-result-speed-progress"></div>
+
       <p id="time-attack-result-best-time" class="time-attack-result-best-time" hidden></p>
       <!-- ランキングへの送信状況（2026-08-07追加）。自己ベスト更新時だけ、非公開/オフライン/
            送信失敗/送信成功のいずれかを案内する。DOM操作はjs/main.jsが行う。 -->
@@ -1654,6 +1665,10 @@
           <p id="random-playback-result-rule-label" class="time-attack-result-stat-value">ノーマル</p>
         </div>
       </div>
+
+      <!-- 平均回答時間（2026-08-09新設）。称号「メロディアス」の速度条件と同じ値を表示する。 -->
+      <p id="random-playback-result-average-time" class="average-response-time-display" hidden></p>
+      <div id="random-playback-result-speed-progress"></div>
 
       <p id="random-playback-result-best-time" class="time-attack-result-best-time" hidden></p>
 

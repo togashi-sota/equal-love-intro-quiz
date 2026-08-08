@@ -53,8 +53,11 @@ import {
 import { evaluateAndSaveAchievements, syncLegacyAchievements } from "./achievementProgress.js";
 import { renderAchievementUnlockEvents, clearAchievementUnlockEvents } from "./achievementDisplay.js";
 import { initAchievementListModal } from "./achievementList.js";
+import { getAchievementById } from "./achievementDefinitions.js";
 import { saveHistoryEntry } from "./history.js";
 import { savePlayHistoryEntry, HISTORY_MODE_DISPLAY } from "./playHistory.js";
+import { calculateAverageResponseMs, formatResponseSeconds } from "./responseTime.js";
+import { describeSpeedProgressForPlay, buildSpeedProgressResultBlock } from "./speedAchievementProgress.js";
 import { initHistoryScreen, renderHistoryScreen } from "./historyScreen.js";
 import { initHistoryDetailScreen, renderHistoryDetail } from "./historyDetailScreen.js";
 import { initSpecialModesScreen } from "./specialModesScreen.js";
@@ -238,6 +241,8 @@ const rankElement = document.getElementById("rank-display");
 const rankLetterElement = document.getElementById("rank-letter");
 const highScoreElement = document.getElementById("high-score-display");
 const newRecordElement = document.getElementById("new-record-badge");
+const averageResponseTimeDisplayElement = document.getElementById("average-response-time-display");
+const speedProgressContainerElement = document.getElementById("speed-progress-container");
 const answerLogListElement = document.getElementById("answer-log-list");
 const resultEyebrowLabelElement = document.getElementById("result-eyebrow-label");
 const missedSongsSectionElement = document.getElementById("missed-songs-section");
@@ -439,6 +444,8 @@ const timeAttackResultTotalTimeElement = document.getElementById("time-attack-re
 const timeAttackResultCorrectCountElement = document.getElementById("time-attack-result-correct-count");
 const timeAttackResultMissCountElement = document.getElementById("time-attack-result-miss-count");
 const timeAttackResultRuleLabelElement = document.getElementById("time-attack-result-rule-label");
+const timeAttackResultAverageTimeElement = document.getElementById("time-attack-result-average-time");
+const timeAttackResultSpeedProgressElement = document.getElementById("time-attack-result-speed-progress");
 const timeAttackResultBestTimeElement = document.getElementById("time-attack-result-best-time");
 const timeAttackResultLeaderboardStatusElement = document.getElementById("time-attack-result-leaderboard-status");
 const timeAttackResultAchievementListElement = document.getElementById("time-attack-result-achievement-list");
@@ -474,6 +481,8 @@ const randomPlaybackResultTotalTimeElement = document.getElementById("random-pla
 const randomPlaybackResultCorrectCountElement = document.getElementById("random-playback-result-correct-count");
 const randomPlaybackResultMissCountElement = document.getElementById("random-playback-result-miss-count");
 const randomPlaybackResultRuleLabelElement = document.getElementById("random-playback-result-rule-label");
+const randomPlaybackResultAverageTimeElement = document.getElementById("random-playback-result-average-time");
+const randomPlaybackResultSpeedProgressElement = document.getElementById("random-playback-result-speed-progress");
 const randomPlaybackResultBestTimeElement = document.getElementById("random-playback-result-best-time");
 const randomPlaybackResultAchievementListElement = document.getElementById("random-playback-result-achievement-list");
 const randomPlaybackResultAchievementListLinkElement = document.getElementById(
@@ -2181,6 +2190,8 @@ function renderResult() {
     // 残ってしまわないよう、自己ベスト欄・称号欄を明示的に隠す／空にする。
     highScoreElement.hidden = true;
     newRecordElement.hidden = true;
+    averageResponseTimeDisplayElement.hidden = true;
+    speedProgressContainerElement.innerHTML = "";
     clearAchievementUnlockEvents({
       chipContainer: titleEventListElement,
       achievementListLinkElement: titleListLinkFromResultElement,
@@ -2199,11 +2210,9 @@ function renderResult() {
       const skippedCount = gameState.answerLog.filter(
         (entry) => entry.resultType === "skip" || entry.resultType === "reveal"
       ).length;
-      const timedCorrectEntries = correctEntries.filter((entry) => entry.elapsedMs !== null);
-      const averageResponseMs =
-        timedCorrectEntries.length > 0
-          ? timedCorrectEntries.reduce((sum, entry) => sum + entry.elapsedMs, 0) / timedCorrectEntries.length
-          : null;
+      const averageResponseMs = calculateAverageResponseMs(
+        correctEntries.filter((entry) => entry.elapsedMs !== null).map((entry) => entry.elapsedMs)
+      );
       const specialModeId = gameState.specialModeId;
       savePlayHistoryEntry({
         playedAt: Date.now(),
@@ -2237,11 +2246,9 @@ function renderResult() {
     const skippedCount = gameState.answerLog.filter(
       (entry) => entry.resultType === "skip" || entry.resultType === "reveal"
     ).length;
-    const timedCorrectEntries = correctEntries.filter((entry) => entry.elapsedMs !== null);
-    const averageResponseMs =
-      timedCorrectEntries.length > 0
-        ? timedCorrectEntries.reduce((sum, entry) => sum + entry.elapsedMs, 0) / timedCorrectEntries.length
-        : null;
+    const averageResponseMs = calculateAverageResponseMs(
+      correctEntries.filter((entry) => entry.elapsedMs !== null).map((entry) => entry.elapsedMs)
+    );
 
     const achievementResult = evaluateAndSaveAchievements({
       modeId: "intro",
@@ -2257,6 +2264,29 @@ function renderResult() {
       achievementListLinkElement: titleListLinkFromResultElement,
     });
     renderPlayerSummary(); // ＝LOVEマスター等を新規獲得した場合、推しアイコンの王冠・ダイヤを即座に反映する
+
+    // 平均回答時間の表示（2026-08-09新設）。称号判定に渡したaverageResponseMsと
+    // 完全に同じ値を表示することで、「画面と称号判定で数値がずれる」ことを防ぐ。
+    const formattedAverageResponseTime = formatResponseSeconds(averageResponseMs);
+    averageResponseTimeDisplayElement.hidden = formattedAverageResponseTime === null;
+    if (formattedAverageResponseTime !== null) {
+      averageResponseTimeDisplayElement.textContent = `平均回答時間 ${formattedAverageResponseTime}`;
+    }
+
+    // 電光石火までの進捗（全曲モードのときだけ、js/speedAchievementProgress.js参照）。
+    const isCleanClear = wrongCount === 0 && skippedCount === 0 && correctEntries.length === gameState.questions.length;
+    const speedProgress = describeSpeedProgressForPlay({
+      modeId: "intro",
+      isAllSongsMode: categoryFilterValue === "all",
+      isCleanClear,
+      averageResponseMs,
+    });
+    speedProgressContainerElement.innerHTML = "";
+    const speedProgressBlock = buildSpeedProgressResultBlock(
+      speedProgress,
+      getAchievementById("lightning_fast")?.name ?? "電光石火"
+    );
+    if (speedProgressBlock) speedProgressContainerElement.appendChild(speedProgressBlock);
 
     // js/history.jsのsaveHistoryEntry()は、旧称号システム時代の引数の形
     // （playResult.totalQuestions/correctCount/averageCorrectElapsedMs、titleEvents:{id,type}[]）を
@@ -2967,6 +2997,8 @@ initTimeAttackResultScreen({
   correctCount: timeAttackResultCorrectCountElement,
   missCount: timeAttackResultMissCountElement,
   ruleLabel: timeAttackResultRuleLabelElement,
+  averageTime: timeAttackResultAverageTimeElement,
+  speedProgressContainer: timeAttackResultSpeedProgressElement,
   bestTime: timeAttackResultBestTimeElement,
   achievementChipContainer: timeAttackResultAchievementListElement,
   achievementListLink: timeAttackResultAchievementListLinkElement,
@@ -3175,6 +3207,8 @@ initRandomPlaybackResultScreen({
   correctCount: randomPlaybackResultCorrectCountElement,
   missCount: randomPlaybackResultMissCountElement,
   ruleLabel: randomPlaybackResultRuleLabelElement,
+  averageTime: randomPlaybackResultAverageTimeElement,
+  speedProgressContainer: randomPlaybackResultSpeedProgressElement,
   bestTime: randomPlaybackResultBestTimeElement,
   achievementChipContainer: randomPlaybackResultAchievementListElement,
   achievementListLink: randomPlaybackResultAchievementListLinkElement,

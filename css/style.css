@@ -4793,6 +4793,13 @@ fieldset label:has(input:focus-visible) {
   overflow-wrap: anywhere;
 }
 
+.history-detail-modal-speed-heading {
+  margin: 14px 0 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  opacity: 0.65;
+}
+
 .history-title-badges {
   display: flex;
   flex-wrap: wrap;
@@ -9052,6 +9059,73 @@ fieldset label:has(input:focus-visible) {
 
 .time-attack-result-best-time[hidden] {
   display: none;
+}
+
+/* ===== 平均回答時間・速度称号（電光石火・メロディアス）への進捗表示（2026-08-09新設） =====
+   結果画面（イントロ／タイムアタック／ランダム再生）・履歴詳細モーダル・称号一覧カードの
+   すべてから共通で使う（js/speedAchievementProgress.js参照）。 */
+.average-response-time-display {
+  margin: 0 0 8px;
+  text-align: center;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.average-response-time-display[hidden] {
+  display: none;
+}
+
+.speed-progress-block {
+  margin: 0 0 14px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  text-align: center;
+  background: var(--color-accent-soft);
+  border: 1px solid rgba(255, 217, 61, 0.6);
+}
+
+.speed-progress-block:empty {
+  display: none;
+}
+
+.speed-progress-block.is-achieved {
+  background: var(--color-primary-light);
+  border-color: rgba(255, 111, 168, 0.45);
+}
+
+.speed-progress-block.is-blocked {
+  background: var(--color-surface-glass);
+  border-color: var(--color-card-border);
+}
+
+.speed-progress-label {
+  margin: 0 0 2px;
+  font-size: 0.68rem;
+  opacity: 0.65;
+}
+
+.speed-progress-line {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+}
+
+.speed-progress-block.is-blocked .speed-progress-line {
+  color: var(--color-text);
+}
+
+.speed-progress-sub {
+  margin: 2px 0 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  opacity: 0.85;
+}
+
+.speed-progress-block--best {
+  margin: 10px 0 0;
 }
 
 /* 結果画面のボタン群（2026-08-06変更）：①もう一度挑戦する（主）②タイムアタック設定へ戻る（副）を

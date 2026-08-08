@@ -21,6 +21,7 @@
 import { getPlayerKeyPrefix } from "./playerProfile.js";
 import { getHistoryEntries } from "./history.js";
 import { getTimeAttackHistoryEntries } from "./timeAttackHistory.js";
+import { calculateAverageResponseMs, formatResponseSeconds } from "./responseTime.js";
 
 function buildPlayHistoryKey() {
   return `equalLoveIntroQuiz.${getPlayerKeyPrefix()}unifiedPlayHistory`;
@@ -109,6 +110,21 @@ function resolveQuestionCountFromValue(questionCountValue, fallbackActualCount) 
   return fallbackActualCount ?? null;
 }
 
+// entry.answers[]（曲ごとの内訳、result:"correct"|"wrong"|"skip"|"reveal"、elapsedMs）から、
+// 正解した問題だけの平均回答時間を計算し直す（js/main.jsの称号判定と同じ定義・同じ
+// calculateAverageResponseMs()を使うことで、値がずれないようにする）。
+// answers配列が無い/空の古い履歴だけ、保存時点のaverageCorrectElapsedMsへフォールバックする
+// （それも無ければnull＝「記録なし」として項目ごと非表示にする。推測値は出さない）。
+function computeIntroAverageResponseMs(entry) {
+  if (Array.isArray(entry.answers) && entry.answers.length > 0) {
+    const elapsedList = entry.answers
+      .filter((answer) => answer.result === "correct" && answer.elapsedMs !== null && answer.elapsedMs !== undefined)
+      .map((answer) => answer.elapsedMs);
+    if (elapsedList.length > 0) return calculateAverageResponseMs(elapsedList);
+  }
+  return entry.averageCorrectElapsedMs ?? null;
+}
+
 // js/history.js（通常イントロクイズ）の1件を、統一表示形式へ変換する。
 export function adaptIntroHistoryEntry(entry) {
   return {
@@ -123,7 +139,7 @@ export function adaptIntroHistoryEntry(entry) {
     wrongCount: entry.questionCount - entry.correctCount,
     skippedCount: null,
     score: entry.score,
-    averageResponseMs: entry.averageCorrectElapsedMs,
+    averageResponseMs: computeIntroAverageResponseMs(entry),
     completed: true,
     details: {
       rank: entry.rank,
@@ -139,6 +155,19 @@ const TIME_ATTACK_VARIANT_META = {
   intro: { modeId: "timeAttack", modeLabel: "タイムアタック" },
   randomPlayback: { modeId: "timeAttackRandomPlayback", modeLabel: "タイムアタック（ランダム再生）" },
 };
+
+// entry.questions[]（問題ごとの内訳、isCorrect・elapsedMs）から、正解した問題だけの
+// 平均回答時間を計算する（js/timeAttackScreen.jsのbuildAchievementResultInput()と
+// 完全に同じ定義・同じcalculateAverageResponseMs()を使う）。この値は保存時に
+// 別フィールドとして持たせず、常にここで算出し直す設計にしている（保存値と算出値が
+// 将来ズレる余地をなくすため）。questions配列が無い/空の古い履歴はnull＝「記録なし」。
+function computeTimeAttackAverageResponseMs(entry) {
+  if (!Array.isArray(entry.questions) || entry.questions.length === 0) return null;
+  const elapsedList = entry.questions
+    .filter((question) => question.isCorrect && question.elapsedMs !== null && question.elapsedMs !== undefined)
+    .map((question) => question.elapsedMs);
+  return calculateAverageResponseMs(elapsedList);
+}
 
 // js/timeAttackHistory.js（タイムアタック、ランダム再生variant込み）の1件を、
 // 統一表示形式へ変換する。
@@ -157,7 +186,7 @@ export function adaptTimeAttackHistoryEntry(entry) {
     wrongCount: entry.missCount,
     skippedCount: null,
     score: null,
-    averageResponseMs: null,
+    averageResponseMs: computeTimeAttackAverageResponseMs(entry),
     completed: entry.completed,
     details: {
       rule: entry.rule,
@@ -257,14 +286,22 @@ export function describeEntrySummaryLines(entry) {
     case "customQuiz": {
       lines.push([questionCountLabel, scopeLabel].filter(Boolean).join("・"));
       const scoreText = entry.score !== null ? `・${entry.score}点` : "";
-      lines.push(`${entry.correctCount}/${entry.questionCount}問正解${scoreText}`);
+      const averageText = formatResponseSeconds(entry.averageResponseMs);
+      lines.push(
+        `${entry.correctCount}/${entry.questionCount}問正解${scoreText}${averageText ? `・平均${averageText}` : ""}`
+      );
       break;
     }
     case "randomPlayback": {
       lines.push(
         [questionCountLabel, scopeLabel, BATTLE_RULE_LABELS[entry.details?.rule]].filter(Boolean).join("・")
       );
-      lines.push(entry.completed ? `${entry.correctCount}/${entry.questionCount}問正解` : "途中で終了");
+      const averageText = formatResponseSeconds(entry.averageResponseMs);
+      lines.push(
+        entry.completed
+          ? `${entry.correctCount}/${entry.questionCount}問正解${averageText ? `・平均${averageText}` : ""}`
+          : "途中で終了"
+      );
       break;
     }
     case "lyricsQuiz": {
@@ -277,9 +314,12 @@ export function describeEntrySummaryLines(entry) {
     case "timeAttack":
     case "timeAttackRandomPlayback": {
       lines.push([questionCountLabel, scopeLabel, BATTLE_RULE_LABELS[entry.details?.rule]].filter(Boolean).join("・"));
+      const averageLabel = formatResponseSeconds(entry.averageResponseMs);
       lines.push(
         entry.completed
-          ? `クリア ${formatSecondsFromMs(entry.details?.totalElapsedMs ?? 0)}`
+          ? [`クリア ${formatSecondsFromMs(entry.details?.totalElapsedMs ?? 0)}`, averageLabel ? `平均${averageLabel}` : null]
+              .filter(Boolean)
+              .join("・")
           : `${entry.details?.failedAtQuestionNumber ?? "?"}問目で失敗`
       );
       break;
@@ -351,12 +391,7 @@ export function describeEntryDetailFields(entry) {
   push("誤答数", entry.wrongCount !== null ? `${entry.wrongCount}問` : null);
   push("未回答・スキップ数", entry.skippedCount !== null ? `${entry.skippedCount}問` : null);
   push("スコア", entry.score !== null ? `${entry.score}点` : null);
-  push(
-    "平均回答時間",
-    entry.averageResponseMs !== null && entry.averageResponseMs !== undefined
-      ? `${(entry.averageResponseMs / 1000).toFixed(2)}秒`
-      : null
-  );
+  push("平均回答時間", formatResponseSeconds(entry.averageResponseMs));
 
   const details = entry.details ?? {};
   push("ルール", BATTLE_RULE_LABELS[details.rule] ?? null);

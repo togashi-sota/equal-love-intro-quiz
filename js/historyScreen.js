@@ -22,7 +22,12 @@ import {
 import { clearHistoryEntries } from "./history.js";
 import { clearTimeAttackHistoryEntries } from "./timeAttackHistory.js";
 import { buildSpecialModeIcon } from "./specialModeIcons.js";
-import { ACHIEVEMENTS } from "./achievementDefinitions.js";
+import { ACHIEVEMENTS, getAchievementById } from "./achievementDefinitions.js";
+import { describeSpeedProgressForPlay, buildSpeedProgressResultBlock } from "./speedAchievementProgress.js";
+
+// 速度称号の対象になりうるmodeIdだけ、履歴詳細モーダルに「称号チャレンジ」ブロックを
+// 追加で表示する（js/speedAchievementProgress.jsのSPEED_ACHIEVEMENT_BY_MODEと同じ対象）。
+const SPEED_ACHIEVEMENT_ID_BY_MODE = { intro: "lightning_fast", timeAttack: "lightning_fast", randomPlayback: "melody_ace" };
 
 // 称号id→表示名の対応表。履歴に保存しているのはidだけなので、表示時にここで名前を引く。
 // js/historyDetailScreen.js（現在は未使用の旧・詳細専用画面）も、後方互換のためこの関数を
@@ -94,6 +99,36 @@ function openDetailModal(entry) {
   if (titleBadges) {
     elements.detailModalBody.appendChild(titleBadges);
   }
+
+  // 称号チャレンジ（2026-08-09新設）：電光石火・メロディアスの対象になりうるモードの
+  // 履歴だけ、当時のプレイがその称号にどれだけ近かったかを追加表示する。
+  const speedAchievementId = SPEED_ACHIEVEMENT_ID_BY_MODE[entry.modeId];
+  if (speedAchievementId) {
+    const isCleanClear =
+      entry.completed !== false &&
+      entry.questionCount !== null &&
+      entry.correctCount === entry.questionCount &&
+      entry.wrongCount === 0 &&
+      (entry.skippedCount === 0 || entry.skippedCount === null);
+    const speedProgress = describeSpeedProgressForPlay({
+      modeId: entry.modeId,
+      isAllSongsMode: entry.isAllSongsMode,
+      isCleanClear,
+      averageResponseMs: entry.averageResponseMs,
+    });
+    const speedProgressBlock = buildSpeedProgressResultBlock(
+      speedProgress,
+      getAchievementById(speedAchievementId)?.name ?? speedAchievementId
+    );
+    if (speedProgressBlock) {
+      const heading = document.createElement("p");
+      heading.className = "history-detail-modal-speed-heading";
+      heading.textContent = "称号チャレンジ";
+      elements.detailModalBody.appendChild(heading);
+      elements.detailModalBody.appendChild(speedProgressBlock);
+    }
+  }
+
   elements.detailModalOverlay.hidden = false;
 }
 
