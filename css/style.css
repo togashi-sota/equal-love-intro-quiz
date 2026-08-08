@@ -1475,6 +1475,144 @@ fieldset label:has(input:focus-visible) {
   opacity: 0.7;
 }
 
+.sfx-settings-detail-link {
+  flex: none;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+  background: none;
+  border: none;
+  padding: 4px 2px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ===== 効果音の詳細設定モーダル（2026-08-10新設） ===== */
+.sfx-settings-modal-card {
+  text-align: left;
+}
+
+.sfx-settings-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 4px;
+  border-bottom: 1px solid var(--color-card-border);
+}
+
+.sfx-settings-toggle-text {
+  min-width: 0;
+}
+
+.sfx-settings-toggle-label {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.sfx-settings-toggle-description {
+  margin: 2px 0 0;
+  font-size: 0.72rem;
+  opacity: 0.65;
+  line-height: 1.4;
+}
+
+.sfx-settings-toggle-row .sfx-toggle-button {
+  flex: none;
+  min-width: 56px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1.5px solid var(--color-primary);
+  background: var(--color-primary);
+  color: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+.sfx-settings-toggle-row .sfx-toggle-button.is-muted {
+  background: rgba(255, 255, 255, 0.5);
+  border-color: var(--color-card-border);
+  color: var(--color-text);
+  opacity: 0.6;
+}
+
+.sfx-settings-section {
+  margin-top: 16px;
+}
+
+.sfx-settings-section-title {
+  margin: 0 0 8px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: var(--color-text);
+  opacity: 0.75;
+}
+
+.sfx-theme-option-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sfx-theme-option {
+  width: 100%;
+  text-align: left;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: var(--color-surface-glass);
+  border: 1.5px solid var(--color-card-border);
+}
+
+.sfx-theme-option.is-selected {
+  background: var(--color-primary-light);
+  border-color: var(--color-primary);
+}
+
+.sfx-theme-option-name {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+}
+
+.sfx-theme-option.is-selected .sfx-theme-option-name::before {
+  content: "✓ ";
+}
+
+.sfx-theme-option-description {
+  margin: 2px 0 0;
+  font-size: 0.74rem;
+  color: var(--color-text);
+  opacity: 0.7;
+  line-height: 1.4;
+}
+
+.sfx-settings-preview-button {
+  margin-top: 10px;
+  width: 100%;
+}
+
+.sfx-settings-volume-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sfx-settings-volume-value {
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  font-variant-numeric: tabular-nums;
+}
+
+.sfx-settings-volume-range {
+  width: 100%;
+  margin-top: 6px;
+}
+
 #sfx-toggle-button-start {
   width: auto;
   height: auto;

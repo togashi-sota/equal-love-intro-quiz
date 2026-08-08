@@ -1,132 +1,49 @@
 // ボタン操作・正解/不正解の効果音を再生するファイル。
 //
-// 以前はmp3ファイルを再生する方式だったが、そのファイルの出どころ・ライセンスを
-// 確実に確認できなかったため、Web Audio API（ブラウザ標準の音声合成の仕組み）で
-// その場で単純な音を合成する方式に変更した。外部の音源ファイルを一切使わないため、
-// 著作権のあいまいさが構造的に発生しない。
-//
-// 音の善し悪しよりも「まず著作権上安全であること」を優先したシンプルな実装。
-// より作り込んだ効果音への磨き込みは、機能追加が一段落してから別途行う方針
-// （HANDOFF.md参照）。
-
-// 効果音のON/OFF設定。プレイヤーごとではなく端末共通の設定として保存する
-// （本人の希望：「設定はプレイヤーごとではなく端末共通でも構わない」。js/lyricsSync.jsの
-// 表示モード設定と同じ、localStorageへ直接保存するだけのシンプルな方式。2026-08-06追加）。
-const SFX_ENABLED_STORAGE_KEY = "equalLoveIntroQuiz.sfxEnabled";
-
-function loadSfxEnabledPreference() {
-  try {
-    const stored = localStorage.getItem(SFX_ENABLED_STORAGE_KEY);
-    return stored === null ? true : stored === "true"; // 未設定時は既定でON
-  } catch {
-    return true;
-  }
-}
-
-let sfxEnabled = loadSfxEnabledPreference();
+// 【2026-08-10改修】効果音の実体（AudioContext管理・テーマ別の音の合成・設定保存）は
+// js/soundManager.jsへ移した。このファイルは、既存の100箇所以上のimport元（js/main.js等）を
+// 書き換えずに済むよう、同じ関数名（playClickSound等）のまま新しい仕組みへ橋渡しする
+// 薄いラッパーとして残している。新しく効果音を鳴らす箇所を追加するときは、
+// このファイルではなくjs/soundManager.jsのplaySfx(SFX_EVENTS.xxx)を直接使うこと。
+import {
+  SFX_EVENTS,
+  playSfx,
+  playCountUpSweep,
+  getSfxSettings,
+  setSfxMasterEnabled,
+  toggleSfxMasterEnabled,
+} from "./soundManager.js";
 
 export function isSfxEnabled() {
-  return sfxEnabled;
+  return getSfxSettings().masterEnabled;
 }
 
 // 効果音のON/OFFを切り替える。切り替え後の状態を返す（呼び出し側でボタンの見た目を
 // 更新するのに使う）。
 export function toggleSfxEnabled() {
-  sfxEnabled = !sfxEnabled;
-  try {
-    localStorage.setItem(SFX_ENABLED_STORAGE_KEY, String(sfxEnabled));
-  } catch {
-    // 保存できなくても、その場での切り替え自体は反映され続ける
-  }
-  return sfxEnabled;
+  return toggleSfxMasterEnabled();
 }
 
-let audioContext = null;
-
-// AudioContextは初めて音を鳴らすとき（＝必ずクリック等のユーザー操作の中）に作る。
-// ブラウザの自動再生制限により、生成直後は一時停止状態のことがあるため、そのときは再開させる。
-function getAudioContext() {
-  if (audioContext === null) {
-    audioContext = new (window.AudioContext || window.webkitAudioContext)();
-  }
-  if (audioContext.state === "suspended") {
-    audioContext.resume();
-  }
-  return audioContext;
-}
-
-// 単純な音（指定した周波数の1音）を短く鳴らす。
-// 音量は指数関数的に0まで下げることで、電子音特有の「プツッ」という音切れを防いでいる。
-function playTone(frequency, durationSec, { type = "sine", volume = 0.15, delaySec = 0 } = {}) {
-  const context = getAudioContext();
-  const startTime = context.currentTime + delaySec;
-
-  const oscillator = context.createOscillator();
-  oscillator.type = type;
-  oscillator.frequency.value = frequency;
-
-  const gainNode = context.createGain();
-  gainNode.gain.setValueAtTime(volume, startTime);
-  gainNode.gain.exponentialRampToValueAtTime(0.001, startTime + durationSec);
-
-  oscillator.connect(gainNode);
-  gainNode.connect(context.destination);
-
-  oscillator.start(startTime);
-  oscillator.stop(startTime + durationSec);
-}
-
-// 効果音の再生に失敗しても（AudioContextが使えない環境など）、ゲームの進行には影響させない。
-// OFFに設定されている間は、AudioContext自体を作らずに何もしない
-// （呼び出し側のコードは一切変更せず、この関数の中だけでON/OFFを吸収する。2026-08-06追加）。
-function playSfxSafely(playSound) {
-  if (!sfxEnabled) return;
-  try {
-    playSound();
-  } catch {
-    // 何もしない。効果音は補助的な演出のため。
-  }
+export function setSfxEnabled(enabled) {
+  setSfxMasterEnabled(enabled);
 }
 
 // ボタンを押したときの、短く控えめなクリック音。
 export function playClickSound() {
-  playSfxSafely(() => playTone(700, 0.06, { type: "square", volume: 0.08 }));
+  playSfx(SFX_EVENTS.UI_CLICK);
 }
 
-// 正解したときの、上昇する2音チャイム。
-// 本人から「正解音が小さい」との指摘を受け、音量を約2倍に引き上げた（2026-08-06）。
+// 正解したときのチャイム。
 export function playCorrectSound() {
-  playSfxSafely(() => {
-    playTone(880, 0.12, { volume: 0.28 });
-    playTone(1318.5, 0.16, { volume: 0.28, delaySec: 0.08 });
-  });
+  playSfx(SFX_EVENTS.QUIZ_CORRECT);
 }
 
-// 不正解のときの、低いブザー風の音。
-// 本人から「不正解音が小さい」との指摘を受け、音量を約2倍に引き上げた（2026-08-06）。
+// 不正解のときの音。
 export function playWrongSound() {
-  playSfxSafely(() => playTone(160, 0.25, { type: "sawtooth", volume: 0.24 }));
+  playSfx(SFX_EVENTS.QUIZ_WRONG);
 }
 
 // 結果画面の得点カウントアップに合わせて鳴らす、上昇するスイープ音。
 export function playCountUpSound() {
-  playSfxSafely(() => {
-    const context = getAudioContext();
-    const startTime = context.currentTime;
-    const durationSec = 0.8;
-
-    const oscillator = context.createOscillator();
-    oscillator.type = "sine";
-    oscillator.frequency.setValueAtTime(440, startTime);
-    oscillator.frequency.linearRampToValueAtTime(1046.5, startTime + durationSec);
-
-    const gainNode = context.createGain();
-    gainNode.gain.setValueAtTime(0.1, startTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.001, startTime + durationSec);
-
-    oscillator.connect(gainNode);
-    gainNode.connect(context.destination);
-    oscillator.start(startTime);
-    oscillator.stop(startTime + durationSec);
-  });
+  playCountUpSweep();
 }

@@ -25,6 +25,7 @@ import { getAchievementById } from "./achievementDefinitions.js";
 import { savePlayHistoryEntry } from "./playHistory.js";
 import { formatResponseSeconds } from "./responseTime.js";
 import { describeSpeedProgressForPlay, buildSpeedProgressResultBlock } from "./speedAchievementProgress.js";
+import { SFX_EVENTS, playSfx } from "./soundManager.js";
 
 let elements = null;
 let resultElements = null;
@@ -117,6 +118,13 @@ export function renderRandomPlaybackResult(questionCountValue, categoryFilterVal
     chipContainer: resultElements.achievementChipContainer,
     achievementListLinkElement: resultElements.achievementListLink,
   });
+
+  // 結果の達成度に応じた効果音（2026-08-10新設）。LOVE連チャン失敗時は鳴らさない。
+  // 称号を新規獲得した回はachievementUnlock側の音と重ならないよう、こちらは鳴らさない。
+  if (achievementResult.newlyUnlockedIds.length === 0 && !stats.runFailed) {
+    const isCleanClearForSound = achievementInput.correctCount > 0 && achievementInput.wrongCount === 0;
+    playSfx(isCleanClearForSound ? SFX_EVENTS.RESULT_PERFECT : SFX_EVENTS.RESULT_GOOD);
+  }
 
   // 平均回答時間の表示（2026-08-09新設）。称号判定に渡したのと同じachievementInputの
   // averageResponseMsをそのまま使う（称号判定と画面表示の値が絶対にずれないようにするため）。

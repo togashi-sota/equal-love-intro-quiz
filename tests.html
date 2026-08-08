@@ -70,6 +70,7 @@
     import { runPlayHistoryTests } from "./tests/playHistory.test.js";
     import { runResponseTimeTests } from "./tests/responseTime.test.js";
     import { runSpeedAchievementProgressTests } from "./tests/speedAchievementProgress.test.js";
+    import { runSoundManagerTests } from "./tests/soundManager.test.js";
     import { printSummary } from "./tests/test-utils.js";
 
     runScoreTests();
@@ -117,6 +118,7 @@
     runPlayHistoryTests();
     runResponseTimeTests();
     runSpeedAchievementProgressTests();
+    runSoundManagerTests();
     const { passCount, failCount } = printSummary();
 
     const summaryElement = document.getElementById("test-summary");

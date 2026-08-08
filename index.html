@@ -325,7 +325,9 @@
       </div>
 
       <!-- 効果音のON/OFF設定（2026-08-06追加）。端末共通（プレイヤーごとではない）の設定として、
-           js/sfx.js側でlocalStorageに保存する。 -->
+           js/soundManager.js側でlocalStorageに保存する。
+           2026-08-10追加：マスターON/OFFのクイックトグルはそのまま残しつつ、
+           テーマ・音量・UI音/ゲーム音の分離設定を扱う詳細設定モーダルへの入口を追加した。 -->
       <div class="sfx-settings-row">
         <span class="sfx-settings-label">効果音</span>
         <button id="sfx-toggle-button-start" class="sfx-toggle-button" type="button" aria-label="効果音を消す">
@@ -333,6 +335,7 @@
           <svg class="icon-sfx-off" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 9v6h4l5 5V4L8 9H4Zm14.7-.7-1.4 1.4L19 11.4l1.4-1.4L18.7 8.3ZM19 12.6l-1.7 1.7 1.4 1.4L20.4 14 19 12.6Zm-1.7-4.3L15.6 10l1.4 1.4 1.7-1.7-1.4-1.4Z"/></svg>
           <span id="sfx-toggle-button-start-label">ON</span>
         </button>
+        <button id="sfx-settings-open-button" class="sfx-settings-detail-link" type="button">詳細設定</button>
       </div>
 
       <!-- 音源・歌詞データの読み込み（データ管理）。初回セットアップ以降はほとんど
@@ -3354,6 +3357,60 @@
       <h2 id="title-list-modal-title">称号一覧</h2>
       <!-- 5つの称号カードはjs/titleList.jsが組み立てる -->
       <div id="title-list-container"></div>
+    </div>
+  </div>
+
+  <!-- 効果音の詳細設定モーダル（2026-08-10新設）。マスターON/OFFに加え、UI操作音と
+       クイズ・対戦効果音を別々にON/OFFできる・サウンドテーマを3種類から選べる・
+       効果音音量を調整できる。開閉ロジックはjs/soundSettingsScreen.js。 -->
+  <div id="sfx-settings-modal" class="modal-overlay" hidden>
+    <div class="modal-card sfx-settings-modal-card" role="dialog" aria-modal="true" aria-labelledby="sfx-settings-modal-title">
+      <button id="sfx-settings-modal-close" class="modal-close-button" type="button" aria-label="閉じる">×</button>
+      <h2 id="sfx-settings-modal-title">効果音設定</h2>
+
+      <div class="sfx-settings-toggle-row">
+        <div class="sfx-settings-toggle-text">
+          <p class="sfx-settings-toggle-label">効果音</p>
+          <p class="sfx-settings-toggle-description">すべての効果音のマスタースイッチです</p>
+        </div>
+        <button id="sfx-settings-master-toggle" class="sfx-toggle-button" type="button" aria-label="効果音を消す">
+          <span class="sfx-settings-toggle-button-label">ON</span>
+        </button>
+      </div>
+
+      <div class="sfx-settings-toggle-row">
+        <div class="sfx-settings-toggle-text">
+          <p class="sfx-settings-toggle-label">操作音</p>
+          <p class="sfx-settings-toggle-description">ボタン・カード・メニュー操作時の効果音</p>
+        </div>
+        <button id="sfx-settings-ui-toggle" class="sfx-toggle-button" type="button" aria-label="操作音を消す">
+          <span class="sfx-settings-toggle-button-label">ON</span>
+        </button>
+      </div>
+
+      <div class="sfx-settings-toggle-row">
+        <div class="sfx-settings-toggle-text">
+          <p class="sfx-settings-toggle-label">クイズ・対戦</p>
+          <p class="sfx-settings-toggle-description">正解・不正解・カウントダウン・開始・結果など</p>
+        </div>
+        <button id="sfx-settings-game-toggle" class="sfx-toggle-button" type="button" aria-label="クイズ・対戦効果音を消す">
+          <span class="sfx-settings-toggle-button-label">ON</span>
+        </button>
+      </div>
+
+      <div class="sfx-settings-section">
+        <p class="sfx-settings-section-title">サウンドテーマ</p>
+        <div id="sfx-settings-theme-list" class="sfx-theme-option-list"></div>
+        <button id="sfx-settings-preview-button" class="secondary-button sfx-settings-preview-button" type="button">▶ 試聴</button>
+      </div>
+
+      <div class="sfx-settings-section">
+        <div class="sfx-settings-volume-header">
+          <p class="sfx-settings-section-title">効果音音量</p>
+          <span id="sfx-settings-volume-value" class="sfx-settings-volume-value">70%</span>
+        </div>
+        <input id="sfx-settings-volume-range" class="seek-range sfx-settings-volume-range" type="range" min="0" max="100" step="5" value="70">
+      </div>
     </div>
   </div>
 

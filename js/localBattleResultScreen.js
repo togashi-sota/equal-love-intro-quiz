@@ -14,6 +14,7 @@ import {
   computeNormalFinalRecordMs,
 } from "./localBattleResult.js";
 import { savePlayHistoryEntry } from "./playHistory.js";
+import { SFX_EVENTS, playSfx } from "./soundManager.js";
 
 const QUESTION_COUNT_LABELS = { "5": "5問", "10": "10問", "20": "20問", "50": "50問", all: "全問" };
 const CATEGORY_LABELS = { all: "全曲", "title-and-group": "表題＋全員", "title-track": "表題のみ" };
@@ -210,6 +211,10 @@ function saveLocalBattleHistoryEntry(ranked) {
   const { config } = getCurrentBattleSession();
   const myResultCode = participants[0].resultCode;
   const myEntry = ranked.find((participant) => participant.resultCode === myResultCode) ?? ranked[0];
+
+  // 対戦の勝敗音（2026-08-10新設）。ローカル対戦は全員分をその場で入力し終えてから
+  // 順位が確定するため、DNFの概念が無く常に鳴らしてよい。
+  playSfx(myEntry.rank === 1 ? SFX_EVENTS.BATTLE_WIN : SFX_EVENTS.BATTLE_LOSE);
   savePlayHistoryEntry({
     playedAt: Date.now(),
     modeId: "localBattle",

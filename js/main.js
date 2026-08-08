@@ -42,6 +42,8 @@ import {
   isSfxEnabled,
   toggleSfxEnabled,
 } from "./sfx.js";
+import { SFX_EVENTS, playSfx } from "./soundManager.js";
+import { initSoundSettingsScreen, refreshSfxSettingsUI } from "./soundSettingsScreen.js";
 import { renderBackgroundSparkles } from "./decorations.js";
 import {
   renderSongList,
@@ -211,6 +213,7 @@ function syncSfxToggleUI() {
   sfxToggleButtonStartElement.classList.toggle("is-muted", !enabled);
   sfxToggleButtonStartElement.setAttribute("aria-label", enabled ? "効果音を消す" : "効果音を鳴らす");
   sfxToggleButtonStartLabelElement.textContent = enabled ? "ON" : "OFF";
+  refreshSfxSettingsUI(); // 詳細設定モーダル側のマスタートグル表示も一致させる
 }
 
 function handleSfxToggleClick() {
@@ -222,6 +225,22 @@ function handleSfxToggleClick() {
 sfxToggleButtonQuizElement.addEventListener("click", handleSfxToggleClick);
 sfxToggleButtonStartElement.addEventListener("click", handleSfxToggleClick);
 syncSfxToggleUI();
+
+// 効果音の詳細設定モーダル（2026-08-10新設）。テーマ・音量・UI音/ゲーム音の分離設定。
+initSoundSettingsScreen({
+  overlay: document.getElementById("sfx-settings-modal"),
+  closeButton: document.getElementById("sfx-settings-modal-close"),
+  openTriggers: [document.getElementById("sfx-settings-open-button")],
+  masterToggle: document.getElementById("sfx-settings-master-toggle"),
+  uiToggle: document.getElementById("sfx-settings-ui-toggle"),
+  gameToggle: document.getElementById("sfx-settings-game-toggle"),
+  themeList: document.getElementById("sfx-settings-theme-list"),
+  volumeRange: document.getElementById("sfx-settings-volume-range"),
+  volumeValue: document.getElementById("sfx-settings-volume-value"),
+  previewButton: document.getElementById("sfx-settings-preview-button"),
+  // モーダル内のマスタートグルを操作したときも、スタート画面のクイックトグル表示を一致させる。
+  onMasterToggle: () => syncSfxToggleUI(),
+});
 
 const startScreenElement = document.getElementById("start-screen");
 const quizScreenElement = document.getElementById("quiz-screen");
@@ -2269,6 +2288,20 @@ function renderResult() {
     });
     renderPlayerSummary(); // ＝LOVEマスター等を新規獲得した場合、推しアイコンの王冠・ダイヤを即座に反映する
 
+    // 結果の達成度に応じた効果音（2026-08-10新設）。全問正解は通常のGOODより豪華なPERFECT、
+    // ランクSはGREAT、それ以外はGOOD。称号を新規獲得した回はachievementUnlock側の音と
+    // 重ならないよう、こちらは鳴らさない（本人指示：鳴らしすぎない）。
+    if (achievementResult.newlyUnlockedIds.length === 0) {
+      const isCleanClear = wrongCount === 0 && skippedCount === 0 && correctEntries.length === gameState.questions.length;
+      if (isCleanClear) {
+        playSfx(SFX_EVENTS.RESULT_PERFECT);
+      } else if (rank === "S") {
+        playSfx(SFX_EVENTS.RESULT_GREAT);
+      } else {
+        playSfx(SFX_EVENTS.RESULT_GOOD);
+      }
+    }
+
     // 平均回答時間の表示（2026-08-09新設）。称号判定に渡したaverageResponseMsと
     // 完全に同じ値を表示することで、「画面と称号判定で数値がずれる」ことを防ぐ。
     const formattedAverageResponseTime = formatResponseSeconds(averageResponseMs);
@@ -2421,7 +2454,9 @@ function beginQuiz(questionCountValue, categoryFilterValue) {
 
 // スタートボタンを押したときの処理。今選ばれている出題数・カテゴリを読み取って開始する。
 document.getElementById("start-button").addEventListener("click", () => {
-  playClickSound();
+  // 「専用イベントがあるボタンでは、汎用クリック音と二重に鳴らさない」方針により、
+  // ここではplayClickSound()ではなくgameStartだけを鳴らす（2026-08-10）。
+  playSfx(SFX_EVENTS.GAME_START);
   const questionCountValue = document.querySelector('input[name="question-count"]:checked').value;
   const categoryFilterValue = document.querySelector('input[name="category-filter"]:checked').value;
   beginQuiz(questionCountValue, categoryFilterValue);
@@ -2989,7 +3024,7 @@ function beginTimeAttackQuiz(questionCountValue, categoryFilterValue, rule, vari
 initTimeAttackScreen({
   startButton: timeAttackStartButtonElement,
   onStart: (questionCountValue, categoryFilterValue, rule, variant) => {
-    playClickSound();
+    playSfx(SFX_EVENTS.GAME_START);
     beginTimeAttackQuiz(questionCountValue, categoryFilterValue, rule, variant);
   },
 });
@@ -3199,7 +3234,7 @@ function beginRandomPlaybackQuiz(questionCountValue, categoryFilterValue, rule) 
 initRandomPlaybackScreen({
   startButton: randomPlaybackStartButtonElement,
   onStart: (questionCountValue, categoryFilterValue, rule) => {
-    playClickSound();
+    playSfx(SFX_EVENTS.GAME_START);
     beginRandomPlaybackQuiz(questionCountValue, categoryFilterValue, rule);
   },
 });
@@ -3254,7 +3289,7 @@ initLyricsQuizSetupScreen({
   startError: lyricsQuizStartErrorElement,
   bestChip: lyricsQuizBestChipElement,
   onStart: () => {
-    playClickSound();
+    playSfx(SFX_EVENTS.GAME_START);
     showScreen("lyricsQuizQuestion");
     startLyricsQuizPlay();
   },

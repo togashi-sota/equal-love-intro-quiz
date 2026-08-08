@@ -5,6 +5,7 @@
 // 同じこのファイルを呼び出す（演出をモードごとに複製しない）。
 import { getAchievementById } from "./achievementDefinitions.js";
 import { buildAchievementIconMedal } from "./achievementIcons.js";
+import { SFX_EVENTS, playSfx } from "./soundManager.js";
 
 // 1件のチップのCSSアニメーションが万が一発火しなかった場合の保険時間（ミリ秒）。
 const ANIMATION_FALLBACK_MS = 1500;
@@ -128,6 +129,8 @@ export function renderAchievementUnlockEvents(newlyUnlockedIds, elements) {
   }
 
   achievementListLinkElement.hidden = true;
+  // 複数同時解放でも、鳴らすのは1回だけ（本人指示：鳴らしすぎない）。
+  playSfx(SFX_EVENTS.ACHIEVEMENT_UNLOCK);
 
   queue = [...achievements];
   currentContainer = chipContainer;

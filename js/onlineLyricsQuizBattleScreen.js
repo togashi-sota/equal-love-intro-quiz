@@ -86,6 +86,8 @@ import { SONGS } from "./data/songs.js";
 import { MEMBERS } from "./data/members.js";
 import { getMemberById } from "./memberUtils.js";
 import { QUESTION_COUNT_LABELS } from "./localBattleScreen.js";
+import { SFX_EVENTS, playSfx } from "./soundManager.js";
+import { STEAL_CLAIM_OUTCOME } from "./lyricsQuizBattleFirebasePayloads.js";
 
 // ホストが問題の確定（正解発表）を見せてから、次の問題／最終結果へ進むまでの待ち時間。
 const REVEAL_DELAY_MS = 3000;
@@ -806,6 +808,12 @@ async function handleAnswerChoiceClick(selectedSongId) {
   submitInFlight = false;
   if (result.ok) {
     mySubmittedForQuestionIndex = qIndex;
+    // 奪い取り成功音（2026-08-09新設）は、Firebase側でwinner claimの書き込みが実際に
+    // 成功した（＝サーバー側で自分が勝者だと確定した）STEAL_CLAIM_OUTCOME.WONの
+    // ときだけ鳴らす。ローカルで選択した直後や、通信結果を待っている段階では鳴らさない。
+    if (result.outcome === STEAL_CLAIM_OUTCOME.WON) {
+      playSfx(SFX_EVENTS.STEAL_SUCCESS);
+    }
     const outcomeMessage = describeStealClaimOutcomeMessage(result.outcome);
     if (outcomeMessage) {
       elements.battleError.classList.add("is-notice");
@@ -900,6 +908,12 @@ export function enterLyricsQuizResult(room) {
 
   const table = describeResultTable(room.settings.battleRuleId, rankedEntries);
   renderResultTable(elements.resultTableContainer, table);
+
+  // 対戦の勝敗音（2026-08-10新設）。DNF（自分の結果が確定していない）のときは鳴らさない。
+  const myRankedIndex = rankedEntries.findIndex((entry) => entry.isYou);
+  if (myRankedIndex !== -1 && !rankedEntries[myRankedIndex].isDnf) {
+    playSfx(myRankedIndex === 0 ? SFX_EVENTS.BATTLE_WIN : SFX_EVENTS.BATTLE_LOSE);
+  }
 
   saveLyricsQuizBattleHistoryEntry(room, rankedEntries);
 }

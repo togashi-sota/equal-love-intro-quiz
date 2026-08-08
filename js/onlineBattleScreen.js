@@ -46,6 +46,7 @@ import {
 import { QUESTION_COUNT_LABELS, CATEGORY_LABELS, RULE_LABELS } from "./localBattleScreen.js";
 import { computeNormalFinalRecordMs } from "./localBattleResult.js";
 import { MEMBERS } from "./data/members.js";
+import { SFX_EVENTS, playSfx } from "./soundManager.js";
 import { getMemberById } from "./memberUtils.js";
 // 【2026-08-08新設・Phase6】歌詞クイズ対戦だけ、進行の前提（全員同期・ホスト主導）が
 // 他のgameModeと根本的に異なるため、専用の画面ファイルへ委譲する（js/onlineLyricsQuizBattleScreen.js
@@ -410,11 +411,20 @@ function goToCountdownScreen(room) {
     serverTimeOffset = offset;
   });
 
+  // カウントダウン音（2026-08-10新設）。100msごとのポーリングそのものではなく、
+  // 表示する数字が実際に変わった瞬間だけ鳴らす（tick関数のクロージャ内に持たせることで、
+  // 再戦などでgoToCountdownScreen()が再度呼ばれるたびに自然にリセットされる）。
+  let lastCountdownDisplayValue = null;
+
   const tick = () => {
     const nowServerTime = Date.now() + serverTimeOffset;
     const msRemaining = targetServerTime - nowServerTime;
 
     if (msRemaining <= 0) {
+      if (lastCountdownDisplayValue !== "START!") {
+        lastCountdownDisplayValue = "START!";
+        playSfx(SFX_EVENTS.COUNTDOWN_FINAL);
+      }
       elements.countdownNumber.textContent = "START!";
       if (!hasFinishedCountdownLocally) {
         hasFinishedCountdownLocally = true;
@@ -429,7 +439,12 @@ function goToCountdownScreen(room) {
       }
       return;
     }
-    elements.countdownNumber.textContent = String(Math.ceil(msRemaining / 1000));
+    const secondsRemaining = String(Math.ceil(msRemaining / 1000));
+    if (secondsRemaining !== lastCountdownDisplayValue) {
+      lastCountdownDisplayValue = secondsRemaining;
+      playSfx(SFX_EVENTS.COUNTDOWN_TICK);
+    }
+    elements.countdownNumber.textContent = secondsRemaining;
   };
 
   tick();
@@ -903,6 +918,13 @@ function goToResultScreen(room) {
 
     elements.resultList.appendChild(row);
   });
+
+  // 対戦の勝敗音（2026-08-10新設）。DNF（自分の結果が確定していない）のときは鳴らさない
+  // （本人指示：通信結果待ちの前に勝利音を鳴らさない）。1位なら勝利、それ以外は敗北。
+  const myFinisherIndex = finishers.findIndex((entry) => entry.uid === myUid);
+  if (myFinisherIndex !== -1) {
+    playSfx(myFinisherIndex === 0 ? SFX_EVENTS.BATTLE_WIN : SFX_EVENTS.BATTLE_LOSE);
+  }
 
   saveOnlineBattleHistoryEntry(room, currentMatchId, finishers, dnfEntries, myUid);
   elements.navigateTo("onlineBattleResult");
