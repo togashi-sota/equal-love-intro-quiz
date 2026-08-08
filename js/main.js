@@ -964,10 +964,11 @@ initLiveCallModeScreen({
   },
 });
 
-// 曲一覧画面の「戻る」：特別モード一覧画面へ戻る。
+// 曲一覧画面の「戻る」：ホーム画面へ戻る（2026-08-08修正：ホームの特別モードカードから
+// 直接この画面を開くようになったため、間に古い「特別モード一覧画面」を挟まない）。
 liveCallModeListBackButtonElement.addEventListener("click", () => {
   playClickSound();
-  showScreen("specialModes");
+  showScreen("start");
 });
 
 // 再生画面の「戻る」：再生を止め、曲一覧画面へ戻る（常にこの画面からしか開かないため、
@@ -2826,10 +2827,11 @@ specialModesBackButtonElement.addEventListener("click", () => {
   navigateWithScrollMemory("start");
 });
 
-// 苦手曲モード確認画面の「戻る」：特別モード一覧画面へ戻る（スタート画面まで一気には戻らない）。
+// 苦手曲モード確認画面の「戻る」：ホーム画面へ戻る（2026-08-08修正：ホームの特別モードカードから
+// 直接この画面を開くようになったため、間に古い「特別モード一覧画面」を挟まない）。
 weakSongsBackButtonElement.addEventListener("click", () => {
   playClickSound();
-  showScreen("specialModes");
+  showScreen("start");
 });
 
 // オリジナル問題作成モードの選曲画面の「戻る」：プリセット一覧画面へ戻る
@@ -2843,10 +2845,12 @@ customQuizBackButtonElement.addEventListener("click", () => {
   showScreen("customQuizPresets");
 });
 
-// オリジナル問題作成モードのプリセット一覧画面の「戻る」：特別モード一覧画面へ戻る。
+// オリジナル問題作成モードのプリセット一覧画面の「戻る」：ホーム画面へ戻る（2026-08-08修正：
+// ホームの特別モードカードから直接この画面を開くようになったため、間に古い
+// 「特別モード一覧画面」を挟まない）。
 customQuizPresetsBackButtonElement.addEventListener("click", () => {
   playClickSound();
-  showScreen("specialModes");
+  showScreen("start");
 });
 
 // 出題数・カテゴリのラジオボタンが切り替わるたびに、自己ベスト表示・出題数の案内を更新する。
@@ -2886,10 +2890,11 @@ document
   )
   .forEach((radio) => radio.addEventListener("change", updateTimeAttackBestChip));
 
-// タイムアタックの設定画面の「戻る」：特別モード一覧画面へ戻る。
+// タイムアタックの設定画面の「戻る」：ホーム画面へ戻る（2026-08-08修正：ホームの特別モード
+// カードから直接この画面を開くようになったため、間に古い「特別モード一覧画面」を挟まない）。
 timeAttackSetupBackButtonElement.addEventListener("click", () => {
   playClickSound();
-  showScreen("specialModes");
+  showScreen("start");
 });
 
 // 指定した出題数・カテゴリ・ルールで、タイムアタックのクイズ画面を開始する共通処理。
@@ -3097,9 +3102,11 @@ document
   )
   .forEach((radio) => radio.addEventListener("change", updateRandomPlaybackBestChip));
 
+// 2026-08-08修正：ホームの特別モードカードから直接この画面を開くようになったため、
+// 「戻る」は間に古い「特別モード一覧画面」を挟まずホーム画面へ直接戻す。
 randomPlaybackSetupBackButtonElement.addEventListener("click", () => {
   playClickSound();
-  showScreen("specialModes");
+  showScreen("start");
 });
 
 // 指定した出題数・カテゴリ・ルールで、ランダム再生クイズの画面を開始する共通処理。
@@ -3166,9 +3173,11 @@ randomPlaybackResultHomeLinkElement.addEventListener("click", () => {
 // 進行状態（今何問目か・今のヒント段階・回答済みか等）はgameStateに乗せず、
 // js/lyricsQuizScreen.js側で完結させている。
 
+// 2026-08-08修正：ホームの特別モードカードから直接この画面を開くようになったため、
+// 「戻る」は間に古い「特別モード一覧画面」を挟まずホーム画面へ直接戻す。
 lyricsQuizSetupBackButtonElement.addEventListener("click", () => {
   playClickSound();
-  showScreen("specialModes");
+  showScreen("start");
 });
 
 initLyricsQuizSetupScreen({

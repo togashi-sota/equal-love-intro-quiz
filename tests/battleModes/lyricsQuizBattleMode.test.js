@@ -108,7 +108,7 @@ function runLocalMatchSimulation(settings, questionScript) {
   return { resultsByUid, ranking };
 }
 
-export function runLyricsQuizBattleModeTests() {
+export async function runLyricsQuizBattleModeTests() {
   // ===== defaultSettings / validateSettings / ルール切り替え・バージョン =====
   {
     const settings = lyricsQuizBattleMode.defaultSettings();
@@ -166,6 +166,37 @@ export function runLyricsQuizBattleModeTests() {
         `${ruleId}のルール説明文が空でない`
       );
     }
+  }
+
+  // ===== Overtureの除外（2026-08-08追加） =====
+  // オンライン歌詞クイズ対戦でも、Overture（インストゥルメンタル曲）を出題対象曲数・
+  // 歌詞データ読込対象から除外できているかを確認する。歌詞本文には一切触れない。
+  {
+    const settings = { ...lyricsQuizBattleMode.defaultSettings(), questionSource: ALL_SONGS_SOURCE };
+    assertEqual(
+      lyricsQuizBattleMode.validateSettings({ ...settings, questionCountValue: String(SONGS.length - 1) }),
+      null,
+      "全曲からOvertureを除いた曲数ちょうどをquestionCountValueに指定すれば妥当な設定になる"
+    );
+    assertEqual(
+      lyricsQuizBattleMode.validateSettings({ ...settings, questionCountValue: String(SONGS.length) })
+        ?.includes(`${SONGS.length - 1}曲しかありません`),
+      true,
+      "全曲数ぴったりをquestionCountValueに指定すると、Overtureを除いた数（全曲数-1）しかないためエラーになる"
+    );
+  }
+
+  // ===== prepareRuntimeContext（Overtureの除外） =====
+  {
+    const runtimeContext = await lyricsQuizBattleMode.prepareRuntimeContext({
+      settings: { ...lyricsQuizBattleMode.defaultSettings(), questionSource: ALL_SONGS_SOURCE },
+    });
+    assertEqual(runtimeContext.ok, true, "IndexedDBが使えない環境でも例外を投げず準備できる");
+    assertEqual(
+      runtimeContext.songPool.includes("overture"),
+      false,
+      "prepareRuntimeContext()が組み立てるsongPoolにOvertureが含まれない"
+    );
   }
 
   // ===== listAvailableBattleRulesForSettings：UI一覧生成の土台 =====

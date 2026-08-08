@@ -32,8 +32,13 @@
 // 今回はjs/battleModes/index.jsの登録簿・ディスパッチ関数にはまだ手を入れず、
 // このファイル単体にメソッドとして生やすところまでに留めた（既存ファイルは無改造のまま）。
 
-import { buildLyricsQuizQuestions, loadSongsWithLyrics, validateLyricsQuizAvailability } from "../lyricsQuizQuestionBuilder.js";
-import { resolveSongPool, validateSongPoolForQuestionCount, QUESTION_SOURCE_TYPE } from "../questionSource.js";
+import {
+  buildLyricsQuizQuestions,
+  loadSongsWithLyrics,
+  validateLyricsQuizAvailability,
+  resolveLyricsQuizSongPool,
+} from "../lyricsQuizQuestionBuilder.js";
+import { validateSongPoolForQuestionCount, QUESTION_SOURCE_TYPE } from "../questionSource.js";
 import {
   createDefaultBattleRuleSettings,
   validateBattleRule,
@@ -121,7 +126,9 @@ export function validateSettings(settings) {
     return "対戦ルールのバージョンが一致しません。アプリを更新してください。";
   }
 
-  const songPool = resolveSongPool(settings.questionSource);
+  // 【2026-08-08修正】resolveSongPool()ではなく、歌詞クイズ対象外の曲
+  // （Overture等、ボーカルの無い曲）を除いたresolveLyricsQuizSongPool()を使う。
+  const songPool = resolveLyricsQuizSongPool(settings.questionSource);
   if (songPool.length === 0) {
     return "出題対象の曲が選ばれていません。";
   }
@@ -144,7 +151,7 @@ export function validateSettings(settings) {
 // （画面側は、okがfalseならbuildQuestions()を呼ばず、エラー表示に倒す想定）。
 export async function prepareRuntimeContext({ settings }) {
   try {
-    const songPool = resolveSongPool(settings.questionSource);
+    const songPool = resolveLyricsQuizSongPool(settings.questionSource);
     const songsWithLyrics = await loadSongsWithLyrics(songPool);
     return { ok: true, songsWithLyrics, songPool };
   } catch (error) {
@@ -163,7 +170,7 @@ export function buildQuestions({ seed, settings, runtimeContext }) {
   return buildLyricsQuizQuestions({
     seed,
     songsWithLyrics: runtimeContext.songsWithLyrics ?? [],
-    songPool: runtimeContext.songPool ?? resolveSongPool(settings.questionSource),
+    songPool: runtimeContext.songPool ?? resolveLyricsQuizSongPool(settings.questionSource),
     questionCountValue: settings.questionCountValue,
     answerPoolSizeValue: settings.answerPoolSizeValue,
   });

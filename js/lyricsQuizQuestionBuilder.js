@@ -11,7 +11,7 @@
 // tests/lyricsStorage.test.jsと同じ方針（IndexedDBには実際に触れずテストする）を踏襲している。
 
 import { getLyricsData } from "./lyricsStorage.js";
-import { resolveSongObjects } from "./questionSource.js";
+import { resolveSongPool, resolveSongObjects } from "./questionSource.js";
 import { resolveQuestionCount } from "./quiz.js";
 import { generateAnchorLineCandidates, pickPrimarySegment, buildHintSequence } from "./lyricsSegmentEngine.js";
 import {
@@ -24,6 +24,35 @@ import { createSeededRandom } from "./seededRandom.js";
 
 // 1曲を「出題可能」とみなすために必要な、曲名を含まない・品質0でない区間候補の最低数。
 export const MIN_USABLE_SEGMENTS_REQUIRED = 1;
+
+// 【2026-08-08新設】歌詞クイズの出題・回答候補・曲選択一覧・歌詞充足チェックの
+// いずれからも除外する曲のID一覧。Overtureはボーカルの無いインストゥルメンタル曲で、
+// そもそも歌詞データが存在しないため（本人指示：「歌詞データ不足」ではなく
+// 「最初から歌詞クイズの対象外」として扱う）。イントロクイズ・ランダム再生クイズ・
+// タイムアタック・収録曲一覧等、歌詞を使わないモードには一切影響しない
+// （これらは引き続きjs/questionSource.jsのresolveSongPool()をそのまま使う）。
+// 将来対象外の曲が増える場合は、この配列へ追加するだけで歌詞クイズ関連の全箇所へ反映される。
+const LYRICS_QUIZ_INELIGIBLE_SONG_IDS = new Set(["overture"]);
+
+// 曲オブジェクト（js/data/songs.jsの1件）が、歌詞クイズの出題対象になりうるかを判定する。
+// 曲選択一覧（js/onlineBattleSongPicker.js）など、曲オブジェクト単位で判定したい箇所で使う。
+export function isLyricsQuizEligibleSong(song) {
+  return !LYRICS_QUIZ_INELIGIBLE_SONG_IDS.has(song.id);
+}
+
+// songPool（曲IDの配列）から、歌詞クイズの対象外の曲を取り除く。
+function filterLyricsQuizEligibleSongPool(songPool) {
+  return songPool.filter((songId) => !LYRICS_QUIZ_INELIGIBLE_SONG_IDS.has(songId));
+}
+
+// js/questionSource.jsのresolveSongPool()を、歌詞クイズ向けに包んだもの。
+// 歌詞クイズに関係する呼び出し元（1人用歌詞クイズ・オンライン歌詞クイズ対戦の設定検証・
+// 問題生成・歌詞充足チェック）は、resolveSongPool()を直接使わず必ずこちらを使うことで、
+// 「歌詞クイズの出題対象曲数」の意味を全箇所で一致させる（対象外の曲を毎回別々に
+// 除外するコードを書かずに済む）。
+export function resolveLyricsQuizSongPool(questionSource) {
+  return filterLyricsQuizEligibleSongPool(resolveSongPool(questionSource));
+}
 
 // songPool（曲IDの配列）から、実際に歌詞データがIndexedDBに読み込まれている曲だけを、
 // { song, lines } の形で返す（IndexedDBに実際に触れる、薄いラッパー関数。単体テスト対象外）。

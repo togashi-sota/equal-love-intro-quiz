@@ -973,7 +973,9 @@ export async function quitOnlineBattleDuringQuiz() {
 export function initOnlineBattleScreens(newElements) {
   elements = newElements;
 
-  elements.entryBackButton.addEventListener("click", () => elements.navigateTo("specialModes"));
+  // 2026-08-08修正：ホームの特別モードカードから直接この画面を開くようになったため、
+  // 「戻る」は間に古い「特別モード一覧画面」を挟まずホーム画面へ直接戻す。
+  elements.entryBackButton.addEventListener("click", () => elements.navigateTo("start"));
   elements.entryCreateButton.addEventListener("click", () => {
     elements.createNameInput.value = getActivePlayer().playerName || "";
     elements.createError.hidden = true;

@@ -51,8 +51,11 @@ import {
   finalizeLyricsQuizMatch,
   computeSongPoolHash,
 } from "./lyricsQuizBattleFirebase.js";
-import { loadSongsWithLyrics } from "./lyricsQuizQuestionBuilder.js";
-import { resolveSongPool } from "./questionSource.js";
+import {
+  loadSongsWithLyrics,
+  resolveLyricsQuizSongPool,
+  isLyricsQuizEligibleSong,
+} from "./lyricsQuizQuestionBuilder.js";
 import {
   describeRuleOptions,
   describeAnswerPoolSizeOptions,
@@ -311,7 +314,10 @@ function openLyricsSongPickerForHost() {
         updateLyricsManualSongSourceUi(false);
       }
       elements.navigateTo("onlineBattleLobby");
-    }
+    },
+    // 【2026-08-08新設】歌詞クイズ対戦の曲選択一覧には、Overture等の歌詞クイズ対象外の曲を
+    // 表示しない（選べるが常に不足扱いになる、という分かりにくい状態を避けるため）。
+    isLyricsQuizEligibleSong
   );
 }
 
@@ -350,7 +356,9 @@ function renderLyricsQuizParticipantSummary(settings) {
 // 確認し、件数だけをFirebaseへ送る（曲名は送らない）。曲プール自体が変わっていなければ
 // IndexedDBを読み直さない。
 async function refreshAndSubmitLyricsCoverage(room) {
-  const songPool = resolveSongPool(room.settings.questionSource);
+  // 【2026-08-08修正】resolveSongPool()ではなく、歌詞クイズ対象外の曲
+  // （Overture等、ボーカルの無い曲）を除いたresolveLyricsQuizSongPool()を使う。
+  const songPool = resolveLyricsQuizSongPool(room.settings.questionSource);
   const poolHash = computeSongPoolHash(songPool);
   if (lyricsCoverageSubmittedHash === poolHash) return;
 
@@ -395,7 +403,7 @@ function renderLyricsQuizReadinessSection(room, isHost) {
       uid === myUid && ownLyricsCoverageStatus ? ownLyricsCoverageStatus : (player.lyricsCoverage ?? null),
     ])
   );
-  const hostPoolHash = computeSongPoolHash(resolveSongPool(room.settings.questionSource));
+  const hostPoolHash = computeSongPoolHash(resolveLyricsQuizSongPool(room.settings.questionSource));
   const readiness = describeLyricsReadiness(lyricsCoverageByUid, hostPoolHash, displayNameByUid);
   renderLyricsReadinessStatus(elements.lyricsReadinessStatusContainer, readiness, { isHostView: isHost });
 

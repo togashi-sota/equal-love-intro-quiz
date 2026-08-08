@@ -137,7 +137,9 @@ export function initLocalBattleScreens(newElements) {
   });
   updateSetupRuleHint(); // 初期表示（デフォルトで選ばれているノーマル・公式ペナルティの案内を出しておく）
 
-  elements.modeSelectBackButton.addEventListener("click", () => elements.navigateTo("specialModes"));
+  // 2026-08-08修正：ホームの特別モードカードから直接この画面を開くようになったため、
+  // 「戻る」は間に古い「特別モード一覧画面」を挟まずホーム画面へ直接戻す。
+  elements.modeSelectBackButton.addEventListener("click", () => elements.navigateTo("start"));
   elements.mode1v1Button.addEventListener("click", () => {
     selectedPlayerCount = 2;
     elements.createOrJoinTitle.textContent = "1対1対戦";

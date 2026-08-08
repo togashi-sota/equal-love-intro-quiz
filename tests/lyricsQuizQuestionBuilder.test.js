@@ -10,8 +10,11 @@ import {
   validateLyricsQuizAvailability,
   buildLyricsQuizQuestions,
   MIN_USABLE_SEGMENTS_REQUIRED,
+  isLyricsQuizEligibleSong,
+  resolveLyricsQuizSongPool,
 } from "../js/lyricsQuizQuestionBuilder.js";
 import { validateLyricsQuizQuestionAnswerPool } from "../js/lyricsQuizEngine.js";
+import { resolveSongPool, QUESTION_SOURCE_TYPE } from "../js/questionSource.js";
 import { SONGS } from "../js/data/songs.js";
 import { assertEqual } from "./test-utils.js";
 
@@ -219,6 +222,61 @@ export function runLyricsQuizQuestionBuilderTests() {
       [],
       `全${SONGS.length}曲×5回答方式×2パターンで、正解が候補から欠ける組み合わせが無いこと` +
         (failures.length > 0 ? `（欠けた組み合わせ: ${JSON.stringify(failures)}）` : "")
+    );
+  }
+
+  // ===== isLyricsQuizEligibleSong() / resolveLyricsQuizSongPool()（2026-08-08追加） =====
+  // Overture（インストゥルメンタル曲、歌詞データが存在しない）を、歌詞クイズの出題・回答候補・
+  // 曲数カウントのいずれからも除外できているかを確認する。歌詞本文には一切触れず、
+  // songId・件数だけで判定する。
+  {
+    const overtureSong = SONGS.find((song) => song.id === "overture");
+    assertEqual(overtureSong !== undefined, true, "songs.jsにid:\"overture\"の曲が存在する（前提確認）");
+    assertEqual(isLyricsQuizEligibleSong(overtureSong), false, "OvertureはisLyricsQuizEligibleSongでfalseになる");
+
+    const otherSong = SONGS.find((song) => song.id !== "overture");
+    assertEqual(isLyricsQuizEligibleSong(otherSong), true, "Overture以外の曲はisLyricsQuizEligibleSongでtrueになる");
+
+    const allSongsPool = resolveLyricsQuizSongPool({ type: QUESTION_SOURCE_TYPE.ALL_SONGS });
+    assertEqual(
+      allSongsPool.includes("overture"),
+      false,
+      "resolveLyricsQuizSongPool（全曲）の結果にOvertureが含まれない"
+    );
+    assertEqual(
+      allSongsPool.length,
+      SONGS.length - 1,
+      "resolveLyricsQuizSongPool（全曲）の曲数は、全曲数からOvertureの1曲を除いた数になる"
+    );
+
+    // 通常のresolveSongPool()（歌詞クイズ専用ではない、全モード共通の関数）は
+    // 今までどおりOvertureを含めたまま返すことを確認する（イントロクイズ等への
+    // 影響が無いことの裏付け）。
+    const genericAllSongsPool = resolveSongPool({ type: QUESTION_SOURCE_TYPE.ALL_SONGS });
+    assertEqual(
+      genericAllSongsPool.includes("overture"),
+      true,
+      "resolveSongPool（歌詞クイズ専用ではない方）は今までどおりOvertureを含む"
+    );
+
+    const categoryAllPool = resolveLyricsQuizSongPool({
+      type: QUESTION_SOURCE_TYPE.CATEGORY,
+      categoryFilterValue: "all",
+    });
+    assertEqual(
+      categoryAllPool.includes("overture"),
+      false,
+      "resolveLyricsQuizSongPool（カテゴリ:全曲）の結果にもOvertureが含まれない"
+    );
+
+    const manualPoolIncludingOverture = resolveLyricsQuizSongPool({
+      type: QUESTION_SOURCE_TYPE.MANUAL_SELECTION,
+      songIds: ["overture", otherSong.id],
+    });
+    assertEqual(
+      manualPoolIncludingOverture,
+      [otherSong.id],
+      "手動選択でOvertureが含まれていても、resolveLyricsQuizSongPoolが除外する"
     );
   }
 }

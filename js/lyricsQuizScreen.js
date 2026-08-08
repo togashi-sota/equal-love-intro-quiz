@@ -14,13 +14,14 @@
 // 今後questionSource基盤を通じてそのまま拡張できる（このファイルの変更は不要な設計）。
 
 import { SONGS } from "./data/songs.js";
-import { QUESTION_SOURCE_TYPE, resolveSongPool } from "./questionSource.js";
+import { QUESTION_SOURCE_TYPE } from "./questionSource.js";
 import { normalizeForSearch, songMatchesSearch } from "./songlist.js";
 import {
   loadSongsWithLyrics,
   filterQuizzableSongs,
   validateLyricsQuizAvailability,
   buildLyricsQuizQuestions,
+  resolveLyricsQuizSongPool,
 } from "./lyricsQuizQuestionBuilder.js";
 import {
   createLyricsQuizResult,
@@ -120,7 +121,9 @@ export async function retryLyricsQuizRun() {
 async function buildAndStartRun(settings) {
   elements.startError.hidden = true;
 
-  const songPool = resolveSongPool({
+  // 【2026-08-08修正】resolveSongPool()ではなく、歌詞クイズ対象外の曲
+  // （Overture等、ボーカルの無い曲）を除いたresolveLyricsQuizSongPool()を使う。
+  const songPool = resolveLyricsQuizSongPool({
     type: QUESTION_SOURCE_TYPE.CATEGORY,
     categoryFilterValue: settings.categoryFilterValue,
   });

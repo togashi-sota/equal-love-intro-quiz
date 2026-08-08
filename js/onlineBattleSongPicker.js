@@ -173,8 +173,9 @@ function createSingleGroupElement(group, isInitiallyOpen) {
   return groupElement;
 }
 
-function renderGroups() {
-  const groups = buildSongGroups(SONGS);
+// songs：この画面が一覧に出す曲一覧（呼び出し元がgameMode等に応じて絞り込み済みのものを渡す）。
+function renderGroups(songs) {
+  const groups = buildSongGroups(songs);
   elements.groupsContainer.innerHTML = "";
   groups.forEach((group, index) => {
     elements.groupsContainer.appendChild(createSingleGroupElement(group, index === 0));
@@ -207,10 +208,16 @@ function resetFilters() {
 // questionSource.songIds、無ければ空配列）とコールバックを渡して画面を開く。
 // onConfirm：「決定」が押されたとき、選んだ曲id配列(string[])を受け取って呼ばれる。
 // onCancel：「戻る」「キャンセル」が押されたときに呼ばれる（呼び出し元が画面遷移を行う）。
-export function openOnlineBattleSongPicker(initialSongIds, onConfirm, onCancel) {
+// isSongEligible（省略可）：一覧に出す曲を絞り込みたいモード専用の判定関数(song) => boolean。
+//   例：歌詞クイズ対戦はOvertureのように歌詞データが存在しない曲を一覧そのものから除外する
+//   （js/onlineLyricsQuizBattleScreen.jsから渡す）。省略時（イントロ対戦・ランダム再生対戦）は
+//   全曲を一覧に出す、という今までどおりの動作になる。
+export function openOnlineBattleSongPicker(initialSongIds, onConfirm, onCancel, isSongEligible) {
   onConfirmCallback = onConfirm;
   onCancelCallback = onCancel;
+  const eligibleSongs = isSongEligible ? SONGS.filter(isSongEligible) : SONGS;
   resetFilters();
+  renderGroups(eligibleSongs);
   applyCheckedState(initialSongIds ?? []);
   refreshSelectionUI();
   elements.navigateTo("onlineBattleSongPicker");
@@ -218,7 +225,7 @@ export function openOnlineBattleSongPicker(initialSongIds, onConfirm, onCancel) 
 
 export function initOnlineBattleSongPicker(newElements) {
   elements = newElements;
-  renderGroups();
+  renderGroups(SONGS);
 
   elements.backButton.addEventListener("click", () => {
     onCancelCallback?.();
