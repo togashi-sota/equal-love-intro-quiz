@@ -7,18 +7,17 @@ import {
   resetKaraokeSync,
   getKaraokePositionSec,
   adjustOffsetMs,
-  reportCallTooEarly,
-  reportCallTooLate,
+  resetOffsetToZero,
   resyncToPosition,
   findActiveCallIndex,
   findNextCall,
   selectSyncPointCandidates,
   findCurrentOrNextSyncPoint,
   getSecondsUntil,
-  shouldShowSyncCheck,
   formatOffsetLabel,
   formatKaraokeMmSs,
   getNextCallCountdownDisplay,
+  getCallDisplayTier,
 } from "../js/karaokeSync.js";
 import { assertEqual } from "./test-utils.js";
 
@@ -35,19 +34,27 @@ export function runKaraokeSyncTests() {
     assertEqual(getKaraokePositionSec(started, 8000), 3, "3000ms経過で3秒になる");
   }
 
-  // ===== offset補正（+/-） =====
+  // ===== タイミング調整（offsetの符号を具体的なシナリオで検証） =====
+  // 「曲スタート」を実際より1秒遅れて押した場合、アプリの経過時間は本当のカラオケより
+  // 常に1秒少なく計算される＝コール表示は本来より遅れて出る。これを追いつかせる
+  // （＝早める）には、offsetを増やす必要がある。
   {
     let state = startKaraokeSync(createKaraokeSyncState(), 0);
-    state = reportCallTooLate(state, 300); // 「コールが遅い」→ offsetを増やして早める
-    assertEqual(state.offsetMs, 300, "「コールが遅い」でoffsetが+300msされる");
-    assertEqual(getKaraokePositionSec(state, 1000), 1.3, "offset+300msぶん位置が前に進む");
+    state = adjustOffsetMs(state, 300); // 「早める」+0.3秒
+    assertEqual(state.offsetMs, 300, "「早める」でoffsetが+300msされる");
+    assertEqual(getKaraokePositionSec(state, 1000), 1.3, "offsetを増やすと計算上の位置が前に進む＝表示が早まる");
 
-    state = reportCallTooEarly(state, 300); // 「コールが早い」→ offsetを減らして遅らせる
-    assertEqual(state.offsetMs, 0, "「コールが早い」でoffsetが-300msされ、元に戻る");
+    state = adjustOffsetMs(state, -300); // 「遅らせる」-0.3秒
+    assertEqual(state.offsetMs, 0, "「遅らせる」でoffsetが-300msされ、元に戻る");
 
-    state = reportCallTooEarly(state, 500);
-    assertEqual(state.offsetMs, -500, "「コールが早い」を単独で押すと負の値になる");
-    assertEqual(getKaraokePositionSec(state, 1000), 0.5, "負のoffsetぶん位置が遅れる");
+    state = adjustOffsetMs(state, -500); // 「遅らせる」を単独で
+    assertEqual(state.offsetMs, -500, "「遅らせる」を単独で押すと負の値になる");
+    assertEqual(getKaraokePositionSec(state, 1000), 0.5, "offsetを減らすと計算上の位置が遅れる＝表示が遅くなる");
+
+    state = resetOffsetToZero(state);
+    assertEqual(state.offsetMs, 0, "0に戻すボタンでoffsetがちょうど0になる");
+    assertEqual(state.isSyncing, true, "0に戻しても同期自体は継続したまま（isSyncingは変わらない）");
+    assertEqual(state.syncStartAtMs, 0, "0に戻しても同期開始時刻は変わらない（曲の位置は維持される）");
   }
 
   // ===== adjustOffsetMsの符号は常にdeltaの符号どおり =====
@@ -82,13 +89,13 @@ export function runKaraokeSyncTests() {
     assertEqual(after, state, "同期開始前のresyncToPositionは状態を変えない");
   }
 
-  // ===== 同期をやり直す =====
+  // ===== 曲を最初からやり直す =====
   {
     let state = startKaraokeSync(createKaraokeSyncState(), 0);
-    state = reportCallTooLate(state, 500);
+    state = adjustOffsetMs(state, 500);
     state = resetKaraokeSync(state);
-    assertEqual(state.isSyncing, false, "同期をやり直すとisSyncingがfalseに戻る");
-    assertEqual(state.offsetMs, 0, "同期をやり直すとoffsetもリセットされる");
+    assertEqual(state.isSyncing, false, "やり直すとisSyncingがfalseに戻る");
+    assertEqual(state.offsetMs, 0, "やり直すとoffsetもリセットされる");
   }
 
   // ===== コール検索 =====
@@ -136,42 +143,6 @@ export function runKaraokeSyncTests() {
   assertEqual(getSecondsUntil(10, 3.6), 6.4, "残り秒数は単純な引き算");
   assertEqual(getSecondsUntil(10, 12), 0, "過ぎている場合は0未満にならない");
 
-  // ===== 同期チェックの表示判定 =====
-  {
-    const nextSyncPointCall = { start: 20, end: 21, text: "オレ！" };
-    assertEqual(
-      shouldShowSyncCheck({ nextSyncPointCall, positionSec: 16, lastShownAtPositionSec: null }),
-      true,
-      "5秒より手前に近づいたら表示してよい"
-    );
-    assertEqual(
-      shouldShowSyncCheck({ nextSyncPointCall, positionSec: 10, lastShownAtPositionSec: null }),
-      false,
-      "まだ遠い（leadSecより前）ときは表示しない"
-    );
-    assertEqual(
-      shouldShowSyncCheck({ nextSyncPointCall, positionSec: 21, lastShownAtPositionSec: null }),
-      false,
-      "コールを過ぎてからは表示しない"
-    );
-    assertEqual(
-      shouldShowSyncCheck({ nextSyncPointCall, positionSec: 16, lastShownAtPositionSec: 0 }),
-      false,
-      "直前に表示済みなら、最低間隔（既定40秒）未満では再表示しない"
-    );
-    const laterSyncPointCall = { start: 50, end: 51, text: "せーの" };
-    assertEqual(
-      shouldShowSyncCheck({ nextSyncPointCall: laterSyncPointCall, positionSec: 46, lastShownAtPositionSec: 0 }),
-      true,
-      "最低間隔を過ぎ、かつ次の同期ポイントが近づいていれば再表示してよい"
-    );
-    assertEqual(
-      shouldShowSyncCheck({ nextSyncPointCall: null, positionSec: 16, lastShownAtPositionSec: null }),
-      false,
-      "対象となる同期ポイントが無ければ表示しない"
-    );
-  }
-
   // ===== フォーマッタ =====
   assertEqual(formatOffsetLabel(0), "調整なし", "offset0のときは「調整なし」と表示する");
   assertEqual(formatOffsetLabel(300), "+0.3秒", "正のoffsetは+で表示する");
@@ -180,7 +151,7 @@ export function runKaraokeSyncTests() {
   assertEqual(formatKaraokeMmSs(0), "0:00", "0秒は0:00と表示する");
   assertEqual(formatKaraokeMmSs(-5), "0:00", "負の値は0:00に丸める（安全側）");
 
-  // ===== NEXT CALLカードの表示段階（UI/UX第2版） =====
+  // ===== NEXT CALLカードの表示段階 =====
   assertEqual(getNextCallCountdownDisplay(7.2, false), { phase: "upcoming", eyebrow: "NEXT CALL", text: "あと7.2秒" }, "3秒より前はupcoming表示");
   assertEqual(getNextCallCountdownDisplay(3.0, false), { phase: "imminent", eyebrow: "もうすぐ！", text: "3" }, "ちょうど3秒はimminent側（境界値）");
   assertEqual(getNextCallCountdownDisplay(2.9, false), { phase: "imminent", eyebrow: "もうすぐ！", text: "3" }, "2.9秒は3と表示する");
@@ -190,4 +161,16 @@ export function runKaraokeSyncTests() {
   assertEqual(getNextCallCountdownDisplay(0.1, false), { phase: "imminent", eyebrow: "もうすぐ！", text: "1" }, "0.1秒は1と表示する（0を表示しない）");
   assertEqual(getNextCallCountdownDisplay(0, true), { phase: "now", eyebrow: "コール中！", text: "" }, "アクティブ中はisActive優先でnowになる");
   assertEqual(getNextCallCountdownDisplay(5, true), { phase: "now", eyebrow: "コール中！", text: "" }, "secondsUntilの値に関わらずisActiveがtrueならnow");
+
+  // ===== コール表示の文字サイズ段階（UI/UX第3版で追加） =====
+  assertEqual(getCallDisplayTier("はい！"), "short", "6文字以下はshort（既存バースト演出の基準と統一）");
+  assertEqual(getCallDisplayTier("オレ！"), "short", "短いコールはshort");
+  assertEqual(getCallDisplayTier("せーのっ、いくよー！"), "medium", "7〜20文字はmedium");
+  assertEqual(getCallDisplayTier("あ".repeat(20)), "medium", "ちょうど20文字はmedium（境界値）");
+  assertEqual(getCallDisplayTier("あ".repeat(21)), "long", "21文字以上はlong（境界値）");
+  assertEqual(
+    getCallDisplayTier("ここでMIXが長く続く長文の掛け声がずっと入るシーンのテキスト例"),
+    "long",
+    "長文MIXはlong"
+  );
 }

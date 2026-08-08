@@ -1,5 +1,5 @@
 // カラオケ同期・初心者ナビ機能の「計算・状態」を担当する純粋関数モジュール。
-// DOM・タイマー・振動などには一切触れない（実際の描画・イベント購読はjs/karaokeSyncScreen.jsが担当する）。
+// DOM・タイマーなどには一切触れない（実際の描画・イベント購読はjs/karaokeSyncScreen.jsが担当する）。
 // 状態はすべてイミュータブルに扱う（渡された古いstateを書き換えず、新しいオブジェクトを返す）ため、
 // テストがしやすく、描画側の「変わったときだけ再描画する」判定とも相性がよい。
 //
@@ -53,20 +53,24 @@ export function getKaraokePositionSec(state, monotonicNowMs) {
   return (monotonicNowMs - state.syncStartAtMs + state.offsetMs) / 1000;
 }
 
-// ===== 「コールが早い／遅い」補正 =====
-// 「コールが早い」＝アプリの表示（計算上の現在位置）が、実際のカラオケより先に進みすぎている
-// 状態なので、offsetを減らして計算上の位置を遅らせる。
-// 「コールが遅い」＝逆に、offsetを増やして計算上の位置を早める。
+// ===== タイミング調整 =====
+// offsetを増やすと、計算上の現在位置が大きくなる→コールの表示が実際より早く来る＝「早める」。
+// offsetを減らすと、計算上の現在位置が小さくなる→コールの表示が実際より遅く来る＝「遅らせる」。
+// 【UI/UX第3版・本人指示で必ず検証】この符号の向きは、以下の具体例で確認済み：
+// 「曲スタート」を実際より1秒遅く押した場合、アプリの経過時間は本当のカラオケより
+// 常に1秒少なく計算される＝コール表示は本来より遅れて出る。これを直すには、offsetを
+// +1000msして「早める」必要がある（実際に本来より遅れているものを早めて追いつかせる）。
+// この関係が、ここより下のresyncToPosition()の計算式（offset = target*1000 - elapsedMs）
+// とも整合していることをテスト（tests/karaokeSync.test.js）で確認している。
 export function adjustOffsetMs(state, deltaMs) {
   return { ...state, offsetMs: state.offsetMs + deltaMs };
 }
 
-export function reportCallTooEarly(state, stepMs) {
-  return adjustOffsetMs(state, -Math.abs(stepMs));
-}
-
-export function reportCallTooLate(state, stepMs) {
-  return adjustOffsetMs(state, Math.abs(stepMs));
+// タイミング調整だけを0msへ戻す。同期自体（開始時刻・経過位置・音源再生）には一切触れない
+// （本人指示：「曲そのものを最初からやり直す機能ではない。現在位置・音源再生は維持したまま、
+// タイミング補正だけを0に戻す」）。
+export function resetOffsetToZero(state) {
+  return { ...state, offsetMs: 0 };
 }
 
 // ===== 「今！」による途中再同期 =====
@@ -119,23 +123,6 @@ export function getSecondsUntil(targetSec, positionSec) {
   return Math.max(0, targetSec - positionSec);
 }
 
-// ===== 「同期チェック」を表示してよいかの判定 =====
-// 次の同期ポイントがleadSec秒以内に迫っていて、かつ前回表示してからminGapSec秒以上
-// 経っている場合だけ表示してよいと判定する（毎回・全コールで出すと邪魔になるため）。
-export function shouldShowSyncCheck({
-  nextSyncPointCall,
-  positionSec,
-  lastShownAtPositionSec,
-  leadSec = 5,
-  minGapSec = 40,
-}) {
-  if (!nextSyncPointCall) return false;
-  const secondsUntil = nextSyncPointCall.start - positionSec;
-  if (secondsUntil <= 0 || secondsUntil > leadSec) return false;
-  if (lastShownAtPositionSec !== null && positionSec - lastShownAtPositionSec < minGapSec) return false;
-  return true;
-}
-
 // ===== 表示用フォーマッタ =====
 // 「完全同期しています」のような断定はせず、実際に分かる数値だけを見せるための表記
 // （本人指示：緑＝完璧／赤＝間違いのような断定的な色分けもしない）。
@@ -170,4 +157,17 @@ export function getNextCallCountdownDisplay(secondsUntil, isActive) {
     return { phase: "imminent", eyebrow: "もうすぐ！", text: String(digit) };
   }
   return { phase: "upcoming", eyebrow: "NEXT CALL", text: `あと${secondsUntil.toFixed(1)}秒` };
+}
+
+// ===== コール表示の文字サイズ段階（UI/UX第3版で追加） =====
+// 「はい！」のような短いコールは画面いっぱいに大きく、MIX・口上のような長いコールは
+// 読める大きさに抑える、という3段階を判定する純粋関数。
+// SHORTの基準は、既存の飛び出しバースト演出（isShortCallText）と完全に統一する
+// （同じ「短い」の基準が画面によって変わらないように）。
+// MEDIUMの上限20文字は、js/callSync.jsの長文コール表示（LONGFORM_LENGTH_TIERS）の
+// 最初の区切り「compact」と揃えている。
+export function getCallDisplayTier(text) {
+  if (isShortCallText(text)) return "short";
+  if (typeof text === "string" && text.length <= 20) return "medium";
+  return "long";
 }

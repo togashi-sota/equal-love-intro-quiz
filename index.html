@@ -1346,44 +1346,31 @@
       </p>
     </section>
 
-    <!-- ライブコールモード：カラオケ同期・初心者ナビ画面（2026-08-09新設）。
+    <!-- ライブコールモード：カラオケ同期・初心者ナビ画面（2026-08-09新設、UI/UX第3版で
+         「設定画面」から「カラオケ中専用HUD」へ全面再設計）。
          DAM/JOYSOUND等、外部で流れているカラオケ音源に合わせて、コール表示用の時計だけを
-         アプリ内で独自に進める。歌詞・コールの同期表示自体は、js/karaokeSyncScreen.jsが
-         既存のjs/lyricsSync.js・js/callSync.jsをそのまま呼び出して実現している
-         （本物の<audio>要素の代わりに、時計だけを持つ疑似要素を渡す方式）。
+         アプリ内で独自に進める。歌詞の同期表示自体は、js/karaokeSyncScreen.jsが既存の
+         js/lyricsSync.jsをそのまま呼び出して実現している（本物の<audio>要素の代わりに、
+         時計だけを持つ疑似要素を渡す方式）。現在のコール／NEXT CALLはjs/callSync.jsを経由せず、
+         この画面専用のHUDカードとして直接描画する（js/callSync.jsの全画面持続表示演出は
+         通常再生画面向けの設計で、カラオケHUDでは長いMIXのたびに画面を乗っ取ってしまうため）。
          詳しい設計はjs/karaokeSync.js・js/karaokeSyncScreen.jsの冒頭コメント参照。 -->
-    <!-- カラオケ同期画面はUI/UX第2版（2026-08-09）で3ゾーン固定レイアウトへ全面刷新した。
-         ①ヘッダー（曲名・状態チップ）②中央（NEXT CALL・参考パネル、ここだけスクロール）
-         ③下部（同期操作、常に同じ位置に固定）。歌詞・コールの表示内容が変わっても
-         ③の位置が1pxも動かないことを最重要視している（css/style.cssのカラオケ同期
-         レイアウト定義コメント、js/karaokeSyncScreen.jsの冒頭コメント参照）。 -->
+    <!-- UI/UX第3版：画面の主役は設定ではなく「現在の歌詞・現在のコール・次のコール」。
+         開始前（最小構成）と同期中（HUD中心）の2状態で構成し、頻繁に押さない操作
+         （今！・全文を見る・初心者ナビ切替・曲を最初からやり直す）はヘッダーの「⋯」から開く
+         別メニューへ退避した。3ゾーン固定レイアウト（①ヘッダー②中央スクロール③下部固定）と、
+         中央の内容が変わっても③の位置が1pxも動かない、というUI/UX第2版の方針は継続している。 -->
     <section id="live-call-mode-karaoke-screen" class="screen">
       <div class="karaoke-header-zone">
-        <div class="list-header">
-          <button id="karaoke-back-button" class="back-link" type="button">
+        <div class="karaoke-header-row">
+          <button id="karaoke-back-button" class="karaoke-icon-button" type="button" aria-label="戻る">
             <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
-            戻る
           </button>
-          <div class="title-block">
-            <p class="eyebrow-chip">
-              <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
-              🎤 KARAOKE SYNC
-            </p>
-            <h2 id="karaoke-song-title">曲名</h2>
-          </div>
-          <div class="list-header-actions">
-            <button id="karaoke-help-link" class="info-link-button" type="button" aria-label="カラオケ同期の使い方を見る">？</button>
-          </div>
-        </div>
-
-        <!-- 今どのモードで動いているかが一目で分かる状態チップ（本人指示・UI/UX第2版で追加）。
-             同期開始前は非表示、開始後だけ表示する。 -->
-        <div id="karaoke-status-bar" class="karaoke-status-bar" hidden>
-          <span class="karaoke-status-chip">🎤 同期中</span>
-          <span id="karaoke-status-chip-audio" class="karaoke-status-chip" hidden>🔊 練習音源 ON</span>
-          <span id="karaoke-status-chip-nav" class="karaoke-status-chip">🧭 初心者ナビ ON</span>
+          <h2 id="karaoke-song-title" class="karaoke-header-title">曲名</h2>
+          <button id="karaoke-more-menu-button" class="karaoke-icon-button" type="button" aria-label="その他のメニュー" hidden>⋯</button>
+          <button id="karaoke-help-link" class="karaoke-icon-button" type="button" aria-label="カラオケ同期の使い方を見る">？</button>
         </div>
       </div>
 
@@ -1393,63 +1380,32 @@
           この曲のコールデータを読み込めませんでした。
         </p>
 
-        <!-- 開始前パネル：本人指示どおり、最初は設定と大きなスタートボタンだけの最小構成にする。 -->
+        <!-- STATE A：開始前。最小構成（本人指示：いきなり大量の設定を見せない）。
+             端末音源・初心者ナビの選択UIはUI/UX第3版で廃止し、常に自動再生・
+             既存の保存済み設定をそのまま使う方式にした。 -->
         <div id="karaoke-start-panel" class="karaoke-start-panel">
           <p class="karaoke-start-instruction">カラオケで曲が始まった瞬間に、下のボタンを押してください。</p>
-
-          <fieldset class="karaoke-start-option-group">
-            <legend>🔊 端末音源</legend>
-            <label class="game-mode-option">
-              <input type="radio" id="karaoke-device-audio-off-radio" name="karaoke-device-audio-choice" value="off" checked>
-              <span class="game-mode-option-content">
-                <span class="game-mode-option-name">OFF</span>
-                <span class="game-mode-option-description">実際のカラオケで使う（コール表示だけ動かす）</span>
-              </span>
-            </label>
-            <label class="game-mode-option">
-              <input type="radio" id="karaoke-device-audio-on-radio" name="karaoke-device-audio-choice" value="on">
-              <span class="game-mode-option-content">
-                <span class="game-mode-option-name">ON</span>
-                <span class="game-mode-option-description">家で練習する（この端末の音源も一緒に再生）</span>
-              </span>
-            </label>
-          </fieldset>
-          <p id="karaoke-device-audio-notice" class="karaoke-inline-notice" hidden></p>
-
-          <fieldset class="karaoke-start-option-group">
-            <legend>🧭 初心者ナビ</legend>
-            <label class="game-mode-option">
-              <input type="radio" id="karaoke-beginner-nav-on-radio" name="karaoke-beginner-nav-choice" value="on" checked>
-              <span class="game-mode-option-content">
-                <span class="game-mode-option-name">ON</span>
-                <span class="game-mode-option-description">次のコールや残り秒数を表示します</span>
-              </span>
-            </label>
-            <label class="game-mode-option">
-              <input type="radio" id="karaoke-beginner-nav-off-radio" name="karaoke-beginner-nav-choice" value="off">
-              <span class="game-mode-option-content">
-                <span class="game-mode-option-name">OFF</span>
-                <span class="game-mode-option-description">シンプルな表示にします</span>
-              </span>
-            </label>
-          </fieldset>
-
           <button id="karaoke-start-button" class="karaoke-start-button" type="button">🎤 曲スタート！</button>
-          <p class="karaoke-start-note">少しずれても大丈夫です。あとから「早い／遅い」「今！」で簡単に直せます。</p>
+          <p class="karaoke-start-note">少しずれても大丈夫です。あとから画面下のボタンで簡単に直せます。</p>
         </div>
 
-        <!-- 同期中パネル：現在コール・NEXT CALLを最優先し、説明文は出さない。 -->
+        <!-- STATE B：同期中。現在の歌詞・現在のコール／NEXT CALLだけを主役にする。 -->
         <div id="karaoke-sync-panel" class="karaoke-sync-panel" hidden>
-          <div id="karaoke-sync-check-banner" class="karaoke-sync-check-banner" hidden>
-            <p class="karaoke-sync-check-title">🎯 同期チェック</p>
-            <p id="karaoke-sync-check-text" class="karaoke-sync-check-text"></p>
+          <p id="karaoke-device-audio-notice" class="karaoke-inline-notice" hidden></p>
+
+          <p id="karaoke-current-lyric" class="karaoke-current-lyric"></p>
+
+          <div id="karaoke-call-hud-card" class="karaoke-call-hud-card">
+            <p id="karaoke-call-hud-eyebrow" class="karaoke-call-hud-eyebrow">NEXT CALL</p>
+            <p id="karaoke-call-hud-text" class="karaoke-call-hud-text">―</p>
+            <p id="karaoke-call-hud-countdown" class="karaoke-call-hud-countdown"></p>
           </div>
 
-          <div id="karaoke-beginner-nav" class="karaoke-beginner-nav">
-            <div id="karaoke-next-call-card" class="karaoke-next-call-card">
-              <p id="karaoke-next-call-eyebrow" class="karaoke-next-call-eyebrow">NEXT CALL</p>
-              <p id="karaoke-next-call-text" class="karaoke-next-call-text">―</p>
-              <p id="karaoke-next-call-countdown" class="karaoke-next-call-countdown"></p>
+          <div id="karaoke-song-end-banner" class="karaoke-song-end-banner" hidden>
+            <p class="karaoke-song-end-title">🎤 曲が終了しました</p>
+            <div class="karaoke-song-end-actions">
+              <button id="karaoke-song-end-restart-button" class="karaoke-song-end-button" type="button">もう一度</button>
+              <button id="karaoke-song-end-choose-button" class="karaoke-song-end-button" type="button">曲を選ぶ</button>
             </div>
           </div>
 
@@ -1457,31 +1413,22 @@
         </div>
       </div>
 
-      <!-- 下部：同期操作。中央の内容がどう変わってもここの位置は動かさない。 -->
+      <!-- 下部：タイミング調整だけを常時固定表示する。中央の内容がどう変わってもここの位置は動かさない。 -->
       <div id="karaoke-footer-zone" class="karaoke-footer-zone" hidden>
         <p id="karaoke-toast" class="karaoke-toast" hidden></p>
 
-        <p id="karaoke-sync-point-label" class="karaoke-sync-point-label">―</p>
-        <div class="karaoke-controls-main-row">
-          <button id="karaoke-too-early-button" class="karaoke-control-button" type="button">← 早い</button>
-          <button id="karaoke-now-button" class="karaoke-now-button" type="button">🎯 今！</button>
-          <button id="karaoke-too-late-button" class="karaoke-control-button" type="button">遅い →</button>
+        <p class="karaoke-timing-heading">タイミング調整</p>
+        <div class="karaoke-timing-row">
+          <button id="karaoke-offset-minus-05-button" class="karaoke-timing-button" type="button">−0.5</button>
+          <button id="karaoke-offset-minus-01-button" class="karaoke-timing-button" type="button">−0.1</button>
+          <button id="karaoke-offset-reset-button" class="karaoke-timing-reset-button" type="button">0に戻す</button>
+          <button id="karaoke-offset-plus-01-button" class="karaoke-timing-button" type="button">+0.1</button>
+          <button id="karaoke-offset-plus-05-button" class="karaoke-timing-button" type="button">+0.5</button>
         </div>
-
-        <div class="karaoke-fine-row">
-          <span class="karaoke-fine-row-label">細かく調整</span>
-          <button id="karaoke-big-early-button" class="karaoke-control-button-small" type="button">−0.5</button>
-          <button id="karaoke-fine-early-button" class="karaoke-control-button-small" type="button">−0.1</button>
+        <div class="karaoke-timing-caption-row">
+          <span class="karaoke-timing-caption">← 遅らせる</span>
           <span id="karaoke-offset-label" class="karaoke-offset-inline-label">調整なし</span>
-          <button id="karaoke-fine-late-button" class="karaoke-control-button-small" type="button">+0.1</button>
-          <button id="karaoke-big-late-button" class="karaoke-control-button-small" type="button">+0.5</button>
-        </div>
-        <p id="karaoke-resync-label" class="karaoke-resync-label" hidden>最終再同期：0:00</p>
-
-        <div class="karaoke-settings-row">
-          <button id="karaoke-beginner-nav-toggle-button" class="karaoke-settings-toggle-button" type="button">初心者ナビ：ON</button>
-          <button id="karaoke-vibration-toggle-button" class="karaoke-settings-toggle-button" type="button">振動：ON</button>
-          <button id="karaoke-reset-sync-button" class="karaoke-reset-button" type="button">同期をやり直す</button>
+          <span class="karaoke-timing-caption">早める →</span>
         </div>
       </div>
 
@@ -3378,16 +3325,58 @@
       <p class="modal-lead">カラオケの音に合わせて、コールを練習するための機能です。</p>
 
       <h3>はじめかた</h3>
-      <p>曲が始まった瞬間に「曲スタート！」を押してください。少しずれても大丈夫です。「コールが早い」「コールが遅い」で、ずれを直せます。</p>
+      <p>曲が始まった瞬間に「曲スタート！」を押してください。端末にこの曲の音源が読み込まれていれば、自動で一緒に再生されます（読み込まれていなくても、コール表示だけで使えます）。少しずれても大丈夫です。画面下の「タイミング調整」（−0.5／−0.1／+0.1／+0.5秒）で、ずれをいつでも直せます。</p>
 
       <h3>途中でずれてしまったら</h3>
-      <p>途中で分かるコールが来た場合は「今！」を押すと、そこからタイミングを合わせ直せます。何度でも押して構いません。分からなくなった場合は「同期をやり直す」から、いつでも最初の状態に戻せます（曲データ・コールデータ・歌詞データが削除されることはありません）。</p>
+      <p>ヘッダーの「⋯」を開くと「今！で合わせ直す」があります。分かるコールが聞こえた瞬間に押すと、そこからタイミングを合わせ直せます。何度でも押して構いません。大きくずれて分からなくなった場合は、同じメニューの「曲を最初からやり直す」から、いつでも最初の状態に戻せます（曲データ・コールデータ・歌詞データが削除されることはありません）。</p>
 
-      <h3>歌詞表示について</h3>
-      <p>下に表示される歌詞は参考用です。歌詞の同期がずれていても、コールのタイミングを基準に表示しています。</p>
+      <h3>画面の見かた</h3>
+      <p>中央に大きく表示されるのが、今のコール（聞こえているとき）か、次に来るコールと残り秒数です。その上の小さな文字は今の歌詞（参考用）です。歌詞全体をゆっくり読みたいときは、「⋯」の「全文を見る」から開けます。</p>
 
       <h3>初心者ナビ</h3>
-      <p>初心者ナビをONにすると、次に来るコールと残り秒数（NEXT CALL）、コールが近づいたときの予告、同期チェックの案内などが表示されます。コールに慣れている方はOFFにすると、表示をシンプルにできます。</p>
+      <p>「⋯」の「初心者ナビ」をONにすると、NEXT CALLの見出しやカウントダウンが表示されます。コールに慣れている方はOFFにすると、コール本文だけのシンプルな表示にできます。</p>
+    </div>
+  </div>
+
+  <!-- カラオケ同期画面の「⋯」メニュー（UI/UX第3版で新設）。頻繁には押さない操作
+       （今！・全文を見る・初心者ナビ切替・曲を最初からやり直す）をここにまとめている。
+       中身の状態管理・開閉はjs/karaokeSyncScreen.jsが担当する。 -->
+  <div id="karaoke-more-menu-modal" class="modal-overlay" hidden>
+    <div class="modal-card karaoke-more-menu-card" role="dialog" aria-modal="true" aria-labelledby="karaoke-more-menu-title">
+      <button id="karaoke-more-menu-close" class="modal-close-button" type="button" aria-label="閉じる">×</button>
+      <h2 id="karaoke-more-menu-title">その他の操作</h2>
+
+      <button id="karaoke-now-button" class="karaoke-more-menu-item" type="button">
+        <span class="karaoke-more-menu-item-icon" aria-hidden="true">🎯</span>
+        <span class="karaoke-more-menu-item-text">
+          <span class="karaoke-more-menu-item-name">今！で合わせ直す</span>
+          <span id="karaoke-sync-point-label" class="karaoke-more-menu-item-description">―</span>
+        </span>
+      </button>
+
+      <button id="karaoke-full-text-toggle-button" class="karaoke-more-menu-item" type="button">
+        <span class="karaoke-more-menu-item-icon" aria-hidden="true">📖</span>
+        <span class="karaoke-more-menu-item-text">
+          <span id="karaoke-full-text-toggle-label" class="karaoke-more-menu-item-name">全文を見る</span>
+          <span class="karaoke-more-menu-item-description">歌詞全体を自分のペースで読めます</span>
+        </span>
+      </button>
+
+      <button id="karaoke-beginner-nav-toggle-button" class="karaoke-more-menu-item" type="button">
+        <span class="karaoke-more-menu-item-icon" aria-hidden="true">🧭</span>
+        <span class="karaoke-more-menu-item-text">
+          <span id="karaoke-beginner-nav-toggle-label" class="karaoke-more-menu-item-name">初心者ナビ：ON</span>
+          <span class="karaoke-more-menu-item-description">NEXT CALLの見出しやカウントダウンの表示を切り替えます</span>
+        </span>
+      </button>
+
+      <button id="karaoke-restart-song-button" class="karaoke-more-menu-item is-caution" type="button">
+        <span class="karaoke-more-menu-item-icon" aria-hidden="true">↺</span>
+        <span class="karaoke-more-menu-item-text">
+          <span class="karaoke-more-menu-item-name">曲を最初からやり直す</span>
+          <span class="karaoke-more-menu-item-description">タイミング調整だけでなく、曲の再生位置も最初からやり直します</span>
+        </span>
+      </button>
     </div>
   </div>
 

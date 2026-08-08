@@ -461,46 +461,44 @@ const liveCallPlayTypeSongTitleElement = document.getElementById("live-call-play
 const liveCallPlayTypeNormalButtonElement = document.getElementById("live-call-play-type-normal-button");
 const liveCallPlayTypeKaraokeButtonElement = document.getElementById("live-call-play-type-karaoke-button");
 
-// ライブコールモード：カラオケ同期・初心者ナビ画面（2026-08-09新設、UI/UX第2版で全面刷新）。
+// ライブコールモード：カラオケ同期・初心者ナビ画面（2026-08-09新設、UI/UX第3版で
+// 「カラオケ中専用HUD」へ全面再設計）。
 const karaokeBackButtonElement = document.getElementById("karaoke-back-button");
+const karaokeMoreMenuButtonElement = document.getElementById("karaoke-more-menu-button");
 const karaokeHelpLinkElement = document.getElementById("karaoke-help-link");
 const karaokeSongTitleElement = document.getElementById("karaoke-song-title");
-const karaokeStatusBarElement = document.getElementById("karaoke-status-bar");
-const karaokeStatusChipAudioElement = document.getElementById("karaoke-status-chip-audio");
-const karaokeStatusChipNavElement = document.getElementById("karaoke-status-chip-nav");
 const karaokeNoCallsNoticeElement = document.getElementById("karaoke-no-calls-notice");
 const karaokeStartPanelElement = document.getElementById("karaoke-start-panel");
 const karaokeStartButtonElement = document.getElementById("karaoke-start-button");
-const karaokeDeviceAudioOffRadioElement = document.getElementById("karaoke-device-audio-off-radio");
-const karaokeDeviceAudioOnRadioElement = document.getElementById("karaoke-device-audio-on-radio");
 const karaokeDeviceAudioNoticeElement = document.getElementById("karaoke-device-audio-notice");
-const karaokeBeginnerNavOnRadioElement = document.getElementById("karaoke-beginner-nav-on-radio");
-const karaokeBeginnerNavOffRadioElement = document.getElementById("karaoke-beginner-nav-off-radio");
 const karaokeSyncPanelElement = document.getElementById("karaoke-sync-panel");
-const karaokeOffsetLabelElement = document.getElementById("karaoke-offset-label");
-const karaokeResyncLabelElement = document.getElementById("karaoke-resync-label");
-const karaokeBeginnerNavElement = document.getElementById("karaoke-beginner-nav");
-const karaokeSyncCheckBannerElement = document.getElementById("karaoke-sync-check-banner");
-const karaokeSyncCheckTextElement = document.getElementById("karaoke-sync-check-text");
-const karaokeNextCallCardElement = document.getElementById("karaoke-next-call-card");
-const karaokeNextCallEyebrowElement = document.getElementById("karaoke-next-call-eyebrow");
-const karaokeNextCallTextElement = document.getElementById("karaoke-next-call-text");
-const karaokeNextCallCountdownElement = document.getElementById("karaoke-next-call-countdown");
+const karaokeCurrentLyricElement = document.getElementById("karaoke-current-lyric");
+const karaokeCallHudCardElement = document.getElementById("karaoke-call-hud-card");
+const karaokeCallHudEyebrowElement = document.getElementById("karaoke-call-hud-eyebrow");
+const karaokeCallHudTextElement = document.getElementById("karaoke-call-hud-text");
+const karaokeCallHudCountdownElement = document.getElementById("karaoke-call-hud-countdown");
+const karaokeSongEndBannerElement = document.getElementById("karaoke-song-end-banner");
+const karaokeSongEndRestartButtonElement = document.getElementById("karaoke-song-end-restart-button");
+const karaokeSongEndChooseButtonElement = document.getElementById("karaoke-song-end-choose-button");
 const karaokeReferencePanelElement = document.getElementById("karaoke-reference-panel");
 const karaokeDeviceAudioElement = document.getElementById("karaoke-device-audio");
 const karaokeFooterZoneElement = document.getElementById("karaoke-footer-zone");
 const karaokeToastElement = document.getElementById("karaoke-toast");
-const karaokeSyncPointLabelElement = document.getElementById("karaoke-sync-point-label");
-const karaokeTooEarlyButtonElement = document.getElementById("karaoke-too-early-button");
+const karaokeOffsetMinus05ButtonElement = document.getElementById("karaoke-offset-minus-05-button");
+const karaokeOffsetMinus01ButtonElement = document.getElementById("karaoke-offset-minus-01-button");
+const karaokeOffsetResetButtonElement = document.getElementById("karaoke-offset-reset-button");
+const karaokeOffsetPlus01ButtonElement = document.getElementById("karaoke-offset-plus-01-button");
+const karaokeOffsetPlus05ButtonElement = document.getElementById("karaoke-offset-plus-05-button");
+const karaokeOffsetLabelElement = document.getElementById("karaoke-offset-label");
+const karaokeMoreMenuModalElement = document.getElementById("karaoke-more-menu-modal");
+const karaokeMoreMenuCloseButtonElement = document.getElementById("karaoke-more-menu-close");
 const karaokeNowButtonElement = document.getElementById("karaoke-now-button");
-const karaokeTooLateButtonElement = document.getElementById("karaoke-too-late-button");
-const karaokeFineEarlyButtonElement = document.getElementById("karaoke-fine-early-button");
-const karaokeFineLateButtonElement = document.getElementById("karaoke-fine-late-button");
-const karaokeBigEarlyButtonElement = document.getElementById("karaoke-big-early-button");
-const karaokeBigLateButtonElement = document.getElementById("karaoke-big-late-button");
-const karaokeResetSyncButtonElement = document.getElementById("karaoke-reset-sync-button");
+const karaokeSyncPointLabelElement = document.getElementById("karaoke-sync-point-label");
+const karaokeFullTextToggleButtonElement = document.getElementById("karaoke-full-text-toggle-button");
+const karaokeFullTextToggleLabelElement = document.getElementById("karaoke-full-text-toggle-label");
 const karaokeBeginnerNavToggleButtonElement = document.getElementById("karaoke-beginner-nav-toggle-button");
-const karaokeVibrationToggleButtonElement = document.getElementById("karaoke-vibration-toggle-button");
+const karaokeBeginnerNavToggleLabelElement = document.getElementById("karaoke-beginner-nav-toggle-label");
+const karaokeRestartSongButtonElement = document.getElementById("karaoke-restart-song-button");
 const timeAttackSetupBackButtonElement = document.getElementById("time-attack-setup-back-button");
 const timeAttackStartButtonElement = document.getElementById("time-attack-start-button");
 const timeAttackStartErrorElement = document.getElementById("time-attack-start-error");
@@ -1044,7 +1042,9 @@ initLiveCallModeScreen({
   onSelectSong: (songId) => {
     playClickSound();
     openLiveCallPlayTypeChoice(songId);
-    showScreen("liveCallModePlayType");
+    // 曲一覧のスクロール位置を覚えておき、この画面から戻ってきたときに復元する
+    // （UI/UX第3版・本人指示：一覧の下の方の曲を選んでも、戻ったら先頭へ飛ばされないように）。
+    navigateWithScrollMemory("liveCallModePlayType");
   },
 });
 
@@ -1069,7 +1069,7 @@ function openLiveCallPlayTypeChoice(songId) {
 liveCallPlayTypeBackButtonElement.addEventListener("click", () => {
   playSfx(SFX_EVENTS.UI_BACK);
   liveCallPlayTypeSongId = null;
-  showScreen("liveCallModeList");
+  navigateWithScrollMemory("liveCallModeList");
 });
 
 liveCallPlayTypeNormalButtonElement.addEventListener("click", () => {
@@ -1098,12 +1098,15 @@ liveCallModePlayerHelpLinkElement.addEventListener("click", () => {
   openSpecialModeHelp("liveCallMode");
 });
 
-// カラオケ同期画面の「戻る」：通常再生画面と同じく、同期タイマー・歌詞/コール表示を
-// 片付けたうえで曲一覧画面へ戻る（間に再生方法選択画面を挟まない、既存の慣例に合わせる）。
+// カラオケ同期画面の「戻る」：同期タイマー・端末音源・歌詞表示を片付けたうえで、
+// 1つ前の画面（その曲の「通常再生／カラオケ同期」選択画面）へ戻る
+// （UI/UX第3版・本人指示：曲一覧まで一気に戻ってしまうと、下の方にある曲を選び直すのが
+// 大変なため、「一つ前へ戻る」という自然な階層に変更した。曲の選択状態＝
+// liveCallPlayTypeSongIdはここではクリアしないため、選択画面には同じ曲が表示され続ける）。
 karaokeBackButtonElement.addEventListener("click", () => {
   playSfx(SFX_EVENTS.UI_BACK);
   closeKaraokeSyncScreen();
-  showScreen("liveCallModeList");
+  showScreen("liveCallModePlayType");
 });
 
 karaokeHelpLinkElement.addEventListener("click", () => {
@@ -1112,42 +1115,47 @@ karaokeHelpLinkElement.addEventListener("click", () => {
 
 initKaraokeSyncScreen({
   songTitle: karaokeSongTitleElement,
-  statusBar: karaokeStatusBarElement,
-  statusChipAudio: karaokeStatusChipAudioElement,
-  statusChipNav: karaokeStatusChipNavElement,
+  moreMenuButton: karaokeMoreMenuButtonElement,
   noCallsNotice: karaokeNoCallsNoticeElement,
   startPanel: karaokeStartPanelElement,
   startButton: karaokeStartButtonElement,
-  deviceAudioOffRadio: karaokeDeviceAudioOffRadioElement,
-  deviceAudioOnRadio: karaokeDeviceAudioOnRadioElement,
   deviceAudioNotice: karaokeDeviceAudioNoticeElement,
-  beginnerNavOnRadio: karaokeBeginnerNavOnRadioElement,
-  beginnerNavOffRadio: karaokeBeginnerNavOffRadioElement,
   syncPanel: karaokeSyncPanelElement,
-  offsetLabel: karaokeOffsetLabelElement,
-  resyncLabel: karaokeResyncLabelElement,
-  beginnerNav: karaokeBeginnerNavElement,
-  syncCheckBanner: karaokeSyncCheckBannerElement,
-  syncCheckText: karaokeSyncCheckTextElement,
-  nextCallCard: karaokeNextCallCardElement,
-  nextCallEyebrow: karaokeNextCallEyebrowElement,
-  nextCallText: karaokeNextCallTextElement,
-  nextCallCountdown: karaokeNextCallCountdownElement,
+  currentLyric: karaokeCurrentLyricElement,
+  callHudCard: karaokeCallHudCardElement,
+  callHudEyebrow: karaokeCallHudEyebrowElement,
+  callHudText: karaokeCallHudTextElement,
+  callHudCountdown: karaokeCallHudCountdownElement,
+  songEndBanner: karaokeSongEndBannerElement,
+  songEndRestartButton: karaokeSongEndRestartButtonElement,
+  songEndChooseButton: karaokeSongEndChooseButtonElement,
   referencePanel: karaokeReferencePanelElement,
   deviceAudio: karaokeDeviceAudioElement,
   footerZone: karaokeFooterZoneElement,
   toast: karaokeToastElement,
-  syncPointLabel: karaokeSyncPointLabelElement,
-  tooEarlyButton: karaokeTooEarlyButtonElement,
+  offsetMinus05Button: karaokeOffsetMinus05ButtonElement,
+  offsetMinus01Button: karaokeOffsetMinus01ButtonElement,
+  offsetResetButton: karaokeOffsetResetButtonElement,
+  offsetPlus01Button: karaokeOffsetPlus01ButtonElement,
+  offsetPlus05Button: karaokeOffsetPlus05ButtonElement,
+  offsetLabel: karaokeOffsetLabelElement,
+  moreMenuModal: karaokeMoreMenuModalElement,
+  moreMenuCloseButton: karaokeMoreMenuCloseButtonElement,
   nowButton: karaokeNowButtonElement,
-  tooLateButton: karaokeTooLateButtonElement,
-  fineEarlyButton: karaokeFineEarlyButtonElement,
-  fineLateButton: karaokeFineLateButtonElement,
-  bigEarlyButton: karaokeBigEarlyButtonElement,
-  bigLateButton: karaokeBigLateButtonElement,
-  resetSyncButton: karaokeResetSyncButtonElement,
+  syncPointLabel: karaokeSyncPointLabelElement,
+  fullTextToggleButton: karaokeFullTextToggleButtonElement,
+  fullTextToggleLabel: karaokeFullTextToggleLabelElement,
   beginnerNavToggleButton: karaokeBeginnerNavToggleButtonElement,
-  vibrationToggleButton: karaokeVibrationToggleButtonElement,
+  beginnerNavToggleLabel: karaokeBeginnerNavToggleLabelElement,
+  restartSongButton: karaokeRestartSongButtonElement,
+  // 「曲を選ぶ」（曲終了バナー）：この画面を完全に片付けたうえで、選択画面を経由せず
+  // 曲一覧まで戻る（本人指示：曲終了時は「別の曲を選ぶ」意図が明確なため）。
+  onRequestChooseSong: () => {
+    playClickSound();
+    closeKaraokeSyncScreen();
+    liveCallPlayTypeSongId = null;
+    navigateWithScrollMemory("liveCallModeList");
+  },
 });
 
 // コールガイド（メンバーコール／曲指定コール／ペンライト指定曲／MIX）の開閉・タブ切り替え。
