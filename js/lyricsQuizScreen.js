@@ -38,6 +38,7 @@ import {
 } from "./lyricsQuizRunState.js";
 import { evaluateAndSaveAchievements } from "./achievementProgress.js";
 import { renderAchievementUnlockEvents } from "./achievementDisplay.js";
+import { savePlayHistoryEntry } from "./playHistory.js";
 
 // 正解/不正解の演出（既存の.choice-buttonのis-correct/is-wrong）を見せてから次の問題へ進むまでの待ち時間。
 const ANSWER_FEEDBACK_DELAY_MS = 900;
@@ -675,6 +676,30 @@ export function renderLyricsQuizResult() {
   renderAchievementUnlockEvents(achievementResult.newlyUnlockedIds, {
     chipContainer: resultElements.achievementChipContainer,
     achievementListLinkElement: resultElements.achievementListLink,
+  });
+
+  // 【2026-08-08新設】統一プレイ履歴（js/playHistory.js）への保存。自己ベスト・称号とは
+  // 別の保存先のため、この保存に失敗しても上の自己ベスト保存・称号判定には一切影響しない。
+  savePlayHistoryEntry({
+    playedAt: Date.now(),
+    modeId: "lyricsQuiz",
+    modeLabel: "歌詞クイズ",
+    questionCount: result.totalQuestions,
+    isAllSongsMode: currentSettings.categoryFilterValue === "all",
+    correctCount: result.correctCount,
+    wrongCount,
+    skippedCount,
+    score: null,
+    averageResponseMs: null,
+    completed: true,
+    details: {
+      totalHintsUsed: result.totalHintsUsed,
+      averageHintsUsed: result.averageHintsUsed,
+      firstHintCorrectCount: result.firstHintCorrectCount,
+      totalElapsedMs: result.totalElapsedMs,
+      answerPoolSizeValue: currentSettings.answerPoolSizeValue,
+      isNewRecord,
+    },
   });
 
   renderBreakdown();

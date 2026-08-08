@@ -4573,6 +4573,41 @@ fieldset label:has(input:focus-visible) {
   opacity: 0.6;
 }
 
+/* 【2026-08-08追加】モード絞り込みチップ（すべて／イントロ／ランダム／歌詞／タイムアタック／対戦）。
+   数が多くなっても崩れないよう、横スクロール可能なチップ列にする（本人指示）。 */
+.history-filter-chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  margin-bottom: 12px;
+  scrollbar-width: none;
+}
+
+.history-filter-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.history-filter-chip {
+  flex: none;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--color-card-border);
+  background: rgba(255, 255, 255, 0.5);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 0.76rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.history-filter-chip.is-active {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
+  border-color: transparent;
+  color: #ffffff;
+}
+
 /* 履歴が1件もないときの案内。空っぽの画面に見えないよう、ガラス風カードの中に文章だけを収める */
 .history-empty-state {
   margin: 24px 0;
@@ -4695,6 +4730,67 @@ fieldset label:has(input:focus-visible) {
   font-size: 0.88rem;
   font-weight: 700;
   color: var(--color-primary-dark);
+}
+
+/* 【2026-08-08追加】全モード共通タイムラインのカード用。ヘッダー行にモード名アイコン
+   （js/specialModeIcons.jsを再利用）＋モード名＋日時、その下にモードごとの要約行を並べる。 */
+.history-entry-mode-label {
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+}
+
+.history-entry-line {
+  margin: 2px 0 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color-text);
+  opacity: 0.85;
+}
+
+.history-entry .special-mode-icon {
+  flex: none;
+  width: 34px;
+  height: 34px;
+}
+
+/* 【2026-08-08追加】プレイ履歴詳細モーダル。他のモーダル（ルール説明・称号一覧）と
+   同じ.modal-overlay/.modal-cardの土台を使い、中身だけこの画面専用にする。 */
+.history-detail-modal-card {
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.history-detail-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.history-detail-modal-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--color-card-border);
+}
+
+.history-detail-modal-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-text);
+  opacity: 0.65;
+  flex: none;
+}
+
+.history-detail-modal-value {
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+  text-align: right;
+  overflow-wrap: anywhere;
 }
 
 .history-title-badges {
@@ -5036,6 +5132,11 @@ fieldset label:has(input:focus-visible) {
 .special-mode-icon svg {
   width: 55%;
   height: 55%;
+}
+
+/* 【2026-08-08追加】通常イントロクイズ用（統一プレイ履歴で使う。8つの特別モードには無い）。 */
+.special-mode-icon.is-intro {
+  background: linear-gradient(155deg, #ff9ec4, var(--color-primary));
 }
 
 .special-mode-icon.is-weakSongs {

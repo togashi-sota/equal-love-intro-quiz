@@ -993,7 +993,8 @@
 
       <!-- サマリー：出題数が異なると得点をそのまま比較できないため、平均得点ではなく
            総プレイ回数・総回答数・全体正答率という比較しやすい指標を並べる。
-           中身の数値はjs/historyScreen.jsがhistory.jsの集計結果から反映する。 -->
+           中身の数値はjs/historyScreen.jsがjs/playHistory.jsの集計結果から反映する
+           （2026-08-08：全モード共通のタイムラインへ刷新）。 -->
       <div class="history-summary-row">
         <div class="history-summary-chip">
           <span class="history-summary-value" id="history-summary-play-count">0回</span>
@@ -1008,6 +1009,9 @@
           <span class="history-summary-label">全体正答率</span>
         </div>
       </div>
+
+      <!-- モード絞り込みチップ（横スクロール可能）。中身はjs/historyScreen.jsが組み立てる。 -->
+      <div id="history-filter-chips" class="history-filter-chips"></div>
 
       <!-- 履歴が1件もないときだけ表示する案内。JS側でhidden属性を切り替える -->
       <p id="history-empty-state" class="history-empty-state" hidden>
@@ -3366,6 +3370,17 @@
         <button id="history-clear-cancel-button" class="secondary-button" type="button">キャンセル</button>
         <button id="history-clear-delete-button" class="danger-button" type="button">削除する</button>
       </div>
+    </div>
+  </div>
+
+  <!-- プレイ履歴 詳細モーダル：履歴カードをタップしたときに開く（2026-08-08新設）。
+       中身（項目の行・称号バッジ）はjs/historyScreen.jsが、選んだ1件に合わせて組み立て直す。
+       モードごとに持っている情報が違うため、存在しない項目はそもそも行を作らない。 -->
+  <div id="history-detail-modal" class="modal-overlay" hidden>
+    <div class="modal-card history-detail-modal-card" role="dialog" aria-modal="true" aria-labelledby="history-detail-modal-title">
+      <button id="history-detail-modal-close-button" class="modal-close-button" type="button" aria-label="閉じる">×</button>
+      <h2 id="history-detail-modal-title">プレイ履歴詳細</h2>
+      <div id="history-detail-modal-body" class="history-detail-modal-body"></div>
     </div>
   </div>
 

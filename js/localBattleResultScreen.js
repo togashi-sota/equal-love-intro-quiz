@@ -13,6 +13,7 @@ import {
   rankBattleParticipants,
   computeNormalFinalRecordMs,
 } from "./localBattleResult.js";
+import { savePlayHistoryEntry } from "./playHistory.js";
 
 const QUESTION_COUNT_LABELS = { "5": "5問", "10": "10問", "20": "20問", "50": "50問", all: "全問" };
 const CATEGORY_LABELS = { all: "全曲", "title-and-group": "表題＋全員", "title-track": "表題のみ" };
@@ -194,6 +195,49 @@ function renderRankingList() {
       : config.rule === "hard"
         ? "順位は「正解数＞合計タイム＞ミス数」で決まります"
         : `順位は「ミスペナルティ込みの最終記録（実測タイム＋ミス1回につき${config.penaltySeconds}秒）＞ミス数」で決まります`;
+
+  return ranked;
+}
+
+// 【2026-08-08新設】自分の分の対戦結果を、統一プレイ履歴（js/playHistory.js）へ保存する。
+// 参加者全員の順位・スコアもスナップショットとして一緒に残す（本人指示：後から
+// 「誰と遊んで何位だったか」を見返せるように）。Firebaseは一切使わない、この端末だけの記録。
+//
+// 【注意】rankBattleParticipants()はspreadで新しいオブジェクト配列を返すため、
+// participants[0]（自分）とrankedの要素はオブジェクトとして同一にならない（参照比較は使えない）。
+// 代わりに、参加者ごとに一意なresultCode（js/localBattleResult.jsのencodeResultCode()）で照合する。
+function saveLocalBattleHistoryEntry(ranked) {
+  const { config } = getCurrentBattleSession();
+  const myResultCode = participants[0].resultCode;
+  const myEntry = ranked.find((participant) => participant.resultCode === myResultCode) ?? ranked[0];
+  savePlayHistoryEntry({
+    playedAt: Date.now(),
+    modeId: "localBattle",
+    modeLabel: "対戦モード",
+    questionCount: myEntry.result.reachedQuestionNumber,
+    isAllSongsMode: config.categoryFilterValue === "all",
+    correctCount: myEntry.result.correctCount,
+    wrongCount: myEntry.result.missCount,
+    skippedCount: null,
+    score: null,
+    averageResponseMs: null,
+    completed: myEntry.result.completed,
+    details: {
+      rule: config.rule,
+      penaltySeconds: config.penaltySeconds,
+      myRank: myEntry.rank,
+      participantCount: ranked.length,
+      standings: ranked.map((participant) => ({
+        playerName: participant.playerName,
+        rank: participant.rank,
+        correctCount: participant.result.correctCount,
+        missCount: participant.result.missCount,
+        completed: participant.result.completed,
+        totalElapsedMs: participant.result.completed ? participant.result.totalElapsedMs : null,
+        isYou: participant.resultCode === myResultCode,
+      })),
+    },
+  });
 }
 
 // 対戦モード：結果集計・順位発表画面を使えるようにする。main.jsの初期化処理から1回だけ呼ぶ想定。
@@ -201,7 +245,8 @@ export function initLocalBattleResultScreens(newElements) {
   elements = newElements;
   elements.addButton.addEventListener("click", handleAddResult);
   elements.finishButton.addEventListener("click", () => {
-    renderRankingList();
+    const ranked = renderRankingList();
+    saveLocalBattleHistoryEntry(ranked);
     elements.navigateTo("battleResultRanking");
   });
   elements.homeLink.addEventListener("click", () => elements.navigateTo("start"));

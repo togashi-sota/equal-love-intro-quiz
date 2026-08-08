@@ -81,6 +81,7 @@ import { deriveHintLevelFromElapsedMs, computeElapsedMs } from "./lyricsQuizBatt
 // 同じ曲選択画面を共有する（gameModeごとに別々の選曲UIを持たない、本人指示）。
 import { openOnlineBattleSongPicker } from "./onlineBattleSongPicker.js";
 import { QUESTION_SOURCE_TYPE } from "./questionSource.js";
+import { savePlayHistoryEntryIfNew } from "./playHistory.js";
 import { SONGS } from "./data/songs.js";
 import { MEMBERS } from "./data/members.js";
 import { getMemberById } from "./memberUtils.js";
@@ -899,4 +900,53 @@ export function enterLyricsQuizResult(room) {
 
   const table = describeResultTable(room.settings.battleRuleId, rankedEntries);
   renderResultTable(elements.resultTableContainer, table);
+
+  saveLyricsQuizBattleHistoryEntry(room, rankedEntries);
+}
+
+// 【2026-08-08新設】オンライン歌詞クイズ対戦の結果を、統一プレイ履歴（js/playHistory.js）へ保存する。
+// idをonline:{matchId}にすることで、リロード・再接続・画面再描画で何度この結果画面へ到達しても
+// 同じ試合が重複保存されない（本人指示）。ルール（クラシック／奪い取り／コンボ）は必ず記録する。
+function saveLyricsQuizBattleHistoryEntry(room, rankedEntries) {
+  const matchId = room.activeMatchId;
+  if (!matchId) return;
+
+  const myIndex = rankedEntries.findIndex((entry) => entry.isYou);
+  const myEntry = rankedEntries[myIndex];
+  if (!myEntry) return;
+  const isDnf = myEntry.isDnf;
+  const myDetail = myEntry.result?.detail ?? null;
+
+  const isAllSongsMode =
+    !room.settings.questionSource || room.settings.questionSource.type === QUESTION_SOURCE_TYPE.ALL_SONGS;
+
+  savePlayHistoryEntryIfNew({
+    id: `online:${matchId}`,
+    playedAt: Date.now(),
+    modeId: "onlineLyricsQuiz",
+    modeLabel: "オンライン対戦（歌詞）",
+    questionCount:
+      room.settings.questionCountValue === "all" ? null : Number(room.settings.questionCountValue) || null,
+    isAllSongsMode,
+    correctCount: isDnf ? null : (myDetail?.correctCount ?? null),
+    wrongCount: isDnf ? null : (myDetail?.missCount ?? null),
+    skippedCount: isDnf ? null : (myDetail?.skippedCount ?? null),
+    score: isDnf ? null : (myDetail?.totalPoints ?? null),
+    averageResponseMs: null,
+    completed: !isDnf,
+    details: {
+      battleRuleId: room.settings.battleRuleId,
+      myRank: isDnf ? null : myIndex + 1,
+      isDnf,
+      myDetail,
+      participantCount: rankedEntries.length,
+      standings: rankedEntries.map((entry, index) => ({
+        displayName: entry.displayName,
+        rank: entry.isDnf ? null : index + 1,
+        isDnf: entry.isDnf,
+        isYou: entry.isYou,
+        detail: entry.result?.detail ?? null,
+      })),
+    },
+  });
 }

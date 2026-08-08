@@ -6,6 +6,15 @@
 // 色の違いはSVGパス自体を分けず、CSS側（.special-mode-icon.is-{modeId}）で塗り分ける方針にし、
 // パスの管理をachievementIcons.jsと同じ形で最小限にしている。
 const ICON_DEFINITIONS = {
+  // 【2026-08-08追加】通常イントロクイズ用アイコン（統一プレイ履歴で使う。8つの特別モードには
+  // 含まれないが、同じ「色付き丸背景アイコン」の仕組み（buildSpecialModeIcon）をそのまま
+  // 再利用するため、ここに追加する）。音符2つ＝「曲を聴いて当てる」ことを象徴する。
+  intro: {
+    viewBox: "0 0 24 24",
+    markup:
+      '<path d="M9 17V4.5l10-2v12.5" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>' +
+      '<circle cx="6.5" cy="17" r="2.8"/><circle cx="16.5" cy="14.5" r="2.8"/>',
+  },
   weakSongs: {
     // 苦手曲モード：的（ターゲット）。「弱点に的を絞って練習する」イメージ。
     viewBox: "0 0 24 24",

@@ -73,6 +73,7 @@ import {
 // 保持し、settings.questionSourceへ変換するだけに専念する（gameModeを問わない設計）。
 import { openOnlineBattleSongPicker } from "./onlineBattleSongPicker.js";
 import { QUESTION_SOURCE_TYPE } from "./questionSource.js";
+import { savePlayHistoryEntryIfNew } from "./playHistory.js";
 
 let elements = null;
 let currentRoomId = null;
@@ -903,7 +904,74 @@ function goToResultScreen(room) {
     elements.resultList.appendChild(row);
   });
 
+  saveOnlineBattleHistoryEntry(room, currentMatchId, finishers, dnfEntries, myUid);
   elements.navigateTo("onlineBattleResult");
+}
+
+// 【2026-08-08新設】オンライン対戦（イントロ対戦・ランダム再生対戦）の結果を、統一プレイ履歴
+// （js/playHistory.js）へ保存する。id を online:{matchId} にすることで、リロード・再接続・
+// 画面再描画でこの結果画面へ何度到達しても、同じ試合が重複して保存されないようにする
+// （本人指示の「matchIdによる重複防止」）。DNFで終わった場合も、可能な範囲で記録する
+// （順位・スコアは推測で作らず、null・isDnf:trueのままにする）。
+const HISTORY_MODE_ID_BY_GAME_MODE = { timeAttack: "onlineTimeAttack", randomPlayback: "onlineRandomPlayback" };
+const HISTORY_MODE_LABEL_BY_GAME_MODE = {
+  timeAttack: "オンライン対戦（イントロ）",
+  randomPlayback: "オンライン対戦（ランダム再生）",
+};
+
+function saveOnlineBattleHistoryEntry(room, matchId, finishers, dnfEntries, myUid) {
+  if (!matchId) return;
+  const myFinisherIndex = finishers.findIndex((entry) => entry.uid === myUid);
+  const isDnf = myFinisherIndex === -1;
+  const myEntry = isDnf ? dnfEntries.find((entry) => entry.uid === myUid) : finishers[myFinisherIndex];
+  if (!myEntry) return; // 自分自身がparticipantsに存在しない状況は通常起きないが、念のため安全側に倒す
+
+  const isAllSongsMode =
+    !room.settings.questionSource || room.settings.questionSource.type === QUESTION_SOURCE_TYPE.ALL_SONGS;
+
+  savePlayHistoryEntryIfNew({
+    id: `online:${matchId}`,
+    playedAt: Date.now(),
+    modeId: HISTORY_MODE_ID_BY_GAME_MODE[room.gameMode] ?? "onlineTimeAttack",
+    modeLabel: HISTORY_MODE_LABEL_BY_GAME_MODE[room.gameMode] ?? "オンライン対戦",
+    questionCount: currentMatchTotalQuestions,
+    isAllSongsMode,
+    correctCount: isDnf ? null : myEntry.result.common.correctCount,
+    wrongCount: isDnf ? null : myEntry.result.common.missCount,
+    skippedCount: null,
+    score: null,
+    averageResponseMs: null,
+    completed: !isDnf,
+    details: {
+      rule: room.settings.rule,
+      penaltySeconds: room.settings.penaltySeconds,
+      myRank: isDnf ? null : myFinisherIndex + 1,
+      isDnf,
+      participantCount: finishers.length + dnfEntries.length,
+      standings: [
+        ...finishers.map((entry, index) => ({
+          displayName: entry.participant.displayName,
+          rank: index + 1,
+          correctCount: entry.result.common.correctCount,
+          missCount: entry.result.common.missCount,
+          completed: entry.result.completed,
+          totalElapsedMs: entry.result.completed ? entry.result.common.elapsedMs : null,
+          isDnf: false,
+          isYou: entry.uid === myUid,
+        })),
+        ...dnfEntries.map((entry) => ({
+          displayName: entry.participant.displayName,
+          rank: null,
+          correctCount: null,
+          missCount: null,
+          completed: false,
+          totalElapsedMs: null,
+          isDnf: true,
+          isYou: entry.uid === myUid,
+        })),
+      ],
+    },
+  });
 }
 
 // 再送ボタン用に、直前に送ろうとした結果を覚えておく。

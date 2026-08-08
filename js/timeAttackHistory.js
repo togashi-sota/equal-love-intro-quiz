@@ -117,6 +117,13 @@ export function getTimeAttackHistoryEntries() {
   return loadHistoryData().entries;
 }
 
+// 【2026-08-08追加】統一プレイ履歴画面の「全削除」から、js/history.jsのclearHistoryEntries()と
+// 合わせて呼ぶ。タイムアタック単体の履歴画面には削除機能が無かったが、統一画面が
+// 複数の保存先をまたいで表示するため、「全削除」は見えている履歴すべてを消す想定にしている。
+export function clearTimeAttackHistoryEntries() {
+  saveHistoryData({ schemaVersion: CURRENT_SCHEMA_VERSION, entries: [] });
+}
+
 // ===== 苦手曲判定へのタイムアタック結果の反映（2026-08-06追加） =====
 // js/history.jsのcomputeWeakSongs()と同じ考え方（3回以上出題され、基準を満たさない曲を抽出）
 // だが、あえて別関数のまま独立させている。理由：タイムアタックのノーマルルールは「正解するまで

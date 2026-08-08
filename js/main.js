@@ -54,6 +54,7 @@ import { evaluateAndSaveAchievements, syncLegacyAchievements } from "./achieveme
 import { renderAchievementUnlockEvents, clearAchievementUnlockEvents } from "./achievementDisplay.js";
 import { initAchievementListModal } from "./achievementList.js";
 import { saveHistoryEntry } from "./history.js";
+import { savePlayHistoryEntry, HISTORY_MODE_DISPLAY } from "./playHistory.js";
 import { initHistoryScreen, renderHistoryScreen } from "./historyScreen.js";
 import { initHistoryDetailScreen, renderHistoryDetail } from "./historyDetailScreen.js";
 import { initSpecialModesScreen } from "./specialModesScreen.js";
@@ -766,7 +767,9 @@ const SPECIAL_MODES_DISPLAY = {
   customQuiz: {
     eyebrowLabel: "ORIGINAL QUIZ",
     progressPrefix: "📝 オリジナル ",
-    resultNotice: "この結果は、プレイ履歴・自己ベスト・称号には反映されません",
+    // 【2026-08-08修正】プレイ履歴には記録されるようになったため、文言を「自己ベスト・称号」
+    // だけに絞る（本人指示：オリジナル問題作成モードのプレイもプレイ履歴の対象に追加）。
+    resultNotice: "この結果は、自己ベスト・称号には反映されません",
     backToListLabel: "オリジナル問題一覧に戻る",
     onBackToList: goToCustomQuizPresetsList,
     quizBackLabel: "セット一覧へ",
@@ -861,18 +864,17 @@ initHistoryScreen({
   summaryPlayCount: document.getElementById("history-summary-play-count"),
   summaryAnswerCount: document.getElementById("history-summary-answer-count"),
   summaryAccuracy: document.getElementById("history-summary-accuracy"),
+  filterChipsContainer: document.getElementById("history-filter-chips"),
   listContainer: document.getElementById("history-list"),
   emptyState: document.getElementById("history-empty-state"),
   clearButton: document.getElementById("history-clear-button"),
   confirmModalOverlay: historyClearConfirmModalElement,
   confirmCancelButton: document.getElementById("history-clear-cancel-button"),
   confirmDeleteButton: document.getElementById("history-clear-delete-button"),
-  onSelectEntry: (entry) => {
-    playClickSound();
-    historyListScrollY = window.scrollY;
-    renderHistoryDetail(entry);
-    showScreen("historyDetail");
-  },
+  detailModalOverlay: document.getElementById("history-detail-modal"),
+  detailModalTitle: document.getElementById("history-detail-modal-title"),
+  detailModalBody: document.getElementById("history-detail-modal-body"),
+  detailModalCloseButton: document.getElementById("history-detail-modal-close-button"),
 });
 
 // プレイ履歴詳細画面の描画に使うDOM要素一式と、復習ボタンのコールバックを渡して初期化する。
@@ -2188,6 +2190,35 @@ function renderResult() {
     specialModeNoticeElement.hidden = !isSpecial;
     if (isSpecial) {
       specialModeNoticeElement.textContent = specialModeDisplay?.resultNotice ?? "";
+
+      // 【2026-08-08新設】苦手曲モード・オリジナル問題作成モードは、自己ベスト・称号には
+      // 今までどおり反映しないが、統一プレイ履歴（js/playHistory.js）にだけは記録する
+      // （本人指示）。「復習プレイ」（isReviewのみでisSpecialでない場合）は対象外のまま。
+      const correctEntries = gameState.answerLog.filter((entry) => entry.resultType === "correct");
+      const wrongCount = gameState.answerLog.filter((entry) => entry.resultType === "wrong").length;
+      const skippedCount = gameState.answerLog.filter(
+        (entry) => entry.resultType === "skip" || entry.resultType === "reveal"
+      ).length;
+      const timedCorrectEntries = correctEntries.filter((entry) => entry.elapsedMs !== null);
+      const averageResponseMs =
+        timedCorrectEntries.length > 0
+          ? timedCorrectEntries.reduce((sum, entry) => sum + entry.elapsedMs, 0) / timedCorrectEntries.length
+          : null;
+      const specialModeId = gameState.specialModeId;
+      savePlayHistoryEntry({
+        playedAt: Date.now(),
+        modeId: specialModeId,
+        modeLabel: HISTORY_MODE_DISPLAY[specialModeId]?.label ?? specialModeDisplay?.eyebrowLabel ?? specialModeId,
+        questionCount: gameState.questions.length,
+        isAllSongsMode: gameState.categoryFilterValue === "all",
+        correctCount: correctEntries.length,
+        wrongCount,
+        skippedCount,
+        score: gameState.score,
+        averageResponseMs,
+        completed: true,
+        details: { categoryFilterValue: gameState.categoryFilterValue },
+      });
     }
   } else {
     specialModeNoticeElement.hidden = true;

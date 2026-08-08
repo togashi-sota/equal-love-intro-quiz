@@ -21,6 +21,7 @@ import {
 } from "./randomPlaybackScore.js";
 import { evaluateAndSaveAchievements } from "./achievementProgress.js";
 import { renderAchievementUnlockEvents } from "./achievementDisplay.js";
+import { savePlayHistoryEntry } from "./playHistory.js";
 
 let elements = null;
 let resultElements = null;
@@ -113,6 +114,28 @@ export function renderRandomPlaybackResult(questionCountValue, categoryFilterVal
   renderAchievementUnlockEvents(achievementResult.newlyUnlockedIds, {
     chipContainer: resultElements.achievementChipContainer,
     achievementListLinkElement: resultElements.achievementListLink,
+  });
+
+  // 【2026-08-08新設】統一プレイ履歴（js/playHistory.js）への保存。自己ベスト・称号とは
+  // 別の保存先のため、この保存に失敗しても上のjs/randomPlaybackScore.jsへの自己ベスト保存・
+  // 称号判定には一切影響しない。
+  savePlayHistoryEntry({
+    playedAt: Date.now(),
+    modeId: "randomPlayback",
+    modeLabel: "ランダム再生クイズ",
+    questionCount: stats.perQuestionResults.length,
+    isAllSongsMode: categoryFilterValue === "all",
+    correctCount: stats.correctCount,
+    wrongCount: stats.missCount,
+    skippedCount: null,
+    score: null,
+    averageResponseMs: null,
+    completed: !stats.runFailed,
+    details: {
+      rule,
+      totalElapsedMs: stats.totalElapsedMs,
+      isNewRecord,
+    },
   });
 
   if (previousBest !== null) {
