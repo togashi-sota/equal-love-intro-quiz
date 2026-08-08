@@ -152,3 +152,22 @@ export function formatKaraokeMmSs(totalSeconds) {
   const seconds = Math.floor(safe % 60);
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
+
+// ===== NEXT CALLカードの表示段階（UI/UX第2版で追加） =====
+// 「今は何も言わない／もうすぐ言う／今言う」を、数値の暗算なしで一目で分かるようにするための
+// 3段階（upcoming/imminent/now）と、その表示テキストをまとめて計算する純粋関数。
+// leadSec秒以内になったら「もうすぐ！」＋整数カウントダウン（3・2・1）に切り替える。
+const IMMINENT_LEAD_SEC = 3;
+
+export function getNextCallCountdownDisplay(secondsUntil, isActive) {
+  if (isActive) {
+    return { phase: "now", eyebrow: "コール中！", text: "" };
+  }
+  if (secondsUntil <= IMMINENT_LEAD_SEC) {
+    // 3.0〜2.01秒→3、2.0〜1.01秒→2、1.0〜0.01秒→1、という表示にするためceilを使う
+    // （0ちょうどはfindActiveCallIndex側で既にisActive扱いになっているため、ここには来ない）。
+    const digit = Math.max(1, Math.ceil(secondsUntil));
+    return { phase: "imminent", eyebrow: "もうすぐ！", text: String(digit) };
+  }
+  return { phase: "upcoming", eyebrow: "NEXT CALL", text: `あと${secondsUntil.toFixed(1)}秒` };
+}

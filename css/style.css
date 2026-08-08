@@ -10746,37 +10746,138 @@ fieldset label:has(input:focus-visible) {
   opacity: 0.75;
 }
 
-/* ===== ライブコールモード：カラオケ同期・初心者ナビ画面（2026-08-09新設） =====
-   本人指示：主要ボタンは大きく、同期操作は画面下部に固定し、片手・置きスマホでも
-   誤タップしにくい間隔を確保する。iPhone PWAでホームインジケータに被らないよう、
-   下部固定要素にはsafe-area-inset-bottomを必ず足す。 */
+/* ===== ライブコールモード：カラオケ同期・初心者ナビ画面 UI/UX第2版（2026-08-09） =====
+   本人の最重要フィードバック：「歌詞・コールの表示内容が変わっても、下部の同期操作
+   ボタンの位置が1pxも動いてはいけない」。そのため、この画面だけ.game-frame自体を
+   viewport高さに固定したうえで、画面を①ヘッダー②中央（ここだけスクロール）③下部固定
+   の3ゾーンに分けるflexレイアウトにする（ページ本体のdocumentスクロールに一切依存しない）。
+   body[data-screen="..."]はjs/screens.jsのshowScreen()が既に自動で付け外ししている
+   属性をそのまま使っており、この画面専用の新しいJSは書いていない。 */
 
+body[data-screen="liveCallModeKaraoke"] {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+body[data-screen="liveCallModeKaraoke"] .game-frame {
+  height: 100dvh;
+  max-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+#live-call-mode-karaoke-screen {
+  padding: 0;
+}
+
+#live-call-mode-karaoke-screen.is-active {
+  display: flex;
+  flex-direction: column;
+  /* flex-basis:autoではなく0にする（flex:1の省略形）。.game-frame→この画面→中央ゾーンと
+     flexが3階層ネストしており、flex-basis:autoだと内側の内容量を先に見てしまい、
+     「残り空間を100%埋める」が期待通りに働かない実機不具合を確認したため。 */
+  flex: 1;
+  min-height: 0;
+}
+
+/* ①ヘッダーゾーン：曲名・戻る・状態チップ。高さは内容なりで、伸び縮みしない。 */
+.karaoke-header-zone {
+  flex: none;
+  padding: max(16px, env(safe-area-inset-top)) 20px 0;
+}
+
+.karaoke-header-zone .list-header {
+  margin-bottom: 10px;
+}
+
+/* 今どのモードで動作中かが一目で分かる状態チップ列（本人指示・UI/UX第2版で追加）。
+   「🎤 同期中」「🔊 練習音源 ON」「🧭 初心者ナビ ON」のように、短いアイコン+文字で並べる。 */
+.karaoke-status-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-bottom: 10px;
+}
+
+.karaoke-status-bar[hidden] {
+  display: none;
+}
+
+.karaoke-status-chip {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--color-surface-glass);
+  border: 1.5px solid var(--color-card-border);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.karaoke-status-chip[hidden] {
+  display: none;
+}
+
+/* ②中央ゾーン：内容によって高さが変わるのはここだけ。ここだけが縦スクロールする
+   （min-height:0がFlexboxでoverflow:autoを効かせるために必須）。 */
+.karaoke-middle-zone {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 4px 20px 16px;
+}
+
+/* ===== 開始前パネル：最小構成（本人指示：いきなり大量の設定を見せない） ===== */
 .karaoke-start-panel {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 14px;
-  padding: 32px 16px;
+  align-items: stretch;
+  gap: 6px;
+  padding: 16px 4px 8px;
   text-align: center;
 }
 
+.karaoke-start-panel[hidden] {
+  display: none;
+}
+
 .karaoke-start-instruction {
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 700;
   color: var(--color-primary-dark);
+  margin-bottom: 6px;
+}
+
+.karaoke-start-option-group {
+  margin-bottom: 12px;
+  text-align: left;
+}
+
+.karaoke-inline-notice {
+  font-size: 0.78rem;
+  color: var(--color-danger);
+  background: var(--color-danger-soft);
+  border-radius: 10px;
+  padding: 8px 10px;
+  margin: -4px 0 12px;
+}
+
+.karaoke-inline-notice[hidden] {
+  display: none;
 }
 
 .karaoke-start-button {
   width: 100%;
-  max-width: 320px;
-  padding: 28px 16px;
+  padding: 26px 16px;
+  margin-top: 8px;
   border: none;
   border-radius: 28px;
   background: linear-gradient(120deg, var(--color-primary-dark), var(--color-primary) 45%, var(--color-secondary));
   background-size: 200% auto;
   color: #ffffff;
   font-family: inherit;
-  font-size: 1.4rem;
+  font-size: 1.3rem;
   font-weight: 800;
   cursor: pointer;
   box-shadow: 0 18px 40px -12px rgba(255, 79, 150, 0.6);
@@ -10789,40 +10890,15 @@ fieldset label:has(input:focus-visible) {
 }
 
 .karaoke-start-note {
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   color: var(--color-text);
   opacity: 0.7;
-  max-width: 320px;
+  margin-top: 10px;
 }
 
-.karaoke-sync-panel[hidden],
-.karaoke-start-panel[hidden],
-.karaoke-controls-bar[hidden] {
+/* ===== 同期中パネル：現在コール・NEXT CALLを最優先し、説明文は出さない ===== */
+.karaoke-sync-panel[hidden] {
   display: none;
-}
-
-.karaoke-status-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 12px;
-  padding: 10px 14px;
-  border-radius: 14px;
-  background: var(--color-surface-glass);
-  border: 1.5px solid var(--color-card-border);
-  font-size: 0.82rem;
-  margin-bottom: 12px;
-}
-
-.karaoke-status-label {
-  font-weight: 700;
-  color: var(--color-primary-dark);
-}
-
-.karaoke-offset-label,
-.karaoke-resync-label {
-  color: var(--color-text);
-  opacity: 0.8;
 }
 
 .karaoke-sync-check-banner {
@@ -10830,7 +10906,7 @@ fieldset label:has(input:focus-visible) {
   border-radius: 14px;
   background: var(--color-accent-soft);
   border: 1.5px solid var(--color-accent);
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 .karaoke-sync-check-banner[hidden] {
@@ -10848,45 +10924,62 @@ fieldset label:has(input:focus-visible) {
   color: var(--color-text);
 }
 
+.karaoke-beginner-nav[hidden] {
+  display: none;
+}
+
+/* NEXT CALLカード：色だけでなく、見出し文言・文字サイズ・アニメーションでも
+   「今は何も言わない／もうすぐ言う／今言う」の3段階を伝える（本人指示、色だけに依存しない）。 */
 .karaoke-next-call-card {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  padding: 20px 16px;
+  padding: 22px 16px;
   border-radius: 20px;
   background: var(--color-surface-glass);
   border: 1.5px solid var(--color-card-border);
   box-shadow: var(--shadow-card);
   text-align: center;
-  margin-bottom: 10px;
-  transition: box-shadow var(--transition-base), transform var(--transition-base);
+  margin-bottom: 12px;
+  transition: box-shadow var(--transition-base), transform var(--transition-base), background var(--transition-base);
 }
 
-.karaoke-next-call-label {
-  font-size: 0.75rem;
+.karaoke-next-call-eyebrow {
+  font-size: 0.78rem;
   font-weight: 800;
   letter-spacing: 0.08em;
   color: var(--color-secondary);
 }
 
 .karaoke-next-call-text {
-  font-size: 1.4rem;
+  font-size: 1.5rem;
   font-weight: 800;
   color: var(--color-primary-dark);
   word-break: break-word;
 }
 
 .karaoke-next-call-countdown {
-  font-size: 1rem;
+  font-size: 1.05rem;
   font-weight: 700;
   color: var(--color-text);
   font-variant-numeric: tabular-nums;
 }
 
-/* コールが3秒以内に近づいたときの予告演出（本人指示：3・2・1、またはリング等の視覚予告） */
+/* もうすぐ！段階：見出しをオレンジ系に変え、カウントダウンの数字を大きく発光させる */
 .karaoke-next-call-card.is-imminent {
   animation: karaokeImminentPulse 1s ease-in-out infinite;
+}
+
+.karaoke-next-call-card.is-imminent .karaoke-next-call-eyebrow {
+  color: var(--color-call-glow);
+}
+
+.karaoke-next-call-card.is-imminent .karaoke-next-call-countdown {
+  font-size: 2.4rem;
+  font-weight: 800;
+  color: var(--color-call-glow);
+  line-height: 1;
 }
 
 @keyframes karaokeImminentPulse {
@@ -10896,28 +10989,35 @@ fieldset label:has(input:focus-visible) {
     transform: scale(1);
   }
   50% {
-    box-shadow: 0 0 0 8px rgba(255, 217, 61, 0.35), var(--shadow-card);
+    box-shadow: 0 0 0 8px rgba(255, 159, 67, 0.35), var(--shadow-card);
     transform: scale(1.02);
   }
 }
 
+/* コール中！段階：カードそのものを一段強く発光させる */
 .karaoke-next-call-card.is-now {
   border-color: var(--color-accent);
   background: var(--color-accent-soft);
+  box-shadow: 0 0 0 6px rgba(255, 217, 61, 0.4), var(--shadow-card);
 }
 
-.karaoke-reference-note {
-  font-size: 0.76rem;
-  color: var(--color-text);
-  opacity: 0.65;
-  margin: 4px 0 8px;
+.karaoke-next-call-card.is-now .karaoke-next-call-text {
+  font-size: 1.8rem;
 }
 
-/* 参考パネル（既存の.synced-lyrics-panelを流用）は、カラオケ画面専用に少し高さを抑える。
-   また、この画面ではタップしても実際の再生位置は動かせない（時計はカラオケ側にあるため）ので、
-   紛らわしいタップを起こさせないようpointer-eventsを切る。 */
+/* 参考パネル（既存の.synced-lyrics-panelを流用）は、カラオケ画面専用に高さを抑える。
+   歌詞行・コール行そのものはタップしても実際の再生位置は動かせない（時計はカラオケ側に
+   あるため）ので誤操作防止でpointer-eventsを切るが、パネル内の表示切替ボタン
+   （lyricsSync.js／callSync.jsが描画する.lyrics-mode-toggle-button・.calls-toggle-button）は
+   このpointer-events:noneの対象に含めない＝クリック可能なままにする
+   （2026-08-09修正：以前はパネル全体にpointer-events:noneをかけていたため、切替ボタン自体も
+   押せなくなっていた不具合の直接の原因だった）。 */
 .karaoke-reference-panel {
-  max-height: 34vh;
+  max-height: 30vh;
+}
+
+.karaoke-reference-panel .synced-lyrics-line,
+.karaoke-reference-panel .synced-call-line {
   pointer-events: none;
 }
 
@@ -10925,37 +11025,76 @@ fieldset label:has(input:focus-visible) {
   display: none;
 }
 
-/* 画面下部固定：同期コントロール。iPhone PWAでホームインジケータに被らないよう
-   safe-area-inset-bottomを必ず足す（本人指示）。 */
-.karaoke-controls-bar {
-  position: sticky;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  margin: 16px -24px 0;
-  padding: 12px 16px max(14px, env(safe-area-inset-bottom));
+/* ③下部ゾーン：同期操作。中央の内容がどう変わってもここの位置・高さは変えない。
+   position:relativeは、トースト（.karaoke-toast）を絶対配置で重ねて表示するための基準。 */
+.karaoke-footer-zone {
+  position: relative;
+  flex: none;
+  padding: 12px 20px max(14px, env(safe-area-inset-bottom));
   background: var(--color-surface);
   border-top: 1.5px solid var(--color-card-border);
   box-shadow: 0 -10px 24px -16px rgba(74, 46, 66, 0.3);
 }
 
-.karaoke-sync-point-label {
-  font-size: 0.8rem;
-  color: var(--color-text);
-  opacity: 0.75;
-  text-align: center;
-  margin-bottom: 8px;
+.karaoke-footer-zone[hidden] {
+  display: none;
 }
 
+/* ボタンを押した瞬間の短いフィードバック（本人指示：「0.25秒遅らせました」等）。
+   【重要】position:absoluteで下部ゾーンの外（境界線のすぐ上）に浮かせて表示する。
+   通常のフローに入れてしまうと、表示/非表示の切り替わりで下部ゾーン自体の高さが
+   変わり、「今！」ボタンの位置が動いてしまう（本人が最も嫌っていた現象そのもの）ため、
+   トーストの表示状態が他の要素の位置に一切影響しない設計にしている。 */
+.karaoke-toast {
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  z-index: 1;
+  margin-bottom: 6px;
+  text-align: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+  background: var(--color-primary-light);
+  border-radius: 999px;
+  padding: 5px 12px;
+  width: max-content;
+  max-width: calc(100% - 24px);
+  pointer-events: none;
+  opacity: 0;
+  transform: translateX(-50%) translateY(4px);
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.karaoke-toast[hidden] {
+  display: none;
+}
+
+.karaoke-toast.is-visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(-4px);
+}
+
+.karaoke-sync-point-label {
+  font-size: 0.82rem;
+  color: var(--color-text);
+  text-align: center;
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+/* 「🎯 今！」を最重要ボタンとして、早い/遅いより一段大きく・中央に強調する
+   （本人指示：カラオケ中の一番重要な復帰手段のため）。 */
 .karaoke-controls-main-row {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: 1fr 1.3fr 1fr;
   align-items: stretch;
   gap: 8px;
 }
 
 .karaoke-control-button {
-  padding: 14px 8px;
+  min-height: 44px;
+  padding: 12px 6px;
   border: 2px solid var(--color-primary);
   border-radius: 16px;
   background-color: transparent;
@@ -10973,16 +11112,18 @@ fieldset label:has(input:focus-visible) {
 }
 
 .karaoke-now-button {
-  padding: 14px 12px;
+  min-height: 44px;
+  padding: 14px 10px;
   border: none;
-  border-radius: 16px;
+  border-radius: 18px;
   background: linear-gradient(120deg, var(--color-primary-dark), var(--color-primary));
   color: #ffffff;
   font-family: inherit;
-  font-size: 0.95rem;
+  font-size: 1.05rem;
   font-weight: 800;
   cursor: pointer;
-  box-shadow: 0 10px 22px -8px rgba(255, 79, 150, 0.6);
+  box-shadow: 0 12px 26px -8px rgba(255, 79, 150, 0.65);
+  animation: primaryButtonGlow 2.6s ease-in-out infinite;
   transition: transform var(--transition-fast) cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
@@ -10990,34 +11131,30 @@ fieldset label:has(input:focus-visible) {
   transform: scale(0.93);
 }
 
-.karaoke-advanced-toggle-button {
-  display: block;
-  width: 100%;
+/* 細かく調整：折りたたまず常に表示する（本人指示）。主要3ボタンより一段控えめな見た目にし、
+   情報の優先順位を視覚的にも示す。 */
+.karaoke-fine-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   margin-top: 10px;
-  padding: 8px;
-  border: none;
-  background: transparent;
-  color: var(--color-secondary);
-  font-family: inherit;
-  font-size: 0.78rem;
-  font-weight: 700;
-  text-decoration: underline;
-  cursor: pointer;
+  flex-wrap: wrap;
 }
 
-.karaoke-advanced-panel[hidden] {
-  display: none;
-}
-
-.karaoke-advanced-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-top: 6px;
+.karaoke-fine-row-label {
+  font-size: 0.72rem;
+  color: var(--color-text);
+  opacity: 0.65;
+  margin-right: 2px;
+  flex: 0 0 100%;
+  text-align: center;
 }
 
 .karaoke-control-button-small {
-  padding: 10px 6px;
+  min-height: 36px;
+  min-width: 44px;
+  padding: 6px 10px;
   border: 1.5px solid var(--color-secondary);
   border-radius: 12px;
   background-color: transparent;
@@ -11032,6 +11169,26 @@ fieldset label:has(input:focus-visible) {
   transform: scale(0.94);
 }
 
+.karaoke-offset-inline-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-text);
+  min-width: 72px;
+  text-align: center;
+}
+
+.karaoke-resync-label {
+  font-size: 0.72rem;
+  color: var(--color-text);
+  opacity: 0.6;
+  text-align: center;
+  margin-top: 6px;
+}
+
+.karaoke-resync-label[hidden] {
+  display: none;
+}
+
 .karaoke-settings-row {
   display: flex;
   flex-wrap: wrap;
@@ -11043,13 +11200,14 @@ fieldset label:has(input:focus-visible) {
 .karaoke-reset-button {
   flex: 1;
   min-width: 0;
+  min-height: 36px;
   padding: 9px 6px;
   border: 1.5px solid var(--color-card-border);
   border-radius: 12px;
   background-color: var(--color-surface-glass);
   color: var(--color-text);
   font-family: inherit;
-  font-size: 0.74rem;
+  font-size: 0.72rem;
   font-weight: 700;
   cursor: pointer;
   white-space: nowrap;
@@ -11066,11 +11224,8 @@ fieldset label:has(input:focus-visible) {
   border-color: var(--color-danger);
 }
 
-/* スマホ幅では、詳細調整・設定行が窮屈にならないよう1列に積む */
+/* スマホ幅では設定行が窮屈にならないよう1列に積む */
 @media (max-width: 400px) {
-  .karaoke-advanced-row {
-    grid-template-columns: 1fr;
-  }
   .karaoke-settings-row {
     flex-direction: column;
   }

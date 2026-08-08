@@ -1,21 +1,37 @@
 // ライブコールモード「カラオケ同期・初心者ナビ」画面。
 //
-// 【設計の要】カラオケ側の音源はアプリから一切操作できないため、この画面専用の
+// 【設計の要・同期エンジン】カラオケ側の音源はアプリから一切操作できないため、この画面専用の
 // 「偽の再生要素」（KaraokeClockSourceクラス。EventTargetを継承し、currentTimeプロパティだけ持つ）
 // を用意し、js/lyricsSync.jsのloadLyricsForSong()・js/callSync.jsのloadCallsForSong()に、
 // 本物の<audio>要素の代わりとして渡す。この2つのモジュールは「timeupdateイベントが来たら
 // audioElement.currentTimeを読む」という決まりごとだけで動いているため、本物の<audio>要素で
 // なくても問題なく動作する。これにより、通常再生画面（js/liveCallModeScreen.js）が使っている
 // 歌詞＋コールの同期表示・短いコールの飛び出しバースト演出・長いコールの持続表示演出を、
-// 1行もコピーせずにそのまま再利用できる（本人要望「既存のバースト演出を活用してほしい」に対する
-// 最も確実な実現方法。実装を2箇所に複製しないという、このプロジェクト全体の一貫した方針にも沿う）。
+// 1行もコピーせずにそのまま再利用できる（実装を2箇所に複製しないという、このプロジェクト
+// 全体の一貫した方針に沿う）。
 //
 // 「今何秒か」の計算そのもの（同期開始時刻・offset補正・同期ポイント選定など）は
 // js/karaokeSync.jsの純粋関数にすべて任せ、このファイルはDOM操作・タイマー・振動・
-// localStorageへの設定保存だけを担当する。
+// 端末音源の再生・localStorageへの設定保存だけを担当する。
+//
+// 【UI/UX第2版・2026-08-09】本人の実機フィードバックを受け、次の3点を中心に全面刷新した。
+//  1. 端末音源のON/OFF（家での練習用。実際のカラオケではOFFのまま使う）。
+//     同期の基準時刻（js/karaokeSync.js側の状態）とは完全に切り離しており、
+//     「早い／遅い」「今！」の補正は表示側の時計だけを動かし、音源自体はseekしない
+//     （本人の希望どおり。音源はあくまで「実際のカラオケ音源の代用品」という位置づけ）。
+//  2. 「今！」ボタンを最重要操作として、画面下部の固定ゾーンに常時大きく表示する。
+//     歌詞・コールの表示内容がどれだけ変わっても、この下部ゾーンの位置は動かない
+//     （css/style.cssの3ゾーンflexレイアウト定義を参照。ページ本体のスクロールに
+//     依存しない設計にしている）。
+//  3. 「全文表示」ボタンが押せなかった不具合を修正。原因は前バージョンで参考パネル全体に
+//     pointer-events:noneをかけていたことで、パネル内の表示切替ボタン
+//     （lyricsSync.js/callSync.jsが描画するボタン）も巻き添えで押せなくなっていた。
+//     css/style.cssで、pointer-events:noneの対象を歌詞行・コール行自体だけに絞り込んで解決した。
 
 import { getCallData } from "./callStorage.js";
 import { getSongById } from "./data/songs.js";
+import { getAudioBlob } from "./audioStorage.js";
+import { registerPlaybackStopper, notifyPlaybackStarting } from "./playbackCoordinator.js";
 import { loadLyricsForSong, destroyLyricsSync } from "./lyricsSync.js";
 import { loadCallsForSong, destroyCallSync } from "./callSync.js";
 import {
@@ -30,10 +46,10 @@ import {
   findNextCall,
   selectSyncPointCandidates,
   findCurrentOrNextSyncPoint,
-  getSecondsUntil,
   shouldShowSyncCheck,
   formatOffsetLabel,
   formatKaraokeMmSs,
+  getNextCallCountdownDisplay,
 } from "./karaokeSync.js";
 
 // ===== 設定の保存（端末ごと。既存のsfx設定等と同じ命名規則・保存方式） =====
@@ -88,6 +104,7 @@ const OFFSET_STEP_FINE_MS = 100;
 const OFFSET_STEP_BIG_MS = 500;
 const SYNC_CHECK_VISIBLE_SEC = 6; // 同期チェックバナーを表示し続ける秒数
 const VIBRATE_LEAD_SEC = 2; // コールの何秒前に予告振動するか
+const TOAST_VISIBLE_MS = 1400;
 
 let elements = null;
 let clockSource = null;
@@ -96,10 +113,18 @@ let allCalls = []; // 曲全体のコール（start昇順）
 let syncPointCandidates = [];
 let syncState = createKaraokeSyncState();
 let tickTimerId = null;
+let toastHideTimeoutId = null;
+
+// 端末音源（家での練習用）。同期の基準時刻とは独立しており、offset補正で
+// seekされることはない（曲スタート時に0秒から再生するだけ）。
+let deviceAudioObjectUrl = null;
+let deviceAudioRequested = false; // 開始前パネルのラジオで選んだ、次にスタートするときの希望値
 
 // 同じ状態を毎回DOMへ書き込まないための「前回描画した値」の記録（変わったときだけ更新する）。
 let lastRenderedNextCall = undefined;
+let lastRenderedCountdownPhase = null;
 let lastRenderedCountdownText = null;
+let lastRenderedEyebrowText = null;
 let lastRenderedSyncPointCall = undefined;
 let lastRenderedOffsetLabel = null;
 let lastRenderedResyncLabel = null;
@@ -113,7 +138,9 @@ function resetPerSongRuntimeState() {
   syncPointCandidates = [];
   syncState = createKaraokeSyncState();
   lastRenderedNextCall = undefined;
+  lastRenderedCountdownPhase = null;
   lastRenderedCountdownText = null;
+  lastRenderedEyebrowText = null;
   lastRenderedSyncPointCall = undefined;
   lastRenderedOffsetLabel = null;
   lastRenderedResyncLabel = null;
@@ -123,11 +150,26 @@ function resetPerSongRuntimeState() {
   vibratedAtCallStarts = new Set();
 }
 
+function releaseDeviceAudioObjectUrl() {
+  if (deviceAudioObjectUrl !== null) {
+    URL.revokeObjectURL(deviceAudioObjectUrl);
+    deviceAudioObjectUrl = null;
+  }
+}
+
+function stopDeviceAudio() {
+  elements.deviceAudio.pause();
+  elements.deviceAudio.currentTime = 0;
+  releaseDeviceAudioObjectUrl();
+}
+registerPlaybackStopper("karaokeSync", stopDeviceAudio);
+
 function syncBeginnerNavUI() {
   const enabled = isKaraokeBeginnerNavEnabled();
   elements.beginnerNavToggleButton.textContent = `初心者ナビ：${enabled ? "ON" : "OFF"}`;
   elements.beginnerNavToggleButton.classList.toggle("is-muted", !enabled);
   elements.beginnerNav.hidden = !enabled;
+  elements.statusChipNav.textContent = `🧭 初心者ナビ ${enabled ? "ON" : "OFF"}`;
 }
 
 function syncVibrationToggleUI() {
@@ -136,10 +178,26 @@ function syncVibrationToggleUI() {
   elements.vibrationToggleButton.classList.toggle("is-muted", !enabled);
 }
 
+function showToast(text) {
+  window.clearTimeout(toastHideTimeoutId);
+  elements.toast.textContent = text;
+  elements.toast.hidden = false;
+  // 1フレーム空けてからクラスを付けることで、連続で押しても毎回transitionが再生される。
+  elements.toast.classList.remove("is-visible");
+  void elements.toast.offsetWidth;
+  elements.toast.classList.add("is-visible");
+  toastHideTimeoutId = window.setTimeout(() => {
+    elements.toast.classList.remove("is-visible");
+    window.setTimeout(() => {
+      elements.toast.hidden = true;
+    }, 200);
+  }, TOAST_VISIBLE_MS);
+}
+
 // ===== 描画 =====
 
 function renderSyncStatus() {
-  const offsetLabel = `補正 ${formatOffsetLabel(syncState.offsetMs)}`;
+  const offsetLabel = formatOffsetLabel(syncState.offsetMs);
   if (offsetLabel !== lastRenderedOffsetLabel) {
     elements.offsetLabel.textContent = offsetLabel;
     lastRenderedOffsetLabel = offsetLabel;
@@ -159,6 +217,7 @@ function renderSyncStatus() {
 function renderNextCallAndSyncPoint(positionSec) {
   const activeIndex = findActiveCallIndex(allCalls, positionSec);
   const nextCall = activeIndex !== -1 ? allCalls[activeIndex] : findNextCall(allCalls, positionSec);
+  const isCurrentlyActive = activeIndex !== -1;
 
   if (nextCall !== lastRenderedNextCall) {
     elements.nextCallText.textContent = nextCall ? nextCall.text : "この曲のコールは以上です";
@@ -166,15 +225,22 @@ function renderNextCallAndSyncPoint(positionSec) {
   }
 
   if (nextCall) {
-    const secondsUntil = getSecondsUntil(nextCall.start, positionSec);
-    const isCurrentlyActive = activeIndex !== -1;
-    const countdownText = isCurrentlyActive ? "今です！" : `あと${secondsUntil.toFixed(1)}秒`;
-    if (countdownText !== lastRenderedCountdownText) {
-      elements.nextCallCountdown.textContent = countdownText;
-      lastRenderedCountdownText = countdownText;
+    const secondsUntil = Math.max(0, nextCall.start - positionSec);
+    const display = getNextCallCountdownDisplay(secondsUntil, isCurrentlyActive);
+
+    if (display.eyebrow !== lastRenderedEyebrowText) {
+      elements.nextCallEyebrow.textContent = display.eyebrow;
+      lastRenderedEyebrowText = display.eyebrow;
     }
-    elements.nextCallCard.classList.toggle("is-imminent", !isCurrentlyActive && secondsUntil <= 3);
-    elements.nextCallCard.classList.toggle("is-now", isCurrentlyActive);
+    if (display.text !== lastRenderedCountdownText) {
+      elements.nextCallCountdown.textContent = display.text;
+      lastRenderedCountdownText = display.text;
+    }
+    if (display.phase !== lastRenderedCountdownPhase) {
+      elements.nextCallCard.classList.toggle("is-imminent", display.phase === "imminent");
+      elements.nextCallCard.classList.toggle("is-now", display.phase === "now");
+      lastRenderedCountdownPhase = display.phase;
+    }
 
     // 振動ナビ（対応端末のみ）：コールの約2秒前に軽く、コール開始時に少し強く。1コールにつき1回ずつ。
     if (!isCurrentlyActive && secondsUntil <= VIBRATE_LEAD_SEC && !vibratedPreCallStarts.has(nextCall.start)) {
@@ -186,19 +252,26 @@ function renderNextCallAndSyncPoint(positionSec) {
       vibrateIfSupported(90);
     }
   } else {
+    if (lastRenderedEyebrowText !== "NEXT CALL") {
+      elements.nextCallEyebrow.textContent = "NEXT CALL";
+      lastRenderedEyebrowText = "NEXT CALL";
+    }
     if (lastRenderedCountdownText !== "") {
       elements.nextCallCountdown.textContent = "";
       lastRenderedCountdownText = "";
     }
-    elements.nextCallCard.classList.remove("is-imminent", "is-now");
+    if (lastRenderedCountdownPhase !== "upcoming") {
+      elements.nextCallCard.classList.remove("is-imminent", "is-now");
+      lastRenderedCountdownPhase = "upcoming";
+    }
   }
 
-  // 「今！」の対象（同期ポイント）表示。NEXT CALLとは別に、短い・分かりやすいコールだけを優先する。
+  // 「今！」の対象（同期ポイント）表示。専門用語を避け、「聞こえたら押す」という行動で伝える。
   const syncPointCall = findCurrentOrNextSyncPoint(syncPointCandidates, positionSec);
   if (syncPointCall !== lastRenderedSyncPointCall) {
     elements.syncPointLabel.textContent = syncPointCall
-      ? `次の同期ポイント：「${syncPointCall.text}」`
-      : "次の同期ポイント：この曲にはもうありません";
+      ? `このコールが聞こえたら「${syncPointCall.text}」`
+      : "この曲の同期ポイントは以上です";
     lastRenderedSyncPointCall = syncPointCall;
   }
 
@@ -254,20 +327,60 @@ function stopTickLoop() {
 
 // ===== 操作 =====
 
-function handleStartButtonClick() {
+async function handleStartButtonClick() {
   // 重要：performance.now()はこのハンドラの一番最初で取得する（DOM更新・アニメーションを待たない）。
   const nowMs = performance.now();
+
+  deviceAudioRequested = elements.deviceAudioOnRadio.checked;
+  setKaraokeBeginnerNavEnabled(elements.beginnerNavOnRadio.checked);
+  syncBeginnerNavUI();
+
   syncState = startKaraokeSync(syncState, nowMs);
   elements.startPanel.hidden = true;
   elements.syncPanel.hidden = false;
-  elements.controlsBar.hidden = false;
+  elements.footerZone.hidden = false;
+  elements.statusBar.hidden = false;
+
+  if (deviceAudioRequested) {
+    await startDeviceAudioPlayback();
+  }
+  elements.statusChipAudio.hidden = !deviceAudioRequested;
+
   startTickLoop();
   tick();
 }
 
-function applyOffsetAdjustment(nextState) {
+// 端末音源（家での練習用）を、曲スタートと同時に0秒から再生する。
+// 未読み込みの曲ではエラーにせず、静かに「端末音源はOFFのまま同期する」扱いにする
+// （本人指示：「エラーにせず、カラオケ音源のみで使用できる、と自然に案内する」）。
+async function startDeviceAudioPlayback() {
+  if (!currentSongId) return;
+  const blob = await getAudioBlob(currentSongId);
+  if (!blob) {
+    elements.deviceAudioNotice.hidden = false;
+    elements.deviceAudioNotice.textContent =
+      "この曲の端末音源は読み込まれていません。カラオケ音源のみで使用できます。";
+    deviceAudioRequested = false;
+    return;
+  }
+
+  notifyPlaybackStarting("karaokeSync");
+  releaseDeviceAudioObjectUrl();
+  deviceAudioObjectUrl = URL.createObjectURL(blob);
+  elements.deviceAudio.src = deviceAudioObjectUrl;
+  elements.deviceAudio.currentTime = 0;
+  try {
+    await elements.deviceAudio.play();
+  } catch {
+    // 自動再生が拒否された場合も、同期タイマー自体は正常に動き続けるため、
+    // ここでは静かに諦める（コールのタイミング表示自体はそのまま使える）。
+  }
+}
+
+function applyOffsetAdjustment(nextState, toastText) {
   syncState = nextState;
   renderSyncStatus();
+  showToast(toastText);
 }
 
 function handleResyncButtonClick() {
@@ -279,26 +392,25 @@ function handleResyncButtonClick() {
   lastRenderedOffsetLabel = null; // 直後のtick()で必ず再描画させる
   lastRenderedResyncLabel = null;
   tick();
+  showToast(`「${syncPointCall.text}」に合わせ直しました`);
 }
 
 function handleResetSyncButtonClick() {
   stopTickLoop();
+  stopDeviceAudio();
   syncState = resetKaraokeSync();
   elements.startPanel.hidden = false;
   elements.syncPanel.hidden = true;
-  elements.controlsBar.hidden = true;
+  elements.footerZone.hidden = true;
+  elements.statusBar.hidden = true;
   elements.syncCheckBanner.hidden = true;
   lastRenderedNextCall = undefined;
+  lastRenderedCountdownPhase = null;
   lastRenderedCountdownText = null;
+  lastRenderedEyebrowText = null;
   lastRenderedSyncPointCall = undefined;
   vibratedPreCallStarts = new Set();
   vibratedAtCallStarts = new Set();
-}
-
-function handleAdvancedToggleClick() {
-  const willShow = elements.advancedPanel.hidden;
-  elements.advancedPanel.hidden = !willShow;
-  elements.advancedToggleButton.textContent = willShow ? "詳細調整を閉じる" : "詳細調整";
 }
 
 // ===== 画面の開閉 =====
@@ -331,11 +443,16 @@ export async function openKaraokeSyncScreen(songId) {
   elements.startPanel.hidden = allCalls.length === 0;
   elements.noCallsNotice.hidden = allCalls.length > 0;
   elements.syncPanel.hidden = true;
-  elements.controlsBar.hidden = true;
-  elements.advancedPanel.hidden = true;
-  elements.advancedToggleButton.textContent = "詳細調整";
+  elements.footerZone.hidden = true;
+  elements.statusBar.hidden = true;
   elements.syncCheckBanner.hidden = true;
+  elements.deviceAudioNotice.hidden = true;
+  elements.deviceAudioOffRadio.checked = true;
+  elements.toast.hidden = true;
 
+  const beginnerNavEnabled = isKaraokeBeginnerNavEnabled();
+  elements.beginnerNavOnRadio.checked = beginnerNavEnabled;
+  elements.beginnerNavOffRadio.checked = !beginnerNavEnabled;
   syncBeginnerNavUI();
   syncVibrationToggleUI();
 
@@ -345,6 +462,7 @@ export async function openKaraokeSyncScreen(songId) {
 // この画面を離れるとき（戻る・曲を選び直す）に必ず呼ぶ。
 export function closeKaraokeSyncScreen() {
   stopTickLoop();
+  stopDeviceAudio();
   destroyLyricsSync();
   destroyCallSync();
   clockSource = null;
@@ -353,31 +471,46 @@ export function closeKaraokeSyncScreen() {
 }
 
 // elements: {
-//   songTitle, startPanel, startButton, noCallsNotice,
-//   syncPanel, statusLabel, offsetLabel, resyncLabel,
+//   songTitle, noCallsNotice,
+//   statusBar, statusChipAudio, statusChipNav,
+//   startPanel, startButton, deviceAudioOnRadio, deviceAudioOffRadio, deviceAudioNotice,
+//   beginnerNavOnRadio, beginnerNavOffRadio,
+//   syncPanel, offsetLabel, resyncLabel,
 //   beginnerNav, syncCheckBanner, syncCheckText,
-//   nextCallCard, nextCallText, nextCallCountdown,
-//   referencePanel,
-//   controlsBar, syncPointLabel, tooEarlyButton, nowButton, tooLateButton,
-//   advancedToggleButton, advancedPanel, fineEarlyButton, fineLateButton, bigEarlyButton, bigLateButton,
+//   nextCallCard, nextCallEyebrow, nextCallText, nextCallCountdown,
+//   referencePanel, deviceAudio,
+//   footerZone, toast, syncPointLabel, tooEarlyButton, nowButton, tooLateButton,
+//   fineEarlyButton, fineLateButton, bigEarlyButton, bigLateButton,
 //   resetSyncButton, beginnerNavToggleButton, vibrationToggleButton,
 // }
 export function initKaraokeSyncScreen(newElements) {
   elements = newElements;
 
   elements.startButton.addEventListener("click", handleStartButtonClick);
-  elements.tooEarlyButton.addEventListener("click", () => applyOffsetAdjustment(reportCallTooEarly(syncState, OFFSET_STEP_NORMAL_MS)));
-  elements.tooLateButton.addEventListener("click", () => applyOffsetAdjustment(reportCallTooLate(syncState, OFFSET_STEP_NORMAL_MS)));
+  elements.tooEarlyButton.addEventListener("click", () =>
+    applyOffsetAdjustment(reportCallTooEarly(syncState, OFFSET_STEP_NORMAL_MS), `${(OFFSET_STEP_NORMAL_MS / 1000).toFixed(2)}秒早めました`)
+  );
+  elements.tooLateButton.addEventListener("click", () =>
+    applyOffsetAdjustment(reportCallTooLate(syncState, OFFSET_STEP_NORMAL_MS), `${(OFFSET_STEP_NORMAL_MS / 1000).toFixed(2)}秒遅らせました`)
+  );
   elements.nowButton.addEventListener("click", handleResyncButtonClick);
-  elements.fineEarlyButton.addEventListener("click", () => applyOffsetAdjustment(reportCallTooEarly(syncState, OFFSET_STEP_FINE_MS)));
-  elements.fineLateButton.addEventListener("click", () => applyOffsetAdjustment(reportCallTooLate(syncState, OFFSET_STEP_FINE_MS)));
-  elements.bigEarlyButton.addEventListener("click", () => applyOffsetAdjustment(reportCallTooEarly(syncState, OFFSET_STEP_BIG_MS)));
-  elements.bigLateButton.addEventListener("click", () => applyOffsetAdjustment(reportCallTooLate(syncState, OFFSET_STEP_BIG_MS)));
-  elements.advancedToggleButton.addEventListener("click", handleAdvancedToggleClick);
+  elements.fineEarlyButton.addEventListener("click", () =>
+    applyOffsetAdjustment(reportCallTooEarly(syncState, OFFSET_STEP_FINE_MS), `${(OFFSET_STEP_FINE_MS / 1000).toFixed(2)}秒早めました`)
+  );
+  elements.fineLateButton.addEventListener("click", () =>
+    applyOffsetAdjustment(reportCallTooLate(syncState, OFFSET_STEP_FINE_MS), `${(OFFSET_STEP_FINE_MS / 1000).toFixed(2)}秒遅らせました`)
+  );
+  elements.bigEarlyButton.addEventListener("click", () =>
+    applyOffsetAdjustment(reportCallTooEarly(syncState, OFFSET_STEP_BIG_MS), `${(OFFSET_STEP_BIG_MS / 1000).toFixed(2)}秒早めました`)
+  );
+  elements.bigLateButton.addEventListener("click", () =>
+    applyOffsetAdjustment(reportCallTooLate(syncState, OFFSET_STEP_BIG_MS), `${(OFFSET_STEP_BIG_MS / 1000).toFixed(2)}秒遅らせました`)
+  );
   elements.resetSyncButton.addEventListener("click", handleResetSyncButtonClick);
 
   elements.beginnerNavToggleButton.addEventListener("click", () => {
-    setKaraokeBeginnerNavEnabled(!isKaraokeBeginnerNavEnabled());
+    const nextEnabled = !isKaraokeBeginnerNavEnabled();
+    setKaraokeBeginnerNavEnabled(nextEnabled);
     syncBeginnerNavUI();
   });
   elements.vibrationToggleButton.addEventListener("click", () => {

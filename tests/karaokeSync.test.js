@@ -18,6 +18,7 @@ import {
   shouldShowSyncCheck,
   formatOffsetLabel,
   formatKaraokeMmSs,
+  getNextCallCountdownDisplay,
 } from "../js/karaokeSync.js";
 import { assertEqual } from "./test-utils.js";
 
@@ -178,4 +179,15 @@ export function runKaraokeSyncTests() {
   assertEqual(formatKaraokeMmSs(84), "1:24", "84秒は1:24と表示する");
   assertEqual(formatKaraokeMmSs(0), "0:00", "0秒は0:00と表示する");
   assertEqual(formatKaraokeMmSs(-5), "0:00", "負の値は0:00に丸める（安全側）");
+
+  // ===== NEXT CALLカードの表示段階（UI/UX第2版） =====
+  assertEqual(getNextCallCountdownDisplay(7.2, false), { phase: "upcoming", eyebrow: "NEXT CALL", text: "あと7.2秒" }, "3秒より前はupcoming表示");
+  assertEqual(getNextCallCountdownDisplay(3.0, false), { phase: "imminent", eyebrow: "もうすぐ！", text: "3" }, "ちょうど3秒はimminent側（境界値）");
+  assertEqual(getNextCallCountdownDisplay(2.9, false), { phase: "imminent", eyebrow: "もうすぐ！", text: "3" }, "2.9秒は3と表示する");
+  assertEqual(getNextCallCountdownDisplay(2.0, false), { phase: "imminent", eyebrow: "もうすぐ！", text: "2" }, "ちょうど2秒は2と表示する");
+  assertEqual(getNextCallCountdownDisplay(1.1, false), { phase: "imminent", eyebrow: "もうすぐ！", text: "2" }, "1.1秒は2と表示する");
+  assertEqual(getNextCallCountdownDisplay(1.0, false), { phase: "imminent", eyebrow: "もうすぐ！", text: "1" }, "ちょうど1秒は1と表示する");
+  assertEqual(getNextCallCountdownDisplay(0.1, false), { phase: "imminent", eyebrow: "もうすぐ！", text: "1" }, "0.1秒は1と表示する（0を表示しない）");
+  assertEqual(getNextCallCountdownDisplay(0, true), { phase: "now", eyebrow: "コール中！", text: "" }, "アクティブ中はisActive優先でnowになる");
+  assertEqual(getNextCallCountdownDisplay(5, true), { phase: "now", eyebrow: "コール中！", text: "" }, "secondsUntilの値に関わらずisActiveがtrueならnow");
 }

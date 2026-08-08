@@ -15,7 +15,10 @@ import { onScreenChange } from "./screens.js";
 let elements = null;
 
 // ミニプレイヤーを出さない画面（連続再生本体・再生キュー画面）。
-const HIDDEN_ON_SCREENS = new Set(["continuousPlay", "continuousPlayQueue"]);
+// カラオケ同期画面（liveCallModeKaraoke）も、画面下部に専用の同期操作バーを常時固定表示する
+// レイアウト（css/style.cssの3ゾーンflexレイアウト）のため、ミニプレイヤーと重ならないよう
+// ここに含める（2026-08-09追加）。
+const HIDDEN_ON_SCREENS = new Set(["continuousPlay", "continuousPlayQueue", "liveCallModeKaraoke"]);
 
 let currentScreenName = "start";
 
