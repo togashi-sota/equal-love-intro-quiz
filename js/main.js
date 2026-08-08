@@ -72,6 +72,7 @@ import {
   getCurrentLiveCallSongId,
 } from "./liveCallModeScreen.js";
 import { renderCallGuideTab } from "./callGuidePanel.js";
+import { initKaraokeSyncScreen, openKaraokeSyncScreen, closeKaraokeSyncScreen } from "./karaokeSyncScreen.js";
 import { getTimeAttackBest } from "./timeAttackScore.js";
 import {
   TIME_ATTACK_RULE,
@@ -453,6 +454,45 @@ const liveCallModePlayerHelpLinkElement = document.getElementById("live-call-mod
 const liveCallModeGuideButtonElement = document.getElementById("live-call-mode-guide-button");
 const liveCallModeListHelpLinkElement = document.getElementById("live-call-mode-list-help-link");
 const liveCallModeListGuideButtonElement = document.getElementById("live-call-mode-list-guide-button");
+
+// ライブコールモード：再生方法選択画面（2026-08-09新設）。
+const liveCallPlayTypeBackButtonElement = document.getElementById("live-call-play-type-back-button");
+const liveCallPlayTypeSongTitleElement = document.getElementById("live-call-play-type-song-title");
+const liveCallPlayTypeNormalButtonElement = document.getElementById("live-call-play-type-normal-button");
+const liveCallPlayTypeKaraokeButtonElement = document.getElementById("live-call-play-type-karaoke-button");
+
+// ライブコールモード：カラオケ同期・初心者ナビ画面（2026-08-09新設）。
+const karaokeBackButtonElement = document.getElementById("karaoke-back-button");
+const karaokeHelpLinkElement = document.getElementById("karaoke-help-link");
+const karaokeSongTitleElement = document.getElementById("karaoke-song-title");
+const karaokeNoCallsNoticeElement = document.getElementById("karaoke-no-calls-notice");
+const karaokeStartPanelElement = document.getElementById("karaoke-start-panel");
+const karaokeStartButtonElement = document.getElementById("karaoke-start-button");
+const karaokeSyncPanelElement = document.getElementById("karaoke-sync-panel");
+const karaokeStatusLabelElement = document.getElementById("karaoke-status-label");
+const karaokeOffsetLabelElement = document.getElementById("karaoke-offset-label");
+const karaokeResyncLabelElement = document.getElementById("karaoke-resync-label");
+const karaokeBeginnerNavElement = document.getElementById("karaoke-beginner-nav");
+const karaokeSyncCheckBannerElement = document.getElementById("karaoke-sync-check-banner");
+const karaokeSyncCheckTextElement = document.getElementById("karaoke-sync-check-text");
+const karaokeNextCallCardElement = document.getElementById("karaoke-next-call-card");
+const karaokeNextCallTextElement = document.getElementById("karaoke-next-call-text");
+const karaokeNextCallCountdownElement = document.getElementById("karaoke-next-call-countdown");
+const karaokeReferencePanelElement = document.getElementById("karaoke-reference-panel");
+const karaokeControlsBarElement = document.getElementById("karaoke-controls-bar");
+const karaokeSyncPointLabelElement = document.getElementById("karaoke-sync-point-label");
+const karaokeTooEarlyButtonElement = document.getElementById("karaoke-too-early-button");
+const karaokeNowButtonElement = document.getElementById("karaoke-now-button");
+const karaokeTooLateButtonElement = document.getElementById("karaoke-too-late-button");
+const karaokeAdvancedToggleButtonElement = document.getElementById("karaoke-advanced-toggle-button");
+const karaokeAdvancedPanelElement = document.getElementById("karaoke-advanced-panel");
+const karaokeFineEarlyButtonElement = document.getElementById("karaoke-fine-early-button");
+const karaokeFineLateButtonElement = document.getElementById("karaoke-fine-late-button");
+const karaokeBigEarlyButtonElement = document.getElementById("karaoke-big-early-button");
+const karaokeBigLateButtonElement = document.getElementById("karaoke-big-late-button");
+const karaokeResetSyncButtonElement = document.getElementById("karaoke-reset-sync-button");
+const karaokeBeginnerNavToggleButtonElement = document.getElementById("karaoke-beginner-nav-toggle-button");
+const karaokeVibrationToggleButtonElement = document.getElementById("karaoke-vibration-toggle-button");
 const timeAttackSetupBackButtonElement = document.getElementById("time-attack-setup-back-button");
 const timeAttackStartButtonElement = document.getElementById("time-attack-start-button");
 const timeAttackStartErrorElement = document.getElementById("time-attack-start-error");
@@ -730,6 +770,8 @@ const randomPlaybackRulesModalElement = document.getElementById("random-playback
 const randomPlaybackRulesModalCloseButtonElement = document.getElementById("random-playback-rules-modal-close");
 const liveCallModeRulesModalElement = document.getElementById("live-call-mode-rules-modal");
 const liveCallModeRulesModalCloseButtonElement = document.getElementById("live-call-mode-rules-modal-close");
+const karaokeSyncRulesModalElement = document.getElementById("karaoke-sync-rules-modal");
+const karaokeSyncRulesModalCloseButtonElement = document.getElementById("karaoke-sync-rules-modal-close");
 const callGuideModalElement = document.getElementById("call-guide-modal");
 const callGuideModalCloseButtonElement = document.getElementById("call-guide-modal-close");
 const callGuideTabButtonElements = Array.from(document.querySelectorAll(".call-guide-tab-button"));
@@ -993,8 +1035,8 @@ initLiveCallModeScreen({
   noLyricsNotice: liveCallModeNoLyricsNoticeElement,
   onSelectSong: (songId) => {
     playClickSound();
-    openLiveCallModePlayer(songId);
-    showScreen("liveCallModePlayer");
+    openLiveCallPlayTypeChoice(songId);
+    showScreen("liveCallModePlayType");
   },
 });
 
@@ -1003,6 +1045,37 @@ initLiveCallModeScreen({
 liveCallModeListBackButtonElement.addEventListener("click", () => {
   playSfx(SFX_EVENTS.UI_BACK);
   navigateWithScrollMemory("start");
+});
+
+// ライブコールモード：再生方法選択画面（2026-08-09新設）。
+// 曲一覧で曲を選んだ直後に必ずここを経由し、「通常再生」（既存のアプリ内音源再生）と
+// 「カラオケ同期」（js/karaokeSyncScreen.js、新機能）のどちらを使うかを選んでもらう。
+let liveCallPlayTypeSongId = null;
+
+function openLiveCallPlayTypeChoice(songId) {
+  liveCallPlayTypeSongId = songId;
+  const song = SONGS.find((entry) => entry.id === songId);
+  liveCallPlayTypeSongTitleElement.textContent = song ? song.title : "";
+}
+
+liveCallPlayTypeBackButtonElement.addEventListener("click", () => {
+  playSfx(SFX_EVENTS.UI_BACK);
+  liveCallPlayTypeSongId = null;
+  showScreen("liveCallModeList");
+});
+
+liveCallPlayTypeNormalButtonElement.addEventListener("click", () => {
+  playClickSound();
+  if (!liveCallPlayTypeSongId) return;
+  openLiveCallModePlayer(liveCallPlayTypeSongId);
+  showScreen("liveCallModePlayer");
+});
+
+liveCallPlayTypeKaraokeButtonElement.addEventListener("click", async () => {
+  playClickSound();
+  if (!liveCallPlayTypeSongId) return;
+  await openKaraokeSyncScreen(liveCallPlayTypeSongId);
+  showScreen("liveCallModeKaraoke");
 });
 
 // 再生画面の「戻る」：再生を止め、曲一覧画面へ戻る（常にこの画面からしか開かないため、
@@ -1015,6 +1088,50 @@ liveCallModePlayerBackButtonElement.addEventListener("click", () => {
 
 liveCallModePlayerHelpLinkElement.addEventListener("click", () => {
   openSpecialModeHelp("liveCallMode");
+});
+
+// カラオケ同期画面の「戻る」：通常再生画面と同じく、同期タイマー・歌詞/コール表示を
+// 片付けたうえで曲一覧画面へ戻る（間に再生方法選択画面を挟まない、既存の慣例に合わせる）。
+karaokeBackButtonElement.addEventListener("click", () => {
+  playSfx(SFX_EVENTS.UI_BACK);
+  closeKaraokeSyncScreen();
+  showScreen("liveCallModeList");
+});
+
+karaokeHelpLinkElement.addEventListener("click", () => {
+  openSpecialModeHelp("liveCallKaraoke");
+});
+
+initKaraokeSyncScreen({
+  songTitle: karaokeSongTitleElement,
+  noCallsNotice: karaokeNoCallsNoticeElement,
+  startPanel: karaokeStartPanelElement,
+  startButton: karaokeStartButtonElement,
+  syncPanel: karaokeSyncPanelElement,
+  statusLabel: karaokeStatusLabelElement,
+  offsetLabel: karaokeOffsetLabelElement,
+  resyncLabel: karaokeResyncLabelElement,
+  beginnerNav: karaokeBeginnerNavElement,
+  syncCheckBanner: karaokeSyncCheckBannerElement,
+  syncCheckText: karaokeSyncCheckTextElement,
+  nextCallCard: karaokeNextCallCardElement,
+  nextCallText: karaokeNextCallTextElement,
+  nextCallCountdown: karaokeNextCallCountdownElement,
+  referencePanel: karaokeReferencePanelElement,
+  controlsBar: karaokeControlsBarElement,
+  syncPointLabel: karaokeSyncPointLabelElement,
+  tooEarlyButton: karaokeTooEarlyButtonElement,
+  nowButton: karaokeNowButtonElement,
+  tooLateButton: karaokeTooLateButtonElement,
+  advancedToggleButton: karaokeAdvancedToggleButtonElement,
+  advancedPanel: karaokeAdvancedPanelElement,
+  fineEarlyButton: karaokeFineEarlyButtonElement,
+  fineLateButton: karaokeFineLateButtonElement,
+  bigEarlyButton: karaokeBigEarlyButtonElement,
+  bigLateButton: karaokeBigLateButtonElement,
+  resetSyncButton: karaokeResetSyncButtonElement,
+  beginnerNavToggleButton: karaokeBeginnerNavToggleButtonElement,
+  vibrationToggleButton: karaokeVibrationToggleButtonElement,
 });
 
 // コールガイド（メンバーコール／曲指定コール／ペンライト指定曲／MIX）の開閉・タブ切り替え。
@@ -2703,6 +2820,7 @@ const SPECIAL_MODE_HELP_MODALS = {
   timeAttack: { modal: timeAttackRulesModalElement, closeButton: timeAttackRulesModalCloseButtonElement },
   randomPlayback: { modal: randomPlaybackRulesModalElement, closeButton: randomPlaybackRulesModalCloseButtonElement },
   liveCallMode: { modal: liveCallModeRulesModalElement, closeButton: liveCallModeRulesModalCloseButtonElement },
+  liveCallKaraoke: { modal: karaokeSyncRulesModalElement, closeButton: karaokeSyncRulesModalCloseButtonElement },
   lyricsQuiz: { modal: lyricsQuizRulesModalElement, closeButton: lyricsQuizRulesModalCloseButtonElement },
   localBattle: { modal: localBattleRulesModalElement, closeButton: localBattleRulesModalCloseButtonElement },
   onlineBattle: { modal: onlineBattleRulesModalElement, closeButton: onlineBattleRulesModalCloseButtonElement },

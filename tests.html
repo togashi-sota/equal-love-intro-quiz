@@ -71,6 +71,7 @@
     import { runResponseTimeTests } from "./tests/responseTime.test.js";
     import { runSpeedAchievementProgressTests } from "./tests/speedAchievementProgress.test.js";
     import { runSoundManagerTests } from "./tests/soundManager.test.js";
+    import { runKaraokeSyncTests } from "./tests/karaokeSync.test.js";
     import { printSummary } from "./tests/test-utils.js";
 
     runScoreTests();
@@ -119,6 +120,7 @@
     runResponseTimeTests();
     runSpeedAchievementProgressTests();
     runSoundManagerTests();
+    runKaraokeSyncTests();
     const { passCount, failCount } = printSummary();
 
     const summaryElement = document.getElementById("test-summary");

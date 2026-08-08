@@ -1253,6 +1253,43 @@
       </p>
     </section>
 
+    <!-- ライブコールモード：再生方法の選択画面（2026-08-09新設）。
+         「通常再生」は既存のアプリ内音源再生、「カラオケ同期」はDAM/JOYSOUND等の外部音源に
+         合わせてコール表示だけを動かす新機能。曲一覧からはここへ遷移し、選んだ方式に応じて
+         既存のlive-call-mode-player-screen、または新設のlive-call-mode-karaoke-screenへ進む。 -->
+    <section id="live-call-mode-play-type-screen" class="screen">
+      <div class="list-header">
+        <button id="live-call-play-type-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            LIVE CALL
+          </p>
+          <h2 id="live-call-play-type-song-title">曲名</h2>
+        </div>
+      </div>
+
+      <p class="special-modes-intro">再生方法を選んでください。</p>
+
+      <div class="live-call-play-type-list">
+        <button id="live-call-play-type-normal-button" class="live-call-play-type-card" type="button">
+          <span class="live-call-play-type-icon" aria-hidden="true">🎧</span>
+          <span class="live-call-play-type-name">通常再生</span>
+          <span class="live-call-play-type-description">アプリ内の音源を再生しながら練習します</span>
+        </button>
+        <button id="live-call-play-type-karaoke-button" class="live-call-play-type-card" type="button">
+          <span class="live-call-play-type-icon" aria-hidden="true">🎤</span>
+          <span class="live-call-play-type-name">カラオケ同期</span>
+          <span class="live-call-play-type-description">DAM・JOYSOUNDなど、外部の音に合わせてコール表示のタイミングを合わせられます</span>
+        </button>
+      </div>
+    </section>
+
     <!-- ライブコールモード：再生画面。歌詞は既存のjs/lyricsSync.jsがそのまま同期表示し、
          その上にjs/callSync.jsがコールを重ねて表示する。全画面表示も既存のjs/lyricsFullscreen.js
          をそのまま利用する（歌詞パネルの中身がコールごと一緒に移動するため、追加の実装は不要）。 -->
@@ -1307,6 +1344,95 @@
       <p id="live-call-mode-no-lyrics-notice" class="history-empty-state" hidden>
         この曲にはまだ歌詞データが登録されていないため、コールだけを表示できません。歌詞データの登録が先に必要です。
       </p>
+    </section>
+
+    <!-- ライブコールモード：カラオケ同期・初心者ナビ画面（2026-08-09新設）。
+         DAM/JOYSOUND等、外部で流れているカラオケ音源に合わせて、コール表示用の時計だけを
+         アプリ内で独自に進める。歌詞・コールの同期表示自体は、js/karaokeSyncScreen.jsが
+         既存のjs/lyricsSync.js・js/callSync.jsをそのまま呼び出して実現している
+         （本物の<audio>要素の代わりに、時計だけを持つ疑似要素を渡す方式）。
+         詳しい設計はjs/karaokeSync.js・js/karaokeSyncScreen.jsの冒頭コメント参照。 -->
+    <section id="live-call-mode-karaoke-screen" class="screen">
+      <div class="list-header">
+        <button id="karaoke-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            🎤 KARAOKE SYNC
+          </p>
+          <h2 id="karaoke-song-title">曲名</h2>
+        </div>
+        <div class="list-header-actions">
+          <button id="karaoke-help-link" class="info-link-button" type="button" aria-label="カラオケ同期の使い方を見る">？</button>
+        </div>
+      </div>
+
+      <p id="karaoke-no-calls-notice" class="history-empty-state" hidden>
+        この曲のコールデータを読み込めませんでした。
+      </p>
+
+      <!-- 開始前：曲スタートボタン -->
+      <div id="karaoke-start-panel" class="karaoke-start-panel">
+        <p class="karaoke-start-instruction">カラオケで曲が始まった瞬間に押してください</p>
+        <button id="karaoke-start-button" class="karaoke-start-button" type="button">🎤 曲スタート！</button>
+        <p class="karaoke-start-note">最初は多少ずれても大丈夫です。あとから「コールが早い／遅い」「今！」で簡単に直せます。</p>
+      </div>
+
+      <!-- 同期中：状態表示・NEXT CALL・参考パネル -->
+      <div id="karaoke-sync-panel" class="karaoke-sync-panel" hidden>
+        <div class="karaoke-status-row">
+          <span id="karaoke-status-label" class="karaoke-status-label">手動同期中</span>
+          <span id="karaoke-offset-label" class="karaoke-offset-label">補正 調整なし</span>
+          <span id="karaoke-resync-label" class="karaoke-resync-label" hidden>最終再同期：0:00</span>
+        </div>
+
+        <div id="karaoke-beginner-nav" class="karaoke-beginner-nav">
+          <div id="karaoke-sync-check-banner" class="karaoke-sync-check-banner" hidden>
+            <p class="karaoke-sync-check-title">🎯 同期チェック</p>
+            <p id="karaoke-sync-check-text" class="karaoke-sync-check-text"></p>
+          </div>
+
+          <div id="karaoke-next-call-card" class="karaoke-next-call-card">
+            <p class="karaoke-next-call-label">NEXT CALL</p>
+            <p id="karaoke-next-call-text" class="karaoke-next-call-text">―</p>
+            <p id="karaoke-next-call-countdown" class="karaoke-next-call-countdown"></p>
+          </div>
+        </div>
+
+        <p class="karaoke-reference-note">下は参考表示です。歌詞のタイミングが多少ずれていても、コールのタイミングを基準に表示しています。</p>
+        <div id="karaoke-reference-panel" class="synced-lyrics-panel karaoke-reference-panel" hidden></div>
+      </div>
+
+      <!-- 画面下部に固定：同期コントロール -->
+      <div id="karaoke-controls-bar" class="karaoke-controls-bar" hidden>
+        <p id="karaoke-sync-point-label" class="karaoke-sync-point-label">次の同期ポイント：―</p>
+        <div class="karaoke-controls-main-row">
+          <button id="karaoke-too-early-button" class="karaoke-control-button" type="button">← コールが早い</button>
+          <button id="karaoke-now-button" class="karaoke-now-button" type="button">🎯 今！</button>
+          <button id="karaoke-too-late-button" class="karaoke-control-button" type="button">コールが遅い →</button>
+        </div>
+        <button id="karaoke-advanced-toggle-button" class="karaoke-advanced-toggle-button" type="button">詳細調整</button>
+        <div id="karaoke-advanced-panel" class="karaoke-advanced-panel" hidden>
+          <div class="karaoke-advanced-row">
+            <button id="karaoke-fine-early-button" class="karaoke-control-button-small" type="button">早い −0.1秒</button>
+            <button id="karaoke-fine-late-button" class="karaoke-control-button-small" type="button">遅い +0.1秒</button>
+          </div>
+          <div class="karaoke-advanced-row">
+            <button id="karaoke-big-early-button" class="karaoke-control-button-small" type="button">早い −0.5秒</button>
+            <button id="karaoke-big-late-button" class="karaoke-control-button-small" type="button">遅い +0.5秒</button>
+          </div>
+        </div>
+        <div class="karaoke-settings-row">
+          <button id="karaoke-beginner-nav-toggle-button" class="karaoke-settings-toggle-button" type="button">初心者ナビ：ON</button>
+          <button id="karaoke-vibration-toggle-button" class="karaoke-settings-toggle-button" type="button">振動：ON</button>
+          <button id="karaoke-reset-sync-button" class="karaoke-reset-button" type="button">同期をやり直す</button>
+        </div>
+      </div>
     </section>
 
     <!-- タイムアタック：設定画面。出題数・カテゴリ・ルールを選んで開始する。
@@ -3188,6 +3314,27 @@
 
       <h3>会場でのお願い</h3>
       <p>会場や公演によって、コールの可否やルールが異なる場合があります。周囲の方への配慮と、当日の案内を優先してライブを楽しんでください。なお、このモードはオンライン対戦の対象ではなく、プレイ履歴・自己ベスト・称号にも反映されません（1人で使う参照ツールです）。</p>
+    </div>
+  </div>
+
+  <div id="karaoke-sync-rules-modal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="karaoke-sync-rules-modal-title">
+      <button id="karaoke-sync-rules-modal-close" class="modal-close-button" type="button" aria-label="閉じる">×</button>
+
+      <h2 id="karaoke-sync-rules-modal-title">カラオケ同期の使い方</h2>
+      <p class="modal-lead">カラオケの音に合わせて、コールを練習するための機能です。</p>
+
+      <h3>はじめかた</h3>
+      <p>曲が始まった瞬間に「曲スタート！」を押してください。少しずれても大丈夫です。「コールが早い」「コールが遅い」で、ずれを直せます。</p>
+
+      <h3>途中でずれてしまったら</h3>
+      <p>途中で分かるコールが来た場合は「今！」を押すと、そこからタイミングを合わせ直せます。何度でも押して構いません。分からなくなった場合は「同期をやり直す」から、いつでも最初の状態に戻せます（曲データ・コールデータ・歌詞データが削除されることはありません）。</p>
+
+      <h3>歌詞表示について</h3>
+      <p>下に表示される歌詞は参考用です。歌詞の同期がずれていても、コールのタイミングを基準に表示しています。</p>
+
+      <h3>初心者ナビ</h3>
+      <p>初心者ナビをONにすると、次に来るコールと残り秒数（NEXT CALL）、コールが近づいたときの予告、同期チェックの案内などが表示されます。コールに慣れている方はOFFにすると、表示をシンプルにできます。</p>
     </div>
   </div>
 
