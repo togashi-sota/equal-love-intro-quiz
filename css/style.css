@@ -11319,49 +11319,41 @@ body[data-screen="liveCallModeKaraoke"] .game-frame {
   transform: translateX(-50%) translateY(-4px);
 }
 
-/* 一時停止／再開＋タイミング調整。「曲が流れている最中に何度も押すか？」の基準で、
-   常時表示するのはこの6ボタンだけに絞った（本人指示の判断基準）。符号の向きはjs/karaokeSync.jsの
-   adjustOffsetMs()と完全に対応させている：右（+側）＝早める、左（−側）＝遅らせる。 */
-.karaoke-timing-heading {
-  margin: 0 0 6px;
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: var(--color-text);
-  opacity: 0.65;
-  text-align: center;
-}
-
-.karaoke-timing-row {
-  display: grid;
-  grid-template-columns: 0.85fr 1fr 1fr 1.2fr 1fr 1fr;
-  gap: 5px;
-}
-
-/* 一時停止／再開ボタン。既存の.icon-play/.icon-pause出し分け方式は「非playing時にicon-play」
-   基準の他コンポーネントと逆（カラオケは同期開始直後が「再生中」＝アイコンはicon-pauseを
-   既定表示にしたい）のため、汎用ルールに頼らずこのクラス配下だけで独自に出し分ける。 */
+/* 一時停止／再開ボタン（UI/UX第5版で独立した行へ分離。2026-08-09）。
+   タイミング調整の数値ボタン列に混ぜると「意味が違うボタンなのに紛れて分かりにくい」という
+   本人指摘を受け、専用の1行・アイコン＋文字ラベル入りボタンにした。既定では楽曲＋コール同期の
+   両方をまとめて一時停止／再開する操作になる（個別に止めたい場合はヘッダーの「⋯」から）。
+   既存の.icon-play/.icon-pause出し分け方式は「非playing時にicon-play」基準の他コンポーネントと
+   逆（カラオケは同期開始直後が「再生中」＝アイコンはicon-pauseを既定表示にしたい）のため、
+   汎用ルールに頼らずこのクラス配下だけで独自に出し分ける。 */
 .karaoke-pause-resume-button {
-  min-height: 44px;
-  padding: 8px 4px;
+  width: 100%;
+  min-height: 46px;
+  margin-bottom: 10px;
+  padding: 8px 16px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1.5px solid var(--color-primary);
-  border-radius: 14px;
-  background-color: transparent;
-  color: var(--color-primary-dark);
+  gap: 8px;
+  border: none;
+  border-radius: 16px;
+  background: linear-gradient(120deg, var(--color-primary-dark), var(--color-primary));
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 0.92rem;
+  font-weight: 800;
   cursor: pointer;
-  transition: transform var(--transition-fast) cubic-bezier(0.34, 1.56, 0.64, 1), background-color var(--transition-base);
+  transition: transform var(--transition-fast) cubic-bezier(0.34, 1.56, 0.64, 1), background var(--transition-base);
 }
 
 .karaoke-pause-resume-button:active {
-  transform: scale(0.94);
-  background-color: var(--color-primary-light);
+  transform: scale(0.97);
 }
 
 .karaoke-pause-resume-button svg {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
+  flex: none;
 }
 
 .karaoke-pause-resume-button .icon-play {
@@ -11377,8 +11369,30 @@ body[data-screen="liveCallModeKaraoke"] .game-frame {
 }
 
 .karaoke-pause-resume-button.is-paused {
-  border-color: var(--color-accent);
-  background: var(--color-accent-soft);
+  background: linear-gradient(120deg, var(--color-accent), var(--color-call-glow));
+  color: var(--color-primary-dark);
+}
+
+.karaoke-pause-resume-label {
+  line-height: 1;
+}
+
+/* タイミング調整。「曲が流れている最中に何度も押すか？」の基準で、常時表示するのは
+   一時停止/再開ボタンとこの5ボタンだけに絞った（本人指示の判断基準）。符号の向きは
+   js/karaokeSync.jsのadjustOffsetMs()と完全に対応させている：右（+側）＝早める、左（−側）＝遅らせる。 */
+.karaoke-timing-heading {
+  margin: 0 0 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--color-text);
+  opacity: 0.65;
+  text-align: center;
+}
+
+.karaoke-timing-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.3fr 1fr 1fr;
+  gap: 6px;
 }
 
 .karaoke-timing-button {
@@ -11463,6 +11477,12 @@ body[data-screen="liveCallModeKaraoke"] .game-frame {
   font-family: inherit;
   text-align: left;
   cursor: pointer;
+}
+
+/* displayの指定がhidden属性より優先されてしまう問題への対策（他画面のhidden要素と同じ理由）。
+   端末音源が無い曲では「楽曲を一時停止」項目をここで隠す。 */
+.karaoke-more-menu-item[hidden] {
+  display: none;
 }
 
 .karaoke-more-menu-item:last-child {

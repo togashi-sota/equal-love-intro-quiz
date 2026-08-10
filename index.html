@@ -1429,16 +1429,22 @@
       </div>
 
       <!-- 下部：一時停止/再開とタイミング調整だけを常時固定表示する。
-           中央の内容がどう変わってもここの位置は動かさない。 -->
+           中央の内容がどう変わってもここの位置は動かさない。
+           UI/UX第5版（2026-08-09）：一時停止ボタンの意味が分かりにくいという指摘を受け、
+           タイミング調整の数値ボタン列とは別の行に分け、アイコンだけでなく文字（一時停止/再開）も
+           表示するようにした。既定では「楽曲＋コール同期の両方」を一括で止める操作になる
+           （個別に止めたい場合はヘッダーの「⋯」から）。 -->
       <div id="karaoke-footer-zone" class="karaoke-footer-zone" hidden>
         <p id="karaoke-toast" class="karaoke-toast" hidden></p>
 
+        <button id="karaoke-pause-resume-button" class="karaoke-pause-resume-button" type="button" aria-label="楽曲とコール同期を一時停止する">
+          <svg class="icon-pause" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
+          <svg class="icon-play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7Z"/></svg>
+          <span id="karaoke-pause-resume-label" class="karaoke-pause-resume-label">一時停止</span>
+        </button>
+
         <p class="karaoke-timing-heading">タイミング調整</p>
         <div class="karaoke-timing-row">
-          <button id="karaoke-pause-resume-button" class="karaoke-pause-resume-button" type="button" aria-label="一時停止する">
-            <svg class="icon-pause" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
-            <svg class="icon-play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7Z"/></svg>
-          </button>
           <button id="karaoke-offset-minus-05-button" class="karaoke-timing-button" type="button">−0.5</button>
           <button id="karaoke-offset-minus-01-button" class="karaoke-timing-button" type="button">−0.1</button>
           <button id="karaoke-offset-reset-button" class="karaoke-timing-reset-button" type="button">0に戻す</button>
@@ -3354,7 +3360,7 @@
       <p>上に表示されるのが、今読んでいる歌詞を含む数行です（スクロールもできます）。その下に大きく表示されるのが、今のコール（聞こえているとき）か、次に来るコールと残り秒数です。</p>
 
       <h3>一時停止</h3>
-      <p>画面下の一時停止ボタンで、端末音源と同期タイマーを同時に止められます。もう一度押すと、止めた位置からそのまま再開します。</p>
+      <p>画面下の「⏸ 一時停止」ボタンで、端末音源とコール同期（歌詞・コール・NEXT CALL）を両方まとめて止められます。もう一度押す（「▶ 再開」に変わります）と、止めた位置からそのまま再開します。楽曲だけ、コール同期だけを個別に止めたい場合は、「⋯」から操作できます。</p>
 
       <h3>初心者ナビ</h3>
       <p>「⋯」の「初心者ナビ」をONにすると、NEXT CALLの見出しやカウントダウンが表示されます。コールに慣れている方はOFFにすると、コール本文だけのシンプルな表示にできます。</p>
@@ -3375,6 +3381,25 @@
         <span class="karaoke-more-menu-item-text">
           <span class="karaoke-more-menu-item-name">今！で合わせ直す</span>
           <span id="karaoke-sync-point-label" class="karaoke-more-menu-item-description">―</span>
+        </span>
+      </button>
+
+      <!-- 個別の一時停止（UI/UX第5版で新設）。通常は使わない特殊操作のため⋯へ格納。
+           楽曲を一時停止する項目は、端末音源が読み込まれていない曲では
+           js/karaokeSyncScreen.jsが動的にhidden属性を付ける。 -->
+      <button id="karaoke-pause-audio-only-button" class="karaoke-more-menu-item" type="button">
+        <span class="karaoke-more-menu-item-icon" aria-hidden="true">🎵</span>
+        <span class="karaoke-more-menu-item-text">
+          <span id="karaoke-pause-audio-only-label" class="karaoke-more-menu-item-name">楽曲を一時停止</span>
+          <span class="karaoke-more-menu-item-description">端末音源だけを止めます（コール同期は進み続けます）</span>
+        </span>
+      </button>
+
+      <button id="karaoke-pause-sync-only-button" class="karaoke-more-menu-item" type="button">
+        <span class="karaoke-more-menu-item-icon" aria-hidden="true">🕒</span>
+        <span class="karaoke-more-menu-item-text">
+          <span id="karaoke-pause-sync-only-label" class="karaoke-more-menu-item-name">コール同期を一時停止</span>
+          <span class="karaoke-more-menu-item-description">歌詞・コール・NEXT CALLだけを止めます（端末音源は流れ続けます）</span>
         </span>
       </button>
 

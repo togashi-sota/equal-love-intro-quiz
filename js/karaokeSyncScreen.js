@@ -22,6 +22,10 @@
 //     完全に同じロジックを1行も複製せずに再利用できている。
 //  2. 一時停止／再開を追加。js/karaokeSync.jsのpauseKaraokeSync/resumeKaraokeSyncを使い、
 //     端末音源・同期時計・歌詞ハイライト・NEXT CALLカウントダウンを同時に止め、同時に再開する。
+//     【UI/UX第5版・2026-08-09】メインの一時停止ボタンの意味が分かりにくいという指摘を受け、
+//     「楽曲（端末音源）」と「コール同期（歌詞・コール・NEXT CALL）」を明確に分離した。
+//     画面下部のメインボタンは既定で両方をまとめて止める・再開する操作にし、個別に止めたい
+//     場合だけ「⋯」メニューから操作できるようにした（詳細は一時停止まわりの関数群を参照）。
 //  3. 「今！」は⋯メニューに残しつつ、歌詞タップという、より低摩擦で高頻度に使える補正手段を
 //     常設した。「今！」はコールデータ（手動で0.1秒単位まで調整済み、精度が高い）を基準にでき、
 //     歌詞タップは歌詞データ（一部AI補助で精度が一定でない）を基準にする、という精度の違いが
@@ -296,8 +300,9 @@ async function handleStartButtonClick() {
   elements.songEndBanner.hidden = true;
 
   syncBeginnerNavUI();
-  updatePauseResumeButtonUI();
+  updateAllPauseUI();
   await startDeviceAudioPlayback();
+  updateAllPauseUI(); // 端末音源の有無が確定した後、⋯メニューの「楽曲を一時停止」表示に反映する
 
   startTickLoop();
   tick();
@@ -335,31 +340,109 @@ function handleDeviceAudioEnded() {
   elements.songEndBanner.hidden = false;
 }
 
-// ===== 一時停止／再開（UI/UX第4版で追加） =====
-// 「0秒へ戻す完全停止」ではなく、今の位置から再開できる一時停止。端末音源・同期時計・
-// 歌詞ハイライト・NEXT CALLカウントダウンを同時に止め、同時に再開する（本人の最重要要望）。
-function updatePauseResumeButtonUI() {
-  const isPaused = syncState.isPaused;
-  elements.pauseResumeButton.classList.toggle("is-paused", isPaused);
-  elements.pauseResumeButton.setAttribute("aria-label", isPaused ? "再開する" : "一時停止する");
+// ===== 一時停止／再開（UI/UX第4版で追加、第5版で「楽曲」と「コール同期」を分離） =====
+// カラオケ同期には実質2つの独立した時計がある：
+//   A. 端末音源（<audio>要素自体が持つ再生/一時停止状態）
+//   B. コール同期タイマー（js/karaokeSync.jsのsyncState.isPaused）
+// 「0秒へ戻す完全停止」ではなく、今の位置から再開できる一時停止。画面下部のメインボタンは
+// 「両方まとめて」止める・再開する操作にし（本人指示：一番よく使う操作をここに）、
+// 楽曲だけ／コール同期だけを個別に止めたい場合は「⋯」メニューから行う（低頻度操作のため）。
+
+// 端末音源が読み込まれているかどうか（＝「楽曲を一時停止」操作が意味を持つかどうか）。
+function hasDeviceAudioLoaded() {
+  return deviceAudioObjectUrl !== null;
 }
 
-function handlePauseResumeClick() {
-  const nowMs = performance.now();
-  if (syncState.isPaused) {
-    syncState = resumeKaraokeSync(syncState, nowMs);
-    if (elements.deviceAudio.src) {
-      notifyPlaybackStarting("karaokeSync");
-      elements.deviceAudio.play().catch(() => {});
-    }
-    startTickLoop();
-  } else {
-    syncState = pauseKaraokeSync(syncState, nowMs);
-    elements.deviceAudio.pause();
-    stopTickLoop();
+function pauseSyncClockOnly() {
+  if (syncState.isPaused) return;
+  syncState = pauseKaraokeSync(syncState, performance.now());
+  stopTickLoop();
+}
+
+function resumeSyncClockOnly() {
+  if (!syncState.isPaused) return;
+  syncState = resumeKaraokeSync(syncState, performance.now());
+  startTickLoop();
+}
+
+function pauseDeviceAudioOnly() {
+  elements.deviceAudio.pause();
+}
+
+function resumeDeviceAudioOnly() {
+  if (!hasDeviceAudioLoaded()) return;
+  notifyPlaybackStarting("karaokeSync");
+  elements.deviceAudio.play().catch(() => {});
+}
+
+// メインボタン・⋯メニューの表示を、今の実際の状態（syncState.isPaused／端末音源の再生状態）
+// から毎回計算し直す。専用の「両方止まっているか」フラグは持たず、実体から都度導出することで、
+// 個別に止めた場合でも表示が食い違わないようにしている。
+function updateAllPauseUI() {
+  const audioLoaded = hasDeviceAudioLoaded();
+  const audioPaused = !audioLoaded || elements.deviceAudio.paused;
+  const bothPaused = syncState.isPaused && audioPaused;
+
+  elements.pauseResumeButton.classList.toggle("is-paused", bothPaused);
+  elements.pauseResumeLabel.textContent = bothPaused ? "再開" : "一時停止";
+  elements.pauseResumeButton.setAttribute(
+    "aria-label",
+    bothPaused ? "楽曲とコール同期を再開する" : "楽曲とコール同期を一時停止する"
+  );
+
+  // 端末音源が無い曲では、「楽曲を一時停止」自体に意味が無いためメニューから隠す
+  // （本人指示：disabledよりも隠す方が分かりやすい）。
+  elements.pauseAudioOnlyButton.hidden = !audioLoaded;
+  if (audioLoaded) {
+    elements.pauseAudioOnlyLabel.textContent = audioPaused ? "楽曲を再開する" : "楽曲を一時停止";
   }
-  updatePauseResumeButtonUI();
+  elements.pauseSyncOnlyLabel.textContent = syncState.isPaused ? "コール同期を再開する" : "コール同期を一時停止";
+}
+
+// メインの「⏸ 一時停止／▶ 再開」ボタン：既定では楽曲＋コール同期の両方を対象にする。
+// 個別に一方だけ止めていた場合でも、押せば「両方止まっている状態」または
+// 「両方動いている状態」のどちらかへ必ず揃う（中途半端な状態を残さない）。
+function handleMainPauseResumeClick() {
+  const audioLoaded = hasDeviceAudioLoaded();
+  const audioPaused = !audioLoaded || elements.deviceAudio.paused;
+  const bothPaused = syncState.isPaused && audioPaused;
+
+  if (bothPaused) {
+    resumeSyncClockOnly();
+    resumeDeviceAudioOnly();
+  } else {
+    pauseSyncClockOnly();
+    if (audioLoaded) pauseDeviceAudioOnly();
+  }
+  updateAllPauseUI();
   tick(); // 停止した瞬間・再開した瞬間の位置を、次のtickを待たずに即座に描画へ反映する
+}
+
+// ⋯メニュー：楽曲だけを個別に一時停止／再開する（特殊操作）。
+function handleAudioOnlyToggleClick() {
+  if (!hasDeviceAudioLoaded()) {
+    closeMoreMenu();
+    return;
+  }
+  if (elements.deviceAudio.paused) {
+    resumeDeviceAudioOnly();
+  } else {
+    pauseDeviceAudioOnly();
+  }
+  updateAllPauseUI();
+  closeMoreMenu();
+}
+
+// ⋯メニュー：コール同期だけを個別に一時停止／再開する（特殊操作）。
+function handleSyncOnlyToggleClick() {
+  if (syncState.isPaused) {
+    resumeSyncClockOnly();
+  } else {
+    pauseSyncClockOnly();
+  }
+  updateAllPauseUI();
+  tick();
+  closeMoreMenu();
 }
 
 // タイミング調整だけを一瞬でリセットする「0秒に戻す」も、この画面全体の状態リセットである
@@ -377,6 +460,11 @@ function handleOffsetResetClick() {
   showToast("タイミング調整を0秒に戻しました");
 }
 
+// 「今！」：現在または次の同期ポイント（短いコール）のstart時刻へ、コール同期の基準時刻を
+// 合わせ直す。端末音源が読み込まれていれば、その位置も一緒にseekする（本人指示：楽曲だけ／
+// コール同期だけを個別に止めたあとでズレた場合の再同期手段として、歌詞タップと同じく
+// 両方を揃える動作にする）。一時停止中でも使え、一時停止状態自体は維持される
+// （js/karaokeSync.jsのresyncToPosition参照）。
 function handleResyncButtonClick() {
   if (!syncState.isSyncing) {
     closeMoreMenu();
@@ -389,6 +477,9 @@ function handleResyncButtonClick() {
     return;
   }
   syncState = resyncToPosition(syncState, syncPointCall.start, performance.now());
+  if (hasDeviceAudioLoaded()) {
+    elements.deviceAudio.currentTime = syncPointCall.start;
+  }
   lastRenderedOffsetLabel = null; // 直後のtick()で必ず再描画させる
   tick();
   showToast(`「${syncPointCall.text}」に合わせ直しました`);
@@ -404,7 +495,7 @@ function handleLyricTapSeek(line) {
   if (!syncState.isSyncing) return;
   const nowMs = performance.now();
   syncState = resyncToPosition(syncState, line.start, nowMs);
-  if (elements.deviceAudio.src) {
+  if (hasDeviceAudioLoaded()) {
     elements.deviceAudio.currentTime = line.start;
   }
   lastRenderedOffsetLabel = null;
@@ -431,7 +522,7 @@ function resetToStartPanel() {
   elements.songEndBanner.hidden = true;
   elements.deviceAudioNotice.hidden = true;
   elements.syncPanel.classList.remove("is-long-call-active");
-  updatePauseResumeButtonUI();
+  updateAllPauseUI();
   lastRenderedCallHudEyebrow = null;
   lastRenderedCallHudText = null;
   lastRenderedCallHudCountdown = null;
@@ -481,7 +572,7 @@ export async function openKaraokeSyncScreen(songId) {
   elements.toast.hidden = true;
 
   syncBeginnerNavUI();
-  updatePauseResumeButtonUI();
+  updateAllPauseUI();
 
   return { ok: true };
 }
@@ -505,11 +596,12 @@ export function closeKaraokeSyncScreen() {
 //   songEndBanner, songEndRestartButton, songEndChooseButton,
 //   deviceAudio,
 //   footerZone, toast,
-//   pauseResumeButton,
+//   pauseResumeButton, pauseResumeLabel,
 //   offsetMinus05Button, offsetMinus01Button, offsetResetButton, offsetPlus01Button, offsetPlus05Button,
 //   offsetLabel,
 //   moreMenuModal, moreMenuCloseButton,
 //   nowButton, syncPointLabel,
+//   pauseAudioOnlyButton, pauseAudioOnlyLabel, pauseSyncOnlyButton, pauseSyncOnlyLabel,
 //   beginnerNavToggleButton, beginnerNavToggleLabel,
 //   restartSongButton,
 //   onRequestChooseSong: 「曲を選ぶ」（曲終了バナー）が押されたときに呼ばれるコールバック,
@@ -519,7 +611,7 @@ export function initKaraokeSyncScreen(newElements) {
 
   elements.startButton.addEventListener("click", handleStartButtonClick);
   elements.deviceAudio.addEventListener("ended", handleDeviceAudioEnded);
-  elements.pauseResumeButton.addEventListener("click", handlePauseResumeClick);
+  elements.pauseResumeButton.addEventListener("click", handleMainPauseResumeClick);
 
   elements.offsetMinus05Button.addEventListener("click", () => applyOffsetDelta(-OFFSET_STEP_BIG_MS));
   elements.offsetMinus01Button.addEventListener("click", () => applyOffsetDelta(-OFFSET_STEP_FINE_MS));
@@ -534,6 +626,8 @@ export function initKaraokeSyncScreen(newElements) {
   });
 
   elements.nowButton.addEventListener("click", handleResyncButtonClick);
+  elements.pauseAudioOnlyButton.addEventListener("click", handleAudioOnlyToggleClick);
+  elements.pauseSyncOnlyButton.addEventListener("click", handleSyncOnlyToggleClick);
   elements.beginnerNavToggleButton.addEventListener("click", handleBeginnerNavToggleClick);
   elements.restartSongButton.addEventListener("click", handleRestartSongButtonClick);
 

@@ -483,6 +483,7 @@ const karaokeDeviceAudioElement = document.getElementById("karaoke-device-audio"
 const karaokeFooterZoneElement = document.getElementById("karaoke-footer-zone");
 const karaokeToastElement = document.getElementById("karaoke-toast");
 const karaokePauseResumeButtonElement = document.getElementById("karaoke-pause-resume-button");
+const karaokePauseResumeLabelElement = document.getElementById("karaoke-pause-resume-label");
 const karaokeOffsetMinus05ButtonElement = document.getElementById("karaoke-offset-minus-05-button");
 const karaokeOffsetMinus01ButtonElement = document.getElementById("karaoke-offset-minus-01-button");
 const karaokeOffsetResetButtonElement = document.getElementById("karaoke-offset-reset-button");
@@ -493,6 +494,10 @@ const karaokeMoreMenuModalElement = document.getElementById("karaoke-more-menu-m
 const karaokeMoreMenuCloseButtonElement = document.getElementById("karaoke-more-menu-close");
 const karaokeNowButtonElement = document.getElementById("karaoke-now-button");
 const karaokeSyncPointLabelElement = document.getElementById("karaoke-sync-point-label");
+const karaokePauseAudioOnlyButtonElement = document.getElementById("karaoke-pause-audio-only-button");
+const karaokePauseAudioOnlyLabelElement = document.getElementById("karaoke-pause-audio-only-label");
+const karaokePauseSyncOnlyButtonElement = document.getElementById("karaoke-pause-sync-only-button");
+const karaokePauseSyncOnlyLabelElement = document.getElementById("karaoke-pause-sync-only-label");
 const karaokeBeginnerNavToggleButtonElement = document.getElementById("karaoke-beginner-nav-toggle-button");
 const karaokeBeginnerNavToggleLabelElement = document.getElementById("karaoke-beginner-nav-toggle-label");
 const karaokeRestartSongButtonElement = document.getElementById("karaoke-restart-song-button");
@@ -1129,6 +1134,7 @@ initKaraokeSyncScreen({
   footerZone: karaokeFooterZoneElement,
   toast: karaokeToastElement,
   pauseResumeButton: karaokePauseResumeButtonElement,
+  pauseResumeLabel: karaokePauseResumeLabelElement,
   offsetMinus05Button: karaokeOffsetMinus05ButtonElement,
   offsetMinus01Button: karaokeOffsetMinus01ButtonElement,
   offsetResetButton: karaokeOffsetResetButtonElement,
@@ -1139,6 +1145,10 @@ initKaraokeSyncScreen({
   moreMenuCloseButton: karaokeMoreMenuCloseButtonElement,
   nowButton: karaokeNowButtonElement,
   syncPointLabel: karaokeSyncPointLabelElement,
+  pauseAudioOnlyButton: karaokePauseAudioOnlyButtonElement,
+  pauseAudioOnlyLabel: karaokePauseAudioOnlyLabelElement,
+  pauseSyncOnlyButton: karaokePauseSyncOnlyButtonElement,
+  pauseSyncOnlyLabel: karaokePauseSyncOnlyLabelElement,
   beginnerNavToggleButton: karaokeBeginnerNavToggleButtonElement,
   beginnerNavToggleLabel: karaokeBeginnerNavToggleLabelElement,
   restartSongButton: karaokeRestartSongButtonElement,
