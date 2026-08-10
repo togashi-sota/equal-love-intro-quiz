@@ -39,6 +39,20 @@ export function isShortCallText(text) {
   return typeof text === "string" && text.length > 0 && text.length <= SHORT_CALL_MAX_LENGTH;
 }
 
+// ===== コール表示の3段階（SHORT/MEDIUM/LONG） =====
+// 「はい！」のような短いコールは画面いっぱいに大きく／一瞬で、MIX・口上のような長いコールは
+// 読める大きさ・落ち着いた演出に抑える、という区分を通常再生・カラオケ同期の両画面で
+// 共通して使うための純粋関数（UI/UX第3版でカラオケ側に作ったものを、UI/UX第6版で
+// 通常再生の演出強化にも使うことになったため、こちらを実体としてjs/karaokeSync.jsから
+// 再エクスポートする形に統一した。境界の定義を2箇所に重複させない）。
+// MEDIUMの上限20文字は、このファイルの長文コール表示（LONGFORM_LENGTH_TIERS）の
+// 最初の区切り「compact」と揃えている。
+export function getCallDisplayTier(text) {
+  if (isShortCallText(text)) return "short";
+  if (typeof text === "string" && text.length <= 20) return "medium";
+  return "long";
+}
+
 let burstLayerElement = null;
 let burstHideTimeoutId = null;
 
@@ -129,18 +143,23 @@ function ensureLongCallOverlay() {
 // 「前のコールの表示を確実に消してから、新しい表示に切り替える」という本人要望のため、
 // 呼ばれるたびに一度非表示状態へ戻し、1フレーム空けてから改めて表示する
 // （triggerCallBurst()と同じ「クラスを外して付け直す」方式）。
-function showLongCallDisplay(text) {
+//
+// tier（"medium"|"long"）は演出の強さの区分（UI/UX第6版で追加）。文字サイズの4段階
+// （is-length-tier-*）とは別軸で、外側のoverlay要素に`is-call-tier-${tier}`を付け、
+// CSS側でMEDIUM＝数秒間の勢いあるスライドイン、LONG＝表示中ずっと続くアンビエントな
+// 光の演出、という区別を実現する（js側はクラスの出し分けだけで、演出そのものはCSSに委ねる）。
+function showLongCallDisplay(text, tier) {
   const overlay = ensureLongCallOverlay();
   const textElement = overlay.querySelector(".call-longform-overlay-text");
 
-  overlay.classList.remove("is-active");
+  overlay.classList.remove("is-active", "is-call-tier-medium", "is-call-tier-long");
   // eslint-disable-next-line no-unused-expressions
   void overlay.offsetWidth; // reflowを強制し、クラス再付与でアニメーションを確実に再生させる
 
   textElement.textContent = text;
   textElement.className = `call-longform-overlay-text is-length-tier-${getLongCallDisplayLengthTier(text)}`;
 
-  overlay.classList.add("is-active");
+  overlay.classList.add("is-active", `is-call-tier-${tier}`);
   longCallActive = true;
 }
 
@@ -167,7 +186,10 @@ function resetLongCallDisplayInstantly() {
 // コールの種類ごとの表示ラベル（本文そのものではなく、種類を示す小さなバッジに使う）。
 // 本文（Oh yeah!等の実際の文言）はcallStorage.js側のデータにのみ含まれ、
 // このファイルには一切書かない。
-const CALL_TYPE_LABELS = {
+// exportしているのは、js/karaokeSync.jsのNEXT CALL予告（長文コールの短縮表示）でも
+// 同じ種別ラベルを使い回すため（本人指示：既存データに種類情報があるならそれを使い、
+// 予告欄専用の文言を新たに作らない）。
+export const CALL_TYPE_LABELS = {
   mix: "MIX",
   "member-call": "コール",
   callback: "合いの手",
@@ -191,11 +213,12 @@ function applyActiveIndex(index) {
 
   const newlyActiveCall = index !== -1 ? renderedCalls[index] : null;
   if (newlyActiveCall) {
-    if (isShortCallText(newlyActiveCall.text)) {
+    const tier = getCallDisplayTier(newlyActiveCall.text);
+    if (tier === "short") {
       triggerCallBurst(newlyActiveCall.text);
       hideLongCallDisplay(); // 短⇔長を行き来した場合に、前の長文表示が残らないようにする
     } else {
-      showLongCallDisplay(newlyActiveCall.text);
+      showLongCallDisplay(newlyActiveCall.text, tier); // tier: "medium" | "long"
     }
   } else {
     hideLongCallDisplay();

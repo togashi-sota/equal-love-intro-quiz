@@ -3885,7 +3885,8 @@ fieldset label:has(input:focus-visible) {
   box-shadow: 0 0 24px 6px rgba(255, 159, 67, 0.55), 0 0 46px 14px rgba(255, 217, 61, 0.35);
 }
 
-/* 持続中はゆっくり光が脈打つ（.is-activeが付いている間だけループ）。 */
+/* 持続中はゆっくり光が脈打つ（.is-activeが付いている間だけループ）。tier別の演出
+   （下記is-call-tier-medium/long）が上書きしなかった場合の共通の土台になる。 */
 .call-longform-overlay.is-active .call-longform-overlay-text {
   animation: call-longform-glow-pulse 1400ms ease-in-out infinite;
 }
@@ -3897,6 +3898,102 @@ fieldset label:has(input:focus-visible) {
   }
   50% {
     box-shadow: 0 0 34px 10px rgba(255, 159, 67, 0.8), 0 0 64px 20px rgba(255, 217, 61, 0.5);
+  }
+}
+
+/* ===== MEDIUM／LONGで演出の強さを変える（UI/UX第6版で追加） =====
+   これまでSHORT以外は全部同じ「フェードイン＋一定の光の脈動」だけで、本人から
+   「画面を大きく使っている割には演出が弱い」という指摘を受けた。tier（js/callSync.jsの
+   showLongCallDisplayが付ける is-call-tier-medium／is-call-tier-long）で下記のように
+   差をつける。動かすプロパティはtransform/opacity/box-shadow/filterのみ（本人指示：
+   低スペック端末を考慮し、DOM再構築やレイアウトに影響するプロパティは使わない）。
+   回転を使う場合は「登場時だけ」または「背景要素だけ」に留め、本文そのものを
+   ぐるぐる回して読みにくくすることはしない（本人指示）。
+   「視差効果を減らす」設定時は、このファイル末尾の共通ルールがanimation-durationを
+   一律ほぼ0にするため、個別対応は不要（既存のSHORT/カラオケHUD演出と同じ扱い）。 */
+
+/* MEDIUM：数秒間だけ続く、勢いのあるコール。画面中央へ大きくスライドイン＋少し
+   オーバーシュートしてから収まり、表示中は控えめにpulseする「ライブ感」を出す。 */
+.call-longform-overlay.is-call-tier-medium .call-longform-overlay-text {
+  animation: call-longform-glow-pulse 1000ms ease-in-out infinite, callMediumEntrance 460ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes callMediumEntrance {
+  0% {
+    transform: scale(0.5) translateY(36px);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.1) translateY(-6px);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* LONG：MIX・口上のような長く続くコール。表示されている間ずっと、ライブ照明のような
+   光がゆっくり回り込む背景（::before）を添え、本文は大きくズームインしたあと、
+   非常に緩やかな呼吸pulseで「今もライブが続いている」感じを保つ。 */
+.call-longform-overlay.is-call-tier-long .call-longform-overlay-text {
+  position: relative;
+  z-index: 1;
+  animation: call-longform-glow-pulse 2600ms ease-in-out infinite, callLongEntrance 640ms cubic-bezier(0.22, 1, 0.36, 1),
+    callLongBreathe 4200ms ease-in-out 640ms infinite;
+}
+
+@keyframes callLongEntrance {
+  0% {
+    transform: scale(0.35) rotate(-5deg);
+    opacity: 0;
+  }
+  55% {
+    transform: scale(1.08) rotate(2deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+@keyframes callLongBreathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.015);
+  }
+}
+
+/* LONGのときだけ、画面全体にゆっくり回るぼんやりした光のリングを背景に添える
+   （本人指示：回転させるのは背景・光の要素だけで、本文そのものは回さない）。 */
+.call-longform-overlay.is-call-tier-long::before {
+  content: "";
+  position: absolute;
+  inset: -25%;
+  z-index: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    rgba(255, 217, 61, 0) 0%,
+    rgba(255, 217, 61, 0.4) 18%,
+    rgba(255, 159, 67, 0) 38%,
+    rgba(255, 89, 150, 0.32) 58%,
+    rgba(255, 217, 61, 0) 78%,
+    rgba(255, 217, 61, 0.4) 100%
+  );
+  filter: blur(28px);
+  animation: callLongRingRotate 7s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes callLongRingRotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
   }
 }
 
@@ -11090,6 +11187,51 @@ body[data-screen="liveCallModeKaraoke"] .game-frame {
   font-variant-numeric: tabular-nums;
 }
 
+/* NEXT予告（UI/UX第6版で追加）：現在／次のコールより優先度を落とした、ごく小さな2件までの
+   予告表示。本文の主役はあくまでcallHudText側のため、文字サイズ・彩度ともに控えめにする
+   （本人指示：優先順位は「現在・もうすぐ」＞「次のコール」＞「その次」＞「さらにその次」）。 */
+.karaoke-call-hud-preview-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px 8px;
+  margin: 2px 0 0;
+  max-width: 100%;
+}
+
+.karaoke-call-hud-preview-row[hidden] {
+  display: none;
+}
+
+.karaoke-call-hud-preview-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--color-text);
+  opacity: 0.55;
+}
+
+.karaoke-call-hud-preview-item {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--color-secondary);
+  opacity: 0.85;
+  max-width: 40vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.karaoke-call-hud-preview-item[hidden] {
+  display: none;
+}
+
+/* 次の予告は、その次の予告よりわずかに強調する（★★☆☆☆＞★☆☆☆☆の優先順位を、
+   彩度の差だけで表現する。文言や色分けの断定表現は使わない）。 */
+.karaoke-call-hud-preview-item + .karaoke-call-hud-preview-item {
+  opacity: 0.6;
+}
+
 /* もうすぐ！段階：見出しをオレンジ系に変え、カウントダウンの数字を大きく発光させる */
 .karaoke-call-hud-card.is-imminent {
   animation: karaokeImminentPulse 1s ease-in-out infinite;
@@ -11213,10 +11355,11 @@ body[data-screen="liveCallModeKaraoke"] .game-frame {
   }
 }
 
-/* 初心者ナビOFF：NEXT CALLの見出し・カウントダウンといった装飾を省き、コール本文だけを見せる
-   （本人指示：カラオケに慣れている人は表示をシンプルにできる）。 */
+/* 初心者ナビOFF：NEXT CALLの見出し・カウントダウン・NEXT予告といった装飾を省き、
+   コール本文だけを見せる（本人指示：カラオケに慣れている人は表示をシンプルにできる）。 */
 .karaoke-call-hud-card.is-nav-minimal .karaoke-call-hud-eyebrow,
-.karaoke-call-hud-card.is-nav-minimal .karaoke-call-hud-countdown {
+.karaoke-call-hud-card.is-nav-minimal .karaoke-call-hud-countdown,
+.karaoke-call-hud-card.is-nav-minimal .karaoke-call-hud-preview-row {
   display: none;
 }
 
@@ -11477,12 +11620,6 @@ body[data-screen="liveCallModeKaraoke"] .game-frame {
   font-family: inherit;
   text-align: left;
   cursor: pointer;
-}
-
-/* displayの指定がhidden属性より優先されてしまう問題への対策（他画面のhidden要素と同じ理由）。
-   端末音源が無い曲では「楽曲を一時停止」項目をここで隠す。 */
-.karaoke-more-menu-item[hidden] {
-  display: none;
 }
 
 .karaoke-more-menu-item:last-child {

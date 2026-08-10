@@ -22,14 +22,22 @@
 //     完全に同じロジックを1行も複製せずに再利用できている。
 //  2. 一時停止／再開を追加。js/karaokeSync.jsのpauseKaraokeSync/resumeKaraokeSyncを使い、
 //     端末音源・同期時計・歌詞ハイライト・NEXT CALLカウントダウンを同時に止め、同時に再開する。
-//     【UI/UX第5版・2026-08-09】メインの一時停止ボタンの意味が分かりにくいという指摘を受け、
-//     「楽曲（端末音源）」と「コール同期（歌詞・コール・NEXT CALL）」を明確に分離した。
-//     画面下部のメインボタンは既定で両方をまとめて止める・再開する操作にし、個別に止めたい
-//     場合だけ「⋯」メニューから操作できるようにした（詳細は一時停止まわりの関数群を参照）。
 //  3. 「今！」は⋯メニューに残しつつ、歌詞タップという、より低摩擦で高頻度に使える補正手段を
 //     常設した。「今！」はコールデータ（手動で0.1秒単位まで調整済み、精度が高い）を基準にでき、
 //     歌詞タップは歌詞データ（一部AI補助で精度が一定でない）を基準にする、という精度の違いが
 //     あるため、両方を残す判断をした（詳細はdocs/HANDOFF.md参照）。
+//
+// 【UI/UX第6版・2026-08-10】実機フィードバックを受け、一時停止まわりを再設計した。
+//  1. 「一時停止していた時間の長さだけタイミング補正値がズレる」不具合を修正。
+//     js/karaokeSync.js側で「再生位置」と「タイミング補正値」を状態としても完全に分離した
+//     （詳細はjs/karaokeSync.jsの冒頭コメント参照）。
+//  2. 第5版で追加した「楽曲だけ／コール同期だけ」を個別に一時停止できる⋯メニュー項目は、
+//     実際に使うと2つの時計がズレて初心者には分かりにくいという本人指摘を受けて削除した。
+//     今は常にメインボタン1つで「両方まとめて」止める・再開するだけのシンプルな挙動にしている
+//     （判断の理由はdocs/HANDOFF.md参照）。
+//  3. NEXT CALLカードに、その先1〜2件のコールをごく小さく予告する行を追加した
+//     （現在／次のコールより優先度を下げた副次的な情報のため、長文MIXが実際に鳴っている間や
+//     初心者ナビOFF中は表示しない）。
 //
 // 【UI/UX第3版からの継続方針】画面全体を3ゾーン（①ヘッダー②中央スクロール③下部固定）の
 // 固定レイアウトにし、歌詞・コールの表示内容がどれだけ変わっても、下部の操作ボタンの位置は
@@ -59,6 +67,8 @@ import {
   formatOffsetLabel,
   getNextCallCountdownDisplay,
   getCallDisplayTier,
+  getUpcomingCallPreviews,
+  getCallPreviewLabel,
 } from "./karaokeSync.js";
 
 // ===== 設定の保存（端末ごと。既存のsfx設定等と同じ命名規則・保存方式） =====
@@ -92,6 +102,7 @@ const TICK_INTERVAL_MS = 150; // 秒数表示・ハイライト更新の間隔�
 const OFFSET_STEP_FINE_MS = 100; // ±0.1秒
 const OFFSET_STEP_BIG_MS = 500; // ±0.5秒
 const TOAST_VISIBLE_MS = 1400;
+const NEXT_CALL_PREVIEW_COUNT = 2; // NEXT CALLカードで、その先何件まで予告するか
 
 let elements = null;
 let clockSource = null;
@@ -114,6 +125,7 @@ let lastRenderedCallHudTier = null;
 let lastRenderedLongCallActive = false;
 let lastRenderedOffsetLabel = null;
 let lastRenderedSyncPointCall = undefined;
+let lastRenderedPreviewKey = null;
 
 function resetPerSongRuntimeState() {
   allCalls = [];
@@ -127,6 +139,7 @@ function resetPerSongRuntimeState() {
   lastRenderedLongCallActive = false;
   lastRenderedOffsetLabel = null;
   lastRenderedSyncPointCall = undefined;
+  lastRenderedPreviewKey = null;
 }
 
 function releaseDeviceAudioObjectUrl() {
@@ -250,6 +263,13 @@ function renderCallHud(positionSec) {
     lastRenderedLongCallActive = longCallActive;
   }
 
+  // NEXT予告：今表示している主役コールの、さらに先1〜2件を小さく予告する（UI/UX第6版で追加）。
+  // 優先度は「現在／もうすぐのコール」＞「この予告」の順（本人指示）のため、長文MIXが実際に
+  // 鳴っている間（読みやすさを最優先したい場面）は表示しない。
+  const showPreviews = targetCall !== null && !longCallActive;
+  const previewCalls = showPreviews ? getUpcomingCallPreviews(allCalls, targetCall.start, NEXT_CALL_PREVIEW_COUNT) : [];
+  renderCallHudPreviews(previewCalls);
+
   // 「今！」メニュー項目の説明文（同期ポイント）も、ついでにここで更新する。
   const syncPointCall = findCurrentOrNextSyncPoint(syncPointCandidates, positionSec);
   if (syncPointCall !== lastRenderedSyncPointCall) {
@@ -258,6 +278,24 @@ function renderCallHud(positionSec) {
       : "この曲の同期ポイントは以上です";
     lastRenderedSyncPointCall = syncPointCall;
   }
+}
+
+// NEXT予告の2枠（callHudPreviewItem1/2）へ、予告するコールのラベルを描画する。
+// 件数が変わる／中身が変わるとき以外は何もしない（同じ理由でtargetCallが変わらない限り
+// tickのたびに再計算してもキー文字列が変わらないため、DOM書き込みは発生しない）。
+function renderCallHudPreviews(previewCalls) {
+  const key = previewCalls.map((call) => call.start).join(",");
+  if (key === lastRenderedPreviewKey) return;
+  lastRenderedPreviewKey = key;
+
+  elements.callHudPreviewRow.hidden = previewCalls.length === 0;
+
+  const first = previewCalls[0] ?? null;
+  const second = previewCalls[1] ?? null;
+  elements.callHudPreviewItem1.hidden = !first;
+  elements.callHudPreviewItem1.textContent = first ? getCallPreviewLabel(first) : "";
+  elements.callHudPreviewItem2.hidden = !second;
+  elements.callHudPreviewItem2.textContent = second ? getCallPreviewLabel(second) : "";
 }
 
 function tick() {
@@ -302,7 +340,6 @@ async function handleStartButtonClick() {
   syncBeginnerNavUI();
   updateAllPauseUI();
   await startDeviceAudioPlayback();
-  updateAllPauseUI(); // 端末音源の有無が確定した後、⋯メニューの「楽曲を一時停止」表示に反映する
 
   startTickLoop();
   tick();
@@ -340,109 +377,48 @@ function handleDeviceAudioEnded() {
   elements.songEndBanner.hidden = false;
 }
 
-// ===== 一時停止／再開（UI/UX第4版で追加、第5版で「楽曲」と「コール同期」を分離） =====
-// カラオケ同期には実質2つの独立した時計がある：
-//   A. 端末音源（<audio>要素自体が持つ再生/一時停止状態）
-//   B. コール同期タイマー（js/karaokeSync.jsのsyncState.isPaused）
-// 「0秒へ戻す完全停止」ではなく、今の位置から再開できる一時停止。画面下部のメインボタンは
-// 「両方まとめて」止める・再開する操作にし（本人指示：一番よく使う操作をここに）、
-// 楽曲だけ／コール同期だけを個別に止めたい場合は「⋯」メニューから行う（低頻度操作のため）。
+// ===== 一時停止／再開（UI/UX第4版で追加、第6版で「両方まとめて」だけのシンプルな挙動に統一） =====
+// 第5版では「楽曲（端末音源）だけ」「コール同期だけ」を個別に一時停止できる⋯メニュー項目を
+// 用意していたが、実際に使うと2つの時計がズレてしまい、初心者には分かりにくいという
+// 本人指摘を受けて削除した（判断の詳細はdocs/HANDOFF.md参照）。今はメインボタン1つが常に
+// 楽曲（<audio>要素）とコール同期タイマー（js/karaokeSync.jsのsyncState.isPaused）の
+// 両方を同時に止め、同時に再開するだけの、単一の状態しか存在しないシンプルな設計にしている。
 
-// 端末音源が読み込まれているかどうか（＝「楽曲を一時停止」操作が意味を持つかどうか）。
+// 端末音源が読み込まれているかどうか（「今！」・歌詞タップで音源側もseekすべきかの判定に使う）。
 function hasDeviceAudioLoaded() {
   return deviceAudioObjectUrl !== null;
 }
 
-function pauseSyncClockOnly() {
-  if (syncState.isPaused) return;
-  syncState = pauseKaraokeSync(syncState, performance.now());
-  stopTickLoop();
-}
-
-function resumeSyncClockOnly() {
-  if (!syncState.isPaused) return;
-  syncState = resumeKaraokeSync(syncState, performance.now());
-  startTickLoop();
-}
-
-function pauseDeviceAudioOnly() {
-  elements.deviceAudio.pause();
-}
-
-function resumeDeviceAudioOnly() {
-  if (!hasDeviceAudioLoaded()) return;
-  notifyPlaybackStarting("karaokeSync");
-  elements.deviceAudio.play().catch(() => {});
-}
-
-// メインボタン・⋯メニューの表示を、今の実際の状態（syncState.isPaused／端末音源の再生状態）
-// から毎回計算し直す。専用の「両方止まっているか」フラグは持たず、実体から都度導出することで、
-// 個別に止めた場合でも表示が食い違わないようにしている。
+// メインボタンの表示を、syncState.isPausedだけから計算する（音源側の状態は見ない。
+// 楽曲とコール同期は常にこの関数が一緒に操作するため、両者が食い違うことはない）。
 function updateAllPauseUI() {
-  const audioLoaded = hasDeviceAudioLoaded();
-  const audioPaused = !audioLoaded || elements.deviceAudio.paused;
-  const bothPaused = syncState.isPaused && audioPaused;
-
-  elements.pauseResumeButton.classList.toggle("is-paused", bothPaused);
-  elements.pauseResumeLabel.textContent = bothPaused ? "再開" : "一時停止";
+  const isPaused = syncState.isPaused;
+  elements.pauseResumeButton.classList.toggle("is-paused", isPaused);
+  elements.pauseResumeLabel.textContent = isPaused ? "再開" : "一時停止";
   elements.pauseResumeButton.setAttribute(
     "aria-label",
-    bothPaused ? "楽曲とコール同期を再開する" : "楽曲とコール同期を一時停止する"
+    isPaused ? "楽曲とコール同期を再開する" : "楽曲とコール同期を一時停止する"
   );
-
-  // 端末音源が無い曲では、「楽曲を一時停止」自体に意味が無いためメニューから隠す
-  // （本人指示：disabledよりも隠す方が分かりやすい）。
-  elements.pauseAudioOnlyButton.hidden = !audioLoaded;
-  if (audioLoaded) {
-    elements.pauseAudioOnlyLabel.textContent = audioPaused ? "楽曲を再開する" : "楽曲を一時停止";
-  }
-  elements.pauseSyncOnlyLabel.textContent = syncState.isPaused ? "コール同期を再開する" : "コール同期を一時停止";
 }
 
-// メインの「⏸ 一時停止／▶ 再開」ボタン：既定では楽曲＋コール同期の両方を対象にする。
-// 個別に一方だけ止めていた場合でも、押せば「両方止まっている状態」または
-// 「両方動いている状態」のどちらかへ必ず揃う（中途半端な状態を残さない）。
+// 「⏸ 一時停止／▶ 再開」ボタン：楽曲（端末音源）とコール同期タイマーを、常に同時に
+// 止める・再開する（本人指示：一番よく使う操作をシンプルに）。
 function handleMainPauseResumeClick() {
-  const audioLoaded = hasDeviceAudioLoaded();
-  const audioPaused = !audioLoaded || elements.deviceAudio.paused;
-  const bothPaused = syncState.isPaused && audioPaused;
-
-  if (bothPaused) {
-    resumeSyncClockOnly();
-    resumeDeviceAudioOnly();
+  const nowMs = performance.now();
+  if (syncState.isPaused) {
+    syncState = resumeKaraokeSync(syncState, nowMs);
+    if (hasDeviceAudioLoaded()) {
+      notifyPlaybackStarting("karaokeSync");
+      elements.deviceAudio.play().catch(() => {});
+    }
+    startTickLoop();
   } else {
-    pauseSyncClockOnly();
-    if (audioLoaded) pauseDeviceAudioOnly();
+    syncState = pauseKaraokeSync(syncState, nowMs);
+    elements.deviceAudio.pause();
+    stopTickLoop();
   }
   updateAllPauseUI();
   tick(); // 停止した瞬間・再開した瞬間の位置を、次のtickを待たずに即座に描画へ反映する
-}
-
-// ⋯メニュー：楽曲だけを個別に一時停止／再開する（特殊操作）。
-function handleAudioOnlyToggleClick() {
-  if (!hasDeviceAudioLoaded()) {
-    closeMoreMenu();
-    return;
-  }
-  if (elements.deviceAudio.paused) {
-    resumeDeviceAudioOnly();
-  } else {
-    pauseDeviceAudioOnly();
-  }
-  updateAllPauseUI();
-  closeMoreMenu();
-}
-
-// ⋯メニュー：コール同期だけを個別に一時停止／再開する（特殊操作）。
-function handleSyncOnlyToggleClick() {
-  if (syncState.isPaused) {
-    resumeSyncClockOnly();
-  } else {
-    pauseSyncClockOnly();
-  }
-  updateAllPauseUI();
-  tick();
-  closeMoreMenu();
 }
 
 // タイミング調整だけを一瞬でリセットする「0秒に戻す」も、この画面全体の状態リセットである
@@ -522,6 +498,7 @@ function resetToStartPanel() {
   elements.songEndBanner.hidden = true;
   elements.deviceAudioNotice.hidden = true;
   elements.syncPanel.classList.remove("is-long-call-active");
+  elements.callHudPreviewRow.hidden = true;
   updateAllPauseUI();
   lastRenderedCallHudEyebrow = null;
   lastRenderedCallHudText = null;
@@ -530,6 +507,7 @@ function resetToStartPanel() {
   lastRenderedCallHudTier = null;
   lastRenderedLongCallActive = false;
   lastRenderedSyncPointCall = undefined;
+  lastRenderedPreviewKey = null;
 }
 
 function handleRestartSongButtonClick() {
@@ -593,6 +571,7 @@ export function closeKaraokeSyncScreen() {
 //   deviceAudioNotice,
 //   syncPanel, lyricsContextPanel,
 //   callHudCard, callHudEyebrow, callHudText, callHudCountdown,
+//   callHudPreviewRow, callHudPreviewItem1, callHudPreviewItem2,
 //   songEndBanner, songEndRestartButton, songEndChooseButton,
 //   deviceAudio,
 //   footerZone, toast,
@@ -601,7 +580,6 @@ export function closeKaraokeSyncScreen() {
 //   offsetLabel,
 //   moreMenuModal, moreMenuCloseButton,
 //   nowButton, syncPointLabel,
-//   pauseAudioOnlyButton, pauseAudioOnlyLabel, pauseSyncOnlyButton, pauseSyncOnlyLabel,
 //   beginnerNavToggleButton, beginnerNavToggleLabel,
 //   restartSongButton,
 //   onRequestChooseSong: 「曲を選ぶ」（曲終了バナー）が押されたときに呼ばれるコールバック,
@@ -626,8 +604,6 @@ export function initKaraokeSyncScreen(newElements) {
   });
 
   elements.nowButton.addEventListener("click", handleResyncButtonClick);
-  elements.pauseAudioOnlyButton.addEventListener("click", handleAudioOnlyToggleClick);
-  elements.pauseSyncOnlyButton.addEventListener("click", handleSyncOnlyToggleClick);
   elements.beginnerNavToggleButton.addEventListener("click", handleBeginnerNavToggleClick);
   elements.restartSongButton.addEventListener("click", handleRestartSongButtonClick);
 

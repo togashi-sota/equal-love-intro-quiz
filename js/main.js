@@ -476,6 +476,9 @@ const karaokeCallHudCardElement = document.getElementById("karaoke-call-hud-card
 const karaokeCallHudEyebrowElement = document.getElementById("karaoke-call-hud-eyebrow");
 const karaokeCallHudTextElement = document.getElementById("karaoke-call-hud-text");
 const karaokeCallHudCountdownElement = document.getElementById("karaoke-call-hud-countdown");
+const karaokeCallHudPreviewRowElement = document.getElementById("karaoke-call-hud-preview-row");
+const karaokeCallHudPreviewItem1Element = document.getElementById("karaoke-call-hud-preview-item-1");
+const karaokeCallHudPreviewItem2Element = document.getElementById("karaoke-call-hud-preview-item-2");
 const karaokeSongEndBannerElement = document.getElementById("karaoke-song-end-banner");
 const karaokeSongEndRestartButtonElement = document.getElementById("karaoke-song-end-restart-button");
 const karaokeSongEndChooseButtonElement = document.getElementById("karaoke-song-end-choose-button");
@@ -494,10 +497,6 @@ const karaokeMoreMenuModalElement = document.getElementById("karaoke-more-menu-m
 const karaokeMoreMenuCloseButtonElement = document.getElementById("karaoke-more-menu-close");
 const karaokeNowButtonElement = document.getElementById("karaoke-now-button");
 const karaokeSyncPointLabelElement = document.getElementById("karaoke-sync-point-label");
-const karaokePauseAudioOnlyButtonElement = document.getElementById("karaoke-pause-audio-only-button");
-const karaokePauseAudioOnlyLabelElement = document.getElementById("karaoke-pause-audio-only-label");
-const karaokePauseSyncOnlyButtonElement = document.getElementById("karaoke-pause-sync-only-button");
-const karaokePauseSyncOnlyLabelElement = document.getElementById("karaoke-pause-sync-only-label");
 const karaokeBeginnerNavToggleButtonElement = document.getElementById("karaoke-beginner-nav-toggle-button");
 const karaokeBeginnerNavToggleLabelElement = document.getElementById("karaoke-beginner-nav-toggle-label");
 const karaokeRestartSongButtonElement = document.getElementById("karaoke-restart-song-button");
@@ -1127,6 +1126,9 @@ initKaraokeSyncScreen({
   callHudEyebrow: karaokeCallHudEyebrowElement,
   callHudText: karaokeCallHudTextElement,
   callHudCountdown: karaokeCallHudCountdownElement,
+  callHudPreviewRow: karaokeCallHudPreviewRowElement,
+  callHudPreviewItem1: karaokeCallHudPreviewItem1Element,
+  callHudPreviewItem2: karaokeCallHudPreviewItem2Element,
   songEndBanner: karaokeSongEndBannerElement,
   songEndRestartButton: karaokeSongEndRestartButtonElement,
   songEndChooseButton: karaokeSongEndChooseButtonElement,
@@ -1145,10 +1147,6 @@ initKaraokeSyncScreen({
   moreMenuCloseButton: karaokeMoreMenuCloseButtonElement,
   nowButton: karaokeNowButtonElement,
   syncPointLabel: karaokeSyncPointLabelElement,
-  pauseAudioOnlyButton: karaokePauseAudioOnlyButtonElement,
-  pauseAudioOnlyLabel: karaokePauseAudioOnlyLabelElement,
-  pauseSyncOnlyButton: karaokePauseSyncOnlyButtonElement,
-  pauseSyncOnlyLabel: karaokePauseSyncOnlyLabelElement,
   beginnerNavToggleButton: karaokeBeginnerNavToggleButtonElement,
   beginnerNavToggleLabel: karaokeBeginnerNavToggleLabelElement,
   restartSongButton: karaokeRestartSongButtonElement,

@@ -1416,6 +1416,14 @@
             <p id="karaoke-call-hud-eyebrow" class="karaoke-call-hud-eyebrow">NEXT CALL</p>
             <p id="karaoke-call-hud-text" class="karaoke-call-hud-text">―</p>
             <p id="karaoke-call-hud-countdown" class="karaoke-call-hud-countdown"></p>
+            <!-- NEXT予告（UI/UX第6版で追加）：今表示している主役コールの、さらに先1〜2件を
+                 小さく予告する。優先度は現在／もうすぐのコールより低いため、長文MIXが
+                 実際に鳴っている間や初心者ナビOFF中はjs/karaokeSyncScreen.js側で非表示にする。 -->
+            <p id="karaoke-call-hud-preview-row" class="karaoke-call-hud-preview-row" hidden>
+              <span class="karaoke-call-hud-preview-label">そのあと</span>
+              <span id="karaoke-call-hud-preview-item-1" class="karaoke-call-hud-preview-item"></span>
+              <span id="karaoke-call-hud-preview-item-2" class="karaoke-call-hud-preview-item"></span>
+            </p>
           </div>
 
           <div id="karaoke-song-end-banner" class="karaoke-song-end-banner" hidden>
@@ -3381,25 +3389,6 @@
         <span class="karaoke-more-menu-item-text">
           <span class="karaoke-more-menu-item-name">今！で合わせ直す</span>
           <span id="karaoke-sync-point-label" class="karaoke-more-menu-item-description">―</span>
-        </span>
-      </button>
-
-      <!-- 個別の一時停止（UI/UX第5版で新設）。通常は使わない特殊操作のため⋯へ格納。
-           楽曲を一時停止する項目は、端末音源が読み込まれていない曲では
-           js/karaokeSyncScreen.jsが動的にhidden属性を付ける。 -->
-      <button id="karaoke-pause-audio-only-button" class="karaoke-more-menu-item" type="button">
-        <span class="karaoke-more-menu-item-icon" aria-hidden="true">🎵</span>
-        <span class="karaoke-more-menu-item-text">
-          <span id="karaoke-pause-audio-only-label" class="karaoke-more-menu-item-name">楽曲を一時停止</span>
-          <span class="karaoke-more-menu-item-description">端末音源だけを止めます（コール同期は進み続けます）</span>
-        </span>
-      </button>
-
-      <button id="karaoke-pause-sync-only-button" class="karaoke-more-menu-item" type="button">
-        <span class="karaoke-more-menu-item-icon" aria-hidden="true">🕒</span>
-        <span class="karaoke-more-menu-item-text">
-          <span id="karaoke-pause-sync-only-label" class="karaoke-more-menu-item-name">コール同期を一時停止</span>
-          <span class="karaoke-more-menu-item-description">歌詞・コール・NEXT CALLだけを止めます（端末音源は流れ続けます）</span>
         </span>
       </button>
 

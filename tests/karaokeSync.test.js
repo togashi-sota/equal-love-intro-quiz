@@ -20,6 +20,8 @@ import {
   formatKaraokeMmSs,
   getNextCallCountdownDisplay,
   getCallDisplayTier,
+  getUpcomingCallPreviews,
+  getCallPreviewLabel,
 } from "../js/karaokeSync.js";
 import { assertEqual } from "./test-utils.js";
 
@@ -100,13 +102,13 @@ export function runKaraokeSyncTests() {
     assertEqual(state.offsetMs, 0, "やり直すとoffsetもリセットされる");
   }
 
-  // ===== 一時停止／再開（UI/UX第4版で追加） =====
+  // ===== 一時停止／再開（UI/UX第4版で追加、第6版で「再生位置」と「タイミング補正」を分離） =====
   {
     // 5秒経過した時点で一時停止 → その後どれだけperformance.now()が進んでも位置は動かない。
     let state = startKaraokeSync(createKaraokeSyncState(), 0);
     state = pauseKaraokeSync(state, 5000);
     assertEqual(state.isPaused, true, "pauseKaraokeSyncでisPausedがtrueになる");
-    assertEqual(state.pausedAtPositionSec, 5, "一時停止した瞬間の位置が凍結される");
+    assertEqual(state.pausedAtRawPositionSec, 5, "一時停止した瞬間の「生の経過時間」が凍結される");
     assertEqual(getKaraokePositionSec(state, 5000), 5, "一時停止直後の位置");
     assertEqual(getKaraokePositionSec(state, 20000), 5, "15秒後でも一時停止中は位置が動かない");
     assertEqual(getKaraokePositionSec(state, 999999), 5, "どれだけ時間が経っても一時停止中は5秒のまま");
@@ -118,7 +120,7 @@ export function runKaraokeSyncTests() {
     // 10秒後（実時間で5秒後）に再開 → 同じ5秒の位置から途切れなく続きが進む。
     state = resumeKaraokeSync(state, 10000);
     assertEqual(state.isPaused, false, "resumeKaraokeSyncでisPausedがfalseに戻る");
-    assertEqual(state.pausedAtPositionSec, null, "再開するとpausedAtPositionSecはクリアされる");
+    assertEqual(state.pausedAtRawPositionSec, null, "再開するとpausedAtRawPositionSecはクリアされる");
     assertEqual(getKaraokePositionSec(state, 10000), 5, "再開した瞬間は一時停止した位置と同じ");
     assertEqual(getKaraokePositionSec(state, 11000), 6, "再開後は1秒経過すれば1秒進む");
 
@@ -130,32 +132,58 @@ export function runKaraokeSyncTests() {
     assertEqual(resumeKaraokeSync(playing, 1000), playing, "再生中にresumeを呼んでも状態は変わらない（すでに再生中のため）");
   }
 
-  // ===== 一時停止中のタイミング調整（凍結位置ごと動かす） =====
+  // ===== 【最重要の回帰テスト】一時停止していた時間の長さで、タイミング補正値がズレないこと =====
+  // 実機フィードバックで発覚した不具合：「一時停止時間が5秒だったから補正が5秒ズレる、
+  // という扱いにはしないでください」という本人指摘そのものを検証する。
+  {
+    let state = startKaraokeSync(createKaraokeSyncState(), 0);
+    state = adjustOffsetMs(state, 300); // 事前に+0.3秒の手動補正をしておく
+    assertEqual(state.offsetMs, 300, "一時停止前のoffsetは+300ms");
+
+    // 経過10秒の時点（表示上は10.3秒）で一時停止する。
+    state = pauseKaraokeSync(state, 10000);
+    assertEqual(state.pausedAtRawPositionSec, 10, "凍結されるのはoffset抜きの「生の経過時間」");
+    assertEqual(getKaraokePositionSec(state, 10000), 10.3, "一時停止直後の表示位置は10.3秒（10＋補正0.3）");
+    assertEqual(state.offsetMs, 300, "一時停止直後もoffsetは+300msのまま");
+
+    // 実時間で5秒後（＝一時停止時間5秒）に再開する。
+    state = resumeKaraokeSync(state, 15000);
+    assertEqual(state.offsetMs, 300, "5秒間一時停止していても、offsetは+300msのまま変化しない（本人指摘の不具合の修正確認）");
+    assertEqual(getKaraokePositionSec(state, 15000), 10.3, "再開した瞬間の表示位置は一時停止前と同じ10.3秒");
+    assertEqual(getKaraokePositionSec(state, 16000), 11.3, "再開後も1秒経過すれば1秒進む（10.3→11.3）");
+  }
+
+  // ===== 一時停止中のタイミング調整（「再生位置」には触れない） =====
   {
     let state = startKaraokeSync(createKaraokeSyncState(), 0);
     state = pauseKaraokeSync(state, 4000); // 4秒の位置で一時停止
     state = adjustOffsetMs(state, 300); // 早める+0.3秒
-    assertEqual(state.pausedAtPositionSec, 4.3, "一時停止中に早めると、凍結位置も同じ分だけ前に進む");
-    assertEqual(getKaraokePositionSec(state, 999999), 4.3, "一時停止中はどれだけ待っても4.3秒のまま");
+    assertEqual(state.pausedAtRawPositionSec, 4, "一時停止中に補正しても、凍結されている「生の経過時間」自体は変わらない");
+    assertEqual(state.offsetMs, 300, "offsetだけが変化する");
+    assertEqual(getKaraokePositionSec(state, 999999), 4.3, "表示位置は「凍結された生の経過時間＋補正値」として動く（4＋0.3）");
 
     state = adjustOffsetMs(state, -800); // 遅らせる-0.8秒
-    assertEqual(state.pausedAtPositionSec, 3.5, "一時停止中に遅らせると、凍結位置も同じ分だけ戻る");
+    assertEqual(state.pausedAtRawPositionSec, 4, "生の経過時間はここでも変わらない");
+    assertEqual(getKaraokePositionSec(state, 999999), 3.5, "offsetの変化がそのまま表示位置に反映される（4－0.5）");
 
     state = resetOffsetToZero(state);
     assertEqual(state.offsetMs, 0, "一時停止中でも0に戻すでoffsetが0になる");
-    assertEqual(state.pausedAtPositionSec, 4, "0に戻すと、それまでの補正分だけ凍結位置も巻き戻る（早める/遅らせるの合計-0.5秒を打ち消して4秒に戻る）");
+    assertEqual(state.pausedAtRawPositionSec, 4, "0に戻しても、凍結されている生の経過時間には触れない");
+    assertEqual(getKaraokePositionSec(state, 999999), 4, "補正0の状態では表示位置＝凍結された生の経過時間そのもの");
   }
 
-  // ===== 一時停止中の歌詞タップ・「今！」（resyncToPosition） =====
+  // ===== 一時停止中の歌詞タップ・「今！」（resyncToPosition＝タイミング補正の設定） =====
   {
     let state = startKaraokeSync(createKaraokeSyncState(), 0);
     state = pauseKaraokeSync(state, 4000); // 4秒の位置で一時停止
     state = resyncToPosition(state, 12, 999999); // 一時停止中に別の歌詞行（12秒）をタップ
     assertEqual(state.isPaused, true, "歌詞タップ後も一時停止状態は維持される");
-    assertEqual(state.pausedAtPositionSec, 12, "凍結位置がタップした行の位置へ直接移動する");
+    assertEqual(state.pausedAtRawPositionSec, 4, "resyncToPositionは「生の経過時間」には触れず、タイミング補正だけを動かす");
+    assertEqual(state.offsetMs, 8000, "offsetが「12秒に見せるための差分」8秒ぶんに設定される（12－4）");
     assertEqual(getKaraokePositionSec(state, 999999), 12, "一時停止中はperformance.now()に関わらず12秒のまま");
 
     state = resumeKaraokeSync(state, 20000);
+    assertEqual(state.offsetMs, 8000, "再開してもタイミング補正値は歌詞タップ時のまま変化しない");
     assertEqual(getKaraokePositionSec(state, 20000), 12, "再開すると、タップした位置からそのまま続きが進む");
     assertEqual(getKaraokePositionSec(state, 21000), 13, "再開後も1秒経過すれば1秒進む");
   }
@@ -235,4 +263,53 @@ export function runKaraokeSyncTests() {
     "long",
     "長文MIXはlong"
   );
+
+  // ===== NEXT CALL予告（UI/UX第6版で追加） =====
+  {
+    const previewCalls = [
+      { start: 2, end: 3, text: "はい！", type: "member-call" },
+      { start: 5, end: 18, text: "ここでMIXが長く続く長文の掛け声がずっと入るシーン", type: "mix" },
+      { start: 20, end: 21, text: "オレ！", type: "member-call" },
+      { start: 25, end: 26, text: "せーの", type: "member-call" },
+    ];
+
+    assertEqual(
+      getUpcomingCallPreviews(previewCalls, 2, 2).map((c) => c.text),
+      ["ここでMIXが長く続く長文の掛け声がずっと入るシーン", "オレ！"],
+      "指定したstartより後ろのコールを先頭からmaxCount件返す"
+    );
+    assertEqual(
+      getUpcomingCallPreviews(previewCalls, 20, 2).map((c) => c.text),
+      ["せーの"],
+      "残りが1件しかなければ1件だけ返す"
+    );
+    assertEqual(getUpcomingCallPreviews(previewCalls, 25, 2), [], "最後のコールより後ろでは空配列");
+    assertEqual(getUpcomingCallPreviews(previewCalls, null, 2), [], "基準位置が無ければ空配列（安全側）");
+    assertEqual(getUpcomingCallPreviews(previewCalls, 0, 1), [{ start: 2, end: 3, text: "はい！", type: "member-call" }], "maxCountで件数を絞れる");
+  }
+
+  // ===== NEXT CALL予告の表示ラベル（長文は種類ラベル、無ければ省略表示） =====
+  {
+    assertEqual(getCallPreviewLabel({ text: "はい！", type: "member-call" }), "はい！", "short/mediumは本文をそのまま使う");
+    assertEqual(
+      getCallPreviewLabel({ text: "せーのっ、いくよー！", type: "member-call" }),
+      "せーのっ、いくよー！",
+      "mediumも本文をそのまま使う"
+    );
+    assertEqual(
+      getCallPreviewLabel({ text: "ここでMIXが長く続く長文の掛け声がずっと入るシーン", type: "mix" }),
+      "MIX",
+      "longかつtype情報があれば種類ラベル（既存データを流用、新規生成しない）"
+    );
+    assertEqual(
+      getCallPreviewLabel({ text: "ここでMIXが長く続く長文の掛け声がずっと入るシーン", type: "unique" }),
+      "固有コール",
+      "typeが違えばラベルも変わる"
+    );
+    assertEqual(
+      getCallPreviewLabel({ text: "ここでMIXが長く続く長文の掛け声がずっと入るシーン", type: undefined }),
+      "ここでMIXが長く続…",
+      "type情報が無いlongコールは本文を10文字＋…で省略する"
+    );
+  }
 }

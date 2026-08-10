@@ -15,18 +15,32 @@
 // 想定している（Date.now()は端末時計の変更の影響を受けるため使わない）。
 
 import { findActiveLineIndex } from "./lyricsSync.js";
-import { isShortCallText } from "./callSync.js";
+import { isShortCallText, getCallDisplayTier, CALL_TYPE_LABELS } from "./callSync.js";
 
 // ===== 同期状態 =====
+//
+// 【UI/UX第6版・2026-08-10で再設計】「一時停止していた時間の長さ分だけ、タイミング補正値が
+// ズレる」という不具合が実機で見つかった（本人指摘）。原因は、旧resumeKaraokeSyncが
+// resyncToPosition()を経由してoffsetMsそのものを再計算し直していたため。
+//
+// 再設計の考え方：「再生位置（今どこか）」と「タイミング補正（カラオケに対して何秒
+// ずらして表示するか）」を、状態としても完全に独立させる。
+//   A. 再生位置＝syncStartAtMs・isPaused・pausedAtRawPositionSecだけで決まる「生の経過時間」
+//   B. タイミング補正＝offsetMsだけの、Aとは独立した値
+// 最終的な表示位置は常に「A＋B」（getKaraokePositionSec参照）。一時停止／再開はAだけを
+// 操作し、offsetMs（B）には指1本触れない。±ボタン・「今！」・歌詞タップはBだけを操作し、
+// Aには一切触れない。この分離により、一時停止中にoffsetを変えても凍結中の表示位置には
+// 「A(凍結)＋B」として自然に反映されるため、以前あった「一時停止中は特別扱いする」ための
+// 分岐（adjustOffsetMs/resetOffsetToZero/resyncToPositionそれぞれにあった）が不要になった。
 
 export function createKaraokeSyncState() {
   return {
     isSyncing: false,
-    syncStartAtMs: null, // 同期開始時点のmonotonic時刻（ms）
-    offsetMs: 0, // 「今！」・早い/遅い補正の蓄積値（このセッション内だけの一時的な値。永続化しない）
+    syncStartAtMs: null, // 「生の経過時間」の基準時刻（ms）。一時停止からの再開のたびに、停止していた分だけ後ろにずらす
+    offsetMs: 0, // タイミング補正値。「今！」・早い/遅い補正の蓄積値（このセッション内だけの一時的な値。永続化しない）
     lastResyncAtPositionSec: null, // 最後に再同期した時点の、カラオケ経過位置（表示用）
     isPaused: false, // 一時停止中かどうか（UI/UX第4版で追加）
-    pausedAtPositionSec: null, // 一時停止した瞬間のカラオケ経過位置（isPaused中はここを凍結して返す）
+    pausedAtRawPositionSec: null, // 一時停止した瞬間の「生の経過時間」（オフセット抜き）。isPaused中はここを凍結して使う
   };
 }
 
@@ -41,7 +55,7 @@ export function startKaraokeSync(state, monotonicNowMs) {
     offsetMs: 0,
     lastResyncAtPositionSec: null,
     isPaused: false,
-    pausedAtPositionSec: null,
+    pausedAtRawPositionSec: null,
   };
 }
 
@@ -51,34 +65,44 @@ export function resetKaraokeSync() {
   return createKaraokeSyncState();
 }
 
-// 現在のカラオケ経過位置（秒）。同期中でなければnullを返す。
-// 一時停止中は、経過時間の計算式を使わずpausedAtPositionSecをそのまま返す
-// （＝performance.now()がどれだけ進んでも、再開されるまで位置が動かない）。
-export function getKaraokePositionSec(state, monotonicNowMs) {
+// タイミング補正抜きの「生の経過時間」（秒）。一時停止中は凍結された値を返す。
+function getRawPositionSec(state, monotonicNowMs) {
   if (!state.isSyncing || state.syncStartAtMs === null) return null;
-  if (state.isPaused) return state.pausedAtPositionSec;
-  return (monotonicNowMs - state.syncStartAtMs + state.offsetMs) / 1000;
+  if (state.isPaused) return state.pausedAtRawPositionSec;
+  return (monotonicNowMs - state.syncStartAtMs) / 1000;
 }
 
-// ===== 一時停止／再開（UI/UX第4版で追加） =====
+// 現在のカラオケ経過位置（秒）＝「生の経過時間」＋「タイミング補正値」。同期中でなければnullを返す。
+export function getKaraokePositionSec(state, monotonicNowMs) {
+  const rawPositionSec = getRawPositionSec(state, monotonicNowMs);
+  if (rawPositionSec === null) return null;
+  return rawPositionSec + state.offsetMs / 1000;
+}
+
+// ===== 一時停止／再開（UI/UX第4版で追加、第6版で「タイミング補正には触れない」設計へ再設計） =====
 // 「0秒へ戻す完全停止」ではなく、「今の位置を凍結し、同じ位置から再開できる」一時停止。
 // 呼び出し側は、これと同時に端末音源の.pause()／.play()も必ず行うこと
 // （この関数自体は音源要素に一切触れない。同期時計と音源の両方を同時に止める／再開する責務は
 // 呼び出し側＝js/karaokeSyncScreen.jsが持つ）。
+//
+// pauseKaraokeSyncは「生の経過時間」を凍結するだけで、offsetMs（タイミング補正値）には
+// 一切触れない。resumeKaraokeSyncは、凍結していた「生の経過時間」から途切れなく続きを
+// 計算できるよう、syncStartAtMsを一時停止していた実時間の分だけ後ろへずらすだけで、
+// これもoffsetMsには触れない。この結果、「一時停止していた秒数の分だけ補正値がズレる」
+// ということが構造的に起こり得なくなる（本人指摘の不具合の修正）。
 export function pauseKaraokeSync(state, monotonicNowMs) {
   if (!state.isSyncing || state.isPaused) return state;
-  const positionSec = getKaraokePositionSec(state, monotonicNowMs);
-  return { ...state, isPaused: true, pausedAtPositionSec: positionSec };
+  const rawPositionSec = getRawPositionSec(state, monotonicNowMs);
+  return { ...state, isPaused: true, pausedAtRawPositionSec: rawPositionSec };
 }
 
-// 一時停止した位置から、途切れなく再開する。内部的にはresyncToPosition()と同じ考え方
-// （「今の経過時間」から逆算してoffsetを1回で引き直す）を使い、凍結していた位置を
-// そのままの値で再開後も維持する。
 export function resumeKaraokeSync(state, monotonicNowMs) {
   if (!state.isSyncing || !state.isPaused) return state;
-  const targetPositionSec = state.pausedAtPositionSec;
-  const resumedState = resyncToPosition({ ...state, isPaused: false, pausedAtPositionSec: null }, targetPositionSec, monotonicNowMs);
-  return resumedState;
+  // 「今の生の経過時間 − 凍結していた生の経過時間」を新しい基準時刻に上乗せすることで、
+  // 再開直後にgetRawPositionSec()を呼んでも、必ずpausedAtRawPositionSecと同じ値が返る
+  // （＝続きから途切れなく再開する）。offsetMsはこの計算に一切登場しない。
+  const newSyncStartAtMs = monotonicNowMs - state.pausedAtRawPositionSec * 1000;
+  return { ...state, isPaused: false, pausedAtRawPositionSec: null, syncStartAtMs: newSyncStartAtMs };
 }
 
 // ===== タイミング調整 =====
@@ -88,49 +112,35 @@ export function resumeKaraokeSync(state, monotonicNowMs) {
 // 「曲スタート」を実際より1秒遅く押した場合、アプリの経過時間は本当のカラオケより
 // 常に1秒少なく計算される＝コール表示は本来より遅れて出る。これを直すには、offsetを
 // +1000msして「早める」必要がある（実際に本来より遅れているものを早めて追いつかせる）。
-// この関係が、ここより下のresyncToPosition()の計算式（offset = target*1000 - elapsedMs）
-// とも整合していることをテスト（tests/karaokeSync.test.js）で確認している。
+// この関係が、ここより下のresyncToPosition()の計算式とも整合していることをテスト
+// （tests/karaokeSync.test.js）で確認している。
 //
-// 【UI/UX第4版・一時停止中の扱い】一時停止中はgetKaraokePositionSec()がoffsetMsを見ずに
-// pausedAtPositionSecをそのまま返すため、offsetMsだけ変えても画面上の凍結位置が動かず
-// 「ボタンを押しても何も起きない」ように見えてしまう。一時停止中にoffsetを変えたときは、
-// pausedAtPositionSecも同じ量（秒換算）だけ動かし、非表示中でも操作結果が一貫するようにする。
+// 【UI/UX第6版】offsetMsは常に「生の経過時間」に加算されるだけの値（getKaraokePositionSec
+// 参照）なので、一時停止中かどうかで場合分けする必要がなくなった。一時停止中に押しても、
+// 凍結されている生の経過時間はそのまま、そこに足すoffsetMsだけが変わるため、画面上の
+// 表示位置は一時停止中でも正しく（凍結位置＋新しい補正値へ）動く。
 export function adjustOffsetMs(state, deltaMs) {
-  if (state.isPaused) {
-    return {
-      ...state,
-      offsetMs: state.offsetMs + deltaMs,
-      pausedAtPositionSec: state.pausedAtPositionSec + deltaMs / 1000,
-    };
-  }
   return { ...state, offsetMs: state.offsetMs + deltaMs };
 }
 
 // タイミング調整だけを0msへ戻す。同期自体（開始時刻・経過位置・音源再生）には一切触れない
 // （本人指示：「曲そのものを最初からやり直す機能ではない。現在位置・音源再生は維持したまま、
-// タイミング補正だけを0に戻す」）。一時停止中は、上のadjustOffsetMs()と同じ考え方で、
-// 古いoffsetの分だけpausedAtPositionSecを巻き戻してから0にする（非表示のズレを防ぐ）。
+// タイミング補正だけを0に戻す」）。
 export function resetOffsetToZero(state) {
-  if (state.isPaused) {
-    return { ...state, offsetMs: 0, pausedAtPositionSec: state.pausedAtPositionSec - state.offsetMs / 1000 };
-  }
   return { ...state, offsetMs: 0 };
 }
 
 // ===== 「今！」・歌詞タップによる途中再同期 =====
 // targetPositionSec（同期ポイントとなるコールのstart、または歌詞行のstart）が、
 // まさに今この瞬間に実際のカラオケで起きているとみなし、以後その前提でoffsetを引き直す。
-// 前回までの補正の積み重ねに関わらず、「今の経過時間」から逆算して1回で正しい値を出すため、
-// offsetの古い値には依存しない（＝実質的に古い補正はこの1回でリセットされるのと同じ効果になる）。
-// 一時停止中に呼ばれた場合は、経過時間の計算をせずpausedAtPositionSecへ直接ターゲット位置を
-// 設定する（本人指示：一時停止中でも歌詞タップで位置合わせでき、一時停止状態自体は維持する）。
+// これは実質的に「タイミング補正値（B）を、現在の生の経過時間（A）を基準に1回で設定し直す」
+// 操作であり、「再生位置（A）」には一切触れない（本人指示：この2つは内部状態も分離する）。
+// 一時停止中に呼ばれた場合も、凍結されている生の経過時間を基準にoffsetだけを計算するため、
+// 一時停止状態自体はそのまま維持される。
 export function resyncToPosition(state, targetPositionSec, monotonicNowMs) {
   if (!state.isSyncing || state.syncStartAtMs === null) return state;
-  if (state.isPaused) {
-    return { ...state, pausedAtPositionSec: targetPositionSec, lastResyncAtPositionSec: targetPositionSec };
-  }
-  const elapsedMs = monotonicNowMs - state.syncStartAtMs;
-  const newOffsetMs = targetPositionSec * 1000 - elapsedMs;
+  const rawPositionSec = getRawPositionSec(state, monotonicNowMs);
+  const newOffsetMs = (targetPositionSec - rawPositionSec) * 1000;
   return {
     ...state,
     offsetMs: newOffsetMs,
@@ -211,13 +221,31 @@ export function getNextCallCountdownDisplay(secondsUntil, isActive) {
 
 // ===== コール表示の文字サイズ段階（UI/UX第3版で追加） =====
 // 「はい！」のような短いコールは画面いっぱいに大きく、MIX・口上のような長いコールは
-// 読める大きさに抑える、という3段階を判定する純粋関数。
-// SHORTの基準は、既存の飛び出しバースト演出（isShortCallText）と完全に統一する
-// （同じ「短い」の基準が画面によって変わらないように）。
-// MEDIUMの上限20文字は、js/callSync.jsの長文コール表示（LONGFORM_LENGTH_TIERS）の
-// 最初の区切り「compact」と揃えている。
-export function getCallDisplayTier(text) {
-  if (isShortCallText(text)) return "short";
-  if (typeof text === "string" && text.length <= 20) return "medium";
-  return "long";
+// 読める大きさに抑える、という3段階を判定する純粋関数。実体はjs/callSync.js側に
+// 移した（通常再生画面の演出強化でも同じ3段階が必要になったため。SHORT/MEDIUM/LONGの
+// 境界を2箇所に重複定義しないよう、こちらは呼び出し元の互換のための再エクスポートのみ）。
+export { getCallDisplayTier };
+
+// ===== NEXT CALL予告（UI/UX第6版で追加） =====
+// 「今／もうすぐ」の次に来るコールを1件だけでなく、その先の数件も小さく予告する。
+// calls（start昇順）の中から、afterStartSec（今のHUDで主役表示しているコールのstart）より
+// あとに始まるものを、先頭からmaxCount件返す（現在アクティブ中のコール自身は含まない）。
+export function getUpcomingCallPreviews(calls, afterStartSec, maxCount) {
+  if (afterStartSec === null || afterStartSec === undefined) return [];
+  return calls.filter((call) => call.start > afterStartSec).slice(0, maxCount);
+}
+
+// 予告表示用の短いラベルを作る純粋関数。
+// SHORT/MEDIUMはそのまま本文を見せてよい長さのため本文をそのまま返す。
+// LONG（MIX・口上等）は予告欄では本文全体を見せる意味が薄いため、既存のコール種別
+// （CALL_TYPE_LABELS＝callStorage.jsのtypeに対応する「MIX」「コール」等の表示名）があれば
+// それを使う（本人指示：存在しない情報を勝手に生成しない）。type情報が無い場合だけ、
+// 本文を適切な文字数で省略表示する。
+const PREVIEW_TRUNCATE_LENGTH = 10;
+
+export function getCallPreviewLabel(call) {
+  if (getCallDisplayTier(call.text) !== "long") return call.text;
+  const typeLabel = CALL_TYPE_LABELS[call.type];
+  if (typeLabel) return typeLabel;
+  return `${call.text.slice(0, PREVIEW_TRUNCATE_LENGTH)}…`;
 }
