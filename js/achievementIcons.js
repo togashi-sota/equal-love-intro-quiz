@@ -10,7 +10,34 @@ const SHIELD_PATH =
   '<path d="M12 1 21 4.5V11c0 6-3.8 9.7-9 12-5.2-2.3-9-6-9-12V4.5Z"/>' +
   '<path d="M8.3 12.2 10.8 14.7 15.8 9.2" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>';
 
+// 成長段階系（イントロ/シャッフル/リリック）3系統の基本形。ノーミス系5段階と同じ考え方で、
+// 系統内はビギナー〜エースまで同じ形を共有し、CSS側の色だけで段階差を出す。
+// エースだけは、この基本形に加えて右上に小さな星（ACE_BADGE_PATH）を1つ足し、
+// 「3段階の中でもっとも到達した」ことが一目で分かるようにする（本人指示・2026-08-13：
+// 3段階の差は視覚的に分かりやすく、ただし既存の最上位称号より控えめにすること）。
+const HEADPHONE_PATH =
+  '<path d="M12 2a7 7 0 0 0-7 7v6a2.4 2.4 0 0 0 2.4 2.4H9v-7H6.5V9a5.5 5.5 0 0 1 11 0v.5H15v7h1.6A2.4 2.4 0 0 0 19 15V9a7 7 0 0 0-7-7Z"/>';
+const SHUFFLE_PATH =
+  '<path d="M3 7h3.3l10.7 10h3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>' +
+  '<path d="M3 17h3.3l2.6-2.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>' +
+  '<path d="M14 9.5 17 7h3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>' +
+  '<path d="M17.5 4.5 20.5 7l-3 2.5M17.5 14.5l3 2.5-3 2.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>';
+const LYRIC_CARD_PATH =
+  '<rect x="3.5" y="4" width="17" height="16" rx="2.2"/>' +
+  '<path d="M7.5 9h9M7.5 12.5h9M7.5 16h5.5" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>';
+const ACE_BADGE_PATH = '<path d="M19.3 0.5 20.3 2.7 22.5 3.6 20.3 4.5 19.3 6.7 18.3 4.5 16.1 3.6 18.3 2.7Z" fill="#fff"/>';
+
 const ICON_DEFINITIONS = {
+  intro_beginner: { viewBox: "0 0 24 24", markup: HEADPHONE_PATH },
+  intro_challenger: { viewBox: "0 0 24 24", markup: HEADPHONE_PATH },
+  intro_ace: { viewBox: "0 0 24 24", markup: HEADPHONE_PATH + ACE_BADGE_PATH },
+  shuffle_beginner: { viewBox: "0 0 24 24", markup: SHUFFLE_PATH },
+  shuffle_challenger: { viewBox: "0 0 24 24", markup: SHUFFLE_PATH },
+  shuffle_ace: { viewBox: "0 0 24 24", markup: SHUFFLE_PATH + ACE_BADGE_PATH },
+  lyric_beginner: { viewBox: "0 0 24 24", markup: LYRIC_CARD_PATH },
+  lyric_challenger: { viewBox: "0 0 24 24", markup: LYRIC_CARD_PATH },
+  lyric_ace: { viewBox: "0 0 24 24", markup: LYRIC_CARD_PATH + ACE_BADGE_PATH },
+
   no_miss_bronze: { viewBox: "0 0 24 24", markup: SHIELD_PATH },
   no_miss_silver: { viewBox: "0 0 24 24", markup: SHIELD_PATH },
   no_miss_gold: { viewBox: "0 0 24 24", markup: SHIELD_PATH },

@@ -38,6 +38,7 @@ export function normalizeQuizClearResult({
   completed = true,
   averageResponseMs = null,
   maxHintLevelByQuestion = null,
+  answerPoolSizeValue = null,
 }) {
   const totalQuestions = correctCount + wrongCount + skippedCount;
   return {
@@ -51,7 +52,20 @@ export function normalizeQuizClearResult({
     completed,
     averageResponseMs,
     maxHintLevelByQuestion: Array.isArray(maxHintLevelByQuestion) ? maxHintLevelByQuestion : null,
+    // 歌詞クイズだけが持つ「回答候補の難易度」軸（4/10/30/50/all）。他モードはnullのまま。
+    // 【2026-08-13追加・本人指示】歌マスター・リリックマスターは、全曲モードに加えて
+    // 「回答候補も最も難しいall（全曲から探す）」設定であることを必須条件にするため保持する。
+    answerPoolSizeValue,
   };
+}
+
+// 歌詞クイズの回答候補設定のうち、称号（歌マスター・リリックマスター）が要求する
+// 「最も難しい設定」。ANSWER_POOL_SIZE_VALUES（js/lyricsQuizEngine.js）の最終値と同じ文字列を
+// あえて複製している（この判定ファイルが歌詞クイズ専用ファイルに依存しない設計を保つため）。
+const LYRICS_QUIZ_HARDEST_ANSWER_POOL_SIZE_VALUE = "all";
+
+function isHardestLyricsQuizAnswerPool(result) {
+  return result.answerPoolSizeValue === LYRICS_QUIZ_HARDEST_ANSWER_POOL_SIZE_VALUE;
 }
 
 // 「全問正解・誤答なし・未回答（スキップ）なし」の、称号判定で繰り返し使う共通条件。
@@ -83,12 +97,49 @@ export function evaluateNoMissTierAchievements(result) {
   return NO_MISS_TIER_ORDER.slice(0, tierIndex + 1).map((value) => NO_MISS_TIER_ID_BY_VALUE[value]);
 }
 
+// 成長段階系（イントロ/シャッフル/リリックの3系統×ビギナー(5)/チャレンジャー(10)/エース(20)）。
+// 【2026-08-13追加・本人指示】既存の最上位称号とは別に、初心者〜中級者向けの自然な
+// 成長ステップとして用意する。カテゴリー・回答方式は問わない（isCleanClear()が
+// questionCountValue・correctCount・wrongCount・skippedCount・completedしか見ないため）。
+// イントロ系・シャッフル系は、それぞれ「単体クイズ」と「タイムアタックのその出題タイプ」の
+// 両方のmodeIdを対象にする（js/timeAttackScreen.js・js/randomPlaybackScreen.jsの実際のmodeId
+// 文字列に合わせている。イントロクイズ側のmodeMasterに相当する概念が無いのは、フルコーラス
+// マスター・歌マスターと違って「単体全曲モード」の称号ではなく5/10/20の段階制のため）。
+const GROWTH_TIER_ORDER = ["5", "10", "20"];
+const GROWTH_MODE_GROUP_BY_MODE_ID = {
+  intro: "intro",
+  timeAttack: "intro",
+  randomPlayback: "shuffle",
+  timeAttackRandomPlayback: "shuffle",
+  lyricsQuiz: "lyric",
+};
+const GROWTH_TIER_IDS_BY_GROUP = {
+  intro: { 5: "intro_beginner", 10: "intro_challenger", 20: "intro_ace" },
+  shuffle: { 5: "shuffle_beginner", 10: "shuffle_challenger", 20: "shuffle_ace" },
+  lyric: { 5: "lyric_beginner", 10: "lyric_challenger", 20: "lyric_ace" },
+};
+
+export function evaluateGrowthTierAchievements(result) {
+  const group = GROWTH_MODE_GROUP_BY_MODE_ID[result.modeId];
+  if (!group) return [];
+  if (!isCleanClear(result)) return [];
+
+  const tierIndex = GROWTH_TIER_ORDER.indexOf(result.questionCountValue);
+  if (tierIndex === -1) return [];
+
+  // ノーミス段階称号と同じカスケード仕様：達成した段階以下もまとめて返す
+  // （20問ノーミスなら、その系統のビギナー・チャレンジャー・エースを同時に獲得する）。
+  return GROWTH_TIER_ORDER.slice(0, tierIndex + 1).map((value) => GROWTH_TIER_IDS_BY_GROUP[group][value]);
+}
+
 // 表マスター2種：フルコーラスマスター（ランダム再生クイズ）・歌マスター（歌詞クイズ）。
-// どちらも全曲モード・ノーミスのみが条件で、時間・ヒント数は問わない。
+// フルコーラスマスターは全曲モード・ノーミスのみが条件（時間は問わない）。
+// 歌マスターは全曲モード・ノーミスに加えて、回答候補も最も難しいall（全曲から探す）設定を
+// 使っていることが条件（本人指示・2026-08-13：回答方式に難易度軸があるなら最難関を必須にする）。
 export function evaluateModeMasterAchievements(result) {
   if (!isCleanClear(result) || !result.isAllSongsMode) return [];
   if (result.modeId === "randomPlayback") return ["full_chorus_master"];
-  if (result.modeId === "lyricsQuiz") return ["song_master"];
+  if (result.modeId === "lyricsQuiz" && isHardestLyricsQuizAnswerPool(result)) return ["song_master"];
   return [];
 }
 
@@ -109,6 +160,9 @@ export function evaluateSpeedAchievements(result) {
 export function evaluateHintAchievements(result) {
   if (result.modeId !== "lyricsQuiz") return [];
   if (!isCleanClear(result) || !result.isAllSongsMode) return [];
+  // 【2026-08-13追加・本人指示】表マスター（歌マスター）と同じ理由で、回答候補も
+  // 最も難しいall（全曲から探す）設定であることを必須にする。
+  if (!isHardestLyricsQuizAnswerPool(result)) return [];
   if (!Array.isArray(result.maxHintLevelByQuestion) || result.maxHintLevelByQuestion.length === 0) return [];
 
   const allFirstHintOnly = result.maxHintLevelByQuestion.every((level) => level === 1);
@@ -135,6 +189,7 @@ export function evaluateCompositeAchievements(unlockedIdSet, achievementDefiniti
 // 解放済みid集合を使って別途判定する）。
 export function evaluateDirectAchievements(result) {
   return [
+    ...evaluateGrowthTierAchievements(result),
     ...evaluateNoMissTierAchievements(result),
     ...evaluateModeMasterAchievements(result),
     ...evaluateSpeedAchievements(result),

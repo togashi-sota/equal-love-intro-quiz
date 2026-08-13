@@ -7,6 +7,8 @@ import {
   sortLeaderboardEntries,
   findRankByUid,
   findBestEntryPerVariantAndQuestionCount,
+  isRuleEligibleForLeaderboard,
+  isValidLeaderboardCandidate,
 } from "../js/timeAttackLeaderboard.js";
 import { assertEqual } from "./test-utils.js";
 
@@ -124,20 +126,37 @@ export function runTimeAttackLeaderboardTests() {
   assertEqual(findRankByUid(sorted, "not-in-list"), null, "圏外のuidはnullを返す");
 
   // ---- 履歴からの最速記録抽出（バックフィル用、2026-08-07追加） ----
+  // 【2026-08-13更新】公開ランキングはLOVE連チャン(loveChain)の記録だけが対象。
+  // ノーマル/ハードの完走記録は、たとえ既存履歴にあってもバックフィル対象から除外される。
   const historyEntries = [
-    { variant: "intro", questionCountValue: "5", totalElapsedMs: 8000, missCount: 2, completed: true },
-    { variant: "intro", questionCountValue: "5", totalElapsedMs: 6000, missCount: 0, completed: true },
-    { variant: "intro", questionCountValue: "5", totalElapsedMs: 9000, missCount: 0, completed: false }, // LOVE連チャン失敗、対象外
-    { variant: "randomPlayback", questionCountValue: "5", totalElapsedMs: 7000, missCount: 1, completed: true },
-    { questionCountValue: "10", totalElapsedMs: 15000, missCount: 3, completed: true }, // variant省略はintro扱い
+    { variant: "intro", questionCountValue: "5", rule: "loveChain", totalElapsedMs: 8000, missCount: 2, completed: true },
+    { variant: "intro", questionCountValue: "5", rule: "loveChain", totalElapsedMs: 6000, missCount: 0, completed: true },
+    { variant: "intro", questionCountValue: "5", rule: "loveChain", totalElapsedMs: 9000, missCount: 0, completed: false }, // LOVE連チャン失敗、対象外
+    { variant: "intro", questionCountValue: "5", rule: "normal", totalElapsedMs: 1000, missCount: 0, completed: true }, // ノーマルは完走扱いでも対象外
+    { variant: "randomPlayback", questionCountValue: "5", rule: "loveChain", totalElapsedMs: 7000, missCount: 1, completed: true },
+    { questionCountValue: "10", rule: "loveChain", totalElapsedMs: 15000, missCount: 3, completed: true }, // variant省略はintro扱い
   ];
   const bestEntries = findBestEntryPerVariantAndQuestionCount(historyEntries);
-  assertEqual(bestEntries.length, 3, "variant×questionCountの組み合わせごとに1件だけ抽出される");
+  assertEqual(bestEntries.length, 3, "variant×questionCountの組み合わせごとに、LOVE連チャンの記録だけが1件ずつ抽出される");
   const introFive = bestEntries.find((e) => e.variant === "intro" && e.questionCountValue === "5");
-  assertEqual(introFive.clearTimeMs, 6000, "同じ組み合わせの中で最速の記録が採用される");
+  assertEqual(introFive.clearTimeMs, 6000, "同じ組み合わせの中で最速の記録が採用される（ノーマルの1000msは対象外のため無視される）");
   assertEqual(introFive.missCount, 0, "採用された記録のmissCountが正しく引き継がれる");
   const randomFive = bestEntries.find((e) => e.variant === "randomPlayback" && e.questionCountValue === "5");
   assertEqual(randomFive.clearTimeMs, 7000, "variantが違えば別記録として抽出される");
   const introTen = bestEntries.find((e) => e.variant === "intro" && e.questionCountValue === "10");
   assertEqual(introTen.clearTimeMs, 15000, "entry.variant省略（古い履歴データ）はintroとして扱われる");
+
+  // ---- ランキング対象ルールの判定（2026-08-13追加） ----
+  assertEqual(isRuleEligibleForLeaderboard("loveChain"), true, "LOVE連チャンはランキング対象");
+  assertEqual(isRuleEligibleForLeaderboard("normal"), false, "ノーマルはランキング対象外");
+  assertEqual(isRuleEligibleForLeaderboard("hard"), false, "ハードはランキング対象外");
+  assertEqual(isRuleEligibleForLeaderboard(undefined), false, "ルール不明（旧データ等）はランキング対象外");
+
+  // ---- ランキング登録候補の妥当性検証（2026-08-13追加） ----
+  assertEqual(isValidLeaderboardCandidate({ clearTimeMs: 12345, missCount: 0 }), true, "正常なタイム・ミス数は有効");
+  assertEqual(isValidLeaderboardCandidate({ clearTimeMs: 0, missCount: 0 }), false, "0秒は不正な記録として無効");
+  assertEqual(isValidLeaderboardCandidate({ clearTimeMs: -100, missCount: 0 }), false, "負のタイムは無効");
+  assertEqual(isValidLeaderboardCandidate({ clearTimeMs: NaN, missCount: 0 }), false, "NaNのタイムは無効");
+  assertEqual(isValidLeaderboardCandidate({ clearTimeMs: 12345, missCount: -1 }), false, "負のミス数は無効");
+  assertEqual(isValidLeaderboardCandidate({ clearTimeMs: 12345, missCount: NaN }), false, "NaNのミス数は無効");
 }

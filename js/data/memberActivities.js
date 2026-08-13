@@ -147,6 +147,22 @@ export const MEMBER_ACTIVITIES = [
     lastVerifiedDate: "2026-08-02",
   },
   {
+    id: "otoshima-youtube",
+    memberId: "otoshima-risa",
+    relatedMemberIds: [],
+    title: "音嶋莉沙の様子がおかしいチャンネル",
+    type: ACTIVITY_TYPE.YOUTUBE,
+    description:
+      "音嶋莉沙の個人YouTubeチャンネル。「様子がおかしい音嶋莉沙」というグループ公式チャンネル発の人気ミームが由来のチャンネル名。2026年8月11日、28歳の誕生日を機に開設した。",
+    url: "https://www.youtube.com/@risa_yousugaokashii",
+    status: ACTIVITY_STATUS.ONGOING,
+    startDate: "2026-08-11",
+    endDate: null,
+    sourceType: "self",
+    sourceUrls: ["https://www.youtube.com/@risa_yousugaokashii"],
+    lastVerifiedDate: "2026-08-12",
+  },
+  {
     id: "saito-sasaki-einstein-tv",
     memberId: "saito-kiara",
     relatedMemberIds: ["sasaki-maika"],

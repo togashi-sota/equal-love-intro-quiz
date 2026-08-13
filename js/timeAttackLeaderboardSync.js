@@ -41,6 +41,8 @@ import {
   normalizeLeaderboardEntry,
   sortLeaderboardEntries,
   findBestEntryPerVariantAndQuestionCount,
+  isRuleEligibleForLeaderboard,
+  isValidLeaderboardCandidate,
 } from "./timeAttackLeaderboard.js";
 
 // オフライン時はそもそもFirebaseへ接続を試みない（本人指示：「オフライン時は『ランキングは
@@ -53,7 +55,16 @@ function isOffline() {
 // ①ローカル自己ベスト判定②自己ベスト更新③ランキング公開条件確認④Firebase上の自分の
 // 既存記録確認⑤新記録が速い場合だけ更新⑥結果画面へ反映、のうち③〜⑤をこの関数が担当する）。
 // 戻り値: { ok: true, updated: boolean } または { ok: false, reason: "privacy-disabled" | "offline" | "error" }
-export async function submitTimeAttackScoreIfBetter({ variant, questionCountValue, clearTimeMs, missCount, playerKeyPrefix }) {
+export async function submitTimeAttackScoreIfBetter({ variant, questionCountValue, rule, clearTimeMs, missCount, playerKeyPrefix }) {
+  // 【2026-08-13追加・本人指示】公開ランキングはLOVE連チャンの記録だけを対象にする。
+  // 呼び出し側（js/main.js）で既に絞り込んでいるが、将来の呼び出し漏れに備えてここでも
+  // 二重に防ぐ（Firebase書き込みの最終防衛線）。
+  if (!isRuleEligibleForLeaderboard(rule)) {
+    return { ok: false, reason: "rule-not-eligible" };
+  }
+  if (!isValidLeaderboardCandidate({ clearTimeMs, missCount })) {
+    return { ok: false, reason: "invalid-record" };
+  }
   if (!isPublicProfileSharingEnabled(playerKeyPrefix)) {
     return { ok: false, reason: "privacy-disabled" };
   }

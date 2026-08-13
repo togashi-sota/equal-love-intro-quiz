@@ -241,8 +241,20 @@ export function resetLyricsQuizBattleState() {
 }
 
 // js/onlineBattleScreen.jsのrenderLobby()が、room更新のたびに（画面を問わず）呼ぶフック。
+//
+// 【2026-08-12修正】進行（次の問題を開始する・確定する等）は従来、400ms間隔のsetInterval
+// （startTickTimer）だけに頼っていた。しかしスマホのPWA/ブラウザは、画面ロック・アプリ切替・
+// 他タブ表示中などバックグラウンド相当になった瞬間にsetIntervalを大幅に間引く・一時停止する
+// ことがある（本人の実機報告「対戦が進まない」の一因として疑われる）。Firebaseからのリアルタイム
+// 更新通知（このハンドラ）は、setIntervalとは別の仕組み（WebSocket経由のプッシュ通知）で届くため、
+// タイマーが間引かれていてもこちらは比較的届きやすい。ホストの進行チェックをここにも追加することで、
+// 「参加者が回答した」「設定が変わった」等のroom更新が届くたびにも進行のきっかけを作り、
+// setIntervalだけに依存しない多重の安全網にする（本人が就寝中の自律作業のため、確実性を優先）。
 export function handleLyricsQuizRoomUpdate(room) {
   latestRoom = room;
+  if (getCurrentUid() === room.host && room.status === ROOM_STATUS.PLAYING) {
+    runHostProgressionTick();
+  }
   if (document.body.dataset.screen === "onlineLyricsBattleQuestion") {
     renderCurrentQuestionState();
   }
@@ -573,6 +585,15 @@ function runTick() {
 
 // ===== ホスト専用：進行ミラー（js/lyricsQuizMatchProgress.js）の駆動 =====
 
+// 【2026-08-12修正・重大バグ】この関数の途中で例外が発生すると、hostTickInFlightを
+// falseへ戻す行が実行されないまま関数を抜けてしまい、以後すべてのtickが冒頭の
+// `hostTickInFlight`ガードで無条件に早期returnし続ける＝進行が永久に止まる、という
+// 致命的な不具合があった（本人からの実機報告「歌詞クイズ対戦がどのルールでも進まない」の
+// 根本原因の1つ）。呼び出し側（runTick）はこの関数の戻り値を待たず・catchもしないため、
+// 例外は「未処理のPromise拒否」として静かに握りつぶされ、画面には何のエラーも表示されずに
+// 進行だけが止まる＝ユーザー視点では「真っ白のまま何も起きない」状態になっていた。
+// try/finallyで必ずhostTickInFlightを解除し、想定外の失敗はconsole.errorで可視化する
+// （UIをこれ以上壊さないよう、ユーザー向けの表示は変えず開発者向けの可視化のみ行う）。
 async function runHostProgressionTick() {
   if (!currentMatchId || !latestRoom || hostTickInFlight) return;
   const match = latestRoom.matches?.[currentMatchId];
@@ -580,8 +601,18 @@ async function runHostProgressionTick() {
 
   if (typeof match.currentQuestionIndex !== "number") {
     hostTickInFlight = true;
-    await startLyricsQuizQuestion({ roomId: latestRoom.roomId, matchId: currentMatchId, questionIndex: 0 });
-    hostTickInFlight = false;
+    try {
+      const result = await startLyricsQuizQuestion({ roomId: latestRoom.roomId, matchId: currentMatchId, questionIndex: 0 });
+      if (!result.ok) {
+        // eslint-disable-next-line no-console
+        console.error("歌詞クイズ対戦：最初の問題の開始に失敗しました", result.reason);
+      }
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error("歌詞クイズ対戦：進行タイマーで想定外のエラーが発生しました（最初の問題の開始）", error);
+    } finally {
+      hostTickInFlight = false;
+    }
     return;
   }
 
@@ -606,27 +637,51 @@ async function runHostProgressionTick() {
     if (hostState !== before && hostState.currentQuestion.status === "resolved") {
       resolvedAtLocalMs = Date.now();
       hostTickInFlight = true;
-      await resolveLyricsQuizQuestion({ roomId: latestRoom.roomId, matchId: currentMatchId });
-      hostTickInFlight = false;
+      try {
+        const result = await resolveLyricsQuizQuestion({ roomId: latestRoom.roomId, matchId: currentMatchId });
+        if (!result.ok) {
+          // eslint-disable-next-line no-console
+          console.error("歌詞クイズ対戦：問題の確定に失敗しました", result.reason);
+        }
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.error("歌詞クイズ対戦：進行タイマーで想定外のエラーが発生しました（問題の確定）", error);
+      } finally {
+        hostTickInFlight = false;
+      }
     }
     return;
   }
 
   if (hostState.currentQuestion.status === "resolved" && resolvedAtLocalMs !== null && Date.now() - resolvedAtLocalMs >= REVEAL_DELAY_MS) {
     hostTickInFlight = true;
-    const nextState = advanceToNextQuestion(hostState, Date.now());
-    hostState = nextState;
-    if (nextState.status === "inProgress") {
-      resolvedAtLocalMs = null;
-      await startLyricsQuizQuestion({ roomId: latestRoom.roomId, matchId: currentMatchId, questionIndex: nextState.currentQuestionIndex });
-    } else {
-      const entries = finalizeMatch(nextState, latestRoom.settings);
-      if (entries) {
-        const resultsByUid = Object.fromEntries(entries.map((entry) => [entry.uid, entry.result]));
-        await finalizeLyricsQuizMatch({ roomId: latestRoom.roomId, matchId: currentMatchId, resultsByUid });
+    try {
+      const nextState = advanceToNextQuestion(hostState, Date.now());
+      hostState = nextState;
+      if (nextState.status === "inProgress") {
+        resolvedAtLocalMs = null;
+        const result = await startLyricsQuizQuestion({ roomId: latestRoom.roomId, matchId: currentMatchId, questionIndex: nextState.currentQuestionIndex });
+        if (!result.ok) {
+          // eslint-disable-next-line no-console
+          console.error("歌詞クイズ対戦：次の問題の開始に失敗しました", result.reason);
+        }
+      } else {
+        const entries = finalizeMatch(nextState, latestRoom.settings);
+        if (entries) {
+          const resultsByUid = Object.fromEntries(entries.map((entry) => [entry.uid, entry.result]));
+          const result = await finalizeLyricsQuizMatch({ roomId: latestRoom.roomId, matchId: currentMatchId, resultsByUid });
+          if (!result.ok) {
+            // eslint-disable-next-line no-console
+            console.error("歌詞クイズ対戦：最終結果の確定に失敗しました", result.reason);
+          }
+        }
       }
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error("歌詞クイズ対戦：進行タイマーで想定外のエラーが発生しました（次の問題／最終結果）", error);
+    } finally {
+      hostTickInFlight = false;
     }
-    hostTickInFlight = false;
   }
 }
 

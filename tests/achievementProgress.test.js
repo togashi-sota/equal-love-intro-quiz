@@ -57,7 +57,12 @@ export function runAchievementProgressTests() {
   // ---- evaluateAndSaveAchievements：実際のプレイ結果からの一連の判定 ----
   clearAchievementStorage();
   const playResult1 = evaluateAndSaveAchievements(buildCleanIntroResult());
-  assertEqual(playResult1.newlyUnlockedIds, ["no_miss_bronze"], "5問ノーミスの初回プレイでブロンズが新規解放される");
+  // 2026-08-13追加の成長段階系（イントロビギナー）も、同じ5問ノーミス条件で同時に新規解放される。
+  assertEqual(
+    playResult1.newlyUnlockedIds,
+    ["intro_beginner", "no_miss_bronze"],
+    "5問ノーミスの初回プレイでイントロビギナーとブロンズが新規解放される"
+  );
 
   const playResult2 = evaluateAndSaveAchievements(buildCleanIntroResult());
   assertEqual(playResult2.newlyUnlockedIds, [], "2回目の同条件プレイでは新規解放として報告されない（回帰なし）");
@@ -97,7 +102,7 @@ export function runAchievementProgressTests() {
   const recoveredPlay = evaluateAndSaveAchievements(buildCleanIntroResult());
   assertEqual(
     recoveredPlay.newlyUnlockedIds,
-    ["no_miss_bronze"],
+    ["intro_beginner", "no_miss_bronze"],
     "壊れたデータから復旧した後も、通常どおりプレイ結果を保存できる"
   );
 

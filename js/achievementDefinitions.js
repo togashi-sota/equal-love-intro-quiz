@@ -18,6 +18,97 @@
 // rewardNote    : 複合称号だけが持つ、特典・見た目の変化を予告する一言（本人指示、2026-08-07追加）。
 //                 一覧カード・獲得演出の両方に、目立つように表示する。それ以外の称号はnull。
 export const ACHIEVEMENTS = [
+  // ===== 成長段階系（初心者〜中級者向け、2026-08-13追加） =====
+  // イントロ系／シャッフル系（ランダム再生）／リリック系（歌詞クイズ）それぞれに、
+  // ビギナー(5問)→チャレンジャー(10問)→エース(20問)の3段階を用意する（本人指示）。
+  // 既存の最上位称号（ノーミスマスター・表マスター・裏称号）とは別の位置づけで、
+  // 「高難度の称号」よりさらに手前にある、自然な最初の目標として案内する。
+  // カテゴリー・回答方式（歌詞クイズの回答候補数も含む）は一切問わない。
+  // LOVE連チャン等ミス後も進行しうるモードでも、判定はjs/achievementEvaluation.jsの
+  // isCleanClear()（誤答・未回答0かつcompleted!==false）を使うため、1問でもミスがあれば
+  // 付与されない（既存のノーミス段階称号と全く同じ安全な仕組みを再利用している）。
+  {
+    id: "intro_beginner",
+    name: "イントロビギナー",
+    category: "growth",
+    iconKey: "intro_beginner",
+    conditionText: "イントロ系クイズ（イントロクイズ／タイムアタック）で5問をノーミスで正解する（カテゴリー・回答方式自由）",
+    compositeOf: null,
+    rewardNote: null,
+  },
+  {
+    id: "intro_challenger",
+    name: "イントロチャレンジャー",
+    category: "growth",
+    iconKey: "intro_challenger",
+    conditionText: "イントロ系クイズ（イントロクイズ／タイムアタック）で10問をノーミスで正解する（カテゴリー・回答方式自由）",
+    compositeOf: null,
+    rewardNote: null,
+  },
+  {
+    id: "intro_ace",
+    name: "イントロエース",
+    category: "growth",
+    iconKey: "intro_ace",
+    conditionText: "イントロ系クイズ（イントロクイズ／タイムアタック）で20問をノーミスで正解する（カテゴリー・回答方式自由）",
+    compositeOf: null,
+    rewardNote: null,
+  },
+  {
+    id: "shuffle_beginner",
+    name: "シャッフルビギナー",
+    category: "growth",
+    iconKey: "shuffle_beginner",
+    conditionText: "シャッフル系クイズ（ランダム再生クイズ／タイムアタックのランダム再生）で5問をノーミスで正解する（カテゴリー・回答方式自由）",
+    compositeOf: null,
+    rewardNote: null,
+  },
+  {
+    id: "shuffle_challenger",
+    name: "シャッフルチャレンジャー",
+    category: "growth",
+    iconKey: "shuffle_challenger",
+    conditionText: "シャッフル系クイズ（ランダム再生クイズ／タイムアタックのランダム再生）で10問をノーミスで正解する（カテゴリー・回答方式自由）",
+    compositeOf: null,
+    rewardNote: null,
+  },
+  {
+    id: "shuffle_ace",
+    name: "シャッフルエース",
+    category: "growth",
+    iconKey: "shuffle_ace",
+    conditionText: "シャッフル系クイズ（ランダム再生クイズ／タイムアタックのランダム再生）で20問をノーミスで正解する（カテゴリー・回答方式自由）",
+    compositeOf: null,
+    rewardNote: null,
+  },
+  {
+    id: "lyric_beginner",
+    name: "リリックビギナー",
+    category: "growth",
+    iconKey: "lyric_beginner",
+    conditionText: "歌詞クイズで5問をノーミスで正解する（カテゴリー・回答候補数は自由）",
+    compositeOf: null,
+    rewardNote: null,
+  },
+  {
+    id: "lyric_challenger",
+    name: "リリックチャレンジャー",
+    category: "growth",
+    iconKey: "lyric_challenger",
+    conditionText: "歌詞クイズで10問をノーミスで正解する（カテゴリー・回答候補数は自由）",
+    compositeOf: null,
+    rewardNote: null,
+  },
+  {
+    id: "lyric_ace",
+    name: "リリックエース",
+    category: "growth",
+    iconKey: "lyric_ace",
+    conditionText: "歌詞クイズで20問をノーミスで正解する（カテゴリー・回答候補数は自由）",
+    compositeOf: null,
+    rewardNote: null,
+  },
+
   // ===== ノーミス系（イントロクイズ または 現在のイントロ形式タイムアタックで取得） =====
   {
     id: "no_miss_bronze",
@@ -84,7 +175,8 @@ export const ACHIEVEMENTS = [
     name: "歌マスター",
     category: "modeMaster",
     iconKey: "song_master",
-    conditionText: "歌詞クイズの全曲モードを、誤答・スキップなしの全問正解でクリアする（ヒント数・時間は問わない）",
+    conditionText:
+      "歌詞クイズの全曲モード・回答候補「全曲から探す」設定を、誤答・スキップなしの全問正解でクリアする（ヒント数・時間は問わない）",
     compositeOf: null,
     rewardNote: null,
   },
@@ -113,7 +205,8 @@ export const ACHIEVEMENTS = [
     name: "リリックマスター",
     category: "backRoute",
     iconKey: "lyric_master",
-    conditionText: "歌詞クイズの全曲モードを、誤答・スキップなしの全問正解、すべてヒント1だけで正解してクリアする",
+    conditionText:
+      "歌詞クイズの全曲モード・回答候補「全曲から探す」設定を、誤答・スキップなしの全問正解、すべてヒント1だけで正解してクリアする",
     compositeOf: null,
     rewardNote: null,
   },

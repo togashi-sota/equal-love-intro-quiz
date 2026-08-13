@@ -14,6 +14,31 @@
 // ラジオボタンの値（"5"|"10"|"20"|"50"|"all"）とそのまま一致させている。
 export const LEADERBOARD_QUESTION_COUNT_VALUES = ["5", "10", "20", "50", "all"];
 
+// ランキング（TOP10表示・自己記録送信）の対象として認める唯一のルール。
+// 【本人指示・緊急メンテ2026-08-13】ノーマル/ハードは出題数固定・連打で速く終えやすく、
+// 全問ノーミス必須のLOVE連チャンと同じ枠で速さを比べると不公平になる。そのため公開ランキングは
+// LOVE連チャンの記録だけを対象にする。ノーマル/ハードは今までどおり遊べて自己ベスト・履歴には
+// 保存されるが、公開ランキングへは一切送信しない。
+// js/timeAttackScreen.jsのTIME_ATTACK_RULE.LOVE_CHAINと同じ文字列をあえて複製している
+// （このファイルをFirebase非依存の恒久テスト対象に保つ設計方針を維持するため。
+// LEADERBOARD_QUESTION_COUNT_VALUESと同じ考え方）。
+const LEADERBOARD_ELIGIBLE_RULE = "loveChain";
+
+export function isRuleEligibleForLeaderboard(rule) {
+  return rule === LEADERBOARD_ELIGIBLE_RULE;
+}
+
+// ランキングへ書き込んでよい記録かどうかを検証する。
+// 【本人指示】不正な0秒以下・NaN・不正なミス数がランキングに登録されないことを保証すること。
+export function isValidLeaderboardCandidate({ clearTimeMs, missCount }) {
+  return (
+    Number.isFinite(clearTimeMs) &&
+    clearTimeMs > 0 &&
+    Number.isFinite(missCount) &&
+    missCount >= 0
+  );
+}
+
 // variant×questionCountの組み合わせから、Firebase Realtime Databaseのパスを組み立てる。
 // timeAttackLeaderboards/{variant}/{questionCountValue}/{uid} という構造（本人指定）。
 export function buildLeaderboardPath(variant, questionCountValue) {
@@ -84,6 +109,9 @@ export function findBestEntryPerVariantAndQuestionCount(historyEntries) {
   const bestByKey = new Map();
   historyEntries.forEach((entry) => {
     if (!entry.completed) return;
+    // 【2026-08-13追加】ランキング対象外のルール（ノーマル/ハード）の履歴は、
+    // バックフィル（過去の自己ベストをランキングへ反映する処理）でも一切対象にしない。
+    if (!isRuleEligibleForLeaderboard(entry.rule)) return;
     const variant = entry.variant ?? "intro";
     const key = `${variant}.${entry.questionCountValue}`;
     const current = bestByKey.get(key);
@@ -91,6 +119,7 @@ export function findBestEntryPerVariantAndQuestionCount(historyEntries) {
       bestByKey.set(key, {
         variant,
         questionCountValue: entry.questionCountValue,
+        rule: entry.rule,
         clearTimeMs: entry.totalElapsedMs,
         missCount: entry.missCount,
       });

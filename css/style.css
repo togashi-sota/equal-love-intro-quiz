@@ -2180,6 +2180,54 @@ fieldset label:has(input:focus-visible) {
   height: 58%;
 }
 
+/* 成長段階系3系統（イントロ＝青系／シャッフル＝紫系／リリック＝珊瑚系）：
+   系統内はビギナー→チャレンジャー→エースの順に色だけ濃くする（形は共通、
+   js/achievementIcons.jsのHEADPHONE_PATH／SHUFFLE_PATH／LYRIC_CARD_PATH参照）。
+   エースだけアイコンに星バッジが追加され、かつ縁取りを付けて一段階だけ特別感を出すが、
+   ノーミスマスターや表マスター・裏称号・複合称号より必ず控えめに留める
+   （発光アニメーションは使わない。本人指示：既存の最上位称号より地味に）。 */
+.achievement-icon-medal.is-intro_beginner {
+  background: linear-gradient(160deg, #cfe6ff, #8fbdf0);
+  color: #1c3a5e;
+}
+.achievement-icon-medal.is-intro_challenger {
+  background: linear-gradient(160deg, #9cc6f5, #4f8fd9);
+  color: #0f2942;
+}
+.achievement-icon-medal.is-intro_ace {
+  background: linear-gradient(160deg, #6fb1ff, #2a6fc9);
+  color: #ffffff;
+  border: 1.5px solid rgba(255, 255, 255, 0.85);
+}
+
+.achievement-icon-medal.is-shuffle_beginner {
+  background: linear-gradient(160deg, #e3d6ff, #b9a0f0);
+  color: #3a215e;
+}
+.achievement-icon-medal.is-shuffle_challenger {
+  background: linear-gradient(160deg, #cbadf5, #9868dd);
+  color: #2c1447;
+}
+.achievement-icon-medal.is-shuffle_ace {
+  background: linear-gradient(160deg, #b18cf0, #7c3fd0);
+  color: #ffffff;
+  border: 1.5px solid rgba(255, 255, 255, 0.85);
+}
+
+.achievement-icon-medal.is-lyric_beginner {
+  background: linear-gradient(160deg, #ffe0cf, #ffb695);
+  color: #6b2f10;
+}
+.achievement-icon-medal.is-lyric_challenger {
+  background: linear-gradient(160deg, #ffc19c, #ff9159);
+  color: #5c2308;
+}
+.achievement-icon-medal.is-lyric_ace {
+  background: linear-gradient(160deg, #ff9d68, #f06a2c);
+  color: #ffffff;
+  border: 1.5px solid rgba(255, 255, 255, 0.85);
+}
+
 /* ノーミス系5段階：銅→銀→金→白銀＋水色→星入り王冠、の順に色だけ変える
    （形は共通の盾。js/achievementIcons.jsのSHIELD_PATH参照）。 */
 .achievement-icon-medal.is-no_miss_bronze {

@@ -3190,12 +3190,18 @@ initTimeAttackResultScreen({
   // ときだけ呼ばれる（js/timeAttackScreen.jsのrenderTimeAttackResult参照）。
   // 呼び出し側（結果画面の表示）を絶対にブロックしないよう、awaitせず呼び捨てる
   // （js/publicProfileSync.jsのsyncPublicProfileIfEnabled()と同じ設計方針）。
-  onNewRecord: ({ variant, questionCountValue, totalElapsedMs, missCount }) => {
+  onNewRecord: ({ variant, questionCountValue, rule, totalElapsedMs, missCount }) => {
+    // 【2026-08-13追加・本人指示】公開ランキングはLOVE連チャンの記録だけが対象。
+    // ノーマル/ハードの自己ベスト更新は、通常のNEW RECORD演出だけで完結させ、
+    // ランキング関連の案内文は一切出さない（UIを煩雑にしないため）。
+    if (rule !== TIME_ATTACK_RULE.LOVE_CHAIN) return;
+
     timeAttackResultLeaderboardStatusElement.hidden = false;
     timeAttackResultLeaderboardStatusElement.textContent = "ランキングを確認しています…";
     submitTimeAttackScoreIfBetter({
       variant,
       questionCountValue,
+      rule,
       clearTimeMs: totalElapsedMs,
       missCount,
       playerKeyPrefix: getPlayerKeyPrefix(),
@@ -3205,6 +3211,7 @@ initTimeAttackResultScreen({
           "privacy-disabled": "「みんなのプロフィール」を公開するとランキングに参加できます",
           offline: "オフラインのため、ランキングへの送信はできませんでした",
           error: "ランキングへの送信に失敗しました",
+          "invalid-record": "記録の送信に失敗しました",
         };
         timeAttackResultLeaderboardStatusElement.textContent =
           messageByReason[result.reason] ?? "ランキングへの送信に失敗しました";

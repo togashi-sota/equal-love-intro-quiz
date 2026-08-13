@@ -672,6 +672,7 @@ export function renderLyricsQuizResult() {
     completed: true,
     averageResponseMs: null,
     maxHintLevelByQuestion: runState.answers.map((answer) => answer.hintsUsedCount),
+    answerPoolSizeValue: currentSettings.answerPoolSizeValue,
   });
   renderAchievementUnlockEvents(achievementResult.newlyUnlockedIds, {
     chipContainer: resultElements.achievementChipContainer,

@@ -12,8 +12,12 @@ import { computeBestSpeedProgress, buildSpeedProgressBestBlock } from "./speedAc
 // 速度称号（電光石火・メロディアス）だけ、カードにベスト平均タイム・残り秒数を追加表示する。
 const SPEED_ACHIEVEMENT_IDS = new Set(["lightning_fast", "melody_ace"]);
 
-const CATEGORY_ORDER = ["noMiss", "modeMaster", "backRoute", "composite"];
+// growthは既存の高難度称号（noMiss以降）より手前にある、最初の成長ステップという位置づけ
+// のため、一覧の先頭に置く（本人指示・2026-08-13：「既存カテゴリー構造を崩さず、
+// 最も自然な場所に追加する」）。
+const CATEGORY_ORDER = ["growth", "noMiss", "modeMaster", "backRoute", "composite"];
 const CATEGORY_LABELS = {
+  growth: "はじめの一歩",
   noMiss: "ノーミスランク",
   modeMaster: "表マスター",
   backRoute: "裏称号",
@@ -24,6 +28,15 @@ const CATEGORY_LABELS = {
 // 「5問→ブロンズ…全曲→ノーミスマスター、と自然につながって見えるように」）。
 // ノーミスマスターは「最初の大きな目標」という別の案内文を持つため、この配列には含めない。
 const NO_MISS_STEP_IDS = ["no_miss_bronze", "no_miss_silver", "no_miss_gold", "no_miss_platinum"];
+
+// 成長段階系3系統（イントロ／シャッフル／リリック）。系統ごとに独立してカスケードするため、
+// ノーミス系と同じ「次の目標」計算をトリオ単位で行う（本人指示・2026-08-13：
+// カード単体で見て「次は何をすればよいか」が伝わるようにする）。
+const GROWTH_TRIADS = [
+  ["intro_beginner", "intro_challenger", "intro_ace"],
+  ["shuffle_beginner", "shuffle_challenger", "shuffle_ace"],
+  ["lyric_beginner", "lyric_challenger", "lyric_ace"],
+];
 
 let elements = null;
 
@@ -174,10 +187,25 @@ function computeGuidanceBadgeText(entry, snapshot) {
   if (entry.id === "no_miss_master") {
     return entry.isUnlocked ? null : "🎯 最初の目標";
   }
-  if (!NO_MISS_STEP_IDS.includes(entry.id) || entry.isUnlocked) return null;
+  if (NO_MISS_STEP_IDS.includes(entry.id) && !entry.isUnlocked) {
+    const nextStepId = NO_MISS_STEP_IDS.find((id) => !snapshot.find((e) => e.id === id)?.isUnlocked);
+    return nextStepId === entry.id ? "→ 次の目標" : null;
+  }
 
-  const nextStepId = NO_MISS_STEP_IDS.find((id) => !snapshot.find((e) => e.id === id)?.isUnlocked);
-  return nextStepId === entry.id ? "→ 次の目標" : null;
+  // 成長段階系（イントロ/シャッフル/リリック）：系統（トリオ）ごとに独立して、
+  // まだ誰も取得していないトリオの先頭は「🔰 まずはここから」、1つ以上取得済みなら
+  // 未取得の最初の1件だけに「→ 次の目標」を出す（本人指示・2026-08-13：
+  // カード単体で見て次にすべきことが一目で分かるように）。
+  const triad = GROWTH_TRIADS.find((ids) => ids.includes(entry.id));
+  if (triad && !entry.isUnlocked) {
+    const triadEntries = triad.map((id) => snapshot.find((e) => e.id === id));
+    const nextStepId = triad.find((id, index) => !triadEntries[index]?.isUnlocked);
+    if (nextStepId !== entry.id) return null;
+    const anyUnlocked = triadEntries.some((e) => e?.isUnlocked);
+    return anyUnlocked ? "→ 次の目標" : "🔰 まずはここから";
+  }
+
+  return null;
 }
 
 function renderAchievementList() {
