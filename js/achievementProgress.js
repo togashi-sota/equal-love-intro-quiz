@@ -225,12 +225,16 @@ export function getAchievementListSnapshot() {
   });
 }
 
-// ＝LOVEマスター・＝LOVE完全制覇の取得状況だけを、推しアイコンの装飾判定用に返す。
+// ノーミスマスター・＝LOVEマスター・＝LOVE完全制覇の取得状況だけを、推しアイコンの装飾判定用に返す。
 // js/oshiBadge.jsが呼ぶ想定（このファイル自体はDOMに一切触れない）。
+// 【2026-08-15追加】ノーミスマスターにも専用バッジを追加。すでに取得済みのユーザーは
+// unlockedAchievementIdsに"no_miss_master"がすでに含まれているため、再取得の必要なく
+// この関数を呼んだ瞬間から自動的にtrueになる（移行処理不要）。
 export function getOshiBadgeState() {
   const stored = loadProgress();
   const unlockedSet = new Set(stored.unlockedAchievementIds);
   return {
+    hasNoMissMaster: unlockedSet.has("no_miss_master"),
     hasEqualLoveMaster: unlockedSet.has("equal_love_master"),
     hasEqualLoveComplete: unlockedSet.has("equal_love_complete"),
   };

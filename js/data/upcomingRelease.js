@@ -16,8 +16,19 @@ export const UPCOMING_RELEASE = {
   releaseDate: "2026-08-26",
   officialLinks: {
     official: "https://equal-love.jp/news/detail/11815",
+    // MV（2026-08-14公開、＝LOVE公式YouTubeチャンネル「イコールラブ / ＝LOVE Official」で
+    // 本人から共有されたURL。動画タイトル・説明文・公開日を確認し、公式チャンネルが
+    // 投稿した本作のMVであることを確認済み）。
+    mv: "https://www.youtube.com/watch?v=ikFaEAlO5N0&list=RDikFaEAlO5N0&start_radio=1",
   },
+  // センター・カップリング曲は、2026-08-16時点で公式サイトに「タイトル未定」
+  // 「カップリング詳細は後日HPにて発表予定」と明記されており未発表。確認できるまで、
+  // ここにも一切値を持たせない（存在しないフィールドとして扱う。推測で埋めない）。
   sourceType: "official",
-  sourceUrls: ["https://equal-love.jp/news/detail/11588", "https://equal-love.jp/news/detail/11815"],
-  lastVerifiedDate: "2026-08-06",
+  sourceUrls: [
+    "https://equal-love.jp/news/detail/11588",
+    "https://equal-love.jp/news/detail/11815",
+    "https://www.youtube.com/watch?v=ikFaEAlO5N0",
+  ],
+  lastVerifiedDate: "2026-08-16",
 };

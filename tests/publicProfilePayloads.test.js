@@ -47,7 +47,7 @@ export function runPublicProfilePayloadsTests() {
     playerName: "颯太",
     oshiMemberId: "noguchi-iori",
     achievementsSnapshot: buildSnapshot([]),
-    oshiBadgeState: { hasEqualLoveMaster: true, hasEqualLoveComplete: false },
+    oshiBadgeState: { hasNoMissMaster: false, hasEqualLoveMaster: true, hasEqualLoveComplete: false },
   });
   assertEqual(payload.schemaVersion, 1, "schemaVersionが1で組み立てられる");
   assertEqual(payload.displayName, "颯太", "displayNameが反映される");
@@ -57,14 +57,23 @@ export function runPublicProfilePayloadsTests() {
     ["no_miss_bronze", "full_chorus_master"],
     "unlockedAchievementIdsは取得済みのidだけになる（未取得のno_miss_silverは含まれない）"
   );
+  assertEqual(payload.hasNoMissMaster, false, "hasNoMissMasterが反映される");
   assertEqual(payload.hasEqualLoveMaster, true, "hasEqualLoveMasterが反映される");
   assertEqual(payload.hasEqualLoveComplete, false, "hasEqualLoveCompleteが反映される");
 
   // ---- 不要な個人情報がpayloadに入らない（固定のキー集合と完全一致することを確認） ----
   assertEqual(
     Object.keys(payload).sort(),
-    ["displayName", "hasEqualLoveComplete", "hasEqualLoveMaster", "oshiMemberId", "schemaVersion", "unlockedAchievementIds"].sort(),
-    "payloadのキーは6つだけ（uid・メールアドレス・IP・端末情報等は一切含まれない）"
+    [
+      "displayName",
+      "hasEqualLoveComplete",
+      "hasEqualLoveMaster",
+      "hasNoMissMaster",
+      "oshiMemberId",
+      "schemaVersion",
+      "unlockedAchievementIds",
+    ].sort(),
+    "payloadのキーは7つだけ（uid・メールアドレス・IP・端末情報等は一切含まれない）"
   );
 
   // ---- 表示名が空でもクラッシュせず、フォールバック名になる ----
@@ -72,7 +81,7 @@ export function runPublicProfilePayloadsTests() {
     playerName: "",
     oshiMemberId: null,
     achievementsSnapshot: [],
-    oshiBadgeState: { hasEqualLoveMaster: false, hasEqualLoveComplete: false },
+    oshiBadgeState: { hasNoMissMaster: false, hasEqualLoveMaster: false, hasEqualLoveComplete: false },
   });
   assertEqual(emptyNamePayload.displayName, "名無しのファン", "表示名が未設定でも安全なフォールバック名になる");
   assertEqual(emptyNamePayload.oshiMemberId, null, "推し未設定はnullのまま");
@@ -83,7 +92,7 @@ export function runPublicProfilePayloadsTests() {
     playerName: "  スペース太郎  ",
     oshiMemberId: null,
     achievementsSnapshot: [],
-    oshiBadgeState: { hasEqualLoveMaster: false, hasEqualLoveComplete: false },
+    oshiBadgeState: { hasNoMissMaster: false, hasEqualLoveMaster: false, hasEqualLoveComplete: false },
   });
   assertEqual(trimmedPayload.displayName, "スペース太郎", "表示名の前後の空白がtrimされる");
 
@@ -93,7 +102,7 @@ export function runPublicProfilePayloadsTests() {
     playerName: "たくさん",
     oshiMemberId: null,
     achievementsSnapshot: manySnapshot,
-    oshiBadgeState: { hasEqualLoveMaster: true, hasEqualLoveComplete: true },
+    oshiBadgeState: { hasNoMissMaster: true, hasEqualLoveMaster: true, hasEqualLoveComplete: true },
   });
   assertEqual(manyPayload.unlockedAchievementIds.length, 12, "称号12個（全種類）でもすべてpayloadに含まれる");
 
@@ -104,12 +113,14 @@ export function runPublicProfilePayloadsTests() {
   const brokenEntry = normalizePublicProfileEntry("uid2", {
     displayName: 12345, // 型が違う
     unlockedAchievementIds: "not-an-array", // 型が違う
+    hasNoMissMaster: "yes", // booleanでない
     hasEqualLoveMaster: "yes", // booleanでない
   });
   assertEqual(brokenEntry.uid, "uid2", "uidはそのまま保持される");
   assertEqual(brokenEntry.displayName, "名無しのファン", "型の違うdisplayNameは安全なフォールバックになる");
   assertEqual(brokenEntry.oshiMemberId, null, "oshiMemberId未指定はnullになる");
   assertEqual(brokenEntry.unlockedAchievementIds, [], "配列でないunlockedAchievementIdsは空配列になる（画面が壊れない）");
+  assertEqual(brokenEntry.hasNoMissMaster, false, "booleanでない値はfalse扱いになる（安全側）");
   assertEqual(brokenEntry.hasEqualLoveMaster, false, "booleanでない値はfalse扱いになる（安全側）");
   assertEqual(brokenEntry.schemaVersion, 1, "schemaVersion未指定は1にフォールバックする");
 
@@ -122,6 +133,7 @@ export function runPublicProfilePayloadsTests() {
     displayName: "正常太郎",
     oshiMemberId: "otani-emiri",
     unlockedAchievementIds: ["no_miss_bronze", "equal_love_master"],
+    hasNoMissMaster: true,
     hasEqualLoveMaster: true,
     hasEqualLoveComplete: false,
     updatedAt: 1700000000000,
@@ -134,6 +146,7 @@ export function runPublicProfilePayloadsTests() {
       displayName: "正常太郎",
       oshiMemberId: "otani-emiri",
       unlockedAchievementIds: ["no_miss_bronze", "equal_love_master"],
+      hasNoMissMaster: true,
       hasEqualLoveMaster: true,
       hasEqualLoveComplete: false,
       updatedAt: 1700000000000,

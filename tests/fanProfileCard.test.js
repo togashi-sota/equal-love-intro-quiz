@@ -17,6 +17,7 @@ function buildProfile(overrides) {
     displayName: "テスト太郎",
     oshiMemberId: null,
     unlockedAchievementIds: [],
+    hasNoMissMaster: false,
     hasEqualLoveMaster: false,
     hasEqualLoveComplete: false,
     ...overrides,
@@ -70,6 +71,17 @@ export function runFanProfileCardTests() {
     null,
     "複合称号が無ければ代表ラベルはnull（称号数だけ表示）"
   );
+  // ---- 2026-08-15追加：ノーミスマスターは＝LOVEマスター・完全制覇より下位の代表ラベル ----
+  assertEqual(
+    buildRepresentativeLabel(buildProfile({ hasNoMissMaster: true })),
+    "ノーミスマスター",
+    "ノーミスマスターだけ取得済みならそれが代表ラベルになる"
+  );
+  assertEqual(
+    buildRepresentativeLabel(buildProfile({ hasNoMissMaster: true, hasEqualLoveMaster: true })),
+    "＝LOVEマスター",
+    "＝LOVEマスターも取得済みなら、ノーミスマスターより＝LOVEマスターが優先される"
+  );
 
   // ---- カードをタップするとonSelectがそのprofileで呼ばれる ----
   let selected = null;
@@ -81,6 +93,50 @@ export function runFanProfileCardTests() {
   clickableCard.dispatchEvent(new MouseEvent("click", { bubbles: true }));
   assertEqual(selected?.uid, "uid-click-test", "カードをタップするとonSelectが正しいprofileで呼ばれる");
   document.body.removeChild(clickableCard);
+
+  // ---- 2026-08-16追加：isAdmin未指定・falseなら、今までどおりbutton要素をそのまま返す ----
+  const nonAdminCard = buildProfileCard(buildProfile({ uid: "uid-non-admin" }), MEMBERS, null);
+  assertEqual(nonAdminCard.tagName, "BUTTON", "isAdmin未指定なら戻り値はbutton要素のまま");
+  assertEqual(
+    nonAdminCard.querySelector(".fan-profile-admin-delete-button"),
+    null,
+    "isAdmin未指定なら削除ボタンは存在しない"
+  );
+
+  // ---- 2026-08-16追加：isAdmin: trueなら、カードと削除ボタンを横並びにした行を返す ----
+  const adminProfile = buildProfile({ uid: "uid-admin-target", displayName: "削除対象さん" });
+  let adminSelected = null;
+  let adminDeleteRequested = null;
+  const adminRow = buildProfileCard(
+    adminProfile,
+    MEMBERS,
+    (profile) => {
+      adminSelected = profile;
+    },
+    {
+      isAdmin: true,
+      onAdminDeleteRequest: (profile) => {
+        adminDeleteRequested = profile;
+      },
+    }
+  );
+  assertEqual(adminRow.className, "fan-profile-card-row", "isAdmin:trueなら行コンテナが返る");
+  const innerCard = adminRow.querySelector(".fan-profile-card");
+  assertEqual(innerCard?.tagName, "BUTTON", "行コンテナの中にカード本体のbutton要素がある");
+  const adminDeleteButton = adminRow.querySelector(".fan-profile-admin-delete-button");
+  assertEqual(adminDeleteButton?.tagName, "BUTTON", "行コンテナの中に管理者削除ボタンがある");
+
+  document.body.appendChild(adminRow);
+  innerCard.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  assertEqual(adminSelected?.uid, "uid-admin-target", "管理者モードでもカード本体タップでonSelectが呼ばれる");
+
+  adminDeleteButton.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  assertEqual(
+    adminDeleteRequested?.uid,
+    "uid-admin-target",
+    "削除ボタンタップでonAdminDeleteRequestが正しいprofileで呼ばれる"
+  );
+  document.body.removeChild(adminRow);
 
   // ---- 表示名順の並び替え（ランキングではない、称号数などは一切見ない） ----
   const unsorted = [

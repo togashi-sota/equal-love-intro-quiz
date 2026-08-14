@@ -9,7 +9,10 @@ import {
   isPublicProfileSharingEnabled,
   setPublicProfileSharingEnabled,
   fetchAllPublicProfiles,
+  getMyUid,
+  deletePublicProfileByAdmin,
 } from "./publicProfileSync.js";
+import { ADMIN_UID } from "./adminConfig.js";
 import { getPlayerKeyPrefix } from "./playerProfile.js";
 import { getMemberById } from "./memberUtils.js";
 import {
@@ -21,6 +24,11 @@ import {
 
 let elements = null;
 let members = null;
+// 2026-08-16追加：この端末が管理者（js/adminConfig.jsのADMIN_UID）かどうか。
+// ADMIN_UIDがnullの間は誰であってもfalseになり、管理者用UIは一切表示されない。
+let isAdminUser = false;
+// 削除確認モーダルで「削除する」が押されたときに対象を特定するための一時保持。
+let pendingAdminDeleteProfile = null;
 
 function renderEmptyState(kind) {
   elements.listContainer.innerHTML = "";
@@ -29,7 +37,7 @@ function renderEmptyState(kind) {
   if (kind === "no-profiles") {
     message.textContent = "まだ他のファンはいません。プロフィール公開をONにすると、ここに表示されます。";
   } else {
-    message.textContent = "プレイヤー広場を読み込めませんでした。電波の良い場所でもう一度開いてみてください。";
+    message.textContent = "フレンドを読み込めませんでした。電波の良い場所でもう一度開いてみてください。";
   }
   elements.listContainer.appendChild(message);
 }
@@ -55,8 +63,23 @@ async function renderProfileList() {
   }
   elements.listContainer.innerHTML = "";
   sortProfiles(profiles).forEach((profile) =>
-    elements.listContainer.appendChild(buildProfileCard(profile, members, openDetailModal))
+    elements.listContainer.appendChild(
+      buildProfileCard(profile, members, openDetailModal, {
+        isAdmin: isAdminUser,
+        onAdminDeleteRequest: openAdminDeleteConfirm,
+      })
+    )
   );
+}
+
+// 自分のUIDを取得し、「🆔 あなたのID」表示の更新と管理者判定を行う（2026-08-16追加）。
+// 通信に失敗してUIDが取れない場合でも、isAdminUserはfalseのままになるだけで画面は壊れない。
+async function renderMyUidAndAdminState() {
+  const uid = await getMyUid();
+  if (elements.myUidValue) {
+    elements.myUidValue.textContent = uid ?? "取得できませんでした";
+  }
+  isAdminUser = ADMIN_UID !== null && uid !== null && uid === ADMIN_UID;
 }
 
 // 設定カード（「みんなに公開する」トグル）を、今の公開設定に合わせて描画する。
@@ -84,6 +107,7 @@ function openDetailModal(profile) {
   elements.detailSwatch.innerHTML = "";
   elements.detailSwatch.appendChild(
     buildOshiSwatch(members, profile.oshiMemberId, {
+      hasNoMissMaster: profile.hasNoMissMaster,
       hasEqualLoveMaster: profile.hasEqualLoveMaster,
       hasEqualLoveComplete: profile.hasEqualLoveComplete,
     })
@@ -110,10 +134,54 @@ function handleDetailKeydown(event) {
   closeDetailModal();
 }
 
+// ---- 管理者限定：公開プロフィール削除の確認モーダル（2026-08-16追加） ----
+// buildProfileCard()のonAdminDeleteRequestから、対象profileを引数に呼ばれる。
+function openAdminDeleteConfirm(profile) {
+  pendingAdminDeleteProfile = profile;
+  elements.adminDeleteTargetName.textContent = profile.displayName;
+  elements.adminDeleteOverlay.hidden = false;
+}
+
+function closeAdminDeleteConfirm() {
+  pendingAdminDeleteProfile = null;
+  elements.adminDeleteOverlay.hidden = true;
+}
+
+function handleAdminDeleteOverlayClick(event) {
+  if (event.target !== elements.adminDeleteOverlay) return;
+  closeAdminDeleteConfirm();
+}
+
+function handleAdminDeleteKeydown(event) {
+  if (event.key !== "Escape") return;
+  if (elements.adminDeleteOverlay.hidden) return;
+  closeAdminDeleteConfirm();
+}
+
+// 「削除する」確定時。UIDが変わっていないか（万一の二重クリック等）を都度再確認したうえで
+// 削除し、削除後は一覧を再読み込みする。失敗してもローカルデータには一切影響しない。
+async function handleAdminDeleteConfirmClick() {
+  if (!isAdminUser || !pendingAdminDeleteProfile) return;
+  const targetUid = pendingAdminDeleteProfile.uid;
+  elements.adminDeleteConfirmButton.disabled = true;
+  try {
+    await deletePublicProfileByAdmin(targetUid);
+  } catch (error) {
+    console.warn("管理者による公開プロフィール削除に失敗しました", error);
+  } finally {
+    elements.adminDeleteConfirmButton.disabled = false;
+    closeAdminDeleteConfirm();
+    renderProfileList();
+  }
+}
+
 // みんなのプロフィール画面を開くたびに呼ぶ想定（js/screens.jsのshowScreen("fanProfiles")と
 // 合わせてmain.js側から呼ぶ）。設定の最新状態の反映と、一覧の再取得を行う。
-export function renderFanProfilesScreen() {
+// 【2026-08-16更新】管理者判定（自分のUID確認）を一覧の再取得より先に済ませてから
+// 一覧を描画する（管理者用の削除ボタンをカード生成時点で正しく反映するため）。
+export async function renderFanProfilesScreen() {
   renderSharingSettings();
+  await renderMyUidAndAdminState();
   renderProfileList();
 }
 
@@ -121,6 +189,9 @@ export function renderFanProfilesScreen() {
 //   sharingToggleButton, sharingToggleLabel: 公開ON/OFFトグル,
 //   listContainer: プロフィールカードを並べる入れ物,
 //   detailOverlay, detailCloseButton, detailSwatch, detailName, detailOshi, detailAchievementList,
+//   myUidValue: 「🆔 あなたのID」表示,
+//   adminDeleteOverlay, adminDeleteTargetName, adminDeleteCancelButton, adminDeleteConfirmButton:
+//     管理者限定の削除確認モーダル,
 // }
 export function initFanProfilesScreen(newElements, allMembers) {
   elements = newElements;
@@ -130,4 +201,9 @@ export function initFanProfilesScreen(newElements, allMembers) {
   elements.detailCloseButton.addEventListener("click", closeDetailModal);
   elements.detailOverlay.addEventListener("click", handleDetailOverlayClick);
   document.addEventListener("keydown", handleDetailKeydown);
+
+  elements.adminDeleteCancelButton.addEventListener("click", closeAdminDeleteConfirm);
+  elements.adminDeleteConfirmButton.addEventListener("click", handleAdminDeleteConfirmClick);
+  elements.adminDeleteOverlay.addEventListener("click", handleAdminDeleteOverlayClick);
+  document.addEventListener("keydown", handleAdminDeleteKeydown);
 }

@@ -238,8 +238,19 @@ export function runAchievementProgressTests() {
   );
   assertEqual(
     getOshiBadgeState(),
-    { hasEqualLoveMaster: false, hasEqualLoveComplete: false },
-    "称号が何もない状態では王冠もダイヤも付かない"
+    { hasNoMissMaster: false, hasEqualLoveMaster: false, hasEqualLoveComplete: false },
+    "称号が何もない状態では王冠もダイヤも専用バッジも付かない"
+  );
+
+  // ---- 2026-08-15追加：ノーミスマスター単体取得 ----
+  localStorage.setItem(
+    ACHIEVEMENTS_KEY,
+    JSON.stringify({ schemaVersion: 2, unlockedAchievementIds: ["no_miss_master"], unlockedAtById: {} })
+  );
+  assertEqual(
+    getOshiBadgeState(),
+    { hasNoMissMaster: true, hasEqualLoveMaster: false, hasEqualLoveComplete: false },
+    "ノーミスマスター取得で専用バッジが付く（王冠・ダイヤはまだ）"
   );
 
   localStorage.setItem(
@@ -248,7 +259,7 @@ export function runAchievementProgressTests() {
   );
   assertEqual(
     getOshiBadgeState(),
-    { hasEqualLoveMaster: true, hasEqualLoveComplete: false },
+    { hasNoMissMaster: false, hasEqualLoveMaster: true, hasEqualLoveComplete: false },
     "＝LOVEマスター取得で王冠が付く（ダイヤはまだ）"
   );
 
@@ -262,7 +273,7 @@ export function runAchievementProgressTests() {
   );
   assertEqual(
     getOshiBadgeState(),
-    { hasEqualLoveMaster: true, hasEqualLoveComplete: true },
+    { hasNoMissMaster: false, hasEqualLoveMaster: true, hasEqualLoveComplete: true },
     "＝LOVE完全制覇取得で王冠とダイヤの両方が付く"
   );
 

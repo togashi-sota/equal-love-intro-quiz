@@ -154,21 +154,27 @@
         </div>
       </div>
 
-      <!-- 「遊び方ガイド」「プレイヤー広場」への入口（2026-08-15追加）。友人にテストしてもらった
-           結果、せっかく作った機能でも存在に気付かれない・意味が伝わらないという指摘が多かったため、
-           初見ユーザーが最初に目にするプレイヤー情報のすぐ下という、最も見つけやすい位置に置く。
+      <!-- 「遊び方ガイド」「フレンド」「ランキング」への入口（2026-08-15新設、2026-08-16に
+           ランキングを追加し3つ構成へ）。友人にテストしてもらった結果、せっかく作った機能でも
+           存在に気付かれない・意味が伝わらないという指摘が多かったため、初見ユーザーが最初に
+           目にするプレイヤー情報のすぐ下という、最も見つけやすい位置に置く。
            見た目は「＝LOVEをもっと知る」のカード（.know-more-button）と同じ構造を再利用しつつ、
            独立した見た目にするため専用クラス（.home-quicknav-*）を使う。 -->
       <div class="home-quicknav-grid">
         <button id="guide-link" class="home-quicknav-button" type="button">
           <span class="home-quicknav-icon" aria-hidden="true">📖</span>
           <span class="home-quicknav-label">遊び方ガイド</span>
-          <span class="home-quicknav-description">モードや機能の使い方をまとめて見る</span>
+          <span class="home-quicknav-description">使い方をまとめて見る</span>
         </button>
         <button id="fan-profiles-link" class="home-quicknav-button" type="button">
           <span class="home-quicknav-icon" aria-hidden="true">👥</span>
-          <span class="home-quicknav-label">プレイヤー広場</span>
-          <span class="home-quicknav-description">このゲームを遊んでいるプレイヤーを見る</span>
+          <span class="home-quicknav-label">フレンド</span>
+          <span class="home-quicknav-description">遊んでいる人を見る</span>
+        </button>
+        <button id="home-leaderboard-link" class="home-quicknav-button" type="button">
+          <span class="home-quicknav-icon" aria-hidden="true">🏆</span>
+          <span class="home-quicknav-label">ランキング</span>
+          <span class="home-quicknav-description">タイムアタックの順位</span>
         </button>
       </div>
 
@@ -1235,7 +1241,7 @@
             <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
             PLAYERS
           </p>
-          <h2>プレイヤー広場</h2>
+          <h2>フレンド</h2>
         </div>
       </div>
 
@@ -1245,13 +1251,18 @@
            本人指示：本人が意図しない情報を勝手に公開しない設計にするため、必ず自分で選んでもらう。 -->
       <div class="fan-profiles-settings-card">
         <div class="fan-profiles-settings-text">
-          <p class="fan-profiles-settings-title">あなたのプロフィールをプレイヤー広場に公開する</p>
+          <p class="fan-profiles-settings-title">あなたのプロフィールをフレンドに公開する</p>
           <p class="fan-profiles-settings-description">表示名・推し・取得済みの称号だけが公開されます。メールアドレスや内部IDなどは一切公開されません。いつでもOFFに戻せます。</p>
         </div>
         <button id="fan-profiles-sharing-toggle" class="sfx-toggle-button" type="button" aria-pressed="false" aria-label="プロフィール公開を切り替える">
           <span id="fan-profiles-sharing-toggle-label">OFF</span>
         </button>
       </div>
+
+      <!-- あなたの識別ID表示（2026-08-16新設）：他人には公開されない、この端末の匿名認証IDを
+           確認できる小さな表示。センシティブな情報（メールアドレス等）は一切含まない。
+           開発者（本人）が管理者機能を設定する際の参照用。 -->
+      <p class="fan-profiles-my-id">🆔 あなたのID：<code id="fan-profiles-my-uid">確認中…</code></p>
 
       <!-- 一覧本体。中身はjs/fanProfilesScreen.jsが組み立てる -->
       <div id="fan-profiles-list"></div>
@@ -1734,10 +1745,12 @@
         </div>
       </div>
 
-      <p class="special-modes-intro">出題タイプ・出題数ごとに、クリアタイムが速い順のTOP10を表示します。ランキング対象は<strong>LOVE連チャンルールのみ</strong>です（ノーマル・ハードの記録は自己ベスト/履歴には保存されますが、公開ランキングには反映されません）。参加するには「プレイヤー広場」の公開設定をONにしてください。</p>
+      <p class="special-modes-intro">出題タイプ・ルール・出題数・カテゴリーごとに、クリアタイムが速い順のTOP10を表示します。ランキング対象は<strong>全問正解・誤答0・未回答0で完走した記録だけ</strong>です（1問でも間違えたプレイは、ルールを問わず公開ランキングには反映されません。自己ベスト・履歴には今までどおり保存されます）。参加するには「フレンド」の公開設定をONにしてください。</p>
 
       <div id="time-attack-leaderboard-variant-tabs" class="leaderboard-tab-row"></div>
+      <div id="time-attack-leaderboard-rule-tabs" class="leaderboard-tab-row"></div>
       <div id="time-attack-leaderboard-question-count-tabs" class="leaderboard-tab-row"></div>
+      <div id="time-attack-leaderboard-category-tabs" class="leaderboard-tab-row"></div>
 
       <p id="time-attack-leaderboard-loading" class="leaderboard-state-note" hidden>読み込み中…</p>
       <p id="time-attack-leaderboard-offline" class="leaderboard-state-note" hidden>ランキングはオンライン時に表示できます。</p>
@@ -3739,6 +3752,25 @@
         </div>
       </div>
       <div id="fan-profile-detail-achievements"></div>
+    </div>
+  </div>
+
+  <!-- 管理者限定：公開プロフィール削除の確認モーダル（2026-08-16新設）。
+       このモーダル自体は誰でもDOM上には存在するが、開くボタン（フレンド一覧のカード内）は
+       ADMIN_UID（js/adminConfig.js）と一致する本人にしか表示されない。
+       削除対象はFirebaseのpublicProfiles/{uid}だけであり、本人の端末内データには一切触れない
+       ことを、確認文言でも明記する（本人指示：安全性を最優先し、誤操作を防ぐ）。 -->
+  <div id="fan-profiles-admin-delete-confirm-modal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="fan-profiles-admin-delete-confirm-title">
+      <h2 id="fan-profiles-admin-delete-confirm-title">この公開プロフィールを削除しますか？</h2>
+      <p class="modal-lead">
+        <strong id="fan-profiles-admin-delete-target-name"></strong>さんの、フレンド一覧に表示されている公開プロフィールだけを削除します。<br>
+        この人自身の端末に保存されているプレイデータ・音源・歌詞・称号・プレイ履歴・自己ベスト・Authenticationアカウント本体は削除されません（次にこの人が公開設定をON/OFFすると再度公開される場合があります）。
+      </p>
+      <div class="button-row">
+        <button id="fan-profiles-admin-delete-cancel-button" class="secondary-button" type="button">キャンセル</button>
+        <button id="fan-profiles-admin-delete-confirm-button" class="danger-button" type="button">公開プロフィールを削除する</button>
+      </div>
     </div>
   </div>
 

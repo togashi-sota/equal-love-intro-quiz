@@ -514,6 +514,16 @@ function buildUpcomingReleaseCard(upcomingRelease) {
   date.textContent = `${formatDate(upcomingRelease.releaseDate)} 発売`;
   card.appendChild(date);
 
+  // カップリング曲・センターは、公式発表があるまで一切表示しない（推測で埋めない）。
+  // 発表が無い間は「続報をお楽しみに」とだけ添えて、情報が無いこと自体を素直に伝える。
+  const teaser = document.createElement("p");
+  teaser.className = "upcoming-release-teaser";
+  teaser.textContent = "収録内容の続報をお楽しみに";
+  card.appendChild(teaser);
+
+  const linkRow = document.createElement("div");
+  linkRow.className = "upcoming-release-link-row";
+
   const officialUrl = upcomingRelease.officialLinks?.official;
   if (officialUrl) {
     const link = document.createElement("a");
@@ -522,8 +532,22 @@ function buildUpcomingReleaseCard(upcomingRelease) {
     link.target = "_blank";
     link.rel = "noopener noreferrer";
     link.textContent = "公式サイトを見る";
-    card.appendChild(link);
+    linkRow.appendChild(link);
   }
+
+  // MVを見る（2026-08-16追加）：公式チャンネルの動画であることを確認できたURLのときだけ表示する。
+  const mvUrl = upcomingRelease.officialLinks?.mv;
+  if (mvUrl) {
+    const mvLink = document.createElement("a");
+    mvLink.className = "official-link-button is-mv";
+    mvLink.href = mvUrl;
+    mvLink.target = "_blank";
+    mvLink.rel = "noopener noreferrer";
+    mvLink.textContent = "▶ MVを見る";
+    linkRow.appendChild(mvLink);
+  }
+
+  if (linkRow.childElementCount > 0) card.appendChild(linkRow);
 
   return card;
 }

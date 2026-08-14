@@ -3,46 +3,55 @@
 // （js/publicProfilePayloads.js・js/publicProfileSync.jsと同じファイル分割方針。
 // 恒久テストがFirebase初期化を発生させないようにするため）。
 //
-// 【ランキングの分離方針】出題タイプ(variant)×出題数(questionCountValue)の組み合わせごとに
-// 完全に別々のランキングとして扱う（5問と50問を混ぜない、イントロとランダム再生を混ぜない）。
-// カテゴリ・ルールはランキングの分離対象にしない（本人指示：variant×questionCountだけで分離）。
+// 【2026-08-16改訂・本人指示】以前はLOVE連チャンルールだけを対象にしていたが、
+// 「1問でも間違えたプレイは公開ランキングに載らない」ことさえ保証すれば、ノーマル・ハードも
+// 含めて公平に比較できると判断し、3ルールすべてを対象に戻した。加えてカテゴリー
+// （表題曲のみ／表題曲＋全員曲／全曲）でも完全に分離する。
+//
+// 【分離方針】出題タイプ(variant)×ルール(rule)×出題数(questionCountValue)×
+// カテゴリー(categoryFilterValue)の組み合わせごとに完全に別々のランキングとして扱う。
 //
 // 【記録の比較基準】クリアタイム昇順（速い方が上位）。同タイムは①クリアタイム②ミス数
 // ③登録日時（早い方が上位）の順で決める（本人の第一候補どおり）。
+//
+// 【旧データとの互換性】以前の構造（timeAttackLeaderboards/{variant}/{questionCountValue}/{uid}、
+// ルール・カテゴリーの区別なし）は、この新しい構造とは別の場所（トップレベルのキー名を
+// timeAttackLeaderboardsV2に変える）に置く。混ぜて表示すると「ルール・カテゴリーを問わない
+// 記録」と「新条件を満たした記録」が区別できなくなり、不正確な比較になってしまうため。
+// 旧データは削除せず、単に新しいコードからは一切参照しない（本人指示：既存データを
+// 誤って新しいカテゴリーへ混ぜない）。
 
 // タイムアタックの出題数のうち、ランキング対応の値。既存のtime-attack-question-countの
 // ラジオボタンの値（"5"|"10"|"20"|"50"|"all"）とそのまま一致させている。
 export const LEADERBOARD_QUESTION_COUNT_VALUES = ["5", "10", "20", "50", "all"];
 
-// ランキング（TOP10表示・自己記録送信）の対象として認める唯一のルール。
-// 【本人指示・緊急メンテ2026-08-13】ノーマル/ハードは出題数固定・連打で速く終えやすく、
-// 全問ノーミス必須のLOVE連チャンと同じ枠で速さを比べると不公平になる。そのため公開ランキングは
-// LOVE連チャンの記録だけを対象にする。ノーマル/ハードは今までどおり遊べて自己ベスト・履歴には
-// 保存されるが、公開ランキングへは一切送信しない。
-// js/timeAttackScreen.jsのTIME_ATTACK_RULE.LOVE_CHAINと同じ文字列をあえて複製している
-// （このファイルをFirebase非依存の恒久テスト対象に保つ設計方針を維持するため。
+// ランキング対応のルール（js/timeAttackScreen.jsのTIME_ATTACK_RULEと同じ文字列をあえて
+// 複製している。このファイルをFirebase非依存の恒久テスト対象に保つ設計方針を維持するため、
 // LEADERBOARD_QUESTION_COUNT_VALUESと同じ考え方）。
-const LEADERBOARD_ELIGIBLE_RULE = "loveChain";
+export const LEADERBOARD_RULE_VALUES = ["normal", "hard", "loveChain"];
 
-export function isRuleEligibleForLeaderboard(rule) {
-  return rule === LEADERBOARD_ELIGIBLE_RULE;
-}
+// ランキング対応のカテゴリー（index.htmlのcategory-filterラジオボタンの値とそのまま一致）。
+export const LEADERBOARD_CATEGORY_VALUES = ["title-track", "title-and-group", "all"];
 
 // ランキングへ書き込んでよい記録かどうかを検証する。
-// 【本人指示】不正な0秒以下・NaN・不正なミス数がランキングに登録されないことを保証すること。
+// 【本人指示・2026-08-16】ルールを問わず「1問でも間違えたプレイは公開ランキングに載らない」を
+// 絶対条件にする。missCountは、そのプレイ全体を通して1回でも不正解の選択肢を選んだ回数の
+// 合計（js/timeAttackScreen.jsのmissCount）。timeAttackにはスキップ・未回答の概念が無いため
+// （skippedCountは常に0、js/timeAttackScreen.jsのbuildAchievementResultInput参照）、
+// missCount === 0であれば「全問正解・誤答0・未回答0」の完全クリアを意味する。
 export function isValidLeaderboardCandidate({ clearTimeMs, missCount }) {
   return (
     Number.isFinite(clearTimeMs) &&
     clearTimeMs > 0 &&
     Number.isFinite(missCount) &&
-    missCount >= 0
+    missCount === 0
   );
 }
 
-// variant×questionCountの組み合わせから、Firebase Realtime Databaseのパスを組み立てる。
-// timeAttackLeaderboards/{variant}/{questionCountValue}/{uid} という構造（本人指定）。
-export function buildLeaderboardPath(variant, questionCountValue) {
-  return `timeAttackLeaderboards/${variant}/${questionCountValue}`;
+// variant×rule×questionCount×categoryの組み合わせから、Firebase Realtime Databaseの
+// パスを組み立てる。
+export function buildLeaderboardPath(variant, rule, questionCountValue, categoryFilterValue) {
+  return `timeAttackLeaderboardsV2/${variant}/${rule}/${questionCountValue}/${categoryFilterValue}`;
 }
 
 // 1件の記録（自分の今回のプレイ結果）から、Firebaseに保存するpayloadを組み立てる。
@@ -96,30 +105,28 @@ export function normalizeLeaderboardEntry(uid, raw) {
   };
 }
 
-// ローカルのタイムアタック履歴（js/timeAttackHistory.js）から、variant×questionCountの
-// 組み合わせごとに最速のクリア記録を1件ずつ抽出する（2026-08-07追加）。
+// ローカルのタイムアタック履歴（js/timeAttackHistory.js）から、
+// variant×rule×questionCount×categoryの組み合わせごとに、条件を満たす（全問正解・誤答0・
+// 未回答0の）最速のクリア記録を1件ずつ抽出する（2026-08-07追加、2026-08-16に
+// ルール・カテゴリー別の抽出へ拡張）。
 // 【本人指示の背景】ランキングへの送信は「新記録を出した瞬間」だけに起きる設計のため、
-// 「みんなのプロフィール」を後からONにした人・すでにONだった人の既存の自己ベストは、
-// そのままではランキングに一切反映されない。このズレを解消するため、履歴から
-// 「もし今日ランキング機能があったら新記録だったはずの記録」を掘り起こす。
-// ランキング自体はルール・カテゴリを分けない設計（本人指示：variant×questionCountだけで分離）
-// のため、ここでもルール・カテゴリを問わず、同じvariant×questionCountの中で最も速かった
-// 1件（LOVE連チャン失敗等、完走していない記録は除く）だけを残す。
-export function findBestEntryPerVariantAndQuestionCount(historyEntries) {
+// 「フレンド」を後からONにした人・すでにONだった人の既存の自己ベストは、そのままでは
+// ランキングに一切反映されない。このズレを解消するため、履歴から「もし今日この条件で
+// ランキング機能があったら新記録だったはずの記録」を掘り起こす。
+export function findBestEntryPerVariantRuleQuestionCountAndCategory(historyEntries) {
   const bestByKey = new Map();
   historyEntries.forEach((entry) => {
     if (!entry.completed) return;
-    // 【2026-08-13追加】ランキング対象外のルール（ノーマル/ハード）の履歴は、
-    // バックフィル（過去の自己ベストをランキングへ反映する処理）でも一切対象にしない。
-    if (!isRuleEligibleForLeaderboard(entry.rule)) return;
+    if (!isValidLeaderboardCandidate({ clearTimeMs: entry.totalElapsedMs, missCount: entry.missCount })) return;
     const variant = entry.variant ?? "intro";
-    const key = `${variant}.${entry.questionCountValue}`;
+    const key = `${variant}.${entry.rule}.${entry.questionCountValue}.${entry.categoryFilterValue}`;
     const current = bestByKey.get(key);
     if (!current || entry.totalElapsedMs < current.clearTimeMs) {
       bestByKey.set(key, {
         variant,
-        questionCountValue: entry.questionCountValue,
         rule: entry.rule,
+        questionCountValue: entry.questionCountValue,
+        categoryFilterValue: entry.categoryFilterValue,
         clearTimeMs: entry.totalElapsedMs,
         missCount: entry.missCount,
       });

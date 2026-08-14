@@ -40,7 +40,7 @@ export const GUIDE_CATEGORIES = [
   },
   {
     id: "listen",
-    label: "🎵 曲を聴く・プレイヤー広場",
+    label: "🎵 曲を聴く・フレンド",
     sectionIds: ["favorites", "playlists", "offlinePlayer", "fanProfiles"],
   },
 ];
@@ -227,10 +227,10 @@ export const GUIDE_SECTIONS = [
   {
     id: "fanProfiles",
     icon: "👥",
-    title: "プレイヤー広場",
+    title: "フレンド",
     tagline: "このゲームを遊んでいる他のプレイヤーの、表示名・推し・称号を見られます。",
     steps: [
-      "ホーム上部の「プレイヤー広場」を開く",
+      "ホーム上部の「フレンド」を開く",
       "自分のプロフィールを公開したい場合はONにする",
       "他のプレイヤーのカードをタップして詳細を見る",
     ],

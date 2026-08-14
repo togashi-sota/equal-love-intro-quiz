@@ -439,6 +439,7 @@ let historyListScrollY = 0;
 let timeAttackHistoryListScrollY = 0;
 const specialModesBackButtonElement = document.getElementById("special-modes-back-button");
 const guideLinkElement = document.getElementById("guide-link");
+const homeLeaderboardLinkElement = document.getElementById("home-leaderboard-link");
 const guideBackButtonElement = document.getElementById("guide-back-button");
 const guideTocViewElement = document.getElementById("guide-toc-view");
 const guideDetailViewElement = document.getElementById("guide-detail-view");
@@ -461,6 +462,11 @@ const fanProfileDetailSwatchElement = document.getElementById("fan-profile-detai
 const fanProfileDetailNameElement = document.getElementById("fan-profile-detail-name");
 const fanProfileDetailOshiElement = document.getElementById("fan-profile-detail-oshi");
 const fanProfileDetailAchievementsElement = document.getElementById("fan-profile-detail-achievements");
+const fanProfilesMyUidElement = document.getElementById("fan-profiles-my-uid");
+const fanProfilesAdminDeleteOverlayElement = document.getElementById("fan-profiles-admin-delete-confirm-modal");
+const fanProfilesAdminDeleteTargetNameElement = document.getElementById("fan-profiles-admin-delete-target-name");
+const fanProfilesAdminDeleteCancelButtonElement = document.getElementById("fan-profiles-admin-delete-cancel-button");
+const fanProfilesAdminDeleteConfirmButtonElement = document.getElementById("fan-profiles-admin-delete-confirm-button");
 const weakSongsBackButtonElement = document.getElementById("weak-songs-back-button");
 const liveCallModeListBackButtonElement = document.getElementById("live-call-mode-list-back-button");
 const liveCallModePlayerBackButtonElement = document.getElementById("live-call-mode-player-back-button");
@@ -555,9 +561,11 @@ const timeAttackHistoryDetailBackButtonElement = document.getElementById("time-a
 const timeAttackLeaderboardLinkElement = document.getElementById("time-attack-leaderboard-link");
 const timeAttackLeaderboardBackButtonElement = document.getElementById("time-attack-leaderboard-back-button");
 const timeAttackLeaderboardVariantTabsElement = document.getElementById("time-attack-leaderboard-variant-tabs");
+const timeAttackLeaderboardRuleTabsElement = document.getElementById("time-attack-leaderboard-rule-tabs");
 const timeAttackLeaderboardQuestionCountTabsElement = document.getElementById(
   "time-attack-leaderboard-question-count-tabs"
 );
+const timeAttackLeaderboardCategoryTabsElement = document.getElementById("time-attack-leaderboard-category-tabs");
 const timeAttackLeaderboardLoadingElement = document.getElementById("time-attack-leaderboard-loading");
 const timeAttackLeaderboardOfflineElement = document.getElementById("time-attack-leaderboard-offline");
 const timeAttackLeaderboardEmptyElement = document.getElementById("time-attack-leaderboard-empty");
@@ -1298,6 +1306,11 @@ initFanProfilesScreen(
     detailName: fanProfileDetailNameElement,
     detailOshi: fanProfileDetailOshiElement,
     detailAchievementList: fanProfileDetailAchievementsElement,
+    myUidValue: fanProfilesMyUidElement,
+    adminDeleteOverlay: fanProfilesAdminDeleteOverlayElement,
+    adminDeleteTargetName: fanProfilesAdminDeleteTargetNameElement,
+    adminDeleteCancelButton: fanProfilesAdminDeleteCancelButtonElement,
+    adminDeleteConfirmButton: fanProfilesAdminDeleteConfirmButtonElement,
   },
   MEMBERS
 );
@@ -3017,7 +3030,7 @@ historyLinkElement.addEventListener("click", () => {
   navigateWithScrollMemory("history");
 });
 
-// 「プレイヤー広場」リンク：開くたびに公開設定・一覧を最新の状態で描画し直す。
+// 「フレンド」リンク：開くたびに公開設定・一覧を最新の状態で描画し直す。
 fanProfilesLinkElement.addEventListener("click", () => {
   playClickSound();
   renderFanProfilesScreen();
@@ -3246,28 +3259,27 @@ initTimeAttackResultScreen({
   // ときだけ呼ばれる（js/timeAttackScreen.jsのrenderTimeAttackResult参照）。
   // 呼び出し側（結果画面の表示）を絶対にブロックしないよう、awaitせず呼び捨てる
   // （js/publicProfileSync.jsのsyncPublicProfileIfEnabled()と同じ設計方針）。
-  onNewRecord: ({ variant, questionCountValue, rule, totalElapsedMs, missCount }) => {
-    // 【2026-08-13追加・本人指示】公開ランキングはLOVE連チャンの記録だけが対象。
-    // ノーマル/ハードの自己ベスト更新は、通常のNEW RECORD演出だけで完結させ、
-    // ランキング関連の案内文は一切出さない（UIを煩雑にしないため）。
-    if (rule !== TIME_ATTACK_RULE.LOVE_CHAIN) return;
-
+  // 【2026-08-16改訂・本人指示】ルール（ノーマル/ハード/LOVE連チャン）を問わず対象にする。
+  // 1問でも間違えたプレイ（missCount>0）はsubmitTimeAttackScoreIfBetter側で弾かれ、
+  // "invalid-record"として案内する（不正扱いではなく「対象外」と分かる文言にする）。
+  onNewRecord: ({ variant, questionCountValue, categoryFilterValue, rule, totalElapsedMs, missCount }) => {
     timeAttackResultLeaderboardStatusElement.hidden = false;
     timeAttackResultLeaderboardStatusElement.textContent = "ランキングを確認しています…";
     submitTimeAttackScoreIfBetter({
       variant,
-      questionCountValue,
       rule,
+      questionCountValue,
+      categoryFilterValue,
       clearTimeMs: totalElapsedMs,
       missCount,
       playerKeyPrefix: getPlayerKeyPrefix(),
     }).then((result) => {
       if (!result.ok) {
         const messageByReason = {
-          "privacy-disabled": "「プレイヤー広場」を公開するとランキングに参加できます",
+          "privacy-disabled": "「フレンド」を公開するとランキングに参加できます",
           offline: "オフラインのため、ランキングへの送信はできませんでした",
           error: "ランキングへの送信に失敗しました",
-          "invalid-record": "記録の送信に失敗しました",
+          "invalid-record": "1問でも間違えると、公開ランキングには反映されません（自己ベストには保存済みです）",
         };
         timeAttackResultLeaderboardStatusElement.textContent =
           messageByReason[result.reason] ?? "ランキングへの送信に失敗しました";
@@ -3311,7 +3323,9 @@ let timeAttackLeaderboardReturnScreen = "timeAttackSetup";
 initTimeAttackLeaderboardScreen(
   {
     variantTabs: timeAttackLeaderboardVariantTabsElement,
+    ruleTabs: timeAttackLeaderboardRuleTabsElement,
     questionCountTabs: timeAttackLeaderboardQuestionCountTabsElement,
+    categoryTabs: timeAttackLeaderboardCategoryTabsElement,
     loadingState: timeAttackLeaderboardLoadingElement,
     offlineState: timeAttackLeaderboardOfflineElement,
     emptyState: timeAttackLeaderboardEmptyElement,
@@ -3327,24 +3341,37 @@ initTimeAttackLeaderboardScreen(
   MEMBERS
 );
 
-// タイムアタック設定画面から：今選んでいる出題タイプ・出題数のランキングを最初に表示する。
+// タイムアタック設定画面から：今選んでいる出題タイプ・ルール・出題数・カテゴリーの
+// ランキングを最初に表示する（2026-08-16、ルール・カテゴリーにも対応）。
 timeAttackLeaderboardLinkElement.addEventListener("click", () => {
   playClickSound();
   const questionCountValue = document.querySelector('input[name="time-attack-question-count"]:checked').value;
+  const categoryFilterValue = document.querySelector('input[name="time-attack-category-filter"]:checked').value;
+  const rule = document.querySelector('input[name="time-attack-rule"]:checked').value;
   const variant =
     document.querySelector('input[name="time-attack-variant"]:checked')?.value ?? TIME_ATTACK_VARIANT.INTRO;
   timeAttackLeaderboardReturnScreen = "timeAttackSetup";
-  showTimeAttackLeaderboard(variant, questionCountValue);
+  showTimeAttackLeaderboard(variant, rule, questionCountValue, categoryFilterValue);
   showScreen("timeAttackLeaderboard");
 });
 
-// タイムアタック結果画面から：直前にプレイした出題タイプ・出題数のランキングを最初に表示する。
+// タイムアタック結果画面から：直前にプレイした条件のランキングを最初に表示する。
 timeAttackResultLeaderboardLinkElement.addEventListener("click", () => {
   playClickSound();
-  const { questionCountValue, variant } = getLastTimeAttackSelection();
+  const { questionCountValue, categoryFilterValue, rule, variant } = getLastTimeAttackSelection();
   timeAttackLeaderboardReturnScreen = "timeAttackResult";
-  showTimeAttackLeaderboard(variant, questionCountValue);
+  showTimeAttackLeaderboard(variant, rule, questionCountValue, categoryFilterValue);
   showScreen("timeAttackLeaderboard");
+});
+
+// ホーム上部「🏆ランキング」から：直前にプレイした条件が分かればそれを、無ければ
+// イントロ・5問から表示する（2026-08-16追加）。「戻る」はホームへ。
+homeLeaderboardLinkElement.addEventListener("click", () => {
+  playClickSound();
+  const { questionCountValue, categoryFilterValue, rule, variant } = getLastTimeAttackSelection();
+  timeAttackLeaderboardReturnScreen = "start";
+  showTimeAttackLeaderboard(variant, rule, questionCountValue, categoryFilterValue);
+  navigateWithScrollMemory("timeAttackLeaderboard");
 });
 
 // タイムアタック履歴一覧・詳細画面の初期化。通常プレイ履歴（historyScreen.js/historyDetailScreen.js）

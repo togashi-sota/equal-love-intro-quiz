@@ -16,8 +16,15 @@ import { getOshiBadgeState } from "./achievementProgress.js";
 // 対象の要素へ、渡された称号取得状態に応じたクラスを付け外しする（純粋な見た目の適用のみ、
 // データの取得元は問わない）。element自体の位置づけは問わない（position:relativeであることを
 // 呼び出し側のCSSで保証する）。
-export function applyOshiBadgeDecorationsFromState(element, { hasEqualLoveMaster, hasEqualLoveComplete }) {
+// 【2026-08-15追加】ノーミスマスター用のhas-no-miss-masterを追加。CSS側で
+// 「:not(.has-equal-love-master):not(.has-equal-love-complete)」を条件に付けているため、
+// 上位2つの称号を持つ場合は自動的に非表示になり、王冠・ダイヤより目立つことはない。
+export function applyOshiBadgeDecorationsFromState(
+  element,
+  { hasNoMissMaster = false, hasEqualLoveMaster, hasEqualLoveComplete }
+) {
   if (!element) return;
+  element.classList.toggle("has-no-miss-master", hasNoMissMaster);
   element.classList.toggle("has-equal-love-master", hasEqualLoveMaster);
   element.classList.toggle("has-equal-love-complete", hasEqualLoveComplete);
 }

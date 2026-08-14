@@ -113,15 +113,37 @@ export async function fetchPublicProfileBadgeState(uid) {
   try {
     await authReady;
     const snapshot = await get(ref(database, `publicProfiles/${uid}`));
-    if (!snapshot.exists()) return { hasEqualLoveMaster: false, hasEqualLoveComplete: false };
+    if (!snapshot.exists()) return { hasNoMissMaster: false, hasEqualLoveMaster: false, hasEqualLoveComplete: false };
     const value = snapshot.val();
     return {
+      hasNoMissMaster: value?.hasNoMissMaster === true,
       hasEqualLoveMaster: value?.hasEqualLoveMaster === true,
       hasEqualLoveComplete: value?.hasEqualLoveComplete === true,
     };
   } catch {
-    return { hasEqualLoveMaster: false, hasEqualLoveComplete: false };
+    return { hasNoMissMaster: false, hasEqualLoveMaster: false, hasEqualLoveComplete: false };
   }
+}
+
+// 自分の現在のUID（匿名認証ID）を返す（2026-08-16追加）。フレンド画面の
+// 「🆔 あなたのID」表示と、管理者判定（js/adminConfig.jsのADMIN_UIDとの一致確認）の
+// 両方で使う共通関数。認証待ちを含むため非同期。
+export async function getMyUid() {
+  await authReady;
+  return getCurrentUid();
+}
+
+// 管理者専用：他人の公開プロフィールをUID指定で削除する（2026-08-16追加）。
+// 【安全設計】呼び出し側（js/fanProfilesScreen.js）が事前にADMIN_UIDとの一致を確認した
+// うえでだけ呼ぶ想定。ただしそれはUIの誤操作防止のための二重チェックに過ぎず、
+// 本当の権限チェックはFirebase Security Rules側で行う必要がある。ルールを適用するまでは、
+// 一般ユーザーがブラウザの開発者ツール等から直接Firebaseへ書き込めば同じ削除ができてしまう
+// 状態が残る点に注意（本人へ提案するルール文言は最終報告・docs/HANDOFF.mdを参照）。
+// 削除対象はpublicProfiles/{targetUid}のみ。本人のローカルデータ・Authアカウント本体・
+// 他のFirebaseパス（timeAttackLeaderboardsV2等）には一切触れない。
+export async function deletePublicProfileByAdmin(targetUid) {
+  await authReady;
+  await remove(ref(database, `publicProfiles/${targetUid}`));
 }
 
 // 「みんなのプロフィール」一覧に表示する、全員分の公開プロフィールを1回だけ取得する。

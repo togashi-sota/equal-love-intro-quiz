@@ -6300,6 +6300,29 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   pointer-events: none;
 }
 
+/* ノーミスマスター専用バッジ（2026-08-15追加）。＝LOVEマスター・完全制覇の下位に位置づける
+   ため、その2つを持たない場合だけ表示する（:not()の2重ガード）。同じ右上の位置に王冠と
+   同じ場所で::afterを使うが、上のガードにより同時に描画されることは無いため衝突しない。
+   王冠(金・20px)より一段小さく、色も控えめな銀灰色にすることで「下位の称号」だと伝える。 */
+.has-no-miss-master:not(.has-equal-love-master):not(.has-equal-love-complete)::after {
+  content: "🎖️";
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 17px;
+  height: 17px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  line-height: 1;
+  background: radial-gradient(circle at 32% 28%, #f4f1f6 0%, #b9aebd 70%);
+  border: 1.5px solid #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  pointer-events: none;
+}
+
 .has-equal-love-complete::before {
   content: "💎";
   position: absolute;
@@ -6361,6 +6384,50 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   font-size: 0.82rem;
   line-height: 1.6;
   opacity: 0.75;
+}
+
+/* 「🆔 あなたのID」表示（2026-08-16追加）。目立たせすぎず、必要な人だけが参照する
+   補助情報という位置づけにするため、小さく控えめなテキストにする。 */
+.fan-profiles-my-id {
+  margin: 0 0 14px;
+  font-size: 0.7rem;
+  line-height: 1.5;
+  opacity: 0.6;
+  word-break: break-all;
+}
+
+.fan-profiles-my-id code {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 0.68rem;
+}
+
+/* 管理者専用の削除ボタン付きカード行（2026-08-16追加）。button要素の中にbutton要素は
+   置けないため、削除ボタンがあるときだけカード本体をこの行でラップして横に並べる。 */
+.fan-profile-card-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.fan-profile-card-row .fan-profile-card {
+  margin-bottom: 0;
+}
+
+.fan-profile-admin-delete-button {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid rgba(220, 53, 69, 0.35);
+  background: rgba(220, 53, 69, 0.08);
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.fan-profile-admin-delete-button:active {
+  transform: scale(0.95);
 }
 
 .fan-profile-card {
@@ -7286,8 +7353,8 @@ body[data-screen="liveCallModePlayer"] .game-frame {
    プレイヤー情報のすぐ下という、最も見つけやすい位置に独立して置くための専用クラス。 */
 .home-quicknav-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
   margin: 14px 0 0;
 }
 
@@ -8819,6 +8886,30 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 
 .upcoming-release-card .official-link-button {
   margin-bottom: 0;
+}
+
+/* 2026-08-16追加：収録内容が未発表の間の一言＋公式サイト/MVの2ボタン横並び。 */
+.upcoming-release-teaser {
+  margin: 0 0 10px;
+  font-size: 0.74rem;
+  color: var(--color-text);
+  opacity: 0.6;
+}
+
+.upcoming-release-link-row {
+  display: flex;
+  gap: 8px;
+}
+
+.upcoming-release-link-row .official-link-button {
+  flex: 1;
+  text-align: center;
+}
+
+.official-link-button.is-mv {
+  background: var(--color-primary-dark);
+  border-color: var(--color-primary-dark);
+  color: #ffffff;
 }
 
 /* 卒業メンバーカードの拡張パーツ（齊藤なぎさ等、卒業後の活動を追加表示する場合） */

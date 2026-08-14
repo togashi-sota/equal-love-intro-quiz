@@ -1,5 +1,5 @@
 // タイムアタックのグローバルランキング（TOP10）の、Firebaseとのやり取りを担当するファイル。
-// 既存のオンライン対戦・みんなのプロフィールと同じFirebase Realtime Database・匿名認証
+// 既存のオンライン対戦・フレンドと同じFirebase Realtime Database・匿名認証
 // （js/firebaseClient.js）をそのまま再利用し、新しいFirebaseプロジェクトは追加しない。
 //
 // 【ファイル分割方針】Firebaseに一切触れない部分（payload組み立て・比較・並び替え）は
@@ -8,10 +8,10 @@
 // （js/publicProfileSync.js・js/lyricsQuizBattleFirebase.jsと同じ設計）。
 //
 // 【プライバシー方針、本人指示】ランキングへの「参加」（自分の記録の送信）は、
-// 「みんなのプロフィール」の公開設定がONのユーザーだけを対象にする。OFFのユーザーは
+// 「フレンド」の公開設定がONのユーザーだけを対象にする。OFFのユーザーは
 // タイムアタック自体は今までどおり遊べるが、記録はFirebaseへ送信されない（ローカルの
 // 自己ベストには一切影響しない）。ランキングの「閲覧」自体は公開設定を問わず誰でもできる
-// （みんなのプロフィール一覧の閲覧方針と同じ）。
+// （フレンド一覧の閲覧方針と同じ）。
 //
 // 【負荷方針、本人指示】全記録をダウンロードしてJS側でソートするのではなく、
 // Firebaseのquery機能（orderByChild + limitToFirst）でTOP10だけをサーバー側で絞り込む。
@@ -40,8 +40,7 @@ import {
   isBetterLeaderboardRecord,
   normalizeLeaderboardEntry,
   sortLeaderboardEntries,
-  findBestEntryPerVariantAndQuestionCount,
-  isRuleEligibleForLeaderboard,
+  findBestEntryPerVariantRuleQuestionCountAndCategory,
   isValidLeaderboardCandidate,
 } from "./timeAttackLeaderboard.js";
 
@@ -54,14 +53,19 @@ function isOffline() {
 // 今回のプレイが自己ベストを更新していた場合に呼ぶ想定（本人指示の更新順序：
 // ①ローカル自己ベスト判定②自己ベスト更新③ランキング公開条件確認④Firebase上の自分の
 // 既存記録確認⑤新記録が速い場合だけ更新⑥結果画面へ反映、のうち③〜⑤をこの関数が担当する）。
+// 【2026-08-16改訂・本人指示】ルール（ノーマル/ハード/LOVE連チャン）を問わず対象にする。
+// 代わりに、1問でも間違えたプレイ（missCount>0）はisValidLeaderboardCandidate()側で
+// 確実に弾かれる（Firebase書き込みの最終防衛線）。
 // 戻り値: { ok: true, updated: boolean } または { ok: false, reason: "privacy-disabled" | "offline" | "error" }
-export async function submitTimeAttackScoreIfBetter({ variant, questionCountValue, rule, clearTimeMs, missCount, playerKeyPrefix }) {
-  // 【2026-08-13追加・本人指示】公開ランキングはLOVE連チャンの記録だけを対象にする。
-  // 呼び出し側（js/main.js）で既に絞り込んでいるが、将来の呼び出し漏れに備えてここでも
-  // 二重に防ぐ（Firebase書き込みの最終防衛線）。
-  if (!isRuleEligibleForLeaderboard(rule)) {
-    return { ok: false, reason: "rule-not-eligible" };
-  }
+export async function submitTimeAttackScoreIfBetter({
+  variant,
+  rule,
+  questionCountValue,
+  categoryFilterValue,
+  clearTimeMs,
+  missCount,
+  playerKeyPrefix,
+}) {
   if (!isValidLeaderboardCandidate({ clearTimeMs, missCount })) {
     return { ok: false, reason: "invalid-record" };
   }
@@ -77,7 +81,7 @@ export async function submitTimeAttackScoreIfBetter({ variant, questionCountValu
     const uid = getCurrentUid();
     if (!uid) return { ok: false, reason: "error" };
 
-    const entryPath = `${buildLeaderboardPath(variant, questionCountValue)}/${uid}`;
+    const entryPath = `${buildLeaderboardPath(variant, rule, questionCountValue, categoryFilterValue)}/${uid}`;
     const existingSnapshot = await get(ref(database, entryPath));
     const existingEntry = existingSnapshot.exists()
       ? normalizeLeaderboardEntry(uid, existingSnapshot.val())
@@ -106,7 +110,7 @@ export async function submitTimeAttackScoreIfBetter({ variant, questionCountValu
 // TOP10を取得する。サーバー側のquery（orderByChild+limitToFirst）で絞り込むため、
 // 全記録をダウンロードすることはない。
 // 戻り値: { ok: true, entries: [...] }（0件でも成功扱い） または { ok: false, entries: [], reason }
-export async function fetchTimeAttackLeaderboardTop10(variant, questionCountValue) {
+export async function fetchTimeAttackLeaderboardTop10(variant, rule, questionCountValue, categoryFilterValue) {
   if (isOffline()) {
     return { ok: false, entries: [], reason: "offline" };
   }
@@ -114,7 +118,7 @@ export async function fetchTimeAttackLeaderboardTop10(variant, questionCountValu
   try {
     await authReady;
     const leaderboardQuery = query(
-      ref(database, buildLeaderboardPath(variant, questionCountValue)),
+      ref(database, buildLeaderboardPath(variant, rule, questionCountValue, categoryFilterValue)),
       orderByChild("clearTimeMs"),
       limitToFirst(10)
     );
@@ -133,11 +137,15 @@ export async function fetchTimeAttackLeaderboardTop10(variant, questionCountValu
 }
 
 function buildBackfillFlagKey(playerKeyPrefix) {
-  return `equalLoveIntroQuiz.${playerKeyPrefix}timeAttackLeaderboardBackfilled`;
+  // 【2026-08-16改訂】対象ルール・パス構造が変わったため、旧フラグ（〜Backfilled）とは
+  // 別名にし、既存ユーザーでも新条件（ノーマル/ハードのクリーン記録・カテゴリー別）で
+  // 一度だけ改めてバックフィルが走るようにする（旧フラグはそのまま残るが無害・無視される）。
+  return `equalLoveIntroQuiz.${playerKeyPrefix}timeAttackLeaderboardBackfilledV2`;
 }
 
-// 「みんなのプロフィール」を新たにONにした人・すでにONだった人の両方に対応する、
-// 既存のローカル自己ベストをランキングへ一度だけ反映する処理（2026-08-07追加、本人指示）。
+// 「フレンド」を新たにONにした人・すでにONだった人の両方に対応する、
+// 既存のローカル自己ベストをランキングへ一度だけ反映する処理（2026-08-07追加、本人指示。
+// 2026-08-16にルール・カテゴリー別の抽出へ拡張）。
 // 通常の新記録時の送信（submitTimeAttackScoreIfBetter、renderTimeAttackResult経由）は
 // 「今まさに更新した記録」しか送らないため、それより前に貯まっていた自己ベストは
 // このままでは永久にランキングに反映されない。そのズレを一度だけ解消するための処理。
@@ -156,7 +164,7 @@ export async function backfillTimeAttackLeaderboardIfNeeded(playerKeyPrefix) {
 
   try {
     const historyEntries = getTimeAttackHistoryEntries();
-    const bestEntries = findBestEntryPerVariantAndQuestionCount(historyEntries);
+    const bestEntries = findBestEntryPerVariantRuleQuestionCountAndCategory(historyEntries);
     for (const best of bestEntries) {
       await submitTimeAttackScoreIfBetter({ ...best, playerKeyPrefix });
     }
@@ -168,7 +176,7 @@ export async function backfillTimeAttackLeaderboardIfNeeded(playerKeyPrefix) {
 
 // 自分の記録だけを1件、軽量に取得する（TOP10圏外でも「あなたの記録」を表示するため）。
 // 戻り値: { ok: true, entry: {...} | null } または { ok: false, entry: null }
-export async function fetchMyTimeAttackLeaderboardEntry(variant, questionCountValue) {
+export async function fetchMyTimeAttackLeaderboardEntry(variant, rule, questionCountValue, categoryFilterValue) {
   if (isOffline()) {
     return { ok: false, entry: null };
   }
@@ -178,7 +186,7 @@ export async function fetchMyTimeAttackLeaderboardEntry(variant, questionCountVa
     const uid = getCurrentUid();
     if (!uid) return { ok: true, entry: null };
 
-    const entryPath = `${buildLeaderboardPath(variant, questionCountValue)}/${uid}`;
+    const entryPath = `${buildLeaderboardPath(variant, rule, questionCountValue, categoryFilterValue)}/${uid}`;
     const snapshot = await get(ref(database, entryPath));
     const entry = snapshot.exists() ? normalizeLeaderboardEntry(uid, snapshot.val()) : null;
     return { ok: true, entry, uid };

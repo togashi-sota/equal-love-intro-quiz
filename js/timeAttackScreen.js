@@ -290,6 +290,7 @@ export function renderTimeAttackResult() {
     resultElements.onNewRecord?.({
       variant: currentVariant,
       questionCountValue: currentQuestionCountValue,
+      categoryFilterValue: currentCategoryFilterValue,
       rule: currentRule,
       totalElapsedMs,
       missCount,

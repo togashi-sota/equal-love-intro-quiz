@@ -59,6 +59,7 @@ export function buildPublicProfilePayload({ playerName, oshiMemberId, achievemen
     unlockedAchievementIds: achievementsSnapshot
       .filter((entry) => entry.isUnlocked)
       .map((entry) => entry.id),
+    hasNoMissMaster: oshiBadgeState.hasNoMissMaster,
     hasEqualLoveMaster: oshiBadgeState.hasEqualLoveMaster,
     hasEqualLoveComplete: oshiBadgeState.hasEqualLoveComplete,
   };
@@ -77,6 +78,7 @@ export function normalizePublicProfileEntry(uid, entry) {
     unlockedAchievementIds: Array.isArray(entry.unlockedAchievementIds)
       ? entry.unlockedAchievementIds.filter((id) => typeof id === "string")
       : [],
+    hasNoMissMaster: entry.hasNoMissMaster === true,
     hasEqualLoveMaster: entry.hasEqualLoveMaster === true,
     hasEqualLoveComplete: entry.hasEqualLoveComplete === true,
     updatedAt: typeof entry.updatedAt === "number" ? entry.updatedAt : null,

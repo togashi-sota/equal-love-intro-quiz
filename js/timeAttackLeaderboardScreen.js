@@ -12,16 +12,30 @@ import {
   fetchMyTimeAttackLeaderboardEntry,
 } from "./timeAttackLeaderboardSync.js";
 import { fetchPublicProfileBadgeState } from "./publicProfileSync.js";
-import { TIME_ATTACK_VARIANT } from "./timeAttackScreen.js";
+import { TIME_ATTACK_VARIANT, TIME_ATTACK_RULE } from "./timeAttackScreen.js";
 
 const VARIANT_LABELS = { [TIME_ATTACK_VARIANT.INTRO]: "🎧イントロ", [TIME_ATTACK_VARIANT.RANDOM_PLAYBACK]: "🔀ランダム再生" };
 const QUESTION_COUNT_LABELS = { "5": "5問", "10": "10問", "20": "20問", "50": "50問", all: "全曲" };
 const QUESTION_COUNT_ORDER = ["5", "10", "20", "50", "all"];
 
+// 【2026-08-16追加】ルール・カテゴリー別のタブ。ラベルはjs/main.jsのRULE_LABELS・
+// CATEGORY_LABELSと表記を揃える（同じ概念に別の呼び方をしない）。
+const RULE_LABELS = {
+  [TIME_ATTACK_RULE.NORMAL]: "ノーマル",
+  [TIME_ATTACK_RULE.HARD]: "ハード",
+  [TIME_ATTACK_RULE.LOVE_CHAIN]: "LOVE連チャン",
+};
+const RULE_ORDER = [TIME_ATTACK_RULE.NORMAL, TIME_ATTACK_RULE.HARD, TIME_ATTACK_RULE.LOVE_CHAIN];
+
+const CATEGORY_LABELS = { "title-track": "表題のみ", "title-and-group": "表題＋全員", all: "全曲" };
+const CATEGORY_ORDER = ["title-track", "title-and-group", "all"];
+
 let elements = null;
 let members = [];
 let currentVariant = TIME_ATTACK_VARIANT.INTRO;
+let currentRule = TIME_ATTACK_RULE.LOVE_CHAIN;
 let currentQuestionCountValue = "5";
+let currentCategoryFilterValue = "all";
 // 連打・タブ切り替え中の描画競合を防ぐための世代番号（js/audio.jsのcurrentPlaybackTokenと
 // 同じ考え方）。古い非同期取得が後から戻ってきても、世代が古ければ描画結果を捨てる。
 let renderToken = 0;
@@ -94,11 +108,35 @@ function renderTabs() {
     );
   });
 
+  // 【2026-08-16追加】ルールタブ。
+  elements.ruleTabs.innerHTML = "";
+  RULE_ORDER.forEach((rule) => {
+    elements.ruleTabs.appendChild(
+      buildTabButton(RULE_LABELS[rule], rule === currentRule, () => {
+        currentRule = rule;
+        renderTabs();
+        loadAndRenderLeaderboard();
+      })
+    );
+  });
+
   elements.questionCountTabs.innerHTML = "";
   QUESTION_COUNT_ORDER.forEach((questionCountValue) => {
     elements.questionCountTabs.appendChild(
       buildTabButton(QUESTION_COUNT_LABELS[questionCountValue], questionCountValue === currentQuestionCountValue, () => {
         currentQuestionCountValue = questionCountValue;
+        renderTabs();
+        loadAndRenderLeaderboard();
+      })
+    );
+  });
+
+  // 【2026-08-16追加】カテゴリータブ。
+  elements.categoryTabs.innerHTML = "";
+  CATEGORY_ORDER.forEach((categoryFilterValue) => {
+    elements.categoryTabs.appendChild(
+      buildTabButton(CATEGORY_LABELS[categoryFilterValue], categoryFilterValue === currentCategoryFilterValue, () => {
+        currentCategoryFilterValue = categoryFilterValue;
         renderTabs();
         loadAndRenderLeaderboard();
       })
@@ -118,7 +156,13 @@ function setStateVisibility({ loading, offline, empty, list }) {
 // 並行して個別取得する（全件ダウンロードにはしない）。1件でも失敗しても他の行の表示は続ける。
 async function fetchBadgeStatesForEntries(entries) {
   const results = await Promise.all(
-    entries.map((entry) => fetchPublicProfileBadgeState(entry.uid).catch(() => ({ hasEqualLoveMaster: false, hasEqualLoveComplete: false })))
+    entries.map((entry) =>
+      fetchPublicProfileBadgeState(entry.uid).catch(() => ({
+        hasNoMissMaster: false,
+        hasEqualLoveMaster: false,
+        hasEqualLoveComplete: false,
+      }))
+    )
   );
   const badgeStateByUid = new Map();
   entries.forEach((entry, index) => badgeStateByUid.set(entry.uid, results[index]));
@@ -130,7 +174,12 @@ async function loadAndRenderLeaderboard() {
   setStateVisibility({ loading: true, offline: false, empty: false, list: false });
   elements.myRecordSection.hidden = true;
 
-  const result = await fetchTimeAttackLeaderboardTop10(currentVariant, currentQuestionCountValue);
+  const result = await fetchTimeAttackLeaderboardTop10(
+    currentVariant,
+    currentRule,
+    currentQuestionCountValue,
+    currentCategoryFilterValue
+  );
   if (myRenderToken !== renderToken) return; // タブが切り替わった後に古い結果が戻ってきた場合は捨てる
 
   if (!result.ok) {
@@ -170,7 +219,12 @@ async function renderMyRecordIfNeeded(myRenderToken, top10Entries) {
     return;
   }
 
-  const myResult = await fetchMyTimeAttackLeaderboardEntry(currentVariant, currentQuestionCountValue);
+  const myResult = await fetchMyTimeAttackLeaderboardEntry(
+    currentVariant,
+    currentRule,
+    currentQuestionCountValue,
+    currentCategoryFilterValue
+  );
   if (myRenderToken !== renderToken) return;
   elements.currentUid = myResult.uid ?? elements.currentUid;
 
@@ -185,15 +239,19 @@ async function renderMyRecordIfNeeded(myRenderToken, top10Entries) {
 
 // タイムアタック設定画面・結果画面から呼ぶ入口。直前にプレイした条件を最初に表示する
 // （本人指示：「直前にプレイした条件のランキングを最初に表示」）。
-export function showTimeAttackLeaderboard(variant, questionCountValue) {
+// 【2026-08-16追加】rule・categoryFilterValueにも対応。未指定・不正な値は安全な既定値
+// （LOVE連チャン・全曲）にフォールバックする。
+export function showTimeAttackLeaderboard(variant, rule, questionCountValue, categoryFilterValue) {
   currentVariant = variant ?? TIME_ATTACK_VARIANT.INTRO;
+  currentRule = RULE_ORDER.includes(rule) ? rule : TIME_ATTACK_RULE.LOVE_CHAIN;
   currentQuestionCountValue = QUESTION_COUNT_ORDER.includes(questionCountValue) ? questionCountValue : "5";
+  currentCategoryFilterValue = CATEGORY_ORDER.includes(categoryFilterValue) ? categoryFilterValue : "all";
   renderTabs();
   loadAndRenderLeaderboard();
 }
 
 // elements: {
-//   variantTabs, questionCountTabs: タブボタンを並べるコンテナ,
+//   variantTabs, ruleTabs, questionCountTabs, categoryTabs: タブボタンを並べるコンテナ,
 //   loadingState, offlineState, emptyState: 状態ごとの案内文,
 //   listContainer: TOP10の行を並べる場所,
 //   myRecordSection, myRecordText: 「あなたの記録」欄,

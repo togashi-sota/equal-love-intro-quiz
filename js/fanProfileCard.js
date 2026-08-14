@@ -25,22 +25,36 @@ export function buildOshiSwatch(members, oshiMemberId, badgeState) {
 
 // カードに添える「代表称号」ラベル。複合称号を持っていればそれを最優先にし、
 // 無ければ取得数だけを見せる（本人指示：「カードには代表称号・取得称号数だけ表示」）。
+// 【2026-08-15追加】ノーミスマスターを最下位の代表称号として追加（＝LOVEマスター・
+// 完全制覇より下の扱い。上位2つを持つ場合はそちらが優先され、ノーミスマスターは出さない）。
 export function buildRepresentativeLabel(profile) {
   if (profile.hasEqualLoveComplete) return "＝LOVE完全制覇";
   if (profile.hasEqualLoveMaster) return "＝LOVEマスター";
+  if (profile.hasNoMissMaster) return "ノーミスマスター";
   return null;
 }
 
 // プロフィール一覧カード1件分を組み立てる。未知のmemberId（getMemberByIdがnullを返す）でも、
 // 「推し：未設定」表示にフォールバックするだけで画面は壊れない。
 // onSelectは、カードがタップされたときにprofileを引数として呼ばれるコールバック。
-export function buildProfileCard(profile, members, onSelect) {
+//
+// options.isAdmin（2026-08-16追加）がtrueのときだけ、管理者専用の削除ボタンをカードの
+// 隣に追加する（一般ユーザーには絶対に見えない導線）。button要素の中にbutton要素は
+// 置けない（HTML仕様違反・タップ判定が壊れる）ため、削除ボタンありのときだけ
+// カード本体を横並びのdivでラップして返す。isAdminを渡さない・falseの場合は今までどおり
+// カードのbutton要素をそのまま返すため、既存の呼び出し側・テストの挙動は変わらない。
+export function buildProfileCard(profile, members, onSelect, options = {}) {
+  const { isAdmin = false, onAdminDeleteRequest = null } = options;
   const card = document.createElement("button");
   card.type = "button";
   card.className = "fan-profile-card";
   card.dataset.uid = profile.uid;
 
-  const badgeState = { hasEqualLoveMaster: profile.hasEqualLoveMaster, hasEqualLoveComplete: profile.hasEqualLoveComplete };
+  const badgeState = {
+    hasNoMissMaster: profile.hasNoMissMaster,
+    hasEqualLoveMaster: profile.hasEqualLoveMaster,
+    hasEqualLoveComplete: profile.hasEqualLoveComplete,
+  };
   card.appendChild(buildOshiSwatch(members, profile.oshiMemberId, badgeState));
 
   const body = document.createElement("span");
@@ -81,7 +95,26 @@ export function buildProfileCard(profile, members, onSelect) {
   card.appendChild(chevron);
 
   if (onSelect) card.addEventListener("click", () => onSelect(profile));
-  return card;
+  if (!isAdmin) return card;
+
+  // 管理者だけに見える削除導線。カード本体とは独立したボタンにし、クリックが
+  // カード本体のonSelectへ伝わらないようstopPropagation()する。
+  const row = document.createElement("div");
+  row.className = "fan-profile-card-row";
+  row.appendChild(card);
+
+  const deleteButton = document.createElement("button");
+  deleteButton.type = "button";
+  deleteButton.className = "fan-profile-admin-delete-button";
+  deleteButton.setAttribute("aria-label", `${profile.displayName}さんの公開プロフィールを削除（管理者用）`);
+  deleteButton.textContent = "🗑️";
+  deleteButton.addEventListener("click", (event) => {
+    event.stopPropagation();
+    if (onAdminDeleteRequest) onAdminDeleteRequest(profile);
+  });
+  row.appendChild(deleteButton);
+
+  return row;
 }
 
 // 表示名順（ロケールを考慮した並び替え）。本人指示：「取得称号数によるランキングにはしない」

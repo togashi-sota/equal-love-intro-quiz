@@ -194,7 +194,7 @@ export const ACHIEVEMENTS = [
       "補足：「表題曲のみ」などカテゴリーを絞った状態では達成できません",
     ],
     compositeOf: null,
-    rewardNote: null,
+    rewardNote: "🎁 特典があります。推しアイコンに専用バッジが付きます。",
   },
   {
     id: "full_chorus_master",
