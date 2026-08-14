@@ -1,8 +1,16 @@
 // js/achievementEvaluation.jsの恒久テスト。DOM・localStorageに一切触れない純粋関数のみを対象にする。
+//
+// 【2026-08-14全面改訂】称号体系の最終仕様（本人・ChatGPT確認済み）に合わせて全面的に書き直した。
+//   ・ブロンズ/シルバー/ゴールド/プラチナ廃止（成長段階系と完全重複していたため）
+//   ・成長段階系（イントロ/シャッフル/リリック）は5/10/20問のカスケードに加え、
+//     「本当の全曲」マスター達成時にも3段階すべてを自動取得するようになった
+//   ・「全曲」の定義が、questionCountValue==="all"だけでなく、categoryFilterValue==="all"
+//     （カテゴリー絞り込みなし）も同時に要求するよう厳格化された（isUnrestrictedFullPool）
 import {
   normalizeQuizClearResult,
   isCleanClear,
-  evaluateNoMissTierAchievements,
+  isUnrestrictedFullPool,
+  evaluateNoMissMasterAchievement,
   evaluateModeMasterAchievements,
   evaluateSpeedAchievements,
   evaluateHintAchievements,
@@ -13,11 +21,14 @@ import {
 import { ACHIEVEMENTS } from "../js/achievementDefinitions.js";
 import { assertEqual } from "./test-utils.js";
 
-// テストを短く書くための組み立てヘルパー。デフォルトは「全問正解・誤答/未回答なし」。
+// テストを短く書くための組み立てヘルパー。デフォルトは「カテゴリー絞り込みなし・5問・全問正解」。
+// categoryFilterValueのデフォルトを"all"にしているのは、questionCountValue:"all"を指定するテストの
+// 大半が「本当の全曲」を意図しているため（カテゴリー絞り込みを試したいテストだけ明示的に上書きする）。
 function buildResult(overrides) {
   return normalizeQuizClearResult({
     modeId: "intro",
     questionCountValue: "5",
+    categoryFilterValue: "all",
     correctCount: 5,
     wrongCount: 0,
     skippedCount: 0,
@@ -29,110 +40,127 @@ function buildResult(overrides) {
 }
 
 export function runAchievementEvaluationTests() {
-  // ---- ノーミス段階称号（イントロクイズ/タイムアタック） ----
+  // ==================================================================
+  // 1. isUnrestrictedFullPool（「本当の全曲」共通判定関数）
+  // ==================================================================
+  // 固定の曲数を一切参照しない、文字列比較だけの純粋関数であることの確認
+  // （新曲・新音源・新歌詞が追加されても、この関数自体は変更不要という設計の裏付け）。
   assertEqual(
-    evaluateNoMissTierAchievements(buildResult({ questionCountValue: "5", correctCount: 5 })),
-    ["no_miss_bronze"],
-    "5問ノーミスでブロンズ"
+    isUnrestrictedFullPool({ categoryFilterValue: "all", questionCountValue: "all" }),
+    true,
+    "カテゴリー全曲・出題数全曲＝本当の全曲"
   );
   assertEqual(
-    evaluateNoMissTierAchievements(buildResult({ questionCountValue: "10", correctCount: 10 })),
-    ["no_miss_bronze", "no_miss_silver"],
-    "10問ノーミスでブロンズ＋シルバー"
+    isUnrestrictedFullPool({ categoryFilterValue: "title-track", questionCountValue: "all" }),
+    false,
+    "「表題曲のみ」＋出題数allは、本当の全曲ではない"
   );
   assertEqual(
-    evaluateNoMissTierAchievements(buildResult({ questionCountValue: "20", correctCount: 20 })),
-    ["no_miss_bronze", "no_miss_silver", "no_miss_gold"],
-    "20問ノーミスでブロンズ＋シルバー＋ゴールド"
+    isUnrestrictedFullPool({ categoryFilterValue: "title-and-group", questionCountValue: "all" }),
+    false,
+    "「表題曲＋全員曲」＋出題数allも、本当の全曲ではない"
   );
   assertEqual(
-    evaluateNoMissTierAchievements(buildResult({ questionCountValue: "50", correctCount: 50 })),
-    ["no_miss_bronze", "no_miss_silver", "no_miss_gold", "no_miss_platinum"],
-    "50問ノーミスで4段階すべて"
+    isUnrestrictedFullPool({ categoryFilterValue: "all", questionCountValue: "20" }),
+    false,
+    "カテゴリー全曲でも、出題数が20問固定なら本当の全曲ではない"
   );
   assertEqual(
-    evaluateNoMissTierAchievements(buildResult({ questionCountValue: "all", correctCount: 81 })),
-    ["no_miss_bronze", "no_miss_silver", "no_miss_gold", "no_miss_platinum", "no_miss_master"],
-    "全曲ノーミスで全段階＋ノーミスマスター"
-  );
-  assertEqual(
-    evaluateNoMissTierAchievements(
-      buildResult({ questionCountValue: "5", correctCount: 4, wrongCount: 1 })
-    ),
-    [],
-    "誤答1回でノーミス称号を取得しない"
-  );
-  assertEqual(
-    evaluateNoMissTierAchievements(
-      buildResult({ questionCountValue: "5", correctCount: 4, skippedCount: 1 })
-    ),
-    [],
-    "未回答1回でノーミス称号を取得しない"
-  );
-  assertEqual(
-    evaluateNoMissTierAchievements(buildResult({ modeId: "intro", questionCountValue: "5", correctCount: 5 })),
-    ["no_miss_bronze"],
-    "イントロクイズでノーミス称号を取得可能"
-  );
-  assertEqual(
-    evaluateNoMissTierAchievements(
-      buildResult({ modeId: "timeAttack", questionCountValue: "5", correctCount: 5 })
-    ),
-    ["no_miss_bronze"],
-    "タイムアタックでノーミス称号を取得可能"
-  );
-  assertEqual(
-    evaluateNoMissTierAchievements(
-      buildResult({ modeId: "randomPlayback", questionCountValue: "5", correctCount: 5 })
-    ),
-    [],
-    "ランダム再生クイズはノーミス段階称号の対象外"
-  );
-  assertEqual(
-    evaluateNoMissTierAchievements(buildResult({ questionCountValue: "7", correctCount: 7 })),
-    [],
-    "5/10/20/50/all以外の出題数はノーミス段階称号の対象外"
+    isUnrestrictedFullPool({ categoryFilterValue: null, questionCountValue: "all" }),
+    false,
+    "categoryFilterValue省略（null）は本当の全曲として扱わない（安全側）"
   );
 
-  // ---- 表マスター（フルコーラスマスター・歌マスター） ----
+  // ==================================================================
+  // 2. ノーミスマスター（イントロ系。旧ブロンズ〜プラチナは廃止）
+  // ==================================================================
   assertEqual(
-    evaluateModeMasterAchievements(
-      buildResult({ modeId: "randomPlayback", questionCountValue: "all", correctCount: 81 })
-    ),
-    ["full_chorus_master"],
-    "ランダム再生全曲ノーミスでフルコーラスマスター"
+    evaluateNoMissMasterAchievement(buildResult({ questionCountValue: "all" })),
+    ["no_miss_master"],
+    "カテゴリー絞り込みなしの全曲ノーミスでノーミスマスターを獲得"
   );
   assertEqual(
-    evaluateModeMasterAchievements(
-      buildResult({ modeId: "lyricsQuiz", questionCountValue: "all", correctCount: 81, answerPoolSizeValue: "all" })
-    ),
-    ["song_master"],
-    "歌詞クイズ全曲・回答候補allのノーミスで歌マスター"
-  );
-  assertEqual(
-    evaluateModeMasterAchievements(
-      buildResult({ modeId: "randomPlayback", questionCountValue: "20", correctCount: 20 })
+    evaluateNoMissMasterAchievement(
+      buildResult({ questionCountValue: "all", categoryFilterValue: "title-track" })
     ),
     [],
-    "全曲モードでなければフルコーラスマスターを取得しない"
+    "「表題曲のみ」＋全曲では、ノーミスマスターを獲得できない"
   );
-  // 【2026-08-13追加・本人指示】歌マスターは回答候補も最も難しいall設定が必須。
+  assertEqual(
+    evaluateNoMissMasterAchievement(buildResult({ questionCountValue: "20" })),
+    [],
+    "20問固定では、カテゴリーを絞っていなくてもノーミスマスターを獲得できない"
+  );
+  assertEqual(
+    evaluateNoMissMasterAchievement(
+      buildResult({ questionCountValue: "all", correctCount: 4, wrongCount: 1, skippedCount: 0 })
+    ),
+    [],
+    "1問でも誤答があればノーミスマスターを獲得できない"
+  );
+  assertEqual(
+    evaluateNoMissMasterAchievement(buildResult({ modeId: "timeAttack", questionCountValue: "all" })),
+    ["no_miss_master"],
+    "タイムアタックでもノーミスマスターを獲得できる"
+  );
+  assertEqual(
+    evaluateNoMissMasterAchievement(buildResult({ modeId: "randomPlayback", questionCountValue: "all" })),
+    [],
+    "ランダム再生クイズはノーミスマスターの対象外"
+  );
+
+  // ==================================================================
+  // 3. 表マスター（フルコーラスマスター・歌マスター）
+  // ==================================================================
+  assertEqual(
+    evaluateModeMasterAchievements(buildResult({ modeId: "randomPlayback", questionCountValue: "all" })),
+    ["full_chorus_master"],
+    "ランダム再生・カテゴリー絞り込みなしの全曲ノーミスでフルコーラスマスター"
+  );
   assertEqual(
     evaluateModeMasterAchievements(
-      buildResult({ modeId: "lyricsQuiz", questionCountValue: "all", correctCount: 81, answerPoolSizeValue: "4" })
+      buildResult({ modeId: "randomPlayback", questionCountValue: "all", categoryFilterValue: "title-and-group" })
+    ),
+    [],
+    "「表題曲＋全員曲」＋全曲では、フルコーラスマスターを獲得できない"
+  );
+  assertEqual(
+    evaluateModeMasterAchievements(
+      buildResult({ modeId: "lyricsQuiz", questionCountValue: "all", answerPoolSizeValue: "all" })
+    ),
+    ["song_master"],
+    "歌詞クイズ・カテゴリー絞り込みなし・回答候補allの全曲ノーミスで歌マスター"
+  );
+  assertEqual(
+    evaluateModeMasterAchievements(
+      buildResult({
+        modeId: "lyricsQuiz",
+        questionCountValue: "all",
+        categoryFilterValue: "title-track",
+        answerPoolSizeValue: "all",
+      })
+    ),
+    [],
+    "歌詞クイズも、カテゴリーを絞った状態では歌マスターを獲得できない"
+  );
+  assertEqual(
+    evaluateModeMasterAchievements(
+      buildResult({ modeId: "lyricsQuiz", questionCountValue: "all", answerPoolSizeValue: "4" })
     ),
     [],
     "歌詞クイズ全曲ノーミスでも、回答候補が4択なら歌マスターを取得しない"
   );
   assertEqual(
     evaluateModeMasterAchievements(
-      buildResult({ modeId: "lyricsQuiz", questionCountValue: "all", correctCount: 81, answerPoolSizeValue: "50" })
+      buildResult({ modeId: "lyricsQuiz", questionCountValue: "all", answerPoolSizeValue: "50" })
     ),
     [],
-    "回答候補50択でも、all（全曲から探す）でなければ歌マスターを取得しない"
+    "回答候補50択でも、all（全曲検索）でなければ歌マスターを取得しない"
   );
 
-  // ---- 複合称号：＝LOVEマスター ----
+  // ==================================================================
+  // 4. 複合称号：＝LOVEマスター・＝LOVE完全制覇
+  // ==================================================================
   assertEqual(
     evaluateCompositeAchievements(
       new Set(["no_miss_master", "full_chorus_master", "song_master"]),
@@ -146,50 +174,71 @@ export function runAchievementEvaluationTests() {
     [],
     "表2称号だけでは＝LOVEマスターを取得しない"
   );
-
-  // ---- 裏称号：電光石火・メロディアス（平均回答時間） ----
   assertEqual(
-    evaluateSpeedAchievements(
-      buildResult({ modeId: "intro", questionCountValue: "all", correctCount: 81, averageResponseMs: 1700 })
+    evaluateCompositeAchievements(
+      new Set(["lightning_fast", "melody_ace", "lyric_master"]),
+      ACHIEVEMENTS
     ),
+    ["equal_love_complete"],
+    "裏3称号で＝LOVE完全制覇"
+  );
+  assertEqual(
+    evaluateCompositeAchievements(new Set(["lightning_fast", "melody_ace"]), ACHIEVEMENTS),
+    [],
+    "裏2称号だけでは＝LOVE完全制覇を取得しない"
+  );
+  assertEqual(
+    evaluateCompositeAchievements(
+      new Set(["no_miss_master", "full_chorus_master", "song_master", "equal_love_master"]),
+      ACHIEVEMENTS
+    ),
+    [],
+    "すでに達成済みの複合称号は再度返さない"
+  );
+
+  // ==================================================================
+  // 5. 裏称号：電光石火・メロディアス（平均回答時間、境界値1.70秒）
+  // ==================================================================
+  assertEqual(
+    evaluateSpeedAchievements(buildResult({ questionCountValue: "all", averageResponseMs: 1700 })),
     ["lightning_fast"],
     "平均1.7秒ちょうどで電光石火"
   );
   assertEqual(
-    evaluateSpeedAchievements(
-      buildResult({ modeId: "intro", questionCountValue: "all", correctCount: 81, averageResponseMs: 1701 })
-    ),
+    evaluateSpeedAchievements(buildResult({ questionCountValue: "all", averageResponseMs: 1701 })),
     [],
     "平均1.701秒で電光石火を取得しない"
   );
   assertEqual(
     evaluateSpeedAchievements(
-      buildResult({ modeId: "timeAttack", questionCountValue: "all", correctCount: 81, averageResponseMs: 1500 })
+      buildResult({ modeId: "timeAttack", questionCountValue: "all", averageResponseMs: 1500 })
     ),
     ["lightning_fast"],
     "タイムアタックでも電光石火を取得可能"
   );
   assertEqual(
     evaluateSpeedAchievements(
-      buildResult({
-        modeId: "randomPlayback",
-        questionCountValue: "all",
-        correctCount: 81,
-        averageResponseMs: 1200,
-      })
+      buildResult({ modeId: "randomPlayback", questionCountValue: "all", averageResponseMs: 1200 })
     ),
     ["melody_ace"],
     "ランダム再生平均1.7秒以内でメロディアス"
   );
   assertEqual(
+    evaluateSpeedAchievements(buildResult({ questionCountValue: "20", averageResponseMs: 1000 })),
+    [],
+    "20問固定では電光石火を取得しない"
+  );
+  assertEqual(
     evaluateSpeedAchievements(
-      buildResult({ modeId: "intro", questionCountValue: "20", correctCount: 20, averageResponseMs: 1000 })
+      buildResult({ questionCountValue: "all", categoryFilterValue: "title-track", averageResponseMs: 1000 })
     ),
     [],
-    "全曲モードでなければ電光石火を取得しない"
+    "カテゴリーを絞った状態では電光石火を取得しない"
   );
 
-  // ---- 裏称号：リリックマスター（ヒント段階） ----
+  // ==================================================================
+  // 6. 裏称号：リリックマスター（ヒント段階）
+  // ==================================================================
   assertEqual(
     evaluateHintAchievements(
       buildResult({
@@ -201,7 +250,21 @@ export function runAchievementEvaluationTests() {
       })
     ),
     ["lyric_master"],
-    "歌詞クイズ全問ヒント1・回答候補allでリリックマスター"
+    "歌詞クイズ全問ヒント1・回答候補all・カテゴリー絞り込みなしでリリックマスター"
+  );
+  assertEqual(
+    evaluateHintAchievements(
+      buildResult({
+        modeId: "lyricsQuiz",
+        questionCountValue: "all",
+        categoryFilterValue: "title-track",
+        correctCount: 3,
+        maxHintLevelByQuestion: [1, 1, 1],
+        answerPoolSizeValue: "all",
+      })
+    ),
+    [],
+    "カテゴリーを絞った状態ではリリックマスターを取得しない"
   );
   assertEqual(
     evaluateHintAchievements(
@@ -232,7 +295,6 @@ export function runAchievementEvaluationTests() {
     [],
     "表示をヒント1へ戻しても最大到達2ならリリックマスターを取得しない"
   );
-  // 【2026-08-13追加・本人指示】リリックマスターも回答候補allが必須。
   assertEqual(
     evaluateHintAchievements(
       buildResult({
@@ -247,31 +309,9 @@ export function runAchievementEvaluationTests() {
     "全問ヒント1でも、回答候補が10択ならリリックマスターを取得しない"
   );
 
-  // ---- 裏3称号で＝LOVE完全制覇 ----
-  assertEqual(
-    evaluateCompositeAchievements(
-      new Set(["lightning_fast", "melody_ace", "lyric_master"]),
-      ACHIEVEMENTS
-    ),
-    ["equal_love_complete"],
-    "裏3称号で＝LOVE完全制覇"
-  );
-  assertEqual(
-    evaluateCompositeAchievements(new Set(["lightning_fast", "melody_ace"]), ACHIEVEMENTS),
-    [],
-    "裏2称号だけでは＝LOVE完全制覇を取得しない"
-  );
-  assertEqual(
-    evaluateCompositeAchievements(
-      new Set(["no_miss_master", "full_chorus_master", "song_master", "equal_love_master"]),
-      ACHIEVEMENTS
-    ),
-    [],
-    "すでに達成済みの複合称号は再度返さない"
-  );
-
-  // ---- 成長段階系（イントロ/シャッフル/リリック、2026-08-13追加） ----
-  // 5/10/20問オールクリアで付与・1問ミスで付与されないことを、3系統×3段階すべてで確認する。
+  // ==================================================================
+  // 7. 成長段階系（イントロ/シャッフル/リリック）：5/10/20問カスケード
+  // ==================================================================
   const GROWTH_CASES = [
     { modeId: "intro", ids: ["intro_beginner", "intro_challenger", "intro_ace"], label: "イントロ" },
     { modeId: "timeAttack", ids: ["intro_beginner", "intro_challenger", "intro_ace"], label: "イントロ（タイムアタック）" },
@@ -308,11 +348,24 @@ export function runAchievementEvaluationTests() {
         `${label}: ${questionCountValue}問中1問ミスでは成長段階称号を獲得しない`
       );
     });
+
+    // ---- 2026-08-14追加：本当の全曲マスター達成時は3段階すべてを自動取得する ----
+    assertEqual(
+      evaluateGrowthTierAchievements(buildResult({ modeId, questionCountValue: "all" })),
+      ids,
+      `${label}: 本当の全曲ノーミス達成で3段階すべて（${ids.join("・")}）を同時取得する`
+    );
+    assertEqual(
+      evaluateGrowthTierAchievements(
+        buildResult({ modeId, questionCountValue: "all", categoryFilterValue: "title-track" })
+      ),
+      [],
+      `${label}: カテゴリーを絞った状態の全曲では、成長段階系マスター連動を発生させない（5/10/20の厳密一致にも当てはまらないため）`
+    );
   });
 
   // カテゴリー・回答方式は判定に一切使われない（normalizeQuizClearResultの引数に無い＝
   // 条件式が参照できない）ため、常に「自由」であることは構造的に保証されている。
-  // 歌詞クイズの回答候補数（answerPoolSizeValue）を変えても、成長段階系は影響を受けないことを確認する。
   assertEqual(
     evaluateGrowthTierAchievements(
       buildResult({ modeId: "lyricsQuiz", questionCountValue: "5", correctCount: 5, answerPoolSizeValue: "4" })
@@ -322,10 +375,10 @@ export function runAchievementEvaluationTests() {
   );
   assertEqual(
     evaluateGrowthTierAchievements(
-      buildResult({ modeId: "lyricsQuiz", questionCountValue: "5", correctCount: 5, answerPoolSizeValue: "all" })
+      buildResult({ modeId: "lyricsQuiz", questionCountValue: "5", categoryFilterValue: "title-track", correctCount: 5 })
     ),
     ["lyric_beginner"],
-    "リリックビギナーは回答候補allでも同様に獲得できる（回答方式自由）"
+    "リリックビギナーはカテゴリーを絞っていても獲得できる（カテゴリー自由、5/10/20の厳密一致のケース）"
   );
 
   // LOVE連チャン等、ミス後にゲームが続くモードでも、その回でミスがあった時点でcompleted:falseに
@@ -346,12 +399,12 @@ export function runAchievementEvaluationTests() {
     "LOVE連チャン等で途中ミス（completed:false）なら20問中9問時点でもイントロエースを獲得しない"
   );
 
-  // ランダム再生クイズはノーミス段階称号（no_miss_*）の対象外だが、成長段階系（シャッフル系）は
-  // 独立した仕組みのため対象になる（既存のnoMiss制限を壊していないことの確認）。
+  // ランダム再生クイズはノーミスマスターの対象外だが、成長段階系（シャッフル系）は
+  // 独立した仕組みのため対象になる（既存の対象モード制限を壊していないことの確認）。
   assertEqual(
-    evaluateNoMissTierAchievements(buildResult({ modeId: "randomPlayback", questionCountValue: "5", correctCount: 5 })),
+    evaluateNoMissMasterAchievement(buildResult({ modeId: "randomPlayback", questionCountValue: "all" })),
     [],
-    "ランダム再生クイズは既存のノーミス段階称号（no_miss_*）の対象外のまま"
+    "ランダム再生クイズは既存どおりノーミスマスターの対象外のまま"
   );
   assertEqual(
     evaluateGrowthTierAchievements(buildResult({ modeId: "randomPlayback", questionCountValue: "5", correctCount: 5 })),
@@ -359,14 +412,23 @@ export function runAchievementEvaluationTests() {
     "ランダム再生クイズでもシャッフルビギナー（成長段階系）は獲得できる"
   );
 
-  // 既存称号（ノーミス段階・表マスター等）が、成長段階系の追加によって壊れていないことの確認。
+  // 既存称号（ノーミスマスター等）が、成長段階系の追加によって壊れていないことの確認。
+  // 【2026-08-14更新】ブロンズ廃止により、5問ノーミスでは成長段階系のみが解放される
+  // （全曲マスター系はここでは対象外＝questionCountValue"5"のため）。
   assertEqual(
     evaluateDirectAchievements(buildResult({ modeId: "intro", questionCountValue: "5", correctCount: 5 })),
-    ["intro_beginner", "no_miss_bronze"],
-    "イントロ5問ノーミスは、成長段階系（イントロビギナー）と既存のノーミス段階（ブロンズ）を同時に獲得する（重複や欠落がない）"
+    ["intro_beginner"],
+    "イントロ5問ノーミスは、成長段階系（イントロビギナー）だけを獲得する（ブロンズ等は廃止済み）"
+  );
+  assertEqual(
+    evaluateDirectAchievements(buildResult({ modeId: "intro", questionCountValue: "all" })),
+    ["intro_beginner", "intro_challenger", "intro_ace", "no_miss_master"],
+    "イントロ・本当の全曲ノーミスは、成長段階系3つとノーミスマスターを同時に獲得する（不自然な欠落がない）"
   );
 
-  // ---- isCleanClear単体 ----
+  // ==================================================================
+  // 8. isCleanClear単体
+  // ==================================================================
   assertEqual(isCleanClear(buildResult({ correctCount: 5, wrongCount: 0, skippedCount: 0 })), true, "全問正解はクリーンクリア");
   assertEqual(isCleanClear(buildResult({ correctCount: 0, wrongCount: 0, skippedCount: 0 })), false, "0問はクリーンクリアではない（totalQuestions>0が必要）");
   assertEqual(

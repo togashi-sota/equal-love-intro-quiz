@@ -112,7 +112,7 @@ export function renderRandomPlaybackResult(questionCountValue, categoryFilterVal
   // 称号（実績）判定（2026-08-07追加、本人指示）。ランダム再生クイズの全曲ノーミスで
   // フルコーラスマスター・メロディアスを取得できる。判定の組み立て方はタイムアタックと
   // 完全に共通（js/timeAttackScreen.jsのbuildAchievementResultInput参照）。
-  const achievementInput = buildAchievementResultInput(stats, "randomPlayback", questionCountValue);
+  const achievementInput = buildAchievementResultInput(stats, "randomPlayback", questionCountValue, categoryFilterValue);
   const achievementResult = evaluateAndSaveAchievements(achievementInput);
   renderAchievementUnlockEvents(achievementResult.newlyUnlockedIds, {
     chipContainer: resultElements.achievementChipContainer,

@@ -2228,29 +2228,8 @@ fieldset label:has(input:focus-visible) {
   border: 1.5px solid rgba(255, 255, 255, 0.85);
 }
 
-/* ノーミス系5段階：銅→銀→金→白銀＋水色→星入り王冠、の順に色だけ変える
-   （形は共通の盾。js/achievementIcons.jsのSHIELD_PATH参照）。 */
-.achievement-icon-medal.is-no_miss_bronze {
-  background: radial-gradient(circle at 32% 28%, #e8b088 0%, #b06a3a 60%, #7a4420 100%);
-  color: #fff3e8;
-}
-
-.achievement-icon-medal.is-no_miss_silver {
-  background: radial-gradient(circle at 32% 28%, #f3f3f6 0%, #b9bfc8 60%, #8a909c 100%);
-  color: #3a3f47;
-}
-
-.achievement-icon-medal.is-no_miss_gold {
-  background: radial-gradient(circle at 32% 28%, #ffe9a8 0%, #e3ab3c 55%, #b8790e 100%);
-  color: #5c3a08;
-}
-
-.achievement-icon-medal.is-no_miss_platinum {
-  background: radial-gradient(circle at 32% 28%, #eef9ff 0%, #bfe3f0 55%, var(--color-secondary) 100%);
-  color: #1e5470;
-  border: 1.5px solid rgba(255, 255, 255, 0.9);
-}
-
+/* ノーミスマスター：金色の盾（2026-08-14：ブロンズ/シルバー/ゴールド/プラチナは
+   成長段階系（イントロビギナー/チャレンジャー/エース）と条件が完全重複していたため廃止した）。 */
 .achievement-icon-medal.is-no_miss_master {
   background: radial-gradient(circle at 32% 28%, #fff3c4 0%, #ffd93d 55%, #b8790e 100%);
   color: #5c3a08;
@@ -4756,6 +4735,38 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   opacity: 0.85;
 }
 
+/* 「挑戦条件」の詳細箇条書き（本人指示・2026-08-14追加）。マスター・裏称号の単体称号だけが
+   持つ、conditionText（短文）を補う完全な条件一覧。一覧を開いた瞬間に見えるよう、
+   隠さず常に表示する（既存の「未取得でも条件は常に読める」方針を踏襲）。 */
+.achievement-card-challenge {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(74, 46, 66, 0.05);
+}
+
+.achievement-card-challenge-title {
+  margin: 0 0 4px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  opacity: 0.75;
+}
+
+.achievement-card-challenge-list {
+  margin: 0;
+  padding-left: 1.1em;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.achievement-card-challenge-list li {
+  font-size: 0.72rem;
+  line-height: 1.5;
+  opacity: 0.85;
+}
+
 .achievement-card-status {
   display: inline-flex;
   align-items: center;
@@ -4793,11 +4804,6 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   border-radius: 999px;
   font-size: 0.72rem;
   font-weight: 800;
-}
-
-.achievement-card-guidance.is-primary-goal {
-  background: rgba(111, 189, 242, 0.22);
-  color: #1e6f8f;
 }
 
 .achievement-card-guidance.is-next-step {

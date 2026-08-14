@@ -91,27 +91,27 @@ export function runTimeAttackScreenTests() {
   );
   cleanup();
 
-  // ---- 【本人指示の核心】イントロ形式タイムアタックの全問ノーミスクリアは、
-  //      従来どおり「ノーミスマスター」相当（5問ならブロンズ）を解放する ----
+  // ---- 【本人指示の核心・2026-08-14更新】イントロ形式タイムアタックの5問ノーミスクリアは、
+  //      従来どおり成長段階系（イントロビギナー）を解放する（旧ブロンズは廃止済み） ----
   playCleanFiveQuestionRun(TIME_ATTACK_VARIANT.INTRO);
   const afterIntro = getAchievementListSnapshot();
-  const bronzeAfterIntro = afterIntro.find((a) => a.id === "no_miss_bronze");
+  const introBeginnerAfterIntro = afterIntro.find((a) => a.id === "intro_beginner");
   assertEqual(
-    bronzeAfterIntro.isUnlocked,
+    introBeginnerAfterIntro.isUnlocked,
     true,
-    "イントロ形式タイムアタックの5問ノーミスクリアは、従来どおりノーミス称号(ブロンズ)を解放する"
+    "イントロ形式タイムアタックの5問ノーミスクリアは、従来どおりイントロビギナーを解放する"
   );
   cleanup();
 
   // ---- 【本人指示の核心】ランダム再生タイムアタックの全問ノーミスクリアは、
-  //      既存のノーミス称号を勝手に解放しない（別のmodeIdで判定されるため） ----
+  //      イントロ系の成長段階称号を勝手に解放しない（別のmodeIdグループで判定されるため） ----
   playCleanFiveQuestionRun(TIME_ATTACK_VARIANT.RANDOM_PLAYBACK);
   const afterRandomPlayback = getAchievementListSnapshot();
-  const bronzeAfterRandomPlayback = afterRandomPlayback.find((a) => a.id === "no_miss_bronze");
+  const introBeginnerAfterRandomPlayback = afterRandomPlayback.find((a) => a.id === "intro_beginner");
   assertEqual(
-    bronzeAfterRandomPlayback.isUnlocked,
+    introBeginnerAfterRandomPlayback.isUnlocked,
     false,
-    "ランダム再生タイムアタックの5問ノーミスクリアは、既存のノーミス称号(ブロンズ)を勝手に解放しない"
+    "ランダム再生タイムアタックの5問ノーミスクリアは、イントロビギナーを勝手に解放しない"
   );
 
   cleanup();

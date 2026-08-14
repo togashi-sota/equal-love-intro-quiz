@@ -3,13 +3,6 @@
 // （本人指示）。色の違いはSVGパス自体を分けず、CSS側（.achievement-icon-medal.is-{iconKey}）で
 // 塗り分ける方針にし、パスの管理を最小限にしている。
 //
-// ノーミス系5段階（ブロンズ〜ノーミスマスター）は同じ盾の形を共通で使い、CSSの配色だけで
-// 段階差を出す（本人イメージ：銅→銀→金→白銀＋水色→星入り王冠、のうち「星入り王冠」だけは
-// 専用の形にしている）。
-const SHIELD_PATH =
-  '<path d="M12 1 21 4.5V11c0 6-3.8 9.7-9 12-5.2-2.3-9-6-9-12V4.5Z"/>' +
-  '<path d="M8.3 12.2 10.8 14.7 15.8 9.2" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>';
-
 // 成長段階系（イントロ/シャッフル/リリック）3系統の基本形。ノーミス系5段階と同じ考え方で、
 // 系統内はビギナー〜エースまで同じ形を共有し、CSS側の色だけで段階差を出す。
 // エースだけは、この基本形に加えて右上に小さな星（ACE_BADGE_PATH）を1つ足し、
@@ -38,10 +31,6 @@ const ICON_DEFINITIONS = {
   lyric_challenger: { viewBox: "0 0 24 24", markup: LYRIC_CARD_PATH },
   lyric_ace: { viewBox: "0 0 24 24", markup: LYRIC_CARD_PATH + ACE_BADGE_PATH },
 
-  no_miss_bronze: { viewBox: "0 0 24 24", markup: SHIELD_PATH },
-  no_miss_silver: { viewBox: "0 0 24 24", markup: SHIELD_PATH },
-  no_miss_gold: { viewBox: "0 0 24 24", markup: SHIELD_PATH },
-  no_miss_platinum: { viewBox: "0 0 24 24", markup: SHIELD_PATH },
   no_miss_master: {
     // 星入り王冠：既存のランクバッジ・タイトルロゴと同じ星を、王冠のシルエットに乗せる
     viewBox: "0 0 24 20",

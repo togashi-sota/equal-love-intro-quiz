@@ -14,24 +14,11 @@
 // 変更したときに表示と判定がずれてしまう（本人指示）。
 export const SPEED_THRESHOLD_MS = 1700;
 
-// ノーミス段階称号の並び（数字が大きいほど上位）。上位を達成したら、この配列の
-// 手前側（下位）もすべて同時に取得する（本人指示のカスケード仕様）。
-const NO_MISS_TIER_ORDER = ["5", "10", "20", "50", "all"];
-const NO_MISS_TIER_ID_BY_VALUE = {
-  5: "no_miss_bronze",
-  10: "no_miss_silver",
-  20: "no_miss_gold",
-  50: "no_miss_platinum",
-  all: "no_miss_master",
-};
-
 // モードごとにバラバラな結果の形を、称号判定に必要な項目だけを持つ共通形式へ変換する。
-// isAllSongsMode：questionCountValueが"all"かどうかだけで判定する（既存の各モードの
-// 「全曲」の意味＝その時点のカテゴリ絞り込み後の曲プール全体、と統一するため。
-// 固定の曲数をハードコードしない、という指示に沿う）。
 export function normalizeQuizClearResult({
   modeId,
   questionCountValue,
+  categoryFilterValue = null,
   correctCount,
   wrongCount,
   skippedCount,
@@ -44,7 +31,13 @@ export function normalizeQuizClearResult({
   return {
     modeId,
     questionCountValue,
-    isAllSongsMode: questionCountValue === "all",
+    categoryFilterValue,
+    // 【2026-08-14改訂・本人指示】マスター・裏称号が要求する「本当の全曲」は、
+    // 「questionCountValueがallである」だけでは不十分（「表題曲のみ」＋全曲、のような
+    // カテゴリー絞り込み済みの"all"を誤って許してしまうため）。カテゴリー絞り込みが
+    // 一切ない状態（categoryFilterValue==="all"）で、かつ出題数もそのプール全体（"all"）
+    // であることの両方を要求する。isUnrestrictedFullPool()参照。
+    isAllSongsMode: isUnrestrictedFullPool({ categoryFilterValue, questionCountValue }),
     totalQuestions,
     correctCount,
     wrongCount,
@@ -54,14 +47,30 @@ export function normalizeQuizClearResult({
     maxHintLevelByQuestion: Array.isArray(maxHintLevelByQuestion) ? maxHintLevelByQuestion : null,
     // 歌詞クイズだけが持つ「回答候補の難易度」軸（4/10/30/50/all）。他モードはnullのまま。
     // 【2026-08-13追加・本人指示】歌マスター・リリックマスターは、全曲モードに加えて
-    // 「回答候補も最も難しいall（全曲から探す）」設定であることを必須条件にするため保持する。
+    // 「回答候補も最も難しいall（全曲検索）」設定であることを必須条件にするため保持する。
     answerPoolSizeValue,
   };
+}
+
+// 「本当の全曲」判定の共通関数（本人指示・2026-08-14：「複数称号でバラバラに全曲判定を
+// 実装しない、1箇所の共通関数にする」）。
+//
+// 固定の曲数は一切ベタ書きしない：questionCountValue==="all"は、呼び出し側（各モードの
+// 出題ロジック＝js/quiz.jsのresolveQuestionCount・js/lyricsQuizQuestionBuilder.js等）が
+// 「その瞬間に実際に出題可能な曲プールの件数」へ動的に解決した上でのフラグなので、
+// この関数自体は曲数を一切数えない。categoryFilterValue==="all"（カテゴリー絞り込みなし）
+// と組み合わせることで、初めて「そのモードで現在正当に出題可能な最大母集団」を意味する
+// （「表題曲のみ」等でカテゴリーを絞った状態の"全曲"は、この関数ではfalseになる）。
+// 新曲・新音源・新歌詞が追加されても、各モードの出題ロジック側が自動的に新しい母集団を
+// 反映するため、この関数を変更する必要は一切ない。
+export function isUnrestrictedFullPool({ categoryFilterValue, questionCountValue }) {
+  return categoryFilterValue === "all" && questionCountValue === "all";
 }
 
 // 歌詞クイズの回答候補設定のうち、称号（歌マスター・リリックマスター）が要求する
 // 「最も難しい設定」。ANSWER_POOL_SIZE_VALUES（js/lyricsQuizEngine.js）の最終値と同じ文字列を
 // あえて複製している（この判定ファイルが歌詞クイズ専用ファイルに依存しない設計を保つため）。
+// 実際のUIボタン表記は「全曲検索」（js/lyricsQuizScreen.jsの設定画面参照）。
 const LYRICS_QUIZ_HARDEST_ANSWER_POOL_SIZE_VALUE = "all";
 
 function isHardestLyricsQuizAnswerPool(result) {
@@ -84,17 +93,16 @@ function isFastEnough(result) {
   return result.averageResponseMs !== null && result.averageResponseMs <= SPEED_THRESHOLD_MS;
 }
 
-// ノーミス段階称号（ブロンズ〜ノーミスマスター）。イントロクイズ・タイムアタックのみが対象。
-// 5/10/20/50/all以外の出題数は対象外（判定なし）。
-export function evaluateNoMissTierAchievements(result) {
+// ノーミスマスター（表マスターの1つ）。イントロクイズ・タイムアタックが対象。
+// 【2026-08-14改訂・本人指示】ブロンズ/シルバー/ゴールド/プラチナは、成長段階系
+// （イントロビギナー/チャレンジャー/エース）と条件が完全重複していたため廃止した。
+// ノーミスマスターの条件自体は変わらないが、「全曲」の定義がisUnrestrictedFullPool()
+// （カテゴリー絞り込みなしの本当の全曲）に厳格化された点はresult.isAllSongsModeの
+// 計算（normalizeQuizClearResult参照）に集約済みで、この関数側の変更は不要。
+export function evaluateNoMissMasterAchievement(result) {
   if (result.modeId !== "intro" && result.modeId !== "timeAttack") return [];
-  if (!isCleanClear(result)) return [];
-
-  const tierIndex = NO_MISS_TIER_ORDER.indexOf(result.questionCountValue);
-  if (tierIndex === -1) return [];
-
-  // 達成した段階以下（下位）を、配列の並び順（ブロンズ→…→ノーミスマスター）ですべて返す。
-  return NO_MISS_TIER_ORDER.slice(0, tierIndex + 1).map((value) => NO_MISS_TIER_ID_BY_VALUE[value]);
+  if (!isCleanClear(result) || !result.isAllSongsMode) return [];
+  return ["no_miss_master"];
 }
 
 // 成長段階系（イントロ/シャッフル/リリックの3系統×ビギナー(5)/チャレンジャー(10)/エース(20)）。
@@ -119,23 +127,29 @@ const GROWTH_TIER_IDS_BY_GROUP = {
   lyric: { 5: "lyric_beginner", 10: "lyric_challenger", 20: "lyric_ace" },
 };
 
+// 【2026-08-14改訂・本人指示】カスケードを2段階にした：
+//   ①5/10/20問の間のカスケード（20問ノーミスなら3段階すべて）は元から実装済みのまま維持。
+//   ②新規：その系統で「本当の全曲」（isUnrestrictedFullPool、カテゴリー絞り込みなしの
+//     真の全曲）をノーミスクリアした場合も、3段階すべてを自動的に取得する。
+//     「全曲マスターなのにビギナー未取得」という不自然な状態を無くすため。
 export function evaluateGrowthTierAchievements(result) {
   const group = GROWTH_MODE_GROUP_BY_MODE_ID[result.modeId];
   if (!group) return [];
   if (!isCleanClear(result)) return [];
 
+  if (result.isAllSongsMode) {
+    return GROWTH_TIER_ORDER.map((value) => GROWTH_TIER_IDS_BY_GROUP[group][value]);
+  }
+
   const tierIndex = GROWTH_TIER_ORDER.indexOf(result.questionCountValue);
   if (tierIndex === -1) return [];
-
-  // ノーミス段階称号と同じカスケード仕様：達成した段階以下もまとめて返す
-  // （20問ノーミスなら、その系統のビギナー・チャレンジャー・エースを同時に獲得する）。
   return GROWTH_TIER_ORDER.slice(0, tierIndex + 1).map((value) => GROWTH_TIER_IDS_BY_GROUP[group][value]);
 }
 
 // 表マスター2種：フルコーラスマスター（ランダム再生クイズ）・歌マスター（歌詞クイズ）。
-// フルコーラスマスターは全曲モード・ノーミスのみが条件（時間は問わない）。
-// 歌マスターは全曲モード・ノーミスに加えて、回答候補も最も難しいall（全曲から探す）設定を
-// 使っていることが条件（本人指示・2026-08-13：回答方式に難易度軸があるなら最難関を必須にする）。
+// フルコーラスマスターは本当の全曲（isAllSongsMode、カテゴリー絞り込みなし）・ノーミスのみが
+// 条件（時間は問わない）。歌マスターはそれに加えて、回答候補も最も難しいall（UI表記：全曲検索）
+// 設定を使っていることが条件（本人指示・2026-08-13：回答方式に難易度軸があるなら最難関を必須に）。
 export function evaluateModeMasterAchievements(result) {
   if (!isCleanClear(result) || !result.isAllSongsMode) return [];
   if (result.modeId === "randomPlayback") return ["full_chorus_master"];
@@ -190,7 +204,7 @@ export function evaluateCompositeAchievements(unlockedIdSet, achievementDefiniti
 export function evaluateDirectAchievements(result) {
   return [
     ...evaluateGrowthTierAchievements(result),
-    ...evaluateNoMissTierAchievements(result),
+    ...evaluateNoMissMasterAchievement(result),
     ...evaluateModeMasterAchievements(result),
     ...evaluateSpeedAchievements(result),
     ...evaluateHintAchievements(result),

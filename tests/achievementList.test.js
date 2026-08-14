@@ -10,11 +10,12 @@ import { assertEqual } from "./test-utils.js";
 // guidanceBadgeTextを、テストごとに必要な分だけ指定できるようにするビルダー。
 function buildEntry(overrides) {
   return {
-    id: "no_miss_bronze",
-    name: "ブロンズ",
-    category: "noMiss",
-    iconKey: "no_miss_bronze",
+    id: "intro_beginner",
+    name: "イントロビギナー",
+    category: "growth",
+    iconKey: "intro_beginner",
     conditionText: "テスト用の条件文",
+    challengeConditions: null,
     rewardNote: null,
     isUnlocked: false,
     unlockedAt: null,
@@ -28,11 +29,17 @@ export function runAchievementListTests() {
   // ---- 長い称号名がDOM上で全文存在する（「…」に省略されない） ----
   // CSS(text-overflow:ellipsis)は見た目だけを変える指定であり、DOM上のtextContent自体は
   // 元々省略されないため、これは「JS側で意図せず文字列を切り詰めていないか」の回帰チェック。
+  // 【2026-08-14更新】17称号構成にあわせて名前一覧を更新（ブロンズ〜プラチナは廃止済み）。
   const longNames = [
-    "ブロンズ",
-    "シルバー",
-    "ゴールド",
-    "プラチナ",
+    "イントロビギナー",
+    "イントロチャレンジャー",
+    "イントロエース",
+    "シャッフルビギナー",
+    "シャッフルチャレンジャー",
+    "シャッフルエース",
+    "リリックビギナー",
+    "リリックチャレンジャー",
+    "リリックエース",
     "ノーミスマスター",
     "フルコーラスマスター",
     "歌マスター",
@@ -56,7 +63,7 @@ export function runAchievementListTests() {
     buildEntry({
       id: "equal_love_master",
       name: "＝LOVEマスター",
-      category: "composite",
+      category: "masterPath",
       iconKey: "equal_love_master",
       compositeProgress: {
         achievedCount: 1,
@@ -91,7 +98,7 @@ export function runAchievementListTests() {
     buildEntry({
       id: "equal_love_complete",
       name: "＝LOVE完全制覇",
-      category: "composite",
+      category: "backChallenge",
       iconKey: "equal_love_complete",
       compositeProgress: {
         achievedCount: 0,
@@ -116,7 +123,7 @@ export function runAchievementListTests() {
     buildEntry({
       id: "equal_love_master",
       name: "＝LOVEマスター",
-      category: "composite",
+      category: "masterPath",
       iconKey: "equal_love_master",
       isUnlocked: false,
       compositeProgress: { achievedCount: 0, requiredCount: 3, items: [] },
@@ -134,37 +141,64 @@ export function runAchievementListTests() {
     "未取得の＝LOVEマスターは、配色だけロック用（is-locked-preview）になる"
   );
 
-  // ---- ノーミスマスターの初心者向け案内バッジ ----
-  const lockedMasterGuideCard = buildAchievementCard(
+  // ---- 成長段階系トリオの先頭に「まずはここから」バッジ（2026-08-14更新） ----
+  const startHereCard = buildAchievementCard(
     buildEntry({
-      id: "no_miss_master",
-      name: "ノーミスマスター",
+      id: "intro_beginner",
+      name: "イントロビギナー",
       isUnlocked: false,
-      guidanceBadgeText: "🎯 最初の目標",
+      guidanceBadgeText: "🔰 まずはここから",
     })
   );
   assertEqual(
-    lockedMasterGuideCard.querySelector(".achievement-card-guidance").textContent,
-    "🎯 最初の目標",
-    "未取得のノーミスマスターに、初心者向けの案内バッジが表示される"
+    startHereCard.querySelector(".achievement-card-guidance").textContent,
+    "🔰 まずはここから",
+    "未取得の成長段階トリオ先頭に、まずはここからバッジが表示される"
   );
 
-  const unlockedMasterGuideCard = buildAchievementCard(
-    buildEntry({ id: "no_miss_master", name: "ノーミスマスター", isUnlocked: true, guidanceBadgeText: null })
+  const unlockedStartHereCard = buildAchievementCard(
+    buildEntry({ id: "intro_beginner", name: "イントロビギナー", isUnlocked: true, guidanceBadgeText: null })
   );
   assertEqual(
-    unlockedMasterGuideCard.querySelector(".achievement-card-guidance"),
+    unlockedStartHereCard.querySelector(".achievement-card-guidance"),
     null,
-    "取得済みのノーミスマスターには、もう案内バッジを表示しない"
+    "取得済みの成長段階称号には、もう案内バッジを表示しない"
   );
 
-  // ---- ブロンズ〜プラチナの「次の目標」バッジ ----
+  // ---- 成長段階トリオの2番目以降に「次の目標」バッジ ----
   const nextStepCard = buildAchievementCard(
-    buildEntry({ id: "no_miss_silver", name: "シルバー", isUnlocked: false, guidanceBadgeText: "→ 次の目標" })
+    buildEntry({
+      id: "intro_challenger",
+      name: "イントロチャレンジャー",
+      isUnlocked: false,
+      guidanceBadgeText: "→ 次の目標",
+    })
   );
   assertEqual(
     nextStepCard.querySelector(".achievement-card-guidance").textContent,
     "→ 次の目標",
-    "次に狙うべきノーミス段階に「次の目標」バッジが表示される"
+    "次に狙うべき成長段階に「次の目標」バッジが表示される"
+  );
+
+  // ---- 「挑戦条件」の詳細箇条書きが表示される（2026-08-14追加） ----
+  const challengeCard = buildAchievementCard(
+    buildEntry({
+      id: "no_miss_master",
+      name: "ノーミスマスター",
+      category: "masterPath",
+      iconKey: "no_miss_master",
+      challengeConditions: ["モード：イントロ系", "出題数：現在出題可能な全曲", "条件：全問正解"],
+    })
+  );
+  assertEqual(
+    [...challengeCard.querySelectorAll(".achievement-card-challenge-list li")].map((el) => el.textContent),
+    ["モード：イントロ系", "出題数：現在出題可能な全曲", "条件：全問正解"],
+    "挑戦条件の箇条書きがカードに表示される"
+  );
+  const noChallengeCard = buildAchievementCard(buildEntry({ challengeConditions: null }));
+  assertEqual(
+    noChallengeCard.querySelector(".achievement-card-challenge"),
+    null,
+    "challengeConditionsがnullの称号（成長段階系等）には挑戦条件ブロックが表示されない"
   );
 }

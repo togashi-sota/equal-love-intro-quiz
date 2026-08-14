@@ -216,6 +216,7 @@ export function getAchievementListSnapshot() {
       category: achievement.category,
       iconKey: achievement.iconKey,
       conditionText: achievement.conditionText,
+      challengeConditions: achievement.challengeConditions ?? null,
       rewardNote: achievement.rewardNote,
       isUnlocked,
       unlockedAt: isUnlocked ? (stored.unlockedAtById[achievement.id] ?? null) : null,

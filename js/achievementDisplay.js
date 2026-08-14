@@ -42,7 +42,10 @@ function resetAnimationState() {
 }
 
 function buildAchievementChip(achievement) {
-  const isComposite = achievement.category === "composite";
+  // 【2026-08-14改訂】「複合称号かどうか」の判定を、表示カテゴリー名（category、今回の
+  // 17称号再編でmasterPath/backChallengeへ変わった）ではなくcompositeOfの有無に切り替えた
+  // （js/achievementList.jsのbuildAchievementCard()と同じ理由・同じ修正）。
+  const isComposite = Boolean(achievement.compositeOf);
   const chip = document.createElement("div");
   chip.classList.add("achievement-event", isComposite ? "achievement-event--composite" : "achievement-event--normal");
   chip.dataset.achievementId = achievement.id;
@@ -102,7 +105,7 @@ function advanceQueue() {
 
   activeChip = chip;
   activeChip.addEventListener("animationend", handleChipAnimationEnd);
-  const fallbackMs = nextAchievement.category === "composite" ? COMPOSITE_ANIMATION_FALLBACK_MS : ANIMATION_FALLBACK_MS;
+  const fallbackMs = nextAchievement.compositeOf ? COMPOSITE_ANIMATION_FALLBACK_MS : ANIMATION_FALLBACK_MS;
   fallbackTimeoutId = setTimeout(advanceQueue, fallbackMs);
 }
 

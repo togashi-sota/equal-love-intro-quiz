@@ -97,11 +97,11 @@ export function runFanProfileCardTests() {
   assertEqual(unsorted.map((p) => p.uid), ["a", "b", "c"], "sortProfilesは元の配列を変更しない");
 
   // ---- 未取得称号は表示されず、取得済みだけがカテゴリごとに表示される ----
-  const partialList = buildAchievedAchievementsList(["no_miss_bronze", "full_chorus_master"]);
+  const partialList = buildAchievedAchievementsList(["intro_beginner", "full_chorus_master"]);
   const achievedNames = [...partialList.querySelectorAll(".fan-profile-achievement-name")].map((el) => el.textContent);
   assertEqual(
     achievedNames,
-    ["ブロンズ", "フルコーラスマスター"],
+    ["イントロビギナー", "フルコーラスマスター"],
     "取得済みの称号だけが名前つきで表示される（未取得は一切出さない）"
   );
   assertEqual(
@@ -111,10 +111,10 @@ export function runFanProfileCardTests() {
   );
 
   // ---- 未知のachievementIdでも画面が壊れない（静かに読み飛ばす） ----
-  const withUnknownId = buildAchievedAchievementsList(["no_miss_bronze", "this-achievement-id-does-not-exist"]);
+  const withUnknownId = buildAchievedAchievementsList(["intro_beginner", "this-achievement-id-does-not-exist"]);
   assertEqual(
     [...withUnknownId.querySelectorAll(".fan-profile-achievement-name")].map((el) => el.textContent),
-    ["ブロンズ"],
+    ["イントロビギナー"],
     "未知のachievementIdはクラッシュせず読み飛ばされ、既知の分だけ表示される"
   );
 
@@ -131,12 +131,17 @@ export function runFanProfileCardTests() {
     "称号0個のときはカードが1件も表示されない"
   );
 
-  // ---- 称号多数（12件すべて）でも表示できる ----
+  // ---- 称号多数（17件すべて、2026-08-14更新）でも表示できる ----
   const allIds = [
-    "no_miss_bronze",
-    "no_miss_silver",
-    "no_miss_gold",
-    "no_miss_platinum",
+    "intro_beginner",
+    "intro_challenger",
+    "intro_ace",
+    "shuffle_beginner",
+    "shuffle_challenger",
+    "shuffle_ace",
+    "lyric_beginner",
+    "lyric_challenger",
+    "lyric_ace",
     "no_miss_master",
     "full_chorus_master",
     "song_master",
@@ -149,7 +154,7 @@ export function runFanProfileCardTests() {
   const fullList = buildAchievedAchievementsList(allIds);
   assertEqual(
     fullList.querySelectorAll(".fan-profile-achievement-card").length,
-    12,
-    "称号12個（全種類）取得済みなら12枚すべて表示される"
+    17,
+    "称号17個（全種類）取得済みなら17枚すべて表示される"
   );
 }

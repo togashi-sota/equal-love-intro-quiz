@@ -26,6 +26,7 @@ function buildCleanIntroResult(overrides) {
   return {
     modeId: "intro",
     questionCountValue: "5",
+    categoryFilterValue: "all",
     correctCount: 5,
     wrongCount: 0,
     skippedCount: 0,
@@ -44,24 +45,25 @@ export function runAchievementProgressTests() {
   const laterIso = "2026-08-08T00:00:00.000Z";
   const empty = { schemaVersion: 2, unlockedAchievementIds: [], unlockedAtById: {} };
 
-  const firstMerge = mergeAchievementProgress(empty, ["no_miss_bronze"], nowIso);
-  assertEqual(firstMerge.progress.unlockedAchievementIds, ["no_miss_bronze"], "1回目のマージで解放される");
-  assertEqual(firstMerge.newlyUnlockedThisTime, ["no_miss_bronze"], "1回目は新規解放として報告される");
-  assertEqual(firstMerge.progress.unlockedAtById.no_miss_bronze, nowIso, "取得日が記録される");
+  const firstMerge = mergeAchievementProgress(empty, ["intro_beginner"], nowIso);
+  assertEqual(firstMerge.progress.unlockedAchievementIds, ["intro_beginner"], "1回目のマージで解放される");
+  assertEqual(firstMerge.newlyUnlockedThisTime, ["intro_beginner"], "1回目は新規解放として報告される");
+  assertEqual(firstMerge.progress.unlockedAtById.intro_beginner, nowIso, "取得日が記録される");
 
-  const secondMerge = mergeAchievementProgress(firstMerge.progress, ["no_miss_bronze"], laterIso);
-  assertEqual(secondMerge.progress.unlockedAchievementIds, ["no_miss_bronze"], "同じ称号を二重取得しない（配列が増えない）");
+  const secondMerge = mergeAchievementProgress(firstMerge.progress, ["intro_beginner"], laterIso);
+  assertEqual(secondMerge.progress.unlockedAchievementIds, ["intro_beginner"], "同じ称号を二重取得しない（配列が増えない）");
   assertEqual(secondMerge.newlyUnlockedThisTime, [], "2回目は新規解放として報告されない");
-  assertEqual(secondMerge.progress.unlockedAtById.no_miss_bronze, nowIso, "取得日は最初の1回だけ保存され、2回目で上書きされない");
+  assertEqual(secondMerge.progress.unlockedAtById.intro_beginner, nowIso, "取得日は最初の1回だけ保存され、2回目で上書きされない");
 
   // ---- evaluateAndSaveAchievements：実際のプレイ結果からの一連の判定 ----
+  // 【2026-08-14更新】ブロンズ/シルバー/ゴールド/プラチナ廃止にともない、5問ノーミスでは
+  // 成長段階系（イントロビギナー）だけが解放されるようになった。
   clearAchievementStorage();
   const playResult1 = evaluateAndSaveAchievements(buildCleanIntroResult());
-  // 2026-08-13追加の成長段階系（イントロビギナー）も、同じ5問ノーミス条件で同時に新規解放される。
   assertEqual(
     playResult1.newlyUnlockedIds,
-    ["intro_beginner", "no_miss_bronze"],
-    "5問ノーミスの初回プレイでイントロビギナーとブロンズが新規解放される"
+    ["intro_beginner"],
+    "5問ノーミスの初回プレイでイントロビギナーが新規解放される"
   );
 
   const playResult2 = evaluateAndSaveAchievements(buildCleanIntroResult());
@@ -102,7 +104,7 @@ export function runAchievementProgressTests() {
   const recoveredPlay = evaluateAndSaveAchievements(buildCleanIntroResult());
   assertEqual(
     recoveredPlay.newlyUnlockedIds,
-    ["intro_beginner", "no_miss_bronze"],
+    ["intro_beginner"],
     "壊れたデータから復旧した後も、通常どおりプレイ結果を保存できる"
   );
 
@@ -116,15 +118,19 @@ export function runAchievementProgressTests() {
     "旧パーフェクト(10問)から、ブロンズ・シルバーへ安全に移行できる"
   );
 
+  // 【2026-08-14更新】collectLegacyNoMissEquivalents()自体は、旧データとの対応関係を保つため
+  // あえて変更していない（ブロンズ〜プラチナのidをそのまま返す＝これらはACHIEVEMENTSから
+  // 削除済みのため「孤立したid」としてlocalStorageに残るだけで実害はない、という設計）。
+  // 現行のACHIEVEMENTSに実在するのはno_miss_masterだけなので、そこだけを確認する。
   clearAchievementStorage();
   localStorage.setItem(`${LEGACY_PREFIX}.equalLoveKaiden`, "true");
   syncLegacyAchievements();
   const afterSync = getAchievementListSnapshot();
-  const noMissEntries = afterSync.filter((entry) => entry.id.startsWith("no_miss_"));
+  const noMissMasterEntry = afterSync.find((entry) => entry.id === "no_miss_master");
   assertEqual(
-    noMissEntries.every((entry) => entry.isUnlocked),
+    noMissMasterEntry.isUnlocked,
     true,
-    "旧＝LOVE皆伝から、ノーミス段階称号5つすべてへカスケードで移行できる"
+    "旧＝LOVE皆伝から、現行のノーミスマスターへ移行できる（ブロンズ等は廃止済みのため対象外）"
   );
   assertEqual(
     localStorage.getItem(`${LEGACY_PREFIX}.equalLoveKaiden`),
@@ -134,10 +140,10 @@ export function runAchievementProgressTests() {
 
   // syncLegacyAchievements()を複数回呼んでも、取得日が上書きされない（冪等性）ことを確認。
   const afterFirstSyncSnapshot = getAchievementListSnapshot();
-  const firstUnlockedAt = afterFirstSyncSnapshot.find((entry) => entry.id === "no_miss_bronze").unlockedAt;
+  const firstUnlockedAt = afterFirstSyncSnapshot.find((entry) => entry.id === "no_miss_master").unlockedAt;
   syncLegacyAchievements();
   const afterSecondSyncSnapshot = getAchievementListSnapshot();
-  const secondUnlockedAt = afterSecondSyncSnapshot.find((entry) => entry.id === "no_miss_bronze").unlockedAt;
+  const secondUnlockedAt = afterSecondSyncSnapshot.find((entry) => entry.id === "no_miss_master").unlockedAt;
   assertEqual(firstUnlockedAt, secondUnlockedAt, "旧称号の移行処理を複数回呼んでも取得日が変わらない（冪等）");
 
   // ---- compositeProgress.items：複合称号カードの「獲得条件」チェックリスト用データ
@@ -176,6 +182,50 @@ export function runAchievementProgressTests() {
     completeEntry.compositeProgress.items.every((item) => item.isUnlocked === false),
     true,
     "＝LOVE完全制覇の必要称号は、何も取得していない状態ではすべて未取得として表示される"
+  );
+
+  clearAchievementStorage();
+
+  // ---- 既存ユーザーの称号は、条件厳格化後も没収されない（本人指示・2026-08-14） ----
+  // 「表題曲のみ」等カテゴリーを絞った状態でも取れていた旧仕様の時代にno_miss_master・
+  // equal_love_masterを取得済みだったユーザーを想定し、条件厳格化後にプレイしても
+  // 既存の取得済みidが消えないこと・条件を満たさない新しいプレイでは新規解放が起きない
+  // ことの両方を確認する。
+  clearAchievementStorage();
+  localStorage.setItem(
+    ACHIEVEMENTS_KEY,
+    JSON.stringify({
+      schemaVersion: 2,
+      unlockedAchievementIds: ["no_miss_bronze", "no_miss_master", "equal_love_master"],
+      unlockedAtById: { no_miss_bronze: nowIso, no_miss_master: nowIso, equal_love_master: nowIso },
+    })
+  );
+  // カテゴリーを絞った状態（新条件では不合格）で全曲プレイしても、既存の取得は失われない。
+  const strictifiedPlay = evaluateAndSaveAchievements(
+    buildCleanIntroResult({ questionCountValue: "all", categoryFilterValue: "title-track" })
+  );
+  assertEqual(
+    strictifiedPlay.newlyUnlockedIds,
+    [],
+    "条件を満たさない新しいプレイでは、既存の称号に加えて何も新規解放されない"
+  );
+  const afterStrictifiedSnapshot = getAchievementListSnapshot();
+  assertEqual(
+    afterStrictifiedSnapshot.find((entry) => entry.id === "no_miss_master").isUnlocked,
+    true,
+    "旧仕様で取得済みだったノーミスマスターは、条件が厳しくなっても没収されない"
+  );
+  assertEqual(
+    afterStrictifiedSnapshot.find((entry) => entry.id === "equal_love_master").isUnlocked,
+    true,
+    "旧仕様で取得済みだった＝LOVEマスターも、条件が厳しくなっても没収されない"
+  );
+  // ACHIEVEMENTSから削除済みのブロンズidが保存データに残っていても、一覧には出ず、
+  // 他の称号の判定にも一切影響しないことを確認する（本人指示：「無理に削除・書き換えしない」）。
+  assertEqual(
+    afterStrictifiedSnapshot.some((entry) => entry.id === "no_miss_bronze"),
+    false,
+    "廃止済みのブロンズは、保存データに残っていても一覧（ACHIEVEMENTS由来）には出てこない"
   );
 
   clearAchievementStorage();

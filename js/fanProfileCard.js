@@ -9,7 +9,8 @@ import { buildAchievementIconMedal } from "./achievementIcons.js";
 import { applyOshiBadgeDecorationsFromState } from "./oshiBadge.js";
 
 // 称号カテゴリの表示順（js/achievementList.jsと同じ順番。詳細モーダルでも一覧と同じ並びに揃える）。
-export const ACHIEVEMENT_CATEGORY_ORDER = ["noMiss", "modeMaster", "backRoute", "composite"];
+// 【2026-08-14更新】17称号・3カテゴリー再編（growth/masterPath/backChallenge）にあわせて更新。
+export const ACHIEVEMENT_CATEGORY_ORDER = ["growth", "masterPath", "backChallenge"];
 
 export function buildOshiSwatch(members, oshiMemberId, badgeState) {
   const swatch = document.createElement("span");

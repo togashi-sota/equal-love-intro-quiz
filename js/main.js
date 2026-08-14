@@ -2419,6 +2419,7 @@ function renderResult() {
     const achievementResult = evaluateAndSaveAchievements({
       modeId: "intro",
       questionCountValue,
+      categoryFilterValue,
       correctCount: correctEntries.length,
       wrongCount,
       skippedCount,

@@ -666,6 +666,7 @@ export function renderLyricsQuizResult() {
   const achievementResult = evaluateAndSaveAchievements({
     modeId: "lyricsQuiz",
     questionCountValue: currentSettings.questionCountValue,
+    categoryFilterValue: currentSettings.categoryFilterValue,
     correctCount: result.correctCount,
     wrongCount,
     skippedCount,

@@ -9,14 +9,23 @@
 // 保存データ（unlockedAchievementIds配列にはIDだけを保存する）は壊れない。
 
 // 称号1件が持つ項目の意味
-// id            : 保存・参照に使う一意な識別子（将来も変更しない）
-// name          : 表示名（将来変更してもデータは壊れない）
-// category      : 一覧での分類："noMiss" | "backRoute" | "composite"
-// iconKey       : js/achievementIcons.jsのアイコン定義を引くためのキー
-// conditionText : 一覧で常に表示する、獲得条件の説明文
-// compositeOf   : 複合称号（category:"composite"）が要求する、他の称号idの配列。nullなら複合称号ではない。
-// rewardNote    : 複合称号だけが持つ、特典・見た目の変化を予告する一言（本人指示、2026-08-07追加）。
-//                 一覧カード・獲得演出の両方に、目立つように表示する。それ以外の称号はnull。
+// id                 : 保存・参照に使う一意な識別子（将来も変更しない）
+// name               : 表示名（将来変更してもデータは壊れない）
+// category           : 一覧での分類："growth"（ステップアップ） | "masterPath"（＝LOVEマスターへの道）
+//                       | "backChallenge"（裏チャレンジ）
+// iconKey            : js/achievementIcons.jsのアイコン定義を引くためのキー
+// conditionText      : 一覧に常に表示する、短い一文の獲得条件（本人指示・2026-08-14：
+//                       「イントロ系で5問ノーミス！」のように一目で分かる短文にする）
+// challengeConditions: 「挑戦条件」として箇条書きで表示する詳細条件（本人指示・2026-08-14追加）。
+//                       masterPath・backChallengeの単体称号（複合称号を除く）だけが持つ。
+//                       それ以外（growth・複合称号）はnull（growthは条件が単純なため
+//                       conditionTextだけで十分、複合称号はcompositeProgressの
+//                       チェックリストが同じ役割を果たすため）。
+// compositeOf        : 複合称号が要求する、他の称号idの配列。nullなら複合称号ではない
+//                       （表示上のcategoryとは独立させている。判定・見た目の特別扱いは
+//                       すべてcompositeOfの有無で判定する）。
+// rewardNote         : 複合称号だけが持つ、特典・見た目の変化を予告する一言（本人指示、2026-08-07追加）。
+//                       一覧カード・獲得演出の両方に、目立つように表示する。それ以外の称号はnull。
 export const ACHIEVEMENTS = [
   // ===== 成長段階系（初心者〜中級者向け、2026-08-13追加） =====
   // イントロ系／シャッフル系（ランダム再生）／リリック系（歌詞クイズ）それぞれに、
@@ -32,7 +41,8 @@ export const ACHIEVEMENTS = [
     name: "イントロビギナー",
     category: "growth",
     iconKey: "intro_beginner",
-    conditionText: "イントロ系クイズ（イントロクイズ／タイムアタック）で5問をノーミスで正解する（カテゴリー・回答方式自由）",
+    conditionText: "イントロ系で5問ノーミス！",
+    challengeConditions: null,
     compositeOf: null,
     rewardNote: null,
   },
@@ -41,7 +51,8 @@ export const ACHIEVEMENTS = [
     name: "イントロチャレンジャー",
     category: "growth",
     iconKey: "intro_challenger",
-    conditionText: "イントロ系クイズ（イントロクイズ／タイムアタック）で10問をノーミスで正解する（カテゴリー・回答方式自由）",
+    conditionText: "イントロ系で10問ノーミス！",
+    challengeConditions: null,
     compositeOf: null,
     rewardNote: null,
   },
@@ -50,7 +61,8 @@ export const ACHIEVEMENTS = [
     name: "イントロエース",
     category: "growth",
     iconKey: "intro_ace",
-    conditionText: "イントロ系クイズ（イントロクイズ／タイムアタック）で20問をノーミスで正解する（カテゴリー・回答方式自由）",
+    conditionText: "イントロ系で20問ノーミス！",
+    challengeConditions: null,
     compositeOf: null,
     rewardNote: null,
   },
@@ -59,7 +71,8 @@ export const ACHIEVEMENTS = [
     name: "シャッフルビギナー",
     category: "growth",
     iconKey: "shuffle_beginner",
-    conditionText: "シャッフル系クイズ（ランダム再生クイズ／タイムアタックのランダム再生）で5問をノーミスで正解する（カテゴリー・回答方式自由）",
+    conditionText: "ランダム再生で5問ノーミス！",
+    challengeConditions: null,
     compositeOf: null,
     rewardNote: null,
   },
@@ -68,7 +81,8 @@ export const ACHIEVEMENTS = [
     name: "シャッフルチャレンジャー",
     category: "growth",
     iconKey: "shuffle_challenger",
-    conditionText: "シャッフル系クイズ（ランダム再生クイズ／タイムアタックのランダム再生）で10問をノーミスで正解する（カテゴリー・回答方式自由）",
+    conditionText: "ランダム再生で10問ノーミス！",
+    challengeConditions: null,
     compositeOf: null,
     rewardNote: null,
   },
@@ -77,7 +91,8 @@ export const ACHIEVEMENTS = [
     name: "シャッフルエース",
     category: "growth",
     iconKey: "shuffle_ace",
-    conditionText: "シャッフル系クイズ（ランダム再生クイズ／タイムアタックのランダム再生）で20問をノーミスで正解する（カテゴリー・回答方式自由）",
+    conditionText: "ランダム再生で20問ノーミス！",
+    challengeConditions: null,
     compositeOf: null,
     rewardNote: null,
   },
@@ -86,7 +101,8 @@ export const ACHIEVEMENTS = [
     name: "リリックビギナー",
     category: "growth",
     iconKey: "lyric_beginner",
-    conditionText: "歌詞クイズで5問をノーミスで正解する（カテゴリー・回答候補数は自由）",
+    conditionText: "歌詞クイズで5問ノーミス！",
+    challengeConditions: null,
     compositeOf: null,
     rewardNote: null,
   },
@@ -95,7 +111,8 @@ export const ACHIEVEMENTS = [
     name: "リリックチャレンジャー",
     category: "growth",
     iconKey: "lyric_challenger",
-    conditionText: "歌詞クイズで10問をノーミスで正解する（カテゴリー・回答候補数は自由）",
+    conditionText: "歌詞クイズで10問ノーミス！",
+    challengeConditions: null,
     compositeOf: null,
     rewardNote: null,
   },
@@ -104,134 +121,144 @@ export const ACHIEVEMENTS = [
     name: "リリックエース",
     category: "growth",
     iconKey: "lyric_ace",
-    conditionText: "歌詞クイズで20問をノーミスで正解する（カテゴリー・回答候補数は自由）",
+    conditionText: "歌詞クイズで20問ノーミス！",
+    challengeConditions: null,
     compositeOf: null,
     rewardNote: null,
   },
 
-  // ===== ノーミス系（イントロクイズ または 現在のイントロ形式タイムアタックで取得） =====
-  {
-    id: "no_miss_bronze",
-    name: "ブロンズ",
-    category: "noMiss",
-    iconKey: "no_miss_bronze",
-    conditionText: "イントロクイズまたはタイムアタックで、5曲をノーミスクリアする",
-    compositeOf: null,
-    rewardNote: null,
-  },
-  {
-    id: "no_miss_silver",
-    name: "シルバー",
-    category: "noMiss",
-    iconKey: "no_miss_silver",
-    conditionText: "イントロクイズまたはタイムアタックで、10曲をノーミスクリアする",
-    compositeOf: null,
-    rewardNote: null,
-  },
-  {
-    id: "no_miss_gold",
-    name: "ゴールド",
-    category: "noMiss",
-    iconKey: "no_miss_gold",
-    conditionText: "イントロクイズまたはタイムアタックで、20曲をノーミスクリアする",
-    compositeOf: null,
-    rewardNote: null,
-  },
-  {
-    id: "no_miss_platinum",
-    name: "プラチナ",
-    category: "noMiss",
-    iconKey: "no_miss_platinum",
-    conditionText: "イントロクイズまたはタイムアタックで、50曲をノーミスクリアする",
-    compositeOf: null,
-    rewardNote: null,
-  },
+  // ===== ＝LOVEマスターへの道（表：ノーミスマスター・フルコーラスマスター・歌マスター・＝LOVEマスター） =====
+  // 【2026-08-14改訂・本人指示】「全曲」は、カテゴリー絞り込みなしの本当の全曲
+  // （js/achievementEvaluation.jsのisUnrestrictedFullPool）だけを指す。「表題曲のみ」等で
+  // 絞り込んだ状態の"全曲"では達成できない。
   {
     id: "no_miss_master",
     name: "ノーミスマスター",
-    category: "noMiss",
+    category: "masterPath",
     iconKey: "no_miss_master",
-    // 本人指示（2026-08-07）：電光石火のような上級者向け称号と混同されないよう、
-    // 「時間は関係なく、全曲ノーミスであれば取れる」ことと「まず最初に目指す称号」であることを
-    // 明記した、初心者向けの文面に変更。
-    conditionText:
-      "イントロクイズまたはタイムアタックの全曲モードを、時間を気にせずノーミスでクリアすると獲得できます。まずはここを目指そう！",
+    conditionText: "イントロ系で出題可能な全曲をノーミスクリア！",
+    challengeConditions: [
+      "モード：イントロ系（イントロクイズ／タイムアタック）",
+      "出題数：現在出題可能な全曲",
+      "カテゴリー：全曲（絞り込みなし）",
+      "条件：全問正解・誤答0・未回答0",
+      "時間制限：なし",
+      "補足：「表題曲のみ」などカテゴリーを絞った状態では達成できません",
+    ],
     compositeOf: null,
     rewardNote: null,
   },
-
-  // ===== 表マスター（＝LOVEマスターの構成称号のうち、ノーミスマスター以外の2つ） =====
   {
     id: "full_chorus_master",
     name: "フルコーラスマスター",
-    category: "modeMaster",
+    category: "masterPath",
     iconKey: "full_chorus_master",
-    conditionText: "ランダム再生クイズの全曲モードを、誤答・未回答なしの全問正解でクリアする（時間は問わない）",
+    conditionText: "ランダム再生で出題可能な全曲をノーミスクリア！",
+    challengeConditions: [
+      "モード：ランダム再生クイズ",
+      "出題数：現在出題可能な全曲",
+      "カテゴリー：全曲（絞り込みなし）",
+      "条件：全問正解・誤答0・未回答0",
+      "時間制限：なし",
+      "補足：カテゴリーを絞った状態では達成できません",
+    ],
     compositeOf: null,
     rewardNote: null,
   },
   {
     id: "song_master",
     name: "歌マスター",
-    category: "modeMaster",
+    category: "masterPath",
     iconKey: "song_master",
-    conditionText:
-      "歌詞クイズの全曲モード・回答候補「全曲から探す」設定を、誤答・スキップなしの全問正解でクリアする（ヒント数・時間は問わない）",
+    conditionText: "歌詞クイズを最高難度で全曲ノーミス！",
+    challengeConditions: [
+      "モード：歌詞クイズ",
+      "出題数：現在出題可能な全曲",
+      "カテゴリー：全曲（絞り込みなし）",
+      "回答方式：全曲検索",
+      "条件：全問正解・誤答0・未回答0",
+      "時間制限：なし",
+      "補足：カテゴリーを絞った状態、または回答候補が全曲検索以外では達成できません",
+    ],
     compositeOf: null,
     rewardNote: null,
   },
-
-  // ===== 裏称号（＝LOVE完全制覇の構成称号） =====
-  {
-    id: "lightning_fast",
-    name: "電光石火",
-    category: "backRoute",
-    iconKey: "lightning_fast",
-    conditionText: "イントロクイズまたはタイムアタックの全曲モードを、誤答・未回答なしの全問正解、平均回答時間1.7秒以内でクリアする",
-    compositeOf: null,
-    rewardNote: null,
-  },
-  {
-    id: "melody_ace",
-    name: "メロディアス",
-    category: "backRoute",
-    iconKey: "melody_ace",
-    conditionText: "ランダム再生クイズの全曲モードを、誤答・未回答なしの全問正解、平均回答時間1.7秒以内でクリアする",
-    compositeOf: null,
-    rewardNote: null,
-  },
-  {
-    id: "lyric_master",
-    name: "リリックマスター",
-    category: "backRoute",
-    iconKey: "lyric_master",
-    conditionText:
-      "歌詞クイズの全曲モード・回答候補「全曲から探す」設定を、誤答・スキップなしの全問正解、すべてヒント1だけで正解してクリアする",
-    compositeOf: null,
-    rewardNote: null,
-  },
-
-  // ===== 複合称号 =====
   {
     id: "equal_love_master",
     name: "＝LOVEマスター",
-    category: "composite",
+    category: "masterPath",
     iconKey: "equal_love_master",
     // 本人指示（2026-08-07）：「どの称号を集めれば最終称号になるのか」が一目で分かるよう、
     // 必要な3称号の名前を条件文自体に明記。あわせて「表ルート（時間を問わない側）の
     // 完全制覇」であることを一言添え、裏ルート版（＝LOVE完全制覇）との違いが伝わるようにする。
     conditionText:
       "「ノーミスマスター」「フルコーラスマスター」「歌マスター」の3つをすべて獲得した、表ルート完全制覇の証。",
+    challengeConditions: null,
     compositeOf: ["no_miss_master", "full_chorus_master", "song_master"],
     rewardNote: "🎁 特典があります。推しアイコンに王冠が付きます。",
+  },
+
+  // ===== 裏チャレンジ（電光石火・メロディアス・リリックマスター・＝LOVE完全制覇） =====
+  {
+    id: "lightning_fast",
+    name: "電光石火",
+    category: "backChallenge",
+    iconKey: "lightning_fast",
+    conditionText: "イントロ系を全曲ノーミス・平均1.7秒以内でクリア！",
+    challengeConditions: [
+      "モード：イントロ系（イントロクイズ／タイムアタック）",
+      "出題数：現在出題可能な全曲",
+      "カテゴリー：全曲（絞り込みなし）",
+      "条件：全問正解・誤答0・未回答0",
+      "平均回答時間：1.70秒以内",
+      "補足：カテゴリーを絞った状態では達成できません",
+    ],
+    compositeOf: null,
+    rewardNote: null,
+  },
+  {
+    id: "melody_ace",
+    name: "メロディアス",
+    category: "backChallenge",
+    iconKey: "melody_ace",
+    conditionText: "ランダム再生を全曲ノーミス・平均1.7秒以内でクリア！",
+    challengeConditions: [
+      "モード：ランダム再生クイズ",
+      "出題数：現在出題可能な全曲",
+      "カテゴリー：全曲（絞り込みなし）",
+      "条件：全問正解・誤答0・未回答0",
+      "平均回答時間：1.70秒以内",
+      "補足：カテゴリーを絞った状態では達成できません",
+    ],
+    compositeOf: null,
+    rewardNote: null,
+  },
+  {
+    id: "lyric_master",
+    name: "リリックマスター",
+    category: "backChallenge",
+    iconKey: "lyric_master",
+    conditionText: "歌詞クイズを最高難度で全曲・全問ヒント1のみでクリア！",
+    challengeConditions: [
+      "モード：歌詞クイズ",
+      "出題数：現在出題可能な全曲",
+      "カテゴリー：全曲（絞り込みなし）",
+      "回答方式：全曲検索",
+      "条件：全問正解・誤答0・未回答0",
+      "ヒント条件：全問ヒント1のみで正解",
+      "補足：カテゴリーを絞った状態、または回答候補が全曲検索以外では達成できません",
+    ],
+    compositeOf: null,
+    rewardNote: null,
   },
   {
     id: "equal_love_complete",
     name: "＝LOVE完全制覇",
-    category: "composite",
+    category: "backChallenge",
     iconKey: "equal_love_complete",
     conditionText:
       "「電光石火」「メロディアス」「リリックマスター」の3つの裏称号をすべて獲得した者だけが手にできる、裏ルートまで極めた最高到達点の称号。",
+    challengeConditions: null,
     compositeOf: ["lightning_fast", "melody_ace", "lyric_master"],
     rewardNote: "🎁 特典があります。推しアイコンに、王冠とダイヤの両方が付きます。",
   },

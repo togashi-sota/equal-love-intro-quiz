@@ -180,7 +180,7 @@ export function initTimeAttackResultScreen(newElements) {
 // 最終的に正解していてもその問題は「誤答あり」として扱う（本人指示の「誤答なし」の趣旨、
 // 消去法で何度か外してから当てた場合まで含めてしまわないようにするため）。
 // タイムアタック・ランダム再生クイズには「スキップ」の概念が無いため、skippedCountは常に0。
-export function buildAchievementResultInput(stats, modeId, questionCountValue) {
+export function buildAchievementResultInput(stats, modeId, questionCountValue, categoryFilterValue = null) {
   const cleanCorrectCount = stats.perQuestionResults.filter(
     (result) => result.isCorrect && result.missCountThisQuestion === 0
   ).length;
@@ -195,6 +195,7 @@ export function buildAchievementResultInput(stats, modeId, questionCountValue) {
   return {
     modeId,
     questionCountValue,
+    categoryFilterValue,
     correctCount: cleanCorrectCount,
     wrongCount: impureCount,
     skippedCount: 0,
@@ -308,7 +309,8 @@ export function renderTimeAttackResult() {
   const achievementInput = buildAchievementResultInput(
     getCurrentTimeAttackStats(),
     achievementModeId,
-    currentQuestionCountValue
+    currentQuestionCountValue,
+    currentCategoryFilterValue
   );
   const achievementResult = evaluateAndSaveAchievements(achievementInput);
   renderAchievementUnlockEvents(achievementResult.newlyUnlockedIds, {

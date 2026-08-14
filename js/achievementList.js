@@ -12,22 +12,14 @@ import { computeBestSpeedProgress, buildSpeedProgressBestBlock } from "./speedAc
 // 速度称号（電光石火・メロディアス）だけ、カードにベスト平均タイム・残り秒数を追加表示する。
 const SPEED_ACHIEVEMENT_IDS = new Set(["lightning_fast", "melody_ace"]);
 
-// growthは既存の高難度称号（noMiss以降）より手前にある、最初の成長ステップという位置づけ
-// のため、一覧の先頭に置く（本人指示・2026-08-13：「既存カテゴリー構造を崩さず、
-// 最も自然な場所に追加する」）。
-const CATEGORY_ORDER = ["growth", "noMiss", "modeMaster", "backRoute", "composite"];
+// 【2026-08-14改訂・本人指示】17称号・3カテゴリーへ再編。growthは既存の高難度称号より
+// 手前にある最初の成長ステップという位置づけのため、一覧の先頭に置く。
+const CATEGORY_ORDER = ["growth", "masterPath", "backChallenge"];
 const CATEGORY_LABELS = {
-  growth: "はじめの一歩",
-  noMiss: "ノーミスランク",
-  modeMaster: "表マスター",
-  backRoute: "裏称号",
-  composite: "最終称号",
+  growth: "🌱 ステップアップ",
+  masterPath: "👑 ＝LOVEマスターへの道",
+  backChallenge: "💎 裏チャレンジ",
 };
-
-// ノーミス系5段階のうち、ブロンズ〜プラチナの4つ（本人指示・2026-08-07：
-// 「5問→ブロンズ…全曲→ノーミスマスター、と自然につながって見えるように」）。
-// ノーミスマスターは「最初の大きな目標」という別の案内文を持つため、この配列には含めない。
-const NO_MISS_STEP_IDS = ["no_miss_bronze", "no_miss_silver", "no_miss_gold", "no_miss_platinum"];
 
 // 成長段階系3系統（イントロ／シャッフル／リリック）。系統ごとに独立してカスケードするため、
 // ノーミス系と同じ「次の目標」計算をトリオ単位で行う（本人指示・2026-08-13：
@@ -78,14 +70,20 @@ function formatUnlockedDate(isoString) {
 //
 // entry.guidanceBadgeText（renderAchievementListが計算して詰める、UI専用の付加情報。
 // 保存データにもachievementProgress.jsにも一切含めない）：
-//   ・no_miss_master：未取得の間だけ「まず最初に目指す称号」であることを案内するバッジ。
-//   ・no_miss_bronze〜platinum：ノーミス段階のうち、次に狙うべき1件にだけ「次の目標」バッジ。
+//   ・成長段階系（growth）のみ：系統（トリオ）ごとに、まだ何も取得していなければ先頭の
+//     1件に「🔰 まずはここから」、1つ以上取得済みなら次の未取得1件に「→ 次の目標」バッジ。
 // 称号名を「…」で省略しないでください（本人指示・2026-08-07）：長い称号名も2行まで
 // 折り返して全文を表示し、カードの高さは内容に合わせて可変にする（固定height指定はしない）。
 export function buildAchievementCard(entry) {
   const card = document.createElement("div");
   card.classList.add("achievement-card", entry.isUnlocked ? "is-unlocked" : "is-locked");
-  if (entry.category === "composite") {
+  // 【2026-08-14改訂】「複合称号かどうか」の判定を、表示カテゴリー名（category）ではなく
+  // compositeOfの有無（compositeProgressの有無で判定できる）に切り替えた。categoryは
+  // 今回の再編で「どのセクションに表示するか」だけの役割になり、composite専用の見た目
+  // （王冠プレビュー等）とは独立させたため（本人指示：masterPath/backChallengeに
+  // ＝LOVEマスター・＝LOVE完全制覇も含めつつ、特別な見た目は維持する）。
+  const isComposite = entry.compositeProgress !== null;
+  if (isComposite) {
     card.classList.add("achievement-card--composite");
   }
   card.dataset.achievementId = entry.id;
@@ -96,7 +94,7 @@ export function buildAchievementCard(entry) {
   // 取得済みになったときだけ色と発光が解放されるようにする（本人指示：
   // 「未取得状態でも形や説明は見えるようにし、取得するとカラーと発光が解放される」）。
   // それ以外の称号は、これまでどおり未取得中は汎用の鍵アイコンにする。
-  if (entry.category === "composite") {
+  if (isComposite) {
     header.appendChild(buildAchievementIconMedal(entry.iconKey, { locked: !entry.isUnlocked }));
   } else {
     header.appendChild(
@@ -114,6 +112,31 @@ export function buildAchievementCard(entry) {
   condition.classList.add("achievement-card-condition");
   condition.textContent = entry.conditionText;
   card.appendChild(condition);
+
+  // 「挑戦条件」の詳細箇条書き（本人指示・2026-08-14）。マスター・裏称号の単体称号だけが持つ
+  // （成長段階系は条件が単純なためconditionTextのみ、複合称号はcompositeProgressの
+  // チェックリストが同じ役割を果たすためnullのまま）。一覧を開いた瞬間に短文と詳細の両方が
+  // 見える設計（隠さない）。
+  if (entry.challengeConditions) {
+    const challengeBlock = document.createElement("div");
+    challengeBlock.classList.add("achievement-card-challenge");
+
+    const challengeTitle = document.createElement("p");
+    challengeTitle.classList.add("achievement-card-challenge-title");
+    challengeTitle.textContent = "挑戦条件";
+    challengeBlock.appendChild(challengeTitle);
+
+    const challengeList = document.createElement("ul");
+    challengeList.classList.add("achievement-card-challenge-list");
+    entry.challengeConditions.forEach((line) => {
+      const item = document.createElement("li");
+      item.textContent = line;
+      challengeList.appendChild(item);
+    });
+    challengeBlock.appendChild(challengeList);
+
+    card.appendChild(challengeBlock);
+  }
 
   const status = document.createElement("p");
   status.classList.add("achievement-card-status");
@@ -138,10 +161,7 @@ export function buildAchievementCard(entry) {
   // 位置づけが一目で伝わるよう、称号名・条件文の下、達成チェックリストより前に置く。
   if (entry.guidanceBadgeText) {
     const guidance = document.createElement("p");
-    guidance.classList.add(
-      "achievement-card-guidance",
-      entry.id === "no_miss_master" ? "is-primary-goal" : "is-next-step"
-    );
+    guidance.classList.add("achievement-card-guidance", "is-next-step");
     guidance.textContent = entry.guidanceBadgeText;
     card.appendChild(guidance);
   }
@@ -181,17 +201,11 @@ export function buildAchievementCard(entry) {
   return card;
 }
 
-// no_miss_master／ノーミス段階4件だけが持つ、初心者向けの案内バッジ文言を計算する
+// 成長段階系（growth）だけが持つ、初心者向けの案内バッジ文言を計算する
 // （UI専用の付加情報。achievementProgress.jsの保存データには一切含めない）。
+// 【2026-08-14改訂】ブロンズ/シルバー/ゴールド/プラチナの廃止にともない、ノーミスマスター
+// 専用の「🎯 最初の目標」バッジは削除した（今は成長段階系が真の最初の目標のため）。
 function computeGuidanceBadgeText(entry, snapshot) {
-  if (entry.id === "no_miss_master") {
-    return entry.isUnlocked ? null : "🎯 最初の目標";
-  }
-  if (NO_MISS_STEP_IDS.includes(entry.id) && !entry.isUnlocked) {
-    const nextStepId = NO_MISS_STEP_IDS.find((id) => !snapshot.find((e) => e.id === id)?.isUnlocked);
-    return nextStepId === entry.id ? "→ 次の目標" : null;
-  }
-
   // 成長段階系（イントロ/シャッフル/リリック）：系統（トリオ）ごとに独立して、
   // まだ誰も取得していないトリオの先頭は「🔰 まずはここから」、1つ以上取得済みなら
   // 未取得の最初の1件だけに「→ 次の目標」を出す（本人指示・2026-08-13：
