@@ -113,17 +113,21 @@ export function buildAchievementCard(entry) {
   condition.textContent = entry.conditionText;
   card.appendChild(condition);
 
-  // 「挑戦条件」の詳細箇条書き（本人指示・2026-08-14）。マスター・裏称号の単体称号だけが持つ
-  // （成長段階系は条件が単純なためconditionTextのみ、複合称号はcompositeProgressの
-  // チェックリストが同じ役割を果たすためnullのまま）。一覧を開いた瞬間に短文と詳細の両方が
-  // 見える設計（隠さない）。
+  // 「挑戦条件」／「達成条件」の詳細箇条書き（本人指示・2026-08-14〜2026-08-15）。
+  // マスター・裏称号の単体称号は「挑戦条件」の通常サイズ、成長段階系（growth）は
+  // 「達成条件」というコンパクトな見出し・小さめのフォントで表示する（本人指示：
+  // 「ステップアップ系はマスター系ほど大きくなくてよいが、情報は削りすぎない」）。
+  // 複合称号（compositeOfあり）はcompositeProgressのチェックリストが同じ役割を果たすため、
+  // challengeConditions自体を持たない（achievementDefinitions.js側でnullのまま）。
   if (entry.challengeConditions) {
+    const isCompact = entry.category === "growth";
     const challengeBlock = document.createElement("div");
     challengeBlock.classList.add("achievement-card-challenge");
+    if (isCompact) challengeBlock.classList.add("achievement-card-challenge--compact");
 
     const challengeTitle = document.createElement("p");
     challengeTitle.classList.add("achievement-card-challenge-title");
-    challengeTitle.textContent = "挑戦条件";
+    challengeTitle.textContent = isCompact ? "達成条件" : "挑戦条件";
     challengeBlock.appendChild(challengeTitle);
 
     const challengeList = document.createElement("ul");

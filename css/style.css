@@ -4767,6 +4767,27 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   opacity: 0.85;
 }
 
+/* 成長段階系（ステップアップ）9個専用のコンパクト版（本人指示・2026-08-15）。
+   マスター・裏称号の「挑戦条件」と同じ仕組みを再利用しつつ、条件が単純な分、
+   見出し・行間・余白を一回り小さくして、カードが縦長になりすぎないようにする。 */
+.achievement-card-challenge--compact {
+  padding: 6px 9px;
+}
+
+.achievement-card-challenge--compact .achievement-card-challenge-title {
+  margin: 0 0 3px;
+  font-size: 0.64rem;
+}
+
+.achievement-card-challenge--compact .achievement-card-challenge-list {
+  gap: 1px;
+}
+
+.achievement-card-challenge--compact .achievement-card-challenge-list li {
+  font-size: 0.68rem;
+  line-height: 1.4;
+}
+
 .achievement-card-status {
   display: inline-flex;
   align-items: center;
@@ -4799,11 +4820,18 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   display: inline-flex;
   align-items: center;
   width: fit-content;
+  max-width: 100%;
   margin: 2px 0 0;
   padding: 3px 10px;
   border-radius: 999px;
   font-size: 0.72rem;
   font-weight: 800;
+  /* 本人指摘・2026-08-15：「🔰 まずはここから」が「まずはここ／ら」のように不自然に
+     折り返される不具合の修正。バッジは短い1フレーズのため、途中で改行させない。
+     万一カード幅より長くなる場合の保険としてellipsis省略も付けておく。 */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .achievement-card-guidance.is-next-step {

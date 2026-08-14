@@ -4,6 +4,7 @@
 // 確認するため、buildAchievementCard()が組み立てる実際のDOMを直接検証する
 // （tests.htmlは実ブラウザで動くため、documentが使える）。
 import { buildAchievementCard } from "../js/achievementList.js";
+import { ACHIEVEMENTS } from "../js/achievementDefinitions.js";
 import { assertEqual } from "./test-utils.js";
 
 // getAchievementListSnapshot()が返す形＋achievementList.js内部で付加される
@@ -195,10 +196,81 @@ export function runAchievementListTests() {
     ["モード：イントロ系", "出題数：現在出題可能な全曲", "条件：全問正解"],
     "挑戦条件の箇条書きがカードに表示される"
   );
+  assertEqual(
+    challengeCard.querySelector(".achievement-card-challenge-title").textContent,
+    "挑戦条件",
+    "マスター系（category!=='growth'）の見出しは「挑戦条件」になる"
+  );
+  assertEqual(
+    challengeCard.querySelector(".achievement-card-challenge").classList.contains("achievement-card-challenge--compact"),
+    false,
+    "マスター系はコンパクト版クラスを持たない"
+  );
+
   const noChallengeCard = buildAchievementCard(buildEntry({ challengeConditions: null }));
   assertEqual(
     noChallengeCard.querySelector(".achievement-card-challenge"),
     null,
-    "challengeConditionsがnullの称号（成長段階系等）には挑戦条件ブロックが表示されない"
+    "challengeConditionsがnullの称号（複合称号等）には条件ブロックが表示されない"
   );
+
+  // ---- 成長段階系（growth）は「達成条件」の見出し・コンパクト版で表示される（2026-08-15追加） ----
+  const growthChallengeCard = buildAchievementCard(
+    buildEntry({
+      id: "intro_beginner",
+      name: "イントロビギナー",
+      category: "growth",
+      iconKey: "intro_beginner",
+      challengeConditions: ["出題数：5問", "カテゴリー：自由", "条件：全問正解"],
+    })
+  );
+  assertEqual(
+    growthChallengeCard.querySelector(".achievement-card-challenge-title").textContent,
+    "達成条件",
+    "成長段階系の見出しは「達成条件」になる（マスター系の「挑戦条件」とは区別する）"
+  );
+  assertEqual(
+    growthChallengeCard.querySelector(".achievement-card-challenge").classList.contains("achievement-card-challenge--compact"),
+    true,
+    "成長段階系はコンパクト版クラスを持つ"
+  );
+  assertEqual(
+    [...growthChallengeCard.querySelectorAll(".achievement-card-challenge-list li")].map((el) => el.textContent),
+    ["出題数：5問", "カテゴリー：自由", "条件：全問正解"],
+    "成長段階系の達成条件の箇条書きも正しく表示される"
+  );
+
+  // ---- 実データの整合性確認（2026-08-15追加）：js/achievementDefinitions.jsの実際の内容 ----
+  const GROWTH_IDS = [
+    "intro_beginner", "intro_challenger", "intro_ace",
+    "shuffle_beginner", "shuffle_challenger", "shuffle_ace",
+    "lyric_beginner", "lyric_challenger", "lyric_ace",
+  ];
+  GROWTH_IDS.forEach((id) => {
+    const def = ACHIEVEMENTS.find((a) => a.id === id);
+    assertEqual(
+      Array.isArray(def.challengeConditions) && def.challengeConditions.length > 0,
+      true,
+      `実データ：成長段階系「${id}」は達成条件（challengeConditions）を持つ`
+    );
+  });
+  const SINGLE_MASTER_IDS = ["no_miss_master", "full_chorus_master", "song_master", "lightning_fast", "melody_ace", "lyric_master"];
+  SINGLE_MASTER_IDS.forEach((id) => {
+    const def = ACHIEVEMENTS.find((a) => a.id === id);
+    assertEqual(
+      Array.isArray(def.challengeConditions) && def.challengeConditions.length > 0,
+      true,
+      `実データ：マスター/裏称号「${id}」は挑戦条件（challengeConditions）を持つ`
+    );
+  });
+  const COMPOSITE_IDS = ["equal_love_master", "equal_love_complete"];
+  COMPOSITE_IDS.forEach((id) => {
+    const def = ACHIEVEMENTS.find((a) => a.id === id);
+    assertEqual(
+      def.challengeConditions,
+      null,
+      `実データ：複合称号「${id}」はchallengeConditionsを持たない（compositeProgressのチェックリストが同じ役割）`
+    );
+  });
+  assertEqual(ACHIEVEMENTS.length, 17, "実データ：ACHIEVEMENTSの総数は17個");
 }
