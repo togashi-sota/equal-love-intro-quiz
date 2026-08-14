@@ -7270,6 +7270,357 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   border-color: var(--color-primary);
 }
 
+/* グループ見出しの下に添える一言説明（2026-08-15追加、記録・やり込みセクション用）。
+   .know-more-titleより一段控えめな見た目にする。 */
+.know-more-subtitle {
+  margin: -6px 0 10px;
+  text-align: center;
+  font-size: 0.68rem;
+  font-weight: 400;
+  color: var(--color-text);
+  opacity: 0.6;
+}
+
+/* ===== ホーム上部のクイックナビ（遊び方ガイド／プレイヤー広場、2026-08-15追加） =====
+   「＝LOVEをもっと知る」の.know-more-buttonと同じカード構造を再利用しつつ、
+   プレイヤー情報のすぐ下という、最も見つけやすい位置に独立して置くための専用クラス。 */
+.home-quicknav-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 14px 0 0;
+}
+
+.home-quicknav-button {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 8px;
+  border: 1.5px solid var(--color-card-border);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: var(--color-text);
+  font-family: inherit;
+  text-align: center;
+  cursor: pointer;
+  transition: box-shadow 0.2s ease, transform 0.15s ease, border-color 0.2s ease;
+}
+
+.home-quicknav-icon {
+  font-size: 1.3rem;
+  line-height: 1;
+}
+
+.home-quicknav-label {
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.home-quicknav-description {
+  font-size: 0.62rem;
+  font-weight: 400;
+  opacity: 0.65;
+  line-height: 1.3;
+}
+
+.home-quicknav-button:hover {
+  border-color: var(--color-primary);
+}
+
+.home-quicknav-button:active {
+  transform: scale(0.96);
+  box-shadow: 0 0 0 3px rgba(255, 111, 168, 0.18);
+}
+
+/* プレイヤー管理モーダル内の注意書き・ストレージ許可状況表示（2026-08-15追加）。 */
+.player-modal-note {
+  margin: 10px 0;
+  font-size: 0.68rem;
+  line-height: 1.5;
+  color: var(--color-text);
+  opacity: 0.65;
+}
+
+.storage-persistence-status {
+  margin: 12px 0 0;
+  padding-top: 10px;
+  border-top: 1px dashed var(--color-card-border);
+  font-size: 0.68rem;
+  line-height: 1.5;
+  color: var(--color-text);
+  opacity: 0.7;
+  min-height: 1.5em;
+}
+
+.storage-persistence-status.is-protected {
+  color: #1b7a3d;
+  opacity: 0.9;
+}
+
+.storage-persistence-status.is-unprotected {
+  color: #a8660f;
+  opacity: 0.9;
+}
+
+/* ===== 初回セットアップ画面（プレイヤー名＋推しメン必須登録、2026-08-15新設） ===== */
+.onboarding-intro {
+  text-align: center;
+  margin-bottom: 22px;
+}
+
+.onboarding-title {
+  margin: 10px 0 8px;
+  font-size: 1.3rem;
+  font-weight: 900;
+  color: var(--color-primary-dark);
+}
+
+.onboarding-lead {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.6;
+  color: var(--color-text);
+  opacity: 0.75;
+}
+
+.onboarding-step {
+  margin: 0 0 22px;
+  padding: 16px 14px;
+  border: 1.5px solid var(--color-card-border);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.onboarding-step-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.onboarding-step-number {
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--color-primary);
+  color: #ffffff;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
+
+.onboarding-field-label {
+  display: block;
+  margin: 0 0 6px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--color-text);
+  opacity: 0.8;
+}
+
+.onboarding-name-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border: 1.5px solid var(--color-card-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 0.95rem;
+}
+
+.onboarding-name-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.onboarding-member-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.onboarding-member-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 10px 4px;
+  border: 1.5px solid var(--color-card-border);
+  border-radius: 14px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.onboarding-member-swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 0 0 1px var(--color-card-border);
+}
+
+.onboarding-member-option.is-selected {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(255, 111, 168, 0.3);
+  background: var(--color-primary-light);
+}
+
+.onboarding-member-option:active {
+  transform: scale(0.95);
+}
+
+/* ===== 遊び方ガイド画面（2026-08-15新設） ===== */
+.guide-toc-group {
+  margin: 0 0 22px;
+}
+
+.guide-toc-group-heading {
+  margin: 0 0 10px;
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+}
+
+.guide-toc-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.guide-toc-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 10px;
+  border: 1.5px solid var(--color-card-border);
+  border-radius: 14px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.guide-toc-entry-icon {
+  flex: none;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.guide-toc-entry:hover {
+  border-color: var(--color-primary);
+}
+
+.guide-toc-entry:active {
+  transform: scale(0.96);
+}
+
+.guide-toc-back-link {
+  margin: 0 0 14px;
+}
+
+/* 攻略本の1ページを開いたような見た目にする（過剰演出は避け、縁取り・余白で表現）。 */
+.guide-detail-card {
+  padding: 22px 18px;
+  border: 1.5px solid var(--color-card-border);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.5);
+  text-align: center;
+}
+
+.guide-detail-icon {
+  margin: 0 0 6px;
+  font-size: 2.2rem;
+  line-height: 1;
+}
+
+.guide-detail-title {
+  margin: 0 0 8px;
+  font-size: 1.15rem;
+  font-weight: 900;
+  color: var(--color-primary-dark);
+}
+
+.guide-detail-tagline {
+  margin: 0 0 20px;
+  font-size: 0.8rem;
+  line-height: 1.7;
+  color: var(--color-text);
+  opacity: 0.8;
+}
+
+.guide-detail-steps-heading {
+  margin: 0 0 10px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-align: left;
+  color: var(--color-text);
+}
+
+.guide-detail-steps {
+  margin: 0 0 18px;
+  padding: 0;
+  list-style: none;
+  counter-reset: guide-step;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
+}
+
+.guide-detail-steps li {
+  counter-increment: guide-step;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.guide-detail-steps li::before {
+  content: counter(guide-step);
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: #ffffff;
+  font-size: 0.66rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.guide-detail-point {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--color-accent-soft);
+  color: var(--color-text);
+  font-size: 0.74rem;
+  line-height: 1.6;
+  text-align: left;
+}
+
 /* ===== メンバー・ディスコグラフィー画面共通：詳細ページのパーツ =====
    作品詳細画面（js/discographyScreen.js）とメンバー詳細画面（js/membersScreen.js）の
    両方から使う共通クラス。役割ごとに項目を分けて縦に積む構成（10-25章までの知見と同じく、

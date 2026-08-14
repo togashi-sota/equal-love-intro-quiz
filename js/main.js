@@ -161,6 +161,7 @@ import {
   showPresetActionBanner,
 } from "./customQuizPresetsScreen.js";
 import { importAudioFiles, getImportedSongIds } from "./audioStorage.js";
+import { requestPersistentStorage } from "./storagePersistence.js";
 import { analyzeLyricsFiles, saveLyricsData, getImportedLyricsSongIds } from "./lyricsStorage.js";
 import { analyzeCallDataBackupFile, importCallDataSongs, getSongIdsWithCallData } from "./callStorage.js";
 import {
@@ -183,6 +184,8 @@ import { initDiscographyScreen, renderDiscographyScreen, openWorkDetail } from "
 import { initMembersScreen, renderMembersScreen, openMemberDetail } from "./membersScreen.js";
 import { initPlayerScreen, renderPlayerSummary } from "./playerScreen.js";
 import { getPlayerKeyPrefix } from "./playerProfile.js";
+import { needsOnboarding, initOnboardingScreen } from "./onboardingScreen.js";
+import { initGuideScreen, openGuideScreen } from "./guideScreen.js";
 import { initFanProfilesScreen, renderFanProfilesScreen } from "./fanProfilesScreen.js";
 import { syncPublicProfileIfEnabled } from "./publicProfileSync.js";
 import { getFavoriteSongIds } from "./favoriteSongs.js";
@@ -193,6 +196,18 @@ import { initContinuousPlayScreen, refreshContinuousPlayScreen } from "./continu
 import { initContinuousPlayQueueScreen, renderQueueScreen } from "./continuousPlayQueueScreen.js";
 import { initMiniPlayer } from "./miniPlayer.js";
 import { handlePlayerChanged as handleContinuousPlayerChanged } from "./continuousPlay.js";
+
+// 初回セットアップが必要な新規ユーザーかどうかを、他のどの初期化よりも先に判定する
+// （2026-08-15新設）。例えばこの下のinitPlayerScreen()は、内部でgetActivePlayer()を通じて
+// 「equalLoveIntroQuiz.players」キーを自動生成する副作用を持つため、判定を後回しにすると
+// 真の新規ユーザーまで「既存データがある」と誤検出してしまう。必ずファイル内で最初に実行される
+// コードにしておくことで、この種の副作用の影響を受けない。
+// 「戻る」導線を持たない専用画面のため、リロード・PWA再起動・画面外タップのいずれでも
+// 回避できない（登録完了までshowScreen("start")は呼ばれない）。既存ユーザーはこの分岐に
+// 入らず、今まで通りスタート画面がそのまま表示される。
+if (needsOnboarding()) {
+  showScreen("onboarding");
+}
 
 // 背景のキラキラ演出は、ゲームの状態と関係なく最初に1回だけ生成すればよい。
 renderBackgroundSparkles();
@@ -423,6 +438,18 @@ let historyListScrollY = 0;
 // タイムアタック履歴一覧についても、通常プレイ履歴と同じ考え方でスクロール位置を覚えておく。
 let timeAttackHistoryListScrollY = 0;
 const specialModesBackButtonElement = document.getElementById("special-modes-back-button");
+const guideLinkElement = document.getElementById("guide-link");
+const guideBackButtonElement = document.getElementById("guide-back-button");
+const guideTocViewElement = document.getElementById("guide-toc-view");
+const guideDetailViewElement = document.getElementById("guide-detail-view");
+const guideTocGroupsElement = document.getElementById("guide-toc-groups");
+const guideDetailBackButtonElement = document.getElementById("guide-detail-back-button");
+const guideDetailBackButtonBottomElement = document.getElementById("guide-detail-back-button-bottom");
+const guideDetailIconElement = document.getElementById("guide-detail-icon");
+const guideDetailTitleElement = document.getElementById("guide-detail-title");
+const guideDetailTaglineElement = document.getElementById("guide-detail-tagline");
+const guideDetailStepsElement = document.getElementById("guide-detail-steps");
+const guideDetailPointElement = document.getElementById("guide-detail-point");
 const fanProfilesLinkElement = document.getElementById("fan-profiles-link");
 const fanProfilesBackButtonElement = document.getElementById("fan-profiles-back-button");
 const fanProfilesSharingToggleElement = document.getElementById("fan-profiles-sharing-toggle");
@@ -913,6 +940,10 @@ const playerAddButtonElement = document.getElementById("player-add-button");
 const playerDeleteConfirmModalElement = document.getElementById("player-delete-confirm-modal");
 const playerDeleteCancelButtonElement = document.getElementById("player-delete-cancel-button");
 const playerDeleteConfirmButtonElement = document.getElementById("player-delete-confirm-button");
+const storagePersistenceStatusElement = document.getElementById("storage-persistence-status");
+const onboardingNameInputElement = document.getElementById("onboarding-name-input");
+const onboardingMemberGridElement = document.getElementById("onboarding-member-grid");
+const onboardingSubmitButtonElement = document.getElementById("onboarding-submit-button");
 
 // 称号一覧モーダルの開閉ロジックはjs/achievementList.jsに閉じ込めてあるので、
 // ここでは必要なDOM要素を渡して初期化するだけでよい（要素id自体は旧称号システム時代の
@@ -1287,6 +1318,7 @@ initPlayerScreen(
     playerDeleteConfirmModal: playerDeleteConfirmModalElement,
     playerDeleteCancelButton: playerDeleteCancelButtonElement,
     playerDeleteConfirmButton: playerDeleteConfirmButtonElement,
+    storageStatusText: storagePersistenceStatusElement,
     onSelectOshiSummary: () => {
       playClickSound();
       renderMembersScreen(SONGS, MEMBERS, MEMBER_PROFILES);
@@ -2985,11 +3017,34 @@ historyLinkElement.addEventListener("click", () => {
   navigateWithScrollMemory("history");
 });
 
-// 「みんなのプロフィール」リンク：開くたびに公開設定・一覧を最新の状態で描画し直す。
+// 「プレイヤー広場」リンク：開くたびに公開設定・一覧を最新の状態で描画し直す。
 fanProfilesLinkElement.addEventListener("click", () => {
   playClickSound();
   renderFanProfilesScreen();
   navigateWithScrollMemory("fanProfiles");
+});
+
+// 「遊び方ガイド」リンク：開くたびに必ず目次から表示する（2026-08-15新設）。
+initGuideScreen({
+  tocView: guideTocViewElement,
+  detailView: guideDetailViewElement,
+  tocGroups: guideTocGroupsElement,
+  detailBackButton: guideDetailBackButtonElement,
+  detailBackButtonBottom: guideDetailBackButtonBottomElement,
+  detailIcon: guideDetailIconElement,
+  detailTitle: guideDetailTitleElement,
+  detailTagline: guideDetailTaglineElement,
+  detailSteps: guideDetailStepsElement,
+  detailPoint: guideDetailPointElement,
+});
+guideLinkElement.addEventListener("click", () => {
+  playClickSound();
+  openGuideScreen();
+  navigateWithScrollMemory("guide");
+});
+guideBackButtonElement.addEventListener("click", () => {
+  playSfx(SFX_EVENTS.UI_BACK);
+  navigateWithScrollMemory("start");
 });
 
 fanProfilesBackButtonElement.addEventListener("click", () => {
@@ -3209,7 +3264,7 @@ initTimeAttackResultScreen({
     }).then((result) => {
       if (!result.ok) {
         const messageByReason = {
-          "privacy-disabled": "「みんなのプロフィール」を公開するとランキングに参加できます",
+          "privacy-disabled": "「プレイヤー広場」を公開するとランキングに参加できます",
           offline: "オフラインのため、ランキングへの送信はできませんでした",
           error: "ランキングへの送信に失敗しました",
           "invalid-record": "記録の送信に失敗しました",
@@ -3840,6 +3895,11 @@ audioImportInputElement.addEventListener("change", async () => {
 
   const { savedSongIds, unmatchedFileNames } = await importAudioFiles(files);
 
+  // 音源を読み込んだタイミングは「保護してほしいデータが増えた瞬間」であり、ブラウザによっては
+  // ユーザー操作の直後の方が永続ストレージの許可判定に有利なため、ここでも改めて要求する
+  // （起動時にも1回要求済みだが、失敗していた場合の再挑戦を兼ねる。失敗しても無視して進む）。
+  requestPersistentStorage();
+
   audioImportResultElement.hidden = false;
   audioImportResultElement.textContent =
     unmatchedFileNames.length > 0
@@ -3852,6 +3912,11 @@ audioImportInputElement.addEventListener("change", async () => {
 });
 
 updateAudioImportStatus();
+
+// 音源・歌詞データをブラウザの「ベストエフォート」扱いのまま放置すると、端末の空き容量が
+// 少なくなったときに自動で削除される場合がある。起動のたびに永続ストレージを要求しておく
+// （対応していないブラウザでは何もしない。結果はプレイヤーモーダルの表示で確認できる）。
+requestPersistentStorage();
 
 // songIdから曲名を引く（見つからない場合はsongIdそのものを表示に使う）。
 // 歌詞インポートの結果表示・警告確認パネルで、歌詞本文の代わりに曲名を示すために使う。
@@ -4499,3 +4564,22 @@ document.addEventListener("keydown", (event) => {
     }
   }
 });
+
+// ===== 初回セットアップ（プレイヤー名＋推しメン必須登録、2026-08-15新設） =====
+// 正真正銘の新規ユーザーだけに表示する。既存ユーザー（equalLoveIntroQuiz.で始まる
+// 保存データを何か1つでも持つ端末）には一切影響しない（js/onboardingScreen.js参照）。
+initOnboardingScreen(
+  {
+    nameInput: onboardingNameInputElement,
+    memberGrid: onboardingMemberGridElement,
+    submitButton: onboardingSubmitButtonElement,
+  },
+  MEMBERS,
+  () => {
+    // 登録完了直後：スタート画面へ切り替え、プレイヤー表示（名前・推し・スワッチ）を
+    // 最新の状態で描き直す。この時点ではまだ記録・お気に入り等は無いため、
+    // renderPlayerSummary()以外の再描画（updateListenTileCounts等）は不要。
+    showScreen("start");
+    renderPlayerSummary();
+  }
+);

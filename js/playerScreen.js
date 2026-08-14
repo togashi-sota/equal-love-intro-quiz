@@ -21,6 +21,7 @@ import {
 import { getMemberById } from "./memberUtils.js";
 import { getMostOshiMemberId } from "./oshiMembers.js";
 import { applyOshiBadgeDecorations } from "./oshiBadge.js";
+import { getStoragePersistenceStatus } from "./storagePersistence.js";
 
 let elements = null;
 let members = null; // 推しメン表示用に、members.jsの配列を保持しておく
@@ -171,9 +172,32 @@ function renderPlayerModal() {
   });
 }
 
+// 音源・歌詞データの永続化許可状況を表示する（2026-08-15追加）。
+// モーダルを開くたびに最新の状態を確認する（設定変更はブラウザ側で行われるため、
+// キャッシュせず毎回問い合わせる）。対応していない端末では、そのことが分かる文言にする
+// （「絶対に消えません」等の言い切りは本人方針により使わない）。
+async function renderStoragePersistenceStatus() {
+  if (!elements.storageStatusText) return;
+  const { supported, persisted } = await getStoragePersistenceStatus();
+  const el = elements.storageStatusText;
+  el.classList.remove("is-protected", "is-unprotected");
+  if (!supported) {
+    el.textContent = "🔒 音源・歌詞は端末内（IndexedDB）に保存されています。";
+    return;
+  }
+  if (persisted) {
+    el.classList.add("is-protected");
+    el.textContent = "🔒 データ保護：有効（端末の空き容量が少なくなっても、自動では消えにくくなっています）";
+  } else {
+    el.classList.add("is-unprotected");
+    el.textContent = "⚠️ データ保護：未許可（端末の空き容量が少ないと、音源・歌詞が自動で削除される場合があります）";
+  }
+}
+
 function openPlayerModal() {
   renamingPlayerId = null;
   renderPlayerModal();
+  renderStoragePersistenceStatus();
   elements.playerModal.hidden = false;
 }
 

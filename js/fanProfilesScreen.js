@@ -29,7 +29,7 @@ function renderEmptyState(kind) {
   if (kind === "no-profiles") {
     message.textContent = "まだ他のファンはいません。プロフィール公開をONにすると、ここに表示されます。";
   } else {
-    message.textContent = "みんなのプロフィールを読み込めませんでした。電波の良い場所でもう一度開いてみてください。";
+    message.textContent = "プレイヤー広場を読み込めませんでした。電波の良い場所でもう一度開いてみてください。";
   }
   elements.listContainer.appendChild(message);
 }

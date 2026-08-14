@@ -252,7 +252,7 @@ export const HISTORY_MODE_DISPLAY = {
   customQuiz: { label: "オリジナル問題", iconKey: "originalQuiz" },
   timeAttack: { label: "タイムアタック", iconKey: "timeAttack" },
   timeAttackRandomPlayback: { label: "タイムアタック（ランダム再生）", iconKey: "timeAttack" },
-  localBattle: { label: "対戦モード", iconKey: "localBattle" },
+  localBattle: { label: "1台対戦", iconKey: "localBattle" },
   onlineTimeAttack: { label: "オンライン対戦（イントロ）", iconKey: "onlineBattle" },
   onlineRandomPlayback: { label: "オンライン対戦（ランダム再生）", iconKey: "onlineBattle" },
   onlineLyricsQuiz: { label: "オンライン対戦（歌詞）", iconKey: "onlineBattle" },

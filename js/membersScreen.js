@@ -569,7 +569,7 @@ function buildOshiActionRow(memberId) {
     mostOshiButton.type = "button";
     mostOshiButton.className = "oshi-action-button is-most-oshi-button";
     mostOshiButton.classList.toggle("is-active", isMostOshi);
-    mostOshiButton.textContent = isMostOshi ? "★ 最推いです" : "☆ 最推しにする";
+    mostOshiButton.textContent = isMostOshi ? "★ 最推しです" : "☆ 最推しにする";
     mostOshiButton.addEventListener("click", () => {
       if (isMostOshi) {
         clearMostOshiMember();

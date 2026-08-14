@@ -45,8 +45,8 @@ export const SPECIAL_MODES = [
   },
   {
     id: "localBattle",
-    title: "対戦モード",
-    description: "友達と同じ問題でタイムアタックを競えます",
+    title: "1台対戦",
+    description: "1台の端末を交代で使い、友達とタイムを競えます",
     available: true,
   },
   {

@@ -62,6 +62,36 @@
       <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
     </span>
 
+    <!-- 初回セットアップ画面（2026-08-15新設）：正真正銘の新規ユーザーだけに表示する、
+         プレイヤー名＋推しメンの必須登録画面。js/onboardingScreen.jsのneedsOnboarding()が
+         trueのときだけ、起動直後にjs/main.jsがこの画面をアクティブにする（このsection自体は
+         HTML上ではis-activeを持たない＝既存ユーザーには一切表示されない）。
+         「戻る」ボタンを持たない・モーダルではなく専用画面にすることで、スキップできない
+         導線にしている（本人指示）。 -->
+    <section id="onboarding-screen" class="screen">
+      <div class="onboarding-intro">
+        <p class="eyebrow-chip">
+          <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+          WELCOME
+        </p>
+        <h1 class="onboarding-title">はじめにプロフィールを設定しよう！</h1>
+        <p class="onboarding-lead">ゲームを始める前に、プレイヤー名と推しメンを登録してください。</p>
+      </div>
+
+      <div class="onboarding-step">
+        <p class="onboarding-step-heading"><span class="onboarding-step-number">STEP 1</span>プレイヤー名</p>
+        <label class="onboarding-field-label" for="onboarding-name-input">プレイヤー名</label>
+        <input id="onboarding-name-input" class="onboarding-name-input" type="text" maxlength="20" placeholder="プレイヤー名を入力してください" autocomplete="off">
+      </div>
+
+      <div class="onboarding-step">
+        <p class="onboarding-step-heading"><span class="onboarding-step-number">STEP 2</span>推しメンを選んでください</p>
+        <div id="onboarding-member-grid" class="onboarding-member-grid"></div>
+      </div>
+
+      <button id="onboarding-submit-button" class="primary-button" type="button" disabled>このプロフィールでゲームを始める</button>
+    </section>
+
     <!-- スタート画面：出題数とカテゴリを選んでクイズを開始する画面 -->
     <section id="start-screen" class="screen is-active">
       <div class="title-block">
@@ -122,6 +152,24 @@
             <span class="player-hero-oshi-arrow" aria-hidden="true">→</span>
           </button>
         </div>
+      </div>
+
+      <!-- 「遊び方ガイド」「プレイヤー広場」への入口（2026-08-15追加）。友人にテストしてもらった
+           結果、せっかく作った機能でも存在に気付かれない・意味が伝わらないという指摘が多かったため、
+           初見ユーザーが最初に目にするプレイヤー情報のすぐ下という、最も見つけやすい位置に置く。
+           見た目は「＝LOVEをもっと知る」のカード（.know-more-button）と同じ構造を再利用しつつ、
+           独立した見た目にするため専用クラス（.home-quicknav-*）を使う。 -->
+      <div class="home-quicknav-grid">
+        <button id="guide-link" class="home-quicknav-button" type="button">
+          <span class="home-quicknav-icon" aria-hidden="true">📖</span>
+          <span class="home-quicknav-label">遊び方ガイド</span>
+          <span class="home-quicknav-description">モードや機能の使い方をまとめて見る</span>
+        </button>
+        <button id="fan-profiles-link" class="home-quicknav-button" type="button">
+          <span class="home-quicknav-icon" aria-hidden="true">👥</span>
+          <span class="home-quicknav-label">プレイヤー広場</span>
+          <span class="home-quicknav-description">このゲームを遊んでいるプレイヤーを見る</span>
+        </button>
       </div>
 
       <!-- イコライザー風の飾り区切り。曲が流れているような臨場感を添える -->
@@ -225,16 +273,28 @@
       <p class="know-more-title">特別モード</p>
       <div id="home-special-modes-grid" class="home-special-modes-grid"></div>
 
-      <!-- 「曲を聴く」：収録曲一覧・お気に入り・プレイリスト・連続再生をまとめたカード。
-           以前はここに6つの小さいテキストリンクが並んでいたが、機能が増えるにつれて
+      <!-- 「記録・やり込み」：称号一覧・プレイ履歴をまとめた2つのピルボタン。
+           以前は「曲を聴く」の下にあったが、ホーム全体の情報設計見直し（2026-08-15）で
+           「自分の成績を振り返る場所」として曲を聴くセクションより先に配置した。
+           以前ここにあった「みんなのプロフィール」（→プレイヤー広場に改称）へのリンクは、
+           自分の記録ではなく他プレイヤーの一覧のため、ホーム上部の遊び方ガイドの隣へ移動した。 -->
+      <div class="special-modes-divider" aria-hidden="true"></div>
+      <p class="know-more-title">🏆 記録・やり込み</p>
+      <p class="know-more-subtitle">自分の成績を見るところ</p>
+      <div class="record-pill-row">
+        <button id="title-list-link" class="record-pill" type="button">🏅 称号一覧</button>
+        <button id="history-link" class="record-pill" type="button">📊 プレイ履歴</button>
+      </div>
+
+      <!-- 「曲を聴く」：収録曲一覧・お気に入り・プレイリスト・オフラインプレイヤー（旧名：連続再生）を
+           まとめたカード。以前はここに6つの小さいテキストリンクが並んでいたが、機能が増えるにつれて
            「何がどこにあるか」が伝わりにくくなったため、同じ役割（曲を聴く）でひとまとめの
-           タイルグループに再編した（UI/UX再設計、モックアップレビューを経て実装）。
-           プレイリスト・連続再生は追加されたばかりの機能なのでNEWバッジを添える。 -->
+           タイルグループに再編した（UI/UX再設計、モックアップレビューを経て実装）。 -->
       <div class="special-modes-divider" aria-hidden="true"></div>
       <div class="listen-section">
         <p class="listen-section-title">
           <svg class="listen-section-title-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 18V6.6a1 1 0 0 1 .8-.98l9-1.8A1 1 0 0 1 20 4.8V15a3 3 0 1 1-2-2.83V6.4l-7 1.4v9.2a3 3 0 1 1-2-2.83Z" fill="currentColor"/></svg>
-          曲を聴く
+          ♪ 曲を聴く
         </p>
         <div class="listen-grid">
           <button id="songlist-link" class="listen-tile" type="button">
@@ -262,27 +322,19 @@
             <span class="listen-tile-label">プレイリスト</span>
             <span class="listen-tile-desc">好きな曲をまとめる</span>
             <span id="listen-tile-playlist-count" class="listen-tile-count"></span>
-            <span class="listen-tile-badge">NEW</span>
           </button>
+          <!-- 2026-08-15改称：「連続再生」→「オフラインプレイヤー」。音源(audioStorage.js)・
+               歌詞ともにIndexedDBから取得するだけでネットワーク通信を一切行わないため
+               （js/continuousPlay.js・js/playbackCoordinator.jsを確認、fetch/Firebase呼び出しなし）、
+               実態に即した名称にした。 -->
           <button id="continuous-play-link" class="listen-tile is-gold" type="button">
             <span class="listen-tile-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none"><path d="M4 7h13a3 3 0 0 1 3 3v1M20 17H7a3 3 0 0 1-3-3v-1" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M7 4 4 7l3 3M17 20l3-3-3-3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </span>
-            <span class="listen-tile-label">連続再生</span>
-            <span class="listen-tile-desc">続けて聴く</span>
-            <span class="listen-tile-badge">NEW</span>
+            <span class="listen-tile-label">オフラインプレイヤー</span>
+            <span class="listen-tile-desc">通信なしで続けて再生</span>
           </button>
         </div>
-      </div>
-
-      <!-- 「記録を見る」：称号一覧・プレイ履歴をまとめた2つのピルボタン。
-           以前は「曲を聴く」系のリンクと見分けがつかない、同じ見た目の小さいテキストリンクだった。 -->
-      <div class="special-modes-divider" aria-hidden="true"></div>
-      <p class="know-more-title">記録を見る</p>
-      <div class="record-pill-row">
-        <button id="title-list-link" class="record-pill" type="button">🏅 称号一覧</button>
-        <button id="history-link" class="record-pill" type="button">📊 プレイ履歴</button>
-        <button id="fan-profiles-link" class="record-pill" type="button">👥 みんなのプロフィール</button>
       </div>
 
       <!-- ＝LOVEについて／メンバー情報ページへの入口。
@@ -1126,6 +1178,47 @@
       <div id="special-modes-list"></div>
     </section>
 
+    <!-- 遊び方ガイド画面（2026-08-15新設）：ゲーム全体の目次・攻略本。目次⇄各ページの
+         2状態を、この1つのsection内でhidden切り替えして表現する（画面遷移としては
+         showScreen("guide")の1つだけ）。中身はjs/guideScreen.js・js/data/guideContent.jsが
+         組み立てる。既存の各モードの「？」ヘルプ（ルール中心の説明）とは役割を分けており、
+         こちらは「まだ触ったことのない機能を見つけてもらう」チュートリアル形式にしている。 -->
+    <section id="guide-screen" class="screen">
+      <div class="list-header">
+        <button id="guide-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            GUIDE
+          </p>
+          <h2>遊び方ガイド</h2>
+        </div>
+      </div>
+
+      <div id="guide-toc-view">
+        <p class="special-modes-intro">＝LOVEイントロクイズの遊び方をまとめています。気になる項目をタップしてください。</p>
+        <div id="guide-toc-groups"></div>
+      </div>
+
+      <div id="guide-detail-view" hidden>
+        <button id="guide-detail-back-button" class="rules-link guide-toc-back-link" type="button">← 目次へ戻る</button>
+        <div class="guide-detail-card">
+          <p id="guide-detail-icon" class="guide-detail-icon"></p>
+          <h3 id="guide-detail-title" class="guide-detail-title"></h3>
+          <p id="guide-detail-tagline" class="guide-detail-tagline"></p>
+          <p class="guide-detail-steps-heading">遊び方</p>
+          <ol id="guide-detail-steps" class="guide-detail-steps"></ol>
+          <p id="guide-detail-point" class="guide-detail-point"></p>
+          <button id="guide-detail-back-button-bottom" class="rules-link guide-toc-back-link" type="button">← 目次へ戻る</button>
+        </div>
+      </div>
+    </section>
+
     <!-- 「みんなのプロフィール」画面：このアプリを使っているファン同士で、表示名・推し・称号を
          見せ合える一覧（2026-08-07新設）。対戦・ランキングではないため得点や順位は一切出さない。
          中身（設定カード・一覧）はjs/fanProfilesScreen.jsが組み立てる。 -->
@@ -1140,19 +1233,19 @@
         <div class="title-block">
           <p class="eyebrow-chip">
             <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
-            FAN
+            PLAYERS
           </p>
-          <h2>みんなのプロフィール</h2>
+          <h2>プレイヤー広場</h2>
         </div>
       </div>
 
-      <p class="special-modes-intro">このアプリを使っているファンの、表示名・推し・称号を見られます。</p>
+      <p class="special-modes-intro">このゲームを遊んでいるプレイヤーの、表示名・推し・称号を見られます。</p>
 
       <!-- 公開設定カード：自分のプロフィールをこの一覧に出すかどうかを選ぶ（初期値OFF）。
            本人指示：本人が意図しない情報を勝手に公開しない設計にするため、必ず自分で選んでもらう。 -->
       <div class="fan-profiles-settings-card">
         <div class="fan-profiles-settings-text">
-          <p class="fan-profiles-settings-title">あなたのプロフィールをみんなに公開する</p>
+          <p class="fan-profiles-settings-title">あなたのプロフィールをプレイヤー広場に公開する</p>
           <p class="fan-profiles-settings-description">表示名・推し・取得済みの称号だけが公開されます。メールアドレスや内部IDなどは一切公開されません。いつでもOFFに戻せます。</p>
         </div>
         <button id="fan-profiles-sharing-toggle" class="sfx-toggle-button" type="button" aria-pressed="false" aria-label="プロフィール公開を切り替える">
@@ -1641,7 +1734,7 @@
         </div>
       </div>
 
-      <p class="special-modes-intro">出題タイプ・出題数ごとに、クリアタイムが速い順のTOP10を表示します。ランキング対象は<strong>LOVE連チャンルールのみ</strong>です（ノーマル・ハードの記録は自己ベスト/履歴には保存されますが、公開ランキングには反映されません）。参加するには「みんなのプロフィール」の公開設定をONにしてください。</p>
+      <p class="special-modes-intro">出題タイプ・出題数ごとに、クリアタイムが速い順のTOP10を表示します。ランキング対象は<strong>LOVE連チャンルールのみ</strong>です（ノーマル・ハードの記録は自己ベスト/履歴には保存されますが、公開ランキングには反映されません）。参加するには「プレイヤー広場」の公開設定をONにしてください。</p>
 
       <div id="time-attack-leaderboard-variant-tabs" class="leaderboard-tab-row"></div>
       <div id="time-attack-leaderboard-question-count-tabs" class="leaderboard-tab-row"></div>
@@ -2046,7 +2139,7 @@
             <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
             BATTLE
           </p>
-          <h2>対戦モード</h2>
+          <h2>1台対戦</h2>
         </div>
       </div>
       <p class="special-modes-intro">友達と同じ問題・同じ条件でタイムアタックに挑戦し、記録を比べ合えます。インターネットがない場所でも遊べます。</p>
@@ -2250,7 +2343,7 @@
 
       <p style="text-align:center;font-size:0.7rem;opacity:0.6;" id="battle-result-ranking-rule-note"></p>
 
-      <button id="battle-result-ranking-home-button" class="primary-button" type="button">対戦モードを終える</button>
+      <button id="battle-result-ranking-home-button" class="primary-button" type="button">1台対戦を終える</button>
     </section>
 
     <!-- オンライン対戦（Firebase）の入口画面：ルームを作る/参加する の2択。
@@ -2305,7 +2398,7 @@
            作成前にどんな遊び方かが分かるよう、モード名の下に短い説明文を添える。
            2026-08-08新設（Phase4：ランダム再生クイズのオンライン対戦統合）。 -->
       <fieldset>
-        <legend>対戦モード</legend>
+        <legend>出題形式</legend>
         <label class="game-mode-option">
           <input type="radio" name="online-battle-game-mode" value="timeAttack" checked>
           <span class="game-mode-option-content">
@@ -3460,8 +3553,8 @@
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="local-battle-rules-modal-title">
       <button id="local-battle-rules-modal-close" class="modal-close-button" type="button" aria-label="閉じる">×</button>
 
-      <h2 id="local-battle-rules-modal-title">対戦モードについて</h2>
-      <p class="modal-lead">同じ端末を順番に回して遊ぶ、その場にいる友達との対戦モードです。インターネット接続は必要ありません。</p>
+      <h2 id="local-battle-rules-modal-title">1台対戦について</h2>
+      <p class="modal-lead">同じ端末を順番に回して遊ぶ、その場にいる友達との対戦です。インターネット接続は必要ありません。</p>
 
       <h3>遊び方</h3>
       <p>ホストが出題数・ルール（ノーマル/ハード/LOVE連チャン）を決めると、全員が同じ問題で順番にタイムアタックに挑戦します。1人が終わったら端末を次の人に渡してください。</p>
@@ -3685,10 +3778,21 @@
 
       <div id="player-list" class="player-list"></div>
 
+      <!-- 「名前を変更する（✎）」と「新しいプレイヤーを追加する（＋）」の違いが分かりにくく、
+           名前を初めて設定したいだけなのに＋で別プレイヤーを作ってしまい、それまでの記録が
+           見えなくなった（実際は消えていない）という混同が報告されたため、注意書きを追加。 -->
+      <p class="player-modal-note">
+        ※ 今のプレイヤーの名前を設定・変更したいだけの場合は、一覧の「✎」ボタンを使ってください（記録はそのまま残ります）。「＋追加」は、記録を分けて別のプレイヤーを新しく作りたいときだけ使ってください。
+      </p>
+
       <div class="player-add-row">
         <input id="player-add-input" type="text" maxlength="20" placeholder="新しいプレイヤー名">
         <button id="player-add-button" class="secondary-button" type="button">＋ 追加</button>
       </div>
+
+      <!-- 音源・歌詞データの永続化許可状況（js/storagePersistence.js）。対応していない
+           端末でもレイアウトが崩れないよう、テキストが空でも高さを保つmin-heightをCSS側で指定。 -->
+      <p id="storage-persistence-status" class="storage-persistence-status"></p>
     </div>
   </div>
 

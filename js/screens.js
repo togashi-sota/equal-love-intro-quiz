@@ -5,6 +5,7 @@
 // 画面名(screenName)と、対応するHTML要素(id)の対応表。
 // 新しい画面を増やしたくなったときは、ここに1行足すだけでよい。
 const SCREEN_ELEMENTS = {
+  onboarding: document.getElementById("onboarding-screen"),
   start: document.getElementById("start-screen"),
   quiz: document.getElementById("quiz-screen"),
   result: document.getElementById("result-screen"),
@@ -12,6 +13,7 @@ const SCREEN_ELEMENTS = {
   history: document.getElementById("history-screen"),
   historyDetail: document.getElementById("history-detail-screen"),
   specialModes: document.getElementById("special-modes-screen"),
+  guide: document.getElementById("guide-screen"),
   fanProfiles: document.getElementById("fan-profiles-screen"),
   weakSongs: document.getElementById("weak-songs-screen"),
   liveCallModeList: document.getElementById("live-call-mode-list-screen"),

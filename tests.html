@@ -72,6 +72,9 @@
     import { runSpeedAchievementProgressTests } from "./tests/speedAchievementProgress.test.js";
     import { runSoundManagerTests } from "./tests/soundManager.test.js";
     import { runKaraokeSyncTests } from "./tests/karaokeSync.test.js";
+    import { runStoragePersistenceTests } from "./tests/storagePersistence.test.js";
+    import { runOnboardingScreenTests } from "./tests/onboardingScreen.test.js";
+    import { runGuideContentTests } from "./tests/guideContent.test.js";
     import { printSummary } from "./tests/test-utils.js";
 
     runScoreTests();
@@ -121,6 +124,9 @@
     runSpeedAchievementProgressTests();
     runSoundManagerTests();
     runKaraokeSyncTests();
+    await runStoragePersistenceTests();
+    runOnboardingScreenTests();
+    runGuideContentTests();
     const { passCount, failCount } = printSummary();
 
     const summaryElement = document.getElementById("test-summary");
