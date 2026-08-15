@@ -41,8 +41,9 @@ import {
   isBetterLeaderboardRecord,
   normalizeLeaderboardEntry,
   sortLeaderboardEntries,
-  findBestEntryPerVariantRuleQuestionCountAndCategory,
+  findBestEntryPerVariantQuestionCountAndCategory,
   isValidLeaderboardCandidate,
+  isSupportedLeaderboardDimension,
 } from "./timeAttackLeaderboard.js";
 
 // オフライン時はそもそもFirebaseへ接続を試みない（本人指示：「オフライン時は『ランキングは
@@ -57,16 +58,26 @@ function isOffline() {
 // 【2026-08-16改訂・本人指示】ルール（ノーマル/ハード/LOVE連チャン）を問わず対象にする。
 // 代わりに、1問でも間違えたプレイ（missCount>0）はisValidLeaderboardCandidate()側で
 // 確実に弾かれる（Firebase書き込みの最終防衛線）。
-// 戻り値: { ok: true, updated: boolean } または { ok: false, reason: "privacy-disabled" | "offline" | "error" }
+// 【2026-08-16再改訂・本人指示】タイムアタックだけでなく、通常のイントロクイズ・通常の
+// ランダム再生クイズからも呼ばれる共通の送信口になった（sourceで呼び出し元を区別して記録する
+// だけで、掲載条件・比較ロジックは完全に同じものを使う＝本人指示の「同じランキング実装を
+// 再利用する」を満たす）。出題数・カテゴリーが対応外の組み合わせ（20問・50問・全曲・
+// カテゴリー「全曲」）は、isSupportedLeaderboardDimension()で送信前に確実に弾く。
+// 戻り値: { ok: true, updated: boolean } または
+// { ok: false, reason: "privacy-disabled" | "offline" | "error" | "invalid-record" | "unsupported-dimension" }
 export async function submitTimeAttackScoreIfBetter({
   variant,
   rule,
+  source,
   questionCountValue,
   categoryFilterValue,
   clearTimeMs,
   missCount,
   playerKeyPrefix,
 }) {
+  if (!isSupportedLeaderboardDimension(questionCountValue, categoryFilterValue)) {
+    return { ok: false, reason: "unsupported-dimension" };
+  }
   if (!isValidLeaderboardCandidate({ clearTimeMs, missCount })) {
     return { ok: false, reason: "invalid-record" };
   }
@@ -82,7 +93,7 @@ export async function submitTimeAttackScoreIfBetter({
     const uid = getCurrentUid();
     if (!uid) return { ok: false, reason: "error" };
 
-    const entryPath = `${buildLeaderboardPath(variant, rule, questionCountValue, categoryFilterValue)}/${uid}`;
+    const entryPath = `${buildLeaderboardPath(variant, questionCountValue, categoryFilterValue)}/${uid}`;
     const existingSnapshot = await get(ref(database, entryPath));
     const existingEntry = existingSnapshot.exists()
       ? normalizeLeaderboardEntry(uid, existingSnapshot.val())
@@ -98,6 +109,8 @@ export async function submitTimeAttackScoreIfBetter({
       oshiMemberId: getMostOshiMemberId(),
       clearTimeMs,
       missCount,
+      rule,
+      source,
       achievedAt: serverTimestamp(),
     });
     await set(ref(database, entryPath), payload);
@@ -111,7 +124,7 @@ export async function submitTimeAttackScoreIfBetter({
 // TOP10を取得する。サーバー側のquery（orderByChild+limitToFirst）で絞り込むため、
 // 全記録をダウンロードすることはない。
 // 戻り値: { ok: true, entries: [...] }（0件でも成功扱い） または { ok: false, entries: [], reason }
-export async function fetchTimeAttackLeaderboardTop10(variant, rule, questionCountValue, categoryFilterValue) {
+export async function fetchTimeAttackLeaderboardTop10(variant, questionCountValue, categoryFilterValue) {
   if (isOffline()) {
     return { ok: false, entries: [], reason: "offline" };
   }
@@ -119,7 +132,7 @@ export async function fetchTimeAttackLeaderboardTop10(variant, rule, questionCou
   try {
     await authReady;
     const leaderboardQuery = query(
-      ref(database, buildLeaderboardPath(variant, rule, questionCountValue, categoryFilterValue)),
+      ref(database, buildLeaderboardPath(variant, questionCountValue, categoryFilterValue)),
       orderByChild("clearTimeMs"),
       limitToFirst(10)
     );
@@ -138,20 +151,22 @@ export async function fetchTimeAttackLeaderboardTop10(variant, rule, questionCou
 }
 
 function buildBackfillFlagKey(playerKeyPrefix) {
-  // 【2026-08-16改訂】対象ルール・パス構造が変わったため、旧フラグ（〜Backfilled）とは
-  // 別名にし、既存ユーザーでも新条件（ノーマル/ハードのクリーン記録・カテゴリー別）で
-  // 一度だけ改めてバックフィルが走るようにする（旧フラグはそのまま残るが無害・無視される）。
-  return `equalLoveIntroQuiz.${playerKeyPrefix}timeAttackLeaderboardBackfilledV2`;
+  // 【2026-08-16再改訂】パス構造・対象次元がさらに変わったため（rule区分の廃止、出題数/
+  // カテゴリーの絞り込み）、旧フラグ（〜BackfilledV2）とは別名にし、既存ユーザーでも
+  // 新条件で一度だけ改めてバックフィルが走るようにする（旧フラグはそのまま残るが無害・無視される）。
+  return `equalLoveIntroQuiz.${playerKeyPrefix}timeAttackLeaderboardBackfilledV3`;
 }
 
 // 「フレンド」を新たにONにした人・すでにONだった人の両方に対応する、
 // 既存のローカル自己ベストをランキングへ一度だけ反映する処理（2026-08-07追加、本人指示。
-// 2026-08-16にルール・カテゴリー別の抽出へ拡張）。
+// 2026-08-16にルールを問わず統合する形へ再改訂）。
 // 通常の新記録時の送信（submitTimeAttackScoreIfBetter、renderTimeAttackResult経由）は
 // 「今まさに更新した記録」しか送らないため、それより前に貯まっていた自己ベストは
 // このままでは永久にランキングに反映されない。そのズレを一度だけ解消するための処理。
 // プレイヤーごとにlocalStorageのフラグで多重実行を防ぐ（毎回スタート画面へ戻るたびに
 // 全件送信し直すような無駄な通信をしないため）。
+// 【本人指示】通常クイズは今まで所要時間を記録していなかったため、バックフィル対象の
+// 履歴データが存在しない＝この処理は今までどおりタイムアタック履歴だけを対象にする。
 export async function backfillTimeAttackLeaderboardIfNeeded(playerKeyPrefix) {
   if (!isPublicProfileSharingEnabled(playerKeyPrefix)) return;
   if (isOffline()) return; // オフライン時はフラグを立てず、次回オンライン時に再試行できるようにする
@@ -165,7 +180,7 @@ export async function backfillTimeAttackLeaderboardIfNeeded(playerKeyPrefix) {
 
   try {
     const historyEntries = getTimeAttackHistoryEntries();
-    const bestEntries = findBestEntryPerVariantRuleQuestionCountAndCategory(historyEntries);
+    const bestEntries = findBestEntryPerVariantQuestionCountAndCategory(historyEntries);
     for (const best of bestEntries) {
       await submitTimeAttackScoreIfBetter({ ...best, playerKeyPrefix });
     }
@@ -179,17 +194,17 @@ export async function backfillTimeAttackLeaderboardIfNeeded(playerKeyPrefix) {
 // 【安全設計】呼び出し側（js/timeAttackLeaderboardScreen.js）が事前にADMIN_UIDとの一致を
 // 確認したうえでだけ呼ぶ想定。js/publicProfileSync.jsのdeletePublicProfileByAdminと同じ
 // 設計思想で、本当の権限チェックはFirebase Security Rules側で行う必要がある。
-// 削除対象はvariant×rule×questionCountValue×categoryFilterValue×targetUidで一意に決まる
+// 削除対象はvariant×questionCountValue×categoryFilterValue×targetUidで一意に決まる
 // 1件の記録だけ。他の記録・他のFirebaseパス・本人の端末内データには一切触れない。
-export async function deleteLeaderboardEntryByAdmin(variant, rule, questionCountValue, categoryFilterValue, targetUid) {
+export async function deleteLeaderboardEntryByAdmin(variant, questionCountValue, categoryFilterValue, targetUid) {
   await authReady;
-  const entryPath = `${buildLeaderboardPath(variant, rule, questionCountValue, categoryFilterValue)}/${targetUid}`;
+  const entryPath = `${buildLeaderboardPath(variant, questionCountValue, categoryFilterValue)}/${targetUid}`;
   await remove(ref(database, entryPath));
 }
 
 // 自分の記録だけを1件、軽量に取得する（TOP10圏外でも「あなたの記録」を表示するため）。
 // 戻り値: { ok: true, entry: {...} | null } または { ok: false, entry: null }
-export async function fetchMyTimeAttackLeaderboardEntry(variant, rule, questionCountValue, categoryFilterValue) {
+export async function fetchMyTimeAttackLeaderboardEntry(variant, questionCountValue, categoryFilterValue) {
   if (isOffline()) {
     return { ok: false, entry: null };
   }
@@ -199,7 +214,7 @@ export async function fetchMyTimeAttackLeaderboardEntry(variant, rule, questionC
     const uid = getCurrentUid();
     if (!uid) return { ok: true, entry: null };
 
-    const entryPath = `${buildLeaderboardPath(variant, rule, questionCountValue, categoryFilterValue)}/${uid}`;
+    const entryPath = `${buildLeaderboardPath(variant, questionCountValue, categoryFilterValue)}/${uid}`;
     const snapshot = await get(ref(database, entryPath));
     const entry = snapshot.exists() ? normalizeLeaderboardEntry(uid, snapshot.val()) : null;
     return { ok: true, entry, uid };

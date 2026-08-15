@@ -5775,6 +5775,19 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   opacity: 0.7;
 }
 
+/* ランキング画面：通常クイズからも参加できることを伝える一言（2026-08-16追加）。
+   上の.special-modes-intro（条件の説明）とは分けて、招待の一言だけ軽く強調する。 */
+.leaderboard-mode-invite {
+  margin: -8px 0 16px;
+  padding: 8px 14px;
+  border-radius: 12px;
+  background: var(--color-primary-light);
+  text-align: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+}
+
 /* ===== 特別モードのアイコン（js/specialModeIcons.js） =====
    本人指示（2026-08-07）：「8枚を見た瞬間、それぞれ別のモードだと視覚的に分かる」ように、
    モードごとに異なるパステルカラーの丸背景をアイコンに付ける。生のUnicode絵文字は
@@ -10474,6 +10487,14 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   margin: 2px 0 0;
   font-size: 0.72rem;
   opacity: 0.7;
+}
+
+/* プレイ方法・ルールの小さなバッジ（2026-08-16追加）。rank/name/timeより目立たせない
+   参考情報として、行の下にごく小さく添えるだけにとどめる（本人指示セクション13）。 */
+.leaderboard-row-meta {
+  margin: 2px 0 0;
+  font-size: 0.68rem;
+  opacity: 0.55;
 }
 
 .leaderboard-row-time {

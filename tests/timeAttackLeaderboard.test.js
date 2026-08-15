@@ -1,61 +1,110 @@
 // js/timeAttackLeaderboard.js（Firebaseに一切触れない純粋関数群）のテスト。
-// 【2026-08-16改訂】ランキングをノーマル/ハード/LOVE連チャンすべてに開放し、
-// ルール・カテゴリー別にも分離した仕様変更に合わせて全面更新。
+// 【2026-08-16再改訂】タイムアタック専用のランキングから、通常のイントロクイズ・
+// 通常のランダム再生クイズも含めた統合ランキングへ拡張した仕様変更に合わせて全面更新。
+// ルール（ノーマル/ハード/LOVE連チャン）はもう区分ではなく統合し、出題数は5問・10問、
+// カテゴリーは表題曲のみ／表題曲＋全員曲だけに絞られた。
 import {
+  LEADERBOARD_QUESTION_COUNT_VALUES,
+  LEADERBOARD_CATEGORY_VALUES,
+  isSupportedLeaderboardDimension,
   buildLeaderboardPath,
   buildLeaderboardEntryPayload,
   isBetterLeaderboardRecord,
   normalizeLeaderboardEntry,
   sortLeaderboardEntries,
   findRankByUid,
-  findBestEntryPerVariantRuleQuestionCountAndCategory,
+  findBestEntryPerVariantQuestionCountAndCategory,
   isValidLeaderboardCandidate,
 } from "../js/timeAttackLeaderboard.js";
 import { assertEqual } from "./test-utils.js";
 
 export function runTimeAttackLeaderboardTests() {
-  // ---- パス組み立て：variant×rule×questionCount×categoryで完全に分離される ----
+  // ---- 対応次元の値一覧：5問・10問／表題曲のみ・表題曲＋全員曲だけに絞られている ----
+  assertEqual(LEADERBOARD_QUESTION_COUNT_VALUES, ["5", "10"], "出題数は5問・10問だけがランキング対応");
   assertEqual(
-    buildLeaderboardPath("intro", "loveChain", "5", "all"),
-    "timeAttackLeaderboardsV2/intro/loveChain/5/all",
-    "イントロ・LOVE連チャン・5問・全曲の組み合わせのパスになる"
-  );
-  assertEqual(
-    buildLeaderboardPath("randomPlayback", "normal", "50", "title-track"),
-    "timeAttackLeaderboardsV2/randomPlayback/normal/50/title-track",
-    "ランダム再生・ノーマル・50問・表題曲のみは別のパスになる"
-  );
-  assertEqual(
-    buildLeaderboardPath("intro", "hard", "5", "all") === buildLeaderboardPath("intro", "loveChain", "5", "all"),
-    false,
-    "ルールが違えば別パスになる（ハードとLOVE連チャンは混ざらない）"
-  );
-  assertEqual(
-    buildLeaderboardPath("intro", "loveChain", "5", "title-track") ===
-      buildLeaderboardPath("intro", "loveChain", "5", "all"),
-    false,
-    "カテゴリーが違えば別パスになる（表題曲のみと全曲は混ざらない）"
-  );
-  assertEqual(
-    buildLeaderboardPath("intro", "loveChain", "5", "all").startsWith("timeAttackLeaderboardsV2/"),
-    true,
-    "新しいランキングは旧構造（timeAttackLeaderboards、ルール・カテゴリー区別なし）とは別のキー配下に置かれる"
+    LEADERBOARD_CATEGORY_VALUES,
+    ["title-track", "title-and-group"],
+    "カテゴリーは表題曲のみ・表題曲＋全員曲だけがランキング対応（「全曲」は対象外）"
   );
 
-  // ---- payload組み立て：uidを含まない、表示名の空欄はフォールバックする ----
+  // ---- 対応次元の判定 ----
+  assertEqual(isSupportedLeaderboardDimension("5", "title-track"), true, "5問・表題曲のみは対応次元");
+  assertEqual(isSupportedLeaderboardDimension("10", "title-and-group"), true, "10問・表題曲＋全員曲は対応次元");
+  assertEqual(isSupportedLeaderboardDimension("20", "title-track"), false, "20問は対応次元外");
+  assertEqual(isSupportedLeaderboardDimension("50", "title-track"), false, "50問は対応次元外");
+  assertEqual(isSupportedLeaderboardDimension("all", "title-track"), false, "全曲（出題数）は対応次元外");
+  assertEqual(isSupportedLeaderboardDimension("5", "all"), false, "カテゴリー「全曲」は対応次元外");
+
+  // ---- パス組み立て：variant×questionCount×categoryで分離される。ruleはもう区分に含めない ----
+  assertEqual(
+    buildLeaderboardPath("intro", "5", "title-track"),
+    "timeAttackLeaderboardsV3/intro/5/title-track",
+    "イントロ・5問・表題曲のみの組み合わせのパスになる"
+  );
+  assertEqual(
+    buildLeaderboardPath("randomPlayback", "10", "title-and-group"),
+    "timeAttackLeaderboardsV3/randomPlayback/10/title-and-group",
+    "ランダム再生・10問・表題曲＋全員曲は別のパスになる"
+  );
+  assertEqual(
+    buildLeaderboardPath("intro", "5", "title-track") === buildLeaderboardPath("intro", "10", "title-track"),
+    false,
+    "出題数が違えば別パスになる"
+  );
+  assertEqual(
+    buildLeaderboardPath("intro", "5", "title-track") === buildLeaderboardPath("intro", "5", "title-and-group"),
+    false,
+    "カテゴリーが違えば別パスになる"
+  );
+  assertEqual(
+    buildLeaderboardPath("intro", "5", "title-track").startsWith("timeAttackLeaderboardsV3/"),
+    true,
+    "新しいランキングは旧構造（timeAttackLeaderboardsV2、ルール別に分かれていた構造）とは別のキー配下に置かれる"
+  );
+
+  // ---- payload組み立て：uidを含まない、表示名の空欄はフォールバックする。
+  //      rule・sourceは表示用の参考情報として含まれる（2026-08-16追加） ----
   const payload = buildLeaderboardEntryPayload({
     displayName: "颯太",
     oshiMemberId: "noguchi-iori",
     clearTimeMs: 12345,
     missCount: 0,
+    rule: "hard",
+    source: "timeAttack",
     achievedAt: "SERVER_TIMESTAMP_PLACEHOLDER",
   });
   assertEqual(
     Object.keys(payload).sort(),
-    ["achievedAt", "clearTimeMs", "displayName", "missCount", "oshiMemberId"].sort(),
-    "payloadにuidは含まれない（キーとして使うため）"
+    ["achievedAt", "clearTimeMs", "displayName", "missCount", "oshiMemberId", "rule", "source"].sort(),
+    "payloadにuidは含まれない（キーとして使うため）。ruleとsourceは含まれる"
   );
   assertEqual(payload.displayName, "颯太", "displayNameがそのまま反映される");
+  assertEqual(payload.rule, "hard", "ruleがそのまま反映される");
+  assertEqual(payload.source, "timeAttack", "sourceがそのまま反映される");
+
+  const normalSourcePayload = buildLeaderboardEntryPayload({
+    displayName: "颯太",
+    oshiMemberId: null,
+    clearTimeMs: 9999,
+    missCount: 0,
+    rule: null,
+    source: "normal",
+    achievedAt: 1,
+  });
+  assertEqual(normalSourcePayload.rule, null, "通常クイズにはルールの概念が無いためnullのまま送られる");
+  assertEqual(normalSourcePayload.source, "normal", "通常クイズ経由の記録はsource:normalになる");
+
+  const invalidRuleSourcePayload = buildLeaderboardEntryPayload({
+    displayName: "颯太",
+    oshiMemberId: null,
+    clearTimeMs: 9999,
+    missCount: 0,
+    rule: "not-a-real-rule",
+    source: "not-a-real-source",
+    achievedAt: 1,
+  });
+  assertEqual(invalidRuleSourcePayload.rule, null, "未知のrule値はnullへフォールバックする（不正データ混入対策）");
+  assertEqual(invalidRuleSourcePayload.source, null, "未知のsource値はnullへフォールバックする（不正データ混入対策）");
 
   const emptyNamePayload = buildLeaderboardEntryPayload({
     displayName: "",
@@ -98,6 +147,8 @@ export function runTimeAttackLeaderboardTests() {
     oshiMemberId: "otani-emiri",
     clearTimeMs: 4321,
     missCount: 2,
+    rule: "normal",
+    source: "normal",
     achievedAt: 1700000000000,
   });
   assertEqual(
@@ -108,6 +159,8 @@ export function runTimeAttackLeaderboardTests() {
       oshiMemberId: "otani-emiri",
       clearTimeMs: 4321,
       missCount: 2,
+      rule: "normal",
+      source: "normal",
       achievedAt: 1700000000000,
     },
     "正常な形のentryは、値をそのまま保った形に正規化される"
@@ -118,10 +171,14 @@ export function runTimeAttackLeaderboardTests() {
     missCount: "not-a-number",
     displayName: 12345,
     oshiMemberId: 999,
+    rule: "not-a-real-rule",
+    source: 12345,
   });
   assertEqual(brokenEntry.missCount, 0, "missCountが数値でなければ0にフォールバックする");
   assertEqual(brokenEntry.displayName, "名無しのファン", "displayNameが文字列でなければフォールバックする");
   assertEqual(brokenEntry.oshiMemberId, null, "oshiMemberIdが文字列でなければnullにフォールバックする");
+  assertEqual(brokenEntry.rule, null, "ruleが既知の値でなければnullにフォールバックする");
+  assertEqual(brokenEntry.source, null, "sourceが既知の値でなければnullにフォールバックする");
 
   // ---- 並び替え：①タイム②ミス数③登録日時の順 ----
   const entries = [
@@ -142,7 +199,8 @@ export function runTimeAttackLeaderboardTests() {
   assertEqual(findRankByUid(sorted, "b"), 3, "並び替え後の配列からuidの順位（1始まり）を取得できる");
   assertEqual(findRankByUid(sorted, "not-in-list"), null, "圏外のuidはnullを返す");
 
-  // ---- ランキング登録候補の妥当性検証（2026-08-16改訂：ルールを問わず、ミス0のみ有効） ----
+  // ---- ランキング登録候補の妥当性検証（ルールを問わず、ミス0のみ有効。次元の対応可否は
+  //      isSupportedLeaderboardDimensionが別途担当するため、ここではタイム・ミス数だけを見る） ----
   assertEqual(isValidLeaderboardCandidate({ clearTimeMs: 12345, missCount: 0 }), true, "ミス0の正常な記録は有効");
   assertEqual(isValidLeaderboardCandidate({ clearTimeMs: 12345, missCount: 1 }), false, "1問でも間違えていれば無効（ルール問わず）");
   assertEqual(isValidLeaderboardCandidate({ clearTimeMs: 12345, missCount: 4 }), false, "ミスが複数あっても同様に無効");
@@ -153,13 +211,13 @@ export function runTimeAttackLeaderboardTests() {
   assertEqual(isValidLeaderboardCandidate({ clearTimeMs: 12345, missCount: NaN }), false, "NaNのミス数は無効");
 
   // ---- 履歴からの最速記録抽出（バックフィル用、2026-08-07新設、2026-08-16に
-  //      ルール・カテゴリー別の抽出へ拡張） ----
+  //      ルールをまたいで統合し、対応次元だけに絞る形へ再改訂） ----
   const historyEntries = [
     {
       variant: "intro",
       rule: "loveChain",
       questionCountValue: "5",
-      categoryFilterValue: "all",
+      categoryFilterValue: "title-track",
       totalElapsedMs: 8000,
       missCount: 2,
       completed: true,
@@ -168,7 +226,7 @@ export function runTimeAttackLeaderboardTests() {
       variant: "intro",
       rule: "loveChain",
       questionCountValue: "5",
-      categoryFilterValue: "all",
+      categoryFilterValue: "title-track",
       totalElapsedMs: 6000,
       missCount: 0,
       completed: true,
@@ -177,7 +235,7 @@ export function runTimeAttackLeaderboardTests() {
       variant: "intro",
       rule: "loveChain",
       questionCountValue: "5",
-      categoryFilterValue: "all",
+      categoryFilterValue: "title-track",
       totalElapsedMs: 9000,
       missCount: 0,
       completed: false,
@@ -186,25 +244,25 @@ export function runTimeAttackLeaderboardTests() {
       variant: "intro",
       rule: "normal",
       questionCountValue: "5",
-      categoryFilterValue: "all",
+      categoryFilterValue: "title-track",
       totalElapsedMs: 4000,
       missCount: 0,
       completed: true,
-    }, // 2026-08-16改訂：ノーマルでもミス0なら対象になる
+    }, // ルールが違っても、同じvariant×questionCount×categoryなら同じ枠として統合される
     {
       variant: "intro",
-      rule: "normal",
+      rule: "hard",
       questionCountValue: "5",
-      categoryFilterValue: "title-track",
+      categoryFilterValue: "title-and-group",
       totalElapsedMs: 3000,
       missCount: 0,
       completed: true,
-    }, // カテゴリーが違うので上のノーマル記録とは別枠
+    }, // カテゴリーが違うので上の記録とは別枠
     {
       variant: "randomPlayback",
       rule: "loveChain",
       questionCountValue: "5",
-      categoryFilterValue: "all",
+      categoryFilterValue: "title-track",
       totalElapsedMs: 7000,
       missCount: 1,
       completed: true,
@@ -212,38 +270,62 @@ export function runTimeAttackLeaderboardTests() {
     {
       rule: "loveChain",
       questionCountValue: "10",
-      categoryFilterValue: "all",
+      categoryFilterValue: "title-track",
       totalElapsedMs: 15000,
       missCount: 0,
       completed: true,
     }, // variant省略はintro扱い
+    {
+      variant: "intro",
+      rule: "normal",
+      questionCountValue: "20",
+      categoryFilterValue: "title-track",
+      totalElapsedMs: 1000,
+      missCount: 0,
+      completed: true,
+    }, // 出題数20問は対応次元外のため、ミス0でも絶対に抽出されない
+    {
+      variant: "intro",
+      rule: "normal",
+      questionCountValue: "5",
+      categoryFilterValue: "all",
+      totalElapsedMs: 500,
+      missCount: 0,
+      completed: true,
+    }, // カテゴリー「全曲」は対応次元外のため、ミス0でも絶対に抽出されない
   ];
-  const bestEntries = findBestEntryPerVariantRuleQuestionCountAndCategory(historyEntries);
+  const bestEntries = findBestEntryPerVariantQuestionCountAndCategory(historyEntries);
   assertEqual(
     bestEntries.length,
-    4,
-    "variant×rule×questionCount×categoryの組み合わせごとに、ミス0で完走した記録だけが1件ずつ抽出される"
+    3,
+    "variant×questionCount×category（対応次元のみ）の組み合わせごとに、ミス0で完走した記録だけが1件ずつ抽出される"
   );
 
-  const introLoveChainFive = bestEntries.find(
-    (e) => e.variant === "intro" && e.rule === "loveChain" && e.questionCountValue === "5"
+  const introFiveTitleTrack = bestEntries.find(
+    (e) => e.variant === "intro" && e.questionCountValue === "5" && e.categoryFilterValue === "title-track"
   );
-  assertEqual(introLoveChainFive.clearTimeMs, 6000, "同じ組み合わせの中で最速のミス0記録が採用される");
-
-  const introNormalFiveAll = bestEntries.find(
-    (e) => e.variant === "intro" && e.rule === "normal" && e.categoryFilterValue === "all"
+  assertEqual(
+    introFiveTitleTrack.clearTimeMs,
+    4000,
+    "同じvariant×questionCount×categoryなら、ルール（LOVE連チャン6000msとノーマル4000ms）をまたいで最速の記録が採用される"
   );
-  assertEqual(introNormalFiveAll.clearTimeMs, 4000, "ノーマルでもミス0の完走記録はバックフィル対象になる");
+  assertEqual(introFiveTitleTrack.source, "timeAttack", "バックフィルはタイムアタック履歴由来なのでsource:timeAttackになる");
 
-  const introNormalFiveTitleTrack = bestEntries.find(
-    (e) => e.variant === "intro" && e.rule === "normal" && e.categoryFilterValue === "title-track"
+  const introFiveTitleAndGroup = bestEntries.find(
+    (e) => e.variant === "intro" && e.categoryFilterValue === "title-and-group"
   );
-  assertEqual(introNormalFiveTitleTrack.clearTimeMs, 3000, "カテゴリーが違えば別記録として抽出される");
+  assertEqual(introFiveTitleAndGroup.clearTimeMs, 3000, "カテゴリーが違えば別記録として抽出される");
 
-  const randomFive = bestEntries.find((e) => e.variant === "randomPlayback");
-  assertEqual(randomFive, undefined, "ミスがある記録（randomPlaybackの1件）はどのルールでも抽出されない");
+  const randomEntry = bestEntries.find((e) => e.variant === "randomPlayback");
+  assertEqual(randomEntry, undefined, "ミスがある記録（randomPlaybackの1件）はどのルールでも抽出されない");
 
   const introTen = bestEntries.find((e) => e.questionCountValue === "10");
   assertEqual(introTen.variant, "intro", "entry.variant省略（古い履歴データ）はintroとして扱われる");
   assertEqual(introTen.clearTimeMs, 15000, "10問の記録も正しく抽出される");
+
+  const unsupportedQuestionCount = bestEntries.find((e) => e.questionCountValue === "20");
+  assertEqual(unsupportedQuestionCount, undefined, "対応外の出題数（20問）はミス0で完走していても絶対に抽出されない");
+
+  const unsupportedCategory = bestEntries.find((e) => e.categoryFilterValue === "all");
+  assertEqual(unsupportedCategory, undefined, "対応外のカテゴリー（全曲）はミス0で完走していても絶対に抽出されない");
 }

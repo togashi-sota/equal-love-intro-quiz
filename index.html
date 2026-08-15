@@ -174,7 +174,7 @@
         <button id="home-leaderboard-link" class="home-quicknav-button" type="button">
           <span class="home-quicknav-icon" aria-hidden="true">🏆</span>
           <span class="home-quicknav-label">ランキング</span>
-          <span class="home-quicknav-description">タイムアタックの順位</span>
+          <span class="home-quicknav-description">クリアタイムの順位</span>
         </button>
       </div>
 
@@ -617,6 +617,12 @@
         <p id="average-response-time-display" class="average-response-time-display" hidden></p>
         <!-- 電光石火までの進捗（全曲モードのときだけ）。中身はjs/speedAchievementProgress.jsが組み立てる -->
         <div id="speed-progress-container"></div>
+
+        <!-- グローバルランキングへの送信状況（2026-08-16追加）。タイムアタック結果画面の
+             #time-attack-result-leaderboard-statusと同じ考え方。全問正解・スキップなし・
+             答えを見るなしで完走した回だけ送信を試み、そうでない回は簡潔に対象外の理由を表示する。
+             DOM操作はjs/main.jsが行う。 -->
+        <p id="result-leaderboard-status" class="time-attack-result-leaderboard-status" hidden></p>
 
         <!-- 特別モードの結果でだけ表示する短い案内。自己ベスト欄の代わりに、
              苦手曲モードなど特別モードの結果は記録に反映されないことを伝える。普段は空・非表示 -->
@@ -1745,10 +1751,10 @@
         </div>
       </div>
 
-      <p class="special-modes-intro">出題タイプ・ルール・出題数・カテゴリーごとに、クリアタイムが速い順のTOP10を表示します。ランキング対象は<strong>全問正解・誤答0・未回答0で完走した記録だけ</strong>です（1問でも間違えたプレイは、ルールを問わず公開ランキングには反映されません。自己ベスト・履歴には今までどおり保存されます）。参加するには「フレンド」の公開設定をONにしてください。</p>
+      <p class="special-modes-intro">出題タイプ・出題数・カテゴリーごとに、クリアタイムが速い順のTOP10を表示します。ランキング対象は<strong>全問正解・スキップなし・答えを見るなしで完走した記録だけ</strong>です（ノーマル/ハード/LOVE連チャンのどのルールで出したタイムでも、同じランキングで比較します。対象外のプレイでも自己ベスト・履歴には今までどおり保存されます）。参加するには「フレンド」の公開設定をONにしてください。</p>
+      <p class="leaderboard-mode-invite">通常のイントロクイズ・ランダム再生クイズからもランキングに参加できます。「次へ」ボタンでじっくり進めてもOK。最速タイムを狙うならタイムアタックがおすすめです。</p>
 
       <div id="time-attack-leaderboard-variant-tabs" class="leaderboard-tab-row"></div>
-      <div id="time-attack-leaderboard-rule-tabs" class="leaderboard-tab-row"></div>
       <div id="time-attack-leaderboard-question-count-tabs" class="leaderboard-tab-row"></div>
       <div id="time-attack-leaderboard-category-tabs" class="leaderboard-tab-row"></div>
 
@@ -1765,8 +1771,9 @@
 
     <!-- 管理者限定：ランキング記録削除の確認モーダル（2026-08-17新設）。
          開くボタン（各記録行の🗑️）はADMIN_UID（js/adminConfig.js）と一致する本人にしか
-         表示されない。削除対象はvariant×rule×questionCount×category×uidで一意に決まる
-         1件の記録だけで、他の記録・本人の端末内データには一切触れないことを明記する。 -->
+         表示されない。削除対象はvariant×questionCount×category×uidで一意に決まる
+         1件の記録だけで、他の記録・本人の端末内データには一切触れないことを明記する
+         （2026-08-16改訂：ルールはもう区分ではないため、確認欄からも外した）。 -->
     <div id="time-attack-leaderboard-admin-delete-confirm-modal" class="modal-overlay" hidden>
       <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="time-attack-leaderboard-admin-delete-confirm-title">
         <h2 id="time-attack-leaderboard-admin-delete-confirm-title">このランキング記録を削除しますか？</h2>
@@ -1774,7 +1781,6 @@
           <div><dt>プレイヤー名</dt><dd id="time-attack-leaderboard-admin-delete-name"></dd></div>
           <div><dt>記録</dt><dd id="time-attack-leaderboard-admin-delete-time"></dd></div>
           <div><dt>モード</dt><dd id="time-attack-leaderboard-admin-delete-variant"></dd></div>
-          <div><dt>ルール</dt><dd id="time-attack-leaderboard-admin-delete-rule"></dd></div>
           <div><dt>問題数</dt><dd id="time-attack-leaderboard-admin-delete-question-count"></dd></div>
           <div><dt>カテゴリー</dt><dd id="time-attack-leaderboard-admin-delete-category"></dd></div>
         </dl>
@@ -1963,6 +1969,9 @@
       <div id="random-playback-result-speed-progress"></div>
 
       <p id="random-playback-result-best-time" class="time-attack-result-best-time" hidden></p>
+      <!-- ランキングへの送信状況（2026-08-16追加）。タイムアタック結果画面の
+           #time-attack-result-leaderboard-statusと同じ考え方。DOM操作はjs/main.jsが行う。 -->
+      <p id="random-playback-result-leaderboard-status" class="time-attack-result-leaderboard-status" hidden></p>
 
       <!-- 称号（実績）の獲得演出（2026-08-07追加）。中身はjs/achievementDisplay.jsが組み立てる。
            本人指示：ランダム再生クイズの全曲ノーミスでフルコーラスマスター・メロディアスを取得可能。 -->

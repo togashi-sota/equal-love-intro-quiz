@@ -30,6 +30,14 @@ export const gameState = {
                                        // （gameState.categoryFilterValue自体は復習中も書き換えないが、
                                        // 将来、履歴の別プレイなど「今とは違うカテゴリ」から復習を始める
                                        // 入口が増えることを見越して、あえて独立したフィールドにしている）。
+  quizStartedAtMs: null,         // 【2026-08-16追加】通常プレイ（playMode:"normal"）がstartQuiz()で
+                                  // 開始した瞬間のperformance.now()。ランキング参加のための
+                                  // セッション所要時間計測に使う（タイムアタックとは別の、
+                                  // 「ゲーム開始→最後の問題に正解」までの通しタイム）。
+  quizFinishedAtMs: null,        // 最後の問題に正解した瞬間のperformance.now()。「次へ」ボタンで
+                                  // 結果画面へ移動する操作の時間は含めない（本人指示：クイズを
+                                  // 解く行為そのものだけを計測する）。js/main.jsのhandleChoiceClick
+                                  // が、最終問題への正解を検知した時点で設定する。
 };
 
 // ゲームを最初の状態に戻す。リトライ時にも使う。
@@ -49,6 +57,8 @@ export function resetGameState() {
   gameState.specialModeId = null;
   gameState.reviewSongs = [];
   gameState.reviewCategoryFilterValue = null;
+  gameState.quizStartedAtMs = null;
+  gameState.quizFinishedAtMs = null;
 }
 
 // 生成済みの問題配列を受け取ってクイズを開始する。
@@ -68,6 +78,10 @@ export function startQuiz(questions, questionCountValue, categoryFilterValue) {
   // 「もう一度挑戦する」はresetGameState()を経由せずここへ直接来るため、
   // 前回プレイ最後の回答済み状態が残らないよう、ここで確実にリセットする。
   gameState.isAnswered = false;
+  // 【2026-08-16追加】ランキング参加用のセッション計測を、ここで必ず開始し直す
+  // （「もう一度挑戦する」も含め、通常プレイが始まる場所は必ずstartQuiz()を通るため）。
+  gameState.quizStartedAtMs = performance.now();
+  gameState.quizFinishedAtMs = null;
 }
 
 // 復習用に生成済みの問題配列を受け取って、復習クイズを開始する。

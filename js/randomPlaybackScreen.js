@@ -9,6 +9,7 @@
 // 別のjs/randomPlaybackScore.js）、③設定・結果、2つの画面の組み立て、の3つだけに絞っている。
 import {
   TIME_ATTACK_RULE,
+  TIME_ATTACK_VARIANT,
   startTimeAttackRun,
   getCurrentTimeAttackRule,
   getCurrentTimeAttackStats,
@@ -107,6 +108,26 @@ export function renderRandomPlaybackResult(questionCountValue, categoryFilterVal
   resultElements.failStatus.hidden = !stats.runFailed;
   if (stats.runFailed) {
     resultElements.failStatus.textContent = `${stats.perQuestionResults.length}問目で失敗しました（LOVE連チャンは全問クリアのタイムだけが記録されます）`;
+  }
+
+  // グローバルランキングへの送信（2026-08-16追加、本人指示）。タイムアタックの
+  // onNewRecordコールバック（js/timeAttackScreen.jsのrenderTimeAttackResult参照）と全く同じ
+  // 設計。variantは、このモードの実行中に共有モジュール変数currentVariantが
+  // "intro"のまま（startRandomPlaybackRunがstartTimeAttackRunへvariant引数を渡していない
+  // ため）になっていても正しく送信できるよう、ここで明示的にRANDOM_PLAYBACKを指定する
+  // （getCurrentTimeAttackVariant()には頼らない）。
+  if (resultElements.leaderboardStatus) {
+    resultElements.leaderboardStatus.hidden = true;
+  }
+  if (isNewRecord) {
+    resultElements.onNewRecord?.({
+      variant: TIME_ATTACK_VARIANT.RANDOM_PLAYBACK,
+      questionCountValue,
+      categoryFilterValue,
+      rule,
+      totalElapsedMs: stats.totalElapsedMs,
+      missCount: stats.missCount,
+    });
   }
 
   // 称号（実績）判定（2026-08-07追加、本人指示）。ランダム再生クイズの全曲ノーミスで

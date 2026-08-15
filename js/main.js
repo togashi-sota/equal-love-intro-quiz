@@ -278,6 +278,7 @@ const highScoreElement = document.getElementById("high-score-display");
 const newRecordElement = document.getElementById("new-record-badge");
 const averageResponseTimeDisplayElement = document.getElementById("average-response-time-display");
 const speedProgressContainerElement = document.getElementById("speed-progress-container");
+const resultLeaderboardStatusElement = document.getElementById("result-leaderboard-status");
 const answerLogListElement = document.getElementById("answer-log-list");
 const resultEyebrowLabelElement = document.getElementById("result-eyebrow-label");
 const missedSongsSectionElement = document.getElementById("missed-songs-section");
@@ -561,7 +562,6 @@ const timeAttackHistoryDetailBackButtonElement = document.getElementById("time-a
 const timeAttackLeaderboardLinkElement = document.getElementById("time-attack-leaderboard-link");
 const timeAttackLeaderboardBackButtonElement = document.getElementById("time-attack-leaderboard-back-button");
 const timeAttackLeaderboardVariantTabsElement = document.getElementById("time-attack-leaderboard-variant-tabs");
-const timeAttackLeaderboardRuleTabsElement = document.getElementById("time-attack-leaderboard-rule-tabs");
 const timeAttackLeaderboardQuestionCountTabsElement = document.getElementById(
   "time-attack-leaderboard-question-count-tabs"
 );
@@ -580,7 +580,6 @@ const timeAttackLeaderboardAdminDeleteTimeElement = document.getElementById("tim
 const timeAttackLeaderboardAdminDeleteVariantElement = document.getElementById(
   "time-attack-leaderboard-admin-delete-variant"
 );
-const timeAttackLeaderboardAdminDeleteRuleElement = document.getElementById("time-attack-leaderboard-admin-delete-rule");
 const timeAttackLeaderboardAdminDeleteQuestionCountElement = document.getElementById(
   "time-attack-leaderboard-admin-delete-question-count"
 );
@@ -606,6 +605,7 @@ const randomPlaybackResultRuleLabelElement = document.getElementById("random-pla
 const randomPlaybackResultAverageTimeElement = document.getElementById("random-playback-result-average-time");
 const randomPlaybackResultSpeedProgressElement = document.getElementById("random-playback-result-speed-progress");
 const randomPlaybackResultBestTimeElement = document.getElementById("random-playback-result-best-time");
+const randomPlaybackResultLeaderboardStatusElement = document.getElementById("random-playback-result-leaderboard-status");
 const randomPlaybackResultAchievementListElement = document.getElementById("random-playback-result-achievement-list");
 const randomPlaybackResultAchievementListLinkElement = document.getElementById(
   "random-playback-result-achievement-list-link"
@@ -2117,6 +2117,13 @@ function handleChoiceClick(selectedChoice) {
   // ここではもう曲ごとの無音秒数を差し引かない（elapsedSecがそのまま実際の聴取時間になる）。
   const points = isCorrect ? calculateScore(gameState.elapsedSec) : 0;
   recordAnswer(isCorrect ? "correct" : "wrong", points, getElapsedMsSincePlaybackStart());
+  // 【2026-08-16追加】ランキング参加用のセッション所要時間の終了地点。「次へ」ボタンで
+  // 結果画面へ移動する操作より前、通常プレイの最後の問題に自力で正解した瞬間だけを記録する
+  // （本人指示：システム側の待ち時間・演出時間は含めない）。復習・特別モードはランキング対象外
+  // のため対象外（playMode==="normal"のときだけ）。
+  if (isCorrect && gameState.playMode === "normal" && gameState.currentIndex === gameState.questions.length - 1) {
+    gameState.quizFinishedAtMs = performance.now();
+  }
   markChoiceButtons(selectedChoice.id);
   if (isCorrect) {
     playCorrectSound();
@@ -2569,6 +2576,61 @@ function renderResult() {
         titleEvents: achievementResult.newlyUnlockedIds.map((id) => ({ id, type: "new" })),
       }
     );
+
+    // グローバルランキングへの送信（2026-08-16追加、本人指示）。タイムアタック・ランダム再生
+    // クイズと全く同じ送信関数（submitTimeAttackScoreIfBetter）を再利用する（source:"normal"）。
+    // 通常クイズにはルールの概念が無いためruleはnullのまま送る。
+    // 【計測方法】gameState.quizStartedAtMs（開始）〜gameState.quizFinishedAtMs（最後の問題に
+    // 正解した瞬間、js/main.jsのhandleChoiceClick参照）の差分を、問題間の「次へ」ボタンでの
+    // 移動時間も含めた「セッション所要時間」として送る（本人指示：タイムアタックより
+    // ゆっくりでもよい、システム側の待ち時間だけを除く）。
+    // 【対象外の表示】全問正解・スキップなし・答えを見るなしで完走した回だけ送信を試みる。
+    // それ以外は、理由を簡潔に表示するだけにとどめる（本人指示：説明しすぎない）。
+    resultLeaderboardStatusElement.hidden = true;
+    if (isCleanClear && gameState.quizStartedAtMs !== null && gameState.quizFinishedAtMs !== null) {
+      const clearTimeMs = gameState.quizFinishedAtMs - gameState.quizStartedAtMs;
+      resultLeaderboardStatusElement.hidden = false;
+      resultLeaderboardStatusElement.textContent = "ランキングを確認しています…";
+      submitTimeAttackScoreIfBetter({
+        variant: TIME_ATTACK_VARIANT.INTRO,
+        rule: null,
+        source: "normal",
+        questionCountValue,
+        categoryFilterValue,
+        clearTimeMs,
+        missCount: 0,
+        playerKeyPrefix: getPlayerKeyPrefix(),
+      }).then((result) => {
+        if (!result.ok) {
+          const messageByReason = {
+            "privacy-disabled": "「フレンド」を公開するとランキングに参加できます",
+            offline: "オフラインのため、ランキングへの送信はできませんでした",
+            error: "ランキングへの送信に失敗しました",
+            "invalid-record": "1問でも間違えると、公開ランキングには反映されません（自己ベストには保存済みです）",
+            "unsupported-dimension": "この出題数・カテゴリーはランキング対象外です（5問・10問／表題曲のみ・表題曲＋全員曲が対象）",
+          };
+          resultLeaderboardStatusElement.textContent =
+            messageByReason[result.reason] ?? "ランキングへの送信に失敗しました";
+          return;
+        }
+        resultLeaderboardStatusElement.textContent = result.updated
+          ? "🏆 ランキングの記録を更新しました！"
+          : "ランキング上の記録はすでにこのタイム以上でした";
+      });
+    } else if (!isCleanClear) {
+      const skipOnlyCount = gameState.answerLog.filter((entry) => entry.resultType === "skip").length;
+      const revealOnlyCount = gameState.answerLog.filter((entry) => entry.resultType === "reveal").length;
+      resultLeaderboardStatusElement.hidden = false;
+      if (wrongCount > 0) {
+        resultLeaderboardStatusElement.textContent = `今回はランキング対象外（${wrongCount}問ミスしたため）`;
+      } else if (skipOnlyCount > 0) {
+        resultLeaderboardStatusElement.textContent = "今回はランキング対象外（スキップを使用したため）";
+      } else if (revealOnlyCount > 0) {
+        resultLeaderboardStatusElement.textContent = "今回はランキング対象外（答えを見るを使用したため）";
+      } else {
+        resultLeaderboardStatusElement.hidden = true;
+      }
+    }
   }
 
   answerLogListElement.innerHTML = "";
@@ -3308,6 +3370,7 @@ initTimeAttackResultScreen({
     submitTimeAttackScoreIfBetter({
       variant,
       rule,
+      source: "timeAttack",
       questionCountValue,
       categoryFilterValue,
       clearTimeMs: totalElapsedMs,
@@ -3320,6 +3383,7 @@ initTimeAttackResultScreen({
           offline: "オフラインのため、ランキングへの送信はできませんでした",
           error: "ランキングへの送信に失敗しました",
           "invalid-record": "1問でも間違えると、公開ランキングには反映されません（自己ベストには保存済みです）",
+          "unsupported-dimension": "この出題数・カテゴリーはランキング対象外です（5問・10問／表題曲のみ・表題曲＋全員曲が対象）",
         };
         timeAttackResultLeaderboardStatusElement.textContent =
           messageByReason[result.reason] ?? "ランキングへの送信に失敗しました";
@@ -3363,7 +3427,6 @@ let timeAttackLeaderboardReturnScreen = "timeAttackSetup";
 initTimeAttackLeaderboardScreen(
   {
     variantTabs: timeAttackLeaderboardVariantTabsElement,
-    ruleTabs: timeAttackLeaderboardRuleTabsElement,
     questionCountTabs: timeAttackLeaderboardQuestionCountTabsElement,
     categoryTabs: timeAttackLeaderboardCategoryTabsElement,
     loadingState: timeAttackLeaderboardLoadingElement,
@@ -3381,7 +3444,6 @@ initTimeAttackLeaderboardScreen(
     adminDeleteName: timeAttackLeaderboardAdminDeleteNameElement,
     adminDeleteTime: timeAttackLeaderboardAdminDeleteTimeElement,
     adminDeleteVariant: timeAttackLeaderboardAdminDeleteVariantElement,
-    adminDeleteRule: timeAttackLeaderboardAdminDeleteRuleElement,
     adminDeleteQuestionCount: timeAttackLeaderboardAdminDeleteQuestionCountElement,
     adminDeleteCategory: timeAttackLeaderboardAdminDeleteCategoryElement,
     adminDeleteCancelButton: timeAttackLeaderboardAdminDeleteCancelButtonElement,
@@ -3390,26 +3452,25 @@ initTimeAttackLeaderboardScreen(
   MEMBERS
 );
 
-// タイムアタック設定画面から：今選んでいる出題タイプ・ルール・出題数・カテゴリーの
-// ランキングを最初に表示する（2026-08-16、ルール・カテゴリーにも対応）。
+// タイムアタック設定画面から：今選んでいる出題タイプ・出題数・カテゴリーの
+// ランキングを最初に表示する（2026-08-16改訂：ルールはもう区分ではないため渡さない）。
 timeAttackLeaderboardLinkElement.addEventListener("click", () => {
   playClickSound();
   const questionCountValue = document.querySelector('input[name="time-attack-question-count"]:checked').value;
   const categoryFilterValue = document.querySelector('input[name="time-attack-category-filter"]:checked').value;
-  const rule = document.querySelector('input[name="time-attack-rule"]:checked').value;
   const variant =
     document.querySelector('input[name="time-attack-variant"]:checked')?.value ?? TIME_ATTACK_VARIANT.INTRO;
   timeAttackLeaderboardReturnScreen = "timeAttackSetup";
-  showTimeAttackLeaderboard(variant, rule, questionCountValue, categoryFilterValue);
+  showTimeAttackLeaderboard(variant, questionCountValue, categoryFilterValue);
   showScreen("timeAttackLeaderboard");
 });
 
 // タイムアタック結果画面から：直前にプレイした条件のランキングを最初に表示する。
 timeAttackResultLeaderboardLinkElement.addEventListener("click", () => {
   playClickSound();
-  const { questionCountValue, categoryFilterValue, rule, variant } = getLastTimeAttackSelection();
+  const { questionCountValue, categoryFilterValue, variant } = getLastTimeAttackSelection();
   timeAttackLeaderboardReturnScreen = "timeAttackResult";
-  showTimeAttackLeaderboard(variant, rule, questionCountValue, categoryFilterValue);
+  showTimeAttackLeaderboard(variant, questionCountValue, categoryFilterValue);
   showScreen("timeAttackLeaderboard");
 });
 
@@ -3417,9 +3478,9 @@ timeAttackResultLeaderboardLinkElement.addEventListener("click", () => {
 // イントロ・5問から表示する（2026-08-16追加）。「戻る」はホームへ。
 homeLeaderboardLinkElement.addEventListener("click", () => {
   playClickSound();
-  const { questionCountValue, categoryFilterValue, rule, variant } = getLastTimeAttackSelection();
+  const { questionCountValue, categoryFilterValue, variant } = getLastTimeAttackSelection();
   timeAttackLeaderboardReturnScreen = "start";
-  showTimeAttackLeaderboard(variant, rule, questionCountValue, categoryFilterValue);
+  showTimeAttackLeaderboard(variant, questionCountValue, categoryFilterValue);
   navigateWithScrollMemory("timeAttackLeaderboard");
 });
 
@@ -3535,6 +3596,40 @@ initRandomPlaybackResultScreen({
   bestTime: randomPlaybackResultBestTimeElement,
   achievementChipContainer: randomPlaybackResultAchievementListElement,
   achievementListLink: randomPlaybackResultAchievementListLinkElement,
+  leaderboardStatus: randomPlaybackResultLeaderboardStatusElement,
+  // グローバルランキングへの送信（2026-08-16追加）。js/timeAttackScreen.jsのonNewRecordと
+  // 全く同じ設計・同じ送信関数を再利用する（本人指示：同じランキング実装を再利用する）。
+  // sourceだけ"normal"にして、タイムアタック経由の記録と区別する。
+  onNewRecord: ({ variant, questionCountValue, categoryFilterValue, rule, totalElapsedMs, missCount }) => {
+    randomPlaybackResultLeaderboardStatusElement.hidden = false;
+    randomPlaybackResultLeaderboardStatusElement.textContent = "ランキングを確認しています…";
+    submitTimeAttackScoreIfBetter({
+      variant,
+      rule,
+      source: "normal",
+      questionCountValue,
+      categoryFilterValue,
+      clearTimeMs: totalElapsedMs,
+      missCount,
+      playerKeyPrefix: getPlayerKeyPrefix(),
+    }).then((result) => {
+      if (!result.ok) {
+        const messageByReason = {
+          "privacy-disabled": "「フレンド」を公開するとランキングに参加できます",
+          offline: "オフラインのため、ランキングへの送信はできませんでした",
+          error: "ランキングへの送信に失敗しました",
+          "invalid-record": "1問でも間違えると、公開ランキングには反映されません（自己ベストには保存済みです）",
+          "unsupported-dimension": "この出題数・カテゴリーはランキング対象外です（5問・10問／表題曲のみ・表題曲＋全員曲が対象）",
+        };
+        randomPlaybackResultLeaderboardStatusElement.textContent =
+          messageByReason[result.reason] ?? "ランキングへの送信に失敗しました";
+        return;
+      }
+      randomPlaybackResultLeaderboardStatusElement.textContent = result.updated
+        ? "🏆 ランキングの記録を更新しました！"
+        : "ランキング上の記録はすでにこのタイム以上でした";
+    });
+  },
 });
 
 // 「もう一度挑戦する」：直前と同じ出題数・カテゴリ・ルールのまま、問題を再抽選して開始する。

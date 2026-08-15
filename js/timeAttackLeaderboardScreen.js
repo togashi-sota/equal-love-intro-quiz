@@ -12,32 +12,41 @@ import {
   fetchMyTimeAttackLeaderboardEntry,
   deleteLeaderboardEntryByAdmin,
 } from "./timeAttackLeaderboardSync.js";
+import { LEADERBOARD_QUESTION_COUNT_VALUES, LEADERBOARD_CATEGORY_VALUES } from "./timeAttackLeaderboard.js";
 import { fetchPublicProfileBadgeState, getMyUid } from "./publicProfileSync.js";
 import { ADMIN_UID } from "./adminConfig.js";
 import { TIME_ATTACK_VARIANT, TIME_ATTACK_RULE } from "./timeAttackScreen.js";
 
 const VARIANT_LABELS = { [TIME_ATTACK_VARIANT.INTRO]: "🎧イントロ", [TIME_ATTACK_VARIANT.RANDOM_PLAYBACK]: "🔀ランダム再生" };
-const QUESTION_COUNT_LABELS = { "5": "5問", "10": "10問", "20": "20問", "50": "50問", all: "全曲" };
-const QUESTION_COUNT_ORDER = ["5", "10", "20", "50", "all"];
+const QUESTION_COUNT_LABELS = { "5": "5問", "10": "10問" };
+// 【2026-08-16改訂・本人指示】出題数・カテゴリーのタブは、js/timeAttackLeaderboard.jsが
+// 持つ「ランキング対応の値」リストをそのまま使う（このファイルで別の一覧を持つと、
+// 片方だけ更新し忘れてズレる恐れがあるため。20問・50問・全曲、カテゴリー「全曲」は
+// ランキング対象外になったため、タブにも一覧にも一切表示しない）。
+const QUESTION_COUNT_ORDER = LEADERBOARD_QUESTION_COUNT_VALUES;
 
-// 【2026-08-16追加】ルール・カテゴリー別のタブ。ラベルはjs/main.jsのRULE_LABELS・
-// CATEGORY_LABELSと表記を揃える（同じ概念に別の呼び方をしない）。
+// 【2026-08-16改訂・本人指示】ルールはもうランキングの区分（タブ）ではない。ノーマル/ハード/
+// LOVE連チャンをまたいで同じランキングで比較する。RULE_LABELSは、各記録がどのルールで
+// 出したタイムかを行に小さく添えるバッジ表示にだけ使う（entry.ruleがnullなら何も表示しない）。
 const RULE_LABELS = {
   [TIME_ATTACK_RULE.NORMAL]: "ノーマル",
   [TIME_ATTACK_RULE.HARD]: "ハード",
   [TIME_ATTACK_RULE.LOVE_CHAIN]: "LOVE連チャン",
 };
-const RULE_ORDER = [TIME_ATTACK_RULE.NORMAL, TIME_ATTACK_RULE.HARD, TIME_ATTACK_RULE.LOVE_CHAIN];
 
-const CATEGORY_LABELS = { "title-track": "表題のみ", "title-and-group": "表題＋全員", all: "全曲" };
-const CATEGORY_ORDER = ["title-track", "title-and-group", "all"];
+// 【2026-08-16追加】プレイ方法バッジ。entry.sourceがnormalなら「通常」、timeAttackなら
+// 「TA」と、行に小さく添える（本人指示セクション13：「rank/name/timeの表示を優先し、
+// UIが窮屈にならない範囲でだけ表示してよい」）。
+const SOURCE_LABELS = { timeAttack: "TA", normal: "通常" };
+
+const CATEGORY_LABELS = { "title-track": "表題のみ", "title-and-group": "表題＋全員" };
+const CATEGORY_ORDER = LEADERBOARD_CATEGORY_VALUES;
 
 let elements = null;
 let members = [];
 let currentVariant = TIME_ATTACK_VARIANT.INTRO;
-let currentRule = TIME_ATTACK_RULE.LOVE_CHAIN;
 let currentQuestionCountValue = "5";
-let currentCategoryFilterValue = "all";
+let currentCategoryFilterValue = "title-track";
 // 連打・タブ切り替え中の描画競合を防ぐための世代番号（js/audio.jsのcurrentPlaybackTokenと
 // 同じ考え方）。古い非同期取得が後から戻ってきても、世代が古ければ描画結果を捨てる。
 let renderToken = 0;
@@ -87,6 +96,17 @@ function buildLeaderboardRow(entry, rank, badgeState, isOwnRow, { isAdmin = fals
   oshi.textContent = oshiMember ? `推し：${oshiMember.name}` : "推し：未設定";
   body.appendChild(oshi);
 
+  // プレイ方法・ルールの小さなバッジ（2026-08-16追加、本人指示セクション13）。
+  // どちらも参考情報のため、値が無ければ静かに何も表示しない（古い記録には無い場合がある）。
+  const sourceLabel = SOURCE_LABELS[entry.source];
+  const ruleLabel = RULE_LABELS[entry.rule];
+  if (sourceLabel || ruleLabel) {
+    const meta = document.createElement("p");
+    meta.className = "leaderboard-row-meta";
+    meta.textContent = [sourceLabel, ruleLabel].filter(Boolean).join(" ・ ");
+    body.appendChild(meta);
+  }
+
   row.appendChild(body);
 
   const time = document.createElement("p");
@@ -123,18 +143,6 @@ function renderTabs() {
     elements.variantTabs.appendChild(
       buildTabButton(VARIANT_LABELS[variant], variant === currentVariant, () => {
         currentVariant = variant;
-        renderTabs();
-        loadAndRenderLeaderboard();
-      })
-    );
-  });
-
-  // 【2026-08-16追加】ルールタブ。
-  elements.ruleTabs.innerHTML = "";
-  RULE_ORDER.forEach((rule) => {
-    elements.ruleTabs.appendChild(
-      buildTabButton(RULE_LABELS[rule], rule === currentRule, () => {
-        currentRule = rule;
         renderTabs();
         loadAndRenderLeaderboard();
       })
@@ -197,7 +205,6 @@ async function loadAndRenderLeaderboard() {
 
   const result = await fetchTimeAttackLeaderboardTop10(
     currentVariant,
-    currentRule,
     currentQuestionCountValue,
     currentCategoryFilterValue
   );
@@ -245,7 +252,6 @@ async function renderMyRecordIfNeeded(myRenderToken, top10Entries) {
 
   const myResult = await fetchMyTimeAttackLeaderboardEntry(
     currentVariant,
-    currentRule,
     currentQuestionCountValue,
     currentCategoryFilterValue
   );
@@ -275,7 +281,6 @@ function openAdminDeleteConfirm(entry) {
   elements.adminDeleteName.textContent = entry.displayName;
   elements.adminDeleteTime.textContent = `${formatSeconds(entry.clearTimeMs)}秒`;
   elements.adminDeleteVariant.textContent = VARIANT_LABELS[currentVariant] ?? currentVariant;
-  elements.adminDeleteRule.textContent = RULE_LABELS[currentRule] ?? currentRule;
   elements.adminDeleteQuestionCount.textContent = QUESTION_COUNT_LABELS[currentQuestionCountValue] ?? currentQuestionCountValue;
   elements.adminDeleteCategory.textContent = CATEGORY_LABELS[currentCategoryFilterValue] ?? currentCategoryFilterValue;
   elements.adminDeleteOverlay.hidden = false;
@@ -297,7 +302,7 @@ function handleAdminDeleteKeydown(event) {
   closeAdminDeleteConfirm();
 }
 
-// 「削除する」確定時。表示中のタブ状態（variant/rule/questionCount/category）と
+// 「削除する」確定時。表示中のタブ状態（variant/questionCount/category）と
 // 対象entryのuidから、一意な1件だけを削除する。削除後は一覧を再読み込みする。
 async function handleAdminDeleteConfirmClick() {
   if (!isAdminUser || !pendingAdminDeleteEntry) return;
@@ -306,7 +311,6 @@ async function handleAdminDeleteConfirmClick() {
   try {
     await deleteLeaderboardEntryByAdmin(
       currentVariant,
-      currentRule,
       currentQuestionCountValue,
       currentCategoryFilterValue,
       targetUid
@@ -320,31 +324,31 @@ async function handleAdminDeleteConfirmClick() {
   }
 }
 
-// タイムアタック設定画面・結果画面から呼ぶ入口。直前にプレイした条件を最初に表示する
-// （本人指示：「直前にプレイした条件のランキングを最初に表示」）。
-// 【2026-08-16追加】rule・categoryFilterValueにも対応。未指定・不正な値は安全な既定値
-// （LOVE連チャン・全曲）にフォールバックする。
+// タイムアタック設定画面・結果画面・通常クイズ結果画面から呼ぶ入口。直前にプレイした条件を
+// 最初に表示する（本人指示：「直前にプレイした条件のランキングを最初に表示」）。
+// 【2026-08-16改訂】ruleはもう区分ではないため引数から削除。categoryFilterValueは
+// 未指定・対応外の値（20問・50問・全曲、カテゴリー「全曲」等）なら安全な既定値
+// （5問・表題曲のみ）にフォールバックする。
 // 【2026-08-17更新】管理者判定を、タブ描画・一覧読み込みより先に済ませる
 // （削除ボタンをカード生成時点で正しく反映するため。js/fanProfilesScreen.jsと同じ順序）。
-export async function showTimeAttackLeaderboard(variant, rule, questionCountValue, categoryFilterValue) {
+export async function showTimeAttackLeaderboard(variant, questionCountValue, categoryFilterValue) {
   currentVariant = variant ?? TIME_ATTACK_VARIANT.INTRO;
-  currentRule = RULE_ORDER.includes(rule) ? rule : TIME_ATTACK_RULE.LOVE_CHAIN;
   currentQuestionCountValue = QUESTION_COUNT_ORDER.includes(questionCountValue) ? questionCountValue : "5";
-  currentCategoryFilterValue = CATEGORY_ORDER.includes(categoryFilterValue) ? categoryFilterValue : "all";
+  currentCategoryFilterValue = CATEGORY_ORDER.includes(categoryFilterValue) ? categoryFilterValue : "title-track";
   await refreshAdminState();
   renderTabs();
   loadAndRenderLeaderboard();
 }
 
 // elements: {
-//   variantTabs, ruleTabs, questionCountTabs, categoryTabs: タブボタンを並べるコンテナ,
+//   variantTabs, questionCountTabs, categoryTabs: タブボタンを並べるコンテナ,
 //   loadingState, offlineState, emptyState: 状態ごとの案内文,
 //   listContainer: TOP10の行を並べる場所,
 //   myRecordSection, myRecordText: 「あなたの記録」欄,
 //   backButton, onBack,
-//   adminDeleteOverlay, adminDeleteName, adminDeleteTime, adminDeleteVariant, adminDeleteRule,
+//   adminDeleteOverlay, adminDeleteName, adminDeleteTime, adminDeleteVariant,
 //   adminDeleteQuestionCount, adminDeleteCategory, adminDeleteCancelButton, adminDeleteConfirmButton:
-//     管理者限定の記録削除確認モーダル（2026-08-17追加）,
+//     管理者限定の記録削除確認モーダル（2026-08-17追加、2026-08-16にruleを区分から除いた）,
 // }
 export function initTimeAttackLeaderboardScreen(newElements, membersList) {
   elements = { ...newElements, currentUid: null };
