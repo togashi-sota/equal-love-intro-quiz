@@ -3126,6 +3126,39 @@ fieldset label:has(input:focus-visible) {
   opacity: 0.7;
 }
 
+/* 行数が多い本文（曲専用ガチ恋キャンセル等）を折りたたむ「全文を見る」表示
+   （2026-08-15追加、本人指示セクション13）。ネイティブの<details>/<summary>を使い、
+   JS側で開閉状態を管理する必要がないようにしている。 */
+.mix-type-text-details {
+  margin: 6px 0 0;
+}
+
+.mix-type-text-details > .mix-type-text-lines {
+  margin-top: 8px;
+}
+
+.mix-type-text-summary {
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+  list-style: none;
+}
+
+.mix-type-text-summary::-webkit-details-marker {
+  display: none;
+}
+
+.mix-type-text-summary::before {
+  content: "▶ ";
+  display: inline-block;
+  transition: transform var(--transition-fast, 0.15s);
+}
+
+.mix-type-text-details[open] > .mix-type-text-summary::before {
+  transform: rotate(90deg);
+}
+
 /* 「①単語ごとに覚える」に続く「②実際に続けて唱えるとこうなる」の一続き表示
    （2026-08-24追加、本人指示セクション1・2）。矢印つなぎの1本の流れを、375px幅でも
    単語の途中で改行が起きないようword-break/line-heightを調整する。 */

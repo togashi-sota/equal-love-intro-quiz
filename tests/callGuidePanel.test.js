@@ -16,6 +16,7 @@ import {
   getMustKnowMixGuide,
   filterMixGuideByCategory,
   getCurrentOshiName,
+  shouldCollapseTextLines,
 } from "../js/callGuidePanel.js";
 import { MEMBERS } from "../js/data/members.js";
 import { setMostOshiMember, clearMostOshiMember } from "../js/oshiMembers.js";
@@ -122,25 +123,37 @@ export function runCallGuidePanelTests() {
     "海とレモンティーの専用口上のIDが正しい"
   );
 
-  // ---- findSongRelatedGuideEntries（2026-08-24追加） ----
-  // カテゴリを問わず、その曲に関連するガイド（曲専用口上・ガチ恋キャンセル等）を全て拾えることを確認する。
+  // ---- findSongRelatedGuideEntries ----
+  // 2026-08-15改訂：ガチ恋キャンセルは曲ごとに具体的な流れが異なることが分かったため、
+  // 「gachikoi-cancel」（概念説明、songIds:null）から、曲専用の個別エントリーへ分離した。
+  // カテゴリを問わず、その曲に関連するガイドを全て拾えることを確認する。
   assertEqual(findSongRelatedGuideEntries(null), [], "songIdがnullなら空配列");
   assertEqual(
-    findSongRelatedGuideEntries("naisho-banashi").some((entry) => entry.id === "gachikoi-cancel"),
+    findSongRelatedGuideEntries("naisho-banashi").some((entry) => entry.id === "naisho-banashi-cancel"),
     true,
-    "内緒バナシはガチ恋キャンセルの対象曲として見つかる（本人指示セクション6）"
+    "内緒バナシは曲専用ガチ恋キャンセルの対象曲として見つかる"
   );
   assertEqual(
     findSongRelatedGuideEntries("bukatsuchu-ni-megaau-natte-omotteta-nda").some(
-      (entry) => entry.id === "gachikoi-cancel"
+      (entry) => entry.id === "bukatsuchu-cancel"
     ),
     true,
-    "「部活中に目が合うなって思ってたんだ」もガチ恋キャンセルの対象曲として見つかる"
+    "「部活中に目が合うなって思ってたんだ」も曲専用ガチ恋キャンセルの対象曲として見つかる"
+  );
+  assertEqual(
+    findSongRelatedGuideEntries("kimi-no-dai-3-button").some((entry) => entry.id === "kimi-no-dai-3-button-cancel"),
+    true,
+    "「君の第3ボタン」も曲専用ガチ恋キャンセルの対象曲として見つかる"
   );
   assertEqual(
     findSongRelatedGuideEntries("umi-to-lemon-tea").some((entry) => entry.id === "umi-lemon-koujou"),
     true,
     "曲専用口上（category違い）もfindSongRelatedGuideEntriesで見つかる"
+  );
+  assertEqual(
+    findSongRelatedGuideEntries("naisho-banashi").some((entry) => entry.id === "gachikoi-cancel"),
+    false,
+    "概念説明用のgachikoi-cancelはsongIdsを持たないため曲別検索には出てこない"
   );
 
   // ---- 園長MIX（danchou-mix）が削除されていることの確認（本人指示セクション3） ----
@@ -151,8 +164,9 @@ export function runCallGuidePanelTests() {
   );
 
   // ---- getMustKnowMixGuide ----
+  // 2026-08-15追加：「うりゃおい」を新規追加したため3件→4件になった。
   const mustKnow = getMustKnowMixGuide();
-  assertEqual(mustKnow.length, 3, "「まず覚える3つ」は3件登録されている");
+  assertEqual(mustKnow.length, 4, "「まず覚えたい」は4件登録されている");
   assertEqual(
     mustKnow.every((entry) => entry.recommendedPriority === "must-know"),
     true,
@@ -192,23 +206,63 @@ export function runCallGuidePanelTests() {
     "ガチ恋口上は初心者向けに分類されている（本人指示セクション4）"
   );
 
-  // ---- 掛け声本文の著作権区分（2026-08-15改訂） ----
-  // ガチ恋口上・ガチ恋キャンセルは、＝LOVE固有の創作物ではなく複数の独立した一般的な
-  // アイドル文化解説サイトで内容が一致する定型文であることを確認できたため、本文を追加した。
-  // 一方、メンバー個人の創作性が高い曲専用口上（海レモ口上・推しセカ口上）は、
-  // 引き続き本文を含めない方針を維持している（Gitに掲載する情報の境界を明確にする）。
-  const gachikoiCancel = filterMixGuideByCategory("koujou").find((entry) => entry.id === "gachikoi-cancel");
+  // ---- 掛け声本文の著作権区分（2026-08-15・本人提示の4基準で再判定） ----
+  // 基準：①本人が公開したか ②ライブでファンが使う目的だったか ③本人発信の元情報が見つかるか
+  //      ④公開・使用を促していた事実が確認できるか
+  // ガチ恋口上・うりゃおい・可変MIXは一般的な定型文と確認できたため本文を含む。
+  // 海レモ口上・内緒バナシ/部活中/君の第3ボタン専用ガチ恋キャンセルは、本人発信の元情報
+  // （SHOWROOM配信・X投稿）または既に掲載済みの定型パーツの組み合わせと確認できたため本文を含む。
+  // 推しセカ口上だけは、③（本人発信の元情報）を直接確認できなかったため本文を含めない。
   assertEqual(gachikoiKoujou.textLines.length > 0, true, "ガチ恋口上は定型文のため本文を含む");
   assertEqual(gachikoiKoujou.continuousText.length > 0, true, "ガチ恋口上に一続き表示用のテキストがある");
-  assertEqual(gachikoiCancel.textLines.length > 0, true, "ガチ恋キャンセルはガチ恋口上と共通の本文を含む");
+
+  const gachikoiCancelConcept = filterMixGuideByCategory("koujou").find((entry) => entry.id === "gachikoi-cancel");
+  assertEqual(gachikoiCancelConcept.songIds, null, "ガチ恋キャンセルの概念説明エントリーはsongIdsを持たない");
+  assertEqual(gachikoiCancelConcept.textLines.length, 0, "概念説明エントリー自体は本文を持たない（曲別エントリーに分離済み）");
+
+  const naishoBanashiCancel = filterMixGuideByCategory("song-specific-koujou").find(
+    (entry) => entry.id === "naisho-banashi-cancel"
+  );
+  const bukatsuchuCancel = filterMixGuideByCategory("song-specific-koujou").find(
+    (entry) => entry.id === "bukatsuchu-cancel"
+  );
+  const kimiNoDai3ButtonCancel = filterMixGuideByCategory("song-specific-koujou").find(
+    (entry) => entry.id === "kimi-no-dai-3-button-cancel"
+  );
+  assertEqual(naishoBanashiCancel.textLines.length > 0, true, "内緒バナシ専用ガチ恋キャンセルは曲別の本文を含む");
+  assertEqual(bukatsuchuCancel.textLines.length > 0, true, "部活中専用ガチ恋キャンセルは曲別の本文を含む");
+  assertEqual(kimiNoDai3ButtonCancel.textLines.length > 0, true, "君の第3ボタン専用ガチ恋キャンセルは曲別の本文を含む");
+
   const umiLemonKoujou = filterMixGuideByCategory("song-specific-koujou").find(
     (entry) => entry.id === "umi-lemon-koujou"
   );
+  assertEqual(umiLemonKoujou.textLines.length > 0, true, "海レモ口上は本人の公開呼びかけを確認できたため本文を含む");
+  assertEqual(
+    typeof umiLemonKoujou.placeholderNote === "string" && umiLemonKoujou.placeholderNote.length > 0,
+    true,
+    "海レモ口上にも「○○には推しの名前を入れる」という説明がある"
+  );
+
   const oshiSekaKoujou = filterMixGuideByCategory("song-specific-koujou").find(
     (entry) => entry.id === "oshi-no-iru-sekai-koujou"
   );
-  assertEqual(umiLemonKoujou.textLines.length, 0, "海レモ口上は個人の創作物のため本文を含めない");
-  assertEqual(oshiSekaKoujou.textLines.length, 0, "推しセカ口上も本文を含めない（考案者・文面とも未確認のため）");
+  assertEqual(oshiSekaKoujou.textLines.length, 0, "推しセカ口上は本人発信の元情報を確認できなかったため本文を含めない");
+
+  // ---- shouldCollapseTextLines（2026-08-15追加） ----
+  // 曲専用ガチ恋キャンセルのように行数が多い本文を「全文を見る」で折りたたむための判定。
+  // 英語MIX・日本語MIX・アイヌ語MIXの基本7語は折りたたまれないよう、閾値は7行に設定している。
+  assertEqual(shouldCollapseTextLines([]), false, "0行は折りたたまない");
+  assertEqual(
+    shouldCollapseTextLines(englishMix.textLines),
+    false,
+    "英語MIXの基本7語は折りたたまない（常に全文表示）"
+  );
+  assertEqual(shouldCollapseTextLines(["a", "b", "c", "d", "e", "f", "g", "h"]), true, "8行になったら折りたたむ");
+  assertEqual(
+    shouldCollapseTextLines(bukatsuchuCancel.textLines),
+    true,
+    "部活中専用ガチ恋キャンセルは行数が多いため実際に折りたたみ対象になる"
+  );
 
   // ---- getCurrentOshiName（2026-08-24追加） ----
   // membersScreen.test.jsと同じく、実在のメンバーIDでsetMostOshiMember/clearMostOshiMemberを

@@ -197,6 +197,9 @@ export const CALL_GUIDE_GLOSSARY = [
   { term: "MIX", explanation: "サビ前後の間奏などで、みんなでタイミングを合わせて唱える定番の掛け声です。" },
   { term: "口上", explanation: "曲中の長めの間奏で唱える、決まった長さのセリフのようなコールです。" },
   { term: "ガチ恋", explanation: "推しメンバーへの気持ちを込めて呼びかける、口上の一種の呼び方です。" },
+  // 2026-08-15追加：ガチ恋キャンセルの曲専用エントリーが増えたため、初心者向けの
+  // 用語説明にも追加した（本人指示セクション14）。
+  { term: "ガチ恋キャンセル", explanation: "ガチ恋口上を最後まで言わず、途中で切り上げて別のMIXに合流する、応用的な使い方です。" },
   { term: "ペンライト指定", explanation: "曲によって「この色で」と決まっている、またはファンの間で定着しているペンライトの色のことです。" },
 ];
 
@@ -408,6 +411,19 @@ function resolveGuideTextSource(entry, localGuide) {
   return null;
 }
 
+// 2026-08-15追加：曲専用ガチ恋キャンセルのように行数が多い本文は、そのまま並べると
+// カードが縦に伸びすぎてライブ前にスマホで見づらくなるため、一定行数を超えたら
+// 折りたたみ表示にする（本人指示セクション13：「全文を見る」で展開できる形でも構わない）。
+// DOM・IndexedDBに触れない純粋関数のため、そのままテストできる。
+// 英語MIX・日本語MIX・アイヌ語MIXはいずれも基本形が7語のため、7を境界にすると
+// これらまで折りたたまれてしまう。基本MIXは常に全文表示のままにしたいので、
+// 8行以上（長い口上・曲専用ガチ恋キャンセルなど）だけを折りたたみ対象にする。
+const TEXT_LINES_COLLAPSE_THRESHOLD = 7;
+
+export function shouldCollapseTextLines(textLines) {
+  return Array.isArray(textLines) && textLines.length > TEXT_LINES_COLLAPSE_THRESHOLD;
+}
+
 function buildGuideTextSection(entry, localGuide) {
   const container = document.createDocumentFragment();
   const source = resolveGuideTextSource(entry, localGuide);
@@ -432,7 +448,21 @@ function buildGuideTextSection(entry, localGuide) {
       }
       list.appendChild(li);
     });
-    container.appendChild(list);
+
+    // 折りたたみが必要な場合は<details>で包む。ネイティブ要素なのでJSの状態管理なしに
+    // 開閉でき、閉じた状態でもスクリーンリーダー等から中身が失われることもない。
+    if (shouldCollapseTextLines(source.textLines)) {
+      const details = document.createElement("details");
+      details.className = "mix-type-text-details";
+      const summary = document.createElement("summary");
+      summary.className = "mix-type-text-summary";
+      summary.textContent = `全文を見る（全${source.textLines.length}行）`;
+      details.appendChild(summary);
+      details.appendChild(list);
+      container.appendChild(details);
+    } else {
+      container.appendChild(list);
+    }
 
     if (source.segmentNote) {
       const segment = document.createElement("p");
