@@ -206,6 +206,9 @@ export function buildSongGroups(songs) {
     if (group.key === "digital" || group.key === "special") {
       group.songs.sort((a, b) => a.releaseDate.localeCompare(b.releaseDate));
     }
+    // カップリング等がまだ出揃っていないシングルだけ、見出しにComing Soon案内を添える
+    // （song.comingSoonNote参照。表示専用で出題・採点には無関係、2026-08-17追加）。
+    group.comingSoonNote = group.songs.find((song) => song.comingSoonNote)?.comingSoonNote ?? null;
   });
 
   return [...groupsByKey.values()].sort((a, b) => b.order - a.order);
@@ -760,6 +763,16 @@ function createSingleGroupElement(group, isInitiallyOpen) {
   });
 
   groupElement.appendChild(headerRow);
+
+  // カップリング等がまだ出揃っていない案内は、見出し行と横幅を取り合わないよう
+  // 独立した行にする（375px幅で長い曲名が潰れてしまう不具合を2026-08-17に修正）。
+  if (group.comingSoonNote) {
+    const comingSoonRow = document.createElement("p");
+    comingSoonRow.className = "coming-soon-note";
+    comingSoonRow.textContent = group.comingSoonNote;
+    groupElement.appendChild(comingSoonRow);
+  }
+
   groupElement.appendChild(tracksContainer);
   return groupElement;
 }

@@ -9,6 +9,7 @@ import {
   formatDifficultyLabel,
   formatFrequencyLabel,
   formatCategoryLabel,
+  formatSourceBadgeLabel,
   formatUsedInEqualLoveNote,
   findSongSpecificKoujou,
   getMustKnowMixGuide,
@@ -68,15 +69,24 @@ export function runCallGuidePanelTests() {
   );
 
   // ---- formatDifficultyLabel / formatFrequencyLabel / formatCategoryLabel ----
-  assertEqual(formatDifficultyLabel("beginner"), "初心者向け", "beginnerの難易度ラベル");
-  assertEqual(formatDifficultyLabel("intermediate"), "慣れてきた人向け", "intermediateの難易度ラベル");
-  assertEqual(formatDifficultyLabel("advanced"), "上級者向け", "advancedの難易度ラベル");
+  // 【2026-08-17改訂】本人指示により、絵文字付きの一目で分かるバッジ表記へ変更
+  // （「🌟メンバー考案／📣ライブ定番／🔰初心者おすすめ」のような表現）。
+  assertEqual(formatDifficultyLabel("beginner"), "🔰 初心者向け", "beginnerの難易度ラベル");
+  assertEqual(formatDifficultyLabel("intermediate"), "🙂 慣れてきた人向け", "intermediateの難易度ラベル");
+  assertEqual(formatDifficultyLabel("advanced"), "🔥🔥 上級者向け", "advancedの難易度ラベル");
   assertEqual(formatDifficultyLabel("unknown"), "難易度不明", "未知の難易度は安全側の表示");
-  assertEqual(formatFrequencyLabel("common"), "よく使う", "commonの頻度ラベル");
-  assertEqual(formatFrequencyLabel("situational"), "一部の曲で使う", "situationalの頻度ラベル");
-  assertEqual(formatFrequencyLabel("rare"), "特殊", "rareの頻度ラベル");
+  assertEqual(formatFrequencyLabel("common"), "🔥 よく使う", "commonの頻度ラベル");
+  assertEqual(formatFrequencyLabel("situational"), "🎯 一部の曲で使う", "situationalの頻度ラベル");
+  assertEqual(formatFrequencyLabel("rare"), "✨ 特殊", "rareの頻度ラベル");
   assertEqual(formatCategoryLabel("mix"), "基本MIX", "mixカテゴリのラベル");
   assertEqual(formatCategoryLabel("song-specific-koujou"), "曲専用口上", "曲専用口上カテゴリのラベル");
+
+  // ---- formatSourceBadgeLabel（2026-08-17追加） ----
+  assertEqual(formatSourceBadgeLabel("official"), "🏛 公式情報", "officialの出所バッジ");
+  assertEqual(formatSourceBadgeLabel("self"), "🌟 メンバー発信", "selfの出所バッジ");
+  assertEqual(formatSourceBadgeLabel("reliable"), "📰 報道で確認", "reliableの出所バッジ");
+  assertEqual(formatSourceBadgeLabel("fan"), "📣 ライブ定番", "fanの出所バッジ");
+  assertEqual(formatSourceBadgeLabel("unknown-type"), "❔ 出典未確認", "未知のsourceTypeは安全側の表示");
 
   // ---- formatUsedInEqualLoveNote ----
   assertEqual(formatUsedInEqualLoveNote(true), null, "使用確認済みなら注記なし");

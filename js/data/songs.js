@@ -86,6 +86,9 @@ export const DIFFICULTY = {
 //                  centerが省略されている曲ではcenterTypeも省略する
 // releaseContext : 曲がなぜ・どんな位置付けで配信/制作されたかの短い説明（該当曲のみ）
 // description    : 曲の内容・位置付けの短い補足（該当曲のみ）
+// comingSoonNote : まだ収録曲が出揃っていないシングルの表題曲だけが持つ、収録曲一覧の見出しに
+//                  添える短い案内文（例："カップリング Coming Soon"）。表示専用で、出題・採点・
+//                  クイズの正誤判定には一切影響しない（js/songlist.js参照、2026-08-17追加）。
 //
 // 曲を増やすときは、この配列に要素を追加していくだけでよい。
 export const SONGS = [
@@ -1168,6 +1171,25 @@ export const SONGS = [
     introLeadInSec: 0,
     center: ["齋藤樹愛羅"],
     centerType: "single",
+  },
+  // 21stシングル「恋、はじめました。」（2026-08-17追加）。表題曲のみを先行登録する。
+  // 公式サイト（equal-love.jp/news/detail/11815、2026-08-17確認）ではカップリングA・Bとも
+  // 「タイトル未定」、センターの記載自体が無いため、どちらも推測で埋めず省略する
+  // （center/centerTypeを省略すると、収録曲一覧は他の未確認曲と同じく「センター」欄を
+  // 自然に表示しない。comingSoonNoteは収録曲一覧の見出しに添える案内文だけに使う、
+  // 出題・採点には一切影響しない表示専用フィールド）。
+  {
+    id: "koi-hajimemashita",
+    youtubeUrl: "https://www.youtube.com/watch?v=ikFaEAlO5N0",
+    workId: "single-21",
+    title: "恋、はじめました。",
+    searchReading: "こいはじめました",
+    category: CATEGORY.TITLE_TRACK,
+    releaseDate: "2026-08-26",
+    single: "21stシングル「恋、はじめました。」",
+    difficulty: DIFFICULTY.NORMAL,
+    introLeadInSec: 0,
+    comingSoonNote: "カップリング Coming Soon",
   },
   {
     id: "866",

@@ -13,17 +13,33 @@ import { MIX_AND_KOUJOU_GUIDE } from "./data/mixAndKoujouGuide.js";
 import { getSongById } from "./data/songs.js";
 import { getAllCallGuideData } from "./callGuideStorage.js";
 
+// 2026-08-17追加：本人指示の「🌟メンバー考案／📣ライブ定番／🔰初心者おすすめ」のような
+// 絵文字付きバッジ表記。ライブ直前にスマホでぱっと見て分かることを優先する。
 const DIFFICULTY_LABELS = {
-  beginner: "初心者向け",
-  intermediate: "慣れてきた人向け",
-  advanced: "上級者向け",
+  beginner: "🔰 初心者向け",
+  intermediate: "🙂 慣れてきた人向け",
+  advanced: "🔥🔥 上級者向け",
 };
 
 const FREQUENCY_LABELS = {
-  common: "よく使う",
-  situational: "一部の曲で使う",
-  rare: "特殊",
+  common: "🔥 よく使う",
+  situational: "🎯 一部の曲で使う",
+  rare: "✨ 特殊",
 };
+
+// 情報の出所（sourceType）を、初心者が一目で信頼度を判断できる短いバッジに変換する
+// （2026-08-17追加、本人指示：「メンバー考案／ライブ定番」等のバッジを付ける）。
+// 既存のgetSourceTypeNote()（詳しい一文）とは役割を分け、こちらはカード上部に置く短いラベル用。
+const SOURCE_BADGE_LABELS = {
+  official: "🏛 公式情報",
+  self: "🌟 メンバー発信",
+  reliable: "📰 報道で確認",
+  fan: "📣 ライブ定番",
+};
+
+export function formatSourceBadgeLabel(sourceType) {
+  return SOURCE_BADGE_LABELS[sourceType] || "❔ 出典未確認";
+}
 
 const CATEGORY_LABELS = {
   mix: "基本MIX",
@@ -275,16 +291,39 @@ const MIX_CATEGORY_FILTERS = [
 // （タブを切り替えるたびに毎回「すべて」に戻ると使いにくいため）。
 let activeMixCategoryFilter = "all";
 
+// 掛け声本文の表示元を決める（2026-08-17追加）。
+// 優先順位：①端末に読み込み済みのJSONデータ（本人が追加・更新したもの）
+//         ②アプリに標準搭載された本文（entry.textLines、基本MIXのみ）
+//         ③どちらも無ければ「読み込まれていません」の案内
+// これにより、基本MIXはインストール直後から読める一方、既存ユーザーが端末に読み込んだ
+// JSONデータ（上書き・追加）はそのまま尊重される（本人指示：「既存ユーザーのJSONデータを
+// 消したり上書きしたりしないよう注意」）。
+function resolveGuideTextSource(entry, localGuide) {
+  if (localGuide && localGuide.textLines.length > 0) {
+    return { textLines: localGuide.textLines, pronunciationLines: localGuide.pronunciationLines, segmentNote: localGuide.segmentNote };
+  }
+  if (entry.textLines.length > 0) {
+    return { textLines: entry.textLines, pronunciationLines: entry.pronunciationLines, segmentNote: null };
+  }
+  return null;
+}
+
 function buildGuideTextSection(entry, localGuide) {
   const container = document.createDocumentFragment();
+  const source = resolveGuideTextSource(entry, localGuide);
 
-  if (localGuide && localGuide.textLines.length > 0) {
+  if (source) {
+    const heading = document.createElement("p");
+    heading.className = "mix-type-text-heading";
+    heading.textContent = "掛け声";
+    container.appendChild(heading);
+
     const list = document.createElement("ol");
     list.className = "mix-type-text-lines";
-    localGuide.textLines.forEach((line, index) => {
+    source.textLines.forEach((line, index) => {
       const li = document.createElement("li");
       li.textContent = line;
-      const reading = localGuide.pronunciationLines[index];
+      const reading = source.pronunciationLines[index];
       if (reading) {
         const rt = document.createElement("span");
         rt.className = "mix-type-text-reading";
@@ -295,10 +334,10 @@ function buildGuideTextSection(entry, localGuide) {
     });
     container.appendChild(list);
 
-    if (localGuide.segmentNote) {
+    if (source.segmentNote) {
       const segment = document.createElement("p");
       segment.className = "mix-type-summary";
-      segment.textContent = `区切り：${localGuide.segmentNote}`;
+      segment.textContent = `区切り：${source.segmentNote}`;
       container.appendChild(segment);
     }
   } else {
@@ -337,6 +376,8 @@ function buildMixGuideCard(entry, isSongSpecificHighlight, localGuideMap) {
   }
   card.appendChild(headerRow);
 
+  // バッジ行：難易度・使用頻度・出所（本人指示の「🌟メンバー考案／📣ライブ定番／
+  // 🔰初心者おすすめ」のような、一目で分かる絵文字付きバッジ）を並べる（2026-08-17改訂）。
   const badgeRow = document.createElement("div");
   badgeRow.className = "mix-type-badge-row";
   const difficultyBadge = document.createElement("span");
@@ -347,14 +388,15 @@ function buildMixGuideCard(entry, isSongSpecificHighlight, localGuideMap) {
   frequencyBadge.className = "mix-type-tag";
   frequencyBadge.textContent = formatFrequencyLabel(entry.frequency);
   badgeRow.appendChild(frequencyBadge);
+  const sourceBadge = document.createElement("span");
+  sourceBadge.className = `mix-type-tag mix-type-tag-source-${entry.sourceType}`;
+  sourceBadge.textContent = formatSourceBadgeLabel(entry.sourceType);
+  badgeRow.appendChild(sourceBadge);
   card.appendChild(badgeRow);
 
-  if (entry.differenceFromStandard) {
-    const diff = document.createElement("p");
-    diff.className = "mix-type-summary";
-    diff.textContent = entry.differenceFromStandard;
-    card.appendChild(diff);
-  }
+  // 【2026-08-17改訂・本人指示】「掛け声→使われる場面→タイミング→ワンポイント」の順で
+  // 視線が流れる、ライブ直前にスマホで見てすぐ覚えられる構成にする。
+  card.appendChild(buildGuideTextSection(entry, localGuideMap?.get(entry.id) ?? null));
 
   if (entry.usageScene) {
     const scene = document.createElement("p");
@@ -370,7 +412,19 @@ function buildMixGuideCard(entry, isSongSpecificHighlight, localGuideMap) {
     card.appendChild(cue);
   }
 
-  card.appendChild(buildGuideTextSection(entry, localGuideMap?.get(entry.id) ?? null));
+  if (entry.beginnerNote) {
+    const tip = document.createElement("p");
+    tip.className = "mix-type-beginner-tip";
+    tip.textContent = `💡 ワンポイント：${entry.beginnerNote}`;
+    card.appendChild(tip);
+  }
+
+  if (entry.differenceFromStandard) {
+    const diff = document.createElement("p");
+    diff.className = "mix-type-summary";
+    diff.textContent = entry.differenceFromStandard;
+    card.appendChild(diff);
+  }
 
   if (entry.creditNote) {
     const credit = document.createElement("p");

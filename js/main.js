@@ -572,6 +572,27 @@ const timeAttackLeaderboardEmptyElement = document.getElementById("time-attack-l
 const timeAttackLeaderboardListElement = document.getElementById("time-attack-leaderboard-list");
 const timeAttackLeaderboardMyRecordElement = document.getElementById("time-attack-leaderboard-my-record");
 const timeAttackLeaderboardMyRecordTextElement = document.getElementById("time-attack-leaderboard-my-record-text");
+const timeAttackLeaderboardAdminDeleteOverlayElement = document.getElementById(
+  "time-attack-leaderboard-admin-delete-confirm-modal"
+);
+const timeAttackLeaderboardAdminDeleteNameElement = document.getElementById("time-attack-leaderboard-admin-delete-name");
+const timeAttackLeaderboardAdminDeleteTimeElement = document.getElementById("time-attack-leaderboard-admin-delete-time");
+const timeAttackLeaderboardAdminDeleteVariantElement = document.getElementById(
+  "time-attack-leaderboard-admin-delete-variant"
+);
+const timeAttackLeaderboardAdminDeleteRuleElement = document.getElementById("time-attack-leaderboard-admin-delete-rule");
+const timeAttackLeaderboardAdminDeleteQuestionCountElement = document.getElementById(
+  "time-attack-leaderboard-admin-delete-question-count"
+);
+const timeAttackLeaderboardAdminDeleteCategoryElement = document.getElementById(
+  "time-attack-leaderboard-admin-delete-category"
+);
+const timeAttackLeaderboardAdminDeleteCancelButtonElement = document.getElementById(
+  "time-attack-leaderboard-admin-delete-cancel-button"
+);
+const timeAttackLeaderboardAdminDeleteConfirmButtonElement = document.getElementById(
+  "time-attack-leaderboard-admin-delete-confirm-button"
+);
 const randomPlaybackSetupBackButtonElement = document.getElementById("random-playback-setup-back-button");
 const randomPlaybackStartButtonElement = document.getElementById("random-playback-start-button");
 const randomPlaybackStartErrorElement = document.getElementById("random-playback-start-error");
@@ -3337,6 +3358,15 @@ initTimeAttackLeaderboardScreen(
       playClickSound();
       showScreen(timeAttackLeaderboardReturnScreen);
     },
+    adminDeleteOverlay: timeAttackLeaderboardAdminDeleteOverlayElement,
+    adminDeleteName: timeAttackLeaderboardAdminDeleteNameElement,
+    adminDeleteTime: timeAttackLeaderboardAdminDeleteTimeElement,
+    adminDeleteVariant: timeAttackLeaderboardAdminDeleteVariantElement,
+    adminDeleteRule: timeAttackLeaderboardAdminDeleteRuleElement,
+    adminDeleteQuestionCount: timeAttackLeaderboardAdminDeleteQuestionCountElement,
+    adminDeleteCategory: timeAttackLeaderboardAdminDeleteCategoryElement,
+    adminDeleteCancelButton: timeAttackLeaderboardAdminDeleteCancelButtonElement,
+    adminDeleteConfirmButton: timeAttackLeaderboardAdminDeleteConfirmButtonElement,
   },
   MEMBERS
 );

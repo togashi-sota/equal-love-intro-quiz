@@ -2296,6 +2296,14 @@ fieldset label:has(input:focus-visible) {
   border: 1.5px dashed rgba(74, 46, 66, 0.25);
 }
 
+/* ステップアップ（growth）バッジ：形はそのまま・彩度だけ落とす汎用ルール（2026-08-17追加）。
+   is-intro_beginner等9種の色指定はそのまま活かし、grayscale()フィルターだけで
+   「未取得（これから狙う形）」を表現する。1行で9種類をまとめて処理できるため、
+   称号ごとに個別のlocked-preview配色を書かずに済む。 */
+.achievement-icon-medal.is-locked-preview {
+  filter: grayscale(0.85) opacity(0.6);
+}
+
 /* ===== 称号（実績）獲得演出 =====
    結果画面で、称号を獲得した瞬間に1件ずつポップに登場するチップ。
    ランクバッジ（Sランクの金メダル・Aランクのピンクメダル）と同じ配色・光の演出を流用し、
@@ -3026,6 +3034,26 @@ fieldset label:has(input:focus-visible) {
   color: #a52b2b;
 }
 
+/* 情報の出所バッジ（2026-08-17追加、本人指示：「🌟メンバー考案／📣ライブ定番」等）。
+   メンバー本人発信は最も目立つブランドピンクで強調し、他は控えめなグレー系にする。 */
+.mix-type-tag-source-self {
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+  font-weight: 800;
+}
+
+.mix-type-tag-source-official {
+  background: rgba(93, 150, 200, 0.18);
+  color: #1c4a7a;
+}
+
+.mix-type-tag-source-fan,
+.mix-type-tag-source-reliable {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--color-text);
+  opacity: 0.8;
+}
+
 .mix-type-summary {
   margin: 4px 0 0;
   font-size: 0.82rem;
@@ -3048,6 +3076,26 @@ fieldset label:has(input:focus-visible) {
   font-size: 0.72rem;
   font-weight: 400;
   opacity: 0.7;
+}
+
+/* 「掛け声」見出し・「ワンポイント」box（2026-08-17追加）。掛け声本文を主役にし、
+   375px幅でもリズム・区切りが1行に詰め込まれず読めるようにする（本人指示）。 */
+.mix-type-text-heading {
+  margin: 6px 0 0;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  opacity: 0.6;
+}
+
+.mix-type-beginner-tip {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 217, 61, 0.2);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: #6b4f00;
 }
 
 .mix-song-specific-banner {
@@ -3388,6 +3436,19 @@ fieldset label:has(input:focus-visible) {
   color: var(--color-text);
   opacity: 0.55;
   font-variant-numeric: tabular-nums;
+}
+
+/* 収録曲がまだ出揃っていないシングルの見出し直下に添える案内（2026-08-17追加、
+   song.comingSoonNote参照）。見出し行（曲名・曲数）とは横幅を取り合わない、独立した行にする
+   （見出し行に押し込むと、375px幅で長い曲名が極端に潰れる不具合があったため）。 */
+.coming-soon-note {
+  /* .single-group-headerのpadding-left(14px)+chevron幅(16px)+gap(10px)と揃え、
+     曲名の頭の位置に文字が始まるようにする。 */
+  margin: -4px 0 8px 40px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+  opacity: 0.75;
 }
 
 .single-group-tracks {
@@ -4618,6 +4679,149 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   font-weight: 800;
   letter-spacing: 0.04em;
   color: var(--color-primary-dark);
+}
+
+/* ===== ステップアップ（growth）専用のトロフィー風バッジUI（2026-08-17再設計） =====
+   本人フィードバック「説明カードっぽい・格好良くない」を受け、称号・アイコンを主役にし、
+   条件文は補助情報にする（バッジ→問題数→称号名→条件、の順で視線が流れる構成）。
+   イントロ／シャッフル／リリックの3系統を、系統ごとに横並び3枚（ビギナー→チャレンジャー→
+   エース）で見せることで「揃えたい」という収集欲求を刺激する。既存のmasterPath・
+   backChallengeの.achievement-card系スタイルとは完全に独立させている。 */
+.growth-series-block {
+  margin-bottom: 16px;
+}
+
+.growth-series-block:last-child {
+  margin-bottom: 0;
+}
+
+.growth-series-label {
+  margin: 0 0 8px;
+  font-size: 0.76rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  opacity: 0.85;
+}
+
+.growth-series-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.growth-badge-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  min-width: 0;
+  padding: 12px 6px 10px;
+  border-radius: 16px;
+  border: 1px solid var(--color-card-border);
+}
+
+.growth-badge-card.is-unlocked {
+  background: linear-gradient(165deg, #ffffff, var(--color-primary-light) 220%);
+  border-color: rgba(255, 111, 168, 0.3);
+}
+
+.growth-badge-card.is-locked {
+  background: rgba(74, 46, 66, 0.035);
+}
+
+.growth-badge-medal-wrap {
+  position: relative;
+  margin-bottom: 6px;
+}
+
+/* 一覧・結果チップ共通の28px基準（.achievement-icon-medal）より一回り大きくし、
+   トロフィーらしい存在感を出す（他の使用箇所には影響しない、この文脈だけの上書き）。 */
+.growth-badge-medal.achievement-icon-medal {
+  width: 52px;
+  height: 52px;
+}
+
+.growth-badge-check {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 900;
+  border: 2px solid #fff;
+}
+
+.growth-badge-tier {
+  margin: 0;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  opacity: 0.6;
+}
+
+.growth-badge-name {
+  margin: 1px 0 0;
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1.3;
+  color: var(--color-primary-dark);
+  overflow-wrap: break-word;
+}
+
+.growth-badge-card.is-locked .growth-badge-name {
+  color: var(--color-text);
+  opacity: 0.75;
+}
+
+.growth-badge-guidance {
+  margin: 4px 0 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.6rem;
+  font-weight: 800;
+  background: rgba(255, 111, 168, 0.12);
+  color: var(--color-primary-dark);
+  border: 1px dashed rgba(255, 111, 168, 0.5);
+}
+
+.growth-badge-condition {
+  margin: 5px 0 0;
+  font-size: 0.64rem;
+  line-height: 1.4;
+  opacity: 0.7;
+}
+
+.growth-badge-status {
+  margin: 5px 0 0;
+  font-size: 0.6rem;
+  font-weight: 700;
+  opacity: 0.55;
+}
+
+.growth-badge-status.is-achieved {
+  opacity: 1;
+  color: var(--color-primary-dark);
+  font-weight: 800;
+}
+
+@media (max-width: 380px) {
+  .growth-series-row {
+    gap: 6px;
+  }
+  .growth-badge-medal.achievement-icon-medal {
+    width: 44px;
+    height: 44px;
+  }
+  .growth-badge-name {
+    font-size: 0.72rem;
+  }
 }
 
 .achievement-card-grid {
@@ -8888,30 +9092,6 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   margin-bottom: 0;
 }
 
-/* 2026-08-16追加：収録内容が未発表の間の一言＋公式サイト/MVの2ボタン横並び。 */
-.upcoming-release-teaser {
-  margin: 0 0 10px;
-  font-size: 0.74rem;
-  color: var(--color-text);
-  opacity: 0.6;
-}
-
-.upcoming-release-link-row {
-  display: flex;
-  gap: 8px;
-}
-
-.upcoming-release-link-row .official-link-button {
-  flex: 1;
-  text-align: center;
-}
-
-.official-link-button.is-mv {
-  background: var(--color-primary-dark);
-  border-color: var(--color-primary-dark);
-  color: #ffffff;
-}
-
 /* 卒業メンバーカードの拡張パーツ（齊藤なぎさ等、卒業後の活動を追加表示する場合） */
 .graduated-card-predebut,
 .graduated-card-current {
@@ -10227,6 +10407,53 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   color: var(--color-primary-dark);
   font-variant-numeric: tabular-nums;
   white-space: nowrap; /* タイムは横スクロールなしで絶対に切れないようにする（本人指示） */
+}
+
+/* 管理者専用のランキング記録削除ボタン（2026-08-17追加）。一般ユーザーには
+   このボタン自体が生成されないため、ここは常に管理者だけが目にするスタイル。 */
+.leaderboard-admin-delete-button {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid rgba(220, 53, 69, 0.35);
+  background: rgba(220, 53, 69, 0.08);
+  font-size: 0.85rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.leaderboard-admin-delete-button:active {
+  transform: scale(0.95);
+}
+
+/* ランキング記録削除の確認モーダル内、削除対象の要約表示（プレイヤー名・記録・
+   モード・ルール・問題数・カテゴリー、本人指示で全項目を確認画面に出す）。 */
+.leaderboard-admin-delete-summary {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 10px;
+  margin: 12px 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--color-primary-light);
+  font-size: 0.82rem;
+}
+
+.leaderboard-admin-delete-summary div {
+  display: contents;
+}
+
+.leaderboard-admin-delete-summary dt {
+  color: var(--color-text);
+  opacity: 0.65;
+}
+
+.leaderboard-admin-delete-summary dd {
+  margin: 0;
+  font-weight: 700;
+  color: var(--color-text);
+  word-break: break-word;
 }
 
 .leaderboard-my-record {

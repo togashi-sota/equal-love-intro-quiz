@@ -308,7 +308,7 @@
               <svg viewBox="0 0 24 24" fill="none"><path d="M4 6h16M4 12h16M4 18h10" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
             </span>
             <span class="listen-tile-label">収録曲一覧</span>
-            <span class="listen-tile-desc">全81曲から探す</span>
+            <span class="listen-tile-desc">全82曲から探す</span>
           </button>
           <!-- お気に入り／プレイリストの役割の違いが一目で伝わるよう、一言説明＋現在の数を添える
                （UI/UX再設計：本人フィードバックで数字をさらに大きく強調）。数字はplayerScreen.jsの
@@ -662,7 +662,7 @@
       <button id="back-to-title-link-from-special" class="rules-link" type="button" hidden>タイトルに戻る</button>
     </section>
 
-    <!-- 収録曲一覧画面：81曲をシングル単位のアコーディオンで一覧し、試聴もできる画面。
+    <!-- 収録曲一覧画面：82曲をシングル単位のアコーディオンで一覧し、試聴もできる画面。
          中身（アコーディオンの各行）はjs/songlist.jsがSONGSから組み立てる。 -->
     <section id="songlist-screen" class="screen">
       <div class="list-header">
@@ -1762,6 +1762,29 @@
         <p id="time-attack-leaderboard-my-record-text"></p>
       </div>
     </section>
+
+    <!-- 管理者限定：ランキング記録削除の確認モーダル（2026-08-17新設）。
+         開くボタン（各記録行の🗑️）はADMIN_UID（js/adminConfig.js）と一致する本人にしか
+         表示されない。削除対象はvariant×rule×questionCount×category×uidで一意に決まる
+         1件の記録だけで、他の記録・本人の端末内データには一切触れないことを明記する。 -->
+    <div id="time-attack-leaderboard-admin-delete-confirm-modal" class="modal-overlay" hidden>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="time-attack-leaderboard-admin-delete-confirm-title">
+        <h2 id="time-attack-leaderboard-admin-delete-confirm-title">このランキング記録を削除しますか？</h2>
+        <dl class="leaderboard-admin-delete-summary">
+          <div><dt>プレイヤー名</dt><dd id="time-attack-leaderboard-admin-delete-name"></dd></div>
+          <div><dt>記録</dt><dd id="time-attack-leaderboard-admin-delete-time"></dd></div>
+          <div><dt>モード</dt><dd id="time-attack-leaderboard-admin-delete-variant"></dd></div>
+          <div><dt>ルール</dt><dd id="time-attack-leaderboard-admin-delete-rule"></dd></div>
+          <div><dt>問題数</dt><dd id="time-attack-leaderboard-admin-delete-question-count"></dd></div>
+          <div><dt>カテゴリー</dt><dd id="time-attack-leaderboard-admin-delete-category"></dd></div>
+        </dl>
+        <p class="modal-lead">このランキング記録だけを削除します。他の記録・本人の端末内データ（プレイデータ・音源・歌詞・称号・履歴等）は削除されません。</p>
+        <div class="button-row">
+          <button id="time-attack-leaderboard-admin-delete-cancel-button" class="secondary-button" type="button">キャンセル</button>
+          <button id="time-attack-leaderboard-admin-delete-confirm-button" class="danger-button" type="button">この記録を削除する</button>
+        </div>
+      </div>
+    </div>
 
     <!-- タイムアタック履歴一覧画面：通常プレイ履歴（#history-screen）とは完全に別のデータ・画面
          （2026-08-06新設）。カード1件＝タイムアタック1プレイ分。中身はjs/timeAttackHistoryScreen.jsが組み立てる。

@@ -1,13 +1,19 @@
 // ライブコールモードの「MIX・口上」タブで案内する、MIX・口上の一覧データファイル
 // （js/data/mixTypes.jsを置き換え、対象をMIXだけでなく口上まで広げたもの。2026-08-06）。
 //
-// 【著作権方針（絶対条件）】実際の掛け声・口上の本文（textLines・pronunciationLines）は
-// 今回あえて空のままにしている。理由：このアプリの音源・歌詞・コール本文は、著作権保護のため
-// これまで一貫して「Git・公開サーバーには一切含めず、端末ローカルにのみ置く」方針を取ってきた
-// （js/callStorage.jsのコメント、docs/HANDOFF.md 2-1章参照）。MIX・口上の短い定型句は歌詞ほど
-// 長くはないが、この方針を崩してGit管理下の公開コードへ本文を含めてよいかは、著作権面で
-// 本人に最終判断してもらうべき事項と考え、今回は保留した（詳細はチャットでの報告を参照）。
-// 本文以外の事実情報（名称・分類・難易度・使用場面・出典）は先行して整備している。
+// 【著作権方針・2026-08-17改訂（本人指示）】基本MIX（英語MIX・日本語MIX・アイヌ語MIX）は、
+// 特定の一人の作者による創作物ではなく、多くのアイドル現場で広く共有されている定型の
+// 掛け声（複数の独立した情報源で内容が一致することを確認済み）であるため、本人の判断により
+// textLines・pronunciationLinesをこのファイルへ直接含める方針に変更した。一方、以下は
+// 引き続き本文を含めない：
+//   ・ガチ恋口上／ガチ恋キャンセル：内容が長く、個人の創作性がより強いと考えられるため。
+//   ・曲専用口上（海レモ口上・推しセカ口上）：メンバー本人／メンバーとファンが独自に考案した
+//     内容のため、著作権保護の観点から掲載を見送る（使われる場面・きっかけ等の事実情報のみ
+//     このファイルで案内し、掛け声本文自体は本人がdev/callGuideEditor.htmlから
+//     端末ローカルにのみ追加する運用を維持する）。
+// 上記いずれも、js/callGuideStorage.js経由でユーザーが端末へ個別に読み込むことは今までどおり可能。
+// 画面側は「このファイルの内容（アプリ標準）」を優先表示しつつ、端末に読み込み済みのデータが
+// あればそちらを優先する（js/callGuidePanel.jsのbuildGuideTextSection参照）。
 //
 // 【掲載方針】js/data/songPenlightGuide.js等と同じsourceType（official/reliable/self/fan）を使う。
 // official=公式サイト・公式グループSNS・公式動画、self=メンバー本人のSNS・本人出演動画、
@@ -31,15 +37,16 @@ export const MIX_AND_KOUJOU_GUIDE = [
     frequency: "common",
     usageScene: "サビ前後の間奏など、決まった長さの合いの手区間で使われる、MIXの基本形です。",
     startCue: "曲の間奏に入ったタイミングで、周りのファンに合わせて始めるのが一般的です。",
-    usageNote: "多くのアイドル現場で使われる定番のMIXで、ファン向け資料で＝LOVEのライブでの使用例も確認できます。",
+    usageNote: "多くのアイドル現場で使われる定番のMIXで、ファン向け資料で＝LOVEのライブでの使用例も確認できます。掛け声の細部（末尾に「ファイボ」「ワイパー」等を続けるかどうか）は会場・世代によって差があるようです。",
     differenceFromStandard: null,
     creditNote: null,
+    beginnerNote: "全部を一気に覚えなくても大丈夫です。まずは最後の「ジャージャー」だけでも周りに合わせて声を出せると、それだけで一体感が出ます。",
     usedInEqualLove: true,
     sourceType: "fan",
     sourceUrls: ["https://ikorabucall.com/"],
-    lastVerifiedDate: "2026-08-06",
+    lastVerifiedDate: "2026-08-17",
     recommendedPriority: "must-know",
-    textLines: [],
+    textLines: ["タイガー", "ファイヤー", "サイバー", "ファイバー", "ダイバー", "バイバー", "ジャージャー"],
     pronunciationLines: [],
   },
   {
@@ -52,15 +59,16 @@ export const MIX_AND_KOUJOU_GUIDE = [
     frequency: "common",
     usageScene: "英語MIXと同じ場面・構成で使われる、漢字の音読みに置き換えたバージョンです。",
     startCue: "英語MIXと同様、曲の間奏に入ったタイミングで始めます。",
-    usageNote: "英語MIXと対になる定番のMIXで、ファン向け資料で＝LOVEのライブでの使用例も確認できます。",
-    differenceFromStandard: null,
+    usageNote: "英語MIXと対になる定番のMIXで、ファン向け資料で＝LOVEのライブでの使用例も確認できます。「海女」を「海人」と表記する資料もあり、細かな表記には揺れがあります。",
+    differenceFromStandard: "英語MIXの発音に、音の響きが近い漢字を当てはめたバージョンです。",
     creditNote: null,
+    beginnerNote: "英語MIXに慣れてきたら、対になるこちらにも挑戦してみましょう。読み方に自信が無い漢字があっても、周りの声に合わせるだけで十分楽しめます。",
     usedInEqualLove: true,
     sourceType: "fan",
     sourceUrls: ["https://ikorabucall.com/"],
-    lastVerifiedDate: "2026-08-06",
+    lastVerifiedDate: "2026-08-17",
     recommendedPriority: "must-know",
-    textLines: [],
+    textLines: ["虎", "火", "人造", "繊維", "海女", "振動", "化繊"],
     pronunciationLines: [],
   },
   {
@@ -161,18 +169,18 @@ export const MIX_AND_KOUJOU_GUIDE = [
     songIds: null,
     difficulty: "advanced",
     frequency: "rare",
-    usageScene: null,
+    usageScene: "英語MIX・日本語MIXと同じような、間奏の合いの手区間で使われることがあります。",
     startCue: null,
     usageNote:
-      "一般的なアイドル現場で使われるMIXとして情報は見つかりましたが、＝LOVEでの使用例は今回確認できませんでした。参考として掲載しています。",
+      "アイドル現場で「アイヌ語MIX」と呼ばれ定着している掛け声です。個々の単語はアイヌ語に由来するとされていますが、全体としては文法的に正しいアイヌ語の文章ではないという指摘もあり、実際のアイヌ語・アイヌ文化とは切り離した「アイドル現場独自の定型句」として扱うのが安全です。＝LOVEのライブでの使用例は今回確認できませんでした。参考として掲載しています。",
     differenceFromStandard: null,
     creditNote: null,
     usedInEqualLove: null,
     sourceType: "fan",
     sourceUrls: [],
-    lastVerifiedDate: "2026-08-06",
+    lastVerifiedDate: "2026-08-17",
     recommendedPriority: null,
-    textLines: [],
+    textLines: ["チャペ", "アペ", "カラ", "キナ", "ララ", "トゥスケ", "ミョーホントゥスケ"],
     pronunciationLines: [],
   },
   {
@@ -183,15 +191,16 @@ export const MIX_AND_KOUJOU_GUIDE = [
     songIds: ["umi-to-lemon-tea"],
     difficulty: "advanced",
     frequency: "situational",
-    usageScene: "Dメロ後の長い間奏で使用します。",
+    usageScene: "Dメロ後の長い間奏（曲の3分10秒あたり）で使用します。",
     startCue: "間奏に入ったタイミングで唱え始めます。",
-    usageNote: "この曲には本人発信の専用口上があります。通常のガチ恋口上とは別物として案内されています。",
+    usageNote:
+      "歌唱メンバーの大場花菜が、自身のSHOWROOM配信でファンと一緒に内容を考える「ガチ恋会議」を行い、その後X（旧Twitter）で使ってほしい位置と合わせてファンへ呼びかけたことが確認できます。通常のガチ恋口上とは別に、この曲だけのために作られた専用の口上です。掛け声本文はメンバー本人が考えた創作性の高い内容のため、この画面には掲載していません（本人がdev/callGuideEditor.htmlから端末に個別に読み込むことは可能です）。",
     differenceFromStandard: "通常のガチ恋口上とは別に、この曲の間奏専用に作られた、曲固有の口上です。",
     creditNote: "歌唱メンバー本人（大場花菜）が、この位置で使ってほしいとXで呼びかけています。",
     usedInEqualLove: true,
     sourceType: "self",
     sourceUrls: ["https://x.com/hana_oba/status/1828444068747321601"],
-    lastVerifiedDate: "2026-08-06",
+    lastVerifiedDate: "2026-08-17",
     recommendedPriority: null,
     textLines: [],
     pronunciationLines: [],
@@ -204,18 +213,23 @@ export const MIX_AND_KOUJOU_GUIDE = [
     songIds: ["oshi-no-iru-sekai"],
     difficulty: "advanced",
     frequency: "situational",
-    usageScene: "曲中の口上区間で、推しメンバーへの気持ちを伝える専用の口上として使われます。",
+    usageScene: "曲中の口上区間（曲の3分56秒あたり）で、推しメンバーへの気持ちを伝える専用の口上として使われます。",
     startCue: "曲中の決まった区間で、通常のガチ恋口上の代わりに唱えます。",
-    usageNote: "この曲で使われる専用口上があります。考案者については複数の情報があります。",
+    usageNote:
+      "メンバー数名がSHOWROOM配信でファンと一緒に内容を考えていった、と伝えるファンサイトの記録があります。特定の1人だけが単独で考案したと断定できる情報は確認できていません。掛け声本文は創作性の高い内容のため、この画面には掲載していません（本人がdev/callGuideEditor.htmlから端末に個別に読み込むことは可能です）。",
     differenceFromStandard: "通常のガチ恋口上とは別に、この曲専用に作られた、曲固有の口上です。",
-    // 画面には「考案者については複数の情報があります」とだけ表示し、人物名は出さない（本人指示）。
-    // 内部記録：情報源によって「卒業メンバーの佐竹のん乃」とする記述と、画像で提供された
-    // 「推しセカメンバー」という表記のみのものがあり、断定できる根拠がないため人物名は掲載しない。
+    // 画面には「特定の1人だけが単独で考案したと断定できる情報は確認できていません」とだけ表示し、
+    // 個々の人物名は出さない（本人指示）。
+    // 内部記録（2026-08-17再調査）：ファンサイトの記録（一次ソースのSHOWROOM配信・関連ツイートを
+    // 参照した二次情報）によれば、大場花菜・山本杏奈・野口衣織・佐々木舞香ら複数メンバーが
+    // 配信内でファンの声も交えて共同で内容を考えていった、という経緯が示されている。
+    // 「卒業メンバーの佐竹のん乃が考案」とする記述をするファンサイトも見られるが、本人単独の
+    // 考案と断定できる一次ソースは今回確認できなかったため、画面上は人物名を出さない方針を維持する。
     creditNote: null,
     usedInEqualLove: true,
     sourceType: "fan",
     sourceUrls: ["https://ikorabucall.com/oshi-no-iru-sekai-call/"],
-    lastVerifiedDate: "2026-08-06",
+    lastVerifiedDate: "2026-08-17",
     recommendedPriority: null,
     textLines: [],
     pronunciationLines: [],

@@ -19,20 +19,32 @@ const SUSPICIOUSLY_SHORT_SEC = 10.0;
 const SUSPICIOUSLY_LONG_SEC = 600.0;
 const DURATION_DECIMAL_PLACES = 3;
 
+// 音源ファイル自体がまだアプリに存在しないため、dev/generate_audio_metadata.pyで
+// 実測できない曲のID（2026-08-17追加）。本人が実際に音源を登録し、生成スクリプトを
+// 再実行してAUDIO_METADATAに実測値が追加され次第、この配列から取り除くこと
+// （そのときAUDIO_METADATAへ実データが増えるので、下のテストが自動的に検出してくれる）。
+// オンラインのランダム再生対戦は、js/battleModes/randomPlaybackBattleMode.jsの
+// validateSettings()が「この曲は同期用の固定durationを持たない」を検出して対戦開始自体を
+// 安全に拒否する設計のため、この曲が音源未登録のままでも対戦が壊れたり不正な同期が
+// 起きたりすることはない（本人指示：音源未登録の曲として安全に存在できればよい）。
+const SONG_IDS_WITHOUT_REGISTERED_AUDIO_YET = new Set(["koi-hajimemashita"]);
+
 export function runAudioMetadataTests() {
-  const songIds = SONGS.map((song) => song.id);
+  const songIds = SONGS.map((song) => song.id).filter(
+    (id) => !SONG_IDS_WITHOUT_REGISTERED_AUDIO_YET.has(id)
+  );
   const metadataIds = Object.keys(AUDIO_METADATA);
 
-  // 曲数の一致：SONGSとAUDIO_METADATAが常に同じ件数であることを確認する。
-  // 曲を追加してAUDIO_METADATAの再生成を忘れた場合、ここで必ず失敗する
+  // 曲数の一致：SONGS（音源登録待ちの曲を除く）とAUDIO_METADATAが常に同じ件数であることを
+  // 確認する。曲を追加してAUDIO_METADATAの再生成を忘れた場合、ここで必ず失敗する
   // （具体的な曲数を決め打ちしないことで、将来曲が増えても更新不要なテストにしている）。
   assertEqual(
     metadataIds.length,
     songIds.length,
-    `SONGS（${songIds.length}曲）とAUDIO_METADATA（${metadataIds.length}件）の件数が一致する`
+    `SONGS（${songIds.length}曲、音源登録待ちを除く）とAUDIO_METADATA（${metadataIds.length}件）の件数が一致する`
   );
 
-  // SONGSの全曲がAUDIO_METADATAに存在する（欠落なし）。
+  // SONGSの全曲（音源登録待ちを除く）がAUDIO_METADATAに存在する（欠落なし）。
   const missingIds = songIds.filter((id) => !(id in AUDIO_METADATA));
   assertEqual(missingIds, [], `SONGSの全曲にAUDIO_METADATAが存在する（欠落: ${missingIds.join(", ") || "なし"}）`);
 

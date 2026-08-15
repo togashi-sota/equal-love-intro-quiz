@@ -24,6 +24,7 @@ import {
   ref,
   get,
   set,
+  remove,
   query,
   orderByChild,
   limitToFirst,
@@ -172,6 +173,18 @@ export async function backfillTimeAttackLeaderboardIfNeeded(playerKeyPrefix) {
   } catch (error) {
     console.warn("タイムアタック自己ベストのランキング反映に失敗しました", error);
   }
+}
+
+// 管理者専用：ランキングの特定の1件だけを削除する（2026-08-17追加）。
+// 【安全設計】呼び出し側（js/timeAttackLeaderboardScreen.js）が事前にADMIN_UIDとの一致を
+// 確認したうえでだけ呼ぶ想定。js/publicProfileSync.jsのdeletePublicProfileByAdminと同じ
+// 設計思想で、本当の権限チェックはFirebase Security Rules側で行う必要がある。
+// 削除対象はvariant×rule×questionCountValue×categoryFilterValue×targetUidで一意に決まる
+// 1件の記録だけ。他の記録・他のFirebaseパス・本人の端末内データには一切触れない。
+export async function deleteLeaderboardEntryByAdmin(variant, rule, questionCountValue, categoryFilterValue, targetUid) {
+  await authReady;
+  const entryPath = `${buildLeaderboardPath(variant, rule, questionCountValue, categoryFilterValue)}/${targetUid}`;
+  await remove(ref(database, entryPath));
 }
 
 // 自分の記録だけを1件、軽量に取得する（TOP10圏外でも「あなたの記録」を表示するため）。

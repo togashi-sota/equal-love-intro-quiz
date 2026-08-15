@@ -30,6 +30,11 @@ const GROWTH_TRIADS = [
   ["lyric_beginner", "lyric_challenger", "lyric_ace"],
 ];
 
+// 【2026-08-17追加】ステップアップUI再設計：系統ラベルと段階ラベル。
+// GROWTH_TRIADSと同じ並び順（系統内はビギナー→チャレンジャー→エース）に対応させる。
+const GROWTH_SERIES_LABELS = ["🎧 イントロ系", "🔀 シャッフル系", "🎤 リリック系"];
+const GROWTH_TIER_LABELS = ["5問", "10問", "20問"];
+
 let elements = null;
 
 function isModalOpen() {
@@ -205,6 +210,109 @@ export function buildAchievementCard(entry) {
   return card;
 }
 
+// 成長段階系（ステップアップ）専用の、トロフィー風バッジカード（2026-08-17再設計）。
+// 本人フィードバック「説明カードっぽい・格好良くない」を受け、称号・アイコンを主役にし、
+// 条件文は補助情報にする（バッジ→問題数→称号名→条件、の順で視線が流れる構成）。
+// masterPath・backChallengeのbuildAchievementCard()とは完全に別関数にすることで、
+// 既存の複合称号・裏称号カードには一切影響を与えない。
+export function buildGrowthBadgeCard(entry, tierLabel) {
+  const card = document.createElement("div");
+  card.classList.add("growth-badge-card", entry.isUnlocked ? "is-unlocked" : "is-locked");
+  card.dataset.achievementId = entry.id;
+
+  const medalWrap = document.createElement("div");
+  medalWrap.classList.add("growth-badge-medal-wrap");
+
+  // locked:trueのときは、js/achievementIcons.jsの「形はそのまま・配色だけ落とす」
+  // locked-previewの仕組みをここにも適用する（本人指示：「未獲得はシルエット・彩度を抑える」。
+  // 既存の＝LOVEマスター・完全制覇と同じ考え方を、ステップアップにも広げた）。
+  const medal = buildAchievementIconMedal(entry.iconKey, { locked: !entry.isUnlocked });
+  medal.classList.add("growth-badge-medal");
+  medalWrap.appendChild(medal);
+
+  // 獲得済みバッジにだけ、小さなチェックマークを重ねて「集めた」満足感を出す
+  // （本人指示：「獲得したときの満足感を強くしてください」。ただし発光やアニメーションは
+  // 使わず、＝LOVEマスター・完全制覇より必ず控えめに留める）。
+  if (entry.isUnlocked) {
+    const check = document.createElement("span");
+    check.classList.add("growth-badge-check");
+    check.setAttribute("aria-hidden", "true");
+    check.textContent = "✓";
+    medalWrap.appendChild(check);
+  }
+  card.appendChild(medalWrap);
+
+  const tier = document.createElement("p");
+  tier.classList.add("growth-badge-tier");
+  tier.textContent = tierLabel;
+  card.appendChild(tier);
+
+  const name = document.createElement("p");
+  name.classList.add("growth-badge-name");
+  name.textContent = entry.name;
+  card.appendChild(name);
+
+  if (entry.guidanceBadgeText) {
+    const guidance = document.createElement("p");
+    guidance.classList.add("growth-badge-guidance");
+    guidance.textContent = entry.guidanceBadgeText;
+    card.appendChild(guidance);
+  }
+
+  const condition = document.createElement("p");
+  condition.classList.add("growth-badge-condition");
+  condition.textContent = entry.conditionText;
+  card.appendChild(condition);
+
+  const status = document.createElement("p");
+  status.classList.add("growth-badge-status");
+  if (entry.isUnlocked) {
+    status.classList.add("is-achieved");
+    status.textContent = formatUnlockedDate(entry.unlockedAt) ?? "取得済み";
+  } else {
+    status.textContent = "未取得";
+  }
+  card.appendChild(status);
+
+  return card;
+}
+
+// ステップアップ全体（3系統×3段階）を、系統ごとの横並び3枚のトロフィー行として組み立てる。
+// 系統をひとかたまりで見せることで「揃えたい」「あと1つ」という収集欲求が伝わるようにする
+// （本人指示のUI/UXデザイナー視点レビューを踏まえた構成）。
+export function buildGrowthSection(items) {
+  const section = document.createElement("div");
+  section.classList.add("achievement-category-section");
+
+  const heading = document.createElement("p");
+  heading.classList.add("achievement-category-heading");
+  heading.textContent = CATEGORY_LABELS.growth;
+  section.appendChild(heading);
+
+  GROWTH_TRIADS.forEach((ids, seriesIndex) => {
+    const seriesBlock = document.createElement("div");
+    seriesBlock.classList.add("growth-series-block");
+
+    const seriesLabel = document.createElement("p");
+    seriesLabel.classList.add("growth-series-label");
+    seriesLabel.textContent = GROWTH_SERIES_LABELS[seriesIndex];
+    seriesBlock.appendChild(seriesLabel);
+
+    const row = document.createElement("div");
+    row.classList.add("growth-series-row");
+    ids.forEach((id, tierIndex) => {
+      const entry = items.find((item) => item.id === id);
+      if (!entry) return; // 未知のid（将来の仕様差分等）でも画面を壊さず静かに読み飛ばす
+      row.appendChild(buildGrowthBadgeCard(entry, GROWTH_TIER_LABELS[tierIndex]));
+    });
+    seriesBlock.appendChild(row);
+
+    section.appendChild(seriesBlock);
+  });
+
+  return section;
+}
+
 // 成長段階系（growth）だけが持つ、初心者向けの案内バッジ文言を計算する
 // （UI専用の付加情報。achievementProgress.jsの保存データには一切含めない）。
 // 【2026-08-14改訂】ブロンズ/シルバー/ゴールド/プラチナの廃止にともない、ノーミスマスター
@@ -237,6 +345,13 @@ function renderAchievementList() {
   CATEGORY_ORDER.forEach((category) => {
     const items = snapshot.filter((entry) => entry.category === category);
     if (items.length === 0) return;
+
+    // 【2026-08-17追加】ステップアップだけ専用のトロフィー風レイアウトにする
+    // （masterPath・backChallengeは既存のカードグリッドのまま、一切変更しない）。
+    if (category === "growth") {
+      elements.listContainer.appendChild(buildGrowthSection(items));
+      return;
+    }
 
     const section = document.createElement("div");
     section.classList.add("achievement-category-section");

@@ -3,7 +3,7 @@
 // 本人から名指しで依頼された「称号名がDOM上で全文存在する」「必要称号が表示される」等の項目を
 // 確認するため、buildAchievementCard()が組み立てる実際のDOMを直接検証する
 // （tests.htmlは実ブラウザで動くため、documentが使える）。
-import { buildAchievementCard } from "../js/achievementList.js";
+import { buildAchievementCard, buildGrowthBadgeCard, buildGrowthSection } from "../js/achievementList.js";
 import { ACHIEVEMENTS } from "../js/achievementDefinitions.js";
 import { assertEqual } from "./test-utils.js";
 
@@ -273,4 +273,97 @@ export function runAchievementListTests() {
     );
   });
   assertEqual(ACHIEVEMENTS.length, 17, "実データ：ACHIEVEMENTSの総数は17個");
+
+  // ---- 2026-08-17追加：ステップアップ（growth）専用のトロフィー風バッジカード ----
+  const lockedGrowthEntry = buildEntry({
+    id: "shuffle_challenger",
+    name: "シャッフルチャレンジャー",
+    iconKey: "shuffle_challenger",
+    conditionText: "ランダム再生で10問ノーミス！",
+    isUnlocked: false,
+  });
+  const lockedCard = buildGrowthBadgeCard(lockedGrowthEntry, "10問");
+  assertEqual(lockedCard.classList.contains("is-locked"), true, "未取得のバッジカードはis-lockedを持つ");
+  assertEqual(
+    lockedCard.querySelector(".growth-badge-name")?.textContent,
+    "シャッフルチャレンジャー",
+    "未取得でもバッジカードに称号名が全文表示される"
+  );
+  assertEqual(
+    lockedCard.querySelector(".growth-badge-tier")?.textContent,
+    "10問",
+    "バッジカードに段階（出題数）ラベルが表示される"
+  );
+  assertEqual(
+    lockedCard.querySelector(".growth-badge-check"),
+    null,
+    "未取得のバッジカードにはチェックマークが付かない"
+  );
+  assertEqual(
+    lockedCard.querySelector(".growth-badge-status")?.textContent,
+    "未取得",
+    "未取得のバッジカードのステータスは「未取得」"
+  );
+  // ロック中でも、js/achievementIcons.jsのlocked-preview（形はそのまま・配色だけ落とす）を
+  // 使っていることを確認する（汎用の鍵アイコンに切り替わっていないこと）。
+  assertEqual(
+    lockedCard.querySelector(".achievement-icon-medal")?.classList.contains("is-locked-preview"),
+    true,
+    "未取得のバッジカードはlocked-preview（形はそのまま・配色だけ落とす）を使う"
+  );
+  assertEqual(
+    lockedCard.querySelector(".achievement-icon-medal")?.classList.contains("is-locked"),
+    false,
+    "未取得のバッジカードは汎用の鍵アイコン（is-locked）には切り替わらない"
+  );
+
+  const unlockedGrowthEntry = buildEntry({
+    id: "lyric_ace",
+    name: "リリックエース",
+    iconKey: "lyric_ace",
+    conditionText: "歌詞クイズで20問ノーミス！",
+    isUnlocked: true,
+    unlockedAt: "2026-08-17T00:00:00.000Z",
+  });
+  const unlockedCard = buildGrowthBadgeCard(unlockedGrowthEntry, "20問");
+  assertEqual(unlockedCard.classList.contains("is-unlocked"), true, "取得済みのバッジカードはis-unlockedを持つ");
+  assertEqual(
+    unlockedCard.querySelector(".growth-badge-check") !== null,
+    true,
+    "取得済みのバッジカードにはチェックマークが付く"
+  );
+  assertEqual(
+    unlockedCard.querySelector(".growth-badge-status")?.classList.contains("is-achieved"),
+    true,
+    "取得済みのバッジカードのステータスはis-achieved"
+  );
+
+  const guidanceEntry = buildEntry({
+    id: "intro_beginner",
+    isUnlocked: false,
+    guidanceBadgeText: "🔰 まずはここから",
+  });
+  const guidanceCard = buildGrowthBadgeCard(guidanceEntry, "5問");
+  assertEqual(
+    guidanceCard.querySelector(".growth-badge-guidance")?.textContent,
+    "🔰 まずはここから",
+    "guidanceBadgeTextがあるときだけ案内バッジが表示される"
+  );
+
+  // ---- 実データ：ステップアップ全9個が3系統×3段階（横並び3枚）で組み立てられる ----
+  const growthSnapshotEntries = ACHIEVEMENTS.filter((a) => a.category === "growth").map((a) =>
+    buildEntry({ ...a, isUnlocked: false })
+  );
+  const growthSection = buildGrowthSection(growthSnapshotEntries);
+  const seriesBlocks = growthSection.querySelectorAll(".growth-series-block");
+  assertEqual(seriesBlocks.length, 3, "ステップアップは3系統（イントロ/シャッフル/リリック）に分かれる");
+  seriesBlocks.forEach((block, index) => {
+    const cards = block.querySelectorAll(".growth-badge-card");
+    assertEqual(cards.length, 3, `系統${index + 1}はビギナー/チャレンジャー/エースの3枚`);
+  });
+  assertEqual(
+    growthSection.querySelectorAll(".growth-badge-card").length,
+    9,
+    "ステップアップ全9個がすべてバッジカードとして描画される"
+  );
 }

@@ -9,26 +9,11 @@
 // 【運用】発売後は、通常通りsongs.js・discography.jsに曲データを追加したうえで、
 // このファイルのUPCOMING_RELEASEはnullに戻す（過去の「発売予定」情報を残し続けない）。
 // 確認できていない情報（ジャケット写真・収録曲・センター等）は、確認できるまで一切含めない。
-export const UPCOMING_RELEASE = {
-  workType: "single",
-  singleNumber: 21,
-  title: "恋、はじめました。",
-  releaseDate: "2026-08-26",
-  officialLinks: {
-    official: "https://equal-love.jp/news/detail/11815",
-    // MV（2026-08-14公開、＝LOVE公式YouTubeチャンネル「イコールラブ / ＝LOVE Official」で
-    // 本人から共有されたURL。動画タイトル・説明文・公開日を確認し、公式チャンネルが
-    // 投稿した本作のMVであることを確認済み）。
-    mv: "https://www.youtube.com/watch?v=ikFaEAlO5N0&list=RDikFaEAlO5N0&start_radio=1",
-  },
-  // センター・カップリング曲は、2026-08-16時点で公式サイトに「タイトル未定」
-  // 「カップリング詳細は後日HPにて発表予定」と明記されており未発表。確認できるまで、
-  // ここにも一切値を持たせない（存在しないフィールドとして扱う。推測で埋めない）。
-  sourceType: "official",
-  sourceUrls: [
-    "https://equal-love.jp/news/detail/11588",
-    "https://equal-love.jp/news/detail/11815",
-    "https://www.youtube.com/watch?v=ikFaEAlO5N0",
-  ],
-  lastVerifiedDate: "2026-08-16",
-};
+//
+// 【2026-08-17改訂・本人指示】21stシングル「恋、はじめました。」は、この「＝LOVEについて→
+// 作品一覧」側の発売予定カードではなく、js/data/songs.js・js/data/discography.jsの
+// 「収録曲一覧」側へ表題曲データとして直接追加する方針に変更した。そのため、このファイルは
+// 元の「未発表」に戻す（本人指示：「＝LOVEについて側に特別な発売予定カードを作らなくて
+// 構いません」）。次に本当に発売前アナウンスだけ先に来た作品が現れたときのために、
+// 仕組み自体は消さずnullのまま残しておく。
+export const UPCOMING_RELEASE = null;
