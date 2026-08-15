@@ -18,11 +18,11 @@ import { ADMIN_UID } from "./adminConfig.js";
 import { TIME_ATTACK_VARIANT, TIME_ATTACK_RULE } from "./timeAttackScreen.js";
 
 const VARIANT_LABELS = { [TIME_ATTACK_VARIANT.INTRO]: "🎧イントロ", [TIME_ATTACK_VARIANT.RANDOM_PLAYBACK]: "🔀ランダム再生" };
-const QUESTION_COUNT_LABELS = { "5": "5問", "10": "10問" };
+const QUESTION_COUNT_LABELS = { "5": "5問", "10": "10問", "20": "20問", "50": "50問", all: "全曲" };
 // 【2026-08-16改訂・本人指示】出題数・カテゴリーのタブは、js/timeAttackLeaderboard.jsが
 // 持つ「ランキング対応の値」リストをそのまま使う（このファイルで別の一覧を持つと、
-// 片方だけ更新し忘れてズレる恐れがあるため。20問・50問・全曲、カテゴリー「全曲」は
-// ランキング対象外になったため、タブにも一覧にも一切表示しない）。
+// 片方だけ更新し忘れてズレる恐れがあるため）。出題数は5/10/20/50/全曲の5種類すべて対象、
+// カテゴリー「全曲」だけはランキング対象外のまま。
 const QUESTION_COUNT_ORDER = LEADERBOARD_QUESTION_COUNT_VALUES;
 
 // 【2026-08-16改訂・本人指示】ルールはもうランキングの区分（タブ）ではない。ノーマル/ハード/
@@ -202,6 +202,12 @@ async function loadAndRenderLeaderboard() {
   const myRenderToken = ++renderToken;
   setStateVisibility({ loading: true, offline: false, empty: false, list: false });
   elements.myRecordSection.hidden = true;
+  // 【2026-08-16バグ修正】以前はこの時点でlistContainerの中身を消していなかったため、
+  // CSSの.leaderboard-list[hidden]漏れ（上のCSS修正）と組み合わさって、出題タイプ・
+  // 出題数・カテゴリーを切り替えた直後に「前のタブのTOP10行」が残って見えるバグがあった。
+  // hidden属性だけに頼らず、読み込み開始時点で必ず空にしておく（CSS側の不具合が
+  // 将来また紛れ込んでも、古い行が残り続けることがないようにするための保険）。
+  elements.listContainer.innerHTML = "";
 
   const result = await fetchTimeAttackLeaderboardTop10(
     currentVariant,
@@ -224,7 +230,6 @@ async function loadAndRenderLeaderboard() {
   const badgeStateByUid = await fetchBadgeStatesForEntries(result.entries);
   if (myRenderToken !== renderToken) return;
 
-  elements.listContainer.innerHTML = "";
   result.entries.forEach((entry, index) => {
     const rank = index + 1;
     const isOwnRow = elements.currentUid && entry.uid === elements.currentUid;
@@ -326,9 +331,8 @@ async function handleAdminDeleteConfirmClick() {
 
 // タイムアタック設定画面・結果画面・通常クイズ結果画面から呼ぶ入口。直前にプレイした条件を
 // 最初に表示する（本人指示：「直前にプレイした条件のランキングを最初に表示」）。
-// 【2026-08-16改訂】ruleはもう区分ではないため引数から削除。categoryFilterValueは
-// 未指定・対応外の値（20問・50問・全曲、カテゴリー「全曲」等）なら安全な既定値
-// （5問・表題曲のみ）にフォールバックする。
+// 【2026-08-16改訂】ruleはもう区分ではないため引数から削除。未指定・対応外の値
+// （カテゴリー「全曲」等）なら安全な既定値（5問・表題曲のみ）にフォールバックする。
 // 【2026-08-17更新】管理者判定を、タブ描画・一覧読み込みより先に済ませる
 // （削除ボタンをカード生成時点で正しく反映するため。js/fanProfilesScreen.jsと同じ順序）。
 export async function showTimeAttackLeaderboard(variant, questionCountValue, categoryFilterValue) {

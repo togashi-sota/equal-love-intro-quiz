@@ -14,8 +14,8 @@
 //
 // 【分離方針】出題タイプ(variant：イントロ／ランダム再生)×出題数(questionCountValue)×
 // カテゴリー(categoryFilterValue)の組み合わせごとに完全に別々のランキングとして扱う
-// （本人指示によりシンプル化：出題数は5問・10問のみ、カテゴリーは表題曲のみ／表題曲＋全員曲の
-// みを対象にする。20問・50問・全曲、カテゴリー「全曲」は対象外のまま）。
+// （本人指示：出題数は5問・10問・20問・50問・全曲の5種類すべてを対象にする。カテゴリーは
+// 表題曲のみ／表題曲＋全員曲だけを対象にし、カテゴリー「全曲」だけは対象外のままにする）。
 //
 // 【記録の比較基準】クリアタイム昇順（速い方が上位）。同タイムは①クリアタイム②ミス数
 // ③登録日時（早い方が上位）の順で決める（本人の第一候補どおり、変更なし）。
@@ -28,9 +28,10 @@
 
 // タイムアタックの出題数のうち、ランキング対応の値。既存のtime-attack-question-countの
 // ラジオボタンの値と一致させている。
-// 【2026-08-16改訂・本人指示】5問・10問だけに絞った（20問・50問・全曲はランキング対象外。
-// 通常クイズは「次へ」ボタンでの手動進行があり、20問以上では公平な比較になりにくいため）。
-export const LEADERBOARD_QUESTION_COUNT_VALUES = ["5", "10"];
+// 【2026-08-16再改訂・本人指示】一度5問・10問だけに絞ったが、「5/10/20/50/全曲すべてを
+// ランキング対象にしてほしい」という指示により、元の5種類全てに戻した。カテゴリーの
+// 絞り込み（表題のみ／表題＋全員曲だけ、「全曲」は対象外）はそのまま維持する。
+export const LEADERBOARD_QUESTION_COUNT_VALUES = ["5", "10", "20", "50", "all"];
 
 // ランキング記録に「参考情報として」残すルールの値（js/timeAttackScreen.jsのTIME_ATTACK_RULEと
 // 同じ文字列をあえて複製している。このファイルをFirebase非依存の恒久テスト対象に保つ設計方針を
@@ -49,9 +50,8 @@ export const LEADERBOARD_CATEGORY_VALUES = ["title-track", "title-and-group"];
 export const LEADERBOARD_SOURCE_VALUES = ["timeAttack", "normal"];
 
 // 出題数・カテゴリーが、現在ランキングに対応している組み合わせかどうかを判定する。
-// 【本人指示・セクション9,10】ランキングの次元は出題数(5/10)×カテゴリー(表題曲のみ/表題曲＋全員曲)
-// だけに絞り、20問・50問・全曲・カテゴリー「全曲」は既存のラジオボタン値のまま
-// （新しい値を作らない）対象外として弾く。
+// ランキングの次元は出題数(5/10/20/50/全曲)×カテゴリー(表題曲のみ/表題曲＋全員曲)。
+// カテゴリー「全曲」だけは既存のラジオボタン値のまま（新しい値を作らない）対象外として弾く。
 export function isSupportedLeaderboardDimension(questionCountValue, categoryFilterValue) {
   return (
     LEADERBOARD_QUESTION_COUNT_VALUES.includes(questionCountValue) &&
@@ -156,7 +156,7 @@ export function normalizeLeaderboardEntry(uid, raw) {
 // ランキング機能があったら新記録だったはずの記録」を掘り起こす。
 // 【2026-08-16改訂】ルールはもう区分に使わないため、キーから外し、同じvariant×questionCount×
 // categoryであればノーマル/ハード/LOVE連チャンをまたいで最速の1件だけを残す。また、
-// 20問・50問・全曲・カテゴリー「全曲」など新しいランキングが対応しない組み合わせは、
+// カテゴリー「全曲」など新しいランキングが対応しない組み合わせは、
 // isSupportedLeaderboardDimension()で確実に弾く（本人指示：対応外の次元は絶対に送信しない）。
 export function findBestEntryPerVariantQuestionCountAndCategory(historyEntries) {
   const bestByKey = new Map();

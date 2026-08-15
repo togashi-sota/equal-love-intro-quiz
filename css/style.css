@@ -10423,6 +10423,15 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   margin-top: 8px;
 }
 
+/* 【2026-08-16バグ修正】display:flexを指定すると、ブラウザ標準のhidden属性（display:noneの
+   はずが上書きされてしまい効かなくなる。JS側でelements.listContainer.hidden = trueを
+   設定しても実際には非表示にならず、出題タイプ切り替え直後に前のタブのTOP10行が
+   一瞬〜そのまま残って見えてしまうバグの直接原因だった。hidden属性が付いているときは
+   確実にdisplay:noneへ戻すことで、JS側のhidden切り替えを正しく機能させる。 */
+.leaderboard-list[hidden] {
+  display: none;
+}
+
 .leaderboard-row {
   display: flex;
   align-items: center;

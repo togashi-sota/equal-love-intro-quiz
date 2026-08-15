@@ -1,8 +1,10 @@
 // js/timeAttackLeaderboard.js（Firebaseに一切触れない純粋関数群）のテスト。
 // 【2026-08-16再改訂】タイムアタック専用のランキングから、通常のイントロクイズ・
 // 通常のランダム再生クイズも含めた統合ランキングへ拡張した仕様変更に合わせて全面更新。
-// ルール（ノーマル/ハード/LOVE連チャン）はもう区分ではなく統合し、出題数は5問・10問、
-// カテゴリーは表題曲のみ／表題曲＋全員曲だけに絞られた。
+// ルール（ノーマル/ハード/LOVE連チャン）はもう区分ではなく統合。出題数は5/10/20/50/全曲の
+// 5種類すべてが対象、カテゴリーは表題曲のみ／表題曲＋全員曲だけに絞られている
+// （カテゴリー「全曲」だけが対象外。一度出題数も5問・10問だけに絞ったが、本人指示により
+// 元の5種類全てへ戻した）。
 import {
   LEADERBOARD_QUESTION_COUNT_VALUES,
   LEADERBOARD_CATEGORY_VALUES,
@@ -19,8 +21,12 @@ import {
 import { assertEqual } from "./test-utils.js";
 
 export function runTimeAttackLeaderboardTests() {
-  // ---- 対応次元の値一覧：5問・10問／表題曲のみ・表題曲＋全員曲だけに絞られている ----
-  assertEqual(LEADERBOARD_QUESTION_COUNT_VALUES, ["5", "10"], "出題数は5問・10問だけがランキング対応");
+  // ---- 対応次元の値一覧：出題数は5種類すべて、カテゴリーは表題曲のみ／表題曲＋全員曲だけ ----
+  assertEqual(
+    LEADERBOARD_QUESTION_COUNT_VALUES,
+    ["5", "10", "20", "50", "all"],
+    "出題数は5問・10問・20問・50問・全曲の5種類すべてがランキング対応"
+  );
   assertEqual(
     LEADERBOARD_CATEGORY_VALUES,
     ["title-track", "title-and-group"],
@@ -30,10 +36,11 @@ export function runTimeAttackLeaderboardTests() {
   // ---- 対応次元の判定 ----
   assertEqual(isSupportedLeaderboardDimension("5", "title-track"), true, "5問・表題曲のみは対応次元");
   assertEqual(isSupportedLeaderboardDimension("10", "title-and-group"), true, "10問・表題曲＋全員曲は対応次元");
-  assertEqual(isSupportedLeaderboardDimension("20", "title-track"), false, "20問は対応次元外");
-  assertEqual(isSupportedLeaderboardDimension("50", "title-track"), false, "50問は対応次元外");
-  assertEqual(isSupportedLeaderboardDimension("all", "title-track"), false, "全曲（出題数）は対応次元外");
-  assertEqual(isSupportedLeaderboardDimension("5", "all"), false, "カテゴリー「全曲」は対応次元外");
+  assertEqual(isSupportedLeaderboardDimension("20", "title-track"), true, "20問・表題曲のみも対応次元");
+  assertEqual(isSupportedLeaderboardDimension("50", "title-and-group"), true, "50問・表題曲＋全員曲も対応次元");
+  assertEqual(isSupportedLeaderboardDimension("all", "title-track"), true, "全曲（出題数）・表題曲のみも対応次元");
+  assertEqual(isSupportedLeaderboardDimension("5", "all"), false, "カテゴリー「全曲」は対応次元外（出題数を問わず）");
+  assertEqual(isSupportedLeaderboardDimension("999", "title-track"), false, "定義されていない出題数の値は対応次元外");
 
   // ---- パス組み立て：variant×questionCount×categoryで分離される。ruleはもう区分に含めない ----
   assertEqual(
@@ -283,7 +290,7 @@ export function runTimeAttackLeaderboardTests() {
       totalElapsedMs: 1000,
       missCount: 0,
       completed: true,
-    }, // 出題数20問は対応次元外のため、ミス0でも絶対に抽出されない
+    }, // 出題数20問も対応次元（本人指示により5/10/20/50/全曲すべて対応）なので抽出される
     {
       variant: "intro",
       rule: "normal",
@@ -297,9 +304,12 @@ export function runTimeAttackLeaderboardTests() {
   const bestEntries = findBestEntryPerVariantQuestionCountAndCategory(historyEntries);
   assertEqual(
     bestEntries.length,
-    3,
+    4,
     "variant×questionCount×category（対応次元のみ）の組み合わせごとに、ミス0で完走した記録だけが1件ずつ抽出される"
   );
+
+  const introTwentyTitleTrack = bestEntries.find((e) => e.questionCountValue === "20");
+  assertEqual(introTwentyTitleTrack.clearTimeMs, 1000, "出題数20問の記録も対応次元として正しく抽出される");
 
   const introFiveTitleTrack = bestEntries.find(
     (e) => e.variant === "intro" && e.questionCountValue === "5" && e.categoryFilterValue === "title-track"
@@ -322,9 +332,6 @@ export function runTimeAttackLeaderboardTests() {
   const introTen = bestEntries.find((e) => e.questionCountValue === "10");
   assertEqual(introTen.variant, "intro", "entry.variant省略（古い履歴データ）はintroとして扱われる");
   assertEqual(introTen.clearTimeMs, 15000, "10問の記録も正しく抽出される");
-
-  const unsupportedQuestionCount = bestEntries.find((e) => e.questionCountValue === "20");
-  assertEqual(unsupportedQuestionCount, undefined, "対応外の出題数（20問）はミス0で完走していても絶対に抽出されない");
 
   const unsupportedCategory = bestEntries.find((e) => e.categoryFilterValue === "all");
   assertEqual(unsupportedCategory, undefined, "対応外のカテゴリー（全曲）はミス0で完走していても絶対に抽出されない");

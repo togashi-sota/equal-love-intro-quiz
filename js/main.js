@@ -2607,7 +2607,7 @@ function renderResult() {
             offline: "オフラインのため、ランキングへの送信はできませんでした",
             error: "ランキングへの送信に失敗しました",
             "invalid-record": "1問でも間違えると、公開ランキングには反映されません（自己ベストには保存済みです）",
-            "unsupported-dimension": "この出題数・カテゴリーはランキング対象外です（5問・10問／表題曲のみ・表題曲＋全員曲が対象）",
+            "unsupported-dimension": "このカテゴリーはランキング対象外です（表題曲のみ・表題曲＋全員曲が対象）",
           };
           resultLeaderboardStatusElement.textContent =
             messageByReason[result.reason] ?? "ランキングへの送信に失敗しました";
@@ -3383,7 +3383,7 @@ initTimeAttackResultScreen({
           offline: "オフラインのため、ランキングへの送信はできませんでした",
           error: "ランキングへの送信に失敗しました",
           "invalid-record": "1問でも間違えると、公開ランキングには反映されません（自己ベストには保存済みです）",
-          "unsupported-dimension": "この出題数・カテゴリーはランキング対象外です（5問・10問／表題曲のみ・表題曲＋全員曲が対象）",
+          "unsupported-dimension": "このカテゴリーはランキング対象外です（表題曲のみ・表題曲＋全員曲が対象）",
         };
         timeAttackResultLeaderboardStatusElement.textContent =
           messageByReason[result.reason] ?? "ランキングへの送信に失敗しました";
@@ -3619,7 +3619,7 @@ initRandomPlaybackResultScreen({
           offline: "オフラインのため、ランキングへの送信はできませんでした",
           error: "ランキングへの送信に失敗しました",
           "invalid-record": "1問でも間違えると、公開ランキングには反映されません（自己ベストには保存済みです）",
-          "unsupported-dimension": "この出題数・カテゴリーはランキング対象外です（5問・10問／表題曲のみ・表題曲＋全員曲が対象）",
+          "unsupported-dimension": "このカテゴリーはランキング対象外です（表題曲のみ・表題曲＋全員曲が対象）",
         };
         randomPlaybackResultLeaderboardStatusElement.textContent =
           messageByReason[result.reason] ?? "ランキングへの送信に失敗しました";
