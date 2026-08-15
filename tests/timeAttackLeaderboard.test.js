@@ -1,10 +1,10 @@
 // js/timeAttackLeaderboard.js（Firebaseに一切触れない純粋関数群）のテスト。
 // 【2026-08-16再改訂】タイムアタック専用のランキングから、通常のイントロクイズ・
 // 通常のランダム再生クイズも含めた統合ランキングへ拡張した仕様変更に合わせて全面更新。
-// ルール（ノーマル/ハード/LOVE連チャン）はもう区分ではなく統合。出題数は5/10/20/50/全曲の
-// 5種類すべてが対象、カテゴリーは表題曲のみ／表題曲＋全員曲だけに絞られている
-// （カテゴリー「全曲」だけが対象外。一度出題数も5問・10問だけに絞ったが、本人指示により
-// 元の5種類全てへ戻した）。
+// ルール（ノーマル/ハード/LOVE連チャン）はもう区分ではなく統合。出題タイプ2種類×出題数
+// 5種類（5/10/20/50/全曲）×カテゴリー3種類（表題曲のみ/表題曲＋全員曲/全曲）の
+// 合計30パターンすべてがランキング対応（一度出題数を5問・10問だけ、カテゴリーを
+// 表題曲のみ/表題曲＋全員曲だけに絞ったが、本人指示により両方とも元の全種類に戻した）。
 import {
   LEADERBOARD_QUESTION_COUNT_VALUES,
   LEADERBOARD_CATEGORY_VALUES,
@@ -29,8 +29,8 @@ export function runTimeAttackLeaderboardTests() {
   );
   assertEqual(
     LEADERBOARD_CATEGORY_VALUES,
-    ["title-track", "title-and-group"],
-    "カテゴリーは表題曲のみ・表題曲＋全員曲だけがランキング対応（「全曲」は対象外）"
+    ["title-track", "title-and-group", "all"],
+    "カテゴリーは表題曲のみ・表題曲＋全員曲・全曲の3種類すべてがランキング対応"
   );
 
   // ---- 対応次元の判定 ----
@@ -39,8 +39,10 @@ export function runTimeAttackLeaderboardTests() {
   assertEqual(isSupportedLeaderboardDimension("20", "title-track"), true, "20問・表題曲のみも対応次元");
   assertEqual(isSupportedLeaderboardDimension("50", "title-and-group"), true, "50問・表題曲＋全員曲も対応次元");
   assertEqual(isSupportedLeaderboardDimension("all", "title-track"), true, "全曲（出題数）・表題曲のみも対応次元");
-  assertEqual(isSupportedLeaderboardDimension("5", "all"), false, "カテゴリー「全曲」は対応次元外（出題数を問わず）");
+  assertEqual(isSupportedLeaderboardDimension("5", "all"), true, "カテゴリー「全曲」も対応次元（出題数の「全曲」とは別の軸）");
+  assertEqual(isSupportedLeaderboardDimension("all", "all"), true, "出題数・カテゴリーとも「全曲」の組み合わせも対応次元");
   assertEqual(isSupportedLeaderboardDimension("999", "title-track"), false, "定義されていない出題数の値は対応次元外");
+  assertEqual(isSupportedLeaderboardDimension("5", "not-a-real-category"), false, "定義されていないカテゴリーの値は対応次元外");
 
   // ---- パス組み立て：variant×questionCount×categoryで分離される。ruleはもう区分に含めない ----
   assertEqual(
@@ -67,6 +69,29 @@ export function runTimeAttackLeaderboardTests() {
     buildLeaderboardPath("intro", "5", "title-track").startsWith("timeAttackLeaderboardsV3/"),
     true,
     "新しいランキングは旧構造（timeAttackLeaderboardsV2、ルール別に分かれていた構造）とは別のキー配下に置かれる"
+  );
+
+  // ---- 30パターン（出題タイプ2×出題数5×カテゴリー3）が、すべて別パスになることを機械的に確認 ----
+  const VARIANTS_FOR_TEST = ["intro", "randomPlayback"];
+  const allPaths = [];
+  VARIANTS_FOR_TEST.forEach((variant) => {
+    LEADERBOARD_QUESTION_COUNT_VALUES.forEach((questionCountValue) => {
+      LEADERBOARD_CATEGORY_VALUES.forEach((categoryFilterValue) => {
+        allPaths.push(buildLeaderboardPath(variant, questionCountValue, categoryFilterValue));
+      });
+    });
+  });
+  assertEqual(allPaths.length, 30, "出題タイプ2×出題数5×カテゴリー3＝30パターンぶんのパスが作られる");
+  assertEqual(new Set(allPaths).size, 30, "30パターンすべてが重複なく別々のパスになる（混ざるパターンが1つも無い）");
+  assertEqual(
+    allPaths.includes("timeAttackLeaderboardsV3/intro/all/all"),
+    true,
+    "出題数の「全曲」とカテゴリーの「全曲」を組み合わせたパスも、他とは独立した1つのパスとして存在する"
+  );
+  assertEqual(
+    buildLeaderboardPath("intro", "5", "all") === buildLeaderboardPath("intro", "all", "all"),
+    false,
+    "出題数の「全曲」とカテゴリーの「全曲」は別の軸なので、片方だけ「全曲」のパスと両方「全曲」のパスは混ざらない"
   );
 
   // ---- payload組み立て：uidを含まない、表示名の空欄はフォールバックする。
@@ -299,12 +324,12 @@ export function runTimeAttackLeaderboardTests() {
       totalElapsedMs: 500,
       missCount: 0,
       completed: true,
-    }, // カテゴリー「全曲」は対応次元外のため、ミス0でも絶対に抽出されない
+    }, // カテゴリー「全曲」も対応次元（本人指示により表題曲のみ/表題曲＋全員曲/全曲の3種類すべて対応）なので抽出される
   ];
   const bestEntries = findBestEntryPerVariantQuestionCountAndCategory(historyEntries);
   assertEqual(
     bestEntries.length,
-    4,
+    5,
     "variant×questionCount×category（対応次元のみ）の組み合わせごとに、ミス0で完走した記録だけが1件ずつ抽出される"
   );
 
@@ -333,6 +358,11 @@ export function runTimeAttackLeaderboardTests() {
   assertEqual(introTen.variant, "intro", "entry.variant省略（古い履歴データ）はintroとして扱われる");
   assertEqual(introTen.clearTimeMs, 15000, "10問の記録も正しく抽出される");
 
-  const unsupportedCategory = bestEntries.find((e) => e.categoryFilterValue === "all");
-  assertEqual(unsupportedCategory, undefined, "対応外のカテゴリー（全曲）はミス0で完走していても絶対に抽出されない");
+  const introFiveCategoryAll = bestEntries.find((e) => e.categoryFilterValue === "all");
+  assertEqual(introFiveCategoryAll.clearTimeMs, 500, "カテゴリー「全曲」の記録も対応次元として正しく抽出される");
+  assertEqual(
+    introFiveCategoryAll.categoryFilterValue !== introFiveTitleTrack.categoryFilterValue,
+    true,
+    "カテゴリー「全曲」の記録と表題曲のみの記録は別枠として抽出される（混ざらない）"
+  );
 }

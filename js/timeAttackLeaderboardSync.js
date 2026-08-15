@@ -61,8 +61,9 @@ function isOffline() {
 // 【2026-08-16再改訂・本人指示】タイムアタックだけでなく、通常のイントロクイズ・通常の
 // ランダム再生クイズからも呼ばれる共通の送信口になった（sourceで呼び出し元を区別して記録する
 // だけで、掲載条件・比較ロジックは完全に同じものを使う＝本人指示の「同じランキング実装を
-// 再利用する」を満たす）。カテゴリー「全曲」（対応外）は、isSupportedLeaderboardDimension()で
-// 送信前に確実に弾く。出題数は5/10/20/50/全曲の5種類すべてが対象。
+// 再利用する」を満たす）。出題数（5/10/20/50/全曲）・カテゴリー（表題曲のみ/表題曲＋全員曲/
+// 全曲）とも、既存クイズの全ラジオボタン値がそのまま対象。isSupportedLeaderboardDimension()は
+// 万が一の不正な値の混入を防ぐ最終防衛線として残している。
 // 戻り値: { ok: true, updated: boolean } または
 // { ok: false, reason: "privacy-disabled" | "offline" | "error" | "invalid-record" | "unsupported-dimension" }
 export async function submitTimeAttackScoreIfBetter({

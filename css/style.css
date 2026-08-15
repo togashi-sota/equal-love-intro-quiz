@@ -5778,7 +5778,7 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 /* ランキング画面：通常クイズからも参加できることを伝える一言（2026-08-16追加）。
    上の.special-modes-intro（条件の説明）とは分けて、招待の一言だけ軽く強調する。 */
 .leaderboard-mode-invite {
-  margin: -8px 0 16px;
+  margin: -8px 0 8px;
   padding: 8px 14px;
   border-radius: 12px;
   background: var(--color-primary-light);
@@ -5786,6 +5786,32 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   font-size: 0.78rem;
   font-weight: 700;
   color: var(--color-primary-dark);
+}
+
+/* ランキング画面：「フレンド」公開設定が必要という注記（2026-08-16追加）。本人指示により、
+   上の説明文・招待文より目立たせず、末尾に小さく添えるだけにとどめる。 */
+.leaderboard-privacy-note {
+  margin: 0 0 16px;
+  text-align: center;
+  font-size: 0.72rem;
+  color: var(--color-text);
+  opacity: 0.6;
+}
+
+/* ランキング画面：出題タイプ・出題数・カテゴリーの各タブ行が、それぞれ何を選ぶ軸なのか
+   一目で分かるようにする小さな見出し（2026-08-16追加、本人指示）。画面をうるさくしすぎない
+   よう、タブボタンそのものより小さく・控えめな色にする。 */
+.leaderboard-tab-axis-label {
+  margin: 14px 0 2px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--color-text);
+  opacity: 0.55;
+  letter-spacing: 0.02em;
+}
+
+.leaderboard-tab-axis-label:first-of-type {
+  margin-top: 4px;
 }
 
 /* ===== 特別モードのアイコン（js/specialModeIcons.js） =====

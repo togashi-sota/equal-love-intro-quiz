@@ -14,8 +14,11 @@
 //
 // 【分離方針】出題タイプ(variant：イントロ／ランダム再生)×出題数(questionCountValue)×
 // カテゴリー(categoryFilterValue)の組み合わせごとに完全に別々のランキングとして扱う
-// （本人指示：出題数は5問・10問・20問・50問・全曲の5種類すべてを対象にする。カテゴリーは
-// 表題曲のみ／表題曲＋全員曲だけを対象にし、カテゴリー「全曲」だけは対象外のままにする）。
+// （本人指示：出題数は5問・10問・20問・50問・全曲の5種類、カテゴリーは表題曲のみ／
+// 表題曲＋全員曲／全曲の3種類、すべてを対象にする＝2×5×3の30パターン。出題数の「全曲」と
+// カテゴリーの「全曲」は別の軸で、既存クイズ側と同じ意味＝「そのカテゴリー内で現在出題
+// 可能な全曲をプレイする」を維持する。既存クイズのcategory-filterラジオボタンの値
+// （"title-track"|"title-and-group"|"all"）をそのまま使い、新しい値は作らない）。
 //
 // 【記録の比較基準】クリアタイム昇順（速い方が上位）。同タイムは①クリアタイム②ミス数
 // ③登録日時（早い方が上位）の順で決める（本人の第一候補どおり、変更なし）。
@@ -40,8 +43,9 @@ export const LEADERBOARD_QUESTION_COUNT_VALUES = ["5", "10", "20", "50", "all"];
 export const LEADERBOARD_RULE_VALUES = ["normal", "hard", "loveChain"];
 
 // ランキング対応のカテゴリー（index.htmlのcategory-filterラジオボタンの値とそのまま一致）。
-// 【2026-08-16改訂・本人指示】表題曲のみ／表題曲＋全員曲だけに絞った（カテゴリー「全曲」は対象外）。
-export const LEADERBOARD_CATEGORY_VALUES = ["title-track", "title-and-group"];
+// 【2026-08-16再改訂・本人指示】一度「全曲」を対象外にしたが、本人指示により表題曲のみ／
+// 表題曲＋全員曲／全曲の3種類すべてを対象に戻した。
+export const LEADERBOARD_CATEGORY_VALUES = ["title-track", "title-and-group", "all"];
 
 // ランキング記録に「参考情報として」残す、プレイ方法の値。
 // timeAttack：タイムアタックから送信された記録。normal：通常クイズ（通常イントロ／
@@ -50,8 +54,10 @@ export const LEADERBOARD_CATEGORY_VALUES = ["title-track", "title-and-group"];
 export const LEADERBOARD_SOURCE_VALUES = ["timeAttack", "normal"];
 
 // 出題数・カテゴリーが、現在ランキングに対応している組み合わせかどうかを判定する。
-// ランキングの次元は出題数(5/10/20/50/全曲)×カテゴリー(表題曲のみ/表題曲＋全員曲)。
-// カテゴリー「全曲」だけは既存のラジオボタン値のまま（新しい値を作らない）対象外として弾く。
+// 【2026-08-16再改訂】出題数（5/10/20/50/全曲）・カテゴリー（表題曲のみ/表題曲＋全員曲/全曲）
+// のどちらも既存クイズの全ラジオボタン値をそのまま対象にするため、実質的にはこの2つの値一覧に
+// 定義されている値かどうかのチェックになる。将来どちらかの次元をまた絞ることになった場合に
+// 備えて、判定ロジック自体はそのまま残しておく（呼び出し側を変更せずに済むように）。
 export function isSupportedLeaderboardDimension(questionCountValue, categoryFilterValue) {
   return (
     LEADERBOARD_QUESTION_COUNT_VALUES.includes(questionCountValue) &&
@@ -155,9 +161,9 @@ export function normalizeLeaderboardEntry(uid, raw) {
 // ランキングに一切反映されない。このズレを解消するため、履歴から「もし今日この条件で
 // ランキング機能があったら新記録だったはずの記録」を掘り起こす。
 // 【2026-08-16改訂】ルールはもう区分に使わないため、キーから外し、同じvariant×questionCount×
-// categoryであればノーマル/ハード/LOVE連チャンをまたいで最速の1件だけを残す。また、
-// カテゴリー「全曲」など新しいランキングが対応しない組み合わせは、
-// isSupportedLeaderboardDimension()で確実に弾く（本人指示：対応外の次元は絶対に送信しない）。
+// categoryであればノーマル/ハード/LOVE連チャンをまたいで最速の1件だけを残す。万が一
+// 定義されていない値が履歴に混ざっていた場合に備え、isSupportedLeaderboardDimension()で
+// 対応外の組み合わせを弾く処理は残す（本人指示：対応外の次元は絶対に送信しない）。
 export function findBestEntryPerVariantQuestionCountAndCategory(historyEntries) {
   const bestByKey = new Map();
   historyEntries.forEach((entry) => {

@@ -21,8 +21,8 @@ const VARIANT_LABELS = { [TIME_ATTACK_VARIANT.INTRO]: "🎧イントロ", [TIME_
 const QUESTION_COUNT_LABELS = { "5": "5問", "10": "10問", "20": "20問", "50": "50問", all: "全曲" };
 // 【2026-08-16改訂・本人指示】出題数・カテゴリーのタブは、js/timeAttackLeaderboard.jsが
 // 持つ「ランキング対応の値」リストをそのまま使う（このファイルで別の一覧を持つと、
-// 片方だけ更新し忘れてズレる恐れがあるため）。出題数は5/10/20/50/全曲の5種類すべて対象、
-// カテゴリー「全曲」だけはランキング対象外のまま。
+// 片方だけ更新し忘れてズレる恐れがあるため）。出題数（5/10/20/50/全曲）・カテゴリー
+// （表題曲のみ/表題曲＋全員曲/全曲）とも、既存クイズの全ラジオボタン値がそのまま対象。
 const QUESTION_COUNT_ORDER = LEADERBOARD_QUESTION_COUNT_VALUES;
 
 // 【2026-08-16改訂・本人指示】ルールはもうランキングの区分（タブ）ではない。ノーマル/ハード/
@@ -39,7 +39,9 @@ const RULE_LABELS = {
 // UIが窮屈にならない範囲でだけ表示してよい」）。
 const SOURCE_LABELS = { timeAttack: "TA", normal: "通常" };
 
-const CATEGORY_LABELS = { "title-track": "表題のみ", "title-and-group": "表題＋全員" };
+// 【2026-08-16再改訂・本人指示】略称ではなく、他画面（クイズ設定のカテゴリー選択等）と
+// 完全に同じ正式表記に統一する（初見でも意味が分かるように）。
+const CATEGORY_LABELS = { "title-track": "表題曲のみ", "title-and-group": "表題曲＋全員曲", all: "全曲" };
 const CATEGORY_ORDER = LEADERBOARD_CATEGORY_VALUES;
 
 let elements = null;
@@ -331,8 +333,8 @@ async function handleAdminDeleteConfirmClick() {
 
 // タイムアタック設定画面・結果画面・通常クイズ結果画面から呼ぶ入口。直前にプレイした条件を
 // 最初に表示する（本人指示：「直前にプレイした条件のランキングを最初に表示」）。
-// 【2026-08-16改訂】ruleはもう区分ではないため引数から削除。未指定・対応外の値
-// （カテゴリー「全曲」等）なら安全な既定値（5問・表題曲のみ）にフォールバックする。
+// 【2026-08-16改訂】ruleはもう区分ではないため引数から削除。未指定・不正な値なら
+// 安全な既定値（5問・表題曲のみ）にフォールバックする。
 // 【2026-08-17更新】管理者判定を、タブ描画・一覧読み込みより先に済ませる
 // （削除ボタンをカード生成時点で正しく反映するため。js/fanProfilesScreen.jsと同じ順序）。
 export async function showTimeAttackLeaderboard(variant, questionCountValue, categoryFilterValue) {
