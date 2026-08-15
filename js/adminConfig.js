@@ -13,4 +13,8 @@
 //
 // 複数人を管理者にしたい場合は配列にする想定だが、現時点では1人分のみ対応する
 // （本人から追加の要望があれば拡張する）。
-export const ADMIN_UID = null;
+//
+// 【2026-08-15設定】本人からフレンド画面の「🆔 あなたのID」を提供してもらい設定。
+// このUIDだけがFirebase Rules側でも「削除のみ・編集不可」の権限を持つ
+// （Firebase Rules側の対応は別途本人へパースト用のルール全文を提供している）。
+export const ADMIN_UID = "1lg2urCowcMqF6r8E7tkc9OOm3r1";
