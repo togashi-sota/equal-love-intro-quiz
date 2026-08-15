@@ -42,6 +42,27 @@ export function validatePoolSize(pool) {
   return null;
 }
 
+// 曲プールを、音源が読み込み済みの曲だけに絞り込む（純粋関数）。
+// importedSongIdsは、この端末にIndexedDBで保存済みの曲idの集合（Set推奨。配列でも可）。
+// 本人指示（2026-08-15）：音源（歌詞クイズの場合は歌詞）を読み込んでいない曲は、
+// 出題にも4択の選択肢にも一切出さない。実際にIndexedDBへアクセスする部分は
+// js/audioStorage.jsのfilterSongsWithImportedAudio()が担当し、この関数自体は
+// IndexedDBに触れない（tests/quiz.test.jsでそのままテストできるようにするため）。
+export function filterSongsByAvailableAudio(songs, importedSongIds) {
+  const importedSet = importedSongIds instanceof Set ? importedSongIds : new Set(importedSongIds);
+  return songs.filter((song) => importedSet.has(song.id));
+}
+
+// 音源を読み込み済みの曲だけで4択クイズを作れるかを検証する。
+// validatePoolSize（カテゴリの絞り込みが原因）とはメッセージを分け、
+// 「音源を読み込めば解決する」ことが伝わるようにする。
+export function validatePlayablePoolSize(pool) {
+  if (pool.length < MIN_SONGS_REQUIRED) {
+    return "音源を読み込んだ曲が足りません。スタート画面の「音源を読み込む」から曲を追加するか、カテゴリの範囲を広げてください。";
+  }
+  return null;
+}
+
 // 配列をシャッフルした「新しい配列」を返す（元の配列は書き換えない）。
 // Fisher–Yatesアルゴリズムを使い、どの並び順も同じ確率で出るようにしている。
 //

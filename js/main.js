@@ -25,7 +25,7 @@ import {
 import {
   filterSongsByCategory,
   resolveQuestionCount,
-  validatePoolSize,
+  validatePlayablePoolSize,
   buildQuizQuestions,
   buildReviewQuizQuestions,
   buildQuestionsFromSongIds,
@@ -160,7 +160,7 @@ import {
   renderCustomQuizPresetsScreen,
   showPresetActionBanner,
 } from "./customQuizPresetsScreen.js";
-import { importAudioFiles, getImportedSongIds } from "./audioStorage.js";
+import { importAudioFiles, getImportedSongIds, filterSongsWithImportedAudio } from "./audioStorage.js";
 import { requestPersistentStorage } from "./storagePersistence.js";
 import { analyzeLyricsFiles, saveLyricsData, getImportedLyricsSongIds } from "./lyricsStorage.js";
 import { analyzeCallDataBackupFile, importCallDataSongs, getSongIdsWithCallData } from "./callStorage.js";
@@ -1035,11 +1035,12 @@ initHistoryDetailScreen({
   // 開始する。beginReviewQuiz()（結果画面発の復習）とほぼ同じ処理だが、こちらは
   // startReviewQuiz()にmodeOverrideを渡し、今のgameStateではなくこの履歴のモードに
   // questionCountValue/categoryFilterValueを合わせる点が異なる。
-  onStartReview: (missedSongs, questionCountValue, categoryFilterValue) => {
+  onStartReview: async (missedSongs, questionCountValue, categoryFilterValue) => {
     playClickSound();
     stopTimer();
     stopAudio();
-    const distractorPool = filterSongsByCategory(SONGS, categoryFilterValue);
+    const categoryPool = filterSongsByCategory(SONGS, categoryFilterValue);
+    const distractorPool = await filterSongsWithImportedAudio(categoryPool);
     const questions = buildReviewQuizQuestions(missedSongs, distractorPool);
     startReviewQuiz(questions, { questionCountValue, categoryFilterValue });
     renderQuestion();
@@ -1654,10 +1655,10 @@ initCustomQuizPresetsScreen({
 // そのまま使い回せるようにしてある（「どの曲を選ぶか」は各モードの確認画面が担当し、
 // ここでは選ばれた曲でクイズを始めることだけに専念する）。
 // ダミー選択肢のプールは常に全曲（"all"）から選ぶ（苦手曲モード用）。
-function beginSpecialQuiz(songIds, questionCountValue, specialModeId) {
+async function beginSpecialQuiz(songIds, questionCountValue, specialModeId) {
   stopTimer();
   stopAudio();
-  const distractorPool = filterSongsByCategory(SONGS, "all");
+  const distractorPool = await filterSongsWithImportedAudio(filterSongsByCategory(SONGS, "all"));
   const questions = buildQuestionsFromSongIds(songIds, distractorPool);
   startSpecialQuiz(questions, questionCountValue, specialModeId);
   renderQuestion();
@@ -1666,12 +1667,23 @@ function beginSpecialQuiz(songIds, questionCountValue, specialModeId) {
 
 // オリジナル問題作成モード用のクイズ開始処理。beginSpecialQuiz()と違い、ダミー選択肢の
 // プールを「選択した曲だけ」「全収録曲」から選べる点が異なるため、別関数にしている。
-function beginCustomQuiz(songIds, distractorMode) {
+// 【2026-08-15改訂・本人指示】選曲画面（曲を選ぶ一覧）自体は「情報として見える」ことは
+// 問題ないため音源の有無で絞り込まないが、実際にクイズを始める時点では、出題する曲
+// （songIds）自体も音源読み込み済みの曲だけに絞り込む（音源が無い曲を選んでいても、
+// 出題自体はスキップされる＝音源が無い曲がクイズ本編に登場することはなくなる）。
+// ただし絞り込んだ結果、出題できる曲が1つも残らない場合は、本人の選曲を無視しないよう
+// 絞り込み前のsongIdsのまま進める（既存の「音源が読み込まれていません」という
+// 安全な案内に委ねる。選曲自体が全滅する事故を防ぐための保険）。
+async function beginCustomQuiz(songIds, distractorMode) {
   stopTimer();
   stopAudio();
   const selectedSongs = SONGS.filter((song) => songIds.includes(song.id));
-  const distractorPool = distractorMode === "selected" ? selectedSongs : filterSongsByCategory(SONGS, "all");
-  const questions = buildQuestionsFromSongIds(songIds, distractorPool);
+  const playableSelectedSongs = await filterSongsWithImportedAudio(selectedSongs);
+  const playableSongIds = playableSelectedSongs.map((song) => song.id);
+  const questionSongIds = playableSongIds.length > 0 ? playableSongIds : songIds;
+  const distractorCategoryPool = distractorMode === "selected" ? selectedSongs : filterSongsByCategory(SONGS, "all");
+  const distractorPool = await filterSongsWithImportedAudio(distractorCategoryPool);
+  const questions = buildQuestionsFromSongIds(questionSongIds, distractorPool);
   startSpecialQuiz(questions, String(questions.length), "customQuiz");
   renderQuestion();
   showScreen("quiz");
@@ -1806,11 +1818,13 @@ function updateCategoryCountHints() {
   });
 }
 
-// 選んだ出題数が、選んだカテゴリの対象曲数を上回っているときだけ、
+// 選んだ出題数が、選んだカテゴリ・音源読み込み済みの対象曲数を上回っているときだけ、
 // 「実際は何問になるか」を事前に案内する。ラジオボタンが切り替わるたびに呼び出す。
 // resolveQuestionCount自体（quiz.js）はすでに曲数に収まるよう切り詰める作りなので、
 // ここでは同じ考え方でその結果を先に見せているだけで、出題ロジックには手を加えていない。
-function updateQuestionCountNotice() {
+// 【2026-08-15改訂】音源未読み込みの曲も出題対象から除外されるようになったため、
+// 「対象曲数」はカテゴリの絞り込みだけでなく音源の読み込み状況も反映する（非同期）。
+async function updateQuestionCountNotice() {
   const questionCountValue = document.querySelector('input[name="question-count"]:checked').value;
   const categoryFilterValue = document.querySelector('input[name="category-filter"]:checked').value;
 
@@ -1819,7 +1833,9 @@ function updateQuestionCountNotice() {
     return;
   }
 
-  const poolSize = filterSongsByCategory(SONGS, categoryFilterValue).length;
+  const categoryPool = filterSongsByCategory(SONGS, categoryFilterValue);
+  const playablePool = await filterSongsWithImportedAudio(categoryPool);
+  const poolSize = playablePool.length;
   const requestedCount = Number(questionCountValue);
   if (requestedCount > poolSize) {
     questionCountNoticeElement.textContent = `対象曲数が${questionCountValue}曲未満のため、全${poolSize}問を出題します`;
@@ -2643,9 +2659,10 @@ choiceButtonElements.forEach((button, index) => {
 // 指定した出題数・カテゴリで、曲プールの絞り込み・検証から問題生成までを行い、
 // クイズ画面を開始する共通処理。スタートボタンと、結果画面の「もう一度挑戦する」の
 // 両方から呼ばれる（後者は毎回この関数を通すことで、曲順・4択が必ず再抽選される）。
-function beginQuiz(questionCountValue, categoryFilterValue) {
-  const pool = filterSongsByCategory(SONGS, categoryFilterValue);
-  const errorMessage = validatePoolSize(pool);
+async function beginQuiz(questionCountValue, categoryFilterValue) {
+  const categoryPool = filterSongsByCategory(SONGS, categoryFilterValue);
+  const pool = await filterSongsWithImportedAudio(categoryPool);
+  const errorMessage = validatePlayablePoolSize(pool);
 
   if (errorMessage) {
     startErrorElement.textContent = errorMessage;
@@ -2720,10 +2737,11 @@ returnToNormalButtonElement.addEventListener("click", () => {
 // 「間違えた曲だけ復習する」：直前のrenderResult()でgameState.reviewSongs/
 // reviewCategoryFilterValueに保持しておいた内容をもとに、復習クイズを組み立てて開始する。
 // 通常プレイ後・復習プレイ後のどちらの結果画面から呼ばれても、同じ処理でそのまま動く。
-function beginReviewQuiz() {
+async function beginReviewQuiz() {
   stopTimer();
   stopAudio();
-  const distractorPool = filterSongsByCategory(SONGS, gameState.reviewCategoryFilterValue);
+  const categoryPool = filterSongsByCategory(SONGS, gameState.reviewCategoryFilterValue);
+  const distractorPool = await filterSongsWithImportedAudio(categoryPool);
   const questions = buildReviewQuizQuestions(gameState.reviewSongs, distractorPool);
   startReviewQuiz(questions);
   renderQuestion();
@@ -3236,14 +3254,15 @@ timeAttackSetupBackButtonElement.addEventListener("click", () => {
 // 実際の問題生成はjs/timeAttackScreen.jsのbuildTimeAttackQuestions()に任せている
 // （既存のfilterSongsByCategory・validatePoolSize・resolveQuestionCount・buildQuizQuestionsを
 // 内部でそのまま再利用しているだけで、出題ロジック自体には一切手を加えていない）。
-function beginTimeAttackQuiz(questionCountValue, categoryFilterValue, rule, variant = TIME_ATTACK_VARIANT.INTRO) {
+async function beginTimeAttackQuiz(questionCountValue, categoryFilterValue, rule, variant = TIME_ATTACK_VARIANT.INTRO) {
   // 出題タイプ（イントロ／ランダム再生）は「音源をどこから再生するか」だけの違いで、
   // 出題する曲・4択の作り方自体はどちらも同じため、問題生成はvariantによらず共通のまま
   // （実際の再生開始位置の計算はshowQuestion()側でvariantを見て分岐する）。
-  const questions = buildTimeAttackQuestions(questionCountValue, categoryFilterValue);
+  const questions = await buildTimeAttackQuestions(questionCountValue, categoryFilterValue);
 
   if (!questions) {
-    timeAttackStartErrorElement.textContent = "曲数が足りません。カテゴリの範囲を広げてください。";
+    timeAttackStartErrorElement.textContent =
+      "音源を読み込んだ曲が足りません。スタート画面の「音源を読み込む」から曲を追加するか、カテゴリの範囲を広げてください。";
     timeAttackStartErrorElement.hidden = false;
     return;
   }
@@ -3479,11 +3498,12 @@ randomPlaybackSetupBackButtonElement.addEventListener("click", () => {
 // beginTimeAttackQuiz()と全く同じ考え方だが、問題生成自体はbuildTimeAttackQuestions()を
 // そのまま再利用する（曲・選択肢の選び方自体はタイムアタックと変える必要がないため。
 // 変わるのは「どこから再生するか」だけで、それはrenderQuestion()側で処理する）。
-function beginRandomPlaybackQuiz(questionCountValue, categoryFilterValue, rule) {
-  const questions = buildTimeAttackQuestions(questionCountValue, categoryFilterValue);
+async function beginRandomPlaybackQuiz(questionCountValue, categoryFilterValue, rule) {
+  const questions = await buildTimeAttackQuestions(questionCountValue, categoryFilterValue);
 
   if (!questions) {
-    randomPlaybackStartErrorElement.textContent = "曲数が足りません。カテゴリの範囲を広げてください。";
+    randomPlaybackStartErrorElement.textContent =
+      "音源を読み込んだ曲が足りません。スタート画面の「音源を読み込む」から曲を追加するか、カテゴリの範囲を広げてください。";
     randomPlaybackStartErrorElement.hidden = false;
     return;
   }
@@ -3966,6 +3986,9 @@ audioImportInputElement.addEventListener("change", async () => {
   // 同じファイルをもう一度選んでも change イベントが発火するように、選択状態をリセットする
   audioImportInputElement.value = "";
   await updateAudioImportStatus();
+  // 音源を読み込んだ直後に、出題数の案内（対象曲数が音源読み込み済みの曲数に基づく）も
+  // 最新の状態へ更新する（本人指示・2026-08-15：音源を入れたらすぐクイズにも反映されるように）。
+  await updateQuestionCountNotice();
 });
 
 updateAudioImportStatus();

@@ -6,6 +6,8 @@
 // 「新曲が3曲増えたので、その3曲だけ選んで読み込む」という差分インポートが、
 // 既存の曲のデータに一切触れずに実現できる（全部読み直す必要がない）。
 
+import { filterSongsByAvailableAudio } from "./quiz.js";
+
 const DB_NAME = "equalLoveIntroQuizAudio";
 const DB_VERSION = 1;
 const STORE_NAME = "audioFiles";
@@ -133,4 +135,14 @@ export async function getImportedSongIds() {
   });
   db.close();
   return ids;
+}
+
+// songs（js/data/songs.jsの曲オブジェクト配列）のうち、この端末に音源が読み込み済みの
+// 曲だけを返す（IndexedDBに実際に触れる、薄いラッパー関数）。
+// クイズの出題・4択のダミー選択肢を「実際にこの端末で聴ける曲」だけに絞り込むために使う
+// （本人指示・2026-08-15：音源を読み込んでいない曲は、出題にも選択肢にも一切出さない。
+// js/lyricsQuizQuestionBuilder.jsのloadSongsWithLyrics()と同じ役割分担の考え方）。
+export async function filterSongsWithImportedAudio(songs) {
+  const importedIds = await getImportedSongIds();
+  return filterSongsByAvailableAudio(songs, importedIds);
 }

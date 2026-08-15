@@ -14,7 +14,8 @@
 // buildAchievementResultInput()として持ち、保存先自体（自己ベスト・履歴）は今まで通り別のまま。
 
 import { SONGS } from "./data/songs.js";
-import { filterSongsByCategory, validatePoolSize, resolveQuestionCount, buildQuizQuestions } from "./quiz.js";
+import { filterSongsByCategory, validatePlayablePoolSize, resolveQuestionCount, buildQuizQuestions } from "./quiz.js";
+import { filterSongsWithImportedAudio } from "./audioStorage.js";
 import {
   getTimeAttackBest,
   saveTimeAttackBestIfBetter,
@@ -383,9 +384,10 @@ export function getLastTimeAttackSelection() {
 // 戻り値としてquestionsを返すだけにとどめ、実際にgameStateへ反映する処理
 // （startTimeAttackQuiz呼び出し）はmain.js側が行う（main.js側の既存の書き方に合わせるため）。
 // 曲数不足等でクイズを組み立てられない場合はnullを返す。
-export function buildTimeAttackQuestions(questionCountValue, categoryFilterValue) {
-  const pool = filterSongsByCategory(SONGS, categoryFilterValue);
-  const errorMessage = validatePoolSize(pool);
+export async function buildTimeAttackQuestions(questionCountValue, categoryFilterValue) {
+  const categoryPool = filterSongsByCategory(SONGS, categoryFilterValue);
+  const pool = await filterSongsWithImportedAudio(categoryPool);
+  const errorMessage = validatePlayablePoolSize(pool);
   if (errorMessage) return null;
 
   const questionCount = resolveQuestionCount(questionCountValue, pool.length);
