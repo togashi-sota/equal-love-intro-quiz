@@ -11,6 +11,7 @@
 
 import { SONGS } from "./data/songs.js";
 import { buildSongGroups, CATEGORY_PILL_INFO, normalizeForSearch, songMatchesSearch } from "./songlist.js";
+import { hasAudioSource } from "./data/audioMetadata.js";
 import { MIN_SONGS_REQUIRED } from "./quiz.js";
 import {
   PREVIEW_SEEK_SKIP_SECONDS,
@@ -258,15 +259,25 @@ function createSongSelectRow(song) {
 
   // 試聴ボタン。アイコンは収録曲一覧の再生ボタンと同じSVG・同じクラス名(.play-button)を
   // 再利用し、見た目・is-playing時のアイコン切り替えの仕組みをそのまま流用する。
-  const previewButton = document.createElement("button");
-  previewButton.type = "button";
-  previewButton.className = "play-button";
-  previewButton.setAttribute("aria-label", `${song.title}を試聴`);
-  previewButton.innerHTML = `
-    <svg class="icon-play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7Z"/></svg>
-    <svg class="icon-pause" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="7" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
-  `;
-  previewButton.addEventListener("click", () => handlePreviewButtonClick(song, row));
+  // 音源がまだ存在しない曲では、収録曲一覧（songlist.js）と同じ考え方で、押せるように
+  // 見えるボタンを出さない（本人指示・2026-08-17。曲名のハードコードではなく
+  // hasAudioSource()＝AUDIO_METADATAの有無で判定するため、22nd以降でも自動的に揃う）。
+  let previewButton;
+  if (hasAudioSource(song)) {
+    previewButton = document.createElement("button");
+    previewButton.type = "button";
+    previewButton.className = "play-button";
+    previewButton.setAttribute("aria-label", `${song.title}を試聴`);
+    previewButton.innerHTML = `
+      <svg class="icon-play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7Z"/></svg>
+      <svg class="icon-pause" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="7" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+    `;
+    previewButton.addEventListener("click", () => handlePreviewButtonClick(song, row));
+  } else {
+    previewButton = document.createElement("span");
+    previewButton.className = "play-button play-button-placeholder";
+    previewButton.setAttribute("aria-hidden", "true");
+  }
 
   row.appendChild(label);
   row.appendChild(previewButton);

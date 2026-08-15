@@ -3583,6 +3583,26 @@ fieldset label:has(input:focus-visible) {
   height: 13px;
 }
 
+/* 音源がまだ存在しない曲の、押せない再生ボタンの代わりの印
+   （2026-08-17追加）。.play-buttonと同じ32px円形の場所を保ち、他の行と左端の位置を揃えつつ、
+   影・カーソルを消して「押せるボタンではない」ことが見た目でも伝わるようにする。 */
+.play-button-placeholder {
+  box-shadow: none;
+  cursor: default;
+  opacity: 0.4;
+}
+
+/* 音源・歌詞のどちらも利用できない曲の案内文（.track-audio-status-note、2026-08-17追加）。
+   曲名の下に添える他のtrack-meta-lineと同じ流れに置きつつ、単なる説明文と見分けがつくよう
+   コールガイドのcoming-soon-noteと同じ色・太字にする。.track-meta-line側の
+   opacity:0.6を確実に上書きするため、あえて2クラス分の詳細度で指定する
+   （定義順に依存せず、ファイル内でどこに書いても.track-meta-line単体より必ず勝つように）。 */
+.track-meta-line.track-audio-status-note {
+  color: var(--color-primary-dark);
+  font-weight: 700;
+  opacity: 0.75;
+}
+
 /* 再生/一時停止アイコンの切り替え。
    hidden属性・hiddenプロパティはインラインSVG要素への反映がブラウザによって不安定なため使わず、
    行の.is-playingクラスだけで見た目を決める、より確実なクラスベースの方式にしている。 */

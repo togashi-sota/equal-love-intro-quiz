@@ -4,6 +4,7 @@
 // ここでの再生開始・停止はgameStateや採点には一切影響しない。
 
 import { CATEGORY } from "./data/songs.js";
+import { hasAudioSource } from "./data/audioMetadata.js";
 import { getAudioBlob } from "./audioStorage.js";
 import { loadLyricsForSong, destroyLyricsSync } from "./lyricsSync.js";
 import { openFullscreenLyrics } from "./lyricsFullscreen.js";
@@ -392,15 +393,27 @@ export function createTrackRow(song, options = {}) {
   row.dataset.searchReading = song.searchReading ?? "";
   row.dataset.searchAliases = JSON.stringify(song.searchAliases ?? []);
 
-  const playButton = document.createElement("button");
-  playButton.type = "button";
-  playButton.className = "play-button";
-  playButton.setAttribute("aria-label", `${song.title}を再生`);
-  playButton.innerHTML = `
-    <svg class="icon-play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7Z"/></svg>
-    <svg class="icon-pause" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="7" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
-  `;
-  playButton.addEventListener("click", () => handlePlayButtonClick(song, row));
+  // 音源がまだ存在しない曲（hasAudioSource参照）では、再生できるように見えるボタンを
+  // 出さない（本人指示・2026-08-17：「押せる・再生できると勘違いしない表示にする」）。
+  // 同じ32px円形の場所に、押せないことが見た目でも分かる非活性プレースホルダーを置き、
+  // 他の行と左端の位置が揃うようにする（.play-button-placeholder、CSS側でopacityを下げる）。
+  const audioAvailable = hasAudioSource(song);
+  let playButton;
+  if (audioAvailable) {
+    playButton = document.createElement("button");
+    playButton.type = "button";
+    playButton.className = "play-button";
+    playButton.setAttribute("aria-label", `${song.title}を再生`);
+    playButton.innerHTML = `
+      <svg class="icon-play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7Z"/></svg>
+      <svg class="icon-pause" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="7" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+    `;
+    playButton.addEventListener("click", () => handlePlayButtonClick(song, row));
+  } else {
+    playButton = document.createElement("span");
+    playButton.className = "play-button play-button-placeholder";
+    playButton.setAttribute("aria-hidden", "true");
+  }
 
   const infoBlock = document.createElement("div");
   infoBlock.className = "track-info";
@@ -409,6 +422,16 @@ export function createTrackRow(song, options = {}) {
   titleElement.className = "track-title";
   titleElement.textContent = song.title;
   infoBlock.appendChild(titleElement);
+
+  // 音源が無い曲は、試聴・同期歌詞のどちらも（歌詞パネルは試聴中にしか出せない構造のため）
+  // 実質的に利用できないので、1つの案内文にまとめて表示する
+  // （本人指示：「音源・歌詞Coming Soon」のようにまとめてもよい）。
+  if (!audioAvailable) {
+    const audioStatusElement = document.createElement("span");
+    audioStatusElement.className = "track-meta-line track-audio-status-note";
+    audioStatusElement.textContent = "音源・歌詞 Coming Soon";
+    infoBlock.appendChild(audioStatusElement);
+  }
 
   // 歌唱メンバー：ユニット曲・ソロ曲のみ（表題曲・全員曲はカテゴリバッジで「全員曲」と分かるため省略）
   if (song.members) {

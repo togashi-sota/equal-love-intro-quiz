@@ -89,3 +89,14 @@ export const AUDIO_METADATA = {
   "watashi-mahoutsukai": { durationSec: 209.524 },
   "mayonaka-mermaid": { durationSec: 246.794 },
 };
+
+// この曲の音源が実際に存在するかどうか（2026-08-17追加、本人指示）。
+// 「この端末が音源を読み込み済みか」（js/audioStorage.jsのgetAudioBlob、IndexedDBの
+// 話）とは別で、こちらは「そもそも音源という実体がこの世に存在するか」を表す。
+// AUDIO_METADATAはdev/generate_audio_metadata.pyが実際の音源ファイルから機械生成する
+// ため、ここに載っていない＝まだ音源自体が存在しない曲、と機械的に判定できる。
+// 表題曲だけ先行登録されていて音源がまだ無い21st以降のシングルのような曲を、
+// 曲名のハードコードなしに自動判定するために使う（js/songlist.js・js/customQuizScreen.js参照）。
+export function hasAudioSource(song) {
+  return Boolean(AUDIO_METADATA[song.id]);
+}

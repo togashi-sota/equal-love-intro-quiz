@@ -75,6 +75,7 @@
     import { runStoragePersistenceTests } from "./tests/storagePersistence.test.js";
     import { runOnboardingScreenTests } from "./tests/onboardingScreen.test.js";
     import { runGuideContentTests } from "./tests/guideContent.test.js";
+    import { runSonglistTests } from "./tests/songlist.test.js";
     import { runRankingCandidateStoreTests } from "./tests/rankingCandidateStore.test.js";
     import { printSummary } from "./tests/test-utils.js";
 
@@ -129,6 +130,7 @@
     await runStoragePersistenceTests();
     runOnboardingScreenTests();
     runGuideContentTests();
+    runSonglistTests();
     runRankingCandidateStoreTests();
     const { passCount, failCount } = printSummary();
 
