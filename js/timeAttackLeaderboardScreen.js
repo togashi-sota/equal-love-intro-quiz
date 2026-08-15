@@ -11,9 +11,11 @@ import {
   fetchTimeAttackLeaderboardTop10,
   fetchMyTimeAttackLeaderboardEntry,
   deleteLeaderboardEntryByAdmin,
+  syncRankingCandidatesToFirebase,
 } from "./timeAttackLeaderboardSync.js";
 import { LEADERBOARD_QUESTION_COUNT_VALUES, LEADERBOARD_CATEGORY_VALUES } from "./timeAttackLeaderboard.js";
-import { fetchPublicProfileBadgeState, getMyUid } from "./publicProfileSync.js";
+import { fetchPublicProfileBadgeState, getMyUid, isPublicProfileSharingEnabled } from "./publicProfileSync.js";
+import { getPlayerKeyPrefix } from "./playerProfile.js";
 import { ADMIN_UID } from "./adminConfig.js";
 import { TIME_ATTACK_VARIANT, TIME_ATTACK_RULE } from "./timeAttackScreen.js";
 
@@ -344,6 +346,15 @@ export async function showTimeAttackLeaderboard(variant, questionCountValue, cat
   await refreshAdminState();
   renderTabs();
   loadAndRenderLeaderboard();
+
+  // 【2026-08-16追加、本人指示】公開ON状態のままランキング画面を開いたときも、
+  // オフライン等で前回同期できなかった記録の「安全な再試行の機会」として使う
+  // （本人指示：新しいポーリング・タイマーは追加せず、既存の画面遷移に便乗するだけにする）。
+  // 表示中の一覧をブロックしないよう、結果を待たずに呼び捨てる。
+  const playerKeyPrefix = getPlayerKeyPrefix();
+  if (isPublicProfileSharingEnabled(playerKeyPrefix)) {
+    syncRankingCandidatesToFirebase(playerKeyPrefix);
+  }
 }
 
 // elements: {

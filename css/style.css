@@ -6708,6 +6708,19 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 
 /* 「🆔 あなたのID」表示（2026-08-16追加）。目立たせすぎず、必要な人だけが参照する
    補助情報という位置づけにするため、小さく控えめなテキストにする。 */
+/* クイズランキングの後追い同期状況（2026-08-16新設）。設定カードとIDの間に、
+   控えめな1行として表示する（本人指示：大げさなモーダルは不要）。 */
+.fan-profiles-ranking-sync-status {
+  margin: -6px 0 12px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: var(--color-primary-light);
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+}
+
 .fan-profiles-my-id {
   margin: 0 0 14px;
   font-size: 0.7rem;

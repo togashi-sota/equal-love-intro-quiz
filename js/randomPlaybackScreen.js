@@ -130,6 +130,21 @@ export function renderRandomPlaybackResult(questionCountValue, categoryFilterVal
     });
   }
 
+  // 【2026-08-16追加、本人指示】公開設定に関係なく、ランキング条件（ミス0・完走）を
+  // 満たした記録は常にローカルへ保存しておく（js/timeAttackScreen.jsのonCleanClearと
+  // 同じ理由・同じ設計。isNewRecordだけに頼るとランキング条件を満たした記録を
+  // 取りこぼす場合があるため、意図的に別の判定にしている）。
+  if (!stats.runFailed && stats.missCount === 0) {
+    resultElements.onCleanClear?.({
+      variant: TIME_ATTACK_VARIANT.RANDOM_PLAYBACK,
+      questionCountValue,
+      categoryFilterValue,
+      rule,
+      totalElapsedMs: stats.totalElapsedMs,
+      missCount: stats.missCount,
+    });
+  }
+
   // 称号（実績）判定（2026-08-07追加、本人指示）。ランダム再生クイズの全曲ノーミスで
   // フルコーラスマスター・メロディアスを取得できる。判定の組み立て方はタイムアタックと
   // 完全に共通（js/timeAttackScreen.jsのbuildAchievementResultInput参照）。

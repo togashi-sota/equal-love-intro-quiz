@@ -143,12 +143,41 @@ export function buildAchievedCard(achievementId) {
   return card;
 }
 
+// 段階制称号（イントロ／シャッフル／リリック、それぞれビギナー→チャレンジャー→エース）の系統。
+// 配列は低→高の順。フレンドの詳細プロフィールでは、同じ系統は取得済みの中で最上位の
+// 1個だけを見せる（本人指示、2026-08-16：「同じ系統の段階制称号は、取得済みの中で
+// 最上位の1個だけ表示」）。ノーミスマスター等の独立称号・複合称号はここに含めず、
+// buildAchievedAchievementsList()側で今までどおり全件表示する。
+const GROWTH_TIER_FAMILIES = [
+  ["intro_beginner", "intro_challenger", "intro_ace"],
+  ["shuffle_beginner", "shuffle_challenger", "shuffle_ace"],
+  ["lyric_beginner", "lyric_challenger", "lyric_ace"],
+];
+
+// フレンドの詳細プロフィールに表示する称号IDだけを絞り込む（表示専用の純粋関数）。
+// 取得データ本体（unlockedAchievementIds配列・Firebase・localStorage）は一切変更しない。
+// 呼び出し側が持つ配列をそのまま返さず、新しい配列として返す（元の配列は変更しない）。
+export function getAchievementsForPublicDisplay(unlockedAchievementIds) {
+  const unlockedSet = new Set(unlockedAchievementIds);
+  const suppressedIds = new Set();
+  GROWTH_TIER_FAMILIES.forEach((tierIdsLowToHigh) => {
+    const unlockedTiers = tierIdsLowToHigh.filter((id) => unlockedSet.has(id));
+    // 取得済みの中で最上位（配列の末尾に一番近いもの）以外を非表示にする。
+    unlockedTiers.slice(0, -1).forEach((id) => suppressedIds.add(id));
+  });
+  return unlockedAchievementIds.filter((id) => !suppressedIds.has(id));
+}
+
 // 取得済み称号を、カテゴリ順・カテゴリごとのグリッドに分けて並べたコンテナ要素を組み立てる
 // （本人指示：他人のプロフィールでは取得済みだけ表示し、未取得称号は出さない）。
 // 1件も無ければ「まだ称号を取得していません。」の案内だけを返す。
+// 【2026-08-16更新】段階制称号は最上位の1個だけに絞り込んでから表示する（本人指示）。
+// 「称号◯個」の個数バッジ（js/fanProfileCard.jsのbuildProfileCard）は、この絞り込みより
+// 前の、フィルタしていないunlockedAchievementIds.lengthをそのまま使い続けるため、
+// ここでの絞り込みは表示件数にのみ影響し、バッジの総数表示は変わらない。
 export function buildAchievedAchievementsList(unlockedAchievementIds) {
   const container = document.createElement("div");
-  const unlockedSet = new Set(unlockedAchievementIds);
+  const unlockedSet = new Set(getAchievementsForPublicDisplay(unlockedAchievementIds));
   const hasAny = ACHIEVEMENT_CATEGORY_ORDER.some((category) =>
     ACHIEVEMENTS.some((a) => a.category === category && unlockedSet.has(a.id))
   );

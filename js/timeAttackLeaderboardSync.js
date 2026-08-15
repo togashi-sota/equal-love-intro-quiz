@@ -35,6 +35,7 @@ import { getActivePlayer } from "./playerProfile.js";
 import { getMostOshiMemberId } from "./oshiMembers.js";
 import { isPublicProfileSharingEnabled } from "./publicProfilePayloads.js";
 import { getTimeAttackHistoryEntries } from "./timeAttackHistory.js";
+import { getAllRankingCandidateBests } from "./rankingCandidateStore.js";
 import {
   buildLeaderboardPath,
   buildLeaderboardEntryPayload,
@@ -223,4 +224,56 @@ export async function fetchMyTimeAttackLeaderboardEntry(variant, questionCountVa
     console.warn("あなたのタイムアタック記録の取得に失敗しました", error);
     return { ok: false, entry: null };
   }
+}
+
+// 【2026-08-16新設、本人指示】「フレンド」の公開設定をOFF→ONへ切り替えた瞬間に、
+// OFF中でもランキング条件を満たしてローカルに貯まっていた自己ベスト
+// （js/rankingCandidateStore.js）を、まとめてFirebaseへ同期する。
+//
+// 【設計】比較・上書き判定は、通常の新記録時の送信と全く同じsubmitTimeAttackScoreIfBetter()を
+// そのまま再利用する（本人指示：「既存のupsert-bestロジックがあるなら再利用してください」）。
+// これにより、「Firebase側の記録の方が速ければ何もしない・ローカルの方が速ければ更新する」
+// という比較も、対応外の次元（カテゴリー等）を弾く処理も、二重実装せずに済む。
+//
+// 【呼び出しタイミング、本人指示】①公開設定をOFF→ONへ切り替えた瞬間、②公開ON状態のまま
+// ランキング画面を開いたとき（js/timeAttackLeaderboardScreen.jsのshowTimeAttackLeaderboard参照）
+// の2箇所から呼ぶ想定。後者は「オフライン等で同期に失敗した記録を、安全なタイミングで
+// 再試行する」ための機会も兼ねる（本人指示：過剰なリトライループは作らない。あくまで
+// 既存の画面遷移に便乗するだけで、新しいポーリング・タイマーは一切追加しない）。
+//
+// 【失敗時】オフライン・書き込み失敗のときも、ローカルの候補データ自体は一切削除しない
+// （rankingCandidateStore.js側は「読むだけ」で、この関数からは何も削除しない設計にしている）。
+// 次にこの関数が呼ばれた機会に、同じ候補がまた比較・送信の対象になる。
+//
+// 戻り値: { attempted, updated, failed }（呼び出し側のUI表示用の件数サマリー）。
+// 公開設定がOFFのまま呼ばれた場合・オフラインの場合は、何も送信せず全て0で返す。
+export async function syncRankingCandidatesToFirebase(playerKeyPrefix) {
+  if (!isPublicProfileSharingEnabled(playerKeyPrefix)) {
+    return { attempted: 0, updated: 0, failed: 0 };
+  }
+  if (isOffline()) {
+    return { attempted: 0, updated: 0, failed: 0 };
+  }
+
+  const candidates = getAllRankingCandidateBests();
+  let updated = 0;
+  let failed = 0;
+  for (const candidate of candidates) {
+    const result = await submitTimeAttackScoreIfBetter({
+      variant: candidate.variant,
+      rule: candidate.rule,
+      source: candidate.source,
+      questionCountValue: candidate.questionCountValue,
+      categoryFilterValue: candidate.categoryFilterValue,
+      clearTimeMs: candidate.clearTimeMs,
+      missCount: candidate.missCount,
+      playerKeyPrefix,
+    });
+    if (result.ok) {
+      if (result.updated) updated += 1;
+    } else {
+      failed += 1;
+    }
+  }
+  return { attempted: candidates.length, updated, failed };
 }

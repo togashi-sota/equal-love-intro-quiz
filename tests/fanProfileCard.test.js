@@ -7,6 +7,7 @@ import {
   buildRepresentativeLabel,
   sortProfiles,
   buildAchievedAchievementsList,
+  getAchievementsForPublicDisplay,
 } from "../js/fanProfileCard.js";
 import { MEMBERS } from "../js/data/members.js";
 import { assertEqual } from "./test-utils.js";
@@ -187,7 +188,10 @@ export function runFanProfileCardTests() {
     "称号0個のときはカードが1件も表示されない"
   );
 
-  // ---- 称号多数（17件すべて、2026-08-14更新）でも表示できる ----
+  // ---- 称号多数（17件すべて、2026-08-14更新）取得済みでも、段階制3系統は最上位だけに
+  // 圧縮されて表示される（2026-08-16更新、本人指示：フレンド画面の段階称号は最上位1個だけ）。
+  // 17件中、段階制9件（イントロ/シャッフル/リリックの各3段階）は最上位3件だけに圧縮され、
+  // 独立8件（ノーミスマスター等）はそのまま表示されるため、合計11件になる。
   const allIds = [
     "intro_beginner",
     "intro_challenger",
@@ -208,9 +212,100 @@ export function runFanProfileCardTests() {
     "equal_love_complete",
   ];
   const fullList = buildAchievedAchievementsList(allIds);
+  const fullListNames = [...fullList.querySelectorAll(".fan-profile-achievement-name")].map((el) => el.textContent);
   assertEqual(
     fullList.querySelectorAll(".fan-profile-achievement-card").length,
-    17,
-    "称号17個（全種類）取得済みなら17枚すべて表示される"
+    11,
+    "称号17個（全種類）取得済みでも、段階制3系統が最上位1個ずつに圧縮され合計11枚になる"
   );
+  assertEqual(
+    fullListNames.includes("イントロビギナー") || fullListNames.includes("イントロチャレンジャー"),
+    false,
+    "全段階取得済みなら、イントロ系の下位段階（ビギナー・チャレンジャー）は表示されない"
+  );
+  assertEqual(fullListNames.includes("イントロエース"), true, "全段階取得済みなら、イントロ系の最上位（エース）は表示される");
+}
+
+// js/fanProfileCard.js のgetAchievementsForPublicDisplay()専用テスト
+// （2026-08-16新設、フレンド画面の段階称号圧縮機能）。
+// 取得データ本体（unlockedAchievementIds配列）は変更せず、表示用の配列だけを絞り込む
+// 純粋関数であることを検証する。
+export function runGetAchievementsForPublicDisplayTests() {
+  // ---- 1段階だけ取得：そのまま表示される（圧縮の必要なし） ----
+  assertEqual(
+    getAchievementsForPublicDisplay(["intro_beginner"]),
+    ["intro_beginner"],
+    "ビギナーだけ取得している場合はビギナーがそのまま表示される"
+  );
+
+  // ---- 2段階取得：上位（チャレンジャー）だけが残る ----
+  assertEqual(
+    getAchievementsForPublicDisplay(["intro_beginner", "intro_challenger"]),
+    ["intro_challenger"],
+    "ビギナー＋チャレンジャー取得済みなら、チャレンジャーだけが表示される"
+  );
+
+  // ---- 3段階すべて取得：最上位（エース）だけが残る ----
+  assertEqual(
+    getAchievementsForPublicDisplay(["intro_beginner", "intro_challenger", "intro_ace"]),
+    ["intro_ace"],
+    "3段階すべて取得済みなら、エースだけが表示される"
+  );
+
+  // ---- シャッフル系・リリック系でも同じ圧縮が働く（系統ごとに独立） ----
+  assertEqual(
+    getAchievementsForPublicDisplay(["shuffle_beginner", "shuffle_challenger", "shuffle_ace"]),
+    ["shuffle_ace"],
+    "シャッフル系も3段階取得済みならエースだけが表示される"
+  );
+  assertEqual(
+    getAchievementsForPublicDisplay(["lyric_beginner", "lyric_challenger", "lyric_ace"]),
+    ["lyric_ace"],
+    "リリック系も3段階取得済みならエースだけが表示される"
+  );
+
+  // ---- 3系統が別々の段階で混在していても、互いに干渉しない ----
+  const mixedFamilies = getAchievementsForPublicDisplay([
+    "intro_beginner",
+    "intro_challenger",
+    "intro_ace",
+    "shuffle_beginner",
+    "lyric_beginner",
+    "lyric_challenger",
+  ]);
+  assertEqual(
+    mixedFamilies,
+    ["intro_ace", "shuffle_beginner", "lyric_challenger"],
+    "系統ごとに取得段階が違っても、それぞれ独立して最上位だけが残る（他系統に影響しない）"
+  );
+
+  // ---- 独立称号（段階制ではない）は、段階称号の状態に関わらず常にそのまま表示される ----
+  assertEqual(
+    getAchievementsForPublicDisplay(["no_miss_master", "lightning_fast", "equal_love_master"]),
+    ["no_miss_master", "lightning_fast", "equal_love_master"],
+    "独立称号だけの場合は圧縮されず全件そのまま表示される"
+  );
+
+  // ---- 本人指示の具体例：イントロ3段階＋ノーミスマスター＋電光石火 → ちょうど3件 ----
+  const workedExample = getAchievementsForPublicDisplay([
+    "intro_beginner",
+    "intro_challenger",
+    "intro_ace",
+    "no_miss_master",
+    "lightning_fast",
+  ]);
+  assertEqual(
+    workedExample,
+    ["intro_ace", "no_miss_master", "lightning_fast"],
+    "本人指示の具体例：イントロ3段階＋独立2称号 取得済みなら、表示は「イントロエース・ノーミスマスター・電光石火」の3件だけになる"
+  );
+
+  // ---- 空配列は空配列のまま ----
+  assertEqual(getAchievementsForPublicDisplay([]), [], "未取得（空配列）ならそのまま空配列を返す");
+
+  // ---- 元の配列を変更しない（呼び出し側のデータを壊さない） ----
+  const original = ["intro_beginner", "intro_challenger", "intro_ace"];
+  const originalCopy = [...original];
+  getAchievementsForPublicDisplay(original);
+  assertEqual(original, originalCopy, "getAchievementsForPublicDisplay()は引数の配列を変更しない（新しい配列を返すだけ）");
 }

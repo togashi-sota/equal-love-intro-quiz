@@ -94,6 +94,7 @@ import {
 } from "./timeAttackScreen.js";
 import { initTimeAttackHistoryScreen, renderTimeAttackHistoryScreen } from "./timeAttackHistoryScreen.js";
 import { submitTimeAttackScoreIfBetter, backfillTimeAttackLeaderboardIfNeeded } from "./timeAttackLeaderboardSync.js";
+import { saveRankingCandidateIfBetter } from "./rankingCandidateStore.js";
 import {
   initTimeAttackLeaderboardScreen,
   showTimeAttackLeaderboard,
@@ -456,6 +457,7 @@ const fanProfilesLinkElement = document.getElementById("fan-profiles-link");
 const fanProfilesBackButtonElement = document.getElementById("fan-profiles-back-button");
 const fanProfilesSharingToggleElement = document.getElementById("fan-profiles-sharing-toggle");
 const fanProfilesSharingToggleLabelElement = document.getElementById("fan-profiles-sharing-toggle-label");
+const fanProfilesRankingSyncStatusElement = document.getElementById("fan-profiles-ranking-sync-status");
 const fanProfilesListElement = document.getElementById("fan-profiles-list");
 const fanProfileDetailOverlayElement = document.getElementById("fan-profile-detail-modal");
 const fanProfileDetailCloseButtonElement = document.getElementById("fan-profile-detail-close");
@@ -1321,6 +1323,7 @@ initFanProfilesScreen(
   {
     sharingToggleButton: fanProfilesSharingToggleElement,
     sharingToggleLabel: fanProfilesSharingToggleLabelElement,
+    rankingSyncStatus: fanProfilesRankingSyncStatusElement,
     listContainer: fanProfilesListElement,
     detailOverlay: fanProfileDetailOverlayElement,
     detailCloseButton: fanProfileDetailCloseButtonElement,
@@ -2589,6 +2592,19 @@ function renderResult() {
     resultLeaderboardStatusElement.hidden = true;
     if (isCleanClear && gameState.quizStartedAtMs !== null && gameState.quizFinishedAtMs !== null) {
       const clearTimeMs = gameState.quizFinishedAtMs - gameState.quizStartedAtMs;
+      // 【2026-08-16追加、本人指示】公開設定OFF中でも、ランキング条件を満たした記録は
+      // 常にローカルへ保存しておく（js/rankingCandidateStore.js）。下のsubmitTimeAttackScoreIfBetter
+      // 自体は公開設定OFFだと送信をスキップするが、この保存はその判定より前に必ず行う。
+      saveRankingCandidateIfBetter({
+        variant: TIME_ATTACK_VARIANT.INTRO,
+        questionCountValue,
+        categoryFilterValue,
+        clearTimeMs,
+        missCount: 0,
+        rule: null,
+        source: "normal",
+        achievedAt: Date.now(),
+      });
       resultLeaderboardStatusElement.hidden = false;
       resultLeaderboardStatusElement.textContent = "ランキングを確認しています…";
       submitTimeAttackScoreIfBetter({
@@ -3394,6 +3410,22 @@ initTimeAttackResultScreen({
         : "ランキング上の記録はすでにこのタイム以上でした";
     });
   },
+  // 【2026-08-16追加、本人指示】公開設定OFF中でも、ランキング条件を満たした記録は
+  // 常にローカルへ保存しておく（js/rankingCandidateStore.js）。onNewRecordと違い、
+  // ローカル自己ベストを更新したかどうかに関係なく、ミス0で完走した記録なら毎回呼ばれる
+  // （js/timeAttackScreen.jsのrenderTimeAttackResult参照）。
+  onCleanClear: ({ variant, questionCountValue, categoryFilterValue, rule, totalElapsedMs, missCount }) => {
+    saveRankingCandidateIfBetter({
+      variant,
+      questionCountValue,
+      categoryFilterValue,
+      clearTimeMs: totalElapsedMs,
+      missCount,
+      rule,
+      source: "timeAttack",
+      achievedAt: Date.now(),
+    });
+  },
 });
 
 // 「もう一度挑戦する」：直前と同じ出題数・カテゴリ・ルールのまま、問題を再抽選して開始する。
@@ -3628,6 +3660,19 @@ initRandomPlaybackResultScreen({
       randomPlaybackResultLeaderboardStatusElement.textContent = result.updated
         ? "🏆 ランキングの記録を更新しました！"
         : "ランキング上の記録はすでにこのタイム以上でした";
+    });
+  },
+  // 【2026-08-16追加、本人指示】js/timeAttackScreen.jsのonCleanClearと同じ理由・同じ設計。
+  onCleanClear: ({ variant, questionCountValue, categoryFilterValue, rule, totalElapsedMs, missCount }) => {
+    saveRankingCandidateIfBetter({
+      variant,
+      questionCountValue,
+      categoryFilterValue,
+      clearTimeMs: totalElapsedMs,
+      missCount,
+      rule,
+      source: "normal",
+      achievedAt: Date.now(),
     });
   },
 });

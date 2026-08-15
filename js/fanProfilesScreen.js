@@ -12,6 +12,7 @@ import {
   getMyUid,
   deletePublicProfileByAdmin,
 } from "./publicProfileSync.js";
+import { syncRankingCandidatesToFirebase } from "./timeAttackLeaderboardSync.js";
 import { ADMIN_UID } from "./adminConfig.js";
 import { getPlayerKeyPrefix } from "./playerProfile.js";
 import { getMemberById } from "./memberUtils.js";
@@ -91,13 +92,37 @@ function renderSharingSettings() {
   elements.sharingToggleLabel.textContent = enabled ? "ON" : "OFF";
 }
 
-function handleSharingToggleClick() {
+// 【2026-08-16追加、本人指示】OFF→ONへ切り替えた瞬間、OFF中でもランキング条件を満たして
+// ローカルに貯まっていた自己ベスト（js/rankingCandidateStore.js）をまとめてFirebaseへ同期する。
+// 比較・上書き判定は既存のsubmitTimeAttackScoreIfBetter()をそのまま再利用するため、ここでは
+// 「いつ呼ぶか」と「結果をどう見せるか」だけを担当する（js/timeAttackLeaderboardSync.jsの
+// syncRankingCandidatesToFirebase参照）。ON→OFFのときは呼ばない（同期する新しい記録が無いため）。
+async function handleSharingToggleClick() {
   const playerKeyPrefix = getPlayerKeyPrefix();
   const nextEnabled = !isPublicProfileSharingEnabled(playerKeyPrefix);
   setPublicProfileSharingEnabled(playerKeyPrefix, nextEnabled);
   renderSharingSettings();
   // 公開ON/OFFの直後は、自分の表示が一覧へ反映されたかどうかも合わせて確認できるよう再読込する。
   renderProfileList();
+
+  if (!nextEnabled) {
+    if (elements.rankingSyncStatus) elements.rankingSyncStatus.hidden = true;
+    return;
+  }
+
+  if (elements.rankingSyncStatus) {
+    elements.rankingSyncStatus.hidden = false;
+    elements.rankingSyncStatus.textContent = "ランキング記録を同期しています…";
+  }
+  const result = await syncRankingCandidatesToFirebase(playerKeyPrefix);
+  if (!elements.rankingSyncStatus) return;
+  if (result.updated > 0) {
+    elements.rankingSyncStatus.textContent = "過去のベスト記録をランキングに反映しました";
+  } else {
+    // 同期対象が無かった・すでに最新だった・オフラインだった等、特に伝えるべきことが無い場合は
+    // 控えめに消す（本人指示：「大げさなモーダルは不要」「UI/UX視点で自然な形に」）。
+    elements.rankingSyncStatus.hidden = true;
+  }
 }
 
 function openDetailModal(profile) {
@@ -187,6 +212,7 @@ export async function renderFanProfilesScreen() {
 
 // elements: {
 //   sharingToggleButton, sharingToggleLabel: 公開ON/OFFトグル,
+//   rankingSyncStatus: OFF→ON切替時のランキング後追い同期状況（2026-08-16新設）,
 //   listContainer: プロフィールカードを並べる入れ物,
 //   detailOverlay, detailCloseButton, detailSwatch, detailName, detailOshi, detailAchievementList,
 //   myUidValue: 「🆔 あなたのID」表示,

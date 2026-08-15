@@ -61,7 +61,7 @@
     import { runAchievementListTests } from "./tests/achievementList.test.js";
     import { runSpecialModeIconsTests } from "./tests/specialModeIcons.test.js";
     import { runPublicProfilePayloadsTests } from "./tests/publicProfilePayloads.test.js";
-    import { runFanProfileCardTests } from "./tests/fanProfileCard.test.js";
+    import { runFanProfileCardTests, runGetAchievementsForPublicDisplayTests } from "./tests/fanProfileCard.test.js";
     import { runMembersScreenTests } from "./tests/membersScreen.test.js";
     import { runTimeAttackScoreTests } from "./tests/timeAttackScore.test.js";
     import { runTimeAttackHistoryTests } from "./tests/timeAttackHistory.test.js";
@@ -75,6 +75,7 @@
     import { runStoragePersistenceTests } from "./tests/storagePersistence.test.js";
     import { runOnboardingScreenTests } from "./tests/onboardingScreen.test.js";
     import { runGuideContentTests } from "./tests/guideContent.test.js";
+    import { runRankingCandidateStoreTests } from "./tests/rankingCandidateStore.test.js";
     import { printSummary } from "./tests/test-utils.js";
 
     runScoreTests();
@@ -114,6 +115,7 @@
     runSpecialModeIconsTests();
     runPublicProfilePayloadsTests();
     runFanProfileCardTests();
+    runGetAchievementsForPublicDisplayTests();
     runMembersScreenTests();
     runTimeAttackScoreTests();
     runTimeAttackHistoryTests();
@@ -127,6 +129,7 @@
     await runStoragePersistenceTests();
     runOnboardingScreenTests();
     runGuideContentTests();
+    runRankingCandidateStoreTests();
     const { passCount, failCount } = printSummary();
 
     const summaryElement = document.getElementById("test-summary");

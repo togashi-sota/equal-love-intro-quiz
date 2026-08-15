@@ -298,6 +298,23 @@ export function renderTimeAttackResult() {
     });
   }
 
+  // 【2026-08-16追加、本人指示】公開設定に関係なく、ランキング条件（ミス0・完走）を
+  // 満たした記録は常にローカルへ保存しておく（js/rankingCandidateStore.js参照）。
+  // 上のonNewRecordが「ローカル自己ベストを更新したとき」だけ呼ばれるのに対し、こちらは
+  // 「ランキング条件を満たしたとき」だけを基準にする、意図的に別の判定にしている
+  // （ローカル自己ベストはミスありでも更新されうるため、isNewRecordだけに頼ると、
+  // ランキング条件を満たした記録を取りこぼす場合があった）。
+  if (!runFailed && missCount === 0) {
+    resultElements.onCleanClear?.({
+      variant: currentVariant,
+      questionCountValue: currentQuestionCountValue,
+      categoryFilterValue: currentCategoryFilterValue,
+      rule: currentRule,
+      totalElapsedMs,
+      missCount,
+    });
+  }
+
   // 称号（実績）判定。「タイトルへ」で中断した場合はこの関数自体が呼ばれないため、
   // 判定対象にはならない（既存の通常プレイと同じ考え方）。
   //
