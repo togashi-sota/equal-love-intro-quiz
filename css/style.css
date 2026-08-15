@@ -2600,6 +2600,11 @@ fieldset label:has(input:focus-visible) {
   padding: 26px 20px 20px;
   box-shadow: var(--shadow-card);
   animation: screenEnter var(--transition-slow) cubic-bezier(0.22, 1, 0.36, 1);
+  /* 【2026-08-15追加・本人報告の不具合対応】PCでマウスホイール操作をしていると、
+     モーダル内のスクロールが端まで達した瞬間に「スクロールの連鎖」が起き、
+     背後のページ（ライブコールモードの曲一覧など）まで一緒に動いてしまう現象があった。
+     containを指定すると、このモーダルの中でスクロールが完結し、背後には伝わらなくなる。 */
+  overscroll-behavior: contain;
 }
 
 /* ×ボタン：見た目の丸と実際のクリック領域を必ず一致させるため、
@@ -2866,6 +2871,9 @@ fieldset label:has(input:focus-visible) {
 .call-guide-tab-panel {
   max-height: 50vh;
   overflow-y: auto;
+  /* .modal-cardの中にさらにスクロール領域が入れ子になっているため、ここでも
+     スクロール連鎖を止めておく（.modal-cardのoverscroll-behavior:containと同じ理由）。 */
+  overscroll-behavior: contain;
 }
 
 .call-guide-empty-state {
@@ -3164,35 +3172,16 @@ fieldset label:has(input:focus-visible) {
   text-align: center;
 }
 
-.mix-must-know-heading {
+/* 2026-08-15改訂：以前はカテゴリー絞り込みボタン（すべて/基本MIX/口上…）を切り替えて
+   表示する方式だったが、「まず覚えたいMIX」の3件がボタン側の一覧にも重複して出てしまい
+   分かりにくいという指摘があったため廃止した。代わりに、①〜④の見出しを常に上から順に
+   並べる構成にした（js/callGuidePanel.jsのappendMixSection参照）。このクラスは
+   4つの見出し全てで共通して使う。 */
+.mix-section-heading {
   margin: 14px 0 8px;
   font-weight: 800;
   font-size: 0.88rem;
   color: var(--color-primary-dark);
-}
-
-.mix-category-filter-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 14px 0 10px;
-}
-
-.mix-category-filter-button {
-  border: 1px solid var(--color-secondary);
-  border-radius: 999px;
-  padding: 5px 12px;
-  background: transparent;
-  color: var(--color-secondary);
-  font-family: inherit;
-  font-size: 0.76rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.mix-category-filter-button.is-active {
-  background: var(--color-secondary);
-  color: #fff;
 }
 
 /* 作品単位のお気に入り一括登録/解除の完了案内。

@@ -192,6 +192,24 @@ export function runCallGuidePanelTests() {
     "ガチ恋口上は初心者向けに分類されている（本人指示セクション4）"
   );
 
+  // ---- 掛け声本文の著作権区分（2026-08-15改訂） ----
+  // ガチ恋口上・ガチ恋キャンセルは、＝LOVE固有の創作物ではなく複数の独立した一般的な
+  // アイドル文化解説サイトで内容が一致する定型文であることを確認できたため、本文を追加した。
+  // 一方、メンバー個人の創作性が高い曲専用口上（海レモ口上・推しセカ口上）は、
+  // 引き続き本文を含めない方針を維持している（Gitに掲載する情報の境界を明確にする）。
+  const gachikoiCancel = filterMixGuideByCategory("koujou").find((entry) => entry.id === "gachikoi-cancel");
+  assertEqual(gachikoiKoujou.textLines.length > 0, true, "ガチ恋口上は定型文のため本文を含む");
+  assertEqual(gachikoiKoujou.continuousText.length > 0, true, "ガチ恋口上に一続き表示用のテキストがある");
+  assertEqual(gachikoiCancel.textLines.length > 0, true, "ガチ恋キャンセルはガチ恋口上と共通の本文を含む");
+  const umiLemonKoujou = filterMixGuideByCategory("song-specific-koujou").find(
+    (entry) => entry.id === "umi-lemon-koujou"
+  );
+  const oshiSekaKoujou = filterMixGuideByCategory("song-specific-koujou").find(
+    (entry) => entry.id === "oshi-no-iru-sekai-koujou"
+  );
+  assertEqual(umiLemonKoujou.textLines.length, 0, "海レモ口上は個人の創作物のため本文を含めない");
+  assertEqual(oshiSekaKoujou.textLines.length, 0, "推しセカ口上も本文を含めない（考案者・文面とも未確認のため）");
+
   // ---- getCurrentOshiName（2026-08-24追加） ----
   // membersScreen.test.jsと同じく、実在のメンバーIDでsetMostOshiMember/clearMostOshiMemberを
   // 使い、テスト前後で状態を元に戻す（localStorageを使う関数のため）。

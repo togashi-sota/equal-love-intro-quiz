@@ -1,10 +1,12 @@
 // ライブコールモードの「コールガイド」パネル（メンバーコール／曲指定コール／
 // ペンライト指定曲／MIX・口上の4タブ）を組み立てるファイル。
 //
-// 表示するのは事実情報（色・名前・出典・使用場面の説明）のみ。コールの掛け声本文・
-// MIX/口上の掛け声本文は一切扱わない（js/data/songCallCredits.js・
-// js/data/mixAndKoujouGuide.jsのコメント参照）。データが無い項目は
-// 「情報がありません」を大量表示せず、その項目自体を出さない。
+// 表示するのは基本的に事実情報（色・名前・出典・使用場面の説明）だが、掛け声本文のうち
+// 特定の個人の創作物ではなく複数の独立した情報源で内容が一致する定型文（基本MIX・
+// ガチ恋口上・ガチ恋キャンセル）についてはこのファイル内に本文を含めて表示する。
+// 一方、メンバー個人が考案した創作性の高い口上（海レモ口上・推しセカ口上）の本文は
+// 引き続き一切含めない（js/data/songCallCredits.js・js/data/mixAndKoujouGuide.jsの
+// コメント参照）。データが無い項目は「情報がありません」を大量表示せず、その項目自体を出さない。
 //
 // 【2026-08-24改訂・大規模改修】情報量が大きく増えたため、「①まず覚えたい→②MIX→
 // ③口上→④＝LOVE固有→⑤ペンライト→⑥曲から探す」という初心者にも分かりやすい流れを
@@ -376,18 +378,18 @@ function renderSongColorTab(container, currentSongId) {
 }
 
 // ===== タブ4: MIX・口上 =====
-
-const MIX_CATEGORY_FILTERS = [
-  { id: "all", label: "すべて" },
-  { id: "mix", label: "基本MIX" },
-  { id: "koujou", label: "口上" },
-  { id: "song-specific-koujou", label: "曲専用口上" },
-  { id: "special", label: "その他" },
-];
-
-// このタブ内だけで使う絞り込み状態。モーダルを開き直しても選択を保持する
-// （タブを切り替えるたびに毎回「すべて」に戻ると使いにくいため）。
-let activeMixCategoryFilter = "all";
+//
+// 【2026-08-15改訂・本人指摘】以前は「①まず覚えたいMIX」の3件（英語MIX・日本語MIX・
+// 可変MIX）を専用の見出し付きで表示したあと、その下の「カテゴリー絞り込み」ボタンで
+// 「すべて」または「基本MIX」を選ぶと同じ3件がもう一度表示されてしまい、
+// 「英語MIXと日本語MIXが2つあるように見える」という分かりにくさにつながっていた。
+// また「その他」カテゴリーの中身がアイヌ語MIX1件だけで、分類として不自然だった。
+//
+// 今回、ボタンでの絞り込みをやめ、常に4つの見出し付きセクションを上から順番に
+// 表示する構成に変更した。各項目は必ずどれか1つのセクションにしか属さないため、
+// 同じ項目が重複して表示されることはない。曲固有の関連コールも、別枠に複製せず
+// 該当セクション内でカードごとハイライト表示する（songCall/songColorタブの
+// .is-current-songと同じ考え方、buildMixGuideCard内で判定）。
 
 // 掛け声本文の表示元を決める（2026-08-17追加）。
 // 優先順位：①端末に読み込み済みのJSONデータ（本人が追加・更新したもの）
@@ -476,10 +478,11 @@ function buildGuideTextSection(entry, localGuide) {
   return container;
 }
 
-function buildMixGuideCard(entry, isSongSpecificHighlight, localGuideMap) {
+function buildMixGuideCard(entry, currentSongId, localGuideMap) {
   const card = document.createElement("div");
   card.className = "mix-type-card";
-  if (isSongSpecificHighlight) card.classList.add("is-current-song");
+  const isRelatedToCurrentSong = Boolean(currentSongId) && Boolean(entry.songIds) && entry.songIds.includes(currentSongId);
+  if (isRelatedToCurrentSong) card.classList.add("is-current-song");
 
   const headerRow = document.createElement("div");
   headerRow.className = "mix-type-header-row";
@@ -590,6 +593,21 @@ async function loadLocalGuideMap() {
   return new Map(records.map((record) => [record.guideId, record]));
 }
 
+// 見出し付きの1セクション（見出し＋カード一覧）を組み立てて追加する。
+// entriesが0件のセクションは見出しごと出さない（空の箱を並べて分かりにくくしないため）。
+function appendMixSection(container, headingText, entries, currentSongId, localGuideMap) {
+  if (entries.length === 0) return;
+  const heading = document.createElement("p");
+  heading.className = "mix-section-heading";
+  heading.textContent = headingText;
+  container.appendChild(heading);
+
+  const list = document.createElement("div");
+  list.className = "mix-type-list";
+  entries.forEach((entry) => list.appendChild(buildMixGuideCard(entry, currentSongId, localGuideMap)));
+  container.appendChild(list);
+}
+
 async function renderMixTab(container, currentSongId) {
   container.innerHTML = "";
   const localGuideMap = await loadLocalGuideMap();
@@ -604,50 +622,28 @@ async function renderMixTab(container, currentSongId) {
     "多くはファン文化として定着したもので、公式が定めたものではありません。会場や公演によって使用状況が異なる場合があるため、当日の案内や周囲への配慮を優先してください。";
   container.appendChild(venueNote);
 
-  const songSpecificEntries = findSongRelatedGuideEntries(currentSongId);
-  if (songSpecificEntries.length > 0) {
+  // 2026-08-15改訂：以前はここで該当カードをもう一度複製して表示していたが、
+  // 「同じ項目が2つあるように見える」という指摘のため、案内文だけにして
+  // カード自体は本来のセクション内でハイライト表示する方式に変更した。
+  if (findSongRelatedGuideEntries(currentSongId).length > 0) {
     const banner = document.createElement("p");
     banner.className = "mix-song-specific-banner";
-    banner.textContent = "この曲に関連するコールがあります";
+    banner.textContent = "この曲に関連するコールがあります（下でピンク色にハイライトしています）";
     container.appendChild(banner);
-    songSpecificEntries.forEach((entry) => container.appendChild(buildMixGuideCard(entry, true, localGuideMap)));
   }
 
-  const mustKnowEntries = getMustKnowMixGuide();
-  if (mustKnowEntries.length > 0) {
-    const heading = document.createElement("p");
-    heading.className = "mix-must-know-heading";
-    heading.textContent = "① まず覚えたいMIX";
-    container.appendChild(heading);
-    const heroList = document.createElement("div");
-    heroList.className = "mix-type-list";
-    mustKnowEntries.forEach((entry) => heroList.appendChild(buildMixGuideCard(entry, false, localGuideMap)));
-    container.appendChild(heroList);
-  }
-
-  const filterRow = document.createElement("div");
-  filterRow.className = "mix-category-filter-row";
-  MIX_CATEGORY_FILTERS.forEach((filter) => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "mix-category-filter-button";
-    button.classList.toggle("is-active", filter.id === activeMixCategoryFilter);
-    button.textContent = filter.label;
-    button.addEventListener("click", () => {
-      activeMixCategoryFilter = filter.id;
-      renderMixTab(container, currentSongId);
-    });
-    filterRow.appendChild(button);
-  });
-  container.appendChild(filterRow);
-
-  const filteredEntries = filterMixGuideByCategory(activeMixCategoryFilter);
-  const list = document.createElement("div");
-  list.className = "mix-type-list";
-  filteredEntries.forEach((entry) => {
-    list.appendChild(buildMixGuideCard(entry, false, localGuideMap));
-  });
-  container.appendChild(list);
+  // 4つのセクションは互いに排他的（1項目は必ずどれか1つだけに属する）なので、
+  // 同じ項目が複数回表示されることはない。
+  appendMixSection(container, "① まず覚えたいMIX", getMustKnowMixGuide(), currentSongId, localGuideMap);
+  appendMixSection(container, "② 口上", filterMixGuideByCategory("koujou"), currentSongId, localGuideMap);
+  appendMixSection(
+    container,
+    "③ 曲専用の口上",
+    filterMixGuideByCategory("song-specific-koujou"),
+    currentSongId,
+    localGuideMap
+  );
+  appendMixSection(container, "④ 上級者向け・特殊なMIX", filterMixGuideByCategory("special"), currentSongId, localGuideMap);
 }
 
 const TAB_RENDERERS = {
