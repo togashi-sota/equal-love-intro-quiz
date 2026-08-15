@@ -2,6 +2,8 @@
 // フレームワークを使わないので、gameState という1つのオブジェクトに全部の情報を持たせ、
 // 状態を変えたいときは必ずこのファイルの関数を通して変更する、というルールにする。
 
+import { recordWeakSongAttempt } from "./weakSongStats.js";
+
 export const gameState = {
   screen: "start",               // "start" | "quiz" | "result"
   questions: [],                 // このプレイで出題する問題の配列（{ song, choices } の形）
@@ -230,6 +232,15 @@ export function recordAnswer(resultType, pointsEarned, elapsedMs) {
     elapsedMs,
   });
   gameState.score += pointsEarned;
+
+  // 【2026-08-16追加、本人指示】苦手曲判定用の記録は、通常プレイ（playMode:"normal"）
+  // だけを対象にする。復習("review")・特別モード("special"。苦手曲モード自身を含む)は
+  // ここでは対象外にする（苦手曲モード自身の結果が苦手曲判定にフィードバックされて
+  // しまうのを防ぐため）。resultTypeが"skip"・"reveal"の場合も、getMissedSongs()と同じく
+  // 「間違えた」扱いとしてattemptsだけを積む（correctは増やさない）。
+  if (gameState.playMode === "normal") {
+    recordWeakSongAttempt(question.song.id, resultType === "correct");
+  }
 }
 
 // 次の問題に進む。まだ問題が残っていれば true、全問終わっていれば false を返す。

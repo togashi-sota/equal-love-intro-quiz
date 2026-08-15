@@ -77,6 +77,7 @@
     import { runGuideContentTests } from "./tests/guideContent.test.js";
     import { runSonglistTests } from "./tests/songlist.test.js";
     import { runRankingCandidateStoreTests } from "./tests/rankingCandidateStore.test.js";
+    import { runWeakSongStatsTests } from "./tests/weakSongStats.test.js";
     import { printSummary } from "./tests/test-utils.js";
 
     runScoreTests();
@@ -132,6 +133,7 @@
     runGuideContentTests();
     runSonglistTests();
     runRankingCandidateStoreTests();
+    runWeakSongStatsTests();
     const { passCount, failCount } = printSummary();
 
     const summaryElement = document.getElementById("test-summary");

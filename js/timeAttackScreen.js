@@ -16,6 +16,8 @@
 import { SONGS } from "./data/songs.js";
 import { filterSongsByCategory, validatePlayablePoolSize, resolveQuestionCount, buildQuizQuestions } from "./quiz.js";
 import { filterSongsWithImportedAudio } from "./audioStorage.js";
+import { gameState } from "./state.js";
+import { recordWeakSongAttempt } from "./weakSongStats.js";
 import {
   getTimeAttackBest,
   saveTimeAttackBestIfBetter,
@@ -153,6 +155,21 @@ export function recordTimeAttackAnswer({ elapsedMs, isCorrect, question }) {
     correctCount += 1;
   }
   missCount += missCountThisQuestion;
+
+  // 【2026-08-16追加、本人指示】苦手曲判定用の記録。対象はplayModeが"timeAttack"
+  // （イントロタイムアタック・ランダム再生タイムアタックの両方。currentVariantで区別する
+  // 必要はなく、どちらも同じ扱いでよい）と"randomPlayback"（js/randomPlaybackScreen.jsの
+  // 独立したランダム再生クイズ。startRandomPlaybackRun()経由でこのファイルの記録エンジンを
+  // 再利用しているため）の2つ。"localBattle"・"onlineBattle"（対戦モード）も同じ
+  // recordTimeAttackAnswer()を通るが、対象4モードに含まれないため除外する。
+  // 正誤の判定は、最終的なisCorrectではなくmissCountThisQuestion===0（1回も間違えずに
+  // 正解できたか）を使う。ノーマルルールは「正解するまでやり直せる」ため、isCorrectは
+  // ほぼ常にtrueになってしまい判定に使えない（下のcomputeTimeAttackWeakSongsと同じ理由。
+  // js/timeAttackHistory.jsのコメント参照）。
+  if (gameState.playMode === "timeAttack" || gameState.playMode === "randomPlayback") {
+    recordWeakSongAttempt(question.song.id, missCountThisQuestion === 0);
+  }
+
   perQuestionResults.push({
     questionNumber: perQuestionResults.length + 1,
     songId: question.song.id,

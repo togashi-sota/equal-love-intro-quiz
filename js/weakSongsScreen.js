@@ -1,19 +1,17 @@
 // 苦手曲モードの確認画面を担当するファイル。
-// 「3回以上出題され、正答率50%未満」の対象曲を一覧表示し、出題数を選んでから開始できる。
-// 判定ロジック自体はhistory.jsのcomputeWeakSongs()に任せ、ここでは画面の組み立てと、
-// 選ばれた出題数から実際に出題する曲IDを決めるところまでを行う。
+// 「4モード合算で3回以上答えていて、正答率50%未満」の対象曲を一覧表示し、
+// 出題数を選んでから開始できる。判定ロジック自体はjs/weakSongStats.jsに任せ、
+// ここでは画面の組み立てと、選ばれた出題数から実際に出題する曲IDを決めるところまでを行う。
 // クイズを実際に組み立てて開始する処理（曲IDの配列を受け取る汎用エンジン）はmain.js側が担当する。
 //
-// 【2026-08-06追加】判定にタイムアタックの結果も反映してほしいという要望を受け、
-// 通常プレイ（computeWeakSongs）・タイムアタック（computeTimeAttackWeakSongs）それぞれの
-// 判定を別々に計算してから、mergeWeakSongStats()で1つのリストに統合する方式にした。
-// 2つのモードは「苦手」の基準（正誤の比率／ミス回数の比率）が異なるため、無理に1つの
-// 計算式へ混ぜ込むより、モードごとに正しく判定してから合流させる方が分かりやすく、
-// 保守もしやすいと判断した（本人と相談のうえで決定）。
-
+// 【2026-08-16改修、本人指示】以前は通常プレイ・タイムアタックの「完走したプレイの履歴」だけを
+// 別々の基準（正誤の比率／ミス回数の比率）で判定してからmergeWeakSongStats()で統合していたが、
+// ①通常のランダム再生クイズが判定に含まれていなかった、②途中で「タイトルへ」戻って中断した
+// プレイの回答が一切反映されなかった、という2つの問題があった。
+// 今回、js/weakSongStats.jsが「答えた瞬間ごとに曲別の合計回答数・正解数を記録する」専用の
+// データを持つようになったため、ここでは1種類の指標（正答率）だけを扱えばよくなった。
 import { SONGS } from "./data/songs.js";
-import { getHistoryEntries, computeWeakSongs } from "./history.js";
-import { getTimeAttackHistoryEntries, computeTimeAttackWeakSongs } from "./timeAttackHistory.js";
+import { getWeakSongStats, computeWeakSongsFromStats } from "./weakSongStats.js";
 import { resolveQuestionCount } from "./quiz.js";
 
 // この画面が使うDOM要素一式。initWeakSongsScreen()で受け取って保持する。
@@ -26,49 +24,19 @@ let currentWeakSongs = [];
 // （出題曲の決定ロジックには影響しない、あくまで説明用のデータ）。
 let currentWeakSongReasons = new Map();
 
-// 通常プレイ・タイムアタックそれぞれの苦手曲判定を、1つのリストへ統合する。
-// normalStats: computeWeakSongs()の戻り値（{songId, appearances, correctCount, accuracy}）
-// timeAttackStats: computeTimeAttackWeakSongs()の戻り値（{songId, appearances, mistakeAppearances, noMistakeRate}）
-// 両方で対象になった曲は、理由を2つとも表示する（severityはより低い方＝より苦手な方を採用）。
-// severityは「0に近いほど苦手」という共通の意味で扱う（正答率・ノーミス率、どちらも
-// 「うまくいっている割合」を表す0〜1の値のため、そのまま比較して問題ない）。
-function mergeWeakSongStats(normalStats, timeAttackStats) {
-  const statsBySongId = new Map();
-
-  normalStats.forEach((stat) => {
-    const accuracyPercent = Math.round(stat.accuracy * 100);
-    statsBySongId.set(stat.songId, {
-      songId: stat.songId,
-      severity: stat.accuracy,
-      reasons: [`正答率${accuracyPercent}%（${stat.correctCount}/${stat.appearances}問正解）`],
-    });
-  });
-
-  timeAttackStats.forEach((stat) => {
-    const reason = `タイムアタックでよく間違えている（${stat.mistakeAppearances}/${stat.appearances}回ミス）`;
-    const existing = statsBySongId.get(stat.songId);
-    if (existing) {
-      existing.reasons.push(reason);
-      existing.severity = Math.min(existing.severity, stat.noMistakeRate);
-    } else {
-      statsBySongId.set(stat.songId, {
-        songId: stat.songId,
-        severity: stat.noMistakeRate,
-        reasons: [reason],
-      });
-    }
-  });
-
-  return [...statsBySongId.values()].sort((a, b) => a.severity - b.severity);
-}
-
-// 通常プレイ・タイムアタック両方の最新の履歴から、統合済みの苦手曲判定を計算し直す。
+// js/weakSongStats.jsの集計から、画面表示に使う形（severity・reasons付き）を組み立てる。
+// severityは「0に近いほど苦手」という意味で使う（元々は正答率・ノーミス率の2種類を
+// 別々に扱っていた名残りの構造だが、今は正答率1種類だけなのでそのまま入れる）。
 // 「判定し直す」タイミングを画面の描画時・出題曲の決定時の両方で必要とするため、共通化している。
 function getMergedWeakSongStats() {
-  return mergeWeakSongStats(
-    computeWeakSongs(getHistoryEntries()),
-    computeTimeAttackWeakSongs(getTimeAttackHistoryEntries())
-  );
+  return computeWeakSongsFromStats(getWeakSongStats()).map((stat) => {
+    const accuracyPercent = Math.round(stat.accuracy * 100);
+    return {
+      songId: stat.songId,
+      severity: stat.accuracy,
+      reasons: [`4モード合算で正答率${accuracyPercent}%（${stat.correct}/${stat.attempts}問正解）`],
+    };
+  });
 }
 
 // 選んだ出題数が対象曲数を上回っているときだけ、実際の出題数を案内する。
