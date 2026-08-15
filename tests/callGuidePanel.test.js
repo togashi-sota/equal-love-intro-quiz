@@ -216,9 +216,14 @@ export function runCallGuidePanelTests() {
   assertEqual(gachikoiKoujou.textLines.length > 0, true, "ガチ恋口上は定型文のため本文を含む");
   assertEqual(gachikoiKoujou.continuousText.length > 0, true, "ガチ恋口上に一続き表示用のテキストがある");
 
-  const gachikoiCancelConcept = filterMixGuideByCategory("koujou").find((entry) => entry.id === "gachikoi-cancel");
-  assertEqual(gachikoiCancelConcept.songIds, null, "ガチ恋キャンセルの概念説明エントリーはsongIdsを持たない");
-  assertEqual(gachikoiCancelConcept.textLines.length, 0, "概念説明エントリー自体は本文を持たない（曲別エントリーに分離済み）");
+  // 2026-08-15さらに改訂：曲別エントリーへの分離で空になった概念説明用の
+  // 「ガチ恋キャンセル」エントリー自体は、本人指示（「もう使わないから消して」）により削除した。
+  // 用語の説明はjs/callGuidePanel.jsのCALL_GUIDE_GLOSSARYで引き続き行う。
+  assertEqual(
+    filterMixGuideByCategory("all").some((entry) => entry.id === "gachikoi-cancel"),
+    false,
+    "概念説明用のガチ恋キャンセルエントリーは削除済み"
+  );
 
   const naishoBanashiCancel = filterMixGuideByCategory("song-specific-koujou").find(
     (entry) => entry.id === "naisho-banashi-cancel"
@@ -243,14 +248,23 @@ export function runCallGuidePanelTests() {
     "海レモ口上にも「○○には推しの名前を入れる」という説明がある"
   );
 
+  // 2026-08-15さらに改訂：推しセカ口上は、運営側で全文を独立した情報源から直接確認する
+  // ことはできなかったが、本人（アプリ利用者）から「個人サイトであり多少の誤りより
+  // 情報を載せることを優先したい」という方針が示され、本人提供の情報として本文を
+  // 掲載することにした。ただし考案者の断定は避ける（creditNote参照）。
   const oshiSekaKoujou = filterMixGuideByCategory("song-specific-koujou").find(
     (entry) => entry.id === "oshi-no-iru-sekai-koujou"
   );
-  assertEqual(oshiSekaKoujou.textLines.length, 0, "推しセカ口上は本人発信の元情報を確認できなかったため本文を含めない");
+  assertEqual(oshiSekaKoujou.textLines.length > 0, true, "推しセカ口上は本人提供の情報として本文を含む");
+  assertEqual(
+    oshiSekaKoujou.creditNote.includes("断定情報ではありません"),
+    true,
+    "推しセカ口上の考案者は断定表現を避けたままにする（情報源が食い違うため）"
+  );
 
   // ---- shouldCollapseTextLines（2026-08-15追加） ----
   // 曲専用ガチ恋キャンセルのように行数が多い本文を「全文を見る」で折りたたむための判定。
-  // 英語MIX・日本語MIX・アイヌ語MIXの基本7語は折りたたまれないよう、閾値は7行に設定している。
+  // 英語MIX・日本語MIXの基本7語は折りたたまれないよう、閾値は7行に設定している。
   assertEqual(shouldCollapseTextLines([]), false, "0行は折りたたまない");
   assertEqual(
     shouldCollapseTextLines(englishMix.textLines),
