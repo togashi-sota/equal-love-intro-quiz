@@ -73,4 +73,41 @@ export const SONG_CALL_CREDITS = [
       },
     ],
   },
+  // 2026-08-24追加（コールガイド大規模改修）。
+  {
+    songId: "kimi-to-watashi-no-uta",
+    credits: [
+      {
+        creditType: "発信",
+        creditName: "野口衣織",
+        sourceType: "fan",
+        sourceUrls: ["https://ikorabucall.com/kimi-to-watashi-no-uta-call/"],
+        lastVerifiedDate: "2026-08-24",
+      },
+    ],
+  },
+  {
+    songId: "egao-no-recipe",
+    credits: [
+      {
+        creditType: "発信",
+        creditName: "山本杏奈",
+        sourceType: "fan",
+        sourceUrls: ["https://ikorabucall.com/egao-no-recipe-call/"],
+        lastVerifiedDate: "2026-08-24",
+      },
+    ],
+  },
+  {
+    songId: "love-song-ni-osowareru",
+    credits: [
+      {
+        creditType: "考案",
+        creditName: "メンバー全員",
+        sourceType: "fan",
+        sourceUrls: ["https://ikorabucall.com/love-song-ni-osowareru-call/"],
+        lastVerifiedDate: "2026-08-24",
+      },
+    ],
+  },
 ];

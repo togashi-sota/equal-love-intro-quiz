@@ -2876,6 +2876,46 @@ fieldset label:has(input:focus-visible) {
   padding: 12px 0;
 }
 
+/* 「コールは必須ではありません」の初心者向けバナー、MIX・口上タブの一番上に置く
+   （2026-08-24追加、本人指示セクション18）。強制感を出さない、やわらかい配色にする。 */
+.call-guide-not-mandatory-banner {
+  margin: 0 0 10px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(93, 200, 130, 0.14);
+  color: #1c7a44;
+  font-size: 0.84rem;
+  font-weight: 700;
+  line-height: 1.5;
+  text-align: center;
+}
+
+/* MIX・口上・ガチ恋・ペンライト指定の用語を1〜2文で説明する導入ブロック
+   （2026-08-24追加、本人指示セクション17：「専門用語を並べるだけにしないでください」）。
+   375px幅でも読みやすいよう、用語名と説明文の間で折り返せる横並びレイアウトにする。 */
+.call-guide-glossary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.035);
+}
+
+.call-guide-glossary-row {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--color-text);
+  opacity: 0.85;
+}
+
+.call-guide-glossary-row strong {
+  color: var(--color-primary-dark);
+  opacity: 1;
+}
+
 .penlight-color-chip {
   display: inline-flex;
   align-items: center;
@@ -3076,6 +3116,21 @@ fieldset label:has(input:focus-visible) {
   font-size: 0.72rem;
   font-weight: 400;
   opacity: 0.7;
+}
+
+/* 「①単語ごとに覚える」に続く「②実際に続けて唱えるとこうなる」の一続き表示
+   （2026-08-24追加、本人指示セクション1・2）。矢印つなぎの1本の流れを、375px幅でも
+   単語の途中で改行が起きないようword-break/line-heightを調整する。 */
+.mix-type-continuous-line {
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.04);
+  font-size: 0.88rem;
+  font-weight: 700;
+  line-height: 1.7;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 
 /* 「掛け声」見出し・「ワンポイント」box（2026-08-17追加）。掛け声本文を主役にし、

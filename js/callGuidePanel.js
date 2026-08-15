@@ -5,6 +5,12 @@
 // MIX/口上の掛け声本文は一切扱わない（js/data/songCallCredits.js・
 // js/data/mixAndKoujouGuide.jsのコメント参照）。データが無い項目は
 // 「情報がありません」を大量表示せず、その項目自体を出さない。
+//
+// 【2026-08-24改訂・大規模改修】情報量が大きく増えたため、「①まず覚えたい→②MIX→
+// ③口上→④＝LOVE固有→⑤ペンライト→⑥曲から探す」という初心者にも分かりやすい流れを
+// 意識して構成している（本人指示）。④・⑥は既存の「曲指定コール」「ペンライト指定曲」
+// タブと、曲の再生画面から開いたときのハイライト表示（is-current-song）がそのまま
+// 該当する役割を持つため、タブ構成自体は変更せず、各タブの中身を充実させる形にした。
 
 import { MEMBERS, MEMBER_STATUS } from "./data/members.js";
 import { SONG_PENLIGHT_GUIDE } from "./data/songPenlightGuide.js";
@@ -12,6 +18,8 @@ import { SONG_CALL_CREDITS } from "./data/songCallCredits.js";
 import { MIX_AND_KOUJOU_GUIDE } from "./data/mixAndKoujouGuide.js";
 import { getSongById } from "./data/songs.js";
 import { getAllCallGuideData } from "./callGuideStorage.js";
+import { getMemberById } from "./memberUtils.js";
+import { getMostOshiMemberId } from "./oshiMembers.js";
 
 // 2026-08-17追加：本人指示の「🌟メンバー考案／📣ライブ定番／🔰初心者おすすめ」のような
 // 絵文字付きバッジ表記。ライブ直前にスマホでぱっと見て分かることを優先する。
@@ -30,11 +38,13 @@ const FREQUENCY_LABELS = {
 // 情報の出所（sourceType）を、初心者が一目で信頼度を判断できる短いバッジに変換する
 // （2026-08-17追加、本人指示：「メンバー考案／ライブ定番」等のバッジを付ける）。
 // 既存のgetSourceTypeNote()（詳しい一文）とは役割を分け、こちらはカード上部に置く短いラベル用。
+// 2026-08-24：曲指定コール・ペンライト指定曲タブでも同じバッジを使い、
+// 「🔵公式指定／🩷メンバー発信／✨ファン定番」を混同しないという本人指示に対応する。
 const SOURCE_BADGE_LABELS = {
-  official: "🏛 公式情報",
-  self: "🌟 メンバー発信",
+  official: "🔵 公式情報",
+  self: "🩷 メンバー発信",
   reliable: "📰 報道で確認",
-  fan: "📣 ライブ定番",
+  fan: "✨ ファン定番",
 };
 
 export function formatSourceBadgeLabel(sourceType) {
@@ -43,7 +53,7 @@ export function formatSourceBadgeLabel(sourceType) {
 
 const CATEGORY_LABELS = {
   mix: "基本MIX",
-  koujou: "ガチ恋口上",
+  koujou: "口上",
   "song-specific-koujou": "曲専用口上",
   special: "その他",
 };
@@ -73,6 +83,16 @@ export function findSongSpecificKoujou(songId) {
   return MIX_AND_KOUJOU_GUIDE.filter(
     (entry) => entry.category === "song-specific-koujou" && entry.songIds && entry.songIds.includes(songId)
   );
+}
+
+// 2026-08-24追加：カテゴリを問わず、指定曲IDがsongIdsに含まれるガイド全件を返す。
+// 曲専用口上（song-specific-koujou）だけでなく、ガチ恋キャンセルのように「koujou」カテゴリでも
+// songIdsを持つようになったエントリを、曲別のコールガイドから辿れるようにするための関数
+// （本人指示：「曲別のコールガイドからも辿れるようにしてください」）。
+// findSongSpecificKoujou()は既存の呼び出し元・テストとの互換性のためカテゴリ限定のまま残す。
+export function findSongRelatedGuideEntries(songId) {
+  if (!songId) return [];
+  return MIX_AND_KOUJOU_GUIDE.filter((entry) => entry.songIds && entry.songIds.includes(songId));
 }
 
 // 「まず覚える3つ」（recommendedPriority:"must-know"）を返す。
@@ -118,6 +138,17 @@ export function findSongCallCredits(songId) {
   return SONG_CALL_CREDITS.find((entry) => entry.songId === songId) || null;
 }
 
+// 2026-08-24追加：今設定されている推しメンバーの名前を返す（無ければnull）。
+// 「ガチ恋口上の○○には何を入れるの？」という初心者の疑問に、可能であれば実際の推し名を
+// 添えて答えるために使う。プロフィールデータの読み取りのみで、一切書き換えない
+// （本人指示：「既存プロフィールデータを変更する必要はありません」）。
+export function getCurrentOshiName() {
+  const oshiMemberId = getMostOshiMemberId();
+  if (!oshiMemberId) return null;
+  const member = getMemberById(MEMBERS, oshiMemberId);
+  return member ? member.name : null;
+}
+
 function buildColorChip(colorName, colorCode) {
   const chip = document.createElement("span");
   chip.className = "penlight-color-chip";
@@ -144,6 +175,49 @@ function buildSourceNote(sourceType) {
   p.className = "penlight-source-note";
   p.textContent = note;
   return p;
+}
+
+// 出所バッジ（🔵公式情報／🩷メンバー発信／✨ファン定番等）を作る共通部品。
+// 2026-08-24追加：曲指定コール・ペンライト指定曲タブでも、MIX・口上タブと同じ見た目の
+// バッジを使えるようにするため、buildMixGuideCard内のインライン実装から切り出した。
+function buildSourceBadge(sourceType) {
+  const badge = document.createElement("span");
+  badge.className = `mix-type-tag mix-type-tag-source-${sourceType}`;
+  badge.textContent = formatSourceBadgeLabel(sourceType);
+  return badge;
+}
+
+// ===== 初心者向けの用語説明（2026-08-24追加） =====
+// 「MIXとは？口上とは？ガチ恋とは？ペンライト指定とは？」を1〜2文で説明する
+// （本人指示：「専門用語を並べるだけにしないでください」）。
+// DOM・IndexedDBに触れない純粋なデータのため、必要ならそのままテストできる。
+export const CALL_GUIDE_GLOSSARY = [
+  { term: "MIX", explanation: "サビ前後の間奏などで、みんなでタイミングを合わせて唱える定番の掛け声です。" },
+  { term: "口上", explanation: "曲中の長めの間奏で唱える、決まった長さのセリフのようなコールです。" },
+  { term: "ガチ恋", explanation: "推しメンバーへの気持ちを込めて呼びかける、口上の一種の呼び方です。" },
+  { term: "ペンライト指定", explanation: "曲によって「この色で」と決まっている、またはファンの間で定着しているペンライトの色のことです。" },
+];
+
+function buildGlossarySection() {
+  const container = document.createElement("div");
+  container.className = "call-guide-glossary";
+  CALL_GUIDE_GLOSSARY.forEach((item) => {
+    const row = document.createElement("p");
+    row.className = "call-guide-glossary-row";
+    const term = document.createElement("strong");
+    term.textContent = item.term;
+    row.appendChild(term);
+    row.appendChild(document.createTextNode(`：${item.explanation}`));
+    container.appendChild(row);
+  });
+  return container;
+}
+
+function buildNotMandatoryBanner() {
+  const banner = document.createElement("p");
+  banner.className = "call-guide-not-mandatory-banner";
+  banner.textContent = "コールは必須ではありません。分かるところだけ一緒に楽しめばOKです。";
+  return banner;
 }
 
 // ===== タブ1: メンバーコール =====
@@ -184,6 +258,12 @@ function renderMemberCallTab(container) {
 function renderSongCallTab(container, currentSongId) {
   container.innerHTML = "";
 
+  const intro = document.createElement("p");
+  intro.className = "penlight-source-note";
+  intro.textContent =
+    "メンバー本人が考えた・呼びかけたことが確認できているコールの一覧です（＝LOVE固有のコール）。バッジで出典の確からしさを示しています。";
+  container.appendChild(intro);
+
   if (SONG_CALL_CREDITS.length === 0) {
     const empty = document.createElement("p");
     empty.className = "call-guide-empty-state";
@@ -209,7 +289,10 @@ function renderSongCallTab(container, currentSongId) {
 
     const badges = document.createElement("span");
     badges.className = "song-call-guide-badges";
-    entry.credits.forEach((credit) => badges.appendChild(buildCreditBadge(credit)));
+    entry.credits.forEach((credit) => {
+      badges.appendChild(buildCreditBadge(credit));
+      badges.appendChild(buildSourceBadge(credit.sourceType));
+    });
     row.appendChild(badges);
 
     // 考案／発信の確からしさ（本人発信／ファン定着など）も、他タブと同じ表現で必ず併記する。
@@ -226,6 +309,12 @@ function renderSongCallTab(container, currentSongId) {
 // ===== タブ3: ペンライト指定曲 =====
 function renderSongColorTab(container, currentSongId) {
   container.innerHTML = "";
+
+  const intro = document.createElement("p");
+  intro.className = "penlight-source-note";
+  intro.textContent =
+    "曲によって色が決まっている、またはファンの間で定着しているペンライトカラーの一覧です。🔵公式指定・🩷メンバー発信・✨ファン定番を区別して表示しています。";
+  container.appendChild(intro);
 
   if (SONG_PENLIGHT_GUIDE.length === 0) {
     const empty = document.createElement("p");
@@ -250,6 +339,8 @@ function renderSongColorTab(container, currentSongId) {
     title.textContent = song.title;
     card.appendChild(title);
 
+    card.appendChild(buildSourceBadge(entry.sourceType));
+
     const chips = document.createElement("span");
     chips.className = "song-penlight-guide-chips";
     entry.colors.forEach((color) => {
@@ -261,8 +352,15 @@ function renderSongColorTab(container, currentSongId) {
     });
     card.appendChild(chips);
 
-    const note = buildSourceNote(entry.sourceType);
-    if (note) card.appendChild(note);
+    if (entry.note) {
+      const note = document.createElement("p");
+      note.className = "mix-type-summary";
+      note.textContent = entry.note;
+      card.appendChild(note);
+    }
+
+    const sourceNote = buildSourceNote(entry.sourceType);
+    if (sourceNote) card.appendChild(sourceNote);
 
     const relatedCredits = findSongCallCredits(entry.songId);
     if (relatedCredits) {
@@ -282,7 +380,7 @@ function renderSongColorTab(container, currentSongId) {
 const MIX_CATEGORY_FILTERS = [
   { id: "all", label: "すべて" },
   { id: "mix", label: "基本MIX" },
-  { id: "koujou", label: "ガチ恋口上" },
+  { id: "koujou", label: "口上" },
   { id: "song-specific-koujou", label: "曲専用口上" },
   { id: "special", label: "その他" },
 ];
@@ -315,7 +413,7 @@ function buildGuideTextSection(entry, localGuide) {
   if (source) {
     const heading = document.createElement("p");
     heading.className = "mix-type-text-heading";
-    heading.textContent = "掛け声";
+    heading.textContent = "① 単語ごとに覚える";
     container.appendChild(heading);
 
     const list = document.createElement("ol");
@@ -339,6 +437,29 @@ function buildGuideTextSection(entry, localGuide) {
       segment.className = "mix-type-summary";
       segment.textContent = `区切り：${source.segmentNote}`;
       container.appendChild(segment);
+    }
+
+    // 2026-08-24追加：「①単語ごとに覚える」だけでなく「②実際に続けて唱える形」も
+    // 併記する（本人指示：「単語は分かったけど、どういう順番で全部言うの？と
+    // ならないUIにしてください」）。アプリ標準のcontinuousTextがある場合だけ表示する
+    // （端末に読み込んだ独自データにはこのフィールドが無いため、その場合は①だけになる）。
+    if (entry.continuousText) {
+      const continuousHeading = document.createElement("p");
+      continuousHeading.className = "mix-type-text-heading";
+      continuousHeading.textContent = "② 実際に続けて唱えるとこうなる";
+      container.appendChild(continuousHeading);
+
+      const continuousLine = document.createElement("p");
+      continuousLine.className = "mix-type-continuous-line";
+      continuousLine.textContent = entry.continuousText;
+      container.appendChild(continuousLine);
+
+      if (entry.continuousNote) {
+        const continuousNote = document.createElement("p");
+        continuousNote.className = "mix-type-summary";
+        continuousNote.textContent = entry.continuousNote;
+        container.appendChild(continuousNote);
+      }
     }
   } else {
     const notLoaded = document.createElement("p");
@@ -388,10 +509,7 @@ function buildMixGuideCard(entry, isSongSpecificHighlight, localGuideMap) {
   frequencyBadge.className = "mix-type-tag";
   frequencyBadge.textContent = formatFrequencyLabel(entry.frequency);
   badgeRow.appendChild(frequencyBadge);
-  const sourceBadge = document.createElement("span");
-  sourceBadge.className = `mix-type-tag mix-type-tag-source-${entry.sourceType}`;
-  sourceBadge.textContent = formatSourceBadgeLabel(entry.sourceType);
-  badgeRow.appendChild(sourceBadge);
+  badgeRow.appendChild(buildSourceBadge(entry.sourceType));
   card.appendChild(badgeRow);
 
   // 【2026-08-17改訂・本人指示】「掛け声→使われる場面→タイミング→ワンポイント」の順で
@@ -410,6 +528,18 @@ function buildMixGuideCard(entry, isSongSpecificHighlight, localGuideMap) {
     cue.className = "mix-type-summary";
     cue.textContent = `始めるタイミング：${entry.startCue}`;
     card.appendChild(cue);
+  }
+
+  // 2026-08-24追加：「○○」には何を入れるのか、という初心者の疑問への説明。
+  // 可能であれば、今設定されている推しメンバーの名前を添える（本人指示）。
+  if (entry.placeholderNote) {
+    const placeholder = document.createElement("p");
+    placeholder.className = "mix-type-beginner-tip";
+    const oshiName = getCurrentOshiName();
+    placeholder.textContent = oshiName
+      ? `💡 ${entry.placeholderNote}（今の推し設定：${oshiName}さん）`
+      : `💡 ${entry.placeholderNote}`;
+    card.appendChild(placeholder);
   }
 
   if (entry.beginnerNote) {
@@ -464,17 +594,21 @@ async function renderMixTab(container, currentSongId) {
   container.innerHTML = "";
   const localGuideMap = await loadLocalGuideMap();
 
+  // 2026-08-24追加：初心者向けの前置き（用語説明＋「コールは必須ではない」）。
+  container.appendChild(buildNotMandatoryBanner());
+  container.appendChild(buildGlossarySection());
+
   const venueNote = document.createElement("p");
   venueNote.className = "penlight-source-note";
   venueNote.textContent =
     "多くはファン文化として定着したもので、公式が定めたものではありません。会場や公演によって使用状況が異なる場合があるため、当日の案内や周囲への配慮を優先してください。";
   container.appendChild(venueNote);
 
-  const songSpecificEntries = findSongSpecificKoujou(currentSongId);
+  const songSpecificEntries = findSongRelatedGuideEntries(currentSongId);
   if (songSpecificEntries.length > 0) {
     const banner = document.createElement("p");
     banner.className = "mix-song-specific-banner";
-    banner.textContent = "この曲には専用口上があります";
+    banner.textContent = "この曲に関連するコールがあります";
     container.appendChild(banner);
     songSpecificEntries.forEach((entry) => container.appendChild(buildMixGuideCard(entry, true, localGuideMap)));
   }
@@ -483,7 +617,7 @@ async function renderMixTab(container, currentSongId) {
   if (mustKnowEntries.length > 0) {
     const heading = document.createElement("p");
     heading.className = "mix-must-know-heading";
-    heading.textContent = "最初に確認したいMIX";
+    heading.textContent = "① まず覚えたいMIX";
     container.appendChild(heading);
     const heroList = document.createElement("div");
     heroList.className = "mix-type-list";

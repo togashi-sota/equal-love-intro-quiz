@@ -12,9 +12,13 @@ import {
   formatSourceBadgeLabel,
   formatUsedInEqualLoveNote,
   findSongSpecificKoujou,
+  findSongRelatedGuideEntries,
   getMustKnowMixGuide,
   filterMixGuideByCategory,
+  getCurrentOshiName,
 } from "../js/callGuidePanel.js";
+import { MEMBERS } from "../js/data/members.js";
+import { setMostOshiMember, clearMostOshiMember } from "../js/oshiMembers.js";
 import { assertEqual } from "./test-utils.js";
 
 export function runCallGuidePanelTests() {
@@ -81,11 +85,14 @@ export function runCallGuidePanelTests() {
   assertEqual(formatCategoryLabel("mix"), "基本MIX", "mixカテゴリのラベル");
   assertEqual(formatCategoryLabel("song-specific-koujou"), "曲専用口上", "曲専用口上カテゴリのラベル");
 
-  // ---- formatSourceBadgeLabel（2026-08-17追加） ----
-  assertEqual(formatSourceBadgeLabel("official"), "🏛 公式情報", "officialの出所バッジ");
-  assertEqual(formatSourceBadgeLabel("self"), "🌟 メンバー発信", "selfの出所バッジ");
+  // ---- formatSourceBadgeLabel ----
+  // 【2026-08-24改訂】本人指示（コールガイド大規模改修セクション11）により、
+  // 「🔵公式指定／🩷メンバー発信／✨ファン定番」を混同しない表記へ統一
+  // （曲指定コール・ペンライト・MIX/口上の全タブで共通のバッジとして使う）。
+  assertEqual(formatSourceBadgeLabel("official"), "🔵 公式情報", "officialの出所バッジ");
+  assertEqual(formatSourceBadgeLabel("self"), "🩷 メンバー発信", "selfの出所バッジ");
   assertEqual(formatSourceBadgeLabel("reliable"), "📰 報道で確認", "reliableの出所バッジ");
-  assertEqual(formatSourceBadgeLabel("fan"), "📣 ライブ定番", "fanの出所バッジ");
+  assertEqual(formatSourceBadgeLabel("fan"), "✨ ファン定番", "fanの出所バッジ");
   assertEqual(formatSourceBadgeLabel("unknown-type"), "❔ 出典未確認", "未知のsourceTypeは安全側の表示");
 
   // ---- formatUsedInEqualLoveNote ----
@@ -115,6 +122,34 @@ export function runCallGuidePanelTests() {
     "海とレモンティーの専用口上のIDが正しい"
   );
 
+  // ---- findSongRelatedGuideEntries（2026-08-24追加） ----
+  // カテゴリを問わず、その曲に関連するガイド（曲専用口上・ガチ恋キャンセル等）を全て拾えることを確認する。
+  assertEqual(findSongRelatedGuideEntries(null), [], "songIdがnullなら空配列");
+  assertEqual(
+    findSongRelatedGuideEntries("naisho-banashi").some((entry) => entry.id === "gachikoi-cancel"),
+    true,
+    "内緒バナシはガチ恋キャンセルの対象曲として見つかる（本人指示セクション6）"
+  );
+  assertEqual(
+    findSongRelatedGuideEntries("bukatsuchu-ni-megaau-natte-omotteta-nda").some(
+      (entry) => entry.id === "gachikoi-cancel"
+    ),
+    true,
+    "「部活中に目が合うなって思ってたんだ」もガチ恋キャンセルの対象曲として見つかる"
+  );
+  assertEqual(
+    findSongRelatedGuideEntries("umi-to-lemon-tea").some((entry) => entry.id === "umi-lemon-koujou"),
+    true,
+    "曲専用口上（category違い）もfindSongRelatedGuideEntriesで見つかる"
+  );
+
+  // ---- 園長MIX（danchou-mix）が削除されていることの確認（本人指示セクション3） ----
+  assertEqual(
+    filterMixGuideByCategory("all").some((entry) => entry.id === "danchou-mix"),
+    false,
+    "＝LOVEでの使用実績が確認できなかった園長MIXは一覧に残っていない"
+  );
+
   // ---- getMustKnowMixGuide ----
   const mustKnow = getMustKnowMixGuide();
   assertEqual(mustKnow.length, 3, "「まず覚える3つ」は3件登録されている");
@@ -135,4 +170,35 @@ export function runCallGuidePanelTests() {
     true,
     "'all'は他のどのカテゴリより件数が少なくならない"
   );
+
+  // ---- 一続き表示（continuousText）が英語MIX・日本語MIXに追加されていることの確認 ----
+  // 本人指示セクション1・2：「単語別」と「一続き」の両方を用意する。
+  const englishMix = filterMixGuideByCategory("mix").find((entry) => entry.id === "english-mix");
+  const japaneseMix = filterMixGuideByCategory("mix").find((entry) => entry.id === "japanese-mix");
+  assertEqual(typeof englishMix.continuousText, "string", "英語MIXに一続き表示用のテキストがある");
+  assertEqual(englishMix.continuousText.length > 0, true, "英語MIXの一続きテキストが空でない");
+  assertEqual(typeof japaneseMix.continuousText, "string", "日本語MIXに一続き表示用のテキストがある");
+
+  // ---- ガチ恋口上のplaceholderNote（本人指示セクション5） ----
+  const gachikoiKoujou = filterMixGuideByCategory("koujou").find((entry) => entry.id === "gachikoi-koujou");
+  assertEqual(
+    typeof gachikoiKoujou.placeholderNote === "string" && gachikoiKoujou.placeholderNote.length > 0,
+    true,
+    "ガチ恋口上に「○○には推しの名前を入れる」という説明がある"
+  );
+  assertEqual(
+    formatDifficultyLabel(gachikoiKoujou.difficulty),
+    "🔰 初心者向け",
+    "ガチ恋口上は初心者向けに分類されている（本人指示セクション4）"
+  );
+
+  // ---- getCurrentOshiName（2026-08-24追加） ----
+  // membersScreen.test.jsと同じく、実在のメンバーIDでsetMostOshiMember/clearMostOshiMemberを
+  // 使い、テスト前後で状態を元に戻す（localStorageを使う関数のため）。
+  const testOshiMember = MEMBERS[0];
+  clearMostOshiMember();
+  assertEqual(getCurrentOshiName(), null, "推し未設定のときはnullを返す");
+  setMostOshiMember(testOshiMember.id);
+  assertEqual(getCurrentOshiName(), testOshiMember.name, "最推し設定済みのときはその名前を返す");
+  clearMostOshiMember();
 }
