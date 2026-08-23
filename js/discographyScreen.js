@@ -272,6 +272,17 @@ function buildSisterGroupCard(group) {
   description.textContent = group.description;
   card.appendChild(description);
 
+  // 【2026-08-23追加】以前は＝LOVEについてページ内に「リーダー：山本杏奈」という単独表示が
+  // あったが、姉妹グループカードのすぐ下にあって紛らわしい（＝LOVE自身のリーダー表記なのに
+  // 姉妹グループのリーダーのように見えてしまう）ため削除し、代わりに各姉妹グループ自身の
+  // リーダーをこのカード内に小さく表示する形にした（本人指示）。
+  if (group.leader) {
+    const leaderLine = document.createElement("p");
+    leaderLine.className = "sister-group-leader";
+    leaderLine.textContent = `リーダー：${group.leader}`;
+    card.appendChild(leaderLine);
+  }
+
   const linkDefs = [
     { key: "website", label: "公式サイト" },
     { key: "youtube", label: "公式YouTube" },
@@ -552,6 +563,72 @@ function buildRelatedGamesSection(relatedGames) {
   return wrapper;
 }
 
+// ＝LOVEと姉妹グループによる合同楽曲を紹介するカード。sister-group-cardと同じ見た目を流用し、
+// 参加グループのバッジ・年・説明文・（あれば）クレジット・MVを見るボタンを表示する
+// （本人指示：姉妹グループが増えるにつれ合同楽曲の規模も広がった流れが伝わる構成に。2026-08-23新設）。
+function buildCollaborationSongCard(song) {
+  const card = document.createElement("div");
+  card.className = "sister-group-card";
+
+  const nameRow = document.createElement("p");
+  nameRow.className = "sister-group-name";
+  nameRow.textContent = song.title;
+  const yearSpan = document.createElement("span");
+  yearSpan.className = "sister-group-reading";
+  yearSpan.textContent = song.year;
+  nameRow.appendChild(yearSpan);
+  card.appendChild(nameRow);
+
+  const groupsLine = document.createElement("p");
+  groupsLine.className = "sister-group-leader";
+  groupsLine.textContent = song.participatingGroups.join(" × ");
+  card.appendChild(groupsLine);
+
+  const description = document.createElement("p");
+  description.className = "sister-group-description";
+  description.textContent = song.description;
+  card.appendChild(description);
+
+  if (song.credits) {
+    const credits = document.createElement("p");
+    credits.className = "sister-group-leader";
+    credits.textContent = song.credits;
+    card.appendChild(credits);
+  }
+
+  if (song.mvUrl) {
+    const mvLink = document.createElement("a");
+    mvLink.className = "mv-link-button";
+    mvLink.href = song.mvUrl;
+    mvLink.target = "_blank";
+    mvLink.rel = "noopener noreferrer";
+    mvLink.innerHTML = `
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7Z"/></svg>
+      MVを見る
+    `;
+    card.appendChild(mvLink);
+  }
+
+  return card;
+}
+
+function buildCollaborationSongsSection(collaborationSongs) {
+  const wrapper = document.createElement("div");
+  if (!collaborationSongs || collaborationSongs.length === 0) return wrapper;
+
+  const heading = document.createElement("p");
+  heading.className = "section-heading";
+  heading.textContent = "グループ合同楽曲";
+  wrapper.appendChild(heading);
+
+  const list = document.createElement("div");
+  list.className = "sister-group-list";
+  collaborationSongs.forEach((song) => list.appendChild(buildCollaborationSongCard(song)));
+  wrapper.appendChild(list);
+
+  return wrapper;
+}
+
 function buildSisterGroupsSection(sisterGroups) {
   const wrapper = document.createElement("div");
   if (!sisterGroups || sisterGroups.length === 0) return wrapper;
@@ -592,13 +669,7 @@ function renderAboutTab(members, groupInfo, groupActivities, sisterGroups) {
 
   elements.aboutContent.appendChild(buildSisterGroupsSection(sisterGroups));
 
-  const leader = members.find((member) => member.id === groupInfo.leaderMemberId);
-  if (leader) {
-    const leaderCard = document.createElement("p");
-    leaderCard.className = "leader-note";
-    leaderCard.textContent = `リーダー：${leader.name}`;
-    elements.aboutContent.appendChild(leaderCard);
-  }
+  elements.aboutContent.appendChild(buildCollaborationSongsSection(groupInfo.collaborationSongs));
 
   elements.aboutContent.appendChild(buildGroupActivitiesSection(groupActivities));
 

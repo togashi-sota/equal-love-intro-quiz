@@ -146,6 +146,41 @@ export const GROUP_INFO = {
       lastVerifiedDate: "2026-08-23",
     },
   ],
+  // 【2026-08-23追加】＝LOVEと姉妹グループ（≠ME・≒JOY）による合同楽曲。年代順（2020年→2022年）に
+  // 並べることで、姉妹グループが増えるにつれ合同楽曲の規模も広がっていった流れが自然に伝わる構成にした
+  // （本人指示）。
+  collaborationSongs: [
+    {
+      id: "collab-tsugi-ni-aeta-toki",
+      title: "次に会えた時 何を話そうかな",
+      participatingGroups: ["＝LOVE", "≠ME"],
+      year: "2020年",
+      description:
+        "2020年、新型コロナウイルスの影響でツアー中止・CD延期が相次ぎ、ライブなどファンと直接会える活動が難しくなった時期に発表された、＝LOVEと≠MEによる合同楽曲。メンバー24人それぞれが自宅からリモートで歌唱・撮影に参加して制作されており、特定の1人が立つセンターは設けられていない。会えない時間の中でもファンとのつながりを大切にしたいという思いが込められている。",
+      credits: null,
+      mvUrl: "https://www.youtube.com/watch?v=aC4CdVDFzB4",
+      sourceType: "official",
+      sourceUrls: ["https://www.youtube.com/watch?v=aC4CdVDFzB4"],
+      lastVerifiedDate: "2026-08-23",
+    },
+    {
+      id: "collab-triple-date",
+      title: "トリプルデート",
+      participatingGroups: ["＝LOVE", "≠ME", "≒JOY"],
+      year: "2022年",
+      description:
+        "＝LOVE・≠ME・≒JOYの3グループがそろって歌う、指原莉乃プロデュース3グループ（イコノイジョイ）初の合同楽曲。2022年6月26日にMVを公開、7月20日から配信をスタートした。＝LOVE11名・≠ME12名・≒JOY13名、総勢36名で歌唱している。",
+      credits: "作詞：指原莉乃／作曲：本多友紀／編曲：脇眞富",
+      mvUrl: "https://www.youtube.com/watch?v=gkabNNfTjX4",
+      sourceType: "official",
+      sourceUrls: [
+        "https://equal-love.jp/news/detail/5638",
+        "https://natalie.mu/music/news/483126",
+        "https://www.youtube.com/watch?v=gkabNNfTjX4",
+      ],
+      lastVerifiedDate: "2026-08-23",
+    },
+  ],
   // 【2026-08-23追加】＝LOVE・≠ME・≒JOYの3グループ合同で展開している公式スマホゲーム等。
   // 事前登録用ページのタイトルは今も「事前登録受付中」の表示のままだが、実際は2023年12月26日
   // から正式サービス開始済み・現在も運営中であることを複数の情報源（運営会社ニュース欄・

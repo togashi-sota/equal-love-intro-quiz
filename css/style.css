@@ -9159,14 +9159,6 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   opacity: 0.85;
 }
 
-.leader-note {
-  margin: 14px 0;
-  text-align: center;
-  font-size: 0.82rem;
-  font-weight: 700;
-  color: var(--color-primary-dark);
-}
-
 /* ===== 姉妹グループ紹介カード（＝LOVEについてタブ、プロデューサー欄の近く） ===== */
 .sister-group-list {
   display: flex;
@@ -9202,6 +9194,16 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   line-height: 1.6;
   color: var(--color-text);
   opacity: 0.85;
+}
+
+/* 姉妹グループカード内の「リーダー：○○」表記、グループ合同楽曲カード内の参加グループ・
+   クレジット表記など、目立たせすぎたくない小さな補足行に共通で使う（2026-08-23追加） */
+.sister-group-leader {
+  margin: 0 0 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--color-text);
+  opacity: 0.6;
 }
 
 .sister-group-links {
