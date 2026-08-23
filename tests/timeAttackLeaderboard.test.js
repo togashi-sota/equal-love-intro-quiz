@@ -17,6 +17,8 @@ import {
   findRankByUid,
   findBestEntryPerVariantQuestionCountAndCategory,
   isValidLeaderboardCandidate,
+  computeAverageSecondsPerQuestion,
+  findVerifiedAllModeAverageSeconds,
 } from "../js/timeAttackLeaderboard.js";
 import { assertEqual } from "./test-utils.js";
 
@@ -364,5 +366,48 @@ export function runTimeAttackLeaderboardTests() {
     introFiveCategoryAll.categoryFilterValue !== introFiveTitleTrack.categoryFilterValue,
     true,
     "カテゴリー「全曲」の記録と表題曲のみの記録は別枠として抽出される（混ざらない）"
+  );
+
+  // ---- 1問あたりの平均タイム（2026-08-24追加）：固定出題数だけが対象、「全曲」は対象外 ----
+  assertEqual(
+    computeAverageSecondsPerQuestion(11824, "5"),
+    2.3648,
+    "5問・11.824秒の記録は1問あたり2.3648秒になる"
+  );
+  assertEqual(
+    computeAverageSecondsPerQuestion(117973.2, "20"),
+    5.89866,
+    "20問の記録も正しく1問あたりの秒数に変換される"
+  );
+  assertEqual(
+    computeAverageSecondsPerQuestion(137029, "all"),
+    null,
+    "出題数「全曲」は実際の出題数が記録に残っておらず、曲数も時期で変わるため平均を計算しない"
+  );
+  assertEqual(computeAverageSecondsPerQuestion(0, "5"), null, "クリアタイムが0（異常値）ならnull");
+  assertEqual(computeAverageSecondsPerQuestion(-100, "5"), null, "クリアタイムが負数ならnull");
+  assertEqual(computeAverageSecondsPerQuestion(NaN, "5"), null, "クリアタイムがNaNならnull");
+  assertEqual(computeAverageSecondsPerQuestion(5000, "not-a-number"), null, "出題数が不正な値ならnull");
+
+  // ---- 出題数「全曲」の特例（本人が履歴から確認した記録だけ手動登録、2026-08-24追加） ----
+  assertEqual(
+    findVerifiedAllModeAverageSeconds("intro", "all", "all", 137029.00000000026),
+    137029.00000000026 / 1000 / 81,
+    "本人が履歴から確認した特例記録は、完全一致で平均タイムを返す"
+  );
+  assertEqual(
+    findVerifiedAllModeAverageSeconds("intro", "all", "all", 137029),
+    137029 / 1000 / 81,
+    "浮動小数点の微小な誤差（1ms未満）は同一記録として一致する"
+  );
+  assertEqual(
+    findVerifiedAllModeAverageSeconds("intro", "all", "all", 99999),
+    null,
+    "登録されていないclearTimeMsの記録（＝新しい記録に更新された場合等）はnullを返す（古い平均を誤表示しない）"
+  );
+  assertEqual(
+    findVerifiedAllModeAverageSeconds("randomPlayback", "all", "all", 137029.00000000026),
+    null,
+    "variantが違えば一致しない"
   );
 }

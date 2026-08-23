@@ -203,3 +203,47 @@ export function findRankByUid(sortedEntries, uid) {
   const index = sortedEntries.findIndex((entry) => entry.uid === uid);
   return index === -1 ? null : index + 1;
 }
+
+// 1問あたりの平均タイム（秒）を計算する（2026-08-24追加、本人指示）。
+// 【なぜ出題数「全曲」は対象外か】ランキング記録には実際に出題された曲数が保存されておらず、
+// 「全曲」の曲数はカタログの更新で時期によって変わる（例：本セッション中だけでも81→82曲に増加）。
+// 現在の曲数を使って割り算すると、記録が作られた時点の実際の出題数とズレて不正確な平均を
+// 表示してしまう恐れがあるため、questionCountValueが固定値（5/10/20/50）の記録だけを対象にする。
+// 【安全性】この関数はclearTimeMsを一切書き換えない・保存もしない、表示専用の計算にとどめる
+// （本人指示：既存のランキング順位・保存済みクリアタイムには一切影響させない）。
+export function computeAverageSecondsPerQuestion(clearTimeMs, questionCountValue) {
+  if (questionCountValue === "all") return null;
+  const questionCount = Number(questionCountValue);
+  if (!Number.isFinite(questionCount) || questionCount <= 0) return null;
+  if (!Number.isFinite(clearTimeMs) || clearTimeMs <= 0) return null;
+  return clearTimeMs / 1000 / questionCount;
+}
+
+// 【2026-08-24追加、本人指示の特例】出題数「全曲」は通常は自動計算しない（実際の出題数が
+// 記録に残っておらず、曲数も時期によって変わるため）。ただし本人が自分のプレイ履歴画面
+// （実際の出題数が残っている）から実際の値を確認できた記録だけ、ここに手動で登録して
+// 表示する。variant×questionCountValue×categoryFilterValue×clearTimeMsの完全一致（微小な
+// 誤差だけ許容）で照合するため、対象の記録が新しいタイムに更新された場合は自動的に
+// 一致しなくなり、古い（もう正しくない）平均を表示し続けることがないようにしている。
+const VERIFIED_ALL_MODE_RECORDS = [
+  {
+    // 2026-08-16 01:47のタイムアタック（本人のプレイ履歴画面で確認：81問中81問正解、
+    // 経過時間137.03秒）。本人指示により、この1件だけ特例として表示する。
+    variant: "intro",
+    questionCountValue: "all",
+    categoryFilterValue: "all",
+    clearTimeMs: 137029.00000000026,
+    actualQuestionCount: 81,
+  },
+];
+
+export function findVerifiedAllModeAverageSeconds(variant, questionCountValue, categoryFilterValue, clearTimeMs) {
+  const match = VERIFIED_ALL_MODE_RECORDS.find(
+    (entry) =>
+      entry.variant === variant &&
+      entry.questionCountValue === questionCountValue &&
+      entry.categoryFilterValue === categoryFilterValue &&
+      Math.abs(entry.clearTimeMs - clearTimeMs) < 1
+  );
+  return match ? clearTimeMs / 1000 / match.actualQuestionCount : null;
+}

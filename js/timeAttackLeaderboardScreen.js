@@ -13,7 +13,12 @@ import {
   deleteLeaderboardEntryByAdmin,
   syncRankingCandidatesToFirebase,
 } from "./timeAttackLeaderboardSync.js";
-import { LEADERBOARD_QUESTION_COUNT_VALUES, LEADERBOARD_CATEGORY_VALUES } from "./timeAttackLeaderboard.js";
+import {
+  LEADERBOARD_QUESTION_COUNT_VALUES,
+  LEADERBOARD_CATEGORY_VALUES,
+  computeAverageSecondsPerQuestion,
+  findVerifiedAllModeAverageSeconds,
+} from "./timeAttackLeaderboard.js";
 import { fetchPublicProfileBadgeState, getMyUid, isPublicProfileSharingEnabled } from "./publicProfileSync.js";
 import { getPlayerKeyPrefix } from "./playerProfile.js";
 import { ADMIN_UID } from "./adminConfig.js";
@@ -78,7 +83,16 @@ function buildRankBadge(rank) {
 // 管理者専用の削除ボタンを追加する（一般ユーザーには絶対に見えない導線。
 // js/fanProfileCard.jsのbuildProfileCardと同じ考え方だが、この行はbutton要素ではなく
 // div要素のため、button-in-buttonの制約なく直接子要素として追加できる）。
-function buildLeaderboardRow(entry, rank, badgeState, isOwnRow, { isAdmin = false, onAdminDeleteRequest = null } = {}) {
+function buildLeaderboardRow(
+  entry,
+  rank,
+  badgeState,
+  isOwnRow,
+  variant,
+  questionCountValue,
+  categoryFilterValue,
+  { isAdmin = false, onAdminDeleteRequest = null } = {}
+) {
   const row = document.createElement("div");
   row.className = "leaderboard-row";
   row.classList.toggle("is-own-row", isOwnRow);
@@ -113,10 +127,30 @@ function buildLeaderboardRow(entry, rank, badgeState, isOwnRow, { isAdmin = fals
 
   row.appendChild(body);
 
+  const timeBlock = document.createElement("div");
+  timeBlock.className = "leaderboard-row-time-block";
+
   const time = document.createElement("p");
   time.className = "leaderboard-row-time";
   time.textContent = `${formatSeconds(entry.clearTimeMs)}秒`;
-  row.appendChild(time);
+  timeBlock.appendChild(time);
+
+  // 1問あたりの平均タイム（2026-08-24追加、本人指示：「今後ランキングは必ず平均も乗せる」）。
+  // 出題数「全曲」は通常、実際の出題数が記録に残っておらず曲数も時期によって変わるため
+  // 自動計算しないが、本人がプレイ履歴から実際の出題数を確認できた記録だけは
+  // findVerifiedAllModeAverageSecondsの特例リストで表示する
+  // （js/timeAttackLeaderboard.js参照）。
+  const averageSeconds =
+    computeAverageSecondsPerQuestion(entry.clearTimeMs, questionCountValue) ??
+    findVerifiedAllModeAverageSeconds(variant, questionCountValue, categoryFilterValue, entry.clearTimeMs);
+  if (averageSeconds !== null) {
+    const average = document.createElement("p");
+    average.className = "leaderboard-row-average";
+    average.textContent = `平均 ${averageSeconds.toFixed(2)}秒/問`;
+    timeBlock.appendChild(average);
+  }
+
+  row.appendChild(timeBlock);
 
   if (isAdmin) {
     const deleteButton = document.createElement("button");
@@ -238,10 +272,16 @@ async function loadAndRenderLeaderboard() {
     const rank = index + 1;
     const isOwnRow = elements.currentUid && entry.uid === elements.currentUid;
     elements.listContainer.appendChild(
-      buildLeaderboardRow(entry, rank, badgeStateByUid.get(entry.uid), isOwnRow, {
-        isAdmin: isAdminUser,
-        onAdminDeleteRequest: openAdminDeleteConfirm,
-      })
+      buildLeaderboardRow(
+        entry,
+        rank,
+        badgeStateByUid.get(entry.uid),
+        isOwnRow,
+        currentVariant,
+        currentQuestionCountValue,
+        currentCategoryFilterValue,
+        { isAdmin: isAdminUser, onAdminDeleteRequest: openAdminDeleteConfirm }
+      )
     );
   });
   setStateVisibility({ loading: false, offline: false, empty: false, list: true });
@@ -272,7 +312,16 @@ async function renderMyRecordIfNeeded(myRenderToken, top10Entries) {
     return;
   }
 
-  elements.myRecordText.textContent = `あなたのベスト：${formatSeconds(myResult.entry.clearTimeMs)}秒`;
+  const myAverageSeconds =
+    computeAverageSecondsPerQuestion(myResult.entry.clearTimeMs, currentQuestionCountValue) ??
+    findVerifiedAllModeAverageSeconds(
+      currentVariant,
+      currentQuestionCountValue,
+      currentCategoryFilterValue,
+      myResult.entry.clearTimeMs
+    );
+  const myAverageSuffix = myAverageSeconds !== null ? `（平均 ${myAverageSeconds.toFixed(2)}秒/問）` : "";
+  elements.myRecordText.textContent = `あなたのベスト：${formatSeconds(myResult.entry.clearTimeMs)}秒${myAverageSuffix}`;
   elements.myRecordSection.hidden = false;
 }
 
