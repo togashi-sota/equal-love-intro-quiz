@@ -25,6 +25,7 @@ import {
   setMostOshiMember,
   clearMostOshiMember,
 } from "./oshiMembers.js";
+import { ACTIVITY_STATUS } from "./data/memberActivities.js";
 
 // この画面が使うDOM要素一式。initMembersScreen()で受け取って保持する。
 let elements = null;
