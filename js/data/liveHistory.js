@@ -337,45 +337,50 @@ export const LIVE_EVENTS = [
     lastVerifiedDate: "2026-08-03",
   },
   {
-    id: "live-8th-anniversary-tour",
-    title: "＝LOVE 8th ANNIVERSARY PREMIUM TOUR",
+    // 【2026-08-23分割】以前はこのツアーの開催会場が異なる2公演（IGアリーナ・横浜スタジアム
+    // FINAL）を1枚のカードにまとめ、映像商品も形態ごとに複数ボタンを並べていたが、
+    // 「1公演＝1カード」で見やすくしてほしいという本人指示を受けて、公演ごとに
+    // 別カードへ分割した（このカードはIGアリーナ公演分）。
+    id: "live-8th-anniversary-tour-ig-arena",
+    title: "＝LOVE 8th ANNIVERSARY PREMIUM TOUR（愛知・IGアリーナ公演）",
+    type: LIVE_TYPE.TOUR,
+    isAnniversary: true,
+    isGraduation: false,
+    status: LIVE_STATUS.HELD,
+    startDate: "2025-11-16",
+    endDate: "2025-11-16",
+    venues: [{ name: "IGアリーナ", city: "愛知", date: "2025-11-16" }],
+    blurayReleased: true,
+    productLinks: [
+      {
+        label: "Blu-ray/DVDを見る（2026.06.17発売）",
+        url: "https://www.sonymusic.co.jp/artist/equal-love/discography/VVXL-290",
+        sourceType: "official",
+      },
+    ],
+    setlist: null,
+    episodeNote: null,
+    sourceType: "official",
+    sourceUrls: ["https://equal-love.jp/news/detail/9827", "https://equal-love.jp/news/detail/11345"],
+    lastVerifiedDate: "2026-08-23",
+  },
+  {
+    id: "live-8th-anniversary-tour-yokohama-final",
+    title: "＝LOVE 8th ANNIVERSARY PREMIUM TOUR FINAL in 横浜スタジアム",
     type: LIVE_TYPE.TOUR,
     isAnniversary: true,
     isGraduation: false,
     status: LIVE_STATUS.HELD,
     startDate: "2026-04-18",
     endDate: "2026-04-19",
-    // 【2026-08-23修正】このツアーの映像商品は、開催会場が異なる2本が別々に発売されている
-    // （①2025-11-16 IGアリーナ公演→2026-06-17発売の初回生産限定盤等、②2026-04-19
-    // 横浜スタジアムFINAL公演→2026-10-14発売の完全生産限定盤等）。以前はvenuesにIGアリーナが
-    // 抜けたまま、IGアリーナ公演の商品リンク（VVXL-290）だけが「横浜スタジアム（ファイナル）」の
-    // カードに載っており、会場と商品の対応が誤っていたため、venues・productLinksとも修正した。
-    // カード上部の日付（startDate/endDate）は、このカードの主題であるアニバーサリーツアー
-    // FINAL（横浜スタジアム、4/18〜19）のまま維持し、IGアリーナの開催日は会場行の日付表示
-    // （showDate、js/discographyScreen.jsのformatVenue参照）でのみ示す。
-    venues: [
-      { name: "IGアリーナ", city: "愛知", date: "2025-11-16" },
-      { name: "横浜スタジアム（ファイナル）", city: "横浜", date: "2026-04-18" },
-    ],
+    venues: [{ name: "横浜スタジアム（ファイナル）", city: "横浜", date: "2026-04-18" }],
     blurayReleased: true,
+    // 【本人指示】完全生産限定盤/初回仕様限定盤Blu-ray/初回仕様限定盤DVDの3形態は、
+    // 別々のボタンに分けず「Blu-ray / DVD発売（発売日）」の1本にまとめ、押すと
+    // 公式の映像商品発売決定ページ（形態・価格の詳細はここに掲載）へ飛ぶようにする。
     productLinks: [
       {
-        label: "IGアリーナ公演 初回生産限定盤［Blu-ray2枚組］を見る",
-        url: "https://www.sonymusic.co.jp/artist/equal-love/discography/VVXL-290",
-        sourceType: "official",
-      },
-      {
-        label: "横浜スタジアムFINAL 完全生産限定盤［Blu-ray2枚組］（2026.10.14発売）",
-        url: "https://equal-love.jp/news/detail/11855",
-        sourceType: "official",
-      },
-      {
-        label: "横浜スタジアムFINAL 初回仕様限定盤［Blu-ray］（2026.10.14発売）",
-        url: "https://equal-love.jp/news/detail/11855",
-        sourceType: "official",
-      },
-      {
-        label: "横浜スタジアムFINAL 初回仕様限定盤［DVD］（2026.10.14発売）",
+        label: "Blu-ray / DVD発売（2026.10.14発売）を見る",
         url: "https://equal-love.jp/news/detail/11855",
         sourceType: "official",
       },
@@ -385,11 +390,7 @@ export const LIVE_EVENTS = [
     setlist: null,
     episodeNote: null,
     sourceType: "official",
-    sourceUrls: [
-      "https://natalie.mu/music/news/668885",
-      "https://equal-love.jp/news/detail/11345",
-      "https://equal-love.jp/news/detail/11855",
-    ],
+    sourceUrls: ["https://natalie.mu/music/news/668885", "https://equal-love.jp/news/detail/11855"],
     lastVerifiedDate: "2026-08-23",
   },
   {

@@ -94,6 +94,28 @@ export const GROUP_ACTIVITIES = [
     lastVerifiedDate: "2026-08-03",
   },
   {
+    id: "group-cm-mynumber-card",
+    title: "政府広報「まだまだマイナー？マイナカード」CM",
+    type: ACTIVITY_TYPE.TV,
+    description: "内閣府大臣官房政府広報室（デジタル庁も連携）によるマイナンバーカード利用促進キャンペーンのオリジナルソング・CM。＝LOVE全員とマイナンバーPRキャラクター「マイナちゃん」が出演し、＝LOVEにとってグループ初のテレビCMとなった。作詞：服部隆幸、作曲：小池竜暉・菊池博人、編曲：菊池博人、振付：槙田紗子（政府広報オンライン公式YouTubeのPV概要欄で確認）。",
+    url: null,
+    links: [
+      { label: "PVを見る", url: "https://www.youtube.com/watch?v=93iIH0_e1QM", sourceType: "official" },
+      { label: "特設サイトを見る", url: "https://www.gov-online.go.jp/tokusyu/mynumber/", sourceType: "official" },
+    ],
+    status: ACTIVITY_STATUS.PAST,
+    startDate: "2026-03-02",
+    endDate: "2026-03-02",
+    sourceType: "official",
+    sourceUrls: [
+      "https://www.gov-online.go.jp/tokusyu/mynumber/",
+      "https://equal-love.jp/news/detail/11249",
+      "https://www.youtube.com/watch?v=93iIH0_e1QM",
+      "https://www.oricon.co.jp/news/2439020/full/",
+    ],
+    lastVerifiedDate: "2026-08-23",
+  },
+  {
     id: "group-tv-love-cross-love",
     title: "＝LOVExLOVE（イコールラブクロスラブ）",
     type: ACTIVITY_TYPE.TV,

@@ -347,6 +347,211 @@ function buildFanClubAppCard(fanClubApp) {
   return wrapper;
 }
 
+// ＝LOVEのライブ衣装・MV衣装を数多く手がけるクリエイティブディレクターを紹介するカード。
+// プロデューサーカードと同じ見た目（.producer-card）を流用し、「指原莉乃と並ぶ重要な
+// 裏方の一人」という位置づけを表現する（本人指示。2026-08-23新設）。
+function buildCostumeDirectorCard(costumeCreativeDirector) {
+  const wrapper = document.createElement("div");
+  if (!costumeCreativeDirector) return wrapper;
+
+  const heading = document.createElement("p");
+  heading.className = "section-heading";
+  heading.textContent = "衣装を支える人";
+  wrapper.appendChild(heading);
+
+  const card = document.createElement("div");
+  card.className = "producer-card";
+
+  const name = document.createElement("p");
+  name.className = "producer-name";
+  name.textContent = `${costumeCreativeDirector.name}（${costumeCreativeDirector.role}）`;
+  card.appendChild(name);
+
+  if (costumeCreativeDirector.introduction) {
+    const description = document.createElement("p");
+    description.className = "sister-group-description";
+    description.textContent = costumeCreativeDirector.introduction.text;
+    card.appendChild(description);
+  }
+
+  const linkDefs = [
+    { key: "x", label: "公式X" },
+    { key: "website", label: "オサレカンパニー公式サイト" },
+  ];
+  linkDefs.forEach(({ key, label }) => {
+    const url = costumeCreativeDirector.officialLinks?.[key];
+    if (!url) return;
+    const link = document.createElement("a");
+    link.className = "official-link-button";
+    link.href = url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = label;
+    card.appendChild(link);
+  });
+
+  wrapper.appendChild(card);
+  return wrapper;
+}
+
+// ＝LOVE・≠MEメンバーが出演したドラマ・映像作品を紹介するカード。
+// sister-group-cardと同じ見た目を流用しつつ、W主題歌の一覧だけは専用の小さなリストで表示する。
+// ＝LOVE本編の主題歌（好きって、言えなかった）には、収録曲一覧へ直接移動できるボタンを付ける
+// （本人指示：ドラマ紹介⇔楽曲ページを相互リンクさせたい。js/main.jsのapp-navigateイベント経由。
+// 2026-08-23新設）。
+function buildDramaCard(drama) {
+  const card = document.createElement("div");
+  card.className = "sister-group-card";
+
+  const nameRow = document.createElement("p");
+  nameRow.className = "sister-group-name";
+  nameRow.textContent = `『${drama.title}』`;
+  card.appendChild(nameRow);
+
+  const broadcastRow = document.createElement("p");
+  broadcastRow.className = "sister-group-reading";
+  broadcastRow.textContent = `${drama.broadcastYear} ／ ${drama.broadcastDetail}`;
+  card.appendChild(broadcastRow);
+
+  const description = document.createElement("p");
+  description.className = "sister-group-description";
+  description.textContent = drama.summary;
+  card.appendChild(description);
+
+  if (drama.castNote) {
+    const castNote = document.createElement("p");
+    castNote.className = "sister-group-description";
+    castNote.textContent = drama.castNote.text;
+    card.appendChild(castNote);
+  }
+
+  if (drama.themeSongs?.length > 0) {
+    const themeSongsHeading = document.createElement("p");
+    themeSongsHeading.className = "sister-group-description";
+    themeSongsHeading.textContent = "W主題歌：";
+    card.appendChild(themeSongsHeading);
+
+    const themeSongsList = document.createElement("ul");
+    themeSongsList.className = "producer-facts";
+    drama.themeSongs.forEach((themeSong) => {
+      const item = document.createElement("li");
+      const label = [themeSong.group, themeSong.title, themeSong.note].filter(Boolean).join(" ／ ");
+      if (themeSong.group === "＝LOVE") {
+        const navButton = document.createElement("button");
+        navButton.type = "button";
+        navButton.className = "track-credit-link";
+        navButton.textContent = `${label}（収録曲一覧へ）`;
+        navButton.addEventListener("click", () => {
+          window.dispatchEvent(new CustomEvent("app-navigate", { detail: { screen: "songlist" } }));
+        });
+        item.appendChild(navButton);
+      } else {
+        item.textContent = label;
+      }
+      themeSongsList.appendChild(item);
+    });
+    card.appendChild(themeSongsList);
+  }
+
+  const linkDefs = [
+    { key: "website", label: "ドラマ公式サイト" },
+    { key: "news", label: "出演情報を見る" },
+  ];
+  const linkRow = document.createElement("div");
+  linkRow.className = "sister-group-links";
+  linkDefs.forEach(({ key, label }) => {
+    const url = drama.officialLinks?.[key];
+    if (!url) return;
+    const link = document.createElement("a");
+    link.className = "official-link-button";
+    link.href = url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = label;
+    linkRow.appendChild(link);
+  });
+  card.appendChild(linkRow);
+
+  return card;
+}
+
+function buildDramaSection(dramaAppearances) {
+  const wrapper = document.createElement("div");
+  if (!dramaAppearances || dramaAppearances.length === 0) return wrapper;
+
+  const heading = document.createElement("p");
+  heading.className = "section-heading";
+  heading.textContent = "ドラマ・映像作品";
+  wrapper.appendChild(heading);
+
+  const list = document.createElement("div");
+  list.className = "sister-group-list";
+  dramaAppearances.forEach((drama) => list.appendChild(buildDramaCard(drama)));
+  wrapper.appendChild(list);
+
+  return wrapper;
+}
+
+// ＝LOVE・≠ME・≒JOYの3グループ合同で展開している公式ゲーム等を紹介するカード。
+// ＝LOVE LINK（buildFanClubAppCard）と同じsister-group-cardを流用し、他の公式サービス
+// 紹介と統一感を持たせる（本人指示。2026-08-23新設）。
+function buildRelatedGameCard(game) {
+  const card = document.createElement("div");
+  card.className = "sister-group-card";
+
+  const nameRow = document.createElement("p");
+  nameRow.className = "sister-group-name";
+  nameRow.textContent = game.name;
+  card.appendChild(nameRow);
+
+  if (game.description) {
+    const description = document.createElement("p");
+    description.className = "sister-group-description";
+    description.textContent = game.description.text;
+    card.appendChild(description);
+  }
+
+  const linkDefs = [
+    { key: "website", label: "公式サイト" },
+    { key: "x", label: "公式X" },
+    { key: "appStore", label: "App Store" },
+    { key: "googlePlay", label: "Google Play" },
+  ];
+  const linkRow = document.createElement("div");
+  linkRow.className = "sister-group-links";
+  linkDefs.forEach(({ key, label }) => {
+    const url = game.officialLinks?.[key];
+    if (!url) return;
+    const link = document.createElement("a");
+    link.className = "official-link-button";
+    link.href = url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = label;
+    linkRow.appendChild(link);
+  });
+  card.appendChild(linkRow);
+
+  return card;
+}
+
+function buildRelatedGamesSection(relatedGames) {
+  const wrapper = document.createElement("div");
+  if (!relatedGames || relatedGames.length === 0) return wrapper;
+
+  const heading = document.createElement("p");
+  heading.className = "section-heading";
+  heading.textContent = "＝LOVE関連公式サービス・ゲーム";
+  wrapper.appendChild(heading);
+
+  const list = document.createElement("div");
+  list.className = "sister-group-list";
+  relatedGames.forEach((game) => list.appendChild(buildRelatedGameCard(game)));
+  wrapper.appendChild(list);
+
+  return wrapper;
+}
+
 function buildSisterGroupsSection(sisterGroups) {
   const wrapper = document.createElement("div");
   if (!sisterGroups || sisterGroups.length === 0) return wrapper;
@@ -383,6 +588,8 @@ function renderAboutTab(members, groupInfo, groupActivities, sisterGroups) {
     elements.aboutContent.appendChild(buildProducerCard(groupInfo.producer));
   }
 
+  elements.aboutContent.appendChild(buildCostumeDirectorCard(groupInfo.costumeCreativeDirector));
+
   elements.aboutContent.appendChild(buildSisterGroupsSection(sisterGroups));
 
   const leader = members.find((member) => member.id === groupInfo.leaderMemberId);
@@ -395,6 +602,8 @@ function renderAboutTab(members, groupInfo, groupActivities, sisterGroups) {
 
   elements.aboutContent.appendChild(buildGroupActivitiesSection(groupActivities));
 
+  elements.aboutContent.appendChild(buildDramaSection(groupInfo.dramaAppearances));
+
   const linksHeading = document.createElement("p");
   linksHeading.className = "section-heading";
   linksHeading.textContent = "＝LOVE公式リンク";
@@ -402,6 +611,8 @@ function renderAboutTab(members, groupInfo, groupActivities, sisterGroups) {
   elements.aboutContent.appendChild(buildGroupLinksSection(groupInfo.officialLinks));
 
   elements.aboutContent.appendChild(buildFanClubAppCard(groupInfo.fanClubApp));
+
+  elements.aboutContent.appendChild(buildRelatedGamesSection(groupInfo.relatedGames));
 }
 
 // ---- 年表タブ ----

@@ -458,6 +458,42 @@ export function createTrackRow(song, options = {}) {
     infoBlock.appendChild(descriptionElement);
   }
 
+  // 特別クレジット：作詞・作曲・MV監督などが通常（作詞：指原莉乃 等）と異なる曲だけ、
+  // 曲名のすぐ下に小さく表示する（本人指示：全曲に付けると見づらくなるため、例外の曲のみ）。
+  // urlが設定されているクレジット（監督本人のメイキング動画など）は、行内の小さなリンクにする
+  // （official-link-buttonのような大きなボタンにはせず、あくまで補足情報として控えめに）。
+  if (song.specialCredits?.length > 0) {
+    song.specialCredits.forEach((credit) => {
+      const creditElement = document.createElement("span");
+      creditElement.className = "track-meta-line track-credit-line";
+      creditElement.textContent = credit.text;
+      if (credit.url) {
+        creditElement.appendChild(document.createTextNode(" "));
+        const creditLink = document.createElement("a");
+        creditLink.className = "track-credit-link";
+        creditLink.href = credit.url;
+        creditLink.target = "_blank";
+        creditLink.rel = "noopener noreferrer";
+        creditLink.textContent = credit.linkLabel ?? "▶ 関連動画を見る";
+        creditElement.appendChild(creditLink);
+      } else if (credit.navigateTo) {
+        // 外部リンクではなく、アプリ内の別画面（例：＝LOVEについてのドラマ紹介）へ移動する
+        // クレジットの場合は、window宛カスタムイベント経由でjs/main.jsに画面遷移を任せる
+        // （js/main.js参照。2026-08-23追加）。
+        creditElement.appendChild(document.createTextNode(" "));
+        const creditNavButton = document.createElement("button");
+        creditNavButton.type = "button";
+        creditNavButton.className = "track-credit-link track-credit-nav-button";
+        creditNavButton.textContent = credit.linkLabel ?? "▶ 詳しく見る";
+        creditNavButton.addEventListener("click", () => {
+          window.dispatchEvent(new CustomEvent("app-navigate", { detail: { screen: credit.navigateTo } }));
+        });
+        creditElement.appendChild(creditNavButton);
+      }
+      infoBlock.appendChild(creditElement);
+    });
+  }
+
   // MVを見るボタン：youtubeUrlがある曲だけ、再生前の通常表示から常に見える位置に置く
   // （以前は試聴中だけ見えるシーク欄の中にあったが、MVだけ見たい人も一度試聴しないと
   // ボタンが出ないのは分かりにくいという本人フィードバックを受けて移動。2026-08-05）。

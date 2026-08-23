@@ -3224,6 +3224,31 @@ discographyBackButtonElement.addEventListener("click", () => {
   navigateWithScrollMemory("start");
 });
 
+// ドラマ紹介カード・収録曲一覧の特別クレジットなど、離れた画面同士を相互リンクさせたい箇所が
+// 増えてきたため、カスタムイベント経由の汎用ナビゲーションを用意する（js/songlist.js・
+// js/discographyScreen.jsは画面遷移の仕組みを直接importしなくてよくなる。2026-08-23追加）。
+window.addEventListener("app-navigate", (event) => {
+  const screen = event.detail?.screen;
+  playClickSound();
+  if (screen === "discography") {
+    renderDiscographyScreen({
+      songs: SONGS,
+      members: MEMBERS,
+      discographyEntries: DISCOGRAPHY,
+      historyEvents: HISTORY_EVENTS,
+      groupInfo: GROUP_INFO,
+      groupActivities: GROUP_ACTIVITIES,
+      liveEvents: LIVE_EVENTS,
+      sisterGroups: SISTER_GROUPS,
+      upcomingRelease: UPCOMING_RELEASE,
+    });
+    navigateWithScrollMemory("discography");
+  } else if (screen === "songlist") {
+    resetSongListToDefaultView();
+    navigateWithScrollMemory("songlist");
+  }
+});
+
 workDetailBackButtonElement.addEventListener("click", () => {
   playSfx(SFX_EVENTS.UI_BACK);
   showScreen("discography");

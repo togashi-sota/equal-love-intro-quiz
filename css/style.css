@@ -3659,6 +3659,29 @@ fieldset label:has(input:focus-visible) {
   overflow-wrap: break-word;
 }
 
+/* 特別クレジット（作詞・MV監督など、通常と異なる曲だけに付く補足情報）。
+   .track-meta-lineの見た目をベースに、他の行と紛れないよう少しだけ強調する
+   （2026-08-23追加）。 */
+.track-meta-line.track-credit-line {
+  font-style: italic;
+}
+
+.track-credit-link {
+  font-style: normal;
+  color: var(--color-primary-dark);
+  text-decoration: underline;
+}
+
+/* track-credit-linkをボタン要素で使う場合（アプリ内の別画面へ移動するクレジット）に、
+   ブラウザ標準のボタン見た目をリセットしてリンクと同じ見た目に揃える */
+button.track-credit-link {
+  font: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
 /* 試聴中の曲だけに表示する、再生位置バー */
 .track-seek {
   display: flex;

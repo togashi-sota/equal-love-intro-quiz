@@ -68,6 +68,91 @@ export const GROUP_INFO = {
     showroom: null, // 公式サイトからの直接リンクが未確認のため、要再確認まで非掲載
     store: "https://store.plusmember.jp/equallove/",
   },
+  // 【2026-08-23追加】オサレカンパニーのクリエイティブディレクターで、＝LOVEのライブ衣装・
+  // MV衣装を数多く手がけている人物。指原莉乃と並ぶ重要な裏方として紹介してほしいという
+  // 本人指示により、プロデューサーカードのすぐ近くに専用カードを設ける。
+  // 「東京ドームに行けると信じている」等、確認できない具体的発言は本人の言葉として書かない
+  // （本人指示・調査結果ともに未確認のため）。
+  costumeCreativeDirector: {
+    name: "茅野しのぶ",
+    role: "オサレカンパニー クリエイティブディレクター",
+    introduction: {
+      text: "オサレカンパニーの取締役・クリエイティブディレクターで、AKB48グループの衣装に加え、＝LOVEのライブ衣装・MV衣装なども数多く手がけている。本人のXやnoteでは、楽曲ごとの衣装への思いや＝LOVEというグループそのものへの愛着を発信しており、2025年には初の著書『アイドル衣装のひみつ〜カワイイの方程式』（学研）を刊行、同書には＝LOVE大谷映美里との鼎談も収録された。ファンから見れば、メンバー一人ひとりや楽曲・ライブの世界観を大切にしながら、長く＝LOVEの成長を衣装を通して支えてきた存在の一人と言える。",
+      sourceType: "reliable",
+      sourceUrls: [
+        "https://x.com/shinobukayano",
+        "https://note.com/shinobukayano/n/n4b49ff82334e",
+        "https://note.com/shinobukayano/n/n1fd13674d3c1",
+        "https://prtimes.jp/main/html/rd/p/000007453.000002535.html",
+        "https://natalie.mu/music/news/626638",
+        "https://ja.wikipedia.org/wiki/茅野しのぶ",
+      ],
+      lastVerifiedDate: "2026-08-23",
+    },
+    officialLinks: {
+      x: "https://x.com/shinobukayano",
+      website: "https://osarecompany.com",
+    },
+  },
+  // 【2026-08-23追加】＝LOVE・≠MEメンバーが出演した過去のドラマ・映像作品。
+  // 出演者全員のリストは公式サイト（equal-love.jp/schedule/detail/5667）に掲載がなく、
+  // 本人（利用者）から伺った名前を「など」の形で記載している（断定的な全員リストにはしない）。
+  // ドラマ公式サイト（asahi.co.jp）は自動アクセスツールからの取得がブロックされたため、
+  // URL自体は本人から伺ったものをそのまま採用し、実在の最終確認は本人にお願いしたい。
+  dramaAppearances: [
+    {
+      id: "drama-moshikoi",
+      title: "もしも、この気持ちを恋と呼ぶなら…。",
+      broadcastYear: "2022年",
+      broadcastDetail: "2022年9月23日(金) 深夜0時24分〜 ABCテレビ（関西）放送",
+      summary: "＝LOVE・≠MEのオーディションで選ばれたメンバーが出演する、ABCテレビのオリジナルスペシャルドラマ。バドミントン部を舞台にした高校生の物語で、両グループプロデューサーの指原莉乃が書き下ろした楽曲の歌詞をベースに制作された。",
+      castNote: {
+        text: "＝LOVEからは野口衣織・佐々木舞香・齊藤なぎさ・諸橋沙夏などが出演。出演者全員の正式なリストは確認できていないため、詳細はABCテレビ公式サイトを参照。",
+        sourceType: "reliable",
+      },
+      themeSongs: [
+        { group: "＝LOVE", title: "好きって、言えなかった", note: "センター：野口衣織 / 作詞：指原莉乃" },
+        { group: "≠ME", title: "僕たちのイマージュ", note: null },
+      ],
+      officialLinks: {
+        website: "https://www.asahi.co.jp/moshikoi/",
+        news: "https://equal-love.jp/schedule/detail/5667",
+      },
+      sourceType: "official",
+      sourceUrls: [
+        "https://equal-love.jp/schedule/detail/5667",
+        "https://natalie.mu/music/news/494180",
+      ],
+      lastVerifiedDate: "2026-08-23",
+    },
+  ],
+  // 【2026-08-23追加】＝LOVE・≠ME・≒JOYの3グループ合同で展開している公式スマホゲーム等。
+  // 事前登録用ページのタイトルは今も「事前登録受付中」の表示のままだが、実際は2023年12月26日
+  // から正式サービス開始済み・現在も運営中であることを複数の情報源（運営会社ニュース欄・
+  // App Store/Google Playのレビュー推移・公式Xの継続投稿）で確認済み（配信中の表記で掲載する）。
+  relatedGames: [
+    {
+      id: "ikonoijoy-puzzle",
+      name: "IKONOIJOY Puzzle（イコノイジョイパズル）",
+      description: {
+        text: "指原莉乃がプロデュースする＝LOVE・≠ME・≒JOYの3グループを起用した協力パズルゲーム。推しメンを設定してオンラインで協力プレイができ、オリジナルカードやムービーも収録されている。基本無料（一部アイテム課金あり）。2023年12月26日にiOS/Android向け正式サービスを開始し、現在も運営中。",
+        sourceType: "official",
+        sourceUrls: [
+          "https://apps.apple.com/jp/app/ikonoijoy-puzzle-イコノイジョイパズル/id6470139422",
+          "https://play.google.com/store/apps/details?id=jp.co.superblife.PRJ001",
+          "https://superblife.co.jp/",
+          "https://x.com/IKONOIJOY_Puzz",
+        ],
+        lastVerifiedDate: "2026-08-23",
+      },
+      officialLinks: {
+        website: "https://ikonoijoy-puzzle-preregistration.superblife.co.jp/",
+        x: "https://x.com/IKONOIJOY_Puzz",
+        appStore: "https://apps.apple.com/jp/app/ikonoijoy-puzzle-イコノイジョイパズル/id6470139422",
+        googlePlay: "https://play.google.com/store/apps/details?id=jp.co.superblife.PRJ001",
+      },
+    },
+  ],
   // 【2026-08-23追加】＝LOVE公式の個人ファンクラブアプリ。メンバーごとのトークルーム購読・
   // レター送信・モーニングコールなどの機能を持つ（メンバー個別のURLはmembers.jsの
   // officialLinks.othersに「＝LOVE LINK」として追加している。COSM社が提供するプラットフォーム上で

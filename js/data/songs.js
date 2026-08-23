@@ -89,6 +89,12 @@ export const DIFFICULTY = {
 // comingSoonNote : まだ収録曲が出揃っていないシングルの表題曲だけが持つ、収録曲一覧の見出しに
 //                  添える短い案内文（例："カップリング Coming Soon"）。表示専用で、出題・採点・
 //                  クイズの正誤判定には一切影響しない（js/songlist.js参照、2026-08-17追加）。
+// specialCredits : 作詞・作曲・MV監督などが通常（作詞：指原莉乃、が大半）と異なる、
+//                  ファンにとって知る価値が高い曲だけが持つ配列（{ text, url?, linkLabel?,
+//                  sourceType, sourceUrls, lastVerifiedDate }）。textは曲名の下に小さく
+//                  表示するクレジット文言、urlは監督本人のメイキング動画等への任意リンク。
+//                  全曲に付けると見づらくなるため、例外的な曲だけに絞って追加する
+//                  （js/songlist.js参照、2026-08-23追加）。
 //
 // 曲を増やすときは、この配列に要素を追加していくだけでよい。
 export const SONGS = [
@@ -333,6 +339,20 @@ export const SONGS = [
     introLeadInSec: 0,
     center: ["佐々木舞香"],
     centerType: "single",
+    specialCredits: [
+      {
+        text: "MV監督：峯岸みなみ（本人の＝LOVEでの監督デビュー作）",
+        url: "https://www.youtube.com/watch?v=N-ho2eknHQE",
+        linkLabel: "▶ 監督メイキング動画を見る",
+        sourceType: "official",
+        sourceUrls: [
+          "https://natalie.mu/music/news/406090",
+          "https://www.rbbtoday.com/article/2020/11/23/184115.html",
+          "https://www.youtube.com/watch?v=N-ho2eknHQE",
+        ],
+        lastVerifiedDate: "2026-08-23",
+      },
+    ],
   },
   {
     id: "ryuseigun",
@@ -438,6 +458,14 @@ export const SONGS = [
     introLeadInSec: 0,
     center: ["髙松瞳"],
     centerType: "single",
+    specialCredits: [
+      {
+        text: "作詞・作曲・編曲：HoneyWorks",
+        sourceType: "official",
+        sourceUrls: ["https://honeyworks.jp/news/4578/", "https://prtimes.jp/main/html/rd/p/000000058.000025517.html"],
+        lastVerifiedDate: "2026-08-23",
+      },
+    ],
   },
   {
     id: "sagase-diamond-lily",
@@ -678,6 +706,14 @@ export const SONGS = [
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
     members: ["髙松瞳"],
+    specialCredits: [
+      {
+        text: "振付：山本杏奈（メンバー本人による初振付）",
+        sourceType: "reliable",
+        sourceUrls: ["https://ja.wikipedia.org/wiki/山本杏奈"],
+        lastVerifiedDate: "2026-08-23",
+      },
+    ],
   },
   {
     id: "takaramono-wa-green",
@@ -749,6 +785,30 @@ export const SONGS = [
     introLeadInSec: 0,
     center: ["髙松瞳"],
     centerType: "single",
+    specialCredits: [
+      {
+        text: "MV監督：峯岸みなみ",
+        url: "https://www.youtube.com/watch?v=6GV_gkqfhOI",
+        linkLabel: "▶ 監督メイキング動画を見る",
+        sourceType: "official",
+        sourceUrls: [
+          "https://x.com/chan__31/status/1412746814168584194",
+          "https://natalie.mu/music/pp/equallove11",
+          "https://www.youtube.com/watch?v=6GV_gkqfhOI",
+        ],
+        lastVerifiedDate: "2026-08-23",
+      },
+      {
+        text: "ラップ部分の作詞：フワちゃん（FUWACHAN名義。作詞クレジット自体は指原莉乃・FUWACHANの連名表記）",
+        sourceType: "reliable",
+        sourceUrls: [
+          "https://utaten.com/specialArticle/index/6632",
+          "https://www.chunichi.co.jp/article/286681",
+          "https://news.mynavi.jp/article/20210708-1917947/",
+        ],
+        lastVerifiedDate: "2026-08-23",
+      },
+    ],
   },
   {
     id: "zuttomo-anken",
@@ -764,6 +824,18 @@ export const SONGS = [
     introLeadInSec: 0,
     center: ["髙松瞳", "齊藤なぎさ"],
     centerType: "double",
+    specialCredits: [
+      {
+        text: "作詞：宮脇咲良・村重杏奈（HKT48）",
+        sourceType: "official",
+        sourceUrls: [
+          "https://x.com/39saku_chan/status/1429415925334253570",
+          "https://realsound.jp/2021/08/post-842715.html",
+          "https://www.oricon.co.jp/news/2204463/full/",
+        ],
+        lastVerifiedDate: "2026-08-23",
+      },
+    ],
   },
   {
     id: "natsumatsuri-koishitau",
@@ -808,6 +880,14 @@ export const SONGS = [
     introLeadInSec: 0,
     center: ["佐々木舞香"],
     centerType: "single",
+    specialCredits: [
+      {
+        text: "振付アレンジ（RELAY DANCE ver.）：山本杏奈",
+        sourceType: "reliable",
+        sourceUrls: ["https://ja.wikipedia.org/wiki/山本杏奈"],
+        lastVerifiedDate: "2026-08-23",
+      },
+    ],
   },
   {
     id: "junkies",
@@ -1246,6 +1326,16 @@ export const SONGS = [
     introLeadInSec: 0,
     center: ["野口衣織"],
     centerType: "single",
+    specialCredits: [
+      {
+        text: "ABCテレビ スペシャルドラマ「もしも、この気持ちを恋と呼ぶなら…。」W主題歌",
+        navigateTo: "discography",
+        linkLabel: "▶ ドラマ紹介を見る",
+        sourceType: "official",
+        sourceUrls: ["https://equal-love.jp/schedule/detail/5667", "https://natalie.mu/music/news/494180"],
+        lastVerifiedDate: "2026-08-23",
+      },
+    ],
   },
   {
     id: "watashi-mahoutsukai",
@@ -1273,6 +1363,14 @@ export const SONGS = [
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
     members: ["佐々木舞香"],
+    specialCredits: [
+      {
+        text: "振付：山本杏奈（メンバー本人による振付）",
+        sourceType: "reliable",
+        sourceUrls: ["https://ja.wikipedia.org/wiki/山本杏奈"],
+        lastVerifiedDate: "2026-08-23",
+      },
+    ],
   },
 ];
 
