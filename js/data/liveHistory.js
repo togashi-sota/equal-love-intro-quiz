@@ -345,16 +345,52 @@ export const LIVE_EVENTS = [
     status: LIVE_STATUS.HELD,
     startDate: "2026-04-18",
     endDate: "2026-04-19",
-    venues: [{ name: "横浜スタジアム（ファイナル）", city: "横浜", date: "2026-04-18" }],
+    // 【2026-08-23修正】このツアーの映像商品は、開催会場が異なる2本が別々に発売されている
+    // （①2025-11-16 IGアリーナ公演→2026-06-17発売の初回生産限定盤等、②2026-04-19
+    // 横浜スタジアムFINAL公演→2026-10-14発売の完全生産限定盤等）。以前はvenuesにIGアリーナが
+    // 抜けたまま、IGアリーナ公演の商品リンク（VVXL-290）だけが「横浜スタジアム（ファイナル）」の
+    // カードに載っており、会場と商品の対応が誤っていたため、venues・productLinksとも修正した。
+    // カード上部の日付（startDate/endDate）は、このカードの主題であるアニバーサリーツアー
+    // FINAL（横浜スタジアム、4/18〜19）のまま維持し、IGアリーナの開催日は会場行の日付表示
+    // （showDate、js/discographyScreen.jsのformatVenue参照）でのみ示す。
+    venues: [
+      { name: "IGアリーナ", city: "愛知", date: "2025-11-16" },
+      { name: "横浜スタジアム（ファイナル）", city: "横浜", date: "2026-04-18" },
+    ],
     blurayReleased: true,
     productLinks: [
-      { label: "TYPE-Aを見る", url: "https://www.sonymusic.co.jp/artist/equal-love/discography/VVXL-290", sourceType: "official" },
+      {
+        label: "IGアリーナ公演 初回生産限定盤［Blu-ray2枚組］を見る",
+        url: "https://www.sonymusic.co.jp/artist/equal-love/discography/VVXL-290",
+        sourceType: "official",
+      },
+      {
+        label: "横浜スタジアムFINAL 完全生産限定盤［Blu-ray2枚組］（2026.10.14発売）",
+        url: "https://equal-love.jp/news/detail/11855",
+        sourceType: "official",
+      },
+      {
+        label: "横浜スタジアムFINAL 初回仕様限定盤［Blu-ray］（2026.10.14発売）",
+        url: "https://equal-love.jp/news/detail/11855",
+        sourceType: "official",
+      },
+      {
+        label: "横浜スタジアムFINAL 初回仕様限定盤［DVD］（2026.10.14発売）",
+        url: "https://equal-love.jp/news/detail/11855",
+        sourceType: "official",
+      },
     ],
+    // 収録内容（セットリスト等）の詳細は、本人指示により未発表のまま推測で書かず、
+    // 公式サイトの続報を待ってから追記する（setlistは他カード同様、確認できるまでnull）。
     setlist: null,
     episodeNote: null,
-    sourceType: "reliable",
-    sourceUrls: ["https://natalie.mu/music/news/668885"],
-    lastVerifiedDate: "2026-08-03",
+    sourceType: "official",
+    sourceUrls: [
+      "https://natalie.mu/music/news/668885",
+      "https://equal-love.jp/news/detail/11345",
+      "https://equal-love.jp/news/detail/11855",
+    ],
+    lastVerifiedDate: "2026-08-23",
   },
   {
     id: "live-stadium-beyond-kyun",

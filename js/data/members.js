@@ -60,7 +60,10 @@ export const MEMBERS = [
       x: "https://twitter.com/otani_emiri",
       instagram: "https://www.instagram.com/otani_emiri/",
       tiktok: "https://www.tiktok.com/@equal_love_emiri",
-      others: [{ label: "SHOWROOM", url: "https://www.showroom-live.com/LOVE_EMIRI_OTANI" }],
+      others: [
+        { label: "SHOWROOM", url: "https://www.showroom-live.com/LOVE_EMIRI_OTANI" },
+        { label: "＝LOVE LINK", url: "https://portal.web.link.cosm.jp/t/equal-love/talk-rooms/1" },
+      ],
     },
   },
   {
@@ -90,6 +93,7 @@ export const MEMBERS = [
       others: [
         { label: "SHOWROOM", url: "https://www.showroom-live.com/LOVE_HANA_OBA" },
         { label: "Ameba Blog", url: "https://ameblo.jp/equal-oba/" },
+        { label: "＝LOVE LINK", url: "https://portal.web.link.cosm.jp/t/equal-love/talk-rooms/2" },
       ],
     },
   },
@@ -117,7 +121,10 @@ export const MEMBERS = [
       x: "https://twitter.com/otoshima_risa",
       instagram: "https://www.instagram.com/otoshima_risa/",
       tiktok: "https://www.tiktok.com/@equal_love_risa_",
-      others: [{ label: "SHOWROOM", url: "https://www.showroom-live.com/LOVE_RISA_OTOSHIMA" }],
+      others: [
+        { label: "SHOWROOM", url: "https://www.showroom-live.com/LOVE_RISA_OTOSHIMA" },
+        { label: "＝LOVE LINK", url: "https://portal.web.link.cosm.jp/t/equal-love/talk-rooms/3" },
+      ],
     },
   },
   {
@@ -141,7 +148,10 @@ export const MEMBERS = [
       x: "https://twitter.com/saitou_kiara",
       instagram: "https://www.instagram.com/saito_kiara_/",
       tiktok: "https://www.tiktok.com/@equal_love_kiara",
-      others: [{ label: "SHOWROOM", url: "https://www.showroom-live.com/LOVE_KIARA_SAITO" }],
+      others: [
+        { label: "SHOWROOM", url: "https://www.showroom-live.com/LOVE_KIARA_SAITO" },
+        { label: "＝LOVE LINK", url: "https://portal.web.link.cosm.jp/t/equal-love/talk-rooms/4" },
+      ],
     },
   },
   {
@@ -167,7 +177,7 @@ export const MEMBERS = [
       tiktok: null,
       others: [
         { label: "SHOWROOM", url: "https://www.showroom-live.com/LOVE_MAIKA_SASAKI" },
-        { label: "公式トークアプリ", url: "https://portal.web.link.cosm.jp/t/equal-love/talk-rooms/5" },
+        { label: "＝LOVE LINK", url: "https://portal.web.link.cosm.jp/t/equal-love/talk-rooms/5" },
       ],
     },
   },
@@ -194,7 +204,7 @@ export const MEMBERS = [
       tiktok: null,
       others: [
         { label: "SHOWROOM", url: "https://www.showroom-live.com/LOVE_HITOMI_TAKAMATSU" },
-        { label: "公式トークアプリ", url: "https://portal.web.link.cosm.jp/t/equal-love/talk-rooms/6" },
+        { label: "＝LOVE LINK", url: "https://portal.web.link.cosm.jp/t/equal-love/talk-rooms/6" },
       ],
     },
   },
@@ -225,7 +235,7 @@ export const MEMBERS = [
       tiktok: null,
       others: [
         { label: "SHOWROOM", url: "https://www.showroom-live.com/LOVE_SHOKO_TAKIWAKI" },
-        { label: "公式トークアプリ", url: "https://portal.web.link.cosm.jp/t/equal-love/talk-rooms/7" },
+        { label: "＝LOVE LINK", url: "https://portal.web.link.cosm.jp/t/equal-love/talk-rooms/7" },
       ],
     },
   },
@@ -252,7 +262,7 @@ export const MEMBERS = [
       tiktok: null,
       others: [
         { label: "SHOWROOM", url: "https://www.showroom-live.com/LOVE_IORI_NOGUCHI" },
-        { label: "公式トークアプリ", url: "https://portal.web.link.cosm.jp/t/equal-love/talk-rooms/8" },
+        { label: "＝LOVE LINK", url: "https://portal.web.link.cosm.jp/t/equal-love/talk-rooms/8" },
       ],
     },
   },
@@ -279,7 +289,7 @@ export const MEMBERS = [
       tiktok: null,
       others: [
         { label: "SHOWROOM", url: "https://www.showroom-live.com/LOVE_SANA_MOROHASHI" },
-        { label: "公式トークアプリ", url: "https://portal.web.link.cosm.jp/t/equal-love/talk-rooms/9" },
+        { label: "＝LOVE LINK", url: "https://portal.web.link.cosm.jp/t/equal-love/talk-rooms/9" },
       ],
     },
   },
@@ -309,7 +319,7 @@ export const MEMBERS = [
       tiktok: "https://www.tiktok.com/@equal_love_anna",
       others: [
         { label: "SHOWROOM", url: "https://www.showroom-live.com/LOVE_ANNA_YAMAMOTO" },
-        { label: "公式トークアプリ", url: "https://portal.web.link.cosm.jp/t/equal-love/talk-rooms/10" },
+        { label: "＝LOVE LINK", url: "https://portal.web.link.cosm.jp/t/equal-love/talk-rooms/10" },
       ],
     },
   },

@@ -294,6 +294,59 @@ function buildSisterGroupCard(group) {
   return card;
 }
 
+// ＝LOVE公式の個人ファンクラブアプリ「＝LOVE LINK」を紹介するカード。
+// sister-group-cardと同じ見た目のクラスを流用し、他の公式サービス紹介と統一感を持たせる
+// （本人指示：既存デザインを崩さず、他の公式サービスと統一感のあるカードにする。2026-08-23新設）。
+// メンバー個別の＝LOVE LINKページはmembers.jsのofficialLinks.others側（メンバー詳細画面）に
+// 別途追加しており、このカードはサービス自体の紹介・公式サイト/ストアへの導線に専念する。
+function buildFanClubAppCard(fanClubApp) {
+  const wrapper = document.createElement("div");
+  if (!fanClubApp) return wrapper;
+
+  const heading = document.createElement("p");
+  heading.className = "section-heading";
+  heading.textContent = "＝LOVE LINK（公式個人ファンクラブアプリ）";
+  wrapper.appendChild(heading);
+
+  const card = document.createElement("div");
+  card.className = "sister-group-card";
+
+  const nameRow = document.createElement("p");
+  nameRow.className = "sister-group-name";
+  nameRow.textContent = fanClubApp.name;
+  card.appendChild(nameRow);
+
+  if (fanClubApp.description) {
+    const description = document.createElement("p");
+    description.className = "sister-group-description";
+    description.textContent = fanClubApp.description.text;
+    card.appendChild(description);
+  }
+
+  const linkDefs = [
+    { key: "website", label: "公式サイト" },
+    { key: "appStore", label: "App Store" },
+    { key: "googlePlay", label: "Google Play" },
+  ];
+  const linkRow = document.createElement("div");
+  linkRow.className = "sister-group-links";
+  linkDefs.forEach(({ key, label }) => {
+    const url = fanClubApp.officialLinks?.[key];
+    if (!url) return;
+    const link = document.createElement("a");
+    link.className = "official-link-button";
+    link.href = url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = label;
+    linkRow.appendChild(link);
+  });
+  card.appendChild(linkRow);
+
+  wrapper.appendChild(card);
+  return wrapper;
+}
+
 function buildSisterGroupsSection(sisterGroups) {
   const wrapper = document.createElement("div");
   if (!sisterGroups || sisterGroups.length === 0) return wrapper;
@@ -347,6 +400,8 @@ function renderAboutTab(members, groupInfo, groupActivities, sisterGroups) {
   linksHeading.textContent = "＝LOVE公式リンク";
   elements.aboutContent.appendChild(linksHeading);
   elements.aboutContent.appendChild(buildGroupLinksSection(groupInfo.officialLinks));
+
+  elements.aboutContent.appendChild(buildFanClubAppCard(groupInfo.fanClubApp));
 }
 
 // ---- 年表タブ ----
@@ -551,9 +606,14 @@ const TAB_NAMES = ["about", "history", "works", "live"];
 
 // venuesの1件を「会場名（都市）」の形にまとめる。会場名が未確認（null）の場合は
 // 「会場未確認」と表示し、無いことをごまかさない（本人方針：未確認の情報を断定しない）。
-function formatVenue(venue) {
+// showDateがtrueのときだけ、会場ごとの開催日も添える（例:「IGアリーナ（愛知）・2025.11.16」）。
+// 1会場だけのカードでは、カード上部の日付表示（formatDateRange）と重複するため付けない。
+// 複数会場にまたがるツアーカードで、映像商品が会場ごとに別々に発売されている場合など、
+// どの会場・日程の公演かをボタンと一緒に判別しやすくするために2026-08-23追加。
+function formatVenue(venue, showDate = false) {
   const name = venue.name ?? "会場未確認";
-  return venue.city ? `${name}（${venue.city}）` : name;
+  const base = venue.city ? `${name}（${venue.city}）` : name;
+  return showDate && venue.date ? `${base}・${formatDate(venue.date)}` : base;
 }
 
 function formatDateRange(startDate, endDate) {
@@ -610,10 +670,11 @@ function buildLiveEventCard(event) {
   date.textContent = formatDateRange(event.startDate, event.endDate);
   card.appendChild(date);
 
+  const showVenueDate = event.venues.length > 1;
   event.venues.forEach((venue) => {
     const venueLine = document.createElement("p");
     venueLine.className = "live-event-venue";
-    venueLine.textContent = formatVenue(venue);
+    venueLine.textContent = formatVenue(venue, showVenueDate);
     card.appendChild(venueLine);
   });
 

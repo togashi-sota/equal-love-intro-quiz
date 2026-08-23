@@ -68,4 +68,23 @@ export const GROUP_INFO = {
     showroom: null, // 公式サイトからの直接リンクが未確認のため、要再確認まで非掲載
     store: "https://store.plusmember.jp/equallove/",
   },
+  // 【2026-08-23追加】＝LOVE公式の個人ファンクラブアプリ。メンバーごとのトークルーム購読・
+  // レター送信・モーニングコールなどの機能を持つ（メンバー個別のURLはmembers.jsの
+  // officialLinks.othersに「＝LOVE LINK」として追加している。COSM社が提供するプラットフォーム上で
+  // 運営されており、運営会社は2026年7月21日付で株式会社コズムから株式会社ネッキョウへ、
+  // 事業譲渡により変更されている（サービス自体はそのまま継続）。
+  fanClubApp: {
+    name: "＝LOVE LINK",
+    description: {
+      text: "＝LOVEメンバーと1対1でメッセージ・写真・動画・音声のやり取りができる、公式の個人ファンクラブアプリ。メンバーへのレター送信やモーニングコールなどの機能もある。",
+      sourceType: "official",
+      sourceUrls: ["https://equal-love.link.cosm.jp/", "https://equal-love.jp/news/detail/8841"],
+      lastVerifiedDate: "2026-08-23",
+    },
+    officialLinks: {
+      website: "https://equal-love.link.cosm.jp/",
+      appStore: "https://apps.apple.com/jp/app/6695731709",
+      googlePlay: "https://play.google.com/store/apps/details?id=io.cosm.fc.user.equal.love",
+    },
+  },
 };
