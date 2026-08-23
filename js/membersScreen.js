@@ -480,9 +480,24 @@ export const ACTIVITY_STATUS_LABELS = {
 // カード一覧の並び順（現在も動きがある活動ほど代表的、という考え方で優先度を決める）。
 export const ACTIVITY_STATUS_ORDER = ["ongoing", "annual", "irregular", "ended", "past", "unknown"];
 
-// 活動一覧を並べ替える。priorityを持つ活動（大谷映美里のブランドカード等、表示順を固定したい
-// もの）を数値の小さい順に最優先で並べ、priorityを持たない活動同士は従来通りstatusの
-// 代表性順で並べる（2026-08-03、本人希望の表示順固定に対応するため追加）。
+// 「終了/過去」の活動は終了日（無ければ開始日）、「継続中/年次開催/不定期」の活動は
+// 開始日を、新しい順に並べるための基準日を1つ返す。どちらも無ければnull
+// （2026-08-23追加：同じstatus内が登録順のまま並んでしまい「新しい順」になっていなかったため）。
+function getActivitySortDate(activity) {
+  if (activity.status === ACTIVITY_STATUS.ENDED || activity.status === ACTIVITY_STATUS.PAST) {
+    return activity.endDate ?? activity.startDate ?? null;
+  }
+  return activity.startDate ?? null;
+}
+
+// 活動一覧を並べ替える。
+// 1. priorityを持つ活動（大谷映美里のブランドカード等、表示順を固定したいもの）を
+//    数値の小さい順に最優先で並べる（2026-08-03、本人希望の表示順固定に対応するため追加）。
+// 2. priorityを持たない活動同士は、まずstatusの代表性順（継続中→年次開催→不定期→終了→
+//    過去の活動→不明）で並べ、
+// 3. 同じstatus内では、日付が新しいものを上にする（2026-08-23追加：本人指示「継続中→新しい
+//    →古い」の並びを徹底するため）。日付が分かる活動を先に、日付不明の活動は元の登録順のまま
+//    そのstatus内の最後にまとめる。
 export function sortActivitiesByStatus(activities) {
   return [...activities].sort((a, b) => {
     const aPriority = a.priority ?? null;
@@ -490,7 +505,16 @@ export function sortActivitiesByStatus(activities) {
     if (aPriority !== null && bPriority !== null) return aPriority - bPriority;
     if (aPriority !== null) return -1;
     if (bPriority !== null) return 1;
-    return ACTIVITY_STATUS_ORDER.indexOf(a.status) - ACTIVITY_STATUS_ORDER.indexOf(b.status);
+
+    const statusDiff = ACTIVITY_STATUS_ORDER.indexOf(a.status) - ACTIVITY_STATUS_ORDER.indexOf(b.status);
+    if (statusDiff !== 0) return statusDiff;
+
+    const aDate = getActivitySortDate(a);
+    const bDate = getActivitySortDate(b);
+    if (aDate && bDate) return aDate < bDate ? 1 : aDate > bDate ? -1 : 0;
+    if (aDate) return -1;
+    if (bDate) return 1;
+    return 0;
   });
 }
 

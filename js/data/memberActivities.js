@@ -59,11 +59,14 @@ export const MEMBER_ACTIVITIES = [
     description: "大谷映美里の個人YouTubeチャンネル。",
     url: "https://www.youtube.com/channel/UCGxaJ2y2Le9jST3Me2aMPrw",
     status: ACTIVITY_STATUS.ONGOING,
-    startDate: null,
+    startDate: "2021-11-23",
     endDate: null,
-    sourceType: "self",
-    sourceUrls: ["https://x.com/otani_emiri/status/1946100842551259604"],
-    lastVerifiedDate: "2026-08-02",
+    sourceType: "reliable",
+    sourceUrls: [
+      "https://x.com/otani_emiri/status/1946100842551259604",
+      "https://ja.wikipedia.org/wiki/大谷映美里",
+    ],
+    lastVerifiedDate: "2026-08-23",
   },
   {
     id: "sasaki-yamamoto-youtube",
@@ -74,11 +77,16 @@ export const MEMBER_ACTIVITIES = [
     description: "佐々木舞香・山本杏奈の2人によるYouTubeチャンネル。",
     url: "https://www.youtube.com/@ikorabunohutari",
     status: ACTIVITY_STATUS.ONGOING,
-    startDate: null,
+    // 開設が2023年4月であることは複数の情報源で一致しているが、正確な日までは確認できて
+    // いないため、月初日を並べ替え用の目安として仮置きしている（表示には使われない）。
+    startDate: "2023-04-01",
     endDate: null,
     sourceType: "reliable",
-    sourceUrls: [],
-    lastVerifiedDate: "2026-08-02",
+    sourceUrls: [
+      "https://www.talenttuber.com/detail/ikorabunohutari.html",
+      "https://ameblo.jp/nacc67/entry-12800002029.html",
+    ],
+    lastVerifiedDate: "2026-08-23",
   },
   {
     id: "sasaki-trailblazers",
@@ -129,11 +137,11 @@ export const MEMBER_ACTIVITIES = [
     description: "山本杏奈がパーソナリティを務めるSHOWROOM企画。木曜19時に実施されることが多く、＝LOVE・≠ME・≒JOYのメンバー等をゲストに迎えている。",
     url: "https://equal-love.jp/schedule/detail/6558",
     status: ACTIVITY_STATUS.IRREGULAR,
-    startDate: null,
+    startDate: "2023-04-13",
     endDate: null,
     sourceType: "official",
     sourceUrls: ["https://equal-love.jp/schedule/detail/6558", "https://x.com/Equal_LOVE_12"],
-    lastVerifiedDate: "2026-08-03",
+    lastVerifiedDate: "2026-08-23",
   },
   {
     id: "oba-manga",
@@ -165,11 +173,14 @@ export const MEMBER_ACTIVITIES = [
     description: "音声配信アプリ「Artistspoken」のレギュラー番組。毎週金曜12:00〜パーソナリティを務める。",
     url: "https://equal-love.jp/schedule/detail/7968",
     status: ACTIVITY_STATUS.ONGOING,
-    startDate: null,
+    startDate: "2024-06-14",
     endDate: null,
     sourceType: "official",
-    sourceUrls: ["https://equal-love.jp/schedule/detail/7968"],
-    lastVerifiedDate: "2026-08-03",
+    sourceUrls: [
+      "https://equal-love.jp/schedule/detail/7968",
+      "https://x.com/hana_oba/status/1800121461677645915",
+    ],
+    lastVerifiedDate: "2026-08-23",
   },
   {
     id: "otoshima-model",
@@ -196,10 +207,11 @@ export const MEMBER_ACTIVITIES = [
       "ファッションブランド「evelyn」のシーズンコレクションモデルを継続して務めている。2025年冬シーズンから、2026年春夏・秋と複数シーズン連続で起用されている。",
     url: null,
     status: ACTIVITY_STATUS.ONGOING,
-    startDate: null,
+    startDate: "2025-08-25",
     endDate: null,
     sourceType: "official",
     sourceUrls: [
+      "https://equal-love.jp/news/detail/10282",
       "https://x.com/evelyn_tokyo/status/1959888905643213247",
       "https://x.com/Equal_LOVE_12/status/2040685870802739226",
       "https://x.com/otoshima_risa/status/2060340693470740928",
@@ -258,19 +270,26 @@ export const MEMBER_ACTIVITIES = [
     lastVerifiedDate: "2026-08-23",
   },
   {
+    // 【2026-08-23修正】以前は「舞台」としていたが、実際はスマートフォンアプリ内の声優
+    // キャラクターボイス出演であり、舞台公演としての記録は確認できなかったため訂正した。
+    // 開始日・終了日は「初代・2017年〜2020年、2020年7月声優交代」という情報を基に、
+    // 年月精度の目安として設定している（日までは未確認）。
     id: "saito-kiara-stage",
     memberId: "saito-kiara",
     relatedMemberIds: [],
-    title: "舞台「ステーションメモリーズ！」",
+    title: "スマートフォンアプリ「ステーションメモリーズ！」",
     type: ACTIVITY_TYPE.VOICE,
-    description: "声優として黄陽レイカ役を演じた。",
+    description: "スマートフォンアプリ内で、声優として黄陽レイカ役（初代）を演じた。2020年7月に声優交代となった。",
     url: null,
     status: ACTIVITY_STATUS.PAST,
-    startDate: null,
-    endDate: null,
+    startDate: "2017-01-01",
+    endDate: "2020-07-01",
     sourceType: "reliable",
-    sourceUrls: [],
-    lastVerifiedDate: "2026-08-02",
+    sourceUrls: [
+      "https://ja.wikipedia.org/wiki/齋藤樹愛羅",
+      "https://ja.wikipedia.org/wiki/ステーションメモリーズ!",
+    ],
+    lastVerifiedDate: "2026-08-23",
   },
   {
     id: "takiwaki-sasuke",
@@ -436,10 +455,14 @@ export const MEMBER_ACTIVITIES = [
     description: "MBSラジオの帯番組「アッパレやってまーす！」土曜日版のレギュラーパーソナリティを務める（毎週土曜25:00〜25:30、生放送）。",
     url: "https://www.mbs1179.com/yaru/",
     status: ACTIVITY_STATUS.ONGOING,
-    startDate: null,
+    startDate: "2021-10-10",
     endDate: null,
-    sourceType: "official",
-    sourceUrls: ["https://www.mbs1179.com/yaru/", "https://equal-love.jp/schedule/detail/9234"],
+    sourceType: "reliable",
+    sourceUrls: [
+      "https://www.mbs1179.com/yaru/",
+      "https://equal-love.jp/schedule/detail/9234",
+      "https://ja.wikipedia.org/wiki/大谷映美里",
+    ],
     lastVerifiedDate: "2026-08-23",
   },
   {
@@ -619,10 +642,15 @@ export const MEMBER_ACTIVITIES = [
     description: "＝LOVE卒業後、女優として活動中。ドラマ・映画への出演が継続している。",
     url: null,
     status: ACTIVITY_STATUS.ONGOING,
-    startDate: null,
+    // 卒業（2023-01-13）の8日後、新事務所エイジアクロスへの所属発表があった日を、
+    // 女優業が本格的にスタートした目安の日付としている。
+    startDate: "2023-01-21",
     endDate: null,
     sourceType: "official",
-    sourceUrls: ["https://www.evergreen-e.com/feature/saito_nagisa"],
-    lastVerifiedDate: "2026-08-02",
+    sourceUrls: [
+      "https://www.evergreen-e.com/feature/saito_nagisa",
+      "https://asiacross.jp/information/「齊藤-なぎさ」所属のお知らせ/",
+    ],
+    lastVerifiedDate: "2026-08-23",
   },
 ];

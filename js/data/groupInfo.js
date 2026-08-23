@@ -68,6 +68,48 @@ export const GROUP_INFO = {
     showroom: null, // 公式サイトからの直接リンクが未確認のため、要再確認まで非掲載
     store: "https://store.plusmember.jp/equallove/",
   },
+  // 【2026-08-23追加】＝LOVE Official Fan Club。2026年5月25日付の公式告知
+  // （equal-love.jp/news/detail/11499）により、2026年6月23日12:00から会費が改定された。
+  // 新規入会は550円コースのみで、以前からの継続会員は440円コースのまま利用できるが、
+  // 価格改定後開始のFC限定チケット先行の対象は550円コースの会員のみ、という制限がある
+  // （古い440円だけを表示しないよう、料金は必ずこの2本立てで説明すること）。
+  // 「会員限定チケプラTrade」はFAQカテゴリの存在は確認できたが、具体的なサービス内容は
+  // 文言レベルで確認できなかったため、特典一覧には含めていない。
+  officialFanClub: {
+    name: "＝LOVE Official Fan Club",
+    description: {
+      text: "＝LOVEをもっと楽しみたいファン向けの公式ファンクラブ。＝LOVE公演やメンバーが出演する舞台・イベントのFC先行に申し込めるほか、会員限定コンテンツ「MOMENT」やイコラブ占い、＝LOVE CHECKなど、会員だけが楽しめる様々なサービスが用意されている。",
+      sourceType: "official",
+      sourceUrls: ["https://sp.equal-love.jp/", "https://equal-love.jp/news/detail/11499"],
+      lastVerifiedDate: "2026-08-23",
+    },
+    pricingNote: {
+      text: "新規入会：Web決済コース 月額550円（税込）／アプリ内課金コース 月額650円（税込）。2026年6月23日12:00に会費が改定され、それ以前から継続している会員は440円コースのまま利用できるが、価格改定後に始まったFC限定チケット先行の対象は550円コースの会員のみとなる。",
+      sourceType: "official",
+      sourceUrls: ["https://equal-love.jp/news/detail/11499"],
+      lastVerifiedDate: "2026-08-23",
+    },
+    benefits: [
+      "＝LOVE公演・メンバー出演の舞台やイベントのFC先行チケット",
+      "会員限定コンテンツ「MOMENT」（メンバーの24時間限定投稿）",
+      "ライブ・公演連動企画",
+      "FC限定グッズ",
+      "イコラブ占い／＝LOVE CHECK",
+      "1年以上継続した会員向けの継続特典（毎年11月頃）",
+      "期間限定企画",
+    ],
+    officialLinks: {
+      website: "https://sp.equal-love.jp/",
+      join: "https://sp.equal-love.jp/feature/introduction",
+    },
+  },
+  // 【2026-08-23追加】officialLinks.storeと同じURL（グッズ購入サイトであることを実際に
+  // アクセスして確認済み）。ファンクラブ紹介の近くに、説明文付きで改めて紹介する
+  // （本人指示：具体的な商品を大量に書く必要はなく、公式ショップへの導線があればよい）。
+  officialShop: {
+    description: "ペンライト、ライブグッズ、メンバーグッズなど＝LOVEの公式グッズを購入できる公式オンラインショップ。",
+    url: "https://store.plusmember.jp/equallove/",
+  },
   // 【2026-08-23追加】オサレカンパニーのクリエイティブディレクターで、＝LOVEのライブ衣装・
   // MV衣装を数多く手がけている人物。指原莉乃と並ぶ重要な裏方として紹介してほしいという
   // 本人指示により、プロデューサーカードのすぐ近くに専用カードを設ける。

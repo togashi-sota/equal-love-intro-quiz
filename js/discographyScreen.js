@@ -310,6 +310,105 @@ function buildSisterGroupCard(group) {
 // （本人指示：既存デザインを崩さず、他の公式サービスと統一感のあるカードにする。2026-08-23新設）。
 // メンバー個別の＝LOVE LINKページはmembers.jsのofficialLinks.others側（メンバー詳細画面）に
 // 別途追加しており、このカードはサービス自体の紹介・公式サイト/ストアへの導線に専念する。
+// ＝LOVE Official Fan Club（従来型の有料会員制ファンクラブ）を紹介するカード。
+// ＝LOVE LINK（buildFanClubAppCard、個人メッセージアプリ）とは別サービスなので、
+// 混同されないよう見出し・説明文を分けて掲載する。料金は「新規入会」と「継続会員」の
+// 2本立てで必ず説明し、価格改定前の440円だけを表示しないよう注意する
+// （本人指示。2026-08-23新設）。
+function buildOfficialFanClubCard(officialFanClub) {
+  const wrapper = document.createElement("div");
+  if (!officialFanClub) return wrapper;
+
+  const heading = document.createElement("p");
+  heading.className = "section-heading";
+  heading.textContent = officialFanClub.name;
+  wrapper.appendChild(heading);
+
+  const card = document.createElement("div");
+  card.className = "sister-group-card";
+
+  if (officialFanClub.description) {
+    const description = document.createElement("p");
+    description.className = "sister-group-description";
+    description.textContent = officialFanClub.description.text;
+    card.appendChild(description);
+  }
+
+  if (officialFanClub.pricingNote) {
+    const pricing = document.createElement("p");
+    pricing.className = "sister-group-leader";
+    pricing.textContent = officialFanClub.pricingNote.text;
+    card.appendChild(pricing);
+  }
+
+  if (officialFanClub.benefits?.length > 0) {
+    const benefitsList = document.createElement("ul");
+    benefitsList.className = "producer-facts";
+    officialFanClub.benefits.forEach((benefit) => {
+      const item = document.createElement("li");
+      item.textContent = benefit;
+      benefitsList.appendChild(item);
+    });
+    card.appendChild(benefitsList);
+  }
+
+  const linkDefs = [
+    { key: "join", label: "入会・詳細はこちら" },
+    { key: "website", label: "ファンクラブを見る" },
+  ];
+  const linkRow = document.createElement("div");
+  linkRow.className = "sister-group-links";
+  linkDefs.forEach(({ key, label }) => {
+    const url = officialFanClub.officialLinks?.[key];
+    if (!url) return;
+    const link = document.createElement("a");
+    link.className = "official-link-button";
+    link.href = url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = label;
+    linkRow.appendChild(link);
+  });
+  card.appendChild(linkRow);
+
+  wrapper.appendChild(card);
+  return wrapper;
+}
+
+// 公式グッズショップへの導線。officialLinks.storeと同じURLだが、ファンクラブ紹介の近くに
+// 説明文付きで改めて紹介する（本人指示。具体的な商品は書かず、導線のみでよい）。
+function buildOfficialShopCard(officialShop) {
+  const wrapper = document.createElement("div");
+  if (!officialShop) return wrapper;
+
+  const card = document.createElement("div");
+  card.className = "sister-group-card";
+
+  const nameRow = document.createElement("p");
+  nameRow.className = "sister-group-name";
+  nameRow.textContent = "＝LOVE OFFICIAL SHOP";
+  card.appendChild(nameRow);
+
+  const description = document.createElement("p");
+  description.className = "sister-group-description";
+  description.textContent = officialShop.description;
+  card.appendChild(description);
+
+  const linkRow = document.createElement("div");
+  linkRow.className = "sister-group-links";
+  const link = document.createElement("a");
+  link.className = "official-link-button";
+  link.href = officialShop.url;
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+  link.textContent = "公式グッズを見る";
+  linkRow.appendChild(link);
+  card.appendChild(linkRow);
+
+  wrapper.appendChild(card);
+  return wrapper;
+}
+
 function buildFanClubAppCard(fanClubApp) {
   const wrapper = document.createElement("div");
   if (!fanClubApp) return wrapper;
@@ -681,6 +780,9 @@ function renderAboutTab(members, groupInfo, groupActivities, sisterGroups) {
   elements.aboutContent.appendChild(linksHeading);
   elements.aboutContent.appendChild(buildGroupLinksSection(groupInfo.officialLinks));
 
+  elements.aboutContent.appendChild(buildOfficialFanClubCard(groupInfo.officialFanClub));
+  elements.aboutContent.appendChild(buildOfficialShopCard(groupInfo.officialShop));
+
   elements.aboutContent.appendChild(buildFanClubAppCard(groupInfo.fanClubApp));
 
   elements.aboutContent.appendChild(buildRelatedGamesSection(groupInfo.relatedGames));
@@ -739,6 +841,8 @@ const TIMELINE_LEGEND_ITEMS = [
   { typeClass: "type-release", label: "シングル・アルバム等のリリース" },
   { typeClass: "type-graduation", label: "メンバーの卒業" },
   { typeClass: "type-milestone", label: "結成・グループの節目" },
+  { typeClass: "type-live", label: "初出演・初単独公演など" },
+  { typeClass: "type-anniversary", label: "周年記念コンサート" },
 ];
 
 function buildTimelineLegend() {
@@ -940,6 +1044,16 @@ function buildLiveEventCard(event) {
     tagRow.appendChild(announcedTag);
   }
 
+  // 映像商品化されている公演は、下部のリンクボタンだけでなくタグ行でも一目で分かるようにする
+  // （本人指示：「映像作品一覧」ではなく「＝LOVEの歴史」として、映像化の有無が一目で分かるように。
+  // 2026-08-23追加）。
+  if (event.blurayReleased) {
+    const videoTag = document.createElement("span");
+    videoTag.className = "live-event-tag is-video-available";
+    videoTag.textContent = "映像作品あり";
+    tagRow.appendChild(videoTag);
+  }
+
   card.appendChild(tagRow);
 
   const title = document.createElement("p");
@@ -959,6 +1073,15 @@ function buildLiveEventCard(event) {
     venueLine.textContent = formatVenue(venue, showVenueDate);
     card.appendChild(venueLine);
   });
+
+  // 開場・開演時間など、会場名だけでは伝わらない補足情報（データはあったが今まで未使用だった
+  // episodeNoteフィールドをここで初めて表示する。2026-08-23）。
+  if (event.episodeNote) {
+    const noteLine = document.createElement("p");
+    noteLine.className = "live-event-note";
+    noteLine.textContent = event.episodeNote;
+    card.appendChild(noteLine);
+  }
 
   // Blu-ray/DVDの購入ページ（productLinks）が確認できている場合だけボタンを出す。
   // 未確認のまま推測でリンクを出さない・販売終了時もページ全体は壊れない設計（本人方針）。

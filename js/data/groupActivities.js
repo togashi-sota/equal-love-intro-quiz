@@ -45,7 +45,9 @@ export const GROUP_ACTIVITIES = [
     url: "https://equal-love.jp/schedule/detail/6986",
     status: ACTIVITY_STATUS.ENDED,
     startDate: "2020-09-13",
-    endDate: null,
+    // 最終回の正確な日付は未確認だが、「2026年3月に終了」という情報を基に、並べ替え用の
+    // 目安として月初日を仮置きしている（表示には使われない）。
+    endDate: "2026-03-01",
     sourceType: "official",
     sourceUrls: ["https://equal-love.jp/news/detail/3266", "https://equal-love.jp/schedule/detail/6986"],
     lastVerifiedDate: "2026-08-03",
@@ -58,7 +60,9 @@ export const GROUP_ACTIVITIES = [
     url: "https://equal-love.jp/news/detail/11092",
     status: ACTIVITY_STATUS.ENDED,
     startDate: "2026-01-28",
-    endDate: null,
+    // 「3月中旬ごろに終了」という情報を基に、並べ替え用の目安として仮置きしている
+    // （表示には使われない）。
+    endDate: "2026-03-15",
     sourceType: "official",
     sourceUrls: ["https://equal-love.jp/news/detail/11092"],
     lastVerifiedDate: "2026-08-03",
@@ -71,11 +75,13 @@ export const GROUP_ACTIVITIES = [
     description: "指原莉乃プロデュースの＝LOVE・≠ME・≒JOYの3グループによる企画動画やバラエティ企画などを公開している公式YouTubeチャンネル。",
     url: "https://www.youtube.com/@ikonoijoy",
     status: ACTIVITY_STATUS.ONGOING,
-    startDate: null,
+    // 2020年5月に＝LOVE・≠MEの2グループ合同チャンネルとして開設。≒JOYは2022年3月結成のため、
+    // 3グループ体制（現チャンネル名）への移行時期は未確認（開設月のみ、日までは未確認）。
+    startDate: "2020-05-01",
     endDate: null,
-    sourceType: "official",
-    sourceUrls: ["https://www.youtube.com/@ikonoijoy"],
-    lastVerifiedDate: "2026-08-03",
+    sourceType: "reliable",
+    sourceUrls: ["https://www.youtube.com/@ikonoijoy", "https://www.cyberagent-adagency.com/news/648/"],
+    lastVerifiedDate: "2026-08-23",
   },
   {
     id: "group-ririmew-muse",
@@ -127,5 +133,28 @@ export const GROUP_ACTIVITIES = [
     sourceType: "reliable",
     sourceUrls: [],
     lastVerifiedDate: "2026-08-03",
+  },
+  {
+    // 【2026-08-23追加】＝LOVE初期を代表するSHOWROOMレギュラー番組。「みがく・超える・学ぶ」の
+    // 3テーマという説明はequal-love.jp本体・信頼できるメディアいずれでも文言レベルの確認が
+    // 取れなかったため、description本文には含めていない（確認できた「成長見守りバラエティ」
+    // という位置づけのみ記載）。かつての配信URL（SHOWROOM）は現在別番組のページとして
+    // 再利用されており、この番組専用のリンクとしては使えないため、リンクは付けていない。
+    id: "group-showroom-daitokkun",
+    title: "イコラブ大特訓中！",
+    type: ACTIVITY_TYPE.SHOWROOM,
+    description:
+      "＝LOVEのデビュー初期を代表するレギュラー番組。2017年9月25日からSHOWROOMで配信され、MCはアンタッチャブルの柴田英嗣が担当した。デビューしたばかりのメンバーが様々な企画や課題に挑戦する「成長見守りバラエティ」。現在の＝LOVEへと成長していく初期メンバーの姿を見ることができる、グループの歴史を知るうえでも重要な番組の一つ。",
+    url: null,
+    status: ACTIVITY_STATUS.ENDED,
+    startDate: "2017-09-25",
+    endDate: null,
+    sourceType: "reliable",
+    sourceUrls: [
+      "https://prtimes.jp/main/html/rd/p/000000017.000027285.html",
+      "https://natalie.mu/music/news/249828",
+      "https://equal-love.jp/schedule/detail/581",
+    ],
+    lastVerifiedDate: "2026-08-23",
   },
 ];

@@ -8349,6 +8349,21 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   left: -18px;
 }
 
+/* ライブ・周年記念の節目も年表に含める（2026-08-23追加。本人指示：映像商品化の有無に
+   関わらず、＝LOVEの成長が分かる重要な出来事を年表へ拡張してほしい）。
+   詳細な会場・映像商品情報はライブタブ（LIVE_EVENTS）側に持たせたままにし、
+   年表側は「日付・タイトルだけの節目」として軽量に重複させる方針。 */
+.timeline-item.type-live::before {
+  background: var(--color-call-glow);
+}
+
+.timeline-item.type-anniversary::before {
+  background: var(--color-danger);
+  width: 11px;
+  height: 11px;
+  left: -18px;
+}
+
 /* 年表の色付き丸が何を表すかの凡例。横並び・折り返し可能な小さなチップにして、
    年表本体を圧迫しないようにする（2026-08-03追加） */
 .timeline-legend {
@@ -8382,6 +8397,14 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 
 .timeline-legend-dot.type-milestone {
   background: var(--color-secondary);
+}
+
+.timeline-legend-dot.type-live {
+  background: var(--color-call-glow);
+}
+
+.timeline-legend-dot.type-anniversary {
+  background: var(--color-danger);
 }
 
 /* ライブタブ：掲載基準の注記（2026-08-03追加） */
@@ -8439,6 +8462,12 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   background: #f3e3ef;
 }
 
+/* 映像商品化されている公演を一目で分かるようにするタグ（2026-08-23追加） */
+.live-event-tag.is-video-available {
+  color: #1f7a4d;
+  background: #dff3e7;
+}
+
 .live-event-product-links {
   display: flex;
   flex-direction: column;
@@ -8479,6 +8508,13 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   font-size: 0.68rem;
   font-weight: 700;
   color: var(--color-primary-dark);
+}
+
+.live-event-note {
+  margin: 4px 0 0;
+  font-size: 0.72rem;
+  color: var(--color-text);
+  opacity: 0.65;
 }
 
 .timeline-date {
@@ -10590,14 +10626,35 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   opacity: 0.55;
 }
 
-.leaderboard-row-time {
+/* クリアタイムと平均タイムを縦に並べて右端にまとめる箱（2026-08-24追加）。
+   .leaderboard-rowのalign-items:centerで箱ごと縦中央に来るので、中はtop寄せでよい。 */
+.leaderboard-row-time-block {
   flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.leaderboard-row-time {
   margin: 0;
   font-size: 0.95rem;
   font-weight: 800;
   color: var(--color-primary-dark);
   font-variant-numeric: tabular-nums;
   white-space: nowrap; /* タイムは横スクロールなしで絶対に切れないようにする（本人指示） */
+}
+
+/* 1問あたりの平均タイム。クリアタイムより控えめに、小さく添える（本人指示：
+   デザインを大きく変えず、クリアタイム周辺に小さく追加する程度に） */
+.leaderboard-row-average {
+  margin: 0;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--color-text);
+  opacity: 0.55;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 /* 管理者専用のランキング記録削除ボタン（2026-08-17追加）。一般ユーザーには
