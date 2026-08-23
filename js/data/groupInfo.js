@@ -125,6 +125,26 @@ export const GROUP_INFO = {
       ],
       lastVerifiedDate: "2026-08-23",
     },
+    {
+      id: "drama-yanten",
+      title: "ヤンキー激戦区の四天王がアイドルグループに転生したら？",
+      broadcastYear: "2026年",
+      broadcastDetail: "2026年6月10日(水)スタート 日本テレビ（関東ローカル） 毎週水曜25:09〜",
+      summary: "≠ME主演の日本テレビ連続ドラマ。＝LOVEからは野口衣織・大場花菜がゲスト出演し、劇中のトップアイドルグループ「Aurora5」のメンバーを演じる（野口衣織：一ノ瀬星羅役／大場花菜：九条リオ役）。TVer・日テレTADA・Huluで見逃し配信あり。",
+      castNote: null,
+      themeSongs: null,
+      officialLinks: {
+        website: "https://www.ntv.co.jp/yanten/",
+        news: "https://equal-love.jp/news/detail/11509",
+      },
+      sourceType: "official",
+      sourceUrls: [
+        "https://equal-love.jp/news/detail/11509",
+        "https://www.oricon.co.jp/news/2456450/full/",
+        "https://mdpr.jp/drama/detail/4786046",
+      ],
+      lastVerifiedDate: "2026-08-23",
+    },
   ],
   // 【2026-08-23追加】＝LOVE・≠ME・≒JOYの3グループ合同で展開している公式スマホゲーム等。
   // 事前登録用ページのタイトルは今も「事前登録受付中」の表示のままだが、実際は2023年12月26日
