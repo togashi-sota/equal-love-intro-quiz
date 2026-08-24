@@ -4469,7 +4469,10 @@ body[data-screen="liveCallModePlayer"] .game-frame {
    お気に入りハートの左側に寄せる（再生前・再生中どちらでも位置が変わらない。
    本人フィードバックで「再生前から見えるように」と移動。2026-08-05）。
    youtubeUrlが無い曲では、songlist.js側でそもそもこの要素自体を作らない。 */
-.mv-link-button {
+/* .youtube-playlist-link（再生リストを見るボタン、2026-08-24追加）は、
+   「MVを見る」ボタンと全く同じ見た目にして統一感を出す（本人指示）。 */
+.mv-link-button,
+.youtube-playlist-link {
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -4490,19 +4493,22 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 
 /* 見た目の大きさはそのままに、タップ判定だけ一回り広げる
    （.track-favorite-button::afterと同じ、スマホでの誤タップ対策）。 */
-.mv-link-button::after {
+.mv-link-button::after,
+.youtube-playlist-link::after {
   content: "";
   position: absolute;
   inset: -6px;
 }
 
-.mv-link-button svg {
+.mv-link-button svg,
+.youtube-playlist-link svg {
   width: 12px;
   height: 12px;
   flex: none;
 }
 
-.mv-link-button:active {
+.mv-link-button:active,
+.youtube-playlist-link:active {
   transform: scale(0.96);
 }
 
@@ -8233,6 +8239,118 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 
 .official-link-button:active {
   transform: scale(0.98);
+}
+
+/* ===== ＝LOVE公式YouTubeチャンネル・イコノイジョイチャンネルの紹介（2026-08-24追加、本人指示） =====
+   再生リストが多いため、チャンネルごとにアコーディオンで開閉できるようにする
+   （収録曲一覧の.single-groupと同じ考え方・見た目のトーンを踏襲）。 */
+.youtube-channels-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.youtube-channel-group {
+  border: 1.5px solid var(--color-card-border);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.4);
+  overflow: hidden;
+}
+
+.youtube-channel-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: none;
+  background: none;
+  font-family: inherit;
+  text-align: left;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.youtube-channel-header:focus-visible {
+  outline: 2px solid var(--color-primary-dark);
+  outline-offset: -2px;
+}
+
+.youtube-channel-group.is-open .chevron {
+  transform: rotate(90deg);
+}
+
+.youtube-channel-name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 800;
+  font-size: 0.86rem;
+  line-height: 1.4;
+}
+
+.youtube-channel-count-chip {
+  flex: none;
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: var(--color-text);
+  opacity: 0.55;
+  white-space: nowrap;
+}
+
+.youtube-channel-body {
+  display: none;
+  padding: 0 14px 14px;
+}
+
+.youtube-channel-group.is-open .youtube-channel-body {
+  display: block;
+}
+
+.youtube-channel-description {
+  margin: 0 0 10px;
+  font-size: 0.78rem;
+  line-height: 1.65;
+  color: var(--color-text);
+  opacity: 0.75;
+}
+
+.youtube-playlist-heading {
+  margin: 14px 0 8px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  opacity: 0.8;
+}
+
+.youtube-playlist-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.youtube-playlist-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-card-border);
+  border-radius: 12px;
+}
+
+.youtube-playlist-name {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.youtube-playlist-description {
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.55;
+  color: var(--color-text);
+  opacity: 0.65;
 }
 
 .chip-row {

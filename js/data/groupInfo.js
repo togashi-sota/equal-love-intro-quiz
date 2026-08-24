@@ -223,6 +223,139 @@ export const GROUP_INFO = {
       lastVerifiedDate: "2026-08-23",
     },
   ],
+  // 【2026-08-24追加、本人指示】＝LOVE公式YouTubeチャンネル・イコノイジョイチャンネルの
+  // 紹介と、主な再生リスト。再生リストの名称・本数は、本人から共有されたURLを1件ずつ
+  // 実際にYouTubeで開いて確認したもの（oEmbed APIまたは直接アクセスで再生リスト名を取得。
+  // 2026-08-24確認）。本人が事前に想定していたテーマ名（History・ゲーム実況関連など）と
+  // 実際の再生リスト名が異なるものもあったため、推測で名前を当てはめず、必ず確認できた
+  // 正式名称をそのまま採用している。
+  youtubeChannels: [
+    {
+      id: "equallove-official-youtube",
+      name: "＝LOVE公式YouTubeチャンネル",
+      url: "https://www.youtube.com/@equallove_",
+      description:
+        "＝LOVEの公式YouTubeチャンネル。歴代シングルのミュージックビデオをはじめ、メンバーの素顔を追ったドキュメンタリー、ライブ映像、CD特典映像など、さまざまな公式映像をまとめて見ることができる。",
+      // 【2026-08-24改訂・本人指示】先頭（Music Video）と末尾（GASHIOの限定公開MV再生リスト）
+      // 以外は、＝LOVE公式チャンネルの「再生リスト」タブを開いたときの既定の並び順
+      // （新しい順）に合わせている。
+      playlists: [
+        {
+          name: "イコラブ Music Video",
+          description: "1st Singleから最新シングルまで、歴代楽曲のミュージックビデオをまとめて見られる再生リスト。",
+          url: "https://www.youtube.com/playlist?list=PLADr7aFJj-bpK0HT4m93gJt3OTXmaQYUY",
+        },
+        {
+          name: "イコラブ 特典映像",
+          description:
+            "CDに封入される特典映像などをまとめた再生リスト。シングルにはType B・Type Cなど複数の仕様が用意されることがあり、そうした盤に特典映像が収録されることがあるが、収録内容は作品によって異なる。",
+          url: "https://www.youtube.com/playlist?list=PLADr7aFJj-bp-_C8J4k5mULLgAlmz0jZz",
+        },
+        {
+          // 本人は「History」に該当すると想定していたURLだが、実際に開いて確認したところ
+          // 正式名称は「LIVE・CONCERT」だったため、推測で名前を当てはめずそのまま採用している
+          // （History自体は下の別の再生リストとして存在する）。
+          name: "LIVE・CONCERT",
+          description: "コンサート・ライブイベントの映像をまとめた再生リスト。",
+          url: "https://www.youtube.com/playlist?list=PLADr7aFJj-brRmGyphllZZL_XzY8K7pLk",
+        },
+        {
+          name: "Documentary of ＝LOVE",
+          description: "メンバーの素顔や活動の裏側に迫るドキュメンタリー映像をまとめた再生リスト。",
+          url: "https://www.youtube.com/playlist?list=PLADr7aFJj-brEewq0fBUNcZx53GZ6f2T8",
+        },
+        {
+          name: "＝LOVE(イコールラブ) History",
+          description: "結成からこれまでの＝LOVEの歩みを、当時の映像で振り返ることができる再生リスト。",
+          url: "https://www.youtube.com/playlist?list=PLADr7aFJj-boJ3hF1d44ou7M43_3nmeJX",
+        },
+        {
+          // 公式の再生リストではなく、本人（GASHIO）がこのクイズアプリ用にまとめた限定公開の
+          // 再生リスト（本人指示：公式再生リストと誤解されないよう説明文に必ず明記する）。
+          name: "イコラブ MV",
+          description:
+            "このクイズアプリ製作者GASHIOが、＝LOVEのMVを聴くとき用にまとめた限定公開の再生リスト（＝LOVE公式が作成したものではありません）。公式チャンネルのMVだけをまとめて見たい・聴きたいときに。",
+          url: "https://www.youtube.com/playlist?list=PLqDsKdChnb0OEYszf7NUFP83-PESkDCjj",
+          isUnofficial: true,
+        },
+      ],
+    },
+    {
+      id: "ikonoijoy-youtube",
+      name: "イコラブ ノイミー ニアジョイ チャンネル（イコノイジョイ）",
+      url: "https://www.youtube.com/@ikonoijoy",
+      description:
+        "＝LOVE・≠ME・≒JOYの3グループ合同の公式YouTubeチャンネル。バラエティ企画や食べ歩き、ゲーム、ダンスなど、ミュージックビデオとはまた違ったメンバーの素顔を楽しめる。",
+      // 【2026-08-24改訂・本人指示】先頭（＝LOVE）以外は、イコノイジョイチャンネルの
+      // 「再生リスト」タブを開いたときの既定の並び順（新しい順）に合わせている。
+      // 部活動・企画系の再生リストは、本人（ファンとして把握している情報）から共有された
+      // 出演メンバーを紹介文に明記している。
+      playlists: [
+        {
+          name: "＝LOVE",
+          description: "3グループ合同チャンネルの中から、＝LOVEメンバーが登場する動画をまとめた再生リスト。",
+          url: "https://www.youtube.com/playlist?list=PL4CXxHAJyaqG5bhMvLKzqIALxiGjZZHhg",
+        },
+        {
+          name: "「イコノイジョイがやってやんよ！」",
+          description: "＝LOVE・≠ME・≒JOYの3グループ合同企画に挑戦する様子が見られる再生リスト。",
+          url: "https://www.youtube.com/playlist?list=PL4CXxHAJyaqEatHE36i7t4W3YZexLIk8P",
+        },
+        {
+          name: "イコラブハンバーガー部",
+          description: "髙松瞳・瀧脇笙古が色々なハンバーガーを食べ歩く企画の再生リスト。",
+          url: "https://www.youtube.com/playlist?list=PL4CXxHAJyaqG9lNpB1B5UoIMQ9zxrSo74",
+        },
+        {
+          name: "はしご酒",
+          description: "諸橋沙夏がお店をはしごする企画の再生リスト。",
+          url: "https://www.youtube.com/playlist?list=PL4CXxHAJyaqEQ5dXpujGY9qLtH0M7X1WP",
+        },
+        {
+          // 本人が「サンドの飯より＝LOVE」と伝えていた再生リストだが、実際の正式名称は
+          // 「三度の飯より=LOVE」だったため、確認できた正式名称をそのまま採用している。
+          name: "三度の飯より＝LOVE",
+          description: "メンバーが食事を楽しむ様子が見られる企画の再生リスト。",
+          url: "https://www.youtube.com/playlist?list=PL4CXxHAJyaqGNuJLYgGB7VsWi5cTUCusL",
+        },
+        {
+          name: "ゲーム実況",
+          description:
+            "部長：野口衣織、副部長：齋藤樹愛羅（Kiara）が務める「イコラブゲーム部」の活動を中心に、メンバーが様々なゲームで盛り上がる様子を楽しめる再生リスト。",
+          url: "https://www.youtube.com/playlist?list=PL4CXxHAJyaqEcPq3AzuL4Loh2FegF_tSc",
+        },
+        {
+          // 本人が想定していたテーマ名には該当が無かったURLだが、実際に確認できた正式名称
+          // 「ドッキリ」をそのまま採用している。
+          name: "ドッキリ",
+          description: "メンバーにドッキリを仕掛ける企画の再生リスト。",
+          url: "https://www.youtube.com/playlist?list=PL4CXxHAJyaqHjzjCH_n3677W1vJtJg61y",
+        },
+        {
+          // 本人が「Oシリーズ」と伝えていた再生リストだが、実際の正式名称は「王シリーズ」
+          // だったため、確認できた正式名称をそのまま採用している。
+          name: "王シリーズ",
+          description: "メンバー同士で色々な「王」を決める企画の再生リスト。",
+          url: "https://www.youtube.com/playlist?list=PL4CXxHAJyaqGTBthvwf8NmKdO6RqhlqD1",
+        },
+        {
+          // 本人指示（2026-08-24追加）：部長が髙松瞳であることを紹介文に明記。URLは本人からの
+          // 直接指定ではなく、再生リスト名から本人が言及した「イコラブボートレース部」に該当する
+          // ものを本人からのYouTubeチャンネル情報をもとに確認して特定した。
+          name: "ボートレース部",
+          description: "部長：髙松瞳が務める「イコラブボートレース部」の活動を楽しめる再生リスト。",
+          url: "https://www.youtube.com/playlist?list=PL4CXxHAJyaqH5MDFjEHZXblGycslwnzFU",
+        },
+        {
+          // 本人が想定していたテーマ名には該当が無かったURLだが、実際に確認できた正式名称
+          // 「イコラブふたり旅」をそのまま採用している。
+          name: "イコラブふたり旅",
+          description: "＝LOVEメンバー2人が旅をする企画の再生リスト。",
+          url: "https://www.youtube.com/playlist?list=PL4CXxHAJyaqEvS2eUZzRV3i0NNt7ZbN6h",
+        },
+      ],
+    },
+  ],
   // 【2026-08-23追加】＝LOVE・≠ME・≒JOYの3グループ合同で展開している公式スマホゲーム等。
   // 事前登録用ページのタイトルは今も「事前登録受付中」の表示のままだが、実際は2023年12月26日
   // から正式サービス開始済み・現在も運営中であることを複数の情報源（運営会社ニュース欄・

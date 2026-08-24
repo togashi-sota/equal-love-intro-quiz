@@ -193,6 +193,107 @@ function buildProducerCard(producer) {
   return card;
 }
 
+// ＝LOVE公式YouTubeチャンネル・イコノイジョイチャンネルの紹介と、主な再生リストの一覧
+// （本人指示・2026-08-24追加）。再生リストがかなり多いため、チャンネルごとにアコーディオンで
+// 開閉できるようにし、既定では閉じた状態にしておく（収録曲一覧の.single-groupと同じ考え方。
+// URLの文字列そのものは画面に出さず、必ず「再生リスト名＋短い説明＋ボタン」の形にする）。
+function buildYoutubePlaylistRow(playlist) {
+  const row = document.createElement("div");
+  row.className = "youtube-playlist-row";
+
+  const info = document.createElement("div");
+  info.className = "youtube-playlist-info";
+
+  const name = document.createElement("p");
+  name.className = "youtube-playlist-name";
+  name.textContent = playlist.name;
+  info.appendChild(name);
+
+  const description = document.createElement("p");
+  description.className = "youtube-playlist-description";
+  description.textContent = playlist.description;
+  info.appendChild(description);
+
+  row.appendChild(info);
+
+  const link = document.createElement("a");
+  link.className = "youtube-playlist-link";
+  link.href = playlist.url;
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+  link.innerHTML = `
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7Z"/></svg>
+    再生リストを見る
+  `;
+  row.appendChild(link);
+
+  return row;
+}
+
+function buildYoutubeChannelGroup(channel) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "youtube-channel-group";
+
+  const header = document.createElement("button");
+  header.type = "button";
+  header.className = "youtube-channel-header";
+  header.innerHTML = `
+    <svg class="chevron" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 5l7 7-7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <span class="youtube-channel-name">${channel.name}</span>
+    <span class="youtube-channel-count-chip">${channel.playlists.length}件の再生リスト</span>
+  `;
+  header.addEventListener("click", () => {
+    wrapper.classList.toggle("is-open");
+  });
+  wrapper.appendChild(header);
+
+  const body = document.createElement("div");
+  body.className = "youtube-channel-body";
+
+  const description = document.createElement("p");
+  description.className = "youtube-channel-description";
+  description.textContent = channel.description;
+  body.appendChild(description);
+
+  const channelLink = document.createElement("a");
+  channelLink.className = "official-link-button";
+  channelLink.href = channel.url;
+  channelLink.target = "_blank";
+  channelLink.rel = "noopener noreferrer";
+  channelLink.textContent = "チャンネルを見る";
+  body.appendChild(channelLink);
+
+  const playlistHeading = document.createElement("p");
+  playlistHeading.className = "youtube-playlist-heading";
+  playlistHeading.textContent = "主な再生リスト";
+  body.appendChild(playlistHeading);
+
+  const list = document.createElement("div");
+  list.className = "youtube-playlist-list";
+  channel.playlists.forEach((playlist) => list.appendChild(buildYoutubePlaylistRow(playlist)));
+  body.appendChild(list);
+
+  wrapper.appendChild(body);
+  return wrapper;
+}
+
+function buildYoutubeChannelsSection(youtubeChannels) {
+  const wrapper = document.createElement("div");
+  if (!youtubeChannels || youtubeChannels.length === 0) return wrapper;
+
+  const heading = document.createElement("p");
+  heading.className = "section-heading";
+  heading.textContent = "＝LOVEの公式YouTube";
+  wrapper.appendChild(heading);
+
+  const list = document.createElement("div");
+  list.className = "youtube-channels-list";
+  youtubeChannels.forEach((channel) => list.appendChild(buildYoutubeChannelGroup(channel)));
+  wrapper.appendChild(list);
+
+  return wrapper;
+}
+
 // グループ冠番組・レギュラー番組のセクション（メンバー個人ではなく、グループ全体としての
 // 活動）。カードの組み立てはメンバー個人活動と共通のbuildActivityCard()をそのまま使う
 // （見た目・情報の持たせ方を個人・グループで揃えるため）。
@@ -769,6 +870,8 @@ function renderAboutTab(members, groupInfo, groupActivities, sisterGroups) {
   elements.aboutContent.appendChild(buildSisterGroupsSection(sisterGroups));
 
   elements.aboutContent.appendChild(buildCollaborationSongsSection(groupInfo.collaborationSongs));
+
+  elements.aboutContent.appendChild(buildYoutubeChannelsSection(groupInfo.youtubeChannels));
 
   elements.aboutContent.appendChild(buildGroupActivitiesSection(groupActivities));
 
