@@ -882,47 +882,371 @@ h1 .note-icon svg {
   padding: 8px;
 }
 
-/* ===== 新バージョン通知バナー（PWA対応） =====
-   Service Workerが新しいバージョンを検知したときだけ、画面上部に表示する。
-   どの画面が表示中でも常に見えるよう、game-frameの外・画面最上部に固定する。 */
-.update-available-banner {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 30; /* モーダル（z-index:20）よりさらに手前に表示する */
+/* ===== センターお祝いポップアップ（2026-08-24新設） =====
+   夏の海辺をイメージした背景（空・海・水面のきらめき・黄色い浮き輪・ポラロイド風の写真）の上に、
+   お祝いカードを重ねる。.modal-overlayの共通スタイル（固定表示・中央寄せ）を土台にしつつ、
+   背景色だけこのクラスで上書きする。 */
+.celebration-overlay {
+  background: transparent;
+  padding: 0;
+}
+
+.celebration-scene {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: linear-gradient(180deg, #bdeaff 0%, #7fd4f5 30%, #4bc0e0 46%, #1f96bd 78%, #0f6f92 100%);
+}
+
+.celebration-decor {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.celebration-sun-glow {
+  position: absolute;
+  top: -60px;
+  left: 50%;
+  width: 320px;
+  height: 320px;
+  transform: translateX(-50%);
+  background: radial-gradient(circle, #fff6d8 0%, rgba(255, 246, 216, 0.35) 45%, transparent 72%);
+  animation: celebration-sunpulse 4s ease-in-out infinite;
+}
+
+@keyframes celebration-sunpulse {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 1; }
+}
+
+.celebration-cloud {
+  position: absolute;
+  background: #ffffff;
+  border-radius: 999px;
+  opacity: 0.85;
+}
+
+.celebration-cloud::before, .celebration-cloud::after {
+  content: "";
+  position: absolute;
+  background: #ffffff;
+  border-radius: 999px;
+}
+
+.celebration-cloud.c1 { top: 8%; left: -8%; width: 120px; height: 34px; }
+.celebration-cloud.c1::before { width: 60px; height: 46px; top: -22px; left: 14px; }
+.celebration-cloud.c1::after { width: 46px; height: 34px; top: -14px; left: 62px; }
+.celebration-cloud.c2 { top: 4%; right: -10%; width: 96px; height: 28px; opacity: 0.7; }
+.celebration-cloud.c2::before { width: 50px; height: 36px; top: -18px; left: 14px; }
+
+.celebration-water-line {
+  position: absolute;
+  left: -10%;
+  width: 120%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.75), transparent);
+  animation: celebration-shimmer 3.2s ease-in-out infinite;
+}
+
+@keyframes celebration-shimmer {
+  0%, 100% { opacity: 0.25; transform: translateX(-4%); }
+  50% { opacity: 0.8; transform: translateX(4%); }
+}
+
+.celebration-float-ring {
+  position: absolute;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 34% 30%, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0) 22%),
+    conic-gradient(#ffd93d 0deg 80deg, #f5ab1a 80deg 100deg, #ffd93d 100deg 180deg,
+      #f5ab1a 180deg 200deg, #ffd93d 200deg 280deg, #f5ab1a 280deg 300deg, #ffd93d 300deg 360deg);
+  box-shadow: inset 0 0 0 18px #4bc0e0, 0 10px 24px -8px rgba(15, 111, 146, 0.5);
+  animation: celebration-bob 3.6s ease-in-out infinite;
+}
+
+.celebration-float-ring.big { width: 190px; height: 190px; right: -60px; bottom: -50px; }
+.celebration-float-ring.small { width: 96px; height: 96px; left: -30px; top: 14%; opacity: 0.9; animation-delay: 0.6s; }
+
+@keyframes celebration-bob {
+  0%, 100% { transform: translateY(0) rotate(-4deg); }
+  50% { transform: translateY(-10px) rotate(4deg); }
+}
+
+/* カード四隅に添えるひまわり・貝殻・ヒトデ（2026-08-24追加、本人指示：夏らしいモチーフ）。
+   カード本体（.celebration-card）はposition:relativeなので、この中でposition:absoluteの
+   基準になる。 */
+.celebration-sunflower {
+  position: absolute;
+  width: 34px;
+  height: 34px;
+  top: -14px;
+  left: -10px;
+  filter: drop-shadow(0 3px 4px rgba(15, 111, 146, 0.25));
+}
+
+.celebration-shell {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  bottom: 10px;
+  right: -8px;
+  filter: drop-shadow(0 3px 4px rgba(15, 111, 146, 0.25));
+}
+
+.celebration-starfish {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  bottom: -8px;
+  left: 14px;
+  filter: drop-shadow(0 3px 4px rgba(15, 111, 146, 0.25));
+}
+
+/* 「夏の海辺でメンバーみんなが手を振って一緒に祝っている」シルエットの帯
+   （2026-08-24追加、本人指示：実在メンバーの精密な再現ではなく雰囲気だけを表現する）。 */
+.celebration-wave-crowd {
+  width: 100%;
+  height: 40px;
+  margin-top: 4px;
+  color: #3d6b82;
+}
+
+.celebration-confetti-field {
+  position: absolute;
+  inset: 0;
+}
+
+.celebration-confetti {
+  position: absolute;
+  top: -8%;
+  border-radius: 2px;
+  animation: celebration-confetti-fall linear infinite;
+}
+
+@keyframes celebration-confetti-fall {
+  0% { transform: translateY(0) rotate(0deg); opacity: 0; }
+  8% { opacity: 1; }
+  100% { transform: translateY(780px) rotate(340deg); opacity: 0.9; }
+}
+
+.celebration-content {
+  position: relative;
+  z-index: 3;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: max(24px, env(safe-area-inset-top)) 20px max(24px, env(safe-area-inset-bottom));
+  text-align: center;
+  overflow-y: auto;
+}
+
+.celebration-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+  font-size: 21px;
+  letter-spacing: 0.04em;
+  margin: 0 0 12px;
+  color: #ffffff;
+  text-shadow: 0 2px 8px rgba(15, 111, 146, 0.45);
+}
+
+.celebration-eyebrow-kanji {
+  background: linear-gradient(90deg, #fff2c4, #ffd93d 50%, #ff9f4d);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.celebration-card {
+  position: relative;
+  width: 100%;
+  max-width: 340px;
+  border-radius: 26px;
+  background: linear-gradient(165deg, #fffdf7 0%, #fff2e0 100%);
+  border: 2px solid rgba(255, 255, 255, 0.95);
+  box-shadow: 0 0 0 5px rgba(255, 217, 61, 0.28), 0 20px 40px -14px rgba(15, 111, 146, 0.55);
+  padding: 22px 18px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  overflow: visible;
+}
+
+.celebration-congrats {
+  font-size: 17px;
+  font-weight: 700;
+  margin: 0;
+  line-height: 1.15;
+  color: #d9711f;
+}
+
+.celebration-congrats strong {
+  display: block;
+  font-size: 24px;
+  font-weight: 800;
+  margin-top: 2px;
+  text-wrap: balance;
+  background: linear-gradient(90deg, #a8540f, #d9711f 55%, #ff8a3d);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.celebration-divider {
+  width: 44px;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ffd93d, #ff9f4d);
+  margin: 10px 0;
+}
+
+.celebration-subline {
+  font-size: 11.5px;
+  color: #8a5a34;
+  font-weight: 700;
+  margin: 0;
+  opacity: 0.85;
+}
+
+.celebration-song-plate {
+  width: 100%;
+  margin-top: 10px;
+  border-radius: 16px;
+  background: #ffffff;
+  border: 1.5px dashed #ff9f4d;
+  padding: 12px 12px 14px;
+}
+
+/* .celebration-thumbは<a>要素（サムネイル自体をタップしてもMVへ飛べるようにするため、
+   本人指示・2026-08-24）。リンクの下線・色は打ち消し、ボタンのように見えるようにする。 */
+.celebration-thumb {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 10px;
+  overflow: hidden;
+  background: linear-gradient(135deg, #ffe4c7, #ffd8ad);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  /* viewport-fit=cover対応：Dynamic Island・ノッチと重ならないよう、上だけセーフエリア分の
-     余白を確保する。【重要】paddingショートハンドの中でenv()・calc()・max()を組み合わせると
-     実機のSafariで値全体が無効になる不具合を確認したため、個別プロパティで指定している。 */
-  padding-top: max(44px, calc(env(safe-area-inset-top) + 6px));
-  padding-right: 16px;
-  padding-bottom: 10px;
-  padding-left: 16px;
-  background: var(--color-primary-dark);
-  color: #ffffff;
-  font-size: 0.8rem;
-  font-weight: 700;
-  text-align: center;
+  margin-bottom: 10px;
+  position: relative;
+  text-decoration: none;
+  cursor: pointer;
 }
 
-.update-available-banner[hidden] {
+/* サムネイル画像が正常に表示されているときだけ、中央に小さく再生マークを重ねて
+   「ここを押してもMVを見られる」と直感的に分かるようにする（本人指示）。
+   画像読み込み失敗時は.celebration-play-badge側の大きな再生マークだけを見せたいため、
+   隣にimg[hidden]があるときは非表示にする。 */
+.celebration-thumb-play-overlay {
+  position: absolute;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.45);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.celebration-thumb:has(img[hidden]) .celebration-thumb-play-overlay {
   display: none;
 }
 
-#update-reload-button {
-  padding: 4px 14px;
+.celebration-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.celebration-thumb img[hidden] {
+  display: none;
+}
+
+.celebration-play-badge {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
+  color: #d9711f;
+}
+
+.celebration-play-badge[hidden] {
+  display: none;
+}
+
+.celebration-song-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: #a8540f;
+  margin: 0 0 2px;
+}
+
+.celebration-song-meta {
+  font-size: 11px;
+  color: #a3745a;
+  margin: 0;
+  font-weight: 700;
+}
+
+.celebration-buttons {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin-top: 14px;
+}
+
+.celebration-btn-mv {
+  display: block;
+  width: 100%;
   border: none;
   border-radius: 999px;
-  background: #ffffff;
-  color: var(--color-primary-dark);
+  padding: 13px;
   font-family: inherit;
-  font-size: 0.78rem;
+  font-size: 15px;
   font-weight: 800;
+  color: #6b3300;
+  background: linear-gradient(90deg, #ffd93d, #ff9f4d);
+  box-shadow: 0 10px 20px -8px rgba(217, 113, 31, 0.55);
+  text-align: center;
+  text-decoration: none;
   cursor: pointer;
+}
+
+.celebration-btn-seen {
+  width: 100%;
+  border: 1.5px solid rgba(217, 113, 31, 0.4);
+  border-radius: 999px;
+  padding: 11px;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #d9711f;
+  background: rgba(255, 255, 255, 0.75);
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .celebration-sun-glow,
+  .celebration-water-line,
+  .celebration-float-ring,
+  .celebration-confetti {
+    animation: none;
+  }
 }
 
 /* ===== イコライザー風の飾り区切り。曲が流れているような臨場感を添える ===== */

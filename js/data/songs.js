@@ -1271,6 +1271,24 @@ export const SONGS = [
     introLeadInSec: 0,
     comingSoonNote: "カップリング Coming Soon",
   },
+  // 21stシングル カップリング曲「夏名残サマーチューン」（2026-08-24追加）。
+  // ＝LOVE公式YouTubeチャンネルにMVが公開され、概要欄で「2026年8月26日(水)発売、
+  // ＝LOVE 21stシングル『恋、はじめました。』に収録されるカップリング楽曲」「大場花菜が
+  // センターを務めます🧡」と明記されていることを、実際の公式MV概要欄で確認済み。
+  {
+    id: "natsunagori-summer-tune",
+    youtubeUrl: "https://www.youtube.com/watch?v=_Bm66BRnM1A",
+    workId: "single-21",
+    title: "夏名残サマーチューン",
+    searchReading: "なつなごりさまーちゅーん",
+    category: CATEGORY.GROUP_SONG,
+    releaseDate: "2026-08-26",
+    single: "21stシングル「恋、はじめました。」収録",
+    difficulty: DIFFICULTY.NORMAL,
+    center: ["大場花菜"],
+    centerType: "single",
+    introLeadInSec: 0,
+  },
   {
     id: "866",
     youtubeUrl: "https://www.youtube.com/watch?v=8hsjYIlJbQE",

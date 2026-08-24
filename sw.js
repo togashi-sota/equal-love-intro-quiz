@@ -7,7 +7,7 @@
 //
 // 新しいバージョンを配信したいときは、CACHE_VERSIONの値を必ず上げること。
 // 上げないと、ブラウザが「内容が変わっていない」と判断し、更新が反映されない。
-const CACHE_VERSION = "v170";
+const CACHE_VERSION = "v171";
 const CACHE_NAME = `equal-love-intro-quiz-${CACHE_VERSION}`;
 
 // キャッシュするアプリ本体のファイル一覧。
@@ -151,6 +151,7 @@ const APP_SHELL_FILES = [
   "./js/data/songPenlightGuide.js",
   "./js/data/songCallCredits.js",
   "./js/data/mixAndKoujouGuide.js",
+  "./js/centerCelebration.js",
 ];
 
 self.addEventListener("install", (event) => {
@@ -161,11 +162,22 @@ self.addEventListener("install", (event) => {
 
 // 古いバージョンのキャッシュを削除する。CACHE_VERSIONを上げてデプロイすると、
 // 次にアプリが開かれたときにこの処理が走り、前のバージョンのキャッシュが自動的に消える。
+//
+// 【2026-08-24追加】clients.claim()を呼び、activate完了と同時に「今すでに開いている
+// タブ」もこの新しいService Workerの制御下に置く。これが無いと、新しいSWがactivateしても
+// 既に開いているページのcontroller（navigator.serviceWorker.controller）は古いSWのままで、
+// controllerchangeイベントが発火せず、js/main.js側の自動更新（安全な画面に来たときだけ
+// リロードする仕組み）が動かなくなってしまう。
+// 【安全性】clients.claim()自体は「どのSWが今後のfetchを処理するか」を切り替えるだけで、
+// 既存のlocalStorage・IndexedDB（音源データ）・Firebase上のデータには一切影響しない。
+// 実際にページを再読み込みするタイミングは、引き続きjs/main.js側が「安全な画面にいるか」を
+// 見てから判断する（このファイルはその判断に関与しない）。
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)))
-    )
+    caches
+      .keys()
+      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
+      .then(() => self.clients.claim())
   );
 });
 
@@ -180,7 +192,11 @@ self.addEventListener("fetch", (event) => {
 });
 
 // ページ側から「skipWaiting」のメッセージを受け取ったら、待機中の新しいService Workerを
-// すぐに有効化する。「新しいバージョンがあります」バナーの「更新する」ボタンから送られてくる。
+// すぐに有効化する。
+// 【2026-08-24改訂】以前は「新しいバージョンがあります」バナーの「更新する」ボタンから
+// 送られていたが、本人指示によりボタンを撤廃し、js/main.js側が「クイズ中・対戦中などの
+// 危険な画面ではない」と判断できた瞬間に自動的に送るようになった（送信タイミングの判断は
+// このファイルの外、js/main.js側の責務。詳細はjs/main.jsのコメント参照）。
 self.addEventListener("message", (event) => {
   if (event.data === "skipWaiting") {
     self.skipWaiting();

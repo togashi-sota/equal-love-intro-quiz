@@ -4,6 +4,7 @@
 import { SONGS } from "./data/songs.js";
 import { AUDIO_METADATA } from "./data/audioMetadata.js";
 import { showScreen, onScreenChange } from "./screens.js";
+import { initCenterCelebration, showCenterCelebrationIfEligible } from "./centerCelebration.js";
 import {
   gameState,
   resetGameState,
@@ -198,16 +199,45 @@ import { initContinuousPlayQueueScreen, renderQueueScreen } from "./continuousPl
 import { initMiniPlayer } from "./miniPlayer.js";
 import { handlePlayerChanged as handleContinuousPlayerChanged } from "./continuousPlay.js";
 
+// センターお祝いポップアップのDOM要素参照と、「見た！」ボタンのイベント登録。
+// 下の「センターお祝いポップアップの表示判定」より前に用意しておく必要があるため、
+// ファイルの早い位置に置いている（module scriptはHTML全体の解析後に実行されるため、
+// この位置でもDOM要素は問題なく取得できる）。
+const centerCelebrationElements = {
+  overlay: document.getElementById("center-celebration-overlay"),
+  confettiField: document.getElementById("center-celebration-confetti"),
+  heading: document.getElementById("center-celebration-name"),
+  subheading: document.getElementById("center-celebration-subheading"),
+  singleLine: document.getElementById("center-celebration-single-line"),
+  songTitle: document.getElementById("center-celebration-song-title"),
+  songMeta: document.getElementById("center-celebration-song-meta"),
+  thumbLink: document.getElementById("center-celebration-thumb-link"),
+  thumbImage: document.getElementById("center-celebration-thumb"),
+  playBadge: document.getElementById("center-celebration-play-badge"),
+  mvButton: document.getElementById("center-celebration-mv-button"),
+  seenButton: document.getElementById("center-celebration-seen-button"),
+};
+initCenterCelebration(centerCelebrationElements);
+
 // 初回セットアップが必要な新規ユーザーかどうかを、他のどの初期化よりも先に判定する
 // （2026-08-15新設）。例えばこの下のinitPlayerScreen()は、内部でgetActivePlayer()を通じて
 // 「equalLoveIntroQuiz.players」キーを自動生成する副作用を持つため、判定を後回しにすると
-// 真の新規ユーザーまで「既存データがある」と誤検出してしまう。必ずファイル内で最初に実行される
-// コードにしておくことで、この種の副作用の影響を受けない。
+// 真の新規ユーザーまで「既存データがある」と誤検出してしまう。プレイヤーデータに触れる
+// 初期化処理より前にこの判定を済ませておく必要がある（上のセンターお祝いポップアップ用の
+// DOM参照・イベント登録はプレイヤーデータに一切触れないため、順序に影響しない）。
 // 「戻る」導線を持たない専用画面のため、リロード・PWA再起動・画面外タップのいずれでも
 // 回避できない（登録完了までshowScreen("start")は呼ばれない）。既存ユーザーはこの分岐に
 // 入らず、今まで通りスタート画面がそのまま表示される。
 if (needsOnboarding()) {
   showScreen("onboarding");
+}
+
+// センターお祝いポップアップの表示判定（2026-08-24新設、本人指示）。
+// 「更新するボタンを押したから」ではなく「対象の楽曲データが揃っていて、まだこのプレイヤーが
+// 見ていない」ことだけを条件にする。新規ユーザー（初回セットアップ中）には、まだ推しメン等の
+// 登録も済んでいないため対象外にする（body.dataset.screenが"onboarding"のときは呼ばない）。
+if (document.body.dataset.screen === "start") {
+  showCenterCelebrationIfEligible(SONGS, getPlayerKeyPrefix(), centerCelebrationElements);
 }
 
 // 背景のキラキラ演出は、ゲームの状態と関係なく最初に1回だけ生成すればよい。
@@ -946,8 +976,6 @@ const callGuideImportConfirmMessageElement = document.getElementById("call-guide
 const callGuideImportConfirmFailedListElement = document.getElementById("call-guide-import-confirm-failed-list");
 const callGuideImportConfirmCancelButtonElement = document.getElementById("call-guide-import-confirm-cancel-button");
 const callGuideImportConfirmSaveButtonElement = document.getElementById("call-guide-import-confirm-save-button");
-const updateAvailableBannerElement = document.getElementById("update-available-banner");
-const updateReloadButtonElement = document.getElementById("update-reload-button");
 const discographyLinkElement = document.getElementById("discography-link");
 const discographyBackButtonElement = document.getElementById("discography-back-button");
 const workDetailBackButtonElement = document.getElementById("work-detail-back-button");
@@ -4563,17 +4591,34 @@ callGuideImportConfirmSaveButtonElement.addEventListener("click", async () => {
 
 updateCallGuideImportStatus();
 
-// PWA対応：Service Workerを登録し、新しいバージョンが使えるようになったらバナーで知らせる。
-// 黙って新しいコードに切り替えると、プレイ中に予期しない動作をする可能性があるため、
-// 必ず本人が「更新する」を押してから切り替える設計にしている。
+// PWA対応：Service Workerを登録し、新しいバージョンが使えるようになったら、安全な
+// タイミングで自動的に切り替える。
+// 【2026-08-24改訂・本人指示】以前は「更新する」ボタンを押した瞬間に切り替えていたが、
+// ボタンを撤廃し、ユーザーが何も操作しなくても最新版になるよう変更した。
+// 重要なのは「更新しない」のではなく「安全なタイミングまで待たせる」という設計であること：
+// クイズ・タイムアタック・ランダム再生・歌詞クイズ・1台対戦・オンライン対戦など、途中状態が
+// 失われる可能性がある画面にいる間は何もせず、ホーム画面（"start"）に戻ってきたときだけ
+// 切り替える（本人指示：安全な画面はホーム画面のみとする）。
+// 【安全性】切り替え自体（Service Workerの有効化・ページの再読み込み）は、localStorage・
+// IndexedDB（音源データ）・Firebase上のデータには一切触れない。唯一のリスクは「画面上だけの
+// 未保存の途中経過」が失われることなので、そのリスクがある画面では待たせることで対応する。
 let pendingUpdateRegistration = null;
+let hasAppliedPendingUpdate = false;
 
-// 「更新する」バナーを表示する処理を1箇所にまとめる。
+// 更新の反映を試みる。ホーム画面にいるときだけ実際に反映し、それ以外の画面では何もしない
+// （呼び出し側は「今安全かどうか」を気にせず、何度でも安全にこの関数を呼べる）。
+function tryApplyPendingUpdate() {
+  if (!pendingUpdateRegistration || hasAppliedPendingUpdate) return;
+  if (document.body.dataset.screen !== "start") return;
+  hasAppliedPendingUpdate = true;
+  pendingUpdateRegistration.waiting?.postMessage("skipWaiting");
+}
+
 // ①すでに待機中のバージョンがある場合（アプリを閉じている間に更新の準備が整っていた等）と、
 // ②今まさに新しいバージョンが見つかった場合（updatefound）の、2箇所から呼ばれる。
-function showUpdateBanner(registration) {
+function handleUpdateReady(registration) {
   pendingUpdateRegistration = registration;
-  updateAvailableBannerElement.hidden = false;
+  tryApplyPendingUpdate();
 }
 
 function initServiceWorker() {
@@ -4583,11 +4628,11 @@ function initServiceWorker() {
     .register("./sw.js")
     .then((registration) => {
       // ①登録が完了した時点で、すでに待機中の新しいバージョンがないかを確認する。
-      // 前回のセッション中にインストールだけ終わっていて、更新バナーを押せないまま
-      // アプリを閉じた（スマホでアプリを閉じた等）場合、updatefoundは発生し直さないため、
-      // このチェックがないと更新可能な状態のまま二度とバナーが出ない。
+      // 前回のセッション中にインストールだけ終わっていた（スマホでアプリを閉じた等）場合、
+      // updatefoundは発生し直さないため、このチェックがないと更新可能な状態のまま
+      // 二度と反映されない。
       if (registration.waiting) {
-        showUpdateBanner(registration);
+        handleUpdateReady(registration);
       }
 
       // ②今まさにこのセッション中に新しいバージョンが見つかった場合。
@@ -4599,7 +4644,7 @@ function initServiceWorker() {
           // installedは「新しいバージョンが準備できた」を意味する。
           // controllerがまだない初回登録時のinstalledはただの初回セットアップなので無視する。
           if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
-            showUpdateBanner(registration);
+            handleUpdateReady(registration);
           }
         });
       });
@@ -4609,6 +4654,8 @@ function initServiceWorker() {
     });
 
   // 新しいService Workerが有効化されたら、最新のコードを反映するために1回だけ再読み込みする。
+  // sw.js側でclients.claim()を呼んでいるため、tryApplyPendingUpdate()がskipWaitingを
+  // 送った直後にこのイベントが発火する（本人指示に基づく2026-08-24の変更で追加）。
   let hasReloadedForUpdate = false;
   navigator.serviceWorker.addEventListener("controllerchange", () => {
     if (hasReloadedForUpdate) return;
@@ -4617,8 +4664,12 @@ function initServiceWorker() {
   });
 }
 
-updateReloadButtonElement.addEventListener("click", () => {
-  pendingUpdateRegistration?.waiting?.postMessage("skipWaiting");
+// ホーム画面に来るたびに、待機中の更新が無いか確認する。危険な画面からホーム画面へ
+// 戻ってきた瞬間に、待機中の更新があればここで初めて反映される。
+onScreenChange((screenName) => {
+  if (screenName === "start") {
+    tryApplyPendingUpdate();
+  }
 });
 
 initServiceWorker();
