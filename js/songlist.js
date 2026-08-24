@@ -22,6 +22,16 @@ import { registerPlaybackStopper, notifyPlaybackStarting } from "./playbackCoord
 // 試聴を10秒戻す/送るときの秒数。
 const SEEK_SKIP_SECONDS = 10;
 
+// youtubeUrl（例："https://www.youtube.com/watch?v=xxxx"）から動画IDだけを取り出す。
+// 形式が想定と違う場合はnullを返し、呼び出し側でサムネイル表示自体をスキップする。
+function extractYoutubeVideoId(youtubeUrl) {
+  try {
+    return new URL(youtubeUrl).searchParams.get("v");
+  } catch {
+    return null;
+  }
+}
+
 // カテゴリごとの、バッジに表示する文字と色分け用のクラス名。
 // オリジナル問題作成モードの選曲画面（customQuizScreen.js）でも同じカテゴリバッジを
 // 表示するため、外部公開している。
@@ -492,6 +502,36 @@ export function createTrackRow(song, options = {}) {
       }
       infoBlock.appendChild(creditElement);
     });
+  }
+
+  // MVサムネイル（2026-08-24追加、本人指示。3曲での確認を経て全曲へ展開）：曲名・センター等の
+  // 情報のすぐ下、「MVを見る」ボタンの上に表示する。公式YouTubeのサムネイル画像URLをそのまま
+  // 参照するだけで、アプリ側には一切保存しない（YouTubeサムネイルの標準的な扱い方、
+  // img.youtube.com/vi/{videoId}/…）。サムネイル自体をタップしても「MVを見る」ボタンと
+  // 同じ公式MVへ移動する。問題画面・クイズ画面など収録曲一覧以外の画面には影響しない
+  // （createTrackRowは収録曲一覧・お気に入り一覧・プレイリスト画面でのみ使われる）。
+  if (song.youtubeUrl) {
+    const videoId = extractYoutubeVideoId(song.youtubeUrl);
+    if (videoId) {
+      const thumbLink = document.createElement("a");
+      thumbLink.className = "track-mv-thumb";
+      thumbLink.href = song.youtubeUrl;
+      thumbLink.target = "_blank";
+      thumbLink.rel = "noopener noreferrer";
+      thumbLink.setAttribute("aria-label", `${song.title}のMVを見る`);
+      thumbLink.addEventListener("click", () => {
+        stopSongListPreview();
+      });
+      const thumbImg = document.createElement("img");
+      thumbImg.src = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+      thumbImg.alt = "";
+      thumbImg.loading = "lazy";
+      thumbImg.onerror = () => {
+        thumbLink.hidden = true;
+      };
+      thumbLink.appendChild(thumbImg);
+      infoBlock.appendChild(thumbLink);
+    }
   }
 
   // MVを見るボタン：youtubeUrlがある曲だけ、再生前の通常表示から常に見える位置に置く

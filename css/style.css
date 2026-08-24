@@ -4469,6 +4469,28 @@ body[data-screen="liveCallModePlayer"] .game-frame {
    お気に入りハートの左側に寄せる（再生前・再生中どちらでも位置が変わらない。
    本人フィードバックで「再生前から見えるように」と移動。2026-08-05）。
    youtubeUrlが無い曲では、songlist.js側でそもそもこの要素自体を作らない。 */
+/* 収録曲一覧のMVサムネイル（2026-08-24追加、本人指示。3曲での確認を経て全曲へ展開）。
+   曲名・センター情報のすぐ下、「MVを見る」ボタンのすぐ上に置く。play-button（32px）と
+   track-action-column（お気に入り・カテゴリバッジ）の間の、track-info自身の幅いっぱいに
+   広げるが、行の高さを圧迫しすぎないよう最大幅・アスペクト比（16:9）で頭打ちにする。 */
+.track-mv-thumb {
+  display: block;
+  width: 100%;
+  max-width: 220px;
+  aspect-ratio: 16 / 9;
+  margin: 4px 0 2px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--color-primary-light);
+}
+
+.track-mv-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
 /* .youtube-playlist-link（再生リストを見るボタン、2026-08-24追加）は、
    「MVを見る」ボタンと全く同じ見た目にして統一感を出す（本人指示）。 */
 .mv-link-button,
