@@ -205,15 +205,9 @@ import { handlePlayerChanged as handleContinuousPlayerChanged } from "./continuo
 // この位置でもDOM要素は問題なく取得できる）。
 const centerCelebrationElements = {
   overlay: document.getElementById("center-celebration-overlay"),
-  confettiField: document.getElementById("center-celebration-confetti"),
-  heading: document.getElementById("center-celebration-name"),
-  subheading: document.getElementById("center-celebration-subheading"),
-  singleLine: document.getElementById("center-celebration-single-line"),
-  songTitle: document.getElementById("center-celebration-song-title"),
-  songMeta: document.getElementById("center-celebration-song-meta"),
+  bgImage: document.querySelector("#center-celebration-overlay .celebration-bg"),
   thumbLink: document.getElementById("center-celebration-thumb-link"),
   thumbImage: document.getElementById("center-celebration-thumb"),
-  playBadge: document.getElementById("center-celebration-play-badge"),
   mvButton: document.getElementById("center-celebration-mv-button"),
   seenButton: document.getElementById("center-celebration-seen-button"),
 };
