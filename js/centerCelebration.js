@@ -133,20 +133,89 @@ let viewportChangeCleanup = null;
 // 「Chrome DevToolsのモバイルエミュレーションでは再現しないiOS Safari/standalone特有の
 // 現象」）。原因をCSS単位（vh/dvh/svh）の違いだけで断定できなかったため、単位に頼らず
 // window.visualViewportから「実際に今見えている領域」をJavaScriptで直接測定し、
-// オーバーレイのheight/topへインラインstyleとして反映する、最も確実な対策に切り替えた
-// （visualViewport APIはiOS Safari 13以降で利用可能。多くの実運用PWAで、この種の
-// 「固定オーバーレイが実機だけ画面いっぱいにならない」問題への定番対策として使われている
-// 方式。詳細は17-13章）。
+// オーバーレイのheight/topへインラインstyleとして反映する対策を17-13章で入れたが、
+// 実機で再確認した結果まだ直っていなかった（17-15章）。
+//
+// 【2026-08-26再調査・17-15章】visualViewport.heightだけを信用するのをやめ、
+// 「画面を覆うのに使えそうな高さの候補をすべて集め、最大値を採用する」方式に変更した。
+// 疑われる原因は、iOSのstandalone PWAで`visualViewport.height`がホームインジケーターの
+// セーフエリア分だけ実際の画面より低く報告される（＝visualViewportは「安全に操作できる
+// 領域」を表しており、画面の物理的な最下端までは含まない）ケース。この場合、
+// オーバーレイの高さをvisualViewport.heightだけに合わせると、セーフエリア分の高さだけ
+// 必ず足りなくなり、その下に何も描画されない領域（bodyの背景がうっすら透けて見える、
+// 今回報告された白い帯）が残ってしまう。
+// 対策として、以下の複数の指標のうち最大のものを採用する：
+//   ・window.innerHeight（レイアウトビューポート。standalone表示ではブラウザのツールバーが
+//     無いため、多くの場合これが画面の物理的な高さに最も近い）
+//   ・document.documentElement.clientHeight（同上、htmlのビューポート相当の高さ）
+//   ・visualViewport.height + visualViewport.offsetTop（17-13章の従来方式）
+//   ・visualViewport.height + offsetTop + セーフエリア下端（env(safe-area-inset-bottom)）
+//     を明示的に足したもの（visualViewportがセーフエリアを含んでいない場合の直接対策）
+// 「大きすぎる高さを設定してしまう」リスクは無い（position:fixedの要素は、指定した高さが
+// 実際の画面より大きくても、画面の外側にはみ出た分は単に描画されないだけで実害が無いため、
+// 最大値を採用する戦略は安全側に倒れる）。
+function readSafeAreaInsetBottomPx() {
+  // env(safe-area-inset-bottom)の実際の値をJavaScriptから直接読み取る標準APIが無いため、
+  // 一時的なプローブ要素にpadding-bottom: env(...)を設定し、計算後のスタイルを読み取るという
+  // 定番の手法を使う（プローブ自体は画面に一切表示されず、読み取り後すぐに取り除く）。
+  try {
+    const probe = document.createElement("div");
+    probe.style.cssText =
+      "position:fixed; bottom:0; left:0; height:0; width:0; padding-bottom:env(safe-area-inset-bottom, 0px); visibility:hidden; pointer-events:none;";
+    document.body.appendChild(probe);
+    const px = parseFloat(getComputedStyle(probe).paddingBottom) || 0;
+    probe.remove();
+    return px;
+  } catch {
+    return 0; // 万一プローブ要素の生成・計測に失敗しても、他の指標だけで安全に続行する
+  }
+}
+
+// 【診断用ログ・17-15章】この開発環境ではiPhone実機の不具合を再現できないため、
+// 実機のSafari Web Inspectorで直接確認できるよう、計測した値を一度だけconsoleへ出す。
+// 個人情報は一切含まない（画面サイズ等の数値のみ）。今回の対策で直ったことが確認できたら、
+// このログ出力ごと削除してよい（本人指示）。
+function logOverlayViewportDebugInfoOnce(overlayElement, details) {
+  if (logOverlayViewportDebugInfoOnce.loggedOnce) return;
+  logOverlayViewportDebugInfoOnce.loggedOnce = true;
+  const vv = window.visualViewport;
+  try {
+    console.log("[celebration-viewport-debug]", {
+      windowInnerHeight: window.innerHeight,
+      documentElementClientHeight: document.documentElement.clientHeight,
+      visualViewportHeight: vv?.height ?? null,
+      visualViewportOffsetTop: vv?.offsetTop ?? null,
+      safeAreaInsetBottomPx: details.safeAreaInsetBottomPx,
+      appliedHeight: details.appliedHeight,
+      appliedTop: details.appliedTop,
+      bodyRect: document.body.getBoundingClientRect(),
+      overlayRectAfterApply: overlayElement.getBoundingClientRect(),
+    });
+  } catch {
+    // 診断ログの出力自体に失敗しても、お祝い表示そのものには一切影響させない
+  }
+}
+
 function applyOverlayViewportSize(overlayElement) {
   const vv = window.visualViewport;
-  if (vv) {
-    overlayElement.style.height = `${vv.height}px`;
-    // offsetTopは、ページが拡大表示されている場合などにvisualViewportがレイアウト
-    // ビューポートからずれるケースに対応するための値。通常は0。
-    overlayElement.style.top = `${vv.offsetTop}px`;
+  const safeAreaInsetBottomPx = readSafeAreaInsetBottomPx();
+
+  const heightCandidates = [
+    window.innerHeight,
+    document.documentElement.clientHeight,
+    vv ? vv.height + vv.offsetTop : 0,
+    vv ? vv.height + vv.offsetTop + safeAreaInsetBottomPx : 0,
+  ].filter((value) => typeof value === "number" && Number.isFinite(value) && value > 0);
+
+  if (heightCandidates.length > 0) {
+    const appliedHeight = Math.max(...heightCandidates);
+    const appliedTop = vv ? vv.offsetTop : 0;
+    overlayElement.style.height = `${appliedHeight}px`;
+    overlayElement.style.top = `${appliedTop}px`;
+    logOverlayViewportDebugInfoOnce(overlayElement, { safeAreaInsetBottomPx, appliedHeight, appliedTop });
   } else {
-    // visualViewport非対応の環境（古いブラウザ等）では、従来どおりCSSのinset:0に任せる
-    // （このelseブロック自体は何もせず、CSS側のheight:100vh/100dvhがそのまま効く）。
+    // 何ひとつ有効な値が得られなかった場合（通常起こらない）だけ、従来どおりCSSの
+    // height:100vh/100dvhに任せる。
     overlayElement.style.height = "";
     overlayElement.style.top = "";
   }
