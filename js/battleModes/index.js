@@ -55,6 +55,20 @@ export function buildQuestionsForMode(gameMode, settings, seed) {
   return mode.buildQuestions({ seed, settings });
 }
 
+// settingsが指す「実際に出題対象になりうる曲ID一覧」を解決する。2026-08-26新設：
+// オンライン対戦の共通曲（参加者全員の音源所持状況の交差）判定
+// （js/onlineBattleSongAvailability.js）が、対戦開始直前に使う。
+// 【対応していないモードについて】歌詞クイズ対戦（lyricsQuizBattleMode）等、
+// このメソッドを実装していないモードではnullを返す。呼び出し側はnullを
+// 「音源の所持状況による絞り込みは行わない（このモードでは対象外）」として扱うこと
+// （歌詞クイズは音源ではなく歌詞データの有無で判定すべきもので、既存の
+// prepareRuntimeContext/checkRuntimeAvailability側の仕組みに委ねる）。
+export function resolveSongPoolForSettings(gameMode, settings) {
+  const mode = getBattleMode(gameMode);
+  if (!mode?.resolveSettingsSongPool) return null;
+  return mode.resolveSettingsSongPool(settings);
+}
+
 // 【Step3で使用予定】Step2ではまだ呼び出されない。
 export function calculateBattleResult(gameMode, answers) {
   return getBattleMode(gameMode)?.createResult(answers) ?? null;

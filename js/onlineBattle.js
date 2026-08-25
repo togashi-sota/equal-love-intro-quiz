@@ -44,7 +44,8 @@ import { database, authReady, getCurrentUid } from "./firebaseClient.js";
 import { BASE32_ALPHABET } from "./bitCode.js";
 import { generateRandomSeed } from "./seededRandom.js";
 import { getMostOshiMemberId } from "./oshiMembers.js";
-import { createDefaultSettings, isKnownGameMode, validateRoomSettings } from "./battleModes/index.js";
+import { createDefaultSettings, isKnownGameMode, validateRoomSettings, resolveSongPoolForSettings } from "./battleModes/index.js";
+import { restrictSettingsToCommonlyAvailableSongs } from "./onlineBattleSongAvailability.js";
 
 const ROOM_ID_LENGTH = 6;
 const LAST_ROOM_STORAGE_KEY = "equalLoveIntroQuiz.onlineBattle.lastRoom";
@@ -491,10 +492,45 @@ export async function startBattle({ roomId, settings }) {
     return { ok: false, reason: "not-all-ready" };
   }
 
+  // 【2026-08-26追加：参加者の共通曲（intersection）への絞り込み】21枚目以降の
+  // 新曲データパック（js/dataPackImport.js）導入により、端末ごとに「持っている曲」が
+  // 異なる状態が正式に起こりうる。音源を使う対戦モード（タイムアタック・ランダム再生）では、
+  // 誰か1人でも再生できない曲が出題されると対戦が成立しないため、開始直前に
+  // 「参加者全員が実際に音源を持っている曲」だけへ絞り込む。
+  // resolveSongPoolForSettings()がnullを返すモード（歌詞クイズ等、音源の所持状況で
+  // 絞り込むべきでないモード）では、この処理を一切行わない（詳細はjs/battleModes/index.js
+  // のコメント参照）。
+  // 【安全設計】restrictSettingsToCommonlyAvailableSongs()自体が「誰も所持曲を報告して
+  // いなければ絞り込まない」設計（js/onlineBattleSongAvailability.js参照）のため、
+  // FirebaseセキュリティルールがまだavailableAudioSongIdsフィールドに対応していない環境
+  // では、この処理は何も変えない（今までと完全に同じ動作のまま安全に開始できる）。
+  let finalSettings = settings;
+  const resolvedSongPool = resolveSongPoolForSettings(room.gameMode, settings);
+  if (resolvedSongPool) {
+    finalSettings = await restrictSettingsToCommonlyAvailableSongs({
+      roomId,
+      playerUids: Object.keys(players),
+      settings,
+      resolvedSongPool,
+    });
+    if (finalSettings !== settings) {
+      // 絞り込みが実際に発生した場合のみ、絞り込んだ結果でも出題可能か再検証する
+      // （絞り込みすぎて曲数が足りなくなる可能性があるため、安全側に倒して開始を拒否する）。
+      const restrictedErrorMessage = validateRoomSettings(room.gameMode, finalSettings);
+      if (restrictedErrorMessage) {
+        return {
+          ok: false,
+          reason: "insufficient-common-songs",
+          message: "参加者全員が再生できる曲が足りないため、対戦を開始できません。出題範囲を見直すか、対戦相手の楽曲データをご確認ください。",
+        };
+      }
+    }
+  }
+
   const seed = generateRandomSeed(ONLINE_SEED_BITS);
   const matchId = generateMatchId();
   const updates = {
-    [`rooms/${roomId}/settings`]: settings,
+    [`rooms/${roomId}/settings`]: finalSettings,
     [`rooms/${roomId}/seed`]: seed,
     [`rooms/${roomId}/status`]: ROOM_STATUS.COUNTDOWN,
     [`rooms/${roomId}/countdownStartedAt`]: serverTimestamp(),

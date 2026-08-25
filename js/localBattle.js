@@ -167,6 +167,15 @@ export function formatBattleCodeForDisplay(code) {
 
 // 対戦設定から、出題プールの検証エラーメッセージを返す（問題なければnull）。
 // 画面側が「開始する」前にプール不足を案内するために使う。
+//
+// 【2026-08-26確認・音源の所持状況で絞り込まない理由】この対戦モードは、Firebase等の
+// サーバーを介さず「対戦コード」を手入力で共有し合う、端末間で完全に決定論的な設計
+// （js/localBattleScreen.jsのコード作成・参加、両方の端末がここを呼ぶ）。1台の端末だけの
+// 音源所持状況でプールを変えると、コードを共有した相手の端末と問題がズレて対戦が
+// 成立しなくなるため、意図的に「曲データが登録されているか」だけで判定し、
+// 「この端末が音源を読み込み済みか」では絞り込まない（オンライン対戦の共通曲判定
+// ＝js/onlineBattleSongAvailability.jsとは異なり、この対戦コード方式には参加者全員の
+// 所持状況を事前に集める手段が無いため、同じ仕組みを導入できない）。
 export function validateBattleConfig({ categoryFilterValue }) {
   const pool = filterSongsByCategory(SONGS, categoryFilterValue);
   return validatePoolSize(pool);

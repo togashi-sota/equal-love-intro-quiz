@@ -30,6 +30,7 @@ export const createResult = timeAttackBattleMode.createResult;
 export const compareResults = timeAttackBattleMode.compareResults;
 export const getRuleDescription = timeAttackBattleMode.getRuleDescription;
 export const PENALTY_SECONDS_VALUES = timeAttackBattleMode.PENALTY_SECONDS_VALUES;
+export const resolveSettingsSongPool = timeAttackBattleMode.resolveSettingsSongPool;
 
 // settings.questionSourceから、出題対象になりうる曲プールを解決する。
 //

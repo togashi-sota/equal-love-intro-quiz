@@ -75,6 +75,12 @@ import {
 import { openOnlineBattleSongPicker } from "./onlineBattleSongPicker.js";
 import { QUESTION_SOURCE_TYPE } from "./questionSource.js";
 import { savePlayHistoryEntryIfNew } from "./playHistory.js";
+// 【2026-08-26新設】オンライン対戦の共通曲（intersection）判定のため、ロビーに入るたびに
+// 「この端末が実際に音源を持っている曲」をルームへ報告する。中身の判定（絞り込み自体）は
+// js/onlineBattle.jsのstartBattle()側が担当し、このファイルは「報告するタイミング」だけを
+// 担当する（gameModeの中身を知らない、という既存の方針どおり）。
+import { getAvailableSongIds, AVAILABLE_DATA_KIND } from "./availableSongs.js";
+import { reportMyAvailableAudioSongIds } from "./onlineBattleSongAvailability.js";
 
 let elements = null;
 let currentRoomId = null;
@@ -655,6 +661,18 @@ function goToLobby(roomId) {
   stopListeningToRoom();
   unsubscribeRoom = listenToRoom(roomId, renderLobby);
   elements.navigateTo("onlineBattleLobby");
+  reportMyAvailableAudioSongIdsForRoom(roomId);
+}
+
+// 【2026-08-26新設】この端末が実際に音源を持っている曲一覧を、今入ったルームへ報告する。
+// IndexedDBの読み取りを待たずに画面遷移させたいため、goToLobby()からは待ち合わせずに
+// 呼び出す（失敗しても致命的ではない設計。js/onlineBattleSongAvailability.js参照）。
+async function reportMyAvailableAudioSongIdsForRoom(roomId) {
+  const availableSongIds = await getAvailableSongIds(AVAILABLE_DATA_KIND.AUDIO);
+  // 報告が完了するまでの間にルームを退出・別ルームへ移動している場合は、もう関係ない
+  // 古いルームへ書き込んでしまわないよう、現在のルームと一致するときだけ送信する。
+  if (currentRoomId !== roomId) return;
+  await reportMyAvailableAudioSongIds({ roomId, availableSongIds });
 }
 
 // ===== Step3：試合中の進捗表示・待機画面・結果画面 =====

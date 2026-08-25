@@ -418,6 +418,31 @@
       <details class="data-management-section">
         <summary>データ管理（音源・歌詞の読み込み）</summary>
 
+        <!-- 追加データパック（新曲まとめ読み込み）。音源・歌詞・コールデータを1回の
+             ファイル選択でまとめて読み込める入口（js/dataPackImport.js参照、2026-08-26新設）。
+             「はじめての方」「既に使っている方」で選ぶパックが違うだけで、読み込む手順自体は
+             共通のため、案内文だけを分けて同じ入力欄を使う（本人指示：新規/既存で入口の説明を
+             分かりやすく分ける）。 -->
+        <div id="data-pack-import-section" class="audio-import-section">
+          <p class="lyrics-import-caption">
+            新曲（21枚目以降）を追加するときは、この「追加データパック」を読み込んでください。
+          </p>
+          <p class="lyrics-import-caption">
+            ・はじめてこのアプリを使う方：これまでの曲を含む「全曲パック」を選んでください<br>
+            ・すでに使っている方：追加したいシングルの「追加パック」だけを選んでください
+          </p>
+          <p class="lyrics-import-caption">
+            パックのファイル一式（manifest.jsonを含む複数ファイル）をまとめて選択してください。
+          </p>
+          <p id="data-pack-import-status" class="audio-import-status"></p>
+          <label class="audio-import-button">
+            追加データパックを読み込む
+            <input id="data-pack-import-input" type="file" accept=".json,application/json,audio/mpeg,.mp3" multiple hidden>
+          </label>
+          <!-- 読み込み結果（「○曲追加しました」等）。普段は空・非表示 -->
+          <p id="data-pack-import-result" class="audio-import-result" hidden></p>
+        </div>
+
         <!-- 音源の読み込み状況。PWA化に伴い、音源はサーバーに置かず、利用者が選んだファイルを
              端末内（IndexedDB）に保存する方式にしている。読み込み状況を表示し、
              ボタンからmp3ファイルをまとめて選択できる（js/audioStorage.js・js/main.js参照）。 -->

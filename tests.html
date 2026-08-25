@@ -80,6 +80,10 @@
     import { runCenterCelebrationTests } from "./tests/centerCelebration.test.js";
     import { runYoutubeThumbnailTests } from "./tests/youtubeThumbnail.test.js";
     import { runWeakSongStatsTests } from "./tests/weakSongStats.test.js";
+    import { runDataPackImportTests } from "./tests/dataPackImport.test.js";
+    import { runOnlineBattleSongAvailabilityTests } from "./tests/onlineBattleSongAvailability.test.js";
+    import { runTimeAttackBattleModeTests } from "./tests/battleModes/timeAttackBattleMode.test.js";
+    import { runBattleModesIndexAvailabilityTests } from "./tests/battleModes/index.test.js";
     import { printSummary } from "./tests/test-utils.js";
 
     runScoreTests();
@@ -138,6 +142,10 @@
     runCenterCelebrationTests();
     runYoutubeThumbnailTests();
     runWeakSongStatsTests();
+    await runDataPackImportTests();
+    runOnlineBattleSongAvailabilityTests();
+    runTimeAttackBattleModeTests();
+    runBattleModesIndexAvailabilityTests();
     const { passCount, failCount } = printSummary();
 
     const summaryElement = document.getElementById("test-summary");

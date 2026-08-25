@@ -11,7 +11,8 @@
 import { buildBattleQuestions, validateBattleConfig, PENALTY_SECONDS_VALUES } from "../localBattle.js";
 import { computeNormalFinalRecordMs } from "../localBattleResult.js";
 import { resolveSongPool, buildQuestionsFromPool, validateSongPoolForQuestionCount } from "../questionSource.js";
-import { MIN_SONGS_REQUIRED } from "../quiz.js";
+import { MIN_SONGS_REQUIRED, filterSongsByCategory } from "../quiz.js";
+import { SONGS } from "../data/songs.js";
 
 export const gameMode = "timeAttack";
 export const label = "タイムアタック";
@@ -59,6 +60,18 @@ function resolveQuestionSourceSongPool(questionSource) {
     return questionSource.songIds ?? [];
   }
   return resolveSongPool(questionSource);
+}
+
+// settingsから「実際に出題対象になりうる曲ID一覧」を解決する（questionSourceの有無を問わず、
+// 常に配列を返す）。2026-08-26新設：オンライン対戦の共通曲（intersection）判定
+// （js/onlineBattleSongAvailability.js）が、対戦開始直前に「絞り込む前の出題対象」を
+// 知るために必要になったため、既存のvalidateSettings/buildQuestions内部でだけ使っていた
+// 解決ロジックを、外部から呼べる形として切り出した（ロジック自体は変更していない）。
+export function resolveSettingsSongPool(settings) {
+  if (settings.questionSource) {
+    return resolveQuestionSourceSongPool(settings.questionSource);
+  }
+  return filterSongsByCategory(SONGS, settings.categoryFilterValue).map((song) => song.id);
 }
 
 // seed・settingsから、全端末で完全に一致する問題セットを組み立てる。

@@ -171,6 +171,10 @@ import {
   importCallGuideDataEntries,
   getAllCallGuideData,
 } from "./callGuideStorage.js";
+// 【2026-08-26新設】追加データパック（新曲の音源・歌詞・コールデータをまとめて読み込む機能）。
+// 実際の解析・保存処理はjs/dataPackImport.jsに集約されており、ここでは結果を見て
+// 画面表示を更新するだけ（既存の音源・歌詞・コールの各インポートUIと同じ役割分担）。
+import { analyzeDataPack, importAnalyzedDataPack } from "./dataPackImport.js";
 import { closeFullscreenLyrics } from "./lyricsFullscreen.js";
 import { MEMBERS } from "./data/members.js";
 import { MEMBER_PROFILES } from "./data/memberProfiles.js";
@@ -944,6 +948,9 @@ const lyricsFullscreenOverlayElement = document.getElementById("lyrics-fullscree
 const quizQuitConfirmTitleElement = document.getElementById("quiz-quit-confirm-title");
 const quizQuitCancelButtonElement = document.getElementById("quiz-quit-cancel-button");
 const quizQuitConfirmButtonElement = document.getElementById("quiz-quit-confirm-button");
+const dataPackImportStatusElement = document.getElementById("data-pack-import-status");
+const dataPackImportInputElement = document.getElementById("data-pack-import-input");
+const dataPackImportResultElement = document.getElementById("data-pack-import-result");
 const audioImportStatusElement = document.getElementById("audio-import-status");
 const audioImportInputElement = document.getElementById("audio-import-input");
 const audioImportResultElement = document.getElementById("audio-import-result");
@@ -4136,6 +4143,73 @@ function finishOnlineBattlePlay() {
 
 // カテゴリの選択肢に添える対象曲数は、ゲームの状態と関係なく最初に1回だけ計算すればよい。
 updateCategoryCountHints();
+
+// 追加データパック（新曲の音源・歌詞・コールデータをまとめて読み込む機能、2026-08-26新設）。
+// 解析・保存の実処理はjs/dataPackImport.jsに任せ、ここでは結果を見て画面表示を更新するだけ
+// （既存の音源・歌詞・コールの各インポートUIと同じ役割分担）。
+function resetDataPackImportStatus() {
+  dataPackImportStatusElement.textContent = "パックのファイル一式（manifest.jsonを含む）を選んでください";
+}
+resetDataPackImportStatus();
+
+// 「追加データパックを読み込む」ボタン（実体は隠したinput[type=file]）でファイルが
+// 選ばれたときの処理。パックの中身の解析（マニフェスト・音源・歌詞・コールの仕分けと検証）は
+// analyzeDataPack()に任せ、問題なければimportAnalyzedDataPack()で実際に保存する。
+// マニフェストが見つからない・壊れているなど、パックとして成立しない場合は
+// 一切保存を行わずエラーを表示する（本人指示：不正なパックを読み込んでも既存データが壊れない）。
+dataPackImportInputElement.addEventListener("change", async () => {
+  const files = [...dataPackImportInputElement.files];
+  if (files.length === 0) return;
+
+  dataPackImportResultElement.hidden = true;
+  dataPackImportStatusElement.textContent = "パックを確認しています…";
+
+  const analyzed = await analyzeDataPack(files);
+  if (!analyzed.ok) {
+    dataPackImportInputElement.value = "";
+    resetDataPackImportStatus();
+    dataPackImportResultElement.hidden = false;
+    dataPackImportResultElement.textContent = `読み込めませんでした: ${analyzed.fileError}`;
+    return;
+  }
+
+  const result = await importAnalyzedDataPack(analyzed);
+
+  // 新しく保護すべきデータ（音源等）が増えた直後のタイミングで、改めて永続ストレージを要求する
+  // （音源インポート時と同じ理由。js/main.jsの「音源を読み込む」ハンドラ参照）。
+  requestPersistentStorage();
+
+  const lines = [];
+  lines.push(`「${analyzed.manifest.packLabel}」を読み込みました`);
+  lines.push(
+    `音源${result.savedAudioSongIds.length}曲・歌詞${result.savedLyricsSongIds.length}曲・コール${result.savedCallSongIds.length}曲を追加しました`
+  );
+  if (analyzed.manifestSongIdsNotCovered.length > 0) {
+    lines.push(
+      `※このパックに含まれていない曲があります（${analyzed.manifestSongIdsNotCovered.map(findSongTitle).join("、")}）`
+    );
+  }
+  if (result.lyricsFailures.length > 0) {
+    lines.push(`歌詞の保存に失敗したファイル：${result.lyricsFailures.length}件`);
+  }
+  if (result.callFailures.length > 0) {
+    lines.push(`コールデータの保存に失敗した曲：${result.callFailures.length}件`);
+  }
+
+  dataPackImportResultElement.hidden = false;
+  dataPackImportResultElement.textContent = lines.join("\n");
+
+  // 同じファイル一式をもう一度選んでも change イベントが発火するように、選択状態をリセットする
+  dataPackImportInputElement.value = "";
+  resetDataPackImportStatus();
+
+  // パックには音源・歌詞・コールデータが混在するため、3種類すべての状況表示・出題数の案内を
+  // まとめて更新する（本人指示・D：新しく増えた曲がすぐにクイズへ反映されるように）。
+  await updateAudioImportStatus();
+  await updateLyricsImportStatus();
+  await updateCallImportStatus();
+  await updateQuestionCountNotice();
+});
 
 // 音源の読み込み状況（IndexedDBに何曲保存済みか）を表示に反映する。
 // SONGSの曲数と突き合わせ、未読み込みの曲があれば件数を案内する。
