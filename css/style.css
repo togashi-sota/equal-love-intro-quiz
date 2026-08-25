@@ -891,14 +891,21 @@ h1 .note-icon svg {
 .celebration-overlay {
   background: rgba(20, 40, 60, 0.55);
   padding: 16px;
-  /* 【2026-08-25追記】.modal-overlayの position:fixed; inset:0; だけでは、実機のiPhone
-     （特にホーム画面PWA）でカード下から画面最下部にかけて白い領域が残る不具合が実機報告で
-     見つかった（Chromeの開発者ツールのモバイルエミュレーションでは再現しない、実機Safari特有の
-     現象）。inset:0による暗黙の高さ決定に加えて、動的ビューポート単位で明示的にheightを
-     指定することで、実際に見えている画面いっぱいをオーバーレイの背景（半透明）で覆うようにする
-     （dvh未対応ブラウザはvhにフォールバックするだけなので、他環境への影響はない）。 */
-  height: 100vh;
-  height: 100dvh;
+  /* 【2026-08-26・17-16章で撤去】カード下から画面最下部にかけて白い領域が残る不具合の対策として、
+     一時期ここに`height:100vh;height:100dvh;`を追加し、さらにJS側でvisualViewport等から
+     算出した高さをインラインstyleで上書きしていたが、実機で直らなかった（17-12・17-13・17-15章）。
+     調べ直した結果、全く同じ「bodyをposition:fixedにしてスクロールロックする」構成の中で、
+     既に実機で問題なく動いている.lyrics-fullscreen-overlay（js/lyricsFullscreen.js）は、
+     このような明示的なheight指定を一切持たず、.modal-overlayと同じposition:fixed; inset:0;
+     だけで画面いっぱいに広がっている。CSSの仕様上、top・bottom・heightを同時に指定すると
+     （このケースではinset:0のbottom:0と、追加していたheightが競合する）、bottomの値は
+     無視されてtop+heightから再計算される。つまり、良かれと思って追加していたheight指定が、
+     本来inset:0だけで正しく機能していたはずのbottom:0を上書きしてしまい、私たちが計算した
+     heightの数値がわずかでもずれていれば、その分だけ確実に隙間が残る状態を自ら作っていた
+     可能性が高いと判断した。そこで、height指定を完全に撤去し、実機で実績のある
+     .lyrics-fullscreen-overlayと同じ「position:fixed; inset:0;のみに任せる」構成に統一した。
+     まだ直っていない場合の切り分け用に、js/centerCelebration.jsに詳細な診断ログを追加している
+     （17-16章参照）。 */
 }
 
 /* 背景画像とオーバーレイ要素（サムネイル・クリック領域）の入れ物。

@@ -123,108 +123,26 @@ export function findEligibleCelebration(songs, playerKeyPrefix) {
 // 塞いでいるが、ページ本体（body）がビューポートより縦に長い場合、オーバーレイの上での
 // スワイプ操作でオーバーレイの「後ろ側」のページがスクロールしてしまうことがあるため、
 // 表示中はbodyの位置を固定してスクロールできないようにし、閉じたら元の位置に戻す。
+// 【2026-08-26・17-16章】この仕組み自体は、全く同じ構成（bodyをposition:fixedにして
+// スクロールロックする）で実機でも問題なく動いているjs/lyricsFullscreen.jsの
+// lockBodyScroll()と同じ考え方（本人からの指摘で、この方式自体を疑って調べ直したが、
+// 既に実績がある構成のため変更していない）。
 let lockedScrollY = 0;
 let isBackgroundScrollLocked = false;
-let viewportChangeCleanup = null;
-
-// 【2026-08-26追記・重要】iPhone実機のホーム画面PWA（standalone表示）で、position:fixed;
-// inset:0;（＋heightをvh/dvhで明示指定）だけでは、カード下から画面最下部にかけて白い
-// 領域が残る不具合が実機フィードバックで見つかった（10-25章のセーフエリア問題と同種の、
-// 「Chrome DevToolsのモバイルエミュレーションでは再現しないiOS Safari/standalone特有の
-// 現象」）。原因をCSS単位（vh/dvh/svh）の違いだけで断定できなかったため、単位に頼らず
-// window.visualViewportから「実際に今見えている領域」をJavaScriptで直接測定し、
-// オーバーレイのheight/topへインラインstyleとして反映する対策を17-13章で入れたが、
-// 実機で再確認した結果まだ直っていなかった（17-15章）。
-//
-// 【2026-08-26再調査・17-15章】visualViewport.heightだけを信用するのをやめ、
-// 「画面を覆うのに使えそうな高さの候補をすべて集め、最大値を採用する」方式に変更した。
-// 疑われる原因は、iOSのstandalone PWAで`visualViewport.height`がホームインジケーターの
-// セーフエリア分だけ実際の画面より低く報告される（＝visualViewportは「安全に操作できる
-// 領域」を表しており、画面の物理的な最下端までは含まない）ケース。この場合、
-// オーバーレイの高さをvisualViewport.heightだけに合わせると、セーフエリア分の高さだけ
-// 必ず足りなくなり、その下に何も描画されない領域（bodyの背景がうっすら透けて見える、
-// 今回報告された白い帯）が残ってしまう。
-// 対策として、以下の複数の指標のうち最大のものを採用する：
-//   ・window.innerHeight（レイアウトビューポート。standalone表示ではブラウザのツールバーが
-//     無いため、多くの場合これが画面の物理的な高さに最も近い）
-//   ・document.documentElement.clientHeight（同上、htmlのビューポート相当の高さ）
-//   ・visualViewport.height + visualViewport.offsetTop（17-13章の従来方式）
-//   ・visualViewport.height + offsetTop + セーフエリア下端（env(safe-area-inset-bottom)）
-//     を明示的に足したもの（visualViewportがセーフエリアを含んでいない場合の直接対策）
-// 「大きすぎる高さを設定してしまう」リスクは無い（position:fixedの要素は、指定した高さが
-// 実際の画面より大きくても、画面の外側にはみ出た分は単に描画されないだけで実害が無いため、
-// 最大値を採用する戦略は安全側に倒れる）。
-function readSafeAreaInsetBottomPx() {
-  // env(safe-area-inset-bottom)の実際の値をJavaScriptから直接読み取る標準APIが無いため、
-  // 一時的なプローブ要素にpadding-bottom: env(...)を設定し、計算後のスタイルを読み取るという
-  // 定番の手法を使う（プローブ自体は画面に一切表示されず、読み取り後すぐに取り除く）。
-  try {
-    const probe = document.createElement("div");
-    probe.style.cssText =
-      "position:fixed; bottom:0; left:0; height:0; width:0; padding-bottom:env(safe-area-inset-bottom, 0px); visibility:hidden; pointer-events:none;";
-    document.body.appendChild(probe);
-    const px = parseFloat(getComputedStyle(probe).paddingBottom) || 0;
-    probe.remove();
-    return px;
-  } catch {
-    return 0; // 万一プローブ要素の生成・計測に失敗しても、他の指標だけで安全に続行する
-  }
-}
-
-// 【診断用ログ・17-15章】この開発環境ではiPhone実機の不具合を再現できないため、
-// 実機のSafari Web Inspectorで直接確認できるよう、計測した値を一度だけconsoleへ出す。
-// 個人情報は一切含まない（画面サイズ等の数値のみ）。今回の対策で直ったことが確認できたら、
-// このログ出力ごと削除してよい（本人指示）。
-function logOverlayViewportDebugInfoOnce(overlayElement, details) {
-  if (logOverlayViewportDebugInfoOnce.loggedOnce) return;
-  logOverlayViewportDebugInfoOnce.loggedOnce = true;
-  const vv = window.visualViewport;
-  try {
-    console.log("[celebration-viewport-debug]", {
-      windowInnerHeight: window.innerHeight,
-      documentElementClientHeight: document.documentElement.clientHeight,
-      visualViewportHeight: vv?.height ?? null,
-      visualViewportOffsetTop: vv?.offsetTop ?? null,
-      safeAreaInsetBottomPx: details.safeAreaInsetBottomPx,
-      appliedHeight: details.appliedHeight,
-      appliedTop: details.appliedTop,
-      bodyRect: document.body.getBoundingClientRect(),
-      overlayRectAfterApply: overlayElement.getBoundingClientRect(),
-    });
-  } catch {
-    // 診断ログの出力自体に失敗しても、お祝い表示そのものには一切影響させない
-  }
-}
-
-function applyOverlayViewportSize(overlayElement) {
-  const vv = window.visualViewport;
-  const safeAreaInsetBottomPx = readSafeAreaInsetBottomPx();
-
-  const heightCandidates = [
-    window.innerHeight,
-    document.documentElement.clientHeight,
-    vv ? vv.height + vv.offsetTop : 0,
-    vv ? vv.height + vv.offsetTop + safeAreaInsetBottomPx : 0,
-  ].filter((value) => typeof value === "number" && Number.isFinite(value) && value > 0);
-
-  if (heightCandidates.length > 0) {
-    const appliedHeight = Math.max(...heightCandidates);
-    const appliedTop = vv ? vv.offsetTop : 0;
-    overlayElement.style.height = `${appliedHeight}px`;
-    overlayElement.style.top = `${appliedTop}px`;
-    logOverlayViewportDebugInfoOnce(overlayElement, { safeAreaInsetBottomPx, appliedHeight, appliedTop });
-  } else {
-    // 何ひとつ有効な値が得られなかった場合（通常起こらない）だけ、従来どおりCSSの
-    // height:100vh/100dvhに任せる。
-    overlayElement.style.height = "";
-    overlayElement.style.top = "";
-  }
-}
 
 function lockBackgroundScroll(overlayElement) {
+  // 【診断ログについて】大場花菜→夢の続きと連続表示される場合、両方の状態を別々に
+  // 記録できるよう、今表示しているお祝いのid（celebrationId）をラベルに含める。
+  const celebrationId = overlayElement.dataset.celebrationId ?? "(不明)";
+  logOverlayGeometryDebugInfoOnce(`${celebrationId}｜表示直前（ロック前）`, overlayElement);
+  // ロック直後（オーバーレイが実際に画面へ反映された後）の状態も、次のフレームで記録する。
+  // requestAnimationFrameを使うのは、bodyのposition:fixed適用とオーバーレイの
+  // display反映がブラウザに実際にレイアウトされるのを待つため。連続表示の2件目も
+  // 同様に記録できるよう、既にロック済みかどうかに関わらず毎回スケジュールする。
+  requestAnimationFrame(() => logOverlayGeometryDebugInfoOnce(`${celebrationId}｜表示直後（ロック後）`, overlayElement));
+
   if (isBackgroundScrollLocked) {
-    applyOverlayViewportSize(overlayElement); // 連続表示の切り替え時も念のため再計測する
-    return; // 連続表示（大場花菜→夢の続き）の間、二重にロックしない
+    return; // 連続表示（大場花菜→夢の続き）の間、bodyの二重ロックはしない
   }
   isBackgroundScrollLocked = true;
   lockedScrollY = window.scrollY;
@@ -232,38 +150,82 @@ function lockBackgroundScroll(overlayElement) {
   document.body.style.top = `-${lockedScrollY}px`;
   document.body.style.left = "0";
   document.body.style.right = "0";
-  document.body.style.width = "100%";
   document.body.style.overflow = "hidden";
-
-  applyOverlayViewportSize(overlayElement);
-  if (window.visualViewport) {
-    const handler = () => applyOverlayViewportSize(overlayElement);
-    window.visualViewport.addEventListener("resize", handler);
-    window.visualViewport.addEventListener("scroll", handler);
-    viewportChangeCleanup = () => {
-      window.visualViewport.removeEventListener("resize", handler);
-      window.visualViewport.removeEventListener("scroll", handler);
-    };
-  }
 }
 
-function unlockBackgroundScroll(overlayElement) {
+function unlockBackgroundScroll() {
   if (!isBackgroundScrollLocked) return;
   isBackgroundScrollLocked = false;
   document.body.style.position = "";
   document.body.style.top = "";
   document.body.style.left = "";
   document.body.style.right = "";
-  document.body.style.width = "";
   document.body.style.overflow = "";
   window.scrollTo(0, lockedScrollY);
+}
 
-  if (viewportChangeCleanup) {
-    viewportChangeCleanup();
-    viewportChangeCleanup = null;
+// 【診断用ログ・17-16章】17-12〜17-15章にわたる3回の対策（vh/dvh固定→visualViewport実測→
+// 複数指標の最大値採用）がいずれも実機で改善しなかったとの報告を受け、「オーバーレイの高さが
+// 足りない」という前提そのものを疑い直した。実際に、全く同じ「bodyをposition:fixedにして
+// スクロールロックする」構成の中で、.lyrics-fullscreen-overlay（js/lyricsFullscreen.js）は
+// 一切のheight補正を行わずposition:fixed; inset:0;だけで実機でも正しく画面いっぱいに
+// 表示できている。そのため今回は、height補正を追加する方向ではなく、むしろ
+// **これまで追加してきたheight補正自体を撤去し、.lyrics-fullscreen-overlayと同じ
+// 「inset:0だけに任せる」構成に戻す**という方向で対策した（style.cssの.celebration-overlay
+// 参照。CSSの仕様上、top・bottom・heightを同時に指定するとbottomが無視されて
+// 再計算される＝良かれと思って追加していたheight指定が、本来inset:0だけで正しく機能する
+// はずだったbottom:0を上書きしてしまっていた可能性を最も疑っている）。
+//
+// この対策でも直らなかった場合に「オーバーレイの高さ不足なのか、それ以外なのか」を
+// 推測に頼らず切り分けられるよう、本人からの指示に沿って以下を1回ずつ記録する：
+// html・body・.game-frame・オーバーレイ・お祝いカードそれぞれの
+// getBoundingClientRect()・scrollHeight/clientHeight/offsetHeight・
+// 主要な算出済みスタイル（background/position/top/bottom/height/min-height/overflow）。
+// 個人情報は一切含まない。本人が実機のSafari Web Inspector（Macに実機をUSB接続→Safari
+// の「開発」メニュー→対象ページを選択→Consoleタブ）でこの値を確認し、報告してもらう想定。
+// 直ったことが確認できたら、この関数ごと削除してよい。
+function describeElementGeometry(element) {
+  if (!element) return null;
+  const rect = element.getBoundingClientRect();
+  const style = getComputedStyle(element);
+  return {
+    rect: { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right, width: rect.width, height: rect.height },
+    scrollHeight: element.scrollHeight,
+    clientHeight: element.clientHeight,
+    offsetHeight: element.offsetHeight,
+    computed: {
+      background: style.background,
+      position: style.position,
+      top: style.top,
+      bottom: style.bottom,
+      height: style.height,
+      minHeight: style.minHeight,
+      overflow: style.overflow,
+    },
+  };
+}
+
+function logOverlayGeometryDebugInfoOnce(label, overlayElement) {
+  logOverlayGeometryDebugInfoOnce.loggedLabels ??= new Set();
+  if (logOverlayGeometryDebugInfoOnce.loggedLabels.has(label)) return;
+  logOverlayGeometryDebugInfoOnce.loggedLabels.add(label);
+
+  try {
+    const cardElement = overlayElement.querySelector(".celebration-frame");
+    console.log(`[celebration-geometry-debug] ${label}`, {
+      windowInnerHeight: window.innerHeight,
+      windowInnerWidth: window.innerWidth,
+      visualViewportHeight: window.visualViewport?.height ?? null,
+      visualViewportOffsetTop: window.visualViewport?.offsetTop ?? null,
+      html: describeElementGeometry(document.documentElement),
+      body: describeElementGeometry(document.body),
+      gameFrame: describeElementGeometry(document.querySelector(".game-frame")),
+      overlay: describeElementGeometry(overlayElement),
+      card: describeElementGeometry(cardElement),
+    });
+  } catch {
+    // 診断ログの出力自体に失敗しても、お祝い表示そのものには一切影響させない
   }
-  overlayElement.style.height = "";
-  overlayElement.style.top = "";
 }
 
 // %指定の矩形（{left, top, width, height}）を要素へインラインstyleとして適用する。
@@ -352,7 +314,7 @@ export function initCenterCelebration(elements, songs) {
     }
 
     elements.overlay.hidden = true;
-    unlockBackgroundScroll(elements.overlay);
+    unlockBackgroundScroll();
   });
 }
 
