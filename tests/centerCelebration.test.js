@@ -58,6 +58,8 @@ export function runCenterCelebrationTests() {
     "背景画像のパスが正しく設定されている"
   );
   assertEqual(eligible?.youtubeVideoId, "_Bm66BRnM1A", "MVの動画IDが正しく設定されている");
+  assertEqual(eligible?.frameMaxWidth, "420px", "縦長画像の最大幅が設定されている");
+  assertEqual(eligible?.overlayPadding, "16px", "縦長画像の余白が設定されている");
 
   // ---- 既読フラグを立てると、この起動中は対象外になる（2件目は既読のまま＝両方見た状態） ----
   sessionStorage.setItem(SEEN_KEY_OBA, "true");
@@ -82,6 +84,12 @@ export function runCenterCelebrationTests() {
     "夢の続きの背景画像のパスが正しく設定されている"
   );
   assertEqual(yumeEligible?.youtubeVideoId, "RjHjQlEjs_E", "夢の続きのMVの動画IDが正しく設定されている");
+  assertEqual(
+    yumeEligible?.frameMaxWidth,
+    "560px",
+    "横長画像は縦長画像より広い最大幅が設定されている（画面幅をより活かすため）"
+  );
+  assertEqual(yumeEligible?.overlayPadding, "8px", "横長画像は縦長画像より狭い余白が設定されている");
 
   cleanup();
 

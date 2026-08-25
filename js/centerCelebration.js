@@ -36,6 +36,9 @@ const CELEBRATIONS = [
     youtubeUrl: "https://www.youtube.com/watch?v=_Bm66BRnM1A",
     youtubeVideoId: "_Bm66BRnM1A",
     ariaLabel: "祝！はなちゃんセンターおめでとう！＝LOVE 21stシングル カップリング曲『夏名残サマーチューン』MV公開！",
+    // 縦長画像（1023×1537px、幅:高さ比 約2:3）。標準のカード幅・余白のままで十分な存在感になる。
+    frameMaxWidth: "420px",
+    overlayPadding: "16px",
     // 本人から預かった背景画像（1023×1537px）を実測して求めた値を%に変換したもの（10-24章と同じ手法）。
     layout: {
       thumb: { left: 15.4, top: 46.8, width: 68.4, height: 26.5 },
@@ -53,6 +56,13 @@ const CELEBRATIONS = [
     youtubeUrl: "https://www.youtube.com/watch?v=RjHjQlEjs_E",
     youtubeVideoId: "RjHjQlEjs_E",
     ariaLabel: "＝LOVE 21stシングル カップリング曲『夢の続き』MV公開！",
+    // 【2026-08-25追記】横長画像（1536×1024px、幅:高さ比 約3:2）。obaCenterNatsunagoriと
+    // 同じ幅上限・余白のままだと、縦横比の都合で高さが半分以下になり「小さく見える」という
+    // 実機フィードバックがあった。画像の縦横比自体は変えず（伸縮・トリミングはしない）、
+    // 使える幅を最大限広げることで、可能な範囲で存在感を近づける対応
+    // （それでも縦長画像ほどの高さは物理的に出せない。詳細は17-12章）。
+    frameMaxWidth: "560px",
+    overlayPadding: "8px",
     // 本人から預かった背景画像（1536×1024px）を実測して求めた値を%に変換したもの。
     layout: {
       thumb: { left: 30.2, top: 33.6, width: 38.5, height: 42.4 },
@@ -152,6 +162,14 @@ function renderCelebration(celebration, playerKeyPrefix, elements) {
   elements.overlay.setAttribute("aria-label", celebration.ariaLabel);
   elements.bgImage.src = celebration.backgroundImageSrc;
   elements.bgImage.alt = celebration.ariaLabel;
+
+  // カードの最大幅・オーバーレイの余白を、画像の縦横比に合わせて調整する
+  // （2026-08-25追加。縦長・横長どちらの画像でも、伸縮・トリミングせず画面幅を
+  // 最大限活かせるようにするため。値はcelebration.frameMaxWidth/overlayPaddingが無ければ
+  // CSSの既定値（420px／16px）を使う）。
+  const frameElement = elements.overlay.querySelector(".celebration-frame");
+  frameElement.style.maxWidth = celebration.frameMaxWidth ?? "420px";
+  elements.overlay.style.padding = celebration.overlayPadding ?? "16px";
 
   // 「MVを見る」領域・サムネイル自体のタップの両方から同じ公式MVへ移動できるようにする
   // （本人指示・2026-08-24）。

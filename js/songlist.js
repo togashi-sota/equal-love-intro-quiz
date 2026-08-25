@@ -126,6 +126,11 @@ const addToPlaylistNewButtonElement = document.getElementById("add-to-playlist-n
 // 今まさに試聴中の行のDOM要素。試聴していないときはnull。
 let currentlyPlayingRowElement = null;
 
+// 「歌詞を見る」で歌詞パネルだけを開いている行のDOM要素（音源が未読み込みで試聴はできない
+// 状態）。試聴中の行はcurrentlyPlayingRowElementで管理するため、この2つは同時に同じ行を
+// 指すことはない（2026-08-25追加、詳細は17-12章）。
+let currentLyricsOnlyRowElement = null;
+
 // 曲名検索の検索語。表示（どの行・シングルを見せるか）だけに関わる。
 let searchQuery = "";
 
@@ -291,12 +296,44 @@ export function stopSongListPreview() {
   previewAudioElement.pause();
   previewAudioElement.currentTime = 0;
   releaseCurrentPreviewObjectUrl();
+  // 【2026-08-25追記・重要】releaseCurrentPreviewObjectUrl()はcreateObjectURL()で発行した
+  // URLを無効化するだけで、<audio>要素自身のsrc属性はそれまでのblob URLを指したまま残る。
+  // 多くのブラウザは一度読み込んだメディアデータを内部に保持しているため、revokeObjectURL()
+  // した後でも、そのまま.play()すると前の曲がそのまま鳴ってしまうことがある。
+  // 「歌詞を見る」機能の追加で、playPreview()を経由せず.play()が呼ばれうる経路
+  // （歌詞全画面の再生ボタン）ができたことでこの問題が表面化した（詳細は17-12章）。
+  // srcを確実に空にしてload()し、次にplayPreview()が新しいsrcを設定するまで
+  // 何も再生できない状態に完全リセットする。
+  previewAudioElement.removeAttribute("src");
+  previewAudioElement.load();
   if (currentlyPlayingRowElement) {
     destroyLyricsSync();
     setRowPlayingState(currentlyPlayingRowElement, false);
     resetRowSeekUI(currentlyPlayingRowElement);
     currentlyPlayingRowElement = null;
   }
+  // 「歌詞を見る」で音源無しのまま開いていた行があれば、それも一緒に閉じる
+  // （2026-08-25追加。試聴の開始・切り替えのたびに必ずこの関数を通るため、ここで一括して
+  // 片付けることで、他の行を開いたときに前の行の歌詞パネルが開いたまま残ってしまう
+  // 不具合を防ぐ。詳細は17-12章）。
+  if (currentLyricsOnlyRowElement) {
+    closeLyricsViewPanel(currentLyricsOnlyRowElement);
+    currentLyricsOnlyRowElement = null;
+  }
+}
+
+// 「歌詞を見る」で開いた歌詞パネル（音源無しの閲覧のみの状態）を閉じる。
+// 「歌詞データがありません」の案内表示だけの場合はlyricsSync.js側は何も繋がっていないが、
+// 歌詞が見つかって表示中の場合はlyricsSync.jsの購読・状態が残っているため、
+// destroyLyricsSync()は常に呼ぶ（何も繋がっていなければ安全に無視される設計）。
+function closeLyricsViewPanel(rowElement) {
+  destroyLyricsSync();
+  const lyricsPanel = rowElement.querySelector(".track-lyrics");
+  const fullscreenButton = rowElement.querySelector(".lyrics-fullscreen-open-button");
+  lyricsPanel.hidden = true;
+  lyricsPanel.textContent = "";
+  delete lyricsPanel.dataset.emptyState;
+  fullscreenButton.hidden = true;
 }
 
 registerPlaybackStopper("preview", stopSongListPreview);
@@ -352,7 +389,10 @@ function handlePlayButtonClick(song, rowElement) {
   const isThisRowPlaying = currentlyPlayingRowElement === rowElement;
   if (isThisRowPlaying) {
     if (previewAudioElement.paused) {
-      previewAudioElement.play();
+      // 【2026-08-25追記】「歌詞を見る」から音源を読み込み済み・一時停止中の行を、
+      // そのままこの再生ボタンで再開するケースも通るため、srcが無い場合でも
+      // 未処理rejectionでコンソールを汚さないよう安全策を追加（lyricsFullscreen.jsと同じ対応）。
+      previewAudioElement.play().catch(() => {});
     } else {
       previewAudioElement.pause();
     }
@@ -362,33 +402,37 @@ function handlePlayButtonClick(song, rowElement) {
   playPreview(song, rowElement);
 }
 
-// 「歌詞を見る」ボタンの処理：試聴していなくても、その曲の歌詞だけを確認できるようにする
-// （2026-08-25追加、本人指示）。既存の同期歌詞エンジン（js/lyricsSync.js）をそのまま流用し、
-// previewAudioElementへ音源(src)を読み込まないまま渡すことで「音は鳴らさず歌詞だけ表示する」を
-// 実現する（lyricsSync.js側は音源の有無を意識しない設計のため、src未設定のまま渡しても
-// 安全に動作する。歌詞行タップ時のシークもcurrentTimeへの代入が何も起きないだけで実害はない）。
-// すでにこの行が試聴中の場合は何もしない（歌詞は再生に合わせて既に表示・同期済みのため）。
+// 「歌詞を見る」ボタンの処理：試聴を開始しなくても、その曲の歌詞だけを確認できるようにする
+// （2026-08-25追加、本人指示）。
+//
+// 【2026-08-25改訂・重要】当初は音源(src)を一切読み込まずlyricsSync.jsだけを繋ぐ設計だったが、
+// それだと歌詞全画面の再生ボタンを押しても何も起こらない（音源未読み込みのため）か、
+// 最悪の場合previewAudioElementに残っていた「前に試聴した別の曲」がそのまま再生されてしまう
+// 不具合があった（stopSongListPreview()がsrcをクリアしていなかったことが根本原因。
+// 詳細は17-12章、stopSongListPreview()側も併せて修正済み）。
+// 今回から、歌詞が見つかった曲は音源も一時停止の状態で読み込んでおき、この行を正式に
+// 「現在の行」（currentlyPlayingRowElement）にする。こうすることで、歌詞全画面・通常の
+// 再生ボタンのどちらからも、試聴時と全く同じ仕組み（同じsrc・同じ状態管理）でその場から
+// 再生を始められる。音源が未読み込みの端末では、従来どおり歌詞の閲覧だけができる状態のまま
+// 静かに何もしない（エラーにはしない、既存の一貫した方針）。
 async function handleLyricsViewButtonClick(song, rowElement) {
-  if (currentlyPlayingRowElement === rowElement) return;
-
   const lyricsPanel = rowElement.querySelector(".track-lyrics");
   const fullscreenButton = rowElement.querySelector(".lyrics-fullscreen-open-button");
 
-  // すでにこの行を「歌詞を見る」で開いている場合は、もう一度押すと閉じる（トグル）。
-  if (!lyricsPanel.hidden) {
-    destroyLyricsSync();
-    lyricsPanel.hidden = true;
-    lyricsPanel.textContent = "";
-    delete lyricsPanel.dataset.emptyState;
-    fullscreenButton.hidden = true;
+  // すでにこの行が開いている（試聴中＝currentlyPlayingRowElement、または音源無しで
+  // 歌詞だけ閲覧中＝currentLyricsOnlyRowElement）なら、もう一度押すと完全に閉じる（トグル）。
+  if (currentlyPlayingRowElement === rowElement || currentLyricsOnlyRowElement === rowElement) {
+    stopSongListPreview();
     return;
   }
 
-  // 他の曲を試聴中であれば、音と無関係な歌詞を表示してしまわないよう先に止める
-  // （MVを見るボタン・サムネイルと同じ考え方。何も試聴していなければ何もしない）。
-  if (currentlyPlayingRowElement) {
-    stopSongListPreview();
-  }
+  // 他に開いている行（試聴中／歌詞のみ閲覧中のどちらでも）があれば、まずしっかり閉じる。
+  // 【2026-08-25修正・重要】以前はcurrentlyPlayingRowElementしか見ていなかったため、
+  // 「歌詞データがありません」の行を開いたまま別の行の歌詞を見ると、前の行の案内表示が
+  // 残ってしまう不具合があった。stopSongListPreview()側でcurrentLyricsOnlyRowElementも
+  // まとめて片付けるよう修正済みなので、常にこれを呼べば両方のケースが正しく閉じる
+  // （詳細は17-12章）。
+  stopSongListPreview();
 
   const lyricsFound = await loadLyricsForSong(song.id, previewAudioElement, lyricsPanel);
   if (!lyricsFound) {
@@ -397,10 +441,36 @@ async function handleLyricsViewButtonClick(song, rowElement) {
     lyricsPanel.hidden = false;
     lyricsPanel.textContent = "歌詞データがありません";
     lyricsPanel.dataset.emptyState = "true";
-    fullscreenButton.hidden = true;
+    currentLyricsOnlyRowElement = rowElement;
     return;
   }
   fullscreenButton.hidden = false;
+
+  // ここから、音源があれば一時停止の状態で読み込む（自動再生はしない）。
+  // この行を正式に「現在の行」にすることで、通常の再生ボタン・シークバー・他の行へ
+  // 切り替えたときの後片付けも、試聴時と完全に同じ仕組みで安全に処理される。
+  const blob = await getAudioBlob(song.id);
+  if (lyricsPanel.hidden) return; // 読み込み中に閉じられていたら何もしない（安全策）
+  if (!blob) {
+    // 音源未読み込みの端末では、歌詞の閲覧だけができる状態のまま
+    // （this行を「歌詞のみ閲覧中」として記録し、他の行を開いたときに正しく片付けられるようにする）。
+    currentLyricsOnlyRowElement = rowElement;
+    return;
+  }
+
+  currentlyPlayingRowElement = rowElement;
+  releaseCurrentPreviewObjectUrl();
+  currentPreviewObjectUrl = URL.createObjectURL(blob);
+  previewAudioElement.onloadedmetadata = () => {
+    previewAudioElement.currentTime = song.introLeadInSec || 0;
+    const rangeElement = rowElement.querySelector(".seek-range");
+    rangeElement.max = previewAudioElement.duration;
+    rowElement.querySelector(".seek-duration").textContent = formatTime(previewAudioElement.duration);
+  };
+  previewAudioElement.src = currentPreviewObjectUrl;
+  setRowPlayingState(rowElement, true);
+  fullscreenButton.hidden = false; // setRowPlayingState()が一旦hiddenへ戻すため、再度表示する
+  rowElement.classList.add("is-audio-paused"); // まだ再生していない（一時停止扱い）ことを見た目にも反映
 }
 
 // 試聴中の再生位置を、今何秒かに合わせてシークバー・時間表示に反映する。
