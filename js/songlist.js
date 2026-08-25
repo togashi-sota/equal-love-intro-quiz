@@ -8,6 +8,7 @@ import { hasAudioSource } from "./data/audioMetadata.js";
 import { getAudioBlob } from "./audioStorage.js";
 import { loadLyricsForSong, destroyLyricsSync } from "./lyricsSync.js";
 import { openFullscreenLyrics } from "./lyricsFullscreen.js";
+import { buildMvThumbnailElement } from "./youtubeThumbnail.js";
 import {
   isFavoriteSong,
   toggleFavoriteSong,
@@ -21,16 +22,6 @@ import { registerPlaybackStopper, notifyPlaybackStarting } from "./playbackCoord
 
 // 試聴を10秒戻す/送るときの秒数。
 const SEEK_SKIP_SECONDS = 10;
-
-// youtubeUrl（例："https://www.youtube.com/watch?v=xxxx"）から動画IDだけを取り出す。
-// 形式が想定と違う場合はnullを返し、呼び出し側でサムネイル表示自体をスキップする。
-function extractYoutubeVideoId(youtubeUrl) {
-  try {
-    return new URL(youtubeUrl).searchParams.get("v");
-  } catch {
-    return null;
-  }
-}
 
 // カテゴリごとの、バッジに表示する文字と色分け用のクラス名。
 // オリジナル問題作成モードの選曲画面（customQuizScreen.js）でも同じカテゴリバッジを
@@ -371,6 +362,47 @@ function handlePlayButtonClick(song, rowElement) {
   playPreview(song, rowElement);
 }
 
+// 「歌詞を見る」ボタンの処理：試聴していなくても、その曲の歌詞だけを確認できるようにする
+// （2026-08-25追加、本人指示）。既存の同期歌詞エンジン（js/lyricsSync.js）をそのまま流用し、
+// previewAudioElementへ音源(src)を読み込まないまま渡すことで「音は鳴らさず歌詞だけ表示する」を
+// 実現する（lyricsSync.js側は音源の有無を意識しない設計のため、src未設定のまま渡しても
+// 安全に動作する。歌詞行タップ時のシークもcurrentTimeへの代入が何も起きないだけで実害はない）。
+// すでにこの行が試聴中の場合は何もしない（歌詞は再生に合わせて既に表示・同期済みのため）。
+async function handleLyricsViewButtonClick(song, rowElement) {
+  if (currentlyPlayingRowElement === rowElement) return;
+
+  const lyricsPanel = rowElement.querySelector(".track-lyrics");
+  const fullscreenButton = rowElement.querySelector(".lyrics-fullscreen-open-button");
+
+  // すでにこの行を「歌詞を見る」で開いている場合は、もう一度押すと閉じる（トグル）。
+  if (!lyricsPanel.hidden) {
+    destroyLyricsSync();
+    lyricsPanel.hidden = true;
+    lyricsPanel.textContent = "";
+    delete lyricsPanel.dataset.emptyState;
+    fullscreenButton.hidden = true;
+    return;
+  }
+
+  // 他の曲を試聴中であれば、音と無関係な歌詞を表示してしまわないよう先に止める
+  // （MVを見るボタン・サムネイルと同じ考え方。何も試聴していなければ何もしない）。
+  if (currentlyPlayingRowElement) {
+    stopSongListPreview();
+  }
+
+  const lyricsFound = await loadLyricsForSong(song.id, previewAudioElement, lyricsPanel);
+  if (!lyricsFound) {
+    // 歌詞データが端末に入っていない曲では、押せなかったことが分かる案内だけ出す
+    // （エラー表示にはしない、既存の一貫した方針）。
+    lyricsPanel.hidden = false;
+    lyricsPanel.textContent = "歌詞データがありません";
+    lyricsPanel.dataset.emptyState = "true";
+    fullscreenButton.hidden = true;
+    return;
+  }
+  fullscreenButton.hidden = false;
+}
+
 // 試聴中の再生位置を、今何秒かに合わせてシークバー・時間表示に反映する。
 // previewAudioElementのtimeupdateイベントで1回だけ登録し、
 // 今再生中の行だけを更新する（81行分のイベントリスナーを作らない）。
@@ -511,28 +543,20 @@ export function createTrackRow(song, options = {}) {
   // 同じ公式MVへ移動する。問題画面・クイズ画面など収録曲一覧以外の画面には影響しない
   // （createTrackRowは収録曲一覧・お気に入り一覧・プレイリスト画面でのみ使われる）。
   if (song.youtubeUrl) {
-    const videoId = extractYoutubeVideoId(song.youtubeUrl);
-    if (videoId) {
-      const thumbLink = document.createElement("a");
-      thumbLink.className = "track-mv-thumb";
-      thumbLink.href = song.youtubeUrl;
-      thumbLink.target = "_blank";
-      thumbLink.rel = "noopener noreferrer";
-      thumbLink.setAttribute("aria-label", `${song.title}のMVを見る`);
-      thumbLink.addEventListener("click", () => {
-        stopSongListPreview();
-      });
-      const thumbImg = document.createElement("img");
-      thumbImg.src = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
-      thumbImg.alt = "";
-      thumbImg.loading = "lazy";
-      thumbImg.onerror = () => {
-        thumbLink.hidden = true;
-      };
-      thumbLink.appendChild(thumbImg);
+    const thumbLink = buildMvThumbnailElement(song.youtubeUrl, {
+      ariaLabel: `${song.title}のMVを見る`,
+      onBeforeNavigate: stopSongListPreview,
+    });
+    if (thumbLink) {
       infoBlock.appendChild(thumbLink);
     }
   }
+
+  // 「MVを見る」「歌詞を見る」ボタンの並び。どちらか一方しか無い曲でも、
+  // 常に同じ右寄せの並びになるよう共通の入れ物（.track-action-buttons）にまとめる
+  // （本人指示：MVを見るボタンの横の空きへ歌詞を見るボタンを追加。2026-08-25）。
+  const actionButtonsRow = document.createElement("div");
+  actionButtonsRow.className = "track-action-buttons";
 
   // MVを見るボタン：youtubeUrlがある曲だけ、再生前の通常表示から常に見える位置に置く
   // （以前は試聴中だけ見えるシーク欄の中にあったが、MVだけ見たい人も一度試聴しないと
@@ -552,8 +576,49 @@ export function createTrackRow(song, options = {}) {
     mvLinkButton.addEventListener("click", () => {
       stopSongListPreview();
     });
-    infoBlock.appendChild(mvLinkButton);
+    actionButtonsRow.appendChild(mvLinkButton);
   }
+
+  // 歌詞を見るボタン：試聴していない状態でも、その曲の歌詞だけを確認できる入口
+  // （2026-08-25追加、本人指示）。既存の同期歌詞パネル（lyricsSync.js）をそのまま流用し、
+  // 音源を読み込まない試聴用<audio>要素（previewAudioElement、src未設定）に紐付けることで
+  // 「音は鳴らさず歌詞だけ表示する」を実現する（lyricsSync.js側は音源の有無を意識しない
+  // 設計のため、src未設定のまま渡しても安全に動作する。歌詞行タップ時のシークも
+  // currentTimeへの代入が何も起きないだけで実害はない）。他の曲を試聴中に押した場合は
+  // 先に試聴を止めてから表示する（MV導線と同じく音の重複を避けるため）。
+  const lyricsViewButton = document.createElement("button");
+  lyricsViewButton.type = "button";
+  lyricsViewButton.className = "lyrics-view-button";
+  lyricsViewButton.innerHTML = `
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 5h16v2H4V5zm0 6h16v2H4v-2zm0 6h10v2H4v-2z"/></svg>
+    歌詞を見る
+  `;
+  lyricsViewButton.addEventListener("click", () => handleLyricsViewButtonClick(song, row));
+  actionButtonsRow.appendChild(lyricsViewButton);
+
+  // 歌詞の全画面表示を開くボタン。以前は再生中だけ見える`.track-seek`内に置いていたが、
+  // 「歌詞を見る」（試聴なしの閲覧）でも全画面表示を使えるようにするため、再生状態と
+  // 無関係な.track-action-buttons側へ移した（2026-08-25）。歌詞データが実際に見つかった
+  // ときだけplayPreview()／handleLyricsViewButtonClick()側で表示する（Overture等、
+  // 歌詞が無い曲ではボタン自体を出さない。2026-08-03からの既存方針を踏襲）。
+  const lyricsFullscreenButton = document.createElement("button");
+  lyricsFullscreenButton.type = "button";
+  lyricsFullscreenButton.className = "lyrics-fullscreen-open-button";
+  lyricsFullscreenButton.setAttribute("aria-label", "歌詞を全画面表示");
+  lyricsFullscreenButton.hidden = true;
+  lyricsFullscreenButton.innerHTML = `
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+  `;
+  // 再生中・「歌詞を見る」表示中のどちらでも、パネルが表示されていれば全画面表示を開ける
+  // （以前は再生中限定の条件だったが、試聴なしの閲覧でも使えるよう条件を緩和した）。
+  lyricsFullscreenButton.addEventListener("click", () => {
+    if (!lyricsPanel.hidden) {
+      openFullscreenLyrics(song.title, previewAudioElement, lyricsPanel);
+    }
+  });
+  actionButtonsRow.appendChild(lyricsFullscreenButton);
+
+  infoBlock.appendChild(actionButtonsRow);
 
   // 再生中だけ表示する、イコライザー演出＋「再生中」の文字
   const nowPlayingTag = document.createElement("span");
@@ -573,9 +638,6 @@ export function createTrackRow(song, options = {}) {
       <button type="button" class="seek-skip-button" data-skip="back" aria-label="10秒戻す">−10</button>
       <input type="range" class="seek-range" min="0" value="0" step="0.1">
       <button type="button" class="seek-skip-button" data-skip="forward" aria-label="10秒送る">+10</button>
-      <button type="button" class="lyrics-fullscreen-open-button" aria-label="歌詞を全画面表示" hidden>
-        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
-      </button>
       <button type="button" class="playlist-add-open-button" aria-label="プレイリストに追加">
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <path d="M4 6h12M4 12h12M4 18h7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -586,13 +648,6 @@ export function createTrackRow(song, options = {}) {
     <span class="seek-time"><span class="seek-current">0:00</span> / <span class="seek-duration">0:00</span></span>
   `;
   infoBlock.appendChild(seekBlock);
-
-  // 全画面表示ボタン。歌詞データがない曲では何も起きない（静かに無視する、既存の方針と同じ）。
-  seekBlock.querySelector(".lyrics-fullscreen-open-button").addEventListener("click", () => {
-    if (currentlyPlayingRowElement === row && !lyricsPanel.hidden) {
-      openFullscreenLyrics(song.title, previewAudioElement, lyricsPanel);
-    }
-  });
 
   // プレイリストに追加ボタン：再生中かどうかに関わらず押せてよいが、シーク欄自体が
   // 再生中の行にしか表示されないため、実質「再生中の曲をプレイリストに追加する」導線になる

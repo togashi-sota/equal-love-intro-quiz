@@ -80,7 +80,10 @@ function detachAudioListeners() {
 function handlePlayPauseClick() {
   if (!currentAudioElement) return;
   if (currentAudioElement.paused) {
-    currentAudioElement.play();
+    // 「歌詞を見る」（試聴なし）から開いた場合、audio要素にsrcが無いことがある。
+    // その場合play()は拒否されたPromiseを返すだけで実害は無いが、コンソールへの
+    // 未処理rejection警告を防ぐために握りつぶす（2026-08-25追加）。
+    currentAudioElement.play().catch(() => {});
   } else {
     currentAudioElement.pause();
   }

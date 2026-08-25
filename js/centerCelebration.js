@@ -1,15 +1,22 @@
-// 新曲のセンター就任などを祝う、期間限定のお祝いポップアップの表示条件・既読管理を
-// 担当するファイル（2026-08-24新設、同日全面刷新・本人指示）。
+// 新曲公開・センター就任などを祝う、期間限定のお祝い／案内ポップアップの表示条件・
+// 既読管理を担当するファイル（2026-08-24新設、同日全面刷新、2026-08-25複数件対応に拡張）。
 //
 // 【デザインについて】見た目は本人がChatGPTで作成した1枚の完成画像（assets/images/）を
 // そのまま使用する。点線枠の位置に実際のMVサムネイル、「MVを見る」「見た！」の位置に
-// 透明なクリック領域を重ねるだけで、CSS/SVGでの再現はしない（index.html・css/style.css
-// 側で位置を%指定しているため、この一覧の担当は「何を表示するか」の判定と既読管理のみ）。
+// 透明なクリック領域を重ねるだけで、CSS/SVGでの再現はしない（画像ごとにレイアウトが
+// 異なるため、位置は各CELEBRATIONSエントリのlayoutフィールドにpx実測値から算出した
+// %値として持たせ、表示時にインラインstyleで適用する。CSS側は位置を持たない）。
 //
-// 【表示条件の考え方】「更新するボタンを押したから」ではなく、「お祝い対象の楽曲データが
-// 揃っていて（＝アプリの更新が反映済みという意味になる）、まだこの起動中に見ていない」
-// ことだけを条件にする。js/main.jsの自動更新の仕組み（本人指示により「更新する」ボタンを
-// 撤廃し、安全な画面に来たときだけ自動でリロードする設計）と自然に噛み合う。
+// 【表示条件の考え方】「更新するボタンを押したから」ではなく、「対象となる条件（曲データ・
+// センター等、無ければ常に対象）が揃っていて、まだこの起動中に見ていない」ことだけを
+// 条件にする。js/main.jsの自動更新の仕組み（本人指示により「更新する」ボタンを撤廃し、
+// 安全な画面に来たときだけ自動でリロードする設計）と自然に噛み合う。
+//
+// 【複数件を順番に表示する仕組み（2026-08-25追加）】CELEBRATIONS配列の並び順どおりに、
+// 「未読で条件を満たしている最初の1件」を表示する。「見た！」を押すと、そのお祝いだけを
+// 既読にしたうえで、再度findEligibleCelebration()を呼び直す。次に条件を満たす未読の
+// お祝いが見つかれば、同じオーバーレイの中身を差し替えて続けて表示する（大場花菜→夢の続き、
+// のように連続表示できる）。無ければオーバーレイを閉じてホーム画面へ戻る。
 //
 // 【既読の扱い（2026-08-24改訂・本人指示）】「見た！」を押しても永久には非表示にしない。
 // sessionStorageで管理しているため、アプリを完全に閉じてから開き直すと、同じお祝いの
@@ -19,11 +26,6 @@
 //
 // 【複数プレイヤー運用時の注意】既読フラグはプレイヤーごとに別キーで保存するため、
 // 1台の端末を複数プレイヤーで使い分けている場合、プレイヤーごとに独立して表示される。
-//
-// 【将来の「お祝いボード」について】終了したお祝いを後から見返せるページは今回は作らない。
-// ただし、他のメンバーのお祝いを今後追加しやすいよう、また終了後のお祝いを別画面で
-// 再利用しやすいよう、各お祝いの情報（背景画像・MVリンク等）はCELEBRATIONS配列に
-// 1件ずつまとめてある。
 
 const CELEBRATIONS = [
   {
@@ -33,6 +35,30 @@ const CELEBRATIONS = [
     backgroundImageSrc: "assets/images/center-celebration-oba-natsunagori.webp",
     youtubeUrl: "https://www.youtube.com/watch?v=_Bm66BRnM1A",
     youtubeVideoId: "_Bm66BRnM1A",
+    ariaLabel: "祝！はなちゃんセンターおめでとう！＝LOVE 21stシングル カップリング曲『夏名残サマーチューン』MV公開！",
+    // 本人から預かった背景画像（1023×1537px）を実測して求めた値を%に変換したもの（10-24章と同じ手法）。
+    layout: {
+      thumb: { left: 15.4, top: 46.8, width: 68.4, height: 26.5 },
+      mvHotspot: { left: 14.5, top: 76.0, width: 69.7, height: 7.7 },
+      seenHotspot: { left: 14.5, top: 85.5, width: 69.7, height: 8.4 },
+    },
+  },
+  {
+    id: "yumeNoTsuzuki",
+    // songId/centerMemberNameを指定しない＝曲データの有無やセンターと無関係に、常に対象と
+    // なる「お知らせ系」のお祝い（21stシングル カップリング曲「夢の続き」のMV公開案内）。
+    // songs.jsにまだ「夢の続き」自体を登録していなくても表示できるようにする
+    // （曲データ自体の追加は別タスク、HANDOFF.md 18章参照）。
+    backgroundImageSrc: "assets/images/celebration-yume-no-tsuzuki.webp",
+    youtubeUrl: "https://www.youtube.com/watch?v=RjHjQlEjs_E",
+    youtubeVideoId: "RjHjQlEjs_E",
+    ariaLabel: "＝LOVE 21stシングル カップリング曲『夢の続き』MV公開！",
+    // 本人から預かった背景画像（1536×1024px）を実測して求めた値を%に変換したもの。
+    layout: {
+      thumb: { left: 30.2, top: 33.6, width: 38.5, height: 42.4 },
+      mvHotspot: { left: 17.4, top: 80.3, width: 30.8, height: 14.2 },
+      seenHotspot: { left: 51.0, top: 80.3, width: 30.7, height: 14.2 },
+    },
   },
 ];
 
@@ -63,13 +89,18 @@ function markCelebrationSeen(playerKeyPrefix, celebrationId) {
 }
 
 // 曲データ（SONGS）とプレイヤー識別子から、今表示すべきお祝いを1件だけ返す
-// （複数条件を同時に満たしても最初の1件だけ。今のところ同時に複数出す想定は無い）。
-// 対象曲が存在しない・センターが確認できていない（center未設定）・この起動中に既に見た、の
-// いずれかに該当すればnullを返す（＝呼び出し側は何もしなくてよい）。
+// （CELEBRATIONSの並び順どおり、条件を満たし未読の最初の1件）。
+// songId未指定のエントリは曲データを一切見ず、未読であれば常に対象になる。
+// songId指定のエントリは、対象曲が存在しない・センターが確認できていない（center未設定）・
+// センターが対象メンバーと一致しない・この起動中に既に見た、のいずれかに該当すれば
+// スキップする（＝呼び出し側は何もしなくてよい）。
 export function findEligibleCelebration(songs, playerKeyPrefix) {
   for (const celebration of CELEBRATIONS) {
-    const song = songs.find((s) => s.id === celebration.songId);
-    if (!song || !song.center?.includes(celebration.centerMemberName)) continue;
+    if (celebration.songId) {
+      const song = songs.find((s) => s.id === celebration.songId);
+      if (!song) continue;
+      if (celebration.centerMemberName && !song.center?.includes(celebration.centerMemberName)) continue;
+    }
     if (isCelebrationSeen(playerKeyPrefix, celebration.id)) continue;
     return celebration;
   }
@@ -82,8 +113,11 @@ export function findEligibleCelebration(songs, playerKeyPrefix) {
 // スワイプ操作でオーバーレイの「後ろ側」のページがスクロールしてしまうことがあるため、
 // 表示中はbodyの位置を固定してスクロールできないようにし、閉じたら元の位置に戻す。
 let lockedScrollY = 0;
+let isBackgroundScrollLocked = false;
 
 function lockBackgroundScroll() {
+  if (isBackgroundScrollLocked) return; // 連続表示（大場花菜→夢の続き）の間、二重にロックしない
+  isBackgroundScrollLocked = true;
   lockedScrollY = window.scrollY;
   document.body.style.position = "fixed";
   document.body.style.top = `-${lockedScrollY}px`;
@@ -93,6 +127,8 @@ function lockBackgroundScroll() {
 }
 
 function unlockBackgroundScroll() {
+  if (!isBackgroundScrollLocked) return;
+  isBackgroundScrollLocked = false;
   document.body.style.position = "";
   document.body.style.top = "";
   document.body.style.left = "";
@@ -101,33 +137,32 @@ function unlockBackgroundScroll() {
   window.scrollTo(0, lockedScrollY);
 }
 
-// elements: { overlay, bgImage, thumbLink, thumbImage, mvButton, seenButton }
-export function initCenterCelebration(elements) {
-  elements.seenButton.addEventListener("click", () => {
-    const celebrationId = elements.overlay.dataset.celebrationId;
-    const playerKeyPrefix = elements.overlay.dataset.playerKeyPrefix;
-    if (celebrationId) {
-      markCelebrationSeen(playerKeyPrefix, celebrationId);
-    }
-    elements.overlay.hidden = true;
-    unlockBackgroundScroll();
-  });
+// %指定の矩形（{left, top, width, height}）を要素へインラインstyleとして適用する。
+function applyLayoutRect(element, rect) {
+  element.style.left = `${rect.left}%`;
+  element.style.top = `${rect.top}%`;
+  element.style.width = `${rect.width}%`;
+  element.style.height = `${rect.height}%`;
 }
 
-// 表示条件を満たしていれば、実際にポップアップを組み立てて表示する。
-// 満たしていなければ何もしない（呼び出し側は条件分岐を書かなくてよい）。
-export function showCenterCelebrationIfEligible(songs, playerKeyPrefix, elements) {
-  const celebration = findEligibleCelebration(songs, playerKeyPrefix);
-  if (!celebration) return;
-
+// 指定のお祝いの内容をオーバーレイへ反映して表示する（内部ヘルパー）。
+function renderCelebration(celebration, playerKeyPrefix, elements) {
   elements.overlay.dataset.celebrationId = celebration.id;
   elements.overlay.dataset.playerKeyPrefix = playerKeyPrefix;
+  elements.overlay.setAttribute("aria-label", celebration.ariaLabel);
   elements.bgImage.src = celebration.backgroundImageSrc;
+  elements.bgImage.alt = celebration.ariaLabel;
 
   // 「MVを見る」領域・サムネイル自体のタップの両方から同じ公式MVへ移動できるようにする
   // （本人指示・2026-08-24）。
   elements.mvButton.href = celebration.youtubeUrl;
   elements.thumbLink.href = celebration.youtubeUrl;
+  elements.mvButton.setAttribute("aria-label", "MVを見る");
+  elements.thumbLink.setAttribute("aria-label", "MVを見る");
+
+  applyLayoutRect(elements.thumbLink, celebration.layout.thumb);
+  applyLayoutRect(elements.mvButton, celebration.layout.mvHotspot);
+  applyLayoutRect(elements.seenButton, celebration.layout.seenHotspot);
 
   // MVサムネイルはYouTube側のURLをそのまま参照するだけで、アプリ側には一切保存しない。
   // 読み込みに失敗した場合（オフライン等）は非表示にし、背景画像の点線枠だけが見える
@@ -140,4 +175,35 @@ export function showCenterCelebrationIfEligible(songs, playerKeyPrefix, elements
 
   elements.overlay.hidden = false;
   lockBackgroundScroll();
+}
+
+// elements: { overlay, bgImage, thumbLink, thumbImage, mvButton, seenButton }
+// songs: SONGS配列（次のお祝いへ進む際、findEligibleCelebration()を呼び直すために必要）。
+export function initCenterCelebration(elements, songs) {
+  elements.seenButton.addEventListener("click", () => {
+    const celebrationId = elements.overlay.dataset.celebrationId;
+    const playerKeyPrefix = elements.overlay.dataset.playerKeyPrefix;
+    if (celebrationId) {
+      markCelebrationSeen(playerKeyPrefix, celebrationId);
+    }
+
+    // 次に表示すべきお祝いがあれば、同じオーバーレイの中身を差し替えて続けて表示する
+    // （大場花菜→夢の続き、のように連続表示するための仕組み。2026-08-25追加）。
+    const next = findEligibleCelebration(songs ?? [], playerKeyPrefix);
+    if (next) {
+      renderCelebration(next, playerKeyPrefix, elements);
+      return;
+    }
+
+    elements.overlay.hidden = true;
+    unlockBackgroundScroll();
+  });
+}
+
+// 表示条件を満たしていれば、実際にポップアップを組み立てて表示する。
+// 満たしていなければ何もしない（呼び出し側は条件分岐を書かなくてよい）。
+export function showCenterCelebrationIfEligible(songs, playerKeyPrefix, elements) {
+  const celebration = findEligibleCelebration(songs, playerKeyPrefix);
+  if (!celebration) return;
+  renderCelebration(celebration, playerKeyPrefix, elements);
 }

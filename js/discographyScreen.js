@@ -13,6 +13,7 @@ import { MEMBER_STATUS } from "./data/members.js";
 import { getActiveMemberCount } from "./memberUtils.js";
 import { buildActivityCard, sortActivitiesByStatus } from "./membersScreen.js";
 import { LIVE_STATUS } from "./data/liveHistory.js";
+import { buildMvThumbnailElement } from "./youtubeThumbnail.js";
 
 // workIdから種別が判定できない場合だけ使う、最後のフォールバック表示。
 const WORK_TYPE_LABELS_FALLBACK = {
@@ -797,6 +798,14 @@ function buildCollaborationSongCard(song) {
   }
 
   if (song.mvUrl) {
+    // MVサムネイル（2026-08-25追加、本人指示）：収録曲一覧と同じ考え方で、公式YouTubeの
+    // サムネイル画像URLをそのまま参照するだけ（js/youtubeThumbnail.js、収録曲一覧と共通の
+    // ヘルパー）。「MVを見る」ボタンは既存のまま残し、サムネイルはその上に追加する。
+    const thumbLink = buildMvThumbnailElement(song.mvUrl, { ariaLabel: `${song.title}のMVを見る` });
+    if (thumbLink) {
+      card.appendChild(thumbLink);
+    }
+
     const mvLink = document.createElement("a");
     mvLink.className = "mv-link-button";
     mvLink.href = song.mvUrl;

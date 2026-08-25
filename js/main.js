@@ -211,7 +211,7 @@ const centerCelebrationElements = {
   mvButton: document.getElementById("center-celebration-mv-button"),
   seenButton: document.getElementById("center-celebration-seen-button"),
 };
-initCenterCelebration(centerCelebrationElements);
+initCenterCelebration(centerCelebrationElements, SONGS);
 
 // 初回セットアップが必要な新規ユーザーかどうかを、他のどの初期化よりも先に判定する
 // （2026-08-15新設）。例えばこの下のinitPlayerScreen()は、内部でgetActivePlayer()を通じて

@@ -1,13 +1,14 @@
-// js/centerCelebration.js のテスト（2026-08-24新設、同日全面刷新）。
-// 「見た！」を押すまで、対象の楽曲データが揃っているプレイヤーには毎回表示条件を
-// 満たし続けること、既読にするとその起動中は満たさなくなること、そして
-// sessionStorageベースの既読管理なので「新しい起動（＝sessionStorageがリセットされた状態）」
-// では既読が引き継がれず再び表示対象になることを確認する。
+// js/centerCelebration.js のテスト（2026-08-24新設、同日全面刷新、2026-08-25複数件対応に拡張）。
+// 「見た！」を押すまで、対象条件を満たすプレイヤーには毎回表示条件を満たし続けること、
+// 既読にするとその起動中は満たさなくなること、sessionStorageベースの既読管理なので
+// 「新しい起動（＝sessionStorageがリセットされた状態）」では既読が引き継がれず再び表示対象に
+// なること、そして複数件のお祝いが並び順どおりに連続して対象になっていくことを確認する。
 import { findEligibleCelebration } from "../js/centerCelebration.js";
 import { assertEqual } from "./test-utils.js";
 
 const TEST_PLAYER_KEY_PREFIX = "player.center-celebration-test.";
-const SEEN_KEY = `equalLoveIntroQuiz.${TEST_PLAYER_KEY_PREFIX}seenCelebration.obaCenterNatsunagori`;
+const SEEN_KEY_OBA = `equalLoveIntroQuiz.${TEST_PLAYER_KEY_PREFIX}seenCelebration.obaCenterNatsunagori`;
+const SEEN_KEY_YUME = `equalLoveIntroQuiz.${TEST_PLAYER_KEY_PREFIX}seenCelebration.yumeNoTsuzuki`;
 
 const SONG_WITH_CENTER = {
   id: "natsunagori-summer-tune",
@@ -22,37 +23,33 @@ const SONG_WITHOUT_CENTER = {
 };
 
 function cleanup() {
-  sessionStorage.removeItem(SEEN_KEY);
+  sessionStorage.removeItem(SEEN_KEY_OBA);
+  sessionStorage.removeItem(SEEN_KEY_YUME);
 }
 
 export function runCenterCelebrationTests() {
   cleanup();
 
-  // ---- 曲データが無ければ、センターが確認できていなくても対象外 ----
+  // ---- 1件目（大場花菜）の条件だけを確認するため、曲データと無関係な2件目（夢の続き）を
+  //      先に既読にしておく ----
+  sessionStorage.setItem(SEEN_KEY_YUME, "true");
+
   assertEqual(
     findEligibleCelebration([], TEST_PLAYER_KEY_PREFIX),
     null,
-    "対象の曲データが存在しなければ、お祝いは表示されない"
+    "対象の曲データが存在しなければ、大場花菜のお祝いは表示されない"
   );
-
-  // ---- センターが確認できていない（center未設定）曲は対象外 ----
   assertEqual(
     findEligibleCelebration([SONG_WITHOUT_CENTER], TEST_PLAYER_KEY_PREFIX),
     null,
     "center未設定（未確認）の曲は、まだお祝いの対象にならない"
   );
-
-  // ---- センターが確認できていても、別のメンバーなら対象外 ----
   assertEqual(
-    findEligibleCelebration(
-      [{ ...SONG_WITH_CENTER, center: ["野口衣織"] }],
-      TEST_PLAYER_KEY_PREFIX
-    ),
+    findEligibleCelebration([{ ...SONG_WITH_CENTER, center: ["野口衣織"] }], TEST_PLAYER_KEY_PREFIX),
     null,
     "センターが対象メンバーと一致しなければ表示されない"
   );
 
-  // ---- 条件を満たせば表示対象になる ----
   const eligible = findEligibleCelebration([SONG_WITH_CENTER], TEST_PLAYER_KEY_PREFIX);
   assertEqual(eligible?.id, "obaCenterNatsunagori", "曲データが揃い、未読であれば表示対象になる");
   assertEqual(
@@ -62,18 +59,60 @@ export function runCenterCelebrationTests() {
   );
   assertEqual(eligible?.youtubeVideoId, "_Bm66BRnM1A", "MVの動画IDが正しく設定されている");
 
-  // ---- 既読フラグを立てると、この起動中は対象外になる ----
-  sessionStorage.setItem(SEEN_KEY, "true");
+  // ---- 既読フラグを立てると、この起動中は対象外になる（2件目は既読のまま＝両方見た状態） ----
+  sessionStorage.setItem(SEEN_KEY_OBA, "true");
   assertEqual(
     findEligibleCelebration([SONG_WITH_CENTER], TEST_PLAYER_KEY_PREFIX),
     null,
-    "既読フラグが立っていれば、曲データが揃っていてもこの起動中は表示されない"
+    "両方のお祝いが既読になっていれば、曲データが揃っていても何も表示されない"
+  );
+
+  cleanup();
+
+  // ---- 2件目（夢の続き）は曲データと無関係に、常に対象になる ----
+  const yumeEligible = findEligibleCelebration([], TEST_PLAYER_KEY_PREFIX);
+  assertEqual(
+    yumeEligible?.id,
+    "yumeNoTsuzuki",
+    "1件目（大場花菜）の条件を満たさない場合、曲データが空でも2件目（夢の続き）は対象になる"
+  );
+  assertEqual(
+    yumeEligible?.backgroundImageSrc,
+    "assets/images/celebration-yume-no-tsuzuki.webp",
+    "夢の続きの背景画像のパスが正しく設定されている"
+  );
+  assertEqual(yumeEligible?.youtubeVideoId, "RjHjQlEjs_E", "夢の続きのMVの動画IDが正しく設定されている");
+
+  cleanup();
+
+  // ---- 両方が条件を満たす場合、CELEBRATIONS配列の並び順どおり1件目（大場花菜）が先に返る ----
+  assertEqual(
+    findEligibleCelebration([SONG_WITH_CENTER], TEST_PLAYER_KEY_PREFIX)?.id,
+    "obaCenterNatsunagori",
+    "両方条件を満たしている場合、並び順どおり大場花菜のお祝いが先に対象になる"
+  );
+
+  // ---- 1件目を既読にすると、次は2件目（夢の続き）が対象になる（「見た！」後に連続表示する
+  //      仕組みの土台となる挙動） ----
+  sessionStorage.setItem(SEEN_KEY_OBA, "true");
+  assertEqual(
+    findEligibleCelebration([SONG_WITH_CENTER], TEST_PLAYER_KEY_PREFIX)?.id,
+    "yumeNoTsuzuki",
+    "1件目を既読にすると、続けて2件目（夢の続き）が対象になる"
+  );
+
+  // ---- 2件目も既読にすると、もう何も対象にならない ----
+  sessionStorage.setItem(SEEN_KEY_YUME, "true");
+  assertEqual(
+    findEligibleCelebration([SONG_WITH_CENTER], TEST_PLAYER_KEY_PREFIX),
+    null,
+    "両方既読にすると、もう表示対象は無い"
   );
 
   // ---- アプリを閉じて開き直した状態（sessionStorageがリセットされた状態）を再現すると、
   //      既読フラグが引き継がれず、再び表示対象になる（本人指示：「見た！」は永久に
   //      非表示にする仕様ではない） ----
-  sessionStorage.removeItem(SEEN_KEY);
+  cleanup();
   assertEqual(
     findEligibleCelebration([SONG_WITH_CENTER], TEST_PLAYER_KEY_PREFIX)?.id,
     "obaCenterNatsunagori",
@@ -81,7 +120,8 @@ export function runCenterCelebrationTests() {
   );
 
   // ---- 別のプレイヤーには、既読状態が引き継がれない（プレイヤーごとに独立） ----
-  sessionStorage.setItem(SEEN_KEY, "true");
+  sessionStorage.setItem(SEEN_KEY_OBA, "true");
+  sessionStorage.setItem(SEEN_KEY_YUME, "true");
   const otherPlayerEligible = findEligibleCelebration(
     [SONG_WITH_CENTER],
     "player.center-celebration-test-other."

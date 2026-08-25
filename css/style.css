@@ -912,15 +912,12 @@ h1 .note-icon svg {
   height: auto;
 }
 
-/* 点線枠の内側に実際のMVサムネイルを重ねる部分。位置・サイズは、本人から預かった背景
-   画像（1023×1537px）を実測して求めた値（枠は左158px・上719px・右857px・下1127px）を
-   画像全体の幅・高さに対する%に変換したもの。 */
+/* 点線枠の内側に実際のMVサムネイルを重ねる部分。位置・サイズ（left/top/width/height）は、
+   背景画像ごとに異なるため、CSSでは固定せず、js/centerCelebration.jsが各お祝いの
+   layoutデータ（実測したピクセル位置を画像全体に対する%に変換した値）から
+   インラインstyleとして毎回設定する（2026-08-25、複数件対応に伴いCSS固定値から変更）。 */
 .celebration-thumb-overlay {
   position: absolute;
-  left: 15.4%;
-  top: 46.8%;
-  width: 68.4%;
-  height: 26.5%;
   border-radius: 3.2% / 5.2%;
   overflow: hidden;
   display: block;
@@ -939,25 +936,14 @@ h1 .note-icon svg {
 
 /* 「MVを見る」「見た！」は背景画像に描かれている見た目をそのまま使うため、ここでは
    見えない透明なクリック領域だけを同じ位置に重ねる（本人指示：新しいボタンを描き直さない）。
-   位置はサムネイル枠と同じく、実測したピクセル位置を画像全体に対する%に変換したもの。 */
+   位置（left/top/width/height）は、サムネイル枠と同じく背景画像ごとに異なるため、
+   js/centerCelebration.jsがインラインstyleとして毎回設定する（2026-08-25〜）。 */
 .celebration-hotspot {
   position: absolute;
-  left: 14.5%;
-  width: 69.7%;
   border: none;
   background: transparent;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-}
-
-.celebration-hotspot-mv {
-  top: 76.0%;
-  height: 7.7%;
-}
-
-.celebration-hotspot-seen {
-  top: 85.5%;
-  height: 8.4%;
 }
 
 /* ===== イコライザー風の飾り区切り。曲が流れているような臨場感を添える ===== */
@@ -4532,6 +4518,65 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 .mv-link-button:active,
 .youtube-playlist-link:active {
   transform: scale(0.96);
+}
+
+/* MVを見る・歌詞を見る・全画面表示ボタンをまとめて右寄せに並べる入れ物（2026-08-25追加）。
+   どれか1つしか無い曲でも常に同じ右寄せの並びになる。 */
+.track-action-buttons {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.track-action-buttons .mv-link-button,
+.track-action-buttons .lyrics-view-button {
+  margin-top: 0;
+}
+
+/* 歌詞を見るボタン：MVを見るボタンと同じ形・大きさで、配色だけブランドのサブカラー
+   （青系）にして役割の違いを表す。 */
+.lyrics-view-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  width: fit-content;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1.5px solid var(--color-secondary);
+  background: var(--color-secondary-light);
+  color: var(--color-secondary);
+  font-size: 0.7rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.lyrics-view-button::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+}
+
+.lyrics-view-button svg {
+  width: 12px;
+  height: 12px;
+  flex: none;
+}
+
+.lyrics-view-button:active {
+  transform: scale(0.96);
+}
+
+/* 歌詞データが無い曲を「歌詞を見る」で開いたときの案内文。エラー表示にはせず、
+   既存のパネルの見た目のまま控えめに表示する。 */
+.synced-lyrics-panel[data-empty-state] {
+  padding: 12px;
+  font-size: 0.8rem;
+  color: var(--color-text-muted, #8a7a86);
+  text-align: center;
 }
 
 /* 再生中だけ表示する、ブランド共通のイコライザー演出（スタート画面の.eq-dividerと同じモチーフ） */
