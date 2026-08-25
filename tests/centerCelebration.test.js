@@ -84,12 +84,14 @@ export function runCenterCelebrationTests() {
     "夢の続きの背景画像のパスが正しく設定されている"
   );
   assertEqual(yumeEligible?.youtubeVideoId, "RjHjQlEjs_E", "夢の続きのMVの動画IDが正しく設定されている");
+  // 【2026-08-26改訂】画像を横長→縦長（国立競技場を背景にした構図）に作り直したため、
+  // 大場花菜と同じ幅上限・余白に戻っている（17-13章参照）。
   assertEqual(
     yumeEligible?.frameMaxWidth,
-    "560px",
-    "横長画像は縦長画像より広い最大幅が設定されている（画面幅をより活かすため）"
+    "420px",
+    "縦長に作り直した後は、大場花菜と同じ最大幅が設定されている"
   );
-  assertEqual(yumeEligible?.overlayPadding, "8px", "横長画像は縦長画像より狭い余白が設定されている");
+  assertEqual(yumeEligible?.overlayPadding, "16px", "縦長に作り直した後は、大場花菜と同じ余白が設定されている");
 
   cleanup();
 

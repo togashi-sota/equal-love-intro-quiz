@@ -56,18 +56,19 @@ const CELEBRATIONS = [
     youtubeUrl: "https://www.youtube.com/watch?v=RjHjQlEjs_E",
     youtubeVideoId: "RjHjQlEjs_E",
     ariaLabel: "＝LOVE 21stシングル カップリング曲『夢の続き』MV公開！",
-    // 【2026-08-25追記】横長画像（1536×1024px、幅:高さ比 約3:2）。obaCenterNatsunagoriと
-    // 同じ幅上限・余白のままだと、縦横比の都合で高さが半分以下になり「小さく見える」という
-    // 実機フィードバックがあった。画像の縦横比自体は変えず（伸縮・トリミングはしない）、
-    // 使える幅を最大限広げることで、可能な範囲で存在感を近づける対応
-    // （それでも縦長画像ほどの高さは物理的に出せない。詳細は17-12章）。
-    frameMaxWidth: "560px",
-    overlayPadding: "8px",
-    // 本人から預かった背景画像（1536×1024px）を実測して求めた値を%に変換したもの。
+    // 【2026-08-26改訂】当初の横長画像（1536×1024px）は縦長画像（obaCenterNatsunagori）より
+    // 小さく見えるという実機フィードバックを受け、本人が国立競技場を背景にした縦長画像
+    // （1024×1536px、obaCenterNatsunagoriとほぼ同じ縦横比）に作り直した。MV枠が横長の
+    // ダミー枠を含む構図になり、実際のMVサムネイル（国立競技場で撮影）を重ねると背景の
+    // 国立競技場と自然につながって見えるデザイン（本人承認済み、17-13章参照）。
+    // 縦長画像なのでobaCenterNatsunagoriと同じ幅上限・余白に戻す。
+    frameMaxWidth: "420px",
+    overlayPadding: "16px",
+    // 本人から預かった新しい背景画像（1024×1536px）を実測して求めた値を%に変換したもの。
     layout: {
-      thumb: { left: 30.2, top: 33.6, width: 38.5, height: 42.4 },
-      mvHotspot: { left: 17.4, top: 80.3, width: 30.8, height: 14.2 },
-      seenHotspot: { left: 51.0, top: 80.3, width: 30.7, height: 14.2 },
+      thumb: { left: 9.77, top: 26.76, width: 80.37, height: 31.64 },
+      mvHotspot: { left: 21.09, top: 77.6, width: 58.3, height: 8.66 },
+      seenHotspot: { left: 21.09, top: 89.39, width: 58.3, height: 8.14 },
     },
   },
 ];
@@ -124,27 +125,76 @@ export function findEligibleCelebration(songs, playerKeyPrefix) {
 // 表示中はbodyの位置を固定してスクロールできないようにし、閉じたら元の位置に戻す。
 let lockedScrollY = 0;
 let isBackgroundScrollLocked = false;
+let viewportChangeCleanup = null;
 
-function lockBackgroundScroll() {
-  if (isBackgroundScrollLocked) return; // 連続表示（大場花菜→夢の続き）の間、二重にロックしない
+// 【2026-08-26追記・重要】iPhone実機のホーム画面PWA（standalone表示）で、position:fixed;
+// inset:0;（＋heightをvh/dvhで明示指定）だけでは、カード下から画面最下部にかけて白い
+// 領域が残る不具合が実機フィードバックで見つかった（10-25章のセーフエリア問題と同種の、
+// 「Chrome DevToolsのモバイルエミュレーションでは再現しないiOS Safari/standalone特有の
+// 現象」）。原因をCSS単位（vh/dvh/svh）の違いだけで断定できなかったため、単位に頼らず
+// window.visualViewportから「実際に今見えている領域」をJavaScriptで直接測定し、
+// オーバーレイのheight/topへインラインstyleとして反映する、最も確実な対策に切り替えた
+// （visualViewport APIはiOS Safari 13以降で利用可能。多くの実運用PWAで、この種の
+// 「固定オーバーレイが実機だけ画面いっぱいにならない」問題への定番対策として使われている
+// 方式。詳細は17-13章）。
+function applyOverlayViewportSize(overlayElement) {
+  const vv = window.visualViewport;
+  if (vv) {
+    overlayElement.style.height = `${vv.height}px`;
+    // offsetTopは、ページが拡大表示されている場合などにvisualViewportがレイアウト
+    // ビューポートからずれるケースに対応するための値。通常は0。
+    overlayElement.style.top = `${vv.offsetTop}px`;
+  } else {
+    // visualViewport非対応の環境（古いブラウザ等）では、従来どおりCSSのinset:0に任せる
+    // （このelseブロック自体は何もせず、CSS側のheight:100vh/100dvhがそのまま効く）。
+    overlayElement.style.height = "";
+    overlayElement.style.top = "";
+  }
+}
+
+function lockBackgroundScroll(overlayElement) {
+  if (isBackgroundScrollLocked) {
+    applyOverlayViewportSize(overlayElement); // 連続表示の切り替え時も念のため再計測する
+    return; // 連続表示（大場花菜→夢の続き）の間、二重にロックしない
+  }
   isBackgroundScrollLocked = true;
   lockedScrollY = window.scrollY;
   document.body.style.position = "fixed";
   document.body.style.top = `-${lockedScrollY}px`;
   document.body.style.left = "0";
   document.body.style.right = "0";
+  document.body.style.width = "100%";
   document.body.style.overflow = "hidden";
+
+  applyOverlayViewportSize(overlayElement);
+  if (window.visualViewport) {
+    const handler = () => applyOverlayViewportSize(overlayElement);
+    window.visualViewport.addEventListener("resize", handler);
+    window.visualViewport.addEventListener("scroll", handler);
+    viewportChangeCleanup = () => {
+      window.visualViewport.removeEventListener("resize", handler);
+      window.visualViewport.removeEventListener("scroll", handler);
+    };
+  }
 }
 
-function unlockBackgroundScroll() {
+function unlockBackgroundScroll(overlayElement) {
   if (!isBackgroundScrollLocked) return;
   isBackgroundScrollLocked = false;
   document.body.style.position = "";
   document.body.style.top = "";
   document.body.style.left = "";
   document.body.style.right = "";
+  document.body.style.width = "";
   document.body.style.overflow = "";
   window.scrollTo(0, lockedScrollY);
+
+  if (viewportChangeCleanup) {
+    viewportChangeCleanup();
+    viewportChangeCleanup = null;
+  }
+  overlayElement.style.height = "";
+  overlayElement.style.top = "";
 }
 
 // %指定の矩形（{left, top, width, height}）を要素へインラインstyleとして適用する。
@@ -183,16 +233,35 @@ function renderCelebration(celebration, playerKeyPrefix, elements) {
   applyLayoutRect(elements.seenButton, celebration.layout.seenHotspot);
 
   // MVサムネイルはYouTube側のURLをそのまま参照するだけで、アプリ側には一切保存しない。
-  // 読み込みに失敗した場合（オフライン等）は非表示にし、背景画像の点線枠だけが見える
-  // 状態にフォールバックする。
+  // 【2026-08-26追記】まず上下に黒帯の入らない高解像度版（maxresdefault.jpg、1280×720の
+  // 16:9）を試し、その動画に用意されていない場合（YouTube側でmaxresdefaultが生成されない
+  // 動画もある）だけ、必ず存在する標準解像度（hqdefault.jpg、480×360の4:3、動画によっては
+  // 上下に黒帯が入る）へ自動的に切り替える。黒帯が入っても表示自体は今までどおり成立する
+  // ため、実害はない安全なフォールバック。どちらも読み込みに失敗した場合（オフライン等）は
+  // 非表示にし、背景画像の点線枠だけが見える状態にする。
   elements.thumbImage.hidden = false;
-  elements.thumbImage.onerror = () => {
-    elements.thumbImage.hidden = true;
+  elements.thumbImage.dataset.triedFallback = "false";
+  const fallbackToHqDefault = () => {
+    if (elements.thumbImage.dataset.triedFallback === "true") {
+      elements.thumbImage.hidden = true; // hqdefaultも失敗した場合だけ非表示にする
+      return;
+    }
+    elements.thumbImage.dataset.triedFallback = "true";
+    elements.thumbImage.src = `https://img.youtube.com/vi/${celebration.youtubeVideoId}/hqdefault.jpg`;
   };
-  elements.thumbImage.src = `https://img.youtube.com/vi/${celebration.youtubeVideoId}/hqdefault.jpg`;
+  elements.thumbImage.onerror = fallbackToHqDefault;
+  // 【重要】maxresdefault.jpgが用意されていない動画では、YouTube側が404ではなく
+  // 120×90のグレーのプレースホルダー画像をHTTP 200で返すことがある（onerrorが発火しない）。
+  // 読み込み後に極端に小さい場合はプレースホルダーとみなし、hqdefaultへ切り替える。
+  elements.thumbImage.onload = () => {
+    if (elements.thumbImage.dataset.triedFallback === "false" && elements.thumbImage.naturalWidth <= 120) {
+      fallbackToHqDefault();
+    }
+  };
+  elements.thumbImage.src = `https://img.youtube.com/vi/${celebration.youtubeVideoId}/maxresdefault.jpg`;
 
   elements.overlay.hidden = false;
-  lockBackgroundScroll();
+  lockBackgroundScroll(elements.overlay);
 }
 
 // elements: { overlay, bgImage, thumbLink, thumbImage, mvButton, seenButton }
@@ -214,7 +283,7 @@ export function initCenterCelebration(elements, songs) {
     }
 
     elements.overlay.hidden = true;
-    unlockBackgroundScroll();
+    unlockBackgroundScroll(elements.overlay);
   });
 }
 
