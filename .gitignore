@@ -55,3 +55,5 @@ dev/call-guide-candidates.json
 # のため対象外（フォルダごと除外するのではなく、単数ある作業用サブフォルダの中身だけを除外する）。
 data-packs/21st/*
 !data-packs/21st/.gitkeep
+data-packs/full/*
+!data-packs/full/.gitkeep
