@@ -1,10 +1,16 @@
-// 「追加データパック」（新曲の音源・歌詞・コールデータをまとめて配布するための、
-// 1回の読み込みで導入できるファイル群）を解析・取り込みするファイル（2026-08-26新設）。
+// 「追加データパック」（新曲の音源・歌詞・コール・コールガイドをまとめて配布するための、
+// 1回の読み込みで導入できるファイル群）を解析・取り込みするファイル（2026-08-26新設、
+// 2026-08-27にコールガイド対応・packKind〈full/incremental〉対応を追加）。
 //
 // 【背景・目的】21枚目以降の新曲は、今までのように「音源だけ」「歌詞だけ」を個別に
 // インポート画面から選ぶのではなく、1つのパック（複数ファイルの組み合わせ）を選ぶだけで
-// 音源・歌詞・コールデータがまとめて正しい保存場所へ登録されるようにしたい
+// 音源・歌詞・コール・コールガイドがまとめて正しい保存場所へ登録されるようにしたい
 // （本人指示：追加データを読み込む→1パック選択→内容検証→自動登録→「○曲追加しました」）。
+// 新規ユーザー向けの「全曲パック」も、既存ユーザー向けの「追加パック」も、この同じ
+// 解析・保存経路（analyzeDataPack→importAnalyzedDataPack）を1つだけ使う。マニフェストの
+// 任意フィールドpackKind（"full"|"incremental"）は、UI側の案内文・結果メッセージの言い回しを
+// 出し分けるためだけの表示用情報で、読み込み処理自体はfull/incrementalで一切分岐しない
+// （本人指示：同じパーサー・同じmanifest仕様に統一する）。
 //
 // 【形式の選び方について】新しいファイル形式・圧縮フォーマットを自作するのではなく、
 // 「複数ファイルをまとめて選択する」という、このアプリが既に持っているUI（
@@ -16,15 +22,19 @@
 //   ・歌詞JSON（任意のファイル名）… 中身にsongId/song_idを持つ、js/lyricsStorage.jsと同じ形式
 //   ・コールデータのバックアップJSON（任意のファイル名）… js/callStorage.jsの
 //     exportAllCallData()と全く同じ形式（type: "equal-love-call-data"）
-// マニフェスト・コールバックアップ・歌詞JSONは、ファイル名ではなく中身のtype/フィールドで
-// 判別する（本人がAirDrop等でファイルを受け取った際、OS側で自動的にファイル名へ
-// 「(1)」等が付与されるケースがあっても、判別に影響しないようにするため）。
+//   ・コールガイドのバックアップJSON（任意のファイル名）… js/callGuideStorage.jsの
+//     exportAllCallGuideData()と全く同じ形式（type: "equal-love-call-guide-data"）
+// これらすべて任意（無くてもパックとして成立する。音源だけのパック等も許可する）。
+// マニフェスト・コールバックアップ・コールガイドバックアップ・歌詞JSONは、ファイル名ではなく
+// 中身のtype/フィールドで判別する（本人がAirDrop等でファイルを受け取った際、OS側で自動的に
+// ファイル名へ「(1)」等が付与されるケースがあっても、判別に影響しないようにするため）。
 //
 // 【安全設計：既存データを壊さない】このファイルは新しいIndexedDBストアを一切作らず、
-// 既存の3つのストレージモジュール（audioStorage.js・lyricsStorage.js・callStorage.js）が
-// 既に持っている、検証済みの保存関数（putRecord系）をそのまま呼び出すだけ。
-// 1曲＝1レコードのkeyPath設計はそのままなので、パックに含まれない曲・パック内で
-// 検証に失敗した曲のレコードには一切触れない（＝上書き事故や巻き添え削除が起こりえない）。
+// 既存の4つのストレージモジュール（audioStorage.js・lyricsStorage.js・callStorage.js・
+// callGuideStorage.js）が既に持っている、検証済みの保存関数（putRecord系）をそのまま
+// 呼び出すだけ。1曲・1件＝1レコードのkeyPath設計はそのままなので、パックに含まれない曲・
+// パック内で検証に失敗した曲のレコードには一切触れない（＝上書き事故や巻き添え削除が
+// 起こりえない）。
 //
 // 【ロールバックについて、本人指示との対応】「不正なパックを読み込んでも既存データが
 // 壊れない」「読み込み途中で失敗したら安全に終了する」という要求に対して、このファイルは
@@ -41,6 +51,7 @@ import { SONGS } from "./data/songs.js";
 import { importAudioFiles } from "./audioStorage.js";
 import { analyzeLyricsFiles, importLyricsFiles } from "./lyricsStorage.js";
 import { analyzeCallDataBackupFile, importCallDataSongs } from "./callStorage.js";
+import { analyzeCallGuideBackupFile, importCallGuideDataEntries } from "./callGuideStorage.js";
 
 // マニフェストJSONの目印。js/callStorage.jsのBACKUP_FILE_TYPEと同じ考え方
 // （中身のtypeフィールドで、ファイル名に依存せず判別できるようにする）。
@@ -51,12 +62,22 @@ export const DATA_PACK_MANIFEST_TYPE = "equal-love-data-pack";
 // 拒否する（対応していないバージョンです、と案内する）想定。
 export const LATEST_MANIFEST_SCHEMA_VERSION = 1;
 
-// パック内のJSONファイルを、中身から3種類に判別する。
-// 戻り値: "manifest" | "callBackup" | "lyrics" | "unknown"
+// パックが対象とする範囲。UI側の案内文・結果メッセージの言い回しを出し分けるためだけに使う
+// （読み込み処理そのものは、full/incrementalで一切分岐しない。どちらも同じ解析・保存経路を通る）。
+export const PACK_KIND = {
+  FULL: "full", // 新規ユーザー向け：これまでの全曲を含む
+  INCREMENTAL: "incremental", // 既存ユーザー向け：新しいシングル分だけの追加
+};
+
+// パック内のJSONファイルを、中身から4種類に判別する。
+// 戻り値: "manifest" | "callBackup" | "callGuideBackup" | "lyrics" | "unknown"
 function classifyJsonContent(rawData) {
   if (!rawData || typeof rawData !== "object") return "unknown";
   if (rawData.type === DATA_PACK_MANIFEST_TYPE) return "manifest";
   if (rawData.type === "equal-love-call-data") return "callBackup";
+  // js/callGuideStorage.jsのBACKUP_FILE_TYPEと同じ値（非公開定数のため、既存のcallBackup判定と
+  // 同じくtype文字列を直接比較する。値自体はコールデータのバックアップ形式と同じ命名規則）。
+  if (rawData.type === "equal-love-call-guide-data") return "callGuideBackup";
   if (typeof rawData.songId === "string" || typeof rawData.song_id === "string") return "lyrics";
   return "unknown";
 }
@@ -77,6 +98,16 @@ export function validateManifest(rawData) {
   }
   if (typeof rawData.packLabel !== "string" || rawData.packLabel.trim() === "") {
     errors.push("packLabelが指定されていません");
+  }
+  // packKindは任意項目（本人指示：新規/既存で入口の説明を分ける）。省略時はincremental扱い
+  // （＝「追加パック」として案内する）にすることで、packKindを持たない旧形式のマニフェスト・
+  // 既存のテスト用フィクスチャとの後方互換を保つ。指定されている場合だけ値の妥当性を見る。
+  if (
+    rawData.packKind !== undefined &&
+    rawData.packKind !== PACK_KIND.FULL &&
+    rawData.packKind !== PACK_KIND.INCREMENTAL
+  ) {
+    errors.push(`packKindの値が不正です（${rawData.packKind}）`);
   }
   if (!Array.isArray(rawData.songIds) || rawData.songIds.length === 0) {
     errors.push("songIdsが空です");
@@ -106,17 +137,20 @@ export function validateManifest(rawData) {
 //                                                                 「未対応ファイル」は生じない）
 //   lyrics: { readyFiles, warningFiles, failedFiles },   … js/lyricsStorage.jsのanalyzeLyricsFiles()と同じ形
 //   calls: { readySongs, failedSongs } | null,           … コールデータのJSONが無ければnull
+//   callGuides: { readyGuides, failedGuides } | null,    … コールガイドのJSONが無ければnull
 //   manifestSongIdsNotCovered: string[],  … マニフェストが挙げているが、
 //                                            音源・歌詞・コールのいずれにも該当ファイルが
 //                                            見つからなかった曲ID（警告表示用。エラーにはしない
 //                                            ＝コール等、曲によっては用意しないデータ種類が
-//                                            あってもよいため）
+//                                            あってもよいため。コールガイドはguideId単位で
+//                                            songIdに1:1で紐づかないため、この判定には含めない）
 // }
 export async function analyzeDataPack(fileList) {
   const files = Array.from(fileList);
 
   const manifestCandidates = [];
   const callBackupCandidates = [];
+  const callGuideBackupCandidates = [];
   const lyricsFiles = [];
   const audioFiles = [];
 
@@ -139,6 +173,7 @@ export async function analyzeDataPack(fileList) {
     const kind = classifyJsonContent(rawData);
     if (kind === "manifest") manifestCandidates.push({ file, rawData });
     else if (kind === "callBackup") callBackupCandidates.push({ file, rawData });
+    else if (kind === "callGuideBackup") callGuideBackupCandidates.push({ file, rawData });
     else if (kind === "lyrics") lyricsFiles.push(file);
   }
 
@@ -175,6 +210,22 @@ export async function analyzeDataPack(fileList) {
     }
   }
 
+  // コールガイド：コールデータと同じ扱い（0件ならこのパックには含まれていない）。
+  let callGuidesResult = null;
+  if (callGuideBackupCandidates.length > 1) {
+    return { ok: false, fileError: "コールガイドのバックアップファイルが複数見つかりました", manifest: null };
+  }
+  if (callGuideBackupCandidates.length === 1) {
+    callGuidesResult = await analyzeCallGuideBackupFile(callGuideBackupCandidates[0].file);
+    if (!callGuidesResult.fileValid) {
+      return {
+        ok: false,
+        fileError: `コールガイドデータの読み込みに失敗しました: ${callGuidesResult.fileError}`,
+        manifest: null,
+      };
+    }
+  }
+
   const coveredSongIds = new Set([
     ...savableSongIds,
     ...lyricsResult.readyFiles.map((f) => f.normalizedData.songId),
@@ -190,6 +241,7 @@ export async function analyzeDataPack(fileList) {
     audio: { readyFiles: audioFiles, savableSongIds },
     lyrics: lyricsResult,
     calls: callsResult,
+    callGuides: callGuidesResult,
     manifestSongIdsNotCovered,
   };
 }
@@ -202,9 +254,10 @@ export async function analyzeDataPack(fileList) {
 //   savedAudioSongIds: string[],
 //   savedLyricsSongIds: string[], lyricsFailures: { fileName, reason }[],
 //   savedCallSongIds: string[], callFailures: { songId, reason }[],
+//   savedCallGuideIds: string[], callGuideFailures: { guideId, reason }[],
 // }
 export async function importAnalyzedDataPack(analyzed) {
-  const { audio, lyrics, calls } = analyzed;
+  const { audio, lyrics, calls, callGuides } = analyzed;
 
   const audioResult = await importAudioFiles(audio.readyFiles);
 
@@ -219,12 +272,22 @@ export async function importAnalyzedDataPack(analyzed) {
     callFailures = callImportResult.saveFailures;
   }
 
+  let savedCallGuideIds = [];
+  let callGuideFailures = [];
+  if (callGuides && callGuides.readyGuides.length > 0) {
+    const callGuideImportResult = await importCallGuideDataEntries(callGuides.readyGuides);
+    savedCallGuideIds = callGuideImportResult.savedGuideIds;
+    callGuideFailures = callGuideImportResult.saveFailures;
+  }
+
   return {
     savedAudioSongIds: audioResult.savedSongIds,
     savedLyricsSongIds: lyricsImportResult.savedSongIds,
     lyricsFailures: lyricsImportResult.failedFiles,
     savedCallSongIds,
     callFailures,
+    savedCallGuideIds,
+    callGuideFailures,
   };
 }
 

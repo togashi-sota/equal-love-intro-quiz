@@ -8,7 +8,7 @@
 // 曲を追加・削除する、カテゴリを変更する等、出題プール自体が変わりうる更新をしたときは
 // 必ずこの番号を1つ上げること。バージョンが違う端末同士では、同じ対戦コードでも
 // 問題が再現できない可能性があるため、対戦開始前に警告を出す仕組みになっている。
-export const SONGS_DATA_VERSION = 1;
+export const SONGS_DATA_VERSION = 2;
 
 // 曲のカテゴリ（表題曲/全員曲/ユニット曲/特別収録曲）を表す定数。
 // シングルでもアルバムでも、通常の収録曲はこの中の3種類（表題曲/全員曲/ユニット曲）のどれかに分類される
@@ -1287,6 +1287,23 @@ export const SONGS = [
     difficulty: DIFFICULTY.NORMAL,
     center: ["大場花菜"],
     centerType: "single",
+    introLeadInSec: 0,
+  },
+  // 21stシングル カップリング曲「夢の続き」（2026-08-27追加）。センター就任お祝いポップアップ
+  // （js/centerCelebration.jsのyumeNoTsuzukiエントリ、youtubeVideoId "RjHjQlEjs_E"と同じ動画）
+  // を先に実装した際、公式MV概要欄でセンターの明記が確認できなかったため、他の曲と違い
+  // center/centerTypeは推測で埋めず省略している（natsunagori-summer-tuneの登録時と同じ方針）。
+  // センターが判明した場合は、この2フィールドを追記すればよい。
+  {
+    id: "yume-no-tsuzuki",
+    youtubeUrl: "https://www.youtube.com/watch?v=RjHjQlEjs_E",
+    workId: "single-21",
+    title: "夢の続き",
+    searchReading: "ゆめのつづき",
+    category: CATEGORY.GROUP_SONG,
+    releaseDate: "2026-08-26",
+    single: "21stシングル「恋、はじめました。」収録",
+    difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
   },
   {

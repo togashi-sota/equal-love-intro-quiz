@@ -27,7 +27,11 @@ const DURATION_DECIMAL_PLACES = 3;
 // validateSettings()が「この曲は同期用の固定durationを持たない」を検出して対戦開始自体を
 // 安全に拒否する設計のため、この曲が音源未登録のままでも対戦が壊れたり不正な同期が
 // 起きたりすることはない（本人指示：音源未登録の曲として安全に存在できればよい）。
-const SONG_IDS_WITHOUT_REGISTERED_AUDIO_YET = new Set(["koi-hajimemashita", "natsunagori-summer-tune"]);
+const SONG_IDS_WITHOUT_REGISTERED_AUDIO_YET = new Set([
+  "koi-hajimemashita",
+  "natsunagori-summer-tune",
+  "yume-no-tsuzuki",
+]);
 
 export function runAudioMetadataTests() {
   const songIds = SONGS.map((song) => song.id).filter(

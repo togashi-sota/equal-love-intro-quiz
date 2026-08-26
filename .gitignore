@@ -46,3 +46,12 @@ tools/
 # 公開・コミットしない。dev/callGuideEditor.htmlの「候補JSONを読み込む」から取り込む用途。
 # 2026-08-06新設、js/callStorage.jsのコール本文と同じ方針）
 dev/call-guide-candidates.json
+
+# 追加データパック（js/dataPackImport.js）の作業用フォルダに置く実データ
+# （音源mp3・歌詞本文JSON・コール/コールガイドJSON・実際に生成したmanifest.json）。
+# 著作権保護のためローカル環境のみで使用し、公開・コミットしない
+# （assets/audio/localと同じ方針、2026-08-27新設）。
+# data-packs/直下のREADME.md・manifest.template.jsonは実データを含まない安全な説明・雛形
+# のため対象外（フォルダごと除外するのではなく、単数ある作業用サブフォルダの中身だけを除外する）。
+data-packs/21st/*
+!data-packs/21st/.gitkeep

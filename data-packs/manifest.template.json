@@ -1,0 +1,9 @@
+{
+  "type": "equal-love-data-pack",
+  "schemaVersion": 1,
+  "packKind": "incremental",
+  "packId": "single-21-incremental",
+  "packLabel": "21stシングル追加パック",
+  "songIds": ["koi-hajimemashita", "natsunagori-summer-tune", "yume-no-tsuzuki"],
+  "createdAt": "2026-08-27T00:00:00.000Z"
+}

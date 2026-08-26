@@ -16,7 +16,7 @@
 // ダミーデータを使ってブラウザ上で手動確認する（本人指示：ダミーデータでテストする。
 // docs/HANDOFF.md 参照）。
 
-import { validateManifest, analyzeDataPack, DATA_PACK_MANIFEST_TYPE } from "../js/dataPackImport.js";
+import { validateManifest, analyzeDataPack, DATA_PACK_MANIFEST_TYPE, PACK_KIND } from "../js/dataPackImport.js";
 import { assertEqual } from "./test-utils.js";
 
 // songs.jsに実在する曲のid（歌詞本文・音源そのものは一切使わず、idという識別子だけを使う）。
@@ -61,6 +61,28 @@ export async function runDataPackImportTests() {
     validateManifest(buildValidManifest({ songIds: ["存在しない曲id-xyz"] })).valid,
     false,
     "songs.jsに登録されていない曲idを含むと無効"
+  );
+
+  // ---- validateManifest：packKind（本人指示：全曲パック/追加パックを同じ仕組みで扱う） ----
+  assertEqual(
+    validateManifest(buildValidManifest()).valid,
+    true,
+    "packKindを省略しても（後方互換のため）マニフェストは有効"
+  );
+  assertEqual(
+    validateManifest(buildValidManifest({ packKind: PACK_KIND.FULL })).valid,
+    true,
+    "packKind: fullは有効な値"
+  );
+  assertEqual(
+    validateManifest(buildValidManifest({ packKind: PACK_KIND.INCREMENTAL })).valid,
+    true,
+    "packKind: incrementalは有効な値"
+  );
+  assertEqual(
+    validateManifest(buildValidManifest({ packKind: "partial" })).valid,
+    false,
+    "full/incremental以外のpackKindは無効"
   );
 
   // ---- analyzeDataPack：マニフェストが無い ----

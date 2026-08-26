@@ -691,6 +691,44 @@ h1 .note-icon svg {
   margin-top: 12px;
 }
 
+/* 【2026-08-27追加】音源・歌詞・コール・コールガイドを種類ごとに個別に読み込む機能の折りたたみ。
+   通常ユーザーは「追加データパックを読み込む」だけで完結するため、.data-management-section
+   （外側の折りたたみ）の中に、さらに一段折りたたんで目立たなくしている。
+   見た目は.data-management-sectionと同じパターンを再利用し、入れ子であることが分かるよう
+   余白だけ内側に寄せている。 */
+.advanced-data-management-section {
+  margin: 14px 0 4px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px dashed var(--color-card-border);
+}
+
+.advanced-data-management-section summary {
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--color-text);
+  opacity: 0.6;
+  list-style: none;
+}
+
+.advanced-data-management-section summary::-webkit-details-marker {
+  display: none;
+}
+
+.advanced-data-management-section summary::before {
+  content: "▸";
+  display: inline-block;
+  width: 1em;
+  margin-right: 4px;
+  transition: transform 0.15s ease;
+}
+
+.advanced-data-management-section[open] summary::before {
+  transform: rotate(90deg);
+}
+
 .audio-import-section {
   display: flex;
   flex-direction: column;

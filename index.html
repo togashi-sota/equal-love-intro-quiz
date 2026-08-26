@@ -418,14 +418,16 @@
       <details class="data-management-section">
         <summary>データ管理（音源・歌詞の読み込み）</summary>
 
-        <!-- 追加データパック（新曲まとめ読み込み）。音源・歌詞・コールデータを1回の
-             ファイル選択でまとめて読み込める入口（js/dataPackImport.js参照、2026-08-26新設）。
+        <!-- 追加データパック（新曲まとめ読み込み）。音源・歌詞・コール・コールガイドを1回の
+             ファイル選択でまとめて読み込める、通常ユーザー向けの唯一の入口
+             （js/dataPackImport.js参照、2026-08-26新設・2026-08-27に入口を1つに整理）。
              「はじめての方」「既に使っている方」で選ぶパックが違うだけで、読み込む手順自体は
              共通のため、案内文だけを分けて同じ入力欄を使う（本人指示：新規/既存で入口の説明を
-             分かりやすく分ける）。 -->
+             分かりやすく分ける。パックの種類〈全曲／追加〉はmanifest.jsonのpackKindから
+             自動判定され、ボタン名を曲・シングルごとに変える必要はない）。 -->
         <div id="data-pack-import-section" class="audio-import-section">
           <p class="lyrics-import-caption">
-            新曲（21枚目以降）を追加するときは、この「追加データパック」を読み込んでください。
+            新曲（21枚目以降）を追加するときは、この「追加データパック」を読み込んでください。音源・歌詞・コール・コールガイドがまとめて登録されます。
           </p>
           <p class="lyrics-import-caption">
             ・はじめてこのアプリを使う方：これまでの曲を含む「全曲パック」を選んでください<br>
@@ -443,82 +445,91 @@
           <p id="data-pack-import-result" class="audio-import-result" hidden></p>
         </div>
 
-        <!-- 音源の読み込み状況。PWA化に伴い、音源はサーバーに置かず、利用者が選んだファイルを
-             端末内（IndexedDB）に保存する方式にしている。読み込み状況を表示し、
-             ボタンからmp3ファイルをまとめて選択できる（js/audioStorage.js・js/main.js参照）。 -->
-        <div id="audio-import-section" class="audio-import-section">
-          <p id="audio-import-status" class="audio-import-status">音源の読み込み状況を確認中…</p>
-          <label class="audio-import-button">
-            音源を読み込む
-            <input id="audio-import-input" type="file" accept="audio/mpeg,.mp3" multiple hidden>
-          </label>
-          <!-- 読み込み結果（「◯曲を読み込みました」等）。普段は空・非表示 -->
-          <p id="audio-import-result" class="audio-import-result" hidden></p>
-        </div>
+        <!-- 【2026-08-27追加】音源・歌詞・コール・コールガイドを種類ごとに個別に読み込む機能。
+             通常ユーザーは上の「追加データパックを読み込む」だけで完結するため、ここは
+             折りたたんで目立たなくしている（本人指示：通常ユーザー向け画面からは実質的に無くし、
+             ただし内部の読み込み処理・PCのdev/callEditor.html等が書き出す単体JSONを直接読む手段
+             としては残す）。中のボタン・ロジック自体はこれまでと一切変更していない。 -->
+        <details class="advanced-data-management-section">
+          <summary>個別に読み込む（開発者・上級者向け）</summary>
 
-        <!-- 歌詞データの読み込み状況。音源とは別の任意機能（収録曲一覧の試聴時にだけ使う）のため、
-             見た目は音源より一段控えめにし、「任意」であることが伝わるようにしている
-             （js/lyricsStorage.js・js/main.js参照）。 -->
-        <div id="lyrics-import-section" class="lyrics-import-section">
-          <p class="lyrics-import-caption">
-            収録曲一覧の試聴で同期歌詞を表示できます
-            <span class="optional-tag">任意</span>
-          </p>
-          <p id="lyrics-import-status" class="lyrics-import-status">歌詞データ：未読み込み</p>
-          <label class="lyrics-import-button">
-            歌詞を読み込む
-            <input id="lyrics-import-input" type="file" accept=".json,application/json" multiple hidden>
-          </label>
-          <!-- 読み込み結果（「◯曲を保存しました」等）。普段は空・非表示 -->
-          <p id="lyrics-import-result" class="lyrics-import-result" hidden></p>
+          <!-- 音源の読み込み状況。PWA化に伴い、音源はサーバーに置かず、利用者が選んだファイルを
+               端末内（IndexedDB）に保存する方式にしている。読み込み状況を表示し、
+               ボタンからmp3ファイルをまとめて選択できる（js/audioStorage.js・js/main.js参照）。 -->
+          <div id="audio-import-section" class="audio-import-section">
+            <p id="audio-import-status" class="audio-import-status">音源の読み込み状況を確認中…</p>
+            <label class="audio-import-button">
+              音源を読み込む
+              <input id="audio-import-input" type="file" accept="audio/mpeg,.mp3" multiple hidden>
+            </label>
+            <!-- 読み込み結果（「◯曲を読み込みました」等）。普段は空・非表示 -->
+            <p id="audio-import-result" class="audio-import-result" hidden></p>
+          </div>
 
-          <!-- 警告があるファイルをまとめて確認するパネル。1件ずつモーダルを出さず、
-               ここに一覧表示してから、まとめて「保存する/しない」を選んでもらう。
-               警告のないファイルはこのパネルを待たずに自動保存される。 -->
-          <div id="lyrics-warning-panel" class="lyrics-warning-panel" hidden>
-            <p class="lyrics-warning-panel-title">確認が必要な歌詞データがあります</p>
-            <div id="lyrics-warning-list" class="lyrics-warning-list"></div>
-            <div class="lyrics-warning-actions">
-              <button id="lyrics-warning-save-button" type="button" class="secondary-button">警告があるファイルも保存する</button>
-              <button id="lyrics-warning-discard-button" type="button" class="secondary-button">警告があるファイルは保存しない</button>
+          <!-- 歌詞データの読み込み状況。音源とは別の任意機能（収録曲一覧の試聴時にだけ使う）のため、
+               見た目は音源より一段控えめにし、「任意」であることが伝わるようにしている
+               （js/lyricsStorage.js・js/main.js参照）。 -->
+          <div id="lyrics-import-section" class="lyrics-import-section">
+            <p class="lyrics-import-caption">
+              収録曲一覧の試聴で同期歌詞を表示できます
+              <span class="optional-tag">任意</span>
+            </p>
+            <p id="lyrics-import-status" class="lyrics-import-status">歌詞データ：未読み込み</p>
+            <label class="lyrics-import-button">
+              歌詞を読み込む
+              <input id="lyrics-import-input" type="file" accept=".json,application/json" multiple hidden>
+            </label>
+            <!-- 読み込み結果（「◯曲を保存しました」等）。普段は空・非表示 -->
+            <p id="lyrics-import-result" class="lyrics-import-result" hidden></p>
+
+            <!-- 警告があるファイルをまとめて確認するパネル。1件ずつモーダルを出さず、
+                 ここに一覧表示してから、まとめて「保存する/しない」を選んでもらう。
+                 警告のないファイルはこのパネルを待たずに自動保存される。 -->
+            <div id="lyrics-warning-panel" class="lyrics-warning-panel" hidden>
+              <p class="lyrics-warning-panel-title">確認が必要な歌詞データがあります</p>
+              <div id="lyrics-warning-list" class="lyrics-warning-list"></div>
+              <div class="lyrics-warning-actions">
+                <button id="lyrics-warning-save-button" type="button" class="secondary-button">警告があるファイルも保存する</button>
+                <button id="lyrics-warning-discard-button" type="button" class="secondary-button">警告があるファイルは保存しない</button>
+              </div>
             </div>
           </div>
-        </div>
 
-        <!-- コールデータの読み込み。音源・歌詞と違い、この端末で新規作成することはできず
-             （PCのdev/callEditor.htmlだけで作成する運用）、別端末で書き出した専用JSONを
-             読み込む入口だけを用意する。音源・歌詞用のIndexedDBには一切触れない
-             （js/callStorage.js・js/main.js参照。2026-08-06新設）。 -->
-        <div id="call-import-section" class="lyrics-import-section">
-          <p class="lyrics-import-caption">
-            ライブコールモードで使うコールデータを、この端末へ読み込みます。PCのコールエディターで書き出したファイルを選んでください（音源・歌詞は含まれません）。最初の1回だけでよく、アプリ更新のたびに読み込み直す必要はありません
-            <span class="optional-tag">任意</span>
-          </p>
-          <p id="call-import-status" class="lyrics-import-status">コールデータ：確認中…</p>
-          <label class="lyrics-import-button">
-            コールJSONを読み込む
-            <input id="call-import-input" type="file" accept=".json,application/json" hidden>
-          </label>
-          <!-- 読み込み結果（「◯曲・◯件を読み込みました」等）。普段は空・非表示 -->
-          <p id="call-import-result" class="lyrics-import-result" hidden></p>
-        </div>
+          <!-- コールデータの読み込み。音源・歌詞と違い、この端末で新規作成することはできず
+               （PCのdev/callEditor.htmlだけで作成する運用）、別端末で書き出した専用JSONを
+               読み込む入口だけを用意する。音源・歌詞用のIndexedDBには一切触れない
+               （js/callStorage.js・js/main.js参照。2026-08-06新設）。 -->
+          <div id="call-import-section" class="lyrics-import-section">
+            <p class="lyrics-import-caption">
+              ライブコールモードで使うコールデータを、この端末へ読み込みます。PCのコールエディターで書き出したファイルを選んでください（音源・歌詞は含まれません）。最初の1回だけでよく、アプリ更新のたびに読み込み直す必要はありません
+              <span class="optional-tag">任意</span>
+            </p>
+            <p id="call-import-status" class="lyrics-import-status">コールデータ：確認中…</p>
+            <label class="lyrics-import-button">
+              コールJSONを読み込む
+              <input id="call-import-input" type="file" accept=".json,application/json" hidden>
+            </label>
+            <!-- 読み込み結果（「◯曲・◯件を読み込みました」等）。普段は空・非表示 -->
+            <p id="call-import-result" class="lyrics-import-result" hidden></p>
+          </div>
 
-        <!-- コールガイド（MIX・口上の練習本文）の読み込み。既存のコールデータ（音源タイミング付き）とは
-             完全に別のIndexedDB（js/callGuideStorage.js）を使い、混ざらないようにしている
-             （2026-08-06新設）。 -->
-        <div id="call-guide-import-section" class="lyrics-import-section">
-          <p class="lyrics-import-caption">
-            MIXや曲専用口上などの練習本文を、この端末へ読み込みます。音源・歌詞・タイミング付きコールは含まれません。最初の1回だけでよく、アプリ更新のたびに読み込み直す必要はありません
-            <span class="optional-tag">任意</span>
-          </p>
-          <p id="call-guide-import-status" class="lyrics-import-status">コールガイドデータ：確認中…</p>
-          <label class="lyrics-import-button">
-            コールガイドJSONを読み込む
-            <input id="call-guide-import-input" type="file" accept=".json,application/json" hidden>
-          </label>
-          <!-- 読み込み結果（「◯項目を読み込みました」等）。普段は空・非表示 -->
-          <p id="call-guide-import-result" class="lyrics-import-result" hidden></p>
-        </div>
+          <!-- コールガイド（MIX・口上の練習本文）の読み込み。既存のコールデータ（音源タイミング付き）とは
+               完全に別のIndexedDB（js/callGuideStorage.js）を使い、混ざらないようにしている
+               （2026-08-06新設）。 -->
+          <div id="call-guide-import-section" class="lyrics-import-section">
+            <p class="lyrics-import-caption">
+              MIXや曲専用口上などの練習本文を、この端末へ読み込みます。音源・歌詞・タイミング付きコールは含まれません。最初の1回だけでよく、アプリ更新のたびに読み込み直す必要はありません
+              <span class="optional-tag">任意</span>
+            </p>
+            <p id="call-guide-import-status" class="lyrics-import-status">コールガイドデータ：確認中…</p>
+            <label class="lyrics-import-button">
+              コールガイドJSONを読み込む
+              <input id="call-guide-import-input" type="file" accept=".json,application/json" hidden>
+            </label>
+            <!-- 読み込み結果（「◯項目を読み込みました」等）。普段は空・非表示 -->
+            <p id="call-guide-import-result" class="lyrics-import-result" hidden></p>
+          </div>
+        </details>
       </details>
     </section>
 

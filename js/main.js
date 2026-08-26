@@ -4179,11 +4179,25 @@ dataPackImportInputElement.addEventListener("change", async () => {
   // （音源インポート時と同じ理由。js/main.jsの「音源を読み込む」ハンドラ参照）。
   requestPersistentStorage();
 
+  // packKind（本人指示：全曲パック/追加パックを同じ仕組みで扱う）は表示文言の出し分けだけに
+  // 使う。省略時（後方互換）はincremental扱いにし、これまでどおり「追加しました」と表示する。
+  const isFullPack = analyzed.manifest.packKind === "full";
+
   const lines = [];
-  lines.push(`「${analyzed.manifest.packLabel}」を読み込みました`);
   lines.push(
-    `音源${result.savedAudioSongIds.length}曲・歌詞${result.savedLyricsSongIds.length}曲・コール${result.savedCallSongIds.length}曲を追加しました`
+    isFullPack
+      ? `「${analyzed.manifest.packLabel}」でセットアップしました`
+      : `「${analyzed.manifest.packLabel}」を読み込みました`
   );
+  const summaryParts = [
+    `音源${result.savedAudioSongIds.length}曲`,
+    `歌詞${result.savedLyricsSongIds.length}曲`,
+    `コール${result.savedCallSongIds.length}曲`,
+  ];
+  if (result.savedCallGuideIds.length > 0) {
+    summaryParts.push(`コールガイド${result.savedCallGuideIds.length}件`);
+  }
+  lines.push(`${summaryParts.join("・")}を${isFullPack ? "登録しました" : "追加しました"}`);
   if (analyzed.manifestSongIdsNotCovered.length > 0) {
     lines.push(
       `※このパックに含まれていない曲があります（${analyzed.manifestSongIdsNotCovered.map(findSongTitle).join("、")}）`
@@ -4195,6 +4209,9 @@ dataPackImportInputElement.addEventListener("change", async () => {
   if (result.callFailures.length > 0) {
     lines.push(`コールデータの保存に失敗した曲：${result.callFailures.length}件`);
   }
+  if (result.callGuideFailures.length > 0) {
+    lines.push(`コールガイドの保存に失敗した項目：${result.callGuideFailures.length}件`);
+  }
 
   dataPackImportResultElement.hidden = false;
   dataPackImportResultElement.textContent = lines.join("\n");
@@ -4203,11 +4220,12 @@ dataPackImportInputElement.addEventListener("change", async () => {
   dataPackImportInputElement.value = "";
   resetDataPackImportStatus();
 
-  // パックには音源・歌詞・コールデータが混在するため、3種類すべての状況表示・出題数の案内を
-  // まとめて更新する（本人指示・D：新しく増えた曲がすぐにクイズへ反映されるように）。
+  // パックには音源・歌詞・コール・コールガイドが混在するため、4種類すべての状況表示・
+  // 出題数の案内をまとめて更新する（本人指示・D：新しく増えた曲がすぐにクイズへ反映されるように）。
   await updateAudioImportStatus();
   await updateLyricsImportStatus();
   await updateCallImportStatus();
+  await updateCallGuideImportStatus();
   await updateQuestionCountNotice();
 });
 
