@@ -60,6 +60,17 @@ function markDone(announcementId) {
   }
 }
 
+// 「21枚目のお知らせを再表示」（データ管理画面の開発者向けセクション）から呼ぶ、
+// 永久非表示フラグの解除。誤って「追加済み・今後表示しない」を押してしまった場合の
+// リセット操作用（2026-08-27新設、本人からの実際の誤操作報告を受けて）。
+function clearDone(announcementId) {
+  try {
+    localStorage.removeItem(buildDoneStorageKey(announcementId));
+  } catch {
+    // 消せなくても致命的ではない
+  }
+}
+
 function isHiddenThisSession(announcementId) {
   try {
     return sessionStorage.getItem(buildLaterStorageKey(announcementId)) === "true";
@@ -73,6 +84,14 @@ function markHiddenThisSession(announcementId) {
     sessionStorage.setItem(buildLaterStorageKey(announcementId), "true");
   } catch {
     // 保存できなくても致命的ではない
+  }
+}
+
+function clearHiddenThisSession(announcementId) {
+  try {
+    sessionStorage.removeItem(buildLaterStorageKey(announcementId));
+  } catch {
+    // 消せなくても致命的ではない
   }
 }
 
@@ -101,10 +120,17 @@ export function findEligibleAnnouncementSync(availableAudioSongIds) {
 }
 
 // elements: { banner, titleText, bodyText, openButton, laterButton, doneButton }
-// onOpenDataManagement: 「データ管理を開く」が押されたときに呼ぶコールバック
-//   （データ管理セクションの折りたたみを開き、スクロールする処理はjs/main.js側が担当する。
-//   本ファイルはDOM構造の詳細〈details要素かどうか等〉を知らなくてよいようにするため）。
-export async function initNewSingleAnnouncement(elements, onOpenDataManagement) {
+// callbacks: { onOpenDataManagement, onRequestDoneConfirmation }
+//   onOpenDataManagement：「データ管理を開く」が押されたときに呼ぶ（データ管理セクションの
+//     折りたたみを開き、スクロールする処理はjs/main.js側が担当する。本ファイルはDOM構造の
+//     詳細〈details要素かどうか等〉を知らなくてよいようにするため）。
+//   onRequestDoneConfirmation：「追加済み・今後表示しない」が押されたときに呼ぶ。
+//     【2026-08-27追記・本人指示】実際に誤操作でお知らせを消してしまったとの報告を受け、
+//     このボタンを押しても即座には確定させず、確認モーダルを開くところまでをこのコールバックへ
+//     委譲する（モーダルの表示・非表示自体もDOM構造の詳細のため、js/main.js側の責務とする）。
+//     モーダルの「確定」ボタンが押されたときに、実際にmarkDone()するのは
+//     confirmAnnouncementDone()の役目。
+export async function initNewSingleAnnouncement(elements, callbacks) {
   const availableAudioSongIds = await getAvailableSongIds(AVAILABLE_DATA_KIND.AUDIO);
 
   // 音源がすでに揃っているお知らせは、ボタンを押されなくても先に自動で「追加済み」にする
@@ -132,14 +158,20 @@ export async function initNewSingleAnnouncement(elements, onOpenDataManagement) 
   });
 
   elements.doneButton.addEventListener("click", () => {
-    const currentId = elements.banner.dataset.announcementId;
-    if (currentId) markDone(currentId);
-    elements.banner.hidden = true;
+    callbacks.onRequestDoneConfirmation();
   });
 
   elements.openButton.addEventListener("click", () => {
-    onOpenDataManagement();
+    callbacks.onOpenDataManagement();
   });
+}
+
+// 「追加済み・今後表示しない」の確認モーダルで、本人が確定操作を押したときに呼ぶ。
+// ここで初めて実際にmarkDone()し、バナーを閉じる（本人指示：確定を押した場合だけ永久非表示）。
+export function confirmAnnouncementDone(elements) {
+  const currentId = elements.banner.dataset.announcementId;
+  if (currentId) markDone(currentId);
+  elements.banner.hidden = true;
 }
 
 // データパックの読み込みに成功した直後など、端末の所持曲が変わったタイミングで呼ぶ。
@@ -157,4 +189,39 @@ export async function recheckNewSingleAnnouncementAfterImport(elements) {
     markDone(announcement.id);
     elements.banner.hidden = true;
   }
+}
+
+// データ管理画面の「21枚目のお知らせを再表示」（開発者・上級者向けセクション）から呼ぶ。
+// 【2026-08-27新設・本人指示】「追加済み・今後表示しない」を誤って押してしまった場合の
+// リセット操作。永久非表示フラグ・この起動中だけの非表示フラグの両方を解除したうえで、
+// 対象曲の音源が実際にこの端末へ揃っているかを確認する。
+//   ・まだ揃っていない → バナーを再表示する（本来の目的どおり、また気付けるようにする）
+//   ・すでに揃っている → 自動判定を優先し、無理にバナーを再表示しない
+//     （本人指示：実際に導入済みなら、無理にバナーを出す必要はない）
+// 戻り値: { reappeared: boolean }（バナーが実際に再表示されたかどうか。呼び出し側の結果表示に使う）
+export async function resetAnnouncementDoneAndRecheck(elements) {
+  for (const announcement of NEW_SINGLE_ANNOUNCEMENTS) {
+    clearDone(announcement.id);
+    clearHiddenThisSession(announcement.id);
+  }
+
+  const availableAudioSongIds = await getAvailableSongIds(AVAILABLE_DATA_KIND.AUDIO);
+  // 実際に揃っている対象は、リセット後もすぐ自動判定でdoneへ戻す（無理に見せない）。
+  for (const announcement of NEW_SINGLE_ANNOUNCEMENTS) {
+    if (isAnnouncementFullyAvailable(announcement, availableAudioSongIds)) {
+      markDone(announcement.id);
+    }
+  }
+
+  const announcement = findEligibleAnnouncementSync(availableAudioSongIds);
+  if (!announcement) {
+    elements.banner.hidden = true;
+    return { reappeared: false };
+  }
+
+  elements.titleText.textContent = announcement.title;
+  elements.bodyText.textContent = announcement.body;
+  elements.banner.hidden = false;
+  elements.banner.dataset.announcementId = announcement.id;
+  return { reappeared: true };
 }

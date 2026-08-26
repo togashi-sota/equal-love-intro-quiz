@@ -202,7 +202,12 @@ import { initContinuousPlayScreen, refreshContinuousPlayScreen } from "./continu
 import { initContinuousPlayQueueScreen, renderQueueScreen } from "./continuousPlayQueueScreen.js";
 import { initMiniPlayer } from "./miniPlayer.js";
 import { handlePlayerChanged as handleContinuousPlayerChanged } from "./continuousPlay.js";
-import { initNewSingleAnnouncement, recheckNewSingleAnnouncementAfterImport } from "./newSingleAnnouncement.js";
+import {
+  initNewSingleAnnouncement,
+  confirmAnnouncementDone,
+  recheckNewSingleAnnouncementAfterImport,
+  resetAnnouncementDoneAndRecheck,
+} from "./newSingleAnnouncement.js";
 
 // センターお祝いポップアップのDOM要素参照と、「見た！」ボタンのイベント登録。
 // 下の「センターお祝いポップアップの表示判定」より前に用意しておく必要があるため、
@@ -240,8 +245,9 @@ if (document.body.dataset.screen === "start") {
 }
 
 // 新曲追加のお知らせバナー（2026-08-27新設）。データ管理セクションの折りたたみを開いて
-// スクロールする処理は、DOM構造の詳細（details要素であること等）を知っているこちら側で担当し、
-// js/newSingleAnnouncement.js自体はそれを知らなくてよいようにしている。
+// スクロールする処理・確認モーダルの表示制御は、DOM構造の詳細（details要素であること等）を
+// 知っているこちら側で担当し、js/newSingleAnnouncement.js自体はそれを知らなくてよいように
+// している。
 const newSingleAnnouncementElements = {
   banner: document.getElementById("new-single-announcement-banner"),
   titleText: document.getElementById("new-single-announcement-title-text"),
@@ -250,13 +256,54 @@ const newSingleAnnouncementElements = {
   laterButton: document.getElementById("new-single-announcement-later-button"),
   doneButton: document.getElementById("new-single-announcement-done-button"),
 };
+const newSingleAnnouncementDoneConfirmModalElement = document.getElementById(
+  "new-single-announcement-done-confirm-modal"
+);
+const newSingleAnnouncementDoneConfirmCancelButtonElement = document.getElementById(
+  "new-single-announcement-done-confirm-cancel-button"
+);
+const newSingleAnnouncementDoneConfirmButtonElement = document.getElementById(
+  "new-single-announcement-done-confirm-button"
+);
+const newSingleAnnouncementResetButtonElement = document.getElementById("new-single-announcement-reset-button");
+const newSingleAnnouncementResetResultElement = document.getElementById("new-single-announcement-reset-result");
+
 function openDataManagementSectionForAnnouncement() {
   const dataManagementSection = document.querySelector(".data-management-section");
   if (!dataManagementSection) return;
   dataManagementSection.open = true;
   dataManagementSection.scrollIntoView({ behavior: "smooth", block: "start" });
 }
-initNewSingleAnnouncement(newSingleAnnouncementElements, openDataManagementSectionForAnnouncement);
+
+// 「追加済み・今後表示しない」の誤操作防止（2026-08-27追加、本人指示：実際に誤操作で
+// お知らせを消してしまったとの報告を受けて）。ボタンを押しても即座には確定させず、
+// 確認モーダルを開くだけにする。実際にmarkDone()するのは、モーダルの確定ボタンが
+// 押されたときだけ（confirmAnnouncementDone()）。
+initNewSingleAnnouncement(newSingleAnnouncementElements, {
+  onOpenDataManagement: openDataManagementSectionForAnnouncement,
+  onRequestDoneConfirmation: () => {
+    newSingleAnnouncementDoneConfirmModalElement.hidden = false;
+  },
+});
+
+newSingleAnnouncementDoneConfirmCancelButtonElement.addEventListener("click", () => {
+  newSingleAnnouncementDoneConfirmModalElement.hidden = true;
+});
+
+newSingleAnnouncementDoneConfirmButtonElement.addEventListener("click", () => {
+  confirmAnnouncementDone(newSingleAnnouncementElements);
+  newSingleAnnouncementDoneConfirmModalElement.hidden = true;
+});
+
+// 「21枚目のお知らせを再表示」（データ管理画面の開発者・上級者向けセクション、2026-08-27新設）。
+// 誤って「追加済み・今後表示しない」を押してしまった場合のリセット操作。
+newSingleAnnouncementResetButtonElement.addEventListener("click", async () => {
+  const { reappeared } = await resetAnnouncementDoneAndRecheck(newSingleAnnouncementElements);
+  newSingleAnnouncementResetResultElement.hidden = false;
+  newSingleAnnouncementResetResultElement.textContent = reappeared
+    ? "解除しました。ホーム画面上部にお知らせが再表示されます"
+    : "解除しましたが、この端末は21枚目の音源が既に揃っているため、お知らせは表示されません";
+});
 
 // 背景のキラキラ演出は、ゲームの状態と関係なく最初に1回だけ生成すればよい。
 renderBackgroundSparkles();

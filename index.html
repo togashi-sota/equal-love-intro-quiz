@@ -547,6 +547,21 @@
             <!-- 読み込み結果（「◯項目を読み込みました」等）。普段は空・非表示 -->
             <p id="call-guide-import-result" class="lyrics-import-result" hidden></p>
           </div>
+
+          <!-- 新曲お知らせバナーの「追加済み・今後表示しない」を誤って押してしまった場合の
+               リセット操作（2026-08-27新設、本人指示）。永久非表示フラグ（localStorage）だけを
+               解除する。実際に対象曲の音源がこの端末に揃っている場合は、次回ホーム画面表示時に
+               自動判定が優先され、無理にバナーが再表示されることはない
+               （js/newSingleAnnouncement.js参照）。 -->
+          <div id="new-single-announcement-reset-section" class="lyrics-import-section">
+            <p class="lyrics-import-caption">
+              「追加済み・今後表示しない」を誤って押してしまった場合、ここで解除できます。実際にまだ導入していなければ、次回このお知らせが再表示されます
+              <span class="optional-tag">任意</span>
+            </p>
+            <button id="new-single-announcement-reset-button" class="secondary-button" type="button">21枚目のお知らせを再表示</button>
+            <!-- 実行結果（「解除しました」等）。普段は空・非表示 -->
+            <p id="new-single-announcement-reset-result" class="lyrics-import-result" hidden></p>
+          </div>
         </details>
       </details>
     </section>
@@ -3304,6 +3319,21 @@
       <div class="button-row">
         <button id="playlist-delete-cancel-button" class="secondary-button" type="button">キャンセル</button>
         <button id="playlist-delete-confirm-button" class="danger-button" type="button">削除する</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 新曲お知らせバナー「追加済み・今後表示しない」の誤操作防止確認モーダル
+       （2026-08-27新設、本人指示：実際に誤操作でお知らせを消してしまったとの報告を受けて）。
+       #playlist-delete-confirm-modal等と同じ構成。キャンセルを視覚的に主役にし
+       （#quiz-quit-confirm-modalと同じ考え方）、誤って確定してしまうリスクを下げる。 -->
+  <div id="new-single-announcement-done-confirm-modal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="new-single-announcement-done-confirm-title">
+      <h2 id="new-single-announcement-done-confirm-title">21枚目の楽曲データを本当に追加済みですか？</h2>
+      <p class="modal-lead">この操作を確定すると、このお知らせは今後表示されなくなります。</p>
+      <div class="button-row new-single-announcement-done-confirm-actions">
+        <button id="new-single-announcement-done-confirm-cancel-button" class="primary-button" type="button">キャンセル</button>
+        <button id="new-single-announcement-done-confirm-button" class="secondary-button" type="button">追加済みとして今後表示しない</button>
       </div>
     </div>
   </div>

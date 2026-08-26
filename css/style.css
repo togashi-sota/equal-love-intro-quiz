@@ -5762,6 +5762,17 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   flex: none;
 }
 
+/* 新曲お知らせ「追加済み・今後表示しない」確認モーダルのボタン列も、上の2つと全く同じ理由で
+   縦2段構成にする（実際にこの上書きを付け忘れて、ボタンが巨大な円形に崩れる不具合を確認済み）。 */
+.new-single-announcement-done-confirm-actions {
+  margin-top: 16px;
+  flex-direction: column;
+}
+
+.new-single-announcement-done-confirm-actions .secondary-button {
+  flex: none;
+}
+
 /* 「削除する」ボタン：primary-button相当の押しやすさを保ちつつ、
    危険な操作だと伝わるよう赤系の配色にする */
 .danger-button {
