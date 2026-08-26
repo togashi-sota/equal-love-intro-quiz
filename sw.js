@@ -7,7 +7,7 @@
 //
 // 新しいバージョンを配信したいときは、CACHE_VERSIONの値を必ず上げること。
 // 上げないと、ブラウザが「内容が変わっていない」と判断し、更新が反映されない。
-const CACHE_VERSION = "v189";
+const CACHE_VERSION = "v190";
 const CACHE_NAME = `equal-love-intro-quiz-${CACHE_VERSION}`;
 
 // キャッシュするアプリ本体のファイル一覧。
@@ -16,6 +16,7 @@ const CACHE_NAME = `equal-love-intro-quiz-${CACHE_VERSION}`;
 const APP_SHELL_FILES = [
   "./",
   "./index.html",
+  "./guide-data-pack.html",
   "./manifest.json",
   "./favicon.svg",
   "./assets/icons/apple-touch-icon.png",

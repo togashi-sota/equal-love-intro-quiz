@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>データパックの入れ方 ｜ ＝LOVEイントロクイズ</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+
+  <!-- アプリ本体（index.html）と全く同じフォント・配色・部品（データ管理セクションの
+       ボタン等）を使い、実際の画面と見た目が食い違わないようにする（2026-08-27新設）。 -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+
+  <style>
+    /* ===== このガイドページだけで使う追加スタイル =====
+       css/style.css本体は変更せず、ガイド専用の見た目（番号バッジ・画面イメージの枠・
+       実機スクショが必要な箇所のプレースホルダー等）だけをここに書き足す。 */
+
+    main.game-frame {
+      margin: 0 auto;
+    }
+
+    .guide-section {
+      padding: 24px;
+    }
+
+    .guide-section h1 {
+      font-size: 1.3rem;
+      color: var(--color-primary-dark);
+      margin: 0 0 4px;
+    }
+
+    .guide-section h2 {
+      font-size: 1.05rem;
+      color: var(--color-primary-dark);
+      margin: 28px 0 10px;
+      padding-top: 14px;
+      border-top: 1px dashed var(--color-card-border);
+    }
+
+    .guide-section h3 {
+      font-size: 0.95rem;
+      color: var(--color-text);
+      margin: 18px 0 8px;
+    }
+
+    .guide-section p {
+      line-height: 1.7;
+      font-size: 0.92rem;
+    }
+
+    .guide-back-link {
+      display: inline-block;
+      margin-bottom: 14px;
+      font-size: 0.85rem;
+      color: var(--color-primary-dark);
+      text-decoration: none;
+      font-weight: 700;
+    }
+
+    /* 「共通の心構え」など、特に強調したいポイントをまとめる注意書きカード */
+    .guide-callout {
+      background: var(--color-accent-soft);
+      border: 1px solid var(--color-accent);
+      border-radius: 16px;
+      padding: 16px 18px;
+      margin: 14px 0;
+    }
+    .guide-callout ul {
+      margin: 6px 0 0;
+      padding-left: 1.2em;
+      font-size: 0.9rem;
+      line-height: 1.8;
+    }
+
+    /* 新規/既存ユーザーの手順を色分けするカード */
+    .guide-flow-card {
+      border-radius: 16px;
+      padding: 16px 18px;
+      margin: 14px 0;
+      background: var(--color-surface-glass);
+      border: 1px solid var(--color-card-border);
+    }
+    .guide-flow-card.new-user { border-left: 5px solid var(--color-secondary); }
+    .guide-flow-card.existing-user { border-left: 5px solid var(--color-primary); }
+    .guide-flow-card h3 { margin-top: 0; }
+    .guide-flow-card ol {
+      margin: 8px 0 0;
+      padding-left: 1.3em;
+      font-size: 0.92rem;
+      line-height: 2;
+    }
+
+    /* ===== 実際の画面イメージ（本物のCSS・マークアップを流用した再現） =====
+       写真のスクリーンショットではなく、アプリ本体と全く同じHTML断片・
+       同じcss/style.cssを使って再現しているため、実際の見た目と一致する。
+       クリックしても何も起きないよう、装飾のリンク・inputは持たせない。 */
+    .guide-mockup-wrap {
+      position: relative;
+      margin: 18px 0 34px;
+      max-width: 320px;
+    }
+    .guide-mockup-label {
+      font-size: 0.75rem;
+      color: var(--color-text);
+      opacity: 0.65;
+      margin-bottom: 6px;
+    }
+    .guide-mockup-frame {
+      border-radius: 16px;
+      overflow: visible;
+      pointer-events: none; /* 装飾なので操作できないようにする */
+    }
+
+    /* 番号バッジ（①②③）。画面イメージの該当箇所の近くに絶対配置する */
+    .guide-callout-badge {
+      position: absolute;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: var(--color-primary);
+      color: #fff;
+      font-weight: 800;
+      font-size: 0.85rem;
+      box-shadow: 0 4px 10px -2px rgba(255, 79, 150, 0.6);
+      z-index: 3;
+    }
+    .guide-callout-text {
+      position: absolute;
+      background: var(--color-primary-dark);
+      color: #fff;
+      font-size: 0.78rem;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 999px;
+      white-space: nowrap;
+      z-index: 3;
+    }
+
+    /* iPhone/Androidで見た目が異なる箇所の実機スクリーンショット差し込み待ちプレースホルダー */
+    .guide-screenshot-needed {
+      border: 2px dashed var(--color-secondary);
+      border-radius: 14px;
+      padding: 18px;
+      text-align: center;
+      font-size: 0.85rem;
+      color: var(--color-text);
+      background: var(--color-secondary-light);
+    }
+    .guide-screenshot-needed strong {
+      display: block;
+      color: var(--color-primary-dark);
+      margin-bottom: 4px;
+    }
+
+    .guide-platform-columns {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      margin: 14px 0;
+    }
+    .guide-platform-card {
+      border-radius: 14px;
+      padding: 14px 16px;
+      background: var(--color-surface);
+      border: 1px solid var(--color-card-border);
+    }
+    .guide-platform-card h4 {
+      margin: 0 0 8px;
+      font-size: 0.9rem;
+      color: var(--color-primary-dark);
+    }
+    .guide-platform-card ul {
+      margin: 0;
+      padding-left: 1.2em;
+      font-size: 0.85rem;
+      line-height: 1.8;
+    }
+  </style>
+</head>
+<body data-screen="start">
+  <main class="game-frame">
+    <section class="screen is-active guide-section">
+      <a href="index.html" class="guide-back-link">← ホームに戻る</a>
+      <h1>データパックの入れ方</h1>
+      <p>
+        音源・歌詞などの「データパック」を、ほかの人から受け取ってこのアプリへ取り込む手順を説明します。
+        <strong>ZIPファイル1個を選ぶだけ</strong>で、アプリが自動的に展開・登録まで行います。
+      </p>
+
+      <div class="guide-callout">
+        <strong>まず知っておいてほしいこと</strong>
+        <ul>
+          <li>受け取ったZIPを<strong>自分で解凍する必要はありません</strong>（アプリが自動でやります）</li>
+          <li>中のmp3やJSONファイルを<strong>1個ずつ選ぶ必要もありません</strong></li>
+          <li><strong>ZIPファイル1個だけ</strong>選べば、あとはアプリが処理してくれます</li>
+          <li>ただし、<strong>ZIPを受け取っただけでは終わりではありません</strong>。一度「端末に保存」してから、アプリで選ぶ、という2段階の操作になります</li>
+        </ul>
+      </div>
+
+      <h2>あなたはどちらですか？</h2>
+
+      <div class="guide-flow-card new-user">
+        <h3>🆕 はじめてこのアプリを使う方</h3>
+        <p>「全曲パック」（<code>full.zip</code>）を受け取ってください。これまでの曲をすべて含んだパックなので、これ1つで全部遊べるようになります。</p>
+      </div>
+
+      <div class="guide-flow-card existing-user">
+        <h3>🔄 すでに使っている方（新しいシングルだけ追加したい）</h3>
+        <p>「追加パック」（例：<code>21st.zip</code>）を受け取ってください。今まで入れたデータはそのまま残り、新しいシングルの分だけが追加されます。</p>
+      </div>
+
+      <h2>共通の手順（iPhone・Android・PC共通）</h2>
+      <p>ZIPファイルを受け取ったあとは、iPhoneでもAndroidでも次の流れは同じです。</p>
+
+      <div class="guide-mockup-wrap" style="max-width: 280px;">
+        <div class="guide-mockup-label">実際の画面（ホーム画面の一番下）</div>
+        <div class="guide-mockup-frame">
+          <details class="data-management-section" open>
+            <summary>データ管理（音源・歌詞の読み込み）</summary>
+          </details>
+        </div>
+        <div class="guide-callout-badge" style="top: 24px; left: -10px;">①</div>
+      </div>
+      <p>① ホーム画面を一番下までスクロールし、「データ管理（音源・歌詞の読み込み）」をタップして開きます。</p>
+
+      <div class="guide-mockup-wrap">
+        <div class="guide-mockup-label">実際の画面（データ管理を開いたところ）</div>
+        <div class="guide-mockup-frame">
+          <div class="audio-import-section">
+            <p class="lyrics-import-caption">
+              パックのファイル一式（manifest.jsonを含む複数ファイル）をまとめて選択するか、それらを1つにまとめたZIPファイルを選択してください。
+            </p>
+            <p class="audio-import-status">パックのファイル一式（manifest.jsonを含む）、またはそれをまとめたZIPファイルを選んでください</p>
+            <span class="audio-import-button">追加データパックを読み込む</span>
+          </div>
+        </div>
+        <div class="guide-callout-badge" style="top: 96px; left: -10px;">②</div>
+      </div>
+      <p>② 「追加データパックを読み込む」をタップします。ここでOS標準のファイル選択画面が開きます（この画面の見た目はiPhone/Androidで異なります。詳しくは下の「機種ごとの操作」を参照してください）。</p>
+
+      <div class="guide-screenshot-needed">
+        <strong>ここは実機スクリーンショットが必要です</strong>
+        ファイル選択画面が開いたら、保存したZIPファイルの場所（iPhoneなら「ファイル」アプリ、Androidなら「ダウンロード」等）を選び、ZIPファイルをタップして選択してください。
+      </div>
+
+      <div class="guide-mockup-wrap">
+        <div class="guide-mockup-label">実際の画面（読み込みが完了したところ・表示内容は例です）</div>
+        <div class="guide-mockup-frame">
+          <div class="audio-import-section">
+            <p class="audio-import-result" style="display: block;">「全曲パック」でセットアップしました<br>音源84曲・歌詞83曲・コール0曲を登録しました</p>
+          </div>
+        </div>
+        <div class="guide-callout-badge" style="top: 10px; left: -10px;">③</div>
+      </div>
+      <p>③ このような完了メッセージが表示されれば成功です。すぐにクイズ・歌詞・コール等が使えるようになります。</p>
+
+      <h2>機種ごとの操作（差分があるのはこの2箇所だけ）</h2>
+      <p>アプリ側の操作（上記①〜③）はiPhone・Android・PCで完全に同じです。違うのは「ZIPをどう受け取って保存するか」と「ファイル選択画面の見た目」の2点だけです。</p>
+
+      <h3>1. ZIPファイルの受け取り方・保存方法</h3>
+      <div class="guide-platform-columns">
+        <div class="guide-platform-card">
+          <h4>📱 iPhone</h4>
+          <ul>
+            <li>AirDrop・メール・LINE・iCloud共有リンク等でZIPを受け取ると、多くの場合そのまま「ファイル」アプリの「ダウンロード」等に保存されます</li>
+            <li>保存先を選べる場合は、あとで見つけやすい「このiPhone内」を選ぶのがおすすめです</li>
+            <li>「解凍する」「展開する」操作は不要です。ZIPのまま保存してください</li>
+          </ul>
+        </div>
+        <div class="guide-platform-card">
+          <h4>🤖 Android</h4>
+          <ul>
+            <li>Chromeでダウンロードしたり、メール・LINE等で受け取ったりしたZIPは、多くの場合「ダウンロード」フォルダに自動保存されます</li>
+            <li>機種によって標準のファイル管理アプリ名が異なります（「ファイル」「My Files」等）</li>
+            <li>ここでも「解凍する」操作は不要です。ZIPのまま保存してください</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>2. ファイル選択画面の見た目</h3>
+      <div class="guide-screenshot-needed">
+        <strong>ここは実機スクリーンショットが必要です</strong>
+        「追加データパックを読み込む」をタップした直後に開くファイル選択画面は、OS標準の画面のため、iPhone（「ブラウズ」画面）とAndroid（機種ごとのファイル選択アプリ）で見た目が異なります。ここに実機のスクリーンショットを追加すると、迷わず操作できるようになります。
+      </div>
+
+      <h2>新規ユーザー向け：具体的な手順（全11ステップ）</h2>
+      <div class="guide-flow-card new-user">
+        <ol>
+          <li>アプリのURLを開く</li>
+          <li>必要であれば「ホーム画面へ追加」しておく（毎回URLを開かなくて済むようになります）</li>
+          <li>full.zip（全曲パック）を受け取る</li>
+          <li>iPhone/Androidの端末へZIPを保存する</li>
+          <li>アプリを開く</li>
+          <li>ホーム画面を下までスクロールし「データ管理」を開く</li>
+          <li>「追加データパックを読み込む」をタップする</li>
+          <li>保存したfull.zipを選ぶ</li>
+          <li>アプリ側で自動的に展開・登録される（少し時間がかかることがあります）</li>
+          <li>完了メッセージが表示される</li>
+          <li>その後すぐにクイズ・歌詞・コール等が使える</li>
+        </ol>
+      </div>
+
+      <h2>既存ユーザー向け：具体的な手順（全7ステップ）</h2>
+      <div class="guide-flow-card existing-user">
+        <ol>
+          <li>21st.zip（追加パック）を受け取る</li>
+          <li>端末へ保存する</li>
+          <li>アプリを開く</li>
+          <li>「データ管理」を開く</li>
+          <li>「追加データパックを読み込む」をタップする</li>
+          <li>21st.zipを選ぶ</li>
+          <li>21枚目のシングルだけが追加され、これまでのデータはそのまま残る</li>
+        </ol>
+      </div>
+
+      <p style="margin-top: 28px; font-size: 0.8rem; opacity: 0.7;">
+        このページは <code>docs/data-pack-guide.md</code> にも同じ内容を残しています（外部共有・GitHub上での閲覧用）。
+      </p>
+    </section>
+  </main>
+</body>
+</html>
