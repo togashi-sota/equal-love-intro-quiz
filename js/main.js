@@ -175,6 +175,7 @@ import {
 // 実際の解析・保存処理はjs/dataPackImport.jsに集約されており、ここでは結果を見て
 // 画面表示を更新するだけ（既存の音源・歌詞・コールの各インポートUIと同じ役割分担）。
 import { analyzeDataPack, importAnalyzedDataPack } from "./dataPackImport.js";
+import { isZipFile, extractZipToFiles } from "./zipPackImport.js";
 import { closeFullscreenLyrics } from "./lyricsFullscreen.js";
 import { MEMBERS } from "./data/members.js";
 import { MEMBER_PROFILES } from "./data/memberProfiles.js";
@@ -4215,7 +4216,7 @@ updateCategoryCountHints();
 // 解析・保存の実処理はjs/dataPackImport.jsに任せ、ここでは結果を見て画面表示を更新するだけ
 // （既存の音源・歌詞・コールの各インポートUIと同じ役割分担）。
 function resetDataPackImportStatus() {
-  dataPackImportStatusElement.textContent = "パックのファイル一式（manifest.jsonを含む）を選んでください";
+  dataPackImportStatusElement.textContent = "パックのファイル一式（manifest.jsonを含む）、またはそれをまとめたZIPファイルを選んでください";
 }
 resetDataPackImportStatus();
 
@@ -4225,11 +4226,27 @@ resetDataPackImportStatus();
 // マニフェストが見つからない・壊れているなど、パックとして成立しない場合は
 // 一切保存を行わずエラーを表示する（本人指示：不正なパックを読み込んでも既存データが壊れない）。
 dataPackImportInputElement.addEventListener("change", async () => {
-  const files = [...dataPackImportInputElement.files];
+  let files = [...dataPackImportInputElement.files];
   if (files.length === 0) return;
 
   dataPackImportResultElement.hidden = true;
   dataPackImportStatusElement.textContent = "パックを確認しています…";
+
+  // ZIP1個にまとめて配布されたパック（2026-08-27新設）にも対応する。選ばれたファイルが
+  // ちょうど1個で、それがZIPファイルだった場合だけ展開し、中身のFile[]を以降の解析へ渡す。
+  // 従来どおりの複数ファイル選択（manifest.json＋mp3…を直接選ぶ方式）は、この分岐を
+  // 一切通らないため、既存の動作に影響しない。
+  if (files.length === 1 && isZipFile(files[0])) {
+    try {
+      files = await extractZipToFiles(files[0]);
+    } catch (error) {
+      dataPackImportInputElement.value = "";
+      resetDataPackImportStatus();
+      dataPackImportResultElement.hidden = false;
+      dataPackImportResultElement.textContent = `ZIPの展開に失敗しました: ${error.message}`;
+      return;
+    }
+  }
 
   const analyzed = await analyzeDataPack(files);
   if (!analyzed.ok) {
