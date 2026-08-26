@@ -129,6 +129,22 @@ export function findEligibleCelebration(songs, playerKeyPrefix) {
 let lockedScrollY = 0;
 let isBackgroundScrollLocked = false;
 
+// 【2026-08-26追記・17-18章】17-17章のenv(safe-area-inset-bottom)対策を実機で確認したところ、
+// 白い帯の見え方が変化しなかった。本人と実機の実測値（オーバーレイはwindow.innerHeightまで
+// 完全に届いている）から検討した結果、この白い帯はDOM要素（オーバーレイ・body）の
+// 「範囲が足りない」問題ではなく、iOS standalone PWAのホームインジケーター側セーフエリアを、
+// WebKitがhtml/bodyのレイアウト・サイズ計算そのものとは別枠で、html要素の背景色だけを
+// 敷き詰めて描画する仕組みになっている（＝position:fixedの要素やCSSのheight/inset計算が
+// 原理的に届かない領域がある）ためだと判断した。この領域へ実際のホーム画面・オーバーレイの
+// 内容を描画することはWebKit側の制約上できないため、「無地の白」ではなく「お祝い表示中の
+// 半透明オーバーレイをこの端末の通常の背景色の上に重ねたときと近い色」を、お祝い表示中だけ
+// html・bodyの背景として一時的に敷くことで、白い帯が完全に浮かないようにする
+// （本人指示：完全再現できないなら、違和感のない色へのfallbackで良い）。
+// rgba(20, 40, 60, 0.55)（.celebration-overlayの背景）を、通常時の背景グラデーションの
+// 終点寄りの色（css/style.cssの--color-background-end: #dff2ff）の上に重ねた場合の
+// 近似値を採用している（正確な合成値である必要はなく、見た目の違和感を減らす目的のため）。
+const SAFE_AREA_FALLBACK_BACKGROUND = "#6f8394";
+
 function lockBackgroundScroll() {
   if (isBackgroundScrollLocked) {
     return; // 連続表示（大場花菜→夢の続き）の間、bodyの二重ロックはしない
@@ -140,6 +156,8 @@ function lockBackgroundScroll() {
   document.body.style.left = "0";
   document.body.style.right = "0";
   document.body.style.overflow = "hidden";
+  document.documentElement.style.background = SAFE_AREA_FALLBACK_BACKGROUND;
+  document.body.style.background = SAFE_AREA_FALLBACK_BACKGROUND;
 }
 
 function unlockBackgroundScroll() {
@@ -150,6 +168,8 @@ function unlockBackgroundScroll() {
   document.body.style.left = "";
   document.body.style.right = "";
   document.body.style.overflow = "";
+  document.documentElement.style.background = "";
+  document.body.style.background = "";
   window.scrollTo(0, lockedScrollY);
 }
 
