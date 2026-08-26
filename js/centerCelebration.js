@@ -26,6 +26,13 @@
 //
 // 【複数プレイヤー運用時の注意】既読フラグはプレイヤーごとに別キーで保存するため、
 // 1台の端末を複数プレイヤーで使い分けている場合、プレイヤーごとに独立して表示される。
+//
+// 【2026-08-26・一時的な実機診断コード、17-17章】お祝いポップアップ下部の白い領域が
+// 4回の修正（17-12・17-13・17-15・17-16章）でも直らなかったため、本人の指示により、
+// iPhone実機上で原因を直接判定できる一時的な診断モードを追加している。
+// 原因が判明し次第、この1行のimportとinitDiagnosticOverlay()の呼び出し（2箇所）、
+// js/centerCelebrationDiagnostics.js自体を完全に削除すること。
+import { initDiagnosticOverlay } from "./centerCelebrationDiagnostics.js";
 
 const CELEBRATIONS = [
   {
@@ -293,6 +300,9 @@ function renderCelebration(celebration, playerKeyPrefix, elements) {
 
   elements.overlay.hidden = false;
   lockBackgroundScroll(elements.overlay);
+
+  // 【一時的な実機診断コード・17-17章】原因が判明し次第この行ごと削除する。
+  requestAnimationFrame(() => initDiagnosticOverlay(elements.overlay));
 }
 
 // elements: { overlay, bgImage, thumbLink, thumbImage, mvButton, seenButton }
