@@ -202,6 +202,7 @@ import { initContinuousPlayScreen, refreshContinuousPlayScreen } from "./continu
 import { initContinuousPlayQueueScreen, renderQueueScreen } from "./continuousPlayQueueScreen.js";
 import { initMiniPlayer } from "./miniPlayer.js";
 import { handlePlayerChanged as handleContinuousPlayerChanged } from "./continuousPlay.js";
+import { initNewSingleAnnouncement, recheckNewSingleAnnouncementAfterImport } from "./newSingleAnnouncement.js";
 
 // センターお祝いポップアップのDOM要素参照と、「見た！」ボタンのイベント登録。
 // 下の「センターお祝いポップアップの表示判定」より前に用意しておく必要があるため、
@@ -237,6 +238,25 @@ if (needsOnboarding()) {
 if (document.body.dataset.screen === "start") {
   showCenterCelebrationIfEligible(SONGS, getPlayerKeyPrefix(), centerCelebrationElements);
 }
+
+// 新曲追加のお知らせバナー（2026-08-27新設）。データ管理セクションの折りたたみを開いて
+// スクロールする処理は、DOM構造の詳細（details要素であること等）を知っているこちら側で担当し、
+// js/newSingleAnnouncement.js自体はそれを知らなくてよいようにしている。
+const newSingleAnnouncementElements = {
+  banner: document.getElementById("new-single-announcement-banner"),
+  titleText: document.getElementById("new-single-announcement-title-text"),
+  bodyText: document.getElementById("new-single-announcement-body-text"),
+  openButton: document.getElementById("new-single-announcement-open-button"),
+  laterButton: document.getElementById("new-single-announcement-later-button"),
+  doneButton: document.getElementById("new-single-announcement-done-button"),
+};
+function openDataManagementSectionForAnnouncement() {
+  const dataManagementSection = document.querySelector(".data-management-section");
+  if (!dataManagementSection) return;
+  dataManagementSection.open = true;
+  dataManagementSection.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+initNewSingleAnnouncement(newSingleAnnouncementElements, openDataManagementSectionForAnnouncement);
 
 // 背景のキラキラ演出は、ゲームの状態と関係なく最初に1回だけ生成すればよい。
 renderBackgroundSparkles();
@@ -4227,6 +4247,10 @@ dataPackImportInputElement.addEventListener("change", async () => {
   await updateCallImportStatus();
   await updateCallGuideImportStatus();
   await updateQuestionCountNotice();
+
+  // 新曲追加のお知らせバナーが表示中で、かつ今回のインポートで対象曲の音源が揃った場合は、
+  // ボタンを押さなくても自動的に閉じる（本人指示・項目8）。
+  await recheckNewSingleAnnouncementAfterImport(newSingleAnnouncementElements);
 });
 
 // 音源の読み込み状況（IndexedDBに何曲保存済みか）を表示に反映する。

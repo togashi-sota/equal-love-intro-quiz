@@ -192,6 +192,24 @@
         </button>
       </div>
 
+      <!-- 新曲追加のお知らせ（2026-08-27新設）。js/newSingleAnnouncement.jsが表示条件を判定する。
+           「あとで」＝この起動中だけ非表示（次回また表示）、「追加済み・今後表示しない」＝
+           永久に非表示、のどちらかを選べる。対象の曲（21stシングル3曲）の音源がこの端末に
+           すべて揃っていることを検知できた場合は、ボタンを押さなくても自動的に「追加済み」
+           扱いになる（本人指示：単純なフラグだけでなく、実際の所持状況で安全に判定する）。 -->
+      <div id="new-single-announcement-banner" class="new-single-announcement-banner" hidden>
+        <p class="new-single-announcement-title">
+          <span aria-hidden="true">🎉</span>
+          <span id="new-single-announcement-title-text"></span>
+        </p>
+        <p id="new-single-announcement-body-text" class="new-single-announcement-body"></p>
+        <div class="new-single-announcement-actions">
+          <button id="new-single-announcement-open-button" class="new-single-announcement-open-button" type="button">データ管理を開く</button>
+          <button id="new-single-announcement-later-button" class="new-single-announcement-dismiss-button" type="button">あとで</button>
+          <button id="new-single-announcement-done-button" class="new-single-announcement-dismiss-button" type="button">追加済み・今後表示しない</button>
+        </div>
+      </div>
+
       <!-- イコライザー風の飾り区切り。曲が流れているような臨場感を添える -->
       <div class="eq-divider" aria-hidden="true">
         <span style="--peak: 10px; animation-delay: 0s;"></span>

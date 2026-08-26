@@ -84,6 +84,7 @@
     import { runOnlineBattleSongAvailabilityTests } from "./tests/onlineBattleSongAvailability.test.js";
     import { runTimeAttackBattleModeTests } from "./tests/battleModes/timeAttackBattleMode.test.js";
     import { runBattleModesIndexAvailabilityTests } from "./tests/battleModes/index.test.js";
+    import { runNewSingleAnnouncementTests } from "./tests/newSingleAnnouncement.test.js";
     import { printSummary } from "./tests/test-utils.js";
 
     runScoreTests();
@@ -146,6 +147,7 @@
     runOnlineBattleSongAvailabilityTests();
     runTimeAttackBattleModeTests();
     runBattleModesIndexAvailabilityTests();
+    runNewSingleAnnouncementTests();
     const { passCount, failCount } = printSummary();
 
     const summaryElement = document.getElementById("test-summary");
