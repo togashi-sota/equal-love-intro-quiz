@@ -26,13 +26,6 @@
 //
 // 【複数プレイヤー運用時の注意】既読フラグはプレイヤーごとに別キーで保存するため、
 // 1台の端末を複数プレイヤーで使い分けている場合、プレイヤーごとに独立して表示される。
-//
-// 【2026-08-26・一時的な実機診断コード、17-17章】お祝いポップアップ下部の白い領域が
-// 4回の修正（17-12・17-13・17-15・17-16章）でも直らなかったため、本人の指示により、
-// iPhone実機上で原因を直接判定できる一時的な診断モードを追加している。
-// 原因が判明し次第、この1行のimportとinitDiagnosticOverlay()の呼び出し（2箇所）、
-// js/centerCelebrationDiagnostics.js自体を完全に削除すること。
-import { initDiagnosticOverlay } from "./centerCelebrationDiagnostics.js";
 
 const CELEBRATIONS = [
   {
@@ -126,28 +119,17 @@ export function findEligibleCelebration(songs, playerKeyPrefix) {
 }
 
 // お祝い表示中は、背後のホーム画面を完全に操作不能にする（本人指示）。
-// オーバーレイ自体は.modal-overlay（position:fixed; inset:0）で背後のクリック・タップを
+// オーバーレイ自体は.modal-overlay（position:fixed; inset:0、17-17章のセーフエリア対策込みで
+// css/style.cssの.modal-overlay.celebration-overlay参照）で背後のクリック・タップを
 // 塞いでいるが、ページ本体（body）がビューポートより縦に長い場合、オーバーレイの上での
 // スワイプ操作でオーバーレイの「後ろ側」のページがスクロールしてしまうことがあるため、
 // 表示中はbodyの位置を固定してスクロールできないようにし、閉じたら元の位置に戻す。
-// 【2026-08-26・17-16章】この仕組み自体は、全く同じ構成（bodyをposition:fixedにして
-// スクロールロックする）で実機でも問題なく動いているjs/lyricsFullscreen.jsの
-// lockBodyScroll()と同じ考え方（本人からの指摘で、この方式自体を疑って調べ直したが、
-// 既に実績がある構成のため変更していない）。
+// js/lyricsFullscreen.jsのlockBodyScroll()と同じ、実機でも実績のある構成
+// （17-16章の調査で、この方式自体は原因ではないと確認済み）。
 let lockedScrollY = 0;
 let isBackgroundScrollLocked = false;
 
-function lockBackgroundScroll(overlayElement) {
-  // 【診断ログについて】大場花菜→夢の続きと連続表示される場合、両方の状態を別々に
-  // 記録できるよう、今表示しているお祝いのid（celebrationId）をラベルに含める。
-  const celebrationId = overlayElement.dataset.celebrationId ?? "(不明)";
-  logOverlayGeometryDebugInfoOnce(`${celebrationId}｜表示直前（ロック前）`, overlayElement);
-  // ロック直後（オーバーレイが実際に画面へ反映された後）の状態も、次のフレームで記録する。
-  // requestAnimationFrameを使うのは、bodyのposition:fixed適用とオーバーレイの
-  // display反映がブラウザに実際にレイアウトされるのを待つため。連続表示の2件目も
-  // 同様に記録できるよう、既にロック済みかどうかに関わらず毎回スケジュールする。
-  requestAnimationFrame(() => logOverlayGeometryDebugInfoOnce(`${celebrationId}｜表示直後（ロック後）`, overlayElement));
-
+function lockBackgroundScroll() {
   if (isBackgroundScrollLocked) {
     return; // 連続表示（大場花菜→夢の続き）の間、bodyの二重ロックはしない
   }
@@ -169,70 +151,6 @@ function unlockBackgroundScroll() {
   document.body.style.right = "";
   document.body.style.overflow = "";
   window.scrollTo(0, lockedScrollY);
-}
-
-// 【診断用ログ・17-16章】17-12〜17-15章にわたる3回の対策（vh/dvh固定→visualViewport実測→
-// 複数指標の最大値採用）がいずれも実機で改善しなかったとの報告を受け、「オーバーレイの高さが
-// 足りない」という前提そのものを疑い直した。実際に、全く同じ「bodyをposition:fixedにして
-// スクロールロックする」構成の中で、.lyrics-fullscreen-overlay（js/lyricsFullscreen.js）は
-// 一切のheight補正を行わずposition:fixed; inset:0;だけで実機でも正しく画面いっぱいに
-// 表示できている。そのため今回は、height補正を追加する方向ではなく、むしろ
-// **これまで追加してきたheight補正自体を撤去し、.lyrics-fullscreen-overlayと同じ
-// 「inset:0だけに任せる」構成に戻す**という方向で対策した（style.cssの.celebration-overlay
-// 参照。CSSの仕様上、top・bottom・heightを同時に指定するとbottomが無視されて
-// 再計算される＝良かれと思って追加していたheight指定が、本来inset:0だけで正しく機能する
-// はずだったbottom:0を上書きしてしまっていた可能性を最も疑っている）。
-//
-// この対策でも直らなかった場合に「オーバーレイの高さ不足なのか、それ以外なのか」を
-// 推測に頼らず切り分けられるよう、本人からの指示に沿って以下を1回ずつ記録する：
-// html・body・.game-frame・オーバーレイ・お祝いカードそれぞれの
-// getBoundingClientRect()・scrollHeight/clientHeight/offsetHeight・
-// 主要な算出済みスタイル（background/position/top/bottom/height/min-height/overflow）。
-// 個人情報は一切含まない。本人が実機のSafari Web Inspector（Macに実機をUSB接続→Safari
-// の「開発」メニュー→対象ページを選択→Consoleタブ）でこの値を確認し、報告してもらう想定。
-// 直ったことが確認できたら、この関数ごと削除してよい。
-function describeElementGeometry(element) {
-  if (!element) return null;
-  const rect = element.getBoundingClientRect();
-  const style = getComputedStyle(element);
-  return {
-    rect: { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right, width: rect.width, height: rect.height },
-    scrollHeight: element.scrollHeight,
-    clientHeight: element.clientHeight,
-    offsetHeight: element.offsetHeight,
-    computed: {
-      background: style.background,
-      position: style.position,
-      top: style.top,
-      bottom: style.bottom,
-      height: style.height,
-      minHeight: style.minHeight,
-      overflow: style.overflow,
-    },
-  };
-}
-
-function logOverlayGeometryDebugInfoOnce(label, overlayElement) {
-  logOverlayGeometryDebugInfoOnce.loggedLabels ??= new Set();
-  if (logOverlayGeometryDebugInfoOnce.loggedLabels.has(label)) return;
-  logOverlayGeometryDebugInfoOnce.loggedLabels.add(label);
-
-  try {
-    const cardElement = overlayElement.querySelector(".celebration-frame");
-    console.log(`[celebration-geometry-debug] ${label}`, {
-      windowInnerHeight: window.innerHeight,
-      windowInnerWidth: window.innerWidth,
-      visualViewportHeight: window.visualViewport?.height ?? null,
-      visualViewportOffsetTop: window.visualViewport?.offsetTop ?? null,
-      html: describeElementGeometry(document.documentElement),
-      body: describeElementGeometry(document.body),
-      gameFrame: describeElementGeometry(document.querySelector(".game-frame")),
-      overlay: describeElementGeometry(overlayElement),
-      card: describeElementGeometry(cardElement),
-    });
-  } catch {
-    // 診断ログの出力自体に失敗しても、お祝い表示そのものには一切影響させない
-  }
 }
 
 // %指定の矩形（{left, top, width, height}）を要素へインラインstyleとして適用する。
@@ -299,10 +217,7 @@ function renderCelebration(celebration, playerKeyPrefix, elements) {
   elements.thumbImage.src = `https://img.youtube.com/vi/${celebration.youtubeVideoId}/maxresdefault.jpg`;
 
   elements.overlay.hidden = false;
-  lockBackgroundScroll(elements.overlay);
-
-  // 【一時的な実機診断コード・17-17章】原因が判明し次第この行ごと削除する。
-  requestAnimationFrame(() => initDiagnosticOverlay(elements.overlay));
+  lockBackgroundScroll();
 }
 
 // elements: { overlay, bgImage, thumbLink, thumbImage, mvButton, seenButton }

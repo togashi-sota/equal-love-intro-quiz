@@ -903,9 +903,38 @@ h1 .note-icon svg {
      本来inset:0だけで正しく機能していたはずのbottom:0を上書きしてしまい、私たちが計算した
      heightの数値がわずかでもずれていれば、その分だけ確実に隙間が残る状態を自ら作っていた
      可能性が高いと判断した。そこで、height指定を完全に撤去し、実機で実績のある
-     .lyrics-fullscreen-overlayと同じ「position:fixed; inset:0;のみに任せる」構成に統一した。
-     まだ直っていない場合の切り分け用に、js/centerCelebration.jsに詳細な診断ログを追加している
-     （17-16章参照）。 */
+     .lyrics-fullscreen-overlayと同じ「position:fixed; inset:0;のみに任せる」構成に統一した。 */
+}
+
+/* 【2026-08-26・17-17章】17-16章の対策後、本人がiPhone実機で一時的な診断モード
+   （html=緑・body=青・overlay=半透明の赤に着色し、画面上に数値パネルを表示するもの）を
+   使って確認した結果、次のことが実測で判明した：
+     ・overlay.getBoundingClientRect().bottom は window.innerHeight と完全に一致していた
+       （＝オーバーレイ自体はCSS上のビューポート最下端まで正しく届いていた。17-16章の
+       対策は有効に機能している）。
+     ・それにもかかわらず、そのビューポートのさらに下（実機の画面最下端との間）に、
+       青（＝body要素の背景色）が実際に見えていた。
+   つまり今回の白い（正確には見えていたのはbodyの背景色）領域の正体は、
+   「オーバーレイの高さ計算の誤り」ではなく、「iOSのstandalone PWAにおいて、
+   window.innerHeight（CSSのレイアウトビューポート）自体が、ホームインジケーターの
+   セーフエリア分だけ画面の物理的な最下端より短く報告されている」ことだったと実機の数値で
+   確定した。index.htmlの<meta name="viewport">にはviewport-fit=coverが既に指定されている
+   ものの、iOS Safari（standalone表示含む）は`inset:0`／`window.innerHeight`を、
+   viewport-fit=coverの有無にかかわらずセーフエリアを除いた「安全な」領域基準で計算する
+   実装になっている（bodyの背景描画自体はセーフエリアの下まで塗られるため、そこだけが
+   「オーバーレイに覆われていない、bodyの背景がそのまま見える領域」として残っていた）。
+   対策として、オーバーレイの下端だけをenv(safe-area-inset-bottom)分だけさらに下へ伸ばす
+   （bottomをinset:0の0pxから、セーフエリア分だけマイナス方向へ広げる）。
+   safe-area-inset-bottomが無い環境（notch/ホームインジケーターの無い端末・PC等）では
+   env(..., 0px)が0pxに解決されるため、bottom:0pxと完全に同じ挙動のまま変化しない
+   （既存の見た目・他画面への影響は無い）。
+   【指定方法についての注意】.modal-overlayの`inset:0`（bottom:0を含む）と同じ詳細度
+   （クラスセレクタ1つ）のルールでbottomだけを上書きしようとすると、CSSの読み込み順序
+   （.modal-overlayの定義がこのファイルの後ろにある）によってはinset:0側のbottom:0が
+   優先されてしまう。そのため、詳細度を確実に上回るよう、両方のクラスを持つ要素にだけ
+   一致する複合セレクタ（.modal-overlay.celebration-overlay）を使っている。 */
+.modal-overlay.celebration-overlay {
+  bottom: calc(-1 * env(safe-area-inset-bottom, 0px));
 }
 
 /* 背景画像とオーバーレイ要素（サムネイル・クリック領域）の入れ物。
