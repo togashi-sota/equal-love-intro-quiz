@@ -42,6 +42,8 @@ import {
   compareBattleResults,
   getRuleDescription,
   getModeLabel,
+  getAvailabilityKind,
+  resolveAllEligibleSongIdsForMode,
 } from "./battleModes/index.js";
 import { QUESTION_COUNT_LABELS, CATEGORY_LABELS, RULE_LABELS } from "./localBattleScreen.js";
 import { computeNormalFinalRecordMs } from "./localBattleResult.js";
@@ -73,14 +75,20 @@ import {
 // 別画面（js/onlineBattleSongPicker.js）に任せ、このファイルは「今の選択曲id配列」を
 // 保持し、settings.questionSourceへ変換するだけに専念する（gameModeを問わない設計）。
 import { openOnlineBattleSongPicker } from "./onlineBattleSongPicker.js";
-import { QUESTION_SOURCE_TYPE } from "./questionSource.js";
+import { openOnlineBattlePlaylistPicker } from "./onlineBattlePlaylistPicker.js";
+import { QUESTION_SOURCE_TYPE, sanitizeSongIds } from "./questionSource.js";
+import { getFavoriteSongIds } from "./favoriteSongs.js";
 import { savePlayHistoryEntryIfNew } from "./playHistory.js";
-// 【2026-08-26新設】オンライン対戦の共通曲（intersection）判定のため、ロビーに入るたびに
-// 「この端末が実際に音源を持っている曲」をルームへ報告する。中身の判定（絞り込み自体）は
-// js/onlineBattle.jsのstartBattle()側が担当し、このファイルは「報告するタイミング」だけを
-// 担当する（gameModeの中身を知らない、という既存の方針どおり）。
+// 【2026-08-26新設・2026-08-27拡張】オンライン対戦の共通曲（intersection）判定のため、
+// ロビーに入るたびに「この端末が実際に持っている曲」（音源・歌詞の両方）をルームへ
+// 報告する。対戦開始直前の絞り込み自体はjs/onlineBattle.jsのstartBattle()側が担当するが、
+// ロビー画面ではさらに「今この瞬間の参加者全員に共通する曲」をリアルタイムに見積もり、
+// ①曲選択画面に出す一覧の絞り込み、②共通曲数の表示、に使う（本人指示：参加者の
+// 入退室のたびに自動で再計算されること）。このファイルはgameModeの中身を知らない、
+// という既存の方針どおり、絞り込みの種類（音源／歌詞）はjs/battleModes/index.jsの
+// getAvailabilityKind()に一元的に委ねる。
 import { getAvailableSongIds, AVAILABLE_DATA_KIND } from "./availableSongs.js";
-import { reportMyAvailableAudioSongIds } from "./onlineBattleSongAvailability.js";
+import { reportMyAvailableSongIdsForKind, computeRoomCommonSongPool } from "./onlineBattleSongAvailability.js";
 
 let elements = null;
 let currentRoomId = null;
@@ -112,6 +120,11 @@ let hostSelectedManualSongIds = [];
 // 選択中の内容が保存済みの古い内容へ巻き戻ってしまう（js/onlineLyricsQuizBattleScreen.jsの
 // 実機検証で発見した不具合と同じ原因のため、同じ対策をこちらにも入れる）。
 let lastSyncedManualSongsRevision = null;
+// 【2026-08-27新設】「今この瞬間、ルームにいる参加者全員が実際に利用できる曲」の集合。
+// renderLobby()が呼ばれるたび（＝参加者の入退室・所持データ報告のたびに）再計算する
+// （js/onlineBattleSongAvailabilityPayloads.jsのcomputeRoomCommonSongPool参照）。
+// 曲選択画面を開く際の絞り込み・共通曲数の表示に使う。
+let currentCommonSongPool = new Set();
 
 // Step3：試合の進行・進捗表示・結果まわりの状態。
 let currentMatchId = null; // 今参加している試合のID（開始〜結果画面まで保持）
@@ -289,12 +302,26 @@ async function applyHostSettingsChangeFromForm() {
 }
 
 // 曲選択画面を開く（新規に選ぶ場合・すでに選んだ内容を編集する場合の両方で使う）。
-function openSongPickerForHost() {
+// initialSongIds省略時は今の選択（hostSelectedManualSongIds）をそのまま引き継ぐ。
+// お気に入り・プレイリストから選んだ場合は、その時点の曲id配列を渡す
+// （呼び出し側が既にcurrentCommonSongPoolとの共通部分へ絞り込み済みの前提）。
+//
+// 【2026-08-27重要】initialSongIdsはcurrentCommonSongPoolでフィルタしてから渡す。
+// js/onlineBattleSongPicker.jsのapplyCheckedState()は、一覧に表示されない
+// （＝isSongEligibleで除外された）曲idも内部の選択状態にはそのまま残してしまうため、
+// ここで先に絞っておかないと、参加者の入れ替わりで一覧から消えた曲が「決定」を押した
+// 瞬間に復活してしまう事故につながる。
+function openSongPickerForHost(initialSongIds) {
+  const songIdsToShow = sanitizeSongIds(
+    (initialSongIds ?? hostSelectedManualSongIds).filter((songId) => currentCommonSongPool.has(songId))
+  );
   openOnlineBattleSongPicker(
-    hostSelectedManualSongIds,
+    songIdsToShow,
     async (songIds) => {
       hostSelectedManualSongIds = songIds;
       updateManualSongSourceUi(true);
+      const manualRadio = document.querySelector('input[name="online-battle-settings-song-source"][value="manual"]');
+      if (manualRadio) manualRadio.checked = true;
       elements.navigateTo("onlineBattleLobby");
       await applyHostSettingsChangeFromForm();
     },
@@ -307,7 +334,10 @@ function openSongPickerForHost() {
         updateManualSongSourceUi(false);
       }
       elements.navigateTo("onlineBattleLobby");
-    }
+    },
+    // 【2026-08-27新設】一覧に出す曲そのものを、今のルーム参加者全員が利用できる曲だけに
+    // 絞り込む（本人指示：問題・選択肢だけでなく曲指定画面でも選べないようにする）。
+    (song) => currentCommonSongPool.has(song.id)
   );
 }
 
@@ -474,6 +504,27 @@ function resetOnlineBattleMatchState() {
   lastSyncedManualSongsRevision = null;
 }
 
+// 【2026-08-27新設】参加者全員が実際に利用できる共通曲の数を、必要なときだけ知らせる。
+// 全員がすべて持っている（＝絞り込みが発生していない）ときは、いつもと同じ表示のままで
+// よいため何も出さない（本人指示：制限が発生している場合だけ分かればよい）。
+// 0曲のときは「対戦を開始できない」ことがひと目で分かる強い表示にする。
+function renderCommonSongNotice(allEligibleCount, commonCount) {
+  if (commonCount >= allEligibleCount) {
+    elements.lobbyCommonSongNotice.hidden = true;
+    elements.lobbyCommonSongNotice.classList.remove("is-empty");
+    return;
+  }
+  elements.lobbyCommonSongNotice.hidden = false;
+  if (commonCount === 0) {
+    elements.lobbyCommonSongNotice.classList.add("is-empty");
+    elements.lobbyCommonSongNotice.textContent =
+      "⚠️参加者全員が利用できる共通曲がありません。データパックの導入状況をご確認ください。";
+  } else {
+    elements.lobbyCommonSongNotice.classList.remove("is-empty");
+    elements.lobbyCommonSongNotice.textContent = `現在、参加者全員が利用できる共通曲は${commonCount}曲です（${allEligibleCount}曲中）。`;
+  }
+}
+
 // ロビー画面の参加者一覧・対戦設定・準備完了/開始ボタンを再描画する。
 // 参加者一覧・接続状態・対戦設定・READY状態・進行状態のいずれかが変わるたびに呼ばれる。
 function renderLobby(room) {
@@ -507,6 +558,18 @@ function renderLobby(room) {
   const isHost = room.host === myUid;
   const settings = room.settings;
   const players = room.players || {};
+
+  // 【2026-08-27新設】「今この瞬間、ルームにいる参加者全員が実際に利用できる曲」を
+  // 再計算する。renderLobby()はplayersが変わるたび（入退室・所持データ報告のたび）に
+  // 呼ばれるため、ここで計算し直すだけで「その場で自動的に再計算される」という
+  // 本人指示を満たせる（Firebaseへの追加の読み取りは不要。room.players自体に
+  // 各参加者のavailableAudioSongIds/availableLyricsSongIdsが同期済みのため）。
+  // 歌詞クイズ対戦（availabilityKind: "lyrics"）も含め、全gameModeで同じ考え方を使う。
+  const allEligibleSongIds = resolveAllEligibleSongIdsForMode(room.gameMode);
+  currentCommonSongPool = new Set(
+    computeRoomCommonSongPool({ allEligibleSongIds, players, kind: getAvailabilityKind(room.gameMode) })
+  );
+  renderCommonSongNotice(allEligibleSongIds.length, currentCommonSongPool.size);
 
   // 状態遷移の検知は、後続の描画判定（設定変更通知の抑制など）でも使うため先に行っておく。
   const previousStatus = lastHandledRoomStatus;
@@ -661,18 +724,27 @@ function goToLobby(roomId) {
   stopListeningToRoom();
   unsubscribeRoom = listenToRoom(roomId, renderLobby);
   elements.navigateTo("onlineBattleLobby");
-  reportMyAvailableAudioSongIdsForRoom(roomId);
+  reportMyAvailableSongIdsForRoom(roomId);
 }
 
-// 【2026-08-26新設】この端末が実際に音源を持っている曲一覧を、今入ったルームへ報告する。
-// IndexedDBの読み取りを待たずに画面遷移させたいため、goToLobby()からは待ち合わせずに
-// 呼び出す（失敗しても致命的ではない設計。js/onlineBattleSongAvailability.js参照）。
-async function reportMyAvailableAudioSongIdsForRoom(roomId) {
-  const availableSongIds = await getAvailableSongIds(AVAILABLE_DATA_KIND.AUDIO);
+// 【2026-08-26新設・2026-08-27拡張】この端末が実際に持っている曲一覧（音源・歌詞の両方）を、
+// 今入ったルームへ報告する。IndexedDBの読み取りを待たずに画面遷移させたいため、
+// goToLobby()からは待ち合わせずに呼び出す（失敗しても致命的ではない設計。
+// js/onlineBattleSongAvailability.js参照）。
+// 【両方報告する理由】このルームのgameModeが音源基準（イントロ対戦・ランダム再生対戦）か
+// 歌詞基準（歌詞クイズ対戦）かをこのファイルは意識しない、という既存方針を保つため、
+// gameModeで分岐せず常に両方を報告する（各対戦モードのどちらを実際に使うかは
+// js/battleModes/index.jsのgetAvailabilityKind()側の責務）。
+async function reportMyAvailableSongIdsForRoom(roomId) {
+  const [availableAudioSongIds, availableLyricsSongIds] = await Promise.all([
+    getAvailableSongIds(AVAILABLE_DATA_KIND.AUDIO),
+    getAvailableSongIds(AVAILABLE_DATA_KIND.LYRICS),
+  ]);
   // 報告が完了するまでの間にルームを退出・別ルームへ移動している場合は、もう関係ない
   // 古いルームへ書き込んでしまわないよう、現在のルームと一致するときだけ送信する。
   if (currentRoomId !== roomId) return;
-  await reportMyAvailableAudioSongIds({ roomId, availableSongIds });
+  await reportMyAvailableSongIdsForKind({ roomId, kind: "audio", availableSongIds: availableAudioSongIds });
+  await reportMyAvailableSongIdsForKind({ roomId, kind: "lyrics", availableSongIds: availableLyricsSongIds });
 }
 
 // ===== Step3：試合中の進捗表示・待機画面・結果画面 =====
@@ -1215,6 +1287,20 @@ export function initOnlineBattleScreens(newElements) {
 
   elements.lobbySettingsChooseSongsButton.addEventListener("click", () => {
     openSongPickerForHost();
+  });
+
+  // 【2026-08-27新設】お気に入り・プレイリストからまとめて選ぶ。どちらも
+  // 「選んだ曲」と「今のルーム参加者全員が利用できる曲（currentCommonSongPool）」の
+  // 共通部分だけを初期選択状態にして、既存の曲選択画面を開く（一覧から選んで
+  // 確認・調整できる、という本人の要望どおり。決定を押すまでは何も保存されない）。
+  elements.lobbySettingsChooseFavoritesButton.addEventListener("click", () => {
+    const favoriteSongIds = getFavoriteSongIds().filter((songId) => currentCommonSongPool.has(songId));
+    openSongPickerForHost(favoriteSongIds);
+  });
+  elements.lobbySettingsChoosePlaylistButton.addEventListener("click", () => {
+    openOnlineBattlePlaylistPicker(currentCommonSongPool, (songIds) => {
+      openSongPickerForHost(songIds);
+    });
   });
 
   elements.lobbyReadyButton.addEventListener("click", async () => {

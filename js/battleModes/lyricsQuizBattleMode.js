@@ -67,6 +67,10 @@ export const description = "歌詞のヒントから曲を当てます";
 // js/main.jsのrenderQuestion()が将来この値を見て、歌詞クイズ専用画面へ振り分ける想定
 // （既存の"intro"/"randomPosition"の分岐には一切手を加えない）。
 export const playbackType = "lyricsQuiz";
+// 【2026-08-27新設】オンライン対戦の共通曲判定（js/onlineBattleSongAvailability.js）が、
+// このモードを「歌詞データの所持状況」で絞り込むべきと判断するための識別子
+// （音源が無くても歌詞さえ揃っていれば歌詞クイズは成立するため、音源基準では絞り込まない）。
+export const availabilityKind = "lyrics";
 
 const DEFAULT_BATTLE_RULE_ID = "classic";
 
@@ -137,6 +141,27 @@ export function validateSettings(settings) {
     return `出題対象の曲が足りません（${poolCheck.requiredCount}曲必要ですが、${poolCheck.currentCount}曲しかありません）。`;
   }
   return null;
+}
+
+// 【2026-08-27新設】settingsから「実際に出題対象になりうる曲ID一覧」を解決する。
+// js/battleModes/timeAttackBattleMode.jsのresolveSettingsSongPool()と同じ役割で、
+// これが無いとjs/battleModes/index.jsのresolveSongPoolForSettings()がnullを返し続け、
+// オンライン対戦の共通曲（intersection）判定（js/onlineBattleSongAvailability.js）の
+// 対象から歌詞クイズ対戦だけが外れたままになってしまう。
+// 【歌詞データの充足チェックとの違い】ここで返すのは「設定上、出題対象になりうる曲」で
+// あり、「その端末に歌詞データが実際にあるか」は見ない（そちらは従来どおり
+// checkRuntimeAvailability()の役目）。参加者全員の歌詞所持状況での絞り込みは、
+// js/onlineBattle.jsのstartBattle()がavailabilityKind="lyrics"を使って別途行う。
+export function resolveSettingsSongPool(settings) {
+  return resolveLyricsQuizSongPool(settings.questionSource);
+}
+
+// 【2026-08-27新設】このモードで「そもそも出題対象になりうる全曲ID」を返す
+// （歌詞クイズ対象外の曲＝Overture等を除いた全曲）。オンライン対戦のロビー画面が
+// 「今の参加者全員に共通する曲は何曲か」を見積もる際の基準（basePool）として使う
+// （js/battleModes/index.jsのresolveAllEligibleSongIdsForMode参照）。
+export function resolveAllEligibleSongIds() {
+  return resolveLyricsQuizSongPool({ type: QUESTION_SOURCE_TYPE.ALL_SONGS });
 }
 
 // 【設計⑩②：非同期の事前準備フック】questionSourceからsongPoolを解決し、

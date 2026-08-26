@@ -69,6 +69,25 @@ export function resolveSongPoolForSettings(gameMode, settings) {
   return mode.resolveSettingsSongPool(settings);
 }
 
+// 【2026-08-27新設】このgameModeの共通曲判定（js/onlineBattleSongAvailability.js）が
+// どの所持データ種別（"audio"｜"lyrics"）で絞り込むべきかを返す。イントロ対戦・
+// ランダム再生対戦は音源の所持状況で、歌詞クイズ対戦は歌詞データの所持状況で判定すべき
+// もの（音源が無くても歌詞さえあれば歌詞クイズは成立するため）。未登録のモードや
+// 明示していないモードは、後方互換のため"audio"を既定値にする。
+export function getAvailabilityKind(gameMode) {
+  return getBattleMode(gameMode)?.availabilityKind ?? "audio";
+}
+
+// 【2026-08-27新設】このgameModeで「そもそも出題対象になりうる全曲ID」を返す
+// （今の設定・選択状態とは無関係に、モードの性質だけで決まる母集団）。
+// ロビー画面が「今の参加者全員に共通する曲は何曲か」をリアルタイムに見積もったり、
+// 曲選択画面に出す一覧を絞り込んだりする際の基準（basePool）として使う。
+// 音源を使うモードは全曲、歌詞クイズ対戦は歌詞クイズ対象外の曲（Overture等）を
+// 除いた曲、という違いを呼び出し側が意識せずに済むようにする。
+export function resolveAllEligibleSongIdsForMode(gameMode) {
+  return getBattleMode(gameMode)?.resolveAllEligibleSongIds?.() ?? [];
+}
+
 // 【Step3で使用予定】Step2ではまだ呼び出されない。
 export function calculateBattleResult(gameMode, answers) {
   return getBattleMode(gameMode)?.createResult(answers) ?? null;

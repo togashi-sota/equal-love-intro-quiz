@@ -30,7 +30,7 @@
 
 import { getCurrentUid } from "./firebaseClient.js";
 import { ROOM_STATUS, updateRoomSettings, subscribeServerTimeOffset } from "./onlineBattle.js";
-import { validateRoomSettings } from "./battleModes/index.js";
+import { validateRoomSettings, getAvailabilityKind, resolveAllEligibleSongIdsForMode } from "./battleModes/index.js";
 import * as lyricsQuizBattleMode from "./battleModes/lyricsQuizBattleMode.js";
 import { SKIP_SELECTION, MAX_HINT_LEVEL, createDefaultSettingsForRule } from "./battleModes/lyricsQuizBattleMode.js";
 import {
@@ -80,7 +80,16 @@ import { deriveHintLevelFromElapsedMs, computeElapsedMs } from "./lyricsQuizBatt
 // 【2026-08-08新設】出題する曲をホストが選べる機能。他の対戦モード（js/onlineBattleScreen.js）と
 // 同じ曲選択画面を共有する（gameModeごとに別々の選曲UIを持たない、本人指示）。
 import { openOnlineBattleSongPicker } from "./onlineBattleSongPicker.js";
-import { QUESTION_SOURCE_TYPE } from "./questionSource.js";
+// 【2026-08-27新設】お気に入り・プレイリストから選ぶ機能も、js/onlineBattleScreen.jsと
+// 同じ考え方・同じ共有モジュールを使う。
+import { openOnlineBattlePlaylistPicker } from "./onlineBattlePlaylistPicker.js";
+import { getFavoriteSongIds } from "./favoriteSongs.js";
+// 【2026-08-27新設】このファイルはjs/onlineBattleScreen.jsを一切importしない設計
+// （冒頭コメント参照）のため、「今のルーム参加者全員が実際に歌詞データを持っている曲」の
+// 計算は、あちらと同じ関数を使いつつこのファイル自身で独立して行う（gameModeが違えば
+// 絞り込みに使う所持データの種類も違うことに注意：ここでは常にavailabilityKind="lyrics"）。
+import { computeRoomCommonSongPool } from "./onlineBattleSongAvailability.js";
+import { QUESTION_SOURCE_TYPE, sanitizeSongIds } from "./questionSource.js";
 import { savePlayHistoryEntryIfNew } from "./playHistory.js";
 import { SONGS } from "./data/songs.js";
 import { MEMBERS } from "./data/members.js";
@@ -145,6 +154,11 @@ let hostSelectedManualSongIds = [];
 // 選び足している最中に他の参加者の接続状態変化などでrenderLyricsQuizLobbySettings()が再実行される
 // たびに、選択中の内容が保存済みの古い内容へ巻き戻ってしまう（実機検証で発見）。
 let lastSyncedManualSongsRevision = null;
+// 【2026-08-27新設】「今この瞬間、ルームにいる参加者全員が実際に歌詞データを持っている曲」の
+// 集合。js/onlineBattleScreen.jsのcurrentCommonSongPoolと同じ考え方だが、このファイルは
+// あちらをimportしない設計（冒頭コメント参照）のため、独立して計算・保持する。
+// renderLyricsQuizLobbySettings()が呼ばれるたび（room更新のたび）に再計算する。
+let currentLyricsCommonSongPool = new Set();
 
 function clearElement(element) {
   while (element.firstChild) element.removeChild(element.firstChild);
@@ -185,6 +199,18 @@ export function initOnlineLyricsQuizBattleScreens(newElements) {
   });
   elements.lyricsChooseSongsButton.addEventListener("click", () => {
     openLyricsSongPickerForHost();
+  });
+
+  // 【2026-08-27新設】お気に入り・プレイリストから選ぶ（js/onlineBattleScreen.jsの
+  // 同名ハンドラと同じ考え方）。歌詞クイズ対戦では「歌詞データの共通曲」で絞り込む。
+  elements.lyricsChooseFavoritesButton.addEventListener("click", () => {
+    const favoriteSongIds = getFavoriteSongIds().filter((songId) => currentLyricsCommonSongPool.has(songId));
+    openLyricsSongPickerForHost(favoriteSongIds);
+  });
+  elements.lyricsChoosePlaylistButton.addEventListener("click", () => {
+    openOnlineBattlePlaylistPicker(currentLyricsCommonSongPool, (songIds) => {
+      openLyricsSongPickerForHost(songIds);
+    });
   });
 
   elements.battleQuitButton.addEventListener("click", () => {
@@ -307,12 +333,24 @@ function updateLyricsManualSongSourceUi(isManual) {
   elements.lyricsManualSongCount.textContent = `${hostSelectedManualSongIds.length}曲選択中`;
 }
 
-function openLyricsSongPickerForHost() {
+// initialSongIds省略時は今の選択（hostSelectedManualSongIds）をそのまま引き継ぐ。
+// お気に入り・プレイリストから選んだ場合は、その時点の曲id配列を渡す。
+// 【2026-08-27重要】js/onlineBattleScreen.jsのopenSongPickerForHost()と全く同じ理由で、
+// initialSongIdsは必ずcurrentLyricsCommonSongPoolでフィルタしてから渡す（一覧に表示
+// されない曲が、内部の選択状態にだけ残ってしまう事故を防ぐため）。
+function openLyricsSongPickerForHost(initialSongIds) {
+  const songIdsToShow = sanitizeSongIds(
+    (initialSongIds ?? hostSelectedManualSongIds).filter((songId) => currentLyricsCommonSongPool.has(songId))
+  );
   openOnlineBattleSongPicker(
-    hostSelectedManualSongIds,
+    songIdsToShow,
     async (songIds) => {
       hostSelectedManualSongIds = songIds;
       updateLyricsManualSongSourceUi(true);
+      const manualRadio = document.querySelector(
+        'input[name="online-lyrics-battle-settings-song-source"][value="manual"]'
+      );
+      if (manualRadio) manualRadio.checked = true;
       elements.navigateTo("onlineBattleLobby");
       if (!latestRoom) return;
       await applyLyricsQuizSettingsChange(latestRoom, {
@@ -330,9 +368,10 @@ function openLyricsSongPickerForHost() {
       }
       elements.navigateTo("onlineBattleLobby");
     },
-    // 【2026-08-08新設】歌詞クイズ対戦の曲選択一覧には、Overture等の歌詞クイズ対象外の曲を
-    // 表示しない（選べるが常に不足扱いになる、という分かりにくい状態を避けるため）。
-    isLyricsQuizEligibleSong
+    // 【2026-08-08新設・2026-08-27拡張】歌詞クイズ対戦の曲選択一覧には、Overture等の
+    // 歌詞クイズ対象外の曲を表示しない。加えて、今のルーム参加者全員が実際に歌詞データを
+    // 持っている曲だけに絞り込む（本人指示：曲指定画面でも共通曲以外は選べないようにする）。
+    (song) => isLyricsQuizEligibleSong(song) && currentLyricsCommonSongPool.has(song.id)
   );
 }
 
@@ -435,6 +474,19 @@ export function renderLyricsQuizLobbySettings(room, isHost) {
   elements.lobbySettingsHostLyrics.hidden = !isHost;
   elements.lobbySettingsParticipantLyrics.hidden = isHost;
   const settings = room.settings;
+
+  // 【2026-08-27新設】room更新のたび（参加者の入退室・歌詞所持データ報告のたび）に
+  // 「今この瞬間、参加者全員が実際に歌詞データを持っている曲」を再計算する
+  // （js/onlineBattleScreen.jsのrenderLobby()と同じ考え方。共通曲数の表示自体は
+  // あちらが一元的に担当するため、ここでは曲選択画面のフィルタ用にだけ使う）。
+  const allEligibleSongIds = resolveAllEligibleSongIdsForMode(room.gameMode);
+  currentLyricsCommonSongPool = new Set(
+    computeRoomCommonSongPool({
+      allEligibleSongIds,
+      players: room.players || {},
+      kind: getAvailabilityKind(room.gameMode),
+    })
+  );
 
   if (isHost) {
     const ruleOptions = describeRuleOptions(settings.battleRuleId);

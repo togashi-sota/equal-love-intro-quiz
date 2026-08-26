@@ -11118,8 +11118,9 @@ body[data-screen="liveCallModePlayer"] .game-frame {
    ロビー内の小さな「曲を選ぶ」ボタン行だけを定義する。 */
 .battle-manual-song-row {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
   margin-top: 8px;
 }
 
@@ -11127,6 +11128,14 @@ body[data-screen="liveCallModePlayer"] .game-frame {
    対策（12章の教訓：.song-select-row[hidden]と同じパターン）。 */
 .battle-manual-song-row[hidden] {
   display: none;
+}
+
+/* 2026-08-27新設：「全曲から選ぶ／お気に入り／プレイリスト」の3ボタンを横並びにする入れ物。
+   スマホ幅で3つ並べると窮屈になるため、折り返しを許可する（flex-wrap）。 */
+.battle-song-source-button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .battle-manual-song-row .secondary-button {
@@ -11140,6 +11149,62 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   margin: 0;
   font-size: 0.8rem;
   font-weight: 700;
+  color: var(--color-primary-dark);
+}
+
+/* 2026-08-27新設：参加者全員が実際に利用できる共通曲の数を知らせる注意書き
+   （js/onlineBattleScreen.js・js/onlineLyricsQuizBattleScreen.js参照）。
+   「制限が発生している」ことを伝えるための表示なので、目立ちすぎない黄色系にする
+   （エラーではなく、あくまで情報提供のため.error-message等の赤系は使わない）。 */
+.battle-common-song-notice {
+  margin: 6px 0 0;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--color-accent-soft);
+  color: var(--color-text);
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+/* 共通曲が0曲（対戦を開始できない）ときは、はっきり注意を引く赤系にする。 */
+.battle-common-song-notice.is-empty {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+/* ===== オンライン対戦：プレイリストから選ぶモーダル（2026-08-27新設） =====
+   #add-to-playlist-modalの一覧（.add-to-playlist-list）をそのまま流用し、
+   行だけボタン要素として独自定義する（あちらはプレイリストへ「追加」する行、
+   こちらはプレイリストを「選ぶ」行で役割が違うため）。 */
+.online-battle-playlist-picker-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 10px 14px;
+  border: 1.5px solid var(--color-card-border);
+  border-radius: 14px;
+  background: var(--color-surface);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.online-battle-playlist-picker-row:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.online-battle-playlist-picker-name {
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.online-battle-playlist-picker-count {
+  font-size: 0.76rem;
   color: var(--color-primary-dark);
 }
 

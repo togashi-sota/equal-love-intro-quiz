@@ -2618,6 +2618,11 @@
         <!-- 対戦モードは作成後に変更できない固定値のため、ホスト・参加者どちらにも常に見える
              場所に表示する（2026-08-08新設・Phase4）。 -->
         <p class="online-lobby-game-mode" id="online-battle-lobby-game-mode"></p>
+        <!-- 2026-08-27新設：参加者全員が実際に利用できる共通曲の数を、必要なときだけ表示する
+             （全員がすべて持っている＝制限が発生していない場合は表示しない）。ホスト・参加者
+             どちらにも常に見える共通の場所に置く（js/onlineBattleScreen.js・
+             js/onlineLyricsQuizBattleScreen.js参照）。 -->
+        <p id="online-battle-common-song-notice" class="battle-common-song-notice" hidden></p>
 
         <ul class="online-lobby-player-list" id="online-battle-lobby-player-list"></ul>
 
@@ -2647,7 +2652,14 @@
               <label><input type="radio" name="online-battle-settings-song-source" value="manual"> 曲を選んで出題</label>
             </div>
             <div id="online-battle-settings-manual-song-row" class="battle-manual-song-row" hidden>
-              <button id="online-battle-settings-choose-songs-button" class="secondary-button" type="button">🎵 曲を選ぶ</button>
+              <!-- 2026-08-27新設：お気に入り・プレイリストからもまとめて選べるようにする
+                   （js/onlineBattleScreen.js参照）。いずれも「今のルーム参加者全員が
+                   利用できる曲」との共通部分だけが実際の選択曲になる。 -->
+              <div class="battle-song-source-button-row">
+                <button id="online-battle-settings-choose-songs-button" class="secondary-button" type="button">🎵 全曲から選ぶ</button>
+                <button id="online-battle-settings-choose-favorites-button" class="secondary-button" type="button">⭐ お気に入り</button>
+                <button id="online-battle-settings-choose-playlist-button" class="secondary-button" type="button">📃 プレイリスト</button>
+              </div>
               <p id="online-battle-settings-manual-song-count" class="battle-manual-song-count"></p>
             </div>
           </fieldset>
@@ -2718,7 +2730,14 @@
               <label><input type="radio" name="online-lyrics-battle-settings-song-source" value="manual"> 曲を選んで出題</label>
             </div>
             <div id="online-lyrics-battle-settings-manual-song-row" class="battle-manual-song-row" hidden>
-              <button id="online-lyrics-battle-settings-choose-songs-button" class="secondary-button" type="button">🎵 曲を選ぶ</button>
+              <!-- 2026-08-27新設：お気に入り・プレイリストからもまとめて選べるようにする
+                   （js/onlineLyricsQuizBattleScreen.js参照）。音源対戦モードと同じ考え方だが、
+                   ここでの「共通曲」は歌詞データの所持状況（availableLyricsSongIds）で判定する。 -->
+              <div class="battle-song-source-button-row">
+                <button id="online-lyrics-battle-settings-choose-songs-button" class="secondary-button" type="button">🎵 全曲から選ぶ</button>
+                <button id="online-lyrics-battle-settings-choose-favorites-button" class="secondary-button" type="button">⭐ お気に入り</button>
+                <button id="online-lyrics-battle-settings-choose-playlist-button" class="secondary-button" type="button">📃 プレイリスト</button>
+              </div>
               <p id="online-lyrics-battle-settings-manual-song-count" class="battle-manual-song-count"></p>
             </div>
           </fieldset>
@@ -3310,6 +3329,23 @@
         <input type="text" id="add-to-playlist-new-name-input" maxlength="20" placeholder="新しいプレイリスト名" aria-label="新しいプレイリスト名">
         <button id="add-to-playlist-new-button" class="secondary-button" type="button">＋ 作成</button>
       </div>
+    </div>
+  </div>
+
+  <!-- オンライン対戦：「出題する曲」をプレイリストからまとめて選ぶモーダル（2026-08-27新設）。
+       #add-to-playlist-modalと同じ「プレイリストを1つ選ぶ」見た目のパターンを踏襲しつつ、
+       あちら（曲をプレイリストへ追加する）とは逆方向（プレイリストから曲を取り出す）の
+       用途のため、別のIDで独立させている。js/onlineBattlePlaylistPicker.js参照。 -->
+  <div id="online-battle-playlist-picker-modal" class="modal-overlay" hidden>
+    <div class="modal-card">
+      <button id="online-battle-playlist-picker-close-button" class="modal-close-button" type="button" aria-label="閉じる">×</button>
+      <h3>プレイリストから選ぶ</h3>
+      <p class="modal-lead">出題に使うプレイリストを選んでください。参加者全員が利用できない曲は自動的に除かれます。</p>
+
+      <div id="online-battle-playlist-picker-list" class="add-to-playlist-list"></div>
+      <p id="online-battle-playlist-picker-empty-notice" class="question-count-notice" hidden>
+        プレイリストがまだありません。ホーム画面の「プレイリスト」から作成できます。
+      </p>
     </div>
   </div>
 

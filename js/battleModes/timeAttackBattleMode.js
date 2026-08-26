@@ -10,7 +10,7 @@
 
 import { buildBattleQuestions, validateBattleConfig, PENALTY_SECONDS_VALUES } from "../localBattle.js";
 import { computeNormalFinalRecordMs } from "../localBattleResult.js";
-import { resolveSongPool, buildQuestionsFromPool, validateSongPoolForQuestionCount } from "../questionSource.js";
+import { resolveSongPool, buildQuestionsFromPool, validateSongPoolForQuestionCount, sanitizeSongIds } from "../questionSource.js";
 import { MIN_SONGS_REQUIRED, filterSongsByCategory } from "../quiz.js";
 import { SONGS } from "../data/songs.js";
 
@@ -21,6 +21,9 @@ export const description = "曲の冒頭を聴いて当てます";
 // この値を見て再生方法を選べるようにするための識別子（"intro"＝曲の冒頭から再生）。
 // 詳細はjs/battleModes/randomPlaybackBattleMode.jsのコメント・HANDOFF.md参照。
 export const playbackType = "intro";
+// 【2026-08-27新設】オンライン対戦の共通曲判定（js/onlineBattleSongAvailability.js）が、
+// このモードを「音源の所持状況」で絞り込むべきと判断するための識別子。
+export const availabilityKind = "audio";
 
 // ロビー画面のホスト用設定フォームが最初に表示する既定値。
 export function defaultSettings() {
@@ -72,6 +75,14 @@ export function resolveSettingsSongPool(settings) {
     return resolveQuestionSourceSongPool(settings.questionSource);
   }
   return filterSongsByCategory(SONGS, settings.categoryFilterValue).map((song) => song.id);
+}
+
+// 【2026-08-27新設】このモードで「そもそも出題対象になりうる全曲ID」を返す
+// （今の設定・カテゴリ絞り込みとは無関係に、全曲が対象になりうる）。
+// オンライン対戦のロビー画面が「今の参加者全員に共通する曲は何曲か」を見積もる際の
+// 基準（basePool）として使う（js/battleModes/index.jsのresolveAllEligibleSongIdsForMode参照）。
+export function resolveAllEligibleSongIds() {
+  return sanitizeSongIds(SONGS.map((song) => song.id));
 }
 
 // seed・settingsから、全端末で完全に一致する問題セットを組み立てる。

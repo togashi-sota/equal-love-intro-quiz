@@ -31,6 +31,9 @@ export const compareResults = timeAttackBattleMode.compareResults;
 export const getRuleDescription = timeAttackBattleMode.getRuleDescription;
 export const PENALTY_SECONDS_VALUES = timeAttackBattleMode.PENALTY_SECONDS_VALUES;
 export const resolveSettingsSongPool = timeAttackBattleMode.resolveSettingsSongPool;
+export const resolveAllEligibleSongIds = timeAttackBattleMode.resolveAllEligibleSongIds;
+// 【2026-08-27新設】タイムアタックと同じく、音源の所持状況で共通曲を絞り込む。
+export const availabilityKind = "audio";
 
 // settings.questionSourceから、出題対象になりうる曲プールを解決する。
 //

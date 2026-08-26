@@ -26,3 +26,32 @@ export function restrictSongPoolToCommonAvailability(basePool, availabilityList)
   const availableSets = reported.map((ids) => new Set(ids));
   return basePool.filter((songId) => availableSets.every((set) => set.has(songId)));
 }
+
+// rooms/{roomId}/players（Firebaseからそのまま同期された、各参加者の生データ）を材料に、
+// 「今このルームに実際にいる全員」の共通曲プールを計算する純粋関数（2026-08-27新設）。
+//
+// 【なぜこの関数が必要か】本人指示：「参加者が入退室するたびに共通曲を自動で再計算してほしい」
+// 「1対1でも4人対戦でも、"今その部屋にいる全員"を基準に共通曲を決めてほしい（最大人数ではない）」。
+// js/onlineBattleScreen.jsのrenderLobby(room)は、players一覧が変わるたびに呼ばれる
+// （Firebaseのリアルタイム監視）ため、そのたびにこの関数を呼べば「その場で自動再計算」が
+// 実現できる。room.playersには各参加者が報告したavailableAudioSongIds/availableLyricsSongIds
+// （js/onlineBattleSongAvailability.jsが書き込む）が既に同期済みで含まれているため、
+// 追加でFirebaseへ読みに行く必要が無い（既存のrestrictSettingsToCommonlyAvailableSongsが
+// 対戦開始の瞬間だけ別途読み直すのとは別に、ロビー表示用の「今の見込み」を軽量に出せる）。
+//
+// allEligibleSongIds: このgameModeでそもそも出題対象になりうる全曲ID
+//   （js/battleModes/index.jsのresolveAllEligibleSongIdsForMode()が返す値。
+//   音源を使うモードは全曲、歌詞クイズは歌詞クイズ対象外の曲を除いた曲、という違いを
+//   ここでは意識せず、呼び出し側から渡してもらうだけにする）。
+// players: room.players（{ [uid]: { ...availableAudioSongIds, availableLyricsSongIds等 } }）
+// kind: "audio" | "lyrics"（どちらの所持データで絞り込むか）
+//
+// 戻り値: string[]（allEligibleSongIdsの並び順を維持したまま、今いる参加者全員が
+//   共通して持っている曲だけを残した配列）。
+export function computeRoomCommonSongPool({ allEligibleSongIds, players, kind }) {
+  const field = kind === "lyrics" ? "availableLyricsSongIds" : "availableAudioSongIds";
+  const availabilityList = Object.values(players ?? {}).map((player) =>
+    Array.isArray(player?.[field]) ? player[field] : null
+  );
+  return restrictSongPoolToCommonAvailability(allEligibleSongIds, availabilityList);
+}

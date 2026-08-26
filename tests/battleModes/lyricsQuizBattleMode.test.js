@@ -377,6 +377,30 @@ export async function runLyricsQuizBattleModeTests() {
     assertEqual(ranking[0], "streak", "コンボ：連続正解を維持した方が1位になる");
   }
 
+  // ===== resolveSettingsSongPool / resolveAllEligibleSongIds / availabilityKind（2026-08-27新設） =====
+  // オンライン対戦の共通曲（intersection）判定〈js/onlineBattleSongAvailability.js〉が、
+  // 歌詞クイズ対戦にも対応できるようにするための窓口。
+  {
+    assertEqual(
+      lyricsQuizBattleMode.availabilityKind,
+      "lyrics",
+      "歌詞クイズ対戦は歌詞データの所持状況（lyrics）で共通曲を判定する"
+    );
+
+    const pool = lyricsQuizBattleMode.resolveSettingsSongPool({
+      questionSource: { type: QUESTION_SOURCE_TYPE.MANUAL_SELECTION, songIds: ["love", "overture"] },
+    });
+    assertEqual(
+      pool,
+      ["love"],
+      "resolveSettingsSongPool()はresolveLyricsQuizSongPool()と同じくOverture等の対象外曲を除く"
+    );
+
+    const allEligible = lyricsQuizBattleMode.resolveAllEligibleSongIds();
+    assertEqual(allEligible.includes("overture"), false, "resolveAllEligibleSongIds()にもOvertureは含まれない");
+    assertEqual(allEligible.length, SONGS.length - 1, "resolveAllEligibleSongIds()は全曲からOvertureを除いた数になる");
+  }
+
   // ===== createDefaultSettingsForRule（Phase6新設） =====
   {
     const comboDefaults = createDefaultSettingsForRule("combo");
