@@ -5,6 +5,11 @@
 // js/songlist.js自体はモジュール読み込み時に#preview-audio等のDOM要素へ直接触れるため、
 // tests.htmlのようなDOMを持たないテスト環境からは安全にimportできない。そのため
 // hasAudioSource()は、DOM操作を一切含まないjs/data/audioMetadata.js側に置いている。
+//
+// 【2026-08-27修正】以前は「21stシングル表題曲（koi-hajimemashita）はまだ音源が無い」という
+// 特定の実在曲を使った"false"側のテストケースがあったが、これは本人が実際に音源を登録する
+// たびに（今回のように）失敗してしまう、本質的に壊れやすいテストだった。"false"側は
+// 「存在しない曲id」を使ったテストだけで十分に検証できるため、実在曲を使ったケースは削除した。
 import { hasAudioSource } from "../js/data/audioMetadata.js";
 import { assertEqual } from "./test-utils.js";
 
@@ -14,13 +19,6 @@ export function runSonglistTests() {
     hasAudioSource({ id: "love" }),
     true,
     "AUDIO_METADATAに載っている曲（love）はhasAudioSourceがtrueを返す"
-  );
-
-  // ---- 本人指示のケース：21stシングル表題曲は、まだ音源データが存在しない ----
-  assertEqual(
-    hasAudioSource({ id: "koi-hajimemashita" }),
-    false,
-    "21stシングル表題曲（koi-hajimemashita）はAUDIO_METADATAに未登録のためfalseを返す"
   );
 
   // ---- 未知の曲idでも安全にfalseを返す（クラッシュしない） ----

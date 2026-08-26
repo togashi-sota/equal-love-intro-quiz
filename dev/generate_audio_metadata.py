@@ -34,6 +34,12 @@
 #
 # 【個人情報について】このファイルは絶対パス・ユーザー名等のローカル固有情報を含まない
 # （すべてPath(__file__)から相対的に解決している）。
+#
+# 【2026-08-27修正】このスクリプトの出力テンプレートには、以前`hasAudioSource()`関数
+# （2026-08-17追加、js/songlist.js・js/customQuizScreen.jsが参照）が含まれておらず、
+# 生成後に手作業でjs/data/audioMetadata.jsへ追記されていたため、このスクリプトを
+# 再実行した際に消えてしまう不具合があった。この関数もテンプレートへ含めるよう修正した
+# （再実行しても失われない）。
 
 import re
 import subprocess
@@ -172,6 +178,17 @@ def main():
         duration_sec = metadata[song_id]
         lines.append(f'  "{song_id}": {{ durationSec: {duration_sec:.3f} }},')
     lines.append("};")
+    lines.append("")
+    lines.append("// この曲の音源が実際に存在するかどうか（2026-08-17追加、本人指示）。")
+    lines.append("// 「この端末が音源を読み込み済みか」（js/audioStorage.jsのgetAudioBlob、IndexedDBの")
+    lines.append("// 話）とは別で、こちらは「そもそも音源という実体がこの世に存在するか」を表す。")
+    lines.append("// AUDIO_METADATAはdev/generate_audio_metadata.pyが実際の音源ファイルから機械生成する")
+    lines.append("// ため、ここに載っていない＝まだ音源自体が存在しない曲、と機械的に判定できる。")
+    lines.append("// 表題曲だけ先行登録されていて音源がまだ無い21st以降のシングルのような曲を、")
+    lines.append("// 曲名のハードコードなしに自動判定するために使う（js/songlist.js・js/customQuizScreen.js参照）。")
+    lines.append("export function hasAudioSource(song) {")
+    lines.append("  return Boolean(AUDIO_METADATA[song.id]);")
+    lines.append("}")
     lines.append("")
 
     OUTPUT_JS_PATH.write_text("\n".join(lines), encoding="utf-8")

@@ -27,11 +27,10 @@ const DURATION_DECIMAL_PLACES = 3;
 // validateSettings()が「この曲は同期用の固定durationを持たない」を検出して対戦開始自体を
 // 安全に拒否する設計のため、この曲が音源未登録のままでも対戦が壊れたり不正な同期が
 // 起きたりすることはない（本人指示：音源未登録の曲として安全に存在できればよい）。
-const SONG_IDS_WITHOUT_REGISTERED_AUDIO_YET = new Set([
-  "koi-hajimemashita",
-  "natsunagori-summer-tune",
-  "yume-no-tsuzuki",
-]);
+// 【2026-08-27更新】21stシングル3曲（koi-hajimemashita・natsunagori-summer-tune・
+// yume-no-tsuzuki）は、本人が実際に音源を登録し、dev/generate_audio_metadata.pyを
+// 再実行してAUDIO_METADATAへ実測値が追加されたため、この配列から取り除いた。
+const SONG_IDS_WITHOUT_REGISTERED_AUDIO_YET = new Set([]);
 
 export function runAudioMetadataTests() {
   const songIds = SONGS.map((song) => song.id).filter(
