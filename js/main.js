@@ -140,6 +140,7 @@ import {
 import { initOnlineLyricsQuizBattleScreens } from "./onlineLyricsQuizBattleScreen.js";
 import { initOnlineBattleSongPicker } from "./onlineBattleSongPicker.js";
 import { initOnlineBattlePlaylistPicker } from "./onlineBattlePlaylistPicker.js";
+import { initOnlineBattleSongListConfirmModal } from "./onlineBattleSongListConfirmModal.js";
 import { calculateBattleResult, getPlaybackType } from "./battleModes/index.js";
 // 歌詞クイズ対戦の3ルール説明モーダル用。Firebase・画面のことを一切知らない純粋関数のみのため、
 // js/firebaseClient.jsを経由せずここから直接importしてよい。
@@ -401,6 +402,15 @@ const onlineBattlePlaylistPickerModalElement = document.getElementById("online-b
 const onlineBattlePlaylistPickerCloseButtonElement = document.getElementById("online-battle-playlist-picker-close-button");
 const onlineBattlePlaylistPickerListElement = document.getElementById("online-battle-playlist-picker-list");
 const onlineBattlePlaylistPickerEmptyNoticeElement = document.getElementById("online-battle-playlist-picker-empty-notice");
+// オンライン対戦：「お気に入り／プレイリストから選ぶ」の確認モーダル（2026-08-28新設）。
+const onlineBattleSongListConfirmModalElement = document.getElementById("online-battle-song-list-confirm-modal");
+const onlineBattleSongListConfirmCloseButtonElement = document.getElementById("online-battle-song-list-confirm-close-button");
+const onlineBattleSongListConfirmTitleElement = document.getElementById("online-battle-song-list-confirm-title");
+const onlineBattleSongListConfirmSubtitleElement = document.getElementById("online-battle-song-list-confirm-subtitle");
+const onlineBattleSongListConfirmListElement = document.getElementById("online-battle-song-list-confirm-list");
+const onlineBattleSongListConfirmEmptyNoticeElement = document.getElementById("online-battle-song-list-confirm-empty-notice");
+const onlineBattleSongListConfirmAddMoreButtonElement = document.getElementById("online-battle-song-list-confirm-add-more-button");
+const onlineBattleSongListConfirmConfirmButtonElement = document.getElementById("online-battle-song-list-confirm-confirm-button");
 const playlistLinkElement = document.getElementById("playlist-link");
 const playlistBackButtonElement = document.getElementById("playlist-back-button");
 const playlistListElement = document.getElementById("playlist-list");
@@ -822,6 +832,9 @@ const onlineBattleJoinNameInputElement = document.getElementById("online-battle-
 const onlineBattleJoinSubmitButtonElement = document.getElementById("online-battle-join-submit-button");
 const onlineBattleJoinErrorElement = document.getElementById("online-battle-join-error");
 const onlineBattleLobbyLeaveButtonElement = document.getElementById("online-battle-lobby-leave-button");
+const onlineBattleLobbyLeaveConfirmModalElement = document.getElementById("online-battle-lobby-leave-confirm-modal");
+const onlineBattleLobbyLeaveCancelButtonElement = document.getElementById("online-battle-lobby-leave-cancel-button");
+const onlineBattleLobbyLeaveConfirmButtonElement = document.getElementById("online-battle-lobby-leave-confirm-button");
 const onlineBattleLobbyGoneNoticeElement = document.getElementById("online-battle-lobby-gone-notice");
 const onlineBattleLobbyContentElement = document.getElementById("online-battle-lobby-content");
 const onlineBattleLobbyRoomCodeElement = document.getElementById("online-battle-lobby-room-code");
@@ -885,6 +898,12 @@ const onlineBattleSongPickerGroupsElement = document.getElementById("online-batt
 const onlineBattleSongPickerNoResultsNoticeElement = document.getElementById("online-battle-song-picker-no-results-notice");
 const onlineBattleSongPickerMinNoticeElement = document.getElementById("online-battle-song-picker-min-notice");
 const onlineBattleSongPickerConfirmButtonElement = document.getElementById("online-battle-song-picker-confirm-button");
+const onlineBattleSongPickerStickyBarElement = document.getElementById("online-battle-song-picker-sticky-bar");
+const onlineBattleSongPickerReviewPanelElement = document.getElementById("online-battle-song-picker-review-panel");
+const onlineBattleSongPickerReviewChipsElement = document.getElementById("online-battle-song-picker-review-chips");
+const onlineBattleSongPickerStickyToggleElement = document.getElementById("online-battle-song-picker-sticky-toggle");
+const onlineBattleSongPickerStickyCountValueElement = document.getElementById("online-battle-song-picker-sticky-count");
+const onlineBattleSongPickerStickyConfirmButtonElement = document.getElementById("online-battle-song-picker-sticky-confirm-button");
 
 // オンライン対戦：歌詞クイズ専用（Phase6新設）。
 const onlineLyricsBattleLobbySettingsHostElement = document.getElementById("online-battle-lobby-settings-host-lyrics");
@@ -4006,6 +4025,9 @@ initOnlineBattleScreens({
   joinSubmitButton: onlineBattleJoinSubmitButtonElement,
   joinError: onlineBattleJoinErrorElement,
   lobbyLeaveButton: onlineBattleLobbyLeaveButtonElement,
+  lobbyLeaveConfirmModal: onlineBattleLobbyLeaveConfirmModalElement,
+  lobbyLeaveCancelButton: onlineBattleLobbyLeaveCancelButtonElement,
+  lobbyLeaveConfirmButton: onlineBattleLobbyLeaveConfirmButtonElement,
   lobbyGoneNotice: onlineBattleLobbyGoneNoticeElement,
   lobbyContent: onlineBattleLobbyContentElement,
   lobbyRoomCode: onlineBattleLobbyRoomCodeElement,
@@ -4115,6 +4137,12 @@ initOnlineBattleSongPicker({
   noResultsNotice: onlineBattleSongPickerNoResultsNoticeElement,
   minNotice: onlineBattleSongPickerMinNoticeElement,
   confirmButton: onlineBattleSongPickerConfirmButtonElement,
+  stickyBar: onlineBattleSongPickerStickyBarElement,
+  reviewPanel: onlineBattleSongPickerReviewPanelElement,
+  reviewChips: onlineBattleSongPickerReviewChipsElement,
+  stickyToggle: onlineBattleSongPickerStickyToggleElement,
+  stickyCountValue: onlineBattleSongPickerStickyCountValueElement,
+  stickyConfirmButton: onlineBattleSongPickerStickyConfirmButtonElement,
 });
 
 // オンライン対戦：「出題する曲」をプレイリストから選ぶモーダル（2026-08-27新設）。
@@ -4124,6 +4152,19 @@ initOnlineBattlePlaylistPicker({
   closeButton: onlineBattlePlaylistPickerCloseButtonElement,
   listContainer: onlineBattlePlaylistPickerListElement,
   emptyNotice: onlineBattlePlaylistPickerEmptyNoticeElement,
+});
+
+// オンライン対戦：「お気に入り／プレイリストから選ぶ」の確認モーダル（2026-08-28新設）。
+// こちらも3対戦モード共通利用する。
+initOnlineBattleSongListConfirmModal({
+  overlay: onlineBattleSongListConfirmModalElement,
+  closeButton: onlineBattleSongListConfirmCloseButtonElement,
+  title: onlineBattleSongListConfirmTitleElement,
+  subtitle: onlineBattleSongListConfirmSubtitleElement,
+  list: onlineBattleSongListConfirmListElement,
+  emptyNotice: onlineBattleSongListConfirmEmptyNoticeElement,
+  addMoreButton: onlineBattleSongListConfirmAddMoreButtonElement,
+  confirmButton: onlineBattleSongListConfirmConfirmButtonElement,
 });
 
 // 対戦コードの設定から、実際にクイズを組み立てて開始する。既存のbeginTimeAttackQuiz()と

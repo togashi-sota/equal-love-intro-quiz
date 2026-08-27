@@ -2784,6 +2784,23 @@
       </div>
     </section>
 
+    <!-- ロビーの「✕ ルームを退出する」用の確認モーダル（2026-08-28新設）。誤操作で
+         対戦中のルームからいきなり抜けてしまうことがないよう、他の確定系ボタンと
+         同じ#modal-overlayの型を使ってワンクッション挟む。1対1・4人対戦・
+         イントロ対戦・ランダム再生対戦・歌詞クイズ対戦のすべてがこの1つの
+         ロビー画面（#online-battle-lobby-screen）を共有しているため、ここに
+         1つ用意するだけで全モード・全人数構成に統一して適用される。 -->
+    <div id="online-battle-lobby-leave-confirm-modal" class="modal-overlay" hidden>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="online-battle-lobby-leave-confirm-title">
+        <h2 id="online-battle-lobby-leave-confirm-title">本当にルームを退出しますか？</h2>
+        <p class="modal-lead">退出すると、現在の対戦／ルームから離れます。</p>
+        <div class="button-row">
+          <button id="online-battle-lobby-leave-cancel-button" class="secondary-button" type="button">いいえ</button>
+          <button id="online-battle-lobby-leave-confirm-button" class="danger-button" type="button">はい</button>
+        </div>
+      </div>
+    </div>
+
     <!-- オンライン対戦：出題する曲を選ぶ画面（2026-08-08新設）。イントロ対戦・ランダム再生対戦・
          歌詞クイズ対戦の3つで共通利用する。ホストだけが開ける。中身の組み立て・選択状態の管理は
          js/onlineBattleSongPicker.jsが担当し、曲の一覧・検索ロジックはjs/songlist.js
@@ -3290,6 +3307,26 @@
 
   </main>
 
+  <!-- オンライン対戦：出題する曲を選ぶ画面（#online-battle-song-picker-screen）専用の、
+       画面下部に固定された選択状況バー（2026-08-28新設、本人指示：曲数が多いと選択中の曲や
+       「この曲で決定する」ボタンがスクロールで見えなくなる問題への対応）。.game-frameは
+       overflow:hiddenのため画面内部でposition:stickyにしても正しく張り付かないと判断し
+       （js/playlistAddSongsScreen.jsまわりの既存コメントと同じ結論）、ミニプレイヤーと
+       同じ理由でbody直下・position:fixedに置く。曲選択画面が開いている間だけ
+       js/onlineBattleSongPicker.js側でhiddenを切り替える。 -->
+  <div id="online-battle-song-picker-sticky-bar" class="song-picker-sticky-bar" hidden>
+    <div id="online-battle-song-picker-review-panel" class="song-picker-review-panel" hidden>
+      <div id="online-battle-song-picker-review-chips" class="song-picker-review-chips"></div>
+    </div>
+    <div class="song-picker-sticky-bar-row">
+      <button id="online-battle-song-picker-sticky-toggle" type="button" class="song-picker-sticky-toggle" aria-expanded="false">
+        <span>選択中 <strong id="online-battle-song-picker-sticky-count">0</strong>曲</span>
+        <svg class="chevron" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 5l7 7-7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button id="online-battle-song-picker-sticky-confirm-button" type="button" class="primary-button">この曲で決定する</button>
+    </div>
+  </div>
+
   <!-- 連続再生のミニプレイヤー：他の画面（メンバー紹介・＝LOVEについて・プレイ履歴など）を
        見ている間も「今なにが流れているか」が分かるように、画面下部に常時表示する。
        他のモーダルと同じ理由（.game-frameのbackdrop-filterがposition:fixedの基準をずらす）で、
@@ -3358,6 +3395,31 @@
       <p id="online-battle-playlist-picker-empty-notice" class="question-count-notice" hidden>
         プレイリストがまだありません。ホーム画面の「プレイリスト」から作成できます。
       </p>
+    </div>
+  </div>
+
+  <!-- オンライン対戦：「お気に入りから選ぶ」「プレイリストから選ぶ」の共通の確認モーダル
+       （2026-08-28新設）。以前は選んだ瞬間に全曲一覧画面（曲選択画面）へ直接移動し、
+       お気に入り／プレイリストの曲だけがチェック済みの状態で開いていたが、
+       「今どの曲が選ばれているか」が一覧の中に埋もれて分かりにくいとの指摘を受け、
+       まずこの曲だけを確認できる画面を挟むようにした（本人指示）。
+       js/onlineBattleScreen.js・js/onlineLyricsQuizBattleScreen.jsの両方から使う、
+       gameModeを意識しない共有部品（js/onlineBattleSongListConfirmModal.js）。 -->
+  <div id="online-battle-song-list-confirm-modal" class="modal-overlay" hidden>
+    <div class="modal-card">
+      <button id="online-battle-song-list-confirm-close-button" class="modal-close-button" type="button" aria-label="閉じる">×</button>
+      <h3 id="online-battle-song-list-confirm-title"></h3>
+      <p id="online-battle-song-list-confirm-subtitle" class="modal-lead"></p>
+
+      <ul id="online-battle-song-list-confirm-list" class="online-battle-song-list-confirm-list"></ul>
+      <p id="online-battle-song-list-confirm-empty-notice" class="question-count-notice" hidden>
+        この対戦で使える曲がありませんでした。
+      </p>
+
+      <div class="button-row online-battle-song-list-confirm-actions">
+        <button id="online-battle-song-list-confirm-confirm-button" class="primary-button" type="button">この曲で決定する</button>
+        <button id="online-battle-song-list-confirm-add-more-button" class="secondary-button" type="button">＋ ほかの曲も追加する</button>
+      </div>
     </div>
   </div>
 

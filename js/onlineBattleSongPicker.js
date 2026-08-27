@@ -34,6 +34,37 @@ function updateSelectionSummary() {
   const hasEnoughSongs = count >= MIN_SONGS_REQUIRED;
   elements.minNotice.hidden = hasEnoughSongs;
   elements.confirmButton.disabled = !hasEnoughSongs;
+  // 画面下部固定バー側（2026-08-28新設）も、既存の一覧下部ボタンと全く同じ条件で連動させる。
+  elements.stickyCountValue.textContent = count;
+  elements.stickyConfirmButton.disabled = !hasEnoughSongs;
+}
+
+// 「選択中○曲」をタップして開くレビュー用トレイの中身を作り直す。songs.jsの登録順を保つ
+// （createSongSelectRow等、他の一覧表示と並び順の考え方を揃える）。
+function renderReviewChips() {
+  elements.reviewChips.innerHTML = "";
+  SONGS.filter((song) => selectedSongIds.has(song.id)).forEach((song) => {
+    const chip = document.createElement("span");
+    chip.className = "song-picker-review-chip";
+
+    const title = document.createElement("span");
+    title.textContent = song.title;
+    chip.appendChild(title);
+
+    const removeButton = document.createElement("button");
+    removeButton.type = "button";
+    removeButton.setAttribute("aria-label", `${song.title}の選択を解除`);
+    removeButton.textContent = "×";
+    removeButton.addEventListener("click", () => {
+      selectedSongIds.delete(song.id);
+      const checkbox = elements.groupsContainer.querySelector(`input[type="checkbox"][value="${CSS.escape(song.id)}"]`);
+      if (checkbox) checkbox.checked = false;
+      refreshSelectionUI();
+    });
+    chip.appendChild(removeButton);
+
+    elements.reviewChips.appendChild(chip);
+  });
 }
 
 function updateGroupSelectionCounts() {
@@ -76,6 +107,7 @@ function refreshSelectionUI() {
   updateSelectionSummary();
   updateGroupSelectionCounts();
   updateRowVisibility();
+  renderReviewChips();
 }
 
 function createSongSelectRow(song) {
@@ -220,7 +252,19 @@ export function openOnlineBattleSongPicker(initialSongIds, onConfirm, onCancel, 
   renderGroups(eligibleSongs);
   applyCheckedState(initialSongIds ?? []);
   refreshSelectionUI();
+  setStickyBarVisible(true);
   elements.navigateTo("onlineBattleSongPicker");
+}
+
+// 画面下部固定バーの表示・非表示（2026-08-28新設）。この画面を離れるときは必ず
+// hiddenへ戻す（レビュートレイも閉じておく）ことで、他の画面にバーが残ってしまう
+// 事故を防ぐ。
+function setStickyBarVisible(visible) {
+  elements.stickyBar.hidden = !visible;
+  if (!visible) {
+    elements.reviewPanel.hidden = true;
+    elements.stickyToggle.setAttribute("aria-expanded", "false");
+  }
 }
 
 export function initOnlineBattleSongPicker(newElements) {
@@ -228,7 +272,18 @@ export function initOnlineBattleSongPicker(newElements) {
   renderGroups(SONGS);
 
   elements.backButton.addEventListener("click", () => {
+    setStickyBarVisible(false);
     onCancelCallback?.();
+  });
+
+  elements.stickyToggle.addEventListener("click", () => {
+    const isOpen = !elements.reviewPanel.hidden;
+    elements.reviewPanel.hidden = isOpen;
+    elements.stickyToggle.setAttribute("aria-expanded", String(!isOpen));
+  });
+  elements.stickyConfirmButton.addEventListener("click", () => {
+    setStickyBarVisible(false);
+    onConfirmCallback?.([...selectedSongIds]);
   });
 
   elements.selectAllButton.addEventListener("click", () => {
@@ -264,6 +319,7 @@ export function initOnlineBattleSongPicker(newElements) {
   });
 
   elements.confirmButton.addEventListener("click", () => {
+    setStickyBarVisible(false);
     onConfirmCallback?.([...selectedSongIds]);
   });
 }

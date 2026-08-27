@@ -76,6 +76,10 @@ import {
 // 保持し、settings.questionSourceへ変換するだけに専念する（gameModeを問わない設計）。
 import { openOnlineBattleSongPicker } from "./onlineBattleSongPicker.js";
 import { openOnlineBattlePlaylistPicker } from "./onlineBattlePlaylistPicker.js";
+// 【2026-08-28新設】お気に入り／プレイリストで選んだ曲を、全曲一覧へ進む前にまず
+// 確認できる共有モーダル。js/onlineLyricsQuizBattleScreen.js側でも同じ部品を使う
+// （gameModeを問わない共通UIのため、js/onlineBattleSongPicker.js等と同じ階層に置く）。
+import { openOnlineBattleSongListConfirm } from "./onlineBattleSongListConfirmModal.js";
 import { QUESTION_SOURCE_TYPE, sanitizeSongIds } from "./questionSource.js";
 import { getFavoriteSongIds } from "./favoriteSongs.js";
 import { savePlayHistoryEntryIfNew } from "./playHistory.js";
@@ -98,6 +102,12 @@ import {
   computeMergedSelectedSongIds,
   areSongIdSetsEqual,
 } from "./onlineBattleCollaborativeSelection.js";
+// 【2026-08-28新設】ルームが消える（ホストが退出した等）タイミングで、対戦中の問題音源が
+// 止まらずに鳴り続けてしまう不具合の修正。resetOnlineBattleMatchState()は「今の試合の文脈から
+// 離れるタイミングでは必ず通す」共通の後片付け関数（このファイル冒頭コメント参照）なので、
+// ここに一度だけstopAudio()を足せば、全ての離脱経路（自分から退出／ルーム消滅／再戦）を
+// 個別に直さなくても一括でカバーできる（本人指示：クリーンアップ処理を複数箇所に散らばらせない）。
+import { stopAudio } from "./audio.js";
 
 let elements = null;
 let currentRoomId = null;
@@ -403,6 +413,26 @@ function openCollabSongPicker(initialSongIds) {
   );
 }
 
+// 【2026-08-28新設】「お気に入りから選ぶ」「プレイリストから選ぶ」で、いきなり全曲一覧を
+// 開くのではなく、まずその曲だけを確認できる共通モーダル（js/onlineBattleSongListConfirmModal.js）
+// を挟む（本人指示：「お気に入りから選ばれている曲はこの曲です」と分かりやすく確認できるように）。
+// 「この曲で決定する」は今の画面（ロビー）のまま確定・送信し、「＋ほかの曲も追加する」は
+// 既存の全曲選択画面をこの曲を初期選択状態にして開く（＝以前の挙動と同じ入口へ合流する）。
+function openSongListConfirm(title, subtitle, songIds) {
+  openOnlineBattleSongListConfirm({
+    title,
+    subtitle,
+    songIds,
+    onConfirm: async () => {
+      mySelectedSongIds = songIds;
+      await submitMySelectedSongIds(songIds);
+    },
+    onAddMore: () => {
+      openCollabSongPicker(songIds);
+    },
+  });
+}
+
 // 【2026-08-27新設】自分の選択曲一覧を、今いるルームの自分の参加者エントリへ書き込む。
 // 失敗した場合（本番のFirebaseルールがまだselectedSongIdsを許可していない等）は、
 // 他の所持データ報告と違って画面へエラーを表示する（「選んだのに反映されない」という
@@ -571,6 +601,9 @@ function goToCountdownScreen(room) {
 // 一部だけ漏れる事故が起きやすいため、共通処理として1箇所にまとめている）。
 function resetOnlineBattleMatchState() {
   stopCountdownWatching();
+  // 対戦中の問題音源が、退出・ルーム消滅・再戦などのタイミングで鳴り続けたままにならないよう、
+  // ここで確実に止める（既に止まっている場合も安全に呼べる、js/audio.js側の設計どおり）。
+  stopAudio();
   currentMatchId = null;
   currentMatchTotalQuestions = 0;
   pendingFinishResult = null;
@@ -1339,7 +1372,23 @@ export function initOnlineBattleScreens(newElements) {
     goToLobby(result.roomId);
   });
 
-  elements.lobbyLeaveButton.addEventListener("click", async () => {
+  // 【2026-08-28変更】誤操作防止のため、いきなり退出せず確認モーダルを必ず挟む
+  // （本人指示。「はい」で実際の退出処理、「いいえ」でロビーへ戻るだけ）。
+  elements.lobbyLeaveButton.addEventListener("click", () => {
+    if (!currentRoomId) return;
+    elements.lobbyLeaveConfirmModal.hidden = false;
+  });
+  elements.lobbyLeaveCancelButton.addEventListener("click", () => {
+    elements.lobbyLeaveConfirmModal.hidden = true;
+  });
+  // 背景部分をクリックしたときも閉じる（#quiz-quit-confirm-modal等、他のモーダルと同じ考え方）。
+  elements.lobbyLeaveConfirmModal.addEventListener("click", (event) => {
+    if (event.target === elements.lobbyLeaveConfirmModal) {
+      elements.lobbyLeaveConfirmModal.hidden = true;
+    }
+  });
+  elements.lobbyLeaveConfirmButton.addEventListener("click", async () => {
+    elements.lobbyLeaveConfirmModal.hidden = true;
     if (!currentRoomId) return;
     elements.lobbyLeaveButton.disabled = true;
     await leaveRoom({ roomId: currentRoomId });
@@ -1382,11 +1431,11 @@ export function initOnlineBattleScreens(newElements) {
   });
   elements.collabChooseFavoritesButton.addEventListener("click", () => {
     const favoriteSongIds = getFavoriteSongIds().filter((songId) => currentCommonSongPool.has(songId));
-    openCollabSongPicker(favoriteSongIds);
+    openSongListConfirm("⭐ お気に入りから選ぶ", "お気に入りから選ばれている曲はこの曲です", favoriteSongIds);
   });
   elements.collabChoosePlaylistButton.addEventListener("click", () => {
     openOnlineBattlePlaylistPicker(currentCommonSongPool, (songIds) => {
-      openCollabSongPicker(songIds);
+      openSongListConfirm("📃 プレイリストから選ぶ", "このプレイリストから選ばれている曲はこの曲です", songIds);
     });
   });
 

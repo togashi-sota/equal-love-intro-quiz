@@ -80,6 +80,10 @@ import { deriveHintLevelFromElapsedMs, computeElapsedMs } from "./lyricsQuizBatt
 // 【2026-08-08新設】出題する曲をホストが選べる機能。他の対戦モード（js/onlineBattleScreen.js）と
 // 同じ曲選択画面を共有する（gameModeごとに別々の選曲UIを持たない、本人指示）。
 import { openOnlineBattleSongPicker } from "./onlineBattleSongPicker.js";
+// 【2026-08-28新設】js/onlineBattleScreen.jsと同じ共有モーダル。お気に入り／プレイリストで
+// 選んだ曲を、全曲一覧へ進む前にまず確認できる（このファイルはonlineBattleScreen.jsを
+// importしない方針のため、そちら経由ではなく直接この共有部品をimportする）。
+import { openOnlineBattleSongListConfirm } from "./onlineBattleSongListConfirmModal.js";
 // 【2026-08-27新設】お気に入り・プレイリストから選ぶ機能も、js/onlineBattleScreen.jsと
 // 同じ考え方・同じ共有モジュールを使う。
 import { openOnlineBattlePlaylistPicker } from "./onlineBattlePlaylistPicker.js";
@@ -213,11 +217,11 @@ export function initOnlineLyricsQuizBattleScreens(newElements) {
   });
   elements.lyricsCollabChooseFavoritesButton.addEventListener("click", () => {
     const favoriteSongIds = getFavoriteSongIds().filter((songId) => currentLyricsCommonSongPool.has(songId));
-    openLyricsCollabSongPicker(favoriteSongIds);
+    openLyricsSongListConfirm("⭐ お気に入りから選ぶ", "お気に入りから選ばれている曲はこの曲です", favoriteSongIds);
   });
   elements.lyricsCollabChoosePlaylistButton.addEventListener("click", () => {
     openOnlineBattlePlaylistPicker(currentLyricsCommonSongPool, (songIds) => {
-      openLyricsCollabSongPicker(songIds);
+      openLyricsSongListConfirm("📃 プレイリストから選ぶ", "このプレイリストから選ばれている曲はこの曲です", songIds);
     });
   });
 
@@ -398,6 +402,22 @@ function openLyricsCollabSongPicker(initialSongIds) {
     // 持っている曲だけに絞り込む（本人指示：曲指定画面でも共通曲以外は選べないようにする）。
     (song) => isLyricsQuizEligibleSong(song) && currentLyricsCommonSongPool.has(song.id)
   );
+}
+
+// 【2026-08-28新設】js/onlineBattleScreen.jsのopenSongListConfirm()と全く同じ考え方。
+function openLyricsSongListConfirm(title, subtitle, songIds) {
+  openOnlineBattleSongListConfirm({
+    title,
+    subtitle,
+    songIds,
+    onConfirm: async () => {
+      mySelectedSongIds = songIds;
+      await submitMySelectedLyricsSongIds(songIds);
+    },
+    onAddMore: () => {
+      openLyricsCollabSongPicker(songIds);
+    },
+  });
 }
 
 // 【2026-08-27新設】js/onlineBattleScreen.jsのsubmitMySelectedSongIds()と全く同じ考え方。

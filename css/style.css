@@ -284,6 +284,135 @@ body.has-mini-player .game-frame {
   padding-bottom: 76px;
 }
 
+/* オンライン対戦の曲選択画面が固定バー（.song-picker-sticky-bar）の裏に隠れないよう、
+   下に余白を確保する（2026-08-28新設）。data-screenで絞り込むだけでよく、
+   ミニプレイヤーのようなJS側でのクラス付け外しは不要（既存のdata-screen機構をそのまま使う）。 */
+body[data-screen="onlineBattleSongPicker"] .game-frame {
+  padding-bottom: 96px;
+}
+
+/* オンライン対戦：曲選択画面専用の、下部固定の選択状況バー（2026-08-28新設）。
+   ミニプレイヤーと全く同じ理由・同じ配置方針（.game-frameの外・bodyの直下・
+   position:fixed）を踏襲する。z-indexもミニプレイヤーと同じ12にしているが、
+   曲選択画面とミニプレイヤーが同時に表示されることは実質的に無いため、
+   重なりは想定しなくてよい。 */
+.song-picker-sticky-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 12;
+  display: flex;
+  flex-direction: column;
+  padding: 10px 16px;
+  padding-bottom: max(10px, env(safe-area-inset-bottom));
+  background: var(--color-surface-glass);
+  backdrop-filter: blur(var(--blur-glass)) saturate(150%);
+  -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(150%);
+  border-top: 1px solid var(--color-card-border);
+  box-shadow: 0 -6px 18px -8px rgba(0, 0, 0, 0.25);
+}
+
+.song-picker-sticky-bar[hidden] {
+  display: none;
+}
+
+.song-picker-sticky-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.song-picker-sticky-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  background: none;
+  border: none;
+  padding: 8px 4px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.song-picker-sticky-toggle strong {
+  color: var(--color-primary-dark);
+  font-size: 1rem;
+}
+
+.song-picker-sticky-toggle .chevron {
+  width: 16px;
+  height: 16px;
+  transition: transform 0.2s ease;
+}
+
+.song-picker-sticky-toggle[aria-expanded="true"] .chevron {
+  transform: rotate(-90deg);
+}
+
+.song-picker-sticky-bar-row .primary-button {
+  flex: 1;
+  margin: 0;
+  padding: 12px 16px;
+  font-size: 0.9rem;
+}
+
+/* 「選択中○曲」をタップすると開く、選択中の曲を確認・解除できる小さなトレイ。
+   曲数が多くても画面を圧迫しないよう、最大高さを決めて内部スクロールにする。 */
+.song-picker-review-panel {
+  max-height: 34vh;
+  overflow-y: auto;
+  margin-bottom: 8px;
+  padding: 4px 2px;
+}
+
+.song-picker-review-panel[hidden] {
+  display: none;
+}
+
+.song-picker-review-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.song-picker-review-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 6px 5px 10px;
+  border-radius: 999px;
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+  font-size: 0.78rem;
+  font-weight: 700;
+  max-width: 100%;
+}
+
+.song-picker-review-chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.song-picker-review-chip button {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--color-primary-dark);
+  font-size: 0.75rem;
+  line-height: 1;
+  padding: 0;
+}
+
 /* 連続再生のミニプレイヤー。他のモーダルと同じ理由で.game-frameの外・bodyの直下に置き、
    常に画面の実際の下端に固定表示する（.game-frameのbackdrop-filterの影響を受けない）。
    z-indexは背景演出（0）・.game-frame（2）より前面、モーダル（20）より背面にする。 */
@@ -5749,6 +5878,19 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   flex: none;
 }
 
+/* お気に入り／プレイリストの確認モーダル用（2026-08-28新設）。.primary-buttonは
+   width:100%が既定のため、.secondary-buttonと横並び（flex-row）のままだと
+   .primary-button側に押し負けてもう片方の文字が縦に潰れてしまう。
+   #quiz-quit-confirm-actions等と同じく縦積みにして解決する。 */
+.online-battle-song-list-confirm-actions {
+  margin-top: 16px;
+  flex-direction: column;
+}
+
+.online-battle-song-list-confirm-actions .secondary-button {
+  flex: none;
+}
+
 /* 歌詞クイズ・中断確認モーダルのボタン列も、上の.quiz-quit-confirm-actionsと全く同じ理由で
    縦2段構成にする（このモーダルを新規追加した際、この上書きを付け忘れると、
    .primary-buttonがwidth:100%相当に広がろうとして.secondary-buttonが極端に狭く
@@ -7617,6 +7759,30 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   border: 1.5px solid var(--color-card-border);
   border-radius: 14px;
   background: var(--color-surface);
+}
+
+/* オンライン対戦：「お気に入りから選ぶ」「プレイリストから選ぶ」の確認モーダル用、
+   曲名だけを並べる読み取り専用の一覧（2026-08-28新設）。.add-to-playlist-listと
+   同じ「最大高さを決めて内部スクロール」という考え方を踏襲している。 */
+.online-battle-song-list-confirm-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 12px 0;
+  padding: 0;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.online-battle-song-list-confirm-list li {
+  padding: 8px 12px;
+  border: 1.5px solid var(--color-card-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--color-text);
 }
 
 .add-to-playlist-row-name {
@@ -12390,6 +12556,34 @@ body[data-screen="liveCallModeKaraoke"] .game-frame {
    アプリ全体で引き続き可能なまま）。 */
 #live-call-mode-karaoke-screen button,
 #karaoke-more-menu-modal button {
+  touch-action: manipulation;
+}
+
+/* クイズ回答中の誤操作防止（2026-08-28新設、本人指示）。
+   【設計方針】viewport自体のuser-scalable=noは今回も使わない（上のカラオケ画面と同じ
+   既存方針を踏襲）。かわりに、問題に回答している画面（#quiz-screen・
+   #lyrics-quiz-question-screen・#online-lyrics-battle-question-screen、対応する
+   body[data-screen]の値で絞り込む）だけに touch-action:pan-y と
+   overscroll-behavior:contain を当てる。
+   - touch-action:pan-y … 縦スクロールは今までどおり許可しつつ、ピンチズーム・
+     横方向のドラッグ（意図しない画面のズレの主因）だけを抑える。
+   - overscroll-behavior:contain … 端まで触れたときのバウンス（ラバーバンド）で
+     画面が上下にずれて見える現象を防ぐ。
+   #quiz-screenは中身の高さに応じて素直に伸びる作り（内部スクロール領域を持たない）
+   のため、スクロール自体は禁止しない。歌詞クイズの選択肢一覧などは元々
+   .lyrics-quiz-answer-list等が独自にoverflow-y:autoを持っており、この設定と
+   干渉しない。 */
+body[data-screen="quiz"],
+body[data-screen="lyricsQuizQuestion"],
+body[data-screen="onlineLyricsBattleQuestion"] {
+  touch-action: pan-y;
+  overscroll-behavior-y: contain;
+}
+
+/* 回答ボタン・選択肢まわりはダブルタップズームだけ追加で防ぐ（カラオケ画面と同じ考え方）。 */
+#choice-buttons button,
+.lyrics-quiz-answer-list button,
+#online-lyrics-battle-answer-choices button {
   touch-action: manipulation;
 }
 
