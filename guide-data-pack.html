@@ -102,12 +102,6 @@
       margin: 18px 0 34px;
       max-width: 320px;
     }
-    .guide-mockup-label {
-      font-size: 0.75rem;
-      color: var(--color-text);
-      opacity: 0.65;
-      margin-bottom: 6px;
-    }
     .guide-mockup-frame {
       border-radius: 16px;
       overflow: visible;
@@ -142,22 +136,6 @@
       z-index: 3;
     }
 
-    /* iPhone/Androidで見た目が異なる箇所の実機スクリーンショット差し込み待ちプレースホルダー */
-    .guide-screenshot-needed {
-      border: 2px dashed var(--color-secondary);
-      border-radius: 14px;
-      padding: 18px;
-      text-align: center;
-      font-size: 0.85rem;
-      color: var(--color-text);
-      background: var(--color-secondary-light);
-    }
-    .guide-screenshot-needed strong {
-      display: block;
-      color: var(--color-primary-dark);
-      margin-bottom: 4px;
-    }
-
     .guide-platform-columns {
       display: flex;
       flex-direction: column;
@@ -180,6 +158,108 @@
       padding-left: 1.2em;
       font-size: 0.85rem;
       line-height: 1.8;
+    }
+
+    /* ===== 実機スクリーンショットに丸囲み・注釈を重ねる仕組み（2026-08-27新設） =====
+       写真そのものは加工せず、写真の上にCSSで印を重ねる方式にしてある。将来別の端末の
+       スクリーンショットに差し替える場合も、この仕組み・クラス名はそのまま使い回せる。 */
+    .guide-photo-wrap {
+      position: relative;
+      max-width: 230px;
+      margin: 16px auto 6px;
+    }
+    .guide-photo-wrap img {
+      display: block;
+      width: 100%;
+      height: auto;
+      border-radius: 22px;
+      border: 1px solid var(--color-card-border);
+      box-shadow: 0 10px 24px -8px rgba(74, 46, 66, 0.45);
+    }
+    .guide-photo-highlight {
+      position: absolute;
+      border: 3px solid var(--color-primary-dark);
+      border-radius: 16px;
+      box-shadow: 0 0 0 4px rgba(255, 79, 150, 0.22);
+      pointer-events: none;
+    }
+    .guide-photo-tag {
+      position: absolute;
+      background: var(--color-primary-dark);
+      color: #fff;
+      font-size: 0.7rem;
+      font-weight: 800;
+      padding: 4px 9px;
+      border-radius: 999px;
+      white-space: nowrap;
+      box-shadow: 0 4px 10px -2px rgba(255, 79, 150, 0.55);
+      pointer-events: none;
+    }
+
+    /* iPhone実機手順（STEP1〜7）専用のレイアウト */
+    .guide-step-block {
+      margin: 22px 0;
+      text-align: center;
+    }
+    .guide-step-heading {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--color-primary);
+      color: #fff;
+      font-weight: 800;
+      font-size: 0.82rem;
+      padding: 5px 16px;
+      border-radius: 999px;
+    }
+    .guide-step-desc {
+      font-size: 0.87rem;
+      line-height: 1.7;
+      max-width: 280px;
+      margin: 10px auto 0;
+      text-align: left;
+    }
+    .guide-step-arrow-down {
+      font-size: 1.3rem;
+      color: var(--color-primary);
+      opacity: 0.6;
+      margin: 2px 0;
+    }
+
+    /* 「解凍しないでください」等、絶対に見落としてほしくない注意書き */
+    .guide-warning-box {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      background: var(--color-danger-soft);
+      border: 2px solid var(--color-danger);
+      border-radius: 14px;
+      padding: 10px 14px;
+      margin: 10px auto 0;
+      max-width: 280px;
+      text-align: left;
+      font-size: 0.83rem;
+      font-weight: 700;
+      color: var(--color-text);
+    }
+    .guide-warning-box .guide-warning-icon {
+      font-size: 1.1rem;
+      line-height: 1.3;
+      flex-shrink: 0;
+    }
+
+    /* full.zip／追加パックの違いを、STEPの直前でもう一度短く思い出せるための帯 */
+    .guide-mini-reminder {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      background: var(--color-surface-glass);
+      border: 1px solid var(--color-card-border);
+      border-radius: 14px;
+      padding: 12px 16px;
+      margin: 14px 0 24px;
+      font-size: 0.85rem;
+      line-height: 1.6;
     }
   </style>
 </head>
@@ -215,78 +295,121 @@
         <p>「追加パック」（自分がまだ入れていないシングルの分。例：<code>21st.zip</code>・<code>22nd.zip</code>など）を受け取ってください。今まで入れたデータはそのまま残り、新しいシングルの分だけが追加されます。しばらく間が空いていて複数回分が未導入の場合は、それぞれの追加パックを1つずつ順番に読み込んでください（<code>full.zip</code>を入れ直す必要はありません）。</p>
       </div>
 
-      <h2>共通の手順（iPhone・Android・PC共通）</h2>
-      <p>ZIPファイルを受け取ったあとは、iPhoneでもAndroidでも次の流れは同じです。</p>
+      <h2>📱 iPhoneでの手順（実際の画面つき）</h2>
 
-      <div class="guide-mockup-wrap" style="max-width: 280px;">
-        <div class="guide-mockup-label">実際の画面（ホーム画面の一番下）</div>
-        <div class="guide-mockup-frame">
-          <details class="data-management-section" open>
-            <summary>データ管理（音源・歌詞の読み込み）</summary>
-          </details>
-        </div>
-        <div class="guide-callout-badge" style="top: 24px; left: -10px;">①</div>
+      <div class="guide-mini-reminder">
+        <span>🆕 <strong>はじめての方</strong> → <code>full.zip</code>（これまでの全曲）</span>
+        <span>🔄 <strong>すでに使っている方</strong> → まだ入れていない回の追加パック（例：<code>21st.zip</code>）</span>
+        <span>下のSTEPは、そのZIPを受け取ったあとの操作です。どちらのZIPでも操作は同じです。</span>
       </div>
-      <p>① ホーム画面を一番下までスクロールし、「データ管理（音源・歌詞の読み込み）」をタップして開きます。</p>
 
-      <div class="guide-mockup-wrap">
-        <div class="guide-mockup-label">実際の画面（データ管理を開いたところ）</div>
-        <div class="guide-mockup-frame">
-          <div class="audio-import-section">
-            <p class="lyrics-import-caption">
-              パックのファイル一式（manifest.jsonを含む複数ファイル）をまとめて選択するか、それらを1つにまとめたZIPファイルを選択してください。
-            </p>
-            <p class="audio-import-status">パックのファイル一式（manifest.jsonを含む）、またはそれをまとめたZIPファイルを選んでください</p>
-            <span class="audio-import-button">追加データパックを読み込む</span>
+      <div class="guide-step-block">
+        <span class="guide-step-heading">STEP 1：LINEでZIPを開く</span>
+        <div class="guide-photo-wrap">
+          <img src="assets/images/guide/datapack-iphone-step1-share.png" alt="LINEでZIPを開いた画面。右下に共有ボタンがある">
+          <div class="guide-photo-highlight" style="left: 78%; top: 84%; width: 19%; height: 9%;"></div>
+          <div class="guide-photo-tag" style="left: 30%; top: 72%;">👉 ここをタップ</div>
+        </div>
+        <p class="guide-step-desc">LINEで送られてきたZIP（<code>full.zip</code>・<code>21st.zip</code>・将来の<code>22nd.zip</code>など）をタップして開くと、この画面になります。「内容をプレビュー」は<strong>押さず</strong>、右下の共有ボタンをタップします。</p>
+      </div>
+      <div class="guide-step-arrow-down">↓</div>
+
+      <div class="guide-step-block">
+        <span class="guide-step-heading">STEP 2：ZIPを「ファイル」に保存</span>
+        <div class="guide-photo-wrap">
+          <img src="assets/images/guide/datapack-iphone-step2-save-to-files.png" alt="共有画面。「ファイルに保存」のアイコンがある">
+          <div class="guide-photo-highlight" style="left: 51%; top: 83%; width: 23%; height: 12%;"></div>
+          <div class="guide-photo-tag" style="left: 30%; top: 71%;">👉 ここをタップ</div>
+        </div>
+        <p class="guide-step-desc">共有画面が開いたら「<strong>“ファイル”に保存</strong>」をタップし、保存先（あとで見つけやすい「このiPhone内」がおすすめ）を選んで保存します。</p>
+        <div class="guide-warning-box">
+          <span class="guide-warning-icon">⚠️</span>
+          <span>ZIPは解凍（展開）せず、そのまま保存してください</span>
+        </div>
+      </div>
+      <div class="guide-step-arrow-down">↓</div>
+
+      <div class="guide-step-block">
+        <span class="guide-step-heading">STEP 3：＝LOVEクイズで「データ管理」を開く</span>
+        <div class="guide-mockup-wrap" style="max-width: 230px; margin: 12px auto 0;">
+          <div class="guide-mockup-frame">
+            <details class="data-management-section" open>
+              <summary>データ管理（音源・歌詞の読み込み）</summary>
+            </details>
           </div>
+          <div class="guide-callout-badge" style="top: 20px; left: -10px;">③</div>
         </div>
-        <div class="guide-callout-badge" style="top: 96px; left: -10px;">②</div>
+        <p class="guide-step-desc">保存できたら＝LOVEクイズに戻り、ホーム画面を一番下までスクロールして「データ管理（音源・歌詞の読み込み）」をタップして開きます。</p>
       </div>
-      <p>② 「追加データパックを読み込む」をタップします。ここでOS標準のファイル選択画面が開きます（この画面の見た目はiPhone/Androidで異なります。詳しくは下の「機種ごとの操作」を参照してください）。</p>
+      <div class="guide-step-arrow-down">↓</div>
 
-      <div class="guide-screenshot-needed">
-        <strong>ここは実機スクリーンショットが必要です</strong>
-        ファイル選択画面が開いたら、保存したZIPファイルの場所（iPhoneなら「ファイル」アプリ、Androidなら「ダウンロード」等）を選び、ZIPファイルをタップして選択してください。
-      </div>
-
-      <div class="guide-mockup-wrap">
-        <div class="guide-mockup-label">実際の画面（読み込みが完了したところ・表示内容は例です）</div>
-        <div class="guide-mockup-frame">
-          <div class="audio-import-section">
-            <p class="audio-import-result" style="display: block;">「全曲パック」でセットアップしました<br>音源84曲・歌詞83曲・コール0曲を登録しました</p>
+      <div class="guide-step-block">
+        <span class="guide-step-heading">STEP 4：「追加データパックを読み込む」をタップ</span>
+        <div class="guide-mockup-wrap" style="margin: 12px auto 0;">
+          <div class="guide-mockup-frame">
+            <div class="audio-import-section">
+              <p class="lyrics-import-caption">
+                パックのファイル一式（manifest.jsonを含む複数ファイル）をまとめて選択するか、それらを1つにまとめたZIPファイルを選択してください。
+              </p>
+              <p class="audio-import-status">パックのファイル一式（manifest.jsonを含む）、またはそれをまとめたZIPファイルを選んでください</p>
+              <span class="audio-import-button">追加データパックを読み込む</span>
+            </div>
           </div>
+          <div class="guide-callout-badge" style="top: 90px; left: -10px;">④</div>
         </div>
-        <div class="guide-callout-badge" style="top: 10px; left: -10px;">③</div>
+        <p class="guide-step-desc">ここでOS標準のファイル選択画面が開きます。</p>
       </div>
-      <p>③ このような完了メッセージが表示されれば成功です。すぐにクイズ・歌詞・コール等が使えるようになります。</p>
+      <div class="guide-step-arrow-down">↓</div>
 
-      <h2>機種ごとの操作（差分があるのはこの2箇所だけ）</h2>
-      <p>アプリ側の操作（上記①〜③）はiPhone・Android・PCで完全に同じです。違うのは「ZIPをどう受け取って保存するか」と「ファイル選択画面の見た目」の2点だけです。</p>
+      <div class="guide-step-block">
+        <span class="guide-step-heading">STEP 5：保存したZIPを選ぶ</span>
+        <div class="guide-photo-wrap">
+          <img src="assets/images/guide/datapack-iphone-step3-recent-files.png" alt="ファイル選択画面の「最近使った項目」。保存したZIPが一覧に出ている">
+          <div class="guide-photo-highlight" style="left: 3%; top: 12%; width: 72%; height: 11%;"></div>
+          <div class="guide-photo-tag" style="left: 22%; top: 25%;">👉 ここをタップ</div>
+        </div>
+        <p class="guide-step-desc">保存した直後は「最近使った項目」に、さっき保存したZIP（例：<code>21st.zip</code>）が表示されていることが多いです。表示されていれば、それをタップします。<strong>見つからない場合は</strong>、下にある「ブラウズ」から自分がZIPを保存した場所を開いて選んでください。</p>
+      </div>
+      <div class="guide-step-arrow-down">↓</div>
 
-      <h3>1. ZIPファイルの受け取り方・保存方法</h3>
+      <div class="guide-step-block">
+        <span class="guide-step-heading">STEP 6：ZIPを選択して「開く」</span>
+        <div class="guide-photo-wrap">
+          <img src="assets/images/guide/datapack-iphone-step4-open.png" alt="ZIPにチェックが付いた状態。右上に「開く」ボタンがある">
+          <div class="guide-photo-highlight" style="left: 3%; top: 15%; width: 72%; height: 11%;"></div>
+          <div class="guide-photo-highlight" style="left: 76%; top: 1.5%; width: 22%; height: 7%;"></div>
+          <div class="guide-photo-tag" style="left: 36%; top: 26%;">選択された状態</div>
+          <div class="guide-photo-tag" style="left: 40%; top: 10.5%;">👉 ここをタップ</div>
+        </div>
+        <p class="guide-step-desc">目的のZIPを選ぶとチェックが付きます（写真の下側の囲み）。そうしたら右上の「開く」をタップします（写真の上側の囲み）。</p>
+      </div>
+      <div class="guide-step-arrow-down">↓</div>
+
+      <div class="guide-step-block">
+        <span class="guide-step-heading">STEP 7：完了メッセージを確認</span>
+        <div class="guide-mockup-wrap" style="margin: 12px auto 0;">
+          <div class="guide-mockup-frame">
+            <div class="audio-import-section">
+              <p class="audio-import-result" style="display: block;">「全曲パック」でセットアップしました<br>音源84曲・歌詞83曲・コール0曲を登録しました</p>
+            </div>
+          </div>
+          <div class="guide-callout-badge" style="top: 6px; left: -10px;">⑦</div>
+        </div>
+        <p class="guide-step-desc">アプリ側で自動的に展開・登録され（少し時間がかかることがあります）、このような完了メッセージが表示されれば成功です。すぐにクイズ・歌詞・コール等が使えるようになります。</p>
+      </div>
+
+      <h2>🤖 Android・PCの場合</h2>
+      <p>アプリ側の操作（上のSTEP3〜7と同じ「データ管理」→「読み込むボタン」→「完了メッセージ」の流れ）はiPhoneと共通です。違うのは「ZIPの受け取り方・保存方法」と「ファイル選択画面の見た目」の2点だけです。</p>
       <div class="guide-platform-columns">
-        <div class="guide-platform-card">
-          <h4>📱 iPhone</h4>
-          <ul>
-            <li>AirDrop・メール・LINE・iCloud共有リンク等でZIPを受け取ると、多くの場合そのまま「ファイル」アプリの「ダウンロード」等に保存されます</li>
-            <li>保存先を選べる場合は、あとで見つけやすい「このiPhone内」を選ぶのがおすすめです</li>
-            <li>「解凍する」「展開する」操作は不要です。ZIPのまま保存してください</li>
-          </ul>
-        </div>
         <div class="guide-platform-card">
           <h4>🤖 Android</h4>
           <ul>
             <li>Chromeでダウンロードしたり、メール・LINE等で受け取ったりしたZIPは、多くの場合「ダウンロード」フォルダに自動保存されます</li>
             <li>機種によって標準のファイル管理アプリ名が異なります（「ファイル」「My Files」等）</li>
-            <li>ここでも「解凍する」操作は不要です。ZIPのまま保存してください</li>
+            <li>ここでも「解凍する」操作は不要です。<strong>ZIPのまま保存してください</strong></li>
+            <li>ファイル選択画面の見た目は機種によって異なりますが、ZIPを保存した場所（多くの場合「ダウンロード」）を開いて選択すれば、あとの操作はiPhoneと同じです</li>
           </ul>
         </div>
-      </div>
-
-      <h3>2. ファイル選択画面の見た目</h3>
-      <div class="guide-screenshot-needed">
-        <strong>ここは実機スクリーンショットが必要です</strong>
-        「追加データパックを読み込む」をタップした直後に開くファイル選択画面は、OS標準の画面のため、iPhone（「ブラウズ」画面）とAndroid（機種ごとのファイル選択アプリ）で見た目が異なります。ここに実機のスクリーンショットを追加すると、迷わず操作できるようになります。
       </div>
 
       <h2>新規ユーザー向け：具体的な手順（全11ステップ）</h2>
