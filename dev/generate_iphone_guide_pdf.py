@@ -38,7 +38,7 @@ PRINT_CSS = """
   @page { size: A4; margin: 14mm 12mm; }
   body { background: #fff5f8 !important; }
   .guide-back-link { display: none !important; }
-  /* Android・PCの説明はiPhone版PDFには不要なので非表示にする */
+  /* Androidの説明はiPhone版PDFには不要なので非表示にする */
   h2.pdf-hide-heading,
   .pdf-hide-until-next-h2 { display: none !important; }
   /* このページ限定の案内文（docs/data-pack-guide.mdへの言及）は配布物には不要 */
@@ -70,13 +70,15 @@ def main():
         )
         page.reload(wait_until="networkidle")
 
-        # 「🤖 Android・PCの場合」の見出しと、その次のh2が出てくるまでの中身に印を付けて
-        # 非表示にする（本文のHTML構造自体は変更しない、見た目だけの後処理）。
+        # 「🤖 Androidの場合」の見出しと、その次のh2が出てくるまでの中身に印を付けて
+        # 非表示にする（本文のHTML構造自体は変更しない、見た目だけの後処理。
+        # 2026-08-28、見出し文言を「Android・PCの場合」→「Androidの場合」へ変更したのに
+        # 合わせてこの一致文字列も更新した）。
         page.evaluate(
             """
             () => {
               const headings = Array.from(document.querySelectorAll('h2'));
-              const androidHeading = headings.find(h => h.textContent.includes('Android・PC'));
+              const androidHeading = headings.find(h => h.textContent.includes('Androidの場合'));
               if (!androidHeading) return;
               androidHeading.classList.add('pdf-hide-heading');
               let el = androidHeading.nextElementSibling;

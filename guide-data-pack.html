@@ -398,19 +398,80 @@
         <p class="guide-step-desc">アプリ側で自動的に展開・登録され（少し時間がかかることがあります）、このような完了メッセージが表示されれば成功です。すぐにクイズ・歌詞・コール等が使えるようになります。</p>
       </div>
 
-      <h2>🤖 Android・PCの場合</h2>
-      <p>アプリ側の操作（上のSTEP3〜7と同じ「データ管理」→「読み込むボタン」→「完了メッセージ」の流れ）はiPhoneと共通です。違うのは「ZIPの受け取り方・保存方法」と「ファイル選択画面の見た目」の2点だけです。</p>
-      <div class="guide-platform-columns">
-        <div class="guide-platform-card">
-          <h4>🤖 Android</h4>
-          <ul>
-            <li>Chromeでダウンロードしたり、メール・LINE等で受け取ったりしたZIPは、多くの場合「ダウンロード」フォルダに自動保存されます</li>
-            <li>機種によって標準のファイル管理アプリ名が異なります（「ファイル」「My Files」等）</li>
-            <li>ここでも「解凍する」操作は不要です。<strong>ZIPのまま保存してください</strong></li>
-            <li>ファイル選択画面の見た目は機種によって異なりますが、ZIPを保存した場所（多くの場合「ダウンロード」）を開いて選択すれば、あとの操作はiPhoneと同じです</li>
-          </ul>
+      <h2>🤖 Androidの場合</h2>
+      <p>Android実機（21st.zip）で実際に確認した手順です。full.zip・21st.zip・将来の22nd.zip・23rd.zipなど、どのZIPでも操作は同じです。</p>
+
+      <div class="guide-step-block">
+        <span class="guide-step-heading">STEP 1：ZIPをダウンロード</span>
+        <p class="guide-step-desc">LINEなどで受け取ったZIPファイルを、Android端末にダウンロードしてください（LINE側の画面は機種・アプリのバージョンによって見た目が変わるため、ここでは省略しています）。</p>
+        <div class="guide-photo-wrap" style="max-width: 210px;">
+          <img src="assets/images/guide/datapack-android-step-zip-preview.png" alt="ダウンロードした21st.zipをタップした画面。ZIPのアイコンだけが表示されている">
+        </div>
+        <div class="guide-warning-box">
+          <span class="guide-warning-icon">💡</span>
+          <span>ダウンロード後にZIPをタップすると、このような画面が表示されることがあります。<strong>解凍（展開）や中身を開く必要はありません。</strong>ZIPファイルのまま、次のSTEPでゲームに読み込ませます。</span>
         </div>
       </div>
+      <div class="guide-step-arrow-down">↓</div>
+
+      <div class="guide-step-block">
+        <span class="guide-step-heading">STEP 2：＝LOVEクイズで「データ管理」を開く</span>
+        <div class="guide-mockup-wrap" style="max-width: 230px; margin: 12px auto 0;">
+          <div class="guide-mockup-frame">
+            <details class="data-management-section" open>
+              <summary>データ管理（音源・歌詞の読み込み）</summary>
+            </details>
+          </div>
+        </div>
+        <p class="guide-step-desc">ホーム画面を一番下までスクロールして「データ管理（音源・歌詞の読み込み）」をタップして開きます。</p>
+      </div>
+      <div class="guide-step-arrow-down">↓</div>
+
+      <div class="guide-step-block">
+        <span class="guide-step-heading">STEP 3：「追加データパックを読み込む」をタップ</span>
+        <div class="guide-mockup-wrap" style="margin: 12px auto 0;">
+          <div class="guide-mockup-frame">
+            <div class="audio-import-section">
+              <p class="lyrics-import-caption">
+                パックのファイル一式（manifest.jsonを含む複数ファイル）をまとめて選択するか、それらを1つにまとめたZIPファイルを選択してください。
+              </p>
+              <p class="audio-import-status">パックのファイル一式（manifest.jsonを含む）、またはそれをまとめたZIPファイルを選んでください</p>
+              <span class="audio-import-button">追加データパックを読み込む</span>
+            </div>
+          </div>
+        </div>
+        <p class="guide-step-desc">ここでAndroid標準のファイル選択画面が開きます。</p>
+      </div>
+      <div class="guide-step-arrow-down">↓</div>
+
+      <div class="guide-step-block">
+        <span class="guide-step-heading">STEP 4：ZIPをタップして選ぶ</span>
+        <div class="guide-photo-wrap" style="max-width: 230px;">
+          <img src="assets/images/guide/datapack-android-step-recent-files.png" alt="ファイル選択画面の「最近使用したファイル」。21st.zipが一覧に出ている">
+          <div class="guide-photo-highlight" style="left: 3.5%; top: 55%; width: 61%; height: 6%;"></div>
+          <div class="guide-photo-tag" style="left: 8%; top: 62%;">👉 このZIPをタップ</div>
+        </div>
+        <p class="guide-step-desc">「最近使用したファイル」に、ダウンロードしたZIP（例：<code>21st.zip</code>）が表示されていることが多いです。それを<strong>1回タップするだけ</strong>で選択が完了します。<strong>見つからない場合は</strong>、ファイル選択画面から自分がZIPを保存した場所（「ダウンロード」等）を開いて選んでください。</p>
+        <div class="guide-warning-box">
+          <span class="guide-warning-icon">📱</span>
+          <span>iPhoneのような「チェックを付けてから右上の『開く』をタップ」という追加操作は<strong>ありません</strong>。ZIPを1回タップするだけで自動的にゲーム画面へ戻り、そのままデータの読み込みが始まります。</span>
+        </div>
+      </div>
+      <div class="guide-step-arrow-down">↓</div>
+
+      <div class="guide-step-block">
+        <span class="guide-step-heading">STEP 5：完了メッセージを確認</span>
+        <div class="guide-mockup-wrap" style="margin: 12px auto 0;">
+          <div class="guide-mockup-frame">
+            <div class="audio-import-section">
+              <p class="audio-import-result" style="display: block;">「追加パック」を読み込みました<br>音源3曲・歌詞3曲・コール0曲を追加しました</p>
+            </div>
+          </div>
+        </div>
+        <p class="guide-step-desc">アプリ側で自動的に展開・登録され（少し時間がかかることがあります）、このような完了メッセージが表示されれば成功です。すぐにクイズ・歌詞・コール等が使えるようになります。</p>
+      </div>
+
+      <p style="font-size: 0.78rem; opacity: 0.7; margin-top: 18px;">※ 機種やAndroidのバージョンによって、ファイル選択画面の見た目や操作が多少異なる場合があります。基本の流れ（ZIPをタップして選ぶ→自動で読み込まれる）は共通です。</p>
 
       <h2>新規ユーザー向け：具体的な手順（全11ステップ）</h2>
       <div class="guide-flow-card new-user">
