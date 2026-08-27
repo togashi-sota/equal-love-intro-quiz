@@ -377,6 +377,20 @@ export async function runLyricsQuizBattleModeTests() {
     assertEqual(ranking[0], "streak", "コンボ：連続正解を維持した方が1位になる");
   }
 
+  // ===== validateSettings：共同選曲(collaborativeSelection)の0曲は保存自体をエラーにしない
+  // （2026-08-27新設。js/battleModes/timeAttackBattleMode.test.jsの同じ追記と同じ理由） =====
+  {
+    const settings = {
+      ...lyricsQuizBattleMode.defaultSettings(),
+      questionSource: { type: QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION, songIds: [] },
+    };
+    assertEqual(
+      lyricsQuizBattleMode.validateSettings(settings),
+      null,
+      "歌詞クイズ対戦でも、共同選曲が0曲なら設定の保存自体はエラーにならない"
+    );
+  }
+
   // ===== resolveSettingsSongPool / resolveAllEligibleSongIds / availabilityKind（2026-08-27新設） =====
   // オンライン対戦の共通曲（intersection）判定〈js/onlineBattleSongAvailability.js〉が、
   // 歌詞クイズ対戦にも対応できるようにするための窓口。

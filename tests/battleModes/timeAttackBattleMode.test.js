@@ -9,7 +9,7 @@
 // 同じ曲プールが返ること」を確認する（新しいロジックを追加検証するのではなく、
 // 既存の挙動を壊していないことの回帰防止テスト）。
 
-import { resolveSettingsSongPool } from "../../js/battleModes/timeAttackBattleMode.js";
+import { resolveSettingsSongPool, validateSettings } from "../../js/battleModes/timeAttackBattleMode.js";
 import { QUESTION_SOURCE_TYPE, resolveSongPool } from "../../js/questionSource.js";
 import { SONGS } from "../../js/data/songs.js";
 import { assertEqual } from "../test-utils.js";
@@ -51,5 +51,28 @@ export function runTimeAttackBattleModeTests() {
   {
     const pool = resolveSettingsSongPool({ questionSource: { type: QUESTION_SOURCE_TYPE.ALL_SONGS } });
     assertEqual(pool.length, SONGS.length, "allSongsは全曲分のIDを返す");
+  }
+
+  // ---- validateSettings：共同選曲(collaborativeSelection)の0曲は、ロビーでの
+  // 設定保存自体はエラーにしない（2026-08-27新設。本人指示：「曲を選んで出題」へ
+  // 切り替えた直後、まだ誰も選んでいない一時的な状態を安全に保存できるようにする）。
+  {
+    const baseSettings = { questionCountValue: "5", rule: "normal", penaltySeconds: 2 };
+    assertEqual(
+      validateSettings({ ...baseSettings, questionSource: { type: QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION, songIds: [] } }),
+      null,
+      "共同選曲が0曲でも、設定の保存自体はエラーにならない（開始できるかは別途startBattle()側が判定する）"
+    );
+    // 曲が実際に選ばれていれば、今までどおり出題数に対する不足チェックは働く
+    // （MIN_SONGS_REQUIRED=4は満たしつつ、questionCountValueには足りない曲数にする）。
+    assertEqual(
+      validateSettings({
+        ...baseSettings,
+        questionCountValue: "10",
+        questionSource: { type: QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION, songIds: ["a", "b", "c", "d"] },
+      }),
+      "選択した曲は4曲です。10問を出題するには10曲以上必要です。",
+      "共同選曲で曲が選ばれている場合は、今までどおり出題数に対する不足チェックが働く"
+    );
   }
 }

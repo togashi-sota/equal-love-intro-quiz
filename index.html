@@ -2644,23 +2644,13 @@
           </fieldset>
           <!-- 出題する曲（2026-08-08新設）。「全曲から出題」を選んでいる間は、今までどおり
                下のカテゴリ絞り込みがそのまま効く（既存動作を一切変えない）。
-               「曲を選んで出題」を選ぶと、カテゴリの代わりに選んだ曲だけが出題対象になる。 -->
+               「曲を選んで出題」を選ぶと、カテゴリの代わりに参加者全員の共同選曲
+               （下の#online-battle-collab-song-section、2026-08-27新設）が出題対象になる。 -->
           <fieldset>
             <legend>出題する曲</legend>
             <div class="option-row">
               <label><input type="radio" name="online-battle-settings-song-source" value="all" checked> 全曲から出題</label>
               <label><input type="radio" name="online-battle-settings-song-source" value="manual"> 曲を選んで出題</label>
-            </div>
-            <div id="online-battle-settings-manual-song-row" class="battle-manual-song-row" hidden>
-              <!-- 2026-08-27新設：お気に入り・プレイリストからもまとめて選べるようにする
-                   （js/onlineBattleScreen.js参照）。いずれも「今のルーム参加者全員が
-                   利用できる曲」との共通部分だけが実際の選択曲になる。 -->
-              <div class="battle-song-source-button-row">
-                <button id="online-battle-settings-choose-songs-button" class="secondary-button" type="button">🎵 全曲から選ぶ</button>
-                <button id="online-battle-settings-choose-favorites-button" class="secondary-button" type="button">⭐ お気に入り</button>
-                <button id="online-battle-settings-choose-playlist-button" class="secondary-button" type="button">📃 プレイリスト</button>
-              </div>
-              <p id="online-battle-settings-manual-song-count" class="battle-manual-song-count"></p>
             </div>
           </fieldset>
           <fieldset id="online-battle-lobby-settings-category-fieldset">
@@ -2698,6 +2688,23 @@
           <div class="battle-config-summary" id="online-battle-lobby-settings-summary"></div>
         </div>
 
+        <!-- 共同選曲（2026-08-27新設）：「曲を選んで出題」が選ばれている間だけ表示する、
+             ホスト・参加者どちらも同じように使える曲選択セクション。各自が自分の
+             お気に入り・プレイリスト・全曲一覧から曲を追加でき（js/onlineBattlePlaylistPicker.js・
+             js/onlineBattleSongPicker.jsを共用）、参加者全員の選択を合わせたものが実際の
+             出題対象になる（js/onlineBattleScreen.js参照）。「今のルーム参加者全員が利用できる
+             共通曲」との共通部分だけが最終的に使われる。 -->
+        <div id="online-battle-collab-song-section" class="battle-manual-song-row" hidden>
+          <p class="battle-field-label">出題する曲（参加者全員で選べます）</p>
+          <div class="battle-song-source-button-row">
+            <button id="online-battle-collab-choose-songs-button" class="secondary-button" type="button">🎵 全曲から選ぶ</button>
+            <button id="online-battle-collab-choose-favorites-button" class="secondary-button" type="button">⭐ お気に入り</button>
+            <button id="online-battle-collab-choose-playlist-button" class="secondary-button" type="button">📃 プレイリスト</button>
+          </div>
+          <p id="online-battle-collab-my-count" class="battle-manual-song-count"></p>
+          <p id="online-battle-collab-total-count" class="battle-manual-song-count"></p>
+        </div>
+
         <!-- 歌詞クイズ専用：ホスト用設定（対戦ルール・回答方式・ヒント表示時間・出題数）。
              js/lyricsQuizBattleUi.js（Phase5）の自動生成UIを使い、ルール名をこのHTML側は
              一切知らない（2026-08-08新設・Phase6）。 -->
@@ -2722,23 +2729,14 @@
             </div>
           </fieldset>
           <!-- 出題する曲（2026-08-08新設）。歌詞クイズは元々questionSourceが常にALL_SONGS固定
-               だったため、ここではallとmanualの2択のみを追加する（既存のカテゴリ絞り込みは無い）。 -->
+               だったため、ここではallとmanualの2択のみを追加する（既存のカテゴリ絞り込みは無い）。
+               実際の選曲UIは下の#online-lyrics-battle-collab-song-section（2026-08-27新設、
+               ホスト・参加者共通）が担当する。 -->
           <fieldset>
             <legend>出題する曲</legend>
             <div class="option-row">
               <label><input type="radio" name="online-lyrics-battle-settings-song-source" value="all" checked> 全曲から出題</label>
               <label><input type="radio" name="online-lyrics-battle-settings-song-source" value="manual"> 曲を選んで出題</label>
-            </div>
-            <div id="online-lyrics-battle-settings-manual-song-row" class="battle-manual-song-row" hidden>
-              <!-- 2026-08-27新設：お気に入り・プレイリストからもまとめて選べるようにする
-                   （js/onlineLyricsQuizBattleScreen.js参照）。音源対戦モードと同じ考え方だが、
-                   ここでの「共通曲」は歌詞データの所持状況（availableLyricsSongIds）で判定する。 -->
-              <div class="battle-song-source-button-row">
-                <button id="online-lyrics-battle-settings-choose-songs-button" class="secondary-button" type="button">🎵 全曲から選ぶ</button>
-                <button id="online-lyrics-battle-settings-choose-favorites-button" class="secondary-button" type="button">⭐ お気に入り</button>
-                <button id="online-lyrics-battle-settings-choose-playlist-button" class="secondary-button" type="button">📃 プレイリスト</button>
-              </div>
-              <p id="online-lyrics-battle-settings-manual-song-count" class="battle-manual-song-count"></p>
             </div>
           </fieldset>
           <p class="battle-field-hint">対象曲を絞り込んだ場合、歌詞データが必要なのは選んだ曲の分だけです。</p>
@@ -2749,6 +2747,20 @@
         <div id="online-battle-lobby-settings-participant-lyrics" hidden>
           <p class="battle-field-label">対戦設定（ホストが選択中）</p>
           <div class="battle-config-summary" id="online-lyrics-battle-settings-summary"></div>
+        </div>
+
+        <!-- 共同選曲（2026-08-27新設）：歌詞クイズ対戦版。js/onlineBattleScreen.js側の
+             #online-battle-collab-song-sectionと全く同じ考え方だが、こちらは歌詞データの
+             所持状況（availableLyricsSongIds）で共通曲を判定する。 -->
+        <div id="online-lyrics-battle-collab-song-section" class="battle-manual-song-row" hidden>
+          <p class="battle-field-label">出題する曲（参加者全員で選べます）</p>
+          <div class="battle-song-source-button-row">
+            <button id="online-lyrics-battle-collab-choose-songs-button" class="secondary-button" type="button">🎵 全曲から選ぶ</button>
+            <button id="online-lyrics-battle-collab-choose-favorites-button" class="secondary-button" type="button">⭐ お気に入り</button>
+            <button id="online-lyrics-battle-collab-choose-playlist-button" class="secondary-button" type="button">📃 プレイリスト</button>
+          </div>
+          <p id="online-lyrics-battle-collab-my-count" class="battle-manual-song-count"></p>
+          <p id="online-lyrics-battle-collab-total-count" class="battle-manual-song-count"></p>
         </div>
 
         <!-- 歌詞クイズ専用：歌詞データの充足状況（ホストは件数だけ、本人は不足曲名まで）。 -->

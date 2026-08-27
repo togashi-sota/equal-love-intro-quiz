@@ -10,7 +10,13 @@
 
 import { buildBattleQuestions, validateBattleConfig, PENALTY_SECONDS_VALUES } from "../localBattle.js";
 import { computeNormalFinalRecordMs } from "../localBattleResult.js";
-import { resolveSongPool, buildQuestionsFromPool, validateSongPoolForQuestionCount, sanitizeSongIds } from "../questionSource.js";
+import {
+  resolveSongPool,
+  buildQuestionsFromPool,
+  validateSongPoolForQuestionCount,
+  sanitizeSongIds,
+  QUESTION_SOURCE_TYPE,
+} from "../questionSource.js";
 import { MIN_SONGS_REQUIRED, filterSongsByCategory } from "../quiz.js";
 import { SONGS } from "../data/songs.js";
 
@@ -39,6 +45,17 @@ export function defaultSettings() {
 // settingsにはquestionSourceが存在しないため、この関数は今までと寸分違わず同じ結果を返す）。
 export function validateSettings(settings) {
   if (settings.questionSource) {
+    // 【2026-08-27追記・本人指示】共同選曲（collaborativeSelection）は、参加者全員が
+    // まだ選んでいる最中（0曲）という状態を、ロビーでの設定保存自体はエラーにしない
+    // （「曲を選んで出題」に切り替えた直後、まだ誰も選んでいない一時的な状態を
+    // 安全に保存できるようにするため）。実際に対戦を開始できるかどうかの判定は、
+    // js/onlineBattle.jsのstartBattle()が共通曲への絞り込み後に別途行う。
+    if (
+      settings.questionSource.type === QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION &&
+      (settings.questionSource.songIds ?? []).length === 0
+    ) {
+      return null;
+    }
     const songPool = resolveQuestionSourceSongPool(settings.questionSource);
     if (songPool.length < MIN_SONGS_REQUIRED) {
       return "曲数が足りません。出題範囲を広げてください。";

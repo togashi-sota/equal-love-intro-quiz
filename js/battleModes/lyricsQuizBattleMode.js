@@ -130,6 +130,16 @@ export function validateSettings(settings) {
     return "対戦ルールのバージョンが一致しません。アプリを更新してください。";
   }
 
+  // 【2026-08-27追記・本人指示】共同選曲（collaborativeSelection）は、参加者全員が
+  // まだ選んでいる最中（0曲）という状態を、ロビーでの設定保存自体はエラーにしない
+  // （js/battleModes/timeAttackBattleMode.jsの同じ追記と同じ理由）。
+  if (
+    settings.questionSource?.type === QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION &&
+    (settings.questionSource.songIds ?? []).length === 0
+  ) {
+    return null;
+  }
+
   // 【2026-08-08修正】resolveSongPool()ではなく、歌詞クイズ対象外の曲
   // （Overture等、ボーカルの無い曲）を除いたresolveLyricsQuizSongPool()を使う。
   const songPool = resolveLyricsQuizSongPool(settings.questionSource);

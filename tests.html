@@ -82,6 +82,7 @@
     import { runWeakSongStatsTests } from "./tests/weakSongStats.test.js";
     import { runDataPackImportTests } from "./tests/dataPackImport.test.js";
     import { runZipPackImportTests } from "./tests/zipPackImport.test.js";
+    import { runOnlineBattleCollaborativeSelectionTests } from "./tests/onlineBattleCollaborativeSelection.test.js";
     import { runOnlineBattleSongAvailabilityTests } from "./tests/onlineBattleSongAvailability.test.js";
     import { runTimeAttackBattleModeTests } from "./tests/battleModes/timeAttackBattleMode.test.js";
     import { runBattleModesIndexAvailabilityTests } from "./tests/battleModes/index.test.js";
@@ -147,6 +148,7 @@
     await runDataPackImportTests();
     await runZipPackImportTests();
     runOnlineBattleSongAvailabilityTests();
+    runOnlineBattleCollaborativeSelectionTests();
     runTimeAttackBattleModeTests();
     runBattleModesIndexAvailabilityTests();
     runNewSingleAnnouncementTests();

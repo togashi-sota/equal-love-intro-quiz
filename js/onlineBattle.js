@@ -516,6 +516,19 @@ export async function startBattle({ roomId, settings }) {
   let finalSettings = settings;
   const resolvedSongPool = resolveSongPoolForSettings(room.gameMode, settings);
   if (resolvedSongPool) {
+    // 【2026-08-27新設】共同選曲（collaborativeSelection）は、ロビーでの設定保存自体は
+    // 0曲でもエラーにしない設計にしてある（js/battleModes/timeAttackBattleMode.js・
+    // lyricsQuizBattleMode.js参照）ため、「まだ誰も曲を選んでいない」状態のまま
+    // 対戦を開始しようとするケースをここで明示的に検出する（絞り込みが何も変えない＝
+    // resolvedSongPoolが既に空のときは、下の「絞り込みが発生した場合だけ再検証する」
+    // 分岐を素通りしてしまい、0問の対戦が始まってしまうため）。
+    if (resolvedSongPool.length === 0) {
+      return {
+        ok: false,
+        reason: "insufficient-common-songs",
+        message: "出題する曲が選ばれていません。参加者で曲を選ぶか、「全曲から出題」に切り替えてください。",
+      };
+    }
     finalSettings = await restrictSettingsToCommonlyAvailableSongs({
       roomId,
       playerUids: Object.keys(players),

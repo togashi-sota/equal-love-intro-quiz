@@ -89,6 +89,12 @@ import { getFavoriteSongIds } from "./favoriteSongs.js";
 // 計算は、あちらと同じ関数を使いつつこのファイル自身で独立して行う（gameModeが違えば
 // 絞り込みに使う所持データの種類も違うことに注意：ここでは常にavailabilityKind="lyrics"）。
 import { computeRoomCommonSongPool } from "./onlineBattleSongAvailability.js";
+// 【2026-08-27新設】共同選曲（参加者全員が選んだ曲の和集合を出題対象にする機能）。
+import {
+  reportMySelectedSongIds,
+  computeMergedSelectedSongIds,
+  areSongIdSetsEqual,
+} from "./onlineBattleCollaborativeSelection.js";
 import { QUESTION_SOURCE_TYPE, sanitizeSongIds } from "./questionSource.js";
 import { savePlayHistoryEntryIfNew } from "./playHistory.js";
 import { SONGS } from "./data/songs.js";
@@ -144,16 +150,14 @@ let ownMissingSongTitlesCache = [];
 // room.players[自分のuid].lyricsCoverageだけに頼ると、送信中〜反映待ちの間は「まだ確認して
 // いない」状態を「0曲で不足」と誤表示してしまうため（本人からの指摘・2026-08-06）。
 let ownLyricsCoverageStatus = null;
-// 【2026-08-08新設】ホストが「曲を選んで出題」を選んだときの、現在の選択曲id配列。
-// js/onlineBattleScreen.jsのhostSelectedManualSongIdsと同じ考え方（room.settings.
-// questionSource.songIdsと常に一致させ、renderLyricsQuizLobbySettings()のたびに同期し直す）。
-let hostSelectedManualSongIds = [];
-// 【2026-08-08追記】上の同期を「room.settingsRevisionが実際に変わったときだけ」に限定するための
-// 記録用。出題数に対して選択曲が足りず保存に失敗した場合、room.settingsRevisionは変わらない
-// （Firebaseへの書き込み自体が行われないため）。ここで無条件に同期してしまうと、ホストが曲を
-// 選び足している最中に他の参加者の接続状態変化などでrenderLyricsQuizLobbySettings()が再実行される
-// たびに、選択中の内容が保存済みの古い内容へ巻き戻ってしまう（実機検証で発見）。
-let lastSyncedManualSongsRevision = null;
+// 【2026-08-08新設・2026-08-27全面刷新】以前はホストだけが選べる単一の選択リスト
+// （hostSelectedManualSongIds）だったが、本人指示により「ホスト以外の参加者も選曲でき、
+// 全員の選択がリアルタイムに共有される」共同選曲へ変更した（js/onlineBattleScreen.jsの
+// 同じ変更と全く同じ考え方。詳細はあちらのコメント参照）。
+// mySelectedSongIds: 自分（今の端末のプレイヤー）が選んだ曲id。
+// room.players[myUid].selectedSongIdsのローカル反映で、renderLyricsQuizLobbySettings()の
+// たびに同期し直す。
+let mySelectedSongIds = [];
 // 【2026-08-27新設】「今この瞬間、ルームにいる参加者全員が実際に歌詞データを持っている曲」の
 // 集合。js/onlineBattleScreen.jsのcurrentCommonSongPoolと同じ考え方だが、このファイルは
 // あちらをimportしない設計（冒頭コメント参照）のため、独立して計算・保持する。
@@ -181,14 +185,18 @@ export function initOnlineLyricsQuizBattleScreens(newElements) {
     });
   });
 
-  // 【2026-08-08新設】出題する曲。「曲を選んで出題」へ切り替えた瞬間は、まだ0曲で
-  // 検証エラーになるのを避けるため、先に曲選択画面を開く（js/onlineBattleScreen.jsと同じ考え方）。
+  // 【2026-08-27変更】js/onlineBattleScreen.jsと全く同じ理由で、「曲を選んで出題」は
+  // 0曲でも共同選曲(collaborativeSelection)として安全に保存できるようにしてある
+  // （js/battleModes/lyricsQuizBattleMode.js参照）ため、以前のような「曲選択画面を
+  // 先に開く」特別扱いは不要になった。
   document.querySelectorAll('input[name="online-lyrics-battle-settings-song-source"]').forEach((radio) => {
     radio.addEventListener("change", () => {
       if (!latestRoom || latestRoom.gameMode !== lyricsQuizBattleMode.gameMode) return;
       if (radio.value === "manual") {
-        updateLyricsManualSongSourceUi(true);
-        openLyricsSongPickerForHost();
+        applyLyricsQuizSettingsChange(latestRoom, {
+          ...latestRoom.settings,
+          questionSource: { type: QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION, songIds: getMergedRestrictedLyricsSongIds() },
+        });
         return;
       }
       applyLyricsQuizSettingsChange(latestRoom, {
@@ -197,19 +205,19 @@ export function initOnlineLyricsQuizBattleScreens(newElements) {
       });
     });
   });
-  elements.lyricsChooseSongsButton.addEventListener("click", () => {
-    openLyricsSongPickerForHost();
+  // 【2026-08-27新設】共同選曲：全曲・お気に入り・プレイリストから選ぶ。ホスト・参加者を
+  // 問わず誰でも使える（js/onlineBattleScreen.jsの同名ハンドラと同じ考え方）。
+  // 歌詞クイズ対戦では「歌詞データの共通曲」で絞り込む。
+  elements.lyricsCollabChooseSongsButton.addEventListener("click", () => {
+    openLyricsCollabSongPicker();
   });
-
-  // 【2026-08-27新設】お気に入り・プレイリストから選ぶ（js/onlineBattleScreen.jsの
-  // 同名ハンドラと同じ考え方）。歌詞クイズ対戦では「歌詞データの共通曲」で絞り込む。
-  elements.lyricsChooseFavoritesButton.addEventListener("click", () => {
+  elements.lyricsCollabChooseFavoritesButton.addEventListener("click", () => {
     const favoriteSongIds = getFavoriteSongIds().filter((songId) => currentLyricsCommonSongPool.has(songId));
-    openLyricsSongPickerForHost(favoriteSongIds);
+    openLyricsCollabSongPicker(favoriteSongIds);
   });
-  elements.lyricsChoosePlaylistButton.addEventListener("click", () => {
+  elements.lyricsCollabChoosePlaylistButton.addEventListener("click", () => {
     openOnlineBattlePlaylistPicker(currentLyricsCommonSongPool, (songIds) => {
-      openLyricsSongPickerForHost(songIds);
+      openLyricsCollabSongPicker(songIds);
     });
   });
 
@@ -262,8 +270,7 @@ export function resetLyricsQuizBattleState() {
   lyricsCoverageSubmittedHash = null;
   ownMissingSongTitlesCache = [];
   ownLyricsCoverageStatus = null;
-  hostSelectedManualSongIds = [];
-  lastSyncedManualSongsRevision = null;
+  mySelectedSongIds = [];
 }
 
 // js/onlineBattleScreen.jsのrenderLobby()が、room更新のたびに（画面を問わず）呼ぶフック。
@@ -314,58 +321,76 @@ function setQuestionCountRadio(value) {
 // 【2026-08-08新設】出題する曲の状態を、ホスト用フォームへ復元する。renderLyricsQuizLobbySettings()の
 // たびに呼ばれるため、リロード直後・他タブでの変更後もここで自動的に復元される
 // （js/onlineBattleScreen.jsのapplySettingsToHostForm()と同じ考え方）。
-function setLyricsSongSourceRadio(settings, settingsRevision) {
-  // settingsRevisionが前回同期時から変わっていなければ、room.settingsは「保存済みの古い内容」の
-  // ままなので同期をスキップする（ホストが選び直している最中の内容を守るため。詳細は
-  // lastSyncedManualSongsRevisionの定義コメント参照）。
-  if (settingsRevision === lastSyncedManualSongsRevision) return;
-  lastSyncedManualSongsRevision = settingsRevision;
-  const isManual = settings.questionSource?.type === QUESTION_SOURCE_TYPE.MANUAL_SELECTION;
-  const value = isManual ? "manual" : "all";
+// 【2026-08-27変更】曲そのものの選択は共同選曲セクション（updateLyricsCollabSongSectionUi）へ
+// 切り出したため、ここではラジオの状態同期だけを行う。
+function setLyricsSongSourceRadio(settings) {
+  const isCollaborative = settings.questionSource?.type === QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION;
+  const value = isCollaborative ? "manual" : "all";
   const input = document.querySelector(`input[name="online-lyrics-battle-settings-song-source"][value="${value}"]`);
   if (input) input.checked = true;
-  hostSelectedManualSongIds = isManual ? (settings.questionSource.songIds ?? []) : [];
-  updateLyricsManualSongSourceUi(isManual);
 }
 
-function updateLyricsManualSongSourceUi(isManual) {
-  elements.lyricsManualSongRow.hidden = !isManual;
-  elements.lyricsManualSongCount.textContent = `${hostSelectedManualSongIds.length}曲選択中`;
+// 【2026-08-27新設】現在分かっている「参加者全員が選んだ曲の和集合」を、今のルーム
+// 共通曲（currentLyricsCommonSongPool）で絞り込んだ配列を返す。
+function getMergedRestrictedLyricsSongIds() {
+  if (!latestRoom) return [];
+  const merged = computeMergedSelectedSongIds(latestRoom.players || {});
+  return merged.filter((songId) => currentLyricsCommonSongPool.has(songId));
 }
 
-// initialSongIds省略時は今の選択（hostSelectedManualSongIds）をそのまま引き継ぐ。
-// お気に入り・プレイリストから選んだ場合は、その時点の曲id配列を渡す。
-// 【2026-08-27重要】js/onlineBattleScreen.jsのopenSongPickerForHost()と全く同じ理由で、
+// 【2026-08-27新設】共同選曲セクション（ホスト・参加者共通）の表示を更新する。
+function updateLyricsCollabSongSectionUi(room) {
+  const isCollaborative = room.settings?.questionSource?.type === QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION;
+  elements.lyricsCollabSongSection.hidden = !isCollaborative;
+  if (!isCollaborative) return;
+
+  const merged = computeMergedSelectedSongIds(room.players || {});
+  const restrictedCount = merged.filter((songId) => currentLyricsCommonSongPool.has(songId)).length;
+  elements.lyricsCollabMyCount.textContent = `自分が選んだ曲: ${mySelectedSongIds.length}曲`;
+  elements.lyricsCollabTotalCount.textContent =
+    merged.length === 0
+      ? "まだ誰も曲を選んでいません。下のボタンから選んでください。"
+      : `参加者全員の選択を合わせて${merged.length}曲（このうち${restrictedCount}曲がこの対戦で使えます）`;
+}
+
+// 【2026-08-27新設・ホスト専用】js/onlineBattleScreen.jsのsyncCollaborativeSongPoolIfHost()と
+// 全く同じ考え方。参加者全員の選択の和集合を、今のルーム共通曲（歌詞データの所持状況）で
+// 絞り込んだ結果が変わっていれば、ホストの端末からsettingsへ反映する。
+async function syncLyricsCollaborativeSongPoolIfHost(room, isHost) {
+  if (!isHost) return;
+  const settings = room.settings;
+  if (settings.questionSource?.type !== QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION) return;
+
+  const merged = computeMergedSelectedSongIds(room.players || {});
+  const restricted = merged.filter((songId) => currentLyricsCommonSongPool.has(songId));
+  const currentSongIds = settings.questionSource.songIds ?? [];
+  if (areSongIdSetsEqual(restricted, currentSongIds)) return;
+
+  await applyLyricsQuizSettingsChange(room, {
+    ...settings,
+    questionSource: { type: QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION, songIds: restricted },
+  });
+}
+
+// 曲選択画面を開く。ホスト・参加者を問わず、誰でも「自分の選択」を編集できる
+// （本人指示：全員で共同選曲する）。initialSongIds省略時は今の自分の選択
+// （mySelectedSongIds）をそのまま引き継ぐ。お気に入り・プレイリストから選んだ場合は、
+// その時点の曲id配列を渡す。
+// 【2026-08-27重要】js/onlineBattleScreen.jsのopenCollabSongPicker()と全く同じ理由で、
 // initialSongIdsは必ずcurrentLyricsCommonSongPoolでフィルタしてから渡す（一覧に表示
 // されない曲が、内部の選択状態にだけ残ってしまう事故を防ぐため）。
-function openLyricsSongPickerForHost(initialSongIds) {
+function openLyricsCollabSongPicker(initialSongIds) {
   const songIdsToShow = sanitizeSongIds(
-    (initialSongIds ?? hostSelectedManualSongIds).filter((songId) => currentLyricsCommonSongPool.has(songId))
+    (initialSongIds ?? mySelectedSongIds).filter((songId) => currentLyricsCommonSongPool.has(songId))
   );
   openOnlineBattleSongPicker(
     songIdsToShow,
     async (songIds) => {
-      hostSelectedManualSongIds = songIds;
-      updateLyricsManualSongSourceUi(true);
-      const manualRadio = document.querySelector(
-        'input[name="online-lyrics-battle-settings-song-source"][value="manual"]'
-      );
-      if (manualRadio) manualRadio.checked = true;
+      mySelectedSongIds = songIds;
       elements.navigateTo("onlineBattleLobby");
-      if (!latestRoom) return;
-      await applyLyricsQuizSettingsChange(latestRoom, {
-        ...latestRoom.settings,
-        questionSource: { type: QUESTION_SOURCE_TYPE.MANUAL_SELECTION, songIds },
-      });
+      await submitMySelectedLyricsSongIds(songIds);
     },
     () => {
-      if (hostSelectedManualSongIds.length === 0) {
-        const allRadio = document.querySelector(
-          'input[name="online-lyrics-battle-settings-song-source"][value="all"]'
-        );
-        if (allRadio) allRadio.checked = true;
-        updateLyricsManualSongSourceUi(false);
-      }
       elements.navigateTo("onlineBattleLobby");
     },
     // 【2026-08-08新設・2026-08-27拡張】歌詞クイズ対戦の曲選択一覧には、Overture等の
@@ -373,6 +398,21 @@ function openLyricsSongPickerForHost(initialSongIds) {
     // 持っている曲だけに絞り込む（本人指示：曲指定画面でも共通曲以外は選べないようにする）。
     (song) => isLyricsQuizEligibleSong(song) && currentLyricsCommonSongPool.has(song.id)
   );
+}
+
+// 【2026-08-27新設】js/onlineBattleScreen.jsのsubmitMySelectedSongIds()と全く同じ考え方。
+async function submitMySelectedLyricsSongIds(songIds) {
+  if (!latestRoom) return;
+  try {
+    await reportMySelectedSongIds({ roomId: latestRoom.roomId, songIds });
+    if (elements.lyricsSettingsError) elements.lyricsSettingsError.hidden = true;
+  } catch {
+    if (elements.lyricsSettingsError) {
+      elements.lyricsSettingsError.textContent =
+        "曲の選択を保存できませんでした。アプリの更新状況をご確認のうえ、もう一度お試しください。";
+      elements.lyricsSettingsError.hidden = false;
+    }
+  }
 }
 
 function describeAnswerPoolChipLabel(size) {
@@ -474,6 +514,7 @@ export function renderLyricsQuizLobbySettings(room, isHost) {
   elements.lobbySettingsHostLyrics.hidden = !isHost;
   elements.lobbySettingsParticipantLyrics.hidden = isHost;
   const settings = room.settings;
+  const myUid = getCurrentUid();
 
   // 【2026-08-27新設】room更新のたび（参加者の入退室・歌詞所持データ報告のたび）に
   // 「今この瞬間、参加者全員が実際に歌詞データを持っている曲」を再計算する
@@ -487,6 +528,10 @@ export function renderLyricsQuizLobbySettings(room, isHost) {
       kind: getAvailabilityKind(room.gameMode),
     })
   );
+  // 自分の選択曲一覧を、room.players側の値へ常に合わせておく。
+  mySelectedSongIds = Array.isArray(room.players?.[myUid]?.selectedSongIds)
+    ? room.players[myUid].selectedSongIds
+    : [];
 
   if (isHost) {
     const ruleOptions = describeRuleOptions(settings.battleRuleId);
@@ -511,10 +556,15 @@ export function renderLyricsQuizLobbySettings(room, isHost) {
     });
 
     setQuestionCountRadio(settings.questionCountValue);
-    setLyricsSongSourceRadio(settings, room.settingsRevision);
+    setLyricsSongSourceRadio(settings);
   } else {
     renderLyricsQuizParticipantSummary(settings);
   }
+
+  // 【2026-08-27新設】共同選曲：ホスト・参加者を問わず同じ表示を行い、ホストの端末だけが
+  // 「参加者全員の選択の和集合」をsettingsへ自動的に反映する。
+  updateLyricsCollabSongSectionUi(room);
+  syncLyricsCollaborativeSongPoolIfHost(room, isHost);
 
   renderLyricsQuizReadinessSection(room, isHost);
   refreshAndSubmitLyricsCoverage(room);

@@ -89,6 +89,15 @@ import { savePlayHistoryEntryIfNew } from "./playHistory.js";
 // getAvailabilityKind()に一元的に委ねる。
 import { getAvailableSongIds, AVAILABLE_DATA_KIND } from "./availableSongs.js";
 import { reportMyAvailableSongIdsForKind, computeRoomCommonSongPool } from "./onlineBattleSongAvailability.js";
+// 【2026-08-27新設】共同選曲（参加者全員がお気に入り・プレイリストから曲を選び、
+// 全員の選択の和集合を実際の出題対象にする機能）。判定ロジック（和集合の計算）は
+// js/onlineBattleCollaborativeSelectionPayloads.jsへ分離されている
+// （js/onlineBattleCollaborativeSelection.js冒頭コメント参照）。
+import {
+  reportMySelectedSongIds,
+  computeMergedSelectedSongIds,
+  areSongIdSetsEqual,
+} from "./onlineBattleCollaborativeSelection.js";
 
 let elements = null;
 let currentRoomId = null;
@@ -109,17 +118,24 @@ let currentGameMode = null; // 今のルームのgameMode（設定変更ハン�
 // 押した時点でフォームから読み直す必要が無く、renderLobby()のたびにここへ最新値を
 // 控えておくだけでよい。
 let currentLyricsQuizSettings = null;
-// 【2026-08-08新設】ホストが「曲を選んで出題」を選んだときの、現在の選択曲id配列。
-// room.settings.questionSource.songIdsと常に一致させる（applySettingsToHostForm()で
-// room更新のたびに同期し直す。リロード直後・他ホスト操作の反映もこの経路で行われる）。
-let hostSelectedManualSongIds = [];
-// 【2026-08-08追記】上の同期を「room.settingsRevisionが実際に変わったときだけ」に限定するための
-// 記録用。出題数に対して選択曲が足りず保存に失敗した場合、room.settingsRevisionは変わらない
-// （Firebaseへの書き込み自体が行われないため）。ここで無条件に同期してしまうと、ホストが曲を
-// 選び足している最中に他の参加者の接続状態変化などでrenderLobby()が再実行されるたびに、
-// 選択中の内容が保存済みの古い内容へ巻き戻ってしまう（js/onlineLyricsQuizBattleScreen.jsの
-// 実機検証で発見した不具合と同じ原因のため、同じ対策をこちらにも入れる）。
-let lastSyncedManualSongsRevision = null;
+// 【2026-08-08新設・2026-08-27全面刷新】以前はホストだけが選べる単一の選択リスト
+// （hostSelectedManualSongIds）を、ホストの端末だけがsettings.questionSourceへ
+// 書き込む設計だった。本人指示により「ホスト以外の参加者も選曲でき、全員の選択が
+// リアルタイムに共有される」共同選曲へ変更したため、以下のように置き換えた：
+//   - mySelectedSongIds: 自分（今の端末のプレイヤー）が選んだ曲id。
+//     room.players[myUid].selectedSongIdsのローカル反映で、renderLobby()のたびに
+//     同期し直す。誰でも自分の分だけをFirebaseへ書き込める
+//     （js/onlineBattleCollaborativeSelection.js参照）。
+//   - settings.questionSource（type: collaborativeSelection）は、参加者全員の
+//     選択の和集合を「今のルーム参加者全員が実際に利用できる曲」で絞り込んだものを
+//     ホストの端末だけが書き込む（settings自体はホスト専用書き込みという既存の
+//     Firebaseルールをそのまま使い、新しい種類の許可を増やさないための設計）。
+//     この同期はrenderLobby()側で、和集合が変化した場合だけ自動的に行われる。
+let mySelectedSongIds = [];
+// 【2026-08-27新設】最後にrenderLobby()へ渡されたroom（共同選曲ボタン押下時に
+// 最新のplayers一覧・settingsを参照するために保持する。renderLobby()はroomが変わる
+// たびに必ず呼ばれるため、ここに保持した値が古くなることはない）。
+let latestRoom = null;
 // 【2026-08-27新設】「今この瞬間、ルームにいる参加者全員が実際に利用できる曲」の集合。
 // renderLobby()が呼ばれるたび（＝参加者の入退室・所持データ報告のたびに）再計算する
 // （js/onlineBattleSongAvailabilityPayloads.jsのcomputeRoomCommonSongPool参照）。
@@ -233,9 +249,12 @@ function renderSettingsChips(container, settings, gameMode) {
 }
 
 // ホスト用の設定フォーム（ラジオボタン群）に、現在ルームに保存されている設定値を反映する。
-// リロード直後・他タブでの変更後もrenderLobby()経由で必ず呼ばれるため、ここで
-// hostSelectedManualSongIds・出題する曲UIの状態も一緒に復元する（本人指示：リロード対応）。
-function applySettingsToHostForm(settings, settingsRevision) {
+// リロード直後・他タブでの変更後もrenderLobby()経由で必ず呼ばれる。
+//
+// 【2026-08-27設計変更】曲そのものの選択は、この関数（ホスト専用フォーム）の責務からは
+// 外し、全員（ホスト・参加者共通）が使う共同選曲セクション（updateCollabSongSectionUi）
+// へ切り出した。ここでは「全曲から出題／曲を選んで出題」のラジオ自体の状態同期だけを行う。
+function applySettingsToHostForm(settings) {
   const setChecked = (name, value) => {
     const input = document.querySelector(`input[name="${name}"][value="${value}"]`);
     if (input) input.checked = true;
@@ -246,25 +265,11 @@ function applySettingsToHostForm(settings, settingsRevision) {
   setChecked("online-battle-settings-penalty", String(settings.penaltySeconds));
   elements.lobbySettingsPenaltyFieldset.hidden = settings.rule !== "normal";
 
-  // settingsRevisionが前回同期時から変わっていなければ、room.settingsは「保存済みの古い内容」の
-  // ままなので同期をスキップする（ホストが選び直している最中の内容を守るため。詳細は
-  // lastSyncedManualSongsRevisionの定義コメント参照）。
-  if (settingsRevision === lastSyncedManualSongsRevision) return;
-  lastSyncedManualSongsRevision = settingsRevision;
-  const isManualSongSource = settings.questionSource?.type === QUESTION_SOURCE_TYPE.MANUAL_SELECTION;
-  setChecked("online-battle-settings-song-source", isManualSongSource ? "manual" : "all");
-  hostSelectedManualSongIds = isManualSongSource ? (settings.questionSource.songIds ?? []) : [];
-  updateManualSongSourceUi(isManualSongSource);
-}
-
-// 「出題する曲」の選択状態に合わせて、「曲を選ぶ」ボタン・選択数表示・カテゴリ欄の
-// 表示/非表示を切り替える。カテゴリは曲を手動選択している間は意味を持たないため隠す
-// （settings.questionSourceがある間、js/battleModes/timeAttackBattleMode.jsが
-// categoryFilterValueを一切参照しないことと対応させている）。
-function updateManualSongSourceUi(isManual) {
-  elements.lobbySettingsManualSongRow.hidden = !isManual;
-  elements.lobbySettingsCategoryFieldset.hidden = isManual;
-  elements.lobbySettingsManualSongCount.textContent = `${hostSelectedManualSongIds.length}曲選択中`;
+  const isCollaborativeSongSource = settings.questionSource?.type === QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION;
+  setChecked("online-battle-settings-song-source", isCollaborativeSongSource ? "manual" : "all");
+  // カテゴリは曲を共同選択している間は意味を持たないため隠す（settings.questionSourceがある間、
+  // js/battleModes/timeAttackBattleMode.jsがcategoryFilterValueを一切参照しないことと対応させている）。
+  elements.lobbySettingsCategoryFieldset.hidden = isCollaborativeSongSource;
 }
 
 function readSettingsFromHostForm() {
@@ -278,14 +283,22 @@ function readSettingsFromHostForm() {
   };
   // 「全曲から出題」のときはquestionSource自体を持たせない（今までと全く同じ、
   // categoryFilterValueだけを見る動作を維持するため。本人指示：既存動作を変えない）。
+  // 【2026-08-27変更】「曲を選んで出題」は共同選曲（collaborativeSelection）として保存する。
+  // songIdsは、その時点で分かっている「参加者全員の選択の和集合を、今のルーム共通曲で
+  // 絞り込んだもの」を入れる（0件でもよい。まだ誰も選んでいない状態を安全に表せるよう、
+  // js/battleModes/timeAttackBattleMode.js側でこの型の0件は検証エラーにしないようにしてある）。
   if (songSourceValue === "manual") {
-    settings.questionSource = { type: QUESTION_SOURCE_TYPE.MANUAL_SELECTION, songIds: hostSelectedManualSongIds };
+    settings.questionSource = {
+      type: QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION,
+      songIds: getMergedRestrictedSongIds(),
+    };
   }
   return settings;
 }
 
 // ホストの設定フォームの今の内容を検証し、問題なければFirebaseへ反映する
-// （設定ラジオの変更・曲選択画面での「決定」の両方から呼ばれる共通処理）。
+// （設定ラジオの変更から呼ばれる。曲そのものの選択はsyncCollaborativeSongPoolIfHost()が
+// 別途、参加者全員の選択が変わるたびに自動的に反映する）。
 async function applyHostSettingsChangeFromForm() {
   if (!currentRoomId) return;
   const settings = readSettingsFromHostForm();
@@ -301,8 +314,67 @@ async function applyHostSettingsChangeFromForm() {
   await updateRoomSettings({ roomId: currentRoomId, settings });
 }
 
+// 【2026-08-27新設】現在分かっている「参加者全員が選んだ曲の和集合」を、今のルーム
+// 共通曲（currentCommonSongPool）で絞り込んだ配列を返す。latestRoomが無い
+// （まだ一度もrenderLobby()を経ていない）場合は空配列を返す。
+function getMergedRestrictedSongIds() {
+  if (!latestRoom) return [];
+  const merged = computeMergedSelectedSongIds(latestRoom.players || {});
+  return merged.filter((songId) => currentCommonSongPool.has(songId));
+}
+
+// 【2026-08-27新設】共同選曲セクション（ホスト・参加者共通）の表示を更新する。
+// 「今の自分の選択数」「参加者全員を合わせた選択数・実際に使える数」を表示するだけの
+// 表示専用関数（Firebaseへは一切書き込まない）。
+function updateCollabSongSectionUi(room, isLyricsQuiz) {
+  const isCollaborative =
+    !isLyricsQuiz && room.settings?.questionSource?.type === QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION;
+  elements.collabSongSection.hidden = !isCollaborative;
+  if (!isCollaborative) return;
+
+  const merged = computeMergedSelectedSongIds(room.players || {});
+  const restrictedCount = merged.filter((songId) => currentCommonSongPool.has(songId)).length;
+  elements.collabMyCount.textContent = `自分が選んだ曲: ${mySelectedSongIds.length}曲`;
+  elements.collabTotalCount.textContent =
+    merged.length === 0
+      ? "まだ誰も曲を選んでいません。下のボタンから選んでください。"
+      : `参加者全員の選択を合わせて${merged.length}曲（このうち${restrictedCount}曲がこの対戦で使えます）`;
+}
+
+// 【2026-08-27新設・ホスト専用】参加者全員の選択（players/*/selectedSongIds）の和集合を
+// 今のルーム共通曲で絞り込んだ結果が、今settingsに保存されている内容と変わっていれば、
+// ホストの端末から新しい内容をFirebaseへ書き込む。
+//
+// 【設計の要点：なぜホストだけが書き込むか】settings自体は既存のFirebaseルールで
+// 「ホストだけが書き込める」フィールドのため、新しい種類の許可（誰でもsettingsを
+// 書き換えられる、という広い許可）を増やさずに済むよう、各参加者は自分のselectedSongIds
+// （players/{uid}配下、本人だけが書き込める）を更新するだけにし、それらを合算して
+// settingsへ反映する役目はホストの端末に一本化した。ホストの端末は全参加者のplayersを
+// 既にリアルタイム購読しているため、renderLobby()のたびにこの関数を呼ぶだけで
+// 「参加者の誰かが選曲を変えるたびに自動的に反映される」動作が実現できる。
+//
+// 【settingsRevisionが上がりREADYがリセットされることについて】updateRoomSettings()は
+// 呼ばれるたびに非ホスト全員のreadyをfalseへ戻す（既存の仕様）。選曲内容が変わった
+// 場合に準備完了を解除するのは安全側の挙動として本人が望んだ動作のため、そのまま利用する。
+async function syncCollaborativeSongPoolIfHost(room, isHost, isLyricsQuiz) {
+  if (!isHost || isLyricsQuiz) return;
+  const settings = room.settings;
+  if (settings.questionSource?.type !== QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION) return;
+
+  const merged = computeMergedSelectedSongIds(room.players || {});
+  const restricted = merged.filter((songId) => currentCommonSongPool.has(songId));
+  const currentSongIds = settings.questionSource.songIds ?? [];
+  if (areSongIdSetsEqual(restricted, currentSongIds)) return;
+
+  await updateRoomSettings({
+    roomId: room.roomId,
+    settings: { ...settings, questionSource: { type: QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION, songIds: restricted } },
+  });
+}
+
 // 曲選択画面を開く（新規に選ぶ場合・すでに選んだ内容を編集する場合の両方で使う）。
-// initialSongIds省略時は今の選択（hostSelectedManualSongIds）をそのまま引き継ぐ。
+// ホスト・参加者を問わず、誰でも「自分の選択」を編集できる（本人指示：全員で共同選曲する）。
+// initialSongIds省略時は今の自分の選択（mySelectedSongIds）をそのまま引き継ぐ。
 // お気に入り・プレイリストから選んだ場合は、その時点の曲id配列を渡す
 // （呼び出し側が既にcurrentCommonSongPoolとの共通部分へ絞り込み済みの前提）。
 //
@@ -311,34 +383,40 @@ async function applyHostSettingsChangeFromForm() {
 // （＝isSongEligibleで除外された）曲idも内部の選択状態にはそのまま残してしまうため、
 // ここで先に絞っておかないと、参加者の入れ替わりで一覧から消えた曲が「決定」を押した
 // 瞬間に復活してしまう事故につながる。
-function openSongPickerForHost(initialSongIds) {
+function openCollabSongPicker(initialSongIds) {
   const songIdsToShow = sanitizeSongIds(
-    (initialSongIds ?? hostSelectedManualSongIds).filter((songId) => currentCommonSongPool.has(songId))
+    (initialSongIds ?? mySelectedSongIds).filter((songId) => currentCommonSongPool.has(songId))
   );
   openOnlineBattleSongPicker(
     songIdsToShow,
     async (songIds) => {
-      hostSelectedManualSongIds = songIds;
-      updateManualSongSourceUi(true);
-      const manualRadio = document.querySelector('input[name="online-battle-settings-song-source"][value="manual"]');
-      if (manualRadio) manualRadio.checked = true;
+      mySelectedSongIds = songIds;
       elements.navigateTo("onlineBattleLobby");
-      await applyHostSettingsChangeFromForm();
+      await submitMySelectedSongIds(songIds);
     },
     () => {
-      // キャンセル時：一度も曲を選んだことが無ければ「全曲から出題」に戻す
-      // （0曲のまま「曲を選んで出題」の状態で放置しない）。既に選択済みなら維持する。
-      if (hostSelectedManualSongIds.length === 0) {
-        const allRadio = document.querySelector('input[name="online-battle-settings-song-source"][value="all"]');
-        if (allRadio) allRadio.checked = true;
-        updateManualSongSourceUi(false);
-      }
       elements.navigateTo("onlineBattleLobby");
     },
     // 【2026-08-27新設】一覧に出す曲そのものを、今のルーム参加者全員が利用できる曲だけに
     // 絞り込む（本人指示：問題・選択肢だけでなく曲指定画面でも選べないようにする）。
     (song) => currentCommonSongPool.has(song.id)
   );
+}
+
+// 【2026-08-27新設】自分の選択曲一覧を、今いるルームの自分の参加者エントリへ書き込む。
+// 失敗した場合（本番のFirebaseルールがまだselectedSongIdsを許可していない等）は、
+// 他の所持データ報告と違って画面へエラーを表示する（「選んだのに反映されない」という
+// 分かりにくい状態を利用者に見せないため）。
+async function submitMySelectedSongIds(songIds) {
+  if (!currentRoomId) return;
+  try {
+    await reportMySelectedSongIds({ roomId: currentRoomId, songIds });
+    elements.lobbyStartError.hidden = true;
+  } catch {
+    elements.lobbyStartError.textContent =
+      "曲の選択を保存できませんでした。アプリの更新状況をご確認のうえ、もう一度お試しください。";
+    elements.lobbyStartError.hidden = false;
+  }
 }
 
 // 参加者用のREADYボタンの見た目を、今のREADY状態に合わせて更新する。
@@ -497,11 +575,10 @@ function resetOnlineBattleMatchState() {
   currentMatchTotalQuestions = 0;
   pendingFinishResult = null;
   if (elements.quizProgressStrip) elements.quizProgressStrip.hidden = true;
-  // ルームを離れる際は必ずリセットする。次に入るルームのsettingsRevisionが
-  // たまたま同じ値（例：新規作成直後は毎回0）だった場合に、前のルームの選択曲を
-  // 誤って引き継いでしまう事故を防ぐため。
-  hostSelectedManualSongIds = [];
-  lastSyncedManualSongsRevision = null;
+  // ルームを離れる際は必ずリセットする。前のルームの選択曲を次のルームへ誤って
+  // 引き継いでしまう事故を防ぐため。
+  mySelectedSongIds = [];
+  latestRoom = null;
 }
 
 // 【2026-08-27新設】参加者全員が実際に利用できる共通曲の数を、必要なときだけ知らせる。
@@ -558,6 +635,11 @@ function renderLobby(room) {
   const isHost = room.host === myUid;
   const settings = room.settings;
   const players = room.players || {};
+  // 【2026-08-27新設】共同選曲ボタン押下時・自動同期時に最新のroomを参照できるよう保持する。
+  latestRoom = room;
+  // 自分の選択曲一覧を、room.players側の値へ常に合わせておく（リロード直後・他タブでの
+  // 変更後もここで復元される）。
+  mySelectedSongIds = Array.isArray(players[myUid]?.selectedSongIds) ? players[myUid].selectedSongIds : [];
 
   // 【2026-08-27新設】「今この瞬間、ルームにいる参加者全員が実際に利用できる曲」を
   // 再計算する。renderLobby()はplayersが変わるたび（入退室・所持データ報告のたび）に
@@ -643,7 +725,7 @@ function renderLobby(room) {
     if (isLyricsQuiz) {
       renderLyricsQuizLobbySettings(room, true);
     } else {
-      applySettingsToHostForm(settings, room.settingsRevision);
+      applySettingsToHostForm(settings);
     }
     updateStartButton(room);
   } else {
@@ -670,6 +752,12 @@ function renderLobby(room) {
     suppressNextReadyChangeNotice = false;
     lastKnownMyReady = myReady;
   }
+
+  // 【2026-08-27新設】共同選曲：ホスト・参加者を問わず同じ表示を行い、ホストの端末だけが
+  // 「参加者全員の選択の和集合」をsettingsへ自動的に反映する（isLyricsQuizのときは
+  // js/onlineLyricsQuizBattleScreen.js側の同等の仕組みに任せ、ここでは何もしない）。
+  updateCollabSongSectionUi(room, isLyricsQuiz);
+  syncCollaborativeSongPoolIfHost(room, isHost, isLyricsQuiz);
 
   // ホストが開始すると、まずcountdown・その後playingへ進む。状態が変わった瞬間だけ
   // 画面遷移を行い（同じ状態のまま何度renderLobbyが呼ばれても遷移し直さない）、
@@ -1267,8 +1355,11 @@ export function initOnlineBattleScreens(newElements) {
 
   // ホストが設定ラジオボタンを変更するたびに、Firebaseへ書き込んで全員へ同期する
   // （js/localBattleScreen.jsのupdateSetupRuleHint()と同じ「変更のたびに反映」という考え方）。
-  // 【2026-08-08追記】出題する曲のラジオも同じ仕組みに含める。「曲を選んで出題」へ切り替えた
-  // 瞬間だけは、曲がまだ0曲で検証エラーになるのを避けるため、先に曲選択画面を開く。
+  // 【2026-08-27変更】「曲を選んで出題」は、まだ誰も選んでいなくても（0曲でも）
+  // collaborativeSelectionとして安全に保存できるようにしてある（js/battleModes/
+  // timeAttackBattleMode.js参照）ため、以前のような「曲選択画面を先に開く」特別扱いは
+  // 不要になった。ラジオを切り替えた瞬間にsettingsへ反映され、共同選曲セクション
+  // （updateCollabSongSectionUi）が全員の画面に現れる。
   document
     .querySelectorAll(
       'input[name="online-battle-settings-question-count"], input[name="online-battle-settings-category"], input[name="online-battle-settings-rule"], input[name="online-battle-settings-penalty"], input[name="online-battle-settings-song-source"]'
@@ -1276,30 +1367,26 @@ export function initOnlineBattleScreens(newElements) {
     .forEach((radio) => {
       radio.addEventListener("change", async () => {
         if (!currentRoomId) return;
-        if (radio.name === "online-battle-settings-song-source" && radio.value === "manual") {
-          updateManualSongSourceUi(true);
-          openSongPickerForHost();
-          return;
-        }
         await applyHostSettingsChangeFromForm();
       });
     });
 
-  elements.lobbySettingsChooseSongsButton.addEventListener("click", () => {
-    openSongPickerForHost();
+  // 【2026-08-27新設】共同選曲：全曲・お気に入り・プレイリストから選ぶ。ホスト・参加者を
+  // 問わず誰でも使える（本人指示：全員で共同選曲できるようにする）。お気に入り・
+  // プレイリストは、それぞれ「選んだ曲」と「今のルーム参加者全員が利用できる曲
+  // （currentCommonSongPool）」の共通部分だけを初期選択状態にして、既存の曲選択画面を
+  // 開く（一覧から選んで確認・調整できる、という本人の要望どおり。決定を押すまでは
+  // 何も保存されない）。
+  elements.collabChooseSongsButton.addEventListener("click", () => {
+    openCollabSongPicker();
   });
-
-  // 【2026-08-27新設】お気に入り・プレイリストからまとめて選ぶ。どちらも
-  // 「選んだ曲」と「今のルーム参加者全員が利用できる曲（currentCommonSongPool）」の
-  // 共通部分だけを初期選択状態にして、既存の曲選択画面を開く（一覧から選んで
-  // 確認・調整できる、という本人の要望どおり。決定を押すまでは何も保存されない）。
-  elements.lobbySettingsChooseFavoritesButton.addEventListener("click", () => {
+  elements.collabChooseFavoritesButton.addEventListener("click", () => {
     const favoriteSongIds = getFavoriteSongIds().filter((songId) => currentCommonSongPool.has(songId));
-    openSongPickerForHost(favoriteSongIds);
+    openCollabSongPicker(favoriteSongIds);
   });
-  elements.lobbySettingsChoosePlaylistButton.addEventListener("click", () => {
+  elements.collabChoosePlaylistButton.addEventListener("click", () => {
     openOnlineBattlePlaylistPicker(currentCommonSongPool, (songIds) => {
-      openSongPickerForHost(songIds);
+      openCollabSongPicker(songIds);
     });
   });
 

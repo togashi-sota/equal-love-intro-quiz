@@ -835,12 +835,14 @@ const onlineBattleLobbySettingsSummaryElement = document.getElementById("online-
 const onlineBattleLobbySettingsPenaltyFieldsetElement = document.getElementById("online-battle-lobby-settings-penalty-fieldset");
 // 出題する曲（2026-08-08新設）。
 const onlineBattleLobbySettingsCategoryFieldsetElement = document.getElementById("online-battle-lobby-settings-category-fieldset");
-const onlineBattleLobbySettingsManualSongRowElement = document.getElementById("online-battle-settings-manual-song-row");
-const onlineBattleLobbySettingsManualSongCountElement = document.getElementById("online-battle-settings-manual-song-count");
-const onlineBattleLobbySettingsChooseSongsButtonElement = document.getElementById("online-battle-settings-choose-songs-button");
-// お気に入り・プレイリストから選ぶ（2026-08-27新設）。
-const onlineBattleLobbySettingsChooseFavoritesButtonElement = document.getElementById("online-battle-settings-choose-favorites-button");
-const onlineBattleLobbySettingsChoosePlaylistButtonElement = document.getElementById("online-battle-settings-choose-playlist-button");
+// 共同選曲セクション（2026-08-27全面刷新：ホスト専用だった選曲UIを、ホスト・参加者
+// 共通の「共同選曲」セクションへ置き換えた。js/onlineBattleScreen.js参照）。
+const onlineBattleCollabSongSectionElement = document.getElementById("online-battle-collab-song-section");
+const onlineBattleCollabChooseSongsButtonElement = document.getElementById("online-battle-collab-choose-songs-button");
+const onlineBattleCollabChooseFavoritesButtonElement = document.getElementById("online-battle-collab-choose-favorites-button");
+const onlineBattleCollabChoosePlaylistButtonElement = document.getElementById("online-battle-collab-choose-playlist-button");
+const onlineBattleCollabMyCountElement = document.getElementById("online-battle-collab-my-count");
+const onlineBattleCollabTotalCountElement = document.getElementById("online-battle-collab-total-count");
 // 参加者全員が実際に利用できる共通曲の数（2026-08-27新設。ホスト・参加者・全gameModeで共有）。
 const onlineBattleCommonSongNoticeElement = document.getElementById("online-battle-common-song-notice");
 const onlineBattleLobbySettingsChangedNoticeElement = document.getElementById("online-battle-lobby-settings-changed-notice");
@@ -891,13 +893,13 @@ const onlineLyricsBattleRuleOptionsElement = document.getElementById("online-lyr
 const onlineLyricsBattlePoolSizeOptionsElement = document.getElementById("online-lyrics-battle-pool-size-options");
 const onlineLyricsBattleSettingsFormElement = document.getElementById("online-lyrics-battle-settings-form");
 const onlineLyricsBattleSettingsSummaryElement = document.getElementById("online-lyrics-battle-settings-summary");
-// 出題する曲（2026-08-08新設）。
-const onlineLyricsBattleManualSongRowElement = document.getElementById("online-lyrics-battle-settings-manual-song-row");
-const onlineLyricsBattleManualSongCountElement = document.getElementById("online-lyrics-battle-settings-manual-song-count");
-const onlineLyricsBattleChooseSongsButtonElement = document.getElementById("online-lyrics-battle-settings-choose-songs-button");
-// お気に入り・プレイリストから選ぶ（2026-08-27新設）。
-const onlineLyricsBattleChooseFavoritesButtonElement = document.getElementById("online-lyrics-battle-settings-choose-favorites-button");
-const onlineLyricsBattleChoosePlaylistButtonElement = document.getElementById("online-lyrics-battle-settings-choose-playlist-button");
+// 共同選曲セクション（2026-08-27全面刷新、js/onlineLyricsQuizBattleScreen.js参照）。
+const onlineLyricsBattleCollabSongSectionElement = document.getElementById("online-lyrics-battle-collab-song-section");
+const onlineLyricsBattleCollabChooseSongsButtonElement = document.getElementById("online-lyrics-battle-collab-choose-songs-button");
+const onlineLyricsBattleCollabChooseFavoritesButtonElement = document.getElementById("online-lyrics-battle-collab-choose-favorites-button");
+const onlineLyricsBattleCollabChoosePlaylistButtonElement = document.getElementById("online-lyrics-battle-collab-choose-playlist-button");
+const onlineLyricsBattleCollabMyCountElement = document.getElementById("online-lyrics-battle-collab-my-count");
+const onlineLyricsBattleCollabTotalCountElement = document.getElementById("online-lyrics-battle-collab-total-count");
 const onlineLyricsBattleSettingsErrorElement = document.getElementById("online-lyrics-battle-settings-error");
 const onlineLyricsBattleReadinessStatusElement = document.getElementById("online-lyrics-battle-readiness-status");
 const onlineLyricsBattleOwnMissingElement = document.getElementById("online-lyrics-battle-own-missing");
@@ -4016,11 +4018,12 @@ initOnlineBattleScreens({
   lobbySettingsSummary: onlineBattleLobbySettingsSummaryElement,
   lobbySettingsPenaltyFieldset: onlineBattleLobbySettingsPenaltyFieldsetElement,
   lobbySettingsCategoryFieldset: onlineBattleLobbySettingsCategoryFieldsetElement,
-  lobbySettingsManualSongRow: onlineBattleLobbySettingsManualSongRowElement,
-  lobbySettingsManualSongCount: onlineBattleLobbySettingsManualSongCountElement,
-  lobbySettingsChooseSongsButton: onlineBattleLobbySettingsChooseSongsButtonElement,
-  lobbySettingsChooseFavoritesButton: onlineBattleLobbySettingsChooseFavoritesButtonElement,
-  lobbySettingsChoosePlaylistButton: onlineBattleLobbySettingsChoosePlaylistButtonElement,
+  collabSongSection: onlineBattleCollabSongSectionElement,
+  collabChooseSongsButton: onlineBattleCollabChooseSongsButtonElement,
+  collabChooseFavoritesButton: onlineBattleCollabChooseFavoritesButtonElement,
+  collabChoosePlaylistButton: onlineBattleCollabChoosePlaylistButtonElement,
+  collabMyCount: onlineBattleCollabMyCountElement,
+  collabTotalCount: onlineBattleCollabTotalCountElement,
   lobbyCommonSongNotice: onlineBattleCommonSongNoticeElement,
   lobbySettingsChangedNotice: onlineBattleLobbySettingsChangedNoticeElement,
   lobbyRematchNotice: onlineBattleLobbyRematchNoticeElement,
@@ -4085,11 +4088,12 @@ initOnlineLyricsQuizBattleScreens({
   // 既存のオンライン対戦結果画面が持つ「もう一度対戦する」確認モーダルをそのまま再利用する
   // （ルーム再戦処理自体はgameModeを問わない共通ロジックのため）。
   resultRematchConfirmModal: onlineBattleResultRematchConfirmModalElement,
-  lyricsManualSongRow: onlineLyricsBattleManualSongRowElement,
-  lyricsManualSongCount: onlineLyricsBattleManualSongCountElement,
-  lyricsChooseSongsButton: onlineLyricsBattleChooseSongsButtonElement,
-  lyricsChooseFavoritesButton: onlineLyricsBattleChooseFavoritesButtonElement,
-  lyricsChoosePlaylistButton: onlineLyricsBattleChoosePlaylistButtonElement,
+  lyricsCollabSongSection: onlineLyricsBattleCollabSongSectionElement,
+  lyricsCollabChooseSongsButton: onlineLyricsBattleCollabChooseSongsButtonElement,
+  lyricsCollabChooseFavoritesButton: onlineLyricsBattleCollabChooseFavoritesButtonElement,
+  lyricsCollabChoosePlaylistButton: onlineLyricsBattleCollabChoosePlaylistButtonElement,
+  lyricsCollabMyCount: onlineLyricsBattleCollabMyCountElement,
+  lyricsCollabTotalCount: onlineLyricsBattleCollabTotalCountElement,
   lyricsSettingsError: onlineLyricsBattleSettingsErrorElement,
   onQuitDuringBattle: () => quitOnlineBattleDuringQuiz(),
   onLeaveResultToHome: () => leaveOnlineBattleRoomView(),
