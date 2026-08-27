@@ -63,3 +63,8 @@ data-packs/*/*
 !data-packs/*/.gitkeep
 # dev/package_zip.pyが生成する配布用ZIP（中身は上記と同じ実データのため同じ理由で除外）。
 data-packs/*.zip
+
+# dev/generate_iphone_guide_pdf.pyが書き出す配布用PDF（生成物のため非公開。
+# 著作権保護コンテンツは含まないが、生成スクリプトさえあればいつでも作り直せるため
+# バイナリ自体をGit管理する必要はない、2026-08-27新設）。
+dist/
