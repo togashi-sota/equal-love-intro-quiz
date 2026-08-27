@@ -7,11 +7,16 @@
 # 分かりにくいとの指摘を受けた（本人フィードバック）。js/zipPackImport.jsがブラウザ側で
 # ZIP1個の展開に対応したので、こちらはその配布物（ZIP）を作る側のスクリプトになる。
 #
-# 【使い方】
+# 【使い方】data-packs/<パック名>/ フォルダが存在すれば、どんな名前でもZIP化できる
+# （2026-08-27改訂：以前は"21st"・"full"のみ受け付ける決め打ちだったが、「full.zipと
+# シングルごとの差分ZIPを積み重ねていく」運用方針〈本人決定〉に合わせ、22nd・23rd…と
+# 今後シングルが増えるたびにこのスクリプト自体を書き換えずに済むよう一般化した）。
 #   cd dev && python package_zip.py 21st   … data-packs/21st/ → data-packs/21st.zip
+#   cd dev && python package_zip.py 22nd   … data-packs/22nd/ → data-packs/22nd.zip
 #   cd dev && python package_zip.py full   … data-packs/full/ → data-packs/full.zip
 #
-# 【安全設計・著作権について】data-packs/21st/・data-packs/full/自体が.gitignore対象なのと
+# 【安全設計・著作権について】data-packs/直下の各作業用サブフォルダ（21st/・full/等）自体が
+# .gitignore対象（data-packs/*/*パターン、フォルダ名を問わず自動的に対象になる）なのと
 # 同じ理由で、ここで生成するdata-packs/*.zipも.gitignore対象にしてある（実音源・歌詞入りの
 # ZIPがGitへコミットされることは無い）。このスクリプト自身（ZIP化ロジックのみ、著作権
 # データを一切含まない）はGit管理する。
@@ -31,8 +36,8 @@ DATA_PACKS_DIR = PROJECT_ROOT / "data-packs"
 
 
 def main():
-    if len(sys.argv) != 2 or sys.argv[1] not in ("21st", "full"):
-        print("使い方: python package_zip.py <21st|full>")
+    if len(sys.argv) != 2:
+        print("使い方: python package_zip.py <パック名（例: 21st, 22nd, full）>")
         sys.exit(1)
 
     pack_name = sys.argv[1]

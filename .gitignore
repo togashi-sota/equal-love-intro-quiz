@@ -52,10 +52,14 @@ dev/call-guide-candidates.json
 # 著作権保護のためローカル環境のみで使用し、公開・コミットしない
 # （assets/audio/localと同じ方針、2026-08-27新設）。
 # data-packs/直下のREADME.md・manifest.template.jsonは実データを含まない安全な説明・雛形
-# のため対象外（フォルダごと除外するのではなく、単数ある作業用サブフォルダの中身だけを除外する）。
-data-packs/21st/*
-!data-packs/21st/.gitkeep
-data-packs/full/*
-!data-packs/full/.gitkeep
+# のため対象外（フォルダごと除外するのではなく、作業用サブフォルダの中身だけを除外する）。
+#
+# 【2026-08-27改訂】「full.zip＋シングルごとの差分ZIP（21st/, 22nd/, 23rd/…）を積み重ねていく」
+# 運用方針（本人決定）に合わせ、フォルダ名を1つ1つ列挙する書き方から、
+# data-packs/直下のどんなサブフォルダにも自動的に適用されるパターンへ変更した。
+# 新しいシングル用フォルダ（22nd/等）を作っても、この行を書き足す必要はない
+# （著作権データがGitHubへコミットされる事故を、フォルダを追加するたびの手作業に依存させないため）。
+data-packs/*/*
+!data-packs/*/.gitkeep
 # dev/package_zip.pyが生成する配布用ZIP（中身は上記と同じ実データのため同じ理由で除外）。
 data-packs/*.zip
