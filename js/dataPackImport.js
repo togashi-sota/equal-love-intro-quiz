@@ -48,7 +48,7 @@
 // （本人指示：既存コードを必要以上に全面改修せず、安全に段階導入する）。
 
 import { SONGS } from "./data/songs.js";
-import { importAudioFiles } from "./audioStorage.js";
+import { importAudioFiles, getImportedSongIds } from "./audioStorage.js";
 import { analyzeLyricsFiles, importLyricsFiles } from "./lyricsStorage.js";
 import { analyzeCallDataBackupFile, importCallDataSongs } from "./callStorage.js";
 import { analyzeCallGuideBackupFile, importCallGuideDataEntries } from "./callGuideStorage.js";
@@ -250,43 +250,89 @@ export async function analyzeDataPack(fileList) {
 // 警告あり（lyrics.warningFiles）のファイルも、呼び出し側が続行を選んだ前提でそのまま保存する
 // （js/main.jsの既存インポートUIと同じ「警告は保存を止めない、事前確認のためだけにある」という方針）。
 //
+// 【2026-08-28変更：不足分だけ自動補完する差分インポート】以前はパックに含まれる内容を
+// 「既に持っているかどうか」に関わらず毎回無条件で上書き保存していた。本人指示により、
+// データの種類（音源・歌詞・コール・コールガイド）ごとに「この端末に既にあるか」を判定し、
+// 既にあるものは保存し直さずスキップ、無いものだけ新規保存するようにした。
+// 判定は曲単位ではなくデータ種類単位で独立して行う（例：音源はあるが歌詞は無い曲は、
+// 音源だけスキップして歌詞だけ追加する）。
+//
+// 【安全性について】js/audioStorage.js・js/lyricsStorage.js・js/callStorage.js・
+// js/callGuideStorage.jsの保存関数（importAudioFiles等）自体は変更していない
+// （「音源を読み込む」等、データパックとは別の単体インポートUIが、既存曲の上書き更新に
+// 引き続き使えるようにするため）。スキップ判定はこのファイル側で、保存対象を絞り込む
+// 形だけで行っている。歌詞・コール・コールガイドは、analyzeDataPack()の時点で各ストレージ
+// モジュールが既に計算しているisUpdate（既存データの有無）をそのまま使う。音源だけは
+// 分析時にisUpdateを持たないため、ここで改めてgetImportedSongIds()を1回だけ呼んで判定する。
+//
 // 戻り値: {
-//   savedAudioSongIds: string[],
-//   savedLyricsSongIds: string[], lyricsFailures: { fileName, reason }[],
-//   savedCallSongIds: string[], callFailures: { songId, reason }[],
-//   savedCallGuideIds: string[], callGuideFailures: { guideId, reason }[],
+//   savedAudioSongIds: string[], skippedAudioSongIds: string[],
+//   savedLyricsSongIds: string[], skippedLyricsSongIds: string[], lyricsFailures: { fileName, reason }[],
+//   savedCallSongIds: string[], skippedCallSongIds: string[], callFailures: { songId, reason }[],
+//   savedCallGuideIds: string[], skippedCallGuideIds: string[], callGuideFailures: { guideId, reason }[],
 // }
 export async function importAnalyzedDataPack(analyzed) {
   const { audio, lyrics, calls, callGuides } = analyzed;
 
-  const audioResult = await importAudioFiles(audio.readyFiles);
+  // 音源：既にこの端末に読み込み済みのsongIdは保存し直さずスキップする。
+  const existingAudioSongIds = new Set(await getImportedSongIds());
+  const audioFilesToSave = [];
+  const skippedAudioSongIds = [];
+  audio.readyFiles.forEach((file, index) => {
+    const songId = audio.savableSongIds[index];
+    if (existingAudioSongIds.has(songId)) {
+      skippedAudioSongIds.push(songId);
+    } else {
+      audioFilesToSave.push(file);
+    }
+  });
+  const audioResult = await importAudioFiles(audioFilesToSave);
 
-  const lyricsFilesToSave = [...lyrics.readyFiles, ...lyrics.warningFiles];
+  // 歌詞：analyzeLyricsFiles()（analyzeDataPack()内で既に実行済み）が算出したisUpdateを使う。
+  const lyricsFilesAll = [...lyrics.readyFiles, ...lyrics.warningFiles];
+  const lyricsFilesToSave = lyricsFilesAll.filter((file) => !file.isUpdate);
+  const skippedLyricsSongIds = lyricsFilesAll
+    .filter((file) => file.isUpdate)
+    .map((file) => file.normalizedData.songId);
   const lyricsImportResult = await importLyricsFiles(lyricsFilesToSaveAsFileList(lyricsFilesToSave));
 
   let savedCallSongIds = [];
   let callFailures = [];
-  if (calls && calls.readySongs.length > 0) {
-    const callImportResult = await importCallDataSongs(calls.readySongs);
-    savedCallSongIds = callImportResult.savedSongIds;
-    callFailures = callImportResult.saveFailures;
+  let skippedCallSongIds = [];
+  if (calls) {
+    const callSongsToSave = calls.readySongs.filter((song) => !song.isUpdate);
+    skippedCallSongIds = calls.readySongs.filter((song) => song.isUpdate).map((song) => song.songId);
+    if (callSongsToSave.length > 0) {
+      const callImportResult = await importCallDataSongs(callSongsToSave);
+      savedCallSongIds = callImportResult.savedSongIds;
+      callFailures = callImportResult.saveFailures;
+    }
   }
 
   let savedCallGuideIds = [];
   let callGuideFailures = [];
-  if (callGuides && callGuides.readyGuides.length > 0) {
-    const callGuideImportResult = await importCallGuideDataEntries(callGuides.readyGuides);
-    savedCallGuideIds = callGuideImportResult.savedGuideIds;
-    callGuideFailures = callGuideImportResult.saveFailures;
+  let skippedCallGuideIds = [];
+  if (callGuides) {
+    const guidesToSave = callGuides.readyGuides.filter((guide) => !guide.isUpdate);
+    skippedCallGuideIds = callGuides.readyGuides.filter((guide) => guide.isUpdate).map((guide) => guide.guideId);
+    if (guidesToSave.length > 0) {
+      const callGuideImportResult = await importCallGuideDataEntries(guidesToSave);
+      savedCallGuideIds = callGuideImportResult.savedGuideIds;
+      callGuideFailures = callGuideImportResult.saveFailures;
+    }
   }
 
   return {
     savedAudioSongIds: audioResult.savedSongIds,
+    skippedAudioSongIds,
     savedLyricsSongIds: lyricsImportResult.savedSongIds,
+    skippedLyricsSongIds,
     lyricsFailures: lyricsImportResult.failedFiles,
     savedCallSongIds,
+    skippedCallSongIds,
     callFailures,
     savedCallGuideIds,
+    skippedCallGuideIds,
     callGuideFailures,
   };
 }

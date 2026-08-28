@@ -4346,15 +4346,43 @@ dataPackImportInputElement.addEventListener("change", async () => {
       ? `「${analyzed.manifest.packLabel}」でセットアップしました`
       : `「${analyzed.manifest.packLabel}」を読み込みました`
   );
-  const summaryParts = [
+  // 【2026-08-28新設】「新規追加」と「既に導入済みのためスキップ」を分けて表示する
+  // （本人指示：不足分だけ自動補完されたことが、内訳つきで分かるようにしたい）。
+  const addedParts = [
     `音源${result.savedAudioSongIds.length}曲`,
     `歌詞${result.savedLyricsSongIds.length}曲`,
     `コール${result.savedCallSongIds.length}曲`,
   ];
   if (result.savedCallGuideIds.length > 0) {
-    summaryParts.push(`コールガイド${result.savedCallGuideIds.length}件`);
+    addedParts.push(`コールガイド${result.savedCallGuideIds.length}件`);
   }
-  lines.push(`${summaryParts.join("・")}を${isFullPack ? "登録しました" : "追加しました"}`);
+  const totalAdded =
+    result.savedAudioSongIds.length +
+    result.savedLyricsSongIds.length +
+    result.savedCallSongIds.length +
+    result.savedCallGuideIds.length;
+  lines.push(
+    totalAdded > 0
+      ? `新規追加：${addedParts.join("・")}`
+      : `新規追加はありませんでした（この端末には既にすべて導入済みです）`
+  );
+
+  const totalSkipped =
+    result.skippedAudioSongIds.length +
+    result.skippedLyricsSongIds.length +
+    result.skippedCallSongIds.length +
+    result.skippedCallGuideIds.length;
+  if (totalSkipped > 0) {
+    const skippedParts = [
+      `音源${result.skippedAudioSongIds.length}曲`,
+      `歌詞${result.skippedLyricsSongIds.length}曲`,
+      `コール${result.skippedCallSongIds.length}曲`,
+    ];
+    if (result.skippedCallGuideIds.length > 0) {
+      skippedParts.push(`コールガイド${result.skippedCallGuideIds.length}件`);
+    }
+    lines.push(`既に導入済みのためスキップ：${skippedParts.join("・")}`);
+  }
   if (analyzed.manifestSongIdsNotCovered.length > 0) {
     lines.push(
       `※このパックに含まれていない曲があります（${analyzed.manifestSongIdsNotCovered.map(findSongTitle).join("、")}）`
