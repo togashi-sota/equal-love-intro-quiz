@@ -112,6 +112,7 @@ import {
   MAX_DURATION_MISMATCH_SEC,
 } from "./randomPlaybackEngine.js";
 import { getRandomPlaybackBest } from "./randomPlaybackScore.js";
+import { getNormalQuizTimeBest, saveNormalQuizTimeBestIfBetter } from "./normalQuizTimeScore.js";
 import {
   initRandomPlaybackScreen,
   initRandomPlaybackResultScreen,
@@ -380,6 +381,13 @@ const newRecordElement = document.getElementById("new-record-badge");
 const averageResponseTimeDisplayElement = document.getElementById("average-response-time-display");
 const speedProgressContainerElement = document.getElementById("speed-progress-container");
 const resultLeaderboardStatusElement = document.getElementById("result-leaderboard-status");
+// 【2026-08-29追加】合計タイム・平均回答時間（全問対象）・自己ベスト（追加1・追加4）と、
+// ランキングへの入口（追加3）。
+const resultTotalTimeBlockElement = document.getElementById("result-total-time-block");
+const resultTotalTimeDisplayElement = document.getElementById("result-total-time-display");
+const resultTotalTimeAverageDisplayElement = document.getElementById("result-total-time-average-display");
+const resultTotalTimeBestDisplayElement = document.getElementById("result-total-time-best-display");
+const resultLeaderboardLinkElement = document.getElementById("result-leaderboard-link");
 const answerLogListElement = document.getElementById("answer-log-list");
 const resultEyebrowLabelElement = document.getElementById("result-eyebrow-label");
 const missedSongsSectionElement = document.getElementById("missed-songs-section");
@@ -759,6 +767,7 @@ const lyricsQuizBackButtonElement = document.getElementById("lyrics-quiz-back-bu
 const lyricsQuizBackButtonLabelElement = document.getElementById("lyrics-quiz-back-button-label");
 const lyricsQuizQuitConfirmModalElement = document.getElementById("lyrics-quiz-quit-confirm-modal");
 const lyricsQuizQuitCancelButtonElement = document.getElementById("lyrics-quiz-quit-cancel-button");
+const lyricsQuizQuitRestartButtonElement = document.getElementById("lyrics-quiz-quit-restart-button");
 const lyricsQuizQuitConfirmButtonElement = document.getElementById("lyrics-quiz-quit-confirm-button");
 const lyricsQuizResultHomeLinkElement = document.getElementById("lyrics-quiz-result-home-link");
 const lyricsQuizResultNewRecordElement = document.getElementById("lyrics-quiz-result-new-record");
@@ -1058,6 +1067,7 @@ const lyricsFullscreenOverlayElement = document.getElementById("lyrics-fullscree
 const quizQuitConfirmTitleElement = document.getElementById("quiz-quit-confirm-title");
 const quizQuitCancelButtonElement = document.getElementById("quiz-quit-cancel-button");
 const quizQuitConfirmButtonElement = document.getElementById("quiz-quit-confirm-button");
+const quizQuitRestartButtonElement = document.getElementById("quiz-quit-restart-button");
 const dataPackImportStatusElement = document.getElementById("data-pack-import-status");
 const dataPackImportInputElement = document.getElementById("data-pack-import-input");
 const dataPackImportResultElement = document.getElementById("data-pack-import-result");
@@ -2383,6 +2393,7 @@ function updateQuizQuitDisplay() {
     quizBackButtonLabelElement.textContent = "設定画面へ";
     quizQuitConfirmTitleElement.textContent = "タイムアタックを中断して設定画面に戻りますか？";
     quizQuitConfirmButtonElement.textContent = "設定画面に戻る";
+    quizQuitRestartButtonElement.hidden = false;
     return;
   }
 
@@ -2391,14 +2402,18 @@ function updateQuizQuitDisplay() {
     quizBackButtonLabelElement.textContent = "設定画面へ";
     quizQuitConfirmTitleElement.textContent = "ランダム再生クイズを中断して設定画面に戻りますか？";
     quizQuitConfirmButtonElement.textContent = "設定画面に戻る";
+    quizQuitRestartButtonElement.hidden = false;
     return;
   }
 
   if (isLocalBattle) {
     // 対戦モードは中断すると、その対戦自体を諦めることになる（対戦コードを作り直す必要がある）。
+    // 【2026-08-29追加、本人指示（追加5）】「やり直す」は対戦モード（ローカル・オンライン）では
+    // 安全に成立しない（対戦相手・ルームの状態が絡むため）ため表示しない。
     quizBackButtonLabelElement.textContent = "対戦をやめる";
     quizQuitConfirmTitleElement.textContent = "対戦を中断してホームに戻りますか？（この対戦の結果コードは作られません）";
     quizQuitConfirmButtonElement.textContent = "対戦をやめる";
+    quizQuitRestartButtonElement.hidden = true;
     return;
   }
 
@@ -2408,9 +2423,13 @@ function updateQuizQuitDisplay() {
     quizBackButtonLabelElement.textContent = "対戦をやめる";
     quizQuitConfirmTitleElement.textContent = "対戦を中断してルームを退出しますか？（あなたの結果は送信されません）";
     quizQuitConfirmButtonElement.textContent = "対戦をやめる";
+    quizQuitRestartButtonElement.hidden = true;
     return;
   }
 
+  // 通常プレイ・復習・特別モード（苦手曲モードA・オリジナル問題作成モード）は
+  // すべて「やり直す」を表示する。
+  quizQuitRestartButtonElement.hidden = false;
   quizBackButtonLabelElement.textContent = display?.quizBackLabel ?? "タイトルへ";
   quizQuitConfirmTitleElement.textContent = display?.quizQuitTitle ?? "クイズを中断してタイトルに戻りますか？";
   quizQuitConfirmButtonElement.textContent = display?.quizQuitConfirmLabel ?? "タイトルに戻る";
@@ -2621,6 +2640,8 @@ function renderResult() {
     highScoreElement.hidden = true;
     newRecordElement.hidden = true;
     averageResponseTimeDisplayElement.hidden = true;
+    resultTotalTimeBlockElement.hidden = true;
+    resultLeaderboardLinkElement.hidden = true;
     speedProgressContainerElement.innerHTML = "";
     clearAchievementUnlockEvents({
       chipContainer: titleEventListElement,
@@ -2709,6 +2730,33 @@ function renderResult() {
         playSfx(SFX_EVENTS.RESULT_GOOD);
       }
     }
+
+    // 【2026-08-29追加、本人指示（追加1・追加3・追加4）】合計タイム・平均回答時間（全問対象）・
+    // このモードの自己ベスト・ランキングへの入口。
+    // 【合計タイムの定義】各問題の「出題開始〜回答確定」までの思考時間（elapsedMs）だけを
+    // 全問分合計した値。「次へ」ボタンでの移動待ち時間・結果表示の演出時間は、
+    // そもそもelapsedMsの計測に含まれていない（js/responseTime.jsのコメント参照）ため、
+    // 単純に合計するだけで「思考時間だけの合計」になる。上のaverageResponseMs
+    // （電光石火の速度条件、正解した問題だけが対象）とは異なり、誤答・スキップ・
+    // 答えを見た問題の時間も含めた「全問対象」の値である点が違う。
+    const totalThinkTimeMs = gameState.answerLog.reduce((sum, entry) => sum + (entry.elapsedMs ?? 0), 0);
+    const deliveredQuestionCount = gameState.questions.length;
+    resultTotalTimeBlockElement.hidden = false;
+    resultTotalTimeDisplayElement.textContent = `合計 ${formatResponseSeconds(totalThinkTimeMs)}`;
+    resultTotalTimeAverageDisplayElement.textContent = `平均回答時間（全${deliveredQuestionCount}問） ${formatResponseSeconds(totalThinkTimeMs / deliveredQuestionCount)}`;
+    const totalTimeIsNewRecord = saveNormalQuizTimeBestIfBetter(totalThinkTimeMs, questionCountValue, categoryFilterValue);
+    const totalTimeBest = getNormalQuizTimeBest(questionCountValue, categoryFilterValue);
+    resultTotalTimeBestDisplayElement.hidden = false;
+    resultTotalTimeBestDisplayElement.textContent =
+      totalTimeIsNewRecord && totalTimeBest === totalThinkTimeMs
+        ? "🎉 このモードの自己ベスト合計タイムを更新しました！"
+        : `このモードの自己ベスト合計タイム：${formatResponseSeconds(totalTimeBest)}`;
+
+    // ランキングへの入口（追加3）：直前にプレイしたのと同じ出題数・カテゴリーのランキングを
+    // 最初から表示する。既存のタイムアタック結果画面の「🏆 ランキングを見る」と同じ仕組み
+    // （js/timeAttackLeaderboardScreen.jsのshowTimeAttackLeaderboard）をそのまま再利用する。
+    // ランキングの閲覧自体は公開設定・完走可否を問わず誰でもできるため、常に表示する。
+    resultLeaderboardLinkElement.hidden = false;
 
     // 平均回答時間の表示（2026-08-09新設）。称号判定に渡したaverageResponseMsと
     // 完全に同じ値を表示することで、「画面と称号判定で数値がずれる」ことを防ぐ。
@@ -3005,6 +3053,16 @@ reviewMissedSongsButtonElement.addEventListener("click", () => {
   beginReviewQuiz();
 });
 
+// 【2026-08-29追加、本人指示（追加3）】通常クイズ結果画面から：直前にプレイした
+// 出題数・カテゴリーのランキングへ直接ジャンプする（タイムアタック結果画面の
+// 「🏆 ランキングを見る」と全く同じ仕組み。variantは通常クイズ＝常にイントロ形式）。
+resultLeaderboardLinkElement.addEventListener("click", () => {
+  playClickSound();
+  timeAttackLeaderboardReturnScreen = "result";
+  showTimeAttackLeaderboard(TIME_ATTACK_VARIANT.INTRO, gameState.questionCountValue, gameState.categoryFilterValue);
+  showScreen("timeAttackLeaderboard");
+});
+
 // 「タイトルに戻る」：出題数・カテゴリの選択も含めて初期状態に戻し、スタート画面へ。
 // タイトル（スタート画面）へ戻る共通処理。「タイトルに戻る」ボタン（通常プレイ・復習の結果）と、
 // 特別モードの結果に表示する控えめなテキストリンクの、両方から呼ばれる。
@@ -3129,6 +3187,36 @@ quizQuitConfirmButtonElement.addEventListener("click", () => {
   } else {
     showScreen("start");
     updateModeBestScoreDisplay();
+  }
+});
+
+// 【2026-08-29追加、本人指示（追加5）】「やり直す」：同じ設定のまま最初から再抽選して
+// 始め直す。対戦モード（ローカル・オンライン）はquizQuitRestartButtonElement.hidden=trueに
+// なっているため、このハンドラ自体は呼ばれない想定だが、念のためどちらの分岐にも
+// 含めていない（何もしない）。
+// resetGameState()は呼ばない（各begin系関数がstartQuiz()等を通じて内部で必ず
+// gameStateを作り直すため、既存の#retry-button・タイムアタック/ランダム再生の
+// 「もう一度挑戦する」ボタンと全く同じ考え方。それぞれの記録保存（自己ベスト・称号・
+// プレイ履歴・苦手曲統計）は、いずれも今回中断した回のぶんは一切行われないまま
+// （renderResult()を経由していないため）、新しい回だけがまっさらな状態で始まる）。
+quizQuitRestartButtonElement.addEventListener("click", () => {
+  playClickSound();
+  closeQuizQuitConfirmModal();
+  clearPendingTimeAttackAdvance();
+  stopTimer();
+  stopAudio();
+
+  if (gameState.playMode === "special") {
+    retrySpecialQuiz();
+  } else if (gameState.playMode === "timeAttack") {
+    const { questionCountValue, categoryFilterValue, rule, variant } = getLastTimeAttackSelection();
+    beginTimeAttackQuiz(questionCountValue, categoryFilterValue, rule, variant);
+  } else if (gameState.playMode === "randomPlayback") {
+    const { questionCountValue, categoryFilterValue, rule } = getLastTimeAttackSelection();
+    beginRandomPlaybackQuiz(questionCountValue, categoryFilterValue, rule);
+  } else if (gameState.playMode === "normal" || gameState.playMode === "review") {
+    // 通常プレイ・復習：#retry-button（もう一度挑戦する）と全く同じ処理。
+    beginQuiz(gameState.questionCountValue, gameState.categoryFilterValue);
   }
 });
 
@@ -3960,6 +4048,7 @@ initLyricsQuizQuestionScreen({
   backButton: lyricsQuizBackButtonElement,
   quitConfirmModal: lyricsQuizQuitConfirmModalElement,
   quitCancelButton: lyricsQuizQuitCancelButtonElement,
+  quitRestartButton: lyricsQuizQuitRestartButtonElement,
   quitConfirmButton: lyricsQuizQuitConfirmButtonElement,
   onQuit: () => {
     playSfx(SFX_EVENTS.UI_BACK);

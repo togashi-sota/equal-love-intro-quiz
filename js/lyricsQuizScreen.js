@@ -219,7 +219,7 @@ function logInsufficientSongsForDebug(songPool, songsWithLyrics) {
 //   progress, elapsedTime, hintLevelLabel, hintLevelNav, hintList, nextHintButton, skipButton,
 //   answerSection, answerSearchRow, answerSearchInput, answerCount, answerList,
 //   answerReveal, answerRevealStatus, answerRevealTitle, answerRevealMeta, answerRevealNextButton,
-//   backButton, quitConfirmModal, quitCancelButton, quitConfirmButton,
+//   backButton, quitConfirmModal, quitCancelButton, quitRestartButton, quitConfirmButton,
 //   onQuit: 「今回の挑戦をやめる」が確定したときに呼ばれるコールバック（引数なし）。
 //     画面遷移はmain.js側だけで行うというプロジェクトの決まりに合わせ、実際の
 //     showScreen()呼び出しはこのコールバック側（main.js）に任せる。このファイル自身は
@@ -236,6 +236,14 @@ export function initLyricsQuizQuestionScreen(newElements) {
 
   questionElements.backButton.addEventListener("click", openLyricsQuizQuitConfirmModal);
   questionElements.quitCancelButton.addEventListener("click", closeLyricsQuizQuitConfirmModal);
+  // 【2026-08-29追加、本人指示（追加5）】「やり直す」：今回と同じ設定（currentSettings、
+  // 苦手曲モードBの練習中ならcurrentRunSourceも維持）のまま、最初から再抽選して始め直す。
+  if (questionElements.quitRestartButton) {
+    questionElements.quitRestartButton.addEventListener("click", () => {
+      closeLyricsQuizQuitConfirmModal();
+      restartLyricsQuizRun();
+    });
+  }
   questionElements.quitConfirmButton.addEventListener("click", () => {
     closeLyricsQuizQuitConfirmModal();
     quitLyricsQuizRun();
@@ -292,6 +300,22 @@ function quitLyricsQuizRun() {
   hasAnsweredCurrentQuestion = false;
 
   questionElements.onQuit();
+}
+
+// 「やり直す」（2026-08-29追加、本人指示の追加5）：quitLyricsQuizRun()と全く同じ後片付け
+// （タイマー停止・保留中のタイムアウト解除・検索欄クリア・正解確認カードを隠す）を行うが、
+// onQuit()で画面を離れる代わりに、同じ設定（currentSettings）でretryLyricsQuizRun()を呼び、
+// その場で新しい問題セットを開始する。currentRunSourceは変えないため、苦手曲モードBの
+// 練習中に「やり直す」を押しても、通常プレイ用の統計へ誤って書き戻されることはない。
+async function restartLyricsQuizRun() {
+  stopElapsedTimer();
+  clearPendingAnswerFeedbackTimeout();
+  questionElements.answerSearchInput.value = "";
+  hideAnswerReveal();
+  viewingHintLevel = 1;
+  hasAnsweredCurrentQuestion = false;
+
+  await retryLyricsQuizRun();
 }
 
 function formatElapsed(ms) {

@@ -10861,6 +10861,63 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   display: none;
 }
 
+/* 【2026-08-29追加】称号一覧・ランキングへの入口を横並びにする行（通常クイズ結果画面）。
+   .rules-linkはdisplay:blockのままだと縦積みになるため、行だけflexにして横並びにする
+   （見た目自体は.rules-linkの意匠をそのまま使う）。 */
+.result-link-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.result-link-row .rules-link {
+  margin: 0;
+}
+
+/* 【2026-08-29追加、本人指示（追加1・追加4）】合計タイム・平均回答時間（全問対象）・
+   このモードの自己ベスト。既存の.average-response-time-displayと見た目の統一感を持たせつつ、
+   別の指標であることが一目で分かるよう軽くカード状にまとめる。 */
+.result-total-time-block {
+  margin: 0 0 14px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  text-align: center;
+  background: var(--color-surface-glass);
+  border: 1px solid var(--color-card-border);
+}
+
+.result-total-time-block[hidden] {
+  display: none;
+}
+
+.result-total-time-heading {
+  margin: 0 0 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  opacity: 0.65;
+}
+
+.result-total-time-display,
+.result-total-time-average-display {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.result-total-time-best-display {
+  margin: 6px 0 0;
+  font-size: 0.78rem;
+  opacity: 0.75;
+}
+
+.result-total-time-best-display[hidden] {
+  display: none;
+}
+
 .speed-progress-block {
   margin: 0 0 14px;
   padding: 10px 14px;

@@ -699,8 +699,16 @@
 
         <!-- 称号（実績）の獲得演出。中身はjs/achievementDisplay.jsが組み立てる。普段は空 -->
         <div id="title-event-list" class="achievement-event-list"></div>
-        <!-- 称号を1つでも獲得した回だけ表示される、称号一覧への入口。普段はhidden -->
-        <button id="title-list-link-from-result" class="rules-link" type="button" hidden>称号一覧を見る</button>
+        <!-- 称号一覧・ランキングへの入口を横並びにする行（2026-08-29改訂、本人指示：
+             「称号一覧を見る」の右にランキングへの入口を追加）。称号一覧側は今までどおり
+             称号を1つでも獲得した回だけ表示、ランキング側は常に表示する
+             （閲覧自体は公開設定・完走可否を問わず誰でもできるため）。 -->
+        <div class="result-link-row">
+          <button id="title-list-link-from-result" class="rules-link" type="button" hidden>称号一覧を見る</button>
+          <!-- クリックすると、直前にプレイしたのと同じ出題数・カテゴリーのランキングへ直接ジャンプする
+               （js/main.js参照）。 -->
+          <button id="result-leaderboard-link" class="rules-link" type="button" hidden>🏆 ランキングを見る</button>
+        </div>
 
         <p id="high-score-display">自己ベスト: 0点</p>
         <!-- 自己ベストを更新したときだけ表示するお知らせ。普段は空・非表示 -->
@@ -711,6 +719,20 @@
         <p id="average-response-time-display" class="average-response-time-display" hidden></p>
         <!-- 電光石火までの進捗（全曲モードのときだけ）。中身はjs/speedAchievementProgress.jsが組み立てる -->
         <div id="speed-progress-container"></div>
+
+        <!-- 【2026-08-29追加、本人指示（追加1・追加4）】合計タイム・平均回答時間（全問対象）。
+             上のaverage-response-time-display（電光石火の速度条件、正解した問題だけが対象）とは
+             別の指標のため、混同しないよう見出しを分けて表示する。
+             合計タイムは「出題開始〜回答確定」までの思考時間だけを全問分合計した値
+             （「次へ」ボタンでの移動待ち時間は含まない）。
+             算出できないとき（未回答のみ等）は項目ごと非表示にする。 -->
+        <div id="result-total-time-block" class="result-total-time-block" hidden>
+          <p class="result-total-time-heading">合計タイム（回答の思考時間のみ）</p>
+          <p id="result-total-time-display" class="result-total-time-display"></p>
+          <p id="result-total-time-average-display" class="result-total-time-average-display"></p>
+          <!-- このモード（同じ出題数・カテゴリー）の自己ベスト。初回プレイ時は「はじめての記録です」。 -->
+          <p id="result-total-time-best-display" class="result-total-time-best-display" hidden></p>
+        </div>
 
         <!-- グローバルランキングへの送信状況（2026-08-16追加）。タイムアタック結果画面の
              #time-attack-result-leaderboard-statusと同じ考え方。全問正解・スキップなし・
@@ -1876,7 +1898,10 @@
       </div>
 
       <p class="special-modes-intro">出題タイプ・出題数・カテゴリーごとに、クリアタイムが速い順のTOP10を表示します。ランキング対象は<strong>全問正解・スキップなし・答えを見るなしで完走した記録だけ</strong>です。</p>
-      <p class="leaderboard-mode-invite">通常クイズ・タイムアタックのどちらからでも参加できます。最速タイムを狙うならタイムアタックがおすすめです。</p>
+      <!-- 【2026-08-29削除、本人指示】「最速タイムを狙うならタイムアタックがおすすめ」の一文を削除。
+           通常クイズ・タイムアタックは進行のテンポが違うだけで、どちらが客観的に「速い」とは
+           言えないため（本人の判断）。 -->
+      <p class="leaderboard-mode-invite">通常クイズ・タイムアタックのどちらからでも参加できます。</p>
       <p class="leaderboard-privacy-note">※ランキングに参加するには「フレンド」の公開設定をONにしてください。</p>
 
       <p class="leaderboard-tab-axis-label">出題タイプ</p>
@@ -4170,6 +4195,10 @@
       <p class="modal-lead">ここまでの回答は記録されません。</p>
       <div class="button-row quiz-quit-confirm-actions">
         <button id="quiz-quit-cancel-button" class="primary-button" type="button">キャンセル</button>
+        <!-- 【2026-08-29追加、本人指示（追加5）】同じ設定のまま最初からやり直す導線。
+             対戦モード（ローカル・オンライン）では安全に成立しないため表示しない
+             （js/main.jsのupdateQuizQuitDisplay参照）。 -->
+        <button id="quiz-quit-restart-button" class="secondary-button" type="button">やり直す</button>
         <button id="quiz-quit-confirm-button" class="secondary-button" type="button">タイトルに戻る</button>
       </div>
     </div>
@@ -4186,6 +4215,9 @@
       <p class="modal-lead">ここまでの回答は結果や自己ベストには保存されません。</p>
       <div class="button-row lyrics-quiz-quit-confirm-actions">
         <button id="lyrics-quiz-quit-cancel-button" class="primary-button" type="button">クイズを続ける</button>
+        <!-- 【2026-08-29追加、本人指示（追加5）】同じ設定のまま最初からやり直す導線
+             （js/lyricsQuizScreen.jsのretryLyricsQuizRunをそのまま再利用する）。 -->
+        <button id="lyrics-quiz-quit-restart-button" class="secondary-button" type="button">やり直す</button>
         <button id="lyrics-quiz-quit-confirm-button" class="secondary-button" type="button">今回の挑戦をやめる</button>
       </div>
     </div>
