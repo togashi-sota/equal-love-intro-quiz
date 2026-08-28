@@ -94,6 +94,12 @@ export function buildLeaderboardPath(variant, questionCountValue, categoryFilter
 // （このファイルはFirebaseの型を一切知らない）。
 // ruleとsourceは区分には使わないが、任意のバッジ表示・参考情報のために記録へ残す
 // （2026-08-16追加）。
+// 【2026-08-29追加、本人指示】実際に出題された問題数をactualQuestionCountとして記録に残す。
+// これが無いと、出題数「全曲」の記録は「1問あたりの平均タイム」を一切計算できない
+// （曲数はカタログの更新で変わるため、後から現在の曲数で割り算すると不正確になる）。
+// 呼び出し側が渡さなかった（undefined）場合や不正な値の場合はnullのまま保存し、
+// 表示側は既存のcomputeAverageSecondsPerQuestion／findVerifiedAllModeAverageSecondsに
+// フォールバックする（古い記録・この値を渡さない呼び出し元があっても壊れない）。
 export function buildLeaderboardEntryPayload({
   displayName,
   oshiMemberId,
@@ -102,7 +108,9 @@ export function buildLeaderboardEntryPayload({
   rule,
   source,
   achievedAt,
+  actualQuestionCount,
 }) {
+  const normalizedActualQuestionCount = Number(actualQuestionCount);
   return {
     displayName: typeof displayName === "string" && displayName.trim() !== "" ? displayName.trim() : "名無しのファン",
     oshiMemberId: oshiMemberId ?? null,
@@ -111,6 +119,10 @@ export function buildLeaderboardEntryPayload({
     rule: LEADERBOARD_RULE_VALUES.includes(rule) ? rule : null,
     source: LEADERBOARD_SOURCE_VALUES.includes(source) ? source : null,
     achievedAt,
+    actualQuestionCount:
+      Number.isFinite(normalizedActualQuestionCount) && normalizedActualQuestionCount > 0
+        ? normalizedActualQuestionCount
+        : null,
   };
 }
 
@@ -138,6 +150,12 @@ export function normalizeLeaderboardEntry(uid, raw) {
   const missCountRaw = Number(raw.missCount);
   const missCount = Number.isFinite(missCountRaw) && missCountRaw >= 0 ? missCountRaw : 0;
 
+  // actualQuestionCountを保存する前の古い記録にはこの項目自体が存在しないため、
+  // その場合はnullのまま返す（表示側がフォールバック計算に切り替える合図になる）。
+  const actualQuestionCountRaw = Number(raw.actualQuestionCount);
+  const actualQuestionCount =
+    Number.isFinite(actualQuestionCountRaw) && actualQuestionCountRaw > 0 ? actualQuestionCountRaw : null;
+
   return {
     uid,
     displayName: typeof raw.displayName === "string" && raw.displayName.trim() !== "" ? raw.displayName : "名無しのファン",
@@ -149,6 +167,7 @@ export function normalizeLeaderboardEntry(uid, raw) {
     // achievedAtはFirebaseのserverTimestampがミリ秒数値として保存される想定。
     // 数値でなければ、ソートの安定性のためだけに0（＝最も古い扱い）にフォールバックする。
     achievedAt: typeof raw.achievedAt === "number" ? raw.achievedAt : 0,
+    actualQuestionCount,
   };
 }
 
@@ -182,6 +201,9 @@ export function findBestEntryPerVariantQuestionCountAndCategory(historyEntries) 
         missCount: entry.missCount,
         rule: entry.rule,
         source: "timeAttack",
+        // 2026-08-29追加：js/timeAttackHistory.jsのsaveTimeAttackHistoryEntry()が保存する
+        // questions配列の件数＝その回に実際に出題された問題数（perQuestionResultsそのまま）。
+        actualQuestionCount: Array.isArray(entry.questions) ? entry.questions.length : null,
       });
     }
   });
@@ -246,4 +268,25 @@ export function findVerifiedAllModeAverageSeconds(variant, questionCountValue, c
       Math.abs(entry.clearTimeMs - clearTimeMs) < 1
   );
   return match ? clearTimeMs / 1000 / match.actualQuestionCount : null;
+}
+
+// 【2026-08-29追加、本人指示】出題数「全曲」の記録で平均タイムが表示されないバグの修正。
+// 根本原因：記録に「実際に出題された問題数」が保存されておらず、questionCountValueが
+// "all"の記録は計算しようがなかった（VERIFIED_ALL_MODE_RECORDSの手作業リストでしか
+// 表示できていなかった）。今後の記録にはactualQuestionCountを保存するようにしたため
+// （buildLeaderboardEntryPayload参照）、表示側はこの関数を優先的に使う。
+// 優先順位：①記録自身が持つactualQuestionCount（今後の記録・バックフィル分）
+// →②questionCountValueが固定値（5/10/20/50）の記録は既存の計算式
+// →③手作業で確認済みの旧「全曲」記録（VERIFIED_ALL_MODE_RECORDS）
+// →④どれにも該当しなければnull（無理に表示しない）。
+// 既存の3関数（computeAverageSecondsPerQuestion等）はそのまま残し、この関数はそれらを
+// 組み合わせるだけの表示専用ラッパーにとどめる（clearTimeMs等の保存データは一切書き換えない）。
+export function resolveAverageSecondsPerQuestion(entry, variant, questionCountValue, categoryFilterValue) {
+  if (Number.isFinite(entry?.actualQuestionCount) && entry.actualQuestionCount > 0) {
+    return entry.clearTimeMs / 1000 / entry.actualQuestionCount;
+  }
+  return (
+    computeAverageSecondsPerQuestion(entry.clearTimeMs, questionCountValue) ??
+    findVerifiedAllModeAverageSeconds(variant, questionCountValue, categoryFilterValue, entry.clearTimeMs)
+  );
 }

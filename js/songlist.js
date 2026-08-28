@@ -446,6 +446,14 @@ async function handleLyricsViewButtonClick(song, rowElement) {
   }
   fullscreenButton.hidden = false;
 
+  // 【2026-08-29変更】本人指示：「歌詞を見る」は行内の簡易表示だけで止めず、既存の全画面歌詞
+  // 表示（js/lyricsFullscreen.js、行の「全画面表示」ボタンと同じ仕組み）へ直接進む。
+  // openFullscreenLyrics()はaudio要素にまだsrc（再生対象）が無くても安全に動く設計
+  // （同ファイルのコメント参照）なので、この直後に始まる音源の非同期読み込みを待たずに
+  // 呼んでよい。歌詞パネル自体はこの後も更新され続けるが、全画面側は同じlyricsPanel要素を
+  // 参照しているだけなので、closeFullscreenLyrics()で元の位置へ戻る際も辻褄が合う。
+  openFullscreenLyrics(song.title, previewAudioElement, lyricsPanel);
+
   // ここから、音源があれば一時停止の状態で読み込む（自動再生はしない）。
   // この行を正式に「現在の行」にすることで、通常の再生ボタン・シークバー・他の行へ
   // 切り替えたときの後片付けも、試聴時と完全に同じ仕組みで安全に処理される。

@@ -15,6 +15,7 @@
 
 import { SONGS } from "./data/songs.js";
 import { QUESTION_SOURCE_TYPE } from "./questionSource.js";
+import { recordLyricsQuizWeakSongAttempt } from "./lyricsQuizWeakSongStats.js";
 import { normalizeForSearch, songMatchesSearch } from "./songlist.js";
 import {
   loadSongsWithLyrics,
@@ -37,7 +38,7 @@ import {
   recordAnswerAndAdvance,
 } from "./lyricsQuizRunState.js";
 import { evaluateAndSaveAchievements } from "./achievementProgress.js";
-import { renderAchievementUnlockEvents } from "./achievementDisplay.js";
+import { renderAchievementUnlockEvents, clearAchievementUnlockEvents } from "./achievementDisplay.js";
 import { savePlayHistoryEntry } from "./playHistory.js";
 
 // 正解/不正解の演出（既存の.choice-buttonのis-correct/is-wrong）を見せてから次の問題へ進むまでの待ち時間。
@@ -48,6 +49,14 @@ let questionElements = null; // 問題画面
 let resultElements = null; // 結果画面
 
 let currentSettings = null; // { questionCountValue, categoryFilterValue, answerPoolSizeValue }
+// 【2026-08-29追加、本人指示】この回が「通常の入り口（カテゴリー絞り込み）から始まった
+// 歌詞クイズ」なのか、「苦手曲モードB（歌詞クイズ版）の練習」なのかを区別するフラグ。
+// "normal"のときだけ、①js/lyricsQuizWeakSongStats.jsへ曲ごとの正誤を記録する
+// ②自己ベスト・称号を更新する。"weakSongPractice"は、既存の苦手曲モード（イントロ側）と
+// 同じ考え方（js/main.jsのgameState.playMode==="special"の扱い）で、判定に使う統計への
+// 書き戻しをしない（自己強化ループを避ける）・自己ベストや称号も更新しない
+// （プレイ履歴にだけ記録する）。
+let currentRunSource = "normal";
 // 「今何問目か」「各解答の記録」はjs/lyricsQuizRunState.jsの純粋関数で管理する
 // （画面のDOMを介さずに進行ロジックだけを自動テストできるようにするため）。
 let runState = null;
@@ -106,28 +115,61 @@ export function updateBestChip() {
 
 async function handleStartButtonClick() {
   const settings = getSelectedSettings();
+  currentRunSource = "normal";
   await buildAndStartRun(settings);
 }
 
 // 直前と同じ設定のまま、問題を再抽選して開始する（「もう一度挑戦する」用）。
 // 出題数不足等で開始できない事態は、直前に一度成立した設定を再利用するだけなので
 // 通常は起こらないが、念のため同じ検証を通してから開始する。
+// 【2026-08-29改訂】currentRunSourceは直前の回のままにする（通常プレイのリトライは
+// 通常のまま、苦手曲モードBの練習のリトライも練習のまま）。
+// 現在（直近に開始した）回が、苦手曲モードBの練習かどうか。js/main.js側が「戻る」ボタンの
+// 文言・戻り先画面をどちらにするか判断するために使う（2026-08-29追加）。
+export function isLyricsQuizPracticeRun() {
+  return currentRunSource === "weakSongPractice";
+}
+
 export async function retryLyricsQuizRun() {
   if (!currentSettings) return;
   await buildAndStartRun(currentSettings);
 }
 
+// 【2026-08-29新設、本人指示】苦手曲モードB（歌詞クイズ版）から、カテゴリー絞り込みではなく
+// 「曲IDを直接指定して」出題を開始する。曲プールの決め方以外（問題の組み立て・進行・
+// 結果画面）は通常の歌詞クイズと完全に同じ仕組みをそのまま再利用する
+// （本人指示：「既存の歌詞クイズの出題・進行エンジンをできる限り再利用してください」）。
+// questionCountValueは常に"all"（渡された曲IDすべて）にする。苦手曲一覧画面
+// （js/weakSongsScreen.js）側で「実際に練習する曲」をすでに絞り込み済みのため、
+// ここでさらに絞り込む必要はない。
+// 戻り値：実際に開始できたかどうか（呼び出し側のjs/weakSongsScreen.jsが、開始できなかった
+// 場合に案内を出せるようにするため。この画面自身のstartErrorはここでは表示されない
+// 別画面からの呼び出しのため）。
+export async function startManualSelectionLyricsQuizRun(songIds, answerPoolSizeValue) {
+  currentRunSource = "weakSongPractice";
+  return buildAndStartRun({
+    questionCountValue: "all",
+    categoryFilterValue: "all",
+    answerPoolSizeValue,
+    manualSongIds: songIds,
+  });
+}
+
 // 出題数不足チェック→問題セットの組み立て→実行中状態のリセット、までを行う共通処理。
-// 開始できた場合はelements.onStart()を呼ぶ（開始できなければ何も呼ばない）。
+// 開始できた場合はelements.onStart()を呼ぶ（開始できなければ何も呼ばない）。戻り値は
+// 実際に開始できたかどうか。
+// settings.manualSongIdsがあれば（苦手曲モードBの練習）曲IDを直接プールにし、無ければ
+// （通常の入り口）今までどおりカテゴリー絞り込みでプールを決める。
 async function buildAndStartRun(settings) {
   elements.startError.hidden = true;
 
   // 【2026-08-08修正】resolveSongPool()ではなく、歌詞クイズ対象外の曲
   // （Overture等、ボーカルの無い曲）を除いたresolveLyricsQuizSongPool()を使う。
-  const songPool = resolveLyricsQuizSongPool({
-    type: QUESTION_SOURCE_TYPE.CATEGORY,
-    categoryFilterValue: settings.categoryFilterValue,
-  });
+  const songPool = resolveLyricsQuizSongPool(
+    settings.manualSongIds
+      ? { type: QUESTION_SOURCE_TYPE.MANUAL_SELECTION, songIds: settings.manualSongIds }
+      : { type: QUESTION_SOURCE_TYPE.CATEGORY, categoryFilterValue: settings.categoryFilterValue }
+  );
   const songsWithLyrics = await loadSongsWithLyrics(songPool);
   const availability = validateLyricsQuizAvailability(songsWithLyrics, settings.questionCountValue);
 
@@ -135,7 +177,7 @@ async function buildAndStartRun(settings) {
     elements.startError.hidden = false;
     elements.startError.textContent = availability.reason;
     logInsufficientSongsForDebug(songPool, songsWithLyrics);
-    return;
+    return false;
   }
 
   const seed = Math.floor(Math.random() * 0x100000000) >>> 0;
@@ -151,6 +193,7 @@ async function buildAndStartRun(settings) {
   runStartedAt = Date.now();
 
   elements.onStart();
+  return true;
 }
 
 // 出題可能な曲が足りない場合に、どの曲が原因かを曲名でブラウザのConsoleにだけ出す
@@ -565,6 +608,12 @@ function handleAnswerSelected(selectedSongId, buttonElement) {
     isCorrect ? LYRICS_QUIZ_ANSWER_OUTCOME.CORRECT : LYRICS_QUIZ_ANSWER_OUTCOME.WRONG_ANSWER,
     elapsedMs
   );
+  // 【2026-08-29追加】通常の入り口から始まった回だけ、歌詞クイズ版の苦手曲統計へ記録する
+  // （苦手曲モードBの練習中はcurrentRunSourceが"weakSongPractice"になり記録しない。
+  // js/weakSongStats.jsが既存4モードの「苦手曲モード自身は対象外」としているのと同じ考え方）。
+  if (currentRunSource === "normal") {
+    recordLyricsQuizWeakSongAttempt(question.song.id, isCorrect);
+  }
 
   buttonElement.classList.add(isCorrect ? "is-correct" : "is-wrong");
   if (!isCorrect) revealCorrectAnswerButton(question);
@@ -588,6 +637,12 @@ function handleSkipButtonClick() {
   const question = getCurrentQuestion(runState);
   const elapsedMs = Date.now() - questionStartedAt;
   runState = recordAnswerAndAdvance(runState, LYRICS_QUIZ_ANSWER_OUTCOME.SKIPPED, elapsedMs);
+  // 【2026-08-29追加】スキップも「間違えた」扱いでattemptsだけ積む（js/state.jsのrecordAnswer()が
+  // resultType==="skip"を不正解扱いにしているのと同じ考え方）。対象・除外の条件は
+  // handleAnswerSelected()と同じ。
+  if (currentRunSource === "normal") {
+    recordLyricsQuizWeakSongAttempt(question.song.id, false);
+  }
   revealCorrectAnswerButton(question);
 
   questionElements.nextHintButton.disabled = true;
@@ -637,13 +692,16 @@ export function initLyricsQuizResultScreen(newElements) {
 
 // 結果画面を描画し、自己ベストの判定・保存もここで行う。
 // 戻り値：将来オンライン対戦・ランキングへ流用できる集計結果（createLyricsQuizResult()の戻り値）。
+// 【2026-08-29改訂、本人指示】苦手曲モードB（歌詞クイズ版）の練習プレイは、既存の苦手曲
+// モード（イントロ側、js/main.jsのgameState.playMode==="special"の扱い）と同じく、
+// 自己ベスト・称号には反映せず、プレイ履歴にだけ記録する（判定に使う統計への書き戻しは
+// 呼び出し元のhandleAnswerSelected/handleSkipButtonClickがcurrentRunSourceで既に制御済み）。
 export function renderLyricsQuizResult() {
+  const isPractice = currentRunSource === "weakSongPractice";
   const result = createLyricsQuizResult(runState.answers);
-  const isNewRecord = saveLyricsQuizBestIfBetter(
-    result,
-    currentSettings.questionCountValue,
-    currentSettings.answerPoolSizeValue
-  );
+  const isNewRecord = isPractice
+    ? false
+    : saveLyricsQuizBestIfBetter(result, currentSettings.questionCountValue, currentSettings.answerPoolSizeValue);
 
   resultElements.correctCount.textContent = `${result.correctCount} / ${result.totalQuestions}問`;
   resultElements.missCount.textContent = `${result.missCount}問`;
@@ -653,39 +711,50 @@ export function renderLyricsQuizResult() {
   resultElements.totalElapsedTime.textContent = formatElapsed(result.totalElapsedMs);
   resultElements.newRecordBadge.hidden = !isNewRecord;
 
-  // 称号（実績）判定（2026-08-07追加、本人指示）。歌マスター・リリックマスターの条件には
-  // 時間もヒント合計も関係しないため、averageResponseMsは渡さない（null＝判定に使われない）。
-  // maxHintLevelByQuestionは、各問題のhintsUsedCount（＝到達した最大ヒント段階、
-  // js/lyricsQuizRunState.js参照）をそのまま使う。
   const wrongCount = runState.answers.filter(
     (answer) => answer.outcome === LYRICS_QUIZ_ANSWER_OUTCOME.WRONG_ANSWER
   ).length;
   const skippedCount = runState.answers.filter(
     (answer) => answer.outcome === LYRICS_QUIZ_ANSWER_OUTCOME.SKIPPED
   ).length;
-  const achievementResult = evaluateAndSaveAchievements({
-    modeId: "lyricsQuiz",
-    questionCountValue: currentSettings.questionCountValue,
-    categoryFilterValue: currentSettings.categoryFilterValue,
-    correctCount: result.correctCount,
-    wrongCount,
-    skippedCount,
-    completed: true,
-    averageResponseMs: null,
-    maxHintLevelByQuestion: runState.answers.map((answer) => answer.hintsUsedCount),
-    answerPoolSizeValue: currentSettings.answerPoolSizeValue,
-  });
-  renderAchievementUnlockEvents(achievementResult.newlyUnlockedIds, {
-    chipContainer: resultElements.achievementChipContainer,
-    achievementListLinkElement: resultElements.achievementListLink,
-  });
+
+  if (isPractice) {
+    // 苦手曲モードBの練習中は称号判定を行わない（既存の苦手曲モードAと同じ方針）。
+    clearAchievementUnlockEvents({
+      chipContainer: resultElements.achievementChipContainer,
+      achievementListLinkElement: resultElements.achievementListLink,
+    });
+  } else {
+    // 称号（実績）判定（2026-08-07追加、本人指示）。歌マスター・リリックマスターの条件には
+    // 時間もヒント合計も関係しないため、averageResponseMsは渡さない（null＝判定に使われない）。
+    // maxHintLevelByQuestionは、各問題のhintsUsedCount（＝到達した最大ヒント段階、
+    // js/lyricsQuizRunState.js参照）をそのまま使う。
+    const achievementResult = evaluateAndSaveAchievements({
+      modeId: "lyricsQuiz",
+      questionCountValue: currentSettings.questionCountValue,
+      categoryFilterValue: currentSettings.categoryFilterValue,
+      correctCount: result.correctCount,
+      wrongCount,
+      skippedCount,
+      completed: true,
+      averageResponseMs: null,
+      maxHintLevelByQuestion: runState.answers.map((answer) => answer.hintsUsedCount),
+      answerPoolSizeValue: currentSettings.answerPoolSizeValue,
+    });
+    renderAchievementUnlockEvents(achievementResult.newlyUnlockedIds, {
+      chipContainer: resultElements.achievementChipContainer,
+      achievementListLinkElement: resultElements.achievementListLink,
+    });
+  }
 
   // 【2026-08-08新設】統一プレイ履歴（js/playHistory.js）への保存。自己ベスト・称号とは
   // 別の保存先のため、この保存に失敗しても上の自己ベスト保存・称号判定には一切影響しない。
+  // 【2026-08-29改訂】苦手曲モードBの練習は、既存のweakSongs（イントロ側）と同じ考え方で
+  // 専用のmodeId（weakSongsLyrics）で記録し、通常の歌詞クイズの記録とは見分けられるようにする。
   savePlayHistoryEntry({
     playedAt: Date.now(),
-    modeId: "lyricsQuiz",
-    modeLabel: "歌詞クイズ",
+    modeId: isPractice ? "weakSongsLyrics" : "lyricsQuiz",
+    modeLabel: isPractice ? "苦手曲モード（歌詞）" : "歌詞クイズ",
     questionCount: result.totalQuestions,
     isAllSongsMode: currentSettings.categoryFilterValue === "all",
     correctCount: result.correctCount,

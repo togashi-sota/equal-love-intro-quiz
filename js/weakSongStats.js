@@ -109,13 +109,24 @@ export function getWeakSongStats() {
   return loadOrInitStatsData().songs;
 }
 
-const WEAK_SONG_MIN_ATTEMPTS = 3;
-const WEAK_SONG_MAX_ACCURACY = 0.5;
+export const WEAK_SONG_MIN_ATTEMPTS = 3;
+// 【2026-08-29改訂、本人指示】苦手曲のしきい値を50%未満→75%未満へ変更。
+// 「歴代の全回答を通じた累計正答率」を都度計算し直す仕組み自体は変えず（0/4=0%→苦手、
+// 1/4=25%→苦手、2/4=50%→苦手、3/4=75%→対象外、4/4=100%→対象外、という判定になる）、
+// 判定に使う数値だけを変える。過去にすでに苦手曲として保存されていたデータも、
+// この定数を参照して都度計算し直す設計（保存側はattempts/correctの積み上げだけで、
+// 「苦手かどうか」自体は保存していない）ため、既存ユーザーの記録も次に一覧を開いた
+// 瞬間から自動的に新しいしきい値で再評価される（データの移行・リセットは不要）。
+// 【一元化】この値を各所（js/weakSongsScreen.js・歌詞クイズ版の苦手曲判定・
+// ヘルプ文言等）から共通して参照し、しきい値の重複記述を作らない。
+export const WEAK_SONG_MAX_ACCURACY = 0.75;
 
-// 苦手曲一覧を計算する。「合計3回以上答えていて、正答率が50%未満（ちょうど50%は対象外）」の
-// 曲を、正答率が低い順（同率なら不正解数が多い順）に並べて返す。しきい値は既存の
-// js/history.jsのcomputeWeakSongs()と完全に同じ値（本人と相談のうえで決めた値のため、
-// 今回のモード統合でも変えていない）。
+// 苦手曲一覧を計算する。「合計3回以上答えていて、正答率がWEAK_SONG_MAX_ACCURACY未満
+// （ちょうど75%は対象外）」の曲を、正答率が低い順（同率なら不正解数が多い順）に並べて
+// 返す。曲ごとの合計回答数・正解数を{ [songId]: { attempts, correct } }の形で渡す
+// だけの純粋関数のため、通常イントロ/タイムアタック側の集計（このファイル）と
+// 歌詞クイズ側の集計（js/lyricsQuizWeakSongStats.js）の両方から共通で使える
+// （2026-08-29改訂：しきい値ロジックの二重実装を避けるため、このファイルからexportして再利用する）。
 export function computeWeakSongsFromStats(songs) {
   return Object.entries(songs)
     .map(([songId, stat]) => ({

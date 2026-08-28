@@ -19,6 +19,7 @@ import {
   isValidLeaderboardCandidate,
   computeAverageSecondsPerQuestion,
   findVerifiedAllModeAverageSeconds,
+  resolveAverageSecondsPerQuestion,
 } from "../js/timeAttackLeaderboard.js";
 import { assertEqual } from "./test-utils.js";
 
@@ -109,12 +110,44 @@ export function runTimeAttackLeaderboardTests() {
   });
   assertEqual(
     Object.keys(payload).sort(),
-    ["achievedAt", "clearTimeMs", "displayName", "missCount", "oshiMemberId", "rule", "source"].sort(),
-    "payloadにuidは含まれない（キーとして使うため）。ruleとsourceは含まれる"
+    ["achievedAt", "actualQuestionCount", "clearTimeMs", "displayName", "missCount", "oshiMemberId", "rule", "source"].sort(),
+    "payloadにuidは含まれない（キーとして使うため）。ruleとsourceとactualQuestionCountは含まれる"
   );
   assertEqual(payload.displayName, "颯太", "displayNameがそのまま反映される");
   assertEqual(payload.rule, "hard", "ruleがそのまま反映される");
   assertEqual(payload.source, "timeAttack", "sourceがそのまま反映される");
+  assertEqual(payload.actualQuestionCount, null, "actualQuestionCountを渡さなければnullになる（2026-08-29追加）");
+
+  const withActualQuestionCountPayload = buildLeaderboardEntryPayload({
+    displayName: "颯太",
+    oshiMemberId: null,
+    clearTimeMs: 9999,
+    missCount: 0,
+    rule: null,
+    source: "normal",
+    achievedAt: 1,
+    actualQuestionCount: 81,
+  });
+  assertEqual(
+    withActualQuestionCountPayload.actualQuestionCount,
+    81,
+    "actualQuestionCountを渡せばそのまま保存される（2026-08-29追加）"
+  );
+  const invalidActualQuestionCountPayload = buildLeaderboardEntryPayload({
+    displayName: "颯太",
+    oshiMemberId: null,
+    clearTimeMs: 9999,
+    missCount: 0,
+    rule: null,
+    source: "normal",
+    achievedAt: 1,
+    actualQuestionCount: 0,
+  });
+  assertEqual(
+    invalidActualQuestionCountPayload.actualQuestionCount,
+    null,
+    "0以下のactualQuestionCountはnullへフォールバックする"
+  );
 
   const normalSourcePayload = buildLeaderboardEntryPayload({
     displayName: "颯太",
@@ -196,8 +229,22 @@ export function runTimeAttackLeaderboardTests() {
       rule: "normal",
       source: "normal",
       achievedAt: 1700000000000,
+      actualQuestionCount: null,
     },
-    "正常な形のentryは、値をそのまま保った形に正規化される"
+    "正常な形のentryは、値をそのまま保った形に正規化される（actualQuestionCountが無い旧データはnullになる）"
+  );
+
+  const normalizedWithActualQuestionCount = normalizeLeaderboardEntry("uid4", {
+    displayName: "テスト花子",
+    clearTimeMs: 137000,
+    missCount: 0,
+    achievedAt: 1700000000000,
+    actualQuestionCount: 81,
+  });
+  assertEqual(
+    normalizedWithActualQuestionCount.actualQuestionCount,
+    81,
+    "actualQuestionCountが保存されている記録はそのまま読み込まれる（2026-08-29追加）"
   );
 
   const brokenEntry = normalizeLeaderboardEntry("uid3", {
@@ -409,5 +456,39 @@ export function runTimeAttackLeaderboardTests() {
     findVerifiedAllModeAverageSeconds("randomPlayback", "all", "all", 137029.00000000026),
     null,
     "variantが違えば一致しない"
+  );
+
+  // ---- resolveAverageSecondsPerQuestion（2026-08-29追加）：出題数「全曲」でも
+  //      平均タイムが表示されないバグの修正。優先順位①actualQuestionCount②固定出題数の
+  //      計算式③手作業の特例リスト④null、の4段階すべてを確認する ----
+  assertEqual(
+    resolveAverageSecondsPerQuestion({ clearTimeMs: 162000, actualQuestionCount: 81 }, "intro", "all", "all"),
+    162000 / 1000 / 81,
+    "actualQuestionCountを持つ記録（今後の新しい記録）は、出題数「全曲」でも直接計算できる"
+  );
+  assertEqual(
+    resolveAverageSecondsPerQuestion({ clearTimeMs: 11824, actualQuestionCount: null }, "intro", "5", "title-track"),
+    2.3648,
+    "actualQuestionCountが無い記録でも、固定出題数（5/10/20/50）なら既存の計算式にフォールバックする"
+  );
+  assertEqual(
+    resolveAverageSecondsPerQuestion(
+      { clearTimeMs: 137029.00000000026, actualQuestionCount: null },
+      "intro",
+      "all",
+      "all"
+    ),
+    137029.00000000026 / 1000 / 81,
+    "actualQuestionCountが無い旧「全曲」記録は、手作業の特例リストにフォールバックする"
+  );
+  assertEqual(
+    resolveAverageSecondsPerQuestion({ clearTimeMs: 99999, actualQuestionCount: null }, "intro", "all", "all"),
+    null,
+    "actualQuestionCountも特例リストも無い旧「全曲」記録は、無理に計算せずnullのまま（誤った平均を表示しない）"
+  );
+  assertEqual(
+    resolveAverageSecondsPerQuestion({ clearTimeMs: 5000, actualQuestionCount: 0 }, "intro", "all", "all"),
+    null,
+    "actualQuestionCountが0以下（不正値）なら、直接計算を使わずフォールバック側へ回る"
   );
 }

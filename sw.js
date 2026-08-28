@@ -70,6 +70,7 @@ const APP_SHELL_FILES = [
   "./js/speedAchievementProgress.js",
   "./js/history.js",
   "./js/weakSongStats.js",
+  "./js/lyricsQuizWeakSongStats.js",
   "./js/playHistory.js",
   "./js/historyScreen.js",
   "./js/historyDetailScreen.js",

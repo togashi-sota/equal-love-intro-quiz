@@ -1252,12 +1252,13 @@ export const SONGS = [
     center: ["齋藤樹愛羅"],
     centerType: "single",
   },
-  // 21stシングル「恋、はじめました。」（2026-08-17追加）。表題曲のみを先行登録する。
-  // 公式サイト（equal-love.jp/news/detail/11815、2026-08-17確認）ではカップリングA・Bとも
-  // 「タイトル未定」、センターの記載自体が無いため、どちらも推測で埋めず省略する
-  // （center/centerTypeを省略すると、収録曲一覧は他の未確認曲と同じく「センター」欄を
-  // 自然に表示しない。comingSoonNoteは収録曲一覧の見出しに添える案内文だけに使う、
-  // 出題・採点には一切影響しない表示専用フィールド）。
+  // 21stシングル「恋、はじめました。」（2026-08-17追加）。
+  // 【2026-08-29更新】カップリング2曲（夏名残サマーチューン・夢の続き）とも収録曲一覧へ
+  // 登録済みになったため、comingSoonNote（「カップリング Coming Soon」の案内文）は削除した
+  // （js/songlist.jsのgroup.comingSoonNoteは、曲ごとのこのフィールドが無ければ自動的に
+  // 何も表示しなくなる。カウント計算等の別の仕組みではなく、この曲オブジェクト側の
+  // フラグを直接消すことで無効化する設計のため）。センターは本人指示により「全員」として
+  // 明示的に登録する（公式情報からの推測ではない）。
   {
     id: "koi-hajimemashita",
     youtubeUrl: "https://www.youtube.com/watch?v=ikFaEAlO5N0",
@@ -1269,7 +1270,8 @@ export const SONGS = [
     single: "21stシングル「恋、はじめました。」",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
-    comingSoonNote: "カップリング Coming Soon",
+    center: ["全員"],
+    centerType: "single",
   },
   // 21stシングル カップリング曲「夏名残サマーチューン」（2026-08-24追加）。
   // ＝LOVE公式YouTubeチャンネルにMVが公開され、概要欄で「2026年8月26日(水)発売、
@@ -1291,9 +1293,8 @@ export const SONGS = [
   },
   // 21stシングル カップリング曲「夢の続き」（2026-08-27追加）。センター就任お祝いポップアップ
   // （js/centerCelebration.jsのyumeNoTsuzukiエントリ、youtubeVideoId "RjHjQlEjs_E"と同じ動画）
-  // を先に実装した際、公式MV概要欄でセンターの明記が確認できなかったため、他の曲と違い
-  // center/centerTypeは推測で埋めず省略している（natsunagori-summer-tuneの登録時と同じ方針）。
-  // センターが判明した場合は、この2フィールドを追記すればよい。
+  // を先に実装した際は、公式MV概要欄でセンターの明記が確認できなかったため保留していたが、
+  // 【2026-08-29更新】本人指示により「全員」として明示的に登録する（公式情報からの推測ではない）。
   {
     id: "yume-no-tsuzuki",
     youtubeUrl: "https://www.youtube.com/watch?v=RjHjQlEjs_E",
@@ -1305,6 +1306,8 @@ export const SONGS = [
     single: "21stシングル「恋、はじめました。」収録",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
+    center: ["全員"],
+    centerType: "single",
   },
   {
     id: "866",

@@ -127,6 +127,7 @@ export function renderRandomPlaybackResult(questionCountValue, categoryFilterVal
       rule,
       totalElapsedMs: stats.totalElapsedMs,
       missCount: stats.missCount,
+      actualQuestionCount: stats.perQuestionResults.length,
     });
   }
 
@@ -142,6 +143,7 @@ export function renderRandomPlaybackResult(questionCountValue, categoryFilterVal
       rule,
       totalElapsedMs: stats.totalElapsedMs,
       missCount: stats.missCount,
+      actualQuestionCount: stats.perQuestionResults.length,
     });
   }
 

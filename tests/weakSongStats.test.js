@@ -80,19 +80,19 @@ export function runWeakSongStatsTests() {
     "合計2回（正答率0%）は3回未満のため苦手曲に含まれない"
   );
 
-  // ---- しきい値：ちょうど50%は対象外（「未満」なので含めない） ----
+  // ---- しきい値：ちょうど75%は対象外（「未満」なので含めない、2026-08-29改訂：50%→75%） ----
   clearAllRelatedStorage();
   recordWeakSongAttempt("song-b", true);
   recordWeakSongAttempt("song-b", true);
-  recordWeakSongAttempt("song-b", false);
+  recordWeakSongAttempt("song-b", true);
   recordWeakSongAttempt("song-b", false);
   assertEqual(
     computeWeakSongsFromStats(getWeakSongStats()),
     [],
-    "4回中2回正解（正答率ちょうど50%）は苦手曲に含まれない"
+    "4回中3回正解（正答率ちょうど75%）は苦手曲に含まれない"
   );
 
-  // ---- しきい値：50%未満・3回以上なら対象になる ----
+  // ---- しきい値：75%未満・3回以上なら対象になる ----
   clearAllRelatedStorage();
   recordWeakSongAttempt("song-c", true);
   recordWeakSongAttempt("song-c", false);
@@ -103,6 +103,56 @@ export function runWeakSongStatsTests() {
     { attempts: songCResult[0].attempts, correct: songCResult[0].correct },
     { attempts: 3, correct: 1 },
     "苦手曲として返る内訳がattempts=3・correct=1になっている"
+  );
+
+  // ---- 境界値：本人の具体例（4回答えた場合）をすべて確認する（2026-08-29追加、item⑰の要求） ----
+  // 0/4=0%→苦手、1/4=25%→苦手、2/4=50%→苦手、3/4=75%→対象外、4/4=100%→対象外
+  clearAllRelatedStorage();
+  recordWeakSongAttempt("boundary-0of4", false);
+  recordWeakSongAttempt("boundary-0of4", false);
+  recordWeakSongAttempt("boundary-0of4", false);
+  recordWeakSongAttempt("boundary-0of4", false);
+  recordWeakSongAttempt("boundary-1of4", true);
+  recordWeakSongAttempt("boundary-1of4", false);
+  recordWeakSongAttempt("boundary-1of4", false);
+  recordWeakSongAttempt("boundary-1of4", false);
+  recordWeakSongAttempt("boundary-2of4", true);
+  recordWeakSongAttempt("boundary-2of4", true);
+  recordWeakSongAttempt("boundary-2of4", false);
+  recordWeakSongAttempt("boundary-2of4", false);
+  recordWeakSongAttempt("boundary-3of4", true);
+  recordWeakSongAttempt("boundary-3of4", true);
+  recordWeakSongAttempt("boundary-3of4", true);
+  recordWeakSongAttempt("boundary-3of4", false);
+  recordWeakSongAttempt("boundary-4of4", true);
+  recordWeakSongAttempt("boundary-4of4", true);
+  recordWeakSongAttempt("boundary-4of4", true);
+  recordWeakSongAttempt("boundary-4of4", true);
+  const boundaryWeakIds = computeWeakSongsFromStats(getWeakSongStats()).map((stat) => stat.songId);
+  assertEqual(
+    boundaryWeakIds.includes("boundary-0of4"),
+    true,
+    "0/4=0%は苦手曲（本人の具体例どおり）"
+  );
+  assertEqual(
+    boundaryWeakIds.includes("boundary-1of4"),
+    true,
+    "1/4=25%は苦手曲（本人の具体例どおり）"
+  );
+  assertEqual(
+    boundaryWeakIds.includes("boundary-2of4"),
+    true,
+    "2/4=50%は苦手曲（本人の具体例どおり）"
+  );
+  assertEqual(
+    boundaryWeakIds.includes("boundary-3of4"),
+    false,
+    "3/4=75%は対象外（本人の具体例どおり、「未満」なので含めない）"
+  );
+  assertEqual(
+    boundaryWeakIds.includes("boundary-4of4"),
+    false,
+    "4/4=100%は対象外（本人の具体例どおり）"
   );
 
   // ---- 並び順：正答率が低い順、同率なら不正解数が多い順 ----

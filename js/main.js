@@ -127,6 +127,8 @@ import {
   startLyricsQuizPlay,
   retryLyricsQuizRun,
   renderLyricsQuizResult,
+  startManualSelectionLyricsQuizRun,
+  isLyricsQuizPracticeRun,
 } from "./lyricsQuizScreen.js";
 import { buildBattleQuestions } from "./localBattle.js";
 import { initLocalBattleScreens, getCurrentBattleSession } from "./localBattleScreen.js";
@@ -392,6 +394,7 @@ const rulesLinkElement = document.getElementById("rules-link");
 const rulesModalElement = document.getElementById("rules-modal");
 const rulesModalCloseButtonElement = document.getElementById("rules-modal-close");
 const songlistLinkElement = document.getElementById("songlist-link");
+const songlistTileDescElement = document.getElementById("songlist-tile-desc");
 const songlistFavoritesLinkElement = document.getElementById("songlist-favorites-link");
 const listenTileFavoritesCountElement = document.getElementById("listen-tile-favorites-count");
 const listenTilePlaylistCountElement = document.getElementById("listen-tile-playlist-count");
@@ -577,12 +580,14 @@ const fanProfileDetailSwatchElement = document.getElementById("fan-profile-detai
 const fanProfileDetailNameElement = document.getElementById("fan-profile-detail-name");
 const fanProfileDetailOshiElement = document.getElementById("fan-profile-detail-oshi");
 const fanProfileDetailAchievementsElement = document.getElementById("fan-profile-detail-achievements");
+const fanProfileDetailTitlesLinkElement = document.getElementById("fan-profile-detail-titles-link");
 const fanProfilesMyUidElement = document.getElementById("fan-profiles-my-uid");
 const fanProfilesAdminDeleteOverlayElement = document.getElementById("fan-profiles-admin-delete-confirm-modal");
 const fanProfilesAdminDeleteTargetNameElement = document.getElementById("fan-profiles-admin-delete-target-name");
 const fanProfilesAdminDeleteCancelButtonElement = document.getElementById("fan-profiles-admin-delete-cancel-button");
 const fanProfilesAdminDeleteConfirmButtonElement = document.getElementById("fan-profiles-admin-delete-confirm-button");
 const weakSongsBackButtonElement = document.getElementById("weak-songs-back-button");
+const weakSongsCountNoticeElement = document.getElementById("weak-songs-count-notice");
 const liveCallModeListBackButtonElement = document.getElementById("live-call-mode-list-back-button");
 const liveCallModePlayerBackButtonElement = document.getElementById("live-call-mode-player-back-button");
 const liveCallModeSongListElement = document.getElementById("live-call-mode-song-list");
@@ -751,6 +756,7 @@ const lyricsQuizAnswerRevealTitleElement = document.getElementById("lyrics-quiz-
 const lyricsQuizAnswerRevealMetaElement = document.getElementById("lyrics-quiz-answer-reveal-meta");
 const lyricsQuizAnswerRevealNextButtonElement = document.getElementById("lyrics-quiz-answer-reveal-next-button");
 const lyricsQuizBackButtonElement = document.getElementById("lyrics-quiz-back-button");
+const lyricsQuizBackButtonLabelElement = document.getElementById("lyrics-quiz-back-button-label");
 const lyricsQuizQuitConfirmModalElement = document.getElementById("lyrics-quiz-quit-confirm-modal");
 const lyricsQuizQuitCancelButtonElement = document.getElementById("lyrics-quiz-quit-cancel-button");
 const lyricsQuizQuitConfirmButtonElement = document.getElementById("lyrics-quiz-quit-confirm-button");
@@ -771,6 +777,7 @@ const lyricsQuizResultAchievementListLinkElement = document.getElementById(
 );
 const lyricsQuizResultRetryButtonElement = document.getElementById("lyrics-quiz-result-retry-button");
 const lyricsQuizResultSetupButtonElement = document.getElementById("lyrics-quiz-result-setup-button");
+const lyricsQuizResultSetupButtonLabelElement = document.getElementById("lyrics-quiz-result-setup-button-label");
 
 // 対戦モード（ローカル対戦）の画面要素一式（2026-08-06新設）。
 const battleModeSelectBackButtonElement = document.getElementById("battle-mode-select-back-button");
@@ -1463,6 +1470,7 @@ initFanProfilesScreen(
     detailName: fanProfileDetailNameElement,
     detailOshi: fanProfileDetailOshiElement,
     detailAchievementList: fanProfileDetailAchievementsElement,
+    detailTitlesLink: fanProfileDetailTitlesLinkElement,
     myUidValue: fanProfilesMyUidElement,
     adminDeleteOverlay: fanProfilesAdminDeleteOverlayElement,
     adminDeleteTargetName: fanProfilesAdminDeleteTargetNameElement,
@@ -1800,6 +1808,23 @@ async function beginSpecialQuiz(songIds, questionCountValue, specialModeId) {
   showScreen("quiz");
 }
 
+// 苦手曲モードB（歌詞クイズ版）の練習開始（2026-08-29新設、本人指示）。
+// beginSpecialQuiz()（イントロ側の苦手曲モードA）と対になる関数だが、エンジン自体が
+// 歌詞クイズ（js/lyricsQuizScreen.js）のため別関数にしている。曲IDから問題を組み立てる
+// 部分は、既存の歌詞クイズの出題エンジン（js/lyricsQuizQuestionBuilder.js）をそのまま使う
+// （js/lyricsQuizScreen.jsのstartManualSelectionLyricsQuizRun参照）。
+// 戻り値：実際に開始できたか（曲の歌詞データが後から削除された等で開始できない、
+// ごく稀なケースをjs/weakSongsScreen.js側が案内できるようにするため）。
+async function beginWeakSongsLyricsPractice(songIds, answerPoolSizeValue) {
+  const started = await startManualSelectionLyricsQuizRun(songIds, answerPoolSizeValue);
+  if (!started) return false;
+  playSfx(SFX_EVENTS.GAME_START);
+  updateLyricsQuizBackButtonLabel();
+  showScreen("lyricsQuizQuestion");
+  startLyricsQuizPlay();
+  return true;
+}
+
 // オリジナル問題作成モード用のクイズ開始処理。beginSpecialQuiz()と違い、ダミー選択肢の
 // プールを「選択した曲だけ」「全収録曲」から選べる点が異なるため、別関数にしている。
 // 【2026-08-15改訂・本人指示】選曲画面（曲を選ぶ一覧）自体は「情報として見える」ことは
@@ -1831,11 +1856,26 @@ initWeakSongsScreen({
   countValue: document.getElementById("weak-songs-count-value"),
   allLabel: document.getElementById("weak-songs-all-label"),
   chipRow: document.getElementById("weak-songs-chip-row"),
-  countNotice: document.getElementById("weak-songs-count-notice"),
+  countNotice: weakSongsCountNoticeElement,
   startButton: document.getElementById("weak-songs-start-button"),
+  explanation: document.getElementById("weak-songs-explanation"),
+  modeIntroButton: document.getElementById("weak-songs-mode-intro-button"),
+  modeLyricsButton: document.getElementById("weak-songs-mode-lyrics-button"),
   onStart: (songIds, questionCountValue) => {
     playClickSound();
     beginSpecialQuiz(songIds, questionCountValue, "weakSongs");
+  },
+  // 【2026-08-29追加】苦手曲モードB（歌詞クイズ版）の開始。開始できなかった場合
+  // （対象曲の歌詞データが後から削除された等、ごく稀なケース）は、ネイティブのalert()では
+  // なく既存の出題数案内欄を流用して画面内に案内を出す（本人指示に基づく既存デザインの再利用）。
+  onStartLyrics: async (songIds, answerPoolSizeValue) => {
+    playClickSound();
+    const started = await beginWeakSongsLyricsPractice(songIds, answerPoolSizeValue);
+    if (!started) {
+      weakSongsCountNoticeElement.hidden = false;
+      weakSongsCountNoticeElement.textContent =
+        "対象曲の歌詞データが見つからないため開始できませんでした。データパックの導入状況を確認してください。";
+    }
   },
 });
 
@@ -2736,6 +2776,7 @@ function renderResult() {
         rule: null,
         source: "normal",
         achievedAt: Date.now(),
+        actualQuestionCount: gameState.questions.length,
       });
       resultLeaderboardStatusElement.hidden = false;
       resultLeaderboardStatusElement.textContent = "ランキングを確認しています…";
@@ -2748,6 +2789,7 @@ function renderResult() {
         clearTimeMs,
         missCount: 0,
         playerKeyPrefix: getPlayerKeyPrefix(),
+        actualQuestionCount: gameState.questions.length,
       }).then((result) => {
         if (!result.ok) {
           const messageByReason = {
@@ -3537,7 +3579,7 @@ initTimeAttackResultScreen({
   // 【2026-08-16改訂・本人指示】ルール（ノーマル/ハード/LOVE連チャン）を問わず対象にする。
   // 1問でも間違えたプレイ（missCount>0）はsubmitTimeAttackScoreIfBetter側で弾かれ、
   // "invalid-record"として案内する（不正扱いではなく「対象外」と分かる文言にする）。
-  onNewRecord: ({ variant, questionCountValue, categoryFilterValue, rule, totalElapsedMs, missCount }) => {
+  onNewRecord: ({ variant, questionCountValue, categoryFilterValue, rule, totalElapsedMs, missCount, actualQuestionCount }) => {
     timeAttackResultLeaderboardStatusElement.hidden = false;
     timeAttackResultLeaderboardStatusElement.textContent = "ランキングを確認しています…";
     submitTimeAttackScoreIfBetter({
@@ -3549,6 +3591,7 @@ initTimeAttackResultScreen({
       clearTimeMs: totalElapsedMs,
       missCount,
       playerKeyPrefix: getPlayerKeyPrefix(),
+      actualQuestionCount,
     }).then((result) => {
       if (!result.ok) {
         const messageByReason = {
@@ -3571,7 +3614,7 @@ initTimeAttackResultScreen({
   // 常にローカルへ保存しておく（js/rankingCandidateStore.js）。onNewRecordと違い、
   // ローカル自己ベストを更新したかどうかに関係なく、ミス0で完走した記録なら毎回呼ばれる
   // （js/timeAttackScreen.jsのrenderTimeAttackResult参照）。
-  onCleanClear: ({ variant, questionCountValue, categoryFilterValue, rule, totalElapsedMs, missCount }) => {
+  onCleanClear: ({ variant, questionCountValue, categoryFilterValue, rule, totalElapsedMs, missCount, actualQuestionCount }) => {
     saveRankingCandidateIfBetter({
       variant,
       questionCountValue,
@@ -3581,6 +3624,7 @@ initTimeAttackResultScreen({
       rule,
       source: "timeAttack",
       achievedAt: Date.now(),
+      actualQuestionCount,
     });
   },
 });
@@ -3789,7 +3833,7 @@ initRandomPlaybackResultScreen({
   // グローバルランキングへの送信（2026-08-16追加）。js/timeAttackScreen.jsのonNewRecordと
   // 全く同じ設計・同じ送信関数を再利用する（本人指示：同じランキング実装を再利用する）。
   // sourceだけ"normal"にして、タイムアタック経由の記録と区別する。
-  onNewRecord: ({ variant, questionCountValue, categoryFilterValue, rule, totalElapsedMs, missCount }) => {
+  onNewRecord: ({ variant, questionCountValue, categoryFilterValue, rule, totalElapsedMs, missCount, actualQuestionCount }) => {
     randomPlaybackResultLeaderboardStatusElement.hidden = false;
     randomPlaybackResultLeaderboardStatusElement.textContent = "ランキングを確認しています…";
     submitTimeAttackScoreIfBetter({
@@ -3801,6 +3845,7 @@ initRandomPlaybackResultScreen({
       clearTimeMs: totalElapsedMs,
       missCount,
       playerKeyPrefix: getPlayerKeyPrefix(),
+      actualQuestionCount,
     }).then((result) => {
       if (!result.ok) {
         const messageByReason = {
@@ -3820,7 +3865,7 @@ initRandomPlaybackResultScreen({
     });
   },
   // 【2026-08-16追加、本人指示】js/timeAttackScreen.jsのonCleanClearと同じ理由・同じ設計。
-  onCleanClear: ({ variant, questionCountValue, categoryFilterValue, rule, totalElapsedMs, missCount }) => {
+  onCleanClear: ({ variant, questionCountValue, categoryFilterValue, rule, totalElapsedMs, missCount, actualQuestionCount }) => {
     saveRankingCandidateIfBetter({
       variant,
       questionCountValue,
@@ -3830,6 +3875,7 @@ initRandomPlaybackResultScreen({
       rule,
       source: "normal",
       achievedAt: Date.now(),
+      actualQuestionCount,
     });
   },
 });
@@ -3865,16 +3911,29 @@ lyricsQuizSetupBackButtonElement.addEventListener("click", () => {
   navigateWithScrollMemory("start");
 });
 
+// 【2026-08-29追加】戻る導線（問題画面の「設定に戻る」・結果画面の「歌詞クイズ設定へ戻る」）の
+// 文言を、苦手曲モードB（歌詞クイズ版）の練習中かどうかで切り替える。
+// js/lyricsQuizScreen.jsのisLyricsQuizPracticeRun()を、開始直後・結果表示直後の両方で
+// 呼び直すことで、常に「今の回」に合った文言になる。
+function updateLyricsQuizBackButtonLabel() {
+  const label = isLyricsQuizPracticeRun() ? "苦手曲モードへ戻る" : "設定に戻る";
+  const resultLabel = isLyricsQuizPracticeRun() ? "苦手曲モードへ戻る" : "歌詞クイズ設定へ戻る";
+  if (lyricsQuizBackButtonLabelElement) lyricsQuizBackButtonLabelElement.textContent = label;
+  if (lyricsQuizResultSetupButtonLabelElement) lyricsQuizResultSetupButtonLabelElement.textContent = resultLabel;
+}
+
 initLyricsQuizSetupScreen({
   startButton: lyricsQuizStartButtonElement,
   startError: lyricsQuizStartErrorElement,
   bestChip: lyricsQuizBestChipElement,
   onStart: () => {
     playSfx(SFX_EVENTS.GAME_START);
+    updateLyricsQuizBackButtonLabel();
     showScreen("lyricsQuizQuestion");
     startLyricsQuizPlay();
   },
   onFinish: () => {
+    updateLyricsQuizBackButtonLabel();
     showScreen("lyricsQuizResult");
     renderLyricsQuizResult();
   },
@@ -3904,6 +3963,12 @@ initLyricsQuizQuestionScreen({
   quitConfirmButton: lyricsQuizQuitConfirmButtonElement,
   onQuit: () => {
     playSfx(SFX_EVENTS.UI_BACK);
+    // 【2026-08-29追加】苦手曲モードBの練習中は、通常の歌詞クイズ設定画面ではなく
+    // 苦手曲モード確認画面へ戻す（js/weakSongsScreen.jsのgoToWeakSongsScreenと同じ戻り先）。
+    if (isLyricsQuizPracticeRun()) {
+      goToWeakSongsScreen();
+      return;
+    }
     updateLyricsQuizBestChip();
     showScreen("lyricsQuizSetup");
   },
@@ -3929,6 +3994,10 @@ lyricsQuizResultRetryButtonElement.addEventListener("click", () => {
 
 lyricsQuizResultSetupButtonElement.addEventListener("click", () => {
   playClickSound();
+  if (isLyricsQuizPracticeRun()) {
+    goToWeakSongsScreen();
+    return;
+  }
   updateLyricsQuizBestChip();
   showScreen("lyricsQuizSetup");
 });
@@ -4284,6 +4353,14 @@ function finishOnlineBattlePlay() {
 
 // カテゴリの選択肢に添える対象曲数は、ゲームの状態と関係なく最初に1回だけ計算すればよい。
 updateCategoryCountHints();
+
+// ホーム画面「収録曲一覧」タイルの「全◯曲から探す」を、songs.jsの実際の登録曲数から
+// 表示する（2026-08-29新設）。以前は"全82曲"のようにHTMLへ固定で書いており、新曲追加の
+// たびに手で書き換える必要があった。SONGSは起動時に確定した静的配列（データパックの
+// 読み込みでは曲そのものは増えない）のため、起動時に1回セットすれば十分。
+if (songlistTileDescElement) {
+  songlistTileDescElement.textContent = `全${SONGS.length}曲から探す`;
+}
 
 // 追加データパック（新曲の音源・歌詞・コールデータをまとめて読み込む機能、2026-08-26新設）。
 // 解析・保存の実処理はjs/dataPackImport.jsに任せ、ここでは結果を見て画面表示を更新するだけ

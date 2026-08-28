@@ -16,8 +16,7 @@ import {
 import {
   LEADERBOARD_QUESTION_COUNT_VALUES,
   LEADERBOARD_CATEGORY_VALUES,
-  computeAverageSecondsPerQuestion,
-  findVerifiedAllModeAverageSeconds,
+  resolveAverageSecondsPerQuestion,
 } from "./timeAttackLeaderboard.js";
 import { fetchPublicProfileBadgeState, getMyUid, isPublicProfileSharingEnabled } from "./publicProfileSync.js";
 import { getPlayerKeyPrefix } from "./playerProfile.js";
@@ -136,13 +135,10 @@ function buildLeaderboardRow(
   timeBlock.appendChild(time);
 
   // 1問あたりの平均タイム（2026-08-24追加、本人指示：「今後ランキングは必ず平均も乗せる」）。
-  // 出題数「全曲」は通常、実際の出題数が記録に残っておらず曲数も時期によって変わるため
-  // 自動計算しないが、本人がプレイ履歴から実際の出題数を確認できた記録だけは
-  // findVerifiedAllModeAverageSecondsの特例リストで表示する
-  // （js/timeAttackLeaderboard.js参照）。
-  const averageSeconds =
-    computeAverageSecondsPerQuestion(entry.clearTimeMs, questionCountValue) ??
-    findVerifiedAllModeAverageSeconds(variant, questionCountValue, categoryFilterValue, entry.clearTimeMs);
+  // 【2026-08-29改訂】記録自身が持つactualQuestionCount（実際に出題された問題数）を
+  // 最優先に使うことで、出題数「全曲」の記録でも平均を計算できるようにした
+  // （js/timeAttackLeaderboard.jsのresolveAverageSecondsPerQuestion参照）。
+  const averageSeconds = resolveAverageSecondsPerQuestion(entry, variant, questionCountValue, categoryFilterValue);
   if (averageSeconds !== null) {
     const average = document.createElement("p");
     average.className = "leaderboard-row-average";
@@ -312,14 +308,12 @@ async function renderMyRecordIfNeeded(myRenderToken, top10Entries) {
     return;
   }
 
-  const myAverageSeconds =
-    computeAverageSecondsPerQuestion(myResult.entry.clearTimeMs, currentQuestionCountValue) ??
-    findVerifiedAllModeAverageSeconds(
-      currentVariant,
-      currentQuestionCountValue,
-      currentCategoryFilterValue,
-      myResult.entry.clearTimeMs
-    );
+  const myAverageSeconds = resolveAverageSecondsPerQuestion(
+    myResult.entry,
+    currentVariant,
+    currentQuestionCountValue,
+    currentCategoryFilterValue
+  );
   const myAverageSuffix = myAverageSeconds !== null ? `（平均 ${myAverageSeconds.toFixed(2)}秒/問）` : "";
   elements.myRecordText.textContent = `あなたのベスト：${formatSeconds(myResult.entry.clearTimeMs)}秒${myAverageSuffix}`;
   elements.myRecordSection.hidden = false;

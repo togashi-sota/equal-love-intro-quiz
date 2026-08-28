@@ -214,6 +214,9 @@ export function getUnifiedPlayHistoryEntries() {
 export const HISTORY_FILTER_CATEGORY = {
   intro: "intro",
   weakSongs: "intro",
+  // 2026-08-29追加：苦手曲モードB（歌詞クイズ版）。エンジン自体が歌詞クイズのため、
+  // 既存のweakSongs（イントロ側）とは別に"lyricsQuiz"フィルターへ分類する。
+  weakSongsLyrics: "lyricsQuiz",
   customQuiz: "intro",
   timeAttack: "timeAttack",
   timeAttackRandomPlayback: "timeAttack",
@@ -249,6 +252,9 @@ export const HISTORY_MODE_DISPLAY = {
   randomPlayback: { label: "ランダム再生クイズ", iconKey: "randomPlayback" },
   lyricsQuiz: { label: "歌詞クイズ", iconKey: "lyricsQuiz" },
   weakSongs: { label: "苦手曲モード", iconKey: "weakSongs" },
+  // 2026-08-29追加：苦手曲モードB（歌詞クイズ版）。専用アイコンは作らず、歌詞クイズと
+  // 同じiconKeyを再利用する（本人指示：既存のデザインを再利用し、新しい意匠を増やさない）。
+  weakSongsLyrics: { label: "苦手曲モード（歌詞）", iconKey: "lyricsQuiz" },
   customQuiz: { label: "オリジナル問題", iconKey: "originalQuiz" },
   timeAttack: { label: "タイムアタック", iconKey: "timeAttack" },
   timeAttackRandomPlayback: { label: "タイムアタック（ランダム再生）", iconKey: "timeAttack" },

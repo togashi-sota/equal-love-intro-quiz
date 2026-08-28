@@ -1,5 +1,5 @@
 // 苦手曲モードの確認画面を担当するファイル。
-// 「4モード合算で3回以上答えていて、正答率50%未満」の対象曲を一覧表示し、
+// 「4モード合算で3回以上答えていて、正答率75%未満」の対象曲を一覧表示し、
 // 出題数を選んでから開始できる。判定ロジック自体はjs/weakSongStats.jsに任せ、
 // ここでは画面の組み立てと、選ばれた出題数から実際に出題する曲IDを決めるところまでを行う。
 // クイズを実際に組み立てて開始する処理（曲IDの配列を受け取る汎用エンジン）はmain.js側が担当する。
@@ -10,12 +10,23 @@
 // プレイの回答が一切反映されなかった、という2つの問題があった。
 // 今回、js/weakSongStats.jsが「答えた瞬間ごとに曲別の合計回答数・正解数を記録する」専用の
 // データを持つようになったため、ここでは1種類の指標（正答率）だけを扱えばよくなった。
+//
+// 【2026-08-29追加、本人指示】この画面をモードA（イントロ・タイムアタック・ランダム再生の
+// 合算、既存）／モードB（歌詞クイズだけを対象にした別判定、新設）の2択タブに拡張した。
+// 判定・記録は完全に別々のデータ（js/weakSongStats.js／js/lyricsQuizWeakSongStats.js）を使い、
+// 一切混ざらない。曲一覧・出題数選択・「開始する」ボタンの見た目とロジックは、どちらの
+// モードでも同じUI要素をそのまま使い回し（本人指示：見た目・操作感を揃える）、
+// 表示内容と「開始する」の送り先だけをモードに応じて切り替える。
 import { SONGS } from "./data/songs.js";
 import { getWeakSongStats, computeWeakSongsFromStats } from "./weakSongStats.js";
+import { computeLyricsQuizWeakSongs } from "./lyricsQuizWeakSongStats.js";
 import { resolveQuestionCount } from "./quiz.js";
 
 // この画面が使うDOM要素一式。initWeakSongsScreen()で受け取って保持する。
 let elements = null;
+
+// 現在選ばれているモード。"intro"＝既存のモードA、"lyrics"＝新設のモードB。
+let currentMode = "intro";
 
 // 今表示している対象曲（songオブジェクトの配列）。出題数の案内表示や、
 // 開始ボタンが押されたときの出題曲決定に使う。
@@ -24,17 +35,34 @@ let currentWeakSongs = [];
 // （出題曲の決定ロジックには影響しない、あくまで説明用のデータ）。
 let currentWeakSongReasons = new Map();
 
-// js/weakSongStats.jsの集計から、画面表示に使う形（severity・reasons付き）を組み立てる。
-// severityは「0に近いほど苦手」という意味で使う（元々は正答率・ノーミス率の2種類を
-// 別々に扱っていた名残りの構造だが、今は正答率1種類だけなのでそのまま入れる）。
-// 「判定し直す」タイミングを画面の描画時・出題曲の決定時の両方で必要とするため、共通化している。
+// モードごとの表示文言・回答方式のデフォルト値をまとめた対応表。
+// answerPoolSizeValueは、歌詞クイズ版の練習で使う回答候補数。専用の選択UIは設けず
+// （本人指示の範囲外の追加UIを増やさない判断）、繰り返し練習という目的に合わせて
+// 最も取り組みやすい4択に固定する（本人へは最終報告で判断理由として明記する）。
+const MODE_CONFIG = {
+  intro: {
+    explanation:
+      "間違えやすい曲を自動で集めて、繰り返し練習できます。イントロ・タイムアタック・ランダム再生、4つのモードの結果を曲ごとに合算して判定します。",
+    reasonPrefix: "4モード合算",
+  },
+  lyrics: {
+    explanation: "歌詞クイズだけの結果を対象に、間違えやすい曲を自動で集めて練習できます（イントロ側とは別の判定です）。",
+    reasonPrefix: "歌詞クイズのみ",
+    answerPoolSizeValue: "4",
+  },
+};
+
+// 現在のモードに応じた「判定済み苦手曲」を、画面表示に使う形（severity・reasons付き）で返す。
+// severityは「0に近いほど苦手」という意味で使う。
 function getMergedWeakSongStats() {
-  return computeWeakSongsFromStats(getWeakSongStats()).map((stat) => {
+  const stats = currentMode === "lyrics" ? computeLyricsQuizWeakSongs() : computeWeakSongsFromStats(getWeakSongStats());
+  const reasonPrefix = MODE_CONFIG[currentMode].reasonPrefix;
+  return stats.map((stat) => {
     const accuracyPercent = Math.round(stat.accuracy * 100);
     return {
       songId: stat.songId,
       severity: stat.accuracy,
-      reasons: [`4モード合算で正答率${accuracyPercent}%（${stat.correct}/${stat.attempts}問正解）`],
+      reasons: [`${reasonPrefix}で正答率${accuracyPercent}%（${stat.correct}/${stat.attempts}問正解）`],
     };
   });
 }
@@ -55,7 +83,33 @@ function updateCountNotice() {
   }
 }
 
+// モードタブの見た目（is-active）とaria-selectedを更新する。
+function updateModeTabAppearance() {
+  elements.modeIntroButton.classList.toggle("is-active", currentMode === "intro");
+  elements.modeIntroButton.setAttribute("aria-selected", String(currentMode === "intro"));
+  elements.modeLyricsButton.classList.toggle("is-active", currentMode === "lyrics");
+  elements.modeLyricsButton.setAttribute("aria-selected", String(currentMode === "lyrics"));
+  elements.explanation.textContent = MODE_CONFIG[currentMode].explanation;
+}
+
+function handleModeIntroClick() {
+  if (currentMode === "intro") return;
+  currentMode = "intro";
+  updateModeTabAppearance();
+  renderWeakSongsScreen();
+}
+
+function handleModeLyricsClick() {
+  if (currentMode === "lyrics") return;
+  currentMode = "lyrics";
+  updateModeTabAppearance();
+  renderWeakSongsScreen();
+}
+
 // 画面を開くたびに呼び、最新のプレイ履歴から苦手曲を判定し直して表示する。
+// 【2026-08-29改訂】モードを切り替えた場合はintro（モードA）に戻さず、今選ばれている
+// モードのまま再描画する（呼び出し元のjs/main.jsのgoToWeakSongsScreenが画面を開くたびに
+// 呼ぶため、モードを勝手にリセットすると選び直しの手間が生まれてしまう）。
 export function renderWeakSongsScreen() {
   const weakSongStats = getMergedWeakSongStats();
   currentWeakSongs = weakSongStats
@@ -96,11 +150,10 @@ export function renderWeakSongsScreen() {
   updateCountNotice();
 }
 
-// 苦手曲を判定し直し、指定した出題数に応じて実際に出題する曲IDを返す。
-// この画面の「開始する」だけでなく、結果画面の「もう一度挑戦する」（苦手曲判定を
-// 再計算して再開する）からも呼べるよう、画面の表示状態に依存しない形にしている。
+// 苦手曲を判定し直し、指定した出題数に応じて実際に出題する曲IDを返す（モードAだけが対象。
+// js/main.jsのretrySpecialQuiz()から呼ばれる、既存の仕様のまま）。
 export function resolveWeakSongIds(questionCountValue) {
-  const weakSongStats = getMergedWeakSongStats();
+  const weakSongStats = computeWeakSongsFromStats(getWeakSongStats());
   const weakSongs = weakSongStats
     .map((stat) => SONGS.find((song) => song.id === stat.songId))
     .filter((song) => song !== undefined);
@@ -109,12 +162,17 @@ export function resolveWeakSongIds(questionCountValue) {
 }
 
 // 「開始する」が押されたときの処理。選ばれた出題数と、今表示している対象曲から
-// 実際に出題する曲IDを決め、onStartコールバックに渡す（実際にクイズを組み立てて
+// 実際に出題する曲IDを決め、モードに応じたコールバックに渡す（実際にクイズを組み立てて
 // 開始する処理はmain.js側の汎用エンジンが担当する）。
 function handleStart() {
   const questionCountValue = document.querySelector('input[name="weak-songs-question-count"]:checked').value;
   const actualCount = resolveQuestionCount(questionCountValue, currentWeakSongs.length);
   const songIds = currentWeakSongs.slice(0, actualCount).map((song) => song.id);
+
+  if (currentMode === "lyrics") {
+    elements.onStartLyrics(songIds, MODE_CONFIG.lyrics.answerPoolSizeValue);
+    return;
+  }
   elements.onStart(songIds, questionCountValue);
 }
 
@@ -126,11 +184,17 @@ function handleStart() {
 //   chipRow: 曲名チップを並べる入れ物,
 //   countNotice: 出題数が対象曲数を上回るときの案内,
 //   startButton: 「開始する」ボタン,
-//   onStart: 開始ボタンが押されたときに呼ばれるコールバック。(songIds, questionCountValue)を受け取る,
+//   explanation: モード説明文の要素（2026-08-29追加）,
+//   modeIntroButton, modeLyricsButton: A/B切り替えタブ（2026-08-29追加）,
+//   onStart: 開始ボタンが押されたときに呼ばれるコールバック（モードA）。(songIds, questionCountValue)を受け取る,
+//   onStartLyrics: 開始ボタンが押されたときに呼ばれるコールバック（モードB、2026-08-29追加）。
+//     (songIds, answerPoolSizeValue)を受け取る,
 // }
 export function initWeakSongsScreen(newElements) {
   elements = newElements;
   elements.startButton.addEventListener("click", handleStart);
+  elements.modeIntroButton.addEventListener("click", handleModeIntroClick);
+  elements.modeLyricsButton.addEventListener("click", handleModeLyricsClick);
   document
     .querySelectorAll('input[name="weak-songs-question-count"]')
     .forEach((radio) => radio.addEventListener("change", updateCountNotice));

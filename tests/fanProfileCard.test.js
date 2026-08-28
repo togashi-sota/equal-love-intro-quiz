@@ -84,6 +84,47 @@ export function runFanProfileCardTests() {
     "＝LOVEマスターも取得済みなら、ノーミスマスターより＝LOVEマスターが優先される"
   );
 
+  // ---- 2026-08-29追加：3組の段階制ペア（本人指示） ----
+  // イントロエース→ノーミスマスター、シャッフルエース→フルコーラスマスター、
+  // リリックエース→歌マスター。上位（マスター系）を持てば下位（エース系）は代表表示しない。
+  assertEqual(
+    buildRepresentativeLabel(buildProfile({ unlockedAchievementIds: ["intro_ace"] })),
+    "イントロエース",
+    "イントロエースだけ取得済みなら、それが代表ラベルになる"
+  );
+  assertEqual(
+    buildRepresentativeLabel(buildProfile({ unlockedAchievementIds: ["intro_ace", "no_miss_master"] })),
+    "ノーミスマスター",
+    "ノーミスマスターも取得済みなら、イントロエースより優先される"
+  );
+  assertEqual(
+    buildRepresentativeLabel(buildProfile({ unlockedAchievementIds: ["shuffle_ace"] })),
+    "シャッフルエース",
+    "シャッフルエースだけ取得済みなら、それが代表ラベルになる"
+  );
+  assertEqual(
+    buildRepresentativeLabel(buildProfile({ unlockedAchievementIds: ["shuffle_ace", "full_chorus_master"] })),
+    "フルコーラスマスター",
+    "フルコーラスマスターも取得済みなら、シャッフルエースより優先される"
+  );
+  assertEqual(
+    buildRepresentativeLabel(buildProfile({ unlockedAchievementIds: ["lyric_ace", "song_master"] })),
+    "歌マスター",
+    "歌マスターも取得済みなら、リリックエースより優先される"
+  );
+  assertEqual(
+    buildRepresentativeLabel(
+      buildProfile({ hasEqualLoveComplete: true, unlockedAchievementIds: ["no_miss_master", "intro_ace"] })
+    ),
+    "＝LOVE完全制覇",
+    "複合称号（完全制覇）は、3組のペアより常に優先される"
+  );
+  assertEqual(
+    buildRepresentativeLabel(buildProfile({ hasNoMissMaster: true, unlockedAchievementIds: [] })),
+    "ノーミスマスター",
+    "後方互換：unlockedAchievementIdsが空でもhasNoMissMasterフラグだけで代表ラベルになる（旧データ対応）"
+  );
+
   // ---- カードをタップするとonSelectがそのprofileで呼ばれる ----
   let selected = null;
   const clickableProfile = buildProfile({ uid: "uid-click-test" });

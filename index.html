@@ -340,7 +340,7 @@
               <svg viewBox="0 0 24 24" fill="none"><path d="M4 6h16M4 12h16M4 18h10" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
             </span>
             <span class="listen-tile-label">収録曲一覧</span>
-            <span class="listen-tile-desc">全82曲から探す</span>
+            <span class="listen-tile-desc" id="songlist-tile-desc">全曲から探す</span>
           </button>
           <!-- お気に入り／プレイリストの役割の違いが一目で伝わるよう、一言説明＋現在の数を添える
                （UI/UX再設計：本人フィードバックで数字をさらに大きく強調）。数字はplayerScreen.jsの
@@ -1386,7 +1386,33 @@
         <button id="weak-songs-rules-link" class="info-link-button" type="button" aria-label="判定ルールを見る">？</button>
       </div>
 
-      <p class="weak-songs-explanation">間違えやすい曲を自動で集めて、繰り返し練習できます。イントロ・タイムアタック・ランダム再生、4つのモードの結果を曲ごとに合算して判定します。</p>
+      <p class="weak-songs-explanation" id="weak-songs-explanation">間違えやすい曲を自動で集めて、繰り返し練習できます。イントロ・タイムアタック・ランダム再生、4つのモードの結果を曲ごとに合算して判定します。</p>
+
+      <!-- 【2026-08-29追加、本人指示】苦手曲モードA（イントロ・タイムアタック・ランダム再生の
+           合算）／B（歌詞クイズだけを対象にした別判定）の切り替えタブ。統計・判定は完全に別々
+           （js/weakSongStats.js／js/lyricsQuizWeakSongStats.js）で、この画面は表示と出題開始の
+           入り口を共通化しているだけ。見た目はランキング画面の出題数・カテゴリータブ
+           （.leaderboard-tab-button、js/timeAttackLeaderboardScreen.js）と同じ意匠を再利用する。 -->
+      <div class="leaderboard-tab-row weak-songs-mode-toggle" role="tablist" aria-label="苦手曲モードの種類">
+        <button
+          id="weak-songs-mode-intro-button"
+          class="leaderboard-tab-button is-active"
+          type="button"
+          role="tab"
+          aria-selected="true"
+        >
+          🎧 イントロ・ランダム再生
+        </button>
+        <button
+          id="weak-songs-mode-lyrics-button"
+          class="leaderboard-tab-button"
+          type="button"
+          role="tab"
+          aria-selected="false"
+        >
+          📝 歌詞クイズ
+        </button>
+      </div>
 
       <!-- 対象曲が1曲以上あるときの表示。中身はjs/weakSongsScreen.jsが組み立てる -->
       <div id="weak-songs-available-section">
@@ -2153,7 +2179,9 @@
           <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
-          設定に戻る
+          <!-- 【2026-08-29追加】苦手曲モードB（歌詞クイズ版）の練習中だけ「苦手曲モードへ戻る」に
+               切り替わる（js/main.jsのupdateLyricsQuizBackButtonLabel参照）。 -->
+          <span id="lyrics-quiz-back-button-label">設定に戻る</span>
         </button>
       </div>
 
@@ -2255,7 +2283,9 @@
 
       <div class="time-attack-result-actions">
         <button id="lyrics-quiz-result-retry-button" class="primary-button" type="button">もう一度挑戦する</button>
-        <button id="lyrics-quiz-result-setup-button" class="secondary-button time-attack-result-setup-button" type="button">← 歌詞クイズ設定へ戻る</button>
+        <!-- 【2026-08-29追加】苦手曲モードB（歌詞クイズ版）の練習後だけ「苦手曲モードへ戻る」に
+             切り替わる（js/main.jsのupdateLyricsQuizBackButtonLabel参照）。 -->
+        <button id="lyrics-quiz-result-setup-button" class="secondary-button time-attack-result-setup-button" type="button">← <span id="lyrics-quiz-result-setup-button-label">歌詞クイズ設定へ戻る</span></button>
       </div>
     </section>
 
@@ -3582,10 +3612,12 @@
       <button id="weak-songs-rules-modal-close" class="modal-close-button" type="button" aria-label="閉じる">×</button>
 
       <h2 id="weak-songs-rules-modal-title">苦手曲モードについて</h2>
-      <p class="modal-lead">イントロクイズ・タイムアタック・ランダム再生クイズ、4つのモードの結果を曲ごとに合算し、間違えやすい曲を自動で集めて練習できるモードです。</p>
+      <p class="modal-lead">
+        間違えやすい曲を自動で集めて、繰り返し練習できるモードです。「🎧 イントロ・ランダム再生」「📝 歌詞クイズ」の2つのタブがあり、それぞれ完全に別の記録・別の判定を持ちます（片方の成績がもう片方の判定に影響することはありません）。
+      </p>
 
-      <h3>苦手曲になる条件</h3>
-      <p>次の4モードで答えた回数を曲ごとに合算し、合計3回以上答えていて、正答率が50%未満の曲が苦手曲として表示されます。</p>
+      <h3>🎧 イントロ・ランダム再生（モードA）</h3>
+      <p>次の4モードで答えた回数を曲ごとに合算し、合計3回以上答えていて、正答率が75%未満の曲が苦手曲として表示されます。</p>
       <ul class="modal-category-list">
         <li>通常イントロクイズ</li>
         <li>イントロタイムアタック</li>
@@ -3594,12 +3626,20 @@
       </ul>
       <p>途中で「タイトルへ」戻って中断したプレイでも、実際に答えた問題はこの集計に含まれます（プレイ履歴には残りません）。まだ答えていない問題はカウントされません。</p>
 
+      <h3>📝 歌詞クイズ（モードB）</h3>
+      <p>
+        通常の歌詞クイズで答えた回数だけを曲ごとに合算し、合計3回以上答えていて、正答率が75%未満の曲が苦手曲として表示されます。イントロ・ランダム再生の成績は一切合算されません（例：ある曲がイントロでは得意でも、歌詞クイズでは苦手と判定されることがあります。逆も同様です）。歌詞クイズ版の苦手曲練習中の回答は、この判定には反映されません。
+      </p>
+      <p>
+        このモードは2026年8月29日に追加されたため、それより前の歌詞クイズの結果は判定に反映されていません（歌詞クイズのプレイ履歴が曲ごとの内訳を保存していないため）。今後の歌詞クイズのプレイから記録されていきます。
+      </p>
+
       <h3>苦手曲を減らすには</h3>
-      <p>上の4モードのいずれかで正解を重ね、曲ごとの合算の正答率が50%以上になると、苦手曲一覧から外れます。</p>
+      <p>対応するモードのいずれかで正解を重ね、曲ごとの合算の正答率が75%以上になると、その苦手曲一覧から外れます（モードA・モードBは別々に判定されるため、それぞれのモードで成績を上げる必要があります）。</p>
 
       <h3>苦手曲モードは練習専用です</h3>
       <p>
-        苦手曲モード内での正解・不正解は、苦手曲の判定、通常のプレイ履歴、自己ベスト、称号には影響しません。苦手曲モードで練習した後、上の4モードのいずれかに挑戦して成績を上げることで、苦手曲を減らせます。目標は、苦手曲を0曲にすることです。
+        苦手曲モード内での正解・不正解は、苦手曲の判定、通常のプレイ履歴、自己ベスト、称号には影響しません（モードA・モードBとも共通）。苦手曲モードで練習した後、対応するモードに挑戦して成績を上げることで、苦手曲を減らせます。目標は、どちらのモードも苦手曲を0曲にすることです。
       </p>
     </div>
   </div>
@@ -3993,10 +4033,18 @@
   </div>
 
   <!-- 「みんなのプロフィール」詳細モーダル：カードをタップすると、その人が取得済みの称号を
-       カテゴリごとに一覧表示する（未取得称号は出さない）。開閉ロジックはjs/fanProfilesScreen.js。 -->
+       カテゴリごとに一覧表示する（未取得称号は出さない）。開閉ロジックはjs/fanProfilesScreen.js。
+       【2026-08-29追加、本人指示】右上に「🏅称号一覧」ボタンを設置し、取得済み称号の一覧
+       （下の#fan-profile-detail-achievements）へ画面内スクロールする入り口にする。
+       称号データ自体・表示内容は元からあるものをそのまま使い、新しく作らない。 -->
   <div id="fan-profile-detail-modal" class="modal-overlay" hidden>
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="fan-profile-detail-name">
       <button id="fan-profile-detail-close" class="modal-close-button" type="button" aria-label="閉じる">×</button>
+      <div class="fan-profile-detail-top-row">
+        <button id="fan-profile-detail-titles-link" class="fan-profile-detail-titles-link" type="button">
+          🏅称号一覧
+        </button>
+      </div>
       <div class="fan-profile-detail-header">
         <span id="fan-profile-detail-swatch" class="fan-profile-detail-swatch"></span>
         <div>

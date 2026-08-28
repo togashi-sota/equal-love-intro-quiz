@@ -312,6 +312,7 @@ export function renderTimeAttackResult() {
       rule: currentRule,
       totalElapsedMs,
       missCount,
+      actualQuestionCount: perQuestionResults.length,
     });
   }
 
@@ -329,6 +330,7 @@ export function renderTimeAttackResult() {
       rule: currentRule,
       totalElapsedMs,
       missCount,
+      actualQuestionCount: perQuestionResults.length,
     });
   }
 

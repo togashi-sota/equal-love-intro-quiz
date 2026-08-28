@@ -76,6 +76,7 @@ export async function submitTimeAttackScoreIfBetter({
   clearTimeMs,
   missCount,
   playerKeyPrefix,
+  actualQuestionCount,
 }) {
   if (!isSupportedLeaderboardDimension(questionCountValue, categoryFilterValue)) {
     return { ok: false, reason: "unsupported-dimension" };
@@ -114,6 +115,7 @@ export async function submitTimeAttackScoreIfBetter({
       rule,
       source,
       achievedAt: serverTimestamp(),
+      actualQuestionCount,
     });
     await set(ref(database, entryPath), payload);
     return { ok: true, updated: true };
@@ -268,6 +270,7 @@ export async function syncRankingCandidatesToFirebase(playerKeyPrefix) {
       clearTimeMs: candidate.clearTimeMs,
       missCount: candidate.missCount,
       playerKeyPrefix,
+      actualQuestionCount: candidate.actualQuestionCount,
     });
     if (result.ok) {
       if (result.updated) updated += 1;

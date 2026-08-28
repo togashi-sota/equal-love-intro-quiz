@@ -23,14 +23,47 @@ export function buildOshiSwatch(members, oshiMemberId, badgeState) {
   return swatch;
 }
 
+// 【2026-08-29追加、本人指示】成長段階系（エース）と＝LOVEマスターへの道（マスター）で、
+// 同じ系統の上位・下位にあたる3組。上位（マスター側）を持っていれば、代表称号としては
+// 下位（エース側）を出さない（＝二段構えの代表称号候補として使う）。
+// 取得済み称号データ自体（unlockedAchievementIds）は一切書き換えない。あくまで
+// 「一覧でどれを代表として見せるか」という表示側の絞り込みだけを行う。
+const REPRESENTATIVE_TIER_PAIRS = [
+  { higherId: "no_miss_master", higherName: "ノーミスマスター", lowerId: "intro_ace", lowerName: "イントロエース" },
+  {
+    higherId: "full_chorus_master",
+    higherName: "フルコーラスマスター",
+    lowerId: "shuffle_ace",
+    lowerName: "シャッフルエース",
+  },
+  { higherId: "song_master", higherName: "歌マスター", lowerId: "lyric_ace", lowerName: "リリックエース" },
+];
+
 // カードに添える「代表称号」ラベル。複合称号を持っていればそれを最優先にし、
 // 無ければ取得数だけを見せる（本人指示：「カードには代表称号・取得称号数だけ表示」）。
 // 【2026-08-15追加】ノーミスマスターを最下位の代表称号として追加（＝LOVEマスター・
 // 完全制覇より下の扱い。上位2つを持つ場合はそちらが優先され、ノーミスマスターは出さない）。
+// 【2026-08-29更新、本人指示】上記3組の上位（マスター系）を、複合称号2つに次ぐ代表候補として
+// 追加。その系統の上位を持っていなければ、代わりに下位（エース系）を代表候補として見せる
+// （フルコーラスマスター・歌マスターは今回追加するまで代表称号として一切表示されていなかった
+// ため、これも合わせて拾えるようにする）。
+// 【後方互換】unlockedAchievementIdsが同期される前の古いプロフィールデータ
+// （hasNoMissMasterの3レガシーフラグだけを持つ）でも、ノーミスマスターだけは正しく
+// 代表ラベルに出せるよう、hasNoMissMasterフラグもあわせて見る（js/publicProfilePayloads.js
+// 参照：新しいプロフィールは常に両方が一致した状態で同期されるため、通常は同じ結果になる）。
 export function buildRepresentativeLabel(profile) {
   if (profile.hasEqualLoveComplete) return "＝LOVE完全制覇";
   if (profile.hasEqualLoveMaster) return "＝LOVEマスター";
-  if (profile.hasNoMissMaster) return "ノーミスマスター";
+
+  const unlockedSet = new Set(profile.unlockedAchievementIds ?? []);
+  if (profile.hasNoMissMaster) unlockedSet.add("no_miss_master");
+
+  for (const pair of REPRESENTATIVE_TIER_PAIRS) {
+    if (unlockedSet.has(pair.higherId)) return pair.higherName;
+  }
+  for (const pair of REPRESENTATIVE_TIER_PAIRS) {
+    if (unlockedSet.has(pair.lowerId)) return pair.lowerName;
+  }
   return null;
 }
 

@@ -70,6 +70,7 @@ export function saveRankingCandidateIfBetter({
   rule,
   source,
   achievedAt,
+  actualQuestionCount,
 }) {
   const data = loadData();
   const key = buildComboKey(variant, questionCountValue, categoryFilterValue);
@@ -87,6 +88,9 @@ export function saveRankingCandidateIfBetter({
     rule: rule ?? null,
     source: source ?? null,
     achievedAt,
+    // 2026-08-29追加：ランキング平均タイム表示の修正で使う「実際に出題された問題数」。
+    // 渡されなかった場合はnullのまま保存し、Firebase送信側で改めてnull安全に扱う。
+    actualQuestionCount: Number.isFinite(actualQuestionCount) && actualQuestionCount > 0 ? actualQuestionCount : null,
   };
   data.schemaVersion = CURRENT_SCHEMA_VERSION;
   saveData(data);
