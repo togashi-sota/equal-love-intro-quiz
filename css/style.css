@@ -12589,25 +12589,69 @@ body[data-screen="liveCallModeKaraoke"] .game-frame {
   touch-action: manipulation;
 }
 
-/* クイズ回答中の誤操作防止（2026-08-28新設、本人指示）。
-   【設計方針】viewport自体のuser-scalable=noは今回も使わない（上のカラオケ画面と同じ
-   既存方針を踏襲）。かわりに、問題に回答している画面（#quiz-screen・
-   #lyrics-quiz-question-screen・#online-lyrics-battle-question-screen、対応する
-   body[data-screen]の値で絞り込む）だけに touch-action:pan-y と
-   overscroll-behavior:contain を当てる。
-   - touch-action:pan-y … 縦スクロールは今までどおり許可しつつ、ピンチズーム・
-     横方向のドラッグ（意図しない画面のズレの主因）だけを抑える。
-   - overscroll-behavior:contain … 端まで触れたときのバウンス（ラバーバンド）で
-     画面が上下にずれて見える現象を防ぐ。
-   #quiz-screenは中身の高さに応じて素直に伸びる作り（内部スクロール領域を持たない）
-   のため、スクロール自体は禁止しない。歌詞クイズの選択肢一覧などは元々
-   .lyrics-quiz-answer-list等が独自にoverflow-y:autoを持っており、この設定と
-   干渉しない。 */
+/* クイズ回答中の誤操作防止（2026-08-28新設、2026-08-29改訂・本人指示）。
+   【改訂の経緯】2026-08-28時点ではtouch-action:pan-y・overscroll-behavior:containだけで
+   対応していたが、実機で「ピンチズーム・ドラッグ操作をすると、ページ自体の表示位置が
+   ずれる」現象を防ぎきれないという報告があった。touch-action等はbody（またはhtml）を
+   スクロール可能な状態のまま抑え込もうとする対症療法のため、ブラウザ・OSによっては
+   完全には防げない。
+   【新しい方針】viewport自体のuser-scalable=noは使わない（本人の既存方針を踏襲）。
+   代わりに、ライブコールモード・カラオケ同期画面（#live-call-mode-karaoke-screen、
+   上記コメント参照）で実績のある「.game-frame自体をviewport高さ（100dvh）に固定し、
+   ページ本体のdocumentスクロールに一切依存しない」設計を、回答中の3画面
+   （#quiz-screen・#lyrics-quiz-question-screen・#online-lyrics-battle-question-screen）
+   にもそのまま適用する。ページ自体が伸びなくなるため、ピンチズーム・ドラッグで
+   ページの表示位置がずれる余地自体が無くなる（対症療法ではなく、そもそもスクロール可能な
+   領域を作らない、より確実な方式）。
+   【中身が画面に収まらない場合】「隠れて操作不能になる」事故を防ぐフォールバックとして、
+   ヘッダー以外（.quiz-middle-zone）だけに限定してoverflow-y:autoを持たせる
+   （#lyrics-quiz-question-screenの回答候補一覧のように、既存の内部スクロール領域とも
+   干渉しない）。通常の画面サイズでは、既存のレイアウトのままこのスクロールが
+   発生する場面はほぼ無い想定。 */
 body[data-screen="quiz"],
 body[data-screen="lyricsQuizQuestion"],
 body[data-screen="onlineLyricsBattleQuestion"] {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+body[data-screen="quiz"] .game-frame,
+body[data-screen="lyricsQuizQuestion"] .game-frame,
+body[data-screen="onlineLyricsBattleQuestion"] .game-frame {
+  height: 100dvh;
+  max-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+#quiz-screen.is-active,
+#lyrics-quiz-question-screen.is-active,
+#online-lyrics-battle-question-screen.is-active {
+  display: flex;
+  flex-direction: column;
+  padding: 20px 20px 0;
+  flex: 1;
+  min-height: 0;
+}
+
+#quiz-screen.is-active .quiz-header-row,
+#lyrics-quiz-question-screen.is-active .quiz-header-row,
+#online-lyrics-battle-question-screen.is-active .quiz-header-row {
+  flex: none;
+}
+
+/* ②中央ゾーン：この中だけが縦スクロールする（カラオケ画面の.karaoke-middle-zoneと同じ考え方）。
+   touch-action:pan-yは、万一の縦スクロール発生時に指の操作を素直に受け付けるためのもので、
+   ピンチズーム（複数指操作）は仕様上pan-y指定時点で抑えられる。 */
+.quiz-middle-zone {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
   overscroll-behavior-y: contain;
+  padding-bottom: max(20px, env(safe-area-inset-bottom));
 }
 
 /* 回答ボタン・選択肢まわりはダブルタップズームだけ追加で防ぐ（カラオケ画面と同じ考え方）。 */

@@ -593,53 +593,61 @@
         </button>
       </div>
 
-      <p id="question-progress">第1問 / 5問</p>
+      <!-- 【2026-08-29追加、本人指示】ピンチズーム・ドラッグでページ自体の表示位置がずれる
+           不具合の修正（既存のtouch-action指定だけでは実機で防ぎきれなかったため）。
+           ライブコールモード・カラオケ同期画面（#live-call-mode-karaoke-screen）で
+           既に実績のある「.game-frame自体をviewport高さに固定し、ヘッダー以外を
+           この中だけで完結してスクロールさせる」設計をそのまま再利用する。詳細はcss/style.cssの
+           body[data-screen="quiz"] 関連コメント参照。 -->
+      <div class="quiz-middle-zone">
+        <p id="question-progress">第1問 / 5問</p>
 
-      <!-- 出題の進み具合を、丸(ドット)で視覚的に示す場所。中身はJSで生成する -->
-      <div id="progress-dots" class="progress-dots"></div>
+        <!-- 出題の進み具合を、丸(ドット)で視覚的に示す場所。中身はJSで生成する -->
+        <div id="progress-dots" class="progress-dots"></div>
 
-      <!-- オンライン対戦中だけ表示する、他プレイヤーの簡易進捗（js/onlineBattleScreen.js制御）。
-           正解数・ミス数・経過時間・暫定順位は出さず、「回答済み問題数／全問」と完了・切断状態だけを
-           小さく表示する（本人の要望：クイズ中は小さく、終了後の待機画面で詳しく）。
-           通常プレイ・タイムアタック・ローカル対戦では常に非表示のまま。 -->
-      <p id="online-battle-quiz-progress-strip" class="online-battle-quiz-progress-strip" hidden></p>
+        <!-- オンライン対戦中だけ表示する、他プレイヤーの簡易進捗（js/onlineBattleScreen.js制御）。
+             正解数・ミス数・経過時間・暫定順位は出さず、「回答済み問題数／全問」と完了・切断状態だけを
+             小さく表示する（本人の要望：クイズ中は小さく、終了後の待機画面で詳しく）。
+             通常プレイ・タイムアタック・ローカル対戦では常に非表示のまま。 -->
+        <p id="online-battle-quiz-progress-strip" class="online-battle-quiz-progress-strip" hidden></p>
 
-      <!-- controls は付けず、シークして曲を先読みできないようにしている -->
-      <audio id="intro-audio"></audio>
-      <!-- 音源が再生できない場合のエラーメッセージ。普段は空・非表示 -->
-      <p id="audio-error" class="error-message" hidden></p>
+        <!-- controls は付けず、シークして曲を先読みできないようにしている -->
+        <audio id="intro-audio"></audio>
+        <!-- 音源が再生できない場合のエラーメッセージ。普段は空・非表示 -->
+        <p id="audio-error" class="error-message" hidden></p>
 
-      <p id="timer-display">経過: 0秒</p>
+        <p id="timer-display">経過: 0秒</p>
 
-      <div id="choice-buttons">
-        <button class="choice-button" type="button">選択肢1</button>
-        <button class="choice-button" type="button">選択肢2</button>
-        <button class="choice-button" type="button">選択肢3</button>
-        <button class="choice-button" type="button">選択肢4</button>
+        <div id="choice-buttons">
+          <button class="choice-button" type="button">選択肢1</button>
+          <button class="choice-button" type="button">選択肢2</button>
+          <button class="choice-button" type="button">選択肢3</button>
+          <button class="choice-button" type="button">選択肢4</button>
+        </div>
+
+        <!-- 分からないときに使う、スキップ・答えを見るボタン。回答すると隠れる -->
+        <div id="quiz-actions">
+          <button id="skip-button" class="secondary-button" type="button">
+            <svg class="button-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M5 5v14l9-7-9-7Z" fill="currentColor"/>
+              <rect x="16" y="5" width="3" height="14" rx="1" fill="currentColor"/>
+            </svg>
+            スキップ
+          </button>
+          <button id="reveal-button" class="secondary-button" type="button">
+            <svg class="button-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12 5c-5 0-9 4.5-10 7 1 2.5 5 7 10 7s9-4.5 10-7c-1-2.5-5-7-10-7Z" stroke="currentColor" stroke-width="1.8"/>
+              <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/>
+            </svg>
+            答えを見る
+          </button>
+        </div>
+
+        <!-- 正解/不正解の結果。普段は空・非表示 -->
+        <p id="feedback" class="feedback-message" hidden></p>
+
+        <button id="next-button" class="primary-button" type="button" hidden>次へ</button>
       </div>
-
-      <!-- 分からないときに使う、スキップ・答えを見るボタン。回答すると隠れる -->
-      <div id="quiz-actions">
-        <button id="skip-button" class="secondary-button" type="button">
-          <svg class="button-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M5 5v14l9-7-9-7Z" fill="currentColor"/>
-            <rect x="16" y="5" width="3" height="14" rx="1" fill="currentColor"/>
-          </svg>
-          スキップ
-        </button>
-        <button id="reveal-button" class="secondary-button" type="button">
-          <svg class="button-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M12 5c-5 0-9 4.5-10 7 1 2.5 5 7 10 7s9-4.5 10-7c-1-2.5-5-7-10-7Z" stroke="currentColor" stroke-width="1.8"/>
-            <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/>
-          </svg>
-          答えを見る
-        </button>
-      </div>
-
-      <!-- 正解/不正解の結果。普段は空・非表示 -->
-      <p id="feedback" class="feedback-message" hidden></p>
-
-      <button id="next-button" class="primary-button" type="button" hidden>次へ</button>
     </section>
 
     <!-- 結果画面：合計得点と内訳を表示し、リトライできる画面 -->
@@ -2185,46 +2193,50 @@
         </button>
       </div>
 
-      <div class="lyrics-quiz-question-header">
-        <span id="lyrics-quiz-progress" class="lyrics-quiz-progress">第1問 / 5問</span>
-        <span id="lyrics-quiz-elapsed-time" class="lyrics-quiz-elapsed-time">0秒</span>
-      </div>
-
-      <div class="lyrics-quiz-hint-card">
-        <p id="lyrics-quiz-hint-level" class="lyrics-quiz-hint-level">ヒント 1 / 4</p>
-        <!-- 開放済みのヒント段階へ、いつでも自由に表示を切り替えられるボタン列。
-             「次のヒントを見る」（新しい段階を開放する操作）とは見た目・役割をはっきり分ける。 -->
-        <div id="lyrics-quiz-hint-level-nav" class="lyrics-quiz-hint-level-nav"></div>
-        <!-- これまでに出したヒントの行を、歌詞の登場順に積み上げて表示する枠。
-             どの段階で追加された行かがラベルで分かるようにする（js/lyricsQuizScreen.js側で組み立て）。 -->
-        <ul id="lyrics-quiz-hint-list" class="lyrics-quiz-hint-list"></ul>
-        <button id="lyrics-quiz-next-hint-button" class="secondary-button lyrics-quiz-next-hint-button" type="button">次のヒントを見る</button>
-      </div>
-
-      <div id="lyrics-quiz-answer-section" class="lyrics-quiz-answer-section">
-        <p class="lyrics-quiz-answer-label">この曲は？</p>
-        <div id="lyrics-quiz-answer-search-row" class="lyrics-quiz-answer-search-row" hidden>
-          <input id="lyrics-quiz-answer-search-input" class="lyrics-quiz-answer-search-input" type="text" placeholder="曲名で検索">
-          <span id="lyrics-quiz-answer-count" class="lyrics-quiz-answer-count">0曲</span>
+      <!-- 【2026-08-29追加】#quiz-screenと同じ理由・同じ設計でmiddle-zone化する
+           （ページ自体の表示位置ズレ対策。詳細はcss/style.css参照）。 -->
+      <div class="quiz-middle-zone">
+        <div class="lyrics-quiz-question-header">
+          <span id="lyrics-quiz-progress" class="lyrics-quiz-progress">第1問 / 5問</span>
+          <span id="lyrics-quiz-elapsed-time" class="lyrics-quiz-elapsed-time">0秒</span>
         </div>
-        <div id="lyrics-quiz-answer-list" class="lyrics-quiz-answer-list"></div>
-      </div>
 
-      <button id="lyrics-quiz-skip-button" class="secondary-button lyrics-quiz-skip-button" type="button">わからない（スキップ）</button>
+        <div class="lyrics-quiz-hint-card">
+          <p id="lyrics-quiz-hint-level" class="lyrics-quiz-hint-level">ヒント 1 / 4</p>
+          <!-- 開放済みのヒント段階へ、いつでも自由に表示を切り替えられるボタン列。
+               「次のヒントを見る」（新しい段階を開放する操作）とは見た目・役割をはっきり分ける。 -->
+          <div id="lyrics-quiz-hint-level-nav" class="lyrics-quiz-hint-level-nav"></div>
+          <!-- これまでに出したヒントの行を、歌詞の登場順に積み上げて表示する枠。
+               どの段階で追加された行かがラベルで分かるようにする（js/lyricsQuizScreen.js側で組み立て）。 -->
+          <ul id="lyrics-quiz-hint-list" class="lyrics-quiz-hint-list"></ul>
+          <button id="lyrics-quiz-next-hint-button" class="secondary-button lyrics-quiz-next-hint-button" type="button">次のヒントを見る</button>
+        </div>
 
-      <!-- 不正解・スキップ時の正解確認カード（2026-08-07追加）。
-           10択・30択・50択・全曲検索のように正解の選択肢が画面外（検索で絞り込まれている・
-           スクロールしないと見えない）になりうる回答方式では、不正解表示を一瞬見せて自動で
-           次へ進む従来方式だと、正解の曲名を確認できないまま次の問題へ進んでしまう。
-           このカードは自動では消えず、「次の問題へ」を押すまで居座ることで、
-           自分のペースで正解を確認できるようにする（js/lyricsQuizScreen.js参照。
-           4択のときはこのカードを使わず、従来どおりの自動進行のままにしている）。 -->
-      <div id="lyrics-quiz-answer-reveal" class="lyrics-quiz-answer-reveal" hidden>
-        <p id="lyrics-quiz-answer-reveal-status" class="lyrics-quiz-answer-reveal-status">不正解</p>
-        <p class="lyrics-quiz-answer-reveal-caption">正解は</p>
-        <p id="lyrics-quiz-answer-reveal-title" class="lyrics-quiz-answer-reveal-title">－</p>
-        <p id="lyrics-quiz-answer-reveal-meta" class="lyrics-quiz-answer-reveal-meta"></p>
-        <button id="lyrics-quiz-answer-reveal-next-button" class="primary-button" type="button">次の問題へ</button>
+        <div id="lyrics-quiz-answer-section" class="lyrics-quiz-answer-section">
+          <p class="lyrics-quiz-answer-label">この曲は？</p>
+          <div id="lyrics-quiz-answer-search-row" class="lyrics-quiz-answer-search-row" hidden>
+            <input id="lyrics-quiz-answer-search-input" class="lyrics-quiz-answer-search-input" type="text" placeholder="曲名で検索">
+            <span id="lyrics-quiz-answer-count" class="lyrics-quiz-answer-count">0曲</span>
+          </div>
+          <div id="lyrics-quiz-answer-list" class="lyrics-quiz-answer-list"></div>
+        </div>
+
+        <button id="lyrics-quiz-skip-button" class="secondary-button lyrics-quiz-skip-button" type="button">わからない（スキップ）</button>
+
+        <!-- 不正解・スキップ時の正解確認カード（2026-08-07追加）。
+             10択・30択・50択・全曲検索のように正解の選択肢が画面外（検索で絞り込まれている・
+             スクロールしないと見えない）になりうる回答方式では、不正解表示を一瞬見せて自動で
+             次へ進む従来方式だと、正解の曲名を確認できないまま次の問題へ進んでしまう。
+             このカードは自動では消えず、「次の問題へ」を押すまで居座ることで、
+             自分のペースで正解を確認できるようにする（js/lyricsQuizScreen.js参照。
+             4択のときはこのカードを使わず、従来どおりの自動進行のままにしている）。 -->
+        <div id="lyrics-quiz-answer-reveal" class="lyrics-quiz-answer-reveal" hidden>
+          <p id="lyrics-quiz-answer-reveal-status" class="lyrics-quiz-answer-reveal-status">不正解</p>
+          <p class="lyrics-quiz-answer-reveal-caption">正解は</p>
+          <p id="lyrics-quiz-answer-reveal-title" class="lyrics-quiz-answer-reveal-title">－</p>
+          <p id="lyrics-quiz-answer-reveal-meta" class="lyrics-quiz-answer-reveal-meta"></p>
+          <button id="lyrics-quiz-answer-reveal-next-button" class="primary-button" type="button">次の問題へ</button>
+        </div>
       </div>
     </section>
 
@@ -2970,21 +2982,28 @@
          （音源再生を伴わない・進行がホスト主導で全員同期する）ため、専用の画面として分離した。
          js/onlineLyricsQuizBattleScreen.jsが内容を組み立てる。 -->
     <section id="online-lyrics-battle-question-screen" class="screen">
-      <button id="online-lyrics-battle-quit-button" class="quiz-back-link" type="button">✕ 対戦をやめる</button>
-      <div class="title-block"><h2>歌詞クイズ対戦</h2></div>
-      <p class="online-lyrics-battle-progress" id="online-lyrics-battle-progress"></p>
-
-      <div id="online-lyrics-battle-hud"></div>
-
-      <div class="online-lyrics-battle-hint-box">
-        <p class="online-lyrics-battle-hint-level" id="online-lyrics-battle-hint-level"></p>
-        <div id="online-lyrics-battle-hint-lines" class="online-lyrics-battle-hint-lines"></div>
+      <div class="quiz-header-row">
+        <button id="online-lyrics-battle-quit-button" class="quiz-back-link" type="button">✕ 対戦をやめる</button>
       </div>
 
-      <div id="online-lyrics-battle-answer-choices" class="online-lyrics-battle-answer-grid"></div>
+      <!-- 【2026-08-29追加】#quiz-screenと同じ理由・同じ設計でmiddle-zone化する
+           （ページ自体の表示位置ズレ対策。詳細はcss/style.css参照）。 -->
+      <div class="quiz-middle-zone">
+        <div class="title-block"><h2>歌詞クイズ対戦</h2></div>
+        <p class="online-lyrics-battle-progress" id="online-lyrics-battle-progress"></p>
 
-      <p id="online-lyrics-battle-status-message" class="online-lyrics-battle-status-message" hidden></p>
-      <p id="online-lyrics-battle-error" class="error-message" hidden></p>
+        <div id="online-lyrics-battle-hud"></div>
+
+        <div class="online-lyrics-battle-hint-box">
+          <p class="online-lyrics-battle-hint-level" id="online-lyrics-battle-hint-level"></p>
+          <div id="online-lyrics-battle-hint-lines" class="online-lyrics-battle-hint-lines"></div>
+        </div>
+
+        <div id="online-lyrics-battle-answer-choices" class="online-lyrics-battle-answer-grid"></div>
+
+        <p id="online-lyrics-battle-status-message" class="online-lyrics-battle-status-message" hidden></p>
+        <p id="online-lyrics-battle-error" class="error-message" hidden></p>
+      </div>
     </section>
 
     <!-- 「対戦をやめる」用の確認モーダル。既存の#quiz-screen用モーダルは
