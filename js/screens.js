@@ -30,6 +30,7 @@ const SCREEN_ELEMENTS = {
   lyricsQuizSetup: document.getElementById("lyrics-quiz-setup-screen"),
   lyricsQuizQuestion: document.getElementById("lyrics-quiz-question-screen"),
   lyricsQuizResult: document.getElementById("lyrics-quiz-result-screen"),
+  customQuizTypeSelect: document.getElementById("custom-quiz-type-select-screen"),
   customQuizPresets: document.getElementById("custom-quiz-presets-screen"),
   customQuiz: document.getElementById("custom-quiz-screen"),
   discography: document.getElementById("discography-screen"),

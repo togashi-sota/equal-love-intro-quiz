@@ -45,11 +45,36 @@ function savePresetsData(data) {
 // よく使う・最近編集したセットほど一覧の上に来るようにするため。
 export function getPresets() {
   const data = loadPresetsData();
-  return [...data.presets].sort((a, b) => b.updatedAt - a.updatedAt);
+  return [...data.presets].map(normalizePreset).sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+// 【2026-08-29追加、本人指示（⑭）】プリセットの種類。「イントロクイズ」「ランダム再生クイズ」
+// 「歌詞クイズ」の3種類から、新規作成時に選ぶ（js/customQuizTypeSelectScreen相当のUI、
+// 実体はmain.js側のcustom-quiz-type-select-screen）。
+// 【後方互換】この項目が追加される前に保存された既存プリセットにはquizType自体が存在しない。
+// getPresets()側でquizTypeが無いプリセットは自動的に"intro"として扱う
+// （normalizePreset参照）ため、既存ユーザーのプリセットは何も変更しなくても
+// 今までどおり「イントロクイズ」のセットとして動き続ける。
+export const CUSTOM_QUIZ_TYPE = {
+  INTRO: "intro",
+  RANDOM_PLAYBACK: "randomPlayback",
+  LYRICS_QUIZ: "lyricsQuiz",
+};
+
+// 保存済みデータ（古い形式を含む）を、常に完全な形へ正規化する。
+// ・quizTypeが無ければ"intro"（既存プリセットの後方互換）
+// ・answerPoolSizeValueが無ければ"4"（歌詞クイズ以外では使わない値だが、
+//   常に何らかの値を持たせておくことで、呼び出し側がundefinedを気にせずに済む）
+function normalizePreset(preset) {
+  return {
+    ...preset,
+    quizType: preset.quizType ?? CUSTOM_QUIZ_TYPE.INTRO,
+    answerPoolSizeValue: preset.answerPoolSizeValue ?? "4",
+  };
 }
 
 // 新しいプリセットを1件保存する。常に新規追加で、既存プリセットの上書きはこの関数では行わない。
-export function saveNewPreset({ name, memo, songIds, distractorMode }) {
+export function saveNewPreset({ name, memo, songIds, distractorMode, quizType, answerPoolSizeValue }) {
   const data = loadPresetsData();
   const now = Date.now();
   const preset = {
@@ -58,6 +83,8 @@ export function saveNewPreset({ name, memo, songIds, distractorMode }) {
     memo,
     songIds,
     distractorMode,
+    quizType: quizType ?? CUSTOM_QUIZ_TYPE.INTRO,
+    answerPoolSizeValue: answerPoolSizeValue ?? "4",
     createdAt: now,
     updatedAt: now,
   };
@@ -71,7 +98,9 @@ export function saveNewPreset({ name, memo, songIds, distractorMode }) {
 // 既存のプリセットを1件、同じidのまま上書き保存する。createdAtは変えず、
 // updatedAtだけ現在時刻に更新する（一覧の並び順にそのまま反映される）。
 // 該当idが見つからない場合は何もしない（削除済みのプリセットを誤って復活させないため）。
-export function updatePreset(id, { name, memo, songIds, distractorMode }) {
+// 【本人指示】quizType自体は編集画面で変更できない（作り直しが必要）ため、
+// 呼び出し側から渡されなかった場合は既存の値（無ければ"intro"）を保ち続ける。
+export function updatePreset(id, { name, memo, songIds, distractorMode, answerPoolSizeValue }) {
   const data = loadPresetsData();
   const preset = data.presets.find((candidate) => candidate.id === id);
   if (!preset) return;
@@ -80,27 +109,32 @@ export function updatePreset(id, { name, memo, songIds, distractorMode }) {
   preset.memo = memo;
   preset.songIds = songIds;
   preset.distractorMode = distractorMode;
+  if (answerPoolSizeValue !== undefined) preset.answerPoolSizeValue = answerPoolSizeValue;
+  if (preset.quizType === undefined) preset.quizType = CUSTOM_QUIZ_TYPE.INTRO;
   preset.updatedAt = Date.now();
 
   savePresetsData(data);
 }
 
 // 既存のプリセットを基に、新しいプリセットを1件複製する。
-// songIds・memo・distractorModeを引き継ぎ、名前には「（コピー）」を付け、
-// id・createdAt・updatedAtは新しく発行する（元のプリセットには一切手を加えない）。
-// 該当idが見つからない場合はnullを返す。
+// songIds・memo・distractorMode・quizType・answerPoolSizeValueを引き継ぎ、名前には
+// 「（コピー）」を付け、id・createdAt・updatedAtは新しく発行する
+// （元のプリセットには一切手を加えない）。該当idが見つからない場合はnullを返す。
 export function duplicatePreset(id) {
   const data = loadPresetsData();
   const original = data.presets.find((preset) => preset.id === id);
   if (!original) return null;
 
+  const normalizedOriginal = normalizePreset(original);
   const now = Date.now();
   const duplicate = {
     id: generatePresetId(),
-    name: `${original.name}（コピー）`,
-    memo: original.memo,
-    songIds: [...original.songIds],
-    distractorMode: original.distractorMode,
+    name: `${normalizedOriginal.name}（コピー）`,
+    memo: normalizedOriginal.memo,
+    songIds: [...normalizedOriginal.songIds],
+    distractorMode: normalizedOriginal.distractorMode,
+    quizType: normalizedOriginal.quizType,
+    answerPoolSizeValue: normalizedOriginal.answerPoolSizeValue,
     createdAt: now,
     updatedAt: now,
   };

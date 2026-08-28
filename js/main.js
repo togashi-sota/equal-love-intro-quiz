@@ -118,6 +118,7 @@ import {
   initRandomPlaybackResultScreen,
   startRandomPlaybackRun,
   getCurrentRandomPlaybackSeed,
+  generateNewRandomPlaybackSeed,
   renderRandomPlaybackResult,
 } from "./randomPlaybackScreen.js";
 import {
@@ -159,12 +160,22 @@ import {
   openCustomQuizScreenForPreset,
   getLastStartedCustomQuizSelection,
   setLastStartedCustomQuizSelection,
+  setCustomQuizType,
+  getCustomQuizType,
   stopCustomQuizPreview,
 } from "./customQuizScreen.js";
-import { getPresets, saveNewPreset, updatePreset, deletePreset, duplicatePreset } from "./customQuizPresets.js";
+import {
+  CUSTOM_QUIZ_TYPE,
+  getPresets,
+  saveNewPreset,
+  updatePreset,
+  deletePreset,
+  duplicatePreset,
+} from "./customQuizPresets.js";
 import {
   initCustomQuizPresetsScreen,
   renderCustomQuizPresetsScreen,
+  setCustomQuizPresetsType,
   showPresetActionBanner,
 } from "./customQuizPresetsScreen.js";
 import { importAudioFiles, getImportedSongIds, filterSongsWithImportedAudio } from "./audioStorage.js";
@@ -954,6 +965,16 @@ const onlineLyricsBattleResultRuleNoteElement = document.getElementById("online-
 const onlineLyricsBattleResultTableElement = document.getElementById("online-lyrics-battle-result-table");
 const onlineLyricsBattleResultRematchButtonElement = document.getElementById("online-lyrics-battle-result-rematch-button");
 
+// 【2026-08-29追加、本人指示（⑭）】オリジナル問題作成モードの3種類選択画面。
+const customQuizTypeSelectBackButtonElement = document.getElementById("custom-quiz-type-select-back-button");
+const customQuizTypeSelectIntroButtonElement = document.getElementById("custom-quiz-type-select-intro");
+const customQuizTypeSelectRandomPlaybackButtonElement = document.getElementById(
+  "custom-quiz-type-select-random-playback"
+);
+const customQuizTypeSelectLyricsButtonElement = document.getElementById("custom-quiz-type-select-lyrics");
+const customQuizPresetsEyebrowLabelElement = document.getElementById("custom-quiz-presets-eyebrow-label");
+const customQuizDistractorModeFieldsetElement = document.getElementById("custom-quiz-distractor-mode-fieldset");
+const customQuizAnswerPoolSizeFieldsetElement = document.getElementById("custom-quiz-answer-pool-size-fieldset");
 const customQuizBackButtonElement = document.getElementById("custom-quiz-back-button");
 const customQuizPresetsBackButtonElement = document.getElementById("custom-quiz-presets-back-button");
 const customQuizRulesLinkElement = document.getElementById("custom-quiz-rules-link");
@@ -1051,6 +1072,20 @@ const SPECIAL_MODES_DISPLAY = {
     progressPrefix: "📝 オリジナル ",
     // 【2026-08-08修正】プレイ履歴には記録されるようになったため、文言を「自己ベスト・称号」
     // だけに絞る（本人指示：オリジナル問題作成モードのプレイもプレイ履歴の対象に追加）。
+    resultNotice: "この結果は、自己ベスト・称号には反映されません",
+    backToListLabel: "オリジナル問題一覧に戻る",
+    onBackToList: goToCustomQuizPresetsList,
+    quizBackLabel: "セット一覧へ",
+    quizQuitTitle: "クイズを中断してオリジナル問題作成モードに戻りますか？",
+    quizQuitConfirmLabel: "セット一覧に戻る",
+    onQuizBack: goToCustomQuizPresetsList,
+  },
+  // 【2026-08-29追加、本人指示（⑭）】オリジナル問題作成モードのランダム再生タイプ。
+  // customQuizとほぼ同じ内容だが、進捗表示の絵文字だけ🔀にして区別できるようにする
+  // （resultNotice・戻り先はcustomQuizと完全に同じ設計のため、そのまま踏襲する）。
+  customQuizRandomPlayback: {
+    eyebrowLabel: "ORIGINAL QUIZ",
+    progressPrefix: "🔀 オリジナル ",
     resultNotice: "この結果は、自己ベスト・称号には反映されません",
     backToListLabel: "オリジナル問題一覧に戻る",
     onBackToList: goToCustomQuizPresetsList,
@@ -1213,8 +1248,9 @@ initSpecialModesScreen({
       renderWeakSongsScreen();
       navigateWithScrollMemory("weakSongs");
     } else if (modeId === "originalQuiz") {
-      renderCustomQuizPresetsScreen();
-      navigateWithScrollMemory("customQuizPresets");
+      // 【2026-08-29改訂、本人指示（⑭)】以前は一覧画面へ直接進んでいたが、今は3種類
+      // （イントロ／ランダム再生／歌詞クイズ）の選択画面を必ず経由するようにした。
+      navigateWithScrollMemory("customQuizTypeSelect");
     } else if (modeId === "liveCallMode") {
       renderLiveCallModeList();
       navigateWithScrollMemory("liveCallModeList");
@@ -1749,16 +1785,65 @@ continuousPlayBackButtonElement.addEventListener("click", () => {
   navigateWithScrollMemory(continuousPlayReturnScreen);
 });
 
+// 【2026-08-29追加、本人指示（⑭)】オリジナル問題作成モードの3種類選択画面。
+// 選んだ種類を、一覧画面（プリセットの絞り込み・表示）と選曲画面（欄の出し分け・保存内容）の
+// 両方へ反映してから、一覧画面へ進む。
+function selectCustomQuizTypeAndGoToPresets(quizType) {
+  playClickSound();
+  setCustomQuizPresetsType(quizType);
+  setCustomQuizType(quizType);
+  renderCustomQuizPresetsScreen();
+  navigateWithScrollMemory("customQuizPresets");
+}
+
+customQuizTypeSelectBackButtonElement.addEventListener("click", () => {
+  playSfx(SFX_EVENTS.UI_BACK);
+  navigateWithScrollMemory("start");
+});
+customQuizTypeSelectIntroButtonElement.addEventListener("click", () => {
+  selectCustomQuizTypeAndGoToPresets(CUSTOM_QUIZ_TYPE.INTRO);
+});
+customQuizTypeSelectRandomPlaybackButtonElement.addEventListener("click", () => {
+  selectCustomQuizTypeAndGoToPresets(CUSTOM_QUIZ_TYPE.RANDOM_PLAYBACK);
+});
+customQuizTypeSelectLyricsButtonElement.addEventListener("click", () => {
+  selectCustomQuizTypeAndGoToPresets(CUSTOM_QUIZ_TYPE.LYRICS_QUIZ);
+});
+
+// プリセットの種類（preset.quizType）に応じて、3つの開始処理のうちどれを呼ぶかを振り分ける
+// 共通処理（2026-08-29追加、本人指示（⑭)）。「▶ プレイ」・プリセット詳細モーダルの
+// 「▶ このセットでプレイ」の両方から使う。valueは種類に応じてdistractorModeまたは
+// answerPoolSizeValueのどちらかの意味を持つ（preset自身が両方保持しているため、
+// preset側の値をそのまま使えば呼び出し側で迷わない）。
+async function beginCustomQuizByPreset(preset) {
+  if (preset.quizType === CUSTOM_QUIZ_TYPE.LYRICS_QUIZ) {
+    const started = await beginCustomLyricsQuiz(preset.songIds, preset.answerPoolSizeValue);
+    if (!started) {
+      // ごく稀なケース（対象曲の歌詞データが後から削除された等）。専用の案内欄が無いため、
+      // デバッグ用にコンソールへだけ出す（js/lyricsQuizScreen.jsのlogInsufficientSongsForDebug
+      // と同じ、一般利用者向け画面には出さない方針）。
+      console.warn("[オリジナル問題作成モード] 歌詞クイズタイプの開始に失敗しました", preset);
+    }
+    return;
+  }
+  if (preset.quizType === CUSTOM_QUIZ_TYPE.RANDOM_PLAYBACK) {
+    beginCustomRandomPlaybackQuiz(preset.songIds, preset.distractorMode);
+    return;
+  }
+  beginCustomQuiz(preset.songIds, preset.distractorMode);
+}
+
 // オリジナル問題作成モードのプリセット一覧画面：「＋新しいセットを作る」／
 // 保存済みプリセットのタップ、どちらも選曲画面（#custom-quiz-screen）を開く。
 initCustomQuizPresetsScreen({
+  eyebrowLabel: customQuizPresetsEyebrowLabelElement,
   listContainer: document.getElementById("custom-quiz-presets-list"),
   emptyState: document.getElementById("custom-quiz-presets-empty-state"),
   searchInput: document.getElementById("custom-quiz-presets-search-input"),
   savedBanner: document.getElementById("custom-quiz-presets-saved-banner"),
   onCreateNew: () => {
     playClickSound();
-    openCustomQuizScreenForNewPreset();
+    openCustomQuizScreenForNewPreset(getCustomQuizType());
     showScreen("customQuiz");
   },
   onSelectPreset: (preset) => {
@@ -1770,8 +1855,8 @@ initCustomQuizPresetsScreen({
   // 正しく同じ内容を再開できるよう、先に「直前の開始内容」を更新しておく。
   onPlayPreset: (preset) => {
     playClickSound();
-    setLastStartedCustomQuizSelection(preset.songIds, preset.distractorMode);
-    beginCustomQuiz(preset.songIds, preset.distractorMode);
+    setLastStartedCustomQuizSelection(preset.songIds, preset.distractorMode, preset.answerPoolSizeValue);
+    beginCustomQuizByPreset(preset);
   },
   // 複製アイコン：一覧を離れず複製し、そのまま複製した内容の編集画面を開く
   // （複製は「少し変えて使いたい」場面が前提のため、名前や曲を調整しやすいようにする）。
@@ -1826,7 +1911,7 @@ async function beginSpecialQuiz(songIds, questionCountValue, specialModeId) {
 // 戻り値：実際に開始できたか（曲の歌詞データが後から削除された等で開始できない、
 // ごく稀なケースをjs/weakSongsScreen.js側が案内できるようにするため）。
 async function beginWeakSongsLyricsPractice(songIds, answerPoolSizeValue) {
-  const started = await startManualSelectionLyricsQuizRun(songIds, answerPoolSizeValue);
+  const started = await startManualSelectionLyricsQuizRun(songIds, answerPoolSizeValue, "weakSongPractice");
   if (!started) return false;
   playSfx(SFX_EVENTS.GAME_START);
   updateLyricsQuizBackButtonLabel();
@@ -1857,6 +1942,45 @@ async function beginCustomQuiz(songIds, distractorMode) {
   startSpecialQuiz(questions, String(questions.length), "customQuiz");
   renderQuestion();
   showScreen("quiz");
+}
+
+// オリジナル問題作成モード・ランダム再生タイプの開始処理（2026-08-29新設、本人指示（⑭)）。
+// 曲の絞り込み・問題の組み立て（buildQuestionsFromSongIds）はbeginCustomQuiz()と全く同じ
+// （出題する曲・ダミー選択肢の決め方自体はイントロ形式と変わらない。違うのは「曲のどこを
+// 再生するか」だけ）。specialModeIdを"customQuizRandomPlayback"にすることで、
+// renderQuestion()側の再生位置の分岐（js/main.jsのgameState.specialModeId参照）が
+// ランダム再生（js/randomPlaybackEngine.js）を使うようになる。
+async function beginCustomRandomPlaybackQuiz(songIds, distractorMode) {
+  stopTimer();
+  stopAudio();
+  const selectedSongs = SONGS.filter((song) => songIds.includes(song.id));
+  const playableSelectedSongs = await filterSongsWithImportedAudio(selectedSongs);
+  const playableSongIds = playableSelectedSongs.map((song) => song.id);
+  const questionSongIds = playableSongIds.length > 0 ? playableSongIds : songIds;
+  const distractorCategoryPool = distractorMode === "selected" ? selectedSongs : filterSongsByCategory(SONGS, "all");
+  const distractorPool = await filterSongsWithImportedAudio(distractorCategoryPool);
+  const questions = buildQuestionsFromSongIds(questionSongIds, distractorPool);
+  generateNewRandomPlaybackSeed();
+  startSpecialQuiz(questions, String(questions.length), "customQuizRandomPlayback");
+  renderQuestion();
+  showScreen("quiz");
+}
+
+// オリジナル問題作成モード・歌詞クイズタイプの開始処理（2026-08-29新設、本人指示（⑭)）。
+// エンジン自体が歌詞クイズ（js/lyricsQuizScreen.js）のため、苦手曲モードBの練習開始
+// （beginWeakSongsLyricsPractice）と同じ仕組みをそのまま再利用する。currentRunSourceを
+// "customQuiz"にすることで、自己ベスト・称号・歌詞クイズ版の苦手曲統計のいずれにも
+// 反映されない（既存のイントロ形式オリジナル問題作成モードと同じ方針。SPECIAL_MODES_DISPLAY.
+// customQuizのresultNote「この結果は、自己ベスト・称号には反映されません」と揃えている）。
+// 戻り値：実際に開始できたか（曲の歌詞データが後から削除された等、ごく稀なケース）。
+async function beginCustomLyricsQuiz(songIds, answerPoolSizeValue) {
+  const started = await startManualSelectionLyricsQuizRun(songIds, answerPoolSizeValue, "customQuiz");
+  if (!started) return false;
+  playSfx(SFX_EVENTS.GAME_START);
+  updateLyricsQuizBackButtonLabel();
+  showScreen("lyricsQuizQuestion");
+  startLyricsQuizPlay();
+  return true;
 }
 
 // 苦手曲モード確認画面の描画に使うDOM要素一式を渡して初期化する。
@@ -1911,6 +2035,8 @@ initCustomQuizScreen({
   previewCurrentTime: document.getElementById("custom-quiz-preview-current-time"),
   previewDuration: document.getElementById("custom-quiz-preview-duration"),
   previewLyricsPanel: document.getElementById("custom-quiz-preview-lyrics"),
+  distractorModeFieldset: customQuizDistractorModeFieldsetElement,
+  answerPoolSizeFieldset: customQuizAnswerPoolSizeFieldsetElement,
   nameInput: document.getElementById("custom-quiz-name-input"),
   memoInput: document.getElementById("custom-quiz-memo-input"),
   nameError: document.getElementById("custom-quiz-name-error"),
@@ -1921,9 +2047,25 @@ initCustomQuizScreen({
   deleteConfirmButton: document.getElementById("custom-quiz-delete-confirm-button"),
   duplicateButton: document.getElementById("custom-quiz-duplicate-button"),
   startButton: document.getElementById("custom-quiz-start-button"),
-  onStart: (songIds, distractorMode) => {
+  // 【2026-08-29改訂、本人指示（⑭)】songIds以降の第2引数は、種類によってdistractorMode
+  // （イントロ・ランダム再生）またはanswerPoolSizeValue（歌詞クイズ）のどちらかの意味を持つ
+  // （js/customQuizScreen.jsのhandleStart参照）。ここではgetCustomQuizType()を見て
+  // beginCustomQuizByPreset()と同じ3分岐で振り分ける。
+  onStart: async (songIds, distractorModeOrAnswerPoolSizeValue) => {
     playClickSound();
-    beginCustomQuiz(songIds, distractorMode);
+    const quizType = getCustomQuizType();
+    if (quizType === CUSTOM_QUIZ_TYPE.LYRICS_QUIZ) {
+      const started = await beginCustomLyricsQuiz(songIds, distractorModeOrAnswerPoolSizeValue);
+      if (!started) {
+        console.warn("[オリジナル問題作成モード] 歌詞クイズタイプの開始に失敗しました", songIds);
+      }
+      return;
+    }
+    if (quizType === CUSTOM_QUIZ_TYPE.RANDOM_PLAYBACK) {
+      beginCustomRandomPlaybackQuiz(songIds, distractorModeOrAnswerPoolSizeValue);
+      return;
+    }
+    beginCustomQuiz(songIds, distractorModeOrAnswerPoolSizeValue);
   },
   // 「セットを保存する」：新規プリセットとして保存し、一覧画面を最新の内容で描画し直してから戻る。
   // クイズを一度も始めなくても、この時点で保存自体は完結している
@@ -2590,6 +2732,24 @@ function renderQuestion() {
         () => {}
       );
     }
+  } else if (gameState.playMode === "special" && gameState.specialModeId === "customQuizRandomPlayback") {
+    // 【2026-08-29追加、本人指示（⑭）】オリジナル問題作成モードのランダム再生タイプ。
+    // 上のスタンドアロン版「ランダム再生クイズ」・タイムアタックのランダム再生variantと
+    // 全く同じ既存関数（js/randomPlaybackEngine.js）をそのまま再利用し、種(seed)の取得元だけが
+    // js/randomPlaybackScreen.jsのgenerateNewRandomPlaybackSeed()（beginCustomRandomPlaybackQuiz参照）
+    // になっている。1台の端末で完結するモードのため、複数端末間の同期は考慮不要。
+    const seed = getCurrentRandomPlaybackSeed();
+    const questionIndex = gameState.currentIndex;
+    const computeStartTimeSec = (durationSec) =>
+      computeRandomStartTimeSec({ seed, songId: question.song.id, questionIndex, durationSec });
+    playSongFromRandomPosition(
+      question.song,
+      computeStartTimeSec,
+      RANDOM_PLAYBACK_DEFAULTS.playDurationSec,
+      showAudioError,
+      markPlaybackStarted,
+      () => {}
+    );
   } else {
     playSongIntro(question.song, showAudioError, markPlaybackStarted);
   }
@@ -3010,6 +3170,11 @@ function retrySpecialQuiz() {
   } else if (gameState.specialModeId === "customQuiz") {
     const { songIds, distractorMode } = getLastStartedCustomQuizSelection();
     beginCustomQuiz(songIds, distractorMode);
+  } else if (gameState.specialModeId === "customQuizRandomPlayback") {
+    // 【2026-08-29追加、本人指示（⑭)】オリジナル問題作成モード・ランダム再生タイプの
+    // 「もう一度挑戦する」・「やり直す」。
+    const { songIds, distractorMode } = getLastStartedCustomQuizSelection();
+    beginCustomRandomPlaybackQuiz(songIds, distractorMode);
   }
 }
 
@@ -3562,12 +3727,12 @@ customQuizBackButtonElement.addEventListener("click", () => {
   showScreen("customQuizPresets");
 });
 
-// オリジナル問題作成モードのプリセット一覧画面の「戻る」：ホーム画面へ戻る（2026-08-08修正：
-// ホームの特別モードカードから直接この画面を開くようになったため、間に古い
-// 「特別モード一覧画面」を挟まない）。
+// オリジナル問題作成モードのプリセット一覧画面の「戻る」（2026-08-29改訂、本人指示（⑭)）：
+// 3種類の選択画面（#custom-quiz-type-select-screen）へ戻る。以前はホームへ直接戻っていたが、
+// 今は必ず種類選択を経由するようになったため、その1つ手前の画面に戻す。
 customQuizPresetsBackButtonElement.addEventListener("click", () => {
   playSfx(SFX_EVENTS.UI_BACK);
-  navigateWithScrollMemory("start");
+  navigateWithScrollMemory("customQuizTypeSelect");
 });
 
 // 出題数・カテゴリのラジオボタンが切り替わるたびに、自己ベスト表示・出題数の案内を更新する。

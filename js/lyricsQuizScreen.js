@@ -50,12 +50,14 @@ let resultElements = null; // 結果画面
 
 let currentSettings = null; // { questionCountValue, categoryFilterValue, answerPoolSizeValue }
 // 【2026-08-29追加、本人指示】この回が「通常の入り口（カテゴリー絞り込み）から始まった
-// 歌詞クイズ」なのか、「苦手曲モードB（歌詞クイズ版）の練習」なのかを区別するフラグ。
+// 歌詞クイズ」("normal")なのか、曲IDを直接指定して始まった回（"weakSongPractice"＝苦手曲
+// モードB、"customQuiz"＝オリジナル問題作成モードの歌詞クイズタイプ）なのかを区別するフラグ。
 // "normal"のときだけ、①js/lyricsQuizWeakSongStats.jsへ曲ごとの正誤を記録する
-// ②自己ベスト・称号を更新する。"weakSongPractice"は、既存の苦手曲モード（イントロ側）と
-// 同じ考え方（js/main.jsのgameState.playMode==="special"の扱い）で、判定に使う統計への
-// 書き戻しをしない（自己強化ループを避ける）・自己ベストや称号も更新しない
-// （プレイ履歴にだけ記録する）。
+// ②自己ベスト・称号を更新する。それ以外（"normal"でない値すべて）は、既存の苦手曲モード
+// （イントロ側）・オリジナル問題作成モード（イントロ側）と同じ考え方
+// （js/main.jsのgameState.playMode==="special"の扱い）で、判定に使う統計への書き戻しを
+// しない（自己強化ループ・練習結果の混入を避ける）・自己ベストや称号も更新しない
+// （プレイ履歴にだけ、それぞれ専用のmodeIdで記録する）。
 let currentRunSource = "normal";
 // 「今何問目か」「各解答の記録」はjs/lyricsQuizRunState.jsの純粋関数で管理する
 // （画面のDOMを介さずに進行ロジックだけを自動テストできるようにするため）。
@@ -121,32 +123,36 @@ async function handleStartButtonClick() {
 
 // 直前と同じ設定のまま、問題を再抽選して開始する（「もう一度挑戦する」用）。
 // 出題数不足等で開始できない事態は、直前に一度成立した設定を再利用するだけなので
-// 通常は起こらないが、念のため同じ検証を通してから開始する。
-// 【2026-08-29改訂】currentRunSourceは直前の回のままにする（通常プレイのリトライは
-// 通常のまま、苦手曲モードBの練習のリトライも練習のまま）。
-// 現在（直近に開始した）回が、苦手曲モードBの練習かどうか。js/main.js側が「戻る」ボタンの
-// 文言・戻り先画面をどちらにするか判断するために使う（2026-08-29追加）。
+// 現在（直近に開始した）回が、「通常の入り口」以外（苦手曲モードBの練習・オリジナル問題
+// 作成モードの歌詞クイズタイプ）から始まったかどうか。js/main.js側が「戻る」ボタンの
+// 文言・戻り先画面をどちらにするか判断するために使う（2026-08-29追加・改訂）。
 export function isLyricsQuizPracticeRun() {
-  return currentRunSource === "weakSongPractice";
+  return currentRunSource !== "normal";
 }
 
+// 直前と同じ設定のまま、問題を再抽選して開始する（「もう一度挑戦する」用）。
+// 出題数不足等で開始できない事態は、直前に一度成立した設定を再利用するだけなので
+// 通常は起こらないが、念のため同じ検証を通してから開始する。
+// 【2026-08-29改訂】currentRunSourceは直前の回のままにする（通常プレイのリトライは
+// 通常のまま、苦手曲モードBの練習・オリジナル問題作成モードのリトライもそれぞれ同じ種類のまま）。
 export async function retryLyricsQuizRun() {
   if (!currentSettings) return;
   await buildAndStartRun(currentSettings);
 }
 
-// 【2026-08-29新設、本人指示】苦手曲モードB（歌詞クイズ版）から、カテゴリー絞り込みではなく
-// 「曲IDを直接指定して」出題を開始する。曲プールの決め方以外（問題の組み立て・進行・
-// 結果画面）は通常の歌詞クイズと完全に同じ仕組みをそのまま再利用する
-// （本人指示：「既存の歌詞クイズの出題・進行エンジンをできる限り再利用してください」）。
-// questionCountValueは常に"all"（渡された曲IDすべて）にする。苦手曲一覧画面
-// （js/weakSongsScreen.js）側で「実際に練習する曲」をすでに絞り込み済みのため、
-// ここでさらに絞り込む必要はない。
-// 戻り値：実際に開始できたかどうか（呼び出し側のjs/weakSongsScreen.jsが、開始できなかった
-// 場合に案内を出せるようにするため。この画面自身のstartErrorはここでは表示されない
-// 別画面からの呼び出しのため）。
-export async function startManualSelectionLyricsQuizRun(songIds, answerPoolSizeValue) {
-  currentRunSource = "weakSongPractice";
+// 【2026-08-29新設、2026-08-29改訂・本人指示】苦手曲モードB（歌詞クイズ版）・オリジナル問題
+// 作成モードの歌詞クイズタイプから、カテゴリー絞り込みではなく「曲IDを直接指定して」出題を
+// 開始する。曲プールの決め方以外（問題の組み立て・進行・結果画面）は通常の歌詞クイズと
+// 完全に同じ仕組みをそのまま再利用する（本人指示：「既存の歌詞クイズの出題・進行エンジンを
+// できる限り再利用してください」）。
+// questionCountValueは常に"all"（渡された曲IDすべて）にする。呼び出し側
+// （js/weakSongsScreen.js・オリジナル問題作成モードの選曲画面）で「実際に出題する曲」を
+// すでに絞り込み済みのため、ここでさらに絞り込む必要はない。
+// sourceは"weakSongPractice"（苦手曲モードB）または"customQuiz"（オリジナル問題作成モード）。
+// 戻り値：実際に開始できたかどうか（呼び出し側が、開始できなかった場合に案内を出せる
+// ようにするため。この画面自身のstartErrorはここでは表示されない別画面からの呼び出しのため）。
+export async function startManualSelectionLyricsQuizRun(songIds, answerPoolSizeValue, source) {
+  currentRunSource = source;
   return buildAndStartRun({
     questionCountValue: "all",
     categoryFilterValue: "all",
@@ -716,12 +722,21 @@ export function initLyricsQuizResultScreen(newElements) {
 
 // 結果画面を描画し、自己ベストの判定・保存もここで行う。
 // 戻り値：将来オンライン対戦・ランキングへ流用できる集計結果（createLyricsQuizResult()の戻り値）。
-// 【2026-08-29改訂、本人指示】苦手曲モードB（歌詞クイズ版）の練習プレイは、既存の苦手曲
-// モード（イントロ側、js/main.jsのgameState.playMode==="special"の扱い）と同じく、
+// プレイ履歴に記録するmodeId・modeLabelを、currentRunSourceの種類ごとに対応づける表。
+// "normal"はこの表を使わず、常に既存の"lyricsQuiz"のまま（js/playHistory.jsのHISTORY_MODE_DISPLAY
+// に既にある値。変更しない）。
+const PRACTICE_LIKE_PLAY_HISTORY_MODE = {
+  weakSongPractice: { modeId: "weakSongsLyrics", modeLabel: "苦手曲モード（歌詞）" },
+  customQuiz: { modeId: "customQuizLyrics", modeLabel: "オリジナル問題（歌詞）" },
+};
+
+// 【2026-08-29改訂、本人指示】苦手曲モードB（歌詞クイズ版）・オリジナル問題作成モードの
+// 歌詞クイズタイプの練習・プレイは、既存の苦手曲モード・オリジナル問題作成モード
+// （どちらもイントロ側、js/main.jsのgameState.playMode==="special"の扱い）と同じく、
 // 自己ベスト・称号には反映せず、プレイ履歴にだけ記録する（判定に使う統計への書き戻しは
 // 呼び出し元のhandleAnswerSelected/handleSkipButtonClickがcurrentRunSourceで既に制御済み）。
 export function renderLyricsQuizResult() {
-  const isPractice = currentRunSource === "weakSongPractice";
+  const isPractice = currentRunSource !== "normal";
   const result = createLyricsQuizResult(runState.answers);
   const isNewRecord = isPractice
     ? false
@@ -773,12 +788,14 @@ export function renderLyricsQuizResult() {
 
   // 【2026-08-08新設】統一プレイ履歴（js/playHistory.js）への保存。自己ベスト・称号とは
   // 別の保存先のため、この保存に失敗しても上の自己ベスト保存・称号判定には一切影響しない。
-  // 【2026-08-29改訂】苦手曲モードBの練習は、既存のweakSongs（イントロ側）と同じ考え方で
-  // 専用のmodeId（weakSongsLyrics）で記録し、通常の歌詞クイズの記録とは見分けられるようにする。
+  // 【2026-08-29改訂】練習・オリジナル問題作成モードは、既存のweakSongs・customQuiz
+  // （どちらもイントロ側）と同じ考え方で専用のmodeIdで記録し、通常の歌詞クイズの記録とは
+  // 見分けられるようにする。
+  const practiceLikeMode = PRACTICE_LIKE_PLAY_HISTORY_MODE[currentRunSource];
   savePlayHistoryEntry({
     playedAt: Date.now(),
-    modeId: isPractice ? "weakSongsLyrics" : "lyricsQuiz",
-    modeLabel: isPractice ? "苦手曲モード（歌詞）" : "歌詞クイズ",
+    modeId: isPractice ? (practiceLikeMode?.modeId ?? currentRunSource) : "lyricsQuiz",
+    modeLabel: isPractice ? (practiceLikeMode?.modeLabel ?? "歌詞クイズ（その他）") : "歌詞クイズ",
     questionCount: result.totalQuestions,
     isAllSongsMode: currentSettings.categoryFilterValue === "all",
     correctCount: result.correctCount,

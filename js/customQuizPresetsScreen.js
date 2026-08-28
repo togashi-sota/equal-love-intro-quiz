@@ -7,10 +7,44 @@
 
 import { SONGS } from "./data/songs.js";
 import { buildSongGroups } from "./songlist.js";
-import { getPresets } from "./customQuizPresets.js";
+import { getPresets, CUSTOM_QUIZ_TYPE } from "./customQuizPresets.js";
 
 // ダミー選択肢モードの表示ラベル。プリセットカード・詳細モーダルに添える。
 const DISTRACTOR_MODE_LABELS = { selected: "選択した曲だけ", all: "全収録曲" };
+// 歌詞クイズタイプの回答候補数の表示ラベル。js/lyricsQuizEngine.jsのANSWER_POOL_SIZE_VALUESと
+// 同じ値の並び（このファイルはFirebase同様、歌詞クイズ関連ファイルへの依存を増やしたくないため、
+// 表示ラベルだけこちらにも軽量に複製している。値自体の一覧はlyricsQuizEngine.js側が正）。
+const ANSWER_POOL_SIZE_LABELS = { 4: "4択", 10: "10択", 30: "30択", 50: "50択", all: "全曲検索" };
+
+// 【2026-08-29追加、本人指示（⑭）】今この画面が対象にしているオリジナル問題の種類。
+// js/main.jsのcustom-quiz-type-select-screenで選ばれた種類がここに反映され、
+// 一覧に出すプリセットの絞り込み・見た目の表示に使う。
+let currentQuizType = CUSTOM_QUIZ_TYPE.INTRO;
+
+export function setCustomQuizPresetsType(quizType) {
+  currentQuizType = quizType;
+}
+
+export function getCustomQuizPresetsType() {
+  return currentQuizType;
+}
+
+const QUIZ_TYPE_EYEBROW_LABELS = {
+  [CUSTOM_QUIZ_TYPE.INTRO]: "ORIGINAL QUIZ・イントロ",
+  [CUSTOM_QUIZ_TYPE.RANDOM_PLAYBACK]: "ORIGINAL QUIZ・ランダム再生",
+  [CUSTOM_QUIZ_TYPE.LYRICS_QUIZ]: "ORIGINAL QUIZ・歌詞クイズ",
+};
+
+// プリセットカード・詳細モーダルに表示する「◯曲・◯◯」の内訳。歌詞クイズタイプだけ
+// ダミー選択肢モードではなく回答候補数を表示する（本人指示：それぞれの種類に合った情報を出す）。
+function buildPresetSummaryText(preset) {
+  if (preset.quizType === CUSTOM_QUIZ_TYPE.LYRICS_QUIZ) {
+    const answerPoolLabel = ANSWER_POOL_SIZE_LABELS[preset.answerPoolSizeValue] ?? preset.answerPoolSizeValue;
+    return `${preset.songIds.length}曲・${answerPoolLabel}`;
+  }
+  const distractorLabel = DISTRACTOR_MODE_LABELS[preset.distractorMode] ?? preset.distractorMode;
+  return `${preset.songIds.length}曲・${distractorLabel}`;
+}
 
 // この画面が使うDOM要素一式。initCustomQuizPresetsScreen()で受け取って保持する。
 let elements = null;
@@ -132,10 +166,9 @@ function buildPresetCard(preset) {
   title.textContent = preset.name;
   content.appendChild(title);
 
-  const distractorLabel = DISTRACTOR_MODE_LABELS[preset.distractorMode] ?? preset.distractorMode;
   const description = document.createElement("p");
   description.className = "special-mode-card-description";
-  description.textContent = `${preset.songIds.length}曲・${distractorLabel}`;
+  description.textContent = buildPresetSummaryText(preset);
   content.appendChild(description);
 
   // メモは一覧では1行に省略する（はみ出す分はCSSの text-overflow:ellipsis で「…」にする）。
@@ -195,7 +228,13 @@ function buildPresetCard(preset) {
 // （プリセットを保存した直後にこの画面へ戻ってきたときも、必ず反映されるようにするため）。
 // 「＋新しいセットを作る」は検索語に関わらず常に先頭に表示する（検索対象にしない）。
 export function renderCustomQuizPresetsScreen() {
-  const presets = getPresets();
+  // 【2026-08-29追加、本人指示（⑭)】今選ばれている種類のプリセットだけを対象にする
+  // （後方互換：quizTypeを持たない旧プリセットはgetPresets()側で自動的にintro扱いになっているため、
+  // 既存ユーザーの保存済みセットは「イントロクイズ」タブに今までどおり表示され続ける）。
+  if (elements.eyebrowLabel) {
+    elements.eyebrowLabel.textContent = QUIZ_TYPE_EYEBROW_LABELS[currentQuizType] ?? "ORIGINAL QUIZ";
+  }
+  const presets = getPresets().filter((preset) => preset.quizType === currentQuizType);
   const filteredPresets = presets.filter((preset) => matchesSearchQuery(preset, searchQuery));
 
   elements.listContainer.innerHTML = "";
@@ -253,8 +292,7 @@ function openPresetDetailModal(preset) {
   elements.detailMemo.hidden = !preset.memo;
   elements.detailMemo.textContent = preset.memo;
 
-  const distractorLabel = DISTRACTOR_MODE_LABELS[preset.distractorMode] ?? preset.distractorMode;
-  elements.detailSummary.textContent = `${preset.songIds.length}曲・${distractorLabel}`;
+  elements.detailSummary.textContent = buildPresetSummaryText(preset);
 
   // 開くたびにこのプリセットを対象として上書きする（onclickの代入なので、開くたびに
   // リスナーが増えていくことはない）。一覧カードの「▶ プレイ」と同じコールバックを使う。
@@ -320,6 +358,7 @@ export function showPresetActionBanner(message) {
 // プリセット一覧画面を使えるようにする。main.jsの初期化処理から1回だけ呼ぶ想定。
 //
 // elements: {
+//   eyebrowLabel: ヘッダーの小さなラベル（2026-08-29追加、選んだ種類に応じて書き換える）,
 //   listContainer: 「＋新しいセットを作る」＋プリセットカードを並べる入れ物,
 //   emptyState: 保存済みプリセットが1件もない/検索結果が0件のときに表示するメッセージ要素,
 //   searchInput: セット名・メモを検索する入力欄,

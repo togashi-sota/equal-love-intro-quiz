@@ -218,6 +218,10 @@ export const HISTORY_FILTER_CATEGORY = {
   // 既存のweakSongs（イントロ側）とは別に"lyricsQuiz"フィルターへ分類する。
   weakSongsLyrics: "lyricsQuiz",
   customQuiz: "intro",
+  // 2026-08-29追加：オリジナル問題作成モードのランダム再生タイプ・歌詞クイズタイプ
+  // （⑭）。エンジンに応じてそれぞれのフィルターへ分類する。
+  customQuizRandomPlayback: "randomPlayback",
+  customQuizLyrics: "lyricsQuiz",
   timeAttack: "timeAttack",
   timeAttackRandomPlayback: "timeAttack",
   randomPlayback: "randomPlayback",
@@ -255,6 +259,10 @@ export const HISTORY_MODE_DISPLAY = {
   // 2026-08-29追加：苦手曲モードB（歌詞クイズ版）。専用アイコンは作らず、歌詞クイズと
   // 同じiconKeyを再利用する（本人指示：既存のデザインを再利用し、新しい意匠を増やさない）。
   weakSongsLyrics: { label: "苦手曲モード（歌詞）", iconKey: "lyricsQuiz" },
+  // 2026-08-29追加：オリジナル問題作成モードのランダム再生タイプ・歌詞クイズタイプ（⑭）。
+  // 専用アイコンは作らず、それぞれ対応するエンジンのiconKeyを再利用する。
+  customQuizRandomPlayback: { label: "オリジナル問題（ランダム再生）", iconKey: "randomPlayback" },
+  customQuizLyrics: { label: "オリジナル問題（歌詞）", iconKey: "lyricsQuiz" },
   customQuiz: { label: "オリジナル問題", iconKey: "originalQuiz" },
   timeAttack: { label: "タイムアタック", iconKey: "timeAttack" },
   timeAttackRandomPlayback: { label: "タイムアタック（ランダム再生）", iconKey: "timeAttack" },

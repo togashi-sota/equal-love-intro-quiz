@@ -25,6 +25,7 @@ import {
 } from "./audioPreview.js";
 import { loadLyricsForSong, destroyLyricsSync } from "./lyricsSync.js";
 import { openFullscreenLyrics } from "./lyricsFullscreen.js";
+import { CUSTOM_QUIZ_TYPE } from "./customQuizPresets.js";
 
 // この画面が使うDOM要素一式。initCustomQuizScreen()で受け取って保持する。
 let elements = null;
@@ -32,10 +33,25 @@ let elements = null;
 // 今チェックが入っている曲IDの集合。
 const selectedSongIds = new Set();
 
+// 【2026-08-29追加、本人指示（⑭）】今この画面が編集・作成しているセットの種類。
+// customQuizTypeSelectScreen（js/main.js）で選ばれた種類、または既存プリセットを開いた
+// ときのpreset.quizTypeが反映される。この値だけで「ダミー選択肢／回答方式のどちらの
+// 欄を出すか」「保存・開始時にどちらの項目を含めるか」を判断する。
+let currentQuizType = CUSTOM_QUIZ_TYPE.INTRO;
+
+export function setCustomQuizType(quizType) {
+  currentQuizType = quizType;
+}
+
+export function getCustomQuizType() {
+  return currentQuizType;
+}
+
 // 直前に「開始する」を押したときの選択内容。結果画面の「もう一度挑戦する」から
 // 同じ内容で再開できるよう、main.js側から参照できるようにしておく。
 let lastStartedSongIds = [];
 let lastStartedDistractorMode = "selected";
+let lastStartedAnswerPoolSizeValue = "4";
 
 // 今、既存のどのプリセットを開いているか（新規作成中はnull）。
 // 上書き保存・削除の対象を特定するために使う。
@@ -409,15 +425,30 @@ function handleDeselectAllSongs() {
   refreshSelectionUI();
 }
 
+// 今の種類（currentQuizType）に応じて、ダミー選択肢／回答方式のどちらの欄を見せるかを切り替える
+// （2026-08-29追加、本人指示（⑭)）。歌詞クイズタイプだけ回答方式（回答候補の数）を使い、
+// イントロ・ランダム再生タイプはダミー選択肢を使う（出題の仕組み自体がイントロと共通のため）。
+function updateQuizTypeFieldsetVisibility() {
+  const isLyrics = currentQuizType === CUSTOM_QUIZ_TYPE.LYRICS_QUIZ;
+  elements.distractorModeFieldset.hidden = isLyrics;
+  elements.answerPoolSizeFieldset.hidden = !isLyrics;
+}
+
 // 「この曲でクイズを始める」が押されたときの処理。今の選択内容を記憶したうえで、
 // onStartコールバックに渡す（実際にクイズを組み立てて開始する処理はmain.js側が担当する）。
 // クイズを開始する前に、試聴が鳴りっぱなしにならないよう必ず止める。
+// 【2026-08-29改訂】歌詞クイズタイプはanswerPoolSizeValueを、それ以外はdistractorModeを
+// 第2引数として渡す（main.js側がgetCustomQuizType()を見てどちらの意味か判断する）。
 function handleStart() {
   stopPreviewAndResetUI();
-  const distractorMode = document.querySelector('input[name="custom-quiz-distractor-mode"]:checked').value;
   lastStartedSongIds = [...selectedSongIds];
-  lastStartedDistractorMode = distractorMode;
-  elements.onStart(lastStartedSongIds, distractorMode);
+  if (currentQuizType === CUSTOM_QUIZ_TYPE.LYRICS_QUIZ) {
+    lastStartedAnswerPoolSizeValue = document.querySelector('input[name="custom-quiz-answer-pool-size"]:checked').value;
+    elements.onStart(lastStartedSongIds, lastStartedAnswerPoolSizeValue);
+    return;
+  }
+  lastStartedDistractorMode = document.querySelector('input[name="custom-quiz-distractor-mode"]:checked').value;
+  elements.onStart(lastStartedSongIds, lastStartedDistractorMode);
 }
 
 // 「保存する」／「上書き保存する」が押されたときの処理。
@@ -436,7 +467,15 @@ function handleSave() {
 
   const memo = elements.memoInput.value.trim();
   const distractorMode = document.querySelector('input[name="custom-quiz-distractor-mode"]:checked').value;
-  const presetData = { name, memo, songIds: [...selectedSongIds], distractorMode };
+  const answerPoolSizeValue = document.querySelector('input[name="custom-quiz-answer-pool-size"]:checked').value;
+  const presetData = {
+    name,
+    memo,
+    songIds: [...selectedSongIds],
+    distractorMode,
+    quizType: currentQuizType,
+    answerPoolSizeValue,
+  };
 
   if (currentEditingPresetId === null) {
     elements.onSave(presetData);
@@ -465,18 +504,25 @@ function handleDuplicateButtonClick() {
   elements.onDuplicate(currentEditingPresetId);
 }
 
-// 結果画面の「もう一度挑戦する」から、直前と同じ選択内容・ダミー選択肢モードで
-// 再開できるようにするための参照用。
+// 結果画面の「もう一度挑戦する」から、直前と同じ選択内容・ダミー選択肢モード（または
+// 回答方式）で再開できるようにするための参照用。呼び出し側（main.js）がgetCustomQuizType()と
+// あわせて見て、どちらの値を使うか判断する。
 export function getLastStartedCustomQuizSelection() {
-  return { songIds: lastStartedSongIds, distractorMode: lastStartedDistractorMode };
+  return {
+    songIds: lastStartedSongIds,
+    distractorMode: lastStartedDistractorMode,
+    answerPoolSizeValue: lastStartedAnswerPoolSizeValue,
+  };
 }
 
 // プリセット一覧から選曲画面を経由せず直接クイズを始めた場合など、この画面を経由しない
 // 開始方法でも「もう一度挑戦する」が正しい内容を再開できるよう、直前の開始内容を
-// 外部から更新できるようにしておく。
-export function setLastStartedCustomQuizSelection(songIds, distractorMode) {
+// 外部から更新できるようにしておく。第3引数（answerPoolSizeValue）は歌詞クイズタイプの
+// ときだけ渡す想定（省略時は直前の値のまま）。
+export function setLastStartedCustomQuizSelection(songIds, distractorMode, answerPoolSizeValue) {
   lastStartedSongIds = songIds;
   lastStartedDistractorMode = distractorMode;
+  if (answerPoolSizeValue !== undefined) lastStartedAnswerPoolSizeValue = answerPoolSizeValue;
 }
 
 // 検索語・「選択済みの曲だけ表示」を初期状態（絞り込みなし）に戻す。
@@ -492,7 +538,12 @@ function resetFilters() {
 }
 
 // 「＋新しいセットを作る」から開いたときの初期状態にする（空の選択、名前・メモも空欄）。
-export function openCustomQuizScreenForNewPreset() {
+// quizType（2026-08-29追加）：直前に選択画面（js/main.jsのcustom-quiz-type-select-screen）で
+// 選んだ種類。省略時はcurrentQuizTypeを変えない（保存済みプリセットの複製直後など、
+// 既にcurrentQuizTypeが正しく設定されている呼び出し元向けの後方互換）。
+export function openCustomQuizScreenForNewPreset(quizType) {
+  if (quizType !== undefined) currentQuizType = quizType;
+  updateQuizTypeFieldsetVisibility();
   currentEditingPresetId = null;
   stopPreviewAndResetUI(); // 前回この画面を開いたときの試聴が残っていないよう、念のため止めておく
   resetFilters();
@@ -501,6 +552,7 @@ export function openCustomQuizScreenForNewPreset() {
     groupElement.classList.toggle("is-open", index === 0);
   });
   document.querySelector('input[name="custom-quiz-distractor-mode"][value="selected"]').checked = true;
+  document.querySelector('input[name="custom-quiz-answer-pool-size"][value="4"]').checked = true;
 
   elements.nameInput.value = "";
   elements.memoInput.value = "";
@@ -513,8 +565,11 @@ export function openCustomQuizScreenForNewPreset() {
 }
 
 // 保存済みのプリセットを開いたときの状態にする。その内容（曲・名前・メモ・
-// ダミー選択肢モード）で編集欄を埋め、「上書き保存する」「このセットを削除する」を表示する。
+// ダミー選択肢モードまたは回答方式）で編集欄を埋め、「上書き保存する」「このセットを削除する」を
+// 表示する。quizTypeはプリセット自身が持つ値をそのまま使う（編集画面で種類自体は変更できない）。
 export function openCustomQuizScreenForPreset(preset) {
+  currentQuizType = preset.quizType;
+  updateQuizTypeFieldsetVisibility();
   currentEditingPresetId = preset.id;
   stopPreviewAndResetUI(); // 前回この画面を開いたときの試聴が残っていないよう、念のため止めておく
   resetFilters();
@@ -525,6 +580,12 @@ export function openCustomQuizScreenForPreset(preset) {
   );
   if (distractorRadio) {
     distractorRadio.checked = true;
+  }
+  const answerPoolSizeRadio = document.querySelector(
+    `input[name="custom-quiz-answer-pool-size"][value="${preset.answerPoolSizeValue}"]`
+  );
+  if (answerPoolSizeRadio) {
+    answerPoolSizeRadio.checked = true;
   }
 
   elements.nameInput.value = preset.name;
@@ -555,6 +616,8 @@ export function openCustomQuizScreenForPreset(preset) {
 //   previewSeekBackButton, previewSeekForwardButton: ミニプレイヤーの10秒戻す/送るボタン,
 //   previewSeekRange: タップ・ドラッグで再生位置を変更できるシークバー,
 //   previewCurrentTime, previewDuration: 現在位置・総時間の表示,
+//   distractorModeFieldset: ダミー選択肢の<fieldset>（歌詞クイズタイプでは隠す、2026-08-29追加）,
+//   answerPoolSizeFieldset: 回答方式の<fieldset>（歌詞クイズタイプでだけ見せる、2026-08-29追加）,
 //   nameInput, memoInput: セット名・メモの入力欄,
 //   nameError: セット名が未入力のときの案内,
 //   saveButton: 「保存する」／「上書き保存する」ボタン（文言はJS側で切り替える）,

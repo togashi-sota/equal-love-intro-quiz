@@ -61,6 +61,16 @@ export function getCurrentRandomPlaybackSeed() {
   return currentSeed;
 }
 
+// 【2026-08-29追加、本人指示（⑭）】オリジナル問題作成モードのランダム再生タイプから使う、
+// 種（seed）の発行だけを行う版。startRandomPlaybackRun()と違い、タイムアタック側の
+// 進行状態（js/timeAttackScreen.jsのstartTimeAttackRun）は一切呼ばない
+// （オリジナル問題作成モードはgameState.playMode==="special"で進行するため、
+// タイムアタック側の状態を巻き込む必要が無い・巻き込むと無関係な状態が混ざってしまう）。
+export function generateNewRandomPlaybackSeed() {
+  currentSeed = Math.floor(Math.random() * 0x100000000) >>> 0;
+  return currentSeed;
+}
+
 // ===== 2. 結果画面 =====
 
 export function initRandomPlaybackResultScreen(newElements) {
