@@ -8,6 +8,7 @@ import { hasAudioSource } from "./data/audioMetadata.js";
 import { getAudioBlob } from "./audioStorage.js";
 import { loadLyricsForSong, destroyLyricsSync } from "./lyricsSync.js";
 import { openFullscreenLyrics } from "./lyricsFullscreen.js";
+import { isLyricsQuizEligibleSong } from "./lyricsQuizQuestionBuilder.js";
 import { buildMvThumbnailElement } from "./youtubeThumbnail.js";
 import {
   isFavoriteSong,
@@ -664,15 +665,23 @@ export function createTrackRow(song, options = {}) {
   // 設計のため、src未設定のまま渡しても安全に動作する。歌詞行タップ時のシークも
   // currentTimeへの代入が何も起きないだけで実害はない）。他の曲を試聴中に押した場合は
   // 先に試聴を止めてから表示する（MV導線と同じく音の重複を避けるため）。
-  const lyricsViewButton = document.createElement("button");
-  lyricsViewButton.type = "button";
-  lyricsViewButton.className = "lyrics-view-button";
-  lyricsViewButton.innerHTML = `
-    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 5h16v2H4V5zm0 6h16v2H4v-2zm0 6h10v2H4v-2z"/></svg>
-    歌詞を見る
-  `;
-  lyricsViewButton.addEventListener("click", () => handleLyricsViewButtonClick(song, row));
-  actionButtonsRow.appendChild(lyricsViewButton);
+  // Overture等、歌詞データがそもそも存在しない曲（isLyricsQuizEligibleSongで判定。
+  // 歌詞クイズ専用に見える名前だが、実態は「歌詞データを持ちうる曲か」の判定であり、
+  // 歌詞クイズ以外のこのボタンでも同じ意味で使い回せる）ではボタン自体を出さない。
+  // 単に「まだこの端末にインポートしていないだけ」の曲とは違い、構造的に歌詞が
+  // 存在しないため、押しても必ず「歌詞データがありません」しか出ず紛らわしいため
+  // （2026-08-29追加、本人指示）。
+  if (isLyricsQuizEligibleSong(song)) {
+    const lyricsViewButton = document.createElement("button");
+    lyricsViewButton.type = "button";
+    lyricsViewButton.className = "lyrics-view-button";
+    lyricsViewButton.innerHTML = `
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 5h16v2H4V5zm0 6h16v2H4v-2zm0 6h10v2H4v-2z"/></svg>
+      歌詞を見る
+    `;
+    lyricsViewButton.addEventListener("click", () => handleLyricsViewButtonClick(song, row));
+    actionButtonsRow.appendChild(lyricsViewButton);
+  }
 
   // 歌詞の全画面表示を開くボタン。以前は再生中だけ見える`.track-seek`内に置いていたが、
   // 「歌詞を見る」（試聴なしの閲覧）でも全画面表示を使えるようにするため、再生状態と

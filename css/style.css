@@ -4758,11 +4758,20 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 }
 
 /* MVを見る・歌詞を見る・全画面表示ボタンをまとめて右寄せに並べる入れ物（2026-08-25追加）。
-   どれか1つしか無い曲でも常に同じ右寄せの並びになる。 */
+   どれか1つしか無い曲でも常に同じ右寄せの並びになる。
+   【2026-08-29修正】以前はflex-wrap:wrapにしていたが、この行の横幅は曲ごとに変わる
+   （右側のtrack-action-columnがカテゴリバッジの文字数分だけ幅を取るため、「ユニット曲」
+   （5文字）のように長いバッジの曲ほどこの行の幅が狭くなる。「僕のヒロイン」のような、
+   歌唱・振付クレジットが付くユニット曲＋カテゴリバッジの組み合わせで、MVを見る・歌詞を見る
+   の2つのボタンが横幅に収まりきらず、意図せず2行に折り返して縦積みに見えてしまっていた。
+   この「収まりきるか」は曲名や特別クレジットの有無に依存し84曲すべてで安全とは言えないため、
+   個別の曲に対処するのではなく、そもそも折り返させない（flex-wrap:nowrap）方針に変更した。
+   代わりに下のmin-width:0で、幅が足りない場合はボタン内の文字だけを折り返させて縦幅を
+   増やす形にし、ボタン同士が横並びのまま保たれるようにしている。 */
 .track-action-buttons {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: flex-end;
   gap: 6px;
   margin-top: 4px;
@@ -4771,6 +4780,11 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 .track-action-buttons .mv-link-button,
 .track-action-buttons .lyrics-view-button {
   margin-top: 0;
+  /* 横幅が足りないときにボタン自体が横に押し出されて右端がはみ出すのを防ぎ、
+     代わりにボタン内のテキストが折り返して縦に伸びられるようにする
+     （flex-shrinkは既定でも効くが、min-widthの初期値autoはコンテンツの
+     最小サイズを保とうとするため、明示的に0にして縮小を妨げないようにする）。 */
+  min-width: 0;
 }
 
 /* 歌詞を見るボタン：MVを見るボタンと同じ形・大きさで、配色だけブランドのサブカラー
