@@ -7291,8 +7291,11 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 .fan-profile-detail-header {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   margin: 4px 0 14px;
+  /* 右上の×ボタン（44px幅・right:6px）と重ならないよう、この行だけ右側に余白を
+     確保しておく（2026-08-29追加、本人指示：「🏅称号一覧」ボタンをこの行に置くため）。 */
+  padding-right: 52px;
 }
 
 .fan-profile-detail-swatch {
@@ -7302,6 +7305,39 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 .fan-profile-detail-swatch .fan-profile-swatch {
   width: 52px;
   height: 52px;
+}
+
+/* 名前・推しのテキスト部分（2026-08-29追加）。flex:1にして「🏅称号一覧」ボタンぶんの
+   幅を確実に空け、表示名が長くても折り返してボタンに重ならないようにする。 */
+.fan-profile-detail-header-text {
+  flex: 1;
+  min-width: 0;
+}
+
+/* プレイヤー名の右側に置く、ゲーム全体の称号一覧を開くボタン（2026-08-29追加、本人指示）。
+   フレンドページヘッダーの.fan-profiles-title-list-buttonと同じ見た目・同じ役割
+   （このプレイヤー個人のデータは一切使わず、既存の称号一覧モーダルを開くだけ）。 */
+.fan-profile-detail-title-list-button {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1.5px solid var(--color-primary);
+  background: var(--color-surface);
+  color: var(--color-primary-dark);
+  font-family: inherit;
+  font-size: 0.66rem;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.fan-profile-detail-title-list-button:active {
+  transform: scale(0.96);
+  background: var(--color-primary);
+  color: #ffffff;
 }
 
 .fan-profile-detail-oshi {

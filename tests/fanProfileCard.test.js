@@ -198,13 +198,23 @@ export function runFanProfileCardTests() {
   );
   assertEqual(unsorted.map((p) => p.uid), ["a", "b", "c"], "sortProfilesは元の配列を変更しない");
 
-  // ---- 未取得称号は表示されず、取得済みだけがカテゴリごとに表示される ----
+  // ---- 未取得称号は表示されず、取得済みだけがクイズ系統ごとのブロックに表示される
+  //      （2026-08-29急遽再変更・本人指示：種類（ステップアップ／マスター／裏チャレンジ）
+  //      ではなく、イントロ系／シャッフル系／リリック系の3ブロックだけで分ける） ----
   const partialList = buildAchievedAchievementsList(["intro_beginner", "full_chorus_master"]);
   const achievedNames = [...partialList.querySelectorAll(".fan-profile-achievement-name")].map((el) => el.textContent);
   assertEqual(
     achievedNames,
     ["イントロビギナー", "フルコーラスマスター"],
-    "取得済みの称号だけが名前つきで表示される（未取得は一切出さない）"
+    "取得済みの称号だけが名前つきで表示される（未取得は一切出さない）。イントロ系→シャッフル系の順で並ぶ"
+  );
+  const partialHeadings = [...partialList.querySelectorAll(".fan-profile-achievement-block-heading")].map(
+    (el) => el.textContent
+  );
+  assertEqual(
+    partialHeadings,
+    ["🎧 イントロ系", "🔀 シャッフル系"],
+    "取得済みの称号がある系統だけブロック見出しが表示される（リリック系は0件なので見出しごと出ない）"
   );
   assertEqual(
     partialList.querySelector(".fan-profile-achievement-empty"),
@@ -233,11 +243,51 @@ export function runFanProfileCardTests() {
     "称号0個のときはカードが1件も表示されない"
   );
 
-  // ---- 称号多数（17件すべて）取得済みなら、17件すべてがそのまま表示される ----
-  // 【2026-08-29再設計・本人指示】このリストの役割を「フレンド詳細モーダルの主表示」から
-  // 「すべての称号を見る」の全件確認用に変更した。代表称号（最大3個、同じ系統は最上位のみ）は
-  // getRepresentativeAchievementCandidates側の役割になったため、こちらはもう圧縮しない
-  // （本人指示：「代表表示から省略された下位称号も、ここでは取得済み称号として確認できる」）。
+  // ---- E・F・G・H・I・J・K：1系統（イントロ系）を全段階（ビギナー〜裏チャレンジ）
+  //      取得済みなら、種類を問わず1つのブロックの中に、難易度が上がっていく順
+  //      （ビギナー→チャレンジャー→エース→マスター→裏チャレンジ）で並ぶ ----
+  const introFullList = buildAchievedAchievementsList([
+    "lightning_fast", // 入力順はバラバラでも、表示順は難易度順に揃う
+    "intro_beginner",
+    "no_miss_master",
+    "intro_challenger",
+    "intro_ace",
+  ]);
+  assertEqual(
+    [...introFullList.querySelectorAll(".fan-profile-achievement-block")].length,
+    1,
+    "イントロ系だけ取得済みなら、ブロックは1つだけ（マスター・裏チャレンジ用の別ブロックは作らない）"
+  );
+  assertEqual(
+    [...introFullList.querySelectorAll(".fan-profile-achievement-name")].map((el) => el.textContent),
+    ["イントロビギナー", "イントロチャレンジャー", "イントロエース", "ノーミスマスター", "電光石火"],
+    "イントロ系ブロックの中は、種類を問わずビギナー→チャレンジャー→エース→マスター→裏チャレンジの順で並ぶ"
+  );
+
+  // ---- M：通常系統を3個しか取得していない場合、4枠目が空いても次の系統をそこへ詰めない
+  //      （各ブロックが独立したgridのため、DOM構造として別のgrid要素になっている） ----
+  const introThreeThenShuffleList = buildAchievedAchievementsList([
+    "intro_beginner",
+    "intro_challenger",
+    "intro_ace",
+    "shuffle_beginner",
+  ]);
+  const grids = introThreeThenShuffleList.querySelectorAll(".fan-profile-achievement-grid");
+  assertEqual(grids.length, 2, "イントロ系3個＋シャッフル系1個なら、ブロックごとに別々のgrid要素が2つできる");
+  assertEqual(
+    grids[0].querySelectorAll(".fan-profile-achievement-card").length,
+    3,
+    "イントロ系のgridには、シャッフル系の称号は混ざらず3件だけが入る"
+  );
+  assertEqual(
+    grids[1].querySelectorAll(".fan-profile-achievement-card").length,
+    1,
+    "シャッフル系のgridは独立しており、イントロ系の4枠目の空きに詰め込まれることはない"
+  );
+
+  // ---- N・称号多数（17件すべて）取得済みの場合：＝LOVEマスター・＝LOVE完全制覇は
+  //      特定のクイズ系統に属さないため、この3ブロック構成には含まれない（代表称号
+  //      システムと同じ扱い。単体の材料称号はそれぞれの系統ブロックに表示される） ----
   const allIds = [
     "intro_beginner",
     "intro_challenger",
@@ -258,17 +308,23 @@ export function runFanProfileCardTests() {
     "equal_love_complete",
   ];
   const fullList = buildAchievedAchievementsList(allIds);
-  const fullListNames = [...fullList.querySelectorAll(".fan-profile-achievement-name")].map((el) => el.textContent);
+  assertEqual(
+    [...fullList.querySelectorAll(".fan-profile-achievement-block")].length,
+    3,
+    "17件すべて取得済みでも、ブロックはイントロ系／シャッフル系／リリック系の3つだけになる"
+  );
   assertEqual(
     fullList.querySelectorAll(".fan-profile-achievement-card").length,
-    17,
-    "「すべての称号を見る」では、称号17個（全種類）取得済みなら圧縮せず17件すべてが表示される"
+    15,
+    "3系統×5段階＝15件が表示される（＝LOVEマスター・＝LOVE完全制覇はどの系統にも属さないため対象外）"
   );
+  const fullListNames = [...fullList.querySelectorAll(".fan-profile-achievement-name")].map((el) => el.textContent);
   assertEqual(
     fullListNames.includes("イントロビギナー") &&
       fullListNames.includes("イントロチャレンジャー") &&
       fullListNames.includes("イントロエース") &&
-      fullListNames.includes("ノーミスマスター"),
+      fullListNames.includes("ノーミスマスター") &&
+      fullListNames.includes("電光石火"),
     true,
     "代表称号からは省略されるはずのイントロ系の下位段階（ビギナー・チャレンジャー・エース）も、「すべての称号を見る」では取得済みとしてすべて表示される"
   );

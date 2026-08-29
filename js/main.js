@@ -607,6 +607,10 @@ const fanProfileDetailAchievementsElement = document.getElementById("fan-profile
 // フレンド1人ずつの詳細モーダルからこちらへ移動した）。既存の称号一覧モーダルを開く
 // トリガーの1つとして、下のinitAchievementListModal(openTriggers)に加える。
 const fanProfilesTitleListLinkElement = document.getElementById("fan-profiles-title-list-link");
+// 個人プロフィールモーダル側にも重ねて置いた「🏅称号一覧」（2026-08-29追加・本人指示）。
+// 役割は上と全く同じ（このプレイヤー個人のデータは使わず、ゲーム全体の称号一覧を開くだけ）
+// なので、同じopenTriggers配列に加えるだけでよい。
+const fanProfileDetailTitleListLinkElement = document.getElementById("fan-profile-detail-title-list-link");
 const fanProfilesMyUidElement = document.getElementById("fan-profiles-my-uid");
 const fanProfilesAdminDeleteOverlayElement = document.getElementById("fan-profiles-admin-delete-confirm-modal");
 const fanProfilesAdminDeleteTargetNameElement = document.getElementById("fan-profiles-admin-delete-target-name");
@@ -1182,6 +1186,7 @@ initAchievementListModal({
     randomPlaybackResultAchievementListLinkElement,
     lyricsQuizResultAchievementListLinkElement,
     fanProfilesTitleListLinkElement,
+    fanProfileDetailTitleListLinkElement,
   ],
 });
 

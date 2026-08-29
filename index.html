@@ -4167,27 +4167,32 @@
   </div>
 
   <!-- 「みんなのプロフィール」詳細モーダル：開閉ロジックはjs/fanProfilesScreen.js。
-       【2026-08-29再改訂、本人指示】右上の「🏅称号一覧」ボタンは、フレンドページ自体の
-       ヘッダー（#fan-profiles-title-list-link）へ移設したため、このモーダルからは削除した。
-       【2026-08-29再々改訂・本人指示】ランキング順位は一切載せず、称号だけに特化して
-       再設計。獲得称号の総数→ランク感（これから挑戦／CHALLENGER／代表称号）→代表称号
-       最大3個（アイコン・称号名・1行の獲得条件）→「すべての称号を見る」の順で、初心者にも
-       一目で実力感が伝わる構成にする（中身の組み立てはjs/fanProfileCard.jsが担当）。 -->
+       ランキング順位は一切載せず、称号だけに特化した構成（獲得称号の総数→ランク感→
+       代表称号→「すべての称号を見る」）。中身の組み立てはjs/fanProfileCard.jsが担当する。
+       【2026-08-29再改訂・本人指示】このモーダルにも「🏅称号一覧」ボタンを追加した。
+       フレンドページヘッダーの「🏅称号一覧」（#fan-profiles-title-list-link）と役割は
+       同じ（ゲーム全体の既存称号一覧を開くだけで、このプレイヤー個人の情報は一切使わない）。
+       「今このプレイヤーのプロフィールを見ている最中に、称号の獲得条件をすぐ確認したい」
+       という導線として、個人プロフィール側にも重ねて置く。開く先の称号一覧モーダル自体は
+       1つだけで、新しいモーダルは作らない（js/main.jsのinitAchievementListModal参照）。
+       「すべての称号を見る」（このプレイヤー本人の取得済み称号を見る）とは役割が異なるので、
+       混同しないよう文言・配置をはっきり分ける。 -->
   <div id="fan-profile-detail-modal" class="modal-overlay" hidden>
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="fan-profile-detail-name">
       <button id="fan-profile-detail-close" class="modal-close-button" type="button" aria-label="閉じる">×</button>
       <div class="fan-profile-detail-header">
         <span id="fan-profile-detail-swatch" class="fan-profile-detail-swatch"></span>
-        <div>
+        <div class="fan-profile-detail-header-text">
           <h2 id="fan-profile-detail-name"></h2>
           <p id="fan-profile-detail-oshi" class="fan-profile-detail-oshi"></p>
         </div>
+        <button id="fan-profile-detail-title-list-link" class="fan-profile-detail-title-list-button" type="button">🏅 称号一覧</button>
       </div>
 
       <p id="fan-profile-detail-achievement-count" class="fan-profile-detail-achievement-count"></p>
       <div id="fan-profile-detail-summary"></div>
 
-      <!-- 「すべての称号を見る」：代表3個には出ない、この人が取得済みの称号を全部確認できる
+      <!-- 「すべての称号を見る」：代表称号には出ない、この人が取得済みの称号を全部確認できる
            導線（本人指示：右上の「🏅称号一覧」＝ゲーム全体の称号・条件を見る、とは役割が違う
            ので混同しない）。称号を1つも持っていない人には表示しない。 -->
       <button id="fan-profile-detail-all-toggle" class="fan-profile-detail-all-toggle" type="button" hidden>すべての称号を見る ＞</button>

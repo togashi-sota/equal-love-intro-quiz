@@ -4,13 +4,9 @@
 // 発生させずにこのファイルだけをimportして直接検証できる
 // （js/publicProfilePayloads.jsと同じ、Firebase分離の設計方針）。
 import { getMemberById } from "./memberUtils.js";
-import { ACHIEVEMENTS, getAchievementById } from "./achievementDefinitions.js";
+import { getAchievementById } from "./achievementDefinitions.js";
 import { buildAchievementIconMedal } from "./achievementIcons.js";
 import { applyOshiBadgeDecorationsFromState } from "./oshiBadge.js";
-
-// 称号カテゴリの表示順（js/achievementList.jsと同じ順番。詳細モーダルでも一覧と同じ並びに揃える）。
-// 【2026-08-14更新】17称号・3カテゴリー再編（growth/masterPath/backChallenge）にあわせて更新。
-export const ACHIEVEMENT_CATEGORY_ORDER = ["growth", "masterPath", "backChallenge"];
 
 export function buildOshiSwatch(members, oshiMemberId, badgeState) {
   const swatch = document.createElement("span");
@@ -176,55 +172,16 @@ export function buildAchievedCard(achievementId) {
   return card;
 }
 
-// 取得済み称号を、カテゴリ順・カテゴリごとのグリッドに分けて並べたコンテナ要素を組み立てる
-// （本人指示：他人のプロフィールでは取得済みだけ表示し、未取得称号は出さない）。
-// 1件も無ければ「まだ称号を取得していません。」の案内だけを返す。
-// 【2026-08-29再設計・本人指示】このリストの役割を、フレンド詳細モーダルの主表示から
-// 「すべての称号を見る」の全件確認用に変更した。代表称号（最大3個）とは別の場所・別の
-// 目的の表示になったため、ここでは段階制称号の絞り込みは行わず、取得済みを全件そのまま
-// 表示する（上位称号の取得によって代表表示から省略された下位称号も、ここでは変わらず
-// 「取得済み」として確認できる。本人指示：「取得データ自体を消したり未取得扱いにしたり
-// しない」）。「称号◯個」の個数バッジ（buildProfileCard・buildAchievementCountText）は、
-// 元からフィルタしていないunlockedAchievementIds.lengthを使うため、この変更による影響はない。
-export function buildAchievedAchievementsList(unlockedAchievementIds) {
-  const container = document.createElement("div");
-  const unlockedSet = new Set(unlockedAchievementIds);
-  const hasAny = ACHIEVEMENT_CATEGORY_ORDER.some((category) =>
-    ACHIEVEMENTS.some((a) => a.category === category && unlockedSet.has(a.id))
-  );
-
-  if (!hasAny) {
-    const empty = document.createElement("p");
-    empty.className = "fan-profile-achievement-empty";
-    empty.textContent = "まだ称号を取得していません。";
-    container.appendChild(empty);
-    return container;
-  }
-
-  ACHIEVEMENT_CATEGORY_ORDER.forEach((category) => {
-    const idsInCategory = ACHIEVEMENTS.filter((a) => a.category === category && unlockedSet.has(a.id)).map(
-      (a) => a.id
-    );
-    if (idsInCategory.length === 0) return;
-    const grid = document.createElement("div");
-    grid.className = "fan-profile-achievement-grid";
-    idsInCategory.forEach((id) => {
-      const card = buildAchievedCard(id);
-      if (card) grid.appendChild(card);
-    });
-    container.appendChild(grid);
-  });
-
-  return container;
-}
-
-// ===== フレンドプロフィールの「代表称号」（2026-08-29新設、2026-08-29再設計・本人指示） =====
-// ランキング順位などは一切使わず、称号だけでその人の実力感が伝わるようにする。
-// 称号を3つのクイズ系統（イントロ／ランダム再生／歌詞クイズ）に分け、各系統は
-// 「ステップアップ（ビギナー→チャレンジャー→エース）→マスターへの道→裏チャレンジ」の
-// 低→高の順で並ぶ1本のはしごとして扱う。系統・称号IDの対応関係は
-// js/achievementDefinitions.jsの実際の定義（conditionText等）を確認したうえで、
-// 名前からの推測ではなくID同士の対応として組んでいる。
+// ===== クイズ系統（イントロ／ランダム再生／歌詞クイズ）の定義 =====
+// 称号を3つのクイズ系統に分け、各系統は「ステップアップ（ビギナー→チャレンジャー→
+// エース）→マスターへの道→裏チャレンジ」の低→高の順で並ぶ1本のはしごとして扱う
+// （本人指示・2026-08-29：「マスター称号は独立ブロックにせず、対応するクイズ系統の
+// 通常ルートの最終段階として扱う」「裏チャレンジ称号だけは別の独立ブロックにする」）。
+// 系統・称号IDの対応関係は、js/achievementDefinitions.jsの実際の定義（conditionText等）を
+// 確認したうえで、名前からの推測ではなくID同士の対応として組んでいる。
+// 「すべての称号を見る」（buildAchievedAchievementsList）・代表称号選出
+// （getRepresentativeAchievementCandidates）の両方がこの同じ定義を再利用し、
+// 称号の対応関係を二重管理しない。
 const ACHIEVEMENT_SERIES = [
   ["intro_beginner", "intro_challenger", "intro_ace", "no_miss_master", "lightning_fast"],
   ["shuffle_beginner", "shuffle_challenger", "shuffle_ace", "full_chorus_master", "melody_ace"],
@@ -236,6 +193,68 @@ const [TIER_BEGINNER, TIER_CHALLENGER, TIER_ACE, TIER_MASTER, TIER_BACK_CHALLENG
 // クイズ系統の表示名（ACHIEVEMENT_SERIESと同じ順番＝イントロ／ランダム再生／歌詞クイズ）。
 // 「次のチャレンジ」案内文の組み立てに使う。
 const SERIES_QUIZ_NAMES = ["イントロクイズ", "ランダム再生クイズ", "歌詞クイズ"];
+
+// 「すべての称号を見る」に表示するブロック構造（2026-08-29再設計、2026-08-29急遽再変更・
+// 本人指示）。「マスター称号」「裏チャレンジ称号」を種類ごとに独立ブロックへ分けるのは
+// やめ、「どのクイズ系統の称号か」だけで3ブロック（イントロ系／シャッフル系／リリック系）に
+// 分ける。ACHIEVEMENT_SERIESの各行（低→高＝ビギナー→チャレンジャー→エース→マスター→
+// 裏チャレンジ）を、種類で分割せずそのままブロックの中身として使う（本人指示：
+// 「新しい称号リストを別に手書きしない」）。
+const ALL_ACHIEVEMENTS_BLOCKS = [
+  { label: "🎧 イントロ系", ids: ACHIEVEMENT_SERIES[0] },
+  { label: "🔀 シャッフル系", ids: ACHIEVEMENT_SERIES[1] },
+  { label: "🎤 リリック系", ids: ACHIEVEMENT_SERIES[2] },
+];
+
+// 取得済み称号を、クイズ系統ごとのブロック（イントロ系→シャッフル系→リリック系、本人指示の
+// 固定順）に分けて並べたコンテナ要素を組み立てる（他人のプロフィールでは取得済みだけ表示し、
+// 未取得称号は出さない）。各ブロックの中は、ビギナー→チャレンジャー→エース→マスター→
+// 裏チャレンジの順（難易度・到達度が上がっていく順）に並ぶ。1件も無ければ
+// 「まだ称号を取得していません。」の案内だけを返す。
+// 【2026-08-29再設計・本人指示】このリストの役割は、フレンド詳細モーダルの主表示から
+// 「すべての称号を見る」の全件確認用。代表称号とは別の場所・別の目的の表示になったため、
+// ここでは代表称号の絞り込みは行わず、取得済みを全件そのまま表示する（上位称号の取得に
+// よって代表表示から省略された下位称号も、ここでは変わらず「取得済み」として確認できる。
+// 本人指示：「取得データ自体を消したり未取得扱いにしたりしない」）。
+// 「称号◯個」の個数バッジ（buildProfileCard・buildAchievementCountText）は、元から
+// フィルタしていないunlockedAchievementIds.lengthを使うため、この変更による影響はない。
+export function buildAchievedAchievementsList(unlockedAchievementIds) {
+  const container = document.createElement("div");
+
+  if (unlockedAchievementIds.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "fan-profile-achievement-empty";
+    empty.textContent = "まだ称号を取得していません。";
+    container.appendChild(empty);
+    return container;
+  }
+
+  const unlockedSet = new Set(unlockedAchievementIds);
+  ALL_ACHIEVEMENTS_BLOCKS.forEach((block) => {
+    const idsInBlock = block.ids.filter((id) => unlockedSet.has(id));
+    if (idsInBlock.length === 0) return;
+
+    const section = document.createElement("div");
+    section.className = "fan-profile-achievement-block";
+
+    const heading = document.createElement("p");
+    heading.className = "fan-profile-achievement-block-heading";
+    heading.textContent = block.label;
+    section.appendChild(heading);
+
+    const grid = document.createElement("div");
+    grid.className = "fan-profile-achievement-grid";
+    idsInBlock.forEach((id) => {
+      const card = buildAchievedCard(id);
+      if (card) grid.appendChild(card);
+    });
+    section.appendChild(grid);
+
+    container.appendChild(section);
+  });
+
+  return container;
+}
 
 // マスター系・裏チャレンジ系の称号に添える、シンプルな日本語タグ（本人指示：
 // 「変に英語のランク名などを新しく作る必要はない」）。ステップアップ系にはタグを付けない。
