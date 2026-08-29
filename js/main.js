@@ -212,7 +212,13 @@ import { needsOnboarding, initOnboardingScreen } from "./onboardingScreen.js";
 import { initGuideScreen, openGuideScreen } from "./guideScreen.js";
 import { initFanProfilesScreen, renderFanProfilesScreen } from "./fanProfilesScreen.js";
 import { initAdminBackupScreen, renderAdminBackupScreen } from "./adminBackupScreen.js";
-import { createRecoveryRequest, checkRecoveryRequestStatus, restoreFromBackup } from "./backupSync.js";
+import {
+  createRecoveryRequest,
+  checkRecoveryRequestStatus,
+  restoreFromBackup,
+  createTransferCode,
+  claimTransferCode,
+} from "./backupSync.js";
 import { syncPublicProfileIfEnabled } from "./publicProfileSync.js";
 import { getFavoriteSongIds } from "./favoriteSongs.js";
 import { getPlaylists } from "./playlists.js";
@@ -627,6 +633,18 @@ const adminBackupRefreshButtonElement = document.getElementById("admin-backup-re
 const adminBackupStatusElement = document.getElementById("admin-backup-status");
 const adminRecoveryRequestsListElement = document.getElementById("admin-recovery-requests-list");
 const adminBackupsListElement = document.getElementById("admin-backups-list");
+
+// データ管理画面の「機種変更・データ引き継ぎ」（2026-08-29新設）。
+const deviceTransferIssueButtonElement = document.getElementById("device-transfer-issue-button");
+const deviceTransferCodePanelElement = document.getElementById("device-transfer-code-panel");
+const deviceTransferCodeDisplayElement = document.getElementById("device-transfer-code-display");
+const deviceTransferCodeExpiryElement = document.getElementById("device-transfer-code-expiry");
+const deviceTransferCopyButtonElement = document.getElementById("device-transfer-copy-button");
+const deviceTransferCopyFeedbackElement = document.getElementById("device-transfer-copy-feedback");
+const deviceTransferIssueResultElement = document.getElementById("device-transfer-issue-result");
+const deviceTransferCodeInputElement = document.getElementById("device-transfer-code-input");
+const deviceTransferClaimButtonElement = document.getElementById("device-transfer-claim-button");
+const deviceTransferClaimResultElement = document.getElementById("device-transfer-claim-result");
 
 // データ管理画面の「データを復旧する」（2026-08-29新設）。
 const dataRecoveryRequestButtonElement = document.getElementById("data-recovery-request-button");
@@ -3644,6 +3662,66 @@ adminBackupLinkButtonElement.addEventListener("click", () => {
 adminBackupBackButtonElement.addEventListener("click", () => {
   playSfx(SFX_EVENTS.UI_BACK);
   navigateWithScrollMemory("fanProfiles");
+});
+
+// 「機種変更・データ引き継ぎ」（データ管理画面、2026-08-29新設）。管理者の承認を挟まず、
+// 旧端末を操作できる本人だけでその場で完結する引き継ぎ。js/backupSync.jsの
+// createTransferCode()/claimTransferCode()参照。
+deviceTransferIssueButtonElement.addEventListener("click", async () => {
+  playClickSound();
+  deviceTransferIssueButtonElement.disabled = true;
+  deviceTransferIssueResultElement.hidden = false;
+  deviceTransferIssueResultElement.textContent = "発行しています…";
+  deviceTransferCodePanelElement.hidden = true;
+
+  const result = await createTransferCode();
+  deviceTransferIssueButtonElement.disabled = false;
+
+  if (!result.ok) {
+    deviceTransferIssueResultElement.textContent = result.reason;
+    return;
+  }
+
+  deviceTransferIssueResultElement.hidden = true;
+  deviceTransferCodePanelElement.hidden = false;
+  deviceTransferCodeDisplayElement.textContent = result.code;
+  deviceTransferCodeExpiryElement.textContent = `有効期限：${new Date(result.expiresAt).toLocaleString("ja-JP")} まで（24時間）`;
+  deviceTransferCopyFeedbackElement.hidden = true;
+});
+
+deviceTransferCopyButtonElement.addEventListener("click", async () => {
+  playClickSound();
+  const code = deviceTransferCodeDisplayElement.textContent;
+  try {
+    await navigator.clipboard.writeText(code);
+    deviceTransferCopyFeedbackElement.hidden = false;
+    deviceTransferCopyFeedbackElement.textContent = "コピーしました";
+  } catch {
+    deviceTransferCopyFeedbackElement.hidden = false;
+    deviceTransferCopyFeedbackElement.textContent = "コピーに失敗しました。コードを長押しして手動で選択・コピーしてください";
+  }
+});
+
+deviceTransferClaimButtonElement.addEventListener("click", async () => {
+  playClickSound();
+  const code = deviceTransferCodeInputElement.value;
+  if (!code.trim()) return;
+
+  deviceTransferClaimButtonElement.disabled = true;
+  deviceTransferClaimResultElement.hidden = false;
+  deviceTransferClaimResultElement.textContent = "確認しています…";
+
+  const result = await claimTransferCode(code);
+  deviceTransferClaimButtonElement.disabled = false;
+
+  if (!result.ok) {
+    deviceTransferClaimResultElement.textContent = result.reason;
+    return;
+  }
+
+  deviceTransferClaimResultElement.textContent = `引き継ぎが完了しました（${result.displayName ?? "プレイヤー"}さんのデータ）。ホーム画面に戻ってご確認ください。`;
+  // 称号・自己ベスト等の表示を復元後の内容へ確実に合わせるため、ページを再読み込みする。
+  setTimeout(() => window.location.reload(), 2000);
 });
 
 // 「データを復旧する」（データ管理画面、2026-08-29新設）。称号・履歴・自己ベスト等の

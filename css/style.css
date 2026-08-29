@@ -7285,6 +7285,56 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   font-variant-numeric: tabular-nums;
 }
 
+/* 機種変更・データ引き継ぎ（2026-08-29新設）。① 発行する方／② 入力する方を
+   見た目でもはっきり2つに分けるための小見出し・区切り。 */
+.device-transfer-subsection {
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px dashed color-mix(in srgb, var(--color-primary) 20%, transparent);
+}
+
+.device-transfer-subsection:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.device-transfer-subsection-title {
+  margin: 0 0 6px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+}
+
+/* 引き継ぎコードは6桁の数字ではなく長い英数字のため、.data-recovery-code-displayの
+   大きな文字サイズのままだとはみ出す。ここだけ小さめの等幅寄りの表示に上書きする。 */
+.device-transfer-code-display {
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  word-break: break-all;
+  font-family: "SFMono-Regular", Consolas, monospace;
+}
+
+.device-transfer-warning {
+  color: var(--color-danger);
+  font-weight: 700;
+}
+
+.device-transfer-code-input {
+  display: block;
+  width: 100%;
+  margin: 8px 0;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1.5px solid color-mix(in srgb, var(--color-primary) 30%, transparent);
+  font-size: 0.85rem;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  background: var(--color-surface);
+  color: var(--color-text);
+  resize: vertical;
+}
+
 /* 管理者専用の削除ボタン付きカード行（2026-08-16追加）。button要素の中にbutton要素は
    置けないため、削除ボタンがあるときだけカード本体をこの行でラップして横に並べる。 */
 .fan-profile-card-row {

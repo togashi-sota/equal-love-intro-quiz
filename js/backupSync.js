@@ -51,6 +51,14 @@ const SCHEMA_VERSION = 1;
 const LOCAL_STORAGE_PREFIX = "equalLoveIntroQuiz.";
 const DEBOUNCE_MS = 4000; // 短時間の連続更新をまとめる待ち時間
 
+// 「機種変更・データ引き継ぎ」コード（2026-08-29新設）に使う文字集合。
+// 数字の0/1と紛らわしいO/I/L等を除いたCrockford Base32相当（32種類）を使うことで、
+// 256を32で割り切れる（256 % 32 === 0）ため、crypto.getRandomValues()の1バイトを
+// そのまま「32種類のどれか」に変換しても偏りが出ない。
+const TRANSFER_SECRET_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+const TRANSFER_SECRET_LENGTH = 20; // 32^20 通り（約100ビット相当）で、当てずっぽうは事実上不可能
+const TRANSFER_CODE_VALID_MS = 24 * 60 * 60 * 1000; // 有効期限24時間（本人指示）
+
 // バックアップ対象にする、localStorageキーの「論理名」（"equalLoveIntroQuiz."と
 // プレイヤー接頭辞を除いた部分）のパターン一覧。exactは完全一致、prefixは前方一致
 // （出題数・カテゴリ・ルール等の組み合わせでキー名が動的に変わるもの用）。
@@ -367,4 +375,136 @@ export async function restoreFromBackup(backupId) {
     console.warn("バックアップからの復元に失敗しました", error);
     return { ok: false, reason: "通信エラーにより復元できませんでした。しばらくしてからもう一度お試しください。" };
   }
+}
+
+// ---------------------------------------------------------------------------
+// 機種変更・データ引き継ぎ（2026-08-29新設）。管理者の承認を挟まず、
+// 「今この端末を操作している本人」だけで完結する自己完結型の引き継ぎ。
+// 【recoveryRequestsとの違い】管理者による「復旧を依頼する」（6桁コード→LINE等で
+// 管理者へ連絡→管理者が承認）とは別の仕組み。旧端末をまだ本人が操作できる場合の
+// 「ふつうの機種変更」用に、本人だけでその場で完結させる。旧端末が使えない・
+// サイトデータを先に消してしまった等の「事故」の場合は、今まで通り管理者経由の
+// 復旧を使う（js/backupSync.jsのcreateRecoveryRequest等、削除・変更していない）。
+//
+// 【安全設計】backups/{backupId}に、期限付き・1回限りの「合言葉」(secret)を1つだけ
+// 持たせる（firebase/database.rules.json参照）。
+// ・secretは長い（20文字・約100ビット相当）ランダム文字列で、backupId・UIDのどちらからも
+//   推測できない。第三者が知る手段は、コードそのものを見る以外に無い。
+// ・コード＝「backupId＋'.'＋secret」。新端末は、このコードをそのままコピー＆貼り付けで
+//   使う想定（backupIdやUIDという言葉自体はUI上には出さない）。
+// ・Firebase Rules側で「secretが保存済みの値と完全一致する場合だけ」currentUidの
+//   書き換えを許可し、書き換えと同時にusedAtを必ず記録する（以後、同じコードは
+//   二度と使えなくなる。Rules側の検証のためRules機能にハッシュ関数が無く、
+//   平文の完全一致で「正しいコードを知っていること」を確認する設計にしている）。
+// ・新しいコードを発行すると、古いsecretは上書きされて消えるため、常に「最後に発行した
+//   1つだけ」が有効になる。
+// ・新端末が引き継いだ瞬間、backups/{backupId}のcurrentUidが新端末のUIDに変わるため、
+//   旧端末は（追加のルールを足さなくても）既存の「currentUidが自分と一致する場合だけ
+//   書き込める」というルールにより、以後このバックアップへ書き込めなくなる
+//   （新旧端末のデータ競合を構造的に防ぐ）。
+
+// crypto.getRandomValues()を使い、TRANSFER_SECRET_LENGTH文字のランダムな合言葉を作る。
+function generateTransferSecret() {
+  const bytes = new Uint8Array(TRANSFER_SECRET_LENGTH);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (byte) => TRANSFER_SECRET_ALPHABET[byte % TRANSFER_SECRET_ALPHABET.length]).join("");
+}
+
+// 旧端末側：引き継ぎコードを新しく発行する。戻り値のcodeを、本人が新端末へ
+// コピー＆貼り付け等で伝える想定（この関数自体はLINE等の送信手段を持たない）。
+// 発行する前に必ず1回同期し直し、今のローカルの内容が確実にクラウドへ反映された
+// 状態でコードを発行する（発行直前の変更が引き継ぎに漏れないようにするため）。
+export async function createTransferCode() {
+  let database, ref, update, serverTimestamp, uid;
+  try {
+    const firebaseClient = await import("./firebaseClient.js");
+    const rtdb = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js");
+    database = firebaseClient.database;
+    ref = rtdb.ref;
+    update = rtdb.update;
+    serverTimestamp = rtdb.serverTimestamp;
+    await firebaseClient.authReady;
+    uid = firebaseClient.getCurrentUid();
+  } catch (error) {
+    console.warn("引き継ぎコードの準備に失敗しました", error);
+    return { ok: false, reason: "通信エラーにより引き継ぎコードを発行できませんでした。しばらくしてからもう一度お試しください。" };
+  }
+  if (!uid) return { ok: false, reason: "ログイン状態を確認できませんでした。通信環境をご確認のうえ、もう一度お試しください。" };
+
+  await syncNow();
+
+  const player = getActivePlayer();
+  const backupId = getOrCreateBackupId(player.playerId);
+  if (!backupId) return { ok: false, reason: "プレイヤー情報を取得できませんでした" };
+
+  const secret = generateTransferSecret();
+  const expiresAt = Date.now() + TRANSFER_CODE_VALID_MS;
+
+  try {
+    await update(ref(database, `backups/${backupId}/transfer`), {
+      secret,
+      createdAt: serverTimestamp(),
+      expiresAt,
+    });
+    return { ok: true, code: `${backupId}.${secret}`, expiresAt };
+  } catch (error) {
+    console.warn("引き継ぎコードの発行に失敗しました", error);
+    return { ok: false, reason: "通信エラーにより引き継ぎコードを発行できませんでした。しばらくしてからもう一度お試しください。" };
+  }
+}
+
+// 新端末側：引き継ぎコードを使って、このコードを発行した旧端末のバックアップを
+// この端末のものにし、そのままローカルへ復元する。
+// 【成功の仕組み】secretが一致する書き込みだけがFirebase Rules側で許可されるため、
+// この関数はまず「currentUidを自分に、secretを検証用にそのまま送り返す」書き込みを試み、
+// 通ればそのbackupIdは正式にこの端末のものになる。そのうえで既存のrestoreFromBackup()を
+// そのまま呼び出し、ローカルへの反映・以後の自動同期の継続までまとめて行う
+// （管理者経由の復旧と全く同じ最終処理を再利用する）。
+// 【途中で通信が切れた場合の救済】所有権の書き換え自体は成功したがローカルへの反映だけ
+// 失敗した場合、同じコードを再送信すると（既に使用済みのため）必ず失敗する。
+// そのため、書き込みに失敗した場合も念のためrestoreFromBackup()を試す。
+// 既にこの端末が持ち主になっていれば、そのまま復元に成功する。
+export async function claimTransferCode(rawCode) {
+  const trimmed = (rawCode ?? "").trim();
+  const dotIndex = trimmed.indexOf(".");
+  if (dotIndex <= 0 || dotIndex === trimmed.length - 1) {
+    return { ok: false, reason: "コードの形式が正しくありません。コピーした内容をそのまま貼り付けてください。" };
+  }
+  const backupId = trimmed.slice(0, dotIndex);
+  const secret = trimmed.slice(dotIndex + 1);
+
+  let database, ref, update, serverTimestamp, uid;
+  try {
+    const firebaseClient = await import("./firebaseClient.js");
+    const rtdb = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js");
+    database = firebaseClient.database;
+    ref = rtdb.ref;
+    update = rtdb.update;
+    serverTimestamp = rtdb.serverTimestamp;
+    await firebaseClient.authReady;
+    uid = firebaseClient.getCurrentUid();
+  } catch (error) {
+    console.warn("引き継ぎコードの確認に失敗しました", error);
+    return { ok: false, reason: "通信エラーによりデータを引き継げませんでした。しばらくしてからもう一度お試しください。" };
+  }
+  if (!uid) return { ok: false, reason: "ログイン状態を確認できませんでした。通信環境をご確認のうえ、もう一度お試しください。" };
+
+  try {
+    await update(ref(database), {
+      [`backups/${backupId}/currentUid`]: uid,
+      [`backups/${backupId}/transfer/secret`]: secret,
+      [`backups/${backupId}/transfer/usedAt`]: serverTimestamp(),
+    });
+  } catch (error) {
+    console.warn("引き継ぎコードでの認証に失敗しました（無効・期限切れ・使用済みの可能性があります）", error);
+  }
+
+  const result = await restoreFromBackup(backupId);
+  if (!result.ok) {
+    return {
+      ok: false,
+      reason: "このコードは無効か、有効期限切れ、またはすでに使用されています。旧端末で新しいコードを発行し直してください。",
+    };
+  }
+  return result;
 }

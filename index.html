@@ -578,16 +578,58 @@
         </details>
       </details>
 
-      <!-- 称号・プレイ履歴・自己ベスト等の自動クラウドバックアップからの復旧（2026-08-29新設）。
-           音源・歌詞と違い普段は本人が意識する必要のない機能（js/backupSync.jsが裏側で
-           自動的にバックアップし続ける）だが、サイトデータの削除・機種変更等で端末側の
-           データが失われてしまった場合だけ、ここから復旧を依頼できる。
-           折りたたみにして、データ管理の一番下・普段目に入らない位置に置く。 -->
-      <details class="data-management-section" id="data-recovery-section">
-        <summary>データを復旧する（称号・履歴・自己ベストが消えてしまった場合）</summary>
+      <!-- 機種変更・データ引き継ぎ（2026-08-29新設）。管理者の承認を挟まず、旧端末を
+           操作できる本人だけでその場で完結する引き継ぎ機能。音源・歌詞は対象外
+           （新端末側で従来どおりデータパックを読み込んでもらう）。
+           下の「データを復旧する」（管理者に依頼する方）とは別の入口として、
+           はっきり分けて置く（本人指示）。 -->
+      <details class="data-management-section" id="device-transfer-section">
+        <summary>機種変更・データ引き継ぎ</summary>
         <div class="lyrics-import-section">
           <p class="lyrics-import-caption">
-            称号・プレイ履歴・自己ベスト等は、普段プレイしているだけで自動的にバックアップされています。サイトデータの削除・機種変更等でこの端末のデータが消えてしまった場合、ここから復旧を依頼できます。
+            称号・プレイ履歴・自己ベスト・お気に入り・推しメンなどの記録を、今お使いの端末から新しい端末へ、その場でご自身だけで引き継げます（管理者の確認は不要です）。旧端末を操作できない・すでにデータが消えてしまった場合は、下の「データを復旧する」をお使いください。
+          </p>
+
+          <!-- 機種変更する方（旧端末側） -->
+          <div class="device-transfer-subsection">
+            <p class="device-transfer-subsection-title">① 機種変更する方（今お使いの端末で操作してください）</p>
+            <p class="lyrics-import-caption">下のボタンを押すと、引き継ぎ用のコードが表示されます。</p>
+            <button id="device-transfer-issue-button" class="secondary-button" type="button">引き継ぎコードを発行する</button>
+
+            <!-- 発行された引き継ぎコードの表示欄。発行に成功したときだけ表示する -->
+            <div id="device-transfer-code-panel" class="data-recovery-code-panel" hidden>
+              <p class="lyrics-import-caption">新しい端末で「② 新しい端末にデータを入れる方」を開き、このコードをそのまま入力（貼り付け）してください。</p>
+              <p id="device-transfer-code-display" class="data-recovery-code-display device-transfer-code-display"></p>
+              <p id="device-transfer-code-expiry" class="lyrics-import-caption"></p>
+              <p class="lyrics-import-caption device-transfer-warning">⚠️ このコードは他人には絶対に送らないでください。新しい端末にだけ伝えてください。</p>
+              <button id="device-transfer-copy-button" class="secondary-button" type="button">コードをコピーする</button>
+              <p id="device-transfer-copy-feedback" class="lyrics-import-result" hidden></p>
+            </div>
+
+            <p id="device-transfer-issue-result" class="lyrics-import-result" hidden></p>
+          </div>
+
+          <!-- 新しい端末にデータを入れる方（新端末側） -->
+          <div class="device-transfer-subsection">
+            <p class="device-transfer-subsection-title">② 新しい端末にデータを入れる方（この新しい端末で操作してください）</p>
+            <p class="lyrics-import-caption">旧端末で発行したコードを、下に貼り付けてください。</p>
+            <textarea id="device-transfer-code-input" class="device-transfer-code-input" rows="2" placeholder="旧端末で発行したコードを貼り付け"></textarea>
+            <button id="device-transfer-claim-button" class="secondary-button" type="button">コードを送信する</button>
+            <p id="device-transfer-claim-result" class="lyrics-import-result" hidden></p>
+          </div>
+        </div>
+      </details>
+
+      <!-- 称号・プレイ履歴・自己ベスト等の自動クラウドバックアップからの復旧（2026-08-29新設）。
+           音源・歌詞と違い普段は本人が意識する必要のない機能（js/backupSync.jsが裏側で
+           自動的にバックアップし続ける）だが、旧端末を操作できない・サイトデータを
+           先に消してしまった等の「事故」の場合だけ、管理者経由でここから復旧を依頼する。
+           折りたたみにして、データ管理の一番下・普段目に入らない位置に置く。 -->
+      <details class="data-management-section" id="data-recovery-section">
+        <summary>データを復旧する（旧端末が使えない・データが消えてしまった場合）</summary>
+        <div class="lyrics-import-section">
+          <p class="lyrics-import-caption">
+            旧端末がもう操作できない・サイトデータを先に消してしまった等、上の「機種変更・データ引き継ぎ」が使えない場合の緊急復旧です。管理者の確認が必要なため、少しお時間がかかります。
           </p>
           <button id="data-recovery-request-button" class="secondary-button" type="button">復旧を依頼する</button>
 
