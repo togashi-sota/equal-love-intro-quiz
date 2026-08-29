@@ -26,6 +26,7 @@
 # フォルダ構成はフラット（サブフォルダなし）のまま、ファイル名だけをZIPへ格納する
 # （data-packs/README.mdに書かれている、このプロジェクトのパック形式と同じ前提）。
 
+import re
 import sys
 import zipfile
 from pathlib import Path
@@ -33,6 +34,21 @@ from pathlib import Path
 DEV_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = DEV_DIR.parent
 DATA_PACKS_DIR = PROJECT_ROOT / "data-packs"
+
+# 配布物へ絶対に含めてはいけない「作業用ファイル」のパターン（2026-08-29追加）。
+# data-packs/full/はgenerate_full_pack.pyが毎回ゼロから作り直すため混入しないが、
+# data-packs/<シングル名>/（21st等）は手作業でファイルを置くフォルダのため、
+# 誤って歌詞パイプラインの作業ファイル（tools/lyrics-pipeline/run_forced_alignment.pyが
+# 作る*-alignment.txt）やバックアップファイル（*.bak-タイムスタンプ）をコピーしてしまっても、
+# ZIPに巻き込まれないよう安全側で除外する。
+EXCLUDED_FILE_PATTERNS = [
+    re.compile(r"-alignment\.txt$"),
+    re.compile(r"\.bak-\d"),
+]
+
+
+def is_excluded_working_file(file_path):
+    return any(pattern.search(file_path.name) for pattern in EXCLUDED_FILE_PATTERNS)
 
 
 def main():
@@ -48,7 +64,15 @@ def main():
 
     # .gitkeepだけのフォルダ（＝実データがまだ投入されていない）でZIPを作っても
     # 意味が無いため、事前に気付けるよう警告する。
-    source_files = [f for f in source_dir.iterdir() if f.is_file() and f.name != ".gitkeep"]
+    all_files = [f for f in source_dir.iterdir() if f.is_file() and f.name != ".gitkeep"]
+
+    excluded_files = [f for f in all_files if is_excluded_working_file(f)]
+    source_files = [f for f in all_files if not is_excluded_working_file(f)]
+    if excluded_files:
+        print(f"[注意] 作業用ファイルと判断し、ZIPから除外しました（{len(excluded_files)}件）:")
+        for f in excluded_files:
+            print(f"  - {f.name}")
+
     if not source_files:
         print(f"[警告] {source_dir} には.gitkeep以外のファイルがありません。先にパックを組み立ててください。")
         sys.exit(1)
