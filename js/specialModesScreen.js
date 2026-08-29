@@ -55,6 +55,21 @@ export const SPECIAL_MODES = [
     description: "ルームを作って、離れた場所の友達と対戦できます",
     available: true,
   },
+  // 2026-08-30追加：アウトロクイズ・一瞬チャレンジ（本人指示）。
+  {
+    id: "outroQuiz",
+    title: "アウトロクイズ",
+    description: "曲の最後5秒を聞いて曲名を当てます",
+    available: true,
+    isNew: true,
+  },
+  {
+    id: "instantChallenge",
+    title: "一瞬チャレンジ",
+    description: "曲のごく一瞬（1.5〜0.5秒）だけを聞いて曲名を当てる高難度モードです",
+    available: true,
+    isNew: true,
+  },
 ];
 
 // この画面が使うDOM要素一式。initSpecialModesScreen()で受け取って保持する。
@@ -94,6 +109,16 @@ export function buildAvailableCard(mode) {
   content.appendChild(description);
 
   tapTarget.appendChild(content);
+
+  // 【2026-08-30追加、本人指示】新しく追加したモードにだけ「NEW」表示を添える。
+  // 恒久的な仕組みではなく、mode.isNewをtrueにしたモードだけに出る簡易な目印
+  // （本人が今後手動でisNewを外すことを想定。自動で消える仕組みは持たせない）。
+  if (mode.isNew) {
+    const newBadge = document.createElement("span");
+    newBadge.className = "special-mode-card-new-badge";
+    newBadge.textContent = "NEW";
+    tapTarget.appendChild(newBadge);
+  }
 
   // プレイ履歴カードと同じ、「タップで進める」ことを示すシェブロン。
   const chevron = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -178,6 +203,10 @@ export const HOME_SPECIAL_MODES_ORDER = [
   "liveCallMode",
   "weakSongs",
   "localBattle",
+  // 2026-08-30追加：アウトロクイズ・一瞬チャレンジ（本人指示）。既存8モードの並びを崩さず、
+  // 末尾に追加する。
+  "outroQuiz",
+  "instantChallenge",
 ];
 
 function renderHomeSpecialModesGrid() {

@@ -71,6 +71,8 @@ const BACKUP_KEY_EXACT_NAMES = [
   "timeAttackHistory", // タイムアタック履歴（js/timeAttackHistory.js）
   "weakSongStats", // 苦手曲判定用データ（js/weakSongStats.js）
   "lyricsQuizWeakSongStats", // 苦手曲判定用データ（歌詞クイズ専用、js/lyricsQuizWeakSongStats.js）
+  "instantChallengeWeakSongStats", // 苦手曲判定用データ（一瞬チャレンジ専用、js/instantChallengeWeakSongStats.js。2026-08-30追加）
+  "instantChallengeClears", // 一瞬チャレンジのクリア済み条件（js/instantChallengeClearStore.js。2026-08-30追加）
   "rankingCandidateBest", // ランキング参加条件を満たした自己ベスト（js/rankingCandidateStore.js）
   "oshiMembers", // 推しメン・最推し（js/oshiMembers.js）
   "favoriteSongs", // お気に入り曲（js/favoriteSongs.js）

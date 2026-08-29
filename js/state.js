@@ -238,7 +238,12 @@ export function recordAnswer(resultType, pointsEarned, elapsedMs) {
   // ここでは対象外にする（苦手曲モード自身の結果が苦手曲判定にフィードバックされて
   // しまうのを防ぐため）。resultTypeが"skip"・"reveal"の場合も、getMissedSongs()と同じく
   // 「間違えた」扱いとしてattemptsだけを積む（correctは増やさない）。
-  if (gameState.playMode === "normal") {
+  // 【2026-08-30追加、本人指示】アウトロクイズ（playMode:"special"・specialModeId:"outroQuiz"）は
+  // 「通常クイズに近い」位置づけのため、既存の苦手曲モード（js/weakSongStats.js、
+  // イントロ・ランダム再生と合算）へそのまま合流させる。一瞬チャレンジは、歌詞クイズと同様
+  // gameStateを経由しない独立した進行のため（js/instantChallengeScreen.js参照）、ここでは扱わない。
+  const isOutroQuiz = gameState.playMode === "special" && gameState.specialModeId === "outroQuiz";
+  if (gameState.playMode === "normal" || isOutroQuiz) {
     recordWeakSongAttempt(question.song.id, resultType === "correct");
   }
 }

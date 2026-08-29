@@ -40,6 +40,25 @@
 # 生成後に手作業でjs/data/audioMetadata.jsへ追記されていたため、このスクリプトを
 # 再実行した際に消えてしまう不具合があった。この関数もテンプレートへ含めるよう修正した
 # （再実行しても失われない）。
+#
+# 【2026-08-30追加】アウトロクイズ（曲の最後5秒を聞いて曲名を当てるモード）用に、
+# 「実際に音が鳴っている状態で終わる5秒間」の開始位置（outroStartSec）も、
+# このスクリプトでまとめて計測するようにした。
+#
+# 単純に「曲の長さ-5秒」を再生開始位置にすると、フェードアウト・末尾の無音のせいで
+# 「アウトロクイズを始めたら無音しか流れない」という事故が起こりうる。これを防ぐため、
+# ffmpegの`silencedetect`フィルター（曲の音量を解析し、無音区間を検出する機能。
+# 新たにライブラリをpip installする必要はなく、既存のffmpeg依存だけで動く）を使い、
+# 曲の終わり側で「無音のまま曲が終わっている区間」を検出し、そこを避けた5秒間を
+# 逆算する。具体的には：
+#   1. silencedetectで検出された無音区間のうち、最後の「無音開始」時刻を見る
+#   2. その無音が曲の終わりまで続いている（＝末尾の無音・フェードアウト）と判断できれば、
+#      「無音が始まる時刻」を「実際に音が鳴っている部分の終わり」とみなす
+#   3. そこから5秒さかのぼった時刻を outroStartSec とする（無音区間には絶対に入らない）
+#   4. 曲の途中に短い無音（ブレイク等）があっても、それが「最後の無音区間」でなければ
+#      （＝その後にまだ音が鳴る部分が続くなら）影響しない
+# 誤判定を検知しやすくするため、計算結果が不自然な値（曲の長さに対して短すぎる等）の
+# 場合は警告を出し、値自体はそのまま採用する（このあと人が目視で曲を実際に確認できるように）。
 
 import re
 import subprocess
@@ -58,6 +77,17 @@ SUSPICIOUSLY_SHORT_SEC = 10.0
 SUSPICIOUSLY_LONG_SEC = 600.0  # 10分。既存81曲の最長でも数分程度のため、十分な余裕を持たせた閾値
 
 DURATION_DECIMAL_PLACES = 3
+
+# アウトロ検出用の設定。
+OUTRO_WINDOW_SEC = 5.0  # アウトロクイズの再生時間（本人指示：5秒固定）
+SILENCE_NOISE_THRESHOLD_DB = "-40dB"  # これより静かな区間を「無音」とみなす
+SILENCE_MIN_DURATION_SEC = 0.3  # これより短い静かな区間は無視する（曲中の一瞬の間等と区別）
+# 「末尾の無音」とみなすため、無音の終了時刻がファイルの終わりからこの秒数以内なら
+# 「曲の最後まで無音が続いている」と判断する（ffmpegの解析誤差・ID3タグ分の余白を考慮）。
+TRAILING_SILENCE_TOLERANCE_SEC = 0.5
+# outroStartSecが「曲の長さ - この秒数」より小さい（＝曲のかなり手前からしか鳴っていない）
+# 場合は、目視確認を促すため警告を出す（値自体はそのまま採用する）。
+SUSPICIOUSLY_LONG_TRAILING_SILENCE_SEC = 20.0
 
 
 def list_song_ids_from_songs_js():
@@ -108,6 +138,70 @@ def probe_duration_sec(mp3_path):
     return round(value, DURATION_DECIMAL_PLACES), None
 
 
+def detect_outro_start_sec(mp3_path, duration_sec):
+    """ffmpegのsilencedetectフィルターを使い、「実際に音が鳴っている状態で終わる
+    5秒間」の開始位置（秒）を計測する。末尾に無音・フェードアウトが無い曲は
+    duration_sec - OUTRO_WINDOW_SEC をそのまま返す。
+    戻り値: (outro_start_sec, 警告メッセージ or None)"""
+    try:
+        result = subprocess.run(
+            [
+                "ffmpeg",
+                "-i", str(mp3_path),
+                "-af", f"silencedetect=noise={SILENCE_NOISE_THRESHOLD_DB}:d={SILENCE_MIN_DURATION_SEC}",
+                "-f", "null",
+                "-",
+            ],
+            capture_output=True,
+            timeout=60,
+        )
+    except FileNotFoundError:
+        return None, "ffmpegコマンドが見つかりません（FFmpegがインストールされているか確認してください）"
+    except subprocess.TimeoutExpired:
+        return None, "ffmpegの実行がタイムアウトしました"
+
+    # silencedetectのログはstderrに出力される（-fオプションでの変換自体は正常終了しうるため、
+    # returncodeでは判定しない）。音源のID3タグに日本語（Shift-JIS等）が含まれている場合、
+    # 環境のデフォルト文字コード（Windowsではcp932）ではデコードに失敗することがあるため、
+    # 生のbytesで受け取ってUTF-8（decode不能な部分は無視）でデコードする
+    # （このログの内容自体は無音区間の秒数だけを正規表現で拾うため、文字化けしても影響しない）。
+    log = result.stderr.decode("utf-8", errors="ignore")
+
+    silence_starts = [float(m) for m in re.findall(r"silence_start:\s*(-?[\d.]+)", log)]
+    silence_ends = [float(m) for m in re.findall(r"silence_end:\s*(-?[\d.]+)", log)]
+
+    fallback = round(max(0.0, duration_sec - OUTRO_WINDOW_SEC), DURATION_DECIMAL_PLACES)
+
+    if not silence_starts:
+        # 無音区間が検出されなかった＝曲の最後まで実際に音が鳴っている。
+        return fallback, None
+
+    last_silence_start = silence_starts[-1]
+    # 対応するsilence_endが記録されているか（＝無音がファイルの途中で終わり、また音が
+    # 鳴り始めたか）を確認する。silence_startの数よりsilence_endの数が少なければ、
+    # 最後の無音はファイルの終わりまで続いた（＝silence_endが出力されないまま終了した）ことを意味する。
+    last_silence_is_trailing = len(silence_ends) < len(silence_starts)
+    if not last_silence_is_trailing:
+        # silence_endは記録されているが、それが曲の終わり近くであれば、
+        # 実質的に「最後まで無音（に近い状態）」とみなしてよい。
+        last_silence_end = silence_ends[-1]
+        last_silence_is_trailing = (duration_sec - last_silence_end) <= TRAILING_SILENCE_TOLERANCE_SEC
+
+    if not last_silence_is_trailing:
+        # 最後に検出された無音の後にも、まだ実際に音が鳴っている区間がある
+        # （曲中のブレイク等）＝末尾の無音ではないため、無視してよい。
+        return fallback, None
+
+    outro_start_sec = round(max(0.0, last_silence_start - OUTRO_WINDOW_SEC), DURATION_DECIMAL_PLACES)
+    warning = None
+    if duration_sec - outro_start_sec > OUTRO_WINDOW_SEC + SUSPICIOUSLY_LONG_TRAILING_SILENCE_SEC:
+        warning = (
+            f"末尾の無音区間が{duration_sec - last_silence_start:.1f}秒と長めです。"
+            "実際に曲を聴いて確認することをおすすめします。"
+        )
+    return outro_start_sec, warning
+
+
 def main():
     song_ids = list_song_ids_from_songs_js()
 
@@ -118,8 +212,11 @@ def main():
     orphan_audio = sorted(audio_id_set - set(song_ids))
 
     metadata = {}
+    outro_metadata = {}
     failed = []
     suspicious = []
+    outro_failed = []
+    outro_warnings = []
 
     for song_id in song_ids:
         if song_id in missing_audio:
@@ -133,10 +230,19 @@ def main():
             suspicious.append((song_id, duration_sec))
         metadata[song_id] = duration_sec
 
+        outro_start_sec, outro_message = detect_outro_start_sec(mp3_path, duration_sec)
+        if outro_start_sec is None:
+            outro_failed.append((song_id, outro_message))
+            continue
+        outro_metadata[song_id] = outro_start_sec
+        if outro_message:
+            outro_warnings.append((song_id, outro_message))
+
     # ===== 結果の報告 =====
     print(f"songs.js登録曲数: {len(song_ids)}件")
     print(f"assets/audio/local/内のmp3ファイル数: {len(audio_files)}件")
     print(f"durationSecを生成できた曲: {len(metadata)}件")
+    print(f"outroStartSecを生成できた曲: {len(outro_metadata)}件")
 
     if missing_audio:
         print(f"\n[警告] 音源ファイルが見つからない曲（{len(missing_audio)}件、durationSecは生成されません）:")
@@ -158,6 +264,16 @@ def main():
         for song_id, duration_sec in suspicious:
             print(f"  - {song_id}: {duration_sec}秒")
 
+    if outro_failed:
+        print(f"\n[エラー] outroStartSecの取得に失敗した曲（{len(outro_failed)}件）:")
+        for song_id, error in outro_failed:
+            print(f"  - {song_id}: {error}")
+
+    if outro_warnings:
+        print(f"\n[注意] アウトロの無音区間が長めだった曲（{len(outro_warnings)}件、目視確認推奨・値はそのまま採用）:")
+        for song_id, warning in outro_warnings:
+            print(f"  - {song_id}: {warning}")
+
     # ===== js/data/audioMetadata.js の生成 =====
     # song_idsの記載順（songs.jsの並び順）をそのまま使うため、同じ入力（同じsongs.js・
     # 同じ音源ファイル群）に対しては、何度実行しても出力内容が1バイトも変わらない
@@ -171,12 +287,20 @@ def main():
     lines.append("// 【用途】ランダム再生クイズの「曲のどこから再生を始めるか」の乱数計算は、")
     lines.append("// 端末ごとにブレうるaudioElement.durationではなく、必ずこの固定値を使う")
     lines.append("// （詳細はjs/randomPlaybackEngine.js・HANDOFF.md 10-64章参照）。")
+    lines.append("//")
+    lines.append("// outroStartSec：アウトロクイズ（曲の最後5秒を聞いて当てるモード）用に、")
+    lines.append("// 「実際に音が鳴っている状態で終わる5秒間」の開始位置を機械計測した値。")
+    lines.append("// フェードアウト・末尾の無音を自動検出し、それを避けた位置になっている")
+    lines.append("// （ffmpegのsilencedetectフィルターで解析。詳細はこのスクリプト内のコメント参照）。")
+    lines.append("// 末尾の無音が検出されなかった曲は durationSec - 5 がそのまま入っている。")
     lines.append("export const AUDIO_METADATA = {")
     for song_id in song_ids:
         if song_id not in metadata:
             continue
         duration_sec = metadata[song_id]
-        lines.append(f'  "{song_id}": {{ durationSec: {duration_sec:.3f} }},')
+        outro_start_sec = outro_metadata.get(song_id)
+        outro_field = f", outroStartSec: {outro_start_sec:.3f}" if outro_start_sec is not None else ""
+        lines.append(f'  "{song_id}": {{ durationSec: {duration_sec:.3f}{outro_field} }},')
     lines.append("};")
     lines.append("")
     lines.append("// この曲の音源が実際に存在するかどうか（2026-08-17追加、本人指示）。")

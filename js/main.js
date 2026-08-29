@@ -32,6 +32,14 @@ import {
   buildQuestionsFromSongIds,
 } from "./quiz.js";
 import { playSongIntro, playSongFromRandomPosition, stopAudio } from "./audio.js";
+import {
+  initInstantChallengeSetupScreen,
+  initInstantChallengeQuestionScreen,
+  initInstantChallengeResultScreen,
+  startInstantChallengePlay,
+  renderInstantChallengeResult,
+  retryInstantChallengeRun,
+} from "./instantChallengeScreen.js";
 import { startTimer, stopTimer } from "./timer.js";
 import { calculateScore, calculateRank } from "./score.js";
 import { getHighScore, saveHighScoreIfBetter } from "./highscore.js";
@@ -1020,6 +1028,7 @@ const customQuizTypeSelectRandomPlaybackButtonElement = document.getElementById(
   "custom-quiz-type-select-random-playback"
 );
 const customQuizTypeSelectLyricsButtonElement = document.getElementById("custom-quiz-type-select-lyrics");
+const customQuizTypeSelectOutroButtonElement = document.getElementById("custom-quiz-type-select-outro");
 const customQuizPresetsEyebrowLabelElement = document.getElementById("custom-quiz-presets-eyebrow-label");
 const customQuizDistractorModeFieldsetElement = document.getElementById("custom-quiz-distractor-mode-fieldset");
 const customQuizAnswerPoolSizeFieldsetElement = document.getElementById("custom-quiz-answer-pool-size-fieldset");
@@ -1142,6 +1151,31 @@ const SPECIAL_MODES_DISPLAY = {
     quizQuitConfirmLabel: "セット一覧に戻る",
     onQuizBack: goToCustomQuizPresetsList,
   },
+  // 【2026-08-30追加、本人指示（⑦）】オリジナル問題作成モードのアウトロタイプ。
+  // customQuizRandomPlaybackとほぼ同じ内容だが、進捗表示の絵文字だけ🎬にして区別できるようにする。
+  customQuizOutro: {
+    eyebrowLabel: "ORIGINAL QUIZ",
+    progressPrefix: "🎬 オリジナル ",
+    resultNotice: "この結果は、自己ベスト・称号には反映されません",
+    backToListLabel: "オリジナル問題一覧に戻る",
+    onBackToList: goToCustomQuizPresetsList,
+    quizBackLabel: "セット一覧へ",
+    quizQuitTitle: "クイズを中断してオリジナル問題作成モードに戻りますか？",
+    quizQuitConfirmLabel: "セット一覧に戻る",
+    onQuizBack: goToCustomQuizPresetsList,
+  },
+  // 【2026-08-30追加、本人指示】アウトロクイズ。既存の#quiz-screen・#result-screenを
+  // そのまま再利用する（specialModeId経由の分岐だけで済む）。将来通常ランキングへ対応する際も、
+  // このエントリはそのまま残せる設計にしている。
+  outroQuiz: {
+    eyebrowLabel: "OUTRO QUIZ",
+    progressPrefix: "🎬 アウトロ ",
+    resultNotice: "この結果は、自己ベスト・称号には反映されません",
+    quizBackLabel: "アウトロクイズへ",
+    quizQuitTitle: "クイズを中断してアウトロクイズの設定画面に戻りますか？",
+    quizQuitConfirmLabel: "設定画面に戻る",
+    onQuizBack: () => navigateWithScrollMemory("outroQuizSetup"),
+  },
 };
 const quizBackButtonElement = document.getElementById("quiz-back-button");
 const quizBackButtonLabelElement = document.getElementById("quiz-back-button-label");
@@ -1151,6 +1185,33 @@ const quizQuitConfirmTitleElement = document.getElementById("quiz-quit-confirm-t
 const quizQuitCancelButtonElement = document.getElementById("quiz-quit-cancel-button");
 const quizQuitConfirmButtonElement = document.getElementById("quiz-quit-confirm-button");
 const quizQuitRestartButtonElement = document.getElementById("quiz-quit-restart-button");
+
+// 【2026-08-30追加】アウトロクイズの設定画面。
+const outroQuizSetupBackButtonElement = document.getElementById("outro-quiz-setup-back-button");
+const outroQuizStartButtonElement = document.getElementById("outro-quiz-start-button");
+const outroQuizStartErrorElement = document.getElementById("outro-quiz-start-error");
+
+// 一瞬チャレンジの設定・問題・結果画面。
+const instantChallengeSetupBackButtonElement = document.getElementById("instant-challenge-setup-back-button");
+const instantChallengeStartButtonElement = document.getElementById("instant-challenge-start-button");
+const instantChallengeStartErrorElement = document.getElementById("instant-challenge-start-error");
+const instantChallengeProgressElement = document.getElementById("instant-challenge-progress");
+const instantChallengeAnswerSearchRowElement = document.getElementById("instant-challenge-answer-search-row");
+const instantChallengeAnswerSearchInputElement = document.getElementById("instant-challenge-answer-search-input");
+const instantChallengeAnswerCountElement = document.getElementById("instant-challenge-answer-count");
+const instantChallengeAnswerListElement = document.getElementById("instant-challenge-answer-list");
+const instantChallengeBackButtonElement = document.getElementById("instant-challenge-back-button");
+const instantChallengeQuitConfirmModalElement = document.getElementById("instant-challenge-quit-confirm-modal");
+const instantChallengeQuitCancelButtonElement = document.getElementById("instant-challenge-quit-cancel-button");
+const instantChallengeQuitRestartButtonElement = document.getElementById("instant-challenge-quit-restart-button");
+const instantChallengeQuitConfirmButtonElement = document.getElementById("instant-challenge-quit-confirm-button");
+const instantChallengeResultHomeLinkElement = document.getElementById("instant-challenge-result-home-link");
+const instantChallengeResultClearBadgeElement = document.getElementById("instant-challenge-result-clear-badge");
+const instantChallengeResultCorrectCountElement = document.getElementById("instant-challenge-result-correct-count");
+const instantChallengeResultMissCountElement = document.getElementById("instant-challenge-result-miss-count");
+const instantChallengeResultBreakdownListElement = document.getElementById("instant-challenge-result-breakdown-list");
+const instantChallengeResultRetryButtonElement = document.getElementById("instant-challenge-result-retry-button");
+const instantChallengeResultSetupButtonElement = document.getElementById("instant-challenge-result-setup-button");
 const dataPackImportStatusElement = document.getElementById("data-pack-import-status");
 const dataPackImportInputElement = document.getElementById("data-pack-import-input");
 const dataPackImportResultElement = document.getElementById("data-pack-import-result");
@@ -1323,6 +1384,10 @@ initSpecialModesScreen({
       navigateWithScrollMemory("battleModeSelect");
     } else if (modeId === "onlineBattle") {
       navigateWithScrollMemory("onlineBattleEntry");
+    } else if (modeId === "outroQuiz") {
+      navigateWithScrollMemory("outroQuizSetup");
+    } else if (modeId === "instantChallenge") {
+      navigateWithScrollMemory("instantChallengeSetup");
     }
   },
   onShowHelp: openSpecialModeHelp,
@@ -1880,6 +1945,9 @@ customQuizTypeSelectRandomPlaybackButtonElement.addEventListener("click", () => 
 customQuizTypeSelectLyricsButtonElement.addEventListener("click", () => {
   selectCustomQuizTypeAndGoToPresets(CUSTOM_QUIZ_TYPE.LYRICS_QUIZ);
 });
+customQuizTypeSelectOutroButtonElement.addEventListener("click", () => {
+  selectCustomQuizTypeAndGoToPresets(CUSTOM_QUIZ_TYPE.OUTRO_QUIZ);
+});
 
 // プリセットの種類（preset.quizType）に応じて、3つの開始処理のうちどれを呼ぶかを振り分ける
 // 共通処理（2026-08-29追加、本人指示（⑭)）。「▶ プレイ」・プリセット詳細モーダルの
@@ -1899,6 +1967,10 @@ async function beginCustomQuizByPreset(preset) {
   }
   if (preset.quizType === CUSTOM_QUIZ_TYPE.RANDOM_PLAYBACK) {
     beginCustomRandomPlaybackQuiz(preset.songIds, preset.distractorMode);
+    return;
+  }
+  if (preset.quizType === CUSTOM_QUIZ_TYPE.OUTRO_QUIZ) {
+    beginCustomOutroQuiz(preset.songIds, preset.distractorMode);
     return;
   }
   beginCustomQuiz(preset.songIds, preset.distractorMode);
@@ -2011,6 +2083,30 @@ async function beginCustomQuiz(songIds, distractorMode) {
   const distractorPool = await filterSongsWithImportedAudio(distractorCategoryPool);
   const questions = buildQuestionsFromSongIds(questionSongIds, distractorPool);
   startSpecialQuiz(questions, String(questions.length), "customQuiz");
+  renderQuestion();
+  showScreen("quiz");
+}
+
+// オリジナル問題作成モード・アウトロタイプの開始処理（2026-08-30新設、本人指示）。
+// 曲の絞り込み・問題の組み立てはbeginCustomQuiz()と全く同じ（出題の仕組み自体はイントロと
+// 共通のため）。specialModeIdを"outroQuiz"にすることで、renderQuestion()側の再生位置の分岐
+// （js/main.jsのgameState.specialModeId参照）がアウトロ再生（曲の最後5秒）を使うようになる。
+async function beginCustomOutroQuiz(songIds, distractorMode) {
+  stopTimer();
+  stopAudio();
+  const selectedSongs = SONGS.filter((song) => songIds.includes(song.id));
+  const playableSelectedSongs = await filterSongsWithImportedAudio(selectedSongs);
+  const playableSongIds = playableSelectedSongs.map((song) => song.id);
+  const questionSongIds = playableSongIds.length > 0 ? playableSongIds : songIds;
+  const distractorCategoryPool = distractorMode === "selected" ? selectedSongs : filterSongsByCategory(SONGS, "all");
+  const distractorPool = await filterSongsWithImportedAudio(distractorCategoryPool);
+  const questions = buildQuestionsFromSongIds(questionSongIds, distractorPool);
+  // 【重要】specialModeIdは専用の"outroQuiz"（カテゴリー絞り込みの設定画面から始まった回、
+  // 通常クイズに近い扱いで苦手曲モードへ合流する）とは別の"customQuizOutro"にする
+  // （既存のcustomQuiz/customQuizRandomPlaybackと同じく、厳選した曲だけのプレイを
+  // 苦手曲判定へ混ぜないため。js/state.jsのrecordAnswer()参照）。再生ロジック自体は
+  // renderQuestion()側で両方とも同じアウトロ再生を使うようにしている。
+  startSpecialQuiz(questions, String(questions.length), "customQuizOutro");
   renderQuestion();
   showScreen("quiz");
 }
@@ -2134,6 +2230,10 @@ initCustomQuizScreen({
     }
     if (quizType === CUSTOM_QUIZ_TYPE.RANDOM_PLAYBACK) {
       beginCustomRandomPlaybackQuiz(songIds, distractorModeOrAnswerPoolSizeValue);
+      return;
+    }
+    if (quizType === CUSTOM_QUIZ_TYPE.OUTRO_QUIZ) {
+      beginCustomOutroQuiz(songIds, distractorModeOrAnswerPoolSizeValue);
       return;
     }
     beginCustomQuiz(songIds, distractorModeOrAnswerPoolSizeValue);
@@ -2648,6 +2748,9 @@ function updateQuizQuitDisplay() {
   quizQuitConfirmButtonElement.textContent = display?.quizQuitConfirmLabel ?? "タイトルに戻る";
 }
 
+// アウトロクイズの再生時間（本人指示：5秒固定）。
+const OUTRO_QUIZ_PLAY_DURATION_SEC = 5;
+
 // 今の問題の内容（進捗・4択の曲名）をクイズ画面に反映し、イントロ音源とタイマーを開始する。
 function renderQuestion() {
   updateQuizQuitDisplay();
@@ -2817,6 +2920,25 @@ function renderQuestion() {
       question.song,
       computeStartTimeSec,
       RANDOM_PLAYBACK_DEFAULTS.playDurationSec,
+      showAudioError,
+      markPlaybackStarted,
+      () => {}
+    );
+  } else if (
+    gameState.playMode === "special" &&
+    (gameState.specialModeId === "outroQuiz" || gameState.specialModeId === "customQuizOutro")
+  ) {
+    // 【2026-08-30新設、本人指示】アウトロクイズ：曲の最後5秒（無音・フェードアウトを
+    // 機械的に避けた位置、js/data/audioMetadata.jsのoutroStartSec参照）を再生する。
+    // この値が無い曲（音源はあるがまだdev/generate_audio_metadata.pyを再実行していない場合の
+    // 保険）は、単純に「曲の長さ-5秒」へフォールバックする。
+    const audioMeta = AUDIO_METADATA[question.song.id];
+    const computeStartTimeSec = (durationSec) =>
+      audioMeta?.outroStartSec ?? Math.max(0, durationSec - OUTRO_QUIZ_PLAY_DURATION_SEC);
+    playSongFromRandomPosition(
+      question.song,
+      computeStartTimeSec,
+      OUTRO_QUIZ_PLAY_DURATION_SEC,
       showAudioError,
       markPlaybackStarted,
       () => {}
@@ -3210,6 +3332,107 @@ async function beginQuiz(questionCountValue, categoryFilterValue) {
   showScreen("quiz");
 }
 
+// 【2026-08-30追加、本人指示】アウトロクイズ：曲の最後5秒だけを聞いて当てる、
+// 通常クイズに近いモード。beginQuiz()と全く同じ組み立て方（カテゴリ絞り込み→音源読み込み済み
+// フィルタ→4択生成）で、playMode:"special"・specialModeId:"outroQuiz"としてstartSpecialQuiz()を
+// 呼ぶ点だけが異なる（既存の#quiz-screen・#result-screenをそのまま再利用するため）。
+// startSpecialQuiz()はgameState.categoryFilterValueを常にnullに戻してしまう
+// （既存の苦手曲モード等と同じ設計）ため、「やり直す」でカテゴリを覚えておくために
+// このモジュール内だけで最後に選ばれた設定を保持しておく
+// （js/main.jsのgetLastStartedCustomQuizSelection()と同じ考え方）。
+let lastOutroQuizSelection = { questionCountValue: "5", categoryFilterValue: "title-track" };
+
+async function beginOutroQuiz(questionCountValue, categoryFilterValue) {
+  const categoryPool = filterSongsByCategory(SONGS, categoryFilterValue);
+  const pool = await filterSongsWithImportedAudio(categoryPool);
+  const errorMessage = validatePlayablePoolSize(pool);
+
+  if (errorMessage) {
+    outroQuizStartErrorElement.textContent = errorMessage;
+    outroQuizStartErrorElement.hidden = false;
+    return;
+  }
+
+  outroQuizStartErrorElement.hidden = true;
+  lastOutroQuizSelection = { questionCountValue, categoryFilterValue };
+  const questionCount = resolveQuestionCount(questionCountValue, pool.length);
+  const questions = buildQuizQuestions(pool, questionCount);
+  startSpecialQuiz(questions, questionCountValue, "outroQuiz");
+  renderQuestion();
+  showScreen("quiz");
+}
+
+outroQuizSetupBackButtonElement.addEventListener("click", () => {
+  playSfx(SFX_EVENTS.UI_BACK);
+  navigateWithScrollMemory("specialModes");
+});
+
+outroQuizStartButtonElement.addEventListener("click", () => {
+  playSfx(SFX_EVENTS.GAME_START);
+  const questionCountValue = document.querySelector('input[name="outro-quiz-question-count"]:checked').value;
+  const categoryFilterValue = document.querySelector('input[name="outro-quiz-category-filter"]:checked').value;
+  beginOutroQuiz(questionCountValue, categoryFilterValue);
+});
+
+// 【2026-08-30追加】一瞬チャレンジ：設定・問題・結果画面の初期化・画面遷移の配線。
+// 実際の進行ロジック（回答候補生成・採点・クリア判定）はjs/instantChallengeScreen.jsに任せ、
+// ここでは既存の他モードと同じく「画面遷移だけ」を担当する。
+initInstantChallengeSetupScreen({
+  startButton: instantChallengeStartButtonElement,
+  startError: instantChallengeStartErrorElement,
+  onStart: () => {
+    showScreen("instantChallengeQuestion");
+    startInstantChallengePlay();
+  },
+});
+
+initInstantChallengeQuestionScreen({
+  progress: instantChallengeProgressElement,
+  answerSearchRow: instantChallengeAnswerSearchRowElement,
+  answerSearchInput: instantChallengeAnswerSearchInputElement,
+  answerCount: instantChallengeAnswerCountElement,
+  answerList: instantChallengeAnswerListElement,
+  backButton: instantChallengeBackButtonElement,
+  quitConfirmModal: instantChallengeQuitConfirmModalElement,
+  quitCancelButton: instantChallengeQuitCancelButtonElement,
+  quitRestartButton: instantChallengeQuitRestartButtonElement,
+  quitConfirmButton: instantChallengeQuitConfirmButtonElement,
+  onQuit: () => navigateWithScrollMemory("instantChallengeSetup"),
+  onFinish: () => {
+    renderInstantChallengeResult();
+    showScreen("instantChallengeResult");
+  },
+});
+
+initInstantChallengeResultScreen({
+  correctCount: instantChallengeResultCorrectCountElement,
+  missCount: instantChallengeResultMissCountElement,
+  clearBadge: instantChallengeResultClearBadgeElement,
+  breakdownList: instantChallengeResultBreakdownListElement,
+});
+
+instantChallengeSetupBackButtonElement.addEventListener("click", () => {
+  playSfx(SFX_EVENTS.UI_BACK);
+  navigateWithScrollMemory("specialModes");
+});
+
+instantChallengeResultHomeLinkElement.addEventListener("click", () => {
+  playClickSound();
+  navigateWithScrollMemory("start");
+});
+
+instantChallengeResultRetryButtonElement.addEventListener("click", async () => {
+  playClickSound();
+  showScreen("instantChallengeQuestion");
+  await retryInstantChallengeRun();
+  startInstantChallengePlay();
+});
+
+instantChallengeResultSetupButtonElement.addEventListener("click", () => {
+  playClickSound();
+  navigateWithScrollMemory("instantChallengeSetup");
+});
+
 // スタートボタンを押したときの処理。今選ばれている出題数・カテゴリを読み取って開始する。
 document.getElementById("start-button").addEventListener("click", () => {
   // 「専用イベントがあるボタンでは、汎用クリック音と二重に鳴らさない」方針により、
@@ -3246,6 +3469,14 @@ function retrySpecialQuiz() {
     // 「もう一度挑戦する」・「やり直す」。
     const { songIds, distractorMode } = getLastStartedCustomQuizSelection();
     beginCustomRandomPlaybackQuiz(songIds, distractorMode);
+  } else if (gameState.specialModeId === "outroQuiz") {
+    // 【2026-08-30追加、本人指示】アウトロクイズの「もう一度挑戦する」・「やり直す」。
+    beginOutroQuiz(lastOutroQuizSelection.questionCountValue, lastOutroQuizSelection.categoryFilterValue);
+  } else if (gameState.specialModeId === "customQuizOutro") {
+    // 【2026-08-30追加、本人指示（⑦）】オリジナル問題作成モード・アウトロタイプの
+    // 「もう一度挑戦する」・「やり直す」。
+    const { songIds, distractorMode } = getLastStartedCustomQuizSelection();
+    beginCustomOutroQuiz(songIds, distractorMode);
   }
 }
 

@@ -13,8 +13,9 @@ import { assertEqual } from "./test-utils.js";
 export function runSpecialModesScreenTests() {
   const specialModeIds = SPECIAL_MODES.map((mode) => mode.id);
 
-  // ---- ホーム画面には必ず8件並べる（2列×4段の指定を満たすため） ----
-  assertEqual(HOME_SPECIAL_MODES_ORDER.length, 8, "ホーム画面の特別モードはちょうど8件");
+  // ---- ホーム画面には必ず10件並べる（2列×4段＋アウトロクイズ・一瞬チャレンジの
+  //      2段追加、2026-08-30改訂） ----
+  assertEqual(HOME_SPECIAL_MODES_ORDER.length, 10, "ホーム画面の特別モードはちょうど10件");
 
   // ---- 重複がないこと（同じモードが2度表示されるのを防ぐ） ----
   const uniqueIds = new Set(HOME_SPECIAL_MODES_ORDER);
@@ -26,11 +27,15 @@ export function runSpecialModesScreenTests() {
     assertEqual(specialModeIds.includes(modeId), true, `HOME_SPECIAL_MODES_ORDERの"${modeId}"はSPECIAL_MODESに存在する`);
   });
 
-  // ---- 本人指定の並び順どおりであること ----
+  // ---- 本人指定の並び順どおりであること（2026-08-30改訂：末尾にアウトロクイズ・
+  //      一瞬チャレンジを追加、既存8モードの並びは変更しない） ----
   assertEqual(
     HOME_SPECIAL_MODES_ORDER.join(","),
-    ["randomPlayback", "lyricsQuiz", "timeAttack", "onlineBattle", "originalQuiz", "liveCallMode", "weakSongs", "localBattle"].join(","),
-    "ホーム画面の並び順が指定通り（1段目:ランダム再生クイズ/歌詞クイズ、2段目:タイムアタック/オンライン対戦、3段目:オリジナル問題作成モード/ライブコールモード、4段目:苦手曲モード/対戦モード）"
+    [
+      "randomPlayback", "lyricsQuiz", "timeAttack", "onlineBattle", "originalQuiz", "liveCallMode", "weakSongs", "localBattle",
+      "outroQuiz", "instantChallenge",
+    ].join(","),
+    "ホーム画面の並び順が指定通り（1〜4段目は既存のまま、5段目にアウトロクイズ/一瞬チャレンジを追加）"
   );
 
   // ---- 特別モード8個すべてにアイコン要素が存在する ----

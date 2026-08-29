@@ -33,6 +33,8 @@ const QUIZ_TYPE_EYEBROW_LABELS = {
   [CUSTOM_QUIZ_TYPE.INTRO]: "ORIGINAL QUIZ・イントロ",
   [CUSTOM_QUIZ_TYPE.RANDOM_PLAYBACK]: "ORIGINAL QUIZ・ランダム再生",
   [CUSTOM_QUIZ_TYPE.LYRICS_QUIZ]: "ORIGINAL QUIZ・歌詞クイズ",
+  // 2026-08-30追加、本人指示：アウトロクイズタイプ。
+  [CUSTOM_QUIZ_TYPE.OUTRO_QUIZ]: "ORIGINAL QUIZ・アウトロ",
 };
 
 // プリセットカード・詳細モーダルに表示する「◯曲・◯◯」の内訳。歌詞クイズタイプだけ

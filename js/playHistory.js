@@ -224,6 +224,8 @@ export const HISTORY_FILTER_CATEGORY = {
   // （⑭）。エンジンに応じてそれぞれのフィルターへ分類する。
   customQuizRandomPlayback: "randomPlayback",
   customQuizLyrics: "lyricsQuiz",
+  // 2026-08-30追加：オリジナル問題作成モードのアウトロタイプ（本人指示⑦）。
+  customQuizOutro: "intro",
   timeAttack: "timeAttack",
   timeAttackRandomPlayback: "timeAttack",
   randomPlayback: "randomPlayback",
@@ -232,6 +234,10 @@ export const HISTORY_FILTER_CATEGORY = {
   onlineTimeAttack: "battle",
   onlineRandomPlayback: "battle",
   onlineLyricsQuiz: "battle",
+  // 2026-08-30追加：アウトロクイズ（イントロ系のフィルターへ）・一瞬チャレンジ
+  // （ランダム再生系のフィルターへ、既存モードと見た目の近さで分類）。
+  outroQuiz: "intro",
+  instantChallenge: "randomPlayback",
 };
 
 export const HISTORY_FILTER_LABELS = {
@@ -265,6 +271,8 @@ export const HISTORY_MODE_DISPLAY = {
   // 専用アイコンは作らず、それぞれ対応するエンジンのiconKeyを再利用する。
   customQuizRandomPlayback: { label: "オリジナル問題（ランダム再生）", iconKey: "randomPlayback" },
   customQuizLyrics: { label: "オリジナル問題（歌詞）", iconKey: "lyricsQuiz" },
+  // 2026-08-30追加：オリジナル問題作成モードのアウトロタイプ（本人指示⑦）。
+  customQuizOutro: { label: "オリジナル問題（アウトロ）", iconKey: "outroQuiz" },
   customQuiz: { label: "オリジナル問題", iconKey: "originalQuiz" },
   timeAttack: { label: "タイムアタック", iconKey: "timeAttack" },
   timeAttackRandomPlayback: { label: "タイムアタック（ランダム再生）", iconKey: "timeAttack" },
@@ -272,6 +280,9 @@ export const HISTORY_MODE_DISPLAY = {
   onlineTimeAttack: { label: "オンライン対戦（イントロ）", iconKey: "onlineBattle" },
   onlineRandomPlayback: { label: "オンライン対戦（ランダム再生）", iconKey: "onlineBattle" },
   onlineLyricsQuiz: { label: "オンライン対戦（歌詞）", iconKey: "onlineBattle" },
+  // 2026-08-30追加：アウトロクイズ・一瞬チャレンジ。
+  outroQuiz: { label: "アウトロクイズ", iconKey: "outroQuiz" },
+  instantChallenge: { label: "一瞬チャレンジ", iconKey: "instantChallenge" },
 };
 
 // ===== 一覧カード・サマリー用の表示ヘルパー（純粋関数） =====
@@ -299,7 +310,9 @@ export function describeEntrySummaryLines(entry) {
   switch (entry.modeId) {
     case "intro":
     case "weakSongs":
-    case "customQuiz": {
+    case "customQuiz":
+    case "outroQuiz":
+    case "customQuizOutro": {
       lines.push([questionCountLabel, scopeLabel].filter(Boolean).join("・"));
       const scoreText = entry.score !== null ? `・${entry.score}点` : "";
       const averageText = formatResponseSeconds(entry.averageResponseMs);
@@ -318,6 +331,12 @@ export function describeEntrySummaryLines(entry) {
           ? `${entry.correctCount}/${entry.questionCount}問正解${averageText ? `・平均${averageText}` : ""}`
           : "途中で終了"
       );
+      break;
+    }
+    case "instantChallenge": {
+      lines.push([questionCountLabel, scopeLabel].filter(Boolean).join("・"));
+      const clearText = entry.details?.isCleared ? "🎉 クリア" : "";
+      lines.push(`${entry.correctCount}/${entry.questionCount}問正解${clearText ? `・${clearText}` : ""}`);
       break;
     }
     case "lyricsQuiz": {

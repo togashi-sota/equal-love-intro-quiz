@@ -80,6 +80,18 @@ const ICON_DEFINITIONS = {
       '<ellipse cx="12" cy="12" rx="4" ry="9" fill="none" stroke="currentColor" stroke-width="1.6"/>' +
       '<path d="M3.5 9h17M3.5 15h17" stroke="currentColor" stroke-width="1.6"/>',
   },
+  outroQuiz: {
+    // 2026-08-30追加：アウトロクイズ。右肩下がりに小さくなる音符＝「曲の終わり」を象徴する。
+    viewBox: "0 0 24 24",
+    markup:
+      '<path d="M6 16.5V6l12-2.5v9" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>' +
+      '<circle cx="4" cy="17" r="2.4"/><circle cx="16" cy="14.5" r="1.7"/>',
+  },
+  instantChallenge: {
+    // 2026-08-30追加：一瞬チャレンジ。稲妻＝「一瞬」を象徴する。
+    viewBox: "0 0 24 24",
+    markup: '<path d="M13 2 4 14h6l-1 8 10-13h-6l1-7Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>',
+  },
 };
 
 // 特別モード1件分の、色付き丸背景アイコンを組み立てる。装飾目的のみ（本人指示：

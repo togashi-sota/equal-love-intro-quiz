@@ -77,6 +77,10 @@ export const CUSTOM_QUIZ_TYPE = {
   INTRO: "intro",
   RANDOM_PLAYBACK: "randomPlayback",
   LYRICS_QUIZ: "lyricsQuiz",
+  // 2026-08-30追加、本人指示：アウトロクイズタイプ。出題の仕組み自体はイントロと共通
+  // （ダミー選択肢を使う4択）で、既存のcustomQuizScreen.jsのisLyrics判定にも影響しない
+  // （LYRICS_QUIZではない値のため、自動的にイントロと同じ扱いになる）。
+  OUTRO_QUIZ: "outroQuiz",
 };
 
 // 保存済みデータ（古い形式を含む）を、常に完全な形へ正規化する。

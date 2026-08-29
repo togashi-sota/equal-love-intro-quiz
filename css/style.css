@@ -6302,6 +6302,15 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   background: linear-gradient(155deg, #9db4ff, #6f8bf2);
 }
 
+/* 2026-08-30追加：アウトロクイズ・一瞬チャレンジ。 */
+.special-mode-icon.is-outroQuiz {
+  background: linear-gradient(155deg, #b7a0e8, #6f5aa8);
+}
+
+.special-mode-icon.is-instantChallenge {
+  background: linear-gradient(155deg, #ffe066, #f2a33f);
+}
+
 .special-mode-card.is-coming-soon .special-mode-icon {
   filter: grayscale(45%);
 }
@@ -6396,6 +6405,21 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 .special-mode-card.is-coming-soon {
   cursor: default;
   opacity: 0.55;
+}
+
+/* 【2026-08-30追加】新モードにだけ添える「NEW」表示。近日追加予定バッジ
+   （.special-mode-card-badge、直下）とは別クラスにし、赤系の目立つ色にする。 */
+.special-mode-card-new-badge {
+  flex: none;
+  align-self: flex-start;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--color-danger);
+  color: #ffffff;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
 }
 
 .special-mode-card-badge {
