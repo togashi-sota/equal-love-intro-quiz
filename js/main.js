@@ -5211,12 +5211,26 @@ updateCallGuideImportStatus();
 let pendingUpdateRegistration = null;
 let hasAppliedPendingUpdate = false;
 
+// 【2026-08-29追加、本人指示】自動更新が実際に適用された直後だけ、画面上部に
+// 「最新版に更新しました」と一度だけ知らせるための一時フラグ用のキー。
+// sessionStorageを使うのは、このすぐ後に走るwindow.location.reload()をまたいで
+// 値を持ち越したいが、それ以外の場面（新しいタブを開いた、次回アプリを開いた等）には
+// 一切持ち越したくないため。つまり「更新が無い通常起動」では絶対にこのフラグは立たない。
+const UPDATE_APPLIED_FLAG_KEY = "equalLoveIntroQuiz.updateJustApplied";
+
 // 更新の反映を試みる。ホーム画面にいるときだけ実際に反映し、それ以外の画面では何もしない
 // （呼び出し側は「今安全かどうか」を気にせず、何度でも安全にこの関数を呼べる）。
 function tryApplyPendingUpdate() {
   if (!pendingUpdateRegistration || hasAppliedPendingUpdate) return;
   if (document.body.dataset.screen !== "start") return;
   hasAppliedPendingUpdate = true;
+  // 実際にskipWaitingを送る＝本当にバージョンが切り替わる瞬間なので、ここでだけ
+  // 「次の読み込みで更新完了バナーを出す」フラグを立てる。
+  try {
+    sessionStorage.setItem(UPDATE_APPLIED_FLAG_KEY, "1");
+  } catch {
+    // プライベートブラウジング等でsessionStorageが使えなくても、更新の適用自体は続行する
+  }
   pendingUpdateRegistration.waiting?.postMessage("skipWaiting");
 }
 
@@ -5279,6 +5293,31 @@ onScreenChange((screenName) => {
 });
 
 initServiceWorker();
+
+// 【2026-08-29追加、本人指示】ページ読み込み時に「直前の読み込みで自動更新を適用した」
+// フラグ（UPDATE_APPLIED_FLAG_KEY、tryApplyPendingUpdate()参照）が立っていれば、
+// 更新完了バナーを表示する。フラグは読み取った直後に消すので、その後の再読み込みや
+// 次回以降の通常起動では二度と表示されない（＝実際にバージョンが切り替わった、その1回だけ）。
+function showUpdateAppliedBannerIfNeeded() {
+  let updateWasJustApplied = false;
+  try {
+    updateWasJustApplied = sessionStorage.getItem(UPDATE_APPLIED_FLAG_KEY) === "1";
+    sessionStorage.removeItem(UPDATE_APPLIED_FLAG_KEY);
+  } catch {
+    // プライベートブラウジング等でsessionStorageが使えない環境では、通知自体を諦める
+    return;
+  }
+  if (!updateWasJustApplied) return;
+
+  const bannerElement = document.getElementById("update-applied-banner");
+  if (!bannerElement) return;
+  bannerElement.hidden = false;
+  setTimeout(() => {
+    bannerElement.hidden = true;
+  }, 10000);
+}
+
+showUpdateAppliedBannerIfNeeded();
 
 // キーボード操作対応。マウス・タップ操作は今まで通り使えるようにしたうえで、
 // 今表示されている画面に応じてキー入力を割り当てる。

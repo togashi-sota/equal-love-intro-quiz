@@ -81,6 +81,42 @@ body.has-fullscreen-lyrics-open {
   overflow: hidden;
 }
 
+/* ===== 自動更新の適用通知（2026-08-29新設） =====
+   Service Workerの自動更新が実際に適用された直後の1回の読み込みだけ表示する、
+   ピンク系の控えめな通知。押す操作は不要で、約10秒後にjs/main.js側が自動的にhidden属性を
+   付け直して消す。どの画面が表示中でも必ず見えるよう、game-frameの外・画面最上部に固定し、
+   Dynamic Island・ノッチのsafe areaぶんも確保する（クイズ画面のヘッダーと同じ考え方）。 */
+.update-applied-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50; /* モーダル（20）・センターお祝いポップアップより必ず手前に表示する */
+  padding: max(10px, env(safe-area-inset-top)) 16px 10px;
+  background: linear-gradient(120deg, var(--color-primary-dark), var(--color-primary));
+  color: #ffffff;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-align: center;
+  box-shadow: 0 4px 14px -4px rgba(255, 79, 150, 0.55);
+  animation: updateAppliedBannerEnter 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.update-applied-banner[hidden] {
+  display: none;
+}
+
+@keyframes updateAppliedBannerEnter {
+  from {
+    opacity: 0;
+    transform: translateY(-100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* ===== 背景演出 =====
    うっすらギンガムチェック・ステージライトのようににじむ光・ぼかしたレコード盤・キラキラの粒で、
    ＝LOVEらしい華やかさと音楽ゲームらしさを、カードの外側（背景）で表現する。 */
@@ -12746,10 +12782,14 @@ body[data-screen="onlineLyricsBattleQuestion"] .game-frame {
    下側にだけ残す方針に変更する（margin-top:固定値・margin-bottom:auto）。
    中身が画面に収まらない場合はmargin-bottom:autoが0になり、今までどおり上詰め＋
    .quiz-middle-zoneの内部スクロールへ自然に切り替わる（この安全側のフォールバックは
-   変更していない）。 */
+   変更していない）。
+   【2026-08-29四訂・本人指示】上のmargin-top:16pxでもまだ問題エリアが下すぎるとの
+   指摘があり、「戻る」ボタンの安全な位置はそのままに、問題エリアだけをさらに上へ
+   寄せるため8pxへ縮小した（「戻る」自体の余白は#quiz-screen.is-active側のpadding-topと
+   .quiz-back-link自身のpadding・margin-bottom:0で確保しており、ここでは変更していない）。 */
 .quiz-middle-zone-inner {
   width: 100%;
-  margin: 16px 0 auto;
+  margin: 8px 0 auto;
 }
 
 /* 回答ボタン・選択肢まわりはダブルタップズームだけ追加で防ぐ（カラオケ画面と同じ考え方）。 */
