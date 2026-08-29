@@ -218,75 +218,100 @@ export function buildAchievedAchievementsList(unlockedAchievementIds) {
   return container;
 }
 
-// ===== フレンドプロフィールの「代表称号」（2026-08-29新設・本人指示の再設計） =====
+// ===== フレンドプロフィールの「代表称号」（2026-08-29新設、2026-08-29再設計・本人指示） =====
 // ランキング順位などは一切使わず、称号だけでその人の実力感が伝わるようにする。
-// 「同じ系統は取得済みの中で最上位1個だけを代表候補にする」考え方は維持しつつ、対象を
-// ステップアップ（ビギナー→チャレンジャー→エース）だけでなく、対応するマスターへの道
-// （ノーミスマスター等）・裏チャレンジ（電光石火等）まで、1本の系統として拡張した。
-// 系統は、js/achievementDefinitions.jsの各モード（イントロ／ランダム再生／歌詞クイズ）に
-// 対応する形で、低→高の順に並べる。
+// 称号を3つのクイズ系統（イントロ／ランダム再生／歌詞クイズ）に分け、各系統は
+// 「ステップアップ（ビギナー→チャレンジャー→エース）→マスターへの道→裏チャレンジ」の
+// 低→高の順で並ぶ1本のはしごとして扱う。系統・称号IDの対応関係は
+// js/achievementDefinitions.jsの実際の定義（conditionText等）を確認したうえで、
+// 名前からの推測ではなくID同士の対応として組んでいる。
 const ACHIEVEMENT_SERIES = [
   ["intro_beginner", "intro_challenger", "intro_ace", "no_miss_master", "lightning_fast"],
   ["shuffle_beginner", "shuffle_challenger", "shuffle_ace", "full_chorus_master", "melody_ace"],
   ["lyric_beginner", "lyric_challenger", "lyric_ace", "song_master", "lyric_master"],
 ];
+// ACHIEVEMENT_SERIESの各行の中身（低→高）の並びを名前で参照するためのインデックス定数。
+const [TIER_BEGINNER, TIER_CHALLENGER, TIER_ACE, TIER_MASTER, TIER_BACK_CHALLENGE] = [0, 1, 2, 3, 4];
 
-// 系統内での難易度の目安（0＝ビギナー…4＝裏チャレンジ）。複合称号（＝LOVEマスター・
-// ＝LOVE完全制覇）はどの系統にも属さないが、単体の裏チャレンジ・マスター称号より
-// さらに上とみなし、系統の最大値より1つ上のCOMPOSITE_TIERを割り当てる。
-const SERIES_TIER_BY_ACHIEVEMENT_ID = new Map();
-ACHIEVEMENT_SERIES.forEach((seriesIdsLowToHigh) => {
-  seriesIdsLowToHigh.forEach((id, tierIndex) => SERIES_TIER_BY_ACHIEVEMENT_ID.set(id, tierIndex));
-});
-const COMPOSITE_TIER = ACHIEVEMENT_SERIES[0].length;
-
-// カテゴリーごとの優先順位（本人指示：「裏チャレンジ系 ＞ マスター系 ＞ ステップアップ系」）。
-// 数字が大きいほど価値が高く、代表称号の選出で優先される。
-const CATEGORY_PRIORITY = { backChallenge: 3, masterPath: 2, growth: 1 };
-
-// フレンドプロフィール上部に表示する、代表称号の最大件数（本人指示）。
-export const MAX_REPRESENTATIVE_ACHIEVEMENT_COUNT = 3;
+// クイズ系統の表示名（ACHIEVEMENT_SERIESと同じ順番＝イントロ／ランダム再生／歌詞クイズ）。
+// 「次のチャレンジ」案内文の組み立てに使う。
+const SERIES_QUIZ_NAMES = ["イントロクイズ", "ランダム再生クイズ", "歌詞クイズ"];
 
 // マスター系・裏チャレンジ系の称号に添える、シンプルな日本語タグ（本人指示：
 // 「変に英語のランク名などを新しく作る必要はない」）。ステップアップ系にはタグを付けない。
 const CATEGORY_TAG_LABELS = { masterPath: "マスター称号", backChallenge: "裏チャレンジ称号" };
 
-// フレンドプロフィールの代表称号候補を、価値の高い順（すべて）に並べて返す純粋関数。
-// 取得データ本体（unlockedAchievementIds）は一切変更しない。呼び出し側が最大3個に絞る。
+// フレンドプロフィールの代表称号を、表示順（本人指示・2026-08-29再設計）ですべて返す純粋関数。
+// 上限（最大3個等）は設けない：裏チャレンジ・マスターはどちらも難関のため、片方を持って
+// いるからもう片方が消えることは絶対にない。取得データ本体（unlockedAchievementIds）は
+// 一切変更しない。
 //
-// ①系統内は、取得済みの中で最上位1個以外を代表候補から除外する（例：イントロエース＋
-//   ノーミスマスター取得済みなら、ノーミスマスターだけが候補に残る）。
-// ②複合称号（＝LOVEマスター／＝LOVE完全制覇）を取得済みなら、その材料になった単体称号
-//   （compositeOf）も代表候補から除外する（例：＝LOVEマスター取得済みなら、単体の
-//   ノーミスマスター等は候補から外れ、＝LOVEマスターだけが残る）。
-// どちらも「代表表示からの除外」であり、unlockedAchievementIds自体は書き換えない
-// （本人指示：「イントロエースを未取得扱いにする・取得データを削除するという意味では
-// ない」）。
+// 系統（イントロ／ランダム再生／歌詞クイズ）ごとに、以下のルールで代表候補を決める：
+// ①裏チャレンジ称号を取得済みなら、必ず代表候補に含める。
+// ②マスターへの道の称号を取得済みなら、必ず代表候補に含める（①とは独立。両方あれば両方出す）。
+// ③裏チャレンジ・マスターのどちらも未取得の場合だけ、取得済みステップアップ称号のうち
+//   最も上位のもの1つを代表候補に含める（本人指示：どちらか一方でも取得済みなら、
+//   同じ系統のステップアップ称号はもう代表候補に出さない）。
+// 表示順は「①裏チャレンジ×3系統→②マスター×3系統→③ステップアップ×3系統（必要な場合のみ）」
+// に固定し、各グループ内はイントロ→ランダム再生→歌詞クイズの順（本人指示）。
+// ＝LOVEマスター・＝LOVE完全制覇（複合称号）は特定の系統に属さない別枠のため、
+// この代表称号システムには含めない（最大でも裏チャレンジ3＋マスター3＝6個、本人指示の
+// 上限例と一致する）。取得済みかどうかは「すべての称号を見る」で確認できる。
 export function getRepresentativeAchievementCandidates(unlockedAchievementIds) {
   const unlockedSet = new Set(unlockedAchievementIds);
-  const suppressedIds = new Set();
+  const backChallengeItems = [];
+  const masterItems = [];
+  const growthItems = [];
 
   ACHIEVEMENT_SERIES.forEach((seriesIdsLowToHigh) => {
-    const unlockedInSeries = seriesIdsLowToHigh.filter((id) => unlockedSet.has(id));
-    unlockedInSeries.slice(0, -1).forEach((id) => suppressedIds.add(id));
+    const backChallengeId = seriesIdsLowToHigh[TIER_BACK_CHALLENGE];
+    const masterId = seriesIdsLowToHigh[TIER_MASTER];
+    const hasBackChallenge = unlockedSet.has(backChallengeId);
+    const hasMaster = unlockedSet.has(masterId);
+
+    if (hasBackChallenge) backChallengeItems.push(getAchievementById(backChallengeId));
+    if (hasMaster) masterItems.push(getAchievementById(masterId));
+
+    if (!hasBackChallenge && !hasMaster) {
+      const growthIdsHighToLow = [
+        seriesIdsLowToHigh[TIER_ACE],
+        seriesIdsLowToHigh[TIER_CHALLENGER],
+        seriesIdsLowToHigh[TIER_BEGINNER],
+      ];
+      const topGrowthId = growthIdsHighToLow.find((id) => unlockedSet.has(id));
+      if (topGrowthId) growthItems.push(getAchievementById(topGrowthId));
+    }
   });
 
-  ACHIEVEMENTS.forEach((achievement) => {
-    if (!achievement.compositeOf || !unlockedSet.has(achievement.id)) return;
-    achievement.compositeOf.forEach((id) => suppressedIds.add(id));
-  });
+  return [...backChallengeItems, ...masterItems, ...growthItems].filter(Boolean);
+}
 
-  return [...unlockedSet]
-    .filter((id) => !suppressedIds.has(id))
-    .map((id) => getAchievementById(id))
-    .filter(Boolean)
-    .sort((a, b) => {
-      const categoryDiff = (CATEGORY_PRIORITY[b.category] ?? 0) - (CATEGORY_PRIORITY[a.category] ?? 0);
-      if (categoryDiff !== 0) return categoryDiff;
-      const tierA = SERIES_TIER_BY_ACHIEVEMENT_ID.get(a.id) ?? COMPOSITE_TIER;
-      const tierB = SERIES_TIER_BY_ACHIEVEMENT_ID.get(b.id) ?? COMPOSITE_TIER;
-      return tierB - tierA;
-    });
+// 各クイズ系統（イントロ／ランダム再生／歌詞クイズ）で、称号を1つでも取得しているかどうか。
+// 「次のチャレンジ」案内の判定に使う（本人指示：プレイ履歴ではなく取得済み称号の有無で
+// 判定する。「やったことがない」とは表示しない）。
+function getSeriesHasAnyAchievement(unlockedSet) {
+  return ACHIEVEMENT_SERIES.map((seriesIds) => seriesIds.some((id) => unlockedSet.has(id)));
+}
+
+// 「次のチャレンジ」案内カード（本人指示・2026-08-29追加）：3系統のうち称号0個の系統が
+// 1つでもあれば、その系統名を挙げて挑戦を促す。3系統すべてに1個以上あれば、呼び出し側が
+// このカード自体を呼ばない（本人指示：「そこから先はステップアップ・マスター・裏チャレンジを
+// 目指す現在の称号表示だけで十分」）。
+function buildNextChallengeCard(missingSeriesNames) {
+  const card = document.createElement("div");
+  card.className = "fan-profile-next-challenge";
+
+  const title = document.createElement("p");
+  title.className = "fan-profile-next-challenge-title";
+  title.textContent = "🎯 次のチャレンジ";
+  card.appendChild(title);
+
+  const text = document.createElement("p");
+  text.className = "fan-profile-next-challenge-text";
+  text.textContent = `${missingSeriesNames.join("・")}の称号にも挑戦してみよう！`;
+  card.appendChild(text);
+
+  return card;
 }
 
 // 獲得称号の総数テキスト（本人指示：「代表表示から除外された下位称号も、取得済みである
@@ -335,41 +360,58 @@ export function buildRepresentativeAchievementChip(achievement) {
   return chip;
 }
 
-// フレンドプロフィール上部の「ランク感」＋代表称号（最大3個）をまとめて組み立てる
-// （本人指示：称号0個／1〜2個／3個以上で見せ方を変える）。
-// ・0個：「これから挑戦！」＋案内文（未獲得称号は並べない）
-// ・1〜2個：「CHALLENGER」＋取得済みをそのまま表示（無理に3個まで埋めない）
-// ・3個以上：「代表称号」＋優先順位の高い3個を表示
+// フレンドプロフィール上部の「ランク感」＋代表称号（上限なし）＋「次のチャレンジ」を
+// まとめて組み立てる（本人指示・2026-08-29再設計：称号0個／1〜2個／3個以上で見せ方を
+// 変える。「1〜2個」「3個以上」は、js/fanProfileCard.jsのbuildAchievementCountTextと同じ
+// unlockedAchievementIds.length＝獲得称号の総数を基準にする）。
+// ・0個：「これから挑戦！」＋イントロクイズから始める案内（次のチャレンジカードは出さない。
+//   このメッセージ自体がその役割を兼ねる）
+// ・1〜2個：「CHALLENGER」＋取得済みの代表称号＋（未取得系統があれば）次のチャレンジ
+// ・3個以上：「代表称号」＋優先順位に沿った代表称号＋（未取得系統があれば）次のチャレンジ
+// 「次のチャレンジ」は、3系統（イントロ／ランダム再生／歌詞クイズ）のうち称号0個の系統が
+// 1つでもあれば表示し、3系統すべてに1個以上あれば表示しない（本人指示：CHALLENGER専用の
+// 機能にしない。称号3個以上でも未取得系統があれば表示する）。
 export function buildFriendAchievementSummary(unlockedAchievementIds) {
   const container = document.createElement("div");
   container.className = "fan-profile-achievement-summary";
 
-  const candidates = getRepresentativeAchievementCandidates(unlockedAchievementIds);
+  const unlockedSet = new Set(unlockedAchievementIds);
 
   const rankLabel = document.createElement("p");
   rankLabel.className = "fan-profile-rank-label";
   container.appendChild(rankLabel);
 
-  if (candidates.length === 0) {
+  if (unlockedAchievementIds.length === 0) {
     rankLabel.textContent = "これから挑戦！";
     rankLabel.classList.add("is-empty");
-    const hint = document.createElement("p");
-    hint.className = "fan-profile-rank-empty-hint";
-    hint.textContent = "クイズに挑戦して最初の称号を獲得しよう！";
-    container.appendChild(hint);
+    const hintLine1 = document.createElement("p");
+    hintLine1.className = "fan-profile-rank-empty-hint";
+    hintLine1.textContent = "まずはイントロクイズから挑戦してみよう！";
+    container.appendChild(hintLine1);
+    const hintLine2 = document.createElement("p");
+    hintLine2.className = "fan-profile-rank-empty-hint";
+    hintLine2.textContent = "慣れてきたらランダム再生クイズ・歌詞クイズにも挑戦！";
+    container.appendChild(hintLine2);
     return container;
   }
 
-  const isChallenger = candidates.length < MAX_REPRESENTATIVE_ACHIEVEMENT_COUNT;
+  const isChallenger = unlockedAchievementIds.length <= 2;
   rankLabel.textContent = isChallenger ? "CHALLENGER" : "代表称号";
   rankLabel.classList.add(isChallenger ? "is-challenger" : "is-representative");
 
+  const candidates = getRepresentativeAchievementCandidates(unlockedAchievementIds);
   const list = document.createElement("div");
   list.className = "fan-profile-representative-list";
-  candidates.slice(0, MAX_REPRESENTATIVE_ACHIEVEMENT_COUNT).forEach((achievement) => {
+  candidates.forEach((achievement) => {
     list.appendChild(buildRepresentativeAchievementChip(achievement));
   });
   container.appendChild(list);
+
+  const seriesHasAny = getSeriesHasAnyAchievement(unlockedSet);
+  const missingSeriesNames = SERIES_QUIZ_NAMES.filter((_name, index) => !seriesHasAny[index]);
+  if (missingSeriesNames.length > 0) {
+    container.appendChild(buildNextChallengeCard(missingSeriesNames));
+  }
 
   return container;
 }

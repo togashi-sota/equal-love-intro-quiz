@@ -11,7 +11,6 @@ import {
   buildAchievementCountText,
   buildRepresentativeAchievementChip,
   buildFriendAchievementSummary,
-  MAX_REPRESENTATIVE_ACHIEVEMENT_COUNT,
 } from "../js/fanProfileCard.js";
 import { getAchievementById } from "../js/achievementDefinitions.js";
 import { MEMBERS } from "../js/data/members.js";
@@ -277,27 +276,30 @@ export function runFanProfileCardTests() {
 
 // js/fanProfileCard.js の代表称号システム（2026-08-29新設・本人指示の再設計）のテスト。
 // 「ランキング順位は使わず、称号だけで実力感を伝える」フレンドプロフィール向けに、
-// getRepresentativeAchievementCandidates（代表候補の優先順位つき絞り込み）・
+// getRepresentativeAchievementCandidates（代表候補の絞り込み・並び替え）・
 // buildAchievementCountText（獲得称号総数）・buildRepresentativeAchievementChip（代表チップ）・
-// buildFriendAchievementSummary（ランク感＋代表最大3個のまとめ）を検証する。
+// buildFriendAchievementSummary（ランク感＋代表称号＋次のチャレンジのまとめ）を検証する。
 // 取得データ本体（unlockedAchievementIds配列）は変更せず、表示用の配列・DOMだけを
 // 組み立てる純粋関数であることを確認する。
+// 【2026-08-29再設計・本人指示】代表称号の最大3個キャップを廃止し、系統（イントロ／
+// ランダム再生／歌詞クイズ）ごとに「裏チャレンジ→取得していれば表示／マスター→取得して
+// いれば表示（両方あれば両方）／どちらも未取得ならステップアップ最上位を表示」という
+// ルールに変更した。
 export function runGetRepresentativeAchievementCandidatesTests() {
-  // ---- 1段階だけ取得：そのまま候補になる（圧縮の必要なし） ----
+  // ---- F：ステップアップのみ取得：そのまま候補になる（圧縮の必要なし） ----
   assertEqual(
     getRepresentativeAchievementCandidates(["intro_beginner"]).map((a) => a.id),
     ["intro_beginner"],
     "ビギナーだけ取得している場合はビギナーがそのまま代表候補になる"
   );
 
-  // ---- 3段階取得：系統内の最上位（エース）だけが候補に残る ----
+  // ---- 3段階取得：系統内の最上位（エース）だけが候補に残る（マスター・裏チャレンジが
+  //      どちらも未取得の間は、ステップアップの中で最上位1個だけを見せる） ----
   assertEqual(
     getRepresentativeAchievementCandidates(["intro_beginner", "intro_challenger", "intro_ace"]).map((a) => a.id),
     ["intro_ace"],
     "ビギナー〜エースまで取得済みなら、系統内の最上位エースだけが代表候補に残る"
   );
-
-  // ---- シャッフル系・リリック系でも同じ圧縮が働く（系統ごとに独立） ----
   assertEqual(
     getRepresentativeAchievementCandidates(["shuffle_beginner", "shuffle_challenger", "shuffle_ace"]).map(
       (a) => a.id
@@ -311,23 +313,11 @@ export function runGetRepresentativeAchievementCandidatesTests() {
     "リリック系も3段階取得済みならエースだけが代表候補になる"
   );
 
-  // ---- 本人指示の中核ルール：ステップアップの先にマスター系・裏チャレンジ系まで続く
-  //      1本の系統として扱い、上位を持てば下位はすべて代表候補から除外する ----
+  // ---- G：マスター＋対応するステップアップ取得 → マスターだけが代表候補に残る ----
   assertEqual(
     getRepresentativeAchievementCandidates(["intro_ace", "no_miss_master"]).map((a) => a.id),
     ["no_miss_master"],
-    "イントロエース＋ノーミスマスター取得済みなら、ノーミスマスターだけが代表候補になる"
-  );
-  assertEqual(
-    getRepresentativeAchievementCandidates([
-      "intro_beginner",
-      "intro_challenger",
-      "intro_ace",
-      "no_miss_master",
-      "lightning_fast",
-    ]).map((a) => a.id),
-    ["lightning_fast"],
-    "イントロ系の全段階（ビギナー〜電光石火）を取得済みなら、系統最上位の電光石火だけが代表候補になる（取得データ自体は消えない）"
+    "イントロエース＋ノーミスマスター取得済みなら、ノーミスマスターだけが代表候補になる（イントロエースは代表からは外れるが取得データ自体は消えない）"
   );
   assertEqual(
     getRepresentativeAchievementCandidates(["shuffle_ace", "full_chorus_master"]).map((a) => a.id),
@@ -339,14 +329,68 @@ export function runGetRepresentativeAchievementCandidatesTests() {
     ["song_master"],
     "リリックエース＋歌マスター取得済みなら、歌マスターだけが代表候補になる"
   );
+
+  // ---- H：裏チャレンジ＋ステップアップ取得（マスター未取得） → 裏チャレンジだけが
+  //      代表候補に残る（本人指示：マスター未取得でも、裏チャレンジがあればステップアップは
+  //      もう代表候補に出さない） ----
   assertEqual(
-    getRepresentativeAchievementCandidates(["intro_ace"]).map((a) => a.id),
-    ["intro_ace"],
-    "上位を未取得ならイントロエースは今までどおり代表候補になる"
+    getRepresentativeAchievementCandidates(["intro_beginner", "intro_challenger", "intro_ace", "lightning_fast"]).map(
+      (a) => a.id
+    ),
+    ["lightning_fast"],
+    "電光石火（裏チャレンジ）取得済みなら、ノーミスマスター未取得でもイントロ系のステップアップは代表候補から外れ、電光石火だけが残る"
   );
 
-  // ---- 複合称号（＝LOVEマスター／＝LOVE完全制覇）を取得済みなら、その材料になった
-  //      単体称号（compositeOf）も代表候補から除外される ----
+  // ---- I：裏チャレンジ＋マスター＋ステップアップ取得 → 裏チャレンジ・マスターの
+  //      両方を代表候補に残す（本人指示の核心：片方を持っているからもう片方が消えることは
+  //      絶対にない）。ステップアップだけが代表候補から外れる。 ----
+  assertEqual(
+    getRepresentativeAchievementCandidates([
+      "intro_beginner",
+      "intro_challenger",
+      "intro_ace",
+      "no_miss_master",
+      "lightning_fast",
+    ]).map((a) => a.id),
+    ["lightning_fast", "no_miss_master"],
+    "電光石火＋ノーミスマスター＋イントロエースをすべて取得済みなら、電光石火とノーミスマスターの両方が代表候補に残り、イントロエースだけが外れる（本人指示の具体例）"
+  );
+
+  // ---- J：3系統すべてマスター取得 → マスター3個、イントロ→ランダム再生→歌詞クイズの順 ----
+  assertEqual(
+    getRepresentativeAchievementCandidates(["song_master", "no_miss_master", "full_chorus_master"]).map(
+      (a) => a.id
+    ),
+    ["no_miss_master", "full_chorus_master", "song_master"],
+    "3系統すべてマスター取得済みなら、取得順に関わらずイントロ→ランダム再生→歌詞クイズの順で3個とも代表候補になる"
+  );
+
+  // ---- K：3系統すべて裏チャレンジ取得 → 裏チャレンジ3個、同じくイントロ→ランダム再生→
+  //      歌詞クイズの順 ----
+  assertEqual(
+    getRepresentativeAchievementCandidates(["lyric_master", "lightning_fast", "melody_ace"]).map((a) => a.id),
+    ["lightning_fast", "melody_ace", "lyric_master"],
+    "3系統すべて裏チャレンジ取得済みなら、取得順に関わらずイントロ→ランダム再生→歌詞クイズの順で3個とも代表候補になる"
+  );
+
+  // ---- L：裏チャレンジ3個＋マスター3個取得 → 最大6個すべて代表候補になり、
+  //      本人指示の表示順（①裏チャレンジ×3系統→②マスター×3系統）で並ぶ ----
+  assertEqual(
+    getRepresentativeAchievementCandidates([
+      "no_miss_master",
+      "full_chorus_master",
+      "song_master",
+      "lightning_fast",
+      "melody_ace",
+      "lyric_master",
+    ]).map((a) => a.id),
+    ["lightning_fast", "melody_ace", "lyric_master", "no_miss_master", "full_chorus_master", "song_master"],
+    "裏チャレンジ3個＋マスター3個すべて取得済みなら、上限なく6個すべてが代表候補になり、裏チャレンジ3つ→マスター3つの順で並ぶ"
+  );
+
+  // ---- ＝LOVEマスター／＝LOVE完全制覇（複合称号）は特定の系統に属さないため、
+  //      代表称号システムには含めない（本人指示の「最大6個」の例と一致させる）。
+  //      材料になった単体称号（マスター3つ・裏チャレンジ3つ）はそのまま代表候補になる。 ----
   assertEqual(
     getRepresentativeAchievementCandidates([
       "no_miss_master",
@@ -354,40 +398,8 @@ export function runGetRepresentativeAchievementCandidatesTests() {
       "song_master",
       "equal_love_master",
     ]).map((a) => a.id),
-    ["equal_love_master"],
-    "＝LOVEマスター取得済みなら、材料になった3つのマスター単体称号は代表候補から除外され、＝LOVEマスターだけが残る"
-  );
-  assertEqual(
-    getRepresentativeAchievementCandidates([
-      "lightning_fast",
-      "melody_ace",
-      "lyric_master",
-      "equal_love_complete",
-    ]).map((a) => a.id),
-    ["equal_love_complete"],
-    "＝LOVE完全制覇取得済みなら、材料になった3つの裏チャレンジ単体称号は代表候補から除外され、＝LOVE完全制覇だけが残る"
-  );
-
-  // ---- カテゴリー優先順位：裏チャレンジ系 ＞ マスター系 ＞ ステップアップ系（本人指示） ----
-  const categoryPriorityOrder = getRepresentativeAchievementCandidates([
-    "intro_ace",
-    "full_chorus_master",
-    "lyric_master",
-  ]).map((a) => a.id);
-  assertEqual(
-    categoryPriorityOrder,
-    ["lyric_master", "full_chorus_master", "intro_ace"],
-    "3系統がそれぞれ別カテゴリーの称号を持つ場合、裏チャレンジ→マスター→ステップアップの順に並ぶ"
-  );
-
-  // ---- 同じカテゴリー内では、系統内の難易度（段階）が高いほど優先される ----
-  const tierPriorityOrder = getRepresentativeAchievementCandidates(["intro_ace", "shuffle_challenger"]).map(
-    (a) => a.id
-  );
-  assertEqual(
-    tierPriorityOrder,
-    ["intro_ace", "shuffle_challenger"],
-    "同じステップアップ系カテゴリーでも、段階が高いほう（エース）が段階が低いほう（チャレンジャー）より優先される"
+    ["no_miss_master", "full_chorus_master", "song_master"],
+    "＝LOVEマスターを取得済みでも、代表称号には材料になった3つのマスター単体称号がそのまま並ぶ（＝LOVEマスター自体は代表称号システムに含めない）"
   );
 
   // ---- 空配列・未知のIDは安全に扱われる ----
@@ -466,26 +478,40 @@ export function runBuildRepresentativeAchievementChipTests() {
   );
 }
 
+// buildFriendAchievementSummary()のテストケースは、本人指示のテストケース記号
+// （A：称号0個、B：1個、…、R：新規ユーザーのランキング参加）に対応させている。
+// M〜R（プロフィール公開ON/OFF・新規/既存ユーザー・ランキング参加）はFirebase同期に
+// 関わるため、このファイル（Firebase非依存の恒久テスト）の対象外。js/publicProfileSync.js・
+// js/publicProfilePayloads.js・js/timeAttackLeaderboardSync.jsのコードレビューで別途確認する
+// （unlockedAchievementIdsを表示時にそのまま使う設計のため、公開ON/OFF・新規/既存で
+// 分岐する専用コードが無いことをコードで確認済み）。
 export function runBuildFriendAchievementSummaryTests() {
-  // ---- A：称号0個 → 「これから挑戦！」＋案内文、代表称号チップは1件も無い ----
+  // ---- A：称号0個 → 「これから挑戦！」＋イントロクイズから始める案内、代表称号チップ・
+  //      次のチャレンジカードは無い（この案内文自体がその役割を兼ねる） ----
   const emptySummary = buildFriendAchievementSummary([]);
   assertEqual(
     emptySummary.querySelector(".fan-profile-rank-label")?.textContent,
     "これから挑戦！",
     "称号0個なら「これから挑戦！」と表示される"
   );
+  const emptyHints = [...emptySummary.querySelectorAll(".fan-profile-rank-empty-hint")].map((el) => el.textContent);
   assertEqual(
-    emptySummary.querySelector(".fan-profile-rank-empty-hint")?.textContent,
-    "クイズに挑戦して最初の称号を獲得しよう！",
-    "称号0個なら初心者向けの案内文が表示される"
+    emptyHints,
+    ["まずはイントロクイズから挑戦してみよう！", "慣れてきたらランダム再生クイズ・歌詞クイズにも挑戦！"],
+    "称号0個なら、イントロクイズを入口とした初心者向けの案内文が2行表示される"
   );
   assertEqual(
     emptySummary.querySelectorAll(".fan-profile-representative-chip").length,
     0,
     "称号0個なら代表称号チップは1件も表示されない（未獲得称号を並べない）"
   );
+  assertEqual(
+    emptySummary.querySelector(".fan-profile-next-challenge"),
+    null,
+    "称号0個のときは、専用の案内文で足りるため「次のチャレンジ」カードは別途表示しない"
+  );
 
-  // ---- B：称号1個 → 「CHALLENGER」＋そのまま1件表示 ----
+  // ---- B：称号1個（未取得系統2つ） → 「CHALLENGER」＋そのまま1件表示＋次のチャレンジ ----
   const oneSummary = buildFriendAchievementSummary(["intro_beginner"]);
   assertEqual(
     oneSummary.querySelector(".fan-profile-rank-label")?.textContent,
@@ -497,69 +523,90 @@ export function runBuildFriendAchievementSummaryTests() {
     1,
     "称号1個なら、無理に埋めず1件だけ表示される"
   );
+  assertEqual(
+    oneSummary.querySelector(".fan-profile-next-challenge-text")?.textContent,
+    "ランダム再生クイズ・歌詞クイズの称号にも挑戦してみよう！",
+    "イントロ系の称号しか持っていない場合、次のチャレンジはランダム再生・歌詞クイズの2系統をまとめて案内する"
+  );
 
-  // ---- C：称号2個 → 「CHALLENGER」＋そのまま2件表示 ----
+  // ---- C：称号2個（未取得系統1つ） → 「CHALLENGER」＋そのまま2件表示＋次のチャレンジ ----
   const twoSummary = buildFriendAchievementSummary(["intro_ace", "shuffle_beginner"]);
   assertEqual(
     twoSummary.querySelector(".fan-profile-rank-label")?.textContent,
     "CHALLENGER",
     "称号2個なら「CHALLENGER」と表示される"
   );
+  assertEqual(twoSummary.querySelectorAll(".fan-profile-representative-chip").length, 2, "称号2個なら2件表示される");
   assertEqual(
-    twoSummary.querySelectorAll(".fan-profile-representative-chip").length,
-    2,
-    "称号2個なら2件表示される"
+    twoSummary.querySelector(".fan-profile-next-challenge-text")?.textContent,
+    "歌詞クイズの称号にも挑戦してみよう！",
+    "イントロ・ランダム再生に称号があり歌詞クイズだけ0個の場合、歌詞クイズだけを案内する"
   );
 
-  // ---- D：称号3個以上 → 「代表称号」＋優先順位の高い3個だけ表示 ----
-  const threeSummary = buildFriendAchievementSummary(["intro_ace", "shuffle_ace", "lyric_ace"]);
+  // ---- D：称号3個以上だが1系統が0個 → 「代表称号」＋次のチャレンジも表示される ----
+  const threeMissingOneSummary = buildFriendAchievementSummary([
+    "shuffle_beginner",
+    "shuffle_challenger",
+    "shuffle_ace",
+  ]);
   assertEqual(
-    threeSummary.querySelector(".fan-profile-rank-label")?.textContent,
+    threeMissingOneSummary.querySelector(".fan-profile-rank-label")?.textContent,
     "代表称号",
     "称号3個以上なら「代表称号」と表示される"
   );
   assertEqual(
-    threeSummary.querySelectorAll(".fan-profile-representative-chip").length,
-    3,
-    "称号3個ちょうどなら3件表示される"
+    threeMissingOneSummary.querySelector(".fan-profile-next-challenge-text")?.textContent,
+    "イントロクイズ・歌詞クイズの称号にも挑戦してみよう！",
+    "称号3個以上でも、未取得系統（イントロ・歌詞クイズ）があれば「次のチャレンジ」を表示する（CHALLENGER専用にしない）"
   );
 
-  // ---- I：称号を大量（9個以上）に持っている人でも、代表称号は最大3個までしか表示されない ----
-  const manySummary = buildFriendAchievementSummary([
+  // ---- E：3系統すべて最低1個取得 → 「次のチャレンジ」は表示しない ----
+  const allSeriesSummary = buildFriendAchievementSummary(["intro_ace", "shuffle_ace", "lyric_ace"]);
+  assertEqual(
+    allSeriesSummary.querySelectorAll(".fan-profile-representative-chip").length,
+    3,
+    "3系統それぞれ1個ずつ、合計3個の代表称号が表示される"
+  );
+  assertEqual(
+    allSeriesSummary.querySelector(".fan-profile-next-challenge"),
+    null,
+    "3系統すべてに1個以上称号があれば、「次のチャレンジ」は表示されない"
+  );
+
+  // ---- I：裏チャレンジ＋マスター＋ステップアップ取得 → 裏チャレンジ・マスター両方を表示 ----
+  const backAndMasterSummary = buildFriendAchievementSummary([
     "intro_beginner",
     "intro_challenger",
     "intro_ace",
-    "shuffle_beginner",
-    "shuffle_challenger",
-    "shuffle_ace",
-    "lyric_beginner",
-    "lyric_challenger",
-    "lyric_ace",
-  ]);
-  assertEqual(
-    manySummary.querySelector(".fan-profile-rank-label")?.textContent,
-    "代表称号",
-    "代表候補が3個以上（この場合3系統×最上位=3件）なら「代表称号」と表示される"
-  );
-  assertEqual(
-    manySummary.querySelectorAll(".fan-profile-representative-chip").length,
-    MAX_REPRESENTATIVE_ACHIEVEMENT_COUNT,
-    "代表称号は最大3個までしか表示されない（プロフィールが巨大化しない）"
-  );
-
-  // ---- H：裏チャレンジ系を持っている人は、優先順位に従ってそれが代表称号の先頭に来る ----
-  const backChallengeSummary = buildFriendAchievementSummary([
-    "intro_ace",
     "no_miss_master",
     "lightning_fast",
-    "shuffle_ace",
   ]);
-  const backChallengeNames = [
-    ...backChallengeSummary.querySelectorAll(".fan-profile-representative-name"),
-  ].map((el) => el.textContent);
+  const backAndMasterNames = [...backAndMasterSummary.querySelectorAll(".fan-profile-representative-name")].map(
+    (el) => el.textContent
+  );
   assertEqual(
-    backChallengeNames[0],
-    "電光石火",
-    "裏チャレンジ系（電光石火）を持っていれば、優先順位に従って代表称号の先頭に表示される"
+    backAndMasterNames,
+    ["電光石火", "ノーミスマスター"],
+    "電光石火（裏チャレンジ）とノーミスマスター（マスター）の両方が代表称号に表示され、イントロエースは表示されない"
+  );
+
+  // ---- L：裏チャレンジ3個＋マスター3個取得 → 最大6個すべて表示（もう上限で切らない） ----
+  const maxSummary = buildFriendAchievementSummary([
+    "no_miss_master",
+    "full_chorus_master",
+    "song_master",
+    "lightning_fast",
+    "melody_ace",
+    "lyric_master",
+  ]);
+  assertEqual(
+    maxSummary.querySelectorAll(".fan-profile-representative-chip").length,
+    6,
+    "裏チャレンジ3個＋マスター3個すべて取得済みなら、6個すべてが表示される（3個キャップは廃止）"
+  );
+  assertEqual(
+    maxSummary.querySelector(".fan-profile-next-challenge"),
+    null,
+    "これだけやり込んでいれば当然3系統すべて称号があるため、「次のチャレンジ」は表示されない"
   );
 }

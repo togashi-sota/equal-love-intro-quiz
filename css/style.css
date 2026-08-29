@@ -7356,9 +7356,13 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 }
 
 .fan-profile-rank-empty-hint {
-  margin: 0;
+  margin: 2px 0 0;
   font-size: 0.82rem;
   opacity: 0.75;
+}
+
+.fan-profile-rank-empty-hint:first-of-type {
+  margin-top: 0;
 }
 
 .fan-profile-representative-list {
@@ -7438,7 +7442,34 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   overflow-wrap: break-word;
 }
 
-/* 「すべての称号を見る」：代表3個には出ない、この人が取得済みの称号を全部確認できる導線
+/* 「次のチャレンジ」案内カード（2026-08-29追加・本人指示）：3系統（イントロ／ランダム再生／
+   歌詞クイズ）のうち称号0個の系統があるときだけ表示する、控えめな案内。代表称号（ピンク・
+   ゴールド系）とは違う水色系にして、主役の代表称号より目立たせすぎない。 */
+.fan-profile-next-challenge {
+  margin-top: 8px;
+  padding: 9px 12px;
+  border-radius: 12px;
+  background: var(--color-secondary-light);
+  border: 1px solid rgba(111, 189, 242, 0.4);
+}
+
+.fan-profile-next-challenge-title {
+  margin: 0 0 2px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #14507a;
+}
+
+.fan-profile-next-challenge-text {
+  margin: 0;
+  font-size: 0.76rem;
+  line-height: 1.4;
+  color: #14507a;
+  opacity: 0.85;
+  overflow-wrap: break-word;
+}
+
+/* 「すべての称号を見る」：代表称号には出ない、この人が取得済みの称号を全部確認できる導線
    （本人指示：右上の「🏅称号一覧」＝ゲーム全体の称号・条件を見る、とは役割が違うので
    混同しない）。押すたびに開閉するアコーディオン方式で、新しいモーダルは作らない。 */
 .fan-profile-detail-all-toggle {
