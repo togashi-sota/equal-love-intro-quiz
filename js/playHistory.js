@@ -22,6 +22,7 @@ import { getPlayerKeyPrefix } from "./playerProfile.js";
 import { getHistoryEntries } from "./history.js";
 import { getTimeAttackHistoryEntries } from "./timeAttackHistory.js";
 import { calculateAverageResponseMs, formatResponseSeconds } from "./responseTime.js";
+import { scheduleBackupSync } from "./backupSync.js";
 
 function buildPlayHistoryKey() {
   return `equalLoveIntroQuiz.${getPlayerKeyPrefix()}unifiedPlayHistory`;
@@ -56,6 +57,7 @@ function loadPlayHistoryData() {
 function savePlayHistoryData(data) {
   try {
     localStorage.setItem(buildPlayHistoryKey(), JSON.stringify(data));
+    scheduleBackupSync(); // クラウドバックアップも更新する（2026-08-29追加、js/backupSync.js参照）
   } catch {
     // プライベートブラウジング等でlocalStorageが使えない環境でも、アプリ自体は動き続けられるようにする。
     // プレイ履歴の保存に失敗しても、自己ベスト・称号・ゲーム結果そのものには一切影響しない

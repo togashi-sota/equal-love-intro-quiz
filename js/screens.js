@@ -15,6 +15,7 @@ const SCREEN_ELEMENTS = {
   specialModes: document.getElementById("special-modes-screen"),
   guide: document.getElementById("guide-screen"),
   fanProfiles: document.getElementById("fan-profiles-screen"),
+  adminBackup: document.getElementById("admin-backup-screen"),
   weakSongs: document.getElementById("weak-songs-screen"),
   liveCallModeList: document.getElementById("live-call-mode-list-screen"),
   liveCallModePlayType: document.getElementById("live-call-mode-play-type-screen"),

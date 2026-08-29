@@ -17,6 +17,7 @@
 // 実際にFirebaseへ送るかどうかの判断はjs/timeAttackLeaderboardSync.jsが別途担当する
 // （本人指示：「公開ON/OFF」と「ランキング記録そのもの」を分けて考える）。
 import { getPlayerKeyPrefix } from "./playerProfile.js";
+import { scheduleBackupSync } from "./backupSync.js";
 
 const CURRENT_SCHEMA_VERSION = 1;
 
@@ -45,6 +46,7 @@ function loadData() {
 function saveData(data) {
   try {
     localStorage.setItem(buildStorageKey(), JSON.stringify(data));
+    scheduleBackupSync(); // クラウドバックアップも更新する（2026-08-29追加、js/backupSync.js参照）
   } catch {
     // プライベートブラウジング等でlocalStorageが使えない環境でも、アプリ自体は動き続けられるようにする
   }

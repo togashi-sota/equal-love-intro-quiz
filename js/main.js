@@ -211,6 +211,8 @@ import { getPlayerKeyPrefix } from "./playerProfile.js";
 import { needsOnboarding, initOnboardingScreen } from "./onboardingScreen.js";
 import { initGuideScreen, openGuideScreen } from "./guideScreen.js";
 import { initFanProfilesScreen, renderFanProfilesScreen } from "./fanProfilesScreen.js";
+import { initAdminBackupScreen, renderAdminBackupScreen } from "./adminBackupScreen.js";
+import { createRecoveryRequest, checkRecoveryRequestStatus, restoreFromBackup } from "./backupSync.js";
 import { syncPublicProfileIfEnabled } from "./publicProfileSync.js";
 import { getFavoriteSongIds } from "./favoriteSongs.js";
 import { getPlaylists } from "./playlists.js";
@@ -613,10 +615,26 @@ const fanProfilesTitleListLinkElement = document.getElementById("fan-profiles-ti
 // なので、同じopenTriggers配列に加えるだけでよい。
 const fanProfileDetailTitleListLinkElement = document.getElementById("fan-profile-detail-title-list-link");
 const fanProfilesMyUidElement = document.getElementById("fan-profiles-my-uid");
+const adminBackupLinkButtonElement = document.getElementById("admin-backup-link");
 const fanProfilesAdminDeleteOverlayElement = document.getElementById("fan-profiles-admin-delete-confirm-modal");
 const fanProfilesAdminDeleteTargetNameElement = document.getElementById("fan-profiles-admin-delete-target-name");
 const fanProfilesAdminDeleteCancelButtonElement = document.getElementById("fan-profiles-admin-delete-cancel-button");
 const fanProfilesAdminDeleteConfirmButtonElement = document.getElementById("fan-profiles-admin-delete-confirm-button");
+
+// 管理者専用「バックアップ管理」画面（2026-08-29新設）。
+const adminBackupBackButtonElement = document.getElementById("admin-backup-back-button");
+const adminBackupRefreshButtonElement = document.getElementById("admin-backup-refresh-button");
+const adminBackupStatusElement = document.getElementById("admin-backup-status");
+const adminRecoveryRequestsListElement = document.getElementById("admin-recovery-requests-list");
+const adminBackupsListElement = document.getElementById("admin-backups-list");
+
+// データ管理画面の「データを復旧する」（2026-08-29新設）。
+const dataRecoveryRequestButtonElement = document.getElementById("data-recovery-request-button");
+const dataRecoveryCodePanelElement = document.getElementById("data-recovery-code-panel");
+const dataRecoveryCodeDisplayElement = document.getElementById("data-recovery-code-display");
+const dataRecoveryCheckButtonElement = document.getElementById("data-recovery-check-button");
+const dataRecoveryResultElement = document.getElementById("data-recovery-result");
+
 const weakSongsBackButtonElement = document.getElementById("weak-songs-back-button");
 const weakSongsCountNoticeElement = document.getElementById("weak-songs-count-notice");
 const liveCallModeListBackButtonElement = document.getElementById("live-call-mode-list-back-button");
@@ -1541,10 +1559,22 @@ initFanProfilesScreen(
     detailAllToggle: fanProfileDetailAllToggleElement,
     detailAchievementList: fanProfileDetailAchievementsElement,
     myUidValue: fanProfilesMyUidElement,
+    adminBackupLinkButton: adminBackupLinkButtonElement,
     adminDeleteOverlay: fanProfilesAdminDeleteOverlayElement,
     adminDeleteTargetName: fanProfilesAdminDeleteTargetNameElement,
     adminDeleteCancelButton: fanProfilesAdminDeleteCancelButtonElement,
     adminDeleteConfirmButton: fanProfilesAdminDeleteConfirmButtonElement,
+  },
+  MEMBERS
+);
+
+// 管理者専用「バックアップ管理」画面（2026-08-29新設）。
+initAdminBackupScreen(
+  {
+    statusText: adminBackupStatusElement,
+    refreshButton: adminBackupRefreshButtonElement,
+    recoveryRequestsList: adminRecoveryRequestsListElement,
+    backupsList: adminBackupsListElement,
   },
   MEMBERS
 );
@@ -3602,6 +3632,80 @@ fanProfilesLinkElement.addEventListener("click", () => {
   playClickSound();
   renderFanProfilesScreen();
   navigateWithScrollMemory("fanProfiles");
+});
+
+// 管理者専用「🔧バックアップ管理」リンク（フレンド画面ヘッダー、2026-08-29新設）。
+// このボタン自体は管理者判定がtrueのときだけ表示される（js/fanProfilesScreen.js参照）。
+adminBackupLinkButtonElement.addEventListener("click", () => {
+  playClickSound();
+  renderAdminBackupScreen();
+  navigateWithScrollMemory("adminBackup");
+});
+adminBackupBackButtonElement.addEventListener("click", () => {
+  playSfx(SFX_EVENTS.UI_BACK);
+  navigateWithScrollMemory("fanProfiles");
+});
+
+// 「データを復旧する」（データ管理画面、2026-08-29新設）。称号・履歴・自己ベスト等の
+// クラウドバックアップ（js/backupSync.js）から、管理者経由で復旧するための入口。
+// 【流れ】①「復旧を依頼する」で6桁番号を発行→本人が管理者へLINE等で伝える→
+// ②管理者がバックアップ管理画面（js/adminBackupScreen.js）で対応→③この端末で
+// 「確認する」を押すと、対応済みならその場で自動的に復元される。
+dataRecoveryRequestButtonElement.addEventListener("click", async () => {
+  playClickSound();
+  dataRecoveryRequestButtonElement.disabled = true;
+  dataRecoveryResultElement.hidden = false;
+  dataRecoveryResultElement.textContent = "依頼を作成しています…";
+
+  const result = await createRecoveryRequest();
+  dataRecoveryRequestButtonElement.disabled = false;
+
+  if (!result.ok) {
+    dataRecoveryResultElement.textContent = result.reason;
+    return;
+  }
+
+  dataRecoveryResultElement.hidden = true;
+  dataRecoveryCodePanelElement.hidden = false;
+  dataRecoveryCodeDisplayElement.textContent = result.code;
+});
+
+dataRecoveryCheckButtonElement.addEventListener("click", async () => {
+  playClickSound();
+  const code = dataRecoveryCodeDisplayElement.textContent.trim();
+  if (!code) return;
+
+  dataRecoveryCheckButtonElement.disabled = true;
+  dataRecoveryResultElement.hidden = false;
+  dataRecoveryResultElement.textContent = "確認しています…";
+
+  const statusResult = await checkRecoveryRequestStatus(code);
+  if (!statusResult.ok) {
+    dataRecoveryCheckButtonElement.disabled = false;
+    dataRecoveryResultElement.textContent = statusResult.reason;
+    return;
+  }
+
+  if (statusResult.status !== "resolved" || !statusResult.resolvedBackupId) {
+    dataRecoveryCheckButtonElement.disabled = false;
+    dataRecoveryResultElement.textContent = "まだ管理者が対応していません。しばらくしてからもう一度お試しください。";
+    return;
+  }
+
+  dataRecoveryResultElement.textContent = "復元しています…";
+  const restoreResult = await restoreFromBackup(statusResult.resolvedBackupId);
+  dataRecoveryCheckButtonElement.disabled = false;
+
+  if (!restoreResult.ok) {
+    dataRecoveryResultElement.textContent = restoreResult.reason;
+    return;
+  }
+
+  dataRecoveryCodePanelElement.hidden = true;
+  dataRecoveryResultElement.textContent = `復元が完了しました（${restoreResult.displayName ?? "プレイヤー"}さんのデータ）。ホーム画面に戻ってご確認ください。`;
+  // 称号・自己ベスト等の表示を復元後の内容へ確実に合わせるため、ページを再読み込みする
+  // （プレイヤー名表示・称号一覧など、多くの画面が起動時に一度だけ読み込む値を持っているため）。
+  setTimeout(() => window.location.reload(), 2000);
 });
 
 // 「遊び方ガイド」リンク：開くたびに必ず目次から表示する（2026-08-15新設）。

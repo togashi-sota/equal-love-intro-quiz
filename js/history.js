@@ -10,6 +10,7 @@
 // デフォルトプレイヤーのときは空文字列を返すため、既存のキー名は変わらない。
 // 2人目以降のプレイヤーのときだけプレイヤーごとに別々の履歴として保存される。
 import { getPlayerKeyPrefix } from "./playerProfile.js";
+import { scheduleBackupSync } from "./backupSync.js";
 
 function buildHistoryKey() {
   return `equalLoveIntroQuiz.${getPlayerKeyPrefix()}playHistory`;
@@ -49,6 +50,7 @@ function loadHistoryData() {
 function saveHistoryData(data) {
   try {
     localStorage.setItem(buildHistoryKey(), JSON.stringify(data));
+    scheduleBackupSync(); // クラウドバックアップも更新する（2026-08-29追加、js/backupSync.js参照）
   } catch {
     // プライベートブラウジング等でlocalStorageが使えない環境でも、アプリ自体は動き続けられるようにする
   }

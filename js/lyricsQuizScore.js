@@ -9,6 +9,7 @@
 // 単一の数値ではなく比較に必要な項目一式（createLyricsQuizResult()の戻り値）をまとめて保存する。
 import { getPlayerKeyPrefix } from "./playerProfile.js";
 import { compareLyricsQuizResults } from "./lyricsQuizEngine.js";
+import { scheduleBackupSync } from "./backupSync.js";
 
 function buildLyricsQuizBestKey(questionCountValue, answerPoolSizeValue) {
   return `equalLoveIntroQuiz.${getPlayerKeyPrefix()}lyricsQuizBest.${questionCountValue}.${answerPoolSizeValue}`;
@@ -35,6 +36,7 @@ export function saveLyricsQuizBestIfBetter(result, questionCountValue, answerPoo
 
   try {
     localStorage.setItem(buildLyricsQuizBestKey(questionCountValue, answerPoolSizeValue), JSON.stringify(result));
+    scheduleBackupSync(); // クラウドバックアップも更新する（2026-08-29追加、js/backupSync.js参照）
   } catch {
     // プライベートブラウジング等でlocalStorageが使えない環境でも、アプリ自体は動き続けられるようにする
   }

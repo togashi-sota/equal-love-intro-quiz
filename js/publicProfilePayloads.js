@@ -5,6 +5,8 @@
 // js/publicProfileSync.js／js/firebaseClient.jsとは意図的にファイルを分け、恒久テストは
 // このファイルだけをimportする（Firebase初期化・匿名ログインを一切発生させないため）。
 
+import { scheduleBackupSync } from "./backupSync.js";
+
 const SCHEMA_VERSION = 1;
 const ENABLED_FLAG_STORAGE_KEY_SUFFIX = "publicProfile.enabled";
 
@@ -39,6 +41,11 @@ export function isPublicProfileSharingEnabled(playerKeyPrefix) {
 export function writeEnabledFlag(playerKeyPrefix, enabled) {
   try {
     localStorage.setItem(buildEnabledFlagKey(playerKeyPrefix), enabled ? "true" : "false");
+    // クラウドバックアップも更新する（2026-08-29追加、js/backupSync.js参照）。
+    // scheduleBackupSync()自体はここではFirebase SDKを読み込まない（実際のFirebase呼び出しは
+    // 全てbackupSync.js内部の動的importに閉じているため、このファイル冒頭の設計方針
+    // 「Firebase初期化を一切発生させない」は変わらず保たれる）。
+    scheduleBackupSync();
   } catch {
     // 保存に失敗しても（プライベートブラウズ等）アプリ自体は動き続けられるようにする。
   }

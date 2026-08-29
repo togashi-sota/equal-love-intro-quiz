@@ -577,6 +577,31 @@
           </div>
         </details>
       </details>
+
+      <!-- 称号・プレイ履歴・自己ベスト等の自動クラウドバックアップからの復旧（2026-08-29新設）。
+           音源・歌詞と違い普段は本人が意識する必要のない機能（js/backupSync.jsが裏側で
+           自動的にバックアップし続ける）だが、サイトデータの削除・機種変更等で端末側の
+           データが失われてしまった場合だけ、ここから復旧を依頼できる。
+           折りたたみにして、データ管理の一番下・普段目に入らない位置に置く。 -->
+      <details class="data-management-section" id="data-recovery-section">
+        <summary>データを復旧する（称号・履歴・自己ベストが消えてしまった場合）</summary>
+        <div class="lyrics-import-section">
+          <p class="lyrics-import-caption">
+            称号・プレイ履歴・自己ベスト等は、普段プレイしているだけで自動的にバックアップされています。サイトデータの削除・機種変更等でこの端末のデータが消えてしまった場合、ここから復旧を依頼できます。
+          </p>
+          <button id="data-recovery-request-button" class="secondary-button" type="button">復旧を依頼する</button>
+
+          <!-- 復旧依頼番号の表示欄。依頼が成功したときだけ表示する -->
+          <div id="data-recovery-code-panel" class="data-recovery-code-panel" hidden>
+            <p class="lyrics-import-caption">この番号を、管理者へLINE等でお伝えください。管理者が対応したら、下の「確認する」を押してください。</p>
+            <p id="data-recovery-code-display" class="data-recovery-code-display"></p>
+            <button id="data-recovery-check-button" class="secondary-button" type="button">確認する</button>
+          </div>
+
+          <!-- 実行結果・エラーメッセージ・復元完了メッセージ。普段は空・非表示 -->
+          <p id="data-recovery-result" class="lyrics-import-result" hidden></p>
+        </div>
+      </details>
     </section>
 
     <!-- クイズ画面：イントロ再生、4択、タイマー、正誤表示を行う画面 -->
@@ -1411,8 +1436,48 @@
            開発者（本人）が管理者機能を設定する際の参照用。 -->
       <p class="fan-profiles-my-id">🆔 あなたのID：<code id="fan-profiles-my-uid">確認中…</code></p>
 
+      <!-- 管理者専用：バックアップ管理画面への入口（2026-08-29新設）。ADMIN_UIDと一致する
+           場合だけ表示される（js/fanProfilesScreen.jsのisAdminUser判定を流用）。
+           ここに表示されること自体は見た目上の制御にすぎず、実際の閲覧・操作権限は
+           firebase/database.rules.json側で保証している（js/backupAdmin.js参照）。 -->
+      <button id="admin-backup-link" class="secondary-button admin-backup-link-button" type="button" hidden>🔧 バックアップ管理（管理者用）</button>
+
       <!-- 一覧本体。中身はjs/fanProfilesScreen.jsが組み立てる -->
       <div id="fan-profiles-list"></div>
+    </section>
+
+    <!-- 管理者専用：バックアップ・復旧依頼の管理画面（2026-08-29新設）。
+         一般ユーザーはここへ到達するボタン自体が表示されないため通常は開けないが、
+         万一URL等で直接開こうとしても、js/backupAdmin.jsの各関数はFirebase Rules側で
+         管理者以外を必ず拒否するため、データは一切見えない（フロント側の非表示は
+         あくまで誤操作防止のための二重チェック）。 -->
+    <section id="admin-backup-screen" class="screen">
+      <div class="list-header">
+        <button id="admin-backup-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            ADMIN
+          </p>
+          <h2>バックアップ管理</h2>
+        </div>
+      </div>
+
+      <p class="special-modes-intro">全プレイヤーのバックアップ状況・復旧依頼を確認できます。</p>
+
+      <button id="admin-backup-refresh-button" class="secondary-button" type="button">最新の状態に更新する</button>
+      <p id="admin-backup-status" class="lyrics-import-status"></p>
+
+      <h3 class="admin-backup-section-title">復旧依頼（対応待ち）</h3>
+      <div id="admin-recovery-requests-list" class="admin-backup-list"></div>
+
+      <h3 class="admin-backup-section-title">バックアップ一覧（全プレイヤー）</h3>
+      <div id="admin-backups-list" class="admin-backup-list"></div>
     </section>
 
     <!-- 苦手曲モード確認画面：対象曲の一覧と出題数を確認してから開始する。

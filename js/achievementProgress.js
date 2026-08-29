@@ -18,6 +18,7 @@ import {
   evaluateCompositeAchievements,
 } from "./achievementEvaluation.js";
 import { getPlayerKeyPrefix } from "./playerProfile.js";
+import { scheduleBackupSync } from "./backupSync.js";
 
 const SCHEMA_VERSION = 2;
 
@@ -55,6 +56,9 @@ function loadProgress() {
 function saveProgress(progress) {
   try {
     localStorage.setItem(buildStorageKey(), JSON.stringify(progress));
+    // 称号の取得状況が変わったので、クラウドバックアップも更新する（2026-08-29追加、
+    // js/backupSync.js参照）。数秒デバウンスされるため、ここで毎回呼んでも問題ない。
+    scheduleBackupSync();
   } catch {
     // プライベートブラウジング等でlocalStorageが使えない環境でも、アプリ自体は動き続けられるようにする
   }

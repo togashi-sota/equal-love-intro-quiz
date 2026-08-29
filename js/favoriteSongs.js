@@ -4,6 +4,7 @@
 // 推しメンのような「1つだけ」の概念（最推し相当）は存在しない（2026-08-04新設）。
 
 import { getPlayerKeyPrefix } from "./playerProfile.js";
+import { scheduleBackupSync } from "./backupSync.js";
 
 function buildFavoriteSongsKey() {
   return `equalLoveIntroQuiz.${getPlayerKeyPrefix()}favoriteSongs`;
@@ -23,6 +24,7 @@ function loadFavoriteSongIds() {
 function saveFavoriteSongIds(songIds) {
   try {
     localStorage.setItem(buildFavoriteSongsKey(), JSON.stringify(songIds));
+    scheduleBackupSync(); // クラウドバックアップも更新する（2026-08-29追加、js/backupSync.js参照）
   } catch {
     // 保存に失敗しても（プライベートブラウズ等）アプリ自体は動き続けられるようにする。
   }

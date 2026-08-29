@@ -29,6 +29,7 @@
 // 記録されていく。
 import { getPlayerKeyPrefix } from "./playerProfile.js";
 import { computeWeakSongsFromStats } from "./weakSongStats.js";
+import { scheduleBackupSync } from "./backupSync.js";
 
 function buildLyricsQuizWeakSongStatsKey() {
   return `equalLoveIntroQuiz.${getPlayerKeyPrefix()}lyricsQuizWeakSongStats`;
@@ -52,6 +53,7 @@ function loadRawStatsData() {
 function saveRawStatsData(data) {
   try {
     localStorage.setItem(buildLyricsQuizWeakSongStatsKey(), JSON.stringify(data));
+    scheduleBackupSync(); // クラウドバックアップも更新する（2026-08-29追加、js/backupSync.js参照）
   } catch {
     // プライベートブラウジング等でlocalStorageが使えない環境でも、アプリ自体は動き続けられるようにする
   }

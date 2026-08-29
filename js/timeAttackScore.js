@@ -15,6 +15,7 @@
 // 今までと完全に同じキー文字列になるようにしている（キーにvariant自体を含めない）。
 // ランダム再生タイムアタックだけ、キーに"randomPlayback."を挟んだ別名前空間を新設する。
 import { getPlayerKeyPrefix } from "./playerProfile.js";
+import { scheduleBackupSync } from "./backupSync.js";
 
 function buildTimeAttackKey(rule, questionCountValue, categoryFilterValue, variant = "intro") {
   const variantSegment = variant === "intro" ? "" : `${variant}.`;
@@ -45,6 +46,7 @@ export function saveTimeAttackBestIfBetter(totalElapsedMs, rule, questionCountVa
       buildTimeAttackKey(rule, questionCountValue, categoryFilterValue, variant),
       String(totalElapsedMs)
     );
+    scheduleBackupSync(); // クラウドバックアップも更新する（2026-08-29追加、js/backupSync.js参照）
   } catch {
     // プライベートブラウジング等でlocalStorageが使えない環境でも、アプリ自体は動き続けられるようにする
   }
@@ -94,6 +96,7 @@ export function saveTimeAttackBestReachIfBetter(questionsReached, elapsedMs, que
       buildTimeAttackBestReachKey(questionCountValue, categoryFilterValue, variant),
       JSON.stringify({ questionsReached, elapsedMs })
     );
+    scheduleBackupSync(); // クラウドバックアップも更新する（2026-08-29追加、js/backupSync.js参照）
   } catch {
     // プライベートブラウジング等でlocalStorageが使えない環境でも、アプリ自体は動き続けられるようにする
   }

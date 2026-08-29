@@ -12,6 +12,7 @@
 // 一切変わらない。2人目以降のプレイヤーのときだけ"player.{playerId}."が挟まり、
 // プレイヤーごとに別々のハイスコアとして保存される。
 import { getPlayerKeyPrefix } from "./playerProfile.js";
+import { scheduleBackupSync } from "./backupSync.js";
 
 function buildHighScoreKey(questionCountValue, categoryFilterValue) {
   return `equalLoveIntroQuiz.${getPlayerKeyPrefix()}highScore.${questionCountValue}.${categoryFilterValue}`;
@@ -37,6 +38,7 @@ export function saveHighScoreIfBetter(score, questionCountValue, categoryFilterV
 
   try {
     localStorage.setItem(buildHighScoreKey(questionCountValue, categoryFilterValue), String(score));
+    scheduleBackupSync(); // クラウドバックアップも更新する（2026-08-29追加、js/backupSync.js参照）
   } catch {
     // プライベートブラウジング等でlocalStorageが使えない環境でも、アプリ自体は動き続けられるようにする
   }

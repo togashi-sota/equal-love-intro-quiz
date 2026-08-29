@@ -53,6 +53,10 @@ function writePlayers(players) {
   cachedPlayers = players;
   try {
     localStorage.setItem(PLAYERS_KEY, JSON.stringify(players));
+    // 表示名の変更・プレイヤー切り替え等で「今バックアップすべき内容」が変わりうるため、
+    // クラウドバックアップも更新する（2026-08-29追加）。js/backupSync.js側がこのファイルを
+    // importしている（getActivePlayer等）ため、循環参照を避けて動的importにしている。
+    import("./backupSync.js").then(({ scheduleBackupSync }) => scheduleBackupSync());
   } catch {
     // 保存に失敗しても（プライベートブラウズ等）アプリ自体は動き続けられるようにする。
   }
@@ -157,9 +161,61 @@ export function deletePlayer(playerId) {
   }
 }
 
+// 【2026-08-29追加：js/backupSync.jsの復元処理専用】クラウドのバックアップから復元した際に、
+// このプレイヤーのbackupId・表示名を更新する。renamePlayer()と違い、backupIdの更新も
+// 同時に行うための専用関数。writePlayers()を経由するため、他のモジュールが
+// localStorageを直接書き換えてキャッシュ（cachedPlayers）と食い違う事故を防ぐ。
+export function applyRestoredPlayerInfo(playerId, { backupId, playerName }) {
+  const players = getPlayers();
+  const updated = players.map((player) =>
+    player.playerId === playerId
+      ? {
+          ...player,
+          backupId: backupId ?? player.backupId,
+          playerName: playerName || player.playerName,
+          updatedAt: nowIso(),
+        }
+      : player
+  );
+  writePlayers(updated);
+}
+
 // 指定したプレイヤーがデフォルトプレイヤー（＝既存の端末データをそのまま使うプレイヤー）かどうか。
 export function isDefaultPlayer(playerId) {
   return playerId === DEFAULT_PLAYER_ID;
+}
+
+// 【2026-08-29追加：クラウドバックアップ用のbackupId】playerIdとは別に、
+// プレイヤーごとにクラウド（Firebase）上のバックアップ先を指し示す、永続的な識別子。
+// playerIdと役割を分けている理由：
+// ・playerId … この端末内で「複数プレイヤーを切り替える」ためだけのローカルな識別子。
+//   サーバーには一切送らない（js/firebaseClient.jsのUIDとは無関係）。
+// ・backupId … Firebase Realtime Databaseの backups/{backupId} を指す、クラウド側の
+//   永続的な識別子。Firebase匿名認証のUIDは、サイトデータの削除・機種変更のたびに
+//   別の値へ変わってしまうが、backupIdは（本人が「復旧」操作をしない限り）ずっと同じ
+//   まま保たれる。バックアップ本体のcurrentUidフィールドだけを「今の正しい持ち主」へ
+//   書き換えることで、UIDが変わっても同じbackupIdの下のデータへ復元できるようにする
+//   設計（js/backupSync.js参照）。
+//
+// 既存プレイヤー（この機能が無かった頃に作られたプレイヤー）にはbackupIdがまだ無い。
+// getOrCreateBackupId()は、無ければその場で発行してplayers一覧へ保存し、以後は
+// 同じ値を使い続ける（初回バックアップのタイミングで自然に発行される想定）。
+export function getOrCreateBackupId(playerId) {
+  const players = getPlayers();
+  const player = players.find((p) => p.playerId === playerId);
+  if (!player) return null;
+  if (player.backupId) return player.backupId;
+
+  const backupId = generatePlayerId(); // crypto.randomUUID()と同じ生成方法をそのまま流用
+  const updated = players.map((p) => (p.playerId === playerId ? { ...p, backupId, updatedAt: nowIso() } : p));
+  writePlayers(updated);
+  return backupId;
+}
+
+// 指定したプレイヤーのbackupIdを返す（無ければnull。発行はしない、確認専用）。
+export function getBackupId(playerId) {
+  const player = getPlayers().find((p) => p.playerId === playerId);
+  return player?.backupId ?? null;
 }
 
 // highscore.js/history.js/titleProgress.js等が、保存キーの先頭に付ける接頭辞を返す。

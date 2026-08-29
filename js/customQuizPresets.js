@@ -7,8 +7,25 @@
 // 「中身」（name・memo・songIds・distractorMode）と、この端末だけで管理する
 // 「管理情報」（id・createdAt・updatedAt）を分けて持たせている。将来、中身だけを
 // 取り出して共有する機能を追加する際も、この構造のまま対応できる想定。
+//
+// 【2026-08-29修正：複数プレイヤー対応】以前はプレイヤーに関わらず端末で1つの
+// プリセット一覧を共有していた（highscore.js等、他の全モジュールが
+// getPlayerKeyPrefix()でプレイヤーごとに分けているのと不整合だった）。
+// バックアップ機能（js/backupSync.js）を「プレイヤー単位」で設計するにあたり、
+// この不整合を解消し、他のモジュールと同じ命名パターンへ揃えた。
+// 最初のプレイヤー（デフォルトプレイヤー）はgetPlayerKeyPrefix()が空文字列を返すため、
+// 保存キーは今までと完全に同じ（"equalLoveIntroQuiz.customQuizPresets"）のままとなり、
+// 既存ユーザーのプリセットは一切失われない。2人目以降のプレイヤーだけが、
+// 今後は自分専用のプリセット一覧を持つようになる（今までは全プレイヤー共通で
+// 見えていたプリセットが、2人目以降からは見えなくなる。データが消えるわけではなく、
+// デフォルトプレイヤーの一覧としてはそのまま残り続ける）。
+import { getPlayerKeyPrefix } from "./playerProfile.js";
+import { scheduleBackupSync } from "./backupSync.js";
 
-const CUSTOM_QUIZ_PRESETS_KEY = "equalLoveIntroQuiz.customQuizPresets";
+function buildCustomQuizPresetsKey() {
+  return `equalLoveIntroQuiz.${getPlayerKeyPrefix()}customQuizPresets`;
+}
+
 const CURRENT_SCHEMA_VERSION = 1;
 
 // プレイ履歴と同じ生成方法。crypto.randomUUID()が使えない環境向けの代替も同様に用意する。
@@ -22,7 +39,7 @@ function generatePresetId() {
 function loadPresetsData() {
   const empty = { schemaVersion: CURRENT_SCHEMA_VERSION, presets: [] };
   try {
-    const stored = localStorage.getItem(CUSTOM_QUIZ_PRESETS_KEY);
+    const stored = localStorage.getItem(buildCustomQuizPresetsKey());
     if (!stored) return empty;
 
     const parsed = JSON.parse(stored);
@@ -35,7 +52,8 @@ function loadPresetsData() {
 
 function savePresetsData(data) {
   try {
-    localStorage.setItem(CUSTOM_QUIZ_PRESETS_KEY, JSON.stringify(data));
+    localStorage.setItem(buildCustomQuizPresetsKey(), JSON.stringify(data));
+    scheduleBackupSync(); // クラウドバックアップも更新する（2026-08-29追加、js/backupSync.js参照）
   } catch {
     // プライベートブラウジング等でlocalStorageが使えない環境でも、アプリ自体は動き続けられるようにする
   }

@@ -17,6 +17,7 @@
 import { getPlayerKeyPrefix } from "./playerProfile.js";
 import { getHistoryEntries } from "./history.js";
 import { getTimeAttackHistoryEntries } from "./timeAttackHistory.js";
+import { scheduleBackupSync } from "./backupSync.js";
 
 function buildWeakSongStatsKey() {
   return `equalLoveIntroQuiz.${getPlayerKeyPrefix()}weakSongStats`;
@@ -40,6 +41,7 @@ function loadRawStatsData() {
 function saveRawStatsData(data) {
   try {
     localStorage.setItem(buildWeakSongStatsKey(), JSON.stringify(data));
+    scheduleBackupSync(); // クラウドバックアップも更新する（2026-08-29追加、js/backupSync.js参照）
   } catch {
     // プライベートブラウジング等でlocalStorageが使えない環境でも、アプリ自体は動き続けられるようにする
   }

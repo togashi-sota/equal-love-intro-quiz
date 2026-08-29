@@ -5,6 +5,7 @@
 // （js/playerProfile.js・js/oshiMembers.jsと同じ設計、2026-08-04新設）。
 
 import { getPlayerKeyPrefix } from "./playerProfile.js";
+import { scheduleBackupSync } from "./backupSync.js";
 
 function buildPlaylistsKey() {
   return `equalLoveIntroQuiz.${getPlayerKeyPrefix()}playlists`;
@@ -39,6 +40,7 @@ function loadPlaylists() {
 function savePlaylists(playlists) {
   try {
     localStorage.setItem(buildPlaylistsKey(), JSON.stringify(playlists));
+    scheduleBackupSync(); // クラウドバックアップも更新する（2026-08-29追加、js/backupSync.js参照）
   } catch {
     // 保存に失敗しても（プライベートブラウズ等）アプリ自体は動き続けられるようにする。
   }

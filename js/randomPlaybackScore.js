@@ -4,6 +4,7 @@
 // 保存先のキー名を完全に分けることで、タイムアタックの自己ベストとは一切混ざらないようにしている
 // （本人の要望：「自己ベストについては、既存タイムアタックと記録を混ぜず、モード別に保存する」）。
 import { getPlayerKeyPrefix } from "./playerProfile.js";
+import { scheduleBackupSync } from "./backupSync.js";
 
 function buildRandomPlaybackKey(rule, questionCountValue, categoryFilterValue) {
   return `equalLoveIntroQuiz.${getPlayerKeyPrefix()}randomPlaybackBest.${rule}.${questionCountValue}.${categoryFilterValue}`;
@@ -33,6 +34,7 @@ export function saveRandomPlaybackBestIfBetter(totalElapsedMs, rule, questionCou
       buildRandomPlaybackKey(rule, questionCountValue, categoryFilterValue),
       String(totalElapsedMs)
     );
+    scheduleBackupSync(); // クラウドバックアップも更新する（2026-08-29追加、js/backupSync.js参照）
   } catch {
     // プライベートブラウジング等でlocalStorageが使えない環境でも、アプリ自体は動き続けられるようにする
   }
@@ -72,6 +74,7 @@ export function saveRandomPlaybackBestReachIfBetter(questionsReached, elapsedMs,
       buildRandomPlaybackBestReachKey(questionCountValue, categoryFilterValue),
       JSON.stringify({ questionsReached, elapsedMs })
     );
+    scheduleBackupSync(); // クラウドバックアップも更新する（2026-08-29追加、js/backupSync.js参照）
   } catch {
     // プライベートブラウジング等でlocalStorageが使えない環境でも、アプリ自体は動き続けられるようにする
   }

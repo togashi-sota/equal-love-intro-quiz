@@ -4,6 +4,7 @@
 // 既存の通常プレイ履歴とは一切混ざらないようにしている（本人の要望どおり）。
 
 import { getPlayerKeyPrefix, getActivePlayer } from "./playerProfile.js";
+import { scheduleBackupSync } from "./backupSync.js";
 
 function buildTimeAttackHistoryKey() {
   return `equalLoveIntroQuiz.${getPlayerKeyPrefix()}timeAttackHistory`;
@@ -38,6 +39,7 @@ function loadHistoryData() {
 function saveHistoryData(data) {
   try {
     localStorage.setItem(buildTimeAttackHistoryKey(), JSON.stringify(data));
+    scheduleBackupSync(); // クラウドバックアップも更新する（2026-08-29追加、js/backupSync.js参照）
   } catch {
     // プライベートブラウジング等でlocalStorageが使えない環境でも、アプリ自体は動き続けられるようにする
   }

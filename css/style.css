@@ -7193,6 +7193,89 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   font-size: 0.68rem;
 }
 
+/* 管理者専用「🔧バックアップ管理」入口ボタン（2026-08-29新設）。
+   通常は非表示（hidden）で、管理者判定がtrueのときだけjs/fanProfilesScreen.jsが表示する。 */
+.admin-backup-link-button {
+  width: 100%;
+  margin-bottom: 14px;
+}
+
+/* バックアップ管理画面（#admin-backup-screen）の見出し・一覧まわり（2026-08-29新設）。
+   既存の.history-empty-state・.lyrics-import-section等と統一感のある、
+   控えめなカード行の並びにする。 */
+.admin-backup-section-title {
+  margin: 20px 0 8px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-text);
+  opacity: 0.85;
+}
+
+.admin-backup-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.admin-backup-row {
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--color-surface);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 16%, transparent);
+}
+
+.admin-backup-row-title {
+  margin: 0 0 4px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.admin-backup-row-detail {
+  margin: 0 0 2px;
+  font-size: 0.72rem;
+  color: var(--color-text);
+  opacity: 0.75;
+  word-break: break-all;
+}
+
+.admin-backup-select {
+  display: block;
+  width: 100%;
+  margin: 8px 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1.5px solid color-mix(in srgb, var(--color-primary) 30%, transparent);
+  font-size: 0.78rem;
+  font-family: inherit;
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.admin-backup-resolve-result {
+  margin-top: 6px;
+}
+
+/* データ管理画面の「データを復旧する」（2026-08-29新設）。復旧依頼番号を大きく・
+   読み上げやすい間隔で表示し、電話やLINEで他人に伝える数字であることが一目で伝わるようにする。 */
+.data-recovery-code-panel {
+  margin-top: 12px;
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--color-surface);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 16%, transparent);
+  text-align: center;
+}
+
+.data-recovery-code-display {
+  margin: 6px 0 12px;
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: 0.25em;
+  color: var(--color-primary-dark);
+  font-variant-numeric: tabular-nums;
+}
+
 /* 管理者専用の削除ボタン付きカード行（2026-08-16追加）。button要素の中にbutton要素は
    置けないため、削除ボタンがあるときだけカード本体をこの行でラップして横に並べる。 */
 .fan-profile-card-row {

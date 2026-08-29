@@ -5,6 +5,7 @@
 // （2026-08-03新設、HANDOFF 10-29章参照）。
 
 import { getPlayerKeyPrefix } from "./playerProfile.js";
+import { scheduleBackupSync } from "./backupSync.js";
 
 function buildOshiKey() {
   return `equalLoveIntroQuiz.${getPlayerKeyPrefix()}oshiMembers`;
@@ -29,6 +30,7 @@ function loadOshiData() {
 function saveOshiData(data) {
   try {
     localStorage.setItem(buildOshiKey(), JSON.stringify(data));
+    scheduleBackupSync(); // クラウドバックアップも更新する（2026-08-29追加、js/backupSync.js参照）
   } catch {
     // 保存に失敗しても（プライベートブラウズ等）アプリ自体は動き続けられるようにする。
   }

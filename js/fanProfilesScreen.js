@@ -83,6 +83,12 @@ async function renderMyUidAndAdminState() {
     elements.myUidValue.textContent = uid ?? "取得できませんでした";
   }
   isAdminUser = ADMIN_UID !== null && uid !== null && uid === ADMIN_UID;
+  // 【2026-08-29追加】バックアップ管理画面への入口も、この時点で判明した管理者判定に合わせて
+  // 表示/非表示を切り替える（既存の削除ボタンと同じ「非表示はUI上の配慮に過ぎず、
+  // 本当の権限チェックはFirebase Rules側」という設計方針）。
+  if (elements.adminBackupLinkButton) {
+    elements.adminBackupLinkButton.hidden = !isAdminUser;
+  }
 }
 
 // 設定カード（「みんなに公開する」トグル）を、今の公開設定に合わせて描画する。

@@ -13,6 +13,7 @@
 // （ノーマルルール）の自己ベストと同じキーを指してしまい、性質の異なる記録が混ざって
 // しまう。そのため、ルールの概念を持たない専用の保存領域を新設する。
 import { getPlayerKeyPrefix } from "./playerProfile.js";
+import { scheduleBackupSync } from "./backupSync.js";
 
 function buildNormalQuizTimeKey(questionCountValue, categoryFilterValue) {
   return `equalLoveIntroQuiz.${getPlayerKeyPrefix()}normalQuizTimeBest.${questionCountValue}.${categoryFilterValue}`;
@@ -39,6 +40,7 @@ export function saveNormalQuizTimeBestIfBetter(totalThinkTimeMs, questionCountVa
 
   try {
     localStorage.setItem(buildNormalQuizTimeKey(questionCountValue, categoryFilterValue), String(totalThinkTimeMs));
+    scheduleBackupSync(); // クラウドバックアップも更新する（2026-08-29追加、js/backupSync.js参照）
   } catch {
     // プライベートブラウジング等でlocalStorageが使えない環境でも、アプリ自体は動き続けられるようにする
   }
