@@ -12724,8 +12724,8 @@ body[data-screen="onlineLyricsBattleQuestion"] .game-frame {
 /* ②中央ゾーン：この中だけが縦スクロールする（カラオケ画面の.karaoke-middle-zoneと同じ考え方）。
    touch-action:pan-yは、万一の縦スクロール発生時に指の操作を素直に受け付けるためのもので、
    ピンチズーム（複数指操作）は仕様上pan-y指定時点で抑えられる。
-   【2026-08-29追加】縦並びのflexにし、.quiz-middle-zone-inner（中身側）のmargin:auto 0で
-   上下中央へ寄せる。中身が画面に収まらないときはauto marginが自動的に0になるため、
+   【2026-08-29追加】縦並びのflexにし、.quiz-middle-zone-inner（中身側）で上下位置を調整する。
+   中身が画面に収まらないときは（下のmargin-bottom:auto実装により）自動的にauto分が0になるため、
    overflow-y:autoによる内部スクロールへ滑らかに切り替わる（安全側のフォールバックは維持）。 */
 .quiz-middle-zone {
   flex: 1;
@@ -12740,9 +12740,16 @@ body[data-screen="onlineLyricsBattleQuestion"] .game-frame {
   padding-bottom: max(20px, env(safe-area-inset-bottom));
 }
 
+/* 【2026-08-29再々改訂・本人指示】中央へ完全に寄せる（margin:auto 0）と、実機で
+   問題エリアが画面中央付近まで下がりすぎて見た目が不自然という指摘があった。
+   「戻る」ボタンの少し下に自然な余白を空けて問題エリアを配置し、余った空間は
+   下側にだけ残す方針に変更する（margin-top:固定値・margin-bottom:auto）。
+   中身が画面に収まらない場合はmargin-bottom:autoが0になり、今までどおり上詰め＋
+   .quiz-middle-zoneの内部スクロールへ自然に切り替わる（この安全側のフォールバックは
+   変更していない）。 */
 .quiz-middle-zone-inner {
   width: 100%;
-  margin: auto 0;
+  margin: 16px 0 auto;
 }
 
 /* 回答ボタン・選択肢まわりはダブルタップズームだけ追加で防ぐ（カラオケ画面と同じ考え方）。 */
