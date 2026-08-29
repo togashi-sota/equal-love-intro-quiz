@@ -20,6 +20,8 @@ import {
   buildProfileCard,
   buildOshiSwatch,
   buildAchievedAchievementsList,
+  buildAchievementCountText,
+  buildFriendAchievementSummary,
   sortProfiles,
 } from "./fanProfileCard.js";
 
@@ -125,6 +127,10 @@ async function handleSharingToggleClick() {
   }
 }
 
+// 「すべての称号を見る」の初期表示文言（開くたびにここへ戻す）。
+const ALL_ACHIEVEMENTS_TOGGLE_CLOSED_TEXT = "すべての称号を見る ＞";
+const ALL_ACHIEVEMENTS_TOGGLE_OPEN_TEXT = "すべての称号を隠す";
+
 function openDetailModal(profile) {
   elements.detailName.textContent = profile.displayName;
   const oshiMember = profile.oshiMemberId ? getMemberById(members, profile.oshiMemberId) : null;
@@ -138,14 +144,37 @@ function openDetailModal(profile) {
     })
   );
 
+  // 【2026-08-29再設計・本人指示】ランキング順位は載せず、称号の総数・代表称号（最大3個）に
+  // 特化する。総数は代表表示の絞り込み（getRepresentativeAchievementCandidates）とは別に、
+  // unlockedAchievementIdsをそのまま数えるため、代表表示から省略された下位称号も含まれる。
+  elements.detailAchievementCount.textContent = buildAchievementCountText(profile.unlockedAchievementIds);
+  elements.detailSummary.innerHTML = "";
+  elements.detailSummary.appendChild(buildFriendAchievementSummary(profile.unlockedAchievementIds));
+
+  // 「すべての称号を見る」：中身は毎回組み立て直すが、開閉状態は毎回「閉じている」から
+  // 始める（前に開いていたフレンドの状態を持ち越さない）。称号を1つも持っていない人には
+  // 導線ごと出さない（本人指示：「他人のプロフィールに未獲得称号を大量に並べる必要はない」）。
   elements.detailAchievementList.innerHTML = "";
   elements.detailAchievementList.appendChild(buildAchievedAchievementsList(profile.unlockedAchievementIds));
+  elements.detailAchievementList.hidden = true;
+  elements.detailAllToggle.hidden = profile.unlockedAchievementIds.length === 0;
+  elements.detailAllToggle.textContent = ALL_ACHIEVEMENTS_TOGGLE_CLOSED_TEXT;
 
   elements.detailOverlay.hidden = false;
 }
 
 function closeDetailModal() {
   elements.detailOverlay.hidden = true;
+}
+
+// 右上の「🏅称号一覧」（ゲーム全体の称号・条件を見る）とは別物：今開いているフレンド本人が
+// 取得済みの称号を全部確認するための、モーダル内アコーディオン開閉。
+function handleDetailAllToggleClick() {
+  const willOpen = elements.detailAchievementList.hidden;
+  elements.detailAchievementList.hidden = !willOpen;
+  elements.detailAllToggle.textContent = willOpen
+    ? ALL_ACHIEVEMENTS_TOGGLE_OPEN_TEXT
+    : ALL_ACHIEVEMENTS_TOGGLE_CLOSED_TEXT;
 }
 
 function handleDetailOverlayClick(event) {
@@ -214,7 +243,11 @@ export async function renderFanProfilesScreen() {
 //   sharingToggleButton, sharingToggleLabel: 公開ON/OFFトグル,
 //   rankingSyncStatus: OFF→ON切替時のランキング後追い同期状況（2026-08-16新設）,
 //   listContainer: プロフィールカードを並べる入れ物,
-//   detailOverlay, detailCloseButton, detailSwatch, detailName, detailOshi, detailAchievementList,
+//   detailOverlay, detailCloseButton, detailSwatch, detailName, detailOshi,
+//   detailAchievementCount: 「🏅獲得称号◯個」（2026-08-29新設）,
+//   detailSummary: ランク感＋代表称号（最大3個）の入れ物（2026-08-29新設）,
+//   detailAllToggle, detailAchievementList: 「すべての称号を見る」の開閉ボタンと中身
+//     （2026-08-29再設計、代表3個には出ない下位称号もここでは確認できる）,
 //   myUidValue: 「🆔 あなたのID」表示,
 //   adminDeleteOverlay, adminDeleteTargetName, adminDeleteCancelButton, adminDeleteConfirmButton:
 //     管理者限定の削除確認モーダル,
@@ -229,6 +262,7 @@ export function initFanProfilesScreen(newElements, allMembers) {
 
   elements.sharingToggleButton.addEventListener("click", handleSharingToggleClick);
   elements.detailCloseButton.addEventListener("click", closeDetailModal);
+  elements.detailAllToggle.addEventListener("click", handleDetailAllToggleClick);
   elements.detailOverlay.addEventListener("click", handleDetailOverlayClick);
   document.addEventListener("keydown", handleDetailKeydown);
 

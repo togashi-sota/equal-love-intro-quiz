@@ -598,6 +598,10 @@ const fanProfileDetailCloseButtonElement = document.getElementById("fan-profile-
 const fanProfileDetailSwatchElement = document.getElementById("fan-profile-detail-swatch");
 const fanProfileDetailNameElement = document.getElementById("fan-profile-detail-name");
 const fanProfileDetailOshiElement = document.getElementById("fan-profile-detail-oshi");
+// 称号だけに特化した再設計（2026-08-29、本人指示：ランキング順位は載せない）で追加した要素。
+const fanProfileDetailAchievementCountElement = document.getElementById("fan-profile-detail-achievement-count");
+const fanProfileDetailSummaryElement = document.getElementById("fan-profile-detail-summary");
+const fanProfileDetailAllToggleElement = document.getElementById("fan-profile-detail-all-toggle");
 const fanProfileDetailAchievementsElement = document.getElementById("fan-profile-detail-achievements");
 // フレンドページ自体のヘッダーにある「🏅称号一覧」（2026-08-29改訂・本人指示：
 // フレンド1人ずつの詳細モーダルからこちらへ移動した）。既存の称号一覧モーダルを開く
@@ -1519,6 +1523,9 @@ initFanProfilesScreen(
     detailSwatch: fanProfileDetailSwatchElement,
     detailName: fanProfileDetailNameElement,
     detailOshi: fanProfileDetailOshiElement,
+    detailAchievementCount: fanProfileDetailAchievementCountElement,
+    detailSummary: fanProfileDetailSummaryElement,
+    detailAllToggle: fanProfileDetailAllToggleElement,
     detailAchievementList: fanProfileDetailAchievementsElement,
     myUidValue: fanProfilesMyUidElement,
     adminDeleteOverlay: fanProfilesAdminDeleteOverlayElement,

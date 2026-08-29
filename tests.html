@@ -61,7 +61,13 @@
     import { runAchievementListTests } from "./tests/achievementList.test.js";
     import { runSpecialModeIconsTests } from "./tests/specialModeIcons.test.js";
     import { runPublicProfilePayloadsTests } from "./tests/publicProfilePayloads.test.js";
-    import { runFanProfileCardTests, runGetAchievementsForPublicDisplayTests } from "./tests/fanProfileCard.test.js";
+    import {
+      runFanProfileCardTests,
+      runGetRepresentativeAchievementCandidatesTests,
+      runBuildAchievementCountTextTests,
+      runBuildRepresentativeAchievementChipTests,
+      runBuildFriendAchievementSummaryTests,
+    } from "./tests/fanProfileCard.test.js";
     import { runMembersScreenTests } from "./tests/membersScreen.test.js";
     import { runTimeAttackScoreTests } from "./tests/timeAttackScore.test.js";
     import { runTimeAttackHistoryTests } from "./tests/timeAttackHistory.test.js";
@@ -130,7 +136,10 @@
     runSpecialModeIconsTests();
     runPublicProfilePayloadsTests();
     runFanProfileCardTests();
-    runGetAchievementsForPublicDisplayTests();
+    runGetRepresentativeAchievementCandidatesTests();
+    runBuildAchievementCountTextTests();
+    runBuildRepresentativeAchievementChipTests();
+    runBuildFriendAchievementSummaryTests();
     runMembersScreenTests();
     runTimeAttackScoreTests();
     runTimeAttackHistoryTests();

@@ -176,47 +176,19 @@ export function buildAchievedCard(achievementId) {
   return card;
 }
 
-// 段階制称号（イントロ／シャッフル／リリック、それぞれビギナー→チャレンジャー→エース→
-// マスター系）の系統。配列は低→高の順。フレンドの詳細プロフィールでは、同じ系統は取得済みの
-// 中で最上位の1個だけを見せる（本人指示、2026-08-16：「同じ系統の段階制称号は、取得済みの中で
-// 最上位の1個だけ表示」）。
-// 【2026-08-29再改訂・本人指示】各系統の最上位に、対応するマスターへの道の称号
-// （ノーミスマスター／フルコーラスマスター／歌マスター）を追加した。以前はエースまでしか
-// 圧縮対象にしておらず、「ノーミスマスター取得済みなのにイントロエースも一緒に表示される」
-// 不具合があった。js/fanProfileCard.jsのbuildRepresentativeLabel()が使うREPRESENTATIVE_TIER_PAIRS
-// と同じ「エース→マスター」の優先順位を、こちらの詳細一覧側にも揃えている。
-// ＝LOVEマスター・裏チャレンジ系・複合称号はここに含めず、buildAchievedAchievementsList()側で
-// 今までどおり全件表示する（本人指示：「取得データ自体は消さない、あくまで代表表示の絞り込み」）。
-const GROWTH_TIER_FAMILIES = [
-  ["intro_beginner", "intro_challenger", "intro_ace", "no_miss_master"],
-  ["shuffle_beginner", "shuffle_challenger", "shuffle_ace", "full_chorus_master"],
-  ["lyric_beginner", "lyric_challenger", "lyric_ace", "song_master"],
-];
-
-// フレンドの詳細プロフィールに表示する称号IDだけを絞り込む（表示専用の純粋関数）。
-// 取得データ本体（unlockedAchievementIds配列・Firebase・localStorage）は一切変更しない。
-// 呼び出し側が持つ配列をそのまま返さず、新しい配列として返す（元の配列は変更しない）。
-export function getAchievementsForPublicDisplay(unlockedAchievementIds) {
-  const unlockedSet = new Set(unlockedAchievementIds);
-  const suppressedIds = new Set();
-  GROWTH_TIER_FAMILIES.forEach((tierIdsLowToHigh) => {
-    const unlockedTiers = tierIdsLowToHigh.filter((id) => unlockedSet.has(id));
-    // 取得済みの中で最上位（配列の末尾に一番近いもの）以外を非表示にする。
-    unlockedTiers.slice(0, -1).forEach((id) => suppressedIds.add(id));
-  });
-  return unlockedAchievementIds.filter((id) => !suppressedIds.has(id));
-}
-
 // 取得済み称号を、カテゴリ順・カテゴリごとのグリッドに分けて並べたコンテナ要素を組み立てる
 // （本人指示：他人のプロフィールでは取得済みだけ表示し、未取得称号は出さない）。
 // 1件も無ければ「まだ称号を取得していません。」の案内だけを返す。
-// 【2026-08-16更新】段階制称号は最上位の1個だけに絞り込んでから表示する（本人指示）。
-// 「称号◯個」の個数バッジ（js/fanProfileCard.jsのbuildProfileCard）は、この絞り込みより
-// 前の、フィルタしていないunlockedAchievementIds.lengthをそのまま使い続けるため、
-// ここでの絞り込みは表示件数にのみ影響し、バッジの総数表示は変わらない。
+// 【2026-08-29再設計・本人指示】このリストの役割を、フレンド詳細モーダルの主表示から
+// 「すべての称号を見る」の全件確認用に変更した。代表称号（最大3個）とは別の場所・別の
+// 目的の表示になったため、ここでは段階制称号の絞り込みは行わず、取得済みを全件そのまま
+// 表示する（上位称号の取得によって代表表示から省略された下位称号も、ここでは変わらず
+// 「取得済み」として確認できる。本人指示：「取得データ自体を消したり未取得扱いにしたり
+// しない」）。「称号◯個」の個数バッジ（buildProfileCard・buildAchievementCountText）は、
+// 元からフィルタしていないunlockedAchievementIds.lengthを使うため、この変更による影響はない。
 export function buildAchievedAchievementsList(unlockedAchievementIds) {
   const container = document.createElement("div");
-  const unlockedSet = new Set(getAchievementsForPublicDisplay(unlockedAchievementIds));
+  const unlockedSet = new Set(unlockedAchievementIds);
   const hasAny = ACHIEVEMENT_CATEGORY_ORDER.some((category) =>
     ACHIEVEMENTS.some((a) => a.category === category && unlockedSet.has(a.id))
   );
@@ -242,6 +214,162 @@ export function buildAchievedAchievementsList(unlockedAchievementIds) {
     });
     container.appendChild(grid);
   });
+
+  return container;
+}
+
+// ===== フレンドプロフィールの「代表称号」（2026-08-29新設・本人指示の再設計） =====
+// ランキング順位などは一切使わず、称号だけでその人の実力感が伝わるようにする。
+// 「同じ系統は取得済みの中で最上位1個だけを代表候補にする」考え方は維持しつつ、対象を
+// ステップアップ（ビギナー→チャレンジャー→エース）だけでなく、対応するマスターへの道
+// （ノーミスマスター等）・裏チャレンジ（電光石火等）まで、1本の系統として拡張した。
+// 系統は、js/achievementDefinitions.jsの各モード（イントロ／ランダム再生／歌詞クイズ）に
+// 対応する形で、低→高の順に並べる。
+const ACHIEVEMENT_SERIES = [
+  ["intro_beginner", "intro_challenger", "intro_ace", "no_miss_master", "lightning_fast"],
+  ["shuffle_beginner", "shuffle_challenger", "shuffle_ace", "full_chorus_master", "melody_ace"],
+  ["lyric_beginner", "lyric_challenger", "lyric_ace", "song_master", "lyric_master"],
+];
+
+// 系統内での難易度の目安（0＝ビギナー…4＝裏チャレンジ）。複合称号（＝LOVEマスター・
+// ＝LOVE完全制覇）はどの系統にも属さないが、単体の裏チャレンジ・マスター称号より
+// さらに上とみなし、系統の最大値より1つ上のCOMPOSITE_TIERを割り当てる。
+const SERIES_TIER_BY_ACHIEVEMENT_ID = new Map();
+ACHIEVEMENT_SERIES.forEach((seriesIdsLowToHigh) => {
+  seriesIdsLowToHigh.forEach((id, tierIndex) => SERIES_TIER_BY_ACHIEVEMENT_ID.set(id, tierIndex));
+});
+const COMPOSITE_TIER = ACHIEVEMENT_SERIES[0].length;
+
+// カテゴリーごとの優先順位（本人指示：「裏チャレンジ系 ＞ マスター系 ＞ ステップアップ系」）。
+// 数字が大きいほど価値が高く、代表称号の選出で優先される。
+const CATEGORY_PRIORITY = { backChallenge: 3, masterPath: 2, growth: 1 };
+
+// フレンドプロフィール上部に表示する、代表称号の最大件数（本人指示）。
+export const MAX_REPRESENTATIVE_ACHIEVEMENT_COUNT = 3;
+
+// マスター系・裏チャレンジ系の称号に添える、シンプルな日本語タグ（本人指示：
+// 「変に英語のランク名などを新しく作る必要はない」）。ステップアップ系にはタグを付けない。
+const CATEGORY_TAG_LABELS = { masterPath: "マスター称号", backChallenge: "裏チャレンジ称号" };
+
+// フレンドプロフィールの代表称号候補を、価値の高い順（すべて）に並べて返す純粋関数。
+// 取得データ本体（unlockedAchievementIds）は一切変更しない。呼び出し側が最大3個に絞る。
+//
+// ①系統内は、取得済みの中で最上位1個以外を代表候補から除外する（例：イントロエース＋
+//   ノーミスマスター取得済みなら、ノーミスマスターだけが候補に残る）。
+// ②複合称号（＝LOVEマスター／＝LOVE完全制覇）を取得済みなら、その材料になった単体称号
+//   （compositeOf）も代表候補から除外する（例：＝LOVEマスター取得済みなら、単体の
+//   ノーミスマスター等は候補から外れ、＝LOVEマスターだけが残る）。
+// どちらも「代表表示からの除外」であり、unlockedAchievementIds自体は書き換えない
+// （本人指示：「イントロエースを未取得扱いにする・取得データを削除するという意味では
+// ない」）。
+export function getRepresentativeAchievementCandidates(unlockedAchievementIds) {
+  const unlockedSet = new Set(unlockedAchievementIds);
+  const suppressedIds = new Set();
+
+  ACHIEVEMENT_SERIES.forEach((seriesIdsLowToHigh) => {
+    const unlockedInSeries = seriesIdsLowToHigh.filter((id) => unlockedSet.has(id));
+    unlockedInSeries.slice(0, -1).forEach((id) => suppressedIds.add(id));
+  });
+
+  ACHIEVEMENTS.forEach((achievement) => {
+    if (!achievement.compositeOf || !unlockedSet.has(achievement.id)) return;
+    achievement.compositeOf.forEach((id) => suppressedIds.add(id));
+  });
+
+  return [...unlockedSet]
+    .filter((id) => !suppressedIds.has(id))
+    .map((id) => getAchievementById(id))
+    .filter(Boolean)
+    .sort((a, b) => {
+      const categoryDiff = (CATEGORY_PRIORITY[b.category] ?? 0) - (CATEGORY_PRIORITY[a.category] ?? 0);
+      if (categoryDiff !== 0) return categoryDiff;
+      const tierA = SERIES_TIER_BY_ACHIEVEMENT_ID.get(a.id) ?? COMPOSITE_TIER;
+      const tierB = SERIES_TIER_BY_ACHIEVEMENT_ID.get(b.id) ?? COMPOSITE_TIER;
+      return tierB - tierA;
+    });
+}
+
+// 獲得称号の総数テキスト（本人指示：「代表表示から除外された下位称号も、取得済みである
+// こと自体は変わらないので総数には含める」）。unlockedAchievementIdsをそのままlengthで
+// 数えるだけなので、代表称号選出（getRepresentativeAchievementCandidates）の絞り込みとは
+// 完全に独立している。
+export function buildAchievementCountText(unlockedAchievementIds) {
+  return `🏅 獲得称号 ${unlockedAchievementIds.length}個`;
+}
+
+// 代表称号1件分のチップ（アイコン＋称号名＋1行の獲得条件＋カテゴリータグ）を組み立てる。
+// 獲得条件はachievementDefinitions.jsのconditionText（一覧モーダルと同じ、既存の短文）を
+// そのまま再利用し、新しい説明文は作らない（本人指示：「既存の称号判定ロジックを再利用」）。
+export function buildRepresentativeAchievementChip(achievement) {
+  const chip = document.createElement("div");
+  chip.className = "fan-profile-representative-chip";
+
+  const tagLabel = CATEGORY_TAG_LABELS[achievement.category];
+  if (tagLabel) {
+    const tag = document.createElement("span");
+    tag.className = `fan-profile-representative-tag fan-profile-representative-tag--${achievement.category}`;
+    tag.textContent = tagLabel;
+    chip.appendChild(tag);
+  }
+
+  const row = document.createElement("div");
+  row.className = "fan-profile-representative-row";
+  row.appendChild(buildAchievementIconMedal(achievement.iconKey));
+
+  const textBlock = document.createElement("div");
+  textBlock.className = "fan-profile-representative-text";
+
+  const name = document.createElement("p");
+  name.className = "fan-profile-representative-name";
+  name.textContent = achievement.name;
+  textBlock.appendChild(name);
+
+  const condition = document.createElement("p");
+  condition.className = "fan-profile-representative-condition";
+  condition.textContent = achievement.conditionText;
+  textBlock.appendChild(condition);
+
+  row.appendChild(textBlock);
+  chip.appendChild(row);
+
+  return chip;
+}
+
+// フレンドプロフィール上部の「ランク感」＋代表称号（最大3個）をまとめて組み立てる
+// （本人指示：称号0個／1〜2個／3個以上で見せ方を変える）。
+// ・0個：「これから挑戦！」＋案内文（未獲得称号は並べない）
+// ・1〜2個：「CHALLENGER」＋取得済みをそのまま表示（無理に3個まで埋めない）
+// ・3個以上：「代表称号」＋優先順位の高い3個を表示
+export function buildFriendAchievementSummary(unlockedAchievementIds) {
+  const container = document.createElement("div");
+  container.className = "fan-profile-achievement-summary";
+
+  const candidates = getRepresentativeAchievementCandidates(unlockedAchievementIds);
+
+  const rankLabel = document.createElement("p");
+  rankLabel.className = "fan-profile-rank-label";
+  container.appendChild(rankLabel);
+
+  if (candidates.length === 0) {
+    rankLabel.textContent = "これから挑戦！";
+    rankLabel.classList.add("is-empty");
+    const hint = document.createElement("p");
+    hint.className = "fan-profile-rank-empty-hint";
+    hint.textContent = "クイズに挑戦して最初の称号を獲得しよう！";
+    container.appendChild(hint);
+    return container;
+  }
+
+  const isChallenger = candidates.length < MAX_REPRESENTATIVE_ACHIEVEMENT_COUNT;
+  rankLabel.textContent = isChallenger ? "CHALLENGER" : "代表称号";
+  rankLabel.classList.add(isChallenger ? "is-challenger" : "is-representative");
+
+  const list = document.createElement("div");
+  list.className = "fan-profile-representative-list";
+  candidates.slice(0, MAX_REPRESENTATIVE_ACHIEVEMENT_COUNT).forEach((achievement) => {
+    list.appendChild(buildRepresentativeAchievementChip(achievement));
+  });
+  container.appendChild(list);
 
   return container;
 }
