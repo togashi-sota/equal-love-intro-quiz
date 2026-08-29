@@ -1,0 +1,258 @@
+{
+  "rules": {
+    "publicProfiles": {
+      ".read": "auth != null",
+      "$uid": {
+        ".write": "auth != null && (auth.uid === $uid || (auth.uid === '1lg2urCowcMqF6r8E7tkc9OOm3r1' && !newData.exists()))"
+      }
+    },
+    "timeAttackLeaderboards": {
+      "$variant": {
+        "$questionCount": {
+          ".read": "auth != null",
+          ".indexOn": "clearTimeMs",
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid",
+            ".validate": "newData.hasChildren(['displayName','clearTimeMs','missCount','achievedAt'])",
+            "displayName": { ".validate": "newData.isString() && newData.val().length <= 40" },
+            "oshiMemberId": { ".validate": "newData.val() === null || newData.isString()" },
+            "clearTimeMs": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() < 3600000" },
+            "missCount": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000" },
+            "achievedAt": { ".validate": "newData.isNumber()" },
+            "$other": { ".validate": false }
+          }
+        }
+      }
+    },
+    "timeAttackLeaderboardsV2": {
+      "$variant": {
+        "$rule": {
+          "$questionCount": {
+            "$category": {
+              ".read": "auth != null",
+              ".indexOn": "clearTimeMs",
+              "$uid": {
+                ".write": "auth != null && (auth.uid === $uid || (auth.uid === '1lg2urCowcMqF6r8E7tkc9OOm3r1' && !newData.exists()))",
+                ".validate": "newData.hasChildren(['displayName','clearTimeMs','missCount','achievedAt'])",
+                "displayName": { ".validate": "newData.isString() && newData.val().length <= 40" },
+                "oshiMemberId": { ".validate": "newData.val() === null || newData.isString()" },
+                "clearTimeMs": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() < 3600000" },
+                "missCount": { ".validate": "newData.val() === 0" },
+                "achievedAt": { ".validate": "newData.isNumber()" },
+                "$other": { ".validate": false }
+              }
+            }
+          }
+        }
+      }
+    },
+    "timeAttackLeaderboardsV3": {
+      "$variant": {
+        "$questionCount": {
+          "$category": {
+            ".read": "auth != null",
+            ".indexOn": "clearTimeMs",
+            "$uid": {
+              ".write": "auth != null && (auth.uid === $uid || (auth.uid === '1lg2urCowcMqF6r8E7tkc9OOm3r1' && !newData.exists()))",
+              ".validate": "newData.hasChildren(['displayName','clearTimeMs','missCount','achievedAt'])",
+              "displayName": { ".validate": "newData.isString() && newData.val().length <= 40" },
+              "oshiMemberId": { ".validate": "newData.val() === null || newData.isString()" },
+              "clearTimeMs": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() < 3600000" },
+              "missCount": { ".validate": "newData.val() === 0" },
+              "rule": { ".validate": "newData.val() === null || (newData.isString() && (newData.val() === 'normal' || newData.val() === 'hard' || newData.val() === 'loveChain'))" },
+              "source": { ".validate": "newData.val() === null || (newData.isString() && (newData.val() === 'timeAttack' || newData.val() === 'normal'))" },
+              "achievedAt": { ".validate": "newData.isNumber()" },
+              "$other": { ".validate": false }
+            }
+          }
+        }
+      }
+    },
+    "rooms": {
+      "$roomId": {
+        ".read": "auth != null",
+
+        ".write": "auth != null && ((!data.exists() && newData.child('host').val() === auth.uid && newData.child('version').val() === 1 && newData.child('status').val() === 'waiting' && newData.hasChild('createdAt') && (newData.child('maxPlayers').val() === 2 || newData.child('maxPlayers').val() === 4) && newData.child('gameMode').isString() && newData.child('gameMode').val().length > 0 && !newData.hasChild('matches') && !newData.hasChild('results') && !newData.hasChild('seed') && !newData.hasChild('countdownStartedAt') && !newData.hasChild('activeMatchId') && newData.child('players').hasChild(auth.uid)) || (data.exists() && !newData.exists() && data.child('host').val() === auth.uid))",
+
+        "status": {
+          ".write": "auth != null && root.child('rooms/' + $roomId + '/host').val() === auth.uid"
+        },
+        "settings": {
+          ".write": "auth != null && root.child('rooms/' + $roomId + '/host').val() === auth.uid",
+          "battleRuleId": {
+            ".validate": "newData.isString() && (newData.val() === 'classic' || newData.val() === 'steal' || newData.val() === 'combo')"
+          },
+          "battleRuleVersion": {
+            ".validate": "newData.isNumber() && newData.val() === 1"
+          },
+          "hintIntervalSec": {
+            ".validate": "newData.isNumber() && (newData.val() === 4 || newData.val() === 6 || newData.val() === 8)"
+          },
+          "answerPoolSizeValue": {
+            ".validate": "(newData.val() === 4 || newData.val() === 10 || newData.val() === 30 || newData.val() === 50 || newData.val() === 'all') && (newData.parent().child('battleRuleId').val() !== 'steal' || newData.val() === 4 || newData.val() === 10)"
+          }
+        },
+        "settingsRevision": {
+          ".write": "auth != null && root.child('rooms/' + $roomId + '/host').val() === auth.uid"
+        },
+        "seed": {
+          ".write": "auth != null && root.child('rooms/' + $roomId + '/host').val() === auth.uid"
+        },
+        "countdownStartedAt": {
+          ".write": "auth != null && root.child('rooms/' + $roomId + '/host').val() === auth.uid"
+        },
+        "activeMatchId": {
+          ".write": "auth != null && root.child('rooms/' + $roomId + '/host').val() === auth.uid",
+          ".validate": "newData.isString()"
+        },
+
+        "players": {
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid",
+            ".validate": "data.exists() || $uid === auth.uid",
+            "ready": {
+              ".write": "auth != null && (auth.uid === $uid || root.child('rooms/' + $roomId + '/host').val() === auth.uid)"
+            },
+            "readyForRevision": {
+              ".write": "auth != null && (auth.uid === $uid || root.child('rooms/' + $roomId + '/host').val() === auth.uid)"
+            }
+          }
+        },
+
+        "matches": {
+          "$matchId": {
+            "participants": {
+              "$uid": {
+                ".write": "auth != null && !data.exists() && root.child('rooms/' + $roomId + '/host').val() === auth.uid",
+                ".validate": "newData.hasChildren(['displayName', 'isHost'])",
+                "displayName": { ".validate": "newData.isString() && newData.val().length > 0" },
+                "oshiMemberId": { ".validate": "newData.isString() || !newData.exists()" },
+                "isHost": { ".validate": "newData.val() === ($uid === root.child('rooms/' + $roomId + '/host').val())" }
+              }
+            },
+            "progress": {
+              "$uid": {
+                ".write": "auth != null && auth.uid === $uid && root.child('rooms/' + $roomId + '/activeMatchId').val() === $matchId && (root.child('rooms/' + $roomId + '/status').val() === 'countdown' || root.child('rooms/' + $roomId + '/status').val() === 'playing') && root.child('rooms/' + $roomId + '/matches/' + $matchId + '/participants/' + auth.uid).exists()",
+                ".validate": "newData.hasChildren(['answeredCount', 'finished', 'updatedAt'])",
+                "answeredCount": {
+                  ".validate": "newData.isNumber() && newData.val() >= 0 && (!data.exists() || newData.val() >= data.val())"
+                },
+                "finished": {
+                  ".validate": "newData.isBoolean() && (data.val() !== true || newData.val() === true)"
+                },
+                "updatedAt": { ".validate": "newData.isNumber()" },
+                "$other": { ".validate": false }
+              }
+            },
+            "results": {
+              "$uid": {
+                ".write": "auth != null && auth.uid === $uid && !data.exists() && root.child('rooms/' + $roomId + '/activeMatchId').val() === $matchId && root.child('rooms/' + $roomId + '/status').val() === 'playing' && root.child('rooms/' + $roomId + '/matches/' + $matchId + '/participants/' + auth.uid).exists()",
+                ".validate": "newData.hasChildren(['completed', 'common']) && newData.child('completed').isBoolean()",
+                "common": {
+                  ".validate": "newData.hasChildren(['elapsedMs', 'correctCount', 'missCount'])",
+                  "elapsedMs": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+                  "correctCount": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+                  "missCount": { ".validate": "newData.isNumber() && newData.val() >= 0" }
+                }
+              }
+            },
+            "currentQuestionIndex": {
+              ".write": "auth != null && root.child('rooms/' + $roomId + '/host').val() === auth.uid",
+              ".validate": "newData.isNumber() && newData.val() >= 0"
+            },
+            "currentQuestionStartedAt": {
+              ".write": "auth != null && root.child('rooms/' + $roomId + '/host').val() === auth.uid",
+              ".validate": "newData.isNumber()"
+            },
+            "questionStatus": {
+              ".write": "auth != null && root.child('rooms/' + $roomId + '/host').val() === auth.uid",
+              ".validate": "newData.isString() && (newData.val() === 'active' || newData.val() === 'resolved')"
+            },
+            "resolvedAt": {
+              ".write": "auth != null && root.child('rooms/' + $roomId + '/host').val() === auth.uid",
+              ".validate": "newData.isNumber()"
+            },
+            "answers": {
+              "$questionIndex": {
+                "$uid": {
+                  ".write": "auth != null && auth.uid === $uid && !data.exists() && root.child('rooms/' + $roomId + '/activeMatchId').val() === $matchId && (root.child('rooms/' + $roomId + '/matches/' + $matchId + '/currentQuestionIndex').val() + '') === $questionIndex && root.child('rooms/' + $roomId + '/matches/' + $matchId + '/questionStatus').val() === 'active' && root.child('rooms/' + $roomId + '/matches/' + $matchId + '/participants/' + $uid).exists()",
+                  ".validate": "newData.hasChildren(['selectedSongId', 'hintLevel', 'answeredAt', 'submittedAt'])",
+                  "selectedSongId": { ".validate": "newData.isString() && newData.val().length > 0" },
+                  "hintLevel": {
+                    ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 4 && newData.parent().child('submittedAt').val() >= (root.child('rooms/' + $roomId + '/matches/' + $matchId + '/currentQuestionStartedAt').val() + (newData.val() - 1) * root.child('rooms/' + $roomId + '/settings/hintIntervalSec').val() * 1000 - 1000) && newData.parent().child('submittedAt').val() < (root.child('rooms/' + $roomId + '/matches/' + $matchId + '/currentQuestionStartedAt').val() + newData.val() * root.child('rooms/' + $roomId + '/settings/hintIntervalSec').val() * 1000 + 1000)"
+                  },
+                  "answeredAt": { ".validate": "newData.isNumber()" },
+                  "submittedAt": { ".validate": "newData.isNumber()" },
+                  "$other": { ".validate": false }
+                }
+              }
+            },
+            "questionClaims": {
+              "$questionIndex": {
+                "winner": {
+                  ".write": "auth != null && !data.exists() && newData.child('uid').val() === auth.uid && root.child('rooms/' + $roomId + '/activeMatchId').val() === $matchId && (root.child('rooms/' + $roomId + '/matches/' + $matchId + '/currentQuestionIndex').val() + '') === $questionIndex && root.child('rooms/' + $roomId + '/matches/' + $matchId + '/questionStatus').val() === 'active' && root.child('rooms/' + $roomId + '/matches/' + $matchId + '/answers/' + $questionIndex + '/' + auth.uid).exists()",
+                  ".validate": "newData.hasChildren(['uid', 'submittedAt'])",
+                  "uid": { ".validate": "newData.isString()" },
+                  "submittedAt": { ".validate": "newData.isNumber()" },
+                  "$other": { ".validate": false }
+                }
+              }
+            },
+            "publicProfiles": {
+              ".read": "auth != null",
+              "$uid": {
+                ".write": "auth != null && auth.uid === $uid"
+              }
+            },
+            "lyricsResults": {
+              "$uid": {
+                ".write": "auth != null && root.child('rooms/' + $roomId + '/host').val() === auth.uid && !data.exists() && root.child('rooms/' + $roomId + '/activeMatchId').val() === $matchId && root.child('rooms/' + $roomId + '/status').val() === 'playing' && root.child('rooms/' + $roomId + '/matches/' + $matchId + '/participants/' + $uid).exists()",
+                ".validate": "newData.hasChildren(['ruleVersion', 'completed', 'common']) && newData.child('completed').isBoolean()",
+                "common": {
+                  ".validate": "newData.hasChildren(['elapsedMs', 'correctCount', 'missCount'])",
+                  "elapsedMs": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+                  "correctCount": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+                  "missCount": { ".validate": "newData.isNumber() && newData.val() >= 0" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "backups": {
+      "_comment_ja": "2026-08-29追加：プレイヤーデータの自動クラウドバックアップ・管理者復旧機能用。$backupIdは端末側でcrypto.randomUUID()により生成する、匿名認証UIDとは独立した永続的な識別子（js/backupSync.js参照）。currentUidフィールドが『今このバックアップの正式な持ち主として書き込んでよいuid』を表し、通常は本人のみ、復旧時だけ管理者がここを書き換えて所有権を移す。",
+      ".read": "auth != null && auth.uid === '1lg2urCowcMqF6r8E7tkc9OOm3r1'",
+      "$backupId": {
+        ".read": "auth != null && data.child('currentUid').val() === auth.uid",
+        ".write": "auth != null && (auth.uid === '1lg2urCowcMqF6r8E7tkc9OOm3r1' || data.child('currentUid').val() === auth.uid || (!data.exists() && newData.child('currentUid').val() === auth.uid))",
+        ".validate": "newData.hasChildren(['schemaVersion', 'currentUid', 'updatedAt', 'payload'])",
+        "schemaVersion": { ".validate": "newData.isNumber()" },
+        "currentUid": { ".validate": "newData.isString() && newData.val().length > 0" },
+        "updatedAt": { ".validate": "newData.isNumber()" },
+        "displayName": { ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 40)" },
+        "oshiMemberId": { ".validate": "!newData.exists() || newData.isString()" },
+        "achievementCount": { ".validate": "!newData.exists() || newData.isNumber()" },
+        "payload": { ".validate": "newData.exists()" },
+        "$other": { ".validate": false }
+      }
+    },
+
+    "recoveryRequests": {
+      "_comment_ja": "2026-08-29追加：サイトデータ消失時、新しいUIDの端末が『復旧依頼番号』を発行し、管理者が管理画面から対応するbackupIdを紐付けて解決するための一時的なやり取り。本人（依頼を出したuid）は作成のみ・自分の分だけ閲覧可能、その後の状態変更（resolved化）は管理者だけが行える。",
+      ".read": "auth != null && auth.uid === '1lg2urCowcMqF6r8E7tkc9OOm3r1'",
+      "$code": {
+        ".read": "auth != null && data.child('newUid').val() === auth.uid",
+        ".write": "auth != null && (auth.uid === '1lg2urCowcMqF6r8E7tkc9OOm3r1' || (!data.exists() && newData.child('newUid').val() === auth.uid && newData.child('status').val() === 'pending'))",
+        ".validate": "newData.hasChildren(['newUid', 'status', 'requestedAt'])",
+        "newUid": { ".validate": "newData.isString() && newData.val().length > 0" },
+        "status": { ".validate": "newData.isString() && (newData.val() === 'pending' || newData.val() === 'resolved')" },
+        "requestedAt": { ".validate": "newData.isNumber()" },
+        "resolvedBackupId": { ".validate": "!newData.exists() || newData.isString()" },
+        "resolvedAt": { ".validate": "!newData.exists() || newData.isNumber()" },
+        "$other": { ".validate": false }
+      }
+    }
+  }
+}
