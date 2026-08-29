@@ -7256,6 +7256,15 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   margin-top: 6px;
 }
 
+/* 復旧依頼の削除ボタン（2026-08-29追加）。危険な操作用の既存クラス.danger-buttonを
+   そのまま使い、赤系の配色にする（バックアップ本体の削除機能は意図的に用意していない。
+   本人指示：復旧依頼の削除とバックアップ本体の削除は完全に別物として扱う）。 */
+.admin-backup-delete-request-button {
+  margin-top: 8px;
+  display: block;
+  width: 100%;
+}
+
 /* データ管理画面の「データを復旧する」（2026-08-29新設）。復旧依頼番号を大きく・
    読み上げやすい間隔で表示し、電話やLINEで他人に伝える数字であることが一目で伝わるようにする。 */
 .data-recovery-code-panel {

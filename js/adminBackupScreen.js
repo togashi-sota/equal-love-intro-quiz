@@ -9,7 +9,12 @@
 // 管理者以外がこの画面を無理に開いても、js/backupAdmin.jsの各関数がすべて
 // { ok: false } を返すだけでデータは一切見えない。
 
-import { adminFetchAllBackups, adminFetchAllRecoveryRequests, adminResolveRecoveryRequest } from "./backupAdmin.js";
+import {
+  adminFetchAllBackups,
+  adminFetchAllRecoveryRequests,
+  adminResolveRecoveryRequest,
+  adminDeleteRecoveryRequest,
+} from "./backupAdmin.js";
 import { getMemberById } from "./memberUtils.js";
 
 let elements = null;
@@ -42,6 +47,42 @@ function buildBackupRow(backup) {
   return row;
 }
 
+// 復旧依頼1件を削除する「削除する」ボタン＋確認テキストを組み立てる。
+// 【重要】ここで削除するのはrecoveryRequests側だけで、backups側（本人の実際の記録）には
+// 一切触れない（js/backupAdmin.jsのadminDeleteRecoveryRequest参照）。
+// 誤操作防止のため、押すたびに毎回確認ダイアログ（window.confirm）を挟む
+// （本人指示：復旧依頼の削除とバックアップ本体の削除は完全に別物として扱うが、
+// 復旧依頼の削除自体も取り消せない操作のため、簡易的な確認は必ず入れる）。
+function buildDeleteRequestButton(request) {
+  const deleteResultText = document.createElement("p");
+  deleteResultText.className = "admin-backup-row-detail admin-backup-resolve-result";
+  deleteResultText.hidden = true;
+
+  const deleteButton = document.createElement("button");
+  deleteButton.type = "button";
+  deleteButton.className = "danger-button admin-backup-delete-request-button";
+  deleteButton.textContent = "この依頼を削除する";
+  deleteButton.addEventListener("click", async () => {
+    const confirmed = window.confirm(
+      `復旧依頼「${request.code}」を削除します。この操作は取り消せません（本人の記録＝バックアップ本体は削除されません）。よろしいですか？`
+    );
+    if (!confirmed) return;
+
+    deleteButton.disabled = true;
+    deleteResultText.hidden = false;
+    deleteResultText.textContent = "削除しています…";
+    const result = await adminDeleteRecoveryRequest(request.code);
+    if (result.ok) {
+      await renderAdminBackupScreen();
+    } else {
+      deleteButton.disabled = false;
+      deleteResultText.textContent = result.reason ?? "削除に失敗しました";
+    }
+  });
+
+  return { deleteButton, deleteResultText };
+}
+
 function buildRecoveryRequestRow(request) {
   const row = document.createElement("div");
   row.className = "admin-backup-row";
@@ -61,6 +102,10 @@ function buildRecoveryRequestRow(request) {
     resolvedDetail.className = "admin-backup-row-detail";
     resolvedDetail.textContent = `対応済み：バックアップID ${shortId(request.resolvedBackupId)} へ引き継ぎ済み（${formatTimestamp(request.resolvedAt)}）`;
     row.appendChild(resolvedDetail);
+
+    const { deleteButton, deleteResultText } = buildDeleteRequestButton(request);
+    row.appendChild(deleteButton);
+    row.appendChild(deleteResultText);
     return row;
   }
 
@@ -108,6 +153,10 @@ function buildRecoveryRequestRow(request) {
   });
   row.appendChild(resolveButton);
   row.appendChild(resultText);
+
+  const { deleteButton, deleteResultText } = buildDeleteRequestButton(request);
+  row.appendChild(deleteButton);
+  row.appendChild(deleteResultText);
 
   return row;
 }

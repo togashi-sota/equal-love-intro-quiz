@@ -97,3 +97,22 @@ export async function adminResolveRecoveryRequest(code, backupId) {
     return { ok: false, reason: "処理に失敗しました。管理者としてログインできているかご確認ください。" };
   }
 }
+
+// 復旧依頼（recoveryRequests/{code}）を1件だけ削除する（2026-08-29追加、本人指示）。
+// 【最重要：バックアップ本体とは完全に別物】この関数はrecoveryRequestsだけを対象とし、
+// backups側には一切触れない。テスト用・間違えて作られた・古くなった依頼を管理画面から
+// 整理するための機能であり、ユーザーの記録そのもの（backups/{backupId}）を削除する機能は
+// 意図的に用意していない（本人指示：「復旧依頼を削除する」と「バックアップ本体を削除する」は
+// 完全に別物として扱う）。
+export async function adminDeleteRecoveryRequest(code) {
+  try {
+    const { database, authReady } = await import("./firebaseClient.js");
+    const { ref, remove } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js");
+    await authReady;
+    await remove(ref(database, `recoveryRequests/${code}`));
+    return { ok: true };
+  } catch (error) {
+    console.warn("復旧依頼の削除に失敗しました（管理者権限が無い可能性があります）", error);
+    return { ok: false, reason: "削除に失敗しました。管理者としてログインできているかご確認ください。" };
+  }
+}
