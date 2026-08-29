@@ -222,7 +222,6 @@
     },
 
     "backups": {
-      "_comment_ja": "2026-08-29追加：プレイヤーデータの自動クラウドバックアップ・管理者復旧機能用。$backupIdは端末側でcrypto.randomUUID()により生成する、匿名認証UIDとは独立した永続的な識別子（js/backupSync.js参照）。currentUidフィールドが『今このバックアップの正式な持ち主として書き込んでよいuid』を表し、通常は本人のみ、復旧時だけ管理者がここを書き換えて所有権を移す。",
       ".read": "auth != null && auth.uid === '1lg2urCowcMqF6r8E7tkc9OOm3r1'",
       "$backupId": {
         ".read": "auth != null && data.child('currentUid').val() === auth.uid",
@@ -240,7 +239,6 @@
     },
 
     "recoveryRequests": {
-      "_comment_ja": "2026-08-29追加：サイトデータ消失時、新しいUIDの端末が『復旧依頼番号』を発行し、管理者が管理画面から対応するbackupIdを紐付けて解決するための一時的なやり取り。本人（依頼を出したuid）は作成のみ・自分の分だけ閲覧可能、その後の状態変更（resolved化）は管理者だけが行える。",
       ".read": "auth != null && auth.uid === '1lg2urCowcMqF6r8E7tkc9OOm3r1'",
       "$code": {
         ".read": "auth != null && data.child('newUid').val() === auth.uid",
