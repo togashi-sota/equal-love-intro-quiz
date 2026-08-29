@@ -225,7 +225,7 @@
       ".read": "auth != null && auth.uid === '1lg2urCowcMqF6r8E7tkc9OOm3r1'",
       "$backupId": {
         ".read": "auth != null && data.child('currentUid').val() === auth.uid",
-        ".write": "auth != null && (auth.uid === '1lg2urCowcMqF6r8E7tkc9OOm3r1' || data.child('currentUid').val() === auth.uid || (!data.exists() && newData.child('currentUid').val() === auth.uid))",
+        ".write": "auth != null && (auth.uid === '1lg2urCowcMqF6r8E7tkc9OOm3r1' || data.child('currentUid').val() === auth.uid || (!data.exists() && newData.child('currentUid').val() === auth.uid) || (data.child('transfer/secret').exists() && !data.child('transfer/usedAt').exists() && data.child('transfer/expiresAt').val() > now && newData.child('currentUid').val() === auth.uid && newData.child('transfer/secret').val() === data.child('transfer/secret').val() && newData.child('transfer/usedAt').val() === now))",
         ".validate": "newData.hasChildren(['schemaVersion', 'currentUid', 'updatedAt', 'payload'])",
         "schemaVersion": { ".validate": "newData.isNumber()" },
         "currentUid": { ".validate": "newData.isString() && newData.val().length > 0" },
@@ -234,6 +234,14 @@
         "oshiMemberId": { ".validate": "!newData.exists() || newData.isString()" },
         "achievementCount": { ".validate": "!newData.exists() || newData.isNumber()" },
         "payload": { ".validate": "newData.exists()" },
+        "transfer": {
+          ".validate": "newData.hasChildren(['secret'])",
+          "secret": { ".validate": "newData.isString() && newData.val().length >= 16 && newData.val().length <= 64" },
+          "createdAt": { ".validate": "!newData.exists() || newData.isNumber()" },
+          "expiresAt": { ".validate": "!newData.exists() || (newData.isNumber() && newData.val() <= now + 90000000)" },
+          "usedAt": { ".validate": "!newData.exists() || newData.isNumber()" },
+          "$other": { ".validate": false }
+        },
         "$other": { ".validate": false }
       }
     },
