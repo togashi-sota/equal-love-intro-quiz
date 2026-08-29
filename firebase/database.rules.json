@@ -62,6 +62,7 @@
               "rule": { ".validate": "newData.val() === null || (newData.isString() && (newData.val() === 'normal' || newData.val() === 'hard' || newData.val() === 'loveChain'))" },
               "source": { ".validate": "newData.val() === null || (newData.isString() && (newData.val() === 'timeAttack' || newData.val() === 'normal'))" },
               "achievedAt": { ".validate": "newData.isNumber()" },
+              "actualQuestionCount": { ".validate": "!newData.exists() || (newData.isNumber() && newData.val() > 0)" },
               "$other": { ".validate": false }
             }
           }
