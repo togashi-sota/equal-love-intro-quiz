@@ -148,12 +148,6 @@ function closeDetailModal() {
   elements.detailOverlay.hidden = true;
 }
 
-// 右上の「🏅称号一覧」ボタン（2026-08-29追加）。称号一覧自体は常にモーダル内へ
-// 描画済みのため、新しい画面は作らず、その場所まで滑らかにスクロールするだけでよい。
-function handleDetailTitlesLinkClick() {
-  elements.detailAchievementList.scrollIntoView({ behavior: "smooth", block: "start" });
-}
-
 function handleDetailOverlayClick(event) {
   if (event.target !== elements.detailOverlay) return;
   closeDetailModal();
@@ -221,20 +215,20 @@ export async function renderFanProfilesScreen() {
 //   rankingSyncStatus: OFF→ON切替時のランキング後追い同期状況（2026-08-16新設）,
 //   listContainer: プロフィールカードを並べる入れ物,
 //   detailOverlay, detailCloseButton, detailSwatch, detailName, detailOshi, detailAchievementList,
-//   detailTitlesLink: 右上「🏅称号一覧」リンク（2026-08-29追加、称号一覧までスクロールする）,
 //   myUidValue: 「🆔 あなたのID」表示,
 //   adminDeleteOverlay, adminDeleteTargetName, adminDeleteCancelButton, adminDeleteConfirmButton:
 //     管理者限定の削除確認モーダル,
 // }
+// 【2026-08-29改訂・本人指示】右上の「🏅称号一覧」ボタンは、フレンド1人ずつの詳細モーダル
+// からフレンドページ自体のヘッダーへ移動した（js/main.jsのfanProfilesTitleListLinkElement、
+// initAchievementListModalのopenTriggers参照）。既存の称号一覧モーダルをそのまま開くだけの
+// ボタンになったため、このファイル側に専用の開閉ロジックはもう無い。
 export function initFanProfilesScreen(newElements, allMembers) {
   elements = newElements;
   members = allMembers;
 
   elements.sharingToggleButton.addEventListener("click", handleSharingToggleClick);
   elements.detailCloseButton.addEventListener("click", closeDetailModal);
-  if (elements.detailTitlesLink) {
-    elements.detailTitlesLink.addEventListener("click", handleDetailTitlesLinkClick);
-  }
   elements.detailOverlay.addEventListener("click", handleDetailOverlayClick);
   document.addEventListener("keydown", handleDetailKeydown);
 

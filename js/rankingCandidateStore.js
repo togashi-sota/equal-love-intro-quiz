@@ -75,7 +75,27 @@ export function saveRankingCandidateIfBetter({
   const data = loadData();
   const key = buildComboKey(variant, questionCountValue, categoryFilterValue);
   const current = data.bestsByCombo[key];
+  const normalizedActualQuestionCount =
+    Number.isFinite(actualQuestionCount) && actualQuestionCount > 0 ? actualQuestionCount : null;
+
   if (current && clearTimeMs >= current.clearTimeMs) {
+    // 【2026-08-29追加、本人指示】タイムを更新していなくても（＝新記録ではなくても）、
+    // 保存済みの記録にactualQuestionCount（実際に出題された問題数）が欠けていて、
+    // 今回の同タイム・同ミス数の再送信でその値が分かる場合だけ、その項目だけを
+    // こっそり補ってあげる（クリアタイム・ミス数・登録日時など他の項目は一切変更しない）。
+    // これが無いと、actualQuestionCountの記録開始（2026-08-29）より前に到達した自己ベストが
+    // 一生「全曲」の平均タイムを表示できないままになってしまう
+    // （js/timeAttackLeaderboardSync.jsのneedsActualQuestionCountBackfillと対になる、
+    // ローカルキャッシュ側の同じ考え方の救済措置）。
+    if (
+      current.clearTimeMs === clearTimeMs &&
+      current.missCount === missCount &&
+      current.actualQuestionCount == null &&
+      normalizedActualQuestionCount !== null
+    ) {
+      current.actualQuestionCount = normalizedActualQuestionCount;
+      saveData(data);
+    }
     return false;
   }
 
@@ -90,7 +110,7 @@ export function saveRankingCandidateIfBetter({
     achievedAt,
     // 2026-08-29追加：ランキング平均タイム表示の修正で使う「実際に出題された問題数」。
     // 渡されなかった場合はnullのまま保存し、Firebase送信側で改めてnull安全に扱う。
-    actualQuestionCount: Number.isFinite(actualQuestionCount) && actualQuestionCount > 0 ? actualQuestionCount : null,
+    actualQuestionCount: normalizedActualQuestionCount,
   };
   data.schemaVersion = CURRENT_SCHEMA_VERSION;
   saveData(data);

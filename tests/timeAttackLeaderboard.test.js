@@ -12,6 +12,7 @@ import {
   buildLeaderboardPath,
   buildLeaderboardEntryPayload,
   isBetterLeaderboardRecord,
+  needsActualQuestionCountBackfill,
   normalizeLeaderboardEntry,
   sortLeaderboardEntries,
   findRankByUid,
@@ -202,6 +203,62 @@ export function runTimeAttackLeaderboardTests() {
     isBetterLeaderboardRecord({ clearTimeMs: 5000, missCount: 1 }, { clearTimeMs: 5000, missCount: 1 }),
     false,
     "タイム・ミス数とも全く同じなら更新しない（登録日時をむやみに更新しない）"
+  );
+
+  // ---- actualQuestionCountの後追い補完判定（2026-08-29追加、本人指示：ランキング平均
+  //      タイムが欠けたままの既存記録を、次に再送信された機会に補えるようにする） ----
+  assertEqual(
+    needsActualQuestionCountBackfill(null, { clearTimeMs: 5000, missCount: 0, actualQuestionCount: 20 }),
+    false,
+    "既存記録が無い（＝新規登録）場合は対象外（isBetterLeaderboardRecord側の通常の新規保存に任せる）"
+  );
+  assertEqual(
+    needsActualQuestionCountBackfill(
+      { clearTimeMs: 5000, missCount: 0, actualQuestionCount: 20 },
+      { clearTimeMs: 5000, missCount: 0, actualQuestionCount: 20 }
+    ),
+    false,
+    "既存記録がすでにactualQuestionCountを持っていれば、間違った値で上書きしないよう対象外"
+  );
+  assertEqual(
+    needsActualQuestionCountBackfill(
+      { clearTimeMs: 5000, missCount: 0, actualQuestionCount: null },
+      { clearTimeMs: 5000, missCount: 0, actualQuestionCount: null }
+    ),
+    false,
+    "今回もactualQuestionCountが分からなければ、補完のしようがないので対象外"
+  );
+  assertEqual(
+    needsActualQuestionCountBackfill(
+      { clearTimeMs: 5000, missCount: 0, actualQuestionCount: null },
+      { clearTimeMs: 6000, missCount: 0, actualQuestionCount: 20 }
+    ),
+    false,
+    "タイムが違う（＝別の記録）場合は補完対象外。タイム自体はisBetterLeaderboardRecord側の通常の更新判定に任せる"
+  );
+  assertEqual(
+    needsActualQuestionCountBackfill(
+      { clearTimeMs: 5000, missCount: 0, actualQuestionCount: null },
+      { clearTimeMs: 5000, missCount: 1, actualQuestionCount: 20 }
+    ),
+    false,
+    "ミス数が違う場合も補完対象外"
+  );
+  assertEqual(
+    needsActualQuestionCountBackfill(
+      { clearTimeMs: 5000, missCount: 0, actualQuestionCount: null },
+      { clearTimeMs: 5000, missCount: 0, actualQuestionCount: 20 }
+    ),
+    true,
+    "タイム・ミス数が同じで、既存記録だけactualQuestionCountが欠けている場合は補完対象になる"
+  );
+  assertEqual(
+    needsActualQuestionCountBackfill(
+      { clearTimeMs: 5000, missCount: 0, actualQuestionCount: null },
+      { clearTimeMs: 5000, missCount: 0, actualQuestionCount: 0 }
+    ),
+    false,
+    "今回のactualQuestionCountが0以下（不正値）なら補完しない"
   );
 
   // ---- 正規化：壊れたデータでも安全なデフォルトへ復旧する ----

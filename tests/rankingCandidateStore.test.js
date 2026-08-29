@@ -101,6 +101,53 @@ export function runRankingCandidateStoreTests() {
 
   cleanup();
 
+  // ---- 2026-08-29追加、本人指示：同タイム再送信でも、既存記録に欠けているactualQuestionCount
+  //      だけは後から補える（ランキング平均タイムが永久に欠けたままになるバグの修正） ----
+  saveRankingCandidateIfBetter({
+    variant: "randomPlayback",
+    questionCountValue: "all",
+    categoryFilterValue: "all",
+    clearTimeMs: 159060,
+    missCount: 0,
+    rule: null,
+    source: null,
+    achievedAt: 1,
+    // actualQuestionCountを渡さない＝バックフィル機能追加より前の古い記録を再現している
+  });
+  assertEqual(
+    getRankingCandidateBest("randomPlayback", "all", "all").actualQuestionCount,
+    null,
+    "actualQuestionCountを渡さずに保存した古い記録は、そのままnullで保存される"
+  );
+  const backfillResult = saveRankingCandidateIfBetter({
+    variant: "randomPlayback",
+    questionCountValue: "all",
+    categoryFilterValue: "all",
+    clearTimeMs: 159060,
+    missCount: 0,
+    rule: null,
+    source: null,
+    achievedAt: 2,
+    actualQuestionCount: 82,
+  });
+  assertEqual(
+    backfillResult,
+    false,
+    "同タイム・同ミス数の再送信は、今までどおり「新記録ではない」としてfalseを返す（登録日時等は更新しない）"
+  );
+  assertEqual(
+    getRankingCandidateBest("randomPlayback", "all", "all").actualQuestionCount,
+    82,
+    "ただしactualQuestionCountだけは、欠けていた分がこっそり補完される"
+  );
+  assertEqual(
+    getRankingCandidateBest("randomPlayback", "all", "all").achievedAt,
+    1,
+    "actualQuestionCountの補完では、登録日時（achievedAt）など他の項目は一切変更されない"
+  );
+
+  cleanup();
+
   // ---- variant・出題数・カテゴリーが違えば、それぞれ独立して保存される（混ざらない） ----
   saveRankingCandidateIfBetter({
     variant: "intro",

@@ -24,6 +24,7 @@ import {
   ref,
   get,
   set,
+  update,
   remove,
   query,
   orderByChild,
@@ -40,6 +41,7 @@ import {
   buildLeaderboardPath,
   buildLeaderboardEntryPayload,
   isBetterLeaderboardRecord,
+  needsActualQuestionCountBackfill,
   normalizeLeaderboardEntry,
   sortLeaderboardEntries,
   findBestEntryPerVariantQuestionCountAndCategory,
@@ -103,6 +105,16 @@ export async function submitTimeAttackScoreIfBetter({
       : null;
 
     if (!isBetterLeaderboardRecord(existingEntry, { clearTimeMs, missCount })) {
+      // 【2026-08-29追加、本人指示】タイム・ミス数は同じ（＝新記録ではない）でも、
+      // 既存記録にactualQuestionCountが欠けていて今回はそれが分かる場合だけ、
+      // その項目だけを後から書き足す（registered日時・タイムなど他の項目は一切変更しない）。
+      // これにより、actualQuestionCountの記録開始（2026-08-29）より前に登録された記録も、
+      // 次にこの関数が呼ばれた機会（ランキング画面を開く・公開設定をON等）に平均タイムが
+      // 表示されるようになる。
+      if (needsActualQuestionCountBackfill(existingEntry, { clearTimeMs, missCount, actualQuestionCount })) {
+        await update(ref(database, entryPath), { actualQuestionCount });
+        return { ok: true, updated: true };
+      }
       return { ok: true, updated: false };
     }
 
@@ -158,7 +170,10 @@ function buildBackfillFlagKey(playerKeyPrefix) {
   // 【2026-08-16再改訂】パス構造・対象次元がさらに変わったため（rule区分の廃止、出題数/
   // カテゴリーの絞り込み）、旧フラグ（〜BackfilledV2）とは別名にし、既存ユーザーでも
   // 新条件で一度だけ改めてバックフィルが走るようにする（旧フラグはそのまま残るが無害・無視される）。
-  return `equalLoveIntroQuiz.${playerKeyPrefix}timeAttackLeaderboardBackfilledV3`;
+  // 【2026-08-29再改訂】submitTimeAttackScoreIfBetter側にactualQuestionCountの後追い
+  // 補完（needsActualQuestionCountBackfill）を追加したため、すでにV3フラグが立っている
+  // 端末でも、この新しいロジックの恩恵を受けられるようもう一度だけ実行し直す。
+  return `equalLoveIntroQuiz.${playerKeyPrefix}timeAttackLeaderboardBackfilledV4`;
 }
 
 // 「フレンド」を新たにONにした人・すでにONだった人の両方に対応する、

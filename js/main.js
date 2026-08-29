@@ -599,7 +599,10 @@ const fanProfileDetailSwatchElement = document.getElementById("fan-profile-detai
 const fanProfileDetailNameElement = document.getElementById("fan-profile-detail-name");
 const fanProfileDetailOshiElement = document.getElementById("fan-profile-detail-oshi");
 const fanProfileDetailAchievementsElement = document.getElementById("fan-profile-detail-achievements");
-const fanProfileDetailTitlesLinkElement = document.getElementById("fan-profile-detail-titles-link");
+// フレンドページ自体のヘッダーにある「🏅称号一覧」（2026-08-29改訂・本人指示：
+// フレンド1人ずつの詳細モーダルからこちらへ移動した）。既存の称号一覧モーダルを開く
+// トリガーの1つとして、下のinitAchievementListModal(openTriggers)に加える。
+const fanProfilesTitleListLinkElement = document.getElementById("fan-profiles-title-list-link");
 const fanProfilesMyUidElement = document.getElementById("fan-profiles-my-uid");
 const fanProfilesAdminDeleteOverlayElement = document.getElementById("fan-profiles-admin-delete-confirm-modal");
 const fanProfilesAdminDeleteTargetNameElement = document.getElementById("fan-profiles-admin-delete-target-name");
@@ -1174,6 +1177,7 @@ initAchievementListModal({
     timeAttackResultAchievementListLinkElement,
     randomPlaybackResultAchievementListLinkElement,
     lyricsQuizResultAchievementListLinkElement,
+    fanProfilesTitleListLinkElement,
   ],
 });
 
@@ -1516,7 +1520,6 @@ initFanProfilesScreen(
     detailName: fanProfileDetailNameElement,
     detailOshi: fanProfileDetailOshiElement,
     detailAchievementList: fanProfileDetailAchievementsElement,
-    detailTitlesLink: fanProfileDetailTitlesLinkElement,
     myUidValue: fanProfilesMyUidElement,
     adminDeleteOverlay: fanProfilesAdminDeleteOverlayElement,
     adminDeleteTargetName: fanProfilesAdminDeleteTargetNameElement,

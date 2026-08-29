@@ -139,6 +139,23 @@ export function isBetterLeaderboardRecord(existingEntry, candidate) {
   return candidate.missCount < existingEntry.missCount;
 }
 
+// 【2026-08-29追加、本人指示】タイム・ミス数が既存記録と全く同じで「更新なし」と判定される
+// 場合でも、既存記録に欠けているactualQuestionCount（実際に出題された問題数）だけは
+// 後から補えるかどうかを判定する。
+// 【なぜ必要か】isBetterLeaderboardRecord()は「登録日時をむやみに更新しない」ため、タイム・
+// ミス数が同じ記録の再送信を常に「更新なし」として弾く。これは正しい設計だが、
+// actualQuestionCountの記録開始（2026-08-29）より前に登録された記録は、この判定のせいで
+// 永久にactualQuestionCountを補えなくなってしまう（＝平均タイムが一生表示されないバグ）。
+// 平均タイム表示にしか使わない項目なので、「タイム・ミス数はそのまま・この項目だけ後から
+// 書き足す」という部分更新を許可する。既存記録がすでに値を持っていれば（＝間違った値で
+// 上書きする心配がない場合でも）触らない。
+export function needsActualQuestionCountBackfill(existingEntry, candidate) {
+  if (!existingEntry) return false;
+  if (existingEntry.actualQuestionCount) return false;
+  if (!Number.isFinite(candidate?.actualQuestionCount) || candidate.actualQuestionCount <= 0) return false;
+  return existingEntry.clearTimeMs === candidate.clearTimeMs && existingEntry.missCount === candidate.missCount;
+}
+
 // Firebaseから読み込んだ生データ（uidをキーとするオブジェクト、または個別の1件）を、
 // 型が壊れていても安全な形へ正規化する（js/publicProfilePayloads.jsのnormalizePublicProfileEntry
 // と同じ考え方。他人が意図的に不正な値を書き込んでいた場合でも画面が壊れないようにする）。

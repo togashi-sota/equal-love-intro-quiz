@@ -231,8 +231,11 @@ export function runFanProfileCardTests() {
 
   // ---- 称号多数（17件すべて、2026-08-14更新）取得済みでも、段階制3系統は最上位だけに
   // 圧縮されて表示される（2026-08-16更新、本人指示：フレンド画面の段階称号は最上位1個だけ）。
-  // 17件中、段階制9件（イントロ/シャッフル/リリックの各3段階）は最上位3件だけに圧縮され、
-  // 独立8件（ノーミスマスター等）はそのまま表示されるため、合計11件になる。
+  // 【2026-08-29再改訂】マスターへの道（ノーミスマスター等）も同じ系統の最上位として
+  // 圧縮対象に加わったため、17件中、段階制12件（イントロ/シャッフル/リリックの各3段階＋
+  // 各マスター1件＝4段階×3系統）は最上位3件（各系統のマスター）だけに圧縮され、
+  // 独立5件（電光石火・メロディアス・リリックマスター・＝LOVEマスター・＝LOVE完全制覇）は
+  // そのまま表示されるため、合計8件になる。
   const allIds = [
     "intro_beginner",
     "intro_challenger",
@@ -256,15 +259,21 @@ export function runFanProfileCardTests() {
   const fullListNames = [...fullList.querySelectorAll(".fan-profile-achievement-name")].map((el) => el.textContent);
   assertEqual(
     fullList.querySelectorAll(".fan-profile-achievement-card").length,
-    11,
-    "称号17個（全種類）取得済みでも、段階制3系統が最上位1個ずつに圧縮され合計11枚になる"
+    8,
+    "称号17個（全種類）取得済みでも、段階制3系統（エース・マスターまで含む）が最上位1個ずつに圧縮され合計8枚になる"
   );
   assertEqual(
-    fullListNames.includes("イントロビギナー") || fullListNames.includes("イントロチャレンジャー"),
+    fullListNames.includes("イントロビギナー") ||
+      fullListNames.includes("イントロチャレンジャー") ||
+      fullListNames.includes("イントロエース"),
     false,
-    "全段階取得済みなら、イントロ系の下位段階（ビギナー・チャレンジャー）は表示されない"
+    "ノーミスマスターまで取得済みなら、イントロ系の下位段階（ビギナー・チャレンジャー・エース）はどれも表示されない"
   );
-  assertEqual(fullListNames.includes("イントロエース"), true, "全段階取得済みなら、イントロ系の最上位（エース）は表示される");
+  assertEqual(
+    fullListNames.includes("ノーミスマスター"),
+    true,
+    "全段階取得済みなら、イントロ系の最上位（ノーミスマスター）が表示される"
+  );
 }
 
 // js/fanProfileCard.js のgetAchievementsForPublicDisplay()専用テスト
@@ -322,12 +331,42 @@ export function runGetAchievementsForPublicDisplayTests() {
 
   // ---- 独立称号（段階制ではない）は、段階称号の状態に関わらず常にそのまま表示される ----
   assertEqual(
-    getAchievementsForPublicDisplay(["no_miss_master", "lightning_fast", "equal_love_master"]),
-    ["no_miss_master", "lightning_fast", "equal_love_master"],
-    "独立称号だけの場合は圧縮されず全件そのまま表示される"
+    getAchievementsForPublicDisplay(["lightning_fast", "equal_love_master"]),
+    ["lightning_fast", "equal_love_master"],
+    "独立称号（裏チャレンジ・複合称号）だけの場合は圧縮されず全件そのまま表示される"
   );
 
-  // ---- 本人指示の具体例：イントロ3段階＋ノーミスマスター＋電光石火 → ちょうど3件 ----
+  // ---- 2026-08-29追加、本人指示：マスターへの道（ノーミスマスター等）も同じ系統の
+  //      最上位として扱う。マスター取得済みなら、下位のエース（＋ビギナー・チャレンジャー）は
+  //      一切表示されない ----
+  assertEqual(
+    getAchievementsForPublicDisplay(["intro_ace", "no_miss_master"]),
+    ["no_miss_master"],
+    "イントロエース＋ノーミスマスター取得済みなら、ノーミスマスターだけが表示される"
+  );
+  assertEqual(
+    getAchievementsForPublicDisplay(["intro_beginner", "intro_challenger", "intro_ace", "no_miss_master"]),
+    ["no_miss_master"],
+    "イントロ系4段階（ビギナー〜ノーミスマスター）すべて取得済みでも、最上位のノーミスマスターだけが表示される"
+  );
+  assertEqual(
+    getAchievementsForPublicDisplay(["shuffle_ace", "full_chorus_master"]),
+    ["full_chorus_master"],
+    "シャッフルエース＋フルコーラスマスター取得済みなら、フルコーラスマスターだけが表示される"
+  );
+  assertEqual(
+    getAchievementsForPublicDisplay(["lyric_ace", "song_master"]),
+    ["song_master"],
+    "リリックエース＋歌マスター取得済みなら、歌マスターだけが表示される"
+  );
+  assertEqual(
+    getAchievementsForPublicDisplay(["intro_ace"]),
+    ["intro_ace"],
+    "ノーミスマスター未取得でイントロエースだけ取得済みなら、今までどおりイントロエースが表示される"
+  );
+
+  // ---- 本人指示の具体例：イントロ3段階＋ノーミスマスター＋電光石火 → ちょうど2件 ----
+  // （ノーミスマスターが同じ系統の最上位としてイントロエース以下をすべて吸収するため）
   const workedExample = getAchievementsForPublicDisplay([
     "intro_beginner",
     "intro_challenger",
@@ -337,8 +376,8 @@ export function runGetAchievementsForPublicDisplayTests() {
   ]);
   assertEqual(
     workedExample,
-    ["intro_ace", "no_miss_master", "lightning_fast"],
-    "本人指示の具体例：イントロ3段階＋独立2称号 取得済みなら、表示は「イントロエース・ノーミスマスター・電光石火」の3件だけになる"
+    ["no_miss_master", "lightning_fast"],
+    "本人指示の具体例：イントロ4段階（ノーミスマスターまで）＋独立1称号 取得済みなら、表示は「ノーミスマスター・電光石火」の2件だけになる"
   );
 
   // ---- 空配列は空配列のまま ----

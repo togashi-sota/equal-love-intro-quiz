@@ -1380,6 +1380,12 @@
           </p>
           <h2>フレンド</h2>
         </div>
+        <!-- 「🏅称号一覧」への入口（2026-08-29改訂・本人指示）：以前はフレンド1人ずつの
+             詳細モーダル内に置いていたが、「フレンドページ全体から称号の条件を確認したい」
+             という指示により、個別モーダルからは削除し、フレンドページ自体のヘッダーへ
+             移動した。開く先は既存の称号一覧モーダル（#title-list-modal、js/main.jsの
+             initAchievementListModal参照）で、新しい画面・新しいモーダルは作らない。 -->
+        <button id="fan-profiles-title-list-link" class="fan-profiles-title-list-button" type="button">🏅 称号一覧</button>
       </div>
 
       <p class="special-modes-intro">このゲームを遊んでいるプレイヤーの、表示名・推し・称号を見られます。</p>
@@ -4162,17 +4168,11 @@
 
   <!-- 「みんなのプロフィール」詳細モーダル：カードをタップすると、その人が取得済みの称号を
        カテゴリごとに一覧表示する（未取得称号は出さない）。開閉ロジックはjs/fanProfilesScreen.js。
-       【2026-08-29追加、本人指示】右上に「🏅称号一覧」ボタンを設置し、取得済み称号の一覧
-       （下の#fan-profile-detail-achievements）へ画面内スクロールする入り口にする。
-       称号データ自体・表示内容は元からあるものをそのまま使い、新しく作らない。 -->
+       【2026-08-29再改訂、本人指示】右上の「🏅称号一覧」ボタンは、フレンドページ自体の
+       ヘッダー（#fan-profiles-title-list-link）へ移設したため、このモーダルからは削除した。 -->
   <div id="fan-profile-detail-modal" class="modal-overlay" hidden>
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="fan-profile-detail-name">
       <button id="fan-profile-detail-close" class="modal-close-button" type="button" aria-label="閉じる">×</button>
-      <div class="fan-profile-detail-top-row">
-        <button id="fan-profile-detail-titles-link" class="fan-profile-detail-titles-link" type="button">
-          🏅称号一覧
-        </button>
-      </div>
       <div class="fan-profile-detail-header">
         <span id="fan-profile-detail-swatch" class="fan-profile-detail-swatch"></span>
         <div>

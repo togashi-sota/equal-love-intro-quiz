@@ -7089,6 +7089,39 @@ body[data-screen="liveCallModePlayer"] .game-frame {
    対戦・ランキングではないため、派手な演出やスコア表示は使わず、白・ピンク・パステルの
    既存トーンに合わせた落ち着いたカードにする（本人指示）。 */
 
+/* 「🏅称号一覧」ボタン（2026-08-29改訂・本人指示）：フレンド1人ずつの詳細モーダルからは
+   削除し、フレンドページ自体のヘッダー右側へ移動した。.list-headerは
+   grid-template-columns: 1fr auto 1fr（左＝戻る、中央＝タイトル）なので、3列目
+   （今まで空いていた右側の1fr）にこのボタンを置くだけで、戻る・タイトルの位置関係を
+   崩さずに済む（#continuous-play-screenの設定アイコンボタンと同じ考え方）。 */
+#fan-profiles-screen .list-header {
+  align-items: center;
+}
+
+.fan-profiles-title-list-button {
+  grid-column: 3;
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1.5px solid var(--color-primary);
+  background: var(--color-surface);
+  color: var(--color-primary-dark);
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.fan-profiles-title-list-button:active {
+  transform: scale(0.96);
+  background: var(--color-primary);
+  color: #ffffff;
+}
+
 .fan-profiles-settings-card {
   display: flex;
   align-items: center;
@@ -7254,36 +7287,6 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 
 /* 375px幅ではプロフィールカードは1列（本人指示に基づき、名前・推し・称号の3行を
    ゆったり読めるよう、特別モードの2列カードとは違い常に横に長い1行カードにする）。 */
-
-/* 「🏅称号一覧」ボタンを右上に置く行（2026-08-29追加）。×ボタン（44px幅・right:6px）と
-   重ならないよう、右側に52px分の余白を確保してから右寄せする。 */
-.fan-profile-detail-top-row {
-  display: flex;
-  justify-content: flex-end;
-  padding-right: 52px;
-  min-height: 24px;
-}
-
-/* 見た目は.rules-link（自分側の「称号一覧を見る」等と同じ、下線つきのテキストリンク）に
-   揃え、新しいボタン意匠を増やさない（本人指示：既存デザインを再利用する）。 */
-.fan-profile-detail-titles-link {
-  display: block;
-  margin: 0;
-  padding: 4px;
-  border: none;
-  background: none;
-  color: var(--color-text);
-  opacity: 0.7;
-  font-family: inherit;
-  font-size: 0.78rem;
-  font-weight: 700;
-  text-decoration: underline;
-  cursor: pointer;
-}
-
-.fan-profile-detail-titles-link:active {
-  opacity: 0.95;
-}
 
 .fan-profile-detail-header {
   display: flex;

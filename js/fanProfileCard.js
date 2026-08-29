@@ -176,15 +176,21 @@ export function buildAchievedCard(achievementId) {
   return card;
 }
 
-// 段階制称号（イントロ／シャッフル／リリック、それぞれビギナー→チャレンジャー→エース）の系統。
-// 配列は低→高の順。フレンドの詳細プロフィールでは、同じ系統は取得済みの中で最上位の
-// 1個だけを見せる（本人指示、2026-08-16：「同じ系統の段階制称号は、取得済みの中で
-// 最上位の1個だけ表示」）。ノーミスマスター等の独立称号・複合称号はここに含めず、
-// buildAchievedAchievementsList()側で今までどおり全件表示する。
+// 段階制称号（イントロ／シャッフル／リリック、それぞれビギナー→チャレンジャー→エース→
+// マスター系）の系統。配列は低→高の順。フレンドの詳細プロフィールでは、同じ系統は取得済みの
+// 中で最上位の1個だけを見せる（本人指示、2026-08-16：「同じ系統の段階制称号は、取得済みの中で
+// 最上位の1個だけ表示」）。
+// 【2026-08-29再改訂・本人指示】各系統の最上位に、対応するマスターへの道の称号
+// （ノーミスマスター／フルコーラスマスター／歌マスター）を追加した。以前はエースまでしか
+// 圧縮対象にしておらず、「ノーミスマスター取得済みなのにイントロエースも一緒に表示される」
+// 不具合があった。js/fanProfileCard.jsのbuildRepresentativeLabel()が使うREPRESENTATIVE_TIER_PAIRS
+// と同じ「エース→マスター」の優先順位を、こちらの詳細一覧側にも揃えている。
+// ＝LOVEマスター・裏チャレンジ系・複合称号はここに含めず、buildAchievedAchievementsList()側で
+// 今までどおり全件表示する（本人指示：「取得データ自体は消さない、あくまで代表表示の絞り込み」）。
 const GROWTH_TIER_FAMILIES = [
-  ["intro_beginner", "intro_challenger", "intro_ace"],
-  ["shuffle_beginner", "shuffle_challenger", "shuffle_ace"],
-  ["lyric_beginner", "lyric_challenger", "lyric_ace"],
+  ["intro_beginner", "intro_challenger", "intro_ace", "no_miss_master"],
+  ["shuffle_beginner", "shuffle_challenger", "shuffle_ace", "full_chorus_master"],
+  ["lyric_beginner", "lyric_challenger", "lyric_ace", "song_master"],
 ];
 
 // フレンドの詳細プロフィールに表示する称号IDだけを絞り込む（表示専用の純粋関数）。
