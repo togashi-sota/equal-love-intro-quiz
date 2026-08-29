@@ -515,6 +515,24 @@ export function runTimeAttackLeaderboardTests() {
     "variantが違えば一致しない"
   );
 
+  // ---- 2026-08-30追加：Firebase Rulesの不具合で平均タイムが保存できなかった既存記録3件を、
+  //      当時のカタログ曲数から推定して手動登録した分 ----
+  assertEqual(
+    findVerifiedAllModeAverageSeconds("intro", "all", "title-track", 65654.99999999988),
+    65654.99999999988 / 1000 / 23,
+    "「ぜんた」の記録（表題曲のみ・カテゴリー固定の曲数23で当時から変化なし）"
+  );
+  assertEqual(
+    findVerifiedAllModeAverageSeconds("intro", "all", "all", 175882.00000000047),
+    175882.00000000047 / 1000 / 84,
+    "「じゅ」のイントロ記録（全曲カテゴリー・当時のカタログ曲数84）"
+  );
+  assertEqual(
+    findVerifiedAllModeAverageSeconds("randomPlayback", "all", "all", 159061.99999999814),
+    159061.99999999814 / 1000 / 84,
+    "「じゅ」のランダム再生記録（全曲カテゴリー・当時のカタログ曲数84）"
+  );
+
   // ---- resolveAverageSecondsPerQuestion（2026-08-29追加）：出題数「全曲」でも
   //      平均タイムが表示されないバグの修正。優先順位①actualQuestionCount②固定出題数の
   //      計算式③手作業の特例リスト④null、の4段階すべてを確認する ----
