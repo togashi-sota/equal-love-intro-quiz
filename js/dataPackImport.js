@@ -63,10 +63,13 @@ export const DATA_PACK_MANIFEST_TYPE = "equal-love-data-pack";
 export const LATEST_MANIFEST_SCHEMA_VERSION = 1;
 
 // パックが対象とする範囲。UI側の案内文・結果メッセージの言い回しを出し分けるためだけに使う
-// （読み込み処理そのものは、full/incrementalで一切分岐しない。どちらも同じ解析・保存経路を通る）。
+// （読み込み処理そのものは、full/incremental/correctionで一切分岐しない。どれも同じ解析・
+// 保存経路を通る。correctionsによる上書き判定自体は、packKindの値ではなくマニフェストの
+// correctionsフィールドの有無だけで決まる）。
 export const PACK_KIND = {
   FULL: "full", // 新規ユーザー向け：これまでの全曲を含む
   INCREMENTAL: "incremental", // 既存ユーザー向け：新しいシングル分だけの追加
+  CORRECTION: "correction", // 2026-08-29追加：既存データの正式な修正版だけを含む小さいパック
 };
 
 // パック内のJSONファイルを、中身から4種類に判別する。
@@ -105,7 +108,8 @@ export function validateManifest(rawData) {
   if (
     rawData.packKind !== undefined &&
     rawData.packKind !== PACK_KIND.FULL &&
-    rawData.packKind !== PACK_KIND.INCREMENTAL
+    rawData.packKind !== PACK_KIND.INCREMENTAL &&
+    rawData.packKind !== PACK_KIND.CORRECTION
   ) {
     errors.push(`packKindの値が不正です（${rawData.packKind}）`);
   }
@@ -303,11 +307,18 @@ export async function analyzeDataPack(fileList) {
 // 分析時にisUpdateを持たないため、ここで改めてgetImportedSongIds()を1回だけ呼んで判定する。
 //
 // 戻り値: {
-//   savedAudioSongIds: string[], skippedAudioSongIds: string[],
+//   savedAudioSongIds: string[], skippedAudioSongIds: string[], correctedAudioSongIds: string[],
 //   savedLyricsSongIds: string[], skippedLyricsSongIds: string[], lyricsFailures: { fileName, reason }[],
+//   correctedLyricsSongIds: string[],
 //   savedCallSongIds: string[], skippedCallSongIds: string[], callFailures: { songId, reason }[],
+//   correctedCallSongIds: string[],
 //   savedCallGuideIds: string[], skippedCallGuideIds: string[], callGuideFailures: { guideId, reason }[],
+//   correctedCallGuideIds: string[],
 // }
+// correctedXxxIds は、savedXxxIds のうち「この端末に既存データがあったが、correctionsの
+// 指定により正式な修正版として上書き保存されたID」だけを抜き出した部分集合（本人指示：
+// 2026-08-29、「新規追加」と「修正版への更新」をUI上で区別できるようにするため）。
+// savedXxxIdsのサブセットであり、別途足し算する必要はない（savedの中に既に含まれている）。
 export async function importAnalyzedDataPack(analyzed) {
   const { manifest, audio, lyrics, calls, callGuides } = analyzed;
 
@@ -329,6 +340,9 @@ export async function importAnalyzedDataPack(analyzed) {
     }
   });
   const audioResult = await importAudioFiles(audioFilesToSave);
+  const correctedAudioSongIds = audioResult.savedSongIds.filter(
+    (songId) => existingAudioSongIds.has(songId) && audioCorrections.has(songId)
+  );
 
   // 歌詞：analyzeLyricsFiles()（analyzeDataPack()内で既に実行済み）が算出したisUpdateを使う。
   // isUpdateであっても、correctionsで明示された曲IDは「正式な修正版」として保存対象に含める。
@@ -340,10 +354,17 @@ export async function importAnalyzedDataPack(analyzed) {
     .filter((file) => file.isUpdate && !lyricsCorrections.has(file.normalizedData.songId))
     .map((file) => file.normalizedData.songId);
   const lyricsImportResult = await importLyricsFiles(lyricsFilesToSaveAsFileList(lyricsFilesToSave));
+  const lyricsUpdateSongIds = new Set(
+    lyricsFilesAll.filter((file) => file.isUpdate).map((file) => file.normalizedData.songId)
+  );
+  const correctedLyricsSongIds = lyricsImportResult.savedSongIds.filter(
+    (songId) => lyricsUpdateSongIds.has(songId) && lyricsCorrections.has(songId)
+  );
 
   let savedCallSongIds = [];
   let callFailures = [];
   let skippedCallSongIds = [];
+  let correctedCallSongIds = [];
   if (calls) {
     const callSongsToSave = calls.readySongs.filter(
       (song) => !song.isUpdate || callCorrections.has(song.songId)
@@ -355,12 +376,19 @@ export async function importAnalyzedDataPack(analyzed) {
       const callImportResult = await importCallDataSongs(callSongsToSave);
       savedCallSongIds = callImportResult.savedSongIds;
       callFailures = callImportResult.saveFailures;
+      const callUpdateSongIds = new Set(
+        calls.readySongs.filter((song) => song.isUpdate).map((song) => song.songId)
+      );
+      correctedCallSongIds = savedCallSongIds.filter(
+        (songId) => callUpdateSongIds.has(songId) && callCorrections.has(songId)
+      );
     }
   }
 
   let savedCallGuideIds = [];
   let callGuideFailures = [];
   let skippedCallGuideIds = [];
+  let correctedCallGuideIds = [];
   if (callGuides) {
     const guidesToSave = callGuides.readyGuides.filter(
       (guide) => !guide.isUpdate || callGuideCorrections.has(guide.guideId)
@@ -372,21 +400,31 @@ export async function importAnalyzedDataPack(analyzed) {
       const callGuideImportResult = await importCallGuideDataEntries(guidesToSave);
       savedCallGuideIds = callGuideImportResult.savedGuideIds;
       callGuideFailures = callGuideImportResult.saveFailures;
+      const callGuideUpdateIds = new Set(
+        callGuides.readyGuides.filter((guide) => guide.isUpdate).map((guide) => guide.guideId)
+      );
+      correctedCallGuideIds = savedCallGuideIds.filter(
+        (guideId) => callGuideUpdateIds.has(guideId) && callGuideCorrections.has(guideId)
+      );
     }
   }
 
   return {
     savedAudioSongIds: audioResult.savedSongIds,
     skippedAudioSongIds,
+    correctedAudioSongIds,
     savedLyricsSongIds: lyricsImportResult.savedSongIds,
     skippedLyricsSongIds,
     lyricsFailures: lyricsImportResult.failedFiles,
+    correctedLyricsSongIds,
     savedCallSongIds,
     skippedCallSongIds,
     callFailures,
+    correctedCallSongIds,
     savedCallGuideIds,
     skippedCallGuideIds,
     callGuideFailures,
+    correctedCallGuideIds,
   };
 }
 

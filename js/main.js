@@ -190,7 +190,7 @@ import {
 // 【2026-08-26新設】追加データパック（新曲の音源・歌詞・コールデータをまとめて読み込む機能）。
 // 実際の解析・保存処理はjs/dataPackImport.jsに集約されており、ここでは結果を見て
 // 画面表示を更新するだけ（既存の音源・歌詞・コールの各インポートUIと同じ役割分担）。
-import { analyzeDataPack, importAnalyzedDataPack } from "./dataPackImport.js";
+import { analyzeDataPack, importAnalyzedDataPack, PACK_KIND } from "./dataPackImport.js";
 import { isZipFile, extractZipToFiles } from "./zipPackImport.js";
 import { closeFullscreenLyrics } from "./lyricsFullscreen.js";
 import { initScrollLock } from "./scrollLock.js";
@@ -4690,36 +4690,71 @@ dataPackImportInputElement.addEventListener("change", async () => {
   // （音源インポート時と同じ理由。js/main.jsの「音源を読み込む」ハンドラ参照）。
   requestPersistentStorage();
 
-  // packKind（本人指示：全曲パック/追加パックを同じ仕組みで扱う）は表示文言の出し分けだけに
-  // 使う。省略時（後方互換）はincremental扱いにし、これまでどおり「追加しました」と表示する。
-  const isFullPack = analyzed.manifest.packKind === "full";
+  // packKind（本人指示：全曲パック/追加パック/修正版パックを同じ仕組みで扱う）は表示文言の
+  // 出し分けだけに使う。省略時（後方互換）はincremental扱いにし、これまでどおり
+  // 「読み込みました」と表示する。
+  const isFullPack = analyzed.manifest.packKind === PACK_KIND.FULL;
+  const isCorrectionPack = analyzed.manifest.packKind === PACK_KIND.CORRECTION;
 
   const lines = [];
   lines.push(
     isFullPack
       ? `「${analyzed.manifest.packLabel}」でセットアップしました`
-      : `「${analyzed.manifest.packLabel}」を読み込みました`
+      : isCorrectionPack
+        ? `「${analyzed.manifest.packLabel}」を読み込みました（修正版データ）`
+        : `「${analyzed.manifest.packLabel}」を読み込みました`
   );
-  // 【2026-08-28新設】「新規追加」と「既に導入済みのためスキップ」を分けて表示する
-  // （本人指示：不足分だけ自動補完されたことが、内訳つきで分かるようにしたい）。
-  const addedParts = [
-    `音源${result.savedAudioSongIds.length}曲`,
-    `歌詞${result.savedLyricsSongIds.length}曲`,
-    `コール${result.savedCallSongIds.length}曲`,
+
+  // 【2026-08-29新設】correctedXxxSongIds（正式な修正版として上書きされたID、savedXxxSongIdsの
+  // 部分集合）を「新規追加」と別立てで表示する（本人指示：単なる新曲追加と、既存データの
+  // 修正版への更新を、画面上ではっきり区別したい）。
+  const correctedSongIds = [
+    ...result.correctedAudioSongIds,
+    ...result.correctedLyricsSongIds,
+    ...result.correctedCallSongIds,
   ];
-  if (result.savedCallGuideIds.length > 0) {
-    addedParts.push(`コールガイド${result.savedCallGuideIds.length}件`);
+  const totalCorrected = correctedSongIds.length + result.correctedCallGuideIds.length;
+
+  // 「新規追加」は、修正版として上書きされた分を二重計上しないよう、saved件数から
+  // corrected件数を差し引く（correctedはsavedの部分集合のため）。
+  const genuinelyNewCounts = {
+    audio: result.savedAudioSongIds.length - result.correctedAudioSongIds.length,
+    lyrics: result.savedLyricsSongIds.length - result.correctedLyricsSongIds.length,
+    calls: result.savedCallSongIds.length - result.correctedCallSongIds.length,
+    callGuides: result.savedCallGuideIds.length - result.correctedCallGuideIds.length,
+  };
+  const totalGenuinelyNew =
+    genuinelyNewCounts.audio + genuinelyNewCounts.lyrics + genuinelyNewCounts.calls + genuinelyNewCounts.callGuides;
+
+  if (totalGenuinelyNew > 0) {
+    const addedParts = [
+      `音源${genuinelyNewCounts.audio}曲`,
+      `歌詞${genuinelyNewCounts.lyrics}曲`,
+      `コール${genuinelyNewCounts.calls}曲`,
+    ];
+    if (genuinelyNewCounts.callGuides > 0) {
+      addedParts.push(`コールガイド${genuinelyNewCounts.callGuides}件`);
+    }
+    lines.push(`新規追加：${addedParts.join("・")}`);
   }
-  const totalAdded =
-    result.savedAudioSongIds.length +
-    result.savedLyricsSongIds.length +
-    result.savedCallSongIds.length +
-    result.savedCallGuideIds.length;
-  lines.push(
-    totalAdded > 0
-      ? `新規追加：${addedParts.join("・")}`
-      : `新規追加はありませんでした（この端末には既にすべて導入済みです）`
-  );
+
+  if (totalCorrected > 0) {
+    const correctedParts = [];
+    if (result.correctedAudioSongIds.length > 0) correctedParts.push(`音源${result.correctedAudioSongIds.length}曲`);
+    if (result.correctedLyricsSongIds.length > 0) correctedParts.push(`歌詞${result.correctedLyricsSongIds.length}曲`);
+    if (result.correctedCallSongIds.length > 0) correctedParts.push(`コール${result.correctedCallSongIds.length}曲`);
+    if (result.correctedCallGuideIds.length > 0) correctedParts.push(`コールガイド${result.correctedCallGuideIds.length}件`);
+    lines.push(`修正版に更新：${correctedParts.join("・")}`);
+    if (correctedSongIds.length > 0 && correctedSongIds.length <= 5) {
+      const uniqueCorrectedTitles = [...new Set(correctedSongIds)].map(findSongTitle);
+      lines.push(`「${uniqueCorrectedTitles.join("」「")}」を最新版に更新しました`);
+    }
+    lines.push("その他の既存データは変更していません");
+  }
+
+  if (totalGenuinelyNew === 0 && totalCorrected === 0) {
+    lines.push(`新規追加はありませんでした（この端末には既にすべて導入済みです）`);
+  }
 
   const totalSkipped =
     result.skippedAudioSongIds.length +

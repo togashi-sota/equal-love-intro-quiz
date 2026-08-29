@@ -80,9 +80,14 @@ export async function runDataPackImportTests() {
     "packKind: incrementalは有効な値"
   );
   assertEqual(
+    validateManifest(buildValidManifest({ packKind: PACK_KIND.CORRECTION })).valid,
+    true,
+    "packKind: correction（2026-08-29追加、修正版パック用）は有効な値"
+  );
+  assertEqual(
     validateManifest(buildValidManifest({ packKind: "partial" })).valid,
     false,
-    "full/incremental以外のpackKindは無効"
+    "full/incremental/correction以外のpackKindは無効"
   );
 
   // ---- validateManifest：corrections（本人指示：2026-08-29、正式な修正版を安全に配布する仕組み） ----
