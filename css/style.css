@@ -12646,20 +12646,41 @@ body[data-screen="liveCallModeKaraoke"] .game-frame {
   touch-action: manipulation;
 }
 
-/* クイズ回答中の誤操作防止（2026-08-28新設、2026-08-29改訂・本人指示）。
-   【改訂の経緯】2026-08-28時点ではtouch-action:pan-y・overscroll-behavior:containだけで
+/* クイズ回答中の誤操作防止（2026-08-28新設、2026-08-29改訂×2・本人指示）。
+   【改訂の経緯①】2026-08-28時点ではtouch-action:pan-y・overscroll-behavior:containだけで
    対応していたが、実機で「ピンチズーム・ドラッグ操作をすると、ページ自体の表示位置が
    ずれる」現象を防ぎきれないという報告があった。touch-action等はbody（またはhtml）を
    スクロール可能な状態のまま抑え込もうとする対症療法のため、ブラウザ・OSによっては
    完全には防げない。
-   【新しい方針】viewport自体のuser-scalable=noは使わない（本人の既存方針を踏襲）。
+   【新しい方針①】viewport自体のuser-scalable=noは使わない（本人の既存方針を踏襲）。
    代わりに、ライブコールモード・カラオケ同期画面（#live-call-mode-karaoke-screen、
    上記コメント参照）で実績のある「.game-frame自体をviewport高さ（100dvh）に固定し、
    ページ本体のdocumentスクロールに一切依存しない」設計を、回答中の3画面
    （#quiz-screen・#lyrics-quiz-question-screen・#online-lyrics-battle-question-screen）
-   にもそのまま適用する。ページ自体が伸びなくなるため、ピンチズーム・ドラッグで
-   ページの表示位置がずれる余地自体が無くなる（対症療法ではなく、そもそもスクロール可能な
-   領域を作らない、より確実な方式）。
+   にもそのまま適用する。
+   【改訂の経緯②・本人からの実機報告】①の直後は、iPhoneで「戻る」ボタンがステータスバー・
+   Dynamic Islandと重なって押しづらい／UIが上に詰まって下に大きな空白ができる／
+   まだほんの少しだけ縦にスクロールできる、という3つの不具合が起きていた。原因は次の3つ：
+   ①bodyのpadding-topを0にした際、元々あった安全域確保
+   （padding-top: max(64px, calc(env(safe-area-inset-top) + 20px))）も一緒に消してしまい、
+   代わりに#quiz-screen.is-active側で入れていたpaddingが固定値（20px）でsafe-area-inset-topを
+   見ていなかった（＝ノッチ/Dynamic Island環境で戻るボタンが実際の表示可能領域より上に
+   はみ出していた）。
+   ②.quiz-middle-zone（中央ゾーン）の中身が、天井（ヘッダー直下）に寄せたまま並んでいた
+   （中身が少ない画面ではflex:1の余白がすべて下に残ってしまう見た目になる）。
+   ③.game-frameはheight:100dvhで正確に画面に合わせているのに対し、bodyはmin-height:100vh
+   のままだった。iOSでは100vh（アドレスバー等が引っ込んだ最大状態を基準にした値）が
+   100dvh（今実際に見えている値）よりわずかに大きくなることがあり、bodyの箱自体が
+   game-frameより少しだけ縦に大きくなって、その差分だけスクロールできてしまっていた。
+   【今回の対策】
+   ・#quiz-screen.is-active等のpadding-topをsafe-area-inset-topを見た値に変更（①の修正）。
+   ・.quiz-middle-zoneをflex縦並びにし、中身を.quiz-middle-zone-innerで包んでmargin:auto 0を
+     指定。余白があるときは自動的に上下中央へ寄り、中身が画面に収まりきらない場合は
+     auto marginが0になり今までどおり上詰め＋内部スクロールに自然に切り替わる
+     （justify-content:centerだと一部ブラウザで「収まらない時に上側が見えなくなる」不具合が
+     あるため、あえてmargin:autoの方式を使っている）（②の修正）。
+   ・bodyにoverflow:hiddenを追加し、100vh/100dvhの差やその他の丸め誤差が万一あっても、
+     body自体が縦横どちらにも一切スクロールしない状態を保証する（③の修正、最終防衛線）。
    【中身が画面に収まらない場合】「隠れて操作不能になる」事故を防ぐフォールバックとして、
    ヘッダー以外（.quiz-middle-zone）だけに限定してoverflow-y:autoを持たせる
    （#lyrics-quiz-question-screenの回答候補一覧のように、既存の内部スクロール領域とも
@@ -12670,6 +12691,7 @@ body[data-screen="lyricsQuizQuestion"],
 body[data-screen="onlineLyricsBattleQuestion"] {
   padding-top: 0;
   padding-bottom: 0;
+  overflow: hidden;
 }
 
 body[data-screen="quiz"] .game-frame,
@@ -12686,7 +12708,9 @@ body[data-screen="onlineLyricsBattleQuestion"] .game-frame {
 #online-lyrics-battle-question-screen.is-active {
   display: flex;
   flex-direction: column;
-  padding: 20px 20px 0;
+  /* 【2026-08-29再改訂】固定値20pxではなく、Dynamic Island・ノッチのsafe areaぶんを
+     必ず確保する（実機で戻るボタンがステータスバーと重なっていた不具合の修正）。 */
+  padding: max(16px, env(safe-area-inset-top)) 20px 0;
   flex: 1;
   min-height: 0;
 }
@@ -12699,16 +12723,26 @@ body[data-screen="onlineLyricsBattleQuestion"] .game-frame {
 
 /* ②中央ゾーン：この中だけが縦スクロールする（カラオケ画面の.karaoke-middle-zoneと同じ考え方）。
    touch-action:pan-yは、万一の縦スクロール発生時に指の操作を素直に受け付けるためのもので、
-   ピンチズーム（複数指操作）は仕様上pan-y指定時点で抑えられる。 */
+   ピンチズーム（複数指操作）は仕様上pan-y指定時点で抑えられる。
+   【2026-08-29追加】縦並びのflexにし、.quiz-middle-zone-inner（中身側）のmargin:auto 0で
+   上下中央へ寄せる。中身が画面に収まらないときはauto marginが自動的に0になるため、
+   overflow-y:autoによる内部スクロールへ滑らかに切り替わる（安全側のフォールバックは維持）。 */
 .quiz-middle-zone {
   flex: 1;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
   overscroll-behavior-y: contain;
   padding-bottom: max(20px, env(safe-area-inset-bottom));
+}
+
+.quiz-middle-zone-inner {
+  width: 100%;
+  margin: auto 0;
 }
 
 /* 回答ボタン・選択肢まわりはダブルタップズームだけ追加で防ぐ（カラオケ画面と同じ考え方）。 */

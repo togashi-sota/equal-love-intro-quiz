@@ -600,6 +600,10 @@
            この中だけで完結してスクロールさせる」設計をそのまま再利用する。詳細はcss/style.cssの
            body[data-screen="quiz"] 関連コメント参照。 -->
       <div class="quiz-middle-zone">
+        <!-- 【2026-08-29再改訂、本人指示】中身が画面に収まる場合は上下中央へ、
+             収まらない場合は上詰め＋.quiz-middle-zone自体のスクロールに切り替わる
+             （margin:auto 0、詳細はcss/style.cssのコメント参照）。 -->
+        <div class="quiz-middle-zone-inner">
         <p id="question-progress">第1問 / 5問</p>
 
         <!-- 出題の進み具合を、丸(ドット)で視覚的に示す場所。中身はJSで生成する -->
@@ -647,6 +651,7 @@
         <p id="feedback" class="feedback-message" hidden></p>
 
         <button id="next-button" class="primary-button" type="button" hidden>次へ</button>
+        </div>
       </div>
     </section>
 
@@ -2221,6 +2226,7 @@
       <!-- 【2026-08-29追加】#quiz-screenと同じ理由・同じ設計でmiddle-zone化する
            （ページ自体の表示位置ズレ対策。詳細はcss/style.css参照）。 -->
       <div class="quiz-middle-zone">
+        <div class="quiz-middle-zone-inner">
         <div class="lyrics-quiz-question-header">
           <span id="lyrics-quiz-progress" class="lyrics-quiz-progress">第1問 / 5問</span>
           <span id="lyrics-quiz-elapsed-time" class="lyrics-quiz-elapsed-time">0秒</span>
@@ -2261,6 +2267,7 @@
           <p id="lyrics-quiz-answer-reveal-title" class="lyrics-quiz-answer-reveal-title">－</p>
           <p id="lyrics-quiz-answer-reveal-meta" class="lyrics-quiz-answer-reveal-meta"></p>
           <button id="lyrics-quiz-answer-reveal-next-button" class="primary-button" type="button">次の問題へ</button>
+        </div>
         </div>
       </div>
     </section>
@@ -3014,6 +3021,7 @@
       <!-- 【2026-08-29追加】#quiz-screenと同じ理由・同じ設計でmiddle-zone化する
            （ページ自体の表示位置ズレ対策。詳細はcss/style.css参照）。 -->
       <div class="quiz-middle-zone">
+        <div class="quiz-middle-zone-inner">
         <div class="title-block"><h2>歌詞クイズ対戦</h2></div>
         <p class="online-lyrics-battle-progress" id="online-lyrics-battle-progress"></p>
 
@@ -3028,6 +3036,7 @@
 
         <p id="online-lyrics-battle-status-message" class="online-lyrics-battle-status-message" hidden></p>
         <p id="online-lyrics-battle-error" class="error-message" hidden></p>
+        </div>
       </div>
     </section>
 
