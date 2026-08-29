@@ -193,6 +193,7 @@ import {
 import { analyzeDataPack, importAnalyzedDataPack } from "./dataPackImport.js";
 import { isZipFile, extractZipToFiles } from "./zipPackImport.js";
 import { closeFullscreenLyrics } from "./lyricsFullscreen.js";
+import { initScrollLock } from "./scrollLock.js";
 import { MEMBERS } from "./data/members.js";
 import { MEMBER_PROFILES } from "./data/memberProfiles.js";
 import { MEMBER_ACTIVITIES } from "./data/memberActivities.js";
@@ -1171,6 +1172,12 @@ const onboardingNameInputElement = document.getElementById("onboarding-name-inpu
 const onboardingMemberGridElement = document.getElementById("onboarding-member-grid");
 const onboardingSubmitButtonElement = document.getElementById("onboarding-submit-button");
 
+// モーダル／オーバーレイ（.modal-overlay全般・歌詞全画面表示）が開いている間、背景ページが
+// スクロールしないようにする共通の仕組み（2026-08-29新設、本人指示）。アプリ起動時に
+// 1回だけ呼べば、以後は各モーダルのhidden属性の変化を自動的に監視する
+// （js/scrollLock.js参照。個別のモーダルのopen/close処理を書き換える必要はない）。
+initScrollLock();
+
 // 称号一覧モーダルの開閉ロジックはjs/achievementList.jsに閉じ込めてあるので、
 // ここでは必要なDOM要素を渡して初期化するだけでよい（要素id自体は旧称号システム時代の
 // ままだが、中身は新しい称号システム＝js/achievementDefinitions.js準拠に置き換わっている）。
@@ -1528,6 +1535,7 @@ initFanProfilesScreen(
     detailSwatch: fanProfileDetailSwatchElement,
     detailName: fanProfileDetailNameElement,
     detailOshi: fanProfileDetailOshiElement,
+    detailTitleListLink: fanProfileDetailTitleListLinkElement,
     detailAchievementCount: fanProfileDetailAchievementCountElement,
     detailSummary: fanProfileDetailSummaryElement,
     detailAllToggle: fanProfileDetailAllToggleElement,

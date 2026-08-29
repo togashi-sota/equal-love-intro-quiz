@@ -244,23 +244,37 @@ export async function renderFanProfilesScreen() {
 //   rankingSyncStatus: OFF→ON切替時のランキング後追い同期状況（2026-08-16新設）,
 //   listContainer: プロフィールカードを並べる入れ物,
 //   detailOverlay, detailCloseButton, detailSwatch, detailName, detailOshi,
+//   detailTitleListLink: 個人プロフィール内の「🏅称号一覧」（2026-08-29追加）。
+//     ゲーム全体の称号一覧モーダルを開く実際の処理はjs/achievementList.js側
+//     （openTriggers）が担当するため、ここではその直前にこのモーダル自身を閉じるだけ
+//     （フレンド詳細モーダルの上に称号一覧モーダルが重なって残るのを防ぐ）,
 //   detailAchievementCount: 「🏅獲得称号◯個」（2026-08-29新設）,
-//   detailSummary: ランク感＋代表称号（最大3個）の入れ物（2026-08-29新設）,
+//   detailSummary: ランク感＋代表称号の入れ物（2026-08-29新設）,
 //   detailAllToggle, detailAchievementList: 「すべての称号を見る」の開閉ボタンと中身
-//     （2026-08-29再設計、代表3個には出ない下位称号もここでは確認できる）,
+//     （2026-08-29再設計、代表表示には出ない称号もここでは確認できる）,
 //   myUidValue: 「🆔 あなたのID」表示,
 //   adminDeleteOverlay, adminDeleteTargetName, adminDeleteCancelButton, adminDeleteConfirmButton:
 //     管理者限定の削除確認モーダル,
 // }
-// 【2026-08-29改訂・本人指示】右上の「🏅称号一覧」ボタンは、フレンド1人ずつの詳細モーダル
-// からフレンドページ自体のヘッダーへ移動した（js/main.jsのfanProfilesTitleListLinkElement、
-// initAchievementListModalのopenTriggers参照）。既存の称号一覧モーダルをそのまま開くだけの
-// ボタンになったため、このファイル側に専用の開閉ロジックはもう無い。
+// 【2026-08-29改訂・本人指示】フレンドページ自体のヘッダーにも同じ役割の「🏅称号一覧」
+// ボタンがある（js/main.jsのfanProfilesTitleListLinkElement、initAchievementListModalの
+// openTriggers参照）。どちらも既存の称号一覧モーダルをそのまま開くだけで、専用の開閉
+// ロジックはjs/achievementList.js側にしか無い。
 export function initFanProfilesScreen(newElements, allMembers) {
   elements = newElements;
   members = allMembers;
 
   elements.sharingToggleButton.addEventListener("click", handleSharingToggleClick);
+  // 【2026-08-29追加・本人指示（実機バグ報告）】フレンド詳細モーダルを開いたまま右上の
+  // 「🏅称号一覧」を押すと、称号一覧モーダルが後ろのフレンド詳細モーダルに重なって
+  // 表示され、×を2回押さないと元のフレンド一覧へ戻れない不具合があった。称号一覧を
+  // 開く直前にこのモーダル自身を閉じることで、常に1枚だけが表示された自然な切り替えにする
+  // （称号一覧モーダルを開く処理自体はjs/achievementList.jsのopenTriggersが別途行う。
+  // 同じクリックで両方のリスナーが実行され、最終的に「フレンド詳細は閉・称号一覧は開」の
+  // 状態に収束する）。
+  if (elements.detailTitleListLink) {
+    elements.detailTitleListLink.addEventListener("click", closeDetailModal);
+  }
   elements.detailCloseButton.addEventListener("click", closeDetailModal);
   elements.detailAllToggle.addEventListener("click", handleDetailAllToggleClick);
   elements.detailOverlay.addEventListener("click", handleDetailOverlayClick);

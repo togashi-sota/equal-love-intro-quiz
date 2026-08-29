@@ -194,23 +194,103 @@ const [TIER_BEGINNER, TIER_CHALLENGER, TIER_ACE, TIER_MASTER, TIER_BACK_CHALLENG
 // 「次のチャレンジ」案内文の組み立てに使う。
 const SERIES_QUIZ_NAMES = ["イントロクイズ", "ランダム再生クイズ", "歌詞クイズ"];
 
-// 「すべての称号を見る」に表示するブロック構造（2026-08-29再設計、2026-08-29急遽再変更・
-// 本人指示）。「マスター称号」「裏チャレンジ称号」を種類ごとに独立ブロックへ分けるのは
-// やめ、「どのクイズ系統の称号か」だけで3ブロック（イントロ系／シャッフル系／リリック系）に
-// 分ける。ACHIEVEMENT_SERIESの各行（低→高＝ビギナー→チャレンジャー→エース→マスター→
-// 裏チャレンジ）を、種類で分割せずそのままブロックの中身として使う（本人指示：
-// 「新しい称号リストを別に手書きしない」）。
-const ALL_ACHIEVEMENTS_BLOCKS = [
-  { label: "🎧 イントロ系", ids: ACHIEVEMENT_SERIES[0] },
-  { label: "🔀 シャッフル系", ids: ACHIEVEMENT_SERIES[1] },
-  { label: "🎤 リリック系", ids: ACHIEVEMENT_SERIES[2] },
+// 「すべての称号を見る」に表示する、通常3系統のブロック構造（2026-08-29最終確定・本人指示）。
+// 各系統は「ビギナー→チャレンジャー→エース→マスター」の4段階（ACHIEVEMENT_SERIESの
+// 先頭4件、TIER_BACK_CHALLENGEの手前まで）。裏チャレンジ（電光石火等）は「イントロを
+// 使う称号ではあるが、通常のイントロ系の成長称号とは別物」（本人指示）のため、この3ブロックには
+// 含めず、下の独立した裏チャレンジブロックにまとめる。
+const NORMAL_SERIES_BLOCKS = [
+  { label: "🎧 イントロ系", ids: ACHIEVEMENT_SERIES[0].slice(TIER_BEGINNER, TIER_BACK_CHALLENGE) },
+  { label: "🔀 シャッフル系", ids: ACHIEVEMENT_SERIES[1].slice(TIER_BEGINNER, TIER_BACK_CHALLENGE) },
+  { label: "🎤 リリック系", ids: ACHIEVEMENT_SERIES[2].slice(TIER_BEGINNER, TIER_BACK_CHALLENGE) },
 ];
 
-// 取得済み称号を、クイズ系統ごとのブロック（イントロ系→シャッフル系→リリック系、本人指示の
-// 固定順）に分けて並べたコンテナ要素を組み立てる（他人のプロフィールでは取得済みだけ表示し、
-// 未取得称号は出さない）。各ブロックの中は、ビギナー→チャレンジャー→エース→マスター→
-// 裏チャレンジの順（難易度・到達度が上がっていく順）に並ぶ。1件も無ければ
-// 「まだ称号を取得していません。」の案内だけを返す。
+// 裏チャレンジ3種（電光石火／メロディアス／リリックマスター）。通常3系統には混ぜず、
+// 独立したブロックとして、本人が取得しているものだけをイントロ→ランダム再生→歌詞クイズの
+// 順で表示する（本人指示）。
+const BACK_CHALLENGE_IDS = ACHIEVEMENT_SERIES.map((series) => series[TIER_BACK_CHALLENGE]);
+
+// ＝LOVEマスター・＝LOVE完全制覇に添える1行の説明。既存のconditionTextは長めの一文なので、
+// この特別枠専用に、達成した到達点が一目で伝わる短い言い回しにする
+// （本人指示：「表攻略の最終到達点」「裏攻略の最終到達点」という違いが伝わるように）。
+const SPECIAL_ACHIEVEMENT_TAGLINES = {
+  equal_love_master: "表攻略の最終到達点",
+  equal_love_complete: "裏攻略の最終到達点",
+};
+
+// ＝LOVEマスター／＝LOVE完全制覇専用の特別カードを組み立てる（本人指示：「通常の称号と
+// 同じ2列の小さな表示にはせず、明らかに特別な称号と分かる専用デザインに」）。
+// 既存の称号一覧モーダル（js/achievementList.jsの.achievement-card--composite）が使う
+// ＝LOVEマスター＝ゴールド系の発光、＝LOVE完全制覇＝紫〜水色系の発光と同じ配色・
+// アニメーションをCSS側で再利用し、ゲーム全体でこの2称号の見た目に一貫性を持たせる
+// （新しい色を作らず、既存デザインとの統一感を優先）。未獲得者には表示しない
+// （呼び出し側がunlockedSetを見て判断する）。
+function buildSpecialAchievementBlock(achievementId) {
+  const definition = getAchievementById(achievementId);
+  if (!definition) return null;
+
+  const section = document.createElement("div");
+  section.className = "fan-profile-achievement-block";
+
+  const card = document.createElement("div");
+  card.className = `fan-profile-special-achievement-card fan-profile-special-achievement-card--${achievementId}`;
+  card.appendChild(buildAchievementIconMedal(definition.iconKey));
+
+  const textBlock = document.createElement("div");
+  textBlock.className = "fan-profile-special-achievement-text";
+
+  const name = document.createElement("p");
+  name.className = "fan-profile-special-achievement-name";
+  name.textContent = definition.name;
+  textBlock.appendChild(name);
+
+  const tagline = document.createElement("p");
+  tagline.className = "fan-profile-special-achievement-tagline";
+  tagline.textContent = SPECIAL_ACHIEVEMENT_TAGLINES[achievementId] ?? "";
+  textBlock.appendChild(tagline);
+
+  const condition = document.createElement("p");
+  condition.className = "fan-profile-special-achievement-condition";
+  condition.textContent = definition.conditionText;
+  textBlock.appendChild(condition);
+
+  card.appendChild(textBlock);
+  section.appendChild(card);
+  return section;
+}
+
+// 通常の2列グリッドのブロック（イントロ系／シャッフル系／リリック系／裏チャレンジ）を
+// 組み立てる共通ヘルパー。該当する取得済みIDが1件も無ければnullを返す。
+function buildNormalAchievementBlock(label, idsInBlock) {
+  if (idsInBlock.length === 0) return null;
+
+  const section = document.createElement("div");
+  section.className = "fan-profile-achievement-block";
+
+  const heading = document.createElement("p");
+  heading.className = "fan-profile-achievement-block-heading";
+  heading.textContent = label;
+  section.appendChild(heading);
+
+  const grid = document.createElement("div");
+  grid.className = "fan-profile-achievement-grid";
+  idsInBlock.forEach((id) => {
+    const card = buildAchievedCard(id);
+    if (card) grid.appendChild(card);
+  });
+  section.appendChild(grid);
+
+  return section;
+}
+
+// 取得済み称号を、以下の固定順（本人指示・2026-08-29最終確定）に並べたコンテナ要素を
+// 組み立てる（他人のプロフィールでは取得済みだけ表示し、未取得称号は出さない）。
+//   ①イントロ系→②シャッフル系→③リリック系
+//     （各ブロックの中はビギナー→チャレンジャー→エース→マスターの順）
+//   →④＝LOVEマスター（取得者だけの特別枠）
+//   →⑤裏チャレンジ（電光石火／メロディアス／リリックマスターのうち取得済みのものだけ）
+//   →⑥＝LOVE完全制覇（取得者だけの特別枠）
+// 1件も無ければ「まだ称号を取得していません。」の案内だけを返す。
 // 【2026-08-29再設計・本人指示】このリストの役割は、フレンド詳細モーダルの主表示から
 // 「すべての称号を見る」の全件確認用。代表称号とは別の場所・別の目的の表示になったため、
 // ここでは代表称号の絞り込みは行わず、取得済みを全件そのまま表示する（上位称号の取得に
@@ -230,28 +310,26 @@ export function buildAchievedAchievementsList(unlockedAchievementIds) {
   }
 
   const unlockedSet = new Set(unlockedAchievementIds);
-  ALL_ACHIEVEMENTS_BLOCKS.forEach((block) => {
-    const idsInBlock = block.ids.filter((id) => unlockedSet.has(id));
-    if (idsInBlock.length === 0) return;
 
-    const section = document.createElement("div");
-    section.className = "fan-profile-achievement-block";
-
-    const heading = document.createElement("p");
-    heading.className = "fan-profile-achievement-block-heading";
-    heading.textContent = block.label;
-    section.appendChild(heading);
-
-    const grid = document.createElement("div");
-    grid.className = "fan-profile-achievement-grid";
-    idsInBlock.forEach((id) => {
-      const card = buildAchievedCard(id);
-      if (card) grid.appendChild(card);
-    });
-    section.appendChild(grid);
-
-    container.appendChild(section);
+  NORMAL_SERIES_BLOCKS.forEach((block) => {
+    const section = buildNormalAchievementBlock(
+      block.label,
+      block.ids.filter((id) => unlockedSet.has(id))
+    );
+    if (section) container.appendChild(section);
   });
+
+  if (unlockedSet.has("equal_love_master")) {
+    container.appendChild(buildSpecialAchievementBlock("equal_love_master"));
+  }
+
+  const unlockedBackChallengeIds = BACK_CHALLENGE_IDS.filter((id) => unlockedSet.has(id));
+  const backChallengeSection = buildNormalAchievementBlock("💎 裏チャレンジ", unlockedBackChallengeIds);
+  if (backChallengeSection) container.appendChild(backChallengeSection);
+
+  if (unlockedSet.has("equal_love_complete")) {
+    container.appendChild(buildSpecialAchievementBlock("equal_love_complete"));
+  }
 
   return container;
 }

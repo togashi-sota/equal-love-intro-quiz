@@ -198,9 +198,10 @@ export function runFanProfileCardTests() {
   );
   assertEqual(unsorted.map((p) => p.uid), ["a", "b", "c"], "sortProfilesは元の配列を変更しない");
 
-  // ---- 未取得称号は表示されず、取得済みだけがクイズ系統ごとのブロックに表示される
-  //      （2026-08-29急遽再変更・本人指示：種類（ステップアップ／マスター／裏チャレンジ）
-  //      ではなく、イントロ系／シャッフル系／リリック系の3ブロックだけで分ける） ----
+  // ---- 最終確定の6段構成（2026-08-29最終確定・本人指示）：①イントロ系②シャッフル系
+  //      ③リリック系（各ブロックはビギナー〜マスターの4段階）④＝LOVEマスター
+  //      （取得者だけの特別枠）⑤裏チャレンジ（独立ブロック）⑥＝LOVE完全制覇
+  //      （取得者だけの特別枠）。未取得の称号・空のブロックは出さない。 ----
   const partialList = buildAchievedAchievementsList(["intro_beginner", "full_chorus_master"]);
   const achievedNames = [...partialList.querySelectorAll(".fan-profile-achievement-name")].map((el) => el.textContent);
   assertEqual(
@@ -220,6 +221,37 @@ export function runFanProfileCardTests() {
     partialList.querySelector(".fan-profile-achievement-empty"),
     null,
     "1件でも取得済みがあれば「まだ称号を取得していません」は表示されない"
+  );
+
+  // ---- 重要：電光石火はイントロを使う称号だが、通常のイントロ系ステップアップとは
+  //      別物のため、イントロ系ブロックには入らない（本人指示） ----
+  const introWithBackChallenge = buildAchievedAchievementsList([
+    "intro_beginner",
+    "intro_challenger",
+    "intro_ace",
+    "no_miss_master",
+    "lightning_fast",
+  ]);
+  const blocksByHeading = [...introWithBackChallenge.querySelectorAll(".fan-profile-achievement-block")].map(
+    (block) => ({
+      heading: block.querySelector(".fan-profile-achievement-block-heading")?.textContent,
+      names: [...block.querySelectorAll(".fan-profile-achievement-name")].map((el) => el.textContent),
+    })
+  );
+  assertEqual(
+    blocksByHeading.find((block) => block.heading === "🎧 イントロ系")?.names,
+    ["イントロビギナー", "イントロチャレンジャー", "イントロエース", "ノーミスマスター"],
+    "イントロ系ブロックはビギナー〜ノーミスマスターの4段階だけで、電光石火は含まれない"
+  );
+  assertEqual(
+    blocksByHeading.find((block) => block.heading === "💎 裏チャレンジ")?.names,
+    ["電光石火"],
+    "電光石火は独立した裏チャレンジブロックの中に表示される"
+  );
+  assertEqual(
+    blocksByHeading.map((block) => block.heading),
+    ["🎧 イントロ系", "💎 裏チャレンジ"],
+    "裏チャレンジブロックはイントロ系ブロックより後に表示される"
   );
 
   // ---- 未知のachievementIdでも画面が壊れない（静かに読み飛ばす） ----
@@ -243,28 +275,7 @@ export function runFanProfileCardTests() {
     "称号0個のときはカードが1件も表示されない"
   );
 
-  // ---- E・F・G・H・I・J・K：1系統（イントロ系）を全段階（ビギナー〜裏チャレンジ）
-  //      取得済みなら、種類を問わず1つのブロックの中に、難易度が上がっていく順
-  //      （ビギナー→チャレンジャー→エース→マスター→裏チャレンジ）で並ぶ ----
-  const introFullList = buildAchievedAchievementsList([
-    "lightning_fast", // 入力順はバラバラでも、表示順は難易度順に揃う
-    "intro_beginner",
-    "no_miss_master",
-    "intro_challenger",
-    "intro_ace",
-  ]);
-  assertEqual(
-    [...introFullList.querySelectorAll(".fan-profile-achievement-block")].length,
-    1,
-    "イントロ系だけ取得済みなら、ブロックは1つだけ（マスター・裏チャレンジ用の別ブロックは作らない）"
-  );
-  assertEqual(
-    [...introFullList.querySelectorAll(".fan-profile-achievement-name")].map((el) => el.textContent),
-    ["イントロビギナー", "イントロチャレンジャー", "イントロエース", "ノーミスマスター", "電光石火"],
-    "イントロ系ブロックの中は、種類を問わずビギナー→チャレンジャー→エース→マスター→裏チャレンジの順で並ぶ"
-  );
-
-  // ---- M：通常系統を3個しか取得していない場合、4枠目が空いても次の系統をそこへ詰めない
+  // ---- 通常系統を3個しか取得していない場合、4枠目が空いても次の系統をそこへ詰めない
   //      （各ブロックが独立したgridのため、DOM構造として別のgrid要素になっている） ----
   const introThreeThenShuffleList = buildAchievedAchievementsList([
     "intro_beginner",
@@ -285,9 +296,40 @@ export function runFanProfileCardTests() {
     "シャッフル系のgridは独立しており、イントロ系の4枠目の空きに詰め込まれることはない"
   );
 
-  // ---- N・称号多数（17件すべて）取得済みの場合：＝LOVEマスター・＝LOVE完全制覇は
-  //      特定のクイズ系統に属さないため、この3ブロック構成には含まれない（代表称号
-  //      システムと同じ扱い。単体の材料称号はそれぞれの系統ブロックに表示される） ----
+  // ---- ＝LOVEマスター・＝LOVE完全制覇は未取得なら表示されない ----
+  const noSpecialList = buildAchievedAchievementsList(["no_miss_master", "full_chorus_master", "song_master"]);
+  assertEqual(
+    noSpecialList.querySelector(".fan-profile-special-achievement-card"),
+    null,
+    "＝LOVEマスター・＝LOVE完全制覇のどちらも未取得なら、特別カードは1件も表示されない"
+  );
+
+  // ---- ＝LOVEマスターだけ取得済みなら、④の位置に特別カードとして1件だけ表示される ----
+  const masterOnlyList = buildAchievedAchievementsList([
+    "no_miss_master",
+    "full_chorus_master",
+    "song_master",
+    "equal_love_master",
+  ]);
+  const masterCard = masterOnlyList.querySelector(".fan-profile-special-achievement-card--equal_love_master");
+  assertEqual(masterCard?.querySelector(".fan-profile-special-achievement-name")?.textContent, "＝LOVEマスター", "＝LOVEマスター取得済みなら専用の特別カードが表示される");
+  assertEqual(
+    masterOnlyList.querySelector(".fan-profile-special-achievement-card--equal_love_complete"),
+    null,
+    "＝LOVE完全制覇は未取得なので表示されない"
+  );
+
+  // ---- ＝LOVE完全制覇だけ取得済みなら、⑥の位置に特別カードとして1件だけ表示される ----
+  const completeOnlyList = buildAchievedAchievementsList(["lightning_fast", "melody_ace", "lyric_master", "equal_love_complete"]);
+  assertEqual(
+    completeOnlyList.querySelector(".fan-profile-special-achievement-card--equal_love_complete")
+      ?.querySelector(".fan-profile-special-achievement-name")?.textContent,
+    "＝LOVE完全制覇",
+    "＝LOVE完全制覇取得済みなら専用の特別カードが表示される"
+  );
+
+  // ---- 称号多数（17件すべて）取得済みなら、6ブロックすべてが表示され、17件全部が
+  //      どこかしらのブロックに含まれる（本人指示：取得データは一切隠さない） ----
   const allIds = [
     "intro_beginner",
     "intro_challenger",
@@ -309,24 +351,23 @@ export function runFanProfileCardTests() {
   ];
   const fullList = buildAchievedAchievementsList(allIds);
   assertEqual(
-    [...fullList.querySelectorAll(".fan-profile-achievement-block")].length,
-    3,
-    "17件すべて取得済みでも、ブロックはイントロ系／シャッフル系／リリック系の3つだけになる"
+    fullList.querySelectorAll(".fan-profile-achievement-block").length,
+    6,
+    "17件すべて取得済みなら、イントロ系・シャッフル系・リリック系・＝LOVEマスター・裏チャレンジ・＝LOVE完全制覇の6ブロックすべてが表示される"
+  );
+  const fullListNormalNames = [...fullList.querySelectorAll(".fan-profile-achievement-name")].map((el) => el.textContent);
+  const fullListSpecialNames = [...fullList.querySelectorAll(".fan-profile-special-achievement-name")].map(
+    (el) => el.textContent
   );
   assertEqual(
-    fullList.querySelectorAll(".fan-profile-achievement-card").length,
-    15,
-    "3系統×5段階＝15件が表示される（＝LOVEマスター・＝LOVE完全制覇はどの系統にも属さないため対象外）"
+    fullListNormalNames.length + fullListSpecialNames.length,
+    17,
+    "17件すべてが、通常ブロックのカードか特別カードのどちらかとして表示される（1件も隠れない）"
   );
-  const fullListNames = [...fullList.querySelectorAll(".fan-profile-achievement-name")].map((el) => el.textContent);
   assertEqual(
-    fullListNames.includes("イントロビギナー") &&
-      fullListNames.includes("イントロチャレンジャー") &&
-      fullListNames.includes("イントロエース") &&
-      fullListNames.includes("ノーミスマスター") &&
-      fullListNames.includes("電光石火"),
-    true,
-    "代表称号からは省略されるはずのイントロ系の下位段階（ビギナー・チャレンジャー・エース）も、「すべての称号を見る」では取得済みとしてすべて表示される"
+    fullListSpecialNames,
+    ["＝LOVEマスター", "＝LOVE完全制覇"],
+    "＝LOVEマスターと＝LOVE完全制覇は、通常カードではなく専用の特別カードとして表示される"
   );
 }
 

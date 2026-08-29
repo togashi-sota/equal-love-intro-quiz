@@ -92,6 +92,7 @@
     import { runCustomQuizPresetsTests } from "./tests/customQuizPresets.test.js";
     import { runDataPackImportTests } from "./tests/dataPackImport.test.js";
     import { runZipPackImportTests } from "./tests/zipPackImport.test.js";
+    import { runScrollLockTests } from "./tests/scrollLock.test.js";
     import { runOnlineBattleCollaborativeSelectionTests } from "./tests/onlineBattleCollaborativeSelection.test.js";
     import { runOnlineBattleSongAvailabilityTests } from "./tests/onlineBattleSongAvailability.test.js";
     import { runTimeAttackBattleModeTests } from "./tests/battleModes/timeAttackBattleMode.test.js";
@@ -164,6 +165,7 @@
     runCustomQuizPresetsTests();
     await runDataPackImportTests();
     await runZipPackImportTests();
+    runScrollLockTests();
     runOnlineBattleSongAvailabilityTests();
     runOnlineBattleCollaborativeSelectionTests();
     runTimeAttackBattleModeTests();

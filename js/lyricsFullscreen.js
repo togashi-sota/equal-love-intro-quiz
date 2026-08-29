@@ -27,7 +27,6 @@ let currentAudioElement = null;
 let currentPanelElement = null;
 let originalPanelParent = null;
 let originalPanelNextSibling = null;
-let bodyScrollY = 0;
 
 function formatTime(totalSeconds) {
   const safeSeconds = Number.isFinite(totalSeconds) ? totalSeconds : 0;
@@ -105,22 +104,6 @@ function handleSeekRangeInput() {
   currentAudioElement.currentTime = seekRangeElement.valueAsNumber;
 }
 
-// 背景（一覧画面）のスクロールを止める。iOS Safari/PWAでoverflow:hiddenだけでは
-// タッチスクロールが抜けてしまうことがあるため、bodyをposition:fixedにして
-// 今のスクロール位置をtopに焼き込む、定番の対策を使う。
-function lockBodyScroll() {
-  bodyScrollY = window.scrollY;
-  document.body.style.top = `-${bodyScrollY}px`;
-  document.body.classList.add("has-fullscreen-lyrics-open");
-}
-
-function unlockBodyScroll() {
-  document.body.classList.remove("has-fullscreen-lyrics-open");
-  document.body.style.top = "";
-  window.scrollTo(0, bodyScrollY);
-  bodyScrollY = 0;
-}
-
 function resolveElements() {
   if (elementsResolved) return;
 
@@ -168,8 +151,9 @@ export function openFullscreenLyrics(songTitle, audioElement, panelElement) {
   syncPlayPauseIcon();
   syncSeekUI();
 
+  // 背景（一覧画面）のスクロール固定は、js/scrollLock.jsがhidden属性の変化を監視して
+  // 自動的に行う（本人指示・2026-08-29：モーダル全般と共通のスクロールロック処理に統一）。
   overlayElement.hidden = false;
-  lockBodyScroll();
 }
 
 // 全画面表示を閉じる。audioElementには一切触れないため、再生位置・一時停止状態は
@@ -192,5 +176,4 @@ export function closeFullscreenLyrics() {
   originalPanelNextSibling = null;
 
   overlayElement.hidden = true;
-  unlockBodyScroll();
 }

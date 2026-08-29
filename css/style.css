@@ -71,16 +71,6 @@ body {
   padding-left: 16px;
 }
 
-/* 歌詞の全画面表示（js/lyricsFullscreen.js）が開いている間、背後の画面がスクロールしないように
-   bodyを固定する。開く直前のスクロール位置はJS側でtopに焼き込み、閉じるときに解除して復元する
-   （iOS Safari/PWAでoverflow:hiddenだけでは背景スクロールが抜けてしまう対策）。 */
-body.has-fullscreen-lyrics-open {
-  position: fixed;
-  left: 0;
-  right: 0;
-  overflow: hidden;
-}
-
 /* ===== 自動更新の適用通知（2026-08-29新設） =====
    Service Workerの自動更新が実際に適用された直後の1回の読み込みだけ表示する、
    ピンク系の控えめな通知。押す操作は不要で、約10秒後にjs/main.js側が自動的にhidden属性を
@@ -7534,6 +7524,21 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   border-top: 1px solid var(--color-card-border);
 }
 
+/* 「すべての称号を見る」の系統ごとのブロック（2026-08-29追加）。 */
+.fan-profile-achievement-block {
+  margin-bottom: 14px;
+}
+
+.fan-profile-achievement-block-heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+}
+
 .fan-profile-achievement-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -7563,6 +7568,80 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   padding: 12px 4px;
   font-size: 0.8rem;
   opacity: 0.75;
+}
+
+/* ＝LOVEマスター／＝LOVE完全制覇専用の特別カード（2026-08-29追加、本人指示：
+   「明らかに特別な称号と分かる専用デザインに」）。既存の称号一覧モーダル
+   （.achievement-card--composite、js/achievementList.js）と同じ配色・発光アニメーションを
+   そのまま再利用し、ゲーム全体でこの2称号の見た目に一貫性を持たせる（新しい色は作らない）。
+   通常称号の2列グリッドには入れず、常に横幅いっぱいの単独カードにする。 */
+.fan-profile-special-achievement-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1.5px solid transparent;
+}
+
+.fan-profile-special-achievement-card .achievement-icon-medal {
+  width: 44px;
+  height: 44px;
+  flex: none;
+}
+
+/* ＝LOVEマスター＝表攻略の最終到達点：金・王冠系の柔らかい発光
+   （achievementMasterCardGlowはjs/achievementList.js側のカードと共通のkeyframes）。 */
+.fan-profile-special-achievement-card--equal_love_master {
+  background: linear-gradient(155deg, #fff7e0, #ffe3f0 55%, #ffd9a0 100%);
+  border-color: rgba(255, 200, 60, 0.7);
+  box-shadow: 0 10px 24px -14px rgba(184, 121, 14, 0.5);
+  animation: achievementMasterCardGlow 2.6s ease-in-out infinite;
+}
+
+/* ＝LOVE完全制覇＝裏攻略の最終到達点：紫〜水色のオーラ系の発光を、＝LOVEマスターより
+   ひと回り強めにして格の違いを出す（achievementCompleteCardGlowも同じく共通keyframes）。 */
+.fan-profile-special-achievement-card--equal_love_complete {
+  background: linear-gradient(155deg, #ffe9f4, #e8e0ff 55%, #d3ecff 100%);
+  border-color: rgba(150, 130, 255, 0.55);
+  box-shadow: 0 10px 26px -12px rgba(140, 130, 255, 0.5);
+  animation: achievementCompleteCardGlow 2.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fan-profile-special-achievement-card {
+    animation: none;
+  }
+}
+
+.fan-profile-special-achievement-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.fan-profile-special-achievement-name {
+  margin: 0;
+  font-size: 1.02rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  overflow-wrap: break-word;
+}
+
+.fan-profile-special-achievement-tagline {
+  margin: 2px 0 0;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #7a4a20;
+  opacity: 0.85;
+}
+
+.fan-profile-special-achievement-condition {
+  margin: 4px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  opacity: 0.8;
+  overflow-wrap: break-word;
 }
 
 @media (max-width: 380px) {
