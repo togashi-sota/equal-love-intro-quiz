@@ -85,6 +85,40 @@ export async function runDataPackImportTests() {
     "full/incremental以外のpackKindは無効"
   );
 
+  // ---- validateManifest：corrections（本人指示：2026-08-29、正式な修正版を安全に配布する仕組み） ----
+  assertEqual(
+    validateManifest(buildValidManifest()).valid,
+    true,
+    "correctionsを省略しても（後方互換のため）マニフェストは有効"
+  );
+  assertEqual(
+    validateManifest(buildValidManifest({ corrections: { lyrics: [EXISTING_SONG_ID_1] } })).valid,
+    true,
+    "corrections.lyricsに実在する曲idの配列を指定すれば有効"
+  );
+  assertEqual(
+    validateManifest(
+      buildValidManifest({ corrections: { lyrics: [EXISTING_SONG_ID_1], audio: [], calls: [], callGuides: [] } })
+    ).valid,
+    true,
+    "corrections内の全項目（lyrics/audio/calls/callGuides）を指定しても有効"
+  );
+  assertEqual(
+    validateManifest(buildValidManifest({ corrections: ["not", "an", "object"] })).valid,
+    false,
+    "correctionsが配列（オブジェクトでない）だと無効"
+  );
+  assertEqual(
+    validateManifest(buildValidManifest({ corrections: { lyrics: "boku-no-heroine" } })).valid,
+    false,
+    "corrections.lyricsが配列でなく文字列単体だと無効"
+  );
+  assertEqual(
+    validateManifest(buildValidManifest({ corrections: { unknownField: [] } })).valid,
+    false,
+    "correctionsに未対応の項目名があると無効"
+  );
+
   // ---- analyzeDataPack：マニフェストが無い ----
   {
     const result = await analyzeDataPack([jsonFile("readme.json", { hello: "world" })]);

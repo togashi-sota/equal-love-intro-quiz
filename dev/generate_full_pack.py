@@ -41,6 +41,10 @@ SONGS_JS_PATH = PROJECT_ROOT / "js" / "data" / "songs.js"
 AUDIO_LOCAL_DIR = PROJECT_ROOT / "assets" / "audio" / "local"
 LYRICS_LOCAL_DIR = PROJECT_ROOT / "assets" / "lyrics" / "local"
 FULL_PACK_DIR = PROJECT_ROOT / "data-packs" / "full"
+CORRECTIONS_MANIFEST_PATH = PROJECT_ROOT / "data-packs" / "corrections-manifest.json"
+
+# js/dataPackImport.jsのvalidateManifest()が認識するcorrectionsの項目名。
+CORRECTIONS_KEYS = ["lyrics", "audio", "calls", "callGuides"]
 
 PACK_TYPE = "equal-love-data-pack"
 SCHEMA_VERSION = 1
@@ -56,6 +60,18 @@ def list_song_ids_from_songs_js():
         sys.exit(1)
     text = SONGS_JS_PATH.read_text(encoding="utf-8")
     return re.findall(r'id:\s*"([^"]+)"', text)
+
+
+def load_corrections():
+    """data-packs/corrections-manifest.json（本人が手作業で管理する「正式な修正版」曲IDの
+    一覧）を読み込み、js/dataPackImport.jsのマニフェストcorrections項目の形へ変換する。
+    ファイルが無い・全項目が空の場合はNoneを返す（manifestにcorrectionsを含めない＝
+    今までどおり何も上書きしない、という安全側の既定動作のため）。"""
+    if not CORRECTIONS_MANIFEST_PATH.exists():
+        return None
+    raw = json.loads(CORRECTIONS_MANIFEST_PATH.read_text(encoding="utf-8"))
+    corrections = {key: raw.get(key, []) for key in CORRECTIONS_KEYS if raw.get(key)}
+    return corrections or None
 
 
 def clear_full_pack_dir():
@@ -101,12 +117,18 @@ def main():
         "songIds": song_ids,
         "createdAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z"),
     }
+    corrections = load_corrections()
+    if corrections:
+        manifest["corrections"] = corrections
+
     manifest_path = FULL_PACK_DIR / "manifest.json"
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
     print(f"songs.js登録曲数: {len(song_ids)}件")
     print(f"音源をコピーできた曲: {len(covered_audio)}件")
     print(f"歌詞タイミングJSONをコピーできた曲: {len(covered_lyrics)}件")
+    if corrections:
+        print(f"正式な修正版として上書きを許可する曲（corrections-manifest.jsonより）: {corrections}")
     if missing_audio:
         print(f"\n[警告] 音源が見つからず全曲パックに含まれなかった曲（{len(missing_audio)}件）:")
         for song_id in missing_audio:

@@ -118,7 +118,35 @@ export function validateManifest(rawData) {
     }
   }
 
+  // correctionsは任意項目（本人指示：2026-08-29、「僕のヒロイン」歌詞誤登録事故を受けて追加）。
+  // 「この端末に既に保存済みでも、正式な修正版として上書きしてよい」曲IDを、データ種類ごとに
+  // 明示的に列挙するための項目。省略時は今まで通り「既存データは一切上書きしない」という
+  // 安全側の既定動作のまま変わらない（後方互換：この項目を持たない旧マニフェスト・
+  // 新曲追加のみの通常パックには一切影響しない）。
+  if (rawData.corrections !== undefined) {
+    if (typeof rawData.corrections !== "object" || rawData.corrections === null || Array.isArray(rawData.corrections)) {
+      errors.push("correctionsの形式が正しくありません");
+    } else {
+      const knownKeys = ["lyrics", "audio", "calls", "callGuides"];
+      for (const [key, value] of Object.entries(rawData.corrections)) {
+        if (!knownKeys.includes(key)) {
+          errors.push(`correctionsに未対応の項目があります（${key}）`);
+        } else if (!Array.isArray(value) || value.some((id) => typeof id !== "string")) {
+          errors.push(`corrections.${key}は文字列の配列である必要があります`);
+        }
+      }
+    }
+  }
+
   return { valid: errors.length === 0, errors };
+}
+
+// マニフェストのcorrections（省略時は空扱い）から、指定データ種類の「上書きしてよい曲ID」の
+// Setを作る。マニフェストにcorrections自体が無い場合や、そのデータ種類の指定が無い場合は
+// 空のSet（＝今まで通り、既存データは一切上書きしない）を返す。
+function correctionIdSet(manifest, key) {
+  const ids = manifest?.corrections?.[key];
+  return new Set(Array.isArray(ids) ? ids : []);
 }
 
 // 選ばれた全ファイル（FileList、または同等の配列）を読み取り、種類ごとに仕分けて
@@ -257,6 +285,15 @@ export async function analyzeDataPack(fileList) {
 // 判定は曲単位ではなくデータ種類単位で独立して行う（例：音源はあるが歌詞は無い曲は、
 // 音源だけスキップして歌詞だけ追加する）。
 //
+// 【2026-08-29追加：正式な修正版だけを安全に上書きする仕組み】上のスキップ機構により、
+// 「新曲を追加パックで導入する」場合は既存データを壊さず安全になった一方、「以前配布した
+// データに間違いがあり、後から修正版を配布する」場合（実例：『僕のヒロイン』に『ヒロインズ』
+// の歌詞が誤登録されていた事故の修正）には、修正版パックを読み込んでも「もう持っている」と
+// 判定されて何も更新されない問題が残っていた。この問題に対して、マニフェストのcorrections
+// フィールド（省略可）で「この曲IDは正式な修正版なので、既に持っていても上書きしてよい」と
+// 明示的に宣言できるようにした。宣言が無い曲・宣言が無いマニフェスト（今まで配布した
+// パックすべてを含む）は、今まで通り一切上書きしない。
+//
 // 【安全性について】js/audioStorage.js・js/lyricsStorage.js・js/callStorage.js・
 // js/callGuideStorage.jsの保存関数（importAudioFiles等）自体は変更していない
 // （「音源を読み込む」等、データパックとは別の単体インポートUIが、既存曲の上書き更新に
@@ -272,15 +309,20 @@ export async function analyzeDataPack(fileList) {
 //   savedCallGuideIds: string[], skippedCallGuideIds: string[], callGuideFailures: { guideId, reason }[],
 // }
 export async function importAnalyzedDataPack(analyzed) {
-  const { audio, lyrics, calls, callGuides } = analyzed;
+  const { manifest, audio, lyrics, calls, callGuides } = analyzed;
 
-  // 音源：既にこの端末に読み込み済みのsongIdは保存し直さずスキップする。
+  const audioCorrections = correctionIdSet(manifest, "audio");
+  const lyricsCorrections = correctionIdSet(manifest, "lyrics");
+  const callCorrections = correctionIdSet(manifest, "calls");
+  const callGuideCorrections = correctionIdSet(manifest, "callGuides");
+
+  // 音源：既にこの端末に読み込み済みのsongIdは、correctionsで明示されていない限りスキップする。
   const existingAudioSongIds = new Set(await getImportedSongIds());
   const audioFilesToSave = [];
   const skippedAudioSongIds = [];
   audio.readyFiles.forEach((file, index) => {
     const songId = audio.savableSongIds[index];
-    if (existingAudioSongIds.has(songId)) {
+    if (existingAudioSongIds.has(songId) && !audioCorrections.has(songId)) {
       skippedAudioSongIds.push(songId);
     } else {
       audioFilesToSave.push(file);
@@ -289,10 +331,13 @@ export async function importAnalyzedDataPack(analyzed) {
   const audioResult = await importAudioFiles(audioFilesToSave);
 
   // 歌詞：analyzeLyricsFiles()（analyzeDataPack()内で既に実行済み）が算出したisUpdateを使う。
+  // isUpdateであっても、correctionsで明示された曲IDは「正式な修正版」として保存対象に含める。
   const lyricsFilesAll = [...lyrics.readyFiles, ...lyrics.warningFiles];
-  const lyricsFilesToSave = lyricsFilesAll.filter((file) => !file.isUpdate);
+  const lyricsFilesToSave = lyricsFilesAll.filter(
+    (file) => !file.isUpdate || lyricsCorrections.has(file.normalizedData.songId)
+  );
   const skippedLyricsSongIds = lyricsFilesAll
-    .filter((file) => file.isUpdate)
+    .filter((file) => file.isUpdate && !lyricsCorrections.has(file.normalizedData.songId))
     .map((file) => file.normalizedData.songId);
   const lyricsImportResult = await importLyricsFiles(lyricsFilesToSaveAsFileList(lyricsFilesToSave));
 
@@ -300,8 +345,12 @@ export async function importAnalyzedDataPack(analyzed) {
   let callFailures = [];
   let skippedCallSongIds = [];
   if (calls) {
-    const callSongsToSave = calls.readySongs.filter((song) => !song.isUpdate);
-    skippedCallSongIds = calls.readySongs.filter((song) => song.isUpdate).map((song) => song.songId);
+    const callSongsToSave = calls.readySongs.filter(
+      (song) => !song.isUpdate || callCorrections.has(song.songId)
+    );
+    skippedCallSongIds = calls.readySongs
+      .filter((song) => song.isUpdate && !callCorrections.has(song.songId))
+      .map((song) => song.songId);
     if (callSongsToSave.length > 0) {
       const callImportResult = await importCallDataSongs(callSongsToSave);
       savedCallSongIds = callImportResult.savedSongIds;
@@ -313,8 +362,12 @@ export async function importAnalyzedDataPack(analyzed) {
   let callGuideFailures = [];
   let skippedCallGuideIds = [];
   if (callGuides) {
-    const guidesToSave = callGuides.readyGuides.filter((guide) => !guide.isUpdate);
-    skippedCallGuideIds = callGuides.readyGuides.filter((guide) => guide.isUpdate).map((guide) => guide.guideId);
+    const guidesToSave = callGuides.readyGuides.filter(
+      (guide) => !guide.isUpdate || callGuideCorrections.has(guide.guideId)
+    );
+    skippedCallGuideIds = callGuides.readyGuides
+      .filter((guide) => guide.isUpdate && !callGuideCorrections.has(guide.guideId))
+      .map((guide) => guide.guideId);
     if (guidesToSave.length > 0) {
       const callGuideImportResult = await importCallGuideDataEntries(guidesToSave);
       savedCallGuideIds = callGuideImportResult.savedGuideIds;
