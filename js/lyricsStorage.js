@@ -8,6 +8,7 @@
 // どちらからも、この同じ関数群を通してデータをやり取りする想定。
 
 import { SONGS } from "./data/songs.js";
+import { computeSha256Hex } from "./contentHash.js";
 
 const DB_NAME = "equalLoveIntroQuizLyrics";
 const DB_VERSION = 1;
@@ -131,6 +132,20 @@ export function normalizeLyricsData(rawData) {
     lines,
     schemaVersion: LATEST_SCHEMA_VERSION,
   };
+}
+
+// 歌詞データの「中身」（songId・行の内容そのもの）だけを対象にしたSHA-256ハッシュを計算する
+// （2026-08-29追加）。updatedAt・schemaVersion・contentHash自身は対象に含めない
+// （保存し直しただけで値が変わってしまうと、内容比較の意味がなくなるため）。
+// 各行を{line, text, start, end}の固定順で並べ直してから文字列化することで、
+// 同じ内容ならJSONの整形（改行・キーの並び順等）が違っても同じハッシュ値になるようにしている
+// （追加データパックの読み込み時、「内容が本当に同じか」を正しく判定するため）。
+export async function computeLyricsContentHash({ songId, lines }) {
+  const canonical = {
+    songId,
+    lines: (lines ?? []).map((line) => ({ line: line.line, text: line.text, start: line.start, end: line.end })),
+  };
+  return computeSha256Hex(JSON.stringify(canonical));
 }
 
 // 内部形式のデータが、保存してよい内容かどうかを検証する。
@@ -261,14 +276,20 @@ export function validateLyricsData(record) {
 //   saved   : 保存できたかどうか
 //   errors  : 保存を拒否した理由（savedがfalseのときのみ内容がある）
 //   warnings: 保存はできたが確認してほしい内容（savedがtrueでも空とは限らない）
+// 【2026-08-29追加：contentHash】呼び出し側がすでにcomputeLyricsContentHash()の結果を
+// record.contentHashへ入れて渡していればそれをそのまま使い（analyzeLyricsFiles()経由の
+// 保存はこちら）、入っていなければここで計算する（dev/lyricsEditor.htmlからの直接保存等、
+// 事前計算を経由しない呼び出し元向けのフォールバック）。
 export async function saveLyricsData(record) {
   const { valid, errors, warnings } = validateLyricsData(record);
   if (!valid) {
     return { saved: false, errors, warnings };
   }
 
+  const contentHash = record.contentHash ?? (await computeLyricsContentHash(record));
+
   const db = await openDatabase();
-  await putRecord(db, { ...record, updatedAt: Date.now() });
+  await putRecord(db, { ...record, updatedAt: Date.now(), contentHash });
   db.close();
 
   return { saved: true, errors: [], warnings };
@@ -307,6 +328,20 @@ export async function getImportedLyricsSongIds() {
   return ids;
 }
 
+// 読み込み済みの全曲について、songId→contentHashの対応表を取得する（2026-08-29追加）。
+// 追加データパックの読み込み時、「既にある歌詞と中身が同じか違うか」を判定するために使う。
+export async function getLyricsContentHashes() {
+  const db = await openDatabase();
+  const records = await new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readonly");
+    const request = tx.objectStore(STORE_NAME).getAll();
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  db.close();
+  return new Map(records.map((record) => [record.songId, record.contentHash ?? null]));
+}
+
 // 指定したsongIdの歌詞データを削除する（Step5の管理機能で使用予定）。
 export async function deleteLyricsData(songId) {
   const db = await openDatabase();
@@ -328,7 +363,9 @@ export async function deleteLyricsData(songId) {
 //
 // perFileResults の要素（analyzeLyricsFiles()が作る中間データ）:
 //   失敗    : { fileName, status: "failed", errors }
-//   保存可  : { fileName, status: "ready"|"warning", songId, normalizedData, warnings, isUpdate }
+//   保存可  : { fileName, status: "ready"|"warning", songId, normalizedData, warnings, isUpdate,
+//               existingContentHash }
+//   （normalizedData.contentHashに、この歌詞データ自体の内容ハッシュが入っている）
 export function classifyLyricsAnalysisResults(perFileResults) {
   const readyFiles = [];
   const warningFiles = [];
@@ -361,6 +398,7 @@ export function classifyLyricsAnalysisResults(perFileResults) {
       fileName: result.fileName,
       normalizedData: result.normalizedData,
       isUpdate: result.isUpdate,
+      existingContentHash: result.existingContentHash,
     };
 
     if (result.status === "warning") {
@@ -382,12 +420,19 @@ export function classifyLyricsAnalysisResults(perFileResults) {
 // 正規化・検証といったデータ処理は、UIを持たないこのファイル側に集約している。
 //
 // 戻り値: {
-//   readyFiles:   { fileName, normalizedData, isUpdate }[]  … 問題なし、そのまま保存してよい
-//   warningFiles: { fileName, normalizedData, isUpdate, warnings }[]  … 保存前に本人の確認が必要
+//   readyFiles:   { fileName, normalizedData, isUpdate, existingContentHash }[]  … 問題なし、そのまま保存してよい
+//   warningFiles: { fileName, normalizedData, isUpdate, existingContentHash, warnings }[]  … 保存前に本人の確認が必要
 //   failedFiles:  { fileName, errors }[]  … 保存できない（JSON壊れ・検証エラー・songId重複等）
 // }
+// normalizedData.contentHashに、この歌詞データ自体の内容ハッシュが入る（2026-08-29追加）。
+// existingContentHashは、この端末に既にある同じsongIdのデータの内容ハッシュ
+// （未読み込みならnull）。呼び出し側（js/dataPackImport.js）は
+// normalizedData.contentHash !== existingContentHash で「内容が違う＝更新が必要」を判定できる。
 export async function analyzeLyricsFiles(fileList) {
   const perFileResults = [];
+  // 1件ずつgetLyricsData()を呼ぶ代わりに、既存データのハッシュを1回のIndexedDBアクセスで
+  // まとめて取得しておく（ファイル数が多いパック読み込み時の無駄なDBアクセスを避けるため）。
+  const existingHashes = await getLyricsContentHashes();
 
   for (const file of fileList) {
     const { normalized, reason } = await parseAndNormalizeLyricsFile(file);
@@ -402,7 +447,8 @@ export async function analyzeLyricsFiles(fileList) {
       continue;
     }
 
-    const isUpdate = await hasLyricsData(normalized.songId);
+    normalized.contentHash = await computeLyricsContentHash(normalized);
+    const isUpdate = existingHashes.has(normalized.songId);
     perFileResults.push({
       fileName: file.name,
       status: warnings.length > 0 ? "warning" : "ready",
@@ -410,6 +456,7 @@ export async function analyzeLyricsFiles(fileList) {
       normalizedData: normalized,
       warnings,
       isUpdate,
+      existingContentHash: existingHashes.get(normalized.songId) ?? null,
     });
   }
 

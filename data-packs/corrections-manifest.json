@@ -1,5 +1,5 @@
 {
-  "_comment": "以前配布したfull.zip/差分ZIPに含まれるデータのうち、内容の間違いを修正した「正式な修正版」の曲IDを、データ種類ごとに記録するファイル（実データは含まない・著作権上の問題なし）。ここに書かれたIDは、dev/generate_full_pack.pyがdata-packs/full/manifest.jsonのcorrections項目へそのまま反映する。これにより、その曲を既に導入済みの端末でも『追加データパックを読み込む』を実行するだけで修正版へ安全に上書きされる（js/dataPackImport.js参照）。新しい修正が発生したら、該当する配列へsongIdを追記してから generate_full_pack.py と package_zip.py full を実行し直すこと。",
+  "_comment": "以前配布したfull.zip/差分ZIPに含まれるデータのうち、内容の間違いを修正した「正式な修正版」の曲IDを、データ種類ごとに記録しておく変更履歴ファイル（実データは含まない・著作権上の問題なし）。2026-08-29以降、追加データパックの読み込みは内容そのもの（SHA-256ハッシュ）を比較して自動的に新規/スキップ/更新を判定するため（js/dataPackImport.js・js/contentHash.js参照）、このファイル自体はもう読み込み判定には使われない。dev/generate_correction_pack.pyが「どの曲IDを小さい修正版パックへ含めるか」を選ぶ際の一覧としてのみ使う。新しい修正が発生したら、記録として該当する配列へsongIdを追記しておくとよい（generate_full_pack.pyの実行には影響しない）。",
   "lyrics": ["boku-no-heroine"],
   "audio": [],
   "calls": [],

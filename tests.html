@@ -33,6 +33,7 @@
     import { runLyricsSyncTests } from "./tests/lyricsSync.test.js";
     import { runCallSyncTests } from "./tests/callSync.test.js";
     import { runCallStorageTests } from "./tests/callStorage.test.js";
+    import { runContentHashTests } from "./tests/contentHash.test.js";
     import { runCallGuidePanelTests } from "./tests/callGuidePanel.test.js";
     import { runCallGuideStorageTests } from "./tests/callGuideStorage.test.js";
     import { runMemberUtilsTests } from "./tests/memberUtils.test.js";
@@ -107,9 +108,10 @@
     await runLyricsStorageTests();
     runLyricsSyncTests();
     runCallSyncTests();
-    runCallStorageTests();
+    await runCallStorageTests();
+    await runContentHashTests();
     runCallGuidePanelTests();
-    runCallGuideStorageTests();
+    await runCallGuideStorageTests();
     runMemberUtilsTests();
     runAudioMetadataTests();
     runRandomPlaybackEngineTests();

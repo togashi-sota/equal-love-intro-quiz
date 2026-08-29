@@ -1,22 +1,27 @@
 // js/dataPackImport.js（追加データパックの解析）のテスト。
 //
-// 【IndexedDBに触れないテストにしている理由】このアプリの既存テスト（tests/callStorage.test.js・
-// tests/lyricsStorage.test.jsを参照）は、実際に保存を行う関数（saveCallData・saveLyricsData等）を
-// 自動テストからは呼ばない、という方針を一貫して守っている（tests.htmlは実際のブラウザ上で動作し、
-// 本番と同じIndexedDBを使うため、自動テストの実行そのものが本番データを汚してしまうことを
-// 避けるため）。このファイルも同じ方針を踏襲し、analyzeDataPack()に「歌詞・コールデータの
-// JSONファイルを含まないパック」だけを渡す（音源ファイルの分類・マニフェストの検証は
-// IndexedDBに一切触れない。歌詞・コールJSONを1件でも含めると、内部でhasLyricsData・
-// getCallData（読み取りのみだが実IndexedDBへのアクセスが発生する）が呼ばれてしまうため）。
-// 歌詞・コールデータそのものの検証ロジックは、既存のtests/lyricsStorage.test.js・
-// tests/callStorage.test.jsで別途テスト済み（analyzeDataPack()は判定を委譲しているだけで、
-// 二重に検証ロジックを持たない設計のため、ここで再テストする必要はない）。
+// 【IndexedDBへのアクセスについて】validateManifest()・classifyByHash()は純粋関数で
+// IndexedDBに一切触れない。analyzeDataPack()は、2026-08-29の内容ハッシュ比較方式への
+// 刷新により、音源ファイルが1件でも含まれていればgetAudioContentHashes()（読み取りのみ）を、
+// 歌詞ファイルが含まれていればanalyzeLyricsFiles()経由でgetLyricsContentHashes()（同じく
+// 読み取りのみ）を呼ぶようになった。読み取りだけなので本番データを書き換える心配はないが、
+// 「その端末に既に何が入っているか」に結果が依存してしまうため、このファイルの自動テストでは
+// 引き続き既存データの有無を前提にしたassertion（新規/更新/スキップの具体的な判定結果）は
+// 書かず、あくまで「クラッシュしない」「マニフェストの内容が正しく解析結果へ反映される」
+// という決定的な部分だけを検証する。内容ハッシュ比較そのものの判定ロジックは、
+// IndexedDBに触れないclassifyByHash()を直接テストすることでカバーする。
 //
-// 実際にIndexedDBへ書き込むところまでの動作確認（importAnalyzedDataPack）は、
-// ダミーデータを使ってブラウザ上で手動確認する（本人指示：ダミーデータでテストする。
-// docs/HANDOFF.md 参照）。
+// 実際にIndexedDBへ書き込むところまでの動作確認（importAnalyzedDataPack、新規/スキップ/
+// 更新の実際の判定結果）は、ダミーデータを使ってブラウザ上で手動確認する
+// （本人指示：ダミーデータでテストする。docs/HANDOFF.md 参照）。
 
-import { validateManifest, analyzeDataPack, DATA_PACK_MANIFEST_TYPE, PACK_KIND } from "../js/dataPackImport.js";
+import {
+  validateManifest,
+  analyzeDataPack,
+  classifyByHash,
+  DATA_PACK_MANIFEST_TYPE,
+  PACK_KIND,
+} from "../js/dataPackImport.js";
 import { assertEqual } from "./test-utils.js";
 
 // songs.jsに実在する曲のid（歌詞本文・音源そのものは一切使わず、idという識別子だけを使う）。
@@ -90,39 +95,25 @@ export async function runDataPackImportTests() {
     "full/incremental/correction以外のpackKindは無効"
   );
 
-  // ---- validateManifest：corrections（本人指示：2026-08-29、正式な修正版を安全に配布する仕組み） ----
-  assertEqual(
-    validateManifest(buildValidManifest()).valid,
-    true,
-    "correctionsを省略しても（後方互換のため）マニフェストは有効"
-  );
+  // ---- validateManifest：corrections（2026-08-29、内容ハッシュ比較方式へ置き換え済み） ----
+  // correctionsフィールドはもう読み込み判定に使われないため、どんな値が入っていても
+  // （古い形式のパックとの後方互換のため）単に無視され、マニフェストとしては有効。
   assertEqual(
     validateManifest(buildValidManifest({ corrections: { lyrics: [EXISTING_SONG_ID_1] } })).valid,
     true,
-    "corrections.lyricsに実在する曲idの配列を指定すれば有効"
-  );
-  assertEqual(
-    validateManifest(
-      buildValidManifest({ corrections: { lyrics: [EXISTING_SONG_ID_1], audio: [], calls: [], callGuides: [] } })
-    ).valid,
-    true,
-    "corrections内の全項目（lyrics/audio/calls/callGuides）を指定しても有効"
+    "correctionsフィールドがあっても（もう使われないので）無視されて有効"
   );
   assertEqual(
     validateManifest(buildValidManifest({ corrections: ["not", "an", "object"] })).valid,
-    false,
-    "correctionsが配列（オブジェクトでない）だと無効"
+    true,
+    "correctionsの形式がおかしくても、もう検証対象ではないため無視されて有効"
   );
-  assertEqual(
-    validateManifest(buildValidManifest({ corrections: { lyrics: "boku-no-heroine" } })).valid,
-    false,
-    "corrections.lyricsが配列でなく文字列単体だと無効"
-  );
-  assertEqual(
-    validateManifest(buildValidManifest({ corrections: { unknownField: [] } })).valid,
-    false,
-    "correctionsに未対応の項目名があると無効"
-  );
+
+  // ---- classifyByHash：内容ハッシュ比較の判定ロジック（2026-08-29追加、IndexedDBに触れない純粋関数） ----
+  assertEqual(classifyByHash(null, "abc"), "new", "既存ハッシュが無い（未導入）なら常にnew");
+  assertEqual(classifyByHash(undefined, "abc"), "new", "既存ハッシュがundefinedでもnew扱い");
+  assertEqual(classifyByHash("abc", "abc"), "identical", "既存と新規のハッシュが一致すればidentical（スキップ対象）");
+  assertEqual(classifyByHash("abc", "xyz"), "changed", "既存と新規のハッシュが違えばchanged（修正版として更新対象）");
 
   // ---- analyzeDataPack：マニフェストが無い ----
   {

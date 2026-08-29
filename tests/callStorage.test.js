@@ -2,10 +2,10 @@
 // DOM・IndexedDBに一切触れない純粋関数だけを対象にする。
 // 著作権保護のため、コール本文はダミー文言のみを使う。
 
-import { validateCallDataBackupFile } from "../js/callStorage.js";
+import { validateCallDataBackupFile, computeCallContentHash } from "../js/callStorage.js";
 import { assertEqual } from "./test-utils.js";
 
-export function runCallStorageTests() {
+export async function runCallStorageTests() {
   // ---- 正常系 ----
   assertEqual(
     validateCallDataBackupFile({
@@ -65,5 +65,21 @@ export function runCallStorageTests() {
     validateCallDataBackupFile({ type: "equal-love-call-data", schemaVersion: 1 }),
     { valid: false, reason: "songsが配列ではありません" },
     "songsが無ければ拒否される"
+  );
+
+  // ---- computeCallContentHash：内容ハッシュ計算（2026-08-29追加、IndexedDBに触れない） ----
+  const dummyCalls = [{ text: "ダミーコール", start: 1, end: 2.5, type: "mix" }];
+
+  assertEqual(
+    await computeCallContentHash({ songId: "dummy-song", calls: dummyCalls }),
+    await computeCallContentHash({ songId: "dummy-song", calls: [{ ...dummyCalls[0] }] }),
+    "同じ内容（songId・calls）なら同じハッシュ値になる"
+  );
+
+  assertEqual(
+    (await computeCallContentHash({ songId: "dummy-song", calls: dummyCalls })) ===
+      (await computeCallContentHash({ songId: "dummy-song", calls: [{ ...dummyCalls[0], text: "違うダミーコール" }] })),
+    false,
+    "コール本文が違えばハッシュ値も変わる"
   );
 }

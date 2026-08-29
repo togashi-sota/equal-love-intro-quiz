@@ -7,6 +7,7 @@
 // 既存の曲のデータに一切触れずに実現できる（全部読み直す必要がない）。
 
 import { filterSongsByAvailableAudio } from "./quiz.js";
+import { computeSha256Hex } from "./contentHash.js";
 
 const DB_NAME = "equalLoveIntroQuizAudio";
 const DB_VERSION = 1;
@@ -43,6 +44,11 @@ function putRecord(db, record) {
 // 同じものをそのまま使っているので、曲ごとの手動対応付けは不要。
 // 一部の曲だけを選んでも、選んだ分だけが追加・上書きされる（差分インポート）。
 //
+// 【2026-08-29追加：contentHash】ファイルの中身（バイト列）そのものからSHA-256ハッシュを
+// 計算し、レコードに含めて保存する。追加データパックの読み込み時、「この端末に既にある
+// 音源と中身が同じか違うか」を、ファイルを毎回読み直さずに素早く比較できるようにするため
+// （js/dataPackImport.js参照）。
+//
 // 戻り値: { savedSongIds: string[], unmatchedFileNames: string[] }
 //   savedSongIds       : 保存できた曲のsongId一覧
 //   unmatchedFileNames : 拡張子が.mp3でない等の理由で保存できなかったファイル名一覧
@@ -58,7 +64,8 @@ export async function importAudioFiles(fileList) {
       continue;
     }
     const songId = match[1];
-    await putRecord(db, { songId, blob: file, importedAt: Date.now() });
+    const contentHash = await computeSha256Hex(file);
+    await putRecord(db, { songId, blob: file, importedAt: Date.now(), contentHash });
     savedSongIds.push(songId);
   }
 
@@ -135,6 +142,23 @@ export async function getImportedSongIds() {
   });
   db.close();
   return ids;
+}
+
+// 読み込み済みの全曲について、songId→contentHashの対応表を取得する（2026-08-29追加）。
+// getAll()はBlob本体（音源ファイル）も一緒に返すが、BlobはJSのメモリ上では「参照」に
+// すぎず、.arrayBuffer()等で明示的に読みにいかない限り実際のバイト列は読み込まれないため、
+// 84曲分でもこの処理自体は軽量（音源ファイルを毎回読み直す必要はない）。
+// 追加データパックの読み込み時、「既にある音源と中身が同じか違うか」を判定するために使う。
+export async function getAudioContentHashes() {
+  const db = await openDatabase();
+  const records = await new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readonly");
+    const request = tx.objectStore(STORE_NAME).getAll();
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  db.close();
+  return new Map(records.map((record) => [record.songId, record.contentHash ?? null]));
 }
 
 // songs（js/data/songs.jsの曲オブジェクト配列）のうち、この端末に音源が読み込み済みの

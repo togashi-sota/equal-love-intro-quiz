@@ -10,6 +10,7 @@ import {
   validateLyricsData,
   classifyLyricsAnalysisResults,
   parseAndNormalizeLyricsFile,
+  computeLyricsContentHash,
 } from "../js/lyricsStorage.js";
 import { assertEqual } from "./test-utils.js";
 
@@ -314,6 +315,58 @@ export async function runLyricsStorageTests() {
       result.reason.includes("ファイルサイズ"),
       true,
       "サイズ超過の理由が含まれる"
+    );
+  }
+
+  // ---- computeLyricsContentHash：内容ハッシュ計算（2026-08-29追加、IndexedDBに触れない） ----
+
+  {
+    const recordA = { songId: EXISTING_SONG_ID, lines: buildDummyLines(3) };
+    const recordB = { songId: EXISTING_SONG_ID, lines: buildDummyLines(3) };
+    assertEqual(
+      await computeLyricsContentHash(recordA),
+      await computeLyricsContentHash(recordB),
+      "同じ内容（songId・lines）なら同じハッシュ値になる"
+    );
+  }
+
+  {
+    const original = { songId: EXISTING_SONG_ID, lines: buildDummyLines(3) };
+    const oneLineChanged = { songId: EXISTING_SONG_ID, lines: buildDummyLines(3) };
+    oneLineChanged.lines[1].text = "テスト用ダミー歌詞（書き換え後）";
+    assertEqual(
+      (await computeLyricsContentHash(original)) === (await computeLyricsContentHash(oneLineChanged)),
+      false,
+      "1行だけ内容を書き換えても、ハッシュ値は変わる（『僕のヒロイン』事故のような部分的な誤りも検出できることの確認）"
+    );
+  }
+
+  {
+    // updatedAt・schemaVersion・contentHash自身のような「内容そのものではない」項目は、
+    // ハッシュ計算の対象に含まれないことの確認（保存し直しただけで別内容扱いにならないように）。
+    const withoutMeta = { songId: EXISTING_SONG_ID, lines: buildDummyLines(2) };
+    const withMeta = {
+      songId: EXISTING_SONG_ID,
+      lines: buildDummyLines(2),
+      schemaVersion: 1,
+      updatedAt: 1234567890,
+      contentHash: "dummy-should-be-ignored",
+    };
+    assertEqual(
+      await computeLyricsContentHash(withoutMeta),
+      await computeLyricsContentHash(withMeta),
+      "schemaVersion・updatedAt・contentHash自身はハッシュ計算の対象外（songId・linesの内容だけを見る）"
+    );
+  }
+
+  {
+    // JSON整形の違い（オブジェクトのキーの並び順を変えて渡す等）に影響されないことの確認。
+    const lines = [{ text: "テスト用ダミー歌詞1", line: 1, end: 1.5, start: 0 }]; // わざとキー順を変える
+    const canonicalOrderLines = [{ line: 1, text: "テスト用ダミー歌詞1", start: 0, end: 1.5 }];
+    assertEqual(
+      await computeLyricsContentHash({ songId: EXISTING_SONG_ID, lines }),
+      await computeLyricsContentHash({ songId: EXISTING_SONG_ID, lines: canonicalOrderLines }),
+      "各行のキーの並び順が違っても、内容が同じなら同じハッシュ値になる（固定順に正規化してから計算するため）"
     );
   }
 }

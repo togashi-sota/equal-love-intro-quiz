@@ -1,6 +1,7 @@
 // 「追加データパック」（新曲の音源・歌詞・コール・コールガイドをまとめて配布するための、
 // 1回の読み込みで導入できるファイル群）を解析・取り込みするファイル（2026-08-26新設、
-// 2026-08-27にコールガイド対応・packKind〈full/incremental〉対応を追加）。
+// 2026-08-27にコールガイド対応・packKind〈full/incremental〉対応を追加、
+// 2026-08-29に内容ハッシュ比較方式（後述）へ全面刷新）。
 //
 // 【背景・目的】21枚目以降の新曲は、今までのように「音源だけ」「歌詞だけ」を個別に
 // インポート画面から選ぶのではなく、1つのパック（複数ファイルの組み合わせ）を選ぶだけで
@@ -8,8 +9,8 @@
 // （本人指示：追加データを読み込む→1パック選択→内容検証→自動登録→「○曲追加しました」）。
 // 新規ユーザー向けの「全曲パック」も、既存ユーザー向けの「追加パック」も、この同じ
 // 解析・保存経路（analyzeDataPack→importAnalyzedDataPack）を1つだけ使う。マニフェストの
-// 任意フィールドpackKind（"full"|"incremental"）は、UI側の案内文・結果メッセージの言い回しを
-// 出し分けるためだけの表示用情報で、読み込み処理自体はfull/incrementalで一切分岐しない
+// 任意フィールドpackKind（"full"|"incremental"|"correction"）は、UI側の案内文・結果メッセージの
+// 言い回しを出し分けるためだけの表示用情報で、読み込み処理自体はpackKindの値で一切分岐しない
 // （本人指示：同じパーサー・同じmanifest仕様に統一する）。
 //
 // 【形式の選び方について】新しいファイル形式・圧縮フォーマットを自作するのではなく、
@@ -28,6 +29,24 @@
 // マニフェスト・コールバックアップ・コールガイドバックアップ・歌詞JSONは、ファイル名ではなく
 // 中身のtype/フィールドで判別する（本人がAirDrop等でファイルを受け取った際、OS側で自動的に
 // ファイル名へ「(1)」等が付与されるケースがあっても、判別に影響しないようにするため）。
+//
+// 【2026-08-29全面刷新：内容ハッシュ比較方式】以前（2026-08-28〜29）は「この端末に既に
+// あるかどうか」（songId等の有無）だけで新規／スキップを判定していた。この方式には、
+// 「同じ曲IDだが中身が間違っていて、後から修正版を配布したい」場合（実例：『僕のヒロイン』の
+// 歌詞誤登録の修正）を検出できないという弱点があり、一度は「manifestのcorrectionsフィールドで
+// 明示的に曲IDを列挙する」方式で対応した。しかし本人から「今後も歌詞・コール等の修正が
+// 起こりうるので、その都度手作業で列挙する方式ではなく、自動で検出できる仕組みにしたい」との
+// 指示を受け、各データ（音源Blob・歌詞/コール/コールガイドの中身）そのものからSHA-256の
+// 内容ハッシュを計算し、「この端末に保存済みのハッシュ」と「パックに入っているデータの
+// ハッシュ」を比較する方式へ置き換えた（js/contentHash.js・各ストレージモジュールの
+// contentHash関連関数を参照）。これにより、
+//   ・不足しているデータ（この端末に無いID）        → 新規追加
+//   ・既にあり、中身も完全に同じ（ハッシュ一致）      → スキップ（無駄な書き込みをしない）
+//   ・既にあるが、中身が違う（ハッシュ不一致）        → 修正版として自動的に上書き更新
+// が、曲ID等を手作業で列挙することなく、データ種類（音源・歌詞・コール・コールガイド）ごとに
+// 完全に自動で判定される。マニフェストのcorrectionsフィールドはもう使われない
+// （残っていても単に無視される。古い形式のパックとの後方互換のため、フィールド自体が
+// あってもvalidateManifest()はエラーにしない）。
 //
 // 【安全設計：既存データを壊さない】このファイルは新しいIndexedDBストアを一切作らず、
 // 既存の4つのストレージモジュール（audioStorage.js・lyricsStorage.js・callStorage.js・
@@ -48,10 +67,11 @@
 // （本人指示：既存コードを必要以上に全面改修せず、安全に段階導入する）。
 
 import { SONGS } from "./data/songs.js";
-import { importAudioFiles, getImportedSongIds } from "./audioStorage.js";
-import { analyzeLyricsFiles, importLyricsFiles } from "./lyricsStorage.js";
+import { importAudioFiles, getAudioContentHashes } from "./audioStorage.js";
+import { analyzeLyricsFiles, saveLyricsData } from "./lyricsStorage.js";
 import { analyzeCallDataBackupFile, importCallDataSongs } from "./callStorage.js";
 import { analyzeCallGuideBackupFile, importCallGuideDataEntries } from "./callGuideStorage.js";
+import { computeSha256Hex } from "./contentHash.js";
 
 // マニフェストJSONの目印。js/callStorage.jsのBACKUP_FILE_TYPEと同じ考え方
 // （中身のtypeフィールドで、ファイル名に依存せず判別できるようにする）。
@@ -63,9 +83,8 @@ export const DATA_PACK_MANIFEST_TYPE = "equal-love-data-pack";
 export const LATEST_MANIFEST_SCHEMA_VERSION = 1;
 
 // パックが対象とする範囲。UI側の案内文・結果メッセージの言い回しを出し分けるためだけに使う
-// （読み込み処理そのものは、full/incremental/correctionで一切分岐しない。どれも同じ解析・
-// 保存経路を通る。correctionsによる上書き判定自体は、packKindの値ではなくマニフェストの
-// correctionsフィールドの有無だけで決まる）。
+// （読み込み処理そのものは、packKindの値で一切分岐しない。どのpackKindでも同じ内容ハッシュ
+// 比較方式で新規／スキップ／更新が判定される）。
 export const PACK_KIND = {
   FULL: "full", // 新規ユーザー向け：これまでの全曲を含む
   INCREMENTAL: "incremental", // 既存ユーザー向け：新しいシングル分だけの追加
@@ -102,8 +121,8 @@ export function validateManifest(rawData) {
   if (typeof rawData.packLabel !== "string" || rawData.packLabel.trim() === "") {
     errors.push("packLabelが指定されていません");
   }
-  // packKindは任意項目（本人指示：新規/既存で入口の説明を分ける）。省略時はincremental扱い
-  // （＝「追加パック」として案内する）にすることで、packKindを持たない旧形式のマニフェスト・
+  // packKindは任意項目（本人指示：新規/既存/修正版で入口の説明を分ける）。省略時はincremental
+  // 扱い（＝「追加パック」として案内する）にすることで、packKindを持たない旧形式のマニフェスト・
   // 既存のテスト用フィクスチャとの後方互換を保つ。指定されている場合だけ値の妥当性を見る。
   if (
     rawData.packKind !== undefined &&
@@ -122,35 +141,12 @@ export function validateManifest(rawData) {
     }
   }
 
-  // correctionsは任意項目（本人指示：2026-08-29、「僕のヒロイン」歌詞誤登録事故を受けて追加）。
-  // 「この端末に既に保存済みでも、正式な修正版として上書きしてよい」曲IDを、データ種類ごとに
-  // 明示的に列挙するための項目。省略時は今まで通り「既存データは一切上書きしない」という
-  // 安全側の既定動作のまま変わらない（後方互換：この項目を持たない旧マニフェスト・
-  // 新曲追加のみの通常パックには一切影響しない）。
-  if (rawData.corrections !== undefined) {
-    if (typeof rawData.corrections !== "object" || rawData.corrections === null || Array.isArray(rawData.corrections)) {
-      errors.push("correctionsの形式が正しくありません");
-    } else {
-      const knownKeys = ["lyrics", "audio", "calls", "callGuides"];
-      for (const [key, value] of Object.entries(rawData.corrections)) {
-        if (!knownKeys.includes(key)) {
-          errors.push(`correctionsに未対応の項目があります（${key}）`);
-        } else if (!Array.isArray(value) || value.some((id) => typeof id !== "string")) {
-          errors.push(`corrections.${key}は文字列の配列である必要があります`);
-        }
-      }
-    }
-  }
+  // correctionsフィールドはもう読み込み判定には使わない（2026-08-29、内容ハッシュ比較方式へ
+  // 置き換えたため）。ただし、まだ古い形式のマニフェスト（このフィールドを持つパック）が
+  // 手元に残っている可能性があるため、フィールドが存在すること自体はエラーにしない
+  // （後方互換：中身は見ずに単に無視する）。
 
   return { valid: errors.length === 0, errors };
-}
-
-// マニフェストのcorrections（省略時は空扱い）から、指定データ種類の「上書きしてよい曲ID」の
-// Setを作る。マニフェストにcorrections自体が無い場合や、そのデータ種類の指定が無い場合は
-// 空のSet（＝今まで通り、既存データは一切上書きしない）を返す。
-function correctionIdSet(manifest, key) {
-  const ids = manifest?.corrections?.[key];
-  return new Set(Array.isArray(ids) ? ids : []);
 }
 
 // 選ばれた全ファイル（FileList、または同等の配列）を読み取り、種類ごとに仕分けて
@@ -160,16 +156,22 @@ function correctionIdSet(manifest, key) {
 //   ok: boolean,                     … マニフェストが見つかり、検証を通ったか
 //   fileError: string|null,          … ok=falseのときの理由（マニフェストが無い／複数ある／不正）
 //   manifest: object|null,           … 検証済みマニフェスト（okのときのみ）
-//   audio: { readyFiles: File[], savableSongIds: string[] },  … readyFiles[i]から
-//                                                                 savableSongIds[i]が導出される
-//                                                                 （拡張子.mp3を除いたファイル名。
-//                                                                 このパック内で.mp3として
-//                                                                 分類された時点でファイル名は
-//                                                                 既に確定しているため、
-//                                                                 「未対応ファイル」は生じない）
+//   audio: { readyFiles: File[], savableSongIds: string[], newContentHashes: string[],
+//             existingContentHashes: (string|null)[] },
+//     … readyFiles[i]・savableSongIds[i]・newContentHashes[i]・existingContentHashes[i]は
+//       同じ曲についての情報（拡張子.mp3を除いたファイル名がsongIdとして扱われる。
+//       このパック内で.mp3として分類された時点でファイル名は既に確定しているため、
+//       「未対応ファイル」は生じない）。newContentHashesはパック内のこのファイルの内容ハッシュ、
+//       existingContentHashesはこの端末に既にある同じsongIdの内容ハッシュ（無ければnull）
 //   lyrics: { readyFiles, warningFiles, failedFiles },   … js/lyricsStorage.jsのanalyzeLyricsFiles()と同じ形
+//                                                            （各エントリにnormalizedData.contentHash・
+//                                                            existingContentHashを含む）
 //   calls: { readySongs, failedSongs } | null,           … コールデータのJSONが無ければnull
+//                                                            （readySongsの各要素にcontentHash・
+//                                                            existingContentHashを含む）
 //   callGuides: { readyGuides, failedGuides } | null,    … コールガイドのJSONが無ければnull
+//                                                            （readyGuidesの各要素にcontentHash・
+//                                                            existingContentHashを含む）
 //   manifestSongIdsNotCovered: string[],  … マニフェストが挙げているが、
 //                                            音源・歌詞・コールのいずれにも該当ファイルが
 //                                            見つからなかった曲ID（警告表示用。エラーにはしない
@@ -223,10 +225,19 @@ export async function analyzeDataPack(fileList) {
   const manifest = manifestCandidates[0].rawData;
 
   // 音源：ファイル名（拡張子を除いた部分）がsongIdとして扱われる
-  // （js/audioStorage.jsのimportAudioFiles()と全く同じ命名規則）。
+  // （js/audioStorage.jsのimportAudioFiles()と全く同じ命名規則）。中身のバイト列から
+  // その場でSHA-256ハッシュを計算し、この端末に既にある音源のハッシュ（1回だけまとめて
+  // 取得）と比較できるようにしておく（2026-08-29追加）。84曲分でも数百ms程度で終わる
+  // 軽い処理のため、パック読み込みのたびに毎回計算してよい設計にしている。
   const savableSongIds = audioFiles.map((file) => file.name.replace(/\.mp3$/i, ""));
+  // 音源が1件も含まれないパック（歌詞だけ・コールだけ等）では、無駄にIndexedDBを
+  // 開かないよう早期に空配列で済ませる。
+  const existingAudioHashes = audioFiles.length > 0 ? await getAudioContentHashes() : new Map();
+  const newAudioHashes = await Promise.all(audioFiles.map((file) => computeSha256Hex(file)));
+  const existingAudioContentHashes = savableSongIds.map((songId) => existingAudioHashes.get(songId) ?? null);
 
   // 歌詞：既存のanalyzeLyricsFiles()をそのまま再利用する（判定ロジックの二重管理を避ける）。
+  // 内容ハッシュの計算・既存データとの比較は、analyzeLyricsFiles()内で行われる。
   const lyricsResult = await analyzeLyricsFiles(lyricsFiles);
 
   // コール：0件なら「このパックにはコールデータが含まれていない」として扱う
@@ -270,7 +281,12 @@ export async function analyzeDataPack(fileList) {
     ok: true,
     fileError: null,
     manifest,
-    audio: { readyFiles: audioFiles, savableSongIds },
+    audio: {
+      readyFiles: audioFiles,
+      savableSongIds,
+      newContentHashes: newAudioHashes,
+      existingContentHashes: existingAudioContentHashes,
+    },
     lyrics: lyricsResult,
     calls: callsResult,
     callGuides: callGuidesResult,
@@ -278,33 +294,30 @@ export async function analyzeDataPack(fileList) {
   };
 }
 
+// 「新規」「同一（スキップ）」「内容が違う（更新）」の3通りを判定する共通ヘルパー。
+// existingHashがnull（この端末に無い）なら常に"new"。既存があれば、ハッシュが一致すれば
+// "identical"、違えば"changed"として扱う（2026-08-29追加）。IndexedDBに一切触れない
+// 純粋関数のため、tests/dataPackImport.test.jsで直接テストできるようexportしている。
+export function classifyByHash(existingHash, newHash) {
+  if (existingHash === null || existingHash === undefined) return "new";
+  return existingHash === newHash ? "identical" : "changed";
+}
+
 // analyzeDataPack()が検証済みと判定した内容を、実際にIndexedDBへ保存する。
 // 警告あり（lyrics.warningFiles）のファイルも、呼び出し側が続行を選んだ前提でそのまま保存する
 // （js/main.jsの既存インポートUIと同じ「警告は保存を止めない、事前確認のためだけにある」という方針）。
 //
-// 【2026-08-28変更：不足分だけ自動補完する差分インポート】以前はパックに含まれる内容を
-// 「既に持っているかどうか」に関わらず毎回無条件で上書き保存していた。本人指示により、
-// データの種類（音源・歌詞・コール・コールガイド）ごとに「この端末に既にあるか」を判定し、
-// 既にあるものは保存し直さずスキップ、無いものだけ新規保存するようにした。
-// 判定は曲単位ではなくデータ種類単位で独立して行う（例：音源はあるが歌詞は無い曲は、
-// 音源だけスキップして歌詞だけ追加する）。
-//
-// 【2026-08-29追加：正式な修正版だけを安全に上書きする仕組み】上のスキップ機構により、
-// 「新曲を追加パックで導入する」場合は既存データを壊さず安全になった一方、「以前配布した
-// データに間違いがあり、後から修正版を配布する」場合（実例：『僕のヒロイン』に『ヒロインズ』
-// の歌詞が誤登録されていた事故の修正）には、修正版パックを読み込んでも「もう持っている」と
-// 判定されて何も更新されない問題が残っていた。この問題に対して、マニフェストのcorrections
-// フィールド（省略可）で「この曲IDは正式な修正版なので、既に持っていても上書きしてよい」と
-// 明示的に宣言できるようにした。宣言が無い曲・宣言が無いマニフェスト（今まで配布した
-// パックすべてを含む）は、今まで通り一切上書きしない。
+// 【2026-08-29：内容ハッシュ比較方式】データの種類（音源・歌詞・コール・コールガイド）ごとに
+// 独立して、この端末に無いもの（新規）は追加、あるが内容が同じもの（identical）はスキップ、
+// あるが内容が違うもの（changed）は正式な修正版として上書き保存する。曲IDを手作業で
+// 列挙する必要はなく、内容そのもの（SHA-256ハッシュ）から自動的に判定される
+// （ファイル冒頭の設計コメント参照）。
 //
 // 【安全性について】js/audioStorage.js・js/lyricsStorage.js・js/callStorage.js・
 // js/callGuideStorage.jsの保存関数（importAudioFiles等）自体は変更していない
 // （「音源を読み込む」等、データパックとは別の単体インポートUIが、既存曲の上書き更新に
 // 引き続き使えるようにするため）。スキップ判定はこのファイル側で、保存対象を絞り込む
-// 形だけで行っている。歌詞・コール・コールガイドは、analyzeDataPack()の時点で各ストレージ
-// モジュールが既に計算しているisUpdate（既存データの有無）をそのまま使う。音源だけは
-// 分析時にisUpdateを持たないため、ここで改めてgetImportedSongIds()を1回だけ呼んで判定する。
+// 形だけで行っている。
 //
 // 戻り値: {
 //   savedAudioSongIds: string[], skippedAudioSongIds: string[], correctedAudioSongIds: string[],
@@ -315,73 +328,79 @@ export async function analyzeDataPack(fileList) {
 //   savedCallGuideIds: string[], skippedCallGuideIds: string[], callGuideFailures: { guideId, reason }[],
 //   correctedCallGuideIds: string[],
 // }
-// correctedXxxIds は、savedXxxIds のうち「この端末に既存データがあったが、correctionsの
-// 指定により正式な修正版として上書き保存されたID」だけを抜き出した部分集合（本人指示：
+// correctedXxxIds は、savedXxxIds のうち「この端末に既存データがあったが、内容が違ったため
+// 正式な修正版として上書き保存されたID」だけを抜き出した部分集合（本人指示：
 // 2026-08-29、「新規追加」と「修正版への更新」をUI上で区別できるようにするため）。
 // savedXxxIdsのサブセットであり、別途足し算する必要はない（savedの中に既に含まれている）。
 export async function importAnalyzedDataPack(analyzed) {
-  const { manifest, audio, lyrics, calls, callGuides } = analyzed;
+  const { audio, lyrics, calls, callGuides } = analyzed;
 
-  const audioCorrections = correctionIdSet(manifest, "audio");
-  const lyricsCorrections = correctionIdSet(manifest, "lyrics");
-  const callCorrections = correctionIdSet(manifest, "calls");
-  const callGuideCorrections = correctionIdSet(manifest, "callGuides");
-
-  // 音源：既にこの端末に読み込み済みのsongIdは、correctionsで明示されていない限りスキップする。
-  const existingAudioSongIds = new Set(await getImportedSongIds());
+  // 音源：新規・内容が違う（更新）ものだけを保存対象にする。内容が同じもの（identical）は
+  // スキップし、無駄な書き込みをしない。
   const audioFilesToSave = [];
   const skippedAudioSongIds = [];
+  const changedAudioSongIds = new Set();
   audio.readyFiles.forEach((file, index) => {
     const songId = audio.savableSongIds[index];
-    if (existingAudioSongIds.has(songId) && !audioCorrections.has(songId)) {
+    const action = classifyByHash(audio.existingContentHashes[index], audio.newContentHashes[index]);
+    if (action === "identical") {
       skippedAudioSongIds.push(songId);
     } else {
+      if (action === "changed") changedAudioSongIds.add(songId);
       audioFilesToSave.push(file);
     }
   });
   const audioResult = await importAudioFiles(audioFilesToSave);
-  const correctedAudioSongIds = audioResult.savedSongIds.filter(
-    (songId) => existingAudioSongIds.has(songId) && audioCorrections.has(songId)
-  );
+  const correctedAudioSongIds = audioResult.savedSongIds.filter((songId) => changedAudioSongIds.has(songId));
 
-  // 歌詞：analyzeLyricsFiles()（analyzeDataPack()内で既に実行済み）が算出したisUpdateを使う。
-  // isUpdateであっても、correctionsで明示された曲IDは「正式な修正版」として保存対象に含める。
+  // 歌詞：analyzeLyricsFiles()（analyzeDataPack()内で既に実行済み）が計算したcontentHash・
+  // existingContentHashを使う。lyricsFilesToSaveAsFileList()のような再シリアライズを介さず、
+  // saveLyricsData()を直接呼ぶことで、正規化済みデータ（contentHash込み）をそのまま保存する
+  // （以前は一度JSON文字列に戻して再度importLyricsFiles()へ渡していたが、内容ハッシュを
+  // そのまま引き継げるこの形の方が単純で、無駄な再パースも無い）。
   const lyricsFilesAll = [...lyrics.readyFiles, ...lyrics.warningFiles];
-  const lyricsFilesToSave = lyricsFilesAll.filter(
-    (file) => !file.isUpdate || lyricsCorrections.has(file.normalizedData.songId)
-  );
-  const skippedLyricsSongIds = lyricsFilesAll
-    .filter((file) => file.isUpdate && !lyricsCorrections.has(file.normalizedData.songId))
-    .map((file) => file.normalizedData.songId);
-  const lyricsImportResult = await importLyricsFiles(lyricsFilesToSaveAsFileList(lyricsFilesToSave));
-  const lyricsUpdateSongIds = new Set(
-    lyricsFilesAll.filter((file) => file.isUpdate).map((file) => file.normalizedData.songId)
-  );
-  const correctedLyricsSongIds = lyricsImportResult.savedSongIds.filter(
-    (songId) => lyricsUpdateSongIds.has(songId) && lyricsCorrections.has(songId)
-  );
+  const savedLyricsSongIds = [];
+  const skippedLyricsSongIds = [];
+  const changedLyricsSongIds = new Set();
+  const lyricsFailures = [];
+  for (const file of lyricsFilesAll) {
+    const songId = file.normalizedData.songId;
+    const action = classifyByHash(file.existingContentHash, file.normalizedData.contentHash);
+    if (action === "identical") {
+      skippedLyricsSongIds.push(songId);
+      continue;
+    }
+    if (action === "changed") changedLyricsSongIds.add(songId);
+    const result = await saveLyricsData(file.normalizedData);
+    if (result.saved) {
+      savedLyricsSongIds.push(songId);
+    } else {
+      lyricsFailures.push({ fileName: file.fileName, reason: result.errors.join(" / ") });
+    }
+  }
+  const correctedLyricsSongIds = savedLyricsSongIds.filter((songId) => changedLyricsSongIds.has(songId));
 
   let savedCallSongIds = [];
   let callFailures = [];
   let skippedCallSongIds = [];
   let correctedCallSongIds = [];
   if (calls) {
-    const callSongsToSave = calls.readySongs.filter(
-      (song) => !song.isUpdate || callCorrections.has(song.songId)
-    );
-    skippedCallSongIds = calls.readySongs
-      .filter((song) => song.isUpdate && !callCorrections.has(song.songId))
-      .map((song) => song.songId);
+    const changedCallSongIds = new Set();
+    const callSongsToSave = [];
+    for (const song of calls.readySongs) {
+      const action = classifyByHash(song.existingContentHash, song.contentHash);
+      if (action === "identical") {
+        skippedCallSongIds.push(song.songId);
+      } else {
+        if (action === "changed") changedCallSongIds.add(song.songId);
+        callSongsToSave.push(song);
+      }
+    }
     if (callSongsToSave.length > 0) {
       const callImportResult = await importCallDataSongs(callSongsToSave);
       savedCallSongIds = callImportResult.savedSongIds;
       callFailures = callImportResult.saveFailures;
-      const callUpdateSongIds = new Set(
-        calls.readySongs.filter((song) => song.isUpdate).map((song) => song.songId)
-      );
-      correctedCallSongIds = savedCallSongIds.filter(
-        (songId) => callUpdateSongIds.has(songId) && callCorrections.has(songId)
-      );
+      correctedCallSongIds = savedCallSongIds.filter((songId) => changedCallSongIds.has(songId));
     }
   }
 
@@ -390,22 +409,22 @@ export async function importAnalyzedDataPack(analyzed) {
   let skippedCallGuideIds = [];
   let correctedCallGuideIds = [];
   if (callGuides) {
-    const guidesToSave = callGuides.readyGuides.filter(
-      (guide) => !guide.isUpdate || callGuideCorrections.has(guide.guideId)
-    );
-    skippedCallGuideIds = callGuides.readyGuides
-      .filter((guide) => guide.isUpdate && !callGuideCorrections.has(guide.guideId))
-      .map((guide) => guide.guideId);
+    const changedCallGuideIds = new Set();
+    const guidesToSave = [];
+    for (const guide of callGuides.readyGuides) {
+      const action = classifyByHash(guide.existingContentHash, guide.contentHash);
+      if (action === "identical") {
+        skippedCallGuideIds.push(guide.guideId);
+      } else {
+        if (action === "changed") changedCallGuideIds.add(guide.guideId);
+        guidesToSave.push(guide);
+      }
+    }
     if (guidesToSave.length > 0) {
       const callGuideImportResult = await importCallGuideDataEntries(guidesToSave);
       savedCallGuideIds = callGuideImportResult.savedGuideIds;
       callGuideFailures = callGuideImportResult.saveFailures;
-      const callGuideUpdateIds = new Set(
-        callGuides.readyGuides.filter((guide) => guide.isUpdate).map((guide) => guide.guideId)
-      );
-      correctedCallGuideIds = savedCallGuideIds.filter(
-        (guideId) => callGuideUpdateIds.has(guideId) && callGuideCorrections.has(guideId)
-      );
+      correctedCallGuideIds = savedCallGuideIds.filter((guideId) => changedCallGuideIds.has(guideId));
     }
   }
 
@@ -413,9 +432,9 @@ export async function importAnalyzedDataPack(analyzed) {
     savedAudioSongIds: audioResult.savedSongIds,
     skippedAudioSongIds,
     correctedAudioSongIds,
-    savedLyricsSongIds: lyricsImportResult.savedSongIds,
+    savedLyricsSongIds,
     skippedLyricsSongIds,
-    lyricsFailures: lyricsImportResult.failedFiles,
+    lyricsFailures,
     correctedLyricsSongIds,
     savedCallSongIds,
     skippedCallSongIds,
@@ -426,17 +445,4 @@ export async function importAnalyzedDataPack(analyzed) {
     callGuideFailures,
     correctedCallGuideIds,
   };
-}
-
-// importLyricsFiles()はFileList（.textを持つFileオブジェクトの並び）を受け取り、
-// 内部でanalyzeLyricsFiles()・saveLyricsData()を呼ぶ設計になっている。analyzeDataPack()で
-// 正規化済みのデータをもう一度JSON文字列に戻し、同じ内容のFileオブジェクトとして包み直す
-// ことで、この関数側では保存ロジックを一切複製せず、既存のimportLyricsFiles()をそのまま
-// 再利用する（analyzeDataPack()時点の解析結果と保存直前の再解析で二重に検証は走るが、
-// 内容は既に正規化済みで変わらないため、結果が食い違うことはない。処理の重複より、
-// 保存ロジックの二重管理を避けることを優先した）。
-function lyricsFilesToSaveAsFileList(analyzedLyricsFiles) {
-  return analyzedLyricsFiles.map(
-    (entry) => new File([JSON.stringify(entry.normalizedData)], entry.fileName, { type: "application/json" })
-  );
 }

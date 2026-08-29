@@ -2,10 +2,14 @@
 // DOM・IndexedDBに一切触れない純粋関数だけを対象にする。
 // 著作権保護のため、テストではダミー文言のみを使う。
 
-import { validateCallGuideData, validateCallGuideBackupFile } from "../js/callGuideStorage.js";
+import {
+  validateCallGuideData,
+  validateCallGuideBackupFile,
+  computeCallGuideContentHash,
+} from "../js/callGuideStorage.js";
 import { assertEqual } from "./test-utils.js";
 
-export function runCallGuideStorageTests() {
+export async function runCallGuideStorageTests() {
   // ---- validateCallGuideData ----
   assertEqual(
     validateCallGuideData({
@@ -122,5 +126,28 @@ export function runCallGuideStorageTests() {
     validateCallGuideBackupFile({ type: "equal-love-call-guide-data", schemaVersion: 1, guides: "not-an-array" }),
     { valid: false, reason: "guidesが配列ではありません" },
     "guidesが配列でなければ拒否される"
+  );
+
+  // ---- computeCallGuideContentHash：内容ハッシュ計算（2026-08-29追加、IndexedDBに触れない） ----
+  const dummyGuide = {
+    guideId: "english-mix",
+    name: "英語MIX",
+    category: "mix",
+    songIds: null,
+    textLines: ["ダミー1", "ダミー2"],
+    pronunciationLines: [],
+  };
+
+  assertEqual(
+    await computeCallGuideContentHash(dummyGuide),
+    await computeCallGuideContentHash({ ...dummyGuide }),
+    "同じ内容なら同じハッシュ値になる"
+  );
+
+  assertEqual(
+    (await computeCallGuideContentHash(dummyGuide)) ===
+      (await computeCallGuideContentHash({ ...dummyGuide, textLines: ["書き換え後のダミー"] })),
+    false,
+    "本文（textLines）が違えばハッシュ値も変わる"
   );
 }

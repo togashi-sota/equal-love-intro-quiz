@@ -11,6 +11,7 @@
 // このファイルの役割は「データの読み書き」だけで、UI（画面表示・ボタン操作）は持たない。
 
 import { SONGS } from "./data/songs.js";
+import { computeSha256Hex } from "./contentHash.js";
 
 const DB_NAME = "equalLoveIntroQuizCalls";
 const DB_VERSION = 1;
@@ -120,6 +121,17 @@ export function validateCallData(record) {
   return { valid: errors.length === 0, errors, warnings };
 }
 
+// コールデータの「中身」（songId・calls配列そのもの）だけを対象にしたSHA-256ハッシュを計算する
+// （2026-08-29追加、js/lyricsStorage.jsのcomputeLyricsContentHash()と同じ考え方）。
+// 各コールを{text, start, end, type}の固定順で並べ直してから文字列化する。
+export async function computeCallContentHash({ songId, calls }) {
+  const canonical = {
+    songId,
+    calls: (calls ?? []).map((call) => ({ text: call.text, start: call.start, end: call.end, type: call.type })),
+  };
+  return computeSha256Hex(JSON.stringify(canonical));
+}
+
 // 検証済みの内部形式データを保存する。saveLyricsData()と同じく、呼び出し元の検証有無に関わらず
 // この関数自身が必ずvalidateCallData()を通してから保存する。
 export async function saveCallData(record) {
@@ -128,8 +140,10 @@ export async function saveCallData(record) {
     return { saved: false, errors, warnings };
   }
 
+  const contentHash = record.contentHash ?? (await computeCallContentHash(record));
+
   const db = await openDatabase();
-  await putRecord(db, { ...record, schemaVersion: LATEST_SCHEMA_VERSION, updatedAt: Date.now() });
+  await putRecord(db, { ...record, schemaVersion: LATEST_SCHEMA_VERSION, updatedAt: Date.now(), contentHash });
   db.close();
 
   return { saved: true, errors: [], warnings };
@@ -160,6 +174,20 @@ export async function getSongIdsWithCallData() {
   });
   db.close();
   return ids;
+}
+
+// 登録済みの全曲について、songId→contentHashの対応表を取得する（2026-08-29追加）。
+// 追加データパックの読み込み時、「既にあるコールと中身が同じか違うか」を判定するために使う。
+export async function getCallContentHashes() {
+  const db = await openDatabase();
+  const records = await new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readonly");
+    const request = tx.objectStore(STORE_NAME).getAll();
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  db.close();
+  return new Map(records.map((record) => [record.songId, record.contentHash ?? null]));
 }
 
 // 指定したsongIdのコールデータを削除する（dev/callEditor.htmlの管理機能で使用）。
@@ -226,9 +254,11 @@ export function validateCallDataBackupFile(data) {
 //
 // 戻り値: {
 //   fileValid: boolean, fileError: string|null,
-//   readySongs: { songId, calls, isUpdate }[],
+//   readySongs: { songId, calls, isUpdate, contentHash, existingContentHash }[],
 //   failedSongs: { songId, errors }[],
 // }
+// contentHashはこのコールデータ自体の内容ハッシュ、existingContentHashはこの端末に
+// 既にある同じsongIdのデータの内容ハッシュ（未登録ならnull、2026-08-29追加）。
 export async function analyzeCallDataBackupFile(file) {
   let rawData;
   try {
@@ -244,6 +274,7 @@ export async function analyzeCallDataBackupFile(file) {
 
   const readySongs = [];
   const failedSongs = [];
+  const existingHashes = await getCallContentHashes();
 
   for (const songEntry of rawData.songs) {
     const record = {
@@ -255,8 +286,15 @@ export async function analyzeCallDataBackupFile(file) {
       failedSongs.push({ songId: record.songId ?? "(不明)", errors });
       continue;
     }
-    const isUpdate = (await getCallData(record.songId)) !== null;
-    readySongs.push({ songId: record.songId, calls: record.calls, isUpdate });
+    const contentHash = await computeCallContentHash(record);
+    const isUpdate = existingHashes.has(record.songId);
+    readySongs.push({
+      songId: record.songId,
+      calls: record.calls,
+      isUpdate,
+      contentHash,
+      existingContentHash: existingHashes.get(record.songId) ?? null,
+    });
   }
 
   return { fileValid: true, fileError: null, readySongs, failedSongs };
@@ -271,7 +309,7 @@ export async function importCallDataSongs(readySongs) {
   const saveFailures = [];
 
   for (const song of readySongs) {
-    const result = await saveCallData({ songId: song.songId, calls: song.calls });
+    const result = await saveCallData({ songId: song.songId, calls: song.calls, contentHash: song.contentHash });
     if (result.saved) {
       savedSongIds.push(song.songId);
     } else {

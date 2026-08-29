@@ -12,6 +12,7 @@
 // このファイルの役割は「データの読み書き」だけで、UI（画面表示・ボタン操作）は持たない。
 
 import { MIX_AND_KOUJOU_GUIDE } from "./data/mixAndKoujouGuide.js";
+import { computeSha256Hex } from "./contentHash.js";
 
 const DB_NAME = "equalLoveIntroQuizCallGuide";
 const DB_VERSION = 1;
@@ -85,6 +86,24 @@ export function validateCallGuideData(record) {
   return { valid: errors.length === 0, errors, warnings };
 }
 
+// コールガイドの「中身」だけを対象にしたSHA-256ハッシュを計算する（2026-08-29追加、
+// js/lyricsStorage.jsのcomputeLyricsContentHash()と同じ考え方）。exportAllCallGuideData()と
+// 同じ項目・同じ並び順で正規化してから文字列化する（内容比較の対象を一致させるため）。
+export async function computeCallGuideContentHash(record) {
+  const canonical = {
+    guideId: record.guideId,
+    name: record.name,
+    category: record.category,
+    songIds: record.songIds ?? null,
+    textLines: record.textLines,
+    pronunciationLines: record.pronunciationLines,
+    segmentNote: record.segmentNote ?? "",
+    usagePosition: record.usagePosition ?? "",
+    beginnerNote: record.beginnerNote ?? "",
+  };
+  return computeSha256Hex(JSON.stringify(canonical));
+}
+
 // 検証済みの内部形式データを保存する。
 export async function saveCallGuideData(record) {
   const { valid, errors, warnings } = validateCallGuideData(record);
@@ -92,8 +111,10 @@ export async function saveCallGuideData(record) {
     return { saved: false, errors, warnings };
   }
 
+  const contentHash = record.contentHash ?? (await computeCallGuideContentHash(record));
+
   const db = await openDatabase();
-  await putRecord(db, { ...record, schemaVersion: LATEST_SCHEMA_VERSION, updatedAt: Date.now() });
+  await putRecord(db, { ...record, schemaVersion: LATEST_SCHEMA_VERSION, updatedAt: Date.now(), contentHash });
   db.close();
 
   return { saved: true, errors: [], warnings };
@@ -123,6 +144,13 @@ export async function getAllCallGuideData() {
   });
   db.close();
   return records;
+}
+
+// 登録済みの全ガイドについて、guideId→contentHashの対応表を取得する（2026-08-29追加）。
+// 追加データパックの読み込み時、「既にあるガイドと中身が同じか違うか」を判定するために使う。
+export async function getCallGuideContentHashes() {
+  const records = await getAllCallGuideData();
+  return new Map(records.map((record) => [record.guideId, record.contentHash ?? null]));
 }
 
 // 指定したguideIdのコールガイドデータを削除する（dev/callGuideEditor.htmlの管理機能で使用）。
@@ -187,9 +215,11 @@ export function validateCallGuideBackupFile(data) {
 //
 // 戻り値: {
 //   fileValid: boolean, fileError: string|null,
-//   readyGuides: { guideId, name, ..., isUpdate }[],
+//   readyGuides: { guideId, name, ..., isUpdate, contentHash, existingContentHash }[],
 //   failedGuides: { guideId, errors }[],
 // }
+// contentHashはこのガイド自体の内容ハッシュ、existingContentHashはこの端末に既にある
+// 同じguideIdのデータの内容ハッシュ（未登録ならnull、2026-08-29追加）。
 export async function analyzeCallGuideBackupFile(file) {
   let rawData;
   try {
@@ -205,6 +235,7 @@ export async function analyzeCallGuideBackupFile(file) {
 
   const readyGuides = [];
   const failedGuides = [];
+  const existingHashes = await getCallGuideContentHashes();
 
   for (const guideEntry of rawData.guides) {
     const { valid, errors } = validateCallGuideData(guideEntry);
@@ -212,8 +243,14 @@ export async function analyzeCallGuideBackupFile(file) {
       failedGuides.push({ guideId: guideEntry?.guideId ?? "(不明)", errors });
       continue;
     }
-    const isUpdate = (await getCallGuideData(guideEntry.guideId)) !== null;
-    readyGuides.push({ ...guideEntry, isUpdate });
+    const contentHash = await computeCallGuideContentHash(guideEntry);
+    const isUpdate = existingHashes.has(guideEntry.guideId);
+    readyGuides.push({
+      ...guideEntry,
+      isUpdate,
+      contentHash,
+      existingContentHash: existingHashes.get(guideEntry.guideId) ?? null,
+    });
   }
 
   return { fileValid: true, fileError: null, readyGuides, failedGuides };
@@ -228,7 +265,10 @@ export async function importCallGuideDataEntries(readyGuides) {
   const saveFailures = [];
 
   for (const guide of readyGuides) {
-    const result = await saveCallGuideData(guide);
+    // isUpdate・existingContentHashは解析結果を運ぶための一時的な情報であり、保存する
+    // レコード自体には含めない（2026-08-29、contentHash追加に合わせて明示的に選別するよう整理）。
+    const { isUpdate, existingContentHash, ...recordToSave } = guide;
+    const result = await saveCallGuideData(recordToSave);
     if (result.saved) {
       savedGuideIds.push(guide.guideId);
     } else {
