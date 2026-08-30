@@ -178,18 +178,19 @@
         </div>
       </div>
 
-      <!-- 「遊び方ガイド」「フレンド」「ランキング」への入口（2026-08-15新設、2026-08-16に
-           ランキングを追加し3つ構成へ）。友人にテストしてもらった結果、せっかく作った機能でも
-           存在に気付かれない・意味が伝わらないという指摘が多かったため、初見ユーザーが最初に
-           目にするプレイヤー情報のすぐ下という、最も見つけやすい位置に置く。
+      <!-- 「フレンド」「ランキング」「称号一覧」への入口（2026-08-15新設、2026-08-16に
+           ランキングを追加し3つ構成へ、2026-08-30に本人指示で「遊び方ガイド」→「称号一覧」へ
+           入れ替え）。友人にテストしてもらった結果、せっかく作った機能でも存在に気付かれない・
+           意味が伝わらないという指摘が多かったため、初見ユーザーが最初に目にするプレイヤー情報の
+           すぐ下という、最も見つけやすい位置に置く。この3つは使用頻度が高いため優先配置する
+           （本人指示）。「遊び方ガイド」はここから、スタートボタン直下の「あそびかた・とくてんの
+           ルール」の隣（#guide-link参照）へ移動した（削除はしていない）。
            見た目は「＝LOVEをもっと知る」のカード（.know-more-button）と同じ構造を再利用しつつ、
-           独立した見た目にするため専用クラス（.home-quicknav-*）を使う。 -->
+           独立した見た目にするため専用クラス（.home-quicknav-*）を使う。
+           id="title-list-link"のボタン本体は、以前「🏆 記録・やり込み」セクション
+           （record-pill-row）にあったものをそのままここへ移動しただけで、js/main.js側の
+           参照（document.getElementById("title-list-link")）は変更していない。 -->
       <div class="home-quicknav-grid">
-        <button id="guide-link" class="home-quicknav-button" type="button">
-          <span class="home-quicknav-icon" aria-hidden="true">📖</span>
-          <span class="home-quicknav-label">遊び方ガイド</span>
-          <span class="home-quicknav-description">使い方をまとめて見る</span>
-        </button>
         <button id="fan-profiles-link" class="home-quicknav-button" type="button">
           <span class="home-quicknav-icon" aria-hidden="true">👥</span>
           <span class="home-quicknav-label">フレンド</span>
@@ -199,6 +200,11 @@
           <span class="home-quicknav-icon" aria-hidden="true">🏆</span>
           <span class="home-quicknav-label">ランキング</span>
           <span class="home-quicknav-description">クリアタイムの順位</span>
+        </button>
+        <button id="title-list-link" class="home-quicknav-button" type="button">
+          <span class="home-quicknav-icon" aria-hidden="true">🏅</span>
+          <span class="home-quicknav-label">称号一覧</span>
+          <span class="home-quicknav-description">獲得した称号を見る</span>
         </button>
       </div>
 
@@ -303,10 +309,19 @@
       <!-- 「あそびかた・とくてんのルール」：イントロクイズ本体の説明のため、以前のように
            画面最下部の他の機能と同列の小さいリンクに埋もれさせず、スタートボタンの直下へ
            控えめなリンクとして置く（本人フィードバック反映。押した後の挙動・モーダルの
-           中身自体は変更していない）。 -->
-      <button id="rules-link" class="rules-link start-rules-link" type="button">あそびかた・とくてんのルール</button>
+           中身自体は変更していない）。
+           「遊び方ガイド」（ゲーム全体の目次・攻略本）は、2026-08-30に本人指示でホーム上部の
+           クイックナビ（フレンド・ランキング・称号一覧を優先配置）から、この
+           「あそびかた・とくてんのルール」の隣へ移動した。どちらも「初めて遊ぶ人向けの
+           説明」という役割が同じで、スタートボタン直下という初見ユーザーが必ず目にする位置の
+           ため、ここが最も見つけやすいと判断した。ボタンのid・押した後の挙動（js/main.jsの
+           guideLinkElement参照）は変更していない。 -->
+      <div class="start-help-links">
+        <button id="rules-link" class="rules-link start-rules-link" type="button">あそびかた・とくてんのルール</button>
+        <button id="guide-link" class="rules-link start-rules-link" type="button">📖 遊び方ガイド</button>
+      </div>
 
-      <!-- 特別モード8件をホーム画面へ直接表示（2026-08-07、本人要望で追加）。
+      <!-- 特別モード10件をホーム画面へ直接表示（2026-08-07、本人要望で追加。2026-08-30に8件→10件）。
            以前はここに「特別モード」ボタン1つだけがあり、押すと#special-modes-screen
            （一覧画面）に8件が表示される2段階構成だった。8件全部をここに2列×4段で
            直接並べることで、一覧画面を経由する手間をなくしている。
@@ -321,16 +336,19 @@
       <p class="know-more-title">特別モード</p>
       <div id="home-special-modes-grid" class="home-special-modes-grid"></div>
 
-      <!-- 「記録・やり込み」：称号一覧・プレイ履歴をまとめた2つのピルボタン。
+      <!-- 「記録・やり込み」：プレイ履歴への入口。
            以前は「曲を聴く」の下にあったが、ホーム全体の情報設計見直し（2026-08-15）で
            「自分の成績を振り返る場所」として曲を聴くセクションより先に配置した。
            以前ここにあった「みんなのプロフィール」（→プレイヤー広場に改称）へのリンクは、
-           自分の記録ではなく他プレイヤーの一覧のため、ホーム上部の遊び方ガイドの隣へ移動した。 -->
+           自分の記録ではなく他プレイヤーの一覧のため、ホーム上部の遊び方ガイドの隣へ移動した。
+           【2026-08-30改訂・本人指示】「🏅称号一覧」は使用頻度が高いため、ホーム上部の
+           クイックナビ（フレンド・ランキングの隣、#title-list-link参照）へ移動した。
+           このセクションにはプレイ履歴だけが残る（record-pill-rowはflex:1で1件でも
+           レイアウトが崩れないことをCSSで確認済み）。 -->
       <div class="special-modes-divider" aria-hidden="true"></div>
       <p class="know-more-title">🏆 記録・やり込み</p>
       <p class="know-more-subtitle">自分の成績を見るところ</p>
       <div class="record-pill-row">
-        <button id="title-list-link" class="record-pill" type="button">🏅 称号一覧</button>
         <button id="history-link" class="record-pill" type="button">📊 プレイ履歴</button>
       </div>
 

@@ -22,33 +22,38 @@ const CATEGORY_LABELS = {
 };
 
 // 成長段階系5系統（イントロ／アウトロ／シャッフル／リリック／一瞬チャレンジ）。
-// 【2026-08-30改訂・本人指示④⑯】各系統を「ビギナー→チャレンジャー→エース→マスター」の
-// 4段階に統一。マスター段階（no_miss_master等）はcategoryとしては従来どおり"masterPath"の
-// ままだが（fanProfileCard.jsの代表称号タグ表示等、他の場所がcategory:"masterPath"を
-// 前提にしているため、既存データ・既存ロジックへの影響を避けてcategory自体は変更しない）、
-// この一覧表示だけは「系統ごとの4段階トロフィー」としてまとめて見せたいため、
-// GROWTH_SERIESのtierIds（idそのもの）を唯一の情報源として判定する
-// （category値ではなく、常にこの配列を正として一覧に表示する称号を決める）。
+// 【2026-08-30再改訂・本人指示③】マスター段階まで通常のステップアップ称号と横並びになると
+// 見分けづらいという指摘を受け、イントロ／アウトロ／シャッフル／リリックの4系統は
+// 「ビギナー→チャレンジャー→エース」の3段階だけをここに残し、マスター段階は下の
+// MASTER_TIER_SERIES（専用の「マスター称号」ブロック）へ切り出した。
+// 【一瞬チャレンジ系だけ例外】本人指示により、一瞬マスターは＝LOVEマスターの構成要素に
+// 含まれない（一瞬チャレンジ系だけの最上位の通常称号という位置づけ）ため、他4系統とは違い
+// 従来どおり4段階のままこの一覧に残す。
+// マスター段階（no_miss_master等）はcategoryとしては従来どおり"masterPath"のままだが
+// （fanProfileCard.jsの代表称号タグ表示等、他の場所がcategory:"masterPath"を前提にしている
+// ため、既存データ・既存ロジックへの影響を避けてcategory自体は変更しない）、この一覧表示だけは
+// GROWTH_SERIES／MASTER_TIER_SERIESのtierIds（idそのもの）を唯一の情報源として、
+// どちらのブロックに表示するかを決める（category値では判定しない）。
 export const GROWTH_SERIES = [
   {
     label: "🎧 イントロ系",
-    tierIds: ["intro_beginner", "intro_challenger", "intro_ace", "no_miss_master"],
-    tierLabels: ["5問", "10問", "20問", "全曲"],
+    tierIds: ["intro_beginner", "intro_challenger", "intro_ace"],
+    tierLabels: ["5問", "10問", "20問"],
   },
   {
     label: "🎬 アウトロ系",
-    tierIds: ["outro_beginner", "outro_challenger", "outro_ace", "outro_master"],
-    tierLabels: ["5問", "10問", "20問", "全曲"],
+    tierIds: ["outro_beginner", "outro_challenger", "outro_ace"],
+    tierLabels: ["5問", "10問", "20問"],
   },
   {
     label: "🔀 シャッフル系",
-    tierIds: ["shuffle_beginner", "shuffle_challenger", "shuffle_ace", "full_chorus_master"],
-    tierLabels: ["5問", "10問", "20問", "全曲"],
+    tierIds: ["shuffle_beginner", "shuffle_challenger", "shuffle_ace"],
+    tierLabels: ["5問", "10問", "20問"],
   },
   {
     label: "🎤 リリック系",
-    tierIds: ["lyric_beginner", "lyric_challenger", "lyric_ace", "song_master"],
-    tierLabels: ["5問", "10問", "20問", "全曲"],
+    tierIds: ["lyric_beginner", "lyric_challenger", "lyric_ace"],
+    tierLabels: ["5問", "10問", "20問"],
   },
   {
     label: "⚡ 一瞬チャレンジ系",
@@ -56,11 +61,21 @@ export const GROWTH_SERIES = [
     tierLabels: ["1.5秒・4択・3問", "1秒・4択・5問", "1秒・10択・10問", "0.5秒・10択・10問"],
   },
 ];
-// 上記5系統×4段階、計20個のidの集合。masterPath カテゴリーの通常グリッド（renderAchievementList）
-// から、この集合に含まれるid（＝すでにこのトロフィー表示で見せている4段階目）を除外するために使う
-// （二重表示防止。GROWTH_TRIAD時代はcategory:"growth"だけで判定できたが、マスター段階は
-// category:"masterPath"のままのため、idベースの判定に切り替えた）。
+// 上記5系統、計16個のidの集合。masterPath カテゴリーの通常グリッド（renderAchievementList）
+// から、この集合に含まれるidを除外するために使う（二重表示防止）。
 const GROWTH_TIER_ID_SET = new Set(GROWTH_SERIES.flatMap((series) => series.tierIds));
+
+// 【2026-08-30新設・本人指示③】「マスター称号」＝「＝LOVEマスターへの道」専用ブロック。
+// イントロ／アウトロ／シャッフル／リリックの4マスターを、系統名をタイトルバッジにした
+// トロフィー行として並べ、その下に＝LOVEマスター本体（複合称号カード）を続けて表示する。
+// 一瞬マスターはここに含めない（GROWTH_SERIES側の一瞬チャレンジ系に残したまま）。
+const MASTER_TIER_SERIES = [
+  { id: "no_miss_master", label: "🎧 イントロ" },
+  { id: "outro_master", label: "🎬 アウトロ" },
+  { id: "full_chorus_master", label: "🔀 シャッフル" },
+  { id: "song_master", label: "🎤 リリック" },
+];
+const MASTER_PATH_ID_SET = new Set([...MASTER_TIER_SERIES.map((series) => series.id), "equal_love_master"]);
 
 let elements = null;
 
@@ -327,6 +342,10 @@ export function buildGrowthSection(items) {
 
     const row = document.createElement("div");
     row.classList.add("growth-series-row");
+    // 【2026-08-30追加】マスターを切り出した4系統は3段階になったため、4列グリッドのままだと
+    // 1列分が余って不自然に見える。3段階の系統だけ3列グリッドへ切り替える専用クラスを足す
+    // （一瞬チャレンジ系は従来どおり4段階＝4列のまま）。
+    if (series.tierIds.length === 3) row.classList.add("growth-series-row--three");
     series.tierIds.forEach((id, tierIndex) => {
       const entry = items.find((item) => item.id === id);
       if (!entry) return; // 未知のid（将来の仕様差分等）でも画面を壊さず静かに読み飛ばす
@@ -336,6 +355,41 @@ export function buildGrowthSection(items) {
 
     section.appendChild(seriesBlock);
   });
+
+  return section;
+}
+
+// 【2026-08-30新設・本人指示③】「マスター称号」＝「＝LOVEマスターへの道」専用ブロック。
+// ステップアップ（growth）と裏チャレンジ（backChallenge）の間に独立したセクションとして挟み、
+// イントロ／アウトロ／シャッフル／リリックの4マスターを1つの横並びトロフィー行にまとめたうえで、
+// その下に＝LOVEマスター本体（4つすべて集めると解放される複合称号）を続けて表示する。
+// buildGrowthBadgeCard（トロフィー風の見た目）と、複合称号専用の獲得条件チェックリストを
+// 持つbuildAchievementCard（通常カード）を1つのセクション内で組み合わせている。
+export function buildMasterPathSection(items) {
+  const section = document.createElement("div");
+  section.classList.add("achievement-category-section", "master-path-section");
+
+  const heading = document.createElement("p");
+  heading.classList.add("achievement-category-heading");
+  heading.textContent = "👑 マスター称号（＝LOVEマスターへの道）";
+  section.appendChild(heading);
+
+  const row = document.createElement("div");
+  row.classList.add("growth-series-row");
+  MASTER_TIER_SERIES.forEach((series) => {
+    const entry = items.find((item) => item.id === series.id);
+    if (!entry) return; // 未知のid（将来の仕様差分等）でも画面を壊さず静かに読み飛ばす
+    row.appendChild(buildGrowthBadgeCard(entry, series.label));
+  });
+  section.appendChild(row);
+
+  const compositeEntry = items.find((item) => item.id === "equal_love_master");
+  if (compositeEntry) {
+    const grid = document.createElement("div");
+    grid.classList.add("achievement-card-grid", "master-path-composite-grid");
+    grid.appendChild(buildAchievementCard(compositeEntry));
+    section.appendChild(grid);
+  }
 
   return section;
 }
@@ -361,10 +415,12 @@ function computeGuidanceBadgeText(entry, snapshot) {
   return null;
 }
 
-// 【2026-08-30改訂・本人指示⑯】表示順を①イントロ系②アウトロ系③シャッフル系④リリック系
-// ⑤一瞬チャレンジ系（まとめてトロフィー表示）⑥＝LOVEマスター⑦裏チャレンジ⑧＝LOVE完全制覇に
-// 統一。⑥⑦⑧はCATEGORY_ORDER（masterPath→backChallenge）の並びのまま、GROWTH_TIER_ID_SETに
-// 含まれるid（各系統のマスター段階、すでに①〜⑤で表示済み）だけを除外して二重表示を防ぐ。
+// 【2026-08-30再改訂・本人指示③】表示順を①イントロ系②アウトロ系③シャッフル系④リリック系
+// ⑤一瞬チャレンジ系（まとめてトロフィー表示、いずれもビギナー〜エースの3段階。一瞬チャレンジ系
+// だけ一瞬マスターを含む4段階）⑥マスター称号（イントロ／アウトロ／シャッフル／リリックの
+// 4マスター＋＝LOVEマスター、専用ブロック）⑦裏チャレンジ⑧＝LOVE完全制覇に統一。
+// ⑦⑧はCATEGORY_ORDER（backChallenge）の並びのまま、GROWTH_TIER_ID_SET・MASTER_PATH_ID_SETに
+// 含まれるid（すでに①〜⑥で表示済み）だけを除外して二重表示を防ぐ。
 function renderAchievementList() {
   const rawSnapshot = getAchievementListSnapshot();
   const snapshot = rawSnapshot.map((entry) => ({
@@ -376,9 +432,14 @@ function renderAchievementList() {
   const growthItems = snapshot.filter((entry) => GROWTH_TIER_ID_SET.has(entry.id));
   elements.listContainer.appendChild(buildGrowthSection(growthItems));
 
+  const masterPathItems = snapshot.filter((entry) => MASTER_PATH_ID_SET.has(entry.id));
+  elements.listContainer.appendChild(buildMasterPathSection(masterPathItems));
+
   CATEGORY_ORDER.forEach((category) => {
-    if (category === "growth") return; // 上のgrowthItemsで表示済み（GROWTH_TIER_ID_SET基準）
-    const items = snapshot.filter((entry) => entry.category === category && !GROWTH_TIER_ID_SET.has(entry.id));
+    if (category === "growth" || category === "masterPath") return; // 上ですでに表示済み
+    const items = snapshot.filter(
+      (entry) => entry.category === category && !GROWTH_TIER_ID_SET.has(entry.id) && !MASTER_PATH_ID_SET.has(entry.id)
+    );
     if (items.length === 0) return;
 
     const section = document.createElement("div");

@@ -2860,6 +2860,23 @@ fieldset label:has(input:focus-visible) {
   text-align: center;
 }
 
+/* 【2026-08-30追加、本人指示】「あそびかた・とくてんのルール」「遊び方ガイド」の2つを
+   横並びで中央にまとめる入れ物。スタートボタン直下という、初めて遊ぶ人が必ず目にする
+   位置に「説明系リンク」を集約する（遊び方ガイドはホーム上部クイックナビから移動してきた）。
+   狭い画面では自然に折り返す（.start-rules-linkの個別margin:0で二重の余白を防ぐ）。 */
+.start-help-links {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  margin-top: 10px;
+}
+
+.start-help-links .start-rules-link {
+  margin: 0;
+}
+
 .rules-link:active {
   opacity: 0.9;
 }
@@ -5228,11 +5245,34 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 }
 
 /* 【2026-08-30改訂・本人指示④】ビギナー/チャレンジャー/エースの3段階からマスターを加えた
-   4段階へ変更したため、3列→4列にする（狭い画面は下のメディアクエリで2列×2段に切り替える）。 */
+   4段階へ変更したため、3列→4列にする（狭い画面は下のメディアクエリで2列×2段に切り替える）。
+   一瞬チャレンジ系・新設のマスター称号ブロック（4マスター）はこのデフォルト（4列）のまま使う。 */
 .growth-series-row {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 8px;
+}
+
+/* 【2026-08-30再改訂・本人指示③】マスターを切り出したイントロ／アウトロ／シャッフル／
+   リリックの4系統は3段階に戻ったため、この修飾クラスで3列グリッドへ切り替える
+   （4列のまま3枚だけ並べると1列分が余って不自然に見えるため）。 */
+.growth-series-row--three {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+/* 【2026-08-30新設・本人指示③】「マスター称号（＝LOVEマスターへの道）」専用ブロック。
+   通常のステップアップ・裏チャレンジと見分けが付くよう、王冠にちなんだ淡いゴールドの
+   背景で軽く強調する（--color-accent-softを流用。既存のパステルカード世界観を崩さない
+   範囲の控えめな装飾に留める）。 */
+.master-path-section {
+  padding: 14px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, var(--color-accent-soft), rgba(255, 242, 191, 0.25));
+  border: 1px solid rgba(255, 217, 61, 0.5);
+}
+
+.master-path-composite-grid {
+  margin-top: 12px;
 }
 
 .growth-badge-card {
@@ -6484,7 +6524,7 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   white-space: nowrap;
 }
 
-/* ===== ホーム画面：特別モード8件を2列×4段で直接表示するグリッド（2026-08-07追加） =====
+/* ===== ホーム画面：特別モード10件を2列×5段で直接表示するグリッド（2026-08-07追加、2026-08-30に8件→10件） =====
    カードそのもの（.special-mode-card一式）はjs/specialModesScreen.jsの
    buildAvailableCard/buildComingSoonCardをそのまま再利用しており、HTML構造・JSロジックは
    一覧画面（#special-modes-list）と完全に同じ。ここではホーム画面の狭い2列幅に収まるよう、
