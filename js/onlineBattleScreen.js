@@ -77,6 +77,7 @@ import {
 import {
   LYRICS_QUIZ_GAME_MODE,
   INSTANT_BATTLE_GAME_MODE,
+  INSTANT_COOP_GAME_MODE,
   resolveStartSettingsForSubmit,
   resolveLastRoomRejoinOutcome,
 } from "./onlineBattleStartSettings.js";
@@ -86,6 +87,15 @@ import {
 // 独立進行のため、待機画面・結果画面はこのファイルの既存の仕組み（finishOnlineBattleMatch・
 // reportOnlineBattleProgress）をそのまま使う。
 import { enterOnlineInstantBattlePlay, resetOnlineInstantBattleState } from "./onlineInstantBattleScreen.js";
+// 【2026-08-31新設、本人指示：19-3章「一瞬協力」】歌詞クイズと全く同じ理由・同じ一方向依存で、
+// 全員同期進行のこのモードを専用ファイルへ委譲する（待機画面・結果画面も専用、一瞬バトルとは違う）。
+import {
+  renderInstantCoopLobbySettings,
+  enterInstantCoopBattlePlay,
+  enterInstantCoopResult,
+  handleInstantCoopRoomUpdate,
+  resetInstantCoopBattleState,
+} from "./onlineInstantCoopBattleScreen.js";
 // 【2026-08-08新設】出題する曲をホストが選べる機能。曲の一覧・選択UI自体は3対戦モード共通の
 // 別画面（js/onlineBattleSongPicker.js）に任せ、このファイルは「今の選択曲id配列」を
 // 保持し、settings.questionSourceへ変換するだけに専念する（gameModeを問わない設計）。
@@ -159,6 +169,8 @@ let currentLyricsQuizSettings = null;
 // （下のapplyInstantBattleHostSettingsChangeFromForm参照）のため、同じ理由でrenderLobby()の
 // たびに最新値を控えておく。
 let currentInstantBattleSettings = null;
+// 一瞬協力も一瞬バトルと同じ理由で、renderLobby()のたびに最新値を控えておく。
+let currentInstantCoopSettings = null;
 // 【2026-08-08新設・2026-08-27全面刷新】以前はホストだけが選べる単一の選択リスト
 // （hostSelectedManualSongIds）を、ホストの端末だけがsettings.questionSourceへ
 // 書き込む設計だった。本人指示により「ホスト以外の参加者も選曲でき、全員の選択が
@@ -666,6 +678,12 @@ function enterOnlineBattlePlay(room) {
     enterOnlineInstantBattlePlay(room);
     return;
   }
+  // 【2026-08-31新設、本人指示：19-3章「一瞬協力」】歌詞クイズと同じ理由で、progress/results
+  // （このファイルのcurrentMatchIdに紐づく既存の仕組み）は一切使わない専用画面へ委譲する。
+  if (room.gameMode === INSTANT_COOP_GAME_MODE) {
+    enterInstantCoopBattlePlay(room);
+    return;
+  }
 
   currentMatchId = room.activeMatchId;
   const questions = buildQuestionsForMode(room.gameMode, room.settings, room.seed);
@@ -765,6 +783,8 @@ function resetOnlineBattleMatchState() {
   // 状態も、離脱・ルーム消滅・再戦のたびに必ずリセットする（次のルーム・次の試合へ
   // 誤って引き継がないため）。
   resetOnlineInstantBattleState();
+  // 一瞬協力専用画面（js/onlineInstantCoopBattleScreen.js）が持つホストの進行ミラー等も同様。
+  resetInstantCoopBattleState();
   currentMatchId = null;
   currentMatchTotalQuestions = 0;
   pendingFinishResult = null;
@@ -825,6 +845,8 @@ function renderLobby(room) {
     currentLyricsQuizSettings = room.settings;
   } else if (room.gameMode === INSTANT_BATTLE_GAME_MODE) {
     currentInstantBattleSettings = room.settings;
+  } else if (room.gameMode === INSTANT_COOP_GAME_MODE) {
+    currentInstantCoopSettings = room.settings;
   }
 
   const myUid = getCurrentUid();
@@ -986,13 +1008,16 @@ function renderLobby(room) {
   // ===== Step2：対戦設定・準備完了・開始 =====
   const isLyricsQuiz = room.gameMode === LYRICS_QUIZ_GAME_MODE;
   const isInstantBattle = room.gameMode === INSTANT_BATTLE_GAME_MODE;
-  // 歌詞クイズ・一瞬バトルは設定の形自体が別物のため、既存の設定コンテナ
+  const isInstantCoop = room.gameMode === INSTANT_COOP_GAME_MODE;
+  // 歌詞クイズ・一瞬バトル・一瞬協力は設定の形自体が別物のため、既存の設定コンテナ
   // （timeAttack/randomPlayback/outroQuiz用の固定ラジオ群）は隠し、それぞれ専用のコンテナへ
   // 描画を委譲する。
-  elements.lobbySettingsHost.hidden = !isHost || isLyricsQuiz || isInstantBattle;
-  elements.lobbySettingsParticipant.hidden = isHost || isLyricsQuiz || isInstantBattle;
+  elements.lobbySettingsHost.hidden = !isHost || isLyricsQuiz || isInstantBattle || isInstantCoop;
+  elements.lobbySettingsParticipant.hidden = isHost || isLyricsQuiz || isInstantBattle || isInstantCoop;
   elements.lobbySettingsHostInstant.hidden = !isHost || !isInstantBattle;
   elements.lobbySettingsParticipantInstant.hidden = isHost || !isInstantBattle;
+  elements.lobbySettingsHostCoop.hidden = !isHost || !isInstantCoop;
+  elements.lobbySettingsParticipantCoop.hidden = isHost || !isInstantCoop;
   elements.lobbyReadyButton.hidden = isHost;
   elements.lobbyStartButton.hidden = !isHost;
   elements.lobbyStartHint.hidden = !isHost;
@@ -1002,6 +1027,8 @@ function renderLobby(room) {
       renderLyricsQuizLobbySettings(room, true);
     } else if (isInstantBattle) {
       applyInstantBattleSettingsToHostForm(settings);
+    } else if (isInstantCoop) {
+      renderInstantCoopLobbySettings(room, true);
     } else {
       applySettingsToHostForm(settings);
     }
@@ -1011,6 +1038,8 @@ function renderLobby(room) {
       renderLyricsQuizLobbySettings(room, false);
     } else if (isInstantBattle) {
       renderInstantBattleSettingsChips(elements.instantBattleSettingsSummary, settings);
+    } else if (isInstantCoop) {
+      renderInstantCoopLobbySettings(room, false);
     } else {
       renderSettingsChips(elements.lobbySettingsSummary, settings, room.gameMode);
     }
@@ -1058,6 +1087,8 @@ function renderLobby(room) {
       // ここは主に「結果確定後に新しく再接続した」場合の受け皿になる）。
       if (isLyricsQuiz) {
         enterLyricsQuizResult(room);
+      } else if (isInstantCoop) {
+        enterInstantCoopResult(room);
       } else {
         goToResultScreen(room);
       }
@@ -1074,6 +1105,8 @@ function renderLobby(room) {
   updateOnlineBattlePlayUi(room);
   if (isLyricsQuiz) {
     handleLyricsQuizRoomUpdate(room);
+  } else if (isInstantCoop) {
+    handleInstantCoopRoomUpdate(room);
   }
 }
 
@@ -1893,6 +1926,7 @@ export function initOnlineBattleScreens(newElements) {
         readFormSettings: readSettingsFromHostForm,
         lyricsQuizRoomSettings: currentLyricsQuizSettings,
         instantBattleRoomSettings: currentInstantBattleSettings,
+        instantCoopRoomSettings: currentInstantCoopSettings,
       });
 
       const result = await startBattle({ roomId: currentRoomId, settings });

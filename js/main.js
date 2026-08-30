@@ -162,6 +162,7 @@ import {
 } from "./onlineBattleScreen.js";
 import { initOnlineLyricsQuizBattleScreens } from "./onlineLyricsQuizBattleScreen.js";
 import { initOnlineInstantBattleScreens } from "./onlineInstantBattleScreen.js";
+import { initOnlineInstantCoopBattleScreens } from "./onlineInstantCoopBattleScreen.js";
 import { initOnlineBattleSongPicker } from "./onlineBattleSongPicker.js";
 import { initOnlineBattlePlaylistPicker } from "./onlineBattlePlaylistPicker.js";
 import { initOnlineBattleSongListConfirmModal } from "./onlineBattleSongListConfirmModal.js";
@@ -1009,6 +1010,36 @@ const onlineInstantBattleNextButtonElement = document.getElementById("online-ins
 const onlineInstantBattleQuitConfirmModalElement = document.getElementById("online-instant-battle-quit-confirm-modal");
 const onlineInstantBattleQuitCancelButtonElement = document.getElementById("online-instant-battle-quit-cancel-button");
 const onlineInstantBattleQuitConfirmButtonElement = document.getElementById("online-instant-battle-quit-confirm-button");
+
+// オンライン対戦：一瞬協力専用（2026-08-31新設、本人指示：19-3章）。
+const onlineInstantCoopLobbySettingsHostElement = document.getElementById("online-battle-lobby-settings-host-coop");
+const onlineInstantCoopLobbySettingsParticipantElement = document.getElementById("online-battle-lobby-settings-participant-coop");
+const onlineInstantCoopSettingsSummaryElement = document.getElementById("online-instant-coop-settings-summary");
+const onlineInstantCoopSettingsErrorElement = document.getElementById("online-instant-coop-settings-error");
+const onlineInstantCoopQuitButtonElement = document.getElementById("online-instant-coop-battle-quit-button");
+const onlineInstantCoopProgressElement = document.getElementById("online-instant-coop-battle-progress");
+const onlineInstantCoopErrorElement = document.getElementById("online-instant-coop-battle-error");
+const onlineInstantCoopTieNoticeElement = document.getElementById("online-instant-coop-battle-tie-notice");
+const onlineInstantCoopAnswerSectionElement = document.getElementById("online-instant-coop-battle-answer-section");
+const onlineInstantCoopAnswerSearchRowElement = document.getElementById("online-instant-coop-battle-answer-search-row");
+const onlineInstantCoopAnswerSearchInputElement = document.getElementById("online-instant-coop-battle-answer-search-input");
+const onlineInstantCoopAnswerCountElement = document.getElementById("online-instant-coop-battle-answer-count");
+const onlineInstantCoopAnswerListElement = document.getElementById("online-instant-coop-battle-answer-list");
+const onlineInstantCoopUnknownButtonElement = document.getElementById("online-instant-coop-battle-unknown-button");
+const onlineInstantCoopWaitingNoticeElement = document.getElementById("online-instant-coop-battle-waiting-notice");
+const onlineInstantCoopRevealSectionElement = document.getElementById("online-instant-coop-battle-reveal-section");
+const onlineInstantCoopRevealOutcomeBadgeElement = document.getElementById("online-instant-coop-battle-reveal-outcome-badge");
+const onlineInstantCoopRevealCorrectSongElement = document.getElementById("online-instant-coop-battle-reveal-correct-song");
+const onlineInstantCoopRevealTeamAnswerElement = document.getElementById("online-instant-coop-battle-reveal-team-answer");
+const onlineInstantCoopRevealTieBreakNoticeElement = document.getElementById("online-instant-coop-battle-reveal-tiebreak-notice");
+const onlineInstantCoopQuitConfirmModalElement = document.getElementById("online-instant-coop-battle-quit-confirm-modal");
+const onlineInstantCoopQuitCancelButtonElement = document.getElementById("online-instant-coop-battle-quit-cancel-button");
+const onlineInstantCoopQuitConfirmButtonElement = document.getElementById("online-instant-coop-battle-quit-confirm-button");
+const onlineInstantCoopResultHomeLinkElement = document.getElementById("online-instant-coop-battle-result-home-link");
+const onlineInstantCoopResultCorrectCountElement = document.getElementById("online-instant-coop-battle-result-correct-count");
+const onlineInstantCoopResultReplayCountElement = document.getElementById("online-instant-coop-battle-result-replay-count");
+const onlineInstantCoopResultMemberListElement = document.getElementById("online-instant-coop-battle-result-member-list");
+const onlineInstantCoopResultRematchButtonElement = document.getElementById("online-instant-coop-battle-result-rematch-button");
 
 // オンライン対戦：出題する曲を選ぶ画面（2026-08-08新設）。イントロ対戦・ランダム再生対戦・
 // 歌詞クイズ対戦の3つで共通利用する。
@@ -5229,6 +5260,8 @@ initOnlineBattleScreens({
   instantBattleSettingsSummary: onlineInstantBattleSettingsSummaryElement,
   lobbySettingsCategoryFieldsetInstant: onlineInstantBattleSettingsCategoryFieldsetElement,
   instantBattleSettingsError: onlineInstantBattleSettingsErrorElement,
+  lobbySettingsHostCoop: onlineInstantCoopLobbySettingsHostElement,
+  lobbySettingsParticipantCoop: onlineInstantCoopLobbySettingsParticipantElement,
   collabSongSection: onlineBattleCollabSongSectionElement,
   collabChooseSongsButton: onlineBattleCollabChooseSongsButtonElement,
   collabChooseFavoritesButton: onlineBattleCollabChooseFavoritesButtonElement,
@@ -5336,6 +5369,44 @@ initOnlineInstantBattleScreens({
   onQuitDuringBattle: () => quitOnlineBattleDuringQuiz(),
   onFinishMatch: (result, answeredCount) => finishOnlineBattleMatch(result, answeredCount),
   onReportProgress: (answeredCount) => reportOnlineBattleProgress(answeredCount),
+});
+
+// オンライン対戦「一瞬協力」専用画面（2026-08-31新設、本人指示：19-3章）。歌詞クイズと同じ
+// ホスト主導の同期進行のため、待機画面・結果画面は既存のものを再利用せず、このモード専用の
+// 結果画面（チーム成績）を持つ。「対戦をやめる」の後片付けだけは既存の共通処理を再利用する。
+initOnlineInstantCoopBattleScreens({
+  navigateTo: navigateBattleScreen,
+  lobbySettingsHost: onlineInstantCoopLobbySettingsHostElement,
+  lobbySettingsParticipant: onlineInstantCoopLobbySettingsParticipantElement,
+  settingsSummaryContainer: onlineInstantCoopSettingsSummaryElement,
+  settingsError: onlineInstantCoopSettingsErrorElement,
+  quitButton: onlineInstantCoopQuitButtonElement,
+  quitConfirmModal: onlineInstantCoopQuitConfirmModalElement,
+  quitCancelButton: onlineInstantCoopQuitCancelButtonElement,
+  quitConfirmButton: onlineInstantCoopQuitConfirmButtonElement,
+  progress: onlineInstantCoopProgressElement,
+  error: onlineInstantCoopErrorElement,
+  tieNotice: onlineInstantCoopTieNoticeElement,
+  answerSection: onlineInstantCoopAnswerSectionElement,
+  answerSearchRow: onlineInstantCoopAnswerSearchRowElement,
+  answerSearchInput: onlineInstantCoopAnswerSearchInputElement,
+  answerCount: onlineInstantCoopAnswerCountElement,
+  answerList: onlineInstantCoopAnswerListElement,
+  unknownButton: onlineInstantCoopUnknownButtonElement,
+  waitingNotice: onlineInstantCoopWaitingNoticeElement,
+  revealSection: onlineInstantCoopRevealSectionElement,
+  revealOutcomeBadge: onlineInstantCoopRevealOutcomeBadgeElement,
+  revealCorrectSong: onlineInstantCoopRevealCorrectSongElement,
+  revealTeamAnswer: onlineInstantCoopRevealTeamAnswerElement,
+  revealTieBreakNotice: onlineInstantCoopRevealTieBreakNoticeElement,
+  resultHomeLink: onlineInstantCoopResultHomeLinkElement,
+  resultCorrectCount: onlineInstantCoopResultCorrectCountElement,
+  resultReplayCount: onlineInstantCoopResultReplayCountElement,
+  resultMemberList: onlineInstantCoopResultMemberListElement,
+  resultRematchButton: onlineInstantCoopResultRematchButtonElement,
+  resultRematchConfirmModal: onlineBattleResultRematchConfirmModalElement,
+  onQuitDuringBattle: () => quitOnlineBattleDuringQuiz(),
+  onLeaveResultToHome: () => leaveOnlineBattleRoomView(),
 });
 
 // オンライン対戦：出題する曲を選ぶ画面（2026-08-08新設）。イントロ対戦・ランダム再生対戦・

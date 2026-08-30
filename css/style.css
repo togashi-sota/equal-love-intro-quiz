@@ -12513,6 +12513,21 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   color: var(--color-danger);
 }
 
+/* 一瞬協力：問題ごとの正解/不正解の表示（2026-08-31新設）。 */
+.online-battle-outcome-badge {
+  display: inline-block;
+  padding: 0.3em 0.9em;
+  border-radius: 999px;
+  font-weight: 700;
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.online-battle-outcome-badge.is-correct-answer-badge {
+  background: var(--color-accent-soft);
+  color: var(--color-primary-dark);
+}
+
 /* ===== オンライン対戦Step2：ロビーの対戦設定・準備完了・開始まわり ===== */
 
 .online-battle-ready-changed-notice {

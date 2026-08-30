@@ -21,6 +21,7 @@ import * as randomPlaybackBattleMode from "./randomPlaybackBattleMode.js";
 import * as lyricsQuizBattleMode from "./lyricsQuizBattleMode.js";
 import * as outroBattleMode from "./outroBattleMode.js";
 import * as instantBattleMode from "./instantBattleMode.js";
+import * as instantCoopBattleMode from "./instantCoopBattleMode.js";
 
 const REGISTRY = {
   [timeAttackBattleMode.gameMode]: timeAttackBattleMode,
@@ -28,6 +29,7 @@ const REGISTRY = {
   [lyricsQuizBattleMode.gameMode]: lyricsQuizBattleMode,
   [outroBattleMode.gameMode]: outroBattleMode,
   [instantBattleMode.gameMode]: instantBattleMode,
+  [instantCoopBattleMode.gameMode]: instantCoopBattleMode,
 };
 
 // gameMode名からアダプターを取り出す。未登録のgameMode（対応していないモード・

@@ -15,6 +15,7 @@
 
 export const LYRICS_QUIZ_GAME_MODE = "lyricsQuiz";
 export const INSTANT_BATTLE_GAME_MODE = "instantBattle";
+export const INSTANT_COOP_GAME_MODE = "instantCoop";
 
 // オンライン対戦で選べる、readFormSettings（既存のタイムアタック用フォーム）を使うgameMode。
 // randomPlayback・outroQuizはjs/battleModes/randomPlaybackBattleMode.js・outroBattleMode.jsが
@@ -32,7 +33,16 @@ const FORM_BASED_GAME_MODES = ["timeAttack", "randomPlayback", "outroQuiz"];
 //   即座にFirebaseへ書き込まれている値。フォームを読み直す必要が無い）
 // instantBattleRoomSettings: 一瞬バトルの場合に使う、今のroom.settings（歌詞クイズと同じ理由・
 //   同じ「変更のたびに即座に反映」方式）。
-export function resolveStartSettingsForSubmit({ gameMode, readFormSettings, lyricsQuizRoomSettings, instantBattleRoomSettings }) {
+// instantCoopRoomSettings: 一瞬協力の場合に使う、今のroom.settings（一瞬バトルと設定の形が
+//   完全に同じ〈js/battleModes/instantCoopBattleMode.jsがinstantBattleMode.jsを再利用〉ため、
+//   同じ理由・同じ方式）。
+export function resolveStartSettingsForSubmit({
+  gameMode,
+  readFormSettings,
+  lyricsQuizRoomSettings,
+  instantBattleRoomSettings,
+  instantCoopRoomSettings,
+}) {
   if (gameMode === LYRICS_QUIZ_GAME_MODE) {
     if (!lyricsQuizRoomSettings) {
       throw new Error("対戦設定をまだ読み込めていません。少し待ってからもう一度お試しください。");
@@ -44,6 +54,12 @@ export function resolveStartSettingsForSubmit({ gameMode, readFormSettings, lyri
       throw new Error("対戦設定をまだ読み込めていません。少し待ってからもう一度お試しください。");
     }
     return instantBattleRoomSettings;
+  }
+  if (gameMode === INSTANT_COOP_GAME_MODE) {
+    if (!instantCoopRoomSettings) {
+      throw new Error("対戦設定をまだ読み込めていません。少し待ってからもう一度お試しください。");
+    }
+    return instantCoopRoomSettings;
   }
   if (FORM_BASED_GAME_MODES.includes(gameMode)) {
     return readFormSettings();

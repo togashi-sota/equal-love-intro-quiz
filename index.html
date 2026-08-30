@@ -3078,6 +3078,7 @@
             </div>
             <div class="option-row">
               <label><input type="radio" name="online-battle-lobby-mode-change-select" value="instantBattle"> 一瞬バトル</label>
+              <label><input type="radio" name="online-battle-lobby-mode-change-select" value="instantCoop"> 一瞬協力</label>
             </div>
             <button id="online-battle-lobby-mode-change-confirm" class="primary-button" type="button">このモードに変更する</button>
           </fieldset>
@@ -3291,6 +3292,52 @@
 
         <p id="online-instant-battle-settings-error" class="error-message" hidden></p>
 
+        <!-- 一瞬協力専用：ホスト用設定（2026-08-31新設、本人指示：19-3章）。一瞬バトルと
+             全く同じ4項目（出題数・再生時間・回答候補・カテゴリ）だが、ラジオのnameが
+             衝突しないよう別々のグループにしてある（同じ画面に両方のfieldsetがDOM上
+             共存するため）。共同選曲は今回のスコープ外（本人指示になく、複雑さを避けるため
+             全曲／カテゴリ絞り込みのみに留めた）。 -->
+        <div id="online-battle-lobby-settings-host-coop" hidden>
+          <p class="battle-field-label">対戦設定（変更すると全員のREADYが解除されます）</p>
+          <fieldset>
+            <legend>出題数</legend>
+            <div class="option-row">
+              <label><input type="radio" name="online-instant-coop-settings-question-count" value="3"> 3問</label>
+              <label><input type="radio" name="online-instant-coop-settings-question-count" value="5"> 5問</label>
+              <label><input type="radio" name="online-instant-coop-settings-question-count" value="10"> 10問</label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>再生時間</legend>
+            <div class="option-row">
+              <label><input type="radio" name="online-instant-coop-settings-play-duration" value="1.5"> 1.5秒</label>
+              <label><input type="radio" name="online-instant-coop-settings-play-duration" value="1"> 1秒</label>
+              <label><input type="radio" name="online-instant-coop-settings-play-duration" value="0.5"> 0.5秒</label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>回答候補</legend>
+            <div class="option-row">
+              <label><input type="radio" name="online-instant-coop-settings-answer-pool-size" value="4"> 4択</label>
+              <label><input type="radio" name="online-instant-coop-settings-answer-pool-size" value="10"> 10択</label>
+              <label><input type="radio" name="online-instant-coop-settings-answer-pool-size" value="all"> 全曲検索</label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>カテゴリ</legend>
+            <div class="option-row">
+              <label><input type="radio" name="online-instant-coop-settings-category" value="title-track"> 表題曲のみ</label>
+              <label><input type="radio" name="online-instant-coop-settings-category" value="title-and-group"> 表題曲＋全員曲</label>
+              <label><input type="radio" name="online-instant-coop-settings-category" value="all"> 全曲</label>
+            </div>
+          </fieldset>
+        </div>
+        <div id="online-battle-lobby-settings-participant-coop" hidden>
+          <p class="battle-field-label">対戦設定（ホストが選択中）</p>
+          <div class="battle-config-summary" id="online-instant-coop-settings-summary"></div>
+        </div>
+        <p id="online-instant-coop-settings-error" class="error-message" hidden></p>
+
         <p class="online-battle-ready-changed-notice" id="online-battle-lobby-settings-changed-notice" hidden>
           設定が変更されました。もう一度準備完了してください。
         </p>
@@ -3465,6 +3512,66 @@
           </button>
         </div>
       </div>
+    </section>
+
+    <!-- オンライン対戦：一瞬協力専用の対戦中画面（2026-08-31新設、本人指示：19-3章）。
+         全員が同じ音源を同時に聞き、多数決でチームの回答を決めるホスト主導の同期進行のため、
+         一瞬バトル（各自が自分のペースで進む独立進行）とは別の専用画面として分離した。
+         js/onlineInstantCoopBattleScreen.jsが内容を組み立てる。 -->
+    <section id="online-instant-coop-battle-question-screen" class="screen">
+      <div class="quiz-header-row">
+        <button id="online-instant-coop-battle-quit-button" class="quiz-back-link" type="button">✕ 対戦をやめる</button>
+        <span id="online-instant-coop-battle-progress" class="lyrics-quiz-progress">第1問 / 5問</span>
+      </div>
+
+      <div class="quiz-middle-zone">
+        <div class="quiz-middle-zone-inner">
+          <p id="online-instant-coop-battle-error" class="error-message" hidden></p>
+          <p id="online-instant-coop-battle-tie-notice" class="battle-warning-box" hidden></p>
+
+          <div id="online-instant-coop-battle-answer-section" class="lyrics-quiz-answer-section">
+            <p class="lyrics-quiz-answer-label">この曲は？（みんなで投票します）</p>
+            <div id="online-instant-coop-battle-answer-search-row" class="lyrics-quiz-answer-search-row" hidden>
+              <input id="online-instant-coop-battle-answer-search-input" class="lyrics-quiz-answer-search-input" type="text" placeholder="曲名で検索">
+              <span id="online-instant-coop-battle-answer-count" class="lyrics-quiz-answer-count">0曲</span>
+            </div>
+            <div id="online-instant-coop-battle-answer-list" class="lyrics-quiz-answer-list"></div>
+            <button id="online-instant-coop-battle-unknown-button" class="secondary-button" type="button">🤷 わからない</button>
+          </div>
+
+          <p id="online-instant-coop-battle-waiting-notice" class="online-battle-lead-text" hidden></p>
+
+          <div id="online-instant-coop-battle-reveal-section" hidden>
+            <p id="online-instant-coop-battle-reveal-outcome-badge" class="online-battle-outcome-badge"></p>
+            <p id="online-instant-coop-battle-reveal-correct-song"></p>
+            <p id="online-instant-coop-battle-reveal-team-answer"></p>
+            <p id="online-instant-coop-battle-reveal-tiebreak-notice" hidden>同数のため、ランダムでチームの回答を決めました</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- オンライン対戦：一瞬協力専用の結果画面（2026-08-31新設）。個人の順位ではなく、
+         チーム全体の成績（正解数・合計共有再視聴回数）だけを表示する（本人指示）。 -->
+    <section id="online-instant-coop-battle-result-screen" class="screen">
+      <button id="online-instant-coop-battle-result-home-link" class="quiz-back-link" type="button">⌂ ホームへ戻る</button>
+      <div class="title-block"><h2>一瞬協力：結果</h2></div>
+
+      <div class="time-attack-result-stats-row">
+        <div class="time-attack-result-stat">
+          <p class="time-attack-result-stat-label">チームの正解数</p>
+          <p id="online-instant-coop-battle-result-correct-count" class="time-attack-result-stat-value">0 / 0問</p>
+        </div>
+        <div class="time-attack-result-stat">
+          <p class="time-attack-result-stat-label">合計共有再視聴回数</p>
+          <p id="online-instant-coop-battle-result-replay-count" class="time-attack-result-stat-value">0回</p>
+        </div>
+      </div>
+
+      <p class="battle-field-label">参加メンバー</p>
+      <ul id="online-instant-coop-battle-result-member-list" class="online-lobby-player-list"></ul>
+
+      <button id="online-instant-coop-battle-result-rematch-button" class="primary-button" type="button">もう一度対戦する</button>
     </section>
 
     <!-- オンライン対戦：歌詞クイズ専用の対戦中画面（Phase6新設）。
@@ -4001,6 +4108,18 @@
       <div class="button-row">
         <button id="online-instant-battle-quit-cancel-button" class="secondary-button" type="button">キャンセル</button>
         <button id="online-instant-battle-quit-confirm-button" class="danger-button" type="button">対戦をやめる</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 一瞬協力：対戦中断確認モーダル（2026-08-31新設）。online-instant-battle-quit-confirm-modalと同じ構造。 -->
+  <div id="online-instant-coop-battle-quit-confirm-modal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="online-instant-coop-battle-quit-confirm-title">
+      <h2 id="online-instant-coop-battle-quit-confirm-title">対戦を中断してルームを退出しますか？</h2>
+      <p class="modal-lead">退出後も対戦は続き、他の参加者はそのまま対戦を続けられます。</p>
+      <div class="button-row">
+        <button id="online-instant-coop-battle-quit-cancel-button" class="secondary-button" type="button">キャンセル</button>
+        <button id="online-instant-coop-battle-quit-confirm-button" class="danger-button" type="button">対戦をやめる</button>
       </div>
     </div>
   </div>

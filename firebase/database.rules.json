@@ -235,6 +235,37 @@
                   "missCount": { ".validate": "newData.isNumber() && newData.val() >= 0" }
                 }
               }
+            },
+
+            "coopRoundNumber": {
+              ".write": "auth != null && root.child('rooms/' + $roomId + '/host').val() === auth.uid",
+              ".validate": "newData.isNumber() && newData.val() >= 0"
+            },
+            "coopVotes": {
+              "$questionIndex": {
+                "$roundNumber": {
+                  "$uid": {
+                    ".write": "auth != null && auth.uid === $uid && !data.exists() && root.child('rooms/' + $roomId + '/activeMatchId').val() === $matchId && root.child('rooms/' + $roomId + '/status').val() === 'playing' && (root.child('rooms/' + $roomId + '/matches/' + $matchId + '/currentQuestionIndex').val() + '') === $questionIndex && (root.child('rooms/' + $roomId + '/matches/' + $matchId + '/coopRoundNumber').val() + '') === $roundNumber && root.child('rooms/' + $roomId + '/matches/' + $matchId + '/questionStatus').val() === 'active' && root.child('rooms/' + $roomId + '/matches/' + $matchId + '/participants/' + $uid).exists()",
+                    ".validate": "newData.hasChildren(['selectedSongId', 'submittedAt'])",
+                    "selectedSongId": { ".validate": "newData.isString() && newData.val().length > 0" },
+                    "submittedAt": { ".validate": "newData.isNumber()" },
+                    "$other": { ".validate": false }
+                  }
+                }
+              }
+            },
+            "coopQuestionOutcomes": {
+              "$questionIndex": {
+                ".write": "auth != null && root.child('rooms/' + $roomId + '/host').val() === auth.uid",
+                ".validate": "newData.hasChildren(['isCorrect', 'usedTieBreakRandom', 'sharedReplayCount']) && newData.child('isCorrect').isBoolean()"
+              }
+            },
+            "coopTeamResult": {
+              ".write": "auth != null && !data.exists() && root.child('rooms/' + $roomId + '/host').val() === auth.uid",
+              ".validate": "newData.hasChildren(['totalQuestions', 'correctCount', 'totalSharedReplayCount'])",
+              "totalQuestions": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+              "correctCount": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+              "totalSharedReplayCount": { ".validate": "newData.isNumber() && newData.val() >= 0" }
             }
           }
         }

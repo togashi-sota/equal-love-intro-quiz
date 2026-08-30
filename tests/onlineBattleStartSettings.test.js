@@ -8,6 +8,7 @@
 import {
   LYRICS_QUIZ_GAME_MODE,
   INSTANT_BATTLE_GAME_MODE,
+  INSTANT_COOP_GAME_MODE,
   resolveStartSettingsForSubmit,
   resolveLastRoomRejoinOutcome,
 } from "../js/onlineBattleStartSettings.js";
@@ -92,6 +93,34 @@ export function runOnlineBattleStartSettingsTests() {
       }),
     /対戦設定をまだ読み込めていません/,
     "instantBattleでinstantBattleRoomSettingsが無い場合は例外"
+  );
+
+  // 一瞬協力はroom.settingsをそのまま使い、フォームは一切読まない（一瞬バトルと同じ理由）
+  {
+    const instantCoopRoomSettings = {
+      questionCountValue: "5",
+      categoryFilterValue: "title-track",
+      playDurationValue: "1",
+      answerPoolSizeValue: "10",
+    };
+    const result = resolveStartSettingsForSubmit({
+      gameMode: INSTANT_COOP_GAME_MODE,
+      readFormSettings: () => ({}),
+      instantCoopRoomSettings,
+    });
+    assertEqual(result, instantCoopRoomSettings, "instantCoopはinstantCoopRoomSettingsをそのまま使う");
+  }
+
+  // 一瞬協力で、まだroom.settingsを受け取っていない場合はエラー
+  assertThrows(
+    () =>
+      resolveStartSettingsForSubmit({
+        gameMode: INSTANT_COOP_GAME_MODE,
+        readFormSettings: () => ({}),
+        instantCoopRoomSettings: null,
+      }),
+    /対戦設定をまだ読み込めていません/,
+    "instantCoopでinstantCoopRoomSettingsが無い場合は例外"
   );
 
   // lyricsQuizはroom.settingsをそのまま使い、フォームは一切読まない
