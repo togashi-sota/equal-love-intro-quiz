@@ -66,12 +66,17 @@ let replayCounts = []; // 問題ごとの「もう一度聞く」使用回数（
 let seed = 0;
 let hasAnsweredCurrentQuestion = false;
 let questionStartedAt = 0;
-// 【2026-08-30追加・本人指示：苦手曲5系統完全分離】苦手曲モード「一瞬」タブから開始した回かどうか。
-// 苦手曲モード自身の結果が苦手曲判定・称号・クリア記録へフィードバックされてしまうのを防ぐため
-// （js/weakSongsScreen.js・js/main.jsのbeginSpecialQuiz()等、他の苦手曲タブと同じ方針）、
-// trueの間はrecordInstantChallengeWeakSongAttempt・称号判定・クリア記録を呼ばない。
-// プレイ履歴（js/playHistory.js）には他の苦手曲タブと同じく通常どおり記録する。
-let isWeakSongsPractice = false;
+// 【2026-08-30追加・本人指示：苦手曲5系統完全分離／オリジナル問題作成モード一瞬対応】
+// 通常の（カテゴリー絞り込みからの）一瞬チャレンジ以外の入り口から開始した回かどうか。
+//   null                 : 通常の一瞬チャレンジ（#instant-challenge-setup-screen経由）
+//   "weakSongsInstant"   : 苦手曲モード「一瞬」タブから開始
+//   "customQuizInstant"  : オリジナル問題作成モード・一瞬チャレンジタイプから開始
+// 苦手曲モード・オリジナル問題作成モードどちらも「練習結果を判定へ書き戻さない」方針
+// （js/weakSongsScreen.js・他のオリジナル問題作成タイプと同じ）のため、null以外の間は
+// recordInstantChallengeWeakSongAttempt・称号判定・クリア記録を呼ばない。
+// プレイ履歴（js/playHistory.js）には他モードと同じく通常どおり記録する
+// （modeId・modeLabelをこの値に応じて出し分ける）。
+let practiceModeId = null;
 
 // ===== 1. 設定画面 =====
 
@@ -92,14 +97,14 @@ function getSelectedSettings() {
 
 async function handleStartButtonClick() {
   const settings = getSelectedSettings();
-  isWeakSongsPractice = false;
+  practiceModeId = null;
   currentExplicitSongIds = null;
   await buildAndStartRun(settings);
 }
 
 export async function retryInstantChallengeRun() {
   if (!currentSettings) return;
-  // isWeakSongsPractice・currentExplicitSongIdsは前回開始時の値のまま維持する
+  // practiceModeId・currentExplicitSongIdsは前回開始時の値のまま維持する
   // （「もう一度挑戦する」で練習/通常の種別・出題対象曲が変わることはないため）。
   await buildAndStartRun(currentSettings, currentExplicitSongIds);
 }
@@ -110,15 +115,30 @@ export async function retryInstantChallengeRun() {
 // 専用fieldset（再生時間・回答方式・出題数）を使うため、このファイルの設定画面
 // （#instant-challenge-setup-screen）は経由しない。
 export async function startInstantChallengeWeakSongsPractice(songIds, settings) {
-  isWeakSongsPractice = true;
+  practiceModeId = "weakSongsInstant";
   return buildAndStartRun({ ...settings, categoryFilterValue: "weakSongs" }, songIds);
+}
+
+// オリジナル問題作成モード・一瞬チャレンジタイプからの開始（2026-08-30新設、本人指示：後半②）。
+// 上のstartInstantChallengeWeakSongsPractice()と同じ理由・同じ仕組みで、あらかじめ選んだ曲
+// （songIds）だけを出題プールにする。出題数は他のオリジナル問題作成タイプと同じく
+// 「選んだ曲すべて」にするため、questionCountValueは常に"all"を使う。
+export async function startInstantChallengeFromCustomPreset(songIds, settings) {
+  practiceModeId = "customQuizInstant";
+  return buildAndStartRun({ ...settings, questionCountValue: "all", categoryFilterValue: "customQuiz" }, songIds);
 }
 
 // 今表示中の問題・結果が、苦手曲モード「一瞬」タブからの練習かどうか。main.js側で
 // 「戻る」「設定へ戻る」「ホームへ戻る」の遷移先を、通常の一瞬チャレンジ設定画面ではなく
 // 苦手曲モード画面へ切り替えるために使う。
 export function isInstantChallengeWeakSongsPractice() {
-  return isWeakSongsPractice;
+  return practiceModeId === "weakSongsInstant";
+}
+
+// 今表示中の問題・結果が、オリジナル問題作成モードからの開始かどうか。main.js側で
+// 「戻る」「設定へ戻る」「ホームへ戻る」の遷移先をプリセット一覧画面へ切り替えるために使う。
+export function isInstantChallengeFromCustomPreset() {
+  return practiceModeId === "customQuizInstant";
 }
 
 // 音源を読み込み済みの曲だけで出題プールを組み立てる（既存の各モードと同じ絞り込み方針）。
@@ -325,7 +345,7 @@ function handleAnswerSelected(selectedSongId, buttonElement) {
   const question = questions[currentIndex];
   const isCorrect = selectedSongId === question.song.id;
   answers.push({ songId: question.song.id, isCorrect, replayCount: replayCounts[currentIndex] });
-  if (!isWeakSongsPractice) {
+  if (practiceModeId === null) {
     recordInstantChallengeWeakSongAttempt(question.song.id, isCorrect);
   }
 
@@ -380,7 +400,7 @@ export function renderInstantChallengeResult() {
   // 【2026-08-30追加・本人指示：苦手曲5系統完全分離】苦手曲モード「一瞬」タブからの練習は、
   // クリア記録・称号判定のどちらにも一切反映しない（他の苦手曲タブと同じ「練習結果を
   // 判定へ書き戻さない」方針。クリアバッジ自体はその場の達成感として表示したままにする）。
-  if (isCleared && !isWeakSongsPractice) {
+  if (isCleared && practiceModeId === null) {
     recordInstantChallengeClear(currentSettings.playDurationValue, currentSettings.answerPoolSizeValue, String(answers.length), {
       noReplayUsed,
     });
@@ -389,7 +409,7 @@ export function renderInstantChallengeResult() {
   // 【2026-08-30追加・本人指示⑦⑪】一瞬チャレンジ専用の称号判定（一瞬ビギナー〜マスター・
   // 即聞即答）。js/achievementEvaluation.jsのevaluateInstantChallengeAchievements()は
   // 「実際に出題された問題数」を条件キーとして受け取る（クリア記録と同じ理由）。
-  const earnedAchievementIds = isWeakSongsPractice
+  const earnedAchievementIds = practiceModeId !== null
     ? []
     : evaluateInstantChallengeAchievements({
         playDurationValue: currentSettings.playDurationValue,
@@ -409,8 +429,13 @@ export function renderInstantChallengeResult() {
 
   savePlayHistoryEntry({
     playedAt: Date.now(),
-    modeId: isWeakSongsPractice ? "weakSongsInstant" : "instantChallenge",
-    modeLabel: isWeakSongsPractice ? "苦手曲モード（一瞬）" : "一瞬チャレンジ",
+    modeId: practiceModeId ?? "instantChallenge",
+    modeLabel:
+      practiceModeId === "weakSongsInstant"
+        ? "苦手曲モード（一瞬）"
+        : practiceModeId === "customQuizInstant"
+          ? "オリジナル問題（一瞬）"
+          : "一瞬チャレンジ",
     questionCount: answers.length,
     isAllSongsMode: currentSettings.categoryFilterValue === "all",
     correctCount,

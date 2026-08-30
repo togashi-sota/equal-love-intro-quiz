@@ -41,6 +41,8 @@ import {
   retryInstantChallengeRun,
   startInstantChallengeWeakSongsPractice,
   isInstantChallengeWeakSongsPractice,
+  startInstantChallengeFromCustomPreset,
+  isInstantChallengeFromCustomPreset,
 } from "./instantChallengeScreen.js";
 import { startTimer, stopTimer } from "./timer.js";
 import { calculateScore, calculateRank } from "./score.js";
@@ -1037,9 +1039,14 @@ const customQuizTypeSelectRandomPlaybackButtonElement = document.getElementById(
 );
 const customQuizTypeSelectLyricsButtonElement = document.getElementById("custom-quiz-type-select-lyrics");
 const customQuizTypeSelectOutroButtonElement = document.getElementById("custom-quiz-type-select-outro");
+const customQuizTypeSelectInstantButtonElement = document.getElementById("custom-quiz-type-select-instant");
 const customQuizPresetsEyebrowLabelElement = document.getElementById("custom-quiz-presets-eyebrow-label");
 const customQuizDistractorModeFieldsetElement = document.getElementById("custom-quiz-distractor-mode-fieldset");
 const customQuizAnswerPoolSizeFieldsetElement = document.getElementById("custom-quiz-answer-pool-size-fieldset");
+const customQuizInstantDurationFieldsetElement = document.getElementById("custom-quiz-instant-duration-fieldset");
+const customQuizInstantAnswerPoolSizeFieldsetElement = document.getElementById(
+  "custom-quiz-instant-answer-pool-size-fieldset"
+);
 const customQuizBackButtonElement = document.getElementById("custom-quiz-back-button");
 const customQuizPresetsBackButtonElement = document.getElementById("custom-quiz-presets-back-button");
 const customQuizRulesLinkElement = document.getElementById("custom-quiz-rules-link");
@@ -1987,6 +1994,24 @@ customQuizTypeSelectLyricsButtonElement.addEventListener("click", () => {
 customQuizTypeSelectOutroButtonElement.addEventListener("click", () => {
   selectCustomQuizTypeAndGoToPresets(CUSTOM_QUIZ_TYPE.OUTRO_QUIZ);
 });
+customQuizTypeSelectInstantButtonElement.addEventListener("click", () => {
+  selectCustomQuizTypeAndGoToPresets(CUSTOM_QUIZ_TYPE.INSTANT_CHALLENGE);
+});
+
+// オリジナル問題作成モード・一瞬チャレンジタイプの開始（2026-08-30新設、本人指示：後半②）。
+// js/instantChallengeScreen.jsのstartInstantChallengeFromCustomPreset()が、あらかじめ選んだ
+// 曲だけを出題プールにする（出題数は選んだ曲すべて＝questionCountValue:"all"固定）。
+// 既存の一瞬チャレンジ問題・結果画面（#instant-challenge-question-screen等）をそのまま使う。
+async function beginCustomInstantChallengeQuiz(songIds, settings) {
+  const started = await startInstantChallengeFromCustomPreset(songIds, settings);
+  if (!started) {
+    console.warn("[オリジナル問題作成モード] 一瞬チャレンジタイプの開始に失敗しました（音源不足）", songIds);
+    return;
+  }
+  setInstantChallengeBackLabels("customQuiz");
+  showScreen("instantChallengeQuestion");
+  startInstantChallengePlay();
+}
 
 // プリセットの種類（preset.quizType）に応じて、3つの開始処理のうちどれを呼ぶかを振り分ける
 // 共通処理（2026-08-29追加、本人指示（⑭)）。「▶ プレイ」・プリセット詳細モーダルの
@@ -2010,6 +2035,13 @@ async function beginCustomQuizByPreset(preset) {
   }
   if (preset.quizType === CUSTOM_QUIZ_TYPE.OUTRO_QUIZ) {
     beginCustomOutroQuiz(preset.songIds, preset.distractorMode);
+    return;
+  }
+  if (preset.quizType === CUSTOM_QUIZ_TYPE.INSTANT_CHALLENGE) {
+    beginCustomInstantChallengeQuiz(preset.songIds, {
+      playDurationValue: preset.playDurationValue,
+      answerPoolSizeValue: preset.answerPoolSizeValue,
+    });
     return;
   }
   beginCustomQuiz(preset.songIds, preset.distractorMode);
@@ -2275,26 +2307,31 @@ initWeakSongsScreen({
         "対象曲の音源が読み込まれていないため開始できませんでした。スタート画面の「音源を読み込む」から追加してください。";
       return;
     }
-    setInstantChallengeBackLabelsForWeakSongsPractice(true);
+    setInstantChallengeBackLabels("weakSongs");
     showScreen("instantChallengeQuestion");
     startInstantChallengePlay();
   },
 });
 
-// 【2026-08-30追加、本人指示：苦手曲5系統完全分離】苦手曲モード「一瞬」タブからの練習中は、
-// 一瞬チャレンジ問題画面・結果画面の「戻る」文言を「苦手曲モードへ」に差し替える
-// （遷移先自体はjs/instantChallengeScreen.jsのisInstantChallengeWeakSongsPractice()を見て
-// すでに苦手曲モード画面になっているため、これは表示文言だけの調整）。
-function setInstantChallengeBackLabelsForWeakSongsPractice(isPractice) {
+// 【2026-08-30追加、本人指示：苦手曲5系統完全分離／オリジナル問題作成モード一瞬対応】
+// 苦手曲モード「一瞬」タブ・オリジナル問題作成モードからの開始中は、一瞬チャレンジ問題画面・
+// 結果画面の「戻る」文言をそれぞれの遷移先に合わせて差し替える（遷移先自体はmain.js側の
+// isInstantChallengeWeakSongsPractice()・isInstantChallengeFromCustomPreset()を見て
+// すでに正しい画面になっているため、これは表示文言だけの調整）。
+// entryMode: null（通常）| "weakSongs" | "customQuiz"
+function setInstantChallengeBackLabels(entryMode) {
   const backButtonTextNode = Array.from(instantChallengeBackButtonElement.childNodes).find(
     (node) => node.nodeType === Node.TEXT_NODE && node.textContent.trim() !== ""
   );
+  const labels = {
+    weakSongs: { back: "苦手曲モードへ", setup: "← 苦手曲モードへ戻る" },
+    customQuiz: { back: "セット一覧へ", setup: "← オリジナル問題一覧へ戻る" },
+  };
+  const label = labels[entryMode] ?? { back: "設定に戻る", setup: "← 一瞬チャレンジ設定へ戻る" };
   if (backButtonTextNode) {
-    backButtonTextNode.textContent = isPractice ? "苦手曲モードへ" : "設定に戻る";
+    backButtonTextNode.textContent = label.back;
   }
-  instantChallengeResultSetupButtonElement.textContent = isPractice
-    ? "← 苦手曲モードへ戻る"
-    : "← 一瞬チャレンジ設定へ戻る";
+  instantChallengeResultSetupButtonElement.textContent = label.setup;
 }
 
 // オリジナル問題作成モードの選曲画面の描画に使うDOM要素一式を渡して初期化する。
@@ -2321,6 +2358,8 @@ initCustomQuizScreen({
   previewLyricsPanel: document.getElementById("custom-quiz-preview-lyrics"),
   distractorModeFieldset: customQuizDistractorModeFieldsetElement,
   answerPoolSizeFieldset: customQuizAnswerPoolSizeFieldsetElement,
+  instantDurationFieldset: customQuizInstantDurationFieldsetElement,
+  instantAnswerPoolSizeFieldset: customQuizInstantAnswerPoolSizeFieldsetElement,
   nameInput: document.getElementById("custom-quiz-name-input"),
   memoInput: document.getElementById("custom-quiz-memo-input"),
   nameError: document.getElementById("custom-quiz-name-error"),
@@ -2351,6 +2390,13 @@ initCustomQuizScreen({
     }
     if (quizType === CUSTOM_QUIZ_TYPE.OUTRO_QUIZ) {
       beginCustomOutroQuiz(songIds, distractorModeOrAnswerPoolSizeValue);
+      return;
+    }
+    if (quizType === CUSTOM_QUIZ_TYPE.INSTANT_CHALLENGE) {
+      // 一瞬チャレンジタイプだけは、distractorModeOrAnswerPoolSizeValueが
+      // { playDurationValue, answerPoolSizeValue } のオブジェクトになる
+      // （js/customQuizScreen.jsのhandleStart参照）。
+      await beginCustomInstantChallengeQuiz(songIds, distractorModeOrAnswerPoolSizeValue);
       return;
     }
     beginCustomQuiz(songIds, distractorModeOrAnswerPoolSizeValue);
@@ -3540,7 +3586,7 @@ initInstantChallengeSetupScreen({
   startButton: instantChallengeStartButtonElement,
   startError: instantChallengeStartErrorElement,
   onStart: () => {
-    setInstantChallengeBackLabelsForWeakSongsPractice(false);
+    setInstantChallengeBackLabels(null);
     showScreen("instantChallengeQuestion");
     startInstantChallengePlay();
   },
@@ -3559,11 +3605,16 @@ initInstantChallengeQuestionScreen({
   quitCancelButton: instantChallengeQuitCancelButtonElement,
   quitRestartButton: instantChallengeQuitRestartButtonElement,
   quitConfirmButton: instantChallengeQuitConfirmButtonElement,
-  // 【2026-08-30追加、本人指示：苦手曲5系統完全分離】苦手曲モード「一瞬」タブからの練習中は、
-  // 「戻る」の先を通常の一瞬チャレンジ設定画面ではなく苦手曲モード画面にする。
+  // 【2026-08-30追加、本人指示：苦手曲5系統完全分離／オリジナル問題作成モード一瞬対応】
+  // 苦手曲モード「一瞬」タブ・オリジナル問題作成モードからの開始中は、「戻る」の先を
+  // それぞれの一覧画面にする。
   onQuit: () => {
     if (isInstantChallengeWeakSongsPractice()) {
       goToWeakSongsScreen();
+      return;
+    }
+    if (isInstantChallengeFromCustomPreset()) {
+      goToCustomQuizPresetsList();
       return;
     }
     navigateWithScrollMemory("instantChallengeSetup");
@@ -3605,6 +3656,10 @@ instantChallengeResultSetupButtonElement.addEventListener("click", () => {
   playClickSound();
   if (isInstantChallengeWeakSongsPractice()) {
     goToWeakSongsScreen();
+    return;
+  }
+  if (isInstantChallengeFromCustomPreset()) {
+    goToCustomQuizPresetsList();
     return;
   }
   navigateWithScrollMemory("instantChallengeSetup");

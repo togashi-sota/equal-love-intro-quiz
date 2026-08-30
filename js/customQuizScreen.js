@@ -52,6 +52,8 @@ export function getCustomQuizType() {
 let lastStartedSongIds = [];
 let lastStartedDistractorMode = "selected";
 let lastStartedAnswerPoolSizeValue = "4";
+// 一瞬チャレンジタイプだけが使う再生時間（2026-08-30追加、本人指示：後半②）。
+let lastStartedPlayDurationValue = "1.5";
 
 // 今、既存のどのプリセットを開いているか（新規作成中はnull）。
 // 上書き保存・削除の対象を特定するために使う。
@@ -425,13 +427,19 @@ function handleDeselectAllSongs() {
   refreshSelectionUI();
 }
 
-// 今の種類（currentQuizType）に応じて、ダミー選択肢／回答方式のどちらの欄を見せるかを切り替える
-// （2026-08-29追加、本人指示（⑭)）。歌詞クイズタイプだけ回答方式（回答候補の数）を使い、
-// イントロ・ランダム再生タイプはダミー選択肢を使う（出題の仕組み自体がイントロと共通のため）。
+// 今の種類（currentQuizType）に応じて、ダミー選択肢／回答方式／一瞬チャレンジ専用設定の
+// どれを見せるかを切り替える（2026-08-29追加・2026-08-30改訂、本人指示）。歌詞クイズタイプは
+// 回答方式（回答候補4/10/30/50/全曲）、一瞬チャレンジタイプは再生時間＋回答方式
+// （回答候補4/10/全曲、歌詞クイズより選択肢が少ない専用のfieldset）を使い、
+// イントロ・ランダム再生・アウトロタイプはダミー選択肢を使う（出題の仕組み自体が
+// イントロと共通のため）。
 function updateQuizTypeFieldsetVisibility() {
   const isLyrics = currentQuizType === CUSTOM_QUIZ_TYPE.LYRICS_QUIZ;
-  elements.distractorModeFieldset.hidden = isLyrics;
+  const isInstant = currentQuizType === CUSTOM_QUIZ_TYPE.INSTANT_CHALLENGE;
+  elements.distractorModeFieldset.hidden = isLyrics || isInstant;
   elements.answerPoolSizeFieldset.hidden = !isLyrics;
+  elements.instantDurationFieldset.hidden = !isInstant;
+  elements.instantAnswerPoolSizeFieldset.hidden = !isInstant;
 }
 
 // 「この曲でクイズを始める」が押されたときの処理。今の選択内容を記憶したうえで、
@@ -445,6 +453,15 @@ function handleStart() {
   if (currentQuizType === CUSTOM_QUIZ_TYPE.LYRICS_QUIZ) {
     lastStartedAnswerPoolSizeValue = document.querySelector('input[name="custom-quiz-answer-pool-size"]:checked').value;
     elements.onStart(lastStartedSongIds, lastStartedAnswerPoolSizeValue);
+    return;
+  }
+  if (currentQuizType === CUSTOM_QUIZ_TYPE.INSTANT_CHALLENGE) {
+    lastStartedPlayDurationValue = document.querySelector('input[name="custom-quiz-instant-play-duration"]:checked').value;
+    lastStartedAnswerPoolSizeValue = document.querySelector('input[name="custom-quiz-instant-answer-pool-size"]:checked').value;
+    elements.onStart(lastStartedSongIds, {
+      playDurationValue: lastStartedPlayDurationValue,
+      answerPoolSizeValue: lastStartedAnswerPoolSizeValue,
+    });
     return;
   }
   lastStartedDistractorMode = document.querySelector('input[name="custom-quiz-distractor-mode"]:checked').value;
@@ -467,7 +484,13 @@ function handleSave() {
 
   const memo = elements.memoInput.value.trim();
   const distractorMode = document.querySelector('input[name="custom-quiz-distractor-mode"]:checked').value;
-  const answerPoolSizeValue = document.querySelector('input[name="custom-quiz-answer-pool-size"]:checked').value;
+  const isInstant = currentQuizType === CUSTOM_QUIZ_TYPE.INSTANT_CHALLENGE;
+  const answerPoolSizeValue = isInstant
+    ? document.querySelector('input[name="custom-quiz-instant-answer-pool-size"]:checked').value
+    : document.querySelector('input[name="custom-quiz-answer-pool-size"]:checked').value;
+  const playDurationValue = isInstant
+    ? document.querySelector('input[name="custom-quiz-instant-play-duration"]:checked').value
+    : undefined;
   const presetData = {
     name,
     memo,
@@ -475,6 +498,7 @@ function handleSave() {
     distractorMode,
     quizType: currentQuizType,
     answerPoolSizeValue,
+    playDurationValue,
   };
 
   if (currentEditingPresetId === null) {
@@ -512,17 +536,20 @@ export function getLastStartedCustomQuizSelection() {
     songIds: lastStartedSongIds,
     distractorMode: lastStartedDistractorMode,
     answerPoolSizeValue: lastStartedAnswerPoolSizeValue,
+    playDurationValue: lastStartedPlayDurationValue,
   };
 }
 
 // プリセット一覧から選曲画面を経由せず直接クイズを始めた場合など、この画面を経由しない
 // 開始方法でも「もう一度挑戦する」が正しい内容を再開できるよう、直前の開始内容を
-// 外部から更新できるようにしておく。第3引数（answerPoolSizeValue）は歌詞クイズタイプの
-// ときだけ渡す想定（省略時は直前の値のまま）。
-export function setLastStartedCustomQuizSelection(songIds, distractorMode, answerPoolSizeValue) {
+// 外部から更新できるようにしておく。第3引数（answerPoolSizeValue）は歌詞クイズ・一瞬
+// チャレンジタイプのときだけ渡す想定、第4引数（playDurationValue）は一瞬チャレンジタイプの
+// ときだけ渡す想定（どちらも省略時は直前の値のまま）。
+export function setLastStartedCustomQuizSelection(songIds, distractorMode, answerPoolSizeValue, playDurationValue) {
   lastStartedSongIds = songIds;
   lastStartedDistractorMode = distractorMode;
   if (answerPoolSizeValue !== undefined) lastStartedAnswerPoolSizeValue = answerPoolSizeValue;
+  if (playDurationValue !== undefined) lastStartedPlayDurationValue = playDurationValue;
 }
 
 // 検索語・「選択済みの曲だけ表示」を初期状態（絞り込みなし）に戻す。
@@ -553,6 +580,8 @@ export function openCustomQuizScreenForNewPreset(quizType) {
   });
   document.querySelector('input[name="custom-quiz-distractor-mode"][value="selected"]').checked = true;
   document.querySelector('input[name="custom-quiz-answer-pool-size"][value="4"]').checked = true;
+  document.querySelector('input[name="custom-quiz-instant-play-duration"][value="1.5"]').checked = true;
+  document.querySelector('input[name="custom-quiz-instant-answer-pool-size"][value="4"]').checked = true;
 
   elements.nameInput.value = "";
   elements.memoInput.value = "";
@@ -587,6 +616,21 @@ export function openCustomQuizScreenForPreset(preset) {
   if (answerPoolSizeRadio) {
     answerPoolSizeRadio.checked = true;
   }
+  // 一瞬チャレンジタイプ専用の設定（2026-08-30追加、本人指示：後半②）。answerPoolSizeValueは
+  // 歌詞クイズと一瞬チャレンジで同じプロパティ名を共有しているが、一瞬チャレンジ専用の
+  // fieldset（選択肢が4/10/全曲のみ）へ反映する。
+  const instantAnswerPoolSizeRadio = document.querySelector(
+    `input[name="custom-quiz-instant-answer-pool-size"][value="${preset.answerPoolSizeValue}"]`
+  );
+  if (instantAnswerPoolSizeRadio) {
+    instantAnswerPoolSizeRadio.checked = true;
+  }
+  const instantPlayDurationRadio = document.querySelector(
+    `input[name="custom-quiz-instant-play-duration"][value="${preset.playDurationValue}"]`
+  );
+  if (instantPlayDurationRadio) {
+    instantPlayDurationRadio.checked = true;
+  }
 
   elements.nameInput.value = preset.name;
   elements.memoInput.value = preset.memo;
@@ -616,8 +660,10 @@ export function openCustomQuizScreenForPreset(preset) {
 //   previewSeekBackButton, previewSeekForwardButton: ミニプレイヤーの10秒戻す/送るボタン,
 //   previewSeekRange: タップ・ドラッグで再生位置を変更できるシークバー,
 //   previewCurrentTime, previewDuration: 現在位置・総時間の表示,
-//   distractorModeFieldset: ダミー選択肢の<fieldset>（歌詞クイズタイプでは隠す、2026-08-29追加）,
+//   distractorModeFieldset: ダミー選択肢の<fieldset>（歌詞クイズ・一瞬チャレンジタイプでは隠す、2026-08-29追加）,
 //   answerPoolSizeFieldset: 回答方式の<fieldset>（歌詞クイズタイプでだけ見せる、2026-08-29追加）,
+//   instantDurationFieldset: 一瞬チャレンジ専用・再生時間の<fieldset>（2026-08-30追加）,
+//   instantAnswerPoolSizeFieldset: 一瞬チャレンジ専用・回答方式（4/10/全曲）の<fieldset>（2026-08-30追加）,
 //   nameInput, memoInput: セット名・メモの入力欄,
 //   nameError: セット名が未入力のときの案内,
 //   saveButton: 「保存する」／「上書き保存する」ボタン（文言はJS側で切り替える）,

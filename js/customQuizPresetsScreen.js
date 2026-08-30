@@ -33,16 +33,22 @@ const QUIZ_TYPE_EYEBROW_LABELS = {
   [CUSTOM_QUIZ_TYPE.INTRO]: "ORIGINAL QUIZ・イントロ",
   [CUSTOM_QUIZ_TYPE.RANDOM_PLAYBACK]: "ORIGINAL QUIZ・ランダム再生",
   [CUSTOM_QUIZ_TYPE.LYRICS_QUIZ]: "ORIGINAL QUIZ・歌詞クイズ",
-  // 2026-08-30追加、本人指示：アウトロクイズタイプ。
+  // 2026-08-30追加、本人指示：アウトロクイズタイプ・一瞬チャレンジタイプ（後半②）。
   [CUSTOM_QUIZ_TYPE.OUTRO_QUIZ]: "ORIGINAL QUIZ・アウトロ",
+  [CUSTOM_QUIZ_TYPE.INSTANT_CHALLENGE]: "ORIGINAL QUIZ・一瞬",
 };
 
-// プリセットカード・詳細モーダルに表示する「◯曲・◯◯」の内訳。歌詞クイズタイプだけ
-// ダミー選択肢モードではなく回答候補数を表示する（本人指示：それぞれの種類に合った情報を出す）。
+// プリセットカード・詳細モーダルに表示する「◯曲・◯◯」の内訳。歌詞クイズタイプは
+// ダミー選択肢モードではなく回答候補数を、一瞬チャレンジタイプは再生時間＋回答候補数を
+// 表示する（本人指示：それぞれの種類に合った情報を出す。2026-08-30追加：一瞬チャレンジ）。
 function buildPresetSummaryText(preset) {
   if (preset.quizType === CUSTOM_QUIZ_TYPE.LYRICS_QUIZ) {
     const answerPoolLabel = ANSWER_POOL_SIZE_LABELS[preset.answerPoolSizeValue] ?? preset.answerPoolSizeValue;
     return `${preset.songIds.length}曲・${answerPoolLabel}`;
+  }
+  if (preset.quizType === CUSTOM_QUIZ_TYPE.INSTANT_CHALLENGE) {
+    const answerPoolLabel = ANSWER_POOL_SIZE_LABELS[preset.answerPoolSizeValue] ?? preset.answerPoolSizeValue;
+    return `${preset.songIds.length}曲・${preset.playDurationValue}秒・${answerPoolLabel}`;
   }
   const distractorLabel = DISTRACTOR_MODE_LABELS[preset.distractorMode] ?? preset.distractorMode;
   return `${preset.songIds.length}曲・${distractorLabel}`;

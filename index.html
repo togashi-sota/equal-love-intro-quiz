@@ -3392,6 +3392,12 @@
           <p class="battle-mode-big-card-title">アウトロクイズ</p>
           <p class="battle-mode-big-card-desc">選んだ曲の最後5秒を聴いて、4択から曲名を当てます</p>
         </button>
+        <!-- 2026-08-30追加、本人指示（後半②）：一瞬チャレンジタイプ。 -->
+        <button id="custom-quiz-type-select-instant" class="battle-mode-big-card" type="button">
+          <span class="battle-mode-big-card-icon">⚡</span>
+          <p class="battle-mode-big-card-title">一瞬チャレンジ</p>
+          <p class="battle-mode-big-card-desc">選んだ曲のごく一瞬（1.5〜0.5秒）だけを聴いて曲名を当てます</p>
+        </button>
       </div>
     </section>
 
@@ -3544,6 +3550,26 @@
         <div class="option-row">
           <label><input type="radio" name="custom-quiz-answer-pool-size" value="50"> 50択</label>
           <label><input type="radio" name="custom-quiz-answer-pool-size" value="all"> 全曲検索</label>
+        </div>
+      </fieldset>
+
+      <!-- 【2026-08-30追加、本人指示（後半②）】一瞬チャレンジタイプのときだけ表示する
+           再生時間・回答方式。既存の一瞬チャレンジ設定画面（#instant-challenge-setup-screen）と
+           全く同じ選択肢をそのまま流用する（回答方式は歌詞クイズより少ない4/10/全曲の3段階）。 -->
+      <fieldset id="custom-quiz-instant-duration-fieldset" hidden>
+        <legend>再生時間</legend>
+        <div class="option-row">
+          <label><input type="radio" name="custom-quiz-instant-play-duration" value="1.5" checked> 1.5秒</label>
+          <label><input type="radio" name="custom-quiz-instant-play-duration" value="1"> 1秒</label>
+          <label><input type="radio" name="custom-quiz-instant-play-duration" value="0.5"> 0.5秒</label>
+        </div>
+      </fieldset>
+      <fieldset id="custom-quiz-instant-answer-pool-size-fieldset" hidden>
+        <legend>回答方式（回答候補の数）</legend>
+        <div class="option-row">
+          <label><input type="radio" name="custom-quiz-instant-answer-pool-size" value="4" checked> 4択</label>
+          <label><input type="radio" name="custom-quiz-instant-answer-pool-size" value="10"> 10択</label>
+          <label><input type="radio" name="custom-quiz-instant-answer-pool-size" value="all"> 全曲検索</label>
         </div>
       </fieldset>
 

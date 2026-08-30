@@ -224,8 +224,9 @@ export const HISTORY_FILTER_CATEGORY = {
   // （⑭）。エンジンに応じてそれぞれのフィルターへ分類する。
   customQuizRandomPlayback: "randomPlayback",
   customQuizLyrics: "lyricsQuiz",
-  // 2026-08-30追加：オリジナル問題作成モードのアウトロタイプ（本人指示⑦）。
+  // 2026-08-30追加：オリジナル問題作成モードのアウトロタイプ（本人指示⑦）・一瞬タイプ（後半②）。
   customQuizOutro: "intro",
+  customQuizInstant: "randomPlayback",
   timeAttack: "timeAttack",
   timeAttackRandomPlayback: "timeAttack",
   randomPlayback: "randomPlayback",
@@ -276,8 +277,9 @@ export const HISTORY_MODE_DISPLAY = {
   // 専用アイコンは作らず、それぞれ対応するエンジンのiconKeyを再利用する。
   customQuizRandomPlayback: { label: "オリジナル問題（ランダム再生）", iconKey: "randomPlayback" },
   customQuizLyrics: { label: "オリジナル問題（歌詞）", iconKey: "lyricsQuiz" },
-  // 2026-08-30追加：オリジナル問題作成モードのアウトロタイプ（本人指示⑦）。
+  // 2026-08-30追加：オリジナル問題作成モードのアウトロタイプ（本人指示⑦）・一瞬タイプ（後半②）。
   customQuizOutro: { label: "オリジナル問題（アウトロ）", iconKey: "outroQuiz" },
+  customQuizInstant: { label: "オリジナル問題（一瞬）", iconKey: "instantChallenge" },
   customQuiz: { label: "オリジナル問題", iconKey: "originalQuiz" },
   timeAttack: { label: "タイムアタック", iconKey: "timeAttack" },
   timeAttackRandomPlayback: { label: "タイムアタック（ランダム再生）", iconKey: "timeAttack" },
@@ -346,7 +348,8 @@ export function describeEntrySummaryLines(entry) {
       break;
     }
     case "instantChallenge":
-    case "weakSongsInstant": {
+    case "weakSongsInstant":
+    case "customQuizInstant": {
       lines.push([questionCountLabel, scopeLabel].filter(Boolean).join("・"));
       const clearText = entry.details?.isCleared ? "🎉 クリア" : "";
       lines.push(`${entry.correctCount}/${entry.questionCount}問正解${clearText ? `・${clearText}` : ""}`);
