@@ -64,6 +64,7 @@ const SCREEN_ELEMENTS = {
   onlineBattleWaiting: document.getElementById("online-battle-waiting-screen"),
   onlineBattleResult: document.getElementById("online-battle-result-screen"),
   onlineBattleSpectator: document.getElementById("online-battle-spectator-screen"),
+  onlineInstantBattleQuestion: document.getElementById("online-instant-battle-question-screen"),
   onlineLyricsBattleQuestion: document.getElementById("online-lyrics-battle-question-screen"),
   onlineLyricsBattleResult: document.getElementById("online-lyrics-battle-result-screen"),
 };

@@ -161,6 +161,7 @@ import {
   leaveOnlineBattleRoomView,
 } from "./onlineBattleScreen.js";
 import { initOnlineLyricsQuizBattleScreens } from "./onlineLyricsQuizBattleScreen.js";
+import { initOnlineInstantBattleScreens } from "./onlineInstantBattleScreen.js";
 import { initOnlineBattleSongPicker } from "./onlineBattleSongPicker.js";
 import { initOnlineBattlePlaylistPicker } from "./onlineBattlePlaylistPicker.js";
 import { initOnlineBattleSongListConfirmModal } from "./onlineBattleSongListConfirmModal.js";
@@ -989,6 +990,25 @@ const onlineBattleSpectatorLeaveButtonElement = document.getElementById("online-
 const onlineBattleSpectatorGameModeElement = document.getElementById("online-battle-spectator-game-mode");
 const onlineBattleSpectatorPlayerCountElement = document.getElementById("online-battle-spectator-player-count");
 const onlineBattleSpectatorPlayerListElement = document.getElementById("online-battle-spectator-player-list");
+
+// オンライン対戦：一瞬バトル専用（2026-08-30新設、本人指示：19-3章）。
+const onlineInstantBattleLobbySettingsHostElement = document.getElementById("online-battle-lobby-settings-host-instant");
+const onlineInstantBattleLobbySettingsParticipantElement = document.getElementById("online-battle-lobby-settings-participant-instant");
+const onlineInstantBattleSettingsSummaryElement = document.getElementById("online-instant-battle-settings-summary");
+const onlineInstantBattleSettingsCategoryFieldsetElement = document.getElementById("online-instant-battle-lobby-settings-category-fieldset");
+const onlineInstantBattleSettingsErrorElement = document.getElementById("online-instant-battle-settings-error");
+const onlineInstantBattleQuitButtonElement = document.getElementById("online-instant-battle-quit-button");
+const onlineInstantBattleProgressElement = document.getElementById("online-instant-battle-progress");
+const onlineInstantBattleErrorElement = document.getElementById("online-instant-battle-error");
+const onlineInstantBattleReplayButtonElement = document.getElementById("online-instant-battle-replay-button");
+const onlineInstantBattleAnswerSearchRowElement = document.getElementById("online-instant-battle-answer-search-row");
+const onlineInstantBattleAnswerSearchInputElement = document.getElementById("online-instant-battle-answer-search-input");
+const onlineInstantBattleAnswerCountElement = document.getElementById("online-instant-battle-answer-count");
+const onlineInstantBattleAnswerListElement = document.getElementById("online-instant-battle-answer-list");
+const onlineInstantBattleNextButtonElement = document.getElementById("online-instant-battle-next-button");
+const onlineInstantBattleQuitConfirmModalElement = document.getElementById("online-instant-battle-quit-confirm-modal");
+const onlineInstantBattleQuitCancelButtonElement = document.getElementById("online-instant-battle-quit-cancel-button");
+const onlineInstantBattleQuitConfirmButtonElement = document.getElementById("online-instant-battle-quit-confirm-button");
 
 // オンライン対戦：出題する曲を選ぶ画面（2026-08-08新設）。イントロ対戦・ランダム再生対戦・
 // 歌詞クイズ対戦の3つで共通利用する。
@@ -5204,6 +5224,11 @@ initOnlineBattleScreens({
   lobbySettingsSummary: onlineBattleLobbySettingsSummaryElement,
   lobbySettingsPenaltyFieldset: onlineBattleLobbySettingsPenaltyFieldsetElement,
   lobbySettingsCategoryFieldset: onlineBattleLobbySettingsCategoryFieldsetElement,
+  lobbySettingsHostInstant: onlineInstantBattleLobbySettingsHostElement,
+  lobbySettingsParticipantInstant: onlineInstantBattleLobbySettingsParticipantElement,
+  instantBattleSettingsSummary: onlineInstantBattleSettingsSummaryElement,
+  lobbySettingsCategoryFieldsetInstant: onlineInstantBattleSettingsCategoryFieldsetElement,
+  instantBattleSettingsError: onlineInstantBattleSettingsErrorElement,
   collabSongSection: onlineBattleCollabSongSectionElement,
   collabChooseSongsButton: onlineBattleCollabChooseSongsButtonElement,
   collabChooseFavoritesButton: onlineBattleCollabChooseFavoritesButtonElement,
@@ -5287,6 +5312,30 @@ initOnlineLyricsQuizBattleScreens({
   lyricsSettingsError: onlineLyricsBattleSettingsErrorElement,
   onQuitDuringBattle: () => quitOnlineBattleDuringQuiz(),
   onLeaveResultToHome: () => leaveOnlineBattleRoomView(),
+});
+
+// オンライン対戦「一瞬バトル」専用画面（2026-08-30新設、本人指示：19-3章）。
+// 進行モデル自体はタイムアタック等と同じ独立進行のため、待機画面・結果画面への遷移は
+// 既存のfinishOnlineBattleMatch/reportOnlineBattleProgress（js/onlineBattleScreen.js）を
+// そのままコールバックとして渡す（js/onlineLyricsQuizBattleScreen.jsと同じ、依存が一方向に
+// なる配線パターン）。
+initOnlineInstantBattleScreens({
+  navigateTo: navigateBattleScreen,
+  quitButton: onlineInstantBattleQuitButtonElement,
+  quitConfirmModal: onlineInstantBattleQuitConfirmModalElement,
+  quitCancelButton: onlineInstantBattleQuitCancelButtonElement,
+  quitConfirmButton: onlineInstantBattleQuitConfirmButtonElement,
+  progress: onlineInstantBattleProgressElement,
+  error: onlineInstantBattleErrorElement,
+  replayButton: onlineInstantBattleReplayButtonElement,
+  answerSearchRow: onlineInstantBattleAnswerSearchRowElement,
+  answerSearchInput: onlineInstantBattleAnswerSearchInputElement,
+  answerCount: onlineInstantBattleAnswerCountElement,
+  answerList: onlineInstantBattleAnswerListElement,
+  nextButton: onlineInstantBattleNextButtonElement,
+  onQuitDuringBattle: () => quitOnlineBattleDuringQuiz(),
+  onFinishMatch: (result, answeredCount) => finishOnlineBattleMatch(result, answeredCount),
+  onReportProgress: (answeredCount) => reportOnlineBattleProgress(answeredCount),
 });
 
 // オンライン対戦：出題する曲を選ぶ画面（2026-08-08新設）。イントロ対戦・ランダム再生対戦・

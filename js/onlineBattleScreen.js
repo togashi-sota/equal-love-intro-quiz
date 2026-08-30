@@ -76,9 +76,16 @@ import {
 // （js/onlineBattleStartSettings.js冒頭コメント参照）。
 import {
   LYRICS_QUIZ_GAME_MODE,
+  INSTANT_BATTLE_GAME_MODE,
   resolveStartSettingsForSubmit,
   resolveLastRoomRejoinOutcome,
 } from "./onlineBattleStartSettings.js";
+// 【2026-08-30新設、本人指示：19-3章「一瞬バトル」】歌詞クイズと同じ理由・同じ一方向依存で、
+// 一瞬バトルの対戦中画面（「もう一度聞く」がプレイヤーごとに独立、という既存の共有クイズ画面
+// には無い挙動）だけを専用ファイルへ委譲する。ただし進行モデル自体はタイムアタック等と同じ
+// 独立進行のため、待機画面・結果画面はこのファイルの既存の仕組み（finishOnlineBattleMatch・
+// reportOnlineBattleProgress）をそのまま使う。
+import { enterOnlineInstantBattlePlay, resetOnlineInstantBattleState } from "./onlineInstantBattleScreen.js";
 // 【2026-08-08新設】出題する曲をホストが選べる機能。曲の一覧・選択UI自体は3対戦モード共通の
 // 別画面（js/onlineBattleSongPicker.js）に任せ、このファイルは「今の選択曲id配列」を
 // 保持し、settings.questionSourceへ変換するだけに専念する（gameModeを問わない設計）。
@@ -148,6 +155,10 @@ let isLeavingIntentionally = false;
 // 押した時点でフォームから読み直す必要が無く、renderLobby()のたびにここへ最新値を
 // 控えておくだけでよい。
 let currentLyricsQuizSettings = null;
+// 【2026-08-30新設】一瞬バトルも歌詞クイズと同じ「変更のたびに即座にFirebaseへ反映」方式
+// （下のapplyInstantBattleHostSettingsChangeFromForm参照）のため、同じ理由でrenderLobby()の
+// たびに最新値を控えておく。
+let currentInstantBattleSettings = null;
 // 【2026-08-08新設・2026-08-27全面刷新】以前はホストだけが選べる単一の選択リスト
 // （hostSelectedManualSongIds）を、ホストの端末だけがsettings.questionSourceへ
 // 書き込む設計だった。本人指示により「ホスト以外の参加者も選曲でき、全員の選択が
@@ -388,6 +399,78 @@ async function applyHostSettingsChangeFromForm() {
   await updateRoomSettings({ roomId: currentRoomId, settings });
 }
 
+// 【2026-08-30新設、本人指示：19-3章「一瞬バトル」】上のrenderSettingsChips/
+// applySettingsToHostForm/readSettingsFromHostFormと同じ考え方だが、一瞬バトルの設定の形
+// （questionCountValue・categoryFilterValue・playDurationValue・answerPoolSizeValue）に合わせた
+// 専用版。settings.ruleを一切持たないため、既存の関数をそのまま使うと存在しないプロパティ
+// （undefined）がチップに出てしまう問題があり、共用せず分けた。
+function renderInstantBattleSettingsChips(container, settings) {
+  container.innerHTML = "";
+  const isManualSongSource = settings.questionSource?.type === QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION;
+  const songSourceChip = isManualSongSource
+    ? `${settings.questionSource.songIds?.length ?? 0}曲から出題`
+    : CATEGORY_LABELS[settings.categoryFilterValue] ?? settings.categoryFilterValue;
+  const chips = [
+    getModeLabel(INSTANT_BATTLE_GAME_MODE),
+    QUESTION_COUNT_LABELS[settings.questionCountValue] ?? `${settings.questionCountValue}問`,
+    songSourceChip,
+    `再生${settings.playDurationValue}秒`,
+    settings.answerPoolSizeValue === "all" ? "全曲検索" : `${settings.answerPoolSizeValue}択`,
+  ];
+  chips.forEach((text) => {
+    const chip = document.createElement("span");
+    chip.className = "battle-config-chip";
+    chip.textContent = text;
+    container.appendChild(chip);
+  });
+}
+
+function applyInstantBattleSettingsToHostForm(settings) {
+  const setChecked = (name, value) => {
+    const input = document.querySelector(`input[name="${name}"][value="${value}"]`);
+    if (input) input.checked = true;
+  };
+  setChecked("online-instant-battle-settings-question-count", settings.questionCountValue);
+  setChecked("online-instant-battle-settings-category", settings.categoryFilterValue);
+  setChecked("online-instant-battle-settings-play-duration", settings.playDurationValue);
+  setChecked("online-instant-battle-settings-answer-pool-size", settings.answerPoolSizeValue);
+
+  const isCollaborativeSongSource = settings.questionSource?.type === QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION;
+  setChecked("online-instant-battle-settings-song-source", isCollaborativeSongSource ? "manual" : "all");
+  elements.lobbySettingsCategoryFieldsetInstant.hidden = isCollaborativeSongSource;
+}
+
+function readInstantBattleSettingsFromHostForm() {
+  const songSourceValue =
+    document.querySelector('input[name="online-instant-battle-settings-song-source"]:checked')?.value ?? "all";
+  const settings = {
+    questionCountValue: document.querySelector('input[name="online-instant-battle-settings-question-count"]:checked').value,
+    categoryFilterValue: document.querySelector('input[name="online-instant-battle-settings-category"]:checked').value,
+    playDurationValue: document.querySelector('input[name="online-instant-battle-settings-play-duration"]:checked').value,
+    answerPoolSizeValue: document.querySelector('input[name="online-instant-battle-settings-answer-pool-size"]:checked').value,
+  };
+  if (songSourceValue === "manual") {
+    settings.questionSource = {
+      type: QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION,
+      songIds: getMergedRestrictedSongIds(),
+    };
+  }
+  return settings;
+}
+
+async function applyInstantBattleHostSettingsChangeFromForm() {
+  if (!currentRoomId) return;
+  const settings = readInstantBattleSettingsFromHostForm();
+  const errorMessage = validateRoomSettings(currentGameMode, settings);
+  if (errorMessage) {
+    elements.instantBattleSettingsError.textContent = errorMessage;
+    elements.instantBattleSettingsError.hidden = false;
+    return;
+  }
+  elements.instantBattleSettingsError.hidden = true;
+  await updateRoomSettings({ roomId: currentRoomId, settings });
+}
+
 // 【2026-08-27新設】現在分かっている「参加者全員が選んだ曲の和集合」を、今のルーム
 // 共通曲（currentCommonSongPool）で絞り込んだ配列を返す。latestRoomが無い
 // （まだ一度もrenderLobby()を経ていない）場合は空配列を返す。
@@ -573,6 +656,16 @@ function enterOnlineBattlePlay(room) {
     enterLyricsQuizBattlePlay(room);
     return;
   }
+  // 【2026-08-30新設、本人指示：19-3章「一瞬バトル」】一瞬バトルは、進行モデル自体は
+  // このファイルの独立進行と同じだが、「もう一度聞く」の独立カウント等、既存の共有クイズ画面
+  // には無い挙動が必要なため専用画面へ委譲する（歌詞クイズと違い、progress/resultsは
+  // このファイルの既存の仕組み〈initializeMyMatchProgress等〉をそのまま使う）。
+  if (room.gameMode === INSTANT_BATTLE_GAME_MODE) {
+    currentMatchId = room.activeMatchId;
+    initializeMyMatchProgress({ roomId: room.roomId, matchId: currentMatchId });
+    enterOnlineInstantBattlePlay(room);
+    return;
+  }
 
   currentMatchId = room.activeMatchId;
   const questions = buildQuestionsForMode(room.gameMode, room.settings, room.seed);
@@ -668,6 +761,10 @@ function resetOnlineBattleMatchState() {
   // 対戦中の問題音源が、退出・ルーム消滅・再戦などのタイミングで鳴り続けたままにならないよう、
   // ここで確実に止める（既に止まっている場合も安全に呼べる、js/audio.js側の設計どおり）。
   stopAudio();
+  // 一瞬バトル専用画面（js/onlineInstantBattleScreen.js）が持つ問題・回答・再視聴回数等の
+  // 状態も、離脱・ルーム消滅・再戦のたびに必ずリセットする（次のルーム・次の試合へ
+  // 誤って引き継がないため）。
+  resetOnlineInstantBattleState();
   currentMatchId = null;
   currentMatchTotalQuestions = 0;
   pendingFinishResult = null;
@@ -726,6 +823,8 @@ function renderLobby(room) {
   currentGameMode = room.gameMode;
   if (room.gameMode === LYRICS_QUIZ_GAME_MODE) {
     currentLyricsQuizSettings = room.settings;
+  } else if (room.gameMode === INSTANT_BATTLE_GAME_MODE) {
+    currentInstantBattleSettings = room.settings;
   }
 
   const myUid = getCurrentUid();
@@ -886,11 +985,14 @@ function renderLobby(room) {
 
   // ===== Step2：対戦設定・準備完了・開始 =====
   const isLyricsQuiz = room.gameMode === LYRICS_QUIZ_GAME_MODE;
-  // 歌詞クイズは設定の形自体が別物（ルール選択・回答方式・ヒント秒数等）のため、
-  // 既存の設定コンテナ（timeAttack/randomPlayback用の固定ラジオ群）は隠し、
-  // js/onlineLyricsQuizBattleScreen.jsが持つ専用コンテナへ描画を委譲する。
-  elements.lobbySettingsHost.hidden = !isHost || isLyricsQuiz;
-  elements.lobbySettingsParticipant.hidden = isHost || isLyricsQuiz;
+  const isInstantBattle = room.gameMode === INSTANT_BATTLE_GAME_MODE;
+  // 歌詞クイズ・一瞬バトルは設定の形自体が別物のため、既存の設定コンテナ
+  // （timeAttack/randomPlayback/outroQuiz用の固定ラジオ群）は隠し、それぞれ専用のコンテナへ
+  // 描画を委譲する。
+  elements.lobbySettingsHost.hidden = !isHost || isLyricsQuiz || isInstantBattle;
+  elements.lobbySettingsParticipant.hidden = isHost || isLyricsQuiz || isInstantBattle;
+  elements.lobbySettingsHostInstant.hidden = !isHost || !isInstantBattle;
+  elements.lobbySettingsParticipantInstant.hidden = isHost || !isInstantBattle;
   elements.lobbyReadyButton.hidden = isHost;
   elements.lobbyStartButton.hidden = !isHost;
   elements.lobbyStartHint.hidden = !isHost;
@@ -898,6 +1000,8 @@ function renderLobby(room) {
   if (isHost) {
     if (isLyricsQuiz) {
       renderLyricsQuizLobbySettings(room, true);
+    } else if (isInstantBattle) {
+      applyInstantBattleSettingsToHostForm(settings);
     } else {
       applySettingsToHostForm(settings);
     }
@@ -905,6 +1009,8 @@ function renderLobby(room) {
   } else {
     if (isLyricsQuiz) {
       renderLyricsQuizLobbySettings(room, false);
+    } else if (isInstantBattle) {
+      renderInstantBattleSettingsChips(elements.instantBattleSettingsSummary, settings);
     } else {
       renderSettingsChips(elements.lobbySettingsSummary, settings, room.gameMode);
     }
@@ -1728,6 +1834,18 @@ export function initOnlineBattleScreens(newElements) {
       });
     });
 
+  // 【2026-08-30新設、本人指示：19-3章「一瞬バトル」】上と全く同じ考え方の、一瞬バトル専用版。
+  document
+    .querySelectorAll(
+      'input[name="online-instant-battle-settings-question-count"], input[name="online-instant-battle-settings-category"], input[name="online-instant-battle-settings-play-duration"], input[name="online-instant-battle-settings-answer-pool-size"], input[name="online-instant-battle-settings-song-source"]'
+    )
+    .forEach((radio) => {
+      radio.addEventListener("change", async () => {
+        if (!currentRoomId) return;
+        await applyInstantBattleHostSettingsChangeFromForm();
+      });
+    });
+
   // 【2026-08-27新設】共同選曲：全曲・お気に入り・プレイリストから選ぶ。ホスト・参加者を
   // 問わず誰でも使える（本人指示：全員で共同選曲できるようにする）。お気に入り・
   // プレイリストは、それぞれ「選んだ曲」と「今のルーム参加者全員が利用できる曲
@@ -1774,6 +1892,7 @@ export function initOnlineBattleScreens(newElements) {
         gameMode: currentGameMode,
         readFormSettings: readSettingsFromHostForm,
         lyricsQuizRoomSettings: currentLyricsQuizSettings,
+        instantBattleRoomSettings: currentInstantBattleSettings,
       });
 
       const result = await startBattle({ roomId: currentRoomId, settings });

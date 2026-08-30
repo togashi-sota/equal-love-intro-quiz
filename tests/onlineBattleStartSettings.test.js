@@ -7,6 +7,7 @@
 
 import {
   LYRICS_QUIZ_GAME_MODE,
+  INSTANT_BATTLE_GAME_MODE,
   resolveStartSettingsForSubmit,
   resolveLastRoomRejoinOutcome,
 } from "../js/onlineBattleStartSettings.js";
@@ -46,6 +47,52 @@ export function runOnlineBattleStartSettingsTests() {
     });
     assertEqual(result, formSettings, "randomPlaybackはreadFormSettings()の戻り値をそのまま使う");
   }
+
+  // outroQuizもtimeAttack・randomPlaybackと同じくフォーム設定を使う
+  // 【2026-08-30発見・修正】以前はFORM_BASED_GAME_MODESに含まれておらず、アウトロ対戦の
+  // 「対戦を開始する」が必ず「未対応の対戦モードです」で失敗していた不具合の再発防止。
+  {
+    const formSettings = { questionCountValue: "5", categoryFilterValue: "title-track", rule: "normal", penaltySeconds: 2 };
+    const result = resolveStartSettingsForSubmit({
+      gameMode: "outroQuiz",
+      readFormSettings: () => formSettings,
+      lyricsQuizRoomSettings: null,
+    });
+    assertEqual(result, formSettings, "outroQuizはreadFormSettings()の戻り値をそのまま使う");
+  }
+
+  // 一瞬バトルはroom.settingsをそのまま使い、フォームは一切読まない（歌詞クイズと同じ理由）
+  {
+    const instantBattleRoomSettings = {
+      questionCountValue: "5",
+      categoryFilterValue: "title-track",
+      playDurationValue: "1",
+      answerPoolSizeValue: "10",
+    };
+    let formSettingsWasRead = false;
+    const result = resolveStartSettingsForSubmit({
+      gameMode: INSTANT_BATTLE_GAME_MODE,
+      readFormSettings: () => {
+        formSettingsWasRead = true;
+        return { questionCountValue: "10", categoryFilterValue: "all", rule: "normal", penaltySeconds: 3 };
+      },
+      instantBattleRoomSettings,
+    });
+    assertEqual(result, instantBattleRoomSettings, "instantBattleはinstantBattleRoomSettingsをそのまま使う");
+    assertEqual(formSettingsWasRead, false, "instantBattleのときreadFormSettings()は呼ばれない");
+  }
+
+  // 一瞬バトルで、まだroom.settingsを受け取っていない場合はエラー
+  assertThrows(
+    () =>
+      resolveStartSettingsForSubmit({
+        gameMode: INSTANT_BATTLE_GAME_MODE,
+        readFormSettings: () => ({}),
+        instantBattleRoomSettings: null,
+      }),
+    /対戦設定をまだ読み込めていません/,
+    "instantBattleでinstantBattleRoomSettingsが無い場合は例外"
+  );
 
   // lyricsQuizはroom.settingsをそのまま使い、フォームは一切読まない
   {

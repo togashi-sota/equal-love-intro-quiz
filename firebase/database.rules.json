@@ -101,7 +101,7 @@
             ".validate": "newData.isNumber() && (newData.val() === 4 || newData.val() === 6 || newData.val() === 8)"
           },
           "answerPoolSizeValue": {
-            ".validate": "(newData.val() === 4 || newData.val() === 10 || newData.val() === 30 || newData.val() === 50 || newData.val() === 'all') && (newData.parent().child('battleRuleId').val() !== 'steal' || newData.val() === 4 || newData.val() === 10)"
+            ".validate": "(newData.val() === 4 || newData.val() === 10 || newData.val() === 30 || newData.val() === 50 || newData.val() === 'all' || newData.val() === '4' || newData.val() === '10') && (newData.parent().child('battleRuleId').val() !== 'steal' || newData.val() === 4 || newData.val() === 10)"
           }
         },
         "settingsRevision": {
@@ -171,7 +171,8 @@
                   ".validate": "newData.hasChildren(['elapsedMs', 'correctCount', 'missCount'])",
                   "elapsedMs": { ".validate": "newData.isNumber() && newData.val() >= 0" },
                   "correctCount": { ".validate": "newData.isNumber() && newData.val() >= 0" },
-                  "missCount": { ".validate": "newData.isNumber() && newData.val() >= 0" }
+                  "missCount": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+                  "replayCount": { ".validate": "!newData.exists() || (newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000)" }
                 }
               }
             },

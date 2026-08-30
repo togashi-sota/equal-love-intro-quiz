@@ -84,4 +84,15 @@ export function runBattleModesIndexAvailabilityTests() {
     });
     assertEqual(pool, ["love"], "outroQuizもresolveSongPoolForSettings()に対応する");
   }
+
+  // ---- 2026-08-30追加（本人指示：19-3章「一瞬バトル」）：一瞬バトルの登録確認 ----
+  {
+    assertEqual(isKnownGameMode("instantBattle"), true, "instantBattleはREGISTRYに登録済み");
+    assertEqual(getModeLabel("instantBattle"), "一瞬バトル", "instantBattleの表示名は「一瞬バトル」");
+    assertEqual(getAvailabilityKind("instantBattle"), "audio", "一瞬バトルは音源の所持状況で判定する");
+    const pool = resolveSongPoolForSettings("instantBattle", {
+      questionSource: { type: QUESTION_SOURCE_TYPE.MANUAL_SELECTION, songIds: ["love"] },
+    });
+    assertEqual(pool, ["love"], "instantBattleもresolveSongPoolForSettings()に対応する");
+  }
 }

@@ -3076,6 +3076,9 @@
               <label><input type="radio" name="online-battle-lobby-mode-change-select" value="lyricsQuiz"> 歌詞クイズ対戦</label>
               <label><input type="radio" name="online-battle-lobby-mode-change-select" value="outroQuiz"> アウトロ対戦</label>
             </div>
+            <div class="option-row">
+              <label><input type="radio" name="online-battle-lobby-mode-change-select" value="instantBattle"> 一瞬バトル</label>
+            </div>
             <button id="online-battle-lobby-mode-change-confirm" class="primary-button" type="button">このモードに変更する</button>
           </fieldset>
         </div>
@@ -3228,6 +3231,66 @@
         <div id="online-lyrics-battle-readiness-status"></div>
         <div id="online-lyrics-battle-own-missing"></div>
 
+        <!-- 一瞬バトル専用：ホスト用設定（2026-08-30新設、本人指示：19-3章）。
+             1人用の一瞬チャレンジ（#instant-challenge-setup-screen）と同じ3段階の選択肢
+             （出題数・再生時間・回答候補）に、既存のオンライン対戦と同じカテゴリ・
+             共同選曲の仕組みを組み合わせる。 -->
+        <div id="online-battle-lobby-settings-host-instant" hidden>
+          <p class="battle-field-label">対戦設定（変更すると全員のREADYが解除されます）</p>
+          <fieldset>
+            <legend>出題数</legend>
+            <div class="option-row">
+              <label><input type="radio" name="online-instant-battle-settings-question-count" value="3"> 3問</label>
+              <label><input type="radio" name="online-instant-battle-settings-question-count" value="5"> 5問</label>
+              <label><input type="radio" name="online-instant-battle-settings-question-count" value="10"> 10問</label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>再生時間</legend>
+            <div class="option-row">
+              <label><input type="radio" name="online-instant-battle-settings-play-duration" value="1.5"> 1.5秒</label>
+              <label><input type="radio" name="online-instant-battle-settings-play-duration" value="1"> 1秒</label>
+              <label><input type="radio" name="online-instant-battle-settings-play-duration" value="0.5"> 0.5秒</label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>回答候補</legend>
+            <div class="option-row">
+              <label><input type="radio" name="online-instant-battle-settings-answer-pool-size" value="4"> 4択</label>
+              <label><input type="radio" name="online-instant-battle-settings-answer-pool-size" value="10"> 10択</label>
+              <label><input type="radio" name="online-instant-battle-settings-answer-pool-size" value="all"> 全曲検索</label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>出題する曲</legend>
+            <div class="option-row">
+              <label><input type="radio" name="online-instant-battle-settings-song-source" value="all" checked> 全曲から出題</label>
+              <label><input type="radio" name="online-instant-battle-settings-song-source" value="manual"> 曲を選んで出題</label>
+            </div>
+          </fieldset>
+          <fieldset id="online-instant-battle-lobby-settings-category-fieldset">
+            <legend>カテゴリ</legend>
+            <div class="option-row">
+              <label><input type="radio" name="online-instant-battle-settings-category" value="title-track"> 表題曲のみ</label>
+              <label><input type="radio" name="online-instant-battle-settings-category" value="title-and-group"> 表題曲＋全員曲</label>
+              <label><input type="radio" name="online-instant-battle-settings-category" value="all"> 全曲</label>
+            </div>
+          </fieldset>
+        </div>
+
+        <!-- 一瞬バトル専用：参加者用（読み取り専用チップ）。 -->
+        <div id="online-battle-lobby-settings-participant-instant" hidden>
+          <p class="battle-field-label">対戦設定（ホストが選択中）</p>
+          <div class="battle-config-summary" id="online-instant-battle-settings-summary"></div>
+        </div>
+
+        <!-- 一瞬バトル専用：共同選曲。既存のjs/onlineBattleScreen.js側の共同選曲UI
+             （#online-battle-collab-song-section）を、タイムアタック等と全く同じ理由でそのまま流用する
+             （questionSourceの形が既存モードと同じCATEGORY/MANUAL_SELECTION/COLLABORATIVE_SELECTIONの
+             ため、専用の2つ目のセクションを新たに作る必要が無い）。 -->
+
+        <p id="online-instant-battle-settings-error" class="error-message" hidden></p>
+
         <p class="online-battle-ready-changed-notice" id="online-battle-lobby-settings-changed-notice" hidden>
           設定が変更されました。もう一度準備完了してください。
         </p>
@@ -3364,6 +3427,44 @@
       <p class="online-lobby-game-mode" id="online-battle-spectator-game-mode"></p>
       <p class="online-lobby-player-count" id="online-battle-spectator-player-count"></p>
       <ul class="online-lobby-player-list" id="online-battle-spectator-player-list"></ul>
+    </section>
+
+    <!-- オンライン対戦：一瞬バトル専用の対戦中画面（2026-08-30新設、本人指示：19-3章）。
+         「もう一度聞く」がプレイヤーごとに独立（最大3回）という、既存のオンライン対戦
+         （#quiz-screen、js/main.js側の共有クイズエンジン）には無い挙動が必要なため、
+         歌詞クイズ対戦（js/onlineLyricsQuizBattleScreen.js）と同じ理由で専用画面として分離した。
+         進行モデル自体は歌詞クイズと違い、タイムアタック等と同じ「各自が自分のペースで進む」
+         独立進行（js/onlineBattleScreen.jsのfinishOnlineBattleMatch/reportOnlineBattleProgress
+         をそのままコールバック経由で呼ぶ）ため、待機画面・結果画面は既存のものをそのまま使う。 -->
+    <section id="online-instant-battle-question-screen" class="screen">
+      <div class="quiz-header-row">
+        <button id="online-instant-battle-quit-button" class="quiz-back-link" type="button">✕ 対戦をやめる</button>
+        <span id="online-instant-battle-progress" class="lyrics-quiz-progress">第1問 / 5問</span>
+      </div>
+
+      <div class="quiz-middle-zone">
+        <div class="quiz-middle-zone-inner">
+          <p id="online-instant-battle-error" class="error-message" hidden></p>
+
+          <!-- 本人指示：最大3回まで（1人用の一瞬チャレンジと違い無制限ではない）。 -->
+          <button id="online-instant-battle-replay-button" class="secondary-button instant-challenge-replay-button" type="button">
+            🔁 もう一度聞く（残り3回）
+          </button>
+
+          <div id="online-instant-battle-answer-section" class="lyrics-quiz-answer-section">
+            <p class="lyrics-quiz-answer-label">この曲は？</p>
+            <div id="online-instant-battle-answer-search-row" class="lyrics-quiz-answer-search-row" hidden>
+              <input id="online-instant-battle-answer-search-input" class="lyrics-quiz-answer-search-input" type="text" placeholder="曲名で検索">
+              <span id="online-instant-battle-answer-count" class="lyrics-quiz-answer-count">0曲</span>
+            </div>
+            <div id="online-instant-battle-answer-list" class="lyrics-quiz-answer-list"></div>
+          </div>
+
+          <button id="online-instant-battle-next-button" class="primary-button instant-challenge-next-button" type="button" hidden>
+            次の問題へ
+          </button>
+        </div>
+      </div>
     </section>
 
     <!-- オンライン対戦：歌詞クイズ専用の対戦中画面（Phase6新設）。
@@ -3888,6 +3989,18 @@
       <div class="button-row">
         <button id="online-lyrics-battle-quit-cancel-button" class="secondary-button" type="button">キャンセル</button>
         <button id="online-lyrics-battle-quit-confirm-button" class="danger-button" type="button">対戦をやめる</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 一瞬バトル：対戦中断確認モーダル（2026-08-30新設）。online-lyrics-battle-quit-confirm-modalと同じ構造。 -->
+  <div id="online-instant-battle-quit-confirm-modal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="online-instant-battle-quit-confirm-title">
+      <h2 id="online-instant-battle-quit-confirm-title">対戦を中断してルームを退出しますか？</h2>
+      <p class="modal-lead">退出後も対戦は続き、あなたの残りの問題は未回答として結果に反映されます。他の参加者はそのまま対戦を続けられます。</p>
+      <div class="button-row">
+        <button id="online-instant-battle-quit-cancel-button" class="secondary-button" type="button">キャンセル</button>
+        <button id="online-instant-battle-quit-confirm-button" class="danger-button" type="button">対戦をやめる</button>
       </div>
     </div>
   </div>
