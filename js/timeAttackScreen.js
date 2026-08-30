@@ -18,6 +18,7 @@ import { filterSongsByCategory, validatePlayablePoolSize, resolveQuestionCount, 
 import { filterSongsWithImportedAudio } from "./audioStorage.js";
 import { gameState } from "./state.js";
 import { recordWeakSongAttempt } from "./weakSongStats.js";
+import { recordShuffleWeakSongAttempt } from "./shuffleWeakSongStats.js";
 import {
   getTimeAttackBest,
   saveTimeAttackBestIfBetter,
@@ -157,16 +158,26 @@ export function recordTimeAttackAnswer({ elapsedMs, isCorrect, question }) {
   missCount += missCountThisQuestion;
 
   // 【2026-08-16追加、本人指示】苦手曲判定用の記録。対象はplayModeが"timeAttack"
-  // （イントロタイムアタック・ランダム再生タイムアタックの両方。currentVariantで区別する
-  // 必要はなく、どちらも同じ扱いでよい）と"randomPlayback"（js/randomPlaybackScreen.jsの
-  // 独立したランダム再生クイズ。startRandomPlaybackRun()経由でこのファイルの記録エンジンを
-  // 再利用しているため）の2つ。"localBattle"・"onlineBattle"（対戦モード）も同じ
-  // recordTimeAttackAnswer()を通るが、対象4モードに含まれないため除外する。
+  // （イントロタイムアタック・ランダム再生タイムアタックの両方）と"randomPlayback"
+  // （js/randomPlaybackScreen.jsの独立したランダム再生クイズ。startRandomPlaybackRun()経由で
+  // このファイルの記録エンジンを再利用しているため）の2つ。"localBattle"・"onlineBattle"
+  // （対戦モード）も同じrecordTimeAttackAnswer()を通るが、対象モードに含まれないため除外する。
   // 正誤の判定は、最終的なisCorrectではなくmissCountThisQuestion===0（1回も間違えずに
   // 正解できたか）を使う。ノーマルルールは「正解するまでやり直せる」ため、isCorrectは
   // ほぼ常にtrueになってしまい判定に使えない（下のcomputeTimeAttackWeakSongsと同じ理由。
   // js/timeAttackHistory.jsのコメント参照）。
-  if (gameState.playMode === "timeAttack" || gameState.playMode === "randomPlayback") {
+  // 【2026-08-30改訂、本人指示：苦手曲5系統完全分離】以前はイントロ・ランダム再生の
+  // どちらもjs/weakSongStats.jsへ合算していたが、5系統を完全に独立させたため、ここで
+  // currentVariant（イントロタイムアタックのvariantはINTRO固定なのでtimeAttackでは常時参照）と
+  // playModeを見て、イントロ系はjs/weakSongStats.js、シャッフル系（ランダム再生・ランダム再生
+  // タイムアタック）はjs/shuffleWeakSongStats.jsへ分けて記録する。
+  const isShuffleAnswer =
+    gameState.playMode === "randomPlayback" ||
+    (gameState.playMode === "timeAttack" && currentVariant === TIME_ATTACK_VARIANT.RANDOM_PLAYBACK);
+  const isIntroAnswer = gameState.playMode === "timeAttack" && currentVariant === TIME_ATTACK_VARIANT.INTRO;
+  if (isShuffleAnswer) {
+    recordShuffleWeakSongAttempt(question.song.id, missCountThisQuestion === 0);
+  } else if (isIntroAnswer) {
     recordWeakSongAttempt(question.song.id, missCountThisQuestion === 0);
   }
 

@@ -69,7 +69,9 @@ const BACKUP_KEY_EXACT_NAMES = [
   "playHistory", // 通常イントロクイズの履歴（js/history.js）
   "unifiedPlayHistory", // その他モードの統一履歴（js/playHistory.js）
   "timeAttackHistory", // タイムアタック履歴（js/timeAttackHistory.js）
-  "weakSongStats", // 苦手曲判定用データ（js/weakSongStats.js）
+  "weakSongStats", // 苦手曲判定用データ（イントロ専用、js/weakSongStats.js。2026-08-30改訂：シャッフル分をshuffleWeakSongStatsへ分離）
+  "shuffleWeakSongStats", // 苦手曲判定用データ（シャッフル〈ランダム再生〉専用、js/shuffleWeakSongStats.js。2026-08-30新設）
+  "outroWeakSongStats", // 苦手曲判定用データ（アウトロ専用、js/outroWeakSongStats.js。2026-08-30新設）
   "lyricsQuizWeakSongStats", // 苦手曲判定用データ（歌詞クイズ専用、js/lyricsQuizWeakSongStats.js）
   "instantChallengeWeakSongStats", // 苦手曲判定用データ（一瞬チャレンジ専用、js/instantChallengeWeakSongStats.js。2026-08-30追加）
   "instantChallengeClears", // 一瞬チャレンジのクリア済み条件（js/instantChallengeClearStore.js。2026-08-30追加）

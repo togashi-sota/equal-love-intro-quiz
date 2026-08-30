@@ -1544,31 +1544,33 @@
         <button id="weak-songs-rules-link" class="info-link-button" type="button" aria-label="判定ルールを見る">？</button>
       </div>
 
-      <p class="weak-songs-explanation" id="weak-songs-explanation">間違えやすい曲を自動で集めて、繰り返し練習できます。イントロ・タイムアタック・ランダム再生、4つのモードの結果を曲ごとに合算して判定します。</p>
+      <p class="weak-songs-explanation" id="weak-songs-explanation">間違えやすい曲を自動で集めて、繰り返し練習できます。イントロ・イントロタイムアタックの結果を曲ごとに合算して判定します。</p>
 
-      <!-- 【2026-08-29追加、本人指示】苦手曲モードA（イントロ・タイムアタック・ランダム再生の
-           合算）／B（歌詞クイズだけを対象にした別判定）の切り替えタブ。統計・判定は完全に別々
-           （js/weakSongStats.js／js/lyricsQuizWeakSongStats.js）で、この画面は表示と出題開始の
-           入り口を共通化しているだけ。見た目はランキング画面の出題数・カテゴリータブ
-           （.leaderboard-tab-button、js/timeAttackLeaderboardScreen.js）と同じ意匠を再利用する。 -->
+      <!-- 【2026-08-30改訂、本人指示：苦手曲モードを5系統へ完全分離】以前は「イントロ・
+           ランダム再生の合算」／「歌詞クイズ」の2択タブだったが、①ランダム再生単体の弱点が
+           分からない、②どの苦手曲を選んでも結局イントロ形式で再生される、という不具合が
+           あったため、5系統（イントロ／アウトロ／シャッフル／リリック／一瞬）を完全に
+           独立させた。統計・判定は5つとも完全に別々のデータ
+           （js/weakSongStats.js・js/outroWeakSongStats.js・js/shuffleWeakSongStats.js・
+           js/lyricsQuizWeakSongStats.js・js/instantChallengeWeakSongStats.js）で、
+           この画面は表示と出題開始の入り口を共通化しているだけ。見た目はランキング画面の
+           出題数・カテゴリータブ（.leaderboard-tab-button、js/timeAttackLeaderboardScreen.js）と
+           同じ意匠を再利用する。 -->
       <div class="leaderboard-tab-row weak-songs-mode-toggle" role="tablist" aria-label="苦手曲モードの種類">
-        <button
-          id="weak-songs-mode-intro-button"
-          class="leaderboard-tab-button is-active"
-          type="button"
-          role="tab"
-          aria-selected="true"
-        >
-          🎧 イントロ・ランダム再生
+        <button id="weak-songs-mode-intro-button" class="leaderboard-tab-button is-active" type="button" role="tab" aria-selected="true">
+          🎧 イントロ
         </button>
-        <button
-          id="weak-songs-mode-lyrics-button"
-          class="leaderboard-tab-button"
-          type="button"
-          role="tab"
-          aria-selected="false"
-        >
-          📝 歌詞クイズ
+        <button id="weak-songs-mode-outro-button" class="leaderboard-tab-button" type="button" role="tab" aria-selected="false">
+          🎬 アウトロ
+        </button>
+        <button id="weak-songs-mode-shuffle-button" class="leaderboard-tab-button" type="button" role="tab" aria-selected="false">
+          🔀 シャッフル
+        </button>
+        <button id="weak-songs-mode-lyrics-button" class="leaderboard-tab-button" type="button" role="tab" aria-selected="false">
+          📝 リリック
+        </button>
+        <button id="weak-songs-mode-instant-button" class="leaderboard-tab-button" type="button" role="tab" aria-selected="false">
+          ⚡ 一瞬
         </button>
       </div>
 
@@ -1577,7 +1579,32 @@
         <p class="weak-songs-count"><strong id="weak-songs-count-value">0</strong>曲が対象です</p>
         <div id="weak-songs-chip-row" class="missed-songs-chip-row"></div>
 
-        <fieldset>
+        <!-- 【2026-08-30追加、本人指示】一瞬タブのときだけ表示する、一瞬チャレンジ専用の
+             再生時間・回答方式（既存の#instant-challenge-setup-screenと同じ選択肢・同じ考え方。
+             本人指示：「既存の一瞬設定UIを再利用できるなら、できるだけ共通化してください」。
+             ラジオのname属性は既存の一瞬設定画面と衝突しないよう別名にしているが、
+             選択肢の値（1.5/1/0.5秒、4/10/all択）は完全に同じにしている）。 -->
+        <fieldset id="weak-songs-instant-duration-fieldset" hidden>
+          <legend>再生時間</legend>
+          <div class="option-row">
+            <label><input type="radio" name="weak-songs-instant-play-duration" value="1.5" checked> 1.5秒</label>
+            <label><input type="radio" name="weak-songs-instant-play-duration" value="1"> 1秒</label>
+            <label><input type="radio" name="weak-songs-instant-play-duration" value="0.5"> 0.5秒</label>
+          </div>
+        </fieldset>
+        <fieldset id="weak-songs-instant-answer-pool-fieldset" hidden>
+          <legend>回答方式（回答候補の数）</legend>
+          <div class="option-row">
+            <label><input type="radio" name="weak-songs-instant-answer-pool-size" value="4" checked> 4択</label>
+            <label><input type="radio" name="weak-songs-instant-answer-pool-size" value="10"> 10択</label>
+            <label><input type="radio" name="weak-songs-instant-answer-pool-size" value="all"> 全曲検索</label>
+          </div>
+        </fieldset>
+
+        <!-- 通常4系統（イントロ／アウトロ／シャッフル／リリック）用の出題数。一瞬タブのときは
+             hiddenにし、代わりに下の#weak-songs-instant-question-count-fieldsetを使う
+             （一瞬チャレンジは3/5/10問の3段階のみのため、選択肢の意味が他モードと異なる）。 -->
+        <fieldset id="weak-songs-question-count-fieldset">
           <legend>出題数</legend>
           <div class="option-row">
             <label><input type="radio" name="weak-songs-question-count" value="5" checked> 5問</label>
@@ -1586,6 +1613,14 @@
           </div>
           <div class="option-row">
             <label><input type="radio" name="weak-songs-question-count" value="all"> <span id="weak-songs-all-label">全対象</span></label>
+          </div>
+        </fieldset>
+        <fieldset id="weak-songs-instant-question-count-fieldset" hidden>
+          <legend>出題数</legend>
+          <div class="option-row">
+            <label><input type="radio" name="weak-songs-instant-question-count" value="3"> 3問</label>
+            <label><input type="radio" name="weak-songs-instant-question-count" value="5" checked> 5問</label>
+            <label><input type="radio" name="weak-songs-instant-question-count" value="10"> 10問</label>
           </div>
         </fieldset>
 

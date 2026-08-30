@@ -56,6 +56,9 @@ let questionElements = null; // 問題画面
 let resultElements = null; // 結果画面
 
 let currentSettings = null; // { questionCountValue, categoryFilterValue, playDurationValue, answerPoolSizeValue }
+// 苦手曲モード「一瞬」タブから開始した場合の、出題対象の曲ID一覧（それ以外はnull）。
+// retryInstantChallengeRun()（「もう一度挑戦する」）でも同じ曲一覧を再利用するために保持する。
+let currentExplicitSongIds = null;
 let questions = []; // { song, answerPool }[]
 let currentIndex = 0;
 let answers = []; // { songId, isCorrect, replayCount }[]
@@ -63,6 +66,12 @@ let replayCounts = []; // 問題ごとの「もう一度聞く」使用回数（
 let seed = 0;
 let hasAnsweredCurrentQuestion = false;
 let questionStartedAt = 0;
+// 【2026-08-30追加・本人指示：苦手曲5系統完全分離】苦手曲モード「一瞬」タブから開始した回かどうか。
+// 苦手曲モード自身の結果が苦手曲判定・称号・クリア記録へフィードバックされてしまうのを防ぐため
+// （js/weakSongsScreen.js・js/main.jsのbeginSpecialQuiz()等、他の苦手曲タブと同じ方針）、
+// trueの間はrecordInstantChallengeWeakSongAttempt・称号判定・クリア記録を呼ばない。
+// プレイ履歴（js/playHistory.js）には他の苦手曲タブと同じく通常どおり記録する。
+let isWeakSongsPractice = false;
 
 // ===== 1. 設定画面 =====
 
@@ -83,26 +92,51 @@ function getSelectedSettings() {
 
 async function handleStartButtonClick() {
   const settings = getSelectedSettings();
+  isWeakSongsPractice = false;
+  currentExplicitSongIds = null;
   await buildAndStartRun(settings);
 }
 
 export async function retryInstantChallengeRun() {
   if (!currentSettings) return;
-  await buildAndStartRun(currentSettings);
+  // isWeakSongsPractice・currentExplicitSongIdsは前回開始時の値のまま維持する
+  // （「もう一度挑戦する」で練習/通常の種別・出題対象曲が変わることはないため）。
+  await buildAndStartRun(currentSettings, currentExplicitSongIds);
+}
+
+// 苦手曲モード「一瞬」タブからの開始（2026-08-30新設、本人指示：苦手曲5系統完全分離）。
+// カテゴリー絞り込みではなく、あらかじめ渡された曲IDだけを出題プールにする点だけが
+// 通常の開始（handleStartButtonClick）と違う。設定画面のUIはjs/weakSongsScreen.js側の
+// 専用fieldset（再生時間・回答方式・出題数）を使うため、このファイルの設定画面
+// （#instant-challenge-setup-screen）は経由しない。
+export async function startInstantChallengeWeakSongsPractice(songIds, settings) {
+  isWeakSongsPractice = true;
+  return buildAndStartRun({ ...settings, categoryFilterValue: "weakSongs" }, songIds);
+}
+
+// 今表示中の問題・結果が、苦手曲モード「一瞬」タブからの練習かどうか。main.js側で
+// 「戻る」「設定へ戻る」「ホームへ戻る」の遷移先を、通常の一瞬チャレンジ設定画面ではなく
+// 苦手曲モード画面へ切り替えるために使う。
+export function isInstantChallengeWeakSongsPractice() {
+  return isWeakSongsPractice;
 }
 
 // 音源を読み込み済みの曲だけで出題プールを組み立てる（既存の各モードと同じ絞り込み方針）。
-async function resolvePlayableSongPool(categoryFilterValue) {
-  const categoryPool = resolveSongPool({ type: QUESTION_SOURCE_TYPE.CATEGORY, categoryFilterValue })
-    .map((songId) => SONGS.find((song) => song.id === songId))
-    .filter((song) => song !== undefined);
+// explicitSongIdsが渡された場合は、カテゴリー絞り込みの代わりにその曲IDだけを対象にする
+// （苦手曲モード「一瞬」タブ用）。
+async function resolvePlayableSongPool(categoryFilterValue, explicitSongIds) {
+  const categoryPool = explicitSongIds
+    ? explicitSongIds.map((songId) => SONGS.find((song) => song.id === songId)).filter((song) => song !== undefined)
+    : resolveSongPool({ type: QUESTION_SOURCE_TYPE.CATEGORY, categoryFilterValue })
+        .map((songId) => SONGS.find((song) => song.id === songId))
+        .filter((song) => song !== undefined);
   return filterSongsWithImportedAudio(categoryPool);
 }
 
-async function buildAndStartRun(settings) {
+async function buildAndStartRun(settings, explicitSongIds = null) {
   elements.startError.hidden = true;
 
-  const pool = await resolvePlayableSongPool(settings.categoryFilterValue);
+  const pool = await resolvePlayableSongPool(settings.categoryFilterValue, explicitSongIds);
   if (pool.length < MIN_SONGS_REQUIRED) {
     elements.startError.hidden = false;
     elements.startError.textContent =
@@ -115,6 +149,7 @@ async function buildAndStartRun(settings) {
 
   seed = Math.floor(Math.random() * 0x100000000) >>> 0;
   currentSettings = settings;
+  currentExplicitSongIds = explicitSongIds;
 
   const shuffled = [...pool];
   for (let i = shuffled.length - 1; i > 0; i -= 1) {
@@ -290,7 +325,9 @@ function handleAnswerSelected(selectedSongId, buttonElement) {
   const question = questions[currentIndex];
   const isCorrect = selectedSongId === question.song.id;
   answers.push({ songId: question.song.id, isCorrect, replayCount: replayCounts[currentIndex] });
-  recordInstantChallengeWeakSongAttempt(question.song.id, isCorrect);
+  if (!isWeakSongsPractice) {
+    recordInstantChallengeWeakSongAttempt(question.song.id, isCorrect);
+  }
 
   buttonElement.classList.add(isCorrect ? "is-correct" : "is-wrong");
   if (!isCorrect) {
@@ -340,7 +377,10 @@ export function renderInstantChallengeResult() {
   // （出題可能な曲が少なく、設定した問題数より少ない問題数で完走した場合、その実際の問題数を
   // 正直にキーへ反映する。これにより「10問クリア」相当の称号は、本当に10問出題された
   // 場合にしか成立しない）。
-  if (isCleared) {
+  // 【2026-08-30追加・本人指示：苦手曲5系統完全分離】苦手曲モード「一瞬」タブからの練習は、
+  // クリア記録・称号判定のどちらにも一切反映しない（他の苦手曲タブと同じ「練習結果を
+  // 判定へ書き戻さない」方針。クリアバッジ自体はその場の達成感として表示したままにする）。
+  if (isCleared && !isWeakSongsPractice) {
     recordInstantChallengeClear(currentSettings.playDurationValue, currentSettings.answerPoolSizeValue, String(answers.length), {
       noReplayUsed,
     });
@@ -349,13 +389,15 @@ export function renderInstantChallengeResult() {
   // 【2026-08-30追加・本人指示⑦⑪】一瞬チャレンジ専用の称号判定（一瞬ビギナー〜マスター・
   // 即聞即答）。js/achievementEvaluation.jsのevaluateInstantChallengeAchievements()は
   // 「実際に出題された問題数」を条件キーとして受け取る（クリア記録と同じ理由）。
-  const earnedAchievementIds = evaluateInstantChallengeAchievements({
-    playDurationValue: currentSettings.playDurationValue,
-    answerPoolSizeValue: currentSettings.answerPoolSizeValue,
-    questionCountValue: String(answers.length),
-    isCleared,
-    noReplayUsed,
-  });
+  const earnedAchievementIds = isWeakSongsPractice
+    ? []
+    : evaluateInstantChallengeAchievements({
+        playDurationValue: currentSettings.playDurationValue,
+        answerPoolSizeValue: currentSettings.answerPoolSizeValue,
+        questionCountValue: String(answers.length),
+        isCleared,
+        noReplayUsed,
+      });
   const achievementResult = saveEarnedAchievements(earnedAchievementIds);
   renderAchievementUnlockEvents(achievementResult.newlyUnlockedIds, {
     chipContainer: resultElements.achievementList,
@@ -367,8 +409,8 @@ export function renderInstantChallengeResult() {
 
   savePlayHistoryEntry({
     playedAt: Date.now(),
-    modeId: "instantChallenge",
-    modeLabel: "一瞬チャレンジ",
+    modeId: isWeakSongsPractice ? "weakSongsInstant" : "instantChallenge",
+    modeLabel: isWeakSongsPractice ? "苦手曲モード（一瞬）" : "一瞬チャレンジ",
     questionCount: answers.length,
     isAllSongsMode: currentSettings.categoryFilterValue === "all",
     correctCount,

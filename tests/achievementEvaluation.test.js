@@ -17,6 +17,7 @@ import {
   evaluateCompositeAchievements,
   evaluateGrowthTierAchievements,
   evaluateDirectAchievements,
+  evaluateInstantChallengeAchievements,
 } from "../js/achievementEvaluation.js";
 import { ACHIEVEMENTS } from "../js/achievementDefinitions.js";
 import { assertEqual } from "./test-utils.js";
@@ -468,5 +469,124 @@ export function runAchievementEvaluationTests() {
     isCleanClear(buildResult({ correctCount: 4, wrongCount: 0, skippedCount: 0, completed: false })),
     false,
     "LOVE連チャン等で途中終了(completed:false)はクリーンクリアではない"
+  );
+
+  // ==================================================================
+  // 9. アウトロ系（2026-08-30追加・本人指示⑥⑭）：イントロと全く同じ条件・
+  //    完全終曲（裏チャレンジ）はアウトロマスターと同時に解放される
+  // ==================================================================
+  assertEqual(
+    evaluateGrowthTierAchievements(buildResult({ modeId: "outroQuiz", questionCountValue: "5", correctCount: 5 })),
+    ["outro_beginner"],
+    "アウトロ5問ノーミスでアウトロビギナーを獲得する"
+  );
+  assertEqual(
+    evaluateNoMissMasterAchievement(buildResult({ modeId: "outroQuiz", questionCountValue: "all" })),
+    ["outro_master", "complete_finale"],
+    "アウトロ・本当の全曲ノーミスで、アウトロマスターと裏チャレンジ「完全終曲」が同時に解放される（本人確定仕様：完全終曲に平均回答時間の条件は課さない）"
+  );
+  assertEqual(
+    evaluateNoMissMasterAchievement(buildResult({ modeId: "outroQuiz", questionCountValue: "all", categoryFilterValue: "title-track" })),
+    [],
+    "アウトロでもカテゴリーを絞った状態の全曲では、アウトロマスター・完全終曲のどちらも獲得できない"
+  );
+  assertEqual(
+    evaluateSpeedAchievements(buildResult({ modeId: "outroQuiz", questionCountValue: "all", averageResponseMs: 500 })),
+    [],
+    "アウトロには電光石火に相当する速度称号は存在しない（平均回答時間が速くても何も返らない）"
+  );
+
+  // ==================================================================
+  // 10. 一瞬チャレンジ系（2026-08-30追加・本人指示⑦⑪⑬）：evaluateInstantChallengeAchievements。
+  //    再生時間×回答候補数×出題数の固有の組み合わせごとに独立して判定する
+  //    （他系統のようなカスケードは無い。裏チャレンジ「即聞即答」は聞き直し0回が追加条件）。
+  // ==================================================================
+  assertEqual(
+    evaluateInstantChallengeAchievements({
+      playDurationValue: "1.5",
+      answerPoolSizeValue: "4",
+      questionCountValue: "3",
+      isCleared: true,
+      noReplayUsed: true,
+    }),
+    ["instant_beginner"],
+    "1.5秒・4択・3問クリアで一瞬ビギナーを獲得する"
+  );
+  assertEqual(
+    evaluateInstantChallengeAchievements({
+      playDurationValue: "1",
+      answerPoolSizeValue: "4",
+      questionCountValue: "5",
+      isCleared: true,
+      noReplayUsed: false,
+    }),
+    ["instant_challenger"],
+    "1秒・4択・5問クリアで一瞬チャレンジャーを獲得する（聞き直しの有無は問わない）"
+  );
+  assertEqual(
+    evaluateInstantChallengeAchievements({
+      playDurationValue: "1",
+      answerPoolSizeValue: "10",
+      questionCountValue: "10",
+      isCleared: true,
+      noReplayUsed: false,
+    }),
+    ["instant_ace"],
+    "1秒・10択・10問クリアで一瞬エースを獲得する"
+  );
+  assertEqual(
+    evaluateInstantChallengeAchievements({
+      playDurationValue: "0.5",
+      answerPoolSizeValue: "10",
+      questionCountValue: "10",
+      isCleared: true,
+      noReplayUsed: false,
+    }),
+    ["instant_master"],
+    "0.5秒・10択・10問クリアで一瞬マスターを獲得する"
+  );
+  assertEqual(
+    evaluateInstantChallengeAchievements({
+      playDurationValue: "0.5",
+      answerPoolSizeValue: "all",
+      questionCountValue: "10",
+      isCleared: true,
+      noReplayUsed: false,
+    }),
+    [],
+    "0.5秒・全曲検索・10問クリアでも、聞き直しを使っていれば即聞即答は獲得できない（他のどの通常段階にも一致しないため何も返らない）"
+  );
+  assertEqual(
+    evaluateInstantChallengeAchievements({
+      playDurationValue: "0.5",
+      answerPoolSizeValue: "all",
+      questionCountValue: "10",
+      isCleared: true,
+      noReplayUsed: true,
+    }),
+    ["instant_flash_answer"],
+    "0.5秒・全曲検索・10問クリア、かつ聞き直し0回のときだけ即聞即答を獲得する"
+  );
+  assertEqual(
+    evaluateInstantChallengeAchievements({
+      playDurationValue: "1.5",
+      answerPoolSizeValue: "4",
+      questionCountValue: "3",
+      isCleared: false,
+      noReplayUsed: true,
+    }),
+    [],
+    "未クリア（isCleared:false）なら、条件に一致していても何も獲得しない"
+  );
+  assertEqual(
+    evaluateInstantChallengeAchievements({
+      playDurationValue: "1.5",
+      answerPoolSizeValue: "4",
+      questionCountValue: "5",
+      isCleared: true,
+      noReplayUsed: true,
+    }),
+    [],
+    "1.5秒・4択・5問（定義されていない組み合わせ）をクリアしても何も獲得しない（カスケードが無いことの確認）"
   );
 }

@@ -39,6 +39,8 @@ import {
   startInstantChallengePlay,
   renderInstantChallengeResult,
   retryInstantChallengeRun,
+  startInstantChallengeWeakSongsPractice,
+  isInstantChallengeWeakSongsPractice,
 } from "./instantChallengeScreen.js";
 import { startTimer, stopTimer } from "./timer.js";
 import { calculateScore, calculateRank } from "./score.js";
@@ -72,7 +74,13 @@ import { describeSpeedProgressForPlay, buildSpeedProgressResultBlock } from "./s
 import { initHistoryScreen, renderHistoryScreen } from "./historyScreen.js";
 import { initHistoryDetailScreen, renderHistoryDetail } from "./historyDetailScreen.js";
 import { initSpecialModesScreen } from "./specialModesScreen.js";
-import { initWeakSongsScreen, renderWeakSongsScreen, resolveWeakSongIds } from "./weakSongsScreen.js";
+import {
+  initWeakSongsScreen,
+  renderWeakSongsScreen,
+  resolveWeakSongIds,
+  resolveOutroWeakSongIds,
+  resolveShuffleWeakSongIds,
+} from "./weakSongsScreen.js";
 import {
   initLiveCallModeScreen,
   renderLiveCallModeList,
@@ -1124,6 +1132,27 @@ const SPECIAL_MODES_DISPLAY = {
     quizQuitConfirmLabel: "苦手曲モードに戻る",
     onQuizBack: goToWeakSongsScreen,
   },
+  // 【2026-08-30追加、本人指示：苦手曲5系統完全分離】苦手曲モード「アウトロ」タブ。
+  // weakSongsとほぼ同じ内容だが、進捗表示の絵文字だけ🎬にして区別できるようにする。
+  weakSongsOutro: {
+    eyebrowLabel: "WEAK SONGS",
+    progressPrefix: "🎯🎬 苦手曲 ",
+    resultNotice: "苦手曲の判定は、アウトロクイズの成績によって更新されます",
+    quizBackLabel: "苦手曲モードへ",
+    quizQuitTitle: "クイズを中断して苦手曲モードに戻りますか？",
+    quizQuitConfirmLabel: "苦手曲モードに戻る",
+    onQuizBack: goToWeakSongsScreen,
+  },
+  // 苦手曲モード「シャッフル」タブ。
+  weakSongsShuffle: {
+    eyebrowLabel: "WEAK SONGS",
+    progressPrefix: "🎯🔀 苦手曲 ",
+    resultNotice: "苦手曲の判定は、シャッフル（ランダム再生）の成績によって更新されます",
+    quizBackLabel: "苦手曲モードへ",
+    quizQuitTitle: "クイズを中断して苦手曲モードに戻りますか？",
+    quizQuitConfirmLabel: "苦手曲モードに戻る",
+    onQuizBack: goToWeakSongsScreen,
+  },
   customQuiz: {
     eyebrowLabel: "ORIGINAL QUIZ",
     progressPrefix: "📝 オリジナル ",
@@ -2056,6 +2085,36 @@ async function beginSpecialQuiz(songIds, questionCountValue, specialModeId) {
   showScreen("quiz");
 }
 
+// 苦手曲モード「アウトロ」タブの練習開始（2026-08-30新設、本人指示：苦手曲5系統完全分離）。
+// beginSpecialQuiz()と曲の絞り込み・問題の組み立ては全く同じで、specialModeIdだけ
+// "weakSongsOutro"にする。renderQuestion()側の再生位置の分岐がこのidを見て、
+// アウトロクイズと同じ「曲の最後5秒」再生になる。
+async function beginWeakSongsOutroPractice(songIds, questionCountValue) {
+  stopTimer();
+  stopAudio();
+  const distractorPool = await filterSongsWithImportedAudio(filterSongsByCategory(SONGS, "all"));
+  const questions = buildQuestionsFromSongIds(songIds, distractorPool);
+  startSpecialQuiz(questions, questionCountValue, "weakSongsOutro");
+  renderQuestion();
+  showScreen("quiz");
+}
+
+// 苦手曲モード「シャッフル」タブの練習開始（2026-08-30新設、本人指示：苦手曲5系統完全分離）。
+// beginCustomRandomPlaybackQuiz()と同じ考え方：曲の絞り込み・問題の組み立てはイントロ形式と
+// 変わらず、再生開始位置だけをランダム再生用の種（seed）とcomputeRandomStartTimeSec()で
+// ランダムにする。specialModeIdを"weakSongsShuffle"にすることで、renderQuestion()側の
+// 再生位置の分岐がランダム再生（js/randomPlaybackEngine.js）を使うようになる。
+async function beginWeakSongsShufflePractice(songIds, questionCountValue) {
+  stopTimer();
+  stopAudio();
+  const distractorPool = await filterSongsWithImportedAudio(filterSongsByCategory(SONGS, "all"));
+  const questions = buildQuestionsFromSongIds(songIds, distractorPool);
+  generateNewRandomPlaybackSeed();
+  startSpecialQuiz(questions, questionCountValue, "weakSongsShuffle");
+  renderQuestion();
+  showScreen("quiz");
+}
+
 // 苦手曲モードB（歌詞クイズ版）の練習開始（2026-08-29新設、本人指示）。
 // beginSpecialQuiz()（イントロ側の苦手曲モードA）と対になる関数だが、エンジン自体が
 // 歌詞クイズ（js/lyricsQuizScreen.js）のため別関数にしている。曲IDから問題を組み立てる
@@ -2171,10 +2230,26 @@ initWeakSongsScreen({
   startButton: document.getElementById("weak-songs-start-button"),
   explanation: document.getElementById("weak-songs-explanation"),
   modeIntroButton: document.getElementById("weak-songs-mode-intro-button"),
+  modeOutroButton: document.getElementById("weak-songs-mode-outro-button"),
+  modeShuffleButton: document.getElementById("weak-songs-mode-shuffle-button"),
   modeLyricsButton: document.getElementById("weak-songs-mode-lyrics-button"),
+  modeInstantButton: document.getElementById("weak-songs-mode-instant-button"),
+  questionCountFieldset: document.getElementById("weak-songs-question-count-fieldset"),
+  instantDurationFieldset: document.getElementById("weak-songs-instant-duration-fieldset"),
+  instantAnswerPoolFieldset: document.getElementById("weak-songs-instant-answer-pool-fieldset"),
+  instantQuestionCountFieldset: document.getElementById("weak-songs-instant-question-count-fieldset"),
   onStart: (songIds, questionCountValue) => {
     playClickSound();
     beginSpecialQuiz(songIds, questionCountValue, "weakSongs");
+  },
+  // 【2026-08-30追加、本人指示：苦手曲5系統完全分離】アウトロ・シャッフルタブの開始。
+  onStartOutro: (songIds, questionCountValue) => {
+    playClickSound();
+    beginWeakSongsOutroPractice(songIds, questionCountValue);
+  },
+  onStartShuffle: (songIds, questionCountValue) => {
+    playClickSound();
+    beginWeakSongsShufflePractice(songIds, questionCountValue);
   },
   // 【2026-08-29追加】苦手曲モードB（歌詞クイズ版）の開始。開始できなかった場合
   // （対象曲の歌詞データが後から削除された等、ごく稀なケース）は、ネイティブのalert()では
@@ -2188,7 +2263,39 @@ initWeakSongsScreen({
         "対象曲の歌詞データが見つからないため開始できませんでした。データパックの導入状況を確認してください。";
     }
   },
+  // 【2026-08-30追加、本人指示：苦手曲5系統完全分離】一瞬タブの開始。既存の
+  // #instant-challenge-question-screen・#instant-challenge-result-screenをそのまま再利用する
+  // （js/instantChallengeScreen.jsのstartInstantChallengeWeakSongsPractice()参照）。
+  onStartInstant: async (songIds, settings) => {
+    playClickSound();
+    const started = await startInstantChallengeWeakSongsPractice(songIds, settings);
+    if (!started) {
+      weakSongsCountNoticeElement.hidden = false;
+      weakSongsCountNoticeElement.textContent =
+        "対象曲の音源が読み込まれていないため開始できませんでした。スタート画面の「音源を読み込む」から追加してください。";
+      return;
+    }
+    setInstantChallengeBackLabelsForWeakSongsPractice(true);
+    showScreen("instantChallengeQuestion");
+    startInstantChallengePlay();
+  },
 });
+
+// 【2026-08-30追加、本人指示：苦手曲5系統完全分離】苦手曲モード「一瞬」タブからの練習中は、
+// 一瞬チャレンジ問題画面・結果画面の「戻る」文言を「苦手曲モードへ」に差し替える
+// （遷移先自体はjs/instantChallengeScreen.jsのisInstantChallengeWeakSongsPractice()を見て
+// すでに苦手曲モード画面になっているため、これは表示文言だけの調整）。
+function setInstantChallengeBackLabelsForWeakSongsPractice(isPractice) {
+  const backButtonTextNode = Array.from(instantChallengeBackButtonElement.childNodes).find(
+    (node) => node.nodeType === Node.TEXT_NODE && node.textContent.trim() !== ""
+  );
+  if (backButtonTextNode) {
+    backButtonTextNode.textContent = isPractice ? "苦手曲モードへ" : "設定に戻る";
+  }
+  instantChallengeResultSetupButtonElement.textContent = isPractice
+    ? "← 苦手曲モードへ戻る"
+    : "← 一瞬チャレンジ設定へ戻る";
+}
 
 // オリジナル問題作成モードの選曲画面の描画に使うDOM要素一式を渡して初期化する。
 initCustomQuizScreen({
@@ -2916,12 +3023,18 @@ function renderQuestion() {
         () => {}
       );
     }
-  } else if (gameState.playMode === "special" && gameState.specialModeId === "customQuizRandomPlayback") {
+  } else if (
+    gameState.playMode === "special" &&
+    (gameState.specialModeId === "customQuizRandomPlayback" || gameState.specialModeId === "weakSongsShuffle")
+  ) {
     // 【2026-08-29追加、本人指示（⑭）】オリジナル問題作成モードのランダム再生タイプ。
+    // 【2026-08-30追加、本人指示：苦手曲5系統完全分離】苦手曲モード「シャッフル」タブの練習も
+    // 同じ再生位置ロジックを使う（js/main.jsのbeginWeakSongsShufflePractice()参照）。
     // 上のスタンドアロン版「ランダム再生クイズ」・タイムアタックのランダム再生variantと
     // 全く同じ既存関数（js/randomPlaybackEngine.js）をそのまま再利用し、種(seed)の取得元だけが
-    // js/randomPlaybackScreen.jsのgenerateNewRandomPlaybackSeed()（beginCustomRandomPlaybackQuiz参照）
-    // になっている。1台の端末で完結するモードのため、複数端末間の同期は考慮不要。
+    // js/randomPlaybackScreen.jsのgenerateNewRandomPlaybackSeed()（beginCustomRandomPlaybackQuiz・
+    // beginWeakSongsShufflePractice参照）になっている。1台の端末で完結するモードのため、
+    // 複数端末間の同期は考慮不要。
     const seed = getCurrentRandomPlaybackSeed();
     const questionIndex = gameState.currentIndex;
     const computeStartTimeSec = (durationSec) =>
@@ -2936,7 +3049,9 @@ function renderQuestion() {
     );
   } else if (
     gameState.playMode === "special" &&
-    (gameState.specialModeId === "outroQuiz" || gameState.specialModeId === "customQuizOutro")
+    (gameState.specialModeId === "outroQuiz" ||
+      gameState.specialModeId === "customQuizOutro" ||
+      gameState.specialModeId === "weakSongsOutro")
   ) {
     // 【2026-08-30新設、本人指示】アウトロクイズ：曲の最後5秒（無音・フェードアウトを
     // 機械的に避けた位置、js/data/audioMetadata.jsのoutroStartSec参照）を再生する。
@@ -3425,6 +3540,7 @@ initInstantChallengeSetupScreen({
   startButton: instantChallengeStartButtonElement,
   startError: instantChallengeStartErrorElement,
   onStart: () => {
+    setInstantChallengeBackLabelsForWeakSongsPractice(false);
     showScreen("instantChallengeQuestion");
     startInstantChallengePlay();
   },
@@ -3443,7 +3559,15 @@ initInstantChallengeQuestionScreen({
   quitCancelButton: instantChallengeQuitCancelButtonElement,
   quitRestartButton: instantChallengeQuitRestartButtonElement,
   quitConfirmButton: instantChallengeQuitConfirmButtonElement,
-  onQuit: () => navigateWithScrollMemory("instantChallengeSetup"),
+  // 【2026-08-30追加、本人指示：苦手曲5系統完全分離】苦手曲モード「一瞬」タブからの練習中は、
+  // 「戻る」の先を通常の一瞬チャレンジ設定画面ではなく苦手曲モード画面にする。
+  onQuit: () => {
+    if (isInstantChallengeWeakSongsPractice()) {
+      goToWeakSongsScreen();
+      return;
+    }
+    navigateWithScrollMemory("instantChallengeSetup");
+  },
   onFinish: () => {
     renderInstantChallengeResult();
     showScreen("instantChallengeResult");
@@ -3479,6 +3603,10 @@ instantChallengeResultRetryButtonElement.addEventListener("click", async () => {
 
 instantChallengeResultSetupButtonElement.addEventListener("click", () => {
   playClickSound();
+  if (isInstantChallengeWeakSongsPractice()) {
+    goToWeakSongsScreen();
+    return;
+  }
   navigateWithScrollMemory("instantChallengeSetup");
 });
 
@@ -3510,6 +3638,13 @@ function retrySpecialQuiz() {
   if (gameState.specialModeId === "weakSongs") {
     const songIds = resolveWeakSongIds(gameState.questionCountValue);
     beginSpecialQuiz(songIds, gameState.questionCountValue, "weakSongs");
+  } else if (gameState.specialModeId === "weakSongsOutro") {
+    // 【2026-08-30追加、本人指示：苦手曲5系統完全分離】
+    const songIds = resolveOutroWeakSongIds(gameState.questionCountValue);
+    beginWeakSongsOutroPractice(songIds, gameState.questionCountValue);
+  } else if (gameState.specialModeId === "weakSongsShuffle") {
+    const songIds = resolveShuffleWeakSongIds(gameState.questionCountValue);
+    beginWeakSongsShufflePractice(songIds, gameState.questionCountValue);
   } else if (gameState.specialModeId === "customQuiz") {
     const { songIds, distractorMode } = getLastStartedCustomQuizSelection();
     beginCustomQuiz(songIds, distractorMode);

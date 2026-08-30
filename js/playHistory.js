@@ -238,6 +238,11 @@ export const HISTORY_FILTER_CATEGORY = {
   // （ランダム再生系のフィルターへ、既存モードと見た目の近さで分類）。
   outroQuiz: "intro",
   instantChallenge: "randomPlayback",
+  // 2026-08-30追加：苦手曲モードの5系統完全分離にともなう、アウトロ・シャッフル・
+  // 一瞬タブ（weakSongsLyricsと同じ考え方で、対応するエンジンのフィルターへ分類する）。
+  weakSongsOutro: "intro",
+  weakSongsShuffle: "randomPlayback",
+  weakSongsInstant: "randomPlayback",
 };
 
 export const HISTORY_FILTER_LABELS = {
@@ -283,6 +288,11 @@ export const HISTORY_MODE_DISPLAY = {
   // 2026-08-30追加：アウトロクイズ・一瞬チャレンジ。
   outroQuiz: { label: "アウトロクイズ", iconKey: "outroQuiz" },
   instantChallenge: { label: "一瞬チャレンジ", iconKey: "instantChallenge" },
+  // 2026-08-30追加：苦手曲モードの5系統完全分離にともなう、アウトロ・シャッフル・一瞬タブ。
+  // 専用アイコンは作らず、対応するエンジンのiconKeyを再利用する（weakSongsLyricsと同じ方針）。
+  weakSongsOutro: { label: "苦手曲モード（アウトロ）", iconKey: "outroQuiz" },
+  weakSongsShuffle: { label: "苦手曲モード（シャッフル）", iconKey: "randomPlayback" },
+  weakSongsInstant: { label: "苦手曲モード（一瞬）", iconKey: "instantChallenge" },
 };
 
 // ===== 一覧カード・サマリー用の表示ヘルパー（純粋関数） =====
@@ -312,7 +322,8 @@ export function describeEntrySummaryLines(entry) {
     case "weakSongs":
     case "customQuiz":
     case "outroQuiz":
-    case "customQuizOutro": {
+    case "customQuizOutro":
+    case "weakSongsOutro": {
       lines.push([questionCountLabel, scopeLabel].filter(Boolean).join("・"));
       const scoreText = entry.score !== null ? `・${entry.score}点` : "";
       const averageText = formatResponseSeconds(entry.averageResponseMs);
@@ -321,7 +332,8 @@ export function describeEntrySummaryLines(entry) {
       );
       break;
     }
-    case "randomPlayback": {
+    case "randomPlayback":
+    case "weakSongsShuffle": {
       lines.push(
         [questionCountLabel, scopeLabel, BATTLE_RULE_LABELS[entry.details?.rule]].filter(Boolean).join("・")
       );
@@ -333,7 +345,8 @@ export function describeEntrySummaryLines(entry) {
       );
       break;
     }
-    case "instantChallenge": {
+    case "instantChallenge":
+    case "weakSongsInstant": {
       lines.push([questionCountLabel, scopeLabel].filter(Boolean).join("・"));
       const clearText = entry.details?.isCleared ? "🎉 クリア" : "";
       lines.push(`${entry.correctCount}/${entry.questionCount}問正解${clearText ? `・${clearText}` : ""}`);
