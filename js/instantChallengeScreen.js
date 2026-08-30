@@ -1,5 +1,5 @@
 // 一瞬チャレンジ（曲のランダムな位置から一瞬〈1.5秒/1秒/0.5秒〉だけ再生し、
-// 回答候補（4/10/30/50/全曲）から曲名を当てる高難度モード）の
+// 回答候補（4/10/全曲）から曲名を当てる高難度モード）の
 // 設定画面・問題画面・結果画面を担当するファイル（2026-08-30新設）。
 //
 // 【設計方針】回答候補の生成・検証・大きい候補数のときの検索UIは、歌詞クイズ
@@ -26,7 +26,6 @@ import { MIN_SONGS_REQUIRED } from "./quiz.js";
 import { filterSongsWithImportedAudio } from "./audioStorage.js";
 import { SONGS } from "./data/songs.js";
 import {
-  ANSWER_POOL_SIZE_VALUES,
   LARGE_ANSWER_POOL_THRESHOLD,
   generateAnswerPool,
   validateLyricsQuizQuestionAnswerPool,
@@ -39,11 +38,14 @@ import { recordInstantChallengeWeakSongAttempt } from "./instantChallengeWeakSon
 import { recordInstantChallengeClear } from "./instantChallengeClearStore.js";
 import { savePlayHistoryEntry } from "./playHistory.js";
 
-export { ANSWER_POOL_SIZE_VALUES as INSTANT_CHALLENGE_ANSWER_POOL_SIZE_VALUES };
+// 【2026-08-30改訂・本人指示】回答候補は4択／10択／全曲検索の3段階のみに変更
+// （30択・50択は一瞬チャレンジでは不要と判断し廃止。歌詞クイズ側のANSWER_POOL_SIZE_VALUES
+// 〈js/lyricsQuizEngine.js〉は変更しない＝歌詞クイズの30択・50択には影響しない）。
+export const INSTANT_CHALLENGE_ANSWER_POOL_SIZE_VALUES = ["4", "10", "all"];
 // 再生時間の選択肢（本人指示：1.5/1/0.5秒の3段階のみ。長い時間は入れない）。
 export const INSTANT_CHALLENGE_PLAY_DURATION_VALUES = ["1.5", "1", "0.5"];
-
-const ANSWER_FEEDBACK_DELAY_MS = 900;
+// 出題数の選択肢（本人指示：3/5/10問の3段階のみに変更。20/50/全曲は廃止）。
+export const INSTANT_CHALLENGE_QUESTION_COUNT_VALUES = ["3", "5", "10"];
 
 let elements = null; // 設定画面
 let questionElements = null; // 問題画面
@@ -52,11 +54,11 @@ let resultElements = null; // 結果画面
 let currentSettings = null; // { questionCountValue, categoryFilterValue, playDurationValue, answerPoolSizeValue }
 let questions = []; // { song, answerPool }[]
 let currentIndex = 0;
-let answers = []; // { songId, isCorrect }[]
+let answers = []; // { songId, isCorrect, replayCount }[]
+let replayCounts = []; // 問題ごとの「もう一度聞く」使用回数（questionsと同じ長さ）
 let seed = 0;
 let hasAnsweredCurrentQuestion = false;
 let questionStartedAt = 0;
-let pendingAnswerFeedbackTimeoutId = null;
 
 // ===== 1. 設定画面 =====
 
@@ -127,6 +129,7 @@ async function buildAndStartRun(settings) {
   });
   currentIndex = 0;
   answers = [];
+  replayCounts = new Array(questions.length).fill(0);
 
   elements.onStart();
   return true;
@@ -136,6 +139,7 @@ async function buildAndStartRun(settings) {
 
 // questionElements: {
 //   progress, answerSearchRow, answerSearchInput, answerCount, answerList,
+//   replayButton, nextButton,
 //   backButton, quitConfirmModal, quitCancelButton, quitRestartButton, quitConfirmButton,
 //   onQuit,
 // }
@@ -143,6 +147,20 @@ export function initInstantChallengeQuestionScreen(newElements) {
   questionElements = newElements;
   questionElements.answerSearchInput.addEventListener("input", () => {
     renderAnswerButtons(questions[currentIndex].answerPool, questionElements.answerSearchInput.value);
+  });
+
+  // 【2026-08-30追加・本人指示⑨】「もう一度聞く」：ソロプレイでは回数無制限。
+  // 回答後（hasAnsweredCurrentQuestion===true）は正解が確定済みのため押せないようにする。
+  questionElements.replayButton.addEventListener("click", () => {
+    if (hasAnsweredCurrentQuestion) return;
+    replayCounts[currentIndex] += 1;
+    playCurrentQuestionAudio();
+  });
+
+  // 【2026-08-30追加・本人指示⑧】「次の問題へ」：回答直後の自動送りをやめ、
+  // 必ずこのボタンを押すまで次の音源を再生しない（通常イントロクイズ型の進行に統一）。
+  questionElements.nextButton.addEventListener("click", () => {
+    advanceToNextQuestionOrFinish();
   });
 
   questionElements.backButton.addEventListener("click", openQuitConfirmModal);
@@ -176,17 +194,16 @@ function closeQuitConfirmModal() {
 
 function quitRun() {
   stopAudio();
-  clearPendingAnswerFeedbackTimeout();
   questionElements.answerSearchInput.value = "";
   questions = [];
   currentIndex = 0;
   answers = [];
+  replayCounts = [];
   questionElements.onQuit();
 }
 
 async function restartRun() {
   stopAudio();
-  clearPendingAnswerFeedbackTimeout();
   questionElements.answerSearchInput.value = "";
   await retryInstantChallengeRun();
 }
@@ -200,22 +217,28 @@ function showAudioErrorInline(message) {
   console.warn("[一瞬チャレンジ]", message);
 }
 
-function renderCurrentQuestion() {
-  hasAnsweredCurrentQuestion = false;
-  questionStartedAt = Date.now();
-  questionElements.progress.textContent = `第${currentIndex + 1}問 / ${questions.length}問`;
-  renderAnswerArea(questions[currentIndex]);
-
-  // 再生位置は既存のランダム再生クイズと全く同じ関数（js/randomPlaybackEngine.js）を使う
-  // （本人指示：「既存のランダム再生クイズの再生位置決定ロジックをまず確認し、
-  // 使える部分があれば共通化してください」）。再生時間だけ、選ばれたplayDurationValue
-  // （1.5/1/0.5秒）に差し替える。
+// 現在の問題の音源を、決まった再生位置・再生時間で再生する。初回再生・「もう一度聞く」の
+// どちらからも同じ位置（questionIndexが同じ＝同じseedから同じ乱数が出る）が再生される。
+function playCurrentQuestionAudio() {
   const question = questions[currentIndex];
   const questionIndex = currentIndex;
   const playDurationSec = Number(currentSettings.playDurationValue);
   const computeStartTimeSec = (durationSec) =>
     computeRandomStartTimeSec({ seed, songId: question.song.id, questionIndex, durationSec, playDurationSec });
   playSongFromRandomPosition(question.song, computeStartTimeSec, playDurationSec, showAudioErrorInline, () => {}, () => {});
+}
+
+function renderCurrentQuestion() {
+  hasAnsweredCurrentQuestion = false;
+  questionStartedAt = Date.now();
+  questionElements.progress.textContent = `第${currentIndex + 1}問 / ${questions.length}問`;
+  renderAnswerArea(questions[currentIndex]);
+
+  questionElements.replayButton.hidden = false;
+  questionElements.replayButton.disabled = false;
+  questionElements.nextButton.hidden = true;
+
+  playCurrentQuestionAudio();
 }
 
 function renderAnswerArea(question) {
@@ -254,13 +277,15 @@ function disableAllAnswerButtons() {
   });
 }
 
+// 【2026-08-30改訂・本人指示⑧】回答直後に自動で次へ進むのをやめ、正解・不正解を
+// 表示したまま「次の問題へ」ボタンが押されるまで待つ（通常イントロクイズ型の進行）。
 function handleAnswerSelected(selectedSongId, buttonElement) {
   if (hasAnsweredCurrentQuestion) return;
   hasAnsweredCurrentQuestion = true;
 
   const question = questions[currentIndex];
   const isCorrect = selectedSongId === question.song.id;
-  answers.push({ songId: question.song.id, isCorrect });
+  answers.push({ songId: question.song.id, isCorrect, replayCount: replayCounts[currentIndex] });
   recordInstantChallengeWeakSongAttempt(question.song.id, isCorrect);
 
   buttonElement.classList.add(isCorrect ? "is-correct" : "is-wrong");
@@ -272,21 +297,10 @@ function handleAnswerSelected(selectedSongId, buttonElement) {
   }
 
   disableAllAnswerButtons();
-  scheduleAnswerFeedbackAdvance();
-}
-
-function scheduleAnswerFeedbackAdvance() {
-  clearPendingAnswerFeedbackTimeout();
-  pendingAnswerFeedbackTimeoutId = setTimeout(() => {
-    pendingAnswerFeedbackTimeoutId = null;
-    advanceToNextQuestionOrFinish();
-  }, ANSWER_FEEDBACK_DELAY_MS);
-}
-
-function clearPendingAnswerFeedbackTimeout() {
-  if (pendingAnswerFeedbackTimeoutId === null) return;
-  clearTimeout(pendingAnswerFeedbackTimeoutId);
-  pendingAnswerFeedbackTimeoutId = null;
+  questionElements.replayButton.disabled = true; // 正解が確定した後の聞き直しは不要
+  questionElements.nextButton.hidden = false;
+  questionElements.nextButton.textContent =
+    currentIndex + 1 >= questions.length ? "結果を見る" : "次の問題へ";
 }
 
 function advanceToNextQuestionOrFinish() {
@@ -310,13 +324,22 @@ export function renderInstantChallengeResult() {
   const correctCount = answers.filter((answer) => answer.isCorrect).length;
   const missCount = answers.length - correctCount;
   const isCleared = answers.length > 0 && missCount === 0;
+  // 「即聞即答」等の裏チャレンジ判定材料：全問を通じて一度も「もう一度聞く」を使わなかったか。
+  const noReplayUsed = answers.every((answer) => answer.replayCount === 0);
+  const totalReplayCount = answers.reduce((sum, answer) => sum + answer.replayCount, 0);
 
   resultElements.correctCount.textContent = `${correctCount} / ${answers.length}問`;
   resultElements.missCount.textContent = `${missCount}問`;
   resultElements.clearBadge.hidden = !isCleared;
 
+  // 【2026-08-30改訂・本人指示⑦⑪】クリア条件のキーに「実際に出題された問題数」を使う
+  // （出題可能な曲が少なく、設定した問題数より少ない問題数で完走した場合、その実際の問題数を
+  // 正直にキーへ反映する。これにより「10問クリア」相当の称号は、本当に10問出題された
+  // 場合にしか成立しない）。
   if (isCleared) {
-    recordInstantChallengeClear(currentSettings.playDurationValue, currentSettings.answerPoolSizeValue);
+    recordInstantChallengeClear(currentSettings.playDurationValue, currentSettings.answerPoolSizeValue, String(answers.length), {
+      noReplayUsed,
+    });
   }
 
   savePlayHistoryEntry({
@@ -336,6 +359,8 @@ export function renderInstantChallengeResult() {
       answerPoolSizeValue: currentSettings.answerPoolSizeValue,
       categoryFilterValue: currentSettings.categoryFilterValue,
       isCleared,
+      noReplayUsed,
+      totalReplayCount,
     },
   });
 
@@ -351,7 +376,8 @@ function renderBreakdown() {
 
     const title = document.createElement("span");
     title.className = "lyrics-quiz-breakdown-title";
-    title.textContent = `第${index + 1}問：${question.song.title}`;
+    const replaySuffix = answer.replayCount > 0 ? `（聞き直し${answer.replayCount}回）` : "";
+    title.textContent = `第${index + 1}問：${question.song.title}${replaySuffix}`;
     row.appendChild(title);
 
     const status = document.createElement("span");

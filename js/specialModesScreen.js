@@ -197,15 +197,17 @@ function renderSpecialModesList() {
 export const HOME_SPECIAL_MODES_ORDER = [
   "randomPlayback",
   "lyricsQuiz",
+  // 【2026-08-30改訂・本人指示①】アウトロクイズは「特殊モード」ではなく、イントロ
+  // （ホーム画面自体）・ランダム再生・歌詞クイズと並ぶ通常の主要モードとして扱うため、
+  // 他の主要2モードのすぐ後ろへ位置を上げる（末尾のままだと特殊モード群に埋もれてしまうため）。
+  "outroQuiz",
   "timeAttack",
   "onlineBattle",
   "originalQuiz",
   "liveCallMode",
   "weakSongs",
   "localBattle",
-  // 2026-08-30追加：アウトロクイズ・一瞬チャレンジ（本人指示）。既存8モードの並びを崩さず、
-  // 末尾に追加する。
-  "outroQuiz",
+  // 一瞬チャレンジは「特殊チャレンジ」として独立させる方針（本人指示）のため、末尾のまま維持する。
   "instantChallenge",
 ];
 

@@ -27,15 +27,15 @@ export function runSpecialModesScreenTests() {
     assertEqual(specialModeIds.includes(modeId), true, `HOME_SPECIAL_MODES_ORDERの"${modeId}"はSPECIAL_MODESに存在する`);
   });
 
-  // ---- 本人指定の並び順どおりであること（2026-08-30改訂：末尾にアウトロクイズ・
-  //      一瞬チャレンジを追加、既存8モードの並びは変更しない） ----
+  // ---- 本人指定の並び順どおりであること（2026-08-30再改訂：アウトロクイズは
+  //      「主要モード」としてlyricsQuizの直後へ、一瞬チャレンジは末尾のまま） ----
   assertEqual(
     HOME_SPECIAL_MODES_ORDER.join(","),
     [
-      "randomPlayback", "lyricsQuiz", "timeAttack", "onlineBattle", "originalQuiz", "liveCallMode", "weakSongs", "localBattle",
-      "outroQuiz", "instantChallenge",
+      "randomPlayback", "lyricsQuiz", "outroQuiz", "timeAttack", "onlineBattle", "originalQuiz", "liveCallMode", "weakSongs", "localBattle",
+      "instantChallenge",
     ].join(","),
-    "ホーム画面の並び順が指定通り（1〜4段目は既存のまま、5段目にアウトロクイズ/一瞬チャレンジを追加）"
+    "ホーム画面の並び順が指定通り（アウトロクイズは主要モードとしてlyricsQuizの直後、一瞬チャレンジは末尾）"
   );
 
   // ---- 特別モード8個すべてにアイコン要素が存在する ----

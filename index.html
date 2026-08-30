@@ -2511,13 +2511,9 @@
       <fieldset>
         <legend>出題数</legend>
         <div class="option-row">
+          <label><input type="radio" name="instant-challenge-question-count" value="3"> 3問</label>
           <label><input type="radio" name="instant-challenge-question-count" value="5" checked> 5問</label>
           <label><input type="radio" name="instant-challenge-question-count" value="10"> 10問</label>
-          <label><input type="radio" name="instant-challenge-question-count" value="20"> 20問</label>
-        </div>
-        <div class="option-row">
-          <label><input type="radio" name="instant-challenge-question-count" value="50"> 50問</label>
-          <label><input type="radio" name="instant-challenge-question-count" value="all"> 全曲</label>
         </div>
       </fieldset>
 
@@ -2544,10 +2540,6 @@
         <div class="option-row">
           <label><input type="radio" name="instant-challenge-answer-pool-size" value="4" checked> 4択</label>
           <label><input type="radio" name="instant-challenge-answer-pool-size" value="10"> 10択</label>
-          <label><input type="radio" name="instant-challenge-answer-pool-size" value="30"> 30択</label>
-        </div>
-        <div class="option-row">
-          <label><input type="radio" name="instant-challenge-answer-pool-size" value="50"> 50択</label>
           <label><input type="radio" name="instant-challenge-answer-pool-size" value="all"> 全曲検索</label>
         </div>
       </fieldset>
@@ -2573,6 +2565,12 @@
             <span id="instant-challenge-progress" class="lyrics-quiz-progress">第1問 / 5問</span>
           </div>
 
+          <!-- 【2026-08-30追加・本人指示⑨】ソロプレイでは回数無制限の聞き直しボタン。
+               回答が確定すると押せなくなる（js/instantChallengeScreen.js側で制御）。 -->
+          <button id="instant-challenge-replay-button" class="secondary-button instant-challenge-replay-button" type="button">
+            🔁 もう一度聞く
+          </button>
+
           <div id="instant-challenge-answer-section" class="lyrics-quiz-answer-section">
             <p class="lyrics-quiz-answer-label">この曲は？</p>
             <div id="instant-challenge-answer-search-row" class="lyrics-quiz-answer-search-row" hidden>
@@ -2581,6 +2579,12 @@
             </div>
             <div id="instant-challenge-answer-list" class="lyrics-quiz-answer-list"></div>
           </div>
+
+          <!-- 【2026-08-30追加・本人指示⑧】回答直後は自動で次へ進まず、必ずこのボタンで
+               次の問題（最終問なら結果画面）へ進む。答えるまではhiddenのまま。 -->
+          <button id="instant-challenge-next-button" class="primary-button instant-challenge-next-button" type="button" hidden>
+            次の問題へ
+          </button>
         </div>
       </div>
     </section>

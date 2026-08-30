@@ -1200,6 +1200,8 @@ const instantChallengeAnswerSearchRowElement = document.getElementById("instant-
 const instantChallengeAnswerSearchInputElement = document.getElementById("instant-challenge-answer-search-input");
 const instantChallengeAnswerCountElement = document.getElementById("instant-challenge-answer-count");
 const instantChallengeAnswerListElement = document.getElementById("instant-challenge-answer-list");
+const instantChallengeReplayButtonElement = document.getElementById("instant-challenge-replay-button");
+const instantChallengeNextButtonElement = document.getElementById("instant-challenge-next-button");
 const instantChallengeBackButtonElement = document.getElementById("instant-challenge-back-button");
 const instantChallengeQuitConfirmModalElement = document.getElementById("instant-challenge-quit-confirm-modal");
 const instantChallengeQuitCancelButtonElement = document.getElementById("instant-challenge-quit-cancel-button");
@@ -3362,9 +3364,12 @@ async function beginOutroQuiz(questionCountValue, categoryFilterValue) {
   showScreen("quiz");
 }
 
+// 【2026-08-30改訂・本人指示②】アウトロ・一瞬チャレンジは特殊モードではなく、
+// イントロ・ランダム再生・歌詞クイズと並ぶ通常の主要モードとして扱うため、
+// 「戻る」は旧特殊モード一覧（specialModes）ではなく、他の主要モードと同じくホームへ直接戻す。
 outroQuizSetupBackButtonElement.addEventListener("click", () => {
   playSfx(SFX_EVENTS.UI_BACK);
-  navigateWithScrollMemory("specialModes");
+  navigateWithScrollMemory("start");
 });
 
 outroQuizStartButtonElement.addEventListener("click", () => {
@@ -3392,6 +3397,8 @@ initInstantChallengeQuestionScreen({
   answerSearchInput: instantChallengeAnswerSearchInputElement,
   answerCount: instantChallengeAnswerCountElement,
   answerList: instantChallengeAnswerListElement,
+  replayButton: instantChallengeReplayButtonElement,
+  nextButton: instantChallengeNextButtonElement,
   backButton: instantChallengeBackButtonElement,
   quitConfirmModal: instantChallengeQuitConfirmModalElement,
   quitCancelButton: instantChallengeQuitCancelButtonElement,
@@ -3411,9 +3418,10 @@ initInstantChallengeResultScreen({
   breakdownList: instantChallengeResultBreakdownListElement,
 });
 
+// 【2026-08-30改訂・本人指示②】上のアウトロと同じ理由でホームへ直接戻す。
 instantChallengeSetupBackButtonElement.addEventListener("click", () => {
   playSfx(SFX_EVENTS.UI_BACK);
-  navigateWithScrollMemory("specialModes");
+  navigateWithScrollMemory("start");
 });
 
 instantChallengeResultHomeLinkElement.addEventListener("click", () => {

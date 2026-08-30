@@ -12483,6 +12483,24 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   font-variant-numeric: tabular-nums;
 }
 
+/* 一瞬チャレンジ専用：「もう一度聞く」「次の問題へ」（2026-08-30追加、本人指示⑧⑨）。
+   .secondary-buttonはflex:1で.button-row内での利用を前提にしているため、単独配置では
+   幅・余白を明示的に指定し直す。 */
+.instant-challenge-replay-button {
+  display: flex;
+  width: 100%;
+  margin: 0 0 14px;
+}
+
+.instant-challenge-replay-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.instant-challenge-next-button {
+  margin-top: 18px;
+}
+
 /* 歌詞ヒントの表示カード。読みやすさを優先し、十分な行間・横スクロールなしにする
    （本人の要望どおり）。 */
 .lyrics-quiz-hint-card {
@@ -13210,7 +13228,11 @@ body[data-screen="liveCallModeKaraoke"] .game-frame {
    発生する場面はほぼ無い想定。 */
 body[data-screen="quiz"],
 body[data-screen="lyricsQuizQuestion"],
-body[data-screen="onlineLyricsBattleQuestion"] {
+body[data-screen="onlineLyricsBattleQuestion"],
+/* 【2026-08-30追加・本人報告の不具合対応】一瞬チャレンジの問題画面（HTML側の
+   .quiz-middle-zoneラッパー自体は既にあったが、この画面固定ルールの対象に
+   入れ忘れていたため、クイズ中に上下スクロールできてしまっていた）。 */
+body[data-screen="instantChallengeQuestion"] {
   padding-top: 0;
   padding-bottom: 0;
   overflow: hidden;
@@ -13218,7 +13240,8 @@ body[data-screen="onlineLyricsBattleQuestion"] {
 
 body[data-screen="quiz"] .game-frame,
 body[data-screen="lyricsQuizQuestion"] .game-frame,
-body[data-screen="onlineLyricsBattleQuestion"] .game-frame {
+body[data-screen="onlineLyricsBattleQuestion"] .game-frame,
+body[data-screen="instantChallengeQuestion"] .game-frame {
   height: 100dvh;
   max-height: 100dvh;
   display: flex;
@@ -13227,7 +13250,8 @@ body[data-screen="onlineLyricsBattleQuestion"] .game-frame {
 
 #quiz-screen.is-active,
 #lyrics-quiz-question-screen.is-active,
-#online-lyrics-battle-question-screen.is-active {
+#online-lyrics-battle-question-screen.is-active,
+#instant-challenge-question-screen.is-active {
   display: flex;
   flex-direction: column;
   /* 【2026-08-29再改訂】固定値20pxではなく、Dynamic Island・ノッチのsafe areaぶんを
@@ -13239,7 +13263,8 @@ body[data-screen="onlineLyricsBattleQuestion"] .game-frame {
 
 #quiz-screen.is-active .quiz-header-row,
 #lyrics-quiz-question-screen.is-active .quiz-header-row,
-#online-lyrics-battle-question-screen.is-active .quiz-header-row {
+#online-lyrics-battle-question-screen.is-active .quiz-header-row,
+#instant-challenge-question-screen.is-active .quiz-header-row {
   flex: none;
 }
 

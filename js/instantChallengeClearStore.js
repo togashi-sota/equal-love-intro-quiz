@@ -17,13 +17,21 @@ function buildInstantChallengeClearsKey() {
   return `equalLoveIntroQuiz.${getPlayerKeyPrefix()}instantChallengeClears`;
 }
 
-const CURRENT_SCHEMA_VERSION = 1;
+// 【2026-08-30改訂・本人指示】称号「一瞬ビギナー〜一瞬マスター」「即聞即答」が
+// 再生時間×回答候補数だけでなく出題数（3/5/10問）ごとに条件を分けて確定したため、
+// comboKeyにquestionCountValueを追加した（schemaVersion 1→2）。
+// 【既存データの安全性】旧schemaVersion 1時代のレコードは、questionCountValueを含まない
+// 短いキー（例："0.5_4"）のまま同じclearedCombosオブジェクトに残り続ける。新しいキー
+// （例："0.5_4_10"）とは文字列として別物なので衝突・上書きは起きない。称号判定は
+// 新しいキー形式のレコードだけを見るため、古いレコードは静かに無視されるだけで、
+// 削除も改変もされない（本人指示：既存データを失わせない）。
+const CURRENT_SCHEMA_VERSION = 2;
 
-// 再生時間（"1.5"|"1"|"0.5"）・回答候補数（"4"|"10"|"30"|"50"|"all"）から、
+// 再生時間（"1.5"|"1"|"0.5"）・回答候補数（"4"|"10"|"all"）・出題数（"3"|"5"|"10"）から、
 // 保存キーとして使う一意な組み合わせキーを作る。再生時間の値がすでに"."を含むため、
 // 区切り文字には"_"を使う（"."を区切りに使うと"1.5"と"1"+"5"のような曖昧さが生まれるため）。
-export function buildComboKey(playDurationValue, answerPoolSizeValue) {
-  return `${playDurationValue}_${answerPoolSizeValue}`;
+export function buildComboKey(playDurationValue, answerPoolSizeValue, questionCountValue) {
+  return `${playDurationValue}_${answerPoolSizeValue}_${questionCountValue}`;
 }
 
 function loadData() {
@@ -49,22 +57,26 @@ function saveData(data) {
 }
 
 // 指定した条件のクリア状況を返す（未クリアならnull）。
-export function getInstantChallengeClear(playDurationValue, answerPoolSizeValue) {
+export function getInstantChallengeClear(playDurationValue, answerPoolSizeValue, questionCountValue) {
   const data = loadData();
-  return data.clearedCombos[buildComboKey(playDurationValue, answerPoolSizeValue)] ?? null;
+  return data.clearedCombos[buildComboKey(playDurationValue, answerPoolSizeValue, questionCountValue)] ?? null;
 }
 
 // 指定した条件を「クリアした」として記録する。呼び出し側は、全問正解で完走した場合だけ呼ぶ想定
 // （判定はここでは行わない）。初回クリア日時（clearedAt）は上書きしない。
-export function recordInstantChallengeClear(playDurationValue, answerPoolSizeValue) {
+// noReplayUsed: そのプレイの全問を通じて「もう一度聞く」を一度も使わなかった場合はtrue
+// （裏チャレンジ「即聞即答」の判定材料。初回達成日時だけnoReplayClearedAtに記録し、以後は上書きしない）。
+export function recordInstantChallengeClear(playDurationValue, answerPoolSizeValue, questionCountValue, { noReplayUsed = false } = {}) {
   const data = loadData();
-  const key = buildComboKey(playDurationValue, answerPoolSizeValue);
+  const key = buildComboKey(playDurationValue, answerPoolSizeValue, questionCountValue);
   const existing = data.clearedCombos[key];
   data.clearedCombos[key] = {
     playDurationValue,
     answerPoolSizeValue,
+    questionCountValue,
     clearedAt: existing?.clearedAt ?? new Date().toISOString(),
     clearCount: (existing?.clearCount ?? 0) + 1,
+    noReplayClearedAt: noReplayUsed ? existing?.noReplayClearedAt ?? new Date().toISOString() : existing?.noReplayClearedAt ?? null,
   };
   data.schemaVersion = CURRENT_SCHEMA_VERSION;
   saveData(data);
