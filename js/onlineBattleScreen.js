@@ -39,6 +39,9 @@ import {
   COUNTDOWN_DURATION_MS,
   ROOM_STATUS,
   syncMyHostBadge,
+  spectateRoom,
+  leaveSpectating,
+  promoteSpectatorToPlayer,
 } from "./onlineBattle.js";
 import { getCurrentUid } from "./firebaseClient.js";
 import {
@@ -991,6 +994,93 @@ function goToLobby(roomId) {
   reportMyAvailableSongIdsForRoom(roomId);
 }
 
+// 【2026-08-30新設、本人指示：観戦機能】試合中のルームコードを入力した人を、観戦画面へ導く。
+// goToLobby()と同じ後片付け・監視の開始パターンだが、renderLobby()ではなく
+// renderSpectatorView()を使う（自分はplayersに存在しないため、renderLobby()を
+// そのまま使うと「キックされた」判定に誤って引っかかってしまう）。
+let currentSpectatorPlayerName = "";
+function goToSpectate(roomId, playerName) {
+  currentRoomId = roomId;
+  currentSpectatorPlayerName = playerName ?? currentSpectatorPlayerName;
+  currentGameMode = null;
+  currentMatchId = null;
+  lastHandledRoomStatus = null;
+  stopListeningToRoom();
+  unsubscribeRoom = listenToRoom(roomId, renderSpectatorView);
+  elements.navigateTo("onlineBattleSpectator");
+}
+
+// 観戦中の画面を、roomの最新状態に合わせて描画する。
+function renderSpectatorView(room) {
+  if (!room) {
+    // ルームが無くなった＝試合が終わってホストが退出した等。観戦をやめて入口へ戻す。
+    stopListeningToRoom();
+    currentRoomId = null;
+    elements.navigateTo("onlineBattleEntry");
+    return;
+  }
+
+  // 【2026-08-30新設、本人指示】次の試合が始まる（status:waiting）タイミングで、
+  // 観戦者を正式参加へ自動的に昇格させる（本人指示：「観戦者は次の試合から正式参加できる
+  // ようにしてください」）。昇格に成功したら、通常のロビー画面へ切り替える。
+  if (room.status === ROOM_STATUS.WAITING) {
+    promoteSpectatorToPlayer({ roomId: room.roomId, playerName: currentSpectatorPlayerName }).then((result) => {
+      if (result.ok) {
+        goToLobby(room.roomId);
+      }
+      // 失敗した場合（定員超過等）は観戦のまま留まる。次の更新でまた判定し直される。
+    });
+    return;
+  }
+
+  if (room.status === ROOM_STATUS.RESULT) {
+    currentMatchId = room.activeMatchId;
+    goToResultScreen(room);
+    return;
+  }
+
+  currentMatchId = room.activeMatchId;
+  elements.spectatorGameModeText.textContent = `モード: ${getModeLabel(room.gameMode)}`;
+  const players = room.players || {};
+  const spectators = room.spectators || {};
+  elements.spectatorPlayerCount.textContent = `${Object.keys(players).length}人プレイ中・観戦${Object.keys(spectators).length}人 / 最大${room.maxPlayers}人`;
+
+  const rows = getOnlineBattleMatchRows(room);
+  elements.spectatorPlayerList.innerHTML = "";
+  rows.forEach((row) => {
+    const li = document.createElement("li");
+    li.className = "online-lobby-player-row";
+    const oshiDot = createOshiDotElement(row.oshiMemberId);
+    if (oshiDot) li.appendChild(oshiDot);
+    const name = document.createElement("span");
+    name.className = "online-lobby-player-name";
+    name.textContent = row.displayName;
+    li.appendChild(name);
+    const badges = document.createElement("span");
+    badges.className = "online-lobby-player-badges";
+    if (row.isHost) {
+      const hostBadge = document.createElement("span");
+      hostBadge.className = "online-lobby-badge online-lobby-badge-host";
+      hostBadge.textContent = "ホスト";
+      badges.appendChild(hostBadge);
+    }
+    const statusBadge = document.createElement("span");
+    if (row.hasLeft) {
+      statusBadge.className = "online-lobby-badge online-lobby-badge-disconnected";
+      statusBadge.textContent = "退出済み";
+    } else if (row.finished) {
+      statusBadge.className = "online-lobby-badge online-lobby-badge-connected";
+      statusBadge.textContent = "完了";
+    } else {
+      statusBadge.className = "online-lobby-badge online-lobby-badge-progress";
+      statusBadge.textContent = `${row.answeredCount}問`;
+    }
+    badges.appendChild(statusBadge);
+    li.appendChild(badges);
+    elements.spectatorPlayerList.appendChild(li);
+  });
+}
+
 // 【2026-08-26新設・2026-08-27拡張】この端末が実際に持っている曲一覧（音源・歌詞の両方）を、
 // 今入ったルームへ報告する。IndexedDBの読み取りを待たずに画面遷移させたいため、
 // goToLobby()からは待ち合わせずに呼び出す（失敗しても致命的ではない設計。
@@ -1503,8 +1593,25 @@ export function initOnlineBattleScreens(newElements) {
 
     elements.joinSubmitButton.disabled = true;
     const result = await joinRoom({ roomId, playerName });
-    elements.joinSubmitButton.disabled = false;
 
+    // 【2026-08-30新設、本人指示：観戦機能】試合中（waiting以外）で参加できなかった場合は、
+    // エラーで終わらせず、観戦として自動的に加わる（本人指示：「途中から現在の試合へ
+    // 競技参加させる必要はない。現在の試合中は観戦として参加させる」）。
+    if (!result.ok && result.reason === "not-waiting") {
+      const spectateResult = await spectateRoom({ roomId, playerName });
+      elements.joinSubmitButton.disabled = false;
+      if (!spectateResult.ok) {
+        elements.joinError.textContent =
+          JOIN_ERROR_MESSAGES[spectateResult.reason] ?? "参加に失敗しました。もう一度お試しください。";
+        elements.joinError.hidden = false;
+        return;
+      }
+      elements.joinError.hidden = true;
+      goToSpectate(spectateResult.roomId, playerName);
+      return;
+    }
+
+    elements.joinSubmitButton.disabled = false;
     if (!result.ok) {
       elements.joinError.textContent =
         JOIN_ERROR_MESSAGES[result.reason] ?? "参加に失敗しました。もう一度お試しください。";
@@ -1588,6 +1695,17 @@ export function initOnlineBattleScreens(newElements) {
       await transferHost({ roomId: currentRoomId, newHostUid: targetUid });
       return;
     }
+  });
+
+  // 【2026-08-30新設、本人指示】観戦をやめて入口へ戻る。
+  elements.spectatorLeaveButton.addEventListener("click", async () => {
+    if (!currentRoomId) return;
+    elements.spectatorLeaveButton.disabled = true;
+    await leaveSpectating({ roomId: currentRoomId });
+    elements.spectatorLeaveButton.disabled = false;
+    stopListeningToRoom();
+    currentRoomId = null;
+    elements.navigateTo("onlineBattleEntry");
   });
 
   // ===== Step2：対戦設定・準備完了・開始 =====

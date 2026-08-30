@@ -63,6 +63,7 @@ const SCREEN_ELEMENTS = {
   onlineBattleCountdown: document.getElementById("online-battle-countdown-screen"),
   onlineBattleWaiting: document.getElementById("online-battle-waiting-screen"),
   onlineBattleResult: document.getElementById("online-battle-result-screen"),
+  onlineBattleSpectator: document.getElementById("online-battle-spectator-screen"),
   onlineLyricsBattleQuestion: document.getElementById("online-lyrics-battle-question-screen"),
   onlineLyricsBattleResult: document.getElementById("online-lyrics-battle-result-screen"),
 };

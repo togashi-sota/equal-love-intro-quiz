@@ -3352,6 +3352,20 @@
       <button id="online-battle-result-rematch-button" class="secondary-button" type="button" hidden>もう一度対戦する</button>
     </section>
 
+    <!-- 【2026-08-30新設、本人指示：観戦機能】試合中に参加したプレイヤー向けの観戦画面。
+         今の試合には競技参加させず、進行状況（誰が何問答えたか・完了したか）だけを
+         読み取り専用で見せる。試合が終わって結果が出たら既存の結果画面（上）へ、
+         次の試合が始まる（status:waiting）タイミングで正式参加へ自動的に切り替わる
+         （js/onlineBattleScreen.js参照）。 -->
+    <section id="online-battle-spectator-screen" class="screen">
+      <button id="online-battle-spectator-leave-button" class="quiz-back-link" type="button">✕ 観戦をやめる</button>
+      <div class="title-block"><h2>観戦中</h2></div>
+      <p class="online-battle-lead-text">今の試合には参加できません。次の試合から参加できます。</p>
+      <p class="online-lobby-game-mode" id="online-battle-spectator-game-mode"></p>
+      <p class="online-lobby-player-count" id="online-battle-spectator-player-count"></p>
+      <ul class="online-lobby-player-list" id="online-battle-spectator-player-list"></ul>
+    </section>
+
     <!-- オンライン対戦：歌詞クイズ専用の対戦中画面（Phase6新設）。
          既存の#quiz-screen（音源再生・選択式クイズ用）は歌詞クイズの「全員同じ問題を同時に見て、
          ヒントが時間経過で増える／奪い取りルールでは早押しになる」という進行とは前提が異なる

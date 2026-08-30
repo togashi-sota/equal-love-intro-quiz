@@ -984,6 +984,11 @@ const onlineBattleResultRematchButtonElement = document.getElementById("online-b
 const onlineBattleResultRematchConfirmModalElement = document.getElementById("online-battle-result-rematch-confirm-modal");
 const onlineBattleResultRematchCancelButtonElement = document.getElementById("online-battle-result-rematch-cancel-button");
 const onlineBattleResultRematchConfirmButtonElement = document.getElementById("online-battle-result-rematch-confirm-button");
+// 【2026-08-30新設、本人指示：観戦機能】
+const onlineBattleSpectatorLeaveButtonElement = document.getElementById("online-battle-spectator-leave-button");
+const onlineBattleSpectatorGameModeElement = document.getElementById("online-battle-spectator-game-mode");
+const onlineBattleSpectatorPlayerCountElement = document.getElementById("online-battle-spectator-player-count");
+const onlineBattleSpectatorPlayerListElement = document.getElementById("online-battle-spectator-player-list");
 
 // オンライン対戦：出題する曲を選ぶ画面（2026-08-08新設）。イントロ対戦・ランダム再生対戦・
 // 歌詞クイズ対戦の3つで共通利用する。
@@ -5232,6 +5237,10 @@ initOnlineBattleScreens({
   resultRematchConfirmModal: onlineBattleResultRematchConfirmModalElement,
   resultRematchCancelButton: onlineBattleResultRematchCancelButtonElement,
   resultRematchConfirmButton: onlineBattleResultRematchConfirmButtonElement,
+  spectatorLeaveButton: onlineBattleSpectatorLeaveButtonElement,
+  spectatorGameModeText: onlineBattleSpectatorGameModeElement,
+  spectatorPlayerCount: onlineBattleSpectatorPlayerCountElement,
+  spectatorPlayerList: onlineBattleSpectatorPlayerListElement,
   onStartOnlineBattleQuiz: (questions, room) => {
     beginOnlineBattlePlay(questions, room);
   },

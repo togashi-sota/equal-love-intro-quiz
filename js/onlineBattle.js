@@ -135,21 +135,27 @@ function generateMatchId() {
 let presenceUnsubscribe = null;
 let presenceRoomId = null;
 let presenceUid = null;
+// 【2026-08-30追加、本人指示：観戦機能】プレゼンス（接続状態）の書き込み先を
+// players/{uid}/connectedだけでなく、spectators/{uid}/connectedにも対応させる。
+// 既定値"players"を保つことで、既存の呼び出し（引数を省略した呼び出し）は
+// これまでと完全に同じ動作のまま変わらない。
+let presenceKind = "players";
 
-function startPresenceTracking(roomId, uid) {
+function startPresenceTracking(roomId, uid, kind = "players") {
   stopPresenceTracking();
   presenceRoomId = roomId;
   presenceUid = uid;
+  presenceKind = kind;
   const infoConnectedRef = ref(database, ".info/connected");
-  const playerConnectedRef = ref(database, `rooms/${roomId}/players/${uid}/connected`);
+  const entityConnectedRef = ref(database, `rooms/${roomId}/${kind}/${uid}/connected`);
 
   const handleValue = (snapshot) => {
     if (snapshot.val() !== true) {
       return; // 切断中はここでは何もしない（onDisconnectの予約に任せる）
     }
     // 「次に切断したらfalseにする」予約を毎回張り直してから、今の接続状態をtrueにする。
-    onDisconnect(playerConnectedRef).set(false);
-    set(playerConnectedRef, true);
+    onDisconnect(entityConnectedRef).set(false);
+    set(entityConnectedRef, true);
   };
   onValue(infoConnectedRef, handleValue);
   presenceUnsubscribe = () => off(infoConnectedRef, "value", handleValue);
@@ -164,8 +170,8 @@ function startPresenceTracking(roomId, uid) {
 // OS側の通信維持のタイミングに左右されず、即座に反映されるようにする。
 function handlePresenceVisibilityChange() {
   if (!presenceRoomId || !presenceUid) return;
-  const playerConnectedRef = ref(database, `rooms/${presenceRoomId}/players/${presenceUid}/connected`);
-  set(playerConnectedRef, document.visibilityState === "visible");
+  const entityConnectedRef = ref(database, `rooms/${presenceRoomId}/${presenceKind}/${presenceUid}/connected`);
+  set(entityConnectedRef, document.visibilityState === "visible");
 }
 
 if (typeof document !== "undefined") {
@@ -175,6 +181,7 @@ if (typeof document !== "undefined") {
 function stopPresenceTracking() {
   presenceRoomId = null;
   presenceUid = null;
+  presenceKind = "players";
   if (presenceUnsubscribe) {
     presenceUnsubscribe();
     presenceUnsubscribe = null;
@@ -268,13 +275,49 @@ function checkCapacity(room, uid) {
     return { ok: true, alreadyJoined: true }; // 再接続は満員・状態チェックの対象外
   }
 
-  if (Object.keys(players).length >= room.maxPlayers) {
+  // 【2026-08-30改訂、本人指示：観戦機能】確定仕様どおり、最大人数はプレイヤー＋観戦者の
+  // 合計で数える（観戦者だけ上限を無視して増え続ける設計にはしない）。
+  const spectators = room.spectators || {};
+  if (Object.keys(players).length + Object.keys(spectators).length >= room.maxPlayers) {
     return { ok: false, reason: "full" };
   }
   if (room.status !== ROOM_STATUS.WAITING) {
     return { ok: false, reason: "not-waiting" };
   }
   return { ok: true, alreadyJoined: false };
+}
+
+// 【2026-08-30新設、本人指示：観戦機能】観戦として参加できるかどうかを判定する
+// （読み取り専用、書き込みは行わない）。checkCapacity()と同じ考え方だが、
+// 「waitingでなければ拒否」ではなく、むしろ「waiting中は観戦ではなく本来のjoinRoom()で
+// 参加すべき」という逆の関係にある（呼び出し側のspectateRoom()が使う）。
+function checkSpectatorCapacity(room, uid) {
+  const isWellFormedRoom =
+    room !== null &&
+    typeof room.host === "string" &&
+    typeof room.maxPlayers === "number" &&
+    typeof room.status === "string";
+  if (!isWellFormedRoom) {
+    return { ok: false, reason: "not-found" };
+  }
+  if (room.version !== ROOM_SCHEMA_VERSION) {
+    return { ok: false, reason: "version-mismatch" };
+  }
+  if (!isKnownGameMode(room.gameMode)) {
+    return { ok: false, reason: "unsupported-mode" };
+  }
+
+  const spectators = room.spectators || {};
+  const alreadySpectating = Object.prototype.hasOwnProperty.call(spectators, uid);
+  if (alreadySpectating) {
+    return { ok: true, alreadySpectating: true };
+  }
+
+  const players = room.players || {};
+  if (Object.keys(players).length + Object.keys(spectators).length >= room.maxPlayers) {
+    return { ok: false, reason: "full" };
+  }
+  return { ok: true, alreadySpectating: false };
 }
 
 // 自分の参加者エントリを実際に書き込む。新規参加ならisHost:false・ready:falseで
@@ -338,6 +381,111 @@ export async function joinRoom({ roomId, playerName }) {
 
   finalizeJoin(roomId, playerName, uid);
   return { ok: true, roomId };
+}
+
+// 【2026-08-30新設、本人指示：観戦機能】試合中（waiting以外）のルームへ、競技参加ではなく
+// 観戦として加わる。既にこの人が観戦中なら、名前・接続状態だけ更新する（再接続と同じ考え方）。
+// 【なぜjoinRoom()と別関数にするか】呼び出し元（js/onlineBattleScreen.js）が
+// 「waiting中はjoinRoom()、それ以外はspectateRoom()」を出し分けるだけで済むようにし、
+// 既存のjoinRoom()自体（多くのテスト・実績のあるコード）には一切手を加えないため。
+// 戻り値：{ ok: true, roomId } または
+//   { ok: false, reason: "not-found" | "full" | "version-mismatch" | "unsupported-mode" | "write-failed" | "not-signed-in" }
+export async function spectateRoom({ roomId, playerName }) {
+  await authReady;
+  const uid = getCurrentUid();
+  if (!uid) return { ok: false, reason: "not-signed-in" };
+
+  const snapshot = await get(ref(database, `rooms/${roomId}`));
+  const room = snapshot.exists() ? snapshot.val() : null;
+  const capacity = checkSpectatorCapacity(room, uid);
+  if (!capacity.ok) {
+    return { ok: false, reason: capacity.reason };
+  }
+
+  const spectatorRef = ref(database, `rooms/${roomId}/spectators/${uid}`);
+  try {
+    if (capacity.alreadySpectating) {
+      const existingSnapshot = await get(spectatorRef);
+      const existing = existingSnapshot.val() || {};
+      await set(spectatorRef, { ...existing, name: playerName, connected: true, oshiMemberId: getMostOshiMemberId() });
+    } else {
+      await set(spectatorRef, {
+        name: playerName,
+        joinedAt: Date.now(),
+        connected: true,
+        oshiMemberId: getMostOshiMemberId(),
+      });
+    }
+  } catch (error) {
+    return { ok: false, reason: "write-failed" };
+  }
+
+  startPresenceTracking(roomId, uid, "spectators");
+  saveLastRoom(roomId, playerName);
+  return { ok: true, roomId };
+}
+
+// 【2026-08-30新設、本人指示：観戦機能】観戦をやめる（自分のspectatorsエントリを削除する）。
+// ルーム自体には一切影響しない（観戦者が抜けてもホスト・対戦は続行される）。
+export async function leaveSpectating({ roomId }) {
+  await authReady;
+  const uid = getCurrentUid();
+  if (!uid) return;
+
+  stopPresenceTracking();
+  try {
+    await onDisconnect(ref(database, `rooms/${roomId}/spectators/${uid}/connected`)).cancel();
+  } catch (error) {
+    // 通信が切れている状態での退出等、キャンセル自体に失敗しても後続の処理は続行する。
+  }
+  await remove(ref(database, `rooms/${roomId}/spectators/${uid}`));
+  clearLastRoom();
+}
+
+// 【2026-08-30新設、本人指示：観戦機能】次の試合（status:waiting）から観戦者を正式参加へ
+// 昇格させる。呼び出し側（js/onlineBattleScreen.js）が、room.statusがwaitingに変わった
+// 瞬間を検知して、自分が観戦者ならこれを呼ぶ想定。定員（プレイヤー＋観戦者の合計）に
+// 余裕が無い場合は失敗を返す（他のプレイヤーが増えていた場合等の保険）。
+export async function promoteSpectatorToPlayer({ roomId, playerName }) {
+  await authReady;
+  const uid = getCurrentUid();
+  if (!uid) return { ok: false, reason: "not-signed-in" };
+
+  const snapshot = await get(ref(database, `rooms/${roomId}`));
+  if (!snapshot.exists()) return { ok: false, reason: "not-found" };
+  const room = snapshot.val();
+  if (room.status !== ROOM_STATUS.WAITING) return { ok: false, reason: "not-waiting" };
+
+  const players = room.players || {};
+  const spectators = room.spectators || {};
+  if (!Object.prototype.hasOwnProperty.call(spectators, uid)) return { ok: false, reason: "not-spectating" };
+  // 既にプレイヤーとしても存在する場合（通常起こらないが、安全のため）は何もせず成功扱い。
+  if (Object.prototype.hasOwnProperty.call(players, uid)) {
+    await remove(ref(database, `rooms/${roomId}/spectators/${uid}`));
+    return { ok: true };
+  }
+  if (Object.keys(players).length >= room.maxPlayers) {
+    return { ok: false, reason: "full" };
+  }
+
+  try {
+    await update(ref(database), {
+      [`rooms/${roomId}/players/${uid}`]: {
+        name: playerName,
+        isHost: false,
+        joinedAt: Date.now(),
+        connected: true,
+        ready: false,
+        readyForRevision: 0,
+        oshiMemberId: getMostOshiMemberId(),
+      },
+      [`rooms/${roomId}/spectators/${uid}`]: null,
+    });
+  } catch (error) {
+    return { ok: false, reason: "write-failed" };
+  }
+  startPresenceTracking(roomId, uid, "players");
+  return { ok: true };
 }
 
 // ルームから退出する。
