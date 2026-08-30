@@ -21,19 +21,46 @@ const CATEGORY_LABELS = {
   backChallenge: "💎 裏チャレンジ",
 };
 
-// 成長段階系3系統（イントロ／シャッフル／リリック）。系統ごとに独立してカスケードするため、
-// ノーミス系と同じ「次の目標」計算をトリオ単位で行う（本人指示・2026-08-13：
-// カード単体で見て「次は何をすればよいか」が伝わるようにする）。
-const GROWTH_TRIADS = [
-  ["intro_beginner", "intro_challenger", "intro_ace"],
-  ["shuffle_beginner", "shuffle_challenger", "shuffle_ace"],
-  ["lyric_beginner", "lyric_challenger", "lyric_ace"],
+// 成長段階系5系統（イントロ／アウトロ／シャッフル／リリック／一瞬チャレンジ）。
+// 【2026-08-30改訂・本人指示④⑯】各系統を「ビギナー→チャレンジャー→エース→マスター」の
+// 4段階に統一。マスター段階（no_miss_master等）はcategoryとしては従来どおり"masterPath"の
+// ままだが（fanProfileCard.jsの代表称号タグ表示等、他の場所がcategory:"masterPath"を
+// 前提にしているため、既存データ・既存ロジックへの影響を避けてcategory自体は変更しない）、
+// この一覧表示だけは「系統ごとの4段階トロフィー」としてまとめて見せたいため、
+// GROWTH_SERIESのtierIds（idそのもの）を唯一の情報源として判定する
+// （category値ではなく、常にこの配列を正として一覧に表示する称号を決める）。
+export const GROWTH_SERIES = [
+  {
+    label: "🎧 イントロ系",
+    tierIds: ["intro_beginner", "intro_challenger", "intro_ace", "no_miss_master"],
+    tierLabels: ["5問", "10問", "20問", "全曲"],
+  },
+  {
+    label: "🎬 アウトロ系",
+    tierIds: ["outro_beginner", "outro_challenger", "outro_ace", "outro_master"],
+    tierLabels: ["5問", "10問", "20問", "全曲"],
+  },
+  {
+    label: "🔀 シャッフル系",
+    tierIds: ["shuffle_beginner", "shuffle_challenger", "shuffle_ace", "full_chorus_master"],
+    tierLabels: ["5問", "10問", "20問", "全曲"],
+  },
+  {
+    label: "🎤 リリック系",
+    tierIds: ["lyric_beginner", "lyric_challenger", "lyric_ace", "song_master"],
+    tierLabels: ["5問", "10問", "20問", "全曲"],
+  },
+  {
+    label: "⚡ 一瞬チャレンジ系",
+    tierIds: ["instant_beginner", "instant_challenger", "instant_ace", "instant_master"],
+    tierLabels: ["1.5秒・4択・3問", "1秒・4択・5問", "1秒・10択・10問", "0.5秒・10択・10問"],
+  },
 ];
-
-// 【2026-08-17追加】ステップアップUI再設計：系統ラベルと段階ラベル。
-// GROWTH_TRIADSと同じ並び順（系統内はビギナー→チャレンジャー→エース）に対応させる。
-const GROWTH_SERIES_LABELS = ["🎧 イントロ系", "🔀 シャッフル系", "🎤 リリック系"];
-const GROWTH_TIER_LABELS = ["5問", "10問", "20問"];
+// 上記5系統×4段階、計20個のidの集合。masterPath カテゴリーの通常グリッド（renderAchievementList）
+// から、この集合に含まれるid（＝すでにこのトロフィー表示で見せている4段階目）を除外するために使う
+// （二重表示防止。GROWTH_TRIAD時代はcategory:"growth"だけで判定できたが、マスター段階は
+// category:"masterPath"のままのため、idベースの判定に切り替えた）。
+const GROWTH_TIER_ID_SET = new Set(GROWTH_SERIES.flatMap((series) => series.tierIds));
 
 let elements = null;
 
@@ -289,21 +316,21 @@ export function buildGrowthSection(items) {
   heading.textContent = CATEGORY_LABELS.growth;
   section.appendChild(heading);
 
-  GROWTH_TRIADS.forEach((ids, seriesIndex) => {
+  GROWTH_SERIES.forEach((series) => {
     const seriesBlock = document.createElement("div");
     seriesBlock.classList.add("growth-series-block");
 
     const seriesLabel = document.createElement("p");
     seriesLabel.classList.add("growth-series-label");
-    seriesLabel.textContent = GROWTH_SERIES_LABELS[seriesIndex];
+    seriesLabel.textContent = series.label;
     seriesBlock.appendChild(seriesLabel);
 
     const row = document.createElement("div");
     row.classList.add("growth-series-row");
-    ids.forEach((id, tierIndex) => {
+    series.tierIds.forEach((id, tierIndex) => {
       const entry = items.find((item) => item.id === id);
       if (!entry) return; // 未知のid（将来の仕様差分等）でも画面を壊さず静かに読み飛ばす
-      row.appendChild(buildGrowthBadgeCard(entry, GROWTH_TIER_LABELS[tierIndex]));
+      row.appendChild(buildGrowthBadgeCard(entry, series.tierLabels[tierIndex]));
     });
     seriesBlock.appendChild(row);
 
@@ -322,18 +349,22 @@ function computeGuidanceBadgeText(entry, snapshot) {
   // まだ誰も取得していないトリオの先頭は「🔰 まずはここから」、1つ以上取得済みなら
   // 未取得の最初の1件だけに「→ 次の目標」を出す（本人指示・2026-08-13：
   // カード単体で見て次にすべきことが一目で分かるように）。
-  const triad = GROWTH_TRIADS.find((ids) => ids.includes(entry.id));
-  if (triad && !entry.isUnlocked) {
-    const triadEntries = triad.map((id) => snapshot.find((e) => e.id === id));
-    const nextStepId = triad.find((id, index) => !triadEntries[index]?.isUnlocked);
+  const series = GROWTH_SERIES.find((s) => s.tierIds.includes(entry.id));
+  if (series && !entry.isUnlocked) {
+    const tierEntries = series.tierIds.map((id) => snapshot.find((e) => e.id === id));
+    const nextStepId = series.tierIds.find((id, index) => !tierEntries[index]?.isUnlocked);
     if (nextStepId !== entry.id) return null;
-    const anyUnlocked = triadEntries.some((e) => e?.isUnlocked);
+    const anyUnlocked = tierEntries.some((e) => e?.isUnlocked);
     return anyUnlocked ? "→ 次の目標" : "🔰 まずはここから";
   }
 
   return null;
 }
 
+// 【2026-08-30改訂・本人指示⑯】表示順を①イントロ系②アウトロ系③シャッフル系④リリック系
+// ⑤一瞬チャレンジ系（まとめてトロフィー表示）⑥＝LOVEマスター⑦裏チャレンジ⑧＝LOVE完全制覇に
+// 統一。⑥⑦⑧はCATEGORY_ORDER（masterPath→backChallenge）の並びのまま、GROWTH_TIER_ID_SETに
+// 含まれるid（各系統のマスター段階、すでに①〜⑤で表示済み）だけを除外して二重表示を防ぐ。
 function renderAchievementList() {
   const rawSnapshot = getAchievementListSnapshot();
   const snapshot = rawSnapshot.map((entry) => ({
@@ -342,16 +373,13 @@ function renderAchievementList() {
   }));
   elements.listContainer.innerHTML = "";
 
-  CATEGORY_ORDER.forEach((category) => {
-    const items = snapshot.filter((entry) => entry.category === category);
-    if (items.length === 0) return;
+  const growthItems = snapshot.filter((entry) => GROWTH_TIER_ID_SET.has(entry.id));
+  elements.listContainer.appendChild(buildGrowthSection(growthItems));
 
-    // 【2026-08-17追加】ステップアップだけ専用のトロフィー風レイアウトにする
-    // （masterPath・backChallengeは既存のカードグリッドのまま、一切変更しない）。
-    if (category === "growth") {
-      elements.listContainer.appendChild(buildGrowthSection(items));
-      return;
-    }
+  CATEGORY_ORDER.forEach((category) => {
+    if (category === "growth") return; // 上のgrowthItemsで表示済み（GROWTH_TIER_ID_SET基準）
+    const items = snapshot.filter((entry) => entry.category === category && !GROWTH_TIER_ID_SET.has(entry.id));
+    if (items.length === 0) return;
 
     const section = document.createElement("div");
     section.classList.add("achievement-category-section");

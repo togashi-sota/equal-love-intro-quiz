@@ -20,16 +20,35 @@ const LYRIC_CARD_PATH =
   '<path d="M7.5 9h9M7.5 12.5h9M7.5 16h5.5" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>';
 const ACE_BADGE_PATH = '<path d="M19.3 0.5 20.3 2.7 22.5 3.6 20.3 4.5 19.3 6.7 18.3 4.5 16.1 3.6 18.3 2.7Z" fill="#fff"/>';
 
+// 【2026-08-30追加・本人指示④】アウトロ系（曲の最後を聞く＝音が消えていくイメージの
+// 2音符＋フェードの弧）・一瞬チャレンジ系（ごく短い時間＝ストップウォッチ）の基本形。
+// 既存の3系統と同じく、ビギナー〜エースは同じ形を共有し、エースだけACE_BADGE_PATHを足す。
+const OUTRO_NOTE_PATH =
+  '<path d="M9 16.5V5.5l9-1.8V13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>' +
+  '<circle cx="7" cy="17" r="2.5"/>' +
+  '<circle cx="16" cy="14.5" r="2.5"/>' +
+  '<path d="M19.3 5.8c1.1.9 1.1 2.5 0 3.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>';
+const STOPWATCH_PATH =
+  '<circle cx="12" cy="13" r="8.5"/>' +
+  '<path d="M12 13V7.5M12 13 15.5 11" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>' +
+  '<rect x="10" y="1.5" width="4" height="2.4" rx="1.2"/>';
+
 const ICON_DEFINITIONS = {
   intro_beginner: { viewBox: "0 0 24 24", markup: HEADPHONE_PATH },
   intro_challenger: { viewBox: "0 0 24 24", markup: HEADPHONE_PATH },
   intro_ace: { viewBox: "0 0 24 24", markup: HEADPHONE_PATH + ACE_BADGE_PATH },
+  outro_beginner: { viewBox: "0 0 24 24", markup: OUTRO_NOTE_PATH },
+  outro_challenger: { viewBox: "0 0 24 24", markup: OUTRO_NOTE_PATH },
+  outro_ace: { viewBox: "0 0 24 24", markup: OUTRO_NOTE_PATH + ACE_BADGE_PATH },
   shuffle_beginner: { viewBox: "0 0 24 24", markup: SHUFFLE_PATH },
   shuffle_challenger: { viewBox: "0 0 24 24", markup: SHUFFLE_PATH },
   shuffle_ace: { viewBox: "0 0 24 24", markup: SHUFFLE_PATH + ACE_BADGE_PATH },
   lyric_beginner: { viewBox: "0 0 24 24", markup: LYRIC_CARD_PATH },
   lyric_challenger: { viewBox: "0 0 24 24", markup: LYRIC_CARD_PATH },
   lyric_ace: { viewBox: "0 0 24 24", markup: LYRIC_CARD_PATH + ACE_BADGE_PATH },
+  instant_beginner: { viewBox: "0 0 24 24", markup: STOPWATCH_PATH },
+  instant_challenger: { viewBox: "0 0 24 24", markup: STOPWATCH_PATH },
+  instant_ace: { viewBox: "0 0 24 24", markup: STOPWATCH_PATH + ACE_BADGE_PATH },
 
   no_miss_master: {
     // 星入り王冠：既存のランクバッジ・タイトルロゴと同じ星を、王冠のシルエットに乗せる

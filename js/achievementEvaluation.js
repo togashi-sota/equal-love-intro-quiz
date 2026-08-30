@@ -93,19 +93,24 @@ function isFastEnough(result) {
   return result.averageResponseMs !== null && result.averageResponseMs <= SPEED_THRESHOLD_MS;
 }
 
-// ノーミスマスター（表マスターの1つ）。イントロクイズ・タイムアタックが対象。
+// マスター系（各系統の成長段階の4段階目）。イントロ・アウトロが対象。
 // 【2026-08-14改訂・本人指示】ブロンズ/シルバー/ゴールド/プラチナは、成長段階系
 // （イントロビギナー/チャレンジャー/エース）と条件が完全重複していたため廃止した。
 // ノーミスマスターの条件自体は変わらないが、「全曲」の定義がisUnrestrictedFullPool()
 // （カテゴリー絞り込みなしの本当の全曲）に厳格化された点はresult.isAllSongsModeの
 // 計算（normalizeQuizClearResult参照）に集約済みで、この関数側の変更は不要。
+// 【2026-08-30追加・本人指示⑥⑭】アウトロクイズ（modeId:"outroQuiz"）を追加。イントロと
+// 全く同じ条件で「アウトロマスター」に加え、裏チャレンジ「完全終曲」も同時に判定する
+// （本人確定仕様：完全終曲には電光石火のような平均回答時間の条件を課さないため、
+// アウトロマスターと全く同じ条件で同時に解放される）。
 export function evaluateNoMissMasterAchievement(result) {
-  if (result.modeId !== "intro" && result.modeId !== "timeAttack") return [];
   if (!isCleanClear(result) || !result.isAllSongsMode) return [];
-  return ["no_miss_master"];
+  if (result.modeId === "intro" || result.modeId === "timeAttack") return ["no_miss_master"];
+  if (result.modeId === "outroQuiz") return ["outro_master", "complete_finale"];
+  return [];
 }
 
-// 成長段階系（イントロ/シャッフル/リリックの3系統×ビギナー(5)/チャレンジャー(10)/エース(20)）。
+// 成長段階系（イントロ/アウトロ/シャッフル/リリックの4系統×ビギナー(5)/チャレンジャー(10)/エース(20)）。
 // 【2026-08-13追加・本人指示】既存の最上位称号とは別に、初心者〜中級者向けの自然な
 // 成長ステップとして用意する。カテゴリー・回答方式は問わない（isCleanClear()が
 // questionCountValue・correctCount・wrongCount・skippedCount・completedしか見ないため）。
@@ -113,16 +118,20 @@ export function evaluateNoMissMasterAchievement(result) {
 // 両方のmodeIdを対象にする（js/timeAttackScreen.js・js/randomPlaybackScreen.jsの実際のmodeId
 // 文字列に合わせている。イントロクイズ側のmodeMasterに相当する概念が無いのは、フルコーラス
 // マスター・歌マスターと違って「単体全曲モード」の称号ではなく5/10/20の段階制のため）。
+// 【2026-08-30追加・本人指示⑥】アウトロクイズ（modeId:"outroQuiz"、通常導線のみ）を
+// 4系統目として追加。
 const GROWTH_TIER_ORDER = ["5", "10", "20"];
 const GROWTH_MODE_GROUP_BY_MODE_ID = {
   intro: "intro",
   timeAttack: "intro",
+  outroQuiz: "outro",
   randomPlayback: "shuffle",
   timeAttackRandomPlayback: "shuffle",
   lyricsQuiz: "lyric",
 };
 const GROWTH_TIER_IDS_BY_GROUP = {
   intro: { 5: "intro_beginner", 10: "intro_challenger", 20: "intro_ace" },
+  outro: { 5: "outro_beginner", 10: "outro_challenger", 20: "outro_ace" },
   shuffle: { 5: "shuffle_beginner", 10: "shuffle_challenger", 20: "shuffle_ace" },
   lyric: { 5: "lyric_beginner", 10: "lyric_challenger", 20: "lyric_ace" },
 };
@@ -181,6 +190,60 @@ export function evaluateHintAchievements(result) {
 
   const allFirstHintOnly = result.maxHintLevelByQuestion.every((level) => level === 1);
   return allFirstHintOnly ? ["lyric_master"] : [];
+}
+
+// 一瞬チャレンジの5称号（一瞬ビギナー〜マスター＋裏チャレンジ「即聞即答」、2026-08-30追加・
+// 本人指示⑦⑪⑬）。他4系統のような「出題数だけのカスケード」ではなく、再生時間・回答候補数・
+// 出題数の3つがセットになった固有の組み合わせで、それぞれ独立して判定する（下位を経由しなくても
+// その組み合わせを直接クリアすればその称号だけが解放される。本人確定仕様）。
+// 一瞬チャレンジはgameStateを経由しない独立進行（js/instantChallengeScreen.js参照）のため、
+// normalizeQuizClearResult・evaluateDirectAchievementsの共通経路には乗らず、この専用関数を
+// 直接呼び出す想定（js/instantChallengeScreen.jsのrenderInstantChallengeResult()参照）。
+const INSTANT_CHALLENGE_TIER_CONDITIONS = [
+  { id: "instant_beginner", playDurationValue: "1.5", answerPoolSizeValue: "4", questionCountValue: "3" },
+  { id: "instant_challenger", playDurationValue: "1", answerPoolSizeValue: "4", questionCountValue: "5" },
+  { id: "instant_ace", playDurationValue: "1", answerPoolSizeValue: "10", questionCountValue: "10" },
+  { id: "instant_master", playDurationValue: "0.5", answerPoolSizeValue: "10", questionCountValue: "10" },
+];
+// 即聞即答：0.5秒・全曲検索・10問を、聞き直しなしで全問正解した場合だけ成立する。
+const INSTANT_FLASH_ANSWER_CONDITION = {
+  id: "instant_flash_answer",
+  playDurationValue: "0.5",
+  answerPoolSizeValue: "all",
+  questionCountValue: "10",
+};
+
+function matchesInstantChallengeCombo(condition, playDurationValue, answerPoolSizeValue, questionCountValue) {
+  return (
+    condition.playDurationValue === playDurationValue &&
+    condition.answerPoolSizeValue === answerPoolSizeValue &&
+    condition.questionCountValue === questionCountValue
+  );
+}
+
+// isCleared: 出題された全問に正解したか（js/instantChallengeScreen.jsが判定した結果をそのまま渡す）。
+// questionCountValueには「設定で選んだ問題数」ではなく「実際に出題された問題数」（answers.length）を
+// 渡すこと（出題可能な曲が少ない端末で、設定より少ない問題数で完走した場合を正しく除外するため）。
+export function evaluateInstantChallengeAchievements({
+  playDurationValue,
+  answerPoolSizeValue,
+  questionCountValue,
+  isCleared,
+  noReplayUsed,
+}) {
+  if (!isCleared) return [];
+  const earned = INSTANT_CHALLENGE_TIER_CONDITIONS.filter((condition) =>
+    matchesInstantChallengeCombo(condition, playDurationValue, answerPoolSizeValue, questionCountValue)
+  ).map((condition) => condition.id);
+
+  if (
+    noReplayUsed &&
+    matchesInstantChallengeCombo(INSTANT_FLASH_ANSWER_CONDITION, playDurationValue, answerPoolSizeValue, questionCountValue)
+  ) {
+    earned.push(INSTANT_FLASH_ANSWER_CONDITION.id);
+  }
+
+  return earned;
 }
 
 // 複合称号（＝LOVEマスター・＝LOVE完全制覇）。単発のプレイ結果だけでは判定できず、

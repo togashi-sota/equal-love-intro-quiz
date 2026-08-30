@@ -160,14 +160,24 @@ export function runAchievementEvaluationTests() {
 
   // ==================================================================
   // 4. 複合称号：＝LOVEマスター・＝LOVE完全制覇
+  // 【2026-08-30改訂】＝LOVEマスターの必要称号が3→4つ（アウトロマスター追加）、
+  // ＝LOVE完全制覇が3→6つ（＝LOVEマスター自体＋完全終曲・即聞即答を追加）に変更。
   // ==================================================================
+  assertEqual(
+    evaluateCompositeAchievements(
+      new Set(["no_miss_master", "outro_master", "full_chorus_master", "song_master"]),
+      ACHIEVEMENTS
+    ),
+    ["equal_love_master"],
+    "表4称号で＝LOVEマスター"
+  );
   assertEqual(
     evaluateCompositeAchievements(
       new Set(["no_miss_master", "full_chorus_master", "song_master"]),
       ACHIEVEMENTS
     ),
-    ["equal_love_master"],
-    "表3称号で＝LOVEマスター"
+    [],
+    "表3称号（アウトロマスター抜き）だけでは＝LOVEマスターを取得しない"
   );
   assertEqual(
     evaluateCompositeAchievements(new Set(["no_miss_master", "full_chorus_master"]), ACHIEVEMENTS),
@@ -176,11 +186,34 @@ export function runAchievementEvaluationTests() {
   );
   assertEqual(
     evaluateCompositeAchievements(
-      new Set(["lightning_fast", "melody_ace", "lyric_master"]),
+      new Set([
+        "equal_love_master",
+        "lightning_fast",
+        "complete_finale",
+        "melody_ace",
+        "lyric_master",
+        "instant_flash_answer",
+      ]),
       ACHIEVEMENTS
     ),
     ["equal_love_complete"],
-    "裏3称号で＝LOVE完全制覇"
+    "＝LOVEマスター＋裏5称号で＝LOVE完全制覇"
+  );
+  assertEqual(
+    evaluateCompositeAchievements(
+      new Set(["lightning_fast", "complete_finale", "melody_ace", "lyric_master", "instant_flash_answer"]),
+      ACHIEVEMENTS
+    ),
+    [],
+    "＝LOVEマスターを持たないと、裏5称号すべて揃っていても＝LOVE完全制覇を取得しない"
+  );
+  assertEqual(
+    evaluateCompositeAchievements(
+      new Set(["equal_love_master", "lightning_fast", "melody_ace", "lyric_master"]),
+      ACHIEVEMENTS
+    ),
+    [],
+    "裏称号が3つ（完全終曲・即聞即答抜き）だけでは＝LOVE完全制覇を取得しない"
   );
   assertEqual(
     evaluateCompositeAchievements(new Set(["lightning_fast", "melody_ace"]), ACHIEVEMENTS),
@@ -189,7 +222,7 @@ export function runAchievementEvaluationTests() {
   );
   assertEqual(
     evaluateCompositeAchievements(
-      new Set(["no_miss_master", "full_chorus_master", "song_master", "equal_love_master"]),
+      new Set(["no_miss_master", "outro_master", "full_chorus_master", "song_master", "equal_love_master"]),
       ACHIEVEMENTS
     ),
     [],

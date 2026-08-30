@@ -24,15 +24,19 @@ export function buildOshiSwatch(members, oshiMemberId, badgeState) {
 // 下位（エース側）を出さない（＝二段構えの代表称号候補として使う）。
 // 取得済み称号データ自体（unlockedAchievementIds）は一切書き換えない。あくまで
 // 「一覧でどれを代表として見せるか」という表示側の絞り込みだけを行う。
+// 【2026-08-30改訂・本人指示⑤⑥⑪】表示名の変更（ノーミスマスター→イントロマスター等）に
+// 合わせてhigherNameを更新し、アウトロ・一瞬チャレンジの2組を追加した。
 const REPRESENTATIVE_TIER_PAIRS = [
-  { higherId: "no_miss_master", higherName: "ノーミスマスター", lowerId: "intro_ace", lowerName: "イントロエース" },
+  { higherId: "no_miss_master", higherName: "イントロマスター", lowerId: "intro_ace", lowerName: "イントロエース" },
+  { higherId: "outro_master", higherName: "アウトロマスター", lowerId: "outro_ace", lowerName: "アウトロエース" },
   {
     higherId: "full_chorus_master",
-    higherName: "フルコーラスマスター",
+    higherName: "シャッフルマスター",
     lowerId: "shuffle_ace",
     lowerName: "シャッフルエース",
   },
-  { higherId: "song_master", higherName: "歌マスター", lowerId: "lyric_ace", lowerName: "リリックエース" },
+  { higherId: "song_master", higherName: "リリックマスター", lowerId: "lyric_ace", lowerName: "リリックエース" },
+  { higherId: "instant_master", higherName: "一瞬マスター", lowerId: "instant_ace", lowerName: "一瞬エース" },
 ];
 
 // カードに添える「代表称号」ラベル。複合称号を持っていればそれを最優先にし、
@@ -172,8 +176,8 @@ export function buildAchievedCard(achievementId) {
   return card;
 }
 
-// ===== クイズ系統（イントロ／ランダム再生／歌詞クイズ）の定義 =====
-// 称号を3つのクイズ系統に分け、各系統は「ステップアップ（ビギナー→チャレンジャー→
+// ===== クイズ系統（イントロ／アウトロ／ランダム再生／歌詞クイズ／一瞬チャレンジ）の定義 =====
+// 称号を5つのクイズ系統に分け、各系統は「ステップアップ（ビギナー→チャレンジャー→
 // エース）→マスターへの道→裏チャレンジ」の低→高の順で並ぶ1本のはしごとして扱う
 // （本人指示・2026-08-29：「マスター称号は独立ブロックにせず、対応するクイズ系統の
 // 通常ルートの最終段階として扱う」「裏チャレンジ称号だけは別の独立ブロックにする」）。
@@ -182,32 +186,38 @@ export function buildAchievedCard(achievementId) {
 // 「すべての称号を見る」（buildAchievedAchievementsList）・代表称号選出
 // （getRepresentativeAchievementCandidates）の両方がこの同じ定義を再利用し、
 // 称号の対応関係を二重管理しない。
+// 【2026-08-30改訂・本人指示④⑥⑦⑬⑯】アウトロ系・一瞬チャレンジ系を追加し、5系統・
+// イントロ→アウトロ→シャッフル→リリック→一瞬チャレンジの順に統一。
 const ACHIEVEMENT_SERIES = [
   ["intro_beginner", "intro_challenger", "intro_ace", "no_miss_master", "lightning_fast"],
+  ["outro_beginner", "outro_challenger", "outro_ace", "outro_master", "complete_finale"],
   ["shuffle_beginner", "shuffle_challenger", "shuffle_ace", "full_chorus_master", "melody_ace"],
   ["lyric_beginner", "lyric_challenger", "lyric_ace", "song_master", "lyric_master"],
+  ["instant_beginner", "instant_challenger", "instant_ace", "instant_master", "instant_flash_answer"],
 ];
 // ACHIEVEMENT_SERIESの各行の中身（低→高）の並びを名前で参照するためのインデックス定数。
 const [TIER_BEGINNER, TIER_CHALLENGER, TIER_ACE, TIER_MASTER, TIER_BACK_CHALLENGE] = [0, 1, 2, 3, 4];
 
-// クイズ系統の表示名（ACHIEVEMENT_SERIESと同じ順番＝イントロ／ランダム再生／歌詞クイズ）。
-// 「次のチャレンジ」案内文の組み立てに使う。
-const SERIES_QUIZ_NAMES = ["イントロクイズ", "ランダム再生クイズ", "歌詞クイズ"];
+// クイズ系統の表示名（ACHIEVEMENT_SERIESと同じ順番＝イントロ／アウトロ／ランダム再生／
+// 歌詞クイズ／一瞬チャレンジ）。「次のチャレンジ」案内文の組み立てに使う。
+const SERIES_QUIZ_NAMES = ["イントロクイズ", "アウトロクイズ", "ランダム再生クイズ", "歌詞クイズ", "一瞬チャレンジ"];
 
-// 「すべての称号を見る」に表示する、通常3系統のブロック構造（2026-08-29最終確定・本人指示）。
+// 「すべての称号を見る」に表示する、通常5系統のブロック構造（2026-08-30改訂・本人指示）。
 // 各系統は「ビギナー→チャレンジャー→エース→マスター」の4段階（ACHIEVEMENT_SERIESの
 // 先頭4件、TIER_BACK_CHALLENGEの手前まで）。裏チャレンジ（電光石火等）は「イントロを
-// 使う称号ではあるが、通常のイントロ系の成長称号とは別物」（本人指示）のため、この3ブロックには
+// 使う称号ではあるが、通常のイントロ系の成長称号とは別物」（本人指示）のため、この5ブロックには
 // 含めず、下の独立した裏チャレンジブロックにまとめる。
 const NORMAL_SERIES_BLOCKS = [
   { label: "🎧 イントロ系", ids: ACHIEVEMENT_SERIES[0].slice(TIER_BEGINNER, TIER_BACK_CHALLENGE) },
-  { label: "🔀 シャッフル系", ids: ACHIEVEMENT_SERIES[1].slice(TIER_BEGINNER, TIER_BACK_CHALLENGE) },
-  { label: "🎤 リリック系", ids: ACHIEVEMENT_SERIES[2].slice(TIER_BEGINNER, TIER_BACK_CHALLENGE) },
+  { label: "🎬 アウトロ系", ids: ACHIEVEMENT_SERIES[1].slice(TIER_BEGINNER, TIER_BACK_CHALLENGE) },
+  { label: "🔀 シャッフル系", ids: ACHIEVEMENT_SERIES[2].slice(TIER_BEGINNER, TIER_BACK_CHALLENGE) },
+  { label: "🎤 リリック系", ids: ACHIEVEMENT_SERIES[3].slice(TIER_BEGINNER, TIER_BACK_CHALLENGE) },
+  { label: "⚡ 一瞬チャレンジ系", ids: ACHIEVEMENT_SERIES[4].slice(TIER_BEGINNER, TIER_BACK_CHALLENGE) },
 ];
 
-// 裏チャレンジ3種（電光石火／メロディアス／リリックマスター）。通常3系統には混ぜず、
-// 独立したブロックとして、本人が取得しているものだけをイントロ→ランダム再生→歌詞クイズの
-// 順で表示する（本人指示）。
+// 裏チャレンジ5種（電光石火／完全終曲／絶対音感／完全記憶／即聞即答）。通常5系統には混ぜず、
+// 独立したブロックとして、本人が取得しているものだけをイントロ→アウトロ→ランダム再生→
+// 歌詞クイズ→一瞬チャレンジの順で表示する（本人指示）。
 const BACK_CHALLENGE_IDS = ACHIEVEMENT_SERIES.map((series) => series[TIER_BACK_CHALLENGE]);
 
 // ＝LOVEマスター・＝LOVE完全制覇に添える1行の説明。既存のconditionTextは長めの一文なので、
@@ -283,13 +293,13 @@ function buildNormalAchievementBlock(label, idsInBlock) {
   return section;
 }
 
-// 取得済み称号を、以下の固定順（本人指示・2026-08-29最終確定）に並べたコンテナ要素を
+// 取得済み称号を、以下の固定順（2026-08-30改訂・本人指示⑯）に並べたコンテナ要素を
 // 組み立てる（他人のプロフィールでは取得済みだけ表示し、未取得称号は出さない）。
-//   ①イントロ系→②シャッフル系→③リリック系
+//   ①イントロ系→②アウトロ系→③シャッフル系→④リリック系→⑤一瞬チャレンジ系
 //     （各ブロックの中はビギナー→チャレンジャー→エース→マスターの順）
-//   →④＝LOVEマスター（取得者だけの特別枠）
-//   →⑤裏チャレンジ（電光石火／メロディアス／リリックマスターのうち取得済みのものだけ）
-//   →⑥＝LOVE完全制覇（取得者だけの特別枠）
+//   →⑥＝LOVEマスター（取得者だけの特別枠）
+//   →⑦裏チャレンジ（電光石火／完全終曲／絶対音感／完全記憶／即聞即答のうち取得済みのものだけ）
+//   →⑧＝LOVE完全制覇（取得者だけの特別枠）
 // 1件も無ければ「まだ称号を取得していません。」の案内だけを返す。
 // 【2026-08-29再設計・本人指示】このリストの役割は、フレンド詳細モーダルの主表示から
 // 「すべての称号を見る」の全件確認用。代表称号とは別の場所・別の目的の表示になったため、
@@ -343,17 +353,18 @@ const CATEGORY_TAG_LABELS = { masterPath: "マスター称号", backChallenge: "
 // いるからもう片方が消えることは絶対にない。取得データ本体（unlockedAchievementIds）は
 // 一切変更しない。
 //
-// 系統（イントロ／ランダム再生／歌詞クイズ）ごとに、以下のルールで代表候補を決める：
+// 系統（イントロ／アウトロ／ランダム再生／歌詞クイズ／一瞬チャレンジ）ごとに、
+// 以下のルールで代表候補を決める：
 // ①裏チャレンジ称号を取得済みなら、必ず代表候補に含める。
 // ②マスターへの道の称号を取得済みなら、必ず代表候補に含める（①とは独立。両方あれば両方出す）。
 // ③裏チャレンジ・マスターのどちらも未取得の場合だけ、取得済みステップアップ称号のうち
 //   最も上位のもの1つを代表候補に含める（本人指示：どちらか一方でも取得済みなら、
 //   同じ系統のステップアップ称号はもう代表候補に出さない）。
-// 表示順は「①裏チャレンジ×3系統→②マスター×3系統→③ステップアップ×3系統（必要な場合のみ）」
-// に固定し、各グループ内はイントロ→ランダム再生→歌詞クイズの順（本人指示）。
+// 表示順は「①裏チャレンジ×5系統→②マスター×5系統→③ステップアップ×5系統（必要な場合のみ）」
+// に固定し、各グループ内はイントロ→アウトロ→ランダム再生→歌詞クイズ→一瞬チャレンジの順（本人指示）。
 // ＝LOVEマスター・＝LOVE完全制覇（複合称号）は特定の系統に属さない別枠のため、
-// この代表称号システムには含めない（最大でも裏チャレンジ3＋マスター3＝6個、本人指示の
-// 上限例と一致する）。取得済みかどうかは「すべての称号を見る」で確認できる。
+// この代表称号システムには含めない（最大でも裏チャレンジ5＋マスター5＝10個）。
+// 取得済みかどうかは「すべての称号を見る」で確認できる。
 export function getRepresentativeAchievementCandidates(unlockedAchievementIds) {
   const unlockedSet = new Set(unlockedAchievementIds);
   const backChallengeItems = [];
@@ -383,15 +394,16 @@ export function getRepresentativeAchievementCandidates(unlockedAchievementIds) {
   return [...backChallengeItems, ...masterItems, ...growthItems].filter(Boolean);
 }
 
-// 各クイズ系統（イントロ／ランダム再生／歌詞クイズ）で、称号を1つでも取得しているかどうか。
+// 各クイズ系統（イントロ／アウトロ／ランダム再生／歌詞クイズ／一瞬チャレンジ）で、
+// 称号を1つでも取得しているかどうか。
 // 「次のチャレンジ」案内の判定に使う（本人指示：プレイ履歴ではなく取得済み称号の有無で
 // 判定する。「やったことがない」とは表示しない）。
 function getSeriesHasAnyAchievement(unlockedSet) {
   return ACHIEVEMENT_SERIES.map((seriesIds) => seriesIds.some((id) => unlockedSet.has(id)));
 }
 
-// 「次のチャレンジ」案内カード（本人指示・2026-08-29追加）：3系統のうち称号0個の系統が
-// 1つでもあれば、その系統名を挙げて挑戦を促す。3系統すべてに1個以上あれば、呼び出し側が
+// 「次のチャレンジ」案内カード（本人指示・2026-08-29追加）：5系統のうち称号0個の系統が
+// 1つでもあれば、その系統名を挙げて挑戦を促す。5系統すべてに1個以上あれば、呼び出し側が
 // このカード自体を呼ばない（本人指示：「そこから先はステップアップ・マスター・裏チャレンジを
 // 目指す現在の称号表示だけで十分」）。
 function buildNextChallengeCard(missingSeriesNames) {
@@ -465,9 +477,9 @@ export function buildRepresentativeAchievementChip(achievement) {
 //   このメッセージ自体がその役割を兼ねる）
 // ・1〜2個：「CHALLENGER」＋取得済みの代表称号＋（未取得系統があれば）次のチャレンジ
 // ・3個以上：「代表称号」＋優先順位に沿った代表称号＋（未取得系統があれば）次のチャレンジ
-// 「次のチャレンジ」は、3系統（イントロ／ランダム再生／歌詞クイズ）のうち称号0個の系統が
-// 1つでもあれば表示し、3系統すべてに1個以上あれば表示しない（本人指示：CHALLENGER専用の
-// 機能にしない。称号3個以上でも未取得系統があれば表示する）。
+// 「次のチャレンジ」は、5系統（イントロ／アウトロ／ランダム再生／歌詞クイズ／一瞬チャレンジ）の
+// うち称号0個の系統が1つでもあれば表示し、5系統すべてに1個以上あれば表示しない
+// （本人指示：CHALLENGER専用の機能にしない。称号3個以上でも未取得系統があれば表示する）。
 export function buildFriendAchievementSummary(unlockedAchievementIds) {
   const container = document.createElement("div");
   container.className = "fan-profile-achievement-summary";

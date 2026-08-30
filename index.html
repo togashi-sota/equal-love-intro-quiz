@@ -2619,6 +2619,12 @@
         <ul id="instant-challenge-result-breakdown-list" class="lyrics-quiz-breakdown-list"></ul>
       </details>
 
+      <!-- 【2026-08-30追加・本人指示⑦⑪】称号（実績）の獲得演出。中身はjs/achievementDisplay.jsが
+           組み立てる（タイムアタック結果画面の#time-attack-result-achievement-listと全く同じ
+           仕組み。一瞬チャレンジ専用の一瞬ビギナー〜マスター・即聞即答を取得可能）。普段は空。 -->
+      <div id="instant-challenge-result-achievement-list" class="achievement-event-list"></div>
+      <button id="instant-challenge-result-achievement-list-link" class="rules-link" type="button" hidden>称号一覧を見る</button>
+
       <div class="time-attack-result-actions">
         <button id="instant-challenge-result-retry-button" class="primary-button" type="button">もう一度挑戦する</button>
         <button id="instant-challenge-result-setup-button" class="secondary-button time-attack-result-setup-button" type="button">← 一瞬チャレンジ設定へ戻る</button>

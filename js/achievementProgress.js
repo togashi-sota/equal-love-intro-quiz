@@ -164,14 +164,12 @@ export function syncLegacyAchievements() {
 
 // ===== プレイ結果からの判定・保存 =====
 
-// 1回のプレイ結果（各モードが組み立てた共通形式の引数）を受け取り、
-// 達成した称号を保存し、今回新しく解放された称号idの配列を返す（結果画面の演出に使う）。
-// 複合称号（＝LOVEマスター・＝LOVE完全制覇）も、保存後の最新の解放済みid集合を使って
-// このタイミングであわせて判定する。
-export function evaluateAndSaveAchievements(rawResult) {
-  const result = normalizeQuizClearResult(rawResult);
-  const earnedThisPlay = evaluateDirectAchievements(result);
-
+// 「達成した称号id一覧」を受け取り、保存・複合称号判定までまとめて行う共通処理
+// （2026-08-30切り出し・本人指示）。evaluateAndSaveAchievements()（通常の各モード用）と
+// 一瞬チャレンジ専用の評価（js/instantChallengeScreen.js、normalizeQuizClearResultの
+// 共通形式に乗らない固有の判定のため）の両方から使う。複合称号（＝LOVEマスター・
+// ＝LOVE完全制覇）も、保存後の最新の解放済みid集合を使ってこのタイミングであわせて判定する。
+export function saveEarnedAchievements(earnedThisPlay) {
   const stored = loadProgress();
   const { progress: afterDirect, newlyUnlockedThisTime: newDirect } = mergeAchievementProgress(
     stored,
@@ -190,6 +188,14 @@ export function evaluateAndSaveAchievements(rawResult) {
     newlyUnlockedIds: [...newDirect, ...newComposite],
     progress: finalProgress,
   };
+}
+
+// 1回のプレイ結果（各モードが組み立てた共通形式の引数）を受け取り、
+// 達成した称号を保存し、今回新しく解放された称号idの配列を返す（結果画面の演出に使う）。
+export function evaluateAndSaveAchievements(rawResult) {
+  const result = normalizeQuizClearResult(rawResult);
+  const earnedThisPlay = evaluateDirectAchievements(result);
+  return saveEarnedAchievements(earnedThisPlay);
 }
 
 // 称号一覧モーダル向けに、「今この瞬間の状態」のスナップショットを返す。読み取り専用。

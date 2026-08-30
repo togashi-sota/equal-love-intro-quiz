@@ -3,7 +3,7 @@
 // 本人から名指しで依頼された「称号名がDOM上で全文存在する」「必要称号が表示される」等の項目を
 // 確認するため、buildAchievementCard()が組み立てる実際のDOMを直接検証する
 // （tests.htmlは実ブラウザで動くため、documentが使える）。
-import { buildAchievementCard, buildGrowthBadgeCard, buildGrowthSection } from "../js/achievementList.js";
+import { buildAchievementCard, buildGrowthBadgeCard, buildGrowthSection, GROWTH_SERIES } from "../js/achievementList.js";
 import { ACHIEVEMENTS } from "../js/achievementDefinitions.js";
 import { assertEqual } from "./test-utils.js";
 
@@ -30,23 +30,34 @@ export function runAchievementListTests() {
   // ---- 長い称号名がDOM上で全文存在する（「…」に省略されない） ----
   // CSS(text-overflow:ellipsis)は見た目だけを変える指定であり、DOM上のtextContent自体は
   // 元々省略されないため、これは「JS側で意図せず文字列を切り詰めていないか」の回帰チェック。
-  // 【2026-08-14更新】17称号構成にあわせて名前一覧を更新（ブロンズ〜プラチナは廃止済み）。
+  // 【2026-08-30更新】アウトロ系・一瞬チャレンジ系の追加と改名（ノーミスマスター→イントロマスター等）
+  // にあわせて名前一覧を27称号構成へ更新。
   const longNames = [
     "イントロビギナー",
     "イントロチャレンジャー",
     "イントロエース",
+    "アウトロビギナー",
+    "アウトロチャレンジャー",
+    "アウトロエース",
     "シャッフルビギナー",
     "シャッフルチャレンジャー",
     "シャッフルエース",
     "リリックビギナー",
     "リリックチャレンジャー",
     "リリックエース",
-    "ノーミスマスター",
-    "フルコーラスマスター",
-    "歌マスター",
-    "電光石火",
-    "メロディアス",
+    "一瞬ビギナー",
+    "一瞬チャレンジャー",
+    "一瞬エース",
+    "イントロマスター",
+    "アウトロマスター",
+    "シャッフルマスター",
     "リリックマスター",
+    "一瞬マスター",
+    "電光石火",
+    "完全終曲",
+    "絶対音感",
+    "完全記憶",
+    "即聞即答",
     "＝LOVEマスター",
     "＝LOVE完全制覇",
   ];
@@ -240,11 +251,13 @@ export function runAchievementListTests() {
     "成長段階系の達成条件の箇条書きも正しく表示される"
   );
 
-  // ---- 実データの整合性確認（2026-08-15追加）：js/achievementDefinitions.jsの実際の内容 ----
+  // ---- 実データの整合性確認（2026-08-30更新）：js/achievementDefinitions.jsの実際の内容 ----
   const GROWTH_IDS = [
     "intro_beginner", "intro_challenger", "intro_ace",
+    "outro_beginner", "outro_challenger", "outro_ace",
     "shuffle_beginner", "shuffle_challenger", "shuffle_ace",
     "lyric_beginner", "lyric_challenger", "lyric_ace",
+    "instant_beginner", "instant_challenger", "instant_ace",
   ];
   GROWTH_IDS.forEach((id) => {
     const def = ACHIEVEMENTS.find((a) => a.id === id);
@@ -254,7 +267,10 @@ export function runAchievementListTests() {
       `実データ：成長段階系「${id}」は達成条件（challengeConditions）を持つ`
     );
   });
-  const SINGLE_MASTER_IDS = ["no_miss_master", "full_chorus_master", "song_master", "lightning_fast", "melody_ace", "lyric_master"];
+  const SINGLE_MASTER_IDS = [
+    "no_miss_master", "outro_master", "full_chorus_master", "song_master", "instant_master",
+    "lightning_fast", "complete_finale", "melody_ace", "lyric_master", "instant_flash_answer",
+  ];
   SINGLE_MASTER_IDS.forEach((id) => {
     const def = ACHIEVEMENTS.find((a) => a.id === id);
     assertEqual(
@@ -272,7 +288,7 @@ export function runAchievementListTests() {
       `実データ：複合称号「${id}」はchallengeConditionsを持たない（compositeProgressのチェックリストが同じ役割）`
     );
   });
-  assertEqual(ACHIEVEMENTS.length, 17, "実データ：ACHIEVEMENTSの総数は17個");
+  assertEqual(ACHIEVEMENTS.length, 27, "実データ：ACHIEVEMENTSの総数は27個（2026-08-30改訂：アウトロ系・一瞬チャレンジ系を追加）");
 
   // ---- 2026-08-17追加：ステップアップ（growth）専用のトロフィー風バッジカード ----
   const lockedGrowthEntry = buildEntry({
@@ -350,20 +366,28 @@ export function runAchievementListTests() {
     "guidanceBadgeTextがあるときだけ案内バッジが表示される"
   );
 
-  // ---- 実データ：ステップアップ全9個が3系統×3段階（横並び3枚）で組み立てられる ----
-  const growthSnapshotEntries = ACHIEVEMENTS.filter((a) => a.category === "growth").map((a) =>
-    buildEntry({ ...a, isUnlocked: false })
-  );
+  // ---- 実データ：ステップアップ全20個が5系統×4段階（横並び4枚）で組み立てられる
+  //      （2026-08-30改訂：ビギナー/チャレンジャー/エースの3段階からマスターを加えた4段階へ、
+  //      3系統〈イントロ/シャッフル/リリック〉から5系統〈+アウトロ/一瞬チャレンジ〉へ拡張。
+  //      マスター段階（no_miss_master等）はcategory:"masterPath"のままのため、category ではなく
+  //      GROWTH_SERIES（js/achievementList.jsが実際に使う唯一の情報源）のtierIdsで絞り込む）。 ----
+  const growthTierIds = GROWTH_SERIES.flatMap((series) => series.tierIds);
+  const growthSnapshotEntries = growthTierIds
+    .map((id) => ACHIEVEMENTS.find((a) => a.id === id))
+    .filter(Boolean)
+    .map((a) => buildEntry({ ...a, isUnlocked: false }));
+  assertEqual(growthSnapshotEntries.length, 20, "実データ：GROWTH_SERIESのtierIdsは全部で20個（5系統×4段階）");
+
   const growthSection = buildGrowthSection(growthSnapshotEntries);
   const seriesBlocks = growthSection.querySelectorAll(".growth-series-block");
-  assertEqual(seriesBlocks.length, 3, "ステップアップは3系統（イントロ/シャッフル/リリック）に分かれる");
+  assertEqual(seriesBlocks.length, 5, "ステップアップは5系統（イントロ/アウトロ/シャッフル/リリック/一瞬チャレンジ）に分かれる");
   seriesBlocks.forEach((block, index) => {
     const cards = block.querySelectorAll(".growth-badge-card");
-    assertEqual(cards.length, 3, `系統${index + 1}はビギナー/チャレンジャー/エースの3枚`);
+    assertEqual(cards.length, 4, `系統${index + 1}はビギナー/チャレンジャー/エース/マスターの4枚`);
   });
   assertEqual(
     growthSection.querySelectorAll(".growth-badge-card").length,
-    9,
-    "ステップアップ全9個がすべてバッジカードとして描画される"
+    20,
+    "ステップアップ全20個がすべてバッジカードとして描画される"
   );
 }

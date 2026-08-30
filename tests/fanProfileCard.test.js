@@ -76,21 +76,23 @@ export function runFanProfileCardTests() {
     null,
     "複合称号が無ければ代表ラベルはnull（称号数だけ表示）"
   );
-  // ---- 2026-08-15追加：ノーミスマスターは＝LOVEマスター・完全制覇より下位の代表ラベル ----
+  // ---- 2026-08-15追加：イントロマスター（旧ノーミスマスター）は＝LOVEマスター・完全制覇より
+  //      下位の代表ラベル（2026-08-30改訂：表示名のみ「ノーミスマスター」→「イントロマスター」） ----
   assertEqual(
     buildRepresentativeLabel(buildProfile({ hasNoMissMaster: true })),
-    "ノーミスマスター",
-    "ノーミスマスターだけ取得済みならそれが代表ラベルになる"
+    "イントロマスター",
+    "イントロマスターだけ取得済みならそれが代表ラベルになる"
   );
   assertEqual(
     buildRepresentativeLabel(buildProfile({ hasNoMissMaster: true, hasEqualLoveMaster: true })),
     "＝LOVEマスター",
-    "＝LOVEマスターも取得済みなら、ノーミスマスターより＝LOVEマスターが優先される"
+    "＝LOVEマスターも取得済みなら、イントロマスターより＝LOVEマスターが優先される"
   );
 
-  // ---- 2026-08-29追加：3組の段階制ペア（本人指示） ----
-  // イントロエース→ノーミスマスター、シャッフルエース→フルコーラスマスター、
-  // リリックエース→歌マスター。上位（マスター系）を持てば下位（エース系）は代表表示しない。
+  // ---- 2026-08-29追加・2026-08-30改訂：5組の段階制ペア（本人指示） ----
+  // イントロエース→イントロマスター、アウトロエース→アウトロマスター、
+  // シャッフルエース→シャッフルマスター、リリックエース→リリックマスター、
+  // 一瞬エース→一瞬マスター。上位（マスター系）を持てば下位（エース系）は代表表示しない。
   assertEqual(
     buildRepresentativeLabel(buildProfile({ unlockedAchievementIds: ["intro_ace"] })),
     "イントロエース",
@@ -98,8 +100,8 @@ export function runFanProfileCardTests() {
   );
   assertEqual(
     buildRepresentativeLabel(buildProfile({ unlockedAchievementIds: ["intro_ace", "no_miss_master"] })),
-    "ノーミスマスター",
-    "ノーミスマスターも取得済みなら、イントロエースより優先される"
+    "イントロマスター",
+    "イントロマスターも取得済みなら、イントロエースより優先される"
   );
   assertEqual(
     buildRepresentativeLabel(buildProfile({ unlockedAchievementIds: ["shuffle_ace"] })),
@@ -108,24 +110,34 @@ export function runFanProfileCardTests() {
   );
   assertEqual(
     buildRepresentativeLabel(buildProfile({ unlockedAchievementIds: ["shuffle_ace", "full_chorus_master"] })),
-    "フルコーラスマスター",
-    "フルコーラスマスターも取得済みなら、シャッフルエースより優先される"
+    "シャッフルマスター",
+    "シャッフルマスターも取得済みなら、シャッフルエースより優先される"
   );
   assertEqual(
     buildRepresentativeLabel(buildProfile({ unlockedAchievementIds: ["lyric_ace", "song_master"] })),
-    "歌マスター",
-    "歌マスターも取得済みなら、リリックエースより優先される"
+    "リリックマスター",
+    "リリックマスターも取得済みなら、リリックエースより優先される"
+  );
+  assertEqual(
+    buildRepresentativeLabel(buildProfile({ unlockedAchievementIds: ["outro_ace", "outro_master"] })),
+    "アウトロマスター",
+    "アウトロマスターも取得済みなら、アウトロエースより優先される"
+  );
+  assertEqual(
+    buildRepresentativeLabel(buildProfile({ unlockedAchievementIds: ["instant_ace", "instant_master"] })),
+    "一瞬マスター",
+    "一瞬マスターも取得済みなら、一瞬エースより優先される"
   );
   assertEqual(
     buildRepresentativeLabel(
       buildProfile({ hasEqualLoveComplete: true, unlockedAchievementIds: ["no_miss_master", "intro_ace"] })
     ),
     "＝LOVE完全制覇",
-    "複合称号（完全制覇）は、3組のペアより常に優先される"
+    "複合称号（完全制覇）は、5組のペアより常に優先される"
   );
   assertEqual(
     buildRepresentativeLabel(buildProfile({ hasNoMissMaster: true, unlockedAchievementIds: [] })),
-    "ノーミスマスター",
+    "イントロマスター",
     "後方互換：unlockedAchievementIdsが空でもhasNoMissMasterフラグだけで代表ラベルになる（旧データ対応）"
   );
 
@@ -206,7 +218,7 @@ export function runFanProfileCardTests() {
   const achievedNames = [...partialList.querySelectorAll(".fan-profile-achievement-name")].map((el) => el.textContent);
   assertEqual(
     achievedNames,
-    ["イントロビギナー", "フルコーラスマスター"],
+    ["イントロビギナー", "シャッフルマスター"],
     "取得済みの称号だけが名前つきで表示される（未取得は一切出さない）。イントロ系→シャッフル系の順で並ぶ"
   );
   const partialHeadings = [...partialList.querySelectorAll(".fan-profile-achievement-block-heading")].map(
@@ -240,8 +252,8 @@ export function runFanProfileCardTests() {
   );
   assertEqual(
     blocksByHeading.find((block) => block.heading === "🎧 イントロ系")?.names,
-    ["イントロビギナー", "イントロチャレンジャー", "イントロエース", "ノーミスマスター"],
-    "イントロ系ブロックはビギナー〜ノーミスマスターの4段階だけで、電光石火は含まれない"
+    ["イントロビギナー", "イントロチャレンジャー", "イントロエース", "イントロマスター"],
+    "イントロ系ブロックはビギナー〜イントロマスターの4段階だけで、電光石火は含まれない"
   );
   assertEqual(
     blocksByHeading.find((block) => block.heading === "💎 裏チャレンジ")?.names,
@@ -622,8 +634,8 @@ export function runBuildFriendAchievementSummaryTests() {
   );
   assertEqual(
     oneSummary.querySelector(".fan-profile-next-challenge-text")?.textContent,
-    "ランダム再生クイズ・歌詞クイズの称号にも挑戦してみよう！",
-    "イントロ系の称号しか持っていない場合、次のチャレンジはランダム再生・歌詞クイズの2系統をまとめて案内する"
+    "アウトロクイズ・ランダム再生クイズ・歌詞クイズ・一瞬チャレンジの称号にも挑戦してみよう！",
+    "イントロ系の称号しか持っていない場合、次のチャレンジは残り4系統をまとめて案内する（2026-08-30改訂：5系統化）"
   );
 
   // ---- C：称号2個（未取得系統1つ） → 「CHALLENGER」＋そのまま2件表示＋次のチャレンジ ----
@@ -636,8 +648,8 @@ export function runBuildFriendAchievementSummaryTests() {
   assertEqual(twoSummary.querySelectorAll(".fan-profile-representative-chip").length, 2, "称号2個なら2件表示される");
   assertEqual(
     twoSummary.querySelector(".fan-profile-next-challenge-text")?.textContent,
-    "歌詞クイズの称号にも挑戦してみよう！",
-    "イントロ・ランダム再生に称号があり歌詞クイズだけ0個の場合、歌詞クイズだけを案内する"
+    "アウトロクイズ・歌詞クイズ・一瞬チャレンジの称号にも挑戦してみよう！",
+    "イントロ・ランダム再生に称号があり残り3系統が0個の場合、その3系統を案内する（2026-08-30改訂：5系統化）"
   );
 
   // ---- D：称号3個以上だが1系統が0個 → 「代表称号」＋次のチャレンジも表示される ----
@@ -653,21 +665,27 @@ export function runBuildFriendAchievementSummaryTests() {
   );
   assertEqual(
     threeMissingOneSummary.querySelector(".fan-profile-next-challenge-text")?.textContent,
-    "イントロクイズ・歌詞クイズの称号にも挑戦してみよう！",
-    "称号3個以上でも、未取得系統（イントロ・歌詞クイズ）があれば「次のチャレンジ」を表示する（CHALLENGER専用にしない）"
+    "イントロクイズ・アウトロクイズ・歌詞クイズ・一瞬チャレンジの称号にも挑戦してみよう！",
+    "称号3個以上でも、未取得系統（残り4系統）があれば「次のチャレンジ」を表示する（CHALLENGER専用にしない、2026-08-30改訂：5系統化）"
   );
 
-  // ---- E：3系統すべて最低1個取得 → 「次のチャレンジ」は表示しない ----
-  const allSeriesSummary = buildFriendAchievementSummary(["intro_ace", "shuffle_ace", "lyric_ace"]);
+  // ---- E：5系統すべて最低1個取得 → 「次のチャレンジ」は表示しない（2026-08-30改訂：5系統化） ----
+  const allSeriesSummary = buildFriendAchievementSummary([
+    "intro_ace",
+    "outro_ace",
+    "shuffle_ace",
+    "lyric_ace",
+    "instant_ace",
+  ]);
   assertEqual(
     allSeriesSummary.querySelectorAll(".fan-profile-representative-chip").length,
-    3,
-    "3系統それぞれ1個ずつ、合計3個の代表称号が表示される"
+    5,
+    "5系統それぞれ1個ずつ、合計5個の代表称号が表示される"
   );
   assertEqual(
     allSeriesSummary.querySelector(".fan-profile-next-challenge"),
     null,
-    "3系統すべてに1個以上称号があれば、「次のチャレンジ」は表示されない"
+    "5系統すべてに1個以上称号があれば、「次のチャレンジ」は表示されない"
   );
 
   // ---- I：裏チャレンジ＋マスター＋ステップアップ取得 → 裏チャレンジ・マスター両方を表示 ----
@@ -683,8 +701,8 @@ export function runBuildFriendAchievementSummaryTests() {
   );
   assertEqual(
     backAndMasterNames,
-    ["電光石火", "ノーミスマスター"],
-    "電光石火（裏チャレンジ）とノーミスマスター（マスター）の両方が代表称号に表示され、イントロエースは表示されない"
+    ["電光石火", "イントロマスター"],
+    "電光石火（裏チャレンジ）とイントロマスター（マスター）の両方が代表称号に表示され、イントロエースは表示されない"
   );
 
   // ---- L：裏チャレンジ3個＋マスター3個取得 → 最大6個すべて表示（もう上限で切らない） ----
@@ -701,9 +719,12 @@ export function runBuildFriendAchievementSummaryTests() {
     6,
     "裏チャレンジ3個＋マスター3個すべて取得済みなら、6個すべてが表示される（3個キャップは廃止）"
   );
+  // 【2026-08-30改訂：5系統化】この6個はイントロ・シャッフル・リリックの3系統分のみのため、
+  // アウトロ・一瞬チャレンジの2系統は未取得のまま。「次のチャレンジ」はこの2系統だけを案内する
+  // （やり込み度が高くても、本当に未取得の系統があれば表示するのがCHALLENGER専用にしない方針）。
   assertEqual(
-    maxSummary.querySelector(".fan-profile-next-challenge"),
-    null,
-    "これだけやり込んでいれば当然3系統すべて称号があるため、「次のチャレンジ」は表示されない"
+    maxSummary.querySelector(".fan-profile-next-challenge-text")?.textContent,
+    "アウトロクイズ・一瞬チャレンジの称号にも挑戦してみよう！",
+    "3系統（イントロ・シャッフル・リリック）をやり込んでいても、未取得の2系統（アウトロ・一瞬チャレンジ）があれば「次のチャレンジ」が表示される"
   );
 }

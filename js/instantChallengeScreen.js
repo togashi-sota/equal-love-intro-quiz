@@ -37,6 +37,10 @@ import { playSongFromRandomPosition, stopAudio } from "./audio.js";
 import { recordInstantChallengeWeakSongAttempt } from "./instantChallengeWeakSongStats.js";
 import { recordInstantChallengeClear } from "./instantChallengeClearStore.js";
 import { savePlayHistoryEntry } from "./playHistory.js";
+import { evaluateInstantChallengeAchievements } from "./achievementEvaluation.js";
+import { saveEarnedAchievements } from "./achievementProgress.js";
+import { renderAchievementUnlockEvents } from "./achievementDisplay.js";
+import { renderPlayerSummary } from "./playerScreen.js";
 
 // 【2026-08-30改訂・本人指示】回答候補は4択／10択／全曲検索の3段階のみに変更
 // （30択・50択は一瞬チャレンジでは不要と判断し廃止。歌詞クイズ側のANSWER_POOL_SIZE_VALUES
@@ -315,7 +319,7 @@ function advanceToNextQuestionOrFinish() {
 
 // ===== 3. 結果画面 =====
 
-// resultElements: { correctCount, missCount, clearBadge, breakdownList }
+// resultElements: { correctCount, missCount, clearBadge, breakdownList, achievementList, achievementListLink }
 export function initInstantChallengeResultScreen(newElements) {
   resultElements = newElements;
 }
@@ -340,6 +344,25 @@ export function renderInstantChallengeResult() {
     recordInstantChallengeClear(currentSettings.playDurationValue, currentSettings.answerPoolSizeValue, String(answers.length), {
       noReplayUsed,
     });
+  }
+
+  // 【2026-08-30追加・本人指示⑦⑪】一瞬チャレンジ専用の称号判定（一瞬ビギナー〜マスター・
+  // 即聞即答）。js/achievementEvaluation.jsのevaluateInstantChallengeAchievements()は
+  // 「実際に出題された問題数」を条件キーとして受け取る（クリア記録と同じ理由）。
+  const earnedAchievementIds = evaluateInstantChallengeAchievements({
+    playDurationValue: currentSettings.playDurationValue,
+    answerPoolSizeValue: currentSettings.answerPoolSizeValue,
+    questionCountValue: String(answers.length),
+    isCleared,
+    noReplayUsed,
+  });
+  const achievementResult = saveEarnedAchievements(earnedAchievementIds);
+  renderAchievementUnlockEvents(achievementResult.newlyUnlockedIds, {
+    chipContainer: resultElements.achievementList,
+    achievementListLinkElement: resultElements.achievementListLink,
+  });
+  if (achievementResult.newlyUnlockedIds.length > 0) {
+    renderPlayerSummary(); // ＝LOVE完全制覇を新規獲得した場合、推しアイコンの装飾を即座に反映する
   }
 
   savePlayHistoryEntry({

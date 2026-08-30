@@ -2458,6 +2458,22 @@ fieldset label:has(input:focus-visible) {
   border: 1.5px solid rgba(255, 255, 255, 0.85);
 }
 
+/* 【2026-08-30追加・本人指示④】アウトロ系＝ピンク系（既存の.is-intro/shuffle/lyricと
+   区別できる新しい色相として、アプリ全体のブランドカラーである--color-primary系を採用）。 */
+.achievement-icon-medal.is-outro_beginner {
+  background: linear-gradient(160deg, #ffd6e8, #ff9dc2);
+  color: #6b1638;
+}
+.achievement-icon-medal.is-outro_challenger {
+  background: linear-gradient(160deg, #ff9dc2, #ff5f96);
+  color: #4a0f28;
+}
+.achievement-icon-medal.is-outro_ace {
+  background: linear-gradient(160deg, #ff6fa8, #d92e6b);
+  color: #ffffff;
+  border: 1.5px solid rgba(255, 255, 255, 0.85);
+}
+
 .achievement-icon-medal.is-shuffle_beginner {
   background: linear-gradient(160deg, #e3d6ff, #b9a0f0);
   color: #3a215e;
@@ -2486,6 +2502,21 @@ fieldset label:has(input:focus-visible) {
   border: 1.5px solid rgba(255, 255, 255, 0.85);
 }
 
+/* 【2026-08-30追加・本人指示⑦】一瞬チャレンジ系＝ティール系（他4系統と区別できる新色相）。 */
+.achievement-icon-medal.is-instant_beginner {
+  background: linear-gradient(160deg, #cdf5ec, #7fdfca);
+  color: #06392c;
+}
+.achievement-icon-medal.is-instant_challenger {
+  background: linear-gradient(160deg, #7fdfca, #34b797);
+  color: #04241b;
+}
+.achievement-icon-medal.is-instant_ace {
+  background: linear-gradient(160deg, #34c9a3, #0f8f70);
+  color: #ffffff;
+  border: 1.5px solid rgba(255, 255, 255, 0.85);
+}
+
 /* ノーミスマスター：金色の盾（2026-08-14：ブロンズ/シルバー/ゴールド/プラチナは
    成長段階系（イントロビギナー/チャレンジャー/エース）と条件が完全重複していたため廃止した）。 */
 .achievement-icon-medal.is-no_miss_master {
@@ -2495,7 +2526,9 @@ fieldset label:has(input:focus-visible) {
 }
 
 .achievement-icon-medal.is-full_chorus_master,
-.achievement-icon-medal.is-song_master {
+.achievement-icon-medal.is-song_master,
+.achievement-icon-medal.is-outro_master,
+.achievement-icon-medal.is-instant_master {
   background: linear-gradient(160deg, var(--color-primary), var(--color-primary-dark));
   color: #ffffff;
 }
@@ -2503,6 +2536,12 @@ fieldset label:has(input:focus-visible) {
 .achievement-icon-medal.is-lightning_fast {
   background: var(--color-primary-dark);
   color: #fff9d6;
+}
+
+/* 【2026-08-30追加・本人指示⑬⑭】完全終曲（アウトロ裏チャレンジ）。 */
+.achievement-icon-medal.is-complete_finale {
+  background: linear-gradient(160deg, #6fa8ff, var(--color-primary-dark));
+  color: #ffffff;
 }
 
 .achievement-icon-medal.is-melody_ace {
@@ -2513,6 +2552,12 @@ fieldset label:has(input:focus-visible) {
 .achievement-icon-medal.is-lyric_master {
   background: linear-gradient(160deg, #ffb37a, var(--color-accent));
   color: #5c3a08;
+}
+
+/* 【2026-08-30追加・本人指示⑦⑬】即聞即答（一瞬チャレンジ裏チャレンジ）。 */
+.achievement-icon-medal.is-instant_flash_answer {
+  background: linear-gradient(135deg, #34c9a3, #0f8f70);
+  color: #ffffff;
 }
 
 /* 王冠のviewBoxは正方形のSVG表示枠に収める際、縦方向が余って小さく表示されてしまう
@@ -5182,9 +5227,11 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   opacity: 0.85;
 }
 
+/* 【2026-08-30改訂・本人指示④】ビギナー/チャレンジャー/エースの3段階からマスターを加えた
+   4段階へ変更したため、3列→4列にする（狭い画面は下のメディアクエリで2列×2段に切り替える）。 */
 .growth-series-row {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 8px;
 }
 
@@ -5291,7 +5338,10 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 }
 
 @media (max-width: 380px) {
+  /* 【2026-08-30追加】4列だと1枚あたりが狭すぎて一瞬チャレンジ系の長いラベル
+     （例：「1.5秒・4択・3問」）が窮屈になるため、狭い画面だけ2列×2段に切り替える。 */
   .growth-series-row {
+    grid-template-columns: repeat(2, 1fr);
     gap: 6px;
   }
   .growth-badge-medal.achievement-icon-medal {

@@ -1170,7 +1170,10 @@ const SPECIAL_MODES_DISPLAY = {
   outroQuiz: {
     eyebrowLabel: "OUTRO QUIZ",
     progressPrefix: "🎬 アウトロ ",
-    resultNotice: "この結果は、自己ベスト・称号には反映されません",
+    // 【2026-08-30改訂・本人指示①⑥】アウトロクイズは主要モード化に伴い称号判定の対象になった
+    // （renderResult()内、isSpecialブロックのisOutroQuiz分岐参照）。自己ベスト・ランキングへの
+    // 参加は今回のスコープ外のため、そちらだけ「反映されません」の案内を残す。
+    resultNotice: "この結果は、自己ベスト・ランキングには反映されません（称号には反映されます）",
     quizBackLabel: "アウトロクイズへ",
     quizQuitTitle: "クイズを中断してアウトロクイズの設定画面に戻りますか？",
     quizQuitConfirmLabel: "設定画面に戻る",
@@ -1212,6 +1215,10 @@ const instantChallengeResultClearBadgeElement = document.getElementById("instant
 const instantChallengeResultCorrectCountElement = document.getElementById("instant-challenge-result-correct-count");
 const instantChallengeResultMissCountElement = document.getElementById("instant-challenge-result-miss-count");
 const instantChallengeResultBreakdownListElement = document.getElementById("instant-challenge-result-breakdown-list");
+const instantChallengeResultAchievementListElement = document.getElementById("instant-challenge-result-achievement-list");
+const instantChallengeResultAchievementListLinkElement = document.getElementById(
+  "instant-challenge-result-achievement-list-link"
+);
 const instantChallengeResultRetryButtonElement = document.getElementById("instant-challenge-result-retry-button");
 const instantChallengeResultSetupButtonElement = document.getElementById("instant-challenge-result-setup-button");
 const dataPackImportStatusElement = document.getElementById("data-pack-import-status");
@@ -1291,6 +1298,7 @@ initAchievementListModal({
     timeAttackResultAchievementListLinkElement,
     randomPlaybackResultAchievementListLinkElement,
     lyricsQuizResultAchievementListLinkElement,
+    instantChallengeResultAchievementListLinkElement,
     fanProfilesTitleListLinkElement,
     fanProfileDetailTitleListLinkElement,
   ],
@@ -3020,20 +3028,51 @@ function renderResult() {
         correctEntries.filter((entry) => entry.elapsedMs !== null).map((entry) => entry.elapsedMs)
       );
       const specialModeId = gameState.specialModeId;
+      // 【2026-08-30追加・本人指示⑥】アウトロクイズ（通常導線のみ、specialModeId:"outroQuiz"）は
+      // 5系統目の主要モードとして称号に反映する。オリジナル問題作成モード経由
+      // （customQuizOutro）は、他モードのオリジナル問題作成モードと同じく対象外のまま
+      // （本人方針：カスタム選曲プレイを判定に混ぜない）。
+      // 【categoryFilterValueについて】startSpecialQuiz()はgameState.categoryFilterValueを
+      // 常にnullへ戻すため、実際に選んだカテゴリーはlastOutroQuizSelection（このファイル内、
+      // beginOutroQuiz()が更新するモジュール変数）から取得する。
+      const isOutroQuiz = specialModeId === "outroQuiz";
+      const outroCategoryFilterValue = isOutroQuiz ? lastOutroQuizSelection.categoryFilterValue : null;
       savePlayHistoryEntry({
         playedAt: Date.now(),
         modeId: specialModeId,
         modeLabel: HISTORY_MODE_DISPLAY[specialModeId]?.label ?? specialModeDisplay?.eyebrowLabel ?? specialModeId,
         questionCount: gameState.questions.length,
-        isAllSongsMode: gameState.categoryFilterValue === "all",
+        isAllSongsMode: isOutroQuiz
+          ? outroCategoryFilterValue === "all"
+          : gameState.categoryFilterValue === "all",
         correctCount: correctEntries.length,
         wrongCount,
         skippedCount,
         score: gameState.score,
         averageResponseMs,
         completed: true,
-        details: { categoryFilterValue: gameState.categoryFilterValue },
+        details: { categoryFilterValue: isOutroQuiz ? outroCategoryFilterValue : gameState.categoryFilterValue },
       });
+
+      if (isOutroQuiz) {
+        const outroAchievementResult = evaluateAndSaveAchievements({
+          modeId: "outroQuiz",
+          questionCountValue: gameState.questionCountValue,
+          categoryFilterValue: outroCategoryFilterValue,
+          correctCount: correctEntries.length,
+          wrongCount,
+          skippedCount,
+          completed: true,
+          averageResponseMs,
+        });
+        renderAchievementUnlockEvents(outroAchievementResult.newlyUnlockedIds, {
+          chipContainer: titleEventListElement,
+          achievementListLinkElement: titleListLinkFromResultElement,
+        });
+        if (outroAchievementResult.newlyUnlockedIds.length > 0) {
+          renderPlayerSummary(); // ＝LOVEマスター等を新規獲得した場合、推しアイコンの王冠・ダイヤを即座に反映する
+        }
+      }
     }
   } else {
     specialModeNoticeElement.hidden = true;
@@ -3416,6 +3455,8 @@ initInstantChallengeResultScreen({
   missCount: instantChallengeResultMissCountElement,
   clearBadge: instantChallengeResultClearBadgeElement,
   breakdownList: instantChallengeResultBreakdownListElement,
+  achievementList: instantChallengeResultAchievementListElement,
+  achievementListLink: instantChallengeResultAchievementListLinkElement,
 });
 
 // 【2026-08-30改訂・本人指示②】上のアウトロと同じ理由でホームへ直接戻す。

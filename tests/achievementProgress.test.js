@@ -69,11 +69,12 @@ export function runAchievementProgressTests() {
   const playResult2 = evaluateAndSaveAchievements(buildCleanIntroResult());
   assertEqual(playResult2.newlyUnlockedIds, [], "2回目の同条件プレイでは新規解放として報告されない（回帰なし）");
 
-  // ---- 複合称号の自動解放：表2称号を用意した状態で3つ目を達成すると＝LOVEマスターが付く ----
+  // ---- 複合称号の自動解放：表3称号（アウトロマスター含む）を用意した状態で
+  //      4つ目（ノーミスマスター）を達成すると＝LOVEマスターが付く（2026-08-30改訂）----
   clearAchievementStorage();
   const seeded = mergeAchievementProgress(
     { schemaVersion: 2, unlockedAchievementIds: [], unlockedAtById: {} },
-    ["full_chorus_master", "song_master"],
+    ["outro_master", "full_chorus_master", "song_master"],
     nowIso
   );
   localStorage.setItem(ACHIEVEMENTS_KEY, JSON.stringify(seeded.progress));
@@ -89,7 +90,7 @@ export function runAchievementProgressTests() {
   assertEqual(
     finalPlay.newlyUnlockedIds.includes("equal_love_master"),
     true,
-    "3つ目の表称号が揃った瞬間に＝LOVEマスターが自動解放される"
+    "4つ目の表称号が揃った瞬間に＝LOVEマスターが自動解放される"
   );
 
   // ---- 壊れた保存データからの安全な復旧 ----
@@ -148,7 +149,10 @@ export function runAchievementProgressTests() {
 
   // ---- compositeProgress.items：複合称号カードの「獲得条件」チェックリスト用データ
   //      （本人指示・2026-08-07：「どの称号を集めれば最終称号になるのか」が名前入りで
-  //      一目で分かるように）。取得状態が正しくitemsへ反映されることを確認する。 ----
+  //      一目で分かるように）。取得状態が正しくitemsへ反映されることを確認する。
+  //      【2026-08-30改訂】＝LOVEマスターは4称号（アウトロマスター追加）、
+  //      ＝LOVE完全制覇は6称号（＝LOVEマスター自体＋完全終曲・即聞即答を追加）、
+  //      表示名も改名後（イントロマスター等）に更新。 ----
   clearAchievementStorage();
   localStorage.setItem(
     ACHIEVEMENTS_KEY,
@@ -158,25 +162,25 @@ export function runAchievementProgressTests() {
   const masterEntry = partialSnapshot.find((entry) => entry.id === "equal_love_master");
   assertEqual(
     masterEntry.compositeProgress.items.map((item) => item.id),
-    ["no_miss_master", "full_chorus_master", "song_master"],
-    "＝LOVEマスターの必要称号3つが、compositeOfの順番どおりitemsに並ぶ"
+    ["no_miss_master", "outro_master", "full_chorus_master", "song_master"],
+    "＝LOVEマスターの必要称号4つが、compositeOfの順番どおりitemsに並ぶ"
   );
   assertEqual(
     masterEntry.compositeProgress.items.map((item) => item.name),
-    ["ノーミスマスター", "フルコーラスマスター", "歌マスター"],
-    "＝LOVEマスターの必要称号3つが、表示名つきで取得できる"
+    ["イントロマスター", "アウトロマスター", "シャッフルマスター", "リリックマスター"],
+    "＝LOVEマスターの必要称号4つが、表示名つきで取得できる"
   );
   assertEqual(
     masterEntry.compositeProgress.items.map((item) => item.isUnlocked),
-    [false, true, false],
-    "フルコーラスマスターだけ取得済みの状態が、itemsのisUnlockedへ正しく反映される"
+    [false, false, true, false],
+    "シャッフルマスターだけ取得済みの状態が、itemsのisUnlockedへ正しく反映される"
   );
 
   const completeEntry = partialSnapshot.find((entry) => entry.id === "equal_love_complete");
   assertEqual(
     completeEntry.compositeProgress.items.map((item) => item.id),
-    ["lightning_fast", "melody_ace", "lyric_master"],
-    "＝LOVE完全制覇の必要称号3つが、compositeOfの順番どおりitemsに並ぶ"
+    ["equal_love_master", "lightning_fast", "complete_finale", "melody_ace", "lyric_master", "instant_flash_answer"],
+    "＝LOVE完全制覇の必要称号6つが、compositeOfの順番どおりitemsに並ぶ"
   );
   assertEqual(
     completeEntry.compositeProgress.items.every((item) => item.isUnlocked === false),
