@@ -2050,29 +2050,6 @@
       </div>
     </section>
 
-    <!-- 管理者限定：ランキング記録削除の確認モーダル（2026-08-17新設）。
-         開くボタン（各記録行の🗑️）はADMIN_UID（js/adminConfig.js）と一致する本人にしか
-         表示されない。削除対象はvariant×questionCount×category×uidで一意に決まる
-         1件の記録だけで、他の記録・本人の端末内データには一切触れないことを明記する
-         （2026-08-16改訂：ルールはもう区分ではないため、確認欄からも外した）。 -->
-    <div id="time-attack-leaderboard-admin-delete-confirm-modal" class="modal-overlay" hidden>
-      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="time-attack-leaderboard-admin-delete-confirm-title">
-        <h2 id="time-attack-leaderboard-admin-delete-confirm-title">このランキング記録を削除しますか？</h2>
-        <dl class="leaderboard-admin-delete-summary">
-          <div><dt>プレイヤー名</dt><dd id="time-attack-leaderboard-admin-delete-name"></dd></div>
-          <div><dt>記録</dt><dd id="time-attack-leaderboard-admin-delete-time"></dd></div>
-          <div><dt>モード</dt><dd id="time-attack-leaderboard-admin-delete-variant"></dd></div>
-          <div><dt>問題数</dt><dd id="time-attack-leaderboard-admin-delete-question-count"></dd></div>
-          <div><dt>カテゴリー</dt><dd id="time-attack-leaderboard-admin-delete-category"></dd></div>
-        </dl>
-        <p class="modal-lead">このランキング記録だけを削除します。他の記録・本人の端末内データ（プレイデータ・音源・歌詞・称号・履歴等）は削除されません。</p>
-        <div class="button-row">
-          <button id="time-attack-leaderboard-admin-delete-cancel-button" class="secondary-button" type="button">キャンセル</button>
-          <button id="time-attack-leaderboard-admin-delete-confirm-button" class="danger-button" type="button">この記録を削除する</button>
-        </div>
-      </div>
-    </div>
-
     <!-- タイムアタック履歴一覧画面：通常プレイ履歴（#history-screen）とは完全に別のデータ・画面
          （2026-08-06新設）。カード1件＝タイムアタック1プレイ分。中身はjs/timeAttackHistoryScreen.jsが組み立てる。
          見た目は#history-screenの履歴カード（.history-entry系クラス）をそのまま流用している。 -->
@@ -3169,23 +3146,6 @@
       </div>
     </section>
 
-    <!-- ロビーの「✕ ルームを退出する」用の確認モーダル（2026-08-28新設）。誤操作で
-         対戦中のルームからいきなり抜けてしまうことがないよう、他の確定系ボタンと
-         同じ#modal-overlayの型を使ってワンクッション挟む。1対1・4人対戦・
-         イントロ対戦・ランダム再生対戦・歌詞クイズ対戦のすべてがこの1つの
-         ロビー画面（#online-battle-lobby-screen）を共有しているため、ここに
-         1つ用意するだけで全モード・全人数構成に統一して適用される。 -->
-    <div id="online-battle-lobby-leave-confirm-modal" class="modal-overlay" hidden>
-      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="online-battle-lobby-leave-confirm-title">
-        <h2 id="online-battle-lobby-leave-confirm-title">本当にルームを退出しますか？</h2>
-        <p class="modal-lead">退出すると、現在の対戦／ルームから離れます。</p>
-        <div class="button-row">
-          <button id="online-battle-lobby-leave-cancel-button" class="secondary-button" type="button">いいえ</button>
-          <button id="online-battle-lobby-leave-confirm-button" class="danger-button" type="button">はい</button>
-        </div>
-      </div>
-    </div>
-
     <!-- オンライン対戦：出題する曲を選ぶ画面（2026-08-08新設）。イントロ対戦・ランダム再生対戦・
          歌詞クイズ対戦の3つで共通利用する。ホストだけが開ける。中身の組み立て・選択状態の管理は
          js/onlineBattleSongPicker.jsが担当し、曲の一覧・検索ロジックはjs/songlist.js
@@ -3271,19 +3231,6 @@
       <button id="online-battle-waiting-finalize-button" class="secondary-button" type="button" hidden>結果を確定する</button>
     </section>
 
-    <!-- ホストの「結果を確定する」ボタン用の確認モーダル。誤操作で未完了者をすぐDNF確定
-         してしまわないよう、必ずワンクッション挟む（本人の要望）。 -->
-    <div id="online-battle-waiting-finalize-confirm-modal" class="modal-overlay" hidden>
-      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="online-battle-waiting-finalize-confirm-title">
-        <h2 id="online-battle-waiting-finalize-confirm-title">結果を確定しますか？</h2>
-        <p class="modal-lead">まだ終わっていない参加者は、今回の対戦では未完了（DNF）として結果に表示されます。この操作は取り消せません。</p>
-        <div class="button-row">
-          <button id="online-battle-waiting-finalize-cancel-button" class="secondary-button" type="button">キャンセル</button>
-          <button id="online-battle-waiting-finalize-confirm-button" class="danger-button" type="button">確定する</button>
-        </div>
-      </div>
-    </div>
-
     <!-- オンライン対戦：結果画面（Step3）。全員終了（またはホストのDNF確定）でstatusがresultに
          なると、待機画面から自動的にここへ進む。順位判定はjs/battleModes/配下のcompareResults()を
          そのまま使う（オフライン対戦と同じ考え方）。結果を送らなかった参加者はDNFとして
@@ -3305,19 +3252,6 @@
            後から「前回のルームに戻る」で戻ってくる。 -->
       <button id="online-battle-result-rematch-button" class="secondary-button" type="button" hidden>もう一度対戦する</button>
     </section>
-
-    <!-- ホストの「もう一度対戦する」ボタン用の確認モーダル。誤操作で全員のREADYを
-         リセットしてしまわないよう、ワンクッション挟む（他の確定系ボタンと同じ考え方）。 -->
-    <div id="online-battle-result-rematch-confirm-modal" class="modal-overlay" hidden>
-      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="online-battle-result-rematch-confirm-title">
-        <h2 id="online-battle-result-rematch-confirm-title">もう一度対戦しますか？</h2>
-        <p class="modal-lead">同じルーム・同じ設定のまま、全員がロビー画面に戻ります。参加者は改めて準備完了が必要です。</p>
-        <div class="button-row">
-          <button id="online-battle-result-rematch-cancel-button" class="secondary-button" type="button">キャンセル</button>
-          <button id="online-battle-result-rematch-confirm-button" class="primary-button" type="button">再戦する</button>
-        </div>
-      </div>
-    </div>
 
     <!-- オンライン対戦：歌詞クイズ専用の対戦中画面（Phase6新設）。
          既存の#quiz-screen（音源再生・選択式クイズ用）は歌詞クイズの「全員同じ問題を同時に見て、
@@ -3350,26 +3284,6 @@
         </div>
       </div>
     </section>
-
-    <!-- 「対戦をやめる」用の確認モーダル。既存の#quiz-screen用モーダルは
-         #quiz-screenの「戻る」ボタンに紐づく専用の仕組みのため、歌詞クイズ対戦画面用に
-         同じ考え方・同じ見た目で独立したモーダルを用意する。
-         【文言について・2026-08-11】歌詞クイズ対戦では、途中退出しても自分は
-         ルームから抜けるだけで対戦自体は続き、退出後の残り問題は未回答として
-         結果表にそのまま反映される（本人の実機確認で判明。「結果は送信されない」という
-         文言は実際の挙動と食い違っていた）。このモーダルは歌詞クイズ対戦専用で他モードとは
-         共有していないため、ここだけ実際の挙動に合わせて文言を修正する
-         （他モードの「結果は送信されません」は変更しない）。 -->
-    <div id="online-lyrics-battle-quit-confirm-modal" class="modal-overlay" hidden>
-      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="online-lyrics-battle-quit-confirm-title">
-        <h2 id="online-lyrics-battle-quit-confirm-title">対戦を中断してルームを退出しますか？</h2>
-        <p class="modal-lead">退出後も対戦は続き、あなたの残りの問題は未回答として結果に反映されます。他の参加者はそのまま対戦を続けられます。</p>
-        <div class="button-row">
-          <button id="online-lyrics-battle-quit-cancel-button" class="secondary-button" type="button">キャンセル</button>
-          <button id="online-lyrics-battle-quit-confirm-button" class="danger-button" type="button">対戦をやめる</button>
-        </div>
-      </div>
-    </div>
 
     <!-- オンライン対戦：歌詞クイズ専用の結果画面（Phase6新設）。既存の#online-battle-result-screenは
          正解数・ミス数・LOVE連チャンの到達数等、タイムアタック系のresult形状を前提にした固定の
@@ -3739,34 +3653,132 @@
       <div id="member-detail-content"></div>
     </section>
 
-    <!-- プリセット削除の確認モーダル：プレイ履歴の全削除確認と同じ構成
-         （見出し＋説明＋「キャンセル」「削除する」の2ボタン）。開閉ロジックはjs/customQuizScreen.jsが管理する。 -->
-    <div id="custom-quiz-delete-confirm-modal" class="modal-overlay" hidden>
-      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="custom-quiz-delete-confirm-title">
-        <h2 id="custom-quiz-delete-confirm-title">このセットを削除しますか？</h2>
-        <p class="modal-lead">この操作は元に戻せません。</p>
-        <div class="button-row history-clear-confirm-actions">
-          <button id="custom-quiz-delete-cancel-button" class="secondary-button" type="button">キャンセル</button>
-          <button id="custom-quiz-delete-confirm-button" class="danger-button" type="button">削除する</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- プリセット一覧カードから直接削除するときの確認モーダル。見た目・構成は上の
-         編集画面用モーダルと同じだが、削除対象がカードごとに変わるため要素・idを分けている。
-         開閉ロジックはjs/customQuizPresetsScreen.jsが管理する。 -->
-    <div id="custom-quiz-presets-delete-confirm-modal" class="modal-overlay" hidden>
-      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="custom-quiz-presets-delete-confirm-title">
-        <h2 id="custom-quiz-presets-delete-confirm-title">このセットを削除しますか？</h2>
-        <p class="modal-lead">この操作は元に戻せません。</p>
-        <div class="button-row history-clear-confirm-actions">
-          <button id="custom-quiz-presets-delete-cancel-button" class="secondary-button" type="button">キャンセル</button>
-          <button id="custom-quiz-presets-delete-confirm-button" class="danger-button" type="button">削除する</button>
-        </div>
-      </div>
-    </div>
-
   </main>
+
+  <!-- 【2026-08-30移設・本人報告の不具合対応】以下7件のモーダルは元々.game-frame（<main>）の
+       内側に置かれていたが、.game-frameにはガラス風の透け感を出すbackdrop-filterが
+       かかっており、これがCSSの仕様上position:fixedな子要素の基準（containing block）を
+       画面全体ではなく.game-frame自身にすり替えてしまう。結果、.game-frameの高さが
+       画面より大きい（スクロールが必要なほど中身が長い）画面でこれらのモーダルを開くと、
+       中央寄せの計算が.game-frame基準で行われてしまい、画面の外（かなり下）にボタンが
+       はみ出して押せなくなる不具合があった（オンライン対戦ロビーの「本当にルームを
+       退出しますか？」で本人が実機発見）。
+       他の34件のモーダルは元々body直下にあったため問題なく、この7件だけがたまたま
+       .game-frameの内側に書かれていたのが原因。中身・id・開閉ロジック（js側）は
+       一切変更せず、置き場所だけをここ（body直下・.game-frameの外）へ統一した。 -->
+
+  <!-- 管理者限定：ランキング記録削除の確認モーダル（2026-08-17新設）。
+       開くボタン（各記録行の🗑️）はADMIN_UID（js/adminConfig.js）と一致する本人にしか
+       表示されない。削除対象はvariant×questionCount×category×uidで一意に決まる
+       1件の記録だけで、他の記録・本人の端末内データには一切触れないことを明記する
+       （2026-08-16改訂：ルールはもう区分ではないため、確認欄からも外した）。 -->
+  <div id="time-attack-leaderboard-admin-delete-confirm-modal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="time-attack-leaderboard-admin-delete-confirm-title">
+      <h2 id="time-attack-leaderboard-admin-delete-confirm-title">このランキング記録を削除しますか？</h2>
+      <dl class="leaderboard-admin-delete-summary">
+        <div><dt>プレイヤー名</dt><dd id="time-attack-leaderboard-admin-delete-name"></dd></div>
+        <div><dt>記録</dt><dd id="time-attack-leaderboard-admin-delete-time"></dd></div>
+        <div><dt>モード</dt><dd id="time-attack-leaderboard-admin-delete-variant"></dd></div>
+        <div><dt>問題数</dt><dd id="time-attack-leaderboard-admin-delete-question-count"></dd></div>
+        <div><dt>カテゴリー</dt><dd id="time-attack-leaderboard-admin-delete-category"></dd></div>
+      </dl>
+      <p class="modal-lead">このランキング記録だけを削除します。他の記録・本人の端末内データ（プレイデータ・音源・歌詞・称号・履歴等）は削除されません。</p>
+      <div class="button-row">
+        <button id="time-attack-leaderboard-admin-delete-cancel-button" class="secondary-button" type="button">キャンセル</button>
+        <button id="time-attack-leaderboard-admin-delete-confirm-button" class="danger-button" type="button">この記録を削除する</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ロビーの「✕ ルームを退出する」用の確認モーダル（2026-08-28新設）。誤操作で
+       対戦中のルームからいきなり抜けてしまうことがないよう、他の確定系ボタンと
+       同じ#modal-overlayの型を使ってワンクッション挟む。1対1・4人対戦・
+       イントロ対戦・ランダム再生対戦・歌詞クイズ対戦のすべてがこの1つの
+       ロビー画面（#online-battle-lobby-screen）を共有しているため、ここに
+       1つ用意するだけで全モード・全人数構成に統一して適用される。 -->
+  <div id="online-battle-lobby-leave-confirm-modal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="online-battle-lobby-leave-confirm-title">
+      <h2 id="online-battle-lobby-leave-confirm-title">本当にルームを退出しますか？</h2>
+      <p class="modal-lead">退出すると、現在の対戦／ルームから離れます。</p>
+      <div class="button-row">
+        <button id="online-battle-lobby-leave-cancel-button" class="secondary-button" type="button">いいえ</button>
+        <button id="online-battle-lobby-leave-confirm-button" class="danger-button" type="button">はい</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ホストの「結果を確定する」ボタン用の確認モーダル。誤操作で未完了者をすぐDNF確定
+       してしまわないよう、必ずワンクッション挟む（本人の要望）。 -->
+  <div id="online-battle-waiting-finalize-confirm-modal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="online-battle-waiting-finalize-confirm-title">
+      <h2 id="online-battle-waiting-finalize-confirm-title">結果を確定しますか？</h2>
+      <p class="modal-lead">まだ終わっていない参加者は、今回の対戦では未完了（DNF）として結果に表示されます。この操作は取り消せません。</p>
+      <div class="button-row">
+        <button id="online-battle-waiting-finalize-cancel-button" class="secondary-button" type="button">キャンセル</button>
+        <button id="online-battle-waiting-finalize-confirm-button" class="danger-button" type="button">確定する</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ホストの「もう一度対戦する」ボタン用の確認モーダル。誤操作で全員のREADYを
+       リセットしてしまわないよう、ワンクッション挟む（他の確定系ボタンと同じ考え方）。 -->
+  <div id="online-battle-result-rematch-confirm-modal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="online-battle-result-rematch-confirm-title">
+      <h2 id="online-battle-result-rematch-confirm-title">もう一度対戦しますか？</h2>
+      <p class="modal-lead">同じルーム・同じ設定のまま、全員がロビー画面に戻ります。参加者は改めて準備完了が必要です。</p>
+      <div class="button-row">
+        <button id="online-battle-result-rematch-cancel-button" class="secondary-button" type="button">キャンセル</button>
+        <button id="online-battle-result-rematch-confirm-button" class="primary-button" type="button">再戦する</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 「対戦をやめる」用の確認モーダル。既存の#quiz-screen用モーダルは
+       #quiz-screenの「戻る」ボタンに紐づく専用の仕組みのため、歌詞クイズ対戦画面用に
+       同じ考え方・同じ見た目で独立したモーダルを用意する。
+       【文言について・2026-08-11】歌詞クイズ対戦では、途中退出しても自分は
+       ルームから抜けるだけで対戦自体は続き、退出後の残り問題は未回答として
+       結果表にそのまま反映される（本人の実機確認で判明。「結果は送信されない」という
+       文言は実際の挙動と食い違っていた）。このモーダルは歌詞クイズ対戦専用で他モードとは
+       共有していないため、ここだけ実際の挙動に合わせて文言を修正する
+       （他モードの「結果は送信されません」は変更しない）。 -->
+  <div id="online-lyrics-battle-quit-confirm-modal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="online-lyrics-battle-quit-confirm-title">
+      <h2 id="online-lyrics-battle-quit-confirm-title">対戦を中断してルームを退出しますか？</h2>
+      <p class="modal-lead">退出後も対戦は続き、あなたの残りの問題は未回答として結果に反映されます。他の参加者はそのまま対戦を続けられます。</p>
+      <div class="button-row">
+        <button id="online-lyrics-battle-quit-cancel-button" class="secondary-button" type="button">キャンセル</button>
+        <button id="online-lyrics-battle-quit-confirm-button" class="danger-button" type="button">対戦をやめる</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- プリセット削除の確認モーダル：プレイ履歴の全削除確認と同じ構成
+       （見出し＋説明＋「キャンセル」「削除する」の2ボタン）。開閉ロジックはjs/customQuizScreen.jsが管理する。 -->
+  <div id="custom-quiz-delete-confirm-modal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="custom-quiz-delete-confirm-title">
+      <h2 id="custom-quiz-delete-confirm-title">このセットを削除しますか？</h2>
+      <p class="modal-lead">この操作は元に戻せません。</p>
+      <div class="button-row history-clear-confirm-actions">
+        <button id="custom-quiz-delete-cancel-button" class="secondary-button" type="button">キャンセル</button>
+        <button id="custom-quiz-delete-confirm-button" class="danger-button" type="button">削除する</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- プリセット一覧カードから直接削除するときの確認モーダル。見た目・構成は上の
+       編集画面用モーダルと同じだが、削除対象がカードごとに変わるため要素・idを分けている。
+       開閉ロジックはjs/customQuizPresetsScreen.jsが管理する。 -->
+  <div id="custom-quiz-presets-delete-confirm-modal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="custom-quiz-presets-delete-confirm-title">
+      <h2 id="custom-quiz-presets-delete-confirm-title">このセットを削除しますか？</h2>
+      <p class="modal-lead">この操作は元に戻せません。</p>
+      <div class="button-row history-clear-confirm-actions">
+        <button id="custom-quiz-presets-delete-cancel-button" class="secondary-button" type="button">キャンセル</button>
+        <button id="custom-quiz-presets-delete-confirm-button" class="danger-button" type="button">削除する</button>
+      </div>
+    </div>
+  </div>
 
   <!-- オンライン対戦：出題する曲を選ぶ画面（#online-battle-song-picker-screen）専用の、
        画面下部に固定された選択状況バー（2026-08-28新設、本人指示：曲数が多いと選択中の曲や
