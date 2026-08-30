@@ -46,7 +46,13 @@ export const TIME_ATTACK_RULE = { NORMAL: "normal", HARD: "hard", LOVE_CHAIN: "l
 //                 このファイルでは種(seed)の発行だけを新しく持つ。js/randomPlaybackScreen.jsの
 //                 「アダプター方式」と同じ考え方を、今度はタイムアタック自身の中に取り込む形）。
 // 将来のメロディアス等の追加を見込み、文字列のvariantIdとして結果データに残す設計にしている。
-export const TIME_ATTACK_VARIANT = { INTRO: "intro", RANDOM_PLAYBACK: "randomPlayback" };
+//
+// 【2026-08-30追加、本人指示（後半③）】outro：アウトロクイズ専用のグローバルランキング区分。
+// タイムアタックのルール（ノーマル/ハード/LOVE連チャン）としては存在しない（本人指示：
+// アウトロのタイムアタックは今回追加しない）が、ランキングの区分キーとしてはintro・
+// randomPlaybackと全く同じ仕組みをそのまま再利用したいため、ここに追加する
+// （js/main.jsのrenderResult()、アウトロクイズ通常導線からのみ使う）。
+export const TIME_ATTACK_VARIANT = { INTRO: "intro", RANDOM_PLAYBACK: "randomPlayback", OUTRO: "outro" };
 
 let elements = null;
 let resultElements = null;

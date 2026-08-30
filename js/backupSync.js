@@ -86,6 +86,7 @@ const BACKUP_KEY_EXACT_NAMES = [
 const BACKUP_KEY_PREFIXES = [
   "highScore.", // 通常イントロクイズのハイスコア（js/highscore.js）
   "normalQuizTimeBest.", // 通常イントロクイズの合計思考タイム自己ベスト（js/normalQuizTimeScore.js）
+  "outroQuizTimeBest.", // アウトロクイズ（通常導線）の合計思考タイム自己ベスト（js/outroQuizTimeScore.js。2026-08-30新設）
   "timeAttackBest.", // タイムアタック自己ベスト（js/timeAttackScore.js）
   "timeAttackBestReach.", // LOVE連チャンの最高到達記録（js/timeAttackScore.js）
   "randomPlaybackBest.", // ランダム再生クイズ自己ベスト（js/randomPlaybackScore.js）

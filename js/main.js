@@ -131,6 +131,7 @@ import {
 } from "./randomPlaybackEngine.js";
 import { getRandomPlaybackBest } from "./randomPlaybackScore.js";
 import { getNormalQuizTimeBest, saveNormalQuizTimeBestIfBetter } from "./normalQuizTimeScore.js";
+import { getOutroQuizTimeBest, saveOutroQuizTimeBestIfBetter } from "./outroQuizTimeScore.js";
 import {
   initRandomPlaybackScreen,
   initRandomPlaybackResultScreen,
@@ -1206,10 +1207,12 @@ const SPECIAL_MODES_DISPLAY = {
   outroQuiz: {
     eyebrowLabel: "OUTRO QUIZ",
     progressPrefix: "🎬 アウトロ ",
-    // 【2026-08-30改訂・本人指示①⑥】アウトロクイズは主要モード化に伴い称号判定の対象になった
-    // （renderResult()内、isSpecialブロックのisOutroQuiz分岐参照）。自己ベスト・ランキングへの
-    // 参加は今回のスコープ外のため、そちらだけ「反映されません」の案内を残す。
-    resultNotice: "この結果は、自己ベスト・ランキングには反映されません（称号には反映されます）",
+    // 【2026-08-30改訂・本人指示①⑥⑨（後半③）】アウトロクイズは主要モード化に伴い、称号・
+    // 自己ベスト（合計タイム）・グローバルランキングのすべての対象になった（renderResult()内、
+    // isSpecialブロックのisOutroQuiz分岐参照）。この分岐内でspecialModeNoticeElement.hidden=true
+    // により、下のresultNoticeは実際には表示されない（通常クイズと同じ扱いになったため、
+    // 専用の案内はもう不要）。resultNotice自体は他の特別モードと構造を揃えるために残す。
+    resultNotice: "",
     quizBackLabel: "アウトロクイズへ",
     quizQuitTitle: "クイズを中断してアウトロクイズの設定画面に戻りますか？",
     quizQuitConfirmLabel: "設定画面に戻る",
@@ -2782,7 +2785,15 @@ function handleChoiceClick(selectedChoice) {
   // 結果画面へ移動する操作より前、通常プレイの最後の問題に自力で正解した瞬間だけを記録する
   // （本人指示：システム側の待ち時間・演出時間は含めない）。復習・特別モードはランキング対象外
   // のため対象外（playMode==="normal"のときだけ）。
-  if (isCorrect && gameState.playMode === "normal" && gameState.currentIndex === gameState.questions.length - 1) {
+  // 【2026-08-30追加、本人指示（後半③）】アウトロクイズ（通常導線）だけは例外的にランキング
+  // 対象のため、こちらも対象に含める（customQuizOutro等は含まない、specialModeId==="outroQuiz"の
+  // ときだけ）。
+  const isOutroQuizDedicatedFlow = gameState.playMode === "special" && gameState.specialModeId === "outroQuiz";
+  if (
+    isCorrect &&
+    (gameState.playMode === "normal" || isOutroQuizDedicatedFlow) &&
+    gameState.currentIndex === gameState.questions.length - 1
+  ) {
     gameState.quizFinishedAtMs = performance.now();
   }
   markChoiceButtons(selectedChoice.id);
@@ -3136,6 +3147,14 @@ function renderMissedSongsSection(missedSongs) {
   });
 }
 
+// 結果画面の「🏆 ランキングを見る」がどのランキング（variant・出題数・カテゴリー）を
+// 開くべきかを覚えておくための一時保持。以前は通常クイズ専用でTIME_ATTACK_VARIANT.INTROに
+// 固定していたが、2026-08-30追加（本人指示・後半③）でアウトロクイズ（通常導線）も同じ
+// リンクを共有するようになったため、renderResult()内でそのつど書き換える方式にした。
+let resultLeaderboardVariant = TIME_ATTACK_VARIANT.INTRO;
+let resultLeaderboardQuestionCountValue = null;
+let resultLeaderboardCategoryFilterValue = null;
+
 // 結果画面に、合計得点・自己ベスト・1問ごとの内訳を反映する。
 // 通常プレイと復習プレイの両方から呼ばれ、gameState.playModeに応じて表示・保存内容を出し分ける。
 function renderResult() {
@@ -3233,6 +3252,107 @@ function renderResult() {
         if (outroAchievementResult.newlyUnlockedIds.length > 0) {
           renderPlayerSummary(); // ＝LOVEマスター等を新規獲得した場合、推しアイコンの王冠・ダイヤを即座に反映する
         }
+
+        // 【2026-08-30追加、本人指示（後半③）】アウトロクイズ（通常導線）を、通常イントロ
+        // クイズと全く同じグローバルランキング（js/timeAttackLeaderboard.js）へ参加させる。
+        // 合計タイムの自己ベストは専用の保存領域（js/outroQuizTimeScore.js）を使う理由は
+        // そのファイル冒頭のコメント参照。出題数・カテゴリーは、gameState.categoryFilterValueが
+        // nullに戻っているため、lastOutroQuizSelection（このブロック内のoutroCategoryFilterValue）
+        // から取得する。これにより「自己ベスト・ランキングには反映されません」の案内はもう
+        // 正しくないため、専用の案内（specialModeNoticeElement）は非表示にする。
+        specialModeNoticeElement.hidden = true;
+        const outroQuestionCountValue = lastOutroQuizSelection.questionCountValue;
+
+        const totalThinkTimeMs = gameState.answerLog.reduce((sum, entry) => sum + (entry.elapsedMs ?? 0), 0);
+        const outroDeliveredQuestionCount = gameState.questions.length;
+        resultTotalTimeBlockElement.hidden = false;
+        resultTotalTimeDisplayElement.textContent = `合計 ${formatResponseSeconds(totalThinkTimeMs)}`;
+        resultTotalTimeAverageDisplayElement.textContent = `平均回答時間（全${outroDeliveredQuestionCount}問） ${formatResponseSeconds(totalThinkTimeMs / outroDeliveredQuestionCount)}`;
+        const outroTotalTimeIsNewRecord = saveOutroQuizTimeBestIfBetter(
+          totalThinkTimeMs,
+          outroQuestionCountValue,
+          outroCategoryFilterValue
+        );
+        const outroTotalTimeBest = getOutroQuizTimeBest(outroQuestionCountValue, outroCategoryFilterValue);
+        resultTotalTimeBestDisplayElement.hidden = false;
+        resultTotalTimeBestDisplayElement.textContent =
+          outroTotalTimeIsNewRecord && outroTotalTimeBest === totalThinkTimeMs
+            ? "🎉 このモードの自己ベスト合計タイムを更新しました！"
+            : `このモードの自己ベスト合計タイム：${formatResponseSeconds(outroTotalTimeBest)}`;
+
+        // 平均回答時間（正解した問題だけが対象。称号判定と同じaverageResponseMsをそのまま表示する）。
+        const outroFormattedAverageResponseTime = formatResponseSeconds(averageResponseMs);
+        averageResponseTimeDisplayElement.hidden = outroFormattedAverageResponseTime === null;
+        if (outroFormattedAverageResponseTime !== null) {
+          averageResponseTimeDisplayElement.textContent = `平均回答時間 ${outroFormattedAverageResponseTime}`;
+        }
+
+        resultLeaderboardLinkElement.hidden = false;
+        resultLeaderboardVariant = TIME_ATTACK_VARIANT.OUTRO;
+        resultLeaderboardQuestionCountValue = outroQuestionCountValue;
+        resultLeaderboardCategoryFilterValue = outroCategoryFilterValue;
+
+        const outroIsCleanClear =
+          wrongCount === 0 && skippedCount === 0 && correctEntries.length === gameState.questions.length;
+        resultLeaderboardStatusElement.hidden = true;
+        if (outroIsCleanClear && gameState.quizStartedAtMs !== null && gameState.quizFinishedAtMs !== null) {
+          const outroClearTimeMs = gameState.quizFinishedAtMs - gameState.quizStartedAtMs;
+          // 公開設定OFF中でも、ランキング条件を満たした記録は常にローカルへ保存しておく
+          // （通常イントロクイズと同じ方針、js/rankingCandidateStore.js参照）。
+          saveRankingCandidateIfBetter({
+            variant: TIME_ATTACK_VARIANT.OUTRO,
+            questionCountValue: outroQuestionCountValue,
+            categoryFilterValue: outroCategoryFilterValue,
+            clearTimeMs: outroClearTimeMs,
+            missCount: 0,
+            rule: null,
+            source: "normal",
+            achievedAt: Date.now(),
+            actualQuestionCount: gameState.questions.length,
+          });
+          resultLeaderboardStatusElement.hidden = false;
+          resultLeaderboardStatusElement.textContent = "ランキングを確認しています…";
+          submitTimeAttackScoreIfBetter({
+            variant: TIME_ATTACK_VARIANT.OUTRO,
+            rule: null,
+            source: "normal",
+            questionCountValue: outroQuestionCountValue,
+            categoryFilterValue: outroCategoryFilterValue,
+            clearTimeMs: outroClearTimeMs,
+            missCount: 0,
+            playerKeyPrefix: getPlayerKeyPrefix(),
+            actualQuestionCount: gameState.questions.length,
+          }).then((result) => {
+            if (!result.ok) {
+              const messageByReason = {
+                "privacy-disabled": "「フレンド」を公開するとランキングに参加できます",
+                offline: "オフラインのため、ランキングへの送信はできませんでした",
+                error: "ランキングへの送信に失敗しました",
+                "invalid-record": "1問でも間違えると、公開ランキングには反映されません（自己ベストには保存済みです）",
+                "unsupported-dimension": "このカテゴリーはランキング対象外です（表題曲のみ・表題曲＋全員曲が対象）",
+              };
+              resultLeaderboardStatusElement.textContent =
+                messageByReason[result.reason] ?? "ランキングへの送信に失敗しました";
+              return;
+            }
+            resultLeaderboardStatusElement.textContent = result.updated
+              ? "🏆 ランキングの記録を更新しました！"
+              : "ランキング上の記録はすでにこのタイム以上でした";
+          });
+        } else if (!outroIsCleanClear) {
+          const outroSkipOnlyCount = gameState.answerLog.filter((entry) => entry.resultType === "skip").length;
+          const outroRevealOnlyCount = gameState.answerLog.filter((entry) => entry.resultType === "reveal").length;
+          resultLeaderboardStatusElement.hidden = false;
+          if (wrongCount > 0) {
+            resultLeaderboardStatusElement.textContent = `今回はランキング対象外（${wrongCount}問ミスしたため）`;
+          } else if (outroSkipOnlyCount > 0) {
+            resultLeaderboardStatusElement.textContent = "今回はランキング対象外（スキップを使用したため）";
+          } else if (outroRevealOnlyCount > 0) {
+            resultLeaderboardStatusElement.textContent = "今回はランキング対象外（答えを見るを使用したため）";
+          } else {
+            resultLeaderboardStatusElement.hidden = true;
+          }
+        }
       }
     }
   } else {
@@ -3312,6 +3432,9 @@ function renderResult() {
     // （js/timeAttackLeaderboardScreen.jsのshowTimeAttackLeaderboard）をそのまま再利用する。
     // ランキングの閲覧自体は公開設定・完走可否を問わず誰でもできるため、常に表示する。
     resultLeaderboardLinkElement.hidden = false;
+    resultLeaderboardVariant = TIME_ATTACK_VARIANT.INTRO;
+    resultLeaderboardQuestionCountValue = questionCountValue;
+    resultLeaderboardCategoryFilterValue = categoryFilterValue;
 
     // 平均回答時間の表示（2026-08-09新設）。称号判定に渡したaverageResponseMsと
     // 完全に同じ値を表示することで、「画面と称号判定で数値がずれる」ことを防ぐ。
@@ -3761,11 +3884,18 @@ reviewMissedSongsButtonElement.addEventListener("click", () => {
 
 // 【2026-08-29追加、本人指示（追加3）】通常クイズ結果画面から：直前にプレイした
 // 出題数・カテゴリーのランキングへ直接ジャンプする（タイムアタック結果画面の
-// 「🏆 ランキングを見る」と全く同じ仕組み。variantは通常クイズ＝常にイントロ形式）。
+// 「🏆 ランキングを見る」と全く同じ仕組み）。
+// 【2026-08-30改訂、本人指示（後半③）】アウトロクイズ（通常導線）の結果画面もこの同じ
+// ボタン・リスナーを共有するため、variant等をgameStateから直接読まず、renderResult()が
+// そのつど更新するresultLeaderboardVariant等の一時保持を使う。
 resultLeaderboardLinkElement.addEventListener("click", () => {
   playClickSound();
   timeAttackLeaderboardReturnScreen = "result";
-  showTimeAttackLeaderboard(TIME_ATTACK_VARIANT.INTRO, gameState.questionCountValue, gameState.categoryFilterValue);
+  showTimeAttackLeaderboard(
+    resultLeaderboardVariant,
+    resultLeaderboardQuestionCountValue,
+    resultLeaderboardCategoryFilterValue
+  );
   showScreen("timeAttackLeaderboard");
 });
 

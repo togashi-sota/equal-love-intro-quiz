@@ -126,6 +126,15 @@ export function startSpecialQuiz(questions, questionCountValue, specialModeId) {
   gameState.questionCountValue = questionCountValue;
   gameState.categoryFilterValue = null;
   gameState.isAnswered = false;
+  // 【2026-08-30追加、本人指示（後半③）】アウトロクイズ（通常導線）だけは、通常クイズと
+  // 同じグローバルランキングに参加するため、通常クイズ（startQuiz）と同じセッション計測を
+  // ここで行う。他の特別モード（苦手曲・オリジナル問題作成モード等）はランキング対象外の
+  // ままなので、意図的に触らない（quizStartedAtMs/quizFinishedAtMsの役割はこのファイル冒頭の
+  // フィールド説明コメント参照）。
+  if (specialModeId === "outroQuiz") {
+    gameState.quizStartedAtMs = performance.now();
+    gameState.quizFinishedAtMs = null;
+  }
 }
 
 // タイムアタック用に生成済みの問題配列を受け取って、クイズを開始する。

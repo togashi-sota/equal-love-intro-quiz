@@ -23,7 +23,12 @@ import { getPlayerKeyPrefix } from "./playerProfile.js";
 import { ADMIN_UID } from "./adminConfig.js";
 import { TIME_ATTACK_VARIANT, TIME_ATTACK_RULE } from "./timeAttackScreen.js";
 
-const VARIANT_LABELS = { [TIME_ATTACK_VARIANT.INTRO]: "🎧イントロ", [TIME_ATTACK_VARIANT.RANDOM_PLAYBACK]: "🔀ランダム再生" };
+const VARIANT_LABELS = {
+  [TIME_ATTACK_VARIANT.INTRO]: "🎧イントロ",
+  [TIME_ATTACK_VARIANT.RANDOM_PLAYBACK]: "🔀ランダム再生",
+  // 2026-08-30追加、本人指示（後半③）：アウトロクイズ（通常導線）のランキングタブ。
+  [TIME_ATTACK_VARIANT.OUTRO]: "🎬アウトロ",
+};
 const QUESTION_COUNT_LABELS = { "5": "5問", "10": "10問", "20": "20問", "50": "50問", all: "全曲" };
 // 【2026-08-16改訂・本人指示】出題数・カテゴリーのタブは、js/timeAttackLeaderboard.jsが
 // 持つ「ランキング対応の値」リストをそのまま使う（このファイルで別の一覧を持つと、
