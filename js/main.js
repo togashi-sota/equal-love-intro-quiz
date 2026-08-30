@@ -3080,6 +3080,26 @@ function renderQuestion() {
         () => {}
       );
     }
+  } else if (gameState.playMode === "onlineBattle" && getPlaybackType(onlineBattleGameMode) === "outroPosition") {
+    // 【2026-08-30新設、本人指示㉔】オンライン対戦「アウトロクイズ」：曲の最後5秒を再生する。
+    // ランダム再生対戦と違い、開始位置はseedに関係なく曲ごとに固定（js/data/audioMetadata.jsの
+    // outroStartSec）なので、乱数計算・durationの許容差チェックは一切不要（js/battleModes/
+    // outroBattleMode.jsのvalidateSettingsが、outroStartSecを持たない曲を対戦開始時点で
+    // 弾いているため、ここに来る時点で必ず値が存在する）。
+    const outroStartSec = AUDIO_METADATA[question.song.id]?.outroStartSec;
+    if (outroStartSec === undefined) {
+      // validateSettingsの防御が万一漏れた場合の保険（本来ここには来ない想定）。
+      showAudioError("この曲の同期用データが見つかりません（audioMetadata.js未生成の可能性があります）。");
+    } else {
+      playSongFromRandomPosition(
+        question.song,
+        () => outroStartSec,
+        OUTRO_QUIZ_PLAY_DURATION_SEC,
+        showAudioError,
+        markPlaybackStarted,
+        () => {}
+      );
+    }
   } else if (
     gameState.playMode === "special" &&
     (gameState.specialModeId === "customQuizRandomPlayback" || gameState.specialModeId === "weakSongsShuffle")

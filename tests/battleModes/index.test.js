@@ -16,6 +16,9 @@ import {
   resolveSongPoolForSettings,
   getAvailabilityKind,
   resolveAllEligibleSongIdsForMode,
+  getPlaybackType,
+  getModeLabel,
+  isKnownGameMode,
 } from "../../js/battleModes/index.js";
 import { QUESTION_SOURCE_TYPE } from "../../js/questionSource.js";
 import { assertEqual } from "../test-utils.js";
@@ -65,4 +68,20 @@ export function runBattleModesIndexAvailabilityTests() {
     assertEqual(lyricsPool.includes("overture"), false, "歌詞クイズの母集団にはOvertureが含まれない");
   }
   assertEqual(resolveAllEligibleSongIdsForMode("未対応の対戦モード"), [], "未登録のgameModeは空配列を返す");
+
+  // ---- 2026-08-30追加（本人指示㉔）：アウトロクイズ対戦の登録確認 ----
+  {
+    assertEqual(isKnownGameMode("outroQuiz"), true, "outroQuizはREGISTRYに登録済み");
+    assertEqual(getModeLabel("outroQuiz"), "アウトロクイズ", "outroQuizの表示名は「アウトロクイズ」");
+    assertEqual(
+      getPlaybackType("outroQuiz"),
+      "outroPosition",
+      "outroQuizのplaybackTypeは、ランダム再生（randomPosition）とは別のoutroPositionになる"
+    );
+    assertEqual(getAvailabilityKind("outroQuiz"), "audio", "アウトロクイズ対戦は音源の所持状況で判定する");
+    const pool = resolveSongPoolForSettings("outroQuiz", {
+      questionSource: { type: QUESTION_SOURCE_TYPE.MANUAL_SELECTION, songIds: ["love"] },
+    });
+    assertEqual(pool, ["love"], "outroQuizもresolveSongPoolForSettings()に対応する");
+  }
 }

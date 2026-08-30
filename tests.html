@@ -100,6 +100,7 @@
     import { runOnlineBattleCollaborativeSelectionTests } from "./tests/onlineBattleCollaborativeSelection.test.js";
     import { runOnlineBattleSongAvailabilityTests } from "./tests/onlineBattleSongAvailability.test.js";
     import { runTimeAttackBattleModeTests } from "./tests/battleModes/timeAttackBattleMode.test.js";
+    import { runOutroBattleModeTests } from "./tests/battleModes/outroBattleMode.test.js";
     import { runBattleModesIndexAvailabilityTests } from "./tests/battleModes/index.test.js";
     import { runNewSingleAnnouncementTests } from "./tests/newSingleAnnouncement.test.js";
     import { printSummary } from "./tests/test-utils.js";
@@ -177,6 +178,7 @@
     runOnlineBattleSongAvailabilityTests();
     runOnlineBattleCollaborativeSelectionTests();
     runTimeAttackBattleModeTests();
+    runOutroBattleModeTests();
     runBattleModesIndexAvailabilityTests();
     runNewSingleAnnouncementTests();
     const { passCount, failCount } = printSummary();
