@@ -1018,6 +1018,11 @@ function renderLobby(room) {
   elements.lobbySettingsParticipantInstant.hidden = isHost || !isInstantBattle;
   elements.lobbySettingsHostCoop.hidden = !isHost || !isInstantCoop;
   elements.lobbySettingsParticipantCoop.hidden = isHost || !isInstantCoop;
+  // 【2026-08-31発見・修正】歌詞クイズ以外のgameModeのときは、歌詞クイズ専用の設定
+  // セクションを明示的に隠す（renderLyricsQuizLobbySettings()はisLyricsQuizのときしか
+  // 呼ばれず、それ自身に任せると「歌詞クイズ→別モード」の切り替え時に隠す機会が無いため）。
+  elements.lobbySettingsHostLyrics.hidden = !isHost || !isLyricsQuiz;
+  elements.lobbySettingsParticipantLyrics.hidden = isHost || !isLyricsQuiz;
   elements.lobbyReadyButton.hidden = isHost;
   elements.lobbyStartButton.hidden = !isHost;
   elements.lobbyStartHint.hidden = !isHost;

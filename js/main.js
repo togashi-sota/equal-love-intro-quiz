@@ -5262,6 +5262,16 @@ initOnlineBattleScreens({
   instantBattleSettingsError: onlineInstantBattleSettingsErrorElement,
   lobbySettingsHostCoop: onlineInstantCoopLobbySettingsHostElement,
   lobbySettingsParticipantCoop: onlineInstantCoopLobbySettingsParticipantElement,
+  // 【2026-08-31発見・修正】歌詞クイズ専用の設定セクション自体は、これまでこのファイルの
+  // elementsに含まれておらず、renderLyricsQuizLobbySettings()（isLyricsQuizのときだけ呼ばれる）
+  // 側でのみhidden切り替えを行っていた。歌詞クイズ以外のgameModeへ切り替えたときに
+  // このセクションを隠す処理がどこにも無く、同一タブ内でリロードせずに歌詞クイズ→別モードの
+  // ルームへ移動すると、歌詞クイズの設定UIが残ったまま表示され続ける既存の不具合があった
+  // （新モード追加時の回帰テストで発覚。歌詞クイズ自体の実装バグではなく、既存モードの
+  // 切り替え時に隠す処理が最初から抜けていたことが原因）。ここでも参照を渡し、
+  // isLyricsQuizでないときは明示的に隠す（下記renderLobby()参照）。
+  lobbySettingsHostLyrics: onlineLyricsBattleLobbySettingsHostElement,
+  lobbySettingsParticipantLyrics: onlineLyricsBattleLobbySettingsParticipantElement,
   collabSongSection: onlineBattleCollabSongSectionElement,
   collabChooseSongsButton: onlineBattleCollabChooseSongsButtonElement,
   collabChooseFavoritesButton: onlineBattleCollabChooseFavoritesButtonElement,
