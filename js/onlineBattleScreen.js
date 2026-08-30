@@ -23,6 +23,10 @@ import {
   getLastRoom,
   clearLastRoom,
   updateRoomSettings,
+  updateRoomGameMode,
+  transferHost,
+  claimHostIfDisconnected,
+  kickPlayer,
   setReady,
   startBattle,
   finishCountdown,
@@ -34,6 +38,7 @@ import {
   rematchMatch,
   COUNTDOWN_DURATION_MS,
   ROOM_STATUS,
+  syncMyHostBadge,
 } from "./onlineBattle.js";
 import { getCurrentUid } from "./firebaseClient.js";
 import {
@@ -121,6 +126,18 @@ let countdownTimerId = null; // カウントダウン表示の更新タイマー
 let countdownOffsetUnsubscribe = null; // .info/serverTimeOffsetの購読解除
 let hasFinishedCountdownLocally = false; // 自分の端末のカウントダウンが0になったことを表す
 let currentGameMode = null; // 今のルームのgameMode（設定変更ハンドラ等、room引数を持たない箇所から参照する）
+// 【2026-08-30新設、本人指示】ホスト自動移譲の「一定時間」を判定するための状態。
+// 何秒切断が続いたら引き継ぐかは、Rules側で厳密に強制できないため、クライアント側の
+// 節度として持たせる（本人指示：横取り防止のため慎重に）。
+const HOST_DISCONNECT_CLAIM_MS = 8000;
+// 上のHOST_DISCONNECT_CLAIM_MSより十分短い間隔で定期チェックする（詳細はstartHostDisconnectAutoClaimTimer()参照）。
+const HOST_DISCONNECT_CHECK_INTERVAL_MS = 2000;
+let hostDisconnectedSinceMs = null;
+let lastObservedHostUid = null;
+// 【2026-08-30新設、本人指示】自分から「退出する」を押した間だけtrueにする。
+// leaveRoom()のFirebase書き込み中にもrenderLobby()（room監視のコールバック）が呼ばれうるため、
+// これが無いと自主退出を「キックされた」と誤検知してしまう。
+let isLeavingIntentionally = false;
 // 【2026-08-06新設】歌詞クイズの対戦設定は、既存のタイムアタック用フォーム
 // （readSettingsFromHostForm、online-battle-settings-*という名前のラジオボタン群）とは
 // 別物で、ロビーの各設定項目を触るたびにapplyLyricsQuizSettingsChange()が
@@ -191,6 +208,50 @@ function stopListeningToRoom() {
   if (unsubscribeRoom) {
     unsubscribeRoom();
     unsubscribeRoom = null;
+  }
+  stopHostDisconnectAutoClaimTimer();
+}
+
+// 【2026-08-30新設、本人指示】ホスト自動移譲の判定を、実際に呼び出す関数本体。
+// renderLobby()（room更新のたび）と、下のsetInterval（何も変化が無くても定期的に）の
+// 両方から同じ判定を呼べるよう、独立した関数に切り出している（詳しい理由は
+// renderLobby()内のコメント参照）。
+function checkHostDisconnectAutoClaim(room) {
+  if (!room) return;
+  const myUid = getCurrentUid();
+  const isHost = room.host === myUid;
+  const players = room.players || {};
+  if (!isHost && players[myUid] && players[room.host] && players[room.host].connected === false) {
+    if (hostDisconnectedSinceMs === null || lastObservedHostUid !== room.host) {
+      hostDisconnectedSinceMs = Date.now();
+    }
+    lastObservedHostUid = room.host;
+    if (Date.now() - hostDisconnectedSinceMs >= HOST_DISCONNECT_CLAIM_MS) {
+      claimHostIfDisconnected({ roomId: room.roomId });
+    }
+  } else {
+    hostDisconnectedSinceMs = null;
+    lastObservedHostUid = room.host;
+  }
+}
+
+let hostDisconnectAutoClaimTimerId = null;
+
+// 【2026-08-30新設、本人指示】ロビーに入っている間、room側のデータに変化が無くても
+// HOST_DISCONNECT_CHECK_INTERVAL_MSごとに「切断してから何秒経ったか」を再確認する。
+// latestRoomは、renderLobby()が呼ばれるたびに必ず最新へ更新している（このファイル内、
+// renderLobby()参照）ため、ここでは追加のFirebase読み取りを行わずに済む。
+function startHostDisconnectAutoClaimTimer() {
+  stopHostDisconnectAutoClaimTimer();
+  hostDisconnectAutoClaimTimerId = setInterval(() => {
+    checkHostDisconnectAutoClaim(latestRoom);
+  }, HOST_DISCONNECT_CHECK_INTERVAL_MS);
+}
+
+function stopHostDisconnectAutoClaimTimer() {
+  if (hostDisconnectAutoClaimTimerId) {
+    clearInterval(hostDisconnectAutoClaimTimerId);
+    hostDisconnectAutoClaimTimerId = null;
   }
 }
 
@@ -668,8 +729,46 @@ function renderLobby(room) {
   const isHost = room.host === myUid;
   const settings = room.settings;
   const players = room.players || {};
+
+  // 【2026-08-30新設、本人指示】キック検知：自分の意思で退出した場合を除き、
+  // ルームはまだ存在するのに自分がplayersから消えていたら「ホストにキックされた」と判断し、
+  // ロビーから退出させて理由が分かる案内を出す（同じルームコードで入り直せば再参加できる）。
+  // isLeavingIntentionallyは、自分から「退出する」を押した場合だけtrueになるフラグ
+  // （leaveRoom()のFirebase書き込み中にもこのrenderLobby()が呼ばれうるため、
+  // 自主退出とキックを区別するために必要）。
+  if (!players[myUid] && !isLeavingIntentionally) {
+    stopListeningToRoom();
+    stopCountdownWatching();
+    currentRoomId = null;
+    clearLastRoom();
+    renderLastRoomBanner();
+    elements.entryKickedNotice.hidden = false;
+    elements.navigateTo("onlineBattleEntry");
+    return;
+  }
+
+  // 【2026-08-30新設、本人指示】表示バッジ（players/{自分}/isHost）を、実際の権限
+  // （room.host）に合わせて自分で書き直す（js/onlineBattle.jsのsyncMyHostBadge参照。
+  // ホスト移譲は他人のisHostを直接書き換えられないため、各端末が自分の分だけ直す設計）。
+  if (players[myUid] && players[myUid].isHost !== isHost) {
+    syncMyHostBadge({ roomId: room.roomId, isHost });
+  }
+
   // 【2026-08-27新設】共同選曲ボタン押下時・自動同期時に最新のroomを参照できるよう保持する。
+  // 【2026-08-30改訂】ホスト自動移譲の定期チェック（checkHostDisconnectAutoClaim、下記）でも
+  // 「今のroomの中身」を参照するために使うため、判定より前に更新しておく。
   latestRoom = room;
+
+  // 【2026-08-30新設、本人指示】ホスト自動移譲：現ホストが一定時間（HOST_DISCONNECT_CLAIM_MS）
+  // 切断したままなら、ルームに残っている自分がホスト権限を引き継ぐ。この判定自体は
+  // checkHostDisconnectAutoClaim()（下記、setIntervalで定期的にも呼ばれる）に切り出した。
+  // 【なぜrenderLobby()の中だけでは不十分か】room側のデータが何も変化しなければ
+  // onValue()のコールバックは再度呼ばれないため、「切断からちょうど8秒経過した瞬間」を
+  // renderLobby()の呼び出しだけで検知できるとは限らない（他に何のイベントも起きなければ、
+  // 8秒経過を知るきっかけ自体が無い）。そのため、goToLobby()で開始する定期タイマー
+  // （HOST_DISCONNECT_CHECK_INTERVAL_MS間隔）と、room更新のたびに呼ばれるこのrenderLobby()の
+  // 両方からcheckHostDisconnectAutoClaim()を呼ぶ二重の仕組みにしている。
+  checkHostDisconnectAutoClaim(room);
   // 自分の選択曲一覧を、room.players側の値へ常に合わせておく（リロード直後・他タブでの
   // 変更後もここで復元される）。
   mySelectedSongIds = Array.isArray(players[myUid]?.selectedSongIds) ? players[myUid].selectedSongIds : [];
@@ -717,15 +816,19 @@ function renderLobby(room) {
     name.textContent = player.name + (player.uid === myUid ? "（あなた）" : "");
     row.appendChild(name);
 
+    // 【2026-08-30改訂・本人指示】「ホスト」バッジは、実際の権限（room.host）を正として
+    // 判定する。player.isHostは各自が自分の分だけ書き直す表示専用フィールドのため、
+    // ホスト移譲直後の一瞬だけズレる可能性がある（js/onlineBattle.jsのsyncMyHostBadge参照）。
+    const isPlayerHost = player.uid === room.host;
     const badges = document.createElement("span");
     badges.className = "online-lobby-player-badges";
-    if (player.isHost) {
+    if (isPlayerHost) {
       const hostBadge = document.createElement("span");
       hostBadge.className = "online-lobby-badge online-lobby-badge-host";
       hostBadge.textContent = "ホスト";
       badges.appendChild(hostBadge);
     }
-    if (!player.isHost) {
+    if (!isPlayerHost) {
       const isReadyForCurrentSettings = player.ready && player.readyForRevision === (room.settingsRevision ?? 0);
       const readyBadge = document.createElement("span");
       readyBadge.className = `online-lobby-badge ${isReadyForCurrentSettings ? "online-lobby-badge-connected" : "online-lobby-badge-disconnected"}`;
@@ -738,8 +841,43 @@ function renderLobby(room) {
     badges.appendChild(connectionBadge);
     row.appendChild(badges);
 
+    // 【2026-08-30新設、本人指示】ホストだけに見える、待機中だけの「キック」「ホストを渡す」
+    // ボタン。自分自身の行・現ホストの行には出さない。
+    if (isHost && !isPlayerHost && player.uid !== myUid && room.status === ROOM_STATUS.WAITING) {
+      const actions = document.createElement("span");
+      actions.className = "online-lobby-player-actions";
+
+      const transferButton = document.createElement("button");
+      transferButton.type = "button";
+      transferButton.className = "online-lobby-mini-button";
+      transferButton.textContent = "ホストを渡す";
+      transferButton.dataset.transferHostUid = player.uid;
+      transferButton.dataset.transferHostName = player.name;
+      actions.appendChild(transferButton);
+
+      const kickButton = document.createElement("button");
+      kickButton.type = "button";
+      kickButton.className = "online-lobby-mini-button online-lobby-mini-button-danger";
+      kickButton.textContent = "キック";
+      kickButton.dataset.kickUid = player.uid;
+      kickButton.dataset.kickName = player.name;
+      actions.appendChild(kickButton);
+
+      row.appendChild(actions);
+    }
+
     elements.lobbyPlayerList.appendChild(row);
   });
+
+  // 【2026-08-30新設、本人指示】ホスト専用のモード変更UIは、待機中だけ表示する
+  // （試合中はFirebase Rules側でも書き込みを拒否するため、UI側でも先に隠しておく）。
+  elements.lobbyModeChange.hidden = !isHost || room.status !== ROOM_STATUS.WAITING;
+  if (!elements.lobbyModeChange.hidden) {
+    const modeRadio = document.querySelector(
+      `input[name="online-battle-lobby-mode-change-select"][value="${room.gameMode}"]`
+    );
+    if (modeRadio) modeRadio.checked = true;
+  }
 
   elements.lobbyPlayerCount.textContent = `${playerList.length}人 / 最大${room.maxPlayers}人`;
 
@@ -837,6 +975,11 @@ function goToLobby(roomId) {
   lastHandledRoomStatus = null;
   suppressNextReadyChangeNotice = false;
   lastKnownMyReady = null;
+  hostDisconnectedSinceMs = null;
+  lastObservedHostUid = null;
+  isLeavingIntentionally = false;
+  elements.entryKickedNotice.hidden = true;
+  startHostDisconnectAutoClaimTimer();
   resetLyricsQuizBattleState();
   resetOnlineBattleMatchState();
   elements.lobbySettingsChangedNotice.hidden = true;
@@ -1390,14 +1533,61 @@ export function initOnlineBattleScreens(newElements) {
   elements.lobbyLeaveConfirmButton.addEventListener("click", async () => {
     elements.lobbyLeaveConfirmModal.hidden = true;
     if (!currentRoomId) return;
+    isLeavingIntentionally = true;
     elements.lobbyLeaveButton.disabled = true;
     await leaveRoom({ roomId: currentRoomId });
     elements.lobbyLeaveButton.disabled = false;
     stopListeningToRoom();
     stopCountdownWatching();
     currentRoomId = null;
+    isLeavingIntentionally = false;
     renderLastRoomBanner();
     elements.navigateTo("onlineBattleEntry");
+  });
+
+  // 【2026-08-30新設、本人指示】ホスト専用：対戦モードそのものの変更。
+  // 押すたびに選択肢の折りたたみを開閉するだけの単純なトグル。
+  elements.lobbyModeChangeToggle.addEventListener("click", () => {
+    elements.lobbyModeChangeFieldset.hidden = !elements.lobbyModeChangeFieldset.hidden;
+  });
+  elements.lobbyModeChangeConfirmButton.addEventListener("click", async () => {
+    if (!currentRoomId) return;
+    const selected = document.querySelector('input[name="online-battle-lobby-mode-change-select"]:checked');
+    if (!selected) return;
+    elements.lobbyModeChangeConfirmButton.disabled = true;
+    const result = await updateRoomGameMode({ roomId: currentRoomId, gameMode: selected.value });
+    elements.lobbyModeChangeConfirmButton.disabled = false;
+    if (result.ok) {
+      elements.lobbyModeChangeFieldset.hidden = true;
+    }
+    // 失敗時（通信エラー等）も、renderLobby()が次のroom更新で今の実際のgameModeを
+    // 表示し直すため、ここで個別のエラー文言は出さない（他の設定変更と同じ簡潔さを優先）。
+  });
+
+  // 【2026-08-30新設、本人指示】ホスト専用：ロビーの参加者行に添えた「キック」「ホストを渡す」
+  // ボタンのクリックを、リスト全体への1つのイベント委任で受け取る（renderLobby()側は
+  // 行ごとにリスナーを付け外ししない設計にして、再描画のたびの登録漏れ・二重登録を防ぐ）。
+  elements.lobbyPlayerList.addEventListener("click", async (event) => {
+    const kickButton = event.target.closest("[data-kick-uid]");
+    if (kickButton) {
+      if (!currentRoomId) return;
+      const targetUid = kickButton.dataset.kickUid;
+      const targetName = kickButton.dataset.kickName ?? "このプレイヤー";
+      if (!window.confirm(`${targetName}さんをルームから退出させますか？`)) return;
+      kickButton.disabled = true;
+      await kickPlayer({ roomId: currentRoomId, targetUid });
+      return;
+    }
+    const transferButton = event.target.closest("[data-transfer-host-uid]");
+    if (transferButton) {
+      if (!currentRoomId) return;
+      const targetUid = transferButton.dataset.transferHostUid;
+      const targetName = transferButton.dataset.transferHostName ?? "このプレイヤー";
+      if (!window.confirm(`ホストを${targetName}さんに渡しますか？`)) return;
+      transferButton.disabled = true;
+      await transferHost({ roomId: currentRoomId, newHostUid: targetUid });
+      return;
+    }
   });
 
   // ===== Step2：対戦設定・準備完了・開始 =====

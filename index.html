@@ -2923,6 +2923,12 @@
 
       <p class="online-battle-lead-text">ルームを作って、離れた場所の友達と対戦できます。ルームコードか共有リンクで1回だけ参加すれば、同じメンバーで何度でも対戦できます。</p>
 
+      <!-- 【2026-08-30新設、本人指示】ホストにキックされてロビーから戻ってきたときの案内。
+           同じルームコードを入力すれば再参加できることを伝える。 -->
+      <div class="battle-warning-box" id="online-battle-entry-kicked-notice" hidden>
+        ルームから退出させられました。もう一度参加したい場合は、同じルームコードで「ルームに参加する」からやり直してください。
+      </div>
+
       <div class="battle-notice-box" id="online-battle-entry-last-room-banner" hidden>
         <p id="online-battle-entry-last-room-text"></p>
         <button id="online-battle-entry-last-room-rejoin-button" class="secondary-button" type="button" style="margin-top:8px;">
@@ -3048,9 +3054,31 @@
 
         <p class="online-lobby-player-count" id="online-battle-lobby-player-count"></p>
         <p class="online-lobby-max-players" id="online-battle-lobby-max-players"></p>
-        <!-- 対戦モードは作成後に変更できない固定値のため、ホスト・参加者どちらにも常に見える
-             場所に表示する（2026-08-08新設・Phase4）。 -->
+        <!-- ホスト・参加者どちらにも常に見える場所に、今の対戦モードを表示する
+             （2026-08-08新設・Phase4）。【2026-08-30改訂・本人指示】以前は作成後に変更
+             できない固定値だったが、「ルームを試合ごとに作り直さない」方針への変更に伴い、
+             待機中（status:waiting）に限りホストが変更できるようにした（下の
+             #online-battle-lobby-mode-change参照）。 -->
         <p class="online-lobby-game-mode" id="online-battle-lobby-game-mode"></p>
+
+        <!-- 【2026-08-30新設、本人指示】ホスト専用：待機中だけ、対戦モードそのものを
+             変更できるボタン＋選択肢。押すたびに開閉するだけの単純な折りたたみにし、
+             既存のモーダル基盤は使わない（頻繁に開閉する軽い操作のため）。 -->
+        <div id="online-battle-lobby-mode-change" hidden>
+          <button id="online-battle-lobby-mode-change-toggle" class="secondary-button" type="button">モードを変更する</button>
+          <fieldset id="online-battle-lobby-mode-change-fieldset" hidden>
+            <legend>変更後のモード</legend>
+            <div class="option-row">
+              <label><input type="radio" name="online-battle-lobby-mode-change-select" value="timeAttack"> イントロ対戦</label>
+              <label><input type="radio" name="online-battle-lobby-mode-change-select" value="randomPlayback"> ランダム再生対戦</label>
+            </div>
+            <div class="option-row">
+              <label><input type="radio" name="online-battle-lobby-mode-change-select" value="lyricsQuiz"> 歌詞クイズ対戦</label>
+              <label><input type="radio" name="online-battle-lobby-mode-change-select" value="outroQuiz"> アウトロ対戦</label>
+            </div>
+            <button id="online-battle-lobby-mode-change-confirm" class="primary-button" type="button">このモードに変更する</button>
+          </fieldset>
+        </div>
         <!-- 2026-08-27新設：参加者全員が実際に利用できる共通曲の数を、必要なときだけ表示する
              （全員がすべて持っている＝制限が発生していない場合は表示しない）。ホスト・参加者
              どちらにも常に見える共通の場所に置く（js/onlineBattleScreen.js・

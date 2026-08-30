@@ -12418,11 +12418,43 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 10px;
   padding: 12px 14px;
   border-radius: 14px;
   background: var(--color-surface-glass);
   border: 1px solid var(--color-card-border);
+}
+
+/* 【2026-08-30新設、本人指示】ホスト専用の「キック」「ホストを渡す」ボタンの並び。
+   名前・バッジと同じ行に収まらない場合は、行の右端に折り返す
+   （.online-lobby-player-rowのflex-wrapと組み合わせて、狭い画面でも崩れないようにする）。 */
+.online-lobby-player-actions {
+  flex: none;
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.online-lobby-mini-button {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--color-card-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.online-lobby-mini-button:active {
+  transform: scale(0.96);
+}
+
+.online-lobby-mini-button-danger {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+  background: var(--color-danger-soft);
 }
 
 .online-lobby-player-row.is-me {

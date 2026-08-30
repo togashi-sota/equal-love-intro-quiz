@@ -911,6 +911,7 @@ const battleResultRankingHomeButtonElement = document.getElementById("battle-res
 const onlineBattleEntryBackButtonElement = document.getElementById("online-battle-entry-back-button");
 const onlineBattleEntryCreateButtonElement = document.getElementById("online-battle-entry-create-button");
 const onlineBattleEntryJoinButtonElement = document.getElementById("online-battle-entry-join-button");
+const onlineBattleEntryKickedNoticeElement = document.getElementById("online-battle-entry-kicked-notice");
 const onlineBattleEntryLastRoomBannerElement = document.getElementById("online-battle-entry-last-room-banner");
 const onlineBattleEntryLastRoomTextElement = document.getElementById("online-battle-entry-last-room-text");
 const onlineBattleEntryLastRoomRejoinButtonElement = document.getElementById("online-battle-entry-last-room-rejoin-button");
@@ -935,6 +936,11 @@ const onlineBattleLobbyRoomCodeElement = document.getElementById("online-battle-
 const onlineBattleLobbyPlayerCountElement = document.getElementById("online-battle-lobby-player-count");
 const onlineBattleLobbyMaxPlayersElement = document.getElementById("online-battle-lobby-max-players");
 const onlineBattleLobbyGameModeElement = document.getElementById("online-battle-lobby-game-mode");
+// 【2026-08-30新設、本人指示】ホスト専用：待機中の対戦モード変更UI。
+const onlineBattleLobbyModeChangeElement = document.getElementById("online-battle-lobby-mode-change");
+const onlineBattleLobbyModeChangeToggleElement = document.getElementById("online-battle-lobby-mode-change-toggle");
+const onlineBattleLobbyModeChangeFieldsetElement = document.getElementById("online-battle-lobby-mode-change-fieldset");
+const onlineBattleLobbyModeChangeConfirmButtonElement = document.getElementById("online-battle-lobby-mode-change-confirm");
 const onlineBattleLobbyPlayerListElement = document.getElementById("online-battle-lobby-player-list");
 const onlineBattleLobbySettingsHostElement = document.getElementById("online-battle-lobby-settings-host");
 const onlineBattleLobbySettingsParticipantElement = document.getElementById("online-battle-lobby-settings-participant");
@@ -5158,6 +5164,7 @@ initOnlineBattleScreens({
   entryBackButton: onlineBattleEntryBackButtonElement,
   entryCreateButton: onlineBattleEntryCreateButtonElement,
   entryJoinButton: onlineBattleEntryJoinButtonElement,
+  entryKickedNotice: onlineBattleEntryKickedNoticeElement,
   entryLastRoomBanner: onlineBattleEntryLastRoomBannerElement,
   entryLastRoomText: onlineBattleEntryLastRoomTextElement,
   entryLastRoomRejoinButton: onlineBattleEntryLastRoomRejoinButtonElement,
@@ -5182,6 +5189,10 @@ initOnlineBattleScreens({
   lobbyPlayerCount: onlineBattleLobbyPlayerCountElement,
   lobbyMaxPlayersText: onlineBattleLobbyMaxPlayersElement,
   lobbyGameModeText: onlineBattleLobbyGameModeElement,
+  lobbyModeChange: onlineBattleLobbyModeChangeElement,
+  lobbyModeChangeToggle: onlineBattleLobbyModeChangeToggleElement,
+  lobbyModeChangeFieldset: onlineBattleLobbyModeChangeFieldsetElement,
+  lobbyModeChangeConfirmButton: onlineBattleLobbyModeChangeConfirmButtonElement,
   lobbyPlayerList: onlineBattleLobbyPlayerListElement,
   lobbySettingsHost: onlineBattleLobbySettingsHostElement,
   lobbySettingsParticipant: onlineBattleLobbySettingsParticipantElement,

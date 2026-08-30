@@ -101,6 +101,7 @@
     import { runOnlineBattleSongAvailabilityTests } from "./tests/onlineBattleSongAvailability.test.js";
     import { runTimeAttackBattleModeTests } from "./tests/battleModes/timeAttackBattleMode.test.js";
     import { runOutroBattleModeTests } from "./tests/battleModes/outroBattleMode.test.js";
+    import { runOnlineBattleHostTransitionPayloadsTests } from "./tests/onlineBattleHostTransitionPayloads.test.js";
     import { runBattleModesIndexAvailabilityTests } from "./tests/battleModes/index.test.js";
     import { runNewSingleAnnouncementTests } from "./tests/newSingleAnnouncement.test.js";
     import { printSummary } from "./tests/test-utils.js";
@@ -179,6 +180,7 @@
     runOnlineBattleCollaborativeSelectionTests();
     runTimeAttackBattleModeTests();
     runOutroBattleModeTests();
+    runOnlineBattleHostTransitionPayloadsTests();
     runBattleModesIndexAvailabilityTests();
     runNewSingleAnnouncementTests();
     const { passCount, failCount } = printSummary();

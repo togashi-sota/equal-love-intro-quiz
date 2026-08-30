@@ -52,6 +52,7 @@ import {
   getAvailabilityKind,
 } from "./battleModes/index.js";
 import { restrictSettingsToCommonlyAvailableSongs } from "./onlineBattleSongAvailability.js";
+import { pickNextHostUid } from "./onlineBattleHostTransitionPayloads.js";
 
 const ROOM_ID_LENGTH = 6;
 const LAST_ROOM_STORAGE_KEY = "equalLoveIntroQuiz.onlineBattle.lastRoom";
@@ -339,10 +340,15 @@ export async function joinRoom({ roomId, playerName }) {
   return { ok: true, roomId };
 }
 
-// ルームから退出する。ホストが退出した場合はルームごと解散する
-// （Step1では権限の引き継ぎ等は行わない、という本人合意済みの方針。カウントダウン中・
-// 出題中にホストが退出した場合も同じ扱いで、ルームごと解散して全員を安全に終了させる）。
-// 参加者が退出した場合は、自分の参加者エントリだけを削除する。
+// ルームから退出する。
+// 【2026-08-30改訂、本人指示：オンライン対戦全面アップデート】以前はホストが退出すると
+// 常にルームごと解散していたが（Step1時点の暫定方針）、「誰か1人のせいでゲームが永久停止・
+// 消滅しない」という今回の方針に合わせ、ホストが退出しても他の参加者が残っていれば
+// ルームを解散せず、残っている中で最も古くから参加している人へホスト権限を自動的に
+// 引き継ぐ（pickNextHostUid参照）。誰も残っていない場合だけ、今までどおりルームごと削除する。
+// 対戦中（countdown/playing）のホスト退出でも同じ扱いにする（試合自体は続行され、
+// 新ホストが結果確定等のホスト専用操作を引き継ぐ）。
+// 参加者（非ホスト）が退出した場合は、今までどおり自分の参加者エントリだけを削除する。
 export async function leaveRoom({ roomId }) {
   await authReady;
   const uid = getCurrentUid();
@@ -367,7 +373,18 @@ export async function leaveRoom({ roomId }) {
 
   const room = snapshot.val();
   if (room.host === uid) {
-    await remove(roomRef);
+    const nextHostUid = pickNextHostUid(room.players || {}, uid);
+    if (nextHostUid === null) {
+      // 他に誰も残っていない：今までどおりルームごと削除する。
+      await remove(roomRef);
+    } else {
+      // host（新ホストへ）とplayers/{自分}（削除）を1回のupdate()にまとめることで、
+      // 「ホストは変わったのに自分の参加者情報がまだ残っている」ような一瞬の不整合を防ぐ。
+      await update(ref(database), {
+        [`rooms/${roomId}/host`]: nextHostUid,
+        [`rooms/${roomId}/players/${uid}`]: null,
+      });
+    }
   } else {
     await remove(ref(database, `rooms/${roomId}/players/${uid}`));
   }
@@ -427,6 +444,166 @@ export async function updateRoomSettings({ roomId, settings }) {
 
   await update(ref(database), updates);
   return { ok: true, settingsRevision: nextRevision };
+}
+
+// 【2026-08-30新設、本人指示：オンライン対戦全面アップデート】ホストがロビーで対戦モード
+// そのものを変更する。「ルームを試合ごとに作り直さない」の核心部分。
+// 【Firebase Rules前提】firebase/database.rules.jsonのrooms/$roomId/gameModeに、
+// 「ホストだけ・status===waitingのときだけ書ける」という専用の書き込みルールを追加済み
+// （以前は新規作成時にしか書けなかった）。このルールが本番へ反映されていない環境では、
+// この関数のupdate()自体がFirebase側で拒否される想定（＝安全側に倒れる。既存ルームの
+// 動作には影響しない）。
+// モードを変更したら、そのモードの既定値（defaultSettings）へ設定を差し替え、
+// settingsRevisionを進めて非ホスト全員のreadyを解除する（updateRoomSettings()と同じ
+// 「設定が変わったら準備完了を解除する」パターンをそのまま踏襲）。
+// 既に同じgameModeが指定された場合は何もせず成功を返す（冪等）。
+export async function updateRoomGameMode({ roomId, gameMode }) {
+  await authReady;
+  const uid = getCurrentUid();
+  if (!uid) return { ok: false, reason: "not-signed-in" };
+  if (!isKnownGameMode(gameMode)) return { ok: false, reason: "unsupported-mode" };
+
+  const snapshot = await get(ref(database, `rooms/${roomId}`));
+  if (!snapshot.exists()) return { ok: false, reason: "not-found" };
+  const room = snapshot.val();
+  if (room.host !== uid) return { ok: false, reason: "not-host" };
+  if (room.status !== ROOM_STATUS.WAITING) return { ok: false, reason: "not-waiting" };
+  if (room.gameMode === gameMode) return { ok: true, settings: room.settings };
+
+  const settings = createDefaultSettings(gameMode);
+  if (!settings) return { ok: false, reason: "unsupported-mode" };
+
+  const nextRevision = (room.settingsRevision ?? 0) + 1;
+  const players = room.players || {};
+  const updates = {
+    [`rooms/${roomId}/gameMode`]: gameMode,
+    [`rooms/${roomId}/settings`]: settings,
+    [`rooms/${roomId}/settingsRevision`]: nextRevision,
+  };
+  Object.keys(players).forEach((playerUid) => {
+    if (playerUid !== uid) {
+      updates[`rooms/${roomId}/players/${playerUid}/ready`] = false;
+    }
+  });
+
+  try {
+    await update(ref(database), updates);
+  } catch (error) {
+    return { ok: false, reason: "write-failed" };
+  }
+  return { ok: true, settings };
+}
+
+// 【2026-08-30新設、本人指示】ホストが、ルーム内の別の参加者へホスト権限を手動で譲る。
+// 対象は今のルームに実在する参加者（players）でなければならない。自分自身への指定は
+// 何もせず成功扱い（冪等）。
+// 【players/{uid}/isHostの扱いについて】この関数はrooms/{roomId}/hostだけを書き換える。
+// 表示用バッジ（players/{uid}/isHost）は、各クライアントが自分自身の値だけを自分で
+// 書き換えられる権限しか持たない（Firebase Rules上の制約、既存のplayers/$uidの書き込み
+// ルールをそのまま維持するため）ため、ここではホスト以外の人のisHostを直接書き換えない。
+// 代わりに、各端末がroom.hostの変化を検知して、自分自身のisHostを自分で書き直す
+// （js/onlineBattleScreen.jsのsyncMyHostBadge()参照）。実権限の判定は常にroom.host自体を
+// 見るため（players[uid].isHostは表示専用）、この一瞬のズレが安全性に影響することはない。
+export async function transferHost({ roomId, newHostUid }) {
+  await authReady;
+  const uid = getCurrentUid();
+  if (!uid) return { ok: false, reason: "not-signed-in" };
+
+  const snapshot = await get(ref(database, `rooms/${roomId}`));
+  if (!snapshot.exists()) return { ok: false, reason: "not-found" };
+  const room = snapshot.val();
+  if (room.host !== uid) return { ok: false, reason: "not-host" };
+  if (newHostUid === uid) return { ok: true }; // 自分自身への移譲は何もしない（冪等）
+  if (!room.players?.[newHostUid]) return { ok: false, reason: "player-not-found" };
+
+  try {
+    await update(ref(database), { [`rooms/${roomId}/host`]: newHostUid });
+  } catch (error) {
+    return { ok: false, reason: "write-failed" };
+  }
+  return { ok: true };
+}
+
+// 【2026-08-30新設、本人指示】ホストが切断中（players[host].connected===false）のとき、
+// ルームに残っている自分自身がホスト権限を引き継ぐ（自動移譲）。
+// 【横取り防止】Firebase Rules側で「現ホストがconnected:falseであること」を必須条件に
+// しているため、接続中のホストから勝手に奪うことはできない。ただし「切断した直後の一瞬」に
+// 複数人が同時に呼ぶ可能性はあるため、呼び出し側（js/onlineBattleScreen.js）は
+// 「ホストの切断が一定秒数続いた場合だけ」呼ぶよう節度を持たせる（本人指示のとおり、
+// Rules側だけで秒数条件を安全に書くのは複雑なため、クライアント側の節度と組み合わせる）。
+// 既に自分がホストなら何もせず成功扱い（冪等）。
+export async function claimHostIfDisconnected({ roomId }) {
+  await authReady;
+  const uid = getCurrentUid();
+  if (!uid) return { ok: false, reason: "not-signed-in" };
+
+  const snapshot = await get(ref(database, `rooms/${roomId}`));
+  if (!snapshot.exists()) return { ok: false, reason: "not-found" };
+  const room = snapshot.val();
+  if (room.host === uid) return { ok: true }; // 既に自分がホスト（冪等）
+  if (!room.players?.[uid]) return { ok: false, reason: "not-in-room" };
+  if (room.players[room.host]?.connected !== false) return { ok: false, reason: "host-still-connected" };
+
+  try {
+    await update(ref(database), { [`rooms/${roomId}/host`]: uid });
+  } catch (error) {
+    return { ok: false, reason: "write-failed" };
+  }
+  return { ok: true };
+}
+
+// 【2026-08-30新設、本人指示】ホストが、ロビー（status===waiting）にいる別の参加者を
+// ルームから退出させる（キック）。試合中はキックできない（本人指示：「試合中のキックは
+// 不要」）。自分自身・現ホスト自身は対象にできない。
+// キックされた側の検知・案内表示はクライアント側（js/onlineBattleScreen.js）が、
+// 「自分がplayersから消えたのに、ルーム自体はまだ存在する」状態を見て行う
+// （このFirebase書き込み自体には、キックの理由をキックされた側へ直接伝える仕組みは無い。
+// 同じルームコードで入り直せば再参加できる＝既存のjoinRoom()をそのまま使える）。
+export async function kickPlayer({ roomId, targetUid }) {
+  await authReady;
+  const uid = getCurrentUid();
+  if (!uid) return { ok: false, reason: "not-signed-in" };
+  if (targetUid === uid) return { ok: false, reason: "cannot-kick-self" };
+
+  const snapshot = await get(ref(database, `rooms/${roomId}`));
+  if (!snapshot.exists()) return { ok: false, reason: "not-found" };
+  const room = snapshot.val();
+  if (room.host !== uid) return { ok: false, reason: "not-host" };
+  if (room.status !== ROOM_STATUS.WAITING) return { ok: false, reason: "not-waiting" };
+  if (!room.players?.[targetUid]) return { ok: false, reason: "player-not-found" };
+
+  try {
+    await remove(ref(database, `rooms/${roomId}/players/${targetUid}`));
+  } catch (error) {
+    return { ok: false, reason: "write-failed" };
+  }
+  return { ok: true };
+}
+
+// 【2026-08-30新設、本人指示】自分の参加者情報（players/{自分}/isHost）が、実際の権限
+// （rooms/{roomId}/host）とズレていたら、自分の値だけを自分で書き直す。
+// 【なぜこの一手間が必要か】ホスト移譲（transferHost・claimHostIfDisconnected）は
+// rooms/{roomId}/hostだけを書き換える設計にしている。これはFirebase Rules上、
+// players/{uid}の各フィールドは「本人だけが書き込める」制約になっており（既存の設計、
+// 他人のisHostを移譲元・移譲先以外の第三者が書き換えることを許すと安全性が下がるため）、
+// 移譲する側が相手のisHostまで直接書き換えることができないからである。
+// 実際の権限判定は常にrooms/{roomId}/host自体を見るため（players[uid].isHostは
+// 表示バッジ専用）、この関数を呼ぶタイミングが多少遅れても安全性には影響しない。
+// 呼び出し側（js/onlineBattleScreen.jsのrenderLobby）が、room更新のたびに
+// 「今の自分はホストか」を渡し、実際のisHostと食い違っていた場合だけ書き込みが発生する。
+export async function syncMyHostBadge({ roomId, isHost }) {
+  await authReady;
+  const uid = getCurrentUid();
+  if (!uid) return;
+
+  try {
+    const snapshot = await get(ref(database, `rooms/${roomId}/players/${uid}/isHost`));
+    if (snapshot.val() === isHost) return; // 既に一致している（無駄な書き込みをしない）
+    await update(ref(database), { [`rooms/${roomId}/players/${uid}/isHost`]: isHost });
+  } catch (error) {
+    // 失敗してもロビー表示のバッジが一時的にズレるだけで、実権限判定には影響しないため、
+    // ここでは静かに諦める（次のroom更新のたびに再試行される）。
+  }
 }
 
 // 自分の準備完了状態を変更する（参加者用）。ホストは「開始する」ボタンを押すこと自体が
