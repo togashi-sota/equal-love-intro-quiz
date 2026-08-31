@@ -19,6 +19,7 @@ import {
   adminRestoreAchievementsFromPublicProfile,
   adminFindPlayersWithoutBackup,
   adminCreatePreventiveBackup,
+  adminDeleteBackup,
 } from "./backupAdmin.js";
 import { getMemberById } from "./memberUtils.js";
 
@@ -36,11 +37,21 @@ function shortId(id) {
   return id.length > 12 ? `${id.slice(0, 12)}…` : id;
 }
 
+// バックアップ1件が「テストデータの可能性が高い」かどうかの目安。表示名を一度も
+// 設定していない場合だけ該当とする（あくまで目安であり断定ではない。名前設定前に
+// 離脱した実在の人の可能性もゼロではないため、削除は必ず内容を見た本人の判断に委ねる）。
+function looksLikeTestBackup(backup) {
+  return !backup.displayName;
+}
+
 function buildBackupRow(backup) {
   const row = document.createElement("div");
   row.className = "admin-backup-row";
 
   const oshiMember = backup.oshiMemberId ? getMemberById(members, backup.oshiMemberId) : null;
+  const suspiciousNote = looksLikeTestBackup(backup)
+    ? '<p class="admin-backup-row-detail admin-backup-suspicious-note">⚠️ 名前未設定（テストデータの可能性）</p>'
+    : "";
 
   row.innerHTML = `
     <p class="admin-backup-row-title">${backup.displayName ?? "（名前未設定）"}</p>
@@ -48,7 +59,43 @@ function buildBackupRow(backup) {
     <p class="admin-backup-row-detail">バックアップID：<code>${backup.backupId}</code></p>
     <p class="admin-backup-row-detail">現在のUID：<code>${shortId(backup.currentUid)}</code></p>
     <p class="admin-backup-row-detail">最終バックアップ：${formatTimestamp(backup.updatedAt)}</p>
+    ${suspiciousNote}
   `;
+
+  const deleteButton = document.createElement("button");
+  deleteButton.type = "button";
+  deleteButton.className = "danger-button admin-backup-delete-request-button";
+  deleteButton.textContent = "このバックアップを削除する";
+  const deleteResultText = document.createElement("p");
+  deleteResultText.className = "admin-backup-row-detail admin-backup-resolve-result";
+  deleteResultText.hidden = true;
+
+  deleteButton.addEventListener("click", async () => {
+    const confirmed = window.confirm(
+      `以下のバックアップを完全に削除します。この操作は元に戻せません。\n\n` +
+        `表示名：${backup.displayName ?? "（名前未設定）"}\n` +
+        `称号数：${backup.achievementCount}\n` +
+        `バックアップID：${backup.backupId}\n` +
+        `最終バックアップ：${formatTimestamp(backup.updatedAt)}\n\n` +
+        `本当に削除しますか？`
+    );
+    if (!confirmed) return;
+
+    deleteButton.disabled = true;
+    deleteResultText.hidden = false;
+    deleteResultText.textContent = "削除しています…";
+    const result = await adminDeleteBackup(backup.backupId);
+    if (result.ok) {
+      await renderAdminBackupScreen();
+    } else {
+      deleteButton.disabled = false;
+      deleteResultText.textContent = result.reason ?? "削除に失敗しました";
+    }
+  });
+
+  row.appendChild(deleteButton);
+  row.appendChild(deleteResultText);
+
   return row;
 }
 
@@ -334,9 +381,14 @@ function normalizeForBackupSearch(text) {
 
 function renderFilteredBackupsList() {
   const query = normalizeForBackupSearch(elements.backupsSearchInput?.value ?? "");
-  const filtered = query
+  const unnamedOnly = elements.backupsUnnamedOnlyCheckbox?.checked ?? false;
+
+  let filtered = query
     ? latestBackups.filter((backup) => normalizeForBackupSearch(backup.displayName).includes(query))
     : latestBackups;
+  if (unnamedOnly) {
+    filtered = filtered.filter((backup) => looksLikeTestBackup(backup));
+  }
 
   elements.backupsList.innerHTML = "";
   if (latestBackups.length === 0) {
@@ -349,7 +401,9 @@ function renderFilteredBackupsList() {
   if (filtered.length === 0) {
     const empty = document.createElement("p");
     empty.className = "history-empty-state";
-    empty.textContent = `「${elements.backupsSearchInput.value}」に一致するバックアップは見つかりませんでした（全${latestBackups.length}件中）`;
+    empty.textContent = query
+      ? `「${elements.backupsSearchInput.value}」に一致するバックアップは見つかりませんでした（全${latestBackups.length}件中）`
+      : `条件に一致するバックアップは見つかりませんでした（全${latestBackups.length}件中）`;
     elements.backupsList.appendChild(empty);
     return;
   }
@@ -415,11 +469,12 @@ async function handleCheckAtRiskPlayers() {
 }
 
 // elements: { statusText, refreshButton, recoveryRequestsList, backupsList, backupsSearchInput,
-//   checkAtRiskButton, atRiskStatusText, atRiskList }
+//   backupsUnnamedOnlyCheckbox, checkAtRiskButton, atRiskStatusText, atRiskList }
 export function initAdminBackupScreen(newElements, allMembers) {
   elements = newElements;
   members = allMembers;
   elements.refreshButton.addEventListener("click", renderAdminBackupScreen);
   elements.backupsSearchInput?.addEventListener("input", renderFilteredBackupsList);
+  elements.backupsUnnamedOnlyCheckbox?.addEventListener("change", renderFilteredBackupsList);
   elements.checkAtRiskButton?.addEventListener("click", handleCheckAtRiskPlayers);
 }

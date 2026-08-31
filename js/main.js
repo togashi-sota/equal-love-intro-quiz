@@ -656,6 +656,7 @@ const adminBackupStatusElement = document.getElementById("admin-backup-status");
 const adminRecoveryRequestsListElement = document.getElementById("admin-recovery-requests-list");
 const adminBackupsListElement = document.getElementById("admin-backups-list");
 const adminBackupsSearchInputElement = document.getElementById("admin-backups-search-input");
+const adminBackupsUnnamedOnlyCheckboxElement = document.getElementById("admin-backups-unnamed-only-checkbox");
 const adminCheckAtRiskButtonElement = document.getElementById("admin-check-at-risk-button");
 const adminAtRiskStatusElement = document.getElementById("admin-at-risk-status");
 const adminAtRiskListElement = document.getElementById("admin-at-risk-list");
@@ -1781,6 +1782,7 @@ initAdminBackupScreen(
     recoveryRequestsList: adminRecoveryRequestsListElement,
     backupsList: adminBackupsListElement,
     backupsSearchInput: adminBackupsSearchInputElement,
+    backupsUnnamedOnlyCheckbox: adminBackupsUnnamedOnlyCheckboxElement,
     checkAtRiskButton: adminCheckAtRiskButtonElement,
     atRiskStatusText: adminAtRiskStatusElement,
     atRiskList: adminAtRiskListElement,

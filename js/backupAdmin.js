@@ -58,6 +58,24 @@ export async function adminFetchPublicProfileUids() {
   }
 }
 
+// 【2026-09-05新設、本人指示：テスト用ダミーデータの整理】backups/{backupId}を完全に削除する
+// （元に戻せない）。過去のオンライン対戦の負荷テスト等で作られた、名前未設定のダミー
+// バックアップを整理するために追加した。呼び出し側（js/adminBackupScreen.js）が必ず
+// window.confirm()等で内容（表示名・称号数・バックアップID）を本人に見せたうえで
+// 呼ぶ想定（誤って実在の人のバックアップを消さないための最終確認は、UI側の責務）。
+export async function adminDeleteBackup(backupId) {
+  try {
+    const { database, authReady } = await import("./firebaseClient.js");
+    const { ref, remove } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js");
+    await authReady;
+    await remove(ref(database, `backups/${backupId}`));
+    return { ok: true };
+  } catch (error) {
+    console.warn("バックアップの削除に失敗しました（管理者権限が無い可能性があります）", error);
+    return { ok: false, reason: "削除に失敗しました。管理者としてログインできているかご確認ください。" };
+  }
+}
+
 // 全復旧依頼の一覧を取得する（pending・resolved問わず）。
 export async function adminFetchAllRecoveryRequests() {
   try {
