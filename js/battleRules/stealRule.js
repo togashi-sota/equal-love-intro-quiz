@@ -160,6 +160,8 @@ export const hudFields = [
 export const resultColumns = [
   { key: "totalPoints", label: "獲得ポイント" },
   { key: "questionsWon", label: "獲得問題数" },
-  { key: "wonElapsedMsTotal", label: "獲得時の総回答時間" },
+  // 【2026-09-03修正・本人指摘】ミリ秒の生値がそのまま表示されていたのを、
+  // js/lyricsQuizBattleUi.jsのformatDisplayValue()に「秒へ変換する」と伝えるunitを追加して修正。
+  { key: "wonElapsedMsTotal", label: "獲得時の総回答時間", unit: "ms" },
   { key: "skippedCount", label: "未回答" },
 ];

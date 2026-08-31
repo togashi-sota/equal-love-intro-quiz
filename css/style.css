@@ -12874,6 +12874,13 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   color: var(--color-danger);
 }
 
+/* 【2026-09-03新設】オフライン版はこのカードを「不正解」時にしか使わないため赤固定だったが、
+   オンライン版は自分の正誤どちらでもこのカードを使うため、正解時用の色を追加した
+   （.online-battle-outcome-badge.is-correct-answer-badgeと同じ配色に揃えている）。 */
+.lyrics-quiz-answer-reveal-status.is-correct-answer-reveal-status {
+  color: var(--color-primary-dark);
+}
+
 .lyrics-quiz-answer-reveal-caption {
   margin: 0;
   font-size: 0.78rem;
@@ -13210,12 +13217,15 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 
 .online-lyrics-battle-answer-button {
   padding: 12px 8px;
-  border-radius: 10px;
-  border: 1px solid var(--color-card-border);
+  border-radius: 14px;
+  border: 1.5px solid var(--color-card-border);
   background: var(--color-surface);
   font-family: inherit;
+  font-weight: 700;
   font-size: 0.85rem;
+  color: var(--color-text);
   cursor: pointer;
+  transition: transform var(--transition-fast, 0.15s), background-color var(--transition-base, 0.2s), border-color var(--transition-base, 0.2s);
 }
 
 .online-lyrics-battle-answer-button:disabled {
@@ -13229,10 +13239,27 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   font-weight: 800;
 }
 
+/* 【2026-09-03改訂、本人指摘】以前は緑・灰色系でアプリ本体（ピンク基調）と統一感が
+   無かったため、本体で使っている配色トークンに揃えた。また、正解確認後は
+   button:disabledの一律opacity:0.5が、せっかく色分けした正解／不正解のボタンまで
+   薄くしてしまっていたため、この2つのクラスだけopacityを1に戻して見やすくした。 */
 .online-lyrics-battle-answer-button.is-correct-answer {
-  border-color: #34a853;
-  background: rgba(80, 200, 120, 0.2);
+  border-color: var(--color-primary);
+  background: var(--color-accent-soft, var(--color-primary-light));
+  color: var(--color-primary-dark);
   font-weight: 800;
+}
+
+.online-lyrics-battle-answer-button.is-my-wrong-answer {
+  border-color: var(--color-danger);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+  font-weight: 800;
+}
+
+.online-lyrics-battle-answer-button.is-correct-answer:disabled,
+.online-lyrics-battle-answer-button.is-my-wrong-answer:disabled {
+  opacity: 1;
 }
 
 .online-lyrics-battle-status-message {

@@ -158,18 +158,21 @@ export function getAnswerSubmissionPlan() {
 export const settingsFields = [HINT_INTERVAL_SETTINGS_FIELD];
 
 // 対戦中HUDが自動生成するための宣言（追記⑦12章）。
+// 【2026-09-03修正・本人指摘】totalElapsedMsはミリ秒の生値のため、unit: "ms"を付けて
+// js/lyricsQuizBattleUi.jsのformatDisplayValue()に「秒へ変換して表示する」と伝える
+// （以前はunitが無く、9620のような生のミリ秒がそのまま画面に出てしまっていた）。
 export const hudFields = [
   { key: "correctCount", label: "現在の正解数" },
   { key: "firstHintCorrectCount", label: "ヒント1正解数" },
   { key: "totalHintsUsed", label: "総使用ヒント数" },
-  { key: "totalElapsedMs", label: "総回答時間" },
+  { key: "totalElapsedMs", label: "総回答時間", unit: "ms" },
 ];
 
 // 結果画面が自動生成するための宣言（追記⑥10章）。
 export const resultColumns = [
   { key: "totalPoints", label: "獲得ポイント" },
   { key: "totalHintsUsed", label: "使用ヒント数" },
-  { key: "totalElapsedMs", label: "回答時間" },
+  { key: "totalElapsedMs", label: "回答時間", unit: "ms" },
   { key: "missCount", label: "ミス回数" },
   { key: "skippedCount", label: "未回答" },
 ];

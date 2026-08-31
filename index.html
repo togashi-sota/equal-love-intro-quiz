@@ -3570,6 +3570,19 @@
 
         <div id="online-lyrics-battle-answer-choices" class="online-lyrics-battle-answer-grid"></div>
 
+        <!-- 【2026-09-03新設、本人指摘】以前は「正解が確定しました。まもなく次の問題です。」
+             という一律の文言だけで、正解曲名・自分の正誤・獲得ポイントが分からなかった。
+             オフライン歌詞クイズの正解確認カード（#lyrics-quiz-answer-reveal、既存の
+             デザイン）と同じCSSクラスをそのまま使い、オンラインでも同じ見た目・統一感で
+             正誤・正解曲名・獲得ポイント・現在順位を表示する。 -->
+        <div id="online-lyrics-battle-answer-reveal" class="lyrics-quiz-answer-reveal" hidden>
+          <p id="online-lyrics-battle-answer-reveal-status" class="lyrics-quiz-answer-reveal-status">正解</p>
+          <p class="lyrics-quiz-answer-reveal-caption">正解は</p>
+          <p id="online-lyrics-battle-answer-reveal-title" class="lyrics-quiz-answer-reveal-title">－</p>
+          <p id="online-lyrics-battle-answer-reveal-meta" class="lyrics-quiz-answer-reveal-meta"></p>
+          <p id="online-lyrics-battle-answer-reveal-rank" class="lyrics-quiz-answer-reveal-meta"></p>
+        </div>
+
         <p id="online-lyrics-battle-status-message" class="online-lyrics-battle-status-message" hidden></p>
         <p id="online-lyrics-battle-error" class="error-message" hidden></p>
         </div>

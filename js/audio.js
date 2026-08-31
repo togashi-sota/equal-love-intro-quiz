@@ -61,13 +61,42 @@ function claimAsCurrentPlayback(blob) {
   return myObjectUrl;
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// 【2026-09-03新設・本人指摘：オンライン対戦で実機の約5回に1回、1問目でplay()自体が
+// 失敗する（「音源を再生できませんでした」）ことが報告された。音源データ自体は
+// 取得できていた（getAudioBlob()側の再試行強化だけでは直らなかった）ため、原因は
+// IndexedDBの取得タイミングとは別に、play()呼び出し自体が一時的に失敗する
+// （iOS Safariの自動再生ポリシー関連の一時的な拒否等が疑われるが、コードレビューだけでは
+// 断定できない）ケースがあると判断した。srcを変えずにplay()だけを間隔を空けて
+// 数回まで再試行することで、こうした一時的な失敗から自動的に回復できるようにする。
+const PLAY_RETRY_WAIT_MS_LIST = [300, 600];
+
 // audioElement.play()を試み、成功/失敗のどちらでも「追い越された場合の後始末」まで行う。
 // 戻り値：trueなら再生が実際に始まった（かつ自分がまだ最新）、falseなら失敗または追い越された。
 // playSongIntro()・playSongFromRandomPosition()の共通の後半処理。
 async function attemptPlay(myToken, myObjectUrl, onError) {
-  try {
-    await audioElement.play();
-  } catch {
+  let lastError = null;
+  for (let attempt = 0; attempt <= PLAY_RETRY_WAIT_MS_LIST.length; attempt++) {
+    if (attempt > 0) {
+      await sleep(PLAY_RETRY_WAIT_MS_LIST[attempt - 1]);
+      // 再試行までの待ち時間の間に、追い越されている／再生が別の理由で既に始まっている
+      // 可能性があるため、その場合は再試行そのものを行わない。
+      if (myToken !== currentPlaybackToken) return false;
+      if (!audioElement.paused) return true;
+    }
+    try {
+      await audioElement.play();
+      lastError = null;
+      break;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  if (lastError) {
     // 再生開始前後にsrcが差し替えられた場合、ブラウザはこのplay()を失敗させる
     // （AbortError等）。それが「追い越されたことによる失敗」なら、エラー表示は不要。
     if (myToken !== currentPlaybackToken) return false;

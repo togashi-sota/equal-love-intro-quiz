@@ -74,6 +74,33 @@ export function runLyricsQuizBattleUiTests() {
     assertEqual(itemsWithMissingStat.every((i) => i.value === "―"), true, "統計値が無い項目は「―」で表示される");
   }
 
+  // ===== describeHudItems・describeResultTable：ミリ秒の項目は秒表示に変換される =====
+  // 【2026-09-03追加・本人指摘】以前はunit: "ms"の指定を無視しており、総回答時間が
+  // 「9620」のような生のミリ秒のまま画面に表示されてしまっていた。
+  {
+    const hudItems = describeHudItems("classic", { correctCount: 3, firstHintCorrectCount: 2, totalHintsUsed: 5, totalElapsedMs: 9620 });
+    assertEqual(
+      hudItems.find((i) => i.key === "totalElapsedMs").value,
+      "9.62秒",
+      "対戦中HUDのtotalElapsedMs（ミリ秒）は「秒」表示に変換される（生の9620が出ない）"
+    );
+
+    const rankedEntries = [
+      {
+        uid: "p1",
+        displayName: "たろう",
+        isHost: true,
+        isYou: false,
+        isDnf: false,
+        result: { detail: { totalPoints: 100, totalHintsUsed: 8, totalElapsedMs: 13600, missCount: 1, skippedCount: 0 } },
+      },
+    ];
+    const table = describeResultTable("classic", rankedEntries);
+    assertEqual(table.header.includes("回答時間"), true, "結果表の見出しに「回答時間」列がある");
+    const elapsedColumnIndex = table.header.indexOf("回答時間") - 2; // header先頭の「順位」「表示名」の分だけずらす
+    assertEqual(table.rows[0].cells[elapsedColumnIndex], "13.60秒", "結果表のtotalElapsedMs（ミリ秒）も「秒」表示に変換される");
+  }
+
   // ===== describeResultTable：resultColumns宣言 + 順位付け済み結果 =====
   {
     const rankedEntries = [

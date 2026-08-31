@@ -109,7 +109,9 @@ import { SFX_EVENTS, playSfx } from "./soundManager.js";
 import { STEAL_CLAIM_OUTCOME } from "./lyricsQuizBattleFirebasePayloads.js";
 
 // ホストが問題の確定（正解発表）を見せてから、次の問題／最終結果へ進むまでの待ち時間。
-const REVEAL_DELAY_MS = 3000;
+// 【2026-09-03改訂、本人指示：大型改修】毎問の正解発表は4秒固定にする、という最終仕様に
+// 合わせて3000→4000へ変更した。
+const REVEAL_DELAY_MS = 4000;
 // ヒント表示・ホストの進行判定を更新する間隔。カウントダウン画面のsetInterval(100ms)ほど
 // シビアな精度は不要なため、通信・電池消費とのバランスで少し長めにしている。
 const HOST_TICK_INTERVAL_MS = 400;
@@ -135,6 +137,15 @@ let myOutcomeHistory = [];
 let myComboCount = 0;
 let myQuestionStartedAtCache = {};
 let lastWinnerNameCache = null; // 奪い取りHUDの「直近の獲得者」用
+
+// 【2026-09-03新設、本人指示：毎問の途中順位表示】各クライアントが、参加者全員の
+// これまでの獲得ポイントを独立して積み上げるための状態。myOutcomeHistory（自分専用）とは
+// 別に持つ（既存の自分専用HUD集計には一切手を加えず、リスクを分離するため）。
+// resolveQuestionAnswers()はanswersByUidに複数人を渡せる設計のため、全参加者分を
+// まとめて1回で計算できる（js/battleRules/各ルールの実装参照）。
+let allPlayersOutcomeHistoriesByUid = {}; // uid -> 確定済み問題のoutcome配列
+let allPlayersComboCountByUid = {}; // uid -> 現在のコンボ数（コンボルールのみ使用）
+let allPlayersResolvedQuestionCount = 0; // ここまで集計済みの問題数（次に集計すべきqIndexでもある）
 
 // ホスト専用の進行ミラー（js/lyricsQuizMatchProgress.js）。
 let hostState = null;
@@ -623,9 +634,13 @@ export async function enterLyricsQuizBattlePlay(room) {
   myComboCount = 0;
   myQuestionStartedAtCache = {};
   lastWinnerNameCache = null;
+  allPlayersOutcomeHistoriesByUid = {};
+  allPlayersComboCountByUid = {};
+  allPlayersResolvedQuestionCount = 0;
 
   elements.battleError.hidden = true;
   elements.battleStatusMessage.hidden = true;
+  elements.battleAnswerReveal.hidden = true;
   clearElement(elements.battleHudContainer);
   clearElement(elements.battleAnswerChoicesContainer);
   clearElement(elements.battleHintLinesContainer);
@@ -863,6 +878,73 @@ function maybeRecordMyOutcomeForResolvedQuestions(match) {
   }
 }
 
+// 【2026-09-03新設、本人指示：毎問の途中順位表示】maybeRecordMyOutcomeForResolvedQuestions()と
+// 同じ考え方で、今度は参加者全員分の獲得ポイントを積み上げる。resolveQuestionAnswers()は
+// 複数人分のanswersByUid/comboCountByUidを一度に受け取れる設計のため、1問につき1回の
+// 呼び出しで全員分のoutcomeが求まる。既存の自分専用集計（myOutcomeHistory）には触れず、
+// 完全に独立した状態として持つ（既存のHUD表示ロジックへの影響をゼロにするため）。
+function maybeRecordAllPlayersOutcomesForResolvedQuestions(match) {
+  if (!latestRoom) return;
+  const participantUids = Object.keys(match.participants ?? {});
+  if (participantUids.length === 0) return;
+
+  const resolvedUpToIndex = match.questionStatus === "resolved" ? match.currentQuestionIndex : match.currentQuestionIndex - 1;
+  while (allPlayersResolvedQuestionCount <= resolvedUpToIndex) {
+    const qIndex = allPlayersResolvedQuestionCount;
+    const question = currentQuestions[qIndex];
+    if (!question) break;
+
+    const answersByUid = {};
+    const comboCountByUid = {};
+    participantUids.forEach((uid) => {
+      answersByUid[uid] = (match.answers?.[qIndex] ?? {})[uid] ?? {
+        selectedSongId: SKIP_SELECTION,
+        hintLevel: MAX_HINT_LEVEL,
+        submittedAt: match.currentQuestionStartedAt ?? Date.now(),
+      };
+      comboCountByUid[uid] = allPlayersComboCountByUid[uid] ?? 0;
+    });
+    const context = {
+      answersByUid,
+      correctSongId: question.song.id,
+      winner: match.questionClaims?.[qIndex]?.winner ?? null,
+      comboCountByUid,
+      questionStartedAt: match.currentQuestionStartedAt,
+      allPlayerUids: participantUids,
+      nowMs: Date.now(),
+      settings: latestRoom.settings,
+    };
+    const outcomesByUid = lyricsQuizBattleMode.resolveQuestionAnswers(latestRoom.settings, context);
+    let allResolved = true;
+    participantUids.forEach((uid) => {
+      const outcome = outcomesByUid[uid];
+      if (!outcome) {
+        allResolved = false; // 安全側：1人でも取得できなければこの問題は積まない
+        return;
+      }
+      if (!allPlayersOutcomeHistoriesByUid[uid]) allPlayersOutcomeHistoriesByUid[uid] = [];
+      allPlayersOutcomeHistoriesByUid[uid].push(outcome);
+      allPlayersComboCountByUid[uid] = outcome.nextComboCount;
+    });
+    if (!allResolved) break;
+    allPlayersResolvedQuestionCount++;
+  }
+}
+
+// 現在までの獲得ポイント順に、参加者を並べ替えて返す（毎問の途中順位表示用）。
+// 完全にタイなら参加者一覧の並び順のまま（安定ソート）にしておき、順位が理由なく
+// 入れ替わって見えることを避ける。
+function computeCurrentStandings(match) {
+  const participantUids = Object.keys(match.participants ?? {});
+  return participantUids
+    .map((uid) => ({
+      uid,
+      displayName: match.participants[uid].displayName,
+      totalPoints: (allPlayersOutcomeHistoriesByUid[uid] ?? []).reduce((sum, outcome) => sum + (outcome.pointsAwarded ?? 0), 0),
+    }))
+    .sort((a, b) => b.totalPoints - a.totalPoints);
+}
+
 // 【Phase6.5・HUDの完成度について】js/lyricsQuizBattleUi.jsのhudFields宣言にある項目のうち、
 // 確定済み履歴（myOutcomeHistory）・直近の勝者名から求まるものは、すべてここで実値を計算する。
 // 「現在の問題の獲得ポイント」（currentQuestionPoints）は、配点テーブルを画面層へ公開しないと
@@ -913,9 +995,20 @@ function renderAnswerChoices(question, { isResolved, myAnsweredThisQuestion }) {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "online-lyrics-battle-answer-button";
-    button.textContent = choiceSong.title;
-    if (mySelectedSongId === choiceSong.id) button.classList.add("is-selected");
-    if (isResolved && choiceSong.id === correctSongId) button.classList.add("is-correct-answer");
+    const isMyChoice = mySelectedSongId === choiceSong.id;
+    const isCorrectChoice = choiceSong.id === correctSongId;
+    if (isMyChoice) button.classList.add("is-selected");
+    // 【2026-09-03改訂、本人指摘】色だけに頼らず、✓/✕と「あなたの回答」の文字でも
+    // 区別できるようにした（正解確認カードとは別に、選択肢そのものにも印を付ける）。
+    if (isResolved && isCorrectChoice) {
+      button.classList.add("is-correct-answer");
+      button.textContent = `✓ ${choiceSong.title}`;
+    } else if (isResolved && isMyChoice) {
+      button.classList.add("is-my-wrong-answer");
+      button.textContent = `✕ ${choiceSong.title}（あなたの回答）`;
+    } else {
+      button.textContent = choiceSong.title;
+    }
     button.disabled = isResolved || myAnsweredThisQuestion || submitInFlight;
     button.addEventListener("click", () => handleAnswerChoiceClick(choiceSong.id));
     elements.battleAnswerChoicesContainer.appendChild(button);
@@ -1049,12 +1142,43 @@ function renderCurrentQuestionState() {
   renderAnswerChoices(question, { isResolved, myAnsweredThisQuestion: mySubmittedForQuestionIndex === qIndex });
 
   maybeRecordMyOutcomeForResolvedQuestions(match);
+  maybeRecordAllPlayersOutcomesForResolvedQuestions(match);
   const hudItems = describeHudItems(latestRoom.settings.battleRuleId, computeMyLiveHudStats());
   renderHud(elements.battleHudContainer, hudItems);
 
-  elements.battleStatusMessage.hidden = !isResolved;
+  // 【2026-09-03改訂、本人指摘：正解発表の強化】以前は「正解が確定しました。まもなく次の
+  // 問題です。」という一律の文言だけだったため、正解曲名・自分の正誤・獲得ポイント・
+  // 現在の途中順位が分からなかった。オフライン版の正解確認カードと同じデザインで、
+  // このクイズを解いた自分自身の結果と、参加者全員の現在の順位を毎問表示する
+  // （本人指示：歌詞クイズ3ルールはすべて毎問途中順位を見せる）。
+  elements.battleStatusMessage.hidden = true;
+  elements.battleAnswerReveal.hidden = !isResolved;
   if (isResolved) {
-    elements.battleStatusMessage.textContent = "正解が確定しました。まもなく次の問題です。";
+    const myOutcome = myOutcomeHistory[qIndex] ?? null;
+    const gotPoints = (myOutcome?.pointsAwarded ?? 0) > 0;
+    elements.battleAnswerRevealStatus.textContent = gotPoints
+      ? "🎉 正解！"
+      : myOutcome?.outcome === "skipped"
+        ? "△ 未回答でした"
+        : "✕ 不正解";
+    elements.battleAnswerRevealStatus.classList.toggle("is-correct-answer-reveal-status", gotPoints);
+    elements.battleAnswerRevealTitle.textContent = question.song.title;
+
+    const metaParts = [];
+    if (gotPoints) {
+      metaParts.push(`+${myOutcome.pointsAwarded}pt`);
+    } else if (myOutcome?.outcome === "correct" && myOutcome?.wonQuestion === false && latestRoom.settings.battleRuleId === "steal") {
+      // 奪い取りルールで「回答自体は合っていたが、先に取られた」ケースだけ、
+      // 本人が状況を誤解しない（自分の回答が間違っていたと勘違いしない）よう補足する。
+      metaParts.push(lastWinnerNameCache ? `${lastWinnerNameCache}さんが先に正解しました` : "他の人が先に正解しました");
+    }
+    elements.battleAnswerRevealMeta.textContent = metaParts.join("・");
+
+    const standings = computeCurrentStandings(match);
+    const myUid = getCurrentUid();
+    const myRankIndex = standings.findIndex((entry) => entry.uid === myUid);
+    elements.battleAnswerRevealRank.textContent =
+      myRankIndex === -1 ? "" : `現在の順位：${myRankIndex + 1}位 / ${standings.length}人中（${standings[myRankIndex].totalPoints}pt）`;
   }
 }
 

@@ -64,13 +64,19 @@ export function describeHudItems(ruleId, playerStats) {
   return fields.map((field) => ({
     key: field.key,
     label: field.label,
-    value: formatDisplayValue(playerStats?.[field.key]),
+    value: formatDisplayValue(playerStats?.[field.key], field.unit),
   }));
 }
 
-function formatDisplayValue(value) {
+// 【2026-09-03修正・本人指摘】以前はunit引数が無く、hudFields/resultColumnsで
+// unit: "ms"を宣言していても無視され、ミリ秒の生値（例：9620）がそのまま表示されていた。
+// unitが"ms"の数値だけ「秒」表示に変換する（他のunit無しの数値は今までどおり）。
+function formatDisplayValue(value, unit) {
   if (value === undefined || value === null) return "―";
-  if (typeof value === "number") return String(Math.round(value * 100) / 100);
+  if (typeof value === "number") {
+    if (unit === "ms") return `${(Math.round(value / 10) / 100).toFixed(2)}秒`;
+    return String(Math.round(value * 100) / 100);
+  }
   return String(value);
 }
 
@@ -92,7 +98,7 @@ export function describeResultTable(ruleId, rankedEntries) {
     oshiColor: entry.oshiColor ?? null,
     cells: entry.isDnf
       ? columns.map(() => "DNF")
-      : columns.map((column) => formatDisplayValue(entry.result?.detail?.[column.key])),
+      : columns.map((column) => formatDisplayValue(entry.result?.detail?.[column.key], column.unit)),
   }));
   return { header, rows };
 }

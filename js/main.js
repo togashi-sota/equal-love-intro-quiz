@@ -1086,6 +1086,12 @@ const onlineLyricsBattleHintLinesElement = document.getElementById("online-lyric
 const onlineLyricsBattleAnswerChoicesElement = document.getElementById("online-lyrics-battle-answer-choices");
 const onlineLyricsBattleStatusMessageElement = document.getElementById("online-lyrics-battle-status-message");
 const onlineLyricsBattleErrorElement = document.getElementById("online-lyrics-battle-error");
+// 【2026-09-03新設、本人指摘：正解発表の強化】
+const onlineLyricsBattleAnswerRevealElement = document.getElementById("online-lyrics-battle-answer-reveal");
+const onlineLyricsBattleAnswerRevealStatusElement = document.getElementById("online-lyrics-battle-answer-reveal-status");
+const onlineLyricsBattleAnswerRevealTitleElement = document.getElementById("online-lyrics-battle-answer-reveal-title");
+const onlineLyricsBattleAnswerRevealMetaElement = document.getElementById("online-lyrics-battle-answer-reveal-meta");
+const onlineLyricsBattleAnswerRevealRankElement = document.getElementById("online-lyrics-battle-answer-reveal-rank");
 const onlineLyricsBattleQuitConfirmModalElement = document.getElementById("online-lyrics-battle-quit-confirm-modal");
 const onlineLyricsBattleQuitCancelButtonElement = document.getElementById("online-lyrics-battle-quit-cancel-button");
 const onlineLyricsBattleQuitConfirmButtonElement = document.getElementById("online-lyrics-battle-quit-confirm-button");
@@ -5336,6 +5342,11 @@ initOnlineLyricsQuizBattleScreens({
   battleAnswerChoicesContainer: onlineLyricsBattleAnswerChoicesElement,
   battleStatusMessage: onlineLyricsBattleStatusMessageElement,
   battleError: onlineLyricsBattleErrorElement,
+  battleAnswerReveal: onlineLyricsBattleAnswerRevealElement,
+  battleAnswerRevealStatus: onlineLyricsBattleAnswerRevealStatusElement,
+  battleAnswerRevealTitle: onlineLyricsBattleAnswerRevealTitleElement,
+  battleAnswerRevealMeta: onlineLyricsBattleAnswerRevealMetaElement,
+  battleAnswerRevealRank: onlineLyricsBattleAnswerRevealRankElement,
   quitConfirmModal: onlineLyricsBattleQuitConfirmModalElement,
   quitCancelButton: onlineLyricsBattleQuitCancelButtonElement,
   quitConfirmButton: onlineLyricsBattleQuitConfirmButtonElement,
