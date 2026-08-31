@@ -1322,6 +1322,26 @@ fieldset label:has(input:focus-visible) {
   gap: 8px;
 }
 
+/* 【2026-09-07修正・本人指示：モード選択グリッド崩れの調査】オンライン対戦ロビーの
+   「モードを変更する」だけは、.option-rowを本来の用途（出題数チップ等、内容の幅に応じて
+   自然に折り返す行）とは違う目的、「常に2列×3段で固定表示したいペア」として使っている。
+   選択中の項目には fieldset label:has(input:checked)::before の「✦」が付き、その分だけ
+   横幅が伸びるため、375px前後の実機では特定の行（長いモード名の組）だけ2つ目が
+   はみ出して折り返し、「2列/2列/2列」だったはずの表示が選択直後に
+   「2列/2列/1列/1列」へ崩れる不具合が実機で報告されていた（本人指示・調査項目④）。
+   .option-row自体は他の多くの画面（出題数・カテゴリ等の可変個数チップ）で意図どおり
+   内容依存の折り返しを必要としているため、このクラス自体は変更せず、
+   「常に2列固定」であるべきモード変更だけをgridへ切り替えて隔離する。 */
+#online-battle-lobby-mode-change-fieldset .option-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  justify-content: stretch;
+}
+
+#online-battle-lobby-mode-change-fieldset .option-row label {
+  margin: 0;
+}
+
 .option-row label {
   margin: 4px 0;
 }
@@ -12644,6 +12664,29 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   font-weight: 700;
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+/* 【2026-09-07新設・本人指示：ルーム参加者プロフィール】名前をタップして簡易プロフィールを
+   見られることが分かるよう、ボタン化した分のリセット＋押せる見た目を追加する。
+   マージンをマイナスにしてタップ領域だけ広げ、周囲のレイアウト（行の高さ・間隔）は
+   今までどおりに保つ（実機での押しにくさ対策、本人指示の完成基準に合わせた調整）。 */
+.online-lobby-player-name-button {
+  background: none;
+  border: none;
+  padding: 4px 2px;
+  margin: -4px -2px;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 6px;
+  text-decoration: underline;
+  text-decoration-color: rgba(0, 0, 0, 0.2);
+  text-underline-offset: 2px;
+}
+
+.online-lobby-player-name-button:active {
+  background: rgba(0, 0, 0, 0.06);
 }
 
 .online-lobby-player-badges {

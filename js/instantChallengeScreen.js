@@ -32,7 +32,12 @@ import {
   buildFallbackAnswerPool,
 } from "./lyricsQuizEngine.js";
 import { computeRandomStartTimeSec } from "./randomPlaybackEngine.js";
-import { normalizeForSearch, songMatchesSearch } from "./songlist.js";
+import {
+  createAnswerPoolBrowseState,
+  resetAnswerPoolBrowseState,
+  filterAnswerPool,
+  renderAnswerJumpBar,
+} from "./answerPoolBrowseUi.js";
 import { playSongFromRandomPosition, stopAudio } from "./audio.js";
 import { recordInstantChallengeWeakSongAttempt } from "./instantChallengeWeakSongStats.js";
 import { recordInstantChallengeClear } from "./instantChallengeClearStore.js";
@@ -74,6 +79,10 @@ let replayCounts = []; // 問題ごとの「もう一度聞く」使用回数（
 let seed = 0;
 let hasAnsweredCurrentQuestion = false;
 let questionStartedAt = 0;
+// 【2026-09-07新設・本人指示：50音UIの共通展開】全曲検索プールのときの検索文字列・
+// 50音ジャンプの状態（js/answerPoolBrowseUi.js参照）。新しい問題に切り替わるたび
+// resetAnswerPoolBrowseState()でリセットする。
+const answerBrowseState = createAnswerPoolBrowseState();
 // 【2026-09-07新設・本人指示：カウントダウン速度の統一】画面遷移直後（#screenEnterの
 // 480msアニメーション中）に1問目のカウントダウンを重ねて始めると、アニメーションと
 // 競合して1問目だけ遅く・カクついて見える（2問目以降は既にアクティブな画面内で
@@ -220,7 +229,11 @@ async function buildAndStartRun(settings, explicitSongIds = null) {
 export function initInstantChallengeQuestionScreen(newElements) {
   questionElements = newElements;
   questionElements.answerSearchInput.addEventListener("input", () => {
-    renderAnswerButtons(questions[currentIndex].answerPool, questionElements.answerSearchInput.value);
+    // 検索を始めたら50音ジャンプの選択行はいったん解除する（検索語のほうを優先して見せる。
+    // js/onlineLyricsQuizBattleScreen.jsの既存の考え方と同じ）。
+    answerBrowseState.searchQuery = questionElements.answerSearchInput.value;
+    answerBrowseState.jumpRowKey = null;
+    renderAnswerButtons(questions[currentIndex].answerPool);
   });
 
   // 【2026-08-30追加・本人指示⑨】「もう一度聞く」：ソロプレイでは回数無制限。
@@ -231,9 +244,13 @@ export function initInstantChallengeQuestionScreen(newElements) {
     playCurrentQuestionAudio();
   });
 
-  // 【2026-08-30追加・本人指示⑧】「次の問題へ」：回答直後の自動送りをやめ、
-  // 必ずこのボタンを押すまで次の音源を再生しない（通常イントロクイズ型の進行に統一）。
+  // 【2026-09-07改訂・本人指示：答え合わせ4秒後に自動遷移が正式仕様】このボタンは
+  // 「4秒待たずに今すぐ進みたい」ときのショートカット。押した時点で保留中の自動遷移
+  // タイマーを止めてから即座に進める（タイマーを消し忘れると、既に次の問題・結果画面に
+  // 進んだ後で古いタイマーがもう一度advanceToNextQuestionOrFinish()を呼んでしまい、
+  // 最終問ではrenderInstantChallengeResult()の記録処理が二重に走る事故になるため）。
   questionElements.nextButton.addEventListener("click", () => {
+    clearTimeout(autoAdvanceTimerId);
     advanceToNextQuestionOrFinish();
   });
 
@@ -269,6 +286,7 @@ function closeQuitConfirmModal() {
 function quitRun() {
   stopAudio();
   cancelLocalReplayCountdown();
+  clearTimeout(autoAdvanceTimerId);
   questionElements.answerSearchInput.value = "";
   questions = [];
   currentIndex = 0;
@@ -280,6 +298,7 @@ function quitRun() {
 async function restartRun() {
   stopAudio();
   cancelLocalReplayCountdown();
+  clearTimeout(autoAdvanceTimerId);
   questionElements.answerSearchInput.value = "";
   await retryInstantChallengeRun();
 }
@@ -321,7 +340,7 @@ function renderCurrentQuestion() {
   questionStartedAt = Date.now();
   questionElements.progress.textContent = `第${currentIndex + 1}問 / ${questions.length}問`;
   if (questionElements.answerReveal) questionElements.answerReveal.hidden = true;
-  clearTimeout(nextButtonEnableTimerId);
+  clearTimeout(autoAdvanceTimerId);
   renderAnswerArea(questions[currentIndex]);
 
   questionElements.replayButton.hidden = false;
@@ -357,24 +376,26 @@ function renderCurrentQuestion() {
 function renderAnswerArea(question) {
   const pool = question.answerPool;
   const isLargePool = pool.length >= LARGE_ANSWER_POOL_THRESHOLD;
+  // 【2026-09-07新設・本人指示：検索状態を毎問題完全リセット】検索文字列・50音ジャンプの
+  // 選択行を、新しい問題に切り替わるたび必ず初期状態へ戻す。
+  resetAnswerPoolBrowseState(answerBrowseState);
   questionElements.answerSearchRow.hidden = !isLargePool;
   if (isLargePool) {
     questionElements.answerSearchInput.value = "";
     questionElements.answerCount.textContent = `${pool.length}曲`;
   }
-  renderAnswerButtons(pool, "");
-  // 【2026-09-07新設・本人指示：検索状態を毎問題完全リセット】選択肢一覧のスクロール位置も
-  // 新しい問題ごとに先頭へ戻す。
+  if (questionElements.answerJumpBar) {
+    questionElements.answerJumpBar.hidden = !isLargePool;
+    if (isLargePool) renderAnswerJumpBar(questionElements.answerJumpBar, answerBrowseState, () => renderAnswerButtons(pool));
+  }
+  renderAnswerButtons(pool);
+  // 選択肢一覧のスクロール位置も、新しい問題ごとに先頭へ戻す。
   questionElements.answerList.scrollTop = 0;
   questionElements.answerList.hidden = false;
 }
 
-function renderAnswerButtons(pool, searchQuery) {
-  const normalizedQuery = normalizeForSearch(searchQuery);
-  const filtered =
-    normalizedQuery === ""
-      ? pool
-      : pool.filter((song) => songMatchesSearch(song.title, song.searchReading, song.searchAliases, normalizedQuery));
+function renderAnswerButtons(pool) {
+  const filtered = filterAnswerPool(pool, answerBrowseState);
 
   questionElements.answerList.innerHTML = "";
   filtered.forEach((song) => {
@@ -396,13 +417,16 @@ function renderAnswerButtons(pool, searchQuery) {
 }
 
 
-// 答え合わせカードを最低4秒読んでから「次の問題へ」を押せるようにするための猶予
-// （本人指示：答え合わせUIを対象モード共通で4秒表示に統一）。
-const NEXT_BUTTON_ENABLE_DELAY_MS = 4000;
-let nextButtonEnableTimerId = null;
+// 答え合わせカードを約4秒表示してから、自動的に次の問題（最終問なら結果画面）へ進む
+// までの待ち時間。
+// 【2026-09-07再改訂・本人指示：ChatGPTと確定した最新仕様】前回は「次の問題へ」ボタンを
+// 手動で押す仕様（2026-08-30・本人指示⑧）との整合を優先し、カードを4秒間読んでから
+// ボタンを押せるようにする形にしていたが、今回「4秒後に自動で次へ進む」ことを正式仕様として
+// 確定する指示を受けたため、以前の「必ずボタンを押す」仕様をこの部分に限り上書きする
+// （試合終了後の「もう一度」「ルーム設定に戻る」等は今までどおり自動選択しない）。
+const AUTO_ADVANCE_DELAY_MS = 4000;
+let autoAdvanceTimerId = null;
 
-// 【2026-08-30改訂・本人指示⑧】回答直後に自動で次へ進むのをやめ、正解・不正解を
-// 表示したまま「次の問題へ」ボタンが押されるまで待つ（通常イントロクイズ型の進行）。
 // 【2026-09-07改訂・本人指示：答え合わせUIの統一】色（is-correct/is-wrong）だけに頼らず、
 // 選択肢一覧そのものを答え合わせカードへ切り替える（歌詞クイズ対戦と同じ設計）。
 function handleAnswerSelected(selectedSongId, buttonElement) {
@@ -419,14 +443,15 @@ function handleAnswerSelected(selectedSongId, buttonElement) {
   renderAnswerReveal({ isCorrect, correctTitle: question.song.title, mySelectedSongId: selectedSongId, pool: question.answerPool });
 
   questionElements.replayButton.disabled = true; // 正解が確定した後の聞き直しは不要
+  // 【2026-09-07改訂】4秒経てば自動的に進むが、早く読み終えた人向けに、ボタンを押せば
+  // 待たずに進めるようにしておく（本人指示の「4秒後に自動遷移」を基本にしつつ、
+  // 待たされている感覚を減らすための補助。ゲームルール・結果には影響しない）。
   questionElements.nextButton.hidden = false;
-  questionElements.nextButton.disabled = true;
-  questionElements.nextButton.textContent =
-    currentIndex + 1 >= questions.length ? "結果を見る" : "次の問題へ";
-  clearTimeout(nextButtonEnableTimerId);
-  nextButtonEnableTimerId = setTimeout(() => {
-    questionElements.nextButton.disabled = false;
-  }, NEXT_BUTTON_ENABLE_DELAY_MS);
+  questionElements.nextButton.textContent = currentIndex + 1 >= questions.length ? "結果を見る" : "次の問題へ";
+  clearTimeout(autoAdvanceTimerId);
+  autoAdvanceTimerId = setTimeout(() => {
+    advanceToNextQuestionOrFinish();
+  }, AUTO_ADVANCE_DELAY_MS);
 }
 
 // 選択肢一覧を隠し、答え合わせカードへ切り替える（js/onlineLyricsQuizBattleScreen.jsの

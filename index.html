@@ -2693,6 +2693,9 @@
               <input id="instant-challenge-answer-search-input" class="lyrics-quiz-answer-search-input" type="text" placeholder="曲名で検索">
               <span id="instant-challenge-answer-count" class="lyrics-quiz-answer-count">0曲</span>
             </div>
+            <!-- 【2026-09-07新設・本人指示：50音UIの共通展開】歌詞クイズ対戦の全曲検索と
+                 同じ50音ジャンプバー（js/answerPoolBrowseUi.js参照）。 -->
+            <div id="instant-challenge-answer-jump-bar" class="online-lyrics-battle-answer-jump-bar" hidden></div>
             <div id="instant-challenge-answer-list" class="lyrics-quiz-answer-list"></div>
             <!-- 【2026-09-07新設・本人指示：答え合わせUIの統一】回答確定後、選択肢一覧を
                  隠してこのカードへ切り替える（歌詞クイズ対戦の答え合わせカードと同じ設計・
@@ -3507,6 +3510,14 @@
         <button id="online-battle-result-rematch-button" class="primary-button" type="button">もう一度</button>
         <button id="online-battle-result-back-to-lobby-button" class="secondary-button" type="button">ルーム設定に戻る</button>
       </div>
+      <!-- 【2026-09-07新設・本人指示：ゲスト結果画面】ホスト専用の「もう一度」「ルーム設定に
+           戻る」の代わりに、ゲストにはホストの操作を待っている案内と「ルームから退出」を
+           表示する。上部の「ホームへ戻る」は在籍を維持したまま画面だけ戻る操作
+           （js/onlineBattleScreen.js参照）、こちらは完全離脱の操作、と役割を分ける。 -->
+      <div id="online-battle-result-guest-actions" hidden>
+        <p class="online-battle-lead-text">ホストの選択を待っています…</p>
+        <button id="online-battle-result-leave-button" class="secondary-button" type="button">ルームから退出</button>
+      </div>
     </section>
 
     <!-- 【2026-08-30新設、本人指示：観戦機能】試合中に参加したプレイヤー向けの観戦画面。
@@ -3558,6 +3569,8 @@
               <input id="online-instant-battle-answer-search-input" class="lyrics-quiz-answer-search-input" type="text" placeholder="曲名で検索">
               <span id="online-instant-battle-answer-count" class="lyrics-quiz-answer-count">0曲</span>
             </div>
+            <!-- 【2026-09-07新設・本人指示：50音UIの共通展開】 -->
+            <div id="online-instant-battle-answer-jump-bar" class="online-lyrics-battle-answer-jump-bar" hidden></div>
             <div id="online-instant-battle-answer-list" class="lyrics-quiz-answer-list"></div>
             <!-- 【2026-09-07新設・本人指示：答え合わせUIの統一】js/instantChallengeScreen.jsと
                  同じ設計。回答確定後、選択肢一覧を隠してこのカードへ切り替える。 -->
@@ -3605,6 +3618,8 @@
               <input id="online-instant-coop-battle-answer-search-input" class="lyrics-quiz-answer-search-input" type="text" placeholder="曲名で検索">
               <span id="online-instant-coop-battle-answer-count" class="lyrics-quiz-answer-count">0曲</span>
             </div>
+            <!-- 【2026-09-07新設・本人指示：50音UIの共通展開】 -->
+            <div id="online-instant-coop-battle-answer-jump-bar" class="online-lyrics-battle-answer-jump-bar" hidden></div>
             <div id="online-instant-coop-battle-answer-list" class="lyrics-quiz-answer-list"></div>
             <button id="online-instant-coop-battle-unknown-button" class="secondary-button" type="button">🤷 わからない・ギブアップ</button>
           </div>
@@ -3659,6 +3674,11 @@
       <div id="online-instant-coop-battle-result-host-actions" class="button-row" hidden>
         <button id="online-instant-coop-battle-result-rematch-button" class="primary-button" type="button">もう一度</button>
         <button id="online-instant-coop-battle-result-back-to-lobby-button" class="secondary-button" type="button">ルーム設定に戻る</button>
+      </div>
+      <!-- 【2026-09-07新設・本人指示：ゲスト結果画面】js/onlineBattleScreen.jsと同じ設計。 -->
+      <div id="online-instant-coop-battle-result-guest-actions" hidden>
+        <p class="online-battle-lead-text">ホストの選択を待っています…</p>
+        <button id="online-instant-coop-battle-result-leave-button" class="secondary-button" type="button">ルームから退出</button>
       </div>
     </section>
 
@@ -3748,6 +3768,11 @@
       <div id="online-lyrics-battle-result-host-actions" class="button-row" hidden>
         <button id="online-lyrics-battle-result-rematch-button" class="primary-button" type="button">もう一度</button>
         <button id="online-lyrics-battle-result-back-to-lobby-button" class="secondary-button" type="button">ルーム設定に戻る</button>
+      </div>
+      <!-- 【2026-09-07新設・本人指示：ゲスト結果画面】js/onlineBattleScreen.jsと同じ設計。 -->
+      <div id="online-lyrics-battle-result-guest-actions" hidden>
+        <p class="online-battle-lead-text">ホストの選択を待っています…</p>
+        <button id="online-lyrics-battle-result-leave-button" class="secondary-button" type="button">ルームから退出</button>
       </div>
     </section>
 
@@ -5033,6 +5058,33 @@
            ので混同しない）。称号を1つも持っていない人には表示しない。 -->
       <button id="fan-profile-detail-all-toggle" class="fan-profile-detail-all-toggle" type="button" hidden>すべての称号を見る ＞</button>
       <div id="fan-profile-detail-achievements" class="fan-profile-detail-all-achievements" hidden></div>
+    </div>
+  </div>
+
+  <!-- 【2026-09-07新設・本人指示：ルーム参加者プロフィール】オンライン対戦ロビーで
+       参加者の名前をタップしたときに見せる、簡易プロフィール。既存の「みんなのプロフィール」
+       詳細モーダル（fan-profile-detail-modal、上記）と同じ見た目・同じCSSクラスを再利用しつつ、
+       表示項目は本人指示どおり「表示名・推し・獲得済み称号」だけに絞る（未獲得称号を含む
+       全一覧・管理者削除ボタン・称号一覧画面リンクは持たない、READY等ルーム参加状態には
+       一切触れない読み取り専用モーダル）。 -->
+  <div id="online-lobby-profile-modal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="online-lobby-profile-name">
+      <button id="online-lobby-profile-close" class="modal-close-button" type="button" aria-label="閉じる">×</button>
+      <div class="fan-profile-detail-header">
+        <span id="online-lobby-profile-swatch" class="fan-profile-detail-swatch"></span>
+        <div class="fan-profile-detail-header-text">
+          <h2 id="online-lobby-profile-name"></h2>
+          <p id="online-lobby-profile-oshi" class="fan-profile-detail-oshi"></p>
+        </div>
+      </div>
+
+      <p id="online-lobby-profile-loading" class="fan-profiles-loading" hidden>読み込み中…</p>
+      <p id="online-lobby-profile-unavailable" class="fan-profiles-empty" hidden>この参加者はまだプロフィールを公開していません。</p>
+
+      <div id="online-lobby-profile-body" hidden>
+        <p id="online-lobby-profile-achievement-count" class="fan-profile-detail-achievement-count"></p>
+        <div id="online-lobby-profile-summary"></div>
+      </div>
     </div>
   </div>
 

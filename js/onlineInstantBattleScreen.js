@@ -31,7 +31,12 @@ import {
 } from "./randomPlaybackEngine.js";
 import { playSongFromRandomPosition, stopAudio } from "./audio.js";
 import { LARGE_ANSWER_POOL_THRESHOLD } from "./lyricsQuizEngine.js";
-import { normalizeForSearch, songMatchesSearch } from "./songlist.js";
+import {
+  createAnswerPoolBrowseState,
+  resetAnswerPoolBrowseState,
+  filterAnswerPool,
+  renderAnswerJumpBar,
+} from "./answerPoolBrowseUi.js";
 import { buildQuestions, createResult, MAX_REPLAY_COUNT_PER_QUESTION } from "./battleModes/instantBattleMode.js";
 import { runLocalReplayCountdown, cancelLocalReplayCountdown } from "./localReplayCountdown.js";
 import { promptReturnToLobby } from "./onlineBattleLobbyReturnPrompt.js";
@@ -51,6 +56,8 @@ let answers = []; // { songId, isCorrect, replayCount }[]
 let replayCounts = [];
 let hasAnsweredCurrentQuestion = false;
 let matchStartedAtMs = 0;
+// 【2026-09-07新設・本人指示：50音UIの共通展開】
+const answerBrowseState = createAnswerPoolBrowseState();
 let isCountdownActive = false; // 【2026-09-05新設】カウントダウン中の連打・二重再生を防ぐ
 // 【2026-09-07新設・本人指示：カウントダウン速度の統一】js/instantChallengeScreen.jsの
 // isFirstQuestionOfRunと全く同じ理由・同じ仕組み（画面遷移アニメーションとの競合を避ける）。
@@ -96,10 +103,15 @@ export function initOnlineInstantBattleScreens(newElements) {
   });
 
   elements.answerSearchInput.addEventListener("input", () => {
-    renderAnswerButtons(questions[currentIndex].answerPool, elements.answerSearchInput.value);
+    answerBrowseState.searchQuery = elements.answerSearchInput.value;
+    answerBrowseState.jumpRowKey = null;
+    renderAnswerButtons(questions[currentIndex].answerPool);
   });
 
+  // 【2026-09-07改訂・本人指示：答え合わせ4秒後に自動遷移が正式仕様】js/instantChallengeScreen.js
+  // と同じ理由で、押した時点で保留中の自動遷移タイマーを止めてから進める（二重実行防止）。
   elements.nextButton.addEventListener("click", () => {
+    clearTimeout(autoAdvanceTimerId);
     advanceToNextQuestionOrFinish();
   });
 }
@@ -108,6 +120,7 @@ export function initOnlineInstantBattleScreens(newElements) {
 export function resetOnlineInstantBattleState() {
   stopAudio();
   cancelLocalReplayCountdown();
+  clearTimeout(autoAdvanceTimerId);
   isCountdownActive = false;
   currentRoomId = null;
   currentMatchId = null;
@@ -225,7 +238,7 @@ function renderCurrentQuestion() {
   hasAnsweredCurrentQuestion = false;
   elements.progress.textContent = `第${currentIndex + 1}問 / ${questions.length}問`;
   if (elements.answerReveal) elements.answerReveal.hidden = true;
-  clearTimeout(nextButtonEnableTimerId);
+  clearTimeout(autoAdvanceTimerId);
   renderAnswerArea(questions[currentIndex]);
 
   elements.replayButton.hidden = false;
@@ -238,24 +251,25 @@ function renderCurrentQuestion() {
 function renderAnswerArea(question) {
   const pool = question.answerPool;
   const isLargePool = pool.length >= LARGE_ANSWER_POOL_THRESHOLD;
+  // 【2026-09-07新設・本人指示：検索状態を毎問題完全リセット】
+  resetAnswerPoolBrowseState(answerBrowseState);
   elements.answerSearchRow.hidden = !isLargePool;
   if (isLargePool) {
     elements.answerSearchInput.value = "";
     elements.answerCount.textContent = `${pool.length}曲`;
   }
-  renderAnswerButtons(pool, "");
-  // 【2026-09-07新設・本人指示：検索状態を毎問題完全リセット】選択肢一覧のスクロール位置も
-  // 新しい問題ごとに先頭へ戻す。
+  if (elements.answerJumpBar) {
+    elements.answerJumpBar.hidden = !isLargePool;
+    if (isLargePool) renderAnswerJumpBar(elements.answerJumpBar, answerBrowseState, () => renderAnswerButtons(pool));
+  }
+  renderAnswerButtons(pool);
+  // 選択肢一覧のスクロール位置も、新しい問題ごとに先頭へ戻す。
   elements.answerList.scrollTop = 0;
   elements.answerList.hidden = false;
 }
 
-function renderAnswerButtons(pool, searchQuery) {
-  const normalizedQuery = normalizeForSearch(searchQuery);
-  const filtered =
-    normalizedQuery === ""
-      ? pool
-      : pool.filter((song) => songMatchesSearch(song.title, song.searchReading, song.searchAliases, normalizedQuery));
+function renderAnswerButtons(pool) {
+  const filtered = filterAnswerPool(pool, answerBrowseState);
 
   elements.answerList.innerHTML = "";
   filtered.forEach((song) => {
@@ -276,10 +290,12 @@ function renderAnswerButtons(pool, searchQuery) {
   });
 }
 
-// 答え合わせカードを最低4秒読んでから「次の問題へ」を押せるようにするための猶予
-// （js/instantChallengeScreen.jsと同じ理由・同じ値）。
-const NEXT_BUTTON_ENABLE_DELAY_MS = 4000;
-let nextButtonEnableTimerId = null;
+// 答え合わせカードを約4秒表示してから自動的に次の問題（最終問なら結果送信）へ進む
+// までの待ち時間（js/instantChallengeScreen.jsのAUTO_ADVANCE_DELAY_MSと同じ理由・同じ値。
+// 2026-09-07再改訂・本人指示：ChatGPTと確定した最新仕様で「手動ボタン必須」から
+// 「4秒後に自動遷移」へ変更した）。
+const AUTO_ADVANCE_DELAY_MS = 4000;
+let autoAdvanceTimerId = null;
 
 // 【2026-09-07改訂・本人指示：答え合わせUIの統一】色（is-correct/is-wrong）だけに頼らず、
 // 選択肢一覧そのものを答え合わせカードへ切り替える（js/instantChallengeScreen.jsと同じ設計）。
@@ -294,13 +310,14 @@ function handleAnswerSelected(selectedSongId, buttonElement) {
   renderAnswerReveal({ isCorrect, correctTitle: question.song.title, mySelectedSongId: selectedSongId, pool: question.answerPool });
 
   elements.replayButton.disabled = true; // 正解が確定した後の聞き直しは不要
+  // 4秒経てば自動的に進むが、早く読み終えた人向けに、ボタンを押せば待たずに進められる
+  // （js/instantChallengeScreen.jsと同じ設計）。
   elements.nextButton.hidden = false;
-  elements.nextButton.disabled = true;
   elements.nextButton.textContent = currentIndex + 1 >= questions.length ? "結果を送信する" : "次の問題へ";
-  clearTimeout(nextButtonEnableTimerId);
-  nextButtonEnableTimerId = setTimeout(() => {
-    elements.nextButton.disabled = false;
-  }, NEXT_BUTTON_ENABLE_DELAY_MS);
+  clearTimeout(autoAdvanceTimerId);
+  autoAdvanceTimerId = setTimeout(() => {
+    advanceToNextQuestionOrFinish();
+  }, AUTO_ADVANCE_DELAY_MS);
 
   // 他プレイヤーの待機画面に進捗を反映する（fire-and-forget。js/onlineBattle.jsの
   // submitAnswerProgress参照：内部で全て握りつぶし、rejectしない）。

@@ -159,6 +159,7 @@ import {
   reportOnlineBattleProgress,
   quitOnlineBattleDuringQuiz,
   leaveOnlineBattleRoomView,
+  leaveOnlineBattleRoomCompletely,
 } from "./onlineBattleScreen.js";
 import { initOnlineLyricsQuizBattleScreens } from "./onlineLyricsQuizBattleScreen.js";
 import { initOnlineInstantBattleScreens } from "./onlineInstantBattleScreen.js";
@@ -1004,6 +1005,21 @@ const onlineBattleResultHomeLinkElement = document.getElementById("online-battle
 const onlineBattleResultHostActionsElement = document.getElementById("online-battle-result-host-actions");
 const onlineBattleResultRematchButtonElement = document.getElementById("online-battle-result-rematch-button");
 const onlineBattleResultBackToLobbyButtonElement = document.getElementById("online-battle-result-back-to-lobby-button");
+// 【2026-09-07新設、本人指示：ゲスト結果画面】
+const onlineBattleResultGuestActionsElement = document.getElementById("online-battle-result-guest-actions");
+const onlineBattleResultLeaveButtonElement = document.getElementById("online-battle-result-leave-button");
+// 【2026-09-07新設・本人指示：ルーム参加者プロフィール】ロビーで参加者名をタップして
+// 見る簡易プロフィールモーダル（js/onlineBattleScreen.js制御。全モードのロビーで共有）。
+const onlineLobbyProfileModalElement = document.getElementById("online-lobby-profile-modal");
+const onlineLobbyProfileCloseElement = document.getElementById("online-lobby-profile-close");
+const onlineLobbyProfileSwatchElement = document.getElementById("online-lobby-profile-swatch");
+const onlineLobbyProfileNameElement = document.getElementById("online-lobby-profile-name");
+const onlineLobbyProfileOshiElement = document.getElementById("online-lobby-profile-oshi");
+const onlineLobbyProfileLoadingElement = document.getElementById("online-lobby-profile-loading");
+const onlineLobbyProfileUnavailableElement = document.getElementById("online-lobby-profile-unavailable");
+const onlineLobbyProfileBodyElement = document.getElementById("online-lobby-profile-body");
+const onlineLobbyProfileAchievementCountElement = document.getElementById("online-lobby-profile-achievement-count");
+const onlineLobbyProfileSummaryElement = document.getElementById("online-lobby-profile-summary");
 // 【2026-09-05新設、本人指示：対戦中にルーム設定へ戻る機能】複数の対戦画面で共有する、
 // 「ルーム設定へ戻る」の確認モーダル（js/onlineBattleLobbyReturnPrompt.js参照）。
 const onlineBattleReturnToLobbyModalElement = document.getElementById("online-battle-return-to-lobby-confirm-modal");
@@ -1037,6 +1053,7 @@ const onlineInstantBattleReplayButtonElement = document.getElementById("online-i
 const onlineInstantBattleAnswerSearchRowElement = document.getElementById("online-instant-battle-answer-search-row");
 const onlineInstantBattleAnswerSearchInputElement = document.getElementById("online-instant-battle-answer-search-input");
 const onlineInstantBattleAnswerCountElement = document.getElementById("online-instant-battle-answer-count");
+const onlineInstantBattleAnswerJumpBarElement = document.getElementById("online-instant-battle-answer-jump-bar");
 const onlineInstantBattleAnswerListElement = document.getElementById("online-instant-battle-answer-list");
 const onlineInstantBattleAnswerRevealElement = document.getElementById("online-instant-battle-answer-reveal");
 const onlineInstantBattleAnswerRevealStatusElement = document.getElementById("online-instant-battle-answer-reveal-status");
@@ -1061,6 +1078,7 @@ const onlineInstantCoopAnswerSectionElement = document.getElementById("online-in
 const onlineInstantCoopAnswerSearchRowElement = document.getElementById("online-instant-coop-battle-answer-search-row");
 const onlineInstantCoopAnswerSearchInputElement = document.getElementById("online-instant-coop-battle-answer-search-input");
 const onlineInstantCoopAnswerCountElement = document.getElementById("online-instant-coop-battle-answer-count");
+const onlineInstantCoopAnswerJumpBarElement = document.getElementById("online-instant-coop-battle-answer-jump-bar");
 const onlineInstantCoopAnswerListElement = document.getElementById("online-instant-coop-battle-answer-list");
 const onlineInstantCoopUnknownButtonElement = document.getElementById("online-instant-coop-battle-unknown-button");
 const onlineInstantCoopIdleNoticeElement = document.getElementById("online-instant-coop-battle-idle-notice");
@@ -1075,6 +1093,8 @@ const onlineInstantCoopQuitCancelButtonElement = document.getElementById("online
 const onlineInstantCoopQuitConfirmButtonElement = document.getElementById("online-instant-coop-battle-quit-confirm-button");
 const onlineInstantCoopResultHomeLinkElement = document.getElementById("online-instant-coop-battle-result-home-link");
 const onlineInstantCoopResultHostActionsElement = document.getElementById("online-instant-coop-battle-result-host-actions");
+const onlineInstantCoopResultGuestActionsElement = document.getElementById("online-instant-coop-battle-result-guest-actions");
+const onlineInstantCoopResultLeaveButtonElement = document.getElementById("online-instant-coop-battle-result-leave-button");
 const onlineInstantCoopResultBackToLobbyButtonElement = document.getElementById("online-instant-coop-battle-result-back-to-lobby-button");
 const onlineInstantCoopResultCorrectCountElement = document.getElementById("online-instant-coop-battle-result-correct-count");
 const onlineInstantCoopResultMemberListElement = document.getElementById("online-instant-coop-battle-result-member-list");
@@ -1146,6 +1166,8 @@ const onlineLyricsBattleQuitCancelButtonElement = document.getElementById("onlin
 const onlineLyricsBattleQuitConfirmButtonElement = document.getElementById("online-lyrics-battle-quit-confirm-button");
 const onlineLyricsBattleResultHomeLinkElement = document.getElementById("online-lyrics-battle-result-home-link");
 const onlineLyricsBattleResultHostActionsElement = document.getElementById("online-lyrics-battle-result-host-actions");
+const onlineLyricsBattleResultGuestActionsElement = document.getElementById("online-lyrics-battle-result-guest-actions");
+const onlineLyricsBattleResultLeaveButtonElement = document.getElementById("online-lyrics-battle-result-leave-button");
 const onlineLyricsBattleResultBackToLobbyButtonElement = document.getElementById("online-lyrics-battle-result-back-to-lobby-button");
 const onlineLyricsBattleResultRuleNoteElement = document.getElementById("online-lyrics-battle-result-rule-note");
 const onlineLyricsBattleResultTableElement = document.getElementById("online-lyrics-battle-result-table");
@@ -1360,6 +1382,7 @@ const instantChallengeProgressElement = document.getElementById("instant-challen
 const instantChallengeAnswerSearchRowElement = document.getElementById("instant-challenge-answer-search-row");
 const instantChallengeAnswerSearchInputElement = document.getElementById("instant-challenge-answer-search-input");
 const instantChallengeAnswerCountElement = document.getElementById("instant-challenge-answer-count");
+const instantChallengeAnswerJumpBarElement = document.getElementById("instant-challenge-answer-jump-bar");
 const instantChallengeAnswerListElement = document.getElementById("instant-challenge-answer-list");
 const instantChallengeAnswerRevealElement = document.getElementById("instant-challenge-answer-reveal");
 const instantChallengeAnswerRevealStatusElement = document.getElementById("instant-challenge-answer-reveal-status");
@@ -3891,6 +3914,7 @@ initInstantChallengeQuestionScreen({
   answerSearchRow: instantChallengeAnswerSearchRowElement,
   answerSearchInput: instantChallengeAnswerSearchInputElement,
   answerCount: instantChallengeAnswerCountElement,
+  answerJumpBar: instantChallengeAnswerJumpBarElement,
   answerList: instantChallengeAnswerListElement,
   answerReveal: instantChallengeAnswerRevealElement,
   answerRevealStatus: instantChallengeAnswerRevealStatusElement,
@@ -5420,6 +5444,18 @@ initOnlineBattleScreens({
   resultHostActions: onlineBattleResultHostActionsElement,
   resultRematchButton: onlineBattleResultRematchButtonElement,
   resultBackToLobbyButton: onlineBattleResultBackToLobbyButtonElement,
+  resultGuestActions: onlineBattleResultGuestActionsElement,
+  resultLeaveButton: onlineBattleResultLeaveButtonElement,
+  lobbyProfileModal: onlineLobbyProfileModalElement,
+  lobbyProfileClose: onlineLobbyProfileCloseElement,
+  lobbyProfileSwatch: onlineLobbyProfileSwatchElement,
+  lobbyProfileName: onlineLobbyProfileNameElement,
+  lobbyProfileOshi: onlineLobbyProfileOshiElement,
+  lobbyProfileLoading: onlineLobbyProfileLoadingElement,
+  lobbyProfileUnavailable: onlineLobbyProfileUnavailableElement,
+  lobbyProfileBody: onlineLobbyProfileBodyElement,
+  lobbyProfileAchievementCount: onlineLobbyProfileAchievementCountElement,
+  lobbyProfileSummary: onlineLobbyProfileSummaryElement,
   spectatorLeaveButton: onlineBattleSpectatorLeaveButtonElement,
   spectatorGameModeText: onlineBattleSpectatorGameModeElement,
   spectatorPlayerCount: onlineBattleSpectatorPlayerCountElement,
@@ -5468,6 +5504,8 @@ initOnlineLyricsQuizBattleScreens({
   quitConfirmButton: onlineLyricsBattleQuitConfirmButtonElement,
   resultHomeLink: onlineLyricsBattleResultHomeLinkElement,
   resultHostActions: onlineLyricsBattleResultHostActionsElement,
+  resultGuestActions: onlineLyricsBattleResultGuestActionsElement,
+  resultLeaveButton: onlineLyricsBattleResultLeaveButtonElement,
   resultRuleNote: onlineLyricsBattleResultRuleNoteElement,
   resultTableContainer: onlineLyricsBattleResultTableElement,
   resultRematchButton: onlineLyricsBattleResultRematchButtonElement,
@@ -5481,6 +5519,7 @@ initOnlineLyricsQuizBattleScreens({
   lyricsSettingsError: onlineLyricsBattleSettingsErrorElement,
   onQuitDuringBattle: () => quitOnlineBattleDuringQuiz(),
   onLeaveResultToHome: () => leaveOnlineBattleRoomView(),
+  onLeaveRoomCompletely: () => leaveOnlineBattleRoomCompletely(),
 });
 
 // オンライン対戦「一瞬バトル」専用画面（2026-08-30新設、本人指示：19-3章）。
@@ -5503,6 +5542,7 @@ initOnlineInstantBattleScreens({
   answerSearchRow: onlineInstantBattleAnswerSearchRowElement,
   answerSearchInput: onlineInstantBattleAnswerSearchInputElement,
   answerCount: onlineInstantBattleAnswerCountElement,
+  answerJumpBar: onlineInstantBattleAnswerJumpBarElement,
   answerList: onlineInstantBattleAnswerListElement,
   answerReveal: onlineInstantBattleAnswerRevealElement,
   answerRevealStatus: onlineInstantBattleAnswerRevealStatusElement,
@@ -5535,6 +5575,7 @@ initOnlineInstantCoopBattleScreens({
   answerSearchRow: onlineInstantCoopAnswerSearchRowElement,
   answerSearchInput: onlineInstantCoopAnswerSearchInputElement,
   answerCount: onlineInstantCoopAnswerCountElement,
+  answerJumpBar: onlineInstantCoopAnswerJumpBarElement,
   answerList: onlineInstantCoopAnswerListElement,
   unknownButton: onlineInstantCoopUnknownButtonElement,
   idleNotice: onlineInstantCoopIdleNoticeElement,
@@ -5546,12 +5587,15 @@ initOnlineInstantCoopBattleScreens({
   revealTieBreakNotice: onlineInstantCoopRevealTieBreakNoticeElement,
   resultHomeLink: onlineInstantCoopResultHomeLinkElement,
   resultHostActions: onlineInstantCoopResultHostActionsElement,
+  resultGuestActions: onlineInstantCoopResultGuestActionsElement,
+  resultLeaveButton: onlineInstantCoopResultLeaveButtonElement,
   resultCorrectCount: onlineInstantCoopResultCorrectCountElement,
   resultMemberList: onlineInstantCoopResultMemberListElement,
   resultRematchButton: onlineInstantCoopResultRematchButtonElement,
   resultBackToLobbyButton: onlineInstantCoopResultBackToLobbyButtonElement,
   onQuitDuringBattle: () => quitOnlineBattleDuringQuiz(),
   onLeaveResultToHome: () => leaveOnlineBattleRoomView(),
+  onLeaveRoomCompletely: () => leaveOnlineBattleRoomCompletely(),
 });
 
 // オンライン対戦：出題する曲を選ぶ画面（2026-08-08新設）。イントロ対戦・ランダム再生対戦・

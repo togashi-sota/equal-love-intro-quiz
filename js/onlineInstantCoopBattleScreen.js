@@ -69,7 +69,12 @@ import {
 } from "./randomPlaybackEngine.js";
 import { playSongFromRandomPosition, stopAudio } from "./audio.js";
 import { LARGE_ANSWER_POOL_THRESHOLD } from "./lyricsQuizEngine.js";
-import { normalizeForSearch, songMatchesSearch } from "./songlist.js";
+import {
+  createAnswerPoolBrowseState,
+  resetAnswerPoolBrowseState,
+  filterAnswerPool,
+  renderAnswerJumpBar,
+} from "./answerPoolBrowseUi.js";
 import { QUESTION_SOURCE_TYPE } from "./questionSource.js";
 import { CATEGORY_LABELS, QUESTION_COUNT_LABELS } from "./localBattleScreen.js";
 import { getMemberById } from "./memberUtils.js";
@@ -112,6 +117,9 @@ let lastActivityReportedAtMs = 0;
 let lastActivityReportedQIndex = -1;
 const ACTIVITY_REPORT_THROTTLE_MS = 15000;
 
+// 【2026-09-07新設・本人指示：50音UIの共通展開】
+const answerBrowseState = createAnswerPoolBrowseState();
+
 function clearElement(element) {
   while (element.firstChild) element.removeChild(element.firstChild);
 }
@@ -147,7 +155,9 @@ export function initOnlineInstantCoopBattleScreens(newElements) {
     const question = currentQuestions[qIndex];
     if (!question) return;
     reportMyQuestionActivity();
-    renderAnswerButtons(question.answerPool, elements.answerSearchInput.value, false);
+    answerBrowseState.searchQuery = elements.answerSearchInput.value;
+    answerBrowseState.jumpRowKey = null;
+    renderAnswerButtons(question.answerPool);
   });
 
   // 【2026-09-06新設・3分無操作の放置救済】検索結果一覧をスクロールする操作も、
@@ -197,6 +207,16 @@ export function initOnlineInstantCoopBattleScreens(newElements) {
   elements.resultHomeLink.addEventListener("click", () => {
     stopAllLocalTimers();
     elements.onLeaveResultToHome();
+    elements.navigateTo("start");
+  });
+  // 【2026-09-07新設・本人指示：ルームから退出＝完全離脱】js/onlineBattleScreen.jsの
+  // 同じボタンと同じ考え方。実処理はonLeaveRoomCompletely()経由で
+  // leaveOnlineBattleRoomCompletely()（あちらに集約）を呼ぶ。
+  elements.resultLeaveButton?.addEventListener("click", async () => {
+    stopAllLocalTimers();
+    elements.resultLeaveButton.disabled = true;
+    await elements.onLeaveRoomCompletely();
+    elements.resultLeaveButton.disabled = false;
     elements.navigateTo("start");
   });
   // 【2026-09-05改訂、本人指示】試合後の選択肢を「もう一度」「ルーム設定に戻る」の
@@ -558,12 +578,8 @@ function reportMyQuestionActivity() {
   reportQuestionActivity({ roomId: latestRoom.roomId, matchId: currentMatchId, questionIndex: qIndex });
 }
 
-function renderAnswerButtons(pool, searchQuery, disabled) {
-  const normalizedQuery = normalizeForSearch(searchQuery);
-  const filtered =
-    normalizedQuery === ""
-      ? pool
-      : pool.filter((song) => songMatchesSearch(song.title, song.searchReading, song.searchAliases, normalizedQuery));
+function renderAnswerButtons(pool) {
+  const filtered = filterAnswerPool(pool, answerBrowseState);
 
   elements.answerList.innerHTML = "";
   filtered.forEach((song) => {
@@ -571,7 +587,6 @@ function renderAnswerButtons(pool, searchQuery, disabled) {
     button.type = "button";
     button.className = "choice-button lyrics-quiz-answer-button";
     button.textContent = song.title;
-    button.disabled = disabled;
     // 【2026-09-06新設、本人指示：実機フィードバック②④】一瞬協力は多数決＋タイ時は
     // 決定論的な乱数タイブレークで正誤を決めており、投票の速さは結果に影響しない
     // （js/instantCoopMatchProgress.js参照）ため確認対象。ただしこのモードは全員が
@@ -697,12 +712,10 @@ function renderCurrentQuestionState() {
     lastPlayedRoundNumber = roundNumber;
     elements.error.hidden = true;
     playQuestionAudio(question, qIndex);
-    // 【2026-09-07新設・本人指示：検索状態を毎問題完全リセット】以前はここで検索文字列を
-    // リセットしておらず、elements.answerSearchInput.valueをそのままrenderAnswerButtons()へ
-    // 渡していたため、前の問題で入力した検索語が次の問題にも残ってしまっていた
-    // （js/onlineLyricsQuizBattleScreen.jsは既に対応済みだったが、この一瞬協力だけ
-    // 未対応だった）。検索欄・選択肢一覧のスクロール位置の両方を、新しい問題ごとに
-    // 先頭状態へ戻す。
+    // 【2026-09-07改訂・本人指示：検索状態を毎問題完全リセット／50音UIの共通展開】
+    // 検索文字列・50音ジャンプの選択行・選択肢一覧のスクロール位置を、新しい問題ごとに
+    // 先頭状態へ戻す（js/answerPoolBrowseUi.js参照）。
+    resetAnswerPoolBrowseState(answerBrowseState);
     if (elements.answerSearchInput) elements.answerSearchInput.value = "";
     if (elements.answerList) elements.answerList.scrollTop = 0;
   }
@@ -723,8 +736,14 @@ function renderCurrentQuestionState() {
     const isLargePool = question.answerPool.length >= LARGE_ANSWER_POOL_THRESHOLD;
     elements.answerSearchRow.hidden = !isLargePool;
     if (isLargePool) elements.answerCount.textContent = `${question.answerPool.length}曲`;
+    if (elements.answerJumpBar) {
+      elements.answerJumpBar.hidden = !isLargePool || hasVotedThisRound;
+      if (isLargePool && !hasVotedThisRound) {
+        renderAnswerJumpBar(elements.answerJumpBar, answerBrowseState, () => renderAnswerButtons(question.answerPool));
+      }
+    }
     if (!hasVotedThisRound) {
-      renderAnswerButtons(question.answerPool, elements.answerSearchInput.value, false);
+      renderAnswerButtons(question.answerPool);
     }
     elements.unknownButton.disabled = hasVotedThisRound;
     const players = latestRoom.players || {};
@@ -786,6 +805,9 @@ export function enterInstantCoopResult(room) {
   const isHostOnResultScreen = room.host === myUid;
   elements.resultHostActions.hidden = !isHostOnResultScreen;
   elements.resultHomeLink.hidden = isHostOnResultScreen;
+  // 【2026-09-07新設・本人指示:ゲスト結果画面】ホスト専用ボタンの代わりに、待機案内＋
+  // 「ルームから退出」を見せる（js/onlineBattleScreen.jsの同じ変更と揃えている）。
+  if (elements.resultGuestActions) elements.resultGuestActions.hidden = isHostOnResultScreen;
   elements.resultCorrectCount.textContent = `${teamResult.correctCount} / ${teamResult.totalQuestions}問`;
   // 【2026-09-05改訂】共有再視聴の仕組みを廃止したため、「合計共有再視聴回数」の表示は
   // 削除した（HTML側のelements.resultReplayCount自体も削除済み）。

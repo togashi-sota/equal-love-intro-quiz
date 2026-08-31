@@ -125,6 +125,25 @@ export async function fetchPublicProfileBadgeState(uid) {
   }
 }
 
+// 【2026-09-07新設・本人指示：ルーム参加者プロフィール】ロビーで参加者の名前をタップした
+// ときに使う、UID1件だけの公開プロフィール取得。fetchAllPublicProfiles()（全員分）を
+// 流用せず、必要な1件だけをFirebaseから読む（本人指示：新しいFirebase読み取りパスは
+// 増やさず、既存のpublicProfiles/{uid}・既存のnormalizePublicProfileEntry()をそのまま使う）。
+// 戻り値はfetchAllPublicProfiles()と揃え、{ok:true, profile:null}＝
+// 「取得はできたがこの人はまだプロフィールを公開していない」と、
+// {ok:false, profile:null}＝「通信エラー等で取得自体に失敗した」を区別する。
+export async function fetchPublicProfileByUid(uid) {
+  try {
+    await authReady;
+    const snapshot = await get(ref(database, `publicProfiles/${uid}`));
+    if (!snapshot.exists()) return { ok: true, profile: null };
+    return { ok: true, profile: normalizePublicProfileEntry(uid, snapshot.val()) };
+  } catch (error) {
+    console.warn("参加者プロフィールの取得に失敗しました", error);
+    return { ok: false, profile: null };
+  }
+}
+
 // 自分の現在のUID（匿名認証ID）を返す（2026-08-16追加）。フレンド画面の
 // 「🆔 あなたのID」表示と、管理者判定（js/adminConfig.jsのADMIN_UIDとの一致確認）の
 // 両方で使う共通関数。認証待ちを含むため非同期。

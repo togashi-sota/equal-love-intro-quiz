@@ -64,6 +64,12 @@ import { computeNormalFinalRecordMs } from "./localBattleResult.js";
 import { MEMBERS } from "./data/members.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
 import { getMemberById } from "./memberUtils.js";
+// 【2026-09-07新設・本人指示：ルーム参加者プロフィール】ロビー参加者の名前タップで
+// 簡易プロフィールを見る機能。既存の「みんなのプロフィール」（js/fanProfilesScreen.js）と
+// 同じ部品（DOM構築はjs/fanProfileCard.js、Firebase取得はjs/publicProfileSync.js）を
+// そのまま再利用し、新しい取得ロジック・新しいカード見た目は作らない。
+import { fetchPublicProfileByUid } from "./publicProfileSync.js";
+import { buildOshiSwatch, buildAchievementCountText, buildFriendAchievementSummary } from "./fanProfileCard.js";
 // 【2026-08-08新設・Phase6】歌詞クイズ対戦だけ、進行の前提（全員同期・ホスト主導）が
 // 他のgameModeと根本的に異なるため、専用の画面ファイルへ委譲する（js/onlineLyricsQuizBattleScreen.js
 // 冒頭コメント参照）。依存は一方向（このファイル→あちら）に保ち、あちらからはこのファイルを
@@ -207,6 +213,57 @@ let currentCommonSongPool = new Set();
 let currentMatchId = null; // 今参加している試合のID（開始〜結果画面まで保持）
 let currentMatchTotalQuestions = 0; // 今の試合の全問題数（進捗表示の分母、buildQuestionsForModeの結果の長さ）
 
+// 【2026-09-07新設・本人指示：ルーム参加者プロフィール】ロビーで参加者の名前をタップした
+// ときに呼ぶ。FirebaseのpublicProfiles/{uid}を1件だけ読み、簡易プロフィールモーダルに
+// 表示する（表示名・推し・獲得済み称号のみ。READY等の参加状態は一切変更しない読み取り専用）。
+// 呼び出し中に別の参加者を連続でタップされても、最後にタップした人の結果だけが
+// 画面に反映されるよう、リクエストごとに世代番号を振って古い応答を無視する。
+let lobbyProfileRequestToken = 0;
+
+async function openLobbyParticipantProfile(player) {
+  if (!elements.lobbyProfileModal) return;
+  const requestToken = ++lobbyProfileRequestToken;
+
+  elements.lobbyProfileName.textContent = player.name;
+  const oshiMember = player.oshiMemberId ? getMemberById(MEMBERS, player.oshiMemberId) : null;
+  elements.lobbyProfileOshi.textContent = oshiMember ? `推し：${oshiMember.name}` : "推し：未設定";
+  elements.lobbyProfileSwatch.innerHTML = "";
+  elements.lobbyProfileSwatch.appendChild(buildOshiSwatch(MEMBERS, player.oshiMemberId, {}));
+
+  elements.lobbyProfileBody.hidden = true;
+  elements.lobbyProfileUnavailable.hidden = true;
+  elements.lobbyProfileLoading.hidden = false;
+  elements.lobbyProfileModal.hidden = false;
+
+  const { profile } = await fetchPublicProfileByUid(player.uid);
+  if (requestToken !== lobbyProfileRequestToken) return; // その間に別の参加者がタップされていた
+
+  elements.lobbyProfileLoading.hidden = true;
+  if (!profile) {
+    elements.lobbyProfileUnavailable.hidden = false;
+    return;
+  }
+  elements.lobbyProfileBody.hidden = false;
+  // 公開プロフィールが実際に取得できた時点で、王冠・ダイヤ等の称号バッジ装飾も
+  // 正しい状態で描き直す（読み込み中に表示していた枠だけのスウォッチを更新する）。
+  elements.lobbyProfileSwatch.innerHTML = "";
+  elements.lobbyProfileSwatch.appendChild(
+    buildOshiSwatch(MEMBERS, profile.oshiMemberId, {
+      hasNoMissMaster: profile.hasNoMissMaster,
+      hasEqualLoveMaster: profile.hasEqualLoveMaster,
+      hasEqualLoveComplete: profile.hasEqualLoveComplete,
+    })
+  );
+  elements.lobbyProfileAchievementCount.textContent = buildAchievementCountText(profile.unlockedAchievementIds);
+  elements.lobbyProfileSummary.innerHTML = "";
+  elements.lobbyProfileSummary.appendChild(buildFriendAchievementSummary(profile.unlockedAchievementIds));
+}
+
+function closeLobbyParticipantProfile() {
+  if (!elements.lobbyProfileModal) return;
+  elements.lobbyProfileModal.hidden = true;
+}
+
 // 推し（最推し）が設定されていれば、色ドットの要素を1つ作って返す。未設定・不正な値
 // （既存のメンバーデータに一致しない等）の場合はnullを返す（エラーにせず何も表示しない）。
 // ロビー・待機画面・結果画面のいずれも同じ見た目のドットを使うため、共通化している。
@@ -246,10 +303,31 @@ export function getCurrentOnlineRoomId() {
 // resultHomeLinkハンドラ（下記）と全く同じ処理を、js/onlineLyricsQuizBattleScreen.js側の
 // 「ホームへ戻る」からも呼べるように公開する（あちらはこのファイルをimportしない設計の
 // ため、js/main.js経由のコールバックとして渡す）。
+// 【2026-09-01改訂、本人指示】「ホームへ戻る」はルーム退出ではなく、
+// ルームに在籍したままホーム画面を見に行くだけの操作。
+// Firebaseのルーム購読（listenToRoom）は止めずに維持することで、
+// renderLobby()内の既存のstatusJustChanged自動遷移が働き、
+// ホストが「もう一度」「ルーム設定に戻る」を選んだ時にホームにいる
+// ゲストも自動的に対応する画面へ引き戻される（完全な退出はresultLeaveButton等の
+// 「ルームから退出」操作でのみ行う）。
 export function leaveOnlineBattleRoomView() {
+  resetOnlineBattleMatchState();
+}
+
+// 【2026-09-07新設・本人指示：ルームから退出＝完全離脱】結果画面の「ルームから退出」の
+// 実処理本体。歌詞クイズ・一瞬協力の各結果画面（このファイルをimportしない設計のため、
+// js/main.jsのonLeaveRoomCompletelyコールバック経由で呼ばれる）とも共有する、
+// 唯一の「完全退出」ロジック。既存のロビー退出ボタンと同じ
+// isLeavingIntentionally→leaveRoom()完了を待つ→stopListeningToRoom()の順を守る。
+export async function leaveOnlineBattleRoomCompletely() {
+  if (!currentRoomId) return;
+  isLeavingIntentionally = true;
+  await leaveRoom({ roomId: currentRoomId });
   stopListeningToRoom();
   currentRoomId = null;
+  isLeavingIntentionally = false;
   resetOnlineBattleMatchState();
+  renderLastRoomBanner();
 }
 
 function stopListeningToRoom() {
@@ -968,9 +1046,14 @@ function renderLobby(room) {
     const oshiDot = createOshiDotElement(player.oshiMemberId);
     if (oshiDot) row.appendChild(oshiDot);
 
-    const name = document.createElement("span");
-    name.className = "online-lobby-player-name";
+    // 【2026-09-07新設・本人指示：ルーム参加者プロフィール】名前をタップすると、その人の
+    // 簡易プロフィール（表示名・推し・獲得済み称号）をモーダルで見られる。READY等の
+    // 参加状態には一切触れない、読み取り専用の操作。
+    const name = document.createElement("button");
+    name.type = "button";
+    name.className = "online-lobby-player-name online-lobby-player-name-button";
     name.textContent = player.name + (player.uid === myUid ? "（あなた）" : "");
+    name.addEventListener("click", () => openLobbyParticipantProfile(player));
     row.appendChild(name);
 
     // 【2026-08-30改訂・本人指示】「ホスト」バッジは、実際の権限（room.host）を正として
@@ -1468,6 +1551,9 @@ function goToResultScreen(room) {
   const isHostOnResultScreen = room.host === myUid;
   elements.resultHostActions.hidden = !isHostOnResultScreen;
   elements.resultHomeLink.hidden = isHostOnResultScreen;
+  // 【2026-09-07新設・本人指示：ゲスト結果画面】ホスト専用ボタンの代わりに、待機案内＋
+  // 「ルームから退出」を見せる。
+  if (elements.resultGuestActions) elements.resultGuestActions.hidden = isHostOnResultScreen;
 
   renderSettingsChips(elements.resultConfigSummary, room.settings, room.gameMode);
   elements.resultRuleNote.textContent = getRuleDescription(room.gameMode, room.settings);
@@ -2038,6 +2124,11 @@ export function initOnlineBattleScreens(newElements) {
         const messages = {
           "not-all-ready": "まだ準備が完了していない参加者がいます。",
           "invalid-settings": result.message ?? "対戦設定が正しくありません。設定内容をご確認ください。",
+          // 【2026-09-07修正・本人指示：データ不足の事前警告】以前はここに専用の文言が
+          // 無く、startBattle()が組み立てた具体的な原因メッセージ（共通曲が0曲／
+          // 出題数に対して曲が足りない、の区別つき）が使われず、意味の薄い汎用エラーに
+          // すり替わってしまっていた。result.messageをそのまま使うよう修正。
+          "insufficient-common-songs": result.message ?? "参加者全員が利用できる曲が足りないため、対戦を開始できません。",
           "not-host": "ホストのみ開始できます。",
           "not-found": "ルームが見つかりませんでした。",
           "not-waiting": "この対戦はすでに開始・終了しています。",
@@ -2085,12 +2176,31 @@ export function initOnlineBattleScreens(newElements) {
   // 「ロビーに戻る」のように見せかけの画面遷移をするのではなく、素直にタイトルへ戻り、
   // 再入場時は必ずroom.statusを見て正しい画面へ復帰する設計（前回のルームに戻るボタン、
   // renderLobby()のstatus分岐）に一本化する。
+  // 【2026-09-07改訂・本人指示：ホームへ戻る＝ルーム在籍維持】以前はここでリアルタイム
+  // 監視を止めていたが、「ホームへ戻ってもルームには残ったままにし、ホストが『もう一度』
+  // 『ルーム設定に戻る』を選んだら自動的に呼び戻してほしい」という指示を受け、監視を
+  // 止めずに画面だけホームへ切り替える形に変更した。renderLobby()は今表示中の画面を
+  // 問わず動き続けており、room.statusの変化を検知した瞬間に自動でnavigateTo()する
+  // （goToCountdownScreen・enterOnlineBattlePlay・goToResultScreenへの分岐は
+  // renderLobby()のstatusJustChanged判定を参照。あちらは元々どの画面からでも呼べる
+  // 設計のため、ホーム画面から突然呼ばれても問題なく動く）。「ルームから退出」
+  // （resultLeaveButton、下記）を押した場合だけ、今までどおり監視を止めて完全に離脱する。
   elements.resultHomeLink.addEventListener("click", () => {
-    // ホーム画面にいる間、この部屋のリアルタイム監視を続ける必要は無いため停止する
-    // （再入場時はgoToLobby()が改めてlistenToRoom()し直すので、二重登録の心配もない）。
-    stopListeningToRoom();
-    currentRoomId = null;
     resetOnlineBattleMatchState();
+    elements.navigateTo("start");
+  });
+
+  // 【2026-09-07新設・本人指示：ルームから退出＝完全離脱】ホームへ戻るとは違い、
+  // Firebase上の参加者からも削除し、以後ホストの再戦・設定変更操作の影響を受けなくする。
+  // 既存の「ロビーからの退出」ボタン（lobbyLeaveConfirmButton、上記）と同じ手順
+  // （isLeavingIntentionally→leaveRoom()完了を待つ→stopListeningToRoom()の順）にしている。
+  // 実際の処理はleaveOnlineBattleRoomCompletely()に集約し、歌詞クイズ・一瞬協力の
+  // 結果画面（onLeaveRoomCompletelyコールバック経由）とも共有する。
+  elements.resultLeaveButton?.addEventListener("click", async () => {
+    if (!currentRoomId) return;
+    elements.resultLeaveButton.disabled = true;
+    await leaveOnlineBattleRoomCompletely();
+    elements.resultLeaveButton.disabled = false;
     elements.navigateTo("start");
   });
 
@@ -2121,6 +2231,20 @@ export function initOnlineBattleScreens(newElements) {
   // （js/onlineBattleLobbyReturnPrompt.js）を必ず挟む。
   elements.quizBackToLobbyButton?.addEventListener("click", () => {
     promptReturnToLobby(currentRoomId);
+  });
+
+  // 【2026-09-07新設・本人指示：ルーム参加者プロフィール】閉じるボタン・オーバーレイの
+  // 外側タップ・Escapeキーのいずれでも閉じられるようにする（既存のfan-profile-detail-modal
+  // 等、他のモーダルと同じ操作性に揃える）。
+  elements.lobbyProfileClose?.addEventListener("click", () => closeLobbyParticipantProfile());
+  elements.lobbyProfileModal?.addEventListener("click", (event) => {
+    if (event.target !== elements.lobbyProfileModal) return;
+    closeLobbyParticipantProfile();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    if (!elements.lobbyProfileModal || elements.lobbyProfileModal.hidden) return;
+    closeLobbyParticipantProfile();
   });
 
   renderLastRoomBanner();

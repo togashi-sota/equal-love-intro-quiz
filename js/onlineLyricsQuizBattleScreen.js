@@ -307,6 +307,16 @@ export function initOnlineLyricsQuizBattleScreens(newElements) {
     elements.onLeaveResultToHome();
     elements.navigateTo("start");
   });
+  // 【2026-09-07新設・本人指示：ルームから退出＝完全離脱】js/onlineBattleScreen.jsの
+  // 同じボタンと同じ考え方。実処理はonLeaveRoomCompletely()経由で
+  // leaveOnlineBattleRoomCompletely()（あちらに集約）を呼ぶ。
+  elements.resultLeaveButton?.addEventListener("click", async () => {
+    stopAllLocalTimers();
+    elements.resultLeaveButton.disabled = true;
+    await elements.onLeaveRoomCompletely();
+    elements.resultLeaveButton.disabled = false;
+    elements.navigateTo("start");
+  });
   // 【2026-09-05改訂、本人指示】試合後の選択肢を「もう一度」「ルーム設定に戻る」の
   // 2つ（ホスト専用）へ統一。「もう一度」は確認モーダルを挟まず即座に実行する
   // （js/onlineBattleScreen.jsの同じ変更と揃えている。詳細はそちらのコメント参照）。
@@ -1510,6 +1520,9 @@ export function enterLyricsQuizResult(room) {
   const isHostOnResultScreen = room.host === myUid;
   elements.resultHostActions.hidden = !isHostOnResultScreen;
   elements.resultHomeLink.hidden = isHostOnResultScreen;
+  // 【2026-09-07新設・本人指示：ゲスト結果画面】ホスト専用ボタンの代わりに、待機案内＋
+  // 「ルームから退出」を見せる（js/onlineBattleScreen.jsの同じ変更と揃えている）。
+  if (elements.resultGuestActions) elements.resultGuestActions.hidden = isHostOnResultScreen;
   elements.resultRuleNote.textContent = lyricsQuizBattleMode.getRuleDescription(room.settings);
 
   const rankedEntries = Object.entries(participants).map(([uid, participant]) => ({
