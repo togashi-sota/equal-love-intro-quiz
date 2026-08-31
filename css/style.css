@@ -2111,6 +2111,28 @@ fieldset label:has(input:focus-visible) {
   border: 1px solid rgba(150, 150, 150, 0.35);
 }
 
+/* 【2026-09-08新設・本人指示F：早押し成功表示の再デザイン】早押しバトルで勝者が確定した
+   瞬間だけの専用スタイル。汎用の.error-message/.is-noticeの薄いグレー表示から、
+   答え合わせカード（.lyrics-quiz-answer-reveal）と同じピンク×ゴールド系の配色へ変える
+   ことで、他の「お知らせ」文言と混同せず、「勝った」という特別さが一目で伝わるようにする。 */
+.error-message.is-steal-success {
+  position: relative;
+  color: var(--color-primary-dark);
+  background: linear-gradient(120deg, var(--color-primary-light), #fff2bf 160%);
+  border: 1px solid rgba(255, 111, 168, 0.4);
+  font-size: 0.95rem;
+  font-weight: 800;
+  padding: 10px 12px;
+  box-shadow: 0 8px 18px -10px rgba(255, 105, 180, 0.45);
+  animation: answerRevealPop 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .error-message.is-steal-success {
+    animation: none;
+  }
+}
+
 .feedback-message {
   text-align: center;
   font-size: 1.2rem;
@@ -12301,6 +12323,20 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   margin: 12px 0;
 }
 
+/* 【2026-09-08新設・本人指示O：現在のルールの簡単説明】チップ一覧の下に添える、
+   選択中ルールの1〜2文の説明。ホストの設定画面（.lyrics-battle-rule-option-description等）
+   より控えめに、しかしチップより読みやすいサイズにする。 */
+.battle-rule-description {
+  margin: -6px 0 12px;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  opacity: 0.75;
+}
+
+.battle-rule-description:empty {
+  display: none;
+}
+
 .battle-config-chip {
   padding: 5px 12px;
   border-radius: 999px;
@@ -13088,11 +13124,12 @@ body[data-screen="liveCallModePlayer"] .game-frame {
    本人が「次の問題へ」を押すまでとどまるカード（js/lyricsQuizScreen.js参照）。
    4択のときはこのカードを使わず、選択肢の中で直接光る従来演出のまま自動進行する。 */
 .lyrics-quiz-answer-reveal {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  padding: 20px 16px;
+  padding: 24px 16px 20px;
   border-radius: 16px;
   text-align: center;
   background: linear-gradient(165deg, #ffffff, var(--color-primary-light) 200%);
@@ -13102,6 +13139,50 @@ body[data-screen="liveCallModePlayer"] .game-frame {
      派手にしすぎない範囲（本人指示）に留めるため、色味は既存のピンク系のまま濃さだけ調整。 */
   box-shadow: 0 12px 28px -14px rgba(255, 105, 180, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.7);
   animation: answerRevealPop 320ms cubic-bezier(0.22, 1, 0.36, 1);
+  /* 上端の帯で正誤を色でも伝える（文字色だけに頼らない、本人指示Cの「色だけでなく
+     文字・アイコン・レイアウトでも分かるように」に対応）。既定は不正解寄りの
+     控えめなトーンにしておき、正解時だけ:has()で華やかな配色へ切り替える。 */
+  overflow: hidden;
+}
+
+.lyrics-quiz-answer-reveal::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  background: linear-gradient(90deg, #9aa3b8, #c3c9d6);
+}
+
+/* 【2026-09-08新設・本人指示C：答え合わせUIの再デザイン】正解時はカード全体の
+   トーンを一段華やかにする（上端の帯をピンク×ゴールドへ、四隅にごく控えめな
+   スパークルを添える）。過剰演出にならないよう、色味は既存のピンク系パレットの
+   範囲内に収め、新しい色は追加しない。 */
+.lyrics-quiz-answer-reveal:has(.is-correct-answer-reveal-status)::before {
+  background: linear-gradient(90deg, var(--color-primary), var(--color-accent-soft), var(--color-primary));
+}
+
+.lyrics-quiz-answer-reveal:has(.is-correct-answer-reveal-status)::after {
+  content: "✦";
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  font-size: 0.9rem;
+  color: var(--color-accent-soft);
+  opacity: 0.85;
+  animation: answerRevealSparkle 1.6s ease-in-out infinite;
+}
+
+@keyframes answerRevealSparkle {
+  0%, 100% { opacity: 0.4; transform: scale(0.85) rotate(0deg); }
+  50% { opacity: 1; transform: scale(1.05) rotate(12deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lyrics-quiz-answer-reveal:has(.is-correct-answer-reveal-status)::after {
+    animation: none;
+  }
 }
 
 @keyframes answerRevealPop {
@@ -13128,9 +13209,10 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 }
 
 .lyrics-quiz-answer-reveal-status {
-  margin: 0 0 4px;
-  font-size: 0.95rem;
+  margin: 4px 0 4px;
+  font-size: 1.05rem;
   font-weight: 800;
+  letter-spacing: 0.01em;
   color: var(--color-danger);
 }
 
@@ -13184,10 +13266,23 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   max-width: 100%;
 }
 
+/* 【2026-09-08改訂・本人指示C：答え合わせUIの再デザイン】獲得ポイント等の情報を、
+   ただのテキストではなく小さなバッジ（チップ）として見せる。中身は「+1pt」
+   「獲得：+2pt」のような短い断片のみのため、pill型にしても横はみ出しは起きない。 */
 .lyrics-quiz-answer-reveal-meta {
-  margin: 0 0 14px;
-  font-size: 0.74rem;
-  opacity: 0.65;
+  display: inline-block;
+  margin: 2px 0 14px;
+  padding: 4px 14px;
+  border-radius: 999px;
+  background: rgba(255, 111, 168, 0.14);
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+  opacity: 0.9;
+}
+
+.lyrics-quiz-answer-reveal-meta:empty {
+  display: none;
 }
 
 /* 【2026-09-06新設・本人指示：実機フィードバック第3弾①】「あなたの回答：○○」欄。
@@ -13677,10 +13772,16 @@ body[data-screen="liveCallModePlayer"] .game-frame {
    （.online-lyrics-battle-hint-line::before）は「段階」の概念が無いこのモードには
    そぐわないため非表示にし、代わりに文字を目で追いやすいよう少し大きめの文字にする。 */
 /* 【2026-09-06修正、本人指示：実機フィードバック⑧】文字数が増えるにつれて改行位置・
-   表示領域が不自然になる問題への対応。overflow-wrap/word-breakで横はみ出しを防ぎ、
-   line-heightを広めに取って読みやすくした。max-heightで約3行分に達したら、それ以上は
-   回答選択肢を下へ押し出さずこの領域だけスクロールする（本人指示：「2〜3行程度は自然に
-   扱える」「それでも収まらない場合はスクロールを検討」に対応）。 */
+   表示領域が不自然になる問題への対応。overflow-wrap/word-breakで横はみ出しを防ぐ、
+   line-heightを広めに取って読みやすくした。 */
+/* 【2026-09-08修正・本人指示：実機フィードバック】以前はここにmax-height（約3行分）＋
+   overflow-y:autoを付け、3行を超えた分をこの領域内だけでスクロールさせていたが、
+   1文字ずつ増えていく演出中は新しく表示された文字がスクロール範囲外（枠の下）に
+   隠れたまま追従しないため、実機では「3行を超えると文字が途中で切れる」ように見える
+   不具合になっていた（本人からの実機報告で発覚）。この領域自体の高さ制限・独自スクロールを
+   廃止し、歌詞が何行になっても内容に合わせて自然に伸びるようにした。画面全体がその分
+   縦に収まらない場合は、#quiz-screen等と同じ既存の仕組み（.quiz-middle-zone自体が
+   上詰め＋ページ全体でスクロールに切り替わる設計）にそのまま任せる。 */
 .online-lyrics-battle-reveal-line {
   padding-left: 16px;
   padding-right: 4px;
@@ -13688,8 +13789,6 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   line-height: 1.7;
   letter-spacing: 0.02em;
   min-height: 1.7em;
-  max-height: calc(1.7em * 3);
-  overflow-y: auto;
   overflow-wrap: break-word;
   word-break: normal;
 }

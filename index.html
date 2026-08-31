@@ -1456,7 +1456,10 @@
           <p id="guide-detail-icon" class="guide-detail-icon"></p>
           <h3 id="guide-detail-title" class="guide-detail-title"></h3>
           <p id="guide-detail-tagline" class="guide-detail-tagline"></p>
-          <p class="guide-detail-steps-heading">遊び方</p>
+          <!-- 【2026-09-08改訂・本人指示P〜S：ガイド全面改修】FAQ/トラブルの項目では
+               「遊び方」という見出しが不自然なため、js/guideScreen.jsがセクションの種類に
+               応じてこの見出しの文字を書き換えられるようidを付けた。 -->
+          <p id="guide-detail-steps-heading" class="guide-detail-steps-heading">遊び方</p>
           <ol id="guide-detail-steps" class="guide-detail-steps"></ol>
           <p id="guide-detail-point" class="guide-detail-point"></p>
           <button id="guide-detail-back-button-bottom" class="rules-link guide-toc-back-link" type="button">← 目次へ戻る</button>
@@ -3142,7 +3145,7 @@
         <!-- ホスト専用：対戦設定の編集フォーム（#battle-setup-screenと同じラジオ構成）。
              変更するたびにjs/onlineBattleScreen.jsがFirebaseへ書き込み、参加者へ同期する。 -->
         <div id="online-battle-lobby-settings-host" hidden>
-          <p class="battle-field-label">対戦設定（変更すると全員のREADYが解除されます）</p>
+          <p class="battle-field-label">対戦設定</p>
           <fieldset>
             <legend>出題数</legend>
             <div class="option-row">
@@ -3185,12 +3188,12 @@
           <fieldset id="online-battle-lobby-settings-penalty-fieldset">
             <legend>ミスペナルティ（ノーマルのみ）</legend>
             <div class="option-row">
-              <label><input type="radio" name="online-battle-settings-penalty" value="0"> なし</label>
-              <label><input type="radio" name="online-battle-settings-penalty" value="1"> 軽め</label>
-              <label><input type="radio" name="online-battle-settings-penalty" value="2"> 公式</label>
-              <label><input type="radio" name="online-battle-settings-penalty" value="3"> 少し厳しめ</label>
-              <label><input type="radio" name="online-battle-settings-penalty" value="5"> 厳しめ</label>
-              <label><input type="radio" name="online-battle-settings-penalty" value="10"> ガチ</label>
+              <label><input type="radio" name="online-battle-settings-penalty" value="0"> なし（0秒）</label>
+              <label><input type="radio" name="online-battle-settings-penalty" value="1"> 軽め（1秒）</label>
+              <label><input type="radio" name="online-battle-settings-penalty" value="2"> 公式（2秒）</label>
+              <label><input type="radio" name="online-battle-settings-penalty" value="3"> 少し厳しめ（3秒）</label>
+              <label><input type="radio" name="online-battle-settings-penalty" value="5"> 厳しめ（5秒）</label>
+              <label><input type="radio" name="online-battle-settings-penalty" value="10"> ガチ（10秒）</label>
             </div>
           </fieldset>
         </div>
@@ -3223,7 +3226,7 @@
              一切知らない（2026-08-08新設・Phase6）。 -->
         <div id="online-battle-lobby-settings-host-lyrics" hidden>
           <p class="battle-field-label">
-            対戦設定（変更すると全員のREADYが解除されます）
+            対戦設定
             <button id="battle-rules-help-link" class="info-link-button" type="button" aria-label="対戦ルールについて見る">？</button>
           </p>
           <div id="online-lyrics-battle-rule-options"></div>
@@ -3260,6 +3263,10 @@
         <div id="online-battle-lobby-settings-participant-lyrics" hidden>
           <p class="battle-field-label">対戦設定（ホストが選択中）</p>
           <div class="battle-config-summary" id="online-lyrics-battle-settings-summary"></div>
+          <!-- 【2026-09-08新設・本人指示O：現在のルールの簡単説明】チップの名前だけでは
+               ルールの中身が伝わらないため、ホストが見ている説明文（1〜2文）をゲストにも
+               同じ文面で見せる（js/onlineLyricsQuizBattleScreen.js制御）。 -->
+          <p id="online-lyrics-battle-settings-rule-description" class="battle-rule-description"></p>
         </div>
 
         <!-- 共同選曲（2026-08-27新設）：歌詞クイズ対戦版。js/onlineBattleScreen.js側の
@@ -3285,7 +3292,7 @@
              （出題数・再生時間・回答候補）に、既存のオンライン対戦と同じカテゴリ・
              共同選曲の仕組みを組み合わせる。 -->
         <div id="online-battle-lobby-settings-host-instant" hidden>
-          <p class="battle-field-label">対戦設定（変更すると全員のREADYが解除されます）</p>
+          <p class="battle-field-label">対戦設定</p>
           <fieldset>
             <legend>出題数</legend>
             <div class="option-row">
@@ -3346,7 +3353,7 @@
              共存するため）。共同選曲は今回のスコープ外（本人指示になく、複雑さを避けるため
              全曲／カテゴリ絞り込みのみに留めた）。 -->
         <div id="online-battle-lobby-settings-host-coop" hidden>
-          <p class="battle-field-label">対戦設定（変更すると全員のREADYが解除されます）</p>
+          <p class="battle-field-label">対戦設定</p>
           <fieldset>
             <legend>出題数</legend>
             <div class="option-row">
@@ -3386,11 +3393,14 @@
         </div>
         <p id="online-instant-coop-settings-error" class="error-message" hidden></p>
 
+        <!-- 【2026-09-07改訂・本人指示：READY表示の整合性】READYは本人が明示的に解除しない限り
+             設定変更・ルーム設定への復帰のいずれでも維持される仕様のため、「もう一度準備完了して
+             ください」という古い文言は削除し、単に何が起きたかだけを伝える案内に変更した。 -->
         <p class="online-battle-ready-changed-notice" id="online-battle-lobby-settings-changed-notice" hidden>
-          設定が変更されました。もう一度準備完了してください。
+          設定が変更されました。
         </p>
         <p class="online-battle-ready-changed-notice" id="online-battle-lobby-rematch-notice" hidden>
-          ホストがルーム設定に戻しました。もう一度準備完了してください。
+          ホストがルーム設定に戻しました。
         </p>
 
         <!-- 参加者専用：準備完了ボタン。ホストは開始ボタンを押すこと自体が意思表示になるため表示しない。 -->
@@ -3582,9 +3592,6 @@
             </div>
           </div>
 
-          <button id="online-instant-battle-next-button" class="primary-button instant-challenge-next-button" type="button" hidden>
-            次の問題へ
-          </button>
         </div>
       </div>
     </section>

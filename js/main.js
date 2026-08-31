@@ -625,6 +625,7 @@ const guideDetailBackButtonBottomElement = document.getElementById("guide-detail
 const guideDetailIconElement = document.getElementById("guide-detail-icon");
 const guideDetailTitleElement = document.getElementById("guide-detail-title");
 const guideDetailTaglineElement = document.getElementById("guide-detail-tagline");
+const guideDetailStepsHeadingElement = document.getElementById("guide-detail-steps-heading");
 const guideDetailStepsElement = document.getElementById("guide-detail-steps");
 const guideDetailPointElement = document.getElementById("guide-detail-point");
 const fanProfilesLinkElement = document.getElementById("fan-profiles-link");
@@ -1059,7 +1060,6 @@ const onlineInstantBattleAnswerRevealElement = document.getElementById("online-i
 const onlineInstantBattleAnswerRevealStatusElement = document.getElementById("online-instant-battle-answer-reveal-status");
 const onlineInstantBattleAnswerRevealTitleElement = document.getElementById("online-instant-battle-answer-reveal-title");
 const onlineInstantBattleAnswerRevealMyAnswerElement = document.getElementById("online-instant-battle-answer-reveal-my-answer");
-const onlineInstantBattleNextButtonElement = document.getElementById("online-instant-battle-next-button");
 const onlineInstantBattleQuitConfirmModalElement = document.getElementById("online-instant-battle-quit-confirm-modal");
 const onlineInstantBattleQuitCancelButtonElement = document.getElementById("online-instant-battle-quit-cancel-button");
 const onlineInstantBattleQuitConfirmButtonElement = document.getElementById("online-instant-battle-quit-confirm-button");
@@ -1127,6 +1127,7 @@ const onlineLyricsBattleRuleOptionsElement = document.getElementById("online-lyr
 const onlineLyricsBattlePoolSizeOptionsElement = document.getElementById("online-lyrics-battle-pool-size-options");
 const onlineLyricsBattleSettingsFormElement = document.getElementById("online-lyrics-battle-settings-form");
 const onlineLyricsBattleSettingsSummaryElement = document.getElementById("online-lyrics-battle-settings-summary");
+const onlineLyricsBattleSettingsRuleDescriptionElement = document.getElementById("online-lyrics-battle-settings-rule-description");
 // 共同選曲セクション（2026-08-27全面刷新、js/onlineLyricsQuizBattleScreen.js参照）。
 const onlineLyricsBattleCollabSongSectionElement = document.getElementById("online-lyrics-battle-collab-song-section");
 const onlineLyricsBattleCollabChooseSongsButtonElement = document.getElementById("online-lyrics-battle-collab-choose-songs-button");
@@ -4598,6 +4599,7 @@ initGuideScreen({
   detailIcon: guideDetailIconElement,
   detailTitle: guideDetailTitleElement,
   detailTagline: guideDetailTaglineElement,
+  detailStepsHeading: guideDetailStepsHeadingElement,
   detailSteps: guideDetailStepsElement,
   detailPoint: guideDetailPointElement,
 });
@@ -5477,6 +5479,7 @@ initOnlineLyricsQuizBattleScreens({
   lyricsPoolSizeOptionsContainer: onlineLyricsBattlePoolSizeOptionsElement,
   lyricsSettingsFormContainer: onlineLyricsBattleSettingsFormElement,
   lyricsSettingsSummaryContainer: onlineLyricsBattleSettingsSummaryElement,
+  lyricsSettingsRuleDescription: onlineLyricsBattleSettingsRuleDescriptionElement,
   lyricsReadinessStatusContainer: onlineLyricsBattleReadinessStatusElement,
   lyricsOwnMissingContainer: onlineLyricsBattleOwnMissingElement,
   battleQuitButton: onlineLyricsBattleQuitButtonElement,
@@ -5548,7 +5551,6 @@ initOnlineInstantBattleScreens({
   answerRevealStatus: onlineInstantBattleAnswerRevealStatusElement,
   answerRevealTitle: onlineInstantBattleAnswerRevealTitleElement,
   answerRevealMyAnswer: onlineInstantBattleAnswerRevealMyAnswerElement,
-  nextButton: onlineInstantBattleNextButtonElement,
   onQuitDuringBattle: () => quitOnlineBattleDuringQuiz(),
   onFinishMatch: (result, answeredCount) => finishOnlineBattleMatch(result, answeredCount),
   onReportProgress: (answeredCount) => reportOnlineBattleProgress(answeredCount),

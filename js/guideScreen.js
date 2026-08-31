@@ -16,16 +16,27 @@ function showDetail(sectionId) {
 
   elements.detailIcon.textContent = section.icon;
   elements.detailTitle.textContent = section.title;
-  elements.detailTagline.textContent = section.tagline;
+  elements.detailTagline.textContent = section.tagline ?? "";
+  // 【2026-09-08新設・本人指示S：FAQ/トラブルの追加】質問と回答をまとめたFAQ項目は
+  // 「遊び方」という手順見出しが不自然なため、section.kind==="faq"のときだけ
+  // 見出しを「回答」に差し替える（通常の遊び方セクションは今までどおり）。
+  elements.detailStepsHeading.textContent = section.kind === "faq" ? "回答" : "遊び方";
 
   elements.detailSteps.innerHTML = "";
-  section.steps.forEach((step) => {
+  (section.steps ?? []).forEach((step) => {
     const item = document.createElement("li");
     item.textContent = step;
     elements.detailSteps.appendChild(item);
   });
 
-  elements.detailPoint.textContent = `💡 ${section.point}`;
+  // pointは補足のコツ・注意点のための任意項目。無い項目（FAQ等）では欄自体を隠す。
+  if (section.point) {
+    elements.detailPoint.textContent = `💡 ${section.point}`;
+    elements.detailPoint.hidden = false;
+  } else {
+    elements.detailPoint.textContent = "";
+    elements.detailPoint.hidden = true;
+  }
 
   elements.tocView.hidden = true;
   elements.detailView.hidden = false;
@@ -82,7 +93,8 @@ export function openGuideScreen() {
 //   tocView, detailView: 目次／詳細の2つの表示切り替え対象,
 //   tocGroups: 目次のカテゴリ・項目を組み立てる入れ物,
 //   detailBackButton: 詳細ページの「目次へ戻る」ボタン,
-//   detailIcon, detailTitle, detailTagline, detailSteps, detailPoint: 詳細ページの各部品,
+//   detailIcon, detailTitle, detailTagline, detailStepsHeading, detailSteps, detailPoint:
+//     詳細ページの各部品,
 // }
 export function initGuideScreen(newElements) {
   elements = newElements;

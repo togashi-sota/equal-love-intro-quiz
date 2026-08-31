@@ -27,6 +27,12 @@ const audioElement = document.getElementById("intro-audio");
 // データURIを一時的に使うだけなので、実際のクイズ再生には一切影響しない）。
 const SILENT_UNLOCK_DATA_URI = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
 
+// 【2026-09-08新設・本人指示：音源再生失敗の根本原因調査】unlockが実際に成功したかどうかを
+// 記録しておく。「本番の再生失敗が、そもそもunlockが成立していない環境で起きているのか」を
+// 診断ログから切り分けられるようにするための情報で、挙動そのものは変えない
+// （unlock失敗時も、これまでどおりPLAY_RETRY_WAIT_MS_LISTの再試行に委ねる）。
+let audioUnlockState = "pending"; // "pending" | "succeeded" | "failed"
+
 function unlockAudioElementOnFirstInteraction() {
   const unlock = () => {
     document.removeEventListener("pointerdown", unlock);
@@ -39,6 +45,7 @@ function unlockAudioElementOnFirstInteraction() {
     if (playResult && typeof playResult.then === "function") {
       playResult
         .then(() => {
+          audioUnlockState = "succeeded";
           audioElement.pause();
           if (hadSrc) {
             audioElement.currentTime = 0;
@@ -47,10 +54,12 @@ function unlockAudioElementOnFirstInteraction() {
             audioElement.load();
           }
         })
-        .catch(() => {
+        .catch((error) => {
           // 無音データURIですら再生が許可されない環境でも、実際のクイズ再生自体は
           // 従来どおりPLAY_RETRY_WAIT_MS_LISTの再試行に委ねるため、ここでは何もしない
           // （このunlock自体はあくまで成功率を上げるための best-effort な対策）。
+          audioUnlockState = "failed";
+          console.warn("[audio] 初回操作時のunlockに失敗しました（本番の音源再生には別途リトライがあります）", error?.name, error?.message);
           if (!hadSrc) {
             audioElement.removeAttribute("src");
             audioElement.load();
@@ -129,7 +138,11 @@ const PLAY_RETRY_WAIT_MS_LIST = [300, 600];
 // audioElement.play()を試み、成功/失敗のどちらでも「追い越された場合の後始末」まで行う。
 // 戻り値：trueなら再生が実際に始まった（かつ自分がまだ最新）、falseなら失敗または追い越された。
 // playSongIntro()・playSongFromRandomPosition()の共通の後半処理。
-async function attemptPlay(myToken, myObjectUrl, onError) {
+// 【2026-09-08改訂・本人指示：音源再生失敗の根本原因調査】diagnosticContext（曲id・
+// 再生方式等の文字列）を受け取り、失敗時にerror.name/messageと一緒にconsole.warnへ残す
+// ようにした。本番でも出す（ユーザー向けの表示文言onErrorは一切変えない、あくまで
+// 実機のブラウザコンソールから原因を切り分けるための追加ログ）。
+async function attemptPlay(myToken, myObjectUrl, onError, diagnosticContext) {
   let lastError = null;
   for (let attempt = 0; attempt <= PLAY_RETRY_WAIT_MS_LIST.length; attempt++) {
     if (attempt > 0) {
@@ -152,6 +165,11 @@ async function attemptPlay(myToken, myObjectUrl, onError) {
     // 再生開始前後にsrcが差し替えられた場合、ブラウザはこのplay()を失敗させる
     // （AbortError等）。それが「追い越されたことによる失敗」なら、エラー表示は不要。
     if (myToken !== currentPlaybackToken) return false;
+    console.warn(
+      `[audio] play()失敗 (${diagnosticContext}) unlock=${audioUnlockState}`,
+      lastError?.name,
+      lastError?.message
+    );
     onError("音源を再生できませんでした");
     return false;
   }
@@ -202,6 +220,7 @@ export async function playSongIntro(song, onError, onPlaybackStart) {
     // 自分より新しい呼び出しに既に追い越されている場合、このエラーはもう
     // 今の問題とは関係ない曲のものなので、画面には出さず無視する。
     if (myToken !== currentPlaybackToken) return;
+    console.warn(`[audio] onerror (intro, song=${song.id}) unlock=${audioUnlockState}`, audioElement.error?.code, audioElement.error?.message);
     onError("音源を再生できませんでした");
   };
   audioElement.onplaying = () => {
@@ -214,7 +233,7 @@ export async function playSongIntro(song, onError, onPlaybackStart) {
   };
   audioElement.src = myObjectUrl;
 
-  await attemptPlay(myToken, myObjectUrl, onError);
+  await attemptPlay(myToken, myObjectUrl, onError, `intro, song=${song.id}`);
 }
 
 // 【2026-08-08新設・ランダム再生モード用】曲の任意の位置から再生し、指定秒数後に
@@ -247,6 +266,7 @@ export async function playSongFromRandomPosition(song, computeStartTimeSec, play
 
   audioElement.onerror = () => {
     if (myToken !== currentPlaybackToken) return;
+    console.warn(`[audio] onerror (randomPosition, song=${song.id}) unlock=${audioUnlockState}`, audioElement.error?.code, audioElement.error?.message);
     onError("音源を再生できませんでした");
   };
   audioElement.onplaying = () => {
@@ -271,7 +291,7 @@ export async function playSongFromRandomPosition(song, computeStartTimeSec, play
   };
   audioElement.src = myObjectUrl;
 
-  await attemptPlay(myToken, myObjectUrl, onError);
+  await attemptPlay(myToken, myObjectUrl, onError, `randomPosition, song=${song.id}`);
 }
 
 // 再生を止める（画面遷移時などに呼ぶ）。

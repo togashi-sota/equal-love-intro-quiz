@@ -23,6 +23,14 @@ const TICK_INTERVAL_MS = 500; // 3→2→1を0.5秒間隔で切り替える（�
 // 本人の要望にも音源再生中〜考える時間中も自然に見える、という判断で置き換えた）。
 const QUESTION_PROMPT_TEXT = "♪ この曲は？";
 
+// 【2026-09-08新設・本人指示：カウントダウン速度の完全統一】画面遷移直後（screenEnter
+// アニメーション、480ms）とカウントダウン表示が視覚的に重なってカクついて見える問題への
+// 対応（詳細はHANDOFF.md 19-22章⑨参照）。以前はjs/instantChallengeScreen.jsと
+// js/onlineInstantBattleScreen.jsの2箇所に同じ値・同じ「最初の問題だけ待つ」ロジックが
+// 複製されており、将来3箇所目を追加する際に値がズレるリスクがあった。この定数と
+// runLocalReplayCountdownForQuestion()（下記）へ一本化し、複製をやめる。
+export const SCREEN_ENTER_ANIMATION_MS = 480;
+
 let activeTimerId = null;
 
 // containerElement（表示/非表示を切り替える親要素）とnumberElement（数字を表示する要素）を
@@ -53,6 +61,20 @@ export function runLocalReplayCountdown({ containerElement, numberElement }, onC
     }, TICK_INTERVAL_MS);
   };
   showNext();
+}
+
+// 【2026-09-08新設・本人指示：カウントダウン速度の完全統一】runLocalReplayCountdown()の
+// ラッパー。「その対戦・そのランの最初の問題だけ、画面遷移アニメーションと重ならないよう
+// SCREEN_ENTER_ANIMATION_MS分だけ余分に待ってから数え始める」という、一瞬チャレンジ・
+// 一瞬バトルの両方が必要とする挙動を1箇所にまとめる。呼び出し側はisFirstQuestionの
+// 判定（「もう1問目は消費した」フラグの更新）だけを担当し、待ち時間の値・ロジック自体は
+// ここに一本化することで、今後カウントダウンを使う画面が増えても速度がズレない。
+export function runLocalReplayCountdownForQuestion({ containerElement, numberElement, isFirstQuestion }, onComplete) {
+  if (isFirstQuestion) {
+    setTimeout(() => runLocalReplayCountdown({ containerElement, numberElement }, onComplete), SCREEN_ENTER_ANIMATION_MS);
+  } else {
+    runLocalReplayCountdown({ containerElement, numberElement }, onComplete);
+  }
 }
 
 // 進行中のカウントダウンを打ち切る（対戦を中断した場合等、呼び出し元がもう結果を

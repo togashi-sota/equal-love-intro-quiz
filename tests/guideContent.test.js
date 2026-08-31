@@ -25,7 +25,11 @@ export function runGuideContentTests() {
   );
 
   // ---- 各ページが、表示に必要な項目をすべて持つ ----
+  // 【2026-09-08改訂・本人指示S：FAQ/トラブルの追加】kind:"faq"の項目は、質問(title)と
+  // 回答(steps)だけを必須とし、通常項目向けのtagline・pointは任意（無ければ詳細ページ側で
+  // 省略表示される、js/guideScreen.js参照）。
   GUIDE_SECTIONS.forEach((section) => {
+    const isFaq = section.kind === "faq";
     assertEqual(
       typeof section.icon === "string" && section.icon.length > 0,
       true,
@@ -36,21 +40,25 @@ export function runGuideContentTests() {
       true,
       `「${section.id}」はtitleを持つ`
     );
-    assertEqual(
-      typeof section.tagline === "string" && section.tagline.length > 0,
-      true,
-      `「${section.id}」はtaglineを持つ`
-    );
+    if (!isFaq) {
+      assertEqual(
+        typeof section.tagline === "string" && section.tagline.length > 0,
+        true,
+        `「${section.id}」はtaglineを持つ`
+      );
+    }
     assertEqual(
       Array.isArray(section.steps) && section.steps.length > 0,
       true,
       `「${section.id}」はstepsを1件以上持つ`
     );
-    assertEqual(
-      typeof section.point === "string" && section.point.length > 0,
-      true,
-      `「${section.id}」はpointを持つ`
-    );
+    if (!isFaq) {
+      assertEqual(
+        typeof section.point === "string" && section.point.length > 0,
+        true,
+        `「${section.id}」はpointを持つ`
+      );
+    }
   });
 
   // ---- getGuideSectionById()の動作確認 ----

@@ -38,7 +38,7 @@ import {
   renderAnswerJumpBar,
 } from "./answerPoolBrowseUi.js";
 import { buildQuestions, createResult, MAX_REPLAY_COUNT_PER_QUESTION } from "./battleModes/instantBattleMode.js";
-import { runLocalReplayCountdown, cancelLocalReplayCountdown } from "./localReplayCountdown.js";
+import { runLocalReplayCountdownForQuestion, cancelLocalReplayCountdown } from "./localReplayCountdown.js";
 import { promptReturnToLobby } from "./onlineBattleLobbyReturnPrompt.js";
 import { promptAnswerConfirm } from "./answerConfirmPrompt.js";
 import { getCurrentUid } from "./firebaseClient.js";
@@ -59,16 +59,16 @@ let matchStartedAtMs = 0;
 // 【2026-09-07新設・本人指示：50音UIの共通展開】
 const answerBrowseState = createAnswerPoolBrowseState();
 let isCountdownActive = false; // 【2026-09-05新設】カウントダウン中の連打・二重再生を防ぐ
-// 【2026-09-07新設・本人指示：カウントダウン速度の統一】js/instantChallengeScreen.jsの
-// isFirstQuestionOfRunと全く同じ理由・同じ仕組み（画面遷移アニメーションとの競合を避ける）。
+// 【2026-09-08改訂・本人指示：カウントダウン速度の完全統一】js/instantChallengeScreen.jsの
+// isFirstQuestionOfRunと同じ理由・同じ仕組み。待ち時間の値・ロジック自体は
+// js/localReplayCountdown.jsのrunLocalReplayCountdownForQuestion()へ一本化した。
 let isFirstQuestionOfMatch = true;
-const SCREEN_ENTER_ANIMATION_MS = 480;
 
 // elements: {
 //   progress, quitButton, quitConfirmModal, quitCancelButton, quitConfirmButton,
 //   backToLobbyButton,
 //   error, countdown, countdownNumber, replayButton, answerSearchRow, answerSearchInput,
-//   answerCount, answerList, nextButton,
+//   answerCount, answerList,
 //   navigateTo, onQuitDuringBattle, onFinishMatch, onReportProgress,
 // }
 export function initOnlineInstantBattleScreens(newElements) {
@@ -108,12 +108,6 @@ export function initOnlineInstantBattleScreens(newElements) {
     renderAnswerButtons(questions[currentIndex].answerPool);
   });
 
-  // 【2026-09-07改訂・本人指示：答え合わせ4秒後に自動遷移が正式仕様】js/instantChallengeScreen.js
-  // と同じ理由で、押した時点で保留中の自動遷移タイマーを止めてから進める（二重実行防止）。
-  elements.nextButton.addEventListener("click", () => {
-    clearTimeout(autoAdvanceTimerId);
-    advanceToNextQuestionOrFinish();
-  });
 }
 
 // ルームを離れる・別のルームへ入り直す際に呼ぶ、状態の完全リセット。
@@ -213,25 +207,18 @@ function playCurrentQuestionAudio() {
 // 【2026-09-05新設】音源再生の直前に3→2→1を表示してから再生する。初回出題・再視聴の
 // どちらもこれ経由で呼ぶ（本人指示：一瞬バトルは両方にカウントダウンを付ける）。
 function playCurrentQuestionAudioWithCountdown() {
-  const startCountdown = () => {
-    isCountdownActive = true;
-    runLocalReplayCountdown(
-      { containerElement: elements.countdown, numberElement: elements.countdownNumber },
-      () => {
-        isCountdownActive = false;
-        playCurrentQuestionAudio();
-      }
-    );
-  };
-
-  // 【2026-09-07新設・本人指示：カウントダウン速度の統一】js/instantChallengeScreen.jsと
+  // 【2026-09-08改訂・本人指示：カウントダウン速度の完全統一】js/instantChallengeScreen.jsと
   // 同じ理由（この対戦の最初の問題だけ画面遷移アニメーションと重ならないよう少し待つ）。
-  if (isFirstQuestionOfMatch) {
-    isFirstQuestionOfMatch = false;
-    setTimeout(startCountdown, SCREEN_ENTER_ANIMATION_MS);
-  } else {
-    startCountdown();
-  }
+  // 待ち時間の値・ロジック自体はjs/localReplayCountdown.jsへ一本化した。
+  runLocalReplayCountdownForQuestion(
+    { containerElement: elements.countdown, numberElement: elements.countdownNumber, isFirstQuestion: isFirstQuestionOfMatch },
+    () => {
+      isCountdownActive = false;
+      playCurrentQuestionAudio();
+    }
+  );
+  isCountdownActive = true;
+  isFirstQuestionOfMatch = false;
 }
 
 function renderCurrentQuestion() {
@@ -243,7 +230,6 @@ function renderCurrentQuestion() {
 
   elements.replayButton.hidden = false;
   updateReplayButtonLabel();
-  elements.nextButton.hidden = true;
 
   playCurrentQuestionAudioWithCountdown();
 }
@@ -310,10 +296,11 @@ function handleAnswerSelected(selectedSongId, buttonElement) {
   renderAnswerReveal({ isCorrect, correctTitle: question.song.title, mySelectedSongId: selectedSongId, pool: question.answerPool });
 
   elements.replayButton.disabled = true; // 正解が確定した後の聞き直しは不要
-  // 4秒経てば自動的に進むが、早く読み終えた人向けに、ボタンを押せば待たずに進められる
-  // （js/instantChallengeScreen.jsと同じ設計）。
-  elements.nextButton.hidden = false;
-  elements.nextButton.textContent = currentIndex + 1 >= questions.length ? "結果を送信する" : "次の問題へ";
+  // 【2026-09-08改訂・本人指示：オンライン対戦での早送り禁止】以前は「次の問題へ」ボタンで
+  // 個人だけ4秒を待たずに先へ進めるようにしていたが、オンライン対戦では1人だけ早く
+  // 進めても意味が無く、同期ズレの原因にもなり得るという指摘を受け、早送り手段を廃止した。
+  // 答え合わせは全員例外なく4秒固定で表示し、そのあと自動的に次へ進む
+  // （試合終了後の「もう一度」「ルーム設定に戻る」「退出」は引き続き自動化しない）。
   clearTimeout(autoAdvanceTimerId);
   autoAdvanceTimerId = setTimeout(() => {
     advanceToNextQuestionOrFinish();

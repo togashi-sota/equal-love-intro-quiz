@@ -244,16 +244,9 @@ async function openLobbyParticipantProfile(player) {
     return;
   }
   elements.lobbyProfileBody.hidden = false;
-  // 公開プロフィールが実際に取得できた時点で、王冠・ダイヤ等の称号バッジ装飾も
-  // 正しい状態で描き直す（読み込み中に表示していた枠だけのスウォッチを更新する）。
-  elements.lobbyProfileSwatch.innerHTML = "";
-  elements.lobbyProfileSwatch.appendChild(
-    buildOshiSwatch(MEMBERS, profile.oshiMemberId, {
-      hasNoMissMaster: profile.hasNoMissMaster,
-      hasEqualLoveMaster: profile.hasEqualLoveMaster,
-      hasEqualLoveComplete: profile.hasEqualLoveComplete,
-    })
-  );
+  // 【2026-09-08改訂・本人指示】ロビーの簡易プロフィールでは、王冠・ダイヤ等の称号バッジ
+  // 装飾は付けず、推しメンカラーの丸だけにする（誰がホストかは既存の「ホスト」表示で
+  // 十分伝わるため。スウォッチは開いた時点の{}のまま、ここでは再描画しない）。
   elements.lobbyProfileAchievementCount.textContent = buildAchievementCountText(profile.unlockedAchievementIds);
   elements.lobbyProfileSummary.innerHTML = "";
   elements.lobbyProfileSummary.appendChild(buildFriendAchievementSummary(profile.unlockedAchievementIds));
@@ -1688,10 +1681,17 @@ function goToResultScreen(room) {
 // 画面再描画でこの結果画面へ何度到達しても、同じ試合が重複して保存されないようにする
 // （本人指示の「matchIdによる重複防止」）。DNFで終わった場合も、可能な範囲で記録する
 // （順位・スコアは推測で作らず、null・isDnf:trueのままにする）。
-const HISTORY_MODE_ID_BY_GAME_MODE = { timeAttack: "onlineTimeAttack", randomPlayback: "onlineRandomPlayback" };
+// 【2026-09-08修正・本人指示】outroQuizが登録されておらず、タイムアタックとして誤保存
+// されていた不具合を修正（本人指示Tのプレイ履歴確認作業で判明）。
+const HISTORY_MODE_ID_BY_GAME_MODE = {
+  timeAttack: "onlineTimeAttack",
+  randomPlayback: "onlineRandomPlayback",
+  outroQuiz: "onlineOutroQuiz",
+};
 const HISTORY_MODE_LABEL_BY_GAME_MODE = {
   timeAttack: "オンライン対戦（イントロ）",
   randomPlayback: "オンライン対戦（ランダム再生）",
+  outroQuiz: "オンライン対戦（アウトロ）",
 };
 
 function saveOnlineBattleHistoryEntry(room, matchId, finishers, finisherRanks, dnfEntries, myUid) {

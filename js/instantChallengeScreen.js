@@ -46,14 +46,8 @@ import { evaluateInstantChallengeAchievements } from "./achievementEvaluation.js
 import { saveEarnedAchievements } from "./achievementProgress.js";
 import { renderAchievementUnlockEvents } from "./achievementDisplay.js";
 import { renderPlayerSummary } from "./playerScreen.js";
-import { runLocalReplayCountdown, cancelLocalReplayCountdown } from "./localReplayCountdown.js";
+import { runLocalReplayCountdownForQuestion, cancelLocalReplayCountdown } from "./localReplayCountdown.js";
 import { promptAnswerConfirm } from "./answerConfirmPrompt.js";
-
-// 【2026-09-07新設・本人指示：カウントダウン速度の統一】css/style.cssの`.screen.is-active`が
-// 使う画面遷移アニメーション（screenEnter）の時間と同じ値。この問題セットの最初の
-// カウントダウンだけ、このアニメーションが終わるまで待ってから始める（詳しい理由は
-// isFirstQuestionOfRunの定義箇所のコメント参照）。
-const SCREEN_ENTER_ANIMATION_MS = 480;
 
 // 【2026-08-30改訂・本人指示】回答候補は4択／10択／全曲検索の3段階のみに変更
 // （30択・50択は一瞬チャレンジでは不要と判断し廃止。歌詞クイズ側のANSWER_POOL_SIZE_VALUES
@@ -350,26 +344,18 @@ function renderCurrentQuestion() {
   // 【2026-09-05新設、本人指示】初回出題の直前だけ3→2→1を表示する。聞き直し
   // （questionElements.replayButtonのクリック）は無制限で気軽に使えるままにしたいため、
   // そちらにはカウントダウンを挟まない（playCurrentQuestionAudio()を直接呼ぶ）。
-  const startCountdown = () => {
-    if (questionElements.countdown && questionElements.countdownNumber) {
-      runLocalReplayCountdown(
-        { containerElement: questionElements.countdown, numberElement: questionElements.countdownNumber },
-        playCurrentQuestionAudio
-      );
-    } else {
-      playCurrentQuestionAudio();
-    }
-  };
-
-  // 【2026-09-07新設・本人指示：カウントダウン速度の統一】この問題セットの最初の問題だけ、
-  // 画面遷移アニメーション（screenEnter、480ms）と重ならないよう少し待ってから始める
-  // （SCREEN_ENTER_ANIMATION_MSの定義箇所のコメント参照）。2問目以降は画面が既にアクティブで
-  // このアニメーションが起きないため、待たずにそのまま始める。
-  if (isFirstQuestionOfRun) {
+  // 【2026-09-08改訂・本人指示：カウントダウン速度の完全統一】この問題セットの最初の問題だけ
+  // 画面遷移アニメーションと重ならないよう待つロジックは、js/onlineInstantBattleScreen.jsと
+  // 完全に共有するjs/localReplayCountdown.jsのrunLocalReplayCountdownForQuestion()へ
+  // 一本化した（値・ロジックの複製をやめる）。
+  if (questionElements.countdown && questionElements.countdownNumber) {
+    runLocalReplayCountdownForQuestion(
+      { containerElement: questionElements.countdown, numberElement: questionElements.countdownNumber, isFirstQuestion: isFirstQuestionOfRun },
+      playCurrentQuestionAudio
+    );
     isFirstQuestionOfRun = false;
-    setTimeout(startCountdown, SCREEN_ENTER_ANIMATION_MS);
   } else {
-    startCountdown();
+    playCurrentQuestionAudio();
   }
 }
 

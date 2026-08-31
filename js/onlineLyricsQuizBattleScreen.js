@@ -539,6 +539,12 @@ function findRuleLabel(ruleId) {
   return lyricsQuizBattleMode.listAvailableBattleRulesForSettings().find((rule) => rule.ruleId === ruleId)?.label ?? ruleId;
 }
 
+// 【2026-09-08新設・本人指示O：現在のルールの簡単説明】ホストの設定画面が持つ説明文
+// （describeRuleOptions()と同じ出どころ）を、ゲスト向けサマリーでもそのまま使う。
+function findRuleDescription(ruleId) {
+  return lyricsQuizBattleMode.listAvailableBattleRulesForSettings().find((rule) => rule.ruleId === ruleId)?.description ?? "";
+}
+
 function renderLyricsQuizParticipantSummary(settings) {
   clearElement(elements.lyricsSettingsSummaryContainer);
   const isManualSongSource = settings.questionSource?.type === QUESTION_SOURCE_TYPE.MANUAL_SELECTION;
@@ -561,6 +567,9 @@ function renderLyricsQuizParticipantSummary(settings) {
     chip.textContent = text;
     elements.lyricsSettingsSummaryContainer.appendChild(chip);
   });
+  if (elements.lyricsSettingsRuleDescription) {
+    elements.lyricsSettingsRuleDescription.textContent = findRuleDescription(settings.battleRuleId);
+  }
 }
 
 // settings.questionSourceから解決した曲プールの歌詞データが自分の端末に揃っているかを
@@ -727,6 +736,10 @@ export async function enterLyricsQuizBattlePlay(room) {
   lastActivityReportedQIndex = -1;
 
   elements.battleError.hidden = true;
+  // 【2026-09-08修正・本人指示：前問状態の持ち越し防止】is-notice・is-steal-successは
+  // 条件付きtoggle()ではなく一部add()だけで付けている箇所があり、次の問題・次の試合まで
+  // クラスが残ったままになる余地があったため、ここで明示的にリセットする。
+  elements.battleError.classList.remove("is-notice", "is-steal-success");
   elements.battleStatusMessage.hidden = true;
   elements.battleAnswerReveal.hidden = true;
   clearElement(elements.battleHudContainer);
@@ -1240,7 +1253,7 @@ function showAnswerSubmissionNotice(reason) {
 
 function hideAnswerSubmissionNotice() {
   elements.battleError.hidden = true;
-  elements.battleError.classList.remove("is-notice");
+  elements.battleError.classList.remove("is-notice", "is-steal-success");
 }
 
 async function handleAnswerChoiceClick(selectedSongId) {
@@ -1306,7 +1319,12 @@ async function handleAnswerChoiceClick(selectedSongId) {
     }
     const outcomeMessage = describeStealClaimOutcomeMessage(result.outcome);
     if (outcomeMessage) {
-      elements.battleError.classList.add("is-notice");
+      // 【2026-09-08改訂・本人指示F：早押し成功表示の再デザイン】勝者確定時だけ、
+      // 汎用の「お知らせ」グレー表示ではなく専用の華やかな見た目にする
+      // （惜しくも負けた場合はこれまでどおり控えめなis-noticeのまま）。
+      const isWin = result.outcome === STEAL_CLAIM_OUTCOME.WON;
+      elements.battleError.classList.toggle("is-steal-success", isWin);
+      elements.battleError.classList.toggle("is-notice", !isWin);
       elements.battleError.textContent = outcomeMessage;
       elements.battleError.hidden = false;
     }
@@ -1351,9 +1369,16 @@ function renderIdleNotice(match, qIndex, nowServerTimeMs) {
     const row = document.createElement("div");
     row.className = "online-lyrics-battle-idle-notice-row";
 
+    // 【2026-09-08新設・本人指示M：通信切断時の仕様】3分間操作が無い原因が「単に考え込んで
+    // いる」のか「実際に通信が切れている」のかで、ホストが取るべき対応の緊急度が変わる。
+    // 既存の接続監視（rooms/{roomId}/players/{uid}/connected、js/onlineBattle.js）を
+    // そのまま参照し、実際に切断中と分かる場合だけ文言を変える（新しい監視の仕組みは追加しない）。
+    const isActuallyDisconnected = latestRoom?.players?.[uid]?.connected === false;
     const text = document.createElement("span");
     text.className = "online-lyrics-battle-idle-notice-text";
-    text.textContent = `${displayName}さんが3分間操作していません`;
+    text.textContent = isActuallyDisconnected
+      ? `${displayName}さんとの接続が切れているようです（3分以上復帰していません）`
+      : `${displayName}さんが3分間操作していません`;
     row.appendChild(text);
 
     const button = document.createElement("button");
