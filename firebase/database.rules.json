@@ -119,7 +119,6 @@
         },
 
         "players": {
-          ".validate": "newData.numChildren() <= newData.parent().child('maxPlayers').val()",
           "$uid": {
             ".write": "auth != null && (auth.uid === $uid || (root.child('rooms/' + $roomId + '/host').val() === auth.uid && $uid !== auth.uid && $uid !== root.child('rooms/' + $roomId + '/host').val() && root.child('rooms/' + $roomId + '/status').val() === 'waiting' && !newData.exists()))",
             ".validate": "data.exists() || $uid === auth.uid",
@@ -133,7 +132,6 @@
         },
 
         "spectators": {
-          ".validate": "newData.numChildren() <= (newData.parent().hasChild('maxSpectators') ? newData.parent().child('maxSpectators').val() : 10)",
           "$uid": {
             ".write": "auth != null && auth.uid === $uid",
             ".validate": "data.exists() || $uid === auth.uid"
