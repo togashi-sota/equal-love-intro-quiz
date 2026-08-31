@@ -920,6 +920,16 @@ export async function startBattle({ roomId, settings }) {
     }
   }
 
+  return writeNewMatchStart({ roomId, room, uid, players, finalSettings });
+}
+
+// 【2026-09-05新設】startBattle()・rematchAndStartNow()の両方から呼ばれる、実際に
+// 「新しい試合を開始する」書き込み処理そのもの（seed・matchIdの発行、
+// participantsスナップショットの作成、status→countdown）。呼び出し元が、それぞれの
+// 文脈に応じた事前条件（waiting+全員ready、またはresult+ホストのみ等）を確認した
+// あとに呼ぶ想定（本人指示：「もう一度」を押したときの開始演出・試合初期化は、
+// 通常の対戦開始と全く同じ処理であるべき＝ロジックを2重に持たない）。
+async function writeNewMatchStart({ roomId, room, uid, players, finalSettings }) {
   const seed = generateRandomSeed(ONLINE_SEED_BITS);
   const matchId = generateMatchId();
   const updates = {
@@ -936,7 +946,11 @@ export async function startBattle({ roomId, settings }) {
       oshiMemberId: player.oshiMemberId ?? null, // nullなら未設定（Firebase上ではキー自体が作られない）
     };
   });
-  await update(ref(database), updates);
+  try {
+    await update(ref(database), updates);
+  } catch (error) {
+    return { ok: false, reason: "write-failed" };
+  }
   return { ok: true, seed, matchId };
 }
 
@@ -1199,9 +1213,15 @@ export async function finalizeMatchIfReady({ roomId, matchId, force = false }) {
 // 次回のstartBattle()がその時点のplayers一覧から新しい参加者スナップショットを作る
 // （既存のstartBattle()の実装をそのまま利用するだけで対応できる）。
 //
-// 【冪等性】何度呼んでも安全：既にwaitingなら即座に成功扱い、result以外の状態（waiting・
-// countdown・playing等）から呼ばれた場合は失敗を返す（resultのときだけ許可）。
-export async function rematchMatch({ roomId }) {
+// 【冪等性】何度呼んでも安全：既にwaitingなら即座に成功扱い、waiting以外の状態
+// （countdown・playing・result）から呼ばれた場合だけ実際にリセットを行う。
+//
+// 【2026-09-05改訂、本人指示】以前は「もう一度対戦する」専用（result状態からしか
+// 呼べない）だったが、「対戦中にホストがルーム設定へ戻れるようにしてほしい」という
+// 要望を受け、countdown・playing状態からも呼べるよう対象を広げ、関数名も実態に
+// 合わせてrematchMatch→returnRoomToLobbyへ改めた。「もう一度」（同じ設定のまま
+// 即座に新しい試合を始める）は、これとは別の新しいrematchAndStartNow()が担う。
+export async function returnRoomToLobby({ roomId }) {
   await authReady;
   const uid = getCurrentUid();
   if (!uid) return { ok: false, reason: "not-signed-in" };
@@ -1211,7 +1231,6 @@ export async function rematchMatch({ roomId }) {
   const room = snapshot.val();
   if (room.host !== uid) return { ok: false, reason: "not-host" };
   if (room.status === ROOM_STATUS.WAITING) return { ok: true }; // 既に目標状態（冪等）
-  if (room.status !== ROOM_STATUS.RESULT) return { ok: false, reason: "not-result" };
 
   // statusとREADYリセットを1回のupdate()にまとめる。分けて書き込むと、一部の端末が
   // 「statusはwaitingになったのに、READYはまだ前回のまま」という一瞬の不整合を
@@ -1232,6 +1251,61 @@ export async function rematchMatch({ roomId }) {
     return { ok: false, reason: "write-failed" };
   }
   return { ok: true };
+}
+
+// 【2026-09-05新設、本人指示】結果画面の「もう一度」：ホストが押した瞬間、同じルーム・
+// 同じ参加者・同じ設定のまま、3→2→1のカウントダウン演出を経て新しい試合を開始する。
+// startBattle()と違う点は2つだけ：①result状態からしか呼べない、②非ホストのREADYを
+// 確認しない（すぐ前まで一緒に対戦していた相手に、わざわざもう一度READYを押させるのは
+// 冗長という判断。「1回押すだけで開始演出を経て始まる」という要望を満たすための、
+// 意図的な違い）。実際に書き込む内容（曲プールの絞り込み・seed・matchId・
+// participantsスナップショット）はstartBattle()と完全に同じwriteNewMatchStart()を共有する。
+export async function rematchAndStartNow({ roomId }) {
+  await authReady;
+  const uid = getCurrentUid();
+  if (!uid) return { ok: false, reason: "not-signed-in" };
+
+  const snapshot = await get(ref(database, `rooms/${roomId}`));
+  if (!snapshot.exists()) return { ok: false, reason: "not-found" };
+  const room = snapshot.val();
+  if (room.host !== uid) return { ok: false, reason: "not-host" };
+  if (room.status !== ROOM_STATUS.RESULT) return { ok: false, reason: "not-result" };
+
+  const errorMessage = validateRoomSettings(room.gameMode, room.settings);
+  if (errorMessage) return { ok: false, reason: "invalid-settings", message: errorMessage };
+
+  const players = room.players || {};
+  let finalSettings = room.settings;
+  const resolvedSongPool = resolveSongPoolForSettings(room.gameMode, room.settings);
+  if (resolvedSongPool) {
+    if (resolvedSongPool.length === 0) {
+      return {
+        ok: false,
+        reason: "insufficient-common-songs",
+        message: "出題する曲が選ばれていません。参加者で曲を選ぶか、「全曲から出題」に切り替えてください。",
+      };
+    }
+    finalSettings = await restrictSettingsToCommonlyAvailableSongs({
+      roomId,
+      playerUids: Object.keys(players),
+      settings: room.settings,
+      resolvedSongPool,
+      kind: getAvailabilityKind(room.gameMode),
+    });
+    if (finalSettings !== room.settings) {
+      const restrictedSongCount = (finalSettings.questionSource?.songIds ?? []).length;
+      const restrictedErrorMessage = validateRoomSettings(room.gameMode, finalSettings);
+      if (restrictedErrorMessage) {
+        const message =
+          restrictedSongCount === 0
+            ? "参加者全員が利用できる共通曲がありません。データパックの導入状況をご確認ください。"
+            : "参加者全員が利用できる曲が足りないため、対戦を開始できません。出題範囲を見直すか、対戦相手のデータ導入状況をご確認ください。";
+        return { ok: false, reason: "insufficient-common-songs", message };
+      }
+    }
+  }
+
+  return writeNewMatchStart({ roomId, room, uid, players, finalSettings });
 }
 
 // クライアントの時計とFirebaseサーバーの時計のズレ（ミリ秒）を継続的に教えてくれる

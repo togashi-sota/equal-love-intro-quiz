@@ -34,6 +34,8 @@ import { LARGE_ANSWER_POOL_THRESHOLD } from "./lyricsQuizEngine.js";
 import { normalizeForSearch, songMatchesSearch } from "./songlist.js";
 import { buildQuestions, createResult, MAX_REPLAY_COUNT_PER_QUESTION } from "./battleModes/instantBattleMode.js";
 import { runLocalReplayCountdown, cancelLocalReplayCountdown } from "./localReplayCountdown.js";
+import { promptReturnToLobby } from "./onlineBattleLobbyReturnPrompt.js";
+import { getCurrentUid } from "./firebaseClient.js";
 
 let elements = null;
 
@@ -52,6 +54,7 @@ let isCountdownActive = false; // 【2026-09-05新設】カウントダウン中
 
 // elements: {
 //   progress, quitButton, quitConfirmModal, quitCancelButton, quitConfirmButton,
+//   backToLobbyButton,
 //   error, countdown, countdownNumber, replayButton, answerSearchRow, answerSearchInput,
 //   answerCount, answerList, nextButton,
 //   navigateTo, onQuitDuringBattle, onFinishMatch, onReportProgress,
@@ -71,6 +74,11 @@ export function initOnlineInstantBattleScreens(newElements) {
     resetOnlineInstantBattleState();
     elements.onQuitDuringBattle();
     elements.navigateTo("onlineBattleEntry");
+  });
+
+  // 【2026-09-05新設、本人指示】対戦中、ホストだけに見える「ルーム設定へ戻る」。
+  elements.backToLobbyButton?.addEventListener("click", () => {
+    promptReturnToLobby(currentRoomId);
   });
 
   elements.replayButton.addEventListener("click", () => {
@@ -123,6 +131,12 @@ export function enterOnlineInstantBattlePlay(room) {
   matchStartedAtMs = Date.now();
 
   elements.error.hidden = true;
+  // 【2026-09-05新設、本人指示】このモードは各自が独立して進行するため、対戦中は
+  // room更新を継続的に監視していない。ホスト判定は入場時点のroomでのみ行う
+  // （対戦中にホストが交代する稀なケースでは反映されないが、許容する）。
+  if (elements.backToLobbyButton) {
+    elements.backToLobbyButton.hidden = room.host !== getCurrentUid();
+  }
   elements.navigateTo("onlineInstantBattleQuestion");
   renderCurrentQuestion();
 }

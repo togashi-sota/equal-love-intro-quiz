@@ -26,7 +26,14 @@
 // 新ホストの端末がこのファイルへ再入場した時点で自動的に進行が再開する）。
 
 import { getCurrentUid } from "./firebaseClient.js";
-import { ROOM_STATUS, updateRoomSettings, subscribeServerTimeOffset } from "./onlineBattle.js";
+import {
+  ROOM_STATUS,
+  updateRoomSettings,
+  subscribeServerTimeOffset,
+  returnRoomToLobby,
+  rematchAndStartNow,
+} from "./onlineBattle.js";
+import { promptReturnToLobby } from "./onlineBattleLobbyReturnPrompt.js";
 import { validateRoomSettings } from "./battleModes/index.js";
 import * as instantCoopBattleMode from "./battleModes/instantCoopBattleMode.js";
 import {
@@ -155,13 +162,30 @@ export function initOnlineInstantCoopBattleScreens(newElements) {
     elements.navigateTo("onlineBattleEntry");
   });
 
+  // 【2026-09-05新設、本人指示】対戦中、ホストだけに見える「ルーム設定へ戻る」。
+  elements.backToLobbyButton?.addEventListener("click", () => {
+    promptReturnToLobby(latestRoom?.roomId);
+  });
+
   elements.resultHomeLink.addEventListener("click", () => {
     stopAllLocalTimers();
     elements.onLeaveResultToHome();
     elements.navigateTo("start");
   });
-  elements.resultRematchButton.addEventListener("click", () => {
-    elements.resultRematchConfirmModal.hidden = false;
+  // 【2026-09-05改訂、本人指示】試合後の選択肢を「もう一度」「ルーム設定に戻る」の
+  // 2つ（ホスト専用）へ統一。「もう一度」は確認モーダルを挟まず即座に実行する
+  // （js/onlineBattleScreen.jsの同じ変更と揃えている。詳細はそちらのコメント参照）。
+  elements.resultRematchButton.addEventListener("click", async () => {
+    if (!latestRoom) return;
+    elements.resultRematchButton.disabled = true;
+    await rematchAndStartNow({ roomId: latestRoom.roomId });
+    elements.resultRematchButton.disabled = false;
+  });
+  elements.resultBackToLobbyButton.addEventListener("click", async () => {
+    if (!latestRoom) return;
+    elements.resultBackToLobbyButton.disabled = true;
+    await returnRoomToLobby({ roomId: latestRoom.roomId });
+    elements.resultBackToLobbyButton.disabled = false;
   });
 }
 
@@ -191,6 +215,11 @@ export function handleInstantCoopRoomUpdate(room) {
   latestRoom = room;
   if (getCurrentUid() === room.host && room.status === ROOM_STATUS.PLAYING) {
     runHostProgressionTick();
+  }
+  // 【2026-09-05新設、本人指示】対戦中、ホストだけに見える「ルーム設定へ戻る」。
+  // このモードは継続的にroom更新を受け取るため、ホスト交代が起きても正しく追随する。
+  if (elements?.backToLobbyButton) {
+    elements.backToLobbyButton.hidden = room.host !== getCurrentUid();
   }
   if (document.body.dataset.screen === "onlineInstantCoopBattleQuestion") {
     renderCurrentQuestionState();
@@ -593,7 +622,11 @@ export function enterInstantCoopResult(room) {
   const teamResult = match.coopTeamResult ?? { totalQuestions: 0, correctCount: 0, totalSharedReplayCount: 0 };
   const myUid = getCurrentUid();
 
-  elements.resultRematchButton.hidden = room.host !== myUid;
+  // 【2026-09-05改訂、本人指示】試合後の選択肢「もう一度」「ルーム設定に戻る」は
+  // ホスト専用。非ホストには代わりに「⌂ホームへ戻る」だけを見せる。
+  const isHostOnResultScreen = room.host === myUid;
+  elements.resultHostActions.hidden = !isHostOnResultScreen;
+  elements.resultHomeLink.hidden = isHostOnResultScreen;
   elements.resultCorrectCount.textContent = `${teamResult.correctCount} / ${teamResult.totalQuestions}問`;
   // 【2026-09-05改訂】共有再視聴の仕組みを廃止したため、「合計共有再視聴回数」の表示は
   // 削除した（HTML側のelements.resultReplayCount自体も削除済み）。

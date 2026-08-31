@@ -15,6 +15,7 @@
 // このファイルに残しているが、将来モードが増えたときは、フォームの出し分けもここで行う想定。
 
 import { getActivePlayer } from "./playerProfile.js";
+import { promptReturnToLobby } from "./onlineBattleLobbyReturnPrompt.js";
 import {
   createRoom,
   joinRoom,
@@ -35,7 +36,8 @@ import {
   submitAnswerProgress,
   finishMyMatch,
   finalizeMatchIfReady,
-  rematchMatch,
+  returnRoomToLobby,
+  rematchAndStartNow,
   COUNTDOWN_DURATION_MS,
   ROOM_STATUS,
   MIN_PLAYERS,
@@ -934,9 +936,15 @@ function renderLobby(room) {
   // 状態遷移の検知は、後続の描画判定（設定変更通知の抑制など）でも使うため先に行っておく。
   const previousStatus = lastHandledRoomStatus;
   const statusJustChanged = room.status !== previousStatus;
-  // ホストが「もう一度対戦する」を選んだ結果のREADYリセットでは、既存の「設定が変更されました」
+  // ホストが「ルーム設定に戻る」を選んだ結果のREADYリセットでは、既存の「設定が変更されました」
   // 通知（本来は設定変更によるREADY解除用）を誤って出さないよう、別扱いにする。
-  const isRematchReset = statusJustChanged && room.status === ROOM_STATUS.WAITING && previousStatus === ROOM_STATUS.RESULT;
+  // 【2026-09-05改訂、本人指示】以前はresultからの遷移だけを見ていたが、「対戦中にホストが
+  // ルーム設定へ戻れるようにしてほしい」という要望を受け、countdown・playing中からの
+  // 復帰（returnRoomToLobby()）も同じ扱いにする。
+  const isReturnedToLobby =
+    statusJustChanged &&
+    room.status === ROOM_STATUS.WAITING &&
+    (previousStatus === ROOM_STATUS.RESULT || previousStatus === ROOM_STATUS.COUNTDOWN || previousStatus === ROOM_STATUS.PLAYING);
   if (statusJustChanged) {
     lastHandledRoomStatus = room.status;
   }
@@ -1082,9 +1090,9 @@ function renderLobby(room) {
     const myReady = Boolean(myPlayer?.ready && myPlayer?.readyForRevision === (room.settingsRevision ?? 0));
     updateReadyButton(myReady);
 
-    if (isRematchReset) {
-      // 再戦によるREADYリセットは、設定自体は変わっていないため「設定が変更されました」
-      // 通知は出さず、代わりに専用の再戦案内を出す。
+    if (isReturnedToLobby) {
+      // ルーム設定への復帰によるREADYリセットは、設定自体は変わっていないため
+      // 「設定が変更されました」通知は出さず、代わりに専用の案内を出す。
       elements.lobbySettingsChangedNotice.hidden = true;
       elements.lobbyRematchNotice.hidden = false;
     } else if (lastKnownMyReady === true && myReady === false && !suppressNextReadyChangeNotice) {
@@ -1126,12 +1134,15 @@ function renderLobby(room) {
       } else {
         goToResultScreen(room);
       }
-    } else if (isRematchReset) {
-      // ホストが「もう一度対戦する」を選んだ→全端末（ホスト含む）を自動的にロビーへ戻す。
-      // 前回の試合に関するローカル状態（progress/results監視の元になるcurrentMatchId、
-      // カウントダウンタイマー、進捗ストリップ等）を確実に後片付けしてから遷移する
-      // （本人の要望：次の試合を始めたときに前回の画面・データが混ざらないこと）。
+    } else if (isReturnedToLobby) {
+      // ホストが「もう一度」以外の操作（ルーム設定に戻る／対戦中断）を選んだ→
+      // 全端末（ホスト含む）を自動的にロビーへ戻す。前回の試合に関するローカル状態
+      // （progress/results監視の元になるcurrentMatchId、カウントダウンタイマー、
+      // 進捗ストリップ、歌詞クイズ・一瞬協力それぞれの進行状態）を確実に後片付けして
+      // から遷移する（本人の要望：次の試合を始めたときに前回の画面・データが
+      // 混ざらないこと。対戦の途中で呼ばれた場合も同じ後片付けで安全に戻せる）。
       resetOnlineBattleMatchState();
+      resetLyricsQuizBattleState();
       elements.navigateTo("onlineBattleLobby");
     }
   }
@@ -1418,6 +1429,10 @@ function updateOnlineBattlePlayUi(room) {
 
   if (currentScreen === "quiz") {
     renderOnlineBattleQuizStrip(rows, myUid);
+    // 【2026-09-05新設、本人指示】対戦中、ホストだけに「ルーム設定へ戻る」を見せる。
+    if (elements.quizBackToLobbyButton) {
+      elements.quizBackToLobbyButton.hidden = room.host !== myUid;
+    }
   } else if (currentScreen === "onlineBattleWaiting") {
     renderOnlineBattleWaitingList(room, rows, myUid);
   }
@@ -1433,9 +1448,12 @@ function goToResultScreen(room) {
   const results = match.results || {};
   const myUid = getCurrentUid();
 
-  // 「もう一度対戦する」はホスト専用（対戦設定を書き換えられるのがホストだけという
-  // 既存の権限設計と揃えている）。
-  elements.resultRematchButton.hidden = room.host !== myUid;
+  // 【2026-09-05改訂、本人指示】試合後の選択肢「もう一度」「ルーム設定に戻る」は
+  // ホスト専用（対戦設定を書き換えられるのがホストだけという既存の権限設計と揃えている）。
+  // 非ホストには代わりに「⌂ホームへ戻る」だけを見せる。
+  const isHostOnResultScreen = room.host === myUid;
+  elements.resultHostActions.hidden = !isHostOnResultScreen;
+  elements.resultHomeLink.hidden = isHostOnResultScreen;
 
   renderSettingsChips(elements.resultConfigSummary, room.settings, room.gameMode);
   elements.resultRuleNote.textContent = getRuleDescription(room.gameMode, room.settings);
@@ -2062,25 +2080,33 @@ export function initOnlineBattleScreens(newElements) {
     elements.navigateTo("start");
   });
 
-  // ホスト専用：「もう一度対戦する」。実際のstatus変更はrematchMatch()に任せ、ここでは
-  // ローカルの画面遷移を直接行わない（DNF確定ボタンと同じ設計：Firebase側の変化を
-  // renderLobby()側の状態遷移検知が拾って、ホスト・参加者とも自動的にロビーへ戻す。
-  // ここで直接navigateTo()もしてしまうと、その直後に届くroom更新による自動遷移と
-  // 二重に画面が切り替わってしまうため）。
-  elements.resultRematchButton.addEventListener("click", () => {
-    elements.resultRematchConfirmModal.hidden = false;
-  });
-  elements.resultRematchCancelButton.addEventListener("click", () => {
-    elements.resultRematchConfirmModal.hidden = true;
-  });
-  elements.resultRematchConfirmButton.addEventListener("click", async () => {
+  // 【2026-09-05改訂、本人指示】試合後の選択肢を「もう一度」「ルーム設定に戻る」の
+  // 2つ（ホスト専用）へ統一した。どちらも実際のstatus変更はjs/onlineBattle.js側の
+  // 関数に任せ、ここではローカルの画面遷移を直接行わない（DNF確定ボタンと同じ設計：
+  // Firebase側の変化をrenderLobby()側の状態遷移検知が拾って、ホスト・参加者とも
+  // 自動的に次の画面へ進む。ここで直接navigateTo()もしてしまうと、その直後に届く
+  // room更新による自動遷移と二重に画面が切り替わってしまうため）。
+  // 「もう一度」は、すぐ前まで一緒に対戦していた相手に改めてREADYを押させる必要が
+  // 無いという判断から、確認モーダルを挟まず即座に実行する（本人の要望：1回押すだけで
+  // 開始演出を経て始まること）。
+  elements.resultRematchButton.addEventListener("click", async () => {
     if (!currentRoomId) return;
-    // 通信遅延中の連打・二重イベントで何度も書き込みが飛ばないよう、処理中はボタンを無効化する
-    // （rematchMatch()自体も冪等だが、UI側でも素直に多重送信を防いでおく）。
-    elements.resultRematchConfirmButton.disabled = true;
-    await rematchMatch({ roomId: currentRoomId });
-    elements.resultRematchConfirmButton.disabled = false;
-    elements.resultRematchConfirmModal.hidden = true;
+    elements.resultRematchButton.disabled = true;
+    await rematchAndStartNow({ roomId: currentRoomId });
+    elements.resultRematchButton.disabled = false;
+  });
+  elements.resultBackToLobbyButton.addEventListener("click", async () => {
+    if (!currentRoomId) return;
+    elements.resultBackToLobbyButton.disabled = true;
+    await returnRoomToLobby({ roomId: currentRoomId });
+    elements.resultBackToLobbyButton.disabled = false;
+  });
+
+  // 【2026-09-05新設、本人指示】対戦中、ホストだけに見える「ルーム設定へ戻る」。
+  // 誤操作で対戦を中断してしまわないよう、共有の確認モーダル
+  // （js/onlineBattleLobbyReturnPrompt.js）を必ず挟む。
+  elements.quizBackToLobbyButton?.addEventListener("click", () => {
+    promptReturnToLobby(currentRoomId);
   });
 
   renderLastRoomBanner();

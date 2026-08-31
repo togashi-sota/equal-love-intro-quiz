@@ -688,6 +688,11 @@
         </button>
       </div>
 
+      <!-- 【2026-09-05新設、本人指示】オンライン対戦中、ホストだけに見える「ルーム設定へ戻る」。
+           対戦を中断して、ルーム・メンバーを維持したまま全員をロビーへ戻す
+           （js/onlineBattleScreen.js制御。通常プレイ・オフライン対戦では常に非表示）。 -->
+      <button id="online-battle-quiz-back-to-lobby-button" class="secondary-button online-battle-back-to-lobby-button" type="button" hidden>⚙ ルーム設定へ戻る</button>
+
       <!-- 【2026-08-29追加、本人指示】ピンチズーム・ドラッグでページ自体の表示位置がずれる
            不具合の修正（既存のtouch-action指定だけでは実機で防ぎきれなかったため）。
            ライブコールモード・カラオケ同期画面（#live-call-mode-karaoke-screen）で
@@ -3353,7 +3358,7 @@
           設定が変更されました。もう一度準備完了してください。
         </p>
         <p class="online-battle-ready-changed-notice" id="online-battle-lobby-rematch-notice" hidden>
-          ホストが再戦を選びました。もう一度準備完了してください。
+          ホストがルーム設定に戻しました。もう一度準備完了してください。
         </p>
 
         <!-- 参加者専用：準備完了ボタン。ホストは開始ボタンを押すこと自体が意思表示になるため表示しない。 -->
@@ -3461,16 +3466,18 @@
            以前あった「ロビーに戻る」ボタンは、Firebaseのstatusを変えずに画面だけを
            ロビー表示へ切り替えてしまい、status=resultのままREADY操作等ができてしまう
            矛盾状態を生む不具合の原因になっていたため廃止した（本人からの実機報告で発覚）。 -->
+      <!-- 【2026-09-05改訂、本人指示】試合後の選択肢を「もう一度」「ルーム設定に戻る」の
+           2つ（ホスト専用）へ統一した。非ホストの参加者には、ホストの操作を待つ間の
+           退避手段として「⌂ホームへ戻る」だけを見せる（状態は一切変更しない）。 -->
       <button id="online-battle-result-home-link" class="quiz-back-link" type="button">⌂ ホームへ戻る</button>
       <div class="title-block"><h2>対戦結果</h2></div>
       <p style="text-align:center;font-size:0.75rem;opacity:0.65;" id="online-battle-result-config-summary"></p>
       <ul class="battle-rank-list" id="online-battle-result-list"></ul>
       <p style="text-align:center;font-size:0.7rem;opacity:0.6;" id="online-battle-result-rule-note"></p>
-      <!-- ホスト専用：同じルーム・同じ設定のまま次の対戦をロビーから始め直すボタン。
-           参加者側には表示しない（ホストだけが再戦を開始できる設計）。参加者は、
-           ホストが再戦を選ぶまでこの結果画面で待つか、「ホームへ戻る」で離れて
-           後から「前回のルームに戻る」で戻ってくる。 -->
-      <button id="online-battle-result-rematch-button" class="secondary-button" type="button" hidden>もう一度対戦する</button>
+      <div id="online-battle-result-host-actions" class="button-row" hidden>
+        <button id="online-battle-result-rematch-button" class="primary-button" type="button">もう一度</button>
+        <button id="online-battle-result-back-to-lobby-button" class="secondary-button" type="button">ルーム設定に戻る</button>
+      </div>
     </section>
 
     <!-- 【2026-08-30新設、本人指示：観戦機能】試合中に参加したプレイヤー向けの観戦画面。
@@ -3499,6 +3506,8 @@
         <button id="online-instant-battle-quit-button" class="quiz-back-link" type="button">✕ 対戦をやめる</button>
         <span id="online-instant-battle-progress" class="lyrics-quiz-progress">第1問 / 5問</span>
       </div>
+      <!-- 【2026-09-05新設、本人指示】ホスト専用「ルーム設定へ戻る」（js/onlineInstantBattleScreen.js制御）。 -->
+      <button id="online-instant-battle-back-to-lobby-button" class="secondary-button online-battle-back-to-lobby-button" type="button" hidden>⚙ ルーム設定へ戻る</button>
 
       <div class="quiz-middle-zone">
         <div class="quiz-middle-zone-inner">
@@ -3539,6 +3548,8 @@
         <button id="online-instant-coop-battle-quit-button" class="quiz-back-link" type="button">✕ 対戦をやめる</button>
         <span id="online-instant-coop-battle-progress" class="lyrics-quiz-progress">第1問 / 5問</span>
       </div>
+      <!-- 【2026-09-05新設、本人指示】ホスト専用「ルーム設定へ戻る」（js/onlineInstantCoopBattleScreen.js制御）。 -->
+      <button id="online-instant-coop-battle-back-to-lobby-button" class="secondary-button online-battle-back-to-lobby-button" type="button" hidden>⚙ ルーム設定へ戻る</button>
 
       <div class="quiz-middle-zone">
         <div class="quiz-middle-zone-inner">
@@ -3593,7 +3604,12 @@
       <p class="battle-field-label">参加メンバー</p>
       <ul id="online-instant-coop-battle-result-member-list" class="online-lobby-player-list"></ul>
 
-      <button id="online-instant-coop-battle-result-rematch-button" class="primary-button" type="button">もう一度対戦する</button>
+      <!-- 【2026-09-05改訂、本人指示】試合後の選択肢を「もう一度」「ルーム設定に戻る」の
+           2つ（ホスト専用）へ統一した。非ホストには上の「⌂ホームへ戻る」だけを見せる。 -->
+      <div id="online-instant-coop-battle-result-host-actions" class="button-row" hidden>
+        <button id="online-instant-coop-battle-result-rematch-button" class="primary-button" type="button">もう一度</button>
+        <button id="online-instant-coop-battle-result-back-to-lobby-button" class="secondary-button" type="button">ルーム設定に戻る</button>
+      </div>
     </section>
 
     <!-- オンライン対戦：歌詞クイズ専用の対戦中画面（Phase6新設）。
@@ -3605,6 +3621,8 @@
       <div class="quiz-header-row">
         <button id="online-lyrics-battle-quit-button" class="quiz-back-link" type="button">✕ 対戦をやめる</button>
       </div>
+      <!-- 【2026-09-05新設、本人指示】ホスト専用「ルーム設定へ戻る」（js/onlineLyricsQuizBattleScreen.js制御）。 -->
+      <button id="online-lyrics-battle-back-to-lobby-button" class="secondary-button online-battle-back-to-lobby-button" type="button" hidden>⚙ ルーム設定へ戻る</button>
 
       <!-- 【2026-08-29追加】#quiz-screenと同じ理由・同じ設計でmiddle-zone化する
            （ページ自体の表示位置ズレ対策。詳細はcss/style.css参照）。 -->
@@ -3645,14 +3663,20 @@
          正解数・ミス数・LOVE連チャンの到達数等、タイムアタック系のresult形状を前提にした固定の
          描画（js/onlineBattleScreen.jsのgoToResultScreen()）のため流用せず、
          js/lyricsQuizBattleUi.js（Phase5）のルール別列自動生成をそのまま使う専用画面にした。
-         「もう一度対戦する」は、既存の#online-battle-result-rematch-confirm-modalをそのまま
-         再利用する（ルーム・設定の再戦処理自体はgameModeを問わない共通ロジックのため）。 -->
+         「もう一度」「ルーム設定に戻る」は、js/onlineBattle.jsのrematchAndStartNow()・
+         returnRoomToLobby()（ルーム再戦処理自体はgameModeを問わない共通ロジック）を
+         そのまま呼ぶ（詳細はjs/onlineLyricsQuizBattleScreen.js参照）。 -->
     <section id="online-lyrics-battle-result-screen" class="screen">
+      <!-- 【2026-09-05改訂、本人指示】試合後の選択肢を「もう一度」「ルーム設定に戻る」の
+           2つ（ホスト専用）へ統一した。非ホストには「⌂ホームへ戻る」だけを見せる。 -->
       <button id="online-lyrics-battle-result-home-link" class="quiz-back-link" type="button">⌂ ホームへ戻る</button>
       <div class="title-block"><h2>対戦結果</h2></div>
       <p style="text-align:center;font-size:0.75rem;opacity:0.65;" id="online-lyrics-battle-result-rule-note"></p>
       <div id="online-lyrics-battle-result-table" style="overflow-x:auto;"></div>
-      <button id="online-lyrics-battle-result-rematch-button" class="secondary-button" type="button" hidden>もう一度対戦する</button>
+      <div id="online-lyrics-battle-result-host-actions" class="button-row" hidden>
+        <button id="online-lyrics-battle-result-rematch-button" class="primary-button" type="button">もう一度</button>
+        <button id="online-lyrics-battle-result-back-to-lobby-button" class="secondary-button" type="button">ルーム設定に戻る</button>
+      </div>
     </section>
 
     <!-- オリジナル問題作成モードのプリセット一覧画面：保存済みのセット（名前・メモ・曲数・
@@ -4102,15 +4126,19 @@
     </div>
   </div>
 
-  <!-- ホストの「もう一度対戦する」ボタン用の確認モーダル。誤操作で全員のREADYを
-       リセットしてしまわないよう、ワンクッション挟む（他の確定系ボタンと同じ考え方）。 -->
-  <div id="online-battle-result-rematch-confirm-modal" class="modal-overlay" hidden>
-    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="online-battle-result-rematch-confirm-title">
-      <h2 id="online-battle-result-rematch-confirm-title">もう一度対戦しますか？</h2>
-      <p class="modal-lead">同じルーム・同じ設定のまま、全員がロビー画面に戻ります。参加者は改めて準備完了が必要です。</p>
+  <!-- 【2026-09-05改訂、本人指示】以前は結果画面の「もう一度対戦する」ボタン専用の
+       確認モーダルだったが、結果画面の「もう一度」「ルーム設定に戻る」は即座に実行する
+       形へ変更したため不要になった。代わりに、対戦中にホストが「ルーム設定へ戻る」を
+       選んだときの確認に転用する（誤操作で全員を強制的に対戦中断させないための
+       ワンクッション）。個人進行・一瞬バトル・歌詞クイズ・一瞬協力の全モードで
+       共有する1つのモーダル。 -->
+  <div id="online-battle-return-to-lobby-confirm-modal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="online-battle-return-to-lobby-confirm-title">
+      <h2 id="online-battle-return-to-lobby-confirm-title">対戦を中断してルーム設定に戻りますか？</h2>
+      <p class="modal-lead">同じルーム・同じ参加者のまま、全員がロビー画面に戻ります。今の対戦の進行状況は破棄されます。</p>
       <div class="button-row">
-        <button id="online-battle-result-rematch-cancel-button" class="secondary-button" type="button">キャンセル</button>
-        <button id="online-battle-result-rematch-confirm-button" class="primary-button" type="button">再戦する</button>
+        <button id="online-battle-return-to-lobby-cancel-button" class="secondary-button" type="button">キャンセル</button>
+        <button id="online-battle-return-to-lobby-confirm-button" class="primary-button" type="button">ルーム設定に戻る</button>
       </div>
     </div>
   </div>

@@ -2111,6 +2111,18 @@ fieldset label:has(input:focus-visible) {
   gap: 10px;
 }
 
+/* 【2026-09-05新設】対戦中、ホストだけに見える「ルーム設定へ戻る」ボタン
+   （js/onlineBattleScreen.js・js/onlineLyricsQuizBattleScreen.js・
+   js/onlineInstantBattleScreen.js・js/onlineInstantCoopBattleScreen.js制御）。
+   常時表示の「✕対戦をやめる」より目立たせすぎないよう、小さめ・控えめな見た目にする。 */
+.online-battle-back-to-lobby-button {
+  display: block;
+  width: fit-content;
+  margin: 6px auto 0;
+  padding: 6px 16px;
+  font-size: 0.75rem;
+}
+
 /* 結果画面のボタン列：スマホでの押しやすさを優先し、縦2段に並べる。
    「もう一度挑戦する」（主ボタン）を上、「タイトルに戻る」（副ボタン）を下にする。 */
 #result-actions {
@@ -13187,26 +13199,39 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   border: 1px solid var(--color-card-border);
 }
 
+/* 【2026-09-05改訂、本人指摘：実機で見た目が簡素すぎる】4つの戦績を、通常のクイズ
+   結果画面で使っている「ガラス風カード」（.time-attack-result-stat）と同じ質感に揃えた。
+   トークン未定義の--color-card-bg-soft（実質グレー）に頼っていたのが、他画面との
+   統一感が無い一番の原因だったため、var(--color-surface-glass)＋枠線＋淡いピンクの
+   影に置き換えている。 */
 .lyrics-battle-hud {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
-  margin: 0 0 16px;
+  gap: 10px;
+  margin: 0 0 18px;
 }
 
 .lyrics-battle-hud dt {
-  font-size: 0.72rem;
-  opacity: 0.7;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--color-text);
+  opacity: 0.65;
+  letter-spacing: 0.02em;
   grid-row: 1;
+  margin-bottom: 2px;
 }
 
 .lyrics-battle-hud dd {
   margin: 0;
-  font-size: 1.1rem;
+  font-size: 1.15rem;
   font-weight: 800;
-  background: var(--color-card-bg-soft, rgba(0, 0, 0, 0.05));
-  border-radius: 10px;
-  padding: 8px;
+  color: var(--color-primary-dark);
+  background: var(--color-surface-glass);
+  border: 1px solid var(--color-card-border);
+  border-radius: 14px;
+  padding: 10px 8px;
+  box-shadow: 0 6px 16px -8px rgba(255, 79, 150, 0.35);
+  font-variant-numeric: tabular-nums;
 }
 
 .lyrics-battle-result-table {
@@ -13280,63 +13305,112 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   font-size: 0.82rem;
 }
 
-/* ===== 歌詞クイズ対戦：対戦中画面（HUD・ヒント・回答候補）専用のレイアウト ===== */
+/* ===== 歌詞クイズ対戦：対戦中画面（HUD・ヒント・回答候補）専用のレイアウト =====
+   【2026-09-05改訂、本人指摘：実機で見た目が簡素すぎる・下半分が空きすぎ】
+   トークン未定義のvar(--color-card-bg-soft)（実質グレー、枠線なし）に頼っていた
+   ブロックを、他のクイズ画面と同じ「ガラス風カード＋淡いピンクの影」の質感へ揃え、
+   余白も一回り広げて画面の密度を上げた。HTML構造・JSのtextContent/classList操作は
+   一切変更していない（既存クラスへのスタイル追加のみ）。 */
 
 .online-lyrics-battle-progress {
-  text-align: center;
-  font-size: 0.8rem;
-  opacity: 0.7;
-  margin: 0 0 10px;
+  display: table; /* text-alignだけでなく、中身の幅にフィットしたピル型にするため */
+  margin: 0 auto 16px;
+  padding: 5px 16px;
+  border-radius: 999px;
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
 }
 
 .online-lyrics-battle-hint-box {
-  padding: 14px;
-  border-radius: 12px;
-  background: var(--color-card-bg-soft, rgba(0, 0, 0, 0.04));
-  margin: 0 0 16px;
+  padding: 22px 18px;
+  border-radius: 20px;
+  background: var(--color-surface-glass);
+  border: 1px solid var(--color-card-border);
+  box-shadow: var(--shadow-card);
+  margin: 0 0 20px;
 }
 
 .online-lyrics-battle-hint-level {
   font-weight: 800;
-  font-size: 0.85rem;
-  margin: 0 0 8px;
-  opacity: 0.8;
+  font-size: 0.78rem;
+  margin: 0 0 12px;
+  color: var(--color-primary-dark);
+  letter-spacing: 0.04em;
+  text-align: center;
 }
 
 .online-lyrics-battle-hint-lines {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
+  /* ヒントが1問の中で複数行積み上がっていく想定のため、CSSカウンターで
+     「ヒント1」「ヒント2」…の通し番号バッジを自動採番する（JS側の変更は不要）。 */
+  counter-reset: online-lyrics-hint-line;
 }
 
 .online-lyrics-battle-hint-line {
+  position: relative;
+  padding: 12px 14px 12px 44px;
+  border-radius: 14px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-card-border);
   font-size: 1.05rem;
+  font-weight: 700;
   line-height: 1.6;
+  counter-increment: online-lyrics-hint-line;
+}
+
+.online-lyrics-battle-hint-line::before {
+  content: counter(online-lyrics-hint-line);
+  position: absolute;
+  top: 50%;
+  left: 12px;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-primary-dark);
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 800;
 }
 
 .online-lyrics-battle-answer-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 8px;
-  margin-bottom: 16px;
+  gap: 10px;
+  margin-bottom: 20px;
 }
 
 .online-lyrics-battle-answer-button {
-  padding: 12px 8px;
-  border-radius: 14px;
-  border: 1.5px solid var(--color-card-border);
+  min-height: 48px;
+  padding: 14px 10px;
+  border-radius: 16px;
+  border: 2px solid var(--color-primary);
   background: var(--color-surface);
   font-family: inherit;
   font-weight: 700;
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   color: var(--color-text);
   cursor: pointer;
-  transition: transform var(--transition-fast, 0.15s), background-color var(--transition-base, 0.2s), border-color var(--transition-base, 0.2s);
+  box-shadow: 0 4px 14px -8px rgba(255, 79, 150, 0.4);
+  transition: transform var(--transition-fast, 0.15s), box-shadow var(--transition-fast, 0.15s), background-color var(--transition-base, 0.2s), border-color var(--transition-base, 0.2s);
+}
+
+.online-lyrics-battle-answer-button:active:not(:disabled) {
+  transform: scale(0.96);
 }
 
 .online-lyrics-battle-answer-button:disabled {
   opacity: 0.5;
   cursor: default;
+  box-shadow: none;
 }
 
 .online-lyrics-battle-answer-button.is-selected {
@@ -13366,15 +13440,18 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 .online-lyrics-battle-answer-button.is-correct-answer:disabled,
 .online-lyrics-battle-answer-button.is-my-wrong-answer:disabled {
   opacity: 1;
+  box-shadow: none;
 }
 
 .online-lyrics-battle-status-message {
   text-align: center;
   font-size: 0.85rem;
-  padding: 8px;
-  border-radius: 8px;
-  background: var(--color-card-bg-soft, rgba(0, 0, 0, 0.05));
-  margin-bottom: 12px;
+  font-weight: 700;
+  padding: 10px;
+  border-radius: 12px;
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+  margin-bottom: 14px;
 }
 
 /* スマホ幅では回答候補ボタンを2列に固定し、タップしやすい大きさを確保する。 */
