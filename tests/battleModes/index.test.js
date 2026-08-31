@@ -19,7 +19,10 @@ import {
   getPlaybackType,
   getModeLabel,
   isKnownGameMode,
+  computeFinisherRanks,
 } from "../../js/battleModes/index.js";
+import { createResult } from "../../js/battleModes/instantBattleMode.js";
+import { createResult as createTimeAttackResult } from "../../js/battleModes/timeAttackBattleMode.js";
 import { QUESTION_SOURCE_TYPE } from "../../js/questionSource.js";
 import { assertEqual } from "../test-utils.js";
 
@@ -94,5 +97,50 @@ export function runBattleModesIndexAvailabilityTests() {
       questionSource: { type: QUESTION_SOURCE_TYPE.MANUAL_SELECTION, songIds: ["love"] },
     });
     assertEqual(pool, ["love"], "instantBattleもresolveSongPoolForSettings()に対応する");
+  }
+
+  // ---- 2026-09-01追加（本人指示）：computeFinisherRanks（結果画面の順位計算）----
+  // 一瞬バトルだけ、完全同着を同じ順位として扱う（例：1位が2人なら次は3位）。
+  // 他の全モードは、同着でも既存どおり連番の順位のまま変更しないことを確認する。
+  {
+    const makeFinisher = (uid, correctCount, totalReplayCount) => ({
+      uid,
+      participant: { displayName: uid },
+      result: createResult({ correctCount, missCount: 0, totalElapsedMs: 1000, totalReplayCount, completed: true }),
+    });
+
+    // A・Bが完全同着（10正解・再視聴0回）、Cは9正解のみ違う → A・Bが同じ1位、Cは3位（2位を飛ばす）。
+    {
+      const finishers = [makeFinisher("A", 10, 0), makeFinisher("B", 10, 0), makeFinisher("C", 9, 0)];
+      const ranks = computeFinisherRanks("instantBattle", finishers, {});
+      assertEqual(ranks, [1, 1, 3], "一瞬バトルでA・Bが完全同着なら、本人指定どおり[1位, 1位, 3位]になる");
+    }
+
+    // 3人以上が連続で同着する場合も、正しく同じ順位が連鎖することを確認する。
+    {
+      const finishers = [makeFinisher("A", 10, 0), makeFinisher("B", 10, 0), makeFinisher("C", 10, 0), makeFinisher("D", 5, 0)];
+      const ranks = computeFinisherRanks("instantBattle", finishers, {});
+      assertEqual(ranks, [1, 1, 1, 4], "一瞬バトルで3人連続同着でも、全員同じ順位になり、次は4位になる（2〜3位を飛ばす）");
+    }
+
+    // 同着が無い場合は、一瞬バトルでも通常どおりの連番になることを確認する。
+    {
+      const finishers = [makeFinisher("A", 10, 0), makeFinisher("B", 8, 0), makeFinisher("C", 5, 0)];
+      const ranks = computeFinisherRanks("instantBattle", finishers, {});
+      assertEqual(ranks, [1, 2, 3], "一瞬バトルでも同着が無ければ通常どおり[1位, 2位, 3位]になる");
+    }
+
+    // 他のオンラインモード（タイムアタック）では、完全同着でも既存どおり連番のまま変更しない
+    // （本人指示：既存モードの見た目・保存データを壊さない）。
+    {
+      const makeTimeAttackFinisher = (uid, correctCount) => ({
+        uid,
+        participant: { displayName: uid },
+        result: createTimeAttackResult({ correctCount, missCount: 0, totalElapsedMs: 1000, completed: true }),
+      });
+      const finishers = [makeTimeAttackFinisher("A", 10), makeTimeAttackFinisher("B", 10), makeTimeAttackFinisher("C", 9)];
+      const ranks = computeFinisherRanks("timeAttack", finishers, { rule: "normal", penaltySeconds: 2 });
+      assertEqual(ranks, [1, 2, 3], "一瞬バトル以外（タイムアタック）は完全同着でも既存どおり連番のまま（同順位表示にしない）");
+    }
   }
 }

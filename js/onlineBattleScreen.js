@@ -48,6 +48,7 @@ import {
   validateRoomSettings,
   buildQuestionsForMode,
   compareBattleResults,
+  computeFinisherRanks,
   getRuleDescription,
   getModeLabel,
   getAvailabilityKind,
@@ -1405,6 +1406,7 @@ function goToResultScreen(room) {
     }
   });
   finishers.sort((a, b) => compareBattleResults(room.gameMode, a.result, b.result, room.settings));
+  const finisherRanks = computeFinisherRanks(room.gameMode, finishers, room.settings);
 
   const medalByRank = { 1: "🥇", 2: "🥈", 3: "🥉" };
 
@@ -1432,7 +1434,7 @@ function goToResultScreen(room) {
   elements.resultList.innerHTML = "";
 
   finishers.forEach((entry, index) => {
-    const rank = index + 1;
+    const rank = finisherRanks[index];
     const row = document.createElement("li");
     row.className = `battle-rank-row${rank === 1 ? " is-rank-1" : ""}`;
 
@@ -1508,13 +1510,13 @@ function goToResultScreen(room) {
   });
 
   // 対戦の勝敗音（2026-08-10新設）。DNF（自分の結果が確定していない）のときは鳴らさない
-  // （本人指示：通信結果待ちの前に勝利音を鳴らさない）。1位なら勝利、それ以外は敗北。
+  // （本人指示：通信結果待ちの前に勝利音を鳴らさない）。1位（同着1位を含む）なら勝利、それ以外は敗北。
   const myFinisherIndex = finishers.findIndex((entry) => entry.uid === myUid);
   if (myFinisherIndex !== -1) {
-    playSfx(myFinisherIndex === 0 ? SFX_EVENTS.BATTLE_WIN : SFX_EVENTS.BATTLE_LOSE);
+    playSfx(finisherRanks[myFinisherIndex] === 1 ? SFX_EVENTS.BATTLE_WIN : SFX_EVENTS.BATTLE_LOSE);
   }
 
-  saveOnlineBattleHistoryEntry(room, currentMatchId, finishers, dnfEntries, myUid);
+  saveOnlineBattleHistoryEntry(room, currentMatchId, finishers, finisherRanks, dnfEntries, myUid);
   elements.navigateTo("onlineBattleResult");
 }
 
@@ -1529,7 +1531,7 @@ const HISTORY_MODE_LABEL_BY_GAME_MODE = {
   randomPlayback: "オンライン対戦（ランダム再生）",
 };
 
-function saveOnlineBattleHistoryEntry(room, matchId, finishers, dnfEntries, myUid) {
+function saveOnlineBattleHistoryEntry(room, matchId, finishers, finisherRanks, dnfEntries, myUid) {
   if (!matchId) return;
   const myFinisherIndex = finishers.findIndex((entry) => entry.uid === myUid);
   const isDnf = myFinisherIndex === -1;
@@ -1555,13 +1557,13 @@ function saveOnlineBattleHistoryEntry(room, matchId, finishers, dnfEntries, myUi
     details: {
       rule: room.settings.rule,
       penaltySeconds: room.settings.penaltySeconds,
-      myRank: isDnf ? null : myFinisherIndex + 1,
+      myRank: isDnf ? null : finisherRanks[myFinisherIndex],
       isDnf,
       participantCount: finishers.length + dnfEntries.length,
       standings: [
         ...finishers.map((entry, index) => ({
           displayName: entry.participant.displayName,
-          rank: index + 1,
+          rank: finisherRanks[index],
           correctCount: entry.result.common.correctCount,
           missCount: entry.result.common.missCount,
           completed: entry.result.completed,

@@ -104,6 +104,29 @@ export function compareBattleResults(gameMode, resultA, resultB, settings) {
   return getBattleMode(gameMode)?.compareResults(resultA, resultB, settings) ?? 0;
 }
 
+// 【2026-09-01新設、本人指示】結果画面の順位計算。完走者（finishers）はcompareBattleResults()で
+// 既に順位順にソート済みである前提。完全同着（比較結果が0）の場合の扱いは、モードによって
+// 意図的に分けている：
+// ・一瞬バトル（instantBattle）：同着なら同じ順位にする（例：1位が2人なら次は3位。本人指示）。
+// ・それ以外の全オンラインモード（イントロ対戦・ランダム再生・アウトロ対戦・歌詞クイズ対戦）：
+//   同着でも既存どおり連番の順位のまま変更しない（本人指示：既存モードの見た目・保存データを
+//   壊さない）。このためinstantBattle以外では常にindex+1を返し、js/onlineBattleScreen.jsの
+//   既存の計算結果と完全に一致する。
+export function computeFinisherRanks(gameMode, finishers, settings) {
+  const ranks = [];
+  finishers.forEach((entry, index) => {
+    if (gameMode !== "instantBattle" || index === 0) {
+      ranks.push(index + 1);
+      return;
+    }
+    // 直前の人（既に確定済みのranks[index - 1]）と完全同着なら、同じ順位をそのまま引き継ぐ。
+    // 3人以上が連続で同着の場合も、常に「直前の確定済み順位」を見るため正しく連鎖する。
+    const isTiedWithPrevious = compareBattleResults(gameMode, finishers[index - 1].result, entry.result, settings) === 0;
+    ranks.push(isTiedWithPrevious ? ranks[index - 1] : index + 1);
+  });
+  return ranks;
+}
+
 export function getRuleDescription(gameMode, settings) {
   return getBattleMode(gameMode)?.getRuleDescription(settings) ?? "";
 }
