@@ -239,6 +239,7 @@ import {
   restoreFromBackup,
   createTransferCode,
   claimTransferCode,
+  scheduleBackupSync,
 } from "./backupSync.js";
 import { syncPublicProfileIfEnabled } from "./publicProfileSync.js";
 import { getFavoriteSongIds } from "./favoriteSongs.js";
@@ -655,6 +656,9 @@ const adminBackupStatusElement = document.getElementById("admin-backup-status");
 const adminRecoveryRequestsListElement = document.getElementById("admin-recovery-requests-list");
 const adminBackupsListElement = document.getElementById("admin-backups-list");
 const adminBackupsSearchInputElement = document.getElementById("admin-backups-search-input");
+const adminCheckAtRiskButtonElement = document.getElementById("admin-check-at-risk-button");
+const adminAtRiskStatusElement = document.getElementById("admin-at-risk-status");
+const adminAtRiskListElement = document.getElementById("admin-at-risk-list");
 
 // データ管理画面の「機種変更・データ引き継ぎ」（2026-08-29新設）。
 const deviceTransferIssueButtonElement = document.getElementById("device-transfer-issue-button");
@@ -1777,6 +1781,9 @@ initAdminBackupScreen(
     recoveryRequestsList: adminRecoveryRequestsListElement,
     backupsList: adminBackupsListElement,
     backupsSearchInput: adminBackupsSearchInputElement,
+    checkAtRiskButton: adminCheckAtRiskButtonElement,
+    atRiskStatusText: adminAtRiskStatusElement,
+    atRiskList: adminAtRiskListElement,
   },
   MEMBERS
 );
@@ -1836,6 +1843,16 @@ onScreenChange((screenName) => {
     // 「みんなのプロフィール」ONユーザーの、既存タイムアタック自己ベストのランキング反映
     // （2026-08-07追加）。プレイヤーごとに1回だけ実行される（内部でフラグ管理）。
     backfillTimeAttackLeaderboardIfNeeded(getPlayerKeyPrefix());
+    // 【2026-09-04新設、本人指示：実際に「一度もバックアップが作られていなかった」
+    // プレイヤーが見つかったことを受けての対応】以前は称号取得・自己ベスト更新等、
+    // データが変化した瞬間だけscheduleBackupSync()を呼んでいたため、何もデータが
+    // 変化しないままアプリを開閉していたプレイヤーは、一度もバックアップが作られない
+    // ままになりうる不具合があった。上のsyncPublicProfileIfEnabled()と同じく、
+    // スタート画面へ戻るたびに（＝アプリを開くたびに、ほぼ必ず一度は通る場所）
+    // ここでも同期を試みることで、この取りこぼしを防ぐ。scheduleBackupSync()自体は
+    // 内部で「前回と内容が変わっていなければ書き込まない」判定を持つため、
+    // 呼び出し回数が増えても無駄な書き込みは増えない。
+    scheduleBackupSync();
   }
 });
 

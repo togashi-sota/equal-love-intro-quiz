@@ -16,6 +16,8 @@ import {
   adminDeleteRecoveryRequest,
   adminSearchPublicProfilesByName,
   adminRestoreAchievementsFromPublicProfile,
+  adminFindPlayersWithoutBackup,
+  adminCreatePreventiveBackup,
 } from "./backupAdmin.js";
 import { getMemberById } from "./memberUtils.js";
 
@@ -341,10 +343,70 @@ function renderFilteredBackupsList() {
   filtered.forEach((backup) => elements.backupsList.appendChild(buildBackupRow(backup)));
 }
 
-// elements: { statusText, refreshButton, recoveryRequestsList, backupsList, backupsSearchInput }
+// 【2026-09-04新設、本人指示：予防対応】「バックアップが1件も無い＝いくみさんと同じ
+// 危険がある」プレイヤーを一覧表示し、その場で予防的にbackupsを1件作れるようにする。
+async function handleCheckAtRiskPlayers() {
+  elements.atRiskStatusText.hidden = false;
+  elements.atRiskStatusText.textContent = "確認中…";
+  elements.atRiskList.innerHTML = "";
+
+  const result = await adminFindPlayersWithoutBackup();
+  if (!result.ok) {
+    elements.atRiskStatusText.textContent = result.reason ?? "確認に失敗しました";
+    return;
+  }
+
+  if (result.atRiskPlayers.length === 0) {
+    elements.atRiskStatusText.textContent = "危険な人は見つかりませんでした（全員、今のUIDに紐づくバックアップがあります）";
+    return;
+  }
+
+  elements.atRiskStatusText.textContent = `${result.atRiskPlayers.length}人、バックアップが1件も無い状態です（フレンド一覧公開設定がONの人のみ確認できます）。`;
+  result.atRiskPlayers.forEach((player) => {
+    const oshiMember = player.oshiMemberId ? getMemberById(members, player.oshiMemberId) : null;
+    const row = document.createElement("div");
+    row.className = "admin-backup-fallback-match-row";
+
+    const detail = document.createElement("p");
+    detail.className = "admin-backup-row-detail";
+    detail.textContent = `${player.displayName}（推し：${oshiMember ? oshiMember.name : "未設定"}／称号${player.unlockedAchievementIds.length}個）`;
+    row.appendChild(detail);
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "secondary-button";
+    button.textContent = "今のうちに予防的にバックアップを作る";
+    const resultText = document.createElement("p");
+    resultText.className = "admin-backup-row-detail admin-backup-resolve-result";
+    resultText.hidden = true;
+
+    button.addEventListener("click", async () => {
+      button.disabled = true;
+      resultText.hidden = false;
+      resultText.textContent = "処理しています…";
+      const createResult = await adminCreatePreventiveBackup(player);
+      button.disabled = false;
+      if (createResult.ok) {
+        resultText.textContent = "バックアップを作成しました。これで、この人の端末データが消えても称号・推しメンだけは復元できます。";
+        row.style.opacity = "0.6";
+        button.hidden = true;
+      } else {
+        resultText.textContent = createResult.reason ?? "処理に失敗しました";
+      }
+    });
+
+    row.appendChild(button);
+    row.appendChild(resultText);
+    elements.atRiskList.appendChild(row);
+  });
+}
+
+// elements: { statusText, refreshButton, recoveryRequestsList, backupsList, backupsSearchInput,
+//   checkAtRiskButton, atRiskStatusText, atRiskList }
 export function initAdminBackupScreen(newElements, allMembers) {
   elements = newElements;
   members = allMembers;
   elements.refreshButton.addEventListener("click", renderAdminBackupScreen);
   elements.backupsSearchInput?.addEventListener("input", renderFilteredBackupsList);
+  elements.checkAtRiskButton?.addEventListener("click", handleCheckAtRiskPlayers);
 }

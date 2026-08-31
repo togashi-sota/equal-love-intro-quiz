@@ -1533,6 +1533,15 @@
       <button id="admin-backup-refresh-button" class="secondary-button" type="button">最新の状態に更新する</button>
       <p id="admin-backup-status" class="lyrics-import-status"></p>
 
+      <!-- 【2026-09-04新設、本人指示：予防対応】いくみさんの件を受けて、「まだ一度も
+           バックアップが無い＝今すぐ端末データが消えたら称号すら復元できない」人を
+           事前に見つけて、今のうちに予防的なバックアップを作れる機能。 -->
+      <h3 class="admin-backup-section-title">バックアップが無い人を確認する（予防）</h3>
+      <p class="special-modes-intro">フレンド一覧の公開設定がONの人の中から、今のバックアップが1件も無い人を確認できます。</p>
+      <button id="admin-check-at-risk-button" class="secondary-button" type="button">確認する</button>
+      <p id="admin-at-risk-status" class="lyrics-import-status" hidden></p>
+      <div id="admin-at-risk-list" class="admin-backup-list"></div>
+
       <h3 class="admin-backup-section-title">復旧依頼（対応待ち）</h3>
       <div id="admin-recovery-requests-list" class="admin-backup-list"></div>
 

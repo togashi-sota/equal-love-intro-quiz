@@ -146,6 +146,87 @@ export async function adminSearchPublicProfilesByName(query) {
   }
 }
 
+// 【2026-09-04新設、本人指示：いくみさんの件を受けた予防対応】publicProfiles（フレンド
+// 一覧の公開設定）には載っているのに、その人の「今のUID」に対応するbackupsが1件も無い
+// ＝「もし今この瞬間に端末のデータが消えたら、称号すら復元できない」人を洗い出す。
+// currentUidが一致するbackupsが存在するかどうかで判定する（表示名の一致では判定しない。
+// 同じ名前の人が複数いる可能性があるため、より確実なuidベースの突き合わせにしている）。
+export async function adminFindPlayersWithoutBackup() {
+  try {
+    const { database, authReady } = await import("./firebaseClient.js");
+    const { ref, get } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js");
+    await authReady;
+    const [profilesSnap, backupsSnap] = await Promise.all([
+      get(ref(database, "publicProfiles")),
+      get(ref(database, "backups")),
+    ]);
+    if (!profilesSnap.exists()) return { ok: true, atRiskPlayers: [] };
+
+    const backupCurrentUids = new Set();
+    if (backupsSnap.exists()) {
+      Object.values(backupsSnap.val()).forEach((backup) => {
+        if (typeof backup.currentUid === "string") backupCurrentUids.add(backup.currentUid);
+      });
+    }
+
+    const atRiskPlayers = Object.entries(profilesSnap.val())
+      .filter(([uid]) => !backupCurrentUids.has(uid))
+      .map(([uid, entry]) => ({
+        uid,
+        displayName: entry.displayName ?? "（名前未設定）",
+        oshiMemberId: entry.oshiMemberId ?? null,
+        unlockedAchievementIds: Array.isArray(entry.unlockedAchievementIds) ? entry.unlockedAchievementIds : [],
+      }));
+    return { ok: true, atRiskPlayers };
+  } catch (error) {
+    console.warn("バックアップ未作成プレイヤーの確認に失敗しました", error);
+    return { ok: false, reason: "確認に失敗しました。管理者としてログインできているかご確認ください。" };
+  }
+}
+
+// 【2026-09-04新設、本人指示：予防対応】adminFindPlayersWithoutBackup()で見つかった
+// 「まだ一度もバックアップが無い」人に対して、その人がまだ端末のデータを失っていない
+// うちに、publicProfilesの称号・推しメンの記録だけを使って予防的にbackupsを1件作る
+// （＝いくみさんのケースで最後に困った状態を、事前に防ぐための保険）。
+// 【adminRestoreAchievementsFromPublicProfile()との違い】あちらは「既に復旧依頼が来ている
+// 人」向けで、newUid（依頼した端末の新しいUID）へ紐付ける。こちらは「まだ困っていない人」
+// 向けで、その人自身の今のUID（publicProfiles上のuidそのもの）へ紐付ける点が異なる。
+export async function adminCreatePreventiveBackup({ uid, displayName, oshiMemberId, unlockedAchievementIds }) {
+  try {
+    const { database, authReady } = await import("./firebaseClient.js");
+    const { ref, set, serverTimestamp } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js");
+    await authReady;
+
+    const achievementsJson = JSON.stringify({
+      schemaVersion: 1,
+      unlockedAchievementIds,
+      unlockedAtById: {},
+    });
+    const oshiMembersJson = JSON.stringify({
+      favoriteMemberIds: oshiMemberId ? [oshiMemberId] : [],
+      mostOshiMemberId: oshiMemberId,
+    });
+
+    const newBackupId = crypto.randomUUID();
+    await set(ref(database, `backups/${newBackupId}`), {
+      schemaVersion: 1,
+      currentUid: uid,
+      updatedAt: serverTimestamp(),
+      displayName: displayName ?? null,
+      oshiMemberId,
+      achievementCount: unlockedAchievementIds.length,
+      payload: {
+        achievements: achievementsJson,
+        oshiMembers: oshiMembersJson,
+      },
+    });
+    return { ok: true };
+  } catch (error) {
+    console.warn("予防的バックアップの作成に失敗しました（管理者権限が無い可能性があります）", error);
+    return { ok: false, reason: "処理に失敗しました。管理者としてログインできているかご確認ください。" };
+  }
+}
+
 // 【緊急対応用に2026-09-04新設、本人指示】backupsが存在しない場合の最後の手段として、
 // publicProfilesに残っている称号・推しメンの記録だけから、新しいバックアップを作って
 // 復旧依頼に紐付ける。プレイ履歴・自己ベスト・お気に入り・プレイリスト等、
