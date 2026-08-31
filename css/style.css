@@ -12598,6 +12598,38 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   color: var(--color-danger);
 }
 
+/* 【2026-09-05新設】在席確認システムのバッジ（js/onlineBattlePresence.js）。
+   「在席確認中」は黄系（まだ様子見の段階）、「離席中」は赤系（切断中と同じ危険度合い）
+   で色分けし、テキストラベルで意味の違いを明示する。 */
+.online-lobby-badge-presence-checking {
+  background: var(--color-accent-soft);
+  color: var(--color-primary-dark);
+}
+
+.online-lobby-badge-presence-away {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+/* 【2026-09-05新設】在席確認中に画面下部へ出す、控えめなバナー。どこをタップしても
+   （バナー自体を含め）js/onlineBattlePresence.jsのdocument全体のイベント監視が拾って
+   自動的に消えるため、閉じるボタンは持たせていない。 */
+.online-presence-checking-banner {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  z-index: 500;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: var(--color-primary-dark);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-align: center;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2);
+}
+
 /* 一瞬協力：問題ごとの正解/不正解の表示（2026-08-31新設）。 */
 .online-battle-outcome-badge {
   display: inline-block;

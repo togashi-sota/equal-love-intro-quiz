@@ -53,6 +53,7 @@ import {
 } from "./battleModes/index.js";
 import { restrictSettingsToCommonlyAvailableSongs } from "./onlineBattleSongAvailability.js";
 import { pickNextHostUid } from "./onlineBattleHostTransitionPayloads.js";
+import { startActivityPresenceTracking, stopActivityPresenceTracking } from "./onlineBattlePresence.js";
 
 const ROOM_ID_LENGTH = 6;
 const LAST_ROOM_STORAGE_KEY = "equalLoveIntroQuiz.onlineBattle.lastRoom";
@@ -255,6 +256,7 @@ export async function createRoom({ playerName, maxPlayers, gameMode = DEFAULT_GA
   }
 
   startPresenceTracking(roomId, uid);
+  startActivityPresenceTracking(roomId, uid);
   saveLastRoom(roomId, playerName);
   return { ok: true, roomId };
 }
@@ -378,6 +380,7 @@ async function reservePlayerSlot({ roomId, uid, playerName, alreadyJoined }) {
 // 参加成功後の後片付け（切断検知の登録・「前回のルーム」記憶の保存）。
 function finalizeJoin(roomId, playerName, uid) {
   startPresenceTracking(roomId, uid);
+  startActivityPresenceTracking(roomId, uid);
   saveLastRoom(roomId, playerName);
 }
 
@@ -444,6 +447,7 @@ export async function spectateRoom({ roomId, playerName }) {
   }
 
   startPresenceTracking(roomId, uid, "spectators");
+  startActivityPresenceTracking(roomId, uid, "spectators");
   saveLastRoom(roomId, playerName);
   return { ok: true, roomId };
 }
@@ -456,6 +460,7 @@ export async function leaveSpectating({ roomId }) {
   if (!uid) return;
 
   stopPresenceTracking();
+  stopActivityPresenceTracking();
   try {
     await onDisconnect(ref(database, `rooms/${roomId}/spectators/${uid}/connected`)).cancel();
   } catch (error) {
@@ -509,6 +514,7 @@ export async function promoteSpectatorToPlayer({ roomId, playerName }) {
     return { ok: false, reason: "write-failed" };
   }
   startPresenceTracking(roomId, uid, "players");
+  startActivityPresenceTracking(roomId, uid, "players");
   return { ok: true };
 }
 
@@ -527,6 +533,7 @@ export async function leaveRoom({ roomId }) {
   if (!uid) return;
 
   stopPresenceTracking();
+  stopActivityPresenceTracking();
   try {
     // 自分で退出した後に、遅れてonDisconnectが発火して幽霊のconnected:falseだけが
     // 残る事故を防ぐため、予約を取り消しておく。

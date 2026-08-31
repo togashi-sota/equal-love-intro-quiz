@@ -218,6 +218,20 @@ function createOshiDotElement(oshiMemberId) {
   return dot;
 }
 
+// 【2026-09-05新設、本人指示：在席確認システム】接続中（connected）の人の「在席確認中／
+// 離席中」バッジを組み立てる。切断中の人・presence未設定（＝在席扱い）の人はnullを返し、
+// 何も表示しない（本人指示：この状態はあくまで目安の表示で、対戦の進行には影響させない）。
+function buildPresenceBadge(entity) {
+  if (!entity.connected) return null;
+  if (entity.presence !== "checking" && entity.presence !== "away") return null;
+
+  const badge = document.createElement("span");
+  const isChecking = entity.presence === "checking";
+  badge.className = `online-lobby-badge ${isChecking ? "online-lobby-badge-presence-checking" : "online-lobby-badge-presence-away"}`;
+  badge.textContent = isChecking ? "在席確認中" : "離席中";
+  return badge;
+}
+
 // 今どのルームにいるか（結果画面等、将来のStep2以降から読み取れるようにする窓口）。
 export function getCurrentOnlineRoomId() {
   return currentRoomId;
@@ -971,6 +985,13 @@ function renderLobby(room) {
     connectionBadge.className = `online-lobby-badge ${player.connected ? "online-lobby-badge-connected" : "online-lobby-badge-disconnected"}`;
     connectionBadge.textContent = player.connected ? "接続中" : "切断中";
     badges.appendChild(connectionBadge);
+
+    // 【2026-09-05新設、本人指示：在席確認システム】接続はしているが操作していない人を、
+    // 「切断中」とは別に区別して表示する（js/onlineBattlePresence.js参照）。
+    // 切断中の人にはこのバッジを重ねて出さない（「切断中」だけで十分伝わるため）。
+    const presenceBadge = buildPresenceBadge(player);
+    if (presenceBadge) badges.appendChild(presenceBadge);
+
     row.appendChild(badges);
 
     // 【2026-08-30新設、本人指示】ホストだけに見える、待機中だけの「キック」「ホストを渡す」
@@ -1280,6 +1301,7 @@ function getOnlineBattleMatchRows(room) {
       finished: playerProgress.finished === true,
       hasLeft: !livePlayer,
       connected: Boolean(livePlayer?.connected),
+      presence: livePlayer?.presence, // 【2026-09-05新設】在席確認システム用（下記の描画で使用）
     };
   });
 }
@@ -1294,7 +1316,12 @@ function renderOnlineBattleQuizStrip(rows, myUid) {
       if (row.hasLeft) return `${row.displayName} 退出済み`;
       if (row.finished) return `${row.displayName} 完了`;
       const base = `${row.displayName} ${row.answeredCount}/${currentMatchTotalQuestions}`;
-      return row.connected ? base : `${base}（切断中）`;
+      if (!row.connected) return `${base}（切断中）`;
+      // 【2026-09-05新設、本人指示：在席確認システム】接続はしているが操作していない人を、
+      // 対戦進行への影響なしに、簡易表示のこの一行にも反映する。
+      if (row.presence === "away") return `${base}（離席中）`;
+      if (row.presence === "checking") return `${base}（在席確認中）`;
+      return base;
     })
     .join("　");
   elements.quizProgressStrip.textContent = text;
@@ -1349,6 +1376,13 @@ function renderOnlineBattleWaitingList(room, rows, myUid) {
       disconnectedBadge.className = "online-lobby-badge online-lobby-badge-disconnected";
       disconnectedBadge.textContent = "切断中";
       badges.appendChild(disconnectedBadge);
+    }
+
+    // 【2026-09-05新設、本人指示：在席確認システム】切断中バッジが出ない（＝接続中の）
+    // 未終了プレイヤーにだけ、在席確認中／離席中バッジを追加する。
+    if (!row.hasLeft && !row.finished) {
+      const presenceBadge = buildPresenceBadge(row);
+      if (presenceBadge) badges.appendChild(presenceBadge);
     }
 
     li.appendChild(badges);

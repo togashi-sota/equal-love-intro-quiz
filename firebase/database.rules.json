@@ -127,6 +127,10 @@
             },
             "readyForRevision": {
               ".write": "auth != null && (auth.uid === $uid || root.child('rooms/' + $roomId + '/host').val() === auth.uid)"
+            },
+            "presence": {
+              ".write": "auth != null && auth.uid === $uid",
+              ".validate": "newData.val() === 'active' || newData.val() === 'checking' || newData.val() === 'away'"
             }
           }
         },
@@ -134,7 +138,11 @@
         "spectators": {
           "$uid": {
             ".write": "auth != null && auth.uid === $uid",
-            ".validate": "data.exists() || $uid === auth.uid"
+            ".validate": "data.exists() || $uid === auth.uid",
+            "presence": {
+              ".write": "auth != null && auth.uid === $uid",
+              ".validate": "newData.val() === 'active' || newData.val() === 'checking' || newData.val() === 'away'"
+            }
           }
         },
 
