@@ -654,6 +654,7 @@ const adminBackupRefreshButtonElement = document.getElementById("admin-backup-re
 const adminBackupStatusElement = document.getElementById("admin-backup-status");
 const adminRecoveryRequestsListElement = document.getElementById("admin-recovery-requests-list");
 const adminBackupsListElement = document.getElementById("admin-backups-list");
+const adminBackupsSearchInputElement = document.getElementById("admin-backups-search-input");
 
 // データ管理画面の「機種変更・データ引き継ぎ」（2026-08-29新設）。
 const deviceTransferIssueButtonElement = document.getElementById("device-transfer-issue-button");
@@ -1775,6 +1776,7 @@ initAdminBackupScreen(
     refreshButton: adminBackupRefreshButtonElement,
     recoveryRequestsList: adminRecoveryRequestsListElement,
     backupsList: adminBackupsListElement,
+    backupsSearchInput: adminBackupsSearchInputElement,
   },
   MEMBERS
 );

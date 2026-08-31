@@ -196,19 +196,46 @@ export async function renderAdminBackupScreen() {
     );
   }
 
+  renderFilteredBackupsList();
+}
+
+// 【2026-09-04新設】表示名の検索欄の値でバックアップ一覧を絞り込んで描画し直す。
+// 大文字小文字・全角半角を気にせず引っかかるよう、簡易的な正規化をしてから比較する
+// （本人の緊急対応：大量のダミーデータの中から特定の1人を探す必要が生じたため）。
+function normalizeForBackupSearch(text) {
+  return (text ?? "")
+    .toLowerCase()
+    .normalize("NFKC"); // 全角英数字・半角カナ等を比較しやすい形へ統一する
+}
+
+function renderFilteredBackupsList() {
+  const query = normalizeForBackupSearch(elements.backupsSearchInput?.value ?? "");
+  const filtered = query
+    ? latestBackups.filter((backup) => normalizeForBackupSearch(backup.displayName).includes(query))
+    : latestBackups;
+
+  elements.backupsList.innerHTML = "";
   if (latestBackups.length === 0) {
     const empty = document.createElement("p");
     empty.className = "history-empty-state";
     empty.textContent = "バックアップはまだありません";
     elements.backupsList.appendChild(empty);
-  } else {
-    latestBackups.forEach((backup) => elements.backupsList.appendChild(buildBackupRow(backup)));
+    return;
   }
+  if (filtered.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "history-empty-state";
+    empty.textContent = `「${elements.backupsSearchInput.value}」に一致するバックアップは見つかりませんでした（全${latestBackups.length}件中）`;
+    elements.backupsList.appendChild(empty);
+    return;
+  }
+  filtered.forEach((backup) => elements.backupsList.appendChild(buildBackupRow(backup)));
 }
 
-// elements: { statusText, refreshButton, recoveryRequestsList, backupsList }
+// elements: { statusText, refreshButton, recoveryRequestsList, backupsList, backupsSearchInput }
 export function initAdminBackupScreen(newElements, allMembers) {
   elements = newElements;
   members = allMembers;
   elements.refreshButton.addEventListener("click", renderAdminBackupScreen);
+  elements.backupsSearchInput?.addEventListener("input", renderFilteredBackupsList);
 }

@@ -1537,6 +1537,11 @@
       <div id="admin-recovery-requests-list" class="admin-backup-list"></div>
 
       <h3 class="admin-backup-section-title">バックアップ一覧（全プレイヤー）</h3>
+      <!-- 【2026-09-04新設、本人の緊急対応で必要になり追加】バックアップ件数が増えると
+           （テスト用ダミーデータの混入等も含め）一覧から目的の人を目視で探すのが大変なため、
+           表示名で絞り込める検索欄を追加した。Firebaseへの読み書きは一切行わない、
+           既に取得済みの一覧をその場でJS側だけで絞り込む機能。 -->
+      <input id="admin-backups-search-input" class="battle-player-name-input" type="text" placeholder="表示名で検索（例：いくみ）" style="margin-bottom:10px;">
       <div id="admin-backups-list" class="admin-backup-list"></div>
     </section>
 
