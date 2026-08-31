@@ -2111,16 +2111,29 @@ fieldset label:has(input:focus-visible) {
   gap: 10px;
 }
 
-/* 【2026-09-05新設】対戦中、ホストだけに見える「ルーム設定へ戻る」ボタン
-   （js/onlineBattleScreen.js・js/onlineLyricsQuizBattleScreen.js・
+/* 【2026-09-05新設、同日改訂・実機報告で発覚したバグ修正】対戦中、ホストだけに見える
+   「ルーム設定へ戻る」ボタン（js/onlineBattleScreen.js・js/onlineLyricsQuizBattleScreen.js・
    js/onlineInstantBattleScreen.js・js/onlineInstantCoopBattleScreen.js制御）。
-   常時表示の「✕対戦をやめる」より目立たせすぎないよう、小さめ・控えめな見た目にする。 */
+   常時表示の「✕対戦をやめる」より目立たせすぎないよう、小さめ・控えめな見た目にする。
+   【バグの原因】.secondary-buttonはflex:1（.button-row等のflex親の中で使われる前提）を
+   持つが、#quiz-screen・#online-lyrics-battle-question-screen・
+   #instant-challenge-question-screenは`.is-active`時にdisplay:flex;flex-direction:column
+   になる（安全域対応のための既存レイアウト、13629行目付近参照）。このボタンをその直下に
+   置いたことで、flex:1がそのまま効いて画面の残り高さいっぱいに縦へ引き伸ばされ、
+   border-radius:999pxとあいまって画面を覆う巨大な縦長カプセルになってしまっていた
+   （一瞬バトル・一瞬協力の対戦画面は同じdisplay:flex化がされていないため、
+   このバグは発生していなかった）。flex:noneで打ち消すことで、どの画面に置いても
+   常に控えめな大きさになるようにする。 */
 .online-battle-back-to-lobby-button {
-  display: block;
-  width: fit-content;
+  flex: none;
+  display: inline-flex;
+  width: auto;
+  align-self: center;
   margin: 6px auto 0;
-  padding: 6px 16px;
-  font-size: 0.75rem;
+  padding: 5px 14px;
+  min-height: 0;
+  font-size: 0.7rem;
+  opacity: 0.75;
 }
 
 /* 結果画面のボタン列：スマホでの押しやすさを優先し、縦2段に並べる。
