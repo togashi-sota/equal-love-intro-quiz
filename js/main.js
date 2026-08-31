@@ -204,11 +204,17 @@ import {
 import { importAudioFiles, getImportedSongIds, filterSongsWithImportedAudio } from "./audioStorage.js";
 import { requestPersistentStorage } from "./storagePersistence.js";
 import { analyzeLyricsFiles, saveLyricsData, getImportedLyricsSongIds } from "./lyricsStorage.js";
-import { analyzeCallDataBackupFile, importCallDataSongs, getSongIdsWithCallData } from "./callStorage.js";
+import {
+  analyzeCallDataBackupFile,
+  importCallDataSongs,
+  getSongIdsWithCallData,
+  exportAllCallData,
+} from "./callStorage.js";
 import {
   analyzeCallGuideBackupFile,
   importCallGuideDataEntries,
   getAllCallGuideData,
+  exportAllCallGuideData,
 } from "./callGuideStorage.js";
 // 【2026-08-26新設】追加データパック（新曲の音源・歌詞・コールデータをまとめて読み込む機能）。
 // 実際の解析・保存処理はjs/dataPackImport.jsに集約されており、ここでは結果を見て
@@ -1394,9 +1400,13 @@ const callImportConfirmMessageElement = document.getElementById("call-import-con
 const callImportConfirmFailedListElement = document.getElementById("call-import-confirm-failed-list");
 const callImportConfirmCancelButtonElement = document.getElementById("call-import-confirm-cancel-button");
 const callImportConfirmSaveButtonElement = document.getElementById("call-import-confirm-save-button");
+const callExportButtonElement = document.getElementById("call-export-button");
+const callExportResultElement = document.getElementById("call-export-result");
 const callGuideImportStatusElement = document.getElementById("call-guide-import-status");
 const callGuideImportInputElement = document.getElementById("call-guide-import-input");
 const callGuideImportResultElement = document.getElementById("call-guide-import-result");
+const callGuideExportButtonElement = document.getElementById("call-guide-export-button");
+const callGuideExportResultElement = document.getElementById("call-guide-export-result");
 const callGuideImportConfirmModalElement = document.getElementById("call-guide-import-confirm-modal");
 const callGuideImportConfirmMessageElement = document.getElementById("call-guide-import-confirm-message");
 const callGuideImportConfirmFailedListElement = document.getElementById("call-guide-import-confirm-failed-list");
@@ -6211,6 +6221,37 @@ callImportConfirmSaveButtonElement.addEventListener("click", async () => {
 
 updateCallImportStatus();
 
+// 【2026-09-06新設、本人指示】この端末（iPhone等のPWAを含む）に保存されているコールデータを
+// 別端末（PC等）へ持ち出すための書き出しボタン。今までPCのdev/callEditor.htmlにしか
+// 無かった「全コールデータを書き出す」を配布版アプリ側にも用意した。dev/callEditor.jsの
+// 同名処理と全く同じ形式（type: "equal-love-call-data"）で書き出すため、書き出したJSONは
+// 他端末の「コールJSONを読み込む」・追加データパック（ZIP）のどちらでもそのまま使える。
+// 書き出すだけで、この端末のIndexedDBの中身は一切変更しない。
+callExportButtonElement?.addEventListener("click", async () => {
+  const backup = await exportAllCallData();
+
+  if (backup.songs.length === 0) {
+    callExportResultElement.hidden = false;
+    callExportResultElement.textContent = "書き出せるコールデータがありません（まだ何も保存されていません）";
+    return;
+  }
+
+  const totalCallCount = backup.songs.reduce((sum, song) => sum + song.calls.length, 0);
+  const dateLabel = backup.exportedAt.slice(0, 10);
+  const fileName = `equal-love-calls-${dateLabel}.json`;
+
+  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  link.click();
+  URL.revokeObjectURL(url);
+
+  callExportResultElement.hidden = false;
+  callExportResultElement.textContent = `${backup.songs.length}曲・${totalCallCount}件のコールを書き出しました（ファイル名：${fileName}）`;
+});
+
 // ===== コールガイド（MIX・口上の練習本文）の読み込み（2026-08-06新設） =====
 // js/callStorage.jsのコールデータ読み込みと全く同じ設計だが、対象がguideId単位・
 // 保存先が別のIndexedDB（equalLoveIntroQuizCallGuide）である点が異なる。
@@ -6315,6 +6356,31 @@ callGuideImportConfirmSaveButtonElement.addEventListener("click", async () => {
 });
 
 updateCallGuideImportStatus();
+
+// 【2026-09-06新設、本人指示】コールデータの書き出しボタンと同じ理由・同じ実装方針。
+callGuideExportButtonElement?.addEventListener("click", async () => {
+  const backup = await exportAllCallGuideData();
+
+  if (backup.guides.length === 0) {
+    callGuideExportResultElement.hidden = false;
+    callGuideExportResultElement.textContent = "書き出せるコールガイドがありません（まだ何も保存されていません）";
+    return;
+  }
+
+  const dateLabel = backup.exportedAt.slice(0, 10);
+  const fileName = `equal-love-call-guides-${dateLabel}.json`;
+
+  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  link.click();
+  URL.revokeObjectURL(url);
+
+  callGuideExportResultElement.hidden = false;
+  callGuideExportResultElement.textContent = `${backup.guides.length}件のコールガイドを書き出しました（ファイル名：${fileName}）`;
+});
 
 // PWA対応：Service Workerを登録し、新しいバージョンが使えるようになったら、安全な
 // タイミングで自動的に切り替える。

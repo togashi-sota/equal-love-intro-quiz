@@ -560,6 +560,14 @@
             </label>
             <!-- 読み込み結果（「◯曲・◯件を読み込みました」等）。普段は空・非表示 -->
             <p id="call-import-result" class="lyrics-import-result" hidden></p>
+            <!-- 【2026-09-06新設、本人指示】この端末に保存されているコールデータを、別端末
+                 （PC等）へ持ち出すための書き出しボタン。今までPCのdev/callEditor.htmlだけに
+                 あった「全コールデータを書き出す」を、配布版アプリ側にも用意し、
+                 iPhone等のPWAで作成・蓄積されたコールデータも取り出せるようにする
+                 （js/callStorage.jsのexportAllCallData()を使う。書き出すだけでこの端末の
+                 データは一切変更しない）。 -->
+            <button id="call-export-button" type="button" class="lyrics-import-button">コールデータを書き出す</button>
+            <p id="call-export-result" class="lyrics-import-result" hidden></p>
           </div>
 
           <!-- コールガイド（MIX・口上の練習本文）の読み込み。既存のコールデータ（音源タイミング付き）とは
@@ -577,6 +585,10 @@
             </label>
             <!-- 読み込み結果（「◯項目を読み込みました」等）。普段は空・非表示 -->
             <p id="call-guide-import-result" class="lyrics-import-result" hidden></p>
+            <!-- 【2026-09-06新設、本人指示】コールデータと同じ理由の書き出しボタン
+                 （js/callGuideStorage.jsのexportAllCallGuideData()を使う）。 -->
+            <button id="call-guide-export-button" type="button" class="lyrics-import-button">コールガイドを書き出す</button>
+            <p id="call-guide-export-result" class="lyrics-import-result" hidden></p>
           </div>
 
           <!-- 新曲お知らせバナーの「追加済み・今後表示しない」を誤って押してしまった場合の

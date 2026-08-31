@@ -103,9 +103,14 @@ export const SONGS = [
     youtubeUrl: "https://www.youtube.com/watch?v=xOAaBsPaPpY",
     workId: "single-01",
     title: "＝LOVE",
+    // 【2026-09-06追加、本人指示】曲名が「＝LOVE」で始まるため、そのままでは「LOVE」
+    // 「love」「いこーるらぶ」「イコールラブ」で検索してもヒットしない（先頭一致検索の
+    // 対象がtitle・searchReadingのみで、どちらも「＝」から始まるため）。読み（イコールラブ）を
+    // searchReadingへ追加し、「LOVE」をsearchAliasesへ追加することで対応した。
+    searchReading: "いこーるらぶ",
     // ファンの間で「国歌」と呼ばれることがあるため、検索用の別名として登録する
     // （曲名・選択肢の表示自体は変えない、あくまで検索キーワードの追加）。
-    searchAliases: [{ text: "国歌", reading: "こっか" }],
+    searchAliases: [{ text: "国歌", reading: "こっか" }, "LOVE"],
     category: CATEGORY.TITLE_TRACK,
     releaseDate: "2017-09-06",
     single: "1stシングル「＝LOVE」",
