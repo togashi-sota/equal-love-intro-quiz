@@ -67,75 +67,23 @@ export function runLyricsQuizBattleSecurityRulesTests() {
 
   // ===== isHintLevelConsistentWithElapsedTime =====
   //
-  // hintIntervalSec=6・latencyToleranceMs=1000（既定値）のとき、各hintLevelが
-  // 許可される経過時間の範囲（本人の要望どおり、未来・過去とも原則拒否し、
-  // 通信遅延用に±1000msだけ許容する）：
-  //   hintLevel 1： [-1000, 7000)  ※実際には経過時間が負になることは無いので実質[0, 7000)
-  //   hintLevel 2： [5000, 13000)
-  //   hintLevel 3： [11000, 19000)
-  //   hintLevel 4： [17000, 25000)
-  // 各段階の境界（6000/12000/18000ms付近）は前後の段階の範囲が1000msずつ重なる
-  // （例：5000〜7000msはヒント1・ヒント2のどちらを申告しても許可される）。これは
-  // 「切り替わりの瞬間ぎりぎりに回答した正直な人を誤って拒否しない」ための意図的な
-  // 許容であり、完全に唯一の正解に絞り込めるわけではないという限界を正直に記録しておく。
+  // 【2026-08-31改訂・本人指示による3ルール全面見直し】ヒントを本人がボタンで手動で
+  // 開く方式に変わり、「いつ何段階目を開いたか」は本人の自由なタイミング次第になったため、
+  // 固定間隔（hintIntervalSec）を前提にした時間窓チェックはもう成立しない。検証は
+  // 「1〜4の整数であること」という型・範囲チェックのみに縮小した
+  // （js/lyricsQuizBattleSecurityRules.js冒頭のコメント参照）。
   {
+    assertEqual(isHintLevelConsistentWithElapsedTime({ hintLevel: 1 }), true, "許可：ヒント1");
+    assertEqual(isHintLevelConsistentWithElapsedTime({ hintLevel: 4 }), true, "許可：ヒント4");
     assertEqual(
-      isHintLevelConsistentWithElapsedTime({ hintLevel: 1, submittedAtMs: 500, questionStartedAtMs: 0, hintIntervalSec: 6 }),
+      isHintLevelConsistentWithElapsedTime({ hintLevel: 1 }),
       true,
-      "許可：ヒント1の範囲内（0〜6秒）で正直に回答"
+      "許可：60秒近く経ってからヒント1のまま回答しても、時間窓チェックはもう無いため拒否されない（手動開放方式の意図どおり）"
     );
-    assertEqual(
-      isHintLevelConsistentWithElapsedTime({ hintLevel: 2, submittedAtMs: 8000, questionStartedAtMs: 0, hintIntervalSec: 6 }),
-      true,
-      "許可：ヒント2の範囲内（6〜12秒）で正直に回答"
-    );
-    assertEqual(
-      isHintLevelConsistentWithElapsedTime({ hintLevel: 1, submittedAtMs: 20000, questionStartedAtMs: 0, hintIntervalSec: 6 }),
-      false,
-      "拒否：実際は20秒経っている（ヒント4の範囲）のに『ヒント1で回答した』と偽って高得点を狙う"
-    );
-    assertEqual(
-      isHintLevelConsistentWithElapsedTime({ hintLevel: 4, submittedAtMs: 500, questionStartedAtMs: 0, hintIntervalSec: 6 }),
-      false,
-      "拒否：まだ0.5秒しか経っていないのにヒント4扱いを申告（本人の要望どおり、過去方向の食い違いも原則拒否する）"
-    );
-    assertEqual(
-      isHintLevelConsistentWithElapsedTime({ hintLevel: 1, submittedAtMs: 6999, questionStartedAtMs: 0, hintIntervalSec: 6 }),
-      true,
-      "許可：ヒント1の許容範囲ぎりぎり（7000ms未満、通信遅延の許容幅内）"
-    );
-    assertEqual(
-      isHintLevelConsistentWithElapsedTime({ hintLevel: 1, submittedAtMs: 7000, questionStartedAtMs: 0, hintIntervalSec: 6 }),
-      false,
-      "拒否：ヒント1の許容範囲（7000ms）を過ぎている"
-    );
-    assertEqual(
-      isHintLevelConsistentWithElapsedTime({ hintLevel: 2, submittedAtMs: 4999, questionStartedAtMs: 0, hintIntervalSec: 6 }),
-      false,
-      "拒否：ヒント2の許容範囲（5000ms〜）にまだ入っていない"
-    );
-    assertEqual(
-      isHintLevelConsistentWithElapsedTime({ hintLevel: 2, submittedAtMs: 5000, questionStartedAtMs: 0, hintIntervalSec: 6 }),
-      true,
-      "許可：ヒント2の許容範囲の開始ちょうど"
-    );
-    assertEqual(
-      isHintLevelConsistentWithElapsedTime({ hintLevel: 5, submittedAtMs: 30000, questionStartedAtMs: 0, hintIntervalSec: 6 }),
-      false,
-      "拒否：ヒント段階が1〜4の範囲外"
-    );
-    // 許容幅を明示的に0へ指定すれば、重なりの無い厳密な判定にできることも確認する。
-    assertEqual(
-      isHintLevelConsistentWithElapsedTime({
-        hintLevel: 1,
-        submittedAtMs: 6500,
-        questionStartedAtMs: 0,
-        hintIntervalSec: 6,
-        latencyToleranceMs: 0,
-      }),
-      false,
-      "許容幅を0にすれば、6000ms以降のヒント1申告は厳密に拒否される"
-    );
+    assertEqual(isHintLevelConsistentWithElapsedTime({ hintLevel: 0 }), false, "拒否：範囲外（0）");
+    assertEqual(isHintLevelConsistentWithElapsedTime({ hintLevel: 5 }), false, "拒否：範囲外（5）");
+    assertEqual(isHintLevelConsistentWithElapsedTime({ hintLevel: 1.5 }), false, "拒否：整数でない");
+    assertEqual(isHintLevelConsistentWithElapsedTime({ hintLevel: "1" }), false, "拒否：型が違う（文字列）");
   }
 
   // ===== canWriteStealClaim：許可/拒否一覧 =====
@@ -216,19 +164,20 @@ export function runLyricsQuizBattleSecurityRulesTests() {
     assertEqual(isValidBattleRuleId(""), false, "拒否：空文字");
 
     // ----- isValidBattleRuleVersion -----
-    assertEqual(isValidBattleRuleVersion(1), true, "許可：現在対応しているバージョン1");
+    // 【2026-08-31・v1→v2】3ルールとも配点方式・タイブレーク方式を変更したため
+    // ruleVersionを2へ上げた（js/battleRules/classicRule.js・stealRule.js・comboRule.js参照）。
+    assertEqual(isValidBattleRuleVersion(2), true, "許可：現在対応しているバージョン2");
     assertEqual(isValidBattleRuleVersion(0), false, "拒否：0");
     assertEqual(isValidBattleRuleVersion(-1), false, "拒否：負数");
     assertEqual(isValidBattleRuleVersion(1.5), false, "拒否：小数");
-    assertEqual(isValidBattleRuleVersion("1"), false, "拒否：文字列（型が違う）");
-    assertEqual(isValidBattleRuleVersion(2), false, "拒否：まだ対応していないバージョン2以上");
+    assertEqual(isValidBattleRuleVersion("2"), false, "拒否：文字列（型が違う）");
+    assertEqual(isValidBattleRuleVersion(1), false, "拒否：配点方式変更前の古いバージョン1（更新前の古いアプリとの混在を防ぐ）");
 
     // ----- isValidHintIntervalSec -----
-    assertEqual(isValidHintIntervalSec(4), true, "許可：4秒");
-    assertEqual(isValidHintIntervalSec(6), true, "許可：6秒");
-    assertEqual(isValidHintIntervalSec(8), true, "許可：8秒");
-    assertEqual(isValidHintIntervalSec(5), false, "拒否：4/6/8以外の値");
-    assertEqual(isValidHintIntervalSec(0), false, "拒否：0");
+    // 【2026-08-31改訂】ヒントを手動で開く方式になり、この検証は使われなくなった
+    // （常にtrueを返す関数として残している。js/lyricsQuizBattleSecurityRules.js参照）。
+    assertEqual(isValidHintIntervalSec(4), true, "常にtrue（もう使われない）");
+    assertEqual(isValidHintIntervalSec(0), true, "常にtrue（もう使われない）");
 
     // ----- isValidAnswerPoolSizeValue -----
     assertEqual(isValidAnswerPoolSizeValue({ answerPoolSizeValue: 4, battleRuleId: "classic" }), true, "許可：classicの4択");

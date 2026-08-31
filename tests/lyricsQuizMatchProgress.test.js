@@ -83,26 +83,28 @@ export function runLyricsQuizMatchProgressTests() {
     assertEqual(state.currentQuestion.answersByUid, {}, "2問目の回答は空から始まる（前の問題の回答が残らない）");
   }
 
-  // ===== ヒント4期限で終了（未回答者はスキップ扱いで補完される） =====
+  // ===== 安全網のタイムアウトで終了（未回答者はスキップ扱いで補完される） =====
+  // 【2026-08-31改訂】ヒントを手動で開く方式になり、時間経過に基づく自動デッドラインは
+  // 廃止され、固定60秒（MANUAL_PROGRESS_QUESTION_TIMEOUT_MS）の安全網のみになった。
   {
-    const settings = { ...withBattleRule("classic"), hintIntervalSec: 6 };
+    const settings = withBattleRule("classic");
     const questions = buildDummyQuestions(["song-1"]);
     let state = createMatchProgress({ questions, allPlayerUids: ["p1", "p2"], hostUid: "p1", nowMs: 0 });
 
     state = recordAnswer(state, "p1", { selectedSongId: "song-1", hintLevel: 1, submittedAt: 500 });
-    // p2は最後まで回答しない。期限（4×6秒=24000ms）前はまだ終了しない。
-    state = tick(state, settings, 20000);
-    assertEqual(state.currentQuestion.status, "active", "p2が未回答で、まだ期限前なら継続する");
+    // p2は最後まで回答しない。60秒の安全網タイムアウト前はまだ終了しない。
+    state = tick(state, settings, 30000);
+    assertEqual(state.currentQuestion.status, "active", "p2が未回答で、まだタイムアウト前なら継続する");
 
-    state = tick(state, settings, 24000);
-    assertEqual(state.currentQuestion.status, "resolved", "期限を過ぎれば、未回答者がいても終了する");
+    state = tick(state, settings, 60000);
+    assertEqual(state.currentQuestion.status, "resolved", "60秒の安全網タイムアウトを過ぎれば、未回答者がいても終了する");
     assertEqual(state.historyByUid.p2[0].outcome, "skipped", "最後まで回答しなかったp2は、スキップとして補完される");
     assertEqual(state.historyByUid.p2[0].pointsAwarded, 0, "補完されたスキップは0点");
   }
 
-  // ===== 奪い取り：winner確定後の集計 =====
+  // ===== 早押しバトル：winner確定後の集計（配点は正解一律1pt） =====
   {
-    const settings = { ...withBattleRule("steal"), hintIntervalSec: 6 };
+    const settings = withBattleRule("steal");
     const questions = buildDummyQuestions(["song-1"]);
     let state = createMatchProgress({ questions, allPlayerUids: ["p1", "p2"], hostUid: "p1", nowMs: 0 });
 
@@ -112,36 +114,41 @@ export function runLyricsQuizMatchProgressTests() {
     state = recordStealClaim(state, "p2", 900);
     assertEqual(state.currentQuestion.winner.uid, "p1", "先にclaimしたp1がwinnerのまま（write-once）");
 
-    state = recordAnswer(state, "p2", { selectedSongId: "song-1", hintLevel: 2, submittedAt: 5000 });
+    state = recordAnswer(state, "p2", { selectedSongId: "song-1", hintLevel: 1, submittedAt: 5000 });
     state = tick(state, settings, 5100);
     assertEqual(state.currentQuestion.status, "resolved", "winner確定後は、他に未回答者がいても即終了する");
     assertEqual(state.historyByUid.p1[0].wonQuestion, true, "p1が勝者として確定する");
-    assertEqual(state.historyByUid.p1[0].pointsAwarded, 50, "p1はヒント1で獲得したので50点");
+    assertEqual(state.historyByUid.p1[0].pointsAwarded, 1, "早押しバトルは正解一律1pt");
     assertEqual(state.historyByUid.p2[0].wonQuestion, false, "p2は正解していても、winnerではないので得点なし");
   }
 
-  // ===== コンボ：継続とリセット =====
+  // ===== ポイントバトル：ヒント段階別の固定配点（4/3/2/1pt）・不正解でもポイントは減らない =====
+  // 【2026-08-31改訂】コンボ（連続正解による倍率）の概念を撤廃したため、以前あった
+  // 「コンボの継続とリセット」テストは、新しいポイントバトルの配点方式のテストへ差し替えた。
   {
-    const settings = { ...withBattleRule("combo"), hintIntervalSec: 6 };
+    const settings = withBattleRule("combo");
     const questions = buildDummyQuestions(["song-1", "song-2", "song-3"]);
     let state = createMatchProgress({ questions, allPlayerUids: ["p1"], hostUid: "p1", nowMs: 0 });
 
-    // 1問目：正解（コンボ0→1）
+    // 1問目：ヒント1で正解（+4pt）
     state = recordAnswer(state, "p1", { selectedSongId: "song-1", hintLevel: 1, submittedAt: 500 });
     state = tick(state, settings, 600);
     state = advanceToNextQuestion(state, 30000);
-    assertEqual(state.comboCountByUid.p1, 1, "1問目正解でコンボ1");
+    assertEqual(state.historyByUid.p1[0].pointsAwarded, 4, "1問目はヒント1正解で+4pt");
 
-    // 2問目：不正解（コンボ1→0にリセット）
+    // 2問目：不正解（+0pt。それまでのポイントは減らない）
     state = recordAnswer(state, "p1", { selectedSongId: "song-2の不正解", hintLevel: 1, submittedAt: 30500 });
     state = tick(state, settings, 30600);
     state = advanceToNextQuestion(state, 60000);
-    assertEqual(state.comboCountByUid.p1, 0, "2問目不正解でコンボが0にリセットされる");
+    assertEqual(state.historyByUid.p1[1].pointsAwarded, 0, "2問目は不正解で+0pt（ポイントが減ることはない）");
 
-    // 3問目：正解（コンボ0→1、他人の状態に影響されず自分のコンボから再開）
-    state = recordAnswer(state, "p1", { selectedSongId: "song-3", hintLevel: 1, submittedAt: 60500 });
+    // 3問目：ヒント3まで開いてから正解（+2pt、他人の状態に影響されず独立して計算される）
+    state = recordAnswer(state, "p1", { selectedSongId: "song-3", hintLevel: 3, submittedAt: 60500 });
     state = tick(state, settings, 60600);
-    assertEqual(state.comboCountByUid.p1, 1, "3問目正解で再びコンボ1（リセット後も正しく積み上がる）");
+    assertEqual(state.historyByUid.p1[2].pointsAwarded, 2, "3問目はヒント3正解で+2pt");
+
+    const totalPoints = state.historyByUid.p1.reduce((sum, outcome) => sum + outcome.pointsAwarded, 0);
+    assertEqual(totalPoints, 4 + 0 + 2, "合計ポイントは減点なく単純に加算される（4+0+2=6pt）");
   }
 
   // ===== 最終結果生成・DNF =====
@@ -511,9 +518,14 @@ export function runLyricsQuizMatchProgressTests() {
     assertEqual(ranking.length, 1, "結果確定への再試行（finalizeLyricsQuizMatchの書き込み失敗からの再開）ができる");
   }
 
-  // ----- ⑦複数問題を経た後の復帰：コンボが正しく引き継がれて復元される -----
+  // ----- ⑦複数問題を経た後の復帰：過去の獲得ポイントが正しく引き継がれて復元される -----
+  // 【2026-08-31改訂】コンボ（連続正解による倍率）の概念を撤廃したため、以前あった
+  // 「コンボが引き継がれる」テストは、新しいポイントバトルの「過去の獲得ポイントの
+  // 履歴が正しく復元される」テストへ差し替えた（comboCountByUidの仕組み自体は
+  // js/lyricsQuizMatchProgress.js側にそのまま残っているが、comboRule.jsが常に
+  // nextComboCount:0を返すため、実質的に使われなくなった）。
   {
-    const settings = { ...withBattleRule("combo"), hintIntervalSec: 6 };
+    const settings = withBattleRule("combo");
     const questions = buildDummyQuestions(["song-1", "song-2", "song-3"]);
     const match = {
       currentQuestionIndex: 2,
@@ -521,8 +533,8 @@ export function runLyricsQuizMatchProgressTests() {
       currentQuestionStartedAt: 60000,
       resolvedAt: null,
       answers: {
-        0: { p1: { selectedSongId: "song-1", hintLevel: 1, submittedAt: 500 } }, // 正解
-        1: { p1: { selectedSongId: "song-2", hintLevel: 1, submittedAt: 30500 } }, // 正解
+        0: { p1: { selectedSongId: "song-1", hintLevel: 1, submittedAt: 500 } }, // ヒント1正解=4pt
+        1: { p1: { selectedSongId: "song-2", hintLevel: 3, submittedAt: 30500 } }, // ヒント3正解=2pt
       },
       questionClaims: {},
     };
@@ -534,8 +546,10 @@ export function runLyricsQuizMatchProgressTests() {
       settings,
       nowMs: 61000,
     });
-    assertEqual(restored.comboCountByUid.p1, 2, "過去2問とも正解しているため、コンボが2まで正しく引き継がれて復元される");
+    assertEqual(restored.comboCountByUid.p1, 0, "コンボの概念を撤廃したため、常に0のまま");
     assertEqual(restored.historyByUid.p1.length, 2, "確定済みの過去2問分の履歴が復元される");
+    assertEqual(restored.historyByUid.p1[0].pointsAwarded, 4, "1問目（ヒント1正解）のポイントが正しく復元される");
+    assertEqual(restored.historyByUid.p1[1].pointsAwarded, 2, "2問目（ヒント3正解）のポイントが正しく復元される");
     assertEqual(restored.currentQuestionIndex, 2, "現在の問題インデックス（3問目）がそのまま復元される");
     assertEqual(restored.currentQuestion.status, "active", "3問目はまだ進行中として復元される");
   }

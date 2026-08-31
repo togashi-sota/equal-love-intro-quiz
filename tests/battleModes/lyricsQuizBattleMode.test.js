@@ -264,11 +264,13 @@ export async function runLyricsQuizBattleModeTests() {
       { submitAnswer: true, submitWinnerClaim: true },
       "battleRuleId経由でstealRuleへ正しく委譲される"
     );
+    // 【2026-08-31改訂】ポイントバトル（旧コンボ）からコンボ倍率の概念を撤廃したため、
+    // battleRuleId経由で委譲されても常にnullになる。
     const comboSettings = withBattleRule(lyricsQuizBattleMode.defaultSettings(), "combo");
     assertEqual(
       lyricsQuizBattleMode.getComboMultiplierForCount(comboSettings, 3),
-      1.2,
-      "battleRuleId経由でcomboRuleへ正しく委譲される"
+      null,
+      "コンボ倍率の概念を撤廃したため、battleRuleId経由で委譲されても常にnull"
     );
     const classicSettings = withBattleRule(lyricsQuizBattleMode.defaultSettings(), "classic");
     assertEqual(
@@ -278,11 +280,13 @@ export async function runLyricsQuizBattleModeTests() {
     );
   }
 
-  // ===== ローカル対戦シミュレーション：クラシック（強いプレイヤーが上位に来る） =====
+  // ===== ローカル対戦シミュレーション：正解数バトル（正解数が多い方が上位、配点は一律1pt） =====
   {
     // 【Phase6.5補足】songPoolは、questionSource経由で解決される値のためsettingsから廃止した。
     // このシミュレーションはquestionScript（合成データ）を直接使ってresolveQuestionAnswers等を
     // 呼ぶだけで、questionSource自体は一切参照しないため、settingsに含める必要は無い。
+    // 【2026-08-31改訂】正解一律1ptへ変更したため、ヒント段階（hintLevel）が違っても
+    // 正解しさえすれば同じ配点になることを確認する。
     const settings = withBattleRule(lyricsQuizBattleMode.defaultSettings(), "classic");
     const questionScript = [
       {
@@ -290,7 +294,7 @@ export async function runLyricsQuizBattleModeTests() {
         questionStartedAt: 0,
         answersByUid: {
           strong: { selectedSongId: "song-1", hintLevel: 1, submittedAt: 500 },
-          weak: { selectedSongId: "song-1", hintLevel: 3, submittedAt: 13000 },
+          weak: { selectedSongId: "song-1", hintLevel: 3, submittedAt: 13000 }, // ヒント3正解でも同じ1pt
         },
       },
       {
@@ -303,12 +307,13 @@ export async function runLyricsQuizBattleModeTests() {
       },
     ];
     const { resultsByUid, ranking } = runLocalMatchSimulation(settings, questionScript);
-    assertEqual(ranking[0], "strong", "クラシック：常にヒント1で正解した方が1位になる");
-    assertEqual(resultsByUid.strong.detail.totalPoints, 50 + 50, "strongの合計ポイントは50+50=100");
+    assertEqual(ranking[0], "strong", "正解数バトル：正解数が多い方が1位になる");
+    assertEqual(resultsByUid.strong.detail.totalPoints, 1 + 1, "strongの合計ポイントは正解一律1pt×2問=2");
+    assertEqual(resultsByUid.weak.detail.totalPoints, 1, "weakは1問目のみ正解（ヒント段階に関わらず1pt）");
     assertEqual(resultsByUid.weak.detail.missCount, 1, "weakの2問目は不正解なのでミス1");
   }
 
-  // ===== ローカル対戦シミュレーション：奪い取り（先に正解した人だけが得点） =====
+  // ===== ローカル対戦シミュレーション：早押しバトル（先に正解した人だけが得点、配点は一律1pt） =====
   {
     const settings = withBattleRule(lyricsQuizBattleMode.defaultSettings(), "steal");
     const questionScript = [
@@ -343,12 +348,15 @@ export async function runLyricsQuizBattleModeTests() {
     const { resultsByUid, ranking } = runLocalMatchSimulation(settings, questionScript);
     assertEqual(resultsByUid.p1.detail.questionsWon, 2, "p1は1・2問目を獲得");
     assertEqual(resultsByUid.p2.detail.questionsWon, 1, "p2は3問目だけ獲得");
-    assertEqual(resultsByUid.p1.detail.totalPoints, 50 + 50, "p1の合計ポイントは100");
-    assertEqual(resultsByUid.p2.detail.totalPoints, 50, "p2の合計ポイントは50");
+    assertEqual(resultsByUid.p1.detail.totalPoints, 1 + 1, "p1の合計ポイントは正解一律1pt×2問=2");
+    assertEqual(resultsByUid.p2.detail.totalPoints, 1, "p2の合計ポイントは1");
     assertEqual(ranking[0], "p1", "獲得数・ポイントで勝るp1が1位");
   }
 
-  // ===== ローカル対戦シミュレーション：コンボ（連続正解を維持した方が上位） =====
+  // ===== ローカル対戦シミュレーション：ポイントバトル（早いヒント段階で正解する方が上位） =====
+  // 【2026-08-31改訂】コンボ（連続正解による倍率）の概念を撤廃したため、以前あった
+  // 「連続正解を維持した方が上位になる」テストは、新しい「早いヒント段階で正解するほど
+  // 高得点（4/3/2/1pt）・不正解でもポイントは減らない」仕様のテストへ差し替えた。
   {
     const settings = withBattleRule(lyricsQuizBattleMode.defaultSettings(), "combo");
     const correctSongIds = ["song-1", "song-2", "song-3", "song-4", "song-5"];
@@ -356,25 +364,25 @@ export async function runLyricsQuizBattleModeTests() {
       correctSongId,
       questionStartedAt: i * 30000,
       answersByUid: {
-        // streakは5問連続正解（コンボ1→2→3→4→5）。
-        streak: { selectedSongId: correctSongId, hintLevel: 1, submittedAt: i * 30000 + 500 },
-        // brokenは2問目だけ不正解でコンボが一度リセットされる（コンボ1→0→1→2→3）。
-        broken: {
-          selectedSongId: i === 1 ? "wrong-song" : correctSongId,
-          hintLevel: 1,
-          submittedAt: i * 30000 + 500,
-        },
+        // fast：常にヒント1で正解（5問×4pt=20pt）。
+        fast: { selectedSongId: correctSongId, hintLevel: 1, submittedAt: i * 30000 + 500 },
+        // slow：常にヒント4まで開いてから正解（5問×1pt=5pt）だが、不正解は一度も無い。
+        slow: { selectedSongId: correctSongId, hintLevel: 4, submittedAt: i * 30000 + 500 },
       },
     }));
     const { resultsByUid, ranking } = runLocalMatchSimulation(settings, questionScript);
-    assertEqual(resultsByUid.streak.detail.maxCombo, 5, "streakは5連続正解で最大コンボ5に到達");
-    assertEqual(resultsByUid.broken.detail.maxCombo, 3, "brokenはリセットを挟んで最大コンボ3まで");
-    assertEqual(
-      resultsByUid.streak.detail.totalPoints > resultsByUid.broken.detail.totalPoints,
-      true,
-      "コンボを維持し続けたstreakの方が合計ポイントが高い"
-    );
-    assertEqual(ranking[0], "streak", "コンボ：連続正解を維持した方が1位になる");
+    assertEqual(resultsByUid.fast.detail.totalPoints, 4 * 5, "fastは常にヒント1正解のため合計20pt");
+    assertEqual(resultsByUid.slow.detail.totalPoints, 1 * 5, "slowは常にヒント4正解のため合計5pt");
+    assertEqual(ranking[0], "fast", "ポイントバトル：早いヒント段階で正解し続けた方が1位になる");
+
+    // 不正解を挟んでも、それまでのポイントは減らないことを確認する。
+    const withMissScript = [
+      { correctSongId: "song-1", questionStartedAt: 0, answersByUid: { p1: { selectedSongId: "song-1", hintLevel: 1, submittedAt: 500 } } },
+      { correctSongId: "song-2", questionStartedAt: 30000, answersByUid: { p1: { selectedSongId: "wrong-song", hintLevel: 1, submittedAt: 30500 } } },
+      { correctSongId: "song-3", questionStartedAt: 60000, answersByUid: { p1: { selectedSongId: "song-3", hintLevel: 3, submittedAt: 60500 } } },
+    ];
+    const { resultsByUid: missResults } = runLocalMatchSimulation(settings, withMissScript);
+    assertEqual(missResults.p1.detail.totalPoints, 4 + 0 + 2, "不正解でポイントが減ることなく、4pt+0pt+2pt=6ptで合計される");
   }
 
   // ===== validateSettings：共同選曲(collaborativeSelection)の0曲は保存自体をエラーにしない

@@ -50,41 +50,29 @@ export function runLyricsQuizBattleUiTests() {
   }
 
   // ===== describeSettingsForm：settingsFields宣言に現在値を添える =====
+  // 【2026-08-31改訂】ヒントを手動で開く方式になり、ルール固有設定（hintIntervalSec）が
+  // 無くなったため、settingsFieldsは常に空配列を返す。
   {
-    const fields = describeSettingsForm("combo", { hintIntervalSec: 8 });
-    assertEqual(fields.length > 0, true, "コンボにも設定項目（ヒント表示時間）がある");
-    const hintField = fields.find((f) => f.key === "hintIntervalSec");
-    assertEqual(hintField.currentValue, 8, "現在の設定値が反映される");
-
-    const fieldsWithDefault = describeSettingsForm("combo", {});
-    assertEqual(
-      fieldsWithDefault.find((f) => f.key === "hintIntervalSec").currentValue,
-      6,
-      "現在の設定値が無ければ、宣言側のdefaultが使われる"
-    );
+    const fields = describeSettingsForm("combo", {});
+    assertEqual(fields, [], "ポイントバトルにルール固有設定は無いため、settingsFieldsは空配列");
   }
 
   // ===== describeHudItems：hudFields宣言 + プレイヤー統計 =====
+  // 【2026-08-31改訂・本人指示】対戦中は自分の現在ポイントだけを見せる方針のため、
+  // 3ルールとも対戦中HUDはtotalPointsの1項目のみになった。
   {
-    const items = describeHudItems("combo", { totalPoints: 120, currentCombo: 3, maxCombo: 5, currentMultiplier: 1.2 });
-    assertEqual(items.map((i) => i.key), ["totalPoints", "currentCombo", "maxCombo", "currentMultiplier"], "コンボのHUD項目が宣言順に並ぶ");
-    assertEqual(items.find((i) => i.key === "totalPoints").value, "120", "統計値が文字列化されて入る");
+    const items = describeHudItems("combo", { totalPoints: 120 });
+    assertEqual(items.map((i) => i.key), ["totalPoints"], "ポイントバトルのHUD項目はtotalPointsのみ");
+    assertEqual(items[0].value, "120", "統計値が文字列化されて入る");
 
     const itemsWithMissingStat = describeHudItems("combo", {});
     assertEqual(itemsWithMissingStat.every((i) => i.value === "―"), true, "統計値が無い項目は「―」で表示される");
   }
 
-  // ===== describeHudItems・describeResultTable：ミリ秒の項目は秒表示に変換される =====
+  // ===== describeResultTable：ミリ秒の項目は秒表示に変換される =====
   // 【2026-09-03追加・本人指摘】以前はunit: "ms"の指定を無視しており、総回答時間が
   // 「9620」のような生のミリ秒のまま画面に表示されてしまっていた。
   {
-    const hudItems = describeHudItems("classic", { correctCount: 3, firstHintCorrectCount: 2, totalHintsUsed: 5, totalElapsedMs: 9620 });
-    assertEqual(
-      hudItems.find((i) => i.key === "totalElapsedMs").value,
-      "9.62秒",
-      "対戦中HUDのtotalElapsedMs（ミリ秒）は「秒」表示に変換される（生の9620が出ない）"
-    );
-
     const rankedEntries = [
       {
         uid: "p1",
@@ -101,7 +89,10 @@ export function runLyricsQuizBattleUiTests() {
     assertEqual(table.rows[0].cells[elapsedColumnIndex], "13.60秒", "結果表のtotalElapsedMs（ミリ秒）も「秒」表示に変換される");
   }
 
-  // ===== describeResultTable：resultColumns宣言 + 順位付け済み結果 =====
+  // ===== describeResultTable：resultColumns宣言 + 順位付け済み結果 + 同点は同じ順位 =====
+  // 【2026-08-31改訂・本人指示】「同点の場合に回答時間などで無理に順位を分けないでください」
+  // との指示により、同点は完全に同じ順位（competition方式：1位・1位・3位のように
+  // 次の順位をスキップする）になることを確認する。
   {
     const rankedEntries = [
       {
@@ -111,23 +102,41 @@ export function runLyricsQuizBattleUiTests() {
         isYou: false,
         isDnf: false,
         oshiColor: "#ff69b4",
-        result: { detail: { totalPoints: 100, maxCombo: 5, totalHintsUsed: 8, skippedCount: 2 } },
+        result: { detail: { totalPoints: 8, firstHintCorrectCount: 5, totalHintsUsed: 8, skippedCount: 2 } },
       },
-      { uid: "p2", displayName: "はなこ", isHost: false, isYou: true, isDnf: false, result: { detail: { totalPoints: 80, maxCombo: 3, totalHintsUsed: 10, skippedCount: 0 } } },
+      {
+        uid: "p2",
+        displayName: "はなこ",
+        isHost: false,
+        isYou: true,
+        isDnf: false,
+        result: { detail: { totalPoints: 8, firstHintCorrectCount: 4, totalHintsUsed: 10, skippedCount: 0 } },
+      },
+      {
+        uid: "p4",
+        displayName: "さぶろう",
+        isHost: false,
+        isYou: false,
+        isDnf: false,
+        result: { detail: { totalPoints: 5, firstHintCorrectCount: 3, totalHintsUsed: 9, skippedCount: 1 } },
+      },
       { uid: "p3", displayName: "じろう", isHost: false, isYou: false, isDnf: true, result: null },
     ];
     const table = describeResultTable("combo", rankedEntries);
     assertEqual(
       table.header,
-      ["順位", "表示名", "獲得ポイント", "最大コンボ", "使用ヒント数", "未回答"],
-      "見出しはresultColumns宣言から自動生成される（未回答列を含む・本人の指示・2026-08-06）"
+      ["順位", "表示名", "獲得ポイント", "ヒント1正解数", "使用ヒント数", "わからない回数"],
+      "見出しはresultColumns宣言から自動生成される（本人の指示・2026-08-06：未回答/わからない列を含む）"
     );
-    assertEqual(table.rows[0].rank, 1, "1位のrank");
+    assertEqual(table.rows[0].rank, 1, "同点1位（p1）のrankは1");
     assertEqual(table.rows[0].isHost, true, "ホストであることが反映される");
-    assertEqual(table.rows[0].cells, ["100", "5", "8", "2"], "1位の各列の値（未回答2を含む）");
+    assertEqual(table.rows[0].cells, ["8", "5", "8", "2"], "1位の各列の値（本人指示どおりヒント段階は順位に影響しないが列としては表示する）");
+    assertEqual(table.rows[1].rank, 1, "同点1位（p2）も同じrank1になる（回答時間・ヒント使用数で無理に分けない）");
     assertEqual(table.rows[1].isYou, true, "本人であることが反映される");
-    assertEqual(table.rows[2].isDnf, true, "DNFフラグが反映される");
-    assertEqual(table.rows[2].cells, ["DNF", "DNF", "DNF", "DNF"], "DNFの行は未回答列を含む全列がDNF表示になる");
+    assertEqual(table.rows[2].rank, 3, "次に点数が違うp4は、同点2人ぶんスキップして3位になる（competition方式）");
+    assertEqual(table.rows[3].isDnf, true, "DNFフラグが反映される");
+    assertEqual(table.rows[3].rank, null, "DNFの行にはrank番号を付けない（表示はcellsとは別にDNF文字列で行う）");
+    assertEqual(table.rows[3].cells, ["DNF", "DNF", "DNF", "DNF"], "DNFの行は全列がDNF表示になる");
   }
 
   // ===== describeLyricsReadiness：ホスト向けの件数表示（曲名は含まない） =====
@@ -214,7 +223,7 @@ export function runLyricsQuizBattleUiTests() {
   // 【2段階送信・2026-08-06】answer保存とwinner claim送信を分けたことで生まれた
   // outcome値（js/lyricsQuizBattleFirebase.jsのsubmitLyricsQuizAnswerWithStealClaim()参照）。
   {
-    assertEqual(describeStealClaimOutcomeMessage(STEAL_CLAIM_OUTCOME.WON), "奪い取り成功！", "wonには成功の案内文");
+    assertEqual(describeStealClaimOutcomeMessage(STEAL_CLAIM_OUTCOME.WON), "早押し成功！", "wonには成功の案内文");
     assertEqual(
       describeStealClaimOutcomeMessage(STEAL_CLAIM_OUTCOME.LOST_RACE),
       "わずかな差で先に正解されました",

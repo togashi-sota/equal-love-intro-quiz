@@ -1,81 +1,76 @@
-// 歌詞クイズ オンライン対戦「クラシックルール」。
+// 歌詞クイズ オンライン対戦「正解数バトル」（旧名：クラシック）。
 //
-// 全員が同じ問題・同じヒントを見て、各自1回だけ回答する基本ルール。
-// 正解すればそのときのヒント段階に応じたポイントを獲得し（早押し要素はなく、
-// 全員が同じ問題で同時に加点され得る）、全問終了後の合計ポイントで順位を決める。
+// 【2026-08-31全面改訂・本人指示】以前は「ヒント段階に応じた配点＋5段階タイブレーク」の
+// ルールだったが、本人とChatGPTで整理し直し、以下の新仕様に変更した：
+//   ・ヒントは時間経過で自動送りせず、本人が「ヒントNを見る」ボタンで手動で開く。
+//   ・「わからない」ボタンで、その場で0点確定・回答済み扱いにできる。
+//   ・配点はヒント段階に関係なく、正解=+1pt・不正解/わからない=+0ptの一律配点。
+//   ・ヒント使用数・回答時間は記録・表示してよいが、順位には一切使わない
+//     （同点の場合は同じ順位にする。回答時間などで無理に差をつけない）。
+// ruleId（"classic"）・ruleVersionは内部値のため変更していない（本人指示：
+// 「内部IDやFirebase上の値まで変更すると既存機能への影響が大きい場合は、内部値は
+// 既存のまま維持して表示名だけ変更して構わない」）。
 //
 // このファイルの関数は、Firebaseや画面のことを一切知らない純粋関数だけで構成する
-// （設計方針：追記⑥0章「完全プラグイン方式」）。呼び出し元（今後実装する
-// js/battleModes/lyricsQuizBattleMode.js等）が、Firebaseから読んだ生データを
-// このファイルが期待する形に整えてから渡す。
-//
-// 【設計⑪②・配点テーブルはFirebaseへ保存しない】DEFAULT_HINT_POINT_TABLEは
-// このファイル内部の定数として直接使い、settings.pointTableのような
-// 外部から注入可能な値にはしない。ホストが不正な配点を送ってきたり、端末ごとに
-// 配点が食い違ったりする事故を防ぐため、「同じruleId・ruleVersionなら、
-// 全端末が必ず同じコードから同じ配点を得る」という設計にしている。
-// settingsに残すのはhintIntervalSecのみ（本人の好みで変えてよい、公平性に
-// 影響しない項目のため）。
+// （設計方針：追記⑥0章「完全プラグイン方式」）。
 
 import {
-  DEFAULT_HINT_POINT_TABLE,
-  DEFAULT_HINT_INTERVAL_SEC,
-  MAX_HINT_LEVEL,
+  MANUAL_PROGRESS_QUESTION_TIMEOUT_MS,
   ANSWER_POOL_SIZE_ALL_MODES,
-  HINT_INTERVAL_SETTINGS_FIELD,
   deriveAnswerOutcome,
-  computeResponseMs,
-  validateHintIntervalSec,
+  computeElapsedSinceQuestionStart,
 } from "./sharedDefaults.js";
 
 export const ruleId = "classic";
 // 配点・タイブレーク順など、採点方法に影響する変更をしたら必ず1つ上げること。
 // 結果に添えて保存することで、将来ルールを調整したときに、古い結果と新しい結果が
 // 混ざらないようにする（設計⑩③）。
-export const ruleVersion = 1;
-export const label = "クラシック";
-export const description = "全員が同じヒントを見て、正解すればヒント段階に応じたポイントを獲得します。";
+// 【2026-08-31・v1→v2】配点方式（ヒント段階別→正解一律1pt）とタイブレーク方式
+// （5段階タイブレーク→完全同順位）を変更したため、バージョンを上げた。
+export const ruleVersion = 2;
+export const label = "正解数バトル";
+export const description = "全員が同じ問題に挑戦し、正解した数を競います。ヒントは自分のペースで開けます。";
 
 // このルールで選べる回答方式（回答候補の数）。ルーム設定画面はこの配列だけを見て
-// 選択肢を絞り込む（「クラシックのときは〜」という個別分岐をUI側に書かないため）。
+// 選択肢を絞り込む（「正解数バトルのときは〜」という個別分岐をUI側に書かないため）。
 export const allowedAnswerPoolSizes = ANSWER_POOL_SIZE_ALL_MODES;
 
+// 【2026-08-31改訂】ヒント表示時間はヒントを手動で開く方式になったため不要になった。
+// ルール固有の設定項目は無くなったため空オブジェクトを返す。
 export function defaultSettings() {
-  return { hintIntervalSec: DEFAULT_HINT_INTERVAL_SEC };
+  return {};
 }
 
-export function validateSettings(settings) {
-  if (!settings || typeof settings !== "object") return "設定が不正です。";
-  return validateHintIntervalSec(settings.hintIntervalSec);
+export function validateSettings() {
+  return null;
 }
 
 // 1問分・全員の回答から、参加者ごとの結果を導出する。
 //
 // answersByUid: { [uid]: { selectedSongId, hintLevel, submittedAt } }
-//   （Firebase上の生の回答事実ログをそのまま渡す想定。answeredAtは採点に使わないため
-//    このルールの入力には含めない）
+//   hintLevelは「回答した時点で本人が開いていたヒント段階」の自己申告値（採点には使わず、
+//   結果画面の参考情報としてのみ使う）。
 // correctSongId: この問題の正解songId（呼び出し元が、全端末共通の決定論的な
 //   問題生成結果から渡す。このルール自身は問題データを一切知らない）
-// questionStartedAt / settings.hintIntervalSec: responseMsの逆算に使う
+// questionStartedAt: 参考情報の経過時間の逆算に使う
 //
 // 返り値: { [uid]: { outcome, hintLevel, responseMs, pointsAwarded, wonQuestion, nextComboCount } }
-//   wonQuestionは常にfalse（クラシックには「奪い取り」の概念が無いため）。
-//   nextComboCountは常に0（クラシックはコンボを持たないため）。
-export function resolveQuestionAnswers({ answersByUid, correctSongId, questionStartedAt, settings }) {
+//   pointsAwardedは正解なら常に1、不正解・わからないなら常に0（ヒント段階は無関係）。
+//   wonQuestionは常にfalse（正解数バトルには「奪い取り」の概念が無いため）。
+//   nextComboCountは常に0（正解数バトルはコンボを持たないため）。
+export function resolveQuestionAnswers({ answersByUid, correctSongId, questionStartedAt }) {
   const outcomesByUid = {};
   for (const [uid, answer] of Object.entries(answersByUid)) {
     const outcome = deriveAnswerOutcome(correctSongId, answer.selectedSongId);
-    const responseMs = computeResponseMs({
+    const responseMs = computeElapsedSinceQuestionStart({
       submittedAt: answer.submittedAt,
       questionStartedAt,
-      hintLevel: answer.hintLevel,
-      hintIntervalSec: settings.hintIntervalSec,
     });
     outcomesByUid[uid] = {
       outcome,
       hintLevel: answer.hintLevel,
       responseMs,
-      pointsAwarded: outcome === "correct" ? (DEFAULT_HINT_POINT_TABLE[answer.hintLevel] ?? 0) : 0,
+      pointsAwarded: outcome === "correct" ? 1 : 0,
       wonQuestion: false,
       nextComboCount: 0,
     };
@@ -83,10 +78,14 @@ export function resolveQuestionAnswers({ answersByUid, correctSongId, questionSt
   return outcomesByUid;
 }
 
-// 全参加者が回答済み、またはヒント4の受付時間が終わっていれば問題終了。
-export function shouldEndQuestion({ answersByUid, allPlayerUids, questionStartedAt, nowMs, settings }) {
+// 【2026-08-31改訂】ヒントを手動で開く方式になったため、「ヒント4の受付時間が終わったら
+// 強制終了」という自動デッドラインは意味を持たなくなった。代わりに、全員が回答済みに
+// なるまで待つ（設計の核心：先に回答した人にだけ正解を先に見せないための全員同期）。
+// ただし、誰かが操作をやめてしまった場合に対戦が止まったままにならないよう、
+// MANUAL_PROGRESS_QUESTION_TIMEOUT_MS（60秒）を安全網として残す。
+export function shouldEndQuestion({ answersByUid, allPlayerUids, questionStartedAt, nowMs }) {
   const allAnswered = allPlayerUids.every((uid) => uid in answersByUid);
-  const deadlineMs = questionStartedAt + MAX_HINT_LEVEL * settings.hintIntervalSec * 1000;
+  const deadlineMs = questionStartedAt + MANUAL_PROGRESS_QUESTION_TIMEOUT_MS;
   return allAnswered || nowMs >= deadlineMs;
 }
 
@@ -94,12 +93,10 @@ export function shouldEndQuestion({ answersByUid, allPlayerUids, questionStarted
 // questionOutcomes: resolveQuestionAnswers()が返す1人分のオブジェクトを、
 //   出題順に並べた配列（{ outcome, hintLevel, responseMs, pointsAwarded }[]）。
 // 【missCountとskippedCountを分ける理由・2026-08-06】選択肢を選んで間違えた（wrongAnswer）
-// ことと、時間切れで未回答のまま終わった（skipped。js/lyricsQuizMatchProgress.jsの
-// fillMissingAnswersWithTimeoutSkip()が合成する）ことは、このエンジンでは元々別のoutcome値
-// として区別されており、missCountには意図的にwrongAnswerだけを数えている（本人の設計方針：
-// 「選んで間違えた」と「考える間もなく時間切れになった」は別の失敗として扱う）。
-// ただし結果画面にはこれまでmissCountしか出ておらず、未回答が何回あったか本人からは
-// 見えなかった（本人からの指摘）。skippedCountを追加して結果画面に表示できるようにする。
+// ことと、「わからない」を押した／時間切れで未回答のまま終わった（skipped）ことは、
+// このエンジンでは元々別のoutcome値として区別されており、missCountには意図的に
+// wrongAnswerだけを数えている（本人の設計方針：「選んで間違えた」と「わからなかった」は
+// 別の失敗として扱う）。
 export function aggregateResult(questionOutcomes) {
   let totalPoints = 0;
   let firstHintCorrectCount = 0;
@@ -131,42 +128,36 @@ export function aggregateResult(questionOutcomes) {
   };
 }
 
-// Array.sortの慣習どおり、負の値ならAが上位（既存compareBattleResultsと同じ形）。
-// タイブレーク順：①合計ポイント②ヒント1正解数③総使用ヒント数④総回答時間⑤ミス数
+// 【2026-08-31改訂・本人指示】「同点の場合に回答時間などで無理に順位を分けないでください」
+// という明確な指示により、タイブレークを完全に撤廃した。合計ポイントだけで比較し、
+// 同点なら0（＝同順位）を返す。同順位の実際の表示（1位・1位・3位、のように次の順位を
+// 飛ばす方式）はjs/lyricsQuizBattleUi.jsのdescribeResultTable()が担当する
+// （この関数はあくまで2者間の大小比較だけを返す）。
 export function compareResults(resultA, resultB) {
-  const a = resultA.detail;
-  const b = resultB.detail;
-  if (a.totalPoints !== b.totalPoints) return b.totalPoints - a.totalPoints;
-  if (a.firstHintCorrectCount !== b.firstHintCorrectCount) return b.firstHintCorrectCount - a.firstHintCorrectCount;
-  if (a.totalHintsUsed !== b.totalHintsUsed) return a.totalHintsUsed - b.totalHintsUsed;
-  if (a.totalElapsedMs !== b.totalElapsedMs) return a.totalElapsedMs - b.totalElapsedMs;
-  return a.missCount - b.missCount;
+  return resultB.detail.totalPoints - resultA.detail.totalPoints;
 }
 
 export function getRuleDescription() {
-  return "全員が同じヒントを見て、正解すればヒント段階に応じたポイントを獲得します。ポイント合計、同点時はヒント1正解数→使用ヒント数→回答時間→ミス数の順で順位が決まります。";
+  return "全員が同じ問題に挑戦し、正解した数（ポイント）を競います。ヒントは自分のペースで手動で開けます（ヒント段階は得点に影響しません）。同点の場合は同じ順位になります。";
 }
 
 // 【Phase6.5新設】画面層が「回答を送信するときに何を送るか」をruleIdで分岐せずに
 // 決められるようにする窓口（js/battleRules/index.jsのgetAnswerSubmissionPlan()経由）。
-// クラシックには奪い取りclaimの概念が無いため、常に回答ログだけを送る。
+// 正解数バトルには奪い取りclaimの概念が無いため、常に回答ログだけを送る。
 export function getAnswerSubmissionPlan() {
   return { submitAnswer: true, submitWinnerClaim: false };
 }
 
-// ルーム設定画面が自動生成するための宣言（追記⑥1.5章）。
-export const settingsFields = [HINT_INTERVAL_SETTINGS_FIELD];
+// 【2026-08-31改訂】ヒント表示時間の選択が無くなったため空配列にした
+// （ルーム設定画面はsettingsFieldsが空なら何も描画しない、既存の挙動）。
+export const settingsFields = [];
 
 // 対戦中HUDが自動生成するための宣言（追記⑦12章）。
-// 【2026-09-03修正・本人指摘】totalElapsedMsはミリ秒の生値のため、unit: "ms"を付けて
-// js/lyricsQuizBattleUi.jsのformatDisplayValue()に「秒へ変換して表示する」と伝える
-// （以前はunitが無く、9620のような生のミリ秒がそのまま画面に出てしまっていた）。
-export const hudFields = [
-  { key: "correctCount", label: "現在の正解数" },
-  { key: "firstHintCorrectCount", label: "ヒント1正解数" },
-  { key: "totalHintsUsed", label: "総使用ヒント数" },
-  { key: "totalElapsedMs", label: "総回答時間", unit: "ms" },
-];
+// 【2026-08-31改訂・本人指示】「対戦中は自分の現在ポイントだけを見せ、順位や他人の
+// ポイントとの比較は最終結果画面まで見せない」という明確な指示により、対戦中HUDは
+// 自分の現在ポイントのみに簡略化した（以前あったヒント1正解数・総使用ヒント数・
+// 総回答時間は結果画面（resultColumns）にのみ残す）。
+export const hudFields = [{ key: "totalPoints", label: "現在のポイント" }];
 
 // 結果画面が自動生成するための宣言（追記⑥10章）。
 export const resultColumns = [
@@ -174,5 +165,5 @@ export const resultColumns = [
   { key: "totalHintsUsed", label: "使用ヒント数" },
   { key: "totalElapsedMs", label: "回答時間", unit: "ms" },
   { key: "missCount", label: "ミス回数" },
-  { key: "skippedCount", label: "未回答" },
+  { key: "skippedCount", label: "わからない回数" },
 ];

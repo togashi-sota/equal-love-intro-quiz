@@ -8,7 +8,7 @@ export function runBattleRulesIndexTests() {
   // ===== 登録内容の確認 =====
   {
     const rules = battleRules.listAvailableBattleRules();
-    assertEqual(rules.length, 3, "3ルール（クラシック・奪い取り・コンボ）が登録されている");
+    assertEqual(rules.length, 3, "3ルール（正解数バトル・早押しバトル・ポイントバトル）が登録されている");
     assertEqual(
       rules.map((rule) => rule.ruleId).sort(),
       ["classic", "combo", "steal"],
@@ -45,8 +45,8 @@ export function runBattleRulesIndexTests() {
   {
     const settings = battleRules.createDefaultBattleRuleSettings("classic");
     assertEqual(battleRules.validateBattleRule("classic", settings), null, "classicの初期設定は妥当な設定になっている");
-    assertEqual(battleRules.getBattleRuleLabel("steal"), "奪い取り", "getBattleRuleLabelがstealRuleへ正しく委譲される");
-    assertEqual(battleRules.getAllowedAnswerPoolSizes("steal"), [4, 10], "奪い取りの回答方式制限が正しく取り出せる");
+    assertEqual(battleRules.getBattleRuleLabel("steal"), "早押しバトル", "getBattleRuleLabelがstealRuleへ正しく委譲される");
+    assertEqual(battleRules.getAllowedAnswerPoolSizes("steal"), [4, 10], "早押しバトルの回答方式制限が正しく取り出せる");
   }
 
   // ===== getAnswerSubmissionPlan / getComboMultiplierForCount（Phase6.5新設） =====
@@ -61,7 +61,9 @@ export function runBattleRulesIndexTests() {
       { submitAnswer: true, submitWinnerClaim: false },
       "classicへ正しく委譲され、常にsubmitWinnerClaim:falseになる"
     );
-    assertEqual(battleRules.getComboMultiplierForCount("combo", 3), 1.2, "comboへ正しく委譲される");
+    // 【2026-08-31改訂】ポイントバトル（旧コンボ）からコンボ倍率の概念を撤廃したため、
+    // comboRule.getComboMultiplierForCount()は常にnullを返すようになった。
+    assertEqual(battleRules.getComboMultiplierForCount("combo", 3), null, "コンボ倍率の概念を撤廃したため、comboへ委譲されても常にnull");
     assertEqual(battleRules.getComboMultiplierForCount("classic", 3), null, "getComboMultiplierForCountを持たないルールはnullを返す");
   }
 }

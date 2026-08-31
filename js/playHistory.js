@@ -300,7 +300,9 @@ export const HISTORY_MODE_DISPLAY = {
 // ===== 一覧カード・サマリー用の表示ヘルパー（純粋関数） =====
 
 const BATTLE_RULE_LABELS = { normal: "ノーマル", hard: "ハード", loveChain: "LOVE連チャン" };
-const LYRICS_BATTLE_RULE_LABELS = { classic: "クラシック", steal: "奪い取り", combo: "コンボ" };
+// 【2026-08-31改訂・本人指示による3ルール全面見直し】表示名をクラシック/奪い取り/コンボ→
+// 正解数バトル/早押しバトル/ポイントバトルへ変更（内部のbattleRuleId自体は既存のまま）。
+const LYRICS_BATTLE_RULE_LABELS = { classic: "正解数バトル", steal: "早押しバトル", combo: "ポイントバトル" };
 const MEDAL_BY_RANK = { 1: "🥇", 2: "🥈", 3: "🥉" };
 
 function formatRank(rank) {

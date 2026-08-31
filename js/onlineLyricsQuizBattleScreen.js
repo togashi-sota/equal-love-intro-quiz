@@ -83,7 +83,12 @@ import {
   renderLyricsReadinessStatus,
   renderOwnMissingLyricsTitles,
 } from "./lyricsQuizBattleUi.js";
-import { deriveHintLevelFromElapsedMs, computeElapsedMs } from "./lyricsQuizBattleTiming.js";
+import { computeElapsedMs, deriveRevealedCharCount, revealTextByCharCount, countCharacters } from "./lyricsQuizBattleTiming.js";
+// 【2026-08-31新設、本人指示：歌詞クイズ3ルール全面改修】30・50・全曲プールの検索は、
+// 既存の「収録曲一覧」検索と完全に同じ判定にする（本人指示：新しい簡易検索を別に作らない）。
+// 50音ジャンプバーの行分けも、この共有ファイルの定義をそのまま使う。
+import { normalizeForSearch, songMatchesSearch, GOJUON_ROWS, deriveGojuonRowKey } from "./songlist.js";
+import { LARGE_ANSWER_POOL_THRESHOLD } from "./lyricsQuizEngine.js";
 // 【2026-08-08新設】出題する曲をホストが選べる機能。他の対戦モード（js/onlineBattleScreen.js）と
 // 同じ曲選択画面を共有する（gameModeごとに別々の選曲UIを持たない、本人指示）。
 import { openOnlineBattleSongPicker } from "./onlineBattleSongPicker.js";
@@ -143,16 +148,19 @@ let submitInFlight = false;
 let myOutcomeHistory = [];
 let myComboCount = 0;
 let myQuestionStartedAtCache = {};
-let lastWinnerNameCache = null; // 奪い取りHUDの「直近の獲得者」用
+// 【2026-08-31改訂】以前は単一のlastWinnerNameCache（直近の獲得者名）だったが、
+// 「勝者が確定しなかった問題の後」でも前の問題の値が残り続ける不正確さがあったため、
+// 問題インデックスごとに持つ形へ変更した（qIndex -> 表示名 | undefined）。
+let winnerNameByQuestionIndex = {};
 
-// 【2026-09-03新設、本人指示：毎問の途中順位表示】各クライアントが、参加者全員の
-// これまでの獲得ポイントを独立して積み上げるための状態。myOutcomeHistory（自分専用）とは
-// 別に持つ（既存の自分専用HUD集計には一切手を加えず、リスクを分離するため）。
-// resolveQuestionAnswers()はanswersByUidに複数人を渡せる設計のため、全参加者分を
-// まとめて1回で計算できる（js/battleRules/各ルールの実装参照）。
-let allPlayersOutcomeHistoriesByUid = {}; // uid -> 確定済み問題のoutcome配列
-let allPlayersComboCountByUid = {}; // uid -> 現在のコンボ数（コンボルールのみ使用）
-let allPlayersResolvedQuestionCount = 0; // ここまで集計済みの問題数（次に集計すべきqIndexでもある）
+// 【2026-08-31新設、本人指示：ヒントを手動で開く方式への変更】正解数バトル・
+// ポイントバトルで、自分が今のヒントで開いている最大段階（1〜4）。新しい問題に移るたびに
+// 1へリセットする（renderCurrentQuestionState()のqIndex切り替わり時参照）。
+let myOpenedHintLevel = 1;
+// 【2026-08-31新設】30・50・全曲プールでの検索文字列・50音ジャンプの選択行。
+// 新しい問題に移るたびにリセットする。
+let myAnswerSearchQuery = "";
+let myAnswerJumpRowKey = null;
 
 // ホスト専用の進行ミラー（js/lyricsQuizMatchProgress.js）。
 let hostState = null;
@@ -243,6 +251,16 @@ export function initOnlineLyricsQuizBattleScreens(newElements) {
     });
   });
 
+  // 【2026-08-31新設】30・50・全曲プールの検索欄。入力のたびに検索文字列を状態として
+  // 覚え、一覧を再描画する（本人指示：検索は必須にしないため、空欄なら50音ジャンプ／
+  // 全件表示に戻る）。検索を始めたら50音ジャンプの選択行はいったん解除する
+  // （検索語のほうを優先して見せるため）。
+  elements.battleAnswerSearchInput?.addEventListener("input", (event) => {
+    myAnswerSearchQuery = event.target.value;
+    myAnswerJumpRowKey = null;
+    renderCurrentQuestionState();
+  });
+
   elements.battleQuitButton.addEventListener("click", () => {
     elements.quitConfirmModal.hidden = false;
   });
@@ -302,7 +320,10 @@ export function resetLyricsQuizBattleState() {
   myOutcomeHistory = [];
   myComboCount = 0;
   myQuestionStartedAtCache = {};
-  lastWinnerNameCache = null;
+  winnerNameByQuestionIndex = {};
+  myOpenedHintLevel = 1;
+  myAnswerSearchQuery = "";
+  myAnswerJumpRowKey = null;
   hostState = null;
   hostTickInFlight = false;
   resolvedAtLocalMs = null;
@@ -486,12 +507,13 @@ function findRuleLabel(ruleId) {
 function renderLyricsQuizParticipantSummary(settings) {
   clearElement(elements.lyricsSettingsSummaryContainer);
   const isManualSongSource = settings.questionSource?.type === QUESTION_SOURCE_TYPE.MANUAL_SELECTION;
+  // 【2026-08-31改訂】ヒントは本人がボタンで手動で開く方式になり、settings.hintIntervalSec
+  // （自動送り間隔）の設定項目自体が無くなったため、このチップからも外した。
   const chips = [
     "歌詞クイズ",
     findRuleLabel(settings.battleRuleId),
     describeAnswerPoolChipLabel(settings.answerPoolSizeValue),
     QUESTION_COUNT_LABELS[settings.questionCountValue] ?? settings.questionCountValue,
-    `ヒント表示${settings.hintIntervalSec}秒`,
   ];
   // 【2026-08-08新設】曲を手動選択している場合だけ、参加者にも「N曲から出題」を見せる
   // （本人指示：曲名までは見せない）。
@@ -662,10 +684,10 @@ export async function enterLyricsQuizBattlePlay(room) {
   myOutcomeHistory = [];
   myComboCount = 0;
   myQuestionStartedAtCache = {};
-  lastWinnerNameCache = null;
-  allPlayersOutcomeHistoriesByUid = {};
-  allPlayersComboCountByUid = {};
-  allPlayersResolvedQuestionCount = 0;
+  winnerNameByQuestionIndex = {};
+  myOpenedHintLevel = 1;
+  myAnswerSearchQuery = "";
+  myAnswerJumpRowKey = null;
 
   elements.battleError.hidden = true;
   elements.battleStatusMessage.hidden = true;
@@ -673,6 +695,10 @@ export async function enterLyricsQuizBattlePlay(room) {
   clearElement(elements.battleHudContainer);
   clearElement(elements.battleAnswerChoicesContainer);
   clearElement(elements.battleHintLinesContainer);
+  clearElement(elements.battleHintActions);
+  if (elements.battleAnswerSearchInput) elements.battleAnswerSearchInput.value = "";
+  elements.battleAnswerSearchRow.hidden = true;
+  elements.battleAnswerJumpBar.hidden = true;
   elements.navigateTo("onlineLyricsBattleQuestion");
   startServerTimeOffsetTracking();
 
@@ -866,6 +892,14 @@ async function runHostProgressionTick() {
 // 積み上げる。ホストのhostStateとは別に、参加者を含む全クライアントが独立して行う
 // （HUD表示は自分の分だけ分かればよく、全員分の進行を持つ必要が無いため）。
 // 自分が未回答のまま問題が終わった場合は、ホストと同じくSKIP扱いで補完する。
+//
+// 【2026-08-31改訂・早押しバトルの勝者表示の正確化】以前はwinner claimが存在するだけで
+// （実際に正解だったかの検算をせずに）表示名をlastWinnerNameCacheへ覚えていたため、
+// 「誰も正解しなかった問題」の直後でも直前の勝者名が残り続ける不正確さがあった。
+// resolveQuestionAnswers()に自分（myUid）だけでなく勝者候補（winnerUid）も一緒に渡し、
+// js/battleRules/stealRule.js内部の再検算（isWinnerActuallyCorrect）を経たwonQuestionの
+// 結果を見てから、問題インデックスごと（winnerNameByQuestionIndex[qIndex]）に確定させる
+// （奪い取り以外のルールではwinnerが常にnullのため、この処理は実質何もしない）。
 function maybeRecordMyOutcomeForResolvedQuestions(match) {
   const myUid = getCurrentUid();
   if (!myUid || !latestRoom) return;
@@ -876,18 +910,31 @@ function maybeRecordMyOutcomeForResolvedQuestions(match) {
     const question = currentQuestions[qIndex];
     if (!question) break;
 
-    const myAnswer = (match.answers?.[qIndex] ?? {})[myUid] ?? {
-      selectedSongId: SKIP_SELECTION,
-      hintLevel: MAX_HINT_LEVEL,
-      submittedAt: myQuestionStartedAtCache[qIndex] ?? Date.now(),
-    };
+    const winner = match.questionClaims?.[qIndex]?.winner ?? null;
+    const winnerUid = winner?.uid;
+    const uidsToResolve = winnerUid && winnerUid !== myUid ? [myUid, winnerUid] : [myUid];
+    const answersByUid = {};
+    uidsToResolve.forEach((uid) => {
+      answersByUid[uid] =
+        uid === myUid
+          ? ((match.answers?.[qIndex] ?? {})[myUid] ?? {
+              selectedSongId: SKIP_SELECTION,
+              hintLevel: MAX_HINT_LEVEL,
+              submittedAt: myQuestionStartedAtCache[qIndex] ?? Date.now(),
+            })
+          : ((match.answers?.[qIndex] ?? {})[uid] ?? {
+              selectedSongId: SKIP_SELECTION,
+              hintLevel: MAX_HINT_LEVEL,
+              submittedAt: match.currentQuestionStartedAt ?? Date.now(),
+            });
+    });
     const context = {
-      answersByUid: { [myUid]: myAnswer },
+      answersByUid,
       correctSongId: question.song.id,
-      winner: match.questionClaims?.[qIndex]?.winner ?? null,
+      winner,
       comboCountByUid: { [myUid]: myComboCount },
       questionStartedAt: myQuestionStartedAtCache[qIndex] ?? match.currentQuestionStartedAt,
-      allPlayerUids: [myUid],
+      allPlayerUids: uidsToResolve,
       nowMs: Date.now(),
       settings: latestRoom.settings,
     };
@@ -897,81 +944,10 @@ function maybeRecordMyOutcomeForResolvedQuestions(match) {
     myOutcomeHistory.push(myOutcome);
     myComboCount = myOutcome.nextComboCount;
 
-    // 【Phase6.5・HUD「直近の獲得者」の実値化】この問題に勝者がいれば、表示名を
-    // 参加者スナップショット（match.participants）から引いて覚えておく。奪い取り以外の
-    // ルールではwinnerが常にnullのため、この処理は実質何もしない（安全に素通りする）。
-    const winnerUid = context.winner?.uid;
-    if (winnerUid) {
-      lastWinnerNameCache = match.participants?.[winnerUid]?.displayName ?? winnerUid;
+    if (winnerUid && outcomesByUid[winnerUid]?.wonQuestion) {
+      winnerNameByQuestionIndex[qIndex] = match.participants?.[winnerUid]?.displayName ?? winnerUid;
     }
   }
-}
-
-// 【2026-09-03新設、本人指示：毎問の途中順位表示】maybeRecordMyOutcomeForResolvedQuestions()と
-// 同じ考え方で、今度は参加者全員分の獲得ポイントを積み上げる。resolveQuestionAnswers()は
-// 複数人分のanswersByUid/comboCountByUidを一度に受け取れる設計のため、1問につき1回の
-// 呼び出しで全員分のoutcomeが求まる。既存の自分専用集計（myOutcomeHistory）には触れず、
-// 完全に独立した状態として持つ（既存のHUD表示ロジックへの影響をゼロにするため）。
-function maybeRecordAllPlayersOutcomesForResolvedQuestions(match) {
-  if (!latestRoom) return;
-  const participantUids = Object.keys(match.participants ?? {});
-  if (participantUids.length === 0) return;
-
-  const resolvedUpToIndex = match.questionStatus === "resolved" ? match.currentQuestionIndex : match.currentQuestionIndex - 1;
-  while (allPlayersResolvedQuestionCount <= resolvedUpToIndex) {
-    const qIndex = allPlayersResolvedQuestionCount;
-    const question = currentQuestions[qIndex];
-    if (!question) break;
-
-    const answersByUid = {};
-    const comboCountByUid = {};
-    participantUids.forEach((uid) => {
-      answersByUid[uid] = (match.answers?.[qIndex] ?? {})[uid] ?? {
-        selectedSongId: SKIP_SELECTION,
-        hintLevel: MAX_HINT_LEVEL,
-        submittedAt: match.currentQuestionStartedAt ?? Date.now(),
-      };
-      comboCountByUid[uid] = allPlayersComboCountByUid[uid] ?? 0;
-    });
-    const context = {
-      answersByUid,
-      correctSongId: question.song.id,
-      winner: match.questionClaims?.[qIndex]?.winner ?? null,
-      comboCountByUid,
-      questionStartedAt: match.currentQuestionStartedAt,
-      allPlayerUids: participantUids,
-      nowMs: Date.now(),
-      settings: latestRoom.settings,
-    };
-    const outcomesByUid = lyricsQuizBattleMode.resolveQuestionAnswers(latestRoom.settings, context);
-    let allResolved = true;
-    participantUids.forEach((uid) => {
-      const outcome = outcomesByUid[uid];
-      if (!outcome) {
-        allResolved = false; // 安全側：1人でも取得できなければこの問題は積まない
-        return;
-      }
-      if (!allPlayersOutcomeHistoriesByUid[uid]) allPlayersOutcomeHistoriesByUid[uid] = [];
-      allPlayersOutcomeHistoriesByUid[uid].push(outcome);
-      allPlayersComboCountByUid[uid] = outcome.nextComboCount;
-    });
-    if (!allResolved) break;
-    allPlayersResolvedQuestionCount++;
-  }
-}
-
-// 現在までの獲得ポイント順に、参加者を並べ替えて返す（毎問の途中順位表示用）。
-// 完全にタイなら参加者一覧の並び順のまま（安定ソート）にしておき、順位が理由なく
-// 入れ替わって見えることを避ける。
-function computeCurrentStandings(match) {
-  const participantUids = Object.keys(match.participants ?? {});
-  return participantUids
-    .map((uid) => ({
-      uid,
-      displayName: match.participants[uid].displayName,
-      totalPoints: (allPlayersOutcomeHistoriesByUid[uid] ?? []).reduce((sum, outcome) => sum + (outcome.pointsAwarded ?? 0), 0),
-    }))
-    .sort((a, b) => b.totalPoints - a.totalPoints);
 }
 
 // 【Phase6.5・HUDの完成度について】js/lyricsQuizBattleUi.jsのhudFields宣言にある項目のうち、
@@ -998,29 +974,140 @@ function computeMyLiveHudStats() {
     questionsWon,
     currentCombo: myComboCount,
     maxCombo,
-    lastWinnerName: lastWinnerNameCache,
     ...(currentMultiplier !== null ? { currentMultiplier } : {}),
   };
 }
 
-function renderHintLines(question, hintLevel) {
+// 【2026-08-31全面改訂、本人指示：歌詞クイズ3ルール全面改修】以前は「経過時間から
+// 自動計算したヒント段階」を全ルール共通で表示していたが、新仕様では表示方法自体が
+// ルールごとに異なる：
+//   ・正解数バトル／ポイントバトル：本人が「ヒントNを見る」ボタンで開いた段階
+//     （myOpenedHintLevel）までの歌詞を、これまでどおり行ごとに表示する。
+//   ・早押しバトル：歌詞の該当箇所（最も詳しいヒント段階のテキスト）が、経過時間に応じて
+//     1文字ずつ自動的に表示される（本人がボタンを押す必要はない）。
+function renderHintArea(question, { ruleId, elapsedMs, isResolved, myAnsweredThisQuestion }) {
   clearElement(elements.battleHintLinesContainer);
-  const hint = question.hints.find((h) => h.hintLevel === hintLevel) ?? question.hints[question.hints.length - 1];
-  elements.battleHintLevel.textContent = `ヒント ${hintLevel} / ${MAX_HINT_LEVEL}`;
-  if (!hint) return;
-  const lines = (hint.segment?.text ?? "").split("\n").filter((line) => line.length > 0);
+
+  if (ruleId === "steal") {
+    elements.battleHintActions.hidden = true;
+    const fullText = question.hints[question.hints.length - 1]?.segment?.text ?? "";
+    const totalCharCount = countCharacters(fullText);
+    const revealedCharCount = isResolved || myAnsweredThisQuestion
+      ? totalCharCount
+      : deriveRevealedCharCount({ elapsedMs, totalCharCount });
+    const revealedText = revealTextByCharCount(fullText, revealedCharCount);
+    elements.battleHintLevel.textContent = "";
+    const lineElement = document.createElement("p");
+    lineElement.className = "online-lyrics-battle-hint-line online-lyrics-battle-reveal-line";
+    lineElement.textContent = revealedText;
+    elements.battleHintLinesContainer.appendChild(lineElement);
+    return;
+  }
+
+  const hint = question.hints.find((h) => h.hintLevel === myOpenedHintLevel) ?? question.hints[0];
+  elements.battleHintLevel.textContent = `ヒント ${myOpenedHintLevel} / ${MAX_HINT_LEVEL}`;
+  const lines = (hint?.segment?.text ?? "").split("\n").filter((line) => line.length > 0);
   lines.forEach((lineText) => {
     const lineElement = document.createElement("p");
     lineElement.className = "online-lyrics-battle-hint-line";
     lineElement.textContent = lineText;
     elements.battleHintLinesContainer.appendChild(lineElement);
   });
+  renderHintActionButtons({ isResolved, myAnsweredThisQuestion });
+}
+
+// 【2026-08-31新設】「ヒントNを見る」（未開放の次の段階が残っていれば1つだけ）と
+// 「わからない」ボタン。早押しバトルでは使わない（呼び出し元でhidden=trueにする）。
+function renderHintActionButtons({ isResolved, myAnsweredThisQuestion }) {
+  clearElement(elements.battleHintActions);
+  const shouldHide = isResolved || myAnsweredThisQuestion;
+  elements.battleHintActions.hidden = shouldHide;
+  if (shouldHide) return;
+
+  if (myOpenedHintLevel < MAX_HINT_LEVEL) {
+    const nextLevel = myOpenedHintLevel + 1;
+    const openButton = document.createElement("button");
+    openButton.type = "button";
+    openButton.className = "secondary-button online-lyrics-battle-hint-open-button";
+    openButton.textContent = `ヒント${nextLevel}を見る`;
+    openButton.addEventListener("click", () => {
+      myOpenedHintLevel = nextLevel;
+      renderCurrentQuestionState();
+    });
+    elements.battleHintActions.appendChild(openButton);
+  }
+
+  const giveUpButton = document.createElement("button");
+  giveUpButton.type = "button";
+  giveUpButton.className = "secondary-button online-lyrics-battle-give-up-button";
+  giveUpButton.textContent = "わからない";
+  giveUpButton.addEventListener("click", () => {
+    handleAnswerChoiceClick(SKIP_SELECTION);
+  });
+  elements.battleHintActions.appendChild(giveUpButton);
+}
+
+// 【2026-08-31新設】30・50・全曲プールの検索文字列・50音ジャンプによる絞り込み。
+// 「収録曲一覧」（js/songlist.js）と全く同じnormalizeForSearch・songMatchesSearchを
+// 使うことで、検索結果が完全に一致するようにする（本人指示：新しい簡易検索を別に作らない）。
+// 検索文字列が入力されている間は、50音ジャンプの選択行より検索を優先する
+// （検索を始めたらmyAnswerJumpRowKeyをnullへ戻す呼び出し側の挙動と合わせている）。
+function filterAnswerPool(pool) {
+  const normalizedQuery = normalizeForSearch(myAnswerSearchQuery);
+  if (normalizedQuery !== "") {
+    return pool.filter((song) => songMatchesSearch(song.title, song.searchReading, song.searchAliases, normalizedQuery));
+  }
+  if (myAnswerJumpRowKey && myAnswerJumpRowKey !== "all") {
+    return pool.filter((song) => deriveGojuonRowKey(song.searchReading ?? song.title) === myAnswerJumpRowKey);
+  }
+  return pool;
+}
+
+// 【2026-08-31新設】全曲プール専用の50音ジャンプバー（「すべて｜あ｜か｜さ｜…」）。
+// 検索と違い、曲名が分からなくても「読み仮名の行」からブラウズして見つけられるようにする
+// （本人指示：検索を必須にしない）。
+function renderAnswerJumpBar() {
+  clearElement(elements.battleAnswerJumpBar);
+  const chips = [{ key: "all", label: "すべて" }, ...GOJUON_ROWS];
+  chips.forEach(({ key, label }) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "online-lyrics-battle-jump-chip";
+    button.textContent = label;
+    const isActive = key === "all" ? !myAnswerJumpRowKey || myAnswerJumpRowKey === "all" : myAnswerJumpRowKey === key;
+    if (isActive) button.classList.add("is-active");
+    button.addEventListener("click", () => {
+      myAnswerJumpRowKey = key;
+      myAnswerSearchQuery = "";
+      if (elements.battleAnswerSearchInput) elements.battleAnswerSearchInput.value = "";
+      renderCurrentQuestionState();
+    });
+    elements.battleAnswerJumpBar.appendChild(button);
+  });
 }
 
 function renderAnswerChoices(question, { isResolved, myAnsweredThisQuestion }) {
+  const pool = question.answerPool;
+  // 【2026-08-31新設】30・50・全曲プールでは、検索欄＋スクロールする一覧に切り替える
+  // （4択・10択は従来どおりのボタン一覧のまま。js/lyricsQuizEngine.jsの
+  // LARGE_ANSWER_POOL_THRESHOLDは、既存の収録曲一覧・オフライン歌詞クイズと共通の基準）。
+  const isLargePool = pool.length >= LARGE_ANSWER_POOL_THRESHOLD;
+  const isAllPool = latestRoom.settings.answerPoolSizeValue === "all";
+  elements.battleAnswerSearchRow.hidden = !isLargePool;
+  elements.battleAnswerJumpBar.hidden = !isLargePool || !isAllPool;
+  // 【2026-08-31新設】30・50プールは本人指示どおりコンパクトな2列一覧、全曲プールは
+  // 50音ジャンプバーと組み合わせやすいフル幅の1列一覧にする（見た目のクラスを分ける）。
+  elements.battleAnswerChoicesContainer.classList.toggle("online-lyrics-battle-answer-list", isLargePool && isAllPool);
+  elements.battleAnswerChoicesContainer.classList.toggle("online-lyrics-battle-answer-list-compact", isLargePool && !isAllPool);
+  if (isLargePool) {
+    elements.battleAnswerCount.textContent = `${pool.length}曲`;
+    if (isAllPool) renderAnswerJumpBar();
+  }
+
   clearElement(elements.battleAnswerChoicesContainer);
   const correctSongId = question.song.id;
-  question.answerPool.forEach((choiceSong) => {
+  const visiblePool = isLargePool ? filterAnswerPool(pool) : pool;
+  visiblePool.forEach((choiceSong) => {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "online-lyrics-battle-answer-button";
@@ -1080,13 +1167,12 @@ async function handleAnswerChoiceClick(selectedSongId) {
   hideAnswerSubmissionNotice();
   renderCurrentQuestionState();
 
-  const nowServerTimeMs = Date.now() + serverTimeOffset;
-  const elapsedMs = computeElapsedMs({ questionStartedAt: match.currentQuestionStartedAt, nowServerTimeMs });
-  const hintLevel = deriveHintLevelFromElapsedMs({
-    elapsedMs,
-    hintIntervalSec: latestRoom.settings.hintIntervalSec,
-    maxHintLevel: MAX_HINT_LEVEL,
-  });
+  // 【2026-08-31改訂、本人指示：ヒントを手動で開く方式への変更】以前は経過時間から
+  // ヒント段階を自動計算していたが、新仕様では本人がボタンで開いた段階
+  // （myOpenedHintLevel）をそのまま送る。早押しバトルはヒント段階が採点に一切影響しない
+  // ため（js/battleRules/stealRule.js参照）、固定値1を送るだけでよい。
+  const ruleId = latestRoom.settings.battleRuleId;
+  const hintLevel = ruleId === "steal" ? 1 : myOpenedHintLevel;
   const correctSongId = currentQuestions[qIndex].song.id;
   // 【Phase6.5・ruleId分岐の撤去】「回答ログだけでよいか、勝者claimも一緒に送るべきか」は
   // js/battleRules/各ルールが持つgetAnswerSubmissionPlan()にルール自身が決めさせる
@@ -1153,6 +1239,11 @@ function renderCurrentQuestionState() {
     mySubmittedForQuestionIndex = -1;
     mySelectedSongId = null;
     hideAnswerSubmissionNotice();
+    // 【2026-08-31新設】新しい問題に移ったら、開いたヒント段階・検索状態をリセットする。
+    myOpenedHintLevel = 1;
+    myAnswerSearchQuery = "";
+    myAnswerJumpRowKey = null;
+    if (elements.battleAnswerSearchInput) elements.battleAnswerSearchInput.value = "";
   }
   if (typeof match.currentQuestionStartedAt === "number" && !(qIndex in myQuestionStartedAtCache)) {
     myQuestionStartedAtCache[qIndex] = match.currentQuestionStartedAt;
@@ -1161,53 +1252,55 @@ function renderCurrentQuestionState() {
   elements.battleProgress.textContent = `第${qIndex + 1}問 / 全${currentQuestions.length}問`;
 
   const isResolved = match.questionStatus === "resolved";
+  const ruleId = latestRoom.settings.battleRuleId;
+  const myAnsweredThisQuestion = mySubmittedForQuestionIndex === qIndex;
   const nowServerTimeMs = Date.now() + serverTimeOffset;
   const elapsedMs = computeElapsedMs({ questionStartedAt: match.currentQuestionStartedAt, nowServerTimeMs });
-  const hintLevel = isResolved
-    ? MAX_HINT_LEVEL
-    : deriveHintLevelFromElapsedMs({ elapsedMs, hintIntervalSec: latestRoom.settings.hintIntervalSec, maxHintLevel: MAX_HINT_LEVEL });
 
-  renderHintLines(question, hintLevel);
-  renderAnswerChoices(question, { isResolved, myAnsweredThisQuestion: mySubmittedForQuestionIndex === qIndex });
+  renderHintArea(question, { ruleId, elapsedMs, isResolved, myAnsweredThisQuestion });
+  renderAnswerChoices(question, { isResolved, myAnsweredThisQuestion });
 
   maybeRecordMyOutcomeForResolvedQuestions(match);
-  maybeRecordAllPlayersOutcomesForResolvedQuestions(match);
   const hudItems = describeHudItems(latestRoom.settings.battleRuleId, computeMyLiveHudStats());
   renderHud(elements.battleHudContainer, hudItems);
 
-  // 【2026-09-03改訂、本人指摘：正解発表の強化】以前は「正解が確定しました。まもなく次の
-  // 問題です。」という一律の文言だけだったため、正解曲名・自分の正誤・獲得ポイント・
-  // 現在の途中順位が分からなかった。オフライン版の正解確認カードと同じデザインで、
-  // このクイズを解いた自分自身の結果と、参加者全員の現在の順位を毎問表示する
-  // （本人指示：歌詞クイズ3ルールはすべて毎問途中順位を見せる）。
-  elements.battleStatusMessage.hidden = true;
+  // 【2026-08-31改訂、本人指示：歌詞クイズ3ルール全面改修】「先に回答したプレイヤーだけに
+  // 正解を先に表示しない」ため、自分が回答済みでもまだ全員が揃っていない間は
+  // 「回答しました！他のプレイヤーの回答を待っています」の待機表示にとどめ、正解確認カードは
+  // 全員の回答が揃って問題が確定するまで出さない（js/battleRules/各ルールのshouldEndQuestion()
+  // が「全員回答済み」を確定条件にしているため、確定＝isResolvedの時点で必ず全員分揃っている）。
+  elements.battleStatusMessage.hidden = !(myAnsweredThisQuestion && !isResolved);
+  if (myAnsweredThisQuestion && !isResolved) {
+    elements.battleStatusMessage.textContent = "回答しました！他のプレイヤーの回答を待っています…";
+  }
+
+  // 【2026-08-31改訂、本人指示：歌詞クイズ3ルール全面改修】対戦中は他プレイヤーとの
+  // 順位・ポイント比較を一切見せない方針のため、途中順位表示（現在の順位：N位／M人中）は
+  // 撤去した（最終結果画面まで順位を伏せる。以前の実装はcomputeCurrentStandings()参照、
+  // 本人指示によりこの画面からの呼び出しを取りやめた）。
   elements.battleAnswerReveal.hidden = !isResolved;
   if (isResolved) {
     const myOutcome = myOutcomeHistory[qIndex] ?? null;
     const gotPoints = (myOutcome?.pointsAwarded ?? 0) > 0;
-    elements.battleAnswerRevealStatus.textContent = gotPoints
-      ? "🎉 正解！"
-      : myOutcome?.outcome === "skipped"
-        ? "△ 未回答でした"
-        : "✕ 不正解";
+    // 【2026-08-31改訂、本人指示】正解数バトル・ポイントバトルでは「わからない」を選んだ
+    // 場合も、時間切れの未回答も、表示上は不正解と同じ「✕ 不正解」に統一する
+    // （仕様どおり、正解者→「正解！」・それ以外→「不正解」の2区分）。
+    elements.battleAnswerRevealStatus.textContent = gotPoints ? "🎉 正解！" : "✕ 不正解";
     elements.battleAnswerRevealStatus.classList.toggle("is-correct-answer-reveal-status", gotPoints);
     elements.battleAnswerRevealTitle.textContent = question.song.title;
 
     const metaParts = [];
     if (gotPoints) {
       metaParts.push(`+${myOutcome.pointsAwarded}pt`);
-    } else if (myOutcome?.outcome === "correct" && myOutcome?.wonQuestion === false && latestRoom.settings.battleRuleId === "steal") {
-      // 奪い取りルールで「回答自体は合っていたが、先に取られた」ケースだけ、
-      // 本人が状況を誤解しない（自分の回答が間違っていたと勘違いしない）よう補足する。
-      metaParts.push(lastWinnerNameCache ? `${lastWinnerNameCache}さんが先に正解しました` : "他の人が先に正解しました");
+    } else if (ruleId === "steal") {
+      // 【2026-08-31改訂、本人指示：早押しバトル】自分が勝者でない場合、勝者がいれば
+      // 「○○さんが正解！」、誰も正解しなかった（時間切れ等）場合は「正解者はいませんでした」
+      // を全員に見せる（勝者の正当性はwinnerNameByQuestionIndexが検算済みの値のみ持つ。
+      // 詳しくはmaybeRecordMyOutcomeForResolvedQuestions()参照）。
+      const winnerName = winnerNameByQuestionIndex[qIndex];
+      metaParts.push(winnerName ? `${winnerName}さんが正解！` : "正解者はいませんでした");
     }
     elements.battleAnswerRevealMeta.textContent = metaParts.join("・");
-
-    const standings = computeCurrentStandings(match);
-    const myUid = getCurrentUid();
-    const myRankIndex = standings.findIndex((entry) => entry.uid === myUid);
-    elements.battleAnswerRevealRank.textContent =
-      myRankIndex === -1 ? "" : `現在の順位：${myRankIndex + 1}位 / ${standings.length}人中（${standings[myRankIndex].totalPoints}pt）`;
   }
 }
 

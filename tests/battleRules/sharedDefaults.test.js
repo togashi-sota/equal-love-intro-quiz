@@ -4,6 +4,7 @@
 import {
   deriveAnswerOutcome,
   computeResponseMs,
+  computeElapsedSinceQuestionStart,
   getComboMultiplier,
   validatePointTable,
   validateHintIntervalSec,
@@ -42,6 +43,20 @@ export function runBattleRulesSharedDefaultsTests() {
       computeResponseMs({ ...base, submittedAt: 999999 }),
       6000,
       "極端に大きい値でも、そのヒント段階の制限時間（6000ms）を超えないようクランプされる"
+    );
+  }
+
+  // ===== computeElapsedSinceQuestionStart（2026-08-31新設・ヒント手動開放方式の参考時間） =====
+  {
+    assertEqual(
+      computeElapsedSinceQuestionStart({ submittedAt: 5000, questionStartedAt: 1000 }),
+      4000,
+      "問題開始から回答までの経過時間をそのまま返す"
+    );
+    assertEqual(
+      computeElapsedSinceQuestionStart({ submittedAt: 500, questionStartedAt: 1000 }),
+      0,
+      "時計のズレ等で回答時刻が開始時刻より前になっても、0未満にはクランプされる"
     );
   }
 

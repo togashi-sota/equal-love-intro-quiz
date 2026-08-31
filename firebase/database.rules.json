@@ -95,10 +95,7 @@
             ".validate": "newData.isString() && (newData.val() === 'classic' || newData.val() === 'steal' || newData.val() === 'combo')"
           },
           "battleRuleVersion": {
-            ".validate": "newData.isNumber() && newData.val() === 1"
-          },
-          "hintIntervalSec": {
-            ".validate": "newData.isNumber() && (newData.val() === 4 || newData.val() === 6 || newData.val() === 8)"
+            ".validate": "newData.isNumber() && newData.val() === 2"
           },
           "answerPoolSizeValue": {
             ".validate": "(newData.val() === 4 || newData.val() === 10 || newData.val() === 30 || newData.val() === 50 || newData.val() === 'all' || newData.val() === '4' || newData.val() === '10') && (newData.parent().child('battleRuleId').val() !== 'steal' || newData.val() === 4 || newData.val() === 10)"
@@ -207,7 +204,7 @@
                   ".validate": "newData.hasChildren(['selectedSongId', 'hintLevel', 'answeredAt', 'submittedAt'])",
                   "selectedSongId": { ".validate": "newData.isString() && newData.val().length > 0" },
                   "hintLevel": {
-                    ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 4 && newData.parent().child('submittedAt').val() >= (root.child('rooms/' + $roomId + '/matches/' + $matchId + '/currentQuestionStartedAt').val() + (newData.val() - 1) * root.child('rooms/' + $roomId + '/settings/hintIntervalSec').val() * 1000 - 1000) && newData.parent().child('submittedAt').val() < (root.child('rooms/' + $roomId + '/matches/' + $matchId + '/currentQuestionStartedAt').val() + newData.val() * root.child('rooms/' + $roomId + '/settings/hintIntervalSec').val() * 1000 + 1000)"
+                    ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 4"
                   },
                   "answeredAt": { ".validate": "newData.isNumber()" },
                   "submittedAt": { ".validate": "newData.isNumber()" },

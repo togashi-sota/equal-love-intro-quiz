@@ -3,15 +3,38 @@
 // 配点・コンボ倍率・ヒント表示時間の数値をこのファイルに集約することで、
 // 実機テスト後にバランス調整したくなったときも、このファイルの数値を
 // 書き換えるだけで済むようにしている（UI・エンジン側には数値を直接書かない）。
+//
+// 【2026-08-31改訂・本人指示による3ルール全面見直し】以前は「ヒント段階に応じた配点を
+// 3ルール共通で使う」設計だったが、新仕様では正解数バトル（旧クラシック）・
+// 早押しバトル（旧奪い取り）は正解一律1ptに変更し、ポイントバトル（旧コンボ）だけが
+// ヒント段階別の配点（コンボ倍率なし）を使う。DEFAULT_COMBO_MULTIPLIER_TABLE・
+// getComboMultiplier()はポイントバトルではもう使わないが、既存テスト
+// （tests/battleRules/sharedDefaults.test.js）との互換のため関数自体は残している。
 
-// ヒント段階（1〜4）ごとの配点。クラシック・奪い取り・コンボの3ルールが共通で使う。
-export const DEFAULT_HINT_POINT_TABLE = { 1: 50, 2: 40, 3: 30, 4: 20 };
+// ヒント段階（1〜4）ごとの配点。ポイントバトル（js/battleRules/comboRule.js）だけが使う
+// （正解数バトル・早押しバトルは正解一律+1ptのため参照しない）。
+export const DEFAULT_HINT_POINT_TABLE = { 1: 4, 2: 3, 3: 2, 4: 1 };
 
-// コンボ数（しきい値）ごとの倍率。コンボルールだけが使う。
+// コンボ数（しきい値）ごとの倍率。【2026-08-31時点では未使用】ポイントバトルから
+// コンボ倍率の概念自体を撤廃したため、現在このテーブルを参照するルールは無い。
+// 既存テスト・getComboMultiplier()との互換のため定数自体は残す。
 export const DEFAULT_COMBO_MULTIPLIER_TABLE = { 1: 1.0, 3: 1.2, 5: 1.5, 7: 2.0 };
 
 // ヒント1段階あたりの表示時間（秒）のデフォルト値。
+// 【2026-08-31時点では未使用】正解数バトル・ポイントバトルはヒントを時間経過で自動送りせず、
+// 本人がボタンを押して手動で開く方式に変更したため、この値を使う自動送りタイマーは
+// もう無い。ルーム設定のsettingsFieldsからも外した（js/battleRules/classicRule.js・
+// comboRule.js参照）。互換のため定数自体とHINT_INTERVAL_SETTINGS_FIELDは残す。
 export const DEFAULT_HINT_INTERVAL_SEC = 6;
+
+// 【2026-08-31追加】1問あたりの最大受付時間（ミリ秒）。全ルール共通のセーフティネット。
+// ヒントを時間経過で自動送りしなくなったため、「全員回答済み」にならない限り
+// 問題が進行しなくなる可能性がある（誰かが操作をやめてしまった等）。そうした場合でも
+// 対戦が止まったままにならないよう、この時間が経過したら未回答者をスキップ扱いにして
+// 強制的に問題を終了する（js/battleRules/classicRule.js・stealRule.js・comboRule.jsの
+// shouldEndQuestion()参照）。60秒は「本人が実際に操作をやめた」と判断できる程度に長く、
+// かつ対戦が止まったままになる時間としては十分短い値として選んだ。
+export const MANUAL_PROGRESS_QUESTION_TIMEOUT_MS = 60000;
 
 // ヒントの最大段階数（ソロ版と同じ、buildHintSequenceのmaxHints既定値）。
 export const MAX_HINT_LEVEL = 4;
@@ -53,6 +76,16 @@ export function computeResponseMs({ submittedAt, questionStartedAt, hintLevel, h
   const rawResponseMs = submittedAt - hintShownAt;
   const maxResponseMs = hintIntervalSec * 1000;
   return Math.min(Math.max(rawResponseMs, 0), maxResponseMs);
+}
+
+// 【2026-08-31追加】問題が始まってから回答するまでの経過時間（ミリ秒）。
+// 旧computeResponseMs()は「時間経過で自動送りされるヒント段階が今何番目か」を前提に
+// 「そのヒント段階が表示されてから何ms経ったか」を逆算していたが、ヒントを手動で開く
+// 新方式ではその前提が成り立たない（本人が任意のタイミングでヒントを開くため）。
+// 新方式では単純に「問題が始まってから回答するまでの時間」を、参考情報（結果画面の
+// 表示用。順位には一切使わない）としてそのまま使う。
+export function computeElapsedSinceQuestionStart({ submittedAt, questionStartedAt }) {
+  return Math.max(0, submittedAt - questionStartedAt);
 }
 
 // コンボ倍率テーブル（しきい値→倍率）を線形探索で引く。

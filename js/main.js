@@ -1106,6 +1106,13 @@ const onlineLyricsBattleProgressElement = document.getElementById("online-lyrics
 const onlineLyricsBattleHudElement = document.getElementById("online-lyrics-battle-hud");
 const onlineLyricsBattleHintLevelElement = document.getElementById("online-lyrics-battle-hint-level");
 const onlineLyricsBattleHintLinesElement = document.getElementById("online-lyrics-battle-hint-lines");
+// 【2026-08-31新設、本人指示：歌詞クイズ3ルール全面改修】手動ヒント開放・わからないボタン。
+const onlineLyricsBattleHintActionsElement = document.getElementById("online-lyrics-battle-hint-actions");
+// 【2026-08-31新設】30・50・全曲プールの検索欄・50音ジャンプバー。
+const onlineLyricsBattleAnswerSearchRowElement = document.getElementById("online-lyrics-battle-answer-search-row");
+const onlineLyricsBattleAnswerSearchInputElement = document.getElementById("online-lyrics-battle-answer-search-input");
+const onlineLyricsBattleAnswerCountElement = document.getElementById("online-lyrics-battle-answer-count");
+const onlineLyricsBattleAnswerJumpBarElement = document.getElementById("online-lyrics-battle-answer-jump-bar");
 const onlineLyricsBattleAnswerChoicesElement = document.getElementById("online-lyrics-battle-answer-choices");
 const onlineLyricsBattleStatusMessageElement = document.getElementById("online-lyrics-battle-status-message");
 const onlineLyricsBattleErrorElement = document.getElementById("online-lyrics-battle-error");
@@ -1114,7 +1121,6 @@ const onlineLyricsBattleAnswerRevealElement = document.getElementById("online-ly
 const onlineLyricsBattleAnswerRevealStatusElement = document.getElementById("online-lyrics-battle-answer-reveal-status");
 const onlineLyricsBattleAnswerRevealTitleElement = document.getElementById("online-lyrics-battle-answer-reveal-title");
 const onlineLyricsBattleAnswerRevealMetaElement = document.getElementById("online-lyrics-battle-answer-reveal-meta");
-const onlineLyricsBattleAnswerRevealRankElement = document.getElementById("online-lyrics-battle-answer-reveal-rank");
 const onlineLyricsBattleQuitConfirmModalElement = document.getElementById("online-lyrics-battle-quit-confirm-modal");
 const onlineLyricsBattleQuitCancelButtonElement = document.getElementById("online-lyrics-battle-quit-cancel-button");
 const onlineLyricsBattleQuitConfirmButtonElement = document.getElementById("online-lyrics-battle-quit-confirm-button");
@@ -4277,7 +4283,7 @@ function openSpecialModeHelp(modeId) {
   entry.modal.hidden = false;
 }
 
-// 歌詞クイズオンライン対戦：3つの対戦ルール（クラシック/奪い取り/コンボ）の説明モーダル。
+// 歌詞クイズオンライン対戦：3つの対戦ルール（正解数バトル/早押しバトル/ポイントバトル）の説明モーダル。
 // 本文はjs/battleRules/index.jsのlabel・getRuleDescription()から毎回組み立てる。
 // ハードコードした説明文を別に持たせないことで、ルールの実装（配点・タイブレーク順など）が
 // 変わったときにこの説明が古いまま残ってしまう事故を防ぐ（本人指示）。
@@ -5398,6 +5404,11 @@ initOnlineLyricsQuizBattleScreens({
   battleHudContainer: onlineLyricsBattleHudElement,
   battleHintLevel: onlineLyricsBattleHintLevelElement,
   battleHintLinesContainer: onlineLyricsBattleHintLinesElement,
+  battleHintActions: onlineLyricsBattleHintActionsElement,
+  battleAnswerSearchRow: onlineLyricsBattleAnswerSearchRowElement,
+  battleAnswerSearchInput: onlineLyricsBattleAnswerSearchInputElement,
+  battleAnswerCount: onlineLyricsBattleAnswerCountElement,
+  battleAnswerJumpBar: onlineLyricsBattleAnswerJumpBarElement,
   battleAnswerChoicesContainer: onlineLyricsBattleAnswerChoicesElement,
   battleStatusMessage: onlineLyricsBattleStatusMessageElement,
   battleError: onlineLyricsBattleErrorElement,
@@ -5405,7 +5416,6 @@ initOnlineLyricsQuizBattleScreens({
   battleAnswerRevealStatus: onlineLyricsBattleAnswerRevealStatusElement,
   battleAnswerRevealTitle: onlineLyricsBattleAnswerRevealTitleElement,
   battleAnswerRevealMeta: onlineLyricsBattleAnswerRevealMetaElement,
-  battleAnswerRevealRank: onlineLyricsBattleAnswerRevealRankElement,
   quitConfirmModal: onlineLyricsBattleQuitConfirmModalElement,
   quitCancelButton: onlineLyricsBattleQuitCancelButtonElement,
   quitConfirmButton: onlineLyricsBattleQuitConfirmButtonElement,

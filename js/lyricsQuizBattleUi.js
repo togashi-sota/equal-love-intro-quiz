@@ -84,22 +84,43 @@ function formatDisplayValue(value, unit) {
 // finalizeMatch()が返す形＋表示用の付随情報）から、結果表の見出し・行を整形する。
 // DNFの行は、ルールごとの数値列をすべて「DNF」という文字列に統一して表示する
 // （順位・完走判定はfinalizeMatch()側で既に確定済みの値をそのまま使うだけ）。
+//
+// 【2026-08-31改訂・本人指示による3ルール全面見直し】「同点の場合に回答時間などで
+// 無理に順位を分けないでください」という明確な指示により、rank付けを
+// 単純なindex+1（配列順）から、合計ポイント（detail.totalPoints）が同じ相手とは
+// 完全に同じ順位になり、次に違う点数の相手が来たときだけ実際の並び順（＝スキップした
+// 順位）を付ける「競技方式」の順位付けへ変更した（例：8pt・8pt・5pt → 1位・1位・3位）。
+// 3ルールとも合計ポイントの一本勝負（js/battleRules/各ルールのcompareResults参照）に
+// 統一されたため、この関数はruleIdを知らないまま安全にdetail.totalPointsだけを見て
+// 判定できる（rankedEntriesは呼び出し元がcompareResults()で既に降順ソート済みの前提）。
 export function describeResultTable(ruleId, rankedEntries) {
   const rule = findRule(ruleId);
   const columns = rule?.resultColumns ?? [];
   const header = ["順位", "表示名", ...columns.map((column) => column.label)];
-  const rows = rankedEntries.map((entry, index) => ({
-    rank: index + 1,
-    uid: entry.uid,
-    displayName: entry.displayName ?? entry.uid,
-    isHost: !!entry.isHost,
-    isYou: !!entry.isYou,
-    isDnf: !!entry.isDnf,
-    oshiColor: entry.oshiColor ?? null,
-    cells: entry.isDnf
-      ? columns.map(() => "DNF")
-      : columns.map((column) => formatDisplayValue(entry.result?.detail?.[column.key], column.unit)),
-  }));
+
+  let previousPoints = null;
+  let previousRank = 0;
+  const rows = rankedEntries.map((entry, index) => {
+    let rank = null;
+    if (!entry.isDnf) {
+      const points = entry.result?.detail?.totalPoints ?? 0;
+      rank = previousPoints !== null && points === previousPoints ? previousRank : index + 1;
+      previousPoints = points;
+      previousRank = rank;
+    }
+    return {
+      rank,
+      uid: entry.uid,
+      displayName: entry.displayName ?? entry.uid,
+      isHost: !!entry.isHost,
+      isYou: !!entry.isYou,
+      isDnf: !!entry.isDnf,
+      oshiColor: entry.oshiColor ?? null,
+      cells: entry.isDnf
+        ? columns.map(() => "DNF")
+        : columns.map((column) => formatDisplayValue(entry.result?.detail?.[column.key], column.unit)),
+    };
+  });
   return { header, rows };
 }
 
@@ -171,8 +192,9 @@ export function describeAnswerSubmissionBlockMessage(reason) {
 // answered-wrongは通常の不正解表示で十分なため対象外（null）。
 // 【2段階送信・2026-08-06】answer保存とwinner claim送信を分けたことで生まれた
 // outcome値（js/lyricsQuizBattleFirebase.jsのコメント参照）。
+// 【2026-08-31改訂】表示名の変更（奪い取り→早押しバトル）に合わせて文言も揃えた。
 const STEAL_CLAIM_OUTCOME_MESSAGES = {
-  [STEAL_CLAIM_OUTCOME.WON]: "奪い取り成功！",
+  [STEAL_CLAIM_OUTCOME.WON]: "早押し成功！",
   [STEAL_CLAIM_OUTCOME.LOST_RACE]: "わずかな差で先に正解されました",
 };
 

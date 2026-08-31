@@ -13394,11 +13394,144 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   font-weight: 800;
 }
 
+/* 【2026-08-31新設、本人指示：歌詞クイズ3ルール全面改修】正解数バトル・ポイントバトルの
+   「ヒントNを見る」「わからない」ボタン。早押しバトルでは使わない（常にhidden）。
+   §9のモバイル配慮：ヒント欄がボタンで縦に大きく伸びすぎないよう、小さめの高さに抑える。 */
+.online-lyrics-battle-hint-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: -8px 0 20px;
+}
+
+.online-lyrics-battle-hint-actions[hidden] {
+  display: none;
+}
+
+.online-lyrics-battle-hint-open-button,
+.online-lyrics-battle-give-up-button {
+  flex: none;
+  width: auto;
+  min-height: 38px;
+  padding: 8px 18px;
+  font-size: 0.82rem;
+}
+
+/* 早押しバトル：歌詞の該当箇所が1文字ずつ表示される演出。ヒント段階の通し番号バッジ
+   （.online-lyrics-battle-hint-line::before）は「段階」の概念が無いこのモードには
+   そぐわないため非表示にし、代わりに文字を目で追いやすいよう少し大きめの文字にする。 */
+.online-lyrics-battle-reveal-line {
+  padding-left: 16px;
+  font-size: 1.15rem;
+  letter-spacing: 0.02em;
+  min-height: 1.6em;
+}
+
+.online-lyrics-battle-reveal-line::before {
+  content: none;
+}
+
+/* 【2026-08-31新設】30・50・全曲プールの検索欄。オフライン歌詞クイズの
+   .lyrics-quiz-answer-search-row等と同じ見た目にして統一感を保つ。 */
+.online-lyrics-battle-answer-search-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.online-lyrics-battle-answer-search-row[hidden] {
+  display: none;
+}
+
+.online-lyrics-battle-answer-search-row input {
+  flex: 1;
+  min-height: 40px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--color-card-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 0.9rem;
+}
+
+.online-lyrics-battle-answer-count {
+  flex: none;
+  font-size: 0.75rem;
+  font-weight: 700;
+  opacity: 0.6;
+  white-space: nowrap;
+}
+
+/* 全曲プール専用の50音ジャンプバー（「すべて｜あ｜か｜さ｜…」）。検索を必須にせず、
+   曲名の読みが分かればブラウズできるようにするための一覧（本人指示）。 */
+.online-lyrics-battle-answer-jump-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.online-lyrics-battle-answer-jump-bar[hidden] {
+  display: none;
+}
+
+.online-lyrics-battle-jump-chip {
+  flex: none;
+  width: auto;
+  min-height: 30px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--color-card-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.online-lyrics-battle-jump-chip.is-active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+}
+
 .online-lyrics-battle-answer-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 10px;
   margin-bottom: 20px;
+}
+
+/* 【2026-08-31新設】30・50・全曲プールでは、通常のボタン格子ではなく縦スクロールする
+   一覧に切り替える（オフライン歌詞クイズの.lyrics-quiz-answer-listと同じ考え方）。
+   全曲プール（50音ジャンプバーと組み合わせる）はフル幅の1列、30・50プールは
+   本人指示どおりコンパクトな2列にする。2クラス分の詳細度により、上のグリッド指定・
+   後述のスマホ用2列指定より必ず優先される。 */
+.online-lyrics-battle-answer-grid.online-lyrics-battle-answer-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 42vh;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.online-lyrics-battle-answer-grid.online-lyrics-battle-answer-list-compact {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  max-height: 42vh;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.online-lyrics-battle-answer-list .online-lyrics-battle-answer-button,
+.online-lyrics-battle-answer-list-compact .online-lyrics-battle-answer-button {
+  min-height: 44px;
+  padding: 10px 8px;
+  font-size: 0.84rem;
 }
 
 .online-lyrics-battle-answer-button {

@@ -3638,6 +3638,20 @@
           <div id="online-lyrics-battle-hint-lines" class="online-lyrics-battle-hint-lines"></div>
         </div>
 
+        <!-- 【2026-08-31新設、本人指示：歌詞クイズ3ルール全面改修】正解数バトル・ポイント
+             バトルでは、ヒントを時間経過で自動送りせず、本人がボタンを押して手動で開く。
+             「わからない」を押すと即座に0点・回答済み扱いにできる。早押しバトルでは
+             歌詞が自動で1文字ずつ表示されるためこの操作欄は使わず、常にhiddenのまま。 -->
+        <div id="online-lyrics-battle-hint-actions" class="online-lyrics-battle-hint-actions"></div>
+
+        <!-- 【2026-08-31新設】30・50・全曲プールのときだけ表示する検索欄と、全曲プール専用の
+             50音ジャンプバー。4択・10択のときはどちらも非表示のまま。 -->
+        <div id="online-lyrics-battle-answer-search-row" class="online-lyrics-battle-answer-search-row" hidden>
+          <input type="text" id="online-lyrics-battle-answer-search-input" class="text-input" placeholder="曲名やアーティスト名で検索" autocomplete="off" />
+          <span id="online-lyrics-battle-answer-count" class="online-lyrics-battle-answer-count"></span>
+        </div>
+        <div id="online-lyrics-battle-answer-jump-bar" class="online-lyrics-battle-answer-jump-bar" hidden></div>
+
         <div id="online-lyrics-battle-answer-choices" class="online-lyrics-battle-answer-grid"></div>
 
         <!-- 【2026-09-03新設、本人指摘】以前は「正解が確定しました。まもなく次の問題です。」
@@ -3650,7 +3664,6 @@
           <p class="lyrics-quiz-answer-reveal-caption">正解は</p>
           <p id="online-lyrics-battle-answer-reveal-title" class="lyrics-quiz-answer-reveal-title">－</p>
           <p id="online-lyrics-battle-answer-reveal-meta" class="lyrics-quiz-answer-reveal-meta"></p>
-          <p id="online-lyrics-battle-answer-reveal-rank" class="lyrics-quiz-answer-reveal-meta"></p>
         </div>
 
         <p id="online-lyrics-battle-status-message" class="online-lyrics-battle-status-message" hidden></p>
@@ -4729,7 +4742,7 @@
       <p>出題対象にするには、その曲に歌詞データが登録されている必要があります。歌詞データが足りない場合は、開始できない旨が案内されます。</p>
 
       <h3>オンライン対戦</h3>
-      <p>ルームを作って対戦できます。クラシック／奪い取り／コンボの3つの対戦ルールがあり、それぞれの詳しい内容はルーム設定画面の「？」から確認できます。対戦中に途中退出しても対戦自体は続き、残りの問題は未回答として結果に記録されます。</p>
+      <p>ルームを作って対戦できます。正解数バトル／早押しバトル／ポイントバトルの3つの対戦ルールがあり、それぞれの詳しい内容はルーム設定画面の「？」から確認できます。対戦中に途中退出しても対戦自体は続き、残りの問題は未回答として結果に記録されます。</p>
 
       <h3>記録について</h3>
       <p>1人用プレイの結果は、現時点ではプレイ履歴・自己ベスト・称号には反映されません。</p>
@@ -4765,7 +4778,7 @@
       <ul class="modal-category-list">
         <li><strong>タイムアタック</strong>：ノーマル/ハード/LOVE連チャンの3ルールから選んで対戦します。</li>
         <li><strong>ランダム再生クイズ</strong>：曲の途中から出題される、タイムアタックの上級者向けバージョンです。</li>
-        <li><strong>歌詞クイズ</strong>：クラシック／奪い取り／コンボの3つの対戦ルールがあります。ルーム設定画面の「？」から詳しく確認できます。</li>
+        <li><strong>歌詞クイズ</strong>：正解数バトル／早押しバトル／ポイントバトルの3つの対戦ルールがあります。ルーム設定画面の「？」から詳しく確認できます。</li>
       </ul>
 
       <h3>途中退出・再接続について</h3>
@@ -4776,7 +4789,7 @@
     </div>
   </div>
 
-  <!-- 歌詞クイズオンライン対戦：3つの対戦ルール（クラシック/奪い取り/コンボ）の説明モーダル。
+  <!-- 歌詞クイズオンライン対戦：3つの対戦ルール（正解数バトル/早押しバトル/ポイントバトル）の説明モーダル。
        他の説明モーダルと違い、中身は静的なHTMLではなくjs/main.jsがjs/battleRules/index.jsの
        label・getRuleDescription()から毎回組み立てる（本文がルールの実装から絶対にズレないように
        するため。2026-08-06新設）。 -->

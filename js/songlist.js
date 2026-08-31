@@ -79,6 +79,35 @@ export function songMatchesSearch(title, reading, aliases, normalizedQuery) {
   });
 }
 
+// 【2026-08-31新設・オンライン対戦「歌詞クイズ」全曲プール用】50音の行ごとに曲を
+// ジャンプできる索引バーのための行分け定義。小さい文字（ぁぃぅ等）・濁音・半濁音は、
+// 見出しとしては清音と同じ行にまとめる（辞書・五十音表の一般的な並びに合わせた）。
+// 「わ行」には「ん」も含める（「ん」だけの専用行を作ると1文字のためのタブになり
+// 煩雑なため、実用上は「わ」行の続きとして扱う）。
+export const GOJUON_ROWS = [
+  { key: "a", label: "あ", chars: "あいうえおぁぃぅぇぉ" },
+  { key: "ka", label: "か", chars: "かきくけこがぎぐげご" },
+  { key: "sa", label: "さ", chars: "さしすせそざじずぜぞ" },
+  { key: "ta", label: "た", chars: "たちつてとだぢづでどっ" },
+  { key: "na", label: "な", chars: "なにぬねの" },
+  { key: "ha", label: "は", chars: "はひふへほばびぶべぼぱぴぷぺぽ" },
+  { key: "ma", label: "ま", chars: "まみむめも" },
+  { key: "ya", label: "や", chars: "やゆよゃゅょ" },
+  { key: "ra", label: "ら", chars: "らりるれろ" },
+  { key: "wa", label: "わ", chars: "わをんゎ" },
+];
+
+// 曲名（またはsearchReading）の先頭文字から、GOJUON_ROWSのどの行に属するかを求める。
+// normalizeForSearch()でカタカナ→ひらがな変換済みの文字列を見るため、読み仮名が
+// カタカナで書かれていても正しく行分けできる。数字・英字など、どの行にも属さない
+// 先頭文字の場合はnullを返す（「すべて」タブでのみ見つかる曲として扱う）。
+export function deriveGojuonRowKey(text) {
+  const normalized = normalizeForSearch(text ?? "");
+  const firstChar = normalized[0];
+  if (!firstChar) return null;
+  return GOJUON_ROWS.find((row) => row.chars.includes(firstChar))?.key ?? null;
+}
+
 const previewAudioElement = document.getElementById("preview-audio");
 const groupsContainerElement = document.getElementById("songlist-groups");
 const totalCountElement = document.getElementById("songlist-total-count");

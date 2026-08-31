@@ -1,93 +1,88 @@
-// 歌詞クイズ オンライン対戦「コンボルール」。
+// 歌詞クイズ オンライン対戦「ポイントバトル」（旧名：コンボ）。
 //
-// クラシックと同じく全員が毎回回答できるが、正解を連続させるほど個人ごとの
-// 得点倍率が上がる。コンボは各プレイヤー個別に管理し、他人の回答（正解・不正解・
-// コンボ数）には一切影響されない（設計⑥1-c章）。
+// 【2026-08-31全面改訂・本人指示】以前は「正解を連続させるほど倍率が上がるコンボ制」
+// だったが、本人とChatGPTで整理し直し、コンボ（連続正解による倍率）の概念自体を撤廃した。
+// 新仕様は、正解数バトルと同じ「ヒントを手動で開く」方式のうえで、開いたヒント段階が
+// 早いほど高得点になる固定配点制（ヒント1で正解=+4pt・ヒント2=+3pt・ヒント3=+2pt・
+// ヒント4=+1pt・不正解/わからない=+0pt）。不正解になっても、それまでに獲得した
+// ポイントが減ることは無い（ポイントは加算されるだけ）。全問終了後の合計ポイントで
+// 順位を決め、同点は同じ順位にする（回答時間などで無理に差をつけない）。
+// ruleId（"combo"）・ruleVersionは内部値のため変更していない（本人指示どおり、内部値は
+// 既存のまま維持して表示名だけ変更）。
 //
-// 【コンボの持ち方について】このファイルの関数は状態を持たない純粋関数のため、
-// 「直前までのコンボ数」は呼び出し元が comboCountByUid として毎回渡し、
-// 返り値の nextComboCount を次回の comboCountByUid として使い回す設計にしている
-// （問題を順番に処理していく呼び出し元がコンボの推移を管理する）。
-//
-// 【設計⑪②・配点/倍率テーブルはFirebaseへ保存しない】DEFAULT_HINT_POINT_TABLE・
-// DEFAULT_COMBO_MULTIPLIER_TABLEはこのファイル内部の定数として直接使う
-// （settings.pointTable/comboMultiplierTableのような外部注入はしない）。
-// 詳細はjs/battleRules/classicRule.jsの同じ趣旨のコメントを参照。
+// 【comboCountByUid・nextComboCountを残す理由】js/lyricsQuizMatchProgress.jsは
+// 3ルール共通の状態としてcomboCountByUidを持ち回す設計になっている。ポイントバトルから
+// コンボの概念を無くしても、この共通の状態管理の形（進行エンジン側）まで変更すると
+// 影響範囲が広がるため、resolveQuestionAnswers()はnextComboCountを常に0で返すだけの
+// 形にとどめ、進行エンジン側は無改造のまま安全に済ませている。
 
 import {
   DEFAULT_HINT_POINT_TABLE,
-  DEFAULT_COMBO_MULTIPLIER_TABLE,
-  DEFAULT_HINT_INTERVAL_SEC,
-  MAX_HINT_LEVEL,
+  MANUAL_PROGRESS_QUESTION_TIMEOUT_MS,
   ANSWER_POOL_SIZE_ALL_MODES,
-  HINT_INTERVAL_SETTINGS_FIELD,
   deriveAnswerOutcome,
-  computeResponseMs,
-  getComboMultiplier,
-  validateHintIntervalSec,
+  computeElapsedSinceQuestionStart,
 } from "./sharedDefaults.js";
 
 export const ruleId = "combo";
-// 配点・倍率テーブル・タイブレーク順など、採点方法に影響する変更をしたら必ず1つ上げること（設計⑩③）。
-export const ruleVersion = 1;
-export const label = "コンボ";
-export const description = "正解を連続させるほど、得点倍率が上がります。";
+// 配点・タイブレーク順など、採点方法に影響する変更をしたら必ず1つ上げること（設計⑩③）。
+// 【2026-08-31・v1→v2】コンボ倍率を撤廃し、ヒント段階別の固定配点＋完全同順位方式に
+// 変更したため上げた。
+export const ruleVersion = 2;
+export const label = "ポイントバトル";
+export const description = "早いヒント段階で正解するほど高得点。ポイントは減りません。";
 
 export const allowedAnswerPoolSizes = ANSWER_POOL_SIZE_ALL_MODES;
 
+// 【2026-08-31改訂】ヒント表示時間はヒントを手動で開く方式になったため不要になった。
 export function defaultSettings() {
-  return { hintIntervalSec: DEFAULT_HINT_INTERVAL_SEC };
+  return {};
 }
 
-export function validateSettings(settings) {
-  if (!settings || typeof settings !== "object") return "設定が不正です。";
-  return validateHintIntervalSec(settings.hintIntervalSec);
+export function validateSettings() {
+  return null;
 }
 
-// comboCountByUid: { [uid]: 直前までのコンボ数（この問題を数える前の値） }
-// 返り値のnextComboCountは「この問題を反映した後」のコンボ数。
-export function resolveQuestionAnswers({ answersByUid, correctSongId, comboCountByUid, questionStartedAt, settings }) {
+// answersByUid: { [uid]: { selectedSongId, hintLevel, submittedAt } }
+//   hintLevelは「回答した時点で本人が開いていたヒント段階」の自己申告値。配点は
+//   このhintLevelをDEFAULT_HINT_POINT_TABLEに当てはめて決まる（正解の場合のみ）。
+// 返り値の形は正解数バトルと同じ。nextComboCountは常に0（コンボの概念を撤廃したため）。
+export function resolveQuestionAnswers({ answersByUid, correctSongId, questionStartedAt }) {
   const outcomesByUid = {};
   for (const [uid, answer] of Object.entries(answersByUid)) {
     const outcome = deriveAnswerOutcome(correctSongId, answer.selectedSongId);
-    const responseMs = computeResponseMs({
+    const responseMs = computeElapsedSinceQuestionStart({
       submittedAt: answer.submittedAt,
       questionStartedAt,
-      hintLevel: answer.hintLevel,
-      hintIntervalSec: settings.hintIntervalSec,
     });
-    const comboBefore = comboCountByUid[uid] ?? 0;
-    const nextComboCount = outcome === "correct" ? comboBefore + 1 : 0;
-    const basePoints = outcome === "correct" ? (DEFAULT_HINT_POINT_TABLE[answer.hintLevel] ?? 0) : 0;
-    const multiplier = getComboMultiplier(nextComboCount, DEFAULT_COMBO_MULTIPLIER_TABLE);
+    const pointsAwarded = outcome === "correct" ? (DEFAULT_HINT_POINT_TABLE[answer.hintLevel] ?? 0) : 0;
 
     outcomesByUid[uid] = {
       outcome,
       hintLevel: answer.hintLevel,
       responseMs,
-      pointsAwarded: Math.round(basePoints * multiplier),
+      pointsAwarded,
       wonQuestion: false,
-      nextComboCount,
+      nextComboCount: 0,
     };
   }
   return outcomesByUid;
 }
 
-// 全参加者が回答済み、またはヒント4の受付時間が終われば問題終了（classicRuleと同じ）。
-export function shouldEndQuestion({ answersByUid, allPlayerUids, questionStartedAt, nowMs, settings }) {
+// 全参加者が回答済み、または安全網のタイムアウトが来れば問題終了（classicRuleと同じ）。
+export function shouldEndQuestion({ answersByUid, allPlayerUids, questionStartedAt, nowMs }) {
   const allAnswered = allPlayerUids.every((uid) => uid in answersByUid);
-  const deadlineMs = questionStartedAt + MAX_HINT_LEVEL * settings.hintIntervalSec * 1000;
+  const deadlineMs = questionStartedAt + MANUAL_PROGRESS_QUESTION_TIMEOUT_MS;
   return allAnswered || nowMs >= deadlineMs;
 }
 
-// questionOutcomesは出題順に並んでいる前提（nextComboCountの推移をそのまま
-// currentCombo／maxComboの算出に使うため、順序が重要）。
-// skippedCountはmissCountと別集計（js/battleRules/classicRule.jsのaggregateResult()の
-// コメント参照：選んで間違えた場合と時間切れ未回答は別のoutcome値として扱う設計）。
+// questionOutcomesは出題順に並んでいる前提。
+// 【2026-08-31改訂】コンボ（currentCombo・maxCombo）の集計を削除した
+// （概念自体を撤廃したため）。ヒント段階別の正解数（firstHintCorrectCountのように
+// 「ヒント1で何回正解したか」）は、獲得ポイントの内訳として参考になるため残す。
 export function aggregateResult(questionOutcomes) {
   let totalPoints = 0;
-  let currentCombo = 0;
-  let maxCombo = 0;
+  let firstHintCorrectCount = 0;
   let totalHintsUsed = 0;
   let totalElapsedMs = 0;
   let missCount = 0;
@@ -98,10 +93,9 @@ export function aggregateResult(questionOutcomes) {
     totalPoints += outcome.pointsAwarded;
     totalHintsUsed += outcome.hintLevel;
     totalElapsedMs += outcome.responseMs;
-    currentCombo = outcome.nextComboCount;
-    if (currentCombo > maxCombo) maxCombo = currentCombo;
     if (outcome.outcome === "correct") {
       correctCount += 1;
+      if (outcome.hintLevel === 1) firstHintCorrectCount += 1;
     } else if (outcome.outcome === "wrongAnswer") {
       missCount += 1;
     } else if (outcome.outcome === "skipped") {
@@ -113,52 +107,47 @@ export function aggregateResult(questionOutcomes) {
     ruleVersion,
     completed: true,
     common: { elapsedMs: totalElapsedMs, correctCount, missCount },
-    detail: { totalPoints, currentCombo, maxCombo, totalHintsUsed, totalElapsedMs, missCount, skippedCount, correctCount },
+    detail: { totalPoints, firstHintCorrectCount, totalHintsUsed, totalElapsedMs, missCount, skippedCount, correctCount },
   };
 }
 
-// タイブレーク順：①合計ポイント②最大コンボ③ミス数④総使用ヒント数⑤総回答時間
-// （本人の指示により確定。コンボを維持できる人ほどミスが少ないゲーム性のため、
-// ヒント使用数より先にミス数を評価する。回答時間は通信遅延の影響も含むため最後）。
+// 【2026-08-31改訂・本人指示】「同点の場合に回答時間などで無理に順位を分けないでください」
+// という明確な指示により、タイブレークを完全に撤廃した。合計ポイントだけで比較し、
+// 同点なら0（＝同順位）を返す。
 export function compareResults(resultA, resultB) {
-  const a = resultA.detail;
-  const b = resultB.detail;
-  if (a.totalPoints !== b.totalPoints) return b.totalPoints - a.totalPoints;
-  if (a.maxCombo !== b.maxCombo) return b.maxCombo - a.maxCombo;
-  if (a.missCount !== b.missCount) return a.missCount - b.missCount;
-  if (a.totalHintsUsed !== b.totalHintsUsed) return a.totalHintsUsed - b.totalHintsUsed;
-  return a.totalElapsedMs - b.totalElapsedMs;
+  return resultB.detail.totalPoints - resultA.detail.totalPoints;
 }
 
 export function getRuleDescription() {
-  return "正解を連続させるほど得点倍率が上がります（不正解・スキップでコンボは0に戻ります）。ポイント合計、同点時は最大コンボ→使用ヒント数→回答時間→ミス数の順で順位が決まります。";
+  return "早いヒント段階で正解するほど高得点です（ヒント1=4pt・ヒント2=3pt・ヒント3=2pt・ヒント4=1pt）。不正解でもそれまでのポイントは減りません。同点の場合は同じ順位になります。";
 }
 
-// 【Phase6.5新設】コンボには奪い取りclaimの概念が無いため、常に回答ログだけを送る
+// 【Phase6.5新設】ポイントバトルには奪い取りclaimの概念が無いため、常に回答ログだけを送る
 // （js/battleRules/classicRule.jsの同名関数と同じ趣旨）。
 export function getAnswerSubmissionPlan() {
   return { submitAnswer: true, submitWinnerClaim: false };
 }
 
-// 【Phase6.5新設】対戦中HUDの「現在倍率」表示用。配点・倍率テーブル自体は
-// このファイルの外へは出さず（設計⑪②）、「今のコンボ数なら倍率いくつか」という
-// 結果の数値だけを返す窓口にする。
-export function getComboMultiplierForCount(comboCount) {
-  return getComboMultiplier(comboCount, DEFAULT_COMBO_MULTIPLIER_TABLE);
+// 【2026-08-31改訂】コンボ倍率の概念を撤廃したため、この窓口は常にnullを返す
+// （js/battleRules/index.jsのgetComboMultiplierForCount()はnullを「このルールには無い
+// 項目」として扱う設計のため、呼び出し側の改修は不要）。呼び出し元
+// （js/onlineLyricsQuizBattleScreen.js）の「現在倍率」表示は、この改訂に合わせて
+// 撤去した。
+export function getComboMultiplierForCount() {
+  return null;
 }
 
-export const settingsFields = [HINT_INTERVAL_SETTINGS_FIELD];
+// 【2026-08-31改訂】ヒント表示時間の選択が無くなったため空配列にした。
+export const settingsFields = [];
 
-export const hudFields = [
-  { key: "totalPoints", label: "総ポイント" },
-  { key: "currentCombo", label: "現在コンボ" },
-  { key: "maxCombo", label: "最大コンボ" },
-  { key: "currentMultiplier", label: "現在倍率" },
-];
+// 【2026-08-31改訂・本人指示】対戦中は自分の現在ポイントだけを見せる方針のため、
+// 「現在コンボ」「最大コンボ」「現在倍率」はいずれもHUDから外した
+// （コンボの概念自体を撤廃したため、そもそも表示する値が無い）。
+export const hudFields = [{ key: "totalPoints", label: "現在のポイント" }];
 
 export const resultColumns = [
   { key: "totalPoints", label: "獲得ポイント" },
-  { key: "maxCombo", label: "最大コンボ" },
+  { key: "firstHintCorrectCount", label: "ヒント1正解数" },
   { key: "totalHintsUsed", label: "使用ヒント数" },
-  { key: "skippedCount", label: "未回答" },
+  { key: "skippedCount", label: "わからない回数" },
 ];
