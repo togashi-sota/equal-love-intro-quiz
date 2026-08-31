@@ -12221,6 +12221,35 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   opacity: 0.7;
 }
 
+/* 【2026-09-02新設、本人指示：人数拡張】ルーム作成画面の「プレイヤー最大人数」セレクト用。
+   ラベルとプルダウンを横並びにするが、狭い画面では折り返して縦積みにする
+   （.battle-field-labelにmarginが付いているため、ここでは上書きしてrow内で詰めて揃える）。 */
+.battle-field-label-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 14px 0 4px;
+}
+
+.battle-field-label-row .battle-field-label {
+  margin: 0;
+}
+
+.battle-select-input {
+  flex: 1;
+  min-width: 120px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1.5px solid var(--color-card-border);
+  background: var(--color-surface);
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--color-text);
+  box-sizing: border-box;
+}
+
 .battle-player-name-input {
   width: 100%;
   padding: 10px 14px;

@@ -73,7 +73,7 @@
       "$roomId": {
         ".read": "auth != null",
 
-        ".write": "auth != null && ((!data.exists() && newData.child('host').val() === auth.uid && newData.child('version').val() === 1 && newData.child('status').val() === 'waiting' && newData.hasChild('createdAt') && (newData.child('maxPlayers').val() === 2 || newData.child('maxPlayers').val() === 4) && newData.child('gameMode').isString() && newData.child('gameMode').val().length > 0 && !newData.hasChild('matches') && !newData.hasChild('results') && !newData.hasChild('seed') && !newData.hasChild('countdownStartedAt') && !newData.hasChild('activeMatchId') && newData.child('players').hasChild(auth.uid)) || (data.exists() && !newData.exists() && data.child('host').val() === auth.uid))",
+        ".write": "auth != null && ((!data.exists() && newData.child('host').val() === auth.uid && newData.child('version').val() === 1 && newData.child('status').val() === 'waiting' && newData.hasChild('createdAt') && newData.child('maxPlayers').isNumber() && newData.child('maxPlayers').val() >= 2 && newData.child('maxPlayers').val() <= 10 && newData.child('maxSpectators').val() === 10 && newData.child('gameMode').isString() && newData.child('gameMode').val().length > 0 && !newData.hasChild('matches') && !newData.hasChild('results') && !newData.hasChild('seed') && !newData.hasChild('countdownStartedAt') && !newData.hasChild('activeMatchId') && newData.child('players').hasChild(auth.uid)) || (data.exists() && !newData.exists() && data.child('host').val() === auth.uid))",
 
         "status": {
           ".write": "auth != null && root.child('rooms/' + $roomId + '/host').val() === auth.uid"
@@ -119,6 +119,7 @@
         },
 
         "players": {
+          ".validate": "newData.numChildren() <= newData.parent().child('maxPlayers').val()",
           "$uid": {
             ".write": "auth != null && (auth.uid === $uid || (root.child('rooms/' + $roomId + '/host').val() === auth.uid && $uid !== auth.uid && $uid !== root.child('rooms/' + $roomId + '/host').val() && root.child('rooms/' + $roomId + '/status').val() === 'waiting' && !newData.exists()))",
             ".validate": "data.exists() || $uid === auth.uid",
@@ -132,6 +133,7 @@
         },
 
         "spectators": {
+          ".validate": "newData.numChildren() <= (newData.parent().hasChild('maxSpectators') ? newData.parent().child('maxSpectators').val() : 10)",
           "$uid": {
             ".write": "auth != null && auth.uid === $uid",
             ".validate": "data.exists() || $uid === auth.uid"

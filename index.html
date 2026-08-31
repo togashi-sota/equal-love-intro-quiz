@@ -3001,13 +3001,14 @@
         </label>
       </fieldset>
 
-      <fieldset>
-        <legend>最大人数</legend>
-        <div class="option-row">
-          <label><input type="radio" name="online-battle-max-players" value="2" checked> 1対1（2人）</label>
-          <label><input type="radio" name="online-battle-max-players" value="4"> 4人対戦</label>
-        </div>
-      </fieldset>
+      <!-- 【2026-09-02改訂、本人指示：人数拡張】以前は2人／4人の2択ラジオボタンだったが、
+           2〜10人から選べるようにした。選択肢が9個に増えるため、ラジオボタンを横に並べると
+           狭い画面で見づらくなる。本人の提案どおりセレクト形式（プルダウン）にした。
+           観戦者の上限はここでは選ばせない（本人指示：アプリ側の固定値でよい）。 -->
+      <div class="battle-field-label-row">
+        <label for="online-battle-max-players-select" class="battle-field-label">プレイヤー最大人数</label>
+        <select id="online-battle-max-players-select" class="battle-select-input"></select>
+      </div>
 
       <button id="online-battle-create-submit-button" class="primary-button" type="button">ルームを作る</button>
       <p id="online-battle-create-error" class="error-message" hidden></p>

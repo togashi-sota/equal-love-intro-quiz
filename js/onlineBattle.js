@@ -65,6 +65,21 @@ export const ROOM_SCHEMA_VERSION = 1;
 // 追加するまでは、ルーム作成時に常にこのモードを使う。
 export const DEFAULT_GAME_MODE = "timeAttack";
 
+// 【2026-09-02改訂、本人指示：人数拡張】プレイヤー最大人数の選択範囲。
+// 以前は2人／4人の固定2択だったが、実際に10人まで動作確認できたため2〜10人の
+// 範囲で選べるようにした（js/onlineBattleScreen.jsのルーム作成UIが使う）。
+export const MIN_PLAYERS = 2;
+export const MAX_PLAYERS = 10;
+
+// 【2026-09-02新設、本人指示：観戦者を別枠にする】観戦者の上限は、プレイヤー人数とは
+// 独立した固定値とし、ホストが毎回設定する必要はない（本人指示）。ルーム作成のたびに
+// この値をroom.maxSpectatorsへ保存しておく（後からアプリ側の既定値だけを変えても、
+// 既に作られたルームの実際の上限は変わらないようにするため）。
+// 【DEFAULT_MAX_SPECTATORSを変更した場合】Firebase Rules側（firebase/database.rules.json）の
+// 観戦者定員チェックにある「古いルーム（maxSpectatorsフィールドが無い場合）のフォールバック値」も
+// 必ず同じ値に揃えること（片方だけ変えると、新しい既定値と食い違ったRulesが残ってしまう）。
+export const DEFAULT_MAX_SPECTATORS = 10;
+
 // ルームの進行状態。文字列の列挙にしているのは、後から値を追加しても既存コードの
 // 型を壊さずに済むため。Step2で実際に使うのはWAITING・COUNTDOWN・PLAYINGの3つだが、
 // 観戦モード・大会モード等を将来追加しやすいよう、想定される状態を先に名前だけ確保しておく
@@ -213,6 +228,9 @@ export async function createRoom({ playerName, maxPlayers, gameMode = DEFAULT_GA
     host: uid,
     createdAt: Date.now(),
     maxPlayers,
+    // 【2026-09-02新設、本人指示】観戦者の上限はホストが選ぶものではなく、アプリ側の
+    // 固定値をルーム作成時にそのまま保存する（DEFAULT_MAX_SPECTATORS参照）。
+    maxSpectators: DEFAULT_MAX_SPECTATORS,
     status: ROOM_STATUS.WAITING,
     gameMode,
     settings,
@@ -275,10 +293,11 @@ function checkCapacity(room, uid) {
     return { ok: true, alreadyJoined: true }; // 再接続は満員・状態チェックの対象外
   }
 
-  // 【2026-08-30改訂、本人指示：観戦機能】確定仕様どおり、最大人数はプレイヤー＋観戦者の
-  // 合計で数える（観戦者だけ上限を無視して増え続ける設計にはしない）。
-  const spectators = room.spectators || {};
-  if (Object.keys(players).length + Object.keys(spectators).length >= room.maxPlayers) {
+  // 【2026-09-02改訂、本人指示：観戦者を別枠にする】以前はプレイヤー＋観戦者の合計で
+  // maxPlayersと比較していたが、「観戦者が入ったことでプレイヤー枠が減る」仕様を
+  // やめたいという指示により、プレイヤー人数だけをmaxPlayersと比較する（観戦者は
+  // 別途maxSpectatorsで独立して数える。checkSpectatorCapacity()参照）。
+  if (Object.keys(players).length >= room.maxPlayers) {
     return { ok: false, reason: "full" };
   }
   if (room.status !== ROOM_STATUS.WAITING) {
@@ -313,8 +332,12 @@ function checkSpectatorCapacity(room, uid) {
     return { ok: true, alreadySpectating: true };
   }
 
-  const players = room.players || {};
-  if (Object.keys(players).length + Object.keys(spectators).length >= room.maxPlayers) {
+  // 【2026-09-02改訂、本人指示：観戦者を別枠にする】プレイヤー人数とは無関係に、
+  // 観戦者だけの人数をmaxSpectatorsと比較する。古いルーム（このフィールドが無い場合）は
+  // DEFAULT_MAX_SPECTATORSを既定値として使う（Firebase Rules側の考え方と揃えている。
+  // firebase/database.rules.jsonのspectatorsの.validate参照）。
+  const maxSpectators = typeof room.maxSpectators === "number" ? room.maxSpectators : DEFAULT_MAX_SPECTATORS;
+  if (Object.keys(spectators).length >= maxSpectators) {
     return { ok: false, reason: "full" };
   }
   return { ok: true, alreadySpectating: false };
@@ -444,8 +467,9 @@ export async function leaveSpectating({ roomId }) {
 
 // 【2026-08-30新設、本人指示：観戦機能】次の試合（status:waiting）から観戦者を正式参加へ
 // 昇格させる。呼び出し側（js/onlineBattleScreen.js）が、room.statusがwaitingに変わった
-// 瞬間を検知して、自分が観戦者ならこれを呼ぶ想定。定員（プレイヤー＋観戦者の合計）に
-// 余裕が無い場合は失敗を返す（他のプレイヤーが増えていた場合等の保険）。
+// 瞬間を検知して、自分が観戦者ならこれを呼ぶ想定。プレイヤー定員に余裕が無い場合は
+// 失敗を返す（他のプレイヤーが増えていた場合等の保険。2026-09-02改訂：観戦者を別枠に
+// したため、この判定はプレイヤー人数だけを見る＝以前から変わらず単独カウントのまま）。
 export async function promoteSpectatorToPlayer({ roomId, playerName }) {
   await authReady;
   const uid = getCurrentUid();

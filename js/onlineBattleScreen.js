@@ -38,6 +38,9 @@ import {
   rematchMatch,
   COUNTDOWN_DURATION_MS,
   ROOM_STATUS,
+  MIN_PLAYERS,
+  MAX_PLAYERS,
+  DEFAULT_MAX_SPECTATORS,
   syncMyHostBadge,
   spectateRoom,
   leaveSpectating,
@@ -1188,7 +1191,11 @@ function renderSpectatorView(room) {
   elements.spectatorGameModeText.textContent = `モード: ${getModeLabel(room.gameMode)}`;
   const players = room.players || {};
   const spectators = room.spectators || {};
-  elements.spectatorPlayerCount.textContent = `${Object.keys(players).length}人プレイ中・観戦${Object.keys(spectators).length}人 / 最大${room.maxPlayers}人`;
+  // 【2026-09-02改訂、本人指示：観戦者を別枠にする】以前は「観戦N人 / 最大M人」のように
+  // プレイヤーと観戦者が同じ定員を分け合っているかのような表示だったが、実際には別枠の
+  // ため、プレイヤー・観戦者それぞれの定員を個別に表示する。
+  const maxSpectatorsText = typeof room.maxSpectators === "number" ? room.maxSpectators : DEFAULT_MAX_SPECTATORS;
+  elements.spectatorPlayerCount.textContent = `${Object.keys(players).length}人プレイ中（最大${room.maxPlayers}人）・観戦${Object.keys(spectators).length}人（最大${maxSpectatorsText}人）`;
 
   const rows = getOnlineBattleMatchRows(room);
   elements.spectatorPlayerList.innerHTML = "";
@@ -1653,6 +1660,18 @@ export async function quitOnlineBattleDuringQuiz() {
 export function initOnlineBattleScreens(newElements) {
   elements = newElements;
 
+  // 【2026-09-02新設、本人指示：人数拡張】プレイヤー最大人数のセレクトを、
+  // MIN_PLAYERS〜MAX_PLAYERSの範囲でその場で組み立てる（選択肢を増やす／減らす際、
+  // ここのHTMLを書き換える必要が無いようにするため）。既定値は変更前の既定と同じ2人のまま。
+  const maxPlayersSelect = document.getElementById("online-battle-max-players-select");
+  for (let count = MIN_PLAYERS; count <= MAX_PLAYERS; count++) {
+    const option = document.createElement("option");
+    option.value = String(count);
+    option.textContent = count === 2 ? "1対1（2人）" : `${count}人対戦`;
+    maxPlayersSelect.appendChild(option);
+  }
+  maxPlayersSelect.value = "2";
+
   // 2026-08-08修正：ホームの特別モードカードから直接この画面を開くようになったため、
   // 「戻る」は間に古い「特別モード一覧画面」を挟まずホーム画面へ直接戻す。
   elements.entryBackButton.addEventListener("click", () => elements.navigateTo("start"));
@@ -1702,7 +1721,7 @@ export function initOnlineBattleScreens(newElements) {
       elements.createError.hidden = false;
       return;
     }
-    const maxPlayers = Number(document.querySelector('input[name="online-battle-max-players"]:checked').value);
+    const maxPlayers = Number(document.getElementById("online-battle-max-players-select").value);
     // 2026-08-08新設（Phase4）：対戦モード選択。一度ルームを作成した後はgameModeを
     // 変更できない仕様のため（js/onlineBattle.jsのルーム作成ルール参照）、ここで選んだ値が
     // そのままルームの対戦モードとして固定される。
