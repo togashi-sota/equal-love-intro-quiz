@@ -37,6 +37,27 @@ export async function adminFetchAllBackups() {
   }
 }
 
+// 【2026-09-05新設、本人指示：「非公開の人が何人いるか知りたい」への対応】publicProfiles
+// （フレンド一覧の公開設定がONの人）のUID一覧だけを取得する。バックアップ一覧の各人の
+// currentUidと突き合わせることで、「バックアップはある＝アプリを使っている実在の人だが、
+// フレンド一覧には公開していない人」の人数を、管理者画面側で計算できるようにするための材料。
+// 【できないこと】これはあくまで「バックアップが1件以上ある人」の中での非公開判定であり、
+// 一度もバックアップされたことが無い非公開の人（＝Firebase上に一切痕跡が無い人）までは
+// 検出できない（js/backupAdmin.jsのadminFindPlayersWithoutBackup()と同じ構造的な限界）。
+export async function adminFetchPublicProfileUids() {
+  try {
+    const { database, authReady } = await import("./firebaseClient.js");
+    const { ref, get } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js");
+    await authReady;
+    const snap = await get(ref(database, "publicProfiles"));
+    if (!snap.exists()) return { ok: true, uids: [] };
+    return { ok: true, uids: Object.keys(snap.val()) };
+  } catch (error) {
+    console.warn("公開プロフィールUID一覧の取得に失敗しました", error);
+    return { ok: false, reason: "取得に失敗しました。管理者としてログインできているかご確認ください。" };
+  }
+}
+
 // 全復旧依頼の一覧を取得する（pending・resolved問わず）。
 export async function adminFetchAllRecoveryRequests() {
   try {

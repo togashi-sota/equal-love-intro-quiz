@@ -12,6 +12,7 @@
 import {
   adminFetchAllBackups,
   adminFetchAllRecoveryRequests,
+  adminFetchPublicProfileUids,
   adminResolveRecoveryRequest,
   adminDeleteRecoveryRequest,
   adminSearchPublicProfilesByName,
@@ -278,7 +279,11 @@ export async function renderAdminBackupScreen() {
   elements.recoveryRequestsList.innerHTML = "";
   elements.backupsList.innerHTML = "";
 
-  const [backupsResult, requestsResult] = await Promise.all([adminFetchAllBackups(), adminFetchAllRecoveryRequests()]);
+  const [backupsResult, requestsResult, publicUidsResult] = await Promise.all([
+    adminFetchAllBackups(),
+    adminFetchAllRecoveryRequests(),
+    adminFetchPublicProfileUids(),
+  ]);
 
   if (!backupsResult.ok || !requestsResult.ok) {
     elements.statusText.textContent =
@@ -294,7 +299,15 @@ export async function renderAdminBackupScreen() {
     .filter((r) => r.status === "resolved")
     .sort((a, b) => (b.resolvedAt ?? 0) - (a.resolvedAt ?? 0));
 
-  elements.statusText.textContent = `バックアップ${latestBackups.length}件／対応待ちの復旧依頼${pendingRequests.length}件`;
+  // 「バックアップはある（＝実際にアプリを使っている）のに、フレンド一覧には公開していない人」の
+  // 人数。取得に失敗した場合（publicUidsResult.ok === false）は0人として扱い、既存の表示を壊さない
+  // （本人指示：「非公開の人が何人いるか知りたい」への対応。一度もバックアップされたことが無い
+  // 非公開の人までは、Firebase上に痕跡が無いため数えられない＝この数字に含まれない）。
+  const publicUidSet = new Set(publicUidsResult.ok ? publicUidsResult.uids : []);
+  const nonPublicBackedUpCount = latestBackups.filter((b) => b.currentUid && !publicUidSet.has(b.currentUid)).length;
+
+  elements.statusText.textContent =
+    `バックアップ${latestBackups.length}件（うちフレンド一覧非公開：${nonPublicBackedUpCount}人）／対応待ちの復旧依頼${pendingRequests.length}件`;
 
   if (pendingRequests.length === 0 && resolvedRequests.length === 0) {
     const empty = document.createElement("p");
