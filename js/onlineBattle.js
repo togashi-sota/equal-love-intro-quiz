@@ -65,10 +65,10 @@ export const ROOM_SCHEMA_VERSION = 1;
 // 追加するまでは、ルーム作成時に常にこのモードを使う。
 export const DEFAULT_GAME_MODE = "timeAttack";
 
-// 【2026-09-02改訂、本人指示：人数拡張】プレイヤー最大人数の選択範囲。
-// 以前は2人／4人の固定2択だったが、実際に10人まで動作確認できたため2〜10人の
-// 範囲で選べるようにした（js/onlineBattleScreen.jsのルーム作成UIが使う）。
-export const MIN_PLAYERS = 2;
+// 【2026-09-03改訂、本人指示：大型改修】プレイヤー最大人数の選択範囲。
+// 2026-09-02時点では2〜10人だったが、「友達が来るまで1人で遊ぶ」使い方も正式対応する
+// ため、1人ルームも作れるようにした（js/onlineBattleScreen.jsのルーム作成UIが使う）。
+export const MIN_PLAYERS = 1;
 export const MAX_PLAYERS = 10;
 
 // 【2026-09-02新設、本人指示：観戦者を別枠にする】観戦者の上限は、プレイヤー人数とは
@@ -837,11 +837,16 @@ export async function startBattle({ roomId, settings }) {
   // 【防御的な再確認】ロビー画面のボタン自体も「全員READYでないと押せない」よう
   // 制御しているが、ここでもデータ層として同じ条件を再確認しておく
   // （画面側の制御漏れ・多重クリック等があっても、開始条件を必ず守るため）。
+  // 【2026-09-03改訂、本人指示：大型改修】以前は「非ホストが1人もいなければ開始不可」
+  // だったため、ホスト1人だけのルーム（友達が来るまで1人で遊ぶ、を含む）は対戦を
+  // 開始できなかった。1人からの正式対応（MIN_PLAYERS = 1）に伴い、非ホストが0人の場合は
+  // 「誰も待つ相手がいない」ので条件を満たしたものとして扱う（非ホストが1人以上いる場合は、
+  // 従来どおり全員のREADYを必須とする）。
   const players = room.players || {};
   const nonHostEntries = Object.entries(players).filter(([playerUid]) => playerUid !== uid);
   const currentRevision = room.settingsRevision ?? 0;
   const allReady =
-    nonHostEntries.length > 0 &&
+    nonHostEntries.length === 0 ||
     nonHostEntries.every(([, player]) => player.ready && player.readyForRevision === currentRevision);
   if (!allReady) {
     return { ok: false, reason: "not-all-ready" };

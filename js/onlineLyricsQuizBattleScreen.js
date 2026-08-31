@@ -600,8 +600,17 @@ export function renderLyricsQuizLobbySettings(room, isHost) {
 export async function enterLyricsQuizBattlePlay(room) {
   const myEntryToken = ++battlePlayEntryToken;
 
-  latestRoom = room;
-  currentMatchId = room.activeMatchId;
+  // 【2026-09-03発見・修正】goToCountdownScreen()のsetTimeout(500ms)経由で呼ばれる場合、
+  // 渡されるroomはカウントダウン開始時点のスナップショット（status:"countdown"のまま）で、
+  // Firebase側が実際にstatus:"playing"へ進んでいてもこのクロージャは気づかない
+  // （js/onlineInstantCoopBattleScreen.jsのenterInstantCoopBattlePlay()で既に見つかり
+  // 修正済みの不具合と同じ原因）。この関数は「実際に対戦が始まる・再開する」瞬間にしか
+  // 呼ばれないため、statusを強制的にPLAYINGへ正規化して問題ない。正規化しないと、
+  // 400ms間隔のruntTick()がlatestRoom.status !== PLAYINGで永久に早期returnし続け、
+  // 最初の問題が誰の端末でも初期化されず、画面が真っ白なまま進行しなくなる。
+  const normalizedRoom = { ...room, status: ROOM_STATUS.PLAYING };
+  latestRoom = normalizedRoom;
+  currentMatchId = normalizedRoom.activeMatchId;
   runtimeReady = false;
   currentQuestions = [];
   hostState = null;

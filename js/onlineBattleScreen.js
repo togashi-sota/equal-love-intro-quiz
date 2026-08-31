@@ -635,7 +635,11 @@ function updateStartButton(room) {
   const currentRevision = room.settingsRevision ?? 0;
   const nonHostPlayers = Object.entries(players).filter(([uid]) => uid !== room.host);
   const isPlayerReady = (player) => player.ready && player.readyForRevision === currentRevision;
-  const allReady = nonHostPlayers.length > 0 && nonHostPlayers.every(([, player]) => isPlayerReady(player));
+  // 【2026-09-03改訂、本人指示：大型改修】以前は非ホストが1人もいなければ「参加者が来るのを
+  // 待っています」で開始不可にしていたが、1人ルーム（友達が来るまで1人で遊ぶ）の正式対応に
+  // 伴い、非ホストが0人の場合は待つ相手がいないため開始できるようにした
+  // （js/onlineBattle.jsのstartBattle()側のallReady判定と揃えている）。
+  const allReady = nonHostPlayers.length === 0 || nonHostPlayers.every(([, player]) => isPlayerReady(player));
 
   elements.lobbyStartButton.disabled = !isWaiting || !allReady;
 
@@ -644,7 +648,7 @@ function updateStartButton(room) {
     // 遷移の合間の一瞬程度のはずだが、念のため「開始できます」等の案内は一切出さない。
     elements.lobbyStartHint.textContent = "";
   } else if (nonHostPlayers.length === 0) {
-    elements.lobbyStartHint.textContent = "参加者が来るのを待っています。";
+    elements.lobbyStartHint.textContent = "1人で対戦を開始できます（あとから友達を招待することもできます）。";
   } else if (!allReady) {
     const readyCount = nonHostPlayers.filter(([, player]) => isPlayerReady(player)).length;
     elements.lobbyStartHint.textContent = `参加者の準備完了を待っています（${readyCount}/${nonHostPlayers.length}人）。`;
@@ -1722,13 +1726,12 @@ export function initOnlineBattleScreens(newElements) {
       return;
     }
     const maxPlayers = Number(document.getElementById("online-battle-max-players-select").value);
-    // 2026-08-08新設（Phase4）：対戦モード選択。一度ルームを作成した後はgameModeを
-    // 変更できない仕様のため（js/onlineBattle.jsのルーム作成ルール参照）、ここで選んだ値が
-    // そのままルームの対戦モードとして固定される。
-    const gameMode = document.querySelector('input[name="online-battle-game-mode"]:checked').value;
+    // 【2026-09-03改訂、本人指示：大型改修】ルーム作成前にモードを選ばせるのをやめたため、
+    // 常にDEFAULT_GAME_MODE（イントロ対戦）で作成する。モードはロビーの「モードを変更する」
+    // （既存のupdateRoomGameMode()）でいつでも選び直せる。
 
     elements.createSubmitButton.disabled = true;
-    const result = await createRoom({ playerName, maxPlayers, gameMode });
+    const result = await createRoom({ playerName, maxPlayers });
     elements.createSubmitButton.disabled = false;
 
     if (!result.ok) {

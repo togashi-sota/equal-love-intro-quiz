@@ -76,8 +76,14 @@ export async function importAudioFiles(fileList) {
 // 再試行の様子を調べたいときだけtrueにする（本番では常時falseのままにしておくこと）。
 const DEBUG_LOGGING = false;
 
-// nullだった場合に、もう一度だけ取得し直すまでに空ける待ち時間（ミリ秒）。
-const RETRY_WAIT_MS = 150;
+// 【2026-09-03改訂】以前は「nullだったら150ms待って1回だけ再試行」だったが、
+// 本人指示（大型改修㉒番）で「オンライン対戦の参加者端末で、1問目の音源だけ
+// 『読み込まれていません』になることがある」不具合が再発したと報告があった。
+// 単発の150ms再試行では、実機（特にiPhone Safari）でのIndexedDBコールドスタート時の
+// 遅延を待ちきれないケースがあると判断し、間隔を空けながら複数回まで再試行するよう強化した。
+// 待ち時間の合計は最大でも1秒強に収まるため、本当に未インポートの曲での「未読み込み」表示が
+// 大きく遅れることもない。
+const RETRY_WAIT_MS_LIST = [150, 300, 600];
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -99,14 +105,14 @@ async function getAudioBlobOnce(songId) {
 
 // 指定したsongIdの音源データ（Blob）を取得する。未読み込みならnullを返す。
 //
-// 【nullだったときだけ1回だけ再試行する理由】オンライン対戦の参加者端末など、
+// 【nullだった場合に間隔を空けながら複数回再試行する理由】オンライン対戦の参加者端末など、
 // このセッションで初めてIndexedDBへアクセスするタイミングが「1問目の音源取得」と
-// 重なるケースで、ごく稀に1回目の取得がnullになることが実機テストで報告された
+// 重なるケースで、1回目の取得がnullになることが実機テストで報告された
 // （原因はコードレビューでは断定できていないが、症状が「参加者端末の新しいルームの
 // 1問目だけ・2試合目以降は正常」という一時的なものだったため、コールドスタート時の
 // タイミングを疑い、保険として追加した）。
-// 本当に音源が未インポートの曲を何度も再試行しないよう、このリトライは1回だけに限定する
-// （2回目もnullなら、そのまま「未読み込み」としてnullを返す＝案内が長時間遅れることもない）。
+// 本当に音源が未インポートの曲を何度も再試行しないよう、このリトライはRETRY_WAIT_MS_LISTの
+// 回数だけに限定する（最後まで全部nullなら、そのまま「未読み込み」としてnullを返す）。
 //
 // 【呼び出し元（js/audio.js）の世代番号との関係】この再試行の待ち時間は、単に
 // getAudioBlob()の完了が少し遅れるだけなので、待っている間に呼び出し元が次の問題へ
@@ -116,18 +122,20 @@ export async function getAudioBlob(songId) {
   const firstResult = await getAudioBlobOnce(songId);
   if (firstResult) return firstResult;
 
-  if (DEBUG_LOGGING) console.log(`[audioStorage] ${songId}: 1回目がnullでした。${RETRY_WAIT_MS}ms待って再試行します。`);
-  await sleep(RETRY_WAIT_MS);
+  for (let attempt = 0; attempt < RETRY_WAIT_MS_LIST.length; attempt++) {
+    const waitMs = RETRY_WAIT_MS_LIST[attempt];
+    if (DEBUG_LOGGING) console.log(`[audioStorage] ${songId}: ${attempt + 1}回目の再試行前に${waitMs}ms待ちます。`);
+    await sleep(waitMs);
 
-  const secondResult = await getAudioBlobOnce(songId);
-  if (DEBUG_LOGGING) {
-    console.log(
-      secondResult
-        ? `[audioStorage] ${songId}: 再試行で取得できました。`
-        : `[audioStorage] ${songId}: 再試行してもnullでした（未読み込みと判断）。`
-    );
+    const result = await getAudioBlobOnce(songId);
+    if (result) {
+      if (DEBUG_LOGGING) console.log(`[audioStorage] ${songId}: ${attempt + 1}回目の再試行で取得できました。`);
+      return result;
+    }
   }
-  return secondResult;
+
+  if (DEBUG_LOGGING) console.log(`[audioStorage] ${songId}: 全ての再試行後もnullでした（未読み込みと判断）。`);
+  return null;
 }
 
 // 読み込み済みの曲のsongId一覧を取得する。
