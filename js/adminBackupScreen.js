@@ -14,6 +14,8 @@ import {
   adminFetchAllRecoveryRequests,
   adminResolveRecoveryRequest,
   adminDeleteRecoveryRequest,
+  adminSearchPublicProfilesByName,
+  adminRestoreAchievementsFromPublicProfile,
 } from "./backupAdmin.js";
 import { getMemberById } from "./memberUtils.js";
 
@@ -154,11 +156,118 @@ function buildRecoveryRequestRow(request) {
   row.appendChild(resolveButton);
   row.appendChild(resultText);
 
+  row.appendChild(buildPublicProfileFallbackSection(request));
+
   const { deleteButton, deleteResultText } = buildDeleteRequestButton(request);
   row.appendChild(deleteButton);
   row.appendChild(deleteResultText);
 
   return row;
+}
+
+// 【緊急対応用に2026-09-04新設、本人指示】backupsに該当が無い場合の最後の手段。
+// フレンド一覧用の公開プロフィール（publicProfiles）に残っている称号・推しメンの記録だけを
+// 使って、新しいバックアップを作って紐付ける。プレイ履歴・自己ベスト等、publicProfilesに
+// 元々含まれない情報までは復元できないため、その旨を必ず案内文で明示する。
+function buildPublicProfileFallbackSection(request) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "admin-backup-fallback-section";
+
+  const caption = document.createElement("p");
+  caption.className = "admin-backup-row-detail";
+  caption.textContent =
+    "↑で見つからない場合：フレンド一覧用の公開プロフィールに称号・推しメンの記録だけ残っていることがあります（プレイ履歴・自己ベスト等は復元できません）。";
+  wrapper.appendChild(caption);
+
+  const searchRow = document.createElement("div");
+  searchRow.className = "admin-backup-fallback-search-row";
+  const searchInput = document.createElement("input");
+  searchInput.type = "text";
+  searchInput.className = "battle-player-name-input";
+  searchInput.placeholder = "表示名で検索（例：いくみ）";
+  const searchButton = document.createElement("button");
+  searchButton.type = "button";
+  searchButton.className = "secondary-button";
+  searchButton.textContent = "検索";
+  searchRow.appendChild(searchInput);
+  searchRow.appendChild(searchButton);
+  wrapper.appendChild(searchRow);
+
+  const resultsContainer = document.createElement("div");
+  wrapper.appendChild(resultsContainer);
+
+  searchButton.addEventListener("click", async () => {
+    const query = searchInput.value.trim();
+    resultsContainer.innerHTML = "";
+    if (!query) return;
+    searchButton.disabled = true;
+    const loading = document.createElement("p");
+    loading.className = "admin-backup-row-detail";
+    loading.textContent = "検索中…";
+    resultsContainer.appendChild(loading);
+
+    const searchResult = await adminSearchPublicProfilesByName(query);
+    resultsContainer.innerHTML = "";
+    searchButton.disabled = false;
+
+    if (!searchResult.ok) {
+      const errorText = document.createElement("p");
+      errorText.className = "admin-backup-row-detail";
+      errorText.textContent = searchResult.reason ?? "検索に失敗しました";
+      resultsContainer.appendChild(errorText);
+      return;
+    }
+    if (searchResult.matches.length === 0) {
+      const emptyText = document.createElement("p");
+      emptyText.className = "admin-backup-row-detail";
+      emptyText.textContent = "一致する公開プロフィールは見つかりませんでした";
+      resultsContainer.appendChild(emptyText);
+      return;
+    }
+
+    searchResult.matches.forEach((match) => {
+      const oshiMember = match.oshiMemberId ? getMemberById(members, match.oshiMemberId) : null;
+      const matchRow = document.createElement("div");
+      matchRow.className = "admin-backup-fallback-match-row";
+
+      const matchDetail = document.createElement("p");
+      matchDetail.className = "admin-backup-row-detail";
+      matchDetail.textContent = `${match.displayName}（推し：${oshiMember ? oshiMember.name : "未設定"}／称号${match.unlockedAchievementIds.length}個）`;
+      matchRow.appendChild(matchDetail);
+
+      const restoreButton = document.createElement("button");
+      restoreButton.type = "button";
+      restoreButton.className = "secondary-button";
+      restoreButton.textContent = "この人の称号・推しメンだけ復元する";
+      const restoreResultText = document.createElement("p");
+      restoreResultText.className = "admin-backup-row-detail admin-backup-resolve-result";
+      restoreResultText.hidden = true;
+
+      restoreButton.addEventListener("click", async () => {
+        const confirmed = window.confirm(
+          `「${match.displayName}」の称号${match.unlockedAchievementIds.length}個・推しメンだけを、この復旧依頼（番号：${request.code}）へ復元します。プレイ履歴・自己ベスト等は復元されません。よろしいですか？`
+        );
+        if (!confirmed) return;
+        restoreButton.disabled = true;
+        restoreResultText.hidden = false;
+        restoreResultText.textContent = "処理しています…";
+        const result = await adminRestoreAchievementsFromPublicProfile({ code: request.code, publicProfileUid: match.uid });
+        restoreButton.disabled = false;
+        if (result.ok) {
+          restoreResultText.textContent = `承認しました（称号${result.restoredAchievementCount}個）。ユーザー側で「確認する」を押すとデータが復元されます。`;
+          await renderAdminBackupScreen();
+        } else {
+          restoreResultText.textContent = result.reason ?? "処理に失敗しました";
+        }
+      });
+
+      matchRow.appendChild(restoreButton);
+      matchRow.appendChild(restoreResultText);
+      resultsContainer.appendChild(matchRow);
+    });
+  });
+
+  return wrapper;
 }
 
 // 画面を開くたびに呼ぶ想定（js/main.js側からshowScreen("adminBackup")と合わせて呼ぶ）。

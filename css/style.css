@@ -7370,6 +7370,33 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   margin-top: 6px;
 }
 
+/* 【2026-09-04新設、緊急対応】backupsに該当が無い場合の、公開プロフィールからの
+   称号だけ復元セクション。誤操作を招かないよう、通常の紐付け操作とは視覚的に
+   区切っている（点線区切り＋控えめな余白）。 */
+.admin-backup-fallback-section {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed color-mix(in srgb, var(--color-primary) 25%, transparent);
+}
+
+.admin-backup-fallback-search-row {
+  display: flex;
+  gap: 8px;
+  margin: 6px 0;
+}
+
+.admin-backup-fallback-search-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.admin-backup-fallback-match-row {
+  padding: 8px 10px;
+  margin-top: 6px;
+  border-radius: 10px;
+  background: var(--color-primary-light);
+}
+
 /* 復旧依頼の削除ボタン（2026-08-29追加）。危険な操作用の既存クラス.danger-buttonを
    そのまま使い、赤系の配色にする（バックアップ本体の削除機能は意図的に用意していない。
    本人指示：復旧依頼の削除とバックアップ本体の削除は完全に別物として扱う）。 */

@@ -116,3 +116,95 @@ export async function adminDeleteRecoveryRequest(code) {
     return { ok: false, reason: "削除に失敗しました。管理者としてログインできているかご確認ください。" };
   }
 }
+
+// 表示名でpublicProfiles（フレンド一覧用の公開データ）を検索する（緊急対応用に2026-09-04新設）。
+// 【背景】backups（自動バックアップ）は本人の端末でこの機能が使われた実績が無いと
+// 存在しないが、publicProfiles（フレンド一覧の公開設定）はより早くから・別の条件で
+// 同期されているため、backupsには無くてもpublicProfilesにだけ称号記録が残っている
+// ケースがある。称号の取得状況・推しメンだけは、この記録から復元できる
+// （プレイ履歴・自己ベスト等、publicProfilesに含まれない情報までは復元できない）。
+export async function adminSearchPublicProfilesByName(query) {
+  try {
+    const { database, authReady } = await import("./firebaseClient.js");
+    const { ref, get } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js");
+    await authReady;
+    const snap = await get(ref(database, "publicProfiles"));
+    if (!snap.exists()) return { ok: true, matches: [] };
+    const normalizedQuery = query.trim().toLowerCase();
+    const matches = Object.entries(snap.val())
+      .filter(([, entry]) => (entry.displayName ?? "").toLowerCase().includes(normalizedQuery))
+      .map(([uid, entry]) => ({
+        uid,
+        displayName: entry.displayName ?? "（名前未設定）",
+        oshiMemberId: entry.oshiMemberId ?? null,
+        unlockedAchievementIds: Array.isArray(entry.unlockedAchievementIds) ? entry.unlockedAchievementIds : [],
+      }));
+    return { ok: true, matches };
+  } catch (error) {
+    console.warn("公開プロフィールの検索に失敗しました", error);
+    return { ok: false, reason: "検索に失敗しました。管理者としてログインできているかご確認ください。" };
+  }
+}
+
+// 【緊急対応用に2026-09-04新設、本人指示】backupsが存在しない場合の最後の手段として、
+// publicProfilesに残っている称号・推しメンの記録だけから、新しいバックアップを作って
+// 復旧依頼に紐付ける。プレイ履歴・自己ベスト・お気に入り・プレイリスト等、
+// publicProfilesに元々含まれていない情報は復元できない（称号と推しメンだけの復元）。
+// 【安全性】既存のadminResolveRecoveryRequest()と同じく、新しいbackups/{backupId}の作成と
+// recoveryRequests/{code}の解決を1回のupdate()にまとめ、中途半端な状態を避ける。
+export async function adminRestoreAchievementsFromPublicProfile({ code, publicProfileUid }) {
+  try {
+    const { database, authReady } = await import("./firebaseClient.js");
+    const { ref, get, update, serverTimestamp } = await import(
+      "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js"
+    );
+    await authReady;
+
+    const requestSnap = await get(ref(database, `recoveryRequests/${code}`));
+    if (!requestSnap.exists()) return { ok: false, reason: "指定された復旧依頼が見つかりませんでした" };
+    const newUid = requestSnap.val().newUid;
+    if (!newUid) return { ok: false, reason: "復旧依頼の内容が不正です（newUidがありません）" };
+
+    const profileSnap = await get(ref(database, `publicProfiles/${publicProfileUid}`));
+    if (!profileSnap.exists()) return { ok: false, reason: "指定された公開プロフィールが見つかりませんでした" };
+    const profile = profileSnap.val();
+    const unlockedAchievementIds = Array.isArray(profile.unlockedAchievementIds) ? profile.unlockedAchievementIds : [];
+    const oshiMemberId = typeof profile.oshiMemberId === "string" ? profile.oshiMemberId : null;
+
+    // js/achievementProgress.js・js/oshiMembers.jsが実際に読み込む形とそろえる
+    // （js/backupSync.jsのbuildBackupPayload()・restoreFromBackup()参照）。
+    const achievementsJson = JSON.stringify({
+      schemaVersion: 1,
+      unlockedAchievementIds,
+      unlockedAtById: {}, // 正確な取得日時はpublicProfilesに残っていないため空にする
+    });
+    const oshiMembersJson = JSON.stringify({
+      favoriteMemberIds: oshiMemberId ? [oshiMemberId] : [],
+      mostOshiMemberId: oshiMemberId,
+    });
+
+    const newBackupId = crypto.randomUUID();
+    await update(ref(database), {
+      [`backups/${newBackupId}`]: {
+        schemaVersion: 1,
+        currentUid: newUid,
+        updatedAt: serverTimestamp(),
+        displayName: profile.displayName ?? null,
+        oshiMemberId,
+        achievementCount: unlockedAchievementIds.length,
+        payload: {
+          achievements: achievementsJson,
+          oshiMembers: oshiMembersJson,
+        },
+      },
+      [`recoveryRequests/${code}/status`]: "resolved",
+      [`recoveryRequests/${code}/resolvedBackupId`]: newBackupId,
+      [`recoveryRequests/${code}/resolvedAt`]: serverTimestamp(),
+    });
+
+    return { ok: true, restoredAchievementCount: unlockedAchievementIds.length };
+  } catch (error) {
+    console.warn("公開プロフィールからの復元に失敗しました（管理者権限が無い可能性があります）", error);
+    return { ok: false, reason: "処理に失敗しました。管理者としてログインできているかご確認ください。" };
+  }
+}
