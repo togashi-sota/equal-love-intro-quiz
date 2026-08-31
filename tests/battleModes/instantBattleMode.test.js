@@ -83,6 +83,27 @@ export function runInstantBattleModeTests() {
     assertEqual(compareResults(resultA, resultB), 0, "正解数・再視聴回数が同じなら同着");
   }
 
+  // ---- compareResults：本人指定の具体例（A/B/Cの3人）で最終順位を確認 ----
+  // A：8問正解・再視聴5回、B：8問正解・再視聴2回、C：7問正解・再視聴0回
+  // → 期待される順位：1位B、2位A、3位C（正解数が同じA・Bは再視聴回数の少ないBが上位。
+  //   Cは再視聴0回でもAB両方より正解数が少ないため3位のまま）。
+  {
+    const resultA = createResult({ correctCount: 8, missCount: 0, totalElapsedMs: 1000, totalReplayCount: 5, completed: true });
+    const resultB = createResult({ correctCount: 8, missCount: 0, totalElapsedMs: 1000, totalReplayCount: 2, completed: true });
+    const resultC = createResult({ correctCount: 7, missCount: 1, totalElapsedMs: 1000, totalReplayCount: 0, completed: true });
+    const entries = [
+      { name: "A", result: resultA },
+      { name: "B", result: resultB },
+      { name: "C", result: resultC },
+    ];
+    entries.sort((entryA, entryB) => compareResults(entryA.result, entryB.result));
+    assertEqual(
+      entries.map((entry) => entry.name),
+      ["B", "A", "C"],
+      "本人指定の具体例どおり、1位B・2位A・3位Cの順になる"
+    );
+  }
+
   // ---- resolveSettingsSongPool：カテゴリー絞り込み・共同選曲どちらも解決できる ----
   {
     const pool = resolveSettingsSongPool({

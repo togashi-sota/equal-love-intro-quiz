@@ -565,9 +565,14 @@ function renderCurrentQuestionState() {
     if (outcome) {
       const correctSong = question.song;
       elements.revealCorrectSong.textContent = `正解：${correctSong.title}`;
+      // 【2026-08-31発見・修正】Firebase Realtime Databaseは、書き込んだ値がnullの
+      // フィールドをそのまま保存せず、キーごと削除する仕様のため（teamAnswer:nullで
+      // 書き込んでも、読み出す側にはteamAnswer自体が存在しない＝undefinedになる）。
+      // 「全員わからない・全員タイムアウト」の場合の判定は、===nullではなく==null
+      // （nullとundefinedの両方を含む）で行う必要がある（実機同等のライブテストで発覚）。
       const teamAnswerSong = question.answerPool.find((song) => song.id === outcome.teamAnswer);
       elements.revealTeamAnswer.textContent =
-        outcome.teamAnswer === null ? "チームの回答：わからない（全員）" : `チームの回答：${teamAnswerSong?.title ?? outcome.teamAnswer}`;
+        outcome.teamAnswer == null ? "チームの回答：わからない（全員）" : `チームの回答：${teamAnswerSong?.title ?? outcome.teamAnswer}`;
       elements.revealOutcomeBadge.textContent = outcome.isCorrect ? "🎉 正解！" : "残念、不正解";
       elements.revealOutcomeBadge.classList.toggle("is-correct-answer-badge", outcome.isCorrect);
       elements.revealTieBreakNotice.hidden = !outcome.usedTieBreakRandom;

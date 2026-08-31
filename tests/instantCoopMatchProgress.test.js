@@ -10,10 +10,15 @@
 // ・同じseed・同じ状況なら、タイブレークの結果が毎回一致すること（決定論性）。
 // ・advanceToNextQuestion()が、確定済みの問題からteamHistoryへ積みつつ次へ進むこと。
 // ・finalizeMatch()が、正解数・合計共有再視聴回数を正しく集計すること。
+// ・【2026-08-31追加、本人指示】投票タイムアウト（20秒固定）：未投票者を自動的に
+//   「わからない」扱いで補完し、退出・切断扱いにはせず、他プレイヤーの回答権はそのまま
+//   残ること。全員タイムアウトなら不正解として確定すること。タイムアウトで生じたタイでも
+//   通常の共有再視聴→タイブレークの流れがそのまま働くこと。
 
 import {
   UNKNOWN_VOTE,
   MAX_SHARED_REPLAY_COUNT,
+  VOTE_TIMEOUT_MS,
   createMatchProgress,
   recordVote,
   countVotedPlayers,
@@ -96,6 +101,29 @@ export function runInstantCoopMatchProgressTests() {
     state = tick(state, 100);
     assertEqual(state.currentQuestion.outcome.teamAnswer, "distractor-0-a", "多数決の結果は不正解でもそのまま採用される");
     assertEqual(state.currentQuestion.outcome.isCorrect, false, "正解曲と一致しなければ不正解");
+  }
+
+  // ---- tick：全員が同じ回答（満場一致） ----
+  {
+    let state = createMatchProgress({ questions: buildDummyQuestions(1), allPlayerUids, hostUid: "p1", seed: 1, nowMs: 0 });
+    state = recordVote(state, "p1", "song-0");
+    state = recordVote(state, "p2", "song-0");
+    state = recordVote(state, "p3", "song-0");
+    state = tick(state, 100);
+    assertEqual(state.currentQuestion.status, "resolved", "満場一致でも通常どおり確定する");
+    assertEqual(state.currentQuestion.outcome.teamAnswer, "song-0", "全員一致した回答がそのままチームの回答になる");
+    assertEqual(state.currentQuestion.outcome.usedTieBreakRandom, false, "満場一致はタイブレークを使わない");
+  }
+
+  // ---- tick：3人全員が別々の回答（同率3すくみ、多数決が成立しない） ----
+  {
+    let state = createMatchProgress({ questions: buildDummyQuestions(1), allPlayerUids, hostUid: "p1", seed: 1, nowMs: 0 });
+    state = recordVote(state, "p1", "song-0");
+    state = recordVote(state, "p2", "distractor-0-a");
+    state = recordVote(state, "p3", "distractor-0-b");
+    state = tick(state, 100);
+    assertEqual(state.currentQuestion.status, "collecting", "3人全員別回答（1票ずつの3すくみ）はタイとして扱い、確定しない");
+    assertEqual(state.currentQuestion.sharedReplayCount, 1, "3すくみのタイでも通常のタイと同じく共有再視聴が1回消費される");
   }
 
   // ---- tick：全員わからない → 不正解として確定 ----
@@ -258,5 +286,81 @@ export function runInstantCoopMatchProgressTests() {
     assertEqual(state.status, "finished", "全問終了済みならfinishedとして復元される");
     const result = finalizeMatch(state);
     assertEqual(result.correctCount, 1, "復元後もfinalizeMatch()が正しい結果を返す");
+  }
+
+  // ===== 投票タイムアウト（2026-08-31追加、本人指示：20秒固定） =====
+
+  // ---- タイムアウト前：全員揃っていなければ何も進まない（既存動作の維持を再確認） ----
+  {
+    let state = createMatchProgress({ questions: buildDummyQuestions(1), allPlayerUids: ["p1", "p2"], hostUid: "p1", seed: 1, nowMs: 0 });
+    state = recordVote(state, "p1", "song-0");
+    const before = state;
+    state = tick(state, VOTE_TIMEOUT_MS - 1);
+    assertEqual(state, before, "タイムアウト直前（19999ms）では、未投票者がいればまだ進行しない");
+  }
+
+  // ---- タイムアウト成立：未投票者を「わからない」で自動補完し、退出扱いにせず進行する ----
+  {
+    let state = createMatchProgress({ questions: buildDummyQuestions(1), allPlayerUids: ["p1", "p2", "p3"], hostUid: "p1", seed: 1, nowMs: 0 });
+    // p1だけが期限内に回答。p2・p3は何も押さないまま放置。
+    state = recordVote(state, "p1", "song-0");
+    state = tick(state, VOTE_TIMEOUT_MS);
+    assertEqual(state.currentQuestion.status, "resolved", "20秒経過すれば、未投票者がいても確定へ進む（無限待ちにならない）");
+    assertEqual(state.currentQuestion.outcome.teamAnswer, "song-0", "期限内に回答した人の投票がそのまま多数決に使われる");
+    assertEqual(state.currentQuestion.outcome.isCorrect, true, "タイムアウトが絡んでも、通常どおり正誤判定される");
+    assertEqual(state.allPlayerUids, ["p1", "p2", "p3"], "タイムアウトしたプレイヤーもallPlayerUidsから除外されない（退出・切断扱いにしない）");
+  }
+
+  // ---- 全員タイムアウト（誰も投票しない）→ 不正解として確定する ----
+  {
+    let state = createMatchProgress({ questions: buildDummyQuestions(1), allPlayerUids: ["p1", "p2"], hostUid: "p1", seed: 1, nowMs: 0 });
+    state = tick(state, VOTE_TIMEOUT_MS);
+    assertEqual(state.currentQuestion.status, "resolved", "全員が投票しなくても20秒で確定する");
+    assertEqual(state.currentQuestion.outcome.teamAnswer, null, "全員タイムアウトなら、全員わからないと同じくチームの回答は無し");
+    assertEqual(state.currentQuestion.outcome.isCorrect, false, "全員タイムアウトは不正解として扱う");
+  }
+
+  // ---- タイムアウトで生じたタイも、通常どおり共有再視聴のラウンドへ進む ----
+  {
+    let state = createMatchProgress({ questions: buildDummyQuestions(1), allPlayerUids: ["p1", "p2", "p3"], hostUid: "p1", seed: 1, nowMs: 0 });
+    // p1とp2が別の曲へ投票、p3は放置（タイムアウトで「わからない」扱い）。
+    // わからないは集計から除外されるため、p1とp2の1票ずつでタイになる。
+    state = recordVote(state, "p1", "song-0");
+    state = recordVote(state, "p2", "distractor-0-a");
+    state = tick(state, VOTE_TIMEOUT_MS);
+    assertEqual(state.currentQuestion.status, "collecting", "タイムアウトが絡んだタイでも、確定せず再視聴ラウンドへ進む");
+    assertEqual(state.currentQuestion.sharedReplayCount, 1, "共有再視聴が1回消費される（通常のタイと同じ扱い）");
+    assertEqual(Object.keys(state.currentQuestion.votesByUid).length, 0, "再投票のため票がクリアされる");
+  }
+
+  // ---- 再視聴ラウンドが始まると、タイムアウト計測も新しいラウンドの開始からやり直しになる ----
+  {
+    let state = createMatchProgress({ questions: buildDummyQuestions(1), allPlayerUids: ["p1", "p2"], hostUid: "p1", seed: 1, nowMs: 0 });
+    state = recordVote(state, "p1", "song-0");
+    state = recordVote(state, "p2", "distractor-0-a");
+    state = tick(state, 100); // タイ発生。時刻100msの時点で再視聴ラウンドへ。
+    assertEqual(state.currentQuestion.startedAt, 100, "再視聴ラウンド開始時刻が更新される");
+    // 新ラウンド開始（100ms）から19999ms後（合計19999+100=20099ms未満）では、
+    // 旧ラウンド基準なら20秒を超えていても、新ラウンド基準ではまだタイムアウトしない。
+    const before = state;
+    state = tick(state, 100 + VOTE_TIMEOUT_MS - 1);
+    assertEqual(state, before, "新ラウンド開始から20秒経っていなければ、まだタイムアウトしない");
+  }
+
+  // ---- 1人がギブアップ（自分で「わからない」を選択）しても、他の人の回答権はそのまま残る ----
+  {
+    let state = createMatchProgress({ questions: buildDummyQuestions(1), allPlayerUids: ["p1", "p2", "p3"], hostUid: "p1", seed: 1, nowMs: 0 });
+    state = recordVote(state, "p1", UNKNOWN_VOTE); // p1が自分からギブアップ
+    state = recordVote(state, "p2", "song-0");
+    // p3はまだ投票していない状態でtick()を呼んでも、20秒経っていなければ進まない
+    // （p1のギブアップだけでは全員分にならず、p3の回答権〈または期限到来〉を待つ）。
+    const before = state;
+    state = tick(state, 100);
+    assertEqual(state, before, "1人がギブアップしても、残りの人が投票し終える／タイムアウトするまでは進まない");
+    // p3も投票すれば、ギブアップした人がいてもすぐに確定する。
+    state = recordVote(state, "p3", "song-0");
+    state = tick(state, 200);
+    assertEqual(state.currentQuestion.status, "resolved", "全員分（ギブアップ含む）揃えば、20秒を待たずに確定する");
+    assertEqual(state.currentQuestion.outcome.teamAnswer, "song-0", "ギブアップした人の分を除いた多数決で決まる");
   }
 }
