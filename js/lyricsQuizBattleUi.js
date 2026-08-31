@@ -333,65 +333,99 @@ export function renderHud(containerElement, hudItems) {
   containerElement.appendChild(listElement);
 }
 
-// 結果表を描画する。ホスト・自分自身の行を視覚的に区別する。
-export function renderResultTable(containerElement, tableData) {
+// 【2026-09-06改訂・本人指示：実機フィードバック第3弾②】以前はtable形式（順位／表示名／
+// 獲得ポイント／使用ヒント数／回答時間／ミス回数／わからない回数の7列）で結果を表示していたが、
+// スマホ幅では列が窮屈に折り返され読みにくいという指摘を受け、「1人1枚のカード」形式へ
+// 全面的に描き替えた。resultColumnsの1列目（全ルール共通で「獲得ポイント」）だけを
+// カード上部に大きく強調し、残りの列はカード内の定義リストとして並べる
+// （このファイルはルール名を一切知らないまま、resultColumns宣言の並び順をそのまま使うだけ
+// なので、ルールごとに個別分岐する必要はない）。
+// 同点者の順位表示（describeResultTable()の競技方式ランキング）はそのまま活かす。
+const RANK_MEDAL_BY_RANK = { 1: "🥇", 2: "🥈", 3: "🥉" };
+
+export function renderResultCards(containerElement, tableData) {
   clearElement(containerElement);
-  const tableElement = document.createElement("table");
-  tableElement.className = "lyrics-battle-result-table";
+  const listElement = document.createElement("ul");
+  listElement.className = "lyrics-battle-result-card-list";
 
-  const headRow = document.createElement("tr");
-  for (const headerText of tableData.header) {
-    const thElement = document.createElement("th");
-    thElement.scope = "col";
-    thElement.textContent = headerText;
-    headRow.appendChild(thElement);
-  }
-  const theadElement = document.createElement("thead");
-  theadElement.appendChild(headRow);
-  tableElement.appendChild(theadElement);
+  const [, , ...columnLabels] = tableData.header;
+  const [primaryLabel, ...restLabels] = columnLabels;
 
-  const tbodyElement = document.createElement("tbody");
   for (const row of tableData.rows) {
-    const trElement = document.createElement("tr");
-    if (row.isYou) trElement.classList.add("is-you");
-    if (row.isDnf) trElement.classList.add("is-dnf");
+    const cardElement = document.createElement("li");
+    cardElement.className = "lyrics-battle-result-card";
+    if (row.isYou) cardElement.classList.add("is-you");
+    if (row.isDnf) cardElement.classList.add("is-dnf");
+    const medal = !row.isDnf ? RANK_MEDAL_BY_RANK[row.rank] : null;
+    if (medal) cardElement.classList.add("is-medal-rank");
 
-    const rankCell = document.createElement("td");
-    rankCell.textContent = row.isDnf ? "DNF" : String(row.rank);
-    trElement.appendChild(rankCell);
+    const rankBadge = document.createElement("p");
+    rankBadge.className = "lyrics-battle-result-card-rank";
+    rankBadge.textContent = row.isDnf ? "DNF" : medal ? `${medal} ${row.rank}位` : `${row.rank}位`;
+    cardElement.appendChild(rankBadge);
 
-    const nameCell = document.createElement("td");
+    const nameRow = document.createElement("div");
+    nameRow.className = "lyrics-battle-result-card-name-row";
     if (row.oshiColor) {
       const dotElement = document.createElement("span");
       dotElement.className = "lyrics-battle-oshi-dot";
       dotElement.style.backgroundColor = row.oshiColor;
       dotElement.setAttribute("aria-hidden", "true");
-      nameCell.appendChild(dotElement);
+      nameRow.appendChild(dotElement);
     }
-    nameCell.appendChild(document.createTextNode(row.displayName));
+    const nameText = document.createElement("span");
+    nameText.className = "lyrics-battle-result-card-name";
+    nameText.textContent = row.displayName;
+    nameRow.appendChild(nameText);
     if (row.isHost) {
       const hostBadge = document.createElement("span");
       hostBadge.className = "lyrics-battle-host-badge";
       hostBadge.textContent = "ホスト";
-      nameCell.appendChild(hostBadge);
+      nameRow.appendChild(hostBadge);
     }
     if (row.isYou) {
       const youBadge = document.createElement("span");
       youBadge.className = "lyrics-battle-you-badge";
       youBadge.textContent = "あなた";
-      nameCell.appendChild(youBadge);
+      nameRow.appendChild(youBadge);
     }
-    trElement.appendChild(nameCell);
+    cardElement.appendChild(nameRow);
 
-    for (const cellValue of row.cells) {
-      const cellElement = document.createElement("td");
-      cellElement.textContent = cellValue;
-      trElement.appendChild(cellElement);
+    if (row.isDnf) {
+      const dnfNote = document.createElement("p");
+      dnfNote.className = "lyrics-battle-result-card-dnf-note";
+      dnfNote.textContent = "未完走（結果が確定しませんでした）";
+      cardElement.appendChild(dnfNote);
+    } else {
+      if (primaryLabel !== undefined) {
+        const primaryStat = document.createElement("p");
+        primaryStat.className = "lyrics-battle-result-card-primary-stat";
+        primaryStat.textContent = `${row.cells[0]} ${primaryLabel}`;
+        cardElement.appendChild(primaryStat);
+      }
+      if (restLabels.length > 0) {
+        const statsList = document.createElement("dl");
+        statsList.className = "lyrics-battle-result-card-stats";
+        // 【2026-09-06新設】label→valueの1組ずつをdivでまとめてグリッドの1マスにする
+        // （dt・ddを直接2列グリッドに流し込むと、項目数によって段組みが崩れるため）。
+        restLabels.forEach((label, index) => {
+          const statItem = document.createElement("div");
+          statItem.className = "lyrics-battle-result-card-stat";
+          const term = document.createElement("dt");
+          term.textContent = label;
+          const value = document.createElement("dd");
+          value.textContent = row.cells[index + 1];
+          statItem.appendChild(term);
+          statItem.appendChild(value);
+          statsList.appendChild(statItem);
+        });
+        cardElement.appendChild(statsList);
+      }
     }
-    tbodyElement.appendChild(trElement);
+
+    listElement.appendChild(cardElement);
   }
-  tableElement.appendChild(tbodyElement);
-  containerElement.appendChild(tableElement);
+  containerElement.appendChild(listElement);
 }
 
 // 歌詞データ不足の表示（ホスト視点：件数だけ／本人視点：不足曲名まで）。

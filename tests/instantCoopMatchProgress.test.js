@@ -11,14 +11,15 @@
 // ・同じseed・同じ状況なら、タイブレークの結果が毎回一致すること（決定論性）。
 // ・advanceToNextQuestion()が、確定済みの問題からteamHistoryへ積みつつ次へ進むこと。
 // ・finalizeMatch()が、正解数を正しく集計すること。
-// ・【2026-08-31追加、本人指示】投票タイムアウト（20秒固定）：未投票者を自動的に
-//   「わからない」扱いで補完し、退出・切断扱いにはせず、他プレイヤーの回答権はそのまま
-//   残ること。全員タイムアウトなら不正解として確定すること。タイムアウトで生じたタイでも
-//   同様に即座にタイブレークで確定すること。
+// ・【2026-08-31追加→2026-09-06撤廃、本人指示】以前は投票タイムアウト（20秒固定）で
+//   未投票者を自動的に「わからない」扱いにしていたが、実機で「操作していないのに勝手に
+//   次の問題へ進む」問題が起きたため撤廃した。tick()は経過時間に一切関係なく、
+//   全員分の投票が揃うまでは何度呼ばれても進行しないこと（放置プレイヤーの救済は
+//   js/onlineInstantCoopBattleScreen.jsのホスト向け3分無操作通知が、recordVote()へ
+//   UNKNOWN_VOTEを渡す形でこの関数の外から行う。歌詞クイズ対戦のforcedSkipsと同じ設計）。
 
 import {
   UNKNOWN_VOTE,
-  VOTE_TIMEOUT_MS,
   createMatchProgress,
   recordVote,
   countVotedPlayers,
@@ -275,54 +276,41 @@ export function runInstantCoopMatchProgressTests() {
     assertEqual(result.correctCount, 1, "復元後もfinalizeMatch()が正しい結果を返す");
   }
 
-  // ===== 投票タイムアウト（2026-08-31追加、本人指示：20秒固定） =====
+  // ===== 固定タイムアウトの撤廃確認（2026-09-06改訂、本人指示） =====
 
-  // ---- タイムアウト前：全員揃っていなければ何も進まない（既存動作の維持を再確認） ----
+  // ---- 未投票者がいる限り、どれだけ時間が経ってもtick()は進行しない ----
   {
-    let state = createMatchProgress({ questions: buildDummyQuestions(1), allPlayerUids: ["p1", "p2"], hostUid: "p1", seed: 1, nowMs: 0 });
+    let state = createMatchProgress({ questions: buildDummyQuestions(1), allPlayerUids: ["p1", "p2", "p3"], hostUid: "p1", seed: 1, nowMs: 0 });
     state = recordVote(state, "p1", "song-0");
     const before = state;
-    state = tick(state, VOTE_TIMEOUT_MS - 1);
-    assertEqual(state, before, "タイムアウト直前（19999ms）では、未投票者がいればまだ進行しない");
+    // 以前のVOTE_TIMEOUT_MS（20秒）を大きく超える経過時間でも進行しないことを確認する。
+    state = tick(state, 999999999);
+    assertEqual(state, before, "未投票者がいる限り、経過時間に関係なくtick()は何も変えない（固定タイムアウトが無いことの確認）");
   }
 
-  // ---- タイムアウト成立：未投票者を「わからない」で自動補完し、退出扱いにせず進行する ----
+  // ---- 未投票者の分をUNKNOWN_VOTEで補完すれば、経過時間に関係なく即座に確定する
+  //      （ホストの3分無操作救済＝forcedSkipsは、この関数の外でrecordVote(...,UNKNOWN_VOTE)を
+  //      呼ぶだけで実現する。js/onlineInstantCoopBattleScreen.jsのrunHostProgressionTick()参照） ----
   {
     let state = createMatchProgress({ questions: buildDummyQuestions(1), allPlayerUids: ["p1", "p2", "p3"], hostUid: "p1", seed: 1, nowMs: 0 });
-    // p1だけが期限内に回答。p2・p3は何も押さないまま放置。
     state = recordVote(state, "p1", "song-0");
-    state = tick(state, VOTE_TIMEOUT_MS);
-    assertEqual(state.currentQuestion.status, "resolved", "20秒経過すれば、未投票者がいても確定へ進む（無限待ちにならない）");
-    assertEqual(state.currentQuestion.outcome.teamAnswer, "song-0", "期限内に回答した人の投票がそのまま多数決に使われる");
-    assertEqual(state.currentQuestion.outcome.isCorrect, true, "タイムアウトが絡んでも、通常どおり正誤判定される");
-    assertEqual(state.allPlayerUids, ["p1", "p2", "p3"], "タイムアウトしたプレイヤーもallPlayerUidsから除外されない（退出・切断扱いにしない）");
+    state = recordVote(state, "p2", UNKNOWN_VOTE); // ホストの放置救済で補完されたのと同じ状態
+    state = recordVote(state, "p3", UNKNOWN_VOTE);
+    state = tick(state, 100); // 経過時間はごくわずかでも、全員分揃っていれば確定する
+    assertEqual(state.currentQuestion.status, "resolved", "全員分（UNKNOWN_VOTE補完分を含む）揃えば、時間を待たずに確定する");
+    assertEqual(state.currentQuestion.outcome.teamAnswer, "song-0", "わからない扱いの分を除いた多数決で決まる");
+    assertEqual(state.currentQuestion.outcome.isCorrect, true, "通常どおり正誤判定される");
   }
 
-  // ---- 全員タイムアウト（誰も投票しない）→ 不正解として確定する ----
+  // ---- 全員がUNKNOWN_VOTEなら不正解として確定する ----
   {
     let state = createMatchProgress({ questions: buildDummyQuestions(1), allPlayerUids: ["p1", "p2"], hostUid: "p1", seed: 1, nowMs: 0 });
-    state = tick(state, VOTE_TIMEOUT_MS);
-    assertEqual(state.currentQuestion.status, "resolved", "全員が投票しなくても20秒で確定する");
-    assertEqual(state.currentQuestion.outcome.teamAnswer, null, "全員タイムアウトなら、全員わからないと同じくチームの回答は無し");
-    assertEqual(state.currentQuestion.outcome.isCorrect, false, "全員タイムアウトは不正解として扱う");
-  }
-
-  // ---- タイムアウトで生じたタイも、即座にタイブレークで確定する
-  //      （2026-09-05改訂：共有再視聴ラウンドを廃止したため） ----
-  {
-    let state = createMatchProgress({ questions: buildDummyQuestions(1), allPlayerUids: ["p1", "p2", "p3"], hostUid: "p1", seed: 1, nowMs: 0 });
-    // p1とp2が別の曲へ投票、p3は放置（タイムアウトで「わからない」扱い）。
-    // わからないは集計から除外されるため、p1とp2の1票ずつでタイになる。
-    state = recordVote(state, "p1", "song-0");
-    state = recordVote(state, "p2", "distractor-0-a");
-    state = tick(state, VOTE_TIMEOUT_MS);
-    assertEqual(state.currentQuestion.status, "resolved", "タイムアウトが絡んだタイでも、即座にタイブレークで確定する");
-    assertEqual(state.currentQuestion.outcome.usedTieBreakRandom, true, "タイブレークの乱数が使われる");
-    assertEqual(
-      ["song-0", "distractor-0-a"].includes(state.currentQuestion.outcome.teamAnswer),
-      true,
-      "タイブレークの結果は同率トップのどちらかになる"
-    );
+    state = recordVote(state, "p1", UNKNOWN_VOTE);
+    state = recordVote(state, "p2", UNKNOWN_VOTE);
+    state = tick(state, 100);
+    assertEqual(state.currentQuestion.status, "resolved", "全員わからないでも、揃った時点で確定する");
+    assertEqual(state.currentQuestion.outcome.teamAnswer, null, "全員わからないなら、チームの回答は無し");
+    assertEqual(state.currentQuestion.outcome.isCorrect, false, "全員わからないは不正解として扱う");
   }
 
   // ---- 1人がギブアップ（自分で「わからない」を選択）しても、他の人の回答権はそのまま残る ----
@@ -330,15 +318,14 @@ export function runInstantCoopMatchProgressTests() {
     let state = createMatchProgress({ questions: buildDummyQuestions(1), allPlayerUids: ["p1", "p2", "p3"], hostUid: "p1", seed: 1, nowMs: 0 });
     state = recordVote(state, "p1", UNKNOWN_VOTE); // p1が自分からギブアップ
     state = recordVote(state, "p2", "song-0");
-    // p3はまだ投票していない状態でtick()を呼んでも、20秒経っていなければ進まない
-    // （p1のギブアップだけでは全員分にならず、p3の回答権〈または期限到来〉を待つ）。
+    // p3はまだ投票していない状態でtick()を呼んでも、固定タイムアウトが無いため進まない。
     const before = state;
-    state = tick(state, 100);
-    assertEqual(state, before, "1人がギブアップしても、残りの人が投票し終える／タイムアウトするまでは進まない");
+    state = tick(state, 999999999);
+    assertEqual(state, before, "1人がギブアップしても、残りの人が投票し終えるまでは進まない");
     // p3も投票すれば、ギブアップした人がいてもすぐに確定する。
     state = recordVote(state, "p3", "song-0");
     state = tick(state, 200);
-    assertEqual(state.currentQuestion.status, "resolved", "全員分（ギブアップ含む）揃えば、20秒を待たずに確定する");
+    assertEqual(state.currentQuestion.status, "resolved", "全員分（ギブアップ含む）揃えば確定する");
     assertEqual(state.currentQuestion.outcome.teamAnswer, "song-0", "ギブアップした人の分を除いた多数決で決まる");
   }
 }

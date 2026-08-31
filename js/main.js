@@ -1053,6 +1053,7 @@ const onlineInstantCoopAnswerSearchInputElement = document.getElementById("onlin
 const onlineInstantCoopAnswerCountElement = document.getElementById("online-instant-coop-battle-answer-count");
 const onlineInstantCoopAnswerListElement = document.getElementById("online-instant-coop-battle-answer-list");
 const onlineInstantCoopUnknownButtonElement = document.getElementById("online-instant-coop-battle-unknown-button");
+const onlineInstantCoopIdleNoticeElement = document.getElementById("online-instant-coop-battle-idle-notice");
 const onlineInstantCoopWaitingNoticeElement = document.getElementById("online-instant-coop-battle-waiting-notice");
 const onlineInstantCoopRevealSectionElement = document.getElementById("online-instant-coop-battle-reveal-section");
 const onlineInstantCoopRevealOutcomeBadgeElement = document.getElementById("online-instant-coop-battle-reveal-outcome-badge");
@@ -1128,6 +1129,7 @@ const onlineLyricsBattleErrorElement = document.getElementById("online-lyrics-ba
 const onlineLyricsBattleAnswerRevealElement = document.getElementById("online-lyrics-battle-answer-reveal");
 const onlineLyricsBattleAnswerRevealStatusElement = document.getElementById("online-lyrics-battle-answer-reveal-status");
 const onlineLyricsBattleAnswerRevealTitleElement = document.getElementById("online-lyrics-battle-answer-reveal-title");
+const onlineLyricsBattleAnswerRevealMyAnswerElement = document.getElementById("online-lyrics-battle-answer-reveal-my-answer");
 const onlineLyricsBattleAnswerRevealMetaElement = document.getElementById("online-lyrics-battle-answer-reveal-meta");
 const onlineLyricsBattleQuitConfirmModalElement = document.getElementById("online-lyrics-battle-quit-confirm-modal");
 const onlineLyricsBattleQuitCancelButtonElement = document.getElementById("online-lyrics-battle-quit-cancel-button");
@@ -5437,6 +5439,7 @@ initOnlineLyricsQuizBattleScreens({
   battleAnswerReveal: onlineLyricsBattleAnswerRevealElement,
   battleAnswerRevealStatus: onlineLyricsBattleAnswerRevealStatusElement,
   battleAnswerRevealTitle: onlineLyricsBattleAnswerRevealTitleElement,
+  battleAnswerRevealMyAnswer: onlineLyricsBattleAnswerRevealMyAnswerElement,
   battleAnswerRevealMeta: onlineLyricsBattleAnswerRevealMetaElement,
   quitConfirmModal: onlineLyricsBattleQuitConfirmModalElement,
   quitCancelButton: onlineLyricsBattleQuitCancelButtonElement,
@@ -5508,6 +5511,7 @@ initOnlineInstantCoopBattleScreens({
   answerCount: onlineInstantCoopAnswerCountElement,
   answerList: onlineInstantCoopAnswerListElement,
   unknownButton: onlineInstantCoopUnknownButtonElement,
+  idleNotice: onlineInstantCoopIdleNoticeElement,
   waitingNotice: onlineInstantCoopWaitingNoticeElement,
   revealSection: onlineInstantCoopRevealSectionElement,
   revealOutcomeBadge: onlineInstantCoopRevealOutcomeBadgeElement,

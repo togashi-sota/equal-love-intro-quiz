@@ -87,7 +87,7 @@ import {
   renderAnswerPoolSizeOptions,
   renderSettingsForm,
   renderHud,
-  renderResultTable,
+  renderResultCards,
   renderLyricsReadinessStatus,
   renderOwnMissingLyricsTitles,
 } from "./lyricsQuizBattleUi.js";
@@ -1143,6 +1143,23 @@ function renderAnswerJumpBar() {
 }
 
 function renderAnswerChoices(question, { isResolved, myAnsweredThisQuestion }) {
+  // 【2026-09-06新設・本人指示：実機フィードバック第3弾①】30・50・全曲プールでは、
+  // 選択肢一覧をスクロールした状態のまま回答が確定すると、答え合わせカード
+  // （elements.battleAnswerReveal、別の場所に静的配置されていた）がスクロール外に
+  // 隠れて見えなくなる問題があった。確定した瞬間、選択肢一覧そのものを答え合わせカードへ
+  // 差し替える（元のボタン一覧は消す）ことで、直前のスクロール位置に関係なく、
+  // 選択肢があった同じ場所に必ず結果が表示されるようにする。
+  if (isResolved) {
+    elements.battleAnswerSearchRow.hidden = true;
+    elements.battleAnswerJumpBar.hidden = true;
+    elements.battleAnswerChoicesContainer.classList.remove("online-lyrics-battle-answer-list", "online-lyrics-battle-answer-list-compact");
+    elements.battleAnswerChoicesContainer.classList.add("is-showing-reveal");
+    clearElement(elements.battleAnswerChoicesContainer);
+    elements.battleAnswerChoicesContainer.appendChild(elements.battleAnswerReveal);
+    return;
+  }
+  elements.battleAnswerChoicesContainer.classList.remove("is-showing-reveal");
+
   const pool = question.answerPool;
   // 【2026-08-31新設】30・50・全曲プールでは、検索欄＋スクロールする一覧に切り替える
   // （4択・10択は従来どおりのボタン一覧のまま。js/lyricsQuizEngine.jsの
@@ -1360,6 +1377,10 @@ function renderCurrentQuestionState() {
     myAnswerSearchQuery = "";
     myAnswerJumpRowKey = null;
     if (elements.battleAnswerSearchInput) elements.battleAnswerSearchInput.value = "";
+    // 【2026-09-06新設・本人指示：実機フィードバック第3弾⑥】検索文字列・50音ジャンプは
+    // 既にリセットしていたが、選択肢一覧のスクロール位置は問題が変わっても前の問題の
+    // ままだった（実機で発覚）。新しい問題では常に一覧の先頭が見えるようにする。
+    if (elements.battleAnswerChoicesContainer) elements.battleAnswerChoicesContainer.scrollTop = 0;
   }
   if (typeof match.currentQuestionStartedAt === "number" && !(qIndex in myQuestionStartedAtCache)) {
     myQuestionStartedAtCache[qIndex] = match.currentQuestionStartedAt;
@@ -1415,6 +1436,21 @@ function renderCurrentQuestionState() {
     const gotPoints = (myOutcome?.pointsAwarded ?? 0) > 0;
     elements.battleAnswerRevealTitle.textContent = question.song.title;
 
+    // 【2026-09-06新設・本人指示：実機フィードバック第3弾①】選択肢一覧が答え合わせカードに
+    // 差し替わる仕様に合わせ、選択肢側の「✓/✕」マーク（renderAnswerChoices参照）に頼らずとも
+    // このカード単体で「自分が何を選んだか」が分かるよう、「あなたの回答」欄を追加した。
+    // 早押しバトルは勝者確定と同時に問題が終わるため、非勝者はそもそも回答していないことが
+    // あり得る（js/battleRules/stealRule.jsのshouldEndQuestion()参照）。誤解を招く表示を
+    // 避けるため、この欄は正解数バトル・ポイントバトルに限定する。
+    const myAnswerSong =
+      ruleId !== "steal" && mySelectedSongId && mySelectedSongId !== SKIP_SELECTION
+        ? question.answerPool.find((song) => song.id === mySelectedSongId) ?? null
+        : null;
+    if (elements.battleAnswerRevealMyAnswer) {
+      elements.battleAnswerRevealMyAnswer.hidden = !myAnswerSong;
+      elements.battleAnswerRevealMyAnswer.textContent = myAnswerSong ? `あなたの回答：${myAnswerSong.title}` : "";
+    }
+
     const metaParts = [];
     if (ruleId === "steal") {
       // 【2026-09-06改訂、本人指示：早押しバトルの表示を仕様どおりに再確認】
@@ -1432,11 +1468,15 @@ function renderCurrentQuestionState() {
           : "正解者はいませんでした";
       if (gotPoints) metaParts.push(`+${myOutcome.pointsAwarded}pt`);
     } else {
-      // 【2026-08-31改訂、本人指示】正解数バトル・ポイントバトルでは「わからない」を選んだ
-      // 場合も、時間切れの未回答も、表示上は不正解と同じ「✕ 不正解」に統一する
-      // （仕様どおり、正解者→「正解！」・それ以外→「不正解」の2区分）。
-      elements.battleAnswerRevealStatus.textContent = gotPoints ? "🎉 正解！" : "✕ 不正解";
-      if (gotPoints) metaParts.push(`+${myOutcome.pointsAwarded}pt`);
+      // 【2026-09-06改訂、本人指示：実機フィードバック第3弾①】以前は「わからない」選択も
+      // 時間切れ未回答も一律「✕ 不正解」に統一していたが、本人が自分の意思で選んだ
+      // 「わからない」は不正解と区別して伝えたほうが分かりやすいとの指示により、
+      // 「今回はわからない」という専用の文言に変更した。獲得ポイントは、正解時は
+      // 実際の獲得値、それ以外は明示的に「0pt」と表示する（ポイントバトルの配点が
+      // ヒント段階で変わることを、0の場合も含めて毎回はっきり伝えるため）。
+      const isSkip = mySelectedSongId === SKIP_SELECTION;
+      elements.battleAnswerRevealStatus.textContent = gotPoints ? "🎉 正解！" : isSkip ? "今回はわからない" : "残念、不正解";
+      metaParts.push(`獲得：${gotPoints ? `+${myOutcome.pointsAwarded}pt` : "0pt"}`);
     }
     elements.battleAnswerRevealStatus.classList.toggle("is-correct-answer-reveal-status", gotPoints);
     elements.battleAnswerRevealMeta.textContent = metaParts.join("・");
@@ -1482,7 +1522,7 @@ export function enterLyricsQuizResult(room) {
   });
 
   const table = describeResultTable(room.settings.battleRuleId, rankedEntries);
-  renderResultTable(elements.resultTableContainer, table);
+  renderResultCards(elements.resultTableContainer, table);
 
   // 対戦の勝敗音（2026-08-10新設）。DNF（自分の結果が確定していない）のときは鳴らさない。
   const myRankedIndex = rankedEntries.findIndex((entry) => entry.isYou);

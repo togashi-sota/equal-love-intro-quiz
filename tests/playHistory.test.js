@@ -250,10 +250,14 @@ export function runPlayHistoryTests() {
       details: { battleRuleId: "steal", myRank: 2, participantCount: 3 },
     });
     const lyricsBattleLines = describeEntrySummaryLines(lyricsBattleEntry);
+    // 【2026-09-06修正】3ルール全面改修（本人指示）で表示名が奪い取り→早押しバトルへ
+    // 変更されたのに、このテストの期待値だけ更新し忘れていた（js/playHistory.jsの
+    // LYRICS_BATTLE_RULE_LABELS参照。実装は既に正しく「早押しバトル」を返しており、
+    // 今回のユニットテスト全件実行で本来の実装と食い違っていたこの1件だけが発覚した）。
     assertEqual(
-      lyricsBattleLines.some((line) => line.includes("奪い取り")),
+      lyricsBattleLines.some((line) => line.includes("早押しバトル")),
       true,
-      "オンライン歌詞対戦の要約にルール名（奪い取り）が表示される"
+      "オンライン歌詞対戦の要約にルール名（早押しバトル）が表示される"
     );
     assertEqual(lyricsBattleLines.some((line) => line.includes("80pt")), true, "スコアが要約に表示される");
   }

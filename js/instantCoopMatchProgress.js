@@ -46,13 +46,13 @@ import { createSeededRandom } from "./seededRandom.js";
 export const UNKNOWN_VOTE = "unknown";
 // 共有の「もう一度聞く」の上限（本人指示：最大2回）。
 export const MAX_SHARED_REPLAY_COUNT = 2;
-// 【2026-08-31新設、本人指示】投票タイムアウト：この時間（1つの投票ラウンドの開始から）
-// 誰かが投票しないままだと、その人はこの問題（このラウンド）だけ「わからない」を
-// 自動的に選んだものとして扱う（本人が押す「わからない」ボタンと完全に同じ結果になる。
-// 退出・切断扱いにはせず、次の問題からは通常どおり参加できる）。回答候補の数
-// （4択／10択／全曲検索）によらず一律20秒（本人指示：テンポの良さを優先し、複雑な
-// 可変秒数にはしない）。
-export const VOTE_TIMEOUT_MS = 20000;
+// 【2026-08-31新設→2026-09-06撤廃、本人指示】以前は投票タイムアウト（1つの投票ラウンドの
+// 開始から20秒で未投票者を自動的に「わからない」扱いにする）を持っていたが、実機で
+// 「操作していないのに勝手に次の問題へ進む」という明確な問題が発生したため、本人指示に
+// より固定時間の自動タイムアウトを完全に撤廃した（js/battleRules/classicRule.js等、
+// 歌詞クイズ3ルールの60秒撤廃と同じ理由・同じ経緯）。代わりに、放置対策は
+// js/onlineInstantCoopBattleScreen.jsのホスト向け3分無操作通知＋forcedSkips
+// （歌詞クイズと共有の仕組み。実体はrecordVote()へのUNKNOWN_VOTE投票と同じ）に委ねる。
 
 export function createMatchProgress({ questions, allPlayerUids, hostUid, seed, nowMs }) {
   const hasQuestions = questions.length > 0;
@@ -122,41 +122,20 @@ function createTieBreakRandom(seed, questionIndex, sharedReplayCount) {
 }
 
 // 呼び出し元（ホストの端末が、Firebaseの変化を受けるたびに／定期タイマーで）が繰り返し
-// 呼ぶことを想定した、1回分の進行チェック。全員が「回答済み・自分でわからないを選択・
-// タイムアウト」のいずれかになっていなければ何もしない。
-// 【2026-08-31追加、本人指示】全員が投票し終えていなくても、今のラウンドの開始から
-// VOTE_TIMEOUT_MS（20秒固定）が経過していれば、未投票者を「わからない」を選んだものとして
-// 自動的に補完してから先へ進む（本人の指示どおり、退出・切断扱いにはしない。次の問題〈次の
-// ラウンド〉からは通常どおり投票できる＝votesByUidは毎ラウンドごとにリセットされる既存の
-// 仕組みがそのまま働く）。
-// 全員分が揃ったら、多数決→タイなら再視聴→タイブレークの流れをこの1呼び出しの中で完結させる。
+// 呼ぶことを想定した、1回分の進行チェック。全員が投票済み（自分で「わからない」を選んだ、
+// またはホストの3分無操作救済によりUNKNOWN_VOTEを投じられた場合を含む）になるまで、
+// 何度呼ばれても何もしない（2026-09-06改訂・本人指示：固定タイムアウトを撤廃したため、
+// 経過時間はこの関数の判定に一切関与しない）。
+// 全員分が揃ったら、多数決→タイならタイブレークの流れをこの1呼び出しの中で完結させる。
 export function tick(state, nowMs) {
   if (state.status !== "inProgress") return state;
   if (state.currentQuestion.status !== "collecting") return state;
 
   const allVoted = haveAllVoted(state.currentQuestion.votesByUid, state.allPlayerUids);
-  const isTimedOut = nowMs - state.currentQuestion.startedAt >= VOTE_TIMEOUT_MS;
-  if (!allVoted && !isTimedOut) return state;
+  if (!allVoted) return state;
 
-  // タイムアウトで未投票者が残っている場合だけ、この呼び出しの中だけで使う「投票済み扱いの
-  // votesByUid」を作る（stateそのものへは書き戻さない。実際の書き込み〈Firebase側〉は、
-  // 呼び出し元がこの後resolveCurrentQuestion/次ラウンドへの遷移を検知して行う）。
-  const effectiveVotesByUid = allVoted
-    ? state.currentQuestion.votesByUid
-    : (() => {
-        const filled = { ...state.currentQuestion.votesByUid };
-        for (const uid of state.allPlayerUids) {
-          if (!(uid in filled)) filled[uid] = UNKNOWN_VOTE;
-        }
-        return filled;
-      })();
-
-  const { winners } = tallyVotes(effectiveVotesByUid, state.allPlayerUids);
+  const { winners } = tallyVotes(state.currentQuestion.votesByUid, state.allPlayerUids);
   const correctSongId = state.questions[state.currentQuestionIndex].song.id;
-  // 以降の分岐（再投票ラウンドへ進む場合を含む）で使うstateは、タイムアウト補完後の
-  // votesByUidを反映したものにしておく（呼び出し元がFirebaseへの反映内容を正しく検知できるよう、
-  // 実際にstateへ書き戻す）。
-  state = { ...state, currentQuestion: { ...state.currentQuestion, votesByUid: effectiveVotesByUid } };
 
   if (winners.length === 0) {
     // 全員「わからない」→ 不正解として確定。

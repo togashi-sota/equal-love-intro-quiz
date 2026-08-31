@@ -55,6 +55,12 @@ import {
   advanceCoopQuestion,
   finalizeCoopMatch,
 } from "./instantCoopBattleFirebase.js";
+// 【2026-09-06新設・本人指示：3分無操作の放置救済を一瞬協力にも適用】forcedSkips・
+// questionActivityのFirebaseパスはgameMode非依存の汎用フィールド（rooms/{roomId}/
+// matches/{matchId}配下）として設計済みのため、歌詞クイズ対戦と全く同じ関数をそのまま
+// 再利用する（新しいFirebase Rules・新しい書き込み関数は不要）。
+import { reportQuestionActivity, forceSkipIdlePlayer } from "./lyricsQuizBattleFirebase.js";
+import { IDLE_RESCUE_THRESHOLD_MS } from "./battleRules/sharedDefaults.js";
 import { AUDIO_METADATA } from "./data/audioMetadata.js";
 import {
   computeRandomStartTimeSec,
@@ -87,6 +93,9 @@ let hostTickInFlight = false;
 let resolvedAtLocalMs = null;
 let tickTimerId = null;
 let offsetUnsubscribe = null;
+// 【2026-09-06新設・3分無操作の放置救済】ホストが「3分間操作していない」かどうかを
+// 判定する際、サーバー時刻との差分を考慮する（js/onlineLyricsQuizBattleScreen.jsと同じ設計）。
+let serverTimeOffset = 0;
 
 // 自分（この端末）が、今の問題・今のラウンドで既に投票したかどうか。
 let myVotedQuestionIndex = -1;
@@ -94,6 +103,12 @@ let myVotedRoundNumber = -1;
 // 直近に描画した問題・ラウンド（変わった瞬間だけ音源を再生し直すために使う）。
 let lastPlayedQuestionIndex = -1;
 let lastPlayedRoundNumber = -1;
+
+// 【2026-09-06新設・3分無操作の放置救済】自分の活動報告（reportQuestionActivity()）を
+// 直近いつ送ったか（js/onlineLyricsQuizBattleScreen.jsと同じ間引き設計）。
+let lastActivityReportedAtMs = 0;
+let lastActivityReportedQIndex = -1;
+const ACTIVITY_REPORT_THROTTLE_MS = 15000;
 
 function clearElement(element) {
   while (element.firstChild) element.removeChild(element.firstChild);
@@ -129,7 +144,15 @@ export function initOnlineInstantCoopBattleScreens(newElements) {
     if (typeof qIndex !== "number") return;
     const question = currentQuestions[qIndex];
     if (!question) return;
+    reportMyQuestionActivity();
     renderAnswerButtons(question.answerPool, elements.answerSearchInput.value, false);
+  });
+
+  // 【2026-09-06新設・3分無操作の放置救済】検索結果一覧をスクロールする操作も、
+  // 「考えている最中」の意味ある操作の一つとして扱う（js/onlineLyricsQuizBattleScreen.jsと
+  // 同じ考え方）。
+  elements.answerList?.addEventListener("scroll", () => {
+    reportMyQuestionActivity();
   });
 
   elements.unknownButton.addEventListener("click", () => {
@@ -145,6 +168,7 @@ export function initOnlineInstantCoopBattleScreens(newElements) {
     if (!match || typeof match.currentQuestionIndex !== "number") return;
     const qIndex = match.currentQuestionIndex;
     const question = currentQuestions[qIndex];
+    reportMyQuestionActivity();
     if (!question) return;
     playQuestionAudio(question, qIndex);
   });
@@ -209,6 +233,8 @@ export function resetInstantCoopBattleState() {
   myVotedRoundNumber = -1;
   lastPlayedQuestionIndex = -1;
   lastPlayedRoundNumber = -1;
+  lastActivityReportedAtMs = 0;
+  lastActivityReportedQIndex = -1;
 }
 
 // js/onlineBattleScreen.jsのrenderLobby()が、room更新のたび（画面を問わず）呼ぶフック。
@@ -320,6 +346,8 @@ export async function enterInstantCoopBattlePlay(room) {
   myVotedRoundNumber = -1;
   lastPlayedQuestionIndex = -1;
   lastPlayedRoundNumber = -1;
+  lastActivityReportedAtMs = 0;
+  lastActivityReportedQIndex = -1;
 
   elements.error.hidden = true;
   elements.navigateTo("onlineInstantCoopBattleQuestion");
@@ -354,7 +382,9 @@ export async function enterInstantCoopBattlePlay(room) {
 
 function startServerTimeOffsetTracking() {
   stopServerTimeOffsetTracking();
-  offsetUnsubscribe = subscribeServerTimeOffset(() => {});
+  offsetUnsubscribe = subscribeServerTimeOffset((offset) => {
+    serverTimeOffset = offset;
+  });
 }
 function stopServerTimeOffsetTracking() {
   if (offsetUnsubscribe) {
@@ -412,6 +442,16 @@ async function runHostProgressionTick() {
     for (const [uid, vote] of Object.entries(firebaseVotes)) {
       if (!(uid in nextHostState.currentQuestion.votesByUid)) {
         nextHostState = recordVote(nextHostState, uid, vote.selectedSongId);
+      }
+    }
+    // 【2026-09-06新設・3分無操作の放置救済】ホストがforceSkipIdlePlayer()で書き込んだ
+    // forcedSkipsは、「本人がわからないを投票した場合」と全く同じ経路
+    // （recordVote()へUNKNOWN_VOTEを渡す）で進行ミラーへ取り込む。新しい集計ロジックは
+    // 増やさない（js/onlineLyricsQuizBattleScreen.jsの同じ仕組みと同じ設計思想）。
+    const firebaseForcedSkips = match.forcedSkips?.[qIndex] ?? {};
+    for (const uid of Object.keys(firebaseForcedSkips)) {
+      if (!(uid in nextHostState.currentQuestion.votesByUid)) {
+        nextHostState = recordVote(nextHostState, uid, UNKNOWN_VOTE);
       }
     }
     const beforeTick = nextHostState;
@@ -500,6 +540,22 @@ function playQuestionAudio(question, questionIndex) {
   playSongFromRandomPosition(question.song, computeStartTimeSec, playDurationSec, showAudioErrorInline, () => {}, () => {});
 }
 
+// 【2026-09-06新設・3分無操作の放置救済】本人がこの問題の中で意味のある操作をした
+// 瞬間に呼ぶ。ホスト側の「3分間操作していません」判定に使われる
+// （js/onlineLyricsQuizBattleScreen.jsのreportMyQuestionActivity()と全く同じ設計。
+// 詳しい理由はそちらのコメント参照）。同じ問題の中では既定で15秒に1回までしか
+// 実際には送信しない。
+function reportMyQuestionActivity() {
+  const match = latestRoom?.matches?.[currentMatchId];
+  const qIndex = match?.currentQuestionIndex;
+  if (typeof qIndex !== "number" || !latestRoom) return;
+  const now = Date.now();
+  if (qIndex === lastActivityReportedQIndex && now - lastActivityReportedAtMs < ACTIVITY_REPORT_THROTTLE_MS) return;
+  lastActivityReportedQIndex = qIndex;
+  lastActivityReportedAtMs = now;
+  reportQuestionActivity({ roomId: latestRoom.roomId, matchId: currentMatchId, questionIndex: qIndex });
+}
+
 function renderAnswerButtons(pool, searchQuery, disabled) {
   const normalizedQuery = normalizeForSearch(searchQuery);
   const filtered =
@@ -523,6 +579,7 @@ function renderAnswerButtons(pool, searchQuery, disabled) {
     // 本人指示：「確認画面を開いた時点のquestionIndex等と現在状態が一致しているか
     // 確認する」）。
     button.addEventListener("click", () => {
+      reportMyQuestionActivity();
       const matchAtClick = latestRoom?.matches?.[currentMatchId];
       const expectedQIndex = matchAtClick?.currentQuestionIndex;
       const expectedRoundNumber = matchAtClick?.coopRoundNumber ?? 0;
@@ -561,6 +618,53 @@ async function handleVoteClick(vote) {
   }
 }
 
+// 【2026-09-06新設・本人指示：3分無操作の放置救済（一瞬協力にも適用）】
+// js/onlineLyricsQuizBattleScreen.jsのrenderIdleNotice()と全く同じ設計。ホストにだけ
+// 見える、3分間投票していないプレイヤーへの通知（まだ投票済み・強制棄権済みでない
+// 参加者のうち、最後に活動報告した時刻からIDLE_RESCUE_THRESHOLD_MS以上経っている人）。
+function renderIdleNotice(match, qIndex, roundNumber, nowServerTimeMs) {
+  const isHost = latestRoom && getCurrentUid() === latestRoom.host;
+  if (!elements.idleNotice) return;
+  if (!isHost) {
+    elements.idleNotice.hidden = true;
+    return;
+  }
+
+  const participantUids = Object.keys(match.participants ?? {});
+  const votedUids = new Set(Object.keys(match.coopVotes?.[qIndex]?.[roundNumber] ?? {}));
+  const forcedSkipUids = new Set(Object.keys(match.forcedSkips?.[qIndex] ?? {}));
+  const idleUids = participantUids.filter((uid) => {
+    if (votedUids.has(uid) || forcedSkipUids.has(uid)) return false;
+    const lastActivity = match.questionActivity?.[qIndex]?.[uid] ?? match.currentQuestionStartedAt ?? nowServerTimeMs;
+    return nowServerTimeMs - lastActivity >= IDLE_RESCUE_THRESHOLD_MS;
+  });
+
+  clearElement(elements.idleNotice);
+  elements.idleNotice.hidden = idleUids.length === 0;
+  idleUids.forEach((uid) => {
+    const displayName = match.participants?.[uid]?.displayName ?? uid;
+    const row = document.createElement("div");
+    row.className = "online-lyrics-battle-idle-notice-row";
+
+    const text = document.createElement("span");
+    text.className = "online-lyrics-battle-idle-notice-text";
+    text.textContent = `${displayName}さんが3分間操作していません`;
+    row.appendChild(text);
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "secondary-button online-lyrics-battle-idle-notice-button";
+    button.textContent = "わからない扱いにする";
+    button.addEventListener("click", () => {
+      button.disabled = true;
+      forceSkipIdlePlayer({ roomId: latestRoom.roomId, matchId: currentMatchId, questionIndex: qIndex, targetUid: uid });
+    });
+    row.appendChild(button);
+
+    elements.idleNotice.appendChild(row);
+  });
+}
+
 function renderCurrentQuestionState() {
   if (!latestRoom || currentQuestions.length === 0) return;
   const match = latestRoom.matches?.[currentMatchId];
@@ -570,6 +674,16 @@ function renderCurrentQuestionState() {
   const roundNumber = match.coopRoundNumber ?? 0;
   const question = currentQuestions[qIndex];
   if (!question) return;
+
+  // 【2026-09-06新設・3分無操作の放置救済】ホストにより「わからない」扱いにされた場合、
+  // 自分の端末では本人が投票した場合と同じ状態（投票済み・UNKNOWN_VOTE扱い）にする
+  // （js/onlineLyricsQuizBattleScreen.jsのmyForcedSkipと全く同じ考え方）。
+  const myUid = getCurrentUid();
+  const myForcedSkip = match.forcedSkips?.[qIndex]?.[myUid] === true;
+  if (myForcedSkip && !(myVotedQuestionIndex === qIndex && myVotedRoundNumber === roundNumber)) {
+    myVotedQuestionIndex = qIndex;
+    myVotedRoundNumber = roundNumber;
+  }
 
   elements.progress.textContent = `第${qIndex + 1}問 / ${currentQuestions.length}問`;
 
@@ -609,26 +723,41 @@ function renderCurrentQuestionState() {
       Object.fromEntries(Object.entries(match.coopVotes?.[qIndex]?.[roundNumber] ?? {}).map(([uid, v]) => [uid, v.selectedSongId])),
       activeUids
     );
-    elements.waitingNotice.textContent = `投票しました。他の参加者の回答を待っています（${votedCount}/${activeUids.length}人）`;
+    elements.waitingNotice.textContent = myForcedSkip
+      ? "ホストにより、この問題は「わからない」扱いになりました。他の参加者の回答を待っています…"
+      : `投票しました。他の参加者の回答を待っています（${votedCount}/${activeUids.length}人）`;
     void players;
   } else {
     const outcome = match.coopQuestionOutcomes?.[qIndex];
     if (outcome) {
+      // 【2026-09-06改訂、本人指示：実機フィードバック第3弾⑤】以前は正誤・正解曲名・
+      // チームの回答をただの文字の羅列で見せていたが、歌詞クイズ対戦の答え合わせカードと
+      // 同じ構造・同じ質感の専用カードへ作り替えた（index.htmlのコメント参照）。
+      // 「全員わからない」は正解でも不正解でもないニュートラルな特殊ケースとして、
+      // 色分けも専用の中間トーンにする（本人指示：「不正解と一緒くたにしない」）。
       const correctSong = question.song;
-      elements.revealCorrectSong.textContent = `正解：${correctSong.title}`;
+      elements.revealCorrectSong.textContent = correctSong.title;
+
       // 【2026-08-31発見・修正】Firebase Realtime Databaseは、書き込んだ値がnullの
       // フィールドをそのまま保存せず、キーごと削除する仕様のため（teamAnswer:nullで
       // 書き込んでも、読み出す側にはteamAnswer自体が存在しない＝undefinedになる）。
       // 「全員わからない・全員タイムアウト」の場合の判定は、===nullではなく==null
       // （nullとundefinedの両方を含む）で行う必要がある（実機同等のライブテストで発覚）。
+      const isAllUnknown = outcome.teamAnswer == null;
       const teamAnswerSong = question.answerPool.find((song) => song.id === outcome.teamAnswer);
-      elements.revealTeamAnswer.textContent =
-        outcome.teamAnswer == null ? "チームの回答：わからない（全員）" : `チームの回答：${teamAnswerSong?.title ?? outcome.teamAnswer}`;
-      elements.revealOutcomeBadge.textContent = outcome.isCorrect ? "🎉 正解！" : "残念、不正解";
-      elements.revealOutcomeBadge.classList.toggle("is-correct-answer-badge", outcome.isCorrect);
+      elements.revealTeamAnswer.textContent = isAllUnknown
+        ? "チームの回答：わからない（全員）"
+        : `チームの回答：${teamAnswerSong?.title ?? outcome.teamAnswer}`;
+
+      elements.revealOutcomeBadge.textContent = isAllUnknown ? "🤷 全員「わからない」でした" : outcome.isCorrect ? "🎉 正解！" : "残念、不正解";
+      elements.revealOutcomeBadge.classList.toggle("is-correct-answer-reveal-status", !isAllUnknown && outcome.isCorrect);
+      elements.revealOutcomeBadge.classList.toggle("is-neutral-answer-reveal-status", isAllUnknown);
       elements.revealTieBreakNotice.hidden = !outcome.usedTieBreakRandom;
     }
   }
+
+  const nowServerTimeMs = Date.now() + serverTimeOffset;
+  renderIdleNotice(match, qIndex, roundNumber, nowServerTimeMs);
 }
 
 // ===== 結果画面（チーム成績） =====

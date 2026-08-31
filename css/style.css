@@ -12707,21 +12707,6 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2);
 }
 
-/* 一瞬協力：問題ごとの正解/不正解の表示（2026-08-31新設）。 */
-.online-battle-outcome-badge {
-  display: inline-block;
-  padding: 0.3em 0.9em;
-  border-radius: 999px;
-  font-weight: 700;
-  background: var(--color-danger-soft);
-  color: var(--color-danger);
-}
-
-.online-battle-outcome-badge.is-correct-answer-badge {
-  background: var(--color-accent-soft);
-  color: var(--color-primary-dark);
-}
-
 /* ===== オンライン対戦Step2：ロビーの対戦設定・準備完了・開始まわり ===== */
 
 .online-battle-ready-changed-notice {
@@ -13091,6 +13076,31 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   color: var(--color-primary-dark);
 }
 
+/* 【2026-09-06新設・本人指示：実機フィードバック第3弾⑤】一瞬協力で「チーム全員が
+   わからないを選んだ」特殊ケース用。不正解（赤系）と一緒くたにしない、というのが
+   本人の意図のため、危険色ではない中間トーンにする。 */
+.lyrics-quiz-answer-reveal-status.is-neutral-answer-reveal-status {
+  color: var(--color-text);
+  opacity: 0.75;
+}
+
+/* 一瞬協力：投票が同数でタイブレークになったことを知らせる専用バッジ
+   （答え合わせカード本体の正誤バッジとは視覚的に区別する）。 */
+.online-instant-coop-tiebreak-badge {
+  display: inline-block;
+  margin: 0 0 10px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #8a5a00;
+  background: rgba(255, 200, 60, 0.3);
+}
+
+.online-instant-coop-tiebreak-badge[hidden] {
+  display: none;
+}
+
 .lyrics-quiz-answer-reveal-caption {
   margin: 0;
   font-size: 0.78rem;
@@ -13113,6 +13123,24 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   margin: 0 0 14px;
   font-size: 0.74rem;
   opacity: 0.65;
+}
+
+/* 【2026-09-06新設・本人指示：実機フィードバック第3弾①】「あなたの回答：○○」欄。
+   正解曲名（.lyrics-quiz-answer-reveal-title）より控えめに、しかし獲得ポイント欄より
+   目立つ中間の強さにして、答え合わせの読む順序（正解→自分の回答→獲得pt）が
+   自然に伝わるようにする。 */
+.lyrics-quiz-answer-reveal-my-answer {
+  margin: 0 0 6px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--color-text);
+  opacity: 0.8;
+  overflow-wrap: break-word;
+  max-width: 100%;
+}
+
+.lyrics-quiz-answer-reveal-my-answer[hidden] {
+  display: none;
 }
 
 .lyrics-quiz-answer-reveal .primary-button {
@@ -13326,25 +13354,108 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   font-variant-numeric: tabular-nums;
 }
 
-.lyrics-battle-result-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.82rem;
+/* 【2026-09-06新設・本人指示：実機フィードバック第3弾②】以前のtable形式
+   （.lyrics-battle-result-table、順位／表示名／獲得ポイント／使用ヒント数／回答時間／
+   ミス回数／わからない回数の7列）は、スマホ幅では列が窮屈に折り返され読みにくかった
+   ため、「1人1枚のカード」形式に置き換えた（js/lyricsQuizBattleUi.jsの
+   renderResultCards()参照）。既存の対戦中HUD（.lyrics-battle-hud）・結果画面の
+   ガラス風カード（.time-attack-result-stat）と同じ質感に揃えている。 */
+.lyrics-battle-result-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  list-style: none;
+  margin: 0 0 4px;
+  padding: 0;
 }
 
-.lyrics-battle-result-table th,
-.lyrics-battle-result-table td {
-  padding: 8px 6px;
-  border-bottom: 1px solid var(--color-card-border);
-  text-align: left;
+.lyrics-battle-result-card {
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: var(--color-surface-glass);
+  border: 1px solid var(--color-card-border);
+  box-shadow: var(--shadow-card);
 }
 
-.lyrics-battle-result-table tr.is-you {
-  background: rgba(255, 105, 180, 0.12);
+.lyrics-battle-result-card.is-you {
+  border-color: rgba(255, 105, 180, 0.55);
+  background: linear-gradient(165deg, rgba(255, 105, 180, 0.12), var(--color-surface-glass) 70%);
 }
 
-.lyrics-battle-result-table tr.is-dnf {
-  opacity: 0.5;
+/* 上位3位は、派手になりすぎない範囲で少しだけ縁取りを強調する（本人指示：
+   「派手すぎない、アプリらしい装飾」）。 */
+.lyrics-battle-result-card.is-medal-rank {
+  border-color: rgba(255, 189, 89, 0.6);
+  box-shadow: 0 8px 20px -10px rgba(255, 165, 60, 0.45);
+}
+
+.lyrics-battle-result-card.is-dnf {
+  opacity: 0.6;
+}
+
+.lyrics-battle-result-card-rank {
+  margin: 0 0 4px;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--color-text);
+  opacity: 0.8;
+}
+
+.lyrics-battle-result-card.is-medal-rank .lyrics-battle-result-card-rank {
+  font-size: 1.05rem;
+  opacity: 1;
+}
+
+.lyrics-battle-result-card-name-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin-bottom: 6px;
+}
+
+.lyrics-battle-result-card-name {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-text);
+  overflow-wrap: break-word;
+}
+
+.lyrics-battle-result-card-primary-stat {
+  margin: 0 0 10px;
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  font-variant-numeric: tabular-nums;
+}
+
+.lyrics-battle-result-card-dnf-note {
+  margin: 0;
+  font-size: 0.8rem;
+  opacity: 0.75;
+}
+
+.lyrics-battle-result-card-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px 10px;
+  margin: 0;
+}
+
+.lyrics-battle-result-card-stat dt {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--color-text);
+  opacity: 0.6;
+  letter-spacing: 0.02em;
+}
+
+.lyrics-battle-result-card-stat dd {
+  margin: 2px 0 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
 }
 
 .lyrics-battle-oshi-dot {
@@ -13615,6 +13726,16 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   max-height: 42vh;
   overflow-y: auto;
   padding-right: 2px;
+}
+
+/* 【2026-09-06新設・本人指示：実機フィードバック第3弾①】答え合わせが確定した瞬間、
+   選択肢一覧（グリッド／スクロール一覧）のレイアウトを解除し、中の答え合わせカードが
+   本来のカード幅・カード高さでそのまま表示されるようにする。 */
+.online-lyrics-battle-answer-grid.is-showing-reveal {
+  display: block;
+  max-height: none;
+  overflow: visible;
+  margin-bottom: 20px;
 }
 
 .online-lyrics-battle-answer-list .online-lyrics-battle-answer-button,

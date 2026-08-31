@@ -3577,13 +3577,26 @@
             <button id="online-instant-coop-battle-unknown-button" class="secondary-button" type="button">🤷 わからない・ギブアップ</button>
           </div>
 
+          <!-- 【2026-09-06新設・本人指示：3分無操作の放置救済（一瞬協力にも適用）】
+               歌詞クイズ対戦と全く同じforcedSkips/questionActivityの仕組みを再利用する
+               （js/onlineInstantCoopBattleScreen.js参照）。ホストにだけ見える。 -->
+          <div id="online-instant-coop-battle-idle-notice" class="online-lyrics-battle-idle-notice" hidden></div>
+
           <p id="online-instant-coop-battle-waiting-notice" class="online-battle-lead-text" hidden></p>
 
-          <div id="online-instant-coop-battle-reveal-section" hidden>
-            <p id="online-instant-coop-battle-reveal-outcome-badge" class="online-battle-outcome-badge"></p>
-            <p id="online-instant-coop-battle-reveal-correct-song"></p>
-            <p id="online-instant-coop-battle-reveal-team-answer"></p>
-            <p id="online-instant-coop-battle-reveal-tiebreak-notice" hidden>同数のため、ランダムでチームの回答を決めました</p>
+          <!-- 【2026-09-06新設・本人指示：実機フィードバック第3弾⑤】以前は正誤・正解曲名・
+               チームの回答をただの文字の羅列で表示していて未完成な印象だった、という指摘を受け、
+               歌詞クイズ対戦の答え合わせカード（.lyrics-quiz-answer-reveal）と同じCSSクラスを
+               再利用し、見た目・統一感を揃えた「1問ごとの結果発表カード」に作り替えた。
+               同票でタイブレークになった場合は専用バッジ（-tiebreak-badge）で「同票！」と
+               目立たせ、全員「わからない」だった特殊ケースは正解・不正解どちらでもない
+               ニュートラルな配色（is-neutral-answer-reveal-status、js側で付与）にする。 -->
+          <div id="online-instant-coop-battle-reveal-section" class="lyrics-quiz-answer-reveal" hidden>
+            <p id="online-instant-coop-battle-reveal-tiebreak-notice" class="online-instant-coop-tiebreak-badge" hidden>🎲 同票！ランダムで決定しました</p>
+            <p id="online-instant-coop-battle-reveal-outcome-badge" class="lyrics-quiz-answer-reveal-status"></p>
+            <p class="lyrics-quiz-answer-reveal-caption">正解は</p>
+            <p id="online-instant-coop-battle-reveal-correct-song" class="lyrics-quiz-answer-reveal-title"></p>
+            <p id="online-instant-coop-battle-reveal-team-answer" class="lyrics-quiz-answer-reveal-my-answer"></p>
           </div>
         </div>
       </div>
@@ -3674,6 +3687,9 @@
           <p id="online-lyrics-battle-answer-reveal-status" class="lyrics-quiz-answer-reveal-status">正解</p>
           <p class="lyrics-quiz-answer-reveal-caption">正解は</p>
           <p id="online-lyrics-battle-answer-reveal-title" class="lyrics-quiz-answer-reveal-title">－</p>
+          <!-- 【2026-09-06新設、本人指示：実機フィードバック第3弾①】正解数バトル・ポイント
+               バトルで、自分が実際に選んだ曲名を表示する（早押しバトルでは使わない）。 -->
+          <p id="online-lyrics-battle-answer-reveal-my-answer" class="lyrics-quiz-answer-reveal-my-answer" hidden></p>
           <p id="online-lyrics-battle-answer-reveal-meta" class="lyrics-quiz-answer-reveal-meta"></p>
         </div>
 

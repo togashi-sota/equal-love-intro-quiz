@@ -14,7 +14,7 @@ import {
   renderAnswerPoolSizeOptions,
   renderSettingsForm,
   renderHud,
-  renderResultTable,
+  renderResultCards,
   renderLyricsReadinessStatus,
   renderOwnMissingLyricsTitles,
 } from "../js/lyricsQuizBattleUi.js";
@@ -126,7 +126,7 @@ function renderBattleScreen() {
 function renderResultScreen() {
   const rankedEntries = buildRankedEntries(state.ruleId);
   const table = describeResultTable(state.ruleId, rankedEntries);
-  renderResultTable(document.getElementById("result-table"), table);
+  renderResultCards(document.getElementById("result-table"), table);
 }
 
 function renderAllScreens() {
