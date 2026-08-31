@@ -26,6 +26,11 @@ import { getMemberById } from "./memberUtils.js";
 let elements = null;
 let members = null;
 let latestBackups = [];
+// 「フレンド一覧非公開」件数の再計算・件数テキストの再構築に使う、直近のPublicProfiles
+// UID集合と復旧依頼件数。削除操作の後、サーバーへ再取得しに行かなくても件数表示だけを
+// その場で更新できるようにするため（2026-09-05新設、下のrefreshStatusText()参照）。
+let latestPublicUidSet = new Set();
+let latestPendingRequestsCount = 0;
 // 【2026-09-05新設】バックアップ一覧で「選択して、まとめて削除」するための選択状態。
 // backupIdの集合。一覧の再描画（検索・フィルタ切り替え）をまたいでも選択状態を保つため、
 // buildBackupRow()の外側（モジュールスコープ）に置く。バックアップ本体の再取得
@@ -35,6 +40,21 @@ let selectedBackupIds = new Set();
 function formatTimestamp(ms) {
   if (typeof ms !== "number") return "不明";
   return new Date(ms).toLocaleString("ja-JP");
+}
+
+// 【2026-09-05新設】件数表示（「バックアップN件（うちフレンド一覧非公開：M人）／
+// 対応待ちの復旧依頼K件」）を、latestBackups・latestPublicUidSet・
+// latestPendingRequestsCountの今の値から再構築する。削除操作の直後は、Firebaseへの
+// 再取得（renderAdminBackupScreen()の丸ごとのやり直し）をせず、この関数だけを呼ぶことで
+// 件数表示を更新する（本人指示：削除するたびに画面が一番上へ戻ってスクロールし直すのが
+// 面倒、への対応。丸ごとのやり直しは、通信待ちの間に一覧が一瞬空になり、その間に
+// ブラウザが自動でスクロール位置を詰めてしまうことが原因だったため、それ自体を避ける）。
+function refreshStatusText() {
+  const nonPublicBackedUpCount = latestBackups.filter(
+    (b) => b.currentUid && !latestPublicUidSet.has(b.currentUid)
+  ).length;
+  elements.statusText.textContent =
+    `バックアップ${latestBackups.length}件（うちフレンド一覧非公開：${nonPublicBackedUpCount}人）／対応待ちの復旧依頼${latestPendingRequestsCount}件`;
 }
 
 function shortId(id) {
@@ -108,7 +128,17 @@ function buildBackupRow(backup) {
     deleteResultText.textContent = "削除しています…";
     const result = await adminDeleteBackup(backup.backupId);
     if (result.ok) {
-      await renderAdminBackupScreen();
+      // 【2026-09-05改訂、本人指示：削除後に画面が一番上へ戻ってしまうのを直してほしい】
+      // renderAdminBackupScreen()（Firebaseへの再取得を伴う丸ごとの再描画）を呼ぶと、
+      // 通信待ちの間に一覧が一瞬空になり、その間にブラウザがスクロール位置を自動的に
+      // 詰めてしまう。ここでは再取得せず、消えた1件だけをその場でDOMから取り除き、
+      // 件数表示だけをrefreshStatusText()で更新することで、画面の見た目・スクロール
+      // 位置を保ったままにする。
+      latestBackups = latestBackups.filter((b) => b.backupId !== backup.backupId);
+      selectedBackupIds.delete(backup.backupId);
+      row.remove();
+      refreshStatusText();
+      updateSelectionUi();
     } else {
       deleteButton.disabled = false;
       deleteResultText.textContent = result.reason ?? "削除に失敗しました";
@@ -372,11 +402,10 @@ export async function renderAdminBackupScreen() {
   // 人数。取得に失敗した場合（publicUidsResult.ok === false）は0人として扱い、既存の表示を壊さない
   // （本人指示：「非公開の人が何人いるか知りたい」への対応。一度もバックアップされたことが無い
   // 非公開の人までは、Firebase上に痕跡が無いため数えられない＝この数字に含まれない）。
-  const publicUidSet = new Set(publicUidsResult.ok ? publicUidsResult.uids : []);
-  const nonPublicBackedUpCount = latestBackups.filter((b) => b.currentUid && !publicUidSet.has(b.currentUid)).length;
-
-  elements.statusText.textContent =
-    `バックアップ${latestBackups.length}件（うちフレンド一覧非公開：${nonPublicBackedUpCount}人）／対応待ちの復旧依頼${pendingRequests.length}件`;
+  // 削除操作の後にrefreshStatusText()だけで件数を再計算できるよう、モジュール変数に控えておく。
+  latestPublicUidSet = new Set(publicUidsResult.ok ? publicUidsResult.uids : []);
+  latestPendingRequestsCount = pendingRequests.length;
+  refreshStatusText();
 
   if (pendingRequests.length === 0 && resolvedRequests.length === 0) {
     const empty = document.createElement("p");
@@ -501,11 +530,13 @@ async function handleBulkDeleteAction() {
 
   let successCount = 0;
   const failedNames = [];
+  const deletedBackupIds = new Set();
   for (const backup of targets) {
     const result = await adminDeleteBackup(backup.backupId);
     if (result.ok) {
       successCount += 1;
       selectedBackupIds.delete(backup.backupId);
+      deletedBackupIds.add(backup.backupId);
     } else {
       failedNames.push(backup.displayName ?? "（名前未設定）");
     }
@@ -521,7 +552,14 @@ async function handleBulkDeleteAction() {
         : `${successCount}件削除しました（${failedNames.length}件は失敗：${failedNames.join("、")}）`;
   }
   elements.bulkDeleteButton.disabled = false;
-  await renderAdminBackupScreen();
+
+  // 【2026-09-05改訂、本人指示：削除後に画面が一番上へ戻ってしまうのを直してほしい】
+  // renderAdminBackupScreen()の丸ごとの再取得はせず、削除できた分だけをlatestBackupsから
+  // ローカルで取り除いて一覧・件数表示を再構築する（理由はbuildBackupRow内の
+  // deleteButtonハンドラーのコメントと同じ）。
+  latestBackups = latestBackups.filter((b) => !deletedBackupIds.has(b.backupId));
+  refreshStatusText();
+  renderFilteredBackupsList();
 }
 
 // 【2026-09-04新設、本人指示：予防対応】「バックアップが1件も無い＝いくみさんと同じ
