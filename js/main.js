@@ -1038,6 +1038,10 @@ const onlineInstantBattleAnswerSearchRowElement = document.getElementById("onlin
 const onlineInstantBattleAnswerSearchInputElement = document.getElementById("online-instant-battle-answer-search-input");
 const onlineInstantBattleAnswerCountElement = document.getElementById("online-instant-battle-answer-count");
 const onlineInstantBattleAnswerListElement = document.getElementById("online-instant-battle-answer-list");
+const onlineInstantBattleAnswerRevealElement = document.getElementById("online-instant-battle-answer-reveal");
+const onlineInstantBattleAnswerRevealStatusElement = document.getElementById("online-instant-battle-answer-reveal-status");
+const onlineInstantBattleAnswerRevealTitleElement = document.getElementById("online-instant-battle-answer-reveal-title");
+const onlineInstantBattleAnswerRevealMyAnswerElement = document.getElementById("online-instant-battle-answer-reveal-my-answer");
 const onlineInstantBattleNextButtonElement = document.getElementById("online-instant-battle-next-button");
 const onlineInstantBattleQuitConfirmModalElement = document.getElementById("online-instant-battle-quit-confirm-modal");
 const onlineInstantBattleQuitCancelButtonElement = document.getElementById("online-instant-battle-quit-cancel-button");
@@ -1357,6 +1361,10 @@ const instantChallengeAnswerSearchRowElement = document.getElementById("instant-
 const instantChallengeAnswerSearchInputElement = document.getElementById("instant-challenge-answer-search-input");
 const instantChallengeAnswerCountElement = document.getElementById("instant-challenge-answer-count");
 const instantChallengeAnswerListElement = document.getElementById("instant-challenge-answer-list");
+const instantChallengeAnswerRevealElement = document.getElementById("instant-challenge-answer-reveal");
+const instantChallengeAnswerRevealStatusElement = document.getElementById("instant-challenge-answer-reveal-status");
+const instantChallengeAnswerRevealTitleElement = document.getElementById("instant-challenge-answer-reveal-title");
+const instantChallengeAnswerRevealMyAnswerElement = document.getElementById("instant-challenge-answer-reveal-my-answer");
 const instantChallengeCountdownElement = document.getElementById("instant-challenge-countdown");
 const instantChallengeCountdownNumberElement = document.getElementById("instant-challenge-countdown-number");
 // 【2026-09-06新設・本人指摘：実機フィードバック】音源再生失敗を画面にも表示する。
@@ -3884,6 +3892,10 @@ initInstantChallengeQuestionScreen({
   answerSearchInput: instantChallengeAnswerSearchInputElement,
   answerCount: instantChallengeAnswerCountElement,
   answerList: instantChallengeAnswerListElement,
+  answerReveal: instantChallengeAnswerRevealElement,
+  answerRevealStatus: instantChallengeAnswerRevealStatusElement,
+  answerRevealTitle: instantChallengeAnswerRevealTitleElement,
+  answerRevealMyAnswer: instantChallengeAnswerRevealMyAnswerElement,
   countdown: instantChallengeCountdownElement,
   countdownNumber: instantChallengeCountdownNumberElement,
   audioError: instantChallengeAudioErrorElement,
@@ -5492,6 +5504,10 @@ initOnlineInstantBattleScreens({
   answerSearchInput: onlineInstantBattleAnswerSearchInputElement,
   answerCount: onlineInstantBattleAnswerCountElement,
   answerList: onlineInstantBattleAnswerListElement,
+  answerReveal: onlineInstantBattleAnswerRevealElement,
+  answerRevealStatus: onlineInstantBattleAnswerRevealStatusElement,
+  answerRevealTitle: onlineInstantBattleAnswerRevealTitleElement,
+  answerRevealMyAnswer: onlineInstantBattleAnswerRevealMyAnswerElement,
   nextButton: onlineInstantBattleNextButtonElement,
   onQuitDuringBattle: () => quitOnlineBattleDuringQuiz(),
   onFinishMatch: (result, answeredCount) => finishOnlineBattleMatch(result, answeredCount),

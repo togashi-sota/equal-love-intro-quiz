@@ -147,7 +147,9 @@ let unsubscribeRoom = null;
 // Step2：対戦設定・準備完了・カウントダウンまわりの状態。
 let lastHandledRoomStatus = null; // status変化での自動遷移を、状態が変わった瞬間だけに絞る
 let suppressNextReadyChangeNotice = false; // 自分でREADYボタンを押した直後だけ、変更通知を出さない
-let lastKnownMyReady = null;
+// 【2026-09-07改訂】以前はlastKnownMyReady（READYの前回値）を見ていたが、READYが設定変更で
+// 解除されなくなったため、settingsRevision自体の変化を直接追跡する方式に変更した。
+let lastKnownSettingsRevision = null;
 let countdownTimerId = null; // カウントダウン表示の更新タイマー（setInterval）
 let countdownOffsetUnsubscribe = null; // .info/serverTimeOffsetの購読解除
 let hasFinishedCountdownLocally = false; // 自分の端末のカウントダウンが0になったことを表す
@@ -648,9 +650,10 @@ function updateReadyButton(ready) {
 function updateStartButton(room) {
   const isWaiting = room.status === ROOM_STATUS.WAITING;
   const players = room.players || {};
-  const currentRevision = room.settingsRevision ?? 0;
   const nonHostPlayers = Object.entries(players).filter(([uid]) => uid !== room.host);
-  const isPlayerReady = (player) => player.ready && player.readyForRevision === currentRevision;
+  // 【2026-09-07改訂・本人指示：READY状態をルール変更で解除しない】js/onlineBattle.jsの
+  // startBattle()と同じ理由でrevision一致条件を外した（詳しいコメントはそちら参照）。
+  const isPlayerReady = (player) => !!player.ready;
   // 【2026-09-03改訂、本人指示：大型改修】以前は非ホストが1人もいなければ「参加者が来るのを
   // 待っています」で開始不可にしていたが、1人ルーム（友達が来るまで1人で遊ぶ）の正式対応に
   // 伴い、非ホストが0人の場合は待つ相手がいないため開始できるようにした
@@ -983,10 +986,12 @@ function renderLobby(room) {
       badges.appendChild(hostBadge);
     }
     if (!isPlayerHost) {
-      const isReadyForCurrentSettings = player.ready && player.readyForRevision === (room.settingsRevision ?? 0);
+      // 【2026-09-07改訂・本人指示：READY状態をルール変更で解除しない】revision一致条件を
+      // 外した（js/onlineBattle.jsのstartBattle()と同じ理由）。
+      const isPlayerReady = !!player.ready;
       const readyBadge = document.createElement("span");
-      readyBadge.className = `online-lobby-badge ${isReadyForCurrentSettings ? "online-lobby-badge-connected" : "online-lobby-badge-disconnected"}`;
-      readyBadge.textContent = isReadyForCurrentSettings ? "準備完了" : "未準備";
+      readyBadge.className = `online-lobby-badge ${isPlayerReady ? "online-lobby-badge-connected" : "online-lobby-badge-disconnected"}`;
+      readyBadge.textContent = isPlayerReady ? "準備完了" : "未準備";
       badges.appendChild(readyBadge);
     }
     const connectionBadge = document.createElement("span");
@@ -1087,21 +1092,30 @@ function renderLobby(room) {
     }
 
     const myPlayer = players[myUid];
-    const myReady = Boolean(myPlayer?.ready && myPlayer?.readyForRevision === (room.settingsRevision ?? 0));
+    // 【2026-09-07改訂・本人指示：READY状態をルール変更で解除しない】revision一致条件を
+    // 外した（js/onlineBattle.jsのstartBattle()と同じ理由）。
+    const myReady = Boolean(myPlayer?.ready);
     updateReadyButton(myReady);
 
+    // 【2026-09-07改訂】以前はREADYがtrue→falseへ変わった瞬間（＝設定変更でリセットされた
+    // 瞬間）を「設定が変更されました」通知のトリガーにしていたが、READYを設定変更で
+    // 解除しなくなったため、この変化はもう起きない。代わりにsettingsRevision自体の変化を
+    // 直接見る（READY状態とは無関係に、設定が変わったこと自体を知らせる通知のため）。
+    const currentSettingsRevision = room.settingsRevision ?? 0;
     if (isReturnedToLobby) {
       // ルーム設定への復帰によるREADYリセットは、設定自体は変わっていないため
       // 「設定が変更されました」通知は出さず、代わりに専用の案内を出す。
       elements.lobbySettingsChangedNotice.hidden = true;
       elements.lobbyRematchNotice.hidden = false;
-    } else if (lastKnownMyReady === true && myReady === false && !suppressNextReadyChangeNotice) {
-      // READYがtrue→falseに変わった瞬間（＝ホストが設定を変更してリセットされた瞬間）だけ、
-      // 「設定が変更されました」通知を出す。自分でREADYボタンを押して解除した直後は出さない。
+    } else if (
+      lastKnownSettingsRevision !== null &&
+      currentSettingsRevision !== lastKnownSettingsRevision &&
+      !suppressNextReadyChangeNotice
+    ) {
       elements.lobbySettingsChangedNotice.hidden = false;
     }
     suppressNextReadyChangeNotice = false;
-    lastKnownMyReady = myReady;
+    lastKnownSettingsRevision = currentSettingsRevision;
   }
 
   // 【2026-08-27新設】共同選曲：ホスト・参加者を問わず同じ表示を行い、ホストの端末だけが
@@ -1161,7 +1175,7 @@ function goToLobby(roomId) {
   currentLyricsQuizSettings = null;
   lastHandledRoomStatus = null;
   suppressNextReadyChangeNotice = false;
-  lastKnownMyReady = null;
+  lastKnownSettingsRevision = null;
   hostDisconnectedSinceMs = null;
   lastObservedHostUid = null;
   isLeavingIntentionally = false;

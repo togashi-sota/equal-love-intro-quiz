@@ -77,7 +77,9 @@ import { MEMBERS } from "./data/members.js";
 import { savePlayHistoryEntryIfNew } from "./playHistory.js";
 
 // ホストが結果を見せてから、次の問題／最終結果へ進むまでの待ち時間。
-const REVEAL_DELAY_MS = 3000;
+// 【2026-09-07改訂・本人指示：答え合わせ表示を4秒へ統一】js/onlineLyricsQuizBattleScreen.jsと
+// 同じ理由（同票表示等、読む情報が増えたため）。
+const REVEAL_DELAY_MS = 4000;
 // ホストの進行判定を更新する間隔（js/onlineLyricsQuizBattleScreen.jsと同じ値・同じ理由）。
 const HOST_TICK_INTERVAL_MS = 400;
 
@@ -695,6 +697,14 @@ function renderCurrentQuestionState() {
     lastPlayedRoundNumber = roundNumber;
     elements.error.hidden = true;
     playQuestionAudio(question, qIndex);
+    // 【2026-09-07新設・本人指示：検索状態を毎問題完全リセット】以前はここで検索文字列を
+    // リセットしておらず、elements.answerSearchInput.valueをそのままrenderAnswerButtons()へ
+    // 渡していたため、前の問題で入力した検索語が次の問題にも残ってしまっていた
+    // （js/onlineLyricsQuizBattleScreen.jsは既に対応済みだったが、この一瞬協力だけ
+    // 未対応だった）。検索欄・選択肢一覧のスクロール位置の両方を、新しい問題ごとに
+    // 先頭状態へ戻す。
+    if (elements.answerSearchInput) elements.answerSearchInput.value = "";
+    if (elements.answerList) elements.answerList.scrollTop = 0;
   }
 
   const isResolved = match.questionStatus === QUESTION_STATUS.RESOLVED;

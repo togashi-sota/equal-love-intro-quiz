@@ -52,6 +52,10 @@ let replayCounts = [];
 let hasAnsweredCurrentQuestion = false;
 let matchStartedAtMs = 0;
 let isCountdownActive = false; // 【2026-09-05新設】カウントダウン中の連打・二重再生を防ぐ
+// 【2026-09-07新設・本人指示：カウントダウン速度の統一】js/instantChallengeScreen.jsの
+// isFirstQuestionOfRunと全く同じ理由・同じ仕組み（画面遷移アニメーションとの競合を避ける）。
+let isFirstQuestionOfMatch = true;
+const SCREEN_ENTER_ANIMATION_MS = 480;
 
 // elements: {
 //   progress, quitButton, quitConfirmModal, quitCancelButton, quitConfirmButton,
@@ -115,6 +119,7 @@ export function resetOnlineInstantBattleState() {
   replayCounts = [];
   hasAnsweredCurrentQuestion = false;
   matchStartedAtMs = 0;
+  isFirstQuestionOfMatch = true;
 }
 
 // js/onlineBattleScreen.jsのenterOnlineBattlePlay()から、gameMode==="instantBattle"のときに
@@ -130,6 +135,7 @@ export function enterOnlineInstantBattlePlay(room) {
   replayCounts = new Array(questions.length).fill(0);
   hasAnsweredCurrentQuestion = false;
   matchStartedAtMs = Date.now();
+  isFirstQuestionOfMatch = true;
 
   elements.error.hidden = true;
   // 【2026-09-05新設、本人指示】このモードは各自が独立して進行するため、対戦中は
@@ -194,19 +200,32 @@ function playCurrentQuestionAudio() {
 // 【2026-09-05新設】音源再生の直前に3→2→1を表示してから再生する。初回出題・再視聴の
 // どちらもこれ経由で呼ぶ（本人指示：一瞬バトルは両方にカウントダウンを付ける）。
 function playCurrentQuestionAudioWithCountdown() {
-  isCountdownActive = true;
-  runLocalReplayCountdown(
-    { containerElement: elements.countdown, numberElement: elements.countdownNumber },
-    () => {
-      isCountdownActive = false;
-      playCurrentQuestionAudio();
-    }
-  );
+  const startCountdown = () => {
+    isCountdownActive = true;
+    runLocalReplayCountdown(
+      { containerElement: elements.countdown, numberElement: elements.countdownNumber },
+      () => {
+        isCountdownActive = false;
+        playCurrentQuestionAudio();
+      }
+    );
+  };
+
+  // 【2026-09-07新設・本人指示：カウントダウン速度の統一】js/instantChallengeScreen.jsと
+  // 同じ理由（この対戦の最初の問題だけ画面遷移アニメーションと重ならないよう少し待つ）。
+  if (isFirstQuestionOfMatch) {
+    isFirstQuestionOfMatch = false;
+    setTimeout(startCountdown, SCREEN_ENTER_ANIMATION_MS);
+  } else {
+    startCountdown();
+  }
 }
 
 function renderCurrentQuestion() {
   hasAnsweredCurrentQuestion = false;
   elements.progress.textContent = `第${currentIndex + 1}問 / ${questions.length}問`;
+  if (elements.answerReveal) elements.answerReveal.hidden = true;
+  clearTimeout(nextButtonEnableTimerId);
   renderAnswerArea(questions[currentIndex]);
 
   elements.replayButton.hidden = false;
@@ -225,6 +244,10 @@ function renderAnswerArea(question) {
     elements.answerCount.textContent = `${pool.length}曲`;
   }
   renderAnswerButtons(pool, "");
+  // 【2026-09-07新設・本人指示：検索状態を毎問題完全リセット】選択肢一覧のスクロール位置も
+  // 新しい問題ごとに先頭へ戻す。
+  elements.answerList.scrollTop = 0;
+  elements.answerList.hidden = false;
 }
 
 function renderAnswerButtons(pool, searchQuery) {
@@ -253,12 +276,13 @@ function renderAnswerButtons(pool, searchQuery) {
   });
 }
 
-function disableAllAnswerButtons() {
-  elements.answerList.querySelectorAll(".lyrics-quiz-answer-button").forEach((button) => {
-    button.disabled = true;
-  });
-}
+// 答え合わせカードを最低4秒読んでから「次の問題へ」を押せるようにするための猶予
+// （js/instantChallengeScreen.jsと同じ理由・同じ値）。
+const NEXT_BUTTON_ENABLE_DELAY_MS = 4000;
+let nextButtonEnableTimerId = null;
 
+// 【2026-09-07改訂・本人指示：答え合わせUIの統一】色（is-correct/is-wrong）だけに頼らず、
+// 選択肢一覧そのものを答え合わせカードへ切り替える（js/instantChallengeScreen.jsと同じ設計）。
 function handleAnswerSelected(selectedSongId, buttonElement) {
   if (hasAnsweredCurrentQuestion) return;
   hasAnsweredCurrentQuestion = true;
@@ -267,20 +291,37 @@ function handleAnswerSelected(selectedSongId, buttonElement) {
   const isCorrect = selectedSongId === question.song.id;
   answers.push({ songId: question.song.id, isCorrect, replayCount: replayCounts[currentIndex] });
 
-  buttonElement.classList.add(isCorrect ? "is-correct" : "is-wrong");
-  if (!isCorrect) {
-    const correctButton = elements.answerList.querySelector(`.lyrics-quiz-answer-button[data-song-id="${question.song.id}"]`);
-    if (correctButton) correctButton.classList.add("is-correct");
-  }
+  renderAnswerReveal({ isCorrect, correctTitle: question.song.title, mySelectedSongId: selectedSongId, pool: question.answerPool });
 
-  disableAllAnswerButtons();
   elements.replayButton.disabled = true; // 正解が確定した後の聞き直しは不要
   elements.nextButton.hidden = false;
+  elements.nextButton.disabled = true;
   elements.nextButton.textContent = currentIndex + 1 >= questions.length ? "結果を送信する" : "次の問題へ";
+  clearTimeout(nextButtonEnableTimerId);
+  nextButtonEnableTimerId = setTimeout(() => {
+    elements.nextButton.disabled = false;
+  }, NEXT_BUTTON_ENABLE_DELAY_MS);
 
   // 他プレイヤーの待機画面に進捗を反映する（fire-and-forget。js/onlineBattle.jsの
   // submitAnswerProgress参照：内部で全て握りつぶし、rejectしない）。
   elements.onReportProgress(answers.length);
+}
+
+function renderAnswerReveal({ isCorrect, correctTitle, mySelectedSongId, pool }) {
+  elements.answerList.hidden = true;
+  if (elements.answerSearchRow) elements.answerSearchRow.hidden = true;
+  if (!elements.answerReveal) return;
+
+  elements.answerReveal.hidden = false;
+  elements.answerRevealStatus.textContent = isCorrect ? "🎉 正解！" : "残念、不正解";
+  elements.answerRevealStatus.classList.toggle("is-correct-answer-reveal-status", isCorrect);
+  elements.answerRevealTitle.textContent = correctTitle;
+
+  const mySong = pool.find((song) => song.id === mySelectedSongId);
+  if (elements.answerRevealMyAnswer) {
+    elements.answerRevealMyAnswer.hidden = !mySong;
+    elements.answerRevealMyAnswer.textContent = mySong ? `あなたの回答：${mySong.title}` : "";
+  }
 }
 
 function advanceToNextQuestionOrFinish() {

@@ -609,17 +609,20 @@ export async function updateRoomSettings({ roomId, settings }) {
   const errorMessage = validateRoomSettings(room.gameMode, settings);
   if (errorMessage) return { ok: false, reason: "invalid-settings", message: errorMessage };
 
+  // 【2026-09-07改訂・本人指示：READY状態をルール変更で解除しない】以前はここで非ホスト
+  // 全員のready/readyForRevisionを強制的に解除していたが、「ルールを少し変えるたびに
+  // 毎回READYを押し直すのが面倒」という指示により撤廃した。READY＝「本人が参加する意思を
+  // 示した」という表明として扱い、本人が自分で解除しない限り、ホストの設定変更では
+  // 消えないようにする。「その設定で実際に開始できるか」（音源・歌詞等のデータが足りるか）は
+  // READYとは別の話として、startBattle()側の絞り込み・検証（共通曲0件なら開始不可）が
+  // 既に安全側に守っている（このコメントの少し下のresolveSongPoolForSettings関連の
+  // 処理を参照。設定変更でREADYを解除しなくなっても、データが足りない状態のまま
+  // 対戦が始まってしまうことは無い）。
   const nextRevision = (room.settingsRevision ?? 0) + 1;
-  const players = room.players || {};
   const updates = {
     [`rooms/${roomId}/settings`]: settings,
     [`rooms/${roomId}/settingsRevision`]: nextRevision,
   };
-  Object.keys(players).forEach((playerUid) => {
-    if (playerUid !== uid) {
-      updates[`rooms/${roomId}/players/${playerUid}/ready`] = false;
-    }
-  });
 
   await update(ref(database), updates);
   return { ok: true, settingsRevision: nextRevision };
@@ -652,18 +655,14 @@ export async function updateRoomGameMode({ roomId, gameMode }) {
   const settings = createDefaultSettings(gameMode);
   if (!settings) return { ok: false, reason: "unsupported-mode" };
 
+  // 【2026-09-07改訂・本人指示：READY状態をルール変更で解除しない】updateRoomSettings()と
+  // 同じ理由でREADYの強制解除をやめた（詳しいコメントはそちら参照）。
   const nextRevision = (room.settingsRevision ?? 0) + 1;
-  const players = room.players || {};
   const updates = {
     [`rooms/${roomId}/gameMode`]: gameMode,
     [`rooms/${roomId}/settings`]: settings,
     [`rooms/${roomId}/settingsRevision`]: nextRevision,
   };
-  Object.keys(players).forEach((playerUid) => {
-    if (playerUid !== uid) {
-      updates[`rooms/${roomId}/players/${playerUid}/ready`] = false;
-    }
-  });
 
   try {
     await update(ref(database), updates);
@@ -849,12 +848,14 @@ export async function startBattle({ roomId, settings }) {
   // 開始できなかった。1人からの正式対応（MIN_PLAYERS = 1）に伴い、非ホストが0人の場合は
   // 「誰も待つ相手がいない」ので条件を満たしたものとして扱う（非ホストが1人以上いる場合は、
   // 従来どおり全員のREADYを必須とする）。
+  // 【2026-09-07改訂・本人指示：READY状態をルール変更で解除しない】以前はplayer.readyに
+  // 加えてreadyForRevision===currentRevisionも必須にしており、設定変更のたびに
+  // readyが実質的に無効化されていた（updateRoomSettings()側の強制解除と二重の仕組みに
+  // なっていた）。READYを本人が明示的に解除しない限り維持する方針にしたため、
+  // revision一致は もう条件にしない（player.readyだけを見る）。
   const players = room.players || {};
   const nonHostEntries = Object.entries(players).filter(([playerUid]) => playerUid !== uid);
-  const currentRevision = room.settingsRevision ?? 0;
-  const allReady =
-    nonHostEntries.length === 0 ||
-    nonHostEntries.every(([, player]) => player.ready && player.readyForRevision === currentRevision);
+  const allReady = nonHostEntries.length === 0 || nonHostEntries.every(([, player]) => player.ready);
   if (!allReady) {
     return { ok: false, reason: "not-all-ready" };
   }

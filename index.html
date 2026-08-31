@@ -2694,10 +2694,22 @@
               <span id="instant-challenge-answer-count" class="lyrics-quiz-answer-count">0曲</span>
             </div>
             <div id="instant-challenge-answer-list" class="lyrics-quiz-answer-list"></div>
+            <!-- 【2026-09-07新設・本人指示：答え合わせUIの統一】回答確定後、選択肢一覧を
+                 隠してこのカードへ切り替える（歌詞クイズ対戦の答え合わせカードと同じ設計・
+                 同じCSSクラス）。色（is-correct/is-wrong）だけに頼らず、文字でも正誤が
+                 一目で分かるようにする。 -->
+            <div id="instant-challenge-answer-reveal" class="lyrics-quiz-answer-reveal" hidden>
+              <p id="instant-challenge-answer-reveal-status" class="lyrics-quiz-answer-reveal-status">正解</p>
+              <p class="lyrics-quiz-answer-reveal-caption">正解は</p>
+              <p id="instant-challenge-answer-reveal-title" class="lyrics-quiz-answer-reveal-title">－</p>
+              <p id="instant-challenge-answer-reveal-my-answer" class="lyrics-quiz-answer-reveal-my-answer" hidden></p>
+            </div>
           </div>
 
           <!-- 【2026-08-30追加・本人指示⑧】回答直後は自動で次へ進まず、必ずこのボタンで
-               次の問題（最終問なら結果画面）へ進む。答えるまではhiddenのまま。 -->
+               次の問題（最終問なら結果画面）へ進む。答えるまではhiddenのまま。
+               【2026-09-07改訂】答え合わせカードを最低4秒読んでから押せるよう、
+               表示直後の一定時間はdisabledにする（js/instantChallengeScreen.js参照）。 -->
           <button id="instant-challenge-next-button" class="primary-button instant-challenge-next-button" type="button" hidden>
             次の問題へ
           </button>
@@ -3547,6 +3559,14 @@
               <span id="online-instant-battle-answer-count" class="lyrics-quiz-answer-count">0曲</span>
             </div>
             <div id="online-instant-battle-answer-list" class="lyrics-quiz-answer-list"></div>
+            <!-- 【2026-09-07新設・本人指示：答え合わせUIの統一】js/instantChallengeScreen.jsと
+                 同じ設計。回答確定後、選択肢一覧を隠してこのカードへ切り替える。 -->
+            <div id="online-instant-battle-answer-reveal" class="lyrics-quiz-answer-reveal" hidden>
+              <p id="online-instant-battle-answer-reveal-status" class="lyrics-quiz-answer-reveal-status">正解</p>
+              <p class="lyrics-quiz-answer-reveal-caption">正解は</p>
+              <p id="online-instant-battle-answer-reveal-title" class="lyrics-quiz-answer-reveal-title">－</p>
+              <p id="online-instant-battle-answer-reveal-my-answer" class="lyrics-quiz-answer-reveal-my-answer" hidden></p>
+            </div>
           </div>
 
           <button id="online-instant-battle-next-button" class="primary-button instant-challenge-next-button" type="button" hidden>

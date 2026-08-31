@@ -131,7 +131,9 @@ import { STEAL_CLAIM_OUTCOME } from "./lyricsQuizBattleFirebasePayloads.js";
 // ホストが問題の確定（正解発表）を見せてから、次の問題／最終結果へ進むまでの待ち時間。
 // 【2026-09-03改訂→2026-09-06再改訂、本人指示】一度「4秒固定」に変更していたが、
 // 歌詞クイズ3ルール全面改修時の指示「結果表示→約3秒→次の問題」を正として3000へ戻した。
-const REVEAL_DELAY_MS = 3000;
+// 【2026-09-07改訂・本人指示：答え合わせ表示を4秒へ統一】以前は3秒だったが、答え合わせカードに
+// 「あなたの回答」「獲得pt」等の読む情報が増えたため、対象モード共通で4秒へ揃えた。
+const REVEAL_DELAY_MS = 4000;
 // ヒント表示・ホストの進行判定を更新する間隔。カウントダウン画面のsetInterval(100ms)ほど
 // シビアな精度は不要なため、通信・電池消費とのバランスで少し長めにしている。
 const HOST_TICK_INTERVAL_MS = 400;
@@ -1372,6 +1374,11 @@ function renderCurrentQuestionState() {
     mySubmittedForQuestionIndex = -1;
     mySelectedSongId = null;
     hideAnswerSubmissionNotice();
+    // 【2026-09-07新設・本人指示：前問の答え合わせが一瞬見えるバグ対策】この下の
+    // isResolved再計算（elements.battleAnswerReveal.hidden = !isResolved）は、この関数の
+    // 後半でしか行われない。関数の実行が万一そこへ到達する前に中断される場合に備え、
+    // 新しい問題を検知した瞬間にも前問の答え合わせカードを同期的に隠しておく（保険）。
+    elements.battleAnswerReveal.hidden = true;
     // 【2026-08-31新設】新しい問題に移ったら、開いたヒント段階・検索状態をリセットする。
     myOpenedHintLevel = 1;
     myAnswerSearchQuery = "";

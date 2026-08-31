@@ -44,6 +44,12 @@ import { renderPlayerSummary } from "./playerScreen.js";
 import { runLocalReplayCountdown, cancelLocalReplayCountdown } from "./localReplayCountdown.js";
 import { promptAnswerConfirm } from "./answerConfirmPrompt.js";
 
+// 【2026-09-07新設・本人指示：カウントダウン速度の統一】css/style.cssの`.screen.is-active`が
+// 使う画面遷移アニメーション（screenEnter）の時間と同じ値。この問題セットの最初の
+// カウントダウンだけ、このアニメーションが終わるまで待ってから始める（詳しい理由は
+// isFirstQuestionOfRunの定義箇所のコメント参照）。
+const SCREEN_ENTER_ANIMATION_MS = 480;
+
 // 【2026-08-30改訂・本人指示】回答候補は4択／10択／全曲検索の3段階のみに変更
 // （30択・50択は一瞬チャレンジでは不要と判断し廃止。歌詞クイズ側のANSWER_POOL_SIZE_VALUES
 // 〈js/lyricsQuizEngine.js〉は変更しない＝歌詞クイズの30択・50択には影響しない）。
@@ -68,6 +74,12 @@ let replayCounts = []; // 問題ごとの「もう一度聞く」使用回数（
 let seed = 0;
 let hasAnsweredCurrentQuestion = false;
 let questionStartedAt = 0;
+// 【2026-09-07新設・本人指示：カウントダウン速度の統一】画面遷移直後（#screenEnterの
+// 480msアニメーション中）に1問目のカウントダウンを重ねて始めると、アニメーションと
+// 競合して1問目だけ遅く・カクついて見える（2問目以降は既にアクティブな画面内で
+// カウントダウンだけが動くため、この競合が起きない）。1問目の開始だけ、画面遷移の
+// アニメーションが終わるのを待ってからカウントダウンを始めることで体感速度を揃える。
+let isFirstQuestionOfRun = true;
 // 【2026-08-30追加・本人指示：苦手曲5系統完全分離／オリジナル問題作成モード一瞬対応】
 // 通常の（カテゴリー絞り込みからの）一瞬チャレンジ以外の入り口から開始した回かどうか。
 //   null                 : 通常の一瞬チャレンジ（#instant-challenge-setup-screen経由）
@@ -191,6 +203,7 @@ async function buildAndStartRun(settings, explicitSongIds = null) {
   currentIndex = 0;
   answers = [];
   replayCounts = new Array(questions.length).fill(0);
+  isFirstQuestionOfRun = true;
 
   elements.onStart();
   return true;
@@ -307,6 +320,8 @@ function renderCurrentQuestion() {
   hasAnsweredCurrentQuestion = false;
   questionStartedAt = Date.now();
   questionElements.progress.textContent = `第${currentIndex + 1}問 / ${questions.length}問`;
+  if (questionElements.answerReveal) questionElements.answerReveal.hidden = true;
+  clearTimeout(nextButtonEnableTimerId);
   renderAnswerArea(questions[currentIndex]);
 
   questionElements.replayButton.hidden = false;
@@ -316,13 +331,26 @@ function renderCurrentQuestion() {
   // 【2026-09-05新設、本人指示】初回出題の直前だけ3→2→1を表示する。聞き直し
   // （questionElements.replayButtonのクリック）は無制限で気軽に使えるままにしたいため、
   // そちらにはカウントダウンを挟まない（playCurrentQuestionAudio()を直接呼ぶ）。
-  if (questionElements.countdown && questionElements.countdownNumber) {
-    runLocalReplayCountdown(
-      { containerElement: questionElements.countdown, numberElement: questionElements.countdownNumber },
-      playCurrentQuestionAudio
-    );
+  const startCountdown = () => {
+    if (questionElements.countdown && questionElements.countdownNumber) {
+      runLocalReplayCountdown(
+        { containerElement: questionElements.countdown, numberElement: questionElements.countdownNumber },
+        playCurrentQuestionAudio
+      );
+    } else {
+      playCurrentQuestionAudio();
+    }
+  };
+
+  // 【2026-09-07新設・本人指示：カウントダウン速度の統一】この問題セットの最初の問題だけ、
+  // 画面遷移アニメーション（screenEnter、480ms）と重ならないよう少し待ってから始める
+  // （SCREEN_ENTER_ANIMATION_MSの定義箇所のコメント参照）。2問目以降は画面が既にアクティブで
+  // このアニメーションが起きないため、待たずにそのまま始める。
+  if (isFirstQuestionOfRun) {
+    isFirstQuestionOfRun = false;
+    setTimeout(startCountdown, SCREEN_ENTER_ANIMATION_MS);
   } else {
-    playCurrentQuestionAudio();
+    startCountdown();
   }
 }
 
@@ -335,6 +363,10 @@ function renderAnswerArea(question) {
     questionElements.answerCount.textContent = `${pool.length}曲`;
   }
   renderAnswerButtons(pool, "");
+  // 【2026-09-07新設・本人指示：検索状態を毎問題完全リセット】選択肢一覧のスクロール位置も
+  // 新しい問題ごとに先頭へ戻す。
+  questionElements.answerList.scrollTop = 0;
+  questionElements.answerList.hidden = false;
 }
 
 function renderAnswerButtons(pool, searchQuery) {
@@ -363,14 +395,16 @@ function renderAnswerButtons(pool, searchQuery) {
   });
 }
 
-function disableAllAnswerButtons() {
-  questionElements.answerList.querySelectorAll(".lyrics-quiz-answer-button").forEach((button) => {
-    button.disabled = true;
-  });
-}
+
+// 答え合わせカードを最低4秒読んでから「次の問題へ」を押せるようにするための猶予
+// （本人指示：答え合わせUIを対象モード共通で4秒表示に統一）。
+const NEXT_BUTTON_ENABLE_DELAY_MS = 4000;
+let nextButtonEnableTimerId = null;
 
 // 【2026-08-30改訂・本人指示⑧】回答直後に自動で次へ進むのをやめ、正解・不正解を
 // 表示したまま「次の問題へ」ボタンが押されるまで待つ（通常イントロクイズ型の進行）。
+// 【2026-09-07改訂・本人指示：答え合わせUIの統一】色（is-correct/is-wrong）だけに頼らず、
+// 選択肢一覧そのものを答え合わせカードへ切り替える（歌詞クイズ対戦と同じ設計）。
 function handleAnswerSelected(selectedSongId, buttonElement) {
   if (hasAnsweredCurrentQuestion) return;
   hasAnsweredCurrentQuestion = true;
@@ -382,19 +416,37 @@ function handleAnswerSelected(selectedSongId, buttonElement) {
     recordInstantChallengeWeakSongAttempt(question.song.id, isCorrect);
   }
 
-  buttonElement.classList.add(isCorrect ? "is-correct" : "is-wrong");
-  if (!isCorrect) {
-    const correctButton = questionElements.answerList.querySelector(
-      `.lyrics-quiz-answer-button[data-song-id="${question.song.id}"]`
-    );
-    if (correctButton) correctButton.classList.add("is-correct");
-  }
+  renderAnswerReveal({ isCorrect, correctTitle: question.song.title, mySelectedSongId: selectedSongId, pool: question.answerPool });
 
-  disableAllAnswerButtons();
   questionElements.replayButton.disabled = true; // 正解が確定した後の聞き直しは不要
   questionElements.nextButton.hidden = false;
+  questionElements.nextButton.disabled = true;
   questionElements.nextButton.textContent =
     currentIndex + 1 >= questions.length ? "結果を見る" : "次の問題へ";
+  clearTimeout(nextButtonEnableTimerId);
+  nextButtonEnableTimerId = setTimeout(() => {
+    questionElements.nextButton.disabled = false;
+  }, NEXT_BUTTON_ENABLE_DELAY_MS);
+}
+
+// 選択肢一覧を隠し、答え合わせカードへ切り替える（js/onlineLyricsQuizBattleScreen.jsの
+// renderAnswerChoices()のisResolved分岐と同じ考え方）。このモードには「わからない」や
+// 獲得ポイントの概念が無いため、正解／不正解の2パターンだけを扱う。
+function renderAnswerReveal({ isCorrect, correctTitle, mySelectedSongId, pool }) {
+  questionElements.answerList.hidden = true;
+  if (questionElements.answerSearchRow) questionElements.answerSearchRow.hidden = true;
+  if (!questionElements.answerReveal) return;
+
+  questionElements.answerReveal.hidden = false;
+  questionElements.answerRevealStatus.textContent = isCorrect ? "🎉 正解！" : "残念、不正解";
+  questionElements.answerRevealStatus.classList.toggle("is-correct-answer-reveal-status", isCorrect);
+  questionElements.answerRevealTitle.textContent = correctTitle;
+
+  const mySong = pool.find((song) => song.id === mySelectedSongId);
+  if (questionElements.answerRevealMyAnswer) {
+    questionElements.answerRevealMyAnswer.hidden = !mySong;
+    questionElements.answerRevealMyAnswer.textContent = mySong ? `あなたの回答：${mySong.title}` : "";
+  }
 }
 
 function advanceToNextQuestionOrFinish() {
