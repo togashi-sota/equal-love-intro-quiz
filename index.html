@@ -1556,12 +1556,22 @@
            負荷テスト等で作られた「名前を一度も設定していない」ダミーのバックアップが
            大量に混ざってしまったため、それだけに絞り込んで確認・削除できるようにする。
            あくまで「名前未設定＝テストの可能性が高い」という目安であり、断定はできない
-           （名前設定前に離脱した実在の人の可能性もゼロではない）ため、削除は必ず本人が
-           1件ずつ内容を見て判断できる形にし、自動一括削除のボタンは用意しない。 -->
+           （名前設定前に離脱した実在の人の可能性もゼロではない）ため、削除する項目は
+           必ずチェックボックスで本人が1件ずつ選んでから、まとめて削除する形にしている
+           （「表示中を全て選択」はあくまで補助。選ぶ動作自体は必ず本人の意思を介す）。 -->
       <label class="custom-quiz-selected-only-toggle">
         <input id="admin-backups-unnamed-only-checkbox" type="checkbox">
         名前未設定だけ表示（テストデータの可能性が高い）
       </label>
+
+      <div class="admin-backup-bulk-actions">
+        <button id="admin-backups-select-all-button" class="secondary-button" type="button">表示中を全て選択</button>
+        <button id="admin-backups-clear-selection-button" class="secondary-button" type="button">選択解除</button>
+      </div>
+      <p id="admin-backups-selection-status" class="admin-backup-row-detail"></p>
+      <button id="admin-backups-bulk-delete-button" class="danger-button admin-backup-delete-request-button" type="button" hidden>選択したバックアップを削除する</button>
+      <p id="admin-backups-bulk-delete-result" class="admin-backup-row-detail admin-backup-resolve-result" hidden></p>
+
       <div id="admin-backups-list" class="admin-backup-list"></div>
     </section>
 

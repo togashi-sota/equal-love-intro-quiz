@@ -7418,6 +7418,23 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   opacity: 1;
 }
 
+/* 【2026-09-05新設】バックアップ一覧の「表示中を全て選択」「選択解除」ボタンを
+   横並びにする。件数が多いときに1件ずつ削除するのが大変という本人指示への対応
+   （複数選択→まとめて削除、js/adminBackupScreen.js参照）。 */
+.admin-backup-bulk-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.admin-backup-bulk-actions .secondary-button {
+  flex: 1;
+}
+
+.admin-backup-row-select-toggle {
+  margin-bottom: 8px;
+}
+
 /* データ管理画面の「データを復旧する」（2026-08-29新設）。復旧依頼番号を大きく・
    読み上げやすい間隔で表示し、電話やLINEで他人に伝える数字であることが一目で伝わるようにする。 */
 .data-recovery-code-panel {

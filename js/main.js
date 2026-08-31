@@ -657,6 +657,11 @@ const adminRecoveryRequestsListElement = document.getElementById("admin-recovery
 const adminBackupsListElement = document.getElementById("admin-backups-list");
 const adminBackupsSearchInputElement = document.getElementById("admin-backups-search-input");
 const adminBackupsUnnamedOnlyCheckboxElement = document.getElementById("admin-backups-unnamed-only-checkbox");
+const adminBackupsSelectAllButtonElement = document.getElementById("admin-backups-select-all-button");
+const adminBackupsClearSelectionButtonElement = document.getElementById("admin-backups-clear-selection-button");
+const adminBackupsSelectionStatusElement = document.getElementById("admin-backups-selection-status");
+const adminBackupsBulkDeleteButtonElement = document.getElementById("admin-backups-bulk-delete-button");
+const adminBackupsBulkDeleteResultElement = document.getElementById("admin-backups-bulk-delete-result");
 const adminCheckAtRiskButtonElement = document.getElementById("admin-check-at-risk-button");
 const adminAtRiskStatusElement = document.getElementById("admin-at-risk-status");
 const adminAtRiskListElement = document.getElementById("admin-at-risk-list");
@@ -1783,6 +1788,11 @@ initAdminBackupScreen(
     backupsList: adminBackupsListElement,
     backupsSearchInput: adminBackupsSearchInputElement,
     backupsUnnamedOnlyCheckbox: adminBackupsUnnamedOnlyCheckboxElement,
+    selectAllButton: adminBackupsSelectAllButtonElement,
+    clearSelectionButton: adminBackupsClearSelectionButtonElement,
+    selectionStatusText: adminBackupsSelectionStatusElement,
+    bulkDeleteButton: adminBackupsBulkDeleteButtonElement,
+    bulkDeleteResultText: adminBackupsBulkDeleteResultElement,
     checkAtRiskButton: adminCheckAtRiskButtonElement,
     atRiskStatusText: adminAtRiskStatusElement,
     atRiskList: adminAtRiskListElement,
