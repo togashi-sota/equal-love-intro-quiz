@@ -31,7 +31,6 @@ import { validateRoomSettings } from "./battleModes/index.js";
 import * as instantCoopBattleMode from "./battleModes/instantCoopBattleMode.js";
 import {
   UNKNOWN_VOTE,
-  MAX_SHARED_REPLAY_COUNT,
   createMatchProgress,
   recordVote,
   countVotedPlayers,
@@ -43,7 +42,6 @@ import {
 import {
   QUESTION_STATUS,
   startCoopQuestion,
-  startNextCoopVotingRound,
   submitCoopVote,
   resolveCoopQuestion,
   advanceCoopQuestion,
@@ -128,6 +126,19 @@ export function initOnlineInstantCoopBattleScreens(newElements) {
 
   elements.unknownButton.addEventListener("click", () => {
     handleVoteClick(UNKNOWN_VOTE);
+  });
+
+  // 【2026-09-05新設、本人指示】共有再視聴（最大2回）方式を廃止し、各自が個別に
+  // 無制限で再視聴できるボタンへ変更した。Firebaseへは一切同期しない、完全に
+  // ローカルな再生のやり直し（disabledの制御はrenderCurrentQuestionState()側で行う）。
+  elements.replayButton?.addEventListener("click", () => {
+    if (!latestRoom || !currentMatchId) return;
+    const match = latestRoom.matches?.[currentMatchId];
+    if (!match || typeof match.currentQuestionIndex !== "number") return;
+    const qIndex = match.currentQuestionIndex;
+    const question = currentQuestions[qIndex];
+    if (!question) return;
+    playQuestionAudio(question, qIndex);
   });
 
   elements.quitButton.addEventListener("click", () => {
@@ -394,22 +405,11 @@ async function runHostProgressionTick() {
         } finally {
           hostTickInFlight = false;
         }
-      } else if (nextHostState.currentQuestion.sharedReplayCount > beforeTick.currentQuestion.sharedReplayCount) {
-        // タイ→再視聴ラウンドへ進んだ。
-        hostTickInFlight = true;
-        try {
-          const result = await startNextCoopVotingRound({
-            roomId: latestRoom.roomId,
-            matchId: currentMatchId,
-            nextRoundNumber: nextHostState.currentQuestion.sharedReplayCount,
-          });
-          if (!result.ok) console.error("一瞬協力：再投票ラウンドの開始に失敗しました", result.reason);
-        } catch (error) {
-          console.error("一瞬協力：進行タイマーで想定外のエラーが発生しました（再投票ラウンド）", error);
-        } finally {
-          hostTickInFlight = false;
-        }
       }
+      // 【2026-09-05改訂】以前はここで「タイ→再視聴ラウンドへ進んだ」場合の分岐
+      // （startNextCoopVotingRound呼び出し）があったが、共有再視聴の仕組み自体を
+      // 廃止した（js/instantCoopMatchProgress.js参照）ため削除した。tick()はタイでも
+      // 必ずresolvedになるため、この分岐は不要になった。
     }
     return;
   }
@@ -524,16 +524,13 @@ function renderCurrentQuestionState() {
 
   elements.progress.textContent = `第${qIndex + 1}問 / ${currentQuestions.length}問`;
 
-  // 新しい問題・新しいラウンド（タイによる再視聴）を検知したら、音源を再生し直す。
+  // 新しい問題を検知したら、音源を再生し直す（2026-09-05改訂：共有再視聴ラウンドの
+  // 仕組みを廃止したため、roundNumberは常に0のまま変化しない＝実質的にqIndexの
+  // 変化だけを見ていることになるが、既存の判定条件はそのまま残しても無害なので触れない）。
   if (qIndex !== lastPlayedQuestionIndex || roundNumber !== lastPlayedRoundNumber) {
     lastPlayedQuestionIndex = qIndex;
     lastPlayedRoundNumber = roundNumber;
     elements.error.hidden = true;
-    elements.tieNotice.hidden = roundNumber === 0;
-    if (roundNumber > 0) {
-      const remaining = MAX_SHARED_REPLAY_COUNT - roundNumber;
-      elements.tieNotice.textContent = `同数でした。もう一度聞いて投票し直してください（残り${Math.max(0, remaining)}回）`;
-    }
     playQuestionAudio(question, qIndex);
   }
 
@@ -543,6 +540,11 @@ function renderCurrentQuestionState() {
   elements.answerSection.hidden = isResolved;
   elements.waitingNotice.hidden = isResolved || !hasVotedThisRound;
   elements.revealSection.hidden = !isResolved;
+  // 【2026-09-05新設、本人指示】各自が個別に無制限で再視聴できるボタン。投票済み・
+  // 正解確定後は押せないようにする（Firebaseへは一切同期しない、完全にローカルな操作）。
+  if (elements.replayButton) {
+    elements.replayButton.disabled = isResolved || hasVotedThisRound;
+  }
 
   if (!isResolved) {
     const isLargePool = question.answerPool.length >= LARGE_ANSWER_POOL_THRESHOLD;
@@ -593,7 +595,8 @@ export function enterInstantCoopResult(room) {
 
   elements.resultRematchButton.hidden = room.host !== myUid;
   elements.resultCorrectCount.textContent = `${teamResult.correctCount} / ${teamResult.totalQuestions}問`;
-  elements.resultReplayCount.textContent = `${teamResult.totalSharedReplayCount}回`;
+  // 【2026-09-05改訂】共有再視聴の仕組みを廃止したため、「合計共有再視聴回数」の表示は
+  // 削除した（HTML側のelements.resultReplayCount自体も削除済み）。
 
   const participants = match.participants || {};
   clearElement(elements.resultMemberList);

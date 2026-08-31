@@ -2653,6 +2653,12 @@
             <span id="instant-challenge-progress" class="lyrics-quiz-progress">第1問 / 5問</span>
           </div>
 
+          <!-- 【2026-09-05新設】初回出題の直前だけ3→2→1を表示する（js/localReplayCountdown.js）。
+               本人指示：聞き直しは無制限で気軽に使えるままにしたいため、聞き直し時にはカウントダウンを挟まない。 -->
+          <div id="instant-challenge-countdown" class="local-replay-countdown" hidden>
+            <p id="instant-challenge-countdown-number" class="local-replay-countdown-number">3</p>
+          </div>
+
           <!-- 【2026-08-30追加・本人指示⑨】ソロプレイでは回数無制限の聞き直しボタン。
                回答が確定すると押せなくなる（js/instantChallengeScreen.js側で制御）。 -->
           <button id="instant-challenge-replay-button" class="secondary-button instant-challenge-replay-button" type="button">
@@ -3498,6 +3504,11 @@
         <div class="quiz-middle-zone-inner">
           <p id="online-instant-battle-error" class="error-message" hidden></p>
 
+          <!-- 【2026-09-05新設】初回出題・再視聴の直前に3→2→1を表示する（js/localReplayCountdown.js）。 -->
+          <div id="online-instant-battle-countdown" class="local-replay-countdown" hidden>
+            <p id="online-instant-battle-countdown-number" class="local-replay-countdown-number">3</p>
+          </div>
+
           <!-- 本人指示：最大3回まで（1人用の一瞬チャレンジと違い無制限ではない）。 -->
           <button id="online-instant-battle-replay-button" class="secondary-button instant-challenge-replay-button" type="button">
             🔁 もう一度聞く（残り3回）
@@ -3532,7 +3543,13 @@
       <div class="quiz-middle-zone">
         <div class="quiz-middle-zone-inner">
           <p id="online-instant-coop-battle-error" class="error-message" hidden></p>
-          <p id="online-instant-coop-battle-tie-notice" class="battle-warning-box" hidden></p>
+
+          <!-- 【2026-09-05改訂、本人指示】共有再視聴（最大2回・タイのときだけ）方式を廃止し、
+               各自が個別に無制限で再視聴できるボタンへ変更した（多数決自体は維持）。
+               投票済み・正解確定後は押せなくする（js/onlineInstantCoopBattleScreen.js側で制御）。 -->
+          <button id="online-instant-coop-battle-replay-button" class="secondary-button instant-challenge-replay-button" type="button">
+            🔁 もう一度聞く
+          </button>
 
           <div id="online-instant-coop-battle-answer-section" class="lyrics-quiz-answer-section">
             <p class="lyrics-quiz-answer-label">この曲は？（みんなで投票します）</p>
@@ -3557,7 +3574,11 @@
     </section>
 
     <!-- オンライン対戦：一瞬協力専用の結果画面（2026-08-31新設）。個人の順位ではなく、
-         チーム全体の成績（正解数・合計共有再視聴回数）だけを表示する（本人指示）。 -->
+         チーム全体の正解数だけを表示する（本人指示）。
+         【2026-09-05改訂】共有再視聴（最大2回）方式を廃止し、各自が個別に無制限で
+         再視聴できる方式へ変更したため、「合計共有再視聴回数」の表示は削除した
+         （個別の再視聴はローカルのみで完結し、Firebaseへは同期しない設計のため、
+         そもそも集計できる値ではなくなった）。 -->
     <section id="online-instant-coop-battle-result-screen" class="screen">
       <button id="online-instant-coop-battle-result-home-link" class="quiz-back-link" type="button">⌂ ホームへ戻る</button>
       <div class="title-block"><h2>一瞬協力：結果</h2></div>
@@ -3566,10 +3587,6 @@
         <div class="time-attack-result-stat">
           <p class="time-attack-result-stat-label">チームの正解数</p>
           <p id="online-instant-coop-battle-result-correct-count" class="time-attack-result-stat-value">0 / 0問</p>
-        </div>
-        <div class="time-attack-result-stat">
-          <p class="time-attack-result-stat-label">合計共有再視聴回数</p>
-          <p id="online-instant-coop-battle-result-replay-count" class="time-attack-result-stat-value">0回</p>
         </div>
       </div>
 

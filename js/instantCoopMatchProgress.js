@@ -6,12 +6,21 @@
 // 【一瞬協力のルール（本人指示）】
 // ・全員が同じ音源を同時に聞き、各自が回答または「わからない」を選ぶ。
 // ・全員回答したら、多数決でチームの回答を決める（「わからない」は投票に含めない）。
-// ・同数（タイ）なら、共有の「もう一度聞く」（最大2回）→再投票。
-// ・2回再視聴してもタイなら、同率トップの中から公平なランダムで1つを選ぶ
+// ・同数（タイ）なら、同率トップの中から公平なランダムで1つを選ぶ
 //   （seedベースの決定論的な乱数。js/lyricsQuizEngine.jsのcreateAnswerPoolRandomと
 //   同じ考え方＝「毎回同じ入力なら同じ乱数列になる」ことを優先し、暗号強度は求めない）。
 // ・全員「わからない」なら不正解として扱う。
 // ・勝敗・個人成績ではなく、チーム全体の「全◯問中◯問正解」という成績だけを記録する。
+//
+// 【2026-09-05改訂、本人指示：49項目仕様書】以前は「同数なら共有の『もう一度聞く』
+// （最大2回）→再投票」という、タイのときだけホスト主導で発生する再視聴ラウンドが
+// あったが、これを廃止した。代わりに、各プレイヤーが投票前ならいつでも個別に無制限で
+// 再視聴できるボタンをjs/onlineInstantCoopBattleScreen.js側に追加している（このファイルの
+// 進行状態には一切登場しない＝各端末のローカルな見た目の話であり、多数決の結果には
+// 影響しない）。そのため、タイになった場合は即座に下記のタイブレークへ進む
+// （sharedReplayCount・MAX_SHARED_REPLAY_COUNTは、Firebase側のcoopRoundNumber等の
+// 既存データ構造との互換性を保つためフィールド名だけ残しているが、常に0のまま
+// 変化しない＝実質的に使われなくなった過去の名残）。
 //
 // 【状態の形】
 // {
@@ -163,20 +172,9 @@ export function tick(state, nowMs) {
     );
   }
 
-  // 同率タイ。共有の再視聴がまだ残っていれば、再視聴→再投票のラウンドへ進む。
-  if (state.currentQuestion.sharedReplayCount < MAX_SHARED_REPLAY_COUNT) {
-    return {
-      ...state,
-      currentQuestion: {
-        ...state.currentQuestion,
-        sharedReplayCount: state.currentQuestion.sharedReplayCount + 1,
-        votesByUid: {}, // 再投票のため、今のラウンドの票をクリアする
-        startedAt: nowMs, // 新しいラウンドのタイムアウト計測をここから開始し直す
-      },
-    };
-  }
-
-  // 再視聴を使い切ってもまだタイ → 同率トップの中から決定論的な乱数で1つ選ぶ。
+  // 【2026-09-05改訂】以前はここで「共有の再視聴がまだ残っていれば再投票ラウンドへ」
+  // 進んでいたが、その仕組み自体を廃止したため、タイになったら即座にタイブレークへ進む。
+  // 同率タイ → 同率トップの中から決定論的な乱数で1つ選ぶ。
   const randomFn = createTieBreakRandom(state.seed, state.currentQuestionIndex, state.currentQuestion.sharedReplayCount);
   const pickedIndex = Math.floor(randomFn() * winners.length);
   const teamAnswer = winners[pickedIndex];

@@ -41,6 +41,7 @@ import { evaluateInstantChallengeAchievements } from "./achievementEvaluation.js
 import { saveEarnedAchievements } from "./achievementProgress.js";
 import { renderAchievementUnlockEvents } from "./achievementDisplay.js";
 import { renderPlayerSummary } from "./playerScreen.js";
+import { runLocalReplayCountdown, cancelLocalReplayCountdown } from "./localReplayCountdown.js";
 
 // 【2026-08-30改訂・本人指示】回答候補は4択／10択／全曲検索の3段階のみに変更
 // （30択・50択は一瞬チャレンジでは不要と判断し廃止。歌詞クイズ側のANSWER_POOL_SIZE_VALUES
@@ -198,7 +199,7 @@ async function buildAndStartRun(settings, explicitSongIds = null) {
 
 // questionElements: {
 //   progress, answerSearchRow, answerSearchInput, answerCount, answerList,
-//   replayButton, nextButton,
+//   countdown, countdownNumber, replayButton, nextButton,
 //   backButton, quitConfirmModal, quitCancelButton, quitRestartButton, quitConfirmButton,
 //   onQuit,
 // }
@@ -253,6 +254,7 @@ function closeQuitConfirmModal() {
 
 function quitRun() {
   stopAudio();
+  cancelLocalReplayCountdown();
   questionElements.answerSearchInput.value = "";
   questions = [];
   currentIndex = 0;
@@ -263,6 +265,7 @@ function quitRun() {
 
 async function restartRun() {
   stopAudio();
+  cancelLocalReplayCountdown();
   questionElements.answerSearchInput.value = "";
   await retryInstantChallengeRun();
 }
@@ -297,7 +300,17 @@ function renderCurrentQuestion() {
   questionElements.replayButton.disabled = false;
   questionElements.nextButton.hidden = true;
 
-  playCurrentQuestionAudio();
+  // 【2026-09-05新設、本人指示】初回出題の直前だけ3→2→1を表示する。聞き直し
+  // （questionElements.replayButtonのクリック）は無制限で気軽に使えるままにしたいため、
+  // そちらにはカウントダウンを挟まない（playCurrentQuestionAudio()を直接呼ぶ）。
+  if (questionElements.countdown && questionElements.countdownNumber) {
+    runLocalReplayCountdown(
+      { containerElement: questionElements.countdown, numberElement: questionElements.countdownNumber },
+      playCurrentQuestionAudio
+    );
+  } else {
+    playCurrentQuestionAudio();
+  }
 }
 
 function renderAnswerArea(question) {

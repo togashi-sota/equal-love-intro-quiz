@@ -12691,6 +12691,24 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   100% { transform: scale(1); opacity: 1; }
 }
 
+/* 【2026-09-05新設】各問題の音源再生直前に出す、軽量な3→2→1（js/localReplayCountdown.js）。
+   上のonline-battle-countdown-*（対戦開始・1回きり・60vh確保）と違い、問題画面の一部として
+   何度も出し入れするため、コンパクトなサイズ・余白にしている。数字の演出（拍動）は
+   既存のonline-battle-countdown-pulseをそのまま再利用し、見た目の一貫性を保つ。 */
+.local-replay-countdown {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px 0;
+}
+
+.local-replay-countdown-number {
+  font-size: 3rem;
+  font-weight: 800;
+  color: var(--color-accent);
+  animation: online-battle-countdown-pulse 0.5s ease-in-out infinite;
+}
+
 /* ===== オンライン対戦Step3：クイズ中の簡易進捗・待機画面・結果画面 ===== */
 
 /* クイズ画面の隅に小さく出す、他プレイヤーの進捗（回答数／完了・切断状態だけ）。

@@ -3,21 +3,21 @@
 // 【確認したいこと】
 // ・全員が投票するまでtick()が進行しないこと。
 // ・多数決で単独トップがいれば、そのままチームの回答として確定すること（正解・不正解とも）。
-// ・同率タイの場合、共有の再視聴（最大2回）→再投票のラウンドへ進むこと。
-// ・2回再視聴してもタイなら、同率トップの中から決定論的な乱数で1つ選び、必ず確定すること
-//   （無限ループしないこと）。
+// ・同率タイの場合、即座にタイブレーク（同率トップの中から決定論的な乱数で1つ選ぶ）で
+//   確定すること（2026-09-05改訂：以前あった「共有の再視聴（最大2回）→再投票」の
+//   ラウンドは廃止し、代わりに各自が個別に無制限で再視聴できるボタンをUI側に追加した。
+//   進行状態としてはタイ＝即タイブレークになった）。
 // ・全員「わからない」なら不正解として確定すること。
 // ・同じseed・同じ状況なら、タイブレークの結果が毎回一致すること（決定論性）。
 // ・advanceToNextQuestion()が、確定済みの問題からteamHistoryへ積みつつ次へ進むこと。
-// ・finalizeMatch()が、正解数・合計共有再視聴回数を正しく集計すること。
+// ・finalizeMatch()が、正解数を正しく集計すること。
 // ・【2026-08-31追加、本人指示】投票タイムアウト（20秒固定）：未投票者を自動的に
 //   「わからない」扱いで補完し、退出・切断扱いにはせず、他プレイヤーの回答権はそのまま
 //   残ること。全員タイムアウトなら不正解として確定すること。タイムアウトで生じたタイでも
-//   通常の共有再視聴→タイブレークの流れがそのまま働くこと。
+//   同様に即座にタイブレークで確定すること。
 
 import {
   UNKNOWN_VOTE,
-  MAX_SHARED_REPLAY_COUNT,
   VOTE_TIMEOUT_MS,
   createMatchProgress,
   recordVote,
@@ -122,8 +122,13 @@ export function runInstantCoopMatchProgressTests() {
     state = recordVote(state, "p2", "distractor-0-a");
     state = recordVote(state, "p3", "distractor-0-b");
     state = tick(state, 100);
-    assertEqual(state.currentQuestion.status, "collecting", "3人全員別回答（1票ずつの3すくみ）はタイとして扱い、確定しない");
-    assertEqual(state.currentQuestion.sharedReplayCount, 1, "3すくみのタイでも通常のタイと同じく共有再視聴が1回消費される");
+    assertEqual(state.currentQuestion.status, "resolved", "3人全員別回答（同率3すくみ）でも、即座にタイブレークで確定する");
+    assertEqual(state.currentQuestion.outcome.usedTieBreakRandom, true, "3すくみのタイもタイブレークを使う");
+    assertEqual(
+      ["song-0", "distractor-0-a", "distractor-0-b"].includes(state.currentQuestion.outcome.teamAnswer),
+      true,
+      "タイブレークの結果は同率トップのいずれかになる"
+    );
   }
 
   // ---- tick：全員わからない → 不正解として確定 ----
@@ -138,29 +143,14 @@ export function runInstantCoopMatchProgressTests() {
     assertEqual(state.currentQuestion.outcome.isCorrect, false, "全員わからないは不正解として扱う");
   }
 
-  // ---- tick：同数タイ→再視聴→再投票→それでもタイ→再視聴→再投票→タイブレークで必ず確定する ----
+  // ---- tick：同数タイなら、共有再視聴ラウンドを挟まず即座にタイブレークで確定する
+  //      （2026-09-05改訂：共有再視聴〈最大2回〉方式を廃止したため） ----
   {
     let state = createMatchProgress({ questions: buildDummyQuestions(1), allPlayerUids: ["p1", "p2"], hostUid: "p1", seed: 42, nowMs: 0 });
-    // 1回目の投票：p1=song-0, p2=distractor-0-a → タイ
     state = recordVote(state, "p1", "song-0");
     state = recordVote(state, "p2", "distractor-0-a");
     state = tick(state, 100);
-    assertEqual(state.currentQuestion.status, "collecting", "タイの場合は確定せず、再投票のラウンドへ進む");
-    assertEqual(state.currentQuestion.sharedReplayCount, 1, "1回目の共有再視聴が消費される");
-    assertEqual(Object.keys(state.currentQuestion.votesByUid).length, 0, "再投票のため票がクリアされる");
-
-    // 2回目の投票：またタイ
-    state = recordVote(state, "p1", "song-0");
-    state = recordVote(state, "p2", "distractor-0-a");
-    state = tick(state, 200);
-    assertEqual(state.currentQuestion.status, "collecting", "2回目もタイなら、まだ確定しない（残り再視聴があるため）");
-    assertEqual(state.currentQuestion.sharedReplayCount, MAX_SHARED_REPLAY_COUNT, "2回目の共有再視聴が消費される（上限に到達）");
-
-    // 3回目の投票：またタイ→再視聴の上限に達しているため、タイブレークで必ず確定する
-    state = recordVote(state, "p1", "song-0");
-    state = recordVote(state, "p2", "distractor-0-a");
-    state = tick(state, 300);
-    assertEqual(state.currentQuestion.status, "resolved", "再視聴の上限に達したら、タイでも必ず確定する（無限ループしない）");
+    assertEqual(state.currentQuestion.status, "resolved", "タイの場合でも、再投票ラウンドを挟まず即座に確定する");
     assertEqual(state.currentQuestion.outcome.usedTieBreakRandom, true, "タイブレークの乱数が使われたことが記録される");
     assertEqual(
       ["song-0", "distractor-0-a"].includes(state.currentQuestion.outcome.teamAnswer),
@@ -173,11 +163,9 @@ export function runInstantCoopMatchProgressTests() {
   {
     function runToTieBreak(seed) {
       let state = createMatchProgress({ questions: buildDummyQuestions(1), allPlayerUids: ["p1", "p2"], hostUid: "p1", seed, nowMs: 0 });
-      for (let round = 0; round <= MAX_SHARED_REPLAY_COUNT; round++) {
-        state = recordVote(state, "p1", "song-0");
-        state = recordVote(state, "p2", "distractor-0-a");
-        state = tick(state, 100);
-      }
+      state = recordVote(state, "p1", "song-0");
+      state = recordVote(state, "p2", "distractor-0-a");
+      state = tick(state, 100);
       return state.currentQuestion.outcome.teamAnswer;
     }
     const resultA = runToTieBreak(777);
@@ -216,28 +204,27 @@ export function runInstantCoopMatchProgressTests() {
     assertEqual(state, before, "投票受付中のまま次へ進めようとしても何も変わらない");
   }
 
-  // ---- finalizeMatch：正解数・合計共有再視聴回数を正しく集計する ----
+  // ---- finalizeMatch：正解数を正しく集計する ----
   {
     let state = createMatchProgress({ questions: buildDummyQuestions(2), allPlayerUids: ["p1", "p2"], hostUid: "p1", seed: 1, nowMs: 0 });
-    // 第1問：単独トップで正解（再視聴0回）。
+    // 第1問：単独トップで正解。
     state = recordVote(state, "p1", "song-0");
     state = recordVote(state, "p2", "song-0");
     state = tick(state, 100);
     state = advanceToNextQuestion(state, 150);
-    // 第2問：タイ→再視聴1回→単独トップで不正解。
-    state = recordVote(state, "p1", "song-1");
-    state = recordVote(state, "p2", "distractor-1-a");
-    state = tick(state, 200);
+    // 第2問：満場一致だが不正解。
     state = recordVote(state, "p1", "distractor-1-a");
     state = recordVote(state, "p2", "distractor-1-a");
-    state = tick(state, 300);
-    state = advanceToNextQuestion(state, 350);
+    state = tick(state, 200);
+    state = advanceToNextQuestion(state, 250);
 
     assertEqual(state.status, "finished", "2問とも終えたので試合はfinished");
     const result = finalizeMatch(state);
     assertEqual(result.totalQuestions, 2, "全2問");
     assertEqual(result.correctCount, 1, "正解は第1問の1問だけ");
-    assertEqual(result.totalSharedReplayCount, 1, "第2問で使った共有再視聴1回が合計される");
+    // 【2026-09-05改訂】共有再視聴の仕組みを廃止したため、sharedReplayCountは常に0になり、
+    // totalSharedReplayCountも常に0になる（値自体はデータ構造の互換性のため残っている）。
+    assertEqual(result.totalSharedReplayCount, 0, "共有再視聴を廃止したため、常に0になる");
   }
 
   // ---- finalizeMatch：試合が終わっていなければnullを返す ----
@@ -320,7 +307,8 @@ export function runInstantCoopMatchProgressTests() {
     assertEqual(state.currentQuestion.outcome.isCorrect, false, "全員タイムアウトは不正解として扱う");
   }
 
-  // ---- タイムアウトで生じたタイも、通常どおり共有再視聴のラウンドへ進む ----
+  // ---- タイムアウトで生じたタイも、即座にタイブレークで確定する
+  //      （2026-09-05改訂：共有再視聴ラウンドを廃止したため） ----
   {
     let state = createMatchProgress({ questions: buildDummyQuestions(1), allPlayerUids: ["p1", "p2", "p3"], hostUid: "p1", seed: 1, nowMs: 0 });
     // p1とp2が別の曲へ投票、p3は放置（タイムアウトで「わからない」扱い）。
@@ -328,23 +316,13 @@ export function runInstantCoopMatchProgressTests() {
     state = recordVote(state, "p1", "song-0");
     state = recordVote(state, "p2", "distractor-0-a");
     state = tick(state, VOTE_TIMEOUT_MS);
-    assertEqual(state.currentQuestion.status, "collecting", "タイムアウトが絡んだタイでも、確定せず再視聴ラウンドへ進む");
-    assertEqual(state.currentQuestion.sharedReplayCount, 1, "共有再視聴が1回消費される（通常のタイと同じ扱い）");
-    assertEqual(Object.keys(state.currentQuestion.votesByUid).length, 0, "再投票のため票がクリアされる");
-  }
-
-  // ---- 再視聴ラウンドが始まると、タイムアウト計測も新しいラウンドの開始からやり直しになる ----
-  {
-    let state = createMatchProgress({ questions: buildDummyQuestions(1), allPlayerUids: ["p1", "p2"], hostUid: "p1", seed: 1, nowMs: 0 });
-    state = recordVote(state, "p1", "song-0");
-    state = recordVote(state, "p2", "distractor-0-a");
-    state = tick(state, 100); // タイ発生。時刻100msの時点で再視聴ラウンドへ。
-    assertEqual(state.currentQuestion.startedAt, 100, "再視聴ラウンド開始時刻が更新される");
-    // 新ラウンド開始（100ms）から19999ms後（合計19999+100=20099ms未満）では、
-    // 旧ラウンド基準なら20秒を超えていても、新ラウンド基準ではまだタイムアウトしない。
-    const before = state;
-    state = tick(state, 100 + VOTE_TIMEOUT_MS - 1);
-    assertEqual(state, before, "新ラウンド開始から20秒経っていなければ、まだタイムアウトしない");
+    assertEqual(state.currentQuestion.status, "resolved", "タイムアウトが絡んだタイでも、即座にタイブレークで確定する");
+    assertEqual(state.currentQuestion.outcome.usedTieBreakRandom, true, "タイブレークの乱数が使われる");
+    assertEqual(
+      ["song-0", "distractor-0-a"].includes(state.currentQuestion.outcome.teamAnswer),
+      true,
+      "タイブレークの結果は同率トップのどちらかになる"
+    );
   }
 
   // ---- 1人がギブアップ（自分で「わからない」を選択）しても、他の人の回答権はそのまま残る ----

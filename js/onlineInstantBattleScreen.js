@@ -33,6 +33,7 @@ import { playSongFromRandomPosition, stopAudio } from "./audio.js";
 import { LARGE_ANSWER_POOL_THRESHOLD } from "./lyricsQuizEngine.js";
 import { normalizeForSearch, songMatchesSearch } from "./songlist.js";
 import { buildQuestions, createResult, MAX_REPLAY_COUNT_PER_QUESTION } from "./battleModes/instantBattleMode.js";
+import { runLocalReplayCountdown, cancelLocalReplayCountdown } from "./localReplayCountdown.js";
 
 let elements = null;
 
@@ -47,10 +48,12 @@ let answers = []; // { songId, isCorrect, replayCount }[]
 let replayCounts = [];
 let hasAnsweredCurrentQuestion = false;
 let matchStartedAtMs = 0;
+let isCountdownActive = false; // 【2026-09-05新設】カウントダウン中の連打・二重再生を防ぐ
 
 // elements: {
 //   progress, quitButton, quitConfirmModal, quitCancelButton, quitConfirmButton,
-//   error, replayButton, answerSearchRow, answerSearchInput, answerCount, answerList, nextButton,
+//   error, countdown, countdownNumber, replayButton, answerSearchRow, answerSearchInput,
+//   answerCount, answerList, nextButton,
 //   navigateTo, onQuitDuringBattle, onFinishMatch, onReportProgress,
 // }
 export function initOnlineInstantBattleScreens(newElements) {
@@ -72,10 +75,11 @@ export function initOnlineInstantBattleScreens(newElements) {
 
   elements.replayButton.addEventListener("click", () => {
     if (hasAnsweredCurrentQuestion) return;
+    if (isCountdownActive) return; // 【2026-09-05新設】カウントダウン中の連打を無視する
     if (replayCounts[currentIndex] >= MAX_REPLAY_COUNT_PER_QUESTION) return;
     replayCounts[currentIndex] += 1;
     updateReplayButtonLabel();
-    playCurrentQuestionAudio();
+    playCurrentQuestionAudioWithCountdown();
   });
 
   elements.answerSearchInput.addEventListener("input", () => {
@@ -90,6 +94,8 @@ export function initOnlineInstantBattleScreens(newElements) {
 // ルームを離れる・別のルームへ入り直す際に呼ぶ、状態の完全リセット。
 export function resetOnlineInstantBattleState() {
   stopAudio();
+  cancelLocalReplayCountdown();
+  isCountdownActive = false;
   currentRoomId = null;
   currentMatchId = null;
   currentSettings = null;
@@ -170,6 +176,19 @@ function playCurrentQuestionAudio() {
   playSongFromRandomPosition(question.song, computeStartTimeSec, playDurationSec, showAudioErrorInline, () => {}, () => {});
 }
 
+// 【2026-09-05新設】音源再生の直前に3→2→1を表示してから再生する。初回出題・再視聴の
+// どちらもこれ経由で呼ぶ（本人指示：一瞬バトルは両方にカウントダウンを付ける）。
+function playCurrentQuestionAudioWithCountdown() {
+  isCountdownActive = true;
+  runLocalReplayCountdown(
+    { containerElement: elements.countdown, numberElement: elements.countdownNumber },
+    () => {
+      isCountdownActive = false;
+      playCurrentQuestionAudio();
+    }
+  );
+}
+
 function renderCurrentQuestion() {
   hasAnsweredCurrentQuestion = false;
   elements.progress.textContent = `第${currentIndex + 1}問 / ${questions.length}問`;
@@ -179,7 +198,7 @@ function renderCurrentQuestion() {
   updateReplayButtonLabel();
   elements.nextButton.hidden = true;
 
-  playCurrentQuestionAudio();
+  playCurrentQuestionAudioWithCountdown();
 }
 
 function renderAnswerArea(question) {

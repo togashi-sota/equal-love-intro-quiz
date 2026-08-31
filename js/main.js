@@ -1012,6 +1012,8 @@ const onlineInstantBattleSettingsErrorElement = document.getElementById("online-
 const onlineInstantBattleQuitButtonElement = document.getElementById("online-instant-battle-quit-button");
 const onlineInstantBattleProgressElement = document.getElementById("online-instant-battle-progress");
 const onlineInstantBattleErrorElement = document.getElementById("online-instant-battle-error");
+const onlineInstantBattleCountdownElement = document.getElementById("online-instant-battle-countdown");
+const onlineInstantBattleCountdownNumberElement = document.getElementById("online-instant-battle-countdown-number");
 const onlineInstantBattleReplayButtonElement = document.getElementById("online-instant-battle-replay-button");
 const onlineInstantBattleAnswerSearchRowElement = document.getElementById("online-instant-battle-answer-search-row");
 const onlineInstantBattleAnswerSearchInputElement = document.getElementById("online-instant-battle-answer-search-input");
@@ -1030,7 +1032,7 @@ const onlineInstantCoopSettingsErrorElement = document.getElementById("online-in
 const onlineInstantCoopQuitButtonElement = document.getElementById("online-instant-coop-battle-quit-button");
 const onlineInstantCoopProgressElement = document.getElementById("online-instant-coop-battle-progress");
 const onlineInstantCoopErrorElement = document.getElementById("online-instant-coop-battle-error");
-const onlineInstantCoopTieNoticeElement = document.getElementById("online-instant-coop-battle-tie-notice");
+const onlineInstantCoopReplayButtonElement = document.getElementById("online-instant-coop-battle-replay-button");
 const onlineInstantCoopAnswerSectionElement = document.getElementById("online-instant-coop-battle-answer-section");
 const onlineInstantCoopAnswerSearchRowElement = document.getElementById("online-instant-coop-battle-answer-search-row");
 const onlineInstantCoopAnswerSearchInputElement = document.getElementById("online-instant-coop-battle-answer-search-input");
@@ -1048,7 +1050,6 @@ const onlineInstantCoopQuitCancelButtonElement = document.getElementById("online
 const onlineInstantCoopQuitConfirmButtonElement = document.getElementById("online-instant-coop-battle-quit-confirm-button");
 const onlineInstantCoopResultHomeLinkElement = document.getElementById("online-instant-coop-battle-result-home-link");
 const onlineInstantCoopResultCorrectCountElement = document.getElementById("online-instant-coop-battle-result-correct-count");
-const onlineInstantCoopResultReplayCountElement = document.getElementById("online-instant-coop-battle-result-replay-count");
 const onlineInstantCoopResultMemberListElement = document.getElementById("online-instant-coop-battle-result-member-list");
 const onlineInstantCoopResultRematchButtonElement = document.getElementById("online-instant-coop-battle-result-rematch-button");
 
@@ -1321,6 +1322,8 @@ const instantChallengeAnswerSearchRowElement = document.getElementById("instant-
 const instantChallengeAnswerSearchInputElement = document.getElementById("instant-challenge-answer-search-input");
 const instantChallengeAnswerCountElement = document.getElementById("instant-challenge-answer-count");
 const instantChallengeAnswerListElement = document.getElementById("instant-challenge-answer-list");
+const instantChallengeCountdownElement = document.getElementById("instant-challenge-countdown");
+const instantChallengeCountdownNumberElement = document.getElementById("instant-challenge-countdown-number");
 const instantChallengeReplayButtonElement = document.getElementById("instant-challenge-replay-button");
 const instantChallengeNextButtonElement = document.getElementById("instant-challenge-next-button");
 const instantChallengeBackButtonElement = document.getElementById("instant-challenge-back-button");
@@ -3840,6 +3843,8 @@ initInstantChallengeQuestionScreen({
   answerSearchInput: instantChallengeAnswerSearchInputElement,
   answerCount: instantChallengeAnswerCountElement,
   answerList: instantChallengeAnswerListElement,
+  countdown: instantChallengeCountdownElement,
+  countdownNumber: instantChallengeCountdownNumberElement,
   replayButton: instantChallengeReplayButtonElement,
   nextButton: instantChallengeNextButtonElement,
   backButton: instantChallengeBackButtonElement,
@@ -5412,6 +5417,8 @@ initOnlineInstantBattleScreens({
   quitConfirmButton: onlineInstantBattleQuitConfirmButtonElement,
   progress: onlineInstantBattleProgressElement,
   error: onlineInstantBattleErrorElement,
+  countdown: onlineInstantBattleCountdownElement,
+  countdownNumber: onlineInstantBattleCountdownNumberElement,
   replayButton: onlineInstantBattleReplayButtonElement,
   answerSearchRow: onlineInstantBattleAnswerSearchRowElement,
   answerSearchInput: onlineInstantBattleAnswerSearchInputElement,
@@ -5438,7 +5445,7 @@ initOnlineInstantCoopBattleScreens({
   quitConfirmButton: onlineInstantCoopQuitConfirmButtonElement,
   progress: onlineInstantCoopProgressElement,
   error: onlineInstantCoopErrorElement,
-  tieNotice: onlineInstantCoopTieNoticeElement,
+  replayButton: onlineInstantCoopReplayButtonElement,
   answerSection: onlineInstantCoopAnswerSectionElement,
   answerSearchRow: onlineInstantCoopAnswerSearchRowElement,
   answerSearchInput: onlineInstantCoopAnswerSearchInputElement,
@@ -5453,7 +5460,6 @@ initOnlineInstantCoopBattleScreens({
   revealTieBreakNotice: onlineInstantCoopRevealTieBreakNoticeElement,
   resultHomeLink: onlineInstantCoopResultHomeLinkElement,
   resultCorrectCount: onlineInstantCoopResultCorrectCountElement,
-  resultReplayCount: onlineInstantCoopResultReplayCountElement,
   resultMemberList: onlineInstantCoopResultMemberListElement,
   resultRematchButton: onlineInstantCoopResultRematchButtonElement,
   resultRematchConfirmModal: onlineBattleResultRematchConfirmModalElement,
