@@ -121,9 +121,9 @@ import { SFX_EVENTS, playSfx } from "./soundManager.js";
 import { STEAL_CLAIM_OUTCOME } from "./lyricsQuizBattleFirebasePayloads.js";
 
 // ホストが問題の確定（正解発表）を見せてから、次の問題／最終結果へ進むまでの待ち時間。
-// 【2026-09-03改訂、本人指示：大型改修】毎問の正解発表は4秒固定にする、という最終仕様に
-// 合わせて3000→4000へ変更した。
-const REVEAL_DELAY_MS = 4000;
+// 【2026-09-03改訂→2026-09-06再改訂、本人指示】一度「4秒固定」に変更していたが、
+// 歌詞クイズ3ルール全面改修時の指示「結果表示→約3秒→次の問題」を正として3000へ戻した。
+const REVEAL_DELAY_MS = 3000;
 // ヒント表示・ホストの進行判定を更新する間隔。カウントダウン画面のsetInterval(100ms)ほど
 // シビアな精度は不要なため、通信・電池消費とのバランスで少し長めにしている。
 const HOST_TICK_INTERVAL_MS = 400;
@@ -1282,24 +1282,32 @@ function renderCurrentQuestionState() {
   if (isResolved) {
     const myOutcome = myOutcomeHistory[qIndex] ?? null;
     const gotPoints = (myOutcome?.pointsAwarded ?? 0) > 0;
-    // 【2026-08-31改訂、本人指示】正解数バトル・ポイントバトルでは「わからない」を選んだ
-    // 場合も、時間切れの未回答も、表示上は不正解と同じ「✕ 不正解」に統一する
-    // （仕様どおり、正解者→「正解！」・それ以外→「不正解」の2区分）。
-    elements.battleAnswerRevealStatus.textContent = gotPoints ? "🎉 正解！" : "✕ 不正解";
-    elements.battleAnswerRevealStatus.classList.toggle("is-correct-answer-reveal-status", gotPoints);
     elements.battleAnswerRevealTitle.textContent = question.song.title;
 
     const metaParts = [];
-    if (gotPoints) {
-      metaParts.push(`+${myOutcome.pointsAwarded}pt`);
-    } else if (ruleId === "steal") {
-      // 【2026-08-31改訂、本人指示：早押しバトル】自分が勝者でない場合、勝者がいれば
-      // 「○○さんが正解！」、誰も正解しなかった（時間切れ等）場合は「正解者はいませんでした」
-      // を全員に見せる（勝者の正当性はwinnerNameByQuestionIndexが検算済みの値のみ持つ。
-      // 詳しくはmaybeRecordMyOutcomeForResolvedQuestions()参照）。
+    if (ruleId === "steal") {
+      // 【2026-09-06改訂、本人指示：早押しバトルの表示を仕様どおりに再確認】
+      // 「勝者本人は『正解！』、他プレイヤーは『○○さんが正解！』」という指示を厳密に
+      // 満たすため、非勝者には「✕ 不正解」を出さず（不正解だった人・答える間もなかった人を
+      // 一緒くたに「不正解」と表示すると、早押しでは意味が薄れるため）、勝者名（または
+      // 誰も正解しなかった場合の案内）だけをstatusとして見せる。勝者の正当性は
+      // winnerNameByQuestionIndexが検算済みの値のみ持つ（詳しくは
+      // maybeRecordMyOutcomeForResolvedQuestions()参照）。
       const winnerName = winnerNameByQuestionIndex[qIndex];
-      metaParts.push(winnerName ? `${winnerName}さんが正解！` : "正解者はいませんでした");
+      elements.battleAnswerRevealStatus.textContent = gotPoints
+        ? "🎉 正解！"
+        : winnerName
+          ? `${winnerName}さんが正解！`
+          : "正解者はいませんでした";
+      if (gotPoints) metaParts.push(`+${myOutcome.pointsAwarded}pt`);
+    } else {
+      // 【2026-08-31改訂、本人指示】正解数バトル・ポイントバトルでは「わからない」を選んだ
+      // 場合も、時間切れの未回答も、表示上は不正解と同じ「✕ 不正解」に統一する
+      // （仕様どおり、正解者→「正解！」・それ以外→「不正解」の2区分）。
+      elements.battleAnswerRevealStatus.textContent = gotPoints ? "🎉 正解！" : "✕ 不正解";
+      if (gotPoints) metaParts.push(`+${myOutcome.pointsAwarded}pt`);
     }
+    elements.battleAnswerRevealStatus.classList.toggle("is-correct-answer-reveal-status", gotPoints);
     elements.battleAnswerRevealMeta.textContent = metaParts.join("・");
   }
 }
