@@ -14,7 +14,7 @@
 
 新しいシングルを追加するときの手順：
 
-1. 音源（`<songId>.mp3`）を`assets/audio/local/`へ、歌詞タイミングJSON（`<songId>-timing.json`）があれば`assets/lyrics/local/`へ置く（今までどおりの個人アーカイブ）。
+1. 音源（`<songId>.mp3`）を`assets/audio/local/`へ、歌詞タイミングJSON（`<songId>-timing.json`）があれば`assets/lyrics/local/`へ置く（今までどおりの個人アーカイブ）。コールデータ・コールガイドがあれば、`dev/callEditor.html`／`dev/callGuideEditor.html`の書き出しボタンで作った1つのJSONを、それぞれ`assets/calls/local/calls-export.json`・`assets/calls/local/call-guides-export.json`として置く（2026-09-06追加。曲ごとのファイルではなく、この端末の全曲分をまとめて書き出した1つのJSONをそのまま置くだけでよい）。
 2. `js/data/songs.js`へ新曲を登録する。
 3. `data-packs/<シングル名>/`（例：`data-packs/22nd/`）フォルダを作り、そのシングル分の`manifest.json`・音源・歌詞を用意する（詳しい手順は本人とのチャットのやり取りを参照。`packKind: "incremental"`で、`songIds`にはそのシングルの曲だけを入れる）。
 4. `cd dev && python generate_full_pack.py` を実行し、`data-packs/full/`を最新の全曲入りへ作り直す。
@@ -67,6 +67,8 @@ data-packs/
     call-guides.json          … コールガイドデータ（任意、PCのコールガイドエディターで書き出したもの）
   full/                      … 全曲パック用の作業フォルダ（非公開、generate_full_pack.pyが自動生成）
 ```
+
+コール・コールガイドの個人アーカイブ（`assets/calls/local/calls-export.json`・`call-guides-export.json`）は、`assets/audio/local/`・`assets/lyrics/local/`と同じ階層の`assets/calls/local/`に置く（2026-09-06追加。`generate_full_pack.py`がこの2ファイルを見つけられれば、`full/`へそのまま取り込んで`full.zip`に含める。無くても音源・歌詞だけのパックとして今までどおり生成される）。
 
 **ポイント：サブフォルダに分けず、1つのフォルダに全部まとめて置いてください。**
 アプリの読み込みボタンは、ブラウザの標準的な「複数ファイル選択」ダイアログを使っており、

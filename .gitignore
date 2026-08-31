@@ -6,6 +6,12 @@ assets/audio/local/*
 assets/lyrics/local/*
 !assets/lyrics/local/.gitkeep
 
+# コールデータ・コールガイドの書き出しJSON（著作権保護のため、ローカル環境のみで使用し
+# 公開・コミットしない。dev/generate_full_pack.pyが全曲パックへ取り込む際の置き場所、
+# assets/audio/local・assets/lyrics/localと同じ方針、2026-09-06新設）。
+assets/calls/local/*
+!assets/calls/local/.gitkeep
+
 # Claude Codeへの指示書（自分の作業メモのため非公開）
 CLAUDE.md
 
