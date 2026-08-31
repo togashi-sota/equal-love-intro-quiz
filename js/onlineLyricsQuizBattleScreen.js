@@ -37,9 +37,15 @@ import {
   rematchAndStartNow,
 } from "./onlineBattle.js";
 import { promptReturnToLobby } from "./onlineBattleLobbyReturnPrompt.js";
+import { promptAnswerConfirm } from "./answerConfirmPrompt.js";
 import { validateRoomSettings, getAvailabilityKind, resolveAllEligibleSongIdsForMode } from "./battleModes/index.js";
 import * as lyricsQuizBattleMode from "./battleModes/lyricsQuizBattleMode.js";
-import { SKIP_SELECTION, MAX_HINT_LEVEL, createDefaultSettingsForRule } from "./battleModes/lyricsQuizBattleMode.js";
+import {
+  SKIP_SELECTION,
+  MAX_HINT_LEVEL,
+  IDLE_RESCUE_THRESHOLD_MS,
+  createDefaultSettingsForRule,
+} from "./battleModes/lyricsQuizBattleMode.js";
 import {
   createMatchProgress,
   recordAnswer,
@@ -57,6 +63,8 @@ import {
   resolveLyricsQuizQuestion,
   finalizeLyricsQuizMatch,
   computeSongPoolHash,
+  reportQuestionActivity,
+  forceSkipIdlePlayer,
 } from "./lyricsQuizBattleFirebase.js";
 import {
   loadSongsWithLyrics,
@@ -162,6 +170,12 @@ let myOpenedHintLevel = 1;
 let myAnswerSearchQuery = "";
 let myAnswerJumpRowKey = null;
 
+// 【2026-09-06新設・3分無操作の放置救済】自分の活動報告（reportQuestionActivity()）を
+// 間隔を空けて送るための状態（毎回のクリック・入力のたびにFirebaseへ書き込まないため）。
+let lastActivityReportedAtMs = 0;
+let lastActivityReportedQIndex = -1;
+const ACTIVITY_REPORT_THROTTLE_MS = 15000;
+
 // ホスト専用の進行ミラー（js/lyricsQuizMatchProgress.js）。
 let hostState = null;
 let hostTickInFlight = false;
@@ -258,7 +272,14 @@ export function initOnlineLyricsQuizBattleScreens(newElements) {
   elements.battleAnswerSearchInput?.addEventListener("input", (event) => {
     myAnswerSearchQuery = event.target.value;
     myAnswerJumpRowKey = null;
+    reportMyQuestionActivity();
     renderCurrentQuestionState();
+  });
+
+  // 【2026-09-06新設・3分無操作の放置救済】30・50・全曲プールの回答一覧をスクロールする
+  // ことも「考えている」意味のある操作として扱う。
+  elements.battleAnswerChoicesContainer?.addEventListener("scroll", () => {
+    reportMyQuestionActivity();
   });
 
   elements.battleQuitButton.addEventListener("click", () => {
@@ -324,6 +345,8 @@ export function resetLyricsQuizBattleState() {
   myOpenedHintLevel = 1;
   myAnswerSearchQuery = "";
   myAnswerJumpRowKey = null;
+  lastActivityReportedAtMs = 0;
+  lastActivityReportedQIndex = -1;
   hostState = null;
   hostTickInFlight = false;
   resolvedAtLocalMs = null;
@@ -688,6 +711,8 @@ export async function enterLyricsQuizBattlePlay(room) {
   myOpenedHintLevel = 1;
   myAnswerSearchQuery = "";
   myAnswerJumpRowKey = null;
+  lastActivityReportedAtMs = 0;
+  lastActivityReportedQIndex = -1;
 
   elements.battleError.hidden = true;
   elements.battleStatusMessage.hidden = true;
@@ -699,6 +724,8 @@ export async function enterLyricsQuizBattlePlay(room) {
   if (elements.battleAnswerSearchInput) elements.battleAnswerSearchInput.value = "";
   elements.battleAnswerSearchRow.hidden = true;
   elements.battleAnswerJumpBar.hidden = true;
+  clearElement(elements.idleNotice);
+  elements.idleNotice.hidden = true;
   elements.navigateTo("onlineLyricsBattleQuestion");
   startServerTimeOffsetTracking();
 
@@ -830,6 +857,17 @@ async function runHostProgressionTick() {
   const firebaseWinner = match.questionClaims?.[qIndex]?.winner;
   if (firebaseWinner && !hostState.currentQuestion.winner) {
     hostState = recordStealClaim(hostState, firebaseWinner.uid, firebaseWinner.submittedAt);
+  }
+  // 【2026-09-06新設・3分無操作の放置救済】ホストがforceSkipIdlePlayer()で書き込んだ
+  // forcedSkipsは、「本人がわからないボタンを押した場合」と全く同じ経路
+  // （recordAnswer()へSKIP_SELECTIONの回答を渡す）で進行ミラーへ取り込む。
+  // 新しいFirebaseフィールド・新しい採点分岐は一切増やさず、既存の「わからない」処理を
+  // ホストの操作からも呼べるようにするだけ、という設計にしてある。
+  const firebaseForcedSkips = match.forcedSkips?.[qIndex] ?? {};
+  for (const uid of Object.keys(firebaseForcedSkips)) {
+    if (!(uid in hostState.currentQuestion.answersByUid)) {
+      hostState = recordAnswer(hostState, uid, { selectedSongId: SKIP_SELECTION, hintLevel: 1, submittedAt: Date.now() });
+    }
   }
 
   if (hostState.currentQuestion.status === "active") {
@@ -1016,6 +1054,22 @@ function renderHintArea(question, { ruleId, elapsedMs, isResolved, myAnsweredThi
   renderHintActionButtons({ isResolved, myAnsweredThisQuestion });
 }
 
+// 【2026-09-06新設・3分無操作の放置救済】本人がこの問題の中で意味のある操作をした
+// 瞬間に呼ぶ。ホスト側の「3分間操作していません」判定に使われる（js/lyricsQuizBattleFirebase.js
+// のreportQuestionActivity()参照）。呼ばれるたびに毎回Firebaseへ書き込むと通信量が
+// 増えすぎるため、同じ問題の中では既定で15秒に1回までしか実際には送信しない
+// （本人指示：「操作していれば無操作時間をリセットする」を、通信コストを抑えつつ満たす）。
+function reportMyQuestionActivity() {
+  const match = latestRoom?.matches?.[currentMatchId];
+  const qIndex = match?.currentQuestionIndex;
+  if (typeof qIndex !== "number" || !latestRoom) return;
+  const now = Date.now();
+  if (qIndex === lastActivityReportedQIndex && now - lastActivityReportedAtMs < ACTIVITY_REPORT_THROTTLE_MS) return;
+  lastActivityReportedQIndex = qIndex;
+  lastActivityReportedAtMs = now;
+  reportQuestionActivity({ roomId: latestRoom.roomId, matchId: currentMatchId, questionIndex: qIndex });
+}
+
 // 【2026-08-31新設】「ヒントNを見る」（未開放の次の段階が残っていれば1つだけ）と
 // 「わからない」ボタン。早押しバトルでは使わない（呼び出し元でhidden=trueにする）。
 function renderHintActionButtons({ isResolved, myAnsweredThisQuestion }) {
@@ -1032,6 +1086,7 @@ function renderHintActionButtons({ isResolved, myAnsweredThisQuestion }) {
     openButton.textContent = `ヒント${nextLevel}を見る`;
     openButton.addEventListener("click", () => {
       myOpenedHintLevel = nextLevel;
+      reportMyQuestionActivity();
       renderCurrentQuestionState();
     });
     elements.battleHintActions.appendChild(openButton);
@@ -1080,6 +1135,7 @@ function renderAnswerJumpBar() {
       myAnswerJumpRowKey = key;
       myAnswerSearchQuery = "";
       if (elements.battleAnswerSearchInput) elements.battleAnswerSearchInput.value = "";
+      reportMyQuestionActivity();
       renderCurrentQuestionState();
     });
     elements.battleAnswerJumpBar.appendChild(button);
@@ -1126,7 +1182,18 @@ function renderAnswerChoices(question, { isResolved, myAnsweredThisQuestion }) {
       button.textContent = choiceSong.title;
     }
     button.disabled = isResolved || myAnsweredThisQuestion || submitInFlight;
-    button.addEventListener("click", () => handleAnswerChoiceClick(choiceSong.id));
+    // 【2026-09-06新設、本人指示：実機フィードバック②】早押しバトルは回答速度そのものが
+    // 勝敗に直結するモードのため確認を挟まない（即回答のまま）。正解数バトル・
+    // ポイントバトルは手動ヒント方式で回答速度が順位に影響しないため、誤タップ対策として
+    // 1回の確認を挟む。handleAnswerChoiceClick()自身のresolveAnswerSubmissionBlock()が
+    // 二重回答・状態不整合を防ぐため、確認画面が開いている間に問題が確定していても安全。
+    button.addEventListener("click", () => {
+      if (latestRoom?.settings?.battleRuleId === "steal") {
+        handleAnswerChoiceClick(choiceSong.id);
+        return;
+      }
+      promptAnswerConfirm(choiceSong.title, () => handleAnswerChoiceClick(choiceSong.id));
+    });
     elements.battleAnswerChoicesContainer.appendChild(button);
   });
 }
@@ -1225,6 +1292,55 @@ async function handleAnswerChoiceClick(selectedSongId) {
   renderCurrentQuestionState();
 }
 
+// 【2026-09-06新設・本人指示：3分無操作の放置救済】ホストにだけ見える、3分間操作していない
+// プレイヤーへの通知。まだ回答済み・強制スキップ済みでない参加者のうち、最後に活動報告した
+// 時刻（無ければ問題開始時刻）からIDLE_RESCUE_THRESHOLD_MS以上経っている人を一覧表示する。
+// 押しっぱなしの通知ではなく毎回の描画で現在の状態をそのまま反映するだけの単純な作りのため、
+// 本人が操作を再開すれば自然に一覧から消え、再び止まればまた3分後に現れる
+// （「同じ通知を何度も出さない」は、そもそも都度のポップアップではなく常時表示の一覧にする
+// ことで、本人指示の趣旨を満たす設計にした）。
+function renderIdleNotice(match, qIndex, nowServerTimeMs) {
+  const isHost = latestRoom && getCurrentUid() === latestRoom.host;
+  if (!isHost) {
+    elements.idleNotice.hidden = true;
+    return;
+  }
+
+  const participantUids = Object.keys(match.participants ?? {});
+  const answeredUids = new Set(Object.keys(match.answers?.[qIndex] ?? {}));
+  const forcedSkipUids = new Set(Object.keys(match.forcedSkips?.[qIndex] ?? {}));
+  const idleUids = participantUids.filter((uid) => {
+    if (answeredUids.has(uid) || forcedSkipUids.has(uid)) return false;
+    const lastActivity = match.questionActivity?.[qIndex]?.[uid] ?? match.currentQuestionStartedAt ?? nowServerTimeMs;
+    return nowServerTimeMs - lastActivity >= IDLE_RESCUE_THRESHOLD_MS;
+  });
+
+  clearElement(elements.idleNotice);
+  elements.idleNotice.hidden = idleUids.length === 0;
+  idleUids.forEach((uid) => {
+    const displayName = match.participants?.[uid]?.displayName ?? uid;
+    const row = document.createElement("div");
+    row.className = "online-lyrics-battle-idle-notice-row";
+
+    const text = document.createElement("span");
+    text.className = "online-lyrics-battle-idle-notice-text";
+    text.textContent = `${displayName}さんが3分間操作していません`;
+    row.appendChild(text);
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "secondary-button online-lyrics-battle-idle-notice-button";
+    button.textContent = "わからない扱いにする";
+    button.addEventListener("click", () => {
+      button.disabled = true;
+      forceSkipIdlePlayer({ roomId: latestRoom.roomId, matchId: currentMatchId, questionIndex: qIndex, targetUid: uid });
+    });
+    row.appendChild(button);
+
+    elements.idleNotice.appendChild(row);
+  });
+}
+
 function renderCurrentQuestionState() {
   if (!latestRoom || !runtimeReady || currentQuestions.length === 0) return;
   const match = latestRoom.matches?.[currentMatchId];
@@ -1249,6 +1365,15 @@ function renderCurrentQuestionState() {
     myQuestionStartedAtCache[qIndex] = match.currentQuestionStartedAt;
   }
 
+  // 【2026-09-06新設・3分無操作の放置救済】ホストにより「わからない」扱いにされた場合、
+  // 自分の端末では本人がボタンを押した場合と同じ状態（回答済み・SKIP選択）にする。
+  const myUid = getCurrentUid();
+  const myForcedSkip = match.forcedSkips?.[qIndex]?.[myUid] === true;
+  if (myForcedSkip && mySubmittedForQuestionIndex !== qIndex) {
+    mySubmittedForQuestionIndex = qIndex;
+    mySelectedSongId = SKIP_SELECTION;
+  }
+
   elements.battleProgress.textContent = `第${qIndex + 1}問 / 全${currentQuestions.length}問`;
 
   const isResolved = match.questionStatus === "resolved";
@@ -1259,6 +1384,7 @@ function renderCurrentQuestionState() {
 
   renderHintArea(question, { ruleId, elapsedMs, isResolved, myAnsweredThisQuestion });
   renderAnswerChoices(question, { isResolved, myAnsweredThisQuestion });
+  renderIdleNotice(match, qIndex, nowServerTimeMs);
 
   maybeRecordMyOutcomeForResolvedQuestions(match);
   const hudItems = describeHudItems(latestRoom.settings.battleRuleId, computeMyLiveHudStats());
@@ -1271,7 +1397,12 @@ function renderCurrentQuestionState() {
   // が「全員回答済み」を確定条件にしているため、確定＝isResolvedの時点で必ず全員分揃っている）。
   elements.battleStatusMessage.hidden = !(myAnsweredThisQuestion && !isResolved);
   if (myAnsweredThisQuestion && !isResolved) {
-    elements.battleStatusMessage.textContent = "回答しました！他のプレイヤーの回答を待っています…";
+    // 【2026-09-06新設・本人指示】ホストにより強制的に「わからない」扱いにされた場合は、
+    // 何が起きたか本人にも分かるよう、通常の待機メッセージとは別の文言を出す
+    // （本人指示：「突然問題が終わって理由が分からない状態にはしないでください」）。
+    elements.battleStatusMessage.textContent = myForcedSkip
+      ? "ホストにより、この問題は「わからない」扱いになりました。他のプレイヤーの回答を待っています…"
+      : "回答しました！他のプレイヤーの回答を待っています…";
   }
 
   // 【2026-08-31改訂、本人指示：歌詞クイズ3ルール全面改修】対戦中は他プレイヤーとの

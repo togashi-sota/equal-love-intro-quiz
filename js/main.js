@@ -164,6 +164,7 @@ import { initOnlineLyricsQuizBattleScreens } from "./onlineLyricsQuizBattleScree
 import { initOnlineInstantBattleScreens } from "./onlineInstantBattleScreen.js";
 import { initOnlineInstantCoopBattleScreens } from "./onlineInstantCoopBattleScreen.js";
 import { initReturnToLobbyPrompt } from "./onlineBattleLobbyReturnPrompt.js";
+import { initAnswerConfirmPrompt } from "./answerConfirmPrompt.js";
 import { initOnlineBattleSongPicker } from "./onlineBattleSongPicker.js";
 import { initOnlineBattlePlaylistPicker } from "./onlineBattlePlaylistPicker.js";
 import { initOnlineBattleSongListConfirmModal } from "./onlineBattleSongListConfirmModal.js";
@@ -1002,6 +1003,11 @@ const onlineBattleResultBackToLobbyButtonElement = document.getElementById("onli
 const onlineBattleReturnToLobbyModalElement = document.getElementById("online-battle-return-to-lobby-confirm-modal");
 const onlineBattleReturnToLobbyCancelButtonElement = document.getElementById("online-battle-return-to-lobby-cancel-button");
 const onlineBattleReturnToLobbyConfirmButtonElement = document.getElementById("online-battle-return-to-lobby-confirm-button");
+// 【2026-09-06新設、本人指示：実機フィードバック②】回答確認モーダル。
+const answerConfirmModalElement = document.getElementById("answer-confirm-modal");
+const answerConfirmSongTitleElement = document.getElementById("answer-confirm-modal-song-title");
+const answerConfirmConfirmButtonElement = document.getElementById("answer-confirm-confirm-button");
+const answerConfirmCancelButtonElement = document.getElementById("answer-confirm-cancel-button");
 const onlineBattleQuizBackToLobbyButtonElement = document.getElementById("online-battle-quiz-back-to-lobby-button");
 // 【2026-08-30新設、本人指示：観戦機能】
 const onlineBattleSpectatorLeaveButtonElement = document.getElementById("online-battle-spectator-leave-button");
@@ -1114,6 +1120,8 @@ const onlineLyricsBattleAnswerSearchInputElement = document.getElementById("onli
 const onlineLyricsBattleAnswerCountElement = document.getElementById("online-lyrics-battle-answer-count");
 const onlineLyricsBattleAnswerJumpBarElement = document.getElementById("online-lyrics-battle-answer-jump-bar");
 const onlineLyricsBattleAnswerChoicesElement = document.getElementById("online-lyrics-battle-answer-choices");
+// 【2026-09-06新設、本人指示：3分無操作の放置救済】ホストにだけ見える通知。
+const onlineLyricsBattleIdleNoticeElement = document.getElementById("online-lyrics-battle-idle-notice");
 const onlineLyricsBattleStatusMessageElement = document.getElementById("online-lyrics-battle-status-message");
 const onlineLyricsBattleErrorElement = document.getElementById("online-lyrics-battle-error");
 // 【2026-09-03新設、本人指摘：正解発表の強化】
@@ -1343,6 +1351,8 @@ const instantChallengeAnswerCountElement = document.getElementById("instant-chal
 const instantChallengeAnswerListElement = document.getElementById("instant-challenge-answer-list");
 const instantChallengeCountdownElement = document.getElementById("instant-challenge-countdown");
 const instantChallengeCountdownNumberElement = document.getElementById("instant-challenge-countdown-number");
+// 【2026-09-06新設・本人指摘：実機フィードバック】音源再生失敗を画面にも表示する。
+const instantChallengeAudioErrorElement = document.getElementById("instant-challenge-audio-error");
 const instantChallengeReplayButtonElement = document.getElementById("instant-challenge-replay-button");
 const instantChallengeNextButtonElement = document.getElementById("instant-challenge-next-button");
 const instantChallengeBackButtonElement = document.getElementById("instant-challenge-back-button");
@@ -3864,6 +3874,7 @@ initInstantChallengeQuestionScreen({
   answerList: instantChallengeAnswerListElement,
   countdown: instantChallengeCountdownElement,
   countdownNumber: instantChallengeCountdownNumberElement,
+  audioError: instantChallengeAudioErrorElement,
   replayButton: instantChallengeReplayButtonElement,
   nextButton: instantChallengeNextButtonElement,
   backButton: instantChallengeBackButtonElement,
@@ -5283,6 +5294,16 @@ initReturnToLobbyPrompt({
   confirmButton: onlineBattleReturnToLobbyConfirmButtonElement,
 });
 
+// 【2026-09-06新設、本人指示：実機フィードバック②】回答速度が勝敗に直接関係しない
+// モード（一瞬チャレンジ・一瞬バトル・一瞬協力・歌詞クイズ「正解数バトル」
+// 「ポイントバトル」）が共有する回答確認モーダルを、それぞれのinit呼び出しより先に配線する。
+initAnswerConfirmPrompt({
+  modal: answerConfirmModalElement,
+  songTitleElement: answerConfirmSongTitleElement,
+  confirmButton: answerConfirmConfirmButtonElement,
+  cancelButton: answerConfirmCancelButtonElement,
+});
+
 // オンライン対戦（Firebase）画面群。navigateToは既存のnavigateBattleScreen（効果音＋showScreen）を
 // そのまま再利用する（オフライン対戦と同じ、画面数が多いモードでの確立されたパターン）。
 initOnlineBattleScreens({
@@ -5410,6 +5431,7 @@ initOnlineLyricsQuizBattleScreens({
   battleAnswerCount: onlineLyricsBattleAnswerCountElement,
   battleAnswerJumpBar: onlineLyricsBattleAnswerJumpBarElement,
   battleAnswerChoicesContainer: onlineLyricsBattleAnswerChoicesElement,
+  idleNotice: onlineLyricsBattleIdleNoticeElement,
   battleStatusMessage: onlineLyricsBattleStatusMessageElement,
   battleError: onlineLyricsBattleErrorElement,
   battleAnswerReveal: onlineLyricsBattleAnswerRevealElement,

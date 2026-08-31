@@ -15,7 +15,6 @@
 // （設計方針：追記⑥0章「完全プラグイン方式」）。
 
 import {
-  MANUAL_PROGRESS_QUESTION_TIMEOUT_MS,
   ANSWER_POOL_SIZE_ALL_MODES,
   deriveAnswerOutcome,
   computeElapsedSinceQuestionStart,
@@ -78,15 +77,18 @@ export function resolveQuestionAnswers({ answersByUid, correctSongId, questionSt
   return outcomesByUid;
 }
 
-// 【2026-08-31改訂】ヒントを手動で開く方式になったため、「ヒント4の受付時間が終わったら
-// 強制終了」という自動デッドラインは意味を持たなくなった。代わりに、全員が回答済みに
-// なるまで待つ（設計の核心：先に回答した人にだけ正解を先に見せないための全員同期）。
-// ただし、誰かが操作をやめてしまった場合に対戦が止まったままにならないよう、
-// MANUAL_PROGRESS_QUESTION_TIMEOUT_MS（60秒）を安全網として残す。
-export function shouldEndQuestion({ answersByUid, allPlayerUids, questionStartedAt, nowMs }) {
-  const allAnswered = allPlayerUids.every((uid) => uid in answersByUid);
-  const deadlineMs = questionStartedAt + MANUAL_PROGRESS_QUESTION_TIMEOUT_MS;
-  return allAnswered || nowMs >= deadlineMs;
+// 【2026-08-31改訂→2026-09-06再改訂、本人指示】ヒントを手動で開く方式になったため、
+// 「ヒント4の受付時間が終わったら強制終了」という自動デッドラインは意味を持たなくなり、
+// 全員が回答済みになるまで待つ（設計の核心：先に回答した人にだけ正解を先に見せないための
+// 全員同期）。一度は「誰かが操作をやめても対戦が止まらないように」固定60秒の安全網
+// （MANUAL_PROGRESS_QUESTION_TIMEOUT_MS）を残していたが、実機で「考えている途中なのに
+// 勝手に問題が終了する」という明確な問題が発生したため、本人指示によりこの固定時間の
+// 安全網を完全に撤廃した。代わりに、本人が回答するまで問題は無期限に続く。長時間
+// 無操作なプレイヤーへの対処は、固定時間で自動的に0点にするのではなく、ホストが
+// 判断して個別に「わからない」扱いにできる救済機能（js/onlineLyricsQuizBattleScreen.jsの
+// 3分無操作通知＋forcedSkips、実体はrecordAnswer()へのSKIP_SELECTION回答と同じ）に置き換えた。
+export function shouldEndQuestion({ answersByUid, allPlayerUids }) {
+  return allPlayerUids.every((uid) => uid in answersByUid);
 }
 
 // 1人分・全問のresolveQuestionAnswers結果（questionOutcomes）から、最終結果を組み立てる。

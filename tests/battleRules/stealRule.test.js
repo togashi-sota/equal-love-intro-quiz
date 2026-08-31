@@ -86,8 +86,6 @@ export function runStealRuleTests() {
         answersByUid: { p1: { selectedSongId: "song-1", hintLevel: 1, submittedAt: 500 } },
         winner: { uid: "p1", submittedAt: 500 },
         allPlayerUids: ["p1", "p2", "p3"],
-        questionStartedAt: 0,
-        nowMs: 600,
       }),
       true,
       "winnerが確定した瞬間、他に未回答者がいても即終了する"
@@ -104,37 +102,22 @@ export function runStealRuleTests() {
         },
         winner: null,
         allPlayerUids: ["p1", "p2"],
-        questionStartedAt: 0,
-        nowMs: 700,
       }),
       true,
-      "誰も正解しないまま全員が回答済みになれば、期限前でも終了する"
+      "誰も正解しないまま全員が回答済みになれば終了する"
     );
   }
 
-  // ===== shouldEndQuestion：未回答者が残っていれば、安全網のタイムアウトまで継続 =====
+  // ===== shouldEndQuestion：未回答者が残っていれば無期限に継続（固定タイムアウトは撤廃） =====
   {
     assertEqual(
       stealRule.shouldEndQuestion({
         answersByUid: { p1: { selectedSongId: "song-2", hintLevel: 1, submittedAt: 500 } },
         winner: null,
         allPlayerUids: ["p1", "p2"],
-        questionStartedAt: 0,
-        nowMs: 700,
       }),
       false,
-      "不正解者が出ても、未回答者が残っていて60秒の安全網タイムアウト前なら継続する"
-    );
-    assertEqual(
-      stealRule.shouldEndQuestion({
-        answersByUid: { p1: { selectedSongId: "song-2", hintLevel: 1, submittedAt: 500 } },
-        winner: null,
-        allPlayerUids: ["p1", "p2"],
-        questionStartedAt: 0,
-        nowMs: 60000,
-      }),
-      true,
-      "60秒の安全網タイムアウトを過ぎたら、未回答者が残っていても終了する"
+      "不正解者が出ても、未回答者が残っていれば経過時間に関わらず継続する（2026-09-06・本人指示で固定タイムアウトを撤廃）"
     );
   }
 

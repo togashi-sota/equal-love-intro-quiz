@@ -27,14 +27,18 @@ export const DEFAULT_COMBO_MULTIPLIER_TABLE = { 1: 1.0, 3: 1.2, 5: 1.5, 7: 2.0 }
 // comboRule.js参照）。互換のため定数自体とHINT_INTERVAL_SETTINGS_FIELDは残す。
 export const DEFAULT_HINT_INTERVAL_SEC = 6;
 
-// 【2026-08-31追加】1問あたりの最大受付時間（ミリ秒）。全ルール共通のセーフティネット。
-// ヒントを時間経過で自動送りしなくなったため、「全員回答済み」にならない限り
-// 問題が進行しなくなる可能性がある（誰かが操作をやめてしまった等）。そうした場合でも
-// 対戦が止まったままにならないよう、この時間が経過したら未回答者をスキップ扱いにして
-// 強制的に問題を終了する（js/battleRules/classicRule.js・stealRule.js・comboRule.jsの
-// shouldEndQuestion()参照）。60秒は「本人が実際に操作をやめた」と判断できる程度に長く、
-// かつ対戦が止まったままになる時間としては十分短い値として選んだ。
-export const MANUAL_PROGRESS_QUESTION_TIMEOUT_MS = 60000;
+// 【2026-08-31追加→2026-09-06撤廃】以前は1問あたりの固定60秒タイムアウト
+// （MANUAL_PROGRESS_QUESTION_TIMEOUT_MS）を全ルール共通のセーフティネットとして
+// 持っていたが、実機で「考えている途中なのに勝手に問題が終了する」という明確な問題が
+// 発生したため、本人指示によりこの固定時間の自動終了は完全に撤廃した（3ルールとも
+// shouldEndQuestion()から参照を削除済み）。代わりに、js/onlineLyricsQuizBattleScreen.jsの
+// ホスト向け3分無操作通知（IDLE_RESCUE_THRESHOLD_MS）が、個々のプレイヤー単位で
+// ホストの判断による救済を提供する（固定時間で誰かを勝手に0点にすることはない）。
+
+// 【2026-09-06新設】3分無操作の放置救済がホストへ通知を出すまでのしきい値（ミリ秒）。
+// この値自体は「ホストに通知するかどうか」の判定にのみ使い、採点・問題の自動終了には
+// 一切関与しない（js/onlineLyricsQuizBattleScreen.js参照）。
+export const IDLE_RESCUE_THRESHOLD_MS = 3 * 60 * 1000;
 
 // ヒントの最大段階数（ソロ版と同じ、buildHintSequenceのmaxHints既定値）。
 export const MAX_HINT_LEVEL = 4;

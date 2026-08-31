@@ -163,9 +163,26 @@ export async function submitLyricsQuizAnswer({ roomId, matchId, questionIndex, s
     );
     return { ok: true };
   } catch (error) {
-    // 事前チェックを通過していても、他の要因（直前に問題が終了した等の競合）で
-    // セキュリティルールに拒否されることがあり得るため、最終防衛線としてここでも判定する。
-    if (error?.code === "PERMISSION_DENIED") return { ok: false, reason: REASON.PERMISSION_DENIED };
+    // 事前チェックを通過していても、他の要因（precheckの読み取り直後〜実際の書き込みの
+    // わずかな間に、問題が確定した等の競合）でセキュリティルールに拒否されることがあり得る。
+    // 【2026-09-06改訂・本人指示：権限エラーの原因調査】以前はこの場合すべてを
+    // 一律「権限エラーが発生しました」という、原因不明に見える文言で表示していた。
+    // 実際には「もう一度読み直せば説明が付く」正当な競合であることが多いため、拒否された
+    // 直後にroomを読み直してcheckAnswerSubmissionAllowed()を再実行し、具体的な理由
+    // （既に問題が確定していた・既に回答済みだった等）へ極力言い換える。再読み込みでも
+    // 状況が説明できない場合だけ、本当に想定外の拒否として権限エラーのまま返す
+    // （Rules自体を緩めるのではなく、事後の原因特定を改善するだけの変更）。
+    if (error?.code === "PERMISSION_DENIED") {
+      try {
+        const retrySnapshot = await get(ref(database, `rooms/${roomId}`));
+        const retryRoom = retrySnapshot.exists() ? retrySnapshot.val() : null;
+        const retryCheck = checkAnswerSubmissionAllowed({ room: retryRoom, matchId, questionIndex, uid });
+        if (!retryCheck.ok) return retryCheck;
+      } catch (retryError) {
+        // 読み直し自体が失敗した場合は、元のPERMISSION_DENIEDのまま返す（下へフォールスルー）。
+      }
+      return { ok: false, reason: REASON.PERMISSION_DENIED };
+    }
     return { ok: false, reason: REASON.NETWORK_ERROR };
   }
 }
@@ -230,6 +247,43 @@ export async function submitLyricsQuizAnswerWithStealClaim({ roomId, matchId, qu
     }
     // winnerがまだ誰も居ないのに拒否された＝lost-raceでは説明が付かない、想定外の拒否。
     return { ok: false, reason: REASON.PERMISSION_DENIED };
+  }
+}
+
+// 【2026-09-06新設・本人指示：60秒自動終了の撤廃＋3分無操作の放置救済】
+// 本人がこの問題の中で意味のある操作（ヒントを開く・検索・50音ジャンプ・スクロール等）を
+// した際に呼ぶ。ホスト側はこの値を見て「3分間操作していない」プレイヤーを検出する
+// （js/onlineLyricsQuizBattleScreen.js参照）。頻繁に呼ばれすぎないよう、呼び出し元
+// （画面側）が間隔を空けて呼ぶ想定（このファイル自身はスロットリングを行わない）。
+// 失敗しても対戦の進行自体には影響しない機能のため、通信失敗時も例外を投げず黙って諦める
+// （呼び出し元にエラー表示等の後始末を要求しない）。
+export async function reportQuestionActivity({ roomId, matchId, questionIndex }) {
+  await authReady;
+  const uid = getCurrentUid();
+  if (!uid) return;
+  try {
+    await set(ref(database, `rooms/${roomId}/matches/${matchId}/questionActivity/${questionIndex}/${uid}`), Date.now());
+  } catch (error) {
+    // 活動報告の失敗は対戦の進行を妨げないため、黙って諦める（ユーザーへの表示は不要）。
+  }
+}
+
+// 【2026-09-06新設】ホストが「3分間操作していないプレイヤー」を、本人の判断でこの問題に
+// 限り「わからない」扱いにする。0点・回答済み扱いになるだけで、ルームからの退出や
+// 以降の問題への参加不可にはならない（forcedSkips/{questionIndex}/{uid}へ書き込むだけ。
+// 実際の採点・進行への反映は、js/onlineLyricsQuizBattleScreen.jsのrunHostProgressionTick()が
+// このフラグを見て、既存のrecordAnswer()へSKIP_SELECTIONの回答として渡すことで行う
+// ＝わからないボタンを本人が押した場合と全く同じ経路・同じ安全性）。
+export async function forceSkipIdlePlayer({ roomId, matchId, questionIndex, targetUid }) {
+  await authReady;
+  const uid = getCurrentUid();
+  if (!uid) return { ok: false, reason: REASON.NOT_SIGNED_IN };
+  try {
+    await set(ref(database, `rooms/${roomId}/matches/${matchId}/forcedSkips/${questionIndex}/${targetUid}`), true);
+    return { ok: true };
+  } catch (error) {
+    if (error?.code === "PERMISSION_DENIED") return { ok: false, reason: REASON.PERMISSION_DENIED };
+    return { ok: false, reason: REASON.NETWORK_ERROR };
   }
 }
 

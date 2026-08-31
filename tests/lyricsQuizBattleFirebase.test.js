@@ -38,6 +38,10 @@ function buildRoomState(overrides) {
         questionStatus: QUESTION_STATUS.ACTIVE,
         answers: {},
         questionClaims: {},
+        // 【2026-09-06追加】checkAnswerSubmissionAllowed()がparticipantsスナップショットの
+        // 存在も確認するようになったため（本人指示：実機フィードバック⑤の権限エラー原因調査）、
+        // 既定のフィクスチャにも実際のFirebase構造と同じくparticipantsを持たせる。
+        participants: { p1: {} },
       },
     },
     ...overrides,
@@ -255,6 +259,18 @@ export function runLyricsQuizBattleFirebaseTests() {
       }),
       { ok: false, reason: FIREBASE_FAILURE_REASON.ALREADY_ANSWERED },
       "拒否：既に回答済み（write-once）"
+    );
+    // 【2026-09-06追加・本人指示：実機フィードバック⑤の権限エラー原因調査】実際の
+    // Firebaseセキュリティルール（canWriteAnswer）はparticipants/{uid}.exists()も要求している。
+    // 事前チェック側にこの条件が抜けていると、「書けるはずなのに実際は拒否される」という
+    // 原因不明のPERMISSION_DENIEDが起こり得たため、事前チェック側にも同じ条件を追加した。
+    assertEqual(
+      checkAnswerSubmissionAllowed({
+        ...base,
+        room: buildRoomState({ matches: { MATCH1: { ...room.matches.MATCH1, participants: {} } } }),
+      }),
+      { ok: false, reason: FIREBASE_FAILURE_REASON.NOT_FOUND },
+      "拒否：participantsスナップショットに本人が存在しない（実際のRulesの条件と一致させた）"
     );
   }
 

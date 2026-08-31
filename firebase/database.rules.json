@@ -212,6 +212,22 @@
                 }
               }
             },
+            "forcedSkips": {
+              "$questionIndex": {
+                "$uid": {
+                  ".write": "auth != null && root.child('rooms/' + $roomId + '/host').val() === auth.uid && !data.exists() && root.child('rooms/' + $roomId + '/activeMatchId').val() === $matchId && (root.child('rooms/' + $roomId + '/matches/' + $matchId + '/currentQuestionIndex').val() + '') === $questionIndex && root.child('rooms/' + $roomId + '/matches/' + $matchId + '/questionStatus').val() === 'active' && root.child('rooms/' + $roomId + '/matches/' + $matchId + '/participants/' + $uid).exists()",
+                  ".validate": "newData.val() === true"
+                }
+              }
+            },
+            "questionActivity": {
+              "$questionIndex": {
+                "$uid": {
+                  ".write": "auth != null && auth.uid === $uid",
+                  ".validate": "newData.isNumber()"
+                }
+              }
+            },
             "questionClaims": {
               "$questionIndex": {
                 "winner": {

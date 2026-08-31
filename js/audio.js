@@ -11,6 +11,58 @@ import { registerPlaybackStopper, notifyPlaybackStarting } from "./playbackCoord
 
 const audioElement = document.getElementById("intro-audio");
 
+// 【2026-09-06新設・本人指示：一瞬チャレンジで音源再生失敗が再発】3→2→1カウントダウン
+// （js/localReplayCountdown.js）はsetTimeoutで約1.5秒後にonComplete()（＝実際の
+// audioElement.play()呼び出し）を呼ぶ。iOS Safari/PWAは「ユーザー操作から十分近い
+// タイミングで呼ばれたplay()」だけを自動再生制限の対象外として許可する仕様のため、
+// setTimeoutを1.5秒挟んだ時点のplay()は、たとえ元をたどればボタン操作から始まった
+// 処理でも「ユーザー操作外の呼び出し」とみなされ、iOS側に拒否される可能性がある
+// （PLAY_RETRY_WAIT_MS_LISTによる再試行も、同じくユーザー操作から切り離された
+// タイミングで呼ばれるため救済にならない）。
+// これを避けるため、ページ内で最初にユーザーが何か操作した瞬間（まだどの問題も
+// 始まっていない、最も早いタイミング）に、このaudio要素を1度だけ再生→即座に停止する
+// 「unlock」を行っておく。一度ユーザー操作の中でplay()が成功した要素は、その後
+// ページを閉じるまで、ユーザー操作を伴わないplay()呼び出しでも許可され続ける、という
+// ブラウザの一般的な仕様を利用している（本来再生したい音源とは無関係な、無音の
+// データURIを一時的に使うだけなので、実際のクイズ再生には一切影響しない）。
+const SILENT_UNLOCK_DATA_URI = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
+
+function unlockAudioElementOnFirstInteraction() {
+  const unlock = () => {
+    document.removeEventListener("pointerdown", unlock);
+    document.removeEventListener("keydown", unlock);
+
+    const hadSrc = !!audioElement.src;
+    if (!hadSrc) audioElement.src = SILENT_UNLOCK_DATA_URI;
+
+    const playResult = audioElement.play();
+    if (playResult && typeof playResult.then === "function") {
+      playResult
+        .then(() => {
+          audioElement.pause();
+          if (hadSrc) {
+            audioElement.currentTime = 0;
+          } else {
+            audioElement.removeAttribute("src");
+            audioElement.load();
+          }
+        })
+        .catch(() => {
+          // 無音データURIですら再生が許可されない環境でも、実際のクイズ再生自体は
+          // 従来どおりPLAY_RETRY_WAIT_MS_LISTの再試行に委ねるため、ここでは何もしない
+          // （このunlock自体はあくまで成功率を上げるための best-effort な対策）。
+          if (!hadSrc) {
+            audioElement.removeAttribute("src");
+            audioElement.load();
+          }
+        });
+    }
+  };
+  document.addEventListener("pointerdown", unlock, { once: true });
+  document.addEventListener("keydown", unlock, { once: true });
+}
+unlockAudioElementOnFirstInteraction();
+
 // 今「現在の曲」として再生中・再生準備中のObject URL（Blobを再生できる形にしたもの）。
 // 曲を切り替えるたびに、前のURLを解放してからでないとメモリに残り続けてしまうため、
 // ここに保持しておいて次回の再生開始時に片付ける。

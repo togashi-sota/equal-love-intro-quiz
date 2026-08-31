@@ -27,7 +27,6 @@
 // 「不正解になった後は選択肢を押せなくする／再挑戦できない旨を表示する」だけでよい。
 
 import {
-  MANUAL_PROGRESS_QUESTION_TIMEOUT_MS,
   ANSWER_POOL_SIZE_QUICK_ONLY,
   deriveAnswerOutcome,
   computeElapsedSinceQuestionStart,
@@ -93,11 +92,16 @@ export function resolveQuestionAnswers({ answersByUid, correctSongId, winner, qu
 // 見せる。本人指示：「正解者が出た瞬間にその問題は終了」）。まだ確定していない場合は、
 // 全員が回答済み（＝もう誰も奪い取れる見込みがない）か、安全網のタイムアウトが
 // 来れば終了する。
-export function shouldEndQuestion({ answersByUid, winner, allPlayerUids, questionStartedAt, nowMs }) {
+// 【2026-09-06改訂・本人指示】固定60秒の自動タイムアウトを撤廃した。本人指示は
+// 正解数バトル・ポイントバトルの2つを名指ししていたが、早押しバトルも「本人が回答する
+// までその問題を続けられるように」という趣旨は同じであり、かつ勝者確定で即終了する
+// 早押しバトル本来の終了条件は変更していない（winnerが決まればこれまでどおり即終了）。
+// 誰も正解しないまま全員が止まってしまった場合の対処は、他の2ルールと同じくホスト救済
+// 機能（3分無操作通知）に委ねる統一的な設計にした（詳しくはclassicRule.jsの同じ改訂の
+// コメント参照）。
+export function shouldEndQuestion({ answersByUid, winner, allPlayerUids }) {
   if (winner) return true;
-  const allAnswered = allPlayerUids.every((uid) => uid in answersByUid);
-  const deadlineMs = questionStartedAt + MANUAL_PROGRESS_QUESTION_TIMEOUT_MS;
-  return allAnswered || nowMs >= deadlineMs;
+  return allPlayerUids.every((uid) => uid in answersByUid);
 }
 
 // skippedCountはmissCountと別集計（js/battleRules/classicRule.jsのaggregateResult()の

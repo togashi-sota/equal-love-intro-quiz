@@ -169,6 +169,14 @@ export function isRetryableFailureReason(reason) {
 
 // room: { activeMatchId, matches: { [matchId]: {
 //   currentQuestionIndex, questionStatus, answers: { [questionIndex]: { [uid]: {...} } } } } }
+//
+// 【2026-09-06追記・本人指示：権限エラーの原因調査】以前はparticipantsスナップショットに
+// 本人が存在するかを確認していなかった。実際のFirebaseセキュリティルール
+// （canWriteAnswer、firebase/database.rules.jsonのanswers/{questionIndex}/{uid}）は
+// `participants/{uid}.exists()`も要求しているため、何らかの理由でparticipantsに
+// 本人のエントリが無い状態（再接続の際どいタイミング等）だと、この事前チェックだけが
+// 素通りして「書けるはずなのに実際は拒否される」という不一致が起こり得た。
+// 事前チェックとルールの条件を完全に一致させることで、原因不明のPERMISSION_DENIEDを減らす。
 export function checkAnswerSubmissionAllowed({ room, matchId, questionIndex, uid }) {
   if (!room) return { ok: false, reason: FIREBASE_FAILURE_REASON.NOT_FOUND };
   if (room.activeMatchId !== matchId) return { ok: false, reason: FIREBASE_FAILURE_REASON.STALE_MATCH };
@@ -177,6 +185,7 @@ export function checkAnswerSubmissionAllowed({ room, matchId, questionIndex, uid
   if (match.currentQuestionIndex !== questionIndex) return { ok: false, reason: FIREBASE_FAILURE_REASON.STALE_QUESTION };
   if (match.questionStatus !== QUESTION_STATUS.ACTIVE) return { ok: false, reason: FIREBASE_FAILURE_REASON.QUESTION_RESOLVED };
   if (match.answers?.[questionIndex]?.[uid]) return { ok: false, reason: FIREBASE_FAILURE_REASON.ALREADY_ANSWERED };
+  if (!match.participants?.[uid]) return { ok: false, reason: FIREBASE_FAILURE_REASON.NOT_FOUND };
   return { ok: true };
 }
 

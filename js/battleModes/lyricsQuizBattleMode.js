@@ -53,12 +53,14 @@ import {
   getAnswerSubmissionPlan as getBattleRuleAnswerSubmissionPlan,
   getComboMultiplierForCount as getBattleRuleComboMultiplierForCount,
 } from "../battleRules/index.js";
-import { SKIP_SELECTION, MAX_HINT_LEVEL } from "../battleRules/sharedDefaults.js";
+import { SKIP_SELECTION, MAX_HINT_LEVEL, IDLE_RESCUE_THRESHOLD_MS } from "../battleRules/sharedDefaults.js";
 
 // js/lyricsQuizMatchProgress.js（対戦進行エンジン）が、期限切れで未回答のまま終わった
 // プレイヤーをスキップ扱いにするために使う定数。battleRules/を直接importするのは
 // このファイルだけ、という設計方針を保つため、ここで再エクスポートする。
-export { SKIP_SELECTION, MAX_HINT_LEVEL };
+// 【2026-09-06追加】IDLE_RESCUE_THRESHOLD_MSも同じ理由で再エクスポートする
+// （js/onlineLyricsQuizBattleScreen.jsの3分無操作通知が使う）。
+export { SKIP_SELECTION, MAX_HINT_LEVEL, IDLE_RESCUE_THRESHOLD_MS };
 
 export const gameMode = "lyricsQuiz";
 export const label = "歌詞クイズ";

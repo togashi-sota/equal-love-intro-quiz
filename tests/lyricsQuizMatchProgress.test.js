@@ -83,23 +83,30 @@ export function runLyricsQuizMatchProgressTests() {
     assertEqual(state.currentQuestion.answersByUid, {}, "2問目の回答は空から始まる（前の問題の回答が残らない）");
   }
 
-  // ===== 安全網のタイムアウトで終了（未回答者はスキップ扱いで補完される） =====
-  // 【2026-08-31改訂】ヒントを手動で開く方式になり、時間経過に基づく自動デッドラインは
-  // 廃止され、固定60秒（MANUAL_PROGRESS_QUESTION_TIMEOUT_MS）の安全網のみになった。
+  // ===== 未回答者がいる限り無期限に継続（2026-09-06・本人指示で固定タイムアウトを撤廃） =====
+  // 実機で「考えている途中なのに勝手に問題が終了する」問題が起きたため、以前あった
+  // 固定60秒の自動タイムアウトを完全に撤廃した。どれだけ時間が経っても、tick()だけでは
+  // 問題は終了しない。放置対策はホスト救済機能（3分無操作通知→わからない扱い）に
+  // 委ねる（js/onlineLyricsQuizBattleScreen.js参照。仕組みとしては、通常の
+  // recordAnswer(state, uid, {selectedSongId: SKIP_SELECTION, ...})を呼ぶだけなので、
+  // 下の「1人1回答（write-once）」のテストが、その経路の正しさも兼ねて検証している）。
   {
     const settings = withBattleRule("classic");
     const questions = buildDummyQuestions(["song-1"]);
     let state = createMatchProgress({ questions, allPlayerUids: ["p1", "p2"], hostUid: "p1", nowMs: 0 });
 
     state = recordAnswer(state, "p1", { selectedSongId: "song-1", hintLevel: 1, submittedAt: 500 });
-    // p2は最後まで回答しない。60秒の安全網タイムアウト前はまだ終了しない。
-    state = tick(state, settings, 30000);
-    assertEqual(state.currentQuestion.status, "active", "p2が未回答で、まだタイムアウト前なら継続する");
+    // p2は長時間（1時間経過）回答しない。tick()だけでは絶対に終了しない。
+    state = tick(state, settings, 3600000);
+    assertEqual(state.currentQuestion.status, "active", "p2が未回答なら、どれだけ時間が経ってもtick()だけでは終了しない");
 
-    state = tick(state, settings, 60000);
-    assertEqual(state.currentQuestion.status, "resolved", "60秒の安全網タイムアウトを過ぎれば、未回答者がいても終了する");
-    assertEqual(state.historyByUid.p2[0].outcome, "skipped", "最後まで回答しなかったp2は、スキップとして補完される");
-    assertEqual(state.historyByUid.p2[0].pointsAwarded, 0, "補完されたスキップは0点");
+    // ホスト救済機能と同じ経路（recordAnswer()へSKIP_SELECTIONを渡す）で、p2を
+    // 「わからない」扱いにした場合だけ、その後のtick()で正しく終了する。
+    state = recordAnswer(state, "p2", { selectedSongId: "SKIP", hintLevel: 1, submittedAt: 3600000 });
+    state = tick(state, settings, 3600100);
+    assertEqual(state.currentQuestion.status, "resolved", "全員分の回答（p2はホスト救済によるSKIP）が揃えば終了する");
+    assertEqual(state.historyByUid.p2[0].outcome, "skipped", "ホスト救済によるp2の回答はskipped扱い");
+    assertEqual(state.historyByUid.p2[0].pointsAwarded, 0, "ホスト救済によるskipは0点");
   }
 
   // ===== 早押しバトル：winner確定後の集計（配点は正解一律1pt） =====

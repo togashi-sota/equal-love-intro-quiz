@@ -47,27 +47,24 @@ export function runClassicRuleTests() {
       p2: { selectedSongId: "song-2", hintLevel: 1, submittedAt: 1000 },
     };
     assertEqual(
-      classicRule.shouldEndQuestion({ answersByUid, allPlayerUids, questionStartedAt: 0, nowMs: 2000 }),
+      classicRule.shouldEndQuestion({ answersByUid, allPlayerUids }),
       true,
-      "全員が回答済みなら、制限時間前でも終了する"
+      "全員が回答済みなら終了する"
     );
   }
 
-  // ===== shouldEndQuestion：未回答者がいれば安全網のタイムアウトまで継続 =====
-  // ヒントを手動で開く方式になったため、自動デッドラインはヒント段階に基づかない、
-  // 固定60秒（MANUAL_PROGRESS_QUESTION_TIMEOUT_MS）の安全網になった。
+  // ===== shouldEndQuestion：未回答者がいれば無期限に継続（2026-09-06・本人指示で撤廃） =====
+  // 実機で「考えている途中なのに勝手に問題が終了する」問題が起きたため、固定時間の
+  // 自動タイムアウトを完全に撤廃した。どれだけ時間が経っても、全員が回答するまで
+  // 問題は終了しない（放置対策はホスト救済機能に委ねる。js/battleRules/sharedDefaults.js
+  // のIDLE_RESCUE_THRESHOLD_MS参照）。
   {
     const allPlayerUids = ["p1", "p2"];
     const answersByUid = { p1: { selectedSongId: "song-1", hintLevel: 1, submittedAt: 1000 } };
     assertEqual(
-      classicRule.shouldEndQuestion({ answersByUid, allPlayerUids, questionStartedAt: 0, nowMs: 30000 }),
+      classicRule.shouldEndQuestion({ answersByUid, allPlayerUids }),
       false,
-      "未回答者がいて、まだ60秒の安全網タイムアウト前なら継続"
-    );
-    assertEqual(
-      classicRule.shouldEndQuestion({ answersByUid, allPlayerUids, questionStartedAt: 0, nowMs: 60000 }),
-      true,
-      "未回答者がいても、60秒の安全網タイムアウトを過ぎたら終了する"
+      "未回答者がいれば、経過時間に関わらず継続する"
     );
   }
 

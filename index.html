@@ -2664,6 +2664,11 @@
             <p id="instant-challenge-countdown-number" class="local-replay-countdown-number">3</p>
           </div>
 
+          <!-- 【2026-09-06新設・本人指示：実機フィードバック】音源が再生できない場合の
+               エラーメッセージ。以前はconsole.warn()のみで画面に何も表示されなかった
+               （#audio-error等、他のクイズ画面と同じ表示パターンに揃えた）。 -->
+          <p id="instant-challenge-audio-error" class="error-message" hidden></p>
+
           <!-- 【2026-08-30追加・本人指示⑨】ソロプレイでは回数無制限の聞き直しボタン。
                回答が確定すると押せなくなる（js/instantChallengeScreen.js側で制御）。 -->
           <button id="instant-challenge-replay-button" class="secondary-button instant-challenge-replay-button" type="button">
@@ -3654,6 +3659,12 @@
 
         <div id="online-lyrics-battle-answer-choices" class="online-lyrics-battle-answer-grid"></div>
 
+        <!-- 【2026-09-06新設、本人指示：60秒自動終了の撤廃＋3分無操作の放置救済】
+             ホストにだけ見える、3分間無操作のプレイヤーへの通知。1問につき1人1回だけ表示する。
+             複数人が同時に該当する可能性があるため、リストとして描画する
+             （js/onlineLyricsQuizBattleScreen.js参照）。 -->
+        <div id="online-lyrics-battle-idle-notice" class="online-lyrics-battle-idle-notice" hidden></div>
+
         <!-- 【2026-09-03新設、本人指摘】以前は「正解が確定しました。まもなく次の問題です。」
              という一律の文言だけで、正解曲名・自分の正誤・獲得ポイントが分からなかった。
              オフライン歌詞クイズの正解確認カード（#lyrics-quiz-answer-reveal、既存の
@@ -4152,6 +4163,23 @@
       <div class="button-row">
         <button id="online-battle-return-to-lobby-cancel-button" class="secondary-button" type="button">キャンセル</button>
         <button id="online-battle-return-to-lobby-confirm-button" class="primary-button" type="button">ルーム設定に戻る</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 【2026-09-06新設、本人指示：実機フィードバック②】回答速度が勝敗に直接関係しない
+       モード（一瞬チャレンジ・一瞬バトル・一瞬協力・歌詞クイズの正解数バトル／
+       ポイントバトル）が共通で使う、回答前の確認モーダル。js/answerConfirmPrompt.js参照。
+       誤タップでそのまま回答が確定してしまう事故を防ぐため、選択肢タップの直後に必ず
+       このモーダルを1回挟み、「回答する」を押した時点で初めて正式な回答になる。 -->
+  <div id="answer-confirm-modal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="answer-confirm-modal-title">
+      <h2 id="answer-confirm-modal-title" class="answer-confirm-modal-title">
+        「<span id="answer-confirm-modal-song-title"></span>」で回答しますか？
+      </h2>
+      <div class="button-row">
+        <button id="answer-confirm-cancel-button" class="secondary-button" type="button">戻る</button>
+        <button id="answer-confirm-confirm-button" class="primary-button" type="button">回答する</button>
       </div>
     </div>
   </div>

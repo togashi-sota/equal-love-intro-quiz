@@ -18,7 +18,6 @@
 
 import {
   DEFAULT_HINT_POINT_TABLE,
-  MANUAL_PROGRESS_QUESTION_TIMEOUT_MS,
   ANSWER_POOL_SIZE_ALL_MODES,
   deriveAnswerOutcome,
   computeElapsedSinceQuestionStart,
@@ -69,11 +68,11 @@ export function resolveQuestionAnswers({ answersByUid, correctSongId, questionSt
   return outcomesByUid;
 }
 
-// 全参加者が回答済み、または安全網のタイムアウトが来れば問題終了（classicRuleと同じ）。
-export function shouldEndQuestion({ answersByUid, allPlayerUids, questionStartedAt, nowMs }) {
-  const allAnswered = allPlayerUids.every((uid) => uid in answersByUid);
-  const deadlineMs = questionStartedAt + MANUAL_PROGRESS_QUESTION_TIMEOUT_MS;
-  return allAnswered || nowMs >= deadlineMs;
+// 【2026-09-06改訂・本人指示】固定60秒の自動タイムアウトを撤廃した（classicRule.jsの
+// 同じ改訂と同じ理由・同じ経緯。詳しくはそちらのコメント参照）。全参加者が回答済みに
+// なるまで無期限に待つ。長時間無操作なプレイヤーへの対処はホスト救済機能に委ねる。
+export function shouldEndQuestion({ answersByUid, allPlayerUids }) {
+  return allPlayerUids.every((uid) => uid in answersByUid);
 }
 
 // questionOutcomesは出題順に並んでいる前提。

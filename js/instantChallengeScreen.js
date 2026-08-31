@@ -42,6 +42,7 @@ import { saveEarnedAchievements } from "./achievementProgress.js";
 import { renderAchievementUnlockEvents } from "./achievementDisplay.js";
 import { renderPlayerSummary } from "./playerScreen.js";
 import { runLocalReplayCountdown, cancelLocalReplayCountdown } from "./localReplayCountdown.js";
+import { promptAnswerConfirm } from "./answerConfirmPrompt.js";
 
 // 【2026-08-30改訂・本人指示】回答候補は4択／10択／全曲検索の3段階のみに変更
 // （30択・50択は一瞬チャレンジでは不要と判断し廃止。歌詞クイズ側のANSWER_POOL_SIZE_VALUES
@@ -199,7 +200,7 @@ async function buildAndStartRun(settings, explicitSongIds = null) {
 
 // questionElements: {
 //   progress, answerSearchRow, answerSearchInput, answerCount, answerList,
-//   countdown, countdownNumber, replayButton, nextButton,
+//   countdown, countdownNumber, audioError, replayButton, nextButton,
 //   backButton, quitConfirmModal, quitCancelButton, quitRestartButton, quitConfirmButton,
 //   onQuit,
 // }
@@ -275,13 +276,25 @@ export function startInstantChallengePlay() {
   renderCurrentQuestion();
 }
 
+// 【2026-09-06修正・本人指摘：実機フィードバック】以前はconsole.warn()のみで、実際に
+// 音源再生が失敗しても画面には何も表示されなかった（一度しか再現しなくても見逃さない
+// ようにするため、他のクイズ画面と同じ#audio-error相当の表示パターンに揃えた）。
 function showAudioErrorInline(message) {
   console.warn("[一瞬チャレンジ]", message);
+  if (!questionElements.audioError) return;
+  questionElements.audioError.textContent = message;
+  questionElements.audioError.hidden = false;
+}
+
+function hideAudioErrorInline() {
+  if (!questionElements.audioError) return;
+  questionElements.audioError.hidden = true;
 }
 
 // 現在の問題の音源を、決まった再生位置・再生時間で再生する。初回再生・「もう一度聞く」の
 // どちらからも同じ位置（questionIndexが同じ＝同じseedから同じ乱数が出る）が再生される。
 function playCurrentQuestionAudio() {
+  hideAudioErrorInline();
   const question = questions[currentIndex];
   const questionIndex = currentIndex;
   const playDurationSec = Number(currentSettings.playDurationValue);
@@ -338,7 +351,14 @@ function renderAnswerButtons(pool, searchQuery) {
     button.className = "choice-button lyrics-quiz-answer-button";
     button.textContent = song.title;
     button.dataset.songId = song.id;
-    button.addEventListener("click", () => handleAnswerSelected(song.id, button));
+    // 【2026-09-06新設、本人指示：実機フィードバック②】回答速度が勝敗に関係しないモード
+    // のため、タップ即確定ではなく1回の確認を挟む（誤タップ対策）。
+    // handleAnswerSelected()自身がhasAnsweredCurrentQuestionで二重回答を防いでいるため、
+    // 確認画面が開いている間に既に別の回答が確定していても、ここで安全に弾かれる。
+    button.addEventListener("click", () => {
+      if (hasAnsweredCurrentQuestion) return;
+      promptAnswerConfirm(song.title, () => handleAnswerSelected(song.id, button));
+    });
     questionElements.answerList.appendChild(button);
   });
 }

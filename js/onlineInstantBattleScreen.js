@@ -35,6 +35,7 @@ import { normalizeForSearch, songMatchesSearch } from "./songlist.js";
 import { buildQuestions, createResult, MAX_REPLAY_COUNT_PER_QUESTION } from "./battleModes/instantBattleMode.js";
 import { runLocalReplayCountdown, cancelLocalReplayCountdown } from "./localReplayCountdown.js";
 import { promptReturnToLobby } from "./onlineBattleLobbyReturnPrompt.js";
+import { promptAnswerConfirm } from "./answerConfirmPrompt.js";
 import { getCurrentUid } from "./firebaseClient.js";
 
 let elements = null;
@@ -240,7 +241,14 @@ function renderAnswerButtons(pool, searchQuery) {
     button.className = "choice-button lyrics-quiz-answer-button";
     button.textContent = song.title;
     button.dataset.songId = song.id;
-    button.addEventListener("click", () => handleAnswerSelected(song.id, button));
+    // 【2026-09-06新設、本人指示：実機フィードバック②】一瞬バトルは正解数（＋同数時は
+    // 再視聴回数）で順位を決めており、回答速度は順位に一切使わない
+    // （js/battleModes/instantBattleMode.jsのcompareResults()参照）ため、確認対象。
+    // handleAnswerSelected()自身がhasAnsweredCurrentQuestionで二重回答を防いでいる。
+    button.addEventListener("click", () => {
+      if (hasAnsweredCurrentQuestion) return;
+      promptAnswerConfirm(song.title, () => handleAnswerSelected(song.id, button));
+    });
     elements.answerList.appendChild(button);
   });
 }

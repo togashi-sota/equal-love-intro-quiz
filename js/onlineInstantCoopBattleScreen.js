@@ -34,6 +34,7 @@ import {
   rematchAndStartNow,
 } from "./onlineBattle.js";
 import { promptReturnToLobby } from "./onlineBattleLobbyReturnPrompt.js";
+import { promptAnswerConfirm } from "./answerConfirmPrompt.js";
 import { validateRoomSettings } from "./battleModes/index.js";
 import * as instantCoopBattleMode from "./battleModes/instantCoopBattleMode.js";
 import {
@@ -513,7 +514,26 @@ function renderAnswerButtons(pool, searchQuery, disabled) {
     button.className = "choice-button lyrics-quiz-answer-button";
     button.textContent = song.title;
     button.disabled = disabled;
-    button.addEventListener("click", () => handleVoteClick(song.id));
+    // 【2026-09-06新設、本人指示：実機フィードバック②④】一瞬協力は多数決＋タイ時は
+    // 決定論的な乱数タイブレークで正誤を決めており、投票の速さは結果に影響しない
+    // （js/instantCoopMatchProgress.js参照）ため確認対象。ただしこのモードは全員が
+    // 揃わなくても多数決で問題が進むことがあり得るため、確認画面を開いた時点の問題番号・
+    // ラウンド番号を覚えておき、「回答する」を押した時点で今の状態と一致するかを
+    // 再確認する（一致していなければ、前の問題への誤投票を防ぐため静かに何もしない。
+    // 本人指示：「確認画面を開いた時点のquestionIndex等と現在状態が一致しているか
+    // 確認する」）。
+    button.addEventListener("click", () => {
+      const matchAtClick = latestRoom?.matches?.[currentMatchId];
+      const expectedQIndex = matchAtClick?.currentQuestionIndex;
+      const expectedRoundNumber = matchAtClick?.coopRoundNumber ?? 0;
+      promptAnswerConfirm(song.title, () => {
+        const matchAtConfirm = latestRoom?.matches?.[currentMatchId];
+        const currentQIndex = matchAtConfirm?.currentQuestionIndex;
+        const currentRoundNumber = matchAtConfirm?.coopRoundNumber ?? 0;
+        if (currentQIndex !== expectedQIndex || currentRoundNumber !== expectedRoundNumber) return;
+        handleVoteClick(song.id);
+      });
+    });
     elements.answerList.appendChild(button);
   });
 }

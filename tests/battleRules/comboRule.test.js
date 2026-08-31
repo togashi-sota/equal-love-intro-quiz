@@ -45,7 +45,7 @@ export function runComboRuleTests() {
     assertEqual(result.detail.totalPoints, 7, "1問目+4・2問目+3・3問目不正解(+0)で合計7pt（減点は発生しない）");
   }
 
-  // ===== shouldEndQuestion：正解数バトルと同じ終了条件 =====
+  // ===== shouldEndQuestion：正解数バトルと同じ終了条件（固定タイムアウトは撤廃） =====
   {
     const allPlayerUids = ["p1", "p2"];
     assertEqual(
@@ -55,31 +55,17 @@ export function runComboRuleTests() {
           p2: { selectedSongId: "song-1", hintLevel: 1, submittedAt: 1000 },
         },
         allPlayerUids,
-        questionStartedAt: 0,
-        nowMs: 2000,
       }),
       true,
-      "全員回答済みなら制限時間前でも終了する"
+      "全員回答済みなら終了する"
     );
     assertEqual(
       comboRule.shouldEndQuestion({
         answersByUid: { p1: { selectedSongId: "song-1", hintLevel: 1, submittedAt: 1000 } },
         allPlayerUids,
-        questionStartedAt: 0,
-        nowMs: 2000,
       }),
       false,
-      "未回答者がいて60秒の安全網タイムアウト前なら継続する"
-    );
-    assertEqual(
-      comboRule.shouldEndQuestion({
-        answersByUid: { p1: { selectedSongId: "song-1", hintLevel: 1, submittedAt: 1000 } },
-        allPlayerUids,
-        questionStartedAt: 0,
-        nowMs: 60000,
-      }),
-      true,
-      "未回答者がいても60秒の安全網タイムアウトを過ぎたら終了する"
+      "未回答者がいれば、経過時間に関わらず継続する（2026-09-06・本人指示で固定タイムアウトを撤廃）"
     );
   }
 
