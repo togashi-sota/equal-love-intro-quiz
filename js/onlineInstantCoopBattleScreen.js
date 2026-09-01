@@ -66,6 +66,22 @@ import {
 // matches/{matchId}配下）として設計済みのため、歌詞クイズ対戦と全く同じ関数をそのまま
 // 再利用する（新しいFirebase Rules・新しい書き込み関数は不要）。
 import { reportQuestionActivity, forceSkipIdlePlayer } from "./lyricsQuizBattleFirebase.js";
+// 【2026-09-17新設・本人指示：「音が出ない」救済ボタン第2段階】進行判定はFirebase不使用の
+// 純粋関数（js/audioTroubleRecovery.js）に切り出し、一瞬バトル
+// （js/onlineInstantBattleScreen.js）と全く同じロジック・全く同じFirebaseパス
+// （js/audioTroubleRecoveryFirebase.js）を共有する。
+import {
+  computeRecoveryReplayWindowMs,
+  computeNextReportAttemptSlot,
+  isAudioTroubleRecoveryLocking,
+  computeAudioTroubleRecoveryAction,
+} from "./audioTroubleRecovery.js";
+import {
+  reportAudioTroubleRecovery,
+  startAudioTroubleRecoveryReplay,
+  finishAudioTroubleRecoveryReplay,
+  markAudioTroubleRecoverySwapped,
+} from "./audioTroubleRecoveryFirebase.js";
 import { IDLE_RESCUE_THRESHOLD_MS } from "./battleRules/sharedDefaults.js";
 import { AUDIO_METADATA } from "./data/audioMetadata.js";
 import {
@@ -73,7 +89,7 @@ import {
   clampStartTimeToActualDuration,
   isDurationMismatchWithinTolerance,
 } from "./randomPlaybackEngine.js";
-import { playSongFromRandomPosition, stopAudio, attemptSilentUnlock } from "./audio.js";
+import { playSongFromRandomPosition, stopAudio, attemptSilentUnlock, reportPlaybackTrouble } from "./audio.js";
 import { LARGE_ANSWER_POOL_THRESHOLD } from "./lyricsQuizEngine.js";
 import {
   createAnswerPoolBrowseState,
@@ -125,6 +141,10 @@ let myVotedRoundNumber = -1;
 // 直近に描画した問題・ラウンド（変わった瞬間だけ音源を再生し直すために使う）。
 let lastPlayedQuestionIndex = -1;
 let lastPlayedRoundNumber = -1;
+
+// 【2026-09-17新設・本人指示：「音が出ない」救済ボタン第2段階】直近にローカル再生を
+// 反応させたリカバリー再生を覚えておく（js/onlineInstantBattleScreen.jsと同じ設計）。
+let lastAppliedAudioTroubleRecoveryKey = null;
 
 // 【2026-09-06新設・3分無操作の放置救済】自分の活動報告（reportQuestionActivity()）を
 // 直近いつ送ったか（js/onlineLyricsQuizBattleScreen.jsと同じ間引き設計）。
@@ -217,6 +237,13 @@ export function initOnlineInstantCoopBattleScreens(newElements) {
     reportMyQuestionActivity();
     if (!question) return;
     playQuestionAudio(question, qIndex);
+  });
+
+  // 【2026-09-17新設・本人指示：「音が出ない」救済ボタン第2段階】1人が押すと、参加者
+  // 全員に対して今の問題の音源を頭から同じタイミングで再生し直す（js/onlineInstantBattleScreen.js
+  // と全く同じ考え方・全く同じFirebaseパスを共有する）。
+  elements.audioTroubleButton?.addEventListener("click", () => {
+    handleAudioTroubleButtonClick();
   });
 
   elements.quitButton.addEventListener("click", () => {
@@ -346,6 +373,7 @@ export function resetInstantCoopBattleState() {
   myVotedRoundNumber = -1;
   lastPlayedQuestionIndex = -1;
   lastPlayedRoundNumber = -1;
+  lastAppliedAudioTroubleRecoveryKey = null;
   lastActivityReportedAtMs = 0;
   lastActivityReportedQIndex = -1;
   disconnectedSinceMsByUid.clear();
@@ -508,6 +536,7 @@ export async function enterInstantCoopBattlePlay(room) {
   myVotedRoundNumber = -1;
   lastPlayedQuestionIndex = -1;
   lastPlayedRoundNumber = -1;
+  lastAppliedAudioTroubleRecoveryKey = null;
   lastActivityReportedAtMs = 0;
   lastActivityReportedQIndex = -1;
   disconnectedSinceMsByUid.clear();
@@ -617,6 +646,34 @@ async function runHostProgressionTick() {
     // 既に確定済み（resolved）。次へ進めるかどうかの判定は下のブロックで行う。
   } else {
     const qIndex = hostState.currentQuestionIndex;
+
+    // 【2026-09-17新設・本人指示：「音が出ない」救済ボタン第2段階】音源トラブル復旧の
+    // 処理を、通常の投票集計・進行判定より優先する。復旧が必要な間（新しい申告の検知～
+    // リカバリー再生の待機中）は、投票集計・次の問題への進行判定を一切行わない
+    // （本人指示：「他の全員の回答操作を一時的にロックし...進行を一時停止する」）。
+    const recoveryAction = computeAudioTroubleRecoveryAction({
+      recovery: match.audioTroubleRecovery,
+      reports: match.audioTroubleRecovery?.reports,
+      questionIndex: qIndex,
+      nowMs: Date.now(),
+      replayWindowMs: computeRecoveryReplayWindowMs({
+        playDurationSec: Number(currentSettings.playDurationValue),
+        includesCountdown: false, // 一瞬協力は問題ごとのローカルカウントダウンを持たない
+      }),
+    });
+    if (recoveryAction.type === "wait") return;
+    if (recoveryAction.type !== "none") {
+      hostTickInFlight = true;
+      try {
+        await applyAudioTroubleRecoveryAction(recoveryAction, qIndex);
+      } catch (error) {
+        console.error("一瞬協力：音源トラブル復旧の処理で想定外のエラーが発生しました", error);
+      } finally {
+        hostTickInFlight = false;
+      }
+      return;
+    }
+
     const roundNumber = hostState.currentQuestion.sharedReplayCount;
     const firebaseVotes = match.coopVotes?.[qIndex]?.[roundNumber] ?? {};
     let nextHostState = hostState;
@@ -792,6 +849,68 @@ function playQuestionAudio(question, questionIndex) {
 // （js/onlineLyricsQuizBattleScreen.jsのreportMyQuestionActivity()と全く同じ設計。
 // 詳しい理由はそちらのコメント参照）。同じ問題の中では既定で15秒に1回までしか
 // 実際には送信しない。
+// 【2026-09-17新設・本人指示：「音が出ない」救済ボタン第2段階】
+// js/onlineInstantBattleScreen.jsのhandleAudioTroubleButtonClick()と全く同じ設計。
+function handleAudioTroubleButtonClick() {
+  if (!elements.audioTroubleButton || elements.audioTroubleButton.disabled) return;
+  if (!latestRoom || !currentMatchId) return;
+  const match = latestRoom.matches?.[currentMatchId];
+  const qIndex = match?.currentQuestionIndex;
+  if (typeof qIndex !== "number" || match.questionStatus !== QUESTION_STATUS.ACTIVE) return;
+  const recovery = match.audioTroubleRecovery;
+  if (isAudioTroubleRecoveryLocking({ recovery, questionIndex: qIndex })) return;
+
+  const confirmed = window.confirm(
+    "音が出ませんでしたか？\n\n「OK」を選ぶと、参加者全員に対してこの問題の音源を最初から再生し直します。少しの間、全員の投票操作が一時的にできなくなります。"
+  );
+  if (!confirmed) return;
+
+  elements.audioTroubleButton.disabled = true;
+  reportPlaybackTrouble();
+  const attemptSlot = computeNextReportAttemptSlot({ recovery, questionIndex: qIndex });
+  reportAudioTroubleRecovery({ roomId: latestRoom.roomId, matchId: currentMatchId, questionIndex: qIndex, attemptSlot }).catch(() => {});
+}
+
+// 【2026-09-17新設・本人指示：「音が出ない」救済ボタン第2段階】
+// js/onlineInstantBattleScreen.jsのapplyAudioTroubleRecoveryAction()と全く同じ設計。
+// 「予備曲への差し替え」だけ、このモード専用のreportAudioFailure()を使う点が異なる。
+async function applyAudioTroubleRecoveryAction(action, qIndex) {
+  const roomId = latestRoom.roomId;
+  const matchId = currentMatchId;
+  if (action.type === "start-replay") {
+    const result = await startAudioTroubleRecoveryReplay({
+      roomId,
+      matchId,
+      questionIndex: qIndex,
+      attemptCount: action.nextAttemptCount,
+      reportedByUid: action.reportedByUid,
+    });
+    if (!result.ok) console.error("一瞬協力：音源トラブル復旧（再生開始）に失敗しました", result.reason);
+    return;
+  }
+  if (action.type === "finish-replay") {
+    const result = await finishAudioTroubleRecoveryReplay({ roomId, matchId });
+    if (!result.ok) console.error("一瞬協力：音源トラブル復旧（再開）に失敗しました", result.reason);
+    return;
+  }
+  if (action.type === "swap-reserve") {
+    // 【本人指示：安全な回数を試みても改善しない場合】既存の「音源再生失敗時の予備曲差し替え」
+    // 機能（js/instantCoopMatchProgress.jsのtick()・advanceToNextQuestion()）をそのまま
+    // 再利用する（新しい差し替えロジックを増やさない）。
+    const failureResult = await reportAudioFailure({ roomId, matchId, questionIndex: qIndex });
+    if (!failureResult.ok) console.error("一瞬協力：音源トラブル復旧（予備曲差し替え申告）に失敗しました", failureResult.reason);
+    const markResult = await markAudioTroubleRecoverySwapped({ roomId, matchId, swapCount: action.swapCount + 1 });
+    if (!markResult.ok) console.error("一瞬協力：音源トラブル復旧（差し替え記録）に失敗しました", markResult.reason);
+    return;
+  }
+  if (action.type === "return-to-lobby") {
+    // 【本人指示：予備曲への差し替えも失敗する場合】既存のreturnRoomToLobby()を再利用し、
+    // 設定・参加者・曲選択を保持したまま全員をロビーへ戻す。この試合は記録に残さない。
+    const result = await returnRoomToLobby({ roomId });
+    if (!result.ok) console.error("一瞬協力：音源トラブル復旧（ロビーへ戻す）に失敗しました", result.reason);
+  }
+}
+
 function reportMyQuestionActivity() {
   const match = latestRoom?.matches?.[currentMatchId];
   const qIndex = match?.currentQuestionIndex;
@@ -1056,6 +1175,22 @@ function renderCurrentQuestionState() {
   const isResolved = match.questionStatus === QUESTION_STATUS.RESOLVED;
   const hasVotedThisRound = myVotedQuestionIndex === qIndex && myVotedRoundNumber === roundNumber;
 
+  // 【2026-09-17新設・本人指示：「音が出ない」救済ボタン第2段階】音源トラブル復旧
+  // （リカバリー再生）が進行中の間は、投票収集中と同じ扱いで全員の投票操作をロックする。
+  const recovery = match.audioTroubleRecovery;
+  const isRecoveryLocking = isAudioTroubleRecoveryLocking({ recovery, questionIndex: qIndex });
+  if (isRecoveryLocking) {
+    // 新しいリカバリー再生を検知したら、全クライアントで同じタイミングで曲を頭から
+    // 再生し直す。既存の個別再視聴（js/onlineInstantCoopBattleScreen.jsのreplayButton）
+    // とは別の呼び出し経路で、Firebaseへは一切同期しない再視聴カウンターも存在しないため、
+    // 何かを二重にカウントしてしまう心配はない。
+    const recoveryKey = `${qIndex}:${recovery.attemptCount}`;
+    if (recoveryKey !== lastAppliedAudioTroubleRecoveryKey) {
+      lastAppliedAudioTroubleRecoveryKey = recoveryKey;
+      playQuestionAudio(question, qIndex);
+    }
+  }
+
   // 【2026-09-14修正・実機回帰バグ】以前はisResolvedだけを見ており、投票確定後・
   // 他プレイヤー待ち中はanswerSection（選択肢一覧・検索欄・わからないボタン）が
   // 表示されたままだった。投票確定後にrenderAnswerButtons()が呼ばれなくなるだけで
@@ -1064,16 +1199,27 @@ function renderCurrentQuestionState() {
   // ガードで防がれていたが、UI上「回答を変更できる」ように見えていた）。
   // hasVotedThisRoundでも隠すことで、歌詞クイズ対戦と同じ「確定後は選択肢UIごと
   // 隠して待機表示に切り替える」挙動に統一する。
-  elements.answerSection.hidden = isResolved || hasVotedThisRound;
-  elements.waitingNotice.hidden = isResolved || !hasVotedThisRound;
+  elements.answerSection.hidden = isResolved || hasVotedThisRound || isRecoveryLocking;
+  elements.waitingNotice.hidden = isResolved || !hasVotedThisRound || isRecoveryLocking;
   // 【2026-09-15新設・本人指示5：投票内容は秘密のまま、状態だけを見せる】
   // 一瞬バトルの回答状況一覧と同じ考え方・同じ表示タイミング（自分が投票した後だけ見せる）。
-  if (elements.answerStatusList) elements.answerStatusList.hidden = isResolved || !hasVotedThisRound;
+  if (elements.answerStatusList) elements.answerStatusList.hidden = isResolved || !hasVotedThisRound || isRecoveryLocking;
   elements.revealSection.hidden = !isResolved;
   // 【2026-09-05新設、本人指示】各自が個別に無制限で再視聴できるボタン。投票済み・
   // 正解確定後は押せないようにする（Firebaseへは一切同期しない、完全にローカルな操作）。
   if (elements.replayButton) {
-    elements.replayButton.disabled = isResolved || hasVotedThisRound;
+    elements.replayButton.disabled = isResolved || hasVotedThisRound || isRecoveryLocking;
+  }
+
+  // 【2026-09-17新設・本人指示：「音が出ない」救済ボタン第2段階】表示条件：投票収集中
+  // だけ表示（答え合わせ中・結果画面・ロビーでは非表示）。誰かが処理を開始した瞬間、
+  // 全クライアントでボタンを無効化する。
+  if (elements.audioTroubleButton) {
+    elements.audioTroubleButton.hidden = isResolved;
+    elements.audioTroubleButton.disabled = isRecoveryLocking;
+  }
+  if (elements.audioTroubleNotice) {
+    elements.audioTroubleNotice.hidden = !isRecoveryLocking;
   }
 
   if (!isResolved) {
@@ -1089,7 +1235,7 @@ function renderCurrentQuestionState() {
     if (!hasVotedThisRound) {
       renderAnswerButtons(question.answerPool);
     }
-    elements.unknownButton.disabled = hasVotedThisRound;
+    elements.unknownButton.disabled = hasVotedThisRound || isRecoveryLocking;
     const players = latestRoom.players || {};
     const activeUids = Object.keys(match.participants ?? {});
     const votedCount = countVotedPlayers(

@@ -718,8 +718,19 @@
            と組み合わせて使う。既存のjs/answerConfirmPrompt.jsは「この曲で回答しますか？」という
            回答確定専用の文言が固定されており、今回の用途とは意味が異なるため、js/onlineBattleScreen.js等の
            運用管理系操作（退出させる・ホストを渡す等）と同じくwindow.confirm()のパターンを採用した）。 -->
+      <!-- 【2026-09-16新設・本人指示：「音が出ない」救済ボタン第2段階（オンライン対戦・
+           個人進行系：タイムアタック・ランダム再生対戦・アウトロクイズ対戦）】
+           上の#audio-trouble-buttonとは別のDOM要素・別の確認フローにする（js/main.jsの
+           handleOnlineBattleAudioTroubleButtonClick()参照）。オンライン対戦はこの3モード
+           すべてタイムシビア（回答にかかった時間が順位に直接影響する）なため、オフライン版の
+           ような「非タイムシビアなら再生し直す」分岐は無く、押すと必ず「このマッチから自分
+           だけ抜けてルーム設定画面へ戻る」（js/onlineBattleScreen.jsのabortOnlineBattleMatch
+           DueToAudioTrouble()）動作になる。表示/非表示の切り替え自体は#audio-trouble-button
+           と同じくjs/main.jsのrenderQuestion()が行う（playModeで出し分けるため、同時に
+           両方表示されることは無い）。 -->
       <div class="quiz-audio-trouble-row">
         <button id="audio-trouble-button" class="quiz-audio-trouble-button" type="button" hidden>🔇 音が出ない</button>
+        <button id="online-battle-audio-trouble-button" class="quiz-audio-trouble-button" type="button" hidden>🔇 音が出ない</button>
       </div>
 
       <!-- 【2026-08-29追加、本人指示】ピンチズーム・ドラッグでページ自体の表示位置がずれる
@@ -3714,6 +3725,21 @@
       <!-- 【2026-09-14新設・本人指示】ゲスト専用「この試合だけ抜ける」。 -->
       <button id="online-instant-battle-leave-match-button" class="secondary-button online-battle-back-to-lobby-button" type="button" hidden>⚙ ルーム設定へ戻る</button>
 
+      <!-- 【2026-09-17新設・本人指示：「音が出ない」救済ボタン第2段階】js/audio.js・
+           js/main.jsのオフライン版（#audio-trouble-button）と同じクラス・同じ配置方針
+           （.quiz-middle-zone＝スクロール領域の外に置くことで、375px幅でもスクロールせずに
+           常に見える）を再利用する。ただしオンライン一瞬バトルは個人の操作ではなく
+           「参加者全員に対して同じタイミングで音源を再生し直す」試合全体の処理のため、
+           押すと専用のFirebase同期（js/audioTroubleRecovery.js・
+           js/audioTroubleRecoveryFirebase.js）へつながる別の仕組みになっている
+           （js/onlineInstantBattleScreen.js制御）。 -->
+      <div class="quiz-audio-trouble-row">
+        <button id="online-instant-battle-audio-trouble-button" class="quiz-audio-trouble-button" type="button" hidden>🔇 音が出ない</button>
+      </div>
+      <p id="online-instant-battle-audio-trouble-notice" class="online-battle-lead-text" hidden>
+        🔇 音源トラブル対応のため、参加者全員の音源を最初から再生し直しています…
+      </p>
+
       <div class="quiz-middle-zone">
         <div class="quiz-middle-zone-inner">
           <p id="online-instant-battle-error" class="error-message" hidden></p>
@@ -3804,6 +3830,16 @@
       <button id="online-instant-coop-battle-back-to-lobby-button" class="secondary-button online-battle-back-to-lobby-button" type="button" hidden>⚙ ルーム設定へ戻る</button>
       <!-- 【2026-09-14新設・本人指示】ゲスト専用「この試合だけ抜ける」。 -->
       <button id="online-instant-coop-battle-leave-match-button" class="secondary-button online-battle-back-to-lobby-button" type="button" hidden>⚙ ルーム設定へ戻る</button>
+
+      <!-- 【2026-09-17新設・本人指示：「音が出ない」救済ボタン第2段階】
+           js/onlineInstantBattleScreen.js側と全く同じ配置方針・全く同じ仕組み
+           （js/onlineInstantCoopBattleScreen.js制御）。 -->
+      <div class="quiz-audio-trouble-row">
+        <button id="online-instant-coop-battle-audio-trouble-button" class="quiz-audio-trouble-button" type="button" hidden>🔇 音が出ない</button>
+      </div>
+      <p id="online-instant-coop-battle-audio-trouble-notice" class="online-battle-lead-text" hidden>
+        🔇 音源トラブル対応のため、参加者全員の音源を最初から再生し直しています…
+      </p>
 
       <div class="quiz-middle-zone">
         <div class="quiz-middle-zone-inner">

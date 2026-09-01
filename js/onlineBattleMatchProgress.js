@@ -38,8 +38,15 @@ export function isMatchReadyToFinalize({ participants, progress }) {
 // 1人の参加者について、「これ以上、この人の結果を待たなくてよい」状態かどうか。
 // ・対戦中に自主退出済み（leftDuringMatch:true）なら、結果を送っていなくても待たない
 //   （書き込み後に取り消せないwrite-onceフラグのため、以後ずっとこの扱いになる）。
+// ・【2026-09-16追加・本人指示：「音が出ない」救済ボタン第2段階（オンライン対戦・個人進行系）】
+//   「音が出ない」を自己申告してこのマッチから抜けた（audioTroubleAbort:true）場合も、
+//   leftDuringMatchと全く同じ理由（これ以上この人の結果を待つ必要が無い）で待つ対象から外す。
+//   ただし意味は別物（本人の意思による途中退出ではなく、音源トラブルによる特別な離脱）なので、
+//   leftDuringMatchとは別のフラグとして扱い、結果画面側の表示（js/onlineBattleScreen.js）は
+//   混同しない。
 // ・それ以外は、従来どおりprogress.finishedがtrueになるまで待つ。
 function isParticipantAccountedFor(participant, participantProgress) {
   if (participant?.leftDuringMatch === true) return true;
+  if (participant?.audioTroubleAbort === true) return true;
   return participantProgress?.finished === true;
 }

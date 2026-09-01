@@ -161,6 +161,8 @@ import {
   quitOnlineBattleDuringQuiz,
   leaveOnlineBattleRoomView,
   leaveOnlineBattleRoomCompletely,
+  // 【2026-09-16新設・本人指示：「音が出ない」救済ボタン第2段階（オンライン対戦・個人進行系）】
+  abortOnlineBattleMatchDueToAudioTrouble,
 } from "./onlineBattleScreen.js";
 import { initOnlineLyricsQuizBattleScreens } from "./onlineLyricsQuizBattleScreen.js";
 import { initOnlineInstantBattleScreens } from "./onlineInstantBattleScreen.js";
@@ -427,6 +429,8 @@ const skipButtonElement = document.getElementById("skip-button");
 const revealButtonElement = document.getElementById("reveal-button");
 const audioErrorElement = document.getElementById("audio-error");
 const audioTroubleButtonElement = document.getElementById("audio-trouble-button");
+// 【2026-09-16新設・本人指示：「音が出ない」救済ボタン第2段階（オンライン対戦・個人進行系）】
+const onlineBattleAudioTroubleButtonElement = document.getElementById("online-battle-audio-trouble-button");
 const timerDisplayElement = document.getElementById("timer-display");
 const totalScoreElement = document.getElementById("total-score-display");
 const rankElement = document.getElementById("rank-display");
@@ -1097,6 +1101,8 @@ const onlineInstantBattleSettingsErrorElement = document.getElementById("online-
 const onlineInstantBattleQuitButtonElement = document.getElementById("online-instant-battle-quit-button");
 const onlineInstantBattleBackToLobbyButtonElement = document.getElementById("online-instant-battle-back-to-lobby-button");
 const onlineInstantBattleLeaveMatchButtonElement = document.getElementById("online-instant-battle-leave-match-button");
+const onlineInstantBattleAudioTroubleButtonElement = document.getElementById("online-instant-battle-audio-trouble-button");
+const onlineInstantBattleAudioTroubleNoticeElement = document.getElementById("online-instant-battle-audio-trouble-notice");
 const onlineInstantBattleProgressElement = document.getElementById("online-instant-battle-progress");
 const onlineInstantBattleErrorElement = document.getElementById("online-instant-battle-error");
 const onlineInstantBattleCountdownElement = document.getElementById("online-instant-battle-countdown");
@@ -1142,6 +1148,8 @@ const onlineInstantCoopSettingsErrorElement = document.getElementById("online-in
 const onlineInstantCoopQuitButtonElement = document.getElementById("online-instant-coop-battle-quit-button");
 const onlineInstantCoopBackToLobbyButtonElement = document.getElementById("online-instant-coop-battle-back-to-lobby-button");
 const onlineInstantCoopLeaveMatchButtonElement = document.getElementById("online-instant-coop-battle-leave-match-button");
+const onlineInstantCoopAudioTroubleButtonElement = document.getElementById("online-instant-coop-battle-audio-trouble-button");
+const onlineInstantCoopAudioTroubleNoticeElement = document.getElementById("online-instant-coop-battle-audio-trouble-notice");
 const onlineInstantCoopProgressElement = document.getElementById("online-instant-coop-battle-progress");
 const onlineInstantCoopErrorElement = document.getElementById("online-instant-coop-battle-error");
 const onlineInstantCoopReplayButtonElement = document.getElementById("online-instant-coop-battle-replay-button");
@@ -2760,21 +2768,35 @@ function resetAudioTroubleTrackingIfNewQuestion() {
 
 // クイズ画面に入るたび（新しい問題の描画・回答確定のたび）に呼ぶ、ボタンの表示制御。
 // 「音源を使う問題の回答収集中」だけ表示する（タスク仕様どおり、カウントダウン中・
-// 結果発表中・結果画面・ロビー画面では出さない）。対象外のplayMode（localBattle・
-// onlineBattle。この2つは今回のタスク範囲外のため、既存の対戦モード担当ファイルには
+// 結果発表中・結果画面・ロビー画面では出さない）。対象外のplayMode（localBattle。
+// この対戦モードは今回のタスク範囲外のため、既存の対戦モード担当ファイルには
 // 一切手を加えず、ここで表示対象から外すだけにとどめる）では常に非表示にする。
+// 【2026-09-16改訂・本人指示：「音が出ない」救済ボタン第2段階（オンライン対戦・個人進行系）】
+// タイムアタック・ランダム再生対戦・アウトロクイズ対戦のオンライン対戦（playMode==="onlineBattle"）
+// は、第1段階の時点では対象外にしていたが、今回対応する。ただし押したときの処理・確認文言が
+// オフライン版（audioTroubleButtonElement）とは別物のため、DOM要素ごと分けている
+// （onlineBattleAudioTroubleButtonElement）。1つの問題で両方が同時に表示されることは
+// playModeで完全に排他のため起こらない。
 function updateAudioTroubleButtonVisibilityForQuestion() {
   const isSupportedPlayMode = ["normal", "review", "special", "timeAttack", "randomPlayback"].includes(
     gameState.playMode
   );
   audioTroubleButtonElement.hidden = !isSupportedPlayMode;
   audioTroubleButtonElement.disabled = false;
+
+  const isOnlineBattle = gameState.playMode === "onlineBattle";
+  onlineBattleAudioTroubleButtonElement.hidden = !isOnlineBattle;
+  onlineBattleAudioTroubleButtonElement.disabled = false;
 }
 
 // 回答が確定した瞬間（正解・不正解・スキップ・答えを見る、タイムアタックの正解/確定不正解の
 // どのルートでも）に呼ぶ、ボタンを隠す共通処理。「回答収集中だけ表示する」を保証する。
+// 【2026-09-16改訂】オンライン対戦（個人進行系）の回答確定もhandleTimedChoiceClick()経由で
+// この関数を呼ぶため、両方のボタンをまとめて隠す（元々どちらか一方しか表示されていないため、
+// 両方隠しても無害）。
 function hideAudioTroubleButton() {
   audioTroubleButtonElement.hidden = true;
+  onlineBattleAudioTroubleButtonElement.hidden = true;
 }
 
 // 「音が出ない」を確定したときの入口。連打対策（disabled）・確認ダイアログを経てから、
@@ -2876,6 +2898,47 @@ function skipCurrentQuestionAsNotAdministered() {
   }
 
   renderQuestion();
+}
+
+// ===== 【2026-09-16新設・本人指示：「音が出ない」救済ボタン第2段階（オンライン対戦・
+// 個人進行系：タイムアタック・ランダム再生対戦・アウトロクイズ対戦）】=====
+// 上のオフライン版（handleAudioTroubleButtonClick）とは別のボタン（onlineBattleAudioTroubleButtonElement）
+// 専用の入口。オンライン対戦のこの3モードは、js/battleModes/timeAttackBattleMode.jsの
+// compareResults()を（ランダム再生・アウトロも含めて）共有しており、いずれのrule
+// （normal/hard/loveChain）でも必ずelapsedMs（経過時間）を順位判定に使う、常にタイムシビアな
+// モードのため、オフライン版のような「非タイムシビアなら同じ問題を再生し直す」分岐は存在しない。
+// 個人進行系（各自が自分のペースで進む）なので、この申告は「このマッチから自分だけ安全に
+// 抜ける」だけでよく、他の参加者の対戦の進行には一切影響しない
+// （js/onlineBattleScreen.jsのabortOnlineBattleMatchDueToAudioTrouble()参照）。
+function handleOnlineBattleAudioTroubleButtonClick() {
+  if (onlineBattleAudioTroubleButtonElement.disabled) return; // 連打対策：押した瞬間に無効化する
+  if (gameState.isAnswered) return; // 保険。回答確定後は本来ボタン自体が非表示になっている
+  onlineBattleAudioTroubleButtonElement.disabled = true;
+
+  // 【確認ダイアログについて】js/onlineBattleScreen.jsが退出確認・ホスト移譲確認等で
+  // 使っているwindow.confirm()のパターンをそのまま踏襲する（上のオフライン版と同じ理由）。
+  const confirmed = window.confirm(
+    "音が出ませんでしたか？\n\n「OK」を選ぶと、この試合からあなただけ抜けてルーム設定画面に戻ります。あなたの今回の記録（順位・自己ベスト・プレイ履歴等）には一切残りません。他の参加者の対戦はそのまま続きます。"
+  );
+
+  if (!confirmed) {
+    onlineBattleAudioTroubleButtonElement.disabled = false;
+    return;
+  }
+
+  // js/audio.jsの共通基盤へ申告を記録しておく（オフライン版と同じ理由、診断ログ用）。
+  reportPlaybackTrouble();
+
+  // 【2026-09-16追加】タイムアタックの正解/不正解演出後の自動進行予約（setTimeout）が
+  // 残っていると、この画面を離れた後に発火して勝手に次の問題や結果画面へ進めてしまう
+  // ため、quitCurrentQuizWithoutSaving()と全く同じ手順で確実に後始末してから離脱する。
+  clearPendingTimeAttackAdvance();
+  stopTimer();
+  stopAudio();
+  resetGameState();
+  // 画面遷移（ルーム設定画面へ戻る）はabortOnlineBattleMatchDueToAudioTrouble()側が
+  // 自分の持つ最新のroom情報を使って行う（js/onlineBattleScreen.js側の設計に合わせる）。
+  abortOnlineBattleMatchDueToAudioTrouble();
 }
 
 // 自己ベストのチップに表示する、出題数・カテゴリの短縮ラベル。
@@ -4306,6 +4369,8 @@ document.getElementById("next-button").addEventListener("click", () => {
 skipButtonElement.addEventListener("click", handleSkip);
 revealButtonElement.addEventListener("click", handleReveal);
 audioTroubleButtonElement.addEventListener("click", handleAudioTroubleButtonClick);
+// 【2026-09-16新設・本人指示：「音が出ない」救済ボタン第2段階（オンライン対戦・個人進行系）】
+onlineBattleAudioTroubleButtonElement.addEventListener("click", handleOnlineBattleAudioTroubleButtonClick);
 
 // 「もう一度挑戦する」：スタート画面を経由せず、直前と同じ出題数・カテゴリのまま
 // クイズを再抽選して開始する。
@@ -5913,6 +5978,8 @@ initOnlineInstantBattleScreens({
   quitConfirmButton: onlineInstantBattleQuitConfirmButtonElement,
   backToLobbyButton: onlineInstantBattleBackToLobbyButtonElement,
   leaveMatchButton: onlineInstantBattleLeaveMatchButtonElement,
+  audioTroubleButton: onlineInstantBattleAudioTroubleButtonElement,
+  audioTroubleNotice: onlineInstantBattleAudioTroubleNoticeElement,
   progress: onlineInstantBattleProgressElement,
   error: onlineInstantBattleErrorElement,
   countdown: onlineInstantBattleCountdownElement,
@@ -5966,6 +6033,8 @@ initOnlineInstantCoopBattleScreens({
   quitConfirmButton: onlineInstantCoopQuitConfirmButtonElement,
   backToLobbyButton: onlineInstantCoopBackToLobbyButtonElement,
   leaveMatchButton: onlineInstantCoopLeaveMatchButtonElement,
+  audioTroubleButton: onlineInstantCoopAudioTroubleButtonElement,
+  audioTroubleNotice: onlineInstantCoopAudioTroubleNoticeElement,
   progress: onlineInstantCoopProgressElement,
   error: onlineInstantCoopErrorElement,
   replayButton: onlineInstantCoopReplayButtonElement,

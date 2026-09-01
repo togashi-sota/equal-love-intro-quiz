@@ -57,6 +57,8 @@ import {
   spectateRoom,
   leaveSpectating,
   promoteSpectatorToPlayer,
+  // 【2026-09-16新設・本人指示：「音が出ない」救済ボタン第2段階（オンライン対戦・個人進行系）】
+  reportAudioTroubleAbort,
 } from "./onlineBattle.js";
 import { getCurrentUid } from "./firebaseClient.js";
 import {
@@ -1879,13 +1881,19 @@ function renderLobby(room) {
     } else if (
       room.status === ROOM_STATUS.PLAYING &&
       previousStatus !== ROOM_STATUS.COUNTDOWN &&
-      !hasVoluntarilyLeftMatch(room.activeMatchId)
+      !hasVoluntarilyLeftMatch(room.activeMatchId) &&
+      room.matches?.[room.activeMatchId]?.participants?.[myUid]?.audioTroubleAbort !== true
     ) {
       // カウントダウンを経由せずplayingを検知した＝出遅れて参加/再接続した端末。
       // 自分のローカルカウントダウンは持っていないので、直接出題を開始する。
       // 【2026-09-14追加・本人指示：対戦中のゲストが自分だけ途中離脱する】この試合を
       // 自分の意思で既に途中離脱している場合は、room.statusが"playing"のままでも
       // 対戦画面へ自動的に戻さない（本人指示：自動同期で対戦画面へ呼び戻さない）。
+      // 【2026-09-16追加・本人指示：「音が出ない」救済ボタン第2段階】leftDuringMatchの
+      // hasVoluntarilyLeftMatch()はこの端末のメモリ上だけの状態（リロードで消える）のため、
+      // 音源トラブルで抜けた直後にページを再読み込みした場合の再入場を防げない。
+      // audioTroubleAbortはFirebase側のwrite-onceフラグ（サーバー側の確定情報）なので、
+      // ここではroomから直接読んで判定する（リロードしても正しく対戦画面へ戻さずに済む）。
       enterOnlineBattlePlay(room);
     } else if (room.status === ROOM_STATUS.RESULT && document.body.dataset.screen !== "quiz") {
       // 結果確定を検知したら結果画面へ進む。ただし、自分がまだクイズ回答中（quiz画面）の
@@ -2048,7 +2056,10 @@ function renderSpectatorView(room) {
       badges.appendChild(hostBadge);
     }
     const statusBadge = document.createElement("span");
-    if (row.hasLeft) {
+    if (row.hasAudioTroubleAbort) {
+      statusBadge.className = "online-lobby-badge online-lobby-badge-disconnected";
+      statusBadge.textContent = "音源トラブル";
+    } else if (row.hasLeft) {
       statusBadge.className = "online-lobby-badge online-lobby-badge-disconnected";
       statusBadge.textContent = "退出済み";
     } else if (row.finished) {
@@ -2098,6 +2109,12 @@ async function reportMyAvailableSongIdsForRoom(roomId) {
 // どちらも「もうこの人の結果は待たない」という意味では同じなので、hasLeftの意味を
 // 「実際に退出／自主的にこの試合から抜けた、のどちらか」へ広げ、表示・待機判定の両方で
 // 同じ1つのフラグとして扱えるようにした。
+// 【2026-09-16追加・本人指示：「音が出ない」救済ボタン第2段階（オンライン対戦・個人進行系）】
+// audioTroubleAbort（音源トラブルの自己申告によるマッチ離脱）も、hasLeftの対象に含める
+// （「もうこの人の結果は待たない」という意味ではleftDuringMatchと同じため）。ただし
+// 「本人の意思による途中退出」ではなく「音源トラブルによる特別な離脱」という理由の違いを
+// 他の参加者・観戦者にも正しく伝えられるよう、audioTroubleAbortフラグ自体は別途残しておき、
+// 各表示先（quizストリップ・待機一覧・観戦者一覧）でleftDuringMatchとは違う文言に出し分ける。
 function getOnlineBattleMatchRows(room) {
   const match = (room.matches || {})[currentMatchId] || {};
   const participants = match.participants || {};
@@ -2107,6 +2124,7 @@ function getOnlineBattleMatchRows(room) {
   return Object.entries(participants).map(([uid, participant]) => {
     const playerProgress = progress[uid] || {};
     const livePlayer = players[uid]; // 退出済みならundefined
+    const hasAudioTroubleAbort = participant.audioTroubleAbort === true;
     return {
       uid,
       displayName: participant.displayName,
@@ -2114,7 +2132,8 @@ function getOnlineBattleMatchRows(room) {
       isHost: participant.isHost === true,
       answeredCount: playerProgress.answeredCount ?? 0,
       finished: playerProgress.finished === true,
-      hasLeft: !livePlayer || participant.leftDuringMatch === true,
+      hasLeft: !livePlayer || participant.leftDuringMatch === true || hasAudioTroubleAbort,
+      hasAudioTroubleAbort,
       connected: Boolean(livePlayer?.connected),
       presence: livePlayer?.presence, // 【2026-09-05新設】在席確認システム用（下記の描画で使用）
     };
@@ -2128,6 +2147,7 @@ function renderOnlineBattleQuizStrip(rows, myUid) {
   const text = rows
     .filter((row) => row.uid !== myUid)
     .map((row) => {
+      if (row.hasAudioTroubleAbort) return `${row.displayName} 音源トラブルのため離脱`;
       if (row.hasLeft) return `${row.displayName} 退出済み`;
       if (row.finished) return `${row.displayName} 完了`;
       const base = `${row.displayName} ${row.answeredCount}/${currentMatchTotalQuestions}`;
@@ -2174,7 +2194,12 @@ function renderOnlineBattleWaitingList(room, rows, myUid) {
     }
 
     const statusBadge = document.createElement("span");
-    if (row.hasLeft) {
+    if (row.hasAudioTroubleAbort) {
+      // 【2026-09-16新設・本人指示：「音が出ない」救済ボタン第2段階】自主的な「退出済み」とは
+      // 別の理由であることが、他の参加者にも一目で分かるようにする。
+      statusBadge.className = "online-lobby-badge online-lobby-badge-disconnected";
+      statusBadge.textContent = "音源トラブル";
+    } else if (row.hasLeft) {
       statusBadge.className = "online-lobby-badge online-lobby-badge-disconnected";
       statusBadge.textContent = "退出済み";
     } else if (row.finished) {
@@ -2284,7 +2309,11 @@ function goToResultScreen(room) {
     // 立っている参加者は、途中まで得点していても正式な順位（finishers）には含めない
     // （本人指示：順位・勝敗・ランキング・称号判定の対象外）。既存のDNF（未終了）扱いの
     // 一覧にそのまま合流させることで、新しい表示区分を増やさずに済む。
-    if (result && participant.leftDuringMatch !== true) {
+    // 【2026-09-16追加・本人指示：「音が出ない」救済ボタン第2段階】audioTroubleAbortも
+    // 全く同じ理由（順位・勝敗・記録の対象外）でfinishersから除外する。ただし下のdnfEntries
+    // 描画では「途中退出（DNF）」と混同しない専用の文言に出し分ける（本人指示：この人が
+    // 「途中退出者」と誤表示されないように）。
+    if (result && participant.leftDuringMatch !== true && participant.audioTroubleAbort !== true) {
       finishers.push({ uid, participant, result });
     } else {
       dnfEntries.push({ uid, participant });
@@ -2385,7 +2414,10 @@ function goToResultScreen(room) {
     appendNameRow(info, entry.participant, entry.uid);
     const meta = document.createElement("p");
     meta.className = "battle-rank-meta";
-    meta.textContent = "未完了（DNF）";
+    // 【2026-09-16追加・本人指示：「音が出ない」救済ボタン第2段階】音源トラブルで自己申告して
+    // 抜けた人は、通信断・タイムアウト等の「未完了（DNF）」や、本人の意思による「途中退出」とも
+    // 混同しないよう、専用の文言にする。
+    meta.textContent = entry.participant.audioTroubleAbort === true ? "音源トラブルのため途中辞退" : "未完了（DNF）";
     info.appendChild(meta);
     row.appendChild(info);
 
@@ -2450,6 +2482,12 @@ function saveOnlineBattleHistoryEntry(room, matchId, finishers, finisherRanks, d
   const isDnf = myFinisherIndex === -1;
   const myEntry = isDnf ? dnfEntries.find((entry) => entry.uid === myUid) : finishers[myFinisherIndex];
   if (!myEntry) return; // 自分自身がparticipantsに存在しない状況は通常起きないが、念のため安全側に倒す
+  // 【2026-09-16追加・本人指示：「音が出ない」救済ボタン第2段階（オンライン対戦・個人進行系）】
+  // 音源トラブルを自己申告してこのマッチから抜けた場合、本人指示どおり記録（自己ベスト・称号・
+  // プレイ履歴）には一切残さない。結果画面自体には表示する（他の参加者から見えるように）が、
+  // プレイ履歴への保存だけは行わない（既存のDNF・途中退出とは異なり、このmatchId自体を
+  // 「プレイした」扱いにしない）。
+  if (myEntry.participant.audioTroubleAbort === true) return;
 
   const isAllSongsMode =
     !room.settings.questionSource || room.settings.questionSource.type === QUESTION_SOURCE_TYPE.ALL_SONGS;
@@ -2605,6 +2643,35 @@ export async function quitOnlineBattleDuringQuiz() {
   // 無反応になる、という不具合があった。leaveRoom()の完了を待ってから再描画することで解消する。
   if (roomId) await leaveRoom({ roomId });
   renderLastRoomBanner();
+}
+
+// 【2026-09-16新設・本人指示：「音が出ない」救済ボタン第2段階（オンライン対戦・個人進行系）】
+// タイムアタック・ランダム再生対戦・アウトロクイズ対戦中に「音が出ない」を確定したときに
+// js/main.jsから呼ばれる。js/onlineBattleLeaveMatchPrompt.js（対戦中のゲストが自分だけ
+// 途中離脱する）の確定後の処理と全く同じ考え方：room.status・room.players・matches全体には
+// 一切触れず、「この試合の、この人」だけをaudioTroubleAbort:trueにして安全にロビーへ戻す
+// （ルーム自体・設定は消さない。他の参加者の対戦はそのまま続く）。
+//
+// 【quitOnlineBattleDuringQuiz()との違い】あちらは「対戦をやめる」＝ルームごと完全に退出する
+// （leaveRoom()を呼び、ホーム導線のonlineBattleEntry画面へ戻す）のに対し、こちらは
+// ルームに残ったまま「今回のマッチにだけ参加しなかった」ことにする点が異なる。本人指示どおり、
+// 押した本人はルーム設定画面（ロビー）へ戻り、あとから同じルームで再戦・観戦を続けられる。
+//
+// 【画面遷移を先に行う理由】js/onlineBattleLeaveMatchPrompt.jsのpromptLeaveMatch()と同じ
+// 安全側の判断：Firebase書き込みの完了を待たずに、まず手元のlatestRoom（直近のroomスナップ
+// ショット）でロビー画面を描画してしまう。ネットワークが不安定でもユーザーがクイズ画面に
+// 閉じ込められることがないようにするため（書き込みが後から失敗しても、audioTroubleAbort
+// フラグが立たないだけで、ローカルのナビゲーション自体は必ず成功する）。
+export function abortOnlineBattleMatchDueToAudioTrouble() {
+  const roomId = currentRoomId;
+  const matchId = currentMatchId;
+  if (!roomId || !matchId) return;
+  elements.navigateTo("onlineBattleLobby");
+  if (latestRoom) renderLobby(latestRoom);
+  // fire-and-forget：js/onlineBattle.js側で例外を握りつぶしてreason付きの{ok:false}を返す
+  // 設計のため、ここで結果を待つ・エラー処理する必要はない（leaveMatchInProgress()の
+  // 呼び出し元と同じ扱い）。
+  reportAudioTroubleAbort({ roomId, matchId });
 }
 
 // 対戦モード画面群を使えるようにする。main.jsの初期化処理から1回だけ呼ぶ想定。

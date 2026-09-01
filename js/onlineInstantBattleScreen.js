@@ -57,6 +57,21 @@ import {
 // 【3分無操作の放置救済・一瞬バトルにも適用】forcedSkips・questionActivityのFirebaseパスは
 // gameMode非依存の汎用フィールドのため、歌詞クイズ対戦・一瞬協力と全く同じ関数を再利用する。
 import { reportQuestionActivity, forceSkipIdlePlayer } from "./lyricsQuizBattleFirebase.js";
+// 【2026-09-17新設・本人指示：「音が出ない」救済ボタン第2段階】進行判定はFirebase不使用の
+// 純粋関数（js/audioTroubleRecovery.js）に切り出し、一瞬協力（js/onlineInstantCoopBattleScreen.js）
+// と全く同じロジック・全く同じFirebaseパス（js/audioTroubleRecoveryFirebase.js）を共有する。
+import {
+  computeRecoveryReplayWindowMs,
+  computeNextReportAttemptSlot,
+  isAudioTroubleRecoveryLocking,
+  computeAudioTroubleRecoveryAction,
+} from "./audioTroubleRecovery.js";
+import {
+  reportAudioTroubleRecovery,
+  startAudioTroubleRecoveryReplay,
+  finishAudioTroubleRecoveryReplay,
+  markAudioTroubleRecoverySwapped,
+} from "./audioTroubleRecoveryFirebase.js";
 import { IDLE_RESCUE_THRESHOLD_MS } from "./battleRules/sharedDefaults.js";
 import { AUDIO_METADATA } from "./data/audioMetadata.js";
 import {
@@ -64,7 +79,7 @@ import {
   clampStartTimeToActualDuration,
   isDurationMismatchWithinTolerance,
 } from "./randomPlaybackEngine.js";
-import { playSongFromRandomPosition, stopAudio, attemptSilentUnlock } from "./audio.js";
+import { playSongFromRandomPosition, stopAudio, attemptSilentUnlock, reportPlaybackTrouble } from "./audio.js";
 import { LARGE_ANSWER_POOL_THRESHOLD } from "./lyricsQuizEngine.js";
 import {
   createAnswerPoolBrowseState,
@@ -117,6 +132,12 @@ let lastPlayedQuestionIndex = -1;
 // このモードに入場した直後の最初の1問だけ、この問題ごとのカウントダウンを省略する。
 let isFirstQuestionOfMatch = true;
 let isCountdownActive = false;
+
+// 【2026-09-17新設・本人指示：「音が出ない」救済ボタン第2段階】直近にローカル再生を
+// 反応させたリカバリー再生を覚えておく（"questionIndex:attemptCount"の組み合わせは
+// 試合を通して一度しか使われないため、単純な文字列比較で「新しいリカバリー再生を
+// 検知したか」を判定できる。renderCurrentQuestionState()参照）。
+let lastAppliedAudioTroubleRecoveryKey = null;
 
 let lastActivityReportedAtMs = 0;
 let lastActivityReportedQIndex = -1;
@@ -183,6 +204,15 @@ export function initOnlineInstantBattleScreens(newElements) {
     const qIndex = match?.currentQuestionIndex;
     const question = currentQuestions[qIndex];
     if (question) playCurrentQuestionAudioWithCountdown(question, qIndex);
+  });
+
+  // 【2026-09-17新設・本人指示：「音が出ない」救済ボタン第2段階】1人が押すと、参加者
+  // 全員に対して今の問題の音源を頭から同じタイミングで再生し直す（個人だけの操作では
+  // なく、試合全体に影響する処理）。既存のjs/answerConfirmPrompt.jsは「回答確定」専用の
+  // 固定文言のため流用せず、js/onlineBattleScreen.js等の運用操作（退出させる等）と同じく
+  // window.confirm()のパターンを使う。
+  elements.audioTroubleButton?.addEventListener("click", () => {
+    handleAudioTroubleButtonClick();
   });
 
   elements.quitButton.addEventListener("click", () => {
@@ -306,6 +336,7 @@ export function resetOnlineInstantBattleState() {
   lastPlayedQuestionIndex = -1;
   isFirstQuestionOfMatch = true;
   isCountdownActive = false;
+  lastAppliedAudioTroubleRecoveryKey = null;
   lastActivityReportedAtMs = 0;
   lastActivityReportedQIndex = -1;
   disconnectedSinceMsByUid.clear();
@@ -332,6 +363,7 @@ export async function enterOnlineInstantBattlePlay(room) {
   lastPlayedQuestionIndex = -1;
   isFirstQuestionOfMatch = true;
   isCountdownActive = false;
+  lastAppliedAudioTroubleRecoveryKey = null;
   lastActivityReportedAtMs = 0;
   lastActivityReportedQIndex = -1;
   disconnectedSinceMsByUid.clear();
@@ -461,6 +493,34 @@ async function runHostProgressionTick() {
 
   if (hostState.currentQuestion.status === "collecting") {
     const qIndex = hostState.currentQuestionIndex;
+
+    // 【2026-09-17新設・本人指示：「音が出ない」救済ボタン第2段階】音源トラブル復旧の
+    // 処理を、通常の回答集計・進行判定より優先する。復旧が必要な間（新しい申告の検知～
+    // リカバリー再生の待機中）は、回答集計・次の問題への進行判定を一切行わない
+    // （本人指示：「他の全員の回答操作を一時的にロックし...進行を一時停止する」）。
+    const recoveryAction = computeAudioTroubleRecoveryAction({
+      recovery: match.audioTroubleRecovery,
+      reports: match.audioTroubleRecovery?.reports,
+      questionIndex: qIndex,
+      nowMs: Date.now(),
+      replayWindowMs: computeRecoveryReplayWindowMs({
+        playDurationSec: Number(latestRoom.settings.playDurationValue),
+        includesCountdown: true, // 一瞬バトルは各問題の前に3→2→1のローカルカウントダウンを挟む
+      }),
+    });
+    if (recoveryAction.type === "wait") return;
+    if (recoveryAction.type !== "none") {
+      hostTickInFlight = true;
+      try {
+        await applyAudioTroubleRecoveryAction(recoveryAction, qIndex);
+      } catch (error) {
+        console.error("一瞬バトル：音源トラブル復旧の処理で想定外のエラーが発生しました", error);
+      } finally {
+        hostTickInFlight = false;
+      }
+      return;
+    }
+
     const firebaseAnswers = match.instantAnswers?.[qIndex] ?? {};
     let nextHostState = hostState;
     for (const [uid, answer] of Object.entries(firebaseAnswers)) {
@@ -632,6 +692,77 @@ function playCurrentQuestionAudioWithCountdown(question, questionIndex) {
     isCountdownActive = false;
     playQuestionAudio(question, questionIndex, settings);
   });
+}
+
+// 【2026-09-17新設・本人指示：「音が出ない」救済ボタン第2段階】押した瞬間、連打防止の
+// ため即座に自分のボタンを無効化する（他クライアントへの反映はホストのtick経由のため
+// 最大で約400ms遅れるが、その間の連打・複数人のほぼ同時押しはFirebase側のwrite-once
+// （reports/{questionIndex}/{attemptSlot}）が防ぐ）。古い問題番号・古い試合に対する
+// 申告にならないよう、押した瞬間のqIndexをそのまま使う（他モードの
+// promptAnswerConfirm呼び出しと同じ「クリック時点の状態を確認してから確定する」設計）。
+function handleAudioTroubleButtonClick() {
+  if (!elements.audioTroubleButton || elements.audioTroubleButton.disabled) return;
+  if (!latestRoom || !currentMatchId) return;
+  const match = latestRoom.matches?.[currentMatchId];
+  const qIndex = match?.currentQuestionIndex;
+  if (typeof qIndex !== "number" || match.questionStatus !== QUESTION_STATUS.ACTIVE) return;
+  const recovery = match.audioTroubleRecovery;
+  if (isAudioTroubleRecoveryLocking({ recovery, questionIndex: qIndex })) return;
+
+  const confirmed = window.confirm(
+    "音が出ませんでしたか？\n\n「OK」を選ぶと、参加者全員に対してこの問題の音源を最初から再生し直します。少しの間、全員の回答操作が一時的にできなくなります。"
+  );
+  if (!confirmed) return;
+
+  elements.audioTroubleButton.disabled = true;
+  // js/audio.js（第1段階でも使った共通基盤）へも申告を記録しておく（診断ログ用。
+  // 挙動そのものはこの先すべてFirebase経由のaudioTroubleRecoveryで完結する）。
+  reportPlaybackTrouble();
+  const attemptSlot = computeNextReportAttemptSlot({ recovery, questionIndex: qIndex });
+  reportAudioTroubleRecovery({ roomId: latestRoom.roomId, matchId: currentMatchId, questionIndex: qIndex, attemptSlot }).catch(() => {});
+}
+
+// 【2026-09-17新設・本人指示：「音が出ない」救済ボタン第2段階】ホストが、音源トラブル
+// 復旧の判定結果（js/audioTroubleRecovery.jsのcomputeAudioTroubleRecoveryAction()）に
+// 従って実際にFirebaseへ書き込む。runHostProgressionTick()から呼ぶ。
+async function applyAudioTroubleRecoveryAction(action, qIndex) {
+  const roomId = latestRoom.roomId;
+  const matchId = currentMatchId;
+  if (action.type === "start-replay") {
+    const result = await startAudioTroubleRecoveryReplay({
+      roomId,
+      matchId,
+      questionIndex: qIndex,
+      attemptCount: action.nextAttemptCount,
+      reportedByUid: action.reportedByUid,
+    });
+    if (!result.ok) console.error("一瞬バトル：音源トラブル復旧（再生開始）に失敗しました", result.reason);
+    return;
+  }
+  if (action.type === "finish-replay") {
+    const result = await finishAudioTroubleRecoveryReplay({ roomId, matchId });
+    if (!result.ok) console.error("一瞬バトル：音源トラブル復旧（再開）に失敗しました", result.reason);
+    return;
+  }
+  if (action.type === "swap-reserve") {
+    // 【本人指示：安全な回数を試みても改善しない場合】エラーメッセージを出さず、静かに
+    // 予備の曲へ差し替える。既存の「音源再生失敗時の予備曲差し替え」機能
+    // （js/instantBattleMatchProgress.jsのtick()・advanceToNextQuestion()、無効化＋
+    // 予備曲への進行）をそのまま再利用する（新しい差し替えロジックを増やさない）。
+    const failureResult = await reportInstantBattleAudioFailure({ roomId, matchId, questionIndex: qIndex });
+    if (!failureResult.ok) console.error("一瞬バトル：音源トラブル復旧（予備曲差し替え申告）に失敗しました", failureResult.reason);
+    const markResult = await markAudioTroubleRecoverySwapped({ roomId, matchId, swapCount: action.swapCount + 1 });
+    if (!markResult.ok) console.error("一瞬バトル：音源トラブル復旧（差し替え記録）に失敗しました", markResult.reason);
+    return;
+  }
+  if (action.type === "return-to-lobby") {
+    // 【本人指示：予備曲への差し替えも失敗する場合】試合を安全に終了し、設定・参加者・
+    // 曲選択を保持したまま全員をロビーへ戻す（既存のreturnRoomToLobby()を再利用。
+    // 再戦準備フェーズ〈confirmingRematch/beginRematchReadyCheck()〉とは別の、
+    // 単純な「ロビーへ戻す」処理）。この試合は勝敗・記録に一切残さない。
+    const result = await returnRoomToLobby({ roomId });
+    if (!result.ok) console.error("一瞬バトル：音源トラブル復旧（ロビーへ戻す）に失敗しました", result.reason);
+  }
 }
 
 function reportMyQuestionActivity() {
@@ -821,9 +952,24 @@ function renderCurrentQuestionState() {
   const isResolved = match.questionStatus === QUESTION_STATUS.RESOLVED;
   const hasAnsweredThisQuestion = myAnsweredQuestionIndex === qIndex;
 
-  elements.answerSection.hidden = isResolved || hasAnsweredThisQuestion;
+  // 【2026-09-17新設・本人指示：「音が出ない」救済ボタン第2段階】音源トラブル復旧
+  // （リカバリー再生）が進行中の間は、回答収集中と同じ扱いで全員の回答操作をロックする。
+  const recovery = match.audioTroubleRecovery;
+  const isRecoveryLocking = isAudioTroubleRecoveryLocking({ recovery, questionIndex: qIndex });
+  if (isRecoveryLocking) {
+    // 新しいリカバリー再生（questionIndex・attemptCountの組み合わせ）を検知したら、
+    // 全クライアントで同じタイミングで曲を頭から再生し直す。既存の「もう一度聞く」の
+    // カウンター（myReplayCountForCurrentQuestion）には一切数えない（別の呼び出し経路）。
+    const recoveryKey = `${qIndex}:${recovery.attemptCount}`;
+    if (recoveryKey !== lastAppliedAudioTroubleRecoveryKey) {
+      lastAppliedAudioTroubleRecoveryKey = recoveryKey;
+      playCurrentQuestionAudioWithCountdown(question, qIndex);
+    }
+  }
+
+  elements.answerSection.hidden = isResolved || hasAnsweredThisQuestion || isRecoveryLocking;
   const waitingSectionElement = elements.waitingSection;
-  if (waitingSectionElement) waitingSectionElement.hidden = isResolved || !hasAnsweredThisQuestion;
+  if (waitingSectionElement) waitingSectionElement.hidden = isResolved || !hasAnsweredThisQuestion || isRecoveryLocking;
   elements.revealSection.hidden = !isResolved;
   // 【2026-09-15修正・本人指示：ChatGPTと確定済みの仕様に合わせる】「もう一度聞く」は
   // 残り0回になっても、回答確定後も、ボタン自体は消さずdisabledのまま表示し続ける
@@ -831,8 +977,20 @@ function renderCurrentQuestionState() {
   // 3回使い切ったことが分かりやすいため）。以前はhidden=trueにしてボタンごと消していたが、
   // 表示したままdisabledにするよう修正した。
   elements.replayButton.hidden = false;
-  elements.replayButton.disabled = isResolved || hasAnsweredThisQuestion || myReplayCountForCurrentQuestion >= MAX_REPLAY_COUNT_PER_QUESTION;
+  elements.replayButton.disabled =
+    isResolved || hasAnsweredThisQuestion || isRecoveryLocking || myReplayCountForCurrentQuestion >= MAX_REPLAY_COUNT_PER_QUESTION;
   if (elements.rankHint) elements.rankHint.hidden = isResolved || hasAnsweredThisQuestion;
+
+  // 【2026-09-17新設・本人指示：「音が出ない」救済ボタン第2段階】表示条件：回答収集中
+  // だけ表示（カウントダウン中・答え合わせ中・結果画面・ロビーでは非表示）。誰かが処理を
+  // 開始した瞬間、全クライアントでボタンを無効化する。
+  if (elements.audioTroubleButton) {
+    elements.audioTroubleButton.hidden = isResolved || isCountdownActive;
+    elements.audioTroubleButton.disabled = isRecoveryLocking;
+  }
+  if (elements.audioTroubleNotice) {
+    elements.audioTroubleNotice.hidden = !isRecoveryLocking;
+  }
 
   if (!isResolved) {
     const isLargePool = question.answerPool.length >= LARGE_ANSWER_POOL_THRESHOLD;
@@ -843,7 +1001,7 @@ function renderCurrentQuestionState() {
       if (isLargePool && !hasAnsweredThisQuestion) renderAnswerJumpBar(elements.answerJumpBar, answerBrowseState, () => renderAnswerButtons(question.answerPool));
     }
     if (!hasAnsweredThisQuestion) renderAnswerButtons(question.answerPool);
-    elements.unknownButton.disabled = hasAnsweredThisQuestion;
+    elements.unknownButton.disabled = hasAnsweredThisQuestion || isRecoveryLocking;
     renderAnswerStatusList(match, qIndex);
   } else {
     const outcome = match.instantQuestionOutcomes?.[qIndex];

@@ -171,6 +171,10 @@
                 "leftDuringMatch": {
                   ".write": "auth != null && auth.uid === $uid && !data.exists()",
                   ".validate": "newData.isBoolean() && newData.val() === true"
+                },
+                "audioTroubleAbort": {
+                  ".write": "auth != null && auth.uid === $uid && !data.exists()",
+                  ".validate": "newData.isBoolean() && newData.val() === true"
                 }
               }
             },
@@ -309,7 +313,7 @@
               "$questionIndex": {
                 "$roundNumber": {
                   "$uid": {
-                    ".write": "auth != null && auth.uid === $uid && !data.exists() && root.child('rooms/' + $roomId + '/activeMatchId').val() === $matchId && root.child('rooms/' + $roomId + '/status').val() === 'playing' && (root.child('rooms/' + $roomId + '/matches/' + $matchId + '/currentQuestionIndex').val() + '') === $questionIndex && (root.child('rooms/' + $roomId + '/matches/' + $matchId + '/coopRoundNumber').val() + '') === $roundNumber && root.child('rooms/' + $roomId + '/matches/' + $matchId + '/questionStatus').val() === 'active' && root.child('rooms/' + $roomId + '/matches/' + $matchId + '/participants/' + $uid).exists()",
+                    ".write": "auth != null && auth.uid === $uid && !data.exists() && root.child('rooms/' + $roomId + '/activeMatchId').val() === $matchId && root.child('rooms/' + $roomId + '/status').val() === 'playing' && (root.child('rooms/' + $roomId + '/matches/' + $matchId + '/currentQuestionIndex').val() + '') === $questionIndex && (root.child('rooms/' + $roomId + '/matches/' + $matchId + '/coopRoundNumber').val() + '') === $roundNumber && root.child('rooms/' + $roomId + '/matches/' + $matchId + '/questionStatus').val() === 'active' && root.child('rooms/' + $roomId + '/matches/' + $matchId + '/participants/' + $uid).exists() && (root.child('rooms/' + $roomId + '/matches/' + $matchId + '/audioTroubleRecovery/status').val() !== 'replaying' || (root.child('rooms/' + $roomId + '/matches/' + $matchId + '/audioTroubleRecovery/questionIndex').val() + '') !== $questionIndex)",
                     ".validate": "newData.hasChildren(['selectedSongId', 'submittedAt'])",
                     "selectedSongId": { ".validate": "newData.isString() && newData.val().length > 0" },
                     "submittedAt": { ".validate": "newData.isNumber()" },
@@ -335,7 +339,7 @@
             "instantAnswers": {
               "$questionIndex": {
                 "$uid": {
-                  ".write": "auth != null && auth.uid === $uid && !data.exists() && root.child('rooms/' + $roomId + '/activeMatchId').val() === $matchId && root.child('rooms/' + $roomId + '/status').val() === 'playing' && (root.child('rooms/' + $roomId + '/matches/' + $matchId + '/currentQuestionIndex').val() + '') === $questionIndex && root.child('rooms/' + $roomId + '/matches/' + $matchId + '/questionStatus').val() === 'active' && root.child('rooms/' + $roomId + '/matches/' + $matchId + '/participants/' + $uid).exists()",
+                  ".write": "auth != null && auth.uid === $uid && !data.exists() && root.child('rooms/' + $roomId + '/activeMatchId').val() === $matchId && root.child('rooms/' + $roomId + '/status').val() === 'playing' && (root.child('rooms/' + $roomId + '/matches/' + $matchId + '/currentQuestionIndex').val() + '') === $questionIndex && root.child('rooms/' + $roomId + '/matches/' + $matchId + '/questionStatus').val() === 'active' && root.child('rooms/' + $roomId + '/matches/' + $matchId + '/participants/' + $uid).exists() && (root.child('rooms/' + $roomId + '/matches/' + $matchId + '/audioTroubleRecovery/status').val() !== 'replaying' || (root.child('rooms/' + $roomId + '/matches/' + $matchId + '/audioTroubleRecovery/questionIndex').val() + '') !== $questionIndex)",
                   ".validate": "newData.hasChildren(['selectedSongId', 'replayCount', 'submittedAt'])",
                   "selectedSongId": { ".validate": "newData.isString() && newData.val().length > 0" },
                   "replayCount": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000" },
@@ -362,6 +366,48 @@
             "instantBattleAudioFailureAborted": {
               ".write": "auth != null && root.child('rooms/' + $roomId + '/host').val() === auth.uid",
               ".validate": "newData.val() === true"
+            },
+
+            "audioTroubleRecovery": {
+              "reports": {
+                "$questionIndex": {
+                  "$attemptSlot": {
+                    ".write": "auth != null && !data.exists() && root.child('rooms/' + $roomId + '/activeMatchId').val() === $matchId && root.child('rooms/' + $roomId + '/status').val() === 'playing' && (root.child('rooms/' + $roomId + '/matches/' + $matchId + '/currentQuestionIndex').val() + '') === $questionIndex && root.child('rooms/' + $roomId + '/matches/' + $matchId + '/questionStatus').val() === 'active' && root.child('rooms/' + $roomId + '/matches/' + $matchId + '/participants/' + auth.uid).exists()",
+                    ".validate": "newData.hasChildren(['uid', 'reportedAt']) && newData.child('uid').val() === auth.uid",
+                    "uid": { ".validate": "newData.isString()" },
+                    "reportedAt": { ".validate": "newData.isNumber()" },
+                    "$other": { ".validate": false }
+                  }
+                }
+              },
+              "status": {
+                ".write": "auth != null && root.child('rooms/' + $roomId + '/host').val() === auth.uid",
+                ".validate": "newData.isString() && (newData.val() === 'replaying' || newData.val() === 'resolved')"
+              },
+              "questionIndex": {
+                ".write": "auth != null && root.child('rooms/' + $roomId + '/host').val() === auth.uid",
+                ".validate": "newData.isNumber() && newData.val() >= 0"
+              },
+              "attemptCount": {
+                ".write": "auth != null && root.child('rooms/' + $roomId + '/host').val() === auth.uid",
+                ".validate": "newData.isNumber() && newData.val() >= 0"
+              },
+              "swapCount": {
+                ".write": "auth != null && root.child('rooms/' + $roomId + '/host').val() === auth.uid",
+                ".validate": "newData.isNumber() && newData.val() >= 0"
+              },
+              "reportedByUid": {
+                ".write": "auth != null && root.child('rooms/' + $roomId + '/host').val() === auth.uid",
+                ".validate": "newData.isString()"
+              },
+              "startedAt": {
+                ".write": "auth != null && root.child('rooms/' + $roomId + '/host').val() === auth.uid",
+                ".validate": "newData.isNumber()"
+              },
+              "resolvedAt": {
+                ".write": "auth != null && root.child('rooms/' + $roomId + '/host').val() === auth.uid",
+                ".validate": "newData.isNumber()"
+              }
             }
           }
         }

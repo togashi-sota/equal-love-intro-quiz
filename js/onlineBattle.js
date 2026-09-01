@@ -1025,6 +1025,27 @@ export async function leaveMatchInProgress({ roomId, matchId }) {
   return { ok: true };
 }
 
+// 【2026-09-16新設・本人指示：「音が出ない」救済ボタン第2段階（オンライン対戦・個人進行系）】
+// タイムアタック・ランダム再生対戦・アウトロクイズ対戦で、本人が「音が出ない」と自己申告して
+// この試合からだけ安全に抜けたことをFirebaseへ記録する。上のleaveMatchInProgress()（自主的な
+// 途中退出）と全く同じ設計・同じ安全性（room.status・room.players・matches全体には一切触れず、
+// 「この試合の、この人」だけに付く小さなフラグを立てるだけ／write-once＝Firebase Rules側でも
+// 一度trueにしたら書き換え不可を保証）だが、書き込むフラグ・意味が別物：leftDuringMatchは
+// 「本人の意思による途中退出」、こちら（audioTroubleAbort）は「音源トラブルによる特別な離脱」
+// を表す。js/onlineBattleMatchProgress.jsのisMatchReadyToFinalize()側は両方を同じ扱い
+// （待つ対象から除外）にするが、js/onlineBattleScreen.jsの結果表示・履歴保存では区別する。
+export async function reportAudioTroubleAbort({ roomId, matchId }) {
+  await authReady;
+  const uid = getCurrentUid();
+  if (!uid) return { ok: false, reason: "not-signed-in" };
+  try {
+    await update(ref(database), { [`rooms/${roomId}/matches/${matchId}/participants/${uid}/audioTroubleAbort`]: true });
+  } catch (error) {
+    return { ok: false, reason: "write-failed" };
+  }
+  return { ok: true };
+}
+
 // 【2026-09-13新設・本人指示：対戦開始前ルール確認画面】ルール確認中に新しい参加者が
 // ルームへ入った場合、既存参加者を含めて確認状態を一度リセットする（本人指示24）。
 // Firebase Rules側で「false（未確認）に戻すことだけ」は誰でもできるようにしてあるため

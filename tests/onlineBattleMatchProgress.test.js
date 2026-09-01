@@ -89,4 +89,55 @@ export function runOnlineBattleMatchProgressTests() {
     const progress = { a: { finished: true } }; // bのprogressエントリ自体が存在しない
     assertEqual(isMatchReadyToFinalize({ participants, progress }), false, "progressにエントリが無い（未着手）参加者は未終了扱いになる");
   }
+
+  // ===== 【2026-09-16追加・本人指示：「音が出ない」救済ボタン第2段階（オンライン対戦・
+  // 個人進行系）】audioTroubleAbort（音源トラブルの自己申告によるマッチ離脱）も、
+  // leftDuringMatch（自主的な途中退出）と全く同じく「待つ対象から外す」対象になることを確認する。
+  // 上のleftDuringMatchの一連のテストと対になる構成にしている。 =====
+
+  // ---- 2人対戦：片方がaudioTroubleAbortしていれば、その人のresultsが無くても、
+  //      残った1人だけで確定してよい ----
+  {
+    const participants = { host: {}, guest: { audioTroubleAbort: true } };
+    const progress = { host: { finished: true } }; // guestはresults/progressを一切書いていない
+    assertEqual(
+      isMatchReadyToFinalize({ participants, progress }),
+      true,
+      "2人対戦：音が出ないと申告して抜けたゲストの結果が無くても、残りのプレイヤーだけで確定できる"
+    );
+  }
+
+  // ---- 2人対戦：audioTroubleAbortした人がいても、残っている本人がまだ未終了ならまだ待つ ----
+  {
+    const participants = { host: {}, guest: { audioTroubleAbort: true } };
+    const progress = { host: { finished: false } };
+    assertEqual(
+      isMatchReadyToFinalize({ participants, progress }),
+      false,
+      "2人対戦：audioTroubleAbortした人がいても、残っている本人が未終了ならまだ待つ"
+    );
+  }
+
+  // ---- 3人対戦：1人がaudioTroubleAbort、残り2人がfinishedならtrue ----
+  {
+    const participants = { a: {}, b: {}, c: { audioTroubleAbort: true } };
+    const progress = { a: { finished: true }, b: { finished: true } };
+    assertEqual(
+      isMatchReadyToFinalize({ participants, progress }),
+      true,
+      "3人対戦：1人がaudioTroubleAbortしていても、残り2人が終われば確定できる"
+    );
+  }
+
+  // ---- 3人対戦：leftDuringMatchとaudioTroubleAbortが1人ずつ混在していても、
+  //      残り1人がfinishedなら確定できる（2つのフラグが独立して同じ効果を持つことの確認） ----
+  {
+    const participants = { a: {}, b: { leftDuringMatch: true }, c: { audioTroubleAbort: true } };
+    const progress = { a: { finished: true } };
+    assertEqual(
+      isMatchReadyToFinalize({ participants, progress }),
+      true,
+      "3人対戦：途中退出者と音源トラブル離脱者が混在していても、残り1人が終われば確定できる"
+    );
+  }
 }
