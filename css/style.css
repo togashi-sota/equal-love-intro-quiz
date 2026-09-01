@@ -14445,9 +14445,14 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   white-space: nowrap;
 }
 
+/* 【2026-09-17改訂・本人指示：重要な情報は常に濃い色＋太字】以前は色・太さの指定が無く、
+   継承された細い文字のまま表示されていた。出題中のヒント（.online-lyrics-battle-hint-line-text）
+   と同じ「濃い色＋太字」に揃え、答え合わせ画面でもヒント文がひと目で読めるようにした。 */
 .online-lyrics-battle-hint-summary-text {
   flex: 1;
   min-width: 0;
+  font-weight: 700;
+  color: var(--color-text);
 }
 
 .online-lyrics-battle-hint-line::before {
