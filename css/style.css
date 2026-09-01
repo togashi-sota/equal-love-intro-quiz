@@ -7621,6 +7621,26 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   word-break: break-all;
 }
 
+/* 【2026-09-23新設・本人指示：新規プレイのたびに第1問だけ無音になる問題の再調査】
+   音源診断ログ画面の記録表示欄。等幅フォント・折り返し無しの横スクロールで、
+   時刻の桁がずれずに読めるようにする（本人指示のコピー先での可読性を優先）。 */
+.debug-audio-log-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--color-card-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.68rem;
+  line-height: 1.5;
+  white-space: pre;
+  overflow-x: auto;
+  resize: vertical;
+}
+
 .admin-backup-select {
   display: block;
   width: 100%;

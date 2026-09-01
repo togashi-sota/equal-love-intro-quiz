@@ -32,6 +32,8 @@ import {
   buildQuestionsFromSongIds,
 } from "./quiz.js";
 import { playSongIntro, playSongFromRandomPosition, stopAudio, attemptSilentUnlock, reportPlaybackTrouble } from "./audio.js";
+import { recordAudioDiagnostic } from "./audioDiagnosticLog.js";
+import { initDebugAudioLogScreen, renderDebugAudioLog } from "./debugAudioLogScreen.js";
 import { isAudioTroubleTimeSevere } from "./audioTroubleClassification.js";
 import {
   initInstantChallengeSetupScreen,
@@ -662,6 +664,8 @@ const fanProfilesTitleListLinkElement = document.getElementById("fan-profiles-ti
 const fanProfileDetailTitleListLinkElement = document.getElementById("fan-profile-detail-title-list-link");
 const fanProfilesMyUidElement = document.getElementById("fan-profiles-my-uid");
 const adminBackupLinkButtonElement = document.getElementById("admin-backup-link");
+// 【2026-09-23新設・本人指示：新規プレイのたびに第1問だけ無音になる問題の再調査】
+const debugAudioLogLinkButtonElement = document.getElementById("debug-audio-log-link");
 const fanProfilesAdminDeleteOverlayElement = document.getElementById("fan-profiles-admin-delete-confirm-modal");
 const fanProfilesAdminDeleteTargetNameElement = document.getElementById("fan-profiles-admin-delete-target-name");
 const fanProfilesAdminDeleteCancelButtonElement = document.getElementById("fan-profiles-admin-delete-cancel-button");
@@ -669,6 +673,14 @@ const fanProfilesAdminDeleteConfirmButtonElement = document.getElementById("fan-
 
 // 管理者専用「バックアップ管理」画面（2026-08-29新設）。
 const adminBackupBackButtonElement = document.getElementById("admin-backup-back-button");
+// 【2026-09-23新設・本人指示：新規プレイのたびに第1問だけ無音になる問題の再調査】
+const debugAudioLogBackButtonElement = document.getElementById("debug-audio-log-back-button");
+const debugAudioLogRefreshButtonElement = document.getElementById("debug-audio-log-refresh-button");
+const debugAudioLogCopyButtonElement = document.getElementById("debug-audio-log-copy-button");
+const debugAudioLogClearButtonElement = document.getElementById("debug-audio-log-clear-button");
+const debugAudioLogStatusElement = document.getElementById("debug-audio-log-status");
+const debugAudioLogCountElement = document.getElementById("debug-audio-log-count");
+const debugAudioLogTextareaElement = document.getElementById("debug-audio-log-textarea");
 const adminBackupRefreshButtonElement = document.getElementById("admin-backup-refresh-button");
 const adminBackupStatusElement = document.getElementById("admin-backup-status");
 const adminRecoveryRequestsListElement = document.getElementById("admin-recovery-requests-list");
@@ -1955,6 +1967,7 @@ initFanProfilesScreen(
     detailAchievementList: fanProfileDetailAchievementsElement,
     myUidValue: fanProfilesMyUidElement,
     adminBackupLinkButton: adminBackupLinkButtonElement,
+    debugAudioLogLinkButton: debugAudioLogLinkButtonElement,
     adminDeleteOverlay: fanProfilesAdminDeleteOverlayElement,
     adminDeleteTargetName: fanProfilesAdminDeleteTargetNameElement,
     adminDeleteCancelButton: fanProfilesAdminDeleteCancelButtonElement,
@@ -1983,6 +1996,19 @@ initAdminBackupScreen(
   },
   MEMBERS
 );
+
+// 【2026-09-23新設・本人指示：新規プレイのたびに第1問だけ無音になる問題の再調査】
+// 音源診断ログ画面（管理者専用）。
+initDebugAudioLogScreen({
+  backButton: debugAudioLogBackButtonElement,
+  refreshButton: debugAudioLogRefreshButtonElement,
+  copyButton: debugAudioLogCopyButtonElement,
+  clearButton: debugAudioLogClearButtonElement,
+  status: debugAudioLogStatusElement,
+  count: debugAudioLogCountElement,
+  textarea: debugAudioLogTextareaElement,
+  onBack: () => navigateWithScrollMemory("fanProfiles"),
+});
 
 // スタート画面のプレイヤー名・推しメン表示と、プレイヤー管理モーダル（2026-08-03追加）。
 initPlayerScreen(
@@ -3428,6 +3454,17 @@ const OUTRO_QUIZ_PLAY_DURATION_SEC = 5;
 
 // 今の問題の内容（進捗・4択の曲名）をクイズ画面に反映し、イントロ音源とタイマーを開始する。
 function renderQuestion() {
+  // 【2026-09-23新設・本人指示：新規プレイのたびに第1問だけ無音になる問題の再調査】
+  // どのモードの、何問目の描画かを共有の音源診断タイムラインへ記録する
+  // （js/audioDiagnosticLog.js。js/audio.js・js/soundManager.js側の記録と同じ
+  // タイムラインに並ぶため、「このモードのこの問題番号のときに何が起きたか」を
+  // 時系列で追えるようになる）。
+  recordAudioDiagnostic("[QUESTION] renderQuestion開始", {
+    playMode: gameState.playMode,
+    specialModeId: gameState.specialModeId,
+    questionIndex: gameState.currentIndex,
+    questionCount: gameState.questions.length,
+  });
   updateQuizQuitDisplay();
   const question = getCurrentQuestion();
   const progressLabel = `第${gameState.currentIndex + 1}問 / ${gameState.questions.length}問`;
@@ -4232,6 +4269,8 @@ outroQuizSetupBackButtonElement.addEventListener("click", () => {
 });
 
 outroQuizStartButtonElement.addEventListener("click", () => {
+  // 【2026-09-23新設・本人指示：新規プレイのたびに第1問だけ無音になる問題の再調査】
+  recordAudioDiagnostic("[GAME_START] スタートボタン押下（アウトロクイズ）");
   // 【2026-09-15追加・本人指示：アプリ起動後最初の第1問だけ無音になるバグ対策】
   attemptSilentUnlock();
   playSfx(SFX_EVENTS.GAME_START);
@@ -4357,6 +4396,8 @@ instantChallengeResultSetupButtonElement.addEventListener("click", () => {
 
 // スタートボタンを押したときの処理。今選ばれている出題数・カテゴリを読み取って開始する。
 document.getElementById("start-button").addEventListener("click", () => {
+  // 【2026-09-23新設・本人指示：新規プレイのたびに第1問だけ無音になる問題の再調査】
+  recordAudioDiagnostic("[GAME_START] スタートボタン押下（通常イントロクイズ）");
   // 【2026-09-15追加・本人指示：アプリ起動後最初の第1問だけ無音になるバグ対策】
   attemptSilentUnlock();
   // 「専用イベントがあるボタンでは、汎用クリック音と二重に鳴らさない」方針により、
@@ -4839,6 +4880,13 @@ adminBackupLinkButtonElement.addEventListener("click", () => {
   playClickSound();
   renderAdminBackupScreen();
   navigateWithScrollMemory("adminBackup");
+});
+// 【2026-09-23新設・本人指示：新規プレイのたびに第1問だけ無音になる問題の再調査】
+// 管理者専用「🔧音源診断ログ」リンク（上のバックアップ管理と全く同じ考え方）。
+debugAudioLogLinkButtonElement.addEventListener("click", () => {
+  playClickSound();
+  renderDebugAudioLog();
+  navigateWithScrollMemory("debugAudioLog");
 });
 adminBackupBackButtonElement.addEventListener("click", () => {
   playSfx(SFX_EVENTS.UI_BACK);
@@ -5452,6 +5500,8 @@ async function beginRandomPlaybackQuiz(questionCountValue, categoryFilterValue, 
 initRandomPlaybackScreen({
   startButton: randomPlaybackStartButtonElement,
   onStart: (questionCountValue, categoryFilterValue, rule) => {
+    // 【2026-09-23新設・本人指示：新規プレイのたびに第1問だけ無音になる問題の再調査】
+    recordAudioDiagnostic("[GAME_START] スタートボタン押下（ランダム再生クイズ）");
     playSfx(SFX_EVENTS.GAME_START);
     beginRandomPlaybackQuiz(questionCountValue, categoryFilterValue, rule);
   },

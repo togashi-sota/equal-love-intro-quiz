@@ -8,6 +8,7 @@
 
 import { getAudioBlob } from "./audioStorage.js";
 import { registerPlaybackStopper, notifyPlaybackStarting } from "./playbackCoordinator.js";
+import { recordAudioDiagnostic } from "./audioDiagnosticLog.js";
 
 const audioElement = document.getElementById("intro-audio");
 
@@ -16,9 +17,14 @@ const audioElement = document.getElementById("intro-audio");
 // （console.log/console.warnにしか出さない）。挙動そのものは変えず、実機のブラウザ
 // コンソールから「unlockと本番再生の時系列」を後から追えるようにするためだけのもの。
 // 経過時間はこのファイルが読み込まれた瞬間（アプリ起動直後とほぼ同時）を基準にする。
+// 【2026-09-23改訂・本人指示：新規プレイのたびに第1問だけ無音になる問題の再調査】
+// console.logへの出力に加えて、js/audioDiagnosticLog.jsの共有タイムラインへも記録する。
+// これにより、Safari/PWAの開発者コンソールに直接アクセスできない実機（iPhone）でも、
+// js/debugAudioLogScreen.jsの隠し画面から同じ記録をコピーして確認できるようにする。
 const diagStartTime = performance.now();
 function diag(label, detail) {
   const elapsedMs = Math.round(performance.now() - diagStartTime);
+  recordAudioDiagnostic(label, detail);
   if (detail !== undefined) {
     console.log(`[audio診断] +${elapsedMs}ms ${label}`, detail);
   } else {

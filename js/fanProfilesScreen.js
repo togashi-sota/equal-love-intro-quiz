@@ -89,6 +89,11 @@ async function renderMyUidAndAdminState() {
   if (elements.adminBackupLinkButton) {
     elements.adminBackupLinkButton.hidden = !isAdminUser;
   }
+  // 【2026-09-23新設・本人指示：新規プレイのたびに第1問だけ無音になる問題の再調査】
+  // 音源診断ログ画面への入口も、上のバックアップ管理と全く同じ判定で出し分ける。
+  if (elements.debugAudioLogLinkButton) {
+    elements.debugAudioLogLinkButton.hidden = !isAdminUser;
+  }
 }
 
 // 設定カード（「みんなに公開する」トグル）を、今の公開設定に合わせて描画する。

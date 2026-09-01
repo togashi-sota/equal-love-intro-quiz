@@ -39,6 +39,7 @@ import {
   renderAnswerJumpBar,
 } from "./answerPoolBrowseUi.js";
 import { playSongFromRandomPosition, stopAudio, attemptSilentUnlock } from "./audio.js";
+import { recordAudioDiagnostic } from "./audioDiagnosticLog.js";
 import { recordInstantChallengeWeakSongAttempt } from "./instantChallengeWeakSongStats.js";
 import { recordInstantChallengeClear } from "./instantChallengeClearStore.js";
 import { savePlayHistoryEntry } from "./playHistory.js";
@@ -130,6 +131,8 @@ function getSelectedSettings() {
 }
 
 async function handleStartButtonClick() {
+  // 【2026-09-23新設・本人指示：新規プレイのたびに第1問だけ無音になる問題の再調査】
+  recordAudioDiagnostic("[GAME_START] スタートボタン押下（一瞬チャレンジ）");
   // 【2026-09-15追加・本人指示：アプリ起動後最初の第1問だけ無音になるバグ対策】
   attemptSilentUnlock();
   const settings = getSelectedSettings();
@@ -406,6 +409,12 @@ function abortRunDueToAudioFailure() {
 }
 
 function renderCurrentQuestion() {
+  // 【2026-09-23新設・本人指示：新規プレイのたびに第1問だけ無音になる問題の再調査】
+  recordAudioDiagnostic("[QUESTION] 一瞬チャレンジ renderCurrentQuestion開始", {
+    questionIndex: currentIndex,
+    questionCount: questions.length,
+    isFirstQuestionOfRun,
+  });
   hasAnsweredCurrentQuestion = false;
   questionStartedAt = Date.now();
   questionElements.progress.textContent = `第${currentIndex + 1}問 / ${questions.length}問`;

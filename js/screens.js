@@ -16,6 +16,7 @@ const SCREEN_ELEMENTS = {
   guide: document.getElementById("guide-screen"),
   fanProfiles: document.getElementById("fan-profiles-screen"),
   adminBackup: document.getElementById("admin-backup-screen"),
+  debugAudioLog: document.getElementById("debug-audio-log-screen"),
   weakSongs: document.getElementById("weak-songs-screen"),
   liveCallModeList: document.getElementById("live-call-mode-list-screen"),
   liveCallModePlayType: document.getElementById("live-call-mode-play-type-screen"),

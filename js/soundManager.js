@@ -10,6 +10,8 @@
 // （本人指示）。旧js/sfx.js（クリック/正解/不正解/カウントアップ音）は、このファイルへの
 // 薄いラッパーとして残しており、既存の100箇所以上の呼び出し元は書き換えていない。
 
+import { recordAudioDiagnostic } from "./audioDiagnosticLog.js";
+
 // ===== イベント・テーマの定義 =====
 
 export const SFX_EVENTS = {
@@ -158,14 +160,30 @@ export function setSfxVolumePercent(percent) {
 // 呼ばれるため、この構造で安全に復帰できる）。
 let audioContext = null;
 
+// 【2026-09-23新設・本人指示：新規プレイのたびに第1問だけ無音になる問題の再調査】
+// 効果音用のAudioContextと、曲再生用の<audio>要素は、iOS実機では同じ端末の音声出力
+// （AVAudioSession）を共有していると考えられる。ここのresume()呼び出しが、ちょうど
+// 曲のQ1再生のplay()呼び出しと近いタイミングで発生していないかを確認するため、
+// AudioContextの状態変化を診断ログへ記録する（js/audioDiagnosticLog.js、
+// js/audio.jsの再生記録と同じ共有タイムラインに載る）。まだ検証段階の仮説であり、
+// この記録自体はaudioContext自体の挙動を一切変えない（読み取り・記録のみ）。
 function getAudioContext() {
   if (audioContext === null) {
     const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
     if (!AudioContextCtor) return null; // 対応していない環境ではnullを返し、以降は何もしない
     audioContext = new AudioContextCtor();
+    recordAudioDiagnostic("[AUDIO_CONTEXT] 新規作成", { state: audioContext.state });
   }
   if (audioContext.state === "suspended") {
-    audioContext.resume().catch(() => {});
+    recordAudioDiagnostic("[AUDIO_CONTEXT] resume()呼び出し開始", { stateBefore: audioContext.state });
+    audioContext
+      .resume()
+      .then(() => {
+        recordAudioDiagnostic("[AUDIO_CONTEXT] resume()成功", { stateAfter: audioContext.state });
+      })
+      .catch((error) => {
+        recordAudioDiagnostic("[AUDIO_CONTEXT] resume()失敗", { name: error?.name, message: error?.message });
+      });
   }
   return audioContext;
 }
@@ -513,6 +531,11 @@ export function playSfx(eventName) {
   if (!sfxMasterEnabled) return;
   const isUiEvent = UI_EVENT_SET.has(eventName);
   if (isUiEvent ? !sfxUiEnabled : !sfxGameEnabled) return;
+
+  // 【2026-09-23新設・本人指示：新規プレイのたびに第1問だけ無音になる問題の再調査】
+  // GAME_START等、ゲーム開始と同時に鳴らす効果音がQ1の曲再生と時間的に近いことが
+  // 疑われているため、どのイベントがいつ呼ばれたかを記録する。
+  recordAudioDiagnostic("[SFX] playSfx呼び出し", { eventName });
 
   const context = getAudioContext();
   if (!context) return;

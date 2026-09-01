@@ -1576,6 +1576,11 @@
            firebase/database.rules.json側で保証している（js/backupAdmin.js参照）。 -->
       <button id="admin-backup-link" class="secondary-button admin-backup-link-button" type="button" hidden>🔧 バックアップ管理（管理者用）</button>
 
+      <!-- 【2026-09-23新設・本人指示：新規プレイのたびに第1問だけ無音になる問題の再調査】
+           管理者専用：音源診断ログの閲覧画面への入口。上のバックアップ管理と全く同じ
+           isAdminUser判定を流用する（一般ユーザーには表示されない）。 -->
+      <button id="debug-audio-log-link" class="secondary-button admin-backup-link-button" type="button" hidden>🔧 音源診断ログ（管理者用）</button>
+
       <!-- 一覧本体。中身はjs/fanProfilesScreen.jsが組み立てる -->
       <div id="fan-profiles-list"></div>
     </section>
@@ -1647,6 +1652,47 @@
       <p id="admin-backups-bulk-delete-result" class="admin-backup-row-detail admin-backup-resolve-result" hidden></p>
 
       <div id="admin-backups-list" class="admin-backup-list"></div>
+    </section>
+
+    <!-- 【2026-09-23新設・本人指示：新規プレイのたびに第1問だけ無音になる問題の再調査】
+         管理者専用：音源まわりの操作を時系列で記録した診断ログを、その場で確認・
+         コピーできる画面。Safari/PWAの開発者コンソールに直接アクセスしなくても、
+         この画面を開いて「コピー」ボタンを押すだけで記録全体をクリップボードへ
+         コピーできる（本人が実機で再現させた直後にこの画面を開き、コピーした内容を
+         そのまま開発側へ共有する想定）。一般ユーザーには表示されない
+         （js/fanProfilesScreen.jsのisAdminUser判定を流用）。 -->
+    <section id="debug-audio-log-screen" class="screen">
+      <div class="list-header">
+        <button id="debug-audio-log-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            ADMIN
+          </p>
+          <h2>音源診断ログ</h2>
+        </div>
+      </div>
+
+      <p class="special-modes-intro">
+        音源の再生・停止・効果音まわりの操作を、時系列で記録したものです。
+        クイズを1回プレイしたあと、この画面を開いて「コピー」ボタンを押し、
+        コピーした内容をそのまま共有してください。
+      </p>
+
+      <div class="button-row">
+        <button id="debug-audio-log-refresh-button" class="secondary-button" type="button">最新の状態に更新する</button>
+        <button id="debug-audio-log-copy-button" class="secondary-button" type="button">📋 コピー</button>
+        <button id="debug-audio-log-clear-button" class="secondary-button" type="button">記録をクリア</button>
+      </div>
+      <p id="debug-audio-log-status" class="lyrics-import-status" hidden></p>
+      <p id="debug-audio-log-count" class="admin-backup-row-detail"></p>
+
+      <textarea id="debug-audio-log-textarea" class="debug-audio-log-textarea" readonly rows="20"></textarea>
     </section>
 
     <!-- 苦手曲モード確認画面：対象曲の一覧と出題数を確認してから開始する。
