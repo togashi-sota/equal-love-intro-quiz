@@ -29,6 +29,7 @@ import {
   advanceToNextQuestion,
   finalizeMatch,
   restoreMatchProgressFromFirebase,
+  describeCoopDecisionReason,
 } from "../js/instantCoopMatchProgress.js";
 import { assertEqual } from "./test-utils.js";
 
@@ -411,5 +412,49 @@ export function runInstantCoopMatchProgressTests() {
     });
     assertEqual(state.teamHistory.length, 2, "無効だった1問を除いた、実際に成立した2問だけが復元される");
     assertEqual(state.status, "finished", "targetQuestionCount(2)に既に達しているため、finishedとして復元される");
+  }
+
+  // ---- describeCoopDecisionReason：本人指示6：チーム回答の決定理由 ----
+  {
+    const activeUids = ["p1", "p2", "p3"];
+
+    // 全員わからない
+    assertEqual(
+      describeCoopDecisionReason({ outcome: { teamAnswer: null }, teamAnswerTitle: null, roundVotes: {}, activeUids }),
+      "全員が「わからない」を選択しました",
+      "全員わからないの場合の理由文"
+    );
+
+    // 同票タイブレーク
+    assertEqual(
+      describeCoopDecisionReason({
+        outcome: { teamAnswer: "song-0", usedTieBreakRandom: true },
+        teamAnswerTitle: "曲A",
+        roundVotes: {},
+        activeUids,
+      }),
+      "同票のため、ランダムで「曲A」に決定しました",
+      "同票タイブレークの場合の理由文"
+    );
+
+    // 全員一致
+    {
+      const roundVotes = { p1: { selectedSongId: "song-0" }, p2: { selectedSongId: "song-0" }, p3: { selectedSongId: "song-0" } };
+      assertEqual(
+        describeCoopDecisionReason({ outcome: { teamAnswer: "song-0", usedTieBreakRandom: false }, teamAnswerTitle: "曲A", roundVotes, activeUids }),
+        "全員一致！「曲A」に決定しました",
+        "全員が同じ曲に投票した場合は全員一致の理由文"
+      );
+    }
+
+    // 最多票（全員一致ではない）
+    {
+      const roundVotes = { p1: { selectedSongId: "song-0" }, p2: { selectedSongId: "song-0" }, p3: { selectedSongId: UNKNOWN_VOTE } };
+      assertEqual(
+        describeCoopDecisionReason({ outcome: { teamAnswer: "song-0", usedTieBreakRandom: false }, teamAnswerTitle: "曲A", roundVotes, activeUids }),
+        "「曲A」が2票で最多のためチーム回答に決定しました",
+        "全員一致でなければ最多票数を明示する理由文"
+      );
+    }
   }
 }

@@ -559,6 +559,11 @@ export function describeEntryDetailFields(entry) {
   );
   push("初手正解数", details.firstHintCorrectCount !== undefined ? `${details.firstHintCorrectCount}問` : null);
   push("新記録", details.isNewRecord ? "🎉 新記録" : null);
+  // 【2026-09-15追加・本人指示：一瞬バトルの結果／履歴データモデルを完成させる】
+  // 順位判定に使った「正解した問題だけの再視聴合計」を、参考記録の「総再視聴回数」と
+  // はっきり区別して見せる（本人指示：どちらがランキングに使われた値か分かるように）。
+  push("正解した問題での再視聴合計（順位判定用）", details.correctOnlyReplaySum !== undefined ? `${details.correctOnlyReplaySum}回` : null);
+  push("総再視聴回数（参考記録）", details.totalReplayCount !== undefined ? `${details.totalReplayCount}回` : null);
 
   if (details.participantCount) {
     push("参加人数", `${details.participantCount}人`);

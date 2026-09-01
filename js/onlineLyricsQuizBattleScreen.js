@@ -56,6 +56,7 @@ import {
   advanceToNextQuestion,
   finalizeMatch,
   restoreMatchProgressFromFirebase,
+  markPlayerDnf,
 } from "./lyricsQuizMatchProgress.js";
 import {
   submitLyricsCoverage,
@@ -1043,6 +1044,18 @@ async function runHostProgressionTick() {
       hostState = recordAnswer(hostState, uid, { selectedSongId: SKIP_SELECTION, hintLevel: 1, submittedAt: Date.now() });
     }
   }
+  // 【2026-09-15追加・本人指示：途中退出者を待ち続けない】markPlayerDnf()自体は既に
+  // 用意されていたが、「この試合だけ抜ける」（leftDuringMatch）からは一度も呼ばれておらず、
+  // 離脱した人がまだこの問題へ回答していないと、3分無操作救済がホストの手動操作で発動する
+  // までtick()の終了判定（shouldEndQuestion、dnfUidsを除いたactivePlayerUidsで判定）が
+  // 満たされず進行が止まっていた（実際のバグ調査で発見）。離脱を検知したら即座にDNF化する
+  // （markPlayerDnf()自身が「既に全問完走済みの人はDNF化しない」安全策を持っているため、
+  // ここでは条件を絞らずbroadcastしてよい）。
+  for (const [uid, participant] of Object.entries(match.participants ?? {})) {
+    if (participant?.leftDuringMatch === true) {
+      hostState = markPlayerDnf(hostState, uid);
+    }
+  }
 
   // 【2026-09-09新設・本人指示4：通信切断時の自動復帰待ち→離脱処理】まだ回答していない
   // 参加者のうち、実際に接続が切れている（connected:false）人だけを対象に、切断が続いている
@@ -1361,8 +1374,13 @@ function renderHintActionButtons({ isResolved, myAnsweredThisQuestion }) {
   giveUpButton.type = "button";
   giveUpButton.className = "secondary-button online-lyrics-battle-give-up-button";
   giveUpButton.textContent = "わからない";
+  // 【2026-09-15追加・本人指示：「わからない」確認ダイアログを全対象モードへ展開】
+  // このボタンは早押しバトルでは表示されない（呼び出し元でhidden）ため、通常の回答
+  // ボタンと同じく確認を挟んでよい（早押しのみ速度重視のため確認を省略する設計）。
+  // handleAnswerChoiceClick()自身のresolveAnswerSubmissionBlock()が二重回答・状態不整合を
+  // 防ぐため、確認画面が開いている間に問題が確定していても安全。
   giveUpButton.addEventListener("click", () => {
-    handleAnswerChoiceClick(SKIP_SELECTION);
+    promptAnswerConfirm("わからない", () => handleAnswerChoiceClick(SKIP_SELECTION));
   });
   elements.battleHintActions.appendChild(giveUpButton);
 }

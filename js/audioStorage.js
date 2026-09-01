@@ -13,21 +13,57 @@ const DB_NAME = "equalLoveIntroQuizAudio";
 const DB_VERSION = 1;
 const STORE_NAME = "audioFiles";
 
-// IndexedDBのデータベースを開く（なければ作る）。
+// 【2026-09-15改訂・本人指示：アプリ起動後1問目だけ無音になる問題のIndexedDB二重読み込み
+// 調査】以前はこのファイルの関数を呼ぶたびに、毎回indexedDB.open()→使用→db.close()という
+// 新しい接続を開いていた。通常のクイズの1問目は「beginQuiz()相当の処理が
+// filterSongsWithImportedAudio()で1回DBを開く」→「実際の再生直前にjs/audio.jsが
+// getAudioBlob()でもう1回DBを開く」という、合計2回の逐次的なIndexedDBオープンを経由して
+// 初めて再生できていた（2問目以降は出題プール構築が既に終わっているため1回で済む）。
+// iOSのオートプレイ許可は「ユーザー操作からどれだけ間を置かずにplay()を呼べたか」に
+// 敏感なため、この2回目のDBオープン（特にコールドスタート直後は数十〜百数十ms単位の
+// レイテンシになりうる）が、初回だけ無音になる一因ではないかと疑われていた。
+// 実際には毎回開き直す技術的な必要は無い（DB_VERSIONを変える予定も無い）ため、
+// 一度開いた接続をタブが生きている間ずっと使い回すキャッシュへ変更した。これにより、
+// 同じセッション内で2回目以降にこのファイルのどの関数を呼んでも、実質的に
+// indexedDB.open()の待ち時間が発生しなくなる（1問目の遅延要因を1つ減らす）。
+let cachedDbPromise = null;
+
 function openDatabase() {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        // songIdをキーにした保存領域。1曲＝1レコードにすることで、
-        // 一部の曲だけを追加・上書きしても他の曲に影響しない。
-        db.createObjectStore(STORE_NAME, { keyPath: "songId" });
-      }
-    };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
+  if (!cachedDbPromise) {
+    cachedDbPromise = new Promise((resolve, reject) => {
+      const request = indexedDB.open(DB_NAME, DB_VERSION);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains(STORE_NAME)) {
+          // songIdをキーにした保存領域。1曲＝1レコードにすることで、
+          // 一部の曲だけを追加・上書きしても他の曲に影響しない。
+          db.createObjectStore(STORE_NAME, { keyPath: "songId" });
+        }
+      };
+      request.onsuccess = () => {
+        const db = request.result;
+        // 【安全策】通常はまず起きないが、他のタブがこのDBを削除・バージョン変更しようと
+        // した場合（versionchange）や、ブラウザ側の事情で接続が閉じられた場合
+        // （close）に、キャッシュを持ったまま無効な接続を使い続けてしまわないよう、
+        // その場合はキャッシュを空にして次回の呼び出しで自然に開き直せるようにする。
+        db.onversionchange = () => {
+          db.close();
+          cachedDbPromise = null;
+        };
+        db.onclose = () => {
+          cachedDbPromise = null;
+        };
+        resolve(db);
+      };
+      request.onerror = () => {
+        // 開くこと自体に失敗した場合、キャッシュへ失敗したPromiseを残さない
+        // （次の呼び出しで改めて開き直せるようにする）。
+        cachedDbPromise = null;
+        reject(request.error);
+      };
+    });
+  }
+  return cachedDbPromise;
 }
 
 function putRecord(db, record) {
@@ -69,7 +105,9 @@ export async function importAudioFiles(fileList) {
     savedSongIds.push(songId);
   }
 
-  db.close();
+  // 【2026-09-15改訂】接続はキャッシュして使い回す設計にしたため、ここでは閉じない
+  // （db.close()すると、以後この関数が返したPromiseの接続は使えなくなるが、
+  // cachedDbPromise自体はまだそれを指したままになってしまうため）。
   return { savedSongIds, unmatchedFileNames };
 }
 
@@ -99,7 +137,6 @@ async function getAudioBlobOnce(songId) {
     request.onsuccess = () => resolve(request.result ? request.result.blob : null);
     request.onerror = () => reject(request.error);
   });
-  db.close();
   return blob;
 }
 
@@ -148,7 +185,6 @@ export async function getImportedSongIds() {
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
-  db.close();
   return ids;
 }
 
@@ -165,7 +201,6 @@ export async function getAudioContentHashes() {
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
-  db.close();
   return new Map(records.map((record) => [record.songId, record.contentHash ?? null]));
 }
 

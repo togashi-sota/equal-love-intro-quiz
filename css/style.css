@@ -12361,6 +12361,56 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   font-weight: 700;
 }
 
+/* 【2026-09-15新設・本人指示：ルール確認画面に出題対象曲一覧を追加】
+   .song-picker-review-toggleと同じ軽いテキストボタンの見た目に揃える。 */
+.online-battle-confirm-song-list-toggle {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  padding: 4px 0;
+  margin-top: 4px;
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  cursor: pointer;
+  width: auto;
+  min-height: 0;
+}
+
+.online-battle-confirm-song-list-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--color-surface-glass);
+  border: 1px solid var(--color-card-border);
+}
+
+/* display:flexを明示指定しているクラスは[hidden]の既定表示を上書きしてしまうため、
+   明示的な上書きが必要（このプロジェクトで繰り返し踏んでいるCSS詳細度の既知パターン）。 */
+.online-battle-confirm-song-list-panel[hidden] {
+  display: none;
+}
+
+.online-battle-confirm-song-list-heading {
+  margin: 0;
+  font-size: 0.76rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+}
+
+/* カテゴリー対象外だが選択状態が保存されている曲の見出し。「今回は出ない」ことが
+   ひと目で分かるよう、有効な出題対象曲の見出しとは明確に色味を分ける
+   （危険色の赤ではなく、注意喚起の中間トーン）。 */
+.online-battle-confirm-song-list-heading-excluded {
+  margin-top: 4px;
+  color: var(--color-text);
+  opacity: 0.7;
+}
+
 /* 2026-08-27新設：参加者全員が実際に利用できる共通曲の数を知らせる注意書き
    （js/onlineBattleScreen.js・js/onlineLyricsQuizBattleScreen.js参照）。
    「制限が発生している」ことを伝えるための表示なので、目立ちすぎない黄色系にする
@@ -12409,7 +12459,7 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 .online-battle-playlist-picker-name {
   font-size: 0.86rem;
   font-weight: 700;
-  color: var(--color-text);
+  color: var(--color-primary-dark);
 }
 
 .online-battle-playlist-picker-count {
@@ -13299,14 +13349,17 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   background: var(--color-danger-soft);
 }
 
+/* 2026-09-15改訂・本人指示：UI色・フォントの統一。参加者名は.online-lobby-player-name・
+   .battle-rank-nameと同じブランドピンクへ揃える（本人指示の恒久ルール：黒一色に見せない）。 */
 .battle-question-breakdown-row-name {
   font-size: 0.75rem;
   font-weight: 800;
-  color: var(--color-text);
+  color: var(--color-primary-dark);
 }
 
 .battle-question-breakdown-row-answer {
   font-size: 0.72rem;
+  color: var(--color-primary-dark);
   opacity: 0.8;
 }
 
@@ -13678,6 +13731,17 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   display: none;
 }
 
+/* 【2026-09-15新設・本人指示6：一瞬協力のチーム回答の決定理由を分かりやすく表示】
+   「全員一致」「最多票」「同票」「全員わからない」等、実際の判定処理と一致する理由を
+   1行で説明する。目立たせすぎず、補足情報としてブランドピンクへ寄せた控えめな色にする。 */
+.online-instant-coop-decision-reason {
+  margin: 6px 0 0;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+  opacity: 0.85;
+}
+
 .lyrics-quiz-answer-reveal-caption {
   margin: 0;
   font-size: 0.78rem;
@@ -14004,10 +14068,11 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   margin-bottom: 6px;
 }
 
+/* 2026-09-15改訂・本人指示：UI色・フォントの統一。参加者名はブランドピンクへ揃える。 */
 .lyrics-battle-result-card-name {
   font-size: 1rem;
   font-weight: 700;
-  color: var(--color-text);
+  color: var(--color-primary-dark);
   overflow-wrap: break-word;
 }
 
@@ -14506,6 +14571,13 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   list-style: none;
 }
 
+/* display:flexを明示指定しているクラスは[hidden]の既定表示（display:none）より詳細度が
+   高く上書きしてしまうため、明示的な上書きが必要（このプロジェクトで繰り返し踏んでいる
+   CSS詳細度の既知パターン）。一瞬協力側でこのクラスをUL要素へ直接使う際に必要になった。 */
+.online-instant-battle-answer-status-list[hidden] {
+  display: none;
+}
+
 .online-instant-battle-answer-status-row {
   display: flex;
   align-items: center;
@@ -14556,6 +14628,10 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   padding: 0;
   list-style: none;
   text-align: left;
+}
+
+.online-instant-battle-reveal-player-list[hidden] {
+  display: none;
 }
 
 .online-instant-battle-reveal-player-row {

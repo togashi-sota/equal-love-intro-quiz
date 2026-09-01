@@ -3761,6 +3761,10 @@
           <div id="online-instant-coop-battle-idle-notice" class="online-lyrics-battle-idle-notice" hidden></div>
 
           <p id="online-instant-coop-battle-waiting-notice" class="online-battle-lead-text" hidden></p>
+          <!-- 【2026-09-15新設・本人指示5：投票内容は秘密のまま、状態だけを見せる】
+               一瞬バトルと同じ考え方。誰が投票したかは分かるが、何に投票したかは
+               全員確定まで一切見せない（「わからない」を選んだことも秘密）。 -->
+          <ul id="online-instant-coop-battle-answer-status-list" class="online-instant-battle-answer-status-list" hidden></ul>
 
           <!-- 【2026-09-06新設・本人指示：実機フィードバック第3弾⑤】以前は正誤・正解曲名・
                チームの回答をただの文字の羅列で表示していて未完成な印象だった、という指摘を受け、
@@ -3768,13 +3772,17 @@
                再利用し、見た目・統一感を揃えた「1問ごとの結果発表カード」に作り替えた。
                同票でタイブレークになった場合は専用バッジ（-tiebreak-badge）で「同票！」と
                目立たせ、全員「わからない」だった特殊ケースは正解・不正解どちらでもない
-               ニュートラルな配色（is-neutral-answer-reveal-status、js側で付与）にする。 -->
+               ニュートラルな配色（is-neutral-answer-reveal-status、js側で付与）にする。
+               【2026-09-15拡張・本人指示6・7：決定理由と個別投票の開示】チーム結果→決定理由→
+               みんなの回答、の優先順位で情報を並べる（375px幅でも読める優先度）。 -->
           <div id="online-instant-coop-battle-reveal-section" class="lyrics-quiz-answer-reveal" hidden>
             <p id="online-instant-coop-battle-reveal-tiebreak-notice" class="online-instant-coop-tiebreak-badge" hidden>🎲 同票！ランダムで決定しました</p>
             <p id="online-instant-coop-battle-reveal-outcome-badge" class="lyrics-quiz-answer-reveal-status"></p>
             <p class="lyrics-quiz-answer-reveal-caption">正解は</p>
             <p id="online-instant-coop-battle-reveal-correct-song" class="lyrics-quiz-answer-reveal-title"></p>
             <p id="online-instant-coop-battle-reveal-team-answer" class="lyrics-quiz-answer-reveal-my-answer"></p>
+            <p id="online-instant-coop-battle-reveal-decision-reason" class="online-instant-coop-decision-reason"></p>
+            <ul id="online-instant-coop-battle-reveal-vote-list" class="online-instant-battle-reveal-player-list"></ul>
           </div>
         </div>
       </div>

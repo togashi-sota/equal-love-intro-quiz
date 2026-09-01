@@ -1144,11 +1144,14 @@ const onlineInstantCoopAnswerListElement = document.getElementById("online-insta
 const onlineInstantCoopUnknownButtonElement = document.getElementById("online-instant-coop-battle-unknown-button");
 const onlineInstantCoopIdleNoticeElement = document.getElementById("online-instant-coop-battle-idle-notice");
 const onlineInstantCoopWaitingNoticeElement = document.getElementById("online-instant-coop-battle-waiting-notice");
+const onlineInstantCoopAnswerStatusListElement = document.getElementById("online-instant-coop-battle-answer-status-list");
 const onlineInstantCoopRevealSectionElement = document.getElementById("online-instant-coop-battle-reveal-section");
 const onlineInstantCoopRevealOutcomeBadgeElement = document.getElementById("online-instant-coop-battle-reveal-outcome-badge");
 const onlineInstantCoopRevealCorrectSongElement = document.getElementById("online-instant-coop-battle-reveal-correct-song");
 const onlineInstantCoopRevealTeamAnswerElement = document.getElementById("online-instant-coop-battle-reveal-team-answer");
 const onlineInstantCoopRevealTieBreakNoticeElement = document.getElementById("online-instant-coop-battle-reveal-tiebreak-notice");
+const onlineInstantCoopRevealDecisionReasonElement = document.getElementById("online-instant-coop-battle-reveal-decision-reason");
+const onlineInstantCoopRevealVoteListElement = document.getElementById("online-instant-coop-battle-reveal-vote-list");
 const onlineInstantCoopQuitConfirmModalElement = document.getElementById("online-instant-coop-battle-quit-confirm-modal");
 const onlineInstantCoopQuitCancelButtonElement = document.getElementById("online-instant-coop-battle-quit-cancel-button");
 const onlineInstantCoopQuitConfirmButtonElement = document.getElementById("online-instant-coop-battle-quit-confirm-button");
@@ -5778,11 +5781,14 @@ initOnlineInstantCoopBattleScreens({
   unknownButton: onlineInstantCoopUnknownButtonElement,
   idleNotice: onlineInstantCoopIdleNoticeElement,
   waitingNotice: onlineInstantCoopWaitingNoticeElement,
+  answerStatusList: onlineInstantCoopAnswerStatusListElement,
   revealSection: onlineInstantCoopRevealSectionElement,
   revealOutcomeBadge: onlineInstantCoopRevealOutcomeBadgeElement,
   revealCorrectSong: onlineInstantCoopRevealCorrectSongElement,
   revealTeamAnswer: onlineInstantCoopRevealTeamAnswerElement,
   revealTieBreakNotice: onlineInstantCoopRevealTieBreakNoticeElement,
+  revealDecisionReason: onlineInstantCoopRevealDecisionReasonElement,
+  revealVoteList: onlineInstantCoopRevealVoteListElement,
   resultHomeLink: onlineInstantCoopResultHomeLinkElement,
   resultHostActions: onlineInstantCoopResultHostActionsElement,
   resultGuestActions: onlineInstantCoopResultGuestActionsElement,

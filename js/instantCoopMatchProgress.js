@@ -249,6 +249,31 @@ export function finalizeMatch(state) {
   return { totalQuestions, correctCount, totalSharedReplayCount };
 }
 
+// ===== 決定理由の説明文（画面表示専用、判定ロジックには一切関与しない） =====
+//
+// 【2026-09-15新設・本人指示：一瞬協力のチーム回答の決定理由を分かりやすく表示】実際の
+// 判定処理（このファイルのtick()）と矛盾しない理由を、既に確定済みのoutcomeと投票内訳
+// から逆算して組み立てる（新しい判定ロジックは増やさない）。同票判定は既存の
+// usedTieBreakRandomフラグをそのまま使う（本人指示：既存のランダム処理を維持する）。
+//
+// outcome: state.currentQuestion.outcome（{teamAnswer, isCorrect, usedTieBreakRandom, ...}）
+// teamAnswerTitle: 呼び出し元が解決した、outcome.teamAnswerの曲名（このファイルは曲データを
+//   持たないため、呼び出し元から渡してもらう）
+// roundVotes: その問題・そのラウンドの投票（{ [uid]: { selectedSongId } }）
+// activeUids: 参加者uid一覧
+export function describeCoopDecisionReason({ outcome, teamAnswerTitle, roundVotes, activeUids }) {
+  const isAllUnknown = outcome.teamAnswer == null;
+  if (isAllUnknown) return "全員が「わからない」を選択しました";
+  if (outcome.usedTieBreakRandom) return `同票のため、ランダムで「${teamAnswerTitle}」に決定しました`;
+
+  const winnerVoteCount = activeUids.filter((uid) => roundVotes[uid]?.selectedSongId === outcome.teamAnswer).length;
+  const totalVoters = activeUids.length;
+  if (totalVoters > 0 && winnerVoteCount >= totalVoters) {
+    return `全員一致！「${teamAnswerTitle}」に決定しました`;
+  }
+  return `「${teamAnswerTitle}」が${winnerVoteCount}票で最多のためチーム回答に決定しました`;
+}
+
 // ===== ホストのリロード・再接続からの復元 =====
 //
 // 【なぜ必要か】js/lyricsQuizMatchProgress.jsのrestoreMatchProgressFromFirebase()と同じ理由。

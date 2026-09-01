@@ -75,6 +75,7 @@ import { computeNormalFinalRecordMs } from "./localBattleResult.js";
 import { MEMBERS } from "./data/members.js";
 import { SONGS } from "./data/songs.js";
 import { renderCollaborativeSelectionBreakdown, wireCollaborativeSelectionDetailsToggle, resetCollaborativeSelectionDetailsPanel } from "./onlineBattleCollaborativeSelectionUi.js";
+import { buildSelectorUidsBySongId } from "./onlineBattleCollaborativeSelectionPayloads.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
 import { getMemberById } from "./memberUtils.js";
 // 【2026-09-07新設・本人指示：ルーム参加者プロフィール】ロビー参加者の名前タップで
@@ -243,6 +244,11 @@ let latestRoom = null;
 // （js/onlineBattleSongAvailabilityPayloads.jsのcomputeRoomCommonSongPool参照）。
 // 曲選択画面を開く際の絞り込み・共通曲数の表示に使う。
 let currentCommonSongPool = new Set();
+// 【2026-09-15新設・本人指示8：対戦開始前ルール確認画面に出題対象曲一覧を表示】
+// 「指定曲一覧を見る」の開閉状態。buildCurrentRuleExplanation()はrenderMatchConfirmScreen()
+// から他プレイヤーが確認するたびに何度も呼ばれ、その都度DOMを作り直すため、開閉状態自体は
+// この関数の外（モジュール変数）で持たないと、他の人が確認しただけでパネルが閉じてしまう。
+let confirmSongListExpanded = false;
 
 // Step3：試合の進行・進捗表示・結果まわりの状態。
 let currentMatchId = null; // 今参加している試合のID（開始〜結果画面まで保持）
@@ -574,11 +580,14 @@ function buildCurrentRuleExplanation(containerElement, room) {
     containerElement.appendChild(penaltyText);
   }
 
-  // 【2026-09-14新設・本人指示：ルール確認画面に共有曲情報を表示】共同選曲を使っている
-  // 場合、「共有曲指定あり」「現在のカテゴリ条件で有効な出題候補が何曲あるか」
-  // 「今回何問出題されるか」を必ず表示する。答えそのものを隠す設計ではないため、
-  // 対象曲の内訳自体はここでは一覧表示せず（一覧はロビーの「選択曲を見る」で
-  // 既に確認できる）、対戦開始直前に必要な数量情報だけに絞る。
+  // 【2026-09-14新設→2026-09-15拡張・本人指示：ルール確認画面に出題対象曲一覧を表示】
+  // 共同選曲を使っている場合、「共有曲指定あり」「現在有効な出題候補が何曲あるか」
+  // 「今回何問出題されるか」に加え、開閉式の一覧で実際の曲名・誰が選んだかまで確認できる
+  // ようにする。カテゴリー変更等で「選択状態は保存されているが今回のカテゴリでは対象外」の
+  // 曲は、絶対に「今回出題される曲」として見せてはいけない（本人指示）ため、
+  // resolveSongPoolForSettings()が返す、既にカテゴリー絞り込み済みのeffectivePoolだけを
+  // 「今回有効な出題対象曲」として扱う。対象外だが選択状態は保存されている曲は、
+  // 誤解を避けるため別セクションへ分けて表示する。
   if (settings.questionSource?.type === QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION) {
     const effectivePool = resolveSongPoolForSettings(gameMode, settings) ?? [];
     const questionCount = resolveQuestionCount(settings.questionCountValue, effectivePool.length);
@@ -589,6 +598,71 @@ function buildCurrentRuleExplanation(containerElement, room) {
         ? "共有曲指定あり：現在有効な出題候補は0曲です。参加者に曲を選んでもらってください。"
         : `共有曲指定あり：現在有効な出題候補${effectivePool.length}曲の中から、今回${questionCount}問出題されます`;
     containerElement.appendChild(collabText);
+
+    const players = room.players ?? {};
+    const mergedSelection = computeMergedSelectedSongIds(players);
+    const effectivePoolSet = new Set(effectivePool);
+    const excludedByCategory = mergedSelection.filter((songId) => !effectivePoolSet.has(songId));
+    const selectorUidsBySongId = buildSelectorUidsBySongId(players);
+    const songTitleById = (songId) => SONGS.find((song) => song.id === songId)?.title ?? songId;
+
+    const buildSongChipList = (songIds) => {
+      const list = document.createElement("div");
+      list.className = "online-battle-collab-song-chip-list";
+      if (songIds.length === 0) {
+        const empty = document.createElement("p");
+        empty.className = "online-battle-collab-breakdown-empty";
+        empty.textContent = "該当する曲はありません。";
+        list.appendChild(empty);
+        return list;
+      }
+      songIds.forEach((songId) => {
+        const chip = document.createElement("span");
+        chip.className = "online-battle-collab-song-chip";
+        const selectorNames = (selectorUidsBySongId[songId] ?? []).map((uid) => players[uid]?.displayName ?? players[uid]?.name ?? "参加者");
+        chip.textContent = selectorNames.length > 0 ? `${songTitleById(songId)}（${selectorNames.join("・")}）` : songTitleById(songId);
+        list.appendChild(chip);
+      });
+      return list;
+    };
+
+    if (effectivePool.length > 0 || excludedByCategory.length > 0) {
+      const toggleButton = document.createElement("button");
+      toggleButton.type = "button";
+      toggleButton.className = "secondary-button online-battle-confirm-song-list-toggle";
+      toggleButton.setAttribute("aria-expanded", String(confirmSongListExpanded));
+      toggleButton.textContent = confirmSongListExpanded ? "指定曲一覧を閉じる ▴" : "指定曲一覧を見る ▾";
+      containerElement.appendChild(toggleButton);
+
+      const panel = document.createElement("div");
+      panel.className = "online-battle-confirm-song-list-panel";
+      panel.hidden = !confirmSongListExpanded;
+
+      const effectiveHeading = document.createElement("p");
+      effectiveHeading.className = "online-battle-confirm-song-list-heading";
+      effectiveHeading.textContent = "🎵 今回有効な出題対象曲";
+      panel.appendChild(effectiveHeading);
+      panel.appendChild(buildSongChipList(effectivePool));
+
+      // カテゴリー変更で対象外になった、選択状態だけが残っている曲。誤解を避けるため
+      // 「今回有効な出題対象曲」とは明確に見た目・文言を分けて表示する（本人指示）。
+      if (excludedByCategory.length > 0) {
+        const excludedHeading = document.createElement("p");
+        excludedHeading.className = "online-battle-confirm-song-list-heading online-battle-confirm-song-list-heading-excluded";
+        excludedHeading.textContent = "🚫 現在は対象外だが選択状態は保存中（今回は出題されません）";
+        panel.appendChild(excludedHeading);
+        panel.appendChild(buildSongChipList(excludedByCategory));
+      }
+
+      containerElement.appendChild(panel);
+
+      toggleButton.addEventListener("click", () => {
+        confirmSongListExpanded = !confirmSongListExpanded;
+        panel.hidden = !confirmSongListExpanded;
+        toggleButton.setAttribute("aria-expanded", String(confirmSongListExpanded));
+        toggleButton.textContent = confirmSongListExpanded ? "指定曲一覧を閉じる ▴" : "指定曲一覧を見る ▾";
+      });
+    }
   }
 }
 
@@ -616,6 +690,7 @@ function renderLobbyHelpModal(room) {
 
 function openLobbyHelpModal() {
   if (!latestRoom || !elements.lobbyHelpModal) return;
+  confirmSongListExpanded = false;
   renderLobbyHelpModal(latestRoom);
   elements.lobbyHelpModal.hidden = false;
 }
@@ -637,6 +712,7 @@ function closeLobbyHelpModal() {
 function enterMatchConfirmScreen(room) {
   clearTimeout(matchConfirmAutoStartTimerId);
   matchConfirmAutoStartTimerId = null;
+  confirmSongListExpanded = false;
   elements.navigateTo("onlineBattleConfirm");
   renderMatchConfirmScreen(room);
 }
@@ -2503,9 +2579,15 @@ export function initOnlineBattleScreens(newElements) {
     }
   });
 
-  // 【2026-08-30新設、本人指示】観戦をやめて入口へ戻る。
+  // 【2026-08-30新設、本人指示→2026-09-15改訂・本人指示：ゲスト側の戻る／退出操作を
+  // 全画面横断監査】観戦をやめて入口へ戻る。全画面監査の結果、誤タップ防止の確認が
+  // 無いまま即座に退出する唯一の残存箇所だったため追加した。ルーム退出・結果画面退出の
+  // ような大掛かりな独立モーダルではなく、同じファイル内の「キック」「ホストを渡す」と
+  // 同じ軽量なwindow.confirm()を使う（観戦はルームコードで何度でも入り直せるため、
+  // 対戦そのものからの退出より影響が小さい操作という判断）。
   elements.spectatorLeaveButton.addEventListener("click", async () => {
     if (!currentRoomId) return;
+    if (!window.confirm("観戦をやめてホーム画面へ戻りますか？")) return;
     elements.spectatorLeaveButton.disabled = true;
     await leaveSpectating({ roomId: currentRoomId });
     elements.spectatorLeaveButton.disabled = false;

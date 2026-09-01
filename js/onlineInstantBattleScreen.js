@@ -472,6 +472,22 @@ async function runHostProgressionTick() {
         nextHostState = recordAnswer(nextHostState, uid, { selectedSongId: UNKNOWN_ANSWER, replayCount: 0 });
       }
     }
+    // 【2026-09-15追加・本人指示：途中退出者を待ち続けない】leftDuringMatch（「この試合だけ
+    // 抜ける」）は参加者本人のフラグを立てるだけで、進行判定が見る回答済み人数には
+    // 一切影響しない設計だった（js/onlineBattleLeaveMatchPrompt.jsのコメント参照：
+    // 「room.status・他の参加者には一切影響しない」）。そのため、離脱した人がまだこの
+    // 問題へ回答していないと、3分無操作救済がホストの手動操作で発動するまで進行が
+    // 止まってしまっていた（離脱者は既にcurrentMatchTotalQuestions等から除外されず
+    // 接続状態もconnected:trueのままなので、切断救済（20秒）も発動しない）。
+    // 離脱済みの人は、この問題も含めて以後わからない扱いにして進行を止めない
+    // （最終結果画面ではleftDuringMatchで既に除外されるため、この仮の回答が順位へ
+    // 影響することは無い）。
+    for (const uid of nextHostState.allPlayerUids) {
+      if (uid in nextHostState.currentQuestion.answersByUid) continue;
+      if (match.participants?.[uid]?.leftDuringMatch === true) {
+        nextHostState = recordAnswer(nextHostState, uid, { selectedSongId: UNKNOWN_ANSWER, replayCount: 0 });
+      }
+    }
 
     // 【切断時の自動復帰待ち→離脱処理】js/onlineInstantCoopBattleScreen.jsと同じ設計。
     for (const uid of nextHostState.allPlayerUids) {

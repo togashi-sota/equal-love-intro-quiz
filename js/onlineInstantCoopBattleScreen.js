@@ -49,6 +49,7 @@ import {
   advanceToNextQuestion,
   finalizeMatch,
   restoreMatchProgressFromFirebase,
+  describeCoopDecisionReason,
 } from "./instantCoopMatchProgress.js";
 import {
   QUESTION_STATUS,
@@ -186,8 +187,22 @@ export function initOnlineInstantCoopBattleScreens(newElements) {
     reportMyQuestionActivity();
   });
 
+  // 【2026-09-15追加・本人指示：「わからない」確認ダイアログを全対象モードへ展開】
+  // 一瞬バトルの新規わからないボタンと同じく、誤タップ防止のため確認を必ず挟む。
+  // 曲の回答ボタンと全く同じ「確認画面を開いた時点のquestionIndex・roundNumberが、
+  // 確定を押した時点でも一致しているか」の再確認ガードも揃える。
   elements.unknownButton.addEventListener("click", () => {
-    handleVoteClick(UNKNOWN_VOTE);
+    reportMyQuestionActivity();
+    const matchAtClick = latestRoom?.matches?.[currentMatchId];
+    const expectedQIndex = matchAtClick?.currentQuestionIndex;
+    const expectedRoundNumber = matchAtClick?.coopRoundNumber ?? 0;
+    promptAnswerConfirm("わからない", () => {
+      const matchAtConfirm = latestRoom?.matches?.[currentMatchId];
+      const currentQIndex = matchAtConfirm?.currentQuestionIndex;
+      const currentRoundNumber = matchAtConfirm?.coopRoundNumber ?? 0;
+      if (currentQIndex !== expectedQIndex || currentRoundNumber !== expectedRoundNumber) return;
+      handleVoteClick(UNKNOWN_VOTE);
+    });
   });
 
   // 【2026-09-05新設、本人指示】共有再視聴（最大2回）方式を廃止し、各自が個別に
@@ -597,6 +612,18 @@ async function runHostProgressionTick() {
         nextHostState = recordVote(nextHostState, uid, UNKNOWN_VOTE);
       }
     }
+    // 【2026-09-15追加・本人指示：途中退出者を待ち続けない】leftDuringMatchは参加者本人の
+    // フラグを立てるだけで、投票済み人数には影響しない設計だったため、離脱した人がまだ
+    // 投票していないと3分無操作救済がホストの手動操作で発動するまで進行が止まっていた
+    // （離脱者はconnected:trueのままのことが多く、切断救済も発動しない）。離脱済みの人は
+    // 以後わからない扱いにして進行を止めない（チーム成績への影響は多数決の一票が
+    // 増えるだけで、離脱者自身の個人成績は元々存在しないため実害は無い）。
+    for (const uid of nextHostState.allPlayerUids) {
+      if (uid in nextHostState.currentQuestion.votesByUid) continue;
+      if (match.participants?.[uid]?.leftDuringMatch === true) {
+        nextHostState = recordVote(nextHostState, uid, UNKNOWN_VOTE);
+      }
+    }
 
     // 【2026-09-09新設・本人指示4：通信切断時の自動復帰待ち→離脱処理】まだ投票していない
     // 参加者のうち、実際に接続が切れている（connected:false）人だけの切断継続時間を計測し、
@@ -878,6 +905,85 @@ function computeDisplayedQuestionNumber(match, qIndex) {
   return completedCount + 1;
 }
 
+// 【2026-09-15新設・本人指示5：投票内容は秘密のまま、状態だけを見せる】ルーム参加順で
+// 「回答済み／未回答」のバッジだけを並べる。js/onlineInstantBattleScreen.jsの
+// renderAnswerStatusList()と同じ設計・同じCSSクラスを再利用する（見た目の統一）。
+// forcedSkips（3分無操作救済）はcoopVotesには書き込まれないため、両方を確認する。
+function renderVoteStatusList(match, qIndex, roundNumber) {
+  if (!elements.answerStatusList) return;
+  clearElement(elements.answerStatusList);
+  const participants = match.participants ?? {};
+  const votedUids = new Set(Object.keys(match.coopVotes?.[qIndex]?.[roundNumber] ?? {}));
+  const forcedSkipUids = new Set(Object.keys(match.forcedSkips?.[qIndex] ?? {}));
+  const myUid = getCurrentUid();
+
+  Object.entries(participants).forEach(([uid, participant]) => {
+    const row = document.createElement("li");
+    row.className = "online-instant-battle-answer-status-row";
+
+    const oshiColor = resolveOshiColor(participant.oshiMemberId);
+    if (oshiColor) {
+      const dot = document.createElement("span");
+      dot.className = "online-lobby-oshi-dot";
+      dot.style.backgroundColor = oshiColor;
+      row.appendChild(dot);
+    }
+    const name = document.createElement("span");
+    name.className = "online-instant-battle-answer-status-name";
+    name.textContent = participant.displayName + (uid === myUid ? "（あなた）" : "");
+    row.appendChild(name);
+
+    const badge = document.createElement("span");
+    const answered = votedUids.has(uid) || forcedSkipUids.has(uid);
+    badge.className = `online-instant-battle-answer-status-badge${answered ? " is-answered" : ""}`;
+    badge.textContent = answered ? "回答済み" : "未回答";
+    row.appendChild(badge);
+
+    elements.answerStatusList.appendChild(row);
+  });
+}
+
+// 【2026-09-15新設・本人指示5：全員確定後、誰が何に投票したかを一斉公開する】ルーム参加順で
+// 各参加者の実際の投票内容を表示する。投票中は一切呼ばれず（isResolvedのときだけ呼ばれる）、
+// 秘密が保たれる。正解曲に投票していた行は軽くハイライトする（本人指示のスコアには
+// 一切影響しない、振り返り用の表示だけ）。
+function renderRevealVoteList(match, qIndex, roundNumber) {
+  if (!elements.revealVoteList) return;
+  clearElement(elements.revealVoteList);
+  const participants = match.participants ?? {};
+  const roundVotes = match.coopVotes?.[qIndex]?.[roundNumber] ?? {};
+  const forcedSkipUids = new Set(Object.keys(match.forcedSkips?.[qIndex] ?? {}));
+  const question = currentQuestions[qIndex];
+  const myUid = getCurrentUid();
+
+  Object.entries(participants).forEach(([uid, participant]) => {
+    const vote = roundVotes[uid];
+    const isForcedSkip = forcedSkipUids.has(uid) && !vote;
+    const row = document.createElement("li");
+    row.className = "online-instant-battle-reveal-player-row";
+    if (vote?.selectedSongId === question?.song.id) row.classList.add("is-correct");
+
+    const name = document.createElement("span");
+    name.className = "online-instant-battle-reveal-player-name";
+    name.textContent = participant.displayName + (uid === myUid ? "（あなた）" : "");
+    row.appendChild(name);
+
+    const answerText = document.createElement("span");
+    answerText.className = "online-instant-battle-reveal-player-answer";
+    if (isForcedSkip) {
+      answerText.textContent = "🤷 わからない（無操作救済）";
+    } else if (!vote || vote.selectedSongId === UNKNOWN_VOTE) {
+      answerText.textContent = "🤷 わからない";
+    } else {
+      const votedSong = question?.answerPool.find((song) => song.id === vote.selectedSongId);
+      answerText.textContent = votedSong?.title ?? vote.selectedSongId;
+    }
+    row.appendChild(answerText);
+
+    elements.revealVoteList.appendChild(row);
+  });
+}
+
 function renderCurrentQuestionState() {
   if (!latestRoom || currentQuestions.length === 0) return;
   const match = latestRoom.matches?.[currentMatchId];
@@ -929,6 +1035,9 @@ function renderCurrentQuestionState() {
   // 隠して待機表示に切り替える」挙動に統一する。
   elements.answerSection.hidden = isResolved || hasVotedThisRound;
   elements.waitingNotice.hidden = isResolved || !hasVotedThisRound;
+  // 【2026-09-15新設・本人指示5：投票内容は秘密のまま、状態だけを見せる】
+  // 一瞬バトルの回答状況一覧と同じ考え方・同じ表示タイミング（自分が投票した後だけ見せる）。
+  if (elements.answerStatusList) elements.answerStatusList.hidden = isResolved || !hasVotedThisRound;
   elements.revealSection.hidden = !isResolved;
   // 【2026-09-05新設、本人指示】各自が個別に無制限で再視聴できるボタン。投票済み・
   // 正解確定後は押せないようにする（Firebaseへは一切同期しない、完全にローカルな操作）。
@@ -959,6 +1068,7 @@ function renderCurrentQuestionState() {
     elements.waitingNotice.textContent = myForcedSkip
       ? "ホストにより、この問題は「わからない」扱いになりました。他の参加者の回答を待っています…"
       : `投票しました。他の参加者の回答を待っています（${votedCount}/${activeUids.length}人）`;
+    renderVoteStatusList(match, qIndex, roundNumber);
     void players;
   } else {
     const outcome = match.coopQuestionOutcomes?.[qIndex];
@@ -980,6 +1090,8 @@ function renderCurrentQuestionState() {
         elements.revealOutcomeBadge.classList.remove("is-correct-answer-reveal-status");
         elements.revealOutcomeBadge.classList.add("is-neutral-answer-reveal-status");
         elements.revealTieBreakNotice.hidden = true;
+        if (elements.revealDecisionReason) elements.revealDecisionReason.textContent = "";
+        if (elements.revealVoteList) clearElement(elements.revealVoteList);
       } else {
         elements.revealCorrectSong.textContent = correctSong.title;
 
@@ -998,6 +1110,20 @@ function renderCurrentQuestionState() {
         elements.revealOutcomeBadge.classList.toggle("is-correct-answer-reveal-status", !isAllUnknown && outcome.isCorrect);
         elements.revealOutcomeBadge.classList.toggle("is-neutral-answer-reveal-status", isAllUnknown);
         elements.revealTieBreakNotice.hidden = !outcome.usedTieBreakRandom;
+
+        // 【2026-09-15新設・本人指示6：チーム回答の決定理由を分かりやすく表示】
+        const activeUids = Object.keys(match.participants ?? {});
+        const roundVotes = match.coopVotes?.[qIndex]?.[roundNumber] ?? {};
+        if (elements.revealDecisionReason) {
+          elements.revealDecisionReason.textContent = describeCoopDecisionReason({
+            outcome,
+            teamAnswerTitle: teamAnswerSong?.title ?? outcome.teamAnswer,
+            roundVotes,
+            activeUids,
+          });
+        }
+        // 【2026-09-15新設・本人指示5：全員確定後、誰が何に投票したかを一斉公開する】
+        renderRevealVoteList(match, qIndex, roundNumber);
       }
     }
   }

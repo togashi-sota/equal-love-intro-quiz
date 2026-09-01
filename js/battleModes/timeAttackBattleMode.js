@@ -189,14 +189,19 @@ export function compareResults(resultA, resultB, settings) {
 }
 
 // ロビー画面・ルール確認等で表示する、勝敗条件の短い案内文。
+// 【2026-09-15改訂・本人指示：全オンラインモードの順位説明を再監査】以前は最初の
+// 判定基準だけを説明しており、同点・同着時にさらに何を見るかが書かれていなかった
+// （「ルールは分かるけど、どうすれば1位になるのか分からない」状態を防ぐため、
+// 実際のcompareResults()の判定順序を全て文章化する）。
 const RULE_WIN_CONDITION_HINTS = {
-  hard: "正解数が多い人が上位。同点の場合はタイムで決まります",
-  loveChain: "全問クリアを目指します。失敗時は到達問題数で競います",
+  hard: "正解数が多い人が上位。同数の場合はタイムが速い人が上位、それも同じならミス数が少ない人が上位です",
+  loveChain:
+    "全問正解（クリア）を目指します。クリアできた人同士はタイムの速さで競います。クリアできなかった場合は、到達した問題数が多い人が上位。それも同じならタイム、さらに同じならミス数の少なさで決まります",
 };
 
 export function getRuleDescription(settings) {
   if (settings.rule === "normal") {
-    return `ミス1回につき+${settings.penaltySeconds}秒。ペナルティ込みの記録で競います`;
+    return `ミス1回につき+${settings.penaltySeconds}秒のペナルティが加わった最終タイムが速い人が上位。同タイムならミス数が少ない人が上位です`;
   }
   return RULE_WIN_CONDITION_HINTS[settings.rule] ?? "";
 }
