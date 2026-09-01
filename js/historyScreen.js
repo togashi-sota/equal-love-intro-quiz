@@ -11,12 +11,16 @@ import {
   getUnifiedPlayHistoryEntries,
   computeUnifiedHistorySummary,
   filterUnifiedPlayHistoryEntries,
+  filterOnlineHistoryEntries,
+  splitHistoryEntriesByOnlineStatus,
   describeEntrySummaryLines,
   describeEntryDetailFields,
   formatPlayedAt,
   clearNativePlayHistoryEntries,
   HISTORY_FILTER_ORDER,
   HISTORY_FILTER_LABELS,
+  HISTORY_FILTER_ORDER_ONLINE,
+  HISTORY_FILTER_LABELS_ONLINE,
   HISTORY_MODE_DISPLAY,
 } from "./playHistory.js";
 import { clearHistoryEntries } from "./history.js";
@@ -56,6 +60,8 @@ export function buildTitleBadges(titleResults) {
 // この画面が使うDOM要素一式。initHistoryScreen()で受け取って保持する。
 let elements = null;
 let activeFilterId = "all";
+// 【2026-09-09新設・本人指示3-1：プレイ履歴のオフライン/オンライン分離】
+let activeTab = "offline"; // "offline" | "online"
 
 function isConfirmModalOpen() {
   return elements !== null && !elements.confirmModalOverlay.hidden;
@@ -176,16 +182,21 @@ function renderSummary(entries) {
   elements.summaryAccuracy.textContent = formatAccuracy(summary.overallAccuracy);
 }
 
-// フィルターチップ（すべて／イントロ／ランダム／歌詞／タイムアタック／対戦）を組み立てる。
-// 横スクロール可能なチップ形式（本人指示どおり）。選択中のチップはis-activeで強調する。
+// フィルターチップを組み立てる。横スクロール可能なチップ形式（本人指示どおり）。
+// 選択中のチップはis-activeで強調する。
+// 【2026-09-09改訂・本人指示3-1：オフライン/オンライン分離】タブごとに違うチップ構成
+// （オフライン＝すべて／イントロ／ランダム／歌詞／タイムアタック／1台対戦、
+// オンライン＝すべて／イントロ系／歌詞クイズ／一瞬系）を出し分ける。
 function renderFilterChips() {
+  const order = activeTab === "online" ? HISTORY_FILTER_ORDER_ONLINE : HISTORY_FILTER_ORDER;
+  const labels = activeTab === "online" ? HISTORY_FILTER_LABELS_ONLINE : HISTORY_FILTER_LABELS;
   elements.filterChipsContainer.innerHTML = "";
-  HISTORY_FILTER_ORDER.forEach((filterId) => {
+  order.forEach((filterId) => {
     const chip = document.createElement("button");
     chip.type = "button";
     chip.className = "history-filter-chip";
     chip.classList.toggle("is-active", filterId === activeFilterId);
-    chip.textContent = HISTORY_FILTER_LABELS[filterId];
+    chip.textContent = labels[filterId];
     chip.addEventListener("click", () => {
       if (activeFilterId === filterId) return;
       activeFilterId = filterId;
@@ -193,6 +204,19 @@ function renderFilterChips() {
     });
     elements.filterChipsContainer.appendChild(chip);
   });
+}
+
+// 【2026-09-09新設・本人指示3-1：オフライン/オンライン分離】タブを切り替える。
+// タブが変わったら、そのタブでは意味を持たない可能性があるフィルター選択を
+// 「すべて」へ戻す（例：オフラインの「タイムアタック」のままオンラインタブへ切り替えると、
+// 該当チップが存在せず絞り込みが意図せず空になってしまうため）。
+function switchHistoryTab(tab) {
+  if (activeTab === tab) return;
+  activeTab = tab;
+  activeFilterId = "all";
+  elements.tabOfflineButton.classList.toggle("is-active", tab === "offline");
+  elements.tabOnlineButton.classList.toggle("is-active", tab === "online");
+  renderHistoryScreen();
 }
 
 // 履歴1件分のカードを組み立てる。カード全体をボタンにして、タップで詳細モーダルを開けるようにする。
@@ -251,9 +275,16 @@ function buildHistoryEntryCard(entry) {
 }
 
 // 下部の履歴一覧（新しい順）を反映する。0件のときは一覧の代わりに空状態のメッセージを見せる。
+// 【2026-09-09改訂・本人指示3-1：オフライン/オンライン分離】空状態の文言も、今見ている
+// タブに合わせて出し分ける（オフライン履歴があるのに「まだ履歴がありません」と出て
+// 誤解させないため）。
 function renderHistoryList(entries) {
   const isEmpty = entries.length === 0;
   elements.emptyState.hidden = !isEmpty;
+  elements.emptyState.textContent =
+    activeTab === "online"
+      ? "まだオンライン対戦の記録がありません。オンライン対戦で遊ぶと、ここに記録が残っていきます。"
+      : "まだプレイ履歴がありません。クイズを遊ぶと、ここに記録が残っていきます。";
   elements.listContainer.hidden = isEmpty;
 
   elements.listContainer.innerHTML = "";
@@ -262,20 +293,31 @@ function renderHistoryList(entries) {
   });
 }
 
-// 現在の状態を読み込み直して、履歴画面全体（サマリー＋フィルター＋一覧）を描画する。
+// 現在の状態を読み込み直して、履歴画面全体（サマリー＋タブ＋フィルター＋一覧）を描画する。
 // 画面を開くたびに呼ぶことで、直前のプレイ結果も必ず反映される。
+// 【2026-09-09改訂・本人指示3-1：オフライン/オンライン分離】サマリー（総プレイ回数等）は
+// 「すべて」ではなく、今見ているタブの範囲だけを対象に計算する（オフラインの回数の中に
+// オンライン対戦の回数が紛れ込まないようにするため）。
 export function renderHistoryScreen() {
   const allEntries = getUnifiedPlayHistoryEntries();
+  const { offline, online } = splitHistoryEntriesByOnlineStatus(allEntries);
+  const tabEntries = activeTab === "online" ? online : offline;
+
   elements.clearButton.hidden = allEntries.length === 0;
-  renderSummary(allEntries);
+  renderSummary(tabEntries);
   renderFilterChips();
-  renderHistoryList(filterUnifiedPlayHistoryEntries(allEntries, activeFilterId));
+  const filteredEntries =
+    activeTab === "online"
+      ? filterOnlineHistoryEntries(tabEntries, activeFilterId)
+      : filterUnifiedPlayHistoryEntries(tabEntries, activeFilterId);
+  renderHistoryList(filteredEntries);
 }
 
 // プレイ履歴画面を使えるようにする。main.jsの初期化処理から1回だけ呼ぶ想定。
 //
 // elements: {
 //   summaryPlayCount, summaryAnswerCount, summaryAccuracy: サマリーの数値を表示する要素,
+//   tabOfflineButton, tabOnlineButton: オフライン/オンラインの切り替えタブ,
 //   filterChipsContainer: フィルターチップを並べる入れ物,
 //   listContainer: 履歴カードを並べる入れ物,
 //   emptyState: 履歴が0件のときだけ表示するメッセージ要素,
@@ -286,6 +328,8 @@ export function renderHistoryScreen() {
 export function initHistoryScreen(newElements) {
   elements = newElements;
 
+  elements.tabOfflineButton.addEventListener("click", () => switchHistoryTab("offline"));
+  elements.tabOnlineButton.addEventListener("click", () => switchHistoryTab("online"));
   elements.clearButton.addEventListener("click", openConfirmModal);
   elements.confirmCancelButton.addEventListener("click", closeConfirmModal);
   elements.confirmDeleteButton.addEventListener("click", handleDeleteConfirmed);

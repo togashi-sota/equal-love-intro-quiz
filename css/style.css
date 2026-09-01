@@ -5837,6 +5837,39 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 
 /* 【2026-08-08追加】モード絞り込みチップ（すべて／イントロ／ランダム／歌詞／タイムアタック／対戦）。
    数が多くなっても崩れないよう、横スクロール可能なチップ列にする（本人指示）。 */
+/* 【2026-09-09新設・本人指示3-1：プレイ履歴のオフライン/オンライン分離】
+   下の細かいモードチップより1段階上の、主要な切り替えであることが分かるよう、
+   等幅2分割のセグメントコントロール風の見た目にする。 */
+.history-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.05);
+  margin-bottom: 14px;
+}
+
+.history-tab {
+  padding: 9px 10px;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  color: var(--color-text);
+  opacity: 0.65;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.history-tab.is-active {
+  background: #ffffff;
+  opacity: 1;
+  color: var(--color-primary-dark);
+  box-shadow: var(--shadow-card);
+}
+
 .history-filter-chips {
   display: flex;
   gap: 6px;
@@ -12337,6 +12370,69 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   display: none;
 }
 
+/* 【2026-09-09新設・本人指示：ロビー専用の詳細説明書】タイトルと「？」ボタンを
+   横並びにする、汎用のヘッダー行。 */
+.online-lobby-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.online-lobby-help-section-heading {
+  margin: 18px 0 8px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  opacity: 0.7;
+}
+
+.online-lobby-help-current-mode {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  margin: 0 0 4px;
+}
+
+.online-lobby-help-current-description {
+  font-size: 0.82rem;
+  opacity: 0.75;
+  margin: 0 0 10px;
+}
+
+.online-lobby-help-mode-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.online-lobby-help-mode-item {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-card-border);
+}
+
+.online-lobby-help-mode-item-name {
+  font-weight: 800;
+  font-size: 0.85rem;
+}
+
+.online-lobby-help-mode-item-description {
+  font-size: 0.78rem;
+  opacity: 0.75;
+  margin-top: 2px;
+}
+
+.online-lobby-help-mode-item.is-current {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+}
+
+#online-battle-lobby-help-guide-link {
+  width: 100%;
+  margin-top: 18px;
+}
+
 .battle-config-chip {
   padding: 5px 12px;
   border-radius: 999px;
@@ -12473,6 +12569,19 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 .battle-rank-row.is-rank-1 {
   background: linear-gradient(160deg, #ffe9a8, #fff2bf);
   border-color: var(--color-accent);
+}
+
+/* 【2026-09-09新設・本人指示2-6：結果画面のデザイン】2位・3位も、1位ほど目立たせずに
+   軽く装飾する（銀・銅を連想させる控えめなトーン。＝LOVEのピンク系パレットから外れない
+   範囲でグレー・オレンジ味を少しだけ足す程度に留める）。 */
+.battle-rank-row.is-rank-2 {
+  background: linear-gradient(160deg, #eef0f4, #f8f9fb);
+  border-color: #b8c0cc;
+}
+
+.battle-rank-row.is-rank-3 {
+  background: linear-gradient(160deg, #f3e2d3, #faf1e8);
+  border-color: #d3a87c;
 }
 
 .battle-rank-medal {

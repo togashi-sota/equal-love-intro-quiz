@@ -5,6 +5,12 @@ import { GUIDE_CATEGORIES, getGuideSectionById } from "./data/guideContent.js";
 
 let elements = null;
 
+// 【2026-09-09新設・本人指示：ロビー専用の詳細説明書からのリンク】以前はガイドを開く入口が
+// ホーム画面の1箇所だけだったため、「戻る」は常にホームへ固定でよかった。オンライン対戦
+// ロビーの説明書からもガイドへ移動できるようにしたため、「どの画面から開かれたか」を覚えて
+// おき、戻るボタンで元の画面へ正しく戻れるようにする。
+let returnScreenId = "start";
+
 function showToc() {
   elements.tocView.hidden = false;
   elements.detailView.hidden = true;
@@ -85,8 +91,14 @@ function renderToc() {
 
 // ガイド画面を開くたびに、必ず目次から表示する（前回どのページを見ていたかは覚えない、
 // 攻略本を開き直すたびに目次から、という素直な挙動にする）。
-export function openGuideScreen() {
+// returnScreenId：「戻る」ボタンで戻る先の画面id（省略時は従来どおりホーム）。
+export function openGuideScreen(fromScreenId = "start") {
+  returnScreenId = fromScreenId;
   showToc();
+}
+
+export function getGuideReturnScreenId() {
+  return returnScreenId;
 }
 
 // elements: {

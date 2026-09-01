@@ -239,7 +239,7 @@ import { initMembersScreen, renderMembersScreen, openMemberDetail } from "./memb
 import { initPlayerScreen, renderPlayerSummary } from "./playerScreen.js";
 import { getPlayerKeyPrefix } from "./playerProfile.js";
 import { needsOnboarding, initOnboardingScreen } from "./onboardingScreen.js";
-import { initGuideScreen, openGuideScreen } from "./guideScreen.js";
+import { initGuideScreen, openGuideScreen, getGuideReturnScreenId } from "./guideScreen.js";
 import { initFanProfilesScreen, renderFanProfilesScreen } from "./fanProfilesScreen.js";
 import { initAdminBackupScreen, renderAdminBackupScreen } from "./adminBackupScreen.js";
 import {
@@ -935,6 +935,7 @@ const onlineBattleEntryBackButtonElement = document.getElementById("online-battl
 const onlineBattleEntryCreateButtonElement = document.getElementById("online-battle-entry-create-button");
 const onlineBattleEntryJoinButtonElement = document.getElementById("online-battle-entry-join-button");
 const onlineBattleEntryKickedNoticeElement = document.getElementById("online-battle-entry-kicked-notice");
+const onlineBattleEntryAudioFailureNoticeElement = document.getElementById("online-battle-entry-audio-failure-notice");
 const onlineBattleEntryLastRoomBannerElement = document.getElementById("online-battle-entry-last-room-banner");
 const onlineBattleEntryLastRoomTextElement = document.getElementById("online-battle-entry-last-room-text");
 const onlineBattleEntryLastRoomRejoinButtonElement = document.getElementById("online-battle-entry-last-room-rejoin-button");
@@ -1011,6 +1012,13 @@ const onlineBattleResultGuestActionsElement = document.getElementById("online-ba
 const onlineBattleResultLeaveButtonElement = document.getElementById("online-battle-result-leave-button");
 // 【2026-09-07新設・本人指示：ルーム参加者プロフィール】ロビーで参加者名をタップして
 // 見る簡易プロフィールモーダル（js/onlineBattleScreen.js制御。全モードのロビーで共有）。
+// 【2026-09-09新設・本人指示：ロビー専用の詳細説明書】
+const onlineBattleLobbyHelpButtonElement = document.getElementById("online-battle-lobby-help-button");
+const onlineBattleLobbyHelpModalElement = document.getElementById("online-battle-lobby-help-modal");
+const onlineBattleLobbyHelpCloseElement = document.getElementById("online-battle-lobby-help-close");
+const onlineBattleLobbyHelpCurrentSettingsElement = document.getElementById("online-battle-lobby-help-current-settings");
+const onlineBattleLobbyHelpModeListElement = document.getElementById("online-battle-lobby-help-mode-list");
+const onlineBattleLobbyHelpGuideLinkElement = document.getElementById("online-battle-lobby-help-guide-link");
 const onlineLobbyProfileModalElement = document.getElementById("online-lobby-profile-modal");
 const onlineLobbyProfileCloseElement = document.getElementById("online-lobby-profile-close");
 const onlineLobbyProfileSwatchElement = document.getElementById("online-lobby-profile-swatch");
@@ -1097,6 +1105,8 @@ const onlineInstantCoopResultGuestActionsElement = document.getElementById("onli
 const onlineInstantCoopResultLeaveButtonElement = document.getElementById("online-instant-coop-battle-result-leave-button");
 const onlineInstantCoopResultBackToLobbyButtonElement = document.getElementById("online-instant-coop-battle-result-back-to-lobby-button");
 const onlineInstantCoopResultCorrectCountElement = document.getElementById("online-instant-coop-battle-result-correct-count");
+const onlineInstantCoopResultAudioFailureNoticeElement = document.getElementById("online-instant-coop-battle-result-audio-failure-notice");
+const onlineInstantCoopResultNormalElement = document.getElementById("online-instant-coop-battle-result-normal");
 const onlineInstantCoopResultMemberListElement = document.getElementById("online-instant-coop-battle-result-member-list");
 const onlineInstantCoopResultRematchButtonElement = document.getElementById("online-instant-coop-battle-result-rematch-button");
 
@@ -1508,6 +1518,8 @@ initHistoryScreen({
   summaryPlayCount: document.getElementById("history-summary-play-count"),
   summaryAnswerCount: document.getElementById("history-summary-answer-count"),
   summaryAccuracy: document.getElementById("history-summary-accuracy"),
+  tabOfflineButton: document.getElementById("history-tab-offline"),
+  tabOnlineButton: document.getElementById("history-tab-online"),
   filterChipsContainer: document.getElementById("history-filter-chips"),
   listContainer: document.getElementById("history-list"),
   emptyState: document.getElementById("history-empty-state"),
@@ -3949,6 +3961,20 @@ initInstantChallengeQuestionScreen({
     renderInstantChallengeResult();
     showScreen("instantChallengeResult");
   },
+  // 【2026-09-09新設・本人指示：音源再生失敗時の公平性対策】同じ問題スロットで3回連続
+  // （元の曲＋差し替え2回）再生に失敗した場合、この回を安全に中断し、設定画面へ戻して
+  // 理由を表示する（クリア記録・称号判定・プレイ履歴のいずれにも保存しない）。
+  onAudioFailureAbort: (message) => {
+    if (isInstantChallengeWeakSongsPractice()) {
+      goToWeakSongsScreen();
+    } else if (isInstantChallengeFromCustomPreset()) {
+      goToCustomQuizPresetsList();
+    } else {
+      navigateWithScrollMemory("instantChallengeSetup");
+    }
+    instantChallengeStartErrorElement.textContent = message;
+    instantChallengeStartErrorElement.hidden = false;
+  },
 });
 
 initInstantChallengeResultScreen({
@@ -4610,7 +4636,7 @@ guideLinkElement.addEventListener("click", () => {
 });
 guideBackButtonElement.addEventListener("click", () => {
   playSfx(SFX_EVENTS.UI_BACK);
-  navigateWithScrollMemory("start");
+  navigateWithScrollMemory(getGuideReturnScreenId());
 });
 
 fanProfilesBackButtonElement.addEventListener("click", () => {
@@ -5362,6 +5388,7 @@ initOnlineBattleScreens({
   entryCreateButton: onlineBattleEntryCreateButtonElement,
   entryJoinButton: onlineBattleEntryJoinButtonElement,
   entryKickedNotice: onlineBattleEntryKickedNoticeElement,
+  entryAudioFailureNotice: onlineBattleEntryAudioFailureNoticeElement,
   entryLastRoomBanner: onlineBattleEntryLastRoomBannerElement,
   entryLastRoomText: onlineBattleEntryLastRoomTextElement,
   entryLastRoomRejoinButton: onlineBattleEntryLastRoomRejoinButtonElement,
@@ -5448,6 +5475,16 @@ initOnlineBattleScreens({
   resultBackToLobbyButton: onlineBattleResultBackToLobbyButtonElement,
   resultGuestActions: onlineBattleResultGuestActionsElement,
   resultLeaveButton: onlineBattleResultLeaveButtonElement,
+  lobbyHelpButton: onlineBattleLobbyHelpButtonElement,
+  lobbyHelpModal: onlineBattleLobbyHelpModalElement,
+  lobbyHelpClose: onlineBattleLobbyHelpCloseElement,
+  lobbyHelpCurrentSettings: onlineBattleLobbyHelpCurrentSettingsElement,
+  lobbyHelpModeList: onlineBattleLobbyHelpModeListElement,
+  lobbyHelpGuideLink: onlineBattleLobbyHelpGuideLinkElement,
+  onOpenGuideFromLobby: () => {
+    openGuideScreen("onlineBattleLobby");
+    navigateWithScrollMemory("guide");
+  },
   lobbyProfileModal: onlineLobbyProfileModalElement,
   lobbyProfileClose: onlineLobbyProfileCloseElement,
   lobbyProfileSwatch: onlineLobbyProfileSwatchElement,
@@ -5525,6 +5562,20 @@ initOnlineLyricsQuizBattleScreens({
   onLeaveRoomCompletely: () => leaveOnlineBattleRoomCompletely(),
 });
 
+// 【2026-09-09新設・本人指示：音源再生失敗時の公平性対策】同じ問題スロットで規定回数
+// すべて再生に失敗し、対戦を安全に中断せざるを得なかった場合の共通後処理。
+// 「対戦をやめる」（quitOnlineBattleDuringQuiz）と同じ後片付けで試合から離脱し、
+// 入口画面に理由付きの案内を残す（本人指示：エラー理由の概要もユーザー向けに表示）。
+// 一瞬バトル・一瞬協力の両方から共通で使う。
+function showOnlineBattleAudioFailureAbort(message) {
+  quitOnlineBattleDuringQuiz();
+  showScreen("onlineBattleEntry");
+  if (onlineBattleEntryAudioFailureNoticeElement) {
+    onlineBattleEntryAudioFailureNoticeElement.textContent = message;
+    onlineBattleEntryAudioFailureNoticeElement.hidden = false;
+  }
+}
+
 // オンライン対戦「一瞬バトル」専用画面（2026-08-30新設、本人指示：19-3章）。
 // 進行モデル自体はタイムアタック等と同じ独立進行のため、待機画面・結果画面への遷移は
 // 既存のfinishOnlineBattleMatch/reportOnlineBattleProgress（js/onlineBattleScreen.js）を
@@ -5554,6 +5605,7 @@ initOnlineInstantBattleScreens({
   onQuitDuringBattle: () => quitOnlineBattleDuringQuiz(),
   onFinishMatch: (result, answeredCount) => finishOnlineBattleMatch(result, answeredCount),
   onReportProgress: (answeredCount) => reportOnlineBattleProgress(answeredCount),
+  onAudioFailureAbort: (message) => showOnlineBattleAudioFailureAbort(message),
 });
 
 // オンライン対戦「一瞬協力」専用画面（2026-08-31新設、本人指示：19-3章）。歌詞クイズと同じ
@@ -5592,6 +5644,8 @@ initOnlineInstantCoopBattleScreens({
   resultGuestActions: onlineInstantCoopResultGuestActionsElement,
   resultLeaveButton: onlineInstantCoopResultLeaveButtonElement,
   resultCorrectCount: onlineInstantCoopResultCorrectCountElement,
+  resultAudioFailureNotice: onlineInstantCoopResultAudioFailureNoticeElement,
+  resultNormalContainer: onlineInstantCoopResultNormalElement,
   resultMemberList: onlineInstantCoopResultMemberListElement,
   resultRematchButton: onlineInstantCoopResultRematchButtonElement,
   resultBackToLobbyButton: onlineInstantCoopResultBackToLobbyButtonElement,

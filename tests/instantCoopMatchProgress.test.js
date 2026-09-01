@@ -20,6 +20,7 @@
 
 import {
   UNKNOWN_VOTE,
+  MATCH_STATUS_ABORTED_AUDIO_FAILURE,
   createMatchProgress,
   recordVote,
   countVotedPlayers,
@@ -327,5 +328,88 @@ export function runInstantCoopMatchProgressTests() {
     state = tick(state, 200);
     assertEqual(state.currentQuestion.status, "resolved", "全員分（ギブアップ含む）揃えば確定する");
     assertEqual(state.currentQuestion.outcome.teamAnswer, "song-0", "ギブアップした人の分を除いた多数決で決まる");
+  }
+
+  // ===== 【2026-09-09新設・本人指示：音源再生失敗時の公平性対策】=====
+
+  // ---- tick：音源再生失敗の報告があれば、投票が揃っていなくても即座に無効として確定する ----
+  {
+    let state = createMatchProgress({ questions: buildDummyQuestions(4), allPlayerUids: ["p1", "p2"], hostUid: "p1", seed: 1, nowMs: 0, targetQuestionCount: 1 });
+    state = recordVote(state, "p1", "song-0"); // p2はまだ投票していない
+    state = tick(state, 100, true); // hasAudioFailureReport=true
+    assertEqual(state.currentQuestion.status, "resolved", "投票が揃っていなくても、再生失敗の報告があれば即座に確定する");
+    assertEqual(state.currentQuestion.outcome.isVoid, true, "無効な問題としてoutcome.isVoid=trueが記録される");
+    assertEqual(state.currentQuestion.outcome.isCorrect, false, "無効な問題は正解として扱わない");
+  }
+
+  // ---- advanceToNextQuestion：無効な問題はteamHistoryに積まれず、出題数も消費しない ----
+  {
+    let state = createMatchProgress({ questions: buildDummyQuestions(4), allPlayerUids: ["p1", "p2"], hostUid: "p1", seed: 1, nowMs: 0, targetQuestionCount: 1 });
+    state = recordVote(state, "p1", "song-0");
+    state = recordVote(state, "p2", "song-0");
+    state = tick(state, 100, true); // 1問目は音源再生失敗で無効
+    state = advanceToNextQuestion(state, 150);
+    assertEqual(state.status, "inProgress", "無効になった分は出題数に数えないため、まだ試合は続く");
+    assertEqual(state.teamHistory.length, 0, "無効な問題はteamHistoryへ一切積まれない（得点にも分母にも数えない）");
+    assertEqual(state.currentQuestionIndex, 1, "内部的には次の予備曲（インデックス1）へ進む");
+    assertEqual(state.consecutiveVoidCount, 1, "連続無効カウントが1になる");
+
+    // 2問目は正常に成立すれば、target(1問)に達して試合が終わる。
+    state = recordVote(state, "p1", "song-1");
+    state = recordVote(state, "p2", "song-1");
+    state = tick(state, 200, false);
+    state = advanceToNextQuestion(state, 250);
+    assertEqual(state.status, "finished", "無効を挟んでも、正常に成立した問題がtargetQuestionCountへ達すれば終了する");
+    assertEqual(state.teamHistory.length, 1, "実際に成立した1問だけがteamHistoryに積まれる");
+    assertEqual(state.consecutiveVoidCount, 0, "正常に成立した問題で連続無効カウントはリセットされる");
+  }
+
+  // ---- advanceToNextQuestion：3問連続で無効になったら対戦を安全に中断する ----
+  {
+    let state = createMatchProgress({ questions: buildDummyQuestions(5), allPlayerUids: ["p1"], hostUid: "p1", seed: 1, nowMs: 0, targetQuestionCount: 1 });
+    for (let i = 0; i < 3; i += 1) {
+      state = recordVote(state, "p1", "song-0");
+      state = tick(state, 100, true); // 毎回、音源再生失敗として無効にする
+      state = advanceToNextQuestion(state, 150);
+    }
+    assertEqual(state.status, MATCH_STATUS_ABORTED_AUDIO_FAILURE, "3問連続で無効になったら、対戦を安全に中断する");
+    assertEqual(state.teamHistory.length, 0, "中断時、teamHistoryには一切積まれていない（通常の記録として保存されない）");
+  }
+
+  // ---- advanceToNextQuestion：予備の曲が尽きた場合も対戦を中断する ----
+  {
+    // questions:1件（予備が一切無い）でtargetQuestionCount:5を要求しているため、
+    // その1問が無効になった時点で差し替えられる曲が無く、3回に満たなくても中断するはず。
+    let state = createMatchProgress({ questions: buildDummyQuestions(1), allPlayerUids: ["p1"], hostUid: "p1", seed: 1, nowMs: 0, targetQuestionCount: 5 });
+    state = recordVote(state, "p1", "song-0");
+    state = tick(state, 100, true);
+    state = advanceToNextQuestion(state, 150);
+    assertEqual(state.status, MATCH_STATUS_ABORTED_AUDIO_FAILURE, "差し替えられる予備の曲が尽きた場合も、対戦を安全に中断する");
+  }
+
+  // ---- restoreMatchProgressFromFirebase：無効だった問題は復元時もteamHistoryへ積まない ----
+  {
+    const questions = buildDummyQuestions(4);
+    const match = {
+      currentQuestionIndex: 3,
+      questionStatus: "active",
+      coopRoundNumber: 0,
+      coopQuestionOutcomes: {
+        0: { teamAnswer: "song-0", isCorrect: true, usedTieBreakRandom: false, sharedReplayCount: 0 },
+        1: { teamAnswer: null, isCorrect: false, usedTieBreakRandom: false, sharedReplayCount: 0, isVoid: true },
+        2: { teamAnswer: "song-2", isCorrect: true, usedTieBreakRandom: false, sharedReplayCount: 0 },
+      },
+    };
+    const state = restoreMatchProgressFromFirebase({
+      questions,
+      allPlayerUids: ["p1"],
+      hostUid: "p1",
+      seed: 5,
+      match,
+      nowMs: 1000,
+      targetQuestionCount: 2,
+    });
+    assertEqual(state.teamHistory.length, 2, "無効だった1問を除いた、実際に成立した2問だけが復元される");
+    assertEqual(state.status, "finished", "targetQuestionCount(2)に既に達しているため、finishedとして復元される");
   }
 }

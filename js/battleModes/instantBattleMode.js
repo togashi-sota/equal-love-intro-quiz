@@ -124,13 +124,21 @@ export function validateSettings(settings) {
 // seed・settingsから、全端末で完全に一致する問題セット（{song, answerPool}[]）を組み立てる。
 // 再生開始位置はここでは計算しない（js/onlineInstantBattleScreen.js側が、seed・songId・
 // questionIndexから再生の瞬間に計算する。js/main.jsのrandomPosition系と同じ役割分担）。
-export function buildQuestions({ seed, settings }) {
+// 【2026-09-09改訂・本人指示：音源再生失敗時の公平性対策】reserveCountを渡すと、
+// 出題数（questionCount）に加えて、その分だけ余分な曲も同じ決定論的な乱数列から
+// 続けて確保する。全端末が同じseedから同じ計算をするため、予備曲の並びも全員一致する
+// （このモードは各自が独立して進行するため、予備曲を使うかどうか自体は各端末の判断で
+// よく、他プレイヤーと同期する必要が無い）。戻り値の並びは
+// [出題する曲...questionCount件, 予備の曲...reserveCount件]。省略時（reserveCount未指定）は
+// 今までと完全に同じ挙動（予備なし）。
+export function buildQuestions({ seed, settings, reserveCount = 0 }) {
   const songPoolIds = resolveSettingsSongPoolIds(settings);
   const poolSongs = songPoolIds.map((songId) => SONGS.find((song) => song.id === songId)).filter((song) => song !== undefined);
   const questionCount = resolveQuestionCount(settings.questionCountValue, poolSongs.length);
+  const extendedCount = Math.min(questionCount + reserveCount, poolSongs.length);
 
   const random = createSeededRandom(seed);
-  const questionSongs = pickQuestionSongs(poolSongs, questionCount, random);
+  const questionSongs = pickQuestionSongs(poolSongs, extendedCount, random);
 
   return questionSongs.map((song, questionIndex) => {
     const answerPoolRandom = createAnswerPoolRandom(seed, song.id, questionIndex);
@@ -139,7 +147,10 @@ export function buildQuestions({ seed, settings }) {
     if (!validation.ok) {
       answerPool = buildFallbackAnswerPool(poolSongs, song.id, settings.answerPoolSizeValue) ?? [];
     }
-    return { song, answerPool };
+    // isReserve: このモードの出題数（questionCount）を超えた、音源再生失敗時の差し替え専用の
+    // 予備曲かどうか。reserveCountを渡さない既存の呼び出し元では常にfalseになるだけで、
+    // {song, answerPool}を前提にする既存コードには一切影響しない追加プロパティ。
+    return { song, answerPool, isReserve: questionIndex >= questionCount };
   });
 }
 

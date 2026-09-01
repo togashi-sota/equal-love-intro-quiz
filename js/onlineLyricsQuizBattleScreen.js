@@ -176,6 +176,16 @@ let myAnswerJumpRowKey = null;
 // 間隔を空けて送るための状態（毎回のクリック・入力のたびにFirebaseへ書き込まないため）。
 let lastActivityReportedAtMs = 0;
 let lastActivityReportedQIndex = -1;
+
+// 【2026-09-09新設・本人指示4：通信切断時の自動復帰待ち→離脱処理】ホストの端末だけが持つ、
+// 「今の問題で、いつからその参加者の接続が切れているか」の記録（uid→切断を検知した時刻）。
+// Firebase側のconnectedフラグ自体には切断"時刻"が無いため、ホストのローカル状態として
+// 補う（js/onlineBattle.jsの既存の接続監視には一切手を加えない、追加観測だけの設計）。
+// DISCONNECT_AUTO_SKIP_MSだけ切断が続いた参加者は、既存の「3分無操作の放置救済」と
+// 全く同じforceSkipIdlePlayer()を自動的に呼び、「わからない」扱いにして進行を止めない
+// ようにする（新しい採点分岐・新しいFirebaseフィールドは増やさない）。
+const disconnectedSinceMsByUid = new Map();
+const DISCONNECT_AUTO_SKIP_MS = 20000;
 const ACTIVITY_REPORT_THROTTLE_MS = 15000;
 
 // ホスト専用の進行ミラー（js/lyricsQuizMatchProgress.js）。
@@ -359,6 +369,7 @@ export function resetLyricsQuizBattleState() {
   myAnswerJumpRowKey = null;
   lastActivityReportedAtMs = 0;
   lastActivityReportedQIndex = -1;
+  disconnectedSinceMsByUid.clear();
   hostState = null;
   hostTickInFlight = false;
   resolvedAtLocalMs = null;
@@ -895,6 +906,34 @@ async function runHostProgressionTick() {
     }
   }
 
+  // 【2026-09-09新設・本人指示4：通信切断時の自動復帰待ち→離脱処理】まだ回答していない
+  // 参加者のうち、実際に接続が切れている（connected:false）人だけを対象に、切断が続いている
+  // 時間を計測する。復帰すればカウントをリセットし、DISCONNECT_AUTO_SKIP_MS以上切断が
+  // 続いたままなら、既存の放置救済と同じ経路で自動的に「わからない」扱いにする
+  // （本人指示：一時的な通信の乱れでは即座に離脱扱いにしない）。
+  if (hostState.currentQuestion.status === "active") {
+    const activeUids = hostState.allPlayerUids.filter((uid) => !hostState.dnfUids.includes(uid));
+    for (const uid of activeUids) {
+      if (uid in hostState.currentQuestion.answersByUid) {
+        disconnectedSinceMsByUid.delete(uid);
+        continue;
+      }
+      const isConnected = latestRoom.players?.[uid]?.connected !== false;
+      if (isConnected) {
+        disconnectedSinceMsByUid.delete(uid);
+        continue;
+      }
+      if (!disconnectedSinceMsByUid.has(uid)) {
+        disconnectedSinceMsByUid.set(uid, Date.now());
+        continue;
+      }
+      const disconnectedForMs = Date.now() - disconnectedSinceMsByUid.get(uid);
+      if (disconnectedForMs >= DISCONNECT_AUTO_SKIP_MS && !firebaseForcedSkips[uid]) {
+        forceSkipIdlePlayer({ roomId: latestRoom.roomId, matchId: currentMatchId, questionIndex: qIndex, targetUid: uid }).catch(() => {});
+      }
+    }
+  }
+
   if (hostState.currentQuestion.status === "active") {
     const before = hostState;
     hostState = tick(hostState, latestRoom.settings, Date.now());
@@ -922,6 +961,9 @@ async function runHostProgressionTick() {
     try {
       const nextState = advanceToNextQuestion(hostState, Date.now());
       hostState = nextState;
+      // 【2026-09-09新設・本人指示4】新しい問題へ移るタイミングで、前の問題の切断計測を
+      // リセットする（次の問題でも切断が続いていれば、その時点から改めて計測し直す）。
+      disconnectedSinceMsByUid.clear();
       if (nextState.status === "inProgress") {
         resolvedAtLocalMs = null;
         const result = await startLyricsQuizQuestion({ roomId: latestRoom.roomId, matchId: currentMatchId, questionIndex: nextState.currentQuestionIndex });

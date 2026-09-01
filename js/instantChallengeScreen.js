@@ -83,6 +83,19 @@ const answerBrowseState = createAnswerPoolBrowseState();
 // カウントダウンだけが動くため、この競合が起きない）。1問目の開始だけ、画面遷移の
 // アニメーションが終わるのを待ってからカウントダウンを始めることで体感速度を揃える。
 let isFirstQuestionOfRun = true;
+// 【2026-09-09新設・本人指示：音源再生失敗時の公平性対策】このモードは1人用で他プレイヤーと
+// 問題を同期する必要が無いため、「その問題を無効化して全員で差し替える」ような複雑な仕組みは
+// 不要で、単に「自分のこの問題スロットを、失敗しない別の曲に安全に差し替える」だけで
+// 公平性を保てる（本人指示1-5「個人進行型」の設計方針）。開始時に出題数＋予備曲を確保しておき、
+// 再生に失敗した問題だけ、まだ使っていない予備の曲へその場で差し替える（不正解にしない・
+// ペナルティを与えない・問題数は変えない）。同じスロットで3曲連続（元の曲＋差し替え2回）
+// 失敗したら、これ以上安全に続けられないと判断してランを中断する。
+const AUDIO_FAILURE_RESERVE_SIZE = 3;
+const MAX_SLOT_PLAYBACK_ATTEMPTS = 3;
+let currentSongPool = []; // buildAndStartRun()で使った出題対象曲プール（差し替え曲の回答候補生成に使う）
+let reserveSongs = []; // 予備の曲（出題数に含まれない、失敗時の差し替え専用）
+let nextReserveIndex = 0;
+let currentSlotFailureCount = 0;
 // 【2026-08-30追加・本人指示：苦手曲5系統完全分離／オリジナル問題作成モード一瞬対応】
 // 通常の（カテゴリー絞り込みからの）一瞬チャレンジ以外の入り口から開始した回かどうか。
 //   null                 : 通常の一瞬チャレンジ（#instant-challenge-setup-screen経由）
@@ -170,6 +183,17 @@ async function resolvePlayableSongPool(categoryFilterValue, explicitSongIds) {
   return filterSongsWithImportedAudio(categoryPool);
 }
 
+// 1曲分の問題データ（回答候補まで含めて）を組み立てる。初回の出題・音源再生失敗時の
+// 差し替えのどちらからも呼ぶ共通処理（本人指示：新しい生成ロジックを重複させない）。
+function buildInstantChallengeQuestion(song, pool, settings) {
+  let answerPool = generateAnswerPool(pool, song.id, settings.answerPoolSizeValue);
+  const validation = validateLyricsQuizQuestionAnswerPool({ song, answerPool });
+  if (!validation.ok) {
+    answerPool = buildFallbackAnswerPool(pool, song.id, settings.answerPoolSizeValue) ?? [];
+  }
+  return { song, answerPool };
+}
+
 async function buildAndStartRun(settings, explicitSongIds = null) {
   elements.startError.hidden = true;
 
@@ -194,15 +218,14 @@ async function buildAndStartRun(settings, explicitSongIds = null) {
     [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
   }
   const questionSongs = shuffled.slice(0, questionCount);
+  // 予備曲：出題数に含めず、失敗した問題スロットの差し替え専用に確保しておく
+  // （プール自体が小さい場合はslice()が自然に少ない件数を返すだけで、エラーにはならない）。
+  reserveSongs = shuffled.slice(questionCount, questionCount + AUDIO_FAILURE_RESERVE_SIZE);
+  nextReserveIndex = 0;
+  currentSlotFailureCount = 0;
+  currentSongPool = pool;
 
-  questions = questionSongs.map((song) => {
-    let answerPool = generateAnswerPool(pool, song.id, settings.answerPoolSizeValue);
-    const validation = validateLyricsQuizQuestionAnswerPool({ song, answerPool });
-    if (!validation.ok) {
-      answerPool = buildFallbackAnswerPool(pool, song.id, settings.answerPoolSizeValue) ?? [];
-    }
-    return { song, answerPool };
-  });
+  questions = questionSongs.map((song) => buildInstantChallengeQuestion(song, pool, settings));
   currentIndex = 0;
   answers = [];
   replayCounts = new Array(questions.length).fill(0);
@@ -218,7 +241,7 @@ async function buildAndStartRun(settings, explicitSongIds = null) {
 //   progress, answerSearchRow, answerSearchInput, answerCount, answerList,
 //   countdown, countdownNumber, audioError, replayButton, nextButton,
 //   backButton, quitConfirmModal, quitCancelButton, quitRestartButton, quitConfirmButton,
-//   onQuit,
+//   onQuit, onAudioFailureAbort,
 // }
 export function initInstantChallengeQuestionScreen(newElements) {
   questionElements = newElements;
@@ -326,7 +349,54 @@ function playCurrentQuestionAudio() {
   const playDurationSec = Number(currentSettings.playDurationValue);
   const computeStartTimeSec = (durationSec) =>
     computeRandomStartTimeSec({ seed, songId: question.song.id, questionIndex, durationSec, playDurationSec });
-  playSongFromRandomPosition(question.song, computeStartTimeSec, playDurationSec, showAudioErrorInline, () => {}, () => {});
+  playSongFromRandomPosition(
+    question.song,
+    computeStartTimeSec,
+    playDurationSec,
+    (message) => handlePlaybackFailure(questionIndex, message),
+    hideAudioErrorInline, // 差し替え後の再生が実際に始まったら、差し替え案内を自動的に消す
+    () => {}
+  );
+}
+
+// 【2026-09-09新設・本人指示：音源再生失敗時の公平性対策】再生失敗時に呼ぶ。
+// 「その問題を不正解にしない・ペナルティを与えない・問題数を消費しない」を守るため、
+// 得点処理には一切触れず、この問題スロットの曲を安全に差し替えるか、それでも無理なら
+// ランを中断する。questionIndexは呼ばれた時点でのcurrentIndexを固定で受け取る
+// （「もう一度聞く」連打・非同期の再試行中にcurrentIndexが先に進んでいた場合に、
+// 既に離れた問題への失敗報告を誤って今の問題へ適用しないため）。
+function handlePlaybackFailure(questionIndex, message) {
+  if (questionIndex !== currentIndex) return; // 既に別の問題へ進んでいる場合は無視する
+  if (hasAnsweredCurrentQuestion) return; // 既に回答確定済みなら今さら差し替えても無意味
+
+  currentSlotFailureCount += 1;
+  console.warn(`[一瞬チャレンジ] 音源再生に失敗しました（${currentSlotFailureCount}回目）`, message);
+
+  if (currentSlotFailureCount >= MAX_SLOT_PLAYBACK_ATTEMPTS || nextReserveIndex >= reserveSongs.length) {
+    abortRunDueToAudioFailure();
+    return;
+  }
+
+  const replacementSong = reserveSongs[nextReserveIndex];
+  nextReserveIndex += 1;
+  questions[currentIndex] = buildInstantChallengeQuestion(replacementSong, currentSongPool, currentSettings);
+  renderAnswerArea(questions[currentIndex]);
+  // playCurrentQuestionAudio()は冒頭でhideAudioErrorInline()を呼ぶため、差し替えを
+  // 知らせるこの案内は必ずその後に表示する（先に表示すると即座に消されてしまうため）。
+  playCurrentQuestionAudio();
+  showAudioErrorInline("音源を再生できませんでした。別の曲に差し替えて再試行します。");
+}
+
+// 同じ問題スロットで規定回数（元の曲＋差し替え）すべて再生に失敗した、または差し替えられる
+// 予備曲が無くなった場合に呼ぶ。この回はクリア記録・称号判定・プレイ履歴のいずれにも
+// 記録しない（本人指示：中断結果を通常の記録として保存しない）。
+function abortRunDueToAudioFailure() {
+  stopAudio();
+  cancelLocalReplayCountdown();
+  clearTimeout(autoAdvanceTimerId);
+  questionElements.onAudioFailureAbort?.(
+    "音源を正常に再生できない状態が続いているため、この回は中断しました。データパックの導入状況や通信環境をご確認のうえ、もう一度お試しください。"
+  );
 }
 
 function renderCurrentQuestion() {
@@ -462,6 +532,7 @@ function renderAnswerReveal({ isCorrect, correctTitle, mySelectedSongId, pool })
 
 function advanceToNextQuestionOrFinish() {
   currentIndex += 1;
+  currentSlotFailureCount = 0; // 新しい問題スロットへ移るので、再生失敗のカウントもリセットする
   if (currentIndex >= questions.length) {
     elements.onFinish?.();
     questionElements.onFinish?.();

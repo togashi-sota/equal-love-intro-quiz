@@ -33,39 +33,50 @@ const SILENT_UNLOCK_DATA_URI = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAA
 // （unlock失敗時も、これまでどおりPLAY_RETRY_WAIT_MS_LISTの再試行に委ねる）。
 let audioUnlockState = "pending"; // "pending" | "succeeded" | "failed"
 
+// 【2026-09-09改訂・本人指示：音源再生失敗の本対策】unlockの実処理を、ページ初回操作時
+// だけでなく、対戦開始操作（「準備完了」「対戦を開始する」等の明確なユーザージェスチャー）の
+// たびにも再実行できるよう、独立した関数として切り出した（exportして他ファイルから
+// 呼べるようにする）。iOSでは、タブを裏に回してから戻す・PWAをしばらく操作しない等の
+// 状況で、一度成立したunlockが再びロックされることがあるとされているため、
+// 「本番の再生が始まる直前の、確実なユーザー操作のタイミング」でもう一度実行しておくことで、
+// 初回操作から時間が経った後の対戦開始でも成立しやすくする。何度呼んでも安全（無音データURIを
+// 再生→即座に停止するだけで、実際のクイズ再生・IndexedDBには一切触れない）。
+export function attemptSilentUnlock() {
+  const hadSrc = !!audioElement.src;
+  if (!hadSrc) audioElement.src = SILENT_UNLOCK_DATA_URI;
+
+  const playResult = audioElement.play();
+  if (playResult && typeof playResult.then === "function") {
+    playResult
+      .then(() => {
+        audioUnlockState = "succeeded";
+        audioElement.pause();
+        if (hadSrc) {
+          audioElement.currentTime = 0;
+        } else {
+          audioElement.removeAttribute("src");
+          audioElement.load();
+        }
+      })
+      .catch((error) => {
+        // 無音データURIですら再生が許可されない環境でも、実際のクイズ再生自体は
+        // 従来どおりPLAY_RETRY_WAIT_MS_LISTの再試行に委ねるため、ここでは何もしない
+        // （このunlock自体はあくまで成功率を上げるための best-effort な対策）。
+        audioUnlockState = "failed";
+        console.warn("[audio] unlockに失敗しました（本番の音源再生には別途リトライがあります）", error?.name, error?.message);
+        if (!hadSrc) {
+          audioElement.removeAttribute("src");
+          audioElement.load();
+        }
+      });
+  }
+}
+
 function unlockAudioElementOnFirstInteraction() {
   const unlock = () => {
     document.removeEventListener("pointerdown", unlock);
     document.removeEventListener("keydown", unlock);
-
-    const hadSrc = !!audioElement.src;
-    if (!hadSrc) audioElement.src = SILENT_UNLOCK_DATA_URI;
-
-    const playResult = audioElement.play();
-    if (playResult && typeof playResult.then === "function") {
-      playResult
-        .then(() => {
-          audioUnlockState = "succeeded";
-          audioElement.pause();
-          if (hadSrc) {
-            audioElement.currentTime = 0;
-          } else {
-            audioElement.removeAttribute("src");
-            audioElement.load();
-          }
-        })
-        .catch((error) => {
-          // 無音データURIですら再生が許可されない環境でも、実際のクイズ再生自体は
-          // 従来どおりPLAY_RETRY_WAIT_MS_LISTの再試行に委ねるため、ここでは何もしない
-          // （このunlock自体はあくまで成功率を上げるための best-effort な対策）。
-          audioUnlockState = "failed";
-          console.warn("[audio] 初回操作時のunlockに失敗しました（本番の音源再生には別途リトライがあります）", error?.name, error?.message);
-          if (!hadSrc) {
-            audioElement.removeAttribute("src");
-            audioElement.load();
-          }
-        });
-    }
+    attemptSilentUnlock();
   };
   document.addEventListener("pointerdown", unlock, { once: true });
   document.addEventListener("keydown", unlock, { once: true });

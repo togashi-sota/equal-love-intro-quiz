@@ -30,9 +30,17 @@ function buildPlayHistoryKey() {
 const CURRENT_SCHEMA_VERSION = 1;
 
 // 保存する履歴の最大件数。js/history.js・js/timeAttackHistory.jsと同じ考え方。
-// オンライン対戦は参加者全員分のスナップショットを持つため1件が大きくなりうるが、
-// 曲ごとの全回答ログまでは持たせない設計にしているため、200件でも十分な余裕がある。
-export const MAX_PLAY_HISTORY_ENTRIES = 200;
+// 【2026-09-09改訂・本人指示3-6：プレイ履歴の保存件数】オフライン・オンラインを合わせた
+// 1つの保存先（この定数）を、全モードが共有している。以前は200件だったが、オンライン
+// 対戦の記録が増えるとオフライン側の古い記録を押し出してしまう（逆も同様）ため、本人の
+// 優先順位（1.安全に全件 → 2.オフライン200/オンライン200 → …）に沿って、まず件数自体を
+// 大きく引き上げた。1件あたり数百バイト程度（参加者全員分のスナップショットを持つ
+// オンライン対戦でも、曲ごとの全回答ログまでは持たせない設計のため）で、localStorageの
+// 一般的なオリジン容量（5〜10MB程度）に対して2000件でも数百KB程度に収まり、十分な余裕を
+// 残したまま「実質ほぼ全件保存」に近い挙動になる（個人〜友人間利用の想定プレイ数に対して、
+// 何年遊んでも上限に到達しない見込み）。完全に無制限にしなかったのは、将来的な
+// localStorage圧迫を防ぐ最低限の安全弁として上限そのものは残すべき、と判断したため。
+export const MAX_PLAY_HISTORY_ENTRIES = 2000;
 
 function generateEntryId() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -235,6 +243,12 @@ export const HISTORY_FILTER_CATEGORY = {
   onlineTimeAttack: "battle",
   onlineRandomPlayback: "battle",
   onlineLyricsQuiz: "battle",
+  // 【2026-09-09追加・本人指示：プレイ履歴の完成】アウトロ対戦・一瞬バトル・一瞬協力の
+  // オンライン結果は、これまでこの対応表に無かったため以下の未定義扱いとして
+  // フィルターに現れなかった（バグ）。他のオンライン対戦と同じ"battle"へ分類する。
+  onlineOutroQuiz: "battle",
+  onlineInstantBattle: "battle",
+  onlineInstantCoop: "battle",
   // 2026-08-30追加：アウトロクイズ（イントロ系のフィルターへ）・一瞬チャレンジ
   // （ランダム再生系のフィルターへ、既存モードと見た目の近さで分類）。
   outroQuiz: "intro",
@@ -246,15 +260,59 @@ export const HISTORY_FILTER_CATEGORY = {
   weakSongsInstant: "randomPlayback",
 };
 
+// 【2026-09-09新設・本人指示3-1：プレイ履歴のオフライン/オンライン分離】modeIdだけを見て、
+// その記録がオンライン対戦の結果かどうかを判定する（新しいフィールドを増やさず、既存の
+// 命名規則「オンライン対戦の結果はonlineで始まるmodeIdを持つ」をそのまま利用する）。
+export function isOnlineHistoryEntry(entry) {
+  return typeof entry.modeId === "string" && entry.modeId.startsWith("online");
+}
+
+// タブ（オフライン／オンライン）でタイムラインを分ける。
+export function splitHistoryEntriesByOnlineStatus(entries) {
+  const offline = [];
+  const online = [];
+  entries.forEach((entry) => (isOnlineHistoryEntry(entry) ? online : offline).push(entry));
+  return { offline, online };
+}
+
 export const HISTORY_FILTER_LABELS = {
   all: "すべて",
   intro: "イントロ",
   randomPlayback: "ランダム",
   lyricsQuiz: "歌詞",
   timeAttack: "タイムアタック",
-  battle: "対戦",
+  // 【2026-09-09改訂・本人指示3-1：オフライン/オンライン分離】このチップはオフライン
+  // タブ専用になった（オンライン対戦の記録は別タブへ分離済みのため、実質的に1台対戦だけを
+  // 指す）。文言もそれに合わせて明確化した。
+  battle: "1台対戦",
 };
 export const HISTORY_FILTER_ORDER = ["all", "intro", "randomPlayback", "lyricsQuiz", "timeAttack", "battle"];
+
+// 【2026-09-09新設・本人指示3-1：オフライン/オンライン分離】オンラインタブ専用の、より
+// 粗いフィルター（6モードそれぞれではなく、系統でまとめる。件数が少ないタブで
+// チップを増やしすぎないため）。
+export const HISTORY_FILTER_LABELS_ONLINE = {
+  all: "すべて",
+  intro: "イントロ系",
+  lyricsQuiz: "歌詞クイズ",
+  instant: "一瞬系",
+};
+export const HISTORY_FILTER_ORDER_ONLINE = ["all", "intro", "lyricsQuiz", "instant"];
+const HISTORY_FILTER_CATEGORY_ONLINE = {
+  onlineTimeAttack: "intro",
+  onlineRandomPlayback: "intro",
+  onlineOutroQuiz: "intro",
+  onlineLyricsQuiz: "lyricsQuiz",
+  onlineInstantBattle: "instant",
+  onlineInstantCoop: "instant",
+};
+
+// filterId（HISTORY_FILTER_ORDER_ONLINEのいずれか）で、オンラインタブのタイムラインを
+// 絞り込む。"all"は絞り込まない（filterUnifiedPlayHistoryEntries()と同じ考え方）。
+export function filterOnlineHistoryEntries(entries, filterId) {
+  if (!filterId || filterId === "all") return entries;
+  return entries.filter((entry) => HISTORY_FILTER_CATEGORY_ONLINE[entry.modeId] === filterId);
+}
 
 // filterId（HISTORY_FILTER_ORDERのいずれか）で、統一タイムラインを絞り込む。"all"は絞り込まない。
 export function filterUnifiedPlayHistoryEntries(entries, filterId) {
@@ -287,6 +345,10 @@ export const HISTORY_MODE_DISPLAY = {
   onlineTimeAttack: { label: "オンライン対戦（イントロ）", iconKey: "onlineBattle" },
   onlineRandomPlayback: { label: "オンライン対戦（ランダム再生）", iconKey: "onlineBattle" },
   onlineLyricsQuiz: { label: "オンライン対戦（歌詞）", iconKey: "onlineBattle" },
+  // 【2026-09-09追加・本人指示：プレイ履歴の完成】HISTORY_FILTER_CATEGORYと同じ理由で追加。
+  onlineOutroQuiz: { label: "オンライン対戦（アウトロ）", iconKey: "onlineBattle" },
+  onlineInstantBattle: { label: "オンライン対戦（一瞬バトル）", iconKey: "onlineBattle" },
+  onlineInstantCoop: { label: "オンライン対戦（一瞬協力）", iconKey: "onlineBattle" },
   // 2026-08-30追加：アウトロクイズ・一瞬チャレンジ。
   outroQuiz: { label: "アウトロクイズ", iconKey: "outroQuiz" },
   instantChallenge: { label: "一瞬チャレンジ", iconKey: "instantChallenge" },

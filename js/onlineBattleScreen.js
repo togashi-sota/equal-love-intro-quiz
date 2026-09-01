@@ -56,6 +56,8 @@ import {
   computeFinisherRanks,
   getRuleDescription,
   getModeLabel,
+  getModeDescription,
+  listAvailableGameModes,
   getAvailabilityKind,
   resolveAllEligibleSongIdsForMode,
 } from "./battleModes/index.js";
@@ -98,7 +100,7 @@ import {
 // には無い挙動）だけを専用ファイルへ委譲する。ただし進行モデル自体はタイムアタック等と同じ
 // 独立進行のため、待機画面・結果画面はこのファイルの既存の仕組み（finishOnlineBattleMatch・
 // reportOnlineBattleProgress）をそのまま使う。
-import { enterOnlineInstantBattlePlay, resetOnlineInstantBattleState } from "./onlineInstantBattleScreen.js";
+import { enterOnlineInstantBattlePlay, resetOnlineInstantBattleState, getTargetQuestionCount as getInstantBattleTargetQuestionCount } from "./onlineInstantBattleScreen.js";
 // 【2026-08-31新設、本人指示：19-3章「一瞬協力」】歌詞クイズと全く同じ理由・同じ一方向依存で、
 // 全員同期進行のこのモードを専用ファイルへ委譲する（待機画面・結果画面も専用、一瞬バトルとは違う）。
 import {
@@ -144,7 +146,7 @@ import {
 // 離れるタイミングでは必ず通す」共通の後片付け関数（このファイル冒頭コメント参照）なので、
 // ここに一度だけstopAudio()を足せば、全ての離脱経路（自分から退出／ルーム消滅／再戦）を
 // 個別に直さなくても一括でカバーできる（本人指示：クリーンアップ処理を複数箇所に散らばらせない）。
-import { stopAudio } from "./audio.js";
+import { stopAudio, attemptSilentUnlock } from "./audio.js";
 
 let elements = null;
 let currentRoomId = null;
@@ -436,6 +438,79 @@ function renderSettingsChips(container, settings, gameMode) {
     chip.textContent = text;
     container.appendChild(chip);
   });
+}
+
+// 【2026-09-09新設・本人指示：ロビー専用の詳細説明書】完全版の「遊び方ガイド」とは違い、
+// 「今この対戦を始める前に確認する簡易マニュアル」として、現在ロビーで選ばれている設定
+// （モード・ルール・出題数・ミスペナルティ）に絞って説明する。本文はgetModeLabel・
+// getModeDescription・getRuleDescription（いずれもjs/battleModes/index.js経由で各モードの
+// アダプターへ委譲）からその場で組み立てるため、実装が変わっても文言がズレない。
+function renderLobbyHelpModal(room) {
+  if (!elements.lobbyHelpCurrentSettings) return;
+  const gameMode = room.gameMode;
+  const settings = room.settings ?? {};
+
+  elements.lobbyHelpCurrentSettings.innerHTML = "";
+  const modeHeading = document.createElement("p");
+  modeHeading.className = "online-lobby-help-current-mode";
+  modeHeading.textContent = `現在のモード：${getModeLabel(gameMode)}`;
+  elements.lobbyHelpCurrentSettings.appendChild(modeHeading);
+
+  const modeDescription = document.createElement("p");
+  modeDescription.className = "online-lobby-help-current-description";
+  modeDescription.textContent = getModeDescription(gameMode);
+  elements.lobbyHelpCurrentSettings.appendChild(modeDescription);
+
+  const ruleDescription = getRuleDescription(gameMode, settings);
+  if (ruleDescription) {
+    const ruleText = document.createElement("p");
+    ruleText.className = "battle-rule-description";
+    ruleText.textContent = ruleDescription;
+    elements.lobbyHelpCurrentSettings.appendChild(ruleText);
+  }
+
+  const countLabel = QUESTION_COUNT_LABELS[settings.questionCountValue] ?? settings.questionCountValue;
+  if (countLabel) {
+    const questionCountText = document.createElement("p");
+    questionCountText.className = "online-lobby-help-current-description";
+    questionCountText.textContent = `出題数：${countLabel}`;
+    elements.lobbyHelpCurrentSettings.appendChild(questionCountText);
+  }
+
+  // ミスペナルティは「ノーマル」ルールを持つモード（イントロ対戦・ランダム再生対戦・
+  // アウトロ対戦）だけに存在する設定のため、無い場合は何も表示しない。
+  if (settings.rule === "normal" && typeof settings.penaltySeconds === "number") {
+    const penaltyText = document.createElement("p");
+    penaltyText.className = "online-lobby-help-current-description";
+    penaltyText.textContent = `ミスペナルティ：${settings.penaltySeconds}秒`;
+    elements.lobbyHelpCurrentSettings.appendChild(penaltyText);
+  }
+
+  elements.lobbyHelpModeList.innerHTML = "";
+  listAvailableGameModes().forEach((mode) => {
+    const item = document.createElement("div");
+    item.className = "online-lobby-help-mode-item";
+    if (mode.gameMode === gameMode) item.classList.add("is-current");
+    const name = document.createElement("p");
+    name.className = "online-lobby-help-mode-item-name";
+    name.textContent = mode.label;
+    const desc = document.createElement("p");
+    desc.className = "online-lobby-help-mode-item-description";
+    desc.textContent = mode.description;
+    item.append(name, desc);
+    elements.lobbyHelpModeList.appendChild(item);
+  });
+}
+
+function openLobbyHelpModal() {
+  if (!latestRoom || !elements.lobbyHelpModal) return;
+  renderLobbyHelpModal(latestRoom);
+  elements.lobbyHelpModal.hidden = false;
+}
+
+function closeLobbyHelpModal() {
+  if (!elements.lobbyHelpModal) return;
+  elements.lobbyHelpModal.hidden = true;
 }
 
 // ホスト用の設定フォーム（ラジオボタン群）に、現在ルームに保存されている設定値を反映する。
@@ -774,6 +849,11 @@ function enterOnlineBattlePlay(room) {
     currentMatchId = room.activeMatchId;
     initializeMyMatchProgress({ roomId: room.roomId, matchId: currentMatchId });
     enterOnlineInstantBattlePlay(room);
+    // 【2026-09-09修正・本人指示：プレイ履歴の完成】このモードは自前のquestions配列
+    // （予備曲を含む）を持つため、実際の出題数をenterOnlineInstantBattlePlay()の直後に
+    // 取得する（このファイル自身のbuildQuestionsForMode()は呼ばないため、通常のパス
+    // 〈下記〉が行うcurrentMatchTotalQuestionsの更新をここで代わりに行う）。
+    currentMatchTotalQuestions = getInstantBattleTargetQuestionCount();
     return;
   }
   // 【2026-08-31新設、本人指示：19-3章「一瞬協力」】歌詞クイズと同じ理由で、progress/results
@@ -1592,7 +1672,10 @@ function goToResultScreen(room) {
   finishers.forEach((entry, index) => {
     const rank = finisherRanks[index];
     const row = document.createElement("li");
-    row.className = `battle-rank-row${rank === 1 ? " is-rank-1" : ""}`;
+    // 【2026-09-09改訂・本人指示2-6：結果画面のデザイン】1位だけでなく2位・3位も
+    // 軽く装飾する（本人指示：「1位は少し特別、2位/3位も軽く装飾」）。
+    const rankClass = rank === 1 ? " is-rank-1" : rank === 2 ? " is-rank-2" : rank === 3 ? " is-rank-3" : "";
+    row.className = `battle-rank-row${rankClass}`;
 
     const medal = document.createElement("div");
     medal.className = "battle-rank-medal";
@@ -1683,15 +1766,21 @@ function goToResultScreen(room) {
 // （順位・スコアは推測で作らず、null・isDnf:trueのままにする）。
 // 【2026-09-08修正・本人指示】outroQuizが登録されておらず、タイムアタックとして誤保存
 // されていた不具合を修正（本人指示Tのプレイ履歴確認作業で判明）。
+// 【2026-09-09修正・本人指示：プレイ履歴の完成】instantBattleが登録されておらず、
+// タイムアタックとして誤保存されていた不具合を修正（19-24章のoutroQuizと同じ原因）。
+// 一瞬バトルはgoToResultScreen()（このファイルの共有結果画面）をそのまま使う設計のため、
+// 専用の結果画面・専用の保存関数を持たず、この対応表に1行足すだけで正しく保存される。
 const HISTORY_MODE_ID_BY_GAME_MODE = {
   timeAttack: "onlineTimeAttack",
   randomPlayback: "onlineRandomPlayback",
   outroQuiz: "onlineOutroQuiz",
+  instantBattle: "onlineInstantBattle",
 };
 const HISTORY_MODE_LABEL_BY_GAME_MODE = {
   timeAttack: "オンライン対戦（イントロ）",
   randomPlayback: "オンライン対戦（ランダム再生）",
   outroQuiz: "オンライン対戦（アウトロ）",
+  instantBattle: "オンライン対戦（一瞬バトル）",
 };
 
 function saveOnlineBattleHistoryEntry(room, matchId, finishers, finisherRanks, dnfEntries, myUid) {
@@ -1834,12 +1923,14 @@ export function initOnlineBattleScreens(newElements) {
   elements.entryCreateButton.addEventListener("click", () => {
     elements.createNameInput.value = getActivePlayer().playerName || "";
     elements.createError.hidden = true;
+    if (elements.entryAudioFailureNotice) elements.entryAudioFailureNotice.hidden = true;
     elements.navigateTo("onlineBattleCreate");
   });
   elements.entryJoinButton.addEventListener("click", () => {
     elements.joinNameInput.value = getActivePlayer().playerName || "";
     elements.joinRoomCodeInput.value = "";
     elements.joinError.hidden = true;
+    if (elements.entryAudioFailureNotice) elements.entryAudioFailureNotice.hidden = true;
     elements.navigateTo("onlineBattleJoin");
   });
   elements.entryLastRoomRejoinButton.addEventListener("click", async () => {
@@ -2081,6 +2172,9 @@ export function initOnlineBattleScreens(newElements) {
 
   elements.lobbyReadyButton.addEventListener("click", async () => {
     if (!currentRoomId) return;
+    // 【2026-09-09新設・本人指示：音源再生失敗の本対策】参加者側の「準備完了」も、
+    // 対戦開始前の確実なユーザージェスチャーの1つとして、同じくunlockを再実行しておく。
+    attemptSilentUnlock();
     const nowReady = elements.lobbyReadyButton.classList.contains("is-ready");
     suppressNextReadyChangeNotice = true;
     elements.lobbySettingsChangedNotice.hidden = true;
@@ -2090,6 +2184,14 @@ export function initOnlineBattleScreens(newElements) {
 
   elements.lobbyStartButton.addEventListener("click", async () => {
     if (!currentRoomId) return;
+
+    // 【2026-09-09新設・本人指示：音源再生失敗の本対策】「対戦を開始する」は、これから
+    // 音源再生が始まる対戦全体の中で最も確実なユーザージェスチャーの1つ。ここで改めて
+    // unlockを実行しておくことで、ページを開いた直後の操作から時間が経っている場合や、
+    // iOS側で一度成立したunlockが再びロックされてしまった場合の成功率を上げる
+    // （js/audio.js参照。全対戦モードのこの1つの開始ボタンを経由するため、6モード
+    // すべてに効く）。
+    attemptSilentUnlock();
 
     elements.lobbyStartButton.disabled = true;
     elements.lobbyStartError.hidden = true;
@@ -2215,6 +2317,9 @@ export function initOnlineBattleScreens(newElements) {
   // 開始演出を経て始まること）。
   elements.resultRematchButton.addEventListener("click", async () => {
     if (!currentRoomId) return;
+    // 【2026-09-09新設・本人指示：音源再生失敗の本対策】「もう一度」はロビーの開始ボタンを
+    // 経由せず直接次の対戦へ進むため、こちらでもunlockを再実行しておく。
+    attemptSilentUnlock();
     elements.resultRematchButton.disabled = true;
     await rematchAndStartNow({ roomId: currentRoomId });
     elements.resultRematchButton.disabled = false;
@@ -2231,6 +2336,23 @@ export function initOnlineBattleScreens(newElements) {
   // （js/onlineBattleLobbyReturnPrompt.js）を必ず挟む。
   elements.quizBackToLobbyButton?.addEventListener("click", () => {
     promptReturnToLobby(currentRoomId);
+  });
+
+  // 【2026-09-09新設・本人指示：ロビー専用の詳細説明書】
+  elements.lobbyHelpButton?.addEventListener("click", () => openLobbyHelpModal());
+  elements.lobbyHelpClose?.addEventListener("click", () => closeLobbyHelpModal());
+  elements.lobbyHelpModal?.addEventListener("click", (event) => {
+    if (event.target !== elements.lobbyHelpModal) return;
+    closeLobbyHelpModal();
+  });
+  elements.lobbyHelpGuideLink?.addEventListener("click", () => {
+    closeLobbyHelpModal();
+    elements.onOpenGuideFromLobby?.();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    if (!elements.lobbyHelpModal || elements.lobbyHelpModal.hidden) return;
+    closeLobbyHelpModal();
   });
 
   // 【2026-09-07新設・本人指示：ルーム参加者プロフィール】閉じるボタン・オーバーレイの

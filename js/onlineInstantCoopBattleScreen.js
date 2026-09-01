@@ -39,6 +39,7 @@ import { validateRoomSettings } from "./battleModes/index.js";
 import * as instantCoopBattleMode from "./battleModes/instantCoopBattleMode.js";
 import {
   UNKNOWN_VOTE,
+  MATCH_STATUS_ABORTED_AUDIO_FAILURE,
   createMatchProgress,
   recordVote,
   countVotedPlayers,
@@ -54,6 +55,8 @@ import {
   resolveCoopQuestion,
   advanceCoopQuestion,
   finalizeCoopMatch,
+  reportAudioFailure,
+  abortCoopMatchDueToAudioFailure,
 } from "./instantCoopBattleFirebase.js";
 // 【2026-09-06新設・本人指示：3分無操作の放置救済を一瞬協力にも適用】forcedSkips・
 // questionActivityのFirebaseパスはgameMode非依存の汎用フィールド（rooms/{roomId}/
@@ -67,7 +70,7 @@ import {
   clampStartTimeToActualDuration,
   isDurationMismatchWithinTolerance,
 } from "./randomPlaybackEngine.js";
-import { playSongFromRandomPosition, stopAudio } from "./audio.js";
+import { playSongFromRandomPosition, stopAudio, attemptSilentUnlock } from "./audio.js";
 import { LARGE_ANSWER_POOL_THRESHOLD } from "./lyricsQuizEngine.js";
 import {
   createAnswerPoolBrowseState,
@@ -87,6 +90,12 @@ import { savePlayHistoryEntryIfNew } from "./playHistory.js";
 const REVEAL_DELAY_MS = 4000;
 // ホストの進行判定を更新する間隔（js/onlineLyricsQuizBattleScreen.jsと同じ値・同じ理由）。
 const HOST_TICK_INTERVAL_MS = 400;
+// 【2026-09-09新設・本人指示：音源再生失敗時の公平性対策】このモードはホスト主導の
+// 同期進行のため、js/instantChallengeScreen.js・js/onlineInstantBattleScreen.jsの
+// 「自分の問題スロットだけ差し替える」個人進行型の設計は使えない（全員が同じ問題を
+// 同時に見ているため）。誰か1人でも再生失敗を報告したら、その問題を全員一律で無効にし、
+// 予備曲へ進む（js/instantCoopMatchProgress.jsのtick/advanceToNextQuestionが実処理を担う）。
+const AUDIO_FAILURE_RESERVE_SIZE = 3;
 
 let elements = null;
 
@@ -94,6 +103,7 @@ let latestRoom = null;
 let currentMatchId = null;
 let currentQuestions = [];
 let currentSettings = null;
+let targetQuestionCount = 0;
 
 let hostState = null;
 let hostTickInFlight = false;
@@ -115,6 +125,11 @@ let lastPlayedRoundNumber = -1;
 // 直近いつ送ったか（js/onlineLyricsQuizBattleScreen.jsと同じ間引き設計）。
 let lastActivityReportedAtMs = 0;
 let lastActivityReportedQIndex = -1;
+
+// 【2026-09-09新設・本人指示4：通信切断時の自動復帰待ち→離脱処理】
+// js/onlineLyricsQuizBattleScreen.jsの同じ仕組みと同じ設計・同じ値。
+const disconnectedSinceMsByUid = new Map();
+const DISCONNECT_AUTO_SKIP_MS = 20000;
 const ACTIVITY_REPORT_THROTTLE_MS = 15000;
 
 // 【2026-09-07新設・本人指示：50音UIの共通展開】
@@ -224,6 +239,10 @@ export function initOnlineInstantCoopBattleScreens(newElements) {
   // （js/onlineBattleScreen.jsの同じ変更と揃えている。詳細はそちらのコメント参照）。
   elements.resultRematchButton.addEventListener("click", async () => {
     if (!latestRoom) return;
+    // 【2026-09-09新設・本人指示：音源再生失敗の本対策】このモードは音源再生を伴い、
+    // かつ全員同期で自動再生されるため、開始直前の確実なユーザージェスチャーの中で
+    // 改めてunlockしておく価値が特に高い。
+    attemptSilentUnlock();
     elements.resultRematchButton.disabled = true;
     await rematchAndStartNow({ roomId: latestRoom.roomId });
     elements.resultRematchButton.disabled = false;
@@ -257,6 +276,7 @@ export function resetInstantCoopBattleState() {
   lastPlayedRoundNumber = -1;
   lastActivityReportedAtMs = 0;
   lastActivityReportedQIndex = -1;
+  disconnectedSinceMsByUid.clear();
 }
 
 // js/onlineBattleScreen.jsのrenderLobby()が、room更新のたび（画面を問わず）呼ぶフック。
@@ -370,12 +390,18 @@ export async function enterInstantCoopBattlePlay(room) {
   lastPlayedRoundNumber = -1;
   lastActivityReportedAtMs = 0;
   lastActivityReportedQIndex = -1;
+  disconnectedSinceMsByUid.clear();
 
   elements.error.hidden = true;
   elements.navigateTo("onlineInstantCoopBattleQuestion");
   startServerTimeOffsetTracking();
 
-  currentQuestions = instantCoopBattleMode.buildQuestions({ seed: room.seed, settings: room.settings });
+  currentQuestions = instantCoopBattleMode.buildQuestions({
+    seed: room.seed,
+    settings: room.settings,
+    reserveCount: AUDIO_FAILURE_RESERVE_SIZE,
+  });
+  targetQuestionCount = currentQuestions.filter((question) => !question.isReserve).length;
 
   const myUid = getCurrentUid();
   if (room.host === myUid) {
@@ -390,8 +416,16 @@ export async function enterInstantCoopBattlePlay(room) {
           seed: room.seed,
           match,
           nowMs: Date.now(),
+          targetQuestionCount,
         })
-      : createMatchProgress({ questions: currentQuestions, allPlayerUids: participantUids, hostUid: myUid, seed: room.seed, nowMs: Date.now() });
+      : createMatchProgress({
+          questions: currentQuestions,
+          allPlayerUids: participantUids,
+          hostUid: myUid,
+          seed: room.seed,
+          nowMs: Date.now(),
+          targetQuestionCount,
+        });
 
     if (hostState.currentQuestion.status === "resolved") {
       resolvedAtLocalMs = Date.now();
@@ -476,8 +510,36 @@ async function runHostProgressionTick() {
         nextHostState = recordVote(nextHostState, uid, UNKNOWN_VOTE);
       }
     }
+
+    // 【2026-09-09新設・本人指示4：通信切断時の自動復帰待ち→離脱処理】まだ投票していない
+    // 参加者のうち、実際に接続が切れている（connected:false）人だけの切断継続時間を計測し、
+    // DISCONNECT_AUTO_SKIP_MS以上続いたら既存の放置救済（forceSkipIdlePlayer）を自動的に
+    // 呼ぶ（js/onlineLyricsQuizBattleScreen.jsの同じ仕組みと同じ設計）。
+    for (const uid of nextHostState.allPlayerUids) {
+      if (uid in nextHostState.currentQuestion.votesByUid) {
+        disconnectedSinceMsByUid.delete(uid);
+        continue;
+      }
+      const isConnected = latestRoom.players?.[uid]?.connected !== false;
+      if (isConnected) {
+        disconnectedSinceMsByUid.delete(uid);
+        continue;
+      }
+      if (!disconnectedSinceMsByUid.has(uid)) {
+        disconnectedSinceMsByUid.set(uid, Date.now());
+        continue;
+      }
+      const disconnectedForMs = Date.now() - disconnectedSinceMsByUid.get(uid);
+      if (disconnectedForMs >= DISCONNECT_AUTO_SKIP_MS && !firebaseForcedSkips[uid]) {
+        forceSkipIdlePlayer({ roomId: latestRoom.roomId, matchId: currentMatchId, questionIndex: qIndex, targetUid: uid }).catch(() => {});
+      }
+    }
+    // 【2026-09-09新設・本人指示：音源再生失敗時の公平性対策】誰か1人でもこの問題で
+    // 音源再生に失敗したと報告していれば（js/instantCoopBattleFirebase.jsの
+    // reportAudioFailure()が書き込む）、投票の集計より優先してこの問題を無効にする。
+    const hasAudioFailureReport = Object.keys(match.audioFailures?.[qIndex] ?? {}).length > 0;
     const beforeTick = nextHostState;
-    nextHostState = tick(nextHostState, Date.now());
+    nextHostState = tick(nextHostState, Date.now(), hasAudioFailureReport);
     hostState = nextHostState;
 
     if (nextHostState !== beforeTick) {
@@ -511,10 +573,18 @@ async function runHostProgressionTick() {
     try {
       const nextState = advanceToNextQuestion(hostState, Date.now());
       hostState = nextState;
+      // 【2026-09-09新設・本人指示4】新しい問題へ移るタイミングで切断計測をリセットする。
+      disconnectedSinceMsByUid.clear();
       if (nextState.status === "inProgress") {
         resolvedAtLocalMs = null;
         const result = await advanceCoopQuestion({ roomId: latestRoom.roomId, matchId: currentMatchId, nextQuestionIndex: nextState.currentQuestionIndex });
         if (!result.ok) console.error("一瞬協力：次の問題の開始に失敗しました", result.reason);
+      } else if (nextState.status === MATCH_STATUS_ABORTED_AUDIO_FAILURE) {
+        // 【2026-09-09新設・本人指示：音源再生失敗時の公平性対策】3問連続で無効になった、
+        // または差し替えられる予備曲が尽きた場合。通常の勝敗としては一切記録せず、
+        // 専用の中断案内へ全員を進める（js/instantCoopBattleFirebase.js参照）。
+        const result = await abortCoopMatchDueToAudioFailure({ roomId: latestRoom.roomId, matchId: currentMatchId });
+        if (!result.ok) console.error("一瞬協力：音源再生失敗による対戦中断の確定に失敗しました", result.reason);
       } else {
         const teamResult = finalizeMatch(nextState);
         if (teamResult) {
@@ -537,17 +607,28 @@ function showAudioErrorInline(message) {
   elements.error.hidden = false;
 }
 
+// 【2026-09-09新設・本人指示：音源再生失敗時の公平性対策】このモードは全員が同じ問題を
+// 同時に見るホスト同期型のため、個人進行型（一瞬チャレンジ・一瞬バトル）のように
+// 自分の端末だけで曲を差し替えることはできない。代わりに、再生失敗をFirebaseへ報告し、
+// ホストの進行ミラー（js/instantCoopMatchProgress.js）に「誰か1人でも失敗した問題」として
+// 検知させ、全員一律で無効化・予備曲への差し替えを行わせる（本人指示1-4）。
+function handleCoopPlaybackFailure(questionIndex, message) {
+  showAudioErrorInline(message);
+  if (!latestRoom || !currentMatchId) return;
+  reportAudioFailure({ roomId: latestRoom.roomId, matchId: currentMatchId, questionIndex }).catch(() => {});
+}
+
 function playQuestionAudio(question, questionIndex) {
   const playDurationSec = Number(currentSettings.playDurationValue);
   const fixedDurationSec = AUDIO_METADATA[question.song.id]?.durationSec ?? null;
   if (fixedDurationSec === null) {
-    showAudioErrorInline("この曲の同期用データが見つかりません（audioMetadata.js未生成の可能性があります）。");
+    handleCoopPlaybackFailure(questionIndex, "この曲の同期用データが見つかりません（audioMetadata.js未生成の可能性があります）。");
     return;
   }
   const computeStartTimeSec = (actualDurationSec) => {
     if (!isDurationMismatchWithinTolerance(fixedDurationSec, actualDurationSec)) {
       stopAudio();
-      showAudioErrorInline("この曲の音源が他の端末と異なる可能性があります。音源を入れ直してください。");
+      handleCoopPlaybackFailure(questionIndex, "この曲の音源が他の端末と異なる可能性があります。音源を入れ直してください。");
       return 0;
     }
     const canonicalStartTimeSec = computeRandomStartTimeSec({
@@ -559,7 +640,14 @@ function playQuestionAudio(question, questionIndex) {
     });
     return clampStartTimeToActualDuration(canonicalStartTimeSec, actualDurationSec);
   };
-  playSongFromRandomPosition(question.song, computeStartTimeSec, playDurationSec, showAudioErrorInline, () => {}, () => {});
+  playSongFromRandomPosition(
+    question.song,
+    computeStartTimeSec,
+    playDurationSec,
+    (message) => handleCoopPlaybackFailure(questionIndex, message),
+    () => {},
+    () => {}
+  );
 }
 
 // 【2026-09-06新設・3分無操作の放置救済】本人がこの問題の中で意味のある操作をした
@@ -682,6 +770,21 @@ function renderIdleNotice(match, qIndex, roundNumber, nowServerTimeMs) {
   });
 }
 
+// 【2026-09-09新設・本人指示：音源再生失敗時の公平性対策】音源再生失敗で無効になった
+// 問題は、内部的には配列上の次のインデックス（予備曲）へ進むが、利用者からは「同じ
+// 問題番号のまま曲だけ差し替わった」ように見せたい（本人指示：問題数を消費しない）。
+// そのため画面に出す「第◯問」は生のqIndexではなく、「これまでに実際に成立した
+// （無効でなかった）問題の数＋1」で数え直す。coopQuestionOutcomesは全クライアントに
+// 同期されるFirebaseデータのため、ホスト・参加者のどちらでも同じ計算ができる。
+function computeDisplayedQuestionNumber(match, qIndex) {
+  const outcomes = match.coopQuestionOutcomes ?? {};
+  let completedCount = 0;
+  for (let i = 0; i < qIndex; i += 1) {
+    if (outcomes[i] && !outcomes[i].isVoid) completedCount += 1;
+  }
+  return completedCount + 1;
+}
+
 function renderCurrentQuestionState() {
   if (!latestRoom || currentQuestions.length === 0) return;
   const match = latestRoom.matches?.[currentMatchId];
@@ -702,7 +805,7 @@ function renderCurrentQuestionState() {
     myVotedRoundNumber = roundNumber;
   }
 
-  elements.progress.textContent = `第${qIndex + 1}問 / ${currentQuestions.length}問`;
+  elements.progress.textContent = `第${computeDisplayedQuestionNumber(match, qIndex)}問 / ${targetQuestionCount}問`;
 
   // 新しい問題を検知したら、音源を再生し直す（2026-09-05改訂：共有再視聴ラウンドの
   // 仕組みを廃止したため、roundNumberは常に0のまま変化しない＝実質的にqIndexの
@@ -765,23 +868,36 @@ function renderCurrentQuestionState() {
       // 「全員わからない」は正解でも不正解でもないニュートラルな特殊ケースとして、
       // 色分けも専用の中間トーンにする（本人指示：「不正解と一緒くたにしない」）。
       const correctSong = question.song;
-      elements.revealCorrectSong.textContent = correctSong.title;
 
-      // 【2026-08-31発見・修正】Firebase Realtime Databaseは、書き込んだ値がnullの
-      // フィールドをそのまま保存せず、キーごと削除する仕様のため（teamAnswer:nullで
-      // 書き込んでも、読み出す側にはteamAnswer自体が存在しない＝undefinedになる）。
-      // 「全員わからない・全員タイムアウト」の場合の判定は、===nullではなく==null
-      // （nullとundefinedの両方を含む）で行う必要がある（実機同等のライブテストで発覚）。
-      const isAllUnknown = outcome.teamAnswer == null;
-      const teamAnswerSong = question.answerPool.find((song) => song.id === outcome.teamAnswer);
-      elements.revealTeamAnswer.textContent = isAllUnknown
-        ? "チームの回答：わからない（全員）"
-        : `チームの回答：${teamAnswerSong?.title ?? outcome.teamAnswer}`;
+      // 【2026-09-09新設・本人指示：音源再生失敗時の公平性対策】音源再生失敗により
+      // 無効になった問題は、正解曲名も「全員わからない」でもない専用の案内にする
+      // （本人指示：「音源を正常に再生できない参加者がいたため、この問題は無効です」等を表示）。
+      if (outcome.isVoid) {
+        elements.revealCorrectSong.textContent = "";
+        elements.revealTeamAnswer.textContent = "音源を正常に再生できない参加者がいたため、この問題は無効です。別の曲に差し替えます。";
+        elements.revealOutcomeBadge.textContent = "🔇 この問題は無効です";
+        elements.revealOutcomeBadge.classList.remove("is-correct-answer-reveal-status");
+        elements.revealOutcomeBadge.classList.add("is-neutral-answer-reveal-status");
+        elements.revealTieBreakNotice.hidden = true;
+      } else {
+        elements.revealCorrectSong.textContent = correctSong.title;
 
-      elements.revealOutcomeBadge.textContent = isAllUnknown ? "🤷 全員「わからない」でした" : outcome.isCorrect ? "🎉 正解！" : "残念、不正解";
-      elements.revealOutcomeBadge.classList.toggle("is-correct-answer-reveal-status", !isAllUnknown && outcome.isCorrect);
-      elements.revealOutcomeBadge.classList.toggle("is-neutral-answer-reveal-status", isAllUnknown);
-      elements.revealTieBreakNotice.hidden = !outcome.usedTieBreakRandom;
+        // 【2026-08-31発見・修正】Firebase Realtime Databaseは、書き込んだ値がnullの
+        // フィールドをそのまま保存せず、キーごと削除する仕様のため（teamAnswer:nullで
+        // 書き込んでも、読み出す側にはteamAnswer自体が存在しない＝undefinedになる）。
+        // 「全員わからない・全員タイムアウト」の場合の判定は、===nullではなく==null
+        // （nullとundefinedの両方を含む）で行う必要がある（実機同等のライブテストで発覚）。
+        const isAllUnknown = outcome.teamAnswer == null;
+        const teamAnswerSong = question.answerPool.find((song) => song.id === outcome.teamAnswer);
+        elements.revealTeamAnswer.textContent = isAllUnknown
+          ? "チームの回答：わからない（全員）"
+          : `チームの回答：${teamAnswerSong?.title ?? outcome.teamAnswer}`;
+
+        elements.revealOutcomeBadge.textContent = isAllUnknown ? "🤷 全員「わからない」でした" : outcome.isCorrect ? "🎉 正解！" : "残念、不正解";
+        elements.revealOutcomeBadge.classList.toggle("is-correct-answer-reveal-status", !isAllUnknown && outcome.isCorrect);
+        elements.revealOutcomeBadge.classList.toggle("is-neutral-answer-reveal-status", isAllUnknown);
+        elements.revealTieBreakNotice.hidden = !outcome.usedTieBreakRandom;
+      }
     }
   }
 
@@ -800,6 +916,14 @@ export function enterInstantCoopResult(room) {
   const teamResult = match.coopTeamResult ?? { totalQuestions: 0, correctCount: 0, totalSharedReplayCount: 0 };
   const myUid = getCurrentUid();
 
+  // 【2026-09-09新設・本人指示：音源再生失敗時の公平性対策】音源再生失敗の続発で
+  // 対戦を中断した場合は、通常の成績表示を一切出さず、専用の案内だけを見せる。
+  // プレイ履歴（下のsavePlayHistoryEntryIfNew）への保存もこの場合はスキップする
+  // （本人指示：中断結果を通常の記録として保存しない）。
+  const isAudioFailureAborted = teamResult.audioFailureAborted === true;
+  if (elements.resultAudioFailureNotice) elements.resultAudioFailureNotice.hidden = !isAudioFailureAborted;
+  if (elements.resultNormalContainer) elements.resultNormalContainer.hidden = isAudioFailureAborted;
+
   // 【2026-09-05改訂、本人指示】試合後の選択肢「もう一度」「ルーム設定に戻る」は
   // ホスト専用。非ホストには代わりに「⌂ホームへ戻る」だけを見せる。
   const isHostOnResultScreen = room.host === myUid;
@@ -808,41 +932,43 @@ export function enterInstantCoopResult(room) {
   // 【2026-09-07新設・本人指示:ゲスト結果画面】ホスト専用ボタンの代わりに、待機案内＋
   // 「ルームから退出」を見せる（js/onlineBattleScreen.jsの同じ変更と揃えている）。
   if (elements.resultGuestActions) elements.resultGuestActions.hidden = isHostOnResultScreen;
-  elements.resultCorrectCount.textContent = `${teamResult.correctCount} / ${teamResult.totalQuestions}問`;
-  // 【2026-09-05改訂】共有再視聴の仕組みを廃止したため、「合計共有再視聴回数」の表示は
-  // 削除した（HTML側のelements.resultReplayCount自体も削除済み）。
+  if (!isAudioFailureAborted) {
+    elements.resultCorrectCount.textContent = `${teamResult.correctCount} / ${teamResult.totalQuestions}問`;
+    // 【2026-09-05改訂】共有再視聴の仕組みを廃止したため、「合計共有再視聴回数」の表示は
+    // 削除した（HTML側のelements.resultReplayCount自体も削除済み）。
 
-  const participants = match.participants || {};
-  clearElement(elements.resultMemberList);
-  Object.values(participants).forEach((participant) => {
-    const li = document.createElement("li");
-    li.className = "online-lobby-player-row";
-    const oshiColor = resolveOshiColor(participant.oshiMemberId);
-    if (oshiColor) {
-      const dot = document.createElement("span");
-      dot.className = "online-lobby-oshi-dot";
-      dot.style.backgroundColor = oshiColor;
-      li.appendChild(dot);
-    }
-    const name = document.createElement("span");
-    name.textContent = participant.displayName + (participant.isHost ? "（ホスト）" : "");
-    li.appendChild(name);
-    elements.resultMemberList.appendChild(li);
-  });
+    const participants = match.participants || {};
+    clearElement(elements.resultMemberList);
+    Object.values(participants).forEach((participant) => {
+      const li = document.createElement("li");
+      li.className = "online-lobby-player-row";
+      const oshiColor = resolveOshiColor(participant.oshiMemberId);
+      if (oshiColor) {
+        const dot = document.createElement("span");
+        dot.className = "online-lobby-oshi-dot";
+        dot.style.backgroundColor = oshiColor;
+        li.appendChild(dot);
+      }
+      const name = document.createElement("span");
+      name.textContent = participant.displayName + (participant.isHost ? "（ホスト）" : "");
+      li.appendChild(name);
+      elements.resultMemberList.appendChild(li);
+    });
 
-  savePlayHistoryEntryIfNew({
-    id: `online-coop:${room.activeMatchId}`,
-    playedAt: Date.now(),
-    modeId: "onlineInstantCoop",
-    modeLabel: "オンライン対戦（一瞬協力）",
-    questionCount: teamResult.totalQuestions,
-    isAllSongsMode: !room.settings.questionSource || room.settings.questionSource.type === QUESTION_SOURCE_TYPE.ALL_SONGS,
-    correctCount: teamResult.correctCount,
-    wrongCount: teamResult.totalQuestions - teamResult.correctCount,
-    skippedCount: null,
-    score: null,
-    averageResponseMs: null,
-    completed: true,
-    details: { totalSharedReplayCount: teamResult.totalSharedReplayCount, memberCount: Object.keys(participants).length },
-  });
+    savePlayHistoryEntryIfNew({
+      id: `online-coop:${room.activeMatchId}`,
+      playedAt: Date.now(),
+      modeId: "onlineInstantCoop",
+      modeLabel: "オンライン対戦（一瞬協力）",
+      questionCount: teamResult.totalQuestions,
+      isAllSongsMode: !room.settings.questionSource || room.settings.questionSource.type === QUESTION_SOURCE_TYPE.ALL_SONGS,
+      correctCount: teamResult.correctCount,
+      wrongCount: teamResult.totalQuestions - teamResult.correctCount,
+      skippedCount: null,
+      score: null,
+      averageResponseMs: null,
+      completed: true,
+      details: { totalSharedReplayCount: teamResult.totalSharedReplayCount, memberCount: Object.keys(participants).length },
+    });
+  }
 }

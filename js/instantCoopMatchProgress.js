@@ -44,6 +44,13 @@
 import { createSeededRandom } from "./seededRandom.js";
 
 export const UNKNOWN_VOTE = "unknown";
+// 【2026-09-09新設・本人指示：音源再生失敗時の公平性対策】同じ問題スロットで、元の曲＋
+// 差し替え曲を合わせて何回まで再生を試みるか（js/instantChallengeScreen.js・
+// js/onlineInstantBattleScreen.jsのMAX_SLOT_PLAYBACK_ATTEMPTSと同じ考え方・同じ値）。
+export const MAX_CONSECUTIVE_VOID_QUESTIONS = 3;
+// 通常の"inProgress"/"finished"に加えて、音源再生失敗が続いたために対戦を安全に
+// 中断した状態。この状態はfinalizeMatch()の対象にせず、通常の勝敗として記録しない。
+export const MATCH_STATUS_ABORTED_AUDIO_FAILURE = "abortedAudioFailure";
 // 共有の「もう一度聞く」の上限（本人指示：最大2回）。
 export const MAX_SHARED_REPLAY_COUNT = 2;
 // 【2026-08-31新設→2026-09-06撤廃、本人指示】以前は投票タイムアウト（1つの投票ラウンドの
@@ -54,7 +61,13 @@ export const MAX_SHARED_REPLAY_COUNT = 2;
 // js/onlineInstantCoopBattleScreen.jsのホスト向け3分無操作通知＋forcedSkips
 // （歌詞クイズと共有の仕組み。実体はrecordVote()へのUNKNOWN_VOTE投票と同じ）に委ねる。
 
-export function createMatchProgress({ questions, allPlayerUids, hostUid, seed, nowMs }) {
+// 【2026-09-09新設・本人指示：音源再生失敗時の公平性対策（ホスト同期型）】
+// targetQuestionCountは、実際に採点対象となる「本来の出題数」（questions.length自体は
+// buildQuestions({reserveCount})により、失敗時の差し替え専用の予備曲を含んだ、それより
+// 大きい配列になる想定）。省略時はquestions.length（予備を使わない既存の呼び出し元と
+// 完全に同じ挙動）。consecutiveVoidCountは、直近で何問連続して「音源を正常に再生できな
+// かった参加者がいたため無効」になったかを数える（3で対戦を安全に中断する）。
+export function createMatchProgress({ questions, allPlayerUids, hostUid, seed, nowMs, targetQuestionCount }) {
   const hasQuestions = questions.length > 0;
   return {
     status: hasQuestions ? "inProgress" : "finished",
@@ -62,6 +75,8 @@ export function createMatchProgress({ questions, allPlayerUids, hostUid, seed, n
     hostUid,
     seed,
     questions,
+    targetQuestionCount: targetQuestionCount ?? questions.length,
+    consecutiveVoidCount: 0,
     currentQuestionIndex: 0,
     currentQuestion: createFreshQuestionState(nowMs),
     teamHistory: [],
@@ -127,9 +142,18 @@ function createTieBreakRandom(seed, questionIndex, sharedReplayCount) {
 // 何度呼ばれても何もしない（2026-09-06改訂・本人指示：固定タイムアウトを撤廃したため、
 // 経過時間はこの関数の判定に一切関与しない）。
 // 全員分が揃ったら、多数決→タイならタイブレークの流れをこの1呼び出しの中で完結させる。
-export function tick(state, nowMs) {
+// 【2026-09-09新設・本人指示：音源再生失敗時の公平性対策】hasAudioFailureReportは、
+// 「今の問題で、誰か1人でも音源再生に失敗したと報告しているか」（呼び出し元が
+// Firebaseのmatches/{matchId}/audioFailures/{questionIndex}を見て渡す）。全員の投票が
+// 揃うより先にこちらを優先して判定し、投票の集計は一切行わない（誰か1人でも正常に
+// 聴けていない以上、多数決の結果自体が公平でなくなるため）。
+export function tick(state, nowMs, hasAudioFailureReport = false) {
   if (state.status !== "inProgress") return state;
   if (state.currentQuestion.status !== "collecting") return state;
+
+  if (hasAudioFailureReport) {
+    return resolveCurrentQuestion(state, { teamAnswer: null, isCorrect: false, usedTieBreakRandom: false, isVoid: true }, nowMs);
+  }
 
   const allVoted = haveAllVoted(state.currentQuestion.votesByUid, state.allPlayerUids);
   if (!allVoted) return state;
@@ -181,19 +205,37 @@ export function canAdvanceToNextQuestion(state) {
 // 確定済みの問題から、次の問題へ進める（ホスト限定の操作という想定。js/lyricsQuizMatchProgress.js
 // のadvanceToNextQuestion()と同じ役割分担：「誰が呼んだか」の検証はFirebaseセキュリティ
 // ルール側の役割で、この純粋関数は「今の状態として進めてよいか」だけを守る）。
+// 【2026-09-09改訂・本人指示：音源再生失敗時の公平性対策】isVoid（音源再生失敗による
+// 無効問題）だった場合は、teamHistoryへ積まない＝得点にも「N問中」の分母にも一切
+// 数えない（本人指示：問題数を消費しない）。代わりに、目に見えないところで
+// questions配列の予備区間（targetQuestionCount以降）を1問ずつ消費して次のcurrentQuestionへ
+// 進む。3問連続で無効になった場合、または予備が尽きた場合は、対戦を安全に中断する
+// （通常の"finished"ではなくMATCH_STATUS_ABORTED_AUDIO_FAILUREにする。この場合の
+// currentQuestion.outcomeは呼び出し元がfinalizeMatch()を呼ばない前提のため使われない）。
 export function advanceToNextQuestion(state, nowMs) {
   if (!canAdvanceToNextQuestion(state)) return state;
 
-  const teamHistory = [...state.teamHistory, state.currentQuestion.outcome];
+  const isVoid = state.currentQuestion.outcome?.isVoid === true;
+  const teamHistory = isVoid ? state.teamHistory : [...state.teamHistory, state.currentQuestion.outcome];
+  const consecutiveVoidCount = isVoid ? state.consecutiveVoidCount + 1 : 0;
   const nextIndex = state.currentQuestionIndex + 1;
+
+  if (consecutiveVoidCount >= MAX_CONSECUTIVE_VOID_QUESTIONS) {
+    return { ...state, status: MATCH_STATUS_ABORTED_AUDIO_FAILURE, currentQuestionIndex: nextIndex, teamHistory, consecutiveVoidCount };
+  }
+  if (teamHistory.length >= state.targetQuestionCount) {
+    return { ...state, status: "finished", currentQuestionIndex: nextIndex, teamHistory, consecutiveVoidCount };
+  }
   if (nextIndex >= state.questions.length) {
-    return { ...state, status: "finished", currentQuestionIndex: nextIndex, teamHistory };
+    // 採点対象の問題数にまだ届いていないのに、予備を含めても曲が尽きた場合。
+    return { ...state, status: MATCH_STATUS_ABORTED_AUDIO_FAILURE, currentQuestionIndex: nextIndex, teamHistory, consecutiveVoidCount };
   }
   return {
     ...state,
     currentQuestionIndex: nextIndex,
     currentQuestion: createFreshQuestionState(nowMs),
     teamHistory,
+    consecutiveVoidCount,
   };
 }
 
@@ -220,18 +262,27 @@ export function finalizeMatch(state) {
 //   { currentQuestionIndex, questionStatus: "active"|"resolved", coopRoundNumber,
 //     coopVotes: { [questionIndex]: { [roundNumber]: { [uid]: { selectedSongId } } } },
 //     coopQuestionOutcomes: { [questionIndex]: { teamAnswer, isCorrect, usedTieBreakRandom, sharedReplayCount } } }
-export function restoreMatchProgressFromFirebase({ questions, allPlayerUids, hostUid, seed, match, nowMs }) {
+export function restoreMatchProgressFromFirebase({ questions, allPlayerUids, hostUid, seed, match, nowMs, targetQuestionCount }) {
   const currentIndex = Math.min(match.currentQuestionIndex ?? 0, questions.length);
   const isCurrentResolved = match.questionStatus === "resolved";
   const replayUpToIndex = isCurrentResolved ? currentIndex : currentIndex - 1;
 
   const teamHistory = [];
+  let consecutiveVoidCount = 0;
   for (let questionIndex = 0; questionIndex <= replayUpToIndex && questionIndex < questions.length; questionIndex++) {
     const outcome = match.coopQuestionOutcomes?.[questionIndex];
-    if (outcome) teamHistory.push(outcome);
+    if (!outcome) continue;
+    if (outcome.isVoid) {
+      consecutiveVoidCount += 1;
+      continue;
+    }
+    consecutiveVoidCount = 0;
+    teamHistory.push(outcome);
   }
 
-  const hasFinishedAllQuestions = currentIndex >= questions.length;
+  const resolvedTargetQuestionCount = targetQuestionCount ?? questions.length;
+  const hasFinishedAllQuestions =
+    teamHistory.length >= resolvedTargetQuestionCount || currentIndex >= questions.length;
   const currentRoundNumber = match.coopRoundNumber ?? 0;
   const rawVotesForCurrentRound = match.coopVotes?.[currentIndex]?.[currentRoundNumber] ?? {};
   const votesByUid = Object.fromEntries(
@@ -255,6 +306,8 @@ export function restoreMatchProgressFromFirebase({ questions, allPlayerUids, hos
     hostUid,
     seed,
     questions,
+    targetQuestionCount: resolvedTargetQuestionCount,
+    consecutiveVoidCount,
     currentQuestionIndex: currentIndex,
     currentQuestion,
     teamHistory,

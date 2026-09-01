@@ -56,6 +56,18 @@ let answers = []; // { songId, isCorrect, replayCount }[]
 let replayCounts = [];
 let hasAnsweredCurrentQuestion = false;
 let matchStartedAtMs = 0;
+// 【2026-09-09新設・本人指示：音源再生失敗時の公平性対策】このモードは各自が独立して
+// 進行するため（他プレイヤーとの同期が不要）、js/instantChallengeScreen.jsと全く同じ
+// 「その問題スロットの曲を、まだ使っていない予備曲へ安全に差し替える」設計をそのまま
+// 適用する。questions配列自体はbuildQuestions({reserveCount})が出題数＋予備曲をまとめて
+// 返す（isReserve:trueの末尾部分が予備）。targetQuestionCountだけが実際の「出題数」で、
+// currentIndexは常にその範囲内（0〜targetQuestionCount-1）だけを動く
+// （予備曲は既存のスロットへ差し替えるだけで、新しいインデックスとしては増えない）。
+const AUDIO_FAILURE_RESERVE_SIZE = 3;
+const MAX_SLOT_PLAYBACK_ATTEMPTS = 3;
+let targetQuestionCount = 0;
+let nextReserveIndex = 0;
+let currentSlotFailureCount = 0;
 // 【2026-09-07新設・本人指示：50音UIの共通展開】
 const answerBrowseState = createAnswerPoolBrowseState();
 let isCountdownActive = false; // 【2026-09-05新設】カウントダウン中の連打・二重再生を防ぐ
@@ -131,15 +143,27 @@ export function resetOnlineInstantBattleState() {
 
 // js/onlineBattleScreen.jsのenterOnlineBattlePlay()から、gameMode==="instantBattle"のときに
 // 呼ばれる入口（js/onlineLyricsQuizBattleScreen.jsのenterLyricsQuizBattlePlay()と同じ役割）。
+// 【2026-09-09新設・本人指示：プレイ履歴の完成】js/onlineBattleScreen.jsが履歴保存時の
+// questionCountとして使う。このモードは予備曲を含むquestions配列を内部に持つため、
+// 実際の出題数（targetQuestionCount）を外から取得する手段が必要だった
+// （js/onlineBattleScreen.jsのcurrentMatchTotalQuestionsは、このモードの入場処理では
+// 一切更新されず、以前はプレイ履歴のquestionCountが不正確なまま保存されていた）。
+export function getTargetQuestionCount() {
+  return targetQuestionCount;
+}
+
 export function enterOnlineInstantBattlePlay(room) {
   currentRoomId = room.roomId;
   currentMatchId = room.activeMatchId;
   currentSettings = room.settings;
   currentSeed = room.seed;
-  questions = buildQuestions({ seed: room.seed, settings: room.settings });
+  questions = buildQuestions({ seed: room.seed, settings: room.settings, reserveCount: AUDIO_FAILURE_RESERVE_SIZE });
+  targetQuestionCount = questions.filter((question) => !question.isReserve).length;
+  nextReserveIndex = targetQuestionCount;
+  currentSlotFailureCount = 0;
   currentIndex = 0;
   answers = [];
-  replayCounts = new Array(questions.length).fill(0);
+  replayCounts = new Array(targetQuestionCount).fill(0);
   hasAnsweredCurrentQuestion = false;
   matchStartedAtMs = Date.now();
   isFirstQuestionOfMatch = true;
@@ -178,7 +202,9 @@ function playCurrentQuestionAudio() {
   if (fixedDurationSec === null) {
     // 本来はinstantBattleMode.jsのvalidateSettings()が対戦開始自体を拒否しているはずで、
     // 通常はここに到達しない。その防御が万一漏れた場合の保険（randomPlaybackBattleMode.jsと同じ方針）。
-    showAudioErrorInline("この曲の同期用データが見つかりません（audioMetadata.js未生成の可能性があります）。");
+    // 【2026-09-09改訂・本人指示：音源再生失敗時の公平性対策】この曲固有のデータ不備の
+    // 可能性があるため、他の再生失敗と同じ「安全に差し替える」経路へ合流させる。
+    handlePlaybackFailure(questionIndex, "この曲の同期用データが見つかりません（audioMetadata.js未生成の可能性があります）。");
     return;
   }
 
@@ -186,9 +212,10 @@ function playCurrentQuestionAudio() {
     if (!isDurationMismatchWithinTolerance(fixedDurationSec, actualDurationSec)) {
       // 全端末で同じ開始位置になることが公平性の前提のため、差が大きすぎる場合は
       // 無言でクランプして続行せず、再生を中止する（randomPlaybackBattleMode.jsの
-      // main.js側実装と同じ安全策）。
+      // main.js側実装と同じ安全策）。この場合も「自分の端末のこの曲のファイルが
+      // 他と違う」という再生失敗の一種として扱い、差し替え経路へ合流させる。
       stopAudio();
-      showAudioErrorInline("この曲の音源が他の端末と異なる可能性があります。音源を入れ直してください。");
+      handlePlaybackFailure(questionIndex, "この曲の音源が他の端末と異なる可能性があります。音源を入れ直してください。");
       return 0;
     }
     const canonicalStartTimeSec = computeRandomStartTimeSec({
@@ -201,7 +228,51 @@ function playCurrentQuestionAudio() {
     return clampStartTimeToActualDuration(canonicalStartTimeSec, actualDurationSec);
   };
 
-  playSongFromRandomPosition(question.song, computeStartTimeSec, playDurationSec, showAudioErrorInline, () => {}, () => {});
+  playSongFromRandomPosition(
+    question.song,
+    computeStartTimeSec,
+    playDurationSec,
+    (message) => handlePlaybackFailure(questionIndex, message),
+    hideAudioErrorInline,
+    () => {}
+  );
+}
+
+// 【2026-09-09新設・本人指示：音源再生失敗時の公平性対策】js/instantChallengeScreen.jsの
+// handlePlaybackFailure()と同じ設計（このモードも各自が独立して進行するため、他プレイヤーと
+// 同期する必要が無い）。「その問題を不正解にしない・ペナルティを与えない・問題数を
+// 消費しない」を守るため、得点処理には一切触れず、この問題スロットの曲を安全に差し替えるか、
+// それでも無理なら対戦を中断する。questionIndexは呼ばれた時点のcurrentIndexを固定で
+// 受け取り、既に別の問題へ進んでいた場合の誤適用を防ぐ。
+function handlePlaybackFailure(questionIndex, message) {
+  if (questionIndex !== currentIndex) return;
+  if (hasAnsweredCurrentQuestion) return;
+
+  currentSlotFailureCount += 1;
+  console.warn(`[一瞬バトル] 音源再生に失敗しました（${currentSlotFailureCount}回目）`, message);
+
+  if (currentSlotFailureCount >= MAX_SLOT_PLAYBACK_ATTEMPTS || nextReserveIndex >= questions.length) {
+    abortMatchDueToAudioFailure();
+    return;
+  }
+
+  questions[currentIndex] = questions[nextReserveIndex];
+  nextReserveIndex += 1;
+  renderAnswerArea(questions[currentIndex]);
+  playCurrentQuestionAudioWithCountdown();
+  showAudioErrorInline("音源を再生できませんでした。別の曲に差し替えて再試行します。");
+}
+
+// 同じ問題スロットで規定回数（元の曲＋差し替え）すべて再生に失敗した、または差し替えられる
+// 予備曲が無くなった場合に呼ぶ。この試合の結果はfinishMatch()を経由せず、勝敗・記録の
+// いずれにも一切残さない（本人指示：中断結果を通常の記録として保存しない）。
+function abortMatchDueToAudioFailure() {
+  stopAudio();
+  cancelLocalReplayCountdown();
+  clearTimeout(autoAdvanceTimerId);
+  elements.onAudioFailureAbort?.(
+    "音源を正常に再生できない状態が続いているため、この対戦を中断しました。データパックの導入状況や通信環境をご確認のうえ、もう一度お試しください。"
+  );
 }
 
 // 【2026-09-05新設】音源再生の直前に3→2→1を表示してから再生する。初回出題・再視聴の
@@ -223,7 +294,7 @@ function playCurrentQuestionAudioWithCountdown() {
 
 function renderCurrentQuestion() {
   hasAnsweredCurrentQuestion = false;
-  elements.progress.textContent = `第${currentIndex + 1}問 / ${questions.length}問`;
+  elements.progress.textContent = `第${currentIndex + 1}問 / ${targetQuestionCount}問`;
   if (elements.answerReveal) elements.answerReveal.hidden = true;
   clearTimeout(autoAdvanceTimerId);
   renderAnswerArea(questions[currentIndex]);
@@ -330,7 +401,8 @@ function renderAnswerReveal({ isCorrect, correctTitle, mySelectedSongId, pool })
 
 function advanceToNextQuestionOrFinish() {
   currentIndex += 1;
-  if (currentIndex >= questions.length) {
+  currentSlotFailureCount = 0; // 新しい問題スロットへ移るので、再生失敗のカウントもリセットする
+  if (currentIndex >= targetQuestionCount) {
     finishMatch();
     return;
   }

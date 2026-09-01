@@ -228,6 +228,14 @@
                 }
               }
             },
+            "audioFailures": {
+              "$questionIndex": {
+                "$uid": {
+                  ".write": "auth != null && auth.uid === $uid",
+                  ".validate": "newData.val() === true"
+                }
+              }
+            },
             "questionClaims": {
               "$questionIndex": {
                 "winner": {

@@ -43,6 +43,7 @@ export function isKnownGameMode(gameMode) {
   return Object.prototype.hasOwnProperty.call(REGISTRY, gameMode);
 }
 
+
 export function createDefaultSettings(gameMode) {
   return getBattleMode(gameMode)?.defaultSettings() ?? null;
 }

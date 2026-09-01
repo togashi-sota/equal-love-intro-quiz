@@ -1316,6 +1316,13 @@
         </div>
       </div>
 
+      <!-- 【2026-09-09新設・本人指示3-1：プレイ履歴のオフライン/オンライン分離】
+           オフライン・オンラインの2タブ。中身の切り替えはjs/historyScreen.jsが行う。 -->
+      <div id="history-tabs" class="history-tabs">
+        <button id="history-tab-offline" type="button" class="history-tab is-active">オフライン</button>
+        <button id="history-tab-online" type="button" class="history-tab">オンライン</button>
+      </div>
+
       <!-- モード絞り込みチップ（横スクロール可能）。中身はjs/historyScreen.jsが組み立てる。 -->
       <div id="history-filter-chips" class="history-filter-chips"></div>
 
@@ -3010,6 +3017,11 @@
         ルームから退出させられました。もう一度参加したい場合は、同じルームコードで「ルームに参加する」からやり直してください。
       </div>
 
+      <!-- 【2026-09-09新設・本人指示：音源再生失敗時の公平性対策】同じ問題スロットで
+           規定回数すべて再生に失敗し、対戦を安全に中断した場合の案内。文言はJS側が
+           状況に応じて差し替える（js/main.jsのonAudioFailureAbort参照）。 -->
+      <div class="battle-warning-box" id="online-battle-entry-audio-failure-notice" hidden></div>
+
       <div class="battle-notice-box" id="online-battle-entry-last-room-banner" hidden>
         <p id="online-battle-entry-last-room-text"></p>
         <button id="online-battle-entry-last-room-rejoin-button" class="secondary-button" type="button" style="margin-top:8px;">
@@ -3091,7 +3103,14 @@
          表示・非表示を切り替える。 -->
     <section id="online-battle-lobby-screen" class="screen">
       <button id="online-battle-lobby-leave-button" class="quiz-back-link" type="button">✕ ルームを退出する</button>
-      <div class="title-block"><h2>ロビー</h2></div>
+      <!-- 【2026-09-09新設・本人指示：ロビー専用の詳細説明書ボタン】完全版の「遊び方ガイド」
+           とは別に、「今この対戦を始める前に確認する簡易マニュアル」として、現在の設定
+           （モード・ルール・出題数等）に合わせた説明をその場で見られるようにする
+           （js/onlineBattleScreen.js制御。ホスト・ゲスト共通で見える）。 -->
+      <div class="online-lobby-header-row">
+        <div class="title-block"><h2>ロビー</h2></div>
+        <button id="online-battle-lobby-help-button" class="header-icon-button" type="button" aria-label="この対戦について">？</button>
+      </div>
 
       <div id="online-battle-lobby-gone-notice" class="battle-warning-box" hidden>
         このルームは終了しました（ホストが退出した可能性があります）。
@@ -3666,15 +3685,24 @@
       <button id="online-instant-coop-battle-result-home-link" class="quiz-back-link" type="button">⌂ ホームへ戻る</button>
       <div class="title-block"><h2>一瞬協力：結果</h2></div>
 
-      <div class="time-attack-result-stats-row">
-        <div class="time-attack-result-stat">
-          <p class="time-attack-result-stat-label">チームの正解数</p>
-          <p id="online-instant-coop-battle-result-correct-count" class="time-attack-result-stat-value">0 / 0問</p>
-        </div>
+      <!-- 【2026-09-09新設・本人指示：音源再生失敗時の公平性対策】音源再生失敗が続き
+           対戦を安全に中断した場合の案内。通常の成績表示（正解数・参加メンバー）は
+           一切出さない（js/onlineInstantCoopBattleScreen.js制御）。 -->
+      <div class="battle-warning-box" id="online-instant-coop-battle-result-audio-failure-notice" hidden>
+        音源を正常に再生できない状態が続いたため、この対戦は中断されました。データパックの導入状況や通信環境をご確認のうえ、もう一度お試しください。
       </div>
 
-      <p class="battle-field-label">参加メンバー</p>
-      <ul id="online-instant-coop-battle-result-member-list" class="online-lobby-player-list"></ul>
+      <div id="online-instant-coop-battle-result-normal" class="online-instant-coop-battle-result-normal">
+        <div class="time-attack-result-stats-row">
+          <div class="time-attack-result-stat">
+            <p class="time-attack-result-stat-label">チームの正解数</p>
+            <p id="online-instant-coop-battle-result-correct-count" class="time-attack-result-stat-value">0 / 0問</p>
+          </div>
+        </div>
+
+        <p class="battle-field-label">参加メンバー</p>
+        <ul id="online-instant-coop-battle-result-member-list" class="online-lobby-player-list"></ul>
+      </div>
 
       <!-- 【2026-09-05改訂、本人指示】試合後の選択肢を「もう一度」「ルーム設定に戻る」の
            2つ（ホスト専用）へ統一した。非ホストには上の「⌂ホームへ戻る」だけを見せる。 -->
@@ -4197,6 +4225,26 @@
         <button id="time-attack-leaderboard-admin-delete-cancel-button" class="secondary-button" type="button">キャンセル</button>
         <button id="time-attack-leaderboard-admin-delete-confirm-button" class="danger-button" type="button">この記録を削除する</button>
       </div>
+    </div>
+  </div>
+
+  <!-- 【2026-09-09新設・本人指示：ロビー専用の詳細説明書】完全版の「遊び方ガイド」（全機能を
+       網羅する攻略本）とは役割が違い、「今この対戦を始める前に確認する簡易マニュアル」として、
+       現在ロビーで選ばれている設定に絞って説明する。中身はjs/onlineBattleScreen.jsが、
+       js/battleModes/index.jsの実際のモード一覧・js/lyricsQuizBattleUi.jsのルール説明文から
+       動的に組み立てる（本文が実装からズレないようにするため。battle-rules-help-modalと
+       同じ設計方針）。 -->
+  <div id="online-battle-lobby-help-modal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="online-battle-lobby-help-title">
+      <button id="online-battle-lobby-help-close" class="modal-close-button" type="button" aria-label="閉じる">×</button>
+      <h2 id="online-battle-lobby-help-title">この対戦について</h2>
+
+      <div id="online-battle-lobby-help-current-settings"></div>
+
+      <p class="online-lobby-help-section-heading">オンライン対戦の6つのモード</p>
+      <div id="online-battle-lobby-help-mode-list"></div>
+
+      <button id="online-battle-lobby-help-guide-link" class="secondary-button" type="button">📖 詳しい遊び方ガイドを見る</button>
     </div>
   </div>
 

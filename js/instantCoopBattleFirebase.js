@@ -192,6 +192,61 @@ export async function advanceCoopQuestion({ roomId, matchId, nextQuestionIndex }
   return startCoopQuestion({ roomId, matchId, questionIndex: nextQuestionIndex });
 }
 
+// 【2026-09-09新設・本人指示：音源再生失敗時の公平性対策】自分の音源が今の問題で正常に
+// 再生できなかったことを報告する。ホストの進行ミラー（js/instantCoopMatchProgress.js）が
+// これを見て、その問題を「音源を正常に再生できない参加者がいたため無効」として全員一律に
+// 扱う（誰の得点・正解数・ペナルティにも影響させず、出題数も消費しない）。
+// write-once（1人1問題につき1回）：連打・再試行で複数回呼ばれても実害が無いようにする。
+// 【本人操作が必要】このパス（matches/{matchId}/audioFailures）はFirebase Rulesにまだ
+// 登録していないため、Rulesを公開するまではPERMISSION_DENIEDで失敗する
+// （失敗しても対戦の進行自体は止めない設計。docs/HANDOFF.md・最終報告のRules案を参照）。
+export async function reportAudioFailure({ roomId, matchId, questionIndex }) {
+  await authReady;
+  const uid = getCurrentUid();
+  if (!uid) return { ok: false, reason: REASON.NOT_SIGNED_IN };
+
+  try {
+    await set(ref(database, `rooms/${roomId}/matches/${matchId}/audioFailures/${questionIndex}/${uid}`), true);
+    return { ok: true };
+  } catch (error) {
+    if (error?.code === "PERMISSION_DENIED") return { ok: false, reason: REASON.PERMISSION_DENIED };
+    return { ok: false, reason: REASON.NETWORK_ERROR };
+  }
+}
+
+// ホストが、音源再生失敗の続発により対戦を安全に中断したことを全員へ伝える。
+// finalizeCoopMatch()と同じくroom.status→"result"にして結果画面への自動遷移に乗せるが、
+// coopTeamResultは書かず、代わりにaudioFailureAbortedフラグだけを立てる（結果画面側が
+// このフラグを見て、通常の成績表示ではなく中断案内を出す。プレイ履歴への保存も
+// このフラグがある場合はスキップする設計）。
+export async function abortCoopMatchDueToAudioFailure({ roomId, matchId }) {
+  await authReady;
+  const uid = getCurrentUid();
+  if (!uid) return { ok: false, reason: REASON.NOT_SIGNED_IN };
+
+  const MAX_ATTEMPTS = 3;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const roomSnapshot = await get(ref(database, `rooms/${roomId}`));
+      const room = roomSnapshot.exists() ? roomSnapshot.val() : null;
+      if (!room) return { ok: false, reason: REASON.NOT_FOUND };
+      if (room.host !== uid) return { ok: false, reason: REASON.NOT_HOST };
+      if (room.activeMatchId !== matchId) return { ok: false, reason: REASON.STALE_MATCH };
+      if (room.status === "result") return { ok: true }; // 既に目標状態（冪等性）
+
+      await update(ref(database), {
+        [`rooms/${roomId}/status`]: "result",
+        [`rooms/${roomId}/matches/${matchId}/coopTeamResult`]: { totalQuestions: 0, correctCount: 0, totalSharedReplayCount: 0, audioFailureAborted: true },
+      });
+      return { ok: true };
+    } catch (error) {
+      if (attempt === MAX_ATTEMPTS) return { ok: false, reason: REASON.NETWORK_ERROR };
+      await new Promise((resolve) => setTimeout(resolve, 300 * attempt));
+    }
+  }
+  return { ok: false, reason: REASON.NETWORK_ERROR };
+}
+
 // ホストが最終結果（チーム全体で1つ）を確定する。room.statusとcoopTeamResultを同じ
 // update()でまとめて書き、中間状態を避ける（js/lyricsQuizBattleFirebase.jsのfinalizeLyricsQuizMatchと
 // 同じ考え方）。
