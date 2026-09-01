@@ -11,6 +11,41 @@ import { registerPlaybackStopper, notifyPlaybackStarting } from "./playbackCoord
 
 const audioElement = document.getElementById("intro-audio");
 
+// 【2026-09-01新設・本人指示：起動後1問目だけ無音になる問題の根本原因調査】ここから下、
+// diag()を呼んでいる箇所はすべて開発者向けの診断ログで、ユーザー向けUIには一切表示しない
+// （console.log/console.warnにしか出さない）。挙動そのものは変えず、実機のブラウザ
+// コンソールから「unlockと本番再生の時系列」を後から追えるようにするためだけのもの。
+// 経過時間はこのファイルが読み込まれた瞬間（アプリ起動直後とほぼ同時）を基準にする。
+const diagStartTime = performance.now();
+function diag(label, detail) {
+  const elapsedMs = Math.round(performance.now() - diagStartTime);
+  if (detail !== undefined) {
+    console.log(`[audio診断] +${elapsedMs}ms ${label}`, detail);
+  } else {
+    console.log(`[audio診断] +${elapsedMs}ms ${label}`);
+  }
+}
+diag("audio.js読み込み完了");
+
+// audio要素そのものが発するイベントを診断用に記録する。onerror/onplaying等は
+// 曲ごとにplaySongIntro()/playSongFromRandomPosition()が直接上書きして使っているため、
+// ここではそれらと競合しないaddEventListener方式で追加する（上書きされない）。
+// 【null安全について】tests.html（ユニットテスト用の簡易ページ）には#intro-audio要素が
+// 存在せず、audioElementがnullになるケースがある。本編（index.html）では必ず存在するが、
+// 念のためここで存在チェックしてから登録する（このファイル自体は元々、audioElementが
+// nullでも「取得はできるが実際に使おうとするまでは落ちない」設計だったため、それを崩さない）。
+if (audioElement) {
+  ["canplay", "stalled", "suspend", "abort", "ended"].forEach((eventName) => {
+    audioElement.addEventListener(eventName, () => {
+      diag(`audio要素イベント: ${eventName}`, {
+        readyState: audioElement.readyState,
+        networkState: audioElement.networkState,
+        src: audioElement.src,
+      });
+    });
+  });
+}
+
 // 【2026-09-06新設・本人指示：一瞬チャレンジで音源再生失敗が再発】3→2→1カウントダウン
 // （js/localReplayCountdown.js）はsetTimeoutで約1.5秒後にonComplete()（＝実際の
 // audioElement.play()呼び出し）を呼ぶ。iOS Safari/PWAは「ユーザー操作から十分近い
@@ -33,6 +68,22 @@ const SILENT_UNLOCK_DATA_URI = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAA
 // （unlock失敗時も、これまでどおりPLAY_RETRY_WAIT_MS_LISTの再試行に委ねる）。
 let audioUnlockState = "pending"; // "pending" | "succeeded" | "failed"
 
+// 【2026-09-01新設・本人指示：起動後1問目だけ無音になる問題の根本原因調査・本対策】
+// 「今まさに進行中のattemptSilentUnlock()の後始末（play→pause、または失敗判定）が
+// 終わるPromise」を覚えておく場所。
+// 【なぜ必要か】attemptSilentUnlock()は呼び出し元（各画面のクリックハンドラ）から
+// awaitされていない、撃ちっぱなしの関数として設計されている（unlock自体は無音・
+// 一瞬なので、呼び出し側の体感速度を変えたくないため）。しかしunlock中のplay()は
+// 非同期Promiseであり、その決着がつく前に本番の曲のsrcへ差し替えてしまうと、
+// ブラウザは進行中のunlock用play()を中断（AbortErrorで拒否）する。iOSの自動再生許可は
+// 「ユーザー操作の中で呼ばれたplay()が、実際に再生を開始できた」という実績の有無に
+// 左右されるとされているため、この中断によってunlockの実績が残らないまま本番のplay()を
+// 呼んでしまうと、本番側がまだ許可されない状態のまま実行されてしまう可能性がある。
+// これを避けるため、playSongIntro()・playSongFromRandomPosition()はsrcを差し替える
+// 直前にこのPromiseを待ち、進行中のunlockを必ず先に完了させてから本番の再生へ進む
+// （ensureUnlockSettled()参照）。
+let pendingUnlockPromise = null;
+
 // 【2026-09-09改訂・本人指示：音源再生失敗の本対策】unlockの実処理を、ページ初回操作時
 // だけでなく、対戦開始操作（「準備完了」「対戦を開始する」等の明確なユーザージェスチャー）の
 // たびにも再実行できるよう、独立した関数として切り出した（exportして他ファイルから
@@ -47,16 +98,26 @@ export function attemptSilentUnlock() {
   // （!paused）のタイミングでこれを呼ぶと、pause()→currentTime=0のせいで進行中の再生を
   // 巻き戻してしまう事故になりうるため、その場合は何もしない（再生中ということは
   // その時点でunlockが機能している証拠でもあり、わざわざ試す必要も無い）。
-  if (!audioElement.paused) return;
+  if (!audioElement.paused) {
+    diag("unlock: 既に再生中のため何もしない（既存のunlockに委ねる）");
+    return;
+  }
 
   const hadSrc = !!audioElement.src;
   if (!hadSrc) audioElement.src = SILENT_UNLOCK_DATA_URI;
 
+  diag("unlock: play()呼び出し", { hadSrc, visibilityState: document.visibilityState });
   const playResult = audioElement.play();
   if (playResult && typeof playResult.then === "function") {
-    playResult
+    // 【2026-09-01追加】このPromiseの決着（成功・失敗どちらでも）をpendingUnlockPromiseに
+    // 保持しておく。ensureUnlockSettled()がこれを待つことで、「unlockの後始末が終わって
+    // からでないと本番のsrc差し替えを行わない」という順序を保証する。このPromise自体は
+    // 常にresolveし、rejectしない（catchで吸収しているため）ようにして、
+    // ensureUnlockSettled()側でtry/catchを書かずに安全にawaitできるようにしている。
+    const settledPromise = playResult
       .then(() => {
         audioUnlockState = "succeeded";
+        diag("unlock: play()成功");
         audioElement.pause();
         if (hadSrc) {
           audioElement.currentTime = 0;
@@ -70,19 +131,48 @@ export function attemptSilentUnlock() {
         // 従来どおりPLAY_RETRY_WAIT_MS_LISTの再試行に委ねるため、ここでは何もしない
         // （このunlock自体はあくまで成功率を上げるための best-effort な対策）。
         audioUnlockState = "failed";
+        diag("unlock: play()失敗", { name: error?.name, message: error?.message });
         console.warn("[audio] unlockに失敗しました（本番の音源再生には別途リトライがあります）", error?.name, error?.message);
         if (!hadSrc) {
           audioElement.removeAttribute("src");
           audioElement.load();
         }
+      })
+      .finally(() => {
+        // 自分が発行した後、誰も新しいunlockを開始していなければ後片付けする
+        // （常にnullへ戻すと、別の新しいunlockが既に走り出していた場合、その進行中の
+        // Promiseへの参照を誤って消してしまうため、自分自身のものだったときだけ消す）。
+        if (pendingUnlockPromise === settledPromise) {
+          pendingUnlockPromise = null;
+        }
       });
+    pendingUnlockPromise = settledPromise;
+  } else {
+    // 非常に古いブラウザ等、play()がPromiseを返さない場合はPromiseベースでの待ち合わせが
+    // そもそもできないため、pendingUnlockPromiseは触らない（ensureUnlockSettled()は
+    // 何もせず素通りする＝これまでどおりの挙動になるだけで、悪化はしない）。
+    diag("unlock: play()がPromiseを返さない環境のため待ち合わせ対象外");
   }
+}
+
+// 【2026-09-01新設・本人指示：起動後1問目だけ無音になる問題の本対策】直前に走っている
+// かもしれないattemptSilentUnlock()の後始末を待つ。pendingUnlockPromiseがnull
+// （unlockが進行中でない）なら何もせず即座に返る。
+// playSongIntro()・playSongFromRandomPosition()が、audio要素のsrcを本番の曲へ
+// 差し替える直前に必ず呼ぶことで、「unlockのplay()がまだ未解決のうちにsrcを
+// 差し替えてしまい、unlockが実績を残す前に中断されてしまう」というレースを防ぐ。
+async function ensureUnlockSettled() {
+  if (!pendingUnlockPromise) return;
+  diag("本番再生: 進行中のunlock完了待ち開始");
+  await pendingUnlockPromise;
+  diag("本番再生: unlock完了待ち終了");
 }
 
 function unlockAudioElementOnFirstInteraction() {
   const unlock = () => {
     document.removeEventListener("pointerdown", unlock);
     document.removeEventListener("keydown", unlock);
+    diag("初回ユーザー操作を検知（pointerdown/keydown）");
     attemptSilentUnlock();
   };
   document.addEventListener("pointerdown", unlock, { once: true });
@@ -99,6 +189,7 @@ unlockAudioElementOnFirstInteraction();
 // 明確な「操作」を挟まなくても回復のきっかけを増やすための保険。既存のロビーボタンでの
 // unlockを置き換えるものではなく、追加の安全策）。
 document.addEventListener("visibilitychange", () => {
+  diag("visibilitychange", { visibilityState: document.visibilityState });
   if (document.visibilityState === "visible") {
     attemptSilentUnlock();
   }
@@ -134,7 +225,9 @@ function releaseCurrentObjectUrl() {
 // playSongIntro()・playSongFromRandomPosition()の共通の前半処理。
 async function acquireBlobForNewPlayback(song) {
   const myToken = ++currentPlaybackToken;
+  diag(`IndexedDB取得開始 song=${song.id} token=${myToken}`);
   const blob = await getAudioBlob(song.id);
+  diag(`IndexedDB取得完了 song=${song.id} token=${myToken}`, { hasBlob: !!blob, stale: myToken !== currentPlaybackToken });
   if (myToken !== currentPlaybackToken) {
     return { myToken, blob: null, stale: true };
   }
@@ -184,12 +277,19 @@ async function attemptPlay(myToken, myObjectUrl, onError, diagnosticContext) {
       if (myToken !== currentPlaybackToken) return false;
       if (!audioElement.paused) return true;
     }
+    diag(`本番再生: play()呼び出し (${diagnosticContext}) attempt=${attempt}`, {
+      readyState: audioElement.readyState,
+      networkState: audioElement.networkState,
+      src: audioElement.src,
+    });
     try {
       await audioElement.play();
       lastError = null;
+      diag(`本番再生: play()成功 (${diagnosticContext}) attempt=${attempt}`);
       break;
     } catch (error) {
       lastError = error;
+      diag(`本番再生: play()失敗 (${diagnosticContext}) attempt=${attempt}`, { name: error?.name, message: error?.message });
     }
   }
 
@@ -246,6 +346,13 @@ export async function playSongIntro(song, onError, onPlaybackStart) {
     return;
   }
 
+  // 【2026-09-01追加・本人指示：起動後1問目だけ無音になる問題の本対策】このsrc差し替えで
+  // 進行中のunlock用play()を巻き込んで中断させてしまわないよう、srcを触る前に
+  // 進行中のunlockの後始末を待つ（ensureUnlockSettled()参照。unlockが動いていなければ
+  // 即座に返るので、通常時の体感速度への影響は無い）。
+  await ensureUnlockSettled();
+  if (myToken !== currentPlaybackToken) return;
+
   const myObjectUrl = claimAsCurrentPlayback(blob);
 
   audioElement.onerror = () => {
@@ -257,12 +364,14 @@ export async function playSongIntro(song, onError, onPlaybackStart) {
   };
   audioElement.onplaying = () => {
     if (myToken !== currentPlaybackToken) return;
+    diag(`本番再生: playingイベント (intro, song=${song.id})`);
     onPlaybackStart();
   };
   audioElement.onloadedmetadata = () => {
     if (myToken !== currentPlaybackToken) return;
     audioElement.currentTime = song.introLeadInSec || 0;
   };
+  diag(`本番再生: src設定 (intro, song=${song.id})`, { unlock: audioUnlockState });
   audioElement.src = myObjectUrl;
 
   await attemptPlay(myToken, myObjectUrl, onError, `intro, song=${song.id}`);
@@ -293,6 +402,11 @@ export async function playSongFromRandomPosition(song, computeStartTimeSec, play
     return;
   }
 
+  // 【2026-09-01追加・本人指示：起動後1問目だけ無音になる問題の本対策】playSongIntro()と
+  // 同じ理由（ensureUnlockSettled()のコメント参照）。
+  await ensureUnlockSettled();
+  if (myToken !== currentPlaybackToken) return;
+
   const myObjectUrl = claimAsCurrentPlayback(blob);
   let autoStopTimeoutId = null;
 
@@ -303,6 +417,7 @@ export async function playSongFromRandomPosition(song, computeStartTimeSec, play
   };
   audioElement.onplaying = () => {
     if (myToken !== currentPlaybackToken) return;
+    diag(`本番再生: playingイベント (randomPosition, song=${song.id})`);
     onPlaybackStart();
     // 指定秒数だけ鳴らしたら自動的に一時停止する。
     // タイマー発火時に既に追い越されていた場合は何もしない（stopAudio()や次の
@@ -321,6 +436,7 @@ export async function playSongFromRandomPosition(song, computeStartTimeSec, play
     if (myToken !== currentPlaybackToken) return;
     audioElement.currentTime = computeStartTimeSec(audioElement.duration);
   };
+  diag(`本番再生: src設定 (randomPosition, song=${song.id})`, { unlock: audioUnlockState });
   audioElement.src = myObjectUrl;
 
   await attemptPlay(myToken, myObjectUrl, onError, `randomPosition, song=${song.id}`);
