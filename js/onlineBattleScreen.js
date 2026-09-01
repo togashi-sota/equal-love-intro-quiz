@@ -95,6 +95,7 @@ import { renderCollaborativeSelectionBreakdown, wireCollaborativeSelectionDetail
 import { buildSelectorUidsBySongId } from "./onlineBattleCollaborativeSelectionPayloads.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
 import { getMemberById } from "./memberUtils.js";
+import { buildParticipantIcon } from "./onlineParticipantIcon.js";
 // 【2026-09-07新設・本人指示：ルーム参加者プロフィール】ロビー参加者の名前タップで
 // 簡易プロフィールを見る機能。既存の「みんなのプロフィール」（js/fanProfilesScreen.js）と
 // 同じ部品（DOM構築はjs/fanProfileCard.js、Firebase取得はjs/publicProfileSync.js）を
@@ -297,9 +298,18 @@ let matchInvalidationReturnRequestedForMatchId = null;
 // 表示する（表示名・推し・獲得済み称号のみ。READY等の参加状態は一切変更しない読み取り専用）。
 // 呼び出し中に別の参加者を連続でタップされても、最後にタップした人の結果だけが
 // 画面に反映されるよう、リクエストごとに世代番号を振って古い応答を無視する。
+//
+// 【2026-09-26改訂・本人指示：オンライン対戦総合改修19-10章】以前はロビー画面だけの
+// 内部関数だったが、「対戦の公平性に影響しない場所（設定画面・待機画面・問題の合間・
+// 結果画面）ならどこでもプロフィールを開けるようにしてほしい」という指示により、
+// js/onlineInstantBattleScreen.js・js/onlineInstantCoopBattleScreen.js・
+// js/onlineLyricsQuizBattleScreen.jsからも呼べるようexportする。関数名・実装（同じ
+// プロフィールモーダルを再利用する）は変えず、呼び出せる範囲だけを広げる。
+// playerは{uid, name, oshiMemberId}の形を受け取る（room.players[uid]・
+// match.participants[uid]のどちらも、この3つのプロパティを持つ）。
 let lobbyProfileRequestToken = 0;
 
-async function openLobbyParticipantProfile(player) {
+export async function openLobbyParticipantProfile(player) {
   if (!elements.lobbyProfileModal) return;
   const requestToken = ++lobbyProfileRequestToken;
 
@@ -376,16 +386,29 @@ function closeLobbyParticipantProfile() {
 // 推し（最推し）が設定されていれば、色ドットの要素を1つ作って返す。未設定・不正な値
 // （既存のメンバーデータに一致しない等）の場合はnullを返す（エラーにせず何も表示しない）。
 // ロビー・待機画面・結果画面のいずれも同じ見た目のドットを使うため、共通化している。
-function createOshiDotElement(oshiMemberId) {
-  const oshiMember = oshiMemberId ? getMemberById(MEMBERS, oshiMemberId) : null;
-  if (!oshiMember?.memberColor?.hex) return null;
+// 【2026-09-26改訂・本人指示：オンライン対戦総合改修19-8章】以前は推し色だけの
+// 小さなドット（16px、称号バッジ無し）だったが、「ロビー・スコア一覧・結果画面を
+// 見ただけで、この人がどんな称号を持っているか分かるようにしたい」という指示により、
+// js/onlineParticipantIcon.jsの共通アイコン（推し色の丸＋代表称号バッジ、みんなの
+// プロフィールと同じ王冠・ダイヤ装飾）へ差し替えた。呼び出し側の6箇所（対戦開始前
+// ルール確認・再戦準備・ロビー本体・観戦者一覧・待機画面・結果画面）はこの関数を
+// そのまま使い続けられるよう、関数名・戻り値の形（挿入可能なDOM要素）は変えていない。
+// 推し未設定の相手でも（以前は何も表示しなかったが）灰色のプレースホルダー丸を返す
+// ことで、「参加者には必ずアイコンがある」という一貫した見た目にする。
+function createOshiDotElement(oshiMemberId, uid) {
+  return buildParticipantIcon(oshiMemberId, uid);
+}
 
-  const dot = document.createElement("span");
-  dot.className = "online-lobby-player-oshi-dot";
-  dot.style.backgroundColor = oshiMember.memberColor.hex;
-  dot.title = `推し：${oshiMember.name}`;
-  dot.setAttribute("aria-label", `推し：${oshiMember.name}`);
-  return dot;
+// 【2026-09-26新設・本人指示：オンライン対戦総合改修19-14章】ロビー・設定画面の参加者
+// 並び順は「①自分→②それ以外は参加順」に統一する（本人とChatGPTで決めた仕様）。
+// 対戦中・スコア表示・結果画面は既存の順位ロジック（compareBattleResults等）を
+// そのまま使うため、この関数の対象外。
+function compareParticipantEntriesForLobbyDisplay(myUid) {
+  return ([uidA, playerA], [uidB, playerB]) => {
+    if (uidA === myUid && uidB !== myUid) return -1;
+    if (uidB === myUid && uidA !== myUid) return 1;
+    return (playerA.joinedAt ?? 0) - (playerB.joinedAt ?? 0);
+  };
 }
 
 // 【2026-09-05新設、本人指示：在席確認システム】接続中（connected）の人の「在席確認中／
@@ -763,7 +786,7 @@ function renderMatchConfirmScreen(room) {
 
   buildCurrentRuleExplanation(elements.confirmRuleExplanation, room);
 
-  const playerEntries = Object.entries(players).sort(([, a], [, b]) => a.joinedAt - b.joinedAt);
+  const playerEntries = Object.entries(players).sort(compareParticipantEntriesForLobbyDisplay(myUid));
   const allConfirmed = computeAllPlayersConfirmed(players);
 
   elements.confirmPlayerList.innerHTML = "";
@@ -772,7 +795,7 @@ function renderMatchConfirmScreen(room) {
     li.className = "online-lobby-player-row";
     if (uid === myUid) li.classList.add("is-me");
 
-    const oshiDot = createOshiDotElement(player.oshiMemberId);
+    const oshiDot = createOshiDotElement(player.oshiMemberId, uid);
     if (oshiDot) li.appendChild(oshiDot);
 
     const name = document.createElement("span");
@@ -905,7 +928,7 @@ function renderRematchReadyScreen(room) {
 
   renderRematchSummaryChips(elements.rematchReadySummary, room);
 
-  const playerEntries = Object.entries(players).sort(([, a], [, b]) => a.joinedAt - b.joinedAt);
+  const playerEntries = Object.entries(players).sort(compareParticipantEntriesForLobbyDisplay(myUid));
   const allReady = computeAllPlayersRematchReady(players);
 
   elements.rematchReadyPlayerList.innerHTML = "";
@@ -914,7 +937,7 @@ function renderRematchReadyScreen(room) {
     li.className = "online-lobby-player-row";
     if (uid === myUid) li.classList.add("is-me");
 
-    const oshiDot = createOshiDotElement(player.oshiMemberId);
+    const oshiDot = createOshiDotElement(player.oshiMemberId, uid);
     if (oshiDot) li.appendChild(oshiDot);
 
     const name = document.createElement("span");
@@ -1035,18 +1058,26 @@ function readSettingsFromHostForm() {
 // ホストの設定フォームの今の内容を検証し、問題なければFirebaseへ反映する
 // （設定ラジオの変更から呼ばれる。曲そのものの選択はsyncCollaborativeSongPoolIfHost()が
 // 別途、参加者全員の選択が変わるたびに自動的に反映する）。
+// 【2026-09-26改訂・本人指示：オンライン対戦総合改修19-3章】以前は、対戦を始めるには
+// 曲数が足りない等の検証エラーがあると、ここでFirebaseへの書き込みそのものを取りやめて
+// いた。しかしその結果、settings.questionSourceがFirebase上では「曲を選んで出題」に
+// 更新されないまま古い状態（全曲から出題）に取り残され、次にroomが再描画されるたびに
+// updateCollabSongSectionUi()がFirebase確定値だけを見て「曲を選んで出題」の選曲UI一式を
+// 非表示に戻してしまい、曲数が足りないのに曲を追加する手段が無くなる、という詰み状態を
+// 生んでいた（本人指示：「警告は開始できない理由を伝えるものであって、設定変更まで禁止
+// するものにしないでください」「選曲ボタん→条件不足でも常に使用可能」）。
+// 対戦を実際に開始できるかどうかの検証は、この関数とは別に「対戦を開始する」ボタンの
+// クリック処理（startBattle()・beginMatchConfirmation()）が改めて行っているため、
+// ここで検証エラー時にも設定を保存すること自体は安全（開始条件の判定を緩めることには
+// ならない）。
 async function applyHostSettingsChangeFromForm() {
   if (!currentRoomId) return;
   const settings = readSettingsFromHostForm();
   elements.lobbySettingsPenaltyFieldset.hidden = settings.rule !== "normal";
 
   const errorMessage = validateRoomSettings(currentGameMode, settings);
-  if (errorMessage) {
-    elements.lobbyStartError.textContent = errorMessage;
-    elements.lobbyStartError.hidden = false;
-    return;
-  }
-  elements.lobbyStartError.hidden = true;
+  elements.lobbyStartError.textContent = errorMessage ?? "";
+  elements.lobbyStartError.hidden = !errorMessage;
   await updateRoomSettings({ roomId: currentRoomId, settings });
 }
 
@@ -1109,16 +1140,15 @@ function readInstantBattleSettingsFromHostForm() {
   return settings;
 }
 
+// 【2026-09-26改訂・本人指示：オンライン対戦総合改修19-3章】applyHostSettingsChangeFromForm()と
+// 同じ理由で、検証エラー時もFirebaseへの書き込み自体は必ず行う（曲数不足等で「開始できない」
+// ことと「設定として保存できない」ことを区別する。開始条件はstartBattle()側が別途守る）。
 async function applyInstantBattleHostSettingsChangeFromForm() {
   if (!currentRoomId) return;
   const settings = readInstantBattleSettingsFromHostForm();
   const errorMessage = validateRoomSettings(currentGameMode, settings);
-  if (errorMessage) {
-    elements.instantBattleSettingsError.textContent = errorMessage;
-    elements.instantBattleSettingsError.hidden = false;
-    return;
-  }
-  elements.instantBattleSettingsError.hidden = true;
+  elements.instantBattleSettingsError.textContent = errorMessage ?? "";
+  elements.instantBattleSettingsError.hidden = !errorMessage;
   await updateRoomSettings({ roomId: currentRoomId, settings });
 }
 
@@ -1667,8 +1697,8 @@ function renderLobby(room) {
     lastHandledRoomStatus = room.status;
   }
   const playerList = Object.entries(players)
-    .map(([uid, player]) => ({ uid, ...player }))
-    .sort((a, b) => a.joinedAt - b.joinedAt);
+    .sort(compareParticipantEntriesForLobbyDisplay(myUid))
+    .map(([uid, player]) => ({ uid, ...player }));
 
   elements.lobbyPlayerList.innerHTML = "";
   playerList.forEach((player) => {
@@ -1676,11 +1706,8 @@ function renderLobby(room) {
     row.className = "online-lobby-player-row";
     if (player.uid === myUid) row.classList.add("is-me");
 
-    // 推し（最推し）が設定されていれば、名前の左に色ドットを添える。
-    // oshiMemberIdが無い、または既存のメンバーデータに一致しない場合（データの不整合・
-    // 将来メンバーが削除された場合等）は、エラーにせず何も表示しないだけにする
-    // （本人の要望：未設定時は今まで通り何も表示しない、不正な値でも安全に無視する）。
-    const oshiDot = createOshiDotElement(player.oshiMemberId);
+    // 推し（最推し）が設定されていれば、名前の左に推し色＋代表称号バッジのアイコンを添える。
+    const oshiDot = createOshiDotElement(player.oshiMemberId, player.uid);
     if (oshiDot) row.appendChild(oshiDot);
 
     // 【2026-09-07新設・本人指示：ルーム参加者プロフィール】名前をタップすると、その人の
@@ -1960,8 +1987,18 @@ function renderLobby(room) {
       // 【本人指示：「音が出ない」救済ボタン第2段階の再設計（試合全体無効化）】ホスト・
       // ゲストを問わず、全参加者に「なぜこの試合が無効になり、ロビーへ戻ったのか」が
       // ひと目で分かる専用の通知を出す（本人指示：理由が明確に伝わる通知を表示すること）。
-      if (wasMatchInvalidatedOnReturn && elements.lobbyMatchInvalidatedNotice) {
-        elements.lobbyMatchInvalidatedNotice.hidden = false;
+      // 【2026-09-26修正・本人指示：オンライン対戦総合改修19-4章】以前はここで
+      // wasMatchInvalidatedOnReturnがtrueのときにhidden=falseへ切り替えるだけで、falseの
+      // ときに明示的にhidden=trueへ戻す処理が無かった。この通知を非表示に戻す唯一の
+      // 場所がgoToLobby()（ルームへ新規入場したときだけ呼ばれる）だったため、一度表示
+      // されると、同じルーム内でその後どれだけ新しい試合を始めても（＝isReturnedToLobbyを
+      // 経由するたびにこの分岐へ来ても）非表示に戻る機会が無く、ずっと画面に残り続けて
+      // いた（本人からの実機報告：「一度起きたらそのルーム中ずっと赤い警告が残る」）。
+      // ロビーへ戻るたびに、今回の試合が無効化によるものかどうかで毎回表示を決め直す
+      // ことで、「次の試合に移った段階で前試合の無効理由が分かる程度」に留め、それ以降の
+      // 試合には持ち越さないようにする。
+      if (elements.lobbyMatchInvalidatedNotice) {
+        elements.lobbyMatchInvalidatedNotice.hidden = !wasMatchInvalidatedOnReturn;
       }
     }
   }
@@ -2090,7 +2127,7 @@ function renderSpectatorView(room) {
   rows.forEach((row) => {
     const li = document.createElement("li");
     li.className = "online-lobby-player-row";
-    const oshiDot = createOshiDotElement(row.oshiMemberId);
+    const oshiDot = createOshiDotElement(row.oshiMemberId, row.uid);
     if (oshiDot) li.appendChild(oshiDot);
     const name = document.createElement("span");
     name.className = "online-lobby-player-name";
@@ -2218,7 +2255,7 @@ function renderOnlineBattleWaitingList(room, rows, myUid) {
     li.className = "online-lobby-player-row";
     if (row.uid === myUid) li.classList.add("is-me");
 
-    const oshiDot = createOshiDotElement(row.oshiMemberId);
+    const oshiDot = createOshiDotElement(row.oshiMemberId, row.uid);
     if (oshiDot) li.appendChild(oshiDot);
 
     const name = document.createElement("span");
@@ -2376,11 +2413,19 @@ function goToResultScreen(room) {
   function appendNameRow(container, participant, uid) {
     const nameRow = document.createElement("p");
     nameRow.className = "battle-rank-name";
-    const oshiDot = createOshiDotElement(participant.oshiMemberId);
+    const oshiDot = createOshiDotElement(participant.oshiMemberId, uid);
     if (oshiDot) nameRow.appendChild(oshiDot);
 
-    const nameText = document.createElement("span");
+    // 【2026-09-26新設・本人指示：オンライン対戦総合改修19-15章】結果画面では名前・
+    // アイコンを押すとプロフィールを開けるようにする（対戦の進行に一切影響しない画面のため、
+    // 常に許可してよい場所）。
+    const nameText = document.createElement("button");
+    nameText.type = "button";
+    nameText.className = "battle-rank-name-button";
     nameText.textContent = participant.displayName;
+    nameText.addEventListener("click", () =>
+      openLobbyParticipantProfile({ uid, name: participant.displayName, oshiMemberId: participant.oshiMemberId })
+    );
     nameRow.appendChild(nameText);
 
     if (uid === myUid) {

@@ -93,6 +93,10 @@ export function describeScoreboard({ ruleId, scoreSnapshot, participantsByUid, m
   const rows = Object.keys(participantsByUid ?? {}).map((uid) => ({
     uid,
     displayName: participantsByUid[uid]?.displayName ?? uid,
+    // 【2026-09-26追加・本人指示：オンライン対戦総合改修19-8章】スコアボードの各行にも
+    // 推し色＋代表称号バッジのアイコンを添えるため、参加者データに既に含まれている
+    // oshiMemberIdをそのまま持ち出す（新しい取得経路は増やさない）。
+    oshiMemberId: participantsByUid[uid]?.oshiMemberId ?? null,
     isMe: uid === myUid,
     value: scoresByUid[uid]?.[valueKey] ?? 0,
   }));

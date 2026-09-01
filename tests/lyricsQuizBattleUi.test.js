@@ -265,7 +265,7 @@ export function runLyricsQuizBattleUiTests() {
   // ===== describeScoreboard（2026-09-01新設：ライブスコアボード） =====
   {
     const participantsByUid = {
-      p1: { displayName: "たろう" },
+      p1: { displayName: "たろう", oshiMemberId: "member-taro" },
       p2: { displayName: "はなこ" },
       p3: { displayName: "じろう" },
     };
@@ -285,6 +285,18 @@ export function runLyricsQuizBattleUiTests() {
       assertEqual(scoreboard.rows.find((row) => row.uid === "p1").isMe, true, "myUidと一致する行にisMe:trueが立つ");
       assertEqual(scoreboard.rows.find((row) => row.uid === "p2").isMe, false, "myUid以外はisMe:false");
       assertEqual(scoreboard.rows.find((row) => row.uid === "p1").displayName, "たろう", "参加者の表示名がそのまま使われる");
+      // 【2026-09-26追加・本人指示：オンライン対戦総合改修19-8章】スコアボードの各行にも
+      // 推し色＋代表称号バッジのアイコンを添えられるよう、oshiMemberIdをそのまま持ち出す。
+      assertEqual(
+        scoreboard.rows.find((row) => row.uid === "p1").oshiMemberId,
+        "member-taro",
+        "参加者データにoshiMemberIdがあればそのまま行に含まれる"
+      );
+      assertEqual(
+        scoreboard.rows.find((row) => row.uid === "p2").oshiMemberId,
+        null,
+        "oshiMemberIdが無い参加者はnullになる（未定義エラーにしない）"
+      );
     }
 
     // ----- ポイントバトル・早押しバトル：totalPointsを見せる -----

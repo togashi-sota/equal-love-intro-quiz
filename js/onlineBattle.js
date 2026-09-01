@@ -52,6 +52,7 @@ import {
   getAvailabilityKind,
 } from "./battleModes/index.js";
 import { restrictSettingsToCommonlyAvailableSongs } from "./onlineBattleSongAvailability.js";
+import { QUESTION_SOURCE_TYPE } from "./questionSource.js";
 import { pickNextHostUid } from "./onlineBattleHostTransitionPayloads.js";
 import { computeAllPlayersRematchReady } from "./onlineBattleMatchConfirmationPayloads.js";
 import { startActivityPresenceTracking, stopActivityPresenceTracking } from "./onlineBattlePresence.js";
@@ -628,8 +629,20 @@ export async function updateRoomSettings({ roomId, settings }) {
   const room = snapshot.val();
   if (room.host !== uid) return { ok: false, reason: "not-host" };
 
+  // 【2026-09-26改訂・本人指示：オンライン対戦総合改修19-2/19-3章】以前はここで
+  // validateRoomSettings()がエラーを返すと、設定そのものをFirebaseへ書き込まずに
+  // 失敗として返していた。しかしこの検証は「今すぐ対戦を開始できるか」（出題数に対して
+  // 曲が足りているか等）の検証であり、「設定として保存してよいか」とは別の話である。
+  // 書き込みを拒否してしまうと、たとえば曲数が足りない状態で「曲を選んで出題」へ
+  // 切り替えようとしても、その意思表示自体がFirebaseに残らず、次の画面更新で
+  // ラジオ・選曲UIが「全曲から出題」へ強制的に戻される（＝曲を追加するための選曲画面へ
+  // 二度と入れなくなる）という詰み状態を生んでいた（本人指示：「警告は開始できない
+  // 理由を伝えるものであって、設定変更まで禁止するものにしないでください」）。
+  // 実際に対戦を開始できるかどうかの検証は、resolveBattleStartValidation()
+  // （startBattle()・beginMatchConfirmation()が呼ぶ）が独立して行っているため、
+  // ここで検証エラーのまま書き込みを許しても、対戦の開始条件が緩むことはない。
+  // 戻り値のmessageは、呼び出し側が警告文をそのまま表示できるよう引き続き返す。
   const errorMessage = validateRoomSettings(room.gameMode, settings);
-  if (errorMessage) return { ok: false, reason: "invalid-settings", message: errorMessage };
 
   // 【2026-09-07改訂・本人指示：READY状態をルール変更で解除しない】以前はここで非ホスト
   // 全員のready/readyForRevisionを強制的に解除していたが、「ルールを少し変えるたびに
@@ -647,7 +660,9 @@ export async function updateRoomSettings({ roomId, settings }) {
   };
 
   await update(ref(database), updates);
-  return { ok: true, settingsRevision: nextRevision };
+  return errorMessage
+    ? { ok: true, settingsRevision: nextRevision, validationMessage: errorMessage }
+    : { ok: true, settingsRevision: nextRevision };
 }
 
 // 【2026-08-30新設、本人指示：オンライン対戦全面アップデート】ホストがロビーで対戦モード
@@ -676,6 +691,24 @@ export async function updateRoomGameMode({ roomId, gameMode }) {
 
   const settings = createDefaultSettings(gameMode);
   if (!settings) return { ok: false, reason: "unsupported-mode" };
+
+  // 【2026-09-26追加・本人指示：オンライン対戦総合改修19-2/19-3章】モードを変更しても、
+  // 「曲を選んで出題」で選んだ曲は可能な限り引き継ぐ（本人指示：「モード変更したら選曲を
+  // 全部リセットするのではなく、ユーザーが選んだ曲集合はルーム設定として可能な限り
+  // 引き継ぎ、そのモードで使用可能な曲だけを有効曲として評価する」）。
+  // 【何を引き継ぐか】players/{uid}/selectedSongIds（各参加者の生の選択）自体はこの関数では
+  // 一切触れていないため、常にそのまま残る。ここで引き継ぐ必要があるのは、
+  // settings.questionSource.type（「曲を選んで出題」を選んでいたという事実）だけである。
+  // これをcreateDefaultSettings()の既定値（type省略＝全曲から出題）で上書きしてしまうと、
+  // 曲選択UI（js/onlineBattleScreen.jsのupdateCollabSongSectionUi()）がsettings確定値だけを
+  // 見て非表示になり、モード変更後に選曲編集へ入れなくなる不具合が起きていた。
+  // songIdsは新モードでの有効曲数によって変わりうるため、ここでは空にしておき、次に
+  // ホストが設定を保存する際（applyHostSettingsChangeFromForm等）に新モードの有効曲で
+  // 絞り込んだ最新の値へ自動的に更新される（syncCollaborativeSongPoolIfHostが担当）。
+  const wasCollaborativeSelection = room.settings?.questionSource?.type === QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION;
+  if (wasCollaborativeSelection) {
+    settings.questionSource = { type: QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION, songIds: [] };
+  }
 
   // 【2026-09-07改訂・本人指示：READY状態をルール変更で解除しない】updateRoomSettings()と
   // 同じ理由でREADYの強制解除をやめた（詳しいコメントはそちら参照）。

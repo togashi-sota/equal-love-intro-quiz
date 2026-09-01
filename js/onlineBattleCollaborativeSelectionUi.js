@@ -43,9 +43,27 @@ export function renderCollaborativeSelectionBreakdown({
         nameEl.textContent = entry.uid === currentUid ? `${entry.displayName}（あなた）` : entry.displayName;
         row.appendChild(nameEl);
 
-        const songsEl = document.createElement("p");
+        // 【2026-09-26改訂・本人指示：オンライン対戦総合改修19-1章】以前はここを「、」区切りの
+        // 1本の文章として描画しており、共有曲一覧（丸いピンクのチップ）とデザインが揃って
+        // いなかった（本人指示：「参加者ごとの選択」だけ別のUI部品のように見える）。曲ごとに
+        // 個別のチップへ分割し、共有曲一覧と同じ「曲名＝ピンクの丸チップ」という見た目の
+        // 言語を踏襲する。ただし完全に同じ見た目にはせず、共有曲一覧＝塗りつぶし、参加者ごとの
+        // 選択＝縁取りのチップにして、両者が別の情報であることも一目で区別できるようにする。
+        const songsEl = document.createElement("div");
         songsEl.className = "online-battle-collab-breakdown-songs";
-        songsEl.textContent = entry.songIds.map((songId) => songTitleResolver(songId)).join("、");
+        if (entry.songIds.length === 0) {
+          const emptyNote = document.createElement("span");
+          emptyNote.className = "online-battle-collab-breakdown-songs-empty";
+          emptyNote.textContent = "まだ選んでいません";
+          songsEl.appendChild(emptyNote);
+        } else {
+          entry.songIds.forEach((songId) => {
+            const chip = document.createElement("span");
+            chip.className = "online-battle-collab-breakdown-song-chip";
+            chip.textContent = songTitleResolver(songId);
+            songsEl.appendChild(chip);
+          });
+        }
         row.appendChild(songsEl);
 
         byPlayerListElement.appendChild(row);

@@ -4082,7 +4082,11 @@
              【情報漏洩防止】ここに表示されるのはmatches/{matchId}/scoreSnapshot（ホストが
              各問題のreveal完了後にまとめて書き込む、1つ前の問題までの確定スコア）だけで、
              今の問題の回答内容には一切触れない。 -->
-        <details id="online-lyrics-battle-scoreboard" class="online-lyrics-battle-scoreboard">
+        <!-- 2026-09-26改訂・本人指示：オンライン対戦総合改修19-5章。以前はopen属性を
+             一切付けておらず、ブラウザのdetails要素の既定値（閉）のまま表示されていた。
+             オンライン対戦では「今、自分が何位か」「相手が何点か」が重要な情報のため、
+             問題画面に入った時点から展開しておく（本人指示：「最初から展開状態にしてください」）。 -->
+        <details id="online-lyrics-battle-scoreboard" class="online-lyrics-battle-scoreboard" open>
           <summary class="online-lyrics-battle-scoreboard-summary">
             <span>📊 みんなのスコア</span>
             <span id="online-lyrics-battle-scoreboard-summary-hint" class="online-lyrics-battle-scoreboard-summary-hint"></span>

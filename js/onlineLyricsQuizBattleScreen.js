@@ -131,6 +131,13 @@ import { SONGS } from "./data/songs.js";
 import { MEMBERS } from "./data/members.js";
 import { renderCollaborativeSelectionBreakdown, wireCollaborativeSelectionDetailsToggle, resetCollaborativeSelectionDetailsPanel } from "./onlineBattleCollaborativeSelectionUi.js";
 import { getMemberById } from "./memberUtils.js";
+// 【2026-09-26新設・本人指示：オンライン対戦総合改修19-10章】ロビーの参加者プロフィール
+// モーダル（js/onlineBattleScreen.js）を、歌詞クイズ対戦のスコアボードからも再利用する。
+// 循環import（onlineBattleScreen.js側も本ファイルをimportしている）になるが、
+// openLobbyParticipantProfile()はイベントハンドラの中でだけ呼び出す関数宣言のため、
+// モジュール読み込み順に依存せず安全に使える。
+import { openLobbyParticipantProfile } from "./onlineBattleScreen.js";
+import { buildParticipantIcon } from "./onlineParticipantIcon.js";
 import { QUESTION_COUNT_LABELS, CATEGORY_LABELS } from "./localBattleScreen.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
 import { STEAL_CLAIM_OUTCOME } from "./lyricsQuizBattleFirebasePayloads.js";
@@ -500,21 +507,20 @@ export function handleLyricsQuizRoomUpdate(room) {
 
 // ===== ロビー：対戦設定・歌詞データ充足状況 =====
 
+// 【2026-09-26改訂・本人指示：オンライン対戦総合改修19-3章】以前は検証エラー時に
+// Firebaseへの書き込みそのものを取りやめていたが、js/onlineBattleScreen.jsの
+// applyHostSettingsChangeFromForm()と同じ理由（「開始できない」ことと「設定として
+// 保存できない」ことの混同が、曲数不足時に選曲UIへ二度と入れなくなる詰みを生んでいた）で、
+// 検証エラー時も設定の保存自体は必ず行うようにする。開始条件はstartBattle()側が別途守る。
 async function applyLyricsQuizSettingsChange(room, nextSettings) {
   const errorMessage = validateRoomSettings(room.gameMode, nextSettings);
-  if (errorMessage) {
-    // 【2026-08-08追記】出題する曲を絞り込めるようになったことで、「出題数に対して選択曲が
-    // 足りない」検証エラーが実際に起こりうるようになった（本人指示：「10問対戦を開始するには
-    // 10曲以上選択してください」等、分かりやすいエラーを表示すること）。以前はconsole.errorだけで
-    // 画面には何も出ていなかったため、ここで可視化する。
-    if (elements.lyricsSettingsError) {
-      elements.lyricsSettingsError.textContent = errorMessage;
-      elements.lyricsSettingsError.hidden = false;
-    }
-    console.error("歌詞クイズ対戦設定が不正です:", errorMessage);
-    return;
+  // 【2026-08-08追記】出題する曲を絞り込めるようになったことで、「出題数に対して選択曲が
+  // 足りない」検証エラーが実際に起こりうるようになった（本人指示：「10問対戦を開始するには
+  // 10曲以上選択してください」等、分かりやすいエラーを表示すること）。
+  if (elements.lyricsSettingsError) {
+    elements.lyricsSettingsError.textContent = errorMessage ?? "";
+    elements.lyricsSettingsError.hidden = !errorMessage;
   }
-  if (elements.lyricsSettingsError) elements.lyricsSettingsError.hidden = true;
   await updateRoomSettings({ roomId: room.roomId, settings: nextSettings });
 }
 
@@ -1820,8 +1826,20 @@ function renderScoreboard(match, { ruleId, isResolved }) {
     rankSpan.textContent = `${index + 1}`;
     item.appendChild(rankSpan);
 
-    const nameSpan = document.createElement("span");
+    item.appendChild(buildParticipantIcon(row.oshiMemberId, row.uid));
+
+    // 【2026-09-26新設・本人指示：オンライン対戦総合改修19-11章】プロフィールは、
+    // 回答受付中・制限時間が進んでいる問題中は開けないようにする（対戦の公平性に
+    // 影響する時間帯のため）。問題が確定した後（isResolved）だけ名前をタップ可能にする。
+    const nameSpan = document.createElement(isResolved ? "button" : "span");
     nameSpan.className = "online-lyrics-battle-scoreboard-name";
+    if (isResolved) {
+      nameSpan.type = "button";
+      nameSpan.classList.add("online-lyrics-battle-scoreboard-name-button");
+      nameSpan.addEventListener("click", () =>
+        openLobbyParticipantProfile({ uid: row.uid, name: row.displayName, oshiMemberId: row.oshiMemberId })
+      );
+    }
     nameSpan.textContent = row.isMe ? `${row.displayName}（あなた）` : row.displayName;
     item.appendChild(nameSpan);
 
@@ -1889,8 +1907,21 @@ function renderCurrentQuestionState() {
   renderIdleNotice(match, qIndex, nowServerTimeMs);
 
   maybeRecordMyOutcomeForResolvedQuestions(match);
-  const hudItems = describeHudItems(latestRoom.settings.battleRuleId, computeMyLiveHudStats());
-  renderHud(elements.battleHudContainer, hudItems);
+  // 【2026-09-26改訂・本人指示：オンライン対戦総合改修19-6章】以前は「📊 みんなのスコア」
+  // とは別に、自分の得点だけを表示する大きなカード（現在のポイント）を常に表示しており、
+  // 縦スペースを大きく使って回答候補が下へ押し出されていた。しかも早押しバトル以外では
+  // スコアボードにも自分の行（is-me）が既に表示されており、情報が完全に重複していた。
+  // スコアボードが見えている間はこのHUDを出さず、スコアボード自体が意図的に隠れている
+  // 早押しバトルの回答収集中（本人指示：他人の途中経過を見せると不公平になるため）だけ、
+  // 唯一自分の得点を確認する手段としてHUDを表示する（役割自体は削除しない）。
+  const isScoreboardVisible = ruleId !== "steal" || isResolved;
+  if (elements.battleHudContainer) {
+    elements.battleHudContainer.hidden = isScoreboardVisible;
+    if (!isScoreboardVisible) {
+      const hudItems = describeHudItems(latestRoom.settings.battleRuleId, computeMyLiveHudStats());
+      renderHud(elements.battleHudContainer, hudItems);
+    }
+  }
   renderScoreboard(match, { ruleId, isResolved });
 
   // 【2026-08-31改訂、本人指示：歌詞クイズ3ルール全面改修】「先に回答したプレイヤーだけに

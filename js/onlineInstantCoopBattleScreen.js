@@ -90,6 +90,9 @@ import {
   isDurationMismatchWithinTolerance,
 } from "./randomPlaybackEngine.js";
 import { playSongFromRandomPosition, stopAudio, attemptSilentUnlock, reportPlaybackTrouble } from "./audio.js";
+// 【2026-09-26新設・本人指示：オンライン対戦総合改修19-18章】js/onlineInstantBattleScreen.js
+// と同じ理由で、既存の診断ログ基盤を再利用する。
+import { recordAudioDiagnostic } from "./audioDiagnosticLog.js";
 import { LARGE_ANSWER_POOL_THRESHOLD } from "./lyricsQuizEngine.js";
 import {
   createAnswerPoolBrowseState,
@@ -100,6 +103,11 @@ import {
 import { QUESTION_SOURCE_TYPE } from "./questionSource.js";
 import { CATEGORY_LABELS, QUESTION_COUNT_LABELS } from "./localBattleScreen.js";
 import { getMemberById } from "./memberUtils.js";
+// 【2026-09-26新設・本人指示：オンライン対戦総合改修19-8/19-10章】共通の参加者アイコン
+// （推し色＋代表称号バッジ）と、ロビーの参加者プロフィールモーダル（js/onlineBattleScreen.js）を
+// 結果画面・回答状況一覧から再利用する。
+import { buildParticipantIcon } from "./onlineParticipantIcon.js";
+import { openLobbyParticipantProfile } from "./onlineBattleScreen.js";
 import { MEMBERS } from "./data/members.js";
 import { savePlayHistoryEntryIfNew } from "./playHistory.js";
 import { buildInstantCoopQuestionBreakdown, capQuestionBreakdownForStorage } from "./battleQuestionBreakdown.js";
@@ -438,16 +446,16 @@ export function handleInstantCoopRoomUpdate(room) {
 
 // ===== ロビー：対戦設定 =====
 
+// 【2026-09-26改訂・本人指示：オンライン対戦総合改修19-3章】js/onlineBattleScreen.jsの
+// applyHostSettingsChangeFromForm()と同じ理由で、検証エラー時もFirebaseへの書き込み自体は
+// 必ず行う（曲数不足等で「開始できない」ことと「設定として保存できない」ことを区別する。
+// 開始条件はstartBattle()側が別途守る）。
 async function applySettingsChangeFromForm() {
   if (!latestRoom) return;
   const settings = readSettingsFromHostForm();
   const errorMessage = validateRoomSettings(latestRoom.gameMode, settings);
-  if (errorMessage) {
-    elements.settingsError.textContent = errorMessage;
-    elements.settingsError.hidden = false;
-    return;
-  }
-  elements.settingsError.hidden = true;
+  elements.settingsError.textContent = errorMessage ?? "";
+  elements.settingsError.hidden = !errorMessage;
   await updateRoomSettings({ roomId: latestRoom.roomId, settings });
 }
 
@@ -540,8 +548,29 @@ export async function enterInstantCoopBattlePlay(room) {
   lastActivityReportedAtMs = 0;
   lastActivityReportedQIndex = -1;
   disconnectedSinceMsByUid.clear();
+  localAudioRecoveryAttemptedForQIndex.clear();
 
   elements.error.hidden = true;
+
+  // 【2026-09-26新設・本人指示：オンライン対戦総合改修19-17章】js/onlineInstantBattleScreen.js
+  // のenterOnlineInstantBattlePlay()と同じ理由・同じ対策。navigateTo()で画面を表示する前に、
+  // 前試合固有のDOM内容（答え合わせカード・回答候補・回答状況一覧）を明示的に空にしておく。
+  if (elements.revealSection) elements.revealSection.hidden = true;
+  if (elements.revealCorrectSong) elements.revealCorrectSong.textContent = "";
+  if (elements.revealTeamAnswer) elements.revealTeamAnswer.textContent = "";
+  if (elements.revealOutcomeBadge) {
+    elements.revealOutcomeBadge.textContent = "";
+    elements.revealOutcomeBadge.classList.remove("is-correct-answer-reveal-status", "is-neutral-answer-reveal-status");
+  }
+  if (elements.revealTieBreakNotice) elements.revealTieBreakNotice.hidden = true;
+  if (elements.revealDecisionReason) elements.revealDecisionReason.textContent = "";
+  if (elements.revealVoteList) clearElement(elements.revealVoteList);
+  if (elements.answerSection) elements.answerSection.hidden = true;
+  if (elements.answerList) elements.answerList.innerHTML = "";
+  if (elements.answerStatusList) clearElement(elements.answerStatusList);
+  if (elements.waitingNotice) elements.waitingNotice.hidden = true;
+  if (elements.idleNotice) elements.idleNotice.hidden = true;
+
   elements.navigateTo("onlineInstantCoopBattleQuestion");
   startServerTimeOffsetTracking();
 
@@ -731,7 +760,17 @@ async function runHostProgressionTick() {
     // 【2026-09-09新設・本人指示：音源再生失敗時の公平性対策】誰か1人でもこの問題で
     // 音源再生に失敗したと報告していれば（js/instantCoopBattleFirebase.jsの
     // reportAudioFailure()が書き込む）、投票の集計より優先してこの問題を無効にする。
-    const hasAudioFailureReport = Object.keys(match.audioFailures?.[qIndex] ?? {}).length > 0;
+    const audioFailureUids = Object.keys(match.audioFailures?.[qIndex] ?? {});
+    const hasAudioFailureReport = audioFailureUids.length > 0;
+    // 【2026-09-26新設・本人指示：オンライン対戦総合改修19-18章】
+    // js/onlineInstantBattleScreen.jsと同じ理由。
+    if (hasAudioFailureReport && nextHostState.currentQuestion.status !== "resolved") {
+      recordAudioDiagnostic("[ONLINE_INSTANT_COOP] ホスト：audioFailure報告を検知しこの問題を無効化", {
+        matchId: currentMatchId,
+        questionIndex: qIndex,
+        reportedByUids: audioFailureUids,
+      });
+    }
     const beforeTick = nextHostState;
     nextHostState = tick(nextHostState, Date.now(), hasAudioFailureReport);
     hostState = nextHostState;
@@ -806,13 +845,54 @@ function showAudioErrorInline(message) {
 // 自分の端末だけで曲を差し替えることはできない。代わりに、再生失敗をFirebaseへ報告し、
 // ホストの進行ミラー（js/instantCoopMatchProgress.js）に「誰か1人でも失敗した問題」として
 // 検知させ、全員一律で無効化・予備曲への差し替えを行わせる（本人指示1-4）。
+// 【2026-09-26新設・本人指示：オンライン対戦総合改修19-16章】js/onlineInstantBattleScreen.js
+// のhandlePlaybackFailure()と全く同じ考え方・同じ理由。安全機構（誰か1人の報告で
+// 全員に無効化が波及する設計）自体は維持しつつ、サーバーへ報告する前に1回だけ
+// ローカルで再unlock→再生を試みることで、iOSの自動再生許可が長い無操作区間中に
+// 再ロックされるケースなど、正常な端末が誤って失敗報告してしまう事態を減らす。
+const localAudioRecoveryAttemptedForQIndex = new Set();
+
 function handleCoopPlaybackFailure(questionIndex, message) {
+  const visibilityState = typeof document !== "undefined" ? document.visibilityState : "unknown";
+  recordAudioDiagnostic("[ONLINE_INSTANT_COOP] 再生失敗を検知", {
+    matchId: currentMatchId,
+    questionIndex,
+    message,
+    visibilityState,
+    alreadyAttemptedLocalRecovery: localAudioRecoveryAttemptedForQIndex.has(questionIndex),
+  });
+
+  if (!localAudioRecoveryAttemptedForQIndex.has(questionIndex)) {
+    localAudioRecoveryAttemptedForQIndex.add(questionIndex);
+    const question = currentQuestions[questionIndex];
+    if (question && currentSettings) {
+      recordAudioDiagnostic("[ONLINE_INSTANT_COOP] サーバーへ報告する前にローカルで再unlock→再生を1回だけ試みる", {
+        matchId: currentMatchId,
+        questionIndex,
+      });
+      attemptSilentUnlock();
+      playQuestionAudio(question, questionIndex);
+      return;
+    }
+  }
+
   showAudioErrorInline(message);
   if (!latestRoom || !currentMatchId) return;
+  recordAudioDiagnostic("[ONLINE_INSTANT_COOP] 音声トラブルをサーバーへ報告（この問題は無効になります）", {
+    matchId: currentMatchId,
+    questionIndex,
+    message,
+  });
   reportAudioFailure({ roomId: latestRoom.roomId, matchId: currentMatchId, questionIndex }).catch(() => {});
 }
 
 function playQuestionAudio(question, questionIndex) {
+  recordAudioDiagnostic("[ONLINE_INSTANT_COOP] 再生要求", {
+    matchId: currentMatchId,
+    questionIndex,
+    songId: question.song.id,
+    visibilityState: typeof document !== "undefined" ? document.visibilityState : "unknown",
+  });
   const playDurationSec = Number(currentSettings.playDurationValue);
   const fixedDurationSec = AUDIO_METADATA[question.song.id]?.durationSec ?? null;
   if (fixedDurationSec === null) {
@@ -839,7 +919,7 @@ function playQuestionAudio(question, questionIndex) {
     computeStartTimeSec,
     playDurationSec,
     (message) => handleCoopPlaybackFailure(questionIndex, message),
-    () => {},
+    () => recordAudioDiagnostic("[ONLINE_INSTANT_COOP] 再生開始を確認（正常）", { matchId: currentMatchId, questionIndex }),
     () => {}
   );
 }
@@ -1071,13 +1151,11 @@ function renderVoteStatusList(match, qIndex, roundNumber) {
     const row = document.createElement("li");
     row.className = "online-instant-battle-answer-status-row";
 
-    const oshiColor = resolveOshiColor(participant.oshiMemberId);
-    if (oshiColor) {
-      const dot = document.createElement("span");
-      dot.className = "online-lobby-oshi-dot";
-      dot.style.backgroundColor = oshiColor;
-      row.appendChild(dot);
-    }
+    // 【2026-09-26改訂・本人指示：オンライン対戦総合改修19-8/19-11章】以前は
+    // .online-lobby-oshi-dot（CSS未定義）で色ドットを描画していた。共通の参加者
+    // アイコンへ差し替える。投票受付中の一覧のため、タップでのプロフィール表示は
+    // 付けない（対戦の公平性に影響する時間帯のため）。
+    row.appendChild(buildParticipantIcon(participant.oshiMemberId, uid));
     const name = document.createElement("span");
     name.className = "online-instant-battle-answer-status-name";
     name.textContent = participant.displayName + (uid === myUid ? "（あなた）" : "");
@@ -1113,9 +1191,17 @@ function renderRevealVoteList(match, qIndex, roundNumber) {
     row.className = "online-instant-battle-reveal-player-row";
     if (vote?.selectedSongId === question?.song.id) row.classList.add("is-correct");
 
-    const name = document.createElement("span");
-    name.className = "online-instant-battle-reveal-player-name";
+    // 【2026-09-26新設・本人指示：オンライン対戦総合改修19-8/19-11章】この一覧は
+    // 投票が確定した後（答え合わせ画面）にだけ表示されるため、対戦の公平性には
+    // 影響しない。共通の参加者アイコンを添え、名前タップでプロフィールも開けるようにする。
+    row.appendChild(buildParticipantIcon(participant.oshiMemberId, uid));
+    const name = document.createElement("button");
+    name.type = "button";
+    name.className = "online-instant-battle-reveal-player-name online-instant-battle-reveal-player-name-button";
     name.textContent = participant.displayName + (uid === myUid ? "（あなた）" : "");
+    name.addEventListener("click", () =>
+      openLobbyParticipantProfile({ uid, name: participant.displayName, oshiMemberId: participant.oshiMemberId })
+    );
     row.appendChild(name);
 
     const answerText = document.createElement("span");
@@ -1163,6 +1249,10 @@ function renderCurrentQuestionState() {
     lastPlayedQuestionIndex = qIndex;
     lastPlayedRoundNumber = roundNumber;
     elements.error.hidden = true;
+    // 【2026-09-26追加・本人指示：前問題フラッシュ対策の保険】isResolvedの再計算は
+    // この関数の後半でしか行われないため、新しい問題を検知した瞬間にも前問の
+    // 答え合わせカードを同期的に隠しておく。
+    if (elements.revealSection) elements.revealSection.hidden = true;
     playQuestionAudio(question, qIndex);
     // 【2026-09-07改訂・本人指示：検索状態を毎問題完全リセット／50音UIの共通展開】
     // 検索文字列・50音ジャンプの選択行・選択肢一覧のスクロール位置を、新しい問題ごとに
@@ -1353,18 +1443,23 @@ export function enterInstantCoopResult(room) {
 
     const participants = match.participants || {};
     clearElement(elements.resultMemberList);
-    Object.values(participants).forEach((participant) => {
+    Object.entries(participants).forEach(([uid, participant]) => {
       const li = document.createElement("li");
       li.className = "online-lobby-player-row";
-      const oshiColor = resolveOshiColor(participant.oshiMemberId);
-      if (oshiColor) {
-        const dot = document.createElement("span");
-        dot.className = "online-lobby-oshi-dot";
-        dot.style.backgroundColor = oshiColor;
-        li.appendChild(dot);
-      }
-      const name = document.createElement("span");
+      // 【2026-09-26改訂・本人指示：オンライン対戦総合改修19-8/19-15章】以前は
+      // .online-lobby-oshi-dotという、実際にはCSSが1つも定義されていない（＝実機では
+      // 見えていなかった）クラスで色ドットを描画していた。共通の参加者アイコン
+      // （推し色＋代表称号バッジ、js/onlineParticipantIcon.js）へ差し替える。
+      li.appendChild(buildParticipantIcon(participant.oshiMemberId, uid));
+
+      const name = document.createElement("button");
+      name.type = "button";
+      name.className = "online-lobby-player-name online-lobby-player-name-button";
       name.textContent = participant.displayName + (participant.isHost ? "（ホスト）" : "");
+      // 結果画面は対戦の進行に一切影響しないため、常にプロフィールを開ける。
+      name.addEventListener("click", () =>
+        openLobbyParticipantProfile({ uid, name: participant.displayName, oshiMemberId: participant.oshiMemberId })
+      );
       li.appendChild(name);
       elements.resultMemberList.appendChild(li);
     });

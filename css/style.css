@@ -7860,6 +7860,36 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   background: linear-gradient(145deg, #e8dde3, #d8c8d2);
 }
 
+/* 【2026-09-26新設・本人指示：オンライン対戦総合改修19-8章】ロビー一覧・スコア表示・
+   結果画面など、名前の隣に小さく並べる用途向けの縮小版。王冠・ダイヤ・ノーミスマスターの
+   バッジ（.has-equal-love-master等、js/oshiBadge.js）は44px基準のサイズのままだと
+   22pxの丸に対して大きすぎるため、この修飾クラスの中でだけ縮小する
+   （js/onlineParticipantIcon.jsのbuildParticipantIcon()が付与する）。 */
+.fan-profile-swatch--sm {
+  width: 22px;
+  height: 22px;
+  box-shadow: none;
+}
+
+.fan-profile-swatch--sm.has-equal-love-master::after,
+.fan-profile-swatch--sm.has-no-miss-master::after {
+  width: 12px;
+  height: 12px;
+  font-size: 7px;
+  top: -4px;
+  right: -4px;
+  border-width: 1px;
+}
+
+.fan-profile-swatch--sm.has-equal-love-complete::before {
+  width: 11px;
+  height: 11px;
+  font-size: 7px;
+  bottom: -2px;
+  right: -4px;
+  border-width: 1px;
+}
+
 .fan-profile-card-body {
   flex: 1;
   min-width: 0;
@@ -12418,26 +12448,52 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 }
 
 .online-battle-collab-breakdown-row {
-  padding: 6px 8px;
-  border-radius: 8px;
-  background: var(--color-surface);
+  padding: 8px 10px;
+  border-radius: 10px;
+  /* 2026-09-26改訂・本人指示：オンライン対戦総合改修19-1章。以前は中立グレー背景
+     （--color-surface）で、共有曲一覧側のピンク基調のデザインと浮いて見えていた。
+     ごく薄いピンクの背景に変え、「同じ画面内の同じ選曲情報」と分かる統一感を持たせる。 */
+  background: var(--color-primary-light);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .online-battle-collab-breakdown-name {
-  margin: 0 0 2px;
+  margin: 0;
   font-size: 0.78rem;
-  font-weight: 700;
+  font-weight: 800;
   color: var(--color-primary-dark);
 }
 
 .online-battle-collab-breakdown-songs {
-  margin: 0;
-  font-size: 0.76rem;
-  /* 2026-09-15改訂・本人指示：UI恒久ルール（黒一色に見せない）。中立色ではなく
-     ブランドピンクへわずかに寄せた色にし、可読性を保つためopacityで少し弱める。 */
+  /* 2026-09-26改訂・本人指示：以前は「、」区切りの1本のテキストだったが、共有曲一覧と
+     同じ「曲名＝丸いチップ」という見た目の言語に揃えるため、曲ごとに個別のチップへ分割する。 */
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.online-battle-collab-breakdown-songs-empty {
+  font-size: 0.74rem;
+  color: var(--color-text);
+  opacity: 0.6;
+}
+
+.online-battle-collab-breakdown-song-chip {
+  /* 共有曲一覧（.online-battle-collab-song-chip、塗りつぶし）と同じ丸チップの言語を
+     踏襲しつつ、「縁取りのみ」にして完全に同一の見た目にはしない。参加者ごとの選択と
+     共有曲一覧が別の情報であることを、形は揃えつつ塗り方の違いで区別できるようにする
+     （本人指示：「完全に同じ見た目になって区別不能にはしない」）。 */
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1.5px solid var(--color-primary-dark);
+  background: var(--color-surface);
   color: var(--color-primary-dark);
-  opacity: 0.8;
-  line-height: 1.5;
+  font-size: 0.71rem;
+  font-weight: 700;
+  max-width: 100%;
+  overflow-wrap: break-word;
 }
 
 .online-battle-collab-song-chip-list {
@@ -12450,9 +12506,12 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   padding: 3px 10px;
   border-radius: 999px;
   background: var(--color-primary-light);
+  border: 1.5px solid transparent;
   color: var(--color-primary-dark);
   font-size: 0.74rem;
   font-weight: 700;
+  max-width: 100%;
+  overflow-wrap: break-word;
 }
 
 /* 【2026-09-15新設・本人指示：ルール確認画面に出題対象曲一覧を追加】
@@ -12897,6 +12956,28 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   align-items: center;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+/* 【2026-09-26新設・本人指示：オンライン対戦総合改修19-15章】結果画面の名前も
+   タップしてプロフィールを開けるようにする。js/onlineBattleScreen.jsの
+   .online-lobby-player-name-buttonと同じ、ボタン化リセット＋押せる見た目。 */
+.battle-rank-name-button {
+  background: none;
+  border: none;
+  padding: 4px 2px;
+  margin: -4px -2px;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 6px;
+  text-decoration: underline;
+  text-decoration-color: rgba(0, 0, 0, 0.2);
+  text-underline-offset: 2px;
+}
+
+.battle-rank-name-button:active {
+  background: rgba(0, 0, 0, 0.06);
 }
 
 /* 結果画面で「自分の行」だとひと目でわかる、名前の横に添える小さいバッジ。
@@ -14085,38 +14166,35 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   border: 1px solid var(--color-card-border);
 }
 
-/* 【2026-09-05改訂、本人指摘：実機で見た目が簡素すぎる】4つの戦績を、通常のクイズ
-   結果画面で使っている「ガラス風カード」（.time-attack-result-stat）と同じ質感に揃えた。
-   トークン未定義の--color-card-bg-soft（実質グレー）に頼っていたのが、他画面との
-   統一感が無い一番の原因だったため、var(--color-surface-glass)＋枠線＋淡いピンクの
-   影に置き換えている。 */
+/* 【2026-09-26改訂・本人指示：オンライン対戦総合改修19-6章】以前は4項目を想定した
+   2列グリッドの大きなガラス風カードだったが、現在このHUDが出るのは「📊 みんなのスコア」
+   自体が意図的に隠れている早押しバトルの回答収集中だけ（js/onlineLyricsQuizBattleScreen.js
+   のrenderCurrentQuestionState()参照）で、項目も「現在のポイント」1つだけになった。
+   縦スペースを大きく占領して回答候補を押し下げていたという本人指摘を踏まえ、1行に
+   収まる小さな横並びのチップへ縮小する（役割＝早押し中に自分の得点を確認する手段、は
+   維持したまま、見た目だけをコンパクトにする）。 */
 .lyrics-battle-hud {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
-  margin: 0 0 18px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 14px;
 }
 
 .lyrics-battle-hud dt {
-  font-size: 0.68rem;
+  font-size: 0.72rem;
   font-weight: 700;
   color: var(--color-text);
-  opacity: 0.65;
-  letter-spacing: 0.02em;
-  grid-row: 1;
-  margin-bottom: 2px;
+  opacity: 0.7;
 }
 
 .lyrics-battle-hud dd {
   margin: 0;
-  font-size: 1.15rem;
+  font-size: 0.95rem;
   font-weight: 800;
   color: var(--color-primary-dark);
-  background: var(--color-surface-glass);
-  border: 1px solid var(--color-card-border);
-  border-radius: 14px;
-  padding: 10px 8px;
-  box-shadow: 0 6px 16px -8px rgba(255, 79, 150, 0.35);
+  background: var(--color-primary-light);
+  border-radius: 999px;
+  padding: 3px 12px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -14357,9 +14435,11 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   border: 1px solid var(--color-card-border);
 }
 
-/* 自分自身の行だけ縁取りをブランドカラーにして見分けやすくする。 */
+/* 自分自身の行だけ縁取り・背景をブランドカラーにして見分けやすくする
+   （2026-09-26改訂・本人指示：背景も少し強調し、枠線だけより一目で分かるようにする）。 */
 .online-lyrics-battle-scoreboard-item.is-me {
   border-color: var(--color-primary);
+  background: var(--color-primary-light);
 }
 
 .online-lyrics-battle-scoreboard-rank {
@@ -14378,7 +14458,23 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   white-space: nowrap;
   font-size: 0.72rem;
   font-weight: 700;
-  color: var(--color-text);
+  /* 2026-09-26改訂・本人指示：UI恒久ルール（黒一色に見せない）。参加者名は
+     .online-lobby-player-name・.battle-rank-nameと同じブランドピンクへ揃える。 */
+  color: var(--color-primary-dark);
+}
+
+/* 【2026-09-26新設・本人指示：オンライン対戦総合改修19-11章】問題確定後だけ、
+   スコアボードの名前をタップしてプロフィールを開けるようにする（ボタン化リセット）。 */
+.online-lyrics-battle-scoreboard-name-button {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: rgba(0, 0, 0, 0.2);
+  text-underline-offset: 2px;
 }
 
 /* 恒久デザインルール：重要な数値情報（スコア）は濃い色＋太字にする。 */
@@ -14829,7 +14925,9 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   min-width: 0;
   font-size: 0.8rem;
   font-weight: 700;
-  color: var(--color-text);
+  /* 2026-09-26改訂・本人指示：UI恒久ルール（黒一色に見せない）。参加者名は
+     .online-lobby-player-name・.battle-rank-nameと同じブランドピンクへ揃える。 */
+  color: var(--color-primary-dark);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -14892,6 +14990,20 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   font-weight: 800;
   color: var(--color-primary-dark);
   min-width: 5.5em;
+}
+
+/* 【2026-09-26新設・本人指示：オンライン対戦総合改修19-11章】答え合わせ画面（問題は
+   既に確定済み）の名前だけ、タップしてプロフィールを開けるようにするボタン化リセット。 */
+.online-instant-battle-reveal-player-name-button {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: rgba(0, 0, 0, 0.2);
+  text-underline-offset: 2px;
 }
 
 .online-instant-battle-reveal-player-answer {
