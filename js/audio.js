@@ -66,7 +66,23 @@ if (audioElement) {
 // ページを閉じるまで、ユーザー操作を伴わないplay()呼び出しでも許可され続ける、という
 // ブラウザの一般的な仕様を利用している（本来再生したい音源とは無関係な、無音の
 // データURIを一時的に使うだけなので、実際のクイズ再生には一切影響しない）。
-const SILENT_UNLOCK_DATA_URI = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
+// 【2026-09-24修正・本人の実機診断ログで確定した根本原因】以前のこのデータURIは、
+// WAVヘッダーのdataチャンクのサイズが0バイト（実際の音声サンプルが1つも無い）
+// という不備があった（base64をデコードして実際のバイト列を確認して判明）。
+// iOS実機の診断ログでは、[UNLOCK] play()呼び出しの直後にonplaying等の後続イベントが
+// 一切発生せず、audioElement.play()が返すPromiseが何秒経っても成功も失敗もせず
+// pendingのまま残り続け、後から別の処理（stopAudio()等によるpause()）がこの要素へ
+// 割り込んで初めてAbortErrorとして決着する、という現象が実際に記録された。
+// 「再生すべきサンプルが1つも無い」音源に対してplay()を呼ぶと、実際に再生を開始した
+// という進捗（onplayingイベント等）をブラウザ側が検知できず、Promiseが決着すべき
+// タイミングを認識できないまま放置される、という不具合だったと判断している。
+// 対策として、8-bit・8000Hz・モノラルで実際に400サンプル（50ミリ秒）分の無音
+// （8-bit unsigned PCMの無音は128であり、0ではない点に注意。以前のデータには
+// この判断以前にサンプル自体が無かったため、この違い自体は今回新たに埋め込んだ）
+// を持つ、正しく機能するWAVデータへ差し替えた。人の耳には聞こえない短さのまま、
+// 実際に「再生が開始して完了した」という進捗をブラウザが認識できるようにしている。
+const SILENT_UNLOCK_DATA_URI =
+  "data:audio/wav;base64,UklGRrQBAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YZABAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA";
 
 // 【2026-09-08新設・本人指示：音源再生失敗の根本原因調査】unlockが実際に成功したかどうかを
 // 記録しておく。「本番の再生失敗が、そもそもunlockが成立していない環境で起きているのか」を
@@ -137,12 +153,21 @@ export function attemptSilentUnlock() {
       .then(() => {
         audioUnlockState = "succeeded";
         diag("[UNLOCK] play()成功");
-        audioElement.pause();
-        if (hadSrc) {
-          audioElement.currentTime = 0;
-        } else {
-          audioElement.removeAttribute("src");
-          audioElement.load();
+        // 【2026-09-24追加・本人の実機診断ログを受けた対策】ensureUnlockSettled()に
+        // 上限時間（UNLOCK_SETTLE_TIMEOUT_MS）を設けたことで、この決着処理が、
+        // 「本番のsrcが既に差し替わって再生が始まった後」に遅れて実行される
+        // 可能性が生まれた。その状態でpause()・src変更をしてしまうと、せっかく
+        // 始まった本番再生を誤って止めてしまう。今のsrcが依然としてunlock専用の
+        // 無音データURIのままである場合だけ後片付けする（既に本番の曲へ切り替わって
+        // いる場合は一切何もしない）。
+        if (audioElement.src === SILENT_UNLOCK_DATA_URI) {
+          audioElement.pause();
+          if (hadSrc) {
+            audioElement.currentTime = 0;
+          } else {
+            audioElement.removeAttribute("src");
+            audioElement.load();
+          }
         }
       })
       .catch((error) => {
@@ -152,7 +177,9 @@ export function attemptSilentUnlock() {
         audioUnlockState = "failed";
         diag("[UNLOCK] play()失敗", { name: error?.name, message: error?.message });
         console.warn("[audio] unlockに失敗しました（本番の音源再生には別途リトライがあります）", error?.name, error?.message);
-        if (!hadSrc) {
+        // 【2026-09-24追加】上と同じ理由で、既に本番の曲へsrcが切り替わっている場合は
+        // 一切触らない。
+        if (!hadSrc && audioElement.src === SILENT_UNLOCK_DATA_URI) {
           audioElement.removeAttribute("src");
           audioElement.load();
         }
@@ -174,6 +201,34 @@ export function attemptSilentUnlock() {
   }
 }
 
+// 【2026-09-24新設・本人指示：本番再生を無期限にブロックしないためのfail-open設計】
+// unlockのPromiseが決着するまでの上限時間。実機診断ログで、unlock用の無音データURIの
+// 不備（下記SILENT_UNLOCK_DATA_URIのコメント参照）により、play()のPromiseが何秒経っても
+// 決着せず、ensureUnlockSettled()が無期限に本番再生をブロックし続けてしまう事故が
+// 実際に確認された。データURI自体の不備は直したが、それでも「unlockは本番再生の
+// 成功率を上げるための補助処理であり、unlockの決着を無期限に待って本番再生自体を
+// 止めてはならない」という保険として、上限時間を超えたら本番再生へ進むようにする
+// （本人指示：unlock失敗/timeoutは本番audioを鳴らさない理由にしない）。
+const UNLOCK_SETTLE_TIMEOUT_MS = 800;
+
+// 【2026-09-24新設・再監査に伴うテスト追加】promiseが上限時間内に決着すれば"settled"、
+// 決着しないまま時間切れになれば"timeout"を返す、単純なPromise/state制御のユーティリティ。
+// 実際のiOS挙動やDOMに一切依存しない純粋なロジックのため、tests/audio.test.jsから
+// 「絶対に解決しないPromiseを渡しても、短いタイムアウト経過後には必ず抜けられるか」を
+// 直接検証できるよう、ensureUnlockSettled()から切り出してexportしてある。
+export function raceUnlockPromiseWithTimeout(promise, timeoutMs) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      resolve(result);
+    };
+    promise.then(() => finish("settled"));
+    setTimeout(() => finish("timeout"), timeoutMs);
+  });
+}
+
 // 【2026-09-01新設・本人指示：起動後1問目だけ無音になる問題の本対策】直前に走っている
 // かもしれないattemptSilentUnlock()の後始末を待つ。pendingUnlockPromiseがnull
 // （unlockが進行中でない）なら何もせず即座に返る。
@@ -183,12 +238,18 @@ export function attemptSilentUnlock() {
 // 【2026-09-20追加・再監査に伴うテスト追加】もともとこのファイル内だけで使う想定の
 // 非公開関数だったが、tests/audio.test.jsから「unlock進行中は正しく待つか」
 // 「unlockが無ければ即座に返るか」「unlockが失敗しても先に進むか」を直接検証するために
-// exportした。挙動そのものは一切変えていない（exportを付けただけ）。
+// exportした。
+// 【2026-09-24改訂・本人指示：本番再生を無期限にブロックしない】上限時間
+// （UNLOCK_SETTLE_TIMEOUT_MS）を超えてもunlockが決着しない場合は、"timeout"として
+// 諦めて本番再生へ進む（raceUnlockPromiseWithTimeout()参照）。決着そのものを
+// キャンセルすることはできないため、pendingUnlockPromise自体はそのまま残り、
+// 後から実際に決着したときの後片付けは、上のattemptSilentUnlock()側のガード
+// （audioElement.srcが依然として無音データURIのままかの確認）に委ねる。
 export async function ensureUnlockSettled() {
   if (!pendingUnlockPromise) return;
-  diag("本番再生: 進行中のunlock完了待ち開始");
-  await pendingUnlockPromise;
-  diag("本番再生: unlock完了待ち終了");
+  diag("[UNLOCK] 本番再生: 進行中のunlock完了待ち開始");
+  const result = await raceUnlockPromiseWithTimeout(pendingUnlockPromise, UNLOCK_SETTLE_TIMEOUT_MS);
+  diag(`[UNLOCK] 本番再生: unlock完了待ち終了 (${result})`);
 }
 
 // 【2026-09-20新設・再監査に伴うテスト追加】pendingUnlockPromiseの有無・audioUnlockStateを

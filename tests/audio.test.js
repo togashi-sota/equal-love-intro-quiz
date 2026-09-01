@@ -21,6 +21,7 @@ import {
   getAudioUnlockDiagnostics,
   playSongIntro,
   getCurrentPlaybackState,
+  raceUnlockPromiseWithTimeout,
 } from "../js/audio.js";
 import { assertEqual } from "./test-utils.js";
 
@@ -30,7 +31,13 @@ const audioElement = document.getElementById("intro-audio");
 // js/audio.js側は非公開の定数のためexportされていない。このファイルが実際にsrcの
 // 中身まで比較検証する必要があるため、同じ文字列をここにも用意する（値がズレると
 // このテスト自体が誤って失敗するので、js/audio.js側を変更したときはここも合わせて直すこと）。
-const SILENT_UNLOCK_DATA_URI = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
+// 【2026-09-24改訂・本人の実機診断ログで確定した根本原因の修正に伴う更新】以前の値は
+// WAVのdataチャンクが0バイト（実際のサンプルが1つも無い）という不備があり、iOS実機で
+// play()のPromiseが無期限にpendingのまま決着しない事故の直接原因になっていた。
+// 8-bit・8000Hz・モノラルで実際に400サンプル（50ミリ秒、値128＝無音）を持つ、
+// 正しく機能するWAVへ差し替えた（js/audio.js側の値と完全に一致させること）。
+const SILENT_UNLOCK_DATA_URI =
+  "data:audio/wav;base64,UklGRrQBAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YZABAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA";
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -180,6 +187,50 @@ export async function runAudioTests() {
       assertEqual(errorMessages[0].who, "B", "onErrorが呼ばれるのは、追い越されていない最新の呼び出し（曲B）だけ");
     }
     assertEqual(getCurrentPlaybackState().songId, "test-nonexistent-song-B", "getCurrentPlaybackState()のsongIdは最新の呼び出し（曲B）を指す");
+  }
+
+  // ===== raceUnlockPromiseWithTimeout()：本番再生を無期限にブロックしないための
+  //       fail-open設計の中核ロジック（2026-09-24新設・本人の実機診断ログを受けた対策） =====
+  // 【背景】実機診断ログにより、unlock用のPromiseが（当時の不備のあるデータURIのせいで）
+  // 何秒経っても決着せず、ensureUnlockSettled()が無期限に本番再生をブロックし続ける
+  // 事故が実際に確認された。データURI自体は修正したが、「unlockのPromiseが将来また
+  // 何らかの理由で決着しなくても、本番再生は必ず一定時間内に進められる」ことを、
+  // iOS実機の挙動に依存しない、この関数単体の純粋なPromise/state制御として保証する。
+  {
+    // ---- 絶対に決着しないPromiseを渡しても、timeoutMs経過後には必ず"timeout"で抜けられる ----
+    const neverSettles = new Promise(() => {}); // resolve/rejectを一切呼ばない
+    const startedAt = performance.now();
+    const result = await raceUnlockPromiseWithTimeout(neverSettles, 50);
+    const elapsedMs = performance.now() - startedAt;
+    assertEqual(result, "timeout", "絶対に決着しないPromiseを渡すと、timeoutMs経過後に'timeout'を返す（本番再生を無期限にブロックしないための核心）");
+    assertEqual(elapsedMs < 200, true, `timeoutMs（50ms）から大きく遅れずに抜けられる（実測${elapsedMs.toFixed(1)}ms）`);
+  }
+  {
+    // ---- すぐに決着するPromiseなら、timeoutMsを待たずに"settled"を返す ----
+    const quicklySettles = Promise.resolve();
+    const startedAt = performance.now();
+    const result = await raceUnlockPromiseWithTimeout(quicklySettles, 5000);
+    const elapsedMs = performance.now() - startedAt;
+    assertEqual(result, "settled", "即座に決着するPromiseを渡すと、timeoutMsを待たずに'settled'を返す");
+    assertEqual(elapsedMs < 100, true, `決着済みのPromiseなら5秒のtimeoutMsを待たされない（実測${elapsedMs.toFixed(1)}ms）`);
+  }
+  {
+    // ---- 複数の待ち合わせが同じ「決着しないPromise」に対して行われても、
+    //      それぞれ独立にtimeoutで解放される（1つに積み重なって連鎖的にハングしない） ----
+    const neverSettles = new Promise(() => {});
+    const startedAt = performance.now();
+    const results = await Promise.all([
+      raceUnlockPromiseWithTimeout(neverSettles, 40),
+      raceUnlockPromiseWithTimeout(neverSettles, 40),
+      raceUnlockPromiseWithTimeout(neverSettles, 40),
+    ]);
+    const elapsedMs = performance.now() - startedAt;
+    assertEqual(
+      results.every((r) => r === "timeout"),
+      true,
+      "同じ決着しないPromiseを複数箇所が同時に待っていても、全員がそれぞれ独立してtimeoutで解放される"
+    );
+    assertEqual(elapsedMs < 200, true, `3件同時でも、timeoutMs（40ms）から大きく遅れずに全員解放される（実測${elapsedMs.toFixed(1)}ms）`);
   }
 
   // 後片付け：他のテスト・実機確認に影響を残さないよう、audio要素を初期状態に戻す。
