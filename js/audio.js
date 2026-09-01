@@ -548,8 +548,32 @@ export async function playSongFromRandomPosition(song, computeStartTimeSec, play
   await attemptPlay(myToken, myObjectUrl, onError, `randomPosition, song=${song.id}`);
 }
 
+// 【2026-09-22新設・本人指示：全モード共通「新規プレイのQ1だけ無音」の再調査】呼び出し元の
+// 関数名を、new Error().stack から機械的に抜き出す（呼び出し側に一切手を加える必要がない
+// よう、stopAudio()の内側だけで完結させる）。スタックの1行目は必ずこの関数自身
+// （getStopAudioCallerLabel）、2行目がstopAudio()自身、3行目が「stopAudio()を呼んだ関数」
+// になる想定。ブラウザ間でのスタック文字列の書式差を吸収しきれない場合は、
+// そのまま生の1行を返す（診断用途のため、多少読みにくくても実害は無い）。
+function getStopAudioCallerLabel() {
+  try {
+    const stackLines = new Error().stack?.split("\n") ?? [];
+    // 先頭の"Error"という文字列の行を除き、自分自身(getStopAudioCallerLabel)・
+    // 呼び出し元のstopAudio()自身の行を飛ばして、その次の行（＝本当の呼び出し元）を使う。
+    const callerLine = stackLines.find(
+      (line, index) => index >= 1 && !line.includes("getStopAudioCallerLabel") && !line.includes("stopAudio")
+    );
+    return callerLine ? callerLine.trim() : "(呼び出し元不明)";
+  } catch {
+    return "(スタック取得不可)";
+  }
+}
+
 // 再生を止める（画面遷移時などに呼ぶ）。
 export function stopAudio() {
+  // 【2026-09-22新設・本人指示：全モード共通「新規プレイのQ1だけ無音」の再調査】どの関数から
+  // stopAudio()が呼ばれたかを診断ログに残す。「Q1の再生開始直後に、想定外の場所から
+  // stopAudio()が遅れて呼ばれて再生を打ち切っていないか」を実機ログから追えるようにする。
+  diag("[STOP_AUDIO] 呼び出し", { caller: getStopAudioCallerLabel(), tokenBefore: currentPlaybackToken });
   // 世代番号を進めることで、この時点で裏に残っている古いplaySongIntro()/
   // playSongFromRandomPosition()の処理（自動停止タイマーを含む）をすべて「無効」にする
   // （stopAudio()の後に遅れて鳴り出す事故を防ぐ）。

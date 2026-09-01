@@ -1658,8 +1658,8 @@ initHistoryDetailScreen({
     const distractorPool = await filterSongsWithImportedAudio(categoryPool);
     const questions = buildReviewQuizQuestions(missedSongs, distractorPool);
     startReviewQuiz(questions, { questionCountValue, categoryFilterValue });
-    renderQuestion();
     showScreen("quiz");
+    renderQuestion();
   },
 });
 
@@ -2399,8 +2399,8 @@ async function beginSpecialQuiz(songIds, questionCountValue, specialModeId) {
   const distractorPool = await filterSongsWithImportedAudio(filterSongsByCategory(SONGS, "all"));
   const questions = buildQuestionsFromSongIds(songIds, distractorPool);
   startSpecialQuiz(questions, questionCountValue, specialModeId);
-  renderQuestion();
   showScreen("quiz");
+  renderQuestion();
 }
 
 // 苦手曲モード「アウトロ」タブの練習開始（2026-08-30新設、本人指示：苦手曲5系統完全分離）。
@@ -2413,8 +2413,8 @@ async function beginWeakSongsOutroPractice(songIds, questionCountValue) {
   const distractorPool = await filterSongsWithImportedAudio(filterSongsByCategory(SONGS, "all"));
   const questions = buildQuestionsFromSongIds(songIds, distractorPool);
   startSpecialQuiz(questions, questionCountValue, "weakSongsOutro");
-  renderQuestion();
   showScreen("quiz");
+  renderQuestion();
 }
 
 // 苦手曲モード「シャッフル」タブの練習開始（2026-08-30新設、本人指示：苦手曲5系統完全分離）。
@@ -2429,8 +2429,8 @@ async function beginWeakSongsShufflePractice(songIds, questionCountValue) {
   const questions = buildQuestionsFromSongIds(songIds, distractorPool);
   generateNewRandomPlaybackSeed();
   startSpecialQuiz(questions, questionCountValue, "weakSongsShuffle");
-  renderQuestion();
   showScreen("quiz");
+  renderQuestion();
 }
 
 // 苦手曲モードB（歌詞クイズ版）の練習開始（2026-08-29新設、本人指示）。
@@ -2470,8 +2470,8 @@ async function beginCustomQuiz(songIds, distractorMode) {
   const distractorPool = await filterSongsWithImportedAudio(distractorCategoryPool);
   const questions = buildQuestionsFromSongIds(questionSongIds, distractorPool);
   startSpecialQuiz(questions, String(questions.length), "customQuiz");
-  renderQuestion();
   showScreen("quiz");
+  renderQuestion();
 }
 
 // オリジナル問題作成モード・アウトロタイプの開始処理（2026-08-30新設、本人指示）。
@@ -2494,8 +2494,8 @@ async function beginCustomOutroQuiz(songIds, distractorMode) {
   // 苦手曲判定へ混ぜないため。js/state.jsのrecordAnswer()参照）。再生ロジック自体は
   // renderQuestion()側で両方とも同じアウトロ再生を使うようにしている。
   startSpecialQuiz(questions, String(questions.length), "customQuizOutro");
-  renderQuestion();
   showScreen("quiz");
+  renderQuestion();
 }
 
 // オリジナル問題作成モード・ランダム再生タイプの開始処理（2026-08-29新設、本人指示（⑭)）。
@@ -2516,8 +2516,8 @@ async function beginCustomRandomPlaybackQuiz(songIds, distractorMode) {
   const questions = buildQuestionsFromSongIds(questionSongIds, distractorPool);
   generateNewRandomPlaybackSeed();
   startSpecialQuiz(questions, String(questions.length), "customQuizRandomPlayback");
-  renderQuestion();
   showScreen("quiz");
+  renderQuestion();
 }
 
 // オリジナル問題作成モード・歌詞クイズタイプの開始処理（2026-08-29新設、本人指示（⑭)）。
@@ -4188,9 +4188,9 @@ async function beginQuiz(questionCountValue, categoryFilterValue) {
   const questionCount = resolveQuestionCount(questionCountValue, pool.length);
   const questions = buildQuizQuestions(pool, questionCount);
   startQuiz(questions, questionCountValue, categoryFilterValue);
-  renderQuestion();
-
   showScreen("quiz");
+
+  renderQuestion();
 }
 
 // 【2026-08-30追加、本人指示】アウトロクイズ：曲の最後5秒だけを聞いて当てる、
@@ -4219,8 +4219,8 @@ async function beginOutroQuiz(questionCountValue, categoryFilterValue) {
   const questionCount = resolveQuestionCount(questionCountValue, pool.length);
   const questions = buildQuizQuestions(pool, questionCount);
   startSpecialQuiz(questions, questionCountValue, "outroQuiz");
-  renderQuestion();
   showScreen("quiz");
+  renderQuestion();
 }
 
 // 【2026-08-30改訂・本人指示②】アウトロ・一瞬チャレンジは特殊モードではなく、
@@ -4445,8 +4445,8 @@ async function beginReviewQuiz() {
   const distractorPool = await filterSongsWithImportedAudio(categoryPool);
   const questions = buildReviewQuizQuestions(gameState.reviewSongs, distractorPool);
   startReviewQuiz(questions);
-  renderQuestion();
   showScreen("quiz");
+  renderQuestion();
 }
 
 reviewMissedSongsButtonElement.addEventListener("click", () => {
@@ -5187,8 +5187,8 @@ async function beginTimeAttackQuiz(questionCountValue, categoryFilterValue, rule
   timeAttackStartErrorElement.hidden = true;
   startTimeAttackRun(rule, questionCountValue, categoryFilterValue, variant);
   startTimeAttackQuiz(questions, questionCountValue, categoryFilterValue);
-  renderQuestion();
   showScreen("quiz");
+  renderQuestion();
 }
 
 initTimeAttackScreen({
@@ -5445,8 +5445,8 @@ async function beginRandomPlaybackQuiz(questionCountValue, categoryFilterValue, 
   randomPlaybackStartErrorElement.hidden = true;
   startRandomPlaybackRun(rule, questionCountValue, categoryFilterValue);
   startRandomPlaybackQuiz(questions, questionCountValue, categoryFilterValue);
-  renderQuestion();
   showScreen("quiz");
+  renderQuestion();
 }
 
 initRandomPlaybackScreen({
@@ -6136,8 +6136,8 @@ function beginLocalBattlePlay(config) {
   const questions = buildBattleQuestions(config);
   startTimeAttackRun(config.rule, config.questionCountValue, config.categoryFilterValue);
   startLocalBattleQuiz(questions, config.questionCountValue, config.categoryFilterValue);
-  renderQuestion();
   showScreen("quiz");
+  renderQuestion();
 }
 
 // 次の問題があれば表示し、なければ対戦の結果集計画面へ進む。
@@ -6217,8 +6217,8 @@ function beginOnlineBattlePlay(questions, room) {
   onlineBattleReserveWasEverAvailable = onlineBattleReserveQuestions.length > 0;
   startTimeAttackRun(room.settings.rule, room.settings.questionCountValue, room.settings.categoryFilterValue);
   startOnlineBattleQuiz(realQuestions, room.settings.questionCountValue, room.settings.categoryFilterValue);
-  renderQuestion();
   showScreen("quiz");
+  renderQuestion();
 }
 
 // 【2026-09-12新設・本人指示：共有クイズエンジンの音源再生失敗対策】タイムアタック・
