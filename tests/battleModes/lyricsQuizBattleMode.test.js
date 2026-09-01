@@ -171,8 +171,15 @@ export async function runLyricsQuizBattleModeTests() {
   // ===== Overtureの除外（2026-08-08追加） =====
   // オンライン歌詞クイズ対戦でも、Overture（インストゥルメンタル曲）を出題対象曲数・
   // 歌詞データ読込対象から除外できているかを確認する。歌詞本文には一切触れない。
+  // 【2026-09-16追記】defaultSettings()のcategoryFilterValueが既定で"title-track"に
+  // なったため、ここでは明示的に"all"（全曲）へ上書きし、以前と同じ「全曲からOvertureだけ
+  // 除いた数」を検証する（categoryFilterValue自体のテストは別ブロックで行う）。
   {
-    const settings = { ...lyricsQuizBattleMode.defaultSettings(), questionSource: ALL_SONGS_SOURCE };
+    const settings = {
+      ...lyricsQuizBattleMode.defaultSettings(),
+      questionSource: ALL_SONGS_SOURCE,
+      categoryFilterValue: "all",
+    };
     assertEqual(
       lyricsQuizBattleMode.validateSettings({ ...settings, questionCountValue: String(SONGS.length - 1) }),
       null,
@@ -421,6 +428,125 @@ export async function runLyricsQuizBattleModeTests() {
     const allEligible = lyricsQuizBattleMode.resolveAllEligibleSongIds();
     assertEqual(allEligible.includes("overture"), false, "resolveAllEligibleSongIds()にもOvertureは含まれない");
     assertEqual(allEligible.length, SONGS.length - 1, "resolveAllEligibleSongIds()は全曲からOvertureを除いた数になる");
+  }
+
+  // ===== categoryFilterValue（2026-09-16新設・本人指示：他モードとの機能差解消） =====
+  // オンライン歌詞クイズ対戦だけに無かった「カテゴリー」設定を追加した回帰テスト。
+  // js/battleModes/timeAttackBattleMode.jsの「カテゴリ変更時も選択状態は保持するが
+  // 出題対象外の曲は出題しない」という既存仕様（絶対に壊してはいけない）を、歌詞クイズでも
+  // 同じ形で満たせているかを確認する。テストに使う曲は実在のSONGSデータから、
+  // カテゴリの異なる3曲（表題曲："love"／全員曲："kioku-no-dokoka-de"／
+  // ユニット曲："genneki-idol-chu"）を選んでいる。
+  {
+    assertEqual(
+      lyricsQuizBattleMode.defaultSettings().categoryFilterValue,
+      "title-track",
+      "既定のカテゴリは他モードと同じ「表題曲のみ」（本人報告のバグ修正：以前はこの設定自体が無かった）"
+    );
+
+    // ----- 「全曲から出題」（ALL_SONGS）＋カテゴリ絞り込み -----
+    const titleTrackPool = lyricsQuizBattleMode.resolveSettingsSongPool({
+      questionSource: ALL_SONGS_SOURCE,
+      categoryFilterValue: "title-track",
+    });
+    assertEqual(titleTrackPool.includes("love"), true, "表題曲のみ：表題曲は含まれる");
+    assertEqual(titleTrackPool.includes("kioku-no-dokoka-de"), false, "表題曲のみ：全員曲は含まれない");
+    assertEqual(titleTrackPool.includes("genneki-idol-chu"), false, "表題曲のみ：ユニット曲は含まれない");
+
+    const titleAndGroupPool = lyricsQuizBattleMode.resolveSettingsSongPool({
+      questionSource: ALL_SONGS_SOURCE,
+      categoryFilterValue: "title-and-group",
+    });
+    assertEqual(titleAndGroupPool.includes("love"), true, "表題曲＋全員曲：表題曲は含まれる");
+    assertEqual(titleAndGroupPool.includes("kioku-no-dokoka-de"), true, "表題曲＋全員曲：全員曲は含まれる");
+    assertEqual(titleAndGroupPool.includes("genneki-idol-chu"), false, "表題曲＋全員曲：ユニット曲は含まれない");
+
+    const allCategoryPool = lyricsQuizBattleMode.resolveSettingsSongPool({
+      questionSource: ALL_SONGS_SOURCE,
+      categoryFilterValue: "all",
+    });
+    assertEqual(allCategoryPool.includes("genneki-idol-chu"), true, "全曲：ユニット曲も含まれる");
+    // 歌詞クイズ対象外の曲（Overture、カテゴリは「特別収録曲」）は、カテゴリを「全曲」に
+    // 広げても既存の除外ロジックとの二重フィルタで出題対象に含まれてはならない。
+    assertEqual(allCategoryPool.includes("overture"), false, "全曲でもOvertureは歌詞クイズ対象外のまま除外される");
+
+    // ----- 共同選曲（collaborativeSelection）：カテゴリ変更時も選択状態は保持する -----
+    // 【絶対に壊してはいけない既存仕様】選択済みの曲（questionSource.songIds）自体は
+    // カテゴリを変えても書き換えない。出題対象から一時的に外れるだけで、カテゴリを
+    // 戻せば再選択なしで復帰する。
+    const collaborativeSongIds = ["love", "kioku-no-dokoka-de", "genneki-idol-chu"];
+    const collaborativeSource = { type: QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION, songIds: collaborativeSongIds };
+
+    const narrowedPool = lyricsQuizBattleMode.resolveSettingsSongPool({
+      questionSource: collaborativeSource,
+      categoryFilterValue: "title-track",
+    });
+    assertEqual(
+      narrowedPool,
+      ["love"],
+      "共同選曲＋表題曲のみ：選択した3曲のうち表題曲だけが出題対象になる"
+    );
+    // resolveSettingsSongPool()の呼び出し自体は、渡したquestionSource.songIdsを書き換えない
+    // （純粋関数であることの確認）。
+    assertEqual(
+      collaborativeSource.songIds,
+      collaborativeSongIds,
+      "resolveSettingsSongPool()を呼んでも、元のcollaborativeSelection.songIdsは変化しない（選択状態を破壊しない）"
+    );
+
+    // カテゴリを戻すと、選択状態（songIds）を変更していないので出題対象が復活する。
+    const restoredPool = lyricsQuizBattleMode.resolveSettingsSongPool({
+      questionSource: collaborativeSource,
+      categoryFilterValue: "all",
+    });
+    assertEqual(
+      restoredPool.length,
+      collaborativeSongIds.length,
+      "カテゴリを「全曲」へ戻すと、選択していた3曲すべてが再び出題対象に戻る（選択し直し不要）"
+    );
+
+    // ----- validateSettings：カテゴリを絞った結果、共有曲が0曲になった場合の案内文言 -----
+    const zeroAfterCategorySettings = {
+      ...lyricsQuizBattleMode.defaultSettings(),
+      categoryFilterValue: "title-track",
+      // questionCountValue: "all" ＝「曲プールの曲数がそのまま出題数」のため、カテゴリを
+      // 広げたときに残る1曲だけでも妥当な設定として扱われる（このブロックの主眼は
+      // 曲数の充足チェックではなく、カテゴリによる有効/無効の切り替えの確認のため）。
+      questionCountValue: "all",
+      questionSource: { type: QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION, songIds: ["kioku-no-dokoka-de"] },
+    };
+    assertEqual(
+      lyricsQuizBattleMode.validateSettings(zeroAfterCategorySettings),
+      "現在のカテゴリ条件で有効な共有曲がありません。カテゴリを広げるか、参加者に曲を追加で選んでもらってください。",
+      "選択済みの曲が現在のカテゴリ条件に1曲も合わない場合、カテゴリを広げるよう案内するエラーになる"
+    );
+    assertEqual(
+      lyricsQuizBattleMode.validateSettings({ ...zeroAfterCategorySettings, categoryFilterValue: "title-and-group" }),
+      null,
+      "カテゴリを広げれば、同じ選択状態のまま再び有効な設定になる（選び直し不要）"
+    );
+
+    // ----- 3ルール（正解数バトル・早押しバトル・ポイントバトル）すべてでカテゴリ設定が
+    // 効くことを確認する（本人指示：3ルール全てに追加）。 -----
+    for (const ruleId of ["classic", "steal", "combo"]) {
+      const settingsForRule = {
+        ...withBattleRule(lyricsQuizBattleMode.defaultSettings(), ruleId),
+        questionSource: ALL_SONGS_SOURCE,
+        categoryFilterValue: "title-track",
+        questionCountValue: "10",
+      };
+      assertEqual(
+        lyricsQuizBattleMode.validateSettings(settingsForRule),
+        null,
+        `${ruleId}：表題曲のみ（23曲）でも既定の出題数10問なら開始できる`
+      );
+      const runtimeContext = await lyricsQuizBattleMode.prepareRuntimeContext({ settings: settingsForRule });
+      assertEqual(
+        runtimeContext.songPool.includes("kioku-no-dokoka-de"),
+        false,
+        `${ruleId}：prepareRuntimeContext()のsongPoolにも、表題曲のみのカテゴリ絞り込みが反映される`
+      );
+    }
   }
 
   // ===== createDefaultSettingsForRule（Phase6新設） =====

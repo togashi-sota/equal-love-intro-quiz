@@ -71,7 +71,6 @@ import {
 } from "./lyricsQuizBattleFirebase.js";
 import {
   loadSongsWithLyrics,
-  resolveLyricsQuizSongPool,
   isLyricsQuizEligibleSong,
 } from "./lyricsQuizQuestionBuilder.js";
 import {
@@ -130,7 +129,7 @@ import { SONGS } from "./data/songs.js";
 import { MEMBERS } from "./data/members.js";
 import { renderCollaborativeSelectionBreakdown, wireCollaborativeSelectionDetailsToggle, resetCollaborativeSelectionDetailsPanel } from "./onlineBattleCollaborativeSelectionUi.js";
 import { getMemberById } from "./memberUtils.js";
-import { QUESTION_COUNT_LABELS } from "./localBattleScreen.js";
+import { QUESTION_COUNT_LABELS, CATEGORY_LABELS } from "./localBattleScreen.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
 import { STEAL_CLAIM_OUTCOME } from "./lyricsQuizBattleFirebasePayloads.js";
 
@@ -272,6 +271,18 @@ export function initOnlineLyricsQuizBattleScreens(newElements) {
         ...latestRoom.settings,
         questionSource: { type: QUESTION_SOURCE_TYPE.ALL_SONGS },
       });
+    });
+  });
+
+  // 【2026-09-16新設・本人指示：他モードとの機能差解消】カテゴリ設定。
+  // js/onlineBattleScreen.jsの同名ハンドラ（online-battle-settings-category等）と
+  // 全く同じ考え方。categoryFilterValueだけを差し替え、questionSource（共同選曲の
+  // 選択状態）はそのまま保持する（カテゴリで対象外になった選択曲を消してはいけない、
+  // 既存の重要な仕様）。
+  document.querySelectorAll('input[name="online-lyrics-battle-settings-category"]').forEach((radio) => {
+    radio.addEventListener("change", () => {
+      if (!latestRoom || latestRoom.gameMode !== lyricsQuizBattleMode.gameMode) return;
+      applyLyricsQuizSettingsChange(latestRoom, { ...latestRoom.settings, categoryFilterValue: radio.value });
     });
   });
   // 【2026-08-27新設】共同選曲：全曲・お気に入り・プレイリストから選ぶ。ホスト・参加者を
@@ -518,6 +529,23 @@ function setLyricsSongSourceRadio(settings) {
   const value = isCollaborative ? "manual" : "all";
   const input = document.querySelector(`input[name="online-lyrics-battle-settings-song-source"][value="${value}"]`);
   if (input) input.checked = true;
+
+  // 【2026-09-16新設・本人指示：他モードとの機能差解消】カテゴリのラジオ自体は、曲を
+  // 共同選択している間は「一覧をどのカテゴリで絞り込むか」を選ぶ意味が無いため隠す
+  // （js/onlineBattleScreen.jsのapplySettingsToHostForm()と同じ考え方）。ただし、隠れている
+  // 間もcategoryFilterValueの値自体はsettingsに残ったままで、js/battleModes/
+  // lyricsQuizBattleMode.jsのresolveQuestionSourceSongPool()が共同選曲の選択曲を
+  // 引き続き絞り込みに使う（「全曲から出題」へ戻せば、隠れていたカテゴリ設定がそのまま
+  // 効いていたことが分かる。選択状態を破壊しない既存仕様の一部）。
+  if (elements.lobbySettingsCategoryFieldsetLyrics) {
+    elements.lobbySettingsCategoryFieldsetLyrics.hidden = isCollaborative;
+  }
+}
+
+// 【2026-09-16新設・本人指示：他モードとの機能差解消】setQuestionCountRadio()と同じ考え方。
+function setLyricsCategoryRadio(value) {
+  const input = document.querySelector(`input[name="online-lyrics-battle-settings-category"][value="${value}"]`);
+  if (input) input.checked = true;
 }
 
 // 【2026-08-27新設】現在分かっている「参加者全員が選んだ曲の和集合」を、今のルーム
@@ -689,7 +717,13 @@ function findRuleDescription(ruleId) {
 
 function renderLyricsQuizParticipantSummary(settings) {
   clearElement(elements.lyricsSettingsSummaryContainer);
-  const isManualSongSource = settings.questionSource?.type === QUESTION_SOURCE_TYPE.MANUAL_SELECTION;
+  // 【2026-09-16修正】オンライン対戦の「曲を選んで出題」は共同選曲
+  // （QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION）として保存される
+  // （js/onlineLyricsQuizBattleScreen.jsのsong-sourceラジオのchangeハンドラ参照）。
+  // ここが本来存在しないMANUAL_SELECTIONを見ていたため、参加者向けの「N曲から出題」
+  // チップが実際には一度も表示されない不具合になっていた。今回カテゴリのチップを
+  // 追加するにあたって判定を実態に合わせて修正した。
+  const isManualSongSource = settings.questionSource?.type === QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION;
   // 【2026-08-31改訂】ヒントは本人がボタンで手動で開く方式になり、settings.hintIntervalSec
   // （自動送り間隔）の設定項目自体が無くなったため、このチップからも外した。
   const chips = [
@@ -700,8 +734,13 @@ function renderLyricsQuizParticipantSummary(settings) {
   ];
   // 【2026-08-08新設】曲を手動選択している場合だけ、参加者にも「N曲から出題」を見せる
   // （本人指示：曲名までは見せない）。
+  // 【2026-09-16追加・本人指示：他モードとの機能差解消】そうでない場合（＝カテゴリで
+  // 絞り込んだ全曲から出題している場合）は、js/onlineBattleScreen.jsの
+  // renderInstantBattleSettingsChips()と同じくカテゴリのチップを見せる。
   if (isManualSongSource) {
     chips.push(`${settings.questionSource.songIds?.length ?? 0}曲から出題`);
+  } else {
+    chips.push(CATEGORY_LABELS[settings.categoryFilterValue] ?? settings.categoryFilterValue);
   }
   chips.forEach((text) => {
     const chip = document.createElement("span");
@@ -718,9 +757,14 @@ function renderLyricsQuizParticipantSummary(settings) {
 // 確認し、件数だけをFirebaseへ送る（曲名は送らない）。曲プール自体が変わっていなければ
 // IndexedDBを読み直さない。
 async function refreshAndSubmitLyricsCoverage(room) {
-  // 【2026-08-08修正】resolveSongPool()ではなく、歌詞クイズ対象外の曲
-  // （Overture等、ボーカルの無い曲）を除いたresolveLyricsQuizSongPool()を使う。
-  const songPool = resolveLyricsQuizSongPool(room.settings.questionSource);
+  // 【2026-08-08修正】questionSource.jsのresolveSongPool()ではなく、歌詞クイズ対象外の曲
+  // （Overture等、ボーカルの無い曲）を除いた曲プールを使う。
+  // 【2026-09-16改訂・本人指示：他モードとの機能差解消】categoryFilterValueが増えたため、
+  // js/battleModes/lyricsQuizBattleMode.jsのresolveSettingsSongPool()（questionSourceに
+  // 加えてcategoryFilterValueも考慮し、歌詞クイズ対象外の曲も除いた窓口）を経由するよう
+  // 変更した。ここをそのままにすると、カテゴリで絞り込んだ範囲より広い「歌詞データの充足」を
+  // 参加者に要求してしまい、実際の出題範囲と読み込み確認の範囲がずれてしまう。
+  const songPool = lyricsQuizBattleMode.resolveSettingsSongPool(room.settings);
   const poolHash = computeSongPoolHash(songPool);
   if (lyricsCoverageSubmittedHash === poolHash) return;
 
@@ -765,7 +809,10 @@ function renderLyricsQuizReadinessSection(room, isHost) {
       uid === myUid && ownLyricsCoverageStatus ? ownLyricsCoverageStatus : (player.lyricsCoverage ?? null),
     ])
   );
-  const hostPoolHash = computeSongPoolHash(resolveLyricsQuizSongPool(room.settings.questionSource));
+  // 【2026-09-16改訂・本人指示：他モードとの機能差解消】refreshAndSubmitLyricsCoverage()と
+  // 同じ理由で、categoryFilterValueも考慮したresolveSettingsSongPool()を使う
+  // （host側とguest側が同じ計算式でpoolHashを出さないと、常に「確認中」のまま揃わなくなる）。
+  const hostPoolHash = computeSongPoolHash(lyricsQuizBattleMode.resolveSettingsSongPool(room.settings));
   const readiness = describeLyricsReadiness(lyricsCoverageByUid, hostPoolHash, displayNameByUid);
   renderLyricsReadinessStatus(elements.lyricsReadinessStatusContainer, readiness, { isHostView: isHost });
 
@@ -824,6 +871,7 @@ export function renderLyricsQuizLobbySettings(room, isHost) {
     });
 
     setQuestionCountRadio(settings.questionCountValue);
+    setLyricsCategoryRadio(settings.categoryFilterValue);
     setLyricsSongSourceRadio(settings);
   } else {
     renderLyricsQuizParticipantSummary(settings);

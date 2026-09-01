@@ -273,6 +273,9 @@ function closePresetDetailModal() {
 }
 
 // シングル区分1つ分の、読み取り専用の曲名リストを作る。
+// 2026-09-16改訂・本人指示：UI一貫性ルール（曲名は常にピンクのピル表示に統一）。
+// 以前は装飾のない箇条書き（<ul><li>）だったが、js/onlineBattleScreen.jsの
+// 共有曲一覧チップ（.online-battle-collab-song-chip）と同じ見た目のチップ列に揃えた。
 function buildDetailGroupElement(group) {
   const groupElement = document.createElement("div");
   groupElement.className = "preset-detail-group";
@@ -282,12 +285,13 @@ function buildDetailGroupElement(group) {
   label.textContent = `${group.label}（${group.songs.length}曲）`;
   groupElement.appendChild(label);
 
-  const list = document.createElement("ul");
-  list.className = "preset-detail-song-list";
+  const list = document.createElement("div");
+  list.className = "preset-detail-song-chip-list";
   group.songs.forEach((song) => {
-    const item = document.createElement("li");
-    item.textContent = song.title;
-    list.appendChild(item);
+    const chip = document.createElement("span");
+    chip.className = "preset-detail-song-chip";
+    chip.textContent = song.title;
+    list.appendChild(chip);
   });
   groupElement.appendChild(list);
 

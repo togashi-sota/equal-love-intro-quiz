@@ -38,7 +38,7 @@ import {
   validateLyricsQuizAvailability,
   resolveLyricsQuizSongPool,
 } from "../lyricsQuizQuestionBuilder.js";
-import { validateSongPoolForQuestionCount, QUESTION_SOURCE_TYPE } from "../questionSource.js";
+import { validateSongPoolForQuestionCount, filterSongIdsByCategory, QUESTION_SOURCE_TYPE } from "../questionSource.js";
 import {
   createDefaultBattleRuleSettings,
   validateBattleRule,
@@ -95,15 +95,46 @@ const DEFAULT_BATTLE_RULE_ID = "classic";
 // （js/battleRules/各ルールモジュール内の定数）から取得できるため、あえて
 // settingsへ含めない。ホストが不正な配点を送る・端末ごとに配点が食い違う、
 // といった事故を構造的に防ぐための設計判断。
+//
+// 【2026-09-16追加・本人指示：他モードとの機能差解消】categoryFilterValueは、
+// js/battleModes/timeAttackBattleMode.js・instantBattleMode.js等の既存モードと全く同じ
+// 既定値（"title-track"＝表題曲のみ）にしている。歌詞クイズだけこの設定が無く、
+// 常に「全曲」から出題されてしまう（カテゴリを絞り込めない）ことがバグとして報告された。
 export function defaultSettings() {
   return {
     battleRuleId: DEFAULT_BATTLE_RULE_ID,
     battleRuleVersion: getBattleRuleVersion(DEFAULT_BATTLE_RULE_ID),
     ...createDefaultBattleRuleSettings(DEFAULT_BATTLE_RULE_ID),
     questionSource: { type: QUESTION_SOURCE_TYPE.ALL_SONGS },
+    categoryFilterValue: "title-track",
     questionCountValue: "10",
     answerPoolSizeValue: 4,
   };
+}
+
+// 【2026-09-16新設・本人指示：他モードとの機能差解消】settings.questionSource・
+// categoryFilterValueから、実際に出題対象になりうる曲ID一覧を解決する（歌詞クイズ対象外の
+// 曲＝Overture等は必ず除く）。js/battleModes/timeAttackBattleMode.jsの
+// resolveQuestionSourceSongPool()と全く同じ考え方：
+// ・共同選曲（collaborativeSelection）：選択状態（songIds）自体は書き換えず、現在の
+//   カテゴリ条件に合う曲だけへ絞り込んだ結果を返す（カテゴリを元に戻せば選択は復活する。
+//   絶対に壊してはいけない既存仕様）。
+// ・「全曲から出題」（questionSourceが無い、またはALL_SONGS）：カテゴリ条件そのもので
+//   曲を解決する。
+// ・それ以外（manualSelection・favoritesSnapshot・playlistSnapshot）：既存の
+//   js/battleModes/instantBattleMode.jsと同じく、カテゴリは適用しない
+//   （オンライン対戦の実際のUIからは選ばれない組み合わせのための保険的な分岐）。
+function resolveQuestionSourceSongPool(questionSource, categoryFilterValue) {
+  if (questionSource?.type === QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION) {
+    return resolveLyricsQuizSongPool({
+      type: QUESTION_SOURCE_TYPE.MANUAL_SELECTION,
+      songIds: filterSongIdsByCategory(questionSource.songIds ?? [], categoryFilterValue),
+    });
+  }
+  if (!questionSource || questionSource.type === QUESTION_SOURCE_TYPE.ALL_SONGS) {
+    return resolveLyricsQuizSongPool({ type: QUESTION_SOURCE_TYPE.CATEGORY, categoryFilterValue });
+  }
+  return resolveLyricsQuizSongPool(questionSource);
 }
 
 // 設定が実際に出題できる内容か検証する。問題なければnull、問題があればエラー文言を返す。
@@ -144,13 +175,22 @@ export function validateSettings(settings) {
 
   // 【2026-08-08修正】resolveSongPool()ではなく、歌詞クイズ対象外の曲
   // （Overture等、ボーカルの無い曲）を除いたresolveLyricsQuizSongPool()を使う。
-  const songPool = resolveLyricsQuizSongPool(settings.questionSource);
+  // 【2026-09-16改訂・本人指示：他モードとの機能差解消】categoryFilterValueも考慮した
+  // resolveQuestionSourceSongPool()を経由する（js/battleModes/timeAttackBattleMode.jsの
+  // validateSettings()と同じ考え方：共同選曲で「今のカテゴリ条件では有効な曲が無い」場合の
+  // 案内文言を、カテゴリを広げる・参加者に選んでもらう、と分かりやすくする）。
+  const isCollaborative = settings.questionSource?.type === QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION;
+  const songPool = resolveQuestionSourceSongPool(settings.questionSource, settings.categoryFilterValue);
   if (songPool.length === 0) {
-    return "出題対象の曲が選ばれていません。";
+    return isCollaborative
+      ? "現在のカテゴリ条件で有効な共有曲がありません。カテゴリを広げるか、参加者に曲を追加で選んでもらってください。"
+      : "出題対象の曲が選ばれていません。";
   }
   const poolCheck = validateSongPoolForQuestionCount(songPool, settings.questionCountValue);
   if (!poolCheck.ok) {
-    return `出題対象の曲が足りません（${poolCheck.requiredCount}曲必要ですが、${poolCheck.currentCount}曲しかありません）。`;
+    return isCollaborative
+      ? `現在有効な共有曲は${poolCheck.currentCount}曲です。${poolCheck.requiredCount}問を出題するには${poolCheck.requiredCount}曲以上必要です。`
+      : `出題対象の曲が足りません（${poolCheck.requiredCount}曲必要ですが、${poolCheck.currentCount}曲しかありません）。`;
   }
   return null;
 }
@@ -164,8 +204,10 @@ export function validateSettings(settings) {
 // あり、「その端末に歌詞データが実際にあるか」は見ない（そちらは従来どおり
 // checkRuntimeAvailability()の役目）。参加者全員の歌詞所持状況での絞り込みは、
 // js/onlineBattle.jsのstartBattle()がavailabilityKind="lyrics"を使って別途行う。
+// 【2026-09-16改訂・本人指示：他モードとの機能差解消】categoryFilterValueも考慮した
+// resolveQuestionSourceSongPool()を経由する。
 export function resolveSettingsSongPool(settings) {
-  return resolveLyricsQuizSongPool(settings.questionSource);
+  return resolveQuestionSourceSongPool(settings.questionSource, settings.categoryFilterValue);
 }
 
 // 【2026-08-27新設】このモードで「そもそも出題対象になりうる全曲ID」を返す
@@ -188,7 +230,9 @@ export function resolveAllEligibleSongIds() {
 // （画面側は、okがfalseならbuildQuestions()を呼ばず、エラー表示に倒す想定）。
 export async function prepareRuntimeContext({ settings }) {
   try {
-    const songPool = resolveLyricsQuizSongPool(settings.questionSource);
+    // 【2026-09-16改訂・本人指示：他モードとの機能差解消】categoryFilterValueも考慮した
+    // resolveQuestionSourceSongPool()を経由する。
+    const songPool = resolveQuestionSourceSongPool(settings.questionSource, settings.categoryFilterValue);
     const songsWithLyrics = await loadSongsWithLyrics(songPool);
     return { ok: true, songsWithLyrics, songPool };
   } catch (error) {
@@ -207,7 +251,7 @@ export function buildQuestions({ seed, settings, runtimeContext }) {
   return buildLyricsQuizQuestions({
     seed,
     songsWithLyrics: runtimeContext.songsWithLyrics ?? [],
-    songPool: runtimeContext.songPool ?? resolveLyricsQuizSongPool(settings.questionSource),
+    songPool: runtimeContext.songPool ?? resolveQuestionSourceSongPool(settings.questionSource, settings.categoryFilterValue),
     questionCountValue: settings.questionCountValue,
     answerPoolSizeValue: settings.answerPoolSizeValue,
   });

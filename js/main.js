@@ -1195,6 +1195,8 @@ const onlineBattleSongPickerStickyConfirmButtonElement = document.getElementById
 const onlineLyricsBattleLobbySettingsHostElement = document.getElementById("online-battle-lobby-settings-host-lyrics");
 const onlineLyricsBattleLobbySettingsParticipantElement = document.getElementById("online-battle-lobby-settings-participant-lyrics");
 const onlineLyricsBattleRuleOptionsElement = document.getElementById("online-lyrics-battle-rule-options");
+// カテゴリ設定（2026-09-16新設・本人指示：他モードとの機能差解消）。
+const onlineLyricsBattleSettingsCategoryFieldsetElement = document.getElementById("online-lyrics-battle-lobby-settings-category-fieldset");
 const onlineLyricsBattlePoolSizeOptionsElement = document.getElementById("online-lyrics-battle-pool-size-options");
 const onlineLyricsBattleSettingsFormElement = document.getElementById("online-lyrics-battle-settings-form");
 const onlineLyricsBattleSettingsSummaryElement = document.getElementById("online-lyrics-battle-settings-summary");
@@ -5633,6 +5635,7 @@ initOnlineLyricsQuizBattleScreens({
   lobbySettingsHostLyrics: onlineLyricsBattleLobbySettingsHostElement,
   lobbySettingsParticipantLyrics: onlineLyricsBattleLobbySettingsParticipantElement,
   lyricsRuleOptionsContainer: onlineLyricsBattleRuleOptionsElement,
+  lobbySettingsCategoryFieldsetLyrics: onlineLyricsBattleSettingsCategoryFieldsetElement,
   lyricsPoolSizeOptionsContainer: onlineLyricsBattlePoolSizeOptionsElement,
   lyricsSettingsFormContainer: onlineLyricsBattleSettingsFormElement,
   lyricsSettingsSummaryContainer: onlineLyricsBattleSettingsSummaryElement,

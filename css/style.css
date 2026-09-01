@@ -4110,10 +4110,16 @@ fieldset label:has(input:focus-visible) {
 }
 
 /* 曲名は省略せず、長い場合はここだけ自然に折り返す
-   （再生ボタン・カテゴリバッジはflex:noneで幅を保つため、押しつぶされない） */
+   （再生ボタン・カテゴリバッジはflex:noneで幅を保つため、押しつぶされない）
+   2026-09-16改訂・本人指示：UI一貫性ルール（曲名は常に濃いピンク＋太字）。
+   収録曲一覧・お気に入り一覧・プレイリスト詳細（すべてこの.track-titleを共用）で
+   曲名の見え方が揃うよう、色をブランドピンク（--color-primary-dark）に統一した。
+   カード自体（.track-row）がすでに再生ボタン・メタ情報を伴う十分な視認性を持つため、
+   ピル化（背景・枠線）まではせず、色・太さだけの調整にとどめている。 */
 .track-title {
   font-size: 0.86rem;
   font-weight: 700;
+  color: var(--color-primary-dark);
   overflow-wrap: break-word;
 }
 
@@ -6377,11 +6383,19 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   font-variant-numeric: tabular-nums;
 }
 
+/* 2026-09-16改訂・本人指示：UI一貫性ルール（曲名はピンクのピル表示に統一）。
+   js/onlineBattleScreen.jsの共有曲一覧チップ（.online-battle-collab-song-chip）と
+   同じ配色・角丸を採用し、履歴詳細でも曲名がひと目で分かるようにした。 */
 .history-detail-answer-title {
   flex: 1 1 100px;
   min-width: 0;
-  font-size: 0.85rem;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--color-primary-light);
+  font-size: 0.8rem;
   font-weight: 700;
+  color: var(--color-primary-dark);
+  overflow-wrap: break-word;
 }
 
 /* 結果タグ4種類。色で正解/不正解/スキップ/答えを見た、を一目で区別できるようにする */
@@ -6875,11 +6889,15 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   cursor: default;
 }
 
+/* 2026-09-16改訂・本人指示：UI一貫性ルール（曲名は常に濃いピンク＋太字）。
+   プレイリストへの曲追加画面・オンライン対戦の出題曲選択画面（どちらもこの
+   .song-select-titleを共用）で、曲名の色を.track-titleと同じブランドピンクに揃えた。 */
 .song-select-title {
   flex: 1;
   min-width: 0;
   font-size: 0.86rem;
   font-weight: 700;
+  color: var(--color-primary-dark);
   overflow-wrap: break-word;
 }
 
@@ -7280,11 +7298,22 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   color: var(--color-primary-dark);
 }
 
-.preset-detail-song-list {
-  margin: 0;
-  padding-left: 1.2em;
-  font-size: 0.82rem;
-  line-height: 1.7;
+/* 2026-09-16改訂・本人指示：UI一貫性ルール（曲名は常にピンクのピル表示に統一）。
+   js/onlineBattleScreen.jsの共有曲一覧チップ（.online-battle-collab-song-chip /
+   -chip-list）と同じ配色・角丸・並べ方にして、曲名表示のスタイルをアプリ全体で揃えた。 */
+.preset-detail-song-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.preset-detail-song-chip {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+  font-size: 0.74rem;
+  font-weight: 700;
 }
 
 /* 結果画面：特別モードの結果でだけ表示する短い案内。自己ベスト欄の代わりに表示するため、
@@ -8643,6 +8672,12 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 }
 
 /* ===== 「プレイリストに追加」モーダル ===== */
+/* 2026-09-16追加・本人指示：UI一貫性ルール（曲名は常に濃いピンク＋太字）。
+   「〇〇をプレイリストに追加」の対象曲名（<strong>）を、他の曲名表示と同じ色に揃えた。 */
+#add-to-playlist-song-name {
+  color: var(--color-primary-dark);
+}
+
 .add-to-playlist-list {
   display: flex;
   flex-direction: column;
@@ -11157,12 +11192,14 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   border-radius: 999px;
 }
 
+/* 2026-09-16改訂・本人指示：UI一貫性ルール（曲名は常に濃いピンク＋太字）。
+   「次に再生」プレビューカードの曲名も、他の曲名表示と同じブランドピンクに揃えた。 */
 .continuous-play-next-title {
   flex: 1;
   min-width: 0;
   font-size: 0.8rem;
   font-weight: 700;
-  color: var(--color-text);
+  color: var(--color-primary-dark);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -14578,6 +14615,29 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   display: none;
 }
 
+/* 【2026-09-16新設・本人指示：実機フィードバック項23-24「わからないボタンが回答候補
+   一覧の下に押し出される」の修正】「もう一度聞く」と「わからない」を横並びの操作行に
+   まとめ、375px幅でも回答候補一覧より前・スクロールなしで必ず見える位置に固定する。
+   .button-rowは.primary-button＋.secondary-button用に既にある共通の横並びflexコンテナ
+   （.secondary-button自体がflex:1を持つため、そのままでも均等割りされる）。 */
+.online-instant-battle-action-row {
+  margin-bottom: 14px;
+}
+
+/* .instant-challenge-replay-buttonは単独配置（画面いっぱいの幅）を前提にwidth:100%・
+   margin付きで設計されているため、.button-row内ではその想定を上書きする
+   （直上にある.button-row .primary-buttonの上書きと同じ理由・同じパターン）。 */
+.online-instant-battle-action-row .instant-challenge-replay-button {
+  width: auto;
+  margin: 0;
+}
+
+/* 「わからない」ボタンは短いテキストのため、隣の「もう一度聞く」と高さを揃えつつ
+   縦積みでの間延びを防ぐ。 */
+.online-instant-battle-action-row .secondary-button {
+  min-height: 44px;
+}
+
 /* 【本人指示12・13：回答内容は秘密のまま、状態だけを見せる】ルーム参加順で
    「回答済み／未回答」のバッジだけを並べる一覧。.online-lobby-player-rowと同じ質感に揃える。 */
 .online-instant-battle-answer-status-list {
@@ -14693,6 +14753,107 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   font-size: 0.66rem;
   color: var(--color-primary-dark);
   opacity: 0.75;
+}
+
+/* 【2026-09-16新設・本人指示：実機フィードバック項25-26】最終結果画面、各プレイヤーの
+   成績カード。以前は「正解1問／正解した問題での再視聴0回（参考：総再視聴0回・不正解2・
+   わからない0）」という1行の長文を薄い文字で表示していたが、短いラベル＋太字の数字を
+   使ったチップを2段（順位判定に直結する数値の段／参考記録の段）に分けて配置し直した。
+   375px幅でも縦に間延びしないよう、1段あたり最大2チップの横並びに留めている。 */
+.online-instant-battle-result-stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.online-instant-battle-result-stat-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.online-instant-battle-result-stat-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-card-border);
+}
+
+/* 正解数・正解した問題での再視聴回数：順位判定に直結する最重要の2値
+   （js/instantBattleMatchProgress.jsのcompareInstantBattlePlayerResults()参照）。
+   背景を差し色つきにして視覚的に一段目立たせる。 */
+.online-instant-battle-result-stat-row.is-primary .online-instant-battle-result-stat-chip {
+  background: var(--color-accent-soft);
+  border-color: var(--color-accent);
+}
+
+.online-instant-battle-result-stat-icon {
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.online-instant-battle-result-stat-value {
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 正解数：このカードの中で最も重要な数値のため、最も大きく表示する。 */
+.online-instant-battle-result-stat-chip.is-correct-count .online-instant-battle-result-stat-value {
+  font-size: 1.15rem;
+}
+
+/* 正解した問題での再視聴回数：同率タイブレークに使う2番目に重要な数値。
+   太字は保ちつつ、正解数よりは控えめなサイズにする。 */
+.online-instant-battle-result-stat-chip.is-replay-count .online-instant-battle-result-stat-value {
+  font-size: 0.92rem;
+}
+
+.online-instant-battle-result-stat-row.is-primary .online-instant-battle-result-stat-label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+  opacity: 0.8;
+}
+
+/* 不正解数・わからない数：順位には一切影響しない参考記録。数値である以上、薄すぎる
+   色にはせず基本文字色（濃い色）は保ったまま、太さ・大きさだけを上の2値より
+   控えめにして「参考記録である」ことを視覚的に区別する。 */
+.online-instant-battle-result-stat-row.is-reference .online-instant-battle-result-stat-chip {
+  background: transparent;
+  border-color: transparent;
+  padding: 2px 6px;
+}
+
+.online-instant-battle-result-stat-row.is-reference .online-instant-battle-result-stat-icon {
+  font-size: 0.72rem;
+  opacity: 0.75;
+}
+
+.online-instant-battle-result-stat-row.is-reference .online-instant-battle-result-stat-value {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-text);
+  opacity: 0.8;
+}
+
+.online-instant-battle-result-stat-row.is-reference .online-instant-battle-result-stat-label {
+  font-size: 0.62rem;
+  font-weight: 600;
+  color: var(--color-text);
+  opacity: 0.65;
+}
+
+.online-instant-battle-result-stat-footnote {
+  margin: 0;
+  font-size: 0.62rem;
+  font-weight: 600;
+  color: var(--color-text);
+  opacity: 0.55;
 }
 
 .online-lyrics-battle-status-message {

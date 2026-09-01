@@ -3249,15 +3249,27 @@
               <label><input type="radio" name="online-lyrics-battle-question-count" value="all"> 全曲</label>
             </div>
           </fieldset>
-          <!-- 出題する曲（2026-08-08新設）。歌詞クイズは元々questionSourceが常にALL_SONGS固定
-               だったため、ここではallとmanualの2択のみを追加する（既存のカテゴリ絞り込みは無い）。
-               実際の選曲UIは下の#online-lyrics-battle-collab-song-section（2026-08-27新設、
-               ホスト・参加者共通）が担当する。 -->
+          <!-- 出題する曲（2026-08-08新設）。実際の選曲UIは下の
+               #online-lyrics-battle-collab-song-section（2026-08-27新設、ホスト・参加者共通）
+               が担当する。 -->
           <fieldset>
             <legend>出題する曲</legend>
             <div class="option-row">
               <label><input type="radio" name="online-lyrics-battle-settings-song-source" value="all" checked> 全曲から出題</label>
               <label><input type="radio" name="online-lyrics-battle-settings-song-source" value="manual"> 曲を選んで出題</label>
+            </div>
+          </fieldset>
+          <!-- カテゴリ（2026-09-16新設・本人指示：他モードとの機能差解消）。他のオンライン対戦
+               モード（js/onlineBattleScreen.jsの#online-battle-lobby-settings-category-fieldset・
+               #online-instant-battle-lobby-settings-category-fieldset）と同じ選択肢・同じ
+               クラスをそのまま再利用する。「曲を選んで出題」を選んでいる間は、他モードと同じく
+               意味を持たないため隠す（js/onlineLyricsQuizBattleScreen.js側で制御）。 -->
+          <fieldset id="online-lyrics-battle-lobby-settings-category-fieldset">
+            <legend>カテゴリ</legend>
+            <div class="option-row">
+              <label><input type="radio" name="online-lyrics-battle-settings-category" value="title-track"> 表題曲のみ</label>
+              <label><input type="radio" name="online-lyrics-battle-settings-category" value="title-and-group"> 表題曲＋全員曲</label>
+              <label><input type="radio" name="online-lyrics-battle-settings-category" value="all"> 全曲</label>
             </div>
           </fieldset>
           <p class="battle-field-hint">対象曲を絞り込んだ場合、歌詞データが必要なのは選んだ曲の分だけです。</p>
@@ -3667,10 +3679,25 @@
             <p id="online-instant-battle-countdown-number" class="local-replay-countdown-number">3</p>
           </div>
 
-          <!-- 本人指示：最大3回まで（1人用の一瞬チャレンジと違い無制限ではない）。 -->
-          <button id="online-instant-battle-replay-button" class="secondary-button instant-challenge-replay-button" type="button">
-            🔁 もう一度聞く（残り3回）
-          </button>
+          <!-- 【2026-09-16改訂・本人指示：実機フィードバック項23-24「わからないボタンが
+               回答候補一覧の下に押し出されスクロールしないと押せない」の修正】
+               以前は「わからない」ボタンを回答候補一覧（.lyrics-quiz-answer-list、最大42vh＋
+               検索欄・50音バーが加わる大きな曲プールでは特に高さを取る）の内側・最後に
+               置いていたため、375px幅の実機ではこのボタンへ到達する前にスクロールが
+               必須になっていた。「もう一度聞く」と横並びの操作行にまとめ、回答候補一覧より
+               前（画面の一番上に近い、スクロールなしで必ず見える位置）へ移動した。
+               ボタンのDOM位置と見た目だけの変更で、id・クリック時の確認ダイアログの仕組み
+               （js/onlineInstantBattleScreen.js側のpromptAnswerConfirm呼び出し）は
+               一切変更していない。 -->
+          <div class="button-row online-instant-battle-action-row">
+            <!-- 本人指示：最大3回まで（1人用の一瞬チャレンジと違い無制限ではない）。 -->
+            <button id="online-instant-battle-replay-button" class="secondary-button instant-challenge-replay-button" type="button">
+              🔁 もう一度聞く（残り3回）
+            </button>
+            <!-- 【2026-09-15新設・本人指示14：「わからない」ボタンの追加】不正解として扱う。
+                 確認ダイアログ（js/answerConfirmPrompt.js共用）を必ず挟んでから確定する。 -->
+            <button id="online-instant-battle-unknown-button" class="secondary-button" type="button">🤷 わからない</button>
+          </div>
           <!-- 【2026-09-15新設・本人指示17：順位ルールの短縮表示】もう一度聞くボタンの近くに、
                順位ルールの要点だけを常に見せる（詳しい説明は試合前のルール確認画面）。 -->
           <p id="online-instant-battle-rank-hint" class="online-instant-battle-rank-hint">同じ正解数なら、正解した問題で「もう一度聞く」を使った回数が少ない人が上位！</p>
@@ -3684,9 +3711,6 @@
             <!-- 【2026-09-07新設・本人指示：50音UIの共通展開】 -->
             <div id="online-instant-battle-answer-jump-bar" class="online-lyrics-battle-answer-jump-bar" hidden></div>
             <div id="online-instant-battle-answer-list" class="lyrics-quiz-answer-list"></div>
-            <!-- 【2026-09-15新設・本人指示14：「わからない」ボタンの追加】不正解として扱う。
-                 確認ダイアログ（js/answerConfirmPrompt.js共用）を必ず挟んでから確定する。 -->
-            <button id="online-instant-battle-unknown-button" class="secondary-button" type="button">🤷 わからない</button>
           </div>
 
           <!-- 【2026-09-06新設・本人指示：3分無操作の放置救済】歌詞クイズ対戦・一瞬協力と

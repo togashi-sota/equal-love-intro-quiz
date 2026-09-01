@@ -907,6 +907,55 @@ function renderIdleNotice(match, qIndex, nowServerTimeMs) {
 
 // ===== 結果画面（個人の順位） =====
 
+// 【本人指示19・実機フィードバック項25-26】1行の長文だった各プレイヤーの成績を、
+// 短いラベル＋太字の数字の「チップ」を並べたカード形式に組み替える。
+// 【本人指示19：順位に使う値と、それ以外の参考記録をはっきり区別する】
+// 「正解数」「正解した問題での再視聴合計」の2つだけが順位判定の基準
+// （js/instantBattleMatchProgress.jsのcompareInstantBattlePlayerResults()参照）。
+// この2つは大きめ・太字で強調し、参考記録（総再視聴・不正解・わからない）はそれより
+// 控えめなサイズで区別する（数値である以上、薄すぎる文字にはせず「濃い色」は保つ）。
+function buildResultStatChip(className, icon, value, label) {
+  const chip = document.createElement("div");
+  chip.className = `online-instant-battle-result-stat-chip ${className}`;
+  const iconSpan = document.createElement("span");
+  iconSpan.className = "online-instant-battle-result-stat-icon";
+  iconSpan.textContent = icon;
+  chip.appendChild(iconSpan);
+  const valueSpan = document.createElement("span");
+  valueSpan.className = "online-instant-battle-result-stat-value";
+  valueSpan.textContent = String(value);
+  chip.appendChild(valueSpan);
+  const labelSpan = document.createElement("span");
+  labelSpan.className = "online-instant-battle-result-stat-label";
+  labelSpan.textContent = label;
+  chip.appendChild(labelSpan);
+  return chip;
+}
+
+function buildResultStatCard(result) {
+  const card = document.createElement("div");
+  card.className = "online-instant-battle-result-stat-card";
+
+  const primaryRow = document.createElement("div");
+  primaryRow.className = "online-instant-battle-result-stat-row is-primary";
+  primaryRow.appendChild(buildResultStatChip("is-correct-count", "⭕", result.correctCount, "正解"));
+  primaryRow.appendChild(buildResultStatChip("is-replay-count", "🔁", result.correctOnlyReplaySum, "正解時の再視聴"));
+  card.appendChild(primaryRow);
+
+  const referenceRow = document.createElement("div");
+  referenceRow.className = "online-instant-battle-result-stat-row is-reference";
+  referenceRow.appendChild(buildResultStatChip("is-wrong-count", "❌", result.wrongCount, "不正解"));
+  referenceRow.appendChild(buildResultStatChip("is-dontknow-count", "❓", result.dontKnowCount, "わからない"));
+  card.appendChild(referenceRow);
+
+  const footnote = document.createElement("p");
+  footnote.className = "online-instant-battle-result-stat-footnote";
+  footnote.textContent = `参考：総再視聴${result.totalReplayCount}回`;
+  card.appendChild(footnote);
+
+  return card;
+}
+
 export function syncInstantBattleResultHostGuestButtons(room) {
   if (document.body.dataset.screen !== "onlineInstantBattleResult") return;
   const isHostOnResultScreen = room.host === getCurrentUid();
@@ -988,18 +1037,21 @@ export function enterInstantBattleResult(room) {
     }
     info.appendChild(nameRow);
 
-    const meta = document.createElement("p");
-    meta.className = "battle-rank-meta";
     if (entry.isDnf) {
+      const meta = document.createElement("p");
+      meta.className = "battle-rank-meta";
       meta.textContent = "途中離脱・記録なし";
+      info.appendChild(meta);
     } else {
-      const r = entry.result;
-      // 【本人指示19：順位に使う値と、それ以外の参考記録をはっきり区別する】
-      // 「正解数」「正解した問題での再視聴合計」の2つだけが順位判定の基準。
-      // 総再視聴回数・不正解数・わからない数は参考記録として区別して表示する。
-      meta.textContent = `正解${r.correctCount}問／正解した問題での再視聴${r.correctOnlyReplaySum}回（参考：総再視聴${r.totalReplayCount}回・不正解${r.wrongCount}・わからない${r.dontKnowCount}）`;
+      // 【2026-09-16改訂・本人指示：実機フィードバック項25-26「結果画面の成績が
+      // 1行の長い文章・細い文字で読みづらい」の修正】以前は
+      // 「正解1問／正解した問題での再視聴0回（参考：総再視聴0回・不正解2・わからない0）」
+      // のような1行の長文を薄い文字で表示していたが、短いラベル＋太字の数字を使った
+      // カード形式（チップ）に作り替えた。ランキング計算のロジック（result.correctCount等の
+      // 数値そのもの、js/instantBattleMatchProgress.jsのcomputeFinalResults()）は一切
+      // 変更せず、表示だけを組み替えている。
+      info.appendChild(buildResultStatCard(entry.result));
     }
-    info.appendChild(meta);
     row.appendChild(info);
 
     elements.resultList.appendChild(row);
