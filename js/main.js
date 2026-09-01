@@ -413,7 +413,14 @@ initSoundSettingsScreen({
   themeList: document.getElementById("sfx-settings-theme-list"),
   volumeRange: document.getElementById("sfx-settings-volume-range"),
   volumeValue: document.getElementById("sfx-settings-volume-value"),
-  previewButton: document.getElementById("sfx-settings-preview-button"),
+  // 【2026-09-26追加・本人指示：サウンドシステム全面整備】詳細設定（音ごとの個別変更）と
+  // 楽曲音量。試聴ボタンはテーマカード内・詳細設定の各行に移したため、単体のpreviewButtonは
+  // 廃止した。
+  advancedList: document.getElementById("sfx-settings-advanced-list"),
+  advancedBadge: document.getElementById("sfx-settings-advanced-badge"),
+  resetOverridesButton: document.getElementById("sfx-settings-reset-overrides-button"),
+  musicVolumeRange: document.getElementById("sfx-settings-music-volume-range"),
+  musicVolumeValue: document.getElementById("sfx-settings-music-volume-value"),
   // モーダル内のマスタートグルを操作したときも、スタート画面のクイックトグル表示を一致させる。
   onMasterToggle: () => syncSfxToggleUI(),
 });

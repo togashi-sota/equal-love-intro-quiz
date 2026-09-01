@@ -95,10 +95,9 @@ import {
 import { runLocalReplayCountdownForQuestion, cancelLocalReplayCountdown, SCREEN_ENTER_ANIMATION_MS } from "./localReplayCountdown.js";
 import { getMemberById } from "./memberUtils.js";
 // 【2026-09-26新設・本人指示：オンライン対戦総合改修19-8/19-10章】共通の参加者アイコン
-// （推し色＋代表称号バッジ）と、ロビーの参加者プロフィールモーダル（js/onlineBattleScreen.js）を
-// 結果画面・答え合わせ画面から再利用する。
-import { buildParticipantIcon } from "./onlineParticipantIcon.js";
-import { openLobbyParticipantProfile } from "./onlineBattleScreen.js";
+// （推し色＋代表称号バッジ）と、参加者プロフィールモーダルを結果画面・答え合わせ画面から
+// 再利用する。
+import { buildParticipantIcon, openParticipantProfile } from "./onlineParticipantIcon.js";
 import { MEMBERS } from "./data/members.js";
 import { savePlayHistoryEntryIfNew } from "./playHistory.js";
 import { QUESTION_SOURCE_TYPE } from "./questionSource.js";
@@ -137,6 +136,9 @@ let myAnsweredQuestionIndex = -1;
 let myReplayCountForCurrentQuestion = 0;
 // 直近に描画した問題（変わった瞬間だけ音源を再生し直す・ローカル状態をリセットするために使う）。
 let lastPlayedQuestionIndex = -1;
+// 【2026-09-26追加・本人指示：サウンドシステム全面整備7章】答え合わせSFXを1問につき1回だけ
+// 鳴らすためのガード（renderCurrentQuestionState()はtickのたびに何度も呼ばれるため）。
+let lastRevealSfxPlayedForQIndex = -1;
 // 【本人指示3：第1問の二重カウントダウン解消】対戦開始の3→2→1（js/onlineBattleScreen.js）と
 // この問題ごとの3→2→1が、第1問の出題直後だけ連続して二重に表示されていた。
 // このモードに入場した直後の最初の1問だけ、この問題ごとのカウントダウンを省略する。
@@ -344,6 +346,7 @@ export function resetOnlineInstantBattleState() {
   myAnsweredQuestionIndex = -1;
   myReplayCountForCurrentQuestion = 0;
   lastPlayedQuestionIndex = -1;
+  lastRevealSfxPlayedForQIndex = -1;
   isFirstQuestionOfMatch = true;
   isCountdownActive = false;
   lastAppliedAudioTroubleRecoveryKey = null;
@@ -371,6 +374,7 @@ export async function enterOnlineInstantBattlePlay(room) {
   myAnsweredQuestionIndex = -1;
   myReplayCountForCurrentQuestion = 0;
   lastPlayedQuestionIndex = -1;
+  lastRevealSfxPlayedForQIndex = -1;
   isFirstQuestionOfMatch = true;
   isCountdownActive = false;
   lastAppliedAudioTroubleRecoveryKey = null;
@@ -1004,7 +1008,7 @@ function renderRevealPlayerList(match, qIndex, outcome) {
     name.className = "online-instant-battle-reveal-player-name online-instant-battle-reveal-player-name-button";
     name.textContent = participant.displayName + (uid === myUid ? "（あなた）" : "");
     name.addEventListener("click", () =>
-      openLobbyParticipantProfile({ uid, name: participant.displayName, oshiMemberId: participant.oshiMemberId })
+      openParticipantProfile({ uid, name: participant.displayName, oshiMemberId: participant.oshiMemberId })
     );
     row.appendChild(name);
 
@@ -1136,6 +1140,13 @@ function renderCurrentQuestionState() {
         elements.revealOutcomeBadge.classList.toggle("is-correct-answer-reveal-status", !!myOutcome?.isCorrect);
         if (elements.revealAudioFailureNotice) elements.revealAudioFailureNotice.hidden = true;
         renderRevealPlayerList(match, qIndex, outcome);
+        // 【2026-09-26追加・本人指示：サウンドシステム全面整備7章】一瞬バトルは毎問の
+        // 正解/不正解が完全に無音だった（本人指示の監査で発覚）。他モードと同じ
+        // QUIZ_CORRECT/QUIZ_WRONGで統一する（1問につき1回だけ）。
+        if (lastRevealSfxPlayedForQIndex !== qIndex) {
+          lastRevealSfxPlayedForQIndex = qIndex;
+          playSfx(myOutcome?.isCorrect ? SFX_EVENTS.QUIZ_CORRECT : SFX_EVENTS.QUIZ_WRONG);
+        }
       }
     }
   }
@@ -1308,7 +1319,7 @@ export function enterInstantBattleResult(room) {
     nameText.className = "battle-rank-name-button";
     nameText.textContent = entry.participant.displayName;
     nameText.addEventListener("click", () =>
-      openLobbyParticipantProfile({ uid: entry.uid, name: entry.participant.displayName, oshiMemberId: entry.participant.oshiMemberId })
+      openParticipantProfile({ uid: entry.uid, name: entry.participant.displayName, oshiMemberId: entry.participant.oshiMemberId })
     );
     nameRow.appendChild(nameText);
     if (entry.uid === myUid) {

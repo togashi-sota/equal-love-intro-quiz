@@ -166,7 +166,16 @@ export function buildLyricsQuizQuestions({
     const answerRandom = createAnswerPoolRandom(seed, entry.song.id, questionIndex);
     const answerPool = generateAnswerPool(poolSongs, entry.song.id, answerPoolSizeValue, answerRandom);
 
-    return { song: entry.song, hints, answerPool };
+    // 【2026-09-26新設・本人指示：サウンドシステム全面整備9章】答え合わせ中に流す楽曲を、
+    // 可能な範囲で「ヒント1」の歌詞が始まる位置から再生するための時間（秒）。
+    // entry.lines（歌詞データ本体、js/lyricsStorage.jsが保存するstart/end秒つきの行データ）と
+    // hints[0].startLine（buildHintSequence()が返す、ヒント1に対応する行番号）を突き合わせて
+    // 求める。歌詞データに秒数が保存されていない曲・ヒントが1つも作れなかった曲では
+    // nullになる（呼び出し側は0秒から再生する等、安全にフォールバックする）。
+    const firstHintLine = hints[0] ? entry.lines.find((line) => line.line === hints[0].startLine) : null;
+    const revealStartTimeSec = typeof firstHintLine?.start === "number" ? firstHintLine.start : null;
+
+    return { song: entry.song, hints, answerPool, revealStartTimeSec };
   });
 
   // 最終防衛ライン（2026-08-07追加）：「正解曲が選択肢に存在しない」不具合の再発防止。

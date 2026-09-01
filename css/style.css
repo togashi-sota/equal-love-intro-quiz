@@ -1937,9 +1937,156 @@ fieldset label:has(input:focus-visible) {
   line-height: 1.4;
 }
 
-.sfx-settings-preview-button {
-  margin-top: 10px;
-  width: 100%;
+/* 【2026-09-26新設・本人指示：サウンドシステム全面整備】各テーマカード内の
+   「▶ テーマを試聴」。カード全体（テーマ選択）のクリック領域の中にあるが、
+   stopPropagation()でテーマ選択とは独立して動作する。 */
+.sfx-theme-option-preview-button {
+  margin-top: 8px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1.5px solid var(--color-primary);
+  background: var(--color-surface);
+  color: var(--color-primary-dark);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.sfx-settings-section-hint {
+  margin: 4px 0 10px;
+  font-size: 0.7rem;
+  color: var(--color-text);
+  opacity: 0.6;
+  line-height: 1.5;
+}
+
+/* 詳細設定（音ごとの個別変更）：折りたたみ式にして、普段の設定画面を大きくしない。 */
+.sfx-settings-advanced {
+  margin-top: 16px;
+  border-top: 1px solid var(--color-card-border);
+  padding-top: 12px;
+}
+
+.sfx-settings-advanced-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: var(--color-text);
+  opacity: 0.85;
+}
+
+.sfx-settings-advanced-summary::-webkit-details-marker {
+  display: none;
+}
+
+.sfx-settings-advanced-summary::before {
+  content: "▸";
+  color: var(--color-primary-dark);
+}
+
+.sfx-settings-advanced[open] .sfx-settings-advanced-summary::before {
+  content: "▾";
+}
+
+.sfx-settings-advanced-badge {
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+  font-size: 0.66rem;
+  font-weight: 800;
+}
+
+.sfx-settings-reset-overrides-button {
+  display: block;
+  margin: 4px 0 10px;
+  background: none;
+  border: none;
+  padding: 4px 2px;
+  color: var(--color-primary-dark);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* このプロジェクトの規約：display:を明示指定した要素は、hidden属性を付けても
+   ブラウザ既定の[hidden]{display:none}が上書きされてしまうため、個別に打ち消す
+   （css/style.css内の他の[hidden]系ルールと同じパターン）。 */
+.sfx-settings-reset-overrides-button[hidden] {
+  display: none;
+}
+
+.sfx-settings-advanced-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sfx-settings-advanced-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--color-card-border);
+}
+
+.sfx-settings-advanced-row-label-block {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.sfx-settings-advanced-row-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sfx-settings-advanced-row-badge {
+  flex: none;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+  font-size: 0.6rem;
+  font-weight: 800;
+}
+
+.sfx-settings-advanced-row-controls {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sfx-settings-advanced-row-select {
+  font-size: 0.72rem;
+  padding: 4px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--color-card-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  max-width: 34vw;
+}
+
+.sfx-settings-advanced-row-preview-button {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1.5px solid var(--color-primary);
+  background: var(--color-surface);
+  color: var(--color-primary-dark);
+  font-size: 0.7rem;
 }
 
 .sfx-settings-volume-header {

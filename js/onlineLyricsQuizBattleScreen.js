@@ -131,13 +131,16 @@ import { SONGS } from "./data/songs.js";
 import { MEMBERS } from "./data/members.js";
 import { renderCollaborativeSelectionBreakdown, wireCollaborativeSelectionDetailsToggle, resetCollaborativeSelectionDetailsPanel } from "./onlineBattleCollaborativeSelectionUi.js";
 import { getMemberById } from "./memberUtils.js";
-// 【2026-09-26新設・本人指示：オンライン対戦総合改修19-10章】ロビーの参加者プロフィール
-// モーダル（js/onlineBattleScreen.js）を、歌詞クイズ対戦のスコアボードからも再利用する。
-// 循環import（onlineBattleScreen.js側も本ファイルをimportしている）になるが、
-// openLobbyParticipantProfile()はイベントハンドラの中でだけ呼び出す関数宣言のため、
-// モジュール読み込み順に依存せず安全に使える。
-import { openLobbyParticipantProfile } from "./onlineBattleScreen.js";
-import { buildParticipantIcon } from "./onlineParticipantIcon.js";
+// 【2026-09-26改訂・本人指示：オンライン対戦総合改修19-10章】参加者プロフィールモーダルを
+// 歌詞クイズ対戦のスコアボードからも使う。このファイルはjs/onlineBattleScreen.jsを一切
+// importしない方針（このファイル冒頭のコメント参照）のため、循環importを避けて中立な
+// 共通ファイルjs/onlineParticipantIcon.jsから読み込む。
+import { buildParticipantIcon, openParticipantProfile } from "./onlineParticipantIcon.js";
+// 【2026-09-26新設・本人指示：サウンドシステム全面整備8-10章】答え表示中だけ実際の楽曲を
+// 流す新機能で使う。js/audio.jsの共通再生関数をそのまま再利用し（新しい再生経路は作らない）、
+// 失敗時はonErrorをconsole.warnだけにして、Q1無音バグの教訓どおり「演出の失敗でゲーム進行を
+// 止めない」設計にする（下のstartRevealMusic参照）。
+import { playSongFromRandomPosition, stopAudio } from "./audio.js";
 import { QUESTION_COUNT_LABELS, CATEGORY_LABELS } from "./localBattleScreen.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
 import { STEAL_CLAIM_OUTCOME } from "./lyricsQuizBattleFirebasePayloads.js";
@@ -405,9 +408,63 @@ export function initOnlineLyricsQuizBattleScreens(newElements) {
   });
 }
 
+// ===== 答え合わせ楽曲（2026-09-26新設・本人指示：サウンドシステム全面整備8-10章） =====
+//
+// 【仕様】答え表示が始まった瞬間に実際の楽曲を再生し、答え表示が終わる瞬間（＝次の問題へ
+// 進む瞬間）に停止する。新しい秒数は作らず、既存の答え表示時間（REVEAL_DELAY_MS）を
+// そのまま使う。将来REVEAL_DELAY_MSを変更しても、曲の再生時間は自動的に追従する。
+//
+// 【重要：Q1無音バグの教訓を踏まえた安全設計】この楽曲はあくまで演出。再生に失敗しても
+// 問題無効・対戦中止等、ゲーム進行には一切影響させない（onErrorはconsole.warnのみ）。
+// unlock・タイムアウト・fail-open等の既存の安全策（js/audio.js）には一切手を加えていない。
+let revealMusicStopTimeoutId = null;
+
+function stopRevealMusic() {
+  if (revealMusicStopTimeoutId !== null) {
+    clearTimeout(revealMusicStopTimeoutId);
+    revealMusicStopTimeoutId = null;
+  }
+  stopAudio();
+}
+
+// question.revealStartTimeSec（js/lyricsQuizQuestionBuilder.jsが、ヒント1の歌詞が
+// 実際に始まる位置から求めたもの）があればそこから、無ければ曲の先頭（0秒）から再生する
+// （本人指示：正確な歌詞位置情報が無い曲で推測の再生位置を作らない）。
+function startRevealMusic(question) {
+  const revealStartTimeSec = question.revealStartTimeSec;
+  playSongIntroFromOffset(question.song, typeof revealStartTimeSec === "number" ? revealStartTimeSec : 0);
+
+  if (revealMusicStopTimeoutId !== null) clearTimeout(revealMusicStopTimeoutId);
+  revealMusicStopTimeoutId = setTimeout(() => {
+    revealMusicStopTimeoutId = null;
+    stopAudio();
+  }, REVEAL_DELAY_MS);
+}
+
+// playSongIntro()は曲ごとに決まったintroLeadInSecからしか再生できないため、任意の秒数
+// （ヒント1の歌詞位置）から再生できるplaySongFromRandomPosition()を使う。playDurationSec
+// はREVEAL_DELAY_MSと同じ値を渡し（答え表示時間そのものを唯一の情報源にする）、上の
+// setTimeoutと二重に守ることで、タブがバックグラウンドに回る等でどちらかのタイマーが
+// 遅延しても、答え表示より大幅に長く楽曲が鳴り続けることがないようにしている。
+function playSongIntroFromOffset(song, startTimeSec) {
+  playSongFromRandomPosition(
+    song,
+    (actualDurationSec) => Math.min(Math.max(startTimeSec, 0), Math.max(actualDurationSec - 0.5, 0)),
+    REVEAL_DELAY_MS / 1000,
+    (message) =>
+      console.warn(
+        "[歌詞クイズ対戦] 答え合わせ楽曲の再生に失敗しました（演出のみのため対戦の進行には影響しません）",
+        message
+      ),
+    () => {},
+    () => {}
+  );
+}
+
 function stopAllLocalTimers() {
   stopTickTimer();
   stopServerTimeOffsetTracking();
+  stopRevealMusic();
 }
 
 // ルームを離れる・別のルームへ入り直す際に呼ぶ、状態の完全リセット。
@@ -1536,6 +1593,9 @@ function renderAnswerChoices(question, { isResolved, myAnsweredThisQuestion, que
     elements.battleAnswerChoicesContainer.classList.add("is-showing-reveal");
     clearElement(elements.battleAnswerChoicesContainer);
     elements.battleAnswerChoicesContainer.appendChild(elements.battleAnswerReveal);
+    // 【2026-09-26新設・本人指示：サウンドシステム全面整備8章】答え表示が始まった、まさに
+    // この瞬間（このガードにより1問につき1回だけ通る）に答え合わせ楽曲の再生を始める。
+    startRevealMusic(question);
     return;
   }
   elements.battleAnswerChoicesContainer.classList.remove("is-showing-reveal");
@@ -1837,7 +1897,7 @@ function renderScoreboard(match, { ruleId, isResolved }) {
       nameSpan.type = "button";
       nameSpan.classList.add("online-lyrics-battle-scoreboard-name-button");
       nameSpan.addEventListener("click", () =>
-        openLobbyParticipantProfile({ uid: row.uid, name: row.displayName, oshiMemberId: row.oshiMemberId })
+        openParticipantProfile({ uid: row.uid, name: row.displayName, oshiMemberId: row.oshiMemberId })
       );
     }
     nameSpan.textContent = row.isMe ? `${row.displayName}（あなた）` : row.displayName;
@@ -1871,6 +1931,11 @@ function renderCurrentQuestionState() {
     // 後半でしか行われない。関数の実行が万一そこへ到達する前に中断される場合に備え、
     // 新しい問題を検知した瞬間にも前問の答え合わせカードを同期的に隠しておく（保険）。
     elements.battleAnswerReveal.hidden = true;
+    // 【2026-09-26追加・本人指示：サウンドシステム全面整備8章】新しい問題に切り替わったら、
+    // 前問の答え合わせ楽曲が鳴り続けないよう必ず止める（通常はREVEAL_DELAY_MS経過後の
+    // 自動停止で既に止まっているはずだが、保険として毎回呼ぶ。stopAudio()は何も再生して
+    // いなくても安全に呼べる）。
+    stopRevealMusic();
     // 【2026-08-31新設】新しい問題に移ったら、開いたヒント段階・検索状態をリセットする。
     myOpenedHintLevel = 1;
     myAnswerSearchQuery = "";
@@ -1947,6 +2012,15 @@ function renderCurrentQuestionState() {
   if (isResolved) {
     const myOutcome = myOutcomeHistory[qIndex] ?? null;
     const gotPoints = (myOutcome?.pointsAwarded ?? 0) > 0;
+    // 【2026-09-26追加・本人指示：サウンドシステム全面整備7章】正解数バトル・ポイントバトルは
+    // 毎問の正解/不正解が完全に無音だった（本人指示の監査で発覚）。他モードと同じ
+    // QUIZ_CORRECT/QUIZ_WRONGで統一する。早押しバトルは「勝者だけSTEAL_SUCCESSが鳴る」
+    // という既存の専用設計（js/onlineLyricsQuizBattleScreen.js内の別箇所）をそのまま活かし、
+    // ここでは対象外にする（早押しでは「非勝者＝不正解」ではないため、統一するとかえって
+    // 誤解を招く）。
+    if (ruleId !== "steal") {
+      playSfx(gotPoints ? SFX_EVENTS.QUIZ_CORRECT : SFX_EVENTS.QUIZ_WRONG);
+    }
     elements.battleAnswerRevealTitle.textContent = question.song.title;
 
     // 【2026-09-06新設・本人指示：実機フィードバック第3弾①】選択肢一覧が答え合わせカードに

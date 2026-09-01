@@ -103,11 +103,13 @@ import {
 import { QUESTION_SOURCE_TYPE } from "./questionSource.js";
 import { CATEGORY_LABELS, QUESTION_COUNT_LABELS } from "./localBattleScreen.js";
 import { getMemberById } from "./memberUtils.js";
+// 【2026-09-26新設・本人指示：サウンドシステム全面整備7章】以前はこのファイルにSFX呼び出しが
+// 1件も無く、一瞬協力は完全に無音だった（本人指示の監査で発覚）。
+import { SFX_EVENTS, playSfx } from "./soundManager.js";
 // 【2026-09-26新設・本人指示：オンライン対戦総合改修19-8/19-10章】共通の参加者アイコン
-// （推し色＋代表称号バッジ）と、ロビーの参加者プロフィールモーダル（js/onlineBattleScreen.js）を
-// 結果画面・回答状況一覧から再利用する。
-import { buildParticipantIcon } from "./onlineParticipantIcon.js";
-import { openLobbyParticipantProfile } from "./onlineBattleScreen.js";
+// （推し色＋代表称号バッジ）と、参加者プロフィールモーダルを結果画面・回答状況一覧から
+// 再利用する。
+import { buildParticipantIcon, openParticipantProfile } from "./onlineParticipantIcon.js";
 import { MEMBERS } from "./data/members.js";
 import { savePlayHistoryEntryIfNew } from "./playHistory.js";
 import { buildInstantCoopQuestionBreakdown, capQuestionBreakdownForStorage } from "./battleQuestionBreakdown.js";
@@ -149,6 +151,9 @@ let myVotedRoundNumber = -1;
 // 直近に描画した問題・ラウンド（変わった瞬間だけ音源を再生し直すために使う）。
 let lastPlayedQuestionIndex = -1;
 let lastPlayedRoundNumber = -1;
+// 【2026-09-26追加・本人指示：サウンドシステム全面整備7章】答え合わせSFXを1問につき1回だけ
+// 鳴らすためのガード（renderCurrentQuestionState()はtickのたびに何度も呼ばれるため）。
+let lastRevealSfxPlayedForQIndex = -1;
 
 // 【2026-09-17新設・本人指示：「音が出ない」救済ボタン第2段階】直近にローカル再生を
 // 反応させたリカバリー再生を覚えておく（js/onlineInstantBattleScreen.jsと同じ設計）。
@@ -380,6 +385,7 @@ export function resetInstantCoopBattleState() {
   myVotedQuestionIndex = -1;
   myVotedRoundNumber = -1;
   lastPlayedQuestionIndex = -1;
+  lastRevealSfxPlayedForQIndex = -1;
   lastPlayedRoundNumber = -1;
   lastAppliedAudioTroubleRecoveryKey = null;
   lastActivityReportedAtMs = 0;
@@ -543,6 +549,7 @@ export async function enterInstantCoopBattlePlay(room) {
   myVotedQuestionIndex = -1;
   myVotedRoundNumber = -1;
   lastPlayedQuestionIndex = -1;
+  lastRevealSfxPlayedForQIndex = -1;
   lastPlayedRoundNumber = -1;
   lastAppliedAudioTroubleRecoveryKey = null;
   lastActivityReportedAtMs = 0;
@@ -1200,7 +1207,7 @@ function renderRevealVoteList(match, qIndex, roundNumber) {
     name.className = "online-instant-battle-reveal-player-name online-instant-battle-reveal-player-name-button";
     name.textContent = participant.displayName + (uid === myUid ? "（あなた）" : "");
     name.addEventListener("click", () =>
-      openLobbyParticipantProfile({ uid, name: participant.displayName, oshiMemberId: participant.oshiMemberId })
+      openParticipantProfile({ uid, name: participant.displayName, oshiMemberId: participant.oshiMemberId })
     );
     row.appendChild(name);
 
@@ -1391,6 +1398,14 @@ function renderCurrentQuestionState() {
         }
         // 【2026-09-15新設・本人指示5：全員確定後、誰が何に投票したかを一斉公開する】
         renderRevealVoteList(match, qIndex, roundNumber);
+
+        // 【2026-09-26追加・本人指示：サウンドシステム全面整備7章】一瞬協力は完全に無音
+        // だった（本人指示の監査で発覚）。他モードと同じQUIZ_CORRECT/QUIZ_WRONGで統一する
+        // （1問につき1回だけ）。「全員わからない」はどちらとも言えないため鳴らさない。
+        if (lastRevealSfxPlayedForQIndex !== qIndex) {
+          lastRevealSfxPlayedForQIndex = qIndex;
+          if (!isAllUnknown) playSfx(outcome.isCorrect ? SFX_EVENTS.QUIZ_CORRECT : SFX_EVENTS.QUIZ_WRONG);
+        }
       }
     }
   }
@@ -1458,7 +1473,7 @@ export function enterInstantCoopResult(room) {
       name.textContent = participant.displayName + (participant.isHost ? "（ホスト）" : "");
       // 結果画面は対戦の進行に一切影響しないため、常にプロフィールを開ける。
       name.addEventListener("click", () =>
-        openLobbyParticipantProfile({ uid, name: participant.displayName, oshiMemberId: participant.oshiMemberId })
+        openParticipantProfile({ uid, name: participant.displayName, oshiMemberId: participant.oshiMemberId })
       );
       li.appendChild(name);
       elements.resultMemberList.appendChild(li);

@@ -95,18 +95,14 @@ import { renderCollaborativeSelectionBreakdown, wireCollaborativeSelectionDetail
 import { buildSelectorUidsBySongId } from "./onlineBattleCollaborativeSelectionPayloads.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
 import { getMemberById } from "./memberUtils.js";
-import { buildParticipantIcon } from "./onlineParticipantIcon.js";
-// 【2026-09-07新設・本人指示：ルーム参加者プロフィール】ロビー参加者の名前タップで
-// 簡易プロフィールを見る機能。既存の「みんなのプロフィール」（js/fanProfilesScreen.js）と
-// 同じ部品（DOM構築はjs/fanProfileCard.js、Firebase取得はjs/publicProfileSync.js）を
-// そのまま再利用し、新しい取得ロジック・新しいカード見た目は作らない。
-import { fetchPublicProfileByUid } from "./publicProfileSync.js";
-import {
-  buildOshiSwatch,
-  buildAchievementCountText,
-  buildFriendAchievementSummary,
-  buildAchievedAchievementsList,
-} from "./fanProfileCard.js";
+// 【2026-09-07新設・本人指示：ルーム参加者プロフィール】参加者の名前タップで簡易
+// プロフィールを見る機能、および推し色＋代表称号バッジの丸アイコン。どちらも
+// js/onlineInstantBattleScreen.js・js/onlineInstantCoopBattleScreen.js・
+// js/onlineLyricsQuizBattleScreen.jsからも使うため、中立な共通ファイル
+// js/onlineParticipantIcon.jsに実体を置いている（2026-09-26移設・本人指示：
+// js/onlineLyricsQuizBattleScreen.js冒頭の「一方向の依存に保つ」方針を守るため、
+// このファイル自身もあちらから直接importされない共通の置き場所を経由する）。
+import { buildParticipantIcon, openParticipantProfile, initParticipantProfileModal } from "./onlineParticipantIcon.js";
 // 【2026-08-08新設・Phase6】歌詞クイズ対戦だけ、進行の前提（全員同期・ホスト主導）が
 // 他のgameModeと根本的に異なるため、専用の画面ファイルへ委譲する（js/onlineLyricsQuizBattleScreen.js
 // 冒頭コメント参照）。依存は一方向（このファイル→あちら）に保ち、あちらからはこのファイルを
@@ -292,96 +288,6 @@ let currentMatchTotalQuestions = 0; // 今の試合の全問題数（進捗表�
 // 追跡なしにmatchInvalidatedを見て毎回returnRoomToLobby()を呼ぶと、無駄なFirebase書き込みが
 // 連発してしまう（呼び出し自体は冪等で安全だが、効率のためにも1試合につき1回に絞る）。
 let matchInvalidationReturnRequestedForMatchId = null;
-
-// 【2026-09-07新設・本人指示：ルーム参加者プロフィール】ロビーで参加者の名前をタップした
-// ときに呼ぶ。FirebaseのpublicProfiles/{uid}を1件だけ読み、簡易プロフィールモーダルに
-// 表示する（表示名・推し・獲得済み称号のみ。READY等の参加状態は一切変更しない読み取り専用）。
-// 呼び出し中に別の参加者を連続でタップされても、最後にタップした人の結果だけが
-// 画面に反映されるよう、リクエストごとに世代番号を振って古い応答を無視する。
-//
-// 【2026-09-26改訂・本人指示：オンライン対戦総合改修19-10章】以前はロビー画面だけの
-// 内部関数だったが、「対戦の公平性に影響しない場所（設定画面・待機画面・問題の合間・
-// 結果画面）ならどこでもプロフィールを開けるようにしてほしい」という指示により、
-// js/onlineInstantBattleScreen.js・js/onlineInstantCoopBattleScreen.js・
-// js/onlineLyricsQuizBattleScreen.jsからも呼べるようexportする。関数名・実装（同じ
-// プロフィールモーダルを再利用する）は変えず、呼び出せる範囲だけを広げる。
-// playerは{uid, name, oshiMemberId}の形を受け取る（room.players[uid]・
-// match.participants[uid]のどちらも、この3つのプロパティを持つ）。
-let lobbyProfileRequestToken = 0;
-
-export async function openLobbyParticipantProfile(player) {
-  if (!elements.lobbyProfileModal) return;
-  const requestToken = ++lobbyProfileRequestToken;
-
-  elements.lobbyProfileName.textContent = player.name;
-  const oshiMember = player.oshiMemberId ? getMemberById(MEMBERS, player.oshiMemberId) : null;
-  elements.lobbyProfileOshi.textContent = oshiMember ? `推し：${oshiMember.name}` : "推し：未設定";
-  elements.lobbyProfileSwatch.innerHTML = "";
-  elements.lobbyProfileSwatch.appendChild(buildOshiSwatch(MEMBERS, player.oshiMemberId, {}));
-
-  elements.lobbyProfileBody.hidden = true;
-  elements.lobbyProfileUnavailable.hidden = true;
-  elements.lobbyProfileLoading.hidden = false;
-  elements.lobbyProfileModal.hidden = false;
-
-  const { profile } = await fetchPublicProfileByUid(player.uid);
-  if (requestToken !== lobbyProfileRequestToken) return; // その間に別の参加者がタップされていた
-
-  elements.lobbyProfileLoading.hidden = true;
-  if (!profile) {
-    elements.lobbyProfileUnavailable.hidden = false;
-    return;
-  }
-  elements.lobbyProfileBody.hidden = false;
-  // 【2026-09-14改訂・本人指示：実機フィードバック】2026-09-08時点では「王冠・ダイヤは
-  // 一切付けない」方針にしていたが、今回改めて「本当に取得済みの代表称号だけは、既存の
-  // フレンドプロフィールと同じ見た目で表示してほしい」との明確な指示があったため撤回する。
-  // profile取得前（253-254行目）はまだ称号状態が分からないため丸だけで一旦表示し、
-  // profileが届いた時点でjs/fanProfileCard.jsのbuildOshiSwatch()を使って本物の代表称号
-  // バッジ付きで描き直す（王冠・ダイヤを演出目的で勝手に足すのではなく、既存の
-  // 称号取得ロジックが返した真偽値をそのまま渡すだけ＝新しいオンライン専用の判定は作らない）。
-  elements.lobbyProfileSwatch.innerHTML = "";
-  elements.lobbyProfileSwatch.appendChild(
-    buildOshiSwatch(MEMBERS, player.oshiMemberId, {
-      hasNoMissMaster: profile.hasNoMissMaster,
-      hasEqualLoveMaster: profile.hasEqualLoveMaster,
-      hasEqualLoveComplete: profile.hasEqualLoveComplete,
-    })
-  );
-  elements.lobbyProfileAchievementCount.textContent = buildAchievementCountText(profile.unlockedAchievementIds);
-  elements.lobbyProfileSummary.innerHTML = "";
-  elements.lobbyProfileSummary.appendChild(buildFriendAchievementSummary(profile.unlockedAchievementIds));
-
-  // 【2026-09-13新設・本人指示11：ロビー参加者プロフィールに獲得称号の詳細を追加】
-  // js/fanProfilesScreen.jsの「すべての称号を見る」と全く同じ部品・同じ表示ロジックを
-  // 再利用する（新しいオンライン専用の称号表示は作らない）。称号を1つも持っていない人には
-  // 導線ごと出さない点も同じ。開閉状態は毎回「閉じている」から始める。
-  if (elements.lobbyProfileAllToggle && elements.lobbyProfileAchievements) {
-    elements.lobbyProfileAchievements.innerHTML = "";
-    elements.lobbyProfileAchievements.appendChild(buildAchievedAchievementsList(profile.unlockedAchievementIds));
-    elements.lobbyProfileAchievements.hidden = true;
-    elements.lobbyProfileAllToggle.hidden = profile.unlockedAchievementIds.length === 0;
-    elements.lobbyProfileAllToggle.textContent = LOBBY_PROFILE_ALL_TOGGLE_CLOSED_TEXT;
-  }
-}
-
-// 「すべての称号を見る」の初期表示文言（js/fanProfilesScreen.jsの同名定数と同じ文言）。
-const LOBBY_PROFILE_ALL_TOGGLE_CLOSED_TEXT = "すべての称号を見る ＞";
-const LOBBY_PROFILE_ALL_TOGGLE_OPEN_TEXT = "すべての称号を隠す";
-
-function handleLobbyProfileAllToggleClick() {
-  if (!elements.lobbyProfileAllToggle || !elements.lobbyProfileAchievements) return;
-  const willOpen = elements.lobbyProfileAchievements.hidden;
-  elements.lobbyProfileAchievements.hidden = !willOpen;
-  elements.lobbyProfileAllToggle.textContent = willOpen
-    ? LOBBY_PROFILE_ALL_TOGGLE_OPEN_TEXT
-    : LOBBY_PROFILE_ALL_TOGGLE_CLOSED_TEXT;
-}
-
-function closeLobbyParticipantProfile() {
-  if (!elements.lobbyProfileModal) return;
-  elements.lobbyProfileModal.hidden = true;
-}
 
 // 推し（最推し）が設定されていれば、色ドットの要素を1つ作って返す。未設定・不正な値
 // （既存のメンバーデータに一致しない等）の場合はnullを返す（エラーにせず何も表示しない）。
@@ -1717,7 +1623,7 @@ function renderLobby(room) {
     name.type = "button";
     name.className = "online-lobby-player-name online-lobby-player-name-button";
     name.textContent = player.name + (player.uid === myUid ? "（あなた）" : "");
-    name.addEventListener("click", () => openLobbyParticipantProfile(player));
+    name.addEventListener("click", () => openParticipantProfile(player));
     row.appendChild(name);
 
     // 【2026-08-30改訂・本人指示】「ホスト」バッジは、実際の権限（room.host）を正として
@@ -2424,7 +2330,7 @@ function goToResultScreen(room) {
     nameText.className = "battle-rank-name-button";
     nameText.textContent = participant.displayName;
     nameText.addEventListener("click", () =>
-      openLobbyParticipantProfile({ uid, name: participant.displayName, oshiMemberId: participant.oshiMemberId })
+      openParticipantProfile({ uid, name: participant.displayName, oshiMemberId: participant.oshiMemberId })
     );
     nameRow.appendChild(nameText);
 
@@ -2796,13 +2702,18 @@ export function initOnlineBattleScreens(newElements) {
   // 2026-08-08修正：ホームの特別モードカードから直接この画面を開くようになったため、
   // 「戻る」は間に古い「特別モード一覧画面」を挟まずホーム画面へ直接戻す。
   elements.entryBackButton.addEventListener("click", () => elements.navigateTo("start"));
+  // 【2026-09-26追加・本人指示：サウンドシステム全面整備5章】オンライン対戦の主要導線
+  // （ルーム作成・参加・準備完了・対戦開始・再戦）は、本人の監査で無音だと分かった
+  // 箇所のうち特に優先度が高いものとして、他の画面遷移ボタンと同じUI_CLICK/UI_CONFIRMで揃える。
   elements.entryCreateButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     elements.createNameInput.value = getActivePlayer().playerName || "";
     elements.createError.hidden = true;
     if (elements.entryAudioFailureNotice) elements.entryAudioFailureNotice.hidden = true;
     elements.navigateTo("onlineBattleCreate");
   });
   elements.entryJoinButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     elements.joinNameInput.value = getActivePlayer().playerName || "";
     elements.joinRoomCodeInput.value = "";
     elements.joinError.hidden = true;
@@ -2859,6 +2770,7 @@ export function initOnlineBattleScreens(newElements) {
       return;
     }
     elements.createError.hidden = true;
+    playSfx(SFX_EVENTS.UI_CONFIRM);
     goToLobby(result.roomId);
   });
 
@@ -2894,6 +2806,7 @@ export function initOnlineBattleScreens(newElements) {
         return;
       }
       elements.joinError.hidden = true;
+      playSfx(SFX_EVENTS.UI_CONFIRM);
       goToSpectate(spectateResult.roomId, playerName);
       return;
     }
@@ -2906,6 +2819,7 @@ export function initOnlineBattleScreens(newElements) {
       return;
     }
     elements.joinError.hidden = true;
+    playSfx(SFX_EVENTS.UI_CONFIRM);
     goToLobby(result.roomId);
   });
 
@@ -3054,6 +2968,7 @@ export function initOnlineBattleScreens(newElements) {
 
   elements.lobbyReadyButton.addEventListener("click", async () => {
     if (!currentRoomId) return;
+    playSfx(SFX_EVENTS.UI_CLICK);
     // 【2026-09-09新設・本人指示：音源再生失敗の本対策】参加者側の「準備完了」も、
     // 対戦開始前の確実なユーザージェスチャーの1つとして、同じくunlockを再実行しておく。
     attemptSilentUnlock();
@@ -3075,6 +2990,7 @@ export function initOnlineBattleScreens(newElements) {
     // （js/audio.js参照。全対戦モードのこの1つの開始ボタンを経由するため、6モード
     // すべてに効く）。
     attemptSilentUnlock();
+    playSfx(SFX_EVENTS.UI_CONFIRM);
 
     elements.lobbyStartButton.disabled = true;
     elements.lobbyStartError.hidden = true;
@@ -3216,12 +3132,14 @@ export function initOnlineBattleScreens(newElements) {
     // 【2026-09-09新設・本人指示：音源再生失敗の本対策】「もう一度」はロビーの開始ボタンを
     // 経由せず次の対戦（の準備）へ進むため、こちらでもunlockを再実行しておく。
     attemptSilentUnlock();
+    playSfx(SFX_EVENTS.UI_CONFIRM);
     elements.resultRematchButton.disabled = true;
     await beginRematchReadyCheck({ roomId: currentRoomId });
     elements.resultRematchButton.disabled = false;
   });
   elements.resultBackToLobbyButton.addEventListener("click", async () => {
     if (!currentRoomId) return;
+    playSfx(SFX_EVENTS.UI_BACK);
     elements.resultBackToLobbyButton.disabled = true;
     await returnRoomToLobby({ roomId: currentRoomId });
     elements.resultBackToLobbyButton.disabled = false;
@@ -3311,16 +3229,21 @@ export function initOnlineBattleScreens(newElements) {
     });
   });
 
-  elements.lobbyProfileClose?.addEventListener("click", () => closeLobbyParticipantProfile());
-  elements.lobbyProfileAllToggle?.addEventListener("click", () => handleLobbyProfileAllToggleClick());
-  elements.lobbyProfileModal?.addEventListener("click", (event) => {
-    if (event.target !== elements.lobbyProfileModal) return;
-    closeLobbyParticipantProfile();
-  });
-  document.addEventListener("keydown", (event) => {
-    if (event.key !== "Escape") return;
-    if (!elements.lobbyProfileModal || elements.lobbyProfileModal.hidden) return;
-    closeLobbyParticipantProfile();
+  // 【2026-09-26移設・本人指示：オンライン対戦総合改修19-10章】実体はjs/onlineParticipantIcon.js
+  // へ移したため、ここでは受け取ったDOM要素を渡して初期化するだけ。
+  initParticipantProfileModal({
+    modal: elements.lobbyProfileModal,
+    closeButton: elements.lobbyProfileClose,
+    name: elements.lobbyProfileName,
+    oshi: elements.lobbyProfileOshi,
+    swatch: elements.lobbyProfileSwatch,
+    body: elements.lobbyProfileBody,
+    unavailable: elements.lobbyProfileUnavailable,
+    loading: elements.lobbyProfileLoading,
+    achievementCount: elements.lobbyProfileAchievementCount,
+    summary: elements.lobbyProfileSummary,
+    allToggle: elements.lobbyProfileAllToggle,
+    achievements: elements.lobbyProfileAchievements,
   });
 
   renderLastRoomBanner();

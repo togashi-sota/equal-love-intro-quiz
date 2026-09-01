@@ -38,10 +38,32 @@ const UI_EVENT_SET = new Set([SFX_EVENTS.UI_CLICK, SFX_EVENTS.UI_BACK, SFX_EVENT
 export const SFX_THEMES = { SPARKLE: "sparkle", LIVE: "live", CLASSIC: "classic" };
 
 export const SFX_THEME_INFO = [
-  { id: SFX_THEMES.SPARKLE, name: "Sparkle Pop", description: "キラキラした明るいゲームサウンド" },
-  { id: SFX_THEMES.LIVE, name: "Live Stage", description: "ライブ感のある派手なサウンド" },
-  { id: SFX_THEMES.CLASSIC, name: "Quiz Classic", description: "ピンポーン・ブザー系の王道クイズサウンド" },
+  { id: SFX_THEMES.SPARKLE, name: "Sparkle Pop", description: "明るくかわいい、テンポの良いキラキラサウンド" },
+  { id: SFX_THEMES.LIVE, name: "Live Stage", description: "ライブ会場のような、派手で盛り上がるサウンド" },
+  { id: SFX_THEMES.CLASSIC, name: "Quiz Classic", description: "テレビのクイズ番組のような、分かりやすい王道サウンド" },
 ];
+
+// 【2026-09-26新設・本人指示：サウンドシステム全面整備3章】詳細設定で「音ごとに」個別変更
+// できるイベント（本人指示：「普通のUIクリック音まで1ボタンずつ設定する必要はない。
+// UI操作音についてはテーマ側で統一された共通音を使用してよい」）。UI_EVENT_SETの補集合＝
+// 「クイズ・対戦」ON/OFFの対象と完全に一致する（新しい分類を増やさず、既存の
+// ui/game区分をそのまま流用する）。表示名はここに集約し、詳細設定画面（
+// js/soundSettingsScreen.js）はこの配列を見て行を組み立てるだけにする。
+export const CUSTOMIZABLE_SFX_EVENT_INFO = [
+  { id: SFX_EVENTS.QUIZ_CORRECT, label: "正解" },
+  { id: SFX_EVENTS.QUIZ_WRONG, label: "不正解" },
+  { id: SFX_EVENTS.GAME_START, label: "ゲーム／対戦開始" },
+  { id: SFX_EVENTS.COUNTDOWN_TICK, label: "カウントダウン（秒読み）" },
+  { id: SFX_EVENTS.COUNTDOWN_FINAL, label: "カウントダウン（スタート）" },
+  { id: SFX_EVENTS.RESULT_GOOD, label: "結果（ふつう）" },
+  { id: SFX_EVENTS.RESULT_GREAT, label: "結果（すごい）" },
+  { id: SFX_EVENTS.RESULT_PERFECT, label: "結果（パーフェクト）" },
+  { id: SFX_EVENTS.BATTLE_WIN, label: "対戦：勝利" },
+  { id: SFX_EVENTS.BATTLE_LOSE, label: "対戦：敗北" },
+  { id: SFX_EVENTS.ACHIEVEMENT_UNLOCK, label: "称号獲得" },
+  { id: SFX_EVENTS.STEAL_SUCCESS, label: "早押し成功" },
+];
+const CUSTOMIZABLE_SFX_EVENT_IDS = new Set(CUSTOMIZABLE_SFX_EVENT_INFO.map((info) => info.id));
 
 const DEFAULT_THEME = SFX_THEMES.SPARKLE;
 const DEFAULT_VOLUME_PERCENT = 70;
@@ -58,6 +80,11 @@ const STORAGE_KEYS = {
   game: "equalLoveIntroQuiz.sfxGameEnabled",
   theme: "equalLoveIntroQuiz.sfxTheme",
   volume: "equalLoveIntroQuiz.sfxVolume",
+  // 【2026-09-26新設・本人指示：サウンドシステム全面整備3章】イベントごとのテーマ上書き
+  // （例：テーマ全体はSparkle Popのままだが、正解音だけLive Stageのものを使う）。
+  // 古いバージョンにはこのキー自体が存在しないため、読み込み時に無ければ「上書きなし」
+  // （＝すべてテーマに従う）として扱う。既存ユーザーの設定を壊さない後方互換。
+  eventOverrides: "equalLoveIntroQuiz.sfxEventThemeOverrides",
 };
 
 function readBoolean(key, defaultValue) {
@@ -101,11 +128,41 @@ function readVolumePercent() {
   }
 }
 
+// 【2026-09-26新設】{ [eventId]: themeId } の形。CUSTOMIZABLE_SFX_EVENT_IDSに含まれない
+// キーや、存在しないテーマIDが万一保存されていても、安全に無視する（壊れた保存データへの
+// 耐性、他の設定読み込み関数と同じ方針）。
+function readEventOverrides() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.eventOverrides);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    const result = {};
+    for (const [eventId, themeId] of Object.entries(parsed)) {
+      if (CUSTOMIZABLE_SFX_EVENT_IDS.has(eventId) && Object.values(SFX_THEMES).includes(themeId)) {
+        result[eventId] = themeId;
+      }
+    }
+    return result;
+  } catch {
+    return {};
+  }
+}
+
+function writeEventOverrides(overrides) {
+  try {
+    localStorage.setItem(STORAGE_KEYS.eventOverrides, JSON.stringify(overrides));
+  } catch {
+    // 保存できなくても、その場の切り替え自体は反映され続ける
+  }
+}
+
 let sfxMasterEnabled = readBoolean(STORAGE_KEYS.master, true);
 let sfxUiEnabled = readBoolean(STORAGE_KEYS.ui, true);
 let sfxGameEnabled = readBoolean(STORAGE_KEYS.game, true);
 let sfxTheme = readTheme();
 let sfxVolumePercent = readVolumePercent();
+let sfxEventOverrides = readEventOverrides();
 
 export function getSfxSettings() {
   return {
@@ -115,6 +172,44 @@ export function getSfxSettings() {
     theme: sfxTheme,
     volumePercent: sfxVolumePercent,
   };
+}
+
+// このイベントに、テーマ全体とは別の個別上書きが設定されていればそのテーマIDを、
+// 無ければnull（＝現在のテーマに従う）を返す。
+export function getEventThemeOverride(eventId) {
+  return sfxEventOverrides[eventId] ?? null;
+}
+
+// 実際にこのイベントを鳴らすときに使われるテーマID（上書きがあればそれ、無ければ
+// 現在のテーマ）。詳細設定画面のプレビュー・「カスタム」バッジ判定の両方に使う。
+export function getEffectiveThemeForEvent(eventId) {
+  return sfxEventOverrides[eventId] ?? sfxTheme;
+}
+
+// themeIdにnullを渡すと上書きを解除する（＝テーマに従う状態へ戻す）。
+export function setEventThemeOverride(eventId, themeId) {
+  if (!CUSTOMIZABLE_SFX_EVENT_IDS.has(eventId)) return;
+  const next = { ...sfxEventOverrides };
+  if (themeId === null || !Object.values(SFX_THEMES).includes(themeId)) {
+    delete next[eventId];
+  } else {
+    next[eventId] = themeId;
+  }
+  sfxEventOverrides = next;
+  writeEventOverrides(sfxEventOverrides);
+}
+
+// 1件でも個別上書きがあるか（詳細設定の「カスタム」バッジ・テーマ変更時の確認ダイアログの
+// 要否判定に使う）。
+export function hasAnyEventThemeOverrides() {
+  return Object.keys(sfxEventOverrides).length > 0;
+}
+
+// 【本人指示14：テーマ変更時に個別カスタムが知らないうちに消えないように】テーマそのものを
+// 切り替える操作からだけ呼ぶ想定（呼び出し側が事前に確認ダイアログを出す）。
+export function clearAllEventThemeOverrides() {
+  sfxEventOverrides = {};
+  writeEventOverrides(sfxEventOverrides);
 }
 
 export function setSfxMasterEnabled(enabled) {
@@ -539,7 +634,10 @@ export function playSfx(eventName) {
 
   const themeTable = SOUND_DEFINITIONS[eventName];
   if (!themeTable) return;
-  const descriptor = themeTable[sfxTheme] ?? themeTable[DEFAULT_THEME];
+  // 【2026-09-26改訂・本人指示：サウンドシステム全面整備3章】このイベントだけ個別に
+  // テーマ上書きが設定されていれば、現在のテーマではなくそちらの音を使う。
+  const effectiveTheme = sfxEventOverrides[eventName] ?? sfxTheme;
+  const descriptor = themeTable[effectiveTheme] ?? themeTable[DEFAULT_THEME];
   if (!descriptor) return;
 
   try {
@@ -549,19 +647,61 @@ export function playSfx(eventName) {
   }
 }
 
-// テーマ選択時の「試聴」用：現在のON/OFF設定に関わらず、指定テーマの正解音を1回鳴らす
-// （本人指示：明示的な試聴ボタンでの操作なので、ON/OFF判定はバイパスしてよい。ただし
-// 音量設定は反映する）。
-export function previewSfxTheme(themeId) {
+// 単発の試聴：指定イベント・指定テーマの音を1回だけ鳴らす（本人指示：明示的な試聴操作の
+// ため、ON/OFF設定はバイパスしてよい。ただし音量設定は反映する）。詳細設定画面の
+// 「▶」ボタン（1つのイベントだけを試聴）から使う。
+export function previewSfxEvent(eventId, themeId) {
   const context = getAudioContext();
   if (!context) return;
+  const table = SOUND_DEFINITIONS[eventId];
+  if (!table) return;
   const validTheme = Object.values(SFX_THEMES).includes(themeId) ? themeId : DEFAULT_THEME;
-  const descriptor = SOUND_DEFINITIONS[SFX_EVENTS.QUIZ_CORRECT][validTheme];
+  const descriptor = table[validTheme] ?? table[DEFAULT_THEME];
+  if (!descriptor) return;
   try {
     renderSoundDescriptor(context, descriptor, sfxVolumePercent / 100);
   } catch {
     // 試聴に失敗しても画面側は何もしなくてよい
   }
+}
+
+// 【2026-09-26改訂・本人指示：サウンドシステム全面整備4章】テーマ選択カードの
+// 「▶ テーマを試聴」用。以前は正解音を1回鳴らすだけだったが、そのテーマの雰囲気が
+// 一目（一聴）で伝わるよう、操作音→正解→不正解→開始→結果の5つを短い間隔で
+// 順番に鳴らす。試聴ボタンを連打・別テーマの試聴を続けて押した場合は、まだ鳴っていない
+// 後続の音をキャンセルしてから新しい試聴を始める（本人指示：試聴同士が重複再生し続け
+// ないように）。
+const THEME_PREVIEW_SEQUENCE = [
+  SFX_EVENTS.UI_CLICK,
+  SFX_EVENTS.QUIZ_CORRECT,
+  SFX_EVENTS.QUIZ_WRONG,
+  SFX_EVENTS.GAME_START,
+  SFX_EVENTS.RESULT_GREAT,
+];
+const THEME_PREVIEW_STEP_GAP_MS = 420;
+let pendingThemePreviewTimeoutIds = [];
+
+export function previewSfxTheme(themeId) {
+  pendingThemePreviewTimeoutIds.forEach((id) => clearTimeout(id));
+  pendingThemePreviewTimeoutIds = [];
+
+  const context = getAudioContext();
+  if (!context) return;
+  const validTheme = Object.values(SFX_THEMES).includes(themeId) ? themeId : DEFAULT_THEME;
+
+  THEME_PREVIEW_SEQUENCE.forEach((eventId, index) => {
+    const timeoutId = setTimeout(() => {
+      const table = SOUND_DEFINITIONS[eventId];
+      const descriptor = table?.[validTheme] ?? table?.[DEFAULT_THEME];
+      if (!descriptor) return;
+      try {
+        renderSoundDescriptor(context, descriptor, sfxVolumePercent / 100);
+      } catch {
+        // 試聴に失敗しても画面側は何もしなくてよい
+      }
+    }, index * THEME_PREVIEW_STEP_GAP_MS);
+    pendingThemePreviewTimeoutIds.push(timeoutId);
+  });
 }
 
 // 結果画面の得点カウントアップ演出用の、テーマに属さない単発スイープ音

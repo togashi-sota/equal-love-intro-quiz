@@ -15,6 +15,10 @@
 
 import { SONGS } from "./data/songs.js";
 import { QUESTION_SOURCE_TYPE } from "./questionSource.js";
+// 【2026-09-26追加・本人指示：サウンドシステム全面整備7章】正解・不正解は他のクイズ
+// モードと同じ効果音（SFX_EVENTS.QUIZ_CORRECT/QUIZ_WRONG）で統一する。以前はこのモードだけ
+// SFXの呼び出しが1件もなく、完全に無音だった（本人指示の監査で発覚）。
+import { playCorrectSound, playWrongSound } from "./sfx.js";
 import { recordLyricsQuizWeakSongAttempt } from "./lyricsQuizWeakSongStats.js";
 import { normalizeForSearch, songMatchesSearch } from "./songlist.js";
 import {
@@ -646,7 +650,12 @@ function handleAnswerSelected(selectedSongId, buttonElement) {
   }
 
   buttonElement.classList.add(isCorrect ? "is-correct" : "is-wrong");
-  if (!isCorrect) revealCorrectAnswerButton(question);
+  if (isCorrect) {
+    playCorrectSound();
+  } else {
+    playWrongSound();
+    revealCorrectAnswerButton(question);
+  }
 
   questionElements.nextHintButton.disabled = true;
   disableAllAnswerButtons();

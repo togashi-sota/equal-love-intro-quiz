@@ -5468,9 +5468,22 @@
 
       <div class="sfx-settings-section">
         <p class="sfx-settings-section-title">サウンドテーマ</p>
+        <p class="sfx-settings-section-hint">テーマを選ぶだけで、そのテーマの効果音一式が使われます。こだわりたい場合は下の「詳細設定」から音ごとに変更できます。</p>
         <div id="sfx-settings-theme-list" class="sfx-theme-option-list"></div>
-        <button id="sfx-settings-preview-button" class="secondary-button sfx-settings-preview-button" type="button">▶ 試聴</button>
       </div>
+
+      <!-- 【2026-09-26新設・本人指示：サウンドシステム全面整備】テーマ選択だけで使える人と、
+           音ごとにこだわりたい人の両方に対応する二段構成。詳細設定は折りたたみ式にして、
+           普段は設定画面を大きくしすぎない（本人指示19）。 -->
+      <details id="sfx-settings-advanced" class="sfx-settings-advanced">
+        <summary class="sfx-settings-advanced-summary">
+          <span>詳細設定（音ごとに変更）</span>
+          <span id="sfx-settings-advanced-badge" class="sfx-settings-advanced-badge" hidden>カスタム</span>
+        </summary>
+        <p class="sfx-settings-section-hint">正解・不正解・開始・結果など、ゲーム中の音だけを1つずつ選べます。操作音（ボタン等）はテーマ共通のままです。</p>
+        <button id="sfx-settings-reset-overrides-button" class="sfx-settings-reset-overrides-button" type="button" hidden>すべて標準に戻す</button>
+        <div id="sfx-settings-advanced-list" class="sfx-settings-advanced-list"></div>
+      </details>
 
       <div class="sfx-settings-section">
         <div class="sfx-settings-volume-header">
@@ -5478,6 +5491,19 @@
           <span id="sfx-settings-volume-value" class="sfx-settings-volume-value">70%</span>
         </div>
         <input id="sfx-settings-volume-range" class="seek-range sfx-settings-volume-range" type="range" min="0" max="100" step="5" value="70">
+        <p class="sfx-settings-section-hint">この音量は効果音（SE）専用です。曲そのものの音量は下の「楽曲音量」で別に調整できます。</p>
+      </div>
+
+      <!-- 【2026-09-26新設・本人指示：サウンドシステム全面整備11章】効果音音量とは
+           完全に別の、曲そのもの（通常のイントロ再生・歌詞クイズ対戦の答え合わせ楽曲）
+           専用の音量。js/audio.jsのgetMusicVolumePercent/setMusicVolumePercentが実体。 -->
+      <div class="sfx-settings-section">
+        <div class="sfx-settings-volume-header">
+          <p class="sfx-settings-section-title">楽曲音量</p>
+          <span id="sfx-settings-music-volume-value" class="sfx-settings-volume-value">100%</span>
+        </div>
+        <input id="sfx-settings-music-volume-range" class="seek-range sfx-settings-volume-range" type="range" min="0" max="100" step="5" value="100">
+        <p class="sfx-settings-section-hint">通常のクイズ楽曲・歌詞クイズ対戦の答え合わせで流れる楽曲の音量です。</p>
       </div>
     </div>
   </div>

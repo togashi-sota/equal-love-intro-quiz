@@ -52,6 +52,51 @@ if (audioElement) {
   });
 }
 
+// ===== 楽曲音量（2026-09-26新設・本人指示：サウンドシステム全面整備） =====
+// 効果音（js/soundManager.jsのsfxVolumePercent）とは完全に独立した、曲そのものの音量。
+// 通常のイントロクイズ等の楽曲再生と、歌詞クイズ対戦の答え合わせ楽曲再生（新設）の
+// どちらも同じaudioElementを共有しているため、ここで一箇所設定するだけで両方に効く。
+// 【Q1無音バグとの関係について・重要】この音量機能は、下のunlock・
+// ensureUnlockSettled()・fail-open・タイムアウト等の「再生を開始できるかどうか」の
+// ロジックには一切関与しない。audioElement.volumeプロパティを、ブラウザの既定値（1.0）
+// から保存済みの音量へ変えるだけの、完全に独立した後付け機能。
+const MUSIC_VOLUME_STORAGE_KEY = "equalLoveIntroQuiz.musicVolumePercent";
+const DEFAULT_MUSIC_VOLUME_PERCENT = 100;
+
+function clampMusicVolumePercent(value) {
+  if (!Number.isFinite(value)) return DEFAULT_MUSIC_VOLUME_PERCENT;
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function readMusicVolumePercent() {
+  try {
+    const stored = localStorage.getItem(MUSIC_VOLUME_STORAGE_KEY);
+    if (stored === null) return DEFAULT_MUSIC_VOLUME_PERCENT;
+    return clampMusicVolumePercent(Number(stored));
+  } catch {
+    return DEFAULT_MUSIC_VOLUME_PERCENT;
+  }
+}
+
+let musicVolumePercent = readMusicVolumePercent();
+if (audioElement) audioElement.volume = musicVolumePercent / 100;
+
+export function getMusicVolumePercent() {
+  return musicVolumePercent;
+}
+
+// 0〜100の整数（範囲外は自動的に丸める）。保存に失敗しても、その場の音量変更自体は
+// 反映され続ける（js/soundManager.jsの同種の設定関数と同じ方針）。
+export function setMusicVolumePercent(percent) {
+  musicVolumePercent = clampMusicVolumePercent(percent);
+  if (audioElement) audioElement.volume = musicVolumePercent / 100;
+  try {
+    localStorage.setItem(MUSIC_VOLUME_STORAGE_KEY, String(musicVolumePercent));
+  } catch {
+    // 保存できなくても、その場の音量変更自体は反映され続ける
+  }
+}
+
 // 【2026-09-06新設・本人指示：一瞬チャレンジで音源再生失敗が再発】3→2→1カウントダウン
 // （js/localReplayCountdown.js）はsetTimeoutで約1.5秒後にonComplete()（＝実際の
 // audioElement.play()呼び出し）を呼ぶ。iOS Safari/PWAは「ユーザー操作から十分近い

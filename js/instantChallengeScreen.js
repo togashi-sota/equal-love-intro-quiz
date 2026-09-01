@@ -23,6 +23,10 @@
 // 称号・特殊ランキングの具体的な条件は今回決めない（本人指示）。
 import { resolveSongPool, QUESTION_SOURCE_TYPE } from "./questionSource.js";
 import { MIN_SONGS_REQUIRED } from "./quiz.js";
+// 【2026-09-26追加・本人指示：サウンドシステム全面整備7章】正解・不正解は他のクイズ
+// モードと同じ効果音で統一する。以前はこのモードだけSFXの呼び出しが1件もなく、
+// 完全に無音だった（本人指示の監査で発覚）。
+import { playCorrectSound, playWrongSound } from "./sfx.js";
 import { filterSongsWithImportedAudio } from "./audioStorage.js";
 import { SONGS } from "./data/songs.js";
 import {
@@ -506,6 +510,11 @@ function handleAnswerSelected(selectedSongId, buttonElement) {
 
   const question = questions[currentIndex];
   const isCorrect = selectedSongId === question.song.id;
+  if (isCorrect) {
+    playCorrectSound();
+  } else {
+    playWrongSound();
+  }
   answers.push({ songId: question.song.id, isCorrect, replayCount: replayCounts[currentIndex] });
   if (practiceModeId === null) {
     recordInstantChallengeWeakSongAttempt(question.song.id, isCorrect);

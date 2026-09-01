@@ -121,6 +121,24 @@ export function runLyricsQuizQuestionBuilderTests() {
       true,
       "どの問題も最低1段階のヒントを持つ"
     );
+
+    // 【2026-09-26追加・本人指示：サウンドシステム全面整備9章】オンライン歌詞クイズ対戦の
+    // 答え合わせ楽曲を「ヒント1の歌詞位置」から再生できるよう、revealStartTimeSecに
+    // その行のstart秒数が入ることを確認する（歌詞データにstart/endが揃っているダミー
+    // 歌詞を使っているため、全問で値が入るはず）。
+    assertEqual(
+      questionsA.every((q) => typeof q.revealStartTimeSec === "number"),
+      true,
+      "歌詞にstart秒数がある場合、revealStartTimeSecは数値になる（ヒント1の歌詞開始位置）"
+    );
+    questionsA.forEach((question) => {
+      const hint1Line = buildRichDummyLines().find((line) => line.line === question.hints[0].startLine);
+      assertEqual(
+        question.revealStartTimeSec,
+        hint1Line?.start,
+        "revealStartTimeSecは、ヒント1（hints[0]）のstartLineに対応する行のstart秒数と一致する"
+      );
+    });
     assertEqual(
       questionsA.every((q) => q.answerPool.length === 4),
       true,

@@ -16,8 +16,8 @@
 // （js/onlineBattleScreen.jsのopenLobbyParticipantProfile()と同じ考え方）。
 import { getMemberById } from "./memberUtils.js";
 import { MEMBERS } from "./data/members.js";
-import { buildOshiSwatch } from "./fanProfileCard.js";
-import { fetchPublicProfileBadgeState } from "./publicProfileSync.js";
+import { buildOshiSwatch, buildAchievementCountText, buildFriendAchievementSummary, buildAchievedAchievementsList } from "./fanProfileCard.js";
+import { fetchPublicProfileBadgeState, fetchPublicProfileByUid } from "./publicProfileSync.js";
 
 // uid → 取得済みのバッジ状態（Promise）のキャッシュ。同じuidの称号を画面内の複数箇所
 // （ロビー一覧・スコア表示・結果画面）で同時に表示することが多いため、同じセッション中は
@@ -62,4 +62,106 @@ export function describeOshiMemberName(oshiMemberId) {
   if (!oshiMemberId) return "推し未設定";
   const member = getMemberById(MEMBERS, oshiMemberId);
   return member ? member.name : "推し未設定";
+}
+
+// ===== 参加者プロフィールモーダル（2026-09-07新設・本人指示：ルーム参加者プロフィール） =====
+//
+// 【2026-09-26移設・本人指示：オンライン対戦総合改修19-10章】以前はjs/onlineBattleScreen.js
+// （ロビー画面）だけの内部機能だったが、「対戦の公平性に影響しない場所（設定画面・
+// 待機画面・問題の合間・結果画面）ならどこでもプロフィールを開けるようにしてほしい」との
+// 指示で、js/onlineInstantBattleScreen.js・js/onlineInstantCoopBattleScreen.js・
+// js/onlineLyricsQuizBattleScreen.jsからも使うようになった。js/onlineLyricsQuizBattleScreen.js
+// の冒頭コメントに「js/onlineBattleScreen.jsを一切importしない（一方向の依存に保つため）」と
+// いう明記があり、そちらからjs/onlineBattleScreen.jsを直接importすると設計方針に反するため、
+// 参加者アイコンと同じくこの中立な共通ファイルへ実体ごと移設した。
+// FirebaseのpublicProfiles/{uid}を1件だけ読み、簡易プロフィールモーダルに表示する
+// （表示名・推し・獲得済み称号のみ。READY等の参加状態は一切変更しない読み取り専用）。
+let profileModalElements = null;
+let profileRequestToken = 0;
+
+const PROFILE_ALL_TOGGLE_CLOSED_TEXT = "すべての称号を見る ＞";
+const PROFILE_ALL_TOGGLE_OPEN_TEXT = "すべての称号を隠す";
+
+// playerは{uid, name, oshiMemberId}の形を受け取る（room.players[uid]・
+// match.participants[uid]のどちらも、この3つのプロパティを持つ）。
+export async function openParticipantProfile(player) {
+  if (!profileModalElements) return;
+  const elements = profileModalElements;
+  const requestToken = ++profileRequestToken;
+
+  elements.name.textContent = player.name;
+  const oshiMember = player.oshiMemberId ? getMemberById(MEMBERS, player.oshiMemberId) : null;
+  elements.oshi.textContent = oshiMember ? `推し：${oshiMember.name}` : "推し：未設定";
+  elements.swatch.innerHTML = "";
+  elements.swatch.appendChild(buildOshiSwatch(MEMBERS, player.oshiMemberId, {}));
+
+  elements.body.hidden = true;
+  elements.unavailable.hidden = true;
+  elements.loading.hidden = false;
+  elements.modal.hidden = false;
+
+  const { profile } = await fetchPublicProfileByUid(player.uid);
+  if (requestToken !== profileRequestToken) return; // その間に別の参加者がタップされていた
+
+  elements.loading.hidden = true;
+  if (!profile) {
+    elements.unavailable.hidden = false;
+    return;
+  }
+  elements.body.hidden = false;
+  // 本当に取得済みの代表称号だけを、既存のフレンドプロフィールと同じ見た目で表示する
+  // （王冠・ダイヤを演出目的で勝手に足すのではなく、既存の称号取得ロジックが返した
+  // 真偽値をそのまま渡すだけ＝新しいオンライン専用の判定は作らない）。
+  elements.swatch.innerHTML = "";
+  elements.swatch.appendChild(
+    buildOshiSwatch(MEMBERS, player.oshiMemberId, {
+      hasNoMissMaster: profile.hasNoMissMaster,
+      hasEqualLoveMaster: profile.hasEqualLoveMaster,
+      hasEqualLoveComplete: profile.hasEqualLoveComplete,
+    })
+  );
+  elements.achievementCount.textContent = buildAchievementCountText(profile.unlockedAchievementIds);
+  elements.summary.innerHTML = "";
+  elements.summary.appendChild(buildFriendAchievementSummary(profile.unlockedAchievementIds));
+
+  // js/fanProfilesScreen.jsの「すべての称号を見る」と全く同じ部品・同じ表示ロジックを
+  // 再利用する（新しいオンライン専用の称号表示は作らない）。称号を1つも持っていない人には
+  // 導線ごと出さない点も同じ。開閉状態は毎回「閉じている」から始める。
+  if (elements.allToggle && elements.achievements) {
+    elements.achievements.innerHTML = "";
+    elements.achievements.appendChild(buildAchievedAchievementsList(profile.unlockedAchievementIds));
+    elements.achievements.hidden = true;
+    elements.allToggle.hidden = profile.unlockedAchievementIds.length === 0;
+    elements.allToggle.textContent = PROFILE_ALL_TOGGLE_CLOSED_TEXT;
+  }
+}
+
+function closeParticipantProfile() {
+  if (!profileModalElements) return;
+  profileModalElements.modal.hidden = true;
+}
+
+function handleProfileAllToggleClick() {
+  if (!profileModalElements?.allToggle || !profileModalElements?.achievements) return;
+  const willOpen = profileModalElements.achievements.hidden;
+  profileModalElements.achievements.hidden = !willOpen;
+  profileModalElements.allToggle.textContent = willOpen ? PROFILE_ALL_TOGGLE_OPEN_TEXT : PROFILE_ALL_TOGGLE_CLOSED_TEXT;
+}
+
+// modalElementsは{modal, closeButton, name, oshi, swatch, body, unavailable, loading,
+// achievementCount, summary, allToggle, achievements}の形（js/main.jsから、既存の
+// #online-lobby-profile-modal内の各要素をそのまま渡す）。
+export function initParticipantProfileModal(modalElements) {
+  profileModalElements = modalElements;
+  modalElements.closeButton?.addEventListener("click", () => closeParticipantProfile());
+  modalElements.allToggle?.addEventListener("click", () => handleProfileAllToggleClick());
+  modalElements.modal?.addEventListener("click", (event) => {
+    if (event.target !== modalElements.modal) return;
+    closeParticipantProfile();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    if (!modalElements.modal || modalElements.modal.hidden) return;
+    closeParticipantProfile();
+  });
 }
