@@ -156,11 +156,15 @@ export function buildQuestions({ seed, settings, reserveCount = 0 }) {
 
 // 1人分のプレイ結果。common.replayCountは、この結果同士の比較（compareResults）専用の
 // 新フィールド（Firebase Rules側もresults/{uid}/common/replayCountとして追加済み）。
-export function createResult({ correctCount, missCount, totalElapsedMs, totalReplayCount, completed }) {
+// 【2026-09-12追加・本人指示：結果画面の問題別結果アコーディオンを完成させる】
+// perQuestionSnapshotの扱いはjs/battleModes/timeAttackBattleMode.jsのcreateResult()と同じ
+// （省略時は今までと完全に同じ結果オブジェクトのまま）。
+export function createResult({ correctCount, missCount, totalElapsedMs, totalReplayCount, completed, perQuestionSnapshot }) {
   return {
     completed,
     common: { elapsedMs: totalElapsedMs, correctCount, missCount, replayCount: totalReplayCount },
     detail: {},
+    ...(perQuestionSnapshot ? { perQuestionSnapshot } : {}),
   };
 }
 

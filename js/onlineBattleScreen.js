@@ -62,6 +62,8 @@ import {
   resolveAllEligibleSongIdsForMode,
 } from "./battleModes/index.js";
 import { QUESTION_COUNT_LABELS, CATEGORY_LABELS, RULE_LABELS } from "./localBattleScreen.js";
+import { buildSharedEngineQuestionBreakdown, capQuestionBreakdownForStorage } from "./battleQuestionBreakdown.js";
+import { renderQuestionBreakdownAccordion } from "./battleQuestionBreakdownUi.js";
 import { computeNormalFinalRecordMs } from "./localBattleResult.js";
 import { MEMBERS } from "./data/members.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
@@ -165,6 +167,10 @@ let currentGameMode = null; // 今のルームのgameMode（設定変更ハン�
 // 【2026-08-30新設、本人指示】ホスト自動移譲の「一定時間」を判定するための状態。
 // 何秒切断が続いたら引き継ぐかは、Rules側で厳密に強制できないため、クライアント側の
 // 節度として持たせる（本人指示：横取り防止のため慎重に）。
+// 【2026-09-12追加・本人指示：共有クイズエンジンの音源再生失敗対策】タイムアタック・
+// ランダム再生・アウトロクイズ対戦で、音源再生失敗時に差し替える予備曲の件数。
+// js/instantChallengeScreen.js・js/onlineInstantBattleScreen.jsの同名の値と揃えている。
+const AUDIO_FAILURE_RESERVE_SIZE = 3;
 const HOST_DISCONNECT_CLAIM_MS = 8000;
 // 上のHOST_DISCONNECT_CLAIM_MSより十分短い間隔で定期チェックする（詳細はstartHostDisconnectAutoClaimTimer()参照）。
 const HOST_DISCONNECT_CHECK_INTERVAL_MS = 2000;
@@ -864,8 +870,12 @@ function enterOnlineBattlePlay(room) {
   }
 
   currentMatchId = room.activeMatchId;
-  const questions = buildQuestionsForMode(room.gameMode, room.settings, room.seed);
-  currentMatchTotalQuestions = questions.length;
+  // 【2026-09-12追加・本人指示：共有クイズエンジンの音源再生失敗対策】タイムアタック・
+  // ランダム再生・アウトロクイズ対戦は、一瞬バトル等と同じくAUDIO_FAILURE_RESERVE_SIZE件の
+  // 予備曲を確保しておく（js/main.jsのbeginOnlineBattlePlay()が実際の曲配列と予備曲を
+  // isReserveで仕分ける）。currentMatchTotalQuestionsは予備を除いた実際の出題数のまま。
+  const questions = buildQuestionsForMode(room.gameMode, room.settings, room.seed, AUDIO_FAILURE_RESERVE_SIZE);
+  currentMatchTotalQuestions = questions.filter((question) => !question.isReserve).length;
 
   // 自分の進捗（progress）がまだ無ければ作る。再接続時は既存の値を保つため、
   // 既にあれば何もしない（js/onlineBattle.jsのinitializeMyMatchProgress参照）。
@@ -1755,7 +1765,19 @@ function goToResultScreen(room) {
     playSfx(finisherRanks[myFinisherIndex] === 1 ? SFX_EVENTS.BATTLE_WIN : SFX_EVENTS.BATTLE_LOSE);
   }
 
-  saveOnlineBattleHistoryEntry(room, currentMatchId, finishers, finisherRanks, dnfEntries, myUid);
+  // 【2026-09-12新設・本人指示：結果画面の問題別結果アコーディオンを完成させる】
+  // 各参加者が結果送信時に提出したperQuestionSnapshot（js/main.jsのfinishOnlineBattlePlay()・
+  // js/onlineInstantBattleScreen.jsのfinishMatch()参照）から、問題別結果を組み立てて表示する。
+  // 音源再生失敗の予備曲差し替え等が無かった旧仕様の試合・古いクライアントの相手には
+  // perQuestionSnapshotが無いため、その場合はbreakdownが空配列になり、セクションごと隠れる
+  // （表示できるデータが無いことを、空白や壊れた表示ではなく「セクション自体が無い」形で扱う）。
+  const questionBreakdown = buildSharedEngineQuestionBreakdown({ results, participants, myUid });
+  if (elements.resultQuestionBreakdownSection) {
+    elements.resultQuestionBreakdownSection.hidden = questionBreakdown.length === 0;
+  }
+  renderQuestionBreakdownAccordion(elements.resultQuestionBreakdown, questionBreakdown);
+
+  saveOnlineBattleHistoryEntry(room, currentMatchId, finishers, finisherRanks, dnfEntries, myUid, questionBreakdown);
   elements.navigateTo("onlineBattleResult");
 }
 
@@ -1783,7 +1805,7 @@ const HISTORY_MODE_LABEL_BY_GAME_MODE = {
   instantBattle: "オンライン対戦（一瞬バトル）",
 };
 
-function saveOnlineBattleHistoryEntry(room, matchId, finishers, finisherRanks, dnfEntries, myUid) {
+function saveOnlineBattleHistoryEntry(room, matchId, finishers, finisherRanks, dnfEntries, myUid, questionBreakdown = []) {
   if (!matchId) return;
   const myFinisherIndex = finishers.findIndex((entry) => entry.uid === myUid);
   const isDnf = myFinisherIndex === -1;
@@ -1834,6 +1856,12 @@ function saveOnlineBattleHistoryEntry(room, matchId, finishers, finisherRanks, d
           isYou: entry.uid === myUid,
         })),
       ],
+      // 【2026-09-12新設・本人指示：オンライン履歴詳細も完成させる】結果画面と全く同じデータを
+      // そのまま保存しておくことで、あとから履歴詳細を開いたときも
+      // js/battleQuestionBreakdownUi.jsの同じ描画関数で問題別結果を表示できるようにする
+      // （結果画面と履歴詳細で表示ロジックが2つに分かれてズレることを防ぐ）。
+      // 保存件数はcapQuestionBreakdownForStorage()で安全側に切り詰める（js/battleQuestionBreakdown.js参照）。
+      questionBreakdown: capQuestionBreakdownForStorage(questionBreakdown),
     },
   });
 }

@@ -9,7 +9,7 @@
 // 同じ曲プールが返ること」を確認する（新しいロジックを追加検証するのではなく、
 // 既存の挙動を壊していないことの回帰防止テスト）。
 
-import { resolveSettingsSongPool, validateSettings } from "../../js/battleModes/timeAttackBattleMode.js";
+import { resolveSettingsSongPool, validateSettings, buildQuestions } from "../../js/battleModes/timeAttackBattleMode.js";
 import { QUESTION_SOURCE_TYPE, resolveSongPool } from "../../js/questionSource.js";
 import { SONGS } from "../../js/data/songs.js";
 import { assertEqual } from "../test-utils.js";
@@ -74,5 +74,54 @@ export function runTimeAttackBattleModeTests() {
       "選択した曲は4曲です。10問を出題するには10曲以上必要です。",
       "共同選曲で曲が選ばれている場合は、今までどおり出題数に対する不足チェックが働く"
     );
+  }
+
+  // ---- buildQuestions：reserveCount（2026-09-12新設・本人指示：共有クイズエンジンの
+  // 音源再生失敗対策）。randomPlaybackBattleMode.js・outroBattleMode.jsはこの関数を
+  // そのまま再エクスポートしているため、ここでの確認がその2モード分も兼ねる。 ----
+  {
+    const settings = { questionCountValue: "5", categoryFilterValue: "title-track", rule: "normal", penaltySeconds: 2 };
+
+    // reserveCountを渡さない（省略時）は、今までと完全に同じ挙動のまま。
+    const withoutReserve = buildQuestions({ seed: "seed-a", settings });
+    assertEqual(withoutReserve.length, 5, "reserveCount省略時は出題数ぶんだけの問題が返る");
+    assertEqual(
+      withoutReserve.every((question) => question.isReserve === false),
+      true,
+      "reserveCount省略時はisReserveが全問false"
+    );
+
+    // reserveCountを渡すと、出題数に予備を加えた件数が返り、後半だけisReserve:trueになる。
+    const withReserve = buildQuestions({ seed: "seed-a", settings, reserveCount: 3 });
+    assertEqual(withReserve.length, 8, "reserveCountを渡すと出題数(5)+予備(3)件が返る");
+    assertEqual(
+      withReserve.slice(0, 5).every((question) => question.isReserve === false),
+      true,
+      "先頭の出題数ぶんはisReserve:false"
+    );
+    assertEqual(
+      withReserve.slice(5).every((question) => question.isReserve === true),
+      true,
+      "末尾の予備ぶんはisReserve:true"
+    );
+    assertEqual(
+      withReserve.slice(0, 5).map((question) => question.song.id),
+      withoutReserve.map((question) => question.song.id),
+      "同じseedなら、本番の出題部分（先頭の出題数ぶん）はreserveCountの有無に関わらず完全に一致する（全端末が同じ本番の曲を引く公平性のため）"
+    );
+
+    // 同じseedなら、予備曲の並びも毎回同じになる（全端末が同じ予備曲を引けることの確認）。
+    const withReserveAgain = buildQuestions({ seed: "seed-a", settings, reserveCount: 3 });
+    assertEqual(
+      withReserve.map((question) => question.song.id),
+      withReserveAgain.map((question) => question.song.id),
+      "同じseed・同じreserveCountなら、予備曲を含めて毎回同じ並びになる"
+    );
+
+    // 出題数(questionCount)+reserveCountが曲プールの総数を超える場合、プールの曲数で頭打ちになる
+    // （instantBattleMode.jsのbuildQuestions()と同じ安全策）。
+    const hugeReserve = buildQuestions({ seed: "seed-a", settings, reserveCount: 9999 });
+    const pool = resolveSettingsSongPool(settings);
+    assertEqual(hugeReserve.length, pool.length, "reserveCountが大きすぎても、曲プールの総数を超えない");
   }
 }

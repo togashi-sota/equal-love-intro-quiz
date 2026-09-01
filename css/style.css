@@ -13012,6 +13012,114 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   opacity: 0.55;
 }
 
+/* ===== 問題別結果アコーディオン（2026-09-12新設・本人指示：結果画面の問題別結果を完成させる）
+   js/battleQuestionBreakdownUi.jsが描画する。対戦結果画面・オンラインプレイ履歴の詳細モーダル、
+   両方の画面で共通のスタイルを使う（表示ロジックだけでなく見た目も1箇所にまとめている）。 ===== */
+
+.battle-question-breakdown-section {
+  margin: 18px 0;
+}
+
+.battle-question-breakdown-heading {
+  margin: 0 0 8px;
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+}
+
+.battle-question-breakdown-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ネイティブの<details>要素をカードふうに見せる。既定で閉じている（本人指示：問題数が
+   多い場合はアコーディオンで、デフォルトは折りたたみ）ため、openを付けない限り本文は隠れる。 */
+.battle-question-breakdown-item {
+  border-radius: 12px;
+  border: 1px solid var(--color-card-border);
+  background: var(--color-surface-glass);
+  overflow: hidden;
+}
+
+.battle-question-breakdown-item > summary {
+  padding: 10px 14px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-text);
+  cursor: pointer;
+  list-style: none;
+}
+
+/* Safari/Chrome標準の三角マーカーを消し、開閉に合わせて回転する自前の矢印に差し替える
+   （既存の.online-lobby-help-mode-item等、他のアコーディオン風UIとの見た目の統一）。 */
+.battle-question-breakdown-item > summary::-webkit-details-marker {
+  display: none;
+}
+
+.battle-question-breakdown-item > summary::before {
+  content: "▸";
+  display: inline-block;
+  margin-right: 6px;
+  color: var(--color-accent);
+  transition: transform var(--transition-fast, 0.15s) ease;
+}
+
+.battle-question-breakdown-item[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.battle-question-breakdown-body {
+  padding: 0 14px 12px;
+}
+
+.battle-question-breakdown-team-answer {
+  margin: 0 0 8px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+}
+
+.battle-question-breakdown-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.battle-question-breakdown-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-card-border);
+}
+
+.battle-question-breakdown-row.is-correct {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+.battle-question-breakdown-row.is-wrong {
+  border-color: var(--color-danger);
+  background: var(--color-danger-soft);
+}
+
+.battle-question-breakdown-row-name {
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.battle-question-breakdown-row-answer {
+  font-size: 0.72rem;
+  opacity: 0.8;
+}
+
 /* ===== 歌詞クイズモード（1人用MVP、2026-08-09新設） =====
    設定・結果画面は既存のタイムアタック・ランダム再生クイズと同じクラス
    （fieldset/option-row・time-attack-result-stats-row等）をそのまま使うため、

@@ -120,9 +120,16 @@ export function validateSongPoolForQuestionCount(songPool, questionCountValue) {
 // 出題数がsongPoolの曲数を超える場合はresolveQuestionCount（quiz.js）が自動的に
 // songPoolの曲数で頭打ちにする（呼び出し側でvalidateSongPoolForQuestionCountによる
 // 事前ガードを行う想定だが、この関数自体も安全側に倒れるようにしている）。
-export function buildQuestionsFromPool({ seed, songPool, questionCountValue }) {
+// 【2026-09-12追加・本人指示：共有クイズエンジンの音源再生失敗対策】reserveCountの意味は
+// js/localBattle.jsのbuildBattleQuestions()と同じ（出題数に加えて予備の曲を確保し、
+// isReserveで見分けられるようにする）。省略時は今までと完全に同じ挙動になる。
+export function buildQuestionsFromPool({ seed, songPool, questionCountValue, reserveCount = 0 }) {
   const poolSongs = resolveSongObjects(songPool);
   const questionCount = resolveQuestionCount(questionCountValue, poolSongs.length);
+  const extendedCount = Math.min(questionCount + reserveCount, poolSongs.length);
   const random = createSeededRandom(seed);
-  return buildQuizQuestions(poolSongs, questionCount, random);
+  return buildQuizQuestions(poolSongs, extendedCount, random).map((question, questionIndex) => ({
+    ...question,
+    isReserve: questionIndex >= questionCount,
+  }));
 }

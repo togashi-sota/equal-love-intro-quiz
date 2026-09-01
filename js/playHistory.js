@@ -34,12 +34,16 @@ const CURRENT_SCHEMA_VERSION = 1;
 // 1つの保存先（この定数）を、全モードが共有している。以前は200件だったが、オンライン
 // 対戦の記録が増えるとオフライン側の古い記録を押し出してしまう（逆も同様）ため、本人の
 // 優先順位（1.安全に全件 → 2.オフライン200/オンライン200 → …）に沿って、まず件数自体を
-// 大きく引き上げた。1件あたり数百バイト程度（参加者全員分のスナップショットを持つ
-// オンライン対戦でも、曲ごとの全回答ログまでは持たせない設計のため）で、localStorageの
-// 一般的なオリジン容量（5〜10MB程度）に対して2000件でも数百KB程度に収まり、十分な余裕を
-// 残したまま「実質ほぼ全件保存」に近い挙動になる（個人〜友人間利用の想定プレイ数に対して、
-// 何年遊んでも上限に到達しない見込み）。完全に無制限にしなかったのは、将来的な
-// localStorage圧迫を防ぐ最低限の安全弁として上限そのものは残すべき、と判断したため。
+// 大きく引き上げた。
+// 【2026-09-12追記・本人指示：結果画面の問題別結果アコーディオンを完成させる】オンライン
+// 対戦のentry.details.questionBreakdown（問題ごとの正解曲・全参加者の回答）を追加した際、
+// 1件あたりのデータ量が実質的に増えたため、js/battleQuestionBreakdown.jsの
+// capQuestionBreakdownForStorage()で保存時に最大30問ぶんまでへ切り詰める安全策を入れている
+// （結果画面での表示自体は切り詰めない。あくまで「あとから履歴として残す量」だけの制限）。
+// この安全策込みで、1件あたり数KB程度（参加人数・問題数が多い対戦でも）に収まる見込みのため、
+// localStorageの一般的なオリジン容量（5〜10MB程度）に対して2000件でも十分な余裕を残せる。
+// 完全に無制限にしなかったのは、将来的なlocalStorage圧迫を防ぐ最低限の安全弁として
+// 上限そのものは残すべき、と判断したため。
 export const MAX_PLAY_HISTORY_ENTRIES = 2000;
 
 function generateEntryId() {
@@ -441,7 +445,15 @@ export function describeEntrySummaryLines(entry) {
     }
     case "localBattle":
     case "onlineTimeAttack":
-    case "onlineRandomPlayback": {
+    case "onlineRandomPlayback":
+    // 【2026-09-12追加・本人指示5「全オンラインモードの履歴保存を最終監査」で発見し修正】
+    // onlineOutroQuiz・onlineInstantBattleは、保存の実体がonlineTimeAttack等と
+    // 完全に同じ共有関数（js/onlineBattleScreen.jsのsaveOnlineBattleHistoryEntry）を
+    // 通るため、entry.detailsの形も完全に同じ。ここに登録が漏れていたせいで、
+    // 履歴カードの一覧に順位・正解数などが表示されず、出題数だけの寂しい表示に
+    // なっていた（保存自体は正しくできていたので、データの欠落ではなく表示漏れ）。
+    case "onlineOutroQuiz":
+    case "onlineInstantBattle": {
       const ruleLabel = BATTLE_RULE_LABELS[entry.details?.rule];
       lines.push(
         [ruleLabel, entry.details?.participantCount ? `${entry.details.participantCount}人対戦` : null]
@@ -469,6 +481,16 @@ export function describeEntrySummaryLines(entry) {
         const rankText = formatRank(entry.details?.myRank);
         lines.push([rankText, entry.score !== null ? `${entry.score}pt` : null].filter(Boolean).join(" / "));
       }
+      break;
+    }
+    // 【2026-09-12追加・本人指示5「全オンラインモードの履歴保存を最終監査」で発見し修正】
+    // onlineInstantCoopは専用の保存経路（js/onlineInstantCoopBattleScreen.js）を持ち、
+    // details.memberCountという固有フィールドを持つため、他の対戦モードとは別枠にする。
+    // 結果画面と同じ「チームで◯/◯問正解！」という言い回しに揃えている。
+    case "onlineInstantCoop": {
+      const memberCountLabel = entry.details?.memberCount ? `${entry.details.memberCount}人協力` : null;
+      lines.push([questionCountLabel, memberCountLabel].filter(Boolean).join("・"));
+      lines.push(`チームで${entry.correctCount}/${entry.questionCount}問正解！`);
       break;
     }
     default:

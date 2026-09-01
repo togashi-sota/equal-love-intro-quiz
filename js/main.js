@@ -1003,6 +1003,9 @@ const onlineBattleWaitingFinalizeConfirmButtonElement = document.getElementById(
 const onlineBattleResultConfigSummaryElement = document.getElementById("online-battle-result-config-summary");
 const onlineBattleResultListElement = document.getElementById("online-battle-result-list");
 const onlineBattleResultRuleNoteElement = document.getElementById("online-battle-result-rule-note");
+// 【2026-09-12新設・本人指示：結果画面の問題別結果アコーディオンを完成させる】
+const onlineBattleResultQuestionBreakdownSectionElement = document.getElementById("online-battle-result-question-breakdown-section");
+const onlineBattleResultQuestionBreakdownElement = document.getElementById("online-battle-result-question-breakdown");
 const onlineBattleResultHomeLinkElement = document.getElementById("online-battle-result-home-link");
 const onlineBattleResultHostActionsElement = document.getElementById("online-battle-result-host-actions");
 const onlineBattleResultRematchButtonElement = document.getElementById("online-battle-result-rematch-button");
@@ -1108,6 +1111,9 @@ const onlineInstantCoopResultCorrectCountElement = document.getElementById("onli
 const onlineInstantCoopResultAudioFailureNoticeElement = document.getElementById("online-instant-coop-battle-result-audio-failure-notice");
 const onlineInstantCoopResultNormalElement = document.getElementById("online-instant-coop-battle-result-normal");
 const onlineInstantCoopResultMemberListElement = document.getElementById("online-instant-coop-battle-result-member-list");
+// 【2026-09-12新設・本人指示：結果画面の問題別結果アコーディオンを完成させる】
+const onlineInstantCoopResultQuestionBreakdownSectionElement = document.getElementById("online-instant-coop-battle-result-question-breakdown-section");
+const onlineInstantCoopResultQuestionBreakdownElement = document.getElementById("online-instant-coop-battle-result-question-breakdown");
 const onlineInstantCoopResultRematchButtonElement = document.getElementById("online-instant-coop-battle-result-rematch-button");
 
 // オンライン対戦：出題する曲を選ぶ画面（2026-08-08新設）。イントロ対戦・ランダム再生対戦・
@@ -1182,6 +1188,9 @@ const onlineLyricsBattleResultLeaveButtonElement = document.getElementById("onli
 const onlineLyricsBattleResultBackToLobbyButtonElement = document.getElementById("online-lyrics-battle-result-back-to-lobby-button");
 const onlineLyricsBattleResultRuleNoteElement = document.getElementById("online-lyrics-battle-result-rule-note");
 const onlineLyricsBattleResultTableElement = document.getElementById("online-lyrics-battle-result-table");
+// 【2026-09-12新設・本人指示：結果画面の問題別結果アコーディオンを完成させる】
+const onlineLyricsBattleResultQuestionBreakdownSectionElement = document.getElementById("online-lyrics-battle-result-question-breakdown-section");
+const onlineLyricsBattleResultQuestionBreakdownElement = document.getElementById("online-lyrics-battle-result-question-breakdown");
 const onlineLyricsBattleResultRematchButtonElement = document.getElementById("online-lyrics-battle-result-rematch-button");
 
 // 【2026-08-29追加、本人指示（⑭）】オリジナル問題作成モードの3種類選択画面。
@@ -3150,6 +3159,18 @@ function renderQuestion() {
   // 再生を試みる直前の時刻をいったん暫定の計測起点にしておく。
   // 曲が実際に鳴り始めたら（onPlaybackStart）、より正確な値に上書きされる。
   markPlaybackStarted();
+
+  // 【2026-09-12追加・本人指示：共有クイズエンジンの音源再生失敗対策】オンライン対戦中だけ、
+  // 再生失敗時にshowAudioError（メッセージを出すだけ）の代わりにhandleOnlineBattleAudioFailure
+  // （予備曲への差し替え・3回連続失敗時の安全な中断）を使う。オフライン（normal/review/special/
+  // timeAttack/randomPlayback/localBattle）は今までと完全に同じshowAudioErrorのまま、
+  // 挙動は一切変わらない。questionIndexをこの時点の値でクロージャに固定しておくことで、
+  // 回答済み・次の問題へ進んだ後に遅れて届いた失敗report を安全に無視できるようにする。
+  const audioFailureQuestionIndex = gameState.currentIndex;
+  const audioFailureCallback =
+    gameState.playMode === "onlineBattle"
+      ? (message) => handleOnlineBattleAudioFailure(audioFailureQuestionIndex, message)
+      : showAudioError;
   if (gameState.playMode === "randomPlayback") {
     // 1人用ランダム再生クイズ：曲の任意の位置から数秒間再生するplaySongFromRandomPosition()を使う。
     // 開始位置は、このプレイ開始時に発行したseed・曲ID・今の問題番号から純粋関数で計算する
@@ -3205,7 +3226,7 @@ function renderQuestion() {
       // せず、この問題の再生自体を行わない（全端末で公平な位置を保証できないため）。
       // 本来はvalidateSettings()（js/battleModes/randomPlaybackBattleMode.js）が対戦開始
       // 自体を拒否しているはずで、通常はここに到達しない。その防御が万一漏れた場合の保険。
-      showAudioError("この曲の同期用データが見つかりません（audioMetadata.js未生成の可能性があります）。");
+      audioFailureCallback("この曲の同期用データが見つかりません（audioMetadata.js未生成の可能性があります）。");
     } else {
       const computeStartTimeSec = (actualDurationSec) => {
         if (!isDurationMismatchWithinTolerance(fixedDurationSec, actualDurationSec)) {
@@ -3215,7 +3236,7 @@ function renderQuestion() {
           // 続行せず、この曲の再生を中止する。stopAudio()は世代番号を進めて
           // 再生要求そのものを無効化するため、この直後に走るplay()も安全に何もしない。
           stopAudio();
-          showAudioError("この曲の音源が他の端末と異なる可能性があります。音源を入れ直してください。");
+          audioFailureCallback("この曲の音源が他の端末と異なる可能性があります。音源を入れ直してください。");
           if (isRandomPlaybackDebugLoggingEnabled()) {
             // 【本人の指示、2026-08-08】MAX_DURATION_MISMATCH_SEC（現在0.75秒、実機検証後に
             // 確定予定の仮の安全値。HANDOFF.md参照）の妥当性を実機で判断できるよう、
@@ -3262,7 +3283,7 @@ function renderQuestion() {
         question.song,
         computeStartTimeSec,
         RANDOM_PLAYBACK_DEFAULTS.playDurationSec,
-        showAudioError,
+        audioFailureCallback,
         markPlaybackStarted,
         () => {}
       );
@@ -3276,13 +3297,13 @@ function renderQuestion() {
     const outroStartSec = AUDIO_METADATA[question.song.id]?.outroStartSec;
     if (outroStartSec === undefined) {
       // validateSettingsの防御が万一漏れた場合の保険（本来ここには来ない想定）。
-      showAudioError("この曲の同期用データが見つかりません（audioMetadata.js未生成の可能性があります）。");
+      audioFailureCallback("この曲の同期用データが見つかりません（audioMetadata.js未生成の可能性があります）。");
     } else {
       playSongFromRandomPosition(
         question.song,
         () => outroStartSec,
         OUTRO_QUIZ_PLAY_DURATION_SEC,
-        showAudioError,
+        audioFailureCallback,
         markPlaybackStarted,
         () => {}
       );
@@ -3333,7 +3354,7 @@ function renderQuestion() {
       () => {}
     );
   } else {
-    playSongIntro(question.song, showAudioError, markPlaybackStarted);
+    playSongIntro(question.song, audioFailureCallback, markPlaybackStarted);
   }
   startTimer(updateTimerDisplay);
 }
@@ -5469,6 +5490,8 @@ initOnlineBattleScreens({
   resultConfigSummary: onlineBattleResultConfigSummaryElement,
   resultList: onlineBattleResultListElement,
   resultRuleNote: onlineBattleResultRuleNoteElement,
+  resultQuestionBreakdownSection: onlineBattleResultQuestionBreakdownSectionElement,
+  resultQuestionBreakdown: onlineBattleResultQuestionBreakdownElement,
   resultHomeLink: onlineBattleResultHomeLinkElement,
   resultHostActions: onlineBattleResultHostActionsElement,
   resultRematchButton: onlineBattleResultRematchButtonElement,
@@ -5548,6 +5571,8 @@ initOnlineLyricsQuizBattleScreens({
   resultLeaveButton: onlineLyricsBattleResultLeaveButtonElement,
   resultRuleNote: onlineLyricsBattleResultRuleNoteElement,
   resultTableContainer: onlineLyricsBattleResultTableElement,
+  resultQuestionBreakdownSection: onlineLyricsBattleResultQuestionBreakdownSectionElement,
+  resultQuestionBreakdown: onlineLyricsBattleResultQuestionBreakdownElement,
   resultRematchButton: onlineLyricsBattleResultRematchButtonElement,
   resultBackToLobbyButton: onlineLyricsBattleResultBackToLobbyButtonElement,
   lyricsCollabSongSection: onlineLyricsBattleCollabSongSectionElement,
@@ -5647,6 +5672,8 @@ initOnlineInstantCoopBattleScreens({
   resultAudioFailureNotice: onlineInstantCoopResultAudioFailureNoticeElement,
   resultNormalContainer: onlineInstantCoopResultNormalElement,
   resultMemberList: onlineInstantCoopResultMemberListElement,
+  resultQuestionBreakdownSection: onlineInstantCoopResultQuestionBreakdownSectionElement,
+  resultQuestionBreakdown: onlineInstantCoopResultQuestionBreakdownElement,
   resultRematchButton: onlineInstantCoopResultRematchButtonElement,
   resultBackToLobbyButton: onlineInstantCoopResultBackToLobbyButtonElement,
   onQuitDuringBattle: () => quitOnlineBattleDuringQuiz(),
@@ -5748,6 +5775,18 @@ let onlineBattleGameMode = null; // 今の試合のgameMode（結果オブジェ
 // stopAudio()の仕組みが担う（詳細はHANDOFF.md参照）。
 let onlineRandomPlaybackContext = null; // { seed, matchId } | null
 
+// 【2026-09-12新設・本人指示：共有クイズエンジンの音源再生失敗対策】タイムアタック・
+// ランダム再生・アウトロクイズのオンライン対戦で使う、音源再生失敗時の差し替え用の予備曲。
+// js/onlineInstantBattleScreen.jsのhandlePlaybackFailure()と同じ考え方（同じスロットで
+// 規定回数連続失敗、または予備切れで対戦を安全に中断する）だが、こちらは既存の
+// gameState.questions（renderQuestion()の進捗表示・advanceToNextQuestion()の終了判定が
+// 直接参照する配列）の「長さ」を変えないよう、予備曲だけをこの別配列に切り分けて持つ
+// （gameState.questions自体には出題数ぶんの要素しか入れない。詳細はHANDOFF.md参照）。
+let onlineBattleReserveQuestions = []; // isReserve:trueの予備曲だけを集めた配列
+let onlineBattleNextReserveIndex = 0; // 次に使う予備曲のインデックス
+let onlineBattleSlotFailureCount = 0; // 今の問題スロットで何回再生に失敗したか（問題が進むたびに0へ戻す）
+const ONLINE_BATTLE_MAX_SLOT_PLAYBACK_ATTEMPTS = 3; // 元の曲＋差し替え2回で打ち切る
+
 // js/onlineBattleScreen.jsが、開始確認（status:playing検知）のタイミングで呼ぶ。
 // questionsは同じseed・settingsからjs/battleModes/index.js経由で組み立て済みのもの。
 function beginOnlineBattlePlay(questions, room) {
@@ -5756,10 +5795,51 @@ function beginOnlineBattlePlay(questions, room) {
     getPlaybackType(room.gameMode) === "randomPosition"
       ? { seed: room.seed, matchId: room.activeMatchId }
       : null;
+  // 【2026-09-12追加・本人指示：共有クイズエンジンの音源再生失敗対策】questionsには
+  // 出題数ぶんの本番の曲に続けて予備の曲（isReserve:true）が入っている場合がある
+  // （js/onlineBattleScreen.jsのenterOnlineBattlePlay()参照）。gameState.questionsには
+  // 本番の曲だけを渡し、予備は別配列で持つ（既存の進捗表示・終了判定を一切変えないため）。
+  const realQuestions = questions.filter((question) => !question.isReserve);
+  onlineBattleReserveQuestions = questions.filter((question) => question.isReserve);
+  onlineBattleNextReserveIndex = 0;
+  onlineBattleSlotFailureCount = 0;
   startTimeAttackRun(room.settings.rule, room.settings.questionCountValue, room.settings.categoryFilterValue);
-  startOnlineBattleQuiz(questions, room.settings.questionCountValue, room.settings.categoryFilterValue);
+  startOnlineBattleQuiz(realQuestions, room.settings.questionCountValue, room.settings.categoryFilterValue);
   renderQuestion();
   showScreen("quiz");
+}
+
+// 【2026-09-12新設・本人指示：共有クイズエンジンの音源再生失敗対策】タイムアタック・
+// ランダム再生・アウトロクイズのオンライン対戦で、音源の再生に失敗したときに呼ばれる。
+// js/onlineInstantBattleScreen.jsのhandlePlaybackFailure()と同じ設計：
+// ・音が流れなかった問題は、不正解にもならず、ペナルティも問題数の消費も一切発生しない
+//   （renderQuestion()を呼び直すだけで、handleTimedChoiceClick()側の採点処理には一切触れない）。
+// ・同じスロットで規定回数（元の曲＋差し替え2回）失敗、または予備曲が尽きたら、
+//   この対戦を安全に中断する（勝敗・プレイ履歴は一切記録しない）。
+// questionIndexは、この再生を試みた時点のgameState.currentIndexを呼び出し元がクロージャで
+// 渡す。ユーザーが既に回答して次の問題へ進んだ後に遅れて届いた失敗report（audio.jsの
+// リトライは非同期のため起こりうる）を無視するためのガード。
+function handleOnlineBattleAudioFailure(questionIndex, message) {
+  if (gameState.playMode !== "onlineBattle" || questionIndex !== gameState.currentIndex || gameState.isAnswered) {
+    return;
+  }
+
+  onlineBattleSlotFailureCount += 1;
+  const reserveExhausted = onlineBattleNextReserveIndex >= onlineBattleReserveQuestions.length;
+  if (onlineBattleSlotFailureCount >= ONLINE_BATTLE_MAX_SLOT_PLAYBACK_ATTEMPTS || reserveExhausted) {
+    stopAudio();
+    stopTimer();
+    showOnlineBattleAudioFailureAbort(
+      "音源を正常に再生できない状態が続いているため、対戦を中断しました。もう一度お試しください。"
+    );
+    return;
+  }
+
+  const replacementQuestion = onlineBattleReserveQuestions[onlineBattleNextReserveIndex];
+  onlineBattleNextReserveIndex += 1;
+  gameState.questions[gameState.currentIndex] = replacementQuestion;
+  renderQuestion();
+  showAudioError("音源を正常に再生できなかったため、別の曲に差し替えました。");
 }
 
 // デバッグ用ログ（固定durationと実際の音源長がズレてクランプが発生した場合のみ）を
@@ -5792,6 +5872,9 @@ function goToNextOnlineBattleQuestionOrFinish() {
   reportOnlineBattleProgress(gameState.currentIndex + 1);
   const hasMoreQuestions = advanceToNextQuestion();
   if (hasMoreQuestions) {
+    // 【2026-09-12追加】音源再生失敗のカウントは「同じ問題スロットで何回失敗したか」を
+    // 数えるものなので、次の問題へ進むたびに0へ戻す。
+    onlineBattleSlotFailureCount = 0;
     renderQuestion();
     return;
   }
@@ -5805,12 +5888,24 @@ function goToNextOnlineBattleQuestionOrFinish() {
 function finishOnlineBattlePlay() {
   const stats = getCurrentTimeAttackStats();
   const reachedQuestionNumber = stats.perQuestionResults.length;
+  // 【2026-09-12追加・本人指示：結果画面の問題別結果アコーディオンを完成させる】
+  // 自分がこの対戦で実際に辿った問題ごとの記録（perQuestionResults、既存のタイムアタック
+  // 履歴詳細と同じデータ）を、結果画面・オンラインプレイ履歴向けに軽量な形へ絞り込んで
+  // 一緒に提出する。「選んだ曲」は押した順の最後（＝その問題が確定した選択）だけを残す
+  // （途中で何度か外した履歴自体はcorrectAnswer比較には不要なため）。
+  const perQuestionSnapshot = stats.perQuestionResults.map((entry) => ({
+    correctSongTitle: entry.correctAnswer,
+    selectedAnswers: entry.selectedAnswers,
+    missCount: entry.missCountThisQuestion,
+    isCorrect: entry.isCorrect,
+  }));
   const result = calculateBattleResult(onlineBattleGameMode, {
     correctCount: stats.correctCount,
     missCount: stats.missCount,
     totalElapsedMs: stats.totalElapsedMs,
     completed: !stats.runFailed,
     reachedQuestionNumber,
+    perQuestionSnapshot,
   });
   finishOnlineBattleMatch(result, reachedQuestionNumber);
 }

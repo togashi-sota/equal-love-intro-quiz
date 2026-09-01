@@ -184,9 +184,20 @@ export function validateBattleConfig({ categoryFilterValue }) {
 // 対戦設定から、全端末で完全に同じ問題セット（{song, choices}の配列）を組み立てる。
 // js/quiz.jsの既存ロジック（フィルタ・出題数決定・4択生成）を、シードから作った
 // 決定論的な乱数関数と一緒にそのまま再利用しているだけで、出題ロジック自体は変更していない。
-export function buildBattleQuestions({ seed, questionCountValue, categoryFilterValue }) {
+//
+// 【2026-09-12追加・本人指示：共有クイズエンジンの音源再生失敗対策】reserveCountを渡すと、
+// 出題数（questionCount）に加えて、その分だけ余分な曲も同じ決定論的な乱数列から続けて
+// 確保する（js/battleModes/instantBattleMode.jsのbuildQuestions()と同じ考え方）。
+// 戻り値の各要素にisReserveを付け、questionIndexがquestionCount以上のものが予備の曲だと
+// 分かるようにする。省略時（reserveCount未指定）は今までと完全に同じ挙動（予備なし・
+// isReserveは常にfalse）になるため、既存の呼び出し元には一切影響しない。
+export function buildBattleQuestions({ seed, questionCountValue, categoryFilterValue, reserveCount = 0 }) {
   const pool = filterSongsByCategory(SONGS, categoryFilterValue);
   const questionCount = resolveQuestionCount(questionCountValue, pool.length);
+  const extendedCount = Math.min(questionCount + reserveCount, pool.length);
   const random = createSeededRandom(seed);
-  return buildQuizQuestions(pool, questionCount, random);
+  return buildQuizQuestions(pool, extendedCount, random).map((question, questionIndex) => ({
+    ...question,
+    isReserve: questionIndex >= questionCount,
+  }));
 }

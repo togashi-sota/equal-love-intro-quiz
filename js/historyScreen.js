@@ -28,6 +28,7 @@ import { clearTimeAttackHistoryEntries } from "./timeAttackHistory.js";
 import { buildSpecialModeIcon } from "./specialModeIcons.js";
 import { ACHIEVEMENTS, getAchievementById } from "./achievementDefinitions.js";
 import { describeSpeedProgressForPlay, buildSpeedProgressResultBlock } from "./speedAchievementProgress.js";
+import { renderQuestionBreakdownAccordion } from "./battleQuestionBreakdownUi.js";
 
 // 速度称号の対象になりうるmodeIdだけ、履歴詳細モーダルに「称号チャレンジ」ブロックを
 // 追加で表示する（js/speedAchievementProgress.jsのSPEED_ACHIEVEMENT_BY_MODEと同じ対象）。
@@ -104,6 +105,22 @@ function openDetailModal(entry) {
   const titleBadges = buildTitleBadges(entry.details?.titleResults);
   if (titleBadges) {
     elements.detailModalBody.appendChild(titleBadges);
+  }
+
+  // 【2026-09-12新設・本人指示：オンライン履歴詳細も完成させる】結果画面が保存した
+  // 問題別結果（js/battleQuestionBreakdown.js参照）があれば、結果画面と全く同じ描画関数
+  // （js/battleQuestionBreakdownUi.js）でここにも表示する。無ければ何も追加しない
+  // （保存されていない古い履歴・対応していないモードの履歴は今までどおりの表示のまま）。
+  if (Array.isArray(entry.details?.questionBreakdown) && entry.details.questionBreakdown.length > 0) {
+    const heading = document.createElement("p");
+    heading.className = "history-detail-modal-speed-heading";
+    heading.textContent = "問題別結果";
+    elements.detailModalBody.appendChild(heading);
+
+    const breakdownContainer = document.createElement("div");
+    breakdownContainer.className = "battle-question-breakdown-list";
+    elements.detailModalBody.appendChild(breakdownContainer);
+    renderQuestionBreakdownAccordion(breakdownContainer, entry.details.questionBreakdown);
   }
 
   // 称号チャレンジ（2026-08-09新設）：電光石火・メロディアスの対象になりうるモードの

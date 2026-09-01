@@ -121,6 +121,8 @@ import {
 } from "./onlineBattleCollaborativeSelection.js";
 import { QUESTION_SOURCE_TYPE, sanitizeSongIds } from "./questionSource.js";
 import { savePlayHistoryEntryIfNew } from "./playHistory.js";
+import { buildLyricsQuizQuestionBreakdown, capQuestionBreakdownForStorage } from "./battleQuestionBreakdown.js";
+import { renderQuestionBreakdownAccordion } from "./battleQuestionBreakdownUi.js";
 import { SONGS } from "./data/songs.js";
 import { MEMBERS } from "./data/members.js";
 import { getMemberById } from "./memberUtils.js";
@@ -392,6 +394,29 @@ export function resetLyricsQuizBattleState() {
 export function handleLyricsQuizRoomUpdate(room) {
   latestRoom = room;
   if (getCurrentUid() === room.host && room.status === ROOM_STATUS.PLAYING) {
+    // 【2026-09-12追加・本人指示9「ホスト切断・引き継ぎも最終確認」で発見し修正】
+    // js/onlineInstantCoopBattleScreen.jsのhandleInstantCoopRoomUpdate()と全く同じ理由の
+    // 修正：対戦の途中でホストが切断→自動移譲され、自分が新しくホストになった場合、
+    // enterLyricsQuizBattlePlay()を非ホストとして通過した際はhostStateを一度も初期化して
+    // いないため、このままrunHostProgressionTick()を呼んでもhostStateがnullのまま何もせず
+    // 戻り、対戦の進行が永久に止まってしまう（コード調査で発見した実在するバグ。実機検証は
+    // 別途必要）。runtimeReady・currentQuestionsは非ホストとして入場した時点で既に
+    // 準備済みのため、ここではhostStateだけを再接続時と同じrestoreMatchProgressFromFirebase()
+    // で組み立て直す。
+    if (!hostState && runtimeReady && currentMatchId && currentQuestions.length > 0) {
+      const match = room.matches?.[currentMatchId];
+      if (match && typeof match.currentQuestionIndex === "number") {
+        const participantUids = Object.keys(match.participants ?? {});
+        hostState = restoreMatchProgressFromFirebase({
+          questions: currentQuestions,
+          allPlayerUids: participantUids,
+          hostUid: getCurrentUid(),
+          match,
+          settings: room.settings,
+          nowMs: Date.now(),
+        });
+      }
+    }
     runHostProgressionTick();
   }
   // 【2026-09-05新設、本人指示】対戦中、ホストだけに見える「ルーム設定へ戻る」。
@@ -1617,13 +1642,30 @@ export function enterLyricsQuizResult(room) {
     playSfx(myRankedIndex === 0 ? SFX_EVENTS.BATTLE_WIN : SFX_EVENTS.BATTLE_LOSE);
   }
 
-  saveLyricsQuizBattleHistoryEntry(room, rankedEntries);
+  // 【2026-09-12新設・本人指示：結果画面の問題別結果アコーディオンを完成させる】
+  // 歌詞クイズ対戦は音源を一切再生しないため、音源再生失敗による無効化の概念が無く、
+  // 全問がそのまま問題別結果になる。得点計算（ルールごとのポイント計算）には一切触れず、
+  // 「選んだ曲」と「実際の正解曲」を突き合わせるだけで正誤を出す
+  // （js/battleQuestionBreakdown.jsのbuildLyricsQuizQuestionBreakdown参照）。
+  const questionBreakdown = buildLyricsQuizQuestionBreakdown({
+    questions: currentQuestions,
+    answers: match.answers,
+    questionClaims: match.questionClaims,
+    participants,
+    myUid,
+  });
+  if (elements.resultQuestionBreakdownSection) {
+    elements.resultQuestionBreakdownSection.hidden = questionBreakdown.length === 0;
+  }
+  renderQuestionBreakdownAccordion(elements.resultQuestionBreakdown, questionBreakdown);
+
+  saveLyricsQuizBattleHistoryEntry(room, rankedEntries, questionBreakdown);
 }
 
 // 【2026-08-08新設】オンライン歌詞クイズ対戦の結果を、統一プレイ履歴（js/playHistory.js）へ保存する。
 // idをonline:{matchId}にすることで、リロード・再接続・画面再描画で何度この結果画面へ到達しても
 // 同じ試合が重複保存されない（本人指示）。ルール（クラシック／奪い取り／コンボ）は必ず記録する。
-function saveLyricsQuizBattleHistoryEntry(room, rankedEntries) {
+function saveLyricsQuizBattleHistoryEntry(room, rankedEntries, questionBreakdown = []) {
   const matchId = room.activeMatchId;
   if (!matchId) return;
 
@@ -1663,6 +1705,9 @@ function saveLyricsQuizBattleHistoryEntry(room, rankedEntries) {
         isYou: entry.isYou,
         detail: entry.result?.detail ?? null,
       })),
+      // 結果画面と同じデータをそのまま保存し、履歴詳細でも同じ描画関数を使えるようにする
+      // （js/onlineBattleScreen.jsのsaveOnlineBattleHistoryEntry()と同じ設計）。
+      questionBreakdown: capQuestionBreakdownForStorage(questionBreakdown),
     },
   });
 }

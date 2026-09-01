@@ -109,26 +109,38 @@ export function resolveAllEligibleSongIds() {
 // プレイリストからのオンライン対戦、js/questionSource.js参照）。指定が無い場合は
 // 今までと完全に同じ、categoryFilterValueベースのbuildBattleQuestions()を呼ぶ
 // （既存のオンライン対戦ルームの動作に一切影響しない）。
-export function buildQuestions({ seed, settings }) {
+// 【2026-09-12追加・本人指示：共有クイズエンジンの音源再生失敗対策】reserveCountは
+// js/battleModes/instantBattleMode.jsのbuildQuestions()と同じ意味（音源再生失敗時の
+// 差し替え用に、出題数とは別に予備の曲を確保する）。randomPlaybackBattleMode.js・
+// outroBattleMode.jsはこの関数をそのまま再エクスポートしているため、この1箇所の変更で
+// タイムアタック・ランダム再生・アウトロクイズの3モードすべてに反映される。
+export function buildQuestions({ seed, settings, reserveCount = 0 }) {
   if (settings.questionSource) {
     const songPool = resolveQuestionSourceSongPool(settings.questionSource);
-    return buildQuestionsFromPool({ seed, songPool, questionCountValue: settings.questionCountValue });
+    return buildQuestionsFromPool({ seed, songPool, questionCountValue: settings.questionCountValue, reserveCount });
   }
   return buildBattleQuestions({
     seed,
     questionCountValue: settings.questionCountValue,
     categoryFilterValue: settings.categoryFilterValue,
+    reserveCount,
   });
 }
 
 // 1人分のプレイ結果を、共通部分（elapsedMs・correctCount・missCount）と
 // モード固有部分（reachedQuestionNumber：LOVE連チャンの途中終了時の到達問題数）に分けて格納する。
 // 【Step3で使用予定】Step2では出題・回答画面を実装していないため、まだ呼び出されない。
-export function createResult({ correctCount, missCount, totalElapsedMs, completed, reachedQuestionNumber }) {
+// 【2026-09-12追加・本人指示：結果画面の問題別結果アコーディオンを完成させる】
+// perQuestionSnapshotを渡すと、そのまま結果オブジェクトの最上位に載せてFirebaseへ送る
+// （common・detailと違い、Firebase Rules側にこのフィールド専用の制限が無いパスのため、
+// 新しいRules変更なしで送れる。js/main.jsのfinishOnlineBattlePlay()参照）。
+// 省略時（他モードや古いクライアントとの互換のため）は今までと完全に同じ結果オブジェクトのまま。
+export function createResult({ correctCount, missCount, totalElapsedMs, completed, reachedQuestionNumber, perQuestionSnapshot }) {
   return {
     completed,
     common: { elapsedMs: totalElapsedMs, correctCount, missCount },
     detail: { reachedQuestionNumber: reachedQuestionNumber ?? null },
+    ...(perQuestionSnapshot ? { perQuestionSnapshot } : {}),
   };
 }
 

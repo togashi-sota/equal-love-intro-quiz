@@ -362,7 +362,18 @@ function handleAnswerSelected(selectedSongId, buttonElement) {
 
   const question = questions[currentIndex];
   const isCorrect = selectedSongId === question.song.id;
-  answers.push({ songId: question.song.id, isCorrect, replayCount: replayCounts[currentIndex] });
+  // 【2026-09-12追加・本人指示：結果画面の問題別結果アコーディオンを完成させる】
+  // 正解曲・選んだ曲のタイトルをこの時点で一緒に控えておく（finishMatch()でperQuestionSnapshot
+  // として提出する。question.answerPoolに選択肢の曲オブジェクトが既にあるため、
+  // ここでは新しいデータ取得を増やさずにタイトルへ変換できる）。
+  const selectedSongTitle = question.answerPool.find((song) => song.id === selectedSongId)?.title ?? selectedSongId;
+  answers.push({
+    songId: question.song.id,
+    correctSongTitle: question.song.title,
+    selectedSongTitle,
+    isCorrect,
+    replayCount: replayCounts[currentIndex],
+  });
 
   renderAnswerReveal({ isCorrect, correctTitle: question.song.title, mySelectedSongId: selectedSongId, pool: question.answerPool });
 
@@ -414,6 +425,16 @@ function finishMatch() {
   const missCount = answers.length - correctCount;
   const totalReplayCount = answers.reduce((sum, answer) => sum + answer.replayCount, 0);
   const totalElapsedMs = Date.now() - matchStartedAtMs;
+  // 【2026-09-12追加・本人指示：結果画面の問題別結果アコーディオンを完成させる】
+  // js/main.jsのfinishOnlineBattlePlay()と同じ形（correctSongTitle・selectedAnswers・
+  // isCorrect）に揃えることで、js/battleQuestionBreakdown.jsの共通の組み立て関数を
+  // このモードでもそのまま使えるようにする。missCountは、このモードには
+  // 「1問の中で複数回答え直す」概念が無いためundefinedのまま（表示側で自然に省略される）。
+  const perQuestionSnapshot = answers.map((answer) => ({
+    correctSongTitle: answer.correctSongTitle,
+    selectedAnswers: [answer.selectedSongTitle],
+    isCorrect: answer.isCorrect,
+  }));
 
   const result = createResult({
     correctCount,
@@ -421,6 +442,7 @@ function finishMatch() {
     totalElapsedMs,
     totalReplayCount,
     completed: true,
+    perQuestionSnapshot,
   });
   elements.onFinishMatch(result, answers.length);
 }

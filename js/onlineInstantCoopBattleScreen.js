@@ -83,6 +83,8 @@ import { CATEGORY_LABELS, QUESTION_COUNT_LABELS } from "./localBattleScreen.js";
 import { getMemberById } from "./memberUtils.js";
 import { MEMBERS } from "./data/members.js";
 import { savePlayHistoryEntryIfNew } from "./playHistory.js";
+import { buildInstantCoopQuestionBreakdown, capQuestionBreakdownForStorage } from "./battleQuestionBreakdown.js";
+import { renderQuestionBreakdownAccordion } from "./battleQuestionBreakdownUi.js";
 
 // ホストが結果を見せてから、次の問題／最終結果へ進むまでの待ち時間。
 // 【2026-09-07改訂・本人指示：答え合わせ表示を4秒へ統一】js/onlineLyricsQuizBattleScreen.jsと
@@ -283,6 +285,33 @@ export function resetInstantCoopBattleState() {
 export function handleInstantCoopRoomUpdate(room) {
   latestRoom = room;
   if (getCurrentUid() === room.host && room.status === ROOM_STATUS.PLAYING) {
+    // 【2026-09-12追加・本人指示9「ホスト切断・引き継ぎも最終確認」で発見し修正】
+    // 対戦の途中でホストが切断→自動移譲され、自分が新しくホストになった場合、
+    // enterInstantCoopBattlePlay()を非ホストとして通過した際はhostStateを一度も
+    // 初期化していないため、このままrunHostProgressionTick()を呼んでもhostStateが
+    // nullのまま何もせず戻り、対戦の進行が永久に止まってしまう（コード調査で発見した
+    // 実在するバグ。実機検証は別途必要）。再接続時と全く同じrestoreMatchProgressFromFirebase()
+    // で、Firebase上の実際の進行状況からhostStateを組み立て直す。currentQuestions・
+    // currentMatchId・targetQuestionCountは、非ホストとして入場した時点で既に設定済みのため
+    // 新規に用意する必要はない。
+    if (!hostState && currentMatchId && currentQuestions.length > 0) {
+      const match = room.matches?.[currentMatchId];
+      if (match && typeof match.currentQuestionIndex === "number") {
+        const participantUids = Object.keys(match.participants ?? {});
+        hostState = restoreMatchProgressFromFirebase({
+          questions: currentQuestions,
+          allPlayerUids: participantUids,
+          hostUid: getCurrentUid(),
+          seed: room.seed,
+          match,
+          nowMs: Date.now(),
+          targetQuestionCount,
+        });
+        if (hostState.currentQuestion.status === "resolved") {
+          resolvedAtLocalMs = Date.now();
+        }
+      }
+    }
     runHostProgressionTick();
   }
   // 【2026-09-05新設、本人指示】対戦中、ホストだけに見える「ルーム設定へ戻る」。
@@ -955,6 +984,22 @@ export function enterInstantCoopResult(room) {
       elements.resultMemberList.appendChild(li);
     });
 
+    // 【2026-09-12新設・本人指示：結果画面の問題別結果アコーディオンを完成させる】
+    // 音源再生失敗で無効になった問題を除いた、実際に成立した問題だけの問題別結果を
+    // 既に同期済みのcoopVotes・coopQuestionOutcomesから組み立てる（新しいFirebase書き込みは
+    // 発生しない。js/battleQuestionBreakdown.jsのbuildInstantCoopQuestionBreakdown参照）。
+    const questionBreakdown = buildInstantCoopQuestionBreakdown({
+      questions: currentQuestions,
+      coopVotes: match.coopVotes,
+      coopQuestionOutcomes: match.coopQuestionOutcomes,
+      participants,
+      myUid,
+    });
+    if (elements.resultQuestionBreakdownSection) {
+      elements.resultQuestionBreakdownSection.hidden = questionBreakdown.length === 0;
+    }
+    renderQuestionBreakdownAccordion(elements.resultQuestionBreakdown, questionBreakdown);
+
     savePlayHistoryEntryIfNew({
       id: `online-coop:${room.activeMatchId}`,
       playedAt: Date.now(),
@@ -968,7 +1013,13 @@ export function enterInstantCoopResult(room) {
       score: null,
       averageResponseMs: null,
       completed: true,
-      details: { totalSharedReplayCount: teamResult.totalSharedReplayCount, memberCount: Object.keys(participants).length },
+      details: {
+        totalSharedReplayCount: teamResult.totalSharedReplayCount,
+        memberCount: Object.keys(participants).length,
+        // 結果画面と同じデータをそのまま保存し、履歴詳細でも同じ描画関数を使えるようにする
+        // （js/onlineBattleScreen.jsのsaveOnlineBattleHistoryEntry()と同じ設計）。
+        questionBreakdown: capQuestionBreakdownForStorage(questionBreakdown),
+      },
     });
   }
 }

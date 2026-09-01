@@ -3535,6 +3535,14 @@
       <p style="text-align:center;font-size:0.75rem;opacity:0.65;" id="online-battle-result-config-summary"></p>
       <ul class="battle-rank-list" id="online-battle-result-list"></ul>
       <p style="text-align:center;font-size:0.7rem;opacity:0.6;" id="online-battle-result-rule-note"></p>
+      <!-- 【2026-09-12新設・本人指示：結果画面の問題別結果アコーディオンを完成させる】
+           js/battleQuestionBreakdown.js・js/battleQuestionBreakdownUi.jsが組み立てる、
+           対戦全体を通しての1問ごとの正解曲・自分の回答をアコーディオンで表示する。
+           データが無い（旧バージョンで作られた試合等）場合はhiddenのまま何も表示しない。 -->
+      <section id="online-battle-result-question-breakdown-section" class="battle-question-breakdown-section" hidden>
+        <h3 class="battle-question-breakdown-heading">問題別結果</h3>
+        <div id="online-battle-result-question-breakdown" class="battle-question-breakdown-list"></div>
+      </section>
       <div id="online-battle-result-host-actions" class="button-row" hidden>
         <button id="online-battle-result-rematch-button" class="primary-button" type="button">もう一度</button>
         <button id="online-battle-result-back-to-lobby-button" class="secondary-button" type="button">ルーム設定に戻る</button>
@@ -3702,6 +3710,12 @@
 
         <p class="battle-field-label">参加メンバー</p>
         <ul id="online-instant-coop-battle-result-member-list" class="online-lobby-player-list"></ul>
+
+        <!-- 【2026-09-12新設・本人指示：結果画面の問題別結果アコーディオンを完成させる】 -->
+        <section id="online-instant-coop-battle-result-question-breakdown-section" class="battle-question-breakdown-section" hidden>
+          <h3 class="battle-question-breakdown-heading">問題別結果</h3>
+          <div id="online-instant-coop-battle-result-question-breakdown" class="battle-question-breakdown-list"></div>
+        </section>
       </div>
 
       <!-- 【2026-09-05改訂、本人指示】試合後の選択肢を「もう一度」「ルーム設定に戻る」の
@@ -3800,6 +3814,11 @@
       <div class="title-block"><h2>対戦結果</h2></div>
       <p style="text-align:center;font-size:0.75rem;opacity:0.65;" id="online-lyrics-battle-result-rule-note"></p>
       <div id="online-lyrics-battle-result-table" style="overflow-x:auto;"></div>
+      <!-- 【2026-09-12新設・本人指示：結果画面の問題別結果アコーディオンを完成させる】 -->
+      <section id="online-lyrics-battle-result-question-breakdown-section" class="battle-question-breakdown-section" hidden>
+        <h3 class="battle-question-breakdown-heading">問題別結果</h3>
+        <div id="online-lyrics-battle-result-question-breakdown" class="battle-question-breakdown-list"></div>
+      </section>
       <div id="online-lyrics-battle-result-host-actions" class="button-row" hidden>
         <button id="online-lyrics-battle-result-rematch-button" class="primary-button" type="button">もう一度</button>
         <button id="online-lyrics-battle-result-back-to-lobby-button" class="secondary-button" type="button">ルーム設定に戻る</button>
@@ -4243,6 +4262,13 @@
 
       <p class="online-lobby-help-section-heading">オンライン対戦の6つのモード</p>
       <div id="online-battle-lobby-help-mode-list"></div>
+
+      <!-- 【2026-09-12新設・本人指示：ロビー説明書に音源エラー・通信切断時の案内を反映】
+           対戦中に何かあっても安心して遊べるよう、自動的な安全機能を簡単に案内する。
+           モード・設定に関わらず全モード共通の内容のため、JSではなく静的なテキストとして
+           置いている（renderLobbyHelpModal()側で毎回組み立て直す必要が無い）。 -->
+      <p class="online-lobby-help-section-heading">音源エラー・通信切断が起きたら</p>
+      <p class="online-lobby-help-current-description">音源を正常に再生できなかった場合は、不正解・ペナルティにはならず、自動的に別の曲へ差し替えられます（差し替えが続いた場合のみ、対戦を安全に中断します）。通信が一時的に不安定になっても、すぐには離脱扱いになりません。</p>
 
       <button id="online-battle-lobby-help-guide-link" class="secondary-button" type="button">📖 詳しい遊び方ガイドを見る</button>
     </div>

@@ -56,10 +56,13 @@ export function validateRoomSettings(gameMode, settings) {
   return mode.validateSettings(settings);
 }
 
-export function buildQuestionsForMode(gameMode, settings, seed) {
+// reserveCount（省略時0）は、音源再生失敗時の差し替え用に出題数とは別に確保する予備の曲数。
+// 各モードのbuildQuestions()がこの値を無視しても壊れないよう、常に渡すだけにしている
+// （instantBattleMode.js・timeAttackBattleMode.js等、対応しているモードだけが実際に使う）。
+export function buildQuestionsForMode(gameMode, settings, seed, reserveCount = 0) {
   const mode = getBattleMode(gameMode);
   if (!mode) return [];
-  return mode.buildQuestions({ seed, settings });
+  return mode.buildQuestions({ seed, settings, reserveCount });
 }
 
 // settingsが指す「実際に出題対象になりうる曲ID一覧」を解決する。2026-08-26新設：
