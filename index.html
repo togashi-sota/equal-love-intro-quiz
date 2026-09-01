@@ -3490,6 +3490,13 @@
         <p class="online-battle-ready-changed-notice" id="online-battle-lobby-rematch-cancelled-notice" hidden>
           再戦がキャンセルされました。
         </p>
+        <!-- 【本人指示：「音が出ない」救済ボタン第2段階の再設計（試合全体無効化）】誰かが
+             音源トラブルを申告し、試合全体が無効になってロビーへ戻った場合の専用通知。
+             ホスト・ゲストどちらの画面にも同じ文言で表示する（本人指示：全員側に理由が
+             明確に伝わる通知を表示すること）。 -->
+        <p class="online-battle-ready-changed-notice" id="online-battle-lobby-match-invalidated-notice" hidden>
+          音声トラブルが報告されたため、この試合は無効になりました。
+        </p>
 
         <!-- 参加者専用：準備完了ボタン。ホストは開始ボタンを押すこと自体が意思表示になるため表示しない。 -->
         <button id="online-battle-lobby-ready-button" class="secondary-button" type="button" hidden></button>

@@ -26,6 +26,11 @@
   <p>各関数の計算結果が期待通りになっているかを自動でチェックしています。詳しい結果は開発者ツール（F12）のConsoleタブで確認できます。</p>
   <div id="test-summary">実行中...</div>
 
+  <!-- tests/audio.test.js用。js/audio.jsはdocument.getElementById("intro-audio")を
+       モジュール読み込み時に一度だけ取得するため、本編（index.html）と同じidの要素を
+       ここにも用意しておく（他のテストの要素とは無関係・非表示）。 -->
+  <audio id="intro-audio" style="display:none"></audio>
+
   <script type="module">
     import { runScoreTests } from "./tests/score.test.js";
     import { runQuizTests } from "./tests/quiz.test.js";
@@ -110,10 +115,12 @@
     import { runAudioTroubleRecoverySecurityRulesTests } from "./tests/audioTroubleRecoverySecurityRules.test.js";
     import { runOnlineBattleHostTransitionPayloadsTests } from "./tests/onlineBattleHostTransitionPayloads.test.js";
     import { runOnlineBattleMatchProgressTests } from "./tests/onlineBattleMatchProgress.test.js";
+    import { runOnlineBattleMatchInvalidationSecurityRulesTests } from "./tests/onlineBattleMatchInvalidationSecurityRules.test.js";
     import { runBattleModesIndexAvailabilityTests } from "./tests/battleModes/index.test.js";
     import { runNewSingleAnnouncementTests } from "./tests/newSingleAnnouncement.test.js";
     import { runBattleQuestionBreakdownTests } from "./tests/battleQuestionBreakdown.test.js";
     import { runOnlineBattleMatchConfirmationPayloadsTests } from "./tests/onlineBattleMatchConfirmationPayloads.test.js";
+    import { runAudioTests } from "./tests/audio.test.js";
     import { printSummary } from "./tests/test-utils.js";
 
     runScoreTests();
@@ -199,10 +206,14 @@
     runAudioTroubleRecoverySecurityRulesTests();
     runOnlineBattleHostTransitionPayloadsTests();
     runOnlineBattleMatchProgressTests();
+    runOnlineBattleMatchInvalidationSecurityRulesTests();
     runBattleModesIndexAvailabilityTests();
     runNewSingleAnnouncementTests();
     runBattleQuestionBreakdownTests();
     runOnlineBattleMatchConfirmationPayloadsTests();
+    // runAudioTestsは実在しない曲IDでのIndexedDB再試行を含むため完了までに1秒強かかる。
+    // 集計（printSummary）より前に必ず完了を待つ。
+    await runAudioTests();
     const { passCount, failCount } = printSummary();
 
     const summaryElement = document.getElementById("test-summary");

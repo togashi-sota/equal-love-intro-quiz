@@ -1025,22 +1025,48 @@ export async function leaveMatchInProgress({ roomId, matchId }) {
   return { ok: true };
 }
 
-// 【2026-09-16新設・本人指示：「音が出ない」救済ボタン第2段階（オンライン対戦・個人進行系）】
-// タイムアタック・ランダム再生対戦・アウトロクイズ対戦で、本人が「音が出ない」と自己申告して
-// この試合からだけ安全に抜けたことをFirebaseへ記録する。上のleaveMatchInProgress()（自主的な
-// 途中退出）と全く同じ設計・同じ安全性（room.status・room.players・matches全体には一切触れず、
-// 「この試合の、この人」だけに付く小さなフラグを立てるだけ／write-once＝Firebase Rules側でも
-// 一度trueにしたら書き換え不可を保証）だが、書き込むフラグ・意味が別物：leftDuringMatchは
-// 「本人の意思による途中退出」、こちら（audioTroubleAbort）は「音源トラブルによる特別な離脱」
-// を表す。js/onlineBattleMatchProgress.jsのisMatchReadyToFinalize()側は両方を同じ扱い
-// （待つ対象から除外）にするが、js/onlineBattleScreen.jsの結果表示・履歴保存では区別する。
-export async function reportAudioTroubleAbort({ roomId, matchId }) {
+// 【本人指示：「音が出ない」救済ボタン第2段階（オンライン対戦・個人進行系）の再設計】
+// タイムアタック・ランダム再生対戦・アウトロクイズ対戦のような「早さが勝敗・記録に直結する
+// 速度勝負系」では、誰か1人でも本当に音が出なかった時点で、その試合自体の公平性が
+// 既に失われている（音が出なかった人だけが圧倒的に不利になるため）。
+// 【設計の変遷】当初は「申告した本人だけがこの試合から安全に抜け、残りのプレイヤーだけで
+// 試合を続ける」設計（matches/{matchId}/participants/{uid}/audioTroubleAbort、本人だけに
+// 付くフラグ）にしていたが、本人からの明確な訂正により、「本人だけが抜ける」のではなく
+// 「試合全体を無効試合にし、勝敗を付けず、全員を安全にロビーへ戻す」設計へ作り直した。
+// 【新しいデータ構造】matches/{matchId}/matchInvalidated（参加者の誰か1人につき1つの、
+// 試合全体で共有する場所。個人ごとのフラグではない）に { reportedByUid, reportedAt } を
+// write-once（最初の1件だけが有効＝js/audioTroubleRecoveryFirebase.jsのreports/{questionIndex}/
+// {attemptSlot}と同じ「最初の申告者が勝つ」考え方。同時に2人以上が押しても、2人目以降の
+// 書き込みはFirebase Rules側の!data.exists()で拒否される）で記録する。
+// 【古い試合・既に結果確定した試合への後出しを防ぐ】Firebase Rules側で、activeMatchIdが
+// 今の試合と一致し、かつroom.statusが'playing'のときだけ書き込みを許可する（この個人進行系は
+// 同期進行ではないため、audioTroubleRecoveryのようなcurrentQuestionIndex・questionStatusの
+// 一致確認は不要）。これにより「古いmatchIdから遅れて申告が届く」「既にホストが結果を確定
+// させた後に申告が届く（すでに試合終了処理へ入っている場合）」を、書き込み自体の拒否として
+// 安全に処理できる（js/onlineBattleMatchInvalidationSecurityRules.jsに、このルールの意図を
+// JS純粋関数として再現したシミュレーターとテストがある）。
+// 【この後どうなるか】matchInvalidatedが立った試合は、finalizeMatchIfReady()がstatus:result
+// へ進めるのを止め（下記参照）、代わりにホスト（誰であっても、その時点の現ホスト）の端末が
+// 既存のreturnRoomToLobby()を呼んで、room.status・room.players・ルーム設定はそのまま保った
+// 安全な形で全員をロビーへ戻す（js/onlineBattleScreen.js参照）。「申告した本人だけが抜けて
+// 残りのプレイヤーだけで続行する」という実装には絶対にしない、という本人指示のとおり。
+export async function reportMatchInvalidatedDueToAudioTrouble({ roomId, matchId }) {
   await authReady;
   const uid = getCurrentUid();
   if (!uid) return { ok: false, reason: "not-signed-in" };
   try {
-    await update(ref(database), { [`rooms/${roomId}/matches/${matchId}/participants/${uid}/audioTroubleAbort`]: true });
+    await update(ref(database), {
+      [`rooms/${roomId}/matches/${matchId}/matchInvalidated`]: { reportedByUid: uid, reportedAt: serverTimestamp() },
+    });
   } catch (error) {
+    // 【本人指示：様々な競合ケースでも安全に】ここで失敗しうる理由は主に3つ：
+    // ①既に誰か（自分を含む）が先に申告済み（write-once）、②古い試合（activeMatchIdが
+    // 既に別の試合へ進んでいる）、③既にホストが結果を確定させ、room.statusがplaying
+    // でなくなっている（すでに試合終了処理へ入っている）。いずれも「この申告はもう
+    // 意味を持たない／既に他の手段で解決済み」という安全側の状態のため、リトライはせず
+    // 静かに失敗を返す（呼び出し元のjs/onlineBattleScreen.jsも、この関数をfire-and-forgetで
+    // 呼び、失敗時の特別なエラー表示は行わない設計。既存のleaveMatchInProgress()と同じ方針）。
+    if (error?.code === "PERMISSION_DENIED") return { ok: false, reason: "permission-denied" };
     return { ok: false, reason: "write-failed" };
   }
   return { ok: true };
@@ -1364,6 +1390,16 @@ export async function finishMyMatch({ roomId, matchId, result, answeredCount }) 
 // 永遠に立たないため、以前はこの判定が常にfalseのままになり、ホストが手動で
 // 「結果を確定する」を押すまで自動で結果画面へ進めなかった（同期3モードで先に修正した
 // 「途中退出者を待たない」という考え方が、この個人進行系には未適用だった不具合）。
+//
+// 【本人指示：「音が出ない」救済ボタン第2段階の再設計（試合全体無効化）】この試合に
+// matchInvalidated（誰かが音源トラブルを申告し、試合全体が無効になったことを示す
+// write-onceフラグ）が立っていたら、force:trueが指定されていても絶対にstatus:resultへ
+// 進めない。ここで先に判定することで、「ホストが『結果を確定する』を押した瞬間に、
+// 別の参加者の音源トラブル申告が割り込む」という競合（すでに試合終了処理へ入っている
+// ケース）でも、無効化が後追いで上書きされることなく、常に安全側（無効試合として扱う）に
+// 倒れる。matchInvalidated後の実際のロビーへの復帰は、この関数の役目ではなく、
+// js/onlineBattleScreen.js側がroom更新のたびにmatchInvalidatedを検知し、既存の
+// returnRoomToLobby()を呼んで行う（勝敗を付けず、全員を安全にロビーへ戻す設計）。
 export async function finalizeMatchIfReady({ roomId, matchId, force = false }) {
   await authReady;
   const uid = getCurrentUid();
@@ -1378,6 +1414,9 @@ export async function finalizeMatchIfReady({ roomId, matchId, force = false }) {
   if (room.status !== ROOM_STATUS.PLAYING) return { ok: false, reason: "not-playing" };
 
   const match = (room.matches || {})[matchId] || {};
+  if (match.matchInvalidated) {
+    return { ok: true, finalized: false, invalidated: true };
+  }
   const allFinished = isMatchReadyToFinalize({ participants: match.participants, progress: match.progress });
 
   if (!allFinished && !force) {

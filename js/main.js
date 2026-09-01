@@ -999,6 +999,8 @@ const onlineBattleLobbySettingsChangedNoticeElement = document.getElementById("o
 const onlineBattleLobbyRematchNoticeElement = document.getElementById("online-battle-lobby-rematch-notice");
 // 【再戦準備フェーズ新設・本人指示】
 const onlineBattleLobbyRematchCancelledNoticeElement = document.getElementById("online-battle-lobby-rematch-cancelled-notice");
+// 【本人指示：「音が出ない」救済ボタン第2段階の再設計（試合全体無効化）】
+const onlineBattleLobbyMatchInvalidatedNoticeElement = document.getElementById("online-battle-lobby-match-invalidated-notice");
 const onlineBattleLobbyReadyButtonElement = document.getElementById("online-battle-lobby-ready-button");
 const onlineBattleLobbyStartButtonElement = document.getElementById("online-battle-lobby-start-button");
 const onlineBattleLobbyStartHintElement = document.getElementById("online-battle-lobby-start-hint");
@@ -2900,16 +2902,19 @@ function skipCurrentQuestionAsNotAdministered() {
   renderQuestion();
 }
 
-// ===== 【2026-09-16新設・本人指示：「音が出ない」救済ボタン第2段階（オンライン対戦・
+// ===== 【本人指示：「音が出ない」救済ボタン第2段階（オンライン対戦・
 // 個人進行系：タイムアタック・ランダム再生対戦・アウトロクイズ対戦）】=====
 // 上のオフライン版（handleAudioTroubleButtonClick）とは別のボタン（onlineBattleAudioTroubleButtonElement）
 // 専用の入口。オンライン対戦のこの3モードは、js/battleModes/timeAttackBattleMode.jsの
 // compareResults()を（ランダム再生・アウトロも含めて）共有しており、いずれのrule
 // （normal/hard/loveChain）でも必ずelapsedMs（経過時間）を順位判定に使う、常にタイムシビアな
 // モードのため、オフライン版のような「非タイムシビアなら同じ問題を再生し直す」分岐は存在しない。
-// 個人進行系（各自が自分のペースで進む）なので、この申告は「このマッチから自分だけ安全に
-// 抜ける」だけでよく、他の参加者の対戦の進行には一切影響しない
-// （js/onlineBattleScreen.jsのabortOnlineBattleMatchDueToAudioTrouble()参照）。
+// 【本人指示による再設計：試合全体無効化】早さが勝敗・記録に直結するこの3モードでは、
+// 誰か1人でも本当に音が出なかった時点で試合全体の公平性が失われているため、
+// 「申告した本人だけがこの試合から抜け、残りのプレイヤーだけで続行する」設計ではなく、
+// 「試合全体を無効試合にし、勝敗を付けず、参加者全員分の記録を一切残さず、全員を
+// 安全にロビーへ戻す」設計にしている（js/onlineBattleScreen.jsの
+// abortOnlineBattleMatchDueToAudioTrouble()参照）。
 function handleOnlineBattleAudioTroubleButtonClick() {
   if (onlineBattleAudioTroubleButtonElement.disabled) return; // 連打対策：押した瞬間に無効化する
   if (gameState.isAnswered) return; // 保険。回答確定後は本来ボタン自体が非表示になっている
@@ -2917,8 +2922,11 @@ function handleOnlineBattleAudioTroubleButtonClick() {
 
   // 【確認ダイアログについて】js/onlineBattleScreen.jsが退出確認・ホスト移譲確認等で
   // 使っているwindow.confirm()のパターンをそのまま踏襲する（上のオフライン版と同じ理由）。
+  // 【本人指示による文言の作り直し】「あなただけ抜ける」ではなく、「この試合は公平に
+  // 続けられないため、全員の対戦を中止してルームに戻る」という、何が起こるかが
+  // 一目で分かる文言に変更した。
   const confirmed = window.confirm(
-    "音が出ませんでしたか？\n\n「OK」を選ぶと、この試合からあなただけ抜けてルーム設定画面に戻ります。あなたの今回の記録（順位・自己ベスト・プレイ履歴等）には一切残りません。他の参加者の対戦はそのまま続きます。"
+    "本当に音が出ませんでしたか？\n\nこの試合は公平に続けられないため、全員の対戦を中止してルームに戻ります。"
   );
 
   if (!confirmed) {
@@ -5810,6 +5818,7 @@ initOnlineBattleScreens({
   lobbySettingsChangedNotice: onlineBattleLobbySettingsChangedNoticeElement,
   lobbyRematchNotice: onlineBattleLobbyRematchNoticeElement,
   lobbyRematchCancelledNotice: onlineBattleLobbyRematchCancelledNoticeElement,
+  lobbyMatchInvalidatedNotice: onlineBattleLobbyMatchInvalidatedNoticeElement,
   lobbyReadyButton: onlineBattleLobbyReadyButtonElement,
   lobbyStartButton: onlineBattleLobbyStartButtonElement,
   lobbyStartHint: onlineBattleLobbyStartHintElement,

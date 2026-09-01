@@ -171,12 +171,15 @@
                 "leftDuringMatch": {
                   ".write": "auth != null && auth.uid === $uid && !data.exists()",
                   ".validate": "newData.isBoolean() && newData.val() === true"
-                },
-                "audioTroubleAbort": {
-                  ".write": "auth != null && auth.uid === $uid && !data.exists()",
-                  ".validate": "newData.isBoolean() && newData.val() === true"
                 }
               }
+            },
+            "matchInvalidated": {
+              ".write": "auth != null && !data.exists() && root.child('rooms/' + $roomId + '/activeMatchId').val() === $matchId && root.child('rooms/' + $roomId + '/status').val() === 'playing' && root.child('rooms/' + $roomId + '/matches/' + $matchId + '/participants/' + auth.uid).exists()",
+              ".validate": "newData.hasChildren(['reportedByUid', 'reportedAt']) && newData.child('reportedByUid').val() === auth.uid",
+              "reportedByUid": { ".validate": "newData.isString()" },
+              "reportedAt": { ".validate": "newData.isNumber()" },
+              "$other": { ".validate": false }
             },
             "progress": {
               "$uid": {

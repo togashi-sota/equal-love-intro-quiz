@@ -103,7 +103,20 @@ export function attemptSilentUnlock() {
     return;
   }
 
-  const hadSrc = !!audioElement.src;
+  // 【2026-09-20修正・再監査で発見】以前はここを「audioElement.srcが何か入っているか
+  // （!!audioElement.src）」だけで判定していたが、これだと「本編の曲のURLがまだ
+  // audioElement.srcに残っている状態（stopAudio()呼び出し後は解放済み＝再生不可能な
+  // Object URLが文字列としては残る。または、ある問題のイントロが一時停止/自然終了した
+  // 直後でsrcはまだ有効な本編の曲のまま）」でも「既にsrcがある」と誤判定し、
+  // 無音データURIに差し替えないまま play() してしまっていた。これにより、
+  // ①解放済みURLの場合はunlockのplay()自体が失敗し、無音unlockとして機能しない、
+  // ②まだ有効な本編の曲が残っている場合は、無音のはずのunlockで本編の曲が一瞬鳴る、
+  // または（successハンドラでcurrentTime=0にするため）一時停止中の本編の再生位置を
+  // 勝手に先頭へ巻き戻してしまう、という2種類の実害があった。
+  // 対策として、「既にこのunlock専用の無音URIそのものがセットされているか」だけを
+  // hadSrcの条件にする（それ以外＝本編の曲のURLや解放済みURLが残っている場合は、
+  // 必ず無音URIに差し替えてからplay()する）。
+  const hadSrc = audioElement.src === SILENT_UNLOCK_DATA_URI;
   if (!hadSrc) audioElement.src = SILENT_UNLOCK_DATA_URI;
 
   diag("unlock: play()呼び出し", { hadSrc, visibilityState: document.visibilityState });
@@ -161,11 +174,26 @@ export function attemptSilentUnlock() {
 // playSongIntro()・playSongFromRandomPosition()が、audio要素のsrcを本番の曲へ
 // 差し替える直前に必ず呼ぶことで、「unlockのplay()がまだ未解決のうちにsrcを
 // 差し替えてしまい、unlockが実績を残す前に中断されてしまう」というレースを防ぐ。
-async function ensureUnlockSettled() {
+// 【2026-09-20追加・再監査に伴うテスト追加】もともとこのファイル内だけで使う想定の
+// 非公開関数だったが、tests/audio.test.jsから「unlock進行中は正しく待つか」
+// 「unlockが無ければ即座に返るか」「unlockが失敗しても先に進むか」を直接検証するために
+// exportした。挙動そのものは一切変えていない（exportを付けただけ）。
+export async function ensureUnlockSettled() {
   if (!pendingUnlockPromise) return;
   diag("本番再生: 進行中のunlock完了待ち開始");
   await pendingUnlockPromise;
   diag("本番再生: unlock完了待ち終了");
+}
+
+// 【2026-09-20新設・再監査に伴うテスト追加】pendingUnlockPromiseの有無・audioUnlockStateを
+// 外部（テストコード）から読み取るためだけの、副作用の無い読み取り専用ヘルパー。
+// 本番の呼び出し元（js/main.js等）はこれを使う必要が無い（getCurrentPlaybackState()と同様、
+// 診断・テスト用の補助関数として追加するだけで、既存ロジックには一切影響しない）。
+export function getAudioUnlockDiagnostics() {
+  return {
+    audioUnlockState,
+    hasPendingUnlock: pendingUnlockPromise !== null,
+  };
 }
 
 function unlockAudioElementOnFirstInteraction() {
