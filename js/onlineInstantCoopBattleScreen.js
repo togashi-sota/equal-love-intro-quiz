@@ -352,6 +352,15 @@ export function resetInstantCoopBattleState() {
 // js/onlineBattleScreen.jsのrenderLobby()が、room更新のたび（画面を問わず）呼ぶフック。
 export function handleInstantCoopRoomUpdate(room) {
   latestRoom = room;
+  // 【2026-09-15追加・本人指示：前試合の答え合わせが次試合の開始演出に一瞬表示される
+  // バグの全モード横断監査で発見】js/onlineLyricsQuizBattleScreen.jsのhandleLyricsQuizRoomUpdate()
+  // で見つかったのと全く同じ設計の抜け（「もう一度」で新しい試合(room.activeMatchId)が
+  // 始まっても、この端末のローカルなcurrentMatchId・hostStateは、goToCountdownScreen()側の
+  // setTimeout待ちが終わってenterInstantCoopBattlePlay()が呼ばれるまで、まだ前の試合の値の
+  // まま残る）が、一瞬協力にも同じ設計のため同じ形で存在していた。room.activeMatchIdと
+  // currentMatchIdが一致しない間は、前試合のmatches/{currentMatchId}に対する進行判定・
+  // Firebase書き込みを行ってしまわないよう、ここで確実に素通りさせる。
+  if (currentMatchId && room.activeMatchId !== currentMatchId) return;
   if (getCurrentUid() === room.host && room.status === ROOM_STATUS.PLAYING) {
     // 【2026-09-12追加・本人指示9「ホスト切断・引き継ぎも最終確認」で発見し修正】
     // 対戦の途中でホストが切断→自動移譲され、自分が新しくホストになった場合、
@@ -572,6 +581,11 @@ function runTick() {
 
 async function runHostProgressionTick() {
   if (!currentMatchId || !latestRoom || hostTickInFlight) return;
+  // 【2026-09-15追加】runTick()はsetIntervalで独立に動いており、
+  // handleInstantCoopRoomUpdate()側のガードを経由しないため、ここでも同じ
+  // 「currentMatchIdが今のroom.activeMatchIdと一致しているか」を確認する
+  // （js/onlineLyricsQuizBattleScreen.jsの同じ修正と同じ理由）。
+  if (latestRoom.activeMatchId !== currentMatchId) return;
   const match = latestRoom.matches?.[currentMatchId];
   if (!match) return;
 
@@ -827,13 +841,21 @@ async function handleVoteClick(vote) {
   const roundNumber = match?.coopRoundNumber ?? 0;
   if (typeof qIndex !== "number") return;
   if (myVotedQuestionIndex === qIndex && myVotedRoundNumber === roundNumber) return;
+  // 【2026-09-15追加・本人指示：前問／前試合フラッシュの全モード横断監査】この後のawaitの間に
+  // 次の問題／次の試合へ進んでいた場合、送信失敗時のエラーメッセージが新しい画面に
+  // 混ざらないよう、送信開始時点のmatchIdを覚えておく（js/onlineLyricsQuizBattleScreen.jsの
+  // handleAnswerChoiceClick()と同じ考え方）。
+  const submittedMatchId = currentMatchId;
 
   myVotedQuestionIndex = qIndex;
   myVotedRoundNumber = roundNumber;
   renderCurrentQuestionState();
 
   const result = await submitCoopVote({ roomId: latestRoom.roomId, matchId: currentMatchId, questionIndex: qIndex, roundNumber, vote });
-  if (!result.ok && result.reason !== "already-voted") {
+  const isStaleQuestion =
+    submittedMatchId !== currentMatchId ||
+    latestRoom?.matches?.[currentMatchId]?.currentQuestionIndex !== qIndex;
+  if (!result.ok && result.reason !== "already-voted" && !isStaleQuestion) {
     // 送信に失敗した場合、投票済みフラグを戻して再挑戦できるようにする。
     myVotedQuestionIndex = -1;
     myVotedRoundNumber = -1;

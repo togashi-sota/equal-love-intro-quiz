@@ -682,11 +682,20 @@ async function handleAnswerConfirmed(selectedSongId) {
   if (myAnsweredQuestionIndex === qIndex) return;
 
   const replayCount = myReplayCountForCurrentQuestion;
+  // 【本人指示：前問／前試合フラッシュの全モード横断監査】この後のawaitの間に次の問題／
+  // 次の試合へ進んでいた場合、送信失敗時のエラーメッセージが新しい画面に混ざらないよう、
+  // 送信開始時点のmatchIdを覚えておく（js/onlineLyricsQuizBattleScreen.jsの
+  // handleAnswerChoiceClick()・js/onlineInstantCoopBattleScreen.jsのhandleVoteClick()と
+  // 同じ考え方）。
+  const submittedMatchId = currentMatchId;
   myAnsweredQuestionIndex = qIndex;
   renderCurrentQuestionState();
 
   const result = await submitInstantAnswer({ roomId: latestRoom.roomId, matchId: currentMatchId, questionIndex: qIndex, selectedSongId, replayCount });
-  if (!result.ok && result.reason !== "already-answered") {
+  const isStaleQuestion =
+    submittedMatchId !== currentMatchId ||
+    latestRoom?.matches?.[currentMatchId]?.currentQuestionIndex !== qIndex;
+  if (!result.ok && result.reason !== "already-answered" && !isStaleQuestion) {
     myAnsweredQuestionIndex = -1;
     elements.error.textContent = "回答の送信に失敗しました。もう一度お試しください。";
     elements.error.hidden = false;
