@@ -821,7 +821,13 @@ function renderCurrentQuestionState() {
   const waitingSectionElement = elements.waitingSection;
   if (waitingSectionElement) waitingSectionElement.hidden = isResolved || !hasAnsweredThisQuestion;
   elements.revealSection.hidden = !isResolved;
-  elements.replayButton.hidden = isResolved || hasAnsweredThisQuestion;
+  // 【2026-09-15修正・本人指示：ChatGPTと確定済みの仕様に合わせる】「もう一度聞く」は
+  // 残り0回になっても、回答確定後も、ボタン自体は消さずdisabledのまま表示し続ける
+  // （本人指示：突然ボタンが消えるより「残り0回」の表示のまま押せなくすることで、
+  // 3回使い切ったことが分かりやすいため）。以前はhidden=trueにしてボタンごと消していたが、
+  // 表示したままdisabledにするよう修正した。
+  elements.replayButton.hidden = false;
+  elements.replayButton.disabled = isResolved || hasAnsweredThisQuestion || myReplayCountForCurrentQuestion >= MAX_REPLAY_COUNT_PER_QUESTION;
   if (elements.rankHint) elements.rankHint.hidden = isResolved || hasAnsweredThisQuestion;
 
   if (!isResolved) {
