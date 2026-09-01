@@ -60,6 +60,8 @@ const SCREEN_ELEMENTS = {
   onlineBattleJoin: document.getElementById("online-battle-join-screen"),
   onlineBattleLobby: document.getElementById("online-battle-lobby-screen"),
   onlineBattleSongPicker: document.getElementById("online-battle-song-picker-screen"),
+  // 【2026-09-13新設・本人指示：対戦開始前ルール確認画面】
+  onlineBattleConfirm: document.getElementById("online-battle-confirm-screen"),
   onlineBattleCountdown: document.getElementById("online-battle-countdown-screen"),
   onlineBattleWaiting: document.getElementById("online-battle-waiting-screen"),
   onlineBattleResult: document.getElementById("online-battle-result-screen"),

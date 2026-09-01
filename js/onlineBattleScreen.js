@@ -30,6 +30,9 @@ import {
   kickPlayer,
   setReady,
   startBattle,
+  beginMatchConfirmation,
+  setRuleConfirmed,
+  cancelMatchConfirmation,
   finishCountdown,
   subscribeServerTimeOffset,
   initializeMyMatchProgress,
@@ -63,6 +66,7 @@ import {
 } from "./battleModes/index.js";
 import { QUESTION_COUNT_LABELS, CATEGORY_LABELS, RULE_LABELS } from "./localBattleScreen.js";
 import { buildSharedEngineQuestionBreakdown, capQuestionBreakdownForStorage } from "./battleQuestionBreakdown.js";
+import { computeAllPlayersConfirmed } from "./onlineBattleMatchConfirmationPayloads.js";
 import { renderQuestionBreakdownAccordion } from "./battleQuestionBreakdownUi.js";
 import { computeNormalFinalRecordMs } from "./localBattleResult.js";
 import { MEMBERS } from "./data/members.js";
@@ -73,7 +77,12 @@ import { getMemberById } from "./memberUtils.js";
 // 同じ部品（DOM構築はjs/fanProfileCard.js、Firebase取得はjs/publicProfileSync.js）を
 // そのまま再利用し、新しい取得ロジック・新しいカード見た目は作らない。
 import { fetchPublicProfileByUid } from "./publicProfileSync.js";
-import { buildOshiSwatch, buildAchievementCountText, buildFriendAchievementSummary } from "./fanProfileCard.js";
+import {
+  buildOshiSwatch,
+  buildAchievementCountText,
+  buildFriendAchievementSummary,
+  buildAchievedAchievementsList,
+} from "./fanProfileCard.js";
 // 【2026-08-08新設・Phase6】歌詞クイズ対戦だけ、進行の前提（全員同期・ホスト主導）が
 // 他のgameModeと根本的に異なるため、専用の画面ファイルへ委譲する（js/onlineLyricsQuizBattleScreen.js
 // 冒頭コメント参照）。依存は一方向（このファイル→あちら）に保ち、あちらからはこのファイルを
@@ -156,6 +165,10 @@ let unsubscribeRoom = null;
 
 // Step2：対戦設定・準備完了・カウントダウンまわりの状態。
 let lastHandledRoomStatus = null; // status変化での自動遷移を、状態が変わった瞬間だけに絞る
+// 【2026-09-13新設・本人指示：対戦開始前ルール確認画面】
+let lastHandledConfirmingMatch = false; // confirmingMatchの変化を検知するための追跡
+let matchConfirmAutoStartTimerId = null; // 全員確認後の「2秒待ってから開始」タイマー（ホストのみ使用）
+const MATCH_CONFIRM_AUTO_START_DELAY_MS = 2000; // 本人指示21：全員確認後、約2秒待ってから開始する
 let suppressNextReadyChangeNotice = false; // 自分でREADYボタンを押した直後だけ、変更通知を出さない
 // 【2026-09-07改訂】以前はlastKnownMyReady（READYの前回値）を見ていたが、READYが設定変更で
 // 解除されなくなったため、settingsRevision自体の変化を直接追跡する方式に変更した。
@@ -258,6 +271,31 @@ async function openLobbyParticipantProfile(player) {
   elements.lobbyProfileAchievementCount.textContent = buildAchievementCountText(profile.unlockedAchievementIds);
   elements.lobbyProfileSummary.innerHTML = "";
   elements.lobbyProfileSummary.appendChild(buildFriendAchievementSummary(profile.unlockedAchievementIds));
+
+  // 【2026-09-13新設・本人指示11：ロビー参加者プロフィールに獲得称号の詳細を追加】
+  // js/fanProfilesScreen.jsの「すべての称号を見る」と全く同じ部品・同じ表示ロジックを
+  // 再利用する（新しいオンライン専用の称号表示は作らない）。称号を1つも持っていない人には
+  // 導線ごと出さない点も同じ。開閉状態は毎回「閉じている」から始める。
+  if (elements.lobbyProfileAllToggle && elements.lobbyProfileAchievements) {
+    elements.lobbyProfileAchievements.innerHTML = "";
+    elements.lobbyProfileAchievements.appendChild(buildAchievedAchievementsList(profile.unlockedAchievementIds));
+    elements.lobbyProfileAchievements.hidden = true;
+    elements.lobbyProfileAllToggle.hidden = profile.unlockedAchievementIds.length === 0;
+    elements.lobbyProfileAllToggle.textContent = LOBBY_PROFILE_ALL_TOGGLE_CLOSED_TEXT;
+  }
+}
+
+// 「すべての称号を見る」の初期表示文言（js/fanProfilesScreen.jsの同名定数と同じ文言）。
+const LOBBY_PROFILE_ALL_TOGGLE_CLOSED_TEXT = "すべての称号を見る ＞";
+const LOBBY_PROFILE_ALL_TOGGLE_OPEN_TEXT = "すべての称号を隠す";
+
+function handleLobbyProfileAllToggleClick() {
+  if (!elements.lobbyProfileAllToggle || !elements.lobbyProfileAchievements) return;
+  const willOpen = elements.lobbyProfileAchievements.hidden;
+  elements.lobbyProfileAchievements.hidden = !willOpen;
+  elements.lobbyProfileAllToggle.textContent = willOpen
+    ? LOBBY_PROFILE_ALL_TOGGLE_OPEN_TEXT
+    : LOBBY_PROFILE_ALL_TOGGLE_CLOSED_TEXT;
 }
 
 function closeLobbyParticipantProfile() {
@@ -451,28 +489,33 @@ function renderSettingsChips(container, settings, gameMode) {
 // （モード・ルール・出題数・ミスペナルティ）に絞って説明する。本文はgetModeLabel・
 // getModeDescription・getRuleDescription（いずれもjs/battleModes/index.js経由で各モードの
 // アダプターへ委譲）からその場で組み立てるため、実装が変わっても文言がズレない。
-function renderLobbyHelpModal(room) {
-  if (!elements.lobbyHelpCurrentSettings) return;
+// 【2026-09-13新設・本人指示：対戦開始前ルール確認画面】「今このルームで選ばれている
+// 設定」の説明文を組み立てる純粋なDOM構築処理。以前はrenderLobbyHelpModal()の中に
+// 直接書かれていたが、新設の対戦開始前ルール確認画面（renderMatchConfirmScreen()）でも
+// 全く同じ内容を表示したいため、共通関数として切り出した（本人指示：ロビー説明書と
+// 確認画面で説明内容が食い違わないよう、同じルール定義データから生成・共有すること）。
+// containerElementを丸ごと空にしてから組み立て直す（呼び出し側は空のコンテナを渡すこと）。
+function buildCurrentRuleExplanation(containerElement, room) {
+  containerElement.innerHTML = "";
   const gameMode = room.gameMode;
   const settings = room.settings ?? {};
 
-  elements.lobbyHelpCurrentSettings.innerHTML = "";
   const modeHeading = document.createElement("p");
   modeHeading.className = "online-lobby-help-current-mode";
   modeHeading.textContent = `現在のモード：${getModeLabel(gameMode)}`;
-  elements.lobbyHelpCurrentSettings.appendChild(modeHeading);
+  containerElement.appendChild(modeHeading);
 
   const modeDescription = document.createElement("p");
   modeDescription.className = "online-lobby-help-current-description";
   modeDescription.textContent = getModeDescription(gameMode);
-  elements.lobbyHelpCurrentSettings.appendChild(modeDescription);
+  containerElement.appendChild(modeDescription);
 
   const ruleDescription = getRuleDescription(gameMode, settings);
   if (ruleDescription) {
     const ruleText = document.createElement("p");
     ruleText.className = "battle-rule-description";
     ruleText.textContent = ruleDescription;
-    elements.lobbyHelpCurrentSettings.appendChild(ruleText);
+    containerElement.appendChild(ruleText);
   }
 
   const countLabel = QUESTION_COUNT_LABELS[settings.questionCountValue] ?? settings.questionCountValue;
@@ -480,7 +523,7 @@ function renderLobbyHelpModal(room) {
     const questionCountText = document.createElement("p");
     questionCountText.className = "online-lobby-help-current-description";
     questionCountText.textContent = `出題数：${countLabel}`;
-    elements.lobbyHelpCurrentSettings.appendChild(questionCountText);
+    containerElement.appendChild(questionCountText);
   }
 
   // ミスペナルティは「ノーマル」ルールを持つモード（イントロ対戦・ランダム再生対戦・
@@ -489,8 +532,15 @@ function renderLobbyHelpModal(room) {
     const penaltyText = document.createElement("p");
     penaltyText.className = "online-lobby-help-current-description";
     penaltyText.textContent = `ミスペナルティ：${settings.penaltySeconds}秒`;
-    elements.lobbyHelpCurrentSettings.appendChild(penaltyText);
+    containerElement.appendChild(penaltyText);
   }
+}
+
+function renderLobbyHelpModal(room) {
+  if (!elements.lobbyHelpCurrentSettings) return;
+  const gameMode = room.gameMode;
+
+  buildCurrentRuleExplanation(elements.lobbyHelpCurrentSettings, room);
 
   elements.lobbyHelpModeList.innerHTML = "";
   listAvailableGameModes().forEach((mode) => {
@@ -517,6 +567,106 @@ function openLobbyHelpModal() {
 function closeLobbyHelpModal() {
   if (!elements.lobbyHelpModal) return;
   elements.lobbyHelpModal.hidden = true;
+}
+
+// ===== 対戦開始前ルール確認画面（2026-09-13新設・本人指示） =====
+// ロビーで「対戦を開始する」を押した直後〜3→2→1カウントダウンの間に挟まる、全員が
+// 今回のルールを確認するための画面。room.status自体は"waiting"のまま変えず、
+// room.confirmingMatch（room全体で1つ）とroom.players/{uid}/ruleConfirmed（本人ごと）の
+// 2つのFirebaseフィールドだけで成り立たせている（本人指示のとおり、room.statusを増やすと
+// 参加・キック・モード変更等、既存の"waiting"前提のあらゆる判定を1つずつ洗い直す必要が
+// あり危険なため。confirmingMatch中もstatusはwaitingのままなので、途中参加・ホストによる
+// キックはこれまでどおり動く）。
+
+function enterMatchConfirmScreen(room) {
+  clearTimeout(matchConfirmAutoStartTimerId);
+  matchConfirmAutoStartTimerId = null;
+  elements.navigateTo("onlineBattleConfirm");
+  renderMatchConfirmScreen(room);
+}
+
+function renderMatchConfirmScreen(room) {
+  if (!elements.confirmPlayerList) return;
+  const myUid = getCurrentUid();
+  const isHost = room.host === myUid;
+  const players = room.players || {};
+
+  buildCurrentRuleExplanation(elements.confirmRuleExplanation, room);
+
+  const playerEntries = Object.entries(players).sort(([, a], [, b]) => a.joinedAt - b.joinedAt);
+  const allConfirmed = computeAllPlayersConfirmed(players);
+
+  elements.confirmPlayerList.innerHTML = "";
+  playerEntries.forEach(([uid, player]) => {
+    const li = document.createElement("li");
+    li.className = "online-lobby-player-row";
+    if (uid === myUid) li.classList.add("is-me");
+
+    const oshiDot = createOshiDotElement(player.oshiMemberId);
+    if (oshiDot) li.appendChild(oshiDot);
+
+    const name = document.createElement("span");
+    name.className = "online-lobby-player-name";
+    name.textContent = player.name + (uid === myUid ? "（あなた）" : "");
+    li.appendChild(name);
+
+    const badges = document.createElement("span");
+    badges.className = "online-lobby-player-badges";
+    if (player.isHost) {
+      const hostBadge = document.createElement("span");
+      hostBadge.className = "online-lobby-badge online-lobby-badge-host";
+      hostBadge.textContent = "ホスト";
+      badges.appendChild(hostBadge);
+    }
+    const statusBadge = document.createElement("span");
+    statusBadge.className = player.ruleConfirmed
+      ? "online-lobby-badge online-lobby-badge-connected"
+      : "online-lobby-badge online-lobby-badge-progress";
+    statusBadge.textContent = player.ruleConfirmed ? "確認OK" : "未確認";
+    badges.appendChild(statusBadge);
+    li.appendChild(badges);
+
+    elements.confirmPlayerList.appendChild(li);
+  });
+
+  const myConfirmed = players[myUid]?.ruleConfirmed === true;
+  if (elements.confirmToggleButton) {
+    elements.confirmToggleButton.textContent = myConfirmed ? "確認を取り消す" : "✓ 確認OK";
+    elements.confirmToggleButton.classList.toggle("is-confirmed", myConfirmed);
+  }
+  if (elements.confirmAllDoneNotice) {
+    elements.confirmAllDoneNotice.hidden = !allConfirmed;
+  }
+  // 【本人指示13章と同じ役割分担】確認をやめてロビーへ戻る操作はホストだけができる
+  // （設定を変更できるのがホストだけという既存の権限設計と揃えている）。
+  if (elements.confirmCancelButton) {
+    elements.confirmCancelButton.hidden = !isHost;
+  }
+
+  // 【本人指示21：全員確認後、2秒待ってから開始】ホストの端末だけがこの判定・実際の
+  // 対戦開始（startBattle()の再実行）を担当する（finishCountdown()・一瞬協力の進行tick等、
+  // 既存のホスト主導の遷移と同じ設計方針）。renderLobby()はroom更新のたびに何度も
+  // 呼ばれるため、タイマーの二重予約を防ぐガード（matchConfirmAutoStartTimerId）を持つ。
+  if (isHost && allConfirmed && matchConfirmAutoStartTimerId === null) {
+    const roomId = room.roomId;
+    matchConfirmAutoStartTimerId = setTimeout(async () => {
+      matchConfirmAutoStartTimerId = null;
+      // 2秒の間に誰かが確認を取り消した・退出した可能性があるため、実行直前の
+      // 最新状態（latestRoom、renderLobby()のたびに更新される）で改めて確認する。
+      const latest = latestRoom;
+      if (!latest || latest.roomId !== roomId || latest.confirmingMatch !== true) return;
+      if (!computeAllPlayersConfirmed(latest.players)) return;
+      attemptSilentUnlock();
+      await startBattle({ roomId, settings: latest.settings });
+      // 失敗した場合（設定が直前で不正になった等）は、renderLobby()の次回呼び出しで
+      // confirmingMatchがまだtrueのままなのでこの画面に留まり、ホストは改めて
+      // 確認OKを見て再試行できる（新しいエラー表示は今回は設けない。安全側に倒し、
+      // 稀なケースのため確認画面へ留まる挙動で十分と判断）。
+    }, MATCH_CONFIRM_AUTO_START_DELAY_MS);
+  } else if (!allConfirmed && matchConfirmAutoStartTimerId !== null) {
+    clearTimeout(matchConfirmAutoStartTimerId);
+    matchConfirmAutoStartTimerId = null;
+  }
 }
 
 // ホスト用の設定フォーム（ラジオボタン群）に、現在ルームに保存されている設定値を反映する。
@@ -887,7 +1037,14 @@ function enterOnlineBattlePlay(room) {
     elements.quizProgressStrip.textContent = "";
   }
 
-  elements.onStartOnlineBattleQuiz(questions, room);
+  // 【2026-09-13追加・本人指示：初回問題消失バグの調査で判明した防御策】
+  // js/onlineInstantCoopBattleScreen.jsのenterInstantCoopBattlePlay()・
+  // js/onlineLyricsQuizBattleScreen.jsのenterLyricsQuizBattlePlay()と同じ理由の保険。
+  // goToCountdownScreen()のsetTimeout経由で呼ばれる場合、渡されるroomがカウントダウン
+  // 開始時点のスナップショット（status:"countdown"のまま）のことがある。今のところ
+  // js/main.jsのbeginOnlineBattlePlay()はroom.statusを一切参照しないため実害は無いが、
+  // 将来status依存のロジックが増えても同じ不具合クラスを再発させないための予防的な統一。
+  elements.onStartOnlineBattleQuiz(questions, { ...room, status: ROOM_STATUS.PLAYING });
 }
 
 // カウントダウン画面へ遷移し、Firebaseサーバーの時刻を基準にした表示更新を開始する。
@@ -1105,9 +1262,14 @@ function renderLobby(room) {
   // 【2026-09-05改訂、本人指示】以前はresultからの遷移だけを見ていたが、「対戦中にホストが
   // ルーム設定へ戻れるようにしてほしい」という要望を受け、countdown・playing中からの
   // 復帰（returnRoomToLobby()）も同じ扱いにする。
+  // 【2026-09-13追加・本人指示：対戦開始前ルール確認画面】「もう一度」の再戦で参加者構成が
+  // 変わっていた場合、result→waitingへ戻ると同時にconfirmingMatchも立てて再戦前にルール
+  // 確認を挟む（js/onlineBattle.jsのrematchAndStartNow()参照）。この場合は「ロビーへ
+  // 戻った」のではなく「ルール確認画面へ進む」ため、通常の「ロビーへ戻る」扱いからは除外する。
   const isReturnedToLobby =
     statusJustChanged &&
     room.status === ROOM_STATUS.WAITING &&
+    room.confirmingMatch !== true &&
     (previousStatus === ROOM_STATUS.RESULT || previousStatus === ROOM_STATUS.COUNTDOWN || previousStatus === ROOM_STATUS.PLAYING);
   if (statusJustChanged) {
     lastHandledRoomStatus = room.status;
@@ -1289,6 +1451,29 @@ function renderLobby(room) {
   // js/onlineLyricsQuizBattleScreen.js側の同等の仕組みに任せ、ここでは何もしない）。
   updateCollabSongSectionUi(room, isLyricsQuiz);
   syncCollaborativeSongPoolIfHost(room, isHost, isLyricsQuiz);
+
+  // 【2026-09-13新設・本人指示：対戦開始前ルール確認画面】room.statusは意図的に
+  // 変更していない（"waiting"のまま）ため、confirmingMatchの変化はstatusJustChanged
+  // では検知できない。別枠のフラグとして追跡する。room.statusがwaiting以外に
+  // なった瞬間（＝全員確認完了→startBattle()成功）は、confirmingMatchも同時にfalseへ
+  // 戻るため、下のstatusJustChanged分岐（countdown等）へ自然に引き継がれる。
+  const wasConfirmingMatch = lastHandledConfirmingMatch;
+  const isConfirmingMatchNow = room.confirmingMatch === true && room.status === ROOM_STATUS.WAITING;
+  if (isConfirmingMatchNow !== wasConfirmingMatch) {
+    lastHandledConfirmingMatch = isConfirmingMatchNow;
+    if (isConfirmingMatchNow) {
+      enterMatchConfirmScreen(room);
+    } else if (room.status === ROOM_STATUS.WAITING) {
+      // ホストが確認をキャンセルした場合だけここに来る（対戦開始成功時はstatusが
+      // waiting以外になっているため、この分岐には来ない）。
+      clearTimeout(matchConfirmAutoStartTimerId);
+      matchConfirmAutoStartTimerId = null;
+      elements.navigateTo("onlineBattleLobby");
+    }
+  }
+  if (isConfirmingMatchNow) {
+    renderMatchConfirmScreen(room);
+  }
 
   // ホストが開始すると、まずcountdown・その後playingへ進む。状態が変わった瞬間だけ
   // 画面遷移を行い（同じ状態のまま何度renderLobbyが呼ばれても遷移し直さない）、
@@ -2240,14 +2425,20 @@ export function initOnlineBattleScreens(newElements) {
         instantCoopRoomSettings: currentInstantCoopSettings,
       });
 
-      const result = await startBattle({ roomId: currentRoomId, settings });
+      // 【2026-09-13改訂・本人指示：対戦開始前ルール確認画面】以前はここで直接startBattle()を
+      // 呼んでいたが、今回から「対戦を開始する」は、まずルール確認画面へ進むための
+      // beginMatchConfirmation()を呼ぶ（判定条件・エラー理由はstartBattle()と完全に共通）。
+      // 実際の対戦開始（seed発行・カウントダウン）は、全員の確認が揃った後に
+      // driveMatchConfirmationHostTick()がstartBattle()を改めて呼ぶ。
+      const result = await beginMatchConfirmation({ roomId: currentRoomId, settings });
 
       if (!result.ok) {
         // 失敗時（設定不備・READY不足など、room.statusはwaitingのままのはず）だけ、
         // ここで再挑戦できるようボタンを戻す。
-        // 【成功時にdisabled=falseへ戻さない理由】成功した瞬間、room.statusは既にwaiting
-        // ではなくなっている（countdown）。ここで無条件にdisabled=falseへ戻してしまうと、
-        // 本来もう押せないはずのボタンが一瞬だけ有効に見えてしまう（本人からの実機報告で発覚）。
+        // 【成功時にdisabled=falseへ戻さない理由】成功した瞬間、room.confirmingMatchが
+        // trueになり画面がルール確認画面へ切り替わる。ここで無条件にdisabled=falseへ
+        // 戻してしまうと、本来もう押せないはずのボタンが一瞬だけ有効に見えてしまう
+        // （本人からの実機報告で発覚した、以前のstartBattle()版と同じ理由）。
         // 成功後の正しいdisabled状態は、次のrenderLobby()内のupdateStartButton()が
         // room.statusを見て設定するため、ここでは何もしない。
         elements.lobbyStartButton.disabled = false;
@@ -2386,7 +2577,21 @@ export function initOnlineBattleScreens(newElements) {
   // 【2026-09-07新設・本人指示：ルーム参加者プロフィール】閉じるボタン・オーバーレイの
   // 外側タップ・Escapeキーのいずれでも閉じられるようにする（既存のfan-profile-detail-modal
   // 等、他のモーダルと同じ操作性に揃える）。
+  // 【2026-09-13新設・本人指示：対戦開始前ルール確認画面】
+  elements.confirmToggleButton?.addEventListener("click", async () => {
+    if (!currentRoomId || !latestRoom) return;
+    const myUid = getCurrentUid();
+    const nowConfirmed = latestRoom.players?.[myUid]?.ruleConfirmed === true;
+    // 【本人指示19：確認OKはトグル式】押すたびに反転させるだけの単純な操作にする。
+    await setRuleConfirmed({ roomId: currentRoomId, confirmed: !nowConfirmed });
+  });
+  elements.confirmCancelButton?.addEventListener("click", async () => {
+    if (!currentRoomId) return;
+    await cancelMatchConfirmation({ roomId: currentRoomId });
+  });
+
   elements.lobbyProfileClose?.addEventListener("click", () => closeLobbyParticipantProfile());
+  elements.lobbyProfileAllToggle?.addEventListener("click", () => handleLobbyProfileAllToggleClick());
   elements.lobbyProfileModal?.addEventListener("click", (event) => {
     if (event.target !== elements.lobbyProfileModal) return;
     closeLobbyParticipantProfile();

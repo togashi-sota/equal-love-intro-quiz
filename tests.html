@@ -107,6 +107,7 @@
     import { runBattleModesIndexAvailabilityTests } from "./tests/battleModes/index.test.js";
     import { runNewSingleAnnouncementTests } from "./tests/newSingleAnnouncement.test.js";
     import { runBattleQuestionBreakdownTests } from "./tests/battleQuestionBreakdown.test.js";
+    import { runOnlineBattleMatchConfirmationPayloadsTests } from "./tests/onlineBattleMatchConfirmationPayloads.test.js";
     import { printSummary } from "./tests/test-utils.js";
 
     runScoreTests();
@@ -189,6 +190,7 @@
     runBattleModesIndexAvailabilityTests();
     runNewSingleAnnouncementTests();
     runBattleQuestionBreakdownTests();
+    runOnlineBattleMatchConfirmationPayloadsTests();
     const { passCount, failCount } = printSummary();
 
     const summaryElement = document.getElementById("test-summary");

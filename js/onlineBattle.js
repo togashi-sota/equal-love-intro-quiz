@@ -53,6 +53,7 @@ import {
 } from "./battleModes/index.js";
 import { restrictSettingsToCommonlyAvailableSongs } from "./onlineBattleSongAvailability.js";
 import { pickNextHostUid } from "./onlineBattleHostTransitionPayloads.js";
+import { hasMatchMembershipChanged } from "./onlineBattleMatchConfirmationPayloads.js";
 import { startActivityPresenceTracking, stopActivityPresenceTracking } from "./onlineBattlePresence.js";
 
 const ROOM_ID_LENGTH = 6;
@@ -394,7 +395,8 @@ export async function joinRoom({ roomId, playerName }) {
   if (!uid) return { ok: false, reason: "not-signed-in" };
 
   const snapshot = await get(ref(database, `rooms/${roomId}`));
-  const capacity = checkCapacity(snapshot.exists() ? snapshot.val() : null, uid);
+  const room = snapshot.exists() ? snapshot.val() : null;
+  const capacity = checkCapacity(room, uid);
   if (!capacity.ok) {
     return { ok: false, reason: capacity.reason };
   }
@@ -404,6 +406,12 @@ export async function joinRoom({ roomId, playerName }) {
   } catch (error) {
     return { ok: false, reason: "write-failed" };
   }
+
+  // 【2026-09-13追加・本人指示：対戦開始前ルール確認画面】ルール確認中（room.confirmingMatch）
+  // に新しく参加した場合、既存参加者を含めて確認状態を一度リセットする（本人指示24）。
+  // 参加自体を失敗させないよう、この後始末はfire-and-forgetで行う
+  // （resetRuleConfirmationsIfConfirming自体が失敗を握りつぶす設計）。
+  resetRuleConfirmationsIfConfirming({ roomId, room, joiningUid: uid });
 
   finalizeJoin(roomId, playerName, uid);
   return { ok: true, roomId };
@@ -515,6 +523,10 @@ export async function promoteSpectatorToPlayer({ roomId, playerName }) {
   }
   startPresenceTracking(roomId, uid, "players");
   startActivityPresenceTracking(roomId, uid, "players");
+  // 【2026-09-13追加・本人指示：対戦開始前ルール確認画面】観戦者が競技参加へ昇格した
+  // 場合もjoinRoom()と同じ理由でルール確認状態をリセットする（js/onlineBattle.jsの
+  // joinRoom()参照）。
+  resetRuleConfirmationsIfConfirming({ roomId, room, joiningUid: uid });
   return { ok: true };
 }
 
@@ -826,7 +838,14 @@ export async function setReady({ roomId, ready }) {
 //
 // ホスト以外が呼んだ場合、全員の準備が整っていない場合、ルームが対戦開始できる状態
 // （status: waiting）でない場合は、reason付きで失敗を返す。
-export async function startBattle({ roomId, settings }) {
+// 【2026-09-13新設・本人指示：対戦開始前ルール確認画面】startBattle()が対戦開始直前に
+// 行っている一連のチェック（ホスト本人か・ロビー中か・設定が有効か・全員READYか・
+// 参加者全員が実際に利用できる共通曲があるか）を、ここへ切り出した。
+// beginMatchConfirmation()（ルール確認の開始）とstartBattle()（実際の対戦開始）の
+// 両方から呼ぶことで、判定ロジックを2重に持たない（本人指示のとおり、既存の安全な
+// チェックは複製せず再利用する）。戻り値は{ ok:false, reason, message? }、または
+// { ok:true, room, players, finalSettings }。
+async function resolveBattleStartValidation({ roomId, settings }) {
   await authReady;
   const uid = getCurrentUid();
   if (!uid) return { ok: false, reason: "not-signed-in" };
@@ -921,7 +940,97 @@ export async function startBattle({ roomId, settings }) {
     }
   }
 
+  return { ok: true, uid, room, players, finalSettings };
+}
+
+// ロビーの「対戦を開始する」から呼ぶ、既存の実際の対戦開始処理。
+export async function startBattle({ roomId, settings }) {
+  const validation = await resolveBattleStartValidation({ roomId, settings });
+  if (!validation.ok) return validation;
+  const { uid, room, players, finalSettings } = validation;
   return writeNewMatchStart({ roomId, room, uid, players, finalSettings });
+}
+
+// 【2026-09-13新設・本人指示：対戦開始前ルール確認画面】「対戦を開始する」を押した直後に
+// 呼ぶ。startBattle()と全く同じ条件（ホスト・ロビー中・設定・READY・共通曲）を満たさない
+// 限りルール確認へは進ませない（本人指示26「データ不足者がいる場合は確認画面で開始
+// させない」を、確認画面に入る前の時点で満たす設計。開始不可の理由は、既存の
+// 「対戦を開始する」ボタンと全く同じreasonをそのまま返すため、UI側の文言も再利用できる）。
+// 確認済みなら、まずroom.confirmingMatchをtrueにし、全参加者のruleConfirmedを
+// falseへリセットしてから書き込む（新しい確認ラウンドを毎回まっさらな状態で始めるため）。
+// 実際の対戦開始（seed・activeMatchId・status:countdownへの書き込み）はここでは行わない
+// ——全員の確認が完了した時点で、改めてstartBattle()を呼ぶ（本人指示：確認画面の途中で
+// 設定が古くなっていないか、実際に開始する瞬間にもう一度確かめる二重構造にするため）。
+export async function beginMatchConfirmation({ roomId, settings }) {
+  const validation = await resolveBattleStartValidation({ roomId, settings });
+  if (!validation.ok) return validation;
+  const { players } = validation;
+
+  const updates = {
+    [`rooms/${roomId}/confirmingMatch`]: true,
+  };
+  Object.keys(players).forEach((playerUid) => {
+    updates[`rooms/${roomId}/players/${playerUid}/ruleConfirmed`] = false;
+  });
+  try {
+    await update(ref(database), updates);
+  } catch (error) {
+    return { ok: false, reason: "write-failed" };
+  }
+  return { ok: true };
+}
+
+// 自分の「確認OK」状態をトグルする（js/onlineBattle.jsのsetReady()と全く同じ考え方：
+// 本人指示19「確認OKはトグル式」。一度押したら取り消せない仕様にはしない）。
+export async function setRuleConfirmed({ roomId, confirmed }) {
+  await authReady;
+  const uid = getCurrentUid();
+  if (!uid) return { ok: false, reason: "not-signed-in" };
+  try {
+    await update(ref(database), { [`rooms/${roomId}/players/${uid}/ruleConfirmed`]: confirmed });
+  } catch (error) {
+    return { ok: false, reason: "write-failed" };
+  }
+  return { ok: true };
+}
+
+// 【2026-09-13新設・本人指示：対戦開始前ルール確認画面】ルール確認中に新しい参加者が
+// ルームへ入った場合、既存参加者を含めて確認状態を一度リセットする（本人指示24）。
+// Firebase Rules側で「false（未確認）に戻すことだけ」は誰でもできるようにしてあるため
+// （自分以外の確認状態を勝手にtrueにはできない、安全な片方向の書き込み）、参加した本人の
+// 端末がそのまま実行できる。confirmingMatchがtrueでない（通常の入室）場合は何もしない。
+export async function resetRuleConfirmationsIfConfirming({ roomId, room, joiningUid }) {
+  if (!room?.confirmingMatch) return;
+  const players = room.players || {};
+  const updates = {};
+  Object.keys(players).forEach((playerUid) => {
+    updates[`rooms/${roomId}/players/${playerUid}/ruleConfirmed`] = false;
+  });
+  updates[`rooms/${roomId}/players/${joiningUid}/ruleConfirmed`] = false;
+  try {
+    await update(ref(database), updates);
+  } catch (error) {
+    // 失敗しても致命的ではない（各参加者は自分の確認状態を自分で管理できるため、
+    // 次に誰かが操作すれば整合する）。
+  }
+}
+
+// ホスト専用：ルール確認を取りやめてロビーへ戻す（設定を直接変更したくなった場合の
+// 逃げ道。本人からの明示的な要望ではないが、進行に行き詰まらないための安全な保険）。
+export async function cancelMatchConfirmation({ roomId }) {
+  await authReady;
+  const uid = getCurrentUid();
+  if (!uid) return { ok: false, reason: "not-signed-in" };
+  const snapshot = await get(ref(database, `rooms/${roomId}`));
+  if (!snapshot.exists()) return { ok: false, reason: "not-found" };
+  const room = snapshot.val();
+  if (room.host !== uid) return { ok: false, reason: "not-host" };
+  try {
+    await update(ref(database), { [`rooms/${roomId}/confirmingMatch`]: false });
+  } catch (error) {
+    return { ok: false, reason: "write-failed" };
+  }
+  return { ok: true };
 }
 
 // 【2026-09-05新設】startBattle()・rematchAndStartNow()の両方から呼ばれる、実際に
@@ -939,6 +1048,11 @@ async function writeNewMatchStart({ roomId, room, uid, players, finalSettings })
     [`rooms/${roomId}/status`]: ROOM_STATUS.COUNTDOWN,
     [`rooms/${roomId}/countdownStartedAt`]: serverTimestamp(),
     [`rooms/${roomId}/activeMatchId`]: matchId,
+    // 【2026-09-13追加・本人指示：対戦開始前ルール確認画面】対戦が実際に始まる瞬間に、
+    // ルール確認中フラグを必ず片付けておく（beginMatchConfirmation()経由でなく
+    // rematchAndStartNow()から呼ばれた場合はそもそも立っていないはずだが、念のため
+    // 毎回クリアしておくことで、万一残っていても次回のロビー表示に影響しない）。
+    [`rooms/${roomId}/confirmingMatch`]: false,
   };
   Object.entries(players).forEach(([playerUid, player]) => {
     updates[`rooms/${roomId}/matches/${matchId}/participants/${playerUid}`] = {
@@ -1294,6 +1408,42 @@ export async function rematchAndStartNow({ roomId }) {
         return { ok: false, reason: "insufficient-common-songs", message };
       }
     }
+  }
+
+  // 【2026-09-13追加・本人指示15：再戦時の例外条件】直前の試合から参加者構成が
+  // 変わっている（新しく参加した人がいる、または誰か抜けた）場合は、「もう一度」でも
+  // ルール確認画面を経由させる（本人指示：「もう一度だから絶対に確認画面を飛ばす」という
+  // 雑な実装にはしないこと。ルールを知らないまま新しい参加者が試合に入ってしまうのを
+  // 防ぐため）。参加者構成が変わっていなければ、これまでどおり即座に開始する。
+  const previousMatchId = room.activeMatchId;
+  const previousParticipantUids = previousMatchId
+    ? Object.keys(room.matches?.[previousMatchId]?.participants ?? {})
+    : [];
+  const currentPlayerUids = Object.keys(players);
+  const membershipChangedSincePreviousMatch = hasMatchMembershipChanged({
+    previousParticipantUids,
+    currentPlayerUids,
+  });
+
+  if (membershipChangedSincePreviousMatch) {
+    // 通常の「対戦を開始する」（beginMatchConfirmation）と同じ、ルール確認を経由する
+    // ルートへ切り替える。confirmingMatchはroom.status:waiting前提の設計のため、
+    // 同じ更新でstatusもwaitingへ戻す（本人指示23と同じ、既存の安全な仕組みへ
+    // 合流させる考え方。result→waitingへの通常の「ロビーへ戻る」との違いは、
+    // js/onlineBattleScreen.jsのrenderLobby()がconfirmingMatchの有無で判定する）。
+    const updates = {
+      [`rooms/${roomId}/status`]: ROOM_STATUS.WAITING,
+      [`rooms/${roomId}/confirmingMatch`]: true,
+    };
+    Object.keys(players).forEach((playerUid) => {
+      updates[`rooms/${roomId}/players/${playerUid}/ruleConfirmed`] = false;
+    });
+    try {
+      await update(ref(database), updates);
+    } catch (error) {
+      return { ok: false, reason: "write-failed" };
+    }
+    return { ok: true, wentToConfirmation: true };
   }
 
   return writeNewMatchStart({ roomId, room, uid, players, finalSettings });

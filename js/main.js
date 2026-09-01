@@ -31,7 +31,7 @@ import {
   buildReviewQuizQuestions,
   buildQuestionsFromSongIds,
 } from "./quiz.js";
-import { playSongIntro, playSongFromRandomPosition, stopAudio } from "./audio.js";
+import { playSongIntro, playSongFromRandomPosition, stopAudio, attemptSilentUnlock } from "./audio.js";
 import {
   initInstantChallengeSetupScreen,
   initInstantChallengeQuestionScreen,
@@ -989,6 +989,12 @@ const onlineBattleLobbyStartButtonElement = document.getElementById("online-batt
 const onlineBattleLobbyStartHintElement = document.getElementById("online-battle-lobby-start-hint");
 const onlineBattleLobbyStartErrorElement = document.getElementById("online-battle-lobby-start-error");
 const onlineBattleCountdownNumberElement = document.getElementById("online-battle-countdown-number");
+// 【2026-09-13新設・本人指示：対戦開始前ルール確認画面】
+const onlineBattleConfirmRuleExplanationElement = document.getElementById("online-battle-confirm-rule-explanation");
+const onlineBattleConfirmPlayerListElement = document.getElementById("online-battle-confirm-player-list");
+const onlineBattleConfirmAllDoneNoticeElement = document.getElementById("online-battle-confirm-all-done-notice");
+const onlineBattleConfirmToggleButtonElement = document.getElementById("online-battle-confirm-toggle-button");
+const onlineBattleConfirmCancelButtonElement = document.getElementById("online-battle-confirm-cancel-button");
 const onlineBattleQuizProgressStripElement = document.getElementById("online-battle-quiz-progress-strip");
 const onlineBattleWaitingLeadTextElement = document.getElementById("online-battle-waiting-lead-text");
 const onlineBattleWaitingHostDisconnectNoticeElement = document.getElementById("online-battle-waiting-host-disconnect-notice");
@@ -1032,6 +1038,9 @@ const onlineLobbyProfileUnavailableElement = document.getElementById("online-lob
 const onlineLobbyProfileBodyElement = document.getElementById("online-lobby-profile-body");
 const onlineLobbyProfileAchievementCountElement = document.getElementById("online-lobby-profile-achievement-count");
 const onlineLobbyProfileSummaryElement = document.getElementById("online-lobby-profile-summary");
+// 【2026-09-13新設・本人指示11：ロビー参加者プロフィールに獲得称号の詳細を追加】
+const onlineLobbyProfileAllToggleElement = document.getElementById("online-lobby-profile-all-toggle");
+const onlineLobbyProfileAchievementsElement = document.getElementById("online-lobby-profile-achievements");
 // 【2026-09-05新設、本人指示：対戦中にルーム設定へ戻る機能】複数の対戦画面で共有する、
 // 「ルーム設定へ戻る」の確認モーダル（js/onlineBattleLobbyReturnPrompt.js参照）。
 const onlineBattleReturnToLobbyModalElement = document.getElementById("online-battle-return-to-lobby-confirm-modal");
@@ -5475,6 +5484,12 @@ initOnlineBattleScreens({
   lobbyStartHint: onlineBattleLobbyStartHintElement,
   lobbyStartError: onlineBattleLobbyStartErrorElement,
   countdownNumber: onlineBattleCountdownNumberElement,
+  // 【2026-09-13新設・本人指示：対戦開始前ルール確認画面】
+  confirmRuleExplanation: onlineBattleConfirmRuleExplanationElement,
+  confirmPlayerList: onlineBattleConfirmPlayerListElement,
+  confirmAllDoneNotice: onlineBattleConfirmAllDoneNoticeElement,
+  confirmToggleButton: onlineBattleConfirmToggleButtonElement,
+  confirmCancelButton: onlineBattleConfirmCancelButtonElement,
   quizProgressStrip: onlineBattleQuizProgressStripElement,
   quizBackToLobbyButton: onlineBattleQuizBackToLobbyButtonElement,
   waitingLeadText: onlineBattleWaitingLeadTextElement,
@@ -5518,6 +5533,8 @@ initOnlineBattleScreens({
   lobbyProfileBody: onlineLobbyProfileBodyElement,
   lobbyProfileAchievementCount: onlineLobbyProfileAchievementCountElement,
   lobbyProfileSummary: onlineLobbyProfileSummaryElement,
+  lobbyProfileAllToggle: onlineLobbyProfileAllToggleElement,
+  lobbyProfileAchievements: onlineLobbyProfileAchievementsElement,
   spectatorLeaveButton: onlineBattleSpectatorLeaveButtonElement,
   spectatorGameModeText: onlineBattleSpectatorGameModeElement,
   spectatorPlayerCount: onlineBattleSpectatorPlayerCountElement,
@@ -5786,6 +5803,16 @@ let onlineBattleReserveQuestions = []; // isReserve:trueの予備曲だけを集
 let onlineBattleNextReserveIndex = 0; // 次に使う予備曲のインデックス
 let onlineBattleSlotFailureCount = 0; // 今の問題スロットで何回再生に失敗したか（問題が進むたびに0へ戻す）
 const ONLINE_BATTLE_MAX_SLOT_PLAYBACK_ATTEMPTS = 3; // 元の曲＋差し替え2回で打ち切る
+// 【2026-09-13追加・本人指示：一瞬バトルで実機再生失敗が再発（原因調査）で判明した別件の修正】
+// 「全曲」設定（questionCountValue:"all"）のように、出題数がそのモードの曲プール総数と
+// 一致する場合、buildBattleQuestions()等のextendedCount計算上、予備曲を1曲も確保できない
+// （プールの中にもう「まだ出題していない曲」が残っていないため）。この場合に
+// reserveExhaustedの判定をそのまま使うと、最初の1回の再生失敗だけで即座に対戦が
+// 中断してしまう（予備が最初から0件＝「使い果たした」と同じ判定になるため）。
+// 「最初から一度も予備が無かった」場合は、この判定から除外し、同じ曲のまま
+// ONLINE_BATTLE_MAX_SLOT_PLAYBACK_ATTEMPTS回まで再試行してから中断するようにする
+// （曲を差し替えられないだけで、一時的な再生失敗から回復できる可能性は変わらないため）。
+let onlineBattleReserveWasEverAvailable = false;
 
 // js/onlineBattleScreen.jsが、開始確認（status:playing検知）のタイミングで呼ぶ。
 // questionsは同じseed・settingsからjs/battleModes/index.js経由で組み立て済みのもの。
@@ -5803,6 +5830,7 @@ function beginOnlineBattlePlay(questions, room) {
   onlineBattleReserveQuestions = questions.filter((question) => question.isReserve);
   onlineBattleNextReserveIndex = 0;
   onlineBattleSlotFailureCount = 0;
+  onlineBattleReserveWasEverAvailable = onlineBattleReserveQuestions.length > 0;
   startTimeAttackRun(room.settings.rule, room.settings.questionCountValue, room.settings.categoryFilterValue);
   startOnlineBattleQuiz(realQuestions, room.settings.questionCountValue, room.settings.categoryFilterValue);
   renderQuestion();
@@ -5825,7 +5853,13 @@ function handleOnlineBattleAudioFailure(questionIndex, message) {
   }
 
   onlineBattleSlotFailureCount += 1;
-  const reserveExhausted = onlineBattleNextReserveIndex >= onlineBattleReserveQuestions.length;
+  // 【2026-09-13修正・本人指示：初回問題消失バグの調査で判明した別件の修正】「全曲」設定等、
+  // このモードの曲プール全体を出題数として使っている場合、予備曲を1曲も確保できない
+  // （onlineBattleReserveWasEverAvailable===false）。この場合は「予備切れ」という
+  // 判定自体が成立しない（最初から無かっただけ）ため、中断の判断からは除外し、
+  // 同じ曲のままONLINE_BATTLE_MAX_SLOT_PLAYBACK_ATTEMPTS回まで再試行する。
+  const reserveExhausted =
+    onlineBattleReserveWasEverAvailable && onlineBattleNextReserveIndex >= onlineBattleReserveQuestions.length;
   if (onlineBattleSlotFailureCount >= ONLINE_BATTLE_MAX_SLOT_PLAYBACK_ATTEMPTS || reserveExhausted) {
     stopAudio();
     stopTimer();
@@ -5835,11 +5869,19 @@ function handleOnlineBattleAudioFailure(questionIndex, message) {
     return;
   }
 
-  const replacementQuestion = onlineBattleReserveQuestions[onlineBattleNextReserveIndex];
-  onlineBattleNextReserveIndex += 1;
-  gameState.questions[gameState.currentIndex] = replacementQuestion;
+  // 【2026-09-13修正・本人指示3：音源差し替え成功時のユーザー向けメッセージを消す】
+  // プレイヤーは元々どの曲が出題される予定だったか知らないため、差し替えが成功して
+  // 問題を続行できるなら何も表示しない（対戦を安全に継続できない場合＝上のabort分岐に
+  // 到達した場合だけ、案内を表示する）。裏側の記録（診断ログ）はjs/audio.jsの
+  // 既存のconsole.warnにそのまま残る。
+  const hasReserveAvailable = onlineBattleNextReserveIndex < onlineBattleReserveQuestions.length;
+  if (hasReserveAvailable) {
+    const replacementQuestion = onlineBattleReserveQuestions[onlineBattleNextReserveIndex];
+    onlineBattleNextReserveIndex += 1;
+    gameState.questions[gameState.currentIndex] = replacementQuestion;
+  }
+  // 予備が無い場合（全曲設定等）は、questionsを差し替えずに同じ曲のまま再試行する。
   renderQuestion();
-  showAudioError("音源を正常に再生できなかったため、別の曲に差し替えました。");
 }
 
 // デバッグ用ログ（固定durationと実際の音源長がズレてクランプが発生した場合のみ）を
@@ -5855,6 +5897,13 @@ function isRandomPlaybackDebugLoggingEnabled() {
 }
 
 function handleOnlineBattleChoiceClick(selectedChoice) {
+  // 【2026-09-13追加・本人指示：一瞬バトルで実機再生失敗が再発（原因調査）】タイムアタック・
+  // ランダム再生・アウトロクイズのオンライン対戦も、次の問題の音源再生はすべて
+  // setTimeout経由（handleTimedChoiceClick()のscheduleTimeAttackAdvance）でしか
+  // 呼ばれない。選択肢を選ぶタップは対戦中に毎問必ず起きる本物のユーザー操作のため、
+  // ここでunlockを試みておく（js/onlineInstantBattleScreen.jsのhandleAnswerSelected()と
+  // 同じ理由）。
+  attemptSilentUnlock();
   handleTimedChoiceClick(selectedChoice, {
     onAdvance: goToNextOnlineBattleQuestionOrFinish,
     onRunEnd: finishOnlineBattlePlay,

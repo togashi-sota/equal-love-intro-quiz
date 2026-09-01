@@ -170,6 +170,21 @@ function getAudioContext() {
   return audioContext;
 }
 
+// 【2026-09-13新設・本人指示：一瞬バトルで実機再生失敗が再発（原因調査）】上のコメントの
+// 前提（「効果音は常にクリック等の操作の中から呼ばれる」）は、js/localReplayCountdown.jsの
+// 3→2→1カウントダウンのビープ音には当てはまらない（setTimeoutから呼ばれるため）。
+// タブ・PWAを裏に回して戻ってきた際にAudioContextがsuspendedのままになっていた場合、
+// カウントダウンのビープ音だけが鳴らなくなる可能性があるため、js/audio.jsの
+// 曲再生unlockと同じ「画面へ戻ってきたタイミング」で復帰を試みる。まだ一度も音を
+// 鳴らしていない（audioContextがnullの）場合は、ここで新規作成はしない
+// （本人指示どおり「クリックのたびにnew AudioContext()しない」の趣旨を維持し、
+// 未使用の環境で不要な警告を出さないため）。
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && audioContext !== null) {
+    getAudioContext();
+  }
+});
+
 // ===== 音の合成に使う小さな部品 =====
 
 // 読みやすさのための音名→周波数（第3〜6オクターブぶんだけ、今回使う範囲のみ）。

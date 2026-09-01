@@ -151,6 +151,13 @@ let serverTimeOffset = 0;
 let offsetUnsubscribe = null;
 let tickTimerId = null;
 let lastRenderedQuestionIndex = -1;
+// 【2026-09-13新設・本人指示：答え合わせがずっと点滅する不具合の修正】答え合わせカードの
+// 出現演出（CSSのanswerRevealPopアニメーション）を、同じ問題に対しては1度だけ再生する
+// ための追跡。renderCurrentQuestionState()はHOST_TICK_INTERVAL_MS（400ms）ごとに
+// 呼ばれ続けるが、これが無いと毎tickごとにDOM要素を作り直してアニメーションが
+// 再生し直され、実機で「ピコピコ点滅して見える」原因になっていた。
+let lastRevealedQuestionIndex = -1;
+let lastHintRevealedQuestionIndex = -1; // renderResolvedHintSummary()の同種の追跡（answer choicesとは別カウンタ）
 let mySubmittedForQuestionIndex = -1;
 let mySelectedSongId = null;
 let submitInFlight = false;
@@ -359,6 +366,8 @@ export function resetLyricsQuizBattleState() {
   currentQuestions = [];
   runtimeReady = false;
   lastRenderedQuestionIndex = -1;
+  lastRevealedQuestionIndex = -1;
+  lastHintRevealedQuestionIndex = -1;
   mySubmittedForQuestionIndex = -1;
   mySelectedSongId = null;
   submitInFlight = false;
@@ -759,6 +768,8 @@ export async function enterLyricsQuizBattlePlay(room) {
   hostTickInFlight = false;
   resolvedAtLocalMs = null;
   lastRenderedQuestionIndex = -1;
+  lastRevealedQuestionIndex = -1;
+  lastHintRevealedQuestionIndex = -1;
   mySubmittedForQuestionIndex = -1;
   mySelectedSongId = null;
   myOutcomeHistory = [];
@@ -1115,14 +1126,58 @@ function computeMyLiveHudStats() {
 //     （myOpenedHintLevel）までの歌詞を、これまでどおり行ごとに表示する。
 //   ・早押しバトル：歌詞の該当箇所（最も詳しいヒント段階のテキスト）が、経過時間に応じて
 //     1文字ずつ自動的に表示される（本人がボタンを押す必要はない）。
-function renderHintArea(question, { ruleId, elapsedMs, isResolved, myAnsweredThisQuestion }) {
+// 【2026-09-13追加・本人指示：答え合わせ時にヒント1〜4をすべて表示】回答確定後（isResolved）は、
+// 採点に使った実際のヒント段階（myOpenedHintLevel）・ルール（早押しの連続表示方式を含む）に
+// 関係なく、ヒント1〜4を1つのコンパクトな一覧として表示する。「残りのヒントは何だったのか」を
+// 確認したい、という本人の要望に対応するもので、採点（pointsAwarded・myOutcomeHistory等）には
+// 一切触れない、あくまで確定後の閲覧用の表示だけの変更。
+// DOM再構築は1問につき1回だけに抑える（renderCurrentQuestionState()はHOST_TICK_INTERVAL_MS
+// ごとに呼ばれ続けるため、歌詞クイズの答え合わせ点滅バグ〈同じ内容を毎tick作り直すとCSSの
+// 出現アニメーションが再生し直される〉と同じ轍を踏まないよう、lastHintRevealedQuestionIndexで
+// 「この問題はもう組み立て済みか」を追跡する）。
+function renderResolvedHintSummary(question, questionIndex) {
+  elements.battleHintLevel.textContent = "ヒント（全4段階）";
+  elements.battleHintActions.hidden = true;
+  if (lastHintRevealedQuestionIndex === questionIndex) return;
+  lastHintRevealedQuestionIndex = questionIndex;
+
+  // 回答前の1段階ずつの表示（.online-lyrics-battle-hint-line、行ごとに①②③…と自動採番）とは
+  // 別の、コンパクトな一覧専用クラスを使う。同じクラスを使い回すと「ヒント1の1行目・2行目・
+  // ヒント2の1行目…」のように連番が振られてしまい、どこからどのヒント段階かが分かりづらく
+  // なるため（本人指示：ヒント1〜4がひと目で分かるように）、ヒント段階ごとにバッジを添える。
+  clearElement(elements.battleHintLinesContainer);
+  elements.battleHintLinesContainer.classList.add("online-lyrics-battle-hint-summary-list");
+  question.hints.forEach((hint) => {
+    const text = (hint.segment?.text ?? "").replace(/\n/g, " ").trim();
+    if (!text) return;
+    const item = document.createElement("p");
+    item.className = "online-lyrics-battle-hint-summary-item";
+    const levelBadge = document.createElement("span");
+    levelBadge.className = "online-lyrics-battle-hint-summary-level";
+    levelBadge.textContent = `ヒント${hint.hintLevel}`;
+    item.appendChild(levelBadge);
+    const textSpan = document.createElement("span");
+    textSpan.className = "online-lyrics-battle-hint-summary-text";
+    textSpan.textContent = text;
+    item.appendChild(textSpan);
+    elements.battleHintLinesContainer.appendChild(item);
+  });
+}
+
+function renderHintArea(question, { ruleId, elapsedMs, isResolved, myAnsweredThisQuestion, questionIndex }) {
+  if (isResolved) {
+    renderResolvedHintSummary(question, questionIndex);
+    return;
+  }
+
+  elements.battleHintLinesContainer.classList.remove("online-lyrics-battle-hint-summary-list");
   clearElement(elements.battleHintLinesContainer);
 
   if (ruleId === "steal") {
     elements.battleHintActions.hidden = true;
     const fullText = question.hints[question.hints.length - 1]?.segment?.text ?? "";
     const totalCharCount = countCharacters(fullText);
-    const revealedCharCount = isResolved || myAnsweredThisQuestion
+    const revealedCharCount = myAnsweredThisQuestion
       ? totalCharCount
       : deriveRevealedCharCount({ elapsedMs, totalCharCount });
     const revealedText = revealTextByCharCount(fullText, revealedCharCount);
@@ -1234,7 +1289,7 @@ function renderAnswerJumpBar() {
   });
 }
 
-function renderAnswerChoices(question, { isResolved, myAnsweredThisQuestion }) {
+function renderAnswerChoices(question, { isResolved, myAnsweredThisQuestion, questionIndex }) {
   // 【2026-09-06新設・本人指示：実機フィードバック第3弾①】30・50・全曲プールでは、
   // 選択肢一覧をスクロールした状態のまま回答が確定すると、答え合わせカード
   // （elements.battleAnswerReveal、別の場所に静的配置されていた）がスクロール外に
@@ -1242,6 +1297,15 @@ function renderAnswerChoices(question, { isResolved, myAnsweredThisQuestion }) {
   // 差し替える（元のボタン一覧は消す）ことで、直前のスクロール位置に関係なく、
   // 選択肢があった同じ場所に必ず結果が表示されるようにする。
   if (isResolved) {
+    // 【2026-09-13追加・本人指示：答え合わせがずっと点滅する不具合の修正】この関数は
+    // 400ms間隔のtickのたびに毎回呼ばれるが、同じ問題の答え合わせを既に表示済みなら
+    // 以下のDOM操作（clearElement→appendChild）を再度行わない。ここを毎tick実行すると、
+    // 表示内容は同じでもelements.battleAnswerRevealがDOMから外れて入れ直され続け、
+    // CSSの出現アニメーション（answerRevealPop）が0.4秒ごとに再生し直されて、実機では
+    // カード全体・文字がずっと点滅しているように見えていた（本人からの実機報告で発覚）。
+    if (lastRevealedQuestionIndex === questionIndex) return;
+    lastRevealedQuestionIndex = questionIndex;
+
     elements.battleAnswerSearchRow.hidden = true;
     elements.battleAnswerJumpBar.hidden = true;
     elements.battleAnswerChoicesContainer.classList.remove("online-lyrics-battle-answer-list", "online-lyrics-battle-answer-list-compact");
@@ -1512,8 +1576,8 @@ function renderCurrentQuestionState() {
   const nowServerTimeMs = Date.now() + serverTimeOffset;
   const elapsedMs = computeElapsedMs({ questionStartedAt: match.currentQuestionStartedAt, nowServerTimeMs });
 
-  renderHintArea(question, { ruleId, elapsedMs, isResolved, myAnsweredThisQuestion });
-  renderAnswerChoices(question, { isResolved, myAnsweredThisQuestion });
+  renderHintArea(question, { ruleId, elapsedMs, isResolved, myAnsweredThisQuestion, questionIndex: qIndex });
+  renderAnswerChoices(question, { isResolved, myAnsweredThisQuestion, questionIndex: qIndex });
   renderIdleNotice(match, qIndex, nowServerTimeMs);
 
   maybeRecordMyOutcomeForResolvedQuestions(match);

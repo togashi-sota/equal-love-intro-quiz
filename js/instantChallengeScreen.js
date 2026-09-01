@@ -38,7 +38,7 @@ import {
   filterAnswerPool,
   renderAnswerJumpBar,
 } from "./answerPoolBrowseUi.js";
-import { playSongFromRandomPosition, stopAudio } from "./audio.js";
+import { playSongFromRandomPosition, stopAudio, attemptSilentUnlock } from "./audio.js";
 import { recordInstantChallengeWeakSongAttempt } from "./instantChallengeWeakSongStats.js";
 import { recordInstantChallengeClear } from "./instantChallengeClearStore.js";
 import { savePlayHistoryEntry } from "./playHistory.js";
@@ -96,6 +96,10 @@ let currentSongPool = []; // buildAndStartRun()で使った出題対象曲プー
 let reserveSongs = []; // 予備の曲（出題数に含まれない、失敗時の差し替え専用）
 let nextReserveIndex = 0;
 let currentSlotFailureCount = 0;
+// 【2026-09-13追加・本人指示：初回問題消失バグの調査で判明した別件の修正】「全曲」設定では
+// 曲プール全体を出題数として使うため、予備曲を1曲も確保できない（reserveSongsが最初から
+// 空になる）。この場合を「予備切れ」と誤判定して即座に中断しないよう、区別して覚えておく。
+let reserveWasEverAvailable = false;
 // 【2026-08-30追加・本人指示：苦手曲5系統完全分離／オリジナル問題作成モード一瞬対応】
 // 通常の（カテゴリー絞り込みからの）一瞬チャレンジ以外の入り口から開始した回かどうか。
 //   null                 : 通常の一瞬チャレンジ（#instant-challenge-setup-screen経由）
@@ -223,6 +227,7 @@ async function buildAndStartRun(settings, explicitSongIds = null) {
   reserveSongs = shuffled.slice(questionCount, questionCount + AUDIO_FAILURE_RESERVE_SIZE);
   nextReserveIndex = 0;
   currentSlotFailureCount = 0;
+  reserveWasEverAvailable = reserveSongs.length > 0;
   currentSongPool = pool;
 
   questions = questionSongs.map((song) => buildInstantChallengeQuestion(song, pool, settings));
@@ -257,6 +262,9 @@ export function initInstantChallengeQuestionScreen(newElements) {
   // 回答後（hasAnsweredCurrentQuestion===true）は正解が確定済みのため押せないようにする。
   questionElements.replayButton.addEventListener("click", () => {
     if (hasAnsweredCurrentQuestion) return;
+    // 【2026-09-13追加・本人指示：一瞬バトルで実機再生失敗が再発（原因調査）】
+    // js/onlineInstantBattleScreen.jsと同じ理由の保険（詳細はそちらのコメント参照）。
+    attemptSilentUnlock();
     replayCounts[currentIndex] += 1;
     playCurrentQuestionAudio();
   });
@@ -325,16 +333,6 @@ export function startInstantChallengePlay() {
   renderCurrentQuestion();
 }
 
-// 【2026-09-06修正・本人指摘：実機フィードバック】以前はconsole.warn()のみで、実際に
-// 音源再生が失敗しても画面には何も表示されなかった（一度しか再現しなくても見逃さない
-// ようにするため、他のクイズ画面と同じ#audio-error相当の表示パターンに揃えた）。
-function showAudioErrorInline(message) {
-  console.warn("[一瞬チャレンジ]", message);
-  if (!questionElements.audioError) return;
-  questionElements.audioError.textContent = message;
-  questionElements.audioError.hidden = false;
-}
-
 function hideAudioErrorInline() {
   if (!questionElements.audioError) return;
   questionElements.audioError.hidden = true;
@@ -372,19 +370,25 @@ function handlePlaybackFailure(questionIndex, message) {
   currentSlotFailureCount += 1;
   console.warn(`[一瞬チャレンジ] 音源再生に失敗しました（${currentSlotFailureCount}回目）`, message);
 
-  if (currentSlotFailureCount >= MAX_SLOT_PLAYBACK_ATTEMPTS || nextReserveIndex >= reserveSongs.length) {
+  // 【2026-09-13修正・本人指示：初回問題消失バグの調査で判明した別件の修正】「全曲」設定では
+  // reserveSongsが最初から空になる（曲プール全体を出題数に使っているため）。この場合は
+  // 「予備切れ」の判定から除外し、同じ曲のままMAX_SLOT_PLAYBACK_ATTEMPTS回まで再試行する。
+  const reserveExhausted = reserveWasEverAvailable && nextReserveIndex >= reserveSongs.length;
+  if (currentSlotFailureCount >= MAX_SLOT_PLAYBACK_ATTEMPTS || reserveExhausted) {
     abortRunDueToAudioFailure();
     return;
   }
 
-  const replacementSong = reserveSongs[nextReserveIndex];
-  nextReserveIndex += 1;
-  questions[currentIndex] = buildInstantChallengeQuestion(replacementSong, currentSongPool, currentSettings);
-  renderAnswerArea(questions[currentIndex]);
-  // playCurrentQuestionAudio()は冒頭でhideAudioErrorInline()を呼ぶため、差し替えを
-  // 知らせるこの案内は必ずその後に表示する（先に表示すると即座に消されてしまうため）。
+  // 【2026-09-13修正・本人指示3：音源差し替え成功時のユーザー向けメッセージを消す】
+  // 差し替えが成功して問題を続行できるなら、プレイヤーには何も表示しない。
+  if (nextReserveIndex < reserveSongs.length) {
+    const replacementSong = reserveSongs[nextReserveIndex];
+    nextReserveIndex += 1;
+    questions[currentIndex] = buildInstantChallengeQuestion(replacementSong, currentSongPool, currentSettings);
+    renderAnswerArea(questions[currentIndex]);
+  }
+  // 予備が無い場合（全曲設定等）は、questionsを差し替えずに同じ曲のまま再試行する。
   playCurrentQuestionAudio();
-  showAudioErrorInline("音源を再生できませんでした。別の曲に差し替えて再試行します。");
 }
 
 // 同じ問題スロットで規定回数（元の曲＋差し替え）すべて再生に失敗した、または差し替えられる
@@ -516,6 +520,10 @@ function handleAnswerSelected(selectedSongId, buttonElement) {
 function renderAnswerReveal({ isCorrect, correctTitle, mySelectedSongId, pool }) {
   questionElements.answerList.hidden = true;
   if (questionElements.answerSearchRow) questionElements.answerSearchRow.hidden = true;
+  // 【2026-09-13追加・本人指示：一瞬バトルの答え合わせが下に追いやられる不具合の修正】
+  // js/onlineInstantBattleScreen.jsと同じ抜け漏れ（css/style.cssの[hidden]上書き漏れと
+  // 合わせて二重の原因）。同じ設計のこの画面でも念のため揃えておく。
+  if (questionElements.answerJumpBar) questionElements.answerJumpBar.hidden = true;
   if (!questionElements.answerReveal) return;
 
   questionElements.answerReveal.hidden = false;

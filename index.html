@@ -3483,6 +3483,34 @@
          待ち時間）から、各端末が自分の時計とのズレを補正して秒数を計算し直すことで、
          通信環境が違っても、全端末でほぼ同時にカウントダウンが終わるようにしている
          （js/onlineBattleScreen.jsの説明コメント参照）。 -->
+    <!-- 【2026-09-13新設・本人指示：対戦開始前ルール確認画面】ロビーの「対戦を開始する」の
+         直後〜3→2→1カウントダウンの間に挟まる、全員が今回のルールを確認する画面。
+         右上「？」の簡易説明書・遊び方ガイドとは役割が異なる（本人指示29）：
+         「？」＝ロビーで好きなタイミングに見られる説明、こちらは今回実際に始める試合の
+         最終確認、遊び方ガイド＝アプリ全体の完全マニュアル。js/onlineBattleScreen.jsが制御。 -->
+    <section id="online-battle-confirm-screen" class="screen">
+      <div class="title-block"><h2>今回のルール確認</h2></div>
+      <p class="online-battle-lead-text">今回の対戦の設定を確認し、全員が「確認OK」を押すと自動的に始まります。</p>
+
+      <div id="online-battle-confirm-rule-explanation" class="online-battle-confirm-rule-box"></div>
+
+      <p class="battle-field-label">参加者の確認状況</p>
+      <ul id="online-battle-confirm-player-list" class="online-lobby-player-list"></ul>
+
+      <p id="online-battle-confirm-all-done-notice" class="online-battle-confirm-all-done-notice" hidden>
+        ✨ 全員の確認が完了しました。まもなく開始します…
+      </p>
+
+      <div class="button-row">
+        <button id="online-battle-confirm-toggle-button" class="primary-button" type="button">✓ 確認OK</button>
+      </div>
+      <!-- ホスト専用：確認をやめてロビーへ戻る（本人指示13と同じ役割分担：設定を変更できる
+           のはホストだけ、という既存の権限設計に揃えている）。 -->
+      <button id="online-battle-confirm-cancel-button" class="secondary-button online-battle-confirm-cancel-button" type="button" hidden>
+        ⚙ ルーム設定に戻る
+      </button>
+    </section>
+
     <section id="online-battle-countdown-screen" class="screen">
       <div class="online-battle-countdown-wrap">
         <p class="online-battle-countdown-label">まもなく開始します</p>
@@ -5165,6 +5193,11 @@
       <div id="online-lobby-profile-body" hidden>
         <p id="online-lobby-profile-achievement-count" class="fan-profile-detail-achievement-count"></p>
         <div id="online-lobby-profile-summary"></div>
+        <!-- 【2026-09-13新設・本人指示11：ロビー参加者プロフィールに獲得称号の詳細を追加】
+             js/fanProfilesScreen.js（みんなのプロフィール）の「すべての称号を見る」と
+             全く同じ部品・同じ表示ロジック（buildAchievedAchievementsList）を再利用する。 -->
+        <button id="online-lobby-profile-all-toggle" class="fan-profile-detail-all-toggle" type="button" hidden>すべての称号を見る ＞</button>
+        <div id="online-lobby-profile-achievements" class="fan-profile-detail-all-achievements" hidden></div>
       </div>
     </div>
   </div>

@@ -730,6 +730,12 @@ function renderAnswerButtons(pool) {
 }
 
 async function handleVoteClick(vote) {
+  // 【2026-09-13追加・本人指示：一瞬バトルで実機再生失敗が再発（原因調査）】このモードも
+  // 音源再生は3→2→1カウントダウンを経由したタイマーからしか呼ばれない（js/main.js・
+  // js/onlineInstantBattleScreen.jsと同じ設計）。投票タップは対戦中に毎問必ず起きる
+  // 本物のユーザー操作のため、ここでunlockを試みておく（js/onlineInstantBattleScreen.jsの
+  // handleAnswerSelected()と同じ理由）。
+  attemptSilentUnlock();
   if (!latestRoom || !currentMatchId) return;
   const match = latestRoom.matches?.[currentMatchId];
   const qIndex = match?.currentQuestionIndex;

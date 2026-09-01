@@ -42,6 +42,13 @@ let audioUnlockState = "pending"; // "pending" | "succeeded" | "failed"
 // 初回操作から時間が経った後の対戦開始でも成立しやすくする。何度呼んでも安全（無音データURIを
 // 再生→即座に停止するだけで、実際のクイズ再生・IndexedDBには一切触れない）。
 export function attemptSilentUnlock() {
+  // 【2026-09-13追加・本人指示：一瞬バトルで実機再生失敗が再発（原因調査）】このunlockは
+  // 「今audio要素が使われていない」ときだけ安全に行える。もし本物の曲がまさに再生中
+  // （!paused）のタイミングでこれを呼ぶと、pause()→currentTime=0のせいで進行中の再生を
+  // 巻き戻してしまう事故になりうるため、その場合は何もしない（再生中ということは
+  // その時点でunlockが機能している証拠でもあり、わざわざ試す必要も無い）。
+  if (!audioElement.paused) return;
+
   const hadSrc = !!audioElement.src;
   if (!hadSrc) audioElement.src = SILENT_UNLOCK_DATA_URI;
 
@@ -82,6 +89,20 @@ function unlockAudioElementOnFirstInteraction() {
   document.addEventListener("keydown", unlock, { once: true });
 }
 unlockAudioElementOnFirstInteraction();
+
+// 【2026-09-13新設・本人指示：一瞬バトルで実機再生失敗が再発（原因調査）】タブ・PWAを
+// 裏に回してから戻ってきた瞬間にも、念のためunlockを試みる。iOSでは、バックグラウンドに
+// なっている間・他アプリへ切り替えている間に、一度成立したunlockが再びロックされることが
+// あるとされているが、この再ロックはユーザーが何か操作するまで検知しようがない。
+// 「アプリの画面へ戻ってきた」という、対戦中でも自然に何度も起こるタイミングを使うことで、
+// 次の問題の再生が始まる前に再ロックへ気付ける可能性を上げる（本人指示のとおり、対戦中に
+// 明確な「操作」を挟まなくても回復のきっかけを増やすための保険。既存のロビーボタンでの
+// unlockを置き換えるものではなく、追加の安全策）。
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") {
+    attemptSilentUnlock();
+  }
+});
 
 // 今「現在の曲」として再生中・再生準備中のObject URL（Blobを再生できる形にしたもの）。
 // 曲を切り替えるたびに、前のURLを解放してからでないとメモリに残り続けてしまうため、

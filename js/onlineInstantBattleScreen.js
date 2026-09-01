@@ -29,7 +29,7 @@ import {
   clampStartTimeToActualDuration,
   isDurationMismatchWithinTolerance,
 } from "./randomPlaybackEngine.js";
-import { playSongFromRandomPosition, stopAudio } from "./audio.js";
+import { playSongFromRandomPosition, stopAudio, attemptSilentUnlock } from "./audio.js";
 import { LARGE_ANSWER_POOL_THRESHOLD } from "./lyricsQuizEngine.js";
 import {
   createAnswerPoolBrowseState,
@@ -109,6 +109,10 @@ export function initOnlineInstantBattleScreens(newElements) {
     if (hasAnsweredCurrentQuestion) return;
     if (isCountdownActive) return; // 【2026-09-05新設】カウントダウン中の連打を無視する
     if (replayCounts[currentIndex] >= MAX_REPLAY_COUNT_PER_QUESTION) return;
+    // 【2026-09-13追加・本人指示：一瞬バトルで実機再生失敗が再発（原因調査）】
+    // 「もう一度聞く」は対戦中に得られる貴重な、本物のユーザー操作の直後（カウントダウン
+    // 前）。ここでunlockを試みておくのが最も成功しやすいタイミングのため、真っ先に呼ぶ。
+    attemptSilentUnlock();
     replayCounts[currentIndex] += 1;
     updateReplayButtonLabel();
     playCurrentQuestionAudioWithCountdown();
@@ -179,11 +183,6 @@ export function enterOnlineInstantBattlePlay(room) {
   renderCurrentQuestion();
 }
 
-function showAudioErrorInline(message) {
-  elements.error.textContent = message;
-  elements.error.hidden = false;
-}
-
 function updateReplayButtonLabel() {
   const remaining = MAX_REPLAY_COUNT_PER_QUESTION - replayCounts[currentIndex];
   elements.replayButton.textContent = `🔁 もう一度聞く（残り${Math.max(0, remaining)}回）`;
@@ -251,16 +250,29 @@ function handlePlaybackFailure(questionIndex, message) {
   currentSlotFailureCount += 1;
   console.warn(`[一瞬バトル] 音源再生に失敗しました（${currentSlotFailureCount}回目）`, message);
 
-  if (currentSlotFailureCount >= MAX_SLOT_PLAYBACK_ATTEMPTS || nextReserveIndex >= questions.length) {
+  // 【2026-09-13修正・本人指示：初回問題消失バグの調査で判明した別件の修正】「全曲」設定等、
+  // 曲プール全体を出題数として使っている場合、予備曲を1曲も確保できない
+  // （questions.length === targetQuestionCount）。この場合は「予備切れ」の判定自体が
+  // 成立しない（最初から無かっただけ）ため、中断の判断からは除外し、同じ曲のまま
+  // MAX_SLOT_PLAYBACK_ATTEMPTS回まで再試行する（js/main.jsのhandleOnlineBattleAudioFailure()と
+  // 同じ考え方）。
+  const reserveWasEverAvailable = questions.length > targetQuestionCount;
+  const reserveExhausted = reserveWasEverAvailable && nextReserveIndex >= questions.length;
+  if (currentSlotFailureCount >= MAX_SLOT_PLAYBACK_ATTEMPTS || reserveExhausted) {
     abortMatchDueToAudioFailure();
     return;
   }
 
-  questions[currentIndex] = questions[nextReserveIndex];
-  nextReserveIndex += 1;
-  renderAnswerArea(questions[currentIndex]);
+  // 【2026-09-13修正・本人指示3：音源差し替え成功時のユーザー向けメッセージを消す】
+  // 差し替えが成功して問題を続行できるなら、プレイヤーには何も表示しない
+  // （対戦を安全に継続できない場合＝上のabort分岐に到達した場合だけ案内を表示する）。
+  if (nextReserveIndex < questions.length) {
+    questions[currentIndex] = questions[nextReserveIndex];
+    nextReserveIndex += 1;
+    renderAnswerArea(questions[currentIndex]);
+  }
+  // 予備が無い場合（全曲設定等）は、questionsを差し替えずに同じ曲のまま再試行する。
   playCurrentQuestionAudioWithCountdown();
-  showAudioErrorInline("音源を再生できませんでした。別の曲に差し替えて再試行します。");
 }
 
 // 同じ問題スロットで規定回数（元の曲＋差し替え）すべて再生に失敗した、または差し替えられる
@@ -359,6 +371,15 @@ let autoAdvanceTimerId = null;
 function handleAnswerSelected(selectedSongId, buttonElement) {
   if (hasAnsweredCurrentQuestion) return;
   hasAnsweredCurrentQuestion = true;
+  // 【2026-09-13追加・本人指示：一瞬バトルで実機再生失敗が再発（原因調査）】このモードの
+  // 音源再生は、すべて3→2→1カウントダウン・4秒答え合わせを経由したsetTimeoutからしか
+  // 呼ばれず、ユーザー操作から数秒離れたタイミングで行われる。iOS Safari/PWAでは
+  // このような呼び出しは再生を拒否されることがあり、一度unlockが再ロックされると
+  // 復帰する手立てが無いまま対戦全体が無音になりうる（詳細はdocs/HANDOFF.md参照）。
+  // 回答を選ぶタップは対戦中に毎問必ず起きる、正真正銘のユーザー操作のため、ここで
+  // unlockを試みておくことで、次の問題の再生（約5秒後）に間に合わせる（何度呼んでも
+  // 安全。audioElementが再生中でない場合だけ実際に試す。js/audio.js参照）。
+  attemptSilentUnlock();
 
   const question = questions[currentIndex];
   const isCorrect = selectedSongId === question.song.id;
@@ -396,6 +417,12 @@ function handleAnswerSelected(selectedSongId, buttonElement) {
 function renderAnswerReveal({ isCorrect, correctTitle, mySelectedSongId, pool }) {
   elements.answerList.hidden = true;
   if (elements.answerSearchRow) elements.answerSearchRow.hidden = true;
+  // 【2026-09-13追加・本人指示：一瞬バトルの答え合わせが下に追いやられる不具合の修正】
+  // 50音ジャンプバーを隠し忘れており（css/style.cssの[hidden]上書き漏れと合わせて二重の
+  // 原因だった）、大きな曲プールでは検索欄・ジャンプバー・選択肢一覧が答え合わせカードの
+  // 上にすべて残ったまま表示され続け、カードがスクロールしないと見えない位置まで
+  // 追いやられていた（本人の実機報告で発覚）。
+  if (elements.answerJumpBar) elements.answerJumpBar.hidden = true;
   if (!elements.answerReveal) return;
 
   elements.answerReveal.hidden = false;

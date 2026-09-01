@@ -631,14 +631,28 @@ body[data-screen="onlineBattleSongPicker"] .game-frame {
   animation: screenEnter 480ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+/* 【2026-09-13追加・本人指示：オンライン対戦の初回問題が無音・無表示になる不具合の調査】
+   画面が切り替わった直後は、まだフェードイン中で視認しづらいにもかかわらず、ボタン類は
+   最初から操作可能だった。カウントダウン終了の瞬間に指が画面に触れたままだった場合、
+   切り替わった直後のクイズ画面のボタン（例：選択肢1つ目）へ意図しないタップが
+   そのまま届いてしまい、「1問目が無反応のまま2問目へ進んだように見える」原因になりうる
+   と判断した。フェードインが終わる直前まではクリック・タップを一切受け付けないようにし、
+   この種の「ゴーストタップ」を全画面共通で防ぐ（quiz画面に限らない一般的な安全策）。
+   pointer-eventsはCSSアニメーションのキーフレームとして扱える（連続値ではなく、指定した
+   区切りで切り替わる）ため、新しいJSのタイマー等を増やさずに実現できる。 */
 @keyframes screenEnter {
   from {
     opacity: 0;
     transform: translateY(14px) scale(0.98);
+    pointer-events: none;
+  }
+  99% {
+    pointer-events: none;
   }
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+    pointer-events: auto;
   }
 }
 
@@ -12596,10 +12610,16 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   min-width: 0;
 }
 
+/* 【2026-09-13改訂・本人指示8：結果画面の参加者名・文字デザインを改善】以前は既定の
+   文字色・サイズのままで、ゲーム画面としてはやや素っ気なかった。名前をやや大きく・
+   ブランドカラーに寄せることで、結果画面全体の「賑やかさ」を底上げする（本人指示の
+   恒久ルール：新しいUIは＝LOVEクイズアプリ全体の見た目に合わせてから完成とすること）。 */
 .battle-rank-name {
   margin: 0;
-  font-size: 0.85rem;
+  font-size: 0.95rem;
   font-weight: 800;
+  color: var(--color-primary-dark);
+  letter-spacing: 0.01em;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -12804,9 +12824,12 @@ body[data-screen="liveCallModePlayer"] .game-frame {
     inset 0 -2px 3px rgba(0, 0, 0, 0.15);
 }
 
+/* 【2026-09-13改訂・本人指示12：ロビー参加者名のフォント改善】結果画面の名前
+   （.battle-rank-name）と同じ考え方で、ブランドカラーに寄せて少し華やかにする。 */
 .online-lobby-player-name {
   font-size: 0.85rem;
   font-weight: 700;
+  color: var(--color-primary-dark);
   min-width: 0;
   overflow-wrap: anywhere;
 }
@@ -12957,6 +12980,44 @@ body[data-screen="liveCallModePlayer"] .game-frame {
    同じ理由）。将来hidden=trueで隠す使い方をしても正しく隠れるよう保険を付けておく。 */
 .local-replay-countdown[hidden] {
   display: none;
+}
+
+/* ===== 対戦開始前ルール確認画面（2026-09-13新設・本人指示） ===== */
+
+.online-battle-confirm-rule-box {
+  padding: 16px 18px;
+  border-radius: 16px;
+  background: var(--color-surface-glass);
+  border: 1px solid var(--color-card-border);
+  margin: 12px 0 4px;
+}
+
+.online-battle-confirm-all-done-notice {
+  margin: 14px 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  background: var(--color-accent-soft);
+  border: 1px solid var(--color-accent);
+  /* 【本人指示32：現れた瞬間だけ華やかに、その後は静止】1回だけポップして、そのまま
+     静止する（歌詞クイズの答え合わせ点滅バグの反省を踏まえ、infiniteループは使わない）。 */
+  animation: answerRevealPop 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* 確認OKボタン：押した後は済んでいることが一目でわかるよう配色を変える（トグル式のため、
+   もう一度押せば解除できることも見た目から伝わるよう、押しやすい主要ボタンのまま維持）。 */
+#online-battle-confirm-toggle-button.is-confirmed {
+  background: var(--color-accent-soft);
+  color: var(--color-primary-dark);
+  border-color: var(--color-accent);
+}
+
+.online-battle-confirm-cancel-button {
+  display: block;
+  margin: 10px auto 0;
 }
 
 .local-replay-countdown-number {
@@ -13288,6 +13349,18 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   margin-bottom: 10px;
 }
 
+/* 【2026-09-13追加・本人指示：一瞬バトルの答え合わせが下に追いやられる不具合の修正】
+   display:flexを持つクラスセレクタは、hidden属性のデフォルト表示（display:none、
+   ブラウザ標準スタイル）と同じ詳細度のため、後から読み込まれるこちらが勝ってしまい、
+   JS側でelement.hidden=trueにしても実際には隠れない（.lyrics-quiz-answer-reveal[hidden]
+   等、既存の同種バグと同じパターン）。曲名検索欄・選択肢一覧・50音ジャンプバーの
+   3箇所すべてに同じ抜け漏れがあり、大きな曲プール（30／50／全曲）で回答を確定しても
+   これらが隠れず、答え合わせカードが画面の下（スクロールしないと見えない位置）まで
+   追いやられていた（本人の実機報告で発覚）。 */
+.lyrics-quiz-answer-search-row[hidden] {
+  display: none;
+}
+
 .lyrics-quiz-answer-search-input {
   flex: 1;
   min-height: 40px;
@@ -13317,6 +13390,12 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   max-height: 42vh;
   overflow-y: auto;
   padding-right: 2px;
+}
+
+/* 【2026-09-13追加・本人指示：一瞬バトルの答え合わせが下に追いやられる不具合の修正】
+   上の.lyrics-quiz-answer-search-row[hidden]と同じ理由。 */
+.lyrics-quiz-answer-list[hidden] {
+  display: none;
 }
 
 .lyrics-quiz-answer-button {
@@ -13380,6 +13459,10 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   background: linear-gradient(90deg, var(--color-primary), var(--color-accent-soft), var(--color-primary));
 }
 
+/* 【2026-09-13改訂・本人指示：答え合わせを読んでいる間ずっと点滅する不具合の修正】
+   以前はinfinite（無限ループ）で、答え合わせカードを表示している間ずっとキラキラが
+   明滅し続けていた。本人指示により「現れた瞬間だけ華やかに、その後は静止」という
+   恒久ルールに合わせ、1回だけ再生してそのまま静止する演出へ変更する。 */
 .lyrics-quiz-answer-reveal:has(.is-correct-answer-reveal-status)::after {
   content: "✦";
   position: absolute;
@@ -13388,12 +13471,13 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   font-size: 0.9rem;
   color: var(--color-accent-soft);
   opacity: 0.85;
-  animation: answerRevealSparkle 1.6s ease-in-out infinite;
+  animation: answerRevealSparkle 700ms ease-in-out 1;
 }
 
 @keyframes answerRevealSparkle {
-  0%, 100% { opacity: 0.4; transform: scale(0.85) rotate(0deg); }
-  50% { opacity: 1; transform: scale(1.05) rotate(12deg); }
+  0% { opacity: 0.3; transform: scale(0.7) rotate(0deg); }
+  50% { opacity: 1; transform: scale(1.15) rotate(12deg); }
+  100% { opacity: 0.85; transform: scale(1) rotate(0deg); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -13943,6 +14027,47 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   counter-increment: online-lyrics-hint-line;
 }
 
+/* 【2026-09-13新設・本人指示：答え合わせ時にヒント1〜4をすべて表示】回答確定後だけ使う、
+   ヒント4段階ぶんをまとめて見せるためのコンパクトな一覧。回答前の1段階ずつの大きな
+   カード（.online-lyrics-battle-hint-line）よりも省スペースにし、正誤・正解曲・自分の
+   回答・獲得ポイントと合わせて、通常のiPhone画面でできるだけ1画面に収まるようにする
+   （本人指示：「ヒント1〜4＋正誤＋正解曲＋自分の回答＋獲得ポイントが可能な限り1画面で
+   把握できること」）。 */
+.online-lyrics-battle-hint-summary-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.online-lyrics-battle-hint-summary-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-card-border);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.online-lyrics-battle-hint-summary-level {
+  flex: none;
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  background: var(--color-accent-soft);
+  border-radius: 999px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+.online-lyrics-battle-hint-summary-text {
+  flex: 1;
+  min-width: 0;
+}
+
 .online-lyrics-battle-hint-line::before {
   content: counter(online-lyrics-hint-line);
   position: absolute;
@@ -14054,6 +14179,12 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   flex-wrap: wrap;
   gap: 6px;
   margin-bottom: 10px;
+}
+
+/* 【2026-09-13追加・本人指示：一瞬バトルの答え合わせが下に追いやられる不具合の修正】
+   上の.lyrics-quiz-answer-list[hidden]と同じ理由。 */
+.online-lyrics-battle-answer-jump-bar[hidden] {
+  display: none;
 }
 
 .online-lyrics-battle-answer-jump-bar[hidden] {
