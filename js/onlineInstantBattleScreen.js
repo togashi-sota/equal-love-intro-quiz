@@ -1,28 +1,63 @@
-// オンライン対戦「一瞬バトル」専用の画面コントローラ（2026-08-30新設、本人指示：19-3章）。
+// オンライン対戦「一瞬バトル」専用の画面コントローラ
+// （2026-08-30新設→2026-09-15全面書き換え、本人指示：19-3章、および実機テストを経た
+// 大規模フィードバックでの「重要仕様変更・最大の変更」）。
 //
-// 【なぜjs/onlineBattleScreen.jsと分けたか】js/onlineLyricsQuizBattleScreen.jsと同じ理由。
-// 既存のオンライン対戦（タイムアタック等）は既存の共有クイズ画面（#quiz-screen、js/main.jsの
-// 描画・採点ロジック）をそのまま使うが、一瞬バトルは「もう一度聞く」がプレイヤーごとに
-// 独立して最大3回まで（本人指示）という、既存の共有クイズ画面には無い挙動が必要になる。
-// 既存の何千行もあるクイズエンジンへ無理に手を加えて他モードへ影響が及ぶ危険を避けるため、
-// 1人用の一瞬チャレンジ（js/instantChallengeScreen.js）と同じUI・ロジックを土台に、
-// 専用の画面として分離した。
+// 【なぜ書き換えたか】以前は「各自が自分のペースで問題を解き進める」独立進行モデル
+// （タイムアタック等と同じ）だったが、本人指示により歌詞クイズ対戦・一瞬協力と同じ
+// 「全員が同じ問題を同時に見る」ホスト主導の同期進行へ全面的に作り替えた。全員が回答
+// するまでは他人の回答内容が一切見えず（「回答済み／未回答」の状態だけが見える）、
+// 全員そろったら5秒間だけ全員の回答・正誤・その問題で使った「もう一度聞く」回数を
+// 同時に公開する。
 //
-// 【進行モデルについて、歌詞クイズ対戦との違い】歌詞クイズ対戦は「全員が同じ問題を同時に見る」
-// ホスト主導の同期進行のため、js/onlineBattleScreen.jsを一切importしない設計になっている。
-// 一瞬バトルは逆に「各自が同じ問題セットを自分のペースで解き進める」独立進行（タイムアタック等と
-// 全く同じモデル）のため、js/onlineBattleScreen.jsが既に持つ待機画面・結果画面・進捗報告の
-// 仕組み（finishOnlineBattleMatch・reportOnlineBattleProgress）をそのまま使うのが最も安全で
-// 重複が無い。ただし相互importの循環（onlineBattleScreen.js⇄このファイル）を避けるため、
-// それらの関数はimportで直接持たず、js/main.js側からコールバックとしてinit時に受け取る
-// （js/onlineLyricsQuizBattleScreen.jsのonQuitDuringBattle等と同じ配線パターン）。
+// 【アーキテクチャの再利用について】進行ロジックそのものはjs/instantBattleMatchProgress.js
+// （Firebase不使用、恒久テスト済みの純粋関数）に切り出し、js/instantBattleFirebase.jsが
+// それをFirebaseへ保存・同期する薄い層に徹する。この画面コントローラは、
+// js/onlineInstantCoopBattleScreen.js（ホストの進行ミラー・tickタイマー・3分無操作救済・
+// 切断時の自動救済の全パターン）と全く同じ設計をなぞっている。
 //
-// 【決定論性について】buildQuestions()（js/battleModes/instantBattleMode.js）がseedから
-// 全端末で完全に同じ問題セット（曲順・回答候補の並び順）を作る。再生開始位置は、
-// js/battleModes/randomPlaybackBattleMode.jsと全く同じ理由で、実機の音源長ではなく
-// js/data/audioMetadata.jsの固定durationSecを使う（対戦開始前のvalidateSettingsが、
-// このデータを持たない曲を既に弾いているため、ここでの欠落は基本的に起こらない想定）。
+// 【一瞬協力との根本的な違い】一瞬協力は「全員の投票を1つのチーム回答へ集約する」ため
+// 個人の勝敗が無いが、一瞬バトルは「各自が自分の回答を出し、正解数＋再視聴回数で個人の
+// 順位を競う」対戦のため、結果画面もチーム成績ではなく個人の順位表になる
+// （js/instantBattleMatchProgress.jsのcomputeFinalResults()が順位まで一括で計算する）。
 
+import { getCurrentUid } from "./firebaseClient.js";
+import {
+  ROOM_STATUS,
+  subscribeServerTimeOffset,
+  returnRoomToLobby,
+  rematchAndStartNow,
+} from "./onlineBattle.js";
+import { promptReturnToLobby } from "./onlineBattleLobbyReturnPrompt.js";
+import { promptLeaveMatch } from "./onlineBattleLeaveMatchPrompt.js";
+import { promptResultLeaveRoom } from "./onlineBattleResultLeavePrompt.js";
+import { promptAnswerConfirm } from "./answerConfirmPrompt.js";
+import * as instantBattleMode from "./battleModes/instantBattleMode.js";
+import {
+  UNKNOWN_ANSWER,
+  MATCH_STATUS_ABORTED_AUDIO_FAILURE,
+  createMatchProgress,
+  recordAnswer,
+  countAnsweredPlayers,
+  tick,
+  advanceToNextQuestion,
+  summarizePlayerOutcomes,
+  computeFinalResults,
+  restoreMatchProgressFromFirebase,
+} from "./instantBattleMatchProgress.js";
+import {
+  QUESTION_STATUS,
+  startInstantBattleQuestion,
+  submitInstantAnswer,
+  resolveInstantBattleQuestion,
+  advanceInstantBattleQuestion,
+  reportInstantBattleAudioFailure,
+  abortInstantBattleMatchDueToAudioFailure,
+  finalizeInstantBattleMatch,
+} from "./instantBattleFirebase.js";
+// 【3分無操作の放置救済・一瞬バトルにも適用】forcedSkips・questionActivityのFirebaseパスは
+// gameMode非依存の汎用フィールドのため、歌詞クイズ対戦・一瞬協力と全く同じ関数を再利用する。
+import { reportQuestionActivity, forceSkipIdlePlayer } from "./lyricsQuizBattleFirebase.js";
+import { IDLE_RESCUE_THRESHOLD_MS } from "./battleRules/sharedDefaults.js";
 import { AUDIO_METADATA } from "./data/audioMetadata.js";
 import {
   computeRandomStartTimeSec,
@@ -37,61 +72,118 @@ import {
   filterAnswerPool,
   renderAnswerJumpBar,
 } from "./answerPoolBrowseUi.js";
-import { buildQuestions, createResult, MAX_REPLAY_COUNT_PER_QUESTION } from "./battleModes/instantBattleMode.js";
-import { runLocalReplayCountdownForQuestion, cancelLocalReplayCountdown } from "./localReplayCountdown.js";
-import { promptReturnToLobby } from "./onlineBattleLobbyReturnPrompt.js";
-import { promptLeaveMatch } from "./onlineBattleLeaveMatchPrompt.js";
-import { promptAnswerConfirm } from "./answerConfirmPrompt.js";
-import { getCurrentUid } from "./firebaseClient.js";
+import { runLocalReplayCountdownForQuestion, cancelLocalReplayCountdown, SCREEN_ENTER_ANIMATION_MS } from "./localReplayCountdown.js";
+import { getMemberById } from "./memberUtils.js";
+import { MEMBERS } from "./data/members.js";
 import { savePlayHistoryEntryIfNew } from "./playHistory.js";
 import { QUESTION_SOURCE_TYPE } from "./questionSource.js";
+import { buildInstantBattleQuestionBreakdown, capQuestionBreakdownForStorage } from "./battleQuestionBreakdown.js";
+import { renderQuestionBreakdownAccordion } from "./battleQuestionBreakdownUi.js";
+import { SFX_EVENTS, playSfx } from "./soundManager.js";
+import { MAX_REPLAY_COUNT_PER_QUESTION } from "./battleModes/instantBattleMode.js";
+
+// ホストが結果を見せてから、次の問題／最終結果へ進むまでの待ち時間。
+// 【本人指示11：5秒間の答え合わせ】歌詞クイズ・一瞬協力の4秒より長い、一瞬バトル専用の値
+// （全員分の回答・正誤・再視聴回数を1度に読む必要があり、情報量が多いため）。
+const REVEAL_DELAY_MS = 5000;
+// ホストの進行判定を更新する間隔（他の同期モードと同じ値・同じ理由）。
+const HOST_TICK_INTERVAL_MS = 400;
+// 【音源再生失敗時の公平性対策】js/onlineInstantCoopBattleScreen.jsと同じ考え方・同じ値。
+const AUDIO_FAILURE_RESERVE_SIZE = 3;
+const DISCONNECT_AUTO_SKIP_MS = 20000;
+const ACTIVITY_REPORT_THROTTLE_MS = 15000;
 
 let elements = null;
 
-// 今の対戦の状態（ルームを離れる・再入場のたびにresetOnlineInstantBattleState()で初期化する）。
-let currentRoomId = null;
+let latestRoom = null;
 let currentMatchId = null;
-let currentSettings = null;
-let currentSeed = 0;
-let questions = [];
-let currentIndex = 0;
-let answers = []; // { songId, isCorrect, replayCount }[]
-let replayCounts = [];
-let hasAnsweredCurrentQuestion = false;
-let matchStartedAtMs = 0;
-// 【2026-09-09新設・本人指示：音源再生失敗時の公平性対策】このモードは各自が独立して
-// 進行するため（他プレイヤーとの同期が不要）、js/instantChallengeScreen.jsと全く同じ
-// 「その問題スロットの曲を、まだ使っていない予備曲へ安全に差し替える」設計をそのまま
-// 適用する。questions配列自体はbuildQuestions({reserveCount})が出題数＋予備曲をまとめて
-// 返す（isReserve:trueの末尾部分が予備）。targetQuestionCountだけが実際の「出題数」で、
-// currentIndexは常にその範囲内（0〜targetQuestionCount-1）だけを動く
-// （予備曲は既存のスロットへ差し替えるだけで、新しいインデックスとしては増えない）。
-const AUDIO_FAILURE_RESERVE_SIZE = 3;
-const MAX_SLOT_PLAYBACK_ATTEMPTS = 3;
+let currentQuestions = [];
 let targetQuestionCount = 0;
-let nextReserveIndex = 0;
-// 【2026-09-15新設・本人指示：プレイ履歴へ「途中退出」を保存する】入場時点の参加人数
-// スナップショット。このモードは対戦中room更新を継続監視しないため（上のコメント参照）、
-// 途中離脱時に使えるよう入場時にだけ覚えておく。
-let participantCountAtEntry = 0;
-let currentSlotFailureCount = 0;
-// 【2026-09-07新設・本人指示：50音UIの共通展開】
-const answerBrowseState = createAnswerPoolBrowseState();
-let isCountdownActive = false; // 【2026-09-05新設】カウントダウン中の連打・二重再生を防ぐ
-// 【2026-09-08改訂・本人指示：カウントダウン速度の完全統一】js/instantChallengeScreen.jsの
-// isFirstQuestionOfRunと同じ理由・同じ仕組み。待ち時間の値・ロジック自体は
-// js/localReplayCountdown.jsのrunLocalReplayCountdownForQuestion()へ一本化した。
-let isFirstQuestionOfMatch = true;
 
-// elements: {
-//   progress, quitButton, quitConfirmModal, quitCancelButton, quitConfirmButton,
-//   backToLobbyButton,
-//   error, countdown, countdownNumber, replayButton, answerSearchRow, answerSearchInput,
-//   answerCount, answerList,
-//   navigateTo, onQuitDuringBattle, onFinishMatch, onReportProgress,
-// }
+let hostState = null;
+let hostTickInFlight = false;
+let resolvedAtLocalMs = null;
+let tickTimerId = null;
+let offsetUnsubscribe = null;
+let serverTimeOffset = 0;
+
+// 自分（この端末）の、今の問題に対する回答状況。
+let myAnsweredQuestionIndex = -1;
+let myReplayCountForCurrentQuestion = 0;
+// 直近に描画した問題（変わった瞬間だけ音源を再生し直す・ローカル状態をリセットするために使う）。
+let lastPlayedQuestionIndex = -1;
+// 【本人指示3：第1問の二重カウントダウン解消】対戦開始の3→2→1（js/onlineBattleScreen.js）と
+// この問題ごとの3→2→1が、第1問の出題直後だけ連続して二重に表示されていた。
+// このモードに入場した直後の最初の1問だけ、この問題ごとのカウントダウンを省略する。
+let isFirstQuestionOfMatch = true;
+let isCountdownActive = false;
+
+let lastActivityReportedAtMs = 0;
+let lastActivityReportedQIndex = -1;
+const disconnectedSinceMsByUid = new Map();
+
+const answerBrowseState = createAnswerPoolBrowseState();
+
+function clearElement(element) {
+  while (element.firstChild) element.removeChild(element.firstChild);
+}
+
+function resolveOshiColor(oshiMemberId) {
+  const member = oshiMemberId ? getMemberById(MEMBERS, oshiMemberId) : null;
+  return member?.memberColor?.hex ?? null;
+}
+
+// ===== 初期化 =====
+
 export function initOnlineInstantBattleScreens(newElements) {
   elements = newElements;
+
+  elements.answerSearchInput.addEventListener("input", () => {
+    if (!latestRoom || !currentMatchId) return;
+    const match = latestRoom.matches?.[currentMatchId];
+    const qIndex = match?.currentQuestionIndex;
+    if (typeof qIndex !== "number") return;
+    const question = currentQuestions[qIndex];
+    if (!question) return;
+    reportMyQuestionActivity();
+    answerBrowseState.searchQuery = elements.answerSearchInput.value;
+    answerBrowseState.jumpRowKey = null;
+    renderAnswerButtons(question.answerPool);
+  });
+  elements.answerList?.addEventListener("scroll", () => {
+    reportMyQuestionActivity();
+  });
+
+  // 【本人指示14：「わからない」ボタンの追加】不正解として扱う。確認ダイアログ
+  // （js/answerConfirmPrompt.js共用。「わからない」で回答しますか？の文言になる）を
+  // 必ず挟んでから確定する。
+  elements.unknownButton.addEventListener("click", () => {
+    reportMyQuestionActivity();
+    const matchAtClick = latestRoom?.matches?.[currentMatchId];
+    const expectedQIndex = matchAtClick?.currentQuestionIndex;
+    promptAnswerConfirm("わからない", () => {
+      const matchAtConfirm = latestRoom?.matches?.[currentMatchId];
+      if (matchAtConfirm?.currentQuestionIndex !== expectedQIndex) return;
+      handleAnswerConfirmed(UNKNOWN_ANSWER);
+    });
+  });
+
+  elements.replayButton.addEventListener("click", () => {
+    if (myAnsweredQuestionIndex === (latestRoom?.matches?.[currentMatchId]?.currentQuestionIndex ?? -1)) return;
+    if (isCountdownActive) return;
+    if (myReplayCountForCurrentQuestion >= MAX_REPLAY_COUNT_PER_QUESTION) return;
+    reportMyQuestionActivity();
+    // 【2026-09-13追加・本人指示：一瞬バトルで実機再生失敗が再発（原因調査）】「もう一度聞く」は
+    // 対戦中に得られる貴重な、本物のユーザー操作の直後（カウントダウン前）。ここでunlockを
+    // 試みておくのが最も成功しやすいタイミングのため、真っ先に呼ぶ。
+    attemptSilentUnlock();
+    myReplayCountForCurrentQuestion += 1;
+    updateReplayButtonLabel();
+    const match = latestRoom?.matches?.[currentMatchId];
+    const qIndex = match?.currentQuestionIndex;
+    const question = currentQuestions[qIndex];
+    if (question) playCurrentQuestionAudioWithCountdown(question, qIndex);
+  });
 
   elements.quitButton.addEventListener("click", () => {
     elements.quitConfirmModal.hidden = false;
@@ -101,63 +193,77 @@ export function initOnlineInstantBattleScreens(newElements) {
   });
   elements.quitConfirmButton.addEventListener("click", () => {
     elements.quitConfirmModal.hidden = true;
+    stopAllLocalTimers();
     stopAudio();
-    resetOnlineInstantBattleState();
     elements.onQuitDuringBattle();
     elements.navigateTo("onlineBattleEntry");
   });
 
   // 【2026-09-05新設、本人指示】対戦中、ホストだけに見える「ルーム設定へ戻る」。
   elements.backToLobbyButton?.addEventListener("click", () => {
-    promptReturnToLobby(currentRoomId);
+    promptReturnToLobby(latestRoom?.roomId);
   });
 
-  // 【2026-09-14新設・本人指示：対戦中のゲストが自分だけ途中離脱する】「対戦をやめる」
-  // （quitConfirmButton・quitOnlineBattleDuringQuiz）と違い、ルームそのものからは
-  // 離脱しない（leaveRoom()は呼ばない）。ローカルの再生・タイマー状態だけを
-  // resetOnlineInstantBattleState()で片付け、ロビー画面へ戻す。
+  // 【2026-09-14新設・本人指示：対戦中のゲストが自分だけ途中離脱する】
   elements.leaveMatchButton?.addEventListener("click", () => {
-    const roomId = currentRoomId;
+    const roomId = latestRoom?.roomId;
     const matchId = currentMatchId;
     if (!roomId || !matchId) return;
     promptLeaveMatch(roomId, matchId, () => {
-      stopAudio();
       saveVoluntaryLeaveHistoryEntry();
       resetOnlineInstantBattleState();
       elements.navigateTo("onlineBattleLobby");
     });
   });
 
-  elements.replayButton.addEventListener("click", () => {
-    if (hasAnsweredCurrentQuestion) return;
-    if (isCountdownActive) return; // 【2026-09-05新設】カウントダウン中の連打を無視する
-    if (replayCounts[currentIndex] >= MAX_REPLAY_COUNT_PER_QUESTION) return;
-    // 【2026-09-13追加・本人指示：一瞬バトルで実機再生失敗が再発（原因調査）】
-    // 「もう一度聞く」は対戦中に得られる貴重な、本物のユーザー操作の直後（カウントダウン
-    // 前）。ここでunlockを試みておくのが最も成功しやすいタイミングのため、真っ先に呼ぶ。
+  elements.resultHomeLink.addEventListener("click", () => {
+    stopAllLocalTimers();
+    elements.onLeaveResultToHome();
+    elements.navigateTo("start");
+  });
+  elements.resultLeaveButton?.addEventListener("click", () => {
+    promptResultLeaveRoom(async () => {
+      stopAllLocalTimers();
+      elements.resultLeaveButton.disabled = true;
+      await elements.onLeaveRoomCompletely();
+      elements.resultLeaveButton.disabled = false;
+      elements.navigateTo("start");
+    });
+  });
+  elements.resultRematchButton.addEventListener("click", async () => {
+    if (!latestRoom) return;
     attemptSilentUnlock();
-    replayCounts[currentIndex] += 1;
-    updateReplayButtonLabel();
-    playCurrentQuestionAudioWithCountdown();
+    elements.resultRematchButton.disabled = true;
+    await rematchAndStartNow({ roomId: latestRoom.roomId });
+    elements.resultRematchButton.disabled = false;
   });
-
-  elements.answerSearchInput.addEventListener("input", () => {
-    answerBrowseState.searchQuery = elements.answerSearchInput.value;
-    answerBrowseState.jumpRowKey = null;
-    renderAnswerButtons(questions[currentIndex].answerPool);
+  elements.resultBackToLobbyButton.addEventListener("click", async () => {
+    if (!latestRoom) return;
+    elements.resultBackToLobbyButton.disabled = true;
+    await returnRoomToLobby({ roomId: latestRoom.roomId });
+    elements.resultBackToLobbyButton.disabled = false;
   });
-
 }
 
-// 【2026-09-15新設・本人指示：プレイ履歴へ「途中退出」を保存する】途中離脱ボタンが
-// 確定した瞬間（resetOnlineInstantBattleState()でここまでの状態が消える前）に呼ぶ。
-// js/onlineBattleScreen.jsのsaveVoluntaryLeaveHistoryEntry()と同じid規則
-// （online:{matchId}）・同じdetails.isVoluntaryLeave:trueを使う。
+function stopAllLocalTimers() {
+  stopTickTimer();
+  stopServerTimeOffsetTracking();
+  cancelLocalReplayCountdown();
+}
+
+// 【本人指示：プレイ履歴へ「途中退出」を保存する】js/onlineInstantCoopBattleScreen.jsの
+// saveVoluntaryLeaveInstantCoopHistoryEntry()と同じ考え方。match.instantQuestionOutcomesから
+// 自分のuid分だけを集めてsummarizePlayerOutcomes()に渡す（新しいFirebase書き込みは発生しない）。
 function saveVoluntaryLeaveHistoryEntry() {
-  if (!currentMatchId || !currentSettings) return;
-  const correctCount = answers.filter((answer) => answer.isCorrect).length;
-  const isAllSongsMode =
-    !currentSettings.questionSource || currentSettings.questionSource.type === QUESTION_SOURCE_TYPE.ALL_SONGS;
+  if (!currentMatchId || !latestRoom) return;
+  const match = latestRoom.matches?.[currentMatchId];
+  const myUid = getCurrentUid();
+  const outcomes = Object.values(match?.instantQuestionOutcomes ?? {})
+    .filter((outcome) => outcome && outcome.isVoid !== true)
+    .map((outcome) => outcome.perPlayerOutcome?.[myUid])
+    .filter(Boolean);
+  const summary = summarizePlayerOutcomes(outcomes);
+  const participants = match?.participants ?? {};
 
   savePlayHistoryEntryIfNew({
     id: `online:${currentMatchId}`,
@@ -165,10 +271,10 @@ function saveVoluntaryLeaveHistoryEntry() {
     modeId: "onlineInstantBattle",
     modeLabel: "オンライン対戦（一瞬バトル）",
     questionCount: targetQuestionCount,
-    isAllSongsMode,
-    correctCount,
-    wrongCount: answers.length - correctCount,
-    skippedCount: null,
+    isAllSongsMode: !latestRoom.settings.questionSource || latestRoom.settings.questionSource.type === QUESTION_SOURCE_TYPE.ALL_SONGS,
+    correctCount: summary.correctCount,
+    wrongCount: summary.wrongCount,
+    skippedCount: summary.dontKnowCount,
     score: null,
     averageResponseMs: null,
     completed: false,
@@ -176,110 +282,306 @@ function saveVoluntaryLeaveHistoryEntry() {
       isVoluntaryLeave: true,
       isDnf: false,
       myRank: null,
-      participantCount: participantCountAtEntry,
+      participantCount: Object.keys(participants).length,
     },
   });
 }
 
-// ルームを離れる・別のルームへ入り直す際に呼ぶ、状態の完全リセット。
 export function resetOnlineInstantBattleState() {
+  stopAllLocalTimers();
   stopAudio();
-  cancelLocalReplayCountdown();
-  clearTimeout(autoAdvanceTimerId);
-  isCountdownActive = false;
-  currentRoomId = null;
+  latestRoom = null;
   currentMatchId = null;
-  currentSettings = null;
-  currentSeed = 0;
-  questions = [];
-  currentIndex = 0;
-  answers = [];
-  replayCounts = [];
-  hasAnsweredCurrentQuestion = false;
-  matchStartedAtMs = 0;
+  currentQuestions = [];
+  targetQuestionCount = 0;
+  hostState = null;
+  hostTickInFlight = false;
+  resolvedAtLocalMs = null;
+  myAnsweredQuestionIndex = -1;
+  myReplayCountForCurrentQuestion = 0;
+  lastPlayedQuestionIndex = -1;
   isFirstQuestionOfMatch = true;
+  isCountdownActive = false;
+  lastActivityReportedAtMs = 0;
+  lastActivityReportedQIndex = -1;
+  disconnectedSinceMsByUid.clear();
 }
 
-// js/onlineBattleScreen.jsのenterOnlineBattlePlay()から、gameMode==="instantBattle"のときに
-// 呼ばれる入口（js/onlineLyricsQuizBattleScreen.jsのenterLyricsQuizBattlePlay()と同じ役割）。
-// 【2026-09-09新設・本人指示：プレイ履歴の完成】js/onlineBattleScreen.jsが履歴保存時の
-// questionCountとして使う。このモードは予備曲を含むquestions配列を内部に持つため、
-// 実際の出題数（targetQuestionCount）を外から取得する手段が必要だった
-// （js/onlineBattleScreen.jsのcurrentMatchTotalQuestionsは、このモードの入場処理では
-// 一切更新されず、以前はプレイ履歴のquestionCountが不正確なまま保存されていた）。
+// js/onlineBattleScreen.jsのrenderLobby()から、gameMode==="instantBattle"のときに呼ばれる
+// 入口（js/onlineInstantCoopBattleScreen.jsのenterInstantCoopBattlePlay()と同じ役割）。
 export function getTargetQuestionCount() {
   return targetQuestionCount;
 }
 
-export function enterOnlineInstantBattlePlay(room) {
-  currentRoomId = room.roomId;
-  currentMatchId = room.activeMatchId;
-  currentSettings = room.settings;
-  currentSeed = room.seed;
-  questions = buildQuestions({ seed: room.seed, settings: room.settings, reserveCount: AUDIO_FAILURE_RESERVE_SIZE });
-  targetQuestionCount = questions.filter((question) => !question.isReserve).length;
-  nextReserveIndex = targetQuestionCount;
-  currentSlotFailureCount = 0;
-  currentIndex = 0;
-  answers = [];
-  replayCounts = new Array(targetQuestionCount).fill(0);
-  hasAnsweredCurrentQuestion = false;
-  matchStartedAtMs = Date.now();
+export async function enterOnlineInstantBattlePlay(room) {
+  // 【js/onlineInstantCoopBattleScreen.jsの同じ修正と同じ理由】goToCountdownScreen()の
+  // クロージャは古いstatus:"countdown"を持ったままのことがあるため、ここで明示的に
+  // "playing"へ正規化する。
+  const normalizedRoom = { ...room, status: ROOM_STATUS.PLAYING };
+  latestRoom = normalizedRoom;
+  currentMatchId = normalizedRoom.activeMatchId;
+  hostState = null;
+  hostTickInFlight = false;
+  resolvedAtLocalMs = null;
+  myAnsweredQuestionIndex = -1;
+  myReplayCountForCurrentQuestion = 0;
+  lastPlayedQuestionIndex = -1;
   isFirstQuestionOfMatch = true;
-  participantCountAtEntry = Object.keys(room.players ?? {}).length;
+  isCountdownActive = false;
+  lastActivityReportedAtMs = 0;
+  lastActivityReportedQIndex = -1;
+  disconnectedSinceMsByUid.clear();
 
   elements.error.hidden = true;
-  // 【2026-09-05新設、本人指示】このモードは各自が独立して進行するため、対戦中は
-  // room更新を継続的に監視していない。ホスト判定は入場時点のroomでのみ行う
-  // （対戦中にホストが交代する稀なケースでは反映されないが、許容する）。
-  const isHostAtEntry = room.host === getCurrentUid();
-  if (elements.backToLobbyButton) {
-    elements.backToLobbyButton.hidden = !isHostAtEntry;
-  }
-  // 【2026-09-14新設・本人指示：対戦中のゲストが自分だけ途中離脱する】
-  if (elements.leaveMatchButton) {
-    elements.leaveMatchButton.hidden = isHostAtEntry;
-  }
+  const myUid = getCurrentUid();
+  const isHostAtEntry = room.host === myUid;
+  if (elements.backToLobbyButton) elements.backToLobbyButton.hidden = !isHostAtEntry;
+  if (elements.leaveMatchButton) elements.leaveMatchButton.hidden = isHostAtEntry;
   elements.navigateTo("onlineInstantBattleQuestion");
-  renderCurrentQuestion();
+  startServerTimeOffsetTracking();
+
+  currentQuestions = instantBattleMode.buildQuestions({
+    seed: room.seed,
+    settings: room.settings,
+    reserveCount: AUDIO_FAILURE_RESERVE_SIZE,
+  });
+  targetQuestionCount = currentQuestions.filter((question) => !question.isReserve).length;
+
+  if (room.host === myUid) {
+    const match = room.matches?.[currentMatchId] ?? {};
+    const isReconnect = typeof match.currentQuestionIndex === "number";
+    const participantUids = Object.keys(match.participants ?? {});
+    hostState = isReconnect
+      ? restoreMatchProgressFromFirebase({
+          questions: currentQuestions,
+          allPlayerUids: participantUids,
+          hostUid: myUid,
+          match,
+          nowMs: Date.now(),
+          targetQuestionCount,
+        })
+      : createMatchProgress({
+          questions: currentQuestions,
+          allPlayerUids: participantUids,
+          hostUid: myUid,
+          nowMs: Date.now(),
+          targetQuestionCount,
+        });
+    if (hostState.currentQuestion.status === "resolved") resolvedAtLocalMs = Date.now();
+  }
+
+  startTickTimer();
+  renderCurrentQuestionState();
 }
 
-function updateReplayButtonLabel() {
-  const remaining = MAX_REPLAY_COUNT_PER_QUESTION - replayCounts[currentIndex];
-  elements.replayButton.textContent = `🔁 もう一度聞く（残り${Math.max(0, remaining)}回）`;
-  elements.replayButton.disabled = remaining <= 0;
+function startServerTimeOffsetTracking() {
+  stopServerTimeOffsetTracking();
+  offsetUnsubscribe = subscribeServerTimeOffset((offset) => {
+    serverTimeOffset = offset;
+  });
+}
+function stopServerTimeOffsetTracking() {
+  if (offsetUnsubscribe) {
+    offsetUnsubscribe();
+    offsetUnsubscribe = null;
+  }
+}
+function startTickTimer() {
+  stopTickTimer();
+  tickTimerId = setInterval(runTick, HOST_TICK_INTERVAL_MS);
+}
+function stopTickTimer() {
+  if (tickTimerId) {
+    clearInterval(tickTimerId);
+    tickTimerId = null;
+  }
+}
+function runTick() {
+  if (!latestRoom || latestRoom.status !== ROOM_STATUS.PLAYING) return;
+  if (getCurrentUid() === latestRoom.host) runHostProgressionTick();
+  renderCurrentQuestionState();
 }
 
-// js/main.jsのgameState.playMode === "onlineBattle" && playbackType === "randomPosition"の
-// 分岐（オンライン対戦・ランダム再生クイズ）と全く同じ考え方・同じ安全策
-// （固定durationSec・許容差チェック・クランプ）を、一瞬バトル向けに再現したもの。
-function playCurrentQuestionAudio() {
-  const question = questions[currentIndex];
-  const questionIndex = currentIndex;
-  const playDurationSec = Number(currentSettings.playDurationValue);
-  const fixedDurationSec = AUDIO_METADATA[question.song.id]?.durationSec ?? null;
+// js/onlineBattleScreen.jsのrenderLobby()が、room更新のたび（画面を問わず）呼ぶフック。
+export function handleInstantBattleRoomUpdate(room) {
+  latestRoom = room;
+  if (getCurrentUid() === room.host && room.status === ROOM_STATUS.PLAYING) {
+    // 【js/onlineInstantCoopBattleScreen.jsの同じ修正と同じ理由：ホスト切断・自動移譲後の
+    // 進行再開】非ホストとして入場した端末が後からホストに昇格した場合、hostStateを
+    // Firebase上の実際の進行状況から組み立て直す。
+    if (!hostState && currentMatchId && currentQuestions.length > 0) {
+      const match = room.matches?.[currentMatchId];
+      if (match && typeof match.currentQuestionIndex === "number") {
+        const participantUids = Object.keys(match.participants ?? {});
+        hostState = restoreMatchProgressFromFirebase({
+          questions: currentQuestions,
+          allPlayerUids: participantUids,
+          hostUid: getCurrentUid(),
+          match,
+          nowMs: Date.now(),
+          targetQuestionCount,
+        });
+        if (hostState.currentQuestion.status === "resolved") resolvedAtLocalMs = Date.now();
+      }
+    }
+    runHostProgressionTick();
+  }
+  const isHostNow = room.host === getCurrentUid();
+  if (elements?.backToLobbyButton) elements.backToLobbyButton.hidden = !isHostNow;
+  if (elements?.leaveMatchButton) elements.leaveMatchButton.hidden = isHostNow;
+  if (document.body.dataset.screen === "onlineInstantBattleQuestion") renderCurrentQuestionState();
+}
 
-  if (fixedDurationSec === null) {
-    // 本来はinstantBattleMode.jsのvalidateSettings()が対戦開始自体を拒否しているはずで、
-    // 通常はここに到達しない。その防御が万一漏れた場合の保険（randomPlaybackBattleMode.jsと同じ方針）。
-    // 【2026-09-09改訂・本人指示：音源再生失敗時の公平性対策】この曲固有のデータ不備の
-    // 可能性があるため、他の再生失敗と同じ「安全に差し替える」経路へ合流させる。
-    handlePlaybackFailure(questionIndex, "この曲の同期用データが見つかりません（audioMetadata.js未生成の可能性があります）。");
+// ===== ホスト専用：進行ミラーの駆動 =====
+
+async function runHostProgressionTick() {
+  if (!currentMatchId || !latestRoom || hostTickInFlight) return;
+  const match = latestRoom.matches?.[currentMatchId];
+  if (!match) return;
+
+  if (typeof match.currentQuestionIndex !== "number") {
+    hostTickInFlight = true;
+    try {
+      const result = await startInstantBattleQuestion({ roomId: latestRoom.roomId, matchId: currentMatchId, questionIndex: 0 });
+      if (!result.ok) console.error("一瞬バトル：最初の問題の開始に失敗しました", result.reason);
+    } catch (error) {
+      console.error("一瞬バトル：進行タイマーで想定外のエラーが発生しました（最初の問題の開始）", error);
+    } finally {
+      hostTickInFlight = false;
+    }
     return;
   }
 
+  if (!hostState) return;
+  if (hostState.currentQuestionIndex !== match.currentQuestionIndex) return; // Firebase側の反映待ち
+
+  if (hostState.currentQuestion.status === "collecting") {
+    const qIndex = hostState.currentQuestionIndex;
+    const firebaseAnswers = match.instantAnswers?.[qIndex] ?? {};
+    let nextHostState = hostState;
+    for (const [uid, answer] of Object.entries(firebaseAnswers)) {
+      if (!(uid in nextHostState.currentQuestion.answersByUid)) {
+        nextHostState = recordAnswer(nextHostState, uid, { selectedSongId: answer.selectedSongId, replayCount: answer.replayCount ?? 0 });
+      }
+    }
+    // 【3分無操作の放置救済】forcedSkipsは、本人がわからないを回答した場合と全く同じ経路
+    // （recordAnswer()へUNKNOWN_ANSWERを渡す）で進行ミラーへ取り込む。
+    const firebaseForcedSkips = match.forcedSkips?.[qIndex] ?? {};
+    for (const uid of Object.keys(firebaseForcedSkips)) {
+      if (!(uid in nextHostState.currentQuestion.answersByUid)) {
+        nextHostState = recordAnswer(nextHostState, uid, { selectedSongId: UNKNOWN_ANSWER, replayCount: 0 });
+      }
+    }
+
+    // 【切断時の自動復帰待ち→離脱処理】js/onlineInstantCoopBattleScreen.jsと同じ設計。
+    for (const uid of nextHostState.allPlayerUids) {
+      if (uid in nextHostState.currentQuestion.answersByUid) {
+        disconnectedSinceMsByUid.delete(uid);
+        continue;
+      }
+      const isConnected = latestRoom.players?.[uid]?.connected !== false;
+      if (isConnected) {
+        disconnectedSinceMsByUid.delete(uid);
+        continue;
+      }
+      if (!disconnectedSinceMsByUid.has(uid)) {
+        disconnectedSinceMsByUid.set(uid, Date.now());
+        continue;
+      }
+      const disconnectedForMs = Date.now() - disconnectedSinceMsByUid.get(uid);
+      if (disconnectedForMs >= DISCONNECT_AUTO_SKIP_MS && !firebaseForcedSkips[uid]) {
+        forceSkipIdlePlayer({ roomId: latestRoom.roomId, matchId: currentMatchId, questionIndex: qIndex, targetUid: uid }).catch(() => {});
+      }
+    }
+
+    // 【音源再生失敗時の公平性対策】誰か1人でもこの問題で音源再生に失敗したと報告していれば、
+    // 回答の集計より優先してこの問題を無効にする。
+    const hasAudioFailureReport = Object.keys(match.audioFailures?.[qIndex] ?? {}).length > 0;
+    const beforeTick = nextHostState;
+    nextHostState = tick(nextHostState, Date.now(), hasAudioFailureReport);
+    hostState = nextHostState;
+
+    if (nextHostState !== beforeTick && nextHostState.currentQuestion.status === "resolved") {
+      resolvedAtLocalMs = Date.now();
+      hostTickInFlight = true;
+      try {
+        const result = await resolveInstantBattleQuestion({
+          roomId: latestRoom.roomId,
+          matchId: currentMatchId,
+          questionIndex: qIndex,
+          outcome: nextHostState.currentQuestion.outcome,
+        });
+        if (!result.ok) console.error("一瞬バトル：問題の確定に失敗しました", result.reason);
+      } catch (error) {
+        console.error("一瞬バトル：進行タイマーで想定外のエラーが発生しました（問題の確定）", error);
+      } finally {
+        hostTickInFlight = false;
+      }
+    }
+    return;
+  }
+
+  if (hostState.currentQuestion.status === "resolved" && resolvedAtLocalMs !== null && Date.now() - resolvedAtLocalMs >= REVEAL_DELAY_MS) {
+    hostTickInFlight = true;
+    try {
+      const nextState = advanceToNextQuestion(hostState, Date.now());
+      hostState = nextState;
+      disconnectedSinceMsByUid.clear();
+      if (nextState.status === "inProgress") {
+        resolvedAtLocalMs = null;
+        const result = await advanceInstantBattleQuestion({ roomId: latestRoom.roomId, matchId: currentMatchId, nextQuestionIndex: nextState.currentQuestionIndex });
+        if (!result.ok) console.error("一瞬バトル：次の問題の開始に失敗しました", result.reason);
+      } else if (nextState.status === MATCH_STATUS_ABORTED_AUDIO_FAILURE) {
+        const result = await abortInstantBattleMatchDueToAudioFailure({ roomId: latestRoom.roomId, matchId: currentMatchId });
+        if (!result.ok) console.error("一瞬バトル：音源再生失敗による対戦中断の確定に失敗しました", result.reason);
+      } else {
+        // 【本人指示16：最終順位の計算】全問題の確定結果（Firebase上に既に揃っている）から、
+        // 全員分の順位を1回だけ計算し、まとめて書く（js/instantCoopBattleFirebase.jsの
+        // finalizeCoopMatch()と同じ「host-finalizes-once」パターン）。
+        const latestMatch = latestRoom.matches?.[currentMatchId] ?? {};
+        const resultsByUid = computeFinalResults({
+          allPlayerUids: nextState.allPlayerUids,
+          questionOutcomesByIndex: latestMatch.instantQuestionOutcomes,
+        });
+        const result = await finalizeInstantBattleMatch({ roomId: latestRoom.roomId, matchId: currentMatchId, resultsByUid });
+        if (!result.ok) console.error("一瞬バトル：最終結果の確定に失敗しました", result.reason);
+      }
+    } catch (error) {
+      console.error("一瞬バトル：進行タイマーで想定外のエラーが発生しました（次の問題／最終結果）", error);
+    } finally {
+      hostTickInFlight = false;
+    }
+  }
+}
+
+// ===== 対戦中：全クライアント共通の描画 =====
+
+function showAudioErrorInline(message) {
+  elements.error.textContent = message;
+  elements.error.hidden = false;
+}
+
+function handlePlaybackFailure(questionIndex, message) {
+  showAudioErrorInline(message);
+  if (!latestRoom || !currentMatchId) return;
+  reportInstantBattleAudioFailure({ roomId: latestRoom.roomId, matchId: currentMatchId, questionIndex }).catch(() => {});
+}
+
+function playQuestionAudio(question, questionIndex, settings) {
+  const playDurationSec = Number(settings.playDurationValue);
+  const fixedDurationSec = AUDIO_METADATA[question.song.id]?.durationSec ?? null;
+  if (fixedDurationSec === null) {
+    handlePlaybackFailure(questionIndex, "この曲の同期用データが見つかりません（audioMetadata.js未生成の可能性があります）。");
+    return;
+  }
   const computeStartTimeSec = (actualDurationSec) => {
     if (!isDurationMismatchWithinTolerance(fixedDurationSec, actualDurationSec)) {
-      // 全端末で同じ開始位置になることが公平性の前提のため、差が大きすぎる場合は
-      // 無言でクランプして続行せず、再生を中止する（randomPlaybackBattleMode.jsの
-      // main.js側実装と同じ安全策）。この場合も「自分の端末のこの曲のファイルが
-      // 他と違う」という再生失敗の一種として扱い、差し替え経路へ合流させる。
       stopAudio();
       handlePlaybackFailure(questionIndex, "この曲の音源が他の端末と異なる可能性があります。音源を入れ直してください。");
       return 0;
     }
     const canonicalStartTimeSec = computeRandomStartTimeSec({
-      seed: currentSeed,
+      seed: latestRoom.seed,
       songId: question.song.id,
       questionIndex,
       durationSec: fixedDurationSec,
@@ -287,250 +589,429 @@ function playCurrentQuestionAudio() {
     });
     return clampStartTimeToActualDuration(canonicalStartTimeSec, actualDurationSec);
   };
-
-  playSongFromRandomPosition(
-    question.song,
-    computeStartTimeSec,
-    playDurationSec,
-    (message) => handlePlaybackFailure(questionIndex, message),
-    hideAudioErrorInline,
-    () => {}
-  );
+  playSongFromRandomPosition(question.song, computeStartTimeSec, playDurationSec, (message) => handlePlaybackFailure(questionIndex, message), () => {}, () => {});
 }
 
-// 【2026-09-09新設・本人指示：音源再生失敗時の公平性対策】js/instantChallengeScreen.jsの
-// handlePlaybackFailure()と同じ設計（このモードも各自が独立して進行するため、他プレイヤーと
-// 同期する必要が無い）。「その問題を不正解にしない・ペナルティを与えない・問題数を
-// 消費しない」を守るため、得点処理には一切触れず、この問題スロットの曲を安全に差し替えるか、
-// それでも無理なら対戦を中断する。questionIndexは呼ばれた時点のcurrentIndexを固定で
-// 受け取り、既に別の問題へ進んでいた場合の誤適用を防ぐ。
-function handlePlaybackFailure(questionIndex, message) {
-  if (questionIndex !== currentIndex) return;
-  if (hasAnsweredCurrentQuestion) return;
-
-  currentSlotFailureCount += 1;
-  console.warn(`[一瞬バトル] 音源再生に失敗しました（${currentSlotFailureCount}回目）`, message);
-
-  // 【2026-09-13修正・本人指示：初回問題消失バグの調査で判明した別件の修正】「全曲」設定等、
-  // 曲プール全体を出題数として使っている場合、予備曲を1曲も確保できない
-  // （questions.length === targetQuestionCount）。この場合は「予備切れ」の判定自体が
-  // 成立しない（最初から無かっただけ）ため、中断の判断からは除外し、同じ曲のまま
-  // MAX_SLOT_PLAYBACK_ATTEMPTS回まで再試行する（js/main.jsのhandleOnlineBattleAudioFailure()と
-  // 同じ考え方）。
-  const reserveWasEverAvailable = questions.length > targetQuestionCount;
-  const reserveExhausted = reserveWasEverAvailable && nextReserveIndex >= questions.length;
-  if (currentSlotFailureCount >= MAX_SLOT_PLAYBACK_ATTEMPTS || reserveExhausted) {
-    abortMatchDueToAudioFailure();
+// 【本人指示3：第1問の二重カウントダウン解消】対戦開始時の3→2→1（js/onlineBattleScreen.js）
+// が既に表示された直後なので、この対戦の最初の問題の初回出題だけはこの問題ごとの
+// カウントダウンを省略し、画面遷移アニメーション分だけ短く待ってから直接再生する。
+// 第2問以降の初回出題・すべての「もう一度聞く」は、通常どおり3→2→1を表示する。
+function playCurrentQuestionAudioWithCountdown(question, questionIndex) {
+  const settings = latestRoom.settings;
+  if (isFirstQuestionOfMatch) {
+    isFirstQuestionOfMatch = false;
+    isCountdownActive = true;
+    setTimeout(() => {
+      isCountdownActive = false;
+      playQuestionAudio(question, questionIndex, settings);
+    }, SCREEN_ENTER_ANIMATION_MS);
     return;
   }
-
-  // 【2026-09-13修正・本人指示3：音源差し替え成功時のユーザー向けメッセージを消す】
-  // 差し替えが成功して問題を続行できるなら、プレイヤーには何も表示しない
-  // （対戦を安全に継続できない場合＝上のabort分岐に到達した場合だけ案内を表示する）。
-  if (nextReserveIndex < questions.length) {
-    questions[currentIndex] = questions[nextReserveIndex];
-    nextReserveIndex += 1;
-    renderAnswerArea(questions[currentIndex]);
-  }
-  // 予備が無い場合（全曲設定等）は、questionsを差し替えずに同じ曲のまま再試行する。
-  playCurrentQuestionAudioWithCountdown();
-}
-
-// 同じ問題スロットで規定回数（元の曲＋差し替え）すべて再生に失敗した、または差し替えられる
-// 予備曲が無くなった場合に呼ぶ。この試合の結果はfinishMatch()を経由せず、勝敗・記録の
-// いずれにも一切残さない（本人指示：中断結果を通常の記録として保存しない）。
-function abortMatchDueToAudioFailure() {
-  stopAudio();
-  cancelLocalReplayCountdown();
-  clearTimeout(autoAdvanceTimerId);
-  elements.onAudioFailureAbort?.(
-    "音源を正常に再生できない状態が続いているため、この対戦を中断しました。データパックの導入状況や通信環境をご確認のうえ、もう一度お試しください。"
-  );
-}
-
-// 【2026-09-05新設】音源再生の直前に3→2→1を表示してから再生する。初回出題・再視聴の
-// どちらもこれ経由で呼ぶ（本人指示：一瞬バトルは両方にカウントダウンを付ける）。
-function playCurrentQuestionAudioWithCountdown() {
-  // 【2026-09-08改訂・本人指示：カウントダウン速度の完全統一】js/instantChallengeScreen.jsと
-  // 同じ理由（この対戦の最初の問題だけ画面遷移アニメーションと重ならないよう少し待つ）。
-  // 待ち時間の値・ロジック自体はjs/localReplayCountdown.jsへ一本化した。
-  runLocalReplayCountdownForQuestion(
-    { containerElement: elements.countdown, numberElement: elements.countdownNumber, isFirstQuestion: isFirstQuestionOfMatch },
-    () => {
-      isCountdownActive = false;
-      playCurrentQuestionAudio();
-    }
-  );
   isCountdownActive = true;
-  isFirstQuestionOfMatch = false;
+  runLocalReplayCountdownForQuestion({ containerElement: elements.countdown, numberElement: elements.countdownNumber, isFirstQuestion: false }, () => {
+    isCountdownActive = false;
+    playQuestionAudio(question, questionIndex, settings);
+  });
 }
 
-function renderCurrentQuestion() {
-  hasAnsweredCurrentQuestion = false;
-  elements.progress.textContent = `第${currentIndex + 1}問 / ${targetQuestionCount}問`;
-  if (elements.answerReveal) elements.answerReveal.hidden = true;
-  clearTimeout(autoAdvanceTimerId);
-  renderAnswerArea(questions[currentIndex]);
-
-  elements.replayButton.hidden = false;
-  updateReplayButtonLabel();
-
-  playCurrentQuestionAudioWithCountdown();
+function reportMyQuestionActivity() {
+  const match = latestRoom?.matches?.[currentMatchId];
+  const qIndex = match?.currentQuestionIndex;
+  if (typeof qIndex !== "number" || !latestRoom) return;
+  const now = Date.now();
+  if (qIndex === lastActivityReportedQIndex && now - lastActivityReportedAtMs < ACTIVITY_REPORT_THROTTLE_MS) return;
+  lastActivityReportedQIndex = qIndex;
+  lastActivityReportedAtMs = now;
+  reportQuestionActivity({ roomId: latestRoom.roomId, matchId: currentMatchId, questionIndex: qIndex });
 }
 
-function renderAnswerArea(question) {
-  const pool = question.answerPool;
-  const isLargePool = pool.length >= LARGE_ANSWER_POOL_THRESHOLD;
-  // 【2026-09-07新設・本人指示：検索状態を毎問題完全リセット】
-  resetAnswerPoolBrowseState(answerBrowseState);
-  elements.answerSearchRow.hidden = !isLargePool;
-  if (isLargePool) {
-    elements.answerSearchInput.value = "";
-    elements.answerCount.textContent = `${pool.length}曲`;
-  }
-  if (elements.answerJumpBar) {
-    elements.answerJumpBar.hidden = !isLargePool;
-    if (isLargePool) renderAnswerJumpBar(elements.answerJumpBar, answerBrowseState, () => renderAnswerButtons(pool));
-  }
-  renderAnswerButtons(pool);
-  // 選択肢一覧のスクロール位置も、新しい問題ごとに先頭へ戻す。
-  elements.answerList.scrollTop = 0;
-  elements.answerList.hidden = false;
+function updateReplayButtonLabel() {
+  const remaining = MAX_REPLAY_COUNT_PER_QUESTION - myReplayCountForCurrentQuestion;
+  elements.replayButton.textContent = `🔁 もう一度聞く（残り${Math.max(0, remaining)}回）`;
+  elements.replayButton.disabled = remaining <= 0;
 }
 
 function renderAnswerButtons(pool) {
   const filtered = filterAnswerPool(pool, answerBrowseState);
-
   elements.answerList.innerHTML = "";
   filtered.forEach((song) => {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "choice-button lyrics-quiz-answer-button";
     button.textContent = song.title;
-    button.dataset.songId = song.id;
-    // 【2026-09-06新設、本人指示：実機フィードバック②】一瞬バトルは正解数（＋同数時は
-    // 再視聴回数）で順位を決めており、回答速度は順位に一切使わない
-    // （js/battleModes/instantBattleMode.jsのcompareResults()参照）ため、確認対象。
-    // handleAnswerSelected()自身がhasAnsweredCurrentQuestionで二重回答を防いでいる。
     button.addEventListener("click", () => {
-      if (hasAnsweredCurrentQuestion) return;
-      promptAnswerConfirm(song.title, () => handleAnswerSelected(song.id, button));
+      reportMyQuestionActivity();
+      const matchAtClick = latestRoom?.matches?.[currentMatchId];
+      const expectedQIndex = matchAtClick?.currentQuestionIndex;
+      promptAnswerConfirm(song.title, () => {
+        const matchAtConfirm = latestRoom?.matches?.[currentMatchId];
+        if (matchAtConfirm?.currentQuestionIndex !== expectedQIndex) return;
+        handleAnswerConfirmed(song.id);
+      });
     });
     elements.answerList.appendChild(button);
   });
 }
 
-// 答え合わせカードを約4秒表示してから自動的に次の問題（最終問なら結果送信）へ進む
-// までの待ち時間（js/instantChallengeScreen.jsのAUTO_ADVANCE_DELAY_MSと同じ理由・同じ値。
-// 2026-09-07再改訂・本人指示：ChatGPTと確定した最新仕様で「手動ボタン必須」から
-// 「4秒後に自動遷移」へ変更した）。
-const AUTO_ADVANCE_DELAY_MS = 4000;
-let autoAdvanceTimerId = null;
-
-// 【2026-09-07改訂・本人指示：答え合わせUIの統一】色（is-correct/is-wrong）だけに頼らず、
-// 選択肢一覧そのものを答え合わせカードへ切り替える（js/instantChallengeScreen.jsと同じ設計）。
-function handleAnswerSelected(selectedSongId, buttonElement) {
-  if (hasAnsweredCurrentQuestion) return;
-  hasAnsweredCurrentQuestion = true;
-  // 【2026-09-13追加・本人指示：一瞬バトルで実機再生失敗が再発（原因調査）】このモードの
-  // 音源再生は、すべて3→2→1カウントダウン・4秒答え合わせを経由したsetTimeoutからしか
-  // 呼ばれず、ユーザー操作から数秒離れたタイミングで行われる。iOS Safari/PWAでは
-  // このような呼び出しは再生を拒否されることがあり、一度unlockが再ロックされると
-  // 復帰する手立てが無いまま対戦全体が無音になりうる（詳細はdocs/HANDOFF.md参照）。
-  // 回答を選ぶタップは対戦中に毎問必ず起きる、正真正銘のユーザー操作のため、ここで
-  // unlockを試みておくことで、次の問題の再生（約5秒後）に間に合わせる（何度呼んでも
-  // 安全。audioElementが再生中でない場合だけ実際に試す。js/audio.js参照）。
+// 【本人指示13：回答確定後の完全ロック】確認を経て回答が確定した瞬間、選択の変更・検索・
+// 50音ジャンプ・もう一度聞く・わからないの変更のすべてを不可能にする
+// （renderCurrentQuestionState()側でmyAnsweredQuestionIndexを見て選択肢UI自体を隠すため、
+// ここでは「二重送信の防止」と「送信」だけを担当する）。
+async function handleAnswerConfirmed(selectedSongId) {
   attemptSilentUnlock();
+  if (!latestRoom || !currentMatchId) return;
+  const match = latestRoom.matches?.[currentMatchId];
+  const qIndex = match?.currentQuestionIndex;
+  if (typeof qIndex !== "number") return;
+  if (myAnsweredQuestionIndex === qIndex) return;
 
-  const question = questions[currentIndex];
-  const isCorrect = selectedSongId === question.song.id;
-  // 【2026-09-12追加・本人指示：結果画面の問題別結果アコーディオンを完成させる】
-  // 正解曲・選んだ曲のタイトルをこの時点で一緒に控えておく（finishMatch()でperQuestionSnapshot
-  // として提出する。question.answerPoolに選択肢の曲オブジェクトが既にあるため、
-  // ここでは新しいデータ取得を増やさずにタイトルへ変換できる）。
-  const selectedSongTitle = question.answerPool.find((song) => song.id === selectedSongId)?.title ?? selectedSongId;
-  answers.push({
-    songId: question.song.id,
-    correctSongTitle: question.song.title,
-    selectedSongTitle,
-    isCorrect,
-    replayCount: replayCounts[currentIndex],
-  });
+  const replayCount = myReplayCountForCurrentQuestion;
+  myAnsweredQuestionIndex = qIndex;
+  renderCurrentQuestionState();
 
-  renderAnswerReveal({ isCorrect, correctTitle: question.song.title, mySelectedSongId: selectedSongId, pool: question.answerPool });
-
-  elements.replayButton.disabled = true; // 正解が確定した後の聞き直しは不要
-  // 【2026-09-08改訂・本人指示：オンライン対戦での早送り禁止】以前は「次の問題へ」ボタンで
-  // 個人だけ4秒を待たずに先へ進めるようにしていたが、オンライン対戦では1人だけ早く
-  // 進めても意味が無く、同期ズレの原因にもなり得るという指摘を受け、早送り手段を廃止した。
-  // 答え合わせは全員例外なく4秒固定で表示し、そのあと自動的に次へ進む
-  // （試合終了後の「もう一度」「ルーム設定に戻る」「退出」は引き続き自動化しない）。
-  clearTimeout(autoAdvanceTimerId);
-  autoAdvanceTimerId = setTimeout(() => {
-    advanceToNextQuestionOrFinish();
-  }, AUTO_ADVANCE_DELAY_MS);
-
-  // 他プレイヤーの待機画面に進捗を反映する（fire-and-forget。js/onlineBattle.jsの
-  // submitAnswerProgress参照：内部で全て握りつぶし、rejectしない）。
-  elements.onReportProgress(answers.length);
-}
-
-function renderAnswerReveal({ isCorrect, correctTitle, mySelectedSongId, pool }) {
-  elements.answerList.hidden = true;
-  if (elements.answerSearchRow) elements.answerSearchRow.hidden = true;
-  // 【2026-09-13追加・本人指示：一瞬バトルの答え合わせが下に追いやられる不具合の修正】
-  // 50音ジャンプバーを隠し忘れており（css/style.cssの[hidden]上書き漏れと合わせて二重の
-  // 原因だった）、大きな曲プールでは検索欄・ジャンプバー・選択肢一覧が答え合わせカードの
-  // 上にすべて残ったまま表示され続け、カードがスクロールしないと見えない位置まで
-  // 追いやられていた（本人の実機報告で発覚）。
-  if (elements.answerJumpBar) elements.answerJumpBar.hidden = true;
-  if (!elements.answerReveal) return;
-
-  elements.answerReveal.hidden = false;
-  elements.answerRevealStatus.textContent = isCorrect ? "🎉 正解！" : "残念、不正解";
-  elements.answerRevealStatus.classList.toggle("is-correct-answer-reveal-status", isCorrect);
-  elements.answerRevealTitle.textContent = correctTitle;
-
-  const mySong = pool.find((song) => song.id === mySelectedSongId);
-  if (elements.answerRevealMyAnswer) {
-    elements.answerRevealMyAnswer.hidden = !mySong;
-    elements.answerRevealMyAnswer.textContent = mySong ? `あなたの回答：${mySong.title}` : "";
+  const result = await submitInstantAnswer({ roomId: latestRoom.roomId, matchId: currentMatchId, questionIndex: qIndex, selectedSongId, replayCount });
+  if (!result.ok && result.reason !== "already-answered") {
+    myAnsweredQuestionIndex = -1;
+    elements.error.textContent = "回答の送信に失敗しました。もう一度お試しください。";
+    elements.error.hidden = false;
+    renderCurrentQuestionState();
   }
 }
 
-function advanceToNextQuestionOrFinish() {
-  currentIndex += 1;
-  currentSlotFailureCount = 0; // 新しい問題スロットへ移るので、再生失敗のカウントもリセットする
-  if (currentIndex >= targetQuestionCount) {
-    finishMatch();
+// 【本人指示12：回答内容は秘密のまま、状態だけを見せる】ルーム参加順（Object.keys()の
+// 挿入順）で、名前と「回答済み／未回答」バッジだけを並べる。
+function renderAnswerStatusList(match, qIndex) {
+  if (!elements.answerStatusList) return;
+  clearElement(elements.answerStatusList);
+  const participants = match.participants ?? {};
+  const answeredUids = new Set(Object.keys(match.instantAnswers?.[qIndex] ?? {}));
+  const myUid = getCurrentUid();
+
+  Object.entries(participants).forEach(([uid, participant]) => {
+    const row = document.createElement("li");
+    row.className = "online-instant-battle-answer-status-row";
+
+    const oshiColor = resolveOshiColor(participant.oshiMemberId);
+    if (oshiColor) {
+      const dot = document.createElement("span");
+      dot.className = "online-lobby-oshi-dot";
+      dot.style.backgroundColor = oshiColor;
+      row.appendChild(dot);
+    }
+    const name = document.createElement("span");
+    name.className = "online-instant-battle-answer-status-name";
+    name.textContent = participant.displayName + (uid === myUid ? "（あなた）" : "");
+    row.appendChild(name);
+
+    const badge = document.createElement("span");
+    const answered = answeredUids.has(uid);
+    badge.className = `online-instant-battle-answer-status-badge${answered ? " is-answered" : ""}`;
+    badge.textContent = answered ? "回答済み" : "未回答";
+    row.appendChild(badge);
+
+    elements.answerStatusList.appendChild(row);
+  });
+}
+
+// 【本人指示18・19：5秒間の答え合わせ画面】参加者ごとに、回答・正誤・その問題で使った
+// 再視聴回数を1行でコンパクトに見せる。同時に「running correct-count・running rank」
+// （本人指示11）も、ここまでに確定した問題だけを使ってcomputeFinalResults()で再計算する
+// （最終確定用のFirebase書き込みは行わない、表示専用の計算）。
+function renderRevealPlayerList(match, qIndex, outcome) {
+  if (!elements.revealPlayerList) return;
+  clearElement(elements.revealPlayerList);
+  const participants = match.participants ?? {};
+  const myUid = getCurrentUid();
+  const allPlayerUids = Object.keys(participants);
+  const runningResults = computeFinalResults({ allPlayerUids, questionOutcomesByIndex: match.instantQuestionOutcomes });
+
+  Object.entries(participants).forEach(([uid, participant]) => {
+    const playerOutcome = outcome.perPlayerOutcome?.[uid];
+    const row = document.createElement("li");
+    row.className = "online-instant-battle-reveal-player-row";
+    if (playerOutcome?.isCorrect) row.classList.add("is-correct");
+
+    const name = document.createElement("span");
+    name.className = "online-instant-battle-reveal-player-name";
+    name.textContent = participant.displayName + (uid === myUid ? "（あなた）" : "");
+    row.appendChild(name);
+
+    const answerText = document.createElement("span");
+    answerText.className = "online-instant-battle-reveal-player-answer";
+    if (!playerOutcome) {
+      answerText.textContent = "－";
+    } else if (playerOutcome.isUnknown) {
+      answerText.textContent = "🤷 わからない";
+    } else {
+      const answeredSong = currentQuestions[qIndex]?.answerPool.find((song) => song.id === playerOutcome.selectedSongId);
+      const mark = playerOutcome.isCorrect ? "🎉" : "✗";
+      answerText.textContent = `${mark} ${answeredSong?.title ?? playerOutcome.selectedSongId}`;
+    }
+    row.appendChild(answerText);
+
+    const metaText = document.createElement("span");
+    metaText.className = "online-instant-battle-reveal-player-meta";
+    const replayCount = playerOutcome?.replayCount ?? 0;
+    const running = runningResults[uid];
+    metaText.textContent = `再視聴${replayCount}回・通算${running?.correctCount ?? 0}問正解・${running ? `${running.rank}位` : "－"}`;
+    row.appendChild(metaText);
+
+    elements.revealPlayerList.appendChild(row);
+  });
+}
+
+function renderCurrentQuestionState() {
+  if (!latestRoom || currentQuestions.length === 0) return;
+  const match = latestRoom.matches?.[currentMatchId];
+  if (!match || typeof match.currentQuestionIndex !== "number") return;
+
+  const qIndex = match.currentQuestionIndex;
+  const question = currentQuestions[qIndex];
+  if (!question) return;
+
+  const myUid = getCurrentUid();
+  const myForcedSkip = match.forcedSkips?.[qIndex]?.[myUid] === true;
+  if (myForcedSkip && myAnsweredQuestionIndex !== qIndex) {
+    myAnsweredQuestionIndex = qIndex;
+  }
+
+  elements.progress.textContent = `第${qIndex + 1}問 / ${targetQuestionCount}問`;
+
+  // 新しい問題を検知したら、音源を再生し直し、ローカルな回答状態をリセットする。
+  if (qIndex !== lastPlayedQuestionIndex) {
+    lastPlayedQuestionIndex = qIndex;
+    myReplayCountForCurrentQuestion = 0;
+    elements.error.hidden = true;
+    playCurrentQuestionAudioWithCountdown(question, qIndex);
+    updateReplayButtonLabel();
+    resetAnswerPoolBrowseState(answerBrowseState);
+    if (elements.answerSearchInput) elements.answerSearchInput.value = "";
+    if (elements.answerList) elements.answerList.scrollTop = 0;
+  }
+
+  const isResolved = match.questionStatus === QUESTION_STATUS.RESOLVED;
+  const hasAnsweredThisQuestion = myAnsweredQuestionIndex === qIndex;
+
+  elements.answerSection.hidden = isResolved || hasAnsweredThisQuestion;
+  const waitingSectionElement = elements.waitingSection;
+  if (waitingSectionElement) waitingSectionElement.hidden = isResolved || !hasAnsweredThisQuestion;
+  elements.revealSection.hidden = !isResolved;
+  elements.replayButton.hidden = isResolved || hasAnsweredThisQuestion;
+  if (elements.rankHint) elements.rankHint.hidden = isResolved || hasAnsweredThisQuestion;
+
+  if (!isResolved) {
+    const isLargePool = question.answerPool.length >= LARGE_ANSWER_POOL_THRESHOLD;
+    elements.answerSearchRow.hidden = !isLargePool;
+    if (isLargePool) elements.answerCount.textContent = `${question.answerPool.length}曲`;
+    if (elements.answerJumpBar) {
+      elements.answerJumpBar.hidden = !isLargePool || hasAnsweredThisQuestion;
+      if (isLargePool && !hasAnsweredThisQuestion) renderAnswerJumpBar(elements.answerJumpBar, answerBrowseState, () => renderAnswerButtons(question.answerPool));
+    }
+    if (!hasAnsweredThisQuestion) renderAnswerButtons(question.answerPool);
+    elements.unknownButton.disabled = hasAnsweredThisQuestion;
+    renderAnswerStatusList(match, qIndex);
+  } else {
+    const outcome = match.instantQuestionOutcomes?.[qIndex];
+    if (outcome) {
+      if (outcome.isVoid) {
+        elements.revealCorrectSong.textContent = "";
+        elements.revealOutcomeBadge.textContent = "🔇 この問題は無効です";
+        elements.revealOutcomeBadge.classList.remove("is-correct-answer-reveal-status");
+        if (elements.revealAudioFailureNotice) elements.revealAudioFailureNotice.hidden = false;
+        clearElement(elements.revealPlayerList);
+      } else {
+        elements.revealCorrectSong.textContent = question.song.title;
+        const myOutcome = outcome.perPlayerOutcome?.[myUid];
+        elements.revealOutcomeBadge.textContent = myOutcome?.isCorrect ? "🎉 正解！" : "残念、不正解";
+        elements.revealOutcomeBadge.classList.toggle("is-correct-answer-reveal-status", !!myOutcome?.isCorrect);
+        if (elements.revealAudioFailureNotice) elements.revealAudioFailureNotice.hidden = true;
+        renderRevealPlayerList(match, qIndex, outcome);
+      }
+    }
+  }
+
+  const nowServerTimeMs = Date.now() + serverTimeOffset;
+  renderIdleNotice(match, qIndex, nowServerTimeMs);
+}
+
+// 【3分無操作の放置救済】js/onlineInstantCoopBattleScreen.jsのrenderIdleNotice()と同じ設計。
+function renderIdleNotice(match, qIndex, nowServerTimeMs) {
+  const isHost = latestRoom && getCurrentUid() === latestRoom.host;
+  if (!elements.idleNotice) return;
+  if (!isHost) {
+    elements.idleNotice.hidden = true;
     return;
   }
-  renderCurrentQuestion();
+  const participantUids = Object.keys(match.participants ?? {});
+  const answeredUids = new Set(Object.keys(match.instantAnswers?.[qIndex] ?? {}));
+  const forcedSkipUids = new Set(Object.keys(match.forcedSkips?.[qIndex] ?? {}));
+  const idleUids = participantUids.filter((uid) => {
+    if (answeredUids.has(uid) || forcedSkipUids.has(uid)) return false;
+    const lastActivity = match.questionActivity?.[qIndex]?.[uid] ?? match.currentQuestionStartedAt ?? nowServerTimeMs;
+    return nowServerTimeMs - lastActivity >= IDLE_RESCUE_THRESHOLD_MS;
+  });
+
+  clearElement(elements.idleNotice);
+  elements.idleNotice.hidden = idleUids.length === 0;
+  idleUids.forEach((uid) => {
+    const displayName = match.participants?.[uid]?.displayName ?? uid;
+    const row = document.createElement("div");
+    row.className = "online-lyrics-battle-idle-notice-row";
+    const text = document.createElement("span");
+    text.className = "online-lyrics-battle-idle-notice-text";
+    text.textContent = `${displayName}さんが3分間操作していません`;
+    row.appendChild(text);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "secondary-button online-lyrics-battle-idle-notice-button";
+    button.textContent = "わからない扱いにする";
+    button.addEventListener("click", () => {
+      button.disabled = true;
+      forceSkipIdlePlayer({ roomId: latestRoom.roomId, matchId: currentMatchId, questionIndex: qIndex, targetUid: uid });
+    });
+    row.appendChild(button);
+    elements.idleNotice.appendChild(row);
+  });
 }
 
-function finishMatch() {
-  const correctCount = answers.filter((answer) => answer.isCorrect).length;
-  const missCount = answers.length - correctCount;
-  const totalReplayCount = answers.reduce((sum, answer) => sum + answer.replayCount, 0);
-  const totalElapsedMs = Date.now() - matchStartedAtMs;
-  // 【2026-09-12追加・本人指示：結果画面の問題別結果アコーディオンを完成させる】
-  // js/main.jsのfinishOnlineBattlePlay()と同じ形（correctSongTitle・selectedAnswers・
-  // isCorrect）に揃えることで、js/battleQuestionBreakdown.jsの共通の組み立て関数を
-  // このモードでもそのまま使えるようにする。missCountは、このモードには
-  // 「1問の中で複数回答え直す」概念が無いためundefinedのまま（表示側で自然に省略される）。
-  const perQuestionSnapshot = answers.map((answer) => ({
-    correctSongTitle: answer.correctSongTitle,
-    selectedAnswers: [answer.selectedSongTitle],
-    isCorrect: answer.isCorrect,
-  }));
+// ===== 結果画面（個人の順位） =====
 
-  const result = createResult({
-    correctCount,
-    missCount,
-    totalElapsedMs,
-    totalReplayCount,
-    completed: true,
-    perQuestionSnapshot,
+export function syncInstantBattleResultHostGuestButtons(room) {
+  if (document.body.dataset.screen !== "onlineInstantBattleResult") return;
+  const isHostOnResultScreen = room.host === getCurrentUid();
+  elements.resultHostActions.hidden = !isHostOnResultScreen;
+  elements.resultHomeLink.hidden = isHostOnResultScreen;
+  if (elements.resultGuestActions) elements.resultGuestActions.hidden = isHostOnResultScreen;
+}
+
+export function enterInstantBattleResult(room) {
+  latestRoom = room;
+  stopAllLocalTimers();
+  elements.navigateTo("onlineInstantBattleResult");
+
+  const match = room.matches?.[room.activeMatchId] ?? {};
+  const participants = match.participants || {};
+  const myUid = getCurrentUid();
+
+  const isAudioFailureAborted = match.instantBattleAudioFailureAborted === true;
+  if (elements.resultAudioFailureNotice) elements.resultAudioFailureNotice.hidden = !isAudioFailureAborted;
+  if (elements.resultNormalContainer) elements.resultNormalContainer.hidden = isAudioFailureAborted;
+
+  const isHostOnResultScreen = room.host === myUid;
+  elements.resultHostActions.hidden = !isHostOnResultScreen;
+  elements.resultHomeLink.hidden = isHostOnResultScreen;
+  if (elements.resultGuestActions) elements.resultGuestActions.hidden = isHostOnResultScreen;
+  elements.resultRuleNote.textContent = instantBattleMode.getRuleDescription();
+
+  if (isAudioFailureAborted) return;
+
+  const resultsByUid = match.instantBattleResults ?? {};
+  // 【2026-09-14追加・本人指示：対戦中のゲストが自分だけ途中離脱する】leftDuringMatchが
+  // 立っている参加者は、途中まで得点していても正式な順位には含めない（js/onlineBattleScreen.js
+  // のgoToResultScreen()と同じ考え方）。
+  const rankedEntries = Object.entries(participants)
+    .map(([uid, participant]) => ({
+      uid,
+      participant,
+      result: resultsByUid[uid],
+      isDnf: !resultsByUid[uid] || participant.leftDuringMatch === true,
+    }))
+    .sort((entryA, entryB) => {
+      if (entryA.isDnf !== entryB.isDnf) return entryA.isDnf ? 1 : -1;
+      if (entryA.isDnf) return 0;
+      return entryA.result.rank - entryB.result.rank;
+    });
+
+  const medalByRank = { 1: "🥇", 2: "🥈", 3: "🥉" };
+  clearElement(elements.resultList);
+  rankedEntries.forEach((entry) => {
+    const row = document.createElement("li");
+    const rank = entry.isDnf ? null : entry.result.rank;
+    const rankClass = rank === 1 ? " is-rank-1" : rank === 2 ? " is-rank-2" : rank === 3 ? " is-rank-3" : "";
+    row.className = `battle-rank-row${rankClass}`;
+
+    const medal = document.createElement("div");
+    medal.className = "battle-rank-medal";
+    medal.textContent = entry.isDnf ? "－" : (medalByRank[rank] ?? `${rank}位`);
+    row.appendChild(medal);
+
+    const info = document.createElement("div");
+    info.className = "battle-rank-info";
+    const nameRow = document.createElement("p");
+    nameRow.className = "battle-rank-name";
+    const oshiColor = resolveOshiColor(entry.participant.oshiMemberId);
+    if (oshiColor) {
+      const dot = document.createElement("span");
+      dot.className = "online-lobby-oshi-dot";
+      dot.style.backgroundColor = oshiColor;
+      nameRow.appendChild(dot);
+    }
+    const nameText = document.createElement("span");
+    nameText.textContent = entry.participant.displayName;
+    nameRow.appendChild(nameText);
+    if (entry.uid === myUid) {
+      const meBadge = document.createElement("span");
+      meBadge.className = "battle-rank-me-badge";
+      meBadge.textContent = "あなた";
+      nameRow.appendChild(meBadge);
+    }
+    info.appendChild(nameRow);
+
+    const meta = document.createElement("p");
+    meta.className = "battle-rank-meta";
+    if (entry.isDnf) {
+      meta.textContent = "途中離脱・記録なし";
+    } else {
+      const r = entry.result;
+      // 【本人指示19：順位に使う値と、それ以外の参考記録をはっきり区別する】
+      // 「正解数」「正解した問題での再視聴合計」の2つだけが順位判定の基準。
+      // 総再視聴回数・不正解数・わからない数は参考記録として区別して表示する。
+      meta.textContent = `正解${r.correctCount}問／正解した問題での再視聴${r.correctOnlyReplaySum}回（参考：総再視聴${r.totalReplayCount}回・不正解${r.wrongCount}・わからない${r.dontKnowCount}）`;
+    }
+    info.appendChild(meta);
+    row.appendChild(info);
+
+    elements.resultList.appendChild(row);
   });
-  elements.onFinishMatch(result, answers.length);
+
+  const myEntry = rankedEntries.find((entry) => entry.uid === myUid);
+  if (myEntry && !myEntry.isDnf) {
+    playSfx(myEntry.result.rank === 1 ? SFX_EVENTS.BATTLE_WIN : SFX_EVENTS.BATTLE_LOSE);
+  }
+
+  const questionBreakdown = buildInstantBattleQuestionBreakdown({
+    questions: currentQuestions,
+    instantQuestionOutcomes: match.instantQuestionOutcomes,
+    participants,
+    myUid,
+  });
+  if (elements.resultQuestionBreakdownSection) {
+    elements.resultQuestionBreakdownSection.hidden = questionBreakdown.length === 0;
+  }
+  renderQuestionBreakdownAccordion(elements.resultQuestionBreakdown, questionBreakdown);
+
+  if (myEntry && !myEntry.isDnf) {
+    savePlayHistoryEntryIfNew({
+      id: `online:${room.activeMatchId}`,
+      playedAt: Date.now(),
+      modeId: "onlineInstantBattle",
+      modeLabel: "オンライン対戦（一瞬バトル）",
+      questionCount: myEntry.result.totalQuestions,
+      isAllSongsMode: !room.settings.questionSource || room.settings.questionSource.type === QUESTION_SOURCE_TYPE.ALL_SONGS,
+      correctCount: myEntry.result.correctCount,
+      wrongCount: myEntry.result.wrongCount,
+      skippedCount: myEntry.result.dontKnowCount,
+      score: null,
+      averageResponseMs: null,
+      completed: true,
+      details: {
+        isDnf: false,
+        myRank: myEntry.result.rank,
+        correctOnlyReplaySum: myEntry.result.correctOnlyReplaySum,
+        totalReplayCount: myEntry.result.totalReplayCount,
+        participantCount: Object.keys(participants).length,
+        questionBreakdown: capQuestionBreakdownForStorage(questionBreakdown),
+      },
+    });
+  }
 }

@@ -21,7 +21,7 @@
 // フィルタ結果はfilterAnswerPool()で取得し、50音ジャンプバーの描画はrenderAnswerJumpBar()に
 // 任せる（全曲検索＝候補数が多いプールのときだけ表示する想定。呼び出し側でhidden制御する）。
 
-import { normalizeForSearch, songMatchesSearch, GOJUON_ROWS, deriveGojuonRowKey } from "./songlist.js";
+import { normalizeForSearch, songMatchesSearch, GOJUON_ROWS, deriveGojuonRowKey, sortSongsByReading } from "./songlist.js";
 
 // 検索文字列・50音ジャンプの選択行を1組にまとめた状態オブジェクトを作る。
 export function createAnswerPoolBrowseState() {
@@ -43,7 +43,11 @@ export function filterAnswerPool(pool, state) {
     return pool.filter((song) => songMatchesSearch(song.title, song.searchReading, song.searchAliases, normalizedQuery));
   }
   if (state.jumpRowKey && state.jumpRowKey !== "all") {
-    return pool.filter((song) => deriveGojuonRowKey(song.searchReading ?? song.title) === state.jumpRowKey);
+    // 【2026-09-15改訂・本人指示：50音ジャンプ後は表示順も五十音順にする】通常表示
+    // （検索なし・「すべて」表示）は今までどおり出題プールのランダム順のままにし、
+    // 50音の特定の行に絞り込んだときだけ、その行の中を読み仮名の自然な五十音順へ
+    // 並び替える（本人指示：「あ」を選んだら、あ・い・う・え・おの順で見つけやすく）。
+    return sortSongsByReading(pool.filter((song) => deriveGojuonRowKey(song.searchReading ?? song.title) === state.jumpRowKey));
   }
   return pool;
 }

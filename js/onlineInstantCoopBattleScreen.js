@@ -35,6 +35,7 @@ import {
 } from "./onlineBattle.js";
 import { promptReturnToLobby } from "./onlineBattleLobbyReturnPrompt.js";
 import { promptLeaveMatch } from "./onlineBattleLeaveMatchPrompt.js";
+import { promptResultLeaveRoom } from "./onlineBattleResultLeavePrompt.js";
 import { promptAnswerConfirm } from "./answerConfirmPrompt.js";
 import { validateRoomSettings } from "./battleModes/index.js";
 import * as instantCoopBattleMode from "./battleModes/instantCoopBattleMode.js";
@@ -242,12 +243,15 @@ export function initOnlineInstantCoopBattleScreens(newElements) {
   // 【2026-09-07新設・本人指示：ルームから退出＝完全離脱】js/onlineBattleScreen.jsの
   // 同じボタンと同じ考え方。実処理はonLeaveRoomCompletely()経由で
   // leaveOnlineBattleRoomCompletely()（あちらに集約）を呼ぶ。
-  elements.resultLeaveButton?.addEventListener("click", async () => {
-    stopAllLocalTimers();
-    elements.resultLeaveButton.disabled = true;
-    await elements.onLeaveRoomCompletely();
-    elements.resultLeaveButton.disabled = false;
-    elements.navigateTo("start");
+  // 【2026-09-15改訂・本人指示：ゲスト側の退出操作にも必ず確認ダイアログ】
+  elements.resultLeaveButton?.addEventListener("click", () => {
+    promptResultLeaveRoom(async () => {
+      stopAllLocalTimers();
+      elements.resultLeaveButton.disabled = true;
+      await elements.onLeaveRoomCompletely();
+      elements.resultLeaveButton.disabled = false;
+      elements.navigateTo("start");
+    });
   });
   // 【2026-09-05改訂、本人指示】試合後の選択肢を「もう一度」「ルーム設定に戻る」の
   // 2つ（ホスト専用）へ統一。「もう一度」は確認モーダルを挟まず即座に実行する

@@ -177,6 +177,12 @@ export function createResult({ correctCount, missCount, totalElapsedMs, totalRep
   };
 }
 
+// 【2026-09-15時点：この関数は独立進行モデル（対戦ごとに各自がresults/{uid}を書く旧設計）
+// 時代の名残で、js/battleModes/index.jsのcomputeFinisherRanks()経由のテストからのみ
+// 参照されている。実際に対戦中の画面が使う一瞬バトルの同期方式は
+// js/onlineInstantBattleScreen.js・js/instantBattleMatchProgress.jsのcomputeFinalResults()
+// （同じ判定基準：①正解数→②正解した問題だけの再視聴合計）を直接使っており、この関数を
+// 経由しない。既存テストとの整合を保つため、意味の変わっていない範囲でそのまま残している。】
 // 順位判定（本人指示）：①正解数が多い順、②合計再視聴回数が少ない順。回答タイムは使わない。
 export function compareResults(resultA, resultB) {
   const a = resultA.common;
@@ -185,6 +191,11 @@ export function compareResults(resultA, resultB) {
   return (a.replayCount ?? 0) - (b.replayCount ?? 0);
 }
 
+// 【2026-09-15改訂・本人指示：一瞬バトルの同期方式への全面書き換え】この文言は、対戦開始前の
+// ルール確認画面（js/onlineBattleScreen.js）と、js/onlineInstantBattleScreen.jsの結果画面
+// （resultRuleNote）の両方から呼ばれる。実際の順位判定はcompareResults()ではなく
+// js/instantBattleMatchProgress.jsのcomputeFinalResults()が行うが、判定基準は同じ
+// （①正解数→②正解した問題だけの再視聴合計→③同着）なので、ここでは基準の説明だけに徹する。
 export function getRuleDescription() {
-  return "正解数が多い人が上位。同数の場合は「もう一度聞く」の合計回数が少ない人が上位です";
+  return "正解数が多い人が上位。同数の場合は、正解した問題でだけ使った「もう一度聞く」の合計回数が少ない人が上位です（不正解・わからないの問題での再視聴回数は順位に影響しません）。それでも並んだ場合は同着（同じ順位）になります";
 }

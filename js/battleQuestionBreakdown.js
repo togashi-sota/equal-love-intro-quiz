@@ -116,6 +116,46 @@ export function buildInstantCoopQuestionBreakdown({ questions, coopVotes, coopQu
   return breakdown;
 }
 
+// 一瞬バトル：一瞬協力と同じ理由（音源再生失敗で無効になった問題は結果から除外する）だが、
+// チームで1つの回答ではなく各自が個別に回答するため、行（row）の正誤も参加者ごとに別々になる。
+//
+// questions: js/battleModes/instantBattleMode.jsのbuildQuestions()の戻り値
+// instantQuestionOutcomes: match.instantQuestionOutcomes
+//   （{questionIndex: {isVoid, perPlayerOutcome: {uid: {isCorrect, isUnknown, selectedSongId, replayCount}}}}）
+// participants: match.participants（{uid: {displayName}}）
+export function buildInstantBattleQuestionBreakdown({ questions, instantQuestionOutcomes, participants, myUid }) {
+  const breakdown = [];
+  (questions ?? []).forEach((question, questionIndex) => {
+    if (question.isReserve) return;
+    const outcome = instantQuestionOutcomes?.[questionIndex];
+    if (!outcome) return;
+    if (outcome.isVoid) return;
+
+    const rows = Object.keys(participants ?? {}).map((uid) => {
+      const playerOutcome = outcome.perPlayerOutcome?.[uid];
+      const selectedTitle = playerOutcome
+        ? playerOutcome.isUnknown
+          ? "わからない"
+          : songTitleById(playerOutcome.selectedSongId)
+        : null;
+      return {
+        uid,
+        name: participants[uid]?.displayName ?? "参加者",
+        isYou: uid === myUid,
+        selectedTitle,
+        isCorrect: playerOutcome ? playerOutcome.isCorrect : null,
+      };
+    });
+
+    breakdown.push({
+      questionNumber: breakdown.length + 1,
+      correctSongTitle: songTitleById(question.song.id),
+      rows,
+    });
+  });
+  return breakdown;
+}
+
 // 歌詞クイズ対戦：match.answers・match.questionClaimsは、音源再生失敗のような無効化の
 // 仕組みが無いため（このモードは音源を一切再生しない）、全問がそのまま結果に含まれる。
 // 各ルール（ノーマル／ハード／早押し）ごとの得点計算ロジックには一切触れず、

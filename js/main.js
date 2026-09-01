@@ -166,6 +166,7 @@ import { initOnlineInstantBattleScreens } from "./onlineInstantBattleScreen.js";
 import { initOnlineInstantCoopBattleScreens } from "./onlineInstantCoopBattleScreen.js";
 import { initReturnToLobbyPrompt } from "./onlineBattleLobbyReturnPrompt.js";
 import { initLeaveMatchPrompt } from "./onlineBattleLeaveMatchPrompt.js";
+import { initResultLeavePrompt } from "./onlineBattleResultLeavePrompt.js";
 import { initAnswerConfirmPrompt } from "./answerConfirmPrompt.js";
 import { initOnlineBattleSongPicker } from "./onlineBattleSongPicker.js";
 import { initOnlineBattlePlaylistPicker } from "./onlineBattlePlaylistPicker.js";
@@ -1058,6 +1059,11 @@ const onlineBattleReturnToLobbyConfirmButtonElement = document.getElementById("o
 const onlineBattleLeaveMatchModalElement = document.getElementById("online-battle-leave-match-confirm-modal");
 const onlineBattleLeaveMatchCancelButtonElement = document.getElementById("online-battle-leave-match-cancel-button");
 const onlineBattleLeaveMatchConfirmButtonElement = document.getElementById("online-battle-leave-match-confirm-button");
+// 【2026-09-15新設、本人指示：ゲスト側の退出操作にも必ず確認ダイアログ】結果画面の
+// 「ルームから退出」用の確認モーダル（js/onlineBattleResultLeavePrompt.js参照）。
+const onlineBattleResultLeaveModalElement = document.getElementById("online-battle-result-leave-confirm-modal");
+const onlineBattleResultLeaveCancelButtonElement = document.getElementById("online-battle-result-leave-cancel-button");
+const onlineBattleResultLeaveConfirmButtonElement = document.getElementById("online-battle-result-leave-confirm-button");
 // 【2026-09-06新設、本人指示：実機フィードバック②】回答確認モーダル。
 const answerConfirmModalElement = document.getElementById("answer-confirm-modal");
 const answerConfirmSongTitleElement = document.getElementById("answer-confirm-modal-song-title");
@@ -1086,18 +1092,37 @@ const onlineInstantBattleErrorElement = document.getElementById("online-instant-
 const onlineInstantBattleCountdownElement = document.getElementById("online-instant-battle-countdown");
 const onlineInstantBattleCountdownNumberElement = document.getElementById("online-instant-battle-countdown-number");
 const onlineInstantBattleReplayButtonElement = document.getElementById("online-instant-battle-replay-button");
+const onlineInstantBattleRankHintElement = document.getElementById("online-instant-battle-rank-hint");
+const onlineInstantBattleAnswerSectionElement = document.getElementById("online-instant-battle-answer-section");
 const onlineInstantBattleAnswerSearchRowElement = document.getElementById("online-instant-battle-answer-search-row");
 const onlineInstantBattleAnswerSearchInputElement = document.getElementById("online-instant-battle-answer-search-input");
 const onlineInstantBattleAnswerCountElement = document.getElementById("online-instant-battle-answer-count");
 const onlineInstantBattleAnswerJumpBarElement = document.getElementById("online-instant-battle-answer-jump-bar");
 const onlineInstantBattleAnswerListElement = document.getElementById("online-instant-battle-answer-list");
-const onlineInstantBattleAnswerRevealElement = document.getElementById("online-instant-battle-answer-reveal");
-const onlineInstantBattleAnswerRevealStatusElement = document.getElementById("online-instant-battle-answer-reveal-status");
-const onlineInstantBattleAnswerRevealTitleElement = document.getElementById("online-instant-battle-answer-reveal-title");
-const onlineInstantBattleAnswerRevealMyAnswerElement = document.getElementById("online-instant-battle-answer-reveal-my-answer");
+const onlineInstantBattleUnknownButtonElement = document.getElementById("online-instant-battle-unknown-button");
+const onlineInstantBattleIdleNoticeElement = document.getElementById("online-instant-battle-idle-notice");
+const onlineInstantBattleWaitingSectionElement = document.getElementById("online-instant-battle-waiting-section");
+const onlineInstantBattleAnswerStatusListElement = document.getElementById("online-instant-battle-answer-status-list");
+const onlineInstantBattleRevealSectionElement = document.getElementById("online-instant-battle-reveal-section");
+const onlineInstantBattleRevealOutcomeBadgeElement = document.getElementById("online-instant-battle-reveal-outcome-badge");
+const onlineInstantBattleRevealCorrectSongElement = document.getElementById("online-instant-battle-reveal-correct-song");
+const onlineInstantBattleRevealAudioFailureNoticeElement = document.getElementById("online-instant-battle-reveal-audio-failure-notice");
+const onlineInstantBattleRevealPlayerListElement = document.getElementById("online-instant-battle-reveal-player-list");
 const onlineInstantBattleQuitConfirmModalElement = document.getElementById("online-instant-battle-quit-confirm-modal");
 const onlineInstantBattleQuitCancelButtonElement = document.getElementById("online-instant-battle-quit-cancel-button");
 const onlineInstantBattleQuitConfirmButtonElement = document.getElementById("online-instant-battle-quit-confirm-button");
+const onlineInstantBattleResultHomeLinkElement = document.getElementById("online-instant-battle-result-home-link");
+const onlineInstantBattleResultAudioFailureNoticeElement = document.getElementById("online-instant-battle-result-audio-failure-notice");
+const onlineInstantBattleResultNormalElement = document.getElementById("online-instant-battle-result-normal");
+const onlineInstantBattleResultListElement = document.getElementById("online-instant-battle-result-list");
+const onlineInstantBattleResultRuleNoteElement = document.getElementById("online-instant-battle-result-rule-note");
+const onlineInstantBattleResultQuestionBreakdownSectionElement = document.getElementById("online-instant-battle-result-question-breakdown-section");
+const onlineInstantBattleResultQuestionBreakdownElement = document.getElementById("online-instant-battle-result-question-breakdown");
+const onlineInstantBattleResultHostActionsElement = document.getElementById("online-instant-battle-result-host-actions");
+const onlineInstantBattleResultGuestActionsElement = document.getElementById("online-instant-battle-result-guest-actions");
+const onlineInstantBattleResultLeaveButtonElement = document.getElementById("online-instant-battle-result-leave-button");
+const onlineInstantBattleResultRematchButtonElement = document.getElementById("online-instant-battle-result-rematch-button");
+const onlineInstantBattleResultBackToLobbyButtonElement = document.getElementById("online-instant-battle-result-back-to-lobby-button");
 
 // オンライン対戦：一瞬協力専用（2026-08-31新設、本人指示：19-3章）。
 const onlineInstantCoopLobbySettingsHostElement = document.getElementById("online-battle-lobby-settings-host-coop");
@@ -3957,6 +3982,8 @@ outroQuizSetupBackButtonElement.addEventListener("click", () => {
 });
 
 outroQuizStartButtonElement.addEventListener("click", () => {
+  // 【2026-09-15追加・本人指示：アプリ起動後最初の第1問だけ無音になるバグ対策】
+  attemptSilentUnlock();
   playSfx(SFX_EVENTS.GAME_START);
   const questionCountValue = document.querySelector('input[name="outro-quiz-question-count"]:checked').value;
   const categoryFilterValue = document.querySelector('input[name="outro-quiz-category-filter"]:checked').value;
@@ -4051,11 +4078,18 @@ instantChallengeResultHomeLinkElement.addEventListener("click", () => {
   navigateWithScrollMemory("start");
 });
 
+// 【2026-09-15修正・実機回帰バグ：前問／前試合の答え合わせが一瞬表示される】以前は
+// showScreen("instantChallengeQuestion")を先に呼んでいたため、まだ前回の周回の
+// answerReveal（答え合わせカード）が表示されたままの問題画面が一瞬見えてから、
+// retryInstantChallengeRun()（内部でIndexedDB読み込み等の非同期処理を挟む）が
+// 完了して初めて状態がリセットされていた。retryInstantChallengeRun()→buildAndStartRun()
+// は、内部の最後でelements.onStart()（初期化時に登録した、状態リセット後に
+// showScreen＋startInstantChallengePlay()を呼ぶコールバック）を自分で呼び出すため、
+// ここで重複してshowScreen/startInstantChallengePlay()を呼ぶ必要も無い
+// （画面遷移は必ず状態リセットの"後"にだけ起きるようにする）。
 instantChallengeResultRetryButtonElement.addEventListener("click", async () => {
   playClickSound();
-  showScreen("instantChallengeQuestion");
   await retryInstantChallengeRun();
-  startInstantChallengePlay();
 });
 
 instantChallengeResultSetupButtonElement.addEventListener("click", () => {
@@ -4073,6 +4107,8 @@ instantChallengeResultSetupButtonElement.addEventListener("click", () => {
 
 // スタートボタンを押したときの処理。今選ばれている出題数・カテゴリを読み取って開始する。
 document.getElementById("start-button").addEventListener("click", () => {
+  // 【2026-09-15追加・本人指示：アプリ起動後最初の第1問だけ無音になるバグ対策】
+  attemptSilentUnlock();
   // 「専用イベントがあるボタンでは、汎用クリック音と二重に鳴らさない」方針により、
   // ここではplayClickSound()ではなくgameStartだけを鳴らす（2026-08-10）。
   playSfx(SFX_EVENTS.GAME_START);
@@ -5429,6 +5465,12 @@ initLeaveMatchPrompt({
   cancelButton: onlineBattleLeaveMatchCancelButtonElement,
   confirmButton: onlineBattleLeaveMatchConfirmButtonElement,
 });
+// 【2026-09-15新設、本人指示：ゲスト側の退出操作にも必ず確認ダイアログ】
+initResultLeavePrompt({
+  modal: onlineBattleResultLeaveModalElement,
+  cancelButton: onlineBattleResultLeaveCancelButtonElement,
+  confirmButton: onlineBattleResultLeaveConfirmButtonElement,
+});
 
 // 【2026-09-06新設、本人指示：実機フィードバック②】回答速度が勝敗に直接関係しない
 // モード（一瞬チャレンジ・一瞬バトル・一瞬協力・歌詞クイズ「正解数バトル」
@@ -5676,19 +5718,37 @@ initOnlineInstantBattleScreens({
   countdown: onlineInstantBattleCountdownElement,
   countdownNumber: onlineInstantBattleCountdownNumberElement,
   replayButton: onlineInstantBattleReplayButtonElement,
+  rankHint: onlineInstantBattleRankHintElement,
+  answerSection: onlineInstantBattleAnswerSectionElement,
   answerSearchRow: onlineInstantBattleAnswerSearchRowElement,
   answerSearchInput: onlineInstantBattleAnswerSearchInputElement,
   answerCount: onlineInstantBattleAnswerCountElement,
   answerJumpBar: onlineInstantBattleAnswerJumpBarElement,
   answerList: onlineInstantBattleAnswerListElement,
-  answerReveal: onlineInstantBattleAnswerRevealElement,
-  answerRevealStatus: onlineInstantBattleAnswerRevealStatusElement,
-  answerRevealTitle: onlineInstantBattleAnswerRevealTitleElement,
-  answerRevealMyAnswer: onlineInstantBattleAnswerRevealMyAnswerElement,
+  unknownButton: onlineInstantBattleUnknownButtonElement,
+  idleNotice: onlineInstantBattleIdleNoticeElement,
+  waitingSection: onlineInstantBattleWaitingSectionElement,
+  answerStatusList: onlineInstantBattleAnswerStatusListElement,
+  revealSection: onlineInstantBattleRevealSectionElement,
+  revealOutcomeBadge: onlineInstantBattleRevealOutcomeBadgeElement,
+  revealCorrectSong: onlineInstantBattleRevealCorrectSongElement,
+  revealAudioFailureNotice: onlineInstantBattleRevealAudioFailureNoticeElement,
+  revealPlayerList: onlineInstantBattleRevealPlayerListElement,
+  resultHomeLink: onlineInstantBattleResultHomeLinkElement,
+  resultHostActions: onlineInstantBattleResultHostActionsElement,
+  resultGuestActions: onlineInstantBattleResultGuestActionsElement,
+  resultLeaveButton: onlineInstantBattleResultLeaveButtonElement,
+  resultAudioFailureNotice: onlineInstantBattleResultAudioFailureNoticeElement,
+  resultNormalContainer: onlineInstantBattleResultNormalElement,
+  resultList: onlineInstantBattleResultListElement,
+  resultRuleNote: onlineInstantBattleResultRuleNoteElement,
+  resultQuestionBreakdownSection: onlineInstantBattleResultQuestionBreakdownSectionElement,
+  resultQuestionBreakdown: onlineInstantBattleResultQuestionBreakdownElement,
+  resultRematchButton: onlineInstantBattleResultRematchButtonElement,
+  resultBackToLobbyButton: onlineInstantBattleResultBackToLobbyButtonElement,
   onQuitDuringBattle: () => quitOnlineBattleDuringQuiz(),
-  onFinishMatch: (result, answeredCount) => finishOnlineBattleMatch(result, answeredCount),
-  onReportProgress: (answeredCount) => reportOnlineBattleProgress(answeredCount),
-  onAudioFailureAbort: (message) => showOnlineBattleAudioFailureAbort(message),
+  onLeaveResultToHome: () => leaveOnlineBattleRoomView(),
+  onLeaveRoomCompletely: () => leaveOnlineBattleRoomCompletely(),
 });
 
 // オンライン対戦「一瞬協力」専用画面（2026-08-31新設、本人指示：19-3章）。歌詞クイズと同じ

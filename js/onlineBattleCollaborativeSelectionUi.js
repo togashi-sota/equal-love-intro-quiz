@@ -87,3 +87,14 @@ export function wireCollaborativeSelectionDetailsToggle(toggleButtonElement, pan
     if (!isOpen) renderFn();
   });
 }
+
+// 【2026-09-15新設・本人指示：共有曲選択UIをモード切替で安定させる】このセクション自体が
+// hidden（今のモードでは使われていない）になる瞬間に呼ぶ。開閉パネルが開いたままの
+// 状態を次にまた開いたときまで引きずらないよう、閉じた状態へ強制的に戻す
+// （Firebaseへは一切触れない、見た目だけのリセット）。
+export function resetCollaborativeSelectionDetailsPanel(toggleButtonElement, panelElement) {
+  if (!toggleButtonElement || !panelElement) return;
+  panelElement.hidden = true;
+  toggleButtonElement.setAttribute("aria-expanded", "false");
+  toggleButtonElement.textContent = "選択曲を見る ▾";
+}

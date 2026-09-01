@@ -130,6 +130,8 @@ function getSelectedSettings() {
 }
 
 async function handleStartButtonClick() {
+  // 【2026-09-15追加・本人指示：アプリ起動後最初の第1問だけ無音になるバグ対策】
+  attemptSilentUnlock();
   const settings = getSelectedSettings();
   practiceModeId = null;
   currentExplicitSongIds = null;

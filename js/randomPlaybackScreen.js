@@ -22,6 +22,7 @@ import {
 } from "./randomPlaybackScore.js";
 import { evaluateAndSaveAchievements } from "./achievementProgress.js";
 import { renderAchievementUnlockEvents } from "./achievementDisplay.js";
+import { attemptSilentUnlock } from "./audio.js";
 import { getAchievementById } from "./achievementDefinitions.js";
 import { savePlayHistoryEntry } from "./playHistory.js";
 import { formatResponseSeconds } from "./responseTime.js";
@@ -36,6 +37,8 @@ let resultElements = null;
 export function initRandomPlaybackScreen(newElements) {
   elements = newElements;
   elements.startButton.addEventListener("click", () => {
+    // 【2026-09-15追加・本人指示：アプリ起動後最初の第1問だけ無音になるバグ対策】
+    attemptSilentUnlock();
     const questionCountValue = document.querySelector('input[name="random-playback-question-count"]:checked').value;
     const categoryFilterValue = document.querySelector('input[name="random-playback-category-filter"]:checked').value;
     const rule = document.querySelector('input[name="random-playback-rule"]:checked').value;

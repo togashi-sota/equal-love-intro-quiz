@@ -12339,8 +12339,10 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 .online-battle-collab-breakdown-songs {
   margin: 0;
   font-size: 0.76rem;
-  color: var(--color-text);
-  opacity: 0.85;
+  /* 2026-09-15改訂・本人指示：UI恒久ルール（黒一色に見せない）。中立色ではなく
+     ブランドピンクへわずかに寄せた色にし、可読性を保つためopacityで少し弱める。 */
+  color: var(--color-primary-dark);
+  opacity: 0.8;
   line-height: 1.5;
 }
 
@@ -14476,6 +14478,127 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   min-height: 36px;
   padding: 6px 14px;
   font-size: 0.76rem;
+}
+
+/* 【2026-09-15新設・本人指示：一瞬バトルの同期方式への全面書き換え】もう一度聞くボタンの
+   近くに常に見せる、順位ルールの要点だけの短い文。ピンク寄りの控えめな色にし、目立たせ
+   すぎない（本人指示の恒久ルール：本文・補足テキストは黒ではなくブランドカラー寄りに）。 */
+.online-instant-battle-rank-hint {
+  margin: 4px 0 0;
+  font-size: 0.72rem;
+  color: var(--color-primary-dark);
+  opacity: 0.85;
+  text-align: center;
+}
+
+.online-instant-battle-rank-hint[hidden] {
+  display: none;
+}
+
+/* 【本人指示12・13：回答内容は秘密のまま、状態だけを見せる】ルーム参加順で
+   「回答済み／未回答」のバッジだけを並べる一覧。.online-lobby-player-rowと同じ質感に揃える。 */
+.online-instant-battle-answer-status-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.online-instant-battle-answer-status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--color-surface-glass);
+  border: 1px solid var(--color-card-border);
+}
+
+.online-instant-battle-answer-status-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.online-instant-battle-answer-status-badge {
+  flex: none;
+  font-size: 0.68rem;
+  font-weight: 800;
+  padding: 3px 10px;
+  border-radius: 999px;
+  color: var(--color-text);
+  opacity: 0.6;
+  background: var(--color-surface);
+  border: 1px solid var(--color-card-border);
+}
+
+.online-instant-battle-answer-status-badge.is-answered {
+  opacity: 1;
+  color: var(--color-primary-dark);
+  background: var(--color-accent-soft);
+  border-color: var(--color-primary);
+}
+
+/* 【本人指示11・18：5秒間の答え合わせ画面】参加者ごとに、回答・正誤・その問題で使った
+   再視聴回数・通算成績を375px幅でも1行に収まる簡潔な形で見せる。 */
+.online-instant-battle-reveal-player-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+}
+
+.online-instant-battle-reveal-player-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--color-surface-glass);
+  border: 1px solid var(--color-card-border);
+}
+
+.online-instant-battle-reveal-player-row.is-correct {
+  border-color: var(--color-primary);
+  background: var(--color-accent-soft);
+}
+
+.online-instant-battle-reveal-player-name {
+  flex: none;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  min-width: 5.5em;
+}
+
+.online-instant-battle-reveal-player-answer {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.online-instant-battle-reveal-player-meta {
+  flex: none;
+  width: 100%;
+  font-size: 0.66rem;
+  color: var(--color-primary-dark);
+  opacity: 0.75;
 }
 
 .online-lyrics-battle-status-message {

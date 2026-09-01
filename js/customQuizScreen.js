@@ -13,6 +13,7 @@ import { SONGS } from "./data/songs.js";
 import { buildSongGroups, CATEGORY_PILL_INFO, normalizeForSearch, songMatchesSearch } from "./songlist.js";
 import { hasAudioSource } from "./data/audioMetadata.js";
 import { MIN_SONGS_REQUIRED } from "./quiz.js";
+import { attemptSilentUnlock } from "./audio.js";
 import {
   PREVIEW_SEEK_SKIP_SECONDS,
   initAudioPreview,
@@ -448,6 +449,8 @@ function updateQuizTypeFieldsetVisibility() {
 // 【2026-08-29改訂】歌詞クイズタイプはanswerPoolSizeValueを、それ以外はdistractorModeを
 // 第2引数として渡す（main.js側がgetCustomQuizType()を見てどちらの意味か判断する）。
 function handleStart() {
+  // 【2026-09-15追加・本人指示：アプリ起動後最初の第1問だけ無音になるバグ対策】
+  attemptSilentUnlock();
   stopPreviewAndResetUI();
   lastStartedSongIds = [...selectedSongIds];
   if (currentQuizType === CUSTOM_QUIZ_TYPE.LYRICS_QUIZ) {

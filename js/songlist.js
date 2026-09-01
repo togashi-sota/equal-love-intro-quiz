@@ -108,6 +108,25 @@ export function deriveGojuonRowKey(text) {
   return GOJUON_ROWS.find((row) => row.chars.includes(firstChar))?.key ?? null;
 }
 
+// 【2026-09-15新設・本人指示：50音ジャンプ後は表示順も五十音順にする】日本語の
+// 五十音順に文字列を比較できるCollator（Intl.Collator、"ja"ロケール）を使い回す。
+// 生成コストがあるため、呼び出しのたびに new せず1つだけ保持する。
+const gojuonCollator = new Intl.Collator("ja");
+
+// 曲データ（{ searchReading?, title }を持つオブジェクト）の配列を、読み仮名
+// （無ければ曲名）を基準にした自然な五十音順へ並び替えた「新しい配列」を返す
+// （元の配列は書き換えない）。通常表示（既存のランダム順・シャッフル順）には使わず、
+// 「50音ジャンプで絞り込んだグループの中だけ見やすくする」用途に限定する
+// （本人指示：正解位置のランダム性は出題プール全体の並びで担保されており、
+// グループ内の表示順を並び替えても公平性には影響しない）。
+export function sortSongsByReading(songs) {
+  return [...songs].sort((a, b) => {
+    const readingA = normalizeForSearch(a.searchReading ?? a.title);
+    const readingB = normalizeForSearch(b.searchReading ?? b.title);
+    return gojuonCollator.compare(readingA, readingB);
+  });
+}
+
 const previewAudioElement = document.getElementById("preview-audio");
 const groupsContainerElement = document.getElementById("songlist-groups");
 const totalCountElement = document.getElementById("songlist-total-count");

@@ -31,6 +31,7 @@ import { getAchievementById } from "./achievementDefinitions.js";
 import { calculateAverageResponseMs, formatResponseSeconds } from "./responseTime.js";
 import { describeSpeedProgressForPlay, buildSpeedProgressResultBlock } from "./speedAchievementProgress.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
+import { attemptSilentUnlock } from "./audio.js";
 
 // ルール（3種類）。
 // normal    ：間違えた選択肢だけ消える消去法。正解したら即次へ。ミス数を記録する。
@@ -62,6 +63,13 @@ let resultElements = null;
 export function initTimeAttackScreen(newElements) {
   elements = newElements;
   elements.startButton.addEventListener("click", () => {
+    // 【2026-09-15追加・本人指示：アプリ起動後最初の第1問だけ無音になるバグ対策】
+    // オンライン対戦では既に「開始する」系ボタンの先頭でattemptSilentUnlock()を
+    // 呼んでいたが、オフライン各モードの「開始する」ボタンにはこの対策が無く、起動後
+    // 最初のクイズ開始（インタラクションからplay()までの間にIndexedDB読み込み等の
+    // 非同期処理が複数回挟まる）でunlockが間に合わない可能性があった。本物のユーザー
+    // ジェスチャー（クリック）の呼び出しスタック内で同期的に実行する。
+    attemptSilentUnlock();
     const questionCountValue = document.querySelector('input[name="time-attack-question-count"]:checked').value;
     const categoryFilterValue = document.querySelector('input[name="time-attack-category-filter"]:checked').value;
     const rule = document.querySelector('input[name="time-attack-rule"]:checked').value;

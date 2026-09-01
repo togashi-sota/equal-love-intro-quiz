@@ -28,6 +28,7 @@ import { getShuffleWeakSongStats } from "./shuffleWeakSongStats.js";
 import { computeLyricsQuizWeakSongs } from "./lyricsQuizWeakSongStats.js";
 import { computeInstantChallengeWeakSongs } from "./instantChallengeWeakSongStats.js";
 import { resolveQuestionCount } from "./quiz.js";
+import { attemptSilentUnlock } from "./audio.js";
 
 // この画面が使うDOM要素一式。initWeakSongsScreen()で受け取って保持する。
 let elements = null;
@@ -222,6 +223,10 @@ export function resolveShuffleWeakSongIds(questionCountValue) {
 // 今表示している対象曲から実際に出題する曲IDを決め、モードに応じたコールバックに渡す
 // （実際にクイズを組み立てて開始する処理はmain.js側のエンジンが担当する）。
 function handleStart() {
+  // 【2026-09-15追加・本人指示：アプリ起動後最初の第1問だけ無音になるバグ対策】
+  // 歌詞（lyrics）タブはヒント表示だけで音源を再生しないため無害だが、他タブ
+  // （intro/outro/shuffle/instant）はすべて実際に曲を再生するため一律で呼んでおく。
+  attemptSilentUnlock();
   const questionCountValue = getSelectedQuestionCountValue();
   const actualCount = resolveQuestionCount(questionCountValue, currentWeakSongs.length);
   const songIds = currentWeakSongs.slice(0, actualCount).map((song) => song.id);

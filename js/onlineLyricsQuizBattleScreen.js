@@ -38,6 +38,7 @@ import {
 } from "./onlineBattle.js";
 import { promptReturnToLobby } from "./onlineBattleLobbyReturnPrompt.js";
 import { promptLeaveMatch } from "./onlineBattleLeaveMatchPrompt.js";
+import { promptResultLeaveRoom } from "./onlineBattleResultLeavePrompt.js";
 import { promptAnswerConfirm } from "./answerConfirmPrompt.js";
 import { validateRoomSettings, getAvailabilityKind, resolveAllEligibleSongIdsForMode } from "./battleModes/index.js";
 import * as lyricsQuizBattleMode from "./battleModes/lyricsQuizBattleMode.js";
@@ -96,7 +97,7 @@ import { computeElapsedMs, computeStealHintProgress } from "./lyricsQuizBattleTi
 // 【2026-08-31新設、本人指示：歌詞クイズ3ルール全面改修】30・50・全曲プールの検索は、
 // 既存の「収録曲一覧」検索と完全に同じ判定にする（本人指示：新しい簡易検索を別に作らない）。
 // 50音ジャンプバーの行分けも、この共有ファイルの定義をそのまま使う。
-import { normalizeForSearch, songMatchesSearch, GOJUON_ROWS, deriveGojuonRowKey } from "./songlist.js";
+import { normalizeForSearch, songMatchesSearch, GOJUON_ROWS, deriveGojuonRowKey, sortSongsByReading } from "./songlist.js";
 import { LARGE_ANSWER_POOL_THRESHOLD } from "./lyricsQuizEngine.js";
 // 【2026-08-08新設】出題する曲をホストが選べる機能。他の対戦モード（js/onlineBattleScreen.js）と
 // 同じ曲選択画面を共有する（gameModeごとに別々の選曲UIを持たない、本人指示）。
@@ -126,7 +127,7 @@ import { buildLyricsQuizQuestionBreakdown, capQuestionBreakdownForStorage } from
 import { renderQuestionBreakdownAccordion } from "./battleQuestionBreakdownUi.js";
 import { SONGS } from "./data/songs.js";
 import { MEMBERS } from "./data/members.js";
-import { renderCollaborativeSelectionBreakdown, wireCollaborativeSelectionDetailsToggle } from "./onlineBattleCollaborativeSelectionUi.js";
+import { renderCollaborativeSelectionBreakdown, wireCollaborativeSelectionDetailsToggle, resetCollaborativeSelectionDetailsPanel } from "./onlineBattleCollaborativeSelectionUi.js";
 import { getMemberById } from "./memberUtils.js";
 import { QUESTION_COUNT_LABELS } from "./localBattleScreen.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
@@ -354,12 +355,15 @@ export function initOnlineLyricsQuizBattleScreens(newElements) {
   // 【2026-09-07新設・本人指示：ルームから退出＝完全離脱】js/onlineBattleScreen.jsの
   // 同じボタンと同じ考え方。実処理はonLeaveRoomCompletely()経由で
   // leaveOnlineBattleRoomCompletely()（あちらに集約）を呼ぶ。
-  elements.resultLeaveButton?.addEventListener("click", async () => {
-    stopAllLocalTimers();
-    elements.resultLeaveButton.disabled = true;
-    await elements.onLeaveRoomCompletely();
-    elements.resultLeaveButton.disabled = false;
-    elements.navigateTo("start");
+  // 【2026-09-15改訂・本人指示：ゲスト側の退出操作にも必ず確認ダイアログ】
+  elements.resultLeaveButton?.addEventListener("click", () => {
+    promptResultLeaveRoom(async () => {
+      stopAllLocalTimers();
+      elements.resultLeaveButton.disabled = true;
+      await elements.onLeaveRoomCompletely();
+      elements.resultLeaveButton.disabled = false;
+      elements.navigateTo("start");
+    });
   });
   // 【2026-09-05改訂、本人指示】試合後の選択肢を「もう一度」「ルーム設定に戻る」の
   // 2つ（ホスト専用）へ統一。「もう一度」は確認モーダルを挟まず即座に実行する
@@ -427,6 +431,16 @@ export function resetLyricsQuizBattleState() {
 // setIntervalだけに依存しない多重の安全網にする（本人が就寝中の自律作業のため、確実性を優先）。
 export function handleLyricsQuizRoomUpdate(room) {
   latestRoom = room;
+  // 【2026-09-15追加・本人指示：前試合の答え合わせが次試合の開始演出に一瞬表示される
+  // バグの調査で発見】「もう一度」で新しい試合(room.activeMatchId)が始まると、
+  // finishCountdown()がFirebase上のstatusを先に"playing"へ書き換えるが、この端末の
+  // ローカルなcurrentMatchId・hostStateは、goToCountdownScreen()側のsetTimeout待ちが
+  // 終わってenterLyricsQuizBattlePlay()が呼ばれるまで、まだ前の試合の値のまま残る
+  // （このタイムラグの間もFirebaseのroom更新イベントはこの関数を呼び続ける）。
+  // room.activeMatchIdとcurrentMatchIdが一致しない間は、前試合のmatches/{currentMatchId}
+  // （最終問題がresolvedのままの古いデータ）に対して進行判定・Firebase書き込みを
+  // 行ってしまわないよう、ここで確実に素通りさせる。
+  if (currentMatchId && room.activeMatchId !== currentMatchId) return;
   if (getCurrentUid() === room.host && room.status === ROOM_STATUS.PLAYING) {
     // 【2026-09-12追加・本人指示9「ホスト切断・引き継ぎも最終確認」で発見し修正】
     // js/onlineInstantCoopBattleScreen.jsのhandleInstantCoopRoomUpdate()と全く同じ理由の
@@ -518,11 +532,26 @@ function resolveSongTitleForLyricsCollabUi(songId) {
   return SONGS.find((song) => song.id === songId)?.title ?? songId;
 }
 
+// 【2026-09-15新設・本人指示：共有曲選択UIをモード変更しても壊れないように】
+// renderLyricsQuizLobbySettings()（延いてはupdateLyricsCollabSongSectionUi()）は
+// gameModeが歌詞クイズのときしか呼ばれないため、「歌詞クイズ→他モード」への切り替え時に
+// このセクションを隠す機会が無かった（実機報告の根本原因）。js/onlineBattleScreen.jsの
+// renderLobby()から、gameModeを問わず毎回呼んでもらう専用の強制非表示関数。
+// 「選択曲を見る」パネルの開閉状態も、次に表示されたときに開いたままにならないよう
+// あわせてリセットする。
+export function forceHideLyricsCollabSongSection() {
+  if (elements?.lyricsCollabSongSection) elements.lyricsCollabSongSection.hidden = true;
+  resetCollaborativeSelectionDetailsPanel(elements?.lyricsCollabDetailsToggle, elements?.lyricsCollabDetailsPanel);
+}
+
 // 【2026-08-27新設】共同選曲セクション（ホスト・参加者共通）の表示を更新する。
 function updateLyricsCollabSongSectionUi(room) {
   const isCollaborative = room.settings?.questionSource?.type === QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION;
   elements.lyricsCollabSongSection.hidden = !isCollaborative;
-  if (!isCollaborative) return;
+  if (!isCollaborative) {
+    resetCollaborativeSelectionDetailsPanel(elements.lyricsCollabDetailsToggle, elements.lyricsCollabDetailsPanel);
+    return;
+  }
 
   const merged = computeMergedSelectedSongIds(room.players || {});
   const restrictedCount = merged.filter((songId) => currentLyricsCommonSongPool.has(songId)).length;
@@ -963,6 +992,12 @@ function runTick() {
 // （UIをこれ以上壊さないよう、ユーザー向けの表示は変えず開発者向けの可視化のみ行う）。
 async function runHostProgressionTick() {
   if (!currentMatchId || !latestRoom || hostTickInFlight) return;
+  // 【2026-09-15追加】runTick()はsetIntervalで独立に動いており、
+  // handleLyricsQuizRoomUpdate()側のガードを経由しないため、ここでも同じ
+  // 「currentMatchIdが今のroom.activeMatchIdと一致しているか」を確認する。
+  // 一致していなければ、前試合のmatches/{currentMatchId}に対する進行処理
+  // （最悪の場合はadvanceToNextQuestion()等の書き込み）を止める。
+  if (latestRoom.activeMatchId !== currentMatchId) return;
   const match = latestRoom.matches?.[currentMatchId];
   if (!match) return;
 
@@ -1343,7 +1378,9 @@ function filterAnswerPool(pool) {
     return pool.filter((song) => songMatchesSearch(song.title, song.searchReading, song.searchAliases, normalizedQuery));
   }
   if (myAnswerJumpRowKey && myAnswerJumpRowKey !== "all") {
-    return pool.filter((song) => deriveGojuonRowKey(song.searchReading ?? song.title) === myAnswerJumpRowKey);
+    // 【2026-09-15改訂・本人指示：50音ジャンプ後は表示順も五十音順にする】
+    // js/answerPoolBrowseUi.jsのfilterAnswerPool()と同じ改訂。
+    return sortSongsByReading(pool.filter((song) => deriveGojuonRowKey(song.searchReading ?? song.title) === myAnswerJumpRowKey));
   }
   return pool;
 }
@@ -1488,6 +1525,15 @@ function hideAnswerSubmissionNotice() {
 async function handleAnswerChoiceClick(selectedSongId) {
   const match = latestRoom?.matches?.[currentMatchId];
   const qIndex = match?.currentQuestionIndex;
+  // 【2026-09-15追加・本人指示：前問／前試合の表示が一瞬混ざるバグの調査で発見】
+  // このあとのawait（Firebaseへの回答送信）の間に、進行が次の問題へ進んだり
+  // 「もう一度」で次の試合が始まったりすると、送信結果が返ってきた時点では
+  // qIndex・currentMatchIdがもう「今表示している問題」ではなくなっている。
+  // その状態でelements.battleErrorに書き込むと、次の問題／試合の画面に
+  // 前問の送信結果メッセージが一瞬混ざって見えてしまう。送信開始時点の
+  // matchIdを覚えておき、結果が返ってきた時点で今の状態と食い違っていないかを
+  // 確認してから画面へ反映する。
+  const submittedMatchId = currentMatchId;
   const block = resolveAnswerSubmissionBlock({
     hasRoom: !!latestRoom,
     submitInFlight,
@@ -1538,16 +1584,22 @@ async function handleAnswerChoiceClick(selectedSongId) {
       });
 
   submitInFlight = false;
+  // 送信結果が返ってきた時点で、今表示している問題／試合と食い違っていないか確認する。
+  const isStaleQuestion =
+    submittedMatchId !== currentMatchId ||
+    latestRoom?.matches?.[currentMatchId]?.currentQuestionIndex !== qIndex;
   if (result.ok) {
     mySubmittedForQuestionIndex = qIndex;
     // 奪い取り成功音（2026-08-09新設）は、Firebase側でwinner claimの書き込みが実際に
     // 成功した（＝サーバー側で自分が勝者だと確定した）STEAL_CLAIM_OUTCOME.WONの
     // ときだけ鳴らす。ローカルで選択した直後や、通信結果を待っている段階では鳴らさない。
-    if (result.outcome === STEAL_CLAIM_OUTCOME.WON) {
+    // ただし、その通知が届く前に次の問題／試合へ進んでいた場合は、今の画面に
+    // 前問の効果音・メッセージを混ぜないよう鳴らさない・表示しない。
+    if (result.outcome === STEAL_CLAIM_OUTCOME.WON && !isStaleQuestion) {
       playSfx(SFX_EVENTS.STEAL_SUCCESS);
     }
     const outcomeMessage = describeStealClaimOutcomeMessage(result.outcome);
-    if (outcomeMessage) {
+    if (outcomeMessage && !isStaleQuestion) {
       // 【2026-09-08改訂・本人指示F：早押し成功表示の再デザイン】勝者確定時だけ、
       // 汎用の「お知らせ」グレー表示ではなく専用の華やかな見た目にする
       // （惜しくも負けた場合はこれまでどおり控えめなis-noticeのまま）。
@@ -1559,7 +1611,7 @@ async function handleAnswerChoiceClick(selectedSongId) {
     }
   } else if (result.reason === "already-answered") {
     mySubmittedForQuestionIndex = qIndex;
-  } else {
+  } else if (!isStaleQuestion) {
     const failureMessage = describeAnswerSubmissionFailureMessage(result.reason);
     elements.battleError.classList.toggle("is-notice", !!failureMessage);
     elements.battleError.textContent = failureMessage ?? "回答の送信に失敗しました。通信環境をご確認ください。";

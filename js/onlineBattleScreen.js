@@ -17,6 +17,7 @@
 import { getActivePlayer } from "./playerProfile.js";
 import { promptReturnToLobby } from "./onlineBattleLobbyReturnPrompt.js";
 import { promptLeaveMatch, hasVoluntarilyLeftMatch } from "./onlineBattleLeaveMatchPrompt.js";
+import { promptResultLeaveRoom } from "./onlineBattleResultLeavePrompt.js";
 import {
   createRoom,
   joinRoom,
@@ -73,7 +74,7 @@ import { renderQuestionBreakdownAccordion } from "./battleQuestionBreakdownUi.js
 import { computeNormalFinalRecordMs } from "./localBattleResult.js";
 import { MEMBERS } from "./data/members.js";
 import { SONGS } from "./data/songs.js";
-import { renderCollaborativeSelectionBreakdown, wireCollaborativeSelectionDetailsToggle } from "./onlineBattleCollaborativeSelectionUi.js";
+import { renderCollaborativeSelectionBreakdown, wireCollaborativeSelectionDetailsToggle, resetCollaborativeSelectionDetailsPanel } from "./onlineBattleCollaborativeSelectionUi.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
 import { getMemberById } from "./memberUtils.js";
 // 【2026-09-07新設・本人指示：ルーム参加者プロフィール】ロビー参加者の名前タップで
@@ -100,6 +101,7 @@ import {
   syncLyricsResultHostGuestButtons,
   handleLyricsQuizRoomUpdate,
   resetLyricsQuizBattleState,
+  forceHideLyricsCollabSongSection,
 } from "./onlineLyricsQuizBattleScreen.js";
 // 【2026-08-06新設・回帰防止】「対戦を開始する」時にどの設定を使うか決める判定ロジックは、
 // DOM・Firebaseに一切触れない別ファイルへ切り出し、恒久テストの対象にした
@@ -111,12 +113,16 @@ import {
   resolveStartSettingsForSubmit,
   resolveLastRoomRejoinOutcome,
 } from "./onlineBattleStartSettings.js";
-// 【2026-08-30新設、本人指示：19-3章「一瞬バトル」】歌詞クイズと同じ理由・同じ一方向依存で、
-// 一瞬バトルの対戦中画面（「もう一度聞く」がプレイヤーごとに独立、という既存の共有クイズ画面
-// には無い挙動）だけを専用ファイルへ委譲する。ただし進行モデル自体はタイムアタック等と同じ
-// 独立進行のため、待機画面・結果画面はこのファイルの既存の仕組み（finishOnlineBattleMatch・
-// reportOnlineBattleProgress）をそのまま使う。
-import { enterOnlineInstantBattlePlay, resetOnlineInstantBattleState, getTargetQuestionCount as getInstantBattleTargetQuestionCount } from "./onlineInstantBattleScreen.js";
+// 【2026-08-30新設→2026-09-15全面書き換え、本人指示：一瞬バトルの同期方式への変更】
+// 歌詞クイズ・一瞬協力と同じ理由・同じ一方向依存で、全員同期進行のこのモードを
+// 専用ファイルへ委譲する（待機画面・結果画面も専用、独立進行のタイムアタック等とは別）。
+import {
+  enterOnlineInstantBattlePlay,
+  enterInstantBattleResult,
+  syncInstantBattleResultHostGuestButtons,
+  handleInstantBattleRoomUpdate,
+  resetOnlineInstantBattleState,
+} from "./onlineInstantBattleScreen.js";
 // 【2026-08-31新設、本人指示：19-3章「一瞬協力」】歌詞クイズと全く同じ理由・同じ一方向依存で、
 // 全員同期進行のこのモードを専用ファイルへ委譲する（待機画面・結果画面も専用、一瞬バトルとは違う）。
 import {
@@ -879,7 +885,11 @@ function updateCollabSongSectionUi(room, isLyricsQuiz) {
   const isCollaborative =
     !isLyricsQuiz && room.settings?.questionSource?.type === QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION;
   elements.collabSongSection.hidden = !isCollaborative;
-  if (!isCollaborative) return;
+  if (!isCollaborative) {
+    // 【2026-09-15新設・本人指示：共有曲選択UIをモード変更しても壊れないように】
+    resetCollaborativeSelectionDetailsPanel(elements.collabDetailsToggle, elements.collabDetailsPanel);
+    return;
+  }
 
   const merged = computeMergedSelectedSongIds(room.players || {});
   const restrictedCount = merged.filter((songId) => currentCommonSongPool.has(songId)).length;
@@ -1090,19 +1100,12 @@ function enterOnlineBattlePlay(room) {
     enterLyricsQuizBattlePlay(room);
     return;
   }
-  // 【2026-08-30新設、本人指示：19-3章「一瞬バトル」】一瞬バトルは、進行モデル自体は
-  // このファイルの独立進行と同じだが、「もう一度聞く」の独立カウント等、既存の共有クイズ画面
-  // には無い挙動が必要なため専用画面へ委譲する（歌詞クイズと違い、progress/resultsは
-  // このファイルの既存の仕組み〈initializeMyMatchProgress等〉をそのまま使う）。
+  // 【2026-08-30新設→2026-09-15全面書き換え、本人指示：一瞬バトルの同期方式への変更】
+  // 一瞬バトルは、歌詞クイズ・一瞬協力と同じ「全員が同じ問題を同時に見る」ホスト主導の
+  // 同期進行になったため、これらと同じ理由でprogress/results（このファイルのcurrentMatchIdに
+  // 紐づく独立進行専用の仕組み）は一切使わない専用画面へ完全に委譲する。
   if (room.gameMode === INSTANT_BATTLE_GAME_MODE) {
-    currentMatchId = room.activeMatchId;
-    initializeMyMatchProgress({ roomId: room.roomId, matchId: currentMatchId });
     enterOnlineInstantBattlePlay(room);
-    // 【2026-09-09修正・本人指示：プレイ履歴の完成】このモードは自前のquestions配列
-    // （予備曲を含む）を持つため、実際の出題数をenterOnlineInstantBattlePlay()の直後に
-    // 取得する（このファイル自身のbuildQuestionsForMode()は呼ばないため、通常のパス
-    // 〈下記〉が行うcurrentMatchTotalQuestionsの更新をここで代わりに行う）。
-    currentMatchTotalQuestions = getInstantBattleTargetQuestionCount();
     return;
   }
   // 【2026-08-31新設、本人指示：19-3章「一瞬協力」】歌詞クイズと同じ理由で、progress/results
@@ -1486,6 +1489,13 @@ function renderLobby(room) {
   // 呼ばれず、それ自身に任せると「歌詞クイズ→別モード」の切り替え時に隠す機会が無いため）。
   elements.lobbySettingsHostLyrics.hidden = !isHost || !isLyricsQuiz;
   elements.lobbySettingsParticipantLyrics.hidden = isHost || !isLyricsQuiz;
+  // 【2026-09-15新設・本人指示：共有曲選択UIをモード変更しても壊れないように】
+  // updateLyricsCollabSongSectionUi()はrenderLyricsQuizLobbySettings()経由でしか
+  // 呼ばれず、それはisLyricsQuizのときしか呼ばれないため、「歌詞クイズ→他モード」への
+  // 切り替え時にこのセクションを隠す機会が無かった（上のlobbySettingsHostLyricsと
+  // 全く同じ理由・同じ対策パターン）。歌詞クイズ以外のときは、renderLobby()から毎回
+  // 無条件でこのセクションを強制的に隠す。
+  if (!isLyricsQuiz) forceHideLyricsCollabSongSection();
   elements.lobbyReadyButton.hidden = isHost;
   elements.lobbyStartButton.hidden = !isHost;
   elements.lobbyStartHint.hidden = !isHost;
@@ -1594,6 +1604,8 @@ function renderLobby(room) {
       // ここは主に「結果確定後に新しく再接続した」場合の受け皿になる）。
       if (isLyricsQuiz) {
         enterLyricsQuizResult(room);
+      } else if (isInstantBattle) {
+        enterInstantBattleResult(room);
       } else if (isInstantCoop) {
         enterInstantCoopResult(room);
       } else {
@@ -1615,6 +1627,8 @@ function renderLobby(room) {
   updateOnlineBattlePlayUi(room);
   if (isLyricsQuiz) {
     handleLyricsQuizRoomUpdate(room);
+  } else if (isInstantBattle) {
+    handleInstantBattleRoomUpdate(room);
   } else if (isInstantCoop) {
     handleInstantCoopRoomUpdate(room);
   }
@@ -1627,6 +1641,7 @@ function renderLobby(room) {
   // （3画面とも同じ考え方、重いDOM再構築・効果音の再生は行わない）。
   syncResultScreenHostGuestButtons(room);
   syncLyricsResultHostGuestButtons(room);
+  syncInstantBattleResultHostGuestButtons(room);
   syncInstantCoopResultHostGuestButtons(room);
 }
 
@@ -2684,12 +2699,17 @@ export function initOnlineBattleScreens(newElements) {
   // （isLeavingIntentionally→leaveRoom()完了を待つ→stopListeningToRoom()の順）にしている。
   // 実際の処理はleaveOnlineBattleRoomCompletely()に集約し、歌詞クイズ・一瞬協力の
   // 結果画面（onLeaveRoomCompletelyコールバック経由）とも共有する。
-  elements.resultLeaveButton?.addEventListener("click", async () => {
+  // 【2026-09-15改訂・本人指示：ゲスト側の退出操作にも必ず確認ダイアログ】以前は
+  // 確認なしで即座にルームから完全退出していた。誤タップで戻れない状態にならないよう、
+  // 共有の確認モーダル（js/onlineBattleResultLeavePrompt.js）を必ず挟む。
+  elements.resultLeaveButton?.addEventListener("click", () => {
     if (!currentRoomId) return;
-    elements.resultLeaveButton.disabled = true;
-    await leaveOnlineBattleRoomCompletely();
-    elements.resultLeaveButton.disabled = false;
-    elements.navigateTo("start");
+    promptResultLeaveRoom(async () => {
+      elements.resultLeaveButton.disabled = true;
+      await leaveOnlineBattleRoomCompletely();
+      elements.resultLeaveButton.disabled = false;
+      elements.navigateTo("start");
+    });
   });
 
   // 【2026-09-05改訂、本人指示】試合後の選択肢を「もう一度」「ルーム設定に戻る」の

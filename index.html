@@ -3226,31 +3226,6 @@
           <div class="battle-config-summary" id="online-battle-lobby-settings-summary"></div>
         </div>
 
-        <!-- 共同選曲（2026-08-27新設）：「曲を選んで出題」が選ばれている間だけ表示する、
-             ホスト・参加者どちらも同じように使える曲選択セクション。各自が自分の
-             お気に入り・プレイリスト・全曲一覧から曲を追加でき（js/onlineBattlePlaylistPicker.js・
-             js/onlineBattleSongPicker.jsを共用）、参加者全員の選択を合わせたものが実際の
-             出題対象になる（js/onlineBattleScreen.js参照）。「今のルーム参加者全員が利用できる
-             共通曲」との共通部分だけが最終的に使われる。 -->
-        <div id="online-battle-collab-song-section" class="battle-manual-song-row" hidden>
-          <p class="battle-field-label">出題する曲（参加者全員で選べます）</p>
-          <div class="battle-song-source-button-row">
-            <button id="online-battle-collab-choose-songs-button" class="secondary-button" type="button">🎵 全曲から選ぶ</button>
-            <button id="online-battle-collab-choose-favorites-button" class="secondary-button" type="button">⭐ お気に入り</button>
-            <button id="online-battle-collab-choose-playlist-button" class="secondary-button" type="button">📃 プレイリスト</button>
-          </div>
-          <p id="online-battle-collab-my-count" class="battle-manual-song-count"></p>
-          <p id="online-battle-collab-total-count" class="battle-manual-song-count"></p>
-          <!-- 【2026-09-14新設・本人指示：誰がどの曲を選んだか／共有曲一覧を確認できるように】 -->
-          <button id="online-battle-collab-details-toggle" class="song-picker-review-toggle" type="button" aria-expanded="false">選択曲を見る ▾</button>
-          <div id="online-battle-collab-details-panel" class="online-battle-collab-details-panel" hidden>
-            <p class="battle-field-label">参加者ごとの選択</p>
-            <div id="online-battle-collab-by-player-list" class="online-battle-collab-breakdown-list"></div>
-            <p class="battle-field-label">共有曲一覧（重複は1曲として出題）</p>
-            <div id="online-battle-collab-unique-song-list" class="online-battle-collab-song-chip-list"></div>
-          </div>
-        </div>
-
         <!-- 歌詞クイズ専用：ホスト用設定（対戦ルール・回答方式・ヒント表示時間・出題数）。
              js/lyricsQuizBattleUi.js（Phase5）の自動生成UIを使い、ルール名をこのHTML側は
              一切知らない（2026-08-08新設・Phase6）。 -->
@@ -3297,28 +3272,6 @@
                ルールの中身が伝わらないため、ホストが見ている説明文（1〜2文）をゲストにも
                同じ文面で見せる（js/onlineLyricsQuizBattleScreen.js制御）。 -->
           <p id="online-lyrics-battle-settings-rule-description" class="battle-rule-description"></p>
-        </div>
-
-        <!-- 共同選曲（2026-08-27新設）：歌詞クイズ対戦版。js/onlineBattleScreen.js側の
-             #online-battle-collab-song-sectionと全く同じ考え方だが、こちらは歌詞データの
-             所持状況（availableLyricsSongIds）で共通曲を判定する。 -->
-        <div id="online-lyrics-battle-collab-song-section" class="battle-manual-song-row" hidden>
-          <p class="battle-field-label">出題する曲（参加者全員で選べます）</p>
-          <div class="battle-song-source-button-row">
-            <button id="online-lyrics-battle-collab-choose-songs-button" class="secondary-button" type="button">🎵 全曲から選ぶ</button>
-            <button id="online-lyrics-battle-collab-choose-favorites-button" class="secondary-button" type="button">⭐ お気に入り</button>
-            <button id="online-lyrics-battle-collab-choose-playlist-button" class="secondary-button" type="button">📃 プレイリスト</button>
-          </div>
-          <p id="online-lyrics-battle-collab-my-count" class="battle-manual-song-count"></p>
-          <p id="online-lyrics-battle-collab-total-count" class="battle-manual-song-count"></p>
-          <!-- 【2026-09-14新設・本人指示：誰がどの曲を選んだか／共有曲一覧を確認できるように】 -->
-          <button id="online-lyrics-battle-collab-details-toggle" class="song-picker-review-toggle" type="button" aria-expanded="false">選択曲を見る ▾</button>
-          <div id="online-lyrics-battle-collab-details-panel" class="online-battle-collab-details-panel" hidden>
-            <p class="battle-field-label">参加者ごとの選択</p>
-            <div id="online-lyrics-battle-collab-by-player-list" class="online-battle-collab-breakdown-list"></div>
-            <p class="battle-field-label">共有曲一覧（重複は1曲として出題）</p>
-            <div id="online-lyrics-battle-collab-unique-song-list" class="online-battle-collab-song-chip-list"></div>
-          </div>
         </div>
 
         <!-- 歌詞クイズ専用：歌詞データの充足状況（ホストは件数だけ、本人は不足曲名まで）。 -->
@@ -3430,6 +3383,59 @@
           <div class="battle-config-summary" id="online-instant-coop-settings-summary"></div>
         </div>
         <p id="online-instant-coop-settings-error" class="error-message" hidden></p>
+
+        <!-- 【2026-09-15移設・本人指示：共有曲選択UIをモード変更しても壊れないように】
+             以前はそれぞれのモード専用設定ブロックの直後（設定項目の途中）に置かれており、
+             モードを切り替えるたびに位置が変わる・表示が不安定になる原因になっていた。
+             共有エンジン系（タイムアタック/ランダム再生/アウトロ/一瞬バトル）と歌詞クイズの
+             どちらか一方だけが、常にこの「ルーム設定の一番下」の固定位置に表示される
+             （js/onlineBattleScreen.js・js/onlineLyricsQuizBattleScreen.jsが排他的にhidden制御）。 -->
+        <!-- 共同選曲（2026-08-27新設）：「曲を選んで出題」が選ばれている間だけ表示する、
+             ホスト・参加者どちらも同じように使える曲選択セクション。各自が自分の
+             お気に入り・プレイリスト・全曲一覧から曲を追加でき（js/onlineBattlePlaylistPicker.js・
+             js/onlineBattleSongPicker.jsを共用）、参加者全員の選択を合わせたものが実際の
+             出題対象になる（js/onlineBattleScreen.js参照）。「今のルーム参加者全員が利用できる
+             共通曲」との共通部分だけが最終的に使われる。タイムアタック・ランダム再生・
+             アウトロ・一瞬バトルの4モードで共用する。 -->
+        <div id="online-battle-collab-song-section" class="battle-manual-song-row" hidden>
+          <p class="battle-field-label">出題する曲（参加者全員で選べます）</p>
+          <div class="battle-song-source-button-row">
+            <button id="online-battle-collab-choose-songs-button" class="secondary-button" type="button">🎵 全曲から選ぶ</button>
+            <button id="online-battle-collab-choose-favorites-button" class="secondary-button" type="button">⭐ お気に入り</button>
+            <button id="online-battle-collab-choose-playlist-button" class="secondary-button" type="button">📃 プレイリスト</button>
+          </div>
+          <p id="online-battle-collab-my-count" class="battle-manual-song-count"></p>
+          <p id="online-battle-collab-total-count" class="battle-manual-song-count"></p>
+          <!-- 【2026-09-14新設・本人指示：誰がどの曲を選んだか／共有曲一覧を確認できるように】 -->
+          <button id="online-battle-collab-details-toggle" class="song-picker-review-toggle" type="button" aria-expanded="false">選択曲を見る ▾</button>
+          <div id="online-battle-collab-details-panel" class="online-battle-collab-details-panel" hidden>
+            <p class="battle-field-label">参加者ごとの選択</p>
+            <div id="online-battle-collab-by-player-list" class="online-battle-collab-breakdown-list"></div>
+            <p class="battle-field-label">共有曲一覧（重複は1曲として出題）</p>
+            <div id="online-battle-collab-unique-song-list" class="online-battle-collab-song-chip-list"></div>
+          </div>
+        </div>
+
+        <!-- 共同選曲（2026-08-27新設）：歌詞クイズ対戦版。上のセクションと全く同じ考え方だが、
+             こちらは歌詞データの所持状況（availableLyricsSongIds）で共通曲を判定する。 -->
+        <div id="online-lyrics-battle-collab-song-section" class="battle-manual-song-row" hidden>
+          <p class="battle-field-label">出題する曲（参加者全員で選べます）</p>
+          <div class="battle-song-source-button-row">
+            <button id="online-lyrics-battle-collab-choose-songs-button" class="secondary-button" type="button">🎵 全曲から選ぶ</button>
+            <button id="online-lyrics-battle-collab-choose-favorites-button" class="secondary-button" type="button">⭐ お気に入り</button>
+            <button id="online-lyrics-battle-collab-choose-playlist-button" class="secondary-button" type="button">📃 プレイリスト</button>
+          </div>
+          <p id="online-lyrics-battle-collab-my-count" class="battle-manual-song-count"></p>
+          <p id="online-lyrics-battle-collab-total-count" class="battle-manual-song-count"></p>
+          <!-- 【2026-09-14新設・本人指示：誰がどの曲を選んだか／共有曲一覧を確認できるように】 -->
+          <button id="online-lyrics-battle-collab-details-toggle" class="song-picker-review-toggle" type="button" aria-expanded="false">選択曲を見る ▾</button>
+          <div id="online-lyrics-battle-collab-details-panel" class="online-battle-collab-details-panel" hidden>
+            <p class="battle-field-label">参加者ごとの選択</p>
+            <div id="online-lyrics-battle-collab-by-player-list" class="online-battle-collab-breakdown-list"></div>
+            <p class="battle-field-label">共有曲一覧（重複は1曲として出題）</p>
+            <div id="online-lyrics-battle-collab-unique-song-list" class="online-battle-collab-song-chip-list"></div>
+          </div>
+        </div>
 
         <!-- 【2026-09-07改訂・本人指示：READY表示の整合性】READYは本人が明示的に解除しない限り
              設定変更・ルーム設定への復帰のいずれでも維持される仕様のため、「もう一度準備完了して
@@ -3633,6 +3639,10 @@
          進行モデル自体は歌詞クイズと違い、タイムアタック等と同じ「各自が自分のペースで進む」
          独立進行（js/onlineBattleScreen.jsのfinishOnlineBattleMatch/reportOnlineBattleProgress
          をそのままコールバック経由で呼ぶ）ため、待機画面・結果画面は既存のものをそのまま使う。 -->
+    <!-- オンライン対戦：一瞬バトル専用の対戦中画面（2026-08-30新設→2026-09-15全面書き換え、
+         本人指示：一瞬バトルを「各自が自分のペースで進む独立進行」から、歌詞クイズ対戦・
+         一瞬協力と同じ「全員が同じ問題を同時に見る」ホスト主導の同期進行へ変更した。
+         js/onlineInstantBattleScreen.js・js/instantBattleMatchProgress.jsが内容を組み立てる。 -->
     <section id="online-instant-battle-question-screen" class="screen">
       <div class="quiz-header-row">
         <button id="online-instant-battle-quit-button" class="quiz-back-link" type="button">✕ 対戦をやめる</button>
@@ -3647,7 +3657,12 @@
         <div class="quiz-middle-zone-inner">
           <p id="online-instant-battle-error" class="error-message" hidden></p>
 
-          <!-- 【2026-09-05新設】初回出題・再視聴の直前に3→2→1を表示する（js/localReplayCountdown.js）。 -->
+          <!-- 【2026-09-05新設】各問題の音源再生の直前に3→2→1を表示する（js/localReplayCountdown.js）。
+               【2026-09-15改訂・本人指示：Q1の二重カウントダウンを解消】対戦開始そのものの
+               3→2→1（js/onlineBattleScreen.jsのgoToCountdownScreen()）と、この問題ごとの
+               3→2→1が、第1問の出題直後だけ連続して二重に表示されていたバグを修正した。
+               第1問の初回出題だけはこのカウントダウンを表示せず、画面遷移アニメーション分の
+               短い間だけ待ってから直接再生する（js/onlineInstantBattleScreen.js参照）。 -->
           <div id="online-instant-battle-countdown" class="local-replay-countdown" hidden>
             <p id="online-instant-battle-countdown-number" class="local-replay-countdown-number">3</p>
           </div>
@@ -3656,9 +3671,12 @@
           <button id="online-instant-battle-replay-button" class="secondary-button instant-challenge-replay-button" type="button">
             🔁 もう一度聞く（残り3回）
           </button>
+          <!-- 【2026-09-15新設・本人指示17：順位ルールの短縮表示】もう一度聞くボタンの近くに、
+               順位ルールの要点だけを常に見せる（詳しい説明は試合前のルール確認画面）。 -->
+          <p id="online-instant-battle-rank-hint" class="online-instant-battle-rank-hint">同じ正解数なら、正解した問題で「もう一度聞く」を使った回数が少ない人が上位！</p>
 
           <div id="online-instant-battle-answer-section" class="lyrics-quiz-answer-section">
-            <p class="lyrics-quiz-answer-label">この曲は？</p>
+            <p class="lyrics-quiz-answer-label">この曲は？（みんな同時に回答します）</p>
             <div id="online-instant-battle-answer-search-row" class="lyrics-quiz-answer-search-row" hidden>
               <input id="online-instant-battle-answer-search-input" class="lyrics-quiz-answer-search-input" type="text" placeholder="曲名で検索">
               <span id="online-instant-battle-answer-count" class="lyrics-quiz-answer-count">0曲</span>
@@ -3666,16 +3684,36 @@
             <!-- 【2026-09-07新設・本人指示：50音UIの共通展開】 -->
             <div id="online-instant-battle-answer-jump-bar" class="online-lyrics-battle-answer-jump-bar" hidden></div>
             <div id="online-instant-battle-answer-list" class="lyrics-quiz-answer-list"></div>
-            <!-- 【2026-09-07新設・本人指示：答え合わせUIの統一】js/instantChallengeScreen.jsと
-                 同じ設計。回答確定後、選択肢一覧を隠してこのカードへ切り替える。 -->
-            <div id="online-instant-battle-answer-reveal" class="lyrics-quiz-answer-reveal" hidden>
-              <p id="online-instant-battle-answer-reveal-status" class="lyrics-quiz-answer-reveal-status">正解</p>
-              <p class="lyrics-quiz-answer-reveal-caption">正解は</p>
-              <p id="online-instant-battle-answer-reveal-title" class="lyrics-quiz-answer-reveal-title">－</p>
-              <p id="online-instant-battle-answer-reveal-my-answer" class="lyrics-quiz-answer-reveal-my-answer" hidden></p>
-            </div>
+            <!-- 【2026-09-15新設・本人指示14：「わからない」ボタンの追加】不正解として扱う。
+                 確認ダイアログ（js/answerConfirmPrompt.js共用）を必ず挟んでから確定する。 -->
+            <button id="online-instant-battle-unknown-button" class="secondary-button" type="button">🤷 わからない</button>
           </div>
 
+          <!-- 【2026-09-06新設・本人指示：3分無操作の放置救済】歌詞クイズ対戦・一瞬協力と
+               全く同じforcedSkips/questionActivityの仕組みを再利用する。ホストにだけ見える。 -->
+          <div id="online-instant-battle-idle-notice" class="online-lyrics-battle-idle-notice" hidden></div>
+
+          <!-- 【2026-09-15新設・本人指示12・13：回答内容は秘密のまま、状態だけを見せる】
+               自分が回答を確定した後、他のプレイヤーの回答内容は一切見せず、
+               「回答済み／未回答」の状態だけをルーム参加順で表示する。 -->
+          <div id="online-instant-battle-waiting-section" hidden>
+            <p class="online-battle-lead-text">回答しました。他のプレイヤーを待っています…</p>
+            <ul id="online-instant-battle-answer-status-list" class="online-instant-battle-answer-status-list"></ul>
+          </div>
+
+          <!-- 【2026-09-15新設・本人指示11・18】全員の回答が揃ったら、5秒間だけ全員の回答・
+               正誤・その問題で使った再視聴回数を同時に公開する（js/onlineInstantBattleScreen.js
+               のREVEAL_DELAY_MSで制御）。375px幅でもスクロールなしで収まるよう、
+               参加者ごとの情報は1行に収まる簡潔な形にする。 -->
+          <div id="online-instant-battle-reveal-section" class="lyrics-quiz-answer-reveal" hidden>
+            <p id="online-instant-battle-reveal-outcome-badge" class="lyrics-quiz-answer-reveal-status"></p>
+            <p class="lyrics-quiz-answer-reveal-caption">正解は</p>
+            <p id="online-instant-battle-reveal-correct-song" class="lyrics-quiz-answer-reveal-title"></p>
+            <p id="online-instant-battle-reveal-audio-failure-notice" class="online-battle-lead-text" hidden>
+              音源を正常に再生できない参加者がいたため、この問題は無効です。別の曲に差し替えます。
+            </p>
+            <ul id="online-instant-battle-reveal-player-list" class="online-instant-battle-reveal-player-list"></ul>
+          </div>
         </div>
       </div>
     </section>
@@ -3787,6 +3825,42 @@
       <div id="online-instant-coop-battle-result-guest-actions" hidden>
         <p class="online-battle-lead-text">ホストの選択を待っています…</p>
         <button id="online-instant-coop-battle-result-leave-button" class="secondary-button" type="button">ルームから退出</button>
+      </div>
+    </section>
+
+    <!-- オンライン対戦：一瞬バトル専用の結果画面（2026-09-15新設・本人指示：一瞬バトルの
+         同期方式への全面書き換え）。個人の順位を表示する点は既存の共有結果画面
+         （#online-battle-result-screen）と同じだが、本人指示の新しい順位ルール
+         （①正解数→②正解した問題だけの再視聴合計）に基づく順位・その根拠を分かりやすく
+         区別して見せる必要があるため、専用の結果画面として分離した
+         （js/onlineInstantBattleScreen.jsが内容を組み立てる）。同じ見た目の質感を保つため、
+         既存の.battle-rank-list系のCSSクラスをそのまま再利用する。 -->
+    <section id="online-instant-battle-result-screen" class="screen">
+      <button id="online-instant-battle-result-home-link" class="quiz-back-link" type="button">⌂ ホームへ戻る</button>
+      <div class="title-block"><h2>一瞬バトル：結果</h2></div>
+
+      <!-- 【音源再生失敗時の公平性対策】音源再生失敗が続き対戦を安全に中断した場合の案内。 -->
+      <div class="battle-warning-box" id="online-instant-battle-result-audio-failure-notice" hidden>
+        音源を正常に再生できない状態が続いたため、この対戦は中断されました。データパックの導入状況や通信環境をご確認のうえ、もう一度お試しください。
+      </div>
+
+      <div id="online-instant-battle-result-normal">
+        <ul class="battle-rank-list" id="online-instant-battle-result-list"></ul>
+        <p style="text-align:center;font-size:0.7rem;opacity:0.6;" id="online-instant-battle-result-rule-note"></p>
+
+        <section id="online-instant-battle-result-question-breakdown-section" class="battle-question-breakdown-section" hidden>
+          <h3 class="battle-question-breakdown-heading">問題別結果</h3>
+          <div id="online-instant-battle-result-question-breakdown" class="battle-question-breakdown-list"></div>
+        </section>
+      </div>
+
+      <div id="online-instant-battle-result-host-actions" class="button-row" hidden>
+        <button id="online-instant-battle-result-rematch-button" class="primary-button" type="button">もう一度</button>
+        <button id="online-instant-battle-result-back-to-lobby-button" class="secondary-button" type="button">ルーム設定に戻る</button>
+      </div>
+      <div id="online-instant-battle-result-guest-actions" hidden>
+        <p class="online-battle-lead-text">ホストの選択を待っています…</p>
+        <button id="online-instant-battle-result-leave-button" class="secondary-button" type="button">ルームから退出</button>
       </div>
     </section>
 
@@ -4348,6 +4422,21 @@
       <div class="button-row">
         <button id="online-battle-lobby-leave-cancel-button" class="secondary-button" type="button">いいえ</button>
         <button id="online-battle-lobby-leave-confirm-button" class="danger-button" type="button">はい</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 【2026-09-15新設・本人指示：ゲスト側の退出操作にも必ず確認ダイアログ】結果画面の
+       「ルームから退出」（共有エンジン・歌詞クイズ・一瞬協力の3画面で共通利用）。
+       上のロビー用モーダルとはDOM・リスナーを分け、既存の動作中のロビー離脱処理に
+       手を加えるリスクを避ける。 -->
+  <div id="online-battle-result-leave-confirm-modal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="online-battle-result-leave-confirm-title">
+      <h2 id="online-battle-result-leave-confirm-title">本当にルームを退出しますか？</h2>
+      <p class="modal-lead">退出すると、このルームから完全に離れます。もう一度参加するには、ルームコードでの再参加が必要です。</p>
+      <div class="button-row">
+        <button id="online-battle-result-leave-cancel-button" class="secondary-button" type="button">いいえ</button>
+        <button id="online-battle-result-leave-confirm-button" class="danger-button" type="button">はい</button>
       </div>
     </div>
   </div>
