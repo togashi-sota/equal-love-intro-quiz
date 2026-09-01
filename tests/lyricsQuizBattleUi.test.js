@@ -16,6 +16,7 @@ import {
   ANSWER_SUBMISSION_BLOCK_REASON,
   describeStealClaimOutcomeMessage,
   describeAnswerSubmissionFailureMessage,
+  describeScoreboard,
 } from "../js/lyricsQuizBattleUi.js";
 import { STEAL_CLAIM_OUTCOME } from "../js/lyricsQuizBattleFirebasePayloads.js";
 import { assertEqual } from "./test-utils.js";
@@ -259,5 +260,54 @@ export function runLyricsQuizBattleUiTests() {
       null,
       "already-answeredは呼び出し側が黙って成功扱いにするため対象外（null）"
     );
+  }
+
+  // ===== describeScoreboard（2026-09-01新設：ライブスコアボード） =====
+  {
+    const participantsByUid = {
+      p1: { displayName: "たろう" },
+      p2: { displayName: "はなこ" },
+      p3: { displayName: "じろう" },
+    };
+
+    // ----- 正解数バトル：correctCountを見せる -----
+    {
+      const scoreSnapshot = {
+        questionsScoredCount: 3,
+        scoresByUid: { p1: { totalPoints: 2, correctCount: 2 }, p2: { totalPoints: 3, correctCount: 3 }, p3: { totalPoints: 1, correctCount: 1 } },
+      };
+      const scoreboard = describeScoreboard({ ruleId: "classic", scoreSnapshot, participantsByUid, myUid: "p1" });
+      assertEqual(scoreboard.valueUnit, "問", "正解数バトルの単位は「問」");
+      assertEqual(scoreboard.hasData, true, "scoreSnapshotがあればhasData:true");
+      assertEqual(scoreboard.questionsScoredCount, 3, "questionsScoredCountがそのまま渡る");
+      assertEqual(scoreboard.rows.map((row) => row.uid), ["p2", "p1", "p3"], "correctCountの降順で並ぶ");
+      assertEqual(scoreboard.rows.map((row) => row.value), [3, 2, 1], "正解数バトルはcorrectCountの値が表示値になる");
+      assertEqual(scoreboard.rows.find((row) => row.uid === "p1").isMe, true, "myUidと一致する行にisMe:trueが立つ");
+      assertEqual(scoreboard.rows.find((row) => row.uid === "p2").isMe, false, "myUid以外はisMe:false");
+      assertEqual(scoreboard.rows.find((row) => row.uid === "p1").displayName, "たろう", "参加者の表示名がそのまま使われる");
+    }
+
+    // ----- ポイントバトル・早押しバトル：totalPointsを見せる -----
+    {
+      const scoreSnapshot = {
+        questionsScoredCount: 2,
+        scoresByUid: { p1: { totalPoints: 7, correctCount: 2 }, p2: { totalPoints: 4, correctCount: 1 }, p3: { totalPoints: 4, correctCount: 1 } },
+      };
+      const comboScoreboard = describeScoreboard({ ruleId: "combo", scoreSnapshot, participantsByUid, myUid: "p2" });
+      assertEqual(comboScoreboard.valueUnit, "pt", "ポイントバトルの単位は「pt」");
+      assertEqual(comboScoreboard.rows.map((row) => row.value), [7, 4, 4], "ポイントバトルはtotalPointsの値が表示値になる");
+
+      const stealScoreboard = describeScoreboard({ ruleId: "steal", scoreSnapshot, participantsByUid, myUid: "p2" });
+      assertEqual(stealScoreboard.valueUnit, "pt", "早押しバトルもポイントバトルと同じくtotalPointsを見せる（単位はpt）");
+    }
+
+    // ----- まだ1問も確定していない（scoreSnapshotがまだFirebaseに存在しない）場合 -----
+    {
+      const scoreboard = describeScoreboard({ ruleId: "classic", scoreSnapshot: undefined, participantsByUid, myUid: "p1" });
+      assertEqual(scoreboard.hasData, false, "scoreSnapshotが無ければhasData:false");
+      assertEqual(scoreboard.questionsScoredCount, 0, "確定済み問題数は0扱い");
+      assertEqual(scoreboard.rows.every((row) => row.value === 0), true, "スコアがまだ無い参加者は全員0点として表示される（エラーにしない）");
+      assertEqual(scoreboard.rows.length, 3, "参加者3人分の行が、スコアの有無に関わらず作られる");
+    }
   }
 }

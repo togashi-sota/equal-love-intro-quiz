@@ -3917,6 +3917,22 @@
         <div class="title-block"><h2>歌詞クイズ対戦</h2></div>
         <p class="online-lyrics-battle-progress" id="online-lyrics-battle-progress"></p>
 
+        <!-- 【2026-09-01新設・本人指示：ライブスコアボード】他プレイヤーの現在の累計スコアを
+             見せる、折りたたみ可能な一覧。<details>要素にして、開閉状態をブラウザ標準機能に
+             任せる（js/onlineLyricsQuizBattleScreen.jsのrenderScoreboard()は中身の一覧だけを
+             差し替え、この要素自体は作り直さない＝開いたまま次の問題へ進んでも閉じない）。
+             早押しバトルの出題中（回答収集中）はJS側でhidden=trueにして隠す。
+             【情報漏洩防止】ここに表示されるのはmatches/{matchId}/scoreSnapshot（ホストが
+             各問題のreveal完了後にまとめて書き込む、1つ前の問題までの確定スコア）だけで、
+             今の問題の回答内容には一切触れない。 -->
+        <details id="online-lyrics-battle-scoreboard" class="online-lyrics-battle-scoreboard">
+          <summary class="online-lyrics-battle-scoreboard-summary">
+            <span>📊 みんなのスコア</span>
+            <span id="online-lyrics-battle-scoreboard-summary-hint" class="online-lyrics-battle-scoreboard-summary-hint"></span>
+          </summary>
+          <ul id="online-lyrics-battle-scoreboard-list" class="online-lyrics-battle-scoreboard-list"></ul>
+        </details>
+
         <div id="online-lyrics-battle-hud"></div>
 
         <div class="online-lyrics-battle-hint-box">

@@ -226,10 +226,31 @@ export function checkFinalizeLyricsQuizMatchAllowed({ room, matchId, uid }) {
 // 既存ルール・既存gameModeの動作に一切影響を与えないよう、歌詞クイズ専用の新しいパス
 // matches/{matchId}/lyricsResults/{uid}へ変更した（js/onlineLyricsQuizBattleScreen.jsの
 // enterLyricsQuizResult()も合わせて変更済み）。
-export function buildFinalizeLyricsQuizMatchUpdatePaths({ roomId, matchId, resultsByUid }) {
+//
+// 【2026-09-01追加・本人指示：ライブスコアボード】最終問題のscoreSnapshotも、この同じ
+// update()に混ぜて一緒に書く（scoreSnapshot・省略可）。最終結果確定（room.status→"result"）と
+// 完全に同時に反映され、「最終問題だけスコアボードが更新されない」という抜けを作らない。
+export function buildFinalizeLyricsQuizMatchUpdatePaths({ roomId, matchId, resultsByUid, scoreSnapshot, updatedAtValue }) {
   const updates = { [`rooms/${roomId}/status`]: "result" };
   for (const [uid, result] of Object.entries(resultsByUid)) {
     updates[`rooms/${roomId}/matches/${matchId}/lyricsResults/${uid}`] = result;
   }
+  Object.assign(updates, buildScoreSnapshotUpdatePaths({ roomId, matchId, scoreSnapshot, updatedAtValue }));
   return updates;
+}
+
+// 【2026-09-01新設・本人指示：ライブスコアボード】matches/{matchId}/scoreSnapshotへの
+// 書き込みパスを組み立てる。js/lyricsQuizMatchProgress.jsのcomputeScoreSnapshotFromState()の
+// 返り値をそのまま渡す想定。呼び出し元（js/lyricsQuizBattleFirebase.js）が、次の問題の開始
+// （startLyricsQuizQuestion）や最終結果の確定（finalizeLyricsQuizMatch）と「同じ1回の
+// update()」に混ぜて呼ぶことを想定している（このファイルの他の関数と同じ、「中間状態を
+// 作らない」方針どおり。scoreSnapshotだけが先に／後に反映される瞬間を作らない）。
+// scoreSnapshotが渡されなかった場合は何も書かない（空オブジェクトを返す）。
+export function buildScoreSnapshotUpdatePaths({ roomId, matchId, scoreSnapshot, updatedAtValue }) {
+  if (!scoreSnapshot) return {};
+  return {
+    [`rooms/${roomId}/matches/${matchId}/scoreSnapshot/questionsScoredCount`]: scoreSnapshot.questionsScoredCount,
+    [`rooms/${roomId}/matches/${matchId}/scoreSnapshot/scoresByUid`]: scoreSnapshot.scoresByUid,
+    [`rooms/${roomId}/matches/${matchId}/scoreSnapshot/updatedAt`]: updatedAtValue,
+  };
 }

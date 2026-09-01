@@ -21,6 +21,7 @@ import {
   computeSongPoolHash,
   checkFinalizeLyricsQuizMatchAllowed,
   buildFinalizeLyricsQuizMatchUpdatePaths,
+  buildScoreSnapshotUpdatePaths,
   FIREBASE_FAILURE_REASON,
   isRetryableFailureReason,
   checkAnswerSubmissionAllowed,
@@ -366,5 +367,45 @@ export function runLyricsQuizBattleFirebaseTests() {
     assertEqual(updates["rooms/ROOM1/matches/MATCH1/lyricsResults/p1"], resultsByUid.p1, "p1の結果が正しいパスに書き込まれる");
     assertEqual(updates["rooms/ROOM1/matches/MATCH1/lyricsResults/p2"], resultsByUid.p2, "p2の結果が正しいパスに書き込まれる");
     assertEqual(Object.keys(updates).length, 3, "status1件＋参加者2人分の結果、計3件のパスだけが含まれる（余分な書き込みが無い）");
+  }
+
+  // ===== buildScoreSnapshotUpdatePaths（2026-09-01新設：ライブスコアボード） =====
+  {
+    const scoreSnapshot = {
+      questionsScoredCount: 2,
+      scoresByUid: { p1: { totalPoints: 2, correctCount: 2 }, p2: { totalPoints: 1, correctCount: 1 } },
+    };
+    const updates = buildScoreSnapshotUpdatePaths({ roomId: "ROOM1", matchId: "MATCH1", scoreSnapshot, updatedAtValue: "SERVER_TIME" });
+    assertEqual(updates["rooms/ROOM1/matches/MATCH1/scoreSnapshot/questionsScoredCount"], 2, "確定済み問題数がそのまま書き込まれる");
+    assertEqual(updates["rooms/ROOM1/matches/MATCH1/scoreSnapshot/scoresByUid"], scoreSnapshot.scoresByUid, "参加者全員分のスコアが1つのオブジェクトとしてまとめて書き込まれる（＝Firebase側では1回の値変更として全員に同時反映される）");
+    assertEqual(updates["rooms/ROOM1/matches/MATCH1/scoreSnapshot/updatedAt"], "SERVER_TIME", "updatedAtValueがそのまま渡される（本番ではserverTimestamp()を渡す想定）");
+    assertEqual(Object.keys(updates).length, 3, "scoreSnapshot関連の3パスだけが含まれる");
+  }
+  {
+    // scoreSnapshotを渡さなかった場合は、何も書き込まない（既存のstartLyricsQuizQuestion()の
+    // 挙動＝最初の問題以外の呼び出しでscoreSnapshotを省略しても、余計な書き込みが増えない）。
+    const updates = buildScoreSnapshotUpdatePaths({ roomId: "ROOM1", matchId: "MATCH1", scoreSnapshot: undefined, updatedAtValue: "SERVER_TIME" });
+    assertEqual(updates, {}, "scoreSnapshotが無ければ空オブジェクトを返す（書き込むパスが無い）");
+  }
+
+  // ===== buildFinalizeLyricsQuizMatchUpdatePaths：scoreSnapshotも同じupdate()に混ぜて書ける =====
+  // 【最重要の情報漏洩防止の検証】最終問題のreveal完了（＝finalizeLyricsQuizMatch()の呼び出し）と
+  // スコアの更新が、別々の書き込みに分かれず「1回のupdate()」に混ざっていることを確認する。
+  {
+    const resultsByUid = {
+      p1: { ruleVersion: 1, completed: true, common: { elapsedMs: 100, correctCount: 2, missCount: 0 }, detail: {} },
+    };
+    const scoreSnapshot = { questionsScoredCount: 3, scoresByUid: { p1: { totalPoints: 3, correctCount: 3 } } };
+    const updates = buildFinalizeLyricsQuizMatchUpdatePaths({
+      roomId: "ROOM1",
+      matchId: "MATCH1",
+      resultsByUid,
+      scoreSnapshot,
+      updatedAtValue: "SERVER_TIME",
+    });
+    assertEqual(updates["rooms/ROOM1/status"], "result", "room.statusは引き続きresultへ進む");
+    assertEqual(updates["rooms/ROOM1/matches/MATCH1/lyricsResults/p1"], resultsByUid.p1, "最終結果も引き続き書き込まれる");
+    assertEqual(updates["rooms/ROOM1/matches/MATCH1/scoreSnapshot/scoresByUid"], scoreSnapshot.scoresByUid, "最終問題のscoreSnapshotも、結果確定と同じ1回のupdate()に混ざって書き込まれる（別々の書き込みタイミングにならない）");
+    assertEqual(Object.keys(updates).length, 5, "status1件＋結果1件＋scoreSnapshot3件、計5件のパスが含まれる");
   }
 }

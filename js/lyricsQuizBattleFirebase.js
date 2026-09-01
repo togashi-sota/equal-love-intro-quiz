@@ -54,6 +54,7 @@ import {
   checkStealClaimAllowed,
   checkFinalizeLyricsQuizMatchAllowed,
   buildFinalizeLyricsQuizMatchUpdatePaths,
+  buildScoreSnapshotUpdatePaths,
 } from "./lyricsQuizBattleFirebasePayloads.js";
 
 // 純粋関数群も、このファイルを経由して使えるように再エクスポートしておく
@@ -73,6 +74,7 @@ export {
   checkStealClaimAllowed,
   checkFinalizeLyricsQuizMatchAllowed,
   buildFinalizeLyricsQuizMatchUpdatePaths,
+  buildScoreSnapshotUpdatePaths,
   deriveDnfUidsFromAnswerCounts,
   computeSongPoolHash,
 } from "./lyricsQuizBattleFirebasePayloads.js";
@@ -103,7 +105,11 @@ export async function submitLyricsCoverage({ roomId, availableCount, requiredCou
 // ホストが問題を開始する（currentQuestionIndex・currentQuestionStartedAt・questionStatusを
 // 1回のupdate()でまとめて書く）。finishCountdown()と同じ「読む→条件確認→書く」＋
 // 間隔を空けた再試行（最大3回、network-error時のみ）のパターン。
-export async function startLyricsQuizQuestion({ roomId, matchId, questionIndex }) {
+// 【2026-09-01改訂・本人指示：ライブスコアボード】scoreSnapshotを渡すと、次の問題の開始と
+// 完全に同じupdate()（同じ1回のFirebase書き込み）へ、直前の問題までの累計スコアも
+// まとめて書き込む（js/lyricsQuizMatchProgress.jsのcomputeScoreSnapshotFromState()参照）。
+// 省略した場合（最初の問題の開始等）は、スコアボードの書き込みは行わない。
+export async function startLyricsQuizQuestion({ roomId, matchId, questionIndex, scoreSnapshot }) {
   await authReady;
   const uid = getCurrentUid();
   if (!uid) return { ok: false, reason: REASON.NOT_SIGNED_IN };
@@ -126,6 +132,7 @@ export async function startLyricsQuizQuestion({ roomId, matchId, questionIndex }
         [`rooms/${roomId}/matches/${matchId}/currentQuestionIndex`]: questionIndex,
         [`rooms/${roomId}/matches/${matchId}/currentQuestionStartedAt`]: serverTimestamp(),
         [`rooms/${roomId}/matches/${matchId}/questionStatus`]: QUESTION_STATUS.ACTIVE,
+        ...buildScoreSnapshotUpdatePaths({ roomId, matchId, scoreSnapshot, updatedAtValue: serverTimestamp() }),
       });
       return { ok: true };
     } catch (error) {
@@ -323,8 +330,8 @@ export async function resolveLyricsQuizQuestion({ roomId, matchId }) {
 // js/lyricsQuizMatchProgress.jsのcanAdvanceToNextQuestion()相当の判断を呼び出し元が
 // 既に行っている想定。ここではstartLyricsQuizQuestion()をそのまま呼ぶだけで十分
 // （経路を1本化し、書き込み内容の重複実装を避ける）。
-export async function advanceLyricsQuizQuestion({ roomId, matchId, nextQuestionIndex }) {
-  return startLyricsQuizQuestion({ roomId, matchId, questionIndex: nextQuestionIndex });
+export async function advanceLyricsQuizQuestion({ roomId, matchId, nextQuestionIndex, scoreSnapshot }) {
+  return startLyricsQuizQuestion({ roomId, matchId, questionIndex: nextQuestionIndex, scoreSnapshot });
 }
 
 // 通信失敗後の復旧用：現在の試合の進行状態を読み直す（書き込みに失敗しても、
@@ -347,7 +354,7 @@ export async function readLyricsQuizMatchState({ roomId, matchId }) {
 // 完全に同じ場所・同じ値を使うことで、js/onlineBattleScreen.js側の「結果画面へ進む」検知の
 // 仕組み自体は使い回せるようにしている（実際の結果表示はルールごとに列が異なるため専用の
 // 描画を別途行うが、"いつ結果画面へ進むか"の検知は既存の仕組みに乗せる）。
-export async function finalizeLyricsQuizMatch({ roomId, matchId, resultsByUid }) {
+export async function finalizeLyricsQuizMatch({ roomId, matchId, resultsByUid, scoreSnapshot }) {
   await authReady;
   const uid = getCurrentUid();
   if (!uid) return { ok: false, reason: REASON.NOT_SIGNED_IN };
@@ -361,7 +368,10 @@ export async function finalizeLyricsQuizMatch({ roomId, matchId, resultsByUid })
       if (!precheck.ok) return precheck;
       if (precheck.alreadyDone) return { ok: true }; // 既に目標状態（ホストの再試行を含む冪等性）
 
-      await update(ref(database), buildFinalizeLyricsQuizMatchUpdatePaths({ roomId, matchId, resultsByUid }));
+      await update(
+        ref(database),
+        buildFinalizeLyricsQuizMatchUpdatePaths({ roomId, matchId, resultsByUid, scoreSnapshot, updatedAtValue: serverTimestamp() })
+      );
       return { ok: true };
     } catch (error) {
       if (attempt === MAX_ATTEMPTS) return { ok: false, reason: REASON.NETWORK_ERROR };

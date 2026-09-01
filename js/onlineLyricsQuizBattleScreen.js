@@ -57,6 +57,7 @@ import {
   finalizeMatch,
   restoreMatchProgressFromFirebase,
   markPlayerDnf,
+  computeScoreSnapshotFromState,
 } from "./lyricsQuizMatchProgress.js";
 import {
   submitLyricsCoverage,
@@ -92,6 +93,7 @@ import {
   renderResultCards,
   renderLyricsReadinessStatus,
   renderOwnMissingLyricsTitles,
+  describeScoreboard,
 } from "./lyricsQuizBattleUi.js";
 import { computeElapsedMs, computeStealHintProgress } from "./lyricsQuizBattleTiming.js";
 // 【2026-08-31新設、本人指示：歌詞クイズ3ルール全面改修】30・50・全曲プールの検索は、
@@ -935,6 +937,9 @@ export async function enterLyricsQuizBattlePlay(room) {
   elements.battleStatusMessage.hidden = true;
   elements.battleAnswerReveal.hidden = true;
   clearElement(elements.battleHudContainer);
+  // 【2026-09-01新設・本人指示：ライブスコアボード】新しい試合のたびに、開閉状態を閉じた
+  // 状態から始める（前の試合で開いたままでも、次の試合の最初は畳んだ状態にする）。
+  if (elements.battleScoreboard) elements.battleScoreboard.open = false;
   clearElement(elements.battleAnswerChoicesContainer);
   clearElement(elements.battleHintLinesContainer);
   clearElement(elements.battleHintActions);
@@ -1053,7 +1058,12 @@ async function runHostProgressionTick() {
   if (typeof match.currentQuestionIndex !== "number") {
     hostTickInFlight = true;
     try {
-      const result = await startLyricsQuizQuestion({ roomId: latestRoom.roomId, matchId: currentMatchId, questionIndex: 0 });
+      // 【2026-09-01新設・本人指示：ライブスコアボード】最初の問題を開始する時点で、
+      // 全員0点のscoreSnapshotも一緒に書いておく（参加者側が「まだデータが無い」ではなく
+      // 「全員0点」から一覧を表示できるようにするため。hostStateはこの時点で
+      // createMatchProgress()直後＝全員の履歴が空のはずなので、常に全員0点になる）。
+      const scoreSnapshot = hostState ? computeScoreSnapshotFromState(hostState) : undefined;
+      const result = await startLyricsQuizQuestion({ roomId: latestRoom.roomId, matchId: currentMatchId, questionIndex: 0, scoreSnapshot });
       if (!result.ok) {
         // eslint-disable-next-line no-console
         console.error("歌詞クイズ対戦：最初の問題の開始に失敗しました", result.reason);
@@ -1163,9 +1173,20 @@ async function runHostProgressionTick() {
       // 【2026-09-09新設・本人指示4】新しい問題へ移るタイミングで、前の問題の切断計測を
       // リセットする（次の問題でも切断が続いていれば、その時点から改めて計測し直す）。
       disconnectedSinceMsByUid.clear();
+      // 【2026-09-01新設・本人指示：ライブスコアボード】ちょうど今確定した問題（reveal演出を
+      // REVEAL_DELAY_MSぶん見せ終えた問題）までの累計スコアを計算し、次の問題の開始／
+      // 最終結果の確定と「全く同じFirebase update()」に混ぜて書き込む。これにより、
+      // 「revealが終わったタイミングで全員のスコアが同時に更新される」という最重要要件を、
+      // 進行タイマー本来の仕組みだけで（新しい同期の仕組みを増やさずに）満たしている。
+      const scoreSnapshot = computeScoreSnapshotFromState(nextState);
       if (nextState.status === "inProgress") {
         resolvedAtLocalMs = null;
-        const result = await startLyricsQuizQuestion({ roomId: latestRoom.roomId, matchId: currentMatchId, questionIndex: nextState.currentQuestionIndex });
+        const result = await startLyricsQuizQuestion({
+          roomId: latestRoom.roomId,
+          matchId: currentMatchId,
+          questionIndex: nextState.currentQuestionIndex,
+          scoreSnapshot,
+        });
         if (!result.ok) {
           // eslint-disable-next-line no-console
           console.error("歌詞クイズ対戦：次の問題の開始に失敗しました", result.reason);
@@ -1174,7 +1195,7 @@ async function runHostProgressionTick() {
         const entries = finalizeMatch(nextState, latestRoom.settings);
         if (entries) {
           const resultsByUid = Object.fromEntries(entries.map((entry) => [entry.uid, entry.result]));
-          const result = await finalizeLyricsQuizMatch({ roomId: latestRoom.roomId, matchId: currentMatchId, resultsByUid });
+          const result = await finalizeLyricsQuizMatch({ roomId: latestRoom.roomId, matchId: currentMatchId, resultsByUid, scoreSnapshot });
           if (!result.ok) {
             // eslint-disable-next-line no-console
             console.error("歌詞クイズ対戦：最終結果の確定に失敗しました", result.reason);
@@ -1742,6 +1763,66 @@ function renderIdleNotice(match, qIndex, nowServerTimeMs) {
   });
 }
 
+// 【2026-09-01新設・本人指示：ライブスコアボード】他プレイヤーの累計スコアを、問題画面上部の
+// 折りたたみ可能な一覧として表示する。<details>要素自体はindex.html側に静的に配置してあり、
+// このJSは中身（一覧の行・見出しの補足）だけを差し替える。<details>をclearElement()等で
+// 作り直さないのは、要素を作り直すと開閉状態（open属性）が失われるため（本人がスコアボードを
+// 開いたまま次の問題へ進んでも、開いた状態を保てるようにするため）。
+//
+// 【最重要の情報漏洩防止】この関数が参照するのはmatch.scoreSnapshotだけ（ホストがreveal
+// 完了時にまとめて書き込む、1つ前の問題までの確定スコア）。今の問題のanswers・
+// questionClaims等、まだ確定していないデータには一切触れない。
+//
+// 【早押しバトルの出し分け】早押しバトルは「途中経過を見せると不公平になる」という本人指示
+// により、出題中（回答収集中＝questionStatus:"active"）はスコアボード自体を隠す。reveal後
+// （questionStatus:"resolved"）は他の2ルールと同様に見せる。
+function renderScoreboard(match, { ruleId, isResolved }) {
+  const container = elements.battleScoreboard;
+  if (!container) return; // この要素が無い画面構成では何もしない（安全側）
+
+  const shouldShow = ruleId !== "steal" || isResolved;
+  container.hidden = !shouldShow;
+  if (!shouldShow) return;
+
+  const scoreboard = describeScoreboard({
+    ruleId,
+    scoreSnapshot: match.scoreSnapshot,
+    participantsByUid: match.participants ?? {},
+    myUid: getCurrentUid(),
+  });
+
+  if (elements.battleScoreboardSummaryHint) {
+    elements.battleScoreboardSummaryHint.textContent = scoreboard.hasData
+      ? `（${scoreboard.questionsScoredCount}問終了時点）`
+      : "（まだ結果が確定していません）";
+  }
+
+  if (!elements.battleScoreboardList) return;
+  clearElement(elements.battleScoreboardList);
+  scoreboard.rows.forEach((row, index) => {
+    const item = document.createElement("li");
+    item.className = "online-lyrics-battle-scoreboard-item";
+    if (row.isMe) item.classList.add("is-me");
+
+    const rankSpan = document.createElement("span");
+    rankSpan.className = "online-lyrics-battle-scoreboard-rank";
+    rankSpan.textContent = `${index + 1}`;
+    item.appendChild(rankSpan);
+
+    const nameSpan = document.createElement("span");
+    nameSpan.className = "online-lyrics-battle-scoreboard-name";
+    nameSpan.textContent = row.isMe ? `${row.displayName}（あなた）` : row.displayName;
+    item.appendChild(nameSpan);
+
+    const valueSpan = document.createElement("span");
+    valueSpan.className = "online-lyrics-battle-scoreboard-value";
+    valueSpan.textContent = `${row.value}${scoreboard.valueUnit}`;
+    item.appendChild(valueSpan);
+
+    elements.battleScoreboardList.appendChild(item);
+  });
+}
+
 function renderCurrentQuestionState() {
   if (!latestRoom || !runtimeReady || currentQuestions.length === 0) return;
   const match = latestRoom.matches?.[currentMatchId];
@@ -1799,6 +1880,7 @@ function renderCurrentQuestionState() {
   maybeRecordMyOutcomeForResolvedQuestions(match);
   const hudItems = describeHudItems(latestRoom.settings.battleRuleId, computeMyLiveHudStats());
   renderHud(elements.battleHudContainer, hudItems);
+  renderScoreboard(match, { ruleId, isResolved });
 
   // 【2026-08-31改訂、本人指示：歌詞クイズ3ルール全面改修】「先に回答したプレイヤーだけに
   // 正解を先に表示しない」ため、自分が回答済みでもまだ全員が揃っていない間は

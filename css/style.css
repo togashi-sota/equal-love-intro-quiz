@@ -14237,6 +14237,102 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   letter-spacing: 0.02em;
 }
 
+/* 【2026-09-01新設・本人指示：ライブスコアボード】他プレイヤーの現在の累計スコアを見せる、
+   問題画面上部の折りたたみ可能な一覧。375px幅を意識し、既定は閉じた状態（1行のサマリーだけ）
+   にして、問題文・ヒント・回答候補等を下へ押しやらないようにする。プレイヤー名が長い場合・
+   人数が多い場合の折り返しにも耐えるよう、一覧はchip状にflex-wrapさせる。 */
+.online-lyrics-battle-scoreboard {
+  margin: 0 0 14px;
+  border-radius: 14px;
+  background: var(--color-surface-glass);
+  border: 1px solid var(--color-card-border);
+  overflow: hidden;
+}
+
+.online-lyrics-battle-scoreboard[hidden] {
+  display: none;
+}
+
+.online-lyrics-battle-scoreboard-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+/* Safari用：デフォルトの三角マーカーを消し、自前の見た目だけにする。 */
+.online-lyrics-battle-scoreboard-summary::-webkit-details-marker {
+  display: none;
+}
+
+.online-lyrics-battle-scoreboard-summary-hint {
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: var(--color-text);
+  opacity: 0.6;
+  white-space: nowrap;
+}
+
+.online-lyrics-battle-scoreboard-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0 12px 12px;
+  list-style: none;
+}
+
+.online-lyrics-battle-scoreboard-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-card-border);
+}
+
+/* 自分自身の行だけ縁取りをブランドカラーにして見分けやすくする。 */
+.online-lyrics-battle-scoreboard-item.is-me {
+  border-color: var(--color-primary);
+}
+
+.online-lyrics-battle-scoreboard-rank {
+  flex: none;
+  font-size: 0.64rem;
+  font-weight: 700;
+  color: var(--color-text);
+  opacity: 0.5;
+}
+
+.online-lyrics-battle-scoreboard-name {
+  min-width: 0;
+  max-width: 32vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+/* 恒久デザインルール：重要な数値情報（スコア）は濃い色＋太字にする。 */
+.online-lyrics-battle-scoreboard-value {
+  flex: none;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  font-variant-numeric: tabular-nums;
+}
+
 .online-lyrics-battle-hint-box {
   padding: 22px 18px;
   border-radius: 20px;

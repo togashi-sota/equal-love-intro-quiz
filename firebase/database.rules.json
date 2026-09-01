@@ -278,6 +278,21 @@
               }
             },
 
+            "scoreSnapshot": {
+              ".write": "auth != null && root.child('rooms/' + $roomId + '/host').val() === auth.uid",
+              "questionsScoredCount": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+              "updatedAt": { ".validate": "newData.isNumber()" },
+              "scoresByUid": {
+                "$uid": {
+                  ".validate": "newData.hasChildren(['totalPoints', 'correctCount'])",
+                  "totalPoints": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+                  "correctCount": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+                  "$other": { ".validate": false }
+                }
+              },
+              "$other": { ".validate": false }
+            },
+
             "coopRoundNumber": {
               ".write": "auth != null && root.child('rooms/' + $roomId + '/host').val() === auth.uid",
               ".validate": "newData.isNumber() && newData.val() >= 0"

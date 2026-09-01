@@ -13,6 +13,7 @@ import {
   canAdvanceToNextQuestion,
   finalizeMatch,
   restoreMatchProgressFromFirebase,
+  computeScoreSnapshotFromState,
 } from "../js/lyricsQuizMatchProgress.js";
 import { createDefaultBattleRuleSettings, getBattleRuleVersion } from "../js/battleRules/index.js";
 import { deriveHintLevelFromElapsedMs, computeElapsedMs } from "../js/lyricsQuizBattleTiming.js";
@@ -606,6 +607,88 @@ export function runLyricsQuizMatchProgressTests() {
       restoredFirst,
       restoredSecond,
       "同じFirebaseスナップショットから複数回復元しても、常に同じ状態になる（決定論的）。ホスト側の復帰処理を誤って2回呼んでも、進行が二重に進んだり結果が変わったりしない"
+    );
+  }
+
+  // ===== computeScoreSnapshotFromState（2026-09-01新設：ライブスコアボード） =====
+  // 【最重要の情報漏洩防止の検証】この関数はstate.historyByUid（tick()が既に確定済みの
+  // 結果だけを積んだ配列）だけを材料にする。「今の問題」がまだ進行中（active）で、
+  // 一部の人しか回答していない段階では、その問題の結果はhistoryByUidに一切積まれていない
+  // （tick()が問題を確定させるまでhistoryByUidへ何も書かない、という既存の実装保証）ため、
+  // computeScoreSnapshotFromState()を呼んでも「今の問題」のヒントにはなり得ないことを確認する。
+
+  // ----- ①試合開始直後：全員0点 -----
+  {
+    const questions = buildDummyQuestions(["song-1", "song-2"]);
+    const state = createMatchProgress({ questions, allPlayerUids: ["p1", "p2"], hostUid: "p1", nowMs: 0 });
+    const snapshot = computeScoreSnapshotFromState(state);
+    assertEqual(snapshot, { questionsScoredCount: 0, scoresByUid: { p1: { totalPoints: 0, correctCount: 0 }, p2: { totalPoints: 0, correctCount: 0 } } }, "試合開始直後は、まだ誰も0問しか終えていないので全員0点");
+  }
+
+  // ----- ②「今の問題」の途中経過はスコアに一切反映されない（情報漏洩防止の核心） -----
+  {
+    const settings = withBattleRule("classic");
+    const questions = buildDummyQuestions(["song-1", "song-2"]);
+    let state = createMatchProgress({ questions, allPlayerUids: ["p1", "p2"], hostUid: "p1", nowMs: 0 });
+
+    // 1問目：p1だけが正解を回答した。p2はまだ何も答えていない（＝問題はまだactiveのまま）。
+    state = recordAnswer(state, "p1", { selectedSongId: "song-1", hintLevel: 1, submittedAt: 500 });
+    const snapshotWhileActive = computeScoreSnapshotFromState(state);
+    assertEqual(
+      snapshotWhileActive,
+      { questionsScoredCount: 0, scoresByUid: { p1: { totalPoints: 0, correctCount: 0 }, p2: { totalPoints: 0, correctCount: 0 } } },
+      "p1が回答済みでも、問題がまだ確定（resolved）していなければ、そのスコアは一切反映されない（p1が既に正解したことがp2にバレない）"
+    );
+
+    // p2も回答し、tick()で1問目が確定して初めて、スコアへ反映される。
+    state = recordAnswer(state, "p2", { selectedSongId: "song-2", hintLevel: 1, submittedAt: 600 });
+    state = tick(state, settings, 700);
+    const snapshotAfterResolve = computeScoreSnapshotFromState(state);
+    assertEqual(
+      snapshotAfterResolve,
+      { questionsScoredCount: 1, scoresByUid: { p1: { totalPoints: 1, correctCount: 1 }, p2: { totalPoints: 0, correctCount: 0 } } },
+      "問題が確定（resolved）した後は、その問題の結果が正しくスコアへ反映される"
+    );
+  }
+
+  // ----- ③次の問題が始まっても、前の問題の確定済みスコアはそのまま維持される -----
+  {
+    const settings = withBattleRule("classic");
+    const questions = buildDummyQuestions(["song-1", "song-2"]);
+    let state = createMatchProgress({ questions, allPlayerUids: ["p1", "p2"], hostUid: "p1", nowMs: 0 });
+    state = recordAnswer(state, "p1", { selectedSongId: "song-1", hintLevel: 1, submittedAt: 500 });
+    state = recordAnswer(state, "p2", { selectedSongId: "song-1", hintLevel: 1, submittedAt: 600 });
+    state = tick(state, settings, 700);
+    state = advanceToNextQuestion(state, 30000);
+
+    // 2問目が始まった直後（まだ誰も回答していない）でも、1問目の結果は消えない。
+    const snapshot = computeScoreSnapshotFromState(state);
+    assertEqual(
+      snapshot,
+      { questionsScoredCount: 1, scoresByUid: { p1: { totalPoints: 1, correctCount: 1 }, p2: { totalPoints: 1, correctCount: 1 } } },
+      "次の問題が始まっても、前の問題までの累計スコアはそのまま維持される"
+    );
+  }
+
+  // ----- ④ポイントバトル：totalPointsとcorrectCountが別々に正しく集計される -----
+  {
+    const settings = withBattleRule("combo");
+    const questions = buildDummyQuestions(["song-1", "song-2"]);
+    let state = createMatchProgress({ questions, allPlayerUids: ["p1"], hostUid: "p1", nowMs: 0 });
+
+    // 1問目：ヒント1で正解（+4pt、正解1問）
+    state = recordAnswer(state, "p1", { selectedSongId: "song-1", hintLevel: 1, submittedAt: 500 });
+    state = tick(state, settings, 600);
+    state = advanceToNextQuestion(state, 30000);
+    // 2問目：ヒント3で正解（+2pt、正解2問目）
+    state = recordAnswer(state, "p1", { selectedSongId: "song-2", hintLevel: 3, submittedAt: 30500 });
+    state = tick(state, settings, 30600);
+
+    const snapshot = computeScoreSnapshotFromState(state);
+    assertEqual(
+      snapshot,
+      { questionsScoredCount: 2, scoresByUid: { p1: { totalPoints: 6, correctCount: 2 } } },
+      "ポイントバトルは、配点合計（totalPoints=4+2=6）と正解数（correctCount=2）が別々に正しく集計される"
     );
   }
 }

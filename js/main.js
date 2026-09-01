@@ -1220,6 +1220,10 @@ const onlineLyricsBattleQuitButtonElement = document.getElementById("online-lyri
 const onlineLyricsBattleBackToLobbyButtonElement = document.getElementById("online-lyrics-battle-back-to-lobby-button");
 const onlineLyricsBattleLeaveMatchButtonElement = document.getElementById("online-lyrics-battle-leave-match-button");
 const onlineLyricsBattleProgressElement = document.getElementById("online-lyrics-battle-progress");
+// 【2026-09-01新設・本人指示：ライブスコアボード】
+const onlineLyricsBattleScoreboardElement = document.getElementById("online-lyrics-battle-scoreboard");
+const onlineLyricsBattleScoreboardSummaryHintElement = document.getElementById("online-lyrics-battle-scoreboard-summary-hint");
+const onlineLyricsBattleScoreboardListElement = document.getElementById("online-lyrics-battle-scoreboard-list");
 const onlineLyricsBattleHudElement = document.getElementById("online-lyrics-battle-hud");
 const onlineLyricsBattleHintLevelElement = document.getElementById("online-lyrics-battle-hint-level");
 const onlineLyricsBattleHintLinesElement = document.getElementById("online-lyrics-battle-hint-lines");
@@ -5646,6 +5650,9 @@ initOnlineLyricsQuizBattleScreens({
   battleBackToLobbyButton: onlineLyricsBattleBackToLobbyButtonElement,
   battleLeaveMatchButton: onlineLyricsBattleLeaveMatchButtonElement,
   battleProgress: onlineLyricsBattleProgressElement,
+  battleScoreboard: onlineLyricsBattleScoreboardElement,
+  battleScoreboardSummaryHint: onlineLyricsBattleScoreboardSummaryHintElement,
+  battleScoreboardList: onlineLyricsBattleScoreboardListElement,
   battleHudContainer: onlineLyricsBattleHudElement,
   battleHintLevel: onlineLyricsBattleHintLevelElement,
   battleHintLinesContainer: onlineLyricsBattleHintLinesElement,

@@ -68,6 +68,46 @@ export function describeHudItems(ruleId, playerStats) {
   }));
 }
 
+// 【2026-09-01新設・本人指示：ライブスコアボード】対戦中の問題画面上部に置く、他プレイヤーの
+// 累計スコア一覧を整形する。
+//
+// scoreSnapshot: matches/{matchId}/scoreSnapshotの生データ
+//   （{ questionsScoredCount, scoresByUid: { [uid]: { totalPoints, correctCount } } }）。
+//   まだ1問も確定していない試合序盤はundefined/nullになり得る（その場合は全員0点扱いで
+//   一覧を組み立てる。「データが無い」ことを画面側が特別扱いしなくて済むようにするため）。
+// participantsByUid: matches/{matchId}/participants（{ [uid]: { displayName, ... } }）。
+//
+// 【最重要の情報漏洩防止】この関数はscoreSnapshotに既に入っている値を並べ替えるだけで、
+// answers・questionClaims等「今の問題の途中経過」を示すデータには一切触れない。
+// scoreSnapshot自体が「reveal完了後にホストがまとめて書き込む、1つ前の問題までの確定値」
+// であることは、呼び出し元（js/lyricsQuizBattleFirebase.jsのstartLyricsQuizQuestion／
+// finalizeLyricsQuizMatch、js/onlineLyricsQuizBattleScreen.jsのrunHostProgressionTick）が保証する。
+//
+// 正解数バトルは「現在の正解数」（correctCount）、ポイントバトル・早押しバトルは
+// 「現在の合計ポイント」（totalPoints）を見せる（本人指示のルールごとの表示内容）。
+export function describeScoreboard({ ruleId, scoreSnapshot, participantsByUid, myUid }) {
+  const valueKey = ruleId === "classic" ? "correctCount" : "totalPoints";
+  const valueUnit = ruleId === "classic" ? "問" : "pt";
+
+  const scoresByUid = scoreSnapshot?.scoresByUid ?? {};
+  const rows = Object.keys(participantsByUid ?? {}).map((uid) => ({
+    uid,
+    displayName: participantsByUid[uid]?.displayName ?? uid,
+    isMe: uid === myUid,
+    value: scoresByUid[uid]?.[valueKey] ?? 0,
+  }));
+  // 降順（同点はparticipantsの列挙順のまま。無理に順位を分けない既存のルール方針と合わせ、
+  // 同点内での並び替えはしない）。
+  rows.sort((rowA, rowB) => rowB.value - rowA.value);
+
+  return {
+    valueUnit,
+    hasData: !!scoreSnapshot,
+    questionsScoredCount: scoreSnapshot?.questionsScoredCount ?? 0,
+    rows,
+  };
+}
+
 // 【2026-09-03修正・本人指摘】以前はunit引数が無く、hudFields/resultColumnsで
 // unit: "ms"を宣言していても無視され、ミリ秒の生値（例：9620）がそのまま表示されていた。
 // unitが"ms"の数値だけ「秒」表示に変換する（他のunit無しの数値は今までどおり）。

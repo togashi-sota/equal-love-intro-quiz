@@ -241,6 +241,40 @@ export function finalizeMatch(state, settings) {
   return entries;
 }
 
+// ===== ライブスコアボード（reveal完了時点でのスナップショット） =====
+//
+// 【2026-09-01新設・本人指示：ライブスコアボード】オンライン歌詞クイズ対戦中、他プレイヤーの
+// 「これまでの問題を終えた時点での累計スコア」をリアルタイムで見せる機能のための集計。
+// 呼び出し元（js/onlineLyricsQuizBattleScreen.js）は、ホストがadvanceToNextQuestion()で
+// 1問分の結果発表（reveal）を終えたタイミング（＝次の問題を開始する／最終結果を確定する、
+// まさにそのFirebase書き込みと同じタイミング）でこの関数を呼び、返り値をmatches/{matchId}/
+// scoreSnapshotへ1回のupdate()でまとめて書き込む。
+//
+// 【最重要の情報漏洩防止】「回答の中身（誰が何を選んだか）はrevealまで秘密のまま、確定済みの
+// 累計スコアだけをrevealが終わった瞬間に全員へ同時公開する」という要件を、進行エンジンの
+// 外側（Firebase書き込み層）でも壊さないよう、この関数はstate.historyByUid（tick()が
+// 既に確定済みの結果だけを積んだ配列）だけを材料にする。まだ確定していない「今の問題」の
+// 回答（currentQuestion.answersByUid）には一切触れない。
+//
+// 返り値: { questionsScoredCount, scoresByUid: { [uid]: { totalPoints, correctCount } } }
+//   totalPoints: そのルールの配点方式で加算した累計ポイント（正解数バトルは正解1問=1ptなので
+//     correctCountと同じ値になる。ポイントバトル・早押しバトルはヒント段階等に応じた配点）。
+//   correctCount: 正解した問題数（配点方式に関係なく、正解数バトルの表示用）。
+//   questionsScoredCount: ここまでに確定した問題数（scoreSnapshotが「何問目までの結果か」を
+//     画面側が案内できるようにするための参考値）。
+export function computeScoreSnapshotFromState(state) {
+  const scoresByUid = {};
+  let questionsScoredCount = 0;
+  for (const uid of state.allPlayerUids) {
+    const history = state.historyByUid[uid] ?? [];
+    questionsScoredCount = Math.max(questionsScoredCount, history.length);
+    const totalPoints = history.reduce((sum, outcome) => sum + (outcome.pointsAwarded ?? 0), 0);
+    const correctCount = history.filter((outcome) => outcome.outcome === "correct").length;
+    scoresByUid[uid] = { totalPoints, correctCount };
+  }
+  return { questionsScoredCount, scoresByUid };
+}
+
 // ===== ホストのリロード・再接続からの復元（Phase6.5新設） =====
 //
 // 【なぜ必要か】この状態（state）はホストの端末のメモリ上にしか存在しない。ホストが
