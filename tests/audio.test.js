@@ -43,6 +43,39 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// 【2026-09-24新設・本人指示：再発防止】SILENT_UNLOCK_DATA_URIが、今回の根本原因
+// （WAVのdataチャンクが0バイト＝実際のサンプルが1つも無い）へ将来また誤って戻って
+// しまわないことを保証するための、最小限のWAVパーサー。RIFF/WAVE/fmt/dataという
+// 標準的なチャンク構造だけを読み取る（圧縮形式・拡張ヘッダー等には対応しない、
+// このプロジェクトが実際に使う単純なPCM WAVだけを想定した割り切った実装）。
+function parseWavDataUri(dataUri) {
+  const base64 = dataUri.replace(/^data:audio\/wav;base64,/, "");
+  const binaryString = atob(base64);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i += 1) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  const view = new DataView(bytes.buffer);
+  const readAscii = (offset, length) =>
+    Array.from(bytes.slice(offset, offset + length))
+      .map((byte) => String.fromCharCode(byte))
+      .join("");
+
+  const riffTag = readAscii(0, 4);
+  const waveTag = readAscii(8, 4);
+  const fmtTag = readAscii(12, 4);
+
+  // fmtチャンクのサイズ（オフセット16、4バイト、リトルエンディアン）を読み、
+  // その直後からdataチャンクが始まる位置を計算する（fmt拡張が無い前提の単純な構造）。
+  const fmtChunkSize = view.getUint32(16, true);
+  const dataTagOffset = 20 + fmtChunkSize;
+  const dataTag = readAscii(dataTagOffset, 4);
+  const dataChunkSize = view.getUint32(dataTagOffset + 4, true);
+  const actualDataBytes = bytes.length - (dataTagOffset + 8);
+
+  return { riffTag, waveTag, fmtTag, dataTag, dataChunkSize, actualDataBytes, totalBytes: bytes.length };
+}
+
 // ensureUnlockSettled()がいつまでも先に進まない（ハングする）事故が無いことを保証するため、
 // タイムアウト付きで待つ。iOS実機と違い、ここでのplay()は自動再生ポリシーで拒否される
 // 可能性が高いが、attemptSilentUnlock()側は失敗もcatchしてresolveする設計のはずなので、
@@ -68,6 +101,38 @@ export async function runAudioTests() {
   // 各テストの前提を揃えるため、audio要素を明示的に一時停止・先頭に戻しておく。
   audioElement.pause();
   audioElement.currentTime = 0;
+
+  // ===== 【2026-09-24新設・本人指示：再発防止】SILENT_UNLOCK_DATA_URIが今回の根本原因
+  //       （dataチャンクが0バイト）へ将来また誤って戻っていないかの回帰テスト =====
+  // 【なぜ重要か】このテストが検証しているのは「iOSで実際に自動再生が許可されるか」では
+  // なく、もっと手前の「そもそもこのWAVデータ自体が壊れていないか」という、コードだけで
+  // 確実に検証できる部分。今回のバグはこの部分の不備（dataチャンクのサイズが0）が
+  // 直接の原因だったため、ここが再発しないことを機械的に保証する。
+  {
+    const parsed = parseWavDataUri(SILENT_UNLOCK_DATA_URI);
+    assertEqual(parsed.riffTag, "RIFF", "unlock用WAVはRIFFヘッダーで始まる（壊れたファイルではない）");
+    assertEqual(parsed.waveTag, "WAVE", "unlock用WAVのフォーマットタグはWAVE");
+    assertEqual(parsed.fmtTag, "fmt ", "unlock用WAVにfmtチャンクが存在する");
+    assertEqual(parsed.dataTag, "data", "unlock用WAVにdataチャンクが存在する");
+    assertEqual(
+      parsed.dataChunkSize > 0,
+      true,
+      `【今回の根本原因の直接の再発防止】dataチャンクのサイズは0であってはならない（実際: ${parsed.dataChunkSize}バイト。0だとiOS実機でplay()のPromiseが無期限にpendingし、本番音源の再生が永久にブロックされる）`
+    );
+    assertEqual(
+      parsed.actualDataBytes >= parsed.dataChunkSize,
+      true,
+      "dataチャンクが宣言しているサイズぶんの実際のバイト列が、ファイルの中に本当に存在する（ヘッダーだけで中身が伴っていない状態を防ぐ）"
+    );
+    // 50ミリ秒（8000Hz×50ms=400サンプル）以上の、実用に足る長さがあることも確認する
+    // （1〜2サンプルだけの極端に短いデータでは、iOS側が「再生を開始した」という進捗を
+    // 検知できないリスクが残るという判断のため）。
+    assertEqual(
+      parsed.dataChunkSize >= 400,
+      true,
+      `unlock用WAVは十分な長さ（最低400バイト分のサンプル）を持つ（実際: ${parsed.dataChunkSize}バイト）`
+    );
+  }
 
   // ===== unlockが1件も進行していない状態のensureUnlockSettled() =====
   {

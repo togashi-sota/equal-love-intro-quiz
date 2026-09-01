@@ -160,13 +160,15 @@ export function setSfxVolumePercent(percent) {
 // 呼ばれるため、この構造で安全に復帰できる）。
 let audioContext = null;
 
-// 【2026-09-23新設・本人指示：新規プレイのたびに第1問だけ無音になる問題の再調査】
-// 効果音用のAudioContextと、曲再生用の<audio>要素は、iOS実機では同じ端末の音声出力
-// （AVAudioSession）を共有していると考えられる。ここのresume()呼び出しが、ちょうど
-// 曲のQ1再生のplay()呼び出しと近いタイミングで発生していないかを確認するため、
-// AudioContextの状態変化を診断ログへ記録する（js/audioDiagnosticLog.js、
-// js/audio.jsの再生記録と同じ共有タイムラインに載る）。まだ検証段階の仮説であり、
-// この記録自体はaudioContext自体の挙動を一切変えない（読み取り・記録のみ）。
+// 【2026-09-23新設・2026-09-24結論確定：本人指示】新規プレイのたびに第1問だけ無音に
+// なる問題の調査時、「効果音用のAudioContextと曲再生用の<audio>要素がiOSの音声出力を
+// 共有し干渉しているのでは」という仮説を検証するため追加した。実際の根本原因は
+// js/audio.js側のunlock用データURIの不備（HANDOFF.md 76章参照）であり、この仮説は
+// 外れたと判明したが、AudioContextの生成・resume()はそれ自体が稀にしか起きない
+// 低頻度のイベントで、記録を残しておいても実害が無いため、今後また別の音源トラブルが
+// 起きた際の切り分け材料として記録は残してある（js/audioDiagnosticLog.js、
+// js/audio.jsの再生記録と同じ共有タイムラインに載る）。この記録自体はaudioContext
+// 自体の挙動を一切変えない（読み取り・記録のみ）。
 function getAudioContext() {
   if (audioContext === null) {
     const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
@@ -531,11 +533,6 @@ export function playSfx(eventName) {
   if (!sfxMasterEnabled) return;
   const isUiEvent = UI_EVENT_SET.has(eventName);
   if (isUiEvent ? !sfxUiEnabled : !sfxGameEnabled) return;
-
-  // 【2026-09-23新設・本人指示：新規プレイのたびに第1問だけ無音になる問題の再調査】
-  // GAME_START等、ゲーム開始と同時に鳴らす効果音がQ1の曲再生と時間的に近いことが
-  // 疑われているため、どのイベントがいつ呼ばれたかを記録する。
-  recordAudioDiagnostic("[SFX] playSfx呼び出し", { eventName });
 
   const context = getAudioContext();
   if (!context) return;
