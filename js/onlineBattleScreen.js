@@ -1266,6 +1266,9 @@ function goToCountdownScreen(room) {
       if (lastCountdownDisplayValue !== "START!") {
         lastCountdownDisplayValue = "START!";
         playSfx(SFX_EVENTS.COUNTDOWN_FINAL);
+        elements.countdownNumber.classList.remove("is-ticking");
+        void elements.countdownNumber.offsetWidth;
+        elements.countdownNumber.classList.add("is-ticking");
       }
       elements.countdownNumber.textContent = "START!";
       if (!hasFinishedCountdownLocally) {
@@ -1285,6 +1288,12 @@ function goToCountdownScreen(room) {
     if (secondsRemaining !== lastCountdownDisplayValue) {
       lastCountdownDisplayValue = secondsRemaining;
       playSfx(SFX_EVENTS.COUNTDOWN_TICK);
+      // 【2026-09-16修正・本人指摘：一瞬バトルと同じチラつきパターン】数字が実際に
+      // 切り替わった瞬間だけ拍動アニメーションを1回再生する（js/localReplayCountdown.js
+      // と同じ、一度クラスを外してreflowを挟んでから付け直す手法）。
+      elements.countdownNumber.classList.remove("is-ticking");
+      void elements.countdownNumber.offsetWidth;
+      elements.countdownNumber.classList.add("is-ticking");
     }
     elements.countdownNumber.textContent = secondsRemaining;
   };

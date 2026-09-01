@@ -13134,7 +13134,15 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   font-size: 5rem;
   font-weight: 800;
   color: var(--color-accent);
-  animation: online-battle-countdown-pulse 1s ease-in-out infinite;
+}
+
+/* 【2026-09-16修正・本人指摘：一瞬バトルと同じチラつきパターン】以前はここに
+   `animation: ... infinite`を直接指定しており、数字が変わらない間も1秒ごとに
+   無関係な拍動を繰り返してチラついて見えていた。js/localReplayCountdown.jsで採用した
+   「数字が切り替わった瞬間だけis-tickingクラスを付け直して1回だけ再生」という
+   恒久ルール準拠の方式に合わせた（js/onlineBattleScreen.jsのtick()参照）。 */
+.online-battle-countdown-number.is-ticking {
+  animation: online-battle-countdown-pulse 1s ease-in-out;
 }
 
 @keyframes online-battle-countdown-pulse {
