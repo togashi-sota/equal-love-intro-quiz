@@ -213,3 +213,78 @@ export async function filterSongsWithImportedAudio(songs) {
   const importedIds = await getImportedSongIds();
   return filterSongsByAvailableAudio(songs, importedIds);
 }
+
+// ===== 【2026-09-21新設・本人指示：起動後1問目だけ無音になる問題の再調査】=====
+//
+// 【今回のGit履歴調査で判明した実際の原因】このファイルのgetAudioBlob()には、
+// 「df5c1a1（2026-08-05）：音源未読み込み判定に、null時のみ1回だけ再試行する保険を追加」
+// という、非常に古い時点からのコミットで既に、次の症状が報告・記録されていた：
+//   「オンライン対戦の参加者端末で、新しいルームの1試合目1問目にだけ、実際には音源が
+//    読み込まれているのに『音源が読み込まれていません』と誤って出ることがある」
+// これはまさに「このセッションで初めてIndexedDBへ実際にアクセスするタイミング」が
+// 「1問目の音源取得」と重なると、その1回目のアクセス（.get()）が本来あるはずの
+// レコードに対してnullを返す、または通常より大きく遅れる、というIndexedDBの
+// コールドスタート特有の不安定さがある、ということを示している。
+// この後、35c2ee6・8a4cab7と、再試行の回数・待ち時間（150ms→150/300/600ms）を
+// 強化する対策が重ねられてきたが、いずれも「不安定な1回目のアクセスへの後追いの
+// 再試行」でしかなく、「なぜ1回目だけ不安定なのか」という根本原因（＝このセッションで
+// 一度もIndexedDBに触れていない、コールドな状態）そのものは解消されていなかった。
+//
+// 【今回の対策：ユーザーのタップより前に、見えないところで「1回目の不安定なアクセス」を
+// 済ませておく】ユーザーが実際にクイズを始める操作（スタートボタン等）をする頃には、
+// 通常すでにアプリの起動・ホーム画面表示から数秒以上が経過している。この「暇な時間」を
+// 使って、アプリ起動直後（このファイルが読み込まれた瞬間）に、実際の音源取得と全く同じ
+// コード経路（openDatabase()→getAllKeys()→get()）を一度だけ通しておくことで、
+// 「不安定になりがちな1回目のアクセス」を、ユーザーの操作とは無関係なタイミングへ
+// 前倒しする。これにより、実際にユーザーがスタートを押して1問目の音源を取得する頃には
+// 既にIndexedDBが「温まった」状態になっており、getAudioBlob()の再試行ロジックが
+// 発動する必要自体がなくなる（＝スタート操作から実際のplay()呼び出しまでの間に挟まる
+// 非同期処理の時間を、再試行の分だけ短縮できる）ことを狙っている。
+//
+// 【安全性】読み取り専用の操作のみで、結果は使い捨てる（呼び出し元には一切影響しない）。
+// 失敗しても（IndexedDB自体が使えない環境等）例外を握りつぶし、既存のどの処理にも
+// 影響を与えない、完全にbest-effortな先読みに徹する。
+
+// 開発者向け診断ログ（console.logのみ。ユーザー向けUIには一切表示しない）。
+// js/audio.jsのdiag()と同じ考え方・同じ経過時間の基準で、Q1無音バグの原因調査のため、
+// このファイル単体でも起動直後からの時系列を追えるようにする。
+const warmupDiagStartTime = performance.now();
+function warmupDiag(label, detail) {
+  const elapsedMs = Math.round(performance.now() - warmupDiagStartTime);
+  if (detail !== undefined) {
+    console.log(`[audioStorage診断] +${elapsedMs}ms ${label}`, detail);
+  } else {
+    console.log(`[audioStorage診断] +${elapsedMs}ms ${label}`);
+  }
+}
+
+// アプリ起動直後、ユーザーのどの操作も待たずに1回だけ実行する（below、自己実行）。
+// 「1曲分の実際のBlob取得」まで含めて経路を一致させるため、getImportedSongIds()だけでなく、
+// 読み込み済みの曲が1曲でもあればgetAudioBlobOnce()も1回だけ通す
+// （リトライ機構であるgetAudioBlob()ではなく、あえて内部のgetAudioBlobOnce()を直接呼ぶ。
+// 再試行込みのgetAudioBlob()を使うと、コールドスタートで1回目がnullだった場合に
+// 150〜1050ms分もこのウォームアップ自体が待ってしまい、後続の他の起動処理を無駄に
+// 遅らせる可能性があるため。ウォームアップの目的は「実際に1問目を取得する瞬間より前に
+// 一度触れておくこと」であり、ここでnullが返ってきても再試行する必要はない）。
+async function warmUpAudioDatabase() {
+  try {
+    warmupDiag("ウォームアップ開始");
+    await openDatabase();
+    warmupDiag("openDatabase()完了");
+    const ids = await getImportedSongIds();
+    warmupDiag("getImportedSongIds()完了", { count: ids.length });
+    if (ids.length > 0) {
+      const blob = await getAudioBlobOnce(ids[0]);
+      warmupDiag("getAudioBlobOnce()完了（1曲分の試し読み）", { songId: ids[0], hasBlob: !!blob });
+    }
+    warmupDiag("ウォームアップ完了");
+  } catch (error) {
+    // best-effortな先読みのため、失敗しても何もしない
+    // （後続の実際の取得は、従来どおりgetAudioBlob()の再試行に委ねられる）。
+    warmupDiag("ウォームアップ失敗（実害なし、後続の実際の取得へ委ねる）", {
+      name: error?.name,
+      message: error?.message,
+    });
+  }
+}
+warmUpAudioDatabase();

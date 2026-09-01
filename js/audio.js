@@ -35,7 +35,7 @@ diag("audio.js読み込み完了");
 // 念のためここで存在チェックしてから登録する（このファイル自体は元々、audioElementが
 // nullでも「取得はできるが実際に使おうとするまでは落ちない」設計だったため、それを崩さない）。
 if (audioElement) {
-  ["canplay", "stalled", "suspend", "abort", "ended"].forEach((eventName) => {
+  ["canplay", "stalled", "suspend", "abort", "ended", "waiting", "pause", "emptied"].forEach((eventName) => {
     audioElement.addEventListener(eventName, () => {
       diag(`audio要素イベント: ${eventName}`, {
         readyState: audioElement.readyState,
@@ -99,7 +99,7 @@ export function attemptSilentUnlock() {
   // 巻き戻してしまう事故になりうるため、その場合は何もしない（再生中ということは
   // その時点でunlockが機能している証拠でもあり、わざわざ試す必要も無い）。
   if (!audioElement.paused) {
-    diag("unlock: 既に再生中のため何もしない（既存のunlockに委ねる）");
+    diag("[UNLOCK] 既に再生中のため何もしない（既存のunlockに委ねる）");
     return;
   }
 
@@ -119,7 +119,7 @@ export function attemptSilentUnlock() {
   const hadSrc = audioElement.src === SILENT_UNLOCK_DATA_URI;
   if (!hadSrc) audioElement.src = SILENT_UNLOCK_DATA_URI;
 
-  diag("unlock: play()呼び出し", { hadSrc, visibilityState: document.visibilityState });
+  diag("[UNLOCK] play()呼び出し", { hadSrc, visibilityState: document.visibilityState });
   const playResult = audioElement.play();
   if (playResult && typeof playResult.then === "function") {
     // 【2026-09-01追加】このPromiseの決着（成功・失敗どちらでも）をpendingUnlockPromiseに
@@ -130,7 +130,7 @@ export function attemptSilentUnlock() {
     const settledPromise = playResult
       .then(() => {
         audioUnlockState = "succeeded";
-        diag("unlock: play()成功");
+        diag("[UNLOCK] play()成功");
         audioElement.pause();
         if (hadSrc) {
           audioElement.currentTime = 0;
@@ -144,7 +144,7 @@ export function attemptSilentUnlock() {
         // 従来どおりPLAY_RETRY_WAIT_MS_LISTの再試行に委ねるため、ここでは何もしない
         // （このunlock自体はあくまで成功率を上げるための best-effort な対策）。
         audioUnlockState = "failed";
-        diag("unlock: play()失敗", { name: error?.name, message: error?.message });
+        diag("[UNLOCK] play()失敗", { name: error?.name, message: error?.message });
         console.warn("[audio] unlockに失敗しました（本番の音源再生には別途リトライがあります）", error?.name, error?.message);
         if (!hadSrc) {
           audioElement.removeAttribute("src");
@@ -164,7 +164,7 @@ export function attemptSilentUnlock() {
     // 非常に古いブラウザ等、play()がPromiseを返さない場合はPromiseベースでの待ち合わせが
     // そもそもできないため、pendingUnlockPromiseは触らない（ensureUnlockSettled()は
     // 何もせず素通りする＝これまでどおりの挙動になるだけで、悪化はしない）。
-    diag("unlock: play()がPromiseを返さない環境のため待ち合わせ対象外");
+    diag("[UNLOCK] play()がPromiseを返さない環境のため待ち合わせ対象外");
   }
 }
 
@@ -241,6 +241,59 @@ let currentObjectUrl = null;
 // （別のaudio要素や独自の競合対策を新設しない、という本人の明確な要望どおり）。
 let currentPlaybackToken = 0;
 
+// 【2026-09-21新設・本人指示：Q1無音の再調査】このセッションで「本物の曲」が実際に
+// playing状態へ入ったことを一度でも確認できたかどうか。診断ログのタグ分け
+// （[FIRST_REAL_AUDIO] / [NORMAL_AUDIO]）に使う。「play()のPromiseが成功した」だけでは
+// 「音が聞こえた」ことの証明にならない、という本人指示に基づき、実際にonplayingが発火し、
+// かつ少し時間を置いてcurrentTimeが本当に進んでいることまで確認できて初めてtrueにする
+// （verifyRealPlaybackStarted()参照）。unlock用の無音データURI再生はここには含めない
+// （あくまで「本物の曲」が対象）。
+let hasConfirmedFirstRealPlayback = false;
+
+// 【2026-09-21新設・本人指示：Q1無音の再調査】onplayingが発火した直後の音源要素の状態を
+// 詳しく記録し、さらに少し時間を置いてcurrentTimeが実際に進んでいるかまで確認する。
+// 「play()のPromiseが成功した」「onplayingが発火した」だけで「音が聞こえた」と判断せず、
+// 実際に再生位置が進んでいることまで見る（本人指示のとおり）。
+// diagnosticContext: "intro, song=xxx" 等、呼び出し元のplaySongIntro()/
+// playSongFromRandomPosition()が渡す識別用の文字列。
+function verifyRealPlaybackStarted(myToken, diagnosticContext) {
+  const tag = hasConfirmedFirstRealPlayback ? "NORMAL_AUDIO" : "FIRST_REAL_AUDIO";
+  const currentTimeAtPlayingEvent = audioElement.currentTime;
+  diag(`[${tag}] onplayingイベント発火 (${diagnosticContext})`, {
+    readyState: audioElement.readyState,
+    networkState: audioElement.networkState,
+    currentTime: audioElement.currentTime,
+    paused: audioElement.paused,
+    muted: audioElement.muted,
+    volume: audioElement.volume,
+    duration: audioElement.duration,
+    src: audioElement.currentSrc,
+  });
+  // onplayingの直後だけでは「再生位置が本当に進み続けているか」までは分からないため、
+  // 少し時間を置いてから改めて確認する（この時点で既に次の曲に追い越されていたら、
+  // 今の曲についての確認は意味が無いので何もしない）。
+  setTimeout(() => {
+    if (myToken !== currentPlaybackToken) return;
+    const currentTimeNow = audioElement.currentTime;
+    const actuallyAdvanced = !audioElement.paused && currentTimeNow > currentTimeAtPlayingEvent;
+    diag(`[${tag}] 再生位置の進行確認 (${diagnosticContext})`, {
+      currentTimeAtPlayingEvent,
+      currentTimeNow,
+      actuallyAdvanced,
+      paused: audioElement.paused,
+      readyState: audioElement.readyState,
+    });
+    if (actuallyAdvanced) {
+      hasConfirmedFirstRealPlayback = true;
+    } else {
+      console.warn(
+        `[audio] [${tag}] onplayingは発火したが、再生位置が進んでいない疑いがあります (${diagnosticContext})`,
+        { currentTimeAtPlayingEvent, currentTimeNow, paused: audioElement.paused }
+      );
+    }
+  }, 200);
+}
+
 // 今の再生トークンに対応する曲id（currentPlaybackTokenと必ずセットで更新する）。
 // 【2026-09-16新設・本人指示：「音が出ない」救済ボタン共通基盤】呼び出し元（各画面）が
 // 「今audio.jsが再生している／しようとしているのはどの曲か」を、自分で別に持ち回らずとも
@@ -303,6 +356,12 @@ const PLAY_RETRY_WAIT_MS_LIST = [300, 600];
 // ようにした。本番でも出す（ユーザー向けの表示文言onErrorは一切変えない、あくまで
 // 実機のブラウザコンソールから原因を切り分けるための追加ログ）。
 async function attemptPlay(myToken, myObjectUrl, onError, diagnosticContext) {
+  // 【2026-09-21新設・本人指示：Q1無音の再調査】このplay()呼び出しが、このセッションで
+  // まだ一度も確認できていない「本物の初回再生」なのか、既に確認済みの通常再生なのかを
+  // タグとして残す（本人指示のログ識別要件）。呼び出し開始時点の値を固定して使う
+  // （途中でhasConfirmedFirstRealPlaybackが変わっても、この1回の呼び出し内では
+  // 一貫したタグにするため）。
+  const playbackTag = hasConfirmedFirstRealPlayback ? "NORMAL_AUDIO" : "FIRST_REAL_AUDIO";
   let lastError = null;
   for (let attempt = 0; attempt <= PLAY_RETRY_WAIT_MS_LIST.length; attempt++) {
     if (attempt > 0) {
@@ -312,7 +371,7 @@ async function attemptPlay(myToken, myObjectUrl, onError, diagnosticContext) {
       if (myToken !== currentPlaybackToken) return false;
       if (!audioElement.paused) return true;
     }
-    diag(`本番再生: play()呼び出し (${diagnosticContext}) attempt=${attempt}`, {
+    diag(`[${playbackTag}] play()呼び出し (${diagnosticContext}) attempt=${attempt}`, {
       readyState: audioElement.readyState,
       networkState: audioElement.networkState,
       src: audioElement.src,
@@ -320,11 +379,21 @@ async function attemptPlay(myToken, myObjectUrl, onError, diagnosticContext) {
     try {
       await audioElement.play();
       lastError = null;
-      diag(`本番再生: play()成功 (${diagnosticContext}) attempt=${attempt}`);
+      // 【本人指示：play()のPromiseが成功しただけでは「音が聞こえた」ことにならない】
+      // ここではあくまで「ブラウザがplay()呼び出し自体は拒否しなかった」ことしか
+      // 分かっていない。実際に音が鳴り始めたかどうかは、この後発火する（はずの）
+      // onplayingイベント側のverifyRealPlaybackStarted()が、readyState・currentTimeの
+      // 実際の進行まで確認して初めて判断する。
+      diag(`[${playbackTag}] play()のPromiseは成功（※音が鳴ったことの確認ではない） (${diagnosticContext}) attempt=${attempt}`, {
+        readyState: audioElement.readyState,
+        paused: audioElement.paused,
+        muted: audioElement.muted,
+        volume: audioElement.volume,
+      });
       break;
     } catch (error) {
       lastError = error;
-      diag(`本番再生: play()失敗 (${diagnosticContext}) attempt=${attempt}`, { name: error?.name, message: error?.message });
+      diag(`[${playbackTag}] play()失敗 (${diagnosticContext}) attempt=${attempt}`, { name: error?.name, message: error?.message });
     }
   }
 
@@ -399,14 +468,15 @@ export async function playSongIntro(song, onError, onPlaybackStart) {
   };
   audioElement.onplaying = () => {
     if (myToken !== currentPlaybackToken) return;
-    diag(`本番再生: playingイベント (intro, song=${song.id})`);
+    verifyRealPlaybackStarted(myToken, `intro, song=${song.id}`);
     onPlaybackStart();
   };
   audioElement.onloadedmetadata = () => {
     if (myToken !== currentPlaybackToken) return;
     audioElement.currentTime = song.introLeadInSec || 0;
   };
-  diag(`本番再生: src設定 (intro, song=${song.id})`, { unlock: audioUnlockState });
+  const playbackTag = hasConfirmedFirstRealPlayback ? "NORMAL_AUDIO" : "FIRST_REAL_AUDIO";
+  diag(`[${playbackTag}] src設定 (intro, song=${song.id})`, { unlock: audioUnlockState });
   audioElement.src = myObjectUrl;
 
   await attemptPlay(myToken, myObjectUrl, onError, `intro, song=${song.id}`);
@@ -452,7 +522,7 @@ export async function playSongFromRandomPosition(song, computeStartTimeSec, play
   };
   audioElement.onplaying = () => {
     if (myToken !== currentPlaybackToken) return;
-    diag(`本番再生: playingイベント (randomPosition, song=${song.id})`);
+    verifyRealPlaybackStarted(myToken, `randomPosition, song=${song.id}`);
     onPlaybackStart();
     // 指定秒数だけ鳴らしたら自動的に一時停止する。
     // タイマー発火時に既に追い越されていた場合は何もしない（stopAudio()や次の
@@ -471,7 +541,8 @@ export async function playSongFromRandomPosition(song, computeStartTimeSec, play
     if (myToken !== currentPlaybackToken) return;
     audioElement.currentTime = computeStartTimeSec(audioElement.duration);
   };
-  diag(`本番再生: src設定 (randomPosition, song=${song.id})`, { unlock: audioUnlockState });
+  const randomPositionPlaybackTag = hasConfirmedFirstRealPlayback ? "NORMAL_AUDIO" : "FIRST_REAL_AUDIO";
+  diag(`[${randomPositionPlaybackTag}] src設定 (randomPosition, song=${song.id})`, { unlock: audioUnlockState });
   audioElement.src = myObjectUrl;
 
   await attemptPlay(myToken, myObjectUrl, onError, `randomPosition, song=${song.id}`);
