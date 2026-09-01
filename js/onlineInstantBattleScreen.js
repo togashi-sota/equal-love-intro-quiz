@@ -25,7 +25,7 @@ import {
   ROOM_STATUS,
   subscribeServerTimeOffset,
   returnRoomToLobby,
-  rematchAndStartNow,
+  beginRematchReadyCheck,
 } from "./onlineBattle.js";
 import { promptReturnToLobby } from "./onlineBattleLobbyReturnPrompt.js";
 import { promptLeaveMatch } from "./onlineBattleLeaveMatchPrompt.js";
@@ -230,11 +230,15 @@ export function initOnlineInstantBattleScreens(newElements) {
       elements.navigateTo("start");
     });
   });
+  // 【再戦準備フェーズ新設・本人指示】以前はここで即座に再戦を開始していたが、今は
+  // beginRematchReadyCheck()を呼び、全員が「準備OK」を押すのを待つ準備フェーズへ進む
+  // （実際の画面はjs/onlineBattleScreen.js側の共通のrenderRematchReadyScreen()が
+  // room.gameModeに応じて出し分けるため、このファイルはボタンを押すところまでだけを担う）。
   elements.resultRematchButton.addEventListener("click", async () => {
     if (!latestRoom) return;
     attemptSilentUnlock();
     elements.resultRematchButton.disabled = true;
-    await rematchAndStartNow({ roomId: latestRoom.roomId });
+    await beginRematchReadyCheck({ roomId: latestRoom.roomId });
     elements.resultRematchButton.disabled = false;
   });
   elements.resultBackToLobbyButton.addEventListener("click", async () => {

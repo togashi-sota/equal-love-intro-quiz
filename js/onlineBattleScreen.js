@@ -35,6 +35,12 @@ import {
   beginMatchConfirmation,
   setRuleConfirmed,
   cancelMatchConfirmation,
+  // 【再戦準備フェーズ新設・本人指示】対戦開始前ルール確認画面（beginMatchConfirmation等）と
+  // 全く同じ考え方の、結果画面の「もう一度」用の一段階。
+  beginRematchReadyCheck,
+  setRematchReady,
+  cancelRematchReadyCheck,
+  finishRematchReadyCheck,
   finishCountdown,
   subscribeServerTimeOffset,
   initializeMyMatchProgress,
@@ -42,7 +48,6 @@ import {
   finishMyMatch,
   finalizeMatchIfReady,
   returnRoomToLobby,
-  rematchAndStartNow,
   COUNTDOWN_DURATION_MS,
   ROOM_STATUS,
   MIN_PLAYERS,
@@ -69,7 +74,7 @@ import {
 } from "./battleModes/index.js";
 import { QUESTION_COUNT_LABELS, CATEGORY_LABELS, RULE_LABELS } from "./localBattleScreen.js";
 import { buildSharedEngineQuestionBreakdown, capQuestionBreakdownForStorage } from "./battleQuestionBreakdown.js";
-import { computeAllPlayersConfirmed } from "./onlineBattleMatchConfirmationPayloads.js";
+import { computeAllPlayersConfirmed, computeAllPlayersRematchReady } from "./onlineBattleMatchConfirmationPayloads.js";
 // 【2026-09-16新設・本人指示：対戦中に自主退出したゲストを待ち続けない】タイムアタック・
 // ランダム再生対戦・アウトロクイズ対戦（このファイルが担当する個人進行系3モード）が
 // 「全員の結果が揃ったか」を判定するための純粋関数。js/onlineBattle.jsのfinalizeMatchIfReady()
@@ -109,6 +114,9 @@ import {
   handleLyricsQuizRoomUpdate,
   resetLyricsQuizBattleState,
   forceHideLyricsCollabSongSection,
+  // 【再戦準備フェーズ新設・本人指示】再戦準備画面の「今回の設定の簡単な要約」チップに、
+  // ロビーの参加者向けサマリーと全く同じ組み立てロジックを再利用する。
+  buildLyricsQuizSettingsSummaryChips,
 } from "./onlineLyricsQuizBattleScreen.js";
 // 【2026-08-06新設・回帰防止】「対戦を開始する」時にどの設定を使うか決める判定ロジックは、
 // DOM・Firebaseに一切触れない別ファイルへ切り出し、恒久テストの対象にした
@@ -139,6 +147,8 @@ import {
   syncInstantCoopResultHostGuestButtons,
   handleInstantCoopRoomUpdate,
   resetInstantCoopBattleState,
+  // 【再戦準備フェーズ新設・本人指示】上のbuildLyricsQuizSettingsSummaryChipsと同じ理由。
+  buildInstantCoopSettingsSummaryChips,
 } from "./onlineInstantCoopBattleScreen.js";
 // 【2026-08-08新設】出題する曲をホストが選べる機能。曲の一覧・選択UI自体は3対戦モード共通の
 // 別画面（js/onlineBattleSongPicker.js）に任せ、このファイルは「今の選択曲id配列」を
@@ -190,6 +200,15 @@ let lastHandledRoomStatus = null; // status変化での自動遷移を、状態�
 let lastHandledConfirmingMatch = false; // confirmingMatchの変化を検知するための追跡
 let matchConfirmAutoStartTimerId = null; // 全員確認後の「2秒待ってから開始」タイマー（ホストのみ使用）
 const MATCH_CONFIRM_AUTO_START_DELAY_MS = 2000; // 本人指示21：全員確認後、約2秒待ってから開始する
+// 【再戦準備フェーズ新設・本人指示】上のconfirmingMatch系の状態と全く同じ役割を、
+// 結果画面の「もう一度」→再戦準備フェーズでも持つ（意味が違うフラグのため、あえて
+// 変数も分けている。goToLobby()で毎回リセットする点は上と少し異なる：確認フェーズの
+// 途中でルームを離れる・別のルームへ移る、といった経路をまたいでタイマー予約や
+// 「前回どちらの状態だったか」の記憶が残り続けると、前のルームの状態が新しいルームの
+// 画面にチラつく事故（本人が繰り返し報告してきたmatchId混入バグと同じ種類の問題）に
+// つながりかねないため、新設にあたって明示的にリセット対象へ加えた）。
+let lastHandledConfirmingRematch = false; // confirmingRematchの変化を検知するための追跡
+let rematchReadyAutoStartTimerId = null; // 全員準備OK後の「2秒待ってから開始」タイマー（ホストのみ使用）
 let suppressNextReadyChangeNotice = false; // 自分でREADYボタンを押した直後だけ、変更通知を出さない
 // 【2026-09-07改訂】以前はlastKnownMyReady（READYの前回値）を見ていたが、READYが設定変更で
 // 解除されなくなったため、settingsRevision自体の変化を直接追跡する方式に変更した。
@@ -804,6 +823,151 @@ function renderMatchConfirmScreen(room) {
   } else if (!allConfirmed && matchConfirmAutoStartTimerId !== null) {
     clearTimeout(matchConfirmAutoStartTimerId);
     matchConfirmAutoStartTimerId = null;
+  }
+}
+
+// ===== 再戦準備フェーズ（新設・本人指示） =====
+// 結果画面の「もう一度」を押した直後〜3→2→1カウントダウンの間に挟まる、全員が今回の
+// 対戦設定の簡単な要約を確認し「準備OK」を押すための画面。上の対戦開始前ルール確認画面
+// （enterMatchConfirmScreen/renderMatchConfirmScreen）と全く同じ構造・同じ設計方針
+// （room.statusは"waiting"のまま変えず、room.confirmingRematch（room全体で1つ）と
+// room.players/{uid}/rematchReady（本人ごと）の2つのフィールドだけで成り立たせる）を
+// 踏襲しているが、あえて同じ関数へは統合していない：
+// ・表示内容が違う（詳しいルール説明ではなく、モード名・ルール名・問題数・カテゴリ等の
+// 　主要項目だけのコンパクトな要約）。
+// ・「対戦開始前」と「再戦前」は文脈（何を確認しているか）が異なり、1つの関数に混ぜると
+// 　却って読みにくくなるという判断（本人指示：無理に1箇所へ統合しない）。
+// 一方で、判定ロジック（全員のフラグが揃ったか）はcomputeAllPlayersConfirmed()と対になる
+// computeAllPlayersRematchReady()として、上と同じくjs/onlineBattleMatchConfirmationPayloads.js
+// に置き、恒久テストで検証できる形にしてある。
+
+function enterRematchReadyScreen(room) {
+  clearTimeout(rematchReadyAutoStartTimerId);
+  rematchReadyAutoStartTimerId = null;
+  elements.navigateTo("onlineBattleRematchReady");
+  renderRematchReadyScreen(room);
+}
+
+// containerElementへ、chips（文字列配列）をそのままチップ表示として流し込む小さな
+// 共通ヘルパー。renderSettingsChips()・renderInstantBattleSettingsChips()は元々
+// 「チップ文字列の組み立て」と「DOMへ流し込む」を1つの関数で行っているためそのまま
+// 呼べるが、歌詞クイズ・一瞬協力側は「文字列配列を返す純粋関数」として切り出した
+// （buildLyricsQuizSettingsSummaryChips/buildInstantCoopSettingsSummaryChips）ため、
+// こちらでDOMへ流し込む部分だけを共通化する。
+function renderChipList(containerElement, chips) {
+  containerElement.innerHTML = "";
+  chips.forEach((text) => {
+    const chip = document.createElement("span");
+    chip.className = "battle-config-chip";
+    chip.textContent = text;
+    containerElement.appendChild(chip);
+  });
+}
+
+// 「今回の対戦設定の簡単な要約」チップを組み立てる。詳しいルール説明
+// （buildCurrentRuleExplanation()）とは別物で、モード名・ルール名・問題数・カテゴリ等の
+// 主要項目だけに絞る（本人指示1：詳しい説明ではなくコンパクトな要約にすること）。
+// gameModeごとに既存のチップ組み立て（ロビーの参加者向け設定サマリーと全く同じもの）を
+// そのまま再利用することで、「ロビーで見える設定」と「再戦準備フェーズで見える設定」が
+// 食い違う事故を防ぐ。
+function renderRematchSummaryChips(containerElement, room) {
+  const gameMode = room.gameMode;
+  const settings = room.settings ?? {};
+  if (gameMode === LYRICS_QUIZ_GAME_MODE) {
+    renderChipList(containerElement, buildLyricsQuizSettingsSummaryChips(settings));
+  } else if (gameMode === INSTANT_BATTLE_GAME_MODE) {
+    renderInstantBattleSettingsChips(containerElement, settings);
+  } else if (gameMode === INSTANT_COOP_GAME_MODE) {
+    renderChipList(containerElement, buildInstantCoopSettingsSummaryChips(settings));
+  } else {
+    renderSettingsChips(containerElement, settings, gameMode);
+  }
+}
+
+function renderRematchReadyScreen(room) {
+  if (!elements.rematchReadyPlayerList) return;
+  const myUid = getCurrentUid();
+  const isHost = room.host === myUid;
+  const players = room.players || {};
+
+  renderRematchSummaryChips(elements.rematchReadySummary, room);
+
+  const playerEntries = Object.entries(players).sort(([, a], [, b]) => a.joinedAt - b.joinedAt);
+  const allReady = computeAllPlayersRematchReady(players);
+
+  elements.rematchReadyPlayerList.innerHTML = "";
+  playerEntries.forEach(([uid, player]) => {
+    const li = document.createElement("li");
+    li.className = "online-lobby-player-row";
+    if (uid === myUid) li.classList.add("is-me");
+
+    const oshiDot = createOshiDotElement(player.oshiMemberId);
+    if (oshiDot) li.appendChild(oshiDot);
+
+    const name = document.createElement("span");
+    name.className = "online-lobby-player-name";
+    name.textContent = player.name + (uid === myUid ? "（あなた）" : "");
+    li.appendChild(name);
+
+    const badges = document.createElement("span");
+    badges.className = "online-lobby-player-badges";
+    if (player.isHost) {
+      const hostBadge = document.createElement("span");
+      hostBadge.className = "online-lobby-badge online-lobby-badge-host";
+      hostBadge.textContent = "ホスト";
+      badges.appendChild(hostBadge);
+    }
+    const statusBadge = document.createElement("span");
+    statusBadge.className = player.rematchReady
+      ? "online-lobby-badge online-lobby-badge-connected"
+      : "online-lobby-badge online-lobby-badge-progress";
+    statusBadge.textContent = player.rematchReady ? "準備OK" : "未準備";
+    badges.appendChild(statusBadge);
+    li.appendChild(badges);
+
+    elements.rematchReadyPlayerList.appendChild(li);
+  });
+
+  const myReady = players[myUid]?.rematchReady === true;
+  if (elements.rematchReadyToggleButton) {
+    elements.rematchReadyToggleButton.textContent = myReady ? "準備を取り消す" : "✓ 準備OK";
+    elements.rematchReadyToggleButton.classList.toggle("is-confirmed", myReady);
+  }
+  if (elements.rematchReadyAllDoneNotice) {
+    elements.rematchReadyAllDoneNotice.hidden = !allReady;
+  }
+  // 再戦準備をやめてロビーへ戻る操作はホストだけができる（対戦開始前ルール確認画面と
+  // 同じ権限設計）。
+  if (elements.rematchReadyCancelButton) {
+    elements.rematchReadyCancelButton.hidden = !isHost;
+  }
+
+  // 【全員準備OK後、2秒待ってから開始】対戦開始前ルール確認画面の自動開始と全く同じ設計
+  // （本人指示21と同じ考え方をこちらにも踏襲）。ホストの端末だけがこの判定・実際の開始
+  // （finishRematchReadyCheck()）を担当し、タイマーの二重予約防止ガード
+  // （rematchReadyAutoStartTimerId）で「全員準備OKになった瞬間に誤って2回カウントダウンが
+  // 始まる」事故を防ぐ（本人指示7）。準備を待っている間はこのタイマー自体が存在しないため、
+  // 時間経過だけで自動的に開始してしまうことは絶対に無い（本人指示3）。
+  if (isHost && allReady && rematchReadyAutoStartTimerId === null) {
+    const roomId = room.roomId;
+    rematchReadyAutoStartTimerId = setTimeout(async () => {
+      rematchReadyAutoStartTimerId = null;
+      // 2秒の間に誰かが準備を取り消した・退出した可能性があるため、実行直前の
+      // 最新状態（latestRoom、renderLobby()のたびに更新される）で改めて確認する
+      // （本人指示8：前の状態が新しい状態に紛れ込まないよう、roomId・フラグの両方を
+      // 実行直前に再チェックする）。
+      const latest = latestRoom;
+      if (!latest || latest.roomId !== roomId || latest.confirmingRematch !== true) return;
+      if (!computeAllPlayersRematchReady(latest.players)) return;
+      attemptSilentUnlock();
+      await finishRematchReadyCheck({ roomId });
+      // 失敗した場合（設定が直前で不正になった等）は、renderLobby()の次回呼び出しで
+      // confirmingRematchがまだtrueのままなのでこの画面に留まり、ホストは改めて
+      // 準備OKの状況を見て再試行できる（対戦開始前ルール確認画面と同じ安全側の設計）。
+    }, MATCH_CONFIRM_AUTO_START_DELAY_MS);
+  } else if (!allReady && rematchReadyAutoStartTimerId !== null) {
+    clearTimeout(rematchReadyAutoStartTimerId);
+    rematchReadyAutoStartTimerId = null;
   }
 }
 
@@ -1451,12 +1615,18 @@ function renderLobby(room) {
   // 復帰（returnRoomToLobby()）も同じ扱いにする。
   // 【2026-09-13追加・本人指示：対戦開始前ルール確認画面】「もう一度」の再戦で参加者構成が
   // 変わっていた場合、result→waitingへ戻ると同時にconfirmingMatchも立てて再戦前にルール
-  // 確認を挟む（js/onlineBattle.jsのrematchAndStartNow()参照）。この場合は「ロビーへ
+  // 確認を挟む（js/onlineBattle.jsのbeginMatchConfirmation()参照）。この場合は「ロビーへ
   // 戻った」のではなく「ルール確認画面へ進む」ため、通常の「ロビーへ戻る」扱いからは除外する。
+  // 【再戦準備フェーズ新設・本人指示】結果画面の「もう一度」は今、必ずresult→waitingへ戻ると
+  // 同時にconfirmingRematchを立てる（js/onlineBattle.jsのbeginRematchReadyCheck()参照）。
+  // これも「ロビーへ戻った」のではなく「再戦準備フェーズへ進んだ」ため、上と全く同じ理由で
+  // 通常の「ロビーへ戻る」扱いからは除外する（除外しないと、ゲスト端末が再戦準備画面では
+  // なく素のロビー画面へ誤って遷移してしまう）。
   const isReturnedToLobby =
     statusJustChanged &&
     room.status === ROOM_STATUS.WAITING &&
     room.confirmingMatch !== true &&
+    room.confirmingRematch !== true &&
     (previousStatus === ROOM_STATUS.RESULT || previousStatus === ROOM_STATUS.COUNTDOWN || previousStatus === ROOM_STATUS.PLAYING);
   if (statusJustChanged) {
     lastHandledRoomStatus = room.status;
@@ -1669,6 +1839,35 @@ function renderLobby(room) {
     renderMatchConfirmScreen(room);
   }
 
+  // 【再戦準備フェーズ新設・本人指示】上のconfirmingMatchと全く同じ考え方・同じ理由で、
+  // confirmingRematchも別枠のフラグとして追跡する。room.statusがwaiting以外になった
+  // 瞬間（＝全員準備OK完了→finishRematchReadyCheck()成功）は、confirmingRematchも同時に
+  // falseへ戻るため、下のstatusJustChanged分岐（countdown等）へ自然に引き継がれる。
+  const wasConfirmingRematch = lastHandledConfirmingRematch;
+  const isConfirmingRematchNow = room.confirmingRematch === true && room.status === ROOM_STATUS.WAITING;
+  if (isConfirmingRematchNow !== wasConfirmingRematch) {
+    lastHandledConfirmingRematch = isConfirmingRematchNow;
+    if (isConfirmingRematchNow) {
+      enterRematchReadyScreen(room);
+    } else if (room.status === ROOM_STATUS.WAITING) {
+      // ホストが再戦準備をキャンセルした場合だけここに来る（再戦開始成功時はstatusが
+      // waiting以外になっているため、この分岐には来ない）。
+      clearTimeout(rematchReadyAutoStartTimerId);
+      rematchReadyAutoStartTimerId = null;
+      elements.navigateTo("onlineBattleLobby");
+      // 【本人指示6：ゲストへの通知】ホスト自身は自分の操作の結果なので通知は不要だが、
+      // 待っていたゲストには「なぜロビーへ戻ったのか」が分かる短い通知を出す（既存の
+      // lobbyRematchNotice/lobbySettingsChangedNoticeと同じく、!isHostのときだけ表示する）。
+      // 既存の「ホストがルーム設定に戻しました。」（lobbyRematchNotice）はresult/countdown/
+      // playingからwaitingへの通常の復帰と兼用の文言のため、再戦準備フェーズのキャンセル
+      // という状況が伝わるよう専用の文言を別に用意する。
+      if (!isHost && elements.lobbyRematchCancelledNotice) elements.lobbyRematchCancelledNotice.hidden = false;
+    }
+  }
+  if (isConfirmingRematchNow) {
+    renderRematchReadyScreen(room);
+  }
+
   // ホストが開始すると、まずcountdown・その後playingへ進む。状態が変わった瞬間だけ
   // 画面遷移を行い（同じ状態のまま何度renderLobbyが呼ばれても遷移し直さない）、
   // カウントダウンを自分の端末で見ている最中は、statusのplayingへの変化を無視する
@@ -1760,6 +1959,13 @@ function goToLobby(roomId) {
   resetOnlineBattleMatchState();
   elements.lobbySettingsChangedNotice.hidden = true;
   elements.lobbyRematchNotice.hidden = true;
+  // 【再戦準備フェーズ新設・本人指示】前のルーム・前の試合の状態が新しいルームの画面へ
+  // チラついて紛れ込まないよう、確認フェーズの追跡状態も必ずリセットする（このファイル
+  // 冒頭のlastHandledConfirmingRematch宣言部のコメント参照）。
+  if (elements.lobbyRematchCancelledNotice) elements.lobbyRematchCancelledNotice.hidden = true;
+  lastHandledConfirmingRematch = false;
+  clearTimeout(rematchReadyAutoStartTimerId);
+  rematchReadyAutoStartTimerId = null;
   elements.lobbyStartError.hidden = true;
   stopListeningToRoom();
   unsubscribeRoom = listenToRoom(roomId, renderLobby);
@@ -2685,6 +2891,7 @@ export function initOnlineBattleScreens(newElements) {
     suppressNextReadyChangeNotice = true;
     elements.lobbySettingsChangedNotice.hidden = true;
     elements.lobbyRematchNotice.hidden = true;
+    if (elements.lobbyRematchCancelledNotice) elements.lobbyRematchCancelledNotice.hidden = true;
     await setReady({ roomId: currentRoomId, ready: !nowReady });
   });
 
@@ -2829,16 +3036,18 @@ export function initOnlineBattleScreens(newElements) {
   // Firebase側の変化をrenderLobby()側の状態遷移検知が拾って、ホスト・参加者とも
   // 自動的に次の画面へ進む。ここで直接navigateTo()もしてしまうと、その直後に届く
   // room更新による自動遷移と二重に画面が切り替わってしまうため）。
-  // 「もう一度」は、すぐ前まで一緒に対戦していた相手に改めてREADYを押させる必要が
-  // 無いという判断から、確認モーダルを挟まず即座に実行する（本人の要望：1回押すだけで
-  // 開始演出を経て始まること）。
+  // 【再戦準備フェーズ新設・本人指示】以前は「すぐ前まで一緒に対戦していた相手に改めて
+  // READYを押させる必要が無い」という判断から、確認モーダルを挟まず即座に実行していた。
+  // 今回「全員が今回の設定を確認し、準備OKを押してから始めたい」という要望を受け、
+  // beginRematchReadyCheck()を呼んで再戦準備フェーズへ進むよう変更した（READYとは別の、
+  // 専用のrematchReadyフラグを使うため、既存のREADY状態には触れない）。
   elements.resultRematchButton.addEventListener("click", async () => {
     if (!currentRoomId) return;
     // 【2026-09-09新設・本人指示：音源再生失敗の本対策】「もう一度」はロビーの開始ボタンを
-    // 経由せず直接次の対戦へ進むため、こちらでもunlockを再実行しておく。
+    // 経由せず次の対戦（の準備）へ進むため、こちらでもunlockを再実行しておく。
     attemptSilentUnlock();
     elements.resultRematchButton.disabled = true;
-    await rematchAndStartNow({ roomId: currentRoomId });
+    await beginRematchReadyCheck({ roomId: currentRoomId });
     elements.resultRematchButton.disabled = false;
   });
   elements.resultBackToLobbyButton.addEventListener("click", async () => {
@@ -2904,6 +3113,20 @@ export function initOnlineBattleScreens(newElements) {
   elements.confirmCancelButton?.addEventListener("click", async () => {
     if (!currentRoomId) return;
     await cancelMatchConfirmation({ roomId: currentRoomId });
+  });
+
+  // 【再戦準備フェーズ新設・本人指示】上のconfirmToggleButton/confirmCancelButtonと
+  // 全く同じ考え方（トグル式の「準備OK」・ホスト専用の「キャンセル」）。
+  elements.rematchReadyToggleButton?.addEventListener("click", async () => {
+    if (!currentRoomId || !latestRoom) return;
+    attemptSilentUnlock();
+    const myUid = getCurrentUid();
+    const nowReady = latestRoom.players?.[myUid]?.rematchReady === true;
+    await setRematchReady({ roomId: currentRoomId, confirmed: !nowReady });
+  });
+  elements.rematchReadyCancelButton?.addEventListener("click", async () => {
+    if (!currentRoomId) return;
+    await cancelRematchReadyCheck({ roomId: currentRoomId });
   });
 
   // 【2026-09-14新設・本人指示：誰がどの曲を選んだか／共有曲一覧を確認できるように】

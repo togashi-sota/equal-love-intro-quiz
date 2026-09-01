@@ -34,7 +34,7 @@ import {
   updateRoomSettings,
   subscribeServerTimeOffset,
   returnRoomToLobby,
-  rematchAndStartNow,
+  beginRematchReadyCheck,
 } from "./onlineBattle.js";
 import { promptReturnToLobby } from "./onlineBattleLobbyReturnPrompt.js";
 import { promptLeaveMatch } from "./onlineBattleLeaveMatchPrompt.js";
@@ -380,12 +380,14 @@ export function initOnlineLyricsQuizBattleScreens(newElements) {
     });
   });
   // 【2026-09-05改訂、本人指示】試合後の選択肢を「もう一度」「ルーム設定に戻る」の
-  // 2つ（ホスト専用）へ統一。「もう一度」は確認モーダルを挟まず即座に実行する
-  // （js/onlineBattleScreen.jsの同じ変更と揃えている。詳細はそちらのコメント参照）。
+  // 2つ（ホスト専用）へ統一。
+  // 【再戦準備フェーズ新設・本人指示】以前は「もう一度」を確認モーダルを挟まず即座に
+  // 実行していたが、今はbeginRematchReadyCheck()を呼び、全員が「準備OK」を押すのを待つ
+  // 準備フェーズへ進む（js/onlineBattleScreen.jsのrenderRematchReadyScreen()参照）。
   elements.resultRematchButton.addEventListener("click", async () => {
     if (!latestRoom) return;
     elements.resultRematchButton.disabled = true;
-    await rematchAndStartNow({ roomId: latestRoom.roomId });
+    await beginRematchReadyCheck({ roomId: latestRoom.roomId });
     elements.resultRematchButton.disabled = false;
   });
   elements.resultBackToLobbyButton.addEventListener("click", async () => {
@@ -717,8 +719,12 @@ function findRuleDescription(ruleId) {
   return lyricsQuizBattleMode.listAvailableBattleRulesForSettings().find((rule) => rule.ruleId === ruleId)?.description ?? "";
 }
 
-function renderLyricsQuizParticipantSummary(settings) {
-  clearElement(elements.lyricsSettingsSummaryContainer);
+// 【再戦準備フェーズ新設・本人指示】チップ文字列の組み立てだけを行う純粋関数として
+// 切り出した（DOM操作を含まない）。renderLyricsQuizParticipantSummary()（ロビーの参加者
+// 向け設定サマリー）が使うのはもちろん、js/onlineBattleScreen.jsの再戦準備フェーズ画面
+// （renderRematchSummaryChips()）でも「今回の設定の簡単な要約」として全く同じチップを
+// 再利用する（本人指示：同じ内容を2箇所で別々に組み立てて食い違う事故を防ぐ）。
+export function buildLyricsQuizSettingsSummaryChips(settings) {
   // 【2026-09-16修正】オンライン対戦の「曲を選んで出題」は共同選曲
   // （QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION）として保存される
   // （js/onlineLyricsQuizBattleScreen.jsのsong-sourceラジオのchangeハンドラ参照）。
@@ -744,7 +750,12 @@ function renderLyricsQuizParticipantSummary(settings) {
   } else {
     chips.push(CATEGORY_LABELS[settings.categoryFilterValue] ?? settings.categoryFilterValue);
   }
-  chips.forEach((text) => {
+  return chips;
+}
+
+function renderLyricsQuizParticipantSummary(settings) {
+  clearElement(elements.lyricsSettingsSummaryContainer);
+  buildLyricsQuizSettingsSummaryChips(settings).forEach((text) => {
     const chip = document.createElement("span");
     chip.className = "battle-config-chip";
     chip.textContent = text;

@@ -62,6 +62,8 @@ const SCREEN_ELEMENTS = {
   onlineBattleSongPicker: document.getElementById("online-battle-song-picker-screen"),
   // 【2026-09-13新設・本人指示：対戦開始前ルール確認画面】
   onlineBattleConfirm: document.getElementById("online-battle-confirm-screen"),
+  // 【再戦準備フェーズ新設・本人指示】
+  onlineBattleRematchReady: document.getElementById("online-battle-rematch-ready-screen"),
   onlineBattleCountdown: document.getElementById("online-battle-countdown-screen"),
   onlineBattleWaiting: document.getElementById("online-battle-waiting-screen"),
   onlineBattleResult: document.getElementById("online-battle-result-screen"),

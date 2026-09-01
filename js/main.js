@@ -991,6 +991,8 @@ const onlineBattleCollabUniqueSongListElement = document.getElementById("online-
 const onlineBattleCommonSongNoticeElement = document.getElementById("online-battle-common-song-notice");
 const onlineBattleLobbySettingsChangedNoticeElement = document.getElementById("online-battle-lobby-settings-changed-notice");
 const onlineBattleLobbyRematchNoticeElement = document.getElementById("online-battle-lobby-rematch-notice");
+// 【再戦準備フェーズ新設・本人指示】
+const onlineBattleLobbyRematchCancelledNoticeElement = document.getElementById("online-battle-lobby-rematch-cancelled-notice");
 const onlineBattleLobbyReadyButtonElement = document.getElementById("online-battle-lobby-ready-button");
 const onlineBattleLobbyStartButtonElement = document.getElementById("online-battle-lobby-start-button");
 const onlineBattleLobbyStartHintElement = document.getElementById("online-battle-lobby-start-hint");
@@ -1002,6 +1004,12 @@ const onlineBattleConfirmPlayerListElement = document.getElementById("online-bat
 const onlineBattleConfirmAllDoneNoticeElement = document.getElementById("online-battle-confirm-all-done-notice");
 const onlineBattleConfirmToggleButtonElement = document.getElementById("online-battle-confirm-toggle-button");
 const onlineBattleConfirmCancelButtonElement = document.getElementById("online-battle-confirm-cancel-button");
+// 【再戦準備フェーズ新設・本人指示】
+const onlineBattleRematchReadySummaryElement = document.getElementById("online-battle-rematch-ready-summary");
+const onlineBattleRematchReadyPlayerListElement = document.getElementById("online-battle-rematch-ready-player-list");
+const onlineBattleRematchReadyAllDoneNoticeElement = document.getElementById("online-battle-rematch-ready-all-done-notice");
+const onlineBattleRematchReadyToggleButtonElement = document.getElementById("online-battle-rematch-ready-toggle-button");
+const onlineBattleRematchReadyCancelButtonElement = document.getElementById("online-battle-rematch-ready-cancel-button");
 const onlineBattleQuizProgressStripElement = document.getElementById("online-battle-quiz-progress-strip");
 const onlineBattleWaitingLeadTextElement = document.getElementById("online-battle-waiting-lead-text");
 const onlineBattleWaitingHostDisconnectNoticeElement = document.getElementById("online-battle-waiting-host-disconnect-notice");
@@ -5564,6 +5572,7 @@ initOnlineBattleScreens({
   lobbyCommonSongNotice: onlineBattleCommonSongNoticeElement,
   lobbySettingsChangedNotice: onlineBattleLobbySettingsChangedNoticeElement,
   lobbyRematchNotice: onlineBattleLobbyRematchNoticeElement,
+  lobbyRematchCancelledNotice: onlineBattleLobbyRematchCancelledNoticeElement,
   lobbyReadyButton: onlineBattleLobbyReadyButtonElement,
   lobbyStartButton: onlineBattleLobbyStartButtonElement,
   lobbyStartHint: onlineBattleLobbyStartHintElement,
@@ -5575,6 +5584,12 @@ initOnlineBattleScreens({
   confirmAllDoneNotice: onlineBattleConfirmAllDoneNoticeElement,
   confirmToggleButton: onlineBattleConfirmToggleButtonElement,
   confirmCancelButton: onlineBattleConfirmCancelButtonElement,
+  // 【再戦準備フェーズ新設・本人指示】
+  rematchReadySummary: onlineBattleRematchReadySummaryElement,
+  rematchReadyPlayerList: onlineBattleRematchReadyPlayerListElement,
+  rematchReadyAllDoneNotice: onlineBattleRematchReadyAllDoneNoticeElement,
+  rematchReadyToggleButton: onlineBattleRematchReadyToggleButtonElement,
+  rematchReadyCancelButton: onlineBattleRematchReadyCancelButtonElement,
   quizProgressStrip: onlineBattleQuizProgressStripElement,
   quizBackToLobbyButton: onlineBattleQuizBackToLobbyButtonElement,
   quizLeaveMatchButton: onlineBattleQuizLeaveMatchButtonElement,

@@ -3458,6 +3458,13 @@
         <p class="online-battle-ready-changed-notice" id="online-battle-lobby-rematch-notice" hidden>
           ホストがルーム設定に戻しました。
         </p>
+        <!-- 【再戦準備フェーズ新設・本人指示6】ホストが再戦準備フェーズをキャンセルした
+             ときだけ表示する専用の通知。上のlobbyRematchNoticeと文言・表示条件をあえて
+             分けている（本人指示：再戦がキャンセルされたことがひと目で分かる短い通知に
+             すること）。 -->
+        <p class="online-battle-ready-changed-notice" id="online-battle-lobby-rematch-cancelled-notice" hidden>
+          再戦がキャンセルされました。
+        </p>
 
         <!-- 参加者専用：準備完了ボタン。ホストは開始ボタンを押すこと自体が意思表示になるため表示しない。 -->
         <button id="online-battle-lobby-ready-button" class="secondary-button" type="button" hidden></button>
@@ -3552,6 +3559,34 @@
       <!-- ホスト専用：確認をやめてロビーへ戻る（本人指示13と同じ役割分担：設定を変更できる
            のはホストだけ、という既存の権限設計に揃えている）。 -->
       <button id="online-battle-confirm-cancel-button" class="secondary-button online-battle-confirm-cancel-button" type="button" hidden>
+        ⚙ ルーム設定に戻る
+      </button>
+    </section>
+
+    <!-- 【再戦準備フェーズ新設・本人指示】結果画面の「もう一度」の直後〜3→2→1カウントダウンの
+         間に挟まる、全員が今回の対戦設定の簡単な要約を確認して「準備OK」を押す画面。
+         上のonline-battle-confirm-screen（対戦開始前ルール確認画面）と構造は同じだが、
+         表示するのは詳しい説明ではなくモード名・ルール名・問題数・カテゴリ等のコンパクトな
+         チップの要約だけ（本人指示1）。js/onlineBattleScreen.jsが制御。 -->
+    <section id="online-battle-rematch-ready-screen" class="screen">
+      <div class="title-block"><h2>再戦の準備</h2></div>
+      <p class="online-battle-lead-text">今回の対戦設定を確認し、全員が「準備OK」を押すと自動的に始まります。</p>
+
+      <div id="online-battle-rematch-ready-summary" class="battle-config-summary"></div>
+
+      <p class="battle-field-label">参加者の準備状況</p>
+      <ul id="online-battle-rematch-ready-player-list" class="online-lobby-player-list"></ul>
+
+      <p id="online-battle-rematch-ready-all-done-notice" class="online-battle-confirm-all-done-notice" hidden>
+        ✨ 全員の準備が完了しました。まもなく開始します…
+      </p>
+
+      <div class="button-row">
+        <button id="online-battle-rematch-ready-toggle-button" class="primary-button" type="button">✓ 準備OK</button>
+      </div>
+      <!-- ホスト専用：再戦準備をやめてロビーへ戻る（対戦開始前ルール確認画面のキャンセルと
+           同じ役割分担）。ルーム自体・対戦設定は変更しない。 -->
+      <button id="online-battle-rematch-ready-cancel-button" class="secondary-button online-battle-confirm-cancel-button" type="button" hidden>
         ⚙ ルーム設定に戻る
       </button>
     </section>
@@ -3987,7 +4022,7 @@
          正解数・ミス数・LOVE連チャンの到達数等、タイムアタック系のresult形状を前提にした固定の
          描画（js/onlineBattleScreen.jsのgoToResultScreen()）のため流用せず、
          js/lyricsQuizBattleUi.js（Phase5）のルール別列自動生成をそのまま使う専用画面にした。
-         「もう一度」「ルーム設定に戻る」は、js/onlineBattle.jsのrematchAndStartNow()・
+         「もう一度」「ルーム設定に戻る」は、js/onlineBattle.jsのbeginRematchReadyCheck()・
          returnRoomToLobby()（ルーム再戦処理自体はgameModeを問わない共通ロジック）を
          そのまま呼ぶ（詳細はjs/onlineLyricsQuizBattleScreen.js参照）。 -->
     <section id="online-lyrics-battle-result-screen" class="screen">
