@@ -994,6 +994,27 @@ export async function setRuleConfirmed({ roomId, confirmed }) {
   return { ok: true };
 }
 
+// 【2026-09-14新設・本人指示：対戦中のゲストが自分だけ途中離脱する】ゲスト本人が、進行中の
+// 試合から「自分だけ」抜けたことをFirebaseへ記録する。ホストの既存のreturnRoomToLobby()
+// （room.statusをwaitingへ戻し、全員を巻き込んで対戦を中断する）とは全く別物：
+// こちらはroom.status・room.players・matches全体には一切触れず、「この試合の、この人」
+// だけに付く小さなフラグ（matches/{matchId}/participants/{uid}/leftDuringMatch）を
+// 立てるだけ。ルーム在籍・他の参加者の対戦進行には一切影響しない。
+// write-once（一度trueにしたら書き換え不可、Firebase Rules側でも保証）にしているのは、
+// 「途中離脱した」という事実を後から本人が取り消せないようにするため（本人指示：
+// 順位・勝敗・称号判定の対象外という扱いを確定させる必要があるため）。
+export async function leaveMatchInProgress({ roomId, matchId }) {
+  await authReady;
+  const uid = getCurrentUid();
+  if (!uid) return { ok: false, reason: "not-signed-in" };
+  try {
+    await update(ref(database), { [`rooms/${roomId}/matches/${matchId}/participants/${uid}/leftDuringMatch`]: true });
+  } catch (error) {
+    return { ok: false, reason: "write-failed" };
+  }
+  return { ok: true };
+}
+
 // 【2026-09-13新設・本人指示：対戦開始前ルール確認画面】ルール確認中に新しい参加者が
 // ルームへ入った場合、既存参加者を含めて確認状態を一度リセットする（本人指示24）。
 // Firebase Rules側で「false（未確認）に戻すことだけ」は誰でもできるようにしてあるため

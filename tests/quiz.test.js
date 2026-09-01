@@ -8,6 +8,7 @@ import {
   validatePlayablePoolSize,
   pickQuestionSongs,
   generateChoices,
+  buildQuizQuestions,
 } from "../js/quiz.js";
 import { CATEGORY } from "../js/data/songs.js";
 import { assertEqual } from "./test-utils.js";
@@ -78,4 +79,53 @@ export function runQuizTests() {
     true,
     "音源不足のメッセージは、カテゴリ不足のメッセージとは異なる文言になる"
   );
+
+  // ---- buildQuizQuestions（2026-09-14追加：出題曲プールと回答選択肢プールの分離）----
+  {
+    // distractorPoolを省略した場合、今までどおりpool自身からダミー選択肢が選ばれる（後方互換）。
+    const withoutDistractorPool = buildQuizQuestions(samplePool.slice(0, 4), 4);
+    assertEqual(withoutDistractorPool.length, 4, "distractorPool省略時：4問生成される");
+    withoutDistractorPool.forEach((question) => {
+      assertEqual(question.choices.length, 4, "distractorPool省略時：各問題の選択肢は4つ");
+      assertEqual(
+        question.choices.every((choice) => samplePool.slice(0, 4).some((song) => song.id === choice.id)),
+        true,
+        "distractorPool省略時：選択肢はすべて出題対象プール内の曲"
+      );
+    });
+
+    // distractorPoolを渡した場合、正解は出題対象プール（restrictedPool）から選ばれるが、
+    // ダミー選択肢はdistractorPool（より広いカテゴリ全体）から選ばれる。
+    const restrictedPool = samplePool.slice(0, 2); // 曲A・曲Bだけの共有曲プール（想定）
+    const distractorPool = samplePool; // カテゴリ全体（5曲）
+    const withDistractorPool = buildQuizQuestions(restrictedPool, 2, Math.random, distractorPool);
+    assertEqual(withDistractorPool.length, 2, "distractorPool指定時：出題数どおり2問生成される");
+    withDistractorPool.forEach((question) => {
+      assertEqual(
+        restrictedPool.some((song) => song.id === question.song.id),
+        true,
+        "distractorPool指定時：正解曲は必ず出題対象プール（restrictedPool）由来"
+      );
+      assertEqual(
+        question.choices.some((choice) => choice.id === question.song.id),
+        true,
+        "distractorPool指定時：選択肢の中に正解曲が必ず含まれる"
+      );
+      assertEqual(
+        question.choices.every((choice) => distractorPool.some((song) => song.id === choice.id)),
+        true,
+        "distractorPool指定時：ダミー選択肢はdistractorPool（カテゴリ全体）由来"
+      );
+      // restrictedPoolが2曲しかないため、正解以外の3つのダミーはdistractorPoolの
+      // 「restrictedPoolに含まれない曲（曲C・D・E）」から選ばれているはず（曲指定4曲だけが
+      // 選択肢にならない、という本人指示の確認）。
+      const dummyChoices = question.choices.filter((choice) => choice.id !== question.song.id);
+      assertEqual(dummyChoices.length, 3, "distractorPool指定時：ダミー選択肢は3つ");
+      assertEqual(
+        dummyChoices.some((choice) => !restrictedPool.some((song) => song.id === choice.id)),
+        true,
+        "distractorPool指定時：ダミー選択肢に、出題対象プールに無い曲（カテゴリ全体由来）が含まれうる"
+      );
+    });
+  }
 }

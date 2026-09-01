@@ -165,6 +165,7 @@ import { initOnlineLyricsQuizBattleScreens } from "./onlineLyricsQuizBattleScree
 import { initOnlineInstantBattleScreens } from "./onlineInstantBattleScreen.js";
 import { initOnlineInstantCoopBattleScreens } from "./onlineInstantCoopBattleScreen.js";
 import { initReturnToLobbyPrompt } from "./onlineBattleLobbyReturnPrompt.js";
+import { initLeaveMatchPrompt } from "./onlineBattleLeaveMatchPrompt.js";
 import { initAnswerConfirmPrompt } from "./answerConfirmPrompt.js";
 import { initOnlineBattleSongPicker } from "./onlineBattleSongPicker.js";
 import { initOnlineBattlePlaylistPicker } from "./onlineBattlePlaylistPicker.js";
@@ -980,6 +981,11 @@ const onlineBattleCollabChooseFavoritesButtonElement = document.getElementById("
 const onlineBattleCollabChoosePlaylistButtonElement = document.getElementById("online-battle-collab-choose-playlist-button");
 const onlineBattleCollabMyCountElement = document.getElementById("online-battle-collab-my-count");
 const onlineBattleCollabTotalCountElement = document.getElementById("online-battle-collab-total-count");
+// 【2026-09-14新設・本人指示：誰がどの曲を選んだか／共有曲一覧を確認できるように】
+const onlineBattleCollabDetailsToggleElement = document.getElementById("online-battle-collab-details-toggle");
+const onlineBattleCollabDetailsPanelElement = document.getElementById("online-battle-collab-details-panel");
+const onlineBattleCollabByPlayerListElement = document.getElementById("online-battle-collab-by-player-list");
+const onlineBattleCollabUniqueSongListElement = document.getElementById("online-battle-collab-unique-song-list");
 // 参加者全員が実際に利用できる共通曲の数（2026-08-27新設。ホスト・参加者・全gameModeで共有）。
 const onlineBattleCommonSongNoticeElement = document.getElementById("online-battle-common-song-notice");
 const onlineBattleLobbySettingsChangedNoticeElement = document.getElementById("online-battle-lobby-settings-changed-notice");
@@ -1046,12 +1052,20 @@ const onlineLobbyProfileAchievementsElement = document.getElementById("online-lo
 const onlineBattleReturnToLobbyModalElement = document.getElementById("online-battle-return-to-lobby-confirm-modal");
 const onlineBattleReturnToLobbyCancelButtonElement = document.getElementById("online-battle-return-to-lobby-cancel-button");
 const onlineBattleReturnToLobbyConfirmButtonElement = document.getElementById("online-battle-return-to-lobby-confirm-button");
+// 【2026-09-14新設、本人指示：対戦中のゲストが自分だけ途中離脱する】複数の対戦画面で
+// 共有する、ゲスト専用「この試合から途中離脱してルーム設定へ戻る」の確認モーダル
+// （js/onlineBattleLeaveMatchPrompt.js参照）。上のホスト専用モーダルとは意味・DOMともに別。
+const onlineBattleLeaveMatchModalElement = document.getElementById("online-battle-leave-match-confirm-modal");
+const onlineBattleLeaveMatchCancelButtonElement = document.getElementById("online-battle-leave-match-cancel-button");
+const onlineBattleLeaveMatchConfirmButtonElement = document.getElementById("online-battle-leave-match-confirm-button");
 // 【2026-09-06新設、本人指示：実機フィードバック②】回答確認モーダル。
 const answerConfirmModalElement = document.getElementById("answer-confirm-modal");
 const answerConfirmSongTitleElement = document.getElementById("answer-confirm-modal-song-title");
 const answerConfirmConfirmButtonElement = document.getElementById("answer-confirm-confirm-button");
 const answerConfirmCancelButtonElement = document.getElementById("answer-confirm-cancel-button");
 const onlineBattleQuizBackToLobbyButtonElement = document.getElementById("online-battle-quiz-back-to-lobby-button");
+// 【2026-09-14新設、本人指示】ゲスト専用「この試合だけ抜ける」（4画面分）。
+const onlineBattleQuizLeaveMatchButtonElement = document.getElementById("online-battle-quiz-leave-match-button");
 // 【2026-08-30新設、本人指示：観戦機能】
 const onlineBattleSpectatorLeaveButtonElement = document.getElementById("online-battle-spectator-leave-button");
 const onlineBattleSpectatorGameModeElement = document.getElementById("online-battle-spectator-game-mode");
@@ -1066,6 +1080,7 @@ const onlineInstantBattleSettingsCategoryFieldsetElement = document.getElementBy
 const onlineInstantBattleSettingsErrorElement = document.getElementById("online-instant-battle-settings-error");
 const onlineInstantBattleQuitButtonElement = document.getElementById("online-instant-battle-quit-button");
 const onlineInstantBattleBackToLobbyButtonElement = document.getElementById("online-instant-battle-back-to-lobby-button");
+const onlineInstantBattleLeaveMatchButtonElement = document.getElementById("online-instant-battle-leave-match-button");
 const onlineInstantBattleProgressElement = document.getElementById("online-instant-battle-progress");
 const onlineInstantBattleErrorElement = document.getElementById("online-instant-battle-error");
 const onlineInstantBattleCountdownElement = document.getElementById("online-instant-battle-countdown");
@@ -1091,6 +1106,7 @@ const onlineInstantCoopSettingsSummaryElement = document.getElementById("online-
 const onlineInstantCoopSettingsErrorElement = document.getElementById("online-instant-coop-settings-error");
 const onlineInstantCoopQuitButtonElement = document.getElementById("online-instant-coop-battle-quit-button");
 const onlineInstantCoopBackToLobbyButtonElement = document.getElementById("online-instant-coop-battle-back-to-lobby-button");
+const onlineInstantCoopLeaveMatchButtonElement = document.getElementById("online-instant-coop-battle-leave-match-button");
 const onlineInstantCoopProgressElement = document.getElementById("online-instant-coop-battle-progress");
 const onlineInstantCoopErrorElement = document.getElementById("online-instant-coop-battle-error");
 const onlineInstantCoopReplayButtonElement = document.getElementById("online-instant-coop-battle-replay-button");
@@ -1160,11 +1176,17 @@ const onlineLyricsBattleCollabChooseFavoritesButtonElement = document.getElement
 const onlineLyricsBattleCollabChoosePlaylistButtonElement = document.getElementById("online-lyrics-battle-collab-choose-playlist-button");
 const onlineLyricsBattleCollabMyCountElement = document.getElementById("online-lyrics-battle-collab-my-count");
 const onlineLyricsBattleCollabTotalCountElement = document.getElementById("online-lyrics-battle-collab-total-count");
+// 【2026-09-14新設・本人指示：誰がどの曲を選んだか／共有曲一覧を確認できるように】
+const onlineLyricsBattleCollabDetailsToggleElement = document.getElementById("online-lyrics-battle-collab-details-toggle");
+const onlineLyricsBattleCollabDetailsPanelElement = document.getElementById("online-lyrics-battle-collab-details-panel");
+const onlineLyricsBattleCollabByPlayerListElement = document.getElementById("online-lyrics-battle-collab-by-player-list");
+const onlineLyricsBattleCollabUniqueSongListElement = document.getElementById("online-lyrics-battle-collab-unique-song-list");
 const onlineLyricsBattleSettingsErrorElement = document.getElementById("online-lyrics-battle-settings-error");
 const onlineLyricsBattleReadinessStatusElement = document.getElementById("online-lyrics-battle-readiness-status");
 const onlineLyricsBattleOwnMissingElement = document.getElementById("online-lyrics-battle-own-missing");
 const onlineLyricsBattleQuitButtonElement = document.getElementById("online-lyrics-battle-quit-button");
 const onlineLyricsBattleBackToLobbyButtonElement = document.getElementById("online-lyrics-battle-back-to-lobby-button");
+const onlineLyricsBattleLeaveMatchButtonElement = document.getElementById("online-lyrics-battle-leave-match-button");
 const onlineLyricsBattleProgressElement = document.getElementById("online-lyrics-battle-progress");
 const onlineLyricsBattleHudElement = document.getElementById("online-lyrics-battle-hud");
 const onlineLyricsBattleHintLevelElement = document.getElementById("online-lyrics-battle-hint-level");
@@ -5399,6 +5421,12 @@ initReturnToLobbyPrompt({
   cancelButton: onlineBattleReturnToLobbyCancelButtonElement,
   confirmButton: onlineBattleReturnToLobbyConfirmButtonElement,
 });
+// 【2026-09-14新設、本人指示：対戦中のゲストが自分だけ途中離脱する】
+initLeaveMatchPrompt({
+  modal: onlineBattleLeaveMatchModalElement,
+  cancelButton: onlineBattleLeaveMatchCancelButtonElement,
+  confirmButton: onlineBattleLeaveMatchConfirmButtonElement,
+});
 
 // 【2026-09-06新設、本人指示：実機フィードバック②】回答速度が勝敗に直接関係しない
 // モード（一瞬チャレンジ・一瞬バトル・一瞬協力・歌詞クイズ「正解数バトル」
@@ -5476,6 +5504,10 @@ initOnlineBattleScreens({
   collabChoosePlaylistButton: onlineBattleCollabChoosePlaylistButtonElement,
   collabMyCount: onlineBattleCollabMyCountElement,
   collabTotalCount: onlineBattleCollabTotalCountElement,
+  collabDetailsToggle: onlineBattleCollabDetailsToggleElement,
+  collabDetailsPanel: onlineBattleCollabDetailsPanelElement,
+  collabByPlayerList: onlineBattleCollabByPlayerListElement,
+  collabUniqueSongList: onlineBattleCollabUniqueSongListElement,
   lobbyCommonSongNotice: onlineBattleCommonSongNoticeElement,
   lobbySettingsChangedNotice: onlineBattleLobbySettingsChangedNoticeElement,
   lobbyRematchNotice: onlineBattleLobbyRematchNoticeElement,
@@ -5492,6 +5524,7 @@ initOnlineBattleScreens({
   confirmCancelButton: onlineBattleConfirmCancelButtonElement,
   quizProgressStrip: onlineBattleQuizProgressStripElement,
   quizBackToLobbyButton: onlineBattleQuizBackToLobbyButtonElement,
+  quizLeaveMatchButton: onlineBattleQuizLeaveMatchButtonElement,
   waitingLeadText: onlineBattleWaitingLeadTextElement,
   waitingHostDisconnectNotice: onlineBattleWaitingHostDisconnectNoticeElement,
   waitingSubmitError: onlineBattleWaitingSubmitErrorElement,
@@ -5561,6 +5594,7 @@ initOnlineLyricsQuizBattleScreens({
   lyricsOwnMissingContainer: onlineLyricsBattleOwnMissingElement,
   battleQuitButton: onlineLyricsBattleQuitButtonElement,
   battleBackToLobbyButton: onlineLyricsBattleBackToLobbyButtonElement,
+  battleLeaveMatchButton: onlineLyricsBattleLeaveMatchButtonElement,
   battleProgress: onlineLyricsBattleProgressElement,
   battleHudContainer: onlineLyricsBattleHudElement,
   battleHintLevel: onlineLyricsBattleHintLevelElement,
@@ -5598,6 +5632,10 @@ initOnlineLyricsQuizBattleScreens({
   lyricsCollabChoosePlaylistButton: onlineLyricsBattleCollabChoosePlaylistButtonElement,
   lyricsCollabMyCount: onlineLyricsBattleCollabMyCountElement,
   lyricsCollabTotalCount: onlineLyricsBattleCollabTotalCountElement,
+  lyricsCollabDetailsToggle: onlineLyricsBattleCollabDetailsToggleElement,
+  lyricsCollabDetailsPanel: onlineLyricsBattleCollabDetailsPanelElement,
+  lyricsCollabByPlayerList: onlineLyricsBattleCollabByPlayerListElement,
+  lyricsCollabUniqueSongList: onlineLyricsBattleCollabUniqueSongListElement,
   lyricsSettingsError: onlineLyricsBattleSettingsErrorElement,
   onQuitDuringBattle: () => quitOnlineBattleDuringQuiz(),
   onLeaveResultToHome: () => leaveOnlineBattleRoomView(),
@@ -5630,6 +5668,7 @@ initOnlineInstantBattleScreens({
   quitCancelButton: onlineInstantBattleQuitCancelButtonElement,
   quitConfirmButton: onlineInstantBattleQuitConfirmButtonElement,
   backToLobbyButton: onlineInstantBattleBackToLobbyButtonElement,
+  leaveMatchButton: onlineInstantBattleLeaveMatchButtonElement,
   progress: onlineInstantBattleProgressElement,
   error: onlineInstantBattleErrorElement,
   countdown: onlineInstantBattleCountdownElement,
@@ -5664,6 +5703,7 @@ initOnlineInstantCoopBattleScreens({
   quitCancelButton: onlineInstantCoopQuitCancelButtonElement,
   quitConfirmButton: onlineInstantCoopQuitConfirmButtonElement,
   backToLobbyButton: onlineInstantCoopBackToLobbyButtonElement,
+  leaveMatchButton: onlineInstantCoopLeaveMatchButtonElement,
   progress: onlineInstantCoopProgressElement,
   error: onlineInstantCoopErrorElement,
   replayButton: onlineInstantCoopReplayButtonElement,

@@ -52,3 +52,37 @@ export function areSongIdSetsEqual(a, b) {
   const setA = new Set(a);
   return b.every((songId) => setA.has(songId));
 }
+
+// 【2026-09-14新設・本人指示：誰がどの曲を選んだか確認できるようにする】
+// 参加者ごとの選択内訳を作る純粋関数。1曲も選んでいない参加者は除外する
+// （空欄の行を一覧に並べても情報量が無いため）。並び順はplayersオブジェクトの列挙順
+// （＝computeMergedSelectedSongIdsと同じ考え方で、決定論的であればよい）。
+//
+// players: { [uid]: { displayName?, name?, selectedSongIds? } }
+// 戻り値: { uid, displayName, songIds: string[] }[]
+export function buildSelectionBreakdownByPlayer(players) {
+  return Object.entries(players ?? {})
+    .map(([uid, player]) => ({
+      uid,
+      displayName: player?.displayName ?? player?.name ?? "参加者",
+      songIds: Array.isArray(player?.selectedSongIds) ? [...player.selectedSongIds] : [],
+    }))
+    .filter((entry) => entry.songIds.length > 0);
+}
+
+// 【2026-09-14新設・本人指示：同じ曲を複数人が選んでも1曲として扱う】
+// 曲id→選択した参加者uid配列、のマップを作る純粋関数。共有曲一覧UIで
+// 「何人が選んでいるか」を示すための集計用（出題確率には一切影響しない、表示専用の情報）。
+//
+// 戻り値: { [songId]: string[]（選択した参加者のuid配列） }
+export function buildSelectorUidsBySongId(players) {
+  const map = {};
+  for (const [uid, player] of Object.entries(players ?? {})) {
+    const songIds = Array.isArray(player?.selectedSongIds) ? player.selectedSongIds : [];
+    for (const songId of songIds) {
+      if (!map[songId]) map[songId] = [];
+      map[songId].push(uid);
+    }
+  }
+  return map;
+}

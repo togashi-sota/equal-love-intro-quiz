@@ -6,6 +6,7 @@ import {
   deriveRevealedCharCount,
   revealTextByCharCount,
   countCharacters,
+  computeStealHintProgress,
 } from "../js/lyricsQuizBattleTiming.js";
 import { assertEqual } from "./test-utils.js";
 
@@ -86,5 +87,71 @@ export function runLyricsQuizBattleTimingTests() {
     assertEqual(countCharacters("とくべつして"), 6, "通常の文字列は見た目どおりの文字数");
     assertEqual(countCharacters("あ😀い"), 3, "絵文字1つを1文字として数える（.lengthのように2として数えない）");
     assertEqual(countCharacters(""), 0, "空文字は0");
+  }
+
+  // ===== computeStealHintProgress（2026-09-14新設：早押しバトルのヒント1〜4段階的表示） =====
+  {
+    const hintTexts = ["ab", "cd", "ef", "gh"];
+
+    let progress = computeStealHintProgress({ elapsedMs: 0, hintTexts });
+    assertEqual(progress.currentLevel, 1, "elapsedMs=0：ヒント1だけが始まっている");
+    assertEqual(progress.levels.length, 1, "elapsedMs=0：levelsは1件だけ");
+    assertEqual(progress.levels[0].revealedText, "a", "elapsedMs=0：ヒント1の1文字目だけ見える");
+    assertEqual(progress.levels[0].isFullyRevealed, false, "elapsedMs=0：ヒント1はまだ全文表示ではない");
+
+    progress = computeStealHintProgress({ elapsedMs: 999, hintTexts });
+    assertEqual(progress.levels[0].revealedText, "a", "elapsedMs=999：1秒未満はまだ1文字目のまま");
+
+    progress = computeStealHintProgress({ elapsedMs: 1000, hintTexts });
+    assertEqual(progress.currentLevel, 1, "elapsedMs=1000：ヒント1が全文表示された直後、ヒント2はまだ始まらない");
+    assertEqual(progress.levels[0].revealedText, "ab", "elapsedMs=1000：ヒント1が全文表示される");
+    assertEqual(progress.levels[0].isFullyRevealed, true, "elapsedMs=1000：ヒント1は全文表示済み");
+
+    progress = computeStealHintProgress({ elapsedMs: 2999, hintTexts });
+    assertEqual(progress.currentLevel, 1, "elapsedMs=2999：2秒待機がまだ終わっていないのでヒント2は始まらない");
+
+    progress = computeStealHintProgress({ elapsedMs: 3000, hintTexts });
+    assertEqual(progress.currentLevel, 2, "elapsedMs=3000：2秒待機が終わり、ヒント2が始まる");
+    assertEqual(progress.levels[0].revealedText, "ab", "elapsedMs=3000：ヒント1は表示されたまま消えない（積み上げ表示）");
+    assertEqual(progress.levels[1].revealedText, "c", "elapsedMs=3000：ヒント2の1文字目が見える");
+    assertEqual(progress.levels[1].isFullyRevealed, false, "elapsedMs=3000：ヒント2はまだ全文表示ではない");
+
+    progress = computeStealHintProgress({ elapsedMs: 4000, hintTexts });
+    assertEqual(progress.currentLevel, 2, "elapsedMs=4000：ヒント2が全文表示された直後、ヒント3はまだ始まらない");
+    assertEqual(progress.levels[1].revealedText, "cd", "elapsedMs=4000：ヒント2が全文表示される");
+
+    progress = computeStealHintProgress({ elapsedMs: 9000, hintTexts });
+    assertEqual(progress.currentLevel, 4, "elapsedMs=9000：ヒント1〜3が全文表示済み、ヒント4が始まっている");
+    assertEqual(progress.levels[0].revealedText, "ab", "elapsedMs=9000：ヒント1は表示されたまま");
+    assertEqual(progress.levels[1].revealedText, "cd", "elapsedMs=9000：ヒント2は表示されたまま");
+    assertEqual(progress.levels[2].revealedText, "ef", "elapsedMs=9000：ヒント3は表示されたまま");
+    assertEqual(progress.levels[3].revealedText, "g", "elapsedMs=9000：ヒント4の1文字目が見える");
+    assertEqual(progress.levels[3].isFullyRevealed, false, "elapsedMs=9000：ヒント4はまだ全文表示ではない");
+
+    progress = computeStealHintProgress({ elapsedMs: 10000, hintTexts });
+    assertEqual(progress.currentLevel, 4, "elapsedMs=10000：ヒント4も全文表示される");
+    assertEqual(progress.levels[3].revealedText, "gh", "elapsedMs=10000：ヒント4が全文表示される");
+    assertEqual(progress.levels[3].isFullyRevealed, true, "elapsedMs=10000：ヒント4は全文表示済み");
+
+    progress = computeStealHintProgress({ elapsedMs: 999999, hintTexts });
+    assertEqual(progress.currentLevel, 4, "十分に時間が経過しても、ヒント4より先には進まない（誰かが正解するまで待機）");
+    assertEqual(progress.levels[3].revealedText, "gh", "時間が経過しすぎてもヒント4の内容は変わらない");
+
+    progress = computeStealHintProgress({ elapsedMs: Number.POSITIVE_INFINITY, hintTexts });
+    assertEqual(progress.currentLevel, 4, "elapsedMs=Infinity（本人が回答済みの場合の呼び出し）でも全4段階が破綻なく返る");
+    assertEqual(progress.levels[3].revealedText, "gh", "elapsedMs=Infinityでもヒント4は全文表示される");
+
+    progress = computeStealHintProgress({ elapsedMs: 0, hintTexts: [] });
+    assertEqual(progress.currentLevel, 0, "hintTextsが空配列なら何も表示しない");
+    assertEqual(progress.levels.length, 0, "hintTextsが空配列ならlevelsも空");
+
+    // 1文字だけのヒント（revealDurationMsが0になる境界）でも破綻しないことを確認する。
+    const shortHints = ["a", "b"];
+    progress = computeStealHintProgress({ elapsedMs: 0, hintTexts: shortHints });
+    assertEqual(progress.currentLevel, 1, "1文字ヒント：elapsedMs=0で即座に全文表示される");
+    assertEqual(progress.levels[0].isFullyRevealed, true, "1文字ヒント：1文字しかないので即座に全文表示扱い");
+    progress = computeStealHintProgress({ elapsedMs: 2000, hintTexts: shortHints });
+    assertEqual(progress.currentLevel, 2, "1文字ヒント：2秒待機後に次のヒントへ進む");
+    assertEqual(progress.levels[1].revealedText, "b", "1文字ヒント：ヒント2も即座に全文表示される");
   }
 }

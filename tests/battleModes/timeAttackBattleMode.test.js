@@ -11,7 +11,7 @@
 
 import { resolveSettingsSongPool, validateSettings, buildQuestions } from "../../js/battleModes/timeAttackBattleMode.js";
 import { QUESTION_SOURCE_TYPE, resolveSongPool } from "../../js/questionSource.js";
-import { SONGS } from "../../js/data/songs.js";
+import { SONGS, CATEGORY } from "../../js/data/songs.js";
 import { assertEqual } from "../test-utils.js";
 
 export function runTimeAttackBattleModeTests() {
@@ -37,14 +37,30 @@ export function runTimeAttackBattleModeTests() {
 
   // ---- questionSource: collaborativeSelection（オンライン共同選曲・確定済みsongIds） ----
   {
-    // 【本人確認済みの仕様】collaborativeSelectionは、Firebase書き込み時点で既にサニタイズ
-    // 済みという前提のため、resolveSongPool()を経由せずsongIdsをそのまま使う
-    // （js/battleModes/timeAttackBattleMode.js内のコメント参照）。
-    const songIds = ["song-a", "song-b"];
+    // 【2026-09-14改訂・本人指示：カテゴリ変更時も選択状態は保持するが出題対象外の曲は
+    // 出題しない】以前はcollaborativeSelectionのsongIdsを一切加工せずそのまま返していたが、
+    // 「現在のカテゴリ条件に合う曲だけに絞り込む」仕様変更により、settings.categoryFilterValue
+    // でfilterSongIdsByCategory()を通すようになった（js/questionSource.js参照）。
+    // カテゴリ条件が「all」（絞り込みなし）なら、実在する曲idはそのまま通過する。
+    const realSongIds = SONGS.slice(0, 3).map((song) => song.id);
     const pool = resolveSettingsSongPool({
-      questionSource: { type: QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION, songIds },
+      categoryFilterValue: "all",
+      questionSource: { type: QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION, songIds: realSongIds },
     });
-    assertEqual(pool, songIds, "collaborativeSelectionはsongIdsをサニタイズせずそのまま返す");
+    assertEqual(pool, realSongIds, "collaborativeSelection：カテゴリ「all」なら選択済みの実在曲がそのまま返る");
+
+    // カテゴリを絞り込むと、選択状態(songIds)自体は変えず、条件に合わない曲だけが
+    // 出題対象から除外される（本人指示：選択状態は保持するが出題対象外の曲は出題しない）。
+    const titleTrackSongId = SONGS.find((song) => song.category === CATEGORY.TITLE_TRACK)?.id;
+    const nonTitleTrackSongId = SONGS.find((song) => song.category !== CATEGORY.TITLE_TRACK)?.id;
+    const mixedSongIds = [titleTrackSongId, nonTitleTrackSongId];
+    const restrictedPool = resolveSettingsSongPool({
+      categoryFilterValue: "title-track",
+      questionSource: { type: QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION, songIds: mixedSongIds },
+    });
+    assertEqual(restrictedPool.includes(titleTrackSongId), true, "表題曲は「表題曲のみ」カテゴリでも出題対象に残る");
+    assertEqual(restrictedPool.includes(nonTitleTrackSongId), false, "表題曲以外は「表題曲のみ」カテゴリで出題対象から除外される");
+    assertEqual(mixedSongIds, [titleTrackSongId, nonTitleTrackSongId], "元のsongIds配列自体は書き換えられない（選択状態は保持される）");
   }
 
   // ---- questionSource: allSongs ----
@@ -57,7 +73,9 @@ export function runTimeAttackBattleModeTests() {
   // 設定保存自体はエラーにしない（2026-08-27新設。本人指示：「曲を選んで出題」へ
   // 切り替えた直後、まだ誰も選んでいない一時的な状態を安全に保存できるようにする）。
   {
-    const baseSettings = { questionCountValue: "5", rule: "normal", penaltySeconds: 2 };
+    // 【2026-09-14改訂】categoryFilterValueを「all」にして、カテゴリ絞り込みによる
+    // 除外が今回のテストの意図（出題数チェック）に混ざらないようにする。
+    const baseSettings = { questionCountValue: "5", categoryFilterValue: "all", rule: "normal", penaltySeconds: 2 };
     assertEqual(
       validateSettings({ ...baseSettings, questionSource: { type: QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION, songIds: [] } }),
       null,
@@ -65,13 +83,16 @@ export function runTimeAttackBattleModeTests() {
     );
     // 曲が実際に選ばれていれば、今までどおり出題数に対する不足チェックは働く
     // （MIN_SONGS_REQUIRED=4は満たしつつ、questionCountValueには足りない曲数にする）。
+    // 【2026-09-14改訂】実在しないid（"a"〜"d"）はfilterSongIdsByCategoryで除外されてしまう
+    // ため、実在の4曲を使う。またメッセージ文言も、共同選曲専用の案内に変更されている。
+    const fourRealSongIds = SONGS.slice(0, 4).map((song) => song.id);
     assertEqual(
       validateSettings({
         ...baseSettings,
         questionCountValue: "10",
-        questionSource: { type: QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION, songIds: ["a", "b", "c", "d"] },
+        questionSource: { type: QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION, songIds: fourRealSongIds },
       }),
-      "選択した曲は4曲です。10問を出題するには10曲以上必要です。",
+      "現在有効な共有曲は4曲です。10問を出題するには10曲以上必要です。",
       "共同選曲で曲が選ばれている場合は、今までどおり出題数に対する不足チェックが働く"
     );
   }

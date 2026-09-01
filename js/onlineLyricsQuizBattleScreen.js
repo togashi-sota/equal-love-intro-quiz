@@ -37,6 +37,7 @@ import {
   rematchAndStartNow,
 } from "./onlineBattle.js";
 import { promptReturnToLobby } from "./onlineBattleLobbyReturnPrompt.js";
+import { promptLeaveMatch } from "./onlineBattleLeaveMatchPrompt.js";
 import { promptAnswerConfirm } from "./answerConfirmPrompt.js";
 import { validateRoomSettings, getAvailabilityKind, resolveAllEligibleSongIdsForMode } from "./battleModes/index.js";
 import * as lyricsQuizBattleMode from "./battleModes/lyricsQuizBattleMode.js";
@@ -91,7 +92,7 @@ import {
   renderLyricsReadinessStatus,
   renderOwnMissingLyricsTitles,
 } from "./lyricsQuizBattleUi.js";
-import { computeElapsedMs, deriveRevealedCharCount, revealTextByCharCount, countCharacters } from "./lyricsQuizBattleTiming.js";
+import { computeElapsedMs, computeStealHintProgress } from "./lyricsQuizBattleTiming.js";
 // 【2026-08-31新設、本人指示：歌詞クイズ3ルール全面改修】30・50・全曲プールの検索は、
 // 既存の「収録曲一覧」検索と完全に同じ判定にする（本人指示：新しい簡易検索を別に作らない）。
 // 50音ジャンプバーの行分けも、この共有ファイルの定義をそのまま使う。
@@ -125,6 +126,7 @@ import { buildLyricsQuizQuestionBreakdown, capQuestionBreakdownForStorage } from
 import { renderQuestionBreakdownAccordion } from "./battleQuestionBreakdownUi.js";
 import { SONGS } from "./data/songs.js";
 import { MEMBERS } from "./data/members.js";
+import { renderCollaborativeSelectionBreakdown, wireCollaborativeSelectionDetailsToggle } from "./onlineBattleCollaborativeSelectionUi.js";
 import { getMemberById } from "./memberUtils.js";
 import { QUESTION_COUNT_LABELS } from "./localBattleScreen.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
@@ -285,6 +287,17 @@ export function initOnlineLyricsQuizBattleScreens(newElements) {
       openLyricsSongListConfirm("📃 プレイリストから選ぶ", "このプレイリストから選ばれている曲はこの曲です", songIds);
     });
   });
+  // 【2026-09-14新設・本人指示：誰がどの曲を選んだか／共有曲一覧を確認できるように】
+  wireCollaborativeSelectionDetailsToggle(elements.lyricsCollabDetailsToggle, elements.lyricsCollabDetailsPanel, () => {
+    if (!latestRoom) return;
+    renderCollaborativeSelectionBreakdown({
+      byPlayerListElement: elements.lyricsCollabByPlayerList,
+      uniqueSongListElement: elements.lyricsCollabUniqueSongList,
+      players: latestRoom.players || {},
+      songTitleResolver: resolveSongTitleForLyricsCollabUi,
+      currentUid: getCurrentUid(),
+    });
+  });
 
   // 【2026-08-31新設】30・50・全曲プールの検索欄。入力のたびに検索文字列を状態として
   // 覚え、一覧を再描画する（本人指示：検索は必須にしないため、空欄なら50音ジャンプ／
@@ -319,6 +332,17 @@ export function initOnlineLyricsQuizBattleScreens(newElements) {
   // 【2026-09-05新設、本人指示】対戦中、ホストだけに見える「ルーム設定へ戻る」。
   elements.battleBackToLobbyButton?.addEventListener("click", () => {
     promptReturnToLobby(latestRoom?.roomId);
+  });
+
+  // 【2026-09-14新設・本人指示：対戦中のゲストが自分だけ途中離脱する】
+  elements.battleLeaveMatchButton?.addEventListener("click", () => {
+    const roomId = latestRoom?.roomId;
+    const matchId = currentMatchId;
+    if (!roomId || !matchId) return;
+    promptLeaveMatch(roomId, matchId, () => {
+      resetLyricsQuizBattleState();
+      elements.navigateTo("onlineBattleLobby");
+    });
   });
 
   elements.resultHomeLink.addEventListener("click", () => {
@@ -430,8 +454,13 @@ export function handleLyricsQuizRoomUpdate(room) {
   }
   // 【2026-09-05新設、本人指示】対戦中、ホストだけに見える「ルーム設定へ戻る」。
   // このモードは継続的にroom更新を受け取るため、ホスト交代が起きても正しく追随する。
+  const isHostNowLyrics = room.host === getCurrentUid();
   if (elements?.battleBackToLobbyButton) {
-    elements.battleBackToLobbyButton.hidden = room.host !== getCurrentUid();
+    elements.battleBackToLobbyButton.hidden = !isHostNowLyrics;
+  }
+  // 【2026-09-14新設・本人指示：対戦中のゲストが自分だけ途中離脱する】
+  if (elements?.battleLeaveMatchButton) {
+    elements.battleLeaveMatchButton.hidden = isHostNowLyrics;
   }
   if (document.body.dataset.screen === "onlineLyricsBattleQuestion") {
     renderCurrentQuestionState();
@@ -483,6 +512,11 @@ function getMergedRestrictedLyricsSongIds() {
   return merged.filter((songId) => currentLyricsCommonSongPool.has(songId));
 }
 
+// 【2026-09-14新設】js/onlineBattleScreen.jsのresolveSongTitleForCollabUi()と全く同じ。
+function resolveSongTitleForLyricsCollabUi(songId) {
+  return SONGS.find((song) => song.id === songId)?.title ?? songId;
+}
+
 // 【2026-08-27新設】共同選曲セクション（ホスト・参加者共通）の表示を更新する。
 function updateLyricsCollabSongSectionUi(room) {
   const isCollaborative = room.settings?.questionSource?.type === QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION;
@@ -496,6 +530,16 @@ function updateLyricsCollabSongSectionUi(room) {
     merged.length === 0
       ? "まだ誰も曲を選んでいません。下のボタンから選んでください。"
       : `参加者全員の選択を合わせて${merged.length}曲（このうち${restrictedCount}曲がこの対戦で使えます）`;
+
+  // 【2026-09-14新設・本人指示：誰がどの曲を選んだか／共有曲一覧をリアルタイム反映】
+  // js/onlineBattleScreen.jsのupdateCollabSongSectionUi()と全く同じ考え方。
+  renderCollaborativeSelectionBreakdown({
+    byPlayerListElement: elements.lyricsCollabByPlayerList,
+    uniqueSongListElement: elements.lyricsCollabUniqueSongList,
+    players: room.players || {},
+    songTitleResolver: resolveSongTitleForLyricsCollabUi,
+    currentUid: getCurrentUid(),
+  });
 }
 
 // 【2026-08-27新設・ホスト専用】js/onlineBattleScreen.jsのsyncCollaborativeSongPoolIfHost()と
@@ -1174,18 +1218,34 @@ function renderHintArea(question, { ruleId, elapsedMs, isResolved, myAnsweredThi
   clearElement(elements.battleHintLinesContainer);
 
   if (ruleId === "steal") {
+    // 【2026-09-14全面改訂・本人指示：ヒント1〜4を順番に1文字ずつ表示】以前は最も詳しい
+    // 1段階（hints[length-1]）だけを表示していたが、ヒント1から順番に「1文字/秒で
+    // 全文表示→2秒待機→次のヒントへ」を繰り返し、既に表示済みのヒントは消さずに
+    // 積み上げて見せる仕様に変更した（js/lyricsQuizBattleTiming.jsのcomputeStealHintProgress
+    // 参照）。回答済みの本人には全段階を即座にフル表示する（他プレイヤーの回答を
+    // 待っている間、自分の画面だけヒントが止まって見えるのを避けるため）。
     elements.battleHintActions.hidden = true;
-    const fullText = question.hints[question.hints.length - 1]?.segment?.text ?? "";
-    const totalCharCount = countCharacters(fullText);
-    const revealedCharCount = myAnsweredThisQuestion
-      ? totalCharCount
-      : deriveRevealedCharCount({ elapsedMs, totalCharCount });
-    const revealedText = revealTextByCharCount(fullText, revealedCharCount);
     elements.battleHintLevel.textContent = "";
-    const lineElement = document.createElement("p");
-    lineElement.className = "online-lyrics-battle-hint-line online-lyrics-battle-reveal-line";
-    lineElement.textContent = revealedText;
-    elements.battleHintLinesContainer.appendChild(lineElement);
+    const hintTexts = question.hints.map((hint) => hint.segment?.text ?? "");
+    const effectiveElapsedMs = myAnsweredThisQuestion ? Number.POSITIVE_INFINITY : elapsedMs;
+    const { levels } = computeStealHintProgress({ elapsedMs: effectiveElapsedMs, hintTexts });
+    // 答え合わせ時のヒント一覧（renderResolvedHintSummary）と全く同じCSSクラスを使い、
+    // 回答中・答え合わせ後でヒントのフォント・見た目が食い違わないようにする
+    // （本人指示：ヒントフォントの統一）。
+    elements.battleHintLinesContainer.classList.add("online-lyrics-battle-hint-summary-list");
+    levels.forEach(({ level, revealedText }) => {
+      const item = document.createElement("p");
+      item.className = "online-lyrics-battle-hint-summary-item";
+      const levelBadge = document.createElement("span");
+      levelBadge.className = "online-lyrics-battle-hint-summary-level";
+      levelBadge.textContent = `ヒント${level}`;
+      item.appendChild(levelBadge);
+      const textSpan = document.createElement("span");
+      textSpan.className = "online-lyrics-battle-hint-summary-text";
+      textSpan.textContent = revealedText;
+      item.appendChild(textSpan);
+      elements.battleHintLinesContainer.appendChild(item);
+    });
     return;
   }
 
@@ -1681,14 +1741,17 @@ export function enterLyricsQuizResult(room) {
   if (elements.resultGuestActions) elements.resultGuestActions.hidden = isHostOnResultScreen;
   elements.resultRuleNote.textContent = lyricsQuizBattleMode.getRuleDescription(room.settings);
 
+  // 【2026-09-14追加・本人指示：対戦中のゲストが自分だけ途中離脱する】leftDuringMatchが
+  // 立っている参加者は、途中まで得点していても正式な順位には含めない（js/onlineBattleScreen.js
+  // のgoToResultScreen()と同じ考え方）。既存のDNF扱いにそのまま合流させる。
   const rankedEntries = Object.entries(participants).map(([uid, participant]) => ({
     uid,
     displayName: participant.displayName,
     isHost: participant.isHost === true,
     isYou: uid === myUid,
-    isDnf: !results[uid],
+    isDnf: !results[uid] || participant.leftDuringMatch === true,
     oshiColor: resolveOshiColor(participant.oshiMemberId),
-    result: results[uid] ? { detail: results[uid].detail } : null,
+    result: results[uid] && participant.leftDuringMatch !== true ? { detail: results[uid].detail } : null,
   }));
 
   rankedEntries.sort((entryA, entryB) => {

@@ -704,6 +704,9 @@
            対戦を中断して、ルーム・メンバーを維持したまま全員をロビーへ戻す
            （js/onlineBattleScreen.js制御。通常プレイ・オフライン対戦では常に非表示）。 -->
       <button id="online-battle-quiz-back-to-lobby-button" class="secondary-button online-battle-back-to-lobby-button" type="button" hidden>⚙ ルーム設定へ戻る</button>
+      <!-- 【2026-09-14新設・本人指示：対戦中のゲストが自分だけ途中離脱する】ホスト専用の
+           上のボタンとは別に、ゲストにだけ見せる「この試合だけ抜ける」ボタン。 -->
+      <button id="online-battle-quiz-leave-match-button" class="secondary-button online-battle-back-to-lobby-button" type="button" hidden>⚙ ルーム設定へ戻る</button>
 
       <!-- 【2026-08-29追加、本人指示】ピンチズーム・ドラッグでページ自体の表示位置がずれる
            不具合の修正（既存のtouch-action指定だけでは実機で防ぎきれなかったため）。
@@ -3238,6 +3241,14 @@
           </div>
           <p id="online-battle-collab-my-count" class="battle-manual-song-count"></p>
           <p id="online-battle-collab-total-count" class="battle-manual-song-count"></p>
+          <!-- 【2026-09-14新設・本人指示：誰がどの曲を選んだか／共有曲一覧を確認できるように】 -->
+          <button id="online-battle-collab-details-toggle" class="song-picker-review-toggle" type="button" aria-expanded="false">選択曲を見る ▾</button>
+          <div id="online-battle-collab-details-panel" class="online-battle-collab-details-panel" hidden>
+            <p class="battle-field-label">参加者ごとの選択</p>
+            <div id="online-battle-collab-by-player-list" class="online-battle-collab-breakdown-list"></div>
+            <p class="battle-field-label">共有曲一覧（重複は1曲として出題）</p>
+            <div id="online-battle-collab-unique-song-list" class="online-battle-collab-song-chip-list"></div>
+          </div>
         </div>
 
         <!-- 歌詞クイズ専用：ホスト用設定（対戦ルール・回答方式・ヒント表示時間・出題数）。
@@ -3300,6 +3311,14 @@
           </div>
           <p id="online-lyrics-battle-collab-my-count" class="battle-manual-song-count"></p>
           <p id="online-lyrics-battle-collab-total-count" class="battle-manual-song-count"></p>
+          <!-- 【2026-09-14新設・本人指示：誰がどの曲を選んだか／共有曲一覧を確認できるように】 -->
+          <button id="online-lyrics-battle-collab-details-toggle" class="song-picker-review-toggle" type="button" aria-expanded="false">選択曲を見る ▾</button>
+          <div id="online-lyrics-battle-collab-details-panel" class="online-battle-collab-details-panel" hidden>
+            <p class="battle-field-label">参加者ごとの選択</p>
+            <div id="online-lyrics-battle-collab-by-player-list" class="online-battle-collab-breakdown-list"></div>
+            <p class="battle-field-label">共有曲一覧（重複は1曲として出題）</p>
+            <div id="online-lyrics-battle-collab-unique-song-list" class="online-battle-collab-song-chip-list"></div>
+          </div>
         </div>
 
         <!-- 歌詞クイズ専用：歌詞データの充足状況（ホストは件数だけ、本人は不足曲名まで）。 -->
@@ -3473,7 +3492,10 @@
       <div id="online-battle-song-picker-groups"></div>
 
       <p id="online-battle-song-picker-no-results-notice" class="question-count-notice" hidden>該当する曲が見つかりませんでした</p>
-      <p id="online-battle-song-picker-min-notice" class="question-count-notice">出題するには4曲以上選んでください</p>
+      <!-- 【2026-09-14改訂・本人指示：個人の最低選択曲数ノルマの撤廃】以前は「4曲以上選んでください」
+           という警告だったが、この画面は各自が「参加者全員の共有出題曲プール」に自分の分を
+           追加するだけなので、個人のノルマは無い。常時表示の案内文へ差し替える。 -->
+      <p id="online-battle-song-picker-min-notice" class="question-count-notice">ここで選んだ曲は、参加者全員の共有出題プールに追加されます（自分は0曲のままでも決定できます）</p>
 
       <button id="online-battle-song-picker-confirm-button" class="primary-button" type="button">この曲で決定する</button>
     </section>
@@ -3613,6 +3635,8 @@
       </div>
       <!-- 【2026-09-05新設、本人指示】ホスト専用「ルーム設定へ戻る」（js/onlineInstantBattleScreen.js制御）。 -->
       <button id="online-instant-battle-back-to-lobby-button" class="secondary-button online-battle-back-to-lobby-button" type="button" hidden>⚙ ルーム設定へ戻る</button>
+      <!-- 【2026-09-14新設・本人指示】ゲスト専用「この試合だけ抜ける」。 -->
+      <button id="online-instant-battle-leave-match-button" class="secondary-button online-battle-back-to-lobby-button" type="button" hidden>⚙ ルーム設定へ戻る</button>
 
       <div class="quiz-middle-zone">
         <div class="quiz-middle-zone-inner">
@@ -3662,6 +3686,8 @@
       </div>
       <!-- 【2026-09-05新設、本人指示】ホスト専用「ルーム設定へ戻る」（js/onlineInstantCoopBattleScreen.js制御）。 -->
       <button id="online-instant-coop-battle-back-to-lobby-button" class="secondary-button online-battle-back-to-lobby-button" type="button" hidden>⚙ ルーム設定へ戻る</button>
+      <!-- 【2026-09-14新設・本人指示】ゲスト専用「この試合だけ抜ける」。 -->
+      <button id="online-instant-coop-battle-leave-match-button" class="secondary-button online-battle-back-to-lobby-button" type="button" hidden>⚙ ルーム設定へ戻る</button>
 
       <div class="quiz-middle-zone">
         <div class="quiz-middle-zone-inner">
@@ -3770,6 +3796,8 @@
       </div>
       <!-- 【2026-09-05新設、本人指示】ホスト専用「ルーム設定へ戻る」（js/onlineLyricsQuizBattleScreen.js制御）。 -->
       <button id="online-lyrics-battle-back-to-lobby-button" class="secondary-button online-battle-back-to-lobby-button" type="button" hidden>⚙ ルーム設定へ戻る</button>
+      <!-- 【2026-09-14新設・本人指示】ゲスト専用「この試合だけ抜ける」。 -->
+      <button id="online-lyrics-battle-leave-match-button" class="secondary-button online-battle-back-to-lobby-button" type="button" hidden>⚙ ルーム設定へ戻る</button>
 
       <!-- 【2026-08-29追加】#quiz-screenと同じ理由・同じ設計でmiddle-zone化する
            （ページ自体の表示位置ズレ対策。詳細はcss/style.css参照）。 -->
@@ -4345,6 +4373,21 @@
       <div class="button-row">
         <button id="online-battle-return-to-lobby-cancel-button" class="secondary-button" type="button">キャンセル</button>
         <button id="online-battle-return-to-lobby-confirm-button" class="primary-button" type="button">ルーム設定に戻る</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 【2026-09-14新設・本人指示：対戦中のゲストが自分だけ途中離脱する】上のモーダルは
+       ホスト専用（全員を巻き込んで対戦を中断する）で、こちらはゲスト専用（自分だけこの
+       試合から抜けてロビー表示に戻る。ルーム在籍・他の参加者の対戦は継続）。誤操作防止の
+       ワンクッションとして、影響範囲の違いが伝わる文言にする。 -->
+  <div id="online-battle-leave-match-confirm-modal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="online-battle-leave-match-confirm-title">
+      <h2 id="online-battle-leave-match-confirm-title">この対戦から途中離脱してルーム設定へ戻りますか？</h2>
+      <p class="modal-lead">この試合には戻れません。この試合の順位・勝敗・ランキング・称号判定の対象外になります。ルームには残ったままで、他の参加者の対戦はそのまま続きます。次の試合からは通常どおり参加できます。</p>
+      <div class="button-row">
+        <button id="online-battle-leave-match-cancel-button" class="secondary-button" type="button">キャンセル</button>
+        <button id="online-battle-leave-match-confirm-button" class="primary-button" type="button">戻る</button>
       </div>
     </div>
   </div>

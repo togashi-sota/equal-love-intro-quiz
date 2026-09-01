@@ -16,6 +16,7 @@
 
 import { getActivePlayer } from "./playerProfile.js";
 import { promptReturnToLobby } from "./onlineBattleLobbyReturnPrompt.js";
+import { promptLeaveMatch, hasVoluntarilyLeftMatch } from "./onlineBattleLeaveMatchPrompt.js";
 import {
   createRoom,
   joinRoom,
@@ -63,6 +64,7 @@ import {
   listAvailableGameModes,
   getAvailabilityKind,
   resolveAllEligibleSongIdsForMode,
+  resolveSongPoolForSettings,
 } from "./battleModes/index.js";
 import { QUESTION_COUNT_LABELS, CATEGORY_LABELS, RULE_LABELS } from "./localBattleScreen.js";
 import { buildSharedEngineQuestionBreakdown, capQuestionBreakdownForStorage } from "./battleQuestionBreakdown.js";
@@ -70,6 +72,8 @@ import { computeAllPlayersConfirmed } from "./onlineBattleMatchConfirmationPaylo
 import { renderQuestionBreakdownAccordion } from "./battleQuestionBreakdownUi.js";
 import { computeNormalFinalRecordMs } from "./localBattleResult.js";
 import { MEMBERS } from "./data/members.js";
+import { SONGS } from "./data/songs.js";
+import { renderCollaborativeSelectionBreakdown, wireCollaborativeSelectionDetailsToggle } from "./onlineBattleCollaborativeSelectionUi.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
 import { getMemberById } from "./memberUtils.js";
 // 【2026-09-07新設・本人指示：ルーム参加者プロフィール】ロビー参加者の名前タップで
@@ -131,6 +135,7 @@ import { openOnlineBattlePlaylistPicker } from "./onlineBattlePlaylistPicker.js"
 // （gameModeを問わない共通UIのため、js/onlineBattleSongPicker.js等と同じ階層に置く）。
 import { openOnlineBattleSongListConfirm } from "./onlineBattleSongListConfirmModal.js";
 import { QUESTION_SOURCE_TYPE, sanitizeSongIds } from "./questionSource.js";
+import { resolveQuestionCount } from "./quiz.js";
 import { getFavoriteSongIds } from "./favoriteSongs.js";
 import { savePlayHistoryEntryIfNew } from "./playHistory.js";
 // 【2026-08-26新設・2026-08-27拡張】オンライン対戦の共通曲（intersection）判定のため、
@@ -265,9 +270,21 @@ async function openLobbyParticipantProfile(player) {
     return;
   }
   elements.lobbyProfileBody.hidden = false;
-  // 【2026-09-08改訂・本人指示】ロビーの簡易プロフィールでは、王冠・ダイヤ等の称号バッジ
-  // 装飾は付けず、推しメンカラーの丸だけにする（誰がホストかは既存の「ホスト」表示で
-  // 十分伝わるため。スウォッチは開いた時点の{}のまま、ここでは再描画しない）。
+  // 【2026-09-14改訂・本人指示：実機フィードバック】2026-09-08時点では「王冠・ダイヤは
+  // 一切付けない」方針にしていたが、今回改めて「本当に取得済みの代表称号だけは、既存の
+  // フレンドプロフィールと同じ見た目で表示してほしい」との明確な指示があったため撤回する。
+  // profile取得前（253-254行目）はまだ称号状態が分からないため丸だけで一旦表示し、
+  // profileが届いた時点でjs/fanProfileCard.jsのbuildOshiSwatch()を使って本物の代表称号
+  // バッジ付きで描き直す（王冠・ダイヤを演出目的で勝手に足すのではなく、既存の
+  // 称号取得ロジックが返した真偽値をそのまま渡すだけ＝新しいオンライン専用の判定は作らない）。
+  elements.lobbyProfileSwatch.innerHTML = "";
+  elements.lobbyProfileSwatch.appendChild(
+    buildOshiSwatch(MEMBERS, player.oshiMemberId, {
+      hasNoMissMaster: profile.hasNoMissMaster,
+      hasEqualLoveMaster: profile.hasEqualLoveMaster,
+      hasEqualLoveComplete: profile.hasEqualLoveComplete,
+    })
+  );
   elements.lobbyProfileAchievementCount.textContent = buildAchievementCountText(profile.unlockedAchievementIds);
   elements.lobbyProfileSummary.innerHTML = "";
   elements.lobbyProfileSummary.appendChild(buildFriendAchievementSummary(profile.unlockedAchievementIds));
@@ -510,8 +527,21 @@ function buildCurrentRuleExplanation(containerElement, room) {
   modeDescription.textContent = getModeDescription(gameMode);
   containerElement.appendChild(modeDescription);
 
+  // 【2026-09-14改訂・本人指示：ルール確認画面に「順位の決まり方」を明示】
+  // js/battleModes/*・js/battleRules/*のgetRuleDescription()は、以前から実際の
+  // compareResults()の判定基準（何が同点で、同点時に何を見るか等）と完全に一致する
+  // 文言を返しており（例：一瞬バトル「正解数が多い人が上位。同数の場合は…」、歌詞クイズ
+  // 各ルール「…同点の場合は同じ順位になります」）、内容自体は既に正確だった。ただし
+  // 見出しが無く「対戦ルールの説明の一部」として埋もれて見えるという指摘があったため、
+  // 「🏆 順位の決まり方」という明示的な見出しを付け、必ず目に入る形にする
+  // （推測で新しい文言を書くのではなく、既存のgetRuleDescription()をそのまま使う）。
   const ruleDescription = getRuleDescription(gameMode, settings);
   if (ruleDescription) {
+    const rankingHeading = document.createElement("p");
+    rankingHeading.className = "online-lobby-help-current-mode online-battle-ranking-heading";
+    rankingHeading.textContent = "🏆 順位の決まり方";
+    containerElement.appendChild(rankingHeading);
+
     const ruleText = document.createElement("p");
     ruleText.className = "battle-rule-description";
     ruleText.textContent = ruleDescription;
@@ -533,6 +563,23 @@ function buildCurrentRuleExplanation(containerElement, room) {
     penaltyText.className = "online-lobby-help-current-description";
     penaltyText.textContent = `ミスペナルティ：${settings.penaltySeconds}秒`;
     containerElement.appendChild(penaltyText);
+  }
+
+  // 【2026-09-14新設・本人指示：ルール確認画面に共有曲情報を表示】共同選曲を使っている
+  // 場合、「共有曲指定あり」「現在のカテゴリ条件で有効な出題候補が何曲あるか」
+  // 「今回何問出題されるか」を必ず表示する。答えそのものを隠す設計ではないため、
+  // 対象曲の内訳自体はここでは一覧表示せず（一覧はロビーの「選択曲を見る」で
+  // 既に確認できる）、対戦開始直前に必要な数量情報だけに絞る。
+  if (settings.questionSource?.type === QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION) {
+    const effectivePool = resolveSongPoolForSettings(gameMode, settings) ?? [];
+    const questionCount = resolveQuestionCount(settings.questionCountValue, effectivePool.length);
+    const collabText = document.createElement("p");
+    collabText.className = "online-lobby-help-current-description online-battle-confirm-collab-summary";
+    collabText.textContent =
+      effectivePool.length === 0
+        ? "共有曲指定あり：現在有効な出題候補は0曲です。参加者に曲を選んでもらってください。"
+        : `共有曲指定あり：現在有効な出題候補${effectivePool.length}曲の中から、今回${questionCount}問出題されます`;
+    containerElement.appendChild(collabText);
   }
 }
 
@@ -816,6 +863,12 @@ function getMergedRestrictedSongIds() {
   return merged.filter((songId) => currentCommonSongPool.has(songId));
 }
 
+// 【2026-09-14新設】共同選曲の内訳UI（js/onlineBattleCollaborativeSelectionUi.js）へ渡す
+// 曲id→曲名の解決関数。存在しない曲id（データ不整合等）は安全にidそのものを表示する。
+function resolveSongTitleForCollabUi(songId) {
+  return SONGS.find((song) => song.id === songId)?.title ?? songId;
+}
+
 // 【2026-08-27新設】共同選曲セクション（ホスト・参加者共通）の表示を更新する。
 // 「今の自分の選択数」「参加者全員を合わせた選択数・実際に使える数」を表示するだけの
 // 表示専用関数（Firebaseへは一切書き込まない）。
@@ -832,6 +885,18 @@ function updateCollabSongSectionUi(room, isLyricsQuiz) {
     merged.length === 0
       ? "まだ誰も曲を選んでいません。下のボタンから選んでください。"
       : `参加者全員の選択を合わせて${merged.length}曲（このうち${restrictedCount}曲がこの対戦で使えます）`;
+
+  // 【2026-09-14新設・本人指示：誰がどの曲を選んだか／共有曲一覧をリアルタイム反映】
+  // パネルが開いているかどうかに関わらず常に最新内容へ描画し直す（開いている間に他の
+  // 参加者が選択を変えても、ロビー画面自体はroom監視で再描画され続けているため自然に
+  // 追従する）。人数・曲数ともに小規模なため、毎回作り直しても負荷は問題にならない。
+  renderCollaborativeSelectionBreakdown({
+    byPlayerListElement: elements.collabByPlayerList,
+    uniqueSongListElement: elements.collabUniqueSongList,
+    players: room.players || {},
+    songTitleResolver: resolveSongTitleForCollabUi,
+    currentUid: getCurrentUid(),
+  });
 }
 
 // 【2026-08-27新設・ホスト専用】参加者全員の選択（players/*/selectedSongIds）の和集合を
@@ -1483,9 +1548,16 @@ function renderLobby(room) {
   if (statusJustChanged) {
     if (room.status === ROOM_STATUS.COUNTDOWN) {
       goToCountdownScreen(room);
-    } else if (room.status === ROOM_STATUS.PLAYING && previousStatus !== ROOM_STATUS.COUNTDOWN) {
+    } else if (
+      room.status === ROOM_STATUS.PLAYING &&
+      previousStatus !== ROOM_STATUS.COUNTDOWN &&
+      !hasVoluntarilyLeftMatch(room.activeMatchId)
+    ) {
       // カウントダウンを経由せずplayingを検知した＝出遅れて参加/再接続した端末。
       // 自分のローカルカウントダウンは持っていないので、直接出題を開始する。
+      // 【2026-09-14追加・本人指示：対戦中のゲストが自分だけ途中離脱する】この試合を
+      // 自分の意思で既に途中離脱している場合は、room.statusが"playing"のままでも
+      // 対戦画面へ自動的に戻さない（本人指示：自動同期で対戦画面へ呼び戻さない）。
       enterOnlineBattlePlay(room);
     } else if (room.status === ROOM_STATUS.RESULT && document.body.dataset.screen !== "quiz") {
       // 結果確定を検知したら結果画面へ進む。ただし、自分がまだクイズ回答中（quiz画面）の
@@ -1795,8 +1867,14 @@ function updateOnlineBattlePlayUi(room) {
   if (currentScreen === "quiz") {
     renderOnlineBattleQuizStrip(rows, myUid);
     // 【2026-09-05新設、本人指示】対戦中、ホストだけに「ルーム設定へ戻る」を見せる。
+    const isHostNow = room.host === myUid;
     if (elements.quizBackToLobbyButton) {
-      elements.quizBackToLobbyButton.hidden = room.host !== myUid;
+      elements.quizBackToLobbyButton.hidden = !isHostNow;
+    }
+    // 【2026-09-14新設・本人指示：対戦中のゲストが自分だけ途中離脱する】ホストには出さず、
+    // ゲストにだけ見せる。
+    if (elements.quizLeaveMatchButton) {
+      elements.quizLeaveMatchButton.hidden = isHostNow;
     }
   } else if (currentScreen === "onlineBattleWaiting") {
     renderOnlineBattleWaitingList(room, rows, myUid);
@@ -1830,7 +1908,11 @@ function goToResultScreen(room) {
   const dnfEntries = [];
   Object.entries(participants).forEach(([uid, participant]) => {
     const result = results[uid];
-    if (result) {
+    // 【2026-09-14追加・本人指示：対戦中のゲストが自分だけ途中離脱する】leftDuringMatchが
+    // 立っている参加者は、途中まで得点していても正式な順位（finishers）には含めない
+    // （本人指示：順位・勝敗・ランキング・称号判定の対象外）。既存のDNF（未終了）扱いの
+    // 一覧にそのまま合流させることで、新しい表示区分を増やさずに済む。
+    if (result && participant.leftDuringMatch !== true) {
       finishers.push({ uid, participant, result });
     } else {
       dnfEntries.push({ uid, participant });
@@ -2557,6 +2639,17 @@ export function initOnlineBattleScreens(newElements) {
     promptReturnToLobby(currentRoomId);
   });
 
+  // 【2026-09-14新設・本人指示：対戦中のゲストが自分だけ途中離脱する】ホスト用とは別の
+  // 確認モーダルを挟む（js/onlineBattleLeaveMatchPrompt.js）。確定後はローカルの画面遷移
+  // だけ行い、room.status等には一切触れない（他の参加者の対戦はそのまま続く）。
+  elements.quizLeaveMatchButton?.addEventListener("click", () => {
+    if (!currentRoomId || !currentMatchId) return;
+    promptLeaveMatch(currentRoomId, currentMatchId, () => {
+      elements.navigateTo("onlineBattleLobby");
+      if (latestRoom) renderLobby(latestRoom);
+    });
+  });
+
   // 【2026-09-09新設・本人指示：ロビー専用の詳細説明書】
   elements.lobbyHelpButton?.addEventListener("click", () => openLobbyHelpModal());
   elements.lobbyHelpClose?.addEventListener("click", () => closeLobbyHelpModal());
@@ -2578,8 +2671,15 @@ export function initOnlineBattleScreens(newElements) {
   // 外側タップ・Escapeキーのいずれでも閉じられるようにする（既存のfan-profile-detail-modal
   // 等、他のモーダルと同じ操作性に揃える）。
   // 【2026-09-13新設・本人指示：対戦開始前ルール確認画面】
+  // 【2026-09-14修正・実機回帰バグ：fresh room初回音源無音】ルール確認画面の追加により、
+  // 実際にaudio.play()が呼ばれる瞬間（確認OK後2秒待機→startBattle→カウントダウン→再生）が
+  // ユーザージェスチャーの呼び出しスタックから完全に切り離されてしまい、iOSのautoplay
+  // 制限に引っかかっていた。全参加者が必ず押す「確認OK」タップは対戦開始に最も近い
+  // 確実なユーザージェスチャーなので、ここでunlockしておく（ホスト・ゲスト両方の端末で
+  // 実行されるため、参加者全員分の再生準備が整う）。
   elements.confirmToggleButton?.addEventListener("click", async () => {
     if (!currentRoomId || !latestRoom) return;
+    attemptSilentUnlock();
     const myUid = getCurrentUid();
     const nowConfirmed = latestRoom.players?.[myUid]?.ruleConfirmed === true;
     // 【本人指示19：確認OKはトグル式】押すたびに反転させるだけの単純な操作にする。
@@ -2588,6 +2688,18 @@ export function initOnlineBattleScreens(newElements) {
   elements.confirmCancelButton?.addEventListener("click", async () => {
     if (!currentRoomId) return;
     await cancelMatchConfirmation({ roomId: currentRoomId });
+  });
+
+  // 【2026-09-14新設・本人指示：誰がどの曲を選んだか／共有曲一覧を確認できるように】
+  wireCollaborativeSelectionDetailsToggle(elements.collabDetailsToggle, elements.collabDetailsPanel, () => {
+    if (!latestRoom) return;
+    renderCollaborativeSelectionBreakdown({
+      byPlayerListElement: elements.collabByPlayerList,
+      uniqueSongListElement: elements.collabUniqueSongList,
+      players: latestRoom.players || {},
+      songTitleResolver: resolveSongTitleForCollabUi,
+      currentUid: getCurrentUid(),
+    });
   });
 
   elements.lobbyProfileClose?.addEventListener("click", () => closeLobbyParticipantProfile());

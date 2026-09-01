@@ -12239,6 +12239,88 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   color: var(--color-primary-dark);
 }
 
+/* 2026-09-14新設・本人指示：共同選曲の「誰がどの曲を選んだか」「共有曲一覧」を
+   開閉式で確認できるようにするための見た目。既存の.song-picker-sticky-toggleと
+   似た軽いテキストボタンにし、パネル自体はカードっぽく囲って情報の塊として見せる。 */
+.song-picker-review-toggle {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  padding: 4px 0;
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  cursor: pointer;
+}
+
+.online-battle-collab-details-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--color-surface-glass);
+  border: 1px solid var(--color-card-border);
+}
+
+/* .battle-manual-song-row同様、display:flexを明示指定しているクラスは[hidden]の既定
+   （display:none）を上書きしてしまうため、明示的な上書きが必要
+   （このプロジェクトで繰り返し踏んでいるCSS詳細度の既知パターン）。 */
+.online-battle-collab-details-panel[hidden] {
+  display: none;
+}
+
+.online-battle-collab-breakdown-empty {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--color-text);
+  opacity: 0.7;
+}
+
+.online-battle-collab-breakdown-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.online-battle-collab-breakdown-row {
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--color-surface);
+}
+
+.online-battle-collab-breakdown-name {
+  margin: 0 0 2px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+}
+
+.online-battle-collab-breakdown-songs {
+  margin: 0;
+  font-size: 0.76rem;
+  color: var(--color-text);
+  opacity: 0.85;
+  line-height: 1.5;
+}
+
+.online-battle-collab-song-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.online-battle-collab-song-chip {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
 /* 2026-08-27新設：参加者全員が実際に利用できる共通曲の数を知らせる注意書き
    （js/onlineBattleScreen.js・js/onlineLyricsQuizBattleScreen.js参照）。
    「制限が発生している」ことを伝えるための表示なので、目立ちすぎない黄色系にする
@@ -12405,6 +12487,13 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   font-weight: 800;
   color: var(--color-primary-dark);
   margin: 0 0 4px;
+}
+
+/* 2026-09-14新設・本人指示：「順位の決まり方」見出し。本体（.online-lobby-help-current-mode）
+   より一回り小さくし、直後のルール説明文とセットで視認できるよう上に余白を空ける。 */
+.online-battle-ranking-heading {
+  font-size: 0.85rem;
+  margin-top: 10px;
 }
 
 .online-lobby-help-current-description {

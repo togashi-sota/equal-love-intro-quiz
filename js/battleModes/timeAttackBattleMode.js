@@ -15,6 +15,7 @@ import {
   buildQuestionsFromPool,
   validateSongPoolForQuestionCount,
   sanitizeSongIds,
+  filterSongIdsByCategory,
   QUESTION_SOURCE_TYPE,
 } from "../questionSource.js";
 import { MIN_SONGS_REQUIRED, filterSongsByCategory } from "../quiz.js";
@@ -56,13 +57,18 @@ export function validateSettings(settings) {
     ) {
       return null;
     }
-    const songPool = resolveQuestionSourceSongPool(settings.questionSource);
+    const isCollaborative = settings.questionSource.type === QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION;
+    const songPool = resolveQuestionSourceSongPool(settings.questionSource, settings.categoryFilterValue);
     if (songPool.length < MIN_SONGS_REQUIRED) {
-      return "曲数が足りません。出題範囲を広げてください。";
+      return isCollaborative
+        ? "現在のカテゴリ条件で有効な共有曲が足りません。カテゴリを広げるか、参加者に曲を追加で選んでもらってください。"
+        : "曲数が足りません。出題範囲を広げてください。";
     }
     const sizeCheck = validateSongPoolForQuestionCount(songPool, settings.questionCountValue);
     if (!sizeCheck.ok) {
-      return `選択した曲は${sizeCheck.currentCount}曲です。${sizeCheck.requiredCount}問を出題するには${sizeCheck.requiredCount}曲以上必要です。`;
+      return isCollaborative
+        ? `現在有効な共有曲は${sizeCheck.currentCount}曲です。${sizeCheck.requiredCount}問を出題するには${sizeCheck.requiredCount}曲以上必要です。`
+        : `選択した曲は${sizeCheck.currentCount}曲です。${sizeCheck.requiredCount}問を出題するには${sizeCheck.requiredCount}曲以上必要です。`;
     }
     return null;
   }
@@ -75,9 +81,13 @@ export function validateSettings(settings) {
 // settings.questionSource.songIdsをそのまま使う（他のtype同様、この呼び出し元では
 // sanitizeはしない＝Firebase書き込み時点で既にサニタイズ済みという前提。詳細はPhase2の
 // Firebaseルール案・onlineBattle.js側の実装を参照）。
-function resolveQuestionSourceSongPool(questionSource) {
+// 【2026-09-14改訂・本人指示：カテゴリ変更時も選択状態は保持するが出題対象外の曲は
+// 出題しない】collaborativeSelectionは選択された曲そのもの（questionSource.songIds）を
+// 一切書き換えず、ここで「現在のcategoryFilterValueに合う曲だけ」に絞り込んだ結果だけを
+// 返す。選択状態はFirebase側に残るため、カテゴリを元に戻せば再選択なしで復帰できる。
+function resolveQuestionSourceSongPool(questionSource, categoryFilterValue) {
   if (questionSource.type === "collaborativeSelection") {
-    return questionSource.songIds ?? [];
+    return filterSongIdsByCategory(questionSource.songIds ?? [], categoryFilterValue);
   }
   return resolveSongPool(questionSource);
 }
@@ -89,7 +99,7 @@ function resolveQuestionSourceSongPool(questionSource) {
 // 解決ロジックを、外部から呼べる形として切り出した（ロジック自体は変更していない）。
 export function resolveSettingsSongPool(settings) {
   if (settings.questionSource) {
-    return resolveQuestionSourceSongPool(settings.questionSource);
+    return resolveQuestionSourceSongPool(settings.questionSource, settings.categoryFilterValue);
   }
   return filterSongsByCategory(SONGS, settings.categoryFilterValue).map((song) => song.id);
 }
@@ -114,10 +124,15 @@ export function resolveAllEligibleSongIds() {
 // 差し替え用に、出題数とは別に予備の曲を確保する）。randomPlaybackBattleMode.js・
 // outroBattleMode.jsはこの関数をそのまま再エクスポートしているため、この1箇所の変更で
 // タイムアタック・ランダム再生・アウトロクイズの3モードすべてに反映される。
+// 【2026-09-14追加・本人指示：出題曲プールと回答選択肢プールの完全分離】曲指定
+// （questionSource）で出題対象が絞られていても、ダミー選択肢は「現在のカテゴリ条件全体」
+// （settings.categoryFilterValue）から選ぶ。カテゴリを問わないtype（ALL_SONGS・CATEGORY）
+// では、distractorPoolはsongPoolと実質同じ集合になるため既存動作に影響しない。
 export function buildQuestions({ seed, settings, reserveCount = 0 }) {
   if (settings.questionSource) {
-    const songPool = resolveQuestionSourceSongPool(settings.questionSource);
-    return buildQuestionsFromPool({ seed, songPool, questionCountValue: settings.questionCountValue, reserveCount });
+    const songPool = resolveQuestionSourceSongPool(settings.questionSource, settings.categoryFilterValue);
+    const distractorPool = filterSongsByCategory(SONGS, settings.categoryFilterValue).map((song) => song.id);
+    return buildQuestionsFromPool({ seed, songPool, distractorPool, questionCountValue: settings.questionCountValue, reserveCount });
   }
   return buildBattleQuestions({
     seed,

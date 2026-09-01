@@ -93,11 +93,16 @@ export function generateChoices(correctSong, pool, random = Math.random) {
 }
 
 // 出題する曲一覧から、クイズ画面で使う問題データ（{ song, choices } の配列）を作る。
-export function buildQuizQuestions(pool, count, random = Math.random) {
+// distractorPool（ダミー選択肢の母集団）を省略した場合は、今までと同じくpool自身から
+// ダミーを選ぶ（既存の呼び出し元は挙動が一切変わらない）。
+// 【2026-09-14追加・本人指示：出題曲プールと回答選択肢プールの完全分離】オンライン対戦の
+// 共同選曲機能で、出題対象（pool）とダミー選択肢の母集団（distractorPool＝現在の
+// カテゴリ条件全体）を別々に扱えるようにするための引数。
+export function buildQuizQuestions(pool, count, random = Math.random, distractorPool = pool) {
   const questionSongs = pickQuestionSongs(pool, count, random);
   return questionSongs.map((song) => ({
     song,
-    choices: generateChoices(song, pool, random),
+    choices: generateChoices(song, distractorPool, random),
   }));
 }
 

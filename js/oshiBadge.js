@@ -19,14 +19,20 @@ import { getOshiBadgeState } from "./achievementProgress.js";
 // 【2026-08-15追加】ノーミスマスター用のhas-no-miss-masterを追加。CSS側で
 // 「:not(.has-equal-love-master):not(.has-equal-love-complete)」を条件に付けているため、
 // 上位2つの称号を持つ場合は自動的に非表示になり、王冠・ダイヤより目立つことはない。
+// 【2026-09-14修正・実機回帰バグ】classList.toggle(name, force)は、forceに
+// undefinedを渡すと「force未指定」として扱われ、現在の状態を反転させる（＝毎回
+// トグルする）動作になる。この関数の呼び出し元がhasEqualLoveMaster/hasEqualLoveComplete
+// を省略して{}だけを渡すと、分割代入でundefinedになり、意図せずクラスが付与されて
+// しまっていた（称号を持たない参加者にも王冠・ダイヤが常に表示される不具合）。
+// 3つとも明示的にfalseをデフォルト値にし、Boolean()で真偽値へ確実に変換する。
 export function applyOshiBadgeDecorationsFromState(
   element,
-  { hasNoMissMaster = false, hasEqualLoveMaster, hasEqualLoveComplete }
+  { hasNoMissMaster = false, hasEqualLoveMaster = false, hasEqualLoveComplete = false }
 ) {
   if (!element) return;
-  element.classList.toggle("has-no-miss-master", hasNoMissMaster);
-  element.classList.toggle("has-equal-love-master", hasEqualLoveMaster);
-  element.classList.toggle("has-equal-love-complete", hasEqualLoveComplete);
+  element.classList.toggle("has-no-miss-master", Boolean(hasNoMissMaster));
+  element.classList.toggle("has-equal-love-master", Boolean(hasEqualLoveMaster));
+  element.classList.toggle("has-equal-love-complete", Boolean(hasEqualLoveComplete));
 }
 
 // 今の端末・今のプレイヤーの称号状態（localStorage）を使って装飾する、従来どおりの入口。

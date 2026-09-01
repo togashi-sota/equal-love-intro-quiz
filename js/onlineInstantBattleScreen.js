@@ -40,6 +40,7 @@ import {
 import { buildQuestions, createResult, MAX_REPLAY_COUNT_PER_QUESTION } from "./battleModes/instantBattleMode.js";
 import { runLocalReplayCountdownForQuestion, cancelLocalReplayCountdown } from "./localReplayCountdown.js";
 import { promptReturnToLobby } from "./onlineBattleLobbyReturnPrompt.js";
+import { promptLeaveMatch } from "./onlineBattleLeaveMatchPrompt.js";
 import { promptAnswerConfirm } from "./answerConfirmPrompt.js";
 import { getCurrentUid } from "./firebaseClient.js";
 
@@ -103,6 +104,21 @@ export function initOnlineInstantBattleScreens(newElements) {
   // 【2026-09-05新設、本人指示】対戦中、ホストだけに見える「ルーム設定へ戻る」。
   elements.backToLobbyButton?.addEventListener("click", () => {
     promptReturnToLobby(currentRoomId);
+  });
+
+  // 【2026-09-14新設・本人指示：対戦中のゲストが自分だけ途中離脱する】「対戦をやめる」
+  // （quitConfirmButton・quitOnlineBattleDuringQuiz）と違い、ルームそのものからは
+  // 離脱しない（leaveRoom()は呼ばない）。ローカルの再生・タイマー状態だけを
+  // resetOnlineInstantBattleState()で片付け、ロビー画面へ戻す。
+  elements.leaveMatchButton?.addEventListener("click", () => {
+    const roomId = currentRoomId;
+    const matchId = currentMatchId;
+    if (!roomId || !matchId) return;
+    promptLeaveMatch(roomId, matchId, () => {
+      stopAudio();
+      resetOnlineInstantBattleState();
+      elements.navigateTo("onlineBattleLobby");
+    });
   });
 
   elements.replayButton.addEventListener("click", () => {
@@ -176,8 +192,13 @@ export function enterOnlineInstantBattlePlay(room) {
   // 【2026-09-05新設、本人指示】このモードは各自が独立して進行するため、対戦中は
   // room更新を継続的に監視していない。ホスト判定は入場時点のroomでのみ行う
   // （対戦中にホストが交代する稀なケースでは反映されないが、許容する）。
+  const isHostAtEntry = room.host === getCurrentUid();
   if (elements.backToLobbyButton) {
-    elements.backToLobbyButton.hidden = room.host !== getCurrentUid();
+    elements.backToLobbyButton.hidden = !isHostAtEntry;
+  }
+  // 【2026-09-14新設・本人指示：対戦中のゲストが自分だけ途中離脱する】
+  if (elements.leaveMatchButton) {
+    elements.leaveMatchButton.hidden = isHostAtEntry;
   }
   elements.navigateTo("onlineInstantBattleQuestion");
   renderCurrentQuestion();

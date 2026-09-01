@@ -13,7 +13,6 @@
 // 「今の選択曲」を渡し、「決定」が押されたときのコールバックを渡すだけの単純な窓口にしている。
 import { SONGS } from "./data/songs.js";
 import { buildSongGroups, CATEGORY_PILL_INFO, normalizeForSearch, songMatchesSearch } from "./songlist.js";
-import { MIN_SONGS_REQUIRED } from "./quiz.js";
 
 let elements = null;
 
@@ -28,15 +27,19 @@ let onCancelCallback = null;
 let searchQuery = "";
 let showSelectedOnly = false;
 
+// 【2026-09-14改訂・本人指示：個人の最低選択曲数ノルマの撤廃】この画面は「参加者全員の
+// 共有出題曲プール」に自分の分を追加する画面であり、各自が個別に問題数分（旧仕様では
+// MIN_SONGS_REQUIRED＝4曲以上）選ぶ必要はない。重要なのはルーム全体の共有プールが
+// 出題数を満たしているかだけ（それはロビー側の「対戦を開始する」時点で別途検証される）。
+// そのため、この画面では0曲でも「決定」を押して戻れるようにする（本人指示：自分は0曲でも
+// 戻れる、1曲だけでもいい）。
 function updateSelectionSummary() {
   const count = selectedSongIds.size;
   elements.selectedCountValue.textContent = count;
-  const hasEnoughSongs = count >= MIN_SONGS_REQUIRED;
-  elements.minNotice.hidden = hasEnoughSongs;
-  elements.confirmButton.disabled = !hasEnoughSongs;
+  elements.confirmButton.disabled = false;
   // 画面下部固定バー側（2026-08-28新設）も、既存の一覧下部ボタンと全く同じ条件で連動させる。
   elements.stickyCountValue.textContent = count;
-  elements.stickyConfirmButton.disabled = !hasEnoughSongs;
+  elements.stickyConfirmButton.disabled = false;
 }
 
 // 「選択中○曲」をタップして開くレビュー用トレイの中身を作り直す。songs.jsの登録順を保つ

@@ -159,7 +159,11 @@
                 ".validate": "newData.hasChildren(['displayName', 'isHost'])",
                 "displayName": { ".validate": "newData.isString() && newData.val().length > 0" },
                 "oshiMemberId": { ".validate": "newData.isString() || !newData.exists()" },
-                "isHost": { ".validate": "newData.val() === ($uid === root.child('rooms/' + $roomId + '/host').val())" }
+                "isHost": { ".validate": "newData.val() === ($uid === root.child('rooms/' + $roomId + '/host').val())" },
+                "leftDuringMatch": {
+                  ".write": "auth != null && auth.uid === $uid && !data.exists()",
+                  ".validate": "newData.isBoolean() && newData.val() === true"
+                }
               }
             },
             "progress": {

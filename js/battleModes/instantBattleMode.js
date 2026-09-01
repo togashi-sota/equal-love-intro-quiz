@@ -30,8 +30,8 @@
 
 import { SONGS } from "../data/songs.js";
 import { AUDIO_METADATA } from "../data/audioMetadata.js";
-import { resolveSongPool, validateSongPoolForQuestionCount, sanitizeSongIds } from "../questionSource.js";
-import { MIN_SONGS_REQUIRED, resolveQuestionCount, pickQuestionSongs } from "../quiz.js";
+import { resolveSongPool, validateSongPoolForQuestionCount, sanitizeSongIds, filterSongIdsByCategory } from "../questionSource.js";
+import { MIN_SONGS_REQUIRED, resolveQuestionCount, pickQuestionSongs, filterSongsByCategory } from "../quiz.js";
 import { createSeededRandom } from "../seededRandom.js";
 import {
   generateAnswerPool,
@@ -67,10 +67,14 @@ export function defaultSettings() {
   };
 }
 
+// 【2026-09-14改訂・本人指示：カテゴリ変更時も選択状態は保持するが出題対象外の曲は
+// 出題しない】js/battleModes/timeAttackBattleMode.jsと同じ考え方（詳細はそちらのコメント
+// 参照）。共同選曲の選択状態（settings.questionSource.songIds）自体は書き換えず、
+// ここで現在のcategoryFilterValueに合う曲だけへ絞り込んだ結果だけを返す。
 function resolveSettingsSongPoolIds(settings) {
   if (settings.questionSource) {
     if (settings.questionSource.type === "collaborativeSelection") {
-      return sanitizeSongIds(settings.questionSource.songIds ?? []);
+      return filterSongIdsByCategory(sanitizeSongIds(settings.questionSource.songIds ?? []), settings.categoryFilterValue);
     }
     return resolveSongPool(settings.questionSource);
   }
@@ -131,9 +135,14 @@ export function validateSettings(settings) {
 // よく、他プレイヤーと同期する必要が無い）。戻り値の並びは
 // [出題する曲...questionCount件, 予備の曲...reserveCount件]。省略時（reserveCount未指定）は
 // 今までと完全に同じ挙動（予備なし）。
+// 【2026-09-14追加・本人指示：出題曲プールと回答選択肢プールの完全分離】曲指定
+// （questionSource）で出題対象（poolSongs）が絞られていても、回答候補
+// （distractorPoolSongs）は「現在のカテゴリ条件全体」から選ぶ。questionSourceが無い、
+// またはALL_SONGS/CATEGORY型の場合は元々poolSongsと同じ集合になるため既存動作に影響しない。
 export function buildQuestions({ seed, settings, reserveCount = 0 }) {
   const songPoolIds = resolveSettingsSongPoolIds(settings);
   const poolSongs = songPoolIds.map((songId) => SONGS.find((song) => song.id === songId)).filter((song) => song !== undefined);
+  const distractorPoolSongs = filterSongsByCategory(SONGS, settings.categoryFilterValue);
   const questionCount = resolveQuestionCount(settings.questionCountValue, poolSongs.length);
   const extendedCount = Math.min(questionCount + reserveCount, poolSongs.length);
 
@@ -142,10 +151,10 @@ export function buildQuestions({ seed, settings, reserveCount = 0 }) {
 
   return questionSongs.map((song, questionIndex) => {
     const answerPoolRandom = createAnswerPoolRandom(seed, song.id, questionIndex);
-    let answerPool = generateAnswerPool(poolSongs, song.id, settings.answerPoolSizeValue, answerPoolRandom);
+    let answerPool = generateAnswerPool(distractorPoolSongs, song.id, settings.answerPoolSizeValue, answerPoolRandom);
     const validation = validateLyricsQuizQuestionAnswerPool({ song, answerPool });
     if (!validation.ok) {
-      answerPool = buildFallbackAnswerPool(poolSongs, song.id, settings.answerPoolSizeValue) ?? [];
+      answerPool = buildFallbackAnswerPool(distractorPoolSongs, song.id, settings.answerPoolSizeValue) ?? [];
     }
     // isReserve: このモードの出題数（questionCount）を超えた、音源再生失敗時の差し替え専用の
     // 予備曲かどうか。reserveCountを渡さない既存の呼び出し元では常にfalseになるだけで、

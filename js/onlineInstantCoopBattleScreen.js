@@ -34,6 +34,7 @@ import {
   rematchAndStartNow,
 } from "./onlineBattle.js";
 import { promptReturnToLobby } from "./onlineBattleLobbyReturnPrompt.js";
+import { promptLeaveMatch } from "./onlineBattleLeaveMatchPrompt.js";
 import { promptAnswerConfirm } from "./answerConfirmPrompt.js";
 import { validateRoomSettings } from "./battleModes/index.js";
 import * as instantCoopBattleMode from "./battleModes/instantCoopBattleMode.js";
@@ -221,6 +222,17 @@ export function initOnlineInstantCoopBattleScreens(newElements) {
     promptReturnToLobby(latestRoom?.roomId);
   });
 
+  // 【2026-09-14新設・本人指示：対戦中のゲストが自分だけ途中離脱する】
+  elements.leaveMatchButton?.addEventListener("click", () => {
+    const roomId = latestRoom?.roomId;
+    const matchId = currentMatchId;
+    if (!roomId || !matchId) return;
+    promptLeaveMatch(roomId, matchId, () => {
+      resetInstantCoopBattleState();
+      elements.navigateTo("onlineBattleLobby");
+    });
+  });
+
   elements.resultHomeLink.addEventListener("click", () => {
     stopAllLocalTimers();
     elements.onLeaveResultToHome();
@@ -316,8 +328,13 @@ export function handleInstantCoopRoomUpdate(room) {
   }
   // 【2026-09-05新設、本人指示】対戦中、ホストだけに見える「ルーム設定へ戻る」。
   // このモードは継続的にroom更新を受け取るため、ホスト交代が起きても正しく追随する。
+  const isHostNowCoop = room.host === getCurrentUid();
   if (elements?.backToLobbyButton) {
-    elements.backToLobbyButton.hidden = room.host !== getCurrentUid();
+    elements.backToLobbyButton.hidden = !isHostNowCoop;
+  }
+  // 【2026-09-14新設・本人指示：対戦中のゲストが自分だけ途中離脱する】
+  if (elements?.leaveMatchButton) {
+    elements.leaveMatchButton.hidden = isHostNowCoop;
   }
   if (document.body.dataset.screen === "onlineInstantCoopBattleQuestion") {
     renderCurrentQuestionState();
@@ -861,7 +878,15 @@ function renderCurrentQuestionState() {
   const isResolved = match.questionStatus === QUESTION_STATUS.RESOLVED;
   const hasVotedThisRound = myVotedQuestionIndex === qIndex && myVotedRoundNumber === roundNumber;
 
-  elements.answerSection.hidden = isResolved;
+  // 【2026-09-14修正・実機回帰バグ】以前はisResolvedだけを見ており、投票確定後・
+  // 他プレイヤー待ち中はanswerSection（選択肢一覧・検索欄・わからないボタン）が
+  // 表示されたままだった。投票確定後にrenderAnswerButtons()が呼ばれなくなるだけで
+  // DOM自体は残るため、投票前の古いボタンがクリック可能なまま残り、タップすると
+  // 確認モーダルが再度開いてしまっていた（実際の投票上書きはhandleVoteClick側の
+  // ガードで防がれていたが、UI上「回答を変更できる」ように見えていた）。
+  // hasVotedThisRoundでも隠すことで、歌詞クイズ対戦と同じ「確定後は選択肢UIごと
+  // 隠して待機表示に切り替える」挙動に統一する。
+  elements.answerSection.hidden = isResolved || hasVotedThisRound;
   elements.waitingNotice.hidden = isResolved || !hasVotedThisRound;
   elements.revealSection.hidden = !isResolved;
   // 【2026-09-05新設、本人指示】各自が個別に無制限で再視聴できるボタン。投票済み・

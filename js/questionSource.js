@@ -92,6 +92,18 @@ export function resolveSongObjects(songPool) {
     .filter((song) => song !== undefined);
 }
 
+// 曲ID配列のうち、現在のカテゴリ条件（categoryFilterValue）に合う曲だけを返す。
+// 【2026-09-14新設・本人指示：共有曲選択の仕様明確化】共同選曲・手動選曲などの
+// 「曲指定」で選ばれた曲一覧は、カテゴリを変更しても選択状態そのものは保持する
+// （songIds配列は書き換えない）。ただし実際に出題対象として使ってよいのは、
+// 「今のカテゴリ条件にも合っている曲」だけ（例：表題曲のみに絞っている間は、
+// 選択済みのカップリング曲は出題対象外）。この絞り込みを、選択状態を破壊せずに
+// 出題直前・検証直前だけ適用するための関数。
+export function filterSongIdsByCategory(songIds, categoryFilterValue) {
+  const categorySongIds = new Set(filterSongsByCategory(SONGS, categoryFilterValue).map((song) => song.id));
+  return songIds.filter((songId) => categorySongIds.has(songId));
+}
+
 // songPoolの曲数が、要求する出題数（questionCountValue: "5"|"10"|"20"|"50"|"all"）を
 // 満たしているかを判定する。「全員で選んだ曲からオンライン対戦」等で、曲数不足のときに
 // 出題数を勝手に減らしたり曲を重複させたりせず、開始不可にして案内を出すために使う
@@ -123,12 +135,18 @@ export function validateSongPoolForQuestionCount(songPool, questionCountValue) {
 // 【2026-09-12追加・本人指示：共有クイズエンジンの音源再生失敗対策】reserveCountの意味は
 // js/localBattle.jsのbuildBattleQuestions()と同じ（出題数に加えて予備の曲を確保し、
 // isReserveで見分けられるようにする）。省略時は今までと完全に同じ挙動になる。
-export function buildQuestionsFromPool({ seed, songPool, questionCountValue, reserveCount = 0 }) {
+// 【2026-09-14追加・本人指示：出題曲プールと回答選択肢プールの完全分離】distractorPool
+// （回答選択肢の母集団となる曲ID配列）を省略した場合は、今までと同じくsongPool自身が
+// ダミー選択肢の母集団になる（既存の呼び出し元は挙動が一切変わらない）。distractorPoolを
+// 渡した場合、正解はsongPoolから選ばれるが、ダミー選択肢はdistractorPoolから選ばれる
+// （例：参加者が共同選択した4曲が出題対象でも、ダミーは現在のカテゴリ条件全体から選ぶ）。
+export function buildQuestionsFromPool({ seed, songPool, distractorPool, questionCountValue, reserveCount = 0 }) {
   const poolSongs = resolveSongObjects(songPool);
+  const distractorSongs = distractorPool ? resolveSongObjects(distractorPool) : poolSongs;
   const questionCount = resolveQuestionCount(questionCountValue, poolSongs.length);
   const extendedCount = Math.min(questionCount + reserveCount, poolSongs.length);
   const random = createSeededRandom(seed);
-  return buildQuizQuestions(poolSongs, extendedCount, random).map((question, questionIndex) => ({
+  return buildQuizQuestions(poolSongs, extendedCount, random, distractorSongs).map((question, questionIndex) => ({
     ...question,
     isReserve: questionIndex >= questionCount,
   }));

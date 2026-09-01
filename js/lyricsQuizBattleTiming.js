@@ -55,3 +55,54 @@ export function countCharacters(fullText) {
   if (typeof fullText !== "string") return 0;
   return Array.from(fullText).length;
 }
+
+// 【2026-09-14新設・本人指示：早押しバトルのヒント1〜4を順番に1文字ずつ表示】
+// 以前はヒント4段階のうち最も詳しい1段階（hints[length-1]）だけを経過時間に応じて
+// 1文字ずつ表示し、残り3段階は答え合わせ時にしか見せていなかった。今回、ヒント1から
+// 順番に「1文字/秒で全文表示→2秒待機→次のヒントへ」を繰り返し、かつ既に表示済みの
+// ヒントは消さずに積み上げて見せる仕様に変更する。
+//
+// このファイルの既存方針どおり、setInterval等のタイマー管理は一切持たず、「経過時間から
+// 今の状態を毎回計算し直す」純粋関数のままにする（js/onlineLyricsQuizBattleScreen.jsの
+// 400ms tickから毎回呼ばれ、正解確定（isResolved）になった瞬間はこの関数自体が
+// 呼ばれなくなる＝呼び出し側の分岐だけで自然に「進行が止まる」ので、この関数の中に
+// 専用の停止処理は不要）。
+//
+// hintTexts: 各ヒント段階の歌詞テキストを順番に並べた配列（[hint1, hint2, hint3, hint4]）。
+// 戻り値: { levels, currentLevel }
+//   levels: 今までに表示が始まった段階すべての配列（1段階目から順、消さずに積み上げる）。
+//     各要素 { level, revealedText, totalCharCount, isFullyRevealed }。
+//   currentLevel: levels.length（今何段階目まで表示が始まっているか）。
+export function computeStealHintProgress({ elapsedMs, hintTexts, msPerChar = 1000, pauseMsBetweenHints = 2000 }) {
+  const levels = [];
+  let cursorMs = Math.max(0, elapsedMs);
+
+  for (let level = 1; level <= hintTexts.length; level++) {
+    // 1段階目は経過時間0でも必ず表示を始める（本人指示の踏襲：0文字表示の空白時間を
+    // 作らない）。2段階目以降も、前段階の表示＋2秒待機がちょうど終わった瞬間
+    // （cursorMs===0）から同じ理由で即座に表示を始める。cursorMsが負（＝まだ待機中）の
+    // ときだけここで止め、その段階はlevelsに含めない＝まだ画面に出さない。
+    if (level > 1 && cursorMs < 0) break;
+
+    const text = hintTexts[level - 1] ?? "";
+    const totalCharCount = countCharacters(text);
+    const revealedCharCount = totalCharCount === 0 ? 0 : deriveRevealedCharCount({ elapsedMs: cursorMs, totalCharCount, msPerChar });
+    const isFullyRevealed = revealedCharCount >= totalCharCount;
+    levels.push({
+      level,
+      revealedText: revealTextByCharCount(text, revealedCharCount),
+      totalCharCount,
+      isFullyRevealed,
+    });
+
+    if (!isFullyRevealed) break; // 今まさにこの段階を表示中。次の段階へはまだ進まない。
+
+    // 次の段階の「開始からの経過時間」を計算するため、この段階の表示に要した時間
+    // （deriveRevealedCharCountと同じ考え方：1文字目は即表示、以降1文字ごとにmsPerChar）
+    // ＋待機時間を差し引く。
+    const revealDurationMs = Math.max(0, (totalCharCount - 1) * msPerChar);
+    cursorMs -= revealDurationMs + pauseMsBetweenHints;
+  }
+
+  return { levels, currentLevel: levels.length };
+}
