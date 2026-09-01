@@ -7,7 +7,7 @@
 //
 // 新しいバージョンを配信したいときは、CACHE_VERSIONの値を必ず上げること。
 // 上げないと、ブラウザが「内容が変わっていない」と判断し、更新が反映されない。
-const CACHE_VERSION = "v262";
+const CACHE_VERSION = "v263";
 const CACHE_NAME = `equal-love-intro-quiz-${CACHE_VERSION}`;
 
 // キャッシュするアプリ本体のファイル一覧。
@@ -44,6 +44,9 @@ const APP_SHELL_FILES = [
   "./js/audio.js",
   "./js/audioStorage.js",
   "./js/audioPreview.js",
+  "./js/audioTroubleClassification.js",
+  "./js/audioTroubleRecovery.js",
+  "./js/audioTroubleRecoveryFirebase.js",
   "./js/availableSongs.js",
   "./js/dataPackImport.js",
   "./js/zipPackImport.js",
@@ -127,6 +130,7 @@ const APP_SHELL_FILES = [
   "./js/firebaseClient.js",
   "./js/onlineBattle.js",
   "./js/onlineBattlePresence.js",
+  "./js/onlineBattleMatchProgress.js",
   "./js/onlineBattleLobbyReturnPrompt.js",
   "./js/answerConfirmPrompt.js",
   "./js/onlineBattleHostTransitionPayloads.js",
