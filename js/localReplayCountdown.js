@@ -56,12 +56,23 @@ export function runLocalReplayCountdown({ containerElement, numberElement }, onC
   let remaining = 3;
   const showNext = () => {
     numberElement.textContent = String(remaining);
+    // 【2026-09-15修正・実機バグ：チラつき】拍動アニメーション（css/style.cssの
+    // .local-replay-countdown-number.is-ticking）は「数字が切り替わった瞬間」だけ
+    // 再生し、表示している間はずっと静止させる（本プロジェクトの恒久ルール：
+    // アニメーションは登場時のみ、infiniteループ禁止）。同じクラスを付けたままでは
+    // CSSアニメーションは再生されない仕組みのため、一度外して1フレーム分のreflowを
+    // 挟んでから付け直し、数字が変わるたびに毎回アニメーションを最初から再生させる
+    // （js/callSync.jsのtriggerCallBurst()と同じ手法）。
+    numberElement.classList.remove("is-ticking");
+    void numberElement.offsetWidth; // eslint-disable-line no-unused-expressions
+    numberElement.classList.add("is-ticking");
     playSfx(remaining === 1 ? SFX_EVENTS.COUNTDOWN_FINAL : SFX_EVENTS.COUNTDOWN_TICK);
     remaining -= 1;
     activeTimerId = setTimeout(() => {
       if (remaining <= 0) {
         activeTimerId = null;
         numberElement.textContent = QUESTION_PROMPT_TEXT;
+        numberElement.classList.remove("is-ticking");
         numberElement.classList.add("is-question-prompt");
         onComplete();
         return;

@@ -55,6 +55,7 @@ import { restrictSettingsToCommonlyAvailableSongs } from "./onlineBattleSongAvai
 import { pickNextHostUid } from "./onlineBattleHostTransitionPayloads.js";
 import { hasMatchMembershipChanged } from "./onlineBattleMatchConfirmationPayloads.js";
 import { startActivityPresenceTracking, stopActivityPresenceTracking } from "./onlineBattlePresence.js";
+import { isMatchReadyToFinalize } from "./onlineBattleMatchProgress.js";
 
 const ROOM_ID_LENGTH = 6;
 const LAST_ROOM_STORAGE_KEY = "equalLoveIntroQuiz.onlineBattle.lastRoom";
@@ -1300,6 +1301,13 @@ export async function finishMyMatch({ roomId, matchId, result, answeredCount }) 
 // 【呼ばれるタイミング】①待機画面に入るたび（初回表示・再接続どちらも）自動判定として、
 // force:falseで呼ばれる。②ホストが「結果を確定する」ボタンを押したとき、force:trueで呼ばれる。
 // どちらも同じ関数を使うことで、判定ロジックを2重に持たないようにしている。
+//
+// 【2026-09-16修正・本人指示：対戦中に自主退出したゲストを待ち続けない】「揃っているか」の
+// 判定はjs/onlineBattleMatchProgress.jsのisMatchReadyToFinalize()に切り出した。対戦中に
+// 「この試合だけ抜ける」を選んだ参加者（leftDuringMatch:true）は、progress.finishedが
+// 永遠に立たないため、以前はこの判定が常にfalseのままになり、ホストが手動で
+// 「結果を確定する」を押すまで自動で結果画面へ進めなかった（同期3モードで先に修正した
+// 「途中退出者を待たない」という考え方が、この個人進行系には未適用だった不具合）。
 export async function finalizeMatchIfReady({ roomId, matchId, force = false }) {
   await authReady;
   const uid = getCurrentUid();
@@ -1314,10 +1322,7 @@ export async function finalizeMatchIfReady({ roomId, matchId, force = false }) {
   if (room.status !== ROOM_STATUS.PLAYING) return { ok: false, reason: "not-playing" };
 
   const match = (room.matches || {})[matchId] || {};
-  const participantUids = Object.keys(match.participants || {});
-  const progress = match.progress || {};
-  const allFinished =
-    participantUids.length > 0 && participantUids.every((participantUid) => progress[participantUid]?.finished === true);
+  const allFinished = isMatchReadyToFinalize({ participants: match.participants, progress: match.progress });
 
   if (!allFinished && !force) {
     return { ok: true, finalized: false };

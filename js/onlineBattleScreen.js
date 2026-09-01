@@ -70,6 +70,12 @@ import {
 import { QUESTION_COUNT_LABELS, CATEGORY_LABELS, RULE_LABELS } from "./localBattleScreen.js";
 import { buildSharedEngineQuestionBreakdown, capQuestionBreakdownForStorage } from "./battleQuestionBreakdown.js";
 import { computeAllPlayersConfirmed } from "./onlineBattleMatchConfirmationPayloads.js";
+// 【2026-09-16新設・本人指示：対戦中に自主退出したゲストを待ち続けない】タイムアタック・
+// ランダム再生対戦・アウトロクイズ対戦（このファイルが担当する個人進行系3モード）が
+// 「全員の結果が揃ったか」を判定するための純粋関数。js/onlineBattle.jsのfinalizeMatchIfReady()
+// と全く同じ判定を、待機画面側の表示（下記allFinished）にも使うことで、判定ロジックを
+// 2重に持たないようにする。
+import { isMatchReadyToFinalize } from "./onlineBattleMatchProgress.js";
 import { renderQuestionBreakdownAccordion } from "./battleQuestionBreakdownUi.js";
 import { computeNormalFinalRecordMs } from "./localBattleResult.js";
 import { MEMBERS } from "./data/members.js";
@@ -1868,6 +1874,15 @@ async function reportMyAvailableSongIdsForRoom(roomId) {
 // 今の試合の固定参加者（participants）を軸に、進捗（progress）・接続状態（players）を
 // 1人ずつまとめた配列を作る。参加者が対戦中に退出・切断しても、参加者一覧の元になる
 // participantsは対戦開始時点のスナップショットのまま残るため、表示が消えることはない。
+//
+// 【2026-09-16改訂・本人指示：対戦中に自主退出したゲストを待ち続けない】hasLeftは元々
+// 「room.playersから消えた（実際に切断・退出した）」ことだけを表していたが、「この試合
+// だけ抜ける」（leftDuringMatch:true）はroom.players・接続状態には一切触れない設計
+// （js/onlineBattleLeaveMatchPrompt.js参照）のため、以前はこの2つの状態が区別されず、
+// 自主退出した本人はいつまでも「対戦中（answeredCount）」のまま表示され続けていた。
+// どちらも「もうこの人の結果は待たない」という意味では同じなので、hasLeftの意味を
+// 「実際に退出／自主的にこの試合から抜けた、のどちらか」へ広げ、表示・待機判定の両方で
+// 同じ1つのフラグとして扱えるようにした。
 function getOnlineBattleMatchRows(room) {
   const match = (room.matches || {})[currentMatchId] || {};
   const participants = match.participants || {};
@@ -1884,7 +1899,7 @@ function getOnlineBattleMatchRows(room) {
       isHost: participant.isHost === true,
       answeredCount: playerProgress.answeredCount ?? 0,
       finished: playerProgress.finished === true,
-      hasLeft: !livePlayer,
+      hasLeft: !livePlayer || participant.leftDuringMatch === true,
       connected: Boolean(livePlayer?.connected),
       presence: livePlayer?.presence, // 【2026-09-05新設】在席確認システム用（下記の描画で使用）
     };
@@ -1977,7 +1992,12 @@ function renderOnlineBattleWaitingList(room, rows, myUid) {
   const isHost = room.host === myUid;
   const myRow = rows.find((row) => row.uid === myUid);
   const myFinished = Boolean(myRow?.finished);
-  const allFinished = rows.length > 0 && rows.every((row) => row.finished);
+  // 【2026-09-16改訂・本人指示：対戦中に自主退出したゲストを待ち続けない】単純に
+  // rows.every(finished)にすると、途中退出者が待つ対象から外れず、DNF確定ボタンが
+  // 意図せず出続けてしまう。js/onlineBattle.jsのfinalizeMatchIfReady()と全く同じ
+  // isMatchReadyToFinalize()を使い、判定を1本化する。
+  const match = (room.matches || {})[currentMatchId] || {};
+  const allFinished = isMatchReadyToFinalize({ participants: match.participants, progress: match.progress });
 
   const hostRow = rows.find((row) => row.isHost);
   elements.waitingHostDisconnectNotice.hidden = !(hostRow && !hostRow.hasLeft && !hostRow.connected);

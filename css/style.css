@@ -13203,7 +13203,17 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   font-size: 3rem;
   font-weight: 800;
   color: var(--color-accent);
-  animation: online-battle-countdown-pulse 0.5s ease-in-out infinite;
+}
+
+/* 【2026-09-15修正・実機バグ：チラつき】以前はここに`animation: ... infinite`を直接
+   指定しており、数字が「3」→「2」→「1」と表示され続けている0.5秒間隔とは無関係に
+   拍動アニメーションが永遠にループし続けていた（表示している数字は変わっていないのに
+   0.5秒ごとに縮小・減光→拡大を繰り返すため、実機では明滅・チラつきとして見えてしまう）。
+   本プロジェクトの恒久ルール「アニメーションは登場時のみ、その後は静止させる（infinite
+   ループ禁止）」に従い、数字が切り替わった瞬間だけis-tickingクラスを付け直して1回だけ
+   拍動を再生し、そのまま静止させるよう修正した（js/localReplayCountdown.js参照）。 */
+.local-replay-countdown-number.is-ticking {
+  animation: online-battle-countdown-pulse 0.5s ease-in-out;
 }
 
 /* 【2026-09-06新設、本人指示：実機フィードバック⑦】3→2→1の後は「♪ この曲は？」へ
