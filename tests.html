@@ -29,6 +29,7 @@
   <script type="module">
     import { runScoreTests } from "./tests/score.test.js";
     import { runQuizTests } from "./tests/quiz.test.js";
+    import { runAudioTroubleClassificationTests } from "./tests/audioTroubleClassification.test.js";
     import { runLyricsStorageTests } from "./tests/lyricsStorage.test.js";
     import { runLyricsSyncTests } from "./tests/lyricsSync.test.js";
     import { runCallSyncTests } from "./tests/callSync.test.js";
@@ -115,6 +116,7 @@
 
     runScoreTests();
     runQuizTests();
+    runAudioTroubleClassificationTests();
     // runLyricsStorageTestsは内部でFile APIを使う非同期テストを含むため、
     // 集計（printSummary）より前に必ず完了を待つ（module scriptはトップレベルawaitに対応している）。
     await runLyricsStorageTests();

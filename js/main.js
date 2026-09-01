@@ -31,7 +31,8 @@ import {
   buildReviewQuizQuestions,
   buildQuestionsFromSongIds,
 } from "./quiz.js";
-import { playSongIntro, playSongFromRandomPosition, stopAudio, attemptSilentUnlock } from "./audio.js";
+import { playSongIntro, playSongFromRandomPosition, stopAudio, attemptSilentUnlock, reportPlaybackTrouble } from "./audio.js";
+import { isAudioTroubleTimeSevere } from "./audioTroubleClassification.js";
 import {
   initInstantChallengeSetupScreen,
   initInstantChallengeQuestionScreen,
@@ -425,6 +426,7 @@ const nextButtonElement = document.getElementById("next-button");
 const skipButtonElement = document.getElementById("skip-button");
 const revealButtonElement = document.getElementById("reveal-button");
 const audioErrorElement = document.getElementById("audio-error");
+const audioTroubleButtonElement = document.getElementById("audio-trouble-button");
 const timerDisplayElement = document.getElementById("timer-display");
 const totalScoreElement = document.getElementById("total-score-display");
 const rankElement = document.getElementById("rank-display");
@@ -2724,6 +2726,158 @@ function showAudioError(message) {
   audioErrorElement.hidden = false;
 }
 
+// ===== 【2026-09-16新設・本人指示：「音が出ない」救済ボタン（第1段階・共通基盤＋オフラインモード）】=====
+// iOS実機で「音源自体は正常に読み込まれているのに一瞬だけ無音になる」現象が稀に起きることへの、
+// 根本原因対策（IndexedDB接続の事前ウォームアップ・unlockのタイミング調整等）とは別の
+// 「最後の安全網」。ユーザー自身が気付いたときに申告できるボタンを、音源を使う問題の
+// 回答収集中だけ表示する。
+//
+// タイムシビア／非タイムシビアの判定ロジック本体（判定根拠のコメントも含む）は、
+// テストから直接検証できるようjs/audioTroubleClassification.jsへ切り出してある
+// （js/main.jsはDOM要素への参照を大量に持つためテストから直接importできない）。
+function isCurrentQuizAudioTroubleTimeSevere() {
+  return isAudioTroubleTimeSevere({ playMode: gameState.playMode, specialModeId: gameState.specialModeId });
+}
+
+// 一瞬チャレンジ（js/instantChallengeScreen.js）のMAX_SLOT_PLAYBACK_ATTEMPTSと同じ考え方・
+// 同じ回数（元の再生＋差し替え2回＝計3回まで）に合わせている。非タイムシビアなモードで、
+// 同じ問題スロットにつき「音が出ない」を何回まで受け付けて再生し直すかの上限。
+const AUDIO_TROUBLE_MAX_ATTEMPTS_PER_QUESTION = 3;
+// 今の問題スロット（gameState.currentIndex）で、これまでに何回「音が出ない」を確定したか。
+// audioTroubleTrackedQuestionIndexが今のcurrentIndexと違えば「新しいスロットの1回目」と
+// みなして自動的に0へリセットする（renderQuestion()の呼び出し箇所をすべて洗い出して
+// フックする代わりに、参照時に自己修復させる設計。renderQuestion()自体は「次の問題を出す」
+// 場合と「同じ問題を再生し直す」場合の両方から呼ばれるため、後者では回数を消してはいけない）。
+let audioTroubleTrackedQuestionIndex = -1;
+let audioTroubleAttemptCount = 0;
+
+function resetAudioTroubleTrackingIfNewQuestion() {
+  if (audioTroubleTrackedQuestionIndex !== gameState.currentIndex) {
+    audioTroubleTrackedQuestionIndex = gameState.currentIndex;
+    audioTroubleAttemptCount = 0;
+  }
+}
+
+// クイズ画面に入るたび（新しい問題の描画・回答確定のたび）に呼ぶ、ボタンの表示制御。
+// 「音源を使う問題の回答収集中」だけ表示する（タスク仕様どおり、カウントダウン中・
+// 結果発表中・結果画面・ロビー画面では出さない）。対象外のplayMode（localBattle・
+// onlineBattle。この2つは今回のタスク範囲外のため、既存の対戦モード担当ファイルには
+// 一切手を加えず、ここで表示対象から外すだけにとどめる）では常に非表示にする。
+function updateAudioTroubleButtonVisibilityForQuestion() {
+  const isSupportedPlayMode = ["normal", "review", "special", "timeAttack", "randomPlayback"].includes(
+    gameState.playMode
+  );
+  audioTroubleButtonElement.hidden = !isSupportedPlayMode;
+  audioTroubleButtonElement.disabled = false;
+}
+
+// 回答が確定した瞬間（正解・不正解・スキップ・答えを見る、タイムアタックの正解/確定不正解の
+// どのルートでも）に呼ぶ、ボタンを隠す共通処理。「回答収集中だけ表示する」を保証する。
+function hideAudioTroubleButton() {
+  audioTroubleButtonElement.hidden = true;
+}
+
+// 「音が出ない」を確定したときの入口。連打対策（disabled）・確認ダイアログを経てから、
+// タイムシビア/非タイムシビアで別の処理に分岐する。
+function handleAudioTroubleButtonClick() {
+  if (audioTroubleButtonElement.disabled) return; // 連打対策
+  if (gameState.isAnswered) return; // 保険。回答確定後は本来ボタン自体が非表示になっている
+  audioTroubleButtonElement.disabled = true;
+
+  const isTimeSevere = isCurrentQuizAudioTroubleTimeSevere();
+  // 【確認ダイアログについて】js/answerConfirmPrompt.jsのpromptAnswerConfirm()は
+  // 「『曲名』で回答しますか？」という回答確定専用の固定文言・ボタン表示（「回答する」）を
+  // 持つ共有モーダルで、一瞬チャレンジ・一瞬バトル等の「回答前の1回確認」専用に作られている
+  // （役割が異なる今回の用途に流用すると、ユーザーに「回答した」と誤解させるおそれがある）。
+  // 一方、js/onlineBattleScreen.jsは「退出させますか？」「ホストを渡しますか？」等、
+  // 回答確定とは無関係な運用操作の確認にwindow.confirm()を使っている。今回の「音が出ない」も
+  // 同じ「回答確定とは別の操作の確認」にあたるため、こちらのパターンを踏襲する。
+  const confirmMessage = isTimeSevere
+    ? "音が出ませんでしたか？\n\n「OK」を選ぶと、今回のプレイは中断し、記録（自己ベスト・ランキング等）には保存されません。"
+    : "音が出ませんでしたか？\n\n「OK」を選ぶと、この問題をもう一度再生し直します。";
+  const confirmed = window.confirm(confirmMessage);
+
+  if (!confirmed) {
+    audioTroubleButtonElement.disabled = false;
+    return;
+  }
+
+  // js/audio.js（第2段階でも再利用する共通基盤）へ、今の再生トークンに対する
+  // 「音が出ない」申告を記録しておく。オフライン各モードは以降の判断をgameState側で
+  // 完結できるため、戻り値自体は今回使わないが、共通基盤を経由させておくことで
+  // 診断ログ（audio.js側）にも記録が残る。
+  reportPlaybackTrouble();
+
+  if (isTimeSevere) {
+    abortCurrentRunDueToAudioTrouble();
+    return;
+  }
+
+  handleNonTimeSevereAudioTrouble();
+}
+
+// タイムシビアなモード用：今回のプレイを「無効」として扱い、記録には一切残さず、
+// 既存の「クイズを中断してタイトル/設定画面に戻る」処理（quitCurrentQuizWithoutSaving、
+// 元は#quiz-quit-confirm-buttonのクリック処理）をそのまま再利用して安全な画面へ戻る。
+// その後、静かに「保存されなかった」ことを伝える一言をwindow.alert()で出す
+// （新しいバナーUIを増やさず、確認ダイアログと同じwindow.confirm系の作法に揃える）。
+function abortCurrentRunDueToAudioTrouble() {
+  quitCurrentQuizWithoutSaving();
+  window.alert("音源のトラブルのため、今回のプレイは中断しました。自己ベスト・ランキング等の記録には保存されていません。");
+}
+
+// 非タイムシビアなモード用：既定回数（AUDIO_TROUBLE_MAX_ATTEMPTS_PER_QUESTION）までは
+// 同じ問題を最初から再生し直し、それでも改善しなければこの問題だけを「出題されなかった扱い」
+// にして次へ進む。
+function handleNonTimeSevereAudioTrouble() {
+  resetAudioTroubleTrackingIfNewQuestion();
+  audioTroubleAttemptCount += 1;
+
+  if (audioTroubleAttemptCount < AUDIO_TROUBLE_MAX_ATTEMPTS_PER_QUESTION) {
+    // 【2026-09-16新設】同じ問題を最初から再生し直す、特別な再生。既存の「もう一度聞く」の
+    // ような専用カウンターは持たず、通常のリプレイ回数・成績には一切数えない
+    // （renderQuestion()は「新しい問題を出す」ときと全く同じ処理を、たまたま同じ
+    // currentIndexのまま呼び出すだけで、スコア計算（handleChoiceClick等）には一切触れない）。
+    stopTimer();
+    stopAudio();
+    renderQuestion();
+    return;
+  }
+
+  skipCurrentQuestionAsNotAdministered();
+}
+
+// 既定回数試しても改善しなかった問題を、出題数から取り除く（「出題されなかった扱い」）。
+// 【既存の予備曲差し替え機能との関係】js/instantChallengeScreen.jsには同じ考え方の
+// 予備曲差し替え機能があるが、gameStateを経由しないこのモード専用の作り（モジュール内変数で
+// 完結）になっており、通常/復習/特別モード（gameStateベース）から直接再利用できない。
+// 本人指示のとおり、無ければ「この曲だけをスキップして次の問題へ進める」という
+// 単純な形にとどめる（新しい曲を選び直して差し替える処理は今回追加しない）。
+function skipCurrentQuestionAsNotAdministered() {
+  stopTimer();
+  stopAudio();
+  hideAudioTroubleButton();
+  gameState.questions.splice(gameState.currentIndex, 1);
+  audioTroubleTrackedQuestionIndex = -1; // 次のスロットのために追跡状態をリセットしておく
+
+  if (gameState.questions.length === 0) {
+    // 出題できる問題が1問も残らなかった場合の最終手段：安全な画面へ戻る
+    // （quitCurrentQuizWithoutSavingは特別モードごとの適切な戻り先も判定してくれる）。
+    quitCurrentQuizWithoutSaving();
+    window.alert("音源のトラブルが続いたため、この回は中断しました。データパックの導入状況や通信環境をご確認のうえ、もう一度お試しください。");
+    return;
+  }
+
+  if (gameState.currentIndex >= gameState.questions.length) {
+    // 取り除いたのがちょうど最後の1問だった場合：ここまでの内容で結果画面へ進む。
+    renderResult();
+    showScreen("result");
+    return;
+  }
+
+  renderQuestion();
+}
+
 // 自己ベストのチップに表示する、出題数・カテゴリの短縮ラベル。
 // 出題数の「全曲」（5問/10問/20問/50問/全曲）とカテゴリの「全曲」が
 // どちらも同じ表記だと紛らわしいため、出題数側だけ「全問」と表記して区別する。
@@ -2930,6 +3084,7 @@ function handleTimedChoiceClick(selectedChoice, { onAdvance, onRunEnd }) {
 
   if (isCorrect) {
     gameState.isAnswered = true;
+    hideAudioTroubleButton();
     stopTimer();
     stopAudio();
     playCorrectSound();
@@ -2961,6 +3116,7 @@ function handleTimedChoiceClick(selectedChoice, { onAdvance, onRunEnd }) {
   // LOVE連チャンだけ、さらに残りの問題を待たずゲーム自体をその場で終了させる
   // （markTimeAttackRunFailed()で「全問クリアできなかった」ことを記録する）。
   gameState.isAnswered = true;
+  hideAudioTroubleButton();
   stopTimer();
   stopAudio();
   registerTimeAttackMiss();
@@ -3043,6 +3199,7 @@ function handleChoiceClick(selectedChoice) {
   // 他の操作とほぼ同時に起きても二重に処理しないためのガード。
   if (gameState.isAnswered) return;
   gameState.isAnswered = true;
+  hideAudioTroubleButton();
   stopTimer();
   hideSkipAndRevealButtons();
 
@@ -3089,6 +3246,7 @@ function handleChoiceClick(selectedChoice) {
 function handleSkip() {
   if (gameState.isAnswered) return;
   gameState.isAnswered = true;
+  hideAudioTroubleButton();
   stopTimer();
   stopAudio();
   playClickSound();
@@ -3102,6 +3260,7 @@ function handleSkip() {
 function handleReveal() {
   if (gameState.isAnswered) return;
   gameState.isAnswered = true;
+  hideAudioTroubleButton();
   stopTimer();
   stopAudio();
   hideSkipAndRevealButtons();
@@ -3230,6 +3389,9 @@ function renderQuestion() {
   revealButtonElement.hidden = isTimedMode;
   audioErrorElement.hidden = true;
   clearChoiceButtonStates();
+  // 「🔇 音が出ない」救済ボタン：音源を使う問題の回答収集中だけ表示する
+  // （タイムアタック等のisTimedModeでも、ボタン自体は隠さない＝出題対象に含める）。
+  updateAudioTroubleButtonVisibilityForQuestion();
 
   // 再生を試みる直前の時刻をいったん暫定の計測起点にしておく。
   // 曲が実際に鳴り始めたら（onPlaybackStart）、より正確な値に上書きされる。
@@ -4143,6 +4305,7 @@ document.getElementById("next-button").addEventListener("click", () => {
 
 skipButtonElement.addEventListener("click", handleSkip);
 revealButtonElement.addEventListener("click", handleReveal);
+audioTroubleButtonElement.addEventListener("click", handleAudioTroubleButtonClick);
 
 // 「もう一度挑戦する」：スタート画面を経由せず、直前と同じ出題数・カテゴリのまま
 // クイズを再抽選して開始する。
@@ -4321,9 +4484,12 @@ quizQuitConfirmModalElement.addEventListener("click", (event) => {
 // いずれにも一切反映されない（この3つはすべてrenderResult()の中でのみ保存処理が呼ばれる設計）。
 // resetGameState()はgameState.specialModeIdをnullに戻してしまうため、必ず先にonQuizBackを
 // 取り出しておく（backToModeListButtonElementのクリック処理と同じ理由）。
-quizQuitConfirmButtonElement.addEventListener("click", () => {
-  playClickSound();
-  closeQuizQuitConfirmModal();
+// クイズを中断し、記録を一切残さず安全な画面へ戻る（結果画面を経由しないため、自己ベスト・
+// 称号・プレイ履歴のいずれにも反映されない）。元は#quiz-quit-confirm-buttonのクリック処理
+// だけが行っていた処理だが、「音が出ない」救済ボタン（タイムシビアなモードでの中断・
+// 非タイムシビアなモードで出題できる問題が尽きた場合の最終手段）からも全く同じ挙動が
+// 必要なため、named functionとして切り出して両方から呼べるようにした（2026-09-16、本人指示）。
+function quitCurrentQuizWithoutSaving() {
   const isSpecial = gameState.playMode === "special";
   const isTimeAttack = gameState.playMode === "timeAttack";
   const isRandomPlayback = gameState.playMode === "randomPlayback";
@@ -4350,7 +4516,7 @@ quizQuitConfirmButtonElement.addEventListener("click", () => {
   } else if (isOnlineBattle) {
     // オンライン対戦も結果は一切送信しない。ルームから退出する後片付けは
     // js/onlineBattleScreen.js側（quitOnlineBattleDuringQuiz）に任せ、ここでは画面遷移だけ行う
-    // （他のモードと同じく、main.js側でplayClickSound()を既に呼んでいるため、
+    // （他のモードと同じく、呼び出し元でplayClickSound()を既に呼んでいるため、
     // elements.navigateTo経由にはせず直接showScreen()する）。
     quitOnlineBattleDuringQuiz();
     showScreen("onlineBattleEntry");
@@ -4360,6 +4526,12 @@ quizQuitConfirmButtonElement.addEventListener("click", () => {
     showScreen("start");
     updateModeBestScoreDisplay();
   }
+}
+
+quizQuitConfirmButtonElement.addEventListener("click", () => {
+  playClickSound();
+  closeQuizQuitConfirmModal();
+  quitCurrentQuizWithoutSaving();
 });
 
 // 【2026-08-29追加、本人指示（追加5）】「やり直す」：同じ設定のまま最初から再抽選して

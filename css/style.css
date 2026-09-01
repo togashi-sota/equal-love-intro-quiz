@@ -1747,6 +1747,43 @@ fieldset label:has(input:focus-visible) {
   margin-bottom: 0;
 }
 
+/* ===== 「🔇 音が出ない」救済ボタン（2026-09-16新設、本人指示）=====
+   小さく控えめな自己申告ボタン。.quiz-header-rowのすぐ下・.quiz-middle-zone
+   （スクロール領域）の外に置くことで、スクロールしなくても常に見える位置を保つ。
+   表示/非表示・有効/無効の切り替え自体はjs/main.js側が行う（[hidden]属性の
+   既定display:noneをそのまま使えるよう、ボタン自体にはdisplayプロパティを指定しない。
+   .quiz-back-linkでdisplay:inline-flexを指定してしまい[hidden]が効かなくなった
+   過去の不具合〈2026-09-15発見〉と同じ轍を踏まないための意図的な選択）。 */
+.quiz-audio-trouble-row {
+  display: flex;
+  justify-content: flex-end;
+  margin: 2px 0 0;
+}
+
+.quiz-audio-trouble-button {
+  margin: 0;
+  padding: 4px 10px;
+  border: 1px solid var(--color-card-border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.35);
+  color: var(--color-text);
+  opacity: 0.7;
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.quiz-audio-trouble-button:active {
+  transform: scale(0.94);
+  opacity: 0.9;
+}
+
+.quiz-audio-trouble-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 /* ===== 効果音ON/OFFボタン（クイズ画面・スタート画面で共用、2026-08-06追加） =====
    アイコンの出し分けは.mini-player-control-button等と同じ、SVGの表示切り替え方式。 */
 .sfx-toggle-button .icon-sfx-off {

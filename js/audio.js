@@ -213,6 +213,12 @@ let currentObjectUrl = null;
 // （別のaudio要素や独自の競合対策を新設しない、という本人の明確な要望どおり）。
 let currentPlaybackToken = 0;
 
+// 今の再生トークンに対応する曲id（currentPlaybackTokenと必ずセットで更新する）。
+// 【2026-09-16新設・本人指示：「音が出ない」救済ボタン共通基盤】呼び出し元（各画面）が
+// 「今audio.jsが再生している／しようとしているのはどの曲か」を、自分で別に持ち回らずとも
+// 取得できるようにするために追加した（下のgetCurrentPlaybackState()参照）。
+let currentPlaybackSongId = null;
+
 function releaseCurrentObjectUrl() {
   if (currentObjectUrl !== null) {
     URL.revokeObjectURL(currentObjectUrl);
@@ -225,6 +231,7 @@ function releaseCurrentObjectUrl() {
 // playSongIntro()・playSongFromRandomPosition()の共通の前半処理。
 async function acquireBlobForNewPlayback(song) {
   const myToken = ++currentPlaybackToken;
+  currentPlaybackSongId = song.id;
   diag(`IndexedDB取得開始 song=${song.id} token=${myToken}`);
   const blob = await getAudioBlob(song.id);
   diag(`IndexedDB取得完了 song=${song.id} token=${myToken}`, { hasBlob: !!blob, stale: myToken !== currentPlaybackToken });
@@ -448,9 +455,57 @@ export function stopAudio() {
   // playSongFromRandomPosition()の処理（自動停止タイマーを含む）をすべて「無効」にする
   // （stopAudio()の後に遅れて鳴り出す事故を防ぐ）。
   currentPlaybackToken++;
+  currentPlaybackSongId = null;
+  troubleReportedToken = null;
   audioElement.pause();
   audioElement.currentTime = 0;
   releaseCurrentObjectUrl();
 }
 
 registerPlaybackStopper("quiz", stopAudio);
+
+// ===== 【2026-09-16新設・本人指示：「音が出ない」救済ボタン共通基盤】=====
+// ユーザーが「音が出ない」ボタンを押して自己申告したことを扱うための、汎用的な仕組み。
+// オフライン各モード（js/main.js・js/timeAttackScreen.js等）専用の作りにはせず、第2段階
+// （オンライン対戦）でもそのまま再利用できるよう、このファイルの既存ロジック（世代番号・
+// Object URL管理・unlock）には一切手を加えず、それとは独立した薄い層として追加する。
+//
+// 【できること／できないこと】ここで行うのはあくまで「ユーザーの自己申告を受け取り、
+// 呼び出し元（各画面）が『再生し直す』『別の曲に差し替える』等の判断をしやすいよう、
+// 今の再生状態を返す」ことだけ。実際の音声検出（マイクで実際に鳴っているかを調べる等）は
+// 一切行わない。
+
+// 「音が出ない」の申告があった再生トークン。申告が無ければnull。
+// 新しい再生（playSongIntro()・playSongFromRandomPosition()の呼び出し）やstopAudio()で
+// currentPlaybackTokenが進むたびに自動的に無効化されるため（下のgetCurrentPlaybackState()の
+// hasTroubleReportは常に「今のトークンと一致するか」で判定する）、古い申告が別の曲へ
+// 誤って引き継がれることはない。
+let troubleReportedToken = null;
+
+// 呼び出し元（各画面）が、「今audio.jsが再生している（しようとしている）のは何か」を
+// 取得するための関数。トラブル報告の要否判断・差し替え後の整合性チェック等に使う想定。
+export function getCurrentPlaybackState() {
+  return {
+    token: currentPlaybackToken,
+    songId: currentPlaybackSongId,
+    hasTroubleReport: troubleReportedToken !== null && troubleReportedToken === currentPlaybackToken,
+  };
+}
+
+// 「今再生中（または再生しようとした）曲について、音が出ないという申告があった」ことを
+// 記録する。戻り値は記録した瞬間の再生状態（getCurrentPlaybackState()と同じ形）で、
+// 呼び出し元はtoken・songIdを見て「まだこの申告が今表示している問題に対して有効か」
+// （画面側で保持しているcurrentIndex等の曲と食い違っていないか）を確認してから、
+// 「再生し直す」「差し替える」等の対応を行う想定。
+export function reportPlaybackTrouble() {
+  troubleReportedToken = currentPlaybackToken;
+  diag("音が出ない申告を受け取りました", { token: currentPlaybackToken, songId: currentPlaybackSongId });
+  return getCurrentPlaybackState();
+}
+
+// 申告への対応を終えた（再生し直した、差し替えた、ランを中断した等）タイミングで呼び、
+// 記録を明示的に消す。新しい再生を始めるだけでもトークンが進んで申告は自動的に無効化されるため
+// 必須ではないが、呼び出し元が「対応済み」の状態をはっきりさせたい場合のために用意する。
+export function clearPlaybackTroubleReport() {
+  troubleReportedToken = null;
+}

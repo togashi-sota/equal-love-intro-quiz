@@ -708,6 +708,20 @@
            上のボタンとは別に、ゲストにだけ見せる「この試合だけ抜ける」ボタン。 -->
       <button id="online-battle-quiz-leave-match-button" class="secondary-button online-battle-back-to-lobby-button" type="button" hidden>⚙ ルーム設定へ戻る</button>
 
+      <!-- 【2026-09-16新設・本人指示：「音が出ない」救済ボタン（第1段階・共通基盤＋オフラインモード）】
+           iOS実機で、音源自体は正常に読み込まれているのに一瞬だけ無音になる現象への、
+           根本原因対策とは別の「最後の安全網」。音源を使う問題の回答収集中だけ表示する
+           （js/main.jsのrenderQuestion()・各回答ハンドラが表示/非表示・有効/無効を切り替える）。
+           quiz-middle-zone（スクロール領域）の外に置くことで、スクロールしなくても常に
+           見える位置を保つ（タスク仕様「画面下部への配置・スクロールが必要な位置は避ける」）。
+           押すと必ずwindow.confirm()の確認を挟んでから確定する（js/audio.jsのreportPlaybackTrouble()
+           と組み合わせて使う。既存のjs/answerConfirmPrompt.jsは「この曲で回答しますか？」という
+           回答確定専用の文言が固定されており、今回の用途とは意味が異なるため、js/onlineBattleScreen.js等の
+           運用管理系操作（退出させる・ホストを渡す等）と同じくwindow.confirm()のパターンを採用した）。 -->
+      <div class="quiz-audio-trouble-row">
+        <button id="audio-trouble-button" class="quiz-audio-trouble-button" type="button" hidden>🔇 音が出ない</button>
+      </div>
+
       <!-- 【2026-08-29追加、本人指示】ピンチズーム・ドラッグでページ自体の表示位置がずれる
            不具合の修正（既存のtouch-action指定だけでは実機で防ぎきれなかったため）。
            ライブコールモード・カラオケ同期画面（#live-call-mode-karaoke-screen）で
