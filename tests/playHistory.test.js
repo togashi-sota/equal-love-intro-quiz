@@ -260,6 +260,76 @@ export function runPlayHistoryTests() {
       "オンライン歌詞対戦の要約にルール名（早押しバトル）が表示される"
     );
     assertEqual(lyricsBattleLines.some((line) => line.includes("80pt")), true, "スコアが要約に表示される");
+
+    // ===== 2026-09-15追加：途中退出（isVoluntaryLeave）はDNF・通常完走のいずれとも
+    // 明確に区別され、順位・勝敗として表示されないことを確認する。 =====
+    const voluntaryLeaveTimeAttack = buildIntroEntry({
+      modeId: "onlineInstantBattle",
+      correctCount: 3,
+      wrongCount: 1,
+      completed: false,
+      details: { rule: "hard", myRank: null, participantCount: 2, isVoluntaryLeave: true, isDnf: false },
+    });
+    const voluntaryLeaveLines = describeEntrySummaryLines(voluntaryLeaveTimeAttack);
+    assertEqual(
+      voluntaryLeaveLines.some((line) => line.includes("途中退出")),
+      true,
+      "途中退出（共有エンジン系）は要約に「途中退出」と表示される"
+    );
+    assertEqual(
+      voluntaryLeaveLines.some((line) => line.includes("DNF")),
+      false,
+      "途中退出は通信エラー等のDNFとは違う文言で表示される（DNFという文字列を含まない）"
+    );
+    assertEqual(
+      voluntaryLeaveLines.some((line) => /🥇|🥈|🥉|\d+位/.test(line)),
+      false,
+      "途中退出は順位（メダル・◯位）としては一切表示されない"
+    );
+
+    const voluntaryLeaveLyrics = buildIntroEntry({
+      modeId: "onlineLyricsQuiz",
+      score: 12,
+      completed: false,
+      details: { battleRuleId: "combo", myRank: null, participantCount: 3, isVoluntaryLeave: true, isDnf: false },
+    });
+    const voluntaryLeaveLyricsLines = describeEntrySummaryLines(voluntaryLeaveLyrics);
+    assertEqual(
+      voluntaryLeaveLyricsLines.some((line) => line.includes("途中退出")),
+      true,
+      "途中退出（歌詞クイズ）も要約に「途中退出」と表示される"
+    );
+    assertEqual(
+      voluntaryLeaveLyricsLines.some((line) => /🥇|🥈|🥉|\d+位/.test(line)),
+      false,
+      "途中退出（歌詞クイズ）も順位としては表示されない"
+    );
+
+    const voluntaryLeaveCoop = buildIntroEntry({
+      modeId: "onlineInstantCoop",
+      questionCount: 3,
+      correctCount: 2,
+      completed: false,
+      details: { memberCount: 2, isVoluntaryLeave: true, isDnf: false },
+    });
+    const voluntaryLeaveCoopLines = describeEntrySummaryLines(voluntaryLeaveCoop);
+    assertEqual(
+      voluntaryLeaveCoopLines.some((line) => line.includes("途中退出")),
+      true,
+      "途中退出（一瞬協力）も要約に「途中退出」と表示される"
+    );
+    assertEqual(
+      voluntaryLeaveCoopLines.some((line) => line.includes("正解！")),
+      false,
+      "途中退出（一瞬協力）は完走時の「正解！」という祝福文言では表示されない"
+    );
+
+    // 通常のDNF（本人の意思ではない）は、途中退出とは別の文言のまま維持されていることの回帰確認。
+    assertEqual(
+      dnfLines.some((line) => line.includes("途中退出")),
+      false,
+      "通常のDNF（details.isVoluntaryLeave無し）は「途中退出」という文言にはならない（回帰確認）"
+    );
   }
 
   // ===== describeEntryDetailFields（存在しない項目は出さない） =====
@@ -298,6 +368,33 @@ export function runPlayHistoryTests() {
     assertEqual(fullLabels.includes("問題数"), true, "値がある項目は表示される");
     assertEqual(fullLabels.includes("正解数"), true, "正解数も表示される");
     assertEqual(fullLabels.includes("平均回答時間"), true, "平均回答時間も表示される");
+
+    // ===== 2026-09-15追加：途中退出は詳細モーダルの「あなたの順位」欄でも、
+    // 順位・DNFのいずれとも異なる専用の文言になり、myRank（null）を順位として
+    // 表示しないことを確認する。 =====
+    const voluntaryLeaveEntry = buildIntroEntry({
+      questionCount: 5,
+      correctCount: 2,
+      wrongCount: 1,
+      details: { rule: "normal", myRank: null, participantCount: 2, isVoluntaryLeave: true, isDnf: false },
+    });
+    const voluntaryLeaveFields = describeEntryDetailFields(voluntaryLeaveEntry);
+    const myRankField = voluntaryLeaveFields.find((f) => f.label === "あなたの順位");
+    assertEqual(myRankField !== undefined, true, "途中退出でも「あなたの順位」の行自体は表示される");
+    assertEqual(myRankField.value.includes("途中退出"), true, "途中退出の順位欄には「途中退出」という文言が入る");
+    assertEqual(myRankField.value.includes("DNF"), false, "途中退出の順位欄はDNFという文言にはならない");
+    assertEqual(/🥇|🥈|🥉|\d+位/.test(myRankField.value), false, "途中退出の順位欄は実際の順位番号・メダルにはならない");
+
+    // 通常のDNF（isVoluntaryLeave無し）は、既存どおり「途中終了（DNF）」のまま
+    // であることの回帰確認。
+    const dnfDetailEntry = buildIntroEntry({
+      correctCount: null,
+      wrongCount: null,
+      details: { rule: "normal", myRank: null, participantCount: 2, isDnf: true },
+    });
+    const dnfDetailFields = describeEntryDetailFields(dnfDetailEntry);
+    const dnfRankField = dnfDetailFields.find((f) => f.label === "あなたの順位");
+    assertEqual(dnfRankField.value, "途中終了（DNF）", "通常のDNFは既存の文言のまま変わらない（回帰確認）");
   }
 
   // ===== computeUnifiedHistorySummary（DNF等のnullを正答率計算から除外する） =====

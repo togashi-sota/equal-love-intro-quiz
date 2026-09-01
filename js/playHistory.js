@@ -460,7 +460,12 @@ export function describeEntrySummaryLines(entry) {
           .filter(Boolean)
           .join("・")
       );
-      if (!entry.completed) {
+      // 【2026-09-15追加・本人指示：プレイ履歴へ「途中退出」を保存する】自分の意思で
+      // 対戦を途中離脱した場合（details.isVoluntaryLeave）は、通信エラー等による
+      // 未完走（DNF）とは明確に区別した文言で表示する。順位・勝敗としては表示しない。
+      if (entry.details?.isVoluntaryLeave) {
+        lines.push(`🚪 途中退出・正解${entry.correctCount ?? 0}／ミス${entry.wrongCount ?? 0}`);
+      } else if (!entry.completed) {
         lines.push("途中終了（DNF）");
       } else {
         const rankText = formatRank(entry.details?.myRank);
@@ -475,7 +480,9 @@ export function describeEntrySummaryLines(entry) {
           .filter(Boolean)
           .join(" / ")
       );
-      if (!entry.completed) {
+      if (entry.details?.isVoluntaryLeave) {
+        lines.push(`🚪 途中退出${entry.score !== null ? `・${entry.score}pt` : ""}`);
+      } else if (!entry.completed) {
         lines.push("途中退出（DNF）");
       } else {
         const rankText = formatRank(entry.details?.myRank);
@@ -490,7 +497,14 @@ export function describeEntrySummaryLines(entry) {
     case "onlineInstantCoop": {
       const memberCountLabel = entry.details?.memberCount ? `${entry.details.memberCount}人協力` : null;
       lines.push([questionCountLabel, memberCountLabel].filter(Boolean).join("・"));
-      lines.push(`チームで${entry.correctCount}/${entry.questionCount}問正解！`);
+      // 【2026-09-15追加・本人指示：プレイ履歴へ「途中退出」を保存する】以前はcompletedを
+      // 一切見ておらず、途中離脱でも常に「チームで◯問正解！」という完走時と同じ文言に
+      // なってしまっていた（本人指示：途中退出を通常完走として誤表示しない）。
+      if (entry.details?.isVoluntaryLeave) {
+        lines.push(`🚪 途中退出・チームで${entry.correctCount ?? 0}/${entry.questionCount ?? "?"}問正解`);
+      } else {
+        lines.push(`チームで${entry.correctCount}/${entry.questionCount}問正解！`);
+      }
       break;
     }
     default:
@@ -548,7 +562,19 @@ export function describeEntryDetailFields(entry) {
 
   if (details.participantCount) {
     push("参加人数", `${details.participantCount}人`);
-    push("あなたの順位", details.isDnf ? "途中終了（DNF）" : details.myRank ? `${formatRank(details.myRank)}` : null);
+    // 【2026-09-15追加・本人指示：プレイ履歴へ「途中退出」を保存する】自分の意思での
+    // 途中離脱（isVoluntaryLeave）は、通信エラー等によるDNFとは別の文言で表示し、
+    // 順位（myRankは常にnull）としては絶対に表示しない。
+    push(
+      "あなたの順位",
+      details.isVoluntaryLeave
+        ? "🚪 途中退出（順位対象外）"
+        : details.isDnf
+          ? "途中終了（DNF）"
+          : details.myRank
+            ? `${formatRank(details.myRank)}`
+            : null
+    );
     if (Array.isArray(details.standings)) {
       const standingsText = details.standings
         .map((standing) => {

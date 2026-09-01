@@ -13,6 +13,7 @@
 // 「今の選択曲」を渡し、「決定」が押されたときのコールバックを渡すだけの単純な窓口にしている。
 import { SONGS } from "./data/songs.js";
 import { buildSongGroups, CATEGORY_PILL_INFO, normalizeForSearch, songMatchesSearch } from "./songlist.js";
+import { buildSelectorUidsBySongId } from "./onlineBattleCollaborativeSelectionPayloads.js";
 
 let elements = null;
 
@@ -146,6 +147,17 @@ function createSongSelectRow(song) {
   label.appendChild(checkbox);
   label.appendChild(title);
   label.appendChild(categoryPill);
+
+  // 【2026-09-15新設・本人指示：画面を開いたままリアルタイム同期】他の参加者がこの曲を
+  // 選んでいるかを示すバッジ。初期状態は非表示。songIdをdatasetに持たせておき、
+  // updateOnlineBattleSongPickerLiveSelections()が検索・チェック状態を一切触らずに
+  // このバッジだけを更新できるようにする。
+  const othersBadge = document.createElement("span");
+  othersBadge.className = "song-select-others-badge";
+  othersBadge.hidden = true;
+  label.appendChild(othersBadge);
+
+  row.dataset.songId = song.id;
   row.appendChild(label);
   return row;
 }
@@ -228,6 +240,46 @@ function applyCheckedState(songIds) {
       (checkbox) => checkbox.checked
     );
     groupElement.classList.toggle("is-open", hasSelectedSong);
+  });
+}
+
+// 【2026-09-15新設・本人指示：画面を開いたままリアルタイム同期】ロビー画面と全く同じ
+// タイミング（room更新のたび）で呼ばれる想定の、ライブ更新専用の描画関数。
+// resetFilters()・renderGroups()・applyCheckedState()等、画面を開いた瞬間にしか
+// 呼ばれない他の関数とは違い、この関数は「今画面を開いたままの状態」を一切壊さないことを
+// 最優先にする：検索文字列（elements.searchInput.value）・スクロール位置・50音の
+// 絞り込み状態・自分のチェック状態のいずれにも触れず、①共有プールの合計数の案内文と、
+// ②各曲の横の「〇〇が選択済み」バッジ、の2箇所だけを差分更新する。
+//
+// players: room.playersそのまま。currentUid: 自分のuid（自分の選択はバッジに含めない）。
+// mergedTotalCount・restrictedCount: 呼び出し元（js/onlineBattleScreen.js等）が既に
+// 持っている「参加者全員の選択を合わせた数」「このうち今の対戦で使える数」（ロビーの
+// 表示と同じ計算式を再利用するため、ここでは計算しない）。
+export function updateOnlineBattleSongPickerLiveSelections({ players, currentUid, mergedTotalCount, restrictedCount }) {
+  if (!elements) return;
+
+  if (elements.liveSummary) {
+    elements.liveSummary.hidden = false;
+    elements.liveSummary.textContent =
+      mergedTotalCount === 0
+        ? "まだ誰も曲を選んでいません。"
+        : `参加者全員の選択を合わせて${mergedTotalCount}曲（このうち${restrictedCount}曲がこの対戦で使えます）`;
+  }
+
+  const selectorUidsBySongId = buildSelectorUidsBySongId(players);
+  elements.groupsContainer.querySelectorAll(".song-select-row").forEach((row) => {
+    const songId = row.dataset.songId;
+    const badge = row.querySelector(".song-select-others-badge");
+    if (!badge) return;
+    const otherSelectorUids = (selectorUidsBySongId[songId] ?? []).filter((uid) => uid !== currentUid);
+    if (otherSelectorUids.length === 0) {
+      badge.hidden = true;
+      return;
+    }
+    badge.hidden = false;
+    const firstDisplayName = players?.[otherSelectorUids[0]]?.displayName ?? players?.[otherSelectorUids[0]]?.name ?? "参加者";
+    badge.textContent =
+      otherSelectorUids.length === 1 ? `👤 ${firstDisplayName}が選択済み` : `👤 他${otherSelectorUids.length}人が選択済み`;
   });
 }
 

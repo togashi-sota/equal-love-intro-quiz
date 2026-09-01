@@ -1145,6 +1145,8 @@ const onlineInstantCoopResultRematchButtonElement = document.getElementById("onl
 // 歌詞クイズ対戦の3つで共通利用する。
 const onlineBattleSongPickerBackButtonElement = document.getElementById("online-battle-song-picker-back-button");
 const onlineBattleSongPickerSelectedCountValueElement = document.getElementById("online-battle-song-picker-selected-count-value");
+// 【2026-09-15新設・本人指示：画面を開いたままリアルタイム同期】
+const onlineBattleSongPickerLiveSummaryElement = document.getElementById("online-battle-song-picker-live-summary");
 const onlineBattleSongPickerSelectAllButtonElement = document.getElementById("online-battle-song-picker-select-all-button");
 const onlineBattleSongPickerDeselectAllButtonElement = document.getElementById("online-battle-song-picker-deselect-all-button");
 const onlineBattleSongPickerSearchInputElement = document.getElementById("online-battle-song-picker-search-input");
@@ -5745,6 +5747,7 @@ initOnlineBattleSongPicker({
   navigateTo: navigateBattleScreen,
   backButton: onlineBattleSongPickerBackButtonElement,
   selectedCountValue: onlineBattleSongPickerSelectedCountValueElement,
+  liveSummary: onlineBattleSongPickerLiveSummaryElement,
   selectAllButton: onlineBattleSongPickerSelectAllButtonElement,
   deselectAllButton: onlineBattleSongPickerDeselectAllButtonElement,
   searchInput: onlineBattleSongPickerSearchInputElement,

@@ -43,6 +43,8 @@ import { promptReturnToLobby } from "./onlineBattleLobbyReturnPrompt.js";
 import { promptLeaveMatch } from "./onlineBattleLeaveMatchPrompt.js";
 import { promptAnswerConfirm } from "./answerConfirmPrompt.js";
 import { getCurrentUid } from "./firebaseClient.js";
+import { savePlayHistoryEntryIfNew } from "./playHistory.js";
+import { QUESTION_SOURCE_TYPE } from "./questionSource.js";
 
 let elements = null;
 
@@ -68,6 +70,10 @@ const AUDIO_FAILURE_RESERVE_SIZE = 3;
 const MAX_SLOT_PLAYBACK_ATTEMPTS = 3;
 let targetQuestionCount = 0;
 let nextReserveIndex = 0;
+// 【2026-09-15新設・本人指示：プレイ履歴へ「途中退出」を保存する】入場時点の参加人数
+// スナップショット。このモードは対戦中room更新を継続監視しないため（上のコメント参照）、
+// 途中離脱時に使えるよう入場時にだけ覚えておく。
+let participantCountAtEntry = 0;
 let currentSlotFailureCount = 0;
 // 【2026-09-07新設・本人指示：50音UIの共通展開】
 const answerBrowseState = createAnswerPoolBrowseState();
@@ -116,6 +122,7 @@ export function initOnlineInstantBattleScreens(newElements) {
     if (!roomId || !matchId) return;
     promptLeaveMatch(roomId, matchId, () => {
       stopAudio();
+      saveVoluntaryLeaveHistoryEntry();
       resetOnlineInstantBattleState();
       elements.navigateTo("onlineBattleLobby");
     });
@@ -140,6 +147,38 @@ export function initOnlineInstantBattleScreens(newElements) {
     renderAnswerButtons(questions[currentIndex].answerPool);
   });
 
+}
+
+// 【2026-09-15新設・本人指示：プレイ履歴へ「途中退出」を保存する】途中離脱ボタンが
+// 確定した瞬間（resetOnlineInstantBattleState()でここまでの状態が消える前）に呼ぶ。
+// js/onlineBattleScreen.jsのsaveVoluntaryLeaveHistoryEntry()と同じid規則
+// （online:{matchId}）・同じdetails.isVoluntaryLeave:trueを使う。
+function saveVoluntaryLeaveHistoryEntry() {
+  if (!currentMatchId || !currentSettings) return;
+  const correctCount = answers.filter((answer) => answer.isCorrect).length;
+  const isAllSongsMode =
+    !currentSettings.questionSource || currentSettings.questionSource.type === QUESTION_SOURCE_TYPE.ALL_SONGS;
+
+  savePlayHistoryEntryIfNew({
+    id: `online:${currentMatchId}`,
+    playedAt: Date.now(),
+    modeId: "onlineInstantBattle",
+    modeLabel: "オンライン対戦（一瞬バトル）",
+    questionCount: targetQuestionCount,
+    isAllSongsMode,
+    correctCount,
+    wrongCount: answers.length - correctCount,
+    skippedCount: null,
+    score: null,
+    averageResponseMs: null,
+    completed: false,
+    details: {
+      isVoluntaryLeave: true,
+      isDnf: false,
+      myRank: null,
+      participantCount: participantCountAtEntry,
+    },
+  });
 }
 
 // ルームを離れる・別のルームへ入り直す際に呼ぶ、状態の完全リセット。
@@ -187,6 +226,7 @@ export function enterOnlineInstantBattlePlay(room) {
   hasAnsweredCurrentQuestion = false;
   matchStartedAtMs = Date.now();
   isFirstQuestionOfMatch = true;
+  participantCountAtEntry = Object.keys(room.players ?? {}).length;
 
   elements.error.hidden = true;
   // 【2026-09-05新設、本人指示】このモードは各自が独立して進行するため、対戦中は

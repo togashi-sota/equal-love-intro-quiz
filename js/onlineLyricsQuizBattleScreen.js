@@ -100,7 +100,7 @@ import { normalizeForSearch, songMatchesSearch, GOJUON_ROWS, deriveGojuonRowKey 
 import { LARGE_ANSWER_POOL_THRESHOLD } from "./lyricsQuizEngine.js";
 // 【2026-08-08新設】出題する曲をホストが選べる機能。他の対戦モード（js/onlineBattleScreen.js）と
 // 同じ曲選択画面を共有する（gameModeごとに別々の選曲UIを持たない、本人指示）。
-import { openOnlineBattleSongPicker } from "./onlineBattleSongPicker.js";
+import { openOnlineBattleSongPicker, updateOnlineBattleSongPickerLiveSelections } from "./onlineBattleSongPicker.js";
 // 【2026-08-28新設】js/onlineBattleScreen.jsと同じ共有モーダル。お気に入り／プレイリストで
 // 選んだ曲を、全曲一覧へ進む前にまず確認できる（このファイルはonlineBattleScreen.jsを
 // importしない方針のため、そちら経由ではなく直接この共有部品をimportする）。
@@ -340,6 +340,7 @@ export function initOnlineLyricsQuizBattleScreens(newElements) {
     const matchId = currentMatchId;
     if (!roomId || !matchId) return;
     promptLeaveMatch(roomId, matchId, () => {
+      saveVoluntaryLeaveLyricsHistoryEntry();
       resetLyricsQuizBattleState();
       elements.navigateTo("onlineBattleLobby");
     });
@@ -540,6 +541,17 @@ function updateLyricsCollabSongSectionUi(room) {
     songTitleResolver: resolveSongTitleForLyricsCollabUi,
     currentUid: getCurrentUid(),
   });
+
+  // 【2026-09-15新設・本人指示：曲選択画面を開いたままリアルタイム同期】
+  // js/onlineBattleScreen.jsの同じ変更と全く同じ考え方。
+  if (document.body.dataset.screen === "onlineBattleSongPicker") {
+    updateOnlineBattleSongPickerLiveSelections({
+      players: room.players || {},
+      currentUid: getCurrentUid(),
+      mergedTotalCount: merged.length,
+      restrictedCount,
+    });
+  }
 }
 
 // 【2026-08-27新設・ホスト専用】js/onlineBattleScreen.jsのsyncCollaborativeSongPoolIfHost()と
@@ -587,6 +599,17 @@ function openLyricsCollabSongPicker(initialSongIds) {
     // 持っている曲だけに絞り込む（本人指示：曲指定画面でも共通曲以外は選べないようにする）。
     (song) => isLyricsQuizEligibleSong(song) && currentLyricsCommonSongPool.has(song.id)
   );
+  // 【2026-09-15新設・本人指示：画面を開いたままリアルタイム同期】
+  // js/onlineBattleScreen.jsのopenCollabSongPicker()と全く同じ考え方。
+  if (latestRoom) {
+    const merged = computeMergedSelectedSongIds(latestRoom.players || {});
+    updateOnlineBattleSongPickerLiveSelections({
+      players: latestRoom.players || {},
+      currentUid: getCurrentUid(),
+      mergedTotalCount: merged.length,
+      restrictedCount: merged.filter((songId) => currentLyricsCommonSongPool.has(songId)).length,
+    });
+  }
 }
 
 // 【2026-08-28新設】js/onlineBattleScreen.jsのopenSongListConfirm()と全く同じ考え方。
@@ -1376,6 +1399,21 @@ function renderAnswerChoices(question, { isResolved, myAnsweredThisQuestion, que
   }
   elements.battleAnswerChoicesContainer.classList.remove("is-showing-reveal");
 
+  // 【2026-09-15修正・実機回帰バグ】回答確定後・他プレイヤー待ち中（isResolvedになる前）は、
+  // 選択肢ボタン自体はdisabledになっていたが、検索欄・50音ジャンプバーは
+  // isLargePool（30・50・全曲プールか）だけを見て表示され続けており、myAnsweredThisQuestionを
+  // 見ていなかった。検索・絞り込みは実際に機能してしまい、絞り込んだ結果に自分の回答
+  // （is-selectedのハイライト）が含まれないと、画面上「まだ何も選んでいない／選び直せる」
+  // ように見えてしまっていた（本人の実機報告と一致）。js/onlineInstantCoopBattleScreen.jsの
+  // 「回答確定後は選択肢UIごと隠す」パターンに合わせ、検索欄・50音・選択肢一覧をまとめて
+  // 隠す（代わりに.battleStatusMessageが「回答しました。他のプレイヤーを待っています…」を表示する）。
+  if (myAnsweredThisQuestion) {
+    elements.battleAnswerSearchRow.hidden = true;
+    elements.battleAnswerJumpBar.hidden = true;
+    clearElement(elements.battleAnswerChoicesContainer);
+    return;
+  }
+
   const pool = question.answerPool;
   // 【2026-08-31新設】30・50・全曲プールでは、検索欄＋スクロールする一覧に切り替える
   // （4択・10択は従来どおりのボタン一覧のまま。js/lyricsQuizEngine.jsの
@@ -1718,6 +1756,20 @@ function renderCurrentQuestionState() {
 
 // ===== 結果画面 =====
 
+// 【2026-09-15新設・本人指示：ゲスト結果画面の再監査（ホスト移譲との関係）】以前は
+// enterLyricsQuizResult()内でしかisHostOnResultScreenを計算しておらず、結果画面を
+// 表示している最中にホスト自動移譲（8秒切断ルール）が起きても、ボタンの出し分けが
+// 遷移した瞬間のまま固まっていた。room更新のたびに呼べる軽量な同期専用関数として
+// 切り出し、js/onlineBattleScreen.js側から結果画面表示中は毎回呼んでもらう
+// （answerReveal等の重い再構築・効果音の再生は行わない、ボタンの出し分けだけ）。
+export function syncLyricsResultHostGuestButtons(room) {
+  if (document.body.dataset.screen !== "onlineLyricsBattleResult") return;
+  const isHostOnResultScreen = room.host === getCurrentUid();
+  elements.resultHostActions.hidden = !isHostOnResultScreen;
+  elements.resultHomeLink.hidden = isHostOnResultScreen;
+  if (elements.resultGuestActions) elements.resultGuestActions.hidden = isHostOnResultScreen;
+}
+
 export function enterLyricsQuizResult(room) {
   latestRoom = room;
   stopAllLocalTimers();
@@ -1835,6 +1887,43 @@ function saveLyricsQuizBattleHistoryEntry(room, rankedEntries, questionBreakdown
       // 結果画面と同じデータをそのまま保存し、履歴詳細でも同じ描画関数を使えるようにする
       // （js/onlineBattleScreen.jsのsaveOnlineBattleHistoryEntry()と同じ設計）。
       questionBreakdown: capQuestionBreakdownForStorage(questionBreakdown),
+    },
+  });
+}
+
+// 【2026-09-15新設・本人指示：プレイ履歴へ「途中退出」を保存する】途中離脱ボタンが
+// 確定した瞬間（resetLyricsQuizBattleState()でmyOutcomeHistory等が消える前）に呼ぶ。
+// myOutcomeHistoryはまだ何問も無い（0問の場合すらある）配列だが、
+// lyricsQuizBattleMode.createResult()は「何問あるか」を前提にしない集計関数のため、
+// そのまま渡せば完走時と全く同じ計算式で「ここまでの成績」が得られる
+// （js/battleRules/各ルールのaggregateResult()参照）。
+function saveVoluntaryLeaveLyricsHistoryEntry() {
+  if (!currentMatchId || !latestRoom) return;
+  const result = lyricsQuizBattleMode.createResult(myOutcomeHistory, latestRoom.settings);
+  const isAllSongsMode =
+    !latestRoom.settings.questionSource || latestRoom.settings.questionSource.type === QUESTION_SOURCE_TYPE.ALL_SONGS;
+
+  savePlayHistoryEntryIfNew({
+    id: `online:${currentMatchId}`,
+    playedAt: Date.now(),
+    modeId: "onlineLyricsQuiz",
+    modeLabel: "オンライン対戦（歌詞）",
+    questionCount:
+      latestRoom.settings.questionCountValue === "all" ? null : Number(latestRoom.settings.questionCountValue) || null,
+    isAllSongsMode,
+    correctCount: result.common.correctCount,
+    wrongCount: result.common.missCount,
+    skippedCount: result.detail?.skippedCount ?? null,
+    score: result.detail?.totalPoints ?? null,
+    averageResponseMs: null,
+    completed: false,
+    details: {
+      battleRuleId: latestRoom.settings.battleRuleId,
+      isVoluntaryLeave: true,
+      isDnf: false,
+      myRank: null,
+      myDetail: result.detail,
+      participantCount: Object.keys(latestRoom.players ?? {}).length,
     },
   });
 }

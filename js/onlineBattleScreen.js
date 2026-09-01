@@ -97,6 +97,7 @@ import {
   renderLyricsQuizLobbySettings,
   enterLyricsQuizBattlePlay,
   enterLyricsQuizResult,
+  syncLyricsResultHostGuestButtons,
   handleLyricsQuizRoomUpdate,
   resetLyricsQuizBattleState,
 } from "./onlineLyricsQuizBattleScreen.js";
@@ -122,13 +123,14 @@ import {
   renderInstantCoopLobbySettings,
   enterInstantCoopBattlePlay,
   enterInstantCoopResult,
+  syncInstantCoopResultHostGuestButtons,
   handleInstantCoopRoomUpdate,
   resetInstantCoopBattleState,
 } from "./onlineInstantCoopBattleScreen.js";
 // 【2026-08-08新設】出題する曲をホストが選べる機能。曲の一覧・選択UI自体は3対戦モード共通の
 // 別画面（js/onlineBattleSongPicker.js）に任せ、このファイルは「今の選択曲id配列」を
 // 保持し、settings.questionSourceへ変換するだけに専念する（gameModeを問わない設計）。
-import { openOnlineBattleSongPicker } from "./onlineBattleSongPicker.js";
+import { openOnlineBattleSongPicker, updateOnlineBattleSongPickerLiveSelections } from "./onlineBattleSongPicker.js";
 import { openOnlineBattlePlaylistPicker } from "./onlineBattlePlaylistPicker.js";
 // 【2026-08-28新設】お気に入り／プレイリストで選んだ曲を、全曲一覧へ進む前にまず
 // 確認できる共有モーダル。js/onlineLyricsQuizBattleScreen.js側でも同じ部品を使う
@@ -138,6 +140,7 @@ import { QUESTION_SOURCE_TYPE, sanitizeSongIds } from "./questionSource.js";
 import { resolveQuestionCount } from "./quiz.js";
 import { getFavoriteSongIds } from "./favoriteSongs.js";
 import { savePlayHistoryEntryIfNew } from "./playHistory.js";
+import { getCurrentTimeAttackStats } from "./timeAttackScreen.js";
 // 【2026-08-26新設・2026-08-27拡張】オンライン対戦の共通曲（intersection）判定のため、
 // ロビーに入るたびに「この端末が実際に持っている曲」（音源・歌詞の両方）をルームへ
 // 報告する。対戦開始直前の絞り込み自体はjs/onlineBattle.jsのstartBattle()側が担当するが、
@@ -897,6 +900,19 @@ function updateCollabSongSectionUi(room, isLyricsQuiz) {
     songTitleResolver: resolveSongTitleForCollabUi,
     currentUid: getCurrentUid(),
   });
+
+  // 【2026-09-15新設・本人指示：曲選択画面を開いたままリアルタイム同期】全曲選択画面
+  // （js/onlineBattleSongPicker.js）を開いている間も、room監視のたびにこの関数は呼ばれ
+  // 続けている。画面が今まさに開かれている場合だけ、検索・スクロール状態を壊さない
+  // 差分更新関数を呼ぶ（room.playersの購読を新しく増やさず、既存の購読へ相乗りする）。
+  if (document.body.dataset.screen === "onlineBattleSongPicker") {
+    updateOnlineBattleSongPickerLiveSelections({
+      players: room.players || {},
+      currentUid: getCurrentUid(),
+      mergedTotalCount: merged.length,
+      restrictedCount,
+    });
+  }
 }
 
 // 【2026-08-27新設・ホスト専用】参加者全員の選択（players/*/selectedSongIds）の和集合を
@@ -959,6 +975,18 @@ function openCollabSongPicker(initialSongIds) {
     // 絞り込む（本人指示：問題・選択肢だけでなく曲指定画面でも選べないようにする）。
     (song) => currentCommonSongPool.has(song.id)
   );
+  // 【2026-09-15新設・本人指示：画面を開いたままリアルタイム同期】画面を開いた瞬間は
+  // Firebaseからの新しい通知を待たずに、既に持っている最新のroomデータで即座に
+  // バッジ・サマリーを表示する（次にroomが更新されるまで空欄のままになるのを防ぐ）。
+  if (latestRoom) {
+    const merged = computeMergedSelectedSongIds(latestRoom.players || {});
+    updateOnlineBattleSongPickerLiveSelections({
+      players: latestRoom.players || {},
+      currentUid: getCurrentUid(),
+      mergedTotalCount: merged.length,
+      restrictedCount: merged.filter((songId) => currentCommonSongPool.has(songId)).length,
+    });
+  }
 }
 
 // 【2026-08-28新設】「お気に入りから選ぶ」「プレイリストから選ぶ」で、いきなり全曲一覧を
@@ -1590,6 +1618,24 @@ function renderLobby(room) {
   } else if (isInstantCoop) {
     handleInstantCoopRoomUpdate(room);
   }
+
+  // 【2026-09-15新設・本人指示：ゲスト結果画面の再監査（ホスト移譲との関係）】結果画面の
+  // ホスト/ゲスト用ボタンの出し分けは、以前は結果画面へ「遷移した瞬間」（statusJustChanged）
+  // にしか計算されておらず、結果画面を表示したままホスト自動移譲（8秒切断ルール）が
+  // 起きても再計算されなかった。room更新のたび（このrenderLobby()が呼ばれるたび）に、
+  // 今まさに結果画面を見ている場合だけ、ボタンの出し分けを軽量に再同期する
+  // （3画面とも同じ考え方、重いDOM再構築・効果音の再生は行わない）。
+  syncResultScreenHostGuestButtons(room);
+  syncLyricsResultHostGuestButtons(room);
+  syncInstantCoopResultHostGuestButtons(room);
+}
+
+function syncResultScreenHostGuestButtons(room) {
+  if (document.body.dataset.screen !== "onlineBattleResult") return;
+  const isHostOnResultScreen = room.host === getCurrentUid();
+  elements.resultHostActions.hidden = !isHostOnResultScreen;
+  elements.resultHomeLink.hidden = isHostOnResultScreen;
+  if (elements.resultGuestActions) elements.resultGuestActions.hidden = isHostOnResultScreen;
 }
 
 function goToLobby(roomId) {
@@ -2129,6 +2175,45 @@ function saveOnlineBattleHistoryEntry(room, matchId, finishers, finisherRanks, d
       // （結果画面と履歴詳細で表示ロジックが2つに分かれてズレることを防ぐ）。
       // 保存件数はcapQuestionBreakdownForStorage()で安全側に切り詰める（js/battleQuestionBreakdown.js参照）。
       questionBreakdown: capQuestionBreakdownForStorage(questionBreakdown),
+    },
+  });
+}
+
+// 【2026-09-15新設・本人指示：プレイ履歴へ「途中退出」を保存する】ゲストが対戦中に
+// 自分だけ途中離脱した瞬間に呼ぶ。saveOnlineBattleHistoryEntry()と同じid（online:{matchId}）を
+// 使うことで、万一この試合が既に何らかの理由で保存済みだった場合の重複を防ぐ
+// （savePlayHistoryEntryIfNew()のidベース重複防止をそのまま流用）。
+// 【途中退出とDNFの違い】既存のisDnf（結果未送信＝通信断・タイムアウト等、原因を問わない）とは
+// 別に、details.isVoluntaryLeave:trueで「本人がルーム設定へ戻るを押した」という意思表示を
+// 区別して残す。順位・勝敗・称号には一切関与しない（completed:falseのまま、myRank等は
+// 持たせない）ため、既存のDNF向け表示ロジック（「途中終了（DNF）」相当）にそのまま乗るが、
+// 履歴画面側は今後isVoluntaryLeaveを見て「途中退出」という文言に出し分けられる。
+function saveVoluntaryLeaveHistoryEntry(room, matchId) {
+  if (!matchId || !room) return;
+  const stats = getCurrentTimeAttackStats();
+  const isAllSongsMode =
+    !room.settings.questionSource || room.settings.questionSource.type === QUESTION_SOURCE_TYPE.ALL_SONGS;
+
+  savePlayHistoryEntryIfNew({
+    id: `online:${matchId}`,
+    playedAt: Date.now(),
+    modeId: HISTORY_MODE_ID_BY_GAME_MODE[room.gameMode] ?? "onlineTimeAttack",
+    modeLabel: HISTORY_MODE_LABEL_BY_GAME_MODE[room.gameMode] ?? "オンライン対戦",
+    questionCount: currentMatchTotalQuestions,
+    isAllSongsMode,
+    correctCount: stats.correctCount,
+    wrongCount: stats.missCount,
+    skippedCount: null,
+    score: null,
+    averageResponseMs: null,
+    completed: false,
+    details: {
+      rule: room.settings.rule,
+      penaltySeconds: room.settings.penaltySeconds,
+      isVoluntaryLeave: true,
+      isDnf: false,
+      myRank: null,
+      participantCount: Object.keys(room.players ?? {}).length,
     },
   });
 }

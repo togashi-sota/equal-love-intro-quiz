@@ -1953,6 +1953,16 @@ fieldset label:has(input:focus-visible) {
   cursor: pointer;
 }
 
+/* 【2026-09-15発見・修正・実機回帰バグ】display:inline-flexを明示指定しているため、
+   [hidden]の既定（display:none）を上書きしてしまう（12章の教訓と同じ既知パターン）。
+   この上書きが無かったため、オンライン対戦の結果画面でホスト専用の「⌂ホームへ戻る」
+   リンク（ゲストには本来hidden=trueになるはず）が、ホスト・ゲストを問わず常に
+   表示されたままになっていた（本人の実機報告「ゲストにホスト用ボタンが出る」の
+   直接原因の1つ）。 */
+.quiz-back-link[hidden] {
+  display: none;
+}
+
 .quiz-back-link:active {
   transform: scale(0.94);
 }
@@ -2183,6 +2193,17 @@ fieldset label:has(input:focus-visible) {
 .button-row {
   display: flex;
   gap: 10px;
+}
+
+/* 【2026-09-15発見・修正・実機回帰バグ】display:flexを明示指定しているため、[hidden]の
+   既定（display:none）を上書きしてしまう（12章の教訓と同じ既知パターン、.quiz-back-link
+   と全く同じ原因）。この上書きが無かったため、オンライン対戦の結果画面でホスト専用の
+   ボタン行（elements.resultHostActions等、「もう一度」「ルーム設定に戻る」）が、
+   hidden=trueを設定してもゲスト端末で常に表示されたままになっていた。本人の実機報告
+   「ゲストにもう一度／ルーム設定に戻るボタンが出る」の根本原因。ホスト・自動移譲・PWA
+   更新のズレは無関係で、CSSの詳細度バグにより毎回・全モードで再現する問題だった。 */
+.button-row[hidden] {
+  display: none;
 }
 
 /* 【2026-09-06発見・修正、本人指示：実機フィードバック⑦⑨】.primary-buttonは単独で
@@ -6826,6 +6847,7 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 /* チェックできる範囲。行のどこをタップしてもチェックできる */
 .song-select-label {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   flex: 1;
@@ -6859,6 +6881,22 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   font-size: 0.86rem;
   font-weight: 700;
   overflow-wrap: break-word;
+}
+
+/* 2026-09-15新設・本人指示：曲選択画面を開いたまま、他の参加者がその曲を選んでいるかを
+   確認できるバッジ（js/onlineBattleSongPicker.jsのupdateOnlineBattleSongPickerLiveSelections()
+   参照）。.song-select-labelにflex-basis:100%で常に新しい行へ折り返させ、チェックボックス＋
+   隙間の幅ぶんだけインデントして曲名の真下に来るようにする。 */
+.song-select-others-badge {
+  flex-basis: 100%;
+  margin: 0 0 0 28px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+}
+
+.song-select-others-badge[hidden] {
+  display: none;
 }
 
 /* 試聴ボタン自体は、収録曲一覧の.play-buttonをそのまま使い回している。

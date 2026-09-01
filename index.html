@@ -3473,6 +3473,11 @@
       </div>
 
       <p class="custom-quiz-selected-count">選択中：<strong id="online-battle-song-picker-selected-count-value">0</strong>曲</p>
+      <!-- 【2026-09-15新設・本人指示：この画面を開いたままリアルタイム同期】他の参加者の
+           選択状況を、画面を閉じずに確認できるようにする。js/onlineBattleSongPicker.jsの
+           updateOnlineBattleSongPickerLiveSelections()が、検索欄・スクロール位置・50音状態を
+           一切崩さずにこの行と各曲の横のバッジだけを更新する。 -->
+      <p id="online-battle-song-picker-live-summary" class="battle-manual-song-count" hidden></p>
 
       <div class="custom-quiz-bulk-actions">
         <button id="online-battle-song-picker-select-all-button" class="single-group-bulk-button" type="button">全選択</button>

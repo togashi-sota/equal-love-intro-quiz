@@ -228,6 +228,7 @@ export function initOnlineInstantCoopBattleScreens(newElements) {
     const matchId = currentMatchId;
     if (!roomId || !matchId) return;
     promptLeaveMatch(roomId, matchId, () => {
+      saveVoluntaryLeaveInstantCoopHistoryEntry();
       resetInstantCoopBattleState();
       elements.navigateTo("onlineBattleLobby");
     });
@@ -272,6 +273,42 @@ export function initOnlineInstantCoopBattleScreens(newElements) {
 function stopAllLocalTimers() {
   stopTickTimer();
   stopServerTimeOffsetTracking();
+}
+
+// 【2026-09-15新設・本人指示：プレイ履歴へ「途中退出」を保存する】途中離脱ボタンが
+// 確定した瞬間（resetInstantCoopBattleState()でlatestRoom等が消える前）に呼ぶ。
+// このモードはチーム制のため個人の貢献は分からないが、match.coopQuestionOutcomes
+// （ホストが各問題の正誤をFirebaseへ確定させたもの）から「チームとしてここまで何問中
+// 何問正解したか」は復元できる（isVoid＝音源再生失敗等で無効になった問題は除外する、
+// 既存の完走時保存と同じ考え方）。
+function saveVoluntaryLeaveInstantCoopHistoryEntry() {
+  if (!currentMatchId || !latestRoom) return;
+  const match = latestRoom.matches?.[currentMatchId];
+  const outcomes = Object.values(match?.coopQuestionOutcomes ?? {}).filter((outcome) => !outcome.isVoid);
+  const correctCount = outcomes.filter((outcome) => outcome.isCorrect).length;
+  const participants = match?.participants ?? {};
+
+  savePlayHistoryEntryIfNew({
+    id: `online-coop:${currentMatchId}`,
+    playedAt: Date.now(),
+    modeId: "onlineInstantCoop",
+    modeLabel: "オンライン対戦（一瞬協力）",
+    questionCount: outcomes.length,
+    isAllSongsMode:
+      !latestRoom.settings.questionSource || latestRoom.settings.questionSource.type === QUESTION_SOURCE_TYPE.ALL_SONGS,
+    correctCount,
+    wrongCount: outcomes.length - correctCount,
+    skippedCount: null,
+    score: null,
+    averageResponseMs: null,
+    completed: false,
+    details: {
+      isVoluntaryLeave: true,
+      isDnf: false,
+      myRank: null,
+      memberCount: Object.keys(participants).length,
+    },
+  });
 }
 
 export function resetInstantCoopBattleState() {
@@ -966,6 +1003,16 @@ function renderCurrentQuestionState() {
 }
 
 // ===== 結果画面（チーム成績） =====
+
+// 【2026-09-15新設・本人指示：ゲスト結果画面の再監査（ホスト移譲との関係）】
+// js/onlineLyricsQuizBattleScreen.jsのsyncLyricsResultHostGuestButtons()と全く同じ考え方。
+export function syncInstantCoopResultHostGuestButtons(room) {
+  if (document.body.dataset.screen !== "onlineInstantCoopBattleResult") return;
+  const isHostOnResultScreen = room.host === getCurrentUid();
+  elements.resultHostActions.hidden = !isHostOnResultScreen;
+  elements.resultHomeLink.hidden = isHostOnResultScreen;
+  if (elements.resultGuestActions) elements.resultGuestActions.hidden = isHostOnResultScreen;
+}
 
 export function enterInstantCoopResult(room) {
   latestRoom = room;
