@@ -25,6 +25,7 @@
 // CELEBRATIONS配列と同じ考え方）。今回は21stシングルの1件だけを登録する。
 
 import { getAvailableSongIds, AVAILABLE_DATA_KIND } from "./availableSongs.js";
+import { playSfx, SFX_EVENTS } from "./soundManager.js";
 
 export const NEW_SINGLE_ANNOUNCEMENTS = [
   {
@@ -151,17 +152,23 @@ export async function initNewSingleAnnouncement(elements, callbacks) {
     elements.banner.dataset.announcementId = announcement.id;
   }
 
+  // 【2026-11-XX追加・本人指示：無音ボタンの洗い出し】この3つのボタンはこれまで
+  // 効果音が鳴らない「無音ボタン」だった。他の画面のボタンと揃える（本人指示どおり
+  // 「あとで」は取り消し系のUI_BACK、それ以外は通常操作のUI_CLICK）。
   elements.laterButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_BACK);
     const currentId = elements.banner.dataset.announcementId;
     if (currentId) markHiddenThisSession(currentId);
     elements.banner.hidden = true;
   });
 
   elements.doneButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     callbacks.onRequestDoneConfirmation();
   });
 
   elements.openButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     callbacks.onOpenDataManagement();
   });
 }

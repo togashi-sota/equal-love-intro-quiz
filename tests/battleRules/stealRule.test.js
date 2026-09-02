@@ -86,25 +86,10 @@ export function runStealRuleTests() {
         answersByUid: { p1: { selectedSongId: "song-1", hintLevel: 1, submittedAt: 500 } },
         winner: { uid: "p1", submittedAt: 500 },
         allPlayerUids: ["p1", "p2", "p3"],
+        nowMs: 500,
       }),
       true,
-      "winnerが確定した瞬間、他に未回答者がいても即終了する"
-    );
-  }
-
-  // ===== shouldEndQuestion：winner未確定でも全員回答済みなら終了 =====
-  {
-    assertEqual(
-      stealRule.shouldEndQuestion({
-        answersByUid: {
-          p1: { selectedSongId: "song-2", hintLevel: 1, submittedAt: 500 },
-          p2: { selectedSongId: "song-3", hintLevel: 1, submittedAt: 600 },
-        },
-        winner: null,
-        allPlayerUids: ["p1", "p2"],
-      }),
-      true,
-      "誰も正解しないまま全員が回答済みになれば終了する"
+      "winnerが確定した瞬間、他に未回答者がいても・猶予時間が経っていなくても即終了する"
     );
   }
 
@@ -115,10 +100,98 @@ export function runStealRuleTests() {
         answersByUid: { p1: { selectedSongId: "song-2", hintLevel: 1, submittedAt: 500 } },
         winner: null,
         allPlayerUids: ["p1", "p2"],
+        nowMs: 500 + stealRule.STEAL_CLAIM_GRACE_MS + 10000,
       }),
       false,
       "不正解者が出ても、未回答者が残っていれば経過時間に関わらず継続する（2026-09-06・本人指示で固定タイムアウトを撤廃）"
     );
+  }
+
+  // ===== 【2026-11-XX新設・本人指示：複数人回答判定の重大バグの再発防止】=====
+  // 早押しの正解送信は「①answer保存→②別のFirebase書き込みとしてwinner claim送信」の
+  // 2段階に分かれているため、「全員回答済み」を検知した瞬間にはまだ正解者のwinner claimが
+  // 届いていない可能性がある。以前はこの一瞬の隙に問題を確定させてしまい、実機で
+  // 「後から回答した人が正解だったのに、正解者はいませんでしたと表示される」事故が
+  // 起きていた（本人の実機報告：プレイヤーAが先に不正解→プレイヤーBがその後に正解、
+  // のケースで再現）。
+  {
+    // 全員回答済みだが、winnerがまだ届いていない直後（猶予時間内）は、まだ終了しない
+    // （最後に届いた回答者のwinner claimが、今まさに向かっている可能性があるため）。
+    const answersByUid = {
+      p1: { selectedSongId: "song-2", hintLevel: 1, submittedAt: 1000 }, // 先に不正解
+      p2: { selectedSongId: "song-1", hintLevel: 1, submittedAt: 5000 }, // 後から正解（claim送信中）
+    };
+    assertEqual(
+      stealRule.shouldEndQuestion({
+        answersByUid,
+        winner: null, // p2のwinner claimがまだFirebaseへ届いていない
+        allPlayerUids: ["p1", "p2"],
+        nowMs: 5000 + 100, // p2の回答からわずか100ms後
+      }),
+      false,
+      "全員回答済みでも、最後の回答からまだ猶予時間内ならwinner claim待ちとして終了しない（実機バグの再現・修正確認）"
+    );
+
+    // 猶予時間を過ぎてもwinnerが届かなければ、本当に誰も正解しなかったと判断して終了する。
+    assertEqual(
+      stealRule.shouldEndQuestion({
+        answersByUid,
+        winner: null,
+        allPlayerUids: ["p1", "p2"],
+        nowMs: 5000 + stealRule.STEAL_CLAIM_GRACE_MS + 1,
+      }),
+      true,
+      "猶予時間を過ぎてもwinnerが届かなければ、誰も正解しなかったとして終了する"
+    );
+
+    // 猶予時間内にwinnerが実際に届けば、（allAnsweredを待たずとも）即座に終了する。
+    assertEqual(
+      stealRule.shouldEndQuestion({
+        answersByUid,
+        winner: { uid: "p2", submittedAt: 5000 },
+        allPlayerUids: ["p1", "p2"],
+        nowMs: 5000 + 100,
+      }),
+      true,
+      "猶予時間内でも、winner claimが実際に届いていれば即座に終了する"
+    );
+  }
+
+  // ===== 5人・10人相当でも、最後に回答した人のwinner claim待ちが正しく機能する =====
+  {
+    const buildManyAnswers = (count, lastSubmittedAt) => {
+      const answersByUid = {};
+      const allPlayerUids = [];
+      for (let i = 0; i < count; i += 1) {
+        const uid = `p${i}`;
+        allPlayerUids.push(uid);
+        // 不正解の曲を選んだことにする（最後の1人だけ後で正解に差し替える）。
+        answersByUid[uid] = { selectedSongId: "song-wrong", hintLevel: 1, submittedAt: 1000 + i * 100 };
+      }
+      // 最後に回答した人（＝claim待ちの可能性がある人）のsubmittedAtを指定値にする。
+      const lastUid = allPlayerUids[allPlayerUids.length - 1];
+      answersByUid[lastUid] = { ...answersByUid[lastUid], submittedAt: lastSubmittedAt };
+      return { answersByUid, allPlayerUids };
+    };
+
+    for (const count of [5, 10]) {
+      const { answersByUid, allPlayerUids } = buildManyAnswers(count, 9000);
+      assertEqual(
+        stealRule.shouldEndQuestion({ answersByUid, winner: null, allPlayerUids, nowMs: 9000 + 50 }),
+        false,
+        `${count}人：最後の回答直後はwinner claim待ちとしてまだ終了しない`
+      );
+      assertEqual(
+        stealRule.shouldEndQuestion({
+          answersByUid,
+          winner: null,
+          allPlayerUids,
+          nowMs: 9000 + stealRule.STEAL_CLAIM_GRACE_MS + 1,
+        }),
+        true,
+        `${count}人：猶予時間を過ぎればwinner無しのまま終了する`
+      );
+    }
   }
 
   // ===== aggregateResult =====

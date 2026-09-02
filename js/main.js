@@ -354,10 +354,12 @@ initNewSingleAnnouncement(newSingleAnnouncementElements, {
 });
 
 newSingleAnnouncementDoneConfirmCancelButtonElement.addEventListener("click", () => {
+  playSfx(SFX_EVENTS.UI_BACK);
   newSingleAnnouncementDoneConfirmModalElement.hidden = true;
 });
 
 newSingleAnnouncementDoneConfirmButtonElement.addEventListener("click", () => {
+  playSfx(SFX_EVENTS.UI_CONFIRM);
   confirmAnnouncementDone(newSingleAnnouncementElements);
   newSingleAnnouncementDoneConfirmModalElement.hidden = true;
 });
@@ -887,6 +889,7 @@ const lyricsQuizSkipButtonElement = document.getElementById("lyrics-quiz-skip-bu
 const lyricsQuizAnswerSearchRowElement = document.getElementById("lyrics-quiz-answer-search-row");
 const lyricsQuizAnswerSearchInputElement = document.getElementById("lyrics-quiz-answer-search-input");
 const lyricsQuizAnswerCountElement = document.getElementById("lyrics-quiz-answer-count");
+const lyricsQuizAnswerJumpBarElement = document.getElementById("lyrics-quiz-answer-jump-bar");
 const lyricsQuizAnswerListElement = document.getElementById("lyrics-quiz-answer-list");
 const lyricsQuizAnswerSectionElement = document.getElementById("lyrics-quiz-answer-section");
 const lyricsQuizAnswerRevealElement = document.getElementById("lyrics-quiz-answer-reveal");
@@ -1080,7 +1083,6 @@ const onlineBattleLobbyHelpModalElement = document.getElementById("online-battle
 const onlineBattleLobbyHelpCloseElement = document.getElementById("online-battle-lobby-help-close");
 const onlineBattleLobbyHelpCurrentSettingsElement = document.getElementById("online-battle-lobby-help-current-settings");
 const onlineBattleLobbyHelpModeListElement = document.getElementById("online-battle-lobby-help-mode-list");
-const onlineBattleLobbyHelpGuideLinkElement = document.getElementById("online-battle-lobby-help-guide-link");
 const onlineLobbyProfileModalElement = document.getElementById("online-lobby-profile-modal");
 const onlineLobbyProfileCloseElement = document.getElementById("online-lobby-profile-close");
 const onlineLobbyProfileSwatchElement = document.getElementById("online-lobby-profile-swatch");
@@ -5756,6 +5758,7 @@ initLyricsQuizQuestionScreen({
   answerSearchRow: lyricsQuizAnswerSearchRowElement,
   answerSearchInput: lyricsQuizAnswerSearchInputElement,
   answerCount: lyricsQuizAnswerCountElement,
+  answerJumpBar: lyricsQuizAnswerJumpBarElement,
   answerList: lyricsQuizAnswerListElement,
   answerReveal: lyricsQuizAnswerRevealElement,
   answerRevealStatus: lyricsQuizAnswerRevealStatusElement,
@@ -6051,11 +6054,6 @@ initOnlineBattleScreens({
   lobbyHelpClose: onlineBattleLobbyHelpCloseElement,
   lobbyHelpCurrentSettings: onlineBattleLobbyHelpCurrentSettingsElement,
   lobbyHelpModeList: onlineBattleLobbyHelpModeListElement,
-  lobbyHelpGuideLink: onlineBattleLobbyHelpGuideLinkElement,
-  onOpenGuideFromLobby: () => {
-    openGuideScreen("onlineBattleLobby");
-    navigateWithScrollMemory("guide");
-  },
   lobbyProfileModal: onlineLobbyProfileModalElement,
   lobbyProfileClose: onlineLobbyProfileCloseElement,
   lobbyProfileSwatch: onlineLobbyProfileSwatchElement,

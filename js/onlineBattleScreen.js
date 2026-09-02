@@ -2180,7 +2180,16 @@ function renderLobby(room) {
 function syncResultScreenHostGuestButtons(room) {
   if (document.body.dataset.screen !== "onlineBattleResult") return;
   const isHostOnResultScreen = room.host === getCurrentUid();
-  elements.resultHostActions.hidden = !isHostOnResultScreen;
+  // 【2026-11-XX修正・本人指示：再戦フロー再々監査で発見した重大バグ】以前はここで
+  // room.confirmingRematchを見ていなかったため、ホストが「同じ条件でもう一度」を押した
+  // あとも、この最初のボタン（resultHostActions）が消えないまま、下のインラインパネル
+  // （renderResultReturnPanel()が出す「再戦を取り消す」）と同時に表示され続けていた。
+  // 「同じボタンが再戦を取り消すに変わる」という仕様（本人指示）に反するだけでなく、
+  // 残り続けた最初のボタンを誤って再度押すと、既にゲストが押した準備OKまで
+  // beginRematchReadyCheck()によって巻き戻ってしまう実害もあった。再戦提案中
+  // （confirmingRematch===true）は必ずこの最初のボタンを隠す。
+  const isConfirmingRematch = room.confirmingRematch === true;
+  elements.resultHostActions.hidden = !isHostOnResultScreen || isConfirmingRematch;
   elements.resultHomeLink.hidden = isHostOnResultScreen;
   if (elements.resultGuestActions) elements.resultGuestActions.hidden = isHostOnResultScreen;
   renderResultReturnPanel(room);
@@ -2609,7 +2618,10 @@ function goToResultScreen(room) {
   // ホスト専用（対戦設定を書き換えられるのがホストだけという既存の権限設計と揃えている）。
   // 非ホストには代わりに「⌂ホームへ戻る」だけを見せる。
   const isHostOnResultScreen = room.host === myUid;
-  elements.resultHostActions.hidden = !isHostOnResultScreen;
+  // 【2026-11-XX修正・本人指示：再戦フロー再々監査で発見した重大バグ】
+  // syncResultScreenHostGuestButtons()の同じ修正と同じ理由（リロード・再接続直後に
+  // 既にconfirmingRematchが立っているルームへ入り直した場合の保険）。
+  elements.resultHostActions.hidden = !isHostOnResultScreen || room.confirmingRematch === true;
   elements.resultHomeLink.hidden = isHostOnResultScreen;
   // 【2026-09-07新設・本人指示：ゲスト結果画面】ホスト専用ボタンの代わりに、待機案内＋
   // 「ルームから退出」を見せる。
@@ -3627,11 +3639,6 @@ export function initOnlineBattleScreens(newElements) {
     if (event.target !== elements.lobbyHelpModal) return;
     playSfx(SFX_EVENTS.UI_BACK);
     closeLobbyHelpModal();
-  });
-  elements.lobbyHelpGuideLink?.addEventListener("click", () => {
-    playSfx(SFX_EVENTS.UI_CLICK);
-    closeLobbyHelpModal();
-    elements.onOpenGuideFromLobby?.();
   });
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;

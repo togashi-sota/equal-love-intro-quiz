@@ -2557,6 +2557,10 @@
             <input id="lyrics-quiz-answer-search-input" class="lyrics-quiz-answer-search-input" type="text" placeholder="曲名で検索">
             <span id="lyrics-quiz-answer-count" class="lyrics-quiz-answer-count">0曲</span>
           </div>
+          <!-- 【2026-11-XX追加・本人指示：大きい候補プールから曲名を選ぶUIでは五十音フィルターを
+               使うという方針に沿って、一瞬チャレンジ・オンライン対戦と同じ50音ジャンプバー
+               （js/answerPoolBrowseUi.js）をオフライン歌詞クイズにも追加した。 -->
+          <div id="lyrics-quiz-answer-jump-bar" class="online-lyrics-battle-answer-jump-bar" hidden></div>
           <div id="lyrics-quiz-answer-list" class="lyrics-quiz-answer-list"></div>
         </div>
 
@@ -4741,8 +4745,10 @@
            置いている（renderLobbyHelpModal()側で毎回組み立て直す必要が無い）。 -->
       <p class="online-lobby-help-section-heading">音源エラー・通信切断が起きたら</p>
       <p class="online-lobby-help-current-description">音源を正常に再生できなかった場合は、不正解・ペナルティにはならず、自動的に別の曲へ差し替えられます（差し替えが続いた場合のみ、対戦を安全に中断します）。通信が一時的に不安定になっても、すぐには離脱扱いになりません。</p>
-
-      <button id="online-battle-lobby-help-guide-link" class="secondary-button" type="button">📖 詳しい遊び方ガイドを見る</button>
+      <!-- 【2026-11-XX削除・本人指示】以前ここにあった「詳しい遊び方ガイドを見る」リンクは
+           オフライン版の遊び方ガイドへ飛ぶもので、オンライン対戦の文脈と無関係だったため
+           削除した。オンライン対戦のルール説明は、このモーダル自身（上のモード別説明）だけで
+           完結させる。 -->
     </div>
   </div>
 

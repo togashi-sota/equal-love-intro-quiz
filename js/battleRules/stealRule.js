@@ -99,9 +99,34 @@ export function resolveQuestionAnswers({ answersByUid, correctSongId, winner, qu
 // 誰も正解しないまま全員が止まってしまった場合の対処は、他の2ルールと同じくホスト救済
 // 機能（3分無操作通知）に委ねる統一的な設計にした（詳しくはclassicRule.jsの同じ改訂の
 // コメント参照）。
-export function shouldEndQuestion({ answersByUid, winner, allPlayerUids }) {
+//
+// 【2026-11-XX修正・本人指示：複数人回答判定の重大バグ】早押しの正解送信は
+// 「①answerを保存→②別のFirebase書き込みとしてwinner claimを送る」という2段階に
+// 分かれている（js/lyricsQuizBattleFirebase.jsのsubmitLyricsQuizAnswerWithStealClaim()、
+// セキュリティルールの制約で意図的にこうなっている）。そのため、「全員が回答済みになった
+// 瞬間」と「その中の正解者のwinner claimがFirebaseへ実際に届いた瞬間」の間にはわずかな
+// タイムラグが必ず生まれる。以前はwinnerがまだ無い時点で「全員回答済み」を検知した瞬間に
+// 即座に終了させていたため、実機で「後から回答した人が正解だったのに、その人のwinner claim
+// 書き込みが届く直前に問題が確定してしまい、正解者はいませんでしたと表示される」という
+// 再現性のある事故が起きていた（特に最後に回答した人が正解だった場合に発生しやすい）。
+// 対策として、「全員回答済み」だけでは即座に終了させず、最後に届いた回答（＝winner claim
+// が届く可能性が残っている回答）のsubmittedAtから STEAL_CLAIM_GRACE_MS だけ猶予を置いてから
+// 終了させる（winnerが既に確定している場合はこれまでどおり即座に終了する。誰かが後から
+// 正解しても再挑戦できない・1問1回答という既存仕様自体は変更していない）。
+export const STEAL_CLAIM_GRACE_MS = 1500;
+
+export function shouldEndQuestion({ answersByUid, winner, allPlayerUids, nowMs }) {
   if (winner) return true;
-  return allPlayerUids.every((uid) => uid in answersByUid);
+  const allAnswered = allPlayerUids.every((uid) => uid in answersByUid);
+  if (!allAnswered) return false;
+  // 【猶予判定】全員分の回答のうち、最後に届いた回答のsubmittedAt（Firebase
+  // serverTimestampが確定する前は数値ではなくnull/オブジェクトになり得るため、
+  // 不正な値は「たった今」とみなして安全側＝待ち続ける方向に倒す）。
+  const latestSubmittedAt = allPlayerUids.reduce((latest, uid) => {
+    const submittedAt = answersByUid[uid]?.submittedAt;
+    return typeof submittedAt === "number" ? Math.max(latest, submittedAt) : nowMs;
+  }, 0);
+  return nowMs - latestSubmittedAt >= STEAL_CLAIM_GRACE_MS;
 }
 
 // skippedCountはmissCountと別集計（js/battleRules/classicRule.jsのaggregateResult()の

@@ -107,7 +107,14 @@ import {
   clampStartTimeToActualDuration,
   isDurationMismatchWithinTolerance,
 } from "./randomPlaybackEngine.js";
-import { playSongFromRandomPosition, stopAudio, attemptSilentUnlock, reportPlaybackTrouble } from "./audio.js";
+import {
+  playSongFromRandomPosition,
+  stopAudio,
+  attemptSilentUnlock,
+  reportPlaybackTrouble,
+  startAudioUnlockHeartbeat,
+  stopAudioUnlockHeartbeat,
+} from "./audio.js";
 // 【2026-09-26新設・本人指示：オンライン対戦総合改修19-18章】js/onlineInstantBattleScreen.js
 // と同じ理由で、既存の診断ログ基盤を再利用する。
 import { recordAudioDiagnostic } from "./audioDiagnosticLog.js";
@@ -428,6 +435,9 @@ export function initOnlineInstantCoopBattleScreens(newElements) {
 function stopAllLocalTimers() {
   stopTickTimer();
   stopServerTimeOffsetTracking();
+  // 【2026-11-XX新設】js/audio.jsの予防的unlock心拍（音源無効化の頻発対策、
+  // js/onlineInstantBattleScreen.jsの同じ修正と同じ理由）。
+  stopAudioUnlockHeartbeat();
 }
 
 // 【2026-09-15新設・本人指示：プレイ履歴へ「途中退出」を保存する】途中離脱ボタンが
@@ -713,6 +723,9 @@ export async function enterInstantCoopBattlePlay(room) {
   }
 
   startTickTimer();
+  // 【2026-11-XX新設・本人指示：一瞬協力でも一瞬バトルと同じ音源無効化の再調査】対戦中は
+  // 予防的にunlockを再試行し続ける（js/audio.jsのstartAudioUnlockHeartbeat()参照）。
+  startAudioUnlockHeartbeat();
   renderCurrentQuestionState();
 }
 
@@ -1592,7 +1605,9 @@ function renderCurrentQuestionState() {
 export function syncInstantCoopResultHostGuestButtons(room) {
   if (document.body.dataset.screen !== "onlineInstantCoopBattleResult") return;
   const isHostOnResultScreen = room.host === getCurrentUid();
-  elements.resultHostActions.hidden = !isHostOnResultScreen;
+  // 【2026-11-XX修正】js/onlineBattleScreen.jsのsyncResultScreenHostGuestButtons()と
+  // 同じ修正・同じ理由（再戦提案中も最初のボタンが残り続けて二重表示になっていた）。
+  elements.resultHostActions.hidden = !isHostOnResultScreen || room.confirmingRematch === true;
   elements.resultHomeLink.hidden = isHostOnResultScreen;
   if (elements.resultGuestActions) elements.resultGuestActions.hidden = isHostOnResultScreen;
 }
@@ -1693,7 +1708,8 @@ export function enterInstantCoopResult(room) {
   // 【2026-09-30改訂・本人指示：オンライン対戦総合改修 第3ラウンド】試合後の選択肢
   // 「もう一度」はホスト専用。非ホストには代わりに「⌂ホームへ戻る」だけを見せる。
   const isHostOnResultScreen = room.host === myUid;
-  elements.resultHostActions.hidden = !isHostOnResultScreen;
+  // 【2026-11-XX修正】js/onlineBattleScreen.jsのgoToResultScreen()と同じ理由の保険。
+  elements.resultHostActions.hidden = !isHostOnResultScreen || room.confirmingRematch === true;
   elements.resultHomeLink.hidden = isHostOnResultScreen;
   // 【2026-09-07新設・本人指示:ゲスト結果画面】ホスト専用ボタンの代わりに
   // 「ルームから退出」を見せる（js/onlineBattleScreen.jsの同じ変更と揃えている）。

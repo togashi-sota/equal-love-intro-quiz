@@ -2350,7 +2350,12 @@ function renderCurrentQuestionState() {
 export function syncLyricsResultHostGuestButtons(room) {
   if (document.body.dataset.screen !== "onlineLyricsBattleResult") return;
   const isHostOnResultScreen = room.host === getCurrentUid();
-  elements.resultHostActions.hidden = !isHostOnResultScreen;
+  // 【2026-11-XX修正・本人指示：再戦フロー再々監査で発見した重大バグ】
+  // js/onlineBattleScreen.jsのsyncResultScreenHostGuestButtons()と同じ修正・同じ理由。
+  // confirmingRematch中も最初の「同じ条件でもう一度」ボタンが残り続け、下のインライン
+  // パネルの「再戦を取り消す」と二重に表示されていた。
+  const isConfirmingRematch = room.confirmingRematch === true;
+  elements.resultHostActions.hidden = !isHostOnResultScreen || isConfirmingRematch;
   elements.resultHomeLink.hidden = isHostOnResultScreen;
   if (elements.resultGuestActions) elements.resultGuestActions.hidden = isHostOnResultScreen;
 }
@@ -2452,7 +2457,8 @@ export function enterLyricsQuizResult(room) {
   // 【2026-09-30改訂・本人指示：オンライン対戦総合改修 第3ラウンド】試合後の選択肢
   // 「もう一度」はホスト専用。非ホストには代わりに「⌂ホームへ戻る」だけを見せる。
   const isHostOnResultScreen = room.host === myUid;
-  elements.resultHostActions.hidden = !isHostOnResultScreen;
+  // 【2026-11-XX修正】js/onlineBattleScreen.jsのgoToResultScreen()と同じ理由の保険。
+  elements.resultHostActions.hidden = !isHostOnResultScreen || room.confirmingRematch === true;
   elements.resultHomeLink.hidden = isHostOnResultScreen;
   // 【2026-09-07新設・本人指示：ゲスト結果画面】ホスト専用ボタンの代わりに
   // 「ルームから退出」を見せる（js/onlineBattleScreen.jsの同じ変更と揃えている）。

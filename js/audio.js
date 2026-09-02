@@ -246,6 +246,48 @@ export function attemptSilentUnlock() {
   }
 }
 
+// 【2026-11-XX新設・本人指示：一瞬バトル／一瞬協力「音源は無効です」頻発の再調査】
+// 既存のunlock再試行は「初回操作時」「タブが裏→表に戻った瞬間」「本番再生の直前
+// （ensureUnlockSettled経由）」の3つのタイミングでしか動かない。一方、iOSでは
+// 「タブは表示されたまま・特に何も操作しない無操作区間が続く」だけでも自動再生の
+// 許可が再ロックされることがあるとされ、これは上記どのタイミングにも当てはまらない
+// （js/onlineInstantBattleScreen.jsのhandlePlaybackFailure()付近のコメント参照）。
+// 一瞬系は1問あたりの再生がわずか0.5〜1.5秒しかなく、「全員の回答を待つ」間の
+// 無操作区間が特に長くなりやすいモードのため、この再ロックの影響を最も受けやすいと
+// 考えられる。対策として、対戦中は一定間隔でattemptSilentUnlock()を呼び続ける
+// 「心拍」を追加し、再ロックが起きる前に先回りして解消しておく（反応的な対策だけでなく、
+// 予防的な対策を足す）。attemptSilentUnlock()自体は「本物の曲が再生中でなければ何もしても
+// 安全」という既存の設計（上のコメント参照）のため、この心拍が実際の再生を妨げることはない。
+// 呼び出し元（各オンライン対戦の画面コントローラ）が、対戦の開始・終了に合わせて
+// start/stopを呼ぶ（既存のstartTickTimer()/stopTickTimer()と同じ、setInterval1つだけの
+// 単純なライフサイクル管理）。
+const AUDIO_UNLOCK_HEARTBEAT_INTERVAL_MS = 10000;
+let audioUnlockHeartbeatTimerId = null;
+
+export function startAudioUnlockHeartbeat() {
+  stopAudioUnlockHeartbeat();
+  audioUnlockHeartbeatTimerId = setInterval(() => {
+    if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+    diag("[UNLOCK] 心拍（対戦中の予防的unlock再試行）");
+    attemptSilentUnlock();
+  }, AUDIO_UNLOCK_HEARTBEAT_INTERVAL_MS);
+}
+
+export function stopAudioUnlockHeartbeat() {
+  if (audioUnlockHeartbeatTimerId !== null) {
+    clearInterval(audioUnlockHeartbeatTimerId);
+    audioUnlockHeartbeatTimerId = null;
+  }
+}
+
+// 【2026-11-XX新設・再監査に伴うテスト追加】実際に10秒待たなくても、start/stopの
+// ライフサイクル（二重起動でタイマーが増えない・stopで確実に止まる）をテストコードから
+// 検証できるようにするための、副作用の無い読み取り専用ヘルパー（getAudioUnlockDiagnostics()
+// と同じ位置づけ）。
+export function hasActiveAudioUnlockHeartbeat() {
+  return audioUnlockHeartbeatTimerId !== null;
+}
+
 // 【2026-09-24新設・本人指示：本番再生を無期限にブロックしないためのfail-open設計】
 // unlockのPromiseが決着するまでの上限時間。実機診断ログで、unlock用の無音データURIの
 // 不備（下記SILENT_UNLOCK_DATA_URIのコメント参照）により、play()のPromiseが何秒経っても

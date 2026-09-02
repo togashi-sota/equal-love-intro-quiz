@@ -98,7 +98,14 @@ import {
   clampStartTimeToActualDuration,
   isDurationMismatchWithinTolerance,
 } from "./randomPlaybackEngine.js";
-import { playSongFromRandomPosition, stopAudio, attemptSilentUnlock, reportPlaybackTrouble } from "./audio.js";
+import {
+  playSongFromRandomPosition,
+  stopAudio,
+  attemptSilentUnlock,
+  reportPlaybackTrouble,
+  startAudioUnlockHeartbeat,
+  stopAudioUnlockHeartbeat,
+} from "./audio.js";
 // 【2026-09-26新設・本人指示：オンライン対戦総合改修19-18章】一瞬バトルで「正常な
 // 音源でもaudio troubleとして誤検知される」問題の調査用に、js/audio.js・
 // js/debugAudioLogScreen.js（管理者用ログ画面）が使っているのと同じ診断ログ基盤を
@@ -380,6 +387,8 @@ function stopAllLocalTimers() {
   stopTickTimer();
   stopServerTimeOffsetTracking();
   cancelLocalReplayCountdown();
+  // 【2026-11-XX新設】js/audio.jsの予防的unlock心拍（音源無効化の頻発対策）。
+  stopAudioUnlockHeartbeat();
 }
 
 // 【本人指示：プレイ履歴へ「途中退出」を保存する】js/onlineInstantCoopBattleScreen.jsの
@@ -530,6 +539,9 @@ export async function enterOnlineInstantBattlePlay(room) {
   }
 
   startTickTimer();
+  // 【2026-11-XX新設・本人指示：一瞬バトル「音源は無効です」頻発の再調査】対戦中は
+  // 予防的にunlockを再試行し続ける（js/audio.jsのstartAudioUnlockHeartbeat()参照）。
+  startAudioUnlockHeartbeat();
   renderCurrentQuestionState();
 }
 
@@ -1424,7 +1436,9 @@ function buildResultStatCard(result) {
 export function syncInstantBattleResultHostGuestButtons(room) {
   if (document.body.dataset.screen !== "onlineInstantBattleResult") return;
   const isHostOnResultScreen = room.host === getCurrentUid();
-  elements.resultHostActions.hidden = !isHostOnResultScreen;
+  // 【2026-11-XX修正】js/onlineBattleScreen.jsのsyncResultScreenHostGuestButtons()と
+  // 同じ修正・同じ理由（再戦提案中も最初のボタンが残り続けて二重表示になっていた）。
+  elements.resultHostActions.hidden = !isHostOnResultScreen || room.confirmingRematch === true;
   elements.resultHomeLink.hidden = isHostOnResultScreen;
   if (elements.resultGuestActions) elements.resultGuestActions.hidden = isHostOnResultScreen;
 }
@@ -1519,7 +1533,8 @@ export function enterInstantBattleResult(room) {
   if (elements.resultNormalContainer) elements.resultNormalContainer.hidden = isAudioFailureAborted;
 
   const isHostOnResultScreen = room.host === myUid;
-  elements.resultHostActions.hidden = !isHostOnResultScreen;
+  // 【2026-11-XX修正】js/onlineBattleScreen.jsのgoToResultScreen()と同じ理由の保険。
+  elements.resultHostActions.hidden = !isHostOnResultScreen || room.confirmingRematch === true;
   elements.resultHomeLink.hidden = isHostOnResultScreen;
   if (elements.resultGuestActions) elements.resultGuestActions.hidden = isHostOnResultScreen;
   // 【2026-09-30新設】音源トラブルで中断した場合も、各自「ルーム設定に戻る」で個別に

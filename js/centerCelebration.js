@@ -27,6 +27,8 @@
 // 【複数プレイヤー運用時の注意】既読フラグはプレイヤーごとに別キーで保存するため、
 // 1台の端末を複数プレイヤーで使い分けている場合、プレイヤーごとに独立して表示される。
 
+import { playSfx, SFX_EVENTS } from "./soundManager.js";
+
 const CELEBRATIONS = [
   {
     id: "obaCenterNatsunagori",
@@ -244,6 +246,9 @@ function renderCelebration(celebration, playerKeyPrefix, elements) {
 // songs: SONGS配列（次のお祝いへ進む際、findEligibleCelebration()を呼び直すために必要）。
 export function initCenterCelebration(elements, songs) {
   elements.seenButton.addEventListener("click", () => {
+    // 【2026-11-XX追加・本人指示：無音ボタンの洗い出し】「見た！」は他の画面のボタンと
+    // 同じUI_CLICK相当のSEを鳴らす（他の起動時ポップアップの閉じるボタンと揃える）。
+    playSfx(SFX_EVENTS.UI_CLICK);
     const celebrationId = elements.overlay.dataset.celebrationId;
     const playerKeyPrefix = elements.overlay.dataset.playerKeyPrefix;
     if (celebrationId) {

@@ -22,6 +22,9 @@ import {
   playSongIntro,
   getCurrentPlaybackState,
   raceUnlockPromiseWithTimeout,
+  startAudioUnlockHeartbeat,
+  stopAudioUnlockHeartbeat,
+  hasActiveAudioUnlockHeartbeat,
 } from "../js/audio.js";
 import { assertEqual } from "./test-utils.js";
 
@@ -296,6 +299,22 @@ export async function runAudioTests() {
       "同じ決着しないPromiseを複数箇所が同時に待っていても、全員がそれぞれ独立してtimeoutで解放される"
     );
     assertEqual(elapsedMs < 200, true, `3件同時でも、timeoutMs（40ms）から大きく遅れずに全員解放される（実測${elapsedMs.toFixed(1)}ms）`);
+  }
+
+  // ---- 【2026-11-XX新設】一瞬バトル／一瞬協力向けの予防的unlock心拍
+  //      （startAudioUnlockHeartbeat/stopAudioUnlockHeartbeat）のライフサイクル検証。
+  //      実際に発火間隔（10秒）を待つと遅すぎるため、ここでは「二重起動でタイマーが
+  //      増えない」「stopで確実に止まる」という、時間を待たずに検証できる契約だけを見る。
+  {
+    assertEqual(hasActiveAudioUnlockHeartbeat(), false, "心拍：開始前はfalse");
+    startAudioUnlockHeartbeat();
+    assertEqual(hasActiveAudioUnlockHeartbeat(), true, "心拍：start後はtrue");
+    startAudioUnlockHeartbeat(); // 二重に呼んでも安全（内部でstopしてから張り直すだけ）。
+    assertEqual(hasActiveAudioUnlockHeartbeat(), true, "心拍：二重にstartしても壊れずtrueのまま");
+    stopAudioUnlockHeartbeat();
+    assertEqual(hasActiveAudioUnlockHeartbeat(), false, "心拍：stop後はfalse");
+    stopAudioUnlockHeartbeat(); // 既に止まっている状態で呼んでも安全。
+    assertEqual(hasActiveAudioUnlockHeartbeat(), false, "心拍：既に停止中にstopを呼んでも安全にfalseのまま");
   }
 
   // 後片付け：他のテスト・実機確認に影響を残さないよう、audio要素を初期状態に戻す。

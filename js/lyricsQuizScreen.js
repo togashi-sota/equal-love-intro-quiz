@@ -23,7 +23,18 @@ import { computeRevealedHintLines } from "./lyricsSegmentEngine.js";
 import { playCorrectSound, playWrongSound } from "./sfx.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
 import { recordLyricsQuizWeakSongAttempt } from "./lyricsQuizWeakSongStats.js";
-import { normalizeForSearch, songMatchesSearch } from "./songlist.js";
+// 【2026-11-XX改訂・本人指示：大きい候補プールから曲名を選ぶUIでは五十音フィルターを使う】
+// 以前はこのファイル自身がnormalizeForSearch/songMatchesSearchを直接呼んで検索だけを
+// 行っていたが、一瞬チャレンジ・オンライン対戦と同じ50音ジャンプ付きの検索UI
+// （js/answerPoolBrowseUi.js、js/onlineLyricsQuizBattleScreen.jsが最初に持っていた
+// 実装を共通化したもの）へ統一した。検索・50音の判定ロジック自体は変えていない
+// （js/answerPoolBrowseUi.js内部でsonglist.jsの同じ関数を使っている）。
+import {
+  createAnswerPoolBrowseState,
+  resetAnswerPoolBrowseState,
+  filterAnswerPool,
+  renderAnswerJumpBar,
+} from "./answerPoolBrowseUi.js";
 import {
   loadSongsWithLyrics,
   filterQuizzableSongs,
@@ -54,6 +65,8 @@ const ANSWER_FEEDBACK_DELAY_MS = 900;
 
 let elements = null; // 設定画面
 let questionElements = null; // 問題画面
+// 【2026-11-XX新設】検索文字列・50音ジャンプの選択行（answerPoolBrowseUi.js参照）。
+const answerBrowseState = createAnswerPoolBrowseState();
 let resultElements = null; // 結果画面
 
 let currentSettings = null; // { questionCountValue, categoryFilterValue, answerPoolSizeValue }
@@ -288,7 +301,11 @@ export function initLyricsQuizQuestionScreen(newElements) {
   questionElements.skipButton.addEventListener("click", handleSkipButtonClick);
   questionElements.answerRevealNextButton.addEventListener("click", handleAnswerRevealNextButtonClick);
   questionElements.answerSearchInput.addEventListener("input", () => {
-    renderAnswerButtons(getCurrentQuestion(runState).answerPool, questionElements.answerSearchInput.value);
+    // 検索を始めたら50音ジャンプの選択行はいったん解除する（js/onlineLyricsQuizBattleScreen.js・
+    // js/instantChallengeScreen.jsと同じ、検索を優先する既存の設計）。
+    answerBrowseState.searchQuery = questionElements.answerSearchInput.value;
+    answerBrowseState.jumpRowKey = null;
+    renderAnswerButtons(getCurrentQuestion(runState).answerPool);
   });
 
   questionElements.backButton.addEventListener("click", openLyricsQuizQuitConfirmModal);
@@ -569,21 +586,24 @@ function renderAnswerArea(question) {
   const pool = question.answerPool;
   const isLargePool = pool.length >= LARGE_ANSWER_POOL_THRESHOLD;
 
+  // 【2026-11-XX新設・本人指示：問題ごとに検索・50音ジャンプ状態を完全リセット】
+  // js/instantChallengeScreen.jsのrenderAnswerArea()と同じ理由。
+  resetAnswerPoolBrowseState(answerBrowseState);
   questionElements.answerSearchRow.hidden = !isLargePool;
   if (isLargePool) {
     questionElements.answerSearchInput.value = "";
     questionElements.answerCount.textContent = `${pool.length}曲`;
   }
+  if (questionElements.answerJumpBar) {
+    questionElements.answerJumpBar.hidden = !isLargePool;
+    if (isLargePool) renderAnswerJumpBar(questionElements.answerJumpBar, answerBrowseState, () => renderAnswerButtons(pool));
+  }
 
-  renderAnswerButtons(pool, "");
+  renderAnswerButtons(pool);
 }
 
-function renderAnswerButtons(pool, searchQuery) {
-  const normalizedQuery = normalizeForSearch(searchQuery);
-  const filtered =
-    normalizedQuery === ""
-      ? pool
-      : pool.filter((song) => songMatchesSearch(song.title, song.searchReading, song.searchAliases, normalizedQuery));
+function renderAnswerButtons(pool) {
+  const filtered = filterAnswerPool(pool, answerBrowseState);
 
   questionElements.answerList.innerHTML = "";
   filtered.forEach((song) => {
