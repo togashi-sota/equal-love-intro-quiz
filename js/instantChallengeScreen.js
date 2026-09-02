@@ -30,12 +30,8 @@ import { playCorrectSound, playWrongSound } from "./sfx.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
 import { filterSongsWithImportedAudio } from "./audioStorage.js";
 import { SONGS } from "./data/songs.js";
-import {
-  LARGE_ANSWER_POOL_THRESHOLD,
-  generateAnswerPool,
-  validateLyricsQuizQuestionAnswerPool,
-  buildFallbackAnswerPool,
-} from "./lyricsQuizEngine.js";
+import { LARGE_ANSWER_POOL_THRESHOLD } from "./lyricsQuizEngine.js";
+import { buildInstantChallengeQuestion } from "./instantChallengeQuestionBuilder.js";
 import { computeRandomStartTimeSec } from "./randomPlaybackEngine.js";
 import {
   createAnswerPoolBrowseState,
@@ -212,18 +208,6 @@ async function resolvePlayableSongPool(categoryFilterValue, explicitSongIds) {
         .map((songId) => SONGS.find((song) => song.id === songId))
         .filter((song) => song !== undefined);
   return filterSongsWithImportedAudio(categoryPool);
-}
-
-// 1曲分の問題データ（回答候補まで含めて）を組み立てる。初回の出題・音源再生失敗時の
-// 差し替えのどちらからも呼ぶ共通処理（本人指示：新しい生成ロジックを重複させない）。
-// distractorPool省略時は今までどおりpool自身から回答候補を選ぶ（既存呼び出し元は無変更）。
-function buildInstantChallengeQuestion(song, pool, settings, distractorPool = pool) {
-  let answerPool = generateAnswerPool(distractorPool, song.id, settings.answerPoolSizeValue);
-  const validation = validateLyricsQuizQuestionAnswerPool({ song, answerPool });
-  if (!validation.ok) {
-    answerPool = buildFallbackAnswerPool(distractorPool, song.id, settings.answerPoolSizeValue) ?? [];
-  }
-  return { song, answerPool };
 }
 
 async function buildAndStartRun(settings, explicitSongIds = null) {

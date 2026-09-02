@@ -30,7 +30,7 @@
 
 import { SONGS } from "../data/songs.js";
 import { AUDIO_METADATA } from "../data/audioMetadata.js";
-import { resolveSongPool, validateSongPoolForQuestionCount, sanitizeSongIds, filterSongIdsByCategory } from "../questionSource.js";
+import { resolveSongPool, validateSongPoolForQuestionCount, sanitizeSongIds } from "../questionSource.js";
 import { MIN_SONGS_REQUIRED, resolveQuestionCount, pickQuestionSongs, filterSongsByCategory } from "../quiz.js";
 import { createSeededRandom } from "../seededRandom.js";
 import {
@@ -67,14 +67,16 @@ export function defaultSettings() {
   };
 }
 
-// 【2026-09-14改訂・本人指示：カテゴリ変更時も選択状態は保持するが出題対象外の曲は
-// 出題しない】js/battleModes/timeAttackBattleMode.jsと同じ考え方（詳細はそちらのコメント
-// 参照）。共同選曲の選択状態（settings.questionSource.songIds）自体は書き換えず、
-// ここで現在のcategoryFilterValueに合う曲だけへ絞り込んだ結果だけを返す。
+// 【2026-11-XX改訂・本人指示：「曲を選んで出題」にカテゴリー条件を絶対に追加適用しない】
+// js/battleModes/timeAttackBattleMode.jsと同じ考え方（詳細はそちらのコメント参照）。
+// 以前は共同選曲（collaborativeSelection）にも現在のcategoryFilterValueを追加で
+// 掛け合わせていたが、これが「曲を選んで出題」で選んだ曲のうち一部しか有効曲として
+// 扱われない実機バグの直接の原因だった。共同選曲の選択状態
+// （settings.questionSource.songIds）自体は書き換えず、カテゴリー条件は一切適用しない。
 function resolveSettingsSongPoolIds(settings) {
   if (settings.questionSource) {
     if (settings.questionSource.type === "collaborativeSelection") {
-      return filterSongIdsByCategory(sanitizeSongIds(settings.questionSource.songIds ?? []), settings.categoryFilterValue);
+      return sanitizeSongIds(settings.questionSource.songIds ?? []);
     }
     return resolveSongPool(settings.questionSource);
   }

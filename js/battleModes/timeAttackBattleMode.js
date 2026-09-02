@@ -15,7 +15,6 @@ import {
   buildQuestionsFromPool,
   validateSongPoolForQuestionCount,
   sanitizeSongIds,
-  filterSongIdsByCategory,
   QUESTION_SOURCE_TYPE,
 } from "../questionSource.js";
 import { MIN_SONGS_REQUIRED, filterSongsByCategory } from "../quiz.js";
@@ -81,13 +80,20 @@ export function validateSettings(settings) {
 // settings.questionSource.songIdsをそのまま使う（他のtype同様、この呼び出し元では
 // sanitizeはしない＝Firebase書き込み時点で既にサニタイズ済みという前提。詳細はPhase2の
 // Firebaseルール案・onlineBattle.js側の実装を参照）。
-// 【2026-09-14改訂・本人指示：カテゴリ変更時も選択状態は保持するが出題対象外の曲は
-// 出題しない】collaborativeSelectionは選択された曲そのもの（questionSource.songIds）を
-// 一切書き換えず、ここで「現在のcategoryFilterValueに合う曲だけ」に絞り込んだ結果だけを
-// 返す。選択状態はFirebase側に残るため、カテゴリを元に戻せば再選択なしで復帰できる。
+// 【2026-11-XX改訂・本人指示：「曲を選んで出題」にカテゴリー条件を絶対に追加適用しない】
+// 以前はここでcollaborativeSelection（曲を選んで出題）にも現在のcategoryFilterValue
+// （表題曲のみ/表題曲＋全員曲/全曲）を追加で掛け合わせていたが、これが「イントロ対戦で
+// 10〜12曲選んでから歌詞クイズ対戦へ切り替えると、選んだ曲のうち数曲しか有効曲として
+// 扱われない」という実機バグの直接の原因だった（categoryFilterValueには常に既定値
+// "title-track"が入っており、選んだ曲のうち表題曲以外がすべて弾かれていた）。
+// 「曲を選んで出題」を選んだ場合、有効曲は「参加者全員の選択曲の和集合 ∩ そのモードで
+// 本当に使用可能な曲」だけで決まり、カテゴリー条件は一切関係しない、という本人指示に
+// 基づき、collaborativeSelectionのときはcategoryFilterValueを無視し、選択された曲を
+// そのまま返す（本当に使用可能かどうかの絞り込みは、呼び出し元のresolveSongPool等が
+// 別途担当する）。
 function resolveQuestionSourceSongPool(questionSource, categoryFilterValue) {
   if (questionSource.type === "collaborativeSelection") {
-    return filterSongIdsByCategory(questionSource.songIds ?? [], categoryFilterValue);
+    return sanitizeSongIds(questionSource.songIds ?? []);
   }
   return resolveSongPool(questionSource);
 }

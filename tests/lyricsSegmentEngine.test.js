@@ -151,15 +151,17 @@ export function runLyricsSegmentEngineTests() {
     );
   }
 
-  // ===== buildHintSequence()：4段階とも独立した別々の歌詞位置になる（2026-10-01全面改訂） =====
-  // 【本人指示：ヒント生成の全面再設計】以前は基準行を含む範囲を1行ずつ広げる方式
-  // （ヒント2はヒント1の文章＋1行、ヒント3はヒント2の文章＋1行…）だったため、
-  // 「ヒント3・4がほぼ同じ文章に数語足しただけ」に見えるという実機報告があった。
-  // 新方式では、各ヒントが完全に別々の1行になり、前段階の文章を一切含まないことを確認する。
+  // ===== buildHintSequence()：4段階とも独立した別々の歌詞位置になる（2026-11-XX全面改訂・
+  //       第2版：ヒントは曲全体からランダムに選ぶ） =====
+  // 【本人指示：ヒント生成の再設計・第2版】前回（2026-10-01）は「使える行を歌詞の登場順に
+  // 並べ、4グループへほぼ均等に分割し各グループから1件選ぶ」方式だったが、本人から
+  // 「もっとランダム性のある結果にしてほしい」との指示があり、使える行全体から純粋に
+  // ランダムに4件選ぶ方式へ変更した。あわせて、hintLevel（抽選順）と画面表示順
+  // （歌詞の時系列）は別物になった：hintLevelは並べ替えない（抽選された順のまま）。
 
   {
     const lines = buildDummyLines();
-    const hints = buildHintSequence(lines, 5, { title: "なつのゆめ", maxHints: 4 });
+    const hints = buildHintSequence(lines, 5, { title: "なつのゆめ", maxHints: 4, seed: 1, songId: "song-a", questionIndex: 0 });
 
     assertEqual(hints.length, 4, "使える行が十分にあれば4段階まで生成される");
     assertEqual(
@@ -175,15 +177,10 @@ export function runLyricsSegmentEngineTests() {
       "4段階とも正規化テキストが完全に重複しない（同じ文章を2回出さない）"
     );
 
-    const isSortedByStartLine = hints.every(
-      (h, i) => i === 0 || h.startLine > hints[i - 1].startLine
-    );
-    assertEqual(isSortedByStartLine, true, "hintLevelは歌詞の登場順（startLine昇順）に割り当てられる");
-
     assertEqual(
       hints.every((h, i) => h.hintLevel === i + 1),
       true,
-      "hintLevelは1から連番になる"
+      "hintLevelは抽選順（配列の並び順）のまま1から連番になる"
     );
 
     assertEqual(
@@ -195,11 +192,39 @@ export function runLyricsSegmentEngineTests() {
     assertEqual(hints[hints.length - 1].stopReason, null, "maxHintsまで到達できた場合、stopReasonはnull");
   }
 
+  // ===== buildHintSequence()：hintLevel（抽選順）と歌詞の時系列は別物（本人指示：重要） =====
+  // 複数のseedで試し、「hintLevelの順序どおりに歌詞のstartLineが単調増加するとは限らない」
+  // （＝少なくとも1つのseedで、後のhintLevelのほうが前のhintLevelより歌詞的に早い位置に
+  // なるケースがある）ことを確認する。これが「抽選順」と「表示順（時系列）」を画面側で
+  // 別々に扱わなければならない理由そのもの。
+  {
+    const manyLines = Array.from({ length: 30 }, (_, i) => ({
+      line: i + 1,
+      text: `これはだい${i}ぎょうめのかしですよろしくおねがいします`,
+      start: i * 3,
+      end: i * 3 + 2,
+    }));
+    let foundOutOfOrder = false;
+    for (let seed = 0; seed < 30; seed += 1) {
+      const hints = buildHintSequence(manyLines, 0, { maxHints: 4, seed, songId: "song-b", questionIndex: 0 });
+      const isMonotonic = hints.every((h, i) => i === 0 || h.startLine > hints[i - 1].startLine);
+      if (!isMonotonic) {
+        foundOutOfOrder = true;
+        break;
+      }
+    }
+    assertEqual(
+      foundOutOfOrder,
+      true,
+      "hintLevelの並びは歌詞の時系列と一致しないことがある（抽選順と表示順は別物）"
+    );
+  }
+
   // ===== buildHintSequence()：曲名を含む行はどのヒントにも選ばれない =====
 
   {
     const lines = buildDummyLines();
-    const hints = buildHintSequence(lines, 5, { title: "なつのゆめ", maxHints: 4 });
+    const hints = buildHintSequence(lines, 5, { title: "なつのゆめ", maxHints: 4, seed: 2, songId: "song-c", questionIndex: 0 });
     assertEqual(
       hints.every((h) => !h.segment.containsTitle),
       true,
@@ -232,9 +257,9 @@ export function runLyricsSegmentEngineTests() {
     const hintsThree = buildHintSequence(threeLines, 1, { maxHints: 4 });
     assertEqual(hintsThree.length, 3, "3行しかない歌詞は、3段階（全行）でヒントが打ち切られる");
     assertEqual(
-      hintsThree.map((h) => h.startLine),
+      [...hintsThree.map((h) => h.startLine)].sort((a, b) => a - b),
       [1, 2, 3],
-      "3行しかない場合、3行すべてが別々のヒントとして使われる"
+      "3行しかない場合、3行すべてが（順不同で）別々のヒントとして使われる"
     );
     assertEqual(
       hintsThree[2].stopReason,
@@ -272,17 +297,17 @@ export function runLyricsSegmentEngineTests() {
 
   {
     const lines = buildDummyLines();
-    const hintsA = buildHintSequence(lines, 5, { title: "なつのゆめ", maxHints: 4 });
-    const hintsB = buildHintSequence(lines, 5, { title: "なつのゆめ", maxHints: 4 });
+    const hintsA = buildHintSequence(lines, 5, { title: "なつのゆめ", maxHints: 4, seed: 3, songId: "song-d", questionIndex: 2 });
+    const hintsB = buildHintSequence(lines, 5, { title: "なつのゆめ", maxHints: 4, seed: 3, songId: "song-d", questionIndex: 2 });
     assertEqual(
       hintsA.map((h) => `${h.startLine}-${h.endLine}`),
       hintsB.map((h) => `${h.startLine}-${h.endLine}`),
-      "同じlines・primaryLineIndex・optionsなら、常に同じヒント行を返す"
+      "同じlines・primaryLineIndex・seed/songId/questionIndexなら、常に同じヒント行を返す（オンライン対戦の全端末一致に必須）"
     );
   }
 
-  // ===== buildHintSequence()：基準行（＝seedに由来する開始位置）を変えると選ばれる行の
-  //       組み合わせも変わりうる（同じ曲でも問題ごとにヒントが変化する） =====
+  // ===== buildHintSequence()：seed・songId・questionIndexを変えると選ばれる4行の
+  //       組み合わせも変わる（同じ曲でも問題ごとにヒントが変化する） =====
 
   {
     const manyLines = Array.from({ length: 20 }, (_, i) => ({
@@ -291,19 +316,41 @@ export function runLyricsSegmentEngineTests() {
       start: i * 3,
       end: i * 3 + 2,
     }));
-    // 【本人指示への対応メモ】20行・4段階だとグループ幅は5行になるため、primaryLineIndexを
-    // 5の倍数（5行おき）でずらすと、選ばれる4行の組み合わせが一巡してちょうど元へ戻って
-    // しまう（グループ幅と歩幅が一致する特殊なケース）。実際の楽曲・seedの組み合わせでは
-    // まず起こらない偶然の一致のため、ここではグループ幅と噛み合わない歩幅で確認する。
-    const startLineSetsByPrimary = new Set();
-    for (const primary of [0, 3, 8, 14, 17]) {
-      const hints = buildHintSequence(manyLines, primary, { maxHints: 4 });
-      startLineSetsByPrimary.add(hints.map((h) => h.startLine).join(","));
+    const startLineSetsBySeed = new Set();
+    for (let seed = 0; seed < 10; seed += 1) {
+      const hints = buildHintSequence(manyLines, 0, { maxHints: 4, seed, songId: "song-e", questionIndex: 0 });
+      startLineSetsBySeed.add([...hints.map((h) => h.startLine)].sort((a, b) => a - b).join(","));
     }
     assertEqual(
-      startLineSetsByPrimary.size > 1,
+      startLineSetsBySeed.size > 1,
       true,
-      "基準行（primaryLineIndex）を変えると、選ばれる4行の組み合わせも変わりうる"
+      "seedを変えると、選ばれる4行の組み合わせも変わる"
+    );
+  }
+
+  // ===== buildHintSequence()：4つ全部が曲のごく狭い範囲に集中する極端な結果を避ける
+  //       （本人指示：「2つくらい近い」は許容するが「4つ全部ほぼ同じ位置」は避ける） =====
+
+  {
+    const longSongLines = Array.from({ length: 40 }, (_, i) => ({
+      line: i + 1,
+      text: `これはだい${i}ぎょうめのかしですよろしくおねがいします`,
+      start: i * 3,
+      end: i * 3 + 2,
+    }));
+    const totalSpan = longSongLines[longSongLines.length - 1].line - longSongLines[0].line;
+    let worstRatio = 1;
+    for (let seed = 0; seed < 40; seed += 1) {
+      const hints = buildHintSequence(longSongLines, 0, { maxHints: 4, seed, songId: "song-f", questionIndex: 0 });
+      const startLines = hints.map((h) => h.startLine);
+      const span = Math.max(...startLines) - Math.min(...startLines);
+      const ratio = span / totalSpan;
+      if (ratio < worstRatio) worstRatio = ratio;
+    }
+    assertEqual(
+      worstRatio >= 0.3 - 1e-9,
+      true,
+      "40曲分seedを試しても、4ヒントの範囲が曲全体の30%を下回る極端な集中は起きない（再抽選ガードが機能している）"
     );
   }
 

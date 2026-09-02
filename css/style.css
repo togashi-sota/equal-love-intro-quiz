@@ -26,6 +26,19 @@
   --color-card-border: rgba(255, 255, 255, 0.8);   /* ガラス風カードの縁取り */
   --color-text: #4a2e42;          /* 基本の文字色 */
 
+  /* 【2026-11-XX追加・本人指示：iPhone下部の白い帯バグの恒久対策】.game-frameを
+     viewport高さへ固定している画面（クイズ回答中・ライブコールモード等）で使う、
+     「dvhでも届かない、物理的な画面最下端まで」の高さ。
+     【根拠】センターお祝いポップアップ（.modal-overlay.celebration-overlay、このファイル内
+     「17-17章」のコメント参照）を実機診断した結果、「iOSのstandalone PWAでは、
+     window.innerHeight（＝dvh系の単位も含むCSSレイアウトビューポート）自体が、
+     ホームインジケーターのsafe-area分だけ画面の物理的な最下端より短く報告される」ことが
+     実機の数値で確定していた。その対策（bottom: calc(-1 * env(safe-area-inset-bottom))で
+     物理的な最下端まで伸ばす）と全く同じ考え方を、height指定で組む.game-frame系にも
+     一般化して適用する。safe-area-inset-bottomが無い環境（notch/ホームインジケーターの
+     無い端末・PC等）では0pxに解決されるため、100dvhと完全に同じ挙動のまま変化しない。 */
+  --game-frame-safe-height: calc(100dvh + env(safe-area-inset-bottom, 0px));
+
   /* ガラス風カードの影・ぼかし */
   --shadow-card: 0 24px 60px -14px rgba(255, 79, 150, 0.38), 0 6px 18px rgba(255, 79, 150, 0.16);
   --blur-glass: 20px;
@@ -4962,8 +4975,8 @@ body[data-screen="liveCallModePlayer"] {
 }
 
 body[data-screen="liveCallModePlayer"] .game-frame {
-  height: 100dvh;
-  max-height: 100dvh;
+  height: var(--game-frame-safe-height);
+  max-height: var(--game-frame-safe-height);
   display: flex;
   flex-direction: column;
 }
@@ -12895,6 +12908,17 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   gap: 8px;
 }
 
+/* 【2026-11-XX追加・本人指示：優先度11「？」ボタンの強化】.secondary-buttonの既定は
+   flex:1（横幅いっぱいに伸びる想定）だが、ここではタイトル横に収まる大きさで十分。
+   小さすぎた旧「？」丸ボタンより確実に押しやすいサイズは保ちつつ、行全体を占領しない
+   ようflex:noneで幅を文字数なりに戻す。 */
+.online-battle-lobby-help-button {
+  flex: none;
+  padding: 8px 14px;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
 .online-lobby-help-section-heading {
   margin: 18px 0 8px;
   font-size: 0.8rem;
@@ -13303,6 +13327,18 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   line-height: 1.6;
   opacity: 0.75;
   margin: 0 0 16px;
+}
+
+/* 【2026-11-XX追加・本人指示：結果/再戦フロー最終仕様】「同じ条件でもう一度」ボタンの
+   下に添える、何が起きるかの補足説明。親の.button-rowはdisplay:flex（横並び）のため、
+   flex-basis:100%でボタンの下に自分の行として折り返させる。 */
+.online-battle-result-rematch-hint {
+  flex-basis: 100%;
+  margin: 4px 0 0;
+  font-size: 0.76rem;
+  line-height: 1.5;
+  opacity: 0.7;
+  text-align: center;
 }
 
 .online-lobby-player-count {
@@ -13905,6 +13941,18 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   border-color: var(--color-primary-dark);
 }
 
+/* 新しく開放されたヒントだけに付ける、登場時1回きりの軽いフェードイン（本人指示：
+   歌詞クイズ4モード共通のヒント表示仕様）。既存のanswerRevealPopキーフレームを再利用する。 */
+.lyrics-quiz-hint-line.is-newly-revealed {
+  animation: answerRevealPop 0.35s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lyrics-quiz-hint-line.is-newly-revealed {
+    animation: none;
+  }
+}
+
 .lyrics-quiz-hint-line-badge {
   display: inline-block;
   margin-bottom: 4px;
@@ -14006,6 +14054,15 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 .lyrics-quiz-answer-button {
   width: 100%;
   text-align: center;
+  /* 【2026-11-XX追加・本人指示：検索で候補が1〜2件になったときの巨大化対策】静的なCSSの
+     読み取りでは、この一覧（縦のflexboxで並べているだけ）が候補を伸縮させる指定は
+     見当たらなかった（このコメントの直前の.lyrics-quiz-answer-listはflex-direction:columnの
+     ままで、子要素へflex-grow等は与えていない）。原因を特定できないまま推測でCSSを
+     足しすぎないよう、ここでは「候補数に関係なく、ボタン自身の高さは中身に応じた
+     自然な高さのまま伸縮させない」ことを明示的に固定するだけの、安全な予防策として
+     flex-shrink/flex-growを両方0にしておく（実機で万一これでも直らない場合は、
+     別の原因を疑う必要がある）。 */
+  flex: 0 0 auto;
 }
 
 /* .choice-buttonの番号バッジ（::before）は#choice-buttons専用のnth-childルールで数字を
@@ -14788,10 +14845,12 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  /* ヒントが1問の中で複数行積み上がっていく想定のため、CSSカウンターで
-     「ヒント1」「ヒント2」…の通し番号バッジを自動採番する（JS側の変更は不要）。 */
-  counter-reset: online-lyrics-hint-line;
-  /* 【2026-10-01新設・本人指示：歌詞クイズ問題画面モバイルレイアウト再設計5章】以前は
+  /* 【2026-11-XX改訂・本人指示：ヒントの表示順と番号（hintLevel）を分離】以前はCSSカウンター
+     でDOM順に「1」「2」…と自動採番していたが、ヒントの表示順（歌詞の時系列）と抽選順
+     （hintLevel）が別物になったため、DOM順の自動採番は使えなくなった。各ヒント項目
+     （.online-lyrics-battle-hint-summary-item）側がバッジとして本来のhintLevelを明示する
+     方式へ統一した（回答確定後の一覧・早押しバトルと全く同じ見た目にした）。
+     【2026-10-01新設・本人指示：歌詞クイズ問題画面モバイルレイアウト再設計5章】以前は
      ヒントが増えるほどこのブロック自体が無制限に縦へ伸び、下にある回答候補一覧
      （#online-lyrics-battle-question-screen .online-lyrics-battle-answer-gridのflex:1）の
      表示領域を圧迫していた（ヒント4/4まで開くと375×812でも回答候補が1行も見えない
@@ -14815,24 +14874,14 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   overflow-y: visible;
 }
 
-.online-lyrics-battle-hint-line {
-  position: relative;
-  padding: 12px 14px 12px 44px;
-  border-radius: 14px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-card-border);
-  font-size: 1.05rem;
-  font-weight: 700;
-  line-height: 1.6;
-  counter-increment: online-lyrics-hint-line;
-}
-
-/* 【2026-09-13新設・本人指示：答え合わせ時にヒント1〜4をすべて表示】回答確定後だけ使う、
-   ヒント4段階ぶんをまとめて見せるためのコンパクトな一覧。回答前の1段階ずつの大きな
-   カード（.online-lyrics-battle-hint-line）よりも省スペースにし、正誤・正解曲・自分の
-   回答・獲得ポイントと合わせて、通常のiPhone画面でできるだけ1画面に収まるようにする
-   （本人指示：「ヒント1〜4＋正誤＋正解曲＋自分の回答＋獲得ポイントが可能な限り1画面で
-   把握できること」）。 */
+/* 【2026-09-13新設・本人指示：答え合わせ時にヒント1〜4をすべて表示】ヒント4段階ぶんを
+   まとめて見せるためのコンパクトな一覧。正誤・正解曲・自分の回答・獲得ポイントと合わせて、
+   通常のiPhone画面でできるだけ1画面に収まるようにする（本人指示：「ヒント1〜4＋正誤＋
+   正解曲＋自分の回答＋獲得ポイントが可能な限り1画面で把握できること」）。
+   【2026-11-XX改訂】以前は回答確定後専用（.online-lyrics-battle-hint-summary-list）と
+   回答前専用（.online-lyrics-battle-hint-line、DOM順のCSSカウンター採番）でクラスを
+   分けていたが、ヒントの表示順と番号（hintLevel）が別物になったことに合わせて、
+   回答前・回答後・早押しバトルのすべてでこの一覧スタイルへ統一した。 */
 .online-lyrics-battle-hint-summary-list {
   display: flex;
   flex-direction: column;
@@ -14873,22 +14922,17 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   color: var(--color-text);
 }
 
-.online-lyrics-battle-hint-line::before {
-  content: counter(online-lyrics-hint-line);
-  position: absolute;
-  top: 50%;
-  left: 12px;
-  transform: translateY(-50%);
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--color-primary-dark);
-  color: #ffffff;
-  font-size: 0.72rem;
-  font-weight: 800;
+/* 新しく開放されたヒントだけに付ける、登場時1回きりの軽いフェードイン
+   （本人指示：歌詞クイズ4モード共通のヒント表示仕様。offline側の
+   .lyrics-quiz-hint-line.is-newly-revealedと同じ考え方・同じキーフレームを使う）。 */
+.online-lyrics-battle-hint-summary-item.is-newly-revealed {
+  animation: answerRevealPop 0.35s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .online-lyrics-battle-hint-summary-item.is-newly-revealed {
+    animation: none;
+  }
 }
 
 /* 【2026-08-31新設、本人指示：歌詞クイズ3ルール全面改修】正解数バトル・ポイントバトルの
@@ -15142,6 +15186,13 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   cursor: pointer;
   box-shadow: 0 4px 14px -8px rgba(255, 79, 150, 0.4);
   transition: transform var(--transition-fast, 0.15s), box-shadow var(--transition-fast, 0.15s), background-color var(--transition-base, 0.2s), border-color var(--transition-base, 0.2s);
+  /* 【2026-11-XX追加・本人指示：検索で候補が1〜2件になったときの巨大化対策】
+     js/lyricsQuizScreen.jsの.lyrics-quiz-answer-buttonと同じ予防策（詳しい経緯は
+     そちらのコメント参照）。flexコンテナ（.online-lyrics-battle-answer-list/-compact）・
+     gridコンテナ（.online-lyrics-battle-answer-grid）のどちらに置かれても、候補数に
+     関係なくボタン自身が伸縮しないよう明示的に固定する。 */
+  flex: 0 0 auto;
+  align-self: start;
 }
 
 .online-lyrics-battle-answer-button:active:not(:disabled) {
@@ -15572,8 +15623,8 @@ body[data-screen="liveCallModeKaraoke"] {
 }
 
 body[data-screen="liveCallModeKaraoke"] .game-frame {
-  height: 100dvh;
-  max-height: 100dvh;
+  height: var(--game-frame-safe-height);
+  max-height: var(--game-frame-safe-height);
   display: flex;
   flex-direction: column;
 }
@@ -15656,8 +15707,8 @@ body[data-screen="quiz"] .game-frame,
 body[data-screen="lyricsQuizQuestion"] .game-frame,
 body[data-screen="onlineLyricsBattleQuestion"] .game-frame,
 body[data-screen="instantChallengeQuestion"] .game-frame {
-  height: 100dvh;
-  max-height: 100dvh;
+  height: var(--game-frame-safe-height);
+  max-height: var(--game-frame-safe-height);
   display: flex;
   flex-direction: column;
 }

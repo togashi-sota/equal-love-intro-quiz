@@ -37,11 +37,13 @@ export function runTimeAttackBattleModeTests() {
 
   // ---- questionSource: collaborativeSelection（オンライン共同選曲・確定済みsongIds） ----
   {
-    // 【2026-09-14改訂・本人指示：カテゴリ変更時も選択状態は保持するが出題対象外の曲は
-    // 出題しない】以前はcollaborativeSelectionのsongIdsを一切加工せずそのまま返していたが、
-    // 「現在のカテゴリ条件に合う曲だけに絞り込む」仕様変更により、settings.categoryFilterValue
-    // でfilterSongIdsByCategory()を通すようになった（js/questionSource.js参照）。
-    // カテゴリ条件が「all」（絞り込みなし）なら、実在する曲idはそのまま通過する。
+    // 【2026-11-XX改訂・本人指示：「曲を選んで出題」にカテゴリー条件を絶対に追加適用しない】
+    // 以前はここでcategoryFilterValueによる追加の絞り込み（filterSongIdsByCategory）を
+    // 行っていたが、これが「イントロ対戦で選んだ曲を歌詞クイズ対戦へ引き継ぐと、選んだ曲の
+    // うち数曲しか有効曲として扱われない」実機バグの直接の原因だった。「曲を選んで出題」の
+    // 有効曲は「参加者全員の選択曲の和集合 ∩ そのモードで本当に使用可能な曲」だけで決まり、
+    // カテゴリー条件は一切関係しない、という本人指示に基づき、categoryFilterValueが
+    // 「表題曲のみ」等に設定されていても、選んだ曲は一切除外されないことを確認する。
     const realSongIds = SONGS.slice(0, 3).map((song) => song.id);
     const pool = resolveSettingsSongPool({
       categoryFilterValue: "all",
@@ -49,17 +51,23 @@ export function runTimeAttackBattleModeTests() {
     });
     assertEqual(pool, realSongIds, "collaborativeSelection：カテゴリ「all」なら選択済みの実在曲がそのまま返る");
 
-    // カテゴリを絞り込むと、選択状態(songIds)自体は変えず、条件に合わない曲だけが
-    // 出題対象から除外される（本人指示：選択状態は保持するが出題対象外の曲は出題しない）。
     const titleTrackSongId = SONGS.find((song) => song.category === CATEGORY.TITLE_TRACK)?.id;
     const nonTitleTrackSongId = SONGS.find((song) => song.category !== CATEGORY.TITLE_TRACK)?.id;
     const mixedSongIds = [titleTrackSongId, nonTitleTrackSongId];
-    const restrictedPool = resolveSettingsSongPool({
+    const unrestrictedPool = resolveSettingsSongPool({
       categoryFilterValue: "title-track",
       questionSource: { type: QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION, songIds: mixedSongIds },
     });
-    assertEqual(restrictedPool.includes(titleTrackSongId), true, "表題曲は「表題曲のみ」カテゴリでも出題対象に残る");
-    assertEqual(restrictedPool.includes(nonTitleTrackSongId), false, "表題曲以外は「表題曲のみ」カテゴリで出題対象から除外される");
+    assertEqual(
+      unrestrictedPool.includes(titleTrackSongId),
+      true,
+      "表題曲は「表題曲のみ」カテゴリが設定されていても出題対象に残る"
+    );
+    assertEqual(
+      unrestrictedPool.includes(nonTitleTrackSongId),
+      true,
+      "表題曲以外も「表題曲のみ」カテゴリが設定されていることを理由に除外されない（実機バグの再現・修正確認）"
+    );
     assertEqual(mixedSongIds, [titleTrackSongId, nonTitleTrackSongId], "元のsongIds配列自体は書き換えられない（選択状態は保持される）");
   }
 

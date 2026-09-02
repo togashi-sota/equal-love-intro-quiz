@@ -470,21 +470,25 @@ export async function runLyricsQuizBattleModeTests() {
     // 広げても既存の除外ロジックとの二重フィルタで出題対象に含まれてはならない。
     assertEqual(allCategoryPool.includes("overture"), false, "全曲でもOvertureは歌詞クイズ対象外のまま除外される");
 
-    // ----- 共同選曲（collaborativeSelection）：カテゴリ変更時も選択状態は保持する -----
-    // 【絶対に壊してはいけない既存仕様】選択済みの曲（questionSource.songIds）自体は
-    // カテゴリを変えても書き換えない。出題対象から一時的に外れるだけで、カテゴリを
-    // 戻せば再選択なしで復帰する。
+    // ----- 共同選曲（collaborativeSelection）：カテゴリー条件は一切適用しない -----
+    // 【2026-11-XX改訂・本人指示：「曲を選んで出題」にカテゴリー条件を絶対に追加適用しない】
+    // 以前はここでカテゴリーによる絞り込みを「絶対に壊してはいけない既存仕様」として
+    // テストしていたが、この絞り込みそのものが「イントロ対戦で選んだ曲を歌詞クイズ対戦へ
+    // 引き継ぐと、選んだ曲のうち数曲しか有効曲として扱われない」実機バグの直接の原因
+    // だったため、本人指示により仕様を撤回した。「曲を選んで出題」の有効曲は
+    // 「参加者全員の選択曲の和集合 ∩ そのモードで本当に使用可能な曲」だけで決まり、
+    // カテゴリー条件（表題曲のみ等）は一切関係しない。
     const collaborativeSongIds = ["love", "kioku-no-dokoka-de", "genneki-idol-chu"];
     const collaborativeSource = { type: QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION, songIds: collaborativeSongIds };
 
-    const narrowedPool = lyricsQuizBattleMode.resolveSettingsSongPool({
+    const poolUnderTitleTrackCategory = lyricsQuizBattleMode.resolveSettingsSongPool({
       questionSource: collaborativeSource,
       categoryFilterValue: "title-track",
     });
     assertEqual(
-      narrowedPool,
-      ["love"],
-      "共同選曲＋表題曲のみ：選択した3曲のうち表題曲だけが出題対象になる"
+      poolUnderTitleTrackCategory,
+      collaborativeSongIds,
+      "共同選曲：カテゴリーが「表題曲のみ」でも、選択した3曲すべてが出題対象になる（実機バグの再現・修正確認）"
     );
     // resolveSettingsSongPool()の呼び出し自体は、渡したquestionSource.songIdsを書き換えない
     // （純粋関数であることの確認）。
@@ -494,36 +498,18 @@ export async function runLyricsQuizBattleModeTests() {
       "resolveSettingsSongPool()を呼んでも、元のcollaborativeSelection.songIdsは変化しない（選択状態を破壊しない）"
     );
 
-    // カテゴリを戻すと、選択状態（songIds）を変更していないので出題対象が復活する。
-    const restoredPool = lyricsQuizBattleMode.resolveSettingsSongPool({
-      questionSource: collaborativeSource,
-      categoryFilterValue: "all",
-    });
-    assertEqual(
-      restoredPool.length,
-      collaborativeSongIds.length,
-      "カテゴリを「全曲」へ戻すと、選択していた3曲すべてが再び出題対象に戻る（選択し直し不要）"
-    );
-
-    // ----- validateSettings：カテゴリを絞った結果、共有曲が0曲になった場合の案内文言 -----
-    const zeroAfterCategorySettings = {
+    // ----- validateSettings：選択した曲が少なくても、カテゴリーの広さとは無関係に
+    // 出題数チェックだけが働く -----
+    const collaborativeCountSettings = {
       ...lyricsQuizBattleMode.defaultSettings(),
       categoryFilterValue: "title-track",
-      // questionCountValue: "all" ＝「曲プールの曲数がそのまま出題数」のため、カテゴリを
-      // 広げたときに残る1曲だけでも妥当な設定として扱われる（このブロックの主眼は
-      // 曲数の充足チェックではなく、カテゴリによる有効/無効の切り替えの確認のため）。
-      questionCountValue: "all",
+      questionCountValue: "10",
       questionSource: { type: QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION, songIds: ["kioku-no-dokoka-de"] },
     };
     assertEqual(
-      lyricsQuizBattleMode.validateSettings(zeroAfterCategorySettings),
-      "現在のカテゴリ条件で有効な共有曲がありません。カテゴリを広げるか、参加者に曲を追加で選んでもらってください。",
-      "選択済みの曲が現在のカテゴリ条件に1曲も合わない場合、カテゴリを広げるよう案内するエラーになる"
-    );
-    assertEqual(
-      lyricsQuizBattleMode.validateSettings({ ...zeroAfterCategorySettings, categoryFilterValue: "title-and-group" }),
-      null,
-      "カテゴリを広げれば、同じ選択状態のまま再び有効な設定になる（選び直し不要）"
+      lyricsQuizBattleMode.validateSettings(collaborativeCountSettings),
+      "現在有効な共有曲は1曲です。10問を出題するには10曲以上必要です。",
+      "選択した曲が1曲だけの場合、カテゴリーに関係なく「選んだ曲数」に対する出題数不足の案内になる"
     );
 
     // ----- 3ルール（正解数バトル・早押しバトル・ポイントバトル）すべてでカテゴリ設定が

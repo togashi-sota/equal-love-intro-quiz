@@ -3202,7 +3202,9 @@
            （js/onlineBattleScreen.js制御。ホスト・ゲスト共通で見える）。 -->
       <div class="online-lobby-header-row">
         <div class="title-block"><h2>ロビー</h2></div>
-        <button id="online-battle-lobby-help-button" class="header-icon-button" type="button" aria-label="この対戦について">？</button>
+        <!-- 【2026-11-XX改訂・本人指示：優先度11】小さな「？」だけでは何のボタンか
+             分かりづらいという指摘を受け、意味の分かる文言＋押しやすいサイズへ変更した。 -->
+        <button id="online-battle-lobby-help-button" class="secondary-button online-battle-lobby-help-button" type="button">📖 ルール・遊び方</button>
       </div>
 
       <div id="online-battle-lobby-gone-notice" class="battle-warning-box" hidden>
@@ -3746,7 +3748,10 @@
            ロビーへ戻してしまっていたため、ホスト・ゲストどちらも押せる個別操作
            （下のonline-battle-result-return-panel）へ分離した。 -->
       <div id="online-battle-result-host-actions" class="button-row" hidden>
-        <button id="online-battle-result-rematch-button" class="primary-button" type="button">もう一度</button>
+        <button id="online-battle-result-rematch-button" class="primary-button" type="button">同じ条件でもう一度</button>
+        <!-- 【2026-11-XX追加・本人指示：結果/再戦フロー最終仕様】ボタン名だけでは何をするか
+             伝わりにくいため、小さな説明を添える。 -->
+        <p class="online-battle-result-rematch-hint">今回と同じ対戦モード・出題数・出題条件で再戦します。参加者全員の準備が完了すると開始します。</p>
       </div>
       <!-- 【2026-09-30新設→2026-10-01全面改訂・本人指示：結果画面/再戦フロー全面設計】
            「もう一度」が提案された（room.confirmingRematch）間、結果画面を離れず・

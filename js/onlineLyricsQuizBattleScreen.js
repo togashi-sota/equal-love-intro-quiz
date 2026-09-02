@@ -120,6 +120,7 @@ import { computeElapsedMs, computeStealHintProgress } from "./lyricsQuizBattleTi
 // 50音ジャンプバーの行分けも、この共有ファイルの定義をそのまま使う。
 import { normalizeForSearch, songMatchesSearch, GOJUON_ROWS, deriveGojuonRowKey, sortSongsByReading } from "./songlist.js";
 import { LARGE_ANSWER_POOL_THRESHOLD } from "./lyricsQuizEngine.js";
+import { computeRevealedHintLines } from "./lyricsSegmentEngine.js";
 // 【2026-08-08新設】出題する曲をホストが選べる機能。他の対戦モード（js/onlineBattleScreen.js）と
 // 同じ曲選択画面を共有する（gameModeごとに別々の選曲UIを持たない、本人指示）。
 import { openOnlineBattleSongPicker, updateOnlineBattleSongPickerLiveSelections } from "./onlineBattleSongPicker.js";
@@ -235,6 +236,13 @@ let myOpenedHintLevel = 1;
 // （回答した瞬間の段階を後から知るため。正解数・ポイントバトルはmyOpenedHintLevelが
 // 既にこの役目を果たすため、こちらは早押しバトル専用）。
 let myCurrentStealHintLevel = 1;
+// 【2026-11-XX新設・本人指示：新しいヒントだけ軽くフェードイン】正解数・ポイントバトルの
+// renderHintArea()は、他プレイヤーの回答待ち等でも一定間隔（HOST_TICK_INTERVAL_MS）ごとに
+// 呼ばれ続けるため、毎回「今開いている最大段階」をフェードイン対象にすると、tickのたびに
+// 同じヒントのフェードインが再生され直してしまう（js/lyricsQuizBattleUi.jsの答え合わせ
+// 点滅バグと同じ轍）。「前回描画時より段階が増えた（＝本当に今しがた新しく開いた）」
+// ときだけフェードインさせるため、問題ごとに「最後にフェードインを再生した段階」を覚えておく。
+let lastHintFadeInState = { questionIndex: null, level: 0 };
 // 【2026-10-01新設】回答を確定した瞬間の「自分が最後に見ていたヒント段階」を固定する
 // （本人指示：「回答時点の最後に開いたヒント位置から7秒再生」。答え合わせで全ヒントが
 // 表示されても、この値は書き換えない）。新しい問題に移るたびに1へリセットする。
@@ -533,8 +541,21 @@ function stopRevealMusic() {
 // handleAnswerChoiceClick()が固定した値）の歌詞位置から再生する。プレイヤーごとに
 // 再生位置が違ってよい仕様のため、この関数はこの端末のmyAnswerHintLevelだけを見る
 // （Firebaseへの同期は不要）。該当レベルの秒数が無ければヒント1・0秒の順にフォールバックする。
+// 【2026-11-XX追加・本人指示：2人対戦で答え合わせ音楽が鳴らないことがある不具合の緩和策】
+// remainingMsSecはresolvedAt（サーバー時刻）とこの端末のserverTimeOffsetから計算するため、
+// 通信の遅延やクロック同期の小さなズレで、本当はまだ答え表示中のはずなのにわずかに
+// マイナスへ振れることがある（実機報告：1人プレイでは鳴るのに2人対戦では鳴らないことが
+// あった）。「バックグラウンドから長時間経って復帰し、答え表示が本当に終わっている」
+// （STALE_REVEAL_THRESHOLD_MSより大きく遅れている）場合だけ鳴らさず、それ以外の
+// わずかなマイナスは最低保証時間だけ鳴らす（無音より鳴る方を優先する、フェイルオープン方針）。
+const REVEAL_MUSIC_MIN_GRACE_MS = 2000;
+const STALE_REVEAL_THRESHOLD_MS = -2500;
+
 function startRevealMusic(question, remainingMsSec) {
-  if (remainingMsSec <= 0) return; // 復帰があまりに遅く、既に答え表示が終わっている場合は鳴らさない
+  if (remainingMsSec <= 0) {
+    if (remainingMsSec < STALE_REVEAL_THRESHOLD_MS) return; // 本当に手遅れ（長時間の復帰遅れ等）
+    remainingMsSec = REVEAL_MUSIC_MIN_GRACE_MS; // わずかなズレなら最低保証時間だけ鳴らす
+  }
   const byLevel = question.revealStartTimeSecByHintLevel ?? {};
   const revealStartTimeSec = byLevel[myAnswerHintLevel] ?? question.revealStartTimeSec;
   playSongIntroFromOffset(question.song, typeof revealStartTimeSec === "number" ? revealStartTimeSec : 0, remainingMsSec);
@@ -1506,7 +1527,11 @@ function renderResolvedHintSummary(question, questionIndex) {
   // なるため（本人指示：ヒント1〜4がひと目で分かるように）、ヒント段階ごとにバッジを添える。
   clearElement(elements.battleHintLinesContainer);
   elements.battleHintLinesContainer.classList.add("online-lyrics-battle-hint-summary-list");
-  question.hints.forEach((hint) => {
+  // 【2026-11-XX改訂・本人指示：画面表示は歌詞の時系列順】回答前の一覧
+  // （このすぐ上のrenderHintArea内）と同じく、答え合わせ時も歌詞の登場順に並べて見せる
+  // （バッジのヒント番号は元のhintLevelのまま変えない）。
+  const hintsSortedByTime = [...question.hints].sort((a, b) => a.startLine - b.startLine);
+  hintsSortedByTime.forEach((hint) => {
     const text = (hint.segment?.text ?? "").replace(/\n/g, " ").trim();
     if (!text) return;
     const item = document.createElement("p");
@@ -1554,8 +1579,16 @@ function renderHintArea(question, { ruleId, elapsedMs, isResolved, myAnsweredThi
     // 答え合わせ時のヒント一覧（renderResolvedHintSummary）と全く同じCSSクラスを使い、
     // 回答中・答え合わせ後でヒントのフォント・見た目が食い違わないようにする
     // （本人指示：ヒントフォントの統一）。
+    // 【2026-11-XX改訂・本人指示：画面表示は歌詞の時系列順】levels自体は「時間経過で
+    // 開放された順（＝hintLevelの順）」のまま（myCurrentStealHintLevelの記録に使うため、
+    // 上の代入では並べ替え前のlevelsを使っている）。表示専用に、歌詞の登場順
+    // （startLine昇順）へ並べ替えたコピーを作る。バッジのヒント番号は元のhintLevelのまま。
+    const levelToStartLine = new Map(question.hints.map((hint) => [hint.hintLevel, hint.startLine]));
+    const sortedLevelsForDisplay = [...levels].sort(
+      (a, b) => (levelToStartLine.get(a.level) ?? 0) - (levelToStartLine.get(b.level) ?? 0)
+    );
     elements.battleHintLinesContainer.classList.add("online-lyrics-battle-hint-summary-list");
-    levels.forEach(({ level, revealedText }) => {
+    sortedLevelsForDisplay.forEach(({ level, revealedText }) => {
       const item = document.createElement("p");
       item.className = "online-lyrics-battle-hint-summary-item";
       const levelBadge = document.createElement("span");
@@ -1576,15 +1609,47 @@ function renderHintArea(question, { ruleId, elapsedMs, isResolved, myAnsweredThi
     return;
   }
 
-  const hint = question.hints.find((h) => h.hintLevel === myOpenedHintLevel) ?? question.hints[0];
+  // 【2026-11-XX改訂・本人指示：ヒント1〜4を積み上げ表示・歌詞の時系列順に並べ替え】
+  // 以前は「今開いている段階のヒントだけ」を表示し、次のヒントを開くと前のヒントが
+  // 消えていた（本人の実機報告：「ヒント2を開くとヒント1が消える」不具合）。
+  // js/lyricsSegmentEngine.jsのcomputeRevealedHintLines()（オフライン歌詞クイズと共通）で、
+  // これまでに開いた段階（1〜myOpenedHintLevel）すべてを、歌詞の登場順に並べ替えて
+  // 積み上げ表示する。各行のバッジには、並べ替え後の位置ではなく、元のhintLevel
+  // （抽選順）をそのまま表示する（番号を書き換えない、という本人指示）。
   elements.battleHintLevel.textContent = `ヒント ${myOpenedHintLevel} / ${MAX_HINT_LEVEL}`;
-  const lines = (hint?.segment?.text ?? "").split("\n").filter((line) => line.length > 0);
-  lines.forEach((lineText) => {
-    const lineElement = document.createElement("p");
-    lineElement.className = "online-lyrics-battle-hint-line";
-    lineElement.textContent = lineText;
-    elements.battleHintLinesContainer.appendChild(lineElement);
+  elements.battleHintLinesContainer.classList.add("online-lyrics-battle-hint-summary-list");
+
+  if (lastHintFadeInState.questionIndex !== questionIndex) {
+    lastHintFadeInState = { questionIndex, level: 0 };
+  }
+  const newlyRevealedLevel = myOpenedHintLevel > lastHintFadeInState.level ? myOpenedHintLevel : null;
+  lastHintFadeInState.level = myOpenedHintLevel;
+
+  const revealed = computeRevealedHintLines(question.hints, myOpenedHintLevel);
+  let newlyRevealedElement = null;
+  revealed.forEach((entry) => {
+    const item = document.createElement("p");
+    item.className = "online-lyrics-battle-hint-summary-item";
+    const levelBadge = document.createElement("span");
+    levelBadge.className = "online-lyrics-battle-hint-summary-level";
+    levelBadge.textContent = `ヒント${entry.level}`;
+    item.appendChild(levelBadge);
+    const textSpan = document.createElement("span");
+    textSpan.className = "online-lyrics-battle-hint-summary-text";
+    textSpan.textContent = entry.text;
+    item.appendChild(textSpan);
+    elements.battleHintLinesContainer.appendChild(item);
+    if (entry.level === newlyRevealedLevel) {
+      item.classList.add("is-newly-revealed");
+      newlyRevealedElement = item;
+    }
   });
+  // 新しく開放したヒントが見える位置まで、ヒント領域内だけ自動スクロールする
+  // （回答候補一覧のスクロール位置は触らない）。
+  if (newlyRevealedElement) {
+    newlyRevealedElement.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }
+
   renderHintActionButtons({ isResolved, myAnsweredThisQuestion });
 }
 
@@ -1806,17 +1871,38 @@ function renderAnswerChoices(question, { isResolved, myAnsweredThisQuestion, que
 // 回答受付が終わっている・送信中・既に回答済みのときに、押しても無反応に見えないよう
 // 案内文を表示する（本人からの指摘・2026-08-06）。実際の送信失敗（elements.battleError内で
 // 別途表示）とは違い、赤いエラーではなく控えめな案内として見せるため"is-notice"を付ける。
+// 【2026-11-XX新設・本人指示：ポイントバトル等で発生する「権限エラー」の根本調査】
+// elements.battleErrorは「送信できなかった案内（権限エラー等の失敗通知）」と
+// 「奪い取りの勝敗結果（本人指示により残し続けたい成功/惜敗の案内）」の両方を兼用している。
+// 実機で「ヒント4まで正しく表示され、正解者もいませんでしたと出ているのに、権限エラーの
+// 案内だけがいつまでも残る」不具合が報告されたが、原因はFirebase側の権限・書き込み内容が
+// 誤っているのではなく（回答受付終了ぎりぎりの送信がセキュリティルールに正しく拒否された、
+// 想定どおりの競合）、この失敗通知を「次の問題に切り替わるまで」しか消していなかった
+// 表示側の不具合だった。同じ問題の答え合わせ（isResolved）が始まった時点で、まだ失敗通知が
+// 出ていれば自動的に消す（勝敗結果の案内は別フラグで区別し、消さない）。
+let battleErrorIsFailureNotice = false;
+
 function showAnswerSubmissionNotice(reason) {
   const message = describeAnswerSubmissionBlockMessage(reason);
   if (!message) return;
   elements.battleError.textContent = message;
   elements.battleError.hidden = false;
   elements.battleError.classList.add("is-notice");
+  battleErrorIsFailureNotice = true;
 }
 
 function hideAnswerSubmissionNotice() {
   elements.battleError.hidden = true;
   elements.battleError.classList.remove("is-notice", "is-steal-success");
+  battleErrorIsFailureNotice = false;
+}
+
+// 答え合わせ（isResolved）に切り替わった時点で、まだ「送信できなかった」失敗通知が
+// 残っていれば消す（回答受付は既に終了しており、遅れて表示され続けても混乱を招くだけ
+// のため）。勝敗結果の案内（is-steal-success等）はbattleErrorIsFailureNoticeがfalseの
+// ままなので、この関数では消さない。
+function clearStaleFailureNoticeOnResolve() {
+  if (battleErrorIsFailureNotice) hideAnswerSubmissionNotice();
 }
 
 async function handleAnswerChoiceClick(selectedSongId) {
@@ -1922,6 +2008,9 @@ async function handleAnswerChoiceClick(selectedSongId) {
       elements.battleError.classList.toggle("is-notice", !isWin);
       elements.battleError.textContent = outcomeMessage;
       elements.battleError.hidden = false;
+      // 勝敗結果の案内であり、失敗通知ではない（answered＝送信自体は成功しているため）。
+      // clearStaleFailureNoticeOnResolve()が誤って消してしまわないようにする。
+      battleErrorIsFailureNotice = false;
     }
   } else if (result.reason === "already-answered") {
     mySubmittedForQuestionIndex = qIndex;
@@ -1930,6 +2019,9 @@ async function handleAnswerChoiceClick(selectedSongId) {
     elements.battleError.classList.toggle("is-notice", !!failureMessage);
     elements.battleError.textContent = failureMessage ?? "回答の送信に失敗しました。通信環境をご確認ください。";
     elements.battleError.hidden = false;
+    // 【2026-11-XX新設】送信失敗の案内は、答え合わせが始まった時点でclearStaleFailureNoticeOnResolve()
+    // が自動的に消す（回答受付終了後まで居座り続ける実機バグの修正）。
+    battleErrorIsFailureNotice = true;
   }
   renderCurrentQuestionState();
 }
@@ -2116,6 +2208,7 @@ function renderCurrentQuestionState() {
   elements.battleProgress.textContent = `第${qIndex + 1}問 / 全${currentQuestions.length}問`;
 
   const isResolved = match.questionStatus === "resolved";
+  if (isResolved) clearStaleFailureNoticeOnResolve();
   const ruleId = latestRoom.settings.battleRuleId;
   const myAnsweredThisQuestion = mySubmittedForQuestionIndex === qIndex;
   const nowServerTimeMs = Date.now() + serverTimeOffset;

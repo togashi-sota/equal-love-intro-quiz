@@ -16,6 +16,7 @@
 import { SONGS } from "./data/songs.js";
 import { QUESTION_SOURCE_TYPE } from "./questionSource.js";
 import { filterSongsByCategory } from "./quiz.js";
+import { computeRevealedHintLines } from "./lyricsSegmentEngine.js";
 // 【2026-09-26追加・本人指示：サウンドシステム全面整備7章】正解・不正解は他のクイズ
 // モードと同じ効果音（SFX_EVENTS.QUIZ_CORRECT/QUIZ_WRONG）で統一する。以前はこのモードだけ
 // SFXの呼び出しが1件もなく、完全に無音だった（本人指示の監査で発覚）。
@@ -462,20 +463,6 @@ function logHintDebugInfo(question, viewedHint) {
   });
 }
 
-// question.hints（各要素が { hintLevel, startLine, endLine, segment } を持つ、レベルごとに
-// 曲の別々の位置にある独立した1行の列。js/lyricsSegmentEngine.jsのbuildHintSequence()
-// 参照）から、「今表示すべきレベルまでに開いた行」を歌詞の登場順（行番号の昇順）に
-// 並べたリストを作る。
-// 【2026-10-01改訂・本人指示：ヒント生成の全面再設計】以前はヒントが前段階を含んだまま
-// 広がる区間だったため、隣り合うレベルの差分（新しく増えた1行）を計算する必要があったが、
-// 新方式ではhints[i]自体が既に独立した1行（かつhintLevelは歌詞の登場順そのもの）のため、
-// 単純にuptoLevelまでのヒントをそのまま並べるだけでよい。
-function computeRevealedHintLines(hints, uptoLevel) {
-  return hints
-    .slice(0, uptoLevel)
-    .map((hint) => ({ lineNumber: hint.startLine, text: hint.segment.text, level: hint.hintLevel }));
-}
-
 // 新しく表示された行が画面外にある場合、そこまで自動スクロールする。
 // prefers-reduced-motionが有効な環境ではアニメーションさせない。
 function scrollHintElementIntoView(element) {
@@ -484,23 +471,28 @@ function scrollHintElementIntoView(element) {
 }
 
 // これまでに公開したヒントの行を、歌詞の登場順（上から下）に、それぞれ
-// 「ヒント1」「ヒント2で追加」のようなラベル付きで表示する。過去に表示した行は消さない
+// 「ヒント1」「ヒント2」のようなラベル付きで表示する。過去に表示した行は消さない
 // （本人からの指摘：以前は段階が進むと別の区間へ切り替わり、前のヒントが消えて
 // 「情報が減った」ように見えることがあったため、常に積み上げ表示にする）。
 // viewingHintLevelまでの行を表示する（到達済みの段階なら、過去の段階へ戻って
 // その時点までの表示に戻すこともできる。詳しくはhandleHintLevelNavClick()参照）。
-function renderHintList(question) {
+//
+// newlyRevealedLevel: 「次のヒントを見る」で今まさに新しく開放した段階（本人指示：
+// 新しく追加されたヒントだけ軽くフェードインさせる）。段階ボタンで過去を振り返っている
+// だけのとき（handleHintLevelNavClick経由）はnullを渡し、フェードインさせない。
+function renderHintList(question, newlyRevealedLevel = null) {
   const revealed = computeRevealedHintLines(question.hints, viewingHintLevel);
   questionElements.hintList.innerHTML = "";
 
   let currentElement = null;
+  let newlyRevealedElement = null;
   revealed.forEach((entry) => {
     const item = document.createElement("li");
     item.className = "lyrics-quiz-hint-line";
 
     const badge = document.createElement("span");
     badge.className = "lyrics-quiz-hint-line-badge";
-    badge.textContent = entry.level === 1 ? "ヒント1" : `ヒント${entry.level}で追加`;
+    badge.textContent = `ヒント${entry.level}`;
     item.appendChild(badge);
 
     const text = document.createElement("p");
@@ -513,9 +505,17 @@ function renderHintList(question) {
       item.classList.add("is-current");
       currentElement = item;
     }
+    if (entry.level === newlyRevealedLevel) {
+      item.classList.add("is-newly-revealed");
+      newlyRevealedElement = item;
+    }
   });
 
-  if (currentElement) scrollHintElementIntoView(currentElement);
+  // 新しく開放したヒントがあれば、そのヒントが見える位置まで自動スクロールする
+  // （ヒント領域内だけ。回答候補一覧のスクロール位置は触らない）。無ければ今見ている
+  // 段階（currentElement）を優先する。
+  const scrollTarget = newlyRevealedElement ?? currentElement;
+  if (scrollTarget) scrollHintElementIntoView(scrollTarget);
 }
 
 // これまでに開放した段階（1〜runState.currentHintCount）へ、いつでも自由に
@@ -544,12 +544,12 @@ function handleHintLevelNavClick(level, question) {
   renderHint(question);
 }
 
-function renderHint(question) {
+function renderHint(question, newlyRevealedLevel = null) {
   const viewedHint = question.hints[viewingHintLevel - 1];
   logHintDebugInfo(question, viewedHint);
 
   questionElements.hintLevelLabel.textContent = `ヒント ${viewingHintLevel} / ${question.hints.length}`;
-  renderHintList(question);
+  renderHintList(question, newlyRevealedLevel);
   renderHintLevelNav(question);
   questionElements.nextHintButton.disabled =
     hasAnsweredCurrentQuestion || runState.currentHintCount >= question.hints.length;
@@ -562,7 +562,7 @@ function handleNextHintButtonClick() {
   // 新しく開放した段階へ表示も進める（過去の段階を見ていた状態から押しても、
   // 常に「新しく見えるようになった段階」へジャンプする、という自然な挙動にする）。
   viewingHintLevel = runState.currentHintCount;
-  renderHint(question);
+  renderHint(question, runState.currentHintCount);
 }
 
 function renderAnswerArea(question) {

@@ -34,6 +34,7 @@ import {
 import { playSongIntro, playSongFromRandomPosition, stopAudio, attemptSilentUnlock, reportPlaybackTrouble } from "./audio.js";
 import { recordAudioDiagnostic } from "./audioDiagnosticLog.js";
 import { initDebugAudioLogScreen, renderDebugAudioLog } from "./debugAudioLogScreen.js";
+import { captureViewportSnapshot } from "./viewportDiagnosticLog.js";
 import { isAudioTroubleTimeSevere } from "./audioTroubleClassification.js";
 import {
   initInstantChallengeSetupScreen,
@@ -2057,6 +2058,21 @@ initDebugAudioLogScreen({
   count: debugAudioLogCountElement,
   textarea: debugAudioLogTextareaElement,
   onBack: () => navigateWithScrollMemory("fanProfiles"),
+});
+
+// 【2026-11-XX新設・本人指示：iPhone下部の白い帯バグの実機診断】画面が切り替わるたび、
+// および画面サイズ・visualViewportが変化するたび（iOS Safariのツールバー収縮・
+// ソフトウェアキーボードの開閉等）に、そのときの画面サイズ・game-frameの実測値を
+// js/viewportDiagnosticLog.jsへ記録する。ユーザー向けの表示・ゲーム進行には一切影響しない
+// （js/debugAudioLogScreen.jsの既存の診断ログ画面から、本人がまとめてコピーできる）。
+onScreenChange((screenName) => {
+  captureViewportSnapshot(`[SCREEN] ${screenName}`);
+});
+window.addEventListener("resize", () => {
+  captureViewportSnapshot("[RESIZE] window");
+});
+window.visualViewport?.addEventListener("resize", () => {
+  captureViewportSnapshot("[RESIZE] visualViewport");
 });
 
 // スタート画面のプレイヤー名・推しメン表示と、プレイヤー管理モーダル（2026-08-03追加）。

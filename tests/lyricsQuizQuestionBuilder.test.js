@@ -211,6 +211,40 @@ export function runLyricsQuizQuestionBuilderTests() {
     );
   }
 
+  // ===== 【2026-11-XX新設・本人指示：オリジナル一瞬チャレンジ回帰の調査で判明した、
+  //       歌詞クイズタイプにも潜んでいた同じ重大バグの再発防止】distractorSongPool
+  //       （カテゴリー全体）に、選んだ曲＝正解曲そのものが含まれていないケース
+  //       （例：カテゴリーを「表題曲のみ」にしたまま、表題曲ではない曲を選んで出題した場合）。
+  //       以前はgenerateAnswerPool()が「正解曲が母集団に無いので空配列」を返し、
+  //       この問題自体が出題対象からまるごと除外されてしまっていた（気づかれにくい形で
+  //       出題数が静かに減る不具合）。 =====
+  {
+    const selectedSong = REAL_SONGS_SAMPLE[0]; // 選んだ曲＝正解になる曲
+    const songPool = [selectedSong.id];
+    const songsWithLyrics = [{ song: selectedSong, lines: buildRichDummyLines() }];
+    // 正解曲を含まない、選んだ曲とは別のカテゴリー全体という想定。
+    const distractorSongPoolWithoutCorrectSong = REAL_SONGS_SAMPLE.slice(1, 5).map((song) => song.id);
+
+    const questions = buildLyricsQuizQuestions({
+      songsWithLyrics,
+      songPool,
+      distractorSongPool: distractorSongPoolWithoutCorrectSong,
+      questionCountValue: "1",
+      answerPoolSizeValue: "4",
+      seed: 777,
+    });
+    assertEqual(
+      questions.length,
+      1,
+      "正解曲がdistractorSongPoolに含まれていなくても、問題が出題対象から除外されない（実機バグの再現・修正確認）"
+    );
+    assertEqual(
+      questions[0].answerPool.some((song) => song.id === selectedSong.id),
+      true,
+      "正解曲がdistractorSongPoolに含まれていなくても、回答候補には必ず正解曲自身が含まれる"
+    );
+  }
+
   {
     // 出題可能な曲がsongPoolより少ない（一部の曲名だらけの曲が除外される）場合でも、
     // 例外を投げずに残った曲数までで問題セットを作る。

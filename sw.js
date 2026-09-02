@@ -7,7 +7,7 @@
 //
 // 新しいバージョンを配信したいときは、CACHE_VERSIONの値を必ず上げること。
 // 上げないと、ブラウザが「内容が変わっていない」と判断し、更新が反映されない。
-const CACHE_VERSION = "v277";
+const CACHE_VERSION = "v278";
 const CACHE_NAME = `equal-love-intro-quiz-${CACHE_VERSION}`;
 
 // キャッシュするアプリ本体のファイル一覧。
@@ -58,6 +58,7 @@ const APP_SHELL_FILES = [
   "./js/backupAdmin.js",
   "./js/adminBackupScreen.js",
   "./js/debugAudioLogScreen.js",
+  "./js/viewportDiagnosticLog.js",
   "./js/lyricsStorage.js",
   "./js/lyricsSync.js",
   "./js/lyricsFullscreen.js",
@@ -88,6 +89,7 @@ const APP_SHELL_FILES = [
   "./js/instantChallengeWeakSongStats.js",
   "./js/instantChallengeClearStore.js",
   "./js/instantChallengeScreen.js",
+  "./js/instantChallengeQuestionBuilder.js",
   "./js/localReplayCountdown.js",
   "./js/normalQuizTimeScore.js",
   "./js/outroQuizTimeScore.js",

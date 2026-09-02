@@ -722,6 +722,9 @@ function renderLobbyHelpModal(room) {
   listAvailableGameModes().forEach((mode) => {
     const item = document.createElement("div");
     item.className = "online-lobby-help-mode-item";
+    // 【2026-11-XX新設・本人指示：優先度10】ゲストが6択カードをタップしたとき、
+    // openLobbyHelpModal(focusGameMode)がこの属性を目印にスクロール先を探す。
+    item.dataset.gameMode = mode.gameMode;
     if (mode.gameMode === gameMode) item.classList.add("is-current");
     const name = document.createElement("p");
     name.className = "online-lobby-help-mode-item-name";
@@ -734,11 +737,17 @@ function renderLobbyHelpModal(room) {
   });
 }
 
-function openLobbyHelpModal() {
+// focusGameMode: 【2026-11-XX新設・本人指示：優先度10】ゲストが6択のカードをタップして
+// 開いた場合、そのモードの説明までスクロールして見せる（省略時は先頭のまま、従来どおり）。
+function openLobbyHelpModal(focusGameMode) {
   if (!latestRoom || !elements.lobbyHelpModal) return;
   confirmSongListExpanded = false;
   renderLobbyHelpModal(latestRoom);
   elements.lobbyHelpModal.hidden = false;
+  if (focusGameMode && elements.lobbyHelpModeList) {
+    const target = elements.lobbyHelpModeList.querySelector(`[data-game-mode="${focusGameMode}"]`);
+    target?.scrollIntoView({ block: "nearest" });
+  }
 }
 
 function closeLobbyHelpModal() {
@@ -2173,9 +2182,18 @@ function renderResultReturnPanel(room) {
     renderRematchPlayerList(elements.resultRematchPlayerList, room);
     const allReady = computeAllPlayersRematchReady(players);
     const myReady = players[myUid]?.rematchReady === true;
+    // 【2026-11-XX改訂・本人指示：結果/再戦フロー最終仕様】ホストは提案した瞬間から
+    // 常に準備済み扱い（beginRematchReadyCheck()参照）のため「準備OK」は出さず、
+    // 押すと再戦提案そのものを取り消す専用ボタンとして見せる（新しい取消ボタンを
+    // 追加するのではなく、この同じボタンを切り替える）。ゲストは今までどおり
+    // 自分の準備状態をトグルするボタンのまま。
     if (elements.resultRematchToggleButton) {
-      elements.resultRematchToggleButton.textContent = myReady ? "準備を取り消す" : "✓ 準備OK";
-      elements.resultRematchToggleButton.classList.toggle("is-confirmed", myReady);
+      elements.resultRematchToggleButton.textContent = isHostOnResultScreen
+        ? "再戦を取り消す"
+        : myReady
+          ? "準備を取り消す"
+          : "✓ 準備OK";
+      elements.resultRematchToggleButton.classList.toggle("is-confirmed", myReady && !isHostOnResultScreen);
     }
     if (elements.resultRematchAllDoneNotice) {
       elements.resultRematchAllDoneNotice.hidden = !allReady;
@@ -3166,6 +3184,25 @@ export function initOnlineBattleScreens(newElements) {
     });
   });
 
+  // 【2026-11-XX新設・本人指示：優先度10】ゲストはモード変更権限が無いため、6択のラジオは
+  // disabledのまま（上のロジックは変更しない）。ただし「見えているのに押しても何も起きない」
+  // ままにはせず、ゲストがラベルをタップした場合はそのモードの「ルール・遊び方」を
+  // 開いて説明を読めるようにする（実際のモード変更はしない）。ホストはカードタップ＝
+  // モード変更のため、ホストの説明閲覧は上の「ルール・遊び方」ボタンから行う想定
+  // （本人指示のとおり、ここではホストのクリックには介入しない）。
+  document.querySelectorAll('#online-battle-lobby-mode-change-fieldset label').forEach((label) => {
+    label.addEventListener("click", (event) => {
+      const uid = getCurrentUid();
+      const isHost = latestRoom?.host === uid;
+      if (isHost) return; // ホストは通常どおりタップ＝モード変更
+      const radio = label.querySelector('input[name="online-battle-lobby-mode-change-select"]');
+      if (!radio) return;
+      event.preventDefault(); // disabled状態でも念のため既定動作を止める
+      playSfx(SFX_EVENTS.UI_CLICK);
+      openLobbyHelpModal(radio.value);
+    });
+  });
+
   // 【2026-08-30新設、本人指示】ホスト専用：ロビーの参加者行に添えた「キック」「ホストを渡す」
   // ボタンのクリックを、リスト全体への1つのイベント委任で受け取る（renderLobby()側は
   // 行ごとにリスナーを付け外ししない設計にして、再描画のたびの登録漏れ・二重登録を防ぐ）。
@@ -3458,9 +3495,20 @@ export function initOnlineBattleScreens(newElements) {
   // （全員の準備が揃うまでは何度でも取り消せる。押しても画面は一切切り替わらない）。
   elements.resultRematchToggleButton?.addEventListener("click", async () => {
     if (!currentRoomId || !latestRoom) return;
+    attemptSilentUnlock();
+    // 【2026-11-XX新設・本人指示：結果/再戦フロー最終仕様】ホストがこのボタンを押した場合は
+    // 「再戦を取り消す」＝再戦提案そのものの解除。自分の準備を外すだけの
+    // setRematchReady(false)ではなく、cancelRematchReadyCheck()で提案全体をキャンセルする
+    // （ゲスト側は今までどおり自分の準備状態だけをトグルする）。
+    if (latestRoom.host === getCurrentUid()) {
+      playSfx(SFX_EVENTS.UI_BACK);
+      elements.resultRematchToggleButton.disabled = true;
+      await cancelRematchReadyCheck({ roomId: currentRoomId });
+      elements.resultRematchToggleButton.disabled = false;
+      return;
+    }
     const myUid = getCurrentUid();
     const myReady = latestRoom.players?.[myUid]?.rematchReady === true;
-    attemptSilentUnlock();
     playSfx(SFX_EVENTS.UI_CLICK);
     elements.resultRematchToggleButton.disabled = true;
     await setRematchReady({ roomId: currentRoomId, confirmed: !myReady });

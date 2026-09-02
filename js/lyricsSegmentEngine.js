@@ -22,6 +22,7 @@
 // 本人の方針どおり）。
 
 import { computeQuestionRandomValue } from "./randomPlaybackEngine.js";
+import { createSeededRandom } from "./seededRandom.js";
 
 // minTextLength      : 正規化後の文字数がこれ未満の行は短すぎるとみなし品質を下げる
 // idealMaxTextLength : 正規化後の文字数がこれ以下ならヒントとして読みやすい長さとみなす
@@ -187,29 +188,34 @@ export function pickPrimarySegment(candidates, seed, songId, questionIndex, opti
 
 // 1問分のヒント進行（最大maxHints段階、既定4段階）を決定論的に生成する。
 //
-// 【方式（2026-10-01、本人指示：ヒント生成の全面再設計）】以前（2026-08-09〜）は
-// 「基準行を1つ選び、必ずその基準行を含む範囲を1行ずつ広げる」方式だったが、実際に
-// プレイすると「ヒント1〜4がほぼ同じ文章（前のヒントに数語足しただけ）で、4段階の
-// 手掛かりというより1つの手掛かりを引き延ばしているだけ」に見える、という本人指摘が
-// あった（本人の実機報告：ヒント3とヒント4がほぼ同じ文章で末尾に数語追加されただけ）。
-// 新方式は、曲全体からできるだけ離れた（曲名を含まない・quality>0の）独立した1行を
-// maxHints個選び、各ヒントを完全に別々の歌詞位置にする（同じ文章を伸ばさない・
-// 前のヒントの内容を含まない）。
-// 【選び方】使える1行候補（曲名を含まない・quality>0）を歌詞の登場順に並べ、
-// maxHints個のグループへほぼ均等に分割し、各グループから1件ずつ選ぶ（曲全体から
-// まんべんなく散らばる）。primaryLineIndex（pickPrimarySegment()が既にseedベースの
-// 乱数で選んだ基準行）を選び始めの位置として使うことで、同じ曲でも問題ごとに
-// （seedが変われば）選ばれる4行の組み合わせ自体も変わる。
-// 【ヒント番号と歌詞内の登場順は別物】このプロジェクトの他の場所（画面表示・答え合わせ）
-// では、必要に応じてstartLineで並べ替えて使う想定のため、ここではhintLevelを歌詞の
-// 登場順（startLine昇順）に割り当てる（hintLevel＝表示順＝歌詞の時系列、という単純な
-// 対応関係にしておくことで、呼び出し側が別途並べ替える必要をなくす）。
-// 【重複防止】既に選んだ行と正規化テキストが完全に一致する行（サビの再登場等）は
-// 選ばない（曲全体の中で、まだ使っていない位置を探す）。
+// 【方式（2026-11-XX、本人指示：ヒント生成の再設計・第2版）】前回（2026-10-01）は
+// 「使える行を歌詞の登場順に並べ、maxHints個のグループへほぼ均等に分割し、各グループから
+// 1件ずつ選ぶ」方式にしたが、これだと逆に機械的な均等配置になり、本人からもっとランダム性の
+// ある結果にしてほしいという指示があった。今回は、使える行（曲名を含まない・quality>0）
+// 全体から、seedベースの乱数でmaxHints個を「完全にランダムに」選ぶ。
+// 【重複防止】正規化テキストが完全に一致する行（サビの再登場等）は選ばない。
+// 【近さの扱い】2つのヒントが歌詞の近い位置から選ばれるのは許容する（ランダム性として
+// 自然）。ただし、選ばれたmaxHints個の全部が曲のごく狭い範囲（歌詞全体の30%未満の幅）に
+// 集中してしまう極端な結果だけは避けたいため、範囲が狭すぎる場合は同じ乱数列の続きを使って
+// 再抽選する（最大6回まで。それでも改善しなければ、それまでで最も範囲が広かった結果を使う。
+// 使える行がmaxHints個以下の曲では、全部を使うため再抽選の余地が無く、この判定自体を行わない）。
+// 【一度決めたら再抽選しない】この関数は1問につき1回だけ呼ぶ想定（呼び出し側
+// 〈js/lyricsQuizQuestionBuilder.js〉が問題生成時に1回だけ呼び、以後は結果を使い回す）。
+//
+// 【hintLevelと画面表示順は別物（重要）】ここでのhintLevelは「抽選された順番（開放順）」
+// であり、歌詞の時系列（startLine）とは無関係。例えばhintLevel1が2番の歌詞、hintLevel2が
+// 1番の歌詞、ということが普通に起こる。画面上でどの順に並べて見せるか（時系列順など）は
+// 呼び出し側の責務とし、この関数はソートしない（並べ替えるとhintLevelと中身の対応が
+// 崩れるため、あえて何もしない）。
 //
 // lines           : 歌詞の行データ全体（{ line, text, start, end }[]）
 // primaryLineIndex: 基準行のlines配列内でのインデックス（generateAnchorLineCandidates()の
-//                   戻り値のindexフィールドをそのまま渡す。開始位置の乱数種として使う）
+//                   戻り値のindexフィールドをそのまま渡す。「この曲に有効な基準行が
+//                   1つも無い」場合の安全ガードとしてのみ使う。選ばれる4行の内容には
+//                   もう影響しない）。
+// options.seed / options.songId / options.questionIndex : 抽選用の乱数の種
+//                   （js/lyricsQuizEngine.jsのcreateAnswerPoolRandom()と同じ考え方で、
+//                   全端末が同じ入力から同じ4行を再現できるようにする）。
 // 戻り値: { hintLevel, segmentId, startLine, endLine, segment }[]（要素数は1〜maxHints、
 // 曲名を含まない使える行がmaxHints未満しか無い曲では、それより少なくなることがある）。
 // maxHints未満で打ち切られた場合のみ、最後の要素に打ち切り理由stopReason:
@@ -221,6 +227,9 @@ export function buildHintSequence(lines, primaryLineIndex, options = {}) {
     options.idealMaxTextLength ?? SEGMENT_GENERATION_DEFAULTS.idealMaxTextLength;
   const title = options.title ?? null;
   const titleAliases = options.titleAliases ?? [];
+  const seed = options.seed ?? 0;
+  const songId = options.songId ?? "";
+  const questionIndex = options.questionIndex ?? 0;
 
   if (!Array.isArray(lines) || lines.length === 0 || primaryLineIndex < 0 || primaryLineIndex >= lines.length) {
     return [];
@@ -235,30 +244,12 @@ export function buildHintSequence(lines, primaryLineIndex, options = {}) {
   if (usable.length === 0) return [];
 
   const count = Math.min(maxHints, usable.length);
-  // primaryLineIndexをusable配列内での開始位置（見つからなければ0）に変換し、
-  // そこを基準にmaxHints個のグループへ分割する開始オフセットとして使う
-  // （同じ曲でも問題ごとに選ばれる行の組み合わせが変わるようにするため）。
-  const startOffset = Math.max(
-    0,
-    usable.findIndex((c) => c.index === primaryLineIndex)
-  );
+  const random = createHintSelectionRandom(seed, songId, questionIndex);
+  const chosen = pickRandomHintCandidates(usable, random, count);
 
-  const chosen = [];
-  const usedNormalizedTexts = new Set();
-  const groupSize = usable.length / count;
-  for (let group = 0; group < count; group += 1) {
-    // グループ内の中央付近を狙い、開始位置ぶんだけ全体を巡回させる（曲の先頭に偏らせない）。
-    const idealIndex = Math.floor(group * groupSize + groupSize / 2) + startOffset;
-    const candidate = findNearestUnusedCandidate(usable, idealIndex, usedNormalizedTexts);
-    if (!candidate) continue; // 全候補が既に使われている（=usable自体がcount未満）場合のみ起こりうる
-    usedNormalizedTexts.add(candidate.normalizedText);
-    chosen.push(candidate);
-  }
-
-  // 歌詞の登場順（startLine昇順）に並べ、その順にhintLevelを1から割り振る
-  // （hintLevel＝画面表示順＝歌詞の時系列という単純な対応にする）。
-  const sorted = [...chosen].sort((a, b) => a.startLine - b.startLine);
-  const hints = sorted.map((segment, i) => ({
+  // 抽選された順（＝配列の並び順）をそのままhintLevelにする。歌詞の時系列では並べ替えない
+  // （並べ替えは呼び出し側の責務。hintLevelと中身の対応を崩さないため、ここでは何もしない）。
+  const hints = chosen.map((segment, i) => ({
     hintLevel: i + 1,
     segmentId: segment.id,
     startLine: segment.startLine,
@@ -275,23 +266,89 @@ export function buildHintSequence(lines, primaryLineIndex, options = {}) {
   return hints;
 }
 
-// usable（歌詞の登場順に並んだ、使える1行候補の配列）から、idealIndex（usable配列内での
-// 目標位置、配列の範囲外・負数もありうる）に最も近い「まだ選んでいない（正規化テキストが
-// 重複しない）」候補を探す。中心から外側へ交互に1つずつ広げながら探すことで、
-// 目標位置から実際の距離が最も近い候補を確実に見つける（サビの繰り返し等で近くの候補が
-// 軒並み重複テキストの場合でも、離れた場所にある別の候補まで探しに行く）。
-function findNearestUnusedCandidate(usable, idealIndex, usedNormalizedTexts) {
-  const n = usable.length;
-  const center = Math.max(0, Math.min(n - 1, ((idealIndex % n) + n) % n));
-  for (let distance = 0; distance < n; distance += 1) {
-    const offsets = distance === 0 ? [0] : [-distance, distance];
-    for (const offset of offsets) {
-      const idx = (((center + offset) % n) + n) % n;
-      const candidate = usable[idx];
-      if (!usedNormalizedTexts.has(candidate.normalizedText)) return candidate;
+// buildHintSequence()専用の、seed・songId・questionIndexから作る決定論的な乱数生成器。
+// js/lyricsQuizEngine.jsのcreateAnswerPoolRandom()と全く同じ考え方（用途を表す文字列
+// ":hintSelect"を足してからハッシュ化することで、回答候補の乱数・基準行選びの乱数と
+// 出どころが混ざらないようにする）。
+function createHintSelectionRandom(seed, songId, questionIndex) {
+  const seedSourceValue = computeQuestionRandomValue(seed, `${songId}:hintSelect`, questionIndex);
+  const integerSeed = Math.floor(seedSourceValue * 0xffffffff) >>> 0;
+  return createSeededRandom(integerSeed);
+}
+
+// usable（歌詞の登場順に並んだ、使える1行候補の配列）から、乱数でcount個を選ぶ
+// （正規化テキストの重複は除く）。「4つ全部が曲のごく狭い範囲に集中する」極端な結果を
+// 避けるため、usable.length > count のときだけ、範囲（startLineの最大-最小）が
+// 歌詞全体の範囲の30%未満なら再抽選する（最大6回。改善しなければそれまでで最も
+// 範囲が広かった結果を使う。usable.length <= countなら全件を使うだけなので判定不要）。
+function pickRandomHintCandidates(usable, random, count) {
+  if (count === 0) return [];
+  if (usable.length <= count) {
+    // 全件を使う。抽選順に意味を持たせるため、順番だけシャッフルする。
+    return shuffleArrayInPlace([...usable], random);
+  }
+
+  const totalSpan = usable[usable.length - 1].startLine - usable[0].startLine;
+  const MIN_SPAN_RATIO = 0.3;
+  const MAX_ATTEMPTS = 6;
+
+  let bestAttempt = null;
+  let bestSpan = -1;
+
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
+    const picked = pickDistinctRandomCandidates(usable, random, count);
+    const span = picked[picked.length - 1]
+      ? Math.max(...picked.map((c) => c.startLine)) - Math.min(...picked.map((c) => c.startLine))
+      : 0;
+    if (span > bestSpan) {
+      bestSpan = span;
+      bestAttempt = picked;
+    }
+    if (totalSpan === 0 || span / totalSpan >= MIN_SPAN_RATIO) {
+      return picked; // 曲全体に十分散らばっている
     }
   }
-  return null;
+  return bestAttempt; // 妥協案：全試行の中で最も範囲が広かった組み合わせを使う
+}
+
+// usableをrandomでシャッフルし、先頭からcount件を「正規化テキストが重複しないように」拾う。
+function pickDistinctRandomCandidates(usable, random, count) {
+  const shuffled = shuffleArrayInPlace([...usable], random);
+  const usedNormalizedTexts = new Set();
+  const chosen = [];
+  for (const candidate of shuffled) {
+    if (chosen.length >= count) break;
+    if (usedNormalizedTexts.has(candidate.normalizedText)) continue;
+    usedNormalizedTexts.add(candidate.normalizedText);
+    chosen.push(candidate);
+  }
+  return chosen;
+}
+
+// Fisher-Yatesシャッフル（配列を破壊的に並べ替えて返す）。
+function shuffleArrayInPlace(array, random) {
+  for (let i = array.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
+
+// hints（js/lyricsSegmentEngine.jsのbuildHintSequence()の戻り値）から、「今表示すべき
+// レベルまでに開いた行」を取り出し、歌詞の登場順（行番号の昇順）に並べ替えたリストを作る。
+// オフライン歌詞クイズ（js/lyricsQuizScreen.js）・オンライン正解数/ポイントバトル
+// （js/onlineLyricsQuizBattleScreen.js）の両方が使う共通関数（本人指示：ヒント抽選・
+// 表示順の並べ替えロジックは可能な範囲で共通化する）。
+// 【hintLevelと画面表示順は別物】buildHintSequence()のhintLevelは「抽選された順
+// （開放順）」であり、歌詞の時系列とは無関係。そのため画面表示の直前でstartLine昇順に
+// 並べ替える。ただし各行が持つ「ヒント◯」のラベル（level）は抽選時のhintLevelのまま
+// 変えない（並べ替えても番号は書き換えない）。
+// 戻り値: { lineNumber, text, level }[]（levelは元のhintLevel、startLine昇順に整列済み）
+export function computeRevealedHintLines(hints, uptoLevel) {
+  return hints
+    .slice(0, uptoLevel)
+    .map((hint) => ({ lineNumber: hint.startLine, text: hint.segment.text, level: hint.hintLevel }))
+    .sort((a, b) => a.lineNumber - b.lineNumber);
 }
 
 // linesデータ全体から、簡易的な内容ハッシュ（16進数文字列）を作る（FNV-1a、暗号強度は不要）。

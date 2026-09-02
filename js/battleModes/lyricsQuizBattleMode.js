@@ -38,7 +38,7 @@ import {
   validateLyricsQuizAvailability,
   resolveLyricsQuizSongPool,
 } from "../lyricsQuizQuestionBuilder.js";
-import { validateSongPoolForQuestionCount, filterSongIdsByCategory, QUESTION_SOURCE_TYPE } from "../questionSource.js";
+import { validateSongPoolForQuestionCount, QUESTION_SOURCE_TYPE } from "../questionSource.js";
 import {
   createDefaultBattleRuleSettings,
   validateBattleRule,
@@ -112,13 +112,17 @@ export function defaultSettings() {
   };
 }
 
-// 【2026-09-16新設・本人指示：他モードとの機能差解消】settings.questionSource・
-// categoryFilterValueから、実際に出題対象になりうる曲ID一覧を解決する（歌詞クイズ対象外の
-// 曲＝Overture等は必ず除く）。js/battleModes/timeAttackBattleMode.jsの
-// resolveQuestionSourceSongPool()と全く同じ考え方：
-// ・共同選曲（collaborativeSelection）：選択状態（songIds）自体は書き換えず、現在の
-//   カテゴリ条件に合う曲だけへ絞り込んだ結果を返す（カテゴリを元に戻せば選択は復活する。
-//   絶対に壊してはいけない既存仕様）。
+// 【2026-11-XX改訂・本人指示：「曲を選んで出題」にカテゴリー条件を絶対に追加適用しない】
+// settings.questionSource・categoryFilterValueから、実際に出題対象になりうる曲ID一覧を
+// 解決する（歌詞クイズ対象外の曲＝Overture等は必ず除く）。js/battleModes/
+// timeAttackBattleMode.jsのresolveQuestionSourceSongPool()と全く同じ考え方：
+// ・共同選曲（collaborativeSelection）：以前はここで現在のcategoryFilterValueに合う曲
+//   だけへ追加で絞り込んでいたが、これが「イントロ対戦で選んだ曲を歌詞クイズ対戦へ
+//   引き継ぐと、選んだ曲のうち数曲しか有効曲として扱われない」実機バグの直接の原因
+//   だった（categoryFilterValueの既定値"title-track"により、選んだ曲のうち表題曲以外が
+//   すべて弾かれていた）。「曲を選んで出題」の有効曲は「参加者全員の選択曲の和集合 ∩
+//   そのモードで本当に使用可能な曲」だけで決まるという本人指示に基づき、カテゴリー条件は
+//   一切適用しない（選択状態＝questionSource.songIds自体は書き換えない）。
 // ・「全曲から出題」（questionSourceが無い、またはALL_SONGS）：カテゴリ条件そのもので
 //   曲を解決する。
 // ・それ以外（manualSelection・favoritesSnapshot・playlistSnapshot）：既存の
@@ -128,7 +132,7 @@ function resolveQuestionSourceSongPool(questionSource, categoryFilterValue) {
   if (questionSource?.type === QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION) {
     return resolveLyricsQuizSongPool({
       type: QUESTION_SOURCE_TYPE.MANUAL_SELECTION,
-      songIds: filterSongIdsByCategory(questionSource.songIds ?? [], categoryFilterValue),
+      songIds: questionSource.songIds ?? [],
     });
   }
   if (!questionSource || questionSource.type === QUESTION_SOURCE_TYPE.ALL_SONGS) {

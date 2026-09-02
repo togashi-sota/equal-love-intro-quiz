@@ -167,10 +167,22 @@ export function buildLyricsQuizQuestions({
           title: entry.song.title,
           titleAliases: entry.song.searchAliases,
           maxHints: 4,
+          seed,
+          songId: entry.song.id,
+          questionIndex,
         })
       : [];
     const answerRandom = createAnswerPoolRandom(seed, entry.song.id, questionIndex);
-    const answerPool = generateAnswerPool(poolSongs, entry.song.id, answerPoolSizeValue, answerRandom);
+    // 【2026-11-XX修正・本人指示：不正解候補プールに正解曲が含まれない重大バグ】
+    // poolSongs（distractorSongPool＝設定したカテゴリー全体）に、この問題の正解曲自体が
+    // 含まれていない場合がある（例：カテゴリーを「表題曲のみ」にしたまま、全員曲を選んで
+    // 出題した場合）。generateAnswerPool()は正解曲が母集団に無いと空配列を返す仕様のため、
+    // 何も気づかれないまま回答候補が0件になる（js/instantChallengeScreen.jsの
+    // buildInstantChallengeQuestion()と同じ原因・同じ修正方針）。
+    const answerPoolSource = poolSongs.some((candidate) => candidate.id === entry.song.id)
+      ? poolSongs
+      : [entry.song, ...poolSongs];
+    const answerPool = generateAnswerPool(answerPoolSource, entry.song.id, answerPoolSizeValue, answerRandom);
 
     // 【2026-09-26新設・本人指示：サウンドシステム全面整備9章】
     // 【2026-10-01改訂・本人指示：回答時点のヒント位置から答え合わせ再生】以前は常に
@@ -205,7 +217,11 @@ export function buildLyricsQuizQuestions({
     .map((question) => {
       if (validateLyricsQuizQuestionAnswerPool(question).ok) return question;
 
-      const fallbackAnswerPool = buildFallbackAnswerPool(poolSongs, question.song.id, answerPoolSizeValue);
+      // フォールバックも同じ理由で、正解曲を確実に含むプールから作り直す。
+      const fallbackPoolSongs = poolSongs.some((candidate) => candidate.id === question.song.id)
+        ? poolSongs
+        : [question.song, ...poolSongs];
+      const fallbackAnswerPool = buildFallbackAnswerPool(fallbackPoolSongs, question.song.id, answerPoolSizeValue);
       if (!fallbackAnswerPool) {
         // eslint-disable-next-line no-console
         console.warn(
