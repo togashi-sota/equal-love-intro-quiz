@@ -24,6 +24,7 @@ import {
   buildFriendAchievementSummary,
   sortProfiles,
 } from "./fanProfileCard.js";
+import { SFX_EVENTS, playSfx } from "./soundManager.js";
 
 let elements = null;
 let members = null;
@@ -111,6 +112,7 @@ function renderSharingSettings() {
 // 「いつ呼ぶか」と「結果をどう見せるか」だけを担当する（js/timeAttackLeaderboardSync.jsの
 // syncRankingCandidatesToFirebase参照）。ON→OFFのときは呼ばない（同期する新しい記録が無いため）。
 async function handleSharingToggleClick() {
+  playSfx(SFX_EVENTS.UI_CLICK);
   const playerKeyPrefix = getPlayerKeyPrefix();
   const nextEnabled = !isPublicProfileSharingEnabled(playerKeyPrefix);
   setPublicProfileSharingEnabled(playerKeyPrefix, nextEnabled);
@@ -181,6 +183,7 @@ function closeDetailModal() {
 // 右上の「🏅称号一覧」（ゲーム全体の称号・条件を見る）とは別物：今開いているフレンド本人が
 // 取得済みの称号を全部確認するための、モーダル内アコーディオン開閉。
 function handleDetailAllToggleClick() {
+  playSfx(SFX_EVENTS.UI_CLICK);
   const willOpen = elements.detailAchievementList.hidden;
   elements.detailAchievementList.hidden = !willOpen;
   elements.detailAllToggle.textContent = willOpen
@@ -190,12 +193,14 @@ function handleDetailAllToggleClick() {
 
 function handleDetailOverlayClick(event) {
   if (event.target !== elements.detailOverlay) return;
+  playSfx(SFX_EVENTS.UI_BACK);
   closeDetailModal();
 }
 
 function handleDetailKeydown(event) {
   if (event.key !== "Escape") return;
   if (elements.detailOverlay.hidden) return;
+  playSfx(SFX_EVENTS.UI_BACK);
   closeDetailModal();
 }
 
@@ -214,12 +219,14 @@ function closeAdminDeleteConfirm() {
 
 function handleAdminDeleteOverlayClick(event) {
   if (event.target !== elements.adminDeleteOverlay) return;
+  playSfx(SFX_EVENTS.UI_BACK);
   closeAdminDeleteConfirm();
 }
 
 function handleAdminDeleteKeydown(event) {
   if (event.key !== "Escape") return;
   if (elements.adminDeleteOverlay.hidden) return;
+  playSfx(SFX_EVENTS.UI_BACK);
   closeAdminDeleteConfirm();
 }
 
@@ -227,6 +234,7 @@ function handleAdminDeleteKeydown(event) {
 // 削除し、削除後は一覧を再読み込みする。失敗してもローカルデータには一切影響しない。
 async function handleAdminDeleteConfirmClick() {
   if (!isAdminUser || !pendingAdminDeleteProfile) return;
+  playSfx(SFX_EVENTS.UI_CONFIRM);
   const targetUid = pendingAdminDeleteProfile.uid;
   elements.adminDeleteConfirmButton.disabled = true;
   try {
@@ -286,12 +294,18 @@ export function initFanProfilesScreen(newElements, allMembers) {
   if (elements.detailTitleListLink) {
     elements.detailTitleListLink.addEventListener("click", closeDetailModal);
   }
-  elements.detailCloseButton.addEventListener("click", closeDetailModal);
+  elements.detailCloseButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_BACK);
+    closeDetailModal();
+  });
   elements.detailAllToggle.addEventListener("click", handleDetailAllToggleClick);
   elements.detailOverlay.addEventListener("click", handleDetailOverlayClick);
   document.addEventListener("keydown", handleDetailKeydown);
 
-  elements.adminDeleteCancelButton.addEventListener("click", closeAdminDeleteConfirm);
+  elements.adminDeleteCancelButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_BACK);
+    closeAdminDeleteConfirm();
+  });
   elements.adminDeleteConfirmButton.addEventListener("click", handleAdminDeleteConfirmClick);
   elements.adminDeleteOverlay.addEventListener("click", handleAdminDeleteOverlayClick);
   document.addEventListener("keydown", handleAdminDeleteKeydown);

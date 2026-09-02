@@ -15,6 +15,7 @@
 import { DEFAULT_PLAYER_ID, renamePlayer } from "./playerProfile.js";
 import { setMostOshiMember } from "./oshiMembers.js";
 import { getActiveMembers } from "./memberUtils.js";
+import { SFX_EVENTS, playSfx } from "./soundManager.js";
 
 const ONBOARDING_COMPLETE_KEY = "equalLoveIntroQuiz.onboardingCompleted";
 const APP_DATA_KEY_PREFIX = "equalLoveIntroQuiz.";
@@ -87,6 +88,7 @@ function buildMemberOption(member) {
 
   button.append(swatch, name);
   button.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     selectedOshiMemberId = member.id;
     renderMemberGrid();
     updateSubmitButtonState();
@@ -105,6 +107,7 @@ function handleSubmit() {
   const name = elements.nameInput.value.trim();
   if (name.length === 0 || selectedOshiMemberId === null) return;
 
+  playSfx(SFX_EVENTS.UI_CONFIRM);
   renamePlayer(DEFAULT_PLAYER_ID, name);
   setMostOshiMember(selectedOshiMemberId);
   markOnboardingCompleted();

@@ -22,6 +22,7 @@ import { getMemberById } from "./memberUtils.js";
 import { getMostOshiMemberId } from "./oshiMembers.js";
 import { applyOshiBadgeDecorations } from "./oshiBadge.js";
 import { getStoragePersistenceStatus } from "./storagePersistence.js";
+import { SFX_EVENTS, playSfx } from "./soundManager.js";
 
 let elements = null;
 let members = null; // 推しメン表示用に、members.jsの配列を保持しておく
@@ -81,6 +82,7 @@ function buildPlayerRow(player) {
     row.appendChild(input);
 
     const commitRename = () => {
+      playSfx(SFX_EVENTS.UI_CONFIRM);
       renamePlayer(player.playerId, input.value.trim() || player.playerName);
       renamingPlayerId = null;
       renderPlayerModal();
@@ -130,6 +132,7 @@ function buildPlayerRow(player) {
     switchButton.appendChild(activeTag);
   }
   switchButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CONFIRM);
     setActivePlayerId(player.playerId);
     renderPlayerModal();
     renderPlayerSummary();
@@ -143,6 +146,7 @@ function buildPlayerRow(player) {
   renameButton.textContent = "✎";
   renameButton.setAttribute("aria-label", "名前を変更する");
   renameButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     renamingPlayerId = player.playerId;
     renderPlayerModal();
   });
@@ -156,6 +160,7 @@ function buildPlayerRow(player) {
     deleteButton.textContent = "×";
     deleteButton.setAttribute("aria-label", "削除する");
     deleteButton.addEventListener("click", () => {
+      playSfx(SFX_EVENTS.UI_CLICK);
       pendingDeletePlayerId = player.playerId;
       elements.playerDeleteConfirmModal.hidden = false;
     });
@@ -195,6 +200,7 @@ async function renderStoragePersistenceStatus() {
 }
 
 function openPlayerModal() {
+  playSfx(SFX_EVENTS.UI_CLICK);
   renamingPlayerId = null;
   renderPlayerModal();
   renderStoragePersistenceStatus();
@@ -202,6 +208,7 @@ function openPlayerModal() {
 }
 
 function closePlayerModal() {
+  playSfx(SFX_EVENTS.UI_BACK);
   elements.playerModal.hidden = true;
 }
 
@@ -244,6 +251,7 @@ export function initPlayerScreen(newElements, allMembers) {
   const commitAddPlayer = () => {
     const name = elements.playerAddInput.value.trim();
     if (!name) return;
+    playSfx(SFX_EVENTS.UI_CONFIRM);
     const newPlayer = addPlayer(name);
     setActivePlayerId(newPlayer.playerId);
     elements.playerAddInput.value = "";
@@ -263,10 +271,12 @@ export function initPlayerScreen(newElements, allMembers) {
   });
 
   elements.playerDeleteCancelButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_BACK);
     pendingDeletePlayerId = null;
     elements.playerDeleteConfirmModal.hidden = true;
   });
   elements.playerDeleteConfirmButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CONFIRM);
     if (pendingDeletePlayerId) {
       removePlayerScopedData(pendingDeletePlayerId);
       deletePlayer(pendingDeletePlayerId);
@@ -279,6 +289,7 @@ export function initPlayerScreen(newElements, allMembers) {
   });
 
   elements.oshiSummaryChip.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     elements.onSelectOshiSummary?.();
   });
 

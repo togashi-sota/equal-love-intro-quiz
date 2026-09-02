@@ -261,6 +261,8 @@ export function initOnlineLyricsQuizBattleScreens(newElements) {
   document.querySelectorAll('input[name="online-lyrics-battle-question-count"]').forEach((radio) => {
     radio.addEventListener("change", () => {
       if (!latestRoom || latestRoom.gameMode !== lyricsQuizBattleMode.gameMode) return;
+      // 出題数設定変更操作音
+      playSfx(SFX_EVENTS.UI_CLICK);
       applyLyricsQuizSettingsChange(latestRoom, { ...latestRoom.settings, questionCountValue: radio.value });
     });
   });
@@ -272,6 +274,8 @@ export function initOnlineLyricsQuizBattleScreens(newElements) {
   document.querySelectorAll('input[name="online-lyrics-battle-settings-song-source"]').forEach((radio) => {
     radio.addEventListener("change", () => {
       if (!latestRoom || latestRoom.gameMode !== lyricsQuizBattleMode.gameMode) return;
+      // 出題対象曲の選び方（全曲／曲を選んで出題）の切り替え操作音
+      playSfx(SFX_EVENTS.UI_CLICK);
       if (radio.value === "manual") {
         applyLyricsQuizSettingsChange(latestRoom, {
           ...latestRoom.settings,
@@ -294,6 +298,8 @@ export function initOnlineLyricsQuizBattleScreens(newElements) {
   document.querySelectorAll('input[name="online-lyrics-battle-settings-category"]').forEach((radio) => {
     radio.addEventListener("change", () => {
       if (!latestRoom || latestRoom.gameMode !== lyricsQuizBattleMode.gameMode) return;
+      // カテゴリー設定変更操作音
+      playSfx(SFX_EVENTS.UI_CLICK);
       applyLyricsQuizSettingsChange(latestRoom, { ...latestRoom.settings, categoryFilterValue: radio.value });
     });
   });
@@ -301,13 +307,17 @@ export function initOnlineLyricsQuizBattleScreens(newElements) {
   // 問わず誰でも使える（js/onlineBattleScreen.jsの同名ハンドラと同じ考え方）。
   // 歌詞クイズ対戦では「歌詞データの共通曲」で絞り込む。
   elements.lyricsCollabChooseSongsButton.addEventListener("click", () => {
+    // 共同選曲：曲選択画面を開く操作音
+    playSfx(SFX_EVENTS.UI_CLICK);
     openLyricsCollabSongPicker();
   });
   elements.lyricsCollabChooseFavoritesButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     const favoriteSongIds = getFavoriteSongIds().filter((songId) => currentLyricsCommonSongPool.has(songId));
     openLyricsSongListConfirm("⭐ お気に入りから選ぶ", "お気に入りから選ばれている曲はこの曲です", favoriteSongIds);
   });
   elements.lyricsCollabChoosePlaylistButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     openOnlineBattlePlaylistPicker(currentLyricsCommonSongPool, (songIds) => {
       openLyricsSongListConfirm("📃 プレイリストから選ぶ", "このプレイリストから選ばれている曲はこの曲です", songIds);
     });
@@ -342,12 +352,16 @@ export function initOnlineLyricsQuizBattleScreens(newElements) {
   });
 
   elements.battleQuitButton.addEventListener("click", () => {
+    // 対戦をやめる確認モーダルを開く操作音
+    playSfx(SFX_EVENTS.UI_CLICK);
     elements.quitConfirmModal.hidden = false;
   });
   elements.quitCancelButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_BACK);
     elements.quitConfirmModal.hidden = true;
   });
   elements.quitConfirmButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CONFIRM);
     elements.quitConfirmModal.hidden = true;
     stopAllLocalTimers();
     elements.onQuitDuringBattle();
@@ -356,6 +370,9 @@ export function initOnlineLyricsQuizBattleScreens(newElements) {
 
   // 【2026-09-05新設、本人指示】対戦中、ホストだけに見える「ルーム設定へ戻る」。
   elements.battleBackToLobbyButton?.addEventListener("click", () => {
+    // 確認モーダルを開くだけの軽い操作音（モーダル自体はjs/onlineBattleLobbyReturnPrompt.js
+    // 側で既に対応済みのため、ここでは重ねない）。
+    playSfx(SFX_EVENTS.UI_CLICK);
     promptReturnToLobby(latestRoom?.roomId);
   });
 
@@ -364,6 +381,9 @@ export function initOnlineLyricsQuizBattleScreens(newElements) {
     const roomId = latestRoom?.roomId;
     const matchId = currentMatchId;
     if (!roomId || !matchId) return;
+    // 確認モーダルを開くだけの軽い操作音（モーダル自体はjs/onlineBattleLeaveMatchPrompt.js
+    // 側で既に対応済みのため、ここでは重ねない）。
+    playSfx(SFX_EVENTS.UI_CLICK);
     promptLeaveMatch(roomId, matchId, () => {
       saveVoluntaryLeaveLyricsHistoryEntry();
       resetLyricsQuizBattleState();
@@ -372,6 +392,7 @@ export function initOnlineLyricsQuizBattleScreens(newElements) {
   });
 
   elements.resultHomeLink.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_BACK);
     stopAllLocalTimers();
     elements.onLeaveResultToHome();
     elements.navigateTo("start");
@@ -381,6 +402,9 @@ export function initOnlineLyricsQuizBattleScreens(newElements) {
   // leaveOnlineBattleRoomCompletely()（あちらに集約）を呼ぶ。
   // 【2026-09-15改訂・本人指示：ゲスト側の退出操作にも必ず確認ダイアログ】
   elements.resultLeaveButton?.addEventListener("click", () => {
+    // 確認モーダルを開くだけの軽い操作音（モーダル自体はjs/onlineBattleResultLeavePrompt.js
+    // 側で既に対応済みのため、ここでは重ねない）。
+    playSfx(SFX_EVENTS.UI_CLICK);
     promptResultLeaveRoom(async () => {
       stopAllLocalTimers();
       elements.resultLeaveButton.disabled = true;
@@ -396,12 +420,14 @@ export function initOnlineLyricsQuizBattleScreens(newElements) {
   // 準備フェーズへ進む（js/onlineBattleScreen.jsのrenderRematchReadyScreen()参照）。
   elements.resultRematchButton.addEventListener("click", async () => {
     if (!latestRoom) return;
+    playSfx(SFX_EVENTS.UI_CONFIRM);
     elements.resultRematchButton.disabled = true;
     await beginRematchReadyCheck({ roomId: latestRoom.roomId });
     elements.resultRematchButton.disabled = false;
   });
   elements.resultBackToLobbyButton.addEventListener("click", async () => {
     if (!latestRoom) return;
+    playSfx(SFX_EVENTS.UI_BACK);
     elements.resultBackToLobbyButton.disabled = true;
     await returnRoomToLobby({ roomId: latestRoom.roomId });
     elements.resultBackToLobbyButton.disabled = false;
@@ -1506,6 +1532,8 @@ function renderHintActionButtons({ isResolved, myAnsweredThisQuestion }) {
     openButton.className = "secondary-button online-lyrics-battle-hint-open-button";
     openButton.textContent = `ヒント${nextLevel}を見る`;
     openButton.addEventListener("click", () => {
+      // ヒントを開く操作音
+      playSfx(SFX_EVENTS.UI_CLICK);
       myOpenedHintLevel = nextLevel;
       reportMyQuestionActivity();
       renderCurrentQuestionState();
@@ -1523,6 +1551,9 @@ function renderHintActionButtons({ isResolved, myAnsweredThisQuestion }) {
   // handleAnswerChoiceClick()自身のresolveAnswerSubmissionBlock()が二重回答・状態不整合を
   // 防ぐため、確認画面が開いている間に問題が確定していても安全。
   giveUpButton.addEventListener("click", () => {
+    // 確認モーダルを開くだけの軽い操作音（モーダル内の確定・キャンセルは
+    // js/answerConfirmPrompt.js側で既に対応済みのため、ここでは重ねない）。
+    playSfx(SFX_EVENTS.UI_CLICK);
     promptAnswerConfirm("わからない", () => handleAnswerChoiceClick(SKIP_SELECTION));
   });
   elements.battleHintActions.appendChild(giveUpButton);
@@ -1560,6 +1591,8 @@ function renderAnswerJumpBar() {
     const isActive = key === "all" ? !myAnswerJumpRowKey || myAnswerJumpRowKey === "all" : myAnswerJumpRowKey === key;
     if (isActive) button.classList.add("is-active");
     button.addEventListener("click", () => {
+      // 50音ジャンプチップの選択操作音
+      playSfx(SFX_EVENTS.UI_CLICK);
       myAnswerJumpRowKey = key;
       myAnswerSearchQuery = "";
       if (elements.battleAnswerSearchInput) elements.battleAnswerSearchInput.value = "";
@@ -1660,6 +1693,10 @@ function renderAnswerChoices(question, { isResolved, myAnsweredThisQuestion, que
     // 1回の確認を挟む。handleAnswerChoiceClick()自身のresolveAnswerSubmissionBlock()が
     // 二重回答・状態不整合を防ぐため、確認画面が開いている間に問題が確定していても安全。
     button.addEventListener("click", () => {
+      // 回答選択肢タップ操作音（早押しは即回答、それ以外は確認モーダルを開くだけ。
+      // モーダル内の確定・キャンセルはjs/answerConfirmPrompt.js側で既に対応済みのため
+      // ここでは重ねない）。
+      playSfx(SFX_EVENTS.UI_CLICK);
       if (latestRoom?.settings?.battleRuleId === "steal") {
         handleAnswerChoiceClick(choiceSong.id);
         return;
@@ -1831,6 +1868,8 @@ function renderIdleNotice(match, qIndex, nowServerTimeMs) {
     button.className = "secondary-button online-lyrics-battle-idle-notice-button";
     button.textContent = "わからない扱いにする";
     button.addEventListener("click", () => {
+      // 3分無操作の参加者を「わからない」扱いにする操作音
+      playSfx(SFX_EVENTS.UI_CLICK);
       button.disabled = true;
       forceSkipIdlePlayer({ roomId: latestRoom.roomId, matchId: currentMatchId, questionIndex: qIndex, targetUid: uid });
     });
@@ -1896,9 +1935,11 @@ function renderScoreboard(match, { ruleId, isResolved }) {
     if (isResolved) {
       nameSpan.type = "button";
       nameSpan.classList.add("online-lyrics-battle-scoreboard-name-button");
-      nameSpan.addEventListener("click", () =>
-        openParticipantProfile({ uid: row.uid, name: row.displayName, oshiMemberId: row.oshiMemberId })
-      );
+      nameSpan.addEventListener("click", () => {
+        // スコアボード：名前タップでプロフィールモーダルを開く操作音
+        playSfx(SFX_EVENTS.UI_CLICK);
+        openParticipantProfile({ uid: row.uid, name: row.displayName, oshiMemberId: row.oshiMemberId });
+      });
     }
     nameSpan.textContent = row.isMe ? `${row.displayName}（あなた）` : row.displayName;
     item.appendChild(nameSpan);

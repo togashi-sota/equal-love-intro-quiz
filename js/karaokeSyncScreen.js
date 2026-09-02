@@ -70,6 +70,7 @@ import {
   getUpcomingCallPreviews,
   getCallPreviewLabel,
 } from "./karaokeSync.js";
+import { SFX_EVENTS, playSfx } from "./soundManager.js";
 
 // ===== 設定の保存（端末ごと。既存のsfx設定等と同じ命名規則・保存方式） =====
 const BEGINNER_NAV_STORAGE_KEY = "equalLoveIntroQuiz.karaokeBeginnerNavEnabled";
@@ -327,7 +328,9 @@ function stopTickLoop() {
 
 async function handleStartButtonClick() {
   // 重要：performance.now()はこのハンドラの一番最初で取得する（DOM更新・アニメーションを待たない）。
+  // 効果音の再生（playSfx）はこの直後に置き、時刻取得そのものを遅らせないようにする。
   const nowMs = performance.now();
+  playSfx(SFX_EVENTS.UI_CONFIRM);
 
   syncState = startKaraokeSync(syncState, nowMs);
   elements.startPanel.hidden = true;
@@ -480,6 +483,7 @@ function handleLyricTapSeek(line) {
 }
 
 function handleBeginnerNavToggleClick() {
+  playSfx(SFX_EVENTS.UI_CLICK);
   setKaraokeBeginnerNavEnabled(!isKaraokeBeginnerNavEnabled());
   syncBeginnerNavUI();
   closeMoreMenu();
@@ -511,6 +515,7 @@ function resetToStartPanel() {
 }
 
 function handleRestartSongButtonClick() {
+  playSfx(SFX_EVENTS.UI_BACK);
   resetToStartPanel();
   closeMoreMenu();
 }
@@ -597,10 +602,19 @@ export function initKaraokeSyncScreen(newElements) {
   elements.offsetPlus01Button.addEventListener("click", () => applyOffsetDelta(OFFSET_STEP_FINE_MS));
   elements.offsetPlus05Button.addEventListener("click", () => applyOffsetDelta(OFFSET_STEP_BIG_MS));
 
-  elements.moreMenuButton.addEventListener("click", openMoreMenu);
-  elements.moreMenuCloseButton.addEventListener("click", closeMoreMenu);
+  elements.moreMenuButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
+    openMoreMenu();
+  });
+  elements.moreMenuCloseButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_BACK);
+    closeMoreMenu();
+  });
   elements.moreMenuModal.addEventListener("click", (event) => {
-    if (event.target === elements.moreMenuModal) closeMoreMenu();
+    if (event.target === elements.moreMenuModal) {
+      playSfx(SFX_EVENTS.UI_BACK);
+      closeMoreMenu();
+    }
   });
 
   elements.nowButton.addEventListener("click", handleResyncButtonClick);
@@ -608,9 +622,11 @@ export function initKaraokeSyncScreen(newElements) {
   elements.restartSongButton.addEventListener("click", handleRestartSongButtonClick);
 
   elements.songEndRestartButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_BACK);
     resetToStartPanel();
   });
   elements.songEndChooseButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     resetToStartPanel();
     if (typeof elements.onRequestChooseSong === "function") {
       elements.onRequestChooseSong();

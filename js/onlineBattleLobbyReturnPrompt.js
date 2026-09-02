@@ -13,6 +13,7 @@
 // 循環importを一切発生させずに4画面から同じモーダルを安全に呼べるようにする。
 
 import { returnRoomToLobby } from "./onlineBattle.js";
+import { SFX_EVENTS, playSfx } from "./soundManager.js";
 
 let elements = null; // { modal, cancelButton, confirmButton }
 let pendingRoomId = null;
@@ -22,11 +23,13 @@ let isConfirmBusy = false;
 export function initReturnToLobbyPrompt(newElements) {
   elements = newElements;
   elements.cancelButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_BACK);
     elements.modal.hidden = true;
     pendingRoomId = null;
   });
   elements.confirmButton.addEventListener("click", async () => {
     if (isConfirmBusy || !pendingRoomId) return;
+    playSfx(SFX_EVENTS.UI_CONFIRM);
     // 通信遅延中の連打・二重イベントで何度も書き込みが飛ばないよう、処理中は無効化する
     // （returnRoomToLobby()自体も冪等だが、UI側でも素直に多重送信を防いでおく）。
     isConfirmBusy = true;

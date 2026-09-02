@@ -29,6 +29,7 @@ import { computeLyricsQuizWeakSongs } from "./lyricsQuizWeakSongStats.js";
 import { computeInstantChallengeWeakSongs } from "./instantChallengeWeakSongStats.js";
 import { resolveQuestionCount } from "./quiz.js";
 import { attemptSilentUnlock } from "./audio.js";
+import { SFX_EVENTS, playSfx } from "./soundManager.js";
 
 // この画面が使うDOM要素一式。initWeakSongsScreen()で受け取って保持する。
 let elements = null;
@@ -139,6 +140,7 @@ function updateModeTabAppearance() {
 
 function handleModeButtonClick(mode) {
   if (currentMode === mode) return;
+  playSfx(SFX_EVENTS.UI_CLICK);
   currentMode = mode;
   updateModeTabAppearance();
   renderWeakSongsScreen();

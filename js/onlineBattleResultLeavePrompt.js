@@ -9,6 +9,8 @@
 // 別のリスナーにしている。既存のロビー離脱処理（isLeavingIntentionally等の細かい
 // 状態管理を伴う）に手を加えると回帰のリスクがあるため、触れずに済ませるため。
 
+import { SFX_EVENTS, playSfx } from "./soundManager.js";
+
 let elements = null; // { modal, cancelButton, confirmButton }
 let onConfirmCallback = null;
 let isConfirmBusy = false;
@@ -16,6 +18,7 @@ let isConfirmBusy = false;
 export function initResultLeavePrompt(newElements) {
   elements = newElements;
   elements.cancelButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_BACK);
     elements.modal.hidden = true;
     onConfirmCallback = null;
   });
@@ -26,6 +29,7 @@ export function initResultLeavePrompt(newElements) {
   });
   elements.confirmButton.addEventListener("click", async () => {
     if (isConfirmBusy || !onConfirmCallback) return;
+    playSfx(SFX_EVENTS.UI_CONFIRM);
     isConfirmBusy = true;
     elements.confirmButton.disabled = true;
     const callback = onConfirmCallback;

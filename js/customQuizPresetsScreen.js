@@ -8,6 +8,8 @@
 import { SONGS } from "./data/songs.js";
 import { buildSongGroups } from "./songlist.js";
 import { getPresets, CUSTOM_QUIZ_TYPE } from "./customQuizPresets.js";
+// この画面内だけで完結する操作（削除確認モーダル・詳細モーダルの開閉）に効果音を鳴らすため追加。
+import { SFX_EVENTS, playSfx } from "./soundManager.js";
 
 // ダミー選択肢モードの表示ラベル。プリセットカード・詳細モーダルに添える。
 const DISTRACTOR_MODE_LABELS = { selected: "選択した曲だけ", all: "全収録曲" };
@@ -161,6 +163,9 @@ function buildPresetCard(preset) {
   const topRow = document.createElement("div");
   topRow.className = "preset-card-top";
 
+  // 【二重再生防止】mainButton/copyIconButton/playButtonは、それぞれelements.onSelectPreset /
+  // onDuplicatePreset / onPlayPreset（main.js側）の先頭で既にplaySfx(UI_CLICK)相当の
+  // playClickSound()が鳴っているため、ここでは重ねて鳴らさない。
   const mainButton = document.createElement("button");
   mainButton.type = "button";
   mainButton.className = "preset-card-main";
@@ -203,7 +208,10 @@ function buildPresetCard(preset) {
   deleteIconButton.className = "preset-card-icon-button preset-card-delete-icon";
   deleteIconButton.setAttribute("aria-label", `「${preset.name}」を削除`);
   deleteIconButton.appendChild(createTrashIcon());
-  deleteIconButton.addEventListener("click", () => openListDeleteConfirmModal(preset));
+  deleteIconButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
+    openListDeleteConfirmModal(preset);
+  });
 
   topRow.appendChild(mainButton);
   topRow.appendChild(copyIconButton);
@@ -222,7 +230,10 @@ function buildPresetCard(preset) {
   detailButton.type = "button";
   detailButton.className = "preset-card-detail-link";
   detailButton.textContent = "収録曲を見る";
-  detailButton.addEventListener("click", () => openPresetDetailModal(preset));
+  detailButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
+    openPresetDetailModal(preset);
+  });
 
   actionsRow.appendChild(playButton);
   actionsRow.appendChild(detailButton);
@@ -393,14 +404,22 @@ export function initCustomQuizPresetsScreen(newElements) {
     renderCustomQuizPresetsScreen();
   });
 
-  elements.detailCloseButton.addEventListener("click", closePresetDetailModal);
+  elements.detailCloseButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_BACK);
+    closePresetDetailModal();
+  });
   elements.detailModal.addEventListener("click", (event) => {
     if (event.target === elements.detailModal) {
       closePresetDetailModal();
     }
   });
 
-  elements.listDeleteCancelButton.addEventListener("click", closeListDeleteConfirmModal);
+  elements.listDeleteCancelButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_BACK);
+    closeListDeleteConfirmModal();
+  });
+  // 【二重再生防止】確定後に呼ばれるelements.onDeletePreset（main.js側）の先頭で
+  // 既にplaySfx(UI_CLICK)相当のplayClickSound()が鳴っているため、ここでは重ねて鳴らさない。
   elements.listDeleteConfirmButton.addEventListener("click", handleListDeleteConfirmed);
   elements.listDeleteConfirmModal.addEventListener("click", (event) => {
     if (event.target === elements.listDeleteConfirmModal) {

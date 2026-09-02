@@ -12,6 +12,7 @@
 // （onConfirm/onAddMoreコールバック）に任せる。
 
 import { SONGS } from "./data/songs.js";
+import { SFX_EVENTS, playSfx } from "./soundManager.js";
 
 let elements = null;
 let onConfirmCallback = null;
@@ -23,16 +24,21 @@ function closeModal() {
 
 export function initOnlineBattleSongListConfirmModal(newElements) {
   elements = newElements;
-  elements.closeButton.addEventListener("click", closeModal);
+  elements.closeButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_BACK);
+    closeModal();
+  });
   // 背景（オーバーレイ自身）をクリックしたときも閉じる（他の軽量モーダルと同じ考え方）。
   elements.overlay.addEventListener("click", (event) => {
     if (event.target === elements.overlay) closeModal();
   });
   elements.confirmButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CONFIRM);
     closeModal();
     onConfirmCallback?.();
   });
   elements.addMoreButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     closeModal();
     onAddMoreCallback?.();
   });

@@ -5,6 +5,8 @@
 
 import { getSongById } from "./data/songs.js";
 import { createTrackRow, stopSongListPreview } from "./songlist.js";
+// この画面内で完結する操作（名前変更・削除確認モーダル）に効果音を鳴らすため追加。
+import { SFX_EVENTS, playSfx } from "./soundManager.js";
 import {
   getPlaylists,
   getPlaylistById,
@@ -38,6 +40,9 @@ function buildPlaylistRow(playlist) {
     row.appendChild(input);
 
     const commitRename = () => {
+      // ✓ボタンのクリック・Enterキーのどちらから呼ばれても、名前変更の確定は1回だけ
+      // 鳴ればよいため、ボタン側ではなくこの共通関数の中で鳴らす。
+      playSfx(SFX_EVENTS.UI_CONFIRM);
       renamePlaylist(playlist.playlistId, input.value.trim() || playlist.playlistName);
       renamingPlaylistId = null;
       renderPlaylistList();
@@ -79,6 +84,8 @@ function buildPlaylistRow(playlist) {
   countSpan.className = "playlist-row-count";
   countSpan.textContent = `${playlist.songIds.length}曲`;
   openButton.appendChild(countSpan);
+  // 【二重再生防止】elements.onSelectPlaylist（main.js側）の先頭で既にplaySfx(UI_CLICK)相当の
+  // playClickSound()が鳴っているため、ここでは重ねて鳴らさない。
   openButton.addEventListener("click", () => {
     elements.onSelectPlaylist(playlist.playlistId);
   });
@@ -90,6 +97,7 @@ function buildPlaylistRow(playlist) {
   renameButton.textContent = "✎";
   renameButton.setAttribute("aria-label", "名前を変更する");
   renameButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     renamingPlaylistId = playlist.playlistId;
     renderPlaylistList();
   });
@@ -101,6 +109,7 @@ function buildPlaylistRow(playlist) {
   deleteButton.textContent = "×";
   deleteButton.setAttribute("aria-label", "削除する");
   deleteButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     pendingDeletePlaylistId = playlist.playlistId;
     elements.playlistDeleteConfirmModal.hidden = false;
   });
@@ -193,6 +202,9 @@ export function renderPlaylistDetail(playlistId) {
 export function initPlaylistScreen(newElements) {
   elements = newElements;
 
+  // 【二重再生防止】continuousPlayButton/addSongsButtonは、それぞれelements.onContinuousPlay
+  // （実体はmain.jsのopenContinuousPlayFromPlaylistDetail）・elements.onAddSongsの先頭で
+  // 既にplaySfx(UI_CLICK)相当のplayClickSound()が鳴っているため、ここでは重ねて鳴らさない。
   elements.continuousPlayButton.addEventListener("click", () => {
     if (currentDetailPlaylistId) elements.onContinuousPlay(currentDetailPlaylistId);
   });
@@ -201,6 +213,9 @@ export function initPlaylistScreen(newElements) {
     if (currentDetailPlaylistId) elements.onAddSongs(currentDetailPlaylistId);
   });
 
+  // 【二重再生防止】commitCreatePlaylist()は成功時に必ずelements.onSelectPlaylist
+  // （main.js側、先頭でplaySfx(UI_CLICK)相当のplayClickSound()を鳴らす）を呼ぶため、
+  // ここでは重ねて鳴らさない。
   elements.playlistCreateButton.addEventListener("click", commitCreatePlaylist);
   // Enterキーでも作成できるようにする（stopPropagationの理由は名前変更欄と同じ）。
   elements.playlistCreateInput.addEventListener("keydown", (event) => {
@@ -212,10 +227,12 @@ export function initPlaylistScreen(newElements) {
   });
 
   elements.playlistDeleteCancelButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_BACK);
     pendingDeletePlaylistId = null;
     elements.playlistDeleteConfirmModal.hidden = true;
   });
   elements.playlistDeleteConfirmButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CONFIRM);
     if (pendingDeletePlaylistId) {
       deletePlaylist(pendingDeletePlaylistId);
       pendingDeletePlaylistId = null;

@@ -15,6 +15,7 @@
 // 分かりやすさを実現する。
 
 import { getPlaylists } from "./playlists.js";
+import { SFX_EVENTS, playSfx } from "./soundManager.js";
 
 let elements = null;
 let onChosenCallback = null;
@@ -25,7 +26,10 @@ function closeModal() {
 
 export function initOnlineBattlePlaylistPicker(newElements) {
   elements = newElements;
-  elements.closeButton.addEventListener("click", closeModal);
+  elements.closeButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_BACK);
+    closeModal();
+  });
   // 背景（オーバーレイ自身）をクリックしたときも閉じる。カード本体のクリックは
   // イベントがそこで止まる（バブリングしない）ため、誤って閉じることはない。
   elements.overlay.addEventListener("click", (event) => {
@@ -66,6 +70,7 @@ export function openOnlineBattlePlaylistPicker(commonSongPool, onChosen) {
     row.appendChild(nameSpan);
     row.appendChild(countSpan);
     row.addEventListener("click", () => {
+      playSfx(SFX_EVENTS.UI_CONFIRM);
       closeModal();
       onChosenCallback?.(availableSongIds);
     });

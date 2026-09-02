@@ -5,6 +5,7 @@
 // その後のレビューでドラッグ並び替えを追加）。
 
 import { getPlaybackState, onPlaybackStateChange, jumpToIndex, reorderQueue } from "./continuousPlay.js";
+import { SFX_EVENTS, playSfx } from "./soundManager.js";
 
 let elements = null;
 
@@ -143,7 +144,10 @@ function buildQueueRow(song, index, isCurrent, isNext, queueLength) {
       badge.textContent = "次";
       mainButton.appendChild(badge);
     }
-    mainButton.addEventListener("click", () => jumpToIndex(index));
+    mainButton.addEventListener("click", () => {
+      playSfx(SFX_EVENTS.UI_CLICK);
+      jumpToIndex(index);
+    });
   }
 
   row.appendChild(mainButton);
@@ -161,6 +165,7 @@ function buildQueueRow(song, index, isCurrent, isNext, queueLength) {
   upButton.disabled = index === 0;
   upButton.addEventListener("click", (event) => {
     event.stopPropagation();
+    playSfx(SFX_EVENTS.UI_CLICK);
     if (index > 0) {
       reorderQueue(index, index - 1);
       showQueueActionBanner(`「${song.title}」を${index}番目に移動しました`);
@@ -176,6 +181,7 @@ function buildQueueRow(song, index, isCurrent, isNext, queueLength) {
   downButton.disabled = index === queueLength - 1;
   downButton.addEventListener("click", (event) => {
     event.stopPropagation();
+    playSfx(SFX_EVENTS.UI_CLICK);
     if (index < queueLength - 1) {
       reorderQueue(index, index + 1);
       showQueueActionBanner(`「${song.title}」を${index + 2}番目に移動しました`);

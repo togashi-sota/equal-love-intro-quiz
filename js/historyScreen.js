@@ -29,6 +29,7 @@ import { buildSpecialModeIcon } from "./specialModeIcons.js";
 import { ACHIEVEMENTS, getAchievementById } from "./achievementDefinitions.js";
 import { describeSpeedProgressForPlay, buildSpeedProgressResultBlock } from "./speedAchievementProgress.js";
 import { renderQuestionBreakdownAccordion } from "./battleQuestionBreakdownUi.js";
+import { SFX_EVENTS, playSfx } from "./soundManager.js";
 
 // 速度称号の対象になりうるmodeIdだけ、履歴詳細モーダルに「称号チャレンジ」ブロックを
 // 追加で表示する（js/speedAchievementProgress.jsのSPEED_ACHIEVEMENT_BY_MODEと同じ対象）。
@@ -69,10 +70,12 @@ function isConfirmModalOpen() {
 }
 
 function openConfirmModal() {
+  playSfx(SFX_EVENTS.UI_CLICK);
   elements.confirmModalOverlay.hidden = false;
 }
 
 function closeConfirmModal() {
+  playSfx(SFX_EVENTS.UI_BACK);
   elements.confirmModalOverlay.hidden = true;
 }
 
@@ -87,6 +90,7 @@ function isDetailModalOpen() {
 }
 
 function openDetailModal(entry) {
+  playSfx(SFX_EVENTS.UI_CLICK);
   elements.detailModalTitle.textContent = entry.modeLabel;
   elements.detailModalBody.innerHTML = "";
   describeEntryDetailFields(entry).forEach(({ label, value }) => {
@@ -156,6 +160,7 @@ function openDetailModal(entry) {
 }
 
 function closeDetailModal() {
+  playSfx(SFX_EVENTS.UI_BACK);
   elements.detailModalOverlay.hidden = true;
 }
 
@@ -178,6 +183,7 @@ function handleKeydown(event) {
 // その他モード用の新しい保存先）をすべて削除してから、モーダルを閉じて画面を描画し直す
 // （統一画面が複数の保存先をまたいで表示しているため、「全削除」も全部を対象にする）。
 function handleDeleteConfirmed() {
+  playSfx(SFX_EVENTS.UI_CONFIRM);
   clearHistoryEntries();
   clearTimeAttackHistoryEntries();
   clearNativePlayHistoryEntries();
@@ -216,6 +222,7 @@ function renderFilterChips() {
     chip.textContent = labels[filterId];
     chip.addEventListener("click", () => {
       if (activeFilterId === filterId) return;
+      playSfx(SFX_EVENTS.UI_CLICK);
       activeFilterId = filterId;
       renderHistoryScreen();
     });
@@ -229,6 +236,7 @@ function renderFilterChips() {
 // 該当チップが存在せず絞り込みが意図せず空になってしまうため）。
 function switchHistoryTab(tab) {
   if (activeTab === tab) return;
+  playSfx(SFX_EVENTS.UI_CLICK);
   activeTab = tab;
   activeFilterId = "all";
   elements.tabOfflineButton.classList.toggle("is-active", tab === "offline");

@@ -8,6 +8,7 @@
 // の純粋関数に任せ、このファイルはそれをDOMへ描画するだけに専念する。
 
 import { buildSelectionBreakdownByPlayer, buildSelectorUidsBySongId } from "./onlineBattleCollaborativeSelectionPayloads.js";
+import { SFX_EVENTS, playSfx } from "./soundManager.js";
 
 function clearElement(element) {
   while (element.firstChild) element.removeChild(element.firstChild);
@@ -98,6 +99,7 @@ export function renderCollaborativeSelectionBreakdown({
 export function wireCollaborativeSelectionDetailsToggle(toggleButtonElement, panelElement, renderFn) {
   if (!toggleButtonElement || !panelElement) return;
   toggleButtonElement.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     const isOpen = !panelElement.hidden;
     panelElement.hidden = isOpen;
     toggleButtonElement.setAttribute("aria-expanded", String(!isOpen));

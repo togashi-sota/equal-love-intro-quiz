@@ -18,6 +18,7 @@ import { getMemberById } from "./memberUtils.js";
 import { MEMBERS } from "./data/members.js";
 import { buildOshiSwatch, buildAchievementCountText, buildFriendAchievementSummary, buildAchievedAchievementsList } from "./fanProfileCard.js";
 import { fetchPublicProfileBadgeState, fetchPublicProfileByUid } from "./publicProfileSync.js";
+import { SFX_EVENTS, playSfx } from "./soundManager.js";
 
 // uid → 取得済みのバッジ状態（Promise）のキャッシュ。同じuidの称号を画面内の複数箇所
 // （ロビー一覧・スコア表示・結果画面）で同時に表示することが多いため、同じセッション中は
@@ -138,11 +139,16 @@ export async function openParticipantProfile(player) {
 
 function closeParticipantProfile() {
   if (!profileModalElements) return;
+  // 【2026-09-26追加・本人指示：サウンドシステム全面整備】閉じるボタン・背景クリック・
+  // Escapeキーのどの経路でも必ずこの共有関数を通るため、ここ1箇所にだけ付ければ
+  // 二重再生の心配なく全経路をカバーできる。
+  playSfx(SFX_EVENTS.UI_BACK);
   profileModalElements.modal.hidden = true;
 }
 
 function handleProfileAllToggleClick() {
   if (!profileModalElements?.allToggle || !profileModalElements?.achievements) return;
+  playSfx(SFX_EVENTS.UI_CLICK);
   const willOpen = profileModalElements.achievements.hidden;
   profileModalElements.achievements.hidden = !willOpen;
   profileModalElements.allToggle.textContent = willOpen ? PROFILE_ALL_TOGGLE_OPEN_TEXT : PROFILE_ALL_TOGGLE_CLOSED_TEXT;

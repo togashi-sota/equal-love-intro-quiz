@@ -8,6 +8,7 @@
 import { getAchievementListSnapshot } from "./achievementProgress.js";
 import { buildAchievementIconMedal, buildLockedAchievementIconMedal } from "./achievementIcons.js";
 import { computeBestSpeedProgress, buildSpeedProgressBestBlock } from "./speedAchievementProgress.js";
+import { SFX_EVENTS, playSfx } from "./soundManager.js";
 
 // 速度称号（電光石火・メロディアス）だけ、カードにベスト平均タイム・残り秒数を追加表示する。
 const SPEED_ACHIEVEMENT_IDS = new Set(["lightning_fast", "melody_ace"]);
@@ -84,12 +85,14 @@ function isModalOpen() {
 }
 
 function open() {
+  playSfx(SFX_EVENTS.UI_CLICK);
   renderAchievementList();
   elements.modalCard.scrollTop = 0;
   elements.overlay.hidden = false;
 }
 
 function close() {
+  playSfx(SFX_EVENTS.UI_BACK);
   elements.overlay.hidden = true;
 }
 

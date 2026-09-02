@@ -20,6 +20,8 @@ import {
 } from "./favoriteSongs.js";
 import { getPlaylists, createPlaylist, addSongToPlaylist } from "./playlists.js";
 import { registerPlaybackStopper, notifyPlaybackStarting } from "./playbackCoordinator.js";
+// この画面内で完結する操作（試聴・お気に入り・プレイリスト追加・タブ切替等）に効果音を鳴らすため追加。
+import { SFX_EVENTS, playSfx } from "./soundManager.js";
 
 // 試聴を10秒戻す/送るときの秒数。
 const SEEK_SKIP_SECONDS = 10;
@@ -435,6 +437,7 @@ async function playPreview(song, rowElement) {
 // 今まさに試聴中の行をもう一度押した場合は一時停止/再開を切り替え（位置・歌詞パネルは維持）、
 // 別の行（または何も試聴していない状態）から押した場合は、前の曲を完全に止めてから新しい曲を再生する。
 function handlePlayButtonClick(song, rowElement) {
+  playSfx(SFX_EVENTS.UI_CLICK);
   const isThisRowPlaying = currentlyPlayingRowElement === rowElement;
   if (isThisRowPlaying) {
     if (previewAudioElement.paused) {
@@ -465,6 +468,7 @@ function handlePlayButtonClick(song, rowElement) {
 // 再生を始められる。音源が未読み込みの端末では、従来どおり歌詞の閲覧だけができる状態のまま
 // 静かに何もしない（エラーにはしない、既存の一貫した方針）。
 async function handleLyricsViewButtonClick(song, rowElement) {
+  playSfx(SFX_EVENTS.UI_CLICK);
   const lyricsPanel = rowElement.querySelector(".track-lyrics");
   const fullscreenButton = rowElement.querySelector(".lyrics-fullscreen-open-button");
 
@@ -654,6 +658,8 @@ export function createTrackRow(song, options = {}) {
         creditNavButton.type = "button";
         creditNavButton.className = "track-credit-link track-credit-nav-button";
         creditNavButton.textContent = credit.linkLabel ?? "▶ 詳しく見る";
+        // 【二重再生防止】"app-navigate"イベントのリスナー（main.js側）の先頭で既に
+        // playSfx(UI_CLICK)相当のplayClickSound()が鳴っているため、ここでは重ねて鳴らさない。
         creditNavButton.addEventListener("click", () => {
           window.dispatchEvent(new CustomEvent("app-navigate", { detail: { screen: credit.navigateTo } }));
         });
@@ -701,6 +707,7 @@ export function createTrackRow(song, options = {}) {
       MVを見る
     `;
     mvLinkButton.addEventListener("click", () => {
+      playSfx(SFX_EVENTS.UI_CLICK);
       stopSongListPreview();
     });
     actionButtonsRow.appendChild(mvLinkButton);
@@ -747,6 +754,7 @@ export function createTrackRow(song, options = {}) {
   // 再生中・「歌詞を見る」表示中のどちらでも、パネルが表示されていれば全画面表示を開ける
   // （以前は再生中限定の条件だったが、試聴なしの閲覧でも使えるよう条件を緩和した）。
   lyricsFullscreenButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     if (!lyricsPanel.hidden) {
       openFullscreenLyrics(song.title, previewAudioElement, lyricsPanel);
     }
@@ -788,9 +796,12 @@ export function createTrackRow(song, options = {}) {
   // 再生中の行にしか表示されないため、実質「再生中の曲をプレイリストに追加する」導線になる
   // （2026-08-04追加。一覧の見た目を圧迫しないよう、常時表示のボタンにはしていない）。
   seekBlock.querySelector(".playlist-add-open-button").addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     openAddToPlaylistModal(song);
   });
 
+  // シークバー・10秒戻す/送るボタンは再生位置の微調整用の操作のため、他の画面のシーク系
+  // 操作と同じ考え方で効果音は付けない（連打・ドラッグでも音が鳴り続けて煩わしくなるため）。
   const rangeElement = seekBlock.querySelector(".seek-range");
   rangeElement.addEventListener("input", () => {
     if (currentlyPlayingRowElement === row) {
@@ -855,6 +866,7 @@ function buildFavoriteButton(song) {
   button.setAttribute("aria-label", isFavorite ? "お気に入りを解除する" : "お気に入りに登録する");
   button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${SONG_HEART_ICON_PATH}"/></svg>`;
   button.addEventListener("click", (event) => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     event.stopPropagation();
     toggleFavoriteSong(song.id);
     syncFavoriteButtons(song.id);
@@ -903,6 +915,7 @@ function buildPlaylistControlButtons({ onRemove, onMoveUp, onMoveDown, canMoveUp
   upButton.textContent = "↑";
   upButton.disabled = !canMoveUp;
   upButton.addEventListener("click", (event) => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     event.stopPropagation();
     onMoveUp();
   });
@@ -914,6 +927,7 @@ function buildPlaylistControlButtons({ onRemove, onMoveUp, onMoveDown, canMoveUp
   downButton.textContent = "↓";
   downButton.disabled = !canMoveDown;
   downButton.addEventListener("click", (event) => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     event.stopPropagation();
     onMoveDown();
   });
@@ -923,7 +937,10 @@ function buildPlaylistControlButtons({ onRemove, onMoveUp, onMoveDown, canMoveUp
   removeButton.className = "track-playlist-control-button is-remove";
   removeButton.setAttribute("aria-label", "プレイリストから削除する");
   removeButton.textContent = "×";
+  // このボタンは確認モーダルを経由せず即座に削除を実行するため、「決定・確定」寄りの
+  // UI_CONFIRMを使う（本人指示：削除等の危険操作の確定音の考え方に合わせる）。
   removeButton.addEventListener("click", (event) => {
+    playSfx(SFX_EVENTS.UI_CONFIRM);
     event.stopPropagation();
     onRemove();
   });
@@ -980,6 +997,7 @@ function buildWorkFavoriteButton(groupLabel, groupSongIds, onChanged) {
     <span>全曲</span>
   `;
   button.addEventListener("click", (event) => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     event.stopPropagation();
     const allFavorited = areAllFavoriteSongs(groupSongIds);
     if (allFavorited) {
@@ -1019,6 +1037,7 @@ function createSingleGroupElement(group, isInitiallyOpen) {
     <span class="track-count-chip">${group.songs.length}曲</span>
   `;
   toggleButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     // 再生中の曲を含むアコーディオンを閉じるときは、必ず試聴を止める
     const willClose = groupElement.classList.contains("is-open");
     if (willClose && currentlyPlayingRowElement && groupElement.contains(currentlyPlayingRowElement)) {
@@ -1140,8 +1159,14 @@ function switchSonglistTab(tab) {
   }
 }
 
-tabAllButtonElement.addEventListener("click", () => switchSonglistTab("all"));
-tabFavoritesButtonElement.addEventListener("click", () => switchSonglistTab("favorites"));
+tabAllButtonElement.addEventListener("click", () => {
+  playSfx(SFX_EVENTS.UI_CLICK);
+  switchSonglistTab("all");
+});
+tabFavoritesButtonElement.addEventListener("click", () => {
+  playSfx(SFX_EVENTS.UI_CLICK);
+  switchSonglistTab("favorites");
+});
 
 // 曲名検索の検索語に合わせて、各曲行・シングル区分の表示/非表示を更新する。
 // 一致した区分は、閉じたままだと該当の曲が見えないため自動的に開く
@@ -1203,6 +1228,7 @@ searchInputElement.addEventListener("input", () => {
 // 検索欄の「×」ボタン：検索語を空にし、一覧を元の状態に戻し、検索欄へフォーカスを戻す
 // （消したあとすぐ別の語を打ち始められるようにするため）。
 searchClearButtonElement.addEventListener("click", () => {
+  playSfx(SFX_EVENTS.UI_CLICK);
   resetSearch();
   searchInputElement.focus();
 });
@@ -1273,6 +1299,7 @@ function renderAddToPlaylistList() {
     actionButton.textContent = isAdded ? "追加済み" : "＋ 追加する";
     actionButton.disabled = isAdded;
     actionButton.addEventListener("click", () => {
+      playSfx(SFX_EVENTS.UI_CLICK);
       addSongToPlaylist(playlist.playlistId, pendingAddToPlaylistSong.id);
       renderAddToPlaylistList();
     });
@@ -1288,13 +1315,19 @@ function renderAddToPlaylistList() {
 function commitCreatePlaylistAndAddSong() {
   const name = addToPlaylistNewNameInputElement.value.trim();
   if (!name || !pendingAddToPlaylistSong) return;
+  // ボタンクリック・Enterキーのどちらから呼ばれても、新規作成の確定は1回だけ鳴ればよいため、
+  // ボタン側ではなくこの共通関数の中で鳴らす（入力欄が空のときは何も起きないため鳴らさない）。
+  playSfx(SFX_EVENTS.UI_CONFIRM);
   const newPlaylist = createPlaylist(name);
   addSongToPlaylist(newPlaylist.playlistId, pendingAddToPlaylistSong.id);
   addToPlaylistNewNameInputElement.value = "";
   renderAddToPlaylistList();
 }
 
-addToPlaylistModalCloseButtonElement.addEventListener("click", closeAddToPlaylistModal);
+addToPlaylistModalCloseButtonElement.addEventListener("click", () => {
+  playSfx(SFX_EVENTS.UI_BACK);
+  closeAddToPlaylistModal();
+});
 addToPlaylistModalElement.addEventListener("click", (event) => {
   // 新規プレイリスト名の入力中に外側を誤タップして、入力中の文字が消えたりモーダルが
   // 閉じたりしないようにする（プレイヤー名変更モーダルで発生した不具合と同じ対策）。

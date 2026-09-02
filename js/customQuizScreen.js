@@ -27,6 +27,8 @@ import {
 import { loadLyricsForSong, destroyLyricsSync } from "./lyricsSync.js";
 import { openFullscreenLyrics } from "./lyricsFullscreen.js";
 import { CUSTOM_QUIZ_TYPE } from "./customQuizPresets.js";
+// この画面内で完結する操作（曲選択・アコーディオン開閉・削除確認モーダル等）に効果音を鳴らすため追加。
+import { SFX_EVENTS, playSfx } from "./soundManager.js";
 
 // この画面が使うDOM要素一式。initCustomQuizScreen()で受け取って保持する。
 let elements = null;
@@ -207,6 +209,7 @@ async function startPreviewForRow(song, row) {
 // 今まさに試聴中の行をもう一度押した場合は一時停止/再開を切り替え、
 // 別の行（または何も試聴していない状態）から押した場合はその曲の試聴を新しく始める。
 function handlePreviewButtonClick(song, row) {
+  playSfx(SFX_EVENTS.UI_CLICK);
   if (currentlyPreviewingRowElement === row) {
     const audio = getPreviewAudioElement();
     if (audio.paused) {
@@ -255,6 +258,7 @@ function createSongSelectRow(song) {
   checkbox.type = "checkbox";
   checkbox.value = song.id;
   checkbox.addEventListener("change", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     if (checkbox.checked) {
       selectedSongIds.add(song.id);
     } else {
@@ -330,6 +334,7 @@ function createSingleGroupElement(group, isInitiallyOpen) {
     <span class="track-count-chip">0/${group.songs.length}曲選択</span>
   `;
   toggleButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     // 試聴中の曲を含む区分を閉じるときは、行が見えなくなるミニプレイヤーだけが残らないよう、
     // 収録曲一覧（songlist.js）の試聴と同じ考え方で必ず試聴を止める。
     const willClose = groupElement.classList.contains("is-open");
@@ -350,6 +355,7 @@ function createSingleGroupElement(group, isInitiallyOpen) {
   selectAllButton.className = "single-group-bulk-button";
   selectAllButton.textContent = "全選択";
   selectAllButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     rowsContainer.querySelectorAll('input[type="checkbox"]').forEach((checkbox) => {
       checkbox.checked = true;
       selectedSongIds.add(checkbox.value);
@@ -362,6 +368,7 @@ function createSingleGroupElement(group, isInitiallyOpen) {
   deselectAllButton.className = "single-group-bulk-button";
   deselectAllButton.textContent = "全解除";
   deselectAllButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     rowsContainer.querySelectorAll('input[type="checkbox"]').forEach((checkbox) => {
       checkbox.checked = false;
       selectedSongIds.delete(checkbox.value);
@@ -413,6 +420,7 @@ function applyCheckedState(songIds) {
 // 絞り込み表示（検索・選択済みのみ表示）で今は隠れている曲も含め、全曲を対象にする
 // （絞り込み中だけ選択できる曲が変わるのは分かりにくいため）。
 function handleSelectAllSongs() {
+  playSfx(SFX_EVENTS.UI_CLICK);
   elements.groupsContainer.querySelectorAll('input[type="checkbox"]').forEach((checkbox) => {
     checkbox.checked = true;
     selectedSongIds.add(checkbox.value);
@@ -421,6 +429,7 @@ function handleSelectAllSongs() {
 }
 
 function handleDeselectAllSongs() {
+  playSfx(SFX_EVENTS.UI_CLICK);
   elements.groupsContainer.querySelectorAll('input[type="checkbox"]').forEach((checkbox) => {
     checkbox.checked = false;
     selectedSongIds.delete(checkbox.value);
@@ -513,6 +522,7 @@ function handleSave() {
 
 // 「このセットを削除する」が押されたときの処理。確認モーダルを経由する。
 function handleDeleteButtonClick() {
+  playSfx(SFX_EVENTS.UI_CLICK);
   elements.deleteConfirmModal.hidden = false;
 }
 
@@ -520,6 +530,8 @@ function closeDeleteConfirmModal() {
   elements.deleteConfirmModal.hidden = true;
 }
 
+// 【二重再生防止】削除の実行自体はelements.onDelete（main.js側）が担っており、
+// そちらの先頭で既にplaySfx(UI_CLICK)を鳴らしているため、ここでは重ねて鳴らさない。
 function handleDeleteConfirmed() {
   closeDeleteConfirmModal();
   elements.onDelete(currentEditingPresetId);
@@ -706,6 +718,7 @@ export function initCustomQuizScreen(newElements) {
 
   // ミニプレイヤーの操作。再生/一時停止は、今の実際の状態（audio.paused）を見て切り替える。
   elements.previewToggleButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     if (currentlyPreviewingRowElement === null) return;
     if (elements.previewAudioElement.paused) {
       resumeAudioPreview();
@@ -721,6 +734,7 @@ export function initCustomQuizScreen(newElements) {
   });
   // 全画面表示ボタン。歌詞データがない曲では何も起きない（静かに無視する、既存の方針と同じ）。
   elements.previewFullscreenButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     if (currentlyPreviewingRowElement === null || elements.previewLyricsPanel.hidden) return;
     openFullscreenLyrics(elements.previewTitle.textContent, elements.previewAudioElement, elements.previewLyricsPanel);
   });
@@ -744,6 +758,7 @@ export function initCustomQuizScreen(newElements) {
   // 検索欄の「×」ボタン：検索語を空にし、一覧を元の状態に戻し、検索欄へフォーカスを戻す
   // （消したあとすぐ別の語を打ち始められるようにするため。songlist.jsの検索欄と同じ挙動）。
   elements.searchClearButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     searchQuery = "";
     elements.searchInput.value = "";
     elements.searchClearButton.hidden = true;
@@ -751,14 +766,22 @@ export function initCustomQuizScreen(newElements) {
     elements.searchInput.focus();
   });
   elements.selectedOnlyCheckbox.addEventListener("change", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     showSelectedOnly = elements.selectedOnlyCheckbox.checked;
     updateRowVisibility();
   });
+  // 【二重再生防止】startButton/saveButton/duplicateButtonは、それぞれelements.onStart /
+  // elements.onSave・onUpdate / elements.onDuplicate（main.js側）の先頭で既にplaySfx(UI_CLICK)が
+  // 鳴っているため、ここでは重ねて鳴らさない（handleStart/handleSave/handleDuplicateButtonClick
+  // の定義を確認済み）。
   elements.startButton.addEventListener("click", handleStart);
   elements.saveButton.addEventListener("click", handleSave);
   elements.duplicateButton.addEventListener("click", handleDuplicateButtonClick);
   elements.deleteButton.addEventListener("click", handleDeleteButtonClick);
-  elements.deleteCancelButton.addEventListener("click", closeDeleteConfirmModal);
+  elements.deleteCancelButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_BACK);
+    closeDeleteConfirmModal();
+  });
   elements.deleteConfirmButton.addEventListener("click", handleDeleteConfirmed);
   elements.deleteConfirmModal.addEventListener("click", (event) => {
     if (event.target === elements.deleteConfirmModal) {

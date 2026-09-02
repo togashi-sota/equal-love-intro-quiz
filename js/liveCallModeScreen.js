@@ -15,6 +15,7 @@ import { loadLyricsForSong, destroyLyricsSync } from "./lyricsSync.js";
 import { loadCallsForSong, destroyCallSync } from "./callSync.js";
 import { openFullscreenLyrics } from "./lyricsFullscreen.js";
 import { registerPlaybackStopper, notifyPlaybackStarting } from "./playbackCoordinator.js";
+import { SFX_EVENTS, playSfx } from "./soundManager.js";
 
 const SEEK_SKIP_SECONDS = 10;
 
@@ -68,7 +69,10 @@ function buildSongRow(song) {
   chevron.appendChild(chevronPath);
   row.appendChild(chevron);
 
-  row.addEventListener("click", () => elements.onSelectSong(song.id));
+  row.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
+    elements.onSelectSong(song.id);
+  });
   return row;
 }
 
@@ -176,6 +180,7 @@ function handlePlayButtonClick() {
 
 function handleFullscreenButtonClick() {
   if (!currentSongId || elements.lyricsPanel.hidden) return;
+  playSfx(SFX_EVENTS.UI_CLICK);
   const song = getSongById(currentSongId);
   openFullscreenLyrics(song ? song.title : "", elements.audio, elements.lyricsPanel);
 }

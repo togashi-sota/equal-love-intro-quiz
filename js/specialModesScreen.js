@@ -2,6 +2,7 @@
 // 通常プレイ（スタート画面）とは別の遊び方（苦手曲モード等）を、まとめて選べる入口画面。
 // モードが増えるときは、下のSPECIAL_MODESに1件追加するだけで一覧に反映される。
 import { buildSpecialModeIcon } from "./specialModeIcons.js";
+import { SFX_EVENTS, playSfx } from "./soundManager.js";
 
 // 各モードの定義。availableがfalseのものは「近日追加予定」の見た目にし、タップできないようにする。
 // ホーム画面の8カード（下のHOME_SPECIAL_MODES_ORDER）と、この後の一覧画面（#special-modes-screen）
@@ -87,7 +88,10 @@ export function buildAvailableCard(mode) {
   const tapTarget = document.createElement("button");
   tapTarget.type = "button";
   tapTarget.className = "special-mode-card-tap-target";
-  tapTarget.addEventListener("click", () => elements.onSelectMode(mode.id));
+  tapTarget.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
+    elements.onSelectMode(mode.id);
+  });
 
   // モードを一目で見分けられるようにする色付きアイコン（本人指示・2026-08-07：
   // 「8個すべてへアイコンを追加」）。tapTargetの中の最初の要素にすることで、
@@ -146,6 +150,7 @@ export function buildAvailableCard(mode) {
   helpButton.textContent = "？";
   helpButton.addEventListener("click", (event) => {
     event.stopPropagation();
+    playSfx(SFX_EVENTS.UI_CLICK);
     elements.onShowHelp(mode.id);
   });
   card.appendChild(helpButton);

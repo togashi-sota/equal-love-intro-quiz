@@ -191,6 +191,9 @@ export function initOnlineInstantBattleScreens(newElements) {
   // （js/answerConfirmPrompt.js共用。「わからない」で回答しますか？の文言になる）を
   // 必ず挟んでから確定する。
   elements.unknownButton.addEventListener("click", () => {
+    // 確認モーダルを開くだけの軽い操作音（モーダル内の確定・キャンセルは
+    // js/answerConfirmPrompt.js側で既に対応済みのため、ここでは重ねない）。
+    playSfx(SFX_EVENTS.UI_CLICK);
     reportMyQuestionActivity();
     const matchAtClick = latestRoom?.matches?.[currentMatchId];
     const expectedQIndex = matchAtClick?.currentQuestionIndex;
@@ -205,6 +208,8 @@ export function initOnlineInstantBattleScreens(newElements) {
     if (myAnsweredQuestionIndex === (latestRoom?.matches?.[currentMatchId]?.currentQuestionIndex ?? -1)) return;
     if (isCountdownActive) return;
     if (myReplayCountForCurrentQuestion >= MAX_REPLAY_COUNT_PER_QUESTION) return;
+    // 「もう一度聞く」操作音
+    playSfx(SFX_EVENTS.UI_CLICK);
     reportMyQuestionActivity();
     // 【2026-09-13追加・本人指示：一瞬バトルで実機再生失敗が再発（原因調査）】「もう一度聞く」は
     // 対戦中に得られる貴重な、本物のユーザー操作の直後（カウントダウン前）。ここでunlockを
@@ -228,12 +233,16 @@ export function initOnlineInstantBattleScreens(newElements) {
   });
 
   elements.quitButton.addEventListener("click", () => {
+    // 対戦をやめる確認モーダルを開く操作音
+    playSfx(SFX_EVENTS.UI_CLICK);
     elements.quitConfirmModal.hidden = false;
   });
   elements.quitCancelButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_BACK);
     elements.quitConfirmModal.hidden = true;
   });
   elements.quitConfirmButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CONFIRM);
     elements.quitConfirmModal.hidden = true;
     stopAllLocalTimers();
     stopAudio();
@@ -243,6 +252,9 @@ export function initOnlineInstantBattleScreens(newElements) {
 
   // 【2026-09-05新設、本人指示】対戦中、ホストだけに見える「ルーム設定へ戻る」。
   elements.backToLobbyButton?.addEventListener("click", () => {
+    // 確認モーダルを開くだけの軽い操作音（モーダル自体はjs/onlineBattleLobbyReturnPrompt.js
+    // 側で既に対応済みのため、ここでは重ねない）。
+    playSfx(SFX_EVENTS.UI_CLICK);
     promptReturnToLobby(latestRoom?.roomId);
   });
 
@@ -251,6 +263,9 @@ export function initOnlineInstantBattleScreens(newElements) {
     const roomId = latestRoom?.roomId;
     const matchId = currentMatchId;
     if (!roomId || !matchId) return;
+    // 確認モーダルを開くだけの軽い操作音（モーダル自体はjs/onlineBattleLeaveMatchPrompt.js
+    // 側で既に対応済みのため、ここでは重ねない）。
+    playSfx(SFX_EVENTS.UI_CLICK);
     promptLeaveMatch(roomId, matchId, () => {
       saveVoluntaryLeaveHistoryEntry();
       resetOnlineInstantBattleState();
@@ -259,11 +274,15 @@ export function initOnlineInstantBattleScreens(newElements) {
   });
 
   elements.resultHomeLink.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_BACK);
     stopAllLocalTimers();
     elements.onLeaveResultToHome();
     elements.navigateTo("start");
   });
   elements.resultLeaveButton?.addEventListener("click", () => {
+    // 確認モーダルを開くだけの軽い操作音（モーダル自体はjs/onlineBattleResultLeavePrompt.js
+    // 側で既に対応済みのため、ここでは重ねない）。
+    playSfx(SFX_EVENTS.UI_CLICK);
     promptResultLeaveRoom(async () => {
       stopAllLocalTimers();
       elements.resultLeaveButton.disabled = true;
@@ -279,12 +298,14 @@ export function initOnlineInstantBattleScreens(newElements) {
   elements.resultRematchButton.addEventListener("click", async () => {
     if (!latestRoom) return;
     attemptSilentUnlock();
+    playSfx(SFX_EVENTS.UI_CONFIRM);
     elements.resultRematchButton.disabled = true;
     await beginRematchReadyCheck({ roomId: latestRoom.roomId });
     elements.resultRematchButton.disabled = false;
   });
   elements.resultBackToLobbyButton.addEventListener("click", async () => {
     if (!latestRoom) return;
+    playSfx(SFX_EVENTS.UI_BACK);
     elements.resultBackToLobbyButton.disabled = true;
     await returnRoomToLobby({ roomId: latestRoom.roomId });
     elements.resultBackToLobbyButton.disabled = false;
@@ -822,6 +843,7 @@ function handleAudioTroubleButtonClick() {
     "音が出ませんでしたか？\n\n「OK」を選ぶと、参加者全員に対してこの問題の音源を最初から再生し直します。少しの間、全員の回答操作が一時的にできなくなります。"
   );
   if (!confirmed) return;
+  playSfx(SFX_EVENTS.UI_CONFIRM);
 
   elements.audioTroubleButton.disabled = true;
   // js/audio.js（第1段階でも使った共通基盤）へも申告を記録しておく（診断ログ用。
@@ -900,6 +922,9 @@ function renderAnswerButtons(pool) {
     button.className = "choice-button lyrics-quiz-answer-button";
     button.textContent = song.title;
     button.addEventListener("click", () => {
+      // 確認モーダルを開くだけの軽い操作音（モーダル内の確定・キャンセルは
+      // js/answerConfirmPrompt.js側で既に対応済みのため、ここでは重ねない）。
+      playSfx(SFX_EVENTS.UI_CLICK);
       reportMyQuestionActivity();
       const matchAtClick = latestRoom?.matches?.[currentMatchId];
       const expectedQIndex = matchAtClick?.currentQuestionIndex;
@@ -1007,9 +1032,11 @@ function renderRevealPlayerList(match, qIndex, outcome) {
     name.type = "button";
     name.className = "online-instant-battle-reveal-player-name online-instant-battle-reveal-player-name-button";
     name.textContent = participant.displayName + (uid === myUid ? "（あなた）" : "");
-    name.addEventListener("click", () =>
-      openParticipantProfile({ uid, name: participant.displayName, oshiMemberId: participant.oshiMemberId })
-    );
+    name.addEventListener("click", () => {
+      // 答え合わせ画面：名前タップでプロフィールモーダルを開く操作音
+      playSfx(SFX_EVENTS.UI_CLICK);
+      openParticipantProfile({ uid, name: participant.displayName, oshiMemberId: participant.oshiMemberId });
+    });
     row.appendChild(name);
 
     const answerText = document.createElement("span");
@@ -1187,6 +1214,8 @@ function renderIdleNotice(match, qIndex, nowServerTimeMs) {
     button.className = "secondary-button online-lyrics-battle-idle-notice-button";
     button.textContent = "わからない扱いにする";
     button.addEventListener("click", () => {
+      // 3分無操作の参加者を「わからない」扱いにする操作音
+      playSfx(SFX_EVENTS.UI_CLICK);
       button.disabled = true;
       forceSkipIdlePlayer({ roomId: latestRoom.roomId, matchId: currentMatchId, questionIndex: qIndex, targetUid: uid });
     });
@@ -1318,9 +1347,11 @@ export function enterInstantBattleResult(room) {
     nameText.type = "button";
     nameText.className = "battle-rank-name-button";
     nameText.textContent = entry.participant.displayName;
-    nameText.addEventListener("click", () =>
-      openParticipantProfile({ uid: entry.uid, name: entry.participant.displayName, oshiMemberId: entry.participant.oshiMemberId })
-    );
+    nameText.addEventListener("click", () => {
+      // 結果画面：名前タップでプロフィールモーダルを開く操作音
+      playSfx(SFX_EVENTS.UI_CLICK);
+      openParticipantProfile({ uid: entry.uid, name: entry.participant.displayName, oshiMemberId: entry.participant.oshiMemberId });
+    });
     nameRow.appendChild(nameText);
     if (entry.uid === myUid) {
       const meBadge = document.createElement("span");

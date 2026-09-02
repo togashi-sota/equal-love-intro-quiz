@@ -10,6 +10,7 @@
 // だけで、room.status・他の参加者には一切影響しない。
 
 import { leaveMatchInProgress } from "./onlineBattle.js";
+import { SFX_EVENTS, playSfx } from "./soundManager.js";
 
 let elements = null; // { modal, cancelButton, confirmButton }
 let pendingRoomId = null;
@@ -34,6 +35,7 @@ export function hasVoluntarilyLeftMatch(matchId) {
 export function initLeaveMatchPrompt(newElements) {
   elements = newElements;
   elements.cancelButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_BACK);
     elements.modal.hidden = true;
     pendingRoomId = null;
     pendingMatchId = null;
@@ -41,6 +43,7 @@ export function initLeaveMatchPrompt(newElements) {
   });
   elements.confirmButton.addEventListener("click", async () => {
     if (isConfirmBusy || !pendingRoomId || !pendingMatchId) return;
+    playSfx(SFX_EVENTS.UI_CONFIRM);
     isConfirmBusy = true;
     elements.confirmButton.disabled = true;
     const roomId = pendingRoomId;

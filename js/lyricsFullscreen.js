@@ -9,6 +9,8 @@
 //
 // 歌詞本文はここでも一切コンソールへ出力しない。
 
+import { SFX_EVENTS, playSfx } from "./soundManager.js";
+
 const SEEK_SKIP_SECONDS = 10;
 
 let overlayElement = null;
@@ -118,7 +120,10 @@ function resolveElements() {
   playPauseButtonElement = document.getElementById("lyrics-fullscreen-play-pause");
   seekForwardButtonElement = document.getElementById("lyrics-fullscreen-seek-forward");
 
-  closeButtonElement.addEventListener("click", closeFullscreenLyrics);
+  closeButtonElement.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_BACK);
+    closeFullscreenLyrics();
+  });
   seekRangeElement.addEventListener("input", handleSeekRangeInput);
   seekBackButtonElement.addEventListener("click", handleSeekBackClick);
   seekForwardButtonElement.addEventListener("click", handleSeekForwardClick);

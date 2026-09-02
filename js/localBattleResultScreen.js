@@ -114,6 +114,7 @@ function handleAddResult() {
   }
 
   elements.error.hidden = true;
+  playSfx(SFX_EVENTS.UI_CONFIRM);
   usedResultCodes.add(normalizedCode);
   participants.push({ playerName, result: decoded.result, resultCode: normalizedCode });
 

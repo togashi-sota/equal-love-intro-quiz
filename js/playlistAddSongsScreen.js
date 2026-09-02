@@ -13,6 +13,8 @@ import {
   resolveGroupWorkId,
 } from "./songlist.js";
 import { getPlaylistById, addSongsToPlaylist } from "./playlists.js";
+// この画面内で完結する操作（曲選択・作品単位の一括選択・アコーディオン開閉）に効果音を鳴らすため追加。
+import { SFX_EVENTS, playSfx } from "./soundManager.js";
 
 let elements = null;
 
@@ -118,6 +120,7 @@ function createSongSelectRow(song, isAlreadyInPlaylist) {
   checkbox.checked = isAlreadyInPlaylist;
   checkbox.disabled = isAlreadyInPlaylist;
   checkbox.addEventListener("change", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     if (checkbox.checked) {
       selectedSongIds.add(song.id);
     } else {
@@ -180,6 +183,7 @@ function buildWorkSelectButton(group, eligibleSongIds) {
   refreshWorkSelectButtonState(button);
 
   button.addEventListener("click", (event) => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     event.stopPropagation();
     const groupElement = button.closest(".single-group");
     const allSelected = eligibleSongIds.every((id) => selectedSongIds.has(id));
@@ -221,6 +225,7 @@ function createSingleGroupElement(group, isInitiallyOpen, existingSongIds) {
     <span class="track-count-chip">0/${group.songs.length}曲選択</span>
   `;
   toggleButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     groupElement.classList.toggle("is-open");
   });
   headerRow.appendChild(toggleButton);
@@ -303,6 +308,7 @@ export function initPlaylistAddSongsScreen(newElements) {
     updateRowVisibility();
   });
   elements.searchClearButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     searchQuery = "";
     elements.searchInput.value = "";
     elements.searchClearButton.hidden = true;
@@ -310,5 +316,7 @@ export function initPlaylistAddSongsScreen(newElements) {
     elements.searchInput.focus();
   });
 
+  // 【二重再生防止】commitAddSongs()は成功時に必ずelements.onSubmit（main.js側、先頭で
+  // playSfx(UI_CLICK)相当のplayClickSound()を鳴らす）を呼ぶため、ここでは重ねて鳴らさない。
   elements.submitButton.addEventListener("click", commitAddSongs);
 }

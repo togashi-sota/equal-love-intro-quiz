@@ -17,6 +17,9 @@
 
 import { listAvailableBattleRulesForSettings } from "./battleModes/lyricsQuizBattleMode.js";
 import { describeLyricsCoverageStatus, LYRICS_COVERAGE_STATUS, STEAL_CLAIM_OUTCOME } from "./lyricsQuizBattleFirebasePayloads.js";
+// 【2026-09-26追加・本人指示：サウンドシステム全面整備】設定項目（ルール/回答方式/数値）の
+// ラジオ・セレクトの変更は、他の画面の設定変更と同じくUI_CLICKで揃える。
+import { SFX_EVENTS, playSfx } from "./soundManager.js";
 
 // ===== 純粋関数（describe*） =====
 
@@ -290,7 +293,7 @@ export function renderRuleOptions(containerElement, options, onSelect) {
     inputElement.name = "lyrics-battle-rule";
     inputElement.value = option.ruleId;
     inputElement.checked = option.selected;
-    inputElement.addEventListener("change", () => onSelect(option.ruleId));
+    inputElement.addEventListener("change", () => { playSfx(SFX_EVENTS.UI_CLICK); onSelect(option.ruleId); });
     const textWrapper = document.createElement("span");
     const titleElement = document.createElement("strong");
     titleElement.textContent = option.label;
@@ -323,7 +326,7 @@ export function renderAnswerPoolSizeOptions(containerElement, options, onSelect)
     inputElement.name = "lyrics-battle-pool-size";
     inputElement.value = String(option.size);
     inputElement.checked = option.selected;
-    inputElement.addEventListener("change", () => onSelect(option.size));
+    inputElement.addEventListener("change", () => { playSfx(SFX_EVENTS.UI_CLICK); onSelect(option.size); });
     labelElement.appendChild(inputElement);
     labelElement.appendChild(document.createTextNode(option.label));
     fieldset.appendChild(labelElement);
@@ -354,7 +357,7 @@ export function renderSettingsForm(containerElement, fields, onChange) {
         optionElement.selected = option.value === field.currentValue;
         selectElement.appendChild(optionElement);
       }
-      selectElement.addEventListener("change", () => onChange(field.key, Number(selectElement.value)));
+      selectElement.addEventListener("change", () => { playSfx(SFX_EVENTS.UI_CLICK); onChange(field.key, Number(selectElement.value)); });
       wrapperElement.appendChild(selectElement);
     }
     containerElement.appendChild(wrapperElement);

@@ -14,6 +14,7 @@ import { getActiveMemberCount } from "./memberUtils.js";
 import { buildActivityCard, sortActivitiesByStatus } from "./membersScreen.js";
 import { LIVE_STATUS } from "./data/liveHistory.js";
 import { buildMvThumbnailElement } from "./youtubeThumbnail.js";
+import { SFX_EVENTS, playSfx } from "./soundManager.js";
 
 // workIdから種別が判定できない場合だけ使う、最後のフォールバック表示。
 const WORK_TYPE_LABELS_FALLBACK = {
@@ -244,6 +245,7 @@ function buildYoutubeChannelGroup(channel) {
     <span class="youtube-channel-count-chip">${channel.playlists.length}件の再生リスト</span>
   `;
   header.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     wrapper.classList.toggle("is-open");
   });
   wrapper.appendChild(header);
@@ -654,6 +656,7 @@ function buildDramaCard(drama) {
         navButton.className = "track-credit-link";
         navButton.textContent = `${label}（収録曲一覧へ）`;
         navButton.addEventListener("click", () => {
+          playSfx(SFX_EVENTS.UI_CLICK);
           window.dispatchEvent(new CustomEvent("app-navigate", { detail: { screen: "songlist" } }));
         });
         item.appendChild(navButton);
@@ -999,7 +1002,10 @@ function buildWorkCard(work) {
   const card = document.createElement("button");
   card.type = "button";
   card.className = "work-card";
-  card.addEventListener("click", () => elements.onSelectWork(work.workId));
+  card.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
+    elements.onSelectWork(work.workId);
+  });
 
   const info = document.createElement("div");
   info.className = "work-card-info";
@@ -1252,6 +1258,7 @@ function renderLiveTab(liveEvents) {
 }
 
 function switchDiscographyTab(tabName) {
+  playSfx(SFX_EVENTS.UI_CLICK);
   TAB_NAMES.forEach((name) => {
     const isActive = name === tabName;
     elements.tabButtons[name].classList.toggle("is-active", isActive);

@@ -22,6 +22,7 @@ import {
   adminDeleteBackup,
 } from "./backupAdmin.js";
 import { getMemberById } from "./memberUtils.js";
+import { SFX_EVENTS, playSfx } from "./soundManager.js";
 
 let elements = null;
 let members = null;
@@ -122,6 +123,7 @@ function buildBackupRow(backup) {
         `本当に削除しますか？`
     );
     if (!confirmed) return;
+    playSfx(SFX_EVENTS.UI_CONFIRM);
 
     deleteButton.disabled = true;
     deleteResultText.hidden = false;
@@ -171,6 +173,7 @@ function buildDeleteRequestButton(request) {
       `復旧依頼「${request.code}」を削除します。この操作は取り消せません（本人の記録＝バックアップ本体は削除されません）。よろしいですか？`
     );
     if (!confirmed) return;
+    playSfx(SFX_EVENTS.UI_CONFIRM);
 
     deleteButton.disabled = true;
     deleteResultText.hidden = false;
@@ -243,6 +246,7 @@ function buildRecoveryRequestRow(request) {
       resultText.textContent = "先にバックアップを選んでください";
       return;
     }
+    playSfx(SFX_EVENTS.UI_CONFIRM);
     resolveButton.disabled = true;
     resultText.hidden = false;
     resultText.textContent = "処理しています…";
@@ -299,6 +303,7 @@ function buildPublicProfileFallbackSection(request) {
   wrapper.appendChild(resultsContainer);
 
   searchButton.addEventListener("click", async () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     const query = searchInput.value.trim();
     resultsContainer.innerHTML = "";
     if (!query) return;
@@ -350,6 +355,7 @@ function buildPublicProfileFallbackSection(request) {
           `「${match.displayName}」の称号${match.unlockedAchievementIds.length}個・推しメンだけを、この復旧依頼（番号：${request.code}）へ復元します。プレイ履歴・自己ベスト等は復元されません。よろしいですか？`
         );
         if (!confirmed) return;
+        playSfx(SFX_EVENTS.UI_CONFIRM);
         restoreButton.disabled = true;
         restoreResultText.hidden = false;
         restoreResultText.textContent = "処理しています…";
@@ -489,11 +495,13 @@ function renderFilteredBackupsList() {
 // 見えている範囲だけを選択する（絞り込まずに押した場合は後述のhandleBulkDeleteAction()側の
 // 警告で気付けるようにしている＝二重の安全策）。
 function handleSelectAllVisible() {
+  playSfx(SFX_EVENTS.UI_CLICK);
   getFilteredBackups().forEach((backup) => selectedBackupIds.add(backup.backupId));
   renderFilteredBackupsList();
 }
 
 function handleClearSelection() {
+  playSfx(SFX_EVENTS.UI_CLICK);
   selectedBackupIds.clear();
   renderFilteredBackupsList();
 }
@@ -521,6 +529,7 @@ async function handleBulkDeleteAction() {
 
   const confirmed = window.confirm(confirmMessage);
   if (!confirmed) return;
+  playSfx(SFX_EVENTS.UI_CONFIRM);
 
   elements.bulkDeleteButton.disabled = true;
   if (elements.bulkDeleteResultText) {
@@ -565,6 +574,7 @@ async function handleBulkDeleteAction() {
 // 【2026-09-04新設、本人指示：予防対応】「バックアップが1件も無い＝いくみさんと同じ
 // 危険がある」プレイヤーを一覧表示し、その場で予防的にbackupsを1件作れるようにする。
 async function handleCheckAtRiskPlayers() {
+  playSfx(SFX_EVENTS.UI_CLICK);
   elements.atRiskStatusText.hidden = false;
   elements.atRiskStatusText.textContent = "確認中…";
   elements.atRiskList.innerHTML = "";
@@ -626,7 +636,10 @@ async function handleCheckAtRiskPlayers() {
 export function initAdminBackupScreen(newElements, allMembers) {
   elements = newElements;
   members = allMembers;
-  elements.refreshButton.addEventListener("click", renderAdminBackupScreen);
+  elements.refreshButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
+    renderAdminBackupScreen();
+  });
   elements.backupsSearchInput?.addEventListener("input", renderFilteredBackupsList);
   elements.backupsUnnamedOnlyCheckbox?.addEventListener("change", renderFilteredBackupsList);
   elements.selectAllButton?.addEventListener("click", handleSelectAllVisible);

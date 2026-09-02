@@ -624,6 +624,8 @@ function buildCurrentRuleExplanation(containerElement, room) {
       containerElement.appendChild(panel);
 
       toggleButton.addEventListener("click", () => {
+        // 曲一覧パネルの開閉トグル操作音
+        playSfx(SFX_EVENTS.UI_CLICK);
         confirmSongListExpanded = !confirmSongListExpanded;
         panel.hidden = !confirmSongListExpanded;
         toggleButton.setAttribute("aria-expanded", String(confirmSongListExpanded));
@@ -1623,7 +1625,11 @@ function renderLobby(room) {
     name.type = "button";
     name.className = "online-lobby-player-name online-lobby-player-name-button";
     name.textContent = player.name + (player.uid === myUid ? "（あなた）" : "");
-    name.addEventListener("click", () => openParticipantProfile(player));
+    name.addEventListener("click", () => {
+      // 参加者名タップでプロフィールモーダルを開く操作音
+      playSfx(SFX_EVENTS.UI_CLICK);
+      openParticipantProfile(player);
+    });
     row.appendChild(name);
 
     // 【2026-08-30改訂・本人指示】「ホスト」バッジは、実際の権限（room.host）を正として
@@ -2329,9 +2335,11 @@ function goToResultScreen(room) {
     nameText.type = "button";
     nameText.className = "battle-rank-name-button";
     nameText.textContent = participant.displayName;
-    nameText.addEventListener("click", () =>
-      openParticipantProfile({ uid, name: participant.displayName, oshiMemberId: participant.oshiMemberId })
-    );
+    nameText.addEventListener("click", () => {
+      // 結果画面：名前タップでプロフィールモーダルを開く操作音
+      playSfx(SFX_EVENTS.UI_CLICK);
+      openParticipantProfile({ uid, name: participant.displayName, oshiMemberId: participant.oshiMemberId });
+    });
     nameRow.appendChild(nameText);
 
     if (uid === myUid) {
@@ -2701,7 +2709,11 @@ export function initOnlineBattleScreens(newElements) {
 
   // 2026-08-08修正：ホームの特別モードカードから直接この画面を開くようになったため、
   // 「戻る」は間に古い「特別モード一覧画面」を挟まずホーム画面へ直接戻す。
-  elements.entryBackButton.addEventListener("click", () => elements.navigateTo("start"));
+  elements.entryBackButton.addEventListener("click", () => {
+    // ホーム画面へ戻る操作音
+    playSfx(SFX_EVENTS.UI_BACK);
+    elements.navigateTo("start");
+  });
   // 【2026-09-26追加・本人指示：サウンドシステム全面整備5章】オンライン対戦の主要導線
   // （ルーム作成・参加・準備完了・対戦開始・再戦）は、本人の監査で無音だと分かった
   // 箇所のうち特に優先度が高いものとして、他の画面遷移ボタンと同じUI_CLICK/UI_CONFIRMで揃える。
@@ -2721,6 +2733,7 @@ export function initOnlineBattleScreens(newElements) {
     elements.navigateTo("onlineBattleJoin");
   });
   elements.entryLastRoomRejoinButton.addEventListener("click", async () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     const lastRoom = getLastRoom();
     if (!lastRoom) {
       // 万一、記憶が既に消えた状態でボタンが表示されたまま押された場合も、
@@ -2747,7 +2760,11 @@ export function initOnlineBattleScreens(newElements) {
     elements.entryLastRoomError.hidden = false;
   });
 
-  elements.createBackButton.addEventListener("click", () => elements.navigateTo("onlineBattleEntry"));
+  elements.createBackButton.addEventListener("click", () => {
+    // ルーム作成画面から一つ前へ戻る操作音
+    playSfx(SFX_EVENTS.UI_BACK);
+    elements.navigateTo("onlineBattleEntry");
+  });
   elements.createSubmitButton.addEventListener("click", async () => {
     const playerName = elements.createNameInput.value.trim();
     if (!playerName) {
@@ -2774,7 +2791,11 @@ export function initOnlineBattleScreens(newElements) {
     goToLobby(result.roomId);
   });
 
-  elements.joinBackButton.addEventListener("click", () => elements.navigateTo("onlineBattleEntry"));
+  elements.joinBackButton.addEventListener("click", () => {
+    // ルーム参加画面から一つ前へ戻る操作音
+    playSfx(SFX_EVENTS.UI_BACK);
+    elements.navigateTo("onlineBattleEntry");
+  });
   elements.joinSubmitButton.addEventListener("click", async () => {
     const roomId = elements.joinRoomCodeInput.value.trim().toUpperCase();
     const playerName = elements.joinNameInput.value.trim();
@@ -2827,18 +2848,23 @@ export function initOnlineBattleScreens(newElements) {
   // （本人指示。「はい」で実際の退出処理、「いいえ」でロビーへ戻るだけ）。
   elements.lobbyLeaveButton.addEventListener("click", () => {
     if (!currentRoomId) return;
+    // 退出確認モーダルを開く操作音
+    playSfx(SFX_EVENTS.UI_CLICK);
     elements.lobbyLeaveConfirmModal.hidden = false;
   });
   elements.lobbyLeaveCancelButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_BACK);
     elements.lobbyLeaveConfirmModal.hidden = true;
   });
   // 背景部分をクリックしたときも閉じる（#quiz-quit-confirm-modal等、他のモーダルと同じ考え方）。
   elements.lobbyLeaveConfirmModal.addEventListener("click", (event) => {
     if (event.target === elements.lobbyLeaveConfirmModal) {
+      playSfx(SFX_EVENTS.UI_BACK);
       elements.lobbyLeaveConfirmModal.hidden = true;
     }
   });
   elements.lobbyLeaveConfirmButton.addEventListener("click", async () => {
+    playSfx(SFX_EVENTS.UI_CONFIRM);
     elements.lobbyLeaveConfirmModal.hidden = true;
     if (!currentRoomId) return;
     isLeavingIntentionally = true;
@@ -2856,6 +2882,8 @@ export function initOnlineBattleScreens(newElements) {
   // 【2026-08-30新設、本人指示】ホスト専用：対戦モードそのものの変更。
   // 押すたびに選択肢の折りたたみを開閉するだけの単純なトグル。
   elements.lobbyModeChangeToggle.addEventListener("click", () => {
+    // モード変更フォームの開閉トグル操作音
+    playSfx(SFX_EVENTS.UI_CLICK);
     elements.lobbyModeChangeFieldset.hidden = !elements.lobbyModeChangeFieldset.hidden;
   });
   elements.lobbyModeChangeConfirmButton.addEventListener("click", async () => {
@@ -2866,6 +2894,7 @@ export function initOnlineBattleScreens(newElements) {
     const result = await updateRoomGameMode({ roomId: currentRoomId, gameMode: selected.value });
     elements.lobbyModeChangeConfirmButton.disabled = false;
     if (result.ok) {
+      playSfx(SFX_EVENTS.UI_CONFIRM);
       elements.lobbyModeChangeFieldset.hidden = true;
     }
     // 失敗時（通信エラー等）も、renderLobby()が次のroom更新で今の実際のgameModeを
@@ -2882,6 +2911,7 @@ export function initOnlineBattleScreens(newElements) {
       const targetUid = kickButton.dataset.kickUid;
       const targetName = kickButton.dataset.kickName ?? "このプレイヤー";
       if (!window.confirm(`${targetName}さんをルームから退出させますか？`)) return;
+      playSfx(SFX_EVENTS.UI_CONFIRM);
       kickButton.disabled = true;
       await kickPlayer({ roomId: currentRoomId, targetUid });
       return;
@@ -2892,6 +2922,7 @@ export function initOnlineBattleScreens(newElements) {
       const targetUid = transferButton.dataset.transferHostUid;
       const targetName = transferButton.dataset.transferHostName ?? "このプレイヤー";
       if (!window.confirm(`ホストを${targetName}さんに渡しますか？`)) return;
+      playSfx(SFX_EVENTS.UI_CONFIRM);
       transferButton.disabled = true;
       await transferHost({ roomId: currentRoomId, newHostUid: targetUid });
       return;
@@ -2907,6 +2938,7 @@ export function initOnlineBattleScreens(newElements) {
   elements.spectatorLeaveButton.addEventListener("click", async () => {
     if (!currentRoomId) return;
     if (!window.confirm("観戦をやめてホーム画面へ戻りますか？")) return;
+    playSfx(SFX_EVENTS.UI_CONFIRM);
     elements.spectatorLeaveButton.disabled = true;
     await leaveSpectating({ roomId: currentRoomId });
     elements.spectatorLeaveButton.disabled = false;
@@ -2931,6 +2963,8 @@ export function initOnlineBattleScreens(newElements) {
     .forEach((radio) => {
       radio.addEventListener("change", async () => {
         if (!currentRoomId) return;
+        // 出題数・カテゴリー等の設定変更操作音
+        playSfx(SFX_EVENTS.UI_CLICK);
         await applyHostSettingsChangeFromForm();
       });
     });
@@ -2943,6 +2977,8 @@ export function initOnlineBattleScreens(newElements) {
     .forEach((radio) => {
       radio.addEventListener("change", async () => {
         if (!currentRoomId) return;
+        // 一瞬バトル設定変更操作音
+        playSfx(SFX_EVENTS.UI_CLICK);
         await applyInstantBattleHostSettingsChangeFromForm();
       });
     });
@@ -2954,13 +2990,17 @@ export function initOnlineBattleScreens(newElements) {
   // 開く（一覧から選んで確認・調整できる、という本人の要望どおり。決定を押すまでは
   // 何も保存されない）。
   elements.collabChooseSongsButton.addEventListener("click", () => {
+    // 共同選曲：曲選択画面を開く操作音
+    playSfx(SFX_EVENTS.UI_CLICK);
     openCollabSongPicker();
   });
   elements.collabChooseFavoritesButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     const favoriteSongIds = getFavoriteSongIds().filter((songId) => currentCommonSongPool.has(songId));
     openSongListConfirm("⭐ お気に入りから選ぶ", "お気に入りから選ばれている曲はこの曲です", favoriteSongIds);
   });
   elements.collabChoosePlaylistButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     openOnlineBattlePlaylistPicker(currentCommonSongPool, (songIds) => {
       openSongListConfirm("📃 プレイリストから選ぶ", "このプレイリストから選ばれている曲はこの曲です", songIds);
     });
@@ -3061,16 +3101,22 @@ export function initOnlineBattleScreens(newElements) {
 
   elements.waitingRetryButton.addEventListener("click", () => {
     if (!pendingFinishResult) return;
+    // 結果送信の再試行操作音
+    playSfx(SFX_EVENTS.UI_CLICK);
     finishOnlineBattleMatch(pendingFinishResult.result, pendingFinishResult.answeredCount);
   });
 
   elements.waitingFinalizeButton.addEventListener("click", () => {
+    // 強制終了確認モーダルを開く操作音
+    playSfx(SFX_EVENTS.UI_CLICK);
     elements.waitingFinalizeConfirmModal.hidden = false;
   });
   elements.waitingFinalizeCancelButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_BACK);
     elements.waitingFinalizeConfirmModal.hidden = true;
   });
   elements.waitingFinalizeConfirmButton.addEventListener("click", async () => {
+    playSfx(SFX_EVENTS.UI_CONFIRM);
     elements.waitingFinalizeConfirmModal.hidden = true;
     if (!currentRoomId || !currentMatchId) return;
     await finalizeMatchIfReady({ roomId: currentRoomId, matchId: currentMatchId, force: true });
@@ -3093,6 +3139,8 @@ export function initOnlineBattleScreens(newElements) {
   // 設計のため、ホーム画面から突然呼ばれても問題なく動く）。「ルームから退出」
   // （resultLeaveButton、下記）を押した場合だけ、今までどおり監視を止めて完全に離脱する。
   elements.resultHomeLink.addEventListener("click", () => {
+    // 結果画面からホームへ戻る操作音
+    playSfx(SFX_EVENTS.UI_BACK);
     resetOnlineBattleMatchState();
     elements.navigateTo("start");
   });
@@ -3108,6 +3156,9 @@ export function initOnlineBattleScreens(newElements) {
   // 共有の確認モーダル（js/onlineBattleResultLeavePrompt.js）を必ず挟む。
   elements.resultLeaveButton?.addEventListener("click", () => {
     if (!currentRoomId) return;
+    // 確認モーダルを開くだけの軽い操作音（モーダル内の確定・キャンセルは
+    // js/onlineBattleResultLeavePrompt.js側で既に対応済みのため、ここでは重ねない）。
+    playSfx(SFX_EVENTS.UI_CLICK);
     promptResultLeaveRoom(async () => {
       elements.resultLeaveButton.disabled = true;
       await leaveOnlineBattleRoomCompletely();
@@ -3149,6 +3200,9 @@ export function initOnlineBattleScreens(newElements) {
   // 誤操作で対戦を中断してしまわないよう、共有の確認モーダル
   // （js/onlineBattleLobbyReturnPrompt.js）を必ず挟む。
   elements.quizBackToLobbyButton?.addEventListener("click", () => {
+    // 確認モーダルを開くだけの軽い操作音（モーダル自体はjs/onlineBattleLobbyReturnPrompt.js
+    // 側で既に対応済みのため、ここでは重ねない）。
+    playSfx(SFX_EVENTS.UI_CLICK);
     promptReturnToLobby(currentRoomId);
   });
 
@@ -3157,6 +3211,9 @@ export function initOnlineBattleScreens(newElements) {
   // だけ行い、room.status等には一切触れない（他の参加者の対戦はそのまま続く）。
   elements.quizLeaveMatchButton?.addEventListener("click", () => {
     if (!currentRoomId || !currentMatchId) return;
+    // 確認モーダルを開くだけの軽い操作音（モーダル自体はjs/onlineBattleLeaveMatchPrompt.js
+    // 側で既に対応済みのため、ここでは重ねない）。
+    playSfx(SFX_EVENTS.UI_CLICK);
     promptLeaveMatch(currentRoomId, currentMatchId, () => {
       elements.navigateTo("onlineBattleLobby");
       if (latestRoom) renderLobby(latestRoom);
@@ -3164,19 +3221,28 @@ export function initOnlineBattleScreens(newElements) {
   });
 
   // 【2026-09-09新設・本人指示：ロビー専用の詳細説明書】
-  elements.lobbyHelpButton?.addEventListener("click", () => openLobbyHelpModal());
-  elements.lobbyHelpClose?.addEventListener("click", () => closeLobbyHelpModal());
+  elements.lobbyHelpButton?.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
+    openLobbyHelpModal();
+  });
+  elements.lobbyHelpClose?.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_BACK);
+    closeLobbyHelpModal();
+  });
   elements.lobbyHelpModal?.addEventListener("click", (event) => {
     if (event.target !== elements.lobbyHelpModal) return;
+    playSfx(SFX_EVENTS.UI_BACK);
     closeLobbyHelpModal();
   });
   elements.lobbyHelpGuideLink?.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     closeLobbyHelpModal();
     elements.onOpenGuideFromLobby?.();
   });
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
     if (!elements.lobbyHelpModal || elements.lobbyHelpModal.hidden) return;
+    playSfx(SFX_EVENTS.UI_BACK);
     closeLobbyHelpModal();
   });
 
@@ -3192,6 +3258,9 @@ export function initOnlineBattleScreens(newElements) {
   // 実行されるため、参加者全員分の再生準備が整う）。
   elements.confirmToggleButton?.addEventListener("click", async () => {
     if (!currentRoomId || !latestRoom) return;
+    // ルール確認画面の「確認OK」トグル操作音（既存のlobbyReadyButtonと同じ、
+    // トグル式の準備系ボタンとしてUI_CLICKに揃える）。
+    playSfx(SFX_EVENTS.UI_CLICK);
     attemptSilentUnlock();
     const myUid = getCurrentUid();
     const nowConfirmed = latestRoom.players?.[myUid]?.ruleConfirmed === true;
@@ -3200,6 +3269,7 @@ export function initOnlineBattleScreens(newElements) {
   });
   elements.confirmCancelButton?.addEventListener("click", async () => {
     if (!currentRoomId) return;
+    playSfx(SFX_EVENTS.UI_BACK);
     await cancelMatchConfirmation({ roomId: currentRoomId });
   });
 
@@ -3207,6 +3277,7 @@ export function initOnlineBattleScreens(newElements) {
   // 全く同じ考え方（トグル式の「準備OK」・ホスト専用の「キャンセル」）。
   elements.rematchReadyToggleButton?.addEventListener("click", async () => {
     if (!currentRoomId || !latestRoom) return;
+    playSfx(SFX_EVENTS.UI_CLICK);
     attemptSilentUnlock();
     const myUid = getCurrentUid();
     const nowReady = latestRoom.players?.[myUid]?.rematchReady === true;
@@ -3214,6 +3285,7 @@ export function initOnlineBattleScreens(newElements) {
   });
   elements.rematchReadyCancelButton?.addEventListener("click", async () => {
     if (!currentRoomId) return;
+    playSfx(SFX_EVENTS.UI_BACK);
     await cancelRematchReadyCheck({ roomId: currentRoomId });
   });
 

@@ -13,6 +13,8 @@
 // 安全性は、既存の安全機構に合わせて呼び出し元が担保する）。このモジュールは「確定操作を
 // 1回はさむ」というUI上の役割だけに徹する。
 
+import { SFX_EVENTS, playSfx } from "./soundManager.js";
+
 let promptElements = null;
 let pendingOnConfirm = null;
 
@@ -22,11 +24,13 @@ export function initAnswerConfirmPrompt({ modal, songTitleElement, confirmButton
   promptElements = { modal, songTitleElement, confirmButton, cancelButton };
 
   confirmButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CONFIRM);
     const callback = pendingOnConfirm;
     closeAnswerConfirmPrompt();
     callback?.();
   });
   cancelButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_BACK);
     closeAnswerConfirmPrompt();
   });
   modal.addEventListener("click", (event) => {

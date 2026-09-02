@@ -14,6 +14,7 @@
 import { SONGS } from "./data/songs.js";
 import { buildSongGroups, CATEGORY_PILL_INFO, normalizeForSearch, songMatchesSearch } from "./songlist.js";
 import { buildSelectorUidsBySongId } from "./onlineBattleCollaborativeSelectionPayloads.js";
+import { SFX_EVENTS, playSfx } from "./soundManager.js";
 
 let elements = null;
 
@@ -60,6 +61,7 @@ function renderReviewChips() {
     removeButton.setAttribute("aria-label", `${song.title}の選択を解除`);
     removeButton.textContent = "×";
     removeButton.addEventListener("click", () => {
+      playSfx(SFX_EVENTS.UI_CLICK);
       selectedSongIds.delete(song.id);
       const checkbox = elements.groupsContainer.querySelector(`input[type="checkbox"][value="${CSS.escape(song.id)}"]`);
       if (checkbox) checkbox.checked = false;
@@ -127,6 +129,7 @@ function createSongSelectRow(song) {
   checkbox.type = "checkbox";
   checkbox.value = song.id;
   checkbox.addEventListener("change", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     if (checkbox.checked) {
       selectedSongIds.add(song.id);
     } else {
@@ -182,7 +185,10 @@ function createSingleGroupElement(group, isInitiallyOpen) {
     <span class="single-group-name">${group.label}</span>
     <span class="track-count-chip">0/${group.songs.length}曲選択</span>
   `;
-  toggleButton.addEventListener("click", () => groupElement.classList.toggle("is-open"));
+  toggleButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
+    groupElement.classList.toggle("is-open");
+  });
 
   const bulkActions = document.createElement("div");
   bulkActions.className = "single-group-bulk-actions";
@@ -192,6 +198,7 @@ function createSingleGroupElement(group, isInitiallyOpen) {
   selectAllButton.className = "single-group-bulk-button";
   selectAllButton.textContent = "全選択";
   selectAllButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     rowsContainer.querySelectorAll('input[type="checkbox"]').forEach((checkbox) => {
       checkbox.checked = true;
       selectedSongIds.add(checkbox.value);
@@ -204,6 +211,7 @@ function createSingleGroupElement(group, isInitiallyOpen) {
   deselectAllButton.className = "single-group-bulk-button";
   deselectAllButton.textContent = "全解除";
   deselectAllButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     rowsContainer.querySelectorAll('input[type="checkbox"]').forEach((checkbox) => {
       checkbox.checked = false;
       selectedSongIds.delete(checkbox.value);
@@ -327,21 +335,25 @@ export function initOnlineBattleSongPicker(newElements) {
   renderGroups(SONGS);
 
   elements.backButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_BACK);
     setStickyBarVisible(false);
     onCancelCallback?.();
   });
 
   elements.stickyToggle.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     const isOpen = !elements.reviewPanel.hidden;
     elements.reviewPanel.hidden = isOpen;
     elements.stickyToggle.setAttribute("aria-expanded", String(!isOpen));
   });
   elements.stickyConfirmButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CONFIRM);
     setStickyBarVisible(false);
     onConfirmCallback?.([...selectedSongIds]);
   });
 
   elements.selectAllButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     elements.groupsContainer.querySelectorAll('input[type="checkbox"]').forEach((checkbox) => {
       checkbox.checked = true;
       selectedSongIds.add(checkbox.value);
@@ -349,6 +361,7 @@ export function initOnlineBattleSongPicker(newElements) {
     refreshSelectionUI();
   });
   elements.deselectAllButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     elements.groupsContainer.querySelectorAll('input[type="checkbox"]').forEach((checkbox) => {
       checkbox.checked = false;
       selectedSongIds.delete(checkbox.value);
@@ -356,12 +369,14 @@ export function initOnlineBattleSongPicker(newElements) {
     refreshSelectionUI();
   });
 
+  // 【本人指示：テキスト入力中には音を付けない】検索欄のinputイベントは対象外。
   elements.searchInput.addEventListener("input", () => {
     searchQuery = elements.searchInput.value;
     elements.searchClearButton.hidden = searchQuery === "";
     updateRowVisibility();
   });
   elements.searchClearButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     searchQuery = "";
     elements.searchInput.value = "";
     elements.searchClearButton.hidden = true;
@@ -369,11 +384,13 @@ export function initOnlineBattleSongPicker(newElements) {
     elements.searchInput.focus();
   });
   elements.selectedOnlyCheckbox.addEventListener("change", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     showSelectedOnly = elements.selectedOnlyCheckbox.checked;
     updateRowVisibility();
   });
 
   elements.confirmButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CONFIRM);
     setStickyBarVisible(false);
     onConfirmCallback?.([...selectedSongIds]);
   });

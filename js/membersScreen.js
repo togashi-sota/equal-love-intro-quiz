@@ -26,6 +26,7 @@ import {
   clearMostOshiMember,
 } from "./oshiMembers.js";
 import { ACTIVITY_STATUS } from "./data/memberActivities.js";
+import { SFX_EVENTS, playSfx } from "./soundManager.js";
 
 // この画面が使うDOM要素一式。initMembersScreen()で受け取って保持する。
 let elements = null;
@@ -86,6 +87,7 @@ function buildHeartButton(memberId, onToggle) {
   button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${HEART_ICON_PATH}"/></svg>`;
   button.addEventListener("click", (event) => {
     event.stopPropagation();
+    playSfx(SFX_EVENTS.UI_CLICK);
     onToggle(memberId);
   });
   return button;
@@ -104,6 +106,7 @@ function buildStarButton(memberId, onToggleMostOshi) {
   button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${STAR_ICON_PATH}"/></svg>`;
   button.addEventListener("click", (event) => {
     event.stopPropagation();
+    playSfx(SFX_EVENTS.UI_CLICK);
     onToggleMostOshi(memberId);
   });
   return button;
@@ -120,7 +123,10 @@ export function buildActiveMemberCard(member) {
   const tapTarget = document.createElement("button");
   tapTarget.type = "button";
   tapTarget.className = "member-card-tap-target";
-  tapTarget.addEventListener("click", () => elements.onSelectMember(member.id));
+  tapTarget.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
+    elements.onSelectMember(member.id);
+  });
 
   const swatch = document.createElement("span");
   swatch.className = "member-card-swatch";
@@ -581,6 +587,7 @@ function buildOshiActionRow(memberId) {
   favoriteButton.classList.toggle("is-active", isFavorite);
   favoriteButton.textContent = isFavorite ? "♥ 推し登録中" : "♡ 推しに登録";
   favoriteButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     toggleFavoriteMember(memberId);
     rerenderMemberDetail();
     rerenderActiveMembers();
@@ -596,6 +603,7 @@ function buildOshiActionRow(memberId) {
     mostOshiButton.classList.toggle("is-active", isMostOshi);
     mostOshiButton.textContent = isMostOshi ? "★ 最推しです" : "☆ 最推しにする";
     mostOshiButton.addEventListener("click", () => {
+      playSfx(SFX_EVENTS.UI_CLICK);
       if (isMostOshi) {
         clearMostOshiMember();
       } else {

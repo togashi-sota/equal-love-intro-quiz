@@ -11,6 +11,7 @@
 
 import { getPlaybackState, onPlaybackStateChange, togglePlayPause, stopPlayback } from "./continuousPlay.js";
 import { onScreenChange } from "./screens.js";
+import { SFX_EVENTS, playSfx } from "./soundManager.js";
 
 let elements = null;
 
@@ -79,7 +80,10 @@ function render() {
 export function initMiniPlayer(newElements) {
   elements = newElements;
 
-  elements.main.addEventListener("click", () => elements.onOpen());
+  elements.main.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
+    elements.onOpen();
+  });
 
   elements.toggleButton.addEventListener("click", (event) => {
     event.stopPropagation();

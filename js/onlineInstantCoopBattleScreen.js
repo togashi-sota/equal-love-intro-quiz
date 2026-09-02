@@ -187,17 +187,30 @@ function resolveOshiColor(oshiMemberId) {
 export function initOnlineInstantCoopBattleScreens(newElements) {
   elements = newElements;
 
+  // 設定のラジオボタン変更音（出題数・再生時間・選択肢数・カテゴリー、いずれも同じ扱い）。
   document.querySelectorAll('input[name="online-instant-coop-settings-question-count"]').forEach((radio) => {
-    radio.addEventListener("change", () => applySettingsChangeFromForm());
+    radio.addEventListener("change", () => {
+      playSfx(SFX_EVENTS.UI_CLICK);
+      applySettingsChangeFromForm();
+    });
   });
   document.querySelectorAll('input[name="online-instant-coop-settings-play-duration"]').forEach((radio) => {
-    radio.addEventListener("change", () => applySettingsChangeFromForm());
+    radio.addEventListener("change", () => {
+      playSfx(SFX_EVENTS.UI_CLICK);
+      applySettingsChangeFromForm();
+    });
   });
   document.querySelectorAll('input[name="online-instant-coop-settings-answer-pool-size"]').forEach((radio) => {
-    radio.addEventListener("change", () => applySettingsChangeFromForm());
+    radio.addEventListener("change", () => {
+      playSfx(SFX_EVENTS.UI_CLICK);
+      applySettingsChangeFromForm();
+    });
   });
   document.querySelectorAll('input[name="online-instant-coop-settings-category"]').forEach((radio) => {
-    radio.addEventListener("change", () => applySettingsChangeFromForm());
+    radio.addEventListener("change", () => {
+      playSfx(SFX_EVENTS.UI_CLICK);
+      applySettingsChangeFromForm();
+    });
   });
 
   elements.answerSearchInput.addEventListener("input", () => {
@@ -225,6 +238,9 @@ export function initOnlineInstantCoopBattleScreens(newElements) {
   // 曲の回答ボタンと全く同じ「確認画面を開いた時点のquestionIndex・roundNumberが、
   // 確定を押した時点でも一致しているか」の再確認ガードも揃える。
   elements.unknownButton.addEventListener("click", () => {
+    // 確認モーダルを開くだけの軽い操作音（モーダル内の確定・キャンセルは
+    // js/answerConfirmPrompt.js側で既に対応済みのため、ここでは重ねない）。
+    playSfx(SFX_EVENTS.UI_CLICK);
     reportMyQuestionActivity();
     const matchAtClick = latestRoom?.matches?.[currentMatchId];
     const expectedQIndex = matchAtClick?.currentQuestionIndex;
@@ -247,6 +263,8 @@ export function initOnlineInstantCoopBattleScreens(newElements) {
     if (!match || typeof match.currentQuestionIndex !== "number") return;
     const qIndex = match.currentQuestionIndex;
     const question = currentQuestions[qIndex];
+    // 「もう一度聞く」操作音
+    playSfx(SFX_EVENTS.UI_CLICK);
     reportMyQuestionActivity();
     if (!question) return;
     playQuestionAudio(question, qIndex);
@@ -260,12 +278,16 @@ export function initOnlineInstantCoopBattleScreens(newElements) {
   });
 
   elements.quitButton.addEventListener("click", () => {
+    // 対戦をやめる確認モーダルを開く操作音
+    playSfx(SFX_EVENTS.UI_CLICK);
     elements.quitConfirmModal.hidden = false;
   });
   elements.quitCancelButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_BACK);
     elements.quitConfirmModal.hidden = true;
   });
   elements.quitConfirmButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CONFIRM);
     elements.quitConfirmModal.hidden = true;
     stopAllLocalTimers();
     stopAudio();
@@ -275,6 +297,9 @@ export function initOnlineInstantCoopBattleScreens(newElements) {
 
   // 【2026-09-05新設、本人指示】対戦中、ホストだけに見える「ルーム設定へ戻る」。
   elements.backToLobbyButton?.addEventListener("click", () => {
+    // 確認モーダルを開くだけの軽い操作音（モーダル自体はjs/onlineBattleLobbyReturnPrompt.js
+    // 側で既に対応済みのため、ここでは重ねない）。
+    playSfx(SFX_EVENTS.UI_CLICK);
     promptReturnToLobby(latestRoom?.roomId);
   });
 
@@ -283,6 +308,9 @@ export function initOnlineInstantCoopBattleScreens(newElements) {
     const roomId = latestRoom?.roomId;
     const matchId = currentMatchId;
     if (!roomId || !matchId) return;
+    // 確認モーダルを開くだけの軽い操作音（モーダル自体はjs/onlineBattleLeaveMatchPrompt.js
+    // 側で既に対応済みのため、ここでは重ねない）。
+    playSfx(SFX_EVENTS.UI_CLICK);
     promptLeaveMatch(roomId, matchId, () => {
       saveVoluntaryLeaveInstantCoopHistoryEntry();
       resetInstantCoopBattleState();
@@ -291,6 +319,7 @@ export function initOnlineInstantCoopBattleScreens(newElements) {
   });
 
   elements.resultHomeLink.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_BACK);
     stopAllLocalTimers();
     elements.onLeaveResultToHome();
     elements.navigateTo("start");
@@ -300,6 +329,9 @@ export function initOnlineInstantCoopBattleScreens(newElements) {
   // leaveOnlineBattleRoomCompletely()（あちらに集約）を呼ぶ。
   // 【2026-09-15改訂・本人指示：ゲスト側の退出操作にも必ず確認ダイアログ】
   elements.resultLeaveButton?.addEventListener("click", () => {
+    // 確認モーダルを開くだけの軽い操作音（モーダル自体はjs/onlineBattleResultLeavePrompt.js
+    // 側で既に対応済みのため、ここでは重ねない）。
+    playSfx(SFX_EVENTS.UI_CLICK);
     promptResultLeaveRoom(async () => {
       stopAllLocalTimers();
       elements.resultLeaveButton.disabled = true;
@@ -319,12 +351,14 @@ export function initOnlineInstantCoopBattleScreens(newElements) {
     // かつ全員同期で自動再生されるため、開始直前の確実なユーザージェスチャーの中で
     // 改めてunlockしておく価値が特に高い。
     attemptSilentUnlock();
+    playSfx(SFX_EVENTS.UI_CONFIRM);
     elements.resultRematchButton.disabled = true;
     await beginRematchReadyCheck({ roomId: latestRoom.roomId });
     elements.resultRematchButton.disabled = false;
   });
   elements.resultBackToLobbyButton.addEventListener("click", async () => {
     if (!latestRoom) return;
+    playSfx(SFX_EVENTS.UI_BACK);
     elements.resultBackToLobbyButton.disabled = true;
     await returnRoomToLobby({ roomId: latestRoom.roomId });
     elements.resultBackToLobbyButton.disabled = false;
@@ -951,6 +985,7 @@ function handleAudioTroubleButtonClick() {
     "音が出ませんでしたか？\n\n「OK」を選ぶと、参加者全員に対してこの問題の音源を最初から再生し直します。少しの間、全員の投票操作が一時的にできなくなります。"
   );
   if (!confirmed) return;
+  playSfx(SFX_EVENTS.UI_CONFIRM);
 
   elements.audioTroubleButton.disabled = true;
   reportPlaybackTrouble();
@@ -1027,6 +1062,9 @@ function renderAnswerButtons(pool) {
     // 本人指示：「確認画面を開いた時点のquestionIndex等と現在状態が一致しているか
     // 確認する」）。
     button.addEventListener("click", () => {
+      // 確認モーダルを開くだけの軽い操作音（モーダル内の確定・キャンセルは
+      // js/answerConfirmPrompt.js側で既に対応済みのため、ここでは重ねない）。
+      playSfx(SFX_EVENTS.UI_CLICK);
       reportMyQuestionActivity();
       const matchAtClick = latestRoom?.matches?.[currentMatchId];
       const expectedQIndex = matchAtClick?.currentQuestionIndex;
@@ -1118,6 +1156,8 @@ function renderIdleNotice(match, qIndex, roundNumber, nowServerTimeMs) {
     button.className = "secondary-button online-lyrics-battle-idle-notice-button";
     button.textContent = "わからない扱いにする";
     button.addEventListener("click", () => {
+      // 3分無操作の参加者を「わからない」扱いにする操作音
+      playSfx(SFX_EVENTS.UI_CLICK);
       button.disabled = true;
       forceSkipIdlePlayer({ roomId: latestRoom.roomId, matchId: currentMatchId, questionIndex: qIndex, targetUid: uid });
     });
@@ -1206,9 +1246,11 @@ function renderRevealVoteList(match, qIndex, roundNumber) {
     name.type = "button";
     name.className = "online-instant-battle-reveal-player-name online-instant-battle-reveal-player-name-button";
     name.textContent = participant.displayName + (uid === myUid ? "（あなた）" : "");
-    name.addEventListener("click", () =>
-      openParticipantProfile({ uid, name: participant.displayName, oshiMemberId: participant.oshiMemberId })
-    );
+    name.addEventListener("click", () => {
+      // 答え合わせ画面：名前タップでプロフィールモーダルを開く操作音
+      playSfx(SFX_EVENTS.UI_CLICK);
+      openParticipantProfile({ uid, name: participant.displayName, oshiMemberId: participant.oshiMemberId });
+    });
     row.appendChild(name);
 
     const answerText = document.createElement("span");
@@ -1472,9 +1514,11 @@ export function enterInstantCoopResult(room) {
       name.className = "online-lobby-player-name online-lobby-player-name-button";
       name.textContent = participant.displayName + (participant.isHost ? "（ホスト）" : "");
       // 結果画面は対戦の進行に一切影響しないため、常にプロフィールを開ける。
-      name.addEventListener("click", () =>
-        openParticipantProfile({ uid, name: participant.displayName, oshiMemberId: participant.oshiMemberId })
-      );
+      name.addEventListener("click", () => {
+        // 結果画面：名前タップでプロフィールモーダルを開く操作音
+        playSfx(SFX_EVENTS.UI_CLICK);
+        openParticipantProfile({ uid, name: participant.displayName, oshiMemberId: participant.oshiMemberId });
+      });
       li.appendChild(name);
       elements.resultMemberList.appendChild(li);
     });

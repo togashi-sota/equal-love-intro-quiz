@@ -10,6 +10,7 @@ import { getPlaylists, getPlaylistById } from "./playlists.js";
 import { getFavoriteSongIds } from "./favoriteSongs.js";
 import { CATEGORY_PILL_INFO } from "./songlist.js";
 import { openFullscreenLyrics } from "./lyricsFullscreen.js";
+import { SFX_EVENTS, playSfx } from "./soundManager.js";
 import {
   getPlaybackState,
   onPlaybackStateChange,
@@ -81,6 +82,7 @@ function renderPlaylistPicker() {
       ? `${playlist.playlistName || "（名前未設定）"}（0曲）`
       : `${playlist.playlistName || "（名前未設定）"}（${playlist.songIds.length}曲）`;
     button.addEventListener("click", () => {
+      playSfx(SFX_EVENTS.UI_CLICK);
       draftPlaylistId = playlist.playlistId;
       playlistListExpanded = false; // 選んだら自動で折りたたむ（UI/UX再設計）
       updatePlaylistBlockUI();
@@ -156,6 +158,7 @@ function setSettingsOpen(open) {
 }
 
 async function handleApplyButtonClick() {
+  playSfx(SFX_EVENTS.UI_CONFIRM);
   if (draftSource === "all") {
     await startFromAllSongs(draftShuffle);
   } else if (draftSource === "favorites") {
@@ -330,14 +333,27 @@ function wireSeekBar() {
 export function initContinuousPlayScreen(newElements) {
   elements = newElements;
 
-  elements.queueLink.addEventListener("click", () => elements.onOpenQueue());
-  elements.nextCard.addEventListener("click", () => elements.onOpenQueue());
+  elements.queueLink.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
+    elements.onOpenQueue();
+  });
+  elements.nextCard.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
+    elements.onOpenQueue();
+  });
 
-  elements.settingsToggle.addEventListener("click", () => setSettingsOpen(!isSettingsOpen));
-  elements.settingsIconButton.addEventListener("click", () => setSettingsOpen(!isSettingsOpen));
+  elements.settingsToggle.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
+    setSettingsOpen(!isSettingsOpen);
+  });
+  elements.settingsIconButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
+    setSettingsOpen(!isSettingsOpen);
+  });
 
   elements.sourceButtons.forEach((button) => {
     button.addEventListener("click", () => {
+      playSfx(SFX_EVENTS.UI_CLICK);
       draftSource = button.dataset.source;
       updateDraftSourceUI();
     });
@@ -345,19 +361,25 @@ export function initContinuousPlayScreen(newElements) {
 
   elements.orderButtons.forEach((button) => {
     button.addEventListener("click", () => {
+      playSfx(SFX_EVENTS.UI_CLICK);
       draftShuffle = button.dataset.order === "shuffle";
       updateDraftOrderUI();
     });
   });
 
   elements.playlistSummary.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     playlistListExpanded = true; // 「変更する」で一覧を展開
     updatePlaylistBlockUI();
   });
 
-  elements.favoritesExploreButton.addEventListener("click", () => elements.onExploreFavorites());
+  elements.favoritesExploreButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
+    elements.onExploreFavorites();
+  });
 
   elements.repeatButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
     const state = getPlaybackState();
     const currentIndex = REPEAT_CYCLE.indexOf(state.repeatMode);
     const nextMode = REPEAT_CYCLE[(currentIndex + 1) % REPEAT_CYCLE.length];
@@ -374,6 +396,7 @@ export function initContinuousPlayScreen(newElements) {
     const state = getPlaybackState();
     const audio = document.getElementById("continuous-play-audio");
     if (state.currentSong && !elements.lyricsPanel.hidden) {
+      playSfx(SFX_EVENTS.UI_CLICK);
       openFullscreenLyrics(state.currentSong.title, audio, elements.lyricsPanel);
     }
   });

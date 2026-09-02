@@ -22,6 +22,7 @@ import { fetchPublicProfileBadgeState, getMyUid, isPublicProfileSharingEnabled }
 import { getPlayerKeyPrefix } from "./playerProfile.js";
 import { ADMIN_UID } from "./adminConfig.js";
 import { TIME_ATTACK_VARIANT, TIME_ATTACK_RULE } from "./timeAttackScreen.js";
+import { SFX_EVENTS, playSfx } from "./soundManager.js";
 
 const VARIANT_LABELS = {
   [TIME_ATTACK_VARIANT.INTRO]: "🎧イントロ",
@@ -159,7 +160,10 @@ function buildLeaderboardRow(
     deleteButton.className = "leaderboard-admin-delete-button";
     deleteButton.setAttribute("aria-label", `${entry.displayName}さんの記録を削除（管理者用）`);
     deleteButton.textContent = "🗑️";
-    deleteButton.addEventListener("click", () => onAdminDeleteRequest?.(entry));
+    deleteButton.addEventListener("click", () => {
+      playSfx(SFX_EVENTS.UI_CLICK);
+      onAdminDeleteRequest?.(entry);
+    });
     row.appendChild(deleteButton);
   }
 
@@ -172,7 +176,10 @@ function buildTabButton(label, isActive, onClick) {
   button.className = "leaderboard-tab-button";
   button.classList.toggle("is-active", isActive);
   button.textContent = label;
-  button.addEventListener("click", onClick);
+  button.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
+    onClick();
+  });
   return button;
 }
 
@@ -344,6 +351,7 @@ function openAdminDeleteConfirm(entry) {
 }
 
 function closeAdminDeleteConfirm() {
+  playSfx(SFX_EVENTS.UI_BACK);
   pendingAdminDeleteEntry = null;
   elements.adminDeleteOverlay.hidden = true;
 }
@@ -363,6 +371,7 @@ function handleAdminDeleteKeydown(event) {
 // 対象entryのuidから、一意な1件だけを削除する。削除後は一覧を再読み込みする。
 async function handleAdminDeleteConfirmClick() {
   if (!isAdminUser || !pendingAdminDeleteEntry) return;
+  playSfx(SFX_EVENTS.UI_CONFIRM);
   const targetUid = pendingAdminDeleteEntry.uid;
   elements.adminDeleteConfirmButton.disabled = true;
   try {
@@ -418,7 +427,10 @@ export async function showTimeAttackLeaderboard(variant, questionCountValue, cat
 export function initTimeAttackLeaderboardScreen(newElements, membersList) {
   elements = { ...newElements, currentUid: null };
   members = membersList;
-  elements.backButton.addEventListener("click", () => elements.onBack?.());
+  elements.backButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_BACK);
+    elements.onBack?.();
+  });
 
   elements.adminDeleteCancelButton.addEventListener("click", closeAdminDeleteConfirm);
   elements.adminDeleteConfirmButton.addEventListener("click", handleAdminDeleteConfirmClick);

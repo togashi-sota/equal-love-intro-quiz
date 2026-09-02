@@ -2,6 +2,7 @@
 // 内容（見出し・手順・ポイント）はすべてjs/data/guideContent.jsが持ち、このファイルは
 // DOM組み立てと目次⇄詳細ページの切り替えだけを行う。
 import { GUIDE_CATEGORIES, getGuideSectionById } from "./data/guideContent.js";
+import { SFX_EVENTS, playSfx } from "./soundManager.js";
 
 let elements = null;
 
@@ -62,7 +63,10 @@ function buildTocEntryButton(section) {
   label.textContent = section.title;
 
   button.append(icon, label);
-  button.addEventListener("click", () => showDetail(section.id));
+  button.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
+    showDetail(section.id);
+  });
   return button;
 }
 
@@ -111,6 +115,12 @@ export function getGuideReturnScreenId() {
 export function initGuideScreen(newElements) {
   elements = newElements;
   renderToc();
-  elements.detailBackButton.addEventListener("click", showToc);
-  elements.detailBackButtonBottom.addEventListener("click", showToc);
+  elements.detailBackButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_BACK);
+    showToc();
+  });
+  elements.detailBackButtonBottom.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_BACK);
+    showToc();
+  });
 }

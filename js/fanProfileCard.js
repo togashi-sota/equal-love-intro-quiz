@@ -7,6 +7,7 @@ import { getMemberById } from "./memberUtils.js";
 import { getAchievementById } from "./achievementDefinitions.js";
 import { buildAchievementIconMedal } from "./achievementIcons.js";
 import { applyOshiBadgeDecorationsFromState } from "./oshiBadge.js";
+import { SFX_EVENTS, playSfx } from "./soundManager.js";
 
 export function buildOshiSwatch(members, oshiMemberId, badgeState) {
   const swatch = document.createElement("span");
@@ -127,7 +128,12 @@ export function buildProfileCard(profile, members, onSelect, options = {}) {
   chevron.appendChild(chevronPath);
   card.appendChild(chevron);
 
-  if (onSelect) card.addEventListener("click", () => onSelect(profile));
+  if (onSelect) {
+    card.addEventListener("click", () => {
+      playSfx(SFX_EVENTS.UI_CLICK);
+      onSelect(profile);
+    });
+  }
   if (!isAdmin) return card;
 
   // 管理者だけに見える削除導線。カード本体とは独立したボタンにし、クリックが
@@ -143,6 +149,7 @@ export function buildProfileCard(profile, members, onSelect, options = {}) {
   deleteButton.textContent = "🗑️";
   deleteButton.addEventListener("click", (event) => {
     event.stopPropagation();
+    playSfx(SFX_EVENTS.UI_CLICK);
     if (onAdminDeleteRequest) onAdminDeleteRequest(profile);
   });
   row.appendChild(deleteButton);
