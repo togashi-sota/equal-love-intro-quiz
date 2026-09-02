@@ -593,7 +593,10 @@ export function openCustomQuizScreenForNewPreset(quizType) {
   elements.groupsContainer.querySelectorAll(".single-group").forEach((groupElement, index) => {
     groupElement.classList.toggle("is-open", index === 0);
   });
-  document.querySelector('input[name="custom-quiz-distractor-mode"][value="selected"]').checked = true;
+  // 【2026-10-01改訂】distractorModeの選択肢を「選択した曲だけ／全収録曲」から
+  // カテゴリー3択（表題曲のみ／表題曲＋全員曲／全曲）へ変更したことに伴い、初期値も
+  // 新しい選択肢の1つ（表題曲のみ）に合わせる。
+  document.querySelector('input[name="custom-quiz-distractor-mode"][value="title-track"]').checked = true;
   document.querySelector('input[name="custom-quiz-answer-pool-size"][value="4"]').checked = true;
   document.querySelector('input[name="custom-quiz-instant-play-duration"][value="1.5"]').checked = true;
   document.querySelector('input[name="custom-quiz-instant-answer-pool-size"][value="4"]').checked = true;

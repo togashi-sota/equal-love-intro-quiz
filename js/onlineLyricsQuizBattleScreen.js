@@ -34,6 +34,10 @@ import {
   updateRoomSettings,
   subscribeServerTimeOffset,
   beginRematchReadyCheck,
+  setRematchReady,
+  cancelRematchReadyCheck,
+  finishRematchReadyCheck,
+  kickPlayer,
   markResultReturned,
 } from "./onlineBattle.js";
 // 【2026-09-30新設・本人指示：オンライン対戦総合改修 第3ラウンド】結果画面の「ルーム設定に
@@ -45,7 +49,10 @@ import {
   resetResultScreenResponded,
   hasRespondedToCurrentResultScreen,
   renderResultReturnStatusList,
+  renderRematchReadinessList,
+  createRematchKickHandler,
 } from "./onlineBattleResultReturnState.js";
+import { computeAllPlayersRematchReady } from "./onlineBattleMatchConfirmationPayloads.js";
 import { computeRemainingRevealMs } from "./onlineBattleRevealTiming.js";
 import { promptReturnToLobby } from "./onlineBattleLobbyReturnPrompt.js";
 import { promptLeaveMatch } from "./onlineBattleLeaveMatchPrompt.js";
@@ -157,7 +164,7 @@ import { buildParticipantIcon } from "./onlineParticipantIcon.js";
 // 流す新機能で使う。js/audio.jsの共通再生関数をそのまま再利用し（新しい再生経路は作らない）、
 // 失敗時はonErrorをconsole.warnだけにして、Q1無音バグの教訓どおり「演出の失敗でゲーム進行を
 // 止めない」設計にする（下のstartRevealMusic参照）。
-import { playSongFromRandomPosition, stopAudio } from "./audio.js";
+import { playSongFromRandomPosition, stopAudio, attemptSilentUnlock } from "./audio.js";
 import { QUESTION_COUNT_LABELS } from "./localBattleScreen.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
 import { STEAL_CLAIM_OUTCOME } from "./lyricsQuizBattleFirebasePayloads.js";
@@ -200,6 +207,11 @@ let lastHintRevealedQuestionIndex = -1; // renderResolvedHintSummary()の同種�
 // 「同じ問題には1回だけ」ガード。別カウンタにする理由も同上）。
 let lastRevealSfxPlayedForQuestionIndex = -1;
 let mySubmittedForQuestionIndex = -1;
+// 【2026-10-01新設・本人指示：結果画面/再戦フロー全面設計6章】早押しバトルで、今の問題に
+// 対する自分の回答結果（STEAL_CLAIM_OUTCOME.ANSWERED_WRONG等）を覚えておく。答え合わせ
+// までの「待機中」表示を、正誤で出し分けるために使う（本人指示：本人が間違えたかどうか
+// 「回答しました」だけでは分からない、を解消する）。
+let mySubmissionOutcomeForQuestionIndex = -1;
 let mySelectedSongId = null;
 let submitInFlight = false;
 
@@ -429,39 +441,43 @@ export function initOnlineLyricsQuizBattleScreens(newElements) {
       elements.navigateTo("start");
     });
   });
-  // 【2026-09-30改訂・本人指示：オンライン対戦総合改修 第3ラウンド】「もう一度」は
-  // ホスト専用のまま。押した瞬間、beginRematchReadyCheck()でconfirmingRematchを立てる
-  // （既存どおり）が、結果画面を見ている他のゲストを即座に強制遷移させない
-  // （js/onlineBattleScreen.jsのrenderLobby()側のガード参照）。自分自身はここで即座に
-  // ローカルの再戦準備画面へ進む。
+  // 【2026-09-30新設→2026-10-01全面改訂・本人指示：結果画面/再戦フロー全面設計】
+  // 「もう一度」はホスト専用のまま。押した瞬間、beginRematchReadyCheck()で
+  // confirmingRematchを立てる（このときホスト自身は既に準備OK扱いになる）。以前は
+  // 別画面（再戦準備画面）へ遷移していたが、今は結果画面から離れず、下に現れる
+  // インラインパネル（renderLyricsResultReturnPanel()参照）でそのまま完結する。
   elements.resultRematchButton.addEventListener("click", async () => {
     if (!latestRoom) return;
     playSfx(SFX_EVENTS.UI_CONFIRM);
     elements.resultRematchButton.disabled = true;
     const result = await beginRematchReadyCheck({ roomId: latestRoom.roomId });
     elements.resultRematchButton.disabled = false;
-    if (result.ok) {
-      markResultScreenResponded();
-      elements.enterRematchReadyScreen({ ...latestRoom, status: ROOM_STATUS.WAITING, confirmingRematch: true });
-    }
+    if (result.ok) markResultScreenResponded();
   });
-  // 【2026-09-30新設・本人指示】ゲスト用：「もう一度」が提案された後、結果画面を見終えたと
-  // 感じたタイミングで自分から押す。押すまでは結果画面に留まり続ける。
-  elements.resultRematchProceedButton?.addEventListener("click", () => {
+  // 【2026-10-01新設・本人指示】インライン再戦準備パネルの「準備OK」トグル。
+  elements.resultRematchToggleButton?.addEventListener("click", async () => {
     if (!latestRoom) return;
-    playSfx(SFX_EVENTS.UI_CONFIRM);
-    markResultScreenResponded();
-    elements.enterRematchReadyScreen(latestRoom);
+    const myUid = getCurrentUid();
+    const myReady = latestRoom.players?.[myUid]?.rematchReady === true;
+    playSfx(SFX_EVENTS.UI_CLICK);
+    elements.resultRematchToggleButton.disabled = true;
+    await setRematchReady({ roomId: latestRoom.roomId, confirmed: !myReady });
+    elements.resultRematchToggleButton.disabled = false;
   });
-  // 【2026-09-30改訂・本人指示：オンライン対戦総合改修 第3ラウンド】「ルーム設定に戻る」を、
-  // ホスト専用の即時全員強制遷移から、ホスト・ゲストどちらも押せる個別操作へ変更した。
-  // 押した瞬間、自分の分だけmarkResultReturned()で記録し、room.statusの変化を待たずに
-  // 自分の画面だけを即座にロビーへ切り替える（他の参加者の画面には一切影響しない）。
+  // 【2026-10-01新設・本人指示】再戦準備中のキック（ホストのみ表示されるボタン）。
+  elements.resultRematchPlayerList?.addEventListener("click", handleLyricsRematchKickClick);
+  // 【2026-09-30改訂→2026-10-01改訂・本人指示：結果画面/再戦フロー全面設計】「ルーム設定に
+  // 戻る」は、ホスト・ゲストどちらも押せる個別操作。再戦提案中であれば先に
+  // cancelRematchReadyCheck()を呼んでキャンセルしてから、通常どおり自分の分だけ
+  // markResultReturned()で記録する。
   elements.resultReturnButton?.addEventListener("click", async () => {
     if (!latestRoom) return;
     playSfx(SFX_EVENTS.UI_BACK);
     elements.resultReturnButton.disabled = true;
     markResultScreenResponded();
+    if (latestRoom.confirmingRematch === true) {
+      await cancelRematchReadyCheck({ roomId: latestRoom.roomId });
+    }
     await markResultReturned({ roomId: latestRoom.roomId });
     elements.resultReturnButton.disabled = false;
     resetLyricsQuizBattleState();
@@ -551,6 +567,7 @@ export function resetLyricsQuizBattleState() {
   lastHintRevealedQuestionIndex = -1;
   lastRevealSfxPlayedForQuestionIndex = -1;
   mySubmittedForQuestionIndex = -1;
+  mySubmissionOutcomeForQuestionIndex = -1;
   mySelectedSongId = null;
   submitInFlight = false;
   myOutcomeHistory = [];
@@ -1036,6 +1053,7 @@ export async function enterLyricsQuizBattlePlay(room) {
   lastHintRevealedQuestionIndex = -1;
   lastRevealSfxPlayedForQuestionIndex = -1;
   mySubmittedForQuestionIndex = -1;
+  mySubmissionOutcomeForQuestionIndex = -1;
   mySelectedSongId = null;
   myOutcomeHistory = [];
   myComboCount = 0;
@@ -1501,6 +1519,11 @@ function renderHintArea(question, { ruleId, elapsedMs, isResolved, myAnsweredThi
       item.appendChild(textSpan);
       elements.battleHintLinesContainer.appendChild(item);
     });
+    // 【2026-10-01新設・本人指示：歌詞クイズ問題画面モバイルレイアウト再設計5章】早押しバトルは
+    // ヒント1〜4が時間経過で自動的に積み上がっていく（css/style.cssの
+    // .online-lyrics-battle-hint-linesのmax-height+内部スクロール参照）。新しいヒントが
+    // 追加されるたびに、常に最新のヒント（一番下）が見える位置まで自動スクロールする。
+    elements.battleHintLinesContainer.scrollTop = elements.battleHintLinesContainer.scrollHeight;
     return;
   }
 
@@ -1815,6 +1838,9 @@ async function handleAnswerChoiceClick(selectedSongId) {
     latestRoom?.matches?.[currentMatchId]?.currentQuestionIndex !== qIndex;
   if (result.ok) {
     mySubmittedForQuestionIndex = qIndex;
+    // 【2026-10-01新設】待機メッセージの出し分け用（下のrenderCurrentQuestionState()参照）。
+    // 不正解だった場合だけこの問題番号を記録し、それ以外（正解・惜敗）はクリアする。
+    mySubmissionOutcomeForQuestionIndex = result.outcome === STEAL_CLAIM_OUTCOME.ANSWERED_WRONG ? qIndex : -1;
     // 奪い取り成功音（2026-08-09新設）は、Firebase側でwinner claimの書き込みが実際に
     // 成功した（＝サーバー側で自分が勝者だと確定した）STEAL_CLAIM_OUTCOME.WONの
     // ときだけ鳴らす。ローカルで選択した直後や、通信結果を待っている段階では鳴らさない。
@@ -1822,6 +1848,13 @@ async function handleAnswerChoiceClick(selectedSongId) {
     // 前問の効果音・メッセージを混ぜないよう鳴らさない・表示しない。
     if (result.outcome === STEAL_CLAIM_OUTCOME.WON && !isStaleQuestion) {
       playSfx(SFX_EVENTS.STEAL_SUCCESS);
+    }
+    // 【2026-10-01新設・本人指示：早押しで不正解だった本人にその場で分かるようにする】
+    // 不正解SEを1回だけ鳴らす（7秒間の答え合わせ演出中に繰り返し鳴らす既存のSFX多重発火
+    // 対策＝lastRevealSfxPlayedForQuestionIndexとは別軸で、ここは送信結果が返ってきた
+    // 瞬間の1回きりの通知のため重複の心配はない）。
+    if (result.outcome === STEAL_CLAIM_OUTCOME.ANSWERED_WRONG && !isStaleQuestion) {
+      playSfx(SFX_EVENTS.QUIZ_WRONG);
     }
     const outcomeMessage = describeStealClaimOutcomeMessage(result.outcome);
     if (outcomeMessage && !isStaleQuestion) {
@@ -1913,16 +1946,15 @@ function renderIdleNotice(match, qIndex, nowServerTimeMs) {
 // 完了時にまとめて書き込む、1つ前の問題までの確定スコア）。今の問題のanswers・
 // questionClaims等、まだ確定していないデータには一切触れない。
 //
-// 【早押しバトルの出し分け】早押しバトルは「途中経過を見せると不公平になる」という本人指示
-// により、出題中（回答収集中＝questionStatus:"active"）はスコアボード自体を隠す。reveal後
-// （questionStatus:"resolved"）は他の2ルールと同様に見せる。
-function renderScoreboard(match, { ruleId, isResolved }) {
+// 【2026-10-01改訂・本人指示：歌詞クイズ問題画面モバイルレイアウト再設計5章】以前は
+// 早押しバトルだけ「途中経過を見せると不公平になる」という理由で出題中（questionStatus:
+// "active"）は隠していたが、この関数が参照するscoreSnapshotは「1つ前の問題までの確定値」
+// でしかなく、今の問題の途中経過を一切含まない（上のコメント参照）。表示するデータの
+// 安全性は変わらないため、3ルールすべて常時表示に統一した。
+function renderScoreboard(match, { ruleId }) {
   const container = elements.battleScoreboard;
   if (!container) return; // この要素が無い画面構成では何もしない（安全側）
-
-  const shouldShow = ruleId !== "steal" || isResolved;
-  container.hidden = !shouldShow;
-  if (!shouldShow) return;
+  container.hidden = false;
 
   const scoreboard = describeScoreboard({
     ruleId,
@@ -1937,16 +1969,22 @@ function renderScoreboard(match, { ruleId, isResolved }) {
       : "（まだ結果が確定していません）";
   }
 
+  // 【2026-10-01新設】横スクロールする一覧を見なくても自分の順位/得点が分かる固定表示。
+  if (elements.battleMyRank) {
+    const myRow = scoreboard.rows.find((row) => row.isMe);
+    elements.battleMyRank.textContent = myRow ? `あなた：${myRow.rank}位 / ${myRow.value}${scoreboard.valueUnit}` : "";
+  }
+
   if (!elements.battleScoreboardList) return;
   clearElement(elements.battleScoreboardList);
-  scoreboard.rows.forEach((row, index) => {
+  scoreboard.rows.forEach((row) => {
     const item = document.createElement("li");
     item.className = "online-lyrics-battle-scoreboard-item";
     if (row.isMe) item.classList.add("is-me");
 
     const rankSpan = document.createElement("span");
     rankSpan.className = "online-lyrics-battle-scoreboard-rank";
-    rankSpan.textContent = `${index + 1}`;
+    rankSpan.textContent = `${row.rank}`;
     item.appendChild(rankSpan);
 
     item.appendChild(buildParticipantIcon(row.oshiMemberId, row.uid));
@@ -1981,6 +2019,7 @@ function renderCurrentQuestionState() {
   if (qIndex !== lastRenderedQuestionIndex) {
     lastRenderedQuestionIndex = qIndex;
     mySubmittedForQuestionIndex = -1;
+    mySubmissionOutcomeForQuestionIndex = -1;
     mySelectedSongId = null;
     hideAnswerSubmissionNotice();
     // 【2026-09-07新設・本人指示：前問の答え合わせが一瞬見えるバグ対策】この下の
@@ -2061,9 +2100,16 @@ function renderCurrentQuestionState() {
     // 【2026-09-06新設・本人指示】ホストにより強制的に「わからない」扱いにされた場合は、
     // 何が起きたか本人にも分かるよう、通常の待機メッセージとは別の文言を出す
     // （本人指示：「突然問題が終わって理由が分からない状態にはしないでください」）。
+    // 【2026-10-01追加・本人指示：早押しで不正解だった場合】「回答しました」だけだと
+    // 本人も間違えたのか分かりづらいため、待機メッセージ自体にも「残念、不正解」を含める
+    // （即時の案内＝elements.battleErrorは一定時間で消えるが、こちらは正誤確定まで
+    // 表示され続けるため、遅れて画面を見た場合でも分かるようにする）。
+    const wasWrong = mySubmissionOutcomeForQuestionIndex === qIndex;
     elements.battleStatusMessage.textContent = myForcedSkip
       ? "ホストにより、この問題は「わからない」扱いになりました。他のプレイヤーの回答を待っています…"
-      : "回答しました！他のプレイヤーの回答を待っています…";
+      : wasWrong
+        ? "残念、不正解。他のプレイヤーの回答を待っています…"
+        : "回答しました！他のプレイヤーの回答を待っています…";
   }
 
   // 【2026-08-31改訂、本人指示：歌詞クイズ3ルール全面改修】対戦中は他プレイヤーとの
@@ -2152,9 +2198,42 @@ export function syncLyricsResultHostGuestButtons(room) {
   if (elements.resultGuestActions) elements.resultGuestActions.hidden = isHostOnResultScreen;
 }
 
-// 【2026-09-30新設・本人指示：オンライン対戦総合改修 第3ラウンド】js/onlineBattleScreen.jsの
-// renderResultReturnPanel()と全く同じ考え方。「結果確認の状況」一覧・「もう一度」提案への
-// 案内を、room更新のたびに軽量に再描画する。
+// 【2026-10-01新設・本人指示：結果画面/再戦フロー全面設計】全員準備OK後、2秒待ってから
+// 実際に再戦を開始する処理。js/onlineBattleScreen.jsのdriveRematchReadyAutoStart()と
+// 全く同じ考え方だが、タイマー変数（lyricsRematchAutoStartTimerId）はこのファイル専用。
+let lyricsRematchAutoStartTimerId = null;
+const REMATCH_AUTO_START_DELAY_MS = 2000;
+function driveLyricsRematchReadyAutoStart(room) {
+  const myUid = getCurrentUid();
+  const isHost = room.host === myUid;
+  const players = room.players || {};
+  const allReady = computeAllPlayersRematchReady(players);
+
+  if (isHost && allReady && lyricsRematchAutoStartTimerId === null) {
+    const roomId = room.roomId;
+    lyricsRematchAutoStartTimerId = setTimeout(async () => {
+      lyricsRematchAutoStartTimerId = null;
+      const latest = latestRoom;
+      if (!latest || latest.roomId !== roomId || latest.confirmingRematch !== true) return;
+      if (!computeAllPlayersRematchReady(latest.players)) return;
+      attemptSilentUnlock();
+      await finishRematchReadyCheck({ roomId });
+    }, REMATCH_AUTO_START_DELAY_MS);
+  } else if (!allReady && lyricsRematchAutoStartTimerId !== null) {
+    clearTimeout(lyricsRematchAutoStartTimerId);
+    lyricsRematchAutoStartTimerId = null;
+  }
+}
+
+const handleLyricsRematchKickClick = createRematchKickHandler({
+  getRoomId: () => latestRoom?.roomId ?? null,
+  kickPlayerFn: kickPlayer,
+  playConfirmSfx: () => playSfx(SFX_EVENTS.UI_CONFIRM),
+});
+
+// 【2026-09-30新設→2026-10-01全面改訂・本人指示：結果画面/再戦フロー全面設計】
+// js/onlineBattleScreen.jsのrenderResultReturnPanel()と全く同じ考え方。「結果確認の状況」
+// 一覧・再戦準備のインラインパネルを、room更新のたびに軽量に再描画する。
 function renderLyricsResultReturnPanel(room) {
   const match = room.matches?.[room.activeMatchId] ?? {};
   const participants = match.participants || {};
@@ -2164,9 +2243,27 @@ function renderLyricsResultReturnPanel(room) {
 
   renderResultReturnStatusList(elements.resultReturnStatusList, participants, players, myUid);
 
-  if (elements.resultRematchProposedNotice) {
-    elements.resultRematchProposedNotice.hidden =
-      !(room.confirmingRematch === true) || isHostOnResultScreen || hasRespondedToCurrentResultScreen();
+  const isConfirmingRematch = room.confirmingRematch === true;
+  if (elements.resultRematchPanel) {
+    elements.resultRematchPanel.hidden = !isConfirmingRematch;
+  }
+  if (isConfirmingRematch) {
+    if (elements.resultRematchPanelLead) {
+      elements.resultRematchPanelLead.textContent = isHostOnResultScreen
+        ? "再戦を準備中です。全員の準備が揃うと自動的に始まります。"
+        : "ホストが「もう一度」を選びました。準備ができたら「準備OK」を押してください。";
+    }
+    renderRematchReadinessList(elements.resultRematchPlayerList, players, myUid, isHostOnResultScreen);
+    const allReady = computeAllPlayersRematchReady(players);
+    const myReady = players[myUid]?.rematchReady === true;
+    if (elements.resultRematchToggleButton) {
+      elements.resultRematchToggleButton.textContent = myReady ? "準備を取り消す" : "✓ 準備OK";
+      elements.resultRematchToggleButton.classList.toggle("is-confirmed", myReady);
+    }
+    if (elements.resultRematchAllDoneNotice) {
+      elements.resultRematchAllDoneNotice.hidden = !allReady;
+    }
+    driveLyricsRematchReadyAutoStart(room);
   }
 }
 

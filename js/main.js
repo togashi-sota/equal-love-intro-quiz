@@ -152,7 +152,8 @@ import {
   retryLyricsQuizRun,
   renderLyricsQuizResult,
   startManualSelectionLyricsQuizRun,
-  isLyricsQuizPracticeRun,
+  isLyricsQuizWeakSongsPractice,
+  isLyricsQuizFromCustomPreset,
 } from "./lyricsQuizScreen.js";
 import { buildBattleQuestions } from "./localBattle.js";
 import { initLocalBattleScreens, getCurrentBattleSession } from "./localBattleScreen.js";
@@ -165,9 +166,6 @@ import {
   leaveOnlineBattleRoomCompletely,
   // 【2026-09-16新設・本人指示：「音が出ない」救済ボタン第2段階（オンライン対戦・個人進行系）】
   abortOnlineBattleMatchDueToAudioTrouble,
-  // 【2026-09-30新設・本人指示：オンライン対戦総合改修 第3ラウンド】結果画面の
-  // 「もう一度」対応から、歌詞クイズ・一瞬バトル・一瞬協力にも橋渡しする。
-  enterRematchReadyScreen,
 } from "./onlineBattleScreen.js";
 import { initOnlineLyricsQuizBattleScreens } from "./onlineLyricsQuizBattleScreen.js";
 import { initOnlineInstantBattleScreens } from "./onlineInstantBattleScreen.js";
@@ -1060,8 +1058,14 @@ const onlineBattleResultHostActionsElement = document.getElementById("online-bat
 const onlineBattleResultRematchButtonElement = document.getElementById("online-battle-result-rematch-button");
 // 【2026-09-30新設・本人指示：オンライン対戦総合改修 第2ラウンド23-29章】結果画面の
 // 個別「ルーム設定に戻る」・「もう一度」提案への個別対応ボタン群。
-const onlineBattleResultRematchProposedNoticeElement = document.getElementById("online-battle-result-rematch-proposed-notice");
-const onlineBattleResultRematchProceedButtonElement = document.getElementById("online-battle-result-rematch-proceed-button");
+// 【2026-10-01改訂・本人指示：結果画面/再戦フロー全面設計】再戦準備専用の別画面を廃止し、
+// 結果画面下部に常駐するインライン再戦準備パネルへ置き換えた。
+const onlineBattleResultRematchPanelElement = document.getElementById("online-battle-result-rematch-panel");
+const onlineBattleResultRematchPanelLeadElement = document.getElementById("online-battle-result-rematch-panel-lead");
+const onlineBattleResultRematchSummaryElement = document.getElementById("online-battle-result-rematch-summary");
+const onlineBattleResultRematchPlayerListElement = document.getElementById("online-battle-result-rematch-player-list");
+const onlineBattleResultRematchAllDoneNoticeElement = document.getElementById("online-battle-result-rematch-all-done-notice");
+const onlineBattleResultRematchToggleButtonElement = document.getElementById("online-battle-result-rematch-toggle-button");
 const onlineBattleResultReturnPanelElement = document.getElementById("online-battle-result-return-panel");
 const onlineBattleResultReturnStatusListElement = document.getElementById("online-battle-result-return-status-list");
 const onlineBattleResultReturnButtonElement = document.getElementById("online-battle-result-return-button");
@@ -1172,8 +1176,11 @@ const onlineInstantBattleResultLeaveButtonElement = document.getElementById("onl
 const onlineInstantBattleResultRematchButtonElement = document.getElementById("online-instant-battle-result-rematch-button");
 // 【2026-09-30新設・本人指示：オンライン対戦総合改修 第3ラウンド】旧back-to-lobby-buttonは
 // index.html側で個別操作パネル（online-instant-battle-result-return-panel）へ置き換えた。
-const onlineInstantBattleResultRematchProposedNoticeElement = document.getElementById("online-instant-battle-result-rematch-proposed-notice");
-const onlineInstantBattleResultRematchProceedButtonElement = document.getElementById("online-instant-battle-result-rematch-proceed-button");
+const onlineInstantBattleResultRematchPanelElement = document.getElementById("online-instant-battle-result-rematch-panel");
+const onlineInstantBattleResultRematchPanelLeadElement = document.getElementById("online-instant-battle-result-rematch-panel-lead");
+const onlineInstantBattleResultRematchPlayerListElement = document.getElementById("online-instant-battle-result-rematch-player-list");
+const onlineInstantBattleResultRematchAllDoneNoticeElement = document.getElementById("online-instant-battle-result-rematch-all-done-notice");
+const onlineInstantBattleResultRematchToggleButtonElement = document.getElementById("online-instant-battle-result-rematch-toggle-button");
 const onlineInstantBattleResultReturnPanelElement = document.getElementById("online-instant-battle-result-return-panel");
 const onlineInstantBattleResultReturnStatusListElement = document.getElementById("online-instant-battle-result-return-status-list");
 const onlineInstantBattleResultReturnButtonElement = document.getElementById("online-instant-battle-result-return-button");
@@ -1217,8 +1224,11 @@ const onlineInstantCoopResultGuestActionsElement = document.getElementById("onli
 const onlineInstantCoopResultLeaveButtonElement = document.getElementById("online-instant-coop-battle-result-leave-button");
 // 【2026-09-30新設・本人指示：オンライン対戦総合改修 第3ラウンド】旧back-to-lobby-buttonは
 // index.html側で個別操作パネル（online-instant-coop-battle-result-return-panel）へ置き換えた。
-const onlineInstantCoopResultRematchProposedNoticeElement = document.getElementById("online-instant-coop-battle-result-rematch-proposed-notice");
-const onlineInstantCoopResultRematchProceedButtonElement = document.getElementById("online-instant-coop-battle-result-rematch-proceed-button");
+const onlineInstantCoopResultRematchPanelElement = document.getElementById("online-instant-coop-battle-result-rematch-panel");
+const onlineInstantCoopResultRematchPanelLeadElement = document.getElementById("online-instant-coop-battle-result-rematch-panel-lead");
+const onlineInstantCoopResultRematchPlayerListElement = document.getElementById("online-instant-coop-battle-result-rematch-player-list");
+const onlineInstantCoopResultRematchAllDoneNoticeElement = document.getElementById("online-instant-coop-battle-result-rematch-all-done-notice");
+const onlineInstantCoopResultRematchToggleButtonElement = document.getElementById("online-instant-coop-battle-result-rematch-toggle-button");
 const onlineInstantCoopResultReturnPanelElement = document.getElementById("online-instant-coop-battle-result-return-panel");
 const onlineInstantCoopResultReturnStatusListElement = document.getElementById("online-instant-coop-battle-result-return-status-list");
 const onlineInstantCoopResultReturnButtonElement = document.getElementById("online-instant-coop-battle-result-return-button");
@@ -1283,6 +1293,7 @@ const onlineLyricsBattleProgressElement = document.getElementById("online-lyrics
 // 【2026-09-01新設・本人指示：ライブスコアボード】
 const onlineLyricsBattleScoreboardElement = document.getElementById("online-lyrics-battle-scoreboard");
 const onlineLyricsBattleScoreboardSummaryHintElement = document.getElementById("online-lyrics-battle-scoreboard-summary-hint");
+const onlineLyricsBattleMyRankElement = document.getElementById("online-lyrics-battle-my-rank");
 const onlineLyricsBattleScoreboardListElement = document.getElementById("online-lyrics-battle-scoreboard-list");
 const onlineLyricsBattleHudElement = document.getElementById("online-lyrics-battle-hud");
 const onlineLyricsBattleHintLevelElement = document.getElementById("online-lyrics-battle-hint-level");
@@ -1320,8 +1331,13 @@ const onlineLyricsBattleResultQuestionBreakdownElement = document.getElementById
 const onlineLyricsBattleResultRematchButtonElement = document.getElementById("online-lyrics-battle-result-rematch-button");
 // 【2026-09-30新設・本人指示：オンライン対戦総合改修 第3ラウンド】結果画面の個別
 // 「ルーム設定に戻る」・「もう一度」提案への個別対応ボタン群。
-const onlineLyricsBattleResultRematchProposedNoticeElement = document.getElementById("online-lyrics-battle-result-rematch-proposed-notice");
-const onlineLyricsBattleResultRematchProceedButtonElement = document.getElementById("online-lyrics-battle-result-rematch-proceed-button");
+// 【2026-10-01改訂・本人指示：結果画面/再戦フロー全面設計】結果画面下部に常駐する
+// インライン再戦準備パネル（別画面への遷移は行わない）。
+const onlineLyricsBattleResultRematchPanelElement = document.getElementById("online-lyrics-battle-result-rematch-panel");
+const onlineLyricsBattleResultRematchPanelLeadElement = document.getElementById("online-lyrics-battle-result-rematch-panel-lead");
+const onlineLyricsBattleResultRematchPlayerListElement = document.getElementById("online-lyrics-battle-result-rematch-player-list");
+const onlineLyricsBattleResultRematchAllDoneNoticeElement = document.getElementById("online-lyrics-battle-result-rematch-all-done-notice");
+const onlineLyricsBattleResultRematchToggleButtonElement = document.getElementById("online-lyrics-battle-result-rematch-toggle-button");
 const onlineLyricsBattleResultReturnPanelElement = document.getElementById("online-lyrics-battle-result-return-panel");
 const onlineLyricsBattleResultReturnStatusListElement = document.getElementById("online-lyrics-battle-result-return-status-list");
 const onlineLyricsBattleResultReturnButtonElement = document.getElementById("online-lyrics-battle-result-return-button");
@@ -2526,7 +2542,13 @@ async function beginCustomQuiz(songIds, distractorMode) {
   const playableSelectedSongs = await filterSongsWithImportedAudio(selectedSongs);
   const playableSongIds = playableSelectedSongs.map((song) => song.id);
   const questionSongIds = playableSongIds.length > 0 ? playableSongIds : songIds;
-  const distractorCategoryPool = distractorMode === "selected" ? selectedSongs : filterSongsByCategory(SONGS, "all");
+  // 【2026-10-01改訂・本人指示：正解プールと選択肢全体の母集団を分離】以前は
+  // distractorMode==="selected"のとき、正解も不正解候補も選んだ曲だけから生成していた
+  // ため、選択曲数が少ないと（例：4曲選択で4択なら）毎回同じ顔ぶれしか出なくなっていた。
+  // 今はdistractorModeがカテゴリー（表題曲のみ/表題曲＋全員曲/全曲）そのものになり、
+  // 不正解候補は常にこのカテゴリー全体から選ぶ（本人指示：選んだ曲の数に関わらず、
+  // 十分な数の不正解候補を確保する）。
+  const distractorCategoryPool = filterSongsByCategory(SONGS, distractorMode);
   const distractorPool = await filterSongsWithImportedAudio(distractorCategoryPool);
   const questions = buildQuestionsFromSongIds(questionSongIds, distractorPool);
   startSpecialQuiz(questions, String(questions.length), "customQuiz");
@@ -2545,7 +2567,13 @@ async function beginCustomOutroQuiz(songIds, distractorMode) {
   const playableSelectedSongs = await filterSongsWithImportedAudio(selectedSongs);
   const playableSongIds = playableSelectedSongs.map((song) => song.id);
   const questionSongIds = playableSongIds.length > 0 ? playableSongIds : songIds;
-  const distractorCategoryPool = distractorMode === "selected" ? selectedSongs : filterSongsByCategory(SONGS, "all");
+  // 【2026-10-01改訂・本人指示：正解プールと選択肢全体の母集団を分離】以前は
+  // distractorMode==="selected"のとき、正解も不正解候補も選んだ曲だけから生成していた
+  // ため、選択曲数が少ないと（例：4曲選択で4択なら）毎回同じ顔ぶれしか出なくなっていた。
+  // 今はdistractorModeがカテゴリー（表題曲のみ/表題曲＋全員曲/全曲）そのものになり、
+  // 不正解候補は常にこのカテゴリー全体から選ぶ（本人指示：選んだ曲の数に関わらず、
+  // 十分な数の不正解候補を確保する）。
+  const distractorCategoryPool = filterSongsByCategory(SONGS, distractorMode);
   const distractorPool = await filterSongsWithImportedAudio(distractorCategoryPool);
   const questions = buildQuestionsFromSongIds(questionSongIds, distractorPool);
   // 【重要】specialModeIdは専用の"outroQuiz"（カテゴリー絞り込みの設定画面から始まった回、
@@ -2571,7 +2599,13 @@ async function beginCustomRandomPlaybackQuiz(songIds, distractorMode) {
   const playableSelectedSongs = await filterSongsWithImportedAudio(selectedSongs);
   const playableSongIds = playableSelectedSongs.map((song) => song.id);
   const questionSongIds = playableSongIds.length > 0 ? playableSongIds : songIds;
-  const distractorCategoryPool = distractorMode === "selected" ? selectedSongs : filterSongsByCategory(SONGS, "all");
+  // 【2026-10-01改訂・本人指示：正解プールと選択肢全体の母集団を分離】以前は
+  // distractorMode==="selected"のとき、正解も不正解候補も選んだ曲だけから生成していた
+  // ため、選択曲数が少ないと（例：4曲選択で4択なら）毎回同じ顔ぶれしか出なくなっていた。
+  // 今はdistractorModeがカテゴリー（表題曲のみ/表題曲＋全員曲/全曲）そのものになり、
+  // 不正解候補は常にこのカテゴリー全体から選ぶ（本人指示：選んだ曲の数に関わらず、
+  // 十分な数の不正解候補を確保する）。
+  const distractorCategoryPool = filterSongsByCategory(SONGS, distractorMode);
   const distractorPool = await filterSongsWithImportedAudio(distractorCategoryPool);
   const questions = buildQuestionsFromSongIds(questionSongIds, distractorPool);
   generateNewRandomPlaybackSeed();
@@ -4302,6 +4336,15 @@ outroQuizSetupBackButtonElement.addEventListener("click", () => {
   navigateWithScrollMemory("start");
 });
 
+// 【2026-10-01追加・本人指示：実機再確認で発覚、アウトロクイズ設定の出題数・カテゴリー
+// ボタンにchangeリスナー自体が無く無音だった】既存の他モードと同じ、変更のたびに
+// UI_CLICK効果音を鳴らす操作音を追加する。
+document
+  .querySelectorAll('input[name="outro-quiz-question-count"], input[name="outro-quiz-category-filter"]')
+  .forEach((radio) => {
+    radio.addEventListener("change", () => playSfx(SFX_EVENTS.UI_CLICK));
+  });
+
 outroQuizStartButtonElement.addEventListener("click", () => {
   // 【2026-09-23新設・本人指示：新規プレイのたびに第1問だけ無音になる問題の再調査】
   recordAudioDiagnostic("[GAME_START] スタートボタン押下（アウトロクイズ）");
@@ -5211,6 +5254,10 @@ document
   .forEach((radio) => {
     radio.addEventListener("change", updateModeBestScoreDisplay);
     radio.addEventListener("change", updateQuestionCountNotice);
+    // 【2026-10-01追加・本人指示：実機再確認で発覚、ホーム画面本体（最も使用頻度の高い
+    // 通常のイントロクイズ設定）の出題数・カテゴリーボタンが無音だった】既存のオンライン
+    // 対戦側と同じ、変更のたびにUI_CLICK効果音を鳴らす操作音を追加する。
+    radio.addEventListener("change", () => playSfx(SFX_EVENTS.UI_CLICK));
   });
 updateModeBestScoreDisplay();
 updateQuestionCountNotice();
@@ -5640,8 +5687,22 @@ lyricsQuizSetupBackButtonElement.addEventListener("click", () => {
 // js/lyricsQuizScreen.jsのisLyricsQuizPracticeRun()を、開始直後・結果表示直後の両方で
 // 呼び直すことで、常に「今の回」に合った文言になる。
 function updateLyricsQuizBackButtonLabel() {
-  const label = isLyricsQuizPracticeRun() ? "苦手曲モードへ戻る" : "設定に戻る";
-  const resultLabel = isLyricsQuizPracticeRun() ? "苦手曲モードへ戻る" : "歌詞クイズ設定へ戻る";
+  // 【2026-10-01修正・実機で発覚：オリジナル問題作成モードから始めた歌詞クイズなのに
+  // 「苦手曲モードへ戻る」と表示され、実際に苦手曲モードへ遷移してしまうバグの修正】
+  // isLyricsQuizPracticeRun()は「通常入口かどうか」しか区別せず、苦手曲モード由来と
+  // オリジナル問題作成モード由来を1つにまとめてしまっていた。起点ごとに正しい文言・
+  // 戻り先を出し分ける（js/instantChallengeScreen.jsの
+  // isInstantChallengeWeakSongsPractice()/isInstantChallengeFromCustomPreset()と同じ設計）。
+  const label = isLyricsQuizWeakSongsPractice()
+    ? "苦手曲モードへ戻る"
+    : isLyricsQuizFromCustomPreset()
+      ? "オリジナル問題一覧へ戻る"
+      : "設定に戻る";
+  const resultLabel = isLyricsQuizWeakSongsPractice()
+    ? "苦手曲モードへ戻る"
+    : isLyricsQuizFromCustomPreset()
+      ? "オリジナル問題一覧へ戻る"
+      : "歌詞クイズ設定へ戻る";
   if (lyricsQuizBackButtonLabelElement) lyricsQuizBackButtonLabelElement.textContent = label;
   if (lyricsQuizResultSetupButtonLabelElement) lyricsQuizResultSetupButtonLabelElement.textContent = resultLabel;
 }
@@ -5688,10 +5749,16 @@ initLyricsQuizQuestionScreen({
   quitConfirmButton: lyricsQuizQuitConfirmButtonElement,
   onQuit: () => {
     playSfx(SFX_EVENTS.UI_BACK);
-    // 【2026-08-29追加】苦手曲モードBの練習中は、通常の歌詞クイズ設定画面ではなく
-    // 苦手曲モード確認画面へ戻す（js/weakSongsScreen.jsのgoToWeakSongsScreenと同じ戻り先）。
-    if (isLyricsQuizPracticeRun()) {
+    // 【2026-08-29追加→2026-10-01修正】苦手曲モードBの練習中は苦手曲モード確認画面へ、
+    // オリジナル問題作成モードから始めた回はオリジナル問題一覧へ戻す（本人指示：起点を
+    // 混同しない）。js/weakSongsScreen.jsのgoToWeakSongsScreen・
+    // goToCustomQuizPresetsListと同じ戻り先。
+    if (isLyricsQuizWeakSongsPractice()) {
       goToWeakSongsScreen();
+      return;
+    }
+    if (isLyricsQuizFromCustomPreset()) {
+      goToCustomQuizPresetsList();
       return;
     }
     updateLyricsQuizBestChip();
@@ -5719,8 +5786,13 @@ lyricsQuizResultRetryButtonElement.addEventListener("click", () => {
 
 lyricsQuizResultSetupButtonElement.addEventListener("click", () => {
   playClickSound();
-  if (isLyricsQuizPracticeRun()) {
+  // 【2026-10-01修正】上のonQuitと同じ理由で、起点ごとに戻り先を出し分ける。
+  if (isLyricsQuizWeakSongsPractice()) {
     goToWeakSongsScreen();
+    return;
+  }
+  if (isLyricsQuizFromCustomPreset()) {
+    goToCustomQuizPresetsList();
     return;
   }
   updateLyricsQuizBestChip();
@@ -5944,8 +6016,12 @@ initOnlineBattleScreens({
   resultHomeLink: onlineBattleResultHomeLinkElement,
   resultHostActions: onlineBattleResultHostActionsElement,
   resultRematchButton: onlineBattleResultRematchButtonElement,
-  resultRematchProposedNotice: onlineBattleResultRematchProposedNoticeElement,
-  resultRematchProceedButton: onlineBattleResultRematchProceedButtonElement,
+  resultRematchPanel: onlineBattleResultRematchPanelElement,
+  resultRematchPanelLead: onlineBattleResultRematchPanelLeadElement,
+  resultRematchSummary: onlineBattleResultRematchSummaryElement,
+  resultRematchPlayerList: onlineBattleResultRematchPlayerListElement,
+  resultRematchAllDoneNotice: onlineBattleResultRematchAllDoneNoticeElement,
+  resultRematchToggleButton: onlineBattleResultRematchToggleButtonElement,
   resultReturnPanel: onlineBattleResultReturnPanelElement,
   resultReturnStatusList: onlineBattleResultReturnStatusListElement,
   resultReturnButton: onlineBattleResultReturnButtonElement,
@@ -6003,6 +6079,7 @@ initOnlineLyricsQuizBattleScreens({
   battleProgress: onlineLyricsBattleProgressElement,
   battleScoreboard: onlineLyricsBattleScoreboardElement,
   battleScoreboardSummaryHint: onlineLyricsBattleScoreboardSummaryHintElement,
+  battleMyRank: onlineLyricsBattleMyRankElement,
   battleScoreboardList: onlineLyricsBattleScoreboardListElement,
   battleHudContainer: onlineLyricsBattleHudElement,
   battleHintLevel: onlineLyricsBattleHintLevelElement,
@@ -6033,8 +6110,11 @@ initOnlineLyricsQuizBattleScreens({
   resultQuestionBreakdownSection: onlineLyricsBattleResultQuestionBreakdownSectionElement,
   resultQuestionBreakdown: onlineLyricsBattleResultQuestionBreakdownElement,
   resultRematchButton: onlineLyricsBattleResultRematchButtonElement,
-  resultRematchProposedNotice: onlineLyricsBattleResultRematchProposedNoticeElement,
-  resultRematchProceedButton: onlineLyricsBattleResultRematchProceedButtonElement,
+  resultRematchPanel: onlineLyricsBattleResultRematchPanelElement,
+  resultRematchPanelLead: onlineLyricsBattleResultRematchPanelLeadElement,
+  resultRematchPlayerList: onlineLyricsBattleResultRematchPlayerListElement,
+  resultRematchAllDoneNotice: onlineLyricsBattleResultRematchAllDoneNoticeElement,
+  resultRematchToggleButton: onlineLyricsBattleResultRematchToggleButtonElement,
   resultReturnPanel: onlineLyricsBattleResultReturnPanelElement,
   resultReturnStatusList: onlineLyricsBattleResultReturnStatusListElement,
   resultReturnButton: onlineLyricsBattleResultReturnButtonElement,
@@ -6052,7 +6132,6 @@ initOnlineLyricsQuizBattleScreens({
   onQuitDuringBattle: () => quitOnlineBattleDuringQuiz(),
   onLeaveResultToHome: () => leaveOnlineBattleRoomView(),
   onLeaveRoomCompletely: () => leaveOnlineBattleRoomCompletely(),
-  enterRematchReadyScreen: (room) => enterRematchReadyScreen(room),
 });
 
 // 【2026-09-09新設・本人指示：音源再生失敗時の公平性対策】同じ問題スロットで規定回数
@@ -6116,15 +6195,17 @@ initOnlineInstantBattleScreens({
   resultQuestionBreakdownSection: onlineInstantBattleResultQuestionBreakdownSectionElement,
   resultQuestionBreakdown: onlineInstantBattleResultQuestionBreakdownElement,
   resultRematchButton: onlineInstantBattleResultRematchButtonElement,
-  resultRematchProposedNotice: onlineInstantBattleResultRematchProposedNoticeElement,
-  resultRematchProceedButton: onlineInstantBattleResultRematchProceedButtonElement,
+  resultRematchPanel: onlineInstantBattleResultRematchPanelElement,
+  resultRematchPanelLead: onlineInstantBattleResultRematchPanelLeadElement,
+  resultRematchPlayerList: onlineInstantBattleResultRematchPlayerListElement,
+  resultRematchAllDoneNotice: onlineInstantBattleResultRematchAllDoneNoticeElement,
+  resultRematchToggleButton: onlineInstantBattleResultRematchToggleButtonElement,
   resultReturnPanel: onlineInstantBattleResultReturnPanelElement,
   resultReturnStatusList: onlineInstantBattleResultReturnStatusListElement,
   resultReturnButton: onlineInstantBattleResultReturnButtonElement,
   onQuitDuringBattle: () => quitOnlineBattleDuringQuiz(),
   onLeaveResultToHome: () => leaveOnlineBattleRoomView(),
   onLeaveRoomCompletely: () => leaveOnlineBattleRoomCompletely(),
-  enterRematchReadyScreen: (room) => enterRematchReadyScreen(room),
 });
 
 // オンライン対戦「一瞬協力」専用画面（2026-08-31新設、本人指示：19-3章）。歌詞クイズと同じ
@@ -6175,15 +6256,17 @@ initOnlineInstantCoopBattleScreens({
   resultQuestionBreakdownSection: onlineInstantCoopResultQuestionBreakdownSectionElement,
   resultQuestionBreakdown: onlineInstantCoopResultQuestionBreakdownElement,
   resultRematchButton: onlineInstantCoopResultRematchButtonElement,
-  resultRematchProposedNotice: onlineInstantCoopResultRematchProposedNoticeElement,
-  resultRematchProceedButton: onlineInstantCoopResultRematchProceedButtonElement,
+  resultRematchPanel: onlineInstantCoopResultRematchPanelElement,
+  resultRematchPanelLead: onlineInstantCoopResultRematchPanelLeadElement,
+  resultRematchPlayerList: onlineInstantCoopResultRematchPlayerListElement,
+  resultRematchAllDoneNotice: onlineInstantCoopResultRematchAllDoneNoticeElement,
+  resultRematchToggleButton: onlineInstantCoopResultRematchToggleButtonElement,
   resultReturnPanel: onlineInstantCoopResultReturnPanelElement,
   resultReturnStatusList: onlineInstantCoopResultReturnStatusListElement,
   resultReturnButton: onlineInstantCoopResultReturnButtonElement,
   onQuitDuringBattle: () => quitOnlineBattleDuringQuiz(),
   onLeaveResultToHome: () => leaveOnlineBattleRoomView(),
   onLeaveRoomCompletely: () => leaveOnlineBattleRoomCompletely(),
-  enterRematchReadyScreen: (room) => enterRematchReadyScreen(room),
 });
 
 // オンライン対戦：出題する曲を選ぶ画面（2026-08-08新設）。イントロ対戦・ランダム再生対戦・

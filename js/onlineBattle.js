@@ -574,6 +574,12 @@ export async function leaveRoom({ roomId }) {
   }
 
   const room = snapshot.val();
+  // 【2026-10-01追加・本人指示：結果画面/再戦フロー全面設計12-6/12-7/12-9章】再戦準備中
+  // （confirmingRematch===true）に誰かが退出する場合、①ホスト自身の退出なら（ホスト移譲の
+  // 有無に関わらず）旧ホストが出した再戦提案をキャンセルする、②残る人数が2人未満になる
+  // なら（オンライン対戦の再戦には最低2人必要なため）再戦提案をキャンセルする。
+  const remainingCount = Object.keys(room.players || {}).filter((playerUid) => playerUid !== uid).length;
+  const shouldCancelRematch = room.confirmingRematch === true && (room.host === uid || remainingCount < 2);
   if (room.host === uid) {
     const nextHostUid = pickNextHostUid(room.players || {}, uid);
     if (nextHostUid === null) {
@@ -582,11 +588,18 @@ export async function leaveRoom({ roomId }) {
     } else {
       // host（新ホストへ）とplayers/{自分}（削除）を1回のupdate()にまとめることで、
       // 「ホストは変わったのに自分の参加者情報がまだ残っている」ような一瞬の不整合を防ぐ。
-      await update(ref(database), {
+      const updates = {
         [`rooms/${roomId}/host`]: nextHostUid,
         [`rooms/${roomId}/players/${uid}`]: null,
-      });
+      };
+      if (shouldCancelRematch) updates[`rooms/${roomId}/confirmingRematch`] = false;
+      await update(ref(database), updates);
     }
+  } else if (shouldCancelRematch) {
+    await update(ref(database), {
+      [`rooms/${roomId}/players/${uid}`]: null,
+      [`rooms/${roomId}/confirmingRematch`]: false,
+    });
   } else {
     await remove(ref(database, `rooms/${roomId}/players/${uid}`));
   }
@@ -749,8 +762,15 @@ export async function transferHost({ roomId, newHostUid }) {
   if (newHostUid === uid) return { ok: true }; // 自分自身への移譲は何もしない（冪等）
   if (!room.players?.[newHostUid]) return { ok: false, reason: "player-not-found" };
 
+  const updates = { [`rooms/${roomId}/host`]: newHostUid };
+  // 【2026-10-01追加・本人指示：結果画面/再戦フロー全面設計12-9章】再戦準備中に
+  // ホストを移譲する場合、旧ホストが出した再戦提案は一旦キャンセルする（本人指示：
+  // 新ホストの判断で改めて再戦/ロビー開始してほしいため、提案を引き継がない）。
+  if (room.confirmingRematch === true) {
+    updates[`rooms/${roomId}/confirmingRematch`] = false;
+  }
   try {
-    await update(ref(database), { [`rooms/${roomId}/host`]: newHostUid });
+    await update(ref(database), updates);
   } catch (error) {
     return { ok: false, reason: "write-failed" };
   }
@@ -777,8 +797,14 @@ export async function claimHostIfDisconnected({ roomId }) {
   if (!room.players?.[uid]) return { ok: false, reason: "not-in-room" };
   if (room.players[room.host]?.connected !== false) return { ok: false, reason: "host-still-connected" };
 
+  const updates = { [`rooms/${roomId}/host`]: uid };
+  // 【2026-10-01追加・本人指示：結果画面/再戦フロー全面設計12-9章】transferHost()と同じ理由で、
+  // ホスト自動移譲でも再戦提案があれば一旦キャンセルする。
+  if (room.confirmingRematch === true) {
+    updates[`rooms/${roomId}/confirmingRematch`] = false;
+  }
   try {
-    await update(ref(database), { [`rooms/${roomId}/host`]: uid });
+    await update(ref(database), updates);
   } catch (error) {
     return { ok: false, reason: "write-failed" };
   }
@@ -805,8 +831,21 @@ export async function kickPlayer({ roomId, targetUid }) {
   if (room.status !== ROOM_STATUS.WAITING) return { ok: false, reason: "not-waiting" };
   if (!room.players?.[targetUid]) return { ok: false, reason: "player-not-found" };
 
+  // 【2026-10-01追加・本人指示：結果画面/再戦フロー全面設計12-5/12-6章】再戦準備中
+  // （confirmingRematch===true）のキックで、キック後に残る人数が2人未満になる場合は、
+  // オンライン対戦の再戦に最低2人必要という制約により再戦提案自体もキャンセルする。
+  const remainingCount = Object.keys(room.players).filter((playerUid) => playerUid !== targetUid).length;
+  const shouldCancelRematch = room.confirmingRematch === true && remainingCount < 2;
+
   try {
-    await remove(ref(database, `rooms/${roomId}/players/${targetUid}`));
+    if (shouldCancelRematch) {
+      await update(ref(database), {
+        [`rooms/${roomId}/players/${targetUid}`]: null,
+        [`rooms/${roomId}/confirmingRematch`]: false,
+      });
+    } else {
+      await remove(ref(database, `rooms/${roomId}/players/${targetUid}`));
+    }
   } catch (error) {
     return { ok: false, reason: "write-failed" };
   }
@@ -1126,22 +1165,21 @@ export async function resetRuleConfirmationsIfConfirming({ roomId, room, joining
   }
 }
 
-// 【再戦準備フェーズ新設・本人指示】再戦準備中（room.confirmingRematch）に新しい参加者が
-// ルームへ入った場合、既存参加者を含めて準備状態を一度リセットする（本人指示：新しく
-// 入った人を含めて、もう一度全員で「準備OK」を押し直す必要がある）。
-// resetRuleConfirmationsIfConfirming()と全く同じ考え方・同じ安全設計（false（未準備）に
-// 戻すことだけは誰でもできるようFirebase Rules側で許可してあるため、参加した本人の端末が
-// そのまま実行できる／失敗しても致命的ではないのでfire-and-forgetで呼べる）。
+// 【再戦準備フェーズ新設・本人指示→2026-10-01改訂】再戦準備中（room.confirmingRematch）に
+// 新しい参加者がルームへ入った場合の扱い。以前は準備状態を全員分falseへリセットするだけで
+// 提案自体は続行していたが、本人指示により「途中から再戦へ混ぜない」方針へ変更した。
+// 新規参加者が入った時点で再戦提案そのものを取りやめ（confirmingRematch:false）、
+// 全員が通常のロビー画面（対戦設定）へ戻るようにする。confirmingRematchをfalseへ書く
+// 操作自体は、Firebase Rules側で「誰でもfalseにはできる」と許可してあるため
+// （host専用なのはtrueにする操作だけ）、参加した本人の端末がそのまま実行できる。
+// 失敗しても致命的ではないのでfire-and-forgetで呼べる。
 export async function resetRematchReadyIfConfirming({ roomId, room, joiningUid }) {
   if (!room?.confirmingRematch) return;
-  const players = room.players || {};
-  const updates = {};
-  Object.keys(players).forEach((playerUid) => {
-    updates[`rooms/${roomId}/players/${playerUid}/rematchReady`] = false;
-  });
-  updates[`rooms/${roomId}/players/${joiningUid}/rematchReady`] = false;
   try {
-    await update(ref(database), updates);
+    await update(ref(database), {
+      [`rooms/${roomId}/confirmingRematch`]: false,
+      [`rooms/${roomId}/players/${joiningUid}/rematchReady`]: false,
+    });
   } catch (error) {
     // 失敗しても致命的ではない（各参加者は自分の準備状態を自分で管理できるため、
     // 次に誰かが操作すれば整合する）。
@@ -1639,6 +1677,11 @@ export async function beginRematchReadyCheck({ roomId }) {
   const room = snapshot.val();
   if (room.host !== uid) return { ok: false, reason: "not-host" };
   if (room.status !== ROOM_STATUS.RESULT) return { ok: false, reason: "not-result" };
+  // 【2026-10-01追加・本人指示：結果画面/再戦フロー全面設計12-6章】オンライン対戦の再戦は
+  // 最低2人必要。ホストだけになっている場合は、そもそも再戦提案を始めさせない。
+  if (Object.keys(room.players || {}).length < 2) {
+    return { ok: false, reason: "rematch-needs-two-players" };
+  }
 
   // フェーズに入れないほど設定が壊れている場合は、そもそも準備フェーズへ進ませない
   // （本人の要望どおり、開始できないことが分かっている待機画面を見せない）。
@@ -1651,7 +1694,10 @@ export async function beginRematchReadyCheck({ roomId }) {
     [`rooms/${roomId}/confirmingRematch`]: true,
   };
   Object.keys(players).forEach((playerUid) => {
-    updates[`rooms/${roomId}/players/${playerUid}/rematchReady`] = false;
+    // 【2026-10-01改訂・本人指示：結果画面/再戦フロー全面設計】「もう一度」を押した時点で、
+    // ホスト自身は既に準備OK扱いにする（本人指示12：「ホストが『もう一度』を押した時点で
+    // ホスト自身は準備OK扱い」）。他の参加者はこれまでどおり未準備からスタートする。
+    updates[`rooms/${roomId}/players/${playerUid}/rematchReady`] = playerUid === uid;
   });
   try {
     await update(ref(database), updates);
@@ -1675,19 +1721,20 @@ export async function setRematchReady({ roomId, confirmed }) {
   return { ok: true };
 }
 
-// ホスト専用：再戦準備フェーズを取りやめて、ルーム設定画面（ロビー）へ戻す。
-// room.statusはbeginRematchReadyCheck()の時点で既に"waiting"へ戻っているため、
-// ここではconfirmingRematchを下ろすだけでロビー表示に切り替わる
-// （cancelMatchConfirmation()と全く同じ考え方）。ルーム自体・対戦設定（settings）は
-// 一切変更しないため、設定を変えたいだけのホストがここから再設定できる。
+// 再戦準備フェーズを取りやめて、ルーム設定画面（ロビー）へ戻す。room.statusは
+// beginRematchReadyCheck()の時点で既に"waiting"へ戻っているため、ここでは
+// confirmingRematchを下ろすだけでロビー表示に切り替わる（cancelMatchConfirmation()と
+// 全く同じ考え方）。ルーム自体・対戦設定（settings）は一切変更しないため、設定を
+// 変えたいだけのホストがここから再設定できる。
+// 【2026-10-01改訂・本人指示：結果画面/再戦フロー全面設計】以前はホスト専用だったが、
+// 「再戦提案中に誰か（ホスト・ゲスト問わず）が『ルーム設定に戻る』を選んだ場合、その
+// 再戦提案自体をキャンセルする」という仕様に伴い、参加者なら誰でも呼べるよう変更した
+// （Firebase Rules側もconfirmingRematchをfalseにする操作だけは誰でも許可するよう
+// 合わせて変更済み。trueにする＝新しく提案する操作は引き続きホスト専用のまま）。
 export async function cancelRematchReadyCheck({ roomId }) {
   await authReady;
   const uid = getCurrentUid();
   if (!uid) return { ok: false, reason: "not-signed-in" };
-  const snapshot = await get(ref(database, `rooms/${roomId}`));
-  if (!snapshot.exists()) return { ok: false, reason: "not-found" };
-  const room = snapshot.val();
-  if (room.host !== uid) return { ok: false, reason: "not-host" };
   try {
     await update(ref(database), { [`rooms/${roomId}/confirmingRematch`]: false });
   } catch (error) {
@@ -1721,6 +1768,12 @@ export async function finishRematchReadyCheck({ roomId }) {
     return { ok: false, reason: "not-confirming-rematch" };
   }
   const players = room.players || {};
+  // 【2026-10-01追加・本人指示：結果画面/再戦フロー全面設計12-6章】オンライン対戦の再戦は
+  // 最低2人必要（通常の対戦開始とは異なり、1人だけの再戦は成立させない）。他の書き込み
+  // 経路（leaveRoom・kickPlayer等）で既に確認済みの人数チェックの、最後の砦としての防御。
+  if (Object.keys(players).length < 2) {
+    return { ok: false, reason: "rematch-needs-two-players" };
+  }
   if (!computeAllPlayersRematchReady(players)) {
     return { ok: false, reason: "not-all-ready" };
   }

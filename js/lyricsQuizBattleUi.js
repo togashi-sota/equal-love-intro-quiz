@@ -103,9 +103,31 @@ export function describeScoreboard({ ruleId, scoreSnapshot, participantsByUid, m
     isMe: uid === myUid,
     value: scoresByUid[uid]?.[valueKey] ?? 0,
   }));
-  // 降順（同点はparticipantsの列挙順のまま。無理に順位を分けない既存のルール方針と合わせ、
-  // 同点内での並び替えはしない）。
-  rows.sort((rowA, rowB) => rowB.value - rowA.value);
+  // 【2026-10-01改訂・本人指示：歌詞クイズ問題画面モバイルレイアウト再設計5章】
+  // 降順（同点は、無理に順位を分けない既存のルール方針どおり同じ順位になる。並び順は
+  // 「同点グループの中では自分を先頭にする」ことで、対戦開始直後の全員0点状態を含め、
+  // 横スクロールする一覧でも自分の行をすぐ見つけられるようにする。自分以外の同点者どうしの
+  // 相対順序はparticipantsの列挙順のまま変えない）。
+  rows.sort((rowA, rowB) => {
+    if (rowB.value !== rowA.value) return rowB.value - rowA.value;
+    if (rowA.isMe && !rowB.isMe) return -1;
+    if (rowB.isMe && !rowA.isMe) return 1;
+    return 0;
+  });
+  // 【2026-10-01新設】競技方式の順位付け（同点は同順位、次の異なる点数の相手が来たときだけ
+  // スキップした実際の並び順を付ける。例：8pt・8pt・5pt→1位・1位・3位）。
+  // js/lyricsQuizBattleUi.jsのdescribeResultTable()と同じ考え方を、対戦中スコアボードにも適用する。
+  let previousValue = null;
+  let previousRank = 0;
+  rows.forEach((row, index) => {
+    if (previousValue !== null && row.value === previousValue) {
+      row.rank = previousRank;
+    } else {
+      row.rank = index + 1;
+      previousRank = row.rank;
+    }
+    previousValue = row.value;
+  });
 
   return {
     valueUnit,
@@ -236,13 +258,19 @@ export function describeAnswerSubmissionBlockMessage(reason) {
 }
 
 // submitLyricsQuizAnswerWithStealClaim()がok:trueで返すoutcomeから、案内文を引く。
-// answered-wrongは通常の不正解表示で十分なため対象外（null）。
 // 【2段階送信・2026-08-06】answer保存とwinner claim送信を分けたことで生まれた
 // outcome値（js/lyricsQuizBattleFirebase.jsのコメント参照）。
 // 【2026-08-31改訂】表示名の変更（奪い取り→早押しバトル）に合わせて文言も揃えた。
+// 【2026-10-01改訂・本人指示：結果画面/再戦フロー全面設計6章】以前はANSWERED_WRONG
+// （早押しで不正解だった）を「通常の不正解表示で十分」としてnull（案内文なし）扱いにして
+// いたが、実際には「回答しました」としか出ておらず、本人が間違えたのか分かりにくかった。
+// 早押しルールだけ、間違えた本人には即座に「残念、不正解」と分かるようにする（他の
+// プレイヤーには、答え合わせまで誰が何を間違えたかを一切伝えない。既存のスコアボード
+// 非表示・放置通知の仕組みは変更していない）。
 const STEAL_CLAIM_OUTCOME_MESSAGES = {
   [STEAL_CLAIM_OUTCOME.WON]: "早押し成功！",
   [STEAL_CLAIM_OUTCOME.LOST_RACE]: "わずかな差で先に正解されました",
+  [STEAL_CLAIM_OUTCOME.ANSWERED_WRONG]: "残念、不正解",
 };
 
 export function describeStealClaimOutcomeMessage(outcome) {

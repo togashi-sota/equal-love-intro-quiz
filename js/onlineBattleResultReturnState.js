@@ -70,3 +70,78 @@ export const RESULT_SCREEN_NAMES = new Set([
   "onlineInstantBattleResult",
   "onlineInstantCoopBattleResult",
 ]);
+
+// 【2026-10-01新設・本人指示：結果画面/再戦フロー全面設計】再戦準備専用の別画面を廃止し、
+// 結果画面のインラインパネルへ置き換えたことに伴う、「参加者ごとの準備状況リスト」の
+// 共通描画処理。renderResultReturnStatusList()と全く同じ理由（4画面すべてが同じ形で使う・
+// ゲーム性の判定を持たない純粋な描画）でこの中立ファイルに置く。
+// players: room.players（{uid: {name, isHost, rematchReady, ...}}）。
+// isHost: 自分がホストかどうか（true のときだけ、自分以外の各行にキックボタンを添える。
+// クリックの実処理＝js/onlineBattle.jsのkickPlayer()は、各結果画面が自分のcurrentRoomIdを
+// 使って個別に呼ぶため、ここではdata-rematch-kick-uid属性を付けるだけに留める）。
+export function renderRematchReadinessList(listElement, players, myUid, isHost) {
+  if (!listElement) return;
+  const playerEntries = Object.entries(players || {}).sort(([uidA], [uidB]) => {
+    if (uidA === myUid) return -1;
+    if (uidB === myUid) return 1;
+    return 0;
+  });
+
+  listElement.innerHTML = "";
+  playerEntries.forEach(([uid, player]) => {
+    const row = document.createElement("li");
+    row.className = "online-lobby-player-row";
+    if (uid === myUid) row.classList.add("is-me");
+
+    const name = document.createElement("span");
+    name.className = "online-lobby-player-name";
+    name.textContent = player.name + (uid === myUid ? "（あなた）" : "");
+    row.appendChild(name);
+
+    const badges = document.createElement("span");
+    badges.className = "online-lobby-player-badges";
+    if (player.isHost) {
+      const hostBadge = document.createElement("span");
+      hostBadge.className = "online-lobby-badge online-lobby-badge-host";
+      hostBadge.textContent = "ホスト";
+      badges.appendChild(hostBadge);
+    }
+    const statusBadge = document.createElement("span");
+    statusBadge.className = player.rematchReady
+      ? "online-lobby-badge online-lobby-badge-connected"
+      : "online-lobby-badge online-lobby-badge-progress";
+    statusBadge.textContent = player.rematchReady ? "準備OK" : "未準備";
+    badges.appendChild(statusBadge);
+    row.appendChild(badges);
+
+    if (isHost && uid !== myUid) {
+      const kickButton = document.createElement("button");
+      kickButton.type = "button";
+      kickButton.className = "online-lobby-mini-button online-lobby-mini-button-danger";
+      kickButton.textContent = "キック";
+      kickButton.dataset.rematchKickUid = uid;
+      kickButton.dataset.rematchKickName = player.name;
+      row.appendChild(kickButton);
+    }
+
+    listElement.appendChild(row);
+  });
+}
+
+// 上のrenderRematchReadinessList()が出すキックボタンのクリックを、リスト全体への1つの
+// イベント委任で受け取るための共通ハンドラを作る工場関数。roomIdGetterは「今のroomId」を
+// 返す関数（各結果画面が自分のcurrentRoomId/latestRoom.roomIdを渡す）、kickPlayerFnは
+// js/onlineBattle.jsのkickPlayer()をそのまま渡す想定。
+export function createRematchKickHandler({ getRoomId, kickPlayerFn, playConfirmSfx }) {
+  return async function handleRematchKickClick(event) {
+    const kickButton = event.target.closest("[data-rematch-kick-uid]");
+    const roomId = getRoomId();
+    if (!kickButton || !roomId) return;
+    const targetUid = kickButton.dataset.rematchKickUid;
+    const targetName = kickButton.dataset.rematchKickName ?? "このプレイヤー";
+    if (!window.confirm(`${targetName}さんをルームから退出させますか？\nこのプレイヤーは今回の再戦には参加できません。`)) return;
+    if (playConfirmSfx) playConfirmSfx();
+    kickButton.disabled = true;
+    await kickPlayerFn({ roomId, targetUid });
+  };
+}

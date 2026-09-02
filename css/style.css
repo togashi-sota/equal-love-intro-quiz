@@ -13420,13 +13420,15 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   border: none;
   padding: 4px 2px;
   margin: -4px -2px;
-  font: inherit;
-  /* 【2026-10-01修正・実機バグ調査】ここでcolor: inheritを指定すると、同じ要素に付く
-     .online-lobby-player-name側のブランドカラー指定（上記）と詳細度が同点になり、
-     CSSの記述順で後にあるこちらが勝ってしまい、参加者名がピンクではなく本文の黒に
-     近い色で表示されるバグになっていた（実機の色をcomputed styleで確認して特定）。
-     ボタン化のリセットとしてcolorには一切触れないことで、.online-lobby-player-name側の
-     色がそのまま反映されるようにする。 */
+  /* 【2026-10-01修正・実機バグ調査】以前はここを`font: inherit`（ショートハンド）に
+     していたが、これはfont-family・font-sizeだけでなくfont-weightまで親要素からの
+     継承値へ一括で上書きしてしまう。同じ要素に付く.online-lobby-player-name側の
+     font-weight: 700・color指定と詳細度が同点で、CSSの記述順で後にあるこちらが
+     勝つため、参加者名が「ピンクだが細字」（実機で報告された状態）や「黒っぽい細字」
+     （前回のバグ）になっていた。ボタン化のリセットとしてfont-familyだけを継承し、
+     font-weight・font-size・colorには一切触れないことで、
+     .online-lobby-player-name側の指定がそのまま反映されるようにする。 */
+  font-family: inherit;
   text-align: left;
   cursor: pointer;
   border-radius: 6px;
@@ -14588,9 +14590,40 @@ body[data-screen="liveCallModePlayer"] .game-frame {
    余白も一回り広げて画面の密度を上げた。HTML構造・JSのtextContent/classList操作は
    一切変更していない（既存クラスへのスタイル追加のみ）。 */
 
+/* 【2026-10-01新設・本人指示：歌詞クイズ問題画面モバイルレイアウト再設計5章】
+   ヘッダー2ボタン（対戦をやめる／ルーム設定へ戻る）を横並びにする専用行。
+   .quiz-header-row自体は既存のsafe-area対応・space-between・flex:noneをそのまま使い、
+   このクラスでは375px幅でボタン文言が窮屈になりすぎないよう、文字サイズだけを
+   少し絞る（ボタンの見た目のクラス・タップ領域自体は変更しない）。 */
+.online-lyrics-battle-header-row .quiz-back-link,
+.online-lyrics-battle-header-row .online-battle-back-to-lobby-button {
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+/* 【2026-10-01新設・本人指示：歌詞クイズ問題画面モバイルレイアウト再設計5章】
+   「歌詞クイズ対戦」（h2）と「第N問/全N問」ピルを1行にまとめたコンパクトな見出し。
+   以前はh2が独立した中央寄せブロック（margin-bottom込みでかなりの高さ）＋
+   その下に別のピルという2段構成で、375px幅では回答候補の表示領域を圧迫していた。
+   タイトルは補助的な情報（画面を見れば歌詞クイズ対戦中であることは自明）のため
+   小さく添え、「第N問/全N問」の方を主役として通常のピルの大きさのまま残す。 */
+.online-lyrics-battle-compact-heading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+
+.online-lyrics-battle-compact-heading h2 {
+  font-size: 0.9rem;
+  opacity: 0.7;
+}
+
 .online-lyrics-battle-progress {
   display: table; /* text-alignだけでなく、中身の幅にフィットしたピル型にするため */
-  margin: 0 auto 16px;
+  margin: 0;
   padding: 5px 16px;
   border-radius: 999px;
   background: var(--color-primary-light);
@@ -14606,7 +14639,7 @@ body[data-screen="liveCallModePlayer"] .game-frame {
    【2026-09-30改訂・本人指示：オンライン対戦総合改修 第2ラウンド12章】開閉できる<details>
    要素だったが、開閉の仕組み自体を無くし常に見える<section>へ変更した（index.html参照）。 */
 .online-lyrics-battle-scoreboard {
-  margin: 0 0 14px;
+  margin: 0 0 10px;
   border-radius: 14px;
   background: var(--color-surface-glass);
   border: 1px solid var(--color-card-border);
@@ -14622,24 +14655,57 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 10px 14px;
+  padding: 10px 14px 6px;
   margin: 0;
   font-size: 0.8rem;
   font-weight: 800;
   color: var(--color-text);
 }
 
+/* 【2026-10-01改訂・本人指示：歌詞クイズ問題画面モバイルレイアウト再設計5章】以前は
+   見出し・あなたの順位と同じ1行に並べていたが、375px幅では見出しが折り返してしまう
+   問題があった。優先度の低い補足情報のため、見出し行の下に独立した小さな1行として移した。 */
 .online-lyrics-battle-scoreboard-summary-hint {
+  margin: 0 14px 8px;
   font-size: 0.66rem;
   font-weight: 700;
   color: var(--color-text);
   opacity: 0.6;
-  white-space: nowrap;
 }
 
+.online-lyrics-battle-scoreboard-summary-hint:empty {
+  display: none;
+}
+
+/* 【2026-10-01新設・本人指示：歌詞クイズ問題画面モバイルレイアウト再設計5章】
+   横スクロールするスコア一覧をスクロールしなくても、自分が今何位・何ptなのかが
+   常に見える固定表示。summary行（スクロールしない領域）に置くことで実現する。 */
+.online-lyrics-battle-my-rank {
+  flex: none;
+  font-size: 0.74rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  background: var(--color-primary-light);
+  border-radius: 999px;
+  padding: 3px 10px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.online-lyrics-battle-my-rank:empty {
+  display: none;
+}
+
+/* 【2026-10-01改訂・本人指示：歌詞クイズ問題画面モバイルレイアウト再設計5章】以前は
+   flex-wrapで折り返す一覧だったため、参加人数が多いと縦方向にどんどん伸びて
+   回答候補の表示領域を圧迫していた。横スクロールする1行のコンパクトなチップ列へ
+   変更し、人数に関わらず縦方向の専有を一定に保つ（自分の行は#online-lyrics-battle-my-rankで
+   別途固定表示するため、横スクロールで一時的に見えなくなっても実害が無い）。 */
 .online-lyrics-battle-scoreboard-list {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   gap: 6px;
   margin: 0;
   padding: 0 12px 12px;
@@ -14650,8 +14716,10 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  min-width: 0;
-  max-width: 100%;
+  /* 【2026-10-01改訂】横スクロール列の中の1チップとして、内容ぶんの幅を保ったまま
+     並ぶようにする（flex:noneで潰れて省略されるのを防ぐ。親のoverflow-x:autoが
+     はみ出しぶんを横スクロールで吸収する）。 */
+  flex: none;
   padding: 5px 10px;
   border-radius: 999px;
   background: var(--color-surface);
@@ -14695,19 +14763,22 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   font-variant-numeric: tabular-nums;
 }
 
+/* 【2026-10-01改訂・本人指示：歌詞クイズ問題画面モバイルレイアウト再設計5章】ソフトウェア
+   キーボード表示相当（375×600程度）でも回答候補の表示領域をできるだけ確保するため、
+   このブロック自体の余白を少し切り詰めた（ヒント文の文字サイズ・行間はそのまま）。 */
 .online-lyrics-battle-hint-box {
-  padding: 22px 18px;
+  padding: 14px 18px;
   border-radius: 20px;
   background: var(--color-surface-glass);
   border: 1px solid var(--color-card-border);
   box-shadow: var(--shadow-card);
-  margin: 0 0 20px;
+  margin: 0 0 12px;
 }
 
 .online-lyrics-battle-hint-level {
   font-weight: 800;
   font-size: 0.78rem;
-  margin: 0 0 12px;
+  margin: 0 0 8px;
   color: var(--color-primary-dark);
   letter-spacing: 0.04em;
   text-align: center;
@@ -14720,6 +14791,28 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   /* ヒントが1問の中で複数行積み上がっていく想定のため、CSSカウンターで
      「ヒント1」「ヒント2」…の通し番号バッジを自動採番する（JS側の変更は不要）。 */
   counter-reset: online-lyrics-hint-line;
+  /* 【2026-10-01新設・本人指示：歌詞クイズ問題画面モバイルレイアウト再設計5章】以前は
+     ヒントが増えるほどこのブロック自体が無制限に縦へ伸び、下にある回答候補一覧
+     （#online-lyrics-battle-question-screen .online-lyrics-battle-answer-gridのflex:1）の
+     表示領域を圧迫していた（ヒント4/4まで開くと375×812でも回答候補が1行も見えない
+     状態になっていた）。ヒント行だけを最大2行ぶんの高さに制限し、それを超える分は
+     ここだけの内部スクロールにする（回答候補一覧と同じ考え方）。最新のヒントへ
+     視線が行くよう、新しいヒントが追加されるたびにJS側で一番下までスクロールする
+     （js/onlineLyricsQuizBattleScreen.js参照）。 */
+  max-height: 152px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-right: 2px;
+}
+
+/* 【2026-10-01新設・本人指示：歌詞クイズ問題画面モバイルレイアウト再設計5章】答え合わせ
+   カード表示中（.online-lyrics-battle-answer-gridに.is-showing-revealが付き、回答候補一覧が
+   flex:1のスクロール領域から通常のブロック表示へ切り替わっている間）は、回答候補一覧との
+   高さの奪い合いがそもそも発生しないため、上のmax-height制限は不要かつ「ヒント1〜4を
+   全部並べて振り返りたい」という答え合わせ本来の目的の妨げになる。この間だけ制限を解除する。 */
+.quiz-middle-zone-inner:has(.online-lyrics-battle-answer-grid.is-showing-reveal) .online-lyrics-battle-hint-lines {
+  max-height: none;
+  overflow-y: visible;
 }
 
 .online-lyrics-battle-hint-line {
@@ -14806,7 +14899,10 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   justify-content: center;
   gap: 10px;
   flex-wrap: wrap;
-  margin: -8px 0 20px;
+  /* 【2026-10-01改訂・本人指示：歌詞クイズ問題画面モバイルレイアウト再設計5章】
+     ソフトウェアキーボード表示相当でも回答候補の表示領域を少しでも広げるため
+     下余白を切り詰めた（以前は20px）。 */
+  margin: -8px 0 10px;
 }
 
 .online-lyrics-battle-hint-actions[hidden] {

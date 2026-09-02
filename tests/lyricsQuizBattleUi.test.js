@@ -230,10 +230,14 @@ export function runLyricsQuizBattleUiTests() {
       "わずかな差で先に正解されました",
       "lost-raceには競り負けた旨の案内文"
     );
+    // 【2026-10-01改訂・本人指示：結果画面/再戦フロー全面設計6章】以前は
+    // 「通常の不正解表示で十分」としてnull扱いにしていたが、実際には早押しルールで
+    // 不正解になった本人に「回答しました」としか出ておらず分かりづらかったため、
+    // 専用の案内文を返すよう変更した。
     assertEqual(
       describeStealClaimOutcomeMessage(STEAL_CLAIM_OUTCOME.ANSWERED_WRONG),
-      null,
-      "answered-wrongは通常の不正解表示に任せるためnull"
+      "残念、不正解",
+      "answered-wrongには「残念、不正解」の案内文（本人にその場で分かるようにする）"
     );
     assertEqual(describeStealClaimOutcomeMessage("unknownOutcome"), null, "未知のoutcomeにはnullを返す");
   }
@@ -320,6 +324,44 @@ export function runLyricsQuizBattleUiTests() {
       assertEqual(scoreboard.questionsScoredCount, 0, "確定済み問題数は0扱い");
       assertEqual(scoreboard.rows.every((row) => row.value === 0), true, "スコアがまだ無い参加者は全員0点として表示される（エラーにしない）");
       assertEqual(scoreboard.rows.length, 3, "参加者3人分の行が、スコアの有無に関わらず作られる");
+    }
+
+    // ----- 【2026-10-01新設・本人指示：歌詞クイズ問題画面モバイルレイアウト再設計5章】
+    //       同点は同順位（競技方式）で、次に違う点数の相手が来たときだけ実際の並び順
+    //       （スキップした順位）を付ける。describeResultTable()と同じ考え方をスコアボードにも適用。 -----
+    {
+      const scoreSnapshot = {
+        questionsScoredCount: 2,
+        scoresByUid: { p1: { totalPoints: 5, correctCount: 5 }, p2: { totalPoints: 3, correctCount: 3 }, p3: { totalPoints: 3, correctCount: 3 } },
+      };
+      const scoreboard = describeScoreboard({ ruleId: "combo", scoreSnapshot, participantsByUid, myUid: "p3" });
+      assertEqual(scoreboard.rows.find((row) => row.uid === "p1").rank, 1, "1位（唯一の5pt）はrank:1");
+      assertEqual(scoreboard.rows.find((row) => row.uid === "p2").rank, 2, "同点2人（p2・p3）は同じrank:2になる");
+      assertEqual(scoreboard.rows.find((row) => row.uid === "p3").rank, 2, "同点2人（p2・p3）は同じrank:2になる");
+    }
+
+    // ----- 【2026-10-01新設・本人指示】同点グループの中では、横スクロール一覧ですぐ見つけられる
+    //       よう自分（isMe）を先頭に並べる（対戦開始直後の全員同点状態を含む）。 -----
+    {
+      // 全員が0点（対戦開始直後）でも、自分（p2）が同点グループの先頭に来る。
+      const startScoreboard = describeScoreboard({
+        ruleId: "classic",
+        scoreSnapshot: undefined,
+        participantsByUid,
+        myUid: "p2",
+      });
+      assertEqual(startScoreboard.rows[0].uid, "p2", "開始直後の全員同点時は自分が先頭に並ぶ");
+      assertEqual(startScoreboard.rows[0].rank, 1, "自分が先頭でも、同点グループ全員が同じrank:1になる");
+      assertEqual(startScoreboard.rows[1].rank, 1, "自分以外の同点者も同じrank:1になる");
+      assertEqual(startScoreboard.rows[2].rank, 1, "自分以外の同点者も同じrank:1になる");
+
+      // 自分以外の同点者どうしの相対順序は、participantsの列挙順のまま変えない
+      // （p1→p3の順で並んでいたものを、p2を先頭に出す以外は崩さない）。
+      assertEqual(
+        startScoreboard.rows.map((row) => row.uid),
+        ["p2", "p1", "p3"],
+        "自分だけ先頭へ移動し、自分以外の相対順序（p1→p3）はそのまま保たれる"
+      );
     }
   }
 }

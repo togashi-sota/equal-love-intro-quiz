@@ -65,6 +65,7 @@
     import { runQuestionSourceTests } from "./tests/questionSource.test.js";
     import { runOnlineBattleSongSourceUiTests } from "./tests/onlineBattleSongSourceUi.test.js";
     import { runOnlineBattleResultReturnStateTests } from "./tests/onlineBattleResultReturnState.test.js";
+    import { runOnlineBattleResultReturnStateRematchTests } from "./tests/onlineBattleResultReturnState.rematch.test.js";
     import { runOnlineBattleRevealTimingTests } from "./tests/onlineBattleRevealTiming.test.js";
     import { runOnlineBattleStatusTransitionPayloadsTests } from "./tests/onlineBattleStatusTransitionPayloads.test.js";
     import { runSpecialModesScreenTests } from "./tests/specialModesScreen.test.js";
@@ -162,6 +163,7 @@
     runQuestionSourceTests();
     runOnlineBattleSongSourceUiTests();
     runOnlineBattleResultReturnStateTests();
+    runOnlineBattleResultReturnStateRematchTests();
     runOnlineBattleRevealTimingTests();
     runOnlineBattleStatusTransitionPayloadsTests();
     runSpecialModesScreenTests();
@@ -222,15 +224,22 @@
     // runAudioTestsは実在しない曲IDでのIndexedDB再試行を含むため完了までに1秒強かかる。
     // 集計（printSummary）より前に必ず完了を待つ。
     await runAudioTests();
-    const { passCount, failCount } = printSummary();
+    const { passCount, failCount, failedDetails } = printSummary();
 
     const summaryElement = document.getElementById("test-summary");
     if (failCount === 0) {
       summaryElement.textContent = `✅ 全${passCount}件のテストに成功しました`;
       summaryElement.style.color = "#1b7a3d";
     } else {
-      summaryElement.textContent = `❌ ${failCount}件のテストに失敗しました（${passCount}件成功）。詳細はConsoleを確認してください。`;
+      // 失敗した項目の詳細を画面にも表示する（以前はConsoleを開かないと見えなかった）。
+      summaryElement.textContent = `❌ ${failCount}件のテストに失敗しました（${passCount}件成功）。`;
       summaryElement.style.color = "#c0392b";
+      const detailsElement = document.createElement("pre");
+      detailsElement.id = "test-failure-details";
+      detailsElement.style.whiteSpace = "pre-wrap";
+      detailsElement.style.fontSize = "0.8rem";
+      detailsElement.textContent = failedDetails.join("\n");
+      summaryElement.after(detailsElement);
     }
   </script>
 </body>

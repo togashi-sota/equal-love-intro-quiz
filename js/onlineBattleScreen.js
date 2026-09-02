@@ -104,6 +104,8 @@ import {
   resetResultScreenResponded,
   hasRespondedToCurrentResultScreen,
   RESULT_SCREEN_NAMES,
+  renderRematchReadinessList as renderRematchReadinessListShared,
+  createRematchKickHandler,
 } from "./onlineBattleResultReturnState.js";
 import {
   ONLINE_BATTLE_TRANSITION_ACTION,
@@ -860,14 +862,12 @@ function renderMatchConfirmScreen(room) {
 // computeAllPlayersRematchReady()として、上と同じくjs/onlineBattleMatchConfirmationPayloads.js
 // に置き、恒久テストで検証できる形にしてある。
 
-// 【2026-09-30新設・本人指示：オンライン対戦総合改修 第3ラウンド】歌詞クイズ・一瞬バトル・
-// 一瞬協力の結果画面（js/onlineLyricsQuizBattleScreen.js等）が、「もう一度」への対応
-// （ホスト自身の遷移・ゲストの「対戦の準備をする」）から呼べるよう公開する。再戦準備画面
-// （#online-battle-rematch-ready-screen）自体はモードを問わず共通の1画面のため、
-// このファイル1箇所に実装を持たせ、他モードはexport経由で呼ぶだけにする
-// （本人指示：4種類の別同期ロジックを作らない）。js/main.jsがelements.enterRematchReadyScreen
-// として各モードのelementsオブジェクトへ橋渡しする（onQuitDuringBattle等と同じ配線パターン）。
-export function enterRematchReadyScreen(room) {
+// 【2026-09-30新設→2026-10-01改訂・本人指示：結果画面/再戦フロー全面設計】結果画面を
+// 見ていない人（ロビー画面等にいる人）向けの後方互換フォールバック。結果画面を見ている
+// 人は別画面へは遷移せず、結果画面内のインラインパネル（renderResultReturnPanel()等）で
+// そのまま完結する（js/onlineBattleScreen.jsのrenderLobby()内、isConfirmingRematchNow
+// ガード参照）。
+function enterRematchReadyScreen(room) {
   clearTimeout(rematchReadyAutoStartTimerId);
   rematchReadyAutoStartTimerId = null;
   elements.navigateTo("onlineBattleRematchReady");
@@ -910,63 +910,30 @@ function renderRematchSummaryChips(containerElement, room) {
   }
 }
 
-function renderRematchReadyScreen(room) {
-  if (!elements.rematchReadyPlayerList) return;
+// 【2026-10-01新設・本人指示：結果画面/再戦フロー全面設計】再戦準備の「参加者ごとの
+// 準備状況リスト」の描画・キック処理は、js/onlineBattleResultReturnState.js（4画面共通の
+// 中立ファイル）のrenderRematchReadinessList()/createRematchKickHandler()をそのまま使う
+// （本人指示：同じロジックを2重に持たない。js/onlineLyricsQuizBattleScreen.js等、
+// 他3画面もこの中立ファイル経由で全く同じ処理を共有する）。
+function renderRematchPlayerList(listElement, room) {
+  const myUid = getCurrentUid();
+  renderRematchReadinessListShared(listElement, room.players || {}, myUid, room.host === myUid);
+}
+const handleRematchKickClick = createRematchKickHandler({
+  getRoomId: () => currentRoomId,
+  kickPlayerFn: kickPlayer,
+  playConfirmSfx: () => playSfx(SFX_EVENTS.UI_CONFIRM),
+});
+
+// 【2026-10-01新設・本人指示】全員準備OK後、2秒待ってから実際に再戦を開始する処理。
+// 結果画面のインラインパネル・専用の別画面のどちらを見ていても、ホストの端末が
+// room更新のたびに1回だけ呼べば足りる（タイマーの二重予約防止ガード
+// rematchReadyAutoStartTimerIdは共通のモジュール変数のまま）。
+export function driveRematchReadyAutoStart(room) {
   const myUid = getCurrentUid();
   const isHost = room.host === myUid;
   const players = room.players || {};
-
-  renderRematchSummaryChips(elements.rematchReadySummary, room);
-
-  const playerEntries = Object.entries(players).sort(compareParticipantEntriesForLobbyDisplay(myUid));
   const allReady = computeAllPlayersRematchReady(players);
-
-  elements.rematchReadyPlayerList.innerHTML = "";
-  playerEntries.forEach(([uid, player]) => {
-    const li = document.createElement("li");
-    li.className = "online-lobby-player-row";
-    if (uid === myUid) li.classList.add("is-me");
-
-    const oshiDot = createOshiDotElement(player.oshiMemberId, uid);
-    if (oshiDot) li.appendChild(oshiDot);
-
-    const name = document.createElement("span");
-    name.className = "online-lobby-player-name";
-    name.textContent = player.name + (uid === myUid ? "（あなた）" : "");
-    li.appendChild(name);
-
-    const badges = document.createElement("span");
-    badges.className = "online-lobby-player-badges";
-    if (player.isHost) {
-      const hostBadge = document.createElement("span");
-      hostBadge.className = "online-lobby-badge online-lobby-badge-host";
-      hostBadge.textContent = "ホスト";
-      badges.appendChild(hostBadge);
-    }
-    const statusBadge = document.createElement("span");
-    statusBadge.className = player.rematchReady
-      ? "online-lobby-badge online-lobby-badge-connected"
-      : "online-lobby-badge online-lobby-badge-progress";
-    statusBadge.textContent = player.rematchReady ? "準備OK" : "未準備";
-    badges.appendChild(statusBadge);
-    li.appendChild(badges);
-
-    elements.rematchReadyPlayerList.appendChild(li);
-  });
-
-  const myReady = players[myUid]?.rematchReady === true;
-  if (elements.rematchReadyToggleButton) {
-    elements.rematchReadyToggleButton.textContent = myReady ? "準備を取り消す" : "✓ 準備OK";
-    elements.rematchReadyToggleButton.classList.toggle("is-confirmed", myReady);
-  }
-  if (elements.rematchReadyAllDoneNotice) {
-    elements.rematchReadyAllDoneNotice.hidden = !allReady;
-  }
-  // 再戦準備をやめてロビーへ戻る操作はホストだけができる（対戦開始前ルール確認画面と
-  // 同じ権限設計）。
-  if (elements.rematchReadyCancelButton) {
-    elements.rematchReadyCancelButton.hidden = !isHost;
-  }
 
   // 【全員準備OK後、2秒待ってから開始】対戦開始前ルール確認画面の自動開始と全く同じ設計
   // （本人指示21と同じ考え方をこちらにも踏襲）。ホストの端末だけがこの判定・実際の開始
@@ -995,6 +962,36 @@ function renderRematchReadyScreen(room) {
     clearTimeout(rematchReadyAutoStartTimerId);
     rematchReadyAutoStartTimerId = null;
   }
+}
+
+// 【後方互換のフォールバック】結果画面を見ていない人（ロビー画面等）向けの、専用の
+// 再戦準備別画面の描画。renderRematchReadinessList()・driveRematchReadyAutoStart()を
+// 共有し、こちらはその画面専用のsummary/toggle/allDone/cancel要素だけを担当する。
+function renderRematchReadyScreen(room) {
+  if (!elements.rematchReadyPlayerList) return;
+  const myUid = getCurrentUid();
+  const isHost = room.host === myUid;
+  const players = room.players || {};
+
+  renderRematchSummaryChips(elements.rematchReadySummary, room);
+  renderRematchPlayerList(elements.rematchReadyPlayerList, room);
+
+  const allReady = computeAllPlayersRematchReady(players);
+  const myReady = players[myUid]?.rematchReady === true;
+  if (elements.rematchReadyToggleButton) {
+    elements.rematchReadyToggleButton.textContent = myReady ? "準備を取り消す" : "✓ 準備OK";
+    elements.rematchReadyToggleButton.classList.toggle("is-confirmed", myReady);
+  }
+  if (elements.rematchReadyAllDoneNotice) {
+    elements.rematchReadyAllDoneNotice.hidden = !allReady;
+  }
+  // 再戦準備をやめてロビーへ戻る操作はホストだけができる（対戦開始前ルール確認画面と
+  // 同じ権限設計）。
+  if (elements.rematchReadyCancelButton) {
+    elements.rematchReadyCancelButton.hidden = !isHost;
+  }
+
+  driveRematchReadyAutoStart(room);
 }
 
 // ホスト用の設定フォーム（ラジオボタン群）に、現在ルームに保存されている設定値を反映する。
@@ -1679,7 +1676,23 @@ function renderLobby(room) {
   currentCommonSongPool = new Set(
     computeRoomCommonSongPool({ allEligibleSongIds, players, kind: getAvailabilityKind(room.gameMode) })
   );
-  renderCommonSongNotice(allEligibleSongIds.length, currentCommonSongPool.size);
+  // 【2026-10-01改訂・本人指示：実機で発覚、「曲を選んで出題」なのに「現在有効な共有曲は
+  // N曲です」という無関係な数字が表示されて混乱するバグの調査】このnoticeは「このgameModeで
+  // 出題されうる全曲のうち、今何曲分のデータを参加者全員が持っているか」という、選択した曲とは
+  // 無関係な指標。④「曲を選んで出題」を使っている間は、js/onlineBattleCollaborativeSelectionUi.js
+  // の内訳表示（「参加者全員の選択を合わせてN曲（このうちM曲がこの対戦で使えます）」）が
+  // 既に同じ種類のより正確な情報を出しているため、二重に矛盾した数字を見せないよう
+  // このnoticeは隠す（categoryFilterValueによる絞り込み自体は行っていない・今回追加調査でも
+  // 発見できなかった。この通知の重複表示が「隠れフィルタが効いている」ように見えていた
+  // 主因と判断した）。
+  const isUsingCollaborativeSelection =
+    room.settings?.questionSource?.type === QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION;
+  if (isUsingCollaborativeSelection) {
+    elements.lobbyCommonSongNotice.hidden = true;
+    elements.lobbyCommonSongNotice.classList.remove("is-empty");
+  } else {
+    renderCommonSongNotice(allEligibleSongIds.length, currentCommonSongPool.size);
+  }
 
   // 状態遷移の検知は、後続の描画判定（設定変更通知の抑制など）でも使うため先に行っておく。
   const previousStatus = lastHandledRoomStatus;
@@ -1953,38 +1966,42 @@ function renderLobby(room) {
   // confirmingRematchも別枠のフラグとして追跡する。room.statusがwaiting以外になった
   // 瞬間（＝全員準備OK完了→finishRematchReadyCheck()成功）は、confirmingRematchも同時に
   // falseへ戻るため、下のstatusJustChanged分岐（countdown等）へ自然に引き継がれる。
+  // 【再戦準備フェーズ新設・本人指示→2026-10-01全面改訂：結果画面/再戦フロー全面設計】
+  // 再戦準備専用の別画面（#online-battle-rematch-ready-screen）は廃止し、結果画面を見ている
+  // 人はその場（インラインの再戦準備パネル、renderResultReturnPanel()参照）で完結させる。
+  // 結果画面を見ていない人（ロビー画面等にいる人）だけ、従来どおり専用の別画面
+  // （enterRematchReadyScreen/renderRematchReadyScreen、後方互換のフォールバック）へ案内する。
   const wasConfirmingRematch = lastHandledConfirmingRematch;
   const isConfirmingRematchNow = room.confirmingRematch === true && room.status === ROOM_STATUS.WAITING;
+  const isOnResultScreenNow = RESULT_SCREEN_NAMES.has(document.body.dataset.screen);
   if (isConfirmingRematchNow !== wasConfirmingRematch) {
     lastHandledConfirmingRematch = isConfirmingRematchNow;
     if (isConfirmingRematchNow) {
-      // 【2026-09-30改訂・本人指示：オンライン対戦総合改修 第2ラウンド25章】以前はここで
-      // 無条件にenterRematchReadyScreen()を呼び、結果画面を見ている全参加者を問答無用で
-      // 再戦準備画面へ強制的に切り替えていた。「もう一度」を押していない参加者（主にゲスト）
-      // が今まさに結果画面を見ている場合は切り替えず、結果画面側の「対戦の準備をする」
-      // ボタン（本人の意思表示）を押すまで待つ（renderResultReturnPanel()参照）。
-      if (RESULT_SCREEN_NAMES.has(document.body.dataset.screen) && !hasRespondedToCurrentResultScreen()) {
-        // 何もしない。結果画面の再同期（syncResultScreenHostGuestButtons()等）が、
-        // このconfirmingRematch:trueを検知して案内を表示する。
-      } else {
+      if (!isOnResultScreenNow) {
         enterRematchReadyScreen(room);
       }
+      // 結果画面を見ている人は、renderResultReturnPanel()側の再同期が
+      // このconfirmingRematch:trueを検知してインラインパネルを表示する。
     } else if (room.status === ROOM_STATUS.WAITING) {
-      // ホストが再戦準備をキャンセルした場合だけここに来る（再戦開始成功時はstatusが
+      // 再戦準備がキャンセルされた（全員準備OKで開始成功した場合はstatusが
       // waiting以外になっているため、この分岐には来ない）。
       clearTimeout(rematchReadyAutoStartTimerId);
       rematchReadyAutoStartTimerId = null;
-      elements.navigateTo("onlineBattleLobby");
-      // 【本人指示6：ゲストへの通知】ホスト自身は自分の操作の結果なので通知は不要だが、
-      // 待っていたゲストには「なぜロビーへ戻ったのか」が分かる短い通知を出す（既存の
-      // lobbyRematchNotice/lobbySettingsChangedNoticeと同じく、!isHostのときだけ表示する）。
-      // 既存の「ホストがルーム設定に戻しました。」（lobbyRematchNotice）はresult/countdown/
-      // playingからwaitingへの通常の復帰と兼用の文言のため、再戦準備フェーズのキャンセル
-      // という状況が伝わるよう専用の文言を別に用意する。
-      if (!isHost && elements.lobbyRematchCancelledNotice) elements.lobbyRematchCancelledNotice.hidden = false;
+      // 【2026-10-01改訂】結果画面を見ている人は、そのまま結果画面に留める（強制的に
+      // ロビーへ切り替えない。本人指示：再戦提案がキャンセルされても、通常の
+      // 「各自のペースでルーム設定に戻る」フローへ戻るだけで、画面を強制的に切り替える
+      // 必要は無い）。結果画面にいない人（専用の別画面を見ていた人）だけ、
+      // 今までどおりロビーへ切り替える。
+      if (!isOnResultScreenNow) {
+        elements.navigateTo("onlineBattleLobby");
+        // 【本人指示6：ゲストへの通知】ホスト自身は自分の操作の結果なので通知は不要だが、
+        // 待っていたゲストには「なぜロビーへ戻ったのか」が分かる短い通知を出す（既存の
+        // lobbyRematchNotice/lobbySettingsChangedNoticeと同じく、!isHostのときだけ表示する）。
+        if (!isHost && elements.lobbyRematchCancelledNotice) elements.lobbyRematchCancelledNotice.hidden = false;
+      }
     }
   }
-  if (isConfirmingRematchNow) {
+  if (isConfirmingRematchNow && !isOnResultScreenNow) {
     renderRematchReadyScreen(room);
   }
 
@@ -2127,11 +2144,32 @@ function renderResultReturnPanel(room) {
     });
   }
 
-  // 「もう一度」が提案されている間、まだ自分の意思表示をしていないゲストにだけ、
-  // 結果画面から離れずに準備へ進める導線を見せる（本人指示：他人の結果画面を勝手に閉じない）。
-  if (elements.resultRematchProposedNotice) {
-    elements.resultRematchProposedNotice.hidden =
-      !(room.confirmingRematch === true) || isHostOnResultScreen || hasRespondedToCurrentResultScreen();
+  // 【2026-10-01全面改訂・本人指示：結果画面/再戦フロー全面設計】「もう一度」が提案されて
+  // いる間（room.confirmingRematch）、結果画面を離れさせず、この場（インラインパネル）で
+  // 再戦準備を完結させる。ホスト・ゲストどちらにも表示し、参加者ごとの準備状況・
+  // 準備OKの切り替えをその場で行える（本人指示：再戦準備専用の別画面は使わない）。
+  const isConfirmingRematch = room.confirmingRematch === true;
+  if (elements.resultRematchPanel) {
+    elements.resultRematchPanel.hidden = !isConfirmingRematch;
+  }
+  if (isConfirmingRematch) {
+    if (elements.resultRematchPanelLead) {
+      elements.resultRematchPanelLead.textContent = isHostOnResultScreen
+        ? "再戦を準備中です。全員の準備が揃うと自動的に始まります。"
+        : "ホストが「もう一度」を選びました。準備ができたら「準備OK」を押してください。";
+    }
+    if (elements.resultRematchSummary) renderRematchSummaryChips(elements.resultRematchSummary, room);
+    renderRematchPlayerList(elements.resultRematchPlayerList, room);
+    const allReady = computeAllPlayersRematchReady(players);
+    const myReady = players[myUid]?.rematchReady === true;
+    if (elements.resultRematchToggleButton) {
+      elements.resultRematchToggleButton.textContent = myReady ? "準備を取り消す" : "✓ 準備OK";
+      elements.resultRematchToggleButton.classList.toggle("is-confirmed", myReady);
+    }
+    if (elements.resultRematchAllDoneNotice) {
+      elements.resultRematchAllDoneNotice.hidden = !allReady;
+    }
+    driveRematchReadyAutoStart(room);
   }
 }
 
@@ -3383,11 +3421,12 @@ export function initOnlineBattleScreens(newElements) {
     });
   });
 
-  // 【2026-09-30改訂・本人指示：オンライン対戦総合改修 第2ラウンド25章】「もう一度」は
-  // ホスト専用のまま。押した瞬間、beginRematchReadyCheck()でconfirmingRematchを立てる
-  // （既存どおり）が、自分自身はここで即座にローカルの再戦準備画面へ進む（結果画面を
-  // 見ている他のゲストは、自分から「対戦の準備をする」を押すまで自動では移動しない。
-  // renderLobby()側のisConfirmingRematchNowガード参照）。
+  // 【2026-09-30新設→2026-10-01全面改訂・本人指示：結果画面/再戦フロー全面設計】
+  // 「もう一度」はホスト専用のまま。押した瞬間、beginRematchReadyCheck()で
+  // confirmingRematchを立てる（このときホスト自身は既に準備OK扱いになる。
+  // js/onlineBattle.jsのbeginRematchReadyCheck()参照）。以前は別画面（再戦準備画面）へ
+  // 遷移していたが、今は結果画面から離れず、下に現れるインラインパネル
+  // （renderResultReturnPanel()参照）でそのまま完結する。
   elements.resultRematchButton.addEventListener("click", async () => {
     if (!currentRoomId || !latestRoom) return;
     // 【2026-09-09新設・本人指示：音源再生失敗の本対策】「もう一度」はロビーの開始ボタンを
@@ -3397,31 +3436,38 @@ export function initOnlineBattleScreens(newElements) {
     elements.resultRematchButton.disabled = true;
     const result = await beginRematchReadyCheck({ roomId: currentRoomId });
     elements.resultRematchButton.disabled = false;
-    if (result.ok) {
-      markResultScreenResponded();
-      enterRematchReadyScreen({ ...latestRoom, status: ROOM_STATUS.WAITING, confirmingRematch: true });
-    }
+    if (result.ok) markResultScreenResponded();
   });
-  // 【2026-09-30新設・本人指示：オンライン対戦総合改修 第2ラウンド25章】ゲスト用：
-  // 「もう一度」が提案された後、結果画面を見終えたと感じたタイミングで自分から押す。
-  // 押すまでは結果画面に留まり続ける（本人指示：他人の結果画面を勝手に閉じない）。
-  elements.resultRematchProceedButton?.addEventListener("click", () => {
-    if (!latestRoom) return;
-    playSfx(SFX_EVENTS.UI_CONFIRM);
-    markResultScreenResponded();
-    enterRematchReadyScreen(latestRoom);
+  // 【2026-10-01新設・本人指示：結果画面/再戦フロー全面設計】インライン再戦準備パネルの
+  // 「準備OK」トグル。ホスト・ゲストどちらも同じボタンで自分の準備状態を切り替える
+  // （全員の準備が揃うまでは何度でも取り消せる。押しても画面は一切切り替わらない）。
+  elements.resultRematchToggleButton?.addEventListener("click", async () => {
+    if (!currentRoomId || !latestRoom) return;
+    const myUid = getCurrentUid();
+    const myReady = latestRoom.players?.[myUid]?.rematchReady === true;
+    attemptSilentUnlock();
+    playSfx(SFX_EVENTS.UI_CLICK);
+    elements.resultRematchToggleButton.disabled = true;
+    await setRematchReady({ roomId: currentRoomId, confirmed: !myReady });
+    elements.resultRematchToggleButton.disabled = false;
   });
-  // 【2026-09-30改訂・本人指示：オンライン対戦総合改修 第2ラウンド23-24章】「ルーム設定に
-  // 戻る」を、ホスト専用の即時全員強制遷移から、ホスト・ゲストどちらも押せる個別操作へ
-  // 変更した。押した瞬間、自分の分だけmarkResultReturned()で記録し、room.statusの変化を
-  // 待たずに自分の画面だけを即座にロビーへ切り替える（他の参加者の画面には一切影響しない）。
-  // 実際にroom.statusをwaitingへ戻す処理は、全員分が揃った時点でホストの端末が自動的に
-  // 行う（js/onlineBattle.jsのmaybeFinalizeReturnToLobbyIfAllReturned()参照）。
+  // 【2026-09-30改訂→2026-10-01改訂・本人指示：結果画面/再戦フロー全面設計】「ルーム設定に
+  // 戻る」は、ホスト・ゲストどちらも押せる個別操作。押した瞬間、自分の分だけ
+  // markResultReturned()で記録し、room.statusの変化を待たずに自分の画面だけを即座に
+  // ロビーへ切り替える（他の参加者の画面には一切影響しない）。実際にroom.statusを
+  // waitingへ戻す処理は、全員分が揃った時点でホストの端末が自動的に行う
+  // （js/onlineBattle.jsのmaybeFinalizeReturnToLobbyIfAllReturned()参照）。
+  // 【本人指示：再戦提案中に誰かが「ルーム設定に戻る」を選んだ場合、その再戦提案自体を
+  // キャンセルする】押した瞬間、再戦提案中であれば先にcancelRematchReadyCheck()を呼ぶ
+  // （host専用ではなく誰でも呼べるよう変更済み。js/onlineBattle.jsのコメント参照）。
   elements.resultReturnButton?.addEventListener("click", async () => {
     if (!currentRoomId) return;
     playSfx(SFX_EVENTS.UI_BACK);
     elements.resultReturnButton.disabled = true;
     markResultScreenResponded();
+    if (latestRoom?.confirmingRematch === true) {
+      await cancelRematchReadyCheck({ roomId: currentRoomId });
+    }
     await markResultReturned({ roomId: currentRoomId });
     elements.resultReturnButton.disabled = false;
     resetOnlineBattleMatchState();
@@ -3521,6 +3567,11 @@ export function initOnlineBattleScreens(newElements) {
     playSfx(SFX_EVENTS.UI_BACK);
     await cancelRematchReadyCheck({ roomId: currentRoomId });
   });
+  // 【2026-10-01新設・本人指示：結果画面/再戦フロー全面設計12-5章】再戦準備中のキック。
+  // インラインパネル・専用の別画面（フォールバック）どちらの参加者リストでも、
+  // renderRematchReadinessList()が出すキックボタンのクリックを1つのイベント委任で拾う。
+  elements.resultRematchPlayerList?.addEventListener("click", handleRematchKickClick);
+  elements.rematchReadyPlayerList?.addEventListener("click", handleRematchKickClick);
 
   // 【2026-09-14新設・本人指示：誰がどの曲を選んだか／共有曲一覧を確認できるように】
   wireCollaborativeSelectionDetailsToggle(elements.collabDetailsToggle, elements.collabDetailsPanel, () => {

@@ -4,6 +4,7 @@
 
 let passCount = 0;
 let failCount = 0;
+const failedDetails = [];
 
 // actual（実際の値）とexpected（期待する値）を比較し、結果をコンソールに出す。
 export function assertEqual(actual, expected, description) {
@@ -13,7 +14,9 @@ export function assertEqual(actual, expected, description) {
     console.log(`✅ ${description}`);
   } else {
     failCount++;
-    console.error(`❌ ${description} — 期待値: ${JSON.stringify(expected)} / 実際: ${JSON.stringify(actual)}`);
+    const detail = `❌ ${description} — 期待値: ${JSON.stringify(expected)} / 実際: ${JSON.stringify(actual)}`;
+    console.error(detail);
+    failedDetails.push(detail);
   }
   return isPass;
 }
@@ -21,5 +24,5 @@ export function assertEqual(actual, expected, description) {
 // ここまでの結果をコンソールにまとめて表示し、件数を返す。
 export function printSummary() {
   console.log(`\n合計: ${passCount + failCount}件中 ${passCount}件成功 / ${failCount}件失敗`);
-  return { passCount, failCount };
+  return { passCount, failCount, failedDetails };
 }

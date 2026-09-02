@@ -144,6 +144,21 @@ export function isLyricsQuizPracticeRun() {
   return currentRunSource !== "normal";
 }
 
+// 【2026-10-01追加・本人指示：実機で発覚、オリジナル問題作成モードから歌詞クイズを
+// 始めたのに「苦手曲モードへ戻る」と表示され実際に苦手曲モードへ遷移するバグの修正】
+// isLyricsQuizPracticeRun()は"weakSongPractice"と"customQuiz"を区別せず1つにまとめて
+// いたため、js/main.js側の戻るボタン・戻り先判定が常に苦手曲モード扱いになっていた。
+// js/instantChallengeScreen.jsのisInstantChallengeWeakSongsPractice()・
+// isInstantChallengeFromCustomPreset()と同じパターンで、起点ごとに個別の判定関数を
+// 用意する（既存のcurrentRunSource自体は変更しない、読み取り方だけを増やす）。
+export function isLyricsQuizWeakSongsPractice() {
+  return currentRunSource === "weakSongPractice";
+}
+
+export function isLyricsQuizFromCustomPreset() {
+  return currentRunSource === "customQuiz";
+}
+
 // 直前と同じ設定のまま、問題を再抽選して開始する（「もう一度挑戦する」用）。
 // 出題数不足等で開始できない事態は、直前に一度成立した設定を再利用するだけなので
 // 通常は起こらないが、念のため同じ検証を通してから開始する。

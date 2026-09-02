@@ -3744,14 +3744,23 @@
       <div id="online-battle-result-host-actions" class="button-row" hidden>
         <button id="online-battle-result-rematch-button" class="primary-button" type="button">もう一度</button>
       </div>
-      <!-- 【2026-09-30新設・本人指示】「もう一度」が提案された（room.confirmingRematch）後、
-           まだ結果画面を見ている参加者（主にゲスト。ホストは「もう一度」を押した本人なので
-           自動的に準備フェーズへ進む）へ、結果画面を離れずに「準備ができたら次へ進める」
-           導線を見せる。ここを押すまでは絶対に画面を切り替えない
-           （本人指示：他人の結果画面を勝手に閉じない）。 -->
-      <div id="online-battle-result-rematch-proposed-notice" class="online-battle-result-return-panel" hidden>
-        <p class="online-battle-lead-text">ホストが「もう一度」を選びました。結果を見終えたら準備してください。</p>
-        <button id="online-battle-result-rematch-proceed-button" class="primary-button" type="button">対戦の準備をする</button>
+      <!-- 【2026-09-30新設→2026-10-01全面改訂・本人指示：結果画面/再戦フロー全面設計】
+           「もう一度」が提案された（room.confirmingRematch）間、結果画面を離れず・
+           別画面へ遷移させずに、この場で再戦準備（参加者ごとの準備状況・準備OKの
+           切り替え）を行えるようにする（本人指示：再戦準備専用の別画面は廃止し、
+           結果画面の下部にそのまま表示する）。ホスト・ゲストどちらも同じ場所に表示し、
+           「ルーム設定に戻る」「ルームから退出」（下のパネル）は常に押せるままにする
+           （本人指示：再戦準備中に戻る場所が無くなって詰むことを絶対に防ぐ）。 -->
+      <div id="online-battle-result-rematch-panel" class="online-battle-result-return-panel" hidden>
+        <p class="online-battle-lead-text" id="online-battle-result-rematch-panel-lead">
+          ホストが「もう一度」を選びました。準備ができたら「準備OK」を押してください。
+        </p>
+        <div id="online-battle-result-rematch-summary" class="battle-config-chip-list"></div>
+        <ul id="online-battle-result-rematch-player-list" class="online-lobby-player-list"></ul>
+        <p id="online-battle-result-rematch-all-done-notice" class="online-battle-lead-text" hidden>
+          全員の準備が揃いました。まもなく対戦を開始します…
+        </p>
+        <button id="online-battle-result-rematch-toggle-button" class="primary-button" type="button">✓ 準備OK</button>
       </div>
       <!-- 【2026-09-30新設・本人指示】「ルーム設定に戻る」を、ホスト・ゲスト問わず全員が
            自分のペースで押せる個別操作にする。誰が結果確認中で誰が既に戻ったかを、
@@ -4021,9 +4030,17 @@
       <div id="online-instant-coop-battle-result-host-actions" class="button-row" hidden>
         <button id="online-instant-coop-battle-result-rematch-button" class="primary-button" type="button">もう一度</button>
       </div>
-      <div id="online-instant-coop-battle-result-rematch-proposed-notice" class="online-battle-result-return-panel" hidden>
-        <p class="online-battle-lead-text">ホストが「もう一度」を選びました。結果を見終えたら準備してください。</p>
-        <button id="online-instant-coop-battle-result-rematch-proceed-button" class="primary-button" type="button">対戦の準備をする</button>
+      <!-- 【2026-10-01全面改訂・本人指示：結果画面/再戦フロー全面設計】結果画面から離れない
+           インライン再戦準備パネル。 -->
+      <div id="online-instant-coop-battle-result-rematch-panel" class="online-battle-result-return-panel" hidden>
+        <p class="online-battle-lead-text" id="online-instant-coop-battle-result-rematch-panel-lead">
+          ホストが「もう一度」を選びました。準備ができたら「準備OK」を押してください。
+        </p>
+        <ul id="online-instant-coop-battle-result-rematch-player-list" class="online-lobby-player-list"></ul>
+        <p id="online-instant-coop-battle-result-rematch-all-done-notice" class="online-battle-lead-text" hidden>
+          全員の準備が揃いました。まもなく対戦を開始します…
+        </p>
+        <button id="online-instant-coop-battle-result-rematch-toggle-button" class="primary-button" type="button">✓ 準備OK</button>
       </div>
       <div id="online-instant-coop-battle-result-return-panel" class="online-battle-result-return-panel">
         <p class="online-battle-result-return-heading">結果確認の状況</p>
@@ -4067,9 +4084,17 @@
       <div id="online-instant-battle-result-host-actions" class="button-row" hidden>
         <button id="online-instant-battle-result-rematch-button" class="primary-button" type="button">もう一度</button>
       </div>
-      <div id="online-instant-battle-result-rematch-proposed-notice" class="online-battle-result-return-panel" hidden>
-        <p class="online-battle-lead-text">ホストが「もう一度」を選びました。結果を見終えたら準備してください。</p>
-        <button id="online-instant-battle-result-rematch-proceed-button" class="primary-button" type="button">対戦の準備をする</button>
+      <!-- 【2026-10-01全面改訂・本人指示：結果画面/再戦フロー全面設計】結果画面から離れない
+           インライン再戦準備パネル。 -->
+      <div id="online-instant-battle-result-rematch-panel" class="online-battle-result-return-panel" hidden>
+        <p class="online-battle-lead-text" id="online-instant-battle-result-rematch-panel-lead">
+          ホストが「もう一度」を選びました。準備ができたら「準備OK」を押してください。
+        </p>
+        <ul id="online-instant-battle-result-rematch-player-list" class="online-lobby-player-list"></ul>
+        <p id="online-instant-battle-result-rematch-all-done-notice" class="online-battle-lead-text" hidden>
+          全員の準備が揃いました。まもなく対戦を開始します…
+        </p>
+        <button id="online-instant-battle-result-rematch-toggle-button" class="primary-button" type="button">✓ 準備OK</button>
       </div>
       <div id="online-instant-battle-result-return-panel" class="online-battle-result-return-panel">
         <p class="online-battle-result-return-heading">結果確認の状況</p>
@@ -4087,35 +4112,59 @@
          （音源再生を伴わない・進行がホスト主導で全員同期する）ため、専用の画面として分離した。
          js/onlineLyricsQuizBattleScreen.jsが内容を組み立てる。 -->
     <section id="online-lyrics-battle-question-screen" class="screen">
-      <div class="quiz-header-row">
+      <!-- 【2026-10-01改訂・本人指示：歌詞クイズ問題画面モバイルレイアウト再設計5章】
+           以前は「対戦をやめる」の下に「ルーム設定へ戻る」（ホスト）／同ボタン（ゲスト）が
+           別行として縦に積まれており、375px幅では上部ヘッダーだけで縦方向をかなり消費していた。
+           ホスト・ゲストどちらの場合も表示されるボタンは常に最大2個（対戦をやめる＋どちらか
+           片方）なので、同じ.quiz-header-row（safe-area対応・space-between）に収めて横並びにする。 -->
+      <div class="quiz-header-row online-lyrics-battle-header-row">
         <button id="online-lyrics-battle-quit-button" class="quiz-back-link" type="button">✕ 対戦をやめる</button>
+        <!-- 【2026-09-05新設、本人指示】ホスト専用「ルーム設定へ戻る」（js/onlineLyricsQuizBattleScreen.js制御）。 -->
+        <button id="online-lyrics-battle-back-to-lobby-button" class="secondary-button online-battle-back-to-lobby-button" type="button" hidden>⚙ ルーム設定へ戻る</button>
+        <!-- 【2026-09-14新設・本人指示】ゲスト専用「この試合だけ抜ける」。 -->
+        <button id="online-lyrics-battle-leave-match-button" class="secondary-button online-battle-back-to-lobby-button" type="button" hidden>⚙ ルーム設定へ戻る</button>
       </div>
-      <!-- 【2026-09-05新設、本人指示】ホスト専用「ルーム設定へ戻る」（js/onlineLyricsQuizBattleScreen.js制御）。 -->
-      <button id="online-lyrics-battle-back-to-lobby-button" class="secondary-button online-battle-back-to-lobby-button" type="button" hidden>⚙ ルーム設定へ戻る</button>
-      <!-- 【2026-09-14新設・本人指示】ゲスト専用「この試合だけ抜ける」。 -->
-      <button id="online-lyrics-battle-leave-match-button" class="secondary-button online-battle-back-to-lobby-button" type="button" hidden>⚙ ルーム設定へ戻る</button>
 
       <!-- 【2026-08-29追加】#quiz-screenと同じ理由・同じ設計でmiddle-zone化する
            （ページ自体の表示位置ズレ対策。詳細はcss/style.css参照）。 -->
       <div class="quiz-middle-zone">
         <div class="quiz-middle-zone-inner">
-        <div class="title-block"><h2>歌詞クイズ対戦</h2></div>
-        <p class="online-lyrics-battle-progress" id="online-lyrics-battle-progress"></p>
+        <!-- 【2026-10-01改訂・本人指示：歌詞クイズ問題画面モバイルレイアウト再設計5章】
+             タイトル（h2）と「第N問/全N問」を、別々の大きな要素2つから1行の
+             コンパクトな見出しへまとめ、375px幅での縦方向の消費を減らす。 -->
+        <div class="online-lyrics-battle-compact-heading">
+          <h2>歌詞クイズ対戦</h2>
+          <p class="online-lyrics-battle-progress" id="online-lyrics-battle-progress"></p>
+        </div>
 
         <!-- 【2026-09-01新設・本人指示：ライブスコアボード】他プレイヤーの現在の累計スコアを
-             見せる一覧。早押しバトルの出題中（回答収集中）はJS側でhidden=trueにして隠す。
+             見せる一覧。
              【情報漏洩防止】ここに表示されるのはmatches/{matchId}/scoreSnapshot（ホストが
              各問題のreveal完了後にまとめて書き込む、1つ前の問題までの確定スコア）だけで、
-             今の問題の回答内容には一切触れない。
+             今の問題の回答内容には一切触れない。scoreSnapshotは「前の問題までの確定値」
+             でしかないため、早押しバトルの出題中に見せても今の問題の途中経過は一切
+             漏れない。
              【2026-09-30改訂・本人指示：オンライン対戦総合改修 第2ラウンド12章】以前は
              <details>要素で開閉可能にしていたが（一度open属性を付けて既定展開にしたことも
              あった）、「開閉の仕組み自体を無くし、常に見える状態にしてほしい」との指示により、
-             開閉できないただの<section>へ変更した。 -->
+             開閉できないただの<section>へ変更した。
+             【2026-10-01改訂・本人指示：歌詞クイズ問題画面モバイルレイアウト再設計5章】
+             ①早押しバトルだけ出題中に隠していたのをやめ、3ルールすべてで常時表示に統一。
+             ②一覧をflex-wrapの折り返しから横スクロールのコンパクトチップ列へ変更し、
+             人数が多くても縦方向を専有しない。③並び順を「同点は同順位（1位・1位・3位）」
+             「同点内は自分を先頭」にし、④自分の順位/得点だけを常に見える形で固定表示する
+             #online-lyrics-battle-my-rankを追加した。 -->
         <section id="online-lyrics-battle-scoreboard" class="online-lyrics-battle-scoreboard">
+          <!-- 【2026-10-01改訂・本人指示：歌詞クイズ問題画面モバイルレイアウト再設計5章】以前は
+               ラベル・問題数ヒント・あなたの順位の3つを1行に並べていたが、375px幅では
+               ラベルが折り返してしまい、あなたの順位バッジまで窮屈になっていた。
+               「見出し＋あなたの順位」（最優先の2つ）を1行目、問題数ヒント（補足情報）は
+               2行目の小さな文字へ分け、どの幅でも折り返さないようにした。 -->
           <p class="online-lyrics-battle-scoreboard-summary">
             <span>📊 みんなのスコア</span>
-            <span id="online-lyrics-battle-scoreboard-summary-hint" class="online-lyrics-battle-scoreboard-summary-hint"></span>
+            <span id="online-lyrics-battle-my-rank" class="online-lyrics-battle-my-rank"></span>
           </p>
+          <p id="online-lyrics-battle-scoreboard-summary-hint" class="online-lyrics-battle-scoreboard-summary-hint"></p>
           <ul id="online-lyrics-battle-scoreboard-list" class="online-lyrics-battle-scoreboard-list"></ul>
         </section>
 
@@ -4209,9 +4258,17 @@
       <div id="online-lyrics-battle-result-host-actions" class="button-row" hidden>
         <button id="online-lyrics-battle-result-rematch-button" class="primary-button" type="button">もう一度</button>
       </div>
-      <div id="online-lyrics-battle-result-rematch-proposed-notice" class="online-battle-result-return-panel" hidden>
-        <p class="online-battle-lead-text">ホストが「もう一度」を選びました。結果を見終えたら準備してください。</p>
-        <button id="online-lyrics-battle-result-rematch-proceed-button" class="primary-button" type="button">対戦の準備をする</button>
+      <!-- 【2026-10-01全面改訂・本人指示：結果画面/再戦フロー全面設計】js/onlineBattleScreen.js
+           の共有エンジン結果画面と同じ、結果画面から離れないインライン再戦準備パネル。 -->
+      <div id="online-lyrics-battle-result-rematch-panel" class="online-battle-result-return-panel" hidden>
+        <p class="online-battle-lead-text" id="online-lyrics-battle-result-rematch-panel-lead">
+          ホストが「もう一度」を選びました。準備ができたら「準備OK」を押してください。
+        </p>
+        <ul id="online-lyrics-battle-result-rematch-player-list" class="online-lobby-player-list"></ul>
+        <p id="online-lyrics-battle-result-rematch-all-done-notice" class="online-battle-lead-text" hidden>
+          全員の準備が揃いました。まもなく対戦を開始します…
+        </p>
+        <button id="online-lyrics-battle-result-rematch-toggle-button" class="primary-button" type="button">✓ 準備OK</button>
       </div>
       <div id="online-lyrics-battle-result-return-panel" class="online-battle-result-return-panel">
         <p class="online-battle-result-return-heading">結果確認の状況</p>
@@ -4405,15 +4462,21 @@
       <!-- 4曲未満のときだけ表示する案内。既存の出題数案内と同じ見た目にする -->
       <p id="custom-quiz-min-notice" class="question-count-notice">クイズを作るには4曲以上選んでください</p>
 
-      <!-- ダミー選択肢のプール。「選択した曲だけ」の方を初期選択にする
-           （このモードの主な用途である「セトリの中で聞き分ける」練習に合わせるため）。
+      <!-- 【2026-10-01改訂・本人指示：正解も不正解候補も同じ選択曲プールから生成されるため、
+           4曲だけ選ぶとほぼ毎回同じ4曲しか出ないバグを修正】以前は「選択した曲だけ／
+           全収録曲」の2択で、不正解候補（ダミー選択肢）の母集団を選んでいたが、「選択した曲
+           だけ」だと選択曲数が少ないほど毎回同じ顔ぶれになってしまっていた。正解の出題対象
+           （＝選んだ曲）と、不正解候補を含めた選択肢全体の母集団（＝カテゴリー）を分離し、
+           他のオンライン対戦と同じ3択のカテゴリーへ統一する（js/main.jsのbeginCustomQuiz()
+           等参照。fieldset自体のidは既存のプリセット保存機能との互換のため変更していない）。
            歌詞クイズタイプでは使わない項目のため、そのときだけ非表示にする
            （js/customQuizScreen.js参照、2026-08-29追加）。 -->
       <fieldset id="custom-quiz-distractor-mode-fieldset">
-        <legend>ダミー選択肢</legend>
+        <legend>カテゴリー（不正解候補を含む選択肢全体の母集団）</legend>
         <div class="option-row">
-          <label><input type="radio" name="custom-quiz-distractor-mode" value="selected" checked> 選択した曲だけ</label>
-          <label><input type="radio" name="custom-quiz-distractor-mode" value="all"> 全収録曲</label>
+          <label><input type="radio" name="custom-quiz-distractor-mode" value="title-track" checked> 表題曲のみ</label>
+          <label><input type="radio" name="custom-quiz-distractor-mode" value="title-and-group"> 表題曲＋全員曲</label>
+          <label><input type="radio" name="custom-quiz-distractor-mode" value="all"> 全曲</label>
         </div>
       </fieldset>
 
