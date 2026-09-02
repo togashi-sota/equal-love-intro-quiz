@@ -12952,11 +12952,43 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   gap: 8px;
 }
 
+/* 【2026-11-XX全面改訂・本人指示：優先度3「ルール・遊び方」の内容拡充】以前は名前＋
+   一行説明だけの静的なカードだったが、6モードそれぞれを<details>アコーディオンにし、
+   開くと詳しい説明（遊び方・回答方法・勝敗条件・得点・出題数・共同選曲・注意点）が
+   読めるようにした。閉じている間は名前＋一行説明だけで、以前と同じ省スペースな
+   見た目のまま一覧できる。 */
 .online-lobby-help-mode-item {
   padding: 10px 12px;
   border-radius: 12px;
   background: var(--color-surface);
   border: 1px solid var(--color-card-border);
+  margin-bottom: 8px;
+}
+
+.online-lobby-help-mode-item-summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+}
+
+.online-lobby-help-mode-item-summary::-webkit-details-marker {
+  display: none;
+}
+
+/* 開閉状態が一目で分かるよう、summaryの右に矢印を添える（本人指示の「独立した
+   セクション/カード/アコーディオン等」を、既存のdetails/summaryパターンで実現）。 */
+.online-lobby-help-mode-item-summary::after {
+  content: "▾ タップして詳しく見る";
+  align-self: flex-start;
+  margin-top: 4px;
+  font-size: 0.68rem;
+  color: var(--color-primary-dark);
+  opacity: 0.7;
+}
+
+.online-lobby-help-mode-item[open] > .online-lobby-help-mode-item-summary::after {
+  content: "▴ 閉じる";
 }
 
 .online-lobby-help-mode-item-name {
@@ -12973,6 +13005,50 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 .online-lobby-help-mode-item.is-current {
   border-color: var(--color-primary);
   background: var(--color-primary-light);
+}
+
+.online-lobby-help-mode-item-body {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--color-card-border);
+}
+
+.online-lobby-help-detail-list {
+  margin: 0;
+}
+
+.online-lobby-help-detail-list dt {
+  font-size: 0.76rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  margin: 10px 0 3px;
+}
+
+.online-lobby-help-detail-list dt:first-child {
+  margin-top: 0;
+}
+
+.online-lobby-help-detail-list dd {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.65;
+  color: var(--color-text);
+  /* 本文中の\nを改行として見せる（js/onlineBattleScreen.jsのbuildDetailList参照）。 */
+  white-space: pre-line;
+}
+
+/* 歌詞クイズ対戦だけが持つ、3ルール（正解数/早押し/ポイントバトル）ぶんの小ブロック。 */
+.online-lobby-help-rule-block {
+  margin-top: 14px;
+  padding: 10px 10px 4px;
+  border-radius: 10px;
+  background: var(--color-secondary-light);
+}
+
+.online-lobby-help-rule-block h4 {
+  margin: 0 0 2px;
+  font-size: 0.8rem;
+  color: var(--color-text);
 }
 
 #online-battle-lobby-help-guide-link {
@@ -14676,6 +14752,22 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 .online-lyrics-battle-compact-heading h2 {
   font-size: 0.9rem;
   opacity: 0.7;
+}
+
+/* 【2026-11-XX追加・本人指示：優先度2】今のルール名（正解数/早押し/ポイントバトル）を
+   一目で分かるようにするバッジ。「第N問」の進捗ピルより控えめな色にし、タイトルの
+   一部として自然に読める見た目にする（新しい行・新しい高さを専用に確保しない）。 */
+.online-lyrics-battle-rule-badge {
+  display: table;
+  margin: 0;
+  padding: 3px 12px;
+  border-radius: 999px;
+  background: var(--color-secondary-light);
+  color: var(--color-text);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  opacity: 0.85;
 }
 
 .online-lyrics-battle-progress {

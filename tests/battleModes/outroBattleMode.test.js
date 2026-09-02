@@ -16,7 +16,10 @@ import { assertEqual } from "../test-utils.js";
 
 export function runOutroBattleModeTests() {
   assertEqual(gameMode, "outroQuiz", "gameModeは'outroQuiz'");
-  assertEqual(label, "アウトロクイズ", "表示名は「アウトロクイズ」");
+  // 【2026-11-XX改訂・本人指示：二重確認レビューで発見】ロビーのモード選択（index.html）の
+  // 表記「アウトロ対戦」に合わせて表示名を統一した（以前は内部実装名に由来する
+  // 「アウトロクイズ」のままで、画面によって呼び方が変わる実機バグの原因だった）。
+  assertEqual(label, "アウトロ対戦", "表示名は「アウトロ対戦」（ロビーのモード選択と統一）");
   assertEqual(playbackType, "outroPosition", "playbackTypeはrandomPositionとは別のoutroPosition");
 
   // ---- resolveSettingsSongPool：タイムアタック用アダプターと同じロジックを再利用している ----

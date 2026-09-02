@@ -75,7 +75,8 @@ export function runBattleModesIndexAvailabilityTests() {
   // ---- 2026-08-30追加（本人指示㉔）：アウトロクイズ対戦の登録確認 ----
   {
     assertEqual(isKnownGameMode("outroQuiz"), true, "outroQuizはREGISTRYに登録済み");
-    assertEqual(getModeLabel("outroQuiz"), "アウトロクイズ", "outroQuizの表示名は「アウトロクイズ」");
+    // 【2026-11-XX改訂・本人指示：二重確認レビューで発見】ロビーのモード選択との表記統一。
+    assertEqual(getModeLabel("outroQuiz"), "アウトロ対戦", "outroQuizの表示名は「アウトロ対戦」（ロビーのモード選択と統一）");
     assertEqual(
       getPlaybackType("outroQuiz"),
       "outroPosition",

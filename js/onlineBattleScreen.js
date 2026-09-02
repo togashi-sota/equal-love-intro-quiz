@@ -79,6 +79,7 @@ import {
   resolveSongPoolForSettings,
 } from "./battleModes/index.js";
 import { QUESTION_COUNT_LABELS, RULE_LABELS } from "./localBattleScreen.js";
+import { ONLINE_BATTLE_MODE_GUIDES } from "./onlineBattleRulesContent.js";
 import { buildSharedEngineQuestionBreakdown, capQuestionBreakdownForStorage } from "./battleQuestionBreakdown.js";
 import {
   computeAllPlayersConfirmed,
@@ -718,22 +719,73 @@ function renderLobbyHelpModal(room) {
 
   buildCurrentRuleExplanation(elements.lobbyHelpCurrentSettings, room);
 
-  elements.lobbyHelpModeList.innerHTML = "";
+  renderLobbyHelpModeList(elements.lobbyHelpModeList, gameMode);
+}
+
+// 【2026-11-XX全面改訂・本人指示：優先度3「ルール・遊び方」の内容拡充】
+// 6モードそれぞれを独立した<details>アコーディオンにし、js/onlineBattleRulesContent.jsの
+// 詳細な説明（遊び方・回答方法・勝敗条件・得点・ミス時の扱い・出題数・共同選曲・
+// モード固有の注意点）を表示する。歌詞クイズ対戦だけ、内側にもう1段
+// 「正解数バトル/早押しバトル/ポイントバトル」の3ルールぶんのアコーディオンを持つ。
+// 現在選択中のモードだけ最初から開いた状態にする（探しやすさのため）。
+function buildDetailList(sections) {
+  const dl = document.createElement("dl");
+  dl.className = "online-lobby-help-detail-list";
+  sections.forEach(({ heading, body }) => {
+    const dt = document.createElement("dt");
+    dt.textContent = heading;
+    const dd = document.createElement("dd");
+    // 本文中の改行（\n）を段落として保持する（style.cssでwhite-space:pre-lineにする）。
+    dd.textContent = body;
+    dl.append(dt, dd);
+  });
+  return dl;
+}
+
+function renderLobbyHelpModeList(containerElement, currentGameMode) {
+  containerElement.innerHTML = "";
   listAvailableGameModes().forEach((mode) => {
-    const item = document.createElement("div");
+    const guide = ONLINE_BATTLE_MODE_GUIDES[mode.gameMode];
+    const item = document.createElement("details");
     item.className = "online-lobby-help-mode-item";
-    // 【2026-11-XX新設・本人指示：優先度10】ゲストが6択カードをタップしたとき、
+    // 【本人指示：優先度10】ゲストが6択カードをタップしたとき、
     // openLobbyHelpModal(focusGameMode)がこの属性を目印にスクロール先を探す。
     item.dataset.gameMode = mode.gameMode;
-    if (mode.gameMode === gameMode) item.classList.add("is-current");
-    const name = document.createElement("p");
+    const isCurrent = mode.gameMode === currentGameMode;
+    if (isCurrent) {
+      item.classList.add("is-current");
+      item.open = true;
+    }
+
+    const summary = document.createElement("summary");
+    summary.className = "online-lobby-help-mode-item-summary";
+    const name = document.createElement("span");
     name.className = "online-lobby-help-mode-item-name";
     name.textContent = mode.label;
-    const desc = document.createElement("p");
+    const desc = document.createElement("span");
     desc.className = "online-lobby-help-mode-item-description";
     desc.textContent = mode.description;
-    item.append(name, desc);
-    elements.lobbyHelpModeList.appendChild(item);
+    summary.append(name, desc);
+    item.appendChild(summary);
+
+    const body = document.createElement("div");
+    body.className = "online-lobby-help-mode-item-body";
+    if (guide) {
+      body.appendChild(buildDetailList(guide.sections));
+      if (guide.ruleSections) {
+        guide.ruleSections.forEach((rule) => {
+          const ruleBlock = document.createElement("div");
+          ruleBlock.className = "online-lobby-help-rule-block";
+          const ruleHeading = document.createElement("h4");
+          ruleHeading.textContent = rule.label;
+          ruleBlock.appendChild(ruleHeading);
+          ruleBlock.appendChild(buildDetailList(rule.sections));
+          body.appendChild(ruleBlock);
+        });
+      }
+    }
+    item.appendChild(body);
+    containerElement.appendChild(item);
   });
 }
 

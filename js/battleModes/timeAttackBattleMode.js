@@ -21,7 +21,16 @@ import { MIN_SONGS_REQUIRED, filterSongsByCategory } from "../quiz.js";
 import { SONGS } from "../data/songs.js";
 
 export const gameMode = "timeAttack";
-export const label = "タイムアタック";
+// 【2026-11-XX修正・本人指示：二重確認レビューで発見】オンライン対戦のロビーの
+// モード選択（index.htmlの6択ラジオ・カード）ではこのモードを常に「イントロ対戦」と
+// 呼んでいるのに対し、このlabelだけ内部の実装名（タイムアタックエンジンをそのまま
+// 再利用している）に由来する「タイムアタック」のままになっていた。getModeLabel()経由で
+// ロビーの「現在のモード：」見出し・待機画面・観戦画面に表示されるため、同じモードが
+// 画面によって呼び方が変わって見える実機バグの原因になっていた。offline専用の
+// 「タイムアタック」機能（js/timeAttackScreen.js等、全くの別機能）とは名称を分離し、
+// オンライン対戦内では常に「イントロ対戦」に統一する。gameMode（内部id）は
+// 既存のFirebaseデータ・ロジックへの影響を避けるため変更していない。
+export const label = "イントロ対戦";
 export const description = "曲の冒頭を聴いて当てます";
 // 【2026-08-08追加・Phase4】js/main.jsのrenderQuestion()が、gameMode名を直接比較するのではなく
 // この値を見て再生方法を選べるようにするための識別子（"intro"＝曲の冒頭から再生）。

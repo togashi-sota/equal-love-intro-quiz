@@ -4140,9 +4140,15 @@
         <div class="quiz-middle-zone-inner">
         <!-- 【2026-10-01改訂・本人指示：歌詞クイズ問題画面モバイルレイアウト再設計5章】
              タイトル（h2）と「第N問/全N問」を、別々の大きな要素2つから1行の
-             コンパクトな見出しへまとめ、375px幅での縦方向の消費を減らす。 -->
+             コンパクトな見出しへまとめ、375px幅での縦方向の消費を減らす。
+             【2026-11-XX追加・本人指示：優先度2】今どのルール（正解数/早押し/
+             ポイントバトル）で遊んでいるか一目で分かるよう、ルール名バッジを追加した。
+             同じ行に収まる限りは1行のまま、375px等の狭い幅ではflex-wrapで
+             自然に2段（タイトル行／進捗行）へ折り返す。新しい行・新しい高さを
+             専用に確保しないことで、縦スペースの消費を最小限に抑えている。 -->
         <div class="online-lyrics-battle-compact-heading">
           <h2>歌詞クイズ対戦</h2>
+          <p class="online-lyrics-battle-rule-badge" id="online-lyrics-battle-rule-badge"></p>
           <p class="online-lyrics-battle-progress" id="online-lyrics-battle-progress"></p>
         </div>
 

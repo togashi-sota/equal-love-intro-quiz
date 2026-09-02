@@ -61,6 +61,7 @@ import { promptResultGoHome } from "./onlineBattleResultHomePrompt.js";
 import { promptAnswerConfirm } from "./answerConfirmPrompt.js";
 import { validateRoomSettings, getAvailabilityKind, resolveAllEligibleSongIdsForMode } from "./battleModes/index.js";
 import * as lyricsQuizBattleMode from "./battleModes/lyricsQuizBattleMode.js";
+import { getBattleRuleLabel } from "./battleRules/index.js";
 import {
   SKIP_SELECTION,
   MAX_HINT_LEVEL,
@@ -2206,6 +2207,11 @@ function renderCurrentQuestionState() {
   }
 
   elements.battleProgress.textContent = `第${qIndex + 1}問 / 全${currentQuestions.length}問`;
+  // 【2026-11-XX新設・本人指示：優先度2】今どのルール（正解数/早押し/ポイントバトル）で
+  // 遊んでいるか一目で分かるバッジ。ルールは試合中に変わらないため軽量な更新で十分。
+  if (elements.battleRuleBadge) {
+    elements.battleRuleBadge.textContent = getBattleRuleLabel(latestRoom.settings.battleRuleId);
+  }
 
   const isResolved = match.questionStatus === "resolved";
   if (isResolved) clearStaleFailureNoticeOnResolve();

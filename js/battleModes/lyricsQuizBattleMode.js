@@ -63,7 +63,10 @@ import { SKIP_SELECTION, MAX_HINT_LEVEL, IDLE_RESCUE_THRESHOLD_MS } from "../bat
 export { SKIP_SELECTION, MAX_HINT_LEVEL, IDLE_RESCUE_THRESHOLD_MS };
 
 export const gameMode = "lyricsQuiz";
-export const label = "歌詞クイズ";
+// 【2026-11-XX修正・本人指示：二重確認レビューで発見】ロビーのモード選択（index.html）は
+// 「歌詞クイズ対戦」と表示しているため、getModeLabel()経由の表示もそれに合わせる
+// （timeAttackBattleMode.jsの同じ修正と同じ理由）。
+export const label = "歌詞クイズ対戦";
 export const description = "歌詞のヒントから曲を当てます";
 // 音源再生を伴わないモードのため、既存の"intro"/"randomPosition"とは別の識別子にする。
 // js/main.jsのrenderQuestion()が将来この値を見て、歌詞クイズ専用画面へ振り分ける想定

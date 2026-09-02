@@ -20,7 +20,10 @@ import { AUDIO_METADATA } from "../data/audioMetadata.js";
 import { SONGS } from "../data/songs.js";
 
 export const gameMode = "randomPlayback";
-export const label = "ランダム再生クイズ";
+// 【2026-11-XX修正・本人指示：二重確認レビューで発見】ロビーのモード選択（index.html）は
+// 「ランダム再生対戦」と表示しているため、getModeLabel()経由の表示（現在のモード見出し・
+// 待機/観戦画面）もそれに合わせる（timeAttackBattleMode.jsの同じ修正と同じ理由）。
+export const label = "ランダム再生対戦";
 export const description = "曲の途中から5秒間流れる音を聴いて当てます";
 export const playbackType = "randomPosition";
 

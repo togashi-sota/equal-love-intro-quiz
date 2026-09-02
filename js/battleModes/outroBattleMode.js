@@ -24,7 +24,10 @@ import { AUDIO_METADATA } from "../data/audioMetadata.js";
 import { SONGS } from "../data/songs.js";
 
 export const gameMode = "outroQuiz";
-export const label = "アウトロクイズ";
+// 【2026-11-XX修正・本人指示：二重確認レビューで発見】ロビーのモード選択（index.html）は
+// 「アウトロ対戦」と表示しているため、getModeLabel()経由の表示もそれに合わせる
+// （timeAttackBattleMode.jsの同じ修正と同じ理由）。
+export const label = "アウトロ対戦";
 export const description = "曲の最後5秒を聴いて当てます";
 export const playbackType = "outroPosition";
 
