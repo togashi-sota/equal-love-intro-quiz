@@ -189,4 +189,88 @@ export function runOnlineBattleMatchConfirmationPayloadsTests() {
       "3人中1人が切断中：残り2人が戻り終えていれば、切断中の1人を待たずに戻り終えたと判定する"
     );
   }
+
+  // ---- N人（2/3/5/10人）：「最後の1人」が揃った瞬間だけtrueになることの確認 ----
+  // 【2026-10-01新設・本人指示：オンライン対戦の同期回帰の緊急調査】本人指示により、
+  // 実機2台では確認できない最大10人までの人数でも、「最後の1人が条件を満たすまでは
+  // 絶対にfalseのまま」「最後の1人が満たした瞬間だけtrueになる」ことを、恒久テストで
+  // 確認する（最大人数10人はjs/onlineBattle.jsのDEFAULT_MAX_SPECTATORS等ではなく、
+  // 部屋のmaxPlayers設定の実運用上の上限に合わせた値）。
+  {
+    const buildNPlayers = (count, fieldName, { allTrueExceptLast = false } = {}) => {
+      const players = {};
+      for (let i = 0; i < count; i += 1) {
+        const isLast = i === count - 1;
+        players[`p${i}`] = { [fieldName]: allTrueExceptLast ? !isLast : false };
+      }
+      return players;
+    };
+
+    [2, 3, 5, 10].forEach((n) => {
+      // computeAllPlayersConfirmed：最後の1人以外は全員ruleConfirmed:true
+      const almostConfirmed = buildNPlayers(n, "ruleConfirmed", { allTrueExceptLast: true });
+      assertEqual(
+        computeAllPlayersConfirmed(almostConfirmed),
+        false,
+        `${n}人：最後の1人だけruleConfirmedが揃っていない間はfalseのまま`
+      );
+      const lastKey = `p${n - 1}`;
+      const fullyConfirmed = { ...almostConfirmed, [lastKey]: { ruleConfirmed: true } };
+      assertEqual(
+        computeAllPlayersConfirmed(fullyConfirmed),
+        true,
+        `${n}人：最後の1人がruleConfirmed:trueになった瞬間にtrueへ変わる`
+      );
+
+      // computeAllPlayersRematchReady：同じ形の検証
+      const almostRematchReady = buildNPlayers(n, "rematchReady", { allTrueExceptLast: true });
+      assertEqual(
+        computeAllPlayersRematchReady(almostRematchReady),
+        false,
+        `${n}人：最後の1人だけrematchReadyが揃っていない間はfalseのまま`
+      );
+      const fullyRematchReady = { ...almostRematchReady, [lastKey]: { rematchReady: true } };
+      assertEqual(
+        computeAllPlayersRematchReady(fullyRematchReady),
+        true,
+        `${n}人：最後の1人がrematchReady:trueになった瞬間にtrueへ変わる`
+      );
+
+      // computeAllPlayersResultReturned：同じ形の検証（connected:trueを明示し、
+      // 切断中の除外ロジックに引っかからないようにする）
+      const almostReturned = {};
+      for (let i = 0; i < n; i += 1) {
+        almostReturned[`p${i}`] = { resultReturned: i !== n - 1, connected: true };
+      }
+      assertEqual(
+        computeAllPlayersResultReturned(almostReturned),
+        false,
+        `${n}人：最後の1人だけresultReturnedが揃っていない間はfalseのまま`
+      );
+      const fullyReturned = { ...almostReturned, [lastKey]: { resultReturned: true, connected: true } };
+      assertEqual(
+        computeAllPlayersResultReturned(fullyReturned),
+        true,
+        `${n}人：最後の1人がresultReturned:trueになった瞬間にtrueへ変わる`
+      );
+    });
+
+    // 【10人・複数人が同時に切断中】切断中の人数が複数でも、残りの接続中メンバーだけで
+    // 正しく判定できることを確認する（本人指示：最大10人ではタイミング差が出やすいため）。
+    {
+      const players = {};
+      for (let i = 0; i < 10; i += 1) {
+        const isDisconnected = i < 3; // 先頭3人が切断中
+        players[`p${i}`] = {
+          resultReturned: isDisconnected ? false : true,
+          connected: !isDisconnected,
+        };
+      }
+      assertEqual(
+        computeAllPlayersResultReturned(players),
+        true,
+        "10人中3人が切断中：残り7人全員が戻り終えていれば、切断中の3人を待たずに戻り終えたと判定する"
+      );
+    }
+  }
 }

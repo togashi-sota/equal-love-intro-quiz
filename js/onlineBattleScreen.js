@@ -105,6 +105,12 @@ import {
   hasRespondedToCurrentResultScreen,
   RESULT_SCREEN_NAMES,
 } from "./onlineBattleResultReturnState.js";
+import {
+  ONLINE_BATTLE_TRANSITION_ACTION,
+  ONLINE_BATTLE_RESULT_KIND,
+  resolveOnlineBattleStatusTransition,
+  isCountdownCompletionStillValid,
+} from "./onlineBattleStatusTransitionPayloads.js";
 import { buildSelectorUidsBySongId } from "./onlineBattleCollaborativeSelectionPayloads.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
 import { getMemberById } from "./memberUtils.js";
@@ -238,6 +244,33 @@ let suppressNextReadyChangeNotice = false; // 自分でREADYボタンを押し�
 let lastKnownSettingsRevision = null;
 let countdownTimerId = null; // カウントダウン表示の更新タイマー（setInterval）
 let countdownOffsetUnsubscribe = null; // .info/serverTimeOffsetの購読解除
+// 【2026-10-01新設・本人指示：オンライン対戦の同期回帰の緊急調査】.info/serverTimeOffset
+// （自分の時計とサーバー時計のズレ）を、ロビーに入った時点から継続して購読しておく値。
+// 以前はgoToCountdownScreen()がカウントダウン開始の瞬間に初めて購読を始めており、
+// Firebaseから最初の値が届くまでの間（初回tickの一瞬）は暫定的にオフセット0（＝自分の
+// 時計をそのまま信用する）で計算していた。通信環境が悪い端末では、この「最初の値が届く
+// までの間」自体が実機で数百ms〜数秒に伸びる可能性があり、カウントダウンが0になる
+// タイミングが端末ごとにズレる一因になりうる（本人指示：ホスト/ゲストで対戦開始直後の
+// 画面遷移が数秒ずれる不具合の調査）。ロビー入室時点から購読を始めておけば、
+// カウントダウン開始時点で既に最新のオフセット値が分かっているため、この「最初の値待ち」の
+// 空白を無くせる。
+let cachedServerTimeOffset = 0;
+let persistentOffsetUnsubscribe = null;
+function ensureServerTimeOffsetWarm() {
+  if (persistentOffsetUnsubscribe) return;
+  persistentOffsetUnsubscribe = subscribeServerTimeOffset((offset) => {
+    cachedServerTimeOffset = offset;
+  });
+}
+
+// 【2026-10-01新設・本人指示：対戦モード常時表示化】対戦モード選択を折りたたみから常時
+// 表示へ変更したことに伴い、renderLobby()がroom更新のたびに（他プレイヤーのpresence更新等、
+// モード変更と無関係な理由でも）呼ばれる中で、ホストが「まだ確定していない候補」を選んでいる
+// 最中にラジオを勝手に今のモードへ戻してしまわないためのガード。this自体は
+// updateRoomGameMode()の書き込みが実際にroom.gameModeへ反映されるまでの間だけ立てておく
+// フラグで、書き込みが反映された（＝room.gameModeが変わった）ら自動的に解除される。
+let modeChangeHasPendingSelection = false;
+let lastSyncedRoomGameModeForModeChange = null;
 let hasFinishedCountdownLocally = false; // 自分の端末のカウントダウンが0になったことを表す
 let currentGameMode = null; // 今のルームのgameMode（設定変更ハンドラ等、room引数を持たない箇所から参照する）
 // 【2026-08-30新設、本人指示】ホスト自動移譲の「一定時間」を判定するための状態。
@@ -1408,9 +1441,14 @@ function goToCountdownScreen(room) {
   const isHost = room.host === myUid;
   const targetServerTime = room.countdownStartedAt + COUNTDOWN_DURATION_MS;
 
-  let serverTimeOffset = 0;
+  // 【2026-10-01改訂・本人指示：オンライン対戦の同期回帰の緊急調査】初期値を0固定ではなく、
+  // ロビー入室時点から継続購読しているcachedServerTimeOffset（ensureServerTimeOffsetWarm()
+  // 参照）から始める。カウントダウン中も継続してこの専用の購読で最新値へ更新し続ける
+  // （countdownOffsetUnsubscribeで個別に解除できる、という既存の設計はそのまま維持）。
+  let serverTimeOffset = cachedServerTimeOffset;
   countdownOffsetUnsubscribe = subscribeServerTimeOffset((offset) => {
     serverTimeOffset = offset;
+    cachedServerTimeOffset = offset;
   });
 
   // カウントダウン音（2026-08-10新設）。100msごとのポーリングそのものではなく、
@@ -1440,7 +1478,27 @@ function goToCountdownScreen(room) {
         // 「START!」の表示を一瞬でも目に見えるようにしてから次の画面へ進む
         // （即座に画面遷移すると、ブラウザが再描画する前に切り替わってしまい、
         // 「START!」の文字がほぼ見えないまま終わってしまうため）。
-        setTimeout(() => enterOnlineBattlePlay(room), 500);
+        // 【2026-10-01追加・本人指示：オンライン対戦の同期回帰の緊急調査】この0.5秒の間に、
+        // 万一別の部屋へ移動した・試合が無効化されて新しいactiveMatchIdへ進んだ等、
+        // 状況が変わっていた場合に備え、発火直前に「今も同じ部屋・同じ試合を指しているか」を
+        // 確認する（js/onlineInstantBattleScreen.jsのhandlePlaybackFailure()で見つかった
+        // matchIdの古さチェックと同じ考え方）。古くなっていれば何もしない
+        // （renderLobby()側の別のroom更新が、その時点の正しい画面へ既に進めているはず）。
+        const capturedRoomId = room.roomId;
+        const capturedActiveMatchId = room.activeMatchId;
+        setTimeout(() => {
+          if (
+            !isCountdownCompletionStillValid({
+              capturedRoomId,
+              capturedActiveMatchId,
+              currentRoomId,
+              latestActiveMatchId: latestRoom?.activeMatchId ?? null,
+            })
+          ) {
+            return;
+          }
+          enterOnlineBattlePlay(room);
+        }, 500);
       }
       return;
     }
@@ -1747,14 +1805,35 @@ function renderLobby(room) {
     elements.lobbyPlayerList.appendChild(row);
   });
 
-  // 【2026-08-30新設、本人指示】ホスト専用のモード変更UIは、待機中だけ表示する
+  // 【2026-08-30新設→2026-10-01改訂・本人指示】対戦モード選択は、待機中だけ表示する
   // （試合中はFirebase Rules側でも書き込みを拒否するため、UI側でも先に隠しておく）。
-  elements.lobbyModeChange.hidden = !isHost || room.status !== ROOM_STATUS.WAITING;
+  // 常時表示化に伴い、ホスト・参加者どちらにも見えるようにした（参加者側はラジオを
+  // disabledにして読み取り専用にし、今のモードとの同期だけを受け取る）。
+  elements.lobbyModeChange.hidden = room.status !== ROOM_STATUS.WAITING;
   if (!elements.lobbyModeChange.hidden) {
-    const modeRadio = document.querySelector(
-      `input[name="online-battle-lobby-mode-change-select"][value="${room.gameMode}"]`
-    );
-    if (modeRadio) modeRadio.checked = true;
+    // 【本人指示：候補選択中にラジオが勝手に戻るチラつきを防ぐ】ホストがまだ確定させて
+    // いない候補を選んでいる間（modeChangeHasPendingSelection===true）は、room.gameMode
+    // 自体が実際にはまだ変わっていない（＝自分の書き込みがまだ反映されていない）限り、
+    // このroom更新による再同期をスキップする。room.gameModeが実際に変わった（自分の
+        // 書き込みが反映された、または他の要因でモードが変わった）ら、通常どおり同期する。
+    const gameModeActuallyChanged = room.gameMode !== lastSyncedRoomGameModeForModeChange;
+    const shouldSkipResync = isHost && modeChangeHasPendingSelection && !gameModeActuallyChanged;
+    if (!shouldSkipResync) {
+      const modeRadios = document.querySelectorAll('input[name="online-battle-lobby-mode-change-select"]');
+      modeRadios.forEach((radio) => {
+        radio.checked = radio.value === room.gameMode;
+        radio.disabled = !isHost;
+      });
+      if (elements.lobbyModeChangeConfirmButton) {
+        elements.lobbyModeChangeConfirmButton.hidden = !isHost;
+        // 再描画のたびに選択肢を今のモードへ同期し直すため、確認ボタンも一旦「今の
+        // モードのまま＝押せない」状態へ戻す（本人指示どおりの確認前コミット方式：
+        // 候補を選び直すたびにchangeリスナー側が改めて有効化する）。
+        elements.lobbyModeChangeConfirmButton.disabled = true;
+      }
+      modeChangeHasPendingSelection = false;
+      lastSyncedRoomGameModeForModeChange = room.gameMode;
+    }
   }
 
   elements.lobbyPlayerCount.textContent = `${playerList.length}人 / 最大${room.maxPlayers}人`;
@@ -1914,83 +1993,78 @@ function renderLobby(room) {
   // カウントダウンを自分の端末で見ている最中は、statusのplayingへの変化を無視する
   // （goToCountdownScreen()側のローカルタイマーが、開始確認画面への遷移を担当するため。
   // 上のコメント参照：通信環境の差でタイミングがずれるのを防ぐ設計）。
-  if (statusJustChanged) {
-    if (room.status === ROOM_STATUS.COUNTDOWN) {
+  // 【2026-10-01改訂・本人指示：オンライン対戦の同期回帰の緊急調査】「状態が変わった瞬間、
+  // 次にどの画面へ進むべきか」の判定そのものは、Firebase書き込み・DOM操作を一切伴わない
+  // 純粋関数resolveOnlineBattleStatusTransition()（js/onlineBattleStatusTransitionPayloads.js）
+  // へ切り出した。判定内容自体は以前のif/elseと完全に同じで、動きは変えていない
+  // （本人指示：ホスト・ゲストが同じroomスナップショットに対して必ず同じ行動を取ることを、
+  // この関数の型そのもの＝isHostという引数を持たないことで保証し、恒久テストで検証できる
+  // 形にする）。
+  const transition = resolveOnlineBattleStatusTransition({
+    statusJustChanged,
+    previousStatus,
+    roomStatus: room.status,
+    hasVoluntarilyLeftActiveMatch: hasVoluntarilyLeftMatch(room.activeMatchId),
+    isActiveMatchInvalidated: isMatchInvalidated({ match: room.matches?.[room.activeMatchId] }),
+    isReturnedToLobby,
+    currentScreenIsQuiz: document.body.dataset.screen === "quiz",
+    currentScreenIsResultScreen: RESULT_SCREEN_NAMES.has(document.body.dataset.screen),
+    hasRespondedToCurrentResultScreen: hasRespondedToCurrentResultScreen(),
+    isLyricsQuiz,
+    isInstantBattle,
+    isInstantCoop,
+  });
+
+  switch (transition.action) {
+    case ONLINE_BATTLE_TRANSITION_ACTION.ENTER_COUNTDOWN:
       goToCountdownScreen(room);
-    } else if (
-      room.status === ROOM_STATUS.PLAYING &&
-      previousStatus !== ROOM_STATUS.COUNTDOWN &&
-      !hasVoluntarilyLeftMatch(room.activeMatchId) &&
-      !isMatchInvalidated({ match: room.matches?.[room.activeMatchId] })
-    ) {
+      break;
+    case ONLINE_BATTLE_TRANSITION_ACTION.ENTER_PLAY:
       // カウントダウンを経由せずplayingを検知した＝出遅れて参加/再接続した端末。
       // 自分のローカルカウントダウンは持っていないので、直接出題を開始する。
-      // 【2026-09-14追加・本人指示：対戦中のゲストが自分だけ途中離脱する】この試合を
-      // 自分の意思で既に途中離脱している場合は、room.statusが"playing"のままでも
-      // 対戦画面へ自動的に戻さない（本人指示：自動同期で対戦画面へ呼び戻さない）。
-      // 【本人指示：「音が出ない」救済ボタン第2段階の再設計（試合全体無効化）】
-      // hasVoluntarilyLeftMatch()はこの端末のメモリ上だけの状態（リロードで消える）のため、
-      // 誰かの音源トラブル申告で試合全体が無効になった直後にページを再読み込みした場合の
-      // 再入場を防げない。matchInvalidatedはFirebase側のwrite-onceフラグ（サーバー側の
-      // 確定情報）で、しかも申告した本人だけでなく参加者全員に等しく適用されるべきため、
-      // ここではroomから直接読んで判定する（誰がリロードしても、対戦画面へ戻さずに済む）。
       enterOnlineBattlePlay(room);
-    } else if (room.status === ROOM_STATUS.RESULT && document.body.dataset.screen !== "quiz") {
-      // 結果確定を検知したら結果画面へ進む。ただし、自分がまだクイズ回答中（quiz画面）の
-      // ときは絶対に割り込まない（本人の要望：各自が自分のペースで最後まで進められること。
-      // 自分が終わった後は待機画面のupdateOnlineBattlePlayUi()側でも同じ検知を行っており、
-      // ここは主に「結果確定後に新しく再接続した」場合の受け皿になる）。
-      if (isLyricsQuiz) {
+      break;
+    case ONLINE_BATTLE_TRANSITION_ACTION.ENTER_RESULT:
+      // 結果確定を検知したら結果画面へ進む（自分がまだクイズ回答中のときは
+      // resolveOnlineBattleStatusTransition()側で既に除外済み）。
+      if (transition.resultKind === ONLINE_BATTLE_RESULT_KIND.LYRICS_QUIZ) {
         enterLyricsQuizResult(room);
-      } else if (isInstantBattle) {
+      } else if (transition.resultKind === ONLINE_BATTLE_RESULT_KIND.INSTANT_BATTLE) {
         enterInstantBattleResult(room);
-      } else if (isInstantCoop) {
+      } else if (transition.resultKind === ONLINE_BATTLE_RESULT_KIND.INSTANT_COOP) {
         enterInstantCoopResult(room);
       } else {
         goToResultScreen(room);
       }
-    } else if (isReturnedToLobby) {
-      // 【2026-09-30改訂・本人指示：オンライン対戦総合改修 第2ラウンド23-24章】自分自身が
-      // 今まさに結果画面を見ていて、まだ自分の意思表示（ルーム設定に戻る）をしていない
-      // 場合は、この自動遷移を行わない（本人指示：他人の結果画面を勝手に閉じない）。
-      // 【この分岐に実際にはほぼ来ない設計になった理由】room.statusがresult→waitingへ
-      // 戻るのは、js/onlineBattle.jsのmaybeFinalizeReturnToLobbyIfAllReturned()が
-      // 「切断中を除く全員のresultReturned」を確認できた後だけ（returnRoomToLobby()参照）。
-      // つまり自分がまだ結果画面で応答していなければ、原理的にこの分岐自体に到達しない
-      // はずだが、対戦中断・音源トラブルによる試合全体無効化等、他の経路からisReturnedToLobbyが
-      // trueになるケース（結果画面より前の状態から直接waitingへ戻るケース）もあるため、
-      // 保険として同じガードを掛けておく。
-      if (RESULT_SCREEN_NAMES.has(document.body.dataset.screen) && !hasRespondedToCurrentResultScreen()) {
-        // 何もしない（renderLobby()自体はこの後も最後まで実行を続ける。updateOnlineBattlePlayUi()等、
-        // 下の処理を巻き込んでスキップしないよう、ここでreturnはしない）。
-      } else {
-        // ホストが「もう一度」以外の操作（ルーム設定に戻る／対戦中断／音源トラブルによる
-        // 試合全体無効化）を選んだ→全端末（ホスト含む）を自動的にロビーへ戻す。前回の試合に
-        // 関するローカル状態（progress/results監視の元になるcurrentMatchId、カウントダウン
-        // タイマー、進捗ストリップ、歌詞クイズ・一瞬協力それぞれの進行状態）を確実に後片付けして
-        // から遷移する（本人の要望：次の試合を始めたときに前回の画面・データが
-        // 混ざらないこと。対戦の途中で呼ばれた場合も同じ後片付けで安全に戻せる）。
-        resetOnlineBattleMatchState();
-        resetLyricsQuizBattleState();
-        elements.navigateTo("onlineBattleLobby");
-        // 【本人指示：「音が出ない」救済ボタン第2段階の再設計（試合全体無効化）】ホスト・
-        // ゲストを問わず、全参加者に「なぜこの試合が無効になり、ロビーへ戻ったのか」が
-        // ひと目で分かる専用の通知を出す（本人指示：理由が明確に伝わる通知を表示すること）。
-        // 【2026-09-26修正・本人指示：オンライン対戦総合改修19-4章】以前はここで
-        // wasMatchInvalidatedOnReturnがtrueのときにhidden=falseへ切り替えるだけで、falseの
-        // ときに明示的にhidden=trueへ戻す処理が無かった。この通知を非表示に戻す唯一の
-        // 場所がgoToLobby()（ルームへ新規入場したときだけ呼ばれる）だったため、一度表示
-        // されると、同じルーム内でその後どれだけ新しい試合を始めても（＝isReturnedToLobbyを
-        // 経由するたびにこの分岐へ来ても）非表示に戻る機会が無く、ずっと画面に残り続けて
-        // いた（本人からの実機報告：「一度起きたらそのルーム中ずっと赤い警告が残る」）。
-        // ロビーへ戻るたびに、今回の試合が無効化によるものかどうかで毎回表示を決め直す
-        // ことで、「次の試合に移った段階で前試合の無効理由が分かる程度」に留め、それ以降の
-        // 試合には持ち越さないようにする。
-        if (elements.lobbyMatchInvalidatedNotice) {
-          elements.lobbyMatchInvalidatedNotice.hidden = !wasMatchInvalidatedOnReturn;
-        }
+      break;
+    case ONLINE_BATTLE_TRANSITION_ACTION.WAIT_FOR_RESULT_RESPONSE:
+      // 自分自身が今まさに結果画面を見ていて、まだ自分の意思表示（ルーム設定に戻る／
+      // もう一度の準備をする）をしていない場合は、この自動遷移を行わない（本人指示：
+      // 他人の結果画面を勝手に閉じない）。renderLobby()自体はこの後も最後まで実行を
+      // 続ける（updateOnlineBattlePlayUi()等、下の処理を巻き込んでスキップしない）。
+      break;
+    case ONLINE_BATTLE_TRANSITION_ACTION.RETURN_TO_LOBBY:
+      // ホストが「もう一度」以外の操作（ルーム設定に戻る／対戦中断／音源トラブルによる
+      // 試合全体無効化）を選んだ→全端末（ホスト含む）を自動的にロビーへ戻す。前回の試合に
+      // 関するローカル状態（progress/results監視の元になるcurrentMatchId、カウントダウン
+      // タイマー、進捗ストリップ、歌詞クイズ・一瞬協力それぞれの進行状態）を確実に後片付けして
+      // から遷移する（本人の要望：次の試合を始めたときに前回の画面・データが
+      // 混ざらないこと。対戦の途中で呼ばれた場合も同じ後片付けで安全に戻せる）。
+      resetOnlineBattleMatchState();
+      resetLyricsQuizBattleState();
+      elements.navigateTo("onlineBattleLobby");
+      // 【本人指示：「音が出ない」救済ボタン第2段階の再設計（試合全体無効化）】ホスト・
+      // ゲストを問わず、全参加者に「なぜこの試合が無効になり、ロビーへ戻ったのか」が
+      // ひと目で分かる専用の通知を出す（本人指示：理由が明確に伝わる通知を表示すること）。
+      // ロビーへ戻るたびに、今回の試合が無効化によるものかどうかで毎回表示を決め直す
+      // ことで、「次の試合に移った段階で前試合の無効理由が分かる程度」に留め、それ以降の
+      // 試合には持ち越さないようにする。
+      if (elements.lobbyMatchInvalidatedNotice) {
+        elements.lobbyMatchInvalidatedNotice.hidden = !wasMatchInvalidatedOnReturn;
       }
-    }
+      break;
+    default:
+      break;
   }
 
   updateOnlineBattlePlayUi(room);
@@ -2094,6 +2168,13 @@ function goToLobby(roomId) {
   unsubscribeRoom = listenToRoom(roomId, renderLobby);
   elements.navigateTo("onlineBattleLobby");
   reportMyAvailableSongIdsForRoom(roomId);
+  // 【2026-10-01新設・本人指示：オンライン対戦の同期回帰の緊急調査】カウントダウンが
+  // 始まる前（ロビー滞在中）からサーバー時計とのズレを購読しておく（上のコメント参照）。
+  ensureServerTimeOffsetWarm();
+  // 【2026-10-01新設・本人指示：対戦モード常時表示化】前のルームでの候補選択待ち状態を、
+  // 新しいルームへ持ち越さない。
+  modeChangeHasPendingSelection = false;
+  lastSyncedRoomGameModeForModeChange = null;
 }
 
 // 【2026-08-30新設、本人指示：観戦機能】試合中のルームコードを入力した人を、観戦画面へ導く。
@@ -2999,12 +3080,23 @@ export function initOnlineBattleScreens(newElements) {
     elements.navigateTo("onlineBattleEntry");
   });
 
-  // 【2026-08-30新設、本人指示】ホスト専用：対戦モードそのものの変更。
-  // 押すたびに選択肢の折りたたみを開閉するだけの単純なトグル。
-  elements.lobbyModeChangeToggle.addEventListener("click", () => {
-    // モード変更フォームの開閉トグル操作音
-    playSfx(SFX_EVENTS.UI_CLICK);
-    elements.lobbyModeChangeFieldset.hidden = !elements.lobbyModeChangeFieldset.hidden;
+  // 【2026-08-30新設→2026-10-01改訂・本人指示：オンライン対戦の同期回帰の緊急調査】
+  // ホスト専用：対戦モードそのものの変更。以前は折りたたみの開閉トグルだったが、
+  // 対戦設定の最上段に常時表示する形へ変更したため、開閉操作自体が無くなった。
+  // 代わりに、候補ラジオを選び直すたびに「今のモードと同じなら押せない・違えば押せる」
+  // 状態へ更新する（本人指示どおりの確認前コミット方式：誤タップでの即切り替えを防ぐ）。
+  document.querySelectorAll('input[name="online-battle-lobby-mode-change-select"]').forEach((radio) => {
+    radio.addEventListener("change", () => {
+      if (!elements.lobbyModeChangeConfirmButton) return;
+      // モード変更・候補選択操作音
+      playSfx(SFX_EVENTS.UI_CLICK);
+      const isDifferentFromCurrent = radio.value !== currentGameMode;
+      elements.lobbyModeChangeConfirmButton.disabled = !isDifferentFromCurrent;
+      // 候補が今のモードと違う間は「確定待ちの候補がある」として覚えておき、renderLobby()側の
+      // 再同期（room更新のたびに毎回走る）でこの選択が勝手に戻らないようにする
+      // （上のmodeChangeHasPendingSelectionの説明コメント参照）。
+      modeChangeHasPendingSelection = isDifferentFromCurrent;
+    });
   });
   elements.lobbyModeChangeConfirmButton.addEventListener("click", async () => {
     if (!currentRoomId) return;
@@ -3012,13 +3104,13 @@ export function initOnlineBattleScreens(newElements) {
     if (!selected) return;
     elements.lobbyModeChangeConfirmButton.disabled = true;
     const result = await updateRoomGameMode({ roomId: currentRoomId, gameMode: selected.value });
-    elements.lobbyModeChangeConfirmButton.disabled = false;
     if (result.ok) {
       playSfx(SFX_EVENTS.UI_CONFIRM);
-      elements.lobbyModeChangeFieldset.hidden = true;
+    } else {
+      // 失敗時（通信エラー等）だけボタンを再度押せる状態に戻す。成功時はrenderLobby()の
+      // 次のroom更新が「候補＝今のモード」の状態を再同期し、その中で改めてdisabledへ戻す。
+      elements.lobbyModeChangeConfirmButton.disabled = false;
     }
-    // 失敗時（通信エラー等）も、renderLobby()が次のroom更新で今の実際のgameModeを
-    // 表示し直すため、ここで個別のエラー文言は出さない（他の設定変更と同じ簡潔さを優先）。
   });
 
   // 【2026-08-30新設、本人指示】ホスト専用：ロビーの参加者行に添えた「キック」「ホストを渡す」

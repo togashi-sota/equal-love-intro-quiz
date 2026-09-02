@@ -62,6 +62,16 @@ let resultElements = null;
 
 export function initTimeAttackScreen(newElements) {
   elements = newElements;
+  // 【2026-10-01追加・本人指示：実機テストで発覚、出題数・カテゴリ・ルール・出題タイプの
+  // ラジオボタンが無音だった】既存のオンライン対戦側と同じ、変更のたびにUI_CLICK効果音を
+  // 鳴らす操作音を追加する。
+  document
+    .querySelectorAll(
+      'input[name="time-attack-question-count"], input[name="time-attack-category-filter"], input[name="time-attack-rule"], input[name="time-attack-variant"]'
+    )
+    .forEach((radio) => {
+      radio.addEventListener("change", () => playSfx(SFX_EVENTS.UI_CLICK));
+    });
   elements.startButton.addEventListener("click", () => {
     // 【2026-09-15追加・本人指示：アプリ起動後最初の第1問だけ無音になるバグ対策】
     // オンライン対戦では既に「開始する」系ボタンの先頭でattemptSilentUnlock()を

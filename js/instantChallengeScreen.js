@@ -27,6 +27,7 @@ import { MIN_SONGS_REQUIRED } from "./quiz.js";
 // モードと同じ効果音で統一する。以前はこのモードだけSFXの呼び出しが1件もなく、
 // 完全に無音だった（本人指示の監査で発覚）。
 import { playCorrectSound, playWrongSound } from "./sfx.js";
+import { SFX_EVENTS, playSfx } from "./soundManager.js";
 import { filterSongsWithImportedAudio } from "./audioStorage.js";
 import { SONGS } from "./data/songs.js";
 import {
@@ -122,6 +123,16 @@ let practiceModeId = null;
 // elements: { startButton, startError, onStart }
 export function initInstantChallengeSetupScreen(newElements) {
   elements = newElements;
+  // 【2026-10-01追加・本人指示：実機テストで発覚、出題数・カテゴリ・再生時間・回答候補数の
+  // ラジオボタンが無音だった】既存のオンライン対戦側と同じ、変更のたびにUI_CLICK効果音を
+  // 鳴らす操作音を追加する。
+  document
+    .querySelectorAll(
+      'input[name="instant-challenge-question-count"], input[name="instant-challenge-category-filter"], input[name="instant-challenge-play-duration"], input[name="instant-challenge-answer-pool-size"]'
+    )
+    .forEach((radio) => {
+      radio.addEventListener("change", () => playSfx(SFX_EVENTS.UI_CLICK));
+    });
   elements.startButton.addEventListener("click", handleStartButtonClick);
 }
 

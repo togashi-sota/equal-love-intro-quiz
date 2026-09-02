@@ -696,6 +696,15 @@ export function initCustomQuizScreen(newElements) {
   elements = newElements;
   renderGroups();
 
+  // 【2026-10-01追加・本人指示：実機テストで発覚、出題形式・回答候補数・再生時間の
+  // ラジオボタンが無音だった】既存のオンライン対戦側と同じ、変更のたびにUI_CLICK効果音を
+  // 鳴らす操作音を追加する。
+  document
+    .querySelectorAll(
+      'input[name="custom-quiz-distractor-mode"], input[name="custom-quiz-answer-pool-size"], input[name="custom-quiz-instant-play-duration"], input[name="custom-quiz-instant-answer-pool-size"]'
+    )
+    .forEach((radio) => radio.addEventListener("change", () => playSfx(SFX_EVENTS.UI_CLICK)));
+
   // 試聴の共通再生処理を、この画面専用の<audio>要素で使えるようにする。
   initAudioPreview(elements.previewAudioElement);
 

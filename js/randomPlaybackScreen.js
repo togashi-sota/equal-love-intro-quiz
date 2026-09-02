@@ -36,6 +36,15 @@ let resultElements = null;
 
 export function initRandomPlaybackScreen(newElements) {
   elements = newElements;
+  // 【2026-10-01追加・本人指示：実機テストで発覚、出題数・カテゴリ・ルールのラジオボタンが
+  // 無音だった】既存のオンライン対戦側と同じ、変更のたびにUI_CLICK効果音を鳴らす操作音を追加する。
+  document
+    .querySelectorAll(
+      'input[name="random-playback-question-count"], input[name="random-playback-category-filter"], input[name="random-playback-rule"]'
+    )
+    .forEach((radio) => {
+      radio.addEventListener("change", () => playSfx(SFX_EVENTS.UI_CLICK));
+    });
   elements.startButton.addEventListener("click", () => {
     // 【2026-09-15追加・本人指示：アプリ起動後最初の第1問だけ無音になるバグ対策】
     attemptSilentUnlock();

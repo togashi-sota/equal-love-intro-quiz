@@ -21,6 +21,7 @@ import {
   validateBattleConfig,
   formatBattleCodeForDisplay,
 } from "./localBattle.js";
+import { SFX_EVENTS, playSfx } from "./soundManager.js";
 
 export const QUESTION_COUNT_LABELS = { "5": "5問", "10": "10問", "20": "20問", "50": "50問", all: "全問" };
 export const CATEGORY_LABELS = { all: "全曲", "title-and-group": "表題＋全員", "title-track": "表題のみ" };
@@ -132,6 +133,16 @@ function updateSetupRuleHint() {
 export function initLocalBattleScreens(newElements) {
   elements = newElements;
 
+  // 【2026-10-01追加・本人指示：実機テストで発覚、出題数・カテゴリ・ルール・ペナルティの
+  // ラジオボタンが無音だった】既存のオンライン対戦側（js/onlineBattleScreen.js）と同じ、
+  // 変更のたびにUI_CLICK効果音を鳴らす操作音を追加する。
+  document
+    .querySelectorAll(
+      'input[name="battle-question-count"], input[name="battle-category-filter"], input[name="battle-rule"], input[name="battle-penalty"]'
+    )
+    .forEach((radio) => {
+      radio.addEventListener("change", () => playSfx(SFX_EVENTS.UI_CLICK));
+    });
   document.querySelectorAll('input[name="battle-rule"], input[name="battle-penalty"]').forEach((radio) => {
     radio.addEventListener("change", updateSetupRuleHint);
   });

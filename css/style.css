@@ -13421,7 +13421,12 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   padding: 4px 2px;
   margin: -4px -2px;
   font: inherit;
-  color: inherit;
+  /* 【2026-10-01修正・実機バグ調査】ここでcolor: inheritを指定すると、同じ要素に付く
+     .online-lobby-player-name側のブランドカラー指定（上記）と詳細度が同点になり、
+     CSSの記述順で後にあるこちらが勝ってしまい、参加者名がピンクではなく本文の黒に
+     近い色で表示されるバグになっていた（実機の色をcomputed styleで確認して特定）。
+     ボタン化のリセットとしてcolorには一切触れないことで、.online-lobby-player-name側の
+     色がそのまま反映されるようにする。 */
   text-align: left;
   cursor: pointer;
   border-radius: 6px;

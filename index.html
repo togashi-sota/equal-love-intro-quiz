@@ -3152,9 +3152,9 @@
 
       <!-- 【2026-09-03改訂、本人指示：大型改修】以前はここで出題形式（対戦モード）を選ばせて
            いたが、「ルーム作成後のロビーを中心画面にする」方針への変更に伴い廃止した。
-           モードは常にDEFAULT_GAME_MODE（イントロ対戦）で作成し、ロビーの「モードを変更する」
-           （既存のupdateRoomGameMode()を使った機能、index.html内online-battle-lobby-mode-change系
-           参照）で自由に選び直せる。 -->
+           モードは常にDEFAULT_GAME_MODE（イントロ対戦）で作成し、ロビーの対戦設定に常時表示
+           される対戦モード選択（既存のupdateRoomGameMode()を使った機能、index.html内
+           online-battle-lobby-mode-change系参照）で自由に選び直せる。 -->
 
       <!-- 【2026-09-02改訂、本人指示：人数拡張】以前は2人／4人の2択ラジオボタンだったが、
            2〜10人から選べるようにした。選択肢が9個に増えるため、ラジオボタンを横に並べると
@@ -3224,13 +3224,27 @@
              #online-battle-lobby-mode-change参照）。 -->
         <p class="online-lobby-game-mode" id="online-battle-lobby-game-mode"></p>
 
-        <!-- 【2026-08-30新設、本人指示】ホスト専用：待機中だけ、対戦モードそのものを
-             変更できるボタン＋選択肢。押すたびに開閉するだけの単純な折りたたみにし、
-             既存のモーダル基盤は使わない（頻繁に開閉する軽い操作のため）。 -->
+        <!-- 2026-08-27新設：参加者全員が実際に利用できる共通曲の数を、必要なときだけ表示する
+             （全員がすべて持っている＝制限が発生していない場合は表示しない）。ホスト・参加者
+             どちらにも常に見える共通の場所に置く（js/onlineBattleScreen.js・
+             js/onlineLyricsQuizBattleScreen.js参照）。 -->
+        <p id="online-battle-common-song-notice" class="battle-common-song-notice" hidden></p>
+
+        <ul class="online-lobby-player-list" id="online-battle-lobby-player-list"></ul>
+
+        <!-- 【2026-08-30新設→2026-10-01改訂・本人指示：オンライン対戦の同期回帰の緊急調査】
+             待機中だけ、対戦モードそのものを変更できる選択肢。以前は「モードを変更する」
+             ボタンで開閉する折りたたみ式だったが、「開閉のたびにチラつく／気づきにくい」
+             という指摘を受け、対戦設定の最上段に常時表示する形へ変更した。ホスト・参加者
+             どちらにも見える（参加者側はラジオをdisabledにして読み取り専用にする、
+             js/onlineBattleScreen.js参照）。実際に切り替える書き込みは、既存の
+             「候補を選ぶ→今のモードと違う場合だけ『このモードに変更する』ボタンが
+             有効になる→押して確定」という確認前コミット方式をそのまま流用する
+             （誤タップでの即切り替え・チラつきを防ぐ、既存のupdateRoomGameMode()を使う）。 -->
         <div id="online-battle-lobby-mode-change" hidden>
-          <button id="online-battle-lobby-mode-change-toggle" class="secondary-button" type="button">モードを変更する</button>
-          <fieldset id="online-battle-lobby-mode-change-fieldset" hidden>
-            <legend>変更後のモード</legend>
+          <p class="battle-field-label">対戦設定</p>
+          <fieldset id="online-battle-lobby-mode-change-fieldset">
+            <legend>対戦モード</legend>
             <div class="option-row">
               <label><input type="radio" name="online-battle-lobby-mode-change-select" value="timeAttack"> イントロ対戦</label>
               <label><input type="radio" name="online-battle-lobby-mode-change-select" value="randomPlayback"> ランダム再生対戦</label>
@@ -3243,16 +3257,9 @@
               <label><input type="radio" name="online-battle-lobby-mode-change-select" value="instantBattle"> 一瞬バトル</label>
               <label><input type="radio" name="online-battle-lobby-mode-change-select" value="instantCoop"> 一瞬協力</label>
             </div>
-            <button id="online-battle-lobby-mode-change-confirm" class="primary-button" type="button">このモードに変更する</button>
+            <button id="online-battle-lobby-mode-change-confirm" class="primary-button" type="button" disabled>このモードに変更する</button>
           </fieldset>
         </div>
-        <!-- 2026-08-27新設：参加者全員が実際に利用できる共通曲の数を、必要なときだけ表示する
-             （全員がすべて持っている＝制限が発生していない場合は表示しない）。ホスト・参加者
-             どちらにも常に見える共通の場所に置く（js/onlineBattleScreen.js・
-             js/onlineLyricsQuizBattleScreen.js参照）。 -->
-        <p id="online-battle-common-song-notice" class="battle-common-song-notice" hidden></p>
-
-        <ul class="online-lobby-player-list" id="online-battle-lobby-player-list"></ul>
 
         <!-- ホスト専用：対戦設定の編集フォーム（#battle-setup-screenと同じラジオ構成）。
              変更するたびにjs/onlineBattleScreen.jsがFirebaseへ書き込み、参加者へ同期する。 -->

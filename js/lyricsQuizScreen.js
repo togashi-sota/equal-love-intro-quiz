@@ -19,6 +19,7 @@ import { QUESTION_SOURCE_TYPE } from "./questionSource.js";
 // モードと同じ効果音（SFX_EVENTS.QUIZ_CORRECT/QUIZ_WRONG）で統一する。以前はこのモードだけ
 // SFXの呼び出しが1件もなく、完全に無音だった（本人指示の監査で発覚）。
 import { playCorrectSound, playWrongSound } from "./sfx.js";
+import { SFX_EVENTS, playSfx } from "./soundManager.js";
 import { recordLyricsQuizWeakSongAttempt } from "./lyricsQuizWeakSongStats.js";
 import { normalizeForSearch, songMatchesSearch } from "./songlist.js";
 import {
@@ -93,6 +94,15 @@ export function initLyricsQuizSetupScreen(newElements) {
   document
     .querySelectorAll('input[name="lyrics-quiz-question-count"], input[name="lyrics-quiz-answer-pool-size"]')
     .forEach((input) => input.addEventListener("change", updateBestChip));
+
+  // 【2026-10-01追加・本人指示：実機テストで発覚、出題数・カテゴリ・回答候補数の
+  // ラジオボタンが無音だった】既存のオンライン対戦側と同じ、変更のたびにUI_CLICK効果音を
+  // 鳴らす操作音を追加する（カテゴリは元々change時の処理自体が無かったため、リスナーごと追加）。
+  document
+    .querySelectorAll(
+      'input[name="lyrics-quiz-question-count"], input[name="lyrics-quiz-category-filter"], input[name="lyrics-quiz-answer-pool-size"]'
+    )
+    .forEach((input) => input.addEventListener("change", () => playSfx(SFX_EVENTS.UI_CLICK)));
 }
 
 function getSelectedSettings() {

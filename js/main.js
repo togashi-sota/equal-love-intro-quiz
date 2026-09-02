@@ -991,10 +991,9 @@ const onlineBattleLobbyRoomCodeElement = document.getElementById("online-battle-
 const onlineBattleLobbyPlayerCountElement = document.getElementById("online-battle-lobby-player-count");
 const onlineBattleLobbyMaxPlayersElement = document.getElementById("online-battle-lobby-max-players");
 const onlineBattleLobbyGameModeElement = document.getElementById("online-battle-lobby-game-mode");
-// 【2026-08-30新設、本人指示】ホスト専用：待機中の対戦モード変更UI。
+// 【2026-08-30新設→2026-10-01改訂・本人指示】待機中の対戦モード変更UI。折りたたみ式から
+// 対戦設定の最上段への常時表示へ変更したため、開閉トグルボタンは廃止した。
 const onlineBattleLobbyModeChangeElement = document.getElementById("online-battle-lobby-mode-change");
-const onlineBattleLobbyModeChangeToggleElement = document.getElementById("online-battle-lobby-mode-change-toggle");
-const onlineBattleLobbyModeChangeFieldsetElement = document.getElementById("online-battle-lobby-mode-change-fieldset");
 const onlineBattleLobbyModeChangeConfirmButtonElement = document.getElementById("online-battle-lobby-mode-change-confirm");
 const onlineBattleLobbyPlayerListElement = document.getElementById("online-battle-lobby-player-list");
 const onlineBattleLobbySettingsHostElement = document.getElementById("online-battle-lobby-settings-host");
@@ -5870,8 +5869,6 @@ initOnlineBattleScreens({
   lobbyMaxPlayersText: onlineBattleLobbyMaxPlayersElement,
   lobbyGameModeText: onlineBattleLobbyGameModeElement,
   lobbyModeChange: onlineBattleLobbyModeChangeElement,
-  lobbyModeChangeToggle: onlineBattleLobbyModeChangeToggleElement,
-  lobbyModeChangeFieldset: onlineBattleLobbyModeChangeFieldsetElement,
   lobbyModeChangeConfirmButton: onlineBattleLobbyModeChangeConfirmButtonElement,
   lobbyPlayerList: onlineBattleLobbyPlayerListElement,
   lobbySettingsHost: onlineBattleLobbySettingsHostElement,
