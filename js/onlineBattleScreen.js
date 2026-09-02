@@ -1815,7 +1815,7 @@ function renderLobby(room) {
     // いない候補を選んでいる間（modeChangeHasPendingSelection===true）は、room.gameMode
     // 自体が実際にはまだ変わっていない（＝自分の書き込みがまだ反映されていない）限り、
     // このroom更新による再同期をスキップする。room.gameModeが実際に変わった（自分の
-        // 書き込みが反映された、または他の要因でモードが変わった）ら、通常どおり同期する。
+    // 書き込みが反映された、または他の要因でモードが変わった）ら、通常どおり同期する。
     const gameModeActuallyChanged = room.gameMode !== lastSyncedRoomGameModeForModeChange;
     const shouldSkipResync = isHost && modeChangeHasPendingSelection && !gameModeActuallyChanged;
     if (!shouldSkipResync) {
