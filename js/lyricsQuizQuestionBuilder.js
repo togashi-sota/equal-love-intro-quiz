@@ -137,9 +137,15 @@ function pickQuestionEntries(entries, count, randomFn) {
 //   hints,              // buildHintSequence()の戻り値（最大4段階、各要素にsegment（text等）を含む）
 //   answerPool,         // generateAnswerPool()の戻り値（正解＋誤答の曲一覧、表示順込み）
 // }[]
+// 【2026-10-01追加・本人指示：正解プールと不正解候補プールの分離】distractorSongPool
+// （曲IDの配列）を省略した場合は今までどおりsongPool自身が回答候補の母集団になる
+// （通常の入り口・苦手曲モード等、既存の呼び出し元は無変更）。オリジナル問題作成モードの
+// 歌詞クイズタイプだけ、songPool（選んだ曲＝正解の出題対象）とは別に、カテゴリー全体を
+// distractorSongPoolとして渡す（js/lyricsQuizScreen.js参照）。
 export function buildLyricsQuizQuestions({
   songsWithLyrics,
   songPool,
+  distractorSongPool = songPool,
   questionCountValue,
   answerPoolSizeValue,
   seed,
@@ -148,7 +154,7 @@ export function buildLyricsQuizQuestions({
   const questionCount = resolveQuestionCount(questionCountValue, quizzable.length);
   const random = createSeededRandom(seed);
   const questionEntries = pickQuestionEntries(quizzable, questionCount, random);
-  const poolSongs = resolveSongObjects(songPool);
+  const poolSongs = resolveSongObjects(distractorSongPool);
 
   const questions = questionEntries.map((entry, questionIndex) => {
     const candidates = generateAnchorLineCandidates(entry.lines, {
@@ -166,16 +172,28 @@ export function buildLyricsQuizQuestions({
     const answerRandom = createAnswerPoolRandom(seed, entry.song.id, questionIndex);
     const answerPool = generateAnswerPool(poolSongs, entry.song.id, answerPoolSizeValue, answerRandom);
 
-    // 【2026-09-26新設・本人指示：サウンドシステム全面整備9章】答え合わせ中に流す楽曲を、
-    // 可能な範囲で「ヒント1」の歌詞が始まる位置から再生するための時間（秒）。
-    // entry.lines（歌詞データ本体、js/lyricsStorage.jsが保存するstart/end秒つきの行データ）と
-    // hints[0].startLine（buildHintSequence()が返す、ヒント1に対応する行番号）を突き合わせて
-    // 求める。歌詞データに秒数が保存されていない曲・ヒントが1つも作れなかった曲では
-    // nullになる（呼び出し側は0秒から再生する等、安全にフォールバックする）。
-    const firstHintLine = hints[0] ? entry.lines.find((line) => line.line === hints[0].startLine) : null;
-    const revealStartTimeSec = typeof firstHintLine?.start === "number" ? firstHintLine.start : null;
+    // 【2026-09-26新設・本人指示：サウンドシステム全面整備9章】
+    // 【2026-10-01改訂・本人指示：回答時点のヒント位置から答え合わせ再生】以前は常に
+    // 「ヒント1」の歌詞位置から答え合わせ楽曲を再生していたが、「本人がどのヒントまで見て
+    // 回答したか」に応じて、その人自身が最後に開いていたヒントの歌詞位置から再生する
+    // 仕様に変更した（js/onlineLyricsQuizBattleScreen.jsが、回答時に保存した
+    // lastRevealedHintLevelを使ってrevealStartTimeSecByHintLevelを引く）。
+    // hints[i].startLineとentry.lines（歌詞データ本体、js/lyricsStorage.jsが保存する
+    // start/end秒つきの行データ）を突き合わせて、レベルごとの開始秒数を求める。
+    // 歌詞データに秒数が保存されていない行は含めない（呼び出し側は0秒から再生する等、
+    // 安全にフォールバックする）。
+    const revealStartTimeSecByHintLevel = {};
+    hints.forEach((hint) => {
+      const hintLine = entry.lines.find((line) => line.line === hint.startLine);
+      if (typeof hintLine?.start === "number") {
+        revealStartTimeSecByHintLevel[hint.hintLevel] = hintLine.start;
+      }
+    });
+    // 後方互換：hints[0]（ヒント1）の位置を、従来どおりrevealStartTimeSecとしても持たせる
+    // （まだヒントを1つも開いていない状態からの回答等、フォールバック用）。
+    const revealStartTimeSec = revealStartTimeSecByHintLevel[1] ?? null;
 
-    return { song: entry.song, hints, answerPool, revealStartTimeSec };
+    return { song: entry.song, hints, answerPool, revealStartTimeSec, revealStartTimeSecByHintLevel };
   });
 
   // 最終防衛ライン（2026-08-07追加）：「正解曲が選択肢に存在しない」不具合の再発防止。

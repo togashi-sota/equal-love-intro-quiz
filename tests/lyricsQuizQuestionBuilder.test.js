@@ -161,6 +161,56 @@ export function runLyricsQuizQuestionBuilderTests() {
     assertEqual(questionsWithDifferentSeed.length, 4, "seedが違っても問題数は指定どおりになる");
   }
 
+  // ===== 【2026-10-01新設・本人指示：オリジナル問題作成モードの歌詞クイズタイプ、
+  //       正解プールと不正解候補プールの分離】distractorSongPoolを省略した場合は
+  //       songPool自身が回答候補の母集団になる（既存動作）。渡した場合は、選んだ曲が
+  //       少なくても、より広いdistractorSongPoolから不正解候補が選ばれる。 =====
+  {
+    // 出題対象（songPool）はわずか2曲だけ選択したという想定。
+    const selectedSongs = REAL_SONGS_SAMPLE.slice(0, 2);
+    const songPool = selectedSongs.map((song) => song.id);
+    const songsWithLyrics = selectedSongs.map((song) => ({ song, lines: buildRichDummyLines() }));
+    // 不正解候補の母集団は、選んだ2曲を含む、より広いカテゴリー全体（6曲）という想定。
+    const distractorSongPool = REAL_SONGS_SAMPLE.map((song) => song.id);
+
+    const questionsWithoutDistractorPool = buildLyricsQuizQuestions({
+      songsWithLyrics,
+      songPool,
+      questionCountValue: "2",
+      answerPoolSizeValue: "4",
+      seed: 555,
+    });
+    assertEqual(
+      questionsWithoutDistractorPool.every((q) => q.answerPool.every((s) => songPool.includes(s.id))),
+      true,
+      "distractorSongPool省略時は、今までどおり選んだ曲（songPool）だけが回答候補の母集団になる"
+    );
+
+    const questionsWithDistractorPool = buildLyricsQuizQuestions({
+      songsWithLyrics,
+      songPool,
+      distractorSongPool,
+      questionCountValue: "2",
+      answerPoolSizeValue: "4",
+      seed: 555,
+    });
+    assertEqual(
+      questionsWithDistractorPool.every((q) => q.answerPool.length === 4),
+      true,
+      "distractorSongPoolを渡しても、選択曲が2曲しかない状況で4択（回答候補4件）が成立する"
+    );
+    assertEqual(
+      questionsWithDistractorPool.some((q) => q.answerPool.some((s) => !songPool.includes(s.id))),
+      true,
+      "distractorSongPoolを渡すと、選んだ曲以外（より広いカテゴリー全体）からも不正解候補が選ばれる"
+    );
+    assertEqual(
+      questionsWithDistractorPool.every((q) => q.answerPool.some((s) => s.id === q.song.id)),
+      true,
+      "distractorSongPoolを渡しても、回答候補には必ず正解曲が含まれる"
+    );
+  }
+
   {
     // 出題可能な曲がsongPoolより少ない（一部の曲名だらけの曲が除外される）場合でも、
     // 例外を投げずに残った曲数までで問題セットを作る。

@@ -1837,13 +1837,6 @@ function renderLobby(room) {
         radio.checked = radio.value === room.gameMode;
         radio.disabled = !isHost;
       });
-      if (elements.lobbyModeChangeConfirmButton) {
-        elements.lobbyModeChangeConfirmButton.hidden = !isHost;
-        // 再描画のたびに選択肢を今のモードへ同期し直すため、確認ボタンも一旦「今の
-        // モードのまま＝押せない」状態へ戻す（本人指示どおりの確認前コミット方式：
-        // 候補を選び直すたびにchangeリスナー側が改めて有効化する）。
-        elements.lobbyModeChangeConfirmButton.disabled = true;
-      }
       modeChangeHasPendingSelection = false;
       lastSyncedRoomGameModeForModeChange = room.gameMode;
     }
@@ -1938,6 +1931,24 @@ function renderLobby(room) {
   // js/onlineLyricsQuizBattleScreen.js側の同等の仕組みに任せ、ここでは何もしない）。
   updateCollabSongSectionUi(room, isLyricsQuiz);
   syncCollaborativeSongPoolIfHost(room, isHost, isLyricsQuiz);
+  // 【2026-10-01新設・本人指示：「曲を選んで出題」でモード変更後に有効曲数がおかしい問題の
+  // 根本調査】js/onlineLyricsQuizBattleScreen.jsのrefreshLyricsSettingsErrorDisplay()と
+  // 全く同じ理由。エラー文言は「実際に設定を書き込んだ操作」の中でしか更新されておらず、
+  // syncCollaborativeSongPoolIfHost()が書き込みをスキップした場合（既に最新値と一致）は
+  // 古い曲数のまま表示され続けていた。room更新のたび、書き込みの有無に関わらず必ず
+  // 「今のフォーム内容（＝最新のcurrentCommonSongPoolで絞り込んだ曲数を含む）」で
+  // 検証エラー表示を同期し直す。
+  if (isHost && !isLyricsQuiz) {
+    if (isInstantBattle) {
+      const freshError = validateRoomSettings(currentGameMode, readInstantBattleSettingsFromHostForm());
+      elements.instantBattleSettingsError.textContent = freshError ?? "";
+      elements.instantBattleSettingsError.hidden = !freshError;
+    } else if (!isInstantCoop) {
+      const freshError = validateRoomSettings(currentGameMode, readSettingsFromHostForm());
+      elements.lobbyStartError.textContent = freshError ?? "";
+      elements.lobbyStartError.hidden = !freshError;
+    }
+  }
 
   // 【2026-09-13新設・本人指示：対戦開始前ルール確認画面】room.statusは意図的に
   // 変更していない（"waiting"のまま）ため、confirmingMatchの変化はstatusJustChanged
@@ -3118,37 +3129,41 @@ export function initOnlineBattleScreens(newElements) {
     elements.navigateTo("onlineBattleEntry");
   });
 
-  // 【2026-08-30新設→2026-10-01改訂・本人指示：オンライン対戦の同期回帰の緊急調査】
-  // ホスト専用：対戦モードそのものの変更。以前は折りたたみの開閉トグルだったが、
-  // 対戦設定の最上段に常時表示する形へ変更したため、開閉操作自体が無くなった。
-  // 代わりに、候補ラジオを選び直すたびに「今のモードと同じなら押せない・違えば押せる」
-  // 状態へ更新する（本人指示どおりの確認前コミット方式：誤タップでの即切り替えを防ぐ）。
+  // 【2026-08-30新設→2026-10-01全面改訂・本人指示：確認ボタン方式の廃止】以前は候補を
+  // 選んでから別途「このモードに変更する」を押す2段階方式だったが、「見た目上は選択した
+  // つもりで実際の設定はまだ変わっておらず、その状態のまま対戦を始めてしまった」という
+  // 誤操作が実機で発生した。タップした瞬間にそのモードを正式なgameModeとしてFirebaseへ
+  // 書き込む1段階方式へ変更する。書き込み中（通信の往復が終わるまで）は6択すべてを
+  // disabledにし、連打による複数回のFirebase更新・見た目と正式gameModeのズレを防ぐ
+  // （本人指示：「内部的には安全にしてください」）。
   document.querySelectorAll('input[name="online-battle-lobby-mode-change-select"]').forEach((radio) => {
-    radio.addEventListener("change", () => {
-      if (!elements.lobbyModeChangeConfirmButton) return;
-      // モード変更・候補選択操作音
+    radio.addEventListener("change", async () => {
+      if (!currentRoomId) return;
+      const nextGameMode = radio.value;
+      if (nextGameMode === currentGameMode) return; // 実質変化なし（同じモードの再クリック等）
+      // モード変更操作音
       playSfx(SFX_EVENTS.UI_CLICK);
-      const isDifferentFromCurrent = radio.value !== currentGameMode;
-      elements.lobbyModeChangeConfirmButton.disabled = !isDifferentFromCurrent;
-      // 候補が今のモードと違う間は「確定待ちの候補がある」として覚えておき、renderLobby()側の
-      // 再同期（room更新のたびに毎回走る）でこの選択が勝手に戻らないようにする
-      // （上のmodeChangeHasPendingSelectionの説明コメント参照）。
-      modeChangeHasPendingSelection = isDifferentFromCurrent;
+      // 【本人指示：候補選択中にラジオが勝手に戻るチラつきを防ぐ】renderLobby()側の
+      // 再同期（room更新のたびに毎回走る）は、room.gameModeが実際にこの値へ追いつくまで
+      // スキップする（下のrenderLobby()内、modeChangeHasPendingSelectionの説明コメント参照）。
+      modeChangeHasPendingSelection = true;
+      const modeRadios = document.querySelectorAll('input[name="online-battle-lobby-mode-change-select"]');
+      modeRadios.forEach((input) => {
+        input.disabled = true;
+      });
+      const result = await updateRoomGameMode({ roomId: currentRoomId, gameMode: nextGameMode });
+      if (result.ok) {
+        playSfx(SFX_EVENTS.UI_CONFIRM);
+      } else {
+        // 失敗時（通信エラー等）は候補選択を取り消し、今のモードへ戻す。renderLobby()の
+        // 次のroom更新で改めてradioが再度有効化される。
+        modeChangeHasPendingSelection = false;
+        modeRadios.forEach((input) => {
+          input.checked = input.value === currentGameMode;
+          input.disabled = false;
+        });
+      }
     });
-  });
-  elements.lobbyModeChangeConfirmButton.addEventListener("click", async () => {
-    if (!currentRoomId) return;
-    const selected = document.querySelector('input[name="online-battle-lobby-mode-change-select"]:checked');
-    if (!selected) return;
-    elements.lobbyModeChangeConfirmButton.disabled = true;
-    const result = await updateRoomGameMode({ roomId: currentRoomId, gameMode: selected.value });
-    if (result.ok) {
-      playSfx(SFX_EVENTS.UI_CONFIRM);
-    } else {
-      // 失敗時（通信エラー等）だけボタンを再度押せる状態に戻す。成功時はrenderLobby()の
-      // 次のroom更新が「候補＝今のモード」の状態を再同期し、その中で改めてdisabledへ戻す。
-      elements.lobbyModeChangeConfirmButton.disabled = false;
-    }
   });
 
   // 【2026-08-30新設、本人指示】ホスト専用：ロビーの参加者行に添えた「キック」「ホストを渡す」

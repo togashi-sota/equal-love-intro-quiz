@@ -3241,6 +3241,11 @@
              「候補を選ぶ→今のモードと違う場合だけ『このモードに変更する』ボタンが
              有効になる→押して確定」という確認前コミット方式をそのまま流用する
              （誤タップでの即切り替え・チラつきを防ぐ、既存のupdateRoomGameMode()を使う）。 -->
+        <!-- 【2026-10-01改訂・本人指示：確認ボタン方式を廃止し即時変更へ】以前は候補を
+             選んでから「このモードに変更する」を別途押す2段階方式だったが、「見た目上は
+             選択したつもりでも、確定ボタンを押し忘れて実際には別モードのまま対戦を始めて
+             しまった」という誤操作が実機で発生した。タップした瞬間にそのモードを正式に
+             反映する1段階方式へ変更する（js/onlineBattleScreen.js参照）。 -->
         <div id="online-battle-lobby-mode-change" hidden>
           <p class="battle-field-label">対戦設定</p>
           <fieldset id="online-battle-lobby-mode-change-fieldset">
@@ -3257,7 +3262,6 @@
               <label><input type="radio" name="online-battle-lobby-mode-change-select" value="instantBattle"> 一瞬バトル</label>
               <label><input type="radio" name="online-battle-lobby-mode-change-select" value="instantCoop"> 一瞬協力</label>
             </div>
-            <button id="online-battle-lobby-mode-change-confirm" class="primary-button" type="button" disabled>このモードに変更する</button>
           </fieldset>
         </div>
 

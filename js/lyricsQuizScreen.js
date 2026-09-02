@@ -15,6 +15,7 @@
 
 import { SONGS } from "./data/songs.js";
 import { QUESTION_SOURCE_TYPE } from "./questionSource.js";
+import { filterSongsByCategory } from "./quiz.js";
 // 【2026-09-26追加・本人指示：サウンドシステム全面整備7章】正解・不正解は他のクイズ
 // モードと同じ効果音（SFX_EVENTS.QUIZ_CORRECT/QUIZ_WRONG）で統一する。以前はこのモードだけ
 // SFXの呼び出しが1件もなく、完全に無音だった（本人指示の監査で発覚）。
@@ -28,6 +29,7 @@ import {
   validateLyricsQuizAvailability,
   buildLyricsQuizQuestions,
   resolveLyricsQuizSongPool,
+  isLyricsQuizEligibleSong,
 } from "./lyricsQuizQuestionBuilder.js";
 import {
   createLyricsQuizResult,
@@ -180,13 +182,19 @@ export async function retryLyricsQuizRun() {
 // sourceは"weakSongPractice"（苦手曲モードB）または"customQuiz"（オリジナル問題作成モード）。
 // 戻り値：実際に開始できたかどうか（呼び出し側が、開始できなかった場合に案内を出せる
 // ようにするため。この画面自身のstartErrorはここでは表示されない別画面からの呼び出しのため）。
-export async function startManualSelectionLyricsQuizRun(songIds, answerPoolSizeValue, source) {
+// distractorMode（2026-10-01追加・本人指示：正解プールと不正解候補プールの分離）：
+// 省略時（苦手曲モードBの練習）は今までどおり曲IDそのものが回答候補の母集団にもなる。
+// オリジナル問題作成モードの歌詞クイズタイプから渡された場合は、選んだ曲（正解の出題対象）
+// とは別に、このカテゴリー全体（表題曲のみ/表題曲＋全員曲/全曲）を回答候補の母集団にする
+// （js/main.jsのbeginCustomQuiz()等、他のオリジナル問題作成タイプと同じ設計）。
+export async function startManualSelectionLyricsQuizRun(songIds, answerPoolSizeValue, source, distractorMode = null) {
   currentRunSource = source;
   return buildAndStartRun({
     questionCountValue: "all",
     categoryFilterValue: "all",
     answerPoolSizeValue,
     manualSongIds: songIds,
+    distractorMode,
   });
 }
 
@@ -215,11 +223,24 @@ async function buildAndStartRun(settings) {
     return false;
   }
 
+  // 【2026-10-01新設・本人指示：正解プールと不正解候補プールの分離】オリジナル問題作成
+  // モードの歌詞クイズタイプ（settings.distractorModeが渡された場合）だけ、回答候補
+  // （ダミー選択肢）の母集団を「選んだ曲だけ」ではなく「指定カテゴリー全体」にする
+  // （js/main.jsのbeginCustomQuiz()等、他のオリジナル問題作成タイプと同じ設計）。
+  // 苦手曲モードBの練習・通常の入り口（distractorModeを渡さない）は今までどおり
+  // songPool自身が回答候補の母集団になる。
+  const distractorSongPool = settings.distractorMode
+    ? filterSongsByCategory(SONGS, settings.distractorMode)
+        .filter(isLyricsQuizEligibleSong)
+        .map((song) => song.id)
+    : songPool;
+
   const seed = Math.floor(Math.random() * 0x100000000) >>> 0;
   currentSettings = settings;
   const questions = buildLyricsQuizQuestions({
     songsWithLyrics,
     songPool,
+    distractorSongPool,
     questionCountValue: settings.questionCountValue,
     answerPoolSizeValue: settings.answerPoolSizeValue,
     seed,
@@ -413,11 +434,10 @@ function isLyricsQuizDebugLoggingEnabled() {
 const LYRICS_QUIZ_HINT_UI_VERSION = "hint-nav-v1（積み上げ表示＋段階ボタンで行き来可能）";
 
 // hintLevel段階目で新しく追加された行の行番号を返す（1段階目は基準行そのもの）。
+// 【2026-10-01改訂】新方式ではhints[i]自体が既に独立した1行のため、「そのレベルで
+// 新しく増えた行」は常にそのレベル自身のstartLineになる（差分計算が不要になった）。
 function computeAddedLineForLevel(hints, hintLevel) {
-  if (hintLevel === 1) return hints[0].startLine;
-  const previous = hints[hintLevel - 2];
-  const current = hints[hintLevel - 1];
-  return current.startLine < previous.startLine ? current.startLine : current.endLine;
+  return hints[hintLevel - 1].startLine;
 }
 
 function logHintDebugInfo(question, viewedHint) {
@@ -443,27 +463,17 @@ function logHintDebugInfo(question, viewedHint) {
 }
 
 // question.hints（各要素が { hintLevel, startLine, endLine, segment } を持つ、レベルごとに
-// 1行ずつ増える区間の列）から、「今表示すべきレベルまでで、実際に増えた行1行ずつ」を
-// 歌詞の登場順（行番号の昇順）に並べたリストを作る。
-// ヒントは前方向・後方向どちらにも増えうるため（js/lyricsSegmentEngine.jsのbuildHintSequence()
-// 参照）、隣り合うレベルのsegmentのstartLine/endLineを比較して「今回どちら側に1行増えたか」を
-// 判定し、その1行だけを取り出す。
+// 曲の別々の位置にある独立した1行の列。js/lyricsSegmentEngine.jsのbuildHintSequence()
+// 参照）から、「今表示すべきレベルまでに開いた行」を歌詞の登場順（行番号の昇順）に
+// 並べたリストを作る。
+// 【2026-10-01改訂・本人指示：ヒント生成の全面再設計】以前はヒントが前段階を含んだまま
+// 広がる区間だったため、隣り合うレベルの差分（新しく増えた1行）を計算する必要があったが、
+// 新方式ではhints[i]自体が既に独立した1行（かつhintLevelは歌詞の登場順そのもの）のため、
+// 単純にuptoLevelまでのヒントをそのまま並べるだけでよい。
 function computeRevealedHintLines(hints, uptoLevel) {
-  const first = hints[0];
-  const revealed = [{ lineNumber: first.startLine, text: first.segment.text, level: first.hintLevel }];
-
-  for (let i = 1; i < uptoLevel; i += 1) {
-    const previous = hints[i - 1].segment;
-    const current = hints[i].segment;
-    const lines = current.text.split("\n");
-    if (current.startLine < previous.startLine) {
-      revealed.push({ lineNumber: current.startLine, text: lines[0], level: hints[i].hintLevel });
-    } else if (current.endLine > previous.endLine) {
-      revealed.push({ lineNumber: current.endLine, text: lines[lines.length - 1], level: hints[i].hintLevel });
-    }
-  }
-
-  return revealed.sort((a, b) => a.lineNumber - b.lineNumber);
+  return hints
+    .slice(0, uptoLevel)
+    .map((hint) => ({ lineNumber: hint.startLine, text: hint.segment.text, level: hint.hintLevel }));
 }
 
 // 新しく表示された行が画面外にある場合、そこまで自動スクロールする。

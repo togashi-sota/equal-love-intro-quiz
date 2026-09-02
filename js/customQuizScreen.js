@@ -437,16 +437,18 @@ function handleDeselectAllSongs() {
   refreshSelectionUI();
 }
 
-// 今の種類（currentQuizType）に応じて、ダミー選択肢／回答方式／一瞬チャレンジ専用設定の
-// どれを見せるかを切り替える（2026-08-29追加・2026-08-30改訂、本人指示）。歌詞クイズタイプは
-// 回答方式（回答候補4/10/30/50/全曲）、一瞬チャレンジタイプは再生時間＋回答方式
-// （回答候補4/10/全曲、歌詞クイズより選択肢が少ない専用のfieldset）を使い、
-// イントロ・ランダム再生・アウトロタイプはダミー選択肢を使う（出題の仕組み自体が
-// イントロと共通のため）。
+// 今の種類（currentQuizType）に応じて、カテゴリー（ダミー選択肢母集団）／回答方式／
+// 一瞬チャレンジ専用設定のどれを見せるかを切り替える（2026-08-29追加・2026-08-30改訂・
+// 2026-10-01改訂、本人指示）。
+// 【2026-10-01改訂・本人指示：歌詞クイズ・一瞬チャレンジも不正解候補プールバグを修正】
+// 以前はdistractorModeFieldset（カテゴリー：表題曲のみ/表題曲＋全員曲/全曲）を歌詞クイズ・
+// 一瞬チャレンジタイプでは隠していたが、この2タイプも「選んだ曲だけ」が回答候補の母集団に
+// なってしまうバグがあったため、イントロ・ランダム再生・アウトロと同じくすべてのタイプで
+// 表示するようにした（js/lyricsQuizScreen.js・js/instantChallengeScreen.js参照）。
 function updateQuizTypeFieldsetVisibility() {
   const isLyrics = currentQuizType === CUSTOM_QUIZ_TYPE.LYRICS_QUIZ;
   const isInstant = currentQuizType === CUSTOM_QUIZ_TYPE.INSTANT_CHALLENGE;
-  elements.distractorModeFieldset.hidden = isLyrics || isInstant;
+  elements.distractorModeFieldset.hidden = false;
   elements.answerPoolSizeFieldset.hidden = !isLyrics;
   elements.instantDurationFieldset.hidden = !isInstant;
   elements.instantAnswerPoolSizeFieldset.hidden = !isInstant;
@@ -462,9 +464,16 @@ function handleStart() {
   attemptSilentUnlock();
   stopPreviewAndResetUI();
   lastStartedSongIds = [...selectedSongIds];
+  // 【2026-10-01追加・本人指示】歌詞クイズ・一瞬チャレンジタイプも、選んだ曲とは別に
+  // 「不正解候補を含む選択肢全体の母集団」としてカテゴリーを使うようにしたため、
+  // どちらのタイプでもdistractorModeを読み取っておく。
+  lastStartedDistractorMode = document.querySelector('input[name="custom-quiz-distractor-mode"]:checked').value;
   if (currentQuizType === CUSTOM_QUIZ_TYPE.LYRICS_QUIZ) {
     lastStartedAnswerPoolSizeValue = document.querySelector('input[name="custom-quiz-answer-pool-size"]:checked').value;
-    elements.onStart(lastStartedSongIds, lastStartedAnswerPoolSizeValue);
+    elements.onStart(lastStartedSongIds, {
+      answerPoolSizeValue: lastStartedAnswerPoolSizeValue,
+      distractorMode: lastStartedDistractorMode,
+    });
     return;
   }
   if (currentQuizType === CUSTOM_QUIZ_TYPE.INSTANT_CHALLENGE) {
@@ -473,10 +482,10 @@ function handleStart() {
     elements.onStart(lastStartedSongIds, {
       playDurationValue: lastStartedPlayDurationValue,
       answerPoolSizeValue: lastStartedAnswerPoolSizeValue,
+      distractorMode: lastStartedDistractorMode,
     });
     return;
   }
-  lastStartedDistractorMode = document.querySelector('input[name="custom-quiz-distractor-mode"]:checked').value;
   elements.onStart(lastStartedSongIds, lastStartedDistractorMode);
 }
 

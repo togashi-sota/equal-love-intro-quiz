@@ -22,7 +22,7 @@
 // その条件（再生時間×回答候補数）のクリアとして js/instantChallengeClearStore.js へ記録する。
 // 称号・特殊ランキングの具体的な条件は今回決めない（本人指示）。
 import { resolveSongPool, QUESTION_SOURCE_TYPE } from "./questionSource.js";
-import { MIN_SONGS_REQUIRED } from "./quiz.js";
+import { MIN_SONGS_REQUIRED, filterSongsByCategory } from "./quiz.js";
 // 【2026-09-26追加・本人指示：サウンドシステム全面整備7章】正解・不正解は他のクイズ
 // モードと同じ効果音で統一する。以前はこのモードだけSFXの呼び出しが1件もなく、
 // 完全に無音だった（本人指示の監査で発覚）。
@@ -98,7 +98,11 @@ let isFirstQuestionOfRun = true;
 // 失敗したら、これ以上安全に続けられないと判断してランを中断する。
 const AUDIO_FAILURE_RESERVE_SIZE = 3;
 const MAX_SLOT_PLAYBACK_ATTEMPTS = 3;
-let currentSongPool = []; // buildAndStartRun()で使った出題対象曲プール（差し替え曲の回答候補生成に使う）
+let currentSongPool = []; // buildAndStartRun()で使った出題対象曲プール（差し替え曲の組み立てに使う）
+// 【2026-10-01新設】回答候補（ダミー選択肢）専用の母集団。オリジナル問題作成モードで
+// distractorModeを指定した場合はcurrentSongPoolと別集合になる（差し替え曲の回答候補にも
+// 同じ母集団を使う）。
+let currentDistractorPool = [];
 let reserveSongs = []; // 予備の曲（出題数に含まれない、失敗時の差し替え専用）
 let nextReserveIndex = 0;
 let currentSlotFailureCount = 0;
@@ -177,6 +181,9 @@ export async function startInstantChallengeWeakSongsPractice(songIds, settings) 
 // 上のstartInstantChallengeWeakSongsPractice()と同じ理由・同じ仕組みで、あらかじめ選んだ曲
 // （songIds）だけを出題プールにする。出題数は他のオリジナル問題作成タイプと同じく
 // 「選んだ曲すべて」にするため、questionCountValueは常に"all"を使う。
+// 【2026-10-01改訂・本人指示：正解プールと不正解候補プールの分離】settings.distractorMode
+// （カテゴリー：表題曲のみ/表題曲＋全員曲/全曲）を、buildAndStartRun()側で回答候補専用の
+// 母集団として使う（他のオリジナル問題作成タイプ・オンライン一瞬バトルと同じ設計）。
 export async function startInstantChallengeFromCustomPreset(songIds, settings) {
   practiceModeId = "customQuizInstant";
   return buildAndStartRun({ ...settings, questionCountValue: "all", categoryFilterValue: "customQuiz" }, songIds);
@@ -209,11 +216,12 @@ async function resolvePlayableSongPool(categoryFilterValue, explicitSongIds) {
 
 // 1曲分の問題データ（回答候補まで含めて）を組み立てる。初回の出題・音源再生失敗時の
 // 差し替えのどちらからも呼ぶ共通処理（本人指示：新しい生成ロジックを重複させない）。
-function buildInstantChallengeQuestion(song, pool, settings) {
-  let answerPool = generateAnswerPool(pool, song.id, settings.answerPoolSizeValue);
+// distractorPool省略時は今までどおりpool自身から回答候補を選ぶ（既存呼び出し元は無変更）。
+function buildInstantChallengeQuestion(song, pool, settings, distractorPool = pool) {
+  let answerPool = generateAnswerPool(distractorPool, song.id, settings.answerPoolSizeValue);
   const validation = validateLyricsQuizQuestionAnswerPool({ song, answerPool });
   if (!validation.ok) {
-    answerPool = buildFallbackAnswerPool(pool, song.id, settings.answerPoolSizeValue) ?? [];
+    answerPool = buildFallbackAnswerPool(distractorPool, song.id, settings.answerPoolSizeValue) ?? [];
   }
   return { song, answerPool };
 }
@@ -228,6 +236,15 @@ async function buildAndStartRun(settings, explicitSongIds = null) {
       "音源を読み込んだ曲が足りません。スタート画面の「音源を読み込む」から追加するか、カテゴリの範囲を広げてください。";
     return false;
   }
+
+  // 【2026-10-01新設・本人指示：正解プールと不正解候補プールの分離】オリジナル問題作成
+  // モードから、曲を絞り込んで開始した場合（explicitSongIds＋distractorMode指定あり）は、
+  // 回答候補（ダミー選択肢）の母集団を「選んだ曲だけ」ではなく「指定カテゴリー全体（音源
+  // 読み込み済みのみ）」にする。他の絞り込み方法（苦手曲モード等、distractorModeを渡さない
+  // 呼び出し元）は今までどおりpool自身が回答候補の母集団になる（既存動作を変えない）。
+  const distractorPool = explicitSongIds && settings.distractorMode
+    ? await filterSongsWithImportedAudio(filterSongsByCategory(SONGS, settings.distractorMode))
+    : pool;
 
   const requestedCount = settings.questionCountValue === "all" ? pool.length : Number(settings.questionCountValue);
   const questionCount = Math.min(requestedCount, pool.length);
@@ -249,8 +266,9 @@ async function buildAndStartRun(settings, explicitSongIds = null) {
   currentSlotFailureCount = 0;
   reserveWasEverAvailable = reserveSongs.length > 0;
   currentSongPool = pool;
+  currentDistractorPool = distractorPool;
 
-  questions = questionSongs.map((song) => buildInstantChallengeQuestion(song, pool, settings));
+  questions = questionSongs.map((song) => buildInstantChallengeQuestion(song, pool, settings, distractorPool));
   currentIndex = 0;
   answers = [];
   replayCounts = new Array(questions.length).fill(0);
@@ -404,7 +422,7 @@ function handlePlaybackFailure(questionIndex, message) {
   if (nextReserveIndex < reserveSongs.length) {
     const replacementSong = reserveSongs[nextReserveIndex];
     nextReserveIndex += 1;
-    questions[currentIndex] = buildInstantChallengeQuestion(replacementSong, currentSongPool, currentSettings);
+    questions[currentIndex] = buildInstantChallengeQuestion(replacementSong, currentSongPool, currentSettings, currentDistractorPool);
     renderAnswerArea(questions[currentIndex]);
   }
   // 予備が無い場合（全曲設定等）は、questionsを差し替えずに同じ曲のまま再試行する。

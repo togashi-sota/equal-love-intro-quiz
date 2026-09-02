@@ -229,6 +229,16 @@ let winnerNameByQuestionIndex = {};
 // ポイントバトルで、自分が今のヒントで開いている最大段階（1〜4）。新しい問題に移るたびに
 // 1へリセットする（renderCurrentQuestionState()のqIndex切り替わり時参照）。
 let myOpenedHintLevel = 1;
+// 【2026-10-01新設・本人指示：回答時点のヒント位置から答え合わせ再生】早押しバトルは
+// 時間経過で自動的にヒントが積み上がるため、renderHintArea()の毎レンダリングで
+// 「今、実際に画面へ表示されている最大ヒント段階」をここへ記録しておく
+// （回答した瞬間の段階を後から知るため。正解数・ポイントバトルはmyOpenedHintLevelが
+// 既にこの役目を果たすため、こちらは早押しバトル専用）。
+let myCurrentStealHintLevel = 1;
+// 【2026-10-01新設】回答を確定した瞬間の「自分が最後に見ていたヒント段階」を固定する
+// （本人指示：「回答時点の最後に開いたヒント位置から7秒再生」。答え合わせで全ヒントが
+// 表示されても、この値は書き換えない）。新しい問題に移るたびに1へリセットする。
+let myAnswerHintLevel = 1;
 // 【2026-08-31新設】30・50・全曲プールでの検索文字列・50音ジャンプの選択行。
 // 新しい問題に移るたびにリセットする。
 let myAnswerSearchQuery = "";
@@ -517,9 +527,16 @@ function stopRevealMusic() {
 // ホストが次の問題へ進んだ後まで音が鳴り続ける・演出がずれる、という問題があった。
 // remainingMsSec（残り再生秒数）は、呼び出し元がサーバー時刻基準（match.resolvedAt・
 // serverTimeOffset）で計算した「答え表示が終わるまでの本当の残り時間」を渡す。
+// 【2026-10-01改訂・本人指示：回答時点のヒント位置から答え合わせ再生】以前は常に
+// 「ヒント1」の歌詞位置から再生していたが、「本人がどのヒントまで見て回答したか」に
+// 応じて、その人自身が最後に見ていたヒント段階（myAnswerHintLevel、回答確定時に
+// handleAnswerChoiceClick()が固定した値）の歌詞位置から再生する。プレイヤーごとに
+// 再生位置が違ってよい仕様のため、この関数はこの端末のmyAnswerHintLevelだけを見る
+// （Firebaseへの同期は不要）。該当レベルの秒数が無ければヒント1・0秒の順にフォールバックする。
 function startRevealMusic(question, remainingMsSec) {
   if (remainingMsSec <= 0) return; // 復帰があまりに遅く、既に答え表示が終わっている場合は鳴らさない
-  const revealStartTimeSec = question.revealStartTimeSec;
+  const byLevel = question.revealStartTimeSecByHintLevel ?? {};
+  const revealStartTimeSec = byLevel[myAnswerHintLevel] ?? question.revealStartTimeSec;
   playSongIntroFromOffset(question.song, typeof revealStartTimeSec === "number" ? revealStartTimeSec : 0, remainingMsSec);
 
   if (revealMusicStopTimeoutId !== null) clearTimeout(revealMusicStopTimeoutId);
@@ -575,6 +592,8 @@ export function resetLyricsQuizBattleState() {
   myQuestionStartedAtCache = {};
   winnerNameByQuestionIndex = {};
   myOpenedHintLevel = 1;
+  myCurrentStealHintLevel = 1;
+  myAnswerHintLevel = 1;
   myAnswerSearchQuery = "";
   myAnswerJumpRowKey = null;
   lastActivityReportedAtMs = 0;
@@ -670,6 +689,23 @@ async function applyLyricsQuizSettingsChange(room, nextSettings) {
     elements.lyricsSettingsError.hidden = !errorMessage;
   }
   await updateRoomSettings({ roomId: room.roomId, settings: nextSettings });
+}
+
+// 【2026-10-01新設・本人指示：「曲を選んで出題」でモード変更後に有効曲数がおかしい問題の
+// 根本調査】以前はlyricsSettingsErrorが「設定を実際に書き込んだ操作」の中でしか
+// 更新されなかった（applyLyricsQuizSettingsChange・submitMySelectedLyricsSongIds参照）。
+// syncLyricsCollaborativeSongPoolIfHost()は「前回書き込んだ内容と今回の計算結果が同じ
+// なら書き込みをスキップする」設計のため、一度でも古い（実際より少ない）曲数でエラー文言が
+// 表示された直後にモードが変わる・参加者の歌詞所持状況が追いついて共通曲プールが広がる等で
+// 実際の有効曲数が増えても、書き込みが起きない限りエラー文言は古いまま残り続けていた
+// （本人の実機報告「現在有効な共有曲は4曲です」が、実際には13曲使える状態でも消えない
+// 不具合の原因）。room更新のたび、書き込みの有無に関わらず必ず「今のroom.settingsが
+// 実際に検証エラーかどうか」を再計算し、表示をそのつど最新の状態へ同期し直す。
+function refreshLyricsSettingsErrorDisplay(room) {
+  if (!elements.lyricsSettingsError) return;
+  const errorMessage = validateRoomSettings(room.gameMode, room.settings);
+  elements.lyricsSettingsError.textContent = errorMessage ?? "";
+  elements.lyricsSettingsError.hidden = !errorMessage;
 }
 
 function setQuestionCountRadio(value) {
@@ -1017,6 +1053,10 @@ export function renderLyricsQuizLobbySettings(room, isHost) {
   // 「参加者全員の選択の和集合」をsettingsへ自動的に反映する。
   updateLyricsCollabSongSectionUi(room);
   syncLyricsCollaborativeSongPoolIfHost(room, isHost);
+  // 【2026-10-01新設】syncLyricsCollaborativeSongPoolIfHost()が実際に書き込みを行った
+  // かどうかに関わらず、room更新のたび必ずエラー表示を今のroom.settingsで同期し直す
+  // （古い曲数のまま表示され続けるバグの修正、上のrefreshLyricsSettingsErrorDisplay()参照）。
+  if (isHost) refreshLyricsSettingsErrorDisplay(room);
 
   renderLyricsQuizReadinessSection(room, isHost);
   refreshAndSubmitLyricsCoverage(room);
@@ -1060,6 +1100,8 @@ export async function enterLyricsQuizBattlePlay(room) {
   myQuestionStartedAtCache = {};
   winnerNameByQuestionIndex = {};
   myOpenedHintLevel = 1;
+  myCurrentStealHintLevel = 1;
+  myAnswerHintLevel = 1;
   myAnswerSearchQuery = "";
   myAnswerJumpRowKey = null;
   lastActivityReportedAtMs = 0;
@@ -1502,6 +1544,13 @@ function renderHintArea(question, { ruleId, elapsedMs, isResolved, myAnsweredThi
     const hintTexts = question.hints.map((hint) => hint.segment?.text ?? "");
     const effectiveElapsedMs = myAnsweredThisQuestion ? Number.POSITIVE_INFINITY : elapsedMs;
     const { levels } = computeStealHintProgress({ elapsedMs: effectiveElapsedMs, hintTexts });
+    // 【2026-10-01新設】回答前（まだelapsedMsが進み続けている間）だけ、今画面に出ている
+    // 最大ヒント段階を記録する（回答した瞬間にhandleAnswerChoiceClick()がこの値を固定
+    // コピーして使う。myAnsweredThisQuestion===trueの間はeffectiveElapsedMsが無限大になり
+    // levelsが常に全段階を返してしまうため、ここでは更新しない＝回答時点の値のまま保つ）。
+    if (!myAnsweredThisQuestion && levels.length > 0) {
+      myCurrentStealHintLevel = levels[levels.length - 1].level;
+    }
     // 答え合わせ時のヒント一覧（renderResolvedHintSummary）と全く同じCSSクラスを使い、
     // 回答中・答え合わせ後でヒントのフォント・見た目が食い違わないようにする
     // （本人指示：ヒントフォントの統一）。
@@ -1805,6 +1854,13 @@ async function handleAnswerChoiceClick(selectedSongId) {
   // ため（js/battleRules/stealRule.js参照）、固定値1を送るだけでよい。
   const ruleId = latestRoom.settings.battleRuleId;
   const hintLevel = ruleId === "steal" ? 1 : myOpenedHintLevel;
+  // 【2026-10-01新設・本人指示：回答時点のヒント位置から答え合わせ再生】採点用に
+  // Firebaseへ送るhintLevel（早押しバトルは既存どおり固定値1）とは別に、答え合わせ楽曲の
+  // 再生位置にだけ使う「実際に最後に見ていたヒント段階」をこの端末だけで記録する
+  // （早押しバトルは時間経過で自動的に積み上がるためmyOpenedHintLevelでは追えず、
+  // myCurrentStealHintLevelを使う。プレイヤーごとに再生位置が違ってよい仕様のため、
+  // Firebaseへ送る必要はない）。
+  myAnswerHintLevel = ruleId === "steal" ? myCurrentStealHintLevel : myOpenedHintLevel;
   const correctSongId = currentQuestions[qIndex].song.id;
   // 【Phase6.5・ruleId分岐の撤去】「回答ログだけでよいか、勝者claimも一緒に送るべきか」は
   // js/battleRules/各ルールが持つgetAnswerSubmissionPlan()にルール自身が決めさせる
@@ -2034,6 +2090,8 @@ function renderCurrentQuestionState() {
     stopRevealMusic();
     // 【2026-08-31新設】新しい問題に移ったら、開いたヒント段階・検索状態をリセットする。
     myOpenedHintLevel = 1;
+    myCurrentStealHintLevel = 1;
+    myAnswerHintLevel = 1;
     myAnswerSearchQuery = "";
     myAnswerJumpRowKey = null;
     if (elements.battleAnswerSearchInput) elements.battleAnswerSearchInput.value = "";

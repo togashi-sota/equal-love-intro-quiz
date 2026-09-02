@@ -992,7 +992,6 @@ const onlineBattleLobbyGameModeElement = document.getElementById("online-battle-
 // 【2026-08-30新設→2026-10-01改訂・本人指示】待機中の対戦モード変更UI。折りたたみ式から
 // 対戦設定の最上段への常時表示へ変更したため、開閉トグルボタンは廃止した。
 const onlineBattleLobbyModeChangeElement = document.getElementById("online-battle-lobby-mode-change");
-const onlineBattleLobbyModeChangeConfirmButtonElement = document.getElementById("online-battle-lobby-mode-change-confirm");
 const onlineBattleLobbyPlayerListElement = document.getElementById("online-battle-lobby-player-list");
 const onlineBattleLobbySettingsHostElement = document.getElementById("online-battle-lobby-settings-host");
 const onlineBattleLobbySettingsParticipantElement = document.getElementById("online-battle-lobby-settings-participant");
@@ -2382,7 +2381,10 @@ async function beginCustomInstantChallengeQuiz(songIds, settings) {
 // preset側の値をそのまま使えば呼び出し側で迷わない）。
 async function beginCustomQuizByPreset(preset) {
   if (preset.quizType === CUSTOM_QUIZ_TYPE.LYRICS_QUIZ) {
-    const started = await beginCustomLyricsQuiz(preset.songIds, preset.answerPoolSizeValue);
+    const started = await beginCustomLyricsQuiz(preset.songIds, {
+      answerPoolSizeValue: preset.answerPoolSizeValue,
+      distractorMode: preset.distractorMode,
+    });
     if (!started) {
       // ごく稀なケース（対象曲の歌詞データが後から削除された等）。専用の案内欄が無いため、
       // デバッグ用にコンソールへだけ出す（js/lyricsQuizScreen.jsのlogInsufficientSongsForDebug
@@ -2403,6 +2405,7 @@ async function beginCustomQuizByPreset(preset) {
     beginCustomInstantChallengeQuiz(preset.songIds, {
       playDurationValue: preset.playDurationValue,
       answerPoolSizeValue: preset.answerPoolSizeValue,
+      distractorMode: preset.distractorMode,
     });
     return;
   }
@@ -2621,8 +2624,8 @@ async function beginCustomRandomPlaybackQuiz(songIds, distractorMode) {
 // 反映されない（既存のイントロ形式オリジナル問題作成モードと同じ方針。SPECIAL_MODES_DISPLAY.
 // customQuizのresultNote「この結果は、自己ベスト・称号には反映されません」と揃えている）。
 // 戻り値：実際に開始できたか（曲の歌詞データが後から削除された等、ごく稀なケース）。
-async function beginCustomLyricsQuiz(songIds, answerPoolSizeValue) {
-  const started = await startManualSelectionLyricsQuizRun(songIds, answerPoolSizeValue, "customQuiz");
+async function beginCustomLyricsQuiz(songIds, { answerPoolSizeValue, distractorMode }) {
+  const started = await startManualSelectionLyricsQuizRun(songIds, answerPoolSizeValue, "customQuiz", distractorMode);
   if (!started) return false;
   playSfx(SFX_EVENTS.GAME_START);
   updateLyricsQuizBackButtonLabel();
@@ -5941,7 +5944,6 @@ initOnlineBattleScreens({
   lobbyMaxPlayersText: onlineBattleLobbyMaxPlayersElement,
   lobbyGameModeText: onlineBattleLobbyGameModeElement,
   lobbyModeChange: onlineBattleLobbyModeChangeElement,
-  lobbyModeChangeConfirmButton: onlineBattleLobbyModeChangeConfirmButtonElement,
   lobbyPlayerList: onlineBattleLobbyPlayerListElement,
   lobbySettingsHost: onlineBattleLobbySettingsHostElement,
   lobbySettingsParticipant: onlineBattleLobbySettingsParticipantElement,

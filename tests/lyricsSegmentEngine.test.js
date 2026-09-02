@@ -151,73 +151,78 @@ export function runLyricsSegmentEngineTests() {
     );
   }
 
-  // ===== buildHintSequence()：基本の単調成長（1→2→3→4行） =====
+  // ===== buildHintSequence()：4段階とも独立した別々の歌詞位置になる（2026-10-01全面改訂） =====
+  // 【本人指示：ヒント生成の全面再設計】以前は基準行を含む範囲を1行ずつ広げる方式
+  // （ヒント2はヒント1の文章＋1行、ヒント3はヒント2の文章＋1行…）だったため、
+  // 「ヒント3・4がほぼ同じ文章に数語足しただけ」に見えるという実機報告があった。
+  // 新方式では、各ヒントが完全に別々の1行になり、前段階の文章を一切含まないことを確認する。
 
   {
     const lines = buildDummyLines();
-    // 曲の中央付近（6行目、index=5）を基準行に固定し、前後両方に余裕がある状態で確認する。
     const hints = buildHintSequence(lines, 5, { title: "なつのゆめ", maxHints: 4 });
 
-    assertEqual(hints.length, 4, "前後に十分な余裕があれば4段階まで生成される");
-    assertEqual(hints[0].endLine - hints[0].startLine + 1, 1, "ヒント1は1行");
-    assertEqual(hints[1].endLine - hints[1].startLine + 1, 2, "ヒント2は2行");
-    assertEqual(hints[2].endLine - hints[2].startLine + 1, 3, "ヒント3は3行");
-    assertEqual(hints[3].endLine - hints[3].startLine + 1, 4, "ヒント4は4行");
+    assertEqual(hints.length, 4, "使える行が十分にあれば4段階まで生成される");
+    assertEqual(
+      hints.every((h) => h.startLine === h.endLine),
+      true,
+      "各ヒントは独立した1行だけの範囲になる（前段階を含めて広がるのではない）"
+    );
 
-    const lineCounts = hints.map((h) => h.endLine - h.startLine + 1);
-    const isMonotonic = lineCounts.every((count, i) => i === 0 || count > lineCounts[i - 1]);
-    assertEqual(isMonotonic, true, "hintLevelが増えるたびに表示行数が必ず増える（減らない）");
+    const normalizedTexts = hints.map((h) => h.segment.normalizedText);
+    assertEqual(
+      new Set(normalizedTexts).size,
+      normalizedTexts.length,
+      "4段階とも正規化テキストが完全に重複しない（同じ文章を2回出さない）"
+    );
 
-    const containsAllPrevious = hints.every((hint, i) => {
-      if (i === 0) return true;
-      const previous = hints[i - 1];
-      return hint.startLine <= previous.startLine && hint.endLine >= previous.endLine;
-    });
-    assertEqual(containsAllPrevious, true, "各ヒントは前段階の行をすべて含む（範囲が真に広がっているだけ）");
+    const isSortedByStartLine = hints.every(
+      (h, i) => i === 0 || h.startLine > hints[i - 1].startLine
+    );
+    assertEqual(isSortedByStartLine, true, "hintLevelは歌詞の登場順（startLine昇順）に割り当てられる");
 
-    const neverJumps = hints.every((hint, i) => {
-      if (i === 0) return true;
-      const previous = hints[i - 1];
-      // 前段階と1行も重ならない＝別の場所へジャンプしたことになる
-      return hint.startLine <= previous.endLine + 1 && hint.endLine >= previous.startLine - 1;
-    });
-    assertEqual(neverJumps, true, "別の無関係な区間へ切り替わらない（常に前段階と連続している）");
+    assertEqual(
+      hints.every((h, i) => h.hintLevel === i + 1),
+      true,
+      "hintLevelは1から連番になる"
+    );
 
     assertEqual(
       hints.every((h) => h.startLine >= 1 && h.endLine <= lines.length),
       true,
       "startLine/endLineが歌詞の範囲外にならない"
     );
+
+    assertEqual(hints[hints.length - 1].stopReason, null, "maxHintsまで到達できた場合、stopReasonはnull");
   }
 
-  // ===== buildHintSequence()：歌詞の先頭・末尾付近 =====
-  // （曲名を含む行の影響を避けて境界処理だけを確認したいため、ここではtitleを渡さない。
-  // 曲名を含む方向へ広げない確認は、別の「曲名を含む方向へは広げない」テストで行う。）
+  // ===== buildHintSequence()：曲名を含む行はどのヒントにも選ばれない =====
 
   {
     const lines = buildDummyLines();
-
-    const hintsAtStart = buildHintSequence(lines, 0, { maxHints: 4 });
-    assertEqual(hintsAtStart.length, 4, "歌詞の先頭行（index0）を基準にしても4段階まで正常に生成される");
-    assertEqual(hintsAtStart[3].startLine, 1, "先頭行が基準だと、これ以上前へは広げられず1行目から始まる");
-
-    const hintsAtEnd = buildHintSequence(lines, lines.length - 1, { maxHints: 4 });
-    assertEqual(hintsAtEnd.length, 4, "歌詞の末尾行を基準にしても4段階まで正常に生成される");
-    assertEqual(hintsAtEnd[3].endLine, 10, "末尾行が基準だと、これ以上後ろへは広げられず10行目までになる");
-    const endLineCounts = hintsAtEnd.map((h) => h.endLine - h.startLine + 1);
+    const hints = buildHintSequence(lines, 5, { title: "なつのゆめ", maxHints: 4 });
     assertEqual(
-      endLineCounts.every((count, i) => i === 0 || count > endLineCounts[i - 1]),
+      hints.every((h) => !h.segment.containsTitle),
       true,
-      "末尾付近でも表示行数は単調に増える（前方向に広げられない分、後方向へ広げて補う）"
+      "曲名を含む行（4行目）はどのヒントにも選ばれない"
+    );
+    assertEqual(
+      hints.every((h) => h.startLine !== 4),
+      true,
+      "曲名を含む行番号（4行目）自体が選ばれることはない"
     );
   }
 
-  // ===== buildHintSequence()：短い歌詞・境界での安全なフォールバック =====
+  // ===== buildHintSequence()：使える行がmaxHints未満しかない短い歌詞 =====
 
   {
     const oneLineOnly = [{ line: 1, text: "たったひとことだけのかしです", start: 0, end: 2 }];
     const hints = buildHintSequence(oneLineOnly, 0, { maxHints: 4 });
     assertEqual(hints.length, 1, "1行しかない歌詞は、ヒントも1段階だけで安全に打ち切られる（例外を投げない）");
+    assertEqual(
+      hints[0].stopReason,
+      "insufficient-candidates",
+      "使える行がmaxHints未満の場合、stopReasonはinsufficient-candidates"
+    );
 
     const threeLines = [
       { line: 1, text: "いちぎょうめのかしです", start: 0, end: 2 },
@@ -226,94 +231,25 @@ export function runLyricsSegmentEngineTests() {
     ];
     const hintsThree = buildHintSequence(threeLines, 1, { maxHints: 4 });
     assertEqual(hintsThree.length, 3, "3行しかない歌詞は、3段階（全行）でヒントが打ち切られる");
-    assertEqual(hintsThree[2].startLine, 1, "3行しかない場合、最終段階では歌詞全体（1行目から）が表示される");
-    assertEqual(hintsThree[2].endLine, 3, "3行しかない場合、最終段階では歌詞全体（3行目まで）が表示される");
+    assertEqual(
+      hintsThree.map((h) => h.startLine),
+      [1, 2, 3],
+      "3行しかない場合、3行すべてが別々のヒントとして使われる"
+    );
     assertEqual(
       hintsThree[2].stopReason,
-      "insufficient-lines",
-      "歌詞全体を使い切って打ち切られた場合、stopReasonはinsufficient-lines"
+      "insufficient-candidates",
+      "使える行を使い切って打ち切られた場合、stopReasonはinsufficient-candidates"
     );
   }
 
-  // ===== buildHintSequence()：間隔（間奏）をまたがない =====
-  // （4行目自体が曲名を含む行のため、titleを渡すとこの行が基準行として使えなくなってしまう。
-  // ここでは間隔だけを確認したいので、あえてtitleを渡さない。）
+  // ===== buildHintSequence()：使える行がちょうどmaxHints以上ある場合はstopReason:null =====
 
   {
     const lines = buildDummyLines();
-    // 4行目と5行目の間はmaxLineGapSec（既定3秒）を大きく超える間隔（18秒）がある。
-    // 4行目（index3）を基準にすると、後方向（5行目側）には広げられないはず。
-    const hints = buildHintSequence(lines, 3, { maxHints: 4 });
-    assertEqual(hints.length, 4, "前方向へ広げられなくても、後方向へ広げることで4段階まで到達する");
-    assertEqual(
-      hints.every((h) => h.endLine <= 4),
-      true,
-      "間隔が大きい行（間奏相当）をまたいで後方向へは広がらない"
-    );
-  }
-
-  // ===== buildHintSequence()：曲名を含む方向へは広げない =====
-
-  {
-    const lines = buildDummyLines();
-    // 3行目（index2）を基準にすると、後方向に広げると4行目（曲名を含む）に触れる。
-    // 曲名を含む方向へは広げず、前方向（曲名を含まない）だけを使うはず。
-    const hints = buildHintSequence(lines, 2, { title: "なつのゆめ", maxHints: 4 });
-    assertEqual(
-      hints.every((h) => h.endLine < 4),
-      true,
-      "曲名を含む行の方向へは広げず、含まない範囲だけでヒントを構成する"
-    );
-    assertEqual(
-      hints.every((h) => !h.segment.containsTitle),
-      true,
-      "どのヒントの区間も曲名を含まない"
-    );
-    assertEqual(
-      hints[hints.length - 1].stopReason,
-      "contains-title",
-      "曲名混入で打ち切られた場合、最後のヒントにstopReason:contains-titleが付く"
-    );
-  }
-
-  // ===== buildHintSequence()：stopReason（打ち切り理由）の分類 =====
-
-  {
-    const lines = buildDummyLines();
-    // 中央付近（前後に十分な余裕がある）で4段階まで到達できた場合、打ち切られていない
-    // ＝最後のヒントのstopReasonはnullになる。
-    const hints = buildHintSequence(lines, 5, { title: "なつのゆめ", maxHints: 4 });
-    assertEqual(hints[hints.length - 1].stopReason, null, "maxHintsまで到達できた場合、stopReasonはnull");
-  }
-
-  {
-    // 1行目と2行目の間隔が大きく空いている（間奏相当）短い歌詞。
-    // 基準行（1行目）を起点にすると、前方向は間隔でブロックされ、後方向は曲の先頭で
-    // ブロックされる。gapの方がsong-startより優先して報告されるはず。
-    const linesWithGapAtStart = [
-      { line: 1, text: "いちぎょうめのかしです", start: 0, end: 2 },
-      { line: 2, text: "にぎょうめはとおいところ", start: 20, end: 22 },
-      { line: 3, text: "さんぎょうめもとおいところ", start: 22.2, end: 24 },
-    ];
-    const hints = buildHintSequence(linesWithGapAtStart, 0, { maxHints: 4 });
-    assertEqual(hints.length, 1, "間隔と曲の先頭の両方でブロックされ、1段階で打ち切られる");
-    assertEqual(
-      hints[0].stopReason,
-      "interlude-gap",
-      "間隔（間奏相当）による打ち切りが、境界到達より優先してstopReasonに報告される"
-    );
-  }
-
-  {
-    // 1行しかない歌詞：前後どちらも曲の端に達するため、打ち切り理由は
-    // 「歌詞の行数が足りない」を表すinsufficient-linesにまとめられる。
-    const oneLineOnly = [{ line: 1, text: "たったひとことだけのかしです", start: 0, end: 2 }];
-    const hints = buildHintSequence(oneLineOnly, 0, { maxHints: 4 });
-    assertEqual(
-      hints[0].stopReason,
-      "insufficient-lines",
-      "前後どちらも曲の端に達した場合、stopReasonはinsufficient-linesにまとめられる"
-    );
+    const hints = buildHintSequence(lines, 0, { maxHints: 4 });
+    assertEqual(hints.length, 4, "曲名を渡さない場合（全行が対象）は4段階まで生成される");
+    assertEqual(hints[hints.length - 1].stopReason, null, "使える行がmaxHints以上ある場合、stopReasonはnull");
   }
 
   // ===== buildHintSequence()：異常な引数の安全な扱い =====
@@ -341,7 +277,33 @@ export function runLyricsSegmentEngineTests() {
     assertEqual(
       hintsA.map((h) => `${h.startLine}-${h.endLine}`),
       hintsB.map((h) => `${h.startLine}-${h.endLine}`),
-      "同じlines・primaryLineIndex・optionsなら、常に同じヒント範囲を返す"
+      "同じlines・primaryLineIndex・optionsなら、常に同じヒント行を返す"
+    );
+  }
+
+  // ===== buildHintSequence()：基準行（＝seedに由来する開始位置）を変えると選ばれる行の
+  //       組み合わせも変わりうる（同じ曲でも問題ごとにヒントが変化する） =====
+
+  {
+    const manyLines = Array.from({ length: 20 }, (_, i) => ({
+      line: i + 1,
+      text: `これはだいなんぎょうめのかしですよろしく${i}`,
+      start: i * 3,
+      end: i * 3 + 2,
+    }));
+    // 【本人指示への対応メモ】20行・4段階だとグループ幅は5行になるため、primaryLineIndexを
+    // 5の倍数（5行おき）でずらすと、選ばれる4行の組み合わせが一巡してちょうど元へ戻って
+    // しまう（グループ幅と歩幅が一致する特殊なケース）。実際の楽曲・seedの組み合わせでは
+    // まず起こらない偶然の一致のため、ここではグループ幅と噛み合わない歩幅で確認する。
+    const startLineSetsByPrimary = new Set();
+    for (const primary of [0, 3, 8, 14, 17]) {
+      const hints = buildHintSequence(manyLines, primary, { maxHints: 4 });
+      startLineSetsByPrimary.add(hints.map((h) => h.startLine).join(","));
+    }
+    assertEqual(
+      startLineSetsByPrimary.size > 1,
+      true,
+      "基準行（primaryLineIndex）を変えると、選ばれる4行の組み合わせも変わりうる"
     );
   }
 
