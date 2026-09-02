@@ -414,10 +414,27 @@ let currentPlaybackSongId = null;
 
 function releaseCurrentObjectUrl() {
   if (currentObjectUrl !== null) {
+    diag("[OBJECT_URL] revoke（stopAudio等、再生を完全に止める経路）", {
+      url: currentObjectUrl,
+      matchesCurrentSrc: audioElement.src === currentObjectUrl,
+    });
     URL.revokeObjectURL(currentObjectUrl);
     currentObjectUrl = null;
   }
 }
+
+// 【2026-09-30新設・本人指示：一瞬バトル/一瞬協力の音源誤判定・第2/3問での再調査】
+// 前の曲のObject URLを、claimAsCurrentPlayback()の時点ではまだ解放しない。
+// 【発見した不具合】以前はclaimAsCurrentPlayback()の中で即座にreleaseCurrentObjectUrl()を
+// 呼んでいたが、その時点ではaudioElement.srcへの新しいURLの代入（呼び出し元が数行後に行う）
+// がまだ済んでおらず、audioElement.srcは「今まさにrevokeしようとしている前のURL」のままだった。
+// 1問目だけcurrentObjectUrlがnullでこの処理がスキップされ無事故になる一方、2問目以降は
+// 毎回「現役でsrcに設定されたままのURLをrevokeする」瞬間が発生していた。iOS Safari等では
+// 現役srcのblob URLをrevokeすると、audio要素が予期せぬエラー状態に遷移することがあるため
+// （2026-09-30調査エージェントによる実機報告との整合性確認、docs/HANDOFF.md参照）、
+// 前のURLの解放は、呼び出し元が新しいURLへのsrc切り替えを終えたあと
+// （releasePreviousObjectUrlAfterSrcSwap()）まで遅らせる。
+let pendingPreviousObjectUrl = null;
 
 // 世代番号を発行し、音源データを取得する。取得完了時点で既に追い越されていたら
 // stale:trueを返す（呼び出し側は何もせず終わってよい）。
@@ -434,17 +451,41 @@ async function acquireBlobForNewPlayback(song) {
   return { myToken, blob, stale: false };
 }
 
-// 取得したblobを「現在再生中」として確定させる。それまでの再生中URLを解放し、
-// 自分のURLを新しい「現在再生中」として登録してから、再生用のURLを返す。
-// playSongIntro()・playSongFromRandomPosition()の共通処理。
+// 取得したblobを「現在再生中」として確定させる。前の曲のURLはまだ解放せず
+// （pendingPreviousObjectUrlへ退避するだけ）、自分のURLを新しい「現在再生中」として
+// 登録してから、再生用のURLを返す。前の曲のURLの実際の解放は、呼び出し元が
+// audioElement.srcを新しいURLへ切り替えたあとにreleasePreviousObjectUrlAfterSrcSwap()を
+// 呼ぶことで行う（playSongIntro()・playSongFromRandomPosition()の共通処理）。
 function claimAsCurrentPlayback(blob) {
   // クイズの音声を鳴らす直前に、試聴・連続再生など他の音声を止める
   // （playbackCoordinator.js参照、2026-08-04追加）。
   notifyPlaybackStarting("quiz");
-  releaseCurrentObjectUrl();
+  if (pendingPreviousObjectUrl !== null) {
+    // 前回のclaimAsCurrentPlayback()の後始末がまだ済んでいなかった場合の保険
+    // （通常は毎回releasePreviousObjectUrlAfterSrcSwap()が先に呼ばれるため発生しないが、
+    // 万一未解放のまま次が来ても、ここで確実に解放してからでないと取りこぼしになるため）。
+    diag("[OBJECT_URL] 前回分の解放漏れを検知、ここで解放", { url: pendingPreviousObjectUrl });
+    URL.revokeObjectURL(pendingPreviousObjectUrl);
+    pendingPreviousObjectUrl = null;
+  }
+  pendingPreviousObjectUrl = currentObjectUrl;
   const myObjectUrl = URL.createObjectURL(blob);
   currentObjectUrl = myObjectUrl;
   return myObjectUrl;
+}
+
+// claimAsCurrentPlayback()が退避しておいた「前の曲のURL」を、audioElement.srcが
+// 新しいURLへ実際に切り替わったあとに解放する。playSongIntro()・
+// playSongFromRandomPosition()の共通の後半処理（audioElement.src代入の直後に必ず呼ぶこと）。
+function releasePreviousObjectUrlAfterSrcSwap() {
+  if (pendingPreviousObjectUrl !== null) {
+    diag("[OBJECT_URL] revoke（前の曲。src切り替え後のため安全）", {
+      url: pendingPreviousObjectUrl,
+      currentSrc: audioElement.src,
+    });
+    URL.revokeObjectURL(pendingPreviousObjectUrl);
+    pendingPreviousObjectUrl = null;
+  }
 }
 
 function sleep(ms) {
@@ -590,6 +631,8 @@ export async function playSongIntro(song, onError, onPlaybackStart) {
   const playbackTag = hasConfirmedFirstRealPlayback ? "NORMAL_AUDIO" : "FIRST_REAL_AUDIO";
   diag(`[${playbackTag}] src設定 (intro, song=${song.id})`, { unlock: audioUnlockState });
   audioElement.src = myObjectUrl;
+  // 前の曲のURLは、audioElement.srcが自分のURLへ切り替わった今なら安全に解放できる。
+  releasePreviousObjectUrlAfterSrcSwap();
 
   await attemptPlay(myToken, myObjectUrl, onError, `intro, song=${song.id}`);
 }
@@ -656,6 +699,8 @@ export async function playSongFromRandomPosition(song, computeStartTimeSec, play
   const randomPositionPlaybackTag = hasConfirmedFirstRealPlayback ? "NORMAL_AUDIO" : "FIRST_REAL_AUDIO";
   diag(`[${randomPositionPlaybackTag}] src設定 (randomPosition, song=${song.id})`, { unlock: audioUnlockState });
   audioElement.src = myObjectUrl;
+  // 前の曲のURLは、audioElement.srcが自分のURLへ切り替わった今なら安全に解放できる。
+  releasePreviousObjectUrlAfterSrcSwap();
 
   await attemptPlay(myToken, myObjectUrl, onError, `randomPosition, song=${song.id}`);
 }

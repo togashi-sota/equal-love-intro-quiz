@@ -28,6 +28,22 @@ export function computeAllPlayersConfirmed(players) {
   return entries.every((player) => player.ruleConfirmed === true);
 }
 
+// 【2026-09-30新設・本人指示：オンライン対戦総合改修 第2ラウンド26-29章】結果画面で
+// 各プレイヤーが個別に「ルーム設定に戻る」を押したかどうか（room.players/{uid}/resultReturned）を
+// 見て、全員が戻り終えたかを判定する。次の試合（対戦を開始する・もう一度）は、この関数が
+// trueを返すまで開始できないようにする（本人指示：各自のペースで結果を見終えるまで、
+// 次の試合を勝手に始めない）。
+// 【切断中の参加者は待たない】本人指示「既存のpresence/切断検知の仕組みをそのまま使う」に
+// 従い、player.connectedがfalseの参加者は、結果画面をいつまでも閉じられず対戦全体が
+// 詰んでしまうことを防ぐため、待つ対象から除外する（computeAllPlayersRematchReady()・
+// computeAllPlayersConfirmed()は既存仕様のため変更しないが、この新設関数はより安全に作る）。
+export function computeAllPlayersResultReturned(players) {
+  const entries = Object.values(players ?? {});
+  const waitingEntries = entries.filter((player) => player.connected !== false);
+  if (waitingEntries.length === 0) return false;
+  return waitingEntries.every((player) => player.resultReturned === true);
+}
+
 // 【再戦準備フェーズ新設・本人指示】結果画面の「もう一度」を押した直後に挟む、
 // 「今回の設定を確認し、全員が『準備OK』を押したら再戦を始める」ための判定。
 // computeAllPlayersConfirmed()と全く同じ形（1人以上存在し、全員がtrueなら成立／

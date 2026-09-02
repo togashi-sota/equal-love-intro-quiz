@@ -997,8 +997,6 @@ const onlineBattleLobbySettingsHostElement = document.getElementById("online-bat
 const onlineBattleLobbySettingsParticipantElement = document.getElementById("online-battle-lobby-settings-participant");
 const onlineBattleLobbySettingsSummaryElement = document.getElementById("online-battle-lobby-settings-summary");
 const onlineBattleLobbySettingsPenaltyFieldsetElement = document.getElementById("online-battle-lobby-settings-penalty-fieldset");
-// 出題する曲（2026-08-08新設）。
-const onlineBattleLobbySettingsCategoryFieldsetElement = document.getElementById("online-battle-lobby-settings-category-fieldset");
 // 共同選曲セクション（2026-08-27全面刷新：ホスト専用だった選曲UIを、ホスト・参加者
 // 共通の「共同選曲」セクションへ置き換えた。js/onlineBattleScreen.js参照）。
 const onlineBattleCollabSongSectionElement = document.getElementById("online-battle-collab-song-section");
@@ -1057,7 +1055,13 @@ const onlineBattleResultQuestionBreakdownElement = document.getElementById("onli
 const onlineBattleResultHomeLinkElement = document.getElementById("online-battle-result-home-link");
 const onlineBattleResultHostActionsElement = document.getElementById("online-battle-result-host-actions");
 const onlineBattleResultRematchButtonElement = document.getElementById("online-battle-result-rematch-button");
-const onlineBattleResultBackToLobbyButtonElement = document.getElementById("online-battle-result-back-to-lobby-button");
+// 【2026-09-30新設・本人指示：オンライン対戦総合改修 第2ラウンド23-29章】結果画面の
+// 個別「ルーム設定に戻る」・「もう一度」提案への個別対応ボタン群。
+const onlineBattleResultRematchProposedNoticeElement = document.getElementById("online-battle-result-rematch-proposed-notice");
+const onlineBattleResultRematchProceedButtonElement = document.getElementById("online-battle-result-rematch-proceed-button");
+const onlineBattleResultReturnPanelElement = document.getElementById("online-battle-result-return-panel");
+const onlineBattleResultReturnStatusListElement = document.getElementById("online-battle-result-return-status-list");
+const onlineBattleResultReturnButtonElement = document.getElementById("online-battle-result-return-button");
 // 【2026-09-07新設、本人指示：ゲスト結果画面】
 const onlineBattleResultGuestActionsElement = document.getElementById("online-battle-result-guest-actions");
 const onlineBattleResultLeaveButtonElement = document.getElementById("online-battle-result-leave-button");
@@ -1117,7 +1121,6 @@ const onlineBattleSpectatorPlayerListElement = document.getElementById("online-b
 const onlineInstantBattleLobbySettingsHostElement = document.getElementById("online-battle-lobby-settings-host-instant");
 const onlineInstantBattleLobbySettingsParticipantElement = document.getElementById("online-battle-lobby-settings-participant-instant");
 const onlineInstantBattleSettingsSummaryElement = document.getElementById("online-instant-battle-settings-summary");
-const onlineInstantBattleSettingsCategoryFieldsetElement = document.getElementById("online-instant-battle-lobby-settings-category-fieldset");
 const onlineInstantBattleSettingsErrorElement = document.getElementById("online-instant-battle-settings-error");
 const onlineInstantBattleQuitButtonElement = document.getElementById("online-instant-battle-quit-button");
 const onlineInstantBattleBackToLobbyButtonElement = document.getElementById("online-instant-battle-back-to-lobby-button");
@@ -1234,8 +1237,6 @@ const onlineBattleSongPickerStickyConfirmButtonElement = document.getElementById
 const onlineLyricsBattleLobbySettingsHostElement = document.getElementById("online-battle-lobby-settings-host-lyrics");
 const onlineLyricsBattleLobbySettingsParticipantElement = document.getElementById("online-battle-lobby-settings-participant-lyrics");
 const onlineLyricsBattleRuleOptionsElement = document.getElementById("online-lyrics-battle-rule-options");
-// カテゴリ設定（2026-09-16新設・本人指示：他モードとの機能差解消）。
-const onlineLyricsBattleSettingsCategoryFieldsetElement = document.getElementById("online-lyrics-battle-lobby-settings-category-fieldset");
 const onlineLyricsBattlePoolSizeOptionsElement = document.getElementById("online-lyrics-battle-pool-size-options");
 const onlineLyricsBattleSettingsFormElement = document.getElementById("online-lyrics-battle-settings-form");
 const onlineLyricsBattleSettingsSummaryElement = document.getElementById("online-lyrics-battle-settings-summary");
@@ -5843,11 +5844,9 @@ initOnlineBattleScreens({
   lobbySettingsParticipant: onlineBattleLobbySettingsParticipantElement,
   lobbySettingsSummary: onlineBattleLobbySettingsSummaryElement,
   lobbySettingsPenaltyFieldset: onlineBattleLobbySettingsPenaltyFieldsetElement,
-  lobbySettingsCategoryFieldset: onlineBattleLobbySettingsCategoryFieldsetElement,
   lobbySettingsHostInstant: onlineInstantBattleLobbySettingsHostElement,
   lobbySettingsParticipantInstant: onlineInstantBattleLobbySettingsParticipantElement,
   instantBattleSettingsSummary: onlineInstantBattleSettingsSummaryElement,
-  lobbySettingsCategoryFieldsetInstant: onlineInstantBattleSettingsCategoryFieldsetElement,
   instantBattleSettingsError: onlineInstantBattleSettingsErrorElement,
   lobbySettingsHostCoop: onlineInstantCoopLobbySettingsHostElement,
   lobbySettingsParticipantCoop: onlineInstantCoopLobbySettingsParticipantElement,
@@ -5914,7 +5913,11 @@ initOnlineBattleScreens({
   resultHomeLink: onlineBattleResultHomeLinkElement,
   resultHostActions: onlineBattleResultHostActionsElement,
   resultRematchButton: onlineBattleResultRematchButtonElement,
-  resultBackToLobbyButton: onlineBattleResultBackToLobbyButtonElement,
+  resultRematchProposedNotice: onlineBattleResultRematchProposedNoticeElement,
+  resultRematchProceedButton: onlineBattleResultRematchProceedButtonElement,
+  resultReturnPanel: onlineBattleResultReturnPanelElement,
+  resultReturnStatusList: onlineBattleResultReturnStatusListElement,
+  resultReturnButton: onlineBattleResultReturnButtonElement,
   resultGuestActions: onlineBattleResultGuestActionsElement,
   resultLeaveButton: onlineBattleResultLeaveButtonElement,
   lobbyHelpButton: onlineBattleLobbyHelpButtonElement,
@@ -5957,7 +5960,6 @@ initOnlineLyricsQuizBattleScreens({
   lobbySettingsHostLyrics: onlineLyricsBattleLobbySettingsHostElement,
   lobbySettingsParticipantLyrics: onlineLyricsBattleLobbySettingsParticipantElement,
   lyricsRuleOptionsContainer: onlineLyricsBattleRuleOptionsElement,
-  lobbySettingsCategoryFieldsetLyrics: onlineLyricsBattleSettingsCategoryFieldsetElement,
   lyricsPoolSizeOptionsContainer: onlineLyricsBattlePoolSizeOptionsElement,
   lyricsSettingsFormContainer: onlineLyricsBattleSettingsFormElement,
   lyricsSettingsSummaryContainer: onlineLyricsBattleSettingsSummaryElement,

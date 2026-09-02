@@ -6,6 +6,7 @@ import {
   hasMatchMembershipChanged,
   computeAllPlayersConfirmed,
   computeAllPlayersRematchReady,
+  computeAllPlayersResultReturned,
 } from "../js/onlineBattleMatchConfirmationPayloads.js";
 import { assertEqual } from "./test-utils.js";
 
@@ -138,5 +139,54 @@ export function runOnlineBattleMatchConfirmationPayloadsTests() {
     );
     assertEqual(computeAllPlayersRematchReady({}), false, "参加者が1人もいなければ準備完了とはみなさない（安全側）");
     assertEqual(computeAllPlayersRematchReady(undefined), false, "playersがundefinedでも安全にfalseを返す");
+  }
+
+  // ---- computeAllPlayersResultReturned（オンライン対戦総合改修 第2ラウンド26-29章新設） ----
+  {
+    assertEqual(
+      computeAllPlayersResultReturned({ a: { resultReturned: true }, b: { resultReturned: true } }),
+      true,
+      "全員がresultReturned:trueなら全員戻り終えたと判定する"
+    );
+    assertEqual(
+      computeAllPlayersResultReturned({ a: { resultReturned: true }, b: { resultReturned: false } }),
+      false,
+      "1人でもまだ戻っていなければ全員戻り終えたとは判定しない"
+    );
+    assertEqual(
+      computeAllPlayersResultReturned({ a: { resultReturned: true }, b: {} }),
+      false,
+      "resultReturnedフィールド自体が無い参加者はまだ戻っていないとして扱う"
+    );
+    assertEqual(computeAllPlayersResultReturned({}), false, "参加者が1人もいなければ戻り終えたとはみなさない（安全側）");
+    assertEqual(computeAllPlayersResultReturned(undefined), false, "playersがundefinedでも安全にfalseを返す");
+
+    // 【本人指示：切断中の参加者を待たない】既存のconnectedフラグ（presence/切断検知）で
+    // 除外することで、詰み（誰かの端末が落ちて二度と次の試合が始められない）を防ぐ。
+    assertEqual(
+      computeAllPlayersResultReturned({
+        a: { resultReturned: true },
+        b: { resultReturned: false, connected: false }, // 切断中：待たない
+      }),
+      true,
+      "切断中の参加者は、resultReturnedがfalseのままでも待たずに全員戻り終えたと判定する"
+    );
+    assertEqual(
+      computeAllPlayersResultReturned({
+        a: { resultReturned: false, connected: false },
+        b: { resultReturned: false, connected: false },
+      }),
+      false,
+      "全員が切断中の場合は、待つべき相手が1人もいない扱い（安全側）として戻り終えたとは判定しない"
+    );
+    assertEqual(
+      computeAllPlayersResultReturned({
+        a: { resultReturned: true, connected: true },
+        b: { resultReturned: true, connected: true },
+        c: { resultReturned: false, connected: false },
+      }),
+      true,
+      "3人中1人が切断中：残り2人が戻り終えていれば、切断中の1人を待たずに戻り終えたと判定する"
+    );
   }
 }

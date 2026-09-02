@@ -54,7 +54,7 @@ import {
 import { restrictSettingsToCommonlyAvailableSongs } from "./onlineBattleSongAvailability.js";
 import { QUESTION_SOURCE_TYPE } from "./questionSource.js";
 import { pickNextHostUid } from "./onlineBattleHostTransitionPayloads.js";
-import { computeAllPlayersRematchReady } from "./onlineBattleMatchConfirmationPayloads.js";
+import { computeAllPlayersRematchReady, computeAllPlayersResultReturned } from "./onlineBattleMatchConfirmationPayloads.js";
 import { startActivityPresenceTracking, stopActivityPresenceTracking } from "./onlineBattlePresence.js";
 import { isMatchReadyToFinalize } from "./onlineBattleMatchProgress.js";
 
@@ -1197,6 +1197,11 @@ async function writeNewMatchStart({ roomId, room, uid, players, finalSettings })
       isHost: playerUid === uid,
       oshiMemberId: player.oshiMemberId ?? null, // nullなら未設定（Firebase上ではキー自体が作られない）
     };
+    // 【2026-09-30新設・本人指示：オンライン対戦総合改修 第2ラウンド26-29章】結果画面の
+    // 「ルーム設定に戻る」を個人ごとに管理するresultReturnedを、新しい試合が始まる瞬間に
+    // 必ず全員分false（未戻り）へ戻す（前回の試合の「戻り終えた」状態が次の試合へ
+    // 持ち越されないようにするため）。
+    updates[`rooms/${roomId}/players/${playerUid}/resultReturned`] = false;
   });
   try {
     await update(ref(database), updates);
@@ -1512,6 +1517,43 @@ export async function returnRoomToLobby({ roomId }) {
     return { ok: false, reason: "write-failed" };
   }
   return { ok: true };
+}
+
+// 【2026-09-30新設・本人指示：オンライン対戦総合改修 第2ラウンド23-29章】結果画面の
+// 「ルーム設定に戻る」を押した瞬間に、本人（ホスト・ゲストどちらでも）が自分の分の
+// resultReturnedをtrueにする。以前はこの操作自体がホスト専用で、しかもroom.status全体を
+// 即座にwaitingへ書き換えていたため、まだ結果を見ている他の参加者の画面まで強制的に
+// ロビーへ戻してしまっていた（本人指示：「結果画面は各自のペースで見て、他の人の画面を
+// 勝手に閉じない」）。この関数はroom.statusには一切触れず、本人の分だけを記録する
+// （実際にroom.statusをwaitingへ戻す処理は、全員のresultReturnedが揃った時点でホストの
+// 端末が自動的に行う。js/onlineBattleScreen.jsのrenderLobby()内、
+// maybeFinalizeAllPlayersReturnedFromResult()参照）。
+export async function markResultReturned({ roomId }) {
+  await authReady;
+  const uid = getCurrentUid();
+  if (!uid) return { ok: false, reason: "not-signed-in" };
+  try {
+    await update(ref(database), { [`rooms/${roomId}/players/${uid}/resultReturned`]: true });
+  } catch (error) {
+    return { ok: false, reason: "write-failed" };
+  }
+  return { ok: true };
+}
+
+// 【2026-09-30新設・本人指示：オンライン対戦総合改修 第2ラウンド26-29章】ホストの端末だけが
+// 定期的に呼ぶ（js/onlineBattleScreen.jsのrenderLobby()から、room更新のたびに軽量に確認する）。
+// room.statusがまだresultのまま・全員（切断中を除く）のresultReturnedが揃っていれば、
+// 実際にreturnRoomToLobby()を呼んでroom.statusをwaitingへ戻す。揃っていなければ何もしない
+// （本人指示：全員が結果画面から戻り終えるまで、次の試合を始められないようにする）。
+// 【再戦準備中は対象外】confirmingRematch===trueの間（もう一度の準備フェーズ中）は、
+// finishRematchReadyCheck()側が別途「全員rematchReady」を見て試合を開始するため、
+// ここで先にstatusをwaitingへ戻してしまうと二重の遷移になり得るため対象から除外する。
+export async function maybeFinalizeReturnToLobbyIfAllReturned({ roomId, room }) {
+  if (room.status !== ROOM_STATUS.RESULT) return { ok: true, finalized: false };
+  if (room.confirmingRematch === true) return { ok: true, finalized: false };
+  if (!computeAllPlayersResultReturned(room.players)) return { ok: true, finalized: false };
+  const result = await returnRoomToLobby({ roomId });
+  return { ...result, finalized: result.ok };
 }
 
 // 【再戦準備フェーズ新設・本人指示】beginRematchReadyCheck()・finishRematchReadyCheck()の

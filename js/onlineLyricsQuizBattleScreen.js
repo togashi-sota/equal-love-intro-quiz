@@ -124,6 +124,11 @@ import {
   areSongIdSetsEqual,
 } from "./onlineBattleCollaborativeSelection.js";
 import { QUESTION_SOURCE_TYPE, sanitizeSongIds } from "./questionSource.js";
+import {
+  resolveSongSourceOptionValue,
+  buildSongSourceSettingsFields,
+  describeSongSourceForSettings,
+} from "./onlineBattleSongSourceUi.js";
 import { savePlayHistoryEntryIfNew } from "./playHistory.js";
 import { buildLyricsQuizQuestionBreakdown, capQuestionBreakdownForStorage } from "./battleQuestionBreakdown.js";
 import { renderQuestionBreakdownAccordion } from "./battleQuestionBreakdownUi.js";
@@ -135,13 +140,13 @@ import { getMemberById } from "./memberUtils.js";
 // 歌詞クイズ対戦のスコアボードからも使う。このファイルはjs/onlineBattleScreen.jsを一切
 // importしない方針（このファイル冒頭のコメント参照）のため、循環importを避けて中立な
 // 共通ファイルjs/onlineParticipantIcon.jsから読み込む。
-import { buildParticipantIcon, openParticipantProfile } from "./onlineParticipantIcon.js";
+import { buildParticipantIcon } from "./onlineParticipantIcon.js";
 // 【2026-09-26新設・本人指示：サウンドシステム全面整備8-10章】答え表示中だけ実際の楽曲を
 // 流す新機能で使う。js/audio.jsの共通再生関数をそのまま再利用し（新しい再生経路は作らない）、
 // 失敗時はonErrorをconsole.warnだけにして、Q1無音バグの教訓どおり「演出の失敗でゲーム進行を
 // 止めない」設計にする（下のstartRevealMusic参照）。
 import { playSongFromRandomPosition, stopAudio } from "./audio.js";
-import { QUESTION_COUNT_LABELS, CATEGORY_LABELS } from "./localBattleScreen.js";
+import { QUESTION_COUNT_LABELS } from "./localBattleScreen.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
 import { STEAL_CLAIM_OUTCOME } from "./lyricsQuizBattleFirebasePayloads.js";
 
@@ -150,7 +155,11 @@ import { STEAL_CLAIM_OUTCOME } from "./lyricsQuizBattleFirebasePayloads.js";
 // 歌詞クイズ3ルール全面改修時の指示「結果表示→約3秒→次の問題」を正として3000へ戻した。
 // 【2026-09-07改訂・本人指示：答え合わせ表示を4秒へ統一】以前は3秒だったが、答え合わせカードに
 // 「あなたの回答」「獲得pt」等の読む情報が増えたため、対象モード共通で4秒へ揃えた。
-const REVEAL_DELAY_MS = 4000;
+// 【2026-09-30改訂・本人指示：オンライン対戦総合改修 第2ラウンド10章】正解曲を実際に
+// 聞かせる演出（startRevealMusic）と両立させるため、7秒（7000ms）へ延長する。この値は
+// 答え表示時間の唯一の情報源であり、reveal音楽の再生時間（startRevealMusic参照）・
+// ホストの次問題への進行判定（renderCurrentQuestionState内）の両方が自動的に追従する。
+const REVEAL_DELAY_MS = 7000;
 // ヒント表示・ホストの進行判定を更新する間隔。カウントダウン画面のsetInterval(100ms)ほど
 // シビアな精度は不要なため、通信・電池消費とのバランスで少し長めにしている。
 const HOST_TICK_INTERVAL_MS = 400;
@@ -173,6 +182,11 @@ let lastRenderedQuestionIndex = -1;
 // 再生し直され、実機で「ピコピコ点滅して見える」原因になっていた。
 let lastRevealedQuestionIndex = -1;
 let lastHintRevealedQuestionIndex = -1; // renderResolvedHintSummary()の同種の追跡（answer choicesとは別カウンタ）
+// 【2026-09-30新設・本人指示：オンライン対戦総合改修 第2ラウンド11章】正解/不正解SFXが
+// renderCurrentQuestionState()のtick（400ms間隔）のたびに毎回鳴り、7秒の答え表示中に
+// 十数回重ねて再生されていた不具合の修正用（answer choicesの点滅対策と同じ考え方の
+// 「同じ問題には1回だけ」ガード。別カウンタにする理由も同上）。
+let lastRevealSfxPlayedForQuestionIndex = -1;
 let mySubmittedForQuestionIndex = -1;
 let mySelectedSongId = null;
 let submitInFlight = false;
@@ -271,36 +285,22 @@ export function initOnlineLyricsQuizBattleScreens(newElements) {
   // 0曲でも共同選曲(collaborativeSelection)として安全に保存できるようにしてある
   // （js/battleModes/lyricsQuizBattleMode.js参照）ため、以前のような「曲選択画面を
   // 先に開く」特別扱いは不要になった。
+  // 【2026-09-30改訂・本人指示：出題する曲4択統合】以前は「全曲から出題／曲を選んで出題」と
+  // 「カテゴリ」が別々のラジオ群だったが、js/onlineBattleSongSourceUi.jsの4択1本へ統合した。
   document.querySelectorAll('input[name="online-lyrics-battle-settings-song-source"]').forEach((radio) => {
     radio.addEventListener("change", () => {
       if (!latestRoom || latestRoom.gameMode !== lyricsQuizBattleMode.gameMode) return;
-      // 出題対象曲の選び方（全曲／曲を選んで出題）の切り替え操作音
+      // 出題対象曲の選び方の切り替え操作音
       playSfx(SFX_EVENTS.UI_CLICK);
-      if (radio.value === "manual") {
-        applyLyricsQuizSettingsChange(latestRoom, {
-          ...latestRoom.settings,
-          questionSource: { type: QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION, songIds: getMergedRestrictedLyricsSongIds() },
-        });
-        return;
-      }
       applyLyricsQuizSettingsChange(latestRoom, {
         ...latestRoom.settings,
-        questionSource: { type: QUESTION_SOURCE_TYPE.ALL_SONGS },
+        ...buildSongSourceSettingsFields(radio.value, {
+          mergedSongIds: getMergedRestrictedLyricsSongIds(),
+          // 歌詞クイズはdefaultSettings()がquestionSource:{type:ALL_SONGS}を明示する既存の
+          // 流儀のため、①②③でも同じ形を保つ（settingsの形を変えないため）。
+          includeAllSongsQuestionSource: true,
+        }),
       });
-    });
-  });
-
-  // 【2026-09-16新設・本人指示：他モードとの機能差解消】カテゴリ設定。
-  // js/onlineBattleScreen.jsの同名ハンドラ（online-battle-settings-category等）と
-  // 全く同じ考え方。categoryFilterValueだけを差し替え、questionSource（共同選曲の
-  // 選択状態）はそのまま保持する（カテゴリで対象外になった選択曲を消してはいけない、
-  // 既存の重要な仕様）。
-  document.querySelectorAll('input[name="online-lyrics-battle-settings-category"]').forEach((radio) => {
-    radio.addEventListener("change", () => {
-      if (!latestRoom || latestRoom.gameMode !== lyricsQuizBattleMode.gameMode) return;
-      // カテゴリー設定変更操作音
-      playSfx(SFX_EVENTS.UI_CLICK);
-      applyLyricsQuizSettingsChange(latestRoom, { ...latestRoom.settings, categoryFilterValue: radio.value });
     });
   });
   // 【2026-08-27新設】共同選曲：全曲・お気に入り・プレイリストから選ぶ。ホスト・参加者を
@@ -456,27 +456,38 @@ function stopRevealMusic() {
 // question.revealStartTimeSec（js/lyricsQuizQuestionBuilder.jsが、ヒント1の歌詞が
 // 実際に始まる位置から求めたもの）があればそこから、無ければ曲の先頭（0秒）から再生する
 // （本人指示：正確な歌詞位置情報が無い曲で推測の再生位置を作らない）。
-function startRevealMusic(question) {
+//
+// 【2026-09-30改訂・本人指示：オンライン対戦総合改修 第2ラウンド22章】以前は
+// 「答え表示を検知した瞬間から必ずREVEAL_DELAY_MSぶん」再生していたが、これは
+// この端末が答え表示を検知した時刻を起点にした、端末ローカルなタイマーだった。
+// タブがバックグラウンドに回っている間に答え表示が始まり、しばらくしてから
+// フォアグラウンドへ復帰した場合、実際にはサーバー上の答え表示時間が既に大きく
+// 経過しているにもかかわらず、この端末だけ「今から7秒間」再生し始めてしまい、
+// ホストが次の問題へ進んだ後まで音が鳴り続ける・演出がずれる、という問題があった。
+// remainingMsSec（残り再生秒数）は、呼び出し元がサーバー時刻基準（match.resolvedAt・
+// serverTimeOffset）で計算した「答え表示が終わるまでの本当の残り時間」を渡す。
+function startRevealMusic(question, remainingMsSec) {
+  if (remainingMsSec <= 0) return; // 復帰があまりに遅く、既に答え表示が終わっている場合は鳴らさない
   const revealStartTimeSec = question.revealStartTimeSec;
-  playSongIntroFromOffset(question.song, typeof revealStartTimeSec === "number" ? revealStartTimeSec : 0);
+  playSongIntroFromOffset(question.song, typeof revealStartTimeSec === "number" ? revealStartTimeSec : 0, remainingMsSec);
 
   if (revealMusicStopTimeoutId !== null) clearTimeout(revealMusicStopTimeoutId);
   revealMusicStopTimeoutId = setTimeout(() => {
     revealMusicStopTimeoutId = null;
     stopAudio();
-  }, REVEAL_DELAY_MS);
+  }, remainingMsSec);
 }
 
 // playSongIntro()は曲ごとに決まったintroLeadInSecからしか再生できないため、任意の秒数
 // （ヒント1の歌詞位置）から再生できるplaySongFromRandomPosition()を使う。playDurationSec
-// はREVEAL_DELAY_MSと同じ値を渡し（答え表示時間そのものを唯一の情報源にする）、上の
+// は呼び出し元（startRevealMusic）が渡す「答え表示の残り時間」と同じ値にし、上の
 // setTimeoutと二重に守ることで、タブがバックグラウンドに回る等でどちらかのタイマーが
 // 遅延しても、答え表示より大幅に長く楽曲が鳴り続けることがないようにしている。
-function playSongIntroFromOffset(song, startTimeSec) {
+function playSongIntroFromOffset(song, startTimeSec, durationMs) {
   playSongFromRandomPosition(
     song,
     (actualDurationSec) => Math.min(Math.max(startTimeSec, 0), Math.max(actualDurationSec - 0.5, 0)),
-    REVEAL_DELAY_MS / 1000,
+    durationMs / 1000,
     (message) =>
       console.warn(
         "[歌詞クイズ対戦] 答え合わせ楽曲の再生に失敗しました（演出のみのため対戦の進行には影響しません）",
@@ -503,6 +514,7 @@ export function resetLyricsQuizBattleState() {
   lastRenderedQuestionIndex = -1;
   lastRevealedQuestionIndex = -1;
   lastHintRevealedQuestionIndex = -1;
+  lastRevealSfxPlayedForQuestionIndex = -1;
   mySubmittedForQuestionIndex = -1;
   mySelectedSongId = null;
   submitInFlight = false;
@@ -617,27 +629,11 @@ function setQuestionCountRadio(value) {
 // （js/onlineBattleScreen.jsのapplySettingsToHostForm()と同じ考え方）。
 // 【2026-08-27変更】曲そのものの選択は共同選曲セクション（updateLyricsCollabSongSectionUi）へ
 // 切り出したため、ここではラジオの状態同期だけを行う。
+// 【2026-09-30改訂・本人指示：出題する曲4択統合】カテゴリという概念が独立設定では
+// なくなったため、専用fieldsetの表示切り替えは不要になった（js/onlineBattleSongSourceUi.js参照）。
 function setLyricsSongSourceRadio(settings) {
-  const isCollaborative = settings.questionSource?.type === QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION;
-  const value = isCollaborative ? "manual" : "all";
+  const value = resolveSongSourceOptionValue(settings);
   const input = document.querySelector(`input[name="online-lyrics-battle-settings-song-source"][value="${value}"]`);
-  if (input) input.checked = true;
-
-  // 【2026-09-16新設・本人指示：他モードとの機能差解消】カテゴリのラジオ自体は、曲を
-  // 共同選択している間は「一覧をどのカテゴリで絞り込むか」を選ぶ意味が無いため隠す
-  // （js/onlineBattleScreen.jsのapplySettingsToHostForm()と同じ考え方）。ただし、隠れている
-  // 間もcategoryFilterValueの値自体はsettingsに残ったままで、js/battleModes/
-  // lyricsQuizBattleMode.jsのresolveQuestionSourceSongPool()が共同選曲の選択曲を
-  // 引き続き絞り込みに使う（「全曲から出題」へ戻せば、隠れていたカテゴリ設定がそのまま
-  // 効いていたことが分かる。選択状態を破壊しない既存仕様の一部）。
-  if (elements.lobbySettingsCategoryFieldsetLyrics) {
-    elements.lobbySettingsCategoryFieldsetLyrics.hidden = isCollaborative;
-  }
-}
-
-// 【2026-09-16新設・本人指示：他モードとの機能差解消】setQuestionCountRadio()と同じ考え方。
-function setLyricsCategoryRadio(value) {
-  const input = document.querySelector(`input[name="online-lyrics-battle-settings-category"][value="${value}"]`);
   if (input) input.checked = true;
 }
 
@@ -814,13 +810,6 @@ function findRuleDescription(ruleId) {
 // （renderRematchSummaryChips()）でも「今回の設定の簡単な要約」として全く同じチップを
 // 再利用する（本人指示：同じ内容を2箇所で別々に組み立てて食い違う事故を防ぐ）。
 export function buildLyricsQuizSettingsSummaryChips(settings) {
-  // 【2026-09-16修正】オンライン対戦の「曲を選んで出題」は共同選曲
-  // （QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION）として保存される
-  // （js/onlineLyricsQuizBattleScreen.jsのsong-sourceラジオのchangeハンドラ参照）。
-  // ここが本来存在しないMANUAL_SELECTIONを見ていたため、参加者向けの「N曲から出題」
-  // チップが実際には一度も表示されない不具合になっていた。今回カテゴリのチップを
-  // 追加するにあたって判定を実態に合わせて修正した。
-  const isManualSongSource = settings.questionSource?.type === QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION;
   // 【2026-08-31改訂】ヒントは本人がボタンで手動で開く方式になり、settings.hintIntervalSec
   // （自動送り間隔）の設定項目自体が無くなったため、このチップからも外した。
   const chips = [
@@ -829,16 +818,9 @@ export function buildLyricsQuizSettingsSummaryChips(settings) {
     describeAnswerPoolChipLabel(settings.answerPoolSizeValue),
     QUESTION_COUNT_LABELS[settings.questionCountValue] ?? settings.questionCountValue,
   ];
-  // 【2026-08-08新設】曲を手動選択している場合だけ、参加者にも「N曲から出題」を見せる
-  // （本人指示：曲名までは見せない）。
-  // 【2026-09-16追加・本人指示：他モードとの機能差解消】そうでない場合（＝カテゴリで
-  // 絞り込んだ全曲から出題している場合）は、js/onlineBattleScreen.jsの
-  // renderInstantBattleSettingsChips()と同じくカテゴリのチップを見せる。
-  if (isManualSongSource) {
-    chips.push(`${settings.questionSource.songIds?.length ?? 0}曲から出題`);
-  } else {
-    chips.push(CATEGORY_LABELS[settings.categoryFilterValue] ?? settings.categoryFilterValue);
-  }
+  // 【2026-09-30改訂・本人指示：出題する曲4択統合】js/onlineBattleSongSourceUi.jsの
+  // 共通ヘルパーで、カテゴリ／曲を選んで出題のどちらでも1行の文言に変換する。
+  chips.push(describeSongSourceForSettings(settings));
   return chips;
 }
 
@@ -973,7 +955,6 @@ export function renderLyricsQuizLobbySettings(room, isHost) {
     });
 
     setQuestionCountRadio(settings.questionCountValue);
-    setLyricsCategoryRadio(settings.categoryFilterValue);
     setLyricsSongSourceRadio(settings);
   } else {
     renderLyricsQuizParticipantSummary(settings);
@@ -1017,6 +998,7 @@ export async function enterLyricsQuizBattlePlay(room) {
   lastRenderedQuestionIndex = -1;
   lastRevealedQuestionIndex = -1;
   lastHintRevealedQuestionIndex = -1;
+  lastRevealSfxPlayedForQuestionIndex = -1;
   mySubmittedForQuestionIndex = -1;
   mySelectedSongId = null;
   myOutcomeHistory = [];
@@ -1037,9 +1019,6 @@ export async function enterLyricsQuizBattlePlay(room) {
   elements.battleStatusMessage.hidden = true;
   elements.battleAnswerReveal.hidden = true;
   clearElement(elements.battleHudContainer);
-  // 【2026-09-01新設・本人指示：ライブスコアボード】新しい試合のたびに、開閉状態を閉じた
-  // 状態から始める（前の試合で開いたままでも、次の試合の最初は畳んだ状態にする）。
-  if (elements.battleScoreboard) elements.battleScoreboard.open = false;
   clearElement(elements.battleAnswerChoicesContainer);
   clearElement(elements.battleHintLinesContainer);
   clearElement(elements.battleHintActions);
@@ -1603,7 +1582,7 @@ function renderAnswerJumpBar() {
   });
 }
 
-function renderAnswerChoices(question, { isResolved, myAnsweredThisQuestion, questionIndex }) {
+function renderAnswerChoices(question, { isResolved, myAnsweredThisQuestion, questionIndex, resolvedAt }) {
   // 【2026-09-06新設・本人指示：実機フィードバック第3弾①】30・50・全曲プールでは、
   // 選択肢一覧をスクロールした状態のまま回答が確定すると、答え合わせカード
   // （elements.battleAnswerReveal、別の場所に静的配置されていた）がスクロール外に
@@ -1628,7 +1607,11 @@ function renderAnswerChoices(question, { isResolved, myAnsweredThisQuestion, que
     elements.battleAnswerChoicesContainer.appendChild(elements.battleAnswerReveal);
     // 【2026-09-26新設・本人指示：サウンドシステム全面整備8章】答え表示が始まった、まさに
     // この瞬間（このガードにより1問につき1回だけ通る）に答え合わせ楽曲の再生を始める。
-    startRevealMusic(question);
+    // 【2026-09-30改訂・本人指示：22章】この端末が答え表示を検知した時刻ではなく、
+    // サーバー時刻基準のresolvedAtから「本当の残り時間」を計算して渡す（バックグラウンド
+    // からの復帰等で検知が遅れても、実際の答え表示終了時刻に正しく追従するため）。
+    const remainingMsSec = typeof resolvedAt === "number" ? REVEAL_DELAY_MS - (Date.now() + serverTimeOffset - resolvedAt) : REVEAL_DELAY_MS;
+    startRevealMusic(question, remainingMsSec);
     return;
   }
   elements.battleAnswerChoicesContainer.classList.remove("is-showing-reveal");
@@ -1927,20 +1910,12 @@ function renderScoreboard(match, { ruleId, isResolved }) {
 
     item.appendChild(buildParticipantIcon(row.oshiMemberId, row.uid));
 
-    // 【2026-09-26新設・本人指示：オンライン対戦総合改修19-11章】プロフィールは、
-    // 回答受付中・制限時間が進んでいる問題中は開けないようにする（対戦の公平性に
-    // 影響する時間帯のため）。問題が確定した後（isResolved）だけ名前をタップ可能にする。
-    const nameSpan = document.createElement(isResolved ? "button" : "span");
+    // 【2026-09-30改訂・本人指示：オンライン対戦総合改修 第2ラウンド3章】以前は問題確定後
+    // （isResolved）だけ名前をタップ可能にしてプロフィールを開けたが、「プロフィールはロビー
+    // でだけ開けるようにしてほしい」との指示により、対戦中の画面からは一切開けなくする。
+    // クリック可能に見えるボタン装飾（online-lyrics-battle-scoreboard-name-button）も付けない。
+    const nameSpan = document.createElement("span");
     nameSpan.className = "online-lyrics-battle-scoreboard-name";
-    if (isResolved) {
-      nameSpan.type = "button";
-      nameSpan.classList.add("online-lyrics-battle-scoreboard-name-button");
-      nameSpan.addEventListener("click", () => {
-        // スコアボード：名前タップでプロフィールモーダルを開く操作音
-        playSfx(SFX_EVENTS.UI_CLICK);
-        openParticipantProfile({ uid: row.uid, name: row.displayName, oshiMemberId: row.oshiMemberId });
-      });
-    }
     nameSpan.textContent = row.isMe ? `${row.displayName}（あなた）` : row.displayName;
     item.appendChild(nameSpan);
 
@@ -2009,7 +1984,12 @@ function renderCurrentQuestionState() {
   const elapsedMs = computeElapsedMs({ questionStartedAt: match.currentQuestionStartedAt, nowServerTimeMs });
 
   renderHintArea(question, { ruleId, elapsedMs, isResolved, myAnsweredThisQuestion, questionIndex: qIndex });
-  renderAnswerChoices(question, { isResolved, myAnsweredThisQuestion, questionIndex: qIndex });
+  renderAnswerChoices(question, {
+    isResolved,
+    myAnsweredThisQuestion,
+    questionIndex: qIndex,
+    resolvedAt: typeof match.resolvedAt === "number" ? match.resolvedAt : null,
+  });
   renderIdleNotice(match, qIndex, nowServerTimeMs);
 
   maybeRecordMyOutcomeForResolvedQuestions(match);
@@ -2059,7 +2039,11 @@ function renderCurrentQuestionState() {
     // という既存の専用設計（js/onlineLyricsQuizBattleScreen.js内の別箇所）をそのまま活かし、
     // ここでは対象外にする（早押しでは「非勝者＝不正解」ではないため、統一するとかえって
     // 誤解を招く）。
-    if (ruleId !== "steal") {
+    // 【2026-09-30改訂・本人指示：オンライン対戦総合改修 第2ラウンド11章】この
+    // if(isResolved)ブロックはtickのたびに毎回実行されるため、同じ問題には1回だけ鳴らす
+    // ガードを追加した（7秒の答え表示中に答え合わせ楽曲へ重ねて何度も鳴っていた不具合）。
+    if (ruleId !== "steal" && lastRevealSfxPlayedForQuestionIndex !== qIndex) {
+      lastRevealSfxPlayedForQuestionIndex = qIndex;
       playSfx(gotPoints ? SFX_EVENTS.QUIZ_CORRECT : SFX_EVENTS.QUIZ_WRONG);
     }
     elements.battleAnswerRevealTitle.textContent = question.song.title;

@@ -3270,23 +3270,19 @@
               <label><input type="radio" name="online-battle-settings-question-count" value="all"> 全曲</label>
             </div>
           </fieldset>
-          <!-- 出題する曲（2026-08-08新設）。「全曲から出題」を選んでいる間は、今までどおり
-               下のカテゴリ絞り込みがそのまま効く（既存動作を一切変えない）。
-               「曲を選んで出題」を選ぶと、カテゴリの代わりに参加者全員の共同選曲
+          <!-- 出題する曲（2026-08-08新設→2026-09-30改訂・本人指示：オンライン対戦総合改修
+               第2ラウンド5章）。以前は「全曲から出題／曲を選んで出題」と「カテゴリ」が
+               別々のfieldsetだったが、カテゴリという概念自体を独立設定としては廃止し、
+               4択1本にまとめた（js/onlineBattleSongSourceUi.js参照）。
+               「曲を選んで出題」を選ぶと、参加者全員の共同選曲
                （下の#online-battle-collab-song-section、2026-08-27新設）が出題対象になる。 -->
           <fieldset>
             <legend>出題する曲</legend>
             <div class="option-row">
-              <label><input type="radio" name="online-battle-settings-song-source" value="all" checked> 全曲から出題</label>
+              <label><input type="radio" name="online-battle-settings-song-source" value="title-track" checked> 表題曲のみ</label>
+              <label><input type="radio" name="online-battle-settings-song-source" value="title-and-group"> 表題曲＋全員曲</label>
+              <label><input type="radio" name="online-battle-settings-song-source" value="all"> 全曲</label>
               <label><input type="radio" name="online-battle-settings-song-source" value="manual"> 曲を選んで出題</label>
-            </div>
-          </fieldset>
-          <fieldset id="online-battle-lobby-settings-category-fieldset">
-            <legend>カテゴリ</legend>
-            <div class="option-row">
-              <label><input type="radio" name="online-battle-settings-category" value="title-track"> 表題曲のみ</label>
-              <label><input type="radio" name="online-battle-settings-category" value="title-and-group"> 表題曲＋全員曲</label>
-              <label><input type="radio" name="online-battle-settings-category" value="all"> 全曲</label>
             </div>
           </fieldset>
           <fieldset>
@@ -3339,27 +3335,17 @@
               <label><input type="radio" name="online-lyrics-battle-question-count" value="all"> 全曲</label>
             </div>
           </fieldset>
-          <!-- 出題する曲（2026-08-08新設）。実際の選曲UIは下の
+          <!-- 出題する曲（2026-08-08新設→2026-09-30改訂・本人指示：他モードと同じ4択へ統合。
+               js/onlineBattleSongSourceUi.js参照）。実際の選曲UIは下の
                #online-lyrics-battle-collab-song-section（2026-08-27新設、ホスト・参加者共通）
                が担当する。 -->
           <fieldset>
             <legend>出題する曲</legend>
             <div class="option-row">
-              <label><input type="radio" name="online-lyrics-battle-settings-song-source" value="all" checked> 全曲から出題</label>
+              <label><input type="radio" name="online-lyrics-battle-settings-song-source" value="title-track" checked> 表題曲のみ</label>
+              <label><input type="radio" name="online-lyrics-battle-settings-song-source" value="title-and-group"> 表題曲＋全員曲</label>
+              <label><input type="radio" name="online-lyrics-battle-settings-song-source" value="all"> 全曲</label>
               <label><input type="radio" name="online-lyrics-battle-settings-song-source" value="manual"> 曲を選んで出題</label>
-            </div>
-          </fieldset>
-          <!-- カテゴリ（2026-09-16新設・本人指示：他モードとの機能差解消）。他のオンライン対戦
-               モード（js/onlineBattleScreen.jsの#online-battle-lobby-settings-category-fieldset・
-               #online-instant-battle-lobby-settings-category-fieldset）と同じ選択肢・同じ
-               クラスをそのまま再利用する。「曲を選んで出題」を選んでいる間は、他モードと同じく
-               意味を持たないため隠す（js/onlineLyricsQuizBattleScreen.js側で制御）。 -->
-          <fieldset id="online-lyrics-battle-lobby-settings-category-fieldset">
-            <legend>カテゴリ</legend>
-            <div class="option-row">
-              <label><input type="radio" name="online-lyrics-battle-settings-category" value="title-track"> 表題曲のみ</label>
-              <label><input type="radio" name="online-lyrics-battle-settings-category" value="title-and-group"> 表題曲＋全員曲</label>
-              <label><input type="radio" name="online-lyrics-battle-settings-category" value="all"> 全曲</label>
             </div>
           </fieldset>
           <p class="battle-field-hint">対象曲を絞り込んだ場合、歌詞データが必要なのは選んだ曲の分だけです。</p>
@@ -3413,16 +3399,10 @@
           <fieldset>
             <legend>出題する曲</legend>
             <div class="option-row">
-              <label><input type="radio" name="online-instant-battle-settings-song-source" value="all" checked> 全曲から出題</label>
+              <label><input type="radio" name="online-instant-battle-settings-song-source" value="title-track" checked> 表題曲のみ</label>
+              <label><input type="radio" name="online-instant-battle-settings-song-source" value="title-and-group"> 表題曲＋全員曲</label>
+              <label><input type="radio" name="online-instant-battle-settings-song-source" value="all"> 全曲</label>
               <label><input type="radio" name="online-instant-battle-settings-song-source" value="manual"> 曲を選んで出題</label>
-            </div>
-          </fieldset>
-          <fieldset id="online-instant-battle-lobby-settings-category-fieldset">
-            <legend>カテゴリ</legend>
-            <div class="option-row">
-              <label><input type="radio" name="online-instant-battle-settings-category" value="title-track"> 表題曲のみ</label>
-              <label><input type="radio" name="online-instant-battle-settings-category" value="title-and-group"> 表題曲＋全員曲</label>
-              <label><input type="radio" name="online-instant-battle-settings-category" value="all"> 全曲</label>
             </div>
           </fieldset>
         </div>
@@ -3748,16 +3728,37 @@
         <h3 class="battle-question-breakdown-heading">問題別結果</h3>
         <div id="online-battle-result-question-breakdown" class="battle-question-breakdown-list"></div>
       </section>
+      <!-- 【2026-09-30改訂・本人指示：オンライン対戦総合改修 第2ラウンド23-29章】
+           「もう一度」は引き続きホスト専用（対戦設定を書き換えられるのがホストだけという
+           既存の権限設計に合わせる）。一方「ルーム設定に戻る」は、以前はホストが押した瞬間に
+           room.status全体を書き換え、まだ結果を見ている他の参加者の画面まで強制的に
+           ロビーへ戻してしまっていたため、ホスト・ゲストどちらも押せる個別操作
+           （下のonline-battle-result-return-panel）へ分離した。 -->
       <div id="online-battle-result-host-actions" class="button-row" hidden>
         <button id="online-battle-result-rematch-button" class="primary-button" type="button">もう一度</button>
-        <button id="online-battle-result-back-to-lobby-button" class="secondary-button" type="button">ルーム設定に戻る</button>
       </div>
-      <!-- 【2026-09-07新設・本人指示：ゲスト結果画面】ホスト専用の「もう一度」「ルーム設定に
-           戻る」の代わりに、ゲストにはホストの操作を待っている案内と「ルームから退出」を
-           表示する。上部の「ホームへ戻る」は在籍を維持したまま画面だけ戻る操作
-           （js/onlineBattleScreen.js参照）、こちらは完全離脱の操作、と役割を分ける。 -->
+      <!-- 【2026-09-30新設・本人指示】「もう一度」が提案された（room.confirmingRematch）後、
+           まだ結果画面を見ている参加者（主にゲスト。ホストは「もう一度」を押した本人なので
+           自動的に準備フェーズへ進む）へ、結果画面を離れずに「準備ができたら次へ進める」
+           導線を見せる。ここを押すまでは絶対に画面を切り替えない
+           （本人指示：他人の結果画面を勝手に閉じない）。 -->
+      <div id="online-battle-result-rematch-proposed-notice" class="online-battle-result-return-panel" hidden>
+        <p class="online-battle-lead-text">ホストが「もう一度」を選びました。結果を見終えたら準備してください。</p>
+        <button id="online-battle-result-rematch-proceed-button" class="primary-button" type="button">対戦の準備をする</button>
+      </div>
+      <!-- 【2026-09-30新設・本人指示】「ルーム設定に戻る」を、ホスト・ゲスト問わず全員が
+           自分のペースで押せる個別操作にする。誰が結果確認中で誰が既に戻ったかを、
+           その場にいる全員が確認できる。次の試合は全員がここで戻り終えるまで始まらない
+           （js/onlineBattleScreen.jsのrenderResultReturnPanel()参照）。 -->
+      <div id="online-battle-result-return-panel" class="online-battle-result-return-panel">
+        <p class="online-battle-result-return-heading">結果確認の状況</p>
+        <ul id="online-battle-result-return-status-list" class="online-battle-result-return-status-list"></ul>
+        <button id="online-battle-result-return-button" class="secondary-button" type="button">ルーム設定に戻る</button>
+      </div>
+      <!-- 【2026-09-07新設・本人指示：ゲスト結果画面】上部の「ホームへ戻る」は在籍を
+           維持したまま画面だけ戻る操作（js/onlineBattleScreen.js参照）、こちらは
+           完全離脱の操作、と役割を分ける。 -->
       <div id="online-battle-result-guest-actions" hidden>
-        <p class="online-battle-lead-text">ホストの選択を待っています…</p>
         <button id="online-battle-result-leave-button" class="secondary-button" type="button">ルームから退出</button>
       </div>
     </section>
@@ -4075,24 +4076,21 @@
         <p class="online-lyrics-battle-progress" id="online-lyrics-battle-progress"></p>
 
         <!-- 【2026-09-01新設・本人指示：ライブスコアボード】他プレイヤーの現在の累計スコアを
-             見せる、折りたたみ可能な一覧。<details>要素にして、開閉状態をブラウザ標準機能に
-             任せる（js/onlineLyricsQuizBattleScreen.jsのrenderScoreboard()は中身の一覧だけを
-             差し替え、この要素自体は作り直さない＝開いたまま次の問題へ進んでも閉じない）。
-             早押しバトルの出題中（回答収集中）はJS側でhidden=trueにして隠す。
+             見せる一覧。早押しバトルの出題中（回答収集中）はJS側でhidden=trueにして隠す。
              【情報漏洩防止】ここに表示されるのはmatches/{matchId}/scoreSnapshot（ホストが
              各問題のreveal完了後にまとめて書き込む、1つ前の問題までの確定スコア）だけで、
-             今の問題の回答内容には一切触れない。 -->
-        <!-- 2026-09-26改訂・本人指示：オンライン対戦総合改修19-5章。以前はopen属性を
-             一切付けておらず、ブラウザのdetails要素の既定値（閉）のまま表示されていた。
-             オンライン対戦では「今、自分が何位か」「相手が何点か」が重要な情報のため、
-             問題画面に入った時点から展開しておく（本人指示：「最初から展開状態にしてください」）。 -->
-        <details id="online-lyrics-battle-scoreboard" class="online-lyrics-battle-scoreboard" open>
-          <summary class="online-lyrics-battle-scoreboard-summary">
+             今の問題の回答内容には一切触れない。
+             【2026-09-30改訂・本人指示：オンライン対戦総合改修 第2ラウンド12章】以前は
+             <details>要素で開閉可能にしていたが（一度open属性を付けて既定展開にしたことも
+             あった）、「開閉の仕組み自体を無くし、常に見える状態にしてほしい」との指示により、
+             開閉できないただの<section>へ変更した。 -->
+        <section id="online-lyrics-battle-scoreboard" class="online-lyrics-battle-scoreboard">
+          <p class="online-lyrics-battle-scoreboard-summary">
             <span>📊 みんなのスコア</span>
             <span id="online-lyrics-battle-scoreboard-summary-hint" class="online-lyrics-battle-scoreboard-summary-hint"></span>
-          </summary>
+          </p>
           <ul id="online-lyrics-battle-scoreboard-list" class="online-lyrics-battle-scoreboard-list"></ul>
-        </details>
+        </section>
 
         <div id="online-lyrics-battle-hud"></div>
 

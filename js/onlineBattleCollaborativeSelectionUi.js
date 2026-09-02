@@ -44,12 +44,12 @@ export function renderCollaborativeSelectionBreakdown({
         nameEl.textContent = entry.uid === currentUid ? `${entry.displayName}（あなた）` : entry.displayName;
         row.appendChild(nameEl);
 
-        // 【2026-09-26改訂・本人指示：オンライン対戦総合改修19-1章】以前はここを「、」区切りの
-        // 1本の文章として描画しており、共有曲一覧（丸いピンクのチップ）とデザインが揃って
-        // いなかった（本人指示：「参加者ごとの選択」だけ別のUI部品のように見える）。曲ごとに
-        // 個別のチップへ分割し、共有曲一覧と同じ「曲名＝ピンクの丸チップ」という見た目の
-        // 言語を踏襲する。ただし完全に同じ見た目にはせず、共有曲一覧＝塗りつぶし、参加者ごとの
-        // 選択＝縁取りのチップにして、両者が別の情報であることも一目で区別できるようにする。
+        // 【2026-09-26改訂→2026-09-30再改訂・本人指示：オンライン対戦総合改修19-1章／
+        // 第2ラウンド4章】以前はここを「、」区切りの1本の文章として描画しており、共有曲一覧
+        // （丸いピンクのチップ）とデザインが揃っていなかった。曲ごとに個別のチップへ分割し、
+        // 共有曲一覧と全く同じ「曲名＝塗りつぶしピンクの丸チップ」に統一する（css/style.cssの
+        // .online-battle-collab-breakdown-song-chipを.online-battle-collab-song-chipと
+        // 同一スタイルへ揃えた。本人指示：完全に統一すること）。
         const songsEl = document.createElement("div");
         songsEl.className = "online-battle-collab-breakdown-songs";
         if (entry.songIds.length === 0) {

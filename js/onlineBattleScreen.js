@@ -48,6 +48,8 @@ import {
   finishMyMatch,
   finalizeMatchIfReady,
   returnRoomToLobby,
+  markResultReturned,
+  maybeFinalizeReturnToLobbyIfAllReturned,
   COUNTDOWN_DURATION_MS,
   ROOM_STATUS,
   MIN_PLAYERS,
@@ -75,9 +77,13 @@ import {
   resolveAllEligibleSongIdsForMode,
   resolveSongPoolForSettings,
 } from "./battleModes/index.js";
-import { QUESTION_COUNT_LABELS, CATEGORY_LABELS, RULE_LABELS } from "./localBattleScreen.js";
+import { QUESTION_COUNT_LABELS, RULE_LABELS } from "./localBattleScreen.js";
 import { buildSharedEngineQuestionBreakdown, capQuestionBreakdownForStorage } from "./battleQuestionBreakdown.js";
-import { computeAllPlayersConfirmed, computeAllPlayersRematchReady } from "./onlineBattleMatchConfirmationPayloads.js";
+import {
+  computeAllPlayersConfirmed,
+  computeAllPlayersRematchReady,
+  computeAllPlayersResultReturned,
+} from "./onlineBattleMatchConfirmationPayloads.js";
 // 【2026-09-16新設・本人指示：対戦中に自主退出したゲストを待ち続けない】タイムアタック・
 // ランダム再生対戦・アウトロクイズ対戦（このファイルが担当する個人進行系3モード）が
 // 「全員の結果が揃ったか」を判定するための純粋関数。js/onlineBattle.jsのfinalizeMatchIfReady()
@@ -92,6 +98,12 @@ import { computeNormalFinalRecordMs } from "./localBattleResult.js";
 import { MEMBERS } from "./data/members.js";
 import { SONGS } from "./data/songs.js";
 import { renderCollaborativeSelectionBreakdown, wireCollaborativeSelectionDetailsToggle, resetCollaborativeSelectionDetailsPanel } from "./onlineBattleCollaborativeSelectionUi.js";
+import {
+  markResultScreenResponded,
+  resetResultScreenResponded,
+  hasRespondedToCurrentResultScreen,
+  RESULT_SCREEN_NAMES,
+} from "./onlineBattleResultReturnState.js";
 import { buildSelectorUidsBySongId } from "./onlineBattleCollaborativeSelectionPayloads.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
 import { getMemberById } from "./memberUtils.js";
@@ -163,6 +175,13 @@ import { openOnlineBattlePlaylistPicker } from "./onlineBattlePlaylistPicker.js"
 // （gameModeを問わない共通UIのため、js/onlineBattleSongPicker.js等と同じ階層に置く）。
 import { openOnlineBattleSongListConfirm } from "./onlineBattleSongListConfirmModal.js";
 import { QUESTION_SOURCE_TYPE, sanitizeSongIds } from "./questionSource.js";
+import {
+  resolveSongSourceOptionValue,
+  buildSongSourceSettingsFields,
+  applySongSourceOptionToForm,
+  readSongSourceOptionFromForm,
+  describeSongSourceForSettings,
+} from "./onlineBattleSongSourceUi.js";
 import { resolveQuestionCount } from "./quiz.js";
 import { getFavoriteSongIds } from "./favoriteSongs.js";
 import { savePlayHistoryEntryIfNew } from "./playHistory.js";
@@ -460,12 +479,9 @@ const JOIN_ERROR_MESSAGES = {
 // 「どのモードの結果か」が画面から常に読み取れることを優先する、本人の指示どおり）。
 function renderSettingsChips(container, settings, gameMode) {
   container.innerHTML = "";
-  // 【2026-08-08新設】曲を手動選択している場合は、カテゴリの代わりに「N曲から出題」を表示する
-  // （本人指示：参加者には曲数だけ見せ、対戦開始前に曲名までは見せない）。
-  const isManualSongSource = settings.questionSource?.type === QUESTION_SOURCE_TYPE.MANUAL_SELECTION;
-  const songSourceChip = isManualSongSource
-    ? `${settings.questionSource.songIds?.length ?? 0}曲から出題`
-    : CATEGORY_LABELS[settings.categoryFilterValue] ?? settings.categoryFilterValue;
+  // 【2026-09-30改訂・本人指示：出題する曲4択統合】カテゴリ／曲を選んで出題のどちらでも、
+  // 共通ヘルパー（js/onlineBattleSongSourceUi.js）で1行の文言に変換する。
+  const songSourceChip = describeSongSourceForSettings(settings);
   const chips = [
     getModeLabel(gameMode),
     QUESTION_COUNT_LABELS[settings.questionCountValue] ?? settings.questionCountValue,
@@ -538,6 +554,16 @@ function buildCurrentRuleExplanation(containerElement, room) {
     containerElement.appendChild(questionCountText);
   }
 
+  // 【2026-09-30新設・本人指示：ルール確認画面に出題する曲の情報が無かった】以前は
+  // 「共同選曲を使っている場合」だけ曲の情報を表示しており、①〜③（表題曲のみ／
+  // 表題曲＋全員曲／全曲）を選んでいる場合は出題対象曲の情報が一切表示されていなかった
+  // （ゲストが対戦開始前に「今回どの範囲の曲が出るか」を確認できないバグ）。
+  // 4択のうちどれを選んでいても必ず1行表示するようにする。
+  const songSourceText = document.createElement("p");
+  songSourceText.className = "online-lobby-help-current-description";
+  songSourceText.textContent = `出題する曲：${describeSongSourceForSettings(settings)}`;
+  containerElement.appendChild(songSourceText);
+
   // ミスペナルティは「ノーマル」ルールを持つモード（イントロ対戦・ランダム再生対戦・
   // アウトロ対戦）だけに存在する設定のため、無い場合は何も表示しない。
   if (settings.rule === "normal" && typeof settings.penaltySeconds === "number") {
@@ -545,6 +571,21 @@ function buildCurrentRuleExplanation(containerElement, room) {
     penaltyText.className = "online-lobby-help-current-description";
     penaltyText.textContent = `ミスペナルティ：${settings.penaltySeconds}秒`;
     containerElement.appendChild(penaltyText);
+  }
+
+  // 【2026-09-30新設・本人指示：ルール確認画面にモード固有設定を表示】一瞬バトル・
+  // 一瞬協力だけが持つ「再生時間」「回答候補」も、他の設定と同じ並びで確認できるようにする。
+  if (typeof settings.playDurationValue !== "undefined") {
+    const playDurationText = document.createElement("p");
+    playDurationText.className = "online-lobby-help-current-description";
+    playDurationText.textContent = `再生時間：${settings.playDurationValue}秒`;
+    containerElement.appendChild(playDurationText);
+  }
+  if (typeof settings.answerPoolSizeValue !== "undefined") {
+    const answerPoolText = document.createElement("p");
+    answerPoolText.className = "online-lobby-help-current-description";
+    answerPoolText.textContent = `回答候補：${settings.answerPoolSizeValue === "all" ? "全曲検索" : `${settings.answerPoolSizeValue}択`}`;
+    containerElement.appendChild(answerPoolText);
   }
 
   // 【2026-09-14新設→2026-09-15拡張・本人指示：ルール確認画面に出題対象曲一覧を表示】
@@ -927,39 +968,30 @@ function applySettingsToHostForm(settings) {
     if (input) input.checked = true;
   };
   setChecked("online-battle-settings-question-count", settings.questionCountValue);
-  setChecked("online-battle-settings-category", settings.categoryFilterValue);
   setChecked("online-battle-settings-rule", settings.rule);
   setChecked("online-battle-settings-penalty", String(settings.penaltySeconds));
   elements.lobbySettingsPenaltyFieldset.hidden = settings.rule !== "normal";
 
-  const isCollaborativeSongSource = settings.questionSource?.type === QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION;
-  setChecked("online-battle-settings-song-source", isCollaborativeSongSource ? "manual" : "all");
-  // カテゴリは曲を共同選択している間は意味を持たないため隠す（settings.questionSourceがある間、
-  // js/battleModes/timeAttackBattleMode.jsがcategoryFilterValueを一切参照しないことと対応させている）。
-  elements.lobbySettingsCategoryFieldset.hidden = isCollaborativeSongSource;
+  // 【2026-09-30改訂・本人指示：出題する曲4択統合】以前は「全曲から出題／曲を選んで出題」と
+  // 「カテゴリ」が別々のfieldsetだったが、④択の1本のラジオへ統合した
+  // （js/onlineBattleSongSourceUi.js参照）。カテゴリ専用fieldsetの表示切り替えは不要になった。
+  applySongSourceOptionToForm("online-battle-settings-song-source", settings);
 }
 
 function readSettingsFromHostForm() {
-  const songSourceValue =
-    document.querySelector('input[name="online-battle-settings-song-source"]:checked')?.value ?? "all";
+  const songSourceValue = readSongSourceOptionFromForm("online-battle-settings-song-source");
   const settings = {
     questionCountValue: document.querySelector('input[name="online-battle-settings-question-count"]:checked').value,
-    categoryFilterValue: document.querySelector('input[name="online-battle-settings-category"]:checked').value,
     rule: document.querySelector('input[name="online-battle-settings-rule"]:checked').value,
     penaltySeconds: Number(document.querySelector('input[name="online-battle-settings-penalty"]:checked').value),
+    // 【2026-09-30改訂】①②③はcategoryFilterValueのみ（questionSourceは持たせない。今までと
+    // 全く同じ、categoryFilterValueだけを見る動作を維持するため）、④は共同選曲
+    // （collaborativeSelection）として保存する。songIdsは、その時点で分かっている
+    // 「参加者全員の選択の和集合を、今のルーム共通曲で絞り込んだもの」を入れる（0件でもよい。
+    // まだ誰も選んでいない状態を安全に表せるよう、js/battleModes/timeAttackBattleMode.js側で
+    // この型の0件は検証エラーにしないようにしてある）。
+    ...buildSongSourceSettingsFields(songSourceValue, { mergedSongIds: getMergedRestrictedSongIds() }),
   };
-  // 「全曲から出題」のときはquestionSource自体を持たせない（今までと全く同じ、
-  // categoryFilterValueだけを見る動作を維持するため。本人指示：既存動作を変えない）。
-  // 【2026-08-27変更】「曲を選んで出題」は共同選曲（collaborativeSelection）として保存する。
-  // songIdsは、その時点で分かっている「参加者全員の選択の和集合を、今のルーム共通曲で
-  // 絞り込んだもの」を入れる（0件でもよい。まだ誰も選んでいない状態を安全に表せるよう、
-  // js/battleModes/timeAttackBattleMode.js側でこの型の0件は検証エラーにしないようにしてある）。
-  if (songSourceValue === "manual") {
-    settings.questionSource = {
-      type: QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION,
-      songIds: getMergedRestrictedSongIds(),
-    };
-  }
   return settings;
 }
 
@@ -996,10 +1028,7 @@ async function applyHostSettingsChangeFromForm() {
 // （undefined）がチップに出てしまう問題があり、共用せず分けた。
 function renderInstantBattleSettingsChips(container, settings) {
   container.innerHTML = "";
-  const isManualSongSource = settings.questionSource?.type === QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION;
-  const songSourceChip = isManualSongSource
-    ? `${settings.questionSource.songIds?.length ?? 0}曲から出題`
-    : CATEGORY_LABELS[settings.categoryFilterValue] ?? settings.categoryFilterValue;
+  const songSourceChip = describeSongSourceForSettings(settings);
   const chips = [
     getModeLabel(INSTANT_BATTLE_GAME_MODE),
     QUESTION_COUNT_LABELS[settings.questionCountValue] ?? `${settings.questionCountValue}問`,
@@ -1021,30 +1050,21 @@ function applyInstantBattleSettingsToHostForm(settings) {
     if (input) input.checked = true;
   };
   setChecked("online-instant-battle-settings-question-count", settings.questionCountValue);
-  setChecked("online-instant-battle-settings-category", settings.categoryFilterValue);
   setChecked("online-instant-battle-settings-play-duration", settings.playDurationValue);
   setChecked("online-instant-battle-settings-answer-pool-size", settings.answerPoolSizeValue);
 
-  const isCollaborativeSongSource = settings.questionSource?.type === QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION;
-  setChecked("online-instant-battle-settings-song-source", isCollaborativeSongSource ? "manual" : "all");
-  elements.lobbySettingsCategoryFieldsetInstant.hidden = isCollaborativeSongSource;
+  // 【2026-09-30改訂・本人指示：出題する曲4択統合】js/onlineBattleSongSourceUi.js参照。
+  applySongSourceOptionToForm("online-instant-battle-settings-song-source", settings);
 }
 
 function readInstantBattleSettingsFromHostForm() {
-  const songSourceValue =
-    document.querySelector('input[name="online-instant-battle-settings-song-source"]:checked')?.value ?? "all";
+  const songSourceValue = readSongSourceOptionFromForm("online-instant-battle-settings-song-source");
   const settings = {
     questionCountValue: document.querySelector('input[name="online-instant-battle-settings-question-count"]:checked').value,
-    categoryFilterValue: document.querySelector('input[name="online-instant-battle-settings-category"]:checked').value,
     playDurationValue: document.querySelector('input[name="online-instant-battle-settings-play-duration"]:checked').value,
     answerPoolSizeValue: document.querySelector('input[name="online-instant-battle-settings-answer-pool-size"]:checked').value,
+    ...buildSongSourceSettingsFields(songSourceValue, { mergedSongIds: getMergedRestrictedSongIds() }),
   };
-  if (songSourceValue === "manual") {
-    settings.questionSource = {
-      type: QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION,
-      songIds: getMergedRestrictedSongIds(),
-    };
-  }
   return settings;
 }
 
@@ -1263,6 +1283,23 @@ function updateStartButton(room) {
   const allReady = nonHostPlayers.length === 0 || nonHostPlayers.every(([, player]) => isPlayerReady(player));
 
   elements.lobbyStartButton.disabled = !isWaiting || !allReady;
+
+  // 【2026-09-30新設・本人指示：オンライン対戦総合改修 第2ラウンド26章】ホストが自分の分の
+  // 「ルーム設定に戻る」を押すと、room.statusがまだresultのまま（他の参加者が結果画面から
+  // 戻り終えていない）でも、ホストの画面だけはロビー表示へ進む。この状態でも「対戦を
+  // 開始する」は既存のisWaitingチェック（room.status===waiting）により自動的に押せない
+  // ままになる（安全設計・変更不要）が、以前は理由が一切表示されなかったため、
+  // 「誰の結果確認待ちか」が分かる専用の案内を出す。
+  if (room.status === ROOM_STATUS.RESULT) {
+    const allReturned = computeAllPlayersResultReturned(players);
+    const waitingCount = Object.values(players).filter(
+      (player) => player.connected !== false && player.resultReturned !== true
+    ).length;
+    elements.lobbyStartHint.textContent = allReturned
+      ? ""
+      : `他の参加者が結果画面を確認中です（あと${waitingCount}人）。全員が戻るまで次の対戦を開始できません。`;
+    return;
+  }
 
   if (!isWaiting) {
     // 通常はstatusがwaitingでなくなった瞬間に画面遷移でロビーを離れるため、ここに来るのは
@@ -1554,6 +1591,14 @@ function renderLobby(room) {
       returnRoomToLobby({ roomId: room.roomId });
     }
   }
+  // 【2026-09-30新設・本人指示：オンライン対戦総合改修 第2ラウンド26-29章】ホストの端末だけが、
+  // room更新のたびに「結果画面から全員（切断中を除く）が戻り終えたか」を確認し、揃っていれば
+  // room.statusをwaitingへ戻す。関数自体が「既にwaiting・条件未成立なら何もしない」安全設計
+  // （js/onlineBattle.jsのmaybeFinalizeReturnToLobbyIfAllReturned()参照）のため、
+  // 何度呼んでも安全（本人指示：全員が結果画面を確認し終えるまで、次の試合を始めさせない）。
+  if (isHost && room.status === ROOM_STATUS.RESULT) {
+    maybeFinalizeReturnToLobbyIfAllReturned({ roomId: room.roomId, room });
+  }
   // 自分の選択曲一覧を、room.players側の値へ常に合わせておく（リロード直後・他タブでの
   // 変更後もここで復元される）。
   mySelectedSongIds = Array.isArray(players[myUid]?.selectedSongIds) ? players[myUid].selectedSongIds : [];
@@ -1826,7 +1871,17 @@ function renderLobby(room) {
   if (isConfirmingRematchNow !== wasConfirmingRematch) {
     lastHandledConfirmingRematch = isConfirmingRematchNow;
     if (isConfirmingRematchNow) {
-      enterRematchReadyScreen(room);
+      // 【2026-09-30改訂・本人指示：オンライン対戦総合改修 第2ラウンド25章】以前はここで
+      // 無条件にenterRematchReadyScreen()を呼び、結果画面を見ている全参加者を問答無用で
+      // 再戦準備画面へ強制的に切り替えていた。「もう一度」を押していない参加者（主にゲスト）
+      // が今まさに結果画面を見ている場合は切り替えず、結果画面側の「対戦の準備をする」
+      // ボタン（本人の意思表示）を押すまで待つ（renderResultReturnPanel()参照）。
+      if (RESULT_SCREEN_NAMES.has(document.body.dataset.screen) && !hasRespondedToCurrentResultScreen()) {
+        // 何もしない。結果画面の再同期（syncResultScreenHostGuestButtons()等）が、
+        // このconfirmingRematch:trueを検知して案内を表示する。
+      } else {
+        enterRematchReadyScreen(room);
+      }
     } else if (room.status === ROOM_STATUS.WAITING) {
       // ホストが再戦準備をキャンセルした場合だけここに来る（再戦開始成功時はstatusが
       // waiting以外になっているため、この分岐には来ない）。
@@ -1887,30 +1942,45 @@ function renderLobby(room) {
         goToResultScreen(room);
       }
     } else if (isReturnedToLobby) {
-      // ホストが「もう一度」以外の操作（ルーム設定に戻る／対戦中断／音源トラブルによる
-      // 試合全体無効化）を選んだ→全端末（ホスト含む）を自動的にロビーへ戻す。前回の試合に
-      // 関するローカル状態（progress/results監視の元になるcurrentMatchId、カウントダウン
-      // タイマー、進捗ストリップ、歌詞クイズ・一瞬協力それぞれの進行状態）を確実に後片付けして
-      // から遷移する（本人の要望：次の試合を始めたときに前回の画面・データが
-      // 混ざらないこと。対戦の途中で呼ばれた場合も同じ後片付けで安全に戻せる）。
-      resetOnlineBattleMatchState();
-      resetLyricsQuizBattleState();
-      elements.navigateTo("onlineBattleLobby");
-      // 【本人指示：「音が出ない」救済ボタン第2段階の再設計（試合全体無効化）】ホスト・
-      // ゲストを問わず、全参加者に「なぜこの試合が無効になり、ロビーへ戻ったのか」が
-      // ひと目で分かる専用の通知を出す（本人指示：理由が明確に伝わる通知を表示すること）。
-      // 【2026-09-26修正・本人指示：オンライン対戦総合改修19-4章】以前はここで
-      // wasMatchInvalidatedOnReturnがtrueのときにhidden=falseへ切り替えるだけで、falseの
-      // ときに明示的にhidden=trueへ戻す処理が無かった。この通知を非表示に戻す唯一の
-      // 場所がgoToLobby()（ルームへ新規入場したときだけ呼ばれる）だったため、一度表示
-      // されると、同じルーム内でその後どれだけ新しい試合を始めても（＝isReturnedToLobbyを
-      // 経由するたびにこの分岐へ来ても）非表示に戻る機会が無く、ずっと画面に残り続けて
-      // いた（本人からの実機報告：「一度起きたらそのルーム中ずっと赤い警告が残る」）。
-      // ロビーへ戻るたびに、今回の試合が無効化によるものかどうかで毎回表示を決め直す
-      // ことで、「次の試合に移った段階で前試合の無効理由が分かる程度」に留め、それ以降の
-      // 試合には持ち越さないようにする。
-      if (elements.lobbyMatchInvalidatedNotice) {
-        elements.lobbyMatchInvalidatedNotice.hidden = !wasMatchInvalidatedOnReturn;
+      // 【2026-09-30改訂・本人指示：オンライン対戦総合改修 第2ラウンド23-24章】自分自身が
+      // 今まさに結果画面を見ていて、まだ自分の意思表示（ルーム設定に戻る）をしていない
+      // 場合は、この自動遷移を行わない（本人指示：他人の結果画面を勝手に閉じない）。
+      // 【この分岐に実際にはほぼ来ない設計になった理由】room.statusがresult→waitingへ
+      // 戻るのは、js/onlineBattle.jsのmaybeFinalizeReturnToLobbyIfAllReturned()が
+      // 「切断中を除く全員のresultReturned」を確認できた後だけ（returnRoomToLobby()参照）。
+      // つまり自分がまだ結果画面で応答していなければ、原理的にこの分岐自体に到達しない
+      // はずだが、対戦中断・音源トラブルによる試合全体無効化等、他の経路からisReturnedToLobbyが
+      // trueになるケース（結果画面より前の状態から直接waitingへ戻るケース）もあるため、
+      // 保険として同じガードを掛けておく。
+      if (RESULT_SCREEN_NAMES.has(document.body.dataset.screen) && !hasRespondedToCurrentResultScreen()) {
+        // 何もしない（renderLobby()自体はこの後も最後まで実行を続ける。updateOnlineBattlePlayUi()等、
+        // 下の処理を巻き込んでスキップしないよう、ここでreturnはしない）。
+      } else {
+        // ホストが「もう一度」以外の操作（ルーム設定に戻る／対戦中断／音源トラブルによる
+        // 試合全体無効化）を選んだ→全端末（ホスト含む）を自動的にロビーへ戻す。前回の試合に
+        // 関するローカル状態（progress/results監視の元になるcurrentMatchId、カウントダウン
+        // タイマー、進捗ストリップ、歌詞クイズ・一瞬協力それぞれの進行状態）を確実に後片付けして
+        // から遷移する（本人の要望：次の試合を始めたときに前回の画面・データが
+        // 混ざらないこと。対戦の途中で呼ばれた場合も同じ後片付けで安全に戻せる）。
+        resetOnlineBattleMatchState();
+        resetLyricsQuizBattleState();
+        elements.navigateTo("onlineBattleLobby");
+        // 【本人指示：「音が出ない」救済ボタン第2段階の再設計（試合全体無効化）】ホスト・
+        // ゲストを問わず、全参加者に「なぜこの試合が無効になり、ロビーへ戻ったのか」が
+        // ひと目で分かる専用の通知を出す（本人指示：理由が明確に伝わる通知を表示すること）。
+        // 【2026-09-26修正・本人指示：オンライン対戦総合改修19-4章】以前はここで
+        // wasMatchInvalidatedOnReturnがtrueのときにhidden=falseへ切り替えるだけで、falseの
+        // ときに明示的にhidden=trueへ戻す処理が無かった。この通知を非表示に戻す唯一の
+        // 場所がgoToLobby()（ルームへ新規入場したときだけ呼ばれる）だったため、一度表示
+        // されると、同じルーム内でその後どれだけ新しい試合を始めても（＝isReturnedToLobbyを
+        // 経由するたびにこの分岐へ来ても）非表示に戻る機会が無く、ずっと画面に残り続けて
+        // いた（本人からの実機報告：「一度起きたらそのルーム中ずっと赤い警告が残る」）。
+        // ロビーへ戻るたびに、今回の試合が無効化によるものかどうかで毎回表示を決め直す
+        // ことで、「次の試合に移った段階で前試合の無効理由が分かる程度」に留め、それ以降の
+        // 試合には持ち越さないようにする。
+        if (elements.lobbyMatchInvalidatedNotice) {
+          elements.lobbyMatchInvalidatedNotice.hidden = !wasMatchInvalidatedOnReturn;
+        }
       }
     }
   }
@@ -1942,6 +2012,45 @@ function syncResultScreenHostGuestButtons(room) {
   elements.resultHostActions.hidden = !isHostOnResultScreen;
   elements.resultHomeLink.hidden = isHostOnResultScreen;
   if (elements.resultGuestActions) elements.resultGuestActions.hidden = isHostOnResultScreen;
+  renderResultReturnPanel(room);
+}
+
+// 【2026-09-30新設・本人指示：オンライン対戦総合改修 第2ラウンド23-29章】結果画面の
+// 「結果確認の状況」一覧・「もう一度」提案への案内を、room更新のたびに軽量に再描画する。
+// js/onlineLyricsQuizBattleScreen.js・js/onlineInstantBattleScreen.js・
+// js/onlineInstantCoopBattleScreen.jsも同じ考え方の専用関数を持つ（本人指示：共通処理は
+// 再利用しつつ、各モードのmatch.participantsの形が微妙に異なるため、描画自体は分ける）。
+function renderResultReturnPanel(room) {
+  const match = (room.matches || {})[currentMatchId] || {};
+  const participants = match.participants || {};
+  const players = room.players || {};
+  const myUid = getCurrentUid();
+  const isHostOnResultScreen = room.host === myUid;
+
+  if (elements.resultReturnStatusList) {
+    elements.resultReturnStatusList.innerHTML = "";
+    Object.entries(participants).forEach(([uid, participant]) => {
+      const hasReturned = players[uid]?.resultReturned === true;
+      const row = document.createElement("li");
+      row.className = "online-battle-result-return-status-row";
+      const nameSpan = document.createElement("span");
+      nameSpan.className = "online-battle-result-return-status-name";
+      nameSpan.textContent = uid === myUid ? `${participant.displayName}（あなた）` : participant.displayName;
+      row.appendChild(nameSpan);
+      const badge = document.createElement("span");
+      badge.className = `online-battle-result-return-status-badge ${hasReturned ? "is-done" : "is-waiting"}`;
+      badge.textContent = hasReturned ? "ロビーへ戻りました" : "結果確認中";
+      row.appendChild(badge);
+      elements.resultReturnStatusList.appendChild(row);
+    });
+  }
+
+  // 「もう一度」が提案されている間、まだ自分の意思表示をしていないゲストにだけ、
+  // 結果画面から離れずに準備へ進める導線を見せる（本人指示：他人の結果画面を勝手に閉じない）。
+  if (elements.resultRematchProposedNotice) {
+    elements.resultRematchProposedNotice.hidden =
+      !(room.confirmingRematch === true) || isHostOnResultScreen || hasRespondedToCurrentResultScreen();
+  }
 }
 
 function goToLobby(roomId) {
@@ -2283,7 +2392,12 @@ function goToResultScreen(room) {
   const results = match.results || {};
   const myUid = getCurrentUid();
 
-  // 【2026-09-05改訂、本人指示】試合後の選択肢「もう一度」「ルーム設定に戻る」は
+  // 【2026-09-30改訂・本人指示：オンライン対戦総合改修 第2ラウンド23-29章】新しい結果画面に
+  // 入るたび、「もう一度」「ルーム設定に戻る」への自分自身の意思表示をまだしていない状態
+  // から始める（他モードの結果画面と混ざらないよう、必ずここでリセットする）。
+  resetResultScreenResponded();
+
+  // 【2026-09-05改訂、本人指示】試合後の選択肢「もう一度」は
   // ホスト専用（対戦設定を書き換えられるのがホストだけという既存の権限設計と揃えている）。
   // 非ホストには代わりに「⌂ホームへ戻る」だけを見せる。
   const isHostOnResultScreen = room.host === myUid;
@@ -2292,6 +2406,9 @@ function goToResultScreen(room) {
   // 【2026-09-07新設・本人指示：ゲスト結果画面】ホスト専用ボタンの代わりに、待機案内＋
   // 「ルームから退出」を見せる。
   if (elements.resultGuestActions) elements.resultGuestActions.hidden = isHostOnResultScreen;
+  // 【2026-09-30新設】「結果確認の状況」一覧・「もう一度」提案への案内は、ホスト・ゲスト
+  // 共通で毎回再描画する。
+  renderResultReturnPanel(room);
 
   renderSettingsChips(elements.resultConfigSummary, room.settings, room.gameMode);
   elements.resultRuleNote.textContent = getRuleDescription(room.gameMode, room.settings);
@@ -2328,18 +2445,13 @@ function goToResultScreen(room) {
     const oshiDot = createOshiDotElement(participant.oshiMemberId, uid);
     if (oshiDot) nameRow.appendChild(oshiDot);
 
-    // 【2026-09-26新設・本人指示：オンライン対戦総合改修19-15章】結果画面では名前・
-    // アイコンを押すとプロフィールを開けるようにする（対戦の進行に一切影響しない画面のため、
-    // 常に許可してよい場所）。
-    const nameText = document.createElement("button");
-    nameText.type = "button";
-    nameText.className = "battle-rank-name-button";
+    // 【2026-09-30改訂・本人指示：オンライン対戦総合改修 第2ラウンド3章】以前は結果画面でも
+    // 名前タップでプロフィールを開けたが、「プロフィールはロビーでだけ開けるようにして
+    // ほしい」との指示により、結果画面からは開けなくする（タップできそうに見えるボタンの
+    // 見た目も付けない）。
+    const nameText = document.createElement("span");
+    nameText.className = "battle-rank-name-text";
     nameText.textContent = participant.displayName;
-    nameText.addEventListener("click", () => {
-      // 結果画面：名前タップでプロフィールモーダルを開く操作音
-      playSfx(SFX_EVENTS.UI_CLICK);
-      openParticipantProfile({ uid, name: participant.displayName, oshiMemberId: participant.oshiMemberId });
-    });
     nameRow.appendChild(nameText);
 
     if (uid === myUid) {
@@ -2958,7 +3070,7 @@ export function initOnlineBattleScreens(newElements) {
   // （updateCollabSongSectionUi）が全員の画面に現れる。
   document
     .querySelectorAll(
-      'input[name="online-battle-settings-question-count"], input[name="online-battle-settings-category"], input[name="online-battle-settings-rule"], input[name="online-battle-settings-penalty"], input[name="online-battle-settings-song-source"]'
+      'input[name="online-battle-settings-question-count"], input[name="online-battle-settings-rule"], input[name="online-battle-settings-penalty"], input[name="online-battle-settings-song-source"]'
     )
     .forEach((radio) => {
       radio.addEventListener("change", async () => {
@@ -2972,7 +3084,7 @@ export function initOnlineBattleScreens(newElements) {
   // 【2026-08-30新設、本人指示：19-3章「一瞬バトル」】上と全く同じ考え方の、一瞬バトル専用版。
   document
     .querySelectorAll(
-      'input[name="online-instant-battle-settings-question-count"], input[name="online-instant-battle-settings-category"], input[name="online-instant-battle-settings-play-duration"], input[name="online-instant-battle-settings-answer-pool-size"], input[name="online-instant-battle-settings-song-source"]'
+      'input[name="online-instant-battle-settings-question-count"], input[name="online-instant-battle-settings-play-duration"], input[name="online-instant-battle-settings-answer-pool-size"], input[name="online-instant-battle-settings-song-source"]'
     )
     .forEach((radio) => {
       radio.addEventListener("change", async () => {
@@ -3167,33 +3279,50 @@ export function initOnlineBattleScreens(newElements) {
     });
   });
 
-  // 【2026-09-05改訂、本人指示】試合後の選択肢を「もう一度」「ルーム設定に戻る」の
-  // 2つ（ホスト専用）へ統一した。どちらも実際のstatus変更はjs/onlineBattle.js側の
-  // 関数に任せ、ここではローカルの画面遷移を直接行わない（DNF確定ボタンと同じ設計：
-  // Firebase側の変化をrenderLobby()側の状態遷移検知が拾って、ホスト・参加者とも
-  // 自動的に次の画面へ進む。ここで直接navigateTo()もしてしまうと、その直後に届く
-  // room更新による自動遷移と二重に画面が切り替わってしまうため）。
-  // 【再戦準備フェーズ新設・本人指示】以前は「すぐ前まで一緒に対戦していた相手に改めて
-  // READYを押させる必要が無い」という判断から、確認モーダルを挟まず即座に実行していた。
-  // 今回「全員が今回の設定を確認し、準備OKを押してから始めたい」という要望を受け、
-  // beginRematchReadyCheck()を呼んで再戦準備フェーズへ進むよう変更した（READYとは別の、
-  // 専用のrematchReadyフラグを使うため、既存のREADY状態には触れない）。
+  // 【2026-09-30改訂・本人指示：オンライン対戦総合改修 第2ラウンド25章】「もう一度」は
+  // ホスト専用のまま。押した瞬間、beginRematchReadyCheck()でconfirmingRematchを立てる
+  // （既存どおり）が、自分自身はここで即座にローカルの再戦準備画面へ進む（結果画面を
+  // 見ている他のゲストは、自分から「対戦の準備をする」を押すまで自動では移動しない。
+  // renderLobby()側のisConfirmingRematchNowガード参照）。
   elements.resultRematchButton.addEventListener("click", async () => {
-    if (!currentRoomId) return;
+    if (!currentRoomId || !latestRoom) return;
     // 【2026-09-09新設・本人指示：音源再生失敗の本対策】「もう一度」はロビーの開始ボタンを
     // 経由せず次の対戦（の準備）へ進むため、こちらでもunlockを再実行しておく。
     attemptSilentUnlock();
     playSfx(SFX_EVENTS.UI_CONFIRM);
     elements.resultRematchButton.disabled = true;
-    await beginRematchReadyCheck({ roomId: currentRoomId });
+    const result = await beginRematchReadyCheck({ roomId: currentRoomId });
     elements.resultRematchButton.disabled = false;
+    if (result.ok) {
+      markResultScreenResponded();
+      enterRematchReadyScreen({ ...latestRoom, status: ROOM_STATUS.WAITING, confirmingRematch: true });
+    }
   });
-  elements.resultBackToLobbyButton.addEventListener("click", async () => {
+  // 【2026-09-30新設・本人指示：オンライン対戦総合改修 第2ラウンド25章】ゲスト用：
+  // 「もう一度」が提案された後、結果画面を見終えたと感じたタイミングで自分から押す。
+  // 押すまでは結果画面に留まり続ける（本人指示：他人の結果画面を勝手に閉じない）。
+  elements.resultRematchProceedButton?.addEventListener("click", () => {
+    if (!latestRoom) return;
+    playSfx(SFX_EVENTS.UI_CONFIRM);
+    markResultScreenResponded();
+    enterRematchReadyScreen(latestRoom);
+  });
+  // 【2026-09-30改訂・本人指示：オンライン対戦総合改修 第2ラウンド23-24章】「ルーム設定に
+  // 戻る」を、ホスト専用の即時全員強制遷移から、ホスト・ゲストどちらも押せる個別操作へ
+  // 変更した。押した瞬間、自分の分だけmarkResultReturned()で記録し、room.statusの変化を
+  // 待たずに自分の画面だけを即座にロビーへ切り替える（他の参加者の画面には一切影響しない）。
+  // 実際にroom.statusをwaitingへ戻す処理は、全員分が揃った時点でホストの端末が自動的に
+  // 行う（js/onlineBattle.jsのmaybeFinalizeReturnToLobbyIfAllReturned()参照）。
+  elements.resultReturnButton?.addEventListener("click", async () => {
     if (!currentRoomId) return;
     playSfx(SFX_EVENTS.UI_BACK);
-    elements.resultBackToLobbyButton.disabled = true;
-    await returnRoomToLobby({ roomId: currentRoomId });
-    elements.resultBackToLobbyButton.disabled = false;
+    elements.resultReturnButton.disabled = true;
+    markResultScreenResponded();
+    await markResultReturned({ roomId: currentRoomId });
+    elements.resultReturnButton.disabled = false;
+    resetOnlineBattleMatchState();
+    resetLyricsQuizBattleState();
+    elements.navigateTo("onlineBattleLobby");
   });
 
   // 【2026-09-05新設、本人指示】対戦中、ホストだけに見える「ルーム設定へ戻る」。

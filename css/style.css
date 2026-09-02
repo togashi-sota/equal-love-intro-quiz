@@ -12628,16 +12628,16 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 }
 
 .online-battle-collab-breakdown-song-chip {
-  /* 共有曲一覧（.online-battle-collab-song-chip、塗りつぶし）と同じ丸チップの言語を
-     踏襲しつつ、「縁取りのみ」にして完全に同一の見た目にはしない。参加者ごとの選択と
-     共有曲一覧が別の情報であることを、形は揃えつつ塗り方の違いで区別できるようにする
-     （本人指示：「完全に同じ見た目になって区別不能にはしない」）。 */
-  padding: 2px 9px;
+  /* 【2026-09-30改訂・本人指示：オンライン対戦総合改修 第2ラウンド4章】以前は「参加者ごとの
+     選択」だけ縁取りのチップにして、共有曲一覧（.online-battle-collab-song-chip、塗りつぶし）
+     とわずかに見た目を変えていたが、「完全に統一してほしい」との指示により、
+     .online-battle-collab-song-chipと全く同じ塗りつぶしスタイルへ揃えた。 */
+  padding: 3px 10px;
   border-radius: 999px;
-  border: 1.5px solid var(--color-primary-dark);
-  background: var(--color-surface);
+  border: 1.5px solid transparent;
+  background: var(--color-primary-light);
   color: var(--color-primary-dark);
-  font-size: 0.71rem;
+  font-size: 0.74rem;
   font-weight: 700;
   max-width: 100%;
   overflow-wrap: break-word;
@@ -13040,6 +13040,71 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   box-sizing: border-box;
 }
 
+/* 【2026-09-30新設・本人指示：オンライン対戦総合改修 第2ラウンド23-29章】結果画面の
+   「ルーム設定に戻る」個別対応パネル・「もう一度」提案パネルで共通に使う枠。
+   js/onlineBattleScreen.js・js/onlineLyricsQuizBattleScreen.js・
+   js/onlineInstantBattleScreen.js・js/onlineInstantCoopBattleScreen.jsの結果画面すべてで
+   同じクラスを再利用する（本人指示：共通処理は再利用する）。 */
+.online-battle-result-return-panel {
+  margin: 14px 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--color-surface-glass);
+  border: 1px solid var(--color-card-border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.online-battle-result-return-heading {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.online-battle-result-return-status-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.online-battle-result-return-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.78rem;
+}
+
+.online-battle-result-return-status-name {
+  font-weight: 700;
+  color: var(--color-primary-dark);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.online-battle-result-return-status-badge {
+  flex: none;
+  font-size: 0.66rem;
+  font-weight: 800;
+  padding: 3px 9px;
+  border-radius: 999px;
+}
+
+.online-battle-result-return-status-badge.is-done {
+  background: var(--color-accent-soft);
+  color: var(--color-primary-dark);
+}
+
+.online-battle-result-return-status-badge.is-waiting {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
 .battle-rank-list {
   list-style: none;
   margin: 16px 0;
@@ -13108,25 +13173,6 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 /* 【2026-09-26新設・本人指示：オンライン対戦総合改修19-15章】結果画面の名前も
    タップしてプロフィールを開けるようにする。js/onlineBattleScreen.jsの
    .online-lobby-player-name-buttonと同じ、ボタン化リセット＋押せる見た目。 */
-.battle-rank-name-button {
-  background: none;
-  border: none;
-  padding: 4px 2px;
-  margin: -4px -2px;
-  font: inherit;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-  border-radius: 6px;
-  text-decoration: underline;
-  text-decoration-color: rgba(0, 0, 0, 0.2);
-  text-underline-offset: 2px;
-}
-
-.battle-rank-name-button:active {
-  background: rgba(0, 0, 0, 0.06);
-}
-
 /* 結果画面で「自分の行」だとひと目でわかる、名前の横に添える小さいバッジ。
    名前の文字列に直接連結すると、表示名が長い参加者で2行に折り返りやすくなるため、
    独立したバッジ要素として分けている（本人の指摘、2026-08-08）。 */
@@ -14520,9 +14566,10 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 }
 
 /* 【2026-09-01新設・本人指示：ライブスコアボード】他プレイヤーの現在の累計スコアを見せる、
-   問題画面上部の折りたたみ可能な一覧。375px幅を意識し、既定は閉じた状態（1行のサマリーだけ）
-   にして、問題文・ヒント・回答候補等を下へ押しやらないようにする。プレイヤー名が長い場合・
-   人数が多い場合の折り返しにも耐えるよう、一覧はchip状にflex-wrapさせる。 */
+   問題画面上部の一覧。375px幅を意識し、プレイヤー名が長い場合・人数が多い場合の折り返しにも
+   耐えるよう、一覧はchip状にflex-wrapさせる。
+   【2026-09-30改訂・本人指示：オンライン対戦総合改修 第2ラウンド12章】開閉できる<details>
+   要素だったが、開閉の仕組み自体を無くし常に見える<section>へ変更した（index.html参照）。 */
 .online-lyrics-battle-scoreboard {
   margin: 0 0 14px;
   border-radius: 14px;
@@ -14541,16 +14588,10 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   justify-content: space-between;
   gap: 8px;
   padding: 10px 14px;
-  cursor: pointer;
-  list-style: none;
+  margin: 0;
   font-size: 0.8rem;
   font-weight: 800;
   color: var(--color-text);
-}
-
-/* Safari用：デフォルトの三角マーカーを消し、自前の見た目だけにする。 */
-.online-lyrics-battle-scoreboard-summary::-webkit-details-marker {
-  display: none;
 }
 
 .online-lyrics-battle-scoreboard-summary-hint {
@@ -14608,20 +14649,6 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   /* 2026-09-26改訂・本人指示：UI恒久ルール（黒一色に見せない）。参加者名は
      .online-lobby-player-name・.battle-rank-nameと同じブランドピンクへ揃える。 */
   color: var(--color-primary-dark);
-}
-
-/* 【2026-09-26新設・本人指示：オンライン対戦総合改修19-11章】問題確定後だけ、
-   スコアボードの名前をタップしてプロフィールを開けるようにする（ボタン化リセット）。 */
-.online-lyrics-battle-scoreboard-name-button {
-  background: none;
-  border: none;
-  padding: 0;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  text-decoration: underline;
-  text-decoration-color: rgba(0, 0, 0, 0.2);
-  text-underline-offset: 2px;
 }
 
 /* 恒久デザインルール：重要な数値情報（スコア）は濃い色＋太字にする。 */
@@ -15139,20 +15166,6 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   min-width: 5.5em;
 }
 
-/* 【2026-09-26新設・本人指示：オンライン対戦総合改修19-11章】答え合わせ画面（問題は
-   既に確定済み）の名前だけ、タップしてプロフィールを開けるようにするボタン化リセット。 */
-.online-instant-battle-reveal-player-name-button {
-  background: none;
-  border: none;
-  padding: 0;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  text-decoration: underline;
-  text-decoration-color: rgba(0, 0, 0, 0.2);
-  text-underline-offset: 2px;
-}
-
 .online-instant-battle-reveal-player-answer {
   flex: 1;
   min-width: 0;
@@ -15513,6 +15526,37 @@ body[data-screen="instantChallengeQuestion"] .game-frame {
 #choice-buttons button,
 .lyrics-quiz-answer-list button,
 #online-lyrics-battle-answer-choices button {
+  touch-action: manipulation;
+}
+
+/* 【2026-09-30新設・本人指示：オンライン対戦総合改修 第2ラウンド7章】オンライン対戦の
+   ロビー・ルール確認・結果画面での誤ったピンチズーム／ダブルタップズームを防ぐ。
+   クイズ回答画面（#quiz-screen等）は「game-frameをviewport高さに固定」という
+   縦スクロール自体が発生しない専用設計だが、ロビー・ルール確認・結果画面は元々
+   縦に長く、通常のページスクロールが必要な画面のため、同じ固定化はできない。
+   代わりに、body側にtouch-action:pan-yを当てて「縦方向の指1本操作だけ」を許可する
+   （2本指のピンチ操作はpan-y指定時点で仕様上抑えられる。横スクロール自体が元々
+   発生しない画面のため、pan-yに絞っても既存の見え方は変わらない）。 */
+body[data-screen="onlineBattleLobby"],
+body[data-screen="onlineBattleConfirm"],
+body[data-screen="onlineBattleRematchReady"],
+body[data-screen="onlineBattleResult"],
+body[data-screen="onlineLyricsBattleResult"],
+body[data-screen="onlineInstantBattleResult"],
+body[data-screen="onlineInstantCoopBattleResult"] {
+  touch-action: pan-y;
+  overscroll-behavior-y: contain;
+}
+
+/* 上記画面内のボタンは、ダブルタップズームだけ追加で防ぐ（タップの反応速度への
+   悪影響が無いよう、manipulationはズーム抑制のみでクリック自体は今までどおり）。 */
+#online-battle-lobby-screen button,
+#online-battle-confirm-screen button,
+#online-battle-rematch-ready-screen button,
+#online-battle-result-screen button,
+#online-lyrics-battle-result-screen button,
+#online-instant-battle-result-screen button,
+#online-instant-coop-battle-result-screen button {
   touch-action: manipulation;
 }
 

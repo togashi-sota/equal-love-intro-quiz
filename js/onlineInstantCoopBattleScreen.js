@@ -109,7 +109,7 @@ import { SFX_EVENTS, playSfx } from "./soundManager.js";
 // 【2026-09-26新設・本人指示：オンライン対戦総合改修19-8/19-10章】共通の参加者アイコン
 // （推し色＋代表称号バッジ）と、参加者プロフィールモーダルを結果画面・回答状況一覧から
 // 再利用する。
-import { buildParticipantIcon, openParticipantProfile } from "./onlineParticipantIcon.js";
+import { buildParticipantIcon } from "./onlineParticipantIcon.js";
 import { MEMBERS } from "./data/members.js";
 import { savePlayHistoryEntryIfNew } from "./playHistory.js";
 import { buildInstantCoopQuestionBreakdown, capQuestionBreakdownForStorage } from "./battleQuestionBreakdown.js";
@@ -118,7 +118,10 @@ import { renderQuestionBreakdownAccordion } from "./battleQuestionBreakdownUi.js
 // ホストが結果を見せてから、次の問題／最終結果へ進むまでの待ち時間。
 // 【2026-09-07改訂・本人指示：答え合わせ表示を4秒へ統一】js/onlineLyricsQuizBattleScreen.jsと
 // 同じ理由（同票表示等、読む情報が増えたため）。
-const REVEAL_DELAY_MS = 4000;
+// 【2026-09-30改訂・本人指示：オンライン対戦総合改修 第2ラウンド19-20章】答え合わせ中に
+// 「問題の続き」の楽曲を鳴らす演出（playRevealContinuationAudio参照）と合わせ、
+// 他モードと同じ7秒（7000ms）へ統一する。
+const REVEAL_DELAY_MS = 7000;
 // ホストの進行判定を更新する間隔（js/onlineLyricsQuizBattleScreen.jsと同じ値・同じ理由）。
 const HOST_TICK_INTERVAL_MS = 400;
 // 【2026-09-09新設・本人指示：音源再生失敗時の公平性対策】このモードはホスト主導の
@@ -965,6 +968,41 @@ function playQuestionAudio(question, questionIndex) {
   );
 }
 
+// ===== 答え合わせ楽曲（続き再生）（2026-09-30新設・本人指示：オンライン対戦総合改修
+// 第2ラウンド16-18・20章。js/onlineInstantBattleScreen.jsの同名関数と全く同じ設計） =====
+//
+// 【仕様】答え表示が始まったら、問題で流れたのと同じ曲・同じ抽選結果（seed・songId・
+// questionIndexから決まる開始位置）の「続き」から再生する。問題再生時間＋続きの再生時間＝
+// 7秒（REVEAL_DELAY_MS）になるようにする。曲の残りが足りない場合はループ・ジャンプせず、
+// 曲の実際の終わりで自然に鳴りやむ（js/audio.jsのplaySongFromRandomPosition()の既存挙動）。
+// 演出のみのため、再生に失敗しても対戦の進行には一切影響させない（onErrorはconsole.warnのみ）。
+function playRevealContinuationAudio(question, questionIndex, remainingMsSec) {
+  if (remainingMsSec <= 0) return;
+  const playDurationSec = Number(currentSettings.playDurationValue);
+  const fixedDurationSec = AUDIO_METADATA[question.song.id]?.durationSec ?? null;
+  if (fixedDurationSec === null) return;
+  const computeContinuationStartTimeSec = (actualDurationSec) => {
+    const canonicalQuestionStartSec = computeRandomStartTimeSec({
+      seed: latestRoom.seed,
+      songId: question.song.id,
+      questionIndex,
+      durationSec: fixedDurationSec,
+      playDurationSec,
+    });
+    const clampedQuestionStartSec = clampStartTimeToActualDuration(canonicalQuestionStartSec, actualDurationSec);
+    return clampedQuestionStartSec + playDurationSec;
+  };
+  playSongFromRandomPosition(
+    question.song,
+    computeContinuationStartTimeSec,
+    remainingMsSec / 1000,
+    (message) =>
+      console.warn("[一瞬協力] 答え合わせ楽曲（続き）の再生に失敗しました（演出のみのため対戦の進行には影響しません）", message),
+    () => {},
+    () => {}
+  );
+}
+
 // 【2026-09-06新設・3分無操作の放置救済】本人がこの問題の中で意味のある操作をした
 // 瞬間に呼ぶ。ホスト側の「3分間操作していません」判定に使われる
 // （js/onlineLyricsQuizBattleScreen.jsのreportMyQuestionActivity()と全く同じ設計。
@@ -1238,19 +1276,13 @@ function renderRevealVoteList(match, qIndex, roundNumber) {
     row.className = "online-instant-battle-reveal-player-row";
     if (vote?.selectedSongId === question?.song.id) row.classList.add("is-correct");
 
-    // 【2026-09-26新設・本人指示：オンライン対戦総合改修19-8/19-11章】この一覧は
-    // 投票が確定した後（答え合わせ画面）にだけ表示されるため、対戦の公平性には
-    // 影響しない。共通の参加者アイコンを添え、名前タップでプロフィールも開けるようにする。
+    // 【2026-09-30改訂・本人指示：オンライン対戦総合改修 第2ラウンド3章】以前は答え合わせ
+    // 画面でも名前タップでプロフィールを開けたが、「プロフィールはロビーでだけ開けるように
+    // してほしい」との指示により開けなくする。共通の参加者アイコンは引き続き表示する。
     row.appendChild(buildParticipantIcon(participant.oshiMemberId, uid));
-    const name = document.createElement("button");
-    name.type = "button";
-    name.className = "online-instant-battle-reveal-player-name online-instant-battle-reveal-player-name-button";
+    const name = document.createElement("span");
+    name.className = "online-instant-battle-reveal-player-name";
     name.textContent = participant.displayName + (uid === myUid ? "（あなた）" : "");
-    name.addEventListener("click", () => {
-      // 答え合わせ画面：名前タップでプロフィールモーダルを開く操作音
-      playSfx(SFX_EVENTS.UI_CLICK);
-      openParticipantProfile({ uid, name: participant.displayName, oshiMemberId: participant.oshiMemberId });
-    });
     row.appendChild(name);
 
     const answerText = document.createElement("span");
@@ -1302,6 +1334,10 @@ function renderCurrentQuestionState() {
     // この関数の後半でしか行われないため、新しい問題を検知した瞬間にも前問の
     // 答え合わせカードを同期的に隠しておく。
     if (elements.revealSection) elements.revealSection.hidden = true;
+    // 【2026-09-30追加・本人指示：オンライン対戦総合改修 第2ラウンド16章】新しい問題に
+    // 切り替わったら、前問の「続き」楽曲が鳴り続けないよう必ず止める保険
+    // （js/onlineInstantBattleScreen.jsの同種の対応と同じ考え方）。
+    stopAudio();
     playQuestionAudio(question, qIndex);
     // 【2026-09-07改訂・本人指示：検索状態を毎問題完全リセット／50音UIの共通展開】
     // 検索文字列・50音ジャンプの選択行・選択肢一覧のスクロール位置を、新しい問題ごとに
@@ -1447,6 +1483,13 @@ function renderCurrentQuestionState() {
         if (lastRevealSfxPlayedForQIndex !== qIndex) {
           lastRevealSfxPlayedForQIndex = qIndex;
           if (!isAllUnknown) playSfx(outcome.isCorrect ? SFX_EVENTS.QUIZ_CORRECT : SFX_EVENTS.QUIZ_WRONG);
+          // 【2026-09-30新設・本人指示：オンライン対戦総合改修 第2ラウンド16章】SFXと同じ
+          // 「この問題では1回だけ」の瞬間に、問題の続きの楽曲を鳴らし始める。サーバー時刻
+          // 基準のresolvedAtから残り時間を計算する（js/onlineInstantBattleScreen.jsの
+          // 同種の対応と同じ考え方）。
+          const remainingMsSec =
+            typeof match.resolvedAt === "number" ? REVEAL_DELAY_MS - (Date.now() + serverTimeOffset - match.resolvedAt) : REVEAL_DELAY_MS;
+          playRevealContinuationAudio(question, qIndex, remainingMsSec);
         }
       }
     }
@@ -1509,16 +1552,11 @@ export function enterInstantCoopResult(room) {
       // （推し色＋代表称号バッジ、js/onlineParticipantIcon.js）へ差し替える。
       li.appendChild(buildParticipantIcon(participant.oshiMemberId, uid));
 
-      const name = document.createElement("button");
-      name.type = "button";
-      name.className = "online-lobby-player-name online-lobby-player-name-button";
+      // 【2026-09-30改訂・本人指示：オンライン対戦総合改修 第2ラウンド3章】結果画面の名前
+      // タップでのプロフィール表示は、「ロビーでだけ開けるようにしてほしい」との指示により廃止する。
+      const name = document.createElement("span");
+      name.className = "online-lobby-player-name";
       name.textContent = participant.displayName + (participant.isHost ? "（ホスト）" : "");
-      // 結果画面は対戦の進行に一切影響しないため、常にプロフィールを開ける。
-      name.addEventListener("click", () => {
-        // 結果画面：名前タップでプロフィールモーダルを開く操作音
-        playSfx(SFX_EVENTS.UI_CLICK);
-        openParticipantProfile({ uid, name: participant.displayName, oshiMemberId: participant.oshiMemberId });
-      });
       li.appendChild(name);
       elements.resultMemberList.appendChild(li);
     });

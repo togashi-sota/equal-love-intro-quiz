@@ -97,7 +97,7 @@ import { getMemberById } from "./memberUtils.js";
 // 【2026-09-26新設・本人指示：オンライン対戦総合改修19-8/19-10章】共通の参加者アイコン
 // （推し色＋代表称号バッジ）と、参加者プロフィールモーダルを結果画面・答え合わせ画面から
 // 再利用する。
-import { buildParticipantIcon, openParticipantProfile } from "./onlineParticipantIcon.js";
+import { buildParticipantIcon } from "./onlineParticipantIcon.js";
 import { MEMBERS } from "./data/members.js";
 import { savePlayHistoryEntryIfNew } from "./playHistory.js";
 import { QUESTION_SOURCE_TYPE } from "./questionSource.js";
@@ -109,7 +109,10 @@ import { MAX_REPLAY_COUNT_PER_QUESTION } from "./battleModes/instantBattleMode.j
 // ホストが結果を見せてから、次の問題／最終結果へ進むまでの待ち時間。
 // 【本人指示11：5秒間の答え合わせ】歌詞クイズ・一瞬協力の4秒より長い、一瞬バトル専用の値
 // （全員分の回答・正誤・再視聴回数を1度に読む必要があり、情報量が多いため）。
-const REVEAL_DELAY_MS = 5000;
+// 【2026-09-30改訂・本人指示：オンライン対戦総合改修 第2ラウンド19章】答え合わせ中に
+// 「問題の続き」の楽曲を鳴らす演出（playRevealContinuationAudio参照）と合わせ、
+// 他モードと同じ7秒（7000ms）へ統一する。
+const REVEAL_DELAY_MS = 7000;
 // ホストの進行判定を更新する間隔（他の同期モードと同じ値・同じ理由）。
 const HOST_TICK_INTERVAL_MS = 400;
 // 【音源再生失敗時の公平性対策】js/onlineInstantCoopBattleScreen.jsと同じ考え方・同じ値。
@@ -1024,19 +1027,13 @@ function renderRevealPlayerList(match, qIndex, outcome) {
     row.className = "online-instant-battle-reveal-player-row";
     if (playerOutcome?.isCorrect) row.classList.add("is-correct");
 
-    // 【2026-09-26新設・本人指示：オンライン対戦総合改修19-8/19-11章】この一覧は
-    // 問題が確定した後（答え合わせ画面）にだけ表示されるため、対戦の公平性には
-    // 影響しない。共通の参加者アイコンを添え、名前タップでプロフィールも開けるようにする。
+    // 【2026-09-30改訂・本人指示：オンライン対戦総合改修 第2ラウンド3章】以前は答え合わせ
+    // 画面でも名前タップでプロフィールを開けたが、「プロフィールはロビーでだけ開けるように
+    // してほしい」との指示により開けなくする。共通の参加者アイコンは引き続き表示する。
     row.appendChild(buildParticipantIcon(participant.oshiMemberId, uid));
-    const name = document.createElement("button");
-    name.type = "button";
-    name.className = "online-instant-battle-reveal-player-name online-instant-battle-reveal-player-name-button";
+    const name = document.createElement("span");
+    name.className = "online-instant-battle-reveal-player-name";
     name.textContent = participant.displayName + (uid === myUid ? "（あなた）" : "");
-    name.addEventListener("click", () => {
-      // 答え合わせ画面：名前タップでプロフィールモーダルを開く操作音
-      playSfx(SFX_EVENTS.UI_CLICK);
-      openParticipantProfile({ uid, name: participant.displayName, oshiMemberId: participant.oshiMemberId });
-    });
     row.appendChild(name);
 
     const answerText = document.createElement("span");
@@ -1090,6 +1087,11 @@ function renderCurrentQuestionState() {
     // 前問の答え合わせカードを同期的に隠しておく（js/onlineLyricsQuizBattleScreen.jsの
     // renderCurrentQuestionState()の同種の保険と同じ考え方）。
     elements.revealSection.hidden = true;
+    // 【2026-09-30追加・本人指示：オンライン対戦総合改修 第2ラウンド16章】新しい問題に
+    // 切り替わったら、前問の「続き」楽曲が鳴り続けないよう必ず止める（通常は
+    // remainingMsSec経過後の自動停止で既に止まっているはずだが、js/onlineLyricsQuizBattleScreen.js
+    // のstopRevealMusic()呼び出しと同じ考え方の保険）。
+    stopAudio();
     playCurrentQuestionAudioWithCountdown(question, qIndex);
     updateReplayButtonLabel();
     resetAnswerPoolBrowseState(answerBrowseState);
@@ -1173,6 +1175,15 @@ function renderCurrentQuestionState() {
         if (lastRevealSfxPlayedForQIndex !== qIndex) {
           lastRevealSfxPlayedForQIndex = qIndex;
           playSfx(myOutcome?.isCorrect ? SFX_EVENTS.QUIZ_CORRECT : SFX_EVENTS.QUIZ_WRONG);
+          // 【2026-09-30新設・本人指示：オンライン対戦総合改修 第2ラウンド16章】
+          // SFXと同じ「この問題では1回だけ」の瞬間に、問題の続きの楽曲を鳴らし始める
+          // （本人指示18：全員の回答が揃うまでは絶対に鳴らさない＝isResolvedになった
+          // このタイミングでしか呼ばない）。サーバー時刻基準のresolvedAtから残り時間を
+          // 計算する（バックグラウンド復帰等で検知が遅れても正しく追従するため、
+          // js/onlineLyricsQuizBattleScreen.jsの同種の対応と同じ考え方）。
+          const remainingMsSec =
+            typeof match.resolvedAt === "number" ? REVEAL_DELAY_MS - (Date.now() + serverTimeOffset - match.resolvedAt) : REVEAL_DELAY_MS;
+          playRevealContinuationAudio(question, qIndex, latestRoom.settings, remainingMsSec);
         }
       }
     }
@@ -1180,6 +1191,45 @@ function renderCurrentQuestionState() {
 
   const nowServerTimeMs = Date.now() + serverTimeOffset;
   renderIdleNotice(match, qIndex, nowServerTimeMs);
+}
+
+// ===== 答え合わせ楽曲（続き再生）（2026-09-30新設・本人指示：オンライン対戦総合改修 第2ラウンド16-18章） =====
+//
+// 【仕様】答え表示が始まったら、問題で流れたのと同じ曲・同じ抽選結果（seed・songId・
+// questionIndexから決まる開始位置）の「続き」から再生する。問題再生時間＋続きの再生時間＝
+// 7秒（REVEAL_DELAY_MS）になるようにする（本人指示16）。曲の残りが足りない場合はループ・
+// ジャンプせず、曲の実際の終わりで自然に鳴りやむ（本人指示17。js/audio.jsの
+// playSongFromRandomPosition()は、指定秒数に達する前に曲が自然終了した場合はそのまま
+// 止まるだけで、ループ・巻き戻しは一切行わない設計のため、この関数側で特別な処理は不要）。
+//
+// 【Q1無音バグの教訓を踏まえた安全設計】この楽曲はあくまで演出。再生に失敗しても
+// 問題無効・対戦中止等、ゲーム進行には一切影響させない（onErrorはconsole.warnのみ）。
+function playRevealContinuationAudio(question, questionIndex, settings, remainingMsSec) {
+  if (remainingMsSec <= 0) return; // 復帰があまりに遅く、既に答え表示が終わっている場合は鳴らさない
+  const playDurationSec = Number(settings.playDurationValue);
+  const fixedDurationSec = AUDIO_METADATA[question.song.id]?.durationSec ?? null;
+  if (fixedDurationSec === null) return;
+  const computeContinuationStartTimeSec = (actualDurationSec) => {
+    const canonicalQuestionStartSec = computeRandomStartTimeSec({
+      seed: latestRoom.seed,
+      songId: question.song.id,
+      questionIndex,
+      durationSec: fixedDurationSec,
+      playDurationSec,
+    });
+    const clampedQuestionStartSec = clampStartTimeToActualDuration(canonicalQuestionStartSec, actualDurationSec);
+    // revealContinuationStart = songStartSec + questionPlaybackDuration（本人指示16の式そのもの）。
+    return clampedQuestionStartSec + playDurationSec;
+  };
+  playSongFromRandomPosition(
+    question.song,
+    computeContinuationStartTimeSec,
+    remainingMsSec / 1000,
+    (message) =>
+      console.warn("[一瞬バトル] 答え合わせ楽曲（続き）の再生に失敗しました（演出のみのため対戦の進行には影響しません）", message),
+    () => {},
+    () => {}
+  );
 }
 
 // 【3分無操作の放置救済】js/onlineInstantCoopBattleScreen.jsのrenderIdleNotice()と同じ設計。
@@ -1338,20 +1388,14 @@ export function enterInstantBattleResult(room) {
     info.className = "battle-rank-info";
     const nameRow = document.createElement("p");
     nameRow.className = "battle-rank-name";
-    // 【2026-09-26改訂・本人指示：オンライン対戦総合改修19-8/19-15章】以前は
-    // .online-lobby-oshi-dot（CSS未定義＝実機では見えていなかった）で色ドットを
-    // 描画していた。共通の参加者アイコン（推し色＋代表称号バッジ）へ差し替え、
-    // 結果画面なので名前タップでプロフィールも開けるようにする。
+    // 【2026-09-26改訂】以前は.online-lobby-oshi-dot（CSS未定義＝実機では見えていなかった）
+    // で色ドットを描画していた。共通の参加者アイコン（推し色＋代表称号バッジ）へ差し替えた。
+    // 【2026-09-30改訂・本人指示：オンライン対戦総合改修 第2ラウンド3章】結果画面の名前
+    // タップでのプロフィール表示は、「ロビーでだけ開けるようにしてほしい」との指示により廃止する。
     nameRow.appendChild(buildParticipantIcon(entry.participant.oshiMemberId, entry.uid));
-    const nameText = document.createElement("button");
-    nameText.type = "button";
-    nameText.className = "battle-rank-name-button";
+    const nameText = document.createElement("span");
+    nameText.className = "battle-rank-name-text";
     nameText.textContent = entry.participant.displayName;
-    nameText.addEventListener("click", () => {
-      // 結果画面：名前タップでプロフィールモーダルを開く操作音
-      playSfx(SFX_EVENTS.UI_CLICK);
-      openParticipantProfile({ uid: entry.uid, name: entry.participant.displayName, oshiMemberId: entry.participant.oshiMemberId });
-    });
     nameRow.appendChild(nameText);
     if (entry.uid === myUid) {
       const meBadge = document.createElement("span");
