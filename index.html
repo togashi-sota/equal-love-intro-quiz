@@ -3987,16 +3987,20 @@
         音源を正常に再生できない状態が続いたため、この対戦は中断されました。データパックの導入状況や通信環境をご確認のうえ、もう一度お試しください。
       </div>
 
+      <!-- 【2026-09-30改訂・本人指示：オンライン対戦総合改修 第3ラウンド・一瞬協力結果画面の
+           デザイン強化】他のオンライン結果画面と同じ質感（グラスカード）に寄せる。
+           情報を無理に増やさず、既存の「チームの正解数」「参加メンバー」「問題別結果」を
+           そのまま、見やすいカード構成に整える。 -->
       <div id="online-instant-coop-battle-result-normal" class="online-instant-coop-battle-result-normal">
-        <div class="time-attack-result-stats-row">
-          <div class="time-attack-result-stat">
-            <p class="time-attack-result-stat-label">チームの正解数</p>
-            <p id="online-instant-coop-battle-result-correct-count" class="time-attack-result-stat-value">0 / 0問</p>
-          </div>
+        <div class="online-instant-coop-result-hero-stat">
+          <p class="online-instant-coop-result-hero-stat-label">🤝 チームの正解数</p>
+          <p id="online-instant-coop-battle-result-correct-count" class="online-instant-coop-result-hero-stat-value">0 / 0問</p>
         </div>
 
-        <p class="battle-field-label">参加メンバー</p>
-        <ul id="online-instant-coop-battle-result-member-list" class="online-lobby-player-list"></ul>
+        <div class="online-battle-result-return-panel">
+          <p class="online-battle-result-return-heading">参加メンバー</p>
+          <ul id="online-instant-coop-battle-result-member-list" class="online-lobby-player-list"></ul>
+        </div>
 
         <!-- 【2026-09-12新設・本人指示：結果画面の問題別結果アコーディオンを完成させる】 -->
         <section id="online-instant-coop-battle-result-question-breakdown-section" class="battle-question-breakdown-section" hidden>
@@ -4005,15 +4009,22 @@
         </section>
       </div>
 
-      <!-- 【2026-09-05改訂、本人指示】試合後の選択肢を「もう一度」「ルーム設定に戻る」の
-           2つ（ホスト専用）へ統一した。非ホストには上の「⌂ホームへ戻る」だけを見せる。 -->
+      <!-- 【2026-09-30改訂・本人指示：オンライン対戦総合改修 第3ラウンド】js/onlineBattleScreen.js
+           の結果画面（共有エンジン）と全く同じ設計へ統一した。 -->
       <div id="online-instant-coop-battle-result-host-actions" class="button-row" hidden>
         <button id="online-instant-coop-battle-result-rematch-button" class="primary-button" type="button">もう一度</button>
-        <button id="online-instant-coop-battle-result-back-to-lobby-button" class="secondary-button" type="button">ルーム設定に戻る</button>
+      </div>
+      <div id="online-instant-coop-battle-result-rematch-proposed-notice" class="online-battle-result-return-panel" hidden>
+        <p class="online-battle-lead-text">ホストが「もう一度」を選びました。結果を見終えたら準備してください。</p>
+        <button id="online-instant-coop-battle-result-rematch-proceed-button" class="primary-button" type="button">対戦の準備をする</button>
+      </div>
+      <div id="online-instant-coop-battle-result-return-panel" class="online-battle-result-return-panel">
+        <p class="online-battle-result-return-heading">結果確認の状況</p>
+        <ul id="online-instant-coop-battle-result-return-status-list" class="online-battle-result-return-status-list"></ul>
+        <button id="online-instant-coop-battle-result-return-button" class="secondary-button" type="button">ルーム設定に戻る</button>
       </div>
       <!-- 【2026-09-07新設・本人指示：ゲスト結果画面】js/onlineBattleScreen.jsと同じ設計。 -->
       <div id="online-instant-coop-battle-result-guest-actions" hidden>
-        <p class="online-battle-lead-text">ホストの選択を待っています…</p>
         <button id="online-instant-coop-battle-result-leave-button" class="secondary-button" type="button">ルームから退出</button>
       </div>
     </section>
@@ -4044,12 +4055,21 @@
         </section>
       </div>
 
+      <!-- 【2026-09-30改訂・本人指示：オンライン対戦総合改修 第3ラウンド】js/onlineBattleScreen.js
+           の結果画面（共有エンジン）と全く同じ設計へ統一した。 -->
       <div id="online-instant-battle-result-host-actions" class="button-row" hidden>
         <button id="online-instant-battle-result-rematch-button" class="primary-button" type="button">もう一度</button>
-        <button id="online-instant-battle-result-back-to-lobby-button" class="secondary-button" type="button">ルーム設定に戻る</button>
+      </div>
+      <div id="online-instant-battle-result-rematch-proposed-notice" class="online-battle-result-return-panel" hidden>
+        <p class="online-battle-lead-text">ホストが「もう一度」を選びました。結果を見終えたら準備してください。</p>
+        <button id="online-instant-battle-result-rematch-proceed-button" class="primary-button" type="button">対戦の準備をする</button>
+      </div>
+      <div id="online-instant-battle-result-return-panel" class="online-battle-result-return-panel">
+        <p class="online-battle-result-return-heading">結果確認の状況</p>
+        <ul id="online-instant-battle-result-return-status-list" class="online-battle-result-return-status-list"></ul>
+        <button id="online-instant-battle-result-return-button" class="secondary-button" type="button">ルーム設定に戻る</button>
       </div>
       <div id="online-instant-battle-result-guest-actions" hidden>
-        <p class="online-battle-lead-text">ホストの選択を待っています…</p>
         <button id="online-instant-battle-result-leave-button" class="secondary-button" type="button">ルームから退出</button>
       </div>
     </section>
@@ -4105,27 +4125,29 @@
              歌詞が自動で1文字ずつ表示されるためこの操作欄は使わず、常にhiddenのまま。 -->
         <div id="online-lyrics-battle-hint-actions" class="online-lyrics-battle-hint-actions"></div>
 
-        <!-- 【2026-08-31新設】30・50・全曲プールのときだけ表示する検索欄と、全曲プール専用の
-             50音ジャンプバー。4択・10択のときはどちらも非表示のまま。 -->
-        <div id="online-lyrics-battle-answer-search-row" class="online-lyrics-battle-answer-search-row" hidden>
-          <input type="text" id="online-lyrics-battle-answer-search-input" class="text-input" placeholder="曲名やアーティスト名で検索" autocomplete="off" />
-          <span id="online-lyrics-battle-answer-count" class="online-lyrics-battle-answer-count"></span>
-        </div>
-        <div id="online-lyrics-battle-answer-jump-bar" class="online-lyrics-battle-answer-jump-bar" hidden></div>
-
-        <div id="online-lyrics-battle-answer-choices" class="online-lyrics-battle-answer-grid"></div>
-
+        <!-- 【2026-09-30改訂・本人指示：オンライン対戦総合改修 第3ラウンド・スクロール構造改善】
+             以前はこの3つ（無操作通知・待機メッセージ・エラー）を回答候補一覧の後ろに
+             置いていたが、回答候補一覧をflex:1で「残り高さぶんの内部スクロール領域」に
+             したことで、一覧より後ろの要素が画面外へ押し出されてしまう構造になった。
+             回答候補一覧を必ずこのブロックの最後の要素にするため、ここへ先に移動した
+             （表示内容・IDは一切変更していない）。 -->
         <!-- 【2026-09-06新設、本人指示：60秒自動終了の撤廃＋3分無操作の放置救済】
              ホストにだけ見える、3分間無操作のプレイヤーへの通知。1問につき1人1回だけ表示する。
              複数人が同時に該当する可能性があるため、リストとして描画する
              （js/onlineLyricsQuizBattleScreen.js参照）。 -->
         <div id="online-lyrics-battle-idle-notice" class="online-lyrics-battle-idle-notice" hidden></div>
+        <p id="online-lyrics-battle-status-message" class="online-lyrics-battle-status-message" hidden></p>
+        <p id="online-lyrics-battle-error" class="error-message" hidden></p>
 
         <!-- 【2026-09-03新設、本人指摘】以前は「正解が確定しました。まもなく次の問題です。」
              という一律の文言だけで、正解曲名・自分の正誤・獲得ポイントが分からなかった。
              オフライン歌詞クイズの正解確認カード（#lyrics-quiz-answer-reveal、既存の
              デザイン）と同じCSSクラスをそのまま使い、オンラインでも同じ見た目・統一感で
-             正誤・正解曲名・獲得ポイント・現在順位を表示する。 -->
+             正誤・正解曲名・獲得ポイント・現在順位を表示する。
+             【2026-09-30追記】isResolved時にjs側でelements.battleAnswerChoicesContainer
+             （下の一覧）へappendChild()され、実際にはそちらの内部に表示される（js側の
+             renderAnswerChoices()参照）。このマークアップ上の初期位置は、moveされる前の
+             一瞬・および万一の初期表示だけに使われる。 -->
         <div id="online-lyrics-battle-answer-reveal" class="lyrics-quiz-answer-reveal" hidden>
           <p id="online-lyrics-battle-answer-reveal-status" class="lyrics-quiz-answer-reveal-status">正解</p>
           <p class="lyrics-quiz-answer-reveal-caption">正解は</p>
@@ -4136,8 +4158,21 @@
           <p id="online-lyrics-battle-answer-reveal-meta" class="lyrics-quiz-answer-reveal-meta"></p>
         </div>
 
-        <p id="online-lyrics-battle-status-message" class="online-lyrics-battle-status-message" hidden></p>
-        <p id="online-lyrics-battle-error" class="error-message" hidden></p>
+        <!-- 【2026-08-31新設】30・50・全曲プールのときだけ表示する検索欄と、全曲プール専用の
+             50音ジャンプバー。4択・10択のときはどちらも非表示のまま。
+             【2026-09-30改訂】検索欄・50音・回答候補一覧の3つを、この画面の中で常に
+             「固定領域（検索欄・50音）＋最後に残り高さを埋める内部スクロール領域（一覧）」
+             というひとまとまりの構造にするため隣接させた。 -->
+        <div id="online-lyrics-battle-answer-search-row" class="online-lyrics-battle-answer-search-row" hidden>
+          <input type="text" id="online-lyrics-battle-answer-search-input" class="text-input" placeholder="曲名やアーティスト名で検索" autocomplete="off" />
+          <span id="online-lyrics-battle-answer-count" class="online-lyrics-battle-answer-count"></span>
+        </div>
+        <div id="online-lyrics-battle-answer-jump-bar" class="online-lyrics-battle-answer-jump-bar" hidden></div>
+
+        <!-- 【2026-09-30改訂】この一覧を.quiz-middle-zone-inner内の最後の要素にする
+             （flex:1で残り高さを埋めて内部スクロールするため。css/style.css
+             #online-lyrics-battle-question-screen .online-lyrics-battle-answer-grid参照）。 -->
+        <div id="online-lyrics-battle-answer-choices" class="online-lyrics-battle-answer-grid"></div>
         </div>
       </div>
     </section>
@@ -4161,13 +4196,23 @@
         <h3 class="battle-question-breakdown-heading">問題別結果</h3>
         <div id="online-lyrics-battle-result-question-breakdown" class="battle-question-breakdown-list"></div>
       </section>
+      <!-- 【2026-09-30改訂・本人指示：オンライン対戦総合改修 第3ラウンド】js/onlineBattleScreen.js
+           の結果画面（共有エンジン）と全く同じ設計へ統一した。「もう一度」はホスト専用のまま、
+           「ルーム設定に戻る」はホスト・ゲストどちらも押せる個別操作パネルへ分離した。 -->
       <div id="online-lyrics-battle-result-host-actions" class="button-row" hidden>
         <button id="online-lyrics-battle-result-rematch-button" class="primary-button" type="button">もう一度</button>
-        <button id="online-lyrics-battle-result-back-to-lobby-button" class="secondary-button" type="button">ルーム設定に戻る</button>
+      </div>
+      <div id="online-lyrics-battle-result-rematch-proposed-notice" class="online-battle-result-return-panel" hidden>
+        <p class="online-battle-lead-text">ホストが「もう一度」を選びました。結果を見終えたら準備してください。</p>
+        <button id="online-lyrics-battle-result-rematch-proceed-button" class="primary-button" type="button">対戦の準備をする</button>
+      </div>
+      <div id="online-lyrics-battle-result-return-panel" class="online-battle-result-return-panel">
+        <p class="online-battle-result-return-heading">結果確認の状況</p>
+        <ul id="online-lyrics-battle-result-return-status-list" class="online-battle-result-return-status-list"></ul>
+        <button id="online-lyrics-battle-result-return-button" class="secondary-button" type="button">ルーム設定に戻る</button>
       </div>
       <!-- 【2026-09-07新設・本人指示：ゲスト結果画面】js/onlineBattleScreen.jsと同じ設計。 -->
       <div id="online-lyrics-battle-result-guest-actions" hidden>
-        <p class="online-battle-lead-text">ホストの選択を待っています…</p>
         <button id="online-lyrics-battle-result-leave-button" class="secondary-button" type="button">ルームから退出</button>
       </div>
     </section>
@@ -4644,6 +4689,23 @@
       <div class="button-row">
         <button id="online-battle-result-leave-cancel-button" class="secondary-button" type="button">いいえ</button>
         <button id="online-battle-result-leave-confirm-button" class="danger-button" type="button">はい</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 【2026-09-30新設・本人指示：オンライン対戦総合改修 第3ラウンド】結果画面の
+       「⌂ ホームへ戻る」用の確認モーダル。在籍は維持したまま画面だけ戻る操作のため
+       破壊的ではないが、「結果を見終える前に誤って画面が切り替わった」という体感を
+       防ぐため、退出確認と同じ形式でワンクッション挟む。4つの結果画面（共有エンジン・
+       歌詞クイズ・一瞬バトル・一瞬協力）すべてで共有する1つのモーダル
+       （js/onlineBattleResultHomePrompt.js参照）。 -->
+  <div id="online-battle-result-home-confirm-modal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="online-battle-result-home-confirm-title">
+      <h2 id="online-battle-result-home-confirm-title">ホーム画面へ戻りますか？</h2>
+      <p class="modal-lead">ルームへの参加は維持されたまま、画面だけホームへ戻ります。対戦結果はもう一度確認できなくなります。</p>
+      <div class="button-row">
+        <button id="online-battle-result-home-cancel-button" class="secondary-button" type="button">いいえ</button>
+        <button id="online-battle-result-home-confirm-button" class="primary-button" type="button">はい</button>
       </div>
     </div>
   </div>

@@ -18,6 +18,7 @@ import { getActivePlayer } from "./playerProfile.js";
 import { promptReturnToLobby } from "./onlineBattleLobbyReturnPrompt.js";
 import { promptLeaveMatch, hasVoluntarilyLeftMatch } from "./onlineBattleLeaveMatchPrompt.js";
 import { promptResultLeaveRoom } from "./onlineBattleResultLeavePrompt.js";
+import { promptResultGoHome } from "./onlineBattleResultHomePrompt.js";
 import {
   createRoom,
   joinRoom,
@@ -826,7 +827,14 @@ function renderMatchConfirmScreen(room) {
 // computeAllPlayersRematchReady()として、上と同じくjs/onlineBattleMatchConfirmationPayloads.js
 // に置き、恒久テストで検証できる形にしてある。
 
-function enterRematchReadyScreen(room) {
+// 【2026-09-30新設・本人指示：オンライン対戦総合改修 第3ラウンド】歌詞クイズ・一瞬バトル・
+// 一瞬協力の結果画面（js/onlineLyricsQuizBattleScreen.js等）が、「もう一度」への対応
+// （ホスト自身の遷移・ゲストの「対戦の準備をする」）から呼べるよう公開する。再戦準備画面
+// （#online-battle-rematch-ready-screen）自体はモードを問わず共通の1画面のため、
+// このファイル1箇所に実装を持たせ、他モードはexport経由で呼ぶだけにする
+// （本人指示：4種類の別同期ロジックを作らない）。js/main.jsがelements.enterRematchReadyScreen
+// として各モードのelementsオブジェクトへ橋渡しする（onQuitDuringBattle等と同じ配線パターン）。
+export function enterRematchReadyScreen(room) {
   clearTimeout(rematchReadyAutoStartTimerId);
   rematchReadyAutoStartTimerId = null;
   elements.navigateTo("onlineBattleRematchReady");
@@ -3250,11 +3258,15 @@ export function initOnlineBattleScreens(newElements) {
   // renderLobby()のstatusJustChanged判定を参照。あちらは元々どの画面からでも呼べる
   // 設計のため、ホーム画面から突然呼ばれても問題なく動く）。「ルームから退出」
   // （resultLeaveButton、下記）を押した場合だけ、今までどおり監視を止めて完全に離脱する。
+  // 【2026-09-30改訂・本人指示：オンライン対戦総合改修 第3ラウンド】誤操作で結果画面を
+  // 離れてしまわないよう、押した瞬間ではなく確認モーダルを挟んでから実行する
+  // （js/onlineBattleResultLeavePrompt.jsの「ルームから退出」確認と同じ考え方）。
   elements.resultHomeLink.addEventListener("click", () => {
-    // 結果画面からホームへ戻る操作音
-    playSfx(SFX_EVENTS.UI_BACK);
-    resetOnlineBattleMatchState();
-    elements.navigateTo("start");
+    playSfx(SFX_EVENTS.UI_CLICK);
+    promptResultGoHome(() => {
+      resetOnlineBattleMatchState();
+      elements.navigateTo("start");
+    });
   });
 
   // 【2026-09-07新設・本人指示：ルームから退出＝完全離脱】ホームへ戻るとは違い、

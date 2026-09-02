@@ -11977,6 +11977,36 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   font-variant-numeric: tabular-nums;
 }
 
+/* 【2026-09-30新設・本人指示：オンライン対戦総合改修 第3ラウンド・一瞬協力結果画面の
+   デザイン強化】チーム全体で1つの成績しか無い一瞬協力の結果画面向けに、他モードの
+   個人順位メダルに相当する「主役」の数値表示を作る。既存の.time-attack-result-statより
+   一回り大きく、中央寄せの主役カードにする（本人指示：情報を無理に増やさず、
+   見やすいカード構成にすること）。 */
+.online-instant-coop-result-hero-stat {
+  margin-bottom: 14px;
+  padding: 18px 16px;
+  border-radius: 16px;
+  background: var(--color-surface-glass);
+  border: 1px solid var(--color-card-border);
+  text-align: center;
+}
+
+.online-instant-coop-result-hero-stat-label {
+  margin: 0 0 4px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-text);
+  opacity: 0.75;
+}
+
+.online-instant-coop-result-hero-stat-value {
+  margin: 0;
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  font-variant-numeric: tabular-nums;
+}
+
 .time-attack-result-best-time {
   margin: 0 0 18px;
   text-align: center;
@@ -14900,11 +14930,15 @@ body[data-screen="liveCallModePlayer"] .game-frame {
    一覧に切り替える（オフライン歌詞クイズの.lyrics-quiz-answer-listと同じ考え方）。
    全曲プール（50音ジャンプバーと組み合わせる）はフル幅の1列、30・50プールは
    本人指示どおりコンパクトな2列にする。2クラス分の詳細度により、上のグリッド指定・
-   後述のスマホ用2列指定より必ず優先される。 */
+   後述のスマホ用2列指定より必ず優先される。
+   【2026-09-30改訂・本人指示：オンライン対戦総合改修 第3ラウンド・スクロール構造改善】
+   max-height:42vhという固定値をやめ、次のブロック（#online-lyrics-battle-question-screen
+   スコープ）でflex:1・min-height:0による「残り高さぶんだけ内部スクロールする」構造に
+   差し替える。ヒント・スコア・検索欄・50音は常にその場に固定されたまま動かない
+   （本人指示：画面全体を長大なスクロール領域にしない）。 */
 .online-lyrics-battle-answer-grid.online-lyrics-battle-answer-list {
   display: flex;
   flex-direction: column;
-  max-height: 42vh;
   overflow-y: auto;
   padding-right: 2px;
 }
@@ -14912,9 +14946,69 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 .online-lyrics-battle-answer-grid.online-lyrics-battle-answer-list-compact {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  max-height: 42vh;
   overflow-y: auto;
   padding-right: 2px;
+}
+
+/* 【2026-09-30新設・本人指示：オンライン対戦総合改修 第3ラウンド・歌詞クイズのスクロール
+   構造改善】以前は.quiz-middle-zone全体（ヒント・スコア・検索欄・50音・回答候補一覧の
+   すべて）が1つの外側スクロール領域で、その内側で回答候補一覧（30/50/全曲プール）が
+   さらに独自の固定42vhスクロールを持つ「二重スクロール」構造になっていた。外側の
+   スクロールが先に効き、検索欄・50音バーが画面外へ押し出されることがあった
+   （本人からの実機報告）。歌詞クイズ対戦の問題画面だけ、外側の丸ごとスクロールをやめ、
+   回答候補一覧だけがflex:1で「ヒント・スコア・検索欄・50音より下に残った高さ」を
+   埋めて内部スクロールする構造に変更する。
+   【ソフトウェアキーボード対応】.game-frame（親要素）は既にheight:100dvhで、
+   キーボード表示時にブラウザが動的に縮めてくれる実際の表示可能高さに追従する設計
+   （このファイル内、#quiz-screen等の解説コメント参照）。回答候補一覧の高さもこの
+   dvh基準の残り高さから自動的に決まるため、キーボードが出た状態でも検索欄・検索結果を
+   両方見ながら選べる（JS側で新しい高さ計算を持つ必要はない）。
+   【4択/10択（通常グリッド、-list/-list-compact修飾クラスが付かない場合）への影響】
+   flex:1のまま自然な高さで収まるため、大量候補時と同じ構造でも見た目上の実害は無い
+   （4〜10個のボタンが画面に収まりきらないことは通常起きないため、実質的に今までどおり）。 */
+/* 【安全設計】.quiz-middle-zone自体のoverflow-y:auto（既存の安全側フォールバック、
+   ファイル冒頭のコメント参照）はあえて上書きしない。.quiz-middle-zone-inner側を
+   flex:1・min-height:0の子として正しく制約すれば、回答候補一覧（下のflex:1）が
+   「ヒント・スコア・検索欄・50音より下に残った高さ」を自分の内部スクロールだけで
+   吸収し、外側が実際にスクロールを必要とする場面が構造的に起きなくなる
+   （＝外側のoverflow-y:autoは常に待機状態のフォールバックのまま、二重スクロールは
+   発生しない）。答え合わせカード表示中に万一収まらない場合も、この外側のautoが
+   そのまま安全網として働く。 */
+#online-lyrics-battle-question-screen .quiz-middle-zone-inner {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  margin: 8px 0 0;
+}
+
+/* 【重要】flexアイテムの既定値（flex-shrink:1）のままだと、画面が極端に低い
+   （ソフトウェアキーボード表示時等）場合に、ヒント・スコア・検索欄・50音といった
+   「固定領域」まで一緒に圧縮されて潰れてしまう（実機確認で発覚：スコアボードの高さが
+   1px未満まで潰れる現象）。回答候補一覧（flex:1、下で指定）だけが縮んでスクロールする
+   対象になるよう、それ以外の直接の子要素はすべてflex-shrink:0で「絶対に潰れない」
+   固定領域にする。 */
+#online-lyrics-battle-question-screen .quiz-middle-zone-inner > * {
+  flex-shrink: 0;
+}
+
+#online-lyrics-battle-question-screen .online-lyrics-battle-answer-grid {
+  flex: 1 1 0;
+  min-height: 60px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+#online-lyrics-battle-question-screen .online-lyrics-battle-answer-grid.online-lyrics-battle-answer-list,
+#online-lyrics-battle-question-screen .online-lyrics-battle-answer-grid.online-lyrics-battle-answer-list-compact {
+  max-height: none;
+}
+
+/* 4択/10択（通常グリッド）は数個のボタンしかなく内部スクロールが不要なため、
+   flex:1で余白を持て余さないよう、答え合わせカード表示中と同じく自然な高さに戻す。 */
+#online-lyrics-battle-question-screen .online-lyrics-battle-answer-grid:not(.online-lyrics-battle-answer-list):not(.online-lyrics-battle-answer-list-compact) {
+  flex: none;
+  overflow-y: visible;
 }
 
 /* 【2026-09-06新設・本人指示：実機フィードバック第3弾①】答え合わせが確定した瞬間、

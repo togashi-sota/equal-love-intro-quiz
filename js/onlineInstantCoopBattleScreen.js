@@ -32,10 +32,21 @@ import {
   subscribeServerTimeOffset,
   returnRoomToLobby,
   beginRematchReadyCheck,
+  markResultReturned,
 } from "./onlineBattle.js";
+// 【2026-09-30新設・本人指示：オンライン対戦総合改修 第3ラウンド】結果画面の「ルーム設定に
+// 戻る」個別化・「もう一度」への非強制対応を、他モードと全く同じ仕組みで実現する。
+import {
+  markResultScreenResponded,
+  resetResultScreenResponded,
+  hasRespondedToCurrentResultScreen,
+  renderResultReturnStatusList,
+} from "./onlineBattleResultReturnState.js";
+import { computeRemainingRevealMs } from "./onlineBattleRevealTiming.js";
 import { promptReturnToLobby } from "./onlineBattleLobbyReturnPrompt.js";
 import { promptLeaveMatch } from "./onlineBattleLeaveMatchPrompt.js";
 import { promptResultLeaveRoom } from "./onlineBattleResultLeavePrompt.js";
+import { promptResultGoHome } from "./onlineBattleResultHomePrompt.js";
 import { promptAnswerConfirm } from "./answerConfirmPrompt.js";
 import { validateRoomSettings } from "./battleModes/index.js";
 import * as instantCoopBattleMode from "./battleModes/instantCoopBattleMode.js";
@@ -130,6 +141,19 @@ const HOST_TICK_INTERVAL_MS = 400;
 // 同時に見ているため）。誰か1人でも再生失敗を報告したら、その問題を全員一律で無効にし、
 // 予備曲へ進む（js/instantCoopMatchProgress.jsのtick/advanceToNextQuestionが実処理を担う）。
 const AUDIO_FAILURE_RESERVE_SIZE = 3;
+
+// 【2026-09-30新設・本人指示：オンライン対戦総合改修 第3ラウンド11章】
+// js/onlineInstantBattleScreen.jsのdescribeInstantDiagnosticContext()と全く同じ。
+function describeInstantDiagnosticContext() {
+  const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
+  const platform = /iPhone|iPad|iPod/.test(ua) ? "iOS" : /Android/.test(ua) ? "Android" : "other";
+  const myUid = getCurrentUid();
+  return {
+    platform,
+    uid: myUid,
+    role: latestRoom && myUid === latestRoom.host ? "host" : "guest",
+  };
+}
 
 let elements = null;
 
@@ -321,11 +345,15 @@ export function initOnlineInstantCoopBattleScreens(newElements) {
     });
   });
 
+  // 【2026-09-30改訂・本人指示：オンライン対戦総合改修 第3ラウンド】誤操作で結果画面を
+  // 離れてしまわないよう、確認モーダルを挟んでから実行する。
   elements.resultHomeLink.addEventListener("click", () => {
-    playSfx(SFX_EVENTS.UI_BACK);
-    stopAllLocalTimers();
-    elements.onLeaveResultToHome();
-    elements.navigateTo("start");
+    playSfx(SFX_EVENTS.UI_CLICK);
+    promptResultGoHome(() => {
+      stopAllLocalTimers();
+      elements.onLeaveResultToHome();
+      elements.navigateTo("start");
+    });
   });
   // 【2026-09-07新設・本人指示：ルームから退出＝完全離脱】js/onlineBattleScreen.jsの
   // 同じボタンと同じ考え方。実処理はonLeaveRoomCompletely()経由で
@@ -343,11 +371,10 @@ export function initOnlineInstantCoopBattleScreens(newElements) {
       elements.navigateTo("start");
     });
   });
-  // 【2026-09-05改訂、本人指示】試合後の選択肢を「もう一度」「ルーム設定に戻る」の
-  // 2つ（ホスト専用）へ統一。
-  // 【再戦準備フェーズ新設・本人指示】以前は「もう一度」を確認モーダルを挟まず即座に
-  // 実行していたが、今はbeginRematchReadyCheck()を呼び、全員が「準備OK」を押すのを待つ
-  // 準備フェーズへ進む（js/onlineBattleScreen.jsのrenderRematchReadyScreen()参照）。
+  // 【2026-09-30改訂・本人指示：オンライン対戦総合改修 第3ラウンド】「もう一度」は
+  // ホスト専用のまま。押した瞬間、beginRematchReadyCheck()でconfirmingRematchを立てるが、
+  // 結果画面を見ている他のゲストを即座に強制遷移させない。自分自身はここで即座に
+  // ローカルの再戦準備画面へ進む。
   elements.resultRematchButton.addEventListener("click", async () => {
     if (!latestRoom) return;
     // 【2026-09-09新設・本人指示：音源再生失敗の本対策】このモードは音源再生を伴い、
@@ -356,15 +383,32 @@ export function initOnlineInstantCoopBattleScreens(newElements) {
     attemptSilentUnlock();
     playSfx(SFX_EVENTS.UI_CONFIRM);
     elements.resultRematchButton.disabled = true;
-    await beginRematchReadyCheck({ roomId: latestRoom.roomId });
+    const result = await beginRematchReadyCheck({ roomId: latestRoom.roomId });
     elements.resultRematchButton.disabled = false;
+    if (result.ok) {
+      markResultScreenResponded();
+      elements.enterRematchReadyScreen({ ...latestRoom, status: ROOM_STATUS.WAITING, confirmingRematch: true });
+    }
   });
-  elements.resultBackToLobbyButton.addEventListener("click", async () => {
+  // 【2026-09-30新設・本人指示】ゲスト用：「もう一度」が提案された後、結果画面を見終えたと
+  // 感じたタイミングで自分から押す。
+  elements.resultRematchProceedButton?.addEventListener("click", () => {
+    if (!latestRoom) return;
+    playSfx(SFX_EVENTS.UI_CONFIRM);
+    markResultScreenResponded();
+    elements.enterRematchReadyScreen(latestRoom);
+  });
+  // 【2026-09-30改訂・本人指示：オンライン対戦総合改修 第3ラウンド】「ルーム設定に戻る」を、
+  // ホスト専用の即時全員強制遷移から、ホスト・ゲストどちらも押せる個別操作へ変更した。
+  elements.resultReturnButton?.addEventListener("click", async () => {
     if (!latestRoom) return;
     playSfx(SFX_EVENTS.UI_BACK);
-    elements.resultBackToLobbyButton.disabled = true;
-    await returnRoomToLobby({ roomId: latestRoom.roomId });
-    elements.resultBackToLobbyButton.disabled = false;
+    elements.resultReturnButton.disabled = true;
+    markResultScreenResponded();
+    await markResultReturned({ roomId: latestRoom.roomId });
+    elements.resultReturnButton.disabled = false;
+    resetInstantCoopBattleState();
+    elements.navigateTo("onlineBattleLobby");
   });
 }
 
@@ -433,6 +477,7 @@ export function resetInstantCoopBattleState() {
 // js/onlineBattleScreen.jsのrenderLobby()が、room更新のたび（画面を問わず）呼ぶフック。
 export function handleInstantCoopRoomUpdate(room) {
   latestRoom = room;
+  syncInstantCoopResultReturnPanel(room);
   // 【2026-09-15追加・本人指示：前試合の答え合わせが次試合の開始演出に一瞬表示される
   // バグの全モード横断監査で発見】js/onlineLyricsQuizBattleScreen.jsのhandleLyricsQuizRoomUpdate()
   // で見つかったのと全く同じ設計の抜け（「もう一度」で新しい試合(room.activeMatchId)が
@@ -810,6 +855,7 @@ async function runHostProgressionTick() {
     // js/onlineInstantBattleScreen.jsと同じ理由。
     if (hasAudioFailureReport && nextHostState.currentQuestion.status !== "resolved") {
       recordAudioDiagnostic("[ONLINE_INSTANT_COOP] ホスト：audioFailure報告を検知しこの問題を無効化", {
+        ...describeInstantDiagnosticContext(),
         matchId: currentMatchId,
         questionIndex: qIndex,
         reportedByUids: audioFailureUids,
@@ -898,8 +944,12 @@ const localAudioRecoveryAttemptedForQIndex = new Set();
 
 function handleCoopPlaybackFailure(questionIndex, message) {
   const visibilityState = typeof document !== "undefined" ? document.visibilityState : "unknown";
+  // 【2026-09-30新設・本人指示：オンライン対戦総合改修 第3ラウンド・音源誤判定の再監査】
+  // js/onlineInstantBattleScreen.jsのhandlePlaybackFailure()と全く同じ理由。
+  const requestMatchId = currentMatchId;
   recordAudioDiagnostic("[ONLINE_INSTANT_COOP] 再生失敗を検知", {
-    matchId: currentMatchId,
+    ...describeInstantDiagnosticContext(),
+    matchId: requestMatchId,
     questionIndex,
     message,
     visibilityState,
@@ -908,14 +958,26 @@ function handleCoopPlaybackFailure(questionIndex, message) {
 
   if (!localAudioRecoveryAttemptedForQIndex.has(questionIndex)) {
     localAudioRecoveryAttemptedForQIndex.add(questionIndex);
+    const isStillCurrent =
+      requestMatchId === currentMatchId && latestRoom?.matches?.[requestMatchId]?.currentQuestionIndex === questionIndex;
     const question = currentQuestions[questionIndex];
-    if (question && currentSettings) {
+    if (isStillCurrent && question && currentSettings) {
       recordAudioDiagnostic("[ONLINE_INSTANT_COOP] サーバーへ報告する前にローカルで再unlock→再生を1回だけ試みる", {
-        matchId: currentMatchId,
+        ...describeInstantDiagnosticContext(),
+        matchId: requestMatchId,
         questionIndex,
       });
       attemptSilentUnlock();
       playQuestionAudio(question, questionIndex);
+      return;
+    }
+    if (!isStillCurrent) {
+      recordAudioDiagnostic("[ONLINE_INSTANT_COOP] ローカル再試行を見送り（既に別の試合／問題へ進んでいた）", {
+        ...describeInstantDiagnosticContext(),
+        requestMatchId,
+        currentMatchId,
+        questionIndex,
+      });
       return;
     }
   }
@@ -923,6 +985,7 @@ function handleCoopPlaybackFailure(questionIndex, message) {
   showAudioErrorInline(message);
   if (!latestRoom || !currentMatchId) return;
   recordAudioDiagnostic("[ONLINE_INSTANT_COOP] 音声トラブルをサーバーへ報告（この問題は無効になります）", {
+    ...describeInstantDiagnosticContext(),
     matchId: currentMatchId,
     questionIndex,
     message,
@@ -932,6 +995,7 @@ function handleCoopPlaybackFailure(questionIndex, message) {
 
 function playQuestionAudio(question, questionIndex) {
   recordAudioDiagnostic("[ONLINE_INSTANT_COOP] 再生要求", {
+    ...describeInstantDiagnosticContext(),
     matchId: currentMatchId,
     questionIndex,
     songId: question.song.id,
@@ -963,7 +1027,12 @@ function playQuestionAudio(question, questionIndex) {
     computeStartTimeSec,
     playDurationSec,
     (message) => handleCoopPlaybackFailure(questionIndex, message),
-    () => recordAudioDiagnostic("[ONLINE_INSTANT_COOP] 再生開始を確認（正常）", { matchId: currentMatchId, questionIndex }),
+    () =>
+      recordAudioDiagnostic("[ONLINE_INSTANT_COOP] 再生開始を確認（正常）", {
+        ...describeInstantDiagnosticContext(),
+        matchId: currentMatchId,
+        questionIndex,
+      }),
     () => {}
   );
 }
@@ -1487,8 +1556,12 @@ function renderCurrentQuestionState() {
           // 「この問題では1回だけ」の瞬間に、問題の続きの楽曲を鳴らし始める。サーバー時刻
           // 基準のresolvedAtから残り時間を計算する（js/onlineInstantBattleScreen.jsの
           // 同種の対応と同じ考え方）。
-          const remainingMsSec =
-            typeof match.resolvedAt === "number" ? REVEAL_DELAY_MS - (Date.now() + serverTimeOffset - match.resolvedAt) : REVEAL_DELAY_MS;
+          const remainingMsSec = computeRemainingRevealMs({
+            revealDelayMs: REVEAL_DELAY_MS,
+            resolvedAt: match.resolvedAt,
+            serverTimeOffset,
+            nowMs: Date.now(),
+          });
           playRevealContinuationAudio(question, qIndex, remainingMsSec);
         }
       }
@@ -1511,9 +1584,34 @@ export function syncInstantCoopResultHostGuestButtons(room) {
   if (elements.resultGuestActions) elements.resultGuestActions.hidden = isHostOnResultScreen;
 }
 
+// 【2026-09-30新設・本人指示：オンライン対戦総合改修 第3ラウンド】js/onlineBattleScreen.jsの
+// renderResultReturnPanel()と全く同じ考え方。
+function renderInstantCoopResultReturnPanel(room) {
+  const match = room.matches?.[room.activeMatchId] ?? {};
+  const participants = match.participants || {};
+  const players = room.players || {};
+  const myUid = getCurrentUid();
+  const isHostOnResultScreen = room.host === myUid;
+
+  renderResultReturnStatusList(elements.resultReturnStatusList, participants, players, myUid);
+
+  if (elements.resultRematchProposedNotice) {
+    elements.resultRematchProposedNotice.hidden =
+      !(room.confirmingRematch === true) || isHostOnResultScreen || hasRespondedToCurrentResultScreen();
+  }
+}
+
+function syncInstantCoopResultReturnPanel(room) {
+  if (document.body.dataset.screen !== "onlineInstantCoopBattleResult") return;
+  renderInstantCoopResultReturnPanel(room);
+}
+
 export function enterInstantCoopResult(room) {
   latestRoom = room;
   stopAllLocalTimers();
+  // 【2026-09-30新設・本人指示】新しい結果画面に入るたび、まだ何も意思表示していない
+  // 状態から始める。
+  resetResultScreenResponded();
   elements.navigateTo("onlineInstantCoopBattleResult");
 
   const match = room.matches?.[room.activeMatchId] ?? {};
@@ -1528,14 +1626,17 @@ export function enterInstantCoopResult(room) {
   if (elements.resultAudioFailureNotice) elements.resultAudioFailureNotice.hidden = !isAudioFailureAborted;
   if (elements.resultNormalContainer) elements.resultNormalContainer.hidden = isAudioFailureAborted;
 
-  // 【2026-09-05改訂、本人指示】試合後の選択肢「もう一度」「ルーム設定に戻る」は
-  // ホスト専用。非ホストには代わりに「⌂ホームへ戻る」だけを見せる。
+  // 【2026-09-30改訂・本人指示：オンライン対戦総合改修 第3ラウンド】試合後の選択肢
+  // 「もう一度」はホスト専用。非ホストには代わりに「⌂ホームへ戻る」だけを見せる。
   const isHostOnResultScreen = room.host === myUid;
   elements.resultHostActions.hidden = !isHostOnResultScreen;
   elements.resultHomeLink.hidden = isHostOnResultScreen;
-  // 【2026-09-07新設・本人指示:ゲスト結果画面】ホスト専用ボタンの代わりに、待機案内＋
+  // 【2026-09-07新設・本人指示:ゲスト結果画面】ホスト専用ボタンの代わりに
   // 「ルームから退出」を見せる（js/onlineBattleScreen.jsの同じ変更と揃えている）。
   if (elements.resultGuestActions) elements.resultGuestActions.hidden = isHostOnResultScreen;
+  // 【2026-09-30新設】音源トラブルで中断した場合も、各自「ルーム設定に戻る」で個別に
+  // 抜けられるようにする。
+  renderInstantCoopResultReturnPanel(room);
   if (!isAudioFailureAborted) {
     elements.resultCorrectCount.textContent = `${teamResult.correctCount} / ${teamResult.totalQuestions}問`;
     // 【2026-09-05改訂】共有再視聴の仕組みを廃止したため、「合計共有再視聴回数」の表示は

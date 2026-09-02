@@ -33,12 +33,24 @@ import {
   ROOM_STATUS,
   updateRoomSettings,
   subscribeServerTimeOffset,
-  returnRoomToLobby,
   beginRematchReadyCheck,
+  markResultReturned,
 } from "./onlineBattle.js";
+// 【2026-09-30新設・本人指示：オンライン対戦総合改修 第3ラウンド】結果画面の「ルーム設定に
+// 戻る」個別化・「もう一度」への非強制対応を、共有エンジンと全く同じ仕組みで実現する。
+// js/onlineBattleScreen.jsは一切importしない設計方針（本ファイル冒頭コメント参照）のため、
+// 状態・純粋な描画処理はどちらにも属さない中立ファイルから読み込む。
+import {
+  markResultScreenResponded,
+  resetResultScreenResponded,
+  hasRespondedToCurrentResultScreen,
+  renderResultReturnStatusList,
+} from "./onlineBattleResultReturnState.js";
+import { computeRemainingRevealMs } from "./onlineBattleRevealTiming.js";
 import { promptReturnToLobby } from "./onlineBattleLobbyReturnPrompt.js";
 import { promptLeaveMatch } from "./onlineBattleLeaveMatchPrompt.js";
 import { promptResultLeaveRoom } from "./onlineBattleResultLeavePrompt.js";
+import { promptResultGoHome } from "./onlineBattleResultHomePrompt.js";
 import { promptAnswerConfirm } from "./answerConfirmPrompt.js";
 import { validateRoomSettings, getAvailabilityKind, resolveAllEligibleSongIdsForMode } from "./battleModes/index.js";
 import * as lyricsQuizBattleMode from "./battleModes/lyricsQuizBattleMode.js";
@@ -391,11 +403,15 @@ export function initOnlineLyricsQuizBattleScreens(newElements) {
     });
   });
 
+  // 【2026-09-30改訂・本人指示：オンライン対戦総合改修 第3ラウンド】誤操作で結果画面を
+  // 離れてしまわないよう、確認モーダルを挟んでから実行する。
   elements.resultHomeLink.addEventListener("click", () => {
-    playSfx(SFX_EVENTS.UI_BACK);
-    stopAllLocalTimers();
-    elements.onLeaveResultToHome();
-    elements.navigateTo("start");
+    playSfx(SFX_EVENTS.UI_CLICK);
+    promptResultGoHome(() => {
+      stopAllLocalTimers();
+      elements.onLeaveResultToHome();
+      elements.navigateTo("start");
+    });
   });
   // 【2026-09-07新設・本人指示：ルームから退出＝完全離脱】js/onlineBattleScreen.jsの
   // 同じボタンと同じ考え方。実処理はonLeaveRoomCompletely()経由で
@@ -413,24 +429,43 @@ export function initOnlineLyricsQuizBattleScreens(newElements) {
       elements.navigateTo("start");
     });
   });
-  // 【2026-09-05改訂、本人指示】試合後の選択肢を「もう一度」「ルーム設定に戻る」の
-  // 2つ（ホスト専用）へ統一。
-  // 【再戦準備フェーズ新設・本人指示】以前は「もう一度」を確認モーダルを挟まず即座に
-  // 実行していたが、今はbeginRematchReadyCheck()を呼び、全員が「準備OK」を押すのを待つ
-  // 準備フェーズへ進む（js/onlineBattleScreen.jsのrenderRematchReadyScreen()参照）。
+  // 【2026-09-30改訂・本人指示：オンライン対戦総合改修 第3ラウンド】「もう一度」は
+  // ホスト専用のまま。押した瞬間、beginRematchReadyCheck()でconfirmingRematchを立てる
+  // （既存どおり）が、結果画面を見ている他のゲストを即座に強制遷移させない
+  // （js/onlineBattleScreen.jsのrenderLobby()側のガード参照）。自分自身はここで即座に
+  // ローカルの再戦準備画面へ進む。
   elements.resultRematchButton.addEventListener("click", async () => {
     if (!latestRoom) return;
     playSfx(SFX_EVENTS.UI_CONFIRM);
     elements.resultRematchButton.disabled = true;
-    await beginRematchReadyCheck({ roomId: latestRoom.roomId });
+    const result = await beginRematchReadyCheck({ roomId: latestRoom.roomId });
     elements.resultRematchButton.disabled = false;
+    if (result.ok) {
+      markResultScreenResponded();
+      elements.enterRematchReadyScreen({ ...latestRoom, status: ROOM_STATUS.WAITING, confirmingRematch: true });
+    }
   });
-  elements.resultBackToLobbyButton.addEventListener("click", async () => {
+  // 【2026-09-30新設・本人指示】ゲスト用：「もう一度」が提案された後、結果画面を見終えたと
+  // 感じたタイミングで自分から押す。押すまでは結果画面に留まり続ける。
+  elements.resultRematchProceedButton?.addEventListener("click", () => {
+    if (!latestRoom) return;
+    playSfx(SFX_EVENTS.UI_CONFIRM);
+    markResultScreenResponded();
+    elements.enterRematchReadyScreen(latestRoom);
+  });
+  // 【2026-09-30改訂・本人指示：オンライン対戦総合改修 第3ラウンド】「ルーム設定に戻る」を、
+  // ホスト専用の即時全員強制遷移から、ホスト・ゲストどちらも押せる個別操作へ変更した。
+  // 押した瞬間、自分の分だけmarkResultReturned()で記録し、room.statusの変化を待たずに
+  // 自分の画面だけを即座にロビーへ切り替える（他の参加者の画面には一切影響しない）。
+  elements.resultReturnButton?.addEventListener("click", async () => {
     if (!latestRoom) return;
     playSfx(SFX_EVENTS.UI_BACK);
-    elements.resultBackToLobbyButton.disabled = true;
-    await returnRoomToLobby({ roomId: latestRoom.roomId });
-    elements.resultBackToLobbyButton.disabled = false;
+    elements.resultReturnButton.disabled = true;
+    markResultScreenResponded();
+    await markResultReturned({ roomId: latestRoom.roomId });
+    elements.resultReturnButton.disabled = false;
+    resetLyricsQuizBattleState();
+    elements.navigateTo("onlineBattleLobby");
   });
 }
 
@@ -549,6 +584,7 @@ export function resetLyricsQuizBattleState() {
 // setIntervalだけに依存しない多重の安全網にする（本人が就寝中の自律作業のため、確実性を優先）。
 export function handleLyricsQuizRoomUpdate(room) {
   latestRoom = room;
+  syncLyricsResultReturnPanel(room);
   // 【2026-09-15追加・本人指示：前試合の答え合わせが次試合の開始演出に一瞬表示される
   // バグの調査で発見】「もう一度」で新しい試合(room.activeMatchId)が始まると、
   // finishCountdown()がFirebase上のstatusを先に"playing"へ書き換えるが、この端末の
@@ -1610,7 +1646,12 @@ function renderAnswerChoices(question, { isResolved, myAnsweredThisQuestion, que
     // 【2026-09-30改訂・本人指示：22章】この端末が答え表示を検知した時刻ではなく、
     // サーバー時刻基準のresolvedAtから「本当の残り時間」を計算して渡す（バックグラウンド
     // からの復帰等で検知が遅れても、実際の答え表示終了時刻に正しく追従するため）。
-    const remainingMsSec = typeof resolvedAt === "number" ? REVEAL_DELAY_MS - (Date.now() + serverTimeOffset - resolvedAt) : REVEAL_DELAY_MS;
+    const remainingMsSec = computeRemainingRevealMs({
+      revealDelayMs: REVEAL_DELAY_MS,
+      resolvedAt,
+      serverTimeOffset,
+      nowMs: Date.now(),
+    });
     startRevealMusic(question, remainingMsSec);
     return;
   }
@@ -2111,9 +2152,39 @@ export function syncLyricsResultHostGuestButtons(room) {
   if (elements.resultGuestActions) elements.resultGuestActions.hidden = isHostOnResultScreen;
 }
 
+// 【2026-09-30新設・本人指示：オンライン対戦総合改修 第3ラウンド】js/onlineBattleScreen.jsの
+// renderResultReturnPanel()と全く同じ考え方。「結果確認の状況」一覧・「もう一度」提案への
+// 案内を、room更新のたびに軽量に再描画する。
+function renderLyricsResultReturnPanel(room) {
+  const match = room.matches?.[room.activeMatchId] ?? {};
+  const participants = match.participants || {};
+  const players = room.players || {};
+  const myUid = getCurrentUid();
+  const isHostOnResultScreen = room.host === myUid;
+
+  renderResultReturnStatusList(elements.resultReturnStatusList, participants, players, myUid);
+
+  if (elements.resultRematchProposedNotice) {
+    elements.resultRematchProposedNotice.hidden =
+      !(room.confirmingRematch === true) || isHostOnResultScreen || hasRespondedToCurrentResultScreen();
+  }
+}
+
+// 【2026-09-30新設・本人指示：オンライン対戦総合改修 第3ラウンド】結果画面を見ている間、
+// room更新のたびに「結果確認の状況」一覧・「もう一度」提案の案内を再同期する
+// （js/onlineBattleScreen.jsのsyncResultScreenHostGuestButtons()と同じ考え方）。
+function syncLyricsResultReturnPanel(room) {
+  if (document.body.dataset.screen !== "onlineLyricsBattleResult") return;
+  renderLyricsResultReturnPanel(room);
+}
+
 export function enterLyricsQuizResult(room) {
   latestRoom = room;
   stopAllLocalTimers();
+  // 【2026-09-30新設・本人指示：オンライン対戦総合改修 第3ラウンド】新しい結果画面に
+  // 入るたび、「もう一度」「ルーム設定に戻る」への自分自身の意思表示をまだしていない状態
+  // から始める。
+  resetResultScreenResponded();
   elements.navigateTo("onlineLyricsBattleResult");
 
   const match = room.matches?.[room.activeMatchId] ?? {};
@@ -2124,14 +2195,17 @@ export function enterLyricsQuizResult(room) {
   const results = match.lyricsResults || {};
   const myUid = getCurrentUid();
 
-  // 【2026-09-05改訂、本人指示】試合後の選択肢「もう一度」「ルーム設定に戻る」は
-  // ホスト専用。非ホストには代わりに「⌂ホームへ戻る」だけを見せる。
+  // 【2026-09-30改訂・本人指示：オンライン対戦総合改修 第3ラウンド】試合後の選択肢
+  // 「もう一度」はホスト専用。非ホストには代わりに「⌂ホームへ戻る」だけを見せる。
   const isHostOnResultScreen = room.host === myUid;
   elements.resultHostActions.hidden = !isHostOnResultScreen;
   elements.resultHomeLink.hidden = isHostOnResultScreen;
-  // 【2026-09-07新設・本人指示：ゲスト結果画面】ホスト専用ボタンの代わりに、待機案内＋
+  // 【2026-09-07新設・本人指示：ゲスト結果画面】ホスト専用ボタンの代わりに
   // 「ルームから退出」を見せる（js/onlineBattleScreen.jsの同じ変更と揃えている）。
   if (elements.resultGuestActions) elements.resultGuestActions.hidden = isHostOnResultScreen;
+  // 【2026-09-30新設】「結果確認の状況」一覧・「もう一度」提案への案内は、ホスト・ゲスト
+  // 共通で毎回再描画する。
+  renderLyricsResultReturnPanel(room);
   elements.resultRuleNote.textContent = lyricsQuizBattleMode.getRuleDescription(room.settings);
 
   // 【2026-09-14追加・本人指示：対戦中のゲストが自分だけ途中離脱する】leftDuringMatchが

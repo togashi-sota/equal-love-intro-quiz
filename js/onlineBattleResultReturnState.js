@@ -30,6 +30,31 @@ export function hasRespondedToCurrentResultScreen() {
   return hasResponded;
 }
 
+// 【2026-09-30新設・本人指示：オンライン対戦総合改修 第3ラウンド】4つの結果画面すべてが
+// 同じ形で使う「結果確認の状況」一覧のDOM描画。ゲーム性の判定は一切持たない純粋な
+// 描画処理のため、モードごとに複製せずこの中立ファイルへ集約する（本人指示：
+// 「4種類の別同期ロジックを作らない、共通処理は再利用する」）。
+// participants: match.participants（{uid: {displayName, ...}}）、
+// players: room.players（{uid: {resultReturned, ...}}）。
+export function renderResultReturnStatusList(listElement, participants, players, myUid) {
+  if (!listElement) return;
+  listElement.innerHTML = "";
+  Object.entries(participants || {}).forEach(([uid, participant]) => {
+    const hasReturned = players?.[uid]?.resultReturned === true;
+    const row = document.createElement("li");
+    row.className = "online-battle-result-return-status-row";
+    const nameSpan = document.createElement("span");
+    nameSpan.className = "online-battle-result-return-status-name";
+    nameSpan.textContent = uid === myUid ? `${participant.displayName}（あなた）` : participant.displayName;
+    row.appendChild(nameSpan);
+    const badge = document.createElement("span");
+    badge.className = `online-battle-result-return-status-badge ${hasReturned ? "is-done" : "is-waiting"}`;
+    badge.textContent = hasReturned ? "ロビーへ戻りました" : "結果確認中";
+    row.appendChild(badge);
+    listElement.appendChild(row);
+  });
+}
+
 // 結果画面の画面名（elements.navigateTo()に渡す文字列と一致させる）。
 // document.body.dataset.screenがこのいずれかの間は「結果画面を見ている最中」とみなし、
 // 他の参加者の操作で強制的に画面を切り替えない。
@@ -37,8 +62,11 @@ export function hasRespondedToCurrentResultScreen() {
 // 【重要：ここに含めてよいのは、その結果画面自身が「ルーム設定に戻る」を全参加者
 // （ホスト・ゲスト双方）に提供し、resultReturnedを書き込める場合だけ】含めた状態で
 // 該当モードの結果画面にゲスト用の個別「ルーム設定に戻る」ボタンが無いと、ゲストは
-// 結果画面から抜け出す手段が無いまま待たされ続ける（詰み）。現時点でこの条件を満たすのは
-// 共有エンジン（タイムアタック／ランダム再生／アウトロ）の結果画面
-// （js/onlineBattleScreen.jsのgoToResultScreen()）だけ。歌詞クイズ・一瞬バトル・一瞬協力の
-// 結果画面にも同じ個別操作パネルを実装したら、ここに画面名を追加すること。
-export const RESULT_SCREEN_NAMES = new Set(["onlineBattleResult"]);
+// 結果画面から抜け出す手段が無いまま待たされ続ける（詰み）。2026-09-30時点で4モード
+// （共有エンジン・歌詞クイズ・一瞬バトル・一瞬協力）すべてに実装済み。
+export const RESULT_SCREEN_NAMES = new Set([
+  "onlineBattleResult",
+  "onlineLyricsBattleResult",
+  "onlineInstantBattleResult",
+  "onlineInstantCoopBattleResult",
+]);
