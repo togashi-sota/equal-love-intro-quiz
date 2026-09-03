@@ -6443,6 +6443,20 @@ let onlineBattleSlotFailureCount = 0; // 今の問題スロットで何回再生
 // 意味でこの回数だったが、差し替え自体を廃止した（下のhandleOnlineBattleAudioFailure()の
 // コメント参照）ため、今は純粋に「同じ曲を最大何回再試行するか」の回数。
 const ONLINE_BATTLE_MAX_SLOT_PLAYBACK_ATTEMPTS = 3;
+// 【2026-11-XX追加・実機バグ調査：イントロ対戦だけ開始直後に音源トラブルになる不具合】
+// 本人の実機ログ（音源診断ログ）を解析した結果、audioElement.onerror（js/audio.jsの
+// playSongIntro/playSongFromRandomPosition内）が発火すると、js/audio.js側のattemptPlay()
+// 自身が持つ300ms/600ms間隔のリトライ（PLAY_RETRY_WAIT_MS_LIST）を一切経由せず、
+// ほぼ即座にこのhandleOnlineBattleAudioFailure()へ失敗が伝わっていたことが分かった。
+// さらにここでの再試行（renderQuestion()の再呼び出し）自体にも遅延が無かったため、
+// 3回まで許容しているはずのリトライが、実機ログでは合計300ms未満で使い切られていた
+// （＝iOS側の一時的な状態が回復する時間を一切与えられていなかった）。
+// attemptPlay()側の設計思想（本番音源の再生失敗は、間隔を空けて回復を待ってから
+// 再試行する）と、この最上位のリトライだけが歩調を合わせていなかったのが実質的な原因。
+// js/audio.jsのPLAY_RETRY_WAIT_MS_LIST=[300,600]と全く同じ間隔（1回目の再試行前は300ms、
+// 2回目の再試行前は600ms）にすることで、「再試行のたびに少し長く待つ」という
+// attemptPlay()側の設計思想までそのまま踏襲する。
+const ONLINE_BATTLE_AUDIO_RETRY_DELAY_MS_LIST = [300, 600];
 
 // js/onlineBattleScreen.jsが、開始確認（status:playing検知）のタイミングで呼ぶ。
 // questionsは同じseed・settingsからjs/battleModes/index.js経由で組み立て済みのもの。
@@ -6515,7 +6529,21 @@ function handleOnlineBattleAudioFailure(questionIndex, message) {
     return;
   }
   // 同じ曲のまま再試行する（曲を差し替えないため、他の端末との同期は崩れない）。
-  renderQuestion();
+  // 【2026-11-XX改訂・実機バグ調査】即座に再試行せず、js/audio.jsのattemptPlay()自身の
+  // リトライ間隔（PLAY_RETRY_WAIT_MS_LIST=[300,600]）と歩調を合わせて短い間隔を空ける
+  // （1回目の失敗後は300ms、2回目の失敗後は600ms）。この間に正解して次の問題へ進んだ・
+  // 画面を離れた等でquestionIndexがずれていた場合は再試行を行わない
+  // （scheduleTimeAttackAdvance()は「タイトルへ」等の中断で呼ばれる
+  // clearPendingTimeAttackAdvance()により、遷移時に確実に取り消される）。
+  const retryDelayMs =
+    ONLINE_BATTLE_AUDIO_RETRY_DELAY_MS_LIST[onlineBattleSlotFailureCount - 1] ??
+    ONLINE_BATTLE_AUDIO_RETRY_DELAY_MS_LIST[ONLINE_BATTLE_AUDIO_RETRY_DELAY_MS_LIST.length - 1];
+  scheduleTimeAttackAdvance(() => {
+    if (gameState.playMode !== "onlineBattle" || questionIndex !== gameState.currentIndex || gameState.isAnswered) {
+      return;
+    }
+    renderQuestion();
+  }, retryDelayMs);
 }
 
 // デバッグ用ログ（固定durationと実際の音源長がズレてクランプが発生した場合のみ）を
