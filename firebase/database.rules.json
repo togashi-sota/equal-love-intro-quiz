@@ -427,6 +427,39 @@
       }
     },
 
+    "presence": {
+      "$uid": {
+        ".read": "auth != null",
+        ".write": "auth != null && auth.uid === $uid",
+        "connections": {
+          "$connectionId": {
+            ".validate": "newData.val() === true"
+          }
+        },
+        "lastSeen": {
+          ".validate": "newData.isNumber()"
+        },
+        "$other": { ".validate": false }
+      }
+    },
+
+    "invites": {
+      "$recipientUid": {
+        ".read": "auth != null && auth.uid === $recipientUid",
+        "$roomId": {
+          ".write": "auth != null && ((auth.uid === $recipientUid && newData.val() === null) || (newData.exists() && auth.uid !== $recipientUid && newData.child('inviterUid').val() === auth.uid && newData.child('recipientUid').val() === $recipientUid && newData.child('roomId').val() === $roomId && (!data.exists() || newData.child('createdAt').val() - data.child('createdAt').val() >= 30000)))",
+          ".validate": "newData.hasChildren(['inviterUid', 'inviterDisplayName', 'recipientUid', 'roomId', 'createdAt', 'expiresAt'])",
+          "inviterUid": { ".validate": "newData.isString() && newData.val().length > 0" },
+          "inviterDisplayName": { ".validate": "newData.isString() && newData.val().length <= 40" },
+          "recipientUid": { ".validate": "newData.val() === $recipientUid" },
+          "roomId": { ".validate": "newData.val() === $roomId" },
+          "createdAt": { ".validate": "newData.isNumber()" },
+          "expiresAt": { ".validate": "newData.isNumber() && newData.val() > newData.parent().child('createdAt').val()" },
+          "$other": { ".validate": false }
+        }
+      }
+    },
+
     "backups": {
       ".read": "auth != null && auth.uid === '1lg2urCowcMqF6r8E7tkc9OOm3r1'",
       "$backupId": {

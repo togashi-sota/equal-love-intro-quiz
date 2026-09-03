@@ -404,6 +404,27 @@ export function getCurrentOnlineRoomId() {
   return currentRoomId;
 }
 
+// 【2026-11-XX新設・本人指示：ルーム招待】招待を受けて参加するときに、js/roomInviteUi.js
+// （このファイルを一切importしない、循環import回避のための末端モジュール。
+// js/onlineBattleLeaveMatchPrompt.js冒頭のコメントと同じ設計方針）から呼ぶための窓口。
+// #online-battle-join-screenの「参加する」ボタン（上のelements.joinSubmitButtonリスナー）と
+// 全く同じ判定・後処理（試合中なら観戦として参加、成功したらロビー/観戦画面へ遷移）を、
+// ルームコード入力欄を経由せずに行う（本人指示：「招待経由ならルームコード入力は不要」）。
+export async function joinRoomFromInvite({ roomId, playerName }) {
+  const result = await joinRoom({ roomId, playerName });
+
+  if (!result.ok && result.reason === "not-waiting") {
+    const spectateResult = await spectateRoom({ roomId, playerName });
+    if (!spectateResult.ok) return spectateResult;
+    goToSpectate(spectateResult.roomId, playerName);
+    return spectateResult;
+  }
+
+  if (!result.ok) return result;
+  goToLobby(result.roomId);
+  return result;
+}
+
 // 【Phase6新設】結果画面の「ホームへ戻る」で、room.status・players等のFirebase側データは
 // 一切変更せずにルーム監視だけを止める後片付け。既存の#online-battle-result-screen用
 // resultHomeLinkハンドラ（下記）と全く同じ処理を、js/onlineLyricsQuizBattleScreen.js側の

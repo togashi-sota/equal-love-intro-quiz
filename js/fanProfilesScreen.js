@@ -25,9 +25,17 @@ import {
   sortProfiles,
 } from "./fanProfileCard.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
+import { subscribeToAllPresence } from "./presenceSync.js";
+import { sortProfilesByPresence } from "./presencePayloads.js";
+import { onScreenChange } from "./screens.js";
 
 let elements = null;
 let members = null;
+// 【2026-11-XX新設・本人指示：フレンドのオンライン状態】この画面を開いている間だけ
+// presence/を購読する（画面を離れたら止め、無駄なFirebase接続を残さない）。
+let latestProfiles = [];
+let latestPresenceByUid = {};
+let unsubscribePresence = null;
 // 2026-08-16追加：この端末が管理者（js/adminConfig.jsのADMIN_UID）かどうか。
 // ADMIN_UIDがnullの間は誰であってもfalseになり、管理者用UIは一切表示されない。
 let isAdminUser = false;
@@ -54,6 +62,24 @@ function renderLoadingState() {
   elements.listContainer.appendChild(loading);
 }
 
+// 【2026-11-XX新設・本人指示：フレンドのオンライン状態】プロフィール一覧の並び替え・
+// カード描画だけをやり直す軽量な再描画。presence（オンライン状態）が更新されるたびに
+// 何度も呼ばれる想定のため、Firebaseへの再取得（fetchAllPublicProfiles）は行わない
+// （本人指示「毎秒Firebaseへ書く必要はない」と同じ考え方を、読み取り側にも適用する）。
+function renderProfileListFromCache() {
+  if (latestProfiles.length === 0) return;
+  elements.listContainer.innerHTML = "";
+  sortProfilesByPresence(sortProfiles(latestProfiles), latestPresenceByUid, Date.now()).forEach((profile) =>
+    elements.listContainer.appendChild(
+      buildProfileCard(profile, members, openDetailModal, {
+        isAdmin: isAdminUser,
+        onAdminDeleteRequest: openAdminDeleteConfirm,
+        presenceEntry: latestPresenceByUid[profile.uid] ?? null,
+      })
+    )
+  );
+}
+
 async function renderProfileList() {
   renderLoadingState();
   const { ok, profiles } = await fetchAllPublicProfiles();
@@ -62,18 +88,12 @@ async function renderProfileList() {
     return;
   }
   if (profiles.length === 0) {
+    latestProfiles = [];
     renderEmptyState("no-profiles");
     return;
   }
-  elements.listContainer.innerHTML = "";
-  sortProfiles(profiles).forEach((profile) =>
-    elements.listContainer.appendChild(
-      buildProfileCard(profile, members, openDetailModal, {
-        isAdmin: isAdminUser,
-        onAdminDeleteRequest: openAdminDeleteConfirm,
-      })
-    )
-  );
+  latestProfiles = profiles;
+  renderProfileListFromCache();
 }
 
 // 自分のUIDを取得し、「🆔 あなたのID」表示の更新と管理者判定を行う（2026-08-16追加）。
@@ -256,7 +276,31 @@ export async function renderFanProfilesScreen() {
   renderSharingSettings();
   await renderMyUidAndAdminState();
   renderProfileList();
+  startPresenceSubscriptionIfNeeded();
 }
+
+// 【2026-11-XX新設・本人指示：フレンドのオンライン状態】この画面を開いている間だけ
+// presence/を購読し、離れたら止める（js/screens.jsのonScreenChangeを使い、
+// 「フレンド画面以外へ切り替わった瞬間」を検知する。既存のshowScreen()自体の動きは
+// 一切変更しない、末尾への通知フックへ乗るだけの追加）。
+function startPresenceSubscriptionIfNeeded() {
+  if (unsubscribePresence) return;
+  unsubscribePresence = subscribeToAllPresence((presenceByUid) => {
+    latestPresenceByUid = presenceByUid;
+    renderProfileListFromCache();
+  });
+}
+
+function stopPresenceSubscription() {
+  if (unsubscribePresence) {
+    unsubscribePresence();
+    unsubscribePresence = null;
+  }
+}
+
+onScreenChange((screenName) => {
+  if (screenName !== "fanProfiles") stopPresenceSubscription();
+});
 
 // elements: {
 //   sharingToggleButton, sharingToggleLabel: 公開ON/OFFトグル,

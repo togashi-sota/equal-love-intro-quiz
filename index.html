@@ -196,6 +196,19 @@
         </div>
       </div>
 
+      <!-- 【2026-11-XX新設・本人指示：ルーム招待】フレンドから対戦ルームへ招待されたとき、
+           ホーム画面（この画面）にいる間だけ表示するバナー。対戦中・クイズ中の画面へは
+           絶対に割り込ませない（js/roomInviteUi.js側のSAFE_SCREENS_FOR_INVITE_BANNER判定）。 -->
+      <div id="room-invite-banner" class="room-invite-banner" hidden>
+        <p id="room-invite-banner-text" class="room-invite-banner-text"></p>
+        <p id="room-invite-banner-more-label" class="room-invite-banner-more-label" hidden></p>
+        <p id="room-invite-banner-error" class="battle-warning-box" hidden></p>
+        <div class="button-row">
+          <button id="room-invite-banner-decline-button" class="secondary-button" type="button">辞退する</button>
+          <button id="room-invite-banner-accept-button" class="primary-button" type="button">参加する</button>
+        </div>
+      </div>
+
       <!-- 「フレンド」「ランキング」「称号一覧」への入口（2026-08-15新設、2026-08-16に
            ランキングを追加し3つ構成へ、2026-08-30に本人指示で「遊び方ガイド」→「称号一覧」へ
            入れ替え）。友人にテストしてもらった結果、せっかく作った機能でも存在に気付かれない・
@@ -3227,6 +3240,11 @@
         <!-- 【2026-11-XX改訂・本人指示：優先度11】小さな「？」だけでは何のボタンか
              分かりづらいという指摘を受け、意味の分かる文言＋押しやすいサイズへ変更した。 -->
         <button id="online-battle-lobby-help-button" class="secondary-button online-battle-lobby-help-button" type="button">📖 ルール・遊び方</button>
+        <!-- 【2026-11-XX新設・本人指示：ルーム招待】オンラインのフレンド（みんなのプロフィール
+             公開中の人）を、今このルームへ招待できる。ホスト・参加者どちらからでも押せる
+             （js/roomInviteUi.js参照。相手がプレイ中でも招待自体は届くが、通知は相手が
+             ホーム画面へ戻るまで表示されない）。 -->
+        <button id="online-battle-lobby-invite-button" class="secondary-button online-battle-lobby-help-button" type="button">📨 友達を招待</button>
       </div>
 
       <div id="online-battle-lobby-gone-notice" class="battle-warning-box" hidden>
@@ -5779,6 +5797,19 @@
         <button id="online-lobby-profile-all-toggle" class="fan-profile-detail-all-toggle" type="button" hidden>すべての称号を見る ＞</button>
         <div id="online-lobby-profile-achievements" class="fan-profile-detail-all-achievements" hidden></div>
       </div>
+    </div>
+  </div>
+
+  <!-- 【2026-11-XX新設・本人指示：ルーム招待】ロビーの「📨 友達を招待」から開く、
+       今オンラインのフレンド一覧ピッカー。js/roomInviteUi.js制御。 -->
+  <div id="room-invite-picker-modal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="room-invite-picker-title">
+      <button id="room-invite-picker-close-button" class="modal-close-button" type="button" aria-label="閉じる">×</button>
+      <h2 id="room-invite-picker-title">友達を招待</h2>
+      <p class="modal-lead">今オンラインのフレンドだけが表示されます。招待するとルームコードの入力なしで参加できます。</p>
+      <p id="room-invite-picker-loading" class="fan-profiles-loading">読み込み中…</p>
+      <p id="room-invite-picker-empty" class="fan-profiles-empty" hidden></p>
+      <div id="room-invite-picker-list" class="room-invite-picker-list"></div>
     </div>
   </div>
 

@@ -7667,6 +7667,61 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   box-shadow: 0 10px 24px -16px rgba(74, 46, 66, 0.35);
 }
 
+/* 【2026-11-XX新設・本人指示：ルーム招待】ホーム画面の招待バナー。player-hero-cardと
+   同じ「通常のページ内カード」として配置しているため、position:fixed等の特別な
+   safe-area対応は不要（ページ全体のスクロール・上部余白にそのまま従う）。 */
+.room-invite-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 auto 14px;
+  padding: 14px 16px;
+  max-width: 340px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, rgba(111, 189, 242, 0.18), rgba(255, 111, 168, 0.14));
+  border: 1.5px solid var(--color-card-border);
+  box-shadow: 0 10px 24px -16px rgba(74, 46, 66, 0.35);
+}
+
+.room-invite-banner-text {
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.room-invite-banner-more-label {
+  font-size: 0.72rem;
+  opacity: 0.75;
+}
+
+.room-invite-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.room-invite-picker-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: var(--color-surface-soft, rgba(0, 0, 0, 0.04));
+}
+
+.room-invite-picker-row-name {
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.room-invite-picker-row-button {
+  flex: none;
+  font-size: 0.76rem;
+  padding: 6px 10px;
+}
+
 .player-hero-swatch {
   position: relative;
   flex: none;
@@ -8212,6 +8267,26 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   color: var(--color-primary-dark);
   line-height: 1.3;
   overflow-wrap: break-word; /* 長い表示名も省略せず2行まで折り返す（称号名と同じ方針） */
+}
+
+/* 【2026-11-XX新設・本人指示：フレンドのオンライン状態】表示名の隣に、一目で分かる
+   オンライン/最終ログイン表示を添える。既存の名前の見た目・行間は変えない。 */
+.fan-profile-card-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.fan-profile-card-presence {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--color-text-soft, #8a8a99);
+  white-space: nowrap;
+}
+
+.fan-profile-card-presence.is-online {
+  color: var(--color-primary-dark);
 }
 
 .fan-profile-card-oshi,

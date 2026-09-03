@@ -144,6 +144,8 @@
     import { runAudioTests } from "./tests/audio.test.js";
     import { runAnswerButtonInteractionTests } from "./tests/answerButtonInteraction.test.js";
     import { runOnlineBattleRoomIdTests } from "./tests/onlineBattleRoomId.test.js";
+    import { runPresencePayloadsTests } from "./tests/presencePayloads.test.js";
+    import { runRoomInvitePayloadsTests } from "./tests/roomInvitePayloads.test.js";
     import { printSummary } from "./tests/test-utils.js";
 
     runScoreTests();
@@ -254,6 +256,8 @@
     await runAudioTests();
     runAnswerButtonInteractionTests();
     runOnlineBattleRoomIdTests();
+    runPresencePayloadsTests();
+    runRoomInvitePayloadsTests();
     const { passCount, failCount, failedDetails } = printSummary();
 
     const summaryElement = document.getElementById("test-summary");

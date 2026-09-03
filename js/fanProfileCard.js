@@ -8,6 +8,7 @@ import { getAchievementById } from "./achievementDefinitions.js";
 import { buildAchievementIconMedal } from "./achievementIcons.js";
 import { applyOshiBadgeDecorationsFromState } from "./oshiBadge.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
+import { buildPresenceStatusLabel } from "./presencePayloads.js";
 
 export function buildOshiSwatch(members, oshiMemberId, badgeState) {
   const swatch = document.createElement("span");
@@ -78,7 +79,7 @@ export function buildRepresentativeLabel(profile) {
 // カード本体を横並びのdivでラップして返す。isAdminを渡さない・falseの場合は今までどおり
 // カードのbutton要素をそのまま返すため、既存の呼び出し側・テストの挙動は変わらない。
 export function buildProfileCard(profile, members, onSelect, options = {}) {
-  const { isAdmin = false, onAdminDeleteRequest = null } = options;
+  const { isAdmin = false, onAdminDeleteRequest = null, presenceEntry = null } = options;
   const card = document.createElement("button");
   card.type = "button";
   card.className = "fan-profile-card";
@@ -94,10 +95,26 @@ export function buildProfileCard(profile, members, onSelect, options = {}) {
   const body = document.createElement("span");
   body.className = "fan-profile-card-body";
 
+  const nameRow = document.createElement("span");
+  nameRow.className = "fan-profile-card-name-row";
+
   const name = document.createElement("span");
   name.className = "fan-profile-card-name";
   name.textContent = profile.displayName;
-  body.appendChild(name);
+  nameRow.appendChild(name);
+
+  // 【2026-11-XX新設・本人指示：フレンドのオンライン状態】presenceEntryが渡された
+  // ときだけ表示する（options自体が省略された既存の呼び出し元・既存テストの見た目は
+  // 変えない）。
+  if (options.presenceEntry !== undefined) {
+    const { text, isOnline } = buildPresenceStatusLabel(presenceEntry, Date.now());
+    const statusChip = document.createElement("span");
+    statusChip.className = "fan-profile-card-presence";
+    statusChip.classList.toggle("is-online", isOnline);
+    statusChip.textContent = `${isOnline ? "🟢" : "⚫"} ${text}`;
+    nameRow.appendChild(statusChip);
+  }
+  body.appendChild(nameRow);
 
   const oshiMember = profile.oshiMemberId ? getMemberById(members, profile.oshiMemberId) : null;
   const oshiLine = document.createElement("span");

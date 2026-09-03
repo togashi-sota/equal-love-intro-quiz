@@ -173,7 +173,10 @@ import {
   leaveOnlineBattleRoomCompletely,
   // 【2026-09-16新設・本人指示：「音が出ない」救済ボタン第2段階（オンライン対戦・個人進行系）】
   abortOnlineBattleMatchDueToAudioTrouble,
+  // 【2026-11-XX新設・本人指示：ルーム招待】
+  getCurrentOnlineRoomId,
 } from "./onlineBattleScreen.js";
+import { initRoomInviteUi, openInvitePicker } from "./roomInviteUi.js";
 import { initOnlineLyricsQuizBattleScreens } from "./onlineLyricsQuizBattleScreen.js";
 import { initOnlineInstantBattleScreens } from "./onlineInstantBattleScreen.js";
 import { initOnlineInstantCoopBattleScreens } from "./onlineInstantCoopBattleScreen.js";
@@ -268,6 +271,7 @@ import {
   scheduleBackupSync,
 } from "./backupSync.js";
 import { syncPublicProfileIfEnabled } from "./publicProfileSync.js";
+import { startFriendPresenceTracking } from "./presenceSync.js";
 import { getFavoriteSongIds } from "./favoriteSongs.js";
 import { getPlaylists } from "./playlists.js";
 import { initPlaylistScreen, renderPlaylistList, renderPlaylistDetail } from "./playlistScreen.js";
@@ -1085,6 +1089,19 @@ const onlineBattleResultLeaveButtonElement = document.getElementById("online-bat
 // 見る簡易プロフィールモーダル（js/onlineBattleScreen.js制御。全モードのロビーで共有）。
 // 【2026-09-09新設・本人指示：ロビー専用の詳細説明書】
 const onlineBattleLobbyHelpButtonElement = document.getElementById("online-battle-lobby-help-button");
+// 【2026-11-XX新設・本人指示：ルーム招待】
+const onlineBattleLobbyInviteButtonElement = document.getElementById("online-battle-lobby-invite-button");
+const roomInvitePickerModalElement = document.getElementById("room-invite-picker-modal");
+const roomInvitePickerCloseButtonElement = document.getElementById("room-invite-picker-close-button");
+const roomInvitePickerListElement = document.getElementById("room-invite-picker-list");
+const roomInvitePickerLoadingElement = document.getElementById("room-invite-picker-loading");
+const roomInvitePickerEmptyElement = document.getElementById("room-invite-picker-empty");
+const roomInviteBannerElement = document.getElementById("room-invite-banner");
+const roomInviteBannerTextElement = document.getElementById("room-invite-banner-text");
+const roomInviteBannerMoreLabelElement = document.getElementById("room-invite-banner-more-label");
+const roomInviteBannerErrorElement = document.getElementById("room-invite-banner-error");
+const roomInviteBannerAcceptButtonElement = document.getElementById("room-invite-banner-accept-button");
+const roomInviteBannerDeclineButtonElement = document.getElementById("room-invite-banner-decline-button");
 const onlineBattleLobbyHelpModalElement = document.getElementById("online-battle-lobby-help-modal");
 const onlineBattleLobbyHelpCloseElement = document.getElementById("online-battle-lobby-help-close");
 const onlineBattleLobbyHelpCurrentSettingsElement = document.getElementById("online-battle-lobby-help-current-settings");
@@ -2011,6 +2028,12 @@ initMembersScreen({
     showScreen("memberDetail");
   },
 });
+
+// 【2026-11-XX新設・本人指示：フレンドのオンライン状態】アプリを開いている間ずっと、
+// 自分のpresence（presence/{uid}）を維持する。認証待ちを含む非同期処理だが、ここでは
+// 呼び捨てにする（起動シーケンス全体をこれで止めない。失敗してもフレンド一覧の
+// オンライン表示に影響するだけで、他の機能には一切影響しない設計）。
+startFriendPresenceTracking();
 
 // 「みんなのプロフィール」画面：公開設定トグル・一覧・詳細モーダル（2026-08-07新設）。
 initFanProfilesScreen(
@@ -5978,6 +6001,26 @@ initLeaveMatchPrompt({
   modal: onlineBattleLeaveMatchModalElement,
   cancelButton: onlineBattleLeaveMatchCancelButtonElement,
   confirmButton: onlineBattleLeaveMatchConfirmButtonElement,
+});
+// 【2026-11-XX新設・本人指示：ルーム招待】js/roomInviteUi.jsはjs/onlineBattleScreen.jsを
+// importしない末端モジュールのため（循環import回避）、ロビーの「友達を招待」ボタンの
+// クリック配線だけはここ（両方をimportできる場所）で行う。
+onlineBattleLobbyInviteButtonElement?.addEventListener("click", () => {
+  const roomId = getCurrentOnlineRoomId();
+  if (roomId) openInvitePicker(roomId);
+});
+initRoomInviteUi({
+  pickerModal: roomInvitePickerModalElement,
+  pickerCloseButton: roomInvitePickerCloseButtonElement,
+  pickerList: roomInvitePickerListElement,
+  pickerLoading: roomInvitePickerLoadingElement,
+  pickerEmpty: roomInvitePickerEmptyElement,
+  banner: roomInviteBannerElement,
+  bannerText: roomInviteBannerTextElement,
+  bannerMoreLabel: roomInviteBannerMoreLabelElement,
+  bannerError: roomInviteBannerErrorElement,
+  bannerAcceptButton: roomInviteBannerAcceptButtonElement,
+  bannerDeclineButton: roomInviteBannerDeclineButtonElement,
 });
 // 【2026-09-15新設、本人指示：ゲスト側の退出操作にも必ず確認ダイアログ】
 initResultLeavePrompt({
