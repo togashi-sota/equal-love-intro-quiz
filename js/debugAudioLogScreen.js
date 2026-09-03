@@ -14,6 +14,13 @@ import {
   clearViewportDiagnosticLog,
   getViewportDiagnosticLogCount,
 } from "./viewportDiagnosticLog.js";
+// 【2026-11-XX追加・本人指示：ロビーの重さの実機診断】同じ画面へ、オンライン対戦ロビーの
+// render記録（js/onlineBattleScreen.jsのrenderLobby()ラッパー参照）もまとめて表示する。
+import {
+  formatLobbyRenderDiagnosticLogText,
+  clearLobbyRenderDiagnosticLog,
+  getLobbyRenderDiagnosticLogCount,
+} from "./lobbyRenderDiagnosticLog.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
 
 let elements = null;
@@ -38,6 +45,7 @@ export function initDebugAudioLogScreen(newElements) {
     playSfx(SFX_EVENTS.UI_CONFIRM);
     clearAudioDiagnosticLog();
     clearViewportDiagnosticLog();
+    clearLobbyRenderDiagnosticLog();
     renderDebugAudioLog();
   });
   elements.copyButton.addEventListener("click", handleCopyClick);
@@ -50,11 +58,14 @@ export function renderDebugAudioLog() {
   if (!elements) return;
   const audioText = formatAudioDiagnosticLogText();
   const viewportText = formatViewportDiagnosticLogText();
+  const lobbyText = formatLobbyRenderDiagnosticLogText();
   elements.textarea.value =
     `===== 音源診断ログ =====\n${audioText}\n\n` +
-    `===== 画面サイズ診断ログ（下部の白い帯の調査用） =====\n${viewportText}`;
+    `===== 画面サイズ診断ログ（下部の白い帯の調査用） =====\n${viewportText}\n\n` +
+    `===== ロビーrender診断ログ（ロビーの重さの調査用） =====\n${lobbyText}`;
   elements.count.textContent =
-    `記録件数：音源${getAudioDiagnosticLogCount()}件 / 画面サイズ${getViewportDiagnosticLogCount()}件`;
+    `記録件数：音源${getAudioDiagnosticLogCount()}件 / 画面サイズ${getViewportDiagnosticLogCount()}件 / ` +
+    `ロビーrender${getLobbyRenderDiagnosticLogCount()}件`;
   elements.status.hidden = true;
 }
 

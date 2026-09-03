@@ -15,6 +15,7 @@
 // このファイルに残しているが、将来モードが増えたときは、フォームの出し分けもここで行う想定。
 
 import { getActivePlayer } from "./playerProfile.js";
+import { nextLobbyRenderSequence, recordLobbyRenderEvent, countLobbyRenderStartsInLastSecond } from "./lobbyRenderDiagnosticLog.js";
 import { promptReturnToLobby } from "./onlineBattleLobbyReturnPrompt.js";
 import { promptLeaveMatch, hasVoluntarilyLeftMatch } from "./onlineBattleLeaveMatchPrompt.js";
 import { promptResultLeaveRoom } from "./onlineBattleResultLeavePrompt.js";
@@ -1626,7 +1627,13 @@ function renderCommonSongNotice(allEligibleCount, commonCount) {
 
 // ロビー画面の参加者一覧・対戦設定・準備完了/開始ボタンを再描画する。
 // 参加者一覧・接続状態・対戦設定・READY状態・進行状態のいずれかが変わるたびに呼ばれる。
-function renderLobby(room) {
+// 【2026-11-XX改訂・本人指示：ロビーの重さの実機診断】このrenderLobbyInner()自体は
+// 中身を一切変更していない（元のrenderLobbyという名前だった関数をそのままリネーム
+// しただけ）。実際に呼び出される公開名"renderLobby"は、この下のwrapRenderLobbyWithDiagnostics()
+// で定義するラッパー関数に置き換えている（listenToRoom()等へコールバックとして渡す
+// 箇所も含め、既存の呼び出し側は無改修のまま、js/lobbyRenderDiagnosticLog.jsへの
+// 記録が透過的に加わる設計）。
+function renderLobbyInner(room) {
   if (!room) {
     // ルームが無くなった＝ホストが退出して解散した、または何らかの理由で消えた。
     // カウントダウン中・開始確認画面を見ている最中にホストが退出した場合も、
@@ -2175,6 +2182,45 @@ function renderLobby(room) {
   syncLyricsResultHostGuestButtons(room);
   syncInstantBattleResultHostGuestButtons(room);
   syncInstantCoopResultHostGuestButtons(room);
+}
+
+// 【2026-11-XX新設・本人指示：ロビーの重さの実機診断】renderLobbyInner()を1回呼ぶたびに、
+// 開始・終了（または例外）を js/lobbyRenderDiagnosticLog.js へ記録するだけの薄いラッパー。
+// 【単純な「try/catchで全部握り潰す」ではない点】例外は記録した後、必ずそのまま
+// re-throwする（本人指示：握り潰し禁止）。これにより、ブラウザのコンソールへの通常の
+// エラー表示・既存の挙動（呼び出し元のlistenToRoom()自体はFirebase SDK側の
+// onValueコールバックのため、ここで再throwした例外は握り潰されずコンソールに出る）は
+// 一切変えず、「後から実機の管理者用診断ログ画面でも確認できる記録」を追加するだけ。
+// room引数からstatus/gameMode/activeMatchIdだけを抜き出して記録する（曲名・歌詞等の
+// 著作権保護対象・個人情報は一切記録しない）。
+let lobbyRenderInFlightSeq = null;
+function renderLobby(room) {
+  const seq = nextLobbyRenderSequence();
+  const contextForLog = room
+    ? { status: room.status, gameMode: room.gameMode, activeMatchId: room.activeMatchId ?? null }
+    : { status: null, gameMode: null, activeMatchId: null };
+  // 「render中に新しいrenderが重なっていないか」の検知：JS自体はシングルスレッドのため
+  // 真の意味での並行実行は起きないが、renderLobbyInner()の中から（イベントリスナー登録等
+  // 経由で）同期的に再度renderLobbyが呼ばれるケースがあれば、ここで検知できる。
+  const overlappingSeq = lobbyRenderInFlightSeq;
+  recordLobbyRenderEvent("start", { seq, ...contextForLog, overlappingSeq, startsInLastSecond: countLobbyRenderStartsInLastSecond() + 1 });
+  lobbyRenderInFlightSeq = seq;
+  const startedAtMs = performance.now();
+  try {
+    renderLobbyInner(room);
+    recordLobbyRenderEvent("complete", { seq, durationMs: Math.round(performance.now() - startedAtMs) });
+  } catch (error) {
+    recordLobbyRenderEvent("error", {
+      seq,
+      ...contextForLog,
+      durationMs: Math.round(performance.now() - startedAtMs),
+      message: error?.message,
+      stack: typeof error?.stack === "string" ? error.stack.split("\n").slice(0, 6).join(" | ") : undefined,
+    });
+    throw error;
+  } finally {
+    if (lobbyRenderInFlightSeq === seq) lobbyRenderInFlightSeq = null;
+  }
 }
 
 function syncResultScreenHostGuestButtons(room) {

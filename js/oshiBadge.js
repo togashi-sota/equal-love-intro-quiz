@@ -32,13 +32,26 @@
 // Firebaseから取得したbooleanを渡す）の両方が、同じロジックを共有する。
 import { getOshiBadgeState } from "./achievementProgress.js";
 
+// 【2026-11-XX改訂・本人指示：実装方式の最終確認】以前はbadgeEl.textContentへ絵文字
+// （🎖️👑💎）をそのまま入れていたが、絵文字の実際の見た目（線の太さ・立体感・色味・
+// 収まり方）はOS・端末のフォントレンダラーに依存し、iPhoneとAndroidで大きく異なる
+// （本人指示：「iPhoneでもAndroidでも同じ特別バッジとして認識できることが目的」）。
+// js/achievementIcons.jsが称号アイコンで既に使っている「単純な塗りつぶしSVGパスを
+// currentColorで塗る」方式に統一し、端末フォントに依存しない一貫した見た目にした。
+// 王冠の形は、称号一覧のequal_love_masterアイコン（js/achievementIcons.js）と
+// 意図的に同じシルエットを再利用し、「称号一覧で見た王冠と同じもの」というシリーズ感・
+// 一貫性を持たせている。
+const MEDAL_SVG = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 1 14.4 8.8 22 8.8 15.8 13.5 18.2 21.3 12 16.6 5.8 21.3 8.2 13.5 2 8.8 9.6 8.8Z"/></svg>';
+const CROWN_SVG = '<svg viewBox="0 0 24 16" fill="currentColor" aria-hidden="true"><path d="M2 14 1 5 6 9 12 2 18 9 23 5 22 14Z"/></svg>';
+const DIAMOND_SVG = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2 20.5 9.5 12 22 3.5 9.5Z"/></svg>';
+
 // バッジ1種類ごとの定義（本人指示の豪華さの順：イントロマスター＜＝LOVEマスター＜＜
 // ＝LOVE完全制覇。この配列の並び順＝DOM上の重なり順にもなるため、後ろにあるものほど
 // 前面に描画される。最も豪華な＝LOVE完全制覇を一番最後＝一番手前にしている）。
 const BADGE_DEFINITIONS = [
-  { key: "no_miss_master", stateField: "hasNoMissMaster", className: "oshi-badge--medal", emoji: "🎖️" },
-  { key: "equal_love_master", stateField: "hasEqualLoveMaster", className: "oshi-badge--crown", emoji: "👑" },
-  { key: "equal_love_complete", stateField: "hasEqualLoveComplete", className: "oshi-badge--diamond", emoji: "💎" },
+  { key: "no_miss_master", stateField: "hasNoMissMaster", className: "oshi-badge--medal", svg: MEDAL_SVG },
+  { key: "equal_love_master", stateField: "hasEqualLoveMaster", className: "oshi-badge--crown", svg: CROWN_SVG },
+  { key: "equal_love_complete", stateField: "hasEqualLoveComplete", className: "oshi-badge--diamond", svg: DIAMOND_SVG },
 ];
 
 // element配下に、このモジュールが管理するバッジ用のラッパー（1つだけ）を用意する。
@@ -86,7 +99,7 @@ export function applyOshiBadgeDecorationsFromState(
     if (shouldShow && !badgeEl) {
       badgeEl = document.createElement("span");
       badgeEl.className = `oshi-badge ${def.className}`;
-      badgeEl.textContent = def.emoji;
+      badgeEl.innerHTML = def.svg;
       layer.appendChild(badgeEl);
     } else if (!shouldShow && badgeEl) {
       badgeEl.remove();

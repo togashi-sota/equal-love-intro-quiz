@@ -7699,6 +7699,14 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   pointer-events: none;
 }
 
+/* 【2026-11-XX追加・本人指示：実装方式の最終確認】絵文字（OSフォント依存）をやめ、
+   js/achievementIcons.jsと同じ「currentColorで塗るSVGパス」方式にしたことに伴う
+   サイズ指定。svgをバッジ円より一回り小さくして余白を作り、視認性を保つ。 */
+.oshi-badge svg {
+  width: 62%;
+  height: 62%;
+}
+
 /* イントロマスター（メダル）：3つの中で最も控えめな銀灰色・最小サイズ（本人指示の豪華さの
    順：イントロマスター＜＝LOVEマスター＜＜＝LOVE完全制覇、を大きさと配色で表現）。 */
 .oshi-badge--medal {
@@ -7706,7 +7714,7 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   left: -5px;
   width: 16px;
   height: 16px;
-  font-size: 9px;
+  color: #5c5460;
   background: radial-gradient(circle at 32% 28%, #f4f1f6 0%, #b9aebd 70%);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
@@ -7717,7 +7725,7 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   right: -6px;
   width: 19px;
   height: 19px;
-  font-size: 11px;
+  color: #5c3a08;
   background: radial-gradient(circle at 32% 28%, #ffe9a8 0%, #e3ab3c 70%);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
 }
@@ -7729,7 +7737,7 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   right: -6px;
   width: 21px;
   height: 21px;
-  font-size: 12px;
+  color: #ffffff;
   background: radial-gradient(circle at 32% 26%, #f3e8ff 0%, #b18cf0 45%, #6fa8ff 100%);
   box-shadow: 0 0 0 2px rgba(177, 140, 240, 0.35), 0 3px 6px -1px rgba(74, 46, 66, 0.4);
 }
@@ -8141,7 +8149,6 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 .fan-profile-swatch--sm .oshi-badge--medal {
   width: 9px;
   height: 9px;
-  font-size: 5px;
   bottom: -2px;
   left: -3px;
   border-width: 1px;
@@ -8150,7 +8157,6 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 .fan-profile-swatch--sm .oshi-badge--crown {
   width: 10px;
   height: 10px;
-  font-size: 6px;
   bottom: -3px;
   right: -3px;
   border-width: 1px;
@@ -8159,7 +8165,6 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 .fan-profile-swatch--sm .oshi-badge--diamond {
   width: 11px;
   height: 11px;
-  font-size: 6px;
   top: -3px;
   right: -3px;
   border-width: 1px;

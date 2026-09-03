@@ -184,7 +184,8 @@ import { initAnswerConfirmPrompt } from "./answerConfirmPrompt.js";
 import { initOnlineBattleSongPicker } from "./onlineBattleSongPicker.js";
 import { initOnlineBattlePlaylistPicker } from "./onlineBattlePlaylistPicker.js";
 import { initOnlineBattleSongListConfirmModal } from "./onlineBattleSongListConfirmModal.js";
-import { calculateBattleResult, getPlaybackType } from "./battleModes/index.js";
+import { calculateBattleResult, getPlaybackType, getModeLabel } from "./battleModes/index.js";
+import { resolveQuizModeProgressPrefix } from "./quizModeLabel.js";
 // 歌詞クイズ対戦の3ルール説明モーダル用。Firebase・画面のことを一切知らない純粋関数のみのため、
 // js/firebaseClient.jsを経由せずここから直接importしてよい。
 import {
@@ -3562,6 +3563,39 @@ function updateQuizQuitDisplay() {
 // アウトロクイズの再生時間（本人指示：5秒固定）。
 const OUTRO_QUIZ_PLAY_DURATION_SEC = 5;
 
+// 【2026-11-XX新設・本人指示：最優先1（モード名表示の完成）】共通クイズ画面
+// （#question-progress）は、通常プレイ・タイムアタック・ローカル対戦・オンライン対戦・
+// ランダム再生クイズ・アウトロクイズ・苦手曲モード・オリジナル問題作成モードなど、
+// 非常に多くの入口が共有している。「今どの種類（イントロ／ランダム再生／アウトロ）を
+// 遊んでいるか」を一意に判断できる単一のgameStateフィールドがこれまで存在しなかったため、
+// 新しいフィールドを追加する代わりに、renderQuestion()内の実際の音源再生位置判定
+// （このすぐ下のif/elseチェーン。gameState.playMode・getCurrentTimeAttackVariant()・
+// getPlaybackType(onlineBattleGameMode)・gameState.specialModeIdを見て、どの位置から
+// 曲を再生するかを既に正しく決めている、対戦の公平性にも関わる既存のロジック）と
+// 完全に同じ条件分岐をこの関数でも辿るだけにした。この既存ロジックが間違っていれば
+// 音源の再生位置自体が既に壊れているはずなので、ここに新しい判定ミスが入り込む余地がない
+// （「後から見た目のためだけに作った判定」ではなく「既に他の目的で正しさが保証されている
+// 判定」に相乗りする設計）。
+//
+// special（苦手曲モード・オリジナル問題作成モード）・review（復習）は、
+// SPECIAL_MODES_DISPLAYの絵文字接頭辞・「🔁 復習」という既存の表示が既にモードの種類を
+// 伝えているため、この関数の対象外のまま変更していない（本人指示：「既に十分明確な
+// 画面には、無理に追加しなくても構いません」）。
+//
+// 巨大な見出しは増やさず、既存の進捗表示への短い接頭辞の追記だけにとどめている
+// （本人指示：「回答領域を狭くしないことを優先」）。オンライン対戦は、その場で
+// gameMode文字列から既存のgetModeLabel()（js/battleModes/index.jsの各モードファイルが
+// 持つexport const label、既にロビー等の表示と完全に同じ文言）をそのまま使うため、
+// 表示名を新しく作らず・二重管理も発生しない。実際の判定ロジック本体（純粋関数）は
+// js/quizModeLabel.jsへ切り出し、恒久テストから直接検証できるようにしている。
+function computeNormalModeProgressPrefix() {
+  return resolveQuizModeProgressPrefix({
+    playMode: gameState.playMode,
+    timeAttackVariant: gameState.playMode === "timeAttack" ? getCurrentTimeAttackVariant() : null,
+    onlineBattleModeLabel: gameState.playMode === "onlineBattle" ? getModeLabel(onlineBattleGameMode) : null,
+  });
+}
+
 // 今の問題の内容（進捗・4択の曲名）をクイズ画面に反映し、イントロ音源とタイマーを開始する。
 function renderQuestion() {
   // 【2026-09-23新設・本人指示：新規プレイのたびに第1問だけ無音になる問題の再調査】
@@ -3580,11 +3614,21 @@ function renderQuestion() {
   const progressLabel = `第${gameState.currentIndex + 1}問 / ${gameState.questions.length}問`;
   // 復習中は進捗表示に「🔁 復習」を、特別モード中はモードごとの接頭辞を添えて、
   // 通常プレイと見分けられるようにする。
+  // 【2026-11-XX追加・本人指示：最優先1（モード名表示の完成）】review・special以外
+  // （normal・randomPlayback・timeAttack・onlineBattle・localBattle）はこれまで接頭辞が
+  // 常に空文字列で、「今何を遊んでいるか」が進捗表示からは分からなかった。
+  // computeNormalModeProgressPrefix()が、この共通クイズ画面の実際の音源再生位置の
+  // 判定（このすぐ下にある、gameState.playMode等を見る既存のif/elseチェーン）と
+  // 完全に同じ条件分岐で接頭辞を決めるため、両者がズレることはない
+  // （音源再生が正しい位置から鳴っている＝この判定の元になる状態自体が既に正しいことの
+  // 証拠、という考え方。新しいgameStateフィールドは追加していない）。
   let progressPrefix = "";
   if (gameState.playMode === "review") {
     progressPrefix = "🔁 復習 ";
   } else if (gameState.playMode === "special") {
     progressPrefix = SPECIAL_MODES_DISPLAY[gameState.specialModeId]?.progressPrefix ?? "";
+  } else {
+    progressPrefix = computeNormalModeProgressPrefix();
   }
   questionProgressElement.textContent = `${progressPrefix}${progressLabel}`;
   renderProgressDots();
