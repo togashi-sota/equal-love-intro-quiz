@@ -1947,6 +1947,13 @@ function renderLobbyInner(room) {
       radio.checked = radio.value === room.gameMode;
       radio.disabled = !isHost;
     });
+    // 【2026-11-XX追加・実機バグ調査】この無条件resync自体が、どのタイミングで
+    // どのgameModeへ同期し直しているかを記録する。
+    recordLobbyRenderEvent("modeChangeResync", {
+      seq: nextLobbyRenderSequence(),
+      roomGameMode: room.gameMode,
+      isHost,
+    });
   }
 
   elements.lobbyPlayerCount.textContent = `${playerList.length}人 / 最大${room.maxPlayers}人`;
@@ -3330,6 +3337,17 @@ export function initOnlineBattleScreens(newElements) {
   // 自己完結フラグに置き換える。
   document.querySelectorAll('input[name="online-battle-lobby-mode-change-select"]').forEach((radio) => {
     radio.addEventListener("change", async () => {
+      // 【2026-11-XX追加・実機バグ調査：ロビー復帰直後にモード切替だけ反応しない】
+      // changeイベント自体が届いた時点の状態を、早期returnより前に記録する。
+      // これにより「イベントは届いたが早期returnで弾かれた」のか
+      // 「そもそもchangeイベントが届いていない」のかを実機ログから区別できる。
+      recordLobbyRenderEvent("modeChangeChangeEventReceived", {
+        seq: nextLobbyRenderSequence(),
+        value: radio.value,
+        currentRoomId: !!currentRoomId,
+        isModeChangeWriteInFlight,
+        currentGameMode,
+      });
       if (!currentRoomId || isModeChangeWriteInFlight) return;
       const nextGameMode = radio.value;
       if (nextGameMode === currentGameMode) return; // 実質変化なし（同じモードの再クリック等）
@@ -3356,6 +3374,16 @@ export function initOnlineBattleScreens(newElements) {
         isModeChangeWriteInFlight = false;
       }
     });
+    // 【2026-11-XX追加・実機バグ調査】clickイベント自体が届いているか、届いた時点で
+    // disabled・checkedがどうなっているかを記録する（changeが届かない場合の切り分け用）。
+    radio.addEventListener("click", () => {
+      recordLobbyRenderEvent("modeChangeClickEventReceived", {
+        seq: nextLobbyRenderSequence(),
+        value: radio.value,
+        disabled: radio.disabled,
+        checkedBefore: radio.checked,
+      });
+    });
   });
 
   // 【2026-11-XX新設・本人指示：優先度10】ゲストはモード変更権限が無いため、6択のラジオは
@@ -3366,12 +3394,27 @@ export function initOnlineBattleScreens(newElements) {
   // （本人指示のとおり、ここではホストのクリックには介入しない）。
   document.querySelectorAll('#online-battle-lobby-mode-change-fieldset label').forEach((label) => {
     label.addEventListener("click", (event) => {
-      const uid = getCurrentUid();
-      const isHost = latestRoom?.host === uid;
-      if (isHost) return; // ホストは通常どおりタップ＝モード変更
       const radio = label.querySelector('input[name="online-battle-lobby-mode-change-select"]');
       if (!radio) return;
-      event.preventDefault(); // disabled状態でも念のため既定動作を止める
+      // 【2026-11-XX根本修正・実機バグ調査：ロビー復帰直後にモード変更が何度押しても
+      // 効かない不具合】以前はここでlatestRoom?.host===uidによってisHostを判定していたが、
+      // latestRoomは「結果画面から自分がロビーへ戻る」瞬間に呼ばれるresetOnlineBattleMatchState()
+      // （試合の進行状態を後片付けする、このファイル冒頭の関数）によって、無関係のはずの
+      // このホスト判定を巻き込んでnullへリセットされてしまう構造的な欠陥を持っていた
+      // （resetOnlineBattleMatchState()自体は「試合状態の後片付け」という別の目的で
+      // 正しく動作しており、そちらは変更しない）。結果、次にroomが更新されて
+      // renderLobbyInner()がlatestRoomを再設定するまでの間、実際にはホストなのに
+      // isHost===falseと誤判定され、event.preventDefault()でラジオの既定動作（チェック
+      // 状態のトグル）ごとブロックされ、changeイベントも発火しないため「何度押しても
+      // モードが変更できない」ように見えていた（本人からの実機報告と一致）。
+      // 【修正方針】このラベルクリックの目的は「ホストなら通常のモード変更に任せ、
+      // 参加者ならヘルプを開く」の判定だけであり、この判定に必要な「自分がホストか」は
+      // 既にradio.disabled（renderLobbyInner()が室情報のroom.hostから毎回直接、
+      // 取りこぼしなく同期している値）に正しく反映されている。共有状態のlatestRoomを
+      // 経由せず、このradio自身のdisabledを直接見ることで、resetOnlineBattleMatchState()の
+      // タイミングに一切影響されない判定にする。
+      if (!radio.disabled) return; // ホスト（変更可能）は通常どおりタップ＝モード変更
+      event.preventDefault(); // 参加者（disabled）状態でも念のため既定動作を止める
       playSfx(SFX_EVENTS.UI_CLICK);
       openLobbyHelpModal(radio.value);
     });
