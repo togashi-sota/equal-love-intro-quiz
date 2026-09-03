@@ -122,6 +122,12 @@
           ".write": "auth != null && (root.child('rooms/' + $roomId + '/host').val() === auth.uid || newData.val() === false)",
           ".validate": "newData.isBoolean()"
         },
+        "rematchParticipantUids": {
+          "$uid": {
+            ".write": "auth != null && root.child('rooms/' + $roomId + '/host').val() === auth.uid",
+            ".validate": "newData.val() === true"
+          }
+        },
 
         "players": {
           "$uid": {

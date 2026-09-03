@@ -1204,6 +1204,9 @@ const onlineInstantCoopAudioTroubleButtonElement = document.getElementById("onli
 const onlineInstantCoopAudioTroubleNoticeElement = document.getElementById("online-instant-coop-battle-audio-trouble-notice");
 const onlineInstantCoopProgressElement = document.getElementById("online-instant-coop-battle-progress");
 const onlineInstantCoopErrorElement = document.getElementById("online-instant-coop-battle-error");
+// 【2026-11-XX追加・実機バグ調査：一瞬協力にカウントダウンが無かった不具合】
+const onlineInstantCoopCountdownElement = document.getElementById("online-instant-coop-battle-countdown");
+const onlineInstantCoopCountdownNumberElement = document.getElementById("online-instant-coop-battle-countdown-number");
 const onlineInstantCoopReplayButtonElement = document.getElementById("online-instant-coop-battle-replay-button");
 const onlineInstantCoopAnswerSectionElement = document.getElementById("online-instant-coop-battle-answer-section");
 const onlineInstantCoopAnswerSearchRowElement = document.getElementById("online-instant-coop-battle-answer-search-row");
@@ -6293,6 +6296,9 @@ initOnlineInstantCoopBattleScreens({
   audioTroubleNotice: onlineInstantCoopAudioTroubleNoticeElement,
   progress: onlineInstantCoopProgressElement,
   error: onlineInstantCoopErrorElement,
+  // 【2026-11-XX追加・実機バグ調査：一瞬協力にカウントダウンが無かった不具合】
+  countdown: onlineInstantCoopCountdownElement,
+  countdownNumber: onlineInstantCoopCountdownNumberElement,
   replayButton: onlineInstantCoopReplayButtonElement,
   answerSection: onlineInstantCoopAnswerSectionElement,
   answerSearchRow: onlineInstantCoopAnswerSearchRowElement,
@@ -7291,11 +7297,36 @@ let hasAppliedPendingUpdate = false;
 // 一切持ち越したくないため。つまり「更新が無い通常起動」では絶対にこのフラグは立たない。
 const UPDATE_APPLIED_FLAG_KEY = "equalLoveIntroQuiz.updateJustApplied";
 
-// 更新の反映を試みる。ホーム画面にいるときだけ実際に反映し、それ以外の画面では何もしない
+// 【2026-11-XX追加・実機バグ調査：再戦フロー等が「直したはずなのに実機でまた同じ症状」を
+// 繰り返す根本原因】以前は安全な画面を「ホーム画面（"start"）だけ」に限定していたが、
+// オンライン対戦のテストはホーム画面へ一切戻らず何十分も続くことが多く、その間は
+// 新しいバージョンが待機したままずっと反映されない（＝修正を配信しても、実機テスト中の
+// タブが更新を一度も受け取れないまま、直っていないように見え続ける）ことが実機ログの
+// 状況証拠と一致した。安全な画面の判定基準は変えていない（本人指示どおり「途中状態が
+// 失われる可能性がある画面では待たせる」）：追加したのはいずれも、その場に取り消し可能な
+// 未保存のローカル状態を持たない画面だけ。
+//   ・onlineBattleEntry／onlineBattleLobby：対戦開始前の待機・設定画面。ここでの
+//     ローカル状態はFirebase側の設定にすでに反映済みで、再読み込みしても失われない。
+//   ・onlineBattleResult／onlineInstantBattleResult／onlineInstantCoopBattleResult／
+//     onlineLyricsBattleResult：対戦は既に終了し、結果・再戦のready状態もFirebase側の
+//     正本のため、再読み込みしても失われない（再戦準備中のインラインパネルも同様）。
+// クイズ回答中・カウントダウン中・一瞬系の出題中など、未送信のローカル回答が
+// 存在しうる画面は引き続き対象外のまま。
+const SAFE_SCREENS_FOR_UPDATE = new Set([
+  "start",
+  "onlineBattleEntry",
+  "onlineBattleLobby",
+  "onlineBattleResult",
+  "onlineInstantBattleResult",
+  "onlineInstantCoopBattleResult",
+  "onlineLyricsBattleResult",
+]);
+
+// 更新の反映を試みる。安全な画面にいるときだけ実際に反映し、それ以外の画面では何もしない
 // （呼び出し側は「今安全かどうか」を気にせず、何度でも安全にこの関数を呼べる）。
 function tryApplyPendingUpdate() {
   if (!pendingUpdateRegistration || hasAppliedPendingUpdate) return;
-  if (document.body.dataset.screen !== "start") return;
+  if (!SAFE_SCREENS_FOR_UPDATE.has(document.body.dataset.screen)) return;
   hasAppliedPendingUpdate = true;
   // 実際にskipWaitingを送る＝本当にバージョンが切り替わる瞬間なので、ここでだけ
   // 「次の読み込みで更新完了バナーを出す」フラグを立てる。
@@ -7357,10 +7388,10 @@ function initServiceWorker() {
   });
 }
 
-// ホーム画面に来るたびに、待機中の更新が無いか確認する。危険な画面からホーム画面へ
-// 戻ってきた瞬間に、待機中の更新があればここで初めて反映される。
+// 安全な画面（SAFE_SCREENS_FOR_UPDATE）に来るたびに、待機中の更新が無いか確認する。
+// 危険な画面から安全な画面へ戻ってきた瞬間に、待機中の更新があればここで初めて反映される。
 onScreenChange((screenName) => {
-  if (screenName === "start") {
+  if (SAFE_SCREENS_FOR_UPDATE.has(screenName)) {
     tryApplyPendingUpdate();
   }
 });

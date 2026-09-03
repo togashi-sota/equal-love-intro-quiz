@@ -100,3 +100,23 @@ export function showScreen(screenName) {
 
   screenChangeListeners.forEach((listener) => listener(screenName));
 }
+
+// 【2026-11-XX新設・実機バグ調査：結果画面のスクロール位置】.game-frame自体は
+// overflow:hiddenで内部スクロールを持たず、実際のスクロールはページ（window/html/body）が
+// 担っている（css/style.css内の既存コメント参照）。オンライン対戦で「同じ条件でもう一度」を
+// 連続で使うと、前回の結果画面で見ていたスクロール位置（「問題別結果」付近など）を
+// 引き継いだまま次の結果画面が表示され、本来一番上にあるべき「対戦結果」「順位」が
+// 見えない状態で始まってしまっていた。結果画面へ遷移する各箇所（js/onlineBattleScreen.js・
+// js/onlineLyricsQuizBattleScreen.js・js/onlineInstantBattleScreen.js・
+// js/onlineInstantCoopBattleScreen.js）から個別に呼ぶための、単純な共通ユーティリティ。
+// 【呼び出しのタイミングについて】DOM更新・レイアウト確定より前に呼ぶとブラウザが
+// まだ古い高さのままスクロール位置を計算してしまう場合があるため、requestAnimationFrameで
+// 1フレーム後に実行する（本人指示：「scrollToだけではタイミングによって失敗する可能性が
+// あるので、画面render・DOM更新・SPA内画面切替とのタイミングも考慮して確実に行ってください」）。
+export function scrollToTop() {
+  requestAnimationFrame(() => {
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  });
+}

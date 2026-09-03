@@ -8,6 +8,7 @@ import {
   computeAllPlayersRematchReady,
   computeAllPlayersResultReturned,
   resolveRematchToggleButtonLabel,
+  filterPlayersForRematchParticipants,
 } from "../js/onlineBattleMatchConfirmationPayloads.js";
 import { assertEqual } from "./test-utils.js";
 
@@ -110,27 +111,41 @@ export function runOnlineBattleMatchConfirmationPayloadsTests() {
       "3人→1人退出：残った参加者だけが準備OKなら、退出者を待たずに準備完了と判定する"
     );
 
-    // 【エッジケース：準備待ち中に新しい参加者が入室】新規参加時はjs/onlineBattle.jsの
-    // resetRematchReadyIfConfirming()が既存参加者を含めて全員のrematchReadyをfalseへ戻す
-    // （本人指示：新しく入った人を含めて、もう一度全員で準備OKを押し直す必要がある）。
-    // ここでは「リセット後の状態」を渡し、新しい参加者が混ざると準備完了ではなくなることを確認する。
+    // 【エッジケース：準備待ち中に新しい参加者が入室】2026-11-XX改訂・実機バグ調査：
+    // 以前は新規参加時にjs/onlineBattle.jsのresetRematchReadyIfConfirming()が
+    // 既存参加者を含めて全員のrematchReadyをfalseへ戻し、再戦提案そのものを取り消して
+    // いたが、「新規参加者が来ても進行中の再戦は一切乱さない」という確定仕様への変更に
+    // 伴い、この関数は廃止された。代わりに、beginRematchReadyCheck()が再戦提案の瞬間に
+    // 固定するparticipantUids（第2引数）で対象者を絞り込むことで、新規参加者を
+    // 判定から除外する。
     assertEqual(
-      computeAllPlayersRematchReady({
-        a: { rematchReady: false }, // リセットされた既存参加者
-        b: { rematchReady: false }, // リセットされた既存参加者
-        c: { rematchReady: false }, // 新しく入室した参加者
-      }),
+      computeAllPlayersRematchReady(
+        {
+          a: { rematchReady: true }, // 再戦の対象者：準備OK
+          b: { rematchReady: false }, // 再戦の対象者：未準備
+          c: { rematchReady: false }, // 再戦提案後に新しく入室した参加者（対象外）
+        },
+        { a: true, b: true } // participantUids：この再戦の対象はa・bだけ
+      ),
       false,
-      "3人（うち1人が新規参加者）：全員リセット直後は準備完了ではないと判定する"
+      "3人（うち1人が再戦提案後の新規参加者）：対象者bが未準備の間はfalseのまま（新規参加者cの状態は無視する）"
     );
     assertEqual(
-      computeAllPlayersRematchReady({
-        a: { rematchReady: true },
-        b: { rematchReady: true },
-        c: { rematchReady: true },
-      }),
+      computeAllPlayersRematchReady(
+        {
+          a: { rematchReady: true },
+          b: { rematchReady: true },
+          c: { rematchReady: false }, // 新規参加者は準備OKを押していなくても無関係
+        },
+        { a: true, b: true }
+      ),
       true,
-      "3人（うち1人が新規参加者）：新規参加者を含め全員が改めて準備OKを押せば準備完了と判定する"
+      "3人（うち1人が再戦提案後の新規参加者）：対象者a・bが両方準備OKなら、新規参加者cが未準備でも準備完了と判定する（cを待たない）"
+    );
+    assertEqual(
+      computeAllPlayersRematchReady({ a: { rematchReady: true }, b: { rematchReady: true } }),
+      true,
+      "participantUidsを省略した場合は、従来どおりplayers全員を対象に判定する（後方互換）"
     );
 
     assertEqual(
@@ -297,6 +312,35 @@ export function runOnlineBattleMatchConfirmationPayloadsTests() {
         resolveRematchToggleButtonLabel({ isHost: false, myReady: false }).isConfirmed,
         false,
         "ゲスト・未準備：is-confirmedスタイルは付けない"
+      );
+    }
+
+    // ---- filterPlayersForRematchParticipants（2026-11-XX新設・実機バグ調査：
+    // 再戦準備中に新規参加者が来ても巻き込まない仕様） ----
+    {
+      const players = {
+        a: { name: "ホスト" },
+        b: { name: "既存参加者" },
+        c: { name: "再戦提案後の新規参加者" },
+      };
+      const filtered = filterPlayersForRematchParticipants(players, { a: true, b: true });
+      assertEqual(Object.keys(filtered).sort().join(","), "a,b", "participantUidsに含まれる参加者だけを残す");
+      assertEqual(filtered.c, undefined, "participantUidsに含まれない新規参加者は除外される");
+
+      assertEqual(
+        filterPlayersForRematchParticipants(players, {}),
+        players,
+        "participantUidsが空オブジェクトの場合は、従来どおりplayers全員を返す（安全側フォールバック）"
+      );
+      assertEqual(
+        filterPlayersForRematchParticipants(players, undefined),
+        players,
+        "participantUidsを省略した場合は、従来どおりplayers全員を返す（安全側フォールバック）"
+      );
+      assertEqual(
+        Object.keys(filterPlayersForRematchParticipants(undefined, { a: true })).length,
+        0,
+        "playersがundefinedでも安全に空オブジェクトを返す"
       );
     }
 

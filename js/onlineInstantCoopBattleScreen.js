@@ -26,6 +26,12 @@
 // 新ホストの端末がこのファイルへ再入場した時点で自動的に進行が再開する）。
 
 import { getCurrentUid } from "./firebaseClient.js";
+import { scrollToTop } from "./screens.js";
+// 【2026-11-XX追加・実機バグ調査：一瞬協力にカウントダウンが無かった不具合】
+// js/onlineInstantBattleScreen.jsが既に使っている、各問題の音源再生の直前に3→2→1を
+// 表示する共通モジュール。一瞬協力にはこれが元々一切組み込まれておらず、「もう一度聞く」を
+// 押すとカウントダウンを経由しないまま即座に再生していた（実機報告の直接原因）。
+import { runLocalReplayCountdownForQuestion, SCREEN_ENTER_ANIMATION_MS } from "./localReplayCountdown.js";
 import {
   ROOM_STATUS,
   updateRoomSettings,
@@ -48,7 +54,11 @@ import {
   renderRematchReadinessList,
   createRematchKickHandler,
 } from "./onlineBattleResultReturnState.js";
-import { computeAllPlayersRematchReady, resolveRematchToggleButtonLabel } from "./onlineBattleMatchConfirmationPayloads.js";
+import {
+  computeAllPlayersRematchReady,
+  resolveRematchToggleButtonLabel,
+  filterPlayersForRematchParticipants,
+} from "./onlineBattleMatchConfirmationPayloads.js";
 import { computeRemainingRevealMs } from "./onlineBattleRevealTiming.js";
 import { promptReturnToLobby } from "./onlineBattleLobbyReturnPrompt.js";
 import { promptLeaveMatch } from "./onlineBattleLeaveMatchPrompt.js";
@@ -189,6 +199,10 @@ let serverTimeOffset = 0;
 // 自分（この端末）が、今の問題・今のラウンドで既に投票したかどうか。
 let myVotedQuestionIndex = -1;
 let myVotedRoundNumber = -1;
+// 【2026-11-XX追加・実機バグ調査：一瞬協力にカウントダウンが無かった不具合】
+// js/onlineInstantBattleScreen.jsと全く同じ設計（isFirstQuestionOfMatch・isCountdownActive）。
+let isFirstQuestionOfMatch = true;
+let isCountdownActive = false;
 // 直近に描画した問題・ラウンド（変わった瞬間だけ音源を再生し直すために使う）。
 let lastPlayedQuestionIndex = -1;
 let lastPlayedRoundNumber = -1;
@@ -300,6 +314,10 @@ export function initOnlineInstantCoopBattleScreens(newElements) {
   // ローカルな再生のやり直し（disabledの制御はrenderCurrentQuestionState()側で行う）。
   elements.replayButton?.addEventListener("click", () => {
     if (!latestRoom || !currentMatchId) return;
+    // 【2026-11-XX追加・実機バグ調査：一瞬協力にカウントダウンが無かった不具合】
+    // js/onlineInstantBattleScreen.jsの再視聴ボタンと同じ連打防止（カウントダウン・
+    // 再生中はもう一度押しても何も起きない）。
+    if (isCountdownActive) return;
     const match = latestRoom.matches?.[currentMatchId];
     if (!match || typeof match.currentQuestionIndex !== "number") return;
     const qIndex = match.currentQuestionIndex;
@@ -307,8 +325,12 @@ export function initOnlineInstantCoopBattleScreens(newElements) {
     // 「もう一度聞く」操作音
     playSfx(SFX_EVENTS.UI_CLICK);
     reportMyQuestionActivity();
+    // 【2026-09-13相当・本人指示】「もう一度聞く」は本物のユーザー操作の直後
+    // （カウントダウン前）。ここでunlockを試みておくのが最も成功しやすいタイミングのため、
+    // 真っ先に呼ぶ（js/onlineInstantBattleScreen.jsと同じ理由）。
+    attemptSilentUnlock();
     if (!question) return;
-    playQuestionAudio(question, qIndex);
+    playCurrentQuestionAudioWithCountdown(question, qIndex);
   });
 
   // 【2026-09-17新設・本人指示：「音が出ない」救済ボタン第2段階】1人が押すと、参加者
@@ -505,6 +527,9 @@ export function resetInstantCoopBattleState() {
   lastActivityReportedAtMs = 0;
   lastActivityReportedQIndex = -1;
   disconnectedSinceMsByUid.clear();
+  hasAttemptedLocalRecoveryThisAttempt = false;
+  isFirstQuestionOfMatch = true;
+  isCountdownActive = false;
 }
 
 // js/onlineBattleScreen.jsのrenderLobby()が、room更新のたび（画面を問わず）呼ぶフック。
@@ -670,7 +695,9 @@ export async function enterInstantCoopBattlePlay(room) {
   lastActivityReportedAtMs = 0;
   lastActivityReportedQIndex = -1;
   disconnectedSinceMsByUid.clear();
-  localAudioRecoveryAttemptedForQIndex.clear();
+  hasAttemptedLocalRecoveryThisAttempt = false;
+  isFirstQuestionOfMatch = true;
+  isCountdownActive = false;
 
   elements.error.hidden = true;
 
@@ -976,7 +1003,17 @@ function showAudioErrorInline(message) {
 // 全員に無効化が波及する設計）自体は維持しつつ、サーバーへ報告する前に1回だけ
 // ローカルで再unlock→再生を試みることで、iOSの自動再生許可が長い無操作区間中に
 // 再ロックされるケースなど、正常な端末が誤って失敗報告してしまう事態を減らす。
-const localAudioRecoveryAttemptedForQIndex = new Set();
+// 【2026-11-XX修正・実機バグ調査：「もう一度聞く」を使うと問題無効になりやすい不具合】
+// 以前はquestionIndexだけをキーにしたSetで「この問題は既にローカル再試行を使い切った」を
+// 管理していたため、初回再生が（正常に）1回ローカル再試行で回復しただけで、その問題の
+// 復旧予算を使い切ったことになり、その後プレイヤーが「もう一度聞く」を使って再生に
+// 失敗した場合、本来なら1回は与えられるはずのローカル再試行が一切無いまま、いきなり
+// サーバーへ報告＝問題無効化に直行していた（本人からの実機報告「もう一度聞くを使うと
+// 無効になりやすい」の直接原因）。「もう一度聞く」自体は正常な機能であり、使っただけで
+// 復旧の機会を失うのはおかしいため、「今まさに行っている1回の再生の試み」ごとに
+// 予算をリセットする（playCurrentQuestionAudioWithCountdown()が新しい再生を開始する
+// たびにfalseへ戻す）。
+let hasAttemptedLocalRecoveryThisAttempt = false;
 
 function handleCoopPlaybackFailure(questionIndex, message) {
   const visibilityState = typeof document !== "undefined" ? document.visibilityState : "unknown";
@@ -989,11 +1026,11 @@ function handleCoopPlaybackFailure(questionIndex, message) {
     questionIndex,
     message,
     visibilityState,
-    alreadyAttemptedLocalRecovery: localAudioRecoveryAttemptedForQIndex.has(questionIndex),
+    alreadyAttemptedLocalRecovery: hasAttemptedLocalRecoveryThisAttempt,
   });
 
-  if (!localAudioRecoveryAttemptedForQIndex.has(questionIndex)) {
-    localAudioRecoveryAttemptedForQIndex.add(questionIndex);
+  if (!hasAttemptedLocalRecoveryThisAttempt) {
+    hasAttemptedLocalRecoveryThisAttempt = true;
     const isStillCurrent =
       requestMatchId === currentMatchId && latestRoom?.matches?.[requestMatchId]?.currentQuestionIndex === questionIndex;
     const question = currentQuestions[questionIndex];
@@ -1084,6 +1121,42 @@ function playQuestionAudio(question, questionIndex) {
         questionIndex,
       }),
     () => {}
+  );
+}
+
+// 【2026-11-XX新設・実機バグ調査：一瞬協力にカウントダウンが無かった不具合】
+// js/onlineInstantBattleScreen.jsのplayCurrentQuestionAudioWithCountdown()と全く同じ設計。
+// 対戦開始時の3→2→1（js/onlineBattleScreen.js）が既に表示された直後なので、この対戦の
+// 最初の問題の初回出題だけはこの問題ごとのカウントダウンを省略し、画面遷移アニメーション分
+// だけ短く待ってから直接再生する。第2問以降の初回出題・すべての「もう一度聞く」は、
+// 通常どおり3→2→1を表示する。
+function playCurrentQuestionAudioWithCountdown(question, questionIndex) {
+  // 【2026-11-XX追加・実機バグ調査：「もう一度聞く」を使うと問題無効になりやすい不具合】
+  // 新しい1回の再生の試みが始まるたびに、ローカル回復の予算を必ずリセットする
+  // （handleCoopPlaybackFailure()のコメント参照）。
+  hasAttemptedLocalRecoveryThisAttempt = false;
+  if (!elements.countdown || !elements.countdownNumber) {
+    // 保険：要素が見つからない場合はカウントダウンを諦め、これまでどおり即座に再生する
+    // （画面が壊れて音が一切鳴らなくなることだけは避ける）。
+    playQuestionAudio(question, questionIndex);
+    return;
+  }
+  if (isFirstQuestionOfMatch) {
+    isFirstQuestionOfMatch = false;
+    isCountdownActive = true;
+    setTimeout(() => {
+      isCountdownActive = false;
+      playQuestionAudio(question, questionIndex);
+    }, SCREEN_ENTER_ANIMATION_MS);
+    return;
+  }
+  isCountdownActive = true;
+  runLocalReplayCountdownForQuestion(
+    { containerElement: elements.countdown, numberElement: elements.countdownNumber, isFirstQuestion: false },
+    () => {
+      isCountdownActive = false;
+      playQuestionAudio(question, questionIndex);
+    }
   );
 }
 
@@ -1459,7 +1532,7 @@ function renderCurrentQuestionState() {
     // 切り替わったら、前問の「続き」楽曲が鳴り続けないよう必ず止める保険
     // （js/onlineInstantBattleScreen.jsの同種の対応と同じ考え方）。
     stopAudio();
-    playQuestionAudio(question, qIndex);
+    playCurrentQuestionAudioWithCountdown(question, qIndex);
     // 【2026-09-07改訂・本人指示：検索状態を毎問題完全リセット／50音UIの共通展開】
     // 検索文字列・50音ジャンプの選択行・選択肢一覧のスクロール位置を、新しい問題ごとに
     // 先頭状態へ戻す（js/answerPoolBrowseUi.js参照）。
@@ -1483,7 +1556,7 @@ function renderCurrentQuestionState() {
     const recoveryKey = `${qIndex}:${recovery.attemptCount}`;
     if (recoveryKey !== lastAppliedAudioTroubleRecoveryKey) {
       lastAppliedAudioTroubleRecoveryKey = recoveryKey;
-      playQuestionAudio(question, qIndex);
+      playCurrentQuestionAudioWithCountdown(question, qIndex);
     }
   }
 
@@ -1647,7 +1720,7 @@ function driveInstantCoopRematchReadyAutoStart(room) {
   const myUid = getCurrentUid();
   const isHost = room.host === myUid;
   const players = room.players || {};
-  const allReady = computeAllPlayersRematchReady(players);
+  const allReady = computeAllPlayersRematchReady(players, room.rematchParticipantUids);
 
   if (isHost && allReady && instantCoopRematchAutoStartTimerId === null) {
     const roomId = room.roomId;
@@ -1655,7 +1728,7 @@ function driveInstantCoopRematchReadyAutoStart(room) {
       instantCoopRematchAutoStartTimerId = null;
       const latest = latestRoom;
       if (!latest || latest.roomId !== roomId || latest.confirmingRematch !== true) return;
-      if (!computeAllPlayersRematchReady(latest.players)) return;
+      if (!computeAllPlayersRematchReady(latest.players, latest.rematchParticipantUids)) return;
       attemptSilentUnlock();
       await finishRematchReadyCheck({ roomId });
     }, REMATCH_AUTO_START_DELAY_MS);
@@ -1692,8 +1765,11 @@ function renderInstantCoopResultReturnPanel(room) {
         ? "再戦を準備中です。全員の準備が揃うと自動的に始まります。"
         : "ホストが「もう一度」を選びました。準備ができたら「準備OK」を押してください。";
     }
-    renderRematchReadinessList(elements.resultRematchPlayerList, players, myUid, isHostOnResultScreen);
-    const allReady = computeAllPlayersRematchReady(players);
+    // 【2026-11-XX追加・実機バグ調査：再戦準備中に新規参加者が来ても巻き込まない仕様】
+    // 「結果確認の状況」一覧には、この再戦の対象者だけを出す（新規参加者は出さない）。
+    const rematchPlayers = filterPlayersForRematchParticipants(players, room.rematchParticipantUids);
+    renderRematchReadinessList(elements.resultRematchPlayerList, rematchPlayers, myUid, isHostOnResultScreen);
+    const allReady = computeAllPlayersRematchReady(players, room.rematchParticipantUids);
     const myReady = players[myUid]?.rematchReady === true;
     // 【2026-11-XX修正・実機バグ調査：再戦フロー】js/onlineBattleScreen.jsの通常モードでは
     // 既に対応済みだったホスト分岐が、このファイルには移植されておらず欠落していた。
@@ -1717,6 +1793,9 @@ function syncInstantCoopResultReturnPanel(room) {
 }
 
 export function enterInstantCoopResult(room) {
+  // 【2026-11-XX追加・実機バグ調査：結果画面のスクロール位置】js/onlineBattleScreen.jsの
+  // goToResultScreen()と同じ理由。結果画面へ入るたび必ず一番上から見せる。
+  scrollToTop();
   latestRoom = room;
   stopAllLocalTimers();
   // 【2026-09-30新設・本人指示】新しい結果画面に入るたび、まだ何も意思表示していない

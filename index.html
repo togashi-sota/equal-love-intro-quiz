@@ -3964,6 +3964,17 @@
         <div class="quiz-middle-zone-inner">
           <p id="online-instant-coop-battle-error" class="error-message" hidden></p>
 
+          <!-- 【2026-11-XX新設・実機バグ調査：一瞬協力にカウントダウンが無かった不具合】
+               js/onlineInstantBattleScreen.js（一瞬バトル）には最初から存在した「各問題の
+               音源再生の直前に3→2→1を表示する」仕組み（js/localReplayCountdown.js）が、
+               この一瞬協力の画面には元々マークアップごと存在しなかった。そのため「もう一度
+               聞く」を押すと（カウントダウンを経由しようがないので）即座に音が鳴っているように
+               見えていた。一瞬バトルと全く同じCSSクラス（.local-replay-countdown）を再利用し、
+               挙動も完全に統一する（js/onlineInstantCoopBattleScreen.js参照）。 -->
+          <div id="online-instant-coop-battle-countdown" class="local-replay-countdown" hidden>
+            <p id="online-instant-coop-battle-countdown-number" class="local-replay-countdown-number">3</p>
+          </div>
+
           <!-- 【2026-09-05改訂、本人指示】共有再視聴（最大2回・タイのときだけ）方式を廃止し、
                各自が個別に無制限で再視聴できるボタンへ変更した（多数決自体は維持）。
                投票済み・正解確定後は押せなくする（js/onlineInstantCoopBattleScreen.js側で制御）。 -->

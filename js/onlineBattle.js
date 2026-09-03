@@ -414,10 +414,11 @@ export async function joinRoom({ roomId, playerName }) {
   // 参加自体を失敗させないよう、この後始末はfire-and-forgetで行う
   // （resetRuleConfirmationsIfConfirming自体が失敗を握りつぶす設計）。
   resetRuleConfirmationsIfConfirming({ roomId, room, joiningUid: uid });
-  // 【再戦準備フェーズ新設・本人指示】再戦準備中（room.confirmingRematch）に新しく参加した
-  // 場合も、同じ理由で全員の準備状態を一度リセットする。上と全く同じ考え方だが、
-  // ruleConfirmedとrematchReadyは別のフィールドのため、別の関数として持つ。
-  resetRematchReadyIfConfirming({ roomId, room, joiningUid: uid });
+  // 【2026-11-XX変更・実機バグ調査：再戦準備中に新規参加者が来ても巻き込まない仕様】
+  // 以前はここでresetRematchReadyIfConfirming()を呼び、再戦準備中に新しく参加した人が
+  // いれば提案そのものを取り消していたが、今は新規参加者をrematchParticipantUidsの
+  // スナップショットから自然に除外する方式へ変更したため、この呼び出しは不要になった
+  // （進行中の再戦・既存参加者のREADY状態には一切触れない）。
 
   finalizeJoin(roomId, playerName, uid);
   return { ok: true, roomId };
@@ -533,11 +534,10 @@ export async function promoteSpectatorToPlayer({ roomId, playerName }) {
   // 場合もjoinRoom()と同じ理由でルール確認状態をリセットする（js/onlineBattle.jsの
   // joinRoom()参照）。
   resetRuleConfirmationsIfConfirming({ roomId, room, joiningUid: uid });
-  // 【再戦準備フェーズ新設・本人指示】再戦準備中（room.status:waiting）に観戦者が
-  // 昇格した場合も同じ理由でリセットする。再戦準備フェーズもstatus:waitingのまま
-  // 行う設計（js/onlineBattle.jsのbeginRematchReadyCheck()参照）のため、この昇格経路が
-  // 再戦準備中に実際に起こりうる。
-  resetRematchReadyIfConfirming({ roomId, room, joiningUid: uid });
+  // 【2026-11-XX変更・実機バグ調査：再戦準備中に新規参加者が来ても巻き込まない仕様】
+  // 観戦者からの昇格も「新規参加」の一種のため、上のjoinRoom()と同じ理由で
+  // resetRematchReadyIfConfirming()の呼び出しを廃止した（rematchParticipantUidsの
+  // スナップショットに含まれない限り、この人は自動的に今の再戦の対象外になる）。
   return { ok: true };
 }
 
@@ -1201,26 +1201,19 @@ export async function resetRuleConfirmationsIfConfirming({ roomId, room, joining
   }
 }
 
-// 【再戦準備フェーズ新設・本人指示→2026-10-01改訂】再戦準備中（room.confirmingRematch）に
-// 新しい参加者がルームへ入った場合の扱い。以前は準備状態を全員分falseへリセットするだけで
-// 提案自体は続行していたが、本人指示により「途中から再戦へ混ぜない」方針へ変更した。
-// 新規参加者が入った時点で再戦提案そのものを取りやめ（confirmingRematch:false）、
-// 全員が通常のロビー画面（対戦設定）へ戻るようにする。confirmingRematchをfalseへ書く
-// 操作自体は、Firebase Rules側で「誰でもfalseにはできる」と許可してあるため
-// （host専用なのはtrueにする操作だけ）、参加した本人の端末がそのまま実行できる。
-// 失敗しても致命的ではないのでfire-and-forgetで呼べる。
-export async function resetRematchReadyIfConfirming({ roomId, room, joiningUid }) {
-  if (!room?.confirmingRematch) return;
-  try {
-    await update(ref(database), {
-      [`rooms/${roomId}/confirmingRematch`]: false,
-      [`rooms/${roomId}/players/${joiningUid}/rematchReady`]: false,
-    });
-  } catch (error) {
-    // 失敗しても致命的ではない（各参加者は自分の準備状態を自分で管理できるため、
-    // 次に誰かが操作すれば整合する）。
-  }
-}
+// 【再戦準備フェーズ新設・本人指示→2026-10-01改訂→2026-11-XX廃止・実機バグ調査】
+// 再戦準備中（room.confirmingRematch）に新しい参加者がルームへ入った場合の扱いは、
+// 過去2回仕様が変わっている：①当初は準備状態を全員分falseへリセットするだけで提案は
+// 続行、②その後「途中から再戦へ混ぜない」方針により、新規参加者が入った瞬間に再戦提案
+// そのものを取りやめる（confirmingRematch:false）方式に変更、③今回さらに
+// 「新規参加者が来ても、進行中の再戦（既存参加者のREADY状態も含めて）は一切乱さず、
+// その新規参加者だけを対象外にすればよい」という確定仕様になったため、この関数
+// （新規参加者の入室をきっかけに再戦提案そのものを取り消す処理）自体が不要になった。
+// 新規参加者を対象外にする仕組みは、beginRematchReadyCheck()が再戦提案の瞬間に固定する
+// room.rematchParticipantUids（この再戦の対象者のスナップショット）と、
+// computeAllPlayersRematchReady()・finishRematchReadyCheck()側のフィルタだけで完結する
+// （js/onlineBattleMatchConfirmationPayloads.js参照）。joinRoom()・spectateRoom()からの
+// 呼び出しは削除済み。
 
 // ホスト専用：ルール確認を取りやめてロビーへ戻す（設定を直接変更したくなった場合の
 // 逃げ道。本人からの明示的な要望ではないが、進行に行き詰まらないための安全な保険）。
@@ -1638,11 +1631,17 @@ export async function maybeFinalizeReturnToLobbyIfAllReturned({ roomId, room }) 
 // （対戦開始前ルール確認画面のbeginMatchConfirmation()→startBattle()と同じ「入り口と
 // 開始直前の二重チェック」構造。準備を待っている間に設定・所持データの状況が変わる
 // 可能性があるため、開始直前にもう一度確かめる）。
-async function resolveRematchSettingsValidation({ roomId, room }) {
+// 【2026-11-XX追加・実機バグ調査：再戦準備中に新規参加者が来ても巻き込まない仕様】
+// playersOverrideを渡すと、共通曲の絞り込み判定をroom.players全員ではなくその集合だけで
+// 行う。finishRematchReadyCheck()（開始直前の最終チェック）が、rematchParticipantUidsで
+// 絞った「この再戦の対象者だけ」を渡すために使う。省略時（beginRematchReadyCheck()の
+// 入り口チェック）は、まさに今ルームにいる全員がこれから固定される対象者そのものなので、
+// 従来どおりroom.players全員を使う。
+async function resolveRematchSettingsValidation({ roomId, room, playersOverride }) {
   const errorMessage = validateRoomSettings(room.gameMode, room.settings);
   if (errorMessage) return { ok: false, reason: "invalid-settings", message: errorMessage };
 
-  const players = room.players || {};
+  const players = playersOverride ?? room.players ?? {};
   let finalSettings = room.settings;
   const resolvedSongPool = resolveSongPoolForSettings(room.gameMode, room.settings);
   if (resolvedSongPool) {
@@ -1698,11 +1697,12 @@ async function resolveRematchSettingsValidation({ roomId, room }) {
 //   ②再監査コストの回避：room.statusは意図的にこれまでどおり"waiting"へ戻す
 //     （confirmingMatchと同じ設計。room.statusの値を増やすと、参加・キック・観戦者の
 //     昇格・ホスト移譲等、既存の"waiting"前提のあらゆる判定を1つずつ洗い直す必要が
-//     あり危険なため）。room.status:waitingのままにしておくことで、途中参加
-//     （resetRematchReadyIfConfirming）・ホストによるキック・観戦者の昇格は
-//     これまでどおり動作し、退出した参加者はroom.playersから消えるため、
-//     computeAllPlayersRematchReady()が自動的に「待たない」対象から除外する
-//     （js/onlineBattleMatchConfirmationPayloads.js参照）。
+//     あり危険なため）。room.status:waitingのままにしておくことで、ホストによる
+//     キック・観戦者の昇格はこれまでどおり動作し、退出した参加者はroom.playersから
+//     消えるため、computeAllPlayersRematchReady()が自動的に「待たない」対象から除外する
+//     （js/onlineBattleMatchConfirmationPayloads.js参照）。途中参加（新規のjoin/観戦者昇格）は
+//     2026-11-XX改訂により、rematchParticipantUidsのスナップショットへ含まれないことで
+//     自然に今の再戦の対象外になる（resetRematchReadyIfConfirming()は廃止済み）。
 export async function beginRematchReadyCheck({ roomId }) {
   await authReady;
   const uid = getCurrentUid();
@@ -1729,12 +1729,20 @@ export async function beginRematchReadyCheck({ roomId }) {
     [`rooms/${roomId}/status`]: ROOM_STATUS.WAITING,
     [`rooms/${roomId}/confirmingRematch`]: true,
   };
+  // 【2026-11-XX追加・実機バグ調査：再戦準備中に新規参加者が来ても巻き込まない仕様】
+  // 「今この瞬間ルームにいる参加者」を、この再戦の対象者として固定する。この後
+  // ルームへ新しく入ってくる人は、rematchParticipantUidsに含まれないため、
+  // computeAllPlayersRematchReady()の判定にも、実際に始まる再戦の参加者にも含まれない
+  // （js/onlineBattle.jsのwriteNewMatchStart()参照）。
+  const rematchParticipantUids = {};
   Object.keys(players).forEach((playerUid) => {
     // 【2026-10-01改訂・本人指示：結果画面/再戦フロー全面設計】「もう一度」を押した時点で、
     // ホスト自身は既に準備OK扱いにする（本人指示12：「ホストが『もう一度』を押した時点で
     // ホスト自身は準備OK扱い」）。他の参加者はこれまでどおり未準備からスタートする。
     updates[`rooms/${roomId}/players/${playerUid}/rematchReady`] = playerUid === uid;
+    rematchParticipantUids[playerUid] = true;
   });
+  updates[`rooms/${roomId}/rematchParticipantUids`] = rematchParticipantUids;
   try {
     await update(ref(database), updates);
   } catch (error) {
@@ -1803,18 +1811,29 @@ export async function finishRematchReadyCheck({ roomId }) {
   if (room.status !== ROOM_STATUS.WAITING || room.confirmingRematch !== true) {
     return { ok: false, reason: "not-confirming-rematch" };
   }
-  const players = room.players || {};
+  const allPlayers = room.players || {};
+  // 【2026-11-XX追加・実機バグ調査：再戦準備中に新規参加者が来ても巻き込まない仕様】
+  // beginRematchReadyCheck()が再戦提案の瞬間に固定したrematchParticipantUidsだけを
+  // この再戦の対象にする。この後に入室した参加者はここに含まれないため、判定にも
+  // 新しく始まる試合の参加者にも入らない（ロビーで待機し、次の再戦から参加できる）。
+  // rematchParticipantUidsがまだ無い（古いデータ・想定外の状態）場合は、安全側の
+  // フォールバックとして従来どおり全員を対象にする。
+  const rematchParticipantUids = room.rematchParticipantUids;
+  const players =
+    rematchParticipantUids && Object.keys(rematchParticipantUids).length > 0
+      ? Object.fromEntries(Object.entries(allPlayers).filter(([playerUid]) => rematchParticipantUids[playerUid] === true))
+      : allPlayers;
   // 【2026-10-01追加・本人指示：結果画面/再戦フロー全面設計12-6章】オンライン対戦の再戦は
   // 最低2人必要（通常の対戦開始とは異なり、1人だけの再戦は成立させない）。他の書き込み
   // 経路（leaveRoom・kickPlayer等）で既に確認済みの人数チェックの、最後の砦としての防御。
   if (Object.keys(players).length < 2) {
     return { ok: false, reason: "rematch-needs-two-players" };
   }
-  if (!computeAllPlayersRematchReady(players)) {
+  if (!computeAllPlayersRematchReady(players, rematchParticipantUids)) {
     return { ok: false, reason: "not-all-ready" };
   }
 
-  const validation = await resolveRematchSettingsValidation({ roomId, room });
+  const validation = await resolveRematchSettingsValidation({ roomId, room, playersOverride: players });
   if (!validation.ok) return validation;
 
   return writeNewMatchStart({ roomId, room, uid, players, finalSettings: validation.finalSettings });

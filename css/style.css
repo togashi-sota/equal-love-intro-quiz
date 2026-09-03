@@ -83,7 +83,20 @@ body textarea {
 
 body {
   margin: 0;
-  min-height: 100vh;
+  /* 【2026-11-XX修正・本人指示：iPhone下部の白い帯バグの調査結果】以前はここが
+     min-height: 100vh; だった。iOSのstandalone PWAでは、vh/dvh系の単位や
+     window.innerHeightが、ホームインジケーターのsafe-area分だけ画面の物理的な
+     最下端より短く報告されることが実機診断で確定済み（このファイル上部の
+     --game-frame-safe-height の説明、および「17-16・17-17章」「ライブコール
+     モード再生画面UI/UX第4版」のコメント参照）。bodyの背景（グラデーション）が
+     この分だけ画面の物理的な最下端に届かず、その外側にブラウザ標準の白い
+     キャンバスが透けて見えていたと考えられる（htmlタグ自体に背景色指定が無いため）。
+     既にセンターお祝いポップアップ・一部のgame-frame（クイズ回答画面等）へ
+     実機で効果を確認済みの--game-frame-safe-height（100dvh + safe-area-inset-bottom）
+     をbodyにも適用し、背景を画面の物理的な最下端まで確実に届かせる。
+     safe-area-inset-bottomが無い環境（notch/ホームインジケーターの無い端末・PC等）
+     では0pxに解決されるため、実質100dvhと同じ挙動のまま変化しない。 */
+  min-height: var(--game-frame-safe-height);
   font-family: var(--font-family-base);
   color: var(--color-text);
   background: linear-gradient(135deg, var(--color-background-start), var(--color-background-end));
@@ -11191,7 +11204,12 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 
   .game-frame {
     max-width: 100%;
-    min-height: 100vh;
+    /* 【2026-11-XX修正】bodyと同じ理由（上記コメント参照）で100vhからの置き換え。
+       スマホ幅ではgame-frame自体が画面いっぱい（border-radius:0）に広げる設計のため、
+       特にコンテンツが短い画面（例：フォロー一覧・診断ログ画面等、一部のクイズ画面
+       専用ルールが別途上書きしない画面）で、枠が画面の物理的な最下端まで届かず
+       白い帯が残っていた可能性が高い。 */
+    min-height: var(--game-frame-safe-height);
     border-radius: 0;
     box-shadow: none;
   }

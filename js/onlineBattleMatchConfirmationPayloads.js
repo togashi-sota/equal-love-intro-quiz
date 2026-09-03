@@ -57,10 +57,33 @@ export function computeAllPlayersResultReturned(players) {
 // 【途中退出者を待たない】退出したプレイヤーはroom.playersから削除される
 // （js/onlineBattle.jsのleaveRoom()参照）ため、この関数は常に「今ルームに残っている
 // 参加者だけ」を見ることになり、途中退出者を除外する処理を別途持つ必要がない。
-export function computeAllPlayersRematchReady(players) {
-  const entries = Object.values(players ?? {});
+// 【2026-11-XX追加・実機バグ調査：再戦準備中に新規参加者が来ても巻き込まない仕様】
+// 第2引数participantUids（{uid: true, ...} または省略可）を渡すと、その集合に
+// 含まれるplayersだけを判定対象にする。beginRematchReadyCheck()が再戦提案の瞬間に
+// room.rematchParticipantUidsへ固定して書き込む「この再戦の対象者」のスナップショット
+// （js/onlineBattle.js参照）。これにより、再戦準備中に新しく入室した参加者は、
+// 全員の準備が揃ったかどうかの判定にも、再戦の実際の参加者にも含まれなくなる
+// （新規参加者はロビーで待機し、次の再戦から通常どおり参加できる）。省略した場合は
+// 従来どおりplayers全員を対象にする（呼び出し側の後方互換・スナップショットが
+// 何らかの理由でまだ無い場合の安全側フォールバック）。
+export function computeAllPlayersRematchReady(players, participantUids) {
+  let entries = Object.entries(players ?? {});
+  if (participantUids && Object.keys(participantUids).length > 0) {
+    entries = entries.filter(([uid]) => participantUids[uid] === true);
+  }
   if (entries.length === 0) return false;
-  return entries.every((player) => player.rematchReady === true);
+  return entries.every(([, player]) => player.rematchReady === true);
+}
+
+// 【2026-11-XX新設・実機バグ調査：再戦準備中に新規参加者が来ても巻き込まない仕様】
+// 再戦準備パネルの「結果確認の状況」参加者一覧は、room.players全員ではなく、この
+// 再戦の対象者（participantUids）だけを表示する。新規参加者は一覧にすら出さず、
+// ロビー画面側の通常の参加者一覧でだけ見えるようにする（本人指示：「新しく入った人は
+// ロビー上で待機させ、現在進行中の再戦には含めない」）。participantUidsが無い
+// （まだスナップショットが無い等）場合は、従来どおりplayers全員を返す。
+export function filterPlayersForRematchParticipants(players, participantUids) {
+  if (!participantUids || Object.keys(participantUids).length === 0) return players ?? {};
+  return Object.fromEntries(Object.entries(players ?? {}).filter(([uid]) => participantUids[uid] === true));
 }
 
 // 【2026-11-XX新設・実機バグ調査：再戦フロー】結果画面インライン再戦パネルの

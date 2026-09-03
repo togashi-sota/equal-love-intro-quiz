@@ -15,6 +15,7 @@
 // このファイルに残しているが、将来モードが増えたときは、フォームの出し分けもここで行う想定。
 
 import { getActivePlayer } from "./playerProfile.js";
+import { scrollToTop } from "./screens.js";
 import { nextLobbyRenderSequence, recordLobbyRenderEvent, countLobbyRenderStartsInLastSecond } from "./lobbyRenderDiagnosticLog.js";
 import { promptReturnToLobby } from "./onlineBattleLobbyReturnPrompt.js";
 import { promptLeaveMatch, hasVoluntarilyLeftMatch } from "./onlineBattleLeaveMatchPrompt.js";
@@ -87,6 +88,7 @@ import {
   computeAllPlayersRematchReady,
   computeAllPlayersResultReturned,
   resolveRematchToggleButtonLabel,
+  filterPlayersForRematchParticipants,
 } from "./onlineBattleMatchConfirmationPayloads.js";
 // 【2026-09-16新設・本人指示：対戦中に自主退出したゲストを待ち続けない】タイムアタック・
 // ランダム再生対戦・アウトロクイズ対戦（このファイルが担当する個人進行系3モード）が
@@ -980,7 +982,10 @@ function renderRematchSummaryChips(containerElement, room) {
 // 他3画面もこの中立ファイル経由で全く同じ処理を共有する）。
 function renderRematchPlayerList(listElement, room) {
   const myUid = getCurrentUid();
-  renderRematchReadinessListShared(listElement, room.players || {}, myUid, room.host === myUid);
+  // 【2026-11-XX追加・実機バグ調査：再戦準備中に新規参加者が来ても巻き込まない仕様】
+  // 「結果確認の状況」一覧には、この再戦の対象者だけを出す（新規参加者は出さない）。
+  const rematchPlayers = filterPlayersForRematchParticipants(room.players, room.rematchParticipantUids);
+  renderRematchReadinessListShared(listElement, rematchPlayers, myUid, room.host === myUid);
 }
 const handleRematchKickClick = createRematchKickHandler({
   getRoomId: () => currentRoomId,
@@ -996,7 +1001,7 @@ export function driveRematchReadyAutoStart(room) {
   const myUid = getCurrentUid();
   const isHost = room.host === myUid;
   const players = room.players || {};
-  const allReady = computeAllPlayersRematchReady(players);
+  const allReady = computeAllPlayersRematchReady(players, room.rematchParticipantUids);
 
   // 【全員準備OK後、2秒待ってから開始】対戦開始前ルール確認画面の自動開始と全く同じ設計
   // （本人指示21と同じ考え方をこちらにも踏襲）。ホストの端末だけがこの判定・実際の開始
@@ -1014,7 +1019,7 @@ export function driveRematchReadyAutoStart(room) {
       // 実行直前に再チェックする）。
       const latest = latestRoom;
       if (!latest || latest.roomId !== roomId || latest.confirmingRematch !== true) return;
-      if (!computeAllPlayersRematchReady(latest.players)) return;
+      if (!computeAllPlayersRematchReady(latest.players, latest.rematchParticipantUids)) return;
       attemptSilentUnlock();
       await finishRematchReadyCheck({ roomId });
       // 失敗した場合（設定が直前で不正になった等）は、renderLobby()の次回呼び出しで
@@ -1039,7 +1044,7 @@ function renderRematchReadyScreen(room) {
   renderRematchSummaryChips(elements.rematchReadySummary, room);
   renderRematchPlayerList(elements.rematchReadyPlayerList, room);
 
-  const allReady = computeAllPlayersRematchReady(players);
+  const allReady = computeAllPlayersRematchReady(players, room.rematchParticipantUids);
   const myReady = players[myUid]?.rematchReady === true;
   if (elements.rematchReadyToggleButton) {
     elements.rematchReadyToggleButton.textContent = myReady ? "準備を取り消す" : "✓ 準備OK";
@@ -1896,7 +1901,17 @@ function renderLobbyInner(room) {
   // （試合中はFirebase Rules側でも書き込みを拒否するため、UI側でも先に隠しておく）。
   // 常時表示化に伴い、ホスト・参加者どちらにも見えるようにした（参加者側はラジオを
   // disabledにして読み取り専用にし、今のモードとの同期だけを受け取る）。
-  elements.lobbyModeChange.hidden = room.status !== ROOM_STATUS.WAITING;
+  // 【2026-11-XX改訂・実機バグ調査：対戦終了後、次のモードを選択できない問題】以前は
+  // status==='waiting'のときだけ表示していたが、試合終了直後は「playing→result→
+  // （全員がロビーへ戻ってから）waiting」という流れのため、ゲストがまだ結果画面を
+  // 見ている間はwaitingにならず、ホストが先にロビーへ戻ってもモード選択欄自体が
+  // 表示されなかった。本人指示「ホストは自分が結果確認を終えた時点で、ゲストの結果確認を
+  // 待たずに次回のルーム設定を編集できる」に従い、status==='result'のときも表示する
+  // （updateRoomGameMode()の書き込み許可・firebase/database.rules.jsonのgameMode用
+  // ルールも同じ理由で既にwaiting/resultの両方を許可済み。このUI表示側だけが
+  // 取り残されていた）。ゲスト側がまだ結果画面にいる間はこの関数自体（renderLobbyInner）が
+  // ロビー画面のDOMを更新するだけで、ゲストの実際の表示画面（結果画面）には一切影響しない。
+  elements.lobbyModeChange.hidden = room.status !== ROOM_STATUS.WAITING && room.status !== ROOM_STATUS.RESULT;
   if (!elements.lobbyModeChange.hidden) {
     // 【本人指示：候補選択中にラジオが勝手に戻るチラつきを防ぐ】ホストがまだ確定させて
     // いない候補を選んでいる間（modeChangeHasPendingSelection===true）は、room.gameMode
@@ -2293,7 +2308,7 @@ function renderResultReturnPanel(room) {
     }
     if (elements.resultRematchSummary) renderRematchSummaryChips(elements.resultRematchSummary, room);
     renderRematchPlayerList(elements.resultRematchPlayerList, room);
-    const allReady = computeAllPlayersRematchReady(players);
+    const allReady = computeAllPlayersRematchReady(players, room.rematchParticipantUids);
     const myReady = players[myUid]?.rematchReady === true;
     // 【2026-11-XX改訂・本人指示：結果/再戦フロー最終仕様】ホストは提案した瞬間から
     // 常に準備済み扱い（beginRematchReadyCheck()参照）のため「準備OK」は出さず、
@@ -2656,6 +2671,20 @@ function updateOnlineBattlePlayUi(room) {
 // DNFとして最下位グループに表示する（オフライン対戦のjs/localBattleResultScreen.jsと
 // 同じ考え方だが、結果の集まり方がFirebase経由の自動集計である点が異なる）。
 function goToResultScreen(room) {
+  // 【2026-11-XX追加・実機バグ調査：結果画面のスクロール位置】「同じ条件でもう一度」を
+  // 連続で使うと、前回結果画面のスクロール位置を引き継いだまま表示され、「対戦結果」
+  // 「順位」が見えない状態で始まっていた。結果画面へ入るたび必ず一番上から見せる。
+  // 【2026-11-XX追記・二重レビューで発見】この関数はrenderSpectatorView()からも呼ばれるが、
+  // そちらはstatusJustChanged相当のガードを持たず、room.status==='result'である限り
+  // room更新のたび毎回呼ばれる（js/onlineBattleScreen.jsのrenderSpectatorView()参照）。
+  // そのため、既にこの結果画面を表示済みなら（再戦準備中のready状態変化など、結果自体とは
+  // 無関係な更新でも）scrollToTop()だけは省略する。省略しないと、観戦者が結果を下まで
+  // スクロールして見ている最中に、無関係な更新のたび強制的に一番上へ戻されてしまう。
+  const isFreshEntryToResultScreen = document.body.dataset.screen !== "onlineBattleResult";
+  if (isFreshEntryToResultScreen) {
+    scrollToTop();
+  }
+
   const match = (room.matches || {})[currentMatchId] || {};
   const participants = match.participants || {};
   const results = match.results || {};

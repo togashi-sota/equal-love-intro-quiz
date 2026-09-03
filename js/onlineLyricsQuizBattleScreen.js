@@ -29,6 +29,7 @@
 // 再構築する（本人の指摘を受けて、Phase6時点の「既知の制約」を解消した）。
 
 import { getCurrentUid } from "./firebaseClient.js";
+import { scrollToTop } from "./screens.js";
 import {
   ROOM_STATUS,
   updateRoomSettings,
@@ -52,7 +53,11 @@ import {
   renderRematchReadinessList,
   createRematchKickHandler,
 } from "./onlineBattleResultReturnState.js";
-import { computeAllPlayersRematchReady, resolveRematchToggleButtonLabel } from "./onlineBattleMatchConfirmationPayloads.js";
+import {
+  computeAllPlayersRematchReady,
+  resolveRematchToggleButtonLabel,
+  filterPlayersForRematchParticipants,
+} from "./onlineBattleMatchConfirmationPayloads.js";
 import { computeRemainingRevealMs } from "./onlineBattleRevealTiming.js";
 import { recordAudioDiagnostic } from "./audioDiagnosticLog.js";
 import { promptReturnToLobby } from "./onlineBattleLobbyReturnPrompt.js";
@@ -2415,7 +2420,7 @@ function driveLyricsRematchReadyAutoStart(room) {
   const myUid = getCurrentUid();
   const isHost = room.host === myUid;
   const players = room.players || {};
-  const allReady = computeAllPlayersRematchReady(players);
+  const allReady = computeAllPlayersRematchReady(players, room.rematchParticipantUids);
 
   if (isHost && allReady && lyricsRematchAutoStartTimerId === null) {
     const roomId = room.roomId;
@@ -2423,7 +2428,7 @@ function driveLyricsRematchReadyAutoStart(room) {
       lyricsRematchAutoStartTimerId = null;
       const latest = latestRoom;
       if (!latest || latest.roomId !== roomId || latest.confirmingRematch !== true) return;
-      if (!computeAllPlayersRematchReady(latest.players)) return;
+      if (!computeAllPlayersRematchReady(latest.players, latest.rematchParticipantUids)) return;
       attemptSilentUnlock();
       await finishRematchReadyCheck({ roomId });
     }, REMATCH_AUTO_START_DELAY_MS);
@@ -2461,8 +2466,11 @@ function renderLyricsResultReturnPanel(room) {
         ? "再戦を準備中です。全員の準備が揃うと自動的に始まります。"
         : "ホストが「もう一度」を選びました。準備ができたら「準備OK」を押してください。";
     }
-    renderRematchReadinessList(elements.resultRematchPlayerList, players, myUid, isHostOnResultScreen);
-    const allReady = computeAllPlayersRematchReady(players);
+    // 【2026-11-XX追加・実機バグ調査：再戦準備中に新規参加者が来ても巻き込まない仕様】
+    // 「結果確認の状況」一覧には、この再戦の対象者だけを出す（新規参加者は出さない）。
+    const rematchPlayers = filterPlayersForRematchParticipants(players, room.rematchParticipantUids);
+    renderRematchReadinessList(elements.resultRematchPlayerList, rematchPlayers, myUid, isHostOnResultScreen);
+    const allReady = computeAllPlayersRematchReady(players, room.rematchParticipantUids);
     const myReady = players[myUid]?.rematchReady === true;
     // 【2026-11-XX修正・実機バグ調査：再戦フロー】js/onlineBattleScreen.jsの通常モードでは
     // 既に対応済みだったホスト分岐が、このファイルには移植されておらず欠落していた。
@@ -2489,6 +2497,9 @@ function syncLyricsResultReturnPanel(room) {
 }
 
 export function enterLyricsQuizResult(room) {
+  // 【2026-11-XX追加・実機バグ調査：結果画面のスクロール位置】js/onlineBattleScreen.jsの
+  // goToResultScreen()と同じ理由。結果画面へ入るたび必ず一番上から見せる。
+  scrollToTop();
   latestRoom = room;
   stopAllLocalTimers();
   // 【2026-09-30新設・本人指示：オンライン対戦総合改修 第3ラウンド】新しい結果画面に

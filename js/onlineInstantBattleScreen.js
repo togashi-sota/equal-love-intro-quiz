@@ -21,6 +21,7 @@
 // （js/instantBattleMatchProgress.jsのcomputeFinalResults()が順位まで一括で計算する）。
 
 import { getCurrentUid } from "./firebaseClient.js";
+import { scrollToTop } from "./screens.js";
 import {
   ROOM_STATUS,
   subscribeServerTimeOffset,
@@ -43,7 +44,11 @@ import {
   renderRematchReadinessList,
   createRematchKickHandler,
 } from "./onlineBattleResultReturnState.js";
-import { computeAllPlayersRematchReady, resolveRematchToggleButtonLabel } from "./onlineBattleMatchConfirmationPayloads.js";
+import {
+  computeAllPlayersRematchReady,
+  resolveRematchToggleButtonLabel,
+  filterPlayersForRematchParticipants,
+} from "./onlineBattleMatchConfirmationPayloads.js";
 import { computeRemainingRevealMs } from "./onlineBattleRevealTiming.js";
 import { promptReturnToLobby } from "./onlineBattleLobbyReturnPrompt.js";
 import { promptLeaveMatch } from "./onlineBattleLeaveMatchPrompt.js";
@@ -485,7 +490,7 @@ export async function enterOnlineInstantBattlePlay(room) {
   lastActivityReportedAtMs = 0;
   lastActivityReportedQIndex = -1;
   disconnectedSinceMsByUid.clear();
-  localAudioRecoveryAttemptedForQIndex.clear();
+  hasAttemptedLocalRecoveryThisAttempt = false;
 
   elements.error.hidden = true;
 
@@ -811,11 +816,19 @@ function showAudioErrorInline(message) {
 // ことから、iOSの自動再生許可が「相手の回答を待つ」長い無操作区間中に再ロックされ、
 // 通常の再試行だけでは回復しきれない可能性が最有力の仮説として残っている
 // （詳細はdocs/HANDOFF.md参照）。この仮説を検証しつつ誤検知を減らすため、サーバーへ
-// 報告する前に、同じ問題につき1回だけ「明示的な再unlock→再生」のローカル回復を試みる。
+// 報告する前に、1回だけ「明示的な再unlock→再生」のローカル回復を試みる。
 // 1回だけに制限しているのは、これ以上増やすと「本当に再生できない」場合の無効化が
-// 遅れすぎる（対戦のテンポを損なう）ため。qIndexごとにSetで管理し、対戦開始時
-// （enterOnlineInstantBattlePlay）にクリアする。
-const localAudioRecoveryAttemptedForQIndex = new Set();
+// 遅れすぎる（対戦のテンポを損なう）ため。
+// 【2026-11-XX修正・実機バグ調査：「もう一度聞く」を使うと問題無効になりやすい不具合】
+// 以前はquestionIndexだけをキーにしたSetで管理していたため、初回再生が（正常に）1回
+// ローカル再試行で回復しただけで、その問題の復旧予算を使い切ったことになり、その後
+// プレイヤーが「もう一度聞く」を使って再生に失敗した場合、本来なら1回は与えられる
+// はずのローカル再試行が一切無いまま、いきなりサーバーへ報告＝問題無効化に直行していた
+// （本人からの実機報告の直接原因）。「もう一度聞く」自体は正常な機能であり、使っただけで
+// 復旧の機会を失うのはおかしいため、「今まさに行っている1回の再生の試み」ごとに
+// 予算をリセットする（playCurrentQuestionAudioWithCountdown()が新しい再生を開始する
+// たびにfalseへ戻す。js/onlineInstantCoopBattleScreen.jsと同じ修正）。
+let hasAttemptedLocalRecoveryThisAttempt = false;
 
 function handlePlaybackFailure(questionIndex, message) {
   const visibilityState = typeof document !== "undefined" ? document.visibilityState : "unknown";
@@ -831,11 +844,11 @@ function handlePlaybackFailure(questionIndex, message) {
     questionIndex,
     message,
     visibilityState,
-    alreadyAttemptedLocalRecovery: localAudioRecoveryAttemptedForQIndex.has(questionIndex),
+    alreadyAttemptedLocalRecovery: hasAttemptedLocalRecoveryThisAttempt,
   });
 
-  if (!localAudioRecoveryAttemptedForQIndex.has(questionIndex)) {
-    localAudioRecoveryAttemptedForQIndex.add(questionIndex);
+  if (!hasAttemptedLocalRecoveryThisAttempt) {
+    hasAttemptedLocalRecoveryThisAttempt = true;
     // 【2026-09-30新設】再試行を実際に行う直前に、この失敗がまだ「今の試合・今の問題」に
     // 関するものかを再確認する。陳腐化していれば、無駄な再生・診断ログの汚れを避けて
     // 何もしない（本人指示：明確な追加バグが見つかったので修正する）。
@@ -942,6 +955,10 @@ function playQuestionAudio(question, questionIndex, settings) {
 // 第2問以降の初回出題・すべての「もう一度聞く」は、通常どおり3→2→1を表示する。
 function playCurrentQuestionAudioWithCountdown(question, questionIndex) {
   const settings = latestRoom.settings;
+  // 【2026-11-XX追加・実機バグ調査：「もう一度聞く」を使うと問題無効になりやすい不具合】
+  // 新しい1回の再生の試みが始まるたびに、ローカル回復の予算を必ずリセットする
+  // （handlePlaybackFailure()のコメント参照）。
+  hasAttemptedLocalRecoveryThisAttempt = false;
   if (isFirstQuestionOfMatch) {
     isFirstQuestionOfMatch = false;
     isCountdownActive = true;
@@ -1482,7 +1499,7 @@ function driveInstantBattleRematchReadyAutoStart(room) {
   const myUid = getCurrentUid();
   const isHost = room.host === myUid;
   const players = room.players || {};
-  const allReady = computeAllPlayersRematchReady(players);
+  const allReady = computeAllPlayersRematchReady(players, room.rematchParticipantUids);
 
   if (isHost && allReady && instantBattleRematchAutoStartTimerId === null) {
     const roomId = room.roomId;
@@ -1490,7 +1507,7 @@ function driveInstantBattleRematchReadyAutoStart(room) {
       instantBattleRematchAutoStartTimerId = null;
       const latest = latestRoom;
       if (!latest || latest.roomId !== roomId || latest.confirmingRematch !== true) return;
-      if (!computeAllPlayersRematchReady(latest.players)) return;
+      if (!computeAllPlayersRematchReady(latest.players, latest.rematchParticipantUids)) return;
       attemptSilentUnlock();
       await finishRematchReadyCheck({ roomId });
     }, REMATCH_AUTO_START_DELAY_MS);
@@ -1527,8 +1544,11 @@ function renderInstantBattleResultReturnPanel(room) {
         ? "再戦を準備中です。全員の準備が揃うと自動的に始まります。"
         : "ホストが「もう一度」を選びました。準備ができたら「準備OK」を押してください。";
     }
-    renderRematchReadinessList(elements.resultRematchPlayerList, players, myUid, isHostOnResultScreen);
-    const allReady = computeAllPlayersRematchReady(players);
+    // 【2026-11-XX追加・実機バグ調査：再戦準備中に新規参加者が来ても巻き込まない仕様】
+    // 「結果確認の状況」一覧には、この再戦の対象者だけを出す（新規参加者は出さない）。
+    const rematchPlayers = filterPlayersForRematchParticipants(players, room.rematchParticipantUids);
+    renderRematchReadinessList(elements.resultRematchPlayerList, rematchPlayers, myUid, isHostOnResultScreen);
+    const allReady = computeAllPlayersRematchReady(players, room.rematchParticipantUids);
     const myReady = players[myUid]?.rematchReady === true;
     // 【2026-11-XX修正・実機バグ調査：再戦フロー】js/onlineBattleScreen.jsの通常モードでは
     // 既に対応済みだったホスト分岐が、このファイルには移植されておらず欠落していた。
@@ -1552,6 +1572,9 @@ function syncInstantBattleResultReturnPanel(room) {
 }
 
 export function enterInstantBattleResult(room) {
+  // 【2026-11-XX追加・実機バグ調査：結果画面のスクロール位置】js/onlineBattleScreen.jsの
+  // goToResultScreen()と同じ理由。結果画面へ入るたび必ず一番上から見せる。
+  scrollToTop();
   latestRoom = room;
   stopAllLocalTimers();
   // 【2026-09-30新設・本人指示】新しい結果画面に入るたび、まだ何も意思表示していない
