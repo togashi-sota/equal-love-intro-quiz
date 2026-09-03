@@ -73,6 +73,10 @@ export function runCssHiddenAttributeEffectivenessTests() {
     { className: "button-row", visibleDisplay: "flex" },
     { className: "quiz-back-link", visibleDisplay: "inline-flex" },
     { className: "modal-overlay", visibleDisplay: "flex" },
+    // 【2026-11-XX追加・本人指示：ルーム招待バナー】このテストと全く同じ原因で、
+    // 招待が無いときもホーム画面にバナーが表示され続けてしまう回帰を実機テストで発見。
+    // js/roomInviteUi.js・css/style.css参照。
+    { className: "room-invite-banner", visibleDisplay: "flex" },
   ];
   alreadyFixedClasses.forEach(({ className, visibleDisplay }) => {
     const { displayWhenHidden, displayWhenVisible } = checkHiddenEffectiveness(className);

@@ -7683,6 +7683,15 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   box-shadow: 0 10px 24px -16px rgba(74, 46, 66, 0.35);
 }
 
+/* 【本人指示済みの既知パターン：tests/cssHiddenAttributeEffectiveness.test.js参照】
+   display:flexを明示指定するクラスは、[hidden]属性の打ち消しルールを個別に持たないと、
+   JS側でhidden=trueにしても実際には非表示にならない（著者スタイルシートの詳細度が
+   ブラウザ標準の[hidden]{display:none}に勝ってしまうため）。招待が無いときにこのバナーが
+   ホーム画面に表示され続けてしまう回帰を防ぐため、他の同種クラスと同じ対応をここでも行う。 */
+.room-invite-banner[hidden] {
+  display: none;
+}
+
 .room-invite-banner-text {
   font-size: 0.86rem;
   font-weight: 700;
