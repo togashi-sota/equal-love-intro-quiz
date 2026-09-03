@@ -1315,6 +1315,9 @@ function renderCurrentQuestionState() {
 
   if (!isResolved) {
     const isLargePool = question.answerPool.length >= LARGE_ANSWER_POOL_THRESHOLD;
+    // 【2026-11-XX追加・本人指示Q1：固定回答候補UIの統一】js/lyricsQuizScreen.jsと同じ
+    // 判定・同じクラス名で、4択・10択を2列グリッドにする。
+    if (elements.answerList) elements.answerList.classList.toggle("is-fixed-choice-grid", !isLargePool);
     elements.answerSearchRow.hidden = !isLargePool;
     if (isLargePool) elements.answerCount.textContent = `${question.answerPool.length}曲`;
     if (elements.answerJumpBar) {

@@ -18,7 +18,17 @@ import { SFX_EVENTS, playSfx } from "./soundManager.js";
 // このラベル表だけ旧仕様のまま取り残されていた。プリセット一覧・詳細モーダルに
 // 内部コード値（"title-track"等）がそのまま表示されてしまう表示バグだったため、
 // 実際の選択肢と同じ文言へ揃える。
-const DISTRACTOR_MODE_LABELS = { "title-track": "表題曲のみ", "title-and-group": "表題曲＋全員曲", all: "全曲" };
+// 【2026-11-XX追加・本人指示Q6：互換ラベル変換】2026-10-01より前に保存されたプリセットは
+// distractorMode:"selected"という旧コード値を持っている場合がある（当時の「選択した曲だけ」
+// 選択肢に対応）。保存データそのものは書き換えず（破壊的な移行はしない）、一覧・詳細モーダルの
+// 表示時にだけ、旧コード値を今のユーザー向け表示に変換する。現在のUI（index.html:4530-4532）
+// からはもう選べない値のため、下の表にだけ追加しておく。
+const DISTRACTOR_MODE_LABELS = {
+  "title-track": "表題曲のみ",
+  "title-and-group": "表題曲＋全員曲",
+  all: "全曲",
+  selected: "選択した曲だけ", // 旧仕様（2026-10-01より前）の互換表示
+};
 // 歌詞クイズタイプの回答候補数の表示ラベル。js/lyricsQuizEngine.jsのANSWER_POOL_SIZE_VALUESと
 // 同じ値の並び（このファイルはFirebase同様、歌詞クイズ関連ファイルへの依存を増やしたくないため、
 // 表示ラベルだけこちらにも軽量に複製している。値自体の一覧はlyricsQuizEngine.js側が正）。

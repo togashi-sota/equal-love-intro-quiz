@@ -129,6 +129,23 @@ async function generateUniqueRoomId() {
   throw new Error("ルームコードの生成に失敗しました。もう一度お試しください。");
 }
 
+// 【2026-11-XX新設・本人指示Q7：Firebase read/writeの一時失敗でUnhandled Promise Rejection
+// を起こさない】get(ref(database, path))を直接呼ぶと、オフライン・切断・セキュリティルール
+// 拒否等で例外が投げられた場合、呼び出し元がtry/catchで囲んでいない限りそのまま
+// Unhandled Promise Rejectionとして伝播してしまう。この関数は例外を握りつぶして
+// 「成功扱い」にはせず、必ずconsole.warnで原因を残した上でnullを返す（本人指示：
+// 「catchして何もせず成功扱いにはしない」）。呼び出し元は、nullを「読み取れなかった」
+// という安全な失敗として扱い、既存の{ok:false, reason:"..."}という戻り値契約に沿って
+// 呼び出し元（画面）へ伝える。
+async function safeGetSnapshot(path) {
+  try {
+    return await get(ref(database, path));
+  } catch (error) {
+    console.warn(`[onlineBattle] Firebase読み取りに失敗しました（path: ${path}）`, error);
+    return null;
+  }
+}
+
 // 試合（1回の対戦）を一意に区別するためのID。ルームコードと違い人に伝える必要が無いので、
 // 短さより「衝突しないこと」を優先し、8文字（32^8 ≈ 1兆通り）にしている。
 // 同じルーム内で作られる試合の数は現実的に数十〜数百止まりのため、重複チェックは行わない
@@ -396,8 +413,11 @@ export async function joinRoom({ roomId, playerName }) {
   const uid = getCurrentUid();
   if (!uid) return { ok: false, reason: "not-signed-in" };
 
-  const snapshot = await get(ref(database, `rooms/${roomId}`));
-  const room = snapshot.exists() ? snapshot.val() : null;
+  // 【2026-11-XX修正・本人指示Q7】読み取り失敗時はsafeGetSnapshot()がnullを返すが、
+  // checkCapacity(null, uid)は元々「不正な形のroom」をnot-foundとして安全に扱う設計の
+  // ため、`snapshot?.exists()`にするだけで既存の戻り値契約を変えずに保護できる。
+  const snapshot = await safeGetSnapshot(`rooms/${roomId}`);
+  const room = snapshot?.exists() ? snapshot.val() : null;
   const capacity = checkCapacity(room, uid);
   if (!capacity.ok) {
     return { ok: false, reason: capacity.reason };
@@ -436,8 +456,9 @@ export async function spectateRoom({ roomId, playerName }) {
   const uid = getCurrentUid();
   if (!uid) return { ok: false, reason: "not-signed-in" };
 
-  const snapshot = await get(ref(database, `rooms/${roomId}`));
-  const room = snapshot.exists() ? snapshot.val() : null;
+  // 【2026-11-XX修正・本人指示Q7】上のjoinRoom()と同じ理由・同じパターン。
+  const snapshot = await safeGetSnapshot(`rooms/${roomId}`);
+  const room = snapshot?.exists() ? snapshot.val() : null;
   const capacity = checkSpectatorCapacity(room, uid);
   if (!capacity.ok) {
     return { ok: false, reason: capacity.reason };
@@ -481,7 +502,13 @@ export async function leaveSpectating({ roomId }) {
   } catch (error) {
     // 通信が切れている状態での退出等、キャンセル自体に失敗しても後続の処理は続行する。
   }
-  await remove(ref(database, `rooms/${roomId}/spectators/${uid}`));
+  // 【2026-11-XX修正・本人指示Q7】上のremove()もtry/catchが無かった。leaveRoom()と同じ理由・
+  // 同じ方針（失敗を記録した上で、呼び出し元のその後の画面遷移は妨げない）で保護する。
+  try {
+    await remove(ref(database, `rooms/${roomId}/spectators/${uid}`));
+  } catch (error) {
+    console.warn(`[onlineBattle] leaveSpectating()のFirebase削除に失敗しました（roomId: ${roomId}）`, error);
+  }
   clearLastRoom();
 }
 
@@ -495,8 +522,9 @@ export async function promoteSpectatorToPlayer({ roomId, playerName }) {
   const uid = getCurrentUid();
   if (!uid) return { ok: false, reason: "not-signed-in" };
 
-  const snapshot = await get(ref(database, `rooms/${roomId}`));
-  if (!snapshot.exists()) return { ok: false, reason: "not-found" };
+  // 【2026-11-XX修正・本人指示Q7】読み取り失敗時はnot-foundと同じ扱いにする（安全側）。
+  const snapshot = await safeGetSnapshot(`rooms/${roomId}`);
+  if (!snapshot?.exists()) return { ok: false, reason: "not-found" };
   const room = snapshot.val();
   if (room.status !== ROOM_STATUS.WAITING) return { ok: false, reason: "not-waiting" };
 
@@ -505,7 +533,12 @@ export async function promoteSpectatorToPlayer({ roomId, playerName }) {
   if (!Object.prototype.hasOwnProperty.call(spectators, uid)) return { ok: false, reason: "not-spectating" };
   // 既にプレイヤーとしても存在する場合（通常起こらないが、安全のため）は何もせず成功扱い。
   if (Object.prototype.hasOwnProperty.call(players, uid)) {
-    await remove(ref(database, `rooms/${roomId}/spectators/${uid}`));
+    // 【2026-11-XX修正・本人指示Q7】このremove()もtry/catchが無かった。
+    try {
+      await remove(ref(database, `rooms/${roomId}/spectators/${uid}`));
+    } catch (error) {
+      return { ok: false, reason: "write-failed" };
+    }
     return { ok: true };
   }
   if (Object.keys(players).length >= room.maxPlayers) {
@@ -566,42 +599,53 @@ export async function leaveRoom({ roomId }) {
     // このあとの退出処理は続行する（致命的ではないため）。
   }
 
-  const roomRef = ref(database, `rooms/${roomId}`);
-  const snapshot = await get(roomRef);
-  if (!snapshot.exists()) {
-    clearLastRoom();
-    return;
-  }
-
-  const room = snapshot.val();
-  // 【2026-10-01追加・本人指示：結果画面/再戦フロー全面設計12-6/12-7/12-9章】再戦準備中
-  // （confirmingRematch===true）に誰かが退出する場合、①ホスト自身の退出なら（ホスト移譲の
-  // 有無に関わらず）旧ホストが出した再戦提案をキャンセルする、②残る人数が2人未満になる
-  // なら（オンライン対戦の再戦には最低2人必要なため）再戦提案をキャンセルする。
-  const remainingCount = Object.keys(room.players || {}).filter((playerUid) => playerUid !== uid).length;
-  const shouldCancelRematch = room.confirmingRematch === true && (room.host === uid || remainingCount < 2);
-  if (room.host === uid) {
-    const nextHostUid = pickNextHostUid(room.players || {}, uid);
-    if (nextHostUid === null) {
-      // 他に誰も残っていない：今までどおりルームごと削除する。
-      await remove(roomRef);
-    } else {
-      // host（新ホストへ）とplayers/{自分}（削除）を1回のupdate()にまとめることで、
-      // 「ホストは変わったのに自分の参加者情報がまだ残っている」ような一瞬の不整合を防ぐ。
-      const updates = {
-        [`rooms/${roomId}/host`]: nextHostUid,
-        [`rooms/${roomId}/players/${uid}`]: null,
-      };
-      if (shouldCancelRematch) updates[`rooms/${roomId}/confirmingRematch`] = false;
-      await update(ref(database), updates);
+  // 【2026-11-XX修正・本人指示Q7】この関数は読み取り・分岐後の書き込みのどちらも
+  // try/catchで守られていなかった。「退出する」という頻繁な操作のたびにFirebaseの
+  // 一時的な失敗でUnhandled Promise Rejectionになりうる経路だったため保護する。
+  // 呼び出し元（js/onlineBattleScreen.js）はいずれもawaitするだけで戻り値を見ておらず、
+  // Firebase側の書き込みが失敗しても、その後のstopListeningToRoom()・画面遷移は
+  // 変わらず実行する設計のため、ここでは例外を記録してから安全側（clearLastRoom()まで
+  // 到達させる）に倒すのが最も既存動作に近い。
+  try {
+    const roomRef = ref(database, `rooms/${roomId}`);
+    const snapshot = await get(roomRef);
+    if (!snapshot.exists()) {
+      clearLastRoom();
+      return;
     }
-  } else if (shouldCancelRematch) {
-    await update(ref(database), {
-      [`rooms/${roomId}/players/${uid}`]: null,
-      [`rooms/${roomId}/confirmingRematch`]: false,
-    });
-  } else {
-    await remove(ref(database, `rooms/${roomId}/players/${uid}`));
+
+    const room = snapshot.val();
+    // 【2026-10-01追加・本人指示：結果画面/再戦フロー全面設計12-6/12-7/12-9章】再戦準備中
+    // （confirmingRematch===true）に誰かが退出する場合、①ホスト自身の退出なら（ホスト移譲の
+    // 有無に関わらず）旧ホストが出した再戦提案をキャンセルする、②残る人数が2人未満になる
+    // なら（オンライン対戦の再戦には最低2人必要なため）再戦提案をキャンセルする。
+    const remainingCount = Object.keys(room.players || {}).filter((playerUid) => playerUid !== uid).length;
+    const shouldCancelRematch = room.confirmingRematch === true && (room.host === uid || remainingCount < 2);
+    if (room.host === uid) {
+      const nextHostUid = pickNextHostUid(room.players || {}, uid);
+      if (nextHostUid === null) {
+        // 他に誰も残っていない：今までどおりルームごと削除する。
+        await remove(roomRef);
+      } else {
+        // host（新ホストへ）とplayers/{自分}（削除）を1回のupdate()にまとめることで、
+        // 「ホストは変わったのに自分の参加者情報がまだ残っている」ような一瞬の不整合を防ぐ。
+        const updates = {
+          [`rooms/${roomId}/host`]: nextHostUid,
+          [`rooms/${roomId}/players/${uid}`]: null,
+        };
+        if (shouldCancelRematch) updates[`rooms/${roomId}/confirmingRematch`] = false;
+        await update(ref(database), updates);
+      }
+    } else if (shouldCancelRematch) {
+      await update(ref(database), {
+        [`rooms/${roomId}/players/${uid}`]: null,
+        [`rooms/${roomId}/confirmingRematch`]: false,
+      });
+    } else {
+      await remove(ref(database, `rooms/${roomId}/players/${uid}`));
+    }
+  } catch (error) {
+    console.warn(`[onlineBattle] leaveRoom()のFirebase読み書きに失敗しました（roomId: ${roomId}）`, error);
   }
   clearLastRoom();
 }
@@ -794,8 +838,9 @@ export async function transferHost({ roomId, newHostUid }) {
   const uid = getCurrentUid();
   if (!uid) return { ok: false, reason: "not-signed-in" };
 
-  const snapshot = await get(ref(database, `rooms/${roomId}`));
-  if (!snapshot.exists()) return { ok: false, reason: "not-found" };
+  // 【2026-11-XX修正・本人指示Q7】読み取り失敗時はnot-foundと同じ扱いにする（安全側）。
+  const snapshot = await safeGetSnapshot(`rooms/${roomId}`);
+  if (!snapshot?.exists()) return { ok: false, reason: "not-found" };
   const room = snapshot.val();
   if (room.host !== uid) return { ok: false, reason: "not-host" };
   if (newHostUid === uid) return { ok: true }; // 自分自身への移譲は何もしない（冪等）
@@ -836,8 +881,9 @@ export async function claimHostIfDisconnected({ roomId }) {
   const uid = getCurrentUid();
   if (!uid) return { ok: false, reason: "not-signed-in" };
 
-  const snapshot = await get(ref(database, `rooms/${roomId}`));
-  if (!snapshot.exists()) return { ok: false, reason: "not-found" };
+  // 【2026-11-XX修正・本人指示Q7】読み取り失敗時はnot-foundと同じ扱いにする（安全側）。
+  const snapshot = await safeGetSnapshot(`rooms/${roomId}`);
+  if (!snapshot?.exists()) return { ok: false, reason: "not-found" };
   const room = snapshot.val();
   if (room.host === uid) return { ok: true }; // 既に自分がホスト（冪等）
   if (!room.players?.[uid]) return { ok: false, reason: "not-in-room" };
@@ -875,8 +921,9 @@ export async function kickPlayer({ roomId, targetUid }) {
   if (!uid) return { ok: false, reason: "not-signed-in" };
   if (targetUid === uid) return { ok: false, reason: "cannot-kick-self" };
 
-  const snapshot = await get(ref(database, `rooms/${roomId}`));
-  if (!snapshot.exists()) return { ok: false, reason: "not-found" };
+  // 【2026-11-XX修正・本人指示Q7】読み取り失敗時はnot-foundと同じ扱いにする（安全側）。
+  const snapshot = await safeGetSnapshot(`rooms/${roomId}`);
+  if (!snapshot?.exists()) return { ok: false, reason: "not-found" };
   const room = snapshot.val();
   if (room.host !== uid) return { ok: false, reason: "not-host" };
   if (room.status !== ROOM_STATUS.WAITING) return { ok: false, reason: "not-waiting" };
@@ -938,13 +985,18 @@ export async function setReady({ roomId, ready }) {
   const uid = getCurrentUid();
   if (!uid) return { ok: false, reason: "not-signed-in" };
 
-  const revisionSnapshot = await get(ref(database, `rooms/${roomId}/settingsRevision`));
-  const currentRevision = revisionSnapshot.val() ?? 0;
-
-  await update(ref(database), {
-    [`rooms/${roomId}/players/${uid}/ready`]: ready,
-    [`rooms/${roomId}/players/${uid}/readyForRevision`]: currentRevision,
-  });
+  // 【2026-11-XX修正・本人指示Q7】読み取り・書き込みともtry/catchが無く、Firebaseの
+  // 一時的な失敗でUnhandled Promise Rejectionになっていたため保護する。
+  try {
+    const revisionSnapshot = await safeGetSnapshot(`rooms/${roomId}/settingsRevision`);
+    const currentRevision = revisionSnapshot?.val() ?? 0;
+    await update(ref(database), {
+      [`rooms/${roomId}/players/${uid}/ready`]: ready,
+      [`rooms/${roomId}/players/${uid}/readyForRevision`]: currentRevision,
+    });
+  } catch (error) {
+    return { ok: false, reason: "write-failed" };
+  }
   return { ok: true };
 }
 
@@ -983,8 +1035,9 @@ async function resolveBattleStartValidation({ roomId, settings }) {
   const uid = getCurrentUid();
   if (!uid) return { ok: false, reason: "not-signed-in" };
 
-  const snapshot = await get(ref(database, `rooms/${roomId}`));
-  if (!snapshot.exists()) return { ok: false, reason: "not-found" };
+  // 【2026-11-XX修正・本人指示Q7】読み取り失敗時はnot-foundと同じ扱いにする（安全側）。
+  const snapshot = await safeGetSnapshot(`rooms/${roomId}`);
+  if (!snapshot?.exists()) return { ok: false, reason: "not-found" };
   const room = snapshot.val();
   if (room.host !== uid) return { ok: false, reason: "not-host" };
   if (room.status !== ROOM_STATUS.WAITING) return { ok: false, reason: "not-waiting" };
@@ -1236,8 +1289,9 @@ export async function cancelMatchConfirmation({ roomId }) {
   await authReady;
   const uid = getCurrentUid();
   if (!uid) return { ok: false, reason: "not-signed-in" };
-  const snapshot = await get(ref(database, `rooms/${roomId}`));
-  if (!snapshot.exists()) return { ok: false, reason: "not-found" };
+  // 【2026-11-XX修正・本人指示Q7】読み取り失敗時はnot-foundと同じ扱いにする（安全側）。
+  const snapshot = await safeGetSnapshot(`rooms/${roomId}`);
+  if (!snapshot?.exists()) return { ok: false, reason: "not-found" };
   const room = snapshot.val();
   if (room.host !== uid) return { ok: false, reason: "not-host" };
   try {
@@ -1382,10 +1436,18 @@ export async function submitAnswerProgress({ roomId, matchId, answeredCount }) {
   const uid = getCurrentUid();
   if (!uid) return { ok: false, reason: "not-signed-in" };
 
-  const [activeMatchSnapshot, currentSnapshot] = await Promise.all([
-    get(ref(database, `rooms/${roomId}/activeMatchId`)),
-    get(ref(database, `rooms/${roomId}/matches/${matchId}/progress/${uid}/answeredCount`)),
-  ]);
+  // 【2026-11-XX修正・本人指示Q7】1問答えるたびに呼ばれる高頻度な経路のため、Firebaseの
+  // 一時的な読み取り失敗でUnhandled Promise Rejectionにならないよう保護する。
+  let activeMatchSnapshot;
+  let currentSnapshot;
+  try {
+    [activeMatchSnapshot, currentSnapshot] = await Promise.all([
+      get(ref(database, `rooms/${roomId}/activeMatchId`)),
+      get(ref(database, `rooms/${roomId}/matches/${matchId}/progress/${uid}/answeredCount`)),
+    ]);
+  } catch (error) {
+    return { ok: false, reason: "read-failed" };
+  }
   if (activeMatchSnapshot.val() !== matchId) {
     return { ok: false, reason: "stale-match" };
   }
@@ -1525,8 +1587,9 @@ export async function finalizeMatchIfReady({ roomId, matchId, force = false }) {
   const uid = getCurrentUid();
   if (!uid) return { ok: false, reason: "not-signed-in" };
 
-  const snapshot = await get(ref(database, `rooms/${roomId}`));
-  if (!snapshot.exists()) return { ok: false, reason: "not-found" };
+  // 【2026-11-XX修正・本人指示Q7】読み取り失敗時はnot-foundと同じ扱いにする（安全側）。
+  const snapshot = await safeGetSnapshot(`rooms/${roomId}`);
+  if (!snapshot?.exists()) return { ok: false, reason: "not-found" };
   const room = snapshot.val();
   if (room.host !== uid) return { ok: false, reason: "not-host" };
   if (room.activeMatchId !== matchId) return { ok: false, reason: "stale-match" };
@@ -1583,8 +1646,9 @@ export async function returnRoomToLobby({ roomId }) {
   const uid = getCurrentUid();
   if (!uid) return { ok: false, reason: "not-signed-in" };
 
-  const snapshot = await get(ref(database, `rooms/${roomId}`));
-  if (!snapshot.exists()) return { ok: false, reason: "not-found" };
+  // 【2026-11-XX修正・本人指示Q7】読み取り失敗時はnot-foundと同じ扱いにする（安全側）。
+  const snapshot = await safeGetSnapshot(`rooms/${roomId}`);
+  if (!snapshot?.exists()) return { ok: false, reason: "not-found" };
   const room = snapshot.val();
   if (room.host !== uid) return { ok: false, reason: "not-host" };
   if (room.status === ROOM_STATUS.WAITING) return { ok: true }; // 既に目標状態（冪等）
@@ -1723,8 +1787,9 @@ export async function beginRematchReadyCheck({ roomId }) {
   const uid = getCurrentUid();
   if (!uid) return { ok: false, reason: "not-signed-in" };
 
-  const snapshot = await get(ref(database, `rooms/${roomId}`));
-  if (!snapshot.exists()) return { ok: false, reason: "not-found" };
+  // 【2026-11-XX修正・本人指示Q7】読み取り失敗時はnot-foundと同じ扱いにする（安全側）。
+  const snapshot = await safeGetSnapshot(`rooms/${roomId}`);
+  if (!snapshot?.exists()) return { ok: false, reason: "not-found" };
   const room = snapshot.val();
   if (room.host !== uid) return { ok: false, reason: "not-host" };
   if (room.status !== ROOM_STATUS.RESULT) return { ok: false, reason: "not-result" };
@@ -1819,8 +1884,9 @@ export async function finishRematchReadyCheck({ roomId }) {
   const uid = getCurrentUid();
   if (!uid) return { ok: false, reason: "not-signed-in" };
 
-  const snapshot = await get(ref(database, `rooms/${roomId}`));
-  if (!snapshot.exists()) return { ok: false, reason: "not-found" };
+  // 【2026-11-XX修正・本人指示Q7】読み取り失敗時はnot-foundと同じ扱いにする（安全側）。
+  const snapshot = await safeGetSnapshot(`rooms/${roomId}`);
+  if (!snapshot?.exists()) return { ok: false, reason: "not-found" };
   const room = snapshot.val();
   if (room.host !== uid) return { ok: false, reason: "not-host" };
   if (room.status !== ROOM_STATUS.WAITING || room.confirmingRematch !== true) {

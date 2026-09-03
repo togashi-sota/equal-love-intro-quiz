@@ -495,6 +495,10 @@ function renderAnswerArea(question) {
   // 【2026-09-07新設・本人指示：検索状態を毎問題完全リセット】検索文字列・50音ジャンプの
   // 選択行を、新しい問題に切り替わるたび必ず初期状態へ戻す。
   resetAnswerPoolBrowseState(answerBrowseState);
+  // 【2026-11-XX追加・本人指示Q1：固定回答候補UIの統一】js/lyricsQuizScreen.jsの
+  // renderAnswerArea()と同じ理由・同じ判定（検索欄を出さない小さいプールのときだけ
+  // 2列グリッドにする）。
+  questionElements.answerList.classList.toggle("is-fixed-choice-grid", !isLargePool);
   questionElements.answerSearchRow.hidden = !isLargePool;
   if (isLargePool) {
     questionElements.answerSearchInput.value = "";

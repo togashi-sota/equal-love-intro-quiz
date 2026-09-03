@@ -631,6 +631,11 @@ function renderAnswerArea(question) {
   // 【2026-11-XX新設・本人指示：問題ごとに検索・50音ジャンプ状態を完全リセット】
   // js/instantChallengeScreen.jsのrenderAnswerArea()と同じ理由。
   resetAnswerPoolBrowseState(answerBrowseState);
+  // 【2026-11-XX追加・本人指示Q1：固定回答候補UIの統一】検索欄を出さない小さいプール
+  // （4択・10択）のときだけ、2列グリッド表示にする（css/style.cssの
+  // .lyrics-quiz-answer-list.is-fixed-choice-grid参照）。全曲検索等の大きいプールは
+  // 従来どおり縦1列のまま。
+  questionElements.answerList.classList.toggle("is-fixed-choice-grid", !isLargePool);
   questionElements.answerSearchRow.hidden = !isLargePool;
   if (isLargePool) {
     questionElements.answerSearchInput.value = "";

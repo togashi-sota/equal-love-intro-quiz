@@ -7707,7 +7707,14 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   align-items: center;
   justify-content: center;
   line-height: 1;
-  border: 1.5px solid #ffffff;
+  /* 【2026-11-XX改訂・本人指示Q5：52pxプロフィール詳細モーダルでのバッジスケーリング】
+     --badge-scaleは既定で1（＝このファイルの元々の44px基準サイズ）。個別のpx指定を
+     サイズごとに増やすのではなく、アイコンを囲む.fan-profile-swatch側で
+     --badge-scaleだけを設定すれば、下の.oshi-badge--medal/crown/diamondが
+     calc()で自動的に比例スケールする設計にした。22px版（.fan-profile-swatch--sm）は
+     既存の手動調整済み固定pxのままこのルールを上書きするため、この変更による
+     見た目の変化は無い（詳細はそちらのコメント参照）。 */
+  border: calc(1.5px * var(--badge-scale, 1)) solid #ffffff;
   border-radius: 50%;
   pointer-events: none;
 }
@@ -7723,10 +7730,10 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 /* イントロマスター（メダル）：3つの中で最も控えめな銀灰色・最小サイズ（本人指示の豪華さの
    順：イントロマスター＜＝LOVEマスター＜＜＝LOVE完全制覇、を大きさと配色で表現）。 */
 .oshi-badge--medal {
-  bottom: -4px;
-  left: -5px;
-  width: 16px;
-  height: 16px;
+  bottom: calc(-4px * var(--badge-scale, 1));
+  left: calc(-5px * var(--badge-scale, 1));
+  width: calc(16px * var(--badge-scale, 1));
+  height: calc(16px * var(--badge-scale, 1));
   color: #5c5460;
   background: radial-gradient(circle at 32% 28%, #f4f1f6 0%, #b9aebd 70%);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
@@ -7734,10 +7741,10 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 
 /* ＝LOVEマスター（王冠）：金色・中間の豪華さ。 */
 .oshi-badge--crown {
-  bottom: -6px;
-  right: -6px;
-  width: 19px;
-  height: 19px;
+  bottom: calc(-6px * var(--badge-scale, 1));
+  right: calc(-6px * var(--badge-scale, 1));
+  width: calc(19px * var(--badge-scale, 1));
+  height: calc(19px * var(--badge-scale, 1));
   color: #5c3a08;
   background: radial-gradient(circle at 32% 28%, #ffe9a8 0%, #e3ab3c 70%);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
@@ -7746,10 +7753,10 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 /* ＝LOVE完全制覇（ダイヤ）：3つの中で最も目立つ位置（右上）・最大サイズ・最も強い発光で、
    「小さく表示されても完全制覇だと分かる」豪華さを表現する（本人指示）。 */
 .oshi-badge--diamond {
-  top: -7px;
-  right: -6px;
-  width: 21px;
-  height: 21px;
+  top: calc(-7px * var(--badge-scale, 1));
+  right: calc(-6px * var(--badge-scale, 1));
+  width: calc(21px * var(--badge-scale, 1));
+  height: calc(21px * var(--badge-scale, 1));
   color: #ffffff;
   background: radial-gradient(circle at 32% 26%, #f3e8ff 0%, #b18cf0 45%, #6fa8ff 100%);
   box-shadow: 0 0 0 2px rgba(177, 140, 240, 0.35), 0 3px 6px -1px rgba(74, 46, 66, 0.4);
@@ -8234,6 +8241,13 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 .fan-profile-detail-swatch .fan-profile-swatch {
   width: 52px;
   height: 52px;
+  /* 【2026-11-XX追加・本人指示Q5】アイコン本体は52px（44px基準の約1.18倍）だが、
+     以前は特別バッジ（.oshi-badge、上記参照）が44px基準の絶対pxのままだったため、
+     52pxアイコンに対して相対的に小さく見えていた。個別のpxを増やすのではなく、
+     --badge-scaleを1つ設定するだけで.oshi-badge側のcalc()が自動的に比例スケールする。
+     アイコン本体（このルール自身のwidth/height）には触れていないため、
+     「推しアイコン本体は縮小しない」という既存方針とも矛盾しない。 */
+  --badge-scale: 1.1818;
 }
 
 /* 名前・推しのテキスト部分（2026-08-29追加）。flex:1にして「🏅称号一覧」ボタンぶんの
@@ -14272,6 +14286,25 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   max-height: 42vh;
   overflow-y: auto;
   padding-right: 2px;
+}
+
+/* 【2026-11-XX追加・本人指示Q1：固定回答候補UIの統一】4択・10択のような「決められた数の
+   候補から答える」画面は、歌詞クイズ対戦（.online-lyrics-battle-answer-grid）と同じ
+   「2列グリッド」へ統一する（対象：歌詞クイズ単体・一瞬チャレンジ・一瞬バトル・一瞬協力の
+   4画面。js側がpool.length<LARGE_ANSWER_POOL_THRESHOLD〈=検索欄を出さない、全曲検索
+   ではない〉のときだけこのクラスを付与する。全曲検索・30/50択の大きなプールは
+   従来どおり縦1列＋検索＋50音のままで、このクラスは付かない）。
+   同じ行のカード高さを揃える（align-items:stretchが既定のため明示不要）・少ない行数でも
+   縦に間延びしないようにする（align-content:start、オンライン歌詞クイズ対戦の
+   .online-lyrics-battle-answer-gridで既に確立した対策と同じ）という2点は、
+   あちらと全く同じ考え方。検索欄を出さない画面のため「1〜2件だけヒットして巨大化する」
+   ケース自体が発生しない（絞り込む手段が無い）ので、ボタン側のalign-self対策は不要。 */
+.lyrics-quiz-answer-list.is-fixed-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  align-content: start;
+  max-height: none;
+  overflow-y: visible;
 }
 
 /* 【2026-09-13追加・本人指示：一瞬バトルの答え合わせが下に追いやられる不具合の修正】
