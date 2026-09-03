@@ -13338,6 +13338,22 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   gap: 8px;
 }
 
+/* 【2026-11-XX発見・修正・実機回帰バグの根本原因】display:flexを明示指定しているため、
+   [hidden]の既定（display:none）を上書きしてしまう（.quiz-back-link[hidden]・
+   .button-row[hidden]と全く同じ既知パターン、12章の教訓のはずが、このクラスだけ
+   対応が漏れていた）。この上書きが無かったため、4画面すべての「もう一度」提案パネル
+   （online-battle-result-rematch-panel／online-lyrics-battle-result-rematch-panel／
+   online-instant-battle-result-rematch-panel／online-instant-coop-battle-result-rematch-panel）
+   は、JS側がelements.resultRematchPanel.hidden=trueを正しく設定していても実際には
+   非表示にならず、confirmingRematchが本当はfalseの間もHTMLの初期状態（＝ゲスト向けの
+   「ホストが『もう一度』を選びました」文言＋「準備OK」ボタン）がそのまま見え続けていた。
+   ホスト・ゲストのJS側ロジック（resolveRematchToggleButtonLabel等）は実際には正しく
+   動作していたが、その結果がDOMに一切反映されない状態だったため、何度JS側を直しても
+   実機では「直っていない」ように見えていた——これが再戦UIバグの真の根本原因。 */
+.online-battle-result-return-panel[hidden] {
+  display: none;
+}
+
 .online-battle-result-return-heading {
   margin: 0;
   font-size: 0.8rem;

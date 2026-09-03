@@ -270,14 +270,22 @@ function ensureServerTimeOffsetWarm() {
   });
 }
 
-// 【2026-10-01新設・本人指示：対戦モード常時表示化】対戦モード選択を折りたたみから常時
-// 表示へ変更したことに伴い、renderLobby()がroom更新のたびに（他プレイヤーのpresence更新等、
-// モード変更と無関係な理由でも）呼ばれる中で、ホストが「まだ確定していない候補」を選んでいる
-// 最中にラジオを勝手に今のモードへ戻してしまわないためのガード。this自体は
-// updateRoomGameMode()の書き込みが実際にroom.gameModeへ反映されるまでの間だけ立てておく
-// フラグで、書き込みが反映された（＝room.gameModeが変わった）ら自動的に解除される。
-let modeChangeHasPendingSelection = false;
-let lastSyncedRoomGameModeForModeChange = null;
+// 【2026-11-XX修正・本人指示：ロビー復帰直後にモード変更が効かない不具合の根本修正】
+// 以前はここで「まだ確定していない候補を選んでいる最中はrenderLobby()側の再同期を
+// 丸ごとスキップする」という2変数（modeChangeHasPendingSelection・
+// lastSyncedRoomGameModeForModeChange）によるフラグ管理をしていたが、これは
+// 「対戦モード選択の欄が一度でも非表示（試合中・observer等）になる」タイミングを
+// 挟むとフラグが解除されないまま取り残される構造的な弱点を持っていた
+// （elements.lobbyModeChange.hiddenがtrueの間は再同期ブロック自体が実行されず、
+// pending中に始まったフラグを誰も下ろせなくなる）。一方、出題数・ルール等
+// （applySettingsToHostForm()）はこの種のフラグを一切持たず「room更新のたび、常に
+// 今のroom.settingsへ機械的に同期する」だけの単純な設計で、こちらは実機で問題が
+// 報告されたことがない。本人指示のとおり「出題数など別の設定を変更すると直る」という
+// 再現条件は、まさにこのフラグの取り残しが原因だったと判断し、フラグによる
+// スキップ機構そのものを廃止した。書き込み中の二重送信防止は、下の
+// isModeChangeWriteInFlightという「書き込み中はもう一度押しても無視する」だけの
+// 単純な自己完結フラグ（renderLobby()側の状態には一切影響しない）に置き換える。
+let isModeChangeWriteInFlight = false;
 let hasFinishedCountdownLocally = false; // 自分の端末のカウントダウンが0になったことを表す
 let currentGameMode = null; // 今のルームのgameMode（設定変更ハンドラ等、room引数を持たない箇所から参照する）
 // 【2026-08-30新設、本人指示】ホスト自動移譲の「一定時間」を判定するための状態。
@@ -1929,22 +1937,16 @@ function renderLobbyInner(room) {
   // ロビー画面のDOMを更新するだけで、ゲストの実際の表示画面（結果画面）には一切影響しない。
   elements.lobbyModeChange.hidden = room.status !== ROOM_STATUS.WAITING && room.status !== ROOM_STATUS.RESULT;
   if (!elements.lobbyModeChange.hidden) {
-    // 【本人指示：候補選択中にラジオが勝手に戻るチラつきを防ぐ】ホストがまだ確定させて
-    // いない候補を選んでいる間（modeChangeHasPendingSelection===true）は、room.gameMode
-    // 自体が実際にはまだ変わっていない（＝自分の書き込みがまだ反映されていない）限り、
-    // このroom更新による再同期をスキップする。room.gameModeが実際に変わった（自分の
-    // 書き込みが反映された、または他の要因でモードが変わった）ら、通常どおり同期する。
-    const gameModeActuallyChanged = room.gameMode !== lastSyncedRoomGameModeForModeChange;
-    const shouldSkipResync = isHost && modeChangeHasPendingSelection && !gameModeActuallyChanged;
-    if (!shouldSkipResync) {
-      const modeRadios = document.querySelectorAll('input[name="online-battle-lobby-mode-change-select"]');
-      modeRadios.forEach((radio) => {
-        radio.checked = radio.value === room.gameMode;
-        radio.disabled = !isHost;
-      });
-      modeChangeHasPendingSelection = false;
-      lastSyncedRoomGameModeForModeChange = room.gameMode;
-    }
+    // 【2026-11-XX修正・本人指示：ロビー復帰直後にモード変更が効かない不具合の根本修正】
+    // 以前はここに「候補選択中はスキップする」という条件付きの再同期があったが、
+    // 廃止した（このファイル冒頭のisModeChangeWriteInFlight宣言部のコメント参照）。
+    // js/onlineBattleScreen.jsのapplySettingsToHostForm()（出題数・ルール等）と全く同じ
+    // 「room更新のたび、常に今のroom.gameModeへ機械的に同期する」だけの単純な設計へ揃える。
+    const modeRadios = document.querySelectorAll('input[name="online-battle-lobby-mode-change-select"]');
+    modeRadios.forEach((radio) => {
+      radio.checked = radio.value === room.gameMode;
+      radio.disabled = !isHost;
+    });
   }
 
   elements.lobbyPlayerCount.textContent = `${playerList.length}人 / 最大${room.maxPlayers}人`;
@@ -2382,10 +2384,9 @@ function goToLobby(roomId) {
   // 【2026-10-01新設・本人指示：オンライン対戦の同期回帰の緊急調査】カウントダウンが
   // 始まる前（ロビー滞在中）からサーバー時計とのズレを購読しておく（上のコメント参照）。
   ensureServerTimeOffsetWarm();
-  // 【2026-10-01新設・本人指示：対戦モード常時表示化】前のルームでの候補選択待ち状態を、
+  // 【2026-10-01新設→2026-11-XX改訂・本人指示】前のルームでの書き込み中フラグを、
   // 新しいルームへ持ち越さない。
-  modeChangeHasPendingSelection = false;
-  lastSyncedRoomGameModeForModeChange = null;
+  isModeChangeWriteInFlight = false;
 }
 
 // 【2026-08-30新設、本人指示：観戦機能】試合中のルームコードを入力した人を、観戦画面へ導く。
@@ -3315,41 +3316,44 @@ export function initOnlineBattleScreens(newElements) {
   // 選んでから別途「このモードに変更する」を押す2段階方式だったが、「見た目上は選択した
   // つもりで実際の設定はまだ変わっておらず、その状態のまま対戦を始めてしまった」という
   // 誤操作が実機で発生した。タップした瞬間にそのモードを正式なgameModeとしてFirebaseへ
-  // 書き込む1段階方式へ変更する。書き込み中（通信の往復が終わるまで）は6択すべてを
-  // disabledにし、連打による複数回のFirebase更新・見た目と正式gameModeのズレを防ぐ
-  // （本人指示：「内部的には安全にしてください」）。
+  // 書き込む1段階方式へ変更する。
+  // 【2026-11-XX修正・本人指示：ロビー復帰直後にモード変更が効かない不具合の根本修正】
+  // 以前はここで書き込み中に6択すべてをdisabledにし、renderLobby()側の再同期も
+  // modeChangeHasPendingSelectionというフラグでスキップしていたが、この「見た目上の
+  // disabled」と「renderLobby()側の再同期スキップ」という2重の状態管理が、対戦モード欄
+  // 自体が非表示になるタイミング（試合中・観戦中等）を挟むと復旧されないまま取り残される
+  // 構造的な弱点を持っていた（本人からの実機報告「ロビー復帰直後はモード変更が効かず、
+  // 出題数など別の設定を1回変更すると直る」の直接原因。出題数側のapplySettingsToHostForm()
+  // には最初からこの種の状態管理が無く、単に「room更新のたび機械的に同期する」だけだった
+  // ため問題が起きていなかった）。連打による多重書き込みの防止だけを、renderLobby()の
+  // 状態に一切影響しないisModeChangeWriteInFlight（このファイル冒頭で宣言）という
+  // 自己完結フラグに置き換える。
   document.querySelectorAll('input[name="online-battle-lobby-mode-change-select"]').forEach((radio) => {
     radio.addEventListener("change", async () => {
-      if (!currentRoomId) return;
+      if (!currentRoomId || isModeChangeWriteInFlight) return;
       const nextGameMode = radio.value;
       if (nextGameMode === currentGameMode) return; // 実質変化なし（同じモードの再クリック等）
       // モード変更操作音
       playSfx(SFX_EVENTS.UI_CLICK);
-      // 【本人指示：候補選択中にラジオが勝手に戻るチラつきを防ぐ】renderLobby()側の
-      // 再同期（room更新のたびに毎回走る）は、room.gameModeが実際にこの値へ追いつくまで
-      // スキップする（下のrenderLobby()内、modeChangeHasPendingSelectionの説明コメント参照）。
-      modeChangeHasPendingSelection = true;
-      const modeRadios = document.querySelectorAll('input[name="online-battle-lobby-mode-change-select"]');
-      modeRadios.forEach((input) => {
-        input.disabled = true;
-      });
-      const result = await updateRoomGameMode({ roomId: currentRoomId, gameMode: nextGameMode });
-      if (result.ok) {
-        playSfx(SFX_EVENTS.UI_CONFIRM);
-      } else {
-        // 【2026-11-XX追加・実機バグ調査：ロビー復帰直後にモード切替だけ反応しない】
-        // 以前はここで失敗理由を一切記録しておらず、「タップしても静かに元へ戻るだけ」
-        // だったため、実機での再現原因の切り分けができなかった。ユーザー向けの表示は
-        // 増やさず（低リスクな一時的失敗のため、CLAUDE.mdの「一時エラーは極力見せない」
-        // 方針どおり）、既存のロビー診断ログへ理由だけ記録する。
-        recordLobbyRenderEvent("modeChangeFailed", { seq: nextLobbyRenderSequence(), reason: result.reason, nextGameMode });
-        // 失敗時（通信エラー等）は候補選択を取り消し、今のモードへ戻す。renderLobby()の
-        // 次のroom更新で改めてradioが再度有効化される。
-        modeChangeHasPendingSelection = false;
-        modeRadios.forEach((input) => {
-          input.checked = input.value === currentGameMode;
-          input.disabled = false;
-        });
+      isModeChangeWriteInFlight = true;
+      try {
+        const result = await updateRoomGameMode({ roomId: currentRoomId, gameMode: nextGameMode });
+        if (result.ok) {
+          playSfx(SFX_EVENTS.UI_CONFIRM);
+        } else {
+          // 【2026-11-XX追加・実機バグ調査：ロビー復帰直後にモード切替だけ反応しない】
+          // 失敗理由を診断ログへ記録する（ユーザー向けの表示は増やさない、CLAUDE.mdの
+          // 「一時エラーは極力見せない」方針どおり）。
+          recordLobbyRenderEvent("modeChangeFailed", { seq: nextLobbyRenderSequence(), reason: result.reason, nextGameMode });
+          // 失敗時（通信エラー等）は候補選択を今のモードへ戻す。renderLobby()の次のroom
+          // 更新でも同じ状態へ再同期されるが、通信タイミング次第で少し遅れることがあるため
+          // ここでも即座に戻しておく。
+          document.querySelectorAll('input[name="online-battle-lobby-mode-change-select"]').forEach((input) => {
+            input.checked = input.value === currentGameMode;
+          });
+        }
+      } finally {
+        isModeChangeWriteInFlight = false;
       }
     });
   });

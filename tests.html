@@ -4,6 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ユニットテスト結果</title>
+  <!-- 【2026-11-XX追加・実機バグ調査：再戦UIが直っていない根本原因の再発防止】
+       本番のcss/style.cssを読み込む。目的はこのテストページ自体の見た目ではなく、
+       tests/cssHiddenAttribute.test.jsが実際のCSSカスケードを使って
+       「[hidden]属性が本当にdisplay:noneへ落ちるか」を検証できるようにするため
+       （このファイルはこのテスト専用の用途にのみ使う）。 -->
+  <link rel="stylesheet" href="css/style.css">
   <style>
     body {
       font-family: sans-serif;
@@ -81,6 +87,7 @@
     import { runLobbyRenderDiagnosticLogTests } from "./tests/lobbyRenderDiagnosticLog.test.js";
     import { runTimerTests } from "./tests/timer.test.js";
     import { runLocalReplayCountdownTests } from "./tests/localReplayCountdown.test.js";
+    import { runCssHiddenAttributeEffectivenessTests } from "./tests/cssHiddenAttributeEffectiveness.test.js";
     import { runSpecialModeIconsTests } from "./tests/specialModeIcons.test.js";
     import { runPublicProfilePayloadsTests } from "./tests/publicProfilePayloads.test.js";
     import {
@@ -188,6 +195,7 @@
     runLobbyRenderDiagnosticLogTests();
     await runTimerTests();
     await runLocalReplayCountdownTests();
+    runCssHiddenAttributeEffectivenessTests();
     runSpecialModeIconsTests();
     runPublicProfilePayloadsTests();
     runFanProfileCardTests();
