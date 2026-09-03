@@ -31,7 +31,7 @@ import { scrollToTop } from "./screens.js";
 // js/onlineInstantBattleScreen.jsが既に使っている、各問題の音源再生の直前に3→2→1を
 // 表示する共通モジュール。一瞬協力にはこれが元々一切組み込まれておらず、「もう一度聞く」を
 // 押すとカウントダウンを経由しないまま即座に再生していた（実機報告の直接原因）。
-import { runLocalReplayCountdownForQuestion, SCREEN_ENTER_ANIMATION_MS } from "./localReplayCountdown.js";
+import { runLocalReplayCountdownForQuestion, cancelLocalReplayCountdown, SCREEN_ENTER_ANIMATION_MS } from "./localReplayCountdown.js";
 import {
   ROOM_STATUS,
   updateRoomSettings,
@@ -203,6 +203,9 @@ let myVotedRoundNumber = -1;
 // js/onlineInstantBattleScreen.jsと全く同じ設計（isFirstQuestionOfMatch・isCountdownActive）。
 let isFirstQuestionOfMatch = true;
 let isCountdownActive = false;
+// 【2026-11-XX新設・実機バグ調査：仕様総監査で発見】js/onlineInstantBattleScreen.jsと
+// 同じ理由（最初の1問だけの画面遷移アニメーション待ちがstopAllLocalTimers()の管理外だった）。
+let firstQuestionDelayTimerId = null;
 // 直近に描画した問題・ラウンド（変わった瞬間だけ音源を再生し直すために使う）。
 let lastPlayedQuestionIndex = -1;
 let lastPlayedRoundNumber = -1;
@@ -467,6 +470,16 @@ export function initOnlineInstantCoopBattleScreens(newElements) {
 function stopAllLocalTimers() {
   stopTickTimer();
   stopServerTimeOffsetTracking();
+  // 【2026-11-XX修正・実機バグ調査：仕様総監査で発見】js/onlineInstantBattleScreen.jsの
+  // stopAllLocalTimers()には元々あった、3→2→1カウントダウン（js/localReplayCountdown.js）の
+  // 打ち切り呼び出しが、この一瞬協力側にはカウントダウン機能の追加時から漏れていた。
+  // 離脱直後などにカウントダウンのタイマーが生き残り、古い問題向けのonComplete()
+  // （→音源再生）が遅れて発火しうる不具合だったため追加する。
+  cancelLocalReplayCountdown();
+  if (firstQuestionDelayTimerId !== null) {
+    clearTimeout(firstQuestionDelayTimerId);
+    firstQuestionDelayTimerId = null;
+  }
   // 【2026-11-XX新設】js/audio.jsの予防的unlock心拍（音源無効化の頻発対策、
   // js/onlineInstantBattleScreen.jsの同じ修正と同じ理由）。
   stopAudioUnlockHeartbeat();
@@ -837,9 +850,14 @@ async function runHostProgressionTick() {
       reports: match.audioTroubleRecovery?.reports,
       questionIndex: qIndex,
       nowMs: Date.now(),
+      // 【2026-11-XX修正・実機バグ調査：仕様総監査で発見】一瞬協力にも一瞬バトルと同じ
+      // 3→2→1カウントダウン（playCurrentQuestionAudioWithCountdown()）が追加済みなのに、
+      // ここがfalseのままだった。実際より待機時間が短く計算され、まだカウントダウン中
+      // （＝一度も音が鳴っていない）参加者がいるうちにホストが「もう終わっただろう」と
+      // 判定して投票ロックを解除してしまう不具合があったため、trueへ揃える。
       replayWindowMs: computeRecoveryReplayWindowMs({
         playDurationSec: Number(currentSettings.playDurationValue),
-        includesCountdown: false, // 一瞬協力は問題ごとのローカルカウントダウンを持たない
+        includesCountdown: true,
       }),
     });
     if (recoveryAction.type === "wait") return;
@@ -1144,7 +1162,8 @@ function playCurrentQuestionAudioWithCountdown(question, questionIndex) {
   if (isFirstQuestionOfMatch) {
     isFirstQuestionOfMatch = false;
     isCountdownActive = true;
-    setTimeout(() => {
+    firstQuestionDelayTimerId = setTimeout(() => {
+      firstQuestionDelayTimerId = null;
       isCountdownActive = false;
       playQuestionAudio(question, questionIndex);
     }, SCREEN_ENTER_ANIMATION_MS);
@@ -1581,10 +1600,14 @@ function renderCurrentQuestionState() {
   }
 
   // 【2026-09-17新設・本人指示：「音が出ない」救済ボタン第2段階】表示条件：投票収集中
-  // だけ表示（答え合わせ中・結果画面・ロビーでは非表示）。誰かが処理を開始した瞬間、
-  // 全クライアントでボタンを無効化する。
+  // だけ表示（カウントダウン中・答え合わせ中・結果画面・ロビーでは非表示）。誰かが処理を
+  // 開始した瞬間、全クライアントでボタンを無効化する。
+  // 【2026-11-XX修正・実機バグ調査：仕様総監査で発見】一瞬バトル側（isCountdownActive判定
+  // あり）と食い違っており、この画面だけカウントダウン中（＝まだ一度も音が鳴っていない
+  // 段階）でも「音が出ない」を押せてしまっていた。まだ故障していない音源を誤って強制
+  // リプレイ扱いにしてしまうため、一瞬バトルと同じ条件へ揃える。
   if (elements.audioTroubleButton) {
-    elements.audioTroubleButton.hidden = isResolved;
+    elements.audioTroubleButton.hidden = isResolved || isCountdownActive;
     elements.audioTroubleButton.disabled = isRecoveryLocking;
   }
   if (elements.audioTroubleNotice) {

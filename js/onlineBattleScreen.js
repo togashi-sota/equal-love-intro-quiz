@@ -1034,29 +1034,36 @@ export function driveRematchReadyAutoStart(room) {
 
 // 【後方互換のフォールバック】結果画面を見ていない人（ロビー画面等）向けの、専用の
 // 再戦準備別画面の描画。renderRematchReadinessList()・driveRematchReadyAutoStart()を
-// 共有し、こちらはその画面専用のsummary/toggle/allDone/cancel要素だけを担当する。
+// 共有し、こちらはその画面専用のlead/summary/toggle/allDone要素だけを担当する。
+// 【2026-11-XX修正・実機バグ調査：再戦フロー再々監査で発見した重大バグ】以前はこの画面だけ
+// resolveRematchToggleButtonLabel()を使わず、myReadyだけでボタン文言・案内文を決めていた
+// ため、ホストがこの画面に着地すると「準備を取り消す」という誤った表示のまま、押しても
+// 自分のrematchReadyを戻すだけ（提案全体は取り消されない）という、結果画面のインライン
+// パネルと食い違う挙動になっていた。ここもインラインパネル（renderResultReturnPanel()）と
+// 全く同じロジックへ統一する。
 function renderRematchReadyScreen(room) {
   if (!elements.rematchReadyPlayerList) return;
   const myUid = getCurrentUid();
   const isHost = room.host === myUid;
   const players = room.players || {};
 
+  if (elements.rematchReadyLead) {
+    elements.rematchReadyLead.textContent = isHost
+      ? "再戦を準備中です。全員の準備が揃うと自動的に始まります。"
+      : "ホストが「もう一度」を選びました。準備ができたら「準備OK」を押してください。";
+  }
   renderRematchSummaryChips(elements.rematchReadySummary, room);
   renderRematchPlayerList(elements.rematchReadyPlayerList, room);
 
   const allReady = computeAllPlayersRematchReady(players, room.rematchParticipantUids);
   const myReady = players[myUid]?.rematchReady === true;
   if (elements.rematchReadyToggleButton) {
-    elements.rematchReadyToggleButton.textContent = myReady ? "準備を取り消す" : "✓ 準備OK";
-    elements.rematchReadyToggleButton.classList.toggle("is-confirmed", myReady);
+    const label = resolveRematchToggleButtonLabel({ isHost, myReady });
+    elements.rematchReadyToggleButton.textContent = label.text;
+    elements.rematchReadyToggleButton.classList.toggle("is-confirmed", label.isConfirmed);
   }
   if (elements.rematchReadyAllDoneNotice) {
     elements.rematchReadyAllDoneNotice.hidden = !allReady;
-  }
-  // 再戦準備をやめてロビーへ戻る操作はホストだけができる（対戦開始前ルール確認画面と
-  // 同じ権限設計）。
-  if (elements.rematchReadyCancelButton) {
-    elements.rematchReadyCancelButton.hidden = !isHost;
   }
 
   driveRematchReadyAutoStart(room);
@@ -3759,20 +3766,26 @@ export function initOnlineBattleScreens(newElements) {
     await cancelMatchConfirmation({ roomId: currentRoomId });
   });
 
-  // 【再戦準備フェーズ新設・本人指示】上のconfirmToggleButton/confirmCancelButtonと
-  // 全く同じ考え方（トグル式の「準備OK」・ホスト専用の「キャンセル」）。
+  // 【2026-11-XX修正・実機バグ調査：再戦フロー再々監査】結果画面のインラインパネル
+  // （resultRematchToggleButton、上の方の同名ハンドラ参照）と全く同じ分岐にする。
+  // ホストが押した場合は自分のrematchReadyを戻すだけでなく、提案そのものを取り消す
+  // （cancelRematchReadyCheck）。ゲストは今までどおり自分の準備状態だけをトグルする。
   elements.rematchReadyToggleButton?.addEventListener("click", async () => {
     if (!currentRoomId || !latestRoom) return;
-    playSfx(SFX_EVENTS.UI_CLICK);
     attemptSilentUnlock();
+    if (latestRoom.host === getCurrentUid()) {
+      playSfx(SFX_EVENTS.UI_BACK);
+      elements.rematchReadyToggleButton.disabled = true;
+      await cancelRematchReadyCheck({ roomId: currentRoomId });
+      elements.rematchReadyToggleButton.disabled = false;
+      return;
+    }
     const myUid = getCurrentUid();
-    const nowReady = latestRoom.players?.[myUid]?.rematchReady === true;
-    await setRematchReady({ roomId: currentRoomId, confirmed: !nowReady });
-  });
-  elements.rematchReadyCancelButton?.addEventListener("click", async () => {
-    if (!currentRoomId) return;
-    playSfx(SFX_EVENTS.UI_BACK);
-    await cancelRematchReadyCheck({ roomId: currentRoomId });
+    const myReady = latestRoom.players?.[myUid]?.rematchReady === true;
+    playSfx(SFX_EVENTS.UI_CLICK);
+    elements.rematchReadyToggleButton.disabled = true;
+    await setRematchReady({ roomId: currentRoomId, confirmed: !myReady });
+    elements.rematchReadyToggleButton.disabled = false;
   });
   // 【2026-10-01新設・本人指示：結果画面/再戦フロー全面設計12-5章】再戦準備中のキック。
   // インラインパネル・専用の別画面（フォールバック）どちらの参加者リストでも、

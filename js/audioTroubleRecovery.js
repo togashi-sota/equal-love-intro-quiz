@@ -54,16 +54,19 @@ export const MAX_RECOVERY_REPLAY_ATTEMPTS = 2;
 // のREVEAL_DELAY_MS等、既存のホスト側固定待機の考え方をそのまま踏襲）。
 export const RECOVERY_REPLAY_BUFFER_MS = 1500;
 
-// 一瞬バトルは各問題の音源再生前に3→2→1のローカルカウントダウン（js/localReplayCountdown.js）
-// を挟む（js/onlineInstantBattleScreen.jsのplayCurrentQuestionAudioWithCountdown()参照）。
-// 一瞬協力は挟まない（js/onlineInstantCoopBattleScreen.jsには同カウントダウンの仕組みが
-// 存在しない）。リカバリー再生も同じ演出をそのまま再利用するため、待機時間の計算にも
-// 反映する必要がある。
+// 一瞬バトル・一瞬協力とも、各問題の音源再生前（初回・もう一度聞く・リカバリー再生の
+// いずれも）に3→2→1のローカルカウントダウン（js/localReplayCountdown.js）を挟む
+// （js/onlineInstantBattleScreen.js・js/onlineInstantCoopBattleScreen.jsの
+// playCurrentQuestionAudioWithCountdown()参照）。
+// 【2026-11-XX修正・実機バグ調査：仕様総監査で発見】一瞬協力は元々このカウントダウンを
+// 持たない設計だったが、後から両モード共通のカウントダウンが追加されたにもかかわらず、
+// このコメントとincludesCountdown引数だけが更新されずに残っていた。リカバリー再生も
+// 同じ演出をそのまま再利用するため、待機時間の計算にも必ず反映する必要がある。
 export const RECOVERY_COUNTDOWN_MS = 3000;
 
 // リカバリー再生1回にどれくらいの時間ホストが待つべきかを計算する。
 // playDurationSec: そのルームの再生秒数設定（settings.playDurationValue）。
-// includesCountdown: 3→2→1のカウントダウンを挟むモードかどうか（一瞬バトル:true、一瞬協力:false）。
+// includesCountdown: 3→2→1のカウントダウンを挟むかどうか（一瞬バトル・一瞬協力とも常にtrue）。
 export function computeRecoveryReplayWindowMs({ playDurationSec, includesCountdown }) {
   const countdownMs = includesCountdown ? RECOVERY_COUNTDOWN_MS : 0;
   const safePlayDurationSec = Number.isFinite(playDurationSec) ? Math.max(0, playDurationSec) : 0;

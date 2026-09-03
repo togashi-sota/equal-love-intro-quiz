@@ -3681,7 +3681,12 @@
          チップの要約だけ（本人指示1）。js/onlineBattleScreen.jsが制御。 -->
     <section id="online-battle-rematch-ready-screen" class="screen">
       <div class="title-block"><h2>再戦の準備</h2></div>
-      <p class="online-battle-lead-text">今回の対戦設定を確認し、全員が「準備OK」を押すと自動的に始まります。</p>
+      <!-- 【2026-11-XX改訂・実機バグ調査：再戦フロー再々監査】文言はホスト/ゲストで
+           結果画面のインラインパネル（online-battle-result-rematch-panel-lead）と
+           全く同じ内容に出し分ける（js/onlineBattleScreen.jsのrenderRematchReadyScreen()参照）。 -->
+      <p class="online-battle-lead-text" id="online-battle-rematch-ready-lead">
+        ホストが「もう一度」を選びました。準備ができたら「準備OK」を押してください。
+      </p>
 
       <div id="online-battle-rematch-ready-summary" class="battle-config-summary"></div>
 
@@ -3692,14 +3697,15 @@
         ✨ 全員の準備が完了しました。まもなく開始します…
       </p>
 
+      <!-- 【2026-11-XX改訂・実機バグ調査：再戦フロー再々監査】以前はこのボタンとは別に
+           ホスト専用の「⚙ ルーム設定に戻る」ボタンが並んでいたが、結果画面のインライン
+           パネルと同じ「同じボタンが切り替わる」設計に統一した。ホストが押すと
+           resolveRematchToggleButtonLabel()により「再戦を取り消す」表示になり、
+           押せば提案そのものを取り消す（cancelRematchReadyCheck）。新しい別ボタンは
+           追加しない（本人指示）。 -->
       <div class="button-row">
         <button id="online-battle-rematch-ready-toggle-button" class="primary-button" type="button">✓ 準備OK</button>
       </div>
-      <!-- ホスト専用：再戦準備をやめてロビーへ戻る（対戦開始前ルール確認画面のキャンセルと
-           同じ役割分担）。ルーム自体・対戦設定は変更しない。 -->
-      <button id="online-battle-rematch-ready-cancel-button" class="secondary-button online-battle-confirm-cancel-button" type="button" hidden>
-        ⚙ ルーム設定に戻る
-      </button>
     </section>
 
     <section id="online-battle-countdown-screen" class="screen">

@@ -454,14 +454,29 @@ function verifyRealPlaybackStarted(myToken, diagnosticContext) {
 // 取得できるようにするために追加した（下のgetCurrentPlaybackState()参照）。
 let currentPlaybackSongId = null;
 
+// 【2026-11-XX修正・実機バグ調査：再戦/一瞬系 仕様総監査で発見】stopAudio()は、
+// audio要素自身のイベントハンドラ（onloadedmetadataでのduration不一致判定など）から
+// 同期的に呼ばれることがある。その瞬間、currentObjectUrlはaudioElement.srcへ設定済みの
+// 「今まさに読み込み中／発火中のイベントの対象そのもの」であり、これを同期的にrevokeすると、
+// 上のreleasePreviousObjectUrlAfterSrcSwap()のコメントで説明している「現役srcのblob URLを
+// revokeするとiOS Safari等でaudio要素が予期せぬエラー状態に遷移する」という同じ不具合を、
+// 「前の曲」ではなく「今まさに判定中の曲自身」に対して引き起こしてしまう
+// （本当は正常な音源なのに、この自己流revokeの副作用で以後のリトライまで失敗しやすくなり、
+// 「音源は無効です」の頻発につながっていた）。呼び出し元を個別に作り分けるのではなく、
+// releaseCurrentObjectUrl()自体を「呼び出し元のイベントハンドラが完全に終わってから」
+// 実際に解放する設計へ統一する（currentObjectUrlの論理状態＝nullは即座に反映するため、
+// 直後にclaimAsCurrentPlayback()が呼ばれても前の曲の扱いを誤らない）。
 function releaseCurrentObjectUrl() {
   if (currentObjectUrl !== null) {
-    diag("[OBJECT_URL] revoke（stopAudio等、再生を完全に止める経路）", {
-      url: currentObjectUrl,
-      matchesCurrentSrc: audioElement.src === currentObjectUrl,
+    const urlToRevoke = currentObjectUrl;
+    diag("[OBJECT_URL] revoke予約（stopAudio等、再生を完全に止める経路）", {
+      url: urlToRevoke,
+      matchesCurrentSrc: audioElement.src === urlToRevoke,
     });
-    URL.revokeObjectURL(currentObjectUrl);
     currentObjectUrl = null;
+    setTimeout(() => {
+      URL.revokeObjectURL(urlToRevoke);
+    }, 0);
   }
 }
 

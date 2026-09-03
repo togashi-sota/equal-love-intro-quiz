@@ -15310,6 +15310,12 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 10px;
   margin-bottom: 20px;
+  /* 【2026-11-XX修正・実機バグ調査：仕様総監査で発見】検索で候補が1〜2件になり行数が
+     少ないとき、Gridの初期値（align-content: stretch相当）だと余った縦の空きスペースが
+     この少ない行自体に配られてカードが巨大化する。align-content: startで「行は上詰めで
+     並べ、余りは配らない」ことをコンテナ側で解決する（下のalign-items:stretch＝各行内で
+     カードの高さを揃える、という既定の挙動には触れない）。 */
+  align-content: start;
 }
 
 /* 【2026-08-31新設】30・50・全曲プールでは、通常のボタン格子ではなく縦スクロールする
@@ -15334,6 +15340,8 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   grid-template-columns: repeat(2, 1fr);
   overflow-y: auto;
   padding-right: 2px;
+  /* 上の.online-lyrics-battle-answer-gridと同じ理由（少ない行数のときの巨大化対策）。 */
+  align-content: start;
 }
 
 /* 【2026-09-30新設・本人指示：オンライン対戦総合改修 第3ラウンド・歌詞クイズのスクロール
@@ -15429,11 +15437,15 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   transition: transform var(--transition-fast, 0.15s), box-shadow var(--transition-fast, 0.15s), background-color var(--transition-base, 0.2s), border-color var(--transition-base, 0.2s);
   /* 【2026-11-XX追加・本人指示：検索で候補が1〜2件になったときの巨大化対策】
      js/lyricsQuizScreen.jsの.lyrics-quiz-answer-buttonと同じ予防策（詳しい経緯は
-     そちらのコメント参照）。flexコンテナ（.online-lyrics-battle-answer-list/-compact）・
-     gridコンテナ（.online-lyrics-battle-answer-grid）のどちらに置かれても、候補数に
-     関係なくボタン自身が伸縮しないよう明示的に固定する。 */
+     そちらのコメント参照）。flexコンテナ（.online-lyrics-battle-answer-list）に
+     置かれても、候補数に関係なくボタン自身が縦方向に伸縮しないよう明示的に固定する。
+     【2026-11-XX修正・実機バグ調査：仕様総監査で発見】以前はここにalign-self: startも
+     付けていたが、gridコンテナ（.online-lyrics-battle-answer-grid/-list-compact）側では
+     それが「同じ行内のカードの高さを揃える」既定の挙動（align-items: stretch）まで
+     打ち消してしまい、曲名が1行のカードと2行に折り返すカードが同じ行に混在すると
+     外枠の高さが不揃いになっていた。少ない行数のときの巨大化対策は、align-self（各カード側）
+     ではなくalign-content（グリッドコンテナ側、上で追加済み）で解決するよう役割を分けた。 */
   flex: 0 0 auto;
-  align-self: start;
 }
 
 .online-lyrics-battle-answer-button:active:not(:disabled) {

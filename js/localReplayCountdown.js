@@ -41,6 +41,12 @@ const QUESTION_PROMPT_TEXT = "♪ この曲は？";
 export const SCREEN_ENTER_ANIMATION_MS = 480;
 
 let activeTimerId = null;
+// 【2026-11-XX新設・実機バグ調査：仕様総監査で発見】runLocalReplayCountdownForQuestion()の
+// 「最初の問題だけ画面遷移アニメーション分待つ」setTimeoutは、以前activeTimerIdの管理外に
+// あったため、この待機中（最大480ms）にcancelLocalReplayCountdown()を呼んでも打ち切れず、
+// 対戦を離脱した直後などに古い問題向けのonComplete()（→音源再生）が遅れて発火しうる
+// 狭い窓が残っていた。activeTimerIdと同じく、ここでも追跡してキャンセル対象にする。
+let pendingFirstQuestionDelayTimerId = null;
 
 // containerElement（表示/非表示を切り替える親要素）とnumberElement（数字を表示する要素）を
 // 受け取り、3→2→1を表示してからonComplete()を呼ぶ。既に別の呼び出しが進行中だった場合は、
@@ -91,7 +97,10 @@ export function runLocalReplayCountdown({ containerElement, numberElement }, onC
 // ここに一本化することで、今後カウントダウンを使う画面が増えても速度がズレない。
 export function runLocalReplayCountdownForQuestion({ containerElement, numberElement, isFirstQuestion }, onComplete) {
   if (isFirstQuestion) {
-    setTimeout(() => runLocalReplayCountdown({ containerElement, numberElement }, onComplete), SCREEN_ENTER_ANIMATION_MS);
+    pendingFirstQuestionDelayTimerId = setTimeout(() => {
+      pendingFirstQuestionDelayTimerId = null;
+      runLocalReplayCountdown({ containerElement, numberElement }, onComplete);
+    }, SCREEN_ENTER_ANIMATION_MS);
   } else {
     runLocalReplayCountdown({ containerElement, numberElement }, onComplete);
   }
@@ -101,6 +110,10 @@ export function runLocalReplayCountdownForQuestion({ containerElement, numberEle
 // 必要としないタイミングで呼ぶ）。呼び出し元のcontainerElementの後始末（hidden化）までは
 // 責務を持たない（呼び出し元が画面ごと切り替えるため、通常は不要）。
 export function cancelLocalReplayCountdown() {
+  if (pendingFirstQuestionDelayTimerId !== null) {
+    clearTimeout(pendingFirstQuestionDelayTimerId);
+    pendingFirstQuestionDelayTimerId = null;
+  }
   if (activeTimerId !== null) {
     clearTimeout(activeTimerId);
     activeTimerId = null;

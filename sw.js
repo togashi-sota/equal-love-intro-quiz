@@ -7,12 +7,17 @@
 //
 // 新しいバージョンを配信したいときは、CACHE_VERSIONの値を必ず上げること。
 // 上げないと、ブラウザが「内容が変わっていない」と判断し、更新が反映されない。
-const CACHE_VERSION = "v284";
+const CACHE_VERSION = "v285";
 const CACHE_NAME = `equal-love-intro-quiz-${CACHE_VERSION}`;
 
 // キャッシュするアプリ本体のファイル一覧。
 // 新しいJSファイルなどを追加したときは、ここにも追記すること（忘れるとそのファイルだけ
 // オフライン時に読み込めなくなる）。
+// 【2026-11-XX追記・実機バグ調査：仕様総監査で確認】js/*SecurityRules.js
+// （audioTroubleRecoverySecurityRules.js・lyricsQuizBattleSecurityRules.js・
+// onlineBattleMatchInvalidationSecurityRules.js）とtests.html／tests/配下は、
+// 本番のindex.htmlからは一切importされないテスト専用ファイルのため、意図的にここへは
+// 含めていない（アプリ本体の動作には影響しない）。
 const APP_SHELL_FILES = [
   "./",
   "./index.html",

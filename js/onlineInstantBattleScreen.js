@@ -193,6 +193,11 @@ let lastRevealSfxPlayedForQIndex = -1;
 // このモードに入場した直後の最初の1問だけ、この問題ごとのカウントダウンを省略する。
 let isFirstQuestionOfMatch = true;
 let isCountdownActive = false;
+// 【2026-11-XX新設・実機バグ調査：仕様総監査で発見】最初の1問だけの画面遷移アニメーション
+// 待ち（下のplayCurrentQuestionAudioWithCountdown()参照）は、stopAllLocalTimers()の
+// 管理対象外だったため、対戦を離脱した直後などにこの待機中（最大480ms）だと打ち切れず、
+// 古い問題向けの再生が遅れて発火しうる狭い窓があった。追跡してキャンセル対象にする。
+let firstQuestionDelayTimerId = null;
 
 // 【2026-09-17新設・本人指示：「音が出ない」救済ボタン第2段階】直近にローカル再生を
 // 反応させたリカバリー再生を覚えておく（"questionIndex:attemptCount"の組み合わせは
@@ -402,6 +407,10 @@ function stopAllLocalTimers() {
   stopTickTimer();
   stopServerTimeOffsetTracking();
   cancelLocalReplayCountdown();
+  if (firstQuestionDelayTimerId !== null) {
+    clearTimeout(firstQuestionDelayTimerId);
+    firstQuestionDelayTimerId = null;
+  }
   // 【2026-11-XX新設】js/audio.jsの予防的unlock心拍（音源無効化の頻発対策）。
   stopAudioUnlockHeartbeat();
 }
@@ -962,7 +971,8 @@ function playCurrentQuestionAudioWithCountdown(question, questionIndex) {
   if (isFirstQuestionOfMatch) {
     isFirstQuestionOfMatch = false;
     isCountdownActive = true;
-    setTimeout(() => {
+    firstQuestionDelayTimerId = setTimeout(() => {
+      firstQuestionDelayTimerId = null;
       isCountdownActive = false;
       playQuestionAudio(question, questionIndex, settings);
     }, SCREEN_ENTER_ANIMATION_MS);

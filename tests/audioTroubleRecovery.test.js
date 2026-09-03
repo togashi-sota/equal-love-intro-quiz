@@ -26,11 +26,16 @@ import { assertEqual } from "./test-utils.js";
 
 export function runAudioTroubleRecoveryTests() {
   // ---- computeRecoveryReplayWindowMs ----
+  // 【2026-11-XX修正・実機バグ調査：仕様総監査で発見】一瞬バトル・一瞬協力とも
+  // 3→2→1カウントダウンを挟む設計に統一済みのため、両モードの呼び出し側は
+  // includesCountdown:trueを渡す（js/onlineInstantBattleScreen.js・
+  // js/onlineInstantCoopBattleScreen.jsの該当箇所参照）。falseの計算式自体は
+  // 汎用の純粋関数として引き続き成立するため、境界値の確認としてテストは残す。
   {
     const withCountdown = computeRecoveryReplayWindowMs({ playDurationSec: 2, includesCountdown: true });
-    assertEqual(withCountdown, RECOVERY_COUNTDOWN_MS + 2000 + RECOVERY_REPLAY_BUFFER_MS, "一瞬バトル：カウントダウン込みの待機時間");
+    assertEqual(withCountdown, RECOVERY_COUNTDOWN_MS + 2000 + RECOVERY_REPLAY_BUFFER_MS, "一瞬バトル・一瞬協力共通：カウントダウン込みの待機時間");
     const withoutCountdown = computeRecoveryReplayWindowMs({ playDurationSec: 2, includesCountdown: false });
-    assertEqual(withoutCountdown, 2000 + RECOVERY_REPLAY_BUFFER_MS, "一瞬協力：カウントダウン無しの待機時間");
+    assertEqual(withoutCountdown, 2000 + RECOVERY_REPLAY_BUFFER_MS, "カウントダウン無しの場合の計算式（現在はどちらのモードからも使われない）");
   }
 
   // ---- computeNextReportAttemptSlot ----

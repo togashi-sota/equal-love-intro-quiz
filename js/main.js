@@ -1039,11 +1039,11 @@ const onlineBattleConfirmAllDoneNoticeElement = document.getElementById("online-
 const onlineBattleConfirmToggleButtonElement = document.getElementById("online-battle-confirm-toggle-button");
 const onlineBattleConfirmCancelButtonElement = document.getElementById("online-battle-confirm-cancel-button");
 // 【再戦準備フェーズ新設・本人指示】
+const onlineBattleRematchReadyLeadElement = document.getElementById("online-battle-rematch-ready-lead");
 const onlineBattleRematchReadySummaryElement = document.getElementById("online-battle-rematch-ready-summary");
 const onlineBattleRematchReadyPlayerListElement = document.getElementById("online-battle-rematch-ready-player-list");
 const onlineBattleRematchReadyAllDoneNoticeElement = document.getElementById("online-battle-rematch-ready-all-done-notice");
 const onlineBattleRematchReadyToggleButtonElement = document.getElementById("online-battle-rematch-ready-toggle-button");
-const onlineBattleRematchReadyCancelButtonElement = document.getElementById("online-battle-rematch-ready-cancel-button");
 const onlineBattleQuizProgressStripElement = document.getElementById("online-battle-quiz-progress-strip");
 const onlineBattleWaitingLeadTextElement = document.getElementById("online-battle-waiting-lead-text");
 const onlineBattleWaitingHostDisconnectNoticeElement = document.getElementById("online-battle-waiting-host-disconnect-notice");
@@ -6077,11 +6077,11 @@ initOnlineBattleScreens({
   confirmToggleButton: onlineBattleConfirmToggleButtonElement,
   confirmCancelButton: onlineBattleConfirmCancelButtonElement,
   // 【再戦準備フェーズ新設・本人指示】
+  rematchReadyLead: onlineBattleRematchReadyLeadElement,
   rematchReadySummary: onlineBattleRematchReadySummaryElement,
   rematchReadyPlayerList: onlineBattleRematchReadyPlayerListElement,
   rematchReadyAllDoneNotice: onlineBattleRematchReadyAllDoneNoticeElement,
   rematchReadyToggleButton: onlineBattleRematchReadyToggleButtonElement,
-  rematchReadyCancelButton: onlineBattleRematchReadyCancelButtonElement,
   quizProgressStrip: onlineBattleQuizProgressStripElement,
   quizBackToLobbyButton: onlineBattleQuizBackToLobbyButtonElement,
   quizLeaveMatchButton: onlineBattleQuizLeaveMatchButtonElement,
