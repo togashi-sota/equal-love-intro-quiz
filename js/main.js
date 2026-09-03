@@ -37,6 +37,7 @@ import {
   buildQuestionsFromSongIds,
 } from "./quiz.js";
 import { playSongIntro, playSongFromRandomPosition, stopAudio, attemptSilentUnlock, reportPlaybackTrouble } from "./audio.js";
+import { bindPressReleaseAnswer } from "./answerButtonInteraction.js";
 import { recordAudioDiagnostic } from "./audioDiagnosticLog.js";
 import { initDebugAudioLogScreen, renderDebugAudioLog } from "./debugAudioLogScreen.js";
 import { captureViewportSnapshot } from "./viewportDiagnosticLog.js";
@@ -4354,10 +4355,16 @@ function renderResult() {
   backToTitleLinkFromSpecialElement.hidden = !isSpecial;
 }
 
-// 4つの選択肢ボタンに、それぞれクリック時の処理を割り当てる。
-// ボタンの並び自体は固定なので、クリック時に「今の問題」の該当インデックスの選択肢を参照する。
+// 4つの選択肢ボタンに、それぞれ回答確定時の処理を割り当てる。
+// ボタンの並び自体は固定なので、確定時に「今の問題」の該当インデックスの選択肢を参照する。
+// 【2026-11-XX改訂・本人指示：回答ボタンの操作性改善】以前は「押した瞬間（click）」に
+// 即確定していたが、「押し間違えて指を外へ逃がしたのに確定してしまう」という実プレイでの
+// 報告を受け、「そのボタンの中で指を離した瞬間」に確定する方式（js/answerButtonInteraction.js）
+// へ変更した。このボタン一覧は固定DOM（画面遷移で再生成されない）のため、ここで1回だけ
+// bindすれば以後ずっと有効（onlineBattleScreen.jsのモード変更バグのような
+// 「古いDOMに新しいlistenerが付いていない」問題は起きない）。
 choiceButtonElements.forEach((button, index) => {
-  button.addEventListener("click", () => {
+  bindPressReleaseAnswer(button, () => {
     const question = getCurrentQuestion();
     handleChoiceClick(question.choices[index]);
   });

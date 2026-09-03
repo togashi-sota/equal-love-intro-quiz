@@ -65,6 +65,7 @@ import {
   initRevealAudioToggle,
 } from "./revealAudioPreference.js";
 import { playSongFromRandomPosition, stopAudio } from "./audio.js";
+import { bindPressReleaseAnswer } from "./answerButtonInteraction.js";
 
 // 正解/不正解の演出（既存の.choice-buttonのis-correct/is-wrong）を見せてから次の問題へ進むまでの待ち時間。
 const ANSWER_FEEDBACK_DELAY_MS = 900;
@@ -659,7 +660,9 @@ function renderAnswerButtons(pool) {
     button.className = "choice-button lyrics-quiz-answer-button";
     button.textContent = song.title;
     button.dataset.songId = song.id;
-    button.addEventListener("click", () => handleAnswerSelected(song.id, button));
+    // 【2026-11-XX改訂・本人指示：回答ボタンの操作性改善】タップ即確定ではなく、
+    // 押したままボタンの外へ指を逃がせばキャンセルできる方式に変更（js/answerButtonInteraction.js）。
+    bindPressReleaseAnswer(button, () => handleAnswerSelected(song.id, button));
     questionElements.answerList.appendChild(button);
   });
 }

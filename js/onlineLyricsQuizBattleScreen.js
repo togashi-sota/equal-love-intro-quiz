@@ -65,6 +65,7 @@ import { promptLeaveMatch } from "./onlineBattleLeaveMatchPrompt.js";
 import { promptResultLeaveRoom } from "./onlineBattleResultLeavePrompt.js";
 import { promptResultGoHome } from "./onlineBattleResultHomePrompt.js";
 import { promptAnswerConfirm } from "./answerConfirmPrompt.js";
+import { bindPressReleaseAnswer } from "./answerButtonInteraction.js";
 import { validateRoomSettings, getAvailabilityKind, resolveAllEligibleSongIdsForMode } from "./battleModes/index.js";
 import * as lyricsQuizBattleMode from "./battleModes/lyricsQuizBattleMode.js";
 import { getBattleRuleLabel } from "./battleRules/index.js";
@@ -1910,17 +1911,25 @@ function renderAnswerChoices(question, { isResolved, myAnsweredThisQuestion, que
     // ポイントバトルは手動ヒント方式で回答速度が順位に影響しないため、誤タップ対策として
     // 1回の確認を挟む。handleAnswerChoiceClick()自身のresolveAnswerSubmissionBlock()が
     // 二重回答・状態不整合を防ぐため、確認画面が開いている間に問題が確定していても安全。
-    button.addEventListener("click", () => {
-      // 回答選択肢タップ操作音（早押しは即回答、それ以外は確認モーダルを開くだけ。
-      // モーダル内の確定・キャンセルはjs/answerConfirmPrompt.js側で既に対応済みのため
-      // ここでは重ねない）。
-      playSfx(SFX_EVENTS.UI_CLICK);
-      if (latestRoom?.settings?.battleRuleId === "steal") {
+    // 【2026-11-XX改訂・本人指示：回答ボタンの操作性改善】早押し（steal）ルールだけは
+    // 押した瞬間ではなく「ボタンの中で指を離した瞬間」に確定する方式へ変更した
+    // （js/answerButtonInteraction.js）。正解数バトル・ポイントバトルは既に確認モーダルで
+    // 誤タップ対策済みのため変更しない（クリック即モーダル、モーダル内の確定・キャンセルは
+    // 従来どおりjs/answerConfirmPrompt.js側に任せる）。
+    if (latestRoom?.settings?.battleRuleId === "steal") {
+      bindPressReleaseAnswer(button, () => {
+        // 回答選択肢タップ操作音は、確定した瞬間（＝ボタンの中で指を離した瞬間）に鳴らす。
+        playSfx(SFX_EVENTS.UI_CLICK);
         handleAnswerChoiceClick(choiceSong.id);
-        return;
-      }
-      promptAnswerConfirm(choiceSong.title, () => handleAnswerChoiceClick(choiceSong.id));
-    });
+      });
+    } else {
+      button.addEventListener("click", () => {
+        // 確認モーダルを開くだけの軽い操作音（モーダル内の確定・キャンセルは
+        // js/answerConfirmPrompt.js側で既に対応済みのため、ここでは重ねない）。
+        playSfx(SFX_EVENTS.UI_CLICK);
+        promptAnswerConfirm(choiceSong.title, () => handleAnswerChoiceClick(choiceSong.id));
+      });
+    }
     elements.battleAnswerChoicesContainer.appendChild(button);
   });
 }

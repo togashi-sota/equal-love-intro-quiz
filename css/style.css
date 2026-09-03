@@ -1680,6 +1680,14 @@ fieldset label:has(input:focus-visible) {
   transform: scale(0.94);
 }
 
+/* 【2026-11-XX新設・本人指示：回答ボタンの操作性改善】js/answerButtonInteraction.jsが
+   pointerdown〜pointerup/キャンセルの間だけ付け外しするクラス。ネイティブの:activeだけに
+   頼ると、スライドアウトでキャンセルした瞬間に見た目を戻す等の細かい制御ができないため、
+   JS側で管理する.is-pressedを正としつつ、見た目は既存の:active（scale(0.94)）と揃える。 */
+.choice-button.is-pressed {
+  transform: scale(0.94);
+}
+
 @media (hover: hover) {
   .choice-button:hover {
     box-shadow: 0 0 0 4px var(--color-primary-light);
@@ -15505,6 +15513,12 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   transform: scale(0.96);
 }
 
+/* 【2026-11-XX新設・本人指示：回答ボタンの操作性改善】js/answerButtonInteraction.jsが
+   早押し（steal）ルールの回答ボタンへ付け外しする押下中クラス。見た目は既存の:activeと揃える。 */
+.online-lyrics-battle-answer-button.is-pressed:not(:disabled) {
+  transform: scale(0.96);
+}
+
 .online-lyrics-battle-answer-button:disabled {
   opacity: 0.5;
   cursor: default;
@@ -16079,6 +16093,44 @@ body[data-screen="instantChallengeQuestion"] .game-frame {
 .lyrics-quiz-answer-list button,
 #online-lyrics-battle-answer-choices button {
   touch-action: manipulation;
+}
+
+/* 【2026-11-XX新設・本人指示：クイズ実プレイ中の長押し文字選択防止】回答ボタン・問題文等を
+   長押しすると、iPhone等で文字が青く選択されたりテキスト選択UIが表示される。早押しクイズの
+   実プレイ中はこれが邪魔になるため防止する。
+   【適用範囲について本人指示厳守】アプリ全体へ無条件のuser-select:noneは絶対に掛けない
+   （管理者用音源診断ログ・ロビーrender診断ログ画面、入力欄、検索、コピーが必要な画面、
+   説明文等では今後も文字選択・コピーが必要なため）。実際に即時回答型の選択肢を持つ
+   「クイズ実プレイ画面」だけに限定してscopeする（下のセレクタ一覧が対象の全画面）。
+   入力欄（歌詞クイズ大規模プール検索窓等）は、ここでuser-select:textを明示的に上書きして
+   従来どおり選択・タイプできるようにする（フォームコントロール自体は元々ancestorの
+   user-select:noneの影響を受けにくいが、念のため明示しておく）。 */
+#quiz-screen.is-active,
+#lyrics-quiz-question-screen.is-active,
+#online-lyrics-battle-question-screen.is-active,
+#instant-challenge-question-screen.is-active,
+#online-instant-battle-question-screen.is-active,
+#online-instant-coop-battle-question-screen.is-active {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+#quiz-screen.is-active input,
+#quiz-screen.is-active textarea,
+#lyrics-quiz-question-screen.is-active input,
+#lyrics-quiz-question-screen.is-active textarea,
+#online-lyrics-battle-question-screen.is-active input,
+#online-lyrics-battle-question-screen.is-active textarea,
+#instant-challenge-question-screen.is-active input,
+#instant-challenge-question-screen.is-active textarea,
+#online-instant-battle-question-screen.is-active input,
+#online-instant-battle-question-screen.is-active textarea,
+#online-instant-coop-battle-question-screen.is-active input,
+#online-instant-coop-battle-question-screen.is-active textarea {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
 }
 
 /* 【2026-09-30新設・本人指示：オンライン対戦総合改修 第2ラウンド7章】オンライン対戦の

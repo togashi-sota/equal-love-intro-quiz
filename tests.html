@@ -142,6 +142,7 @@
     import { runBattleQuestionBreakdownTests } from "./tests/battleQuestionBreakdown.test.js";
     import { runOnlineBattleMatchConfirmationPayloadsTests } from "./tests/onlineBattleMatchConfirmationPayloads.test.js";
     import { runAudioTests } from "./tests/audio.test.js";
+    import { runAnswerButtonInteractionTests } from "./tests/answerButtonInteraction.test.js";
     import { printSummary } from "./tests/test-utils.js";
 
     runScoreTests();
@@ -250,6 +251,7 @@
     // runAudioTestsは実在しない曲IDでのIndexedDB再試行を含むため完了までに1秒強かかる。
     // 集計（printSummary）より前に必ず完了を待つ。
     await runAudioTests();
+    runAnswerButtonInteractionTests();
     const { passCount, failCount, failedDetails } = printSummary();
 
     const summaryElement = document.getElementById("test-summary");
