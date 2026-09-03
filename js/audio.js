@@ -129,6 +129,14 @@ export function setMusicVolumePercent(percent) {
 const SILENT_UNLOCK_DATA_URI =
   "data:audio/wav;base64,UklGRrQBAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YZABAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA";
 
+// 【2026-11-XX新設・本人指示：一瞬バトル「もう一度聞く」不具合の根本修正】audio要素の
+// 今のsrcが、unlock専用の無音データURIそのものかどうかを判定する。attemptSilentUnlock()の
+// ハンドラクリア対策の後も、本編側のonloadedmetadata等が万一この無音URIに対して発火して
+// しまわないかを二重に確認するための共通ヘルパー。
+function isAudioElementOnSilentUnlockUri() {
+  return audioElement.src === SILENT_UNLOCK_DATA_URI;
+}
+
 // 【2026-09-08新設・本人指示：音源再生失敗の根本原因調査】unlockが実際に成功したかどうかを
 // 記録しておく。「本番の再生失敗が、そもそもunlockが成立していない環境で起きているのか」を
 // 診断ログから切り分けられるようにするための情報で、挙動そのものは変えない
@@ -185,6 +193,19 @@ export function attemptSilentUnlock() {
   // 必ず無音URIに差し替えてからplay()する）。
   const hadSrc = audioElement.src === SILENT_UNLOCK_DATA_URI;
   if (!hadSrc) {
+    // 【2026-11-XX新設・本人指示：一瞬バトル「もう一度聞く」でunlock用無音音源が実問題曲の
+    // durationとして誤判定される不具合の根本修正】playSongIntro()/playSongFromRandomPosition()は
+    // audioElement.onloadedmetadata/onplaying/onerrorを「.onX = ...」形式（1枠だけ）で
+    // 設定しており、この無音URIへのsrc差し替えはcurrentPlaybackTokenを進めないため、
+    // 直前の本編再生が設定したハンドラがそのまま生き残ってしまう。その状態でこの無音URIの
+    // 読み込みが完了しloadedmetadataが発火すると、本編側のハンドラがaudioElement.duration
+    // （無音URIの実際の長さ＝約0.05秒）を「今回の問題曲の長さ」として誤って受け取ってしまい、
+    // 「音源が他の端末と異なる」という誤判定・試合無効化を引き起こしていた（実機診断ログで
+    // 確認済み、docs/HANDOFF.md参照）。本編側は次に再生するたびに必ず自分専用のハンドラを
+    // 新しく設定し直す設計のため、ここで先に消してしまっても本編側の動作には一切影響しない。
+    audioElement.onloadedmetadata = null;
+    audioElement.onplaying = null;
+    audioElement.onerror = null;
     audioElement.src = SILENT_UNLOCK_DATA_URI;
     cumulativeSrcAssignmentCount++;
   }
@@ -822,6 +843,14 @@ export async function playSongIntro(song, onError, onPlaybackStart) {
   };
   audioElement.onloadedmetadata = () => {
     if (myToken !== currentPlaybackToken) return;
+    // 【2026-11-XX新設・本人指示：一瞬バトル「もう一度聞く」不具合の防御的二重チェック】
+    // 上のattemptSilentUnlock()側でハンドラをクリアする対策が主だが、万一何らかの経路で
+    // このハンドラが生き残ったままunlock用の無音データURIに対して発火した場合の保険として、
+    // 今のsrcが無音データURIでないことも確認する。
+    if (isAudioElementOnSilentUnlockUri()) {
+      diag(`[GUARD] onloadedmetadataがunlock用の無音音源に対して発火したため無視 (intro, song=${song.id})`);
+      return;
+    }
     audioElement.currentTime = song.introLeadInSec || 0;
   };
   const playbackTag = hasConfirmedFirstRealPlayback ? "NORMAL_AUDIO" : "FIRST_REAL_AUDIO";
@@ -893,6 +922,17 @@ export async function playSongFromRandomPosition(song, computeStartTimeSec, play
   };
   audioElement.onloadedmetadata = () => {
     if (myToken !== currentPlaybackToken) return;
+    // 【2026-11-XX新設・本人指示：一瞬バトル「もう一度聞く」不具合の防御的二重チェック】
+    // 上のattemptSilentUnlock()側でハンドラをクリアする対策が主だが、万一何らかの経路で
+    // このハンドラが生き残ったままunlock用の無音データURIに対して発火した場合の保険として、
+    // 今のsrcが無音データURIでないことも確認する。ここで防げないと、無音URIの実際の長さ
+    // （約0.05秒）がcomputeStartTimeSec()（js/onlineInstantBattleScreen.js等）へ「今回の
+    // 問題曲の長さ」として渡ってしまい、「音源が他の端末と異なる」という誤判定・試合無効化を
+    // 引き起こしていた（実機診断ログで確認済み、docs/HANDOFF.md参照）。
+    if (isAudioElementOnSilentUnlockUri()) {
+      diag(`[GUARD] onloadedmetadataがunlock用の無音音源に対して発火したため無視 (randomPosition, song=${song.id})`);
+      return;
+    }
     audioElement.currentTime = computeStartTimeSec(audioElement.duration);
   };
   const randomPositionPlaybackTag = hasConfirmedFirstRealPlayback ? "NORMAL_AUDIO" : "FIRST_REAL_AUDIO";

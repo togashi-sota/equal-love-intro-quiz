@@ -303,6 +303,60 @@ export async function runAudioTests() {
     assertEqual(elapsedMs < 200, true, `3件同時でも、timeoutMs（40ms）から大きく遅れずに全員解放される（実測${elapsedMs.toFixed(1)}ms）`);
   }
 
+  // ===== 【2026-11-XX新設・本人指示：一瞬バトル／一瞬協力「もう一度聞く」で実機報告された
+  //       race conditionの再発防止】attemptSilentUnlock()が無音データURIへsrcを差し替える
+  //       際、直前の本編再生（playSongIntro()/playSongFromRandomPosition()）が設定した
+  //       onloadedmetadata/onplaying/onerrorハンドラを確実にクリアすることを検証する。
+  //       【実機で起きていた実害】このクリアが無いと、無音データURI（実際の長さ約0.05秒）の
+  //       loadedmetadataに対して本編側の古いハンドラが誤って発火し、「音源が他の端末と
+  //       異なる」という誤判定・試合無効化につながっていた（docs/HANDOFF.md参照、
+  //       一瞬バトル・一瞬協力の両方の実機ログで確認済み）。
+  {
+    audioElement.pause();
+    audioElement.currentTime = 0;
+    audioElement.removeAttribute("src");
+    audioElement.load();
+
+    // 本編再生（playSongFromRandomPosition()等）が実際に行うのと同じ形で、
+    // 「本編用のonloadedmetadataハンドラ」を模したスパイを仕込む。
+    let staleHandlerCallCount = 0;
+    audioElement.onloadedmetadata = () => {
+      staleHandlerCallCount++;
+    };
+    audioElement.onplaying = () => {};
+    audioElement.onerror = () => {};
+
+    attemptSilentUnlock();
+
+    // attemptSilentUnlock()がsrcを無音データURIへ差し替える時点で、
+    // 直前に仕込んだ本編用ハンドラは即座にクリアされているべき（同期的に検証できる）。
+    assertEqual(
+      audioElement.onloadedmetadata,
+      null,
+      "attemptSilentUnlock()がsrcを無音データURIへ差し替える際、直前の本編再生のonloadedmetadataハンドラをクリアする"
+    );
+    assertEqual(
+      audioElement.onplaying,
+      null,
+      "attemptSilentUnlock()がsrcを無音データURIへ差し替える際、直前の本編再生のonplayingハンドラをクリアする"
+    );
+    assertEqual(
+      audioElement.onerror,
+      null,
+      "attemptSilentUnlock()がsrcを無音データURIへ差し替える際、直前の本編再生のonerrorハンドラをクリアする"
+    );
+
+    // 無音データURIの読み込みが実際に完了（loadedmetadata発火）するまで待ち、
+    // クリアされたはずの古いハンドラが呼ばれていないことを確認する
+    // （＝無音データURIの約0.05秒という長さが、本編側のduration比較へ絶対に渡らないことの証明）。
+    await waitWithTimeout(ensureUnlockSettled(), 5000, "timeout");
+    assertEqual(
+      staleHandlerCallCount,
+      0,
+      "無音データURIの読み込みが完了しても、クリアされた本編用の古いonloadedmetadataハンドラは一切呼ばれない"
+    );
+  }
+
   // ---- 【2026-11-XX新設】一瞬バトル／一瞬協力向けの予防的unlock心拍
   //      （startAudioUnlockHeartbeat/stopAudioUnlockHeartbeat）のライフサイクル検証。
   //      実際に発火間隔（10秒）を待つと遅すぎるため、ここでは「二重起動でタイマーが
