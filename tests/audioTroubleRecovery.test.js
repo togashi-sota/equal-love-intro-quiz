@@ -26,16 +26,44 @@ import { assertEqual } from "./test-utils.js";
 
 export function runAudioTroubleRecoveryTests() {
   // ---- computeRecoveryReplayWindowMs ----
-  // 【2026-11-XX修正・実機バグ調査：仕様総監査で発見】一瞬バトル・一瞬協力とも
-  // 3→2→1カウントダウンを挟む設計に統一済みのため、両モードの呼び出し側は
+  // 【2026-11-XX修正・本人指示：一瞬協力の「もう一度聞く」仕様変更】この関数はあくまで
+  // 「音源トラブル復旧（ホスト主導の強制リプレイ）」専用の待機時間計算。一瞬バトル・
+  // 一瞬協力ともリカバリー再生は3→2→1カウントダウンを挟む設計のため、呼び出し側は
   // includesCountdown:trueを渡す（js/onlineInstantBattleScreen.js・
-  // js/onlineInstantCoopBattleScreen.jsの該当箇所参照）。falseの計算式自体は
-  // 汎用の純粋関数として引き続き成立するため、境界値の確認としてテストは残す。
+  // js/onlineInstantCoopBattleScreen.jsの該当箇所参照）。一瞬協力のユーザー主導の
+  // 「もう一度聞く」（playQuestionAudioForVoluntaryReplay()）はカウントダウンを持たないが、
+  // ホストの待機処理を一切経由しない完全ローカルな操作のため、この関数の対象外
+  // （呼び出されない）。falseの計算式自体は汎用の純粋関数として引き続き成立するため、
+  // 境界値の確認としてテストは残す。
   {
     const withCountdown = computeRecoveryReplayWindowMs({ playDurationSec: 2, includesCountdown: true });
-    assertEqual(withCountdown, RECOVERY_COUNTDOWN_MS + 2000 + RECOVERY_REPLAY_BUFFER_MS, "一瞬バトル・一瞬協力共通：カウントダウン込みの待機時間");
+    assertEqual(withCountdown, RECOVERY_COUNTDOWN_MS + 2000 + RECOVERY_REPLAY_BUFFER_MS, "一瞬バトル・一瞬協力共通（リカバリー再生）：カウントダウン込みの待機時間");
     const withoutCountdown = computeRecoveryReplayWindowMs({ playDurationSec: 2, includesCountdown: false });
     assertEqual(withoutCountdown, 2000 + RECOVERY_REPLAY_BUFFER_MS, "カウントダウン無しの場合の計算式（現在はどちらのモードからも使われない）");
+  }
+
+  // ---- computeRecoveryReplayWindowMs：一瞬バトル・一瞬協力の実際の再生秒数設定
+  // （0.5秒／1.0秒／1.5秒）での回帰確認 ----
+  // 【2026-11-XX新設・本人指示：一瞬協力の「もう一度聞く」仕様変更】音源トラブル復旧は
+  // 両モードともカウントダウンを維持する設計のため、実際に選べる3つの再生秒数それぞれで
+  // 「カウントダウン3秒＋再生秒数＋バッファ1.5秒」という想定どおりの待機時間になっているかを
+  // 明示的に固定する（将来どちらかの秒数だけ計算式が崩れる回帰を検知できるようにする）。
+  {
+    assertEqual(
+      computeRecoveryReplayWindowMs({ playDurationSec: 0.5, includesCountdown: true }),
+      RECOVERY_COUNTDOWN_MS + 500 + RECOVERY_REPLAY_BUFFER_MS,
+      "再生秒数0.5秒：リカバリー再生の待機時間"
+    );
+    assertEqual(
+      computeRecoveryReplayWindowMs({ playDurationSec: 1.0, includesCountdown: true }),
+      RECOVERY_COUNTDOWN_MS + 1000 + RECOVERY_REPLAY_BUFFER_MS,
+      "再生秒数1.0秒：リカバリー再生の待機時間"
+    );
+    assertEqual(
+      computeRecoveryReplayWindowMs({ playDurationSec: 1.5, includesCountdown: true }),
+      RECOVERY_COUNTDOWN_MS + 1500 + RECOVERY_REPLAY_BUFFER_MS,
+      "再生秒数1.5秒：リカバリー再生の待機時間"
+    );
   }
 
   // ---- computeNextReportAttemptSlot ----

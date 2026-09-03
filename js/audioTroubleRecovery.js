@@ -54,19 +54,28 @@ export const MAX_RECOVERY_REPLAY_ATTEMPTS = 2;
 // のREVEAL_DELAY_MS等、既存のホスト側固定待機の考え方をそのまま踏襲）。
 export const RECOVERY_REPLAY_BUFFER_MS = 1500;
 
-// 一瞬バトル・一瞬協力とも、各問題の音源再生前（初回・もう一度聞く・リカバリー再生の
-// いずれも）に3→2→1のローカルカウントダウン（js/localReplayCountdown.js）を挟む
-// （js/onlineInstantBattleScreen.js・js/onlineInstantCoopBattleScreen.jsの
-// playCurrentQuestionAudioWithCountdown()参照）。
-// 【2026-11-XX修正・実機バグ調査：仕様総監査で発見】一瞬協力は元々このカウントダウンを
-// 持たない設計だったが、後から両モード共通のカウントダウンが追加されたにもかかわらず、
-// このコメントとincludesCountdown引数だけが更新されずに残っていた。リカバリー再生も
-// 同じ演出をそのまま再利用するため、待機時間の計算にも必ず反映する必要がある。
+// 一瞬バトルは、各問題の音源再生前（初回・もう一度聞く・リカバリー再生のいずれも）に
+// 3→2→1のローカルカウントダウン（js/localReplayCountdown.js）を挟む
+// （js/onlineInstantBattleScreen.jsのplayCurrentQuestionAudioWithCountdown()参照）。
+// 【2026-11-XX修正・本人指示：一瞬協力の「もう一度聞く」仕様変更】一瞬協力は「初回出題」と
+// 「音源トラブル復旧（全員へ同じタイミングで頭から聞き直させる、ホスト主導の強制リプレイ）」
+// の2経路だけがこのカウントダウンを挟む（js/onlineInstantCoopBattleScreen.jsの
+// playCurrentQuestionAudioWithCountdown()参照）。一瞬協力は「もう一度聞く」を何度でも
+// 自由に使う仕様のため、ユーザーが自分の意思で押すボタン操作（voluntary replay）だけは
+// カウントダウンを経由せず、安全に再生可能になった時点で即座に再生する
+// （playQuestionAudioForVoluntaryReplay()参照、下のcomputeRecoveryReplayWindowMs()の
+// 対象には含まれない＝ホストが待つ処理を持たない完全ローカルな操作のため）。
+// リカバリー再生（音源トラブル復旧）だけは、両モードともカウントダウンを維持する
+// （公平性のため：読み込みが遅い端末が再生開始までに追いつくための共有の猶予時間として
+// 機能しており、これを削ると一部の端末だけ他の参加者より遅れて聞くことになる不公平が
+// 起きやすくなる）ため、待機時間の計算にも必ず反映する必要がある。
 export const RECOVERY_COUNTDOWN_MS = 3000;
 
-// リカバリー再生1回にどれくらいの時間ホストが待つべきかを計算する。
+// リカバリー再生1回にどれくらいの時間ホストが待つべきかを計算する（音源トラブル復旧専用。
+// ユーザーが自分の意思で押す「もう一度聞く」はホストの待機処理を一切経由しないため対象外）。
 // playDurationSec: そのルームの再生秒数設定（settings.playDurationValue）。
-// includesCountdown: 3→2→1のカウントダウンを挟むかどうか（一瞬バトル・一瞬協力とも常にtrue）。
+// includesCountdown: リカバリー再生が3→2→1のカウントダウンを挟むかどうか
+// （一瞬バトル・一瞬協力とも、リカバリー再生は常にtrue）。
 export function computeRecoveryReplayWindowMs({ playDurationSec, includesCountdown }) {
   const countdownMs = includesCountdown ? RECOVERY_COUNTDOWN_MS : 0;
   const safePlayDurationSec = Number.isFinite(playDurationSec) ? Math.max(0, playDurationSec) : 0;

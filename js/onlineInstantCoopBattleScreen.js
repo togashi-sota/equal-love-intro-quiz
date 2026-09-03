@@ -200,7 +200,11 @@ let serverTimeOffset = 0;
 let myVotedQuestionIndex = -1;
 let myVotedRoundNumber = -1;
 // 【2026-11-XX追加・実機バグ調査：一瞬協力にカウントダウンが無かった不具合】
-// js/onlineInstantBattleScreen.jsと全く同じ設計（isFirstQuestionOfMatch・isCountdownActive）。
+// js/onlineInstantBattleScreen.jsと同じ設計（isFirstQuestionOfMatch・isCountdownActive）。
+// 【2026-11-XX改訂・本人指示：一瞬協力の「もう一度聞く」仕様変更】ただし一瞬バトルと
+// 違い、isCountdownActiveがtrueになるのは「各問題の初回出題」「音源トラブル復旧」の
+// 2つのみ。ユーザーが自分の意思で押す「もう一度聞く」（playQuestionAudioForVoluntaryReplay()）
+// はカウントダウンを経由しないため、このフラグを一切変化させない。
 let isFirstQuestionOfMatch = true;
 let isCountdownActive = false;
 // 【2026-11-XX新設・実機バグ調査：仕様総監査で発見】js/onlineInstantBattleScreen.jsと
@@ -318,8 +322,8 @@ export function initOnlineInstantCoopBattleScreens(newElements) {
   elements.replayButton?.addEventListener("click", () => {
     if (!latestRoom || !currentMatchId) return;
     // 【2026-11-XX追加・実機バグ調査：一瞬協力にカウントダウンが無かった不具合】
-    // js/onlineInstantBattleScreen.jsの再視聴ボタンと同じ連打防止（カウントダウン・
-    // 再生中はもう一度押しても何も起きない）。
+    // まだ今の問題の出題時カウントダウン・音源トラブル復旧のカウントダウンが進行中
+    // （＝一度もこの問題の音を聞けていない段階）なら、もう一度聞くは無視する。
     if (isCountdownActive) return;
     const match = latestRoom.matches?.[currentMatchId];
     if (!match || typeof match.currentQuestionIndex !== "number") return;
@@ -328,12 +332,15 @@ export function initOnlineInstantCoopBattleScreens(newElements) {
     // 「もう一度聞く」操作音
     playSfx(SFX_EVENTS.UI_CLICK);
     reportMyQuestionActivity();
-    // 【2026-09-13相当・本人指示】「もう一度聞く」は本物のユーザー操作の直後
-    // （カウントダウン前）。ここでunlockを試みておくのが最も成功しやすいタイミングのため、
-    // 真っ先に呼ぶ（js/onlineInstantBattleScreen.jsと同じ理由）。
+    // 【2026-09-13相当・本人指示】「もう一度聞く」は本物のユーザー操作の直後。ここで
+    // unlockを試みておくのが最も成功しやすいタイミングのため、真っ先に呼ぶ
+    // （js/onlineInstantBattleScreen.jsと同じ理由）。
     attemptSilentUnlock();
     if (!question) return;
-    playCurrentQuestionAudioWithCountdown(question, qIndex);
+    // 【2026-11-XX改訂・本人指示：一瞬協力の「もう一度聞く」仕様変更】一瞬バトルと違い、
+    // 一瞬協力は何度でも聞き直せる仕様のため3→2→1は挟まない
+    // （playQuestionAudioForVoluntaryReplay()参照）。
+    playQuestionAudioForVoluntaryReplay(question, qIndex);
   });
 
   // 【2026-09-17新設・本人指示：「音が出ない」救済ボタン第2段階】1人が押すと、参加者
@@ -850,11 +857,15 @@ async function runHostProgressionTick() {
       reports: match.audioTroubleRecovery?.reports,
       questionIndex: qIndex,
       nowMs: Date.now(),
-      // 【2026-11-XX修正・実機バグ調査：仕様総監査で発見】一瞬協力にも一瞬バトルと同じ
-      // 3→2→1カウントダウン（playCurrentQuestionAudioWithCountdown()）が追加済みなのに、
-      // ここがfalseのままだった。実際より待機時間が短く計算され、まだカウントダウン中
-      // （＝一度も音が鳴っていない）参加者がいるうちにホストが「もう終わっただろう」と
+      // 【2026-11-XX修正・実機バグ調査：仕様総監査で発見】音源トラブル復旧（この関数）は
+      // 一瞬バトルと同じ3→2→1カウントダウン（playCurrentQuestionAudioWithCountdown()）を
+      // 使うのに、ここがfalseのままだった。実際より待機時間が短く計算され、まだカウントダウン
+      // 中（＝一度も音が鳴っていない）参加者がいるうちにホストが「もう終わっただろう」と
       // 判定して投票ロックを解除してしまう不具合があったため、trueへ揃える。
+      // 【2026-11-XX追記・本人指示：一瞬協力の「もう一度聞く」仕様変更】ユーザーが自分の
+      // 意思で押す「もう一度聞く」は別経路（playQuestionAudioForVoluntaryReplay()）へ
+      // 分離しカウントダウンを持たなくなったが、この待機時間計算は音源トラブル復旧
+      // （常にカウントダウンあり）専用のため、ここは変更不要（true のまま）。
       replayWindowMs: computeRecoveryReplayWindowMs({
         playDurationSec: Number(currentSettings.playDurationValue),
         includesCountdown: true,
@@ -1029,8 +1040,9 @@ function showAudioErrorInline(message) {
 // サーバーへ報告＝問題無効化に直行していた（本人からの実機報告「もう一度聞くを使うと
 // 無効になりやすい」の直接原因）。「もう一度聞く」自体は正常な機能であり、使っただけで
 // 復旧の機会を失うのはおかしいため、「今まさに行っている1回の再生の試み」ごとに
-// 予算をリセットする（playCurrentQuestionAudioWithCountdown()が新しい再生を開始する
-// たびにfalseへ戻す）。
+// 予算をリセットする（playCurrentQuestionAudioWithCountdown()・
+// playQuestionAudioForVoluntaryReplay()のどちらも、新しい再生を開始するたびに
+// 必ずfalseへ戻す）。
 let hasAttemptedLocalRecoveryThisAttempt = false;
 
 function handleCoopPlaybackFailure(questionIndex, message) {
@@ -1143,11 +1155,23 @@ function playQuestionAudio(question, questionIndex) {
 }
 
 // 【2026-11-XX新設・実機バグ調査：一瞬協力にカウントダウンが無かった不具合】
-// js/onlineInstantBattleScreen.jsのplayCurrentQuestionAudioWithCountdown()と全く同じ設計。
 // 対戦開始時の3→2→1（js/onlineBattleScreen.js）が既に表示された直後なので、この対戦の
 // 最初の問題の初回出題だけはこの問題ごとのカウントダウンを省略し、画面遷移アニメーション分
-// だけ短く待ってから直接再生する。第2問以降の初回出題・すべての「もう一度聞く」は、
-// 通常どおり3→2→1を表示する。
+// だけ短く待ってから直接再生する。第2問以降の初回出題は、通常どおり3→2→1を表示する。
+// 【2026-11-XX改訂・本人指示：一瞬協力は「もう一度聞く」を何度でも使う仕様のため、押す
+// たびに3→2→1を挟む必要は無いという仕様変更】この関数を通るのは、①各問題が新しく
+// 出題された瞬間（qIndex変化を検知したとき）と、②音源トラブル復旧（全員へ同じタイミングで
+// 頭から聞き直させる、ホスト主導の強制リプレイ）の2経路だけになった。ユーザーが自分の
+// 意思で押す「もう一度聞く」は、下のplayQuestionAudioForVoluntaryReplay()という別の
+// 軽量な経路（カウントダウンを一切経由しない）を通る。
+// 【②に3→2→1を残した理由】音源トラブル復旧は「1人の申告をきっかけに、参加者全員へ
+// 同じタイミングで同じ曲を頭から聞き直させる」という、個人の任意操作とは性質が異なる
+// 公平性重視の処理。3→2→1のカウントダウンは、読み込みが遅い端末が再生開始までに
+// 追いつくための共有の猶予時間としても機能しており、これを削ると「一部の端末だけ
+// 読み込みが間に合わず、実質的に他の参加者より遅れて聞くことになる」という不公平が
+// 起きやすくなる。ホストが待つ時間（computeRecoveryReplayWindowMs()、
+// js/audioTroubleRecovery.js参照）もこのカウントダウンを含む前提で計算されているため、
+// 音源トラブル復旧は引き続きこの関数（3→2→1あり）を使う。
 function playCurrentQuestionAudioWithCountdown(question, questionIndex) {
   // 【2026-11-XX追加・実機バグ調査：「もう一度聞く」を使うと問題無効になりやすい不具合】
   // 新しい1回の再生の試みが始まるたびに、ローカル回復の予算を必ずリセットする
@@ -1177,6 +1201,26 @@ function playCurrentQuestionAudioWithCountdown(question, questionIndex) {
       playQuestionAudio(question, questionIndex);
     }
   );
+}
+
+// 【2026-11-XX新設・本人指示：一瞬協力の「もう一度聞く」仕様変更】ユーザーが自分の意思で
+// 押す「もう一度聞く」専用の軽量な再生経路。一瞬協力は何度でも自由に聞き直せる仕様のため、
+// 押すたびに3→2→1のカウントダウンを挟む必要は無い（一瞬バトルは対戦相手と競うモードのため
+// 引き続きカウントダウンを挟むが、一瞬協力は協力プレイであり、聞き直す行為そのものに
+// タイミングの公平性は関係しない）。
+// 【実装方針：見た目だけ消すのではなく、経路そのものを分ける】単純にカウントダウンの表示
+// （elements.countdown）だけを隠して内部では変わらず3秒待つ、という実装はしない。
+// runLocalReplayCountdownForQuestion()・isFirstQuestionOfMatch分岐・
+// firstQuestionDelayTimerIdのいずれも一切経由せず、音源が安全に再生可能になった時点
+// （＝playQuestionAudio()→playSongFromRandomPosition()が内部で行うIndexedDB取得・
+// unlock確認を経た直後）にそのまま再生する。
+function playQuestionAudioForVoluntaryReplay(question, questionIndex) {
+  // 【2026-11-XX追加・実機バグ調査：「もう一度聞く」を使うと問題無効になりやすい不具合】
+  // 新しい1回の再生の試みが始まるたびに、ローカル回復の予算を必ずリセットする
+  // （handleCoopPlaybackFailure()のコメント参照、playCurrentQuestionAudioWithCountdown()と
+  // 同じ理由）。
+  hasAttemptedLocalRecoveryThisAttempt = false;
+  playQuestionAudio(question, questionIndex);
 }
 
 // ===== 答え合わせ楽曲（続き再生）（2026-09-30新設・本人指示：オンライン対戦総合改修
