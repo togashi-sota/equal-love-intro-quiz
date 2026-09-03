@@ -13527,7 +13527,18 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 
 /* 【2026-11-XX追加・本人指示：結果/再戦フロー最終仕様】「同じ条件でもう一度」ボタンの
    下に添える、何が起きるかの補足説明。親の.button-rowはdisplay:flex（横並び）のため、
-   flex-basis:100%でボタンの下に自分の行として折り返させる。 */
+   flex-basis:100%でボタンの下に自分の行として折り返させる。
+   【2026-11-XX修正・実機バグ調査：ボタンが縦長に潰れる】親の.button-rowはnowrap（既定値）
+   のままだったため、「ボタン（flex-basis:0）＋この説明文（flex-basis:100%）」の合計が
+   コンテナ幅を超え、flexの縮小計算でボタン側の実際の幅がほぼ0まで押しつぶされ、
+   「同じ条件でもう一度」の文字が1文字ずつ縦に折り返される不具合が実機で発生していた。
+   .button-rowは他の画面で「ボタン2つを横並びにする」用途にも広く使われているため、
+   グローバルにflex-wrapを変えるのではなく、この説明文を持つ組み合わせを使う
+   #online-battle-result-host-actionsだけへ限定してflex-wrap:wrapを指定する。 */
+#online-battle-result-host-actions {
+  flex-wrap: wrap;
+}
+
 .online-battle-result-rematch-hint {
   flex-basis: 100%;
   margin: 4px 0 0;

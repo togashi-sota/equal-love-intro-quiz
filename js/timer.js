@@ -6,7 +6,18 @@ import { gameState } from "./state.js";
 
 // タイマーを開始する。
 // onTick : 1秒経過するたびに、その時点の経過秒数を渡して呼ばれる
+//
+// 【2026-11-XX修正・実機バグ調査】呼び出し側がstopTimer()を挟まずstartTimer()を
+// 連続で呼ぶ経路（オンライン対戦で音源再生に失敗し、同じ問題を再試行・差し替えて
+// renderQuestion()をやり直す場合等）があり、その場合ここでclearIntervalしていないと
+// 古いsetIntervalが孤立したまま残り、経過秒数が二重・三重にカウントアップされて
+// タイマー表示が1秒刻みでなく2秒・3秒単位で飛ぶ不具合の原因になっていた。
+// 新しいintervalを張る前に、必ず古いintervalを止める。
 export function startTimer(onTick) {
+  if (gameState.timerId) {
+    clearInterval(gameState.timerId);
+    gameState.timerId = null;
+  }
   gameState.elapsedSec = 0;
   onTick(gameState.elapsedSec);
 

@@ -52,8 +52,9 @@ import {
   renderRematchReadinessList,
   createRematchKickHandler,
 } from "./onlineBattleResultReturnState.js";
-import { computeAllPlayersRematchReady } from "./onlineBattleMatchConfirmationPayloads.js";
+import { computeAllPlayersRematchReady, resolveRematchToggleButtonLabel } from "./onlineBattleMatchConfirmationPayloads.js";
 import { computeRemainingRevealMs } from "./onlineBattleRevealTiming.js";
+import { recordAudioDiagnostic } from "./audioDiagnosticLog.js";
 import { promptReturnToLobby } from "./onlineBattleLobbyReturnPrompt.js";
 import { promptLeaveMatch } from "./onlineBattleLeaveMatchPrompt.js";
 import { promptResultLeaveRoom } from "./onlineBattleResultLeavePrompt.js";
@@ -166,7 +167,7 @@ import { buildParticipantIcon } from "./onlineParticipantIcon.js";
 // 流す新機能で使う。js/audio.jsの共通再生関数をそのまま再利用し（新しい再生経路は作らない）、
 // 失敗時はonErrorをconsole.warnだけにして、Q1無音バグの教訓どおり「演出の失敗でゲーム進行を
 // 止めない」設計にする（下のstartRevealMusic参照）。
-import { playSongFromRandomPosition, stopAudio, attemptSilentUnlock } from "./audio.js";
+import { playSongFromRandomPosition, stopAudio, attemptSilentUnlock, getAudioElementDiagnosticSnapshot } from "./audio.js";
 import { QUESTION_COUNT_LABELS } from "./localBattleScreen.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
 import { STEAL_CLAIM_OUTCOME } from "./lyricsQuizBattleFirebasePayloads.js";
@@ -474,8 +475,20 @@ export function initOnlineLyricsQuizBattleScreens(newElements) {
     if (result.ok) markResultScreenResponded();
   });
   // 【2026-10-01新設・本人指示】インライン再戦準備パネルの「準備OK」トグル。
+  // 【2026-11-XX修正・実機バグ調査：再戦フロー】js/onlineBattleScreen.jsの通常モードでは
+  // 既に対応済みだった「ホストが押した場合は再戦提案そのものを取り消す」分岐が、
+  // このファイルには移植されておらず欠落していた（ホストが押しても自分のrematchReadyを
+  // false/trueに切り替えるだけで、confirmingRematchが取り消されず、結果としてホストの
+  // 画面に本来不要な「✓ 準備OK」ボタンが現れ続けていた）。
   elements.resultRematchToggleButton?.addEventListener("click", async () => {
     if (!latestRoom) return;
+    if (latestRoom.host === getCurrentUid()) {
+      playSfx(SFX_EVENTS.UI_BACK);
+      elements.resultRematchToggleButton.disabled = true;
+      await cancelRematchReadyCheck({ roomId: latestRoom.roomId });
+      elements.resultRematchToggleButton.disabled = false;
+      return;
+    }
     const myUid = getCurrentUid();
     const myReady = latestRoom.players?.[myUid]?.rematchReady === true;
     playSfx(SFX_EVENTS.UI_CLICK);
@@ -553,9 +566,18 @@ const REVEAL_MUSIC_MIN_GRACE_MS = 2000;
 const STALE_REVEAL_THRESHOLD_MS = -2500;
 
 function startRevealMusic(question, remainingMsSec) {
-  if (remainingMsSec <= 0) {
-    if (remainingMsSec < STALE_REVEAL_THRESHOLD_MS) return; // 本当に手遅れ（長時間の復帰遅れ等）
-    remainingMsSec = REVEAL_MUSIC_MIN_GRACE_MS; // わずかなズレなら最低保証時間だけ鳴らす
+  if (remainingMsSec < STALE_REVEAL_THRESHOLD_MS) return; // 本当に手遅れ（長時間の復帰遅れ等）
+  // 【2026-11-XX改訂・実機バグ調査：ホストだけ答え合わせ音源が鳴らないことがある不具合】
+  // 以前はremainingMsSecが0以下（マイナス）のときだけ最低保証時間へ底上げしていたが、
+  // ホストはresolvedAt（serverTimestamp()）の書き込み直後、サーバー確定前の
+  // ローカル見積もり値を早期に受け取ることがあり、その結果remainingMsSecが「0より大きいが
+  // 数百msしかない」小さな正の値になりうることが実機調査で判明した。この場合、下のsetTimeout
+  // による自動停止が、IndexedDB取得→unlock→play()という非同期の再生準備が終わる前に
+  // 発火し、体感上「一切鳴らない」状態になっていたと考えられる。マイナス値だけでなく、
+  // 最低保証時間を下回るあらゆる小さな正の値も同じ理由で底上げする（本人指示の
+  // 「無音より鳴る方を優先する、フェイルオープン方針」を、0付近の境界条件まで一貫させる）。
+  if (remainingMsSec < REVEAL_MUSIC_MIN_GRACE_MS) {
+    remainingMsSec = REVEAL_MUSIC_MIN_GRACE_MS;
   }
   const byLevel = question.revealStartTimeSecByHintLevel ?? {};
   const revealStartTimeSec = byLevel[myAnswerHintLevel] ?? question.revealStartTimeSec;
@@ -564,6 +586,16 @@ function startRevealMusic(question, remainingMsSec) {
   if (revealMusicStopTimeoutId !== null) clearTimeout(revealMusicStopTimeoutId);
   revealMusicStopTimeoutId = setTimeout(() => {
     revealMusicStopTimeoutId = null;
+    // 【2026-11-XX追加・実機バグ調査】自動停止が実際に発火した時点でどこまで再生が
+    // 進んでいたか（currentTime）を記録する。0秒に近ければ「音が鳴り始める前に
+    // 停止させてしまった」ことの直接証拠になる。
+    const snapshot = getAudioElementDiagnosticSnapshot();
+    recordAudioDiagnostic("[ONLINE_LYRICS_BATTLE] 答え合わせ音源の自動停止", {
+      uid: getCurrentUid(),
+      isHost: latestRoom?.host === getCurrentUid(),
+      currentTimeAtStop: snapshot.currentTime,
+      pausedAtStop: snapshot.paused,
+    });
     stopAudio();
   }, remainingMsSec);
 }
@@ -1790,6 +1822,20 @@ function renderAnswerChoices(question, { isResolved, myAnsweredThisQuestion, que
       serverTimeOffset,
       nowMs: Date.now(),
     });
+    // 【2026-11-XX追加・実機バグ調査：ホストだけ答え合わせ音源が鳴らないことがある不具合】
+    // ホスト固有のタイミング差（resolvedAtのローカルエコーvs.サーバー確定値）が原因の
+    // 可能性を実機で検証できるよう、再生開始時点の主要な値をすべて記録しておく。
+    recordAudioDiagnostic("[ONLINE_LYRICS_BATTLE] 答え合わせ音源の開始判定", {
+      uid: getCurrentUid(),
+      isHost: latestRoom?.host === getCurrentUid(),
+      questionIndex,
+      songId: question.song?.id,
+      myAnswerHintLevel,
+      resolvedAt,
+      serverTimeOffset,
+      nowMs: Date.now(),
+      remainingMsSec,
+    });
     startRevealMusic(question, remainingMsSec);
     return;
   }
@@ -2418,9 +2464,14 @@ function renderLyricsResultReturnPanel(room) {
     renderRematchReadinessList(elements.resultRematchPlayerList, players, myUid, isHostOnResultScreen);
     const allReady = computeAllPlayersRematchReady(players);
     const myReady = players[myUid]?.rematchReady === true;
+    // 【2026-11-XX修正・実機バグ調査：再戦フロー】js/onlineBattleScreen.jsの通常モードでは
+    // 既に対応済みだったホスト分岐が、このファイルには移植されておらず欠落していた。
+    // resolveRematchToggleButtonLabel()（js/onlineBattleMatchConfirmationPayloads.js）へ
+    // 共通化し、4画面が再び食い違うことを構造的に防ぐ。
     if (elements.resultRematchToggleButton) {
-      elements.resultRematchToggleButton.textContent = myReady ? "準備を取り消す" : "✓ 準備OK";
-      elements.resultRematchToggleButton.classList.toggle("is-confirmed", myReady);
+      const label = resolveRematchToggleButtonLabel({ isHost: isHostOnResultScreen, myReady });
+      elements.resultRematchToggleButton.textContent = label.text;
+      elements.resultRematchToggleButton.classList.toggle("is-confirmed", label.isConfirmed);
     }
     if (elements.resultRematchAllDoneNotice) {
       elements.resultRematchAllDoneNotice.hidden = !allReady;

@@ -695,11 +695,35 @@ export async function updateRoomGameMode({ roomId, gameMode }) {
   if (!uid) return { ok: false, reason: "not-signed-in" };
   if (!isKnownGameMode(gameMode)) return { ok: false, reason: "unsupported-mode" };
 
-  const snapshot = await get(ref(database, `rooms/${roomId}`));
+  let snapshot;
+  try {
+    snapshot = await get(ref(database, `rooms/${roomId}`));
+  } catch {
+    // 【2026-11-XX追加・実機バグ調査：ロビー復帰直後にモード切替だけ反応しない】
+    // updateRoomSettings()側のupdate()呼び出しは既にtry/catchで守られていたが、
+    // ここのget()には無かった。一時的なネットワークエラーでこのget()が失敗すると、
+    // 呼び出し元（js/onlineBattleScreen.jsのラジオchangeハンドラ）のawaitが
+    // 例外で止まり、「書き込み中」フラグとラジオのdisabledが解除されないまま
+    // 永続してしまう不具合があったため、update()と同じ形でここも守る。
+    return { ok: false, reason: "read-failed" };
+  }
   if (!snapshot.exists()) return { ok: false, reason: "not-found" };
   const room = snapshot.val();
   if (room.host !== uid) return { ok: false, reason: "not-host" };
-  if (room.status !== ROOM_STATUS.WAITING) return { ok: false, reason: "not-waiting" };
+  // 【2026-11-XX改訂・実機バグ調査：ロビー復帰直後だけモード切替が反応しない不具合】
+  // 以前はstatus==='waiting'だけを許可していたが、試合終了直後は
+  // 「playing→result（試合結果確定）→（全員がresultReturnedしてから）waiting」という
+  // 複数のFirebase往復を経て初めて'waiting'になる。「ルーム設定へ戻る」を押した時点で
+  // 画面は先にロビーへ進む設計（他の離脱系処理と同じ、通信を待たせずナビゲーションする
+  // 方針）のため、'waiting'書き込みがまだ完了していない一瞬に対戦モードのボタンを押すと、
+  // このガードにだけ弾かれて無反応に見えていた（出題数等のupdateRoomSettings()には
+  // この種のガードが元々無いため、同じ状況でも問題なく通っていた）。
+  // 'result'の時点で既に採点は確定しており、モードを変えても対戦中の公平性には一切
+  // 影響しないため、'waiting'に加えて'result'でも書き込みを許可する
+  // （firebase/database.rules.jsonのgameMode用ルールも同じ理由で合わせて緩和済み）。
+  if (room.status !== ROOM_STATUS.WAITING && room.status !== ROOM_STATUS.RESULT) {
+    return { ok: false, reason: "not-waiting" };
+  }
   if (room.gameMode === gameMode) return { ok: true, settings: room.settings };
 
   const settings = createDefaultSettings(gameMode);
@@ -766,8 +790,15 @@ export async function transferHost({ roomId, newHostUid }) {
   // 【2026-10-01追加・本人指示：結果画面/再戦フロー全面設計12-9章】再戦準備中に
   // ホストを移譲する場合、旧ホストが出した再戦提案は一旦キャンセルする（本人指示：
   // 新ホストの判断で改めて再戦/ロビー開始してほしいため、提案を引き継がない）。
+  // 【2026-11-XX追加・実機バグ調査：再戦フロー仕様G】confirmingRematchだけでなく、
+  // 各参加者のrematchReadyも合わせてリセットする（本人指示の仕様書どおり「READY状態も
+  // 含め全てリセット」を厳密に満たすため）。新ホストが必要なら改めて再戦を提案し、
+  // 参加者は改めて準備OKを押し直す。
   if (room.confirmingRematch === true) {
     updates[`rooms/${roomId}/confirmingRematch`] = false;
+    for (const playerUid of Object.keys(room.players ?? {})) {
+      updates[`rooms/${roomId}/players/${playerUid}/rematchReady`] = false;
+    }
   }
   try {
     await update(ref(database), updates);
@@ -800,8 +831,13 @@ export async function claimHostIfDisconnected({ roomId }) {
   const updates = { [`rooms/${roomId}/host`]: uid };
   // 【2026-10-01追加・本人指示：結果画面/再戦フロー全面設計12-9章】transferHost()と同じ理由で、
   // ホスト自動移譲でも再戦提案があれば一旦キャンセルする。
+  // 【2026-11-XX追加・実機バグ調査：再戦フロー仕様G】transferHost()と同じく、各参加者の
+  // rematchReadyも合わせてリセットする。
   if (room.confirmingRematch === true) {
     updates[`rooms/${roomId}/confirmingRematch`] = false;
+    for (const playerUid of Object.keys(room.players ?? {})) {
+      updates[`rooms/${roomId}/players/${playerUid}/rematchReady`] = false;
+    }
   }
   try {
     await update(ref(database), updates);

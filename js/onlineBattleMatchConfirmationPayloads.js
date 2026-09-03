@@ -62,3 +62,21 @@ export function computeAllPlayersRematchReady(players) {
   if (entries.length === 0) return false;
   return entries.every((player) => player.rematchReady === true);
 }
+
+// 【2026-11-XX新設・実機バグ調査：再戦フロー】結果画面インライン再戦パネルの
+// 「準備OK／再戦を取り消す」トグルボタンの文言・スタイルを、ホスト・ゲストの4画面
+// （通常/歌詞クイズ対戦/一瞬バトル/一瞬協力）で必ず同じ判定にするための純粋関数。
+// 【この関数を作った理由】以前はこの3分岐（ホスト＝取消／ゲスト準備済み＝取消／
+// ゲスト未準備＝準備OK）を4つの画面ファイルへ個別に書いていたが、通常モードだけ
+// 先に仕様変更され、他の3画面（歌詞クイズ対戦・一瞬バトル・一瞬協力）には
+// ホスト分岐が移植されないまま取り残され、「ホストにも『準備OK』ボタンが出る」
+// という実機不具合の直接原因になっていた。同じ判定を1箇所にまとめることで、
+// 今後この4画面が再び食い違うことを構造的に防ぐ。
+// ホストは提案した瞬間から常に準備済み扱い（js/onlineBattle.jsのbeginRematchReadyCheck()
+// 参照）のため「準備OK」は出さず、押すと再戦提案そのものを取り消す専用ボタンとして扱う。
+export function resolveRematchToggleButtonLabel({ isHost, myReady }) {
+  if (isHost) {
+    return { text: "再戦を取り消す", isConfirmed: false };
+  }
+  return myReady ? { text: "準備を取り消す", isConfirmed: true } : { text: "✓ 準備OK", isConfirmed: false };
+}

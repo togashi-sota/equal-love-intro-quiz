@@ -86,6 +86,7 @@ import {
   computeAllPlayersConfirmed,
   computeAllPlayersRematchReady,
   computeAllPlayersResultReturned,
+  resolveRematchToggleButtonLabel,
 } from "./onlineBattleMatchConfirmationPayloads.js";
 // 【2026-09-16新設・本人指示：対戦中に自主退出したゲストを待ち続けない】タイムアタック・
 // ランダム再生対戦・アウトロクイズ対戦（このファイルが担当する個人進行系3モード）が
@@ -1450,10 +1451,15 @@ function enterOnlineBattlePlay(room) {
   }
 
   currentMatchId = room.activeMatchId;
-  // 【2026-09-12追加・本人指示：共有クイズエンジンの音源再生失敗対策】タイムアタック・
-  // ランダム再生・アウトロクイズ対戦は、一瞬バトル等と同じくAUDIO_FAILURE_RESERVE_SIZE件の
-  // 予備曲を確保しておく（js/main.jsのbeginOnlineBattlePlay()が実際の曲配列と予備曲を
-  // isReserveで仕分ける）。currentMatchTotalQuestionsは予備を除いた実際の出題数のまま。
+  // 【2026-09-12追加→2026-11-XX改訂・実機バグ調査：アウトロ対戦の同期崩れ】タイムアタック・
+  // ランダム再生・アウトロクイズ対戦は、AUDIO_FAILURE_RESERVE_SIZE件の予備曲を確保しておく
+  // （js/main.jsのbeginOnlineBattlePlay()が実際の曲配列と予備曲をisReserveで仕分ける）。
+  // 【2026-11-XX改訂】ただし予備曲自体はもう消費されない（音源再生に失敗した場合は
+  // 曲を差し替えず試合全体を無効化する設計にしたため。js/main.jsのhandleOnlineBattleAudioFailure()
+  // 参照）。ここでAUDIO_FAILURE_RESERVE_SIZEを0に変更しなかったのは、buildQuestionsForMode()の
+  // 曲プール抽選（seedベース）が予備分の候補数によって結果自体に影響しうるため、今回の
+  // 修正範囲（音源再生失敗時の挙動）を超えて既存の出題結果に触れないようにするため。
+  // currentMatchTotalQuestionsは予備を除いた実際の出題数のまま。
   const questions = buildQuestionsForMode(room.gameMode, room.settings, room.seed, AUDIO_FAILURE_RESERVE_SIZE);
   currentMatchTotalQuestions = questions.filter((question) => !question.isReserve).length;
 
@@ -2294,13 +2300,13 @@ function renderResultReturnPanel(room) {
     // 押すと再戦提案そのものを取り消す専用ボタンとして見せる（新しい取消ボタンを
     // 追加するのではなく、この同じボタンを切り替える）。ゲストは今までどおり
     // 自分の準備状態をトグルするボタンのまま。
+    // 【2026-11-XX改訂・実機バグ調査】この判定は他の3画面（歌詞クイズ対戦・一瞬バトル・
+    // 一瞬協力）にも全く同じ形で必要なため、resolveRematchToggleButtonLabel()へ
+    // 共通化した（4画面が再び食い違うことを構造的に防ぐため）。
     if (elements.resultRematchToggleButton) {
-      elements.resultRematchToggleButton.textContent = isHostOnResultScreen
-        ? "再戦を取り消す"
-        : myReady
-          ? "準備を取り消す"
-          : "✓ 準備OK";
-      elements.resultRematchToggleButton.classList.toggle("is-confirmed", myReady && !isHostOnResultScreen);
+      const label = resolveRematchToggleButtonLabel({ isHost: isHostOnResultScreen, myReady });
+      elements.resultRematchToggleButton.textContent = label.text;
+      elements.resultRematchToggleButton.classList.toggle("is-confirmed", label.isConfirmed);
     }
     if (elements.resultRematchAllDoneNotice) {
       elements.resultRematchAllDoneNotice.hidden = !allReady;
@@ -3099,7 +3105,6 @@ export function initOnlineBattleScreens(newElements) {
     playSfx(SFX_EVENTS.UI_CLICK);
     elements.createNameInput.value = getActivePlayer().playerName || "";
     elements.createError.hidden = true;
-    if (elements.entryAudioFailureNotice) elements.entryAudioFailureNotice.hidden = true;
     elements.navigateTo("onlineBattleCreate");
   });
   elements.entryJoinButton.addEventListener("click", () => {
@@ -3107,7 +3112,6 @@ export function initOnlineBattleScreens(newElements) {
     elements.joinNameInput.value = getActivePlayer().playerName || "";
     elements.joinRoomCodeInput.value = "";
     elements.joinError.hidden = true;
-    if (elements.entryAudioFailureNotice) elements.entryAudioFailureNotice.hidden = true;
     elements.navigateTo("onlineBattleJoin");
   });
   elements.entryLastRoomRejoinButton.addEventListener("click", async () => {
@@ -3283,6 +3287,12 @@ export function initOnlineBattleScreens(newElements) {
       if (result.ok) {
         playSfx(SFX_EVENTS.UI_CONFIRM);
       } else {
+        // 【2026-11-XX追加・実機バグ調査：ロビー復帰直後にモード切替だけ反応しない】
+        // 以前はここで失敗理由を一切記録しておらず、「タップしても静かに元へ戻るだけ」
+        // だったため、実機での再現原因の切り分けができなかった。ユーザー向けの表示は
+        // 増やさず（低リスクな一時的失敗のため、CLAUDE.mdの「一時エラーは極力見せない」
+        // 方針どおり）、既存のロビー診断ログへ理由だけ記録する。
+        recordLobbyRenderEvent("modeChangeFailed", { seq: nextLobbyRenderSequence(), reason: result.reason, nextGameMode });
         // 失敗時（通信エラー等）は候補選択を取り消し、今のモードへ戻す。renderLobby()の
         // 次のroom更新で改めてradioが再度有効化される。
         modeChangeHasPendingSelection = false;

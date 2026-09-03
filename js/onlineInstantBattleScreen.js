@@ -43,7 +43,7 @@ import {
   renderRematchReadinessList,
   createRematchKickHandler,
 } from "./onlineBattleResultReturnState.js";
-import { computeAllPlayersRematchReady } from "./onlineBattleMatchConfirmationPayloads.js";
+import { computeAllPlayersRematchReady, resolveRematchToggleButtonLabel } from "./onlineBattleMatchConfirmationPayloads.js";
 import { computeRemainingRevealMs } from "./onlineBattleRevealTiming.js";
 import { promptReturnToLobby } from "./onlineBattleLobbyReturnPrompt.js";
 import { promptLeaveMatch } from "./onlineBattleLeaveMatchPrompt.js";
@@ -354,8 +354,18 @@ export function initOnlineInstantBattleScreens(newElements) {
     if (result.ok) markResultScreenResponded();
   });
   // 【2026-10-01新設・本人指示】インライン再戦準備パネルの「準備OK」トグル。
+  // 【2026-11-XX修正・実機バグ調査：再戦フロー】js/onlineBattleScreen.jsの通常モードでは
+  // 既に対応済みだった「ホストが押した場合は再戦提案そのものを取り消す」分岐が、
+  // このファイルには移植されておらず欠落していた。
   elements.resultRematchToggleButton?.addEventListener("click", async () => {
     if (!latestRoom) return;
+    if (latestRoom.host === getCurrentUid()) {
+      playSfx(SFX_EVENTS.UI_BACK);
+      elements.resultRematchToggleButton.disabled = true;
+      await cancelRematchReadyCheck({ roomId: latestRoom.roomId });
+      elements.resultRematchToggleButton.disabled = false;
+      return;
+    }
     const myUid = getCurrentUid();
     const myReady = latestRoom.players?.[myUid]?.rematchReady === true;
     playSfx(SFX_EVENTS.UI_CLICK);
@@ -880,7 +890,24 @@ function playQuestionAudio(question, questionIndex, settings) {
     return;
   }
   const computeStartTimeSec = (actualDurationSec) => {
-    if (!isDurationMismatchWithinTolerance(fixedDurationSec, actualDurationSec)) {
+    // 【2026-11-XX追加・実機バグ調査：「この問題は無効です」頻発】duration不一致の実測値を
+    // 必ず記録する（成功時も含む）。実機での閾値0.75秒（MAX_DURATION_MISMATCH_SEC、
+    // js/randomPlaybackEngine.js）が妥当かどうかは実測データが無いと判断できないため
+    // （本人指示：「原因不明のまま数字だけ調整する修正はしない」）、まずはこの計測を
+    // 実機ログへ残すことを優先する。
+    const diffSec = Math.abs(fixedDurationSec - actualDurationSec);
+    const withinTolerance = isDurationMismatchWithinTolerance(fixedDurationSec, actualDurationSec);
+    recordAudioDiagnostic("[ONLINE_INSTANT] duration比較", {
+      ...describeInstantDiagnosticContext(),
+      questionIndex,
+      songId: question.song.id,
+      fixedDurationSec,
+      actualDurationSec,
+      diffSec: Math.round(diffSec * 1000) / 1000,
+      withinTolerance,
+      userAgent: typeof navigator !== "undefined" ? navigator.userAgent : "unknown",
+    });
+    if (!withinTolerance) {
       stopAudio();
       handlePlaybackFailure(questionIndex, "この曲の音源が他の端末と異なる可能性があります。音源を入れ直してください。");
       return 0;
@@ -1503,9 +1530,14 @@ function renderInstantBattleResultReturnPanel(room) {
     renderRematchReadinessList(elements.resultRematchPlayerList, players, myUid, isHostOnResultScreen);
     const allReady = computeAllPlayersRematchReady(players);
     const myReady = players[myUid]?.rematchReady === true;
+    // 【2026-11-XX修正・実機バグ調査：再戦フロー】js/onlineBattleScreen.jsの通常モードでは
+    // 既に対応済みだったホスト分岐が、このファイルには移植されておらず欠落していた。
+    // resolveRematchToggleButtonLabel()（js/onlineBattleMatchConfirmationPayloads.js）へ
+    // 共通化し、4画面が再び食い違うことを構造的に防ぐ。
     if (elements.resultRematchToggleButton) {
-      elements.resultRematchToggleButton.textContent = myReady ? "準備を取り消す" : "✓ 準備OK";
-      elements.resultRematchToggleButton.classList.toggle("is-confirmed", myReady);
+      const label = resolveRematchToggleButtonLabel({ isHost: isHostOnResultScreen, myReady });
+      elements.resultRematchToggleButton.textContent = label.text;
+      elements.resultRematchToggleButton.classList.toggle("is-confirmed", label.isConfirmed);
     }
     if (elements.resultRematchAllDoneNotice) {
       elements.resultRematchAllDoneNotice.hidden = !allReady;

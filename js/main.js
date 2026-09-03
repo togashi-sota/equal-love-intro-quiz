@@ -974,7 +974,6 @@ const onlineBattleEntryBackButtonElement = document.getElementById("online-battl
 const onlineBattleEntryCreateButtonElement = document.getElementById("online-battle-entry-create-button");
 const onlineBattleEntryJoinButtonElement = document.getElementById("online-battle-entry-join-button");
 const onlineBattleEntryKickedNoticeElement = document.getElementById("online-battle-entry-kicked-notice");
-const onlineBattleEntryAudioFailureNoticeElement = document.getElementById("online-battle-entry-audio-failure-notice");
 const onlineBattleEntryLastRoomBannerElement = document.getElementById("online-battle-entry-last-room-banner");
 const onlineBattleEntryLastRoomTextElement = document.getElementById("online-battle-entry-last-room-text");
 const onlineBattleEntryLastRoomRejoinButtonElement = document.getElementById("online-battle-entry-last-room-rejoin-button");
@@ -6002,7 +6001,6 @@ initOnlineBattleScreens({
   entryCreateButton: onlineBattleEntryCreateButtonElement,
   entryJoinButton: onlineBattleEntryJoinButtonElement,
   entryKickedNotice: onlineBattleEntryKickedNoticeElement,
-  entryAudioFailureNotice: onlineBattleEntryAudioFailureNoticeElement,
   entryLastRoomBanner: onlineBattleEntryLastRoomBannerElement,
   entryLastRoomText: onlineBattleEntryLastRoomTextElement,
   entryLastRoomRejoinButton: onlineBattleEntryLastRoomRejoinButtonElement,
@@ -6215,20 +6213,6 @@ initOnlineLyricsQuizBattleScreens({
   onLeaveResultToHome: () => leaveOnlineBattleRoomView(),
   onLeaveRoomCompletely: () => leaveOnlineBattleRoomCompletely(),
 });
-
-// 【2026-09-09新設・本人指示：音源再生失敗時の公平性対策】同じ問題スロットで規定回数
-// すべて再生に失敗し、対戦を安全に中断せざるを得なかった場合の共通後処理。
-// 「対戦をやめる」（quitOnlineBattleDuringQuiz）と同じ後片付けで試合から離脱し、
-// 入口画面に理由付きの案内を残す（本人指示：エラー理由の概要もユーザー向けに表示）。
-// 一瞬バトル・一瞬協力の両方から共通で使う。
-function showOnlineBattleAudioFailureAbort(message) {
-  quitOnlineBattleDuringQuiz();
-  showScreen("onlineBattleEntry");
-  if (onlineBattleEntryAudioFailureNoticeElement) {
-    onlineBattleEntryAudioFailureNoticeElement.textContent = message;
-    onlineBattleEntryAudioFailureNoticeElement.hidden = false;
-  }
-}
 
 // オンライン対戦「一瞬バトル」専用画面（2026-08-30新設、本人指示：19-3章）。
 // 進行モデル自体はタイムアタック等と同じ独立進行のため、待機画面・結果画面への遷移は
@@ -6447,26 +6431,12 @@ let onlineBattleGameMode = null; // 今の試合のgameMode（結果オブジェ
 let onlineRandomPlaybackContext = null; // { seed, matchId } | null
 
 // 【2026-09-12新設・本人指示：共有クイズエンジンの音源再生失敗対策】タイムアタック・
-// ランダム再生・アウトロクイズのオンライン対戦で使う、音源再生失敗時の差し替え用の予備曲。
-// js/onlineInstantBattleScreen.jsのhandlePlaybackFailure()と同じ考え方（同じスロットで
-// 規定回数連続失敗、または予備切れで対戦を安全に中断する）だが、こちらは既存の
-// gameState.questions（renderQuestion()の進捗表示・advanceToNextQuestion()の終了判定が
-// 直接参照する配列）の「長さ」を変えないよう、予備曲だけをこの別配列に切り分けて持つ
-// （gameState.questions自体には出題数ぶんの要素しか入れない。詳細はHANDOFF.md参照）。
-let onlineBattleReserveQuestions = []; // isReserve:trueの予備曲だけを集めた配列
-let onlineBattleNextReserveIndex = 0; // 次に使う予備曲のインデックス
+// ランダム再生・アウトロクイズのオンライン対戦で使う、音源再生失敗の検知用カウンタ。
 let onlineBattleSlotFailureCount = 0; // 今の問題スロットで何回再生に失敗したか（問題が進むたびに0へ戻す）
-const ONLINE_BATTLE_MAX_SLOT_PLAYBACK_ATTEMPTS = 3; // 元の曲＋差し替え2回で打ち切る
-// 【2026-09-13追加・本人指示：一瞬バトルで実機再生失敗が再発（原因調査）で判明した別件の修正】
-// 「全曲」設定（questionCountValue:"all"）のように、出題数がそのモードの曲プール総数と
-// 一致する場合、buildBattleQuestions()等のextendedCount計算上、予備曲を1曲も確保できない
-// （プールの中にもう「まだ出題していない曲」が残っていないため）。この場合に
-// reserveExhaustedの判定をそのまま使うと、最初の1回の再生失敗だけで即座に対戦が
-// 中断してしまう（予備が最初から0件＝「使い果たした」と同じ判定になるため）。
-// 「最初から一度も予備が無かった」場合は、この判定から除外し、同じ曲のまま
-// ONLINE_BATTLE_MAX_SLOT_PLAYBACK_ATTEMPTS回まで再試行してから中断するようにする
-// （曲を差し替えられないだけで、一時的な再生失敗から回復できる可能性は変わらないため）。
-let onlineBattleReserveWasEverAvailable = false;
+// 【2026-11-XX改訂・実機バグ調査：アウトロ対戦の同期崩れ】以前は「元の曲＋差し替え2回」の
+// 意味でこの回数だったが、差し替え自体を廃止した（下のhandleOnlineBattleAudioFailure()の
+// コメント参照）ため、今は純粋に「同じ曲を最大何回再試行するか」の回数。
+const ONLINE_BATTLE_MAX_SLOT_PLAYBACK_ATTEMPTS = 3;
 
 // js/onlineBattleScreen.jsが、開始確認（status:playing検知）のタイミングで呼ぶ。
 // questionsは同じseed・settingsからjs/battleModes/index.js経由で組み立て済みのもの。
@@ -6476,65 +6446,69 @@ function beginOnlineBattlePlay(questions, room) {
     getPlaybackType(room.gameMode) === "randomPosition"
       ? { seed: room.seed, matchId: room.activeMatchId }
       : null;
-  // 【2026-09-12追加・本人指示：共有クイズエンジンの音源再生失敗対策】questionsには
-  // 出題数ぶんの本番の曲に続けて予備の曲（isReserve:true）が入っている場合がある
-  // （js/onlineBattleScreen.jsのenterOnlineBattlePlay()参照）。gameState.questionsには
-  // 本番の曲だけを渡し、予備は別配列で持つ（既存の進捗表示・終了判定を一切変えないため）。
+  // 【2026-09-12追加→2026-11-XX改訂】questionsには出題数ぶんの本番の曲に続けて予備の曲
+  // （isReserve:true）が入っている場合があるが（js/onlineBattleScreen.jsの
+  // enterOnlineBattlePlay()参照）、この予備曲はもう使わない（音源再生失敗時は曲を差し替えず
+  // 試合全体を無効化する設計にしたため。下のhandleOnlineBattleAudioFailure()参照）。
+  // gameState.questionsには引き続き本番の曲だけを渡す（既存の進捗表示・終了判定を
+  // 一切変えないため）。
   const realQuestions = questions.filter((question) => !question.isReserve);
-  onlineBattleReserveQuestions = questions.filter((question) => question.isReserve);
-  onlineBattleNextReserveIndex = 0;
   onlineBattleSlotFailureCount = 0;
-  onlineBattleReserveWasEverAvailable = onlineBattleReserveQuestions.length > 0;
   startTimeAttackRun(room.settings.rule, room.settings.questionCountValue, room.settings.categoryFilterValue);
   startOnlineBattleQuiz(realQuestions, room.settings.questionCountValue, room.settings.categoryFilterValue);
   showScreen("quiz");
   renderQuestion();
 }
 
-// 【2026-09-12新設・本人指示：共有クイズエンジンの音源再生失敗対策】タイムアタック・
+// 【2026-09-12新設→2026-11-XX全面改訂・実機バグ調査：アウトロ対戦の同期崩れ】タイムアタック・
 // ランダム再生・アウトロクイズのオンライン対戦で、音源の再生に失敗したときに呼ばれる。
-// js/onlineInstantBattleScreen.jsのhandlePlaybackFailure()と同じ設計：
-// ・音が流れなかった問題は、不正解にもならず、ペナルティも問題数の消費も一切発生しない
-//   （renderQuestion()を呼び直すだけで、handleTimedChoiceClick()側の採点処理には一切触れない）。
-// ・同じスロットで規定回数（元の曲＋差し替え2回）失敗、または予備曲が尽きたら、
-//   この対戦を安全に中断する（勝敗・プレイ履歴は一切記録しない）。
 // questionIndexは、この再生を試みた時点のgameState.currentIndexを呼び出し元がクロージャで
 // 渡す。ユーザーが既に回答して次の問題へ進んだ後に遅れて届いた失敗report（audio.jsの
 // リトライは非同期のため起こりうる）を無視するためのガード。
+//
+// 【2026-11-XX改訂の理由：実機2台テストで判明した重大な同期崩れ】以前はここで「予備曲へ
+// ローカルだけで差し替えて続行する」処理をしていたが、この差し替えはFirebaseへ一切
+// 通知されないため、音源再生に失敗した端末だけが他の端末と異なる曲・選択肢を見る
+// （同じ第1問なのに全く別の曲が出題される）という重大な不具合を引き起こしていた。
+// このファイル上部のhandleOnlineBattleAudioTroubleButtonClick()（「音が出ない」ボタン、
+// 手動申告）は、本人の明確な指示により既に「試合全体を無効試合にし、勝敗を付けず、
+// 参加者全員分の記録を一切残さず、全員を安全にロビーへ戻す」設計（js/onlineBattle.jsの
+// reportMatchInvalidatedDueToAudioTrouble()参照）に作り直されている。理由は「早さが
+// 勝敗・記録に直結するこの3モードでは、誰か1人でも本当に音が出なかった時点で試合全体の
+// 公平性が既に失われている」ため。この自動検知パス（handleOnlineBattleAudioFailure）
+// だけが、この本人指示より前の「ローカルだけで差し替えて何とか続行する」設計のまま
+// 取り残されていたのが今回の実機不具合の根本原因。
+// 【新しい設計】同じ曲のままONLINE_BATTLE_MAX_SLOT_PLAYBACK_ATTEMPTS回までは、通信の
+// 一時的な乱れ等からの回復を期待してローカルで再試行する（曲を差し替えないため、
+// この再試行自体は他の端末との同期に一切影響しない）。それでも再生できない場合は、
+// 曲を差し替えて独自に続行するのではなく、手動の「音が出ない」ボタンと全く同じ
+// abortOnlineBattleMatchDueToAudioTrouble()を呼び、試合全体を安全に無効化する
+// （予備曲プール自体・buildQuestionsForMode()側の生成ロジックは変更していない。
+// 単にこの関数が予備曲を消費しなくなっただけ）。
 function handleOnlineBattleAudioFailure(questionIndex, message) {
   if (gameState.playMode !== "onlineBattle" || questionIndex !== gameState.currentIndex || gameState.isAnswered) {
     return;
   }
 
   onlineBattleSlotFailureCount += 1;
-  // 【2026-09-13修正・本人指示：初回問題消失バグの調査で判明した別件の修正】「全曲」設定等、
-  // このモードの曲プール全体を出題数として使っている場合、予備曲を1曲も確保できない
-  // （onlineBattleReserveWasEverAvailable===false）。この場合は「予備切れ」という
-  // 判定自体が成立しない（最初から無かっただけ）ため、中断の判断からは除外し、
-  // 同じ曲のままONLINE_BATTLE_MAX_SLOT_PLAYBACK_ATTEMPTS回まで再試行する。
-  const reserveExhausted =
-    onlineBattleReserveWasEverAvailable && onlineBattleNextReserveIndex >= onlineBattleReserveQuestions.length;
-  if (onlineBattleSlotFailureCount >= ONLINE_BATTLE_MAX_SLOT_PLAYBACK_ATTEMPTS || reserveExhausted) {
-    stopAudio();
+  recordAudioDiagnostic("[ONLINE_BATTLE_AUDIO_FAILURE] 音源再生失敗", {
+    questionIndex,
+    attemptCount: onlineBattleSlotFailureCount,
+    willAbortMatch: onlineBattleSlotFailureCount >= ONLINE_BATTLE_MAX_SLOT_PLAYBACK_ATTEMPTS,
+    message,
+  });
+  if (onlineBattleSlotFailureCount >= ONLINE_BATTLE_MAX_SLOT_PLAYBACK_ATTEMPTS) {
+    // 手動の「🔇 音が出ない」ボタン（handleOnlineBattleAudioTroubleButtonClick()）と
+    // 全く同じ後始末の手順で試合全体を無効化する。message引数は診断用の内部情報
+    // （audio.js側のエラー文言）のため、ユーザー向けの案内文はここで統一する。
+    clearPendingTimeAttackAdvance();
     stopTimer();
-    showOnlineBattleAudioFailureAbort(
-      "音源を正常に再生できない状態が続いているため、対戦を中断しました。もう一度お試しください。"
-    );
+    stopAudio();
+    resetGameState();
+    abortOnlineBattleMatchDueToAudioTrouble();
     return;
   }
-
-  // 【2026-09-13修正・本人指示3：音源差し替え成功時のユーザー向けメッセージを消す】
-  // プレイヤーは元々どの曲が出題される予定だったか知らないため、差し替えが成功して
-  // 問題を続行できるなら何も表示しない（対戦を安全に継続できない場合＝上のabort分岐に
-  // 到達した場合だけ、案内を表示する）。裏側の記録（診断ログ）はjs/audio.jsの
-  // 既存のconsole.warnにそのまま残る。
-  const hasReserveAvailable = onlineBattleNextReserveIndex < onlineBattleReserveQuestions.length;
-  if (hasReserveAvailable) {
-    const replacementQuestion = onlineBattleReserveQuestions[onlineBattleNextReserveIndex];
-    onlineBattleNextReserveIndex += 1;
-    gameState.questions[gameState.currentIndex] = replacementQuestion;
-  }
-  // 予備が無い場合（全曲設定等）は、questionsを差し替えずに同じ曲のまま再試行する。
+  // 同じ曲のまま再試行する（曲を差し替えないため、他の端末との同期は崩れない）。
   renderQuestion();
 }
 

@@ -80,7 +80,7 @@
         },
 
         "gameMode": {
-          ".write": "auth != null && root.child('rooms/' + $roomId + '/host').val() === auth.uid && root.child('rooms/' + $roomId + '/status').val() === 'waiting'",
+          ".write": "auth != null && root.child('rooms/' + $roomId + '/host').val() === auth.uid && (root.child('rooms/' + $roomId + '/status').val() === 'waiting' || root.child('rooms/' + $roomId + '/status').val() === 'result')",
           ".validate": "newData.isString() && newData.val().length > 0"
         },
 

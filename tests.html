@@ -79,6 +79,7 @@
     import { runRevealAudioPreferenceTests } from "./tests/revealAudioPreference.test.js";
     import { runQuizModeLabelTests } from "./tests/quizModeLabel.test.js";
     import { runLobbyRenderDiagnosticLogTests } from "./tests/lobbyRenderDiagnosticLog.test.js";
+    import { runTimerTests } from "./tests/timer.test.js";
     import { runSpecialModeIconsTests } from "./tests/specialModeIcons.test.js";
     import { runPublicProfilePayloadsTests } from "./tests/publicProfilePayloads.test.js";
     import {
@@ -184,6 +185,7 @@
     runRevealAudioPreferenceTests();
     runQuizModeLabelTests();
     runLobbyRenderDiagnosticLogTests();
+    await runTimerTests();
     runSpecialModeIconsTests();
     runPublicProfilePayloadsTests();
     runFanProfileCardTests();

@@ -7,6 +7,7 @@ import {
   computeAllPlayersConfirmed,
   computeAllPlayersRematchReady,
   computeAllPlayersResultReturned,
+  resolveRematchToggleButtonLabel,
 } from "../js/onlineBattleMatchConfirmationPayloads.js";
 import { assertEqual } from "./test-utils.js";
 
@@ -254,6 +255,50 @@ export function runOnlineBattleMatchConfirmationPayloadsTests() {
         `${n}人：最後の1人がresultReturned:trueになった瞬間にtrueへ変わる`
       );
     });
+
+    // ---- resolveRematchToggleButtonLabel（2026-11-XX新設・実機バグ調査：再戦フロー） ----
+    // 【症状の再現条件】以前は通常モード（js/onlineBattleScreen.js）だけがホスト分岐を
+    // 持ち、歌詞クイズ対戦・一瞬バトル・一瞬協力の3画面はこの分岐が欠落していたため、
+    // ホストの画面にも「✓ 準備OK」ボタンが誤って表示されていた。4画面すべてが
+    // この1つの純粋関数を経由するようになったため、ここでの検証がそのまま4画面すべての
+    // 正しさを保証する。
+    {
+      assertEqual(
+        resolveRematchToggleButtonLabel({ isHost: true, myReady: true }).text,
+        "再戦を取り消す",
+        "ホストは自分のrematchReadyの値に関わらず「再戦を取り消す」を表示する（提案した瞬間から常に準備済み扱いのため）"
+      );
+      assertEqual(
+        resolveRematchToggleButtonLabel({ isHost: true, myReady: false }).text,
+        "再戦を取り消す",
+        "ホスト：myReadyがfalseでも「✓ 準備OK」は絶対に表示しない"
+      );
+      assertEqual(
+        resolveRematchToggleButtonLabel({ isHost: true, myReady: true }).isConfirmed,
+        false,
+        "ホストの取消ボタンには、ゲスト向けの準備完了スタイル（is-confirmed）を付けない"
+      );
+      assertEqual(
+        resolveRematchToggleButtonLabel({ isHost: false, myReady: false }).text,
+        "✓ 準備OK",
+        "ゲスト・未準備：「✓ 準備OK」を表示する"
+      );
+      assertEqual(
+        resolveRematchToggleButtonLabel({ isHost: false, myReady: true }).text,
+        "準備を取り消す",
+        "ゲスト・準備済み：「準備を取り消す」を表示する"
+      );
+      assertEqual(
+        resolveRematchToggleButtonLabel({ isHost: false, myReady: true }).isConfirmed,
+        true,
+        "ゲスト・準備済み：is-confirmedスタイルを付ける"
+      );
+      assertEqual(
+        resolveRematchToggleButtonLabel({ isHost: false, myReady: false }).isConfirmed,
+        false,
+        "ゲスト・未準備：is-confirmedスタイルは付けない"
+      );
+    }
 
     // 【10人・複数人が同時に切断中】切断中の人数が複数でも、残りの接続中メンバーだけで
     // 正しく判定できることを確認する（本人指示：最大10人ではタイミング差が出やすいため）。

@@ -543,6 +543,15 @@ function sleep(ms) {
 // 数回まで再試行することで、こうした一時的な失敗から自動的に回復できるようにする。
 const PLAY_RETRY_WAIT_MS_LIST = [300, 600];
 
+// 【2026-11-XX追加・実機バグ調査：一瞬バトル／一瞬協力の「この問題は無効です」頻発】
+// audioElement.play()が返すPromiseは通常なら数十〜数百msで決着するが、稀に決着自体が
+// 起きない（resolveもrejectもしない）ケースがあることが実機調査で判明した。この場合、
+// 下のattemptPlay()のawaitがそのままハングし、失敗report・エラー表示のどちらも発生
+// せずに無言で止まってしまう（「この問題は無効です」とは別の、より悪い実害）。
+// ensureUnlockSettled()が既に使っているraceUnlockPromiseWithTimeout()と全く同じ
+// 考え方で、決着しなければ諦めて次の再試行（または失敗として報告）へ進めるようにする。
+const PLAY_SETTLE_TIMEOUT_MS = 3000;
+
 // audioElement.play()を試み、成功/失敗のどちらでも「追い越された場合の後始末」まで行う。
 // 戻り値：trueなら再生が実際に始まった（かつ自分がまだ最新）、falseなら失敗または追い越された。
 // playSongIntro()・playSongFromRandomPosition()の共通の後半処理。
@@ -572,7 +581,19 @@ async function attemptPlay(myToken, myObjectUrl, onError, diagnosticContext) {
       src: audioElement.src,
     });
     try {
-      await audioElement.play();
+      // 【2026-11-XX追加・実機バグ調査】play()のPromise自体がハングして無期限に
+      // 決着しないケースへの保険。PLAY_SETTLE_TIMEOUT_MS以内にresolve/rejectしなければ、
+      // ここでは「決着しなかった」ことを検知できるだけの素朴なタイムアウト用Promiseと
+      // Promise.raceする。play()呼び出し自体（audioElement.play()）は取り消せないため、
+      // 万一その後に本当にresolve/rejectしても、追い越し判定（myToken !== currentPlaybackToken）
+      // が安全側に処理する（下の既存ロジックと同じ枠組み）。
+      const settleResult = await Promise.race([
+        audioElement.play().then(() => "resolved"),
+        new Promise((resolve) => setTimeout(() => resolve("timeout"), PLAY_SETTLE_TIMEOUT_MS)),
+      ]);
+      if (settleResult === "timeout") {
+        throw new Error("play()のPromiseがタイムアウトまでに決着しませんでした");
+      }
       lastError = null;
       // 【本人指示：play()のPromiseが成功しただけでは「音が聞こえた」ことにならない】
       // ここではあくまで「ブラウザがplay()呼び出し自体は拒否しなかった」ことしか
@@ -811,6 +832,17 @@ export function getCurrentPlaybackState() {
     token: currentPlaybackToken,
     songId: currentPlaybackSongId,
     hasTroubleReport: troubleReportedToken !== null && troubleReportedToken === currentPlaybackToken,
+  };
+}
+
+// 【2026-11-XX追加・実機バグ調査：答え合わせ音源が鳴らないことがある不具合】呼び出し元が
+// audio要素そのものを持っていないため、診断ログ用に「今のcurrentTime・再生中かどうか」
+// だけを安全に読み取れる関数を追加する。audioElement自体はこのモジュール外へ公開しない
+// （既存の設計方針どおり、再生の制御は必ずこのファイルの関数経由で行う）。
+export function getAudioElementDiagnosticSnapshot() {
+  return {
+    currentTime: audioElement.currentTime,
+    paused: audioElement.paused,
   };
 }
 
