@@ -508,6 +508,40 @@ async function acquireBlobForNewPlayback(song) {
   return { myToken, blob, stale: false };
 }
 
+// 【2026-11-XX新設・実機バグ調査：オンライン対戦「イントロ対戦」開始直後の音源トラブル】
+// 本人の実機ログ解析で判明した仮説：audio要素が一度NotSupportedError等でエラー状態に
+// なった後、srcの再代入だけでは要素の内部状態（audioElement.error）が完全にはリセット
+// されない場合がある（一部ブラウザ実装で知られる挙動）。実機ログでは、3回連続して
+// 「新しいIndexedDB取得・新しいBlob・新しいObject URL」を使ったにも関わらず、
+// 待機時間の長さに関係なく毎回同じNotSupportedErrorが即座に発生していた
+// （js/audioDiagnosticLog.js経由の実機ログで確認、docs/HANDOFF.md 81章参照）。
+// 「新しいデータなのに毎回同じ失敗をする」という現象は、Blob側ではなくaudio要素側に
+// 持続的な原因があることを示唆するため、新しいsrcを設定する直前に、audio要素が
+// エラー状態（.error !== null）であれば、既存のattemptSilentUnlock()の後始末
+// （removeAttribute("src") → load()）と全く同じ手順で明示的にリセットする。
+// 【まだ「確定した根本原因」ではない点に注意】この対策を入れても、実機で今回と同じ
+// NotSupportedErrorが再発する場合、それは"audio要素のエラー残留"以外の原因である
+// ことの強い証拠になる（下のdiag()ログで、リセット前のaudioElement.errorの中身を
+// 必ず記録しておくことで、次回の実機ログから両方の可能性を判別できるようにしている）。
+function resetAudioElementIfInErrorState(diagnosticContext) {
+  const existingError = audioElement.error;
+  if (existingError === null || existingError === undefined) return;
+  diag(`[ERROR_RESET] audio要素がエラー状態のまま新しい再生を開始しようとしている (${diagnosticContext})`, {
+    errorCode: existingError.code,
+    errorMessage: existingError.message,
+    currentSrcBeforeReset: audioElement.currentSrc,
+    readyStateBeforeReset: audioElement.readyState,
+    networkStateBeforeReset: audioElement.networkState,
+  });
+  audioElement.removeAttribute("src");
+  audioElement.load();
+  diag(`[ERROR_RESET] audio要素をload()で明示的にリセットした (${diagnosticContext})`, {
+    errorAfterReset: audioElement.error,
+    readyStateAfterReset: audioElement.readyState,
+    networkStateAfterReset: audioElement.networkState,
+  });
+}
+
 // 取得したblobを「現在再生中」として確定させる。前の曲のURLはまだ解放せず
 // （pendingPreviousObjectUrlへ退避するだけ）、自分のURLを新しい「現在再生中」として
 // 登録してから、再生用のURLを返す。前の曲のURLの実際の解放は、呼び出し元が
@@ -624,7 +658,19 @@ async function attemptPlay(myToken, myObjectUrl, onError, diagnosticContext) {
       break;
     } catch (error) {
       lastError = error;
-      diag(`[${playbackTag}] play()失敗 (${diagnosticContext}) attempt=${attempt}`, { name: error?.name, message: error?.message });
+      // 【2026-11-XX追加・実機バグ調査】原因の切り分けのため、失敗時点のaudio要素の
+      // 状態（.error・readyState・networkState・currentSrc）もあわせて記録する。
+      // 「なぜ最初のNotSupportedErrorが起きたか」と「なぜその後も同じエラーが続くか」を
+      // 後から区別できるようにするため（docs/HANDOFF.md 81章参照）。
+      diag(`[${playbackTag}] play()失敗 (${diagnosticContext}) attempt=${attempt}`, {
+        name: error?.name,
+        message: error?.message,
+        audioElementErrorCode: audioElement.error?.code ?? null,
+        audioElementErrorMessage: audioElement.error?.message ?? null,
+        readyState: audioElement.readyState,
+        networkState: audioElement.networkState,
+        currentSrc: audioElement.currentSrc,
+      });
     }
   }
 
@@ -688,6 +734,8 @@ export async function playSongIntro(song, onError, onPlaybackStart) {
   await ensureUnlockSettled();
   if (myToken !== currentPlaybackToken) return;
 
+  resetAudioElementIfInErrorState(`intro, song=${song.id}`);
+
   const myObjectUrl = claimAsCurrentPlayback(blob);
 
   audioElement.onerror = () => {
@@ -744,6 +792,8 @@ export async function playSongFromRandomPosition(song, computeStartTimeSec, play
   // 同じ理由（ensureUnlockSettled()のコメント参照）。
   await ensureUnlockSettled();
   if (myToken !== currentPlaybackToken) return;
+
+  resetAudioElementIfInErrorState(`randomPosition, song=${song.id}`);
 
   const myObjectUrl = claimAsCurrentPlayback(blob);
   let autoStopTimeoutId = null;

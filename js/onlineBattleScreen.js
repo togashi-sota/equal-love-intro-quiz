@@ -900,21 +900,47 @@ function renderMatchConfirmScreen(room) {
   // 呼ばれるため、タイマーの二重予約を防ぐガード（matchConfirmAutoStartTimerId）を持つ。
   if (isHost && allConfirmed && matchConfirmAutoStartTimerId === null) {
     const roomId = room.roomId;
+    // 【2026-11-XX追加・実機バグ調査：「全員確認OKなのに開始しない」現象】タイマー予約時点の
+    // 状態を記録しておく（発火時のログと突き合わせて、2秒の間に何が変化したかを追えるように）。
+    recordLobbyRenderEvent("matchConfirmTimerScheduled", {
+      roomId,
+      playerConfirmed: Object.fromEntries(Object.entries(room.players || {}).map(([uid, p]) => [uid, { ruleConfirmed: p.ruleConfirmed === true, connected: p.connected !== false }])),
+    });
     matchConfirmAutoStartTimerId = setTimeout(async () => {
       matchConfirmAutoStartTimerId = null;
       // 2秒の間に誰かが確認を取り消した・退出した可能性があるため、実行直前の
       // 最新状態（latestRoom、renderLobby()のたびに更新される）で改めて確認する。
       const latest = latestRoom;
-      if (!latest || latest.roomId !== roomId || latest.confirmingMatch !== true) return;
-      if (!computeAllPlayersConfirmed(latest.players)) return;
+      // 【2026-11-XX追加・実機バグ調査】どの条件で止まったのか（roomが無い／別ルーム／
+      // confirmingMatchが既にfalse／誰かの確認が外れた）を、黙って return する前に必ず記録する。
+      if (!latest || latest.roomId !== roomId || latest.confirmingMatch !== true) {
+        recordLobbyRenderEvent("matchConfirmTimerFiredButAborted", {
+          roomId,
+          reason: !latest ? "latestRoomNull" : latest.roomId !== roomId ? "roomIdMismatch" : "confirmingMatchFalse",
+          latestRoomId: latest?.roomId ?? null,
+          latestConfirmingMatch: latest?.confirmingMatch ?? null,
+        });
+        return;
+      }
+      if (!computeAllPlayersConfirmed(latest.players)) {
+        recordLobbyRenderEvent("matchConfirmTimerFiredButAborted", {
+          roomId,
+          reason: "notAllConfirmedAtFireTime",
+          playerConfirmed: Object.fromEntries(Object.entries(latest.players || {}).map(([uid, p]) => [uid, { ruleConfirmed: p.ruleConfirmed === true, connected: p.connected !== false }])),
+        });
+        return;
+      }
+      recordLobbyRenderEvent("matchConfirmTimerFiredAndStarting", { roomId });
       attemptSilentUnlock();
-      await startBattle({ roomId, settings: latest.settings });
+      const startResult = await startBattle({ roomId, settings: latest.settings });
+      recordLobbyRenderEvent("matchConfirmTimerStartBattleResult", { roomId, ok: startResult?.ok ?? null, reason: startResult?.reason ?? null });
       // 失敗した場合（設定が直前で不正になった等）は、renderLobby()の次回呼び出しで
       // confirmingMatchがまだtrueのままなのでこの画面に留まり、ホストは改めて
       // 確認OKを見て再試行できる（新しいエラー表示は今回は設けない。安全側に倒し、
       // 稀なケースのため確認画面へ留まる挙動で十分と判断）。
     }, MATCH_CONFIRM_AUTO_START_DELAY_MS);
   } else if (!allConfirmed && matchConfirmAutoStartTimerId !== null) {
+    recordLobbyRenderEvent("matchConfirmTimerCancelled", { roomId: room.roomId, reason: "allConfirmedBecameFalse" });
     clearTimeout(matchConfirmAutoStartTimerId);
     matchConfirmAutoStartTimerId = null;
   }
