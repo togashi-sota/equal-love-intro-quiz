@@ -17,6 +17,7 @@
 import { getMemberById } from "./memberUtils.js";
 import { MEMBERS } from "./data/members.js";
 import { buildOshiSwatch, buildAchievementCountText, buildFriendAchievementSummary, buildAchievedAchievementsList } from "./fanProfileCard.js";
+import { applyOshiBadgeDecorationsFromState } from "./oshiBadge.js";
 import { fetchPublicProfileBadgeState, fetchPublicProfileByUid } from "./publicProfileSync.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
 
@@ -50,10 +51,11 @@ export function buildParticipantIcon(oshiMemberId, uid) {
   swatch.classList.add("fan-profile-swatch--sm");
   getBadgeStatePromise(uid).then((badgeState) => {
     if (!badgeState) return;
-    // 要素が既にDOMから外れていても、classList操作自体は安全（何も起きないだけ）。
-    swatch.classList.toggle("has-no-miss-master", Boolean(badgeState.hasNoMissMaster));
-    swatch.classList.toggle("has-equal-love-master", Boolean(badgeState.hasEqualLoveMaster));
-    swatch.classList.toggle("has-equal-love-complete", Boolean(badgeState.hasEqualLoveComplete));
+    // 【2026-11-XX修正】以前はここでclassList.toggle()を直接呼び、js/oshiBadge.jsの
+    // 共通ロジックを再利用していなかった（このファイル冒頭のコメントの意図とズレていた）。
+    // 3個同時表示への対応（DOM子要素方式への作り替え）を機に、共通関数を正しく呼ぶよう修正。
+    // 要素が既にDOMから外れていても、この関数の呼び出し自体は安全（何も起きないだけ）。
+    applyOshiBadgeDecorationsFromState(swatch, badgeState);
   });
   return swatch;
 }

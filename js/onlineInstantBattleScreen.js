@@ -1179,7 +1179,10 @@ function renderCurrentQuestionState() {
     myAnsweredQuestionIndex = qIndex;
   }
 
-  elements.progress.textContent = `第${qIndex + 1}問 / ${targetQuestionCount}問`;
+  // 【2026-11-XX追加・本人指示：最優先3・今遊んでいるモードが分かるように】新しいDOM要素を
+  // 増やさず、既存の進捗表示にモード名を添えるだけの最小変更にする（本人指示：「巨大な
+  // ヘッダーを増やして回答領域を狭めないでください」）。
+  elements.progress.textContent = `一瞬バトル・第${qIndex + 1}問 / ${targetQuestionCount}問`;
 
   // 新しい問題を検知したら、音源を再生し直し、ローカルな回答状態をリセットする。
   if (qIndex !== lastPlayedQuestionIndex) {

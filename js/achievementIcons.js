@@ -50,6 +50,30 @@ const ICON_DEFINITIONS = {
   instant_challenger: { viewBox: "0 0 24 24", markup: STOPWATCH_PATH },
   instant_ace: { viewBox: "0 0 24 24", markup: STOPWATCH_PATH + ACE_BADGE_PATH },
 
+  // 【2026-11-XX追加・本人指示：称号マーク未設定の監査で発覚】outro_master・
+  // instant_master・complete_finale・instant_flash_answerの4件は、ICON_DEFINITIONSに
+  // 項目自体が無く、マーク無し（空のメダル）で表示されていた（css/style.cssの色指定
+  // 〈.is-outro_master等〉は既に存在していたため、SVGの中身だけが抜けていた）。
+  // 他のマスター/裏チャレンジ称号と同じ「各系統の成長アイコンとは別の、専用の絵柄」という
+  // 方針（フルコーラスマスター＝レコード盤、歌マスター＝マイク等）に合わせ、新規に追加する。
+  outro_master: {
+    // アウトロ系の成長アイコン（音符＋ステム）に、曲の終わりを示す「終止線（二重線）」を
+    // 添えたもの＝「曲の終わりを極めた」ことが一目で伝わる絵柄。
+    viewBox: "0 0 26 22",
+    markup:
+      '<path d="M6 17.5V4.7l10-2v10.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>' +
+      '<circle cx="4.2" cy="18" r="2.6"/>' +
+      '<circle cx="14.2" cy="15.3" r="2.6"/>' +
+      '<rect x="19.4" y="2" width="1.6" height="18" rx="0.4"/>' +
+      '<rect x="22.1" y="2" width="3" height="18" rx="0.6"/>',
+  },
+  instant_master: {
+    // 大小2つの光の粒（フラッシュ・きらめき）で、「一瞬」を捉えきったイメージ。
+    viewBox: "0 0 24 24",
+    markup:
+      '<path d="M12 0 13.6 8.4 22 10 13.6 11.6 12 20 10.4 11.6 2 10 10.4 8.4Z"/>' +
+      '<path d="M19 1.5 19.8 3.8 22 4.6 19.8 5.4 19 7.7 18.2 5.4 16 4.6 18.2 3.8Z" fill="#fff"/>',
+  },
   no_miss_master: {
     // 星入り王冠：既存のランクバッジ・タイトルロゴと同じ星を、王冠のシルエットに乗せる
     viewBox: "0 0 24 20",
@@ -78,6 +102,15 @@ const ICON_DEFINITIONS = {
     viewBox: "0 0 24 24",
     markup: '<path d="M7 2v11h3v9l7-12h-4l4-8z"/>',
   },
+  // 【2026-11-XX追加・本人指示：称号マーク未設定の監査で発覚】complete_finale。
+  // 「舞台の緞帳（どんちょう）が閉じる」＝曲の終わりを完全に極めたイメージ。
+  complete_finale: {
+    viewBox: "0 0 24 24",
+    markup:
+      '<path d="M2 2c3 3 3 15 0 20h6c-2-5-2-15 0-20Z"/>' +
+      '<path d="M22 2c-3 3-3 15 0 20h-6c2-5 2-15 0-20Z"/>' +
+      '<circle cx="12" cy="12" r="2" fill="#fff"/>',
+  },
   melody_ace: {
     // メロディアス：連なる音符
     viewBox: "0 0 24 24",
@@ -94,6 +127,17 @@ const ICON_DEFINITIONS = {
       '<path d="M21 5c-2.5-1-5-1-8 0v14c3-1 5.5-1 8 0Z"/>' +
       '<path d="M19 2 20.5 3.5 13 11l-2 .5.5-2Z" fill="#fff"/>',
   },
+  // 【2026-11-XX追加・本人指示：称号マーク未設定の監査で発覚】instant_flash_answer。
+  // 一瞬チャレンジ系の成長アイコン（ストップウォッチ）の針を稲妻に置き換え、「聞き直し無しの
+  // 一発勝負」を表現。ストップウォッチの輪郭は共有しつつ、中身で電光石火・一瞬マスターとは
+  // 別物と分かるようにしている。
+  instant_flash_answer: {
+    viewBox: "0 0 24 24",
+    markup:
+      '<circle cx="12" cy="13" r="8.5"/>' +
+      '<rect x="10" y="1.5" width="4" height="2.4" rx="1.2"/>' +
+      '<path d="M13 6 9 13.5h3l-1 6 5-8.5h-3.3Z" fill="#fff"/>',
+  },
   equal_love_master: {
     // 金色の王冠（旧＝LOVE皆伝と同じ王冠シルエット）
     viewBox: "0 0 24 16",
@@ -107,6 +151,12 @@ const ICON_DEFINITIONS = {
       '<path d="M12 0 15.5 3 12 8 8.5 3Z" fill="#fff"/>',
   },
 };
+
+// 【2026-11-XX新設・再発防止】outro_master等4件のマーク抜けを受け、「すべての称号に
+// アイコン定義が存在するか」を自動テストから機械的に確認できるようにする読み取り専用ヘルパー。
+export function hasIconDefinition(iconKey) {
+  return Object.prototype.hasOwnProperty.call(ICON_DEFINITIONS, iconKey);
+}
 
 function buildMedal(iconKey, extraClass) {
   const medal = document.createElement("span");

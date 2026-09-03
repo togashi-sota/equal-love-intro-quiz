@@ -4,6 +4,11 @@
 import { SONGS } from "./data/songs.js";
 import { AUDIO_METADATA } from "./data/audioMetadata.js";
 import { showScreen, onScreenChange } from "./screens.js";
+import {
+  getLyricsQuizRevealAudioEnabled,
+  getInstantChallengeRevealAudioEnabled,
+  syncRevealAudioToggle,
+} from "./revealAudioPreference.js";
 import { initCenterCelebration, showCenterCelebrationIfEligible } from "./centerCelebration.js";
 import {
   gameState,
@@ -1361,6 +1366,8 @@ const customQuizInstantDurationFieldsetElement = document.getElementById("custom
 const customQuizInstantAnswerPoolSizeFieldsetElement = document.getElementById(
   "custom-quiz-instant-answer-pool-size-fieldset"
 );
+const customQuizLyricsRevealAudioFieldsetElement = document.getElementById("custom-quiz-lyrics-reveal-audio-fieldset");
+const customQuizInstantRevealAudioFieldsetElement = document.getElementById("custom-quiz-instant-reveal-audio-fieldset");
 const customQuizBackButtonElement = document.getElementById("custom-quiz-back-button");
 const customQuizPresetsBackButtonElement = document.getElementById("custom-quiz-presets-back-button");
 const customQuizRulesLinkElement = document.getElementById("custom-quiz-rules-link");
@@ -2071,6 +2078,17 @@ initDebugAudioLogScreen({
 onScreenChange((screenName) => {
   captureViewportSnapshot(`[SCREEN] ${screenName}`);
 });
+// 【2026-11-XX新設・本人指示：最優先1】正解発表の音源ON/OFFは、オリジナル問題作成モードの
+// 選曲画面と同じ値を共有する（js/revealAudioPreference.js参照）。あちら側で値を変えたあと、
+// この通常設定画面へ戻ってきた場合でも表示がズレないよう、画面に入るたび保存値へ合わせ直す
+// （js/customQuizScreen.jsのupdateQuizTypeFieldsetVisibility()と同じ理由の反対向きの対応）。
+onScreenChange((screenName) => {
+  if (screenName === "lyricsQuizSetup") {
+    syncRevealAudioToggle('input[name="lyrics-quiz-reveal-audio"]', getLyricsQuizRevealAudioEnabled);
+  } else if (screenName === "instantChallengeSetup") {
+    syncRevealAudioToggle('input[name="instant-challenge-reveal-audio"]', getInstantChallengeRevealAudioEnabled);
+  }
+});
 window.addEventListener("resize", () => {
   captureViewportSnapshot("[RESIZE] window");
 });
@@ -2762,6 +2780,8 @@ initCustomQuizScreen({
   answerPoolSizeFieldset: customQuizAnswerPoolSizeFieldsetElement,
   instantDurationFieldset: customQuizInstantDurationFieldsetElement,
   instantAnswerPoolSizeFieldset: customQuizInstantAnswerPoolSizeFieldsetElement,
+  lyricsRevealAudioFieldset: customQuizLyricsRevealAudioFieldsetElement,
+  instantRevealAudioFieldset: customQuizInstantRevealAudioFieldsetElement,
   nameInput: document.getElementById("custom-quiz-name-input"),
   memoInput: document.getElementById("custom-quiz-memo-input"),
   nameError: document.getElementById("custom-quiz-name-error"),

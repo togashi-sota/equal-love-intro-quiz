@@ -1416,7 +1416,9 @@ function renderCurrentQuestionState() {
     myVotedRoundNumber = roundNumber;
   }
 
-  elements.progress.textContent = `第${computeDisplayedQuestionNumber(match, qIndex)}問 / ${targetQuestionCount}問`;
+  // 【2026-11-XX追加・本人指示：最優先3・今遊んでいるモードが分かるように】
+  // js/onlineInstantBattleScreen.jsの同じ変更と同じ理由・同じ最小変更の方針。
+  elements.progress.textContent = `一瞬協力・第${computeDisplayedQuestionNumber(match, qIndex)}問 / ${targetQuestionCount}問`;
 
   // 新しい問題を検知したら、音源を再生し直す（2026-09-05改訂：共有再視聴ラウンドの
   // 仕組みを廃止したため、roundNumberは常に0のまま変化しない＝実質的にqIndexの

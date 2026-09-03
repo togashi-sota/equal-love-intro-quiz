@@ -2510,6 +2510,18 @@
         </div>
       </fieldset>
 
+      <!-- 【2026-11-XX新設・本人指示：最優先1】正解発表で答え合わせ楽曲を再生するかどうか。
+           称号・実績の判定には一切使わない（js/lyricsQuizScreen.jsのrenderAnswerReveal()参照）。
+           オリジナル問題作成モードの歌詞クイズ（#custom-quiz-answer-pool-size-fieldsetの下）と
+           同じ設定値を共有する（js/revealAudioPreference.js参照）。 -->
+      <fieldset>
+        <legend>正解発表の音源</legend>
+        <div class="option-row">
+          <label><input type="radio" name="lyrics-quiz-reveal-audio" value="on" checked> 正解発表で曲を再生する</label>
+          <label><input type="radio" name="lyrics-quiz-reveal-audio" value="off"> 曲を再生せず次へ進む</label>
+        </div>
+      </fieldset>
+
       <p id="lyrics-quiz-best-chip" class="mode-best-chip is-empty">自己ベスト：記録なし</p>
 
       <button id="lyrics-quiz-start-button" class="primary-button" type="button">開始する</button>
@@ -2753,6 +2765,16 @@
           <label><input type="radio" name="instant-challenge-answer-pool-size" value="4" checked> 4択</label>
           <label><input type="radio" name="instant-challenge-answer-pool-size" value="10"> 10択</label>
           <label><input type="radio" name="instant-challenge-answer-pool-size" value="all"> 全曲検索</label>
+        </div>
+      </fieldset>
+
+      <!-- 【2026-11-XX新設・本人指示：最優先1】lyrics-quiz-setup-screenの同じ設定と同じ理由。
+           オリジナル問題作成モードの一瞬チャレンジと同じ設定値を共有する。 -->
+      <fieldset>
+        <legend>正解発表の音源</legend>
+        <div class="option-row">
+          <label><input type="radio" name="instant-challenge-reveal-audio" value="on" checked> 正解発表で曲を再生する</label>
+          <label><input type="radio" name="instant-challenge-reveal-audio" value="off"> 曲を再生せず次へ進む</label>
         </div>
       </fieldset>
 
@@ -4515,6 +4537,18 @@
         </div>
       </fieldset>
 
+      <!-- 【2026-11-XX新設・本人指示：最優先1】歌詞クイズタイプのときだけ表示する、
+           正解発表の音源ON/OFF。通常の#lyrics-quiz-setup-screenと同じ設定値を共有する
+           （js/revealAudioPreference.js参照）。オリジナル問題作成モードはこの設定に
+           関わらず、これまでどおり称号・実績の対象外のまま（js/main.js参照）。 -->
+      <fieldset id="custom-quiz-lyrics-reveal-audio-fieldset" hidden>
+        <legend>正解発表の音源</legend>
+        <div class="option-row">
+          <label><input type="radio" name="custom-quiz-lyrics-reveal-audio" value="on" checked> 正解発表で曲を再生する</label>
+          <label><input type="radio" name="custom-quiz-lyrics-reveal-audio" value="off"> 曲を再生せず次へ進む</label>
+        </div>
+      </fieldset>
+
       <!-- 【2026-08-30追加、本人指示（後半②）】一瞬チャレンジタイプのときだけ表示する
            再生時間・回答方式。既存の一瞬チャレンジ設定画面（#instant-challenge-setup-screen）と
            全く同じ選択肢をそのまま流用する（回答方式は歌詞クイズより少ない4/10/全曲の3段階）。 -->
@@ -4532,6 +4566,16 @@
           <label><input type="radio" name="custom-quiz-instant-answer-pool-size" value="4" checked> 4択</label>
           <label><input type="radio" name="custom-quiz-instant-answer-pool-size" value="10"> 10択</label>
           <label><input type="radio" name="custom-quiz-instant-answer-pool-size" value="all"> 全曲検索</label>
+        </div>
+      </fieldset>
+
+      <!-- 【2026-11-XX新設・本人指示：最優先1】一瞬チャレンジタイプのときだけ表示する、
+           正解発表の音源ON/OFF。通常の#instant-challenge-setup-screenと同じ設定値を共有する。 -->
+      <fieldset id="custom-quiz-instant-reveal-audio-fieldset" hidden>
+        <legend>正解発表の音源</legend>
+        <div class="option-row">
+          <label><input type="radio" name="custom-quiz-instant-reveal-audio" value="on" checked> 正解発表で曲を再生する</label>
+          <label><input type="radio" name="custom-quiz-instant-reveal-audio" value="off"> 曲を再生せず次へ進む</label>
         </div>
       </fieldset>
 

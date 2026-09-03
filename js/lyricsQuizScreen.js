@@ -59,6 +59,12 @@ import {
 import { evaluateAndSaveAchievements } from "./achievementProgress.js";
 import { renderAchievementUnlockEvents, clearAchievementUnlockEvents } from "./achievementDisplay.js";
 import { savePlayHistoryEntry } from "./playHistory.js";
+import {
+  getLyricsQuizRevealAudioEnabled,
+  setLyricsQuizRevealAudioEnabled,
+  initRevealAudioToggle,
+} from "./revealAudioPreference.js";
+import { playSongFromRandomPosition, stopAudio } from "./audio.js";
 
 // 正解/不正解の演出（既存の.choice-buttonのis-correct/is-wrong）を見せてから次の問題へ進むまでの待ち時間。
 const ANSWER_FEEDBACK_DELAY_MS = 900;
@@ -97,6 +103,15 @@ let elapsedTimerId = null;
 // 勝手に次の問題や結果画面へ進んでしまう（quitLyricsQuizRun()参照）。
 let pendingAnswerFeedbackTimeoutId = null;
 
+// 【2026-11-XX新設・本人指示：最優先1・正解発表の音源ON/OFF】答え合わせ楽曲を止める
+// setTimeoutの予約ID・「次へ」ボタンを解禁するsetTimeoutの予約ID。js/onlineLyricsQuizBattleScreen.js
+// のstartRevealMusic()と同じ「setTimeoutで止める・stopAudio()で確実に止める」の二重構造。
+let revealAudioStopTimeoutId = null;
+let revealAudioNextEnableTimeoutId = null;
+// 答え合わせで曲を鳴らす場合の再生秒数・「次へ」ボタンを解禁するまでの誤タップ防止時間。
+const REVEAL_AUDIO_DURATION_SEC = 7;
+const REVEAL_AUDIO_NEXT_BUTTON_DELAY_MS = 500;
+
 // ===== 1. 設定画面 =====
 
 // elements: {
@@ -119,6 +134,13 @@ export function initLyricsQuizSetupScreen(newElements) {
       'input[name="lyrics-quiz-question-count"], input[name="lyrics-quiz-category-filter"], input[name="lyrics-quiz-answer-pool-size"]'
     )
     .forEach((input) => input.addEventListener("change", () => playSfx(SFX_EVENTS.UI_CLICK)));
+
+  initRevealAudioToggle(
+    'input[name="lyrics-quiz-reveal-audio"]',
+    getLyricsQuizRevealAudioEnabled,
+    setLyricsQuizRevealAudioEnabled,
+    () => playSfx(SFX_EVENTS.UI_CLICK)
+  );
 }
 
 function getSelectedSettings() {
@@ -655,11 +677,14 @@ function buildAnswerRevealMetaText(question) {
 
 // 正解確認カードを表示し、選択肢・スキップボタンを隠す（本人指示：不正解／スキップ後は
 // 自動で次へ進まず、「次の問題へ」を押すまでこのカードにとどまる）。
-function showAnswerReveal(question, statusText) {
+// isCorrect（2026-11-XX追加）：正解発表の音源ONのときは、正解時もこのカードを使うため、
+// 赤（不正解）／控えめ（わからない）／ピンク（正解）を出し分けられるようにした。
+function showAnswerReveal(question, statusText, isCorrect = false) {
   questionElements.answerSection.hidden = true;
   questionElements.skipButton.hidden = true;
 
   questionElements.answerRevealStatus.textContent = statusText;
+  questionElements.answerRevealStatus.classList.toggle("is-correct-answer-reveal-status", isCorrect);
   questionElements.answerRevealTitle.textContent = question.song.title;
   questionElements.answerRevealMeta.textContent = buildAnswerRevealMetaText(question);
   questionElements.answerReveal.hidden = false;
@@ -672,6 +697,93 @@ function hideAnswerReveal() {
   questionElements.answerReveal.hidden = true;
   questionElements.answerSection.hidden = false;
   questionElements.skipButton.hidden = false;
+  questionElements.answerRevealStatus.classList.remove("is-correct-answer-reveal-status");
+  stopAnswerRevealAudio();
+}
+
+// 【2026-11-XX新設・本人指示：最優先1・正解発表の音源ON/OFF】答え合わせ楽曲の再生・
+// 後片付けをまとめて行う。js/onlineLyricsQuizBattleScreen.jsのstartRevealMusic()と同じ
+// 「setTimeoutで止める・stopAudio()で確実に止める」の二重構造を踏襲している。
+function stopAnswerRevealAudio() {
+  if (revealAudioStopTimeoutId !== null) {
+    clearTimeout(revealAudioStopTimeoutId);
+    revealAudioStopTimeoutId = null;
+  }
+  if (revealAudioNextEnableTimeoutId !== null) {
+    clearTimeout(revealAudioNextEnableTimeoutId);
+    revealAudioNextEnableTimeoutId = null;
+  }
+  stopAudio();
+}
+
+// 回答確定時点で最後に見ていたヒント段階（viewingHintLevel）の歌詞開始位置から
+// REVEAL_AUDIO_DURATION_SEC秒だけ答え合わせ楽曲を再生する（本人指示：「回答時点の最後に
+// 開いたヒント位置から7秒」。オンライン対戦のstartRevealMusic()と同じ考え方）。
+// 曲の残りがREVEAL_AUDIO_DURATION_SEC秒に満たない場合は、playSongFromRandomPosition()
+// 自身の自然終了（音源が尽きて止まる）に任せる＝「残り時間だけ再生」を追加のロジック無しで
+// 実現できる（js/onlineLyricsQuizBattleScreen.jsのplaySongIntroFromOffset()と同じ設計）。
+function playAnswerRevealAudio(question) {
+  const byLevel = question.revealStartTimeSecByHintLevel ?? {};
+  const startTimeSec = byLevel[viewingHintLevel] ?? question.revealStartTimeSec ?? 0;
+  playSongFromRandomPosition(
+    question.song,
+    (actualDurationSec) => Math.min(Math.max(startTimeSec, 0), Math.max(actualDurationSec - 0.5, 0)),
+    REVEAL_AUDIO_DURATION_SEC,
+    (message) =>
+      console.warn(
+        "[歌詞クイズ] 答え合わせ楽曲の再生に失敗しました（演出のみのため進行には影響しません）",
+        message
+      ),
+    () => {},
+    () => {}
+  );
+  revealAudioStopTimeoutId = setTimeout(() => {
+    revealAudioStopTimeoutId = null;
+    stopAudio();
+  }, REVEAL_AUDIO_DURATION_SEC * 1000);
+}
+
+// 正解確認カードを表示したうえで、答え合わせ楽曲を再生し、「次へ」ボタンを短い誤タップ防止
+// 時間（REVEAL_AUDIO_NEXT_BUTTON_DELAY_MS）だけ待ってから解禁する。7秒経つ前でも「次へ」を
+// 押せば即座に次の問題へ進める（本人指示：「7秒を待たず次問へ進めるようにしてください」）。
+// 7秒経っても押されなければ自動的に次へ進む（放置しても止まらない）。
+function showAnswerRevealWithAudio(question, statusText, isCorrect) {
+  showAnswerReveal(question, statusText, isCorrect);
+  questionElements.answerRevealNextButton.disabled = true;
+  playAnswerRevealAudio(question);
+
+  revealAudioNextEnableTimeoutId = setTimeout(() => {
+    revealAudioNextEnableTimeoutId = null;
+    questionElements.answerRevealNextButton.disabled = false;
+  }, REVEAL_AUDIO_NEXT_BUTTON_DELAY_MS);
+
+  clearPendingAnswerFeedbackTimeout();
+  pendingAnswerFeedbackTimeoutId = setTimeout(() => {
+    pendingAnswerFeedbackTimeoutId = null;
+    if (questionElements.answerRevealNextButton.disabled) return; // 誤タップ防止時間中なら少し待つ
+    handleAnswerRevealNextButtonClick();
+  }, REVEAL_AUDIO_DURATION_SEC * 1000);
+}
+
+// 1問分の回答が確定した直後に必ず呼ぶ、進行方法の振り分け（本人指示・2026-11-XX新設：
+// 正解発表の音源設定に応じて、答え合わせカードを出すかどうか・自動進行までの待ち時間が
+// 変わる）。
+// ・音源ON：正解／不正解／わからないの区別なく、必ず答え合わせカードを出し、答え合わせ
+//   楽曲を再生する（本人指示：「回答前には絶対に鳴らさない」＝答えが確定したこの時点で
+//   初めて再生を始める）。
+// ・音源OFF：これまでどおりの挙動を一切変えない（本人指示：「今までどおり余計な待ち時間を
+//   入れずに進行」）。4択の正解／不正解は自動進行のまま、それ以外（正解が画面外になりうる
+//   回答方式での不正解・わからない）だけ答え合わせカードを出す。
+function presentAnswerOutcome(question, statusText, isCorrect, showsCardWhenAudioOff) {
+  if (getLyricsQuizRevealAudioEnabled()) {
+    showAnswerRevealWithAudio(question, statusText, isCorrect);
+    return;
+  }
+  if (showsCardWhenAudioOff) {
+    showAnswerReveal(question, statusText, isCorrect);
+    return;
+  }
+  scheduleAnswerFeedbackAdvance();
 }
 
 // 正解確認カードの「次の問題へ」ボタン。本人指示：「何度押しても次の問題が
@@ -679,6 +791,8 @@ function hideAnswerReveal() {
 function handleAnswerRevealNextButtonClick() {
   if (questionElements.answerRevealNextButton.disabled) return;
   questionElements.answerRevealNextButton.disabled = true;
+  clearPendingAnswerFeedbackTimeout();
+  stopAnswerRevealAudio();
   advanceToNextQuestionOrFinish();
 }
 
@@ -715,13 +829,10 @@ function handleAnswerSelected(selectedSongId, buttonElement) {
   questionElements.nextHintButton.disabled = true;
   disableAllAnswerButtons();
 
-  // 正解時は今までどおり自動で次へ進む。不正解時は、4択だけ自動進行のまま、
-  // それ以外（正解が画面外になりうる回答方式）は正解確認カードで自動進行を止める。
-  if (!isCorrect && isWideAnswerMode()) {
-    showAnswerReveal(question, "不正解");
-    return;
-  }
-  scheduleAnswerFeedbackAdvance();
+  // 正解発表の音源がONなら、正解／不正解を問わず必ず答え合わせカード＋楽曲再生を経由する
+  // （presentAnswerOutcome参照）。OFFなら今までどおりの挙動（正解時は今までどおり自動で
+  // 次へ進む。不正解時は、4択だけ自動進行のまま、それ以外は正解確認カードで自動進行を止める）。
+  presentAnswerOutcome(question, isCorrect ? "正解！" : "不正解", isCorrect, !isCorrect && isWideAnswerMode());
 }
 
 function handleSkipButtonClick() {
@@ -742,11 +853,7 @@ function handleSkipButtonClick() {
   questionElements.nextHintButton.disabled = true;
   disableAllAnswerButtons();
 
-  if (isWideAnswerMode()) {
-    showAnswerReveal(question, "スキップ");
-    return;
-  }
-  scheduleAnswerFeedbackAdvance();
+  presentAnswerOutcome(question, "スキップ", false, isWideAnswerMode());
 }
 
 // 正解/不正解演出のあと、少し待ってから次の問題（または結果画面）へ自動で進める予約を入れる。

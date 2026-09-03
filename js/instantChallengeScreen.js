@@ -50,6 +50,11 @@ import { renderAchievementUnlockEvents } from "./achievementDisplay.js";
 import { renderPlayerSummary } from "./playerScreen.js";
 import { runLocalReplayCountdownForQuestion, cancelLocalReplayCountdown } from "./localReplayCountdown.js";
 import { promptAnswerConfirm } from "./answerConfirmPrompt.js";
+import {
+  getInstantChallengeRevealAudioEnabled,
+  setInstantChallengeRevealAudioEnabled,
+  initRevealAudioToggle,
+} from "./revealAudioPreference.js";
 
 // 【2026-08-30改訂・本人指示】回答候補は4択／10択／全曲検索の3段階のみに変更
 // （30択・50択は一瞬チャレンジでは不要と判断し廃止。歌詞クイズ側のANSWER_POOL_SIZE_VALUES
@@ -134,6 +139,13 @@ export function initInstantChallengeSetupScreen(newElements) {
       radio.addEventListener("change", () => playSfx(SFX_EVENTS.UI_CLICK));
     });
   elements.startButton.addEventListener("click", handleStartButtonClick);
+
+  initRevealAudioToggle(
+    'input[name="instant-challenge-reveal-audio"]',
+    getInstantChallengeRevealAudioEnabled,
+    setInstantChallengeRevealAudioEnabled,
+    () => playSfx(SFX_EVENTS.UI_CLICK)
+  );
 }
 
 function getSelectedSettings() {
@@ -298,6 +310,10 @@ export function initInstantChallengeQuestionScreen(newElements) {
   // 最終問ではrenderInstantChallengeResult()の記録処理が二重に走る事故になるため）。
   questionElements.nextButton.addEventListener("click", () => {
     clearTimeout(autoAdvanceTimerId);
+    // 【2026-11-XX追加・本人指示：最優先1】答え合わせ楽曲の再生中に「次へ」を押した場合、
+    // 次の問題（の出題音源）へ音が残らないよう、ここで確実に止める。
+    clearTimeout(revealAudioNextEnableTimeoutId);
+    stopAudio();
     advanceToNextQuestionOrFinish();
   });
 
@@ -437,6 +453,10 @@ function renderCurrentQuestion() {
   questionElements.progress.textContent = `第${currentIndex + 1}問 / ${questions.length}問`;
   if (questionElements.answerReveal) questionElements.answerReveal.hidden = true;
   clearTimeout(autoAdvanceTimerId);
+  // 【2026-11-XX追加・本人指示：最優先1】前の問題の答え合わせ楽曲（最長7秒）が鳴り続けた
+  // まま次の問題へ進まないよう、確実に止める。
+  clearTimeout(revealAudioNextEnableTimeoutId);
+  stopAudio();
   renderAnswerArea(questions[currentIndex]);
 
   questionElements.replayButton.hidden = false;
@@ -513,7 +533,14 @@ function renderAnswerButtons(pool) {
 // 確定する指示を受けたため、以前の「必ずボタンを押す」仕様をこの部分に限り上書きする
 // （試合終了後の「もう一度」「ルーム設定に戻る」等は今までどおり自動選択しない）。
 const AUTO_ADVANCE_DELAY_MS = 4000;
+// 【2026-11-XX新設・本人指示：最優先1・正解発表の音源ON/OFF】音源ONのときは、答え合わせ
+// 楽曲の再生時間（REVEAL_AUDIO_DURATION_SEC）に合わせて自動進行までの待ち時間を延ばす
+// （OFFのときは今までどおりAUTO_ADVANCE_DELAY_MSのまま）。
+const REVEAL_AUDIO_DURATION_SEC = 7;
+const REVEAL_AUDIO_AUTO_ADVANCE_DELAY_MS = REVEAL_AUDIO_DURATION_SEC * 1000;
+const REVEAL_AUDIO_NEXT_BUTTON_DELAY_MS = 500;
 let autoAdvanceTimerId = null;
+let revealAudioNextEnableTimeoutId = null;
 
 // 【2026-09-07改訂・本人指示：答え合わせUIの統一】色（is-correct/is-wrong）だけに頼らず、
 // 選択肢一覧そのものを答え合わせカードへ切り替える（歌詞クイズ対戦と同じ設計）。
@@ -536,15 +563,59 @@ function handleAnswerSelected(selectedSongId, buttonElement) {
   renderAnswerReveal({ isCorrect, correctTitle: question.song.title, mySelectedSongId: selectedSongId, pool: question.answerPool });
 
   questionElements.replayButton.disabled = true; // 正解が確定した後の聞き直しは不要
-  // 【2026-09-07改訂】4秒経てば自動的に進むが、早く読み終えた人向けに、ボタンを押せば
-  // 待たずに進めるようにしておく（本人指示の「4秒後に自動遷移」を基本にしつつ、
-  // 待たされている感覚を減らすための補助。ゲームルール・結果には影響しない）。
   questionElements.nextButton.hidden = false;
   questionElements.nextButton.textContent = currentIndex + 1 >= questions.length ? "結果を見る" : "次の問題へ";
   clearTimeout(autoAdvanceTimerId);
+  clearTimeout(revealAudioNextEnableTimeoutId);
+
+  // 【2026-11-XX新設・本人指示：最優先1・正解発表の音源ON/OFF】ONのときだけ、この問題で
+  // 実際に出題した位置から答え合わせ楽曲を再生する（本人指示：「問題で使用した開始位置から、
+  // 答え合わせとして7秒」）。回答前には絶対に鳴らさない設計のため、必ずここ（回答確定後）で
+  // 初めて再生を始める。誤タップ防止のため、「次へ」ボタンは短い時間だけ無効化する。
+  if (getInstantChallengeRevealAudioEnabled()) {
+    playAnswerRevealAudio(question);
+    questionElements.nextButton.disabled = true;
+    revealAudioNextEnableTimeoutId = setTimeout(() => {
+      questionElements.nextButton.disabled = false;
+    }, REVEAL_AUDIO_NEXT_BUTTON_DELAY_MS);
+    autoAdvanceTimerId = setTimeout(() => {
+      advanceToNextQuestionOrFinish();
+    }, REVEAL_AUDIO_AUTO_ADVANCE_DELAY_MS);
+    return;
+  }
+
+  // OFF：今までどおり、余計な待ち時間を入れずに進行する（本人指示）。
+  questionElements.nextButton.disabled = false;
+  // 【2026-09-07改訂】4秒経てば自動的に進むが、早く読み終えた人向けに、ボタンを押せば
+  // 待たずに進めるようにしておく（本人指示の「4秒後に自動遷移」を基本にしつつ、
+  // 待たされている感覚を減らすための補助。ゲームルール・結果には影響しない）。
   autoAdvanceTimerId = setTimeout(() => {
     advanceToNextQuestionOrFinish();
   }, AUTO_ADVANCE_DELAY_MS);
+}
+
+// 回答確定後、この問題で実際に出題した開始位置（seed・songId・questionIndexから
+// computeRandomStartTimeSec()で決定論的に求まる、出題時と全く同じ位置）から、答え合わせ
+// 楽曲をREVEAL_AUDIO_DURATION_SEC秒だけ再生する。曲の残りが足りない場合は、
+// playSongFromRandomPosition()自身の自然終了に任せる（js/lyricsQuizScreen.jsの
+// playAnswerRevealAudio()と同じ設計）。
+function playAnswerRevealAudio(question) {
+  const questionIndex = currentIndex;
+  const originalPlayDurationSec = Number(currentSettings.playDurationValue);
+  const computeStartTimeSec = (durationSec) =>
+    computeRandomStartTimeSec({ seed, songId: question.song.id, questionIndex, durationSec, playDurationSec: originalPlayDurationSec });
+  playSongFromRandomPosition(
+    question.song,
+    computeStartTimeSec,
+    REVEAL_AUDIO_DURATION_SEC,
+    (message) =>
+      console.warn(
+        "[一瞬チャレンジ] 答え合わせ楽曲の再生に失敗しました（演出のみのため進行には影響しません）",
+        message
+      ),
+    () => {},
+    () => {}
+  );
 }
 
 // 選択肢一覧を隠し、答え合わせカードへ切り替える（js/onlineLyricsQuizBattleScreen.jsの

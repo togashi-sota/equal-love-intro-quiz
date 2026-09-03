@@ -27,9 +27,14 @@ const CATEGORY_LABELS = {
 // 見分けづらいという指摘を受け、イントロ／アウトロ／シャッフル／リリックの4系統は
 // 「ビギナー→チャレンジャー→エース」の3段階だけをここに残し、マスター段階は下の
 // MASTER_TIER_SERIES（専用の「マスター称号」ブロック）へ切り出した。
-// 【一瞬チャレンジ系だけ例外】本人指示により、一瞬マスターは＝LOVEマスターの構成要素に
-// 含まれない（一瞬チャレンジ系だけの最上位の通常称号という位置づけ）ため、他4系統とは違い
-// 従来どおり4段階のままこの一覧に残す。
+// 【2026-11-XX改訂・本人指示：称号一覧の再監査】一瞬チャレンジ系だけ、一瞬マスターが
+// ＝LOVEマスターの構成要素に含まれないという理由で、これまで例外的に4段階のままこの一覧
+// （4列の小さいトロフィーカード）に残していた。しかし「高難度マスター称号は小さいカードに
+// 押し込まず、1称号＝1カードで詳しい挑戦条件まで読めるようにしてほしい」という指示により、
+// 一瞬マスターも他4系統のマスターと全く同じ扱い（下のMASTER_TIER_SERIES、1称号＝1枚の
+// 詳細カード）へ揃えた。＝LOVEマスターの構成要素かどうかという判定ロジック自体
+// （js/achievementDefinitions.jsのequal_love_masterのcompositeOf）は一切変更していない
+// （一瞬マスターはこれまでどおり＝LOVEマスターの構成要素には含まれない）。
 // マスター段階（no_miss_master等）はcategoryとしては従来どおり"masterPath"のままだが
 // （fanProfileCard.jsの代表称号タグ表示等、他の場所がcategory:"masterPath"を前提にしている
 // ため、既存データ・既存ロジックへの影響を避けてcategory自体は変更しない）、この一覧表示だけは
@@ -58,25 +63,34 @@ export const GROWTH_SERIES = [
   },
   {
     label: "⚡ 一瞬チャレンジ系",
-    tierIds: ["instant_beginner", "instant_challenger", "instant_ace", "instant_master"],
-    tierLabels: ["1.5秒・4択・3問", "1秒・4択・5問", "1秒・10択・10問", "0.5秒・10択・10問"],
+    tierIds: ["instant_beginner", "instant_challenger", "instant_ace"],
+    tierLabels: ["1.5秒・4択・3問", "1秒・4択・5問", "1秒・10択・10問"],
   },
 ];
 // 上記5系統、計16個のidの集合。masterPath カテゴリーの通常グリッド（renderAchievementList）
 // から、この集合に含まれるidを除外するために使う（二重表示防止）。
 const GROWTH_TIER_ID_SET = new Set(GROWTH_SERIES.flatMap((series) => series.tierIds));
 
-// 【2026-08-30新設・本人指示③】「マスター称号」＝「＝LOVEマスターへの道」専用ブロック。
-// イントロ／アウトロ／シャッフル／リリックの4マスターを、系統名をタイトルバッジにした
-// トロフィー行として並べ、その下に＝LOVEマスター本体（複合称号カード）を続けて表示する。
-// 一瞬マスターはここに含めない（GROWTH_SERIES側の一瞬チャレンジ系に残したまま）。
+// 【2026-08-30新設・本人指示③→2026-11-XX改訂・本人指示：称号一覧の再監査】
+// 「マスター称号」＝「＝LOVEマスターへの道」専用ブロック。以前はここを4列の小さい
+// トロフィーカード（buildGrowthBadgeCard、挑戦条件の箇条書きは非表示）で並べていたが、
+// 「高難度マスター称号は1称号＝1カードで、挑戦条件を1つずつ読めるように」という指示を
+// 受け、buildAchievementCard（挑戦条件チェックリスト付きの通常カード）を1称号ずつ縦に
+// 並べる形へ変更した。一瞬マスターも、他4系統のマスターと全く同じ扱いへ揃えてここに含めた
+// （GROWTH_SERIES側の一瞬チャレンジ系からは外し、二重表示を防いでいる）。
 const MASTER_TIER_SERIES = [
   { id: "no_miss_master", label: "🎧 イントロ" },
   { id: "outro_master", label: "🎬 アウトロ" },
   { id: "full_chorus_master", label: "🔀 シャッフル" },
   { id: "song_master", label: "🎤 リリック" },
+  { id: "instant_master", label: "⚡ 一瞬チャレンジ" },
 ];
 const MASTER_PATH_ID_SET = new Set([...MASTER_TIER_SERIES.map((series) => series.id), "equal_love_master"]);
+
+// 【2026-11-XX新設・本人指示22：推しアイコンに特別バッジが付く3称号だけ、未取得のうちから
+// バッジの形（見た目）をプレビューできるようにする】js/oshiBadge.jsのgetOshiBadgeState()が
+// 見る3つの称号idと完全に一致させている（=特別バッジの対象そのものを二重管理しない）。
+export const SPECIAL_BADGE_ACHIEVEMENT_IDS = new Set(["no_miss_master", "equal_love_master", "equal_love_complete"]);
 
 let elements = null;
 
@@ -140,11 +154,14 @@ export function buildAchievementCard(entry) {
 
   const header = document.createElement("div");
   header.classList.add("achievement-card-header");
-  // ＝LOVEマスター・＝LOVE完全制覇だけは、未取得でも王冠・王冠+ダイヤの形をそのまま見せ、
-  // 取得済みになったときだけ色と発光が解放されるようにする（本人指示：
-  // 「未取得状態でも形や説明は見えるようにし、取得するとカラーと発光が解放される」）。
-  // それ以外の称号は、これまでどおり未取得中は汎用の鍵アイコンにする。
-  if (isComposite) {
+  // 推しアイコンに特別バッジが付く3称号（イントロマスター・＝LOVEマスター・＝LOVE完全制覇）は、
+  // 未取得でもバッジの形をそのまま見せ、取得済みになったときだけ色と発光が解放されるようにする
+  // （本人指示・2026-11-XX拡張：「取得前でも、手に入るバッジの見た目を確認できるように」。
+  // 以前は複合称号〈＝LOVEマスター・＝LOVE完全制覇〉だけの特例だったが、イントロマスターも
+  // 同じ特別バッジ対象のためこの一覧へ揃えた）。それ以外の称号は、これまでどおり未取得中は
+  // 汎用の鍵アイコンにする。
+  const showsLockedPreview = isComposite || SPECIAL_BADGE_ACHIEVEMENT_IDS.has(entry.id);
+  if (showsLockedPreview) {
     header.appendChild(buildAchievementIconMedal(entry.iconKey, { locked: !entry.isUnlocked }));
   } else {
     header.appendChild(
@@ -362,12 +379,16 @@ export function buildGrowthSection(items) {
   return section;
 }
 
-// 【2026-08-30新設・本人指示③】「マスター称号」＝「＝LOVEマスターへの道」専用ブロック。
-// ステップアップ（growth）と裏チャレンジ（backChallenge）の間に独立したセクションとして挟み、
-// イントロ／アウトロ／シャッフル／リリックの4マスターを1つの横並びトロフィー行にまとめたうえで、
-// その下に＝LOVEマスター本体（4つすべて集めると解放される複合称号）を続けて表示する。
-// buildGrowthBadgeCard（トロフィー風の見た目）と、複合称号専用の獲得条件チェックリストを
-// 持つbuildAchievementCard（通常カード）を1つのセクション内で組み合わせている。
+// 【2026-08-30新設・本人指示③→2026-11-XX全面改訂・本人指示：称号一覧の再監査】
+// 「マスター称号」＝「＝LOVEマスターへの道」専用ブロック。ステップアップ（growth）と
+// 裏チャレンジ（backChallenge）の間に独立したセクションとして挟む構成は変えていないが、
+// 中身は「4〜5列の小さいトロフィーカード」から「1称号＝1枚の詳細カード（挑戦条件の
+// チェックリスト付き）を縦に並べる」形へ全面的に変更した（本人指示：「高難度マスター称号は
+// 小さいカードに押し込まず、実際の判定条件を1つずつ読めるように」）。
+// イントロ／アウトロ／シャッフル／リリック／一瞬チャレンジの5マスターすべてを同じ扱いで
+// 並べたあと、その下に＝LOVEマスター本体（5つすべて集めると解放される複合称号）を続けて
+// 表示する（compositeOfの中身は変更していないため、一瞬マスターは引き続き＝LOVEマスターの
+// 構成要素には含まれない。ここでの並び順はあくまで一覧の見せ方の話）。
 export function buildMasterPathSection(items) {
   const section = document.createElement("div");
   section.classList.add("achievement-category-section", "master-path-section");
@@ -377,22 +398,19 @@ export function buildMasterPathSection(items) {
   heading.textContent = "👑 マスター称号（＝LOVEマスターへの道）";
   section.appendChild(heading);
 
-  const row = document.createElement("div");
-  row.classList.add("growth-series-row");
+  const grid = document.createElement("div");
+  grid.classList.add("achievement-card-grid", "master-path-composite-grid", "master-path-single-column-grid");
   MASTER_TIER_SERIES.forEach((series) => {
     const entry = items.find((item) => item.id === series.id);
     if (!entry) return; // 未知のid（将来の仕様差分等）でも画面を壊さず静かに読み飛ばす
-    row.appendChild(buildGrowthBadgeCard(entry, series.label));
+    grid.appendChild(buildAchievementCard(entry));
   });
-  section.appendChild(row);
 
   const compositeEntry = items.find((item) => item.id === "equal_love_master");
   if (compositeEntry) {
-    const grid = document.createElement("div");
-    grid.classList.add("achievement-card-grid", "master-path-composite-grid");
     grid.appendChild(buildAchievementCard(compositeEntry));
-    section.appendChild(grid);
   }
+  section.appendChild(grid);
 
   return section;
 }

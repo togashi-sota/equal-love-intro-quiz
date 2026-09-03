@@ -11,8 +11,26 @@ import { SFX_EVENTS, playSfx } from "./soundManager.js";
 const ANIMATION_FALLBACK_MS = 1500;
 // チップの「登場演出」に使うCSSアニメーションの名前（animation-nameと一致させる）。
 const ENTRANCE_ANIMATION_NAME = "achievement-event-enter";
-// ＝LOVEマスター・＝LOVE完全制覇は、通常より長く見せる（豪華な演出のため）。
-const COMPOSITE_ANIMATION_FALLBACK_MS = 2600;
+// 【2026-11-XX改訂・本人指示27：推しアイコンに特別バッジが付く3称号の獲得演出を、
+// イントロマスター＜＝LOVEマスター＜＜＝LOVE完全制覇の順で段階的に豪華にする】
+// 以前は「複合称号（＝LOVEマスター・＝LOVE完全制覇）かどうか」の2段階だけだったが、
+// イントロマスターも特別バッジ対象になったため3段階へ拡張した。長すぎてテンポを
+// 壊さないよう、最上位の＝LOVE完全制覇でも3.2秒程度に留めている（本人指示）。
+const SPECIAL_ANIMATION_FALLBACK_MS = 2000; // イントロマスター
+const COMPOSITE_ANIMATION_FALLBACK_MS = 2600; // ＝LOVEマスター
+const SUPREME_ANIMATION_FALLBACK_MS = 3200; // ＝LOVE完全制覇
+
+// 称号1件の演出の「格」を判定する（対象の3称号idはjs/achievementList.jsの
+// SPECIAL_BADGE_ACHIEVEMENT_IDSと同じだが、このファイルはachievementList.jsを
+// importしない設計〈結果画面の演出とタイトル一覧モーダルは独立させている〉ため、
+// idを直接比較している）（本人指示の豪華さの順を、そのままCSSクラス・
+// 表示時間の段階に対応させる）。
+function resolveEventTier(achievement) {
+  if (achievement.id === "equal_love_complete") return "supreme";
+  if (achievement.id === "equal_love_master") return "composite";
+  if (achievement.id === "no_miss_master") return "special";
+  return "normal";
+}
 
 let queue = [];
 let currentContainer = null;
@@ -42,12 +60,12 @@ function resetAnimationState() {
 }
 
 function buildAchievementChip(achievement) {
-  // 【2026-08-14改訂】「複合称号かどうか」の判定を、表示カテゴリー名（category、今回の
-  // 17称号再編でmasterPath/backChallengeへ変わった）ではなくcompositeOfの有無に切り替えた
-  // （js/achievementList.jsのbuildAchievementCard()と同じ理由・同じ修正）。
-  const isComposite = Boolean(achievement.compositeOf);
+  // 【2026-08-14改訂→2026-11-XX拡張・本人指示27】以前は「複合称号かどうか」の2段階だけ
+  // だったが、推しアイコンに特別バッジが付く3称号（イントロマスター・＝LOVEマスター・
+  // ＝LOVE完全制覇）の獲得演出を、豪華さの順に3段階へ拡張した（resolveEventTier参照）。
+  const tier = resolveEventTier(achievement);
   const chip = document.createElement("div");
-  chip.classList.add("achievement-event", isComposite ? "achievement-event--composite" : "achievement-event--normal");
+  chip.classList.add("achievement-event", `achievement-event--${tier}`);
   chip.dataset.achievementId = achievement.id;
 
   chip.appendChild(buildAchievementIconMedal(achievement.iconKey));
@@ -105,8 +123,14 @@ function advanceQueue() {
 
   activeChip = chip;
   activeChip.addEventListener("animationend", handleChipAnimationEnd);
-  const fallbackMs = nextAchievement.compositeOf ? COMPOSITE_ANIMATION_FALLBACK_MS : ANIMATION_FALLBACK_MS;
-  fallbackTimeoutId = setTimeout(advanceQueue, fallbackMs);
+  const tier = resolveEventTier(nextAchievement);
+  const fallbackMsByTier = {
+    normal: ANIMATION_FALLBACK_MS,
+    special: SPECIAL_ANIMATION_FALLBACK_MS,
+    composite: COMPOSITE_ANIMATION_FALLBACK_MS,
+    supreme: SUPREME_ANIMATION_FALLBACK_MS,
+  };
+  fallbackTimeoutId = setTimeout(advanceQueue, fallbackMsByTier[tier]);
 }
 
 // 結果画面に、今回新しく解放された称号を演出付きで表示する。

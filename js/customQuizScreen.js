@@ -29,6 +29,14 @@ import { openFullscreenLyrics } from "./lyricsFullscreen.js";
 import { CUSTOM_QUIZ_TYPE } from "./customQuizPresets.js";
 // この画面内で完結する操作（曲選択・アコーディオン開閉・削除確認モーダル等）に効果音を鳴らすため追加。
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
+import {
+  getLyricsQuizRevealAudioEnabled,
+  setLyricsQuizRevealAudioEnabled,
+  getInstantChallengeRevealAudioEnabled,
+  setInstantChallengeRevealAudioEnabled,
+  initRevealAudioToggle,
+  syncRevealAudioToggle,
+} from "./revealAudioPreference.js";
 
 // この画面が使うDOM要素一式。initCustomQuizScreen()で受け取って保持する。
 let elements = null;
@@ -452,6 +460,19 @@ function updateQuizTypeFieldsetVisibility() {
   elements.answerPoolSizeFieldset.hidden = !isLyrics;
   elements.instantDurationFieldset.hidden = !isInstant;
   elements.instantAnswerPoolSizeFieldset.hidden = !isInstant;
+  // 【2026-11-XX新設・本人指示：最優先1】正解発表の音源ON/OFFも、他の出題形式専用欄と
+  // 同じ考え方で出し分ける。この画面は開き直すたびにこの関数が呼ばれるため、通常の
+  // 設定画面側で値が変わっていた場合でも、ここで毎回チェック状態を保存値へ合わせ直す
+  // （本人指示：「歌詞クイズと一瞬チャレンジを1つの共通設定にまとめず」＝同じ形式なら
+  // 通常／オリジナル問題作成のどちらで変えても同じ値を指すべき、という要件を満たすため）。
+  if (elements.lyricsRevealAudioFieldset) {
+    elements.lyricsRevealAudioFieldset.hidden = !isLyrics;
+    syncRevealAudioToggle('input[name="custom-quiz-lyrics-reveal-audio"]', getLyricsQuizRevealAudioEnabled);
+  }
+  if (elements.instantRevealAudioFieldset) {
+    elements.instantRevealAudioFieldset.hidden = !isInstant;
+    syncRevealAudioToggle('input[name="custom-quiz-instant-reveal-audio"]', getInstantChallengeRevealAudioEnabled);
+  }
 }
 
 // 「この曲でクイズを始める」が押されたときの処理。今の選択内容を記憶したうえで、
@@ -691,6 +712,8 @@ export function openCustomQuizScreenForPreset(preset) {
 //   answerPoolSizeFieldset: 回答方式の<fieldset>（歌詞クイズタイプでだけ見せる、2026-08-29追加）,
 //   instantDurationFieldset: 一瞬チャレンジ専用・再生時間の<fieldset>（2026-08-30追加）,
 //   instantAnswerPoolSizeFieldset: 一瞬チャレンジ専用・回答方式（4/10/全曲）の<fieldset>（2026-08-30追加）,
+//   lyricsRevealAudioFieldset: 歌詞クイズタイプでだけ見せる、正解発表の音源ON/OFFの<fieldset>（2026-11-XX追加）,
+//   instantRevealAudioFieldset: 一瞬チャレンジタイプでだけ見せる、正解発表の音源ON/OFFの<fieldset>（2026-11-XX追加）,
 //   nameInput, memoInput: セット名・メモの入力欄,
 //   nameError: セット名が未入力のときの案内,
 //   saveButton: 「保存する」／「上書き保存する」ボタン（文言はJS側で切り替える）,
@@ -716,6 +739,21 @@ export function initCustomQuizScreen(newElements) {
       'input[name="custom-quiz-distractor-mode"], input[name="custom-quiz-answer-pool-size"], input[name="custom-quiz-instant-play-duration"], input[name="custom-quiz-instant-answer-pool-size"]'
     )
     .forEach((radio) => radio.addEventListener("change", () => playSfx(SFX_EVENTS.UI_CLICK)));
+
+  // 【2026-11-XX新設・本人指示：最優先1・正解発表の音源ON/OFF】通常の歌詞クイズ／
+  // 一瞬チャレンジ設定画面と同じ設定値を共有する（js/revealAudioPreference.js参照）。
+  initRevealAudioToggle(
+    'input[name="custom-quiz-lyrics-reveal-audio"]',
+    getLyricsQuizRevealAudioEnabled,
+    setLyricsQuizRevealAudioEnabled,
+    () => playSfx(SFX_EVENTS.UI_CLICK)
+  );
+  initRevealAudioToggle(
+    'input[name="custom-quiz-instant-reveal-audio"]',
+    getInstantChallengeRevealAudioEnabled,
+    setInstantChallengeRevealAudioEnabled,
+    () => playSfx(SFX_EVENTS.UI_CLICK)
+  );
 
   // 試聴の共通再生処理を、この画面専用の<audio>要素で使えるようにする。
   initAudioPreview(elements.previewAudioElement);

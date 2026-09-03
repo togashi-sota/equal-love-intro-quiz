@@ -3104,6 +3104,100 @@ fieldset label:has(input:focus-visible) {
   animation: rankMedalShine 1.8s ease-in-out 1;
 }
 
+/* 【2026-11-XX新設・本人指示27：推しアイコンに特別バッジが付く3称号の獲得演出を、
+   イントロマスター＜＝LOVEマスター＜＜＝LOVE完全制覇の順で段階的に豪華にする】
+   ----- イントロマスター：通常よりひと回り豪華だが、複合称号（＝LOVEマスターへの道の
+   完成）ほどではない中間の格。イントロマスター専用バッジ（js/oshiBadge.js、銀灰色の
+   メダル）と同じトーンの、通常よりやや落ち着いた金〜銀のグラデーションにする ----- */
+.achievement-event--special {
+  position: relative;
+  overflow: hidden;
+  padding: 11px 20px;
+  color: #4a2e42;
+  font-size: 0.92rem;
+  background: radial-gradient(circle at 30% 25%, #fff8e6 0%, #ffe9a8 45%, #d9b45c 100%);
+  box-shadow: 0 0 0 3px rgba(255, 233, 168, 0.55), 0 12px 26px -11px rgba(184, 121, 14, 0.55);
+  animation: achievement-event-enter 480ms cubic-bezier(0.22, 1, 0.36, 1) both,
+    achievement-composite-glow 1500ms ease-in-out 480ms 2;
+}
+
+.achievement-event--special .achievement-event-name {
+  font-size: 1.02rem;
+}
+
+.achievement-event--special .achievement-event-badge {
+  background: #4a2e42;
+  color: #ffe9a8;
+}
+
+.achievement-event--special::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -60%;
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.85), transparent);
+  transform: skewX(-20deg);
+  animation: rankMedalShine 1.7s ease-in-out 1;
+}
+
+/* ----- ＝LOVE完全制覇：表裏ともに極めた最高到達点にふさわしい、3段階の中で最も豪華な
+   演出。複合称号の紫〜ピンク〜金のグラデーションに、完全制覇バッジ（ダイヤ）のトーンである
+   青紫を足し、光の輪も一段強くする（本人指示：「小さく表示されても完全制覇だと分かる
+   専用エンブレム級」を、獲得演出でも一貫させる） ----- */
+.achievement-event--supreme {
+  position: relative;
+  overflow: hidden;
+  padding: 16px 26px;
+  color: #ffffff;
+  font-size: 1.05rem;
+  background: linear-gradient(135deg, #6fa8ff 0%, #b18cf0 40%, #ff8fc0 70%, #ffd93d 100%);
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.6), 0 16px 34px -12px rgba(74, 46, 130, 0.6);
+  animation: achievement-event-enter 480ms cubic-bezier(0.22, 1, 0.36, 1) both,
+    achievement-supreme-glow 1300ms ease-in-out 480ms infinite;
+}
+
+@keyframes achievement-supreme-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.6), 0 16px 34px -12px rgba(74, 46, 130, 0.6);
+  }
+  50% {
+    box-shadow: 0 0 0 7px rgba(255, 255, 255, 0.85), 0 20px 46px -12px rgba(74, 46, 130, 0.85);
+  }
+}
+
+.achievement-event--supreme .achievement-event-name {
+  font-size: 1.16rem;
+}
+
+.achievement-event--supreme .achievement-event-badge {
+  background: #ffffff;
+  color: #5457b8;
+}
+
+.achievement-event--supreme::after,
+.achievement-event--supreme::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -60%;
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.95), transparent);
+  transform: skewX(-20deg);
+}
+
+.achievement-event--supreme::after {
+  animation: rankMedalShine 2s ease-in-out 1;
+}
+
+/* 2本目の光をわずかに遅らせて流し、通常・特別・複合よりもさらに豪華な「二重の光」にする。 */
+.achievement-event--supreme::before {
+  animation: rankMedalShine 2s ease-in-out 0.4s 1;
+}
+
 /* .rules-linkはdisplay:blockを明示しているため、hidden属性だけでは非表示にならない。
    #new-record-badge・.modal-overlay等と同じ原因なので、同じ対策を入れておく。 */
 .rules-link[hidden] {
@@ -5626,6 +5720,18 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   margin-top: 12px;
 }
 
+/* 【2026-11-XX新設・本人指示：称号一覧の再監査】マスター称号5件＋＝LOVEマスターを
+   1称号＝1カードの詳細表示（挑戦条件のチェックリスト付き）へ変更したことに伴い、
+   .achievement-card-gridの既定2列グリッドを1列へ上書きする。挑戦条件の行数が称号ごとに
+   バラつくため、2列のままだと高さが揃わず不自然になるため（本人指示：「1称号＝1カードを
+   基本に」）。 */
+/* 【2026-11-XX修正】.achievement-card-gridの既定ルール（2列）がこのファイル内で後に
+   定義されており、単一クラスの詳細度が同じだとソース順で2列側が勝ってしまっていたため、
+   .achievement-card-gridと組み合わせた詳細度の高いセレクタにして確実に1列にする。 */
+.achievement-card-grid.master-path-single-column-grid {
+  grid-template-columns: 1fr;
+}
+
 .growth-badge-card {
   display: flex;
   flex-direction: column;
@@ -7563,71 +7669,69 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   color: rgba(255, 255, 255, 0.85);
 }
 
-/* ===== 推しアイコンへの王冠・ダイヤ装飾（js/oshiBadge.js、2026-08-07追加） =====
-   ＝LOVEマスター取得で王冠、＝LOVE完全制覇取得でダイヤも追加する（本人指示）。
-   .has-equal-love-master／.has-equal-love-completeは、js/oshiBadge.jsのapplyOshiBadgeDecorations()が
-   称号の取得状況に応じて付け外しするクラス。クラスベースにしているのは、ホーム画面の
-   推しアイコン以外（プレイヤー切替一覧など）にも、同じCSSだけで安全に適用を広げられるため。
-   どちらの装飾も、クリック操作を邪魔しないようpointer-events:noneにしている。 */
-.has-equal-love-master::after {
-  content: "👑";
+/* ===== 推しアイコンへの特別バッジ装飾（js/oshiBadge.js） =====
+   ＝LOVEマスター取得で王冠、＝LOVE完全制覇取得でダイヤ、イントロマスター取得でメダルを
+   表示する（本人指示）。
+   【2026-11-XX全面改訂・本人指示：3個同時表示】以前はCSSの::before/::afterだけ（最大2つ）で
+   表現し、下位のメダルは上位2つを持っていると隠す「代表1つだけ表示」の仕組みだった。
+   今回「所持している特別バッジは3個すべて同時に表示する」という指示を受け、疑似要素では
+   なく実際のDOM子要素（.oshi-badge-layer配下の.oshi-badge、js/oshiBadge.js参照）へ作り替えた。
+   3個とも常にアイコン本体の外周へのoverlayとして重ね、アイコン本体のサイズには一切触れない
+   （本人指示：「バッジのために推しアイコンを縮小しない」）。クリック操作を邪魔しないよう、
+   レイヤー自体・各バッジともpointer-events:noneにしている。
+   【配置】3個同時が最悪ケースのため、右上（＝LOVE完全制覇・最も豪華）・右下（＝LOVEマスター）・
+   左下（イントロマスター）の3つの角へ分散させ、名前・順位・スコア等が続くことが多い右側の
+   スペースを最小限しか使わないようにしている。 */
+.oshi-badge-layer {
   position: absolute;
-  top: -8px;
-  right: -6px;
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  line-height: 1;
-  background: radial-gradient(circle at 32% 28%, #ffe9a8 0%, #e3ab3c 70%);
-  border: 1.5px solid #ffffff;
-  border-radius: 50%;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
+  inset: 0;
   pointer-events: none;
 }
 
-/* ノーミスマスター専用バッジ（2026-08-15追加）。＝LOVEマスター・完全制覇の下位に位置づける
-   ため、その2つを持たない場合だけ表示する（:not()の2重ガード）。同じ右上の位置に王冠と
-   同じ場所で::afterを使うが、上のガードにより同時に描画されることは無いため衝突しない。
-   王冠(金・20px)より一段小さく、色も控えめな銀灰色にすることで「下位の称号」だと伝える。 */
-.has-no-miss-master:not(.has-equal-love-master):not(.has-equal-love-complete)::after {
-  content: "🎖️";
+.oshi-badge {
   position: absolute;
-  top: -6px;
-  right: -6px;
-  width: 17px;
-  height: 17px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 10px;
   line-height: 1;
-  background: radial-gradient(circle at 32% 28%, #f4f1f6 0%, #b9aebd 70%);
   border: 1.5px solid #ffffff;
   border-radius: 50%;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
   pointer-events: none;
 }
 
-.has-equal-love-complete::before {
-  content: "💎";
-  position: absolute;
+/* イントロマスター（メダル）：3つの中で最も控えめな銀灰色・最小サイズ（本人指示の豪華さの
+   順：イントロマスター＜＝LOVEマスター＜＜＝LOVE完全制覇、を大きさと配色で表現）。 */
+.oshi-badge--medal {
   bottom: -4px;
+  left: -5px;
+  width: 16px;
+  height: 16px;
+  font-size: 9px;
+  background: radial-gradient(circle at 32% 28%, #f4f1f6 0%, #b9aebd 70%);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* ＝LOVEマスター（王冠）：金色・中間の豪華さ。 */
+.oshi-badge--crown {
+  bottom: -6px;
   right: -6px;
-  width: 18px;
-  height: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 10px;
-  line-height: 1;
-  background: radial-gradient(circle at 32% 28%, #e3f3ff 0%, #6fa8ff 70%);
-  border: 1.5px solid #ffffff;
-  border-radius: 50%;
+  width: 19px;
+  height: 19px;
+  font-size: 11px;
+  background: radial-gradient(circle at 32% 28%, #ffe9a8 0%, #e3ab3c 70%);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
-  pointer-events: none;
+}
+
+/* ＝LOVE完全制覇（ダイヤ）：3つの中で最も目立つ位置（右上）・最大サイズ・最も強い発光で、
+   「小さく表示されても完全制覇だと分かる」豪華さを表現する（本人指示）。 */
+.oshi-badge--diamond {
+  top: -7px;
+  right: -6px;
+  width: 21px;
+  height: 21px;
+  font-size: 12px;
+  background: radial-gradient(circle at 32% 26%, #f3e8ff 0%, #b18cf0 45%, #6fa8ff 100%);
+  box-shadow: 0 0 0 2px rgba(177, 140, 240, 0.35), 0 3px 6px -1px rgba(74, 46, 66, 0.4);
 }
 
 /* ===== みんなのプロフィール（js/fanProfilesScreen.js、2026-08-07新設） =====
@@ -8021,32 +8125,43 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 }
 
 /* 【2026-09-26新設・本人指示：オンライン対戦総合改修19-8章】ロビー一覧・スコア表示・
-   結果画面など、名前の隣に小さく並べる用途向けの縮小版。王冠・ダイヤ・ノーミスマスターの
-   バッジ（.has-equal-love-master等、js/oshiBadge.js）は44px基準のサイズのままだと
-   22pxの丸に対して大きすぎるため、この修飾クラスの中でだけ縮小する
-   （js/onlineParticipantIcon.jsのbuildParticipantIcon()が付与する）。 */
+   結果画面など、名前の隣に小さく並べる用途向けの縮小版。王冠・ダイヤ・メダルの特別バッジ
+   （.oshi-badge等、js/oshiBadge.js）は44px基準のサイズのままだと22pxの丸に対して大きすぎる
+   ため、この修飾クラスの中でだけ縮小する（js/onlineParticipantIcon.jsのbuildParticipantIcon()
+   が付与する）。 */
 .fan-profile-swatch--sm {
   width: 22px;
   height: 22px;
   box-shadow: none;
 }
 
-.fan-profile-swatch--sm.has-equal-love-master::after,
-.fan-profile-swatch--sm.has-no-miss-master::after {
-  width: 12px;
-  height: 12px;
-  font-size: 7px;
-  top: -4px;
-  right: -4px;
+/* 【2026-11-XX改訂・本人指示：3個同時表示】ロビー一覧・スコア表示等の縮小アイコン
+   （22px基準）向けに、.oshi-badge 3種すべてを比例縮小する。3個同時でも角が重ならないよう、
+   フルサイズ版と同じ3隅（右上＝ダイヤ・右下＝王冠・左下＝メダル）の配置は維持する。 */
+.fan-profile-swatch--sm .oshi-badge--medal {
+  width: 9px;
+  height: 9px;
+  font-size: 5px;
+  bottom: -2px;
+  left: -3px;
   border-width: 1px;
 }
 
-.fan-profile-swatch--sm.has-equal-love-complete::before {
+.fan-profile-swatch--sm .oshi-badge--crown {
+  width: 10px;
+  height: 10px;
+  font-size: 6px;
+  bottom: -3px;
+  right: -3px;
+  border-width: 1px;
+}
+
+.fan-profile-swatch--sm .oshi-badge--diamond {
   width: 11px;
   height: 11px;
-  font-size: 7px;
-  bottom: -2px;
-  right: -4px;
+  font-size: 6px;
+  top: -3px;
+  right: -3px;
   border-width: 1px;
 }
 

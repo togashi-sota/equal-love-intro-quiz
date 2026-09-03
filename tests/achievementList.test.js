@@ -372,10 +372,10 @@ export function runAchievementListTests() {
     "guidanceBadgeTextがあるときだけ案内バッジが表示される"
   );
 
-  // ---- 実データ：ステップアップ全16個が5系統（横並び3枚×4系統＋4枚×1系統）で組み立てられる
-  //      （2026-08-30再改訂・本人指示③：マスターを「マスター称号」専用ブロックへ切り出したため、
-  //      イントロ/アウトロ/シャッフル/リリックの4系統はビギナー/チャレンジャー/エースの3段階に戻り、
-  //      一瞬チャレンジ系だけ一瞬マスターを含む4段階のまま残る。
+  // ---- 実データ：ステップアップ全15個が5系統（横並び3枚×5系統）で組み立てられる
+  //      （2026-08-30再改訂・本人指示③→2026-11-XX再改訂・本人指示：称号一覧の再監査で、
+  //      一瞬マスターも他4系統のマスターと同じ「マスター称号」専用ブロックへ統一したため、
+  //      一瞬チャレンジ系も他4系統と同じビギナー/チャレンジャー/エースの3段階になった。
   //      マスター段階（no_miss_master等）はcategory:"masterPath"のままのため、category ではなく
   //      GROWTH_SERIES（js/achievementList.jsが実際に使う唯一の情報源）のtierIdsで絞り込む）。 ----
   const growthTierIds = GROWTH_SERIES.flatMap((series) => series.tierIds);
@@ -385,8 +385,8 @@ export function runAchievementListTests() {
     .map((a) => buildEntry({ ...a, isUnlocked: false }));
   assertEqual(
     growthSnapshotEntries.length,
-    16,
-    "実データ：GROWTH_SERIESのtierIdsは全部で16個（4系統×3段階＋一瞬チャレンジ系4段階）"
+    15,
+    "実データ：GROWTH_SERIESのtierIdsは全部で15個（5系統×3段階、マスターは全系統マスター称号ブロックへ統一）"
   );
 
   const growthSection = buildGrowthSection(growthSnapshotEntries);
@@ -394,46 +394,70 @@ export function runAchievementListTests() {
   assertEqual(seriesBlocks.length, 5, "ステップアップは5系統（イントロ/アウトロ/シャッフル/リリック/一瞬チャレンジ）に分かれる");
   seriesBlocks.forEach((block, index) => {
     const cards = block.querySelectorAll(".growth-badge-card");
-    const expectedCount = index === 4 ? 4 : 3; // 一瞬チャレンジ系（5番目）だけ一瞬マスターを含む4枚
-    assertEqual(
-      cards.length,
-      expectedCount,
-      index === 4
-        ? "系統5（一瞬チャレンジ）はビギナー/チャレンジャー/エース/マスターの4枚"
-        : `系統${index + 1}はビギナー/チャレンジャー/エースの3枚`
-    );
+    assertEqual(cards.length, 3, `系統${index + 1}はビギナー/チャレンジャー/エースの3枚`);
   });
   assertEqual(
     growthSection.querySelectorAll(".growth-badge-card").length,
-    16,
-    "ステップアップ全16個がすべてバッジカードとして描画される"
+    15,
+    "ステップアップ全15個がすべてバッジカードとして描画される"
   );
 
-  // ---- 2026-08-30新設・本人指示③：「マスター称号」専用ブロックに4マスター＋＝LOVEマスターが
-  //      1つのセクションとしてまとめて表示される ----
-  const masterTierIds = ["no_miss_master", "outro_master", "full_chorus_master", "song_master"];
+  // ---- 2026-08-30新設・本人指示③→2026-11-XX全面改訂・本人指示：称号一覧の再監査により、
+  //      「マスター称号」専用ブロックは5マスター（一瞬マスターを含む）＋＝LOVEマスターの
+  //      計6件を、1称号＝1枚の詳細カード（挑戦条件チェックリスト付き）として表示する ----
+  const masterTierIds = ["no_miss_master", "outro_master", "full_chorus_master", "song_master", "instant_master"];
   const masterSnapshotEntries = [...masterTierIds, "equal_love_master"]
     .map((id) => ACHIEVEMENTS.find((a) => a.id === id))
     .filter(Boolean)
     .map((a) => buildEntry({ ...a, isUnlocked: false, compositeProgress: a.compositeOf ? { achievedCount: 0, requiredCount: a.compositeOf.length, items: [] } : null }));
-  assertEqual(masterSnapshotEntries.length, 5, "実データ：マスター称号ブロックの対象は5個（4マスター＋＝LOVEマスター）");
+  assertEqual(masterSnapshotEntries.length, 6, "実データ：マスター称号ブロックの対象は6個（5マスター＋＝LOVEマスター）");
 
   const masterSection = buildMasterPathSection(masterSnapshotEntries);
-  const masterBadgeNames = [...masterSection.querySelectorAll(".growth-badge-name")].map((el) => el.textContent);
+  // 【2026-11-XX改訂】トロフィー風の小さいバッジカード（growth-badge-card）ではなく、
+  // 挑戦条件チェックリスト付きの通常カード（buildAchievementCard）を1称号＝1枚で使うため、
+  // .growth-badge-nameではなく.achievement-card-nameで確認する。
   assertEqual(
-    masterBadgeNames,
-    ["イントロマスター", "アウトロマスター", "シャッフルマスター", "リリックマスター"],
-    "マスター称号ブロックのトロフィー行は、イントロ→アウトロ→シャッフル→リリックの順で4枚"
+    masterSection.querySelectorAll(".growth-badge-card").length,
+    0,
+    "マスター称号ブロックはもうトロフー風の小さいバッジカードを使わない"
   );
-  const masterCompositeNames = [...masterSection.querySelectorAll(".achievement-card-name")].map((el) => el.textContent);
+  const masterCardNames = [...masterSection.querySelectorAll(".achievement-card-name")].map((el) => el.textContent);
   assertEqual(
-    masterCompositeNames,
-    ["＝LOVEマスター"],
-    "マスター称号ブロックの下段に＝LOVEマスター本体が1件だけ表示される"
+    masterCardNames,
+    ["イントロマスター", "アウトロマスター", "シャッフルマスター", "リリックマスター", "一瞬マスター", "＝LOVEマスター"],
+    "マスター称号ブロックは、イントロ→アウトロ→シャッフル→リリック→一瞬チャレンジ→＝LOVEマスターの順で1称号＝1枚ずつ表示される"
   );
+  // 各マスター称号カードが、挑戦条件のチェックリストを実際に持っていることも確認する
+  // （本人指示：「条件が複数ある場合は、チェックリスト等で1条件ずつ読めるように」）。
+  masterTierIds.forEach((id) => {
+    const card = masterSection.querySelector(`[data-achievement-id="${id}"]`);
+    const items = card?.querySelectorAll(".achievement-card-challenge-list li") ?? [];
+    assertEqual(items.length > 0, true, `マスター称号「${id}」のカードに挑戦条件のチェックリストが表示される`);
+  });
   assertEqual(
     masterSection.querySelector(".achievement-category-heading")?.textContent,
     "👑 マスター称号（＝LOVEマスターへの道）",
     "マスター称号ブロックの見出しが専用の文言になっている"
+  );
+
+  // ---- 2026-11-XX新設・本人指示23：「特典があります」メッセージの復活確認 ----
+  // イントロマスター（no_miss_master）は、以前はトロフィー風の小さいバッジカード
+  // （buildGrowthBadgeCard、rewardNoteを表示しない）で描画されており、rewardNote自体は
+  // js/achievementDefinitions.jsに存在するのに画面には出ていなかった（本人からの
+  // 「以前は表示されていたのに今は表示されない」という報告と一致する状態）。
+  // buildAchievementCardへ統一したことで自動的に直っていることを確認する。
+  const noMissMasterCard = masterSection.querySelector('[data-achievement-id="no_miss_master"]');
+  assertEqual(
+    noMissMasterCard?.querySelector(".achievement-card-reward")?.textContent,
+    "🎁 特典があります。推しアイコンに専用バッジが付きます。",
+    "イントロマスターのカードに「特典があります」メッセージが表示される"
+  );
+  const equalLoveMasterCard = [...masterSection.querySelectorAll(".achievement-card")].find(
+    (card) => card.dataset.achievementId === "equal_love_master"
+  );
+  assertEqual(
+    equalLoveMasterCard?.querySelector(".achievement-card-reward")?.textContent,
+    "🎁 特典があります。推しアイコンに王冠が付きます。",
+    "＝LOVEマスターのカードに「特典があります」メッセージが表示される"
   );
 }
