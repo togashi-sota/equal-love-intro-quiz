@@ -1821,6 +1821,11 @@ export function enterInstantCoopResult(room) {
   scrollToTop();
   latestRoom = room;
   stopAllLocalTimers();
+  // 【2026-11-XX追加・実機バグ調査：push直前の最終二重レビューで発見】
+  // js/onlineInstantBattleScreen.jsのenterInstantBattleResult()と同じ理由。
+  // 答え合わせ中の「続きの楽曲」再生開始が遅れた場合、結果画面へ遷移した後も
+  // 前の問題の音源が鳴り続けることがあったため、audio要素自体も確実に止める。
+  stopAudio();
   // 【2026-09-30新設・本人指示】新しい結果画面に入るたび、まだ何も意思表示していない
   // 状態から始める。
   resetResultScreenResponded();

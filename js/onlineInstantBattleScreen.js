@@ -467,6 +467,11 @@ export function resetOnlineInstantBattleState() {
   lastRevealSfxPlayedForQIndex = -1;
   isFirstQuestionOfMatch = true;
   isCountdownActive = false;
+  // 【2026-11-XX追加・実機バグ調査：push直前の最終二重レビューで発見】
+  // js/onlineInstantCoopBattleScreen.jsのresetInstantCoopBattleState()には既にあった
+  // リセットが、こちらだけ欠けていた。実害は無い（次のplayCurrentQuestionAudioWithCountdown()
+  // 呼び出しで必ず上書きされる）が、将来の変更に対する耐性のため揃えておく。
+  hasAttemptedLocalRecoveryThisAttempt = false;
   lastAppliedAudioTroubleRecoveryKey = null;
   lastActivityReportedAtMs = 0;
   lastActivityReportedQIndex = -1;
@@ -1587,6 +1592,12 @@ export function enterInstantBattleResult(room) {
   scrollToTop();
   latestRoom = room;
   stopAllLocalTimers();
+  // 【2026-11-XX追加・実機バグ調査：push直前の最終二重レビューで発見】答え合わせ中に
+  // 鳴らす「続きの楽曲」の読み込み・再生開始が遅れた場合、REVEAL_DELAY_MS経過での
+  // 自動停止タイマーが実際の再生開始より先に空回りしてしまい、結果画面へ遷移した後も
+  // 前の問題の音源が鳴り続けることがあった。stopAllLocalTimers()はタイマーしか止めない
+  // ため、audio要素自体も確実に止める。
+  stopAudio();
   // 【2026-09-30新設・本人指示】新しい結果画面に入るたび、まだ何も意思表示していない
   // 状態から始める。
   resetResultScreenResponded();
