@@ -103,3 +103,33 @@ export function resolveRematchToggleButtonLabel({ isHost, myReady }) {
   }
   return myReady ? { text: "準備を取り消す", isConfirmed: true } : { text: "✓ 準備OK", isConfirmed: false };
 }
+
+// 【2026-11-XX新設・実機バグ調査：「もう一度」を押しても何も起きないバグの再発防止】
+// js/onlineBattle.jsのbeginRematchReadyCheck()が、Firebaseへ実際に書き込むupdate()の
+// キー一覧をこの純粋関数へ切り出したもの（Firebase呼び出し自体はonlineBattle.js側に残す）。
+//
+// 【なぜこの形に切り出したか】以前はrematchParticipantUidsを{uid: true, ...}という
+// 1つのオブジェクトにまとめ、`rooms/{roomId}/rematchParticipantUids`という「親キー」へ
+// 丸ごと書き込んでいた。しかしfirebase/database.rules.jsonのrematchParticipantUidsには
+// 子キー（$uid）単位の.writeルールしか無く、親キーそのものへの.writeが定義されていない
+// ため、Firebase Realtime Databaseはこの書き込みを常にpermission_deniedで拒否していた
+// （update()による複数パスの書き込みは全パスがまとめて1つのアトミックな操作として
+// 扱われるため、この1箇所が拒否されると更新全体が丸ごと巻き戻り、実機では「『もう一度』
+// ボタンを押しても何も起きない」ように見えていた——これが再戦フローの真の根本原因）。
+//
+// 修正後は、rematchParticipantUidsも他のフィールド（players/{uid}/rematchReady等）と
+// 同じく子キー（uidごと）へ1件ずつ書き込む形にした。この「キーの粒度」という間違えやすい
+// 前提を、Firebase呼び出しを持たない純粋関数として切り出すことで、恒久テストで
+// 直接検証できるようにしてある（実際のFirebase書き込みを伴わずに、update()へ渡す
+// オブジェクトの形そのものを確認できる）。
+export function buildRematchProposalUpdates({ roomId, players, hostUid }) {
+  const updates = {
+    [`rooms/${roomId}/status`]: "waiting",
+    [`rooms/${roomId}/confirmingRematch`]: true,
+  };
+  Object.keys(players ?? {}).forEach((playerUid) => {
+    updates[`rooms/${roomId}/players/${playerUid}/rematchReady`] = playerUid === hostUid;
+    updates[`rooms/${roomId}/rematchParticipantUids/${playerUid}`] = true;
+  });
+  return updates;
+}

@@ -9,6 +9,7 @@ import {
   computeAllPlayersResultReturned,
   resolveRematchToggleButtonLabel,
   filterPlayersForRematchParticipants,
+  buildRematchProposalUpdates,
 } from "../js/onlineBattleMatchConfirmationPayloads.js";
 import { assertEqual } from "./test-utils.js";
 
@@ -342,6 +343,74 @@ export function runOnlineBattleMatchConfirmationPayloadsTests() {
         0,
         "playersがundefinedでも安全に空オブジェクトを返す"
       );
+    }
+
+    // ---- buildRematchProposalUpdates（2026-11-XX新設・実機バグ調査：「もう一度」を
+    // 押しても何も起きないバグの再発防止） ----
+    // 【この関数が守るべきこと】firebase/database.rules.jsonのrematchParticipantUidsには
+    // 子キー（$uid）単位の.writeルールしか無く、親キー（rematchParticipantUids自体）への
+    // .writeが定義されていない。そのため、ここで組み立てるupdatesオブジェクトのキーに
+    // `rooms/{roomId}/rematchParticipantUids`（親キーへオブジェクトを丸ごと書き込む形）が
+    // 1つでも含まれていると、実際のFirebase書き込みが必ずpermission_deniedで拒否される
+    // （実機・本番Firebaseで確認済みの根本原因）。このテストは、Firebase呼び出しを
+    // 一切行わずに、update()へ渡す直前のオブジェクトの「キーの粒度」そのものを検証する。
+    {
+      const updates = buildRematchProposalUpdates({
+        roomId: "ROOM1",
+        players: { host1: { name: "ホスト" }, guest1: { name: "ゲスト" } },
+        hostUid: "host1",
+      });
+
+      assertEqual(
+        Object.prototype.hasOwnProperty.call(updates, "rooms/ROOM1/rematchParticipantUids"),
+        false,
+        "rematchParticipantUidsを「親キー」へオブジェクトごと書き込むキーを絶対に含めない（このキーが1つでもあると、実際のFirebaseルール上は書き込み全体がpermission_deniedで拒否される）"
+      );
+      assertEqual(
+        updates["rooms/ROOM1/rematchParticipantUids/host1"],
+        true,
+        "rematchParticipantUidsは参加者ごとの「子キー」へ1件ずつtrueを書き込む（ホスト自身）"
+      );
+      assertEqual(
+        updates["rooms/ROOM1/rematchParticipantUids/guest1"],
+        true,
+        "rematchParticipantUidsは参加者ごとの「子キー」へ1件ずつtrueを書き込む（ホスト以外の参加者）"
+      );
+      assertEqual(updates["rooms/ROOM1/status"], "waiting", "room.statusをwaitingへ戻す");
+      assertEqual(updates["rooms/ROOM1/confirmingRematch"], true, "confirmingRematchをtrueにする");
+      assertEqual(
+        updates["rooms/ROOM1/players/host1/rematchReady"],
+        true,
+        "「もう一度」を押した本人（ホスト）は、提案した瞬間から準備OK扱いにする"
+      );
+      assertEqual(
+        updates["rooms/ROOM1/players/guest1/rematchReady"],
+        false,
+        "ホスト以外の参加者は、まだ準備OKを押していない未準備状態からスタートする"
+      );
+    }
+    {
+      // 3人以上でも、全参加者ぶんの子キーが漏れなく作られることを確認する。
+      const updates = buildRematchProposalUpdates({
+        roomId: "ROOM2",
+        players: { a: {}, b: {}, c: {} },
+        hostUid: "b",
+      });
+      assertEqual(
+        Object.prototype.hasOwnProperty.call(updates, "rooms/ROOM2/rematchParticipantUids"),
+        false,
+        "3人対戦でも、rematchParticipantUidsの親キーへの書き込みを含めない"
+      );
+      ["a", "b", "c"].forEach((uid) => {
+        assertEqual(
+          updates[`rooms/ROOM2/rematchParticipantUids/${uid}`],
+          true,
+          `3人対戦：参加者${uid}の子キーが漏れなく作られる`
+        );
+      });
+      assertEqual(updates["rooms/ROOM2/players/b/rematchReady"], true, "3人対戦：提案したホスト（b）は準備OK扱い");
+      assertEqual(updates["rooms/ROOM2/players/a/rematchReady"], false, "3人対戦：ホスト以外（a）は未準備からスタート");
+      assertEqual(updates["rooms/ROOM2/players/c/rematchReady"], false, "3人対戦：ホスト以外（c）は未準備からスタート");
     }
 
     // 【10人・複数人が同時に切断中】切断中の人数が複数でも、残りの接続中メンバーだけで

@@ -54,7 +54,11 @@ import {
 import { restrictSettingsToCommonlyAvailableSongs } from "./onlineBattleSongAvailability.js";
 import { QUESTION_SOURCE_TYPE } from "./questionSource.js";
 import { pickNextHostUid } from "./onlineBattleHostTransitionPayloads.js";
-import { computeAllPlayersRematchReady, computeAllPlayersResultReturned } from "./onlineBattleMatchConfirmationPayloads.js";
+import {
+  computeAllPlayersRematchReady,
+  computeAllPlayersResultReturned,
+  buildRematchProposalUpdates,
+} from "./onlineBattleMatchConfirmationPayloads.js";
 import { startActivityPresenceTracking, stopActivityPresenceTracking } from "./onlineBattlePresence.js";
 import { isMatchReadyToFinalize } from "./onlineBattleMatchProgress.js";
 
@@ -1805,24 +1809,32 @@ export async function beginRematchReadyCheck({ roomId }) {
   if (!validation.ok) return validation;
 
   const players = room.players || {};
-  const updates = {
-    [`rooms/${roomId}/status`]: ROOM_STATUS.WAITING,
-    [`rooms/${roomId}/confirmingRematch`]: true,
-  };
   // 【2026-11-XX追加・実機バグ調査：再戦準備中に新規参加者が来ても巻き込まない仕様】
   // 「今この瞬間ルームにいる参加者」を、この再戦の対象者として固定する。この後
   // ルームへ新しく入ってくる人は、rematchParticipantUidsに含まれないため、
   // computeAllPlayersRematchReady()の判定にも、実際に始まる再戦の参加者にも含まれない
-  // （js/onlineBattle.jsのwriteNewMatchStart()参照）。
-  const rematchParticipantUids = {};
-  Object.keys(players).forEach((playerUid) => {
-    // 【2026-10-01改訂・本人指示：結果画面/再戦フロー全面設計】「もう一度」を押した時点で、
-    // ホスト自身は既に準備OK扱いにする（本人指示12：「ホストが『もう一度』を押した時点で
-    // ホスト自身は準備OK扱い」）。他の参加者はこれまでどおり未準備からスタートする。
-    updates[`rooms/${roomId}/players/${playerUid}/rematchReady`] = playerUid === uid;
-    rematchParticipantUids[playerUid] = true;
-  });
-  updates[`rooms/${roomId}/rematchParticipantUids`] = rematchParticipantUids;
+  // （js/onlineBattle.jsのwriteNewMatchStart()参照）。ホスト自身は提案した時点で
+  // 既に準備OK扱いにする（本人指示12：「ホストが『もう一度』を押した時点でホスト自身は
+  // 準備OK扱い」）。他の参加者はこれまでどおり未準備からスタートする。
+  //
+  // 【2026-11-XX修正・実機バグ調査：「もう一度」を押しても何も起きないバグの根本原因】
+  // 書き込むキーの組み立て自体は、Firebase呼び出しを持たない純粋関数
+  // buildRematchProposalUpdates()（js/onlineBattleMatchConfirmationPayloads.js）へ
+  // 切り出した。以前はrematchParticipantUidsを{uid: true, ...}という1つのオブジェクトに
+  // まとめ、`rooms/{roomId}/rematchParticipantUids`という「親キー」へ丸ごと書き込んで
+  // いたが、firebase/database.rules.jsonのrematchParticipantUidsには子キー（$uid）単位の
+  // .writeルールしか定義されておらず、親キーそのものへの.writeが無い。Firebase Realtime
+  // Databaseのルールは、書き込み先のパスそのもの（またはその祖先）に許可が無い限り、
+  // 子孫の.writeルールをさかのぼって適用してはくれないため、親キーへオブジェクトごと
+  // 書き込むこの呼び出しは常にpermission_deniedで拒否されていた。update()による複数パスの
+  // 書き込みは全パスがまとめて1つのアトミックな操作として扱われるため、この1箇所が
+  // 拒否されるとstatus・confirmingRematch・rematchReadyを含む更新全体が丸ごと巻き戻り、
+  // 画面上は「ボタンを押しても何も起きない」ように見えていた（実際に本番のFirebaseへ
+  // 2クライアントで再現し、コンソールのpermission_deniedとFirebase REST APIでの
+  // 直接検証により確定した）。対策として、players/{uid}/rematchReadyと同じく、子キー
+  // （uidごと）へ1件ずつ書き込む形に変更した。ルール側の.writeがまさにこの粒度で
+  // 許可されているため、これでホストによる書き込みが成立する。
+  const updates = buildRematchProposalUpdates({ roomId, players, hostUid: uid });
   try {
     await update(ref(database), updates);
   } catch (error) {
