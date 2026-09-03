@@ -19,12 +19,14 @@ import {
   attemptSilentUnlock,
   ensureUnlockSettled,
   getAudioUnlockDiagnostics,
+  getAudioLifecycleDiagnostics,
   playSongIntro,
   getCurrentPlaybackState,
   raceUnlockPromiseWithTimeout,
   startAudioUnlockHeartbeat,
   stopAudioUnlockHeartbeat,
   hasActiveAudioUnlockHeartbeat,
+  stopAudio,
 } from "../js/audio.js";
 import { assertEqual } from "./test-utils.js";
 
@@ -315,6 +317,42 @@ export async function runAudioTests() {
     assertEqual(hasActiveAudioUnlockHeartbeat(), false, "心拍：stop後はfalse");
     stopAudioUnlockHeartbeat(); // 既に止まっている状態で呼んでも安全。
     assertEqual(hasActiveAudioUnlockHeartbeat(), false, "心拍：既に停止中にstopを呼んでも安全にfalseのまま");
+  }
+
+  // ---- 【2026-11-XX新設・本人指示：Bug A継続調査】累計使用状況スナップショット
+  //      （getAudioLifecycleDiagnostics()）の形と、stopAudio()呼び出しでの
+  //      cumulativeStopAudioCallCount増加だけを検証する（実際のObject URL生成を伴う
+  //      再生成功パスはIndexedDBに実音源が無いテスト環境では再現できないため対象外。
+  //      値そのものの正しさより「壊れずに数値を返し続けること」「呼べば増えること」を見る）。
+  {
+    const before = getAudioLifecycleDiagnostics();
+    [
+      "cumulativeObjectUrlCreatedCount",
+      "cumulativeObjectUrlRevokedCount",
+      "aliveObjectUrlCount",
+      "cumulativeStopAudioCallCount",
+      "cumulativeSrcAssignmentCount",
+      "cumulativeLoadCallCount",
+      "cumulativePlayCallCount",
+      "cumulativePlaySuccessCount",
+      "cumulativePlayFailureCount",
+      "cumulativeNotSupportedErrorCount",
+    ].forEach((key) => {
+      assertEqual(typeof before[key], "number", `getAudioLifecycleDiagnostics()の${key}は数値`);
+    });
+    assertEqual(
+      before.aliveObjectUrlCount,
+      before.cumulativeObjectUrlCreatedCount - before.cumulativeObjectUrlRevokedCount,
+      "aliveObjectUrlCountは「作った数−解放した数」と一致する"
+    );
+
+    stopAudio();
+    const after = getAudioLifecycleDiagnostics();
+    assertEqual(
+      after.cumulativeStopAudioCallCount,
+      before.cumulativeStopAudioCallCount + 1,
+      "stopAudio()を呼ぶとcumulativeStopAudioCallCountが1増える"
+    );
   }
 
   // 後片付け：他のテスト・実機確認に影響を残さないよう、audio要素を初期状態に戻す。

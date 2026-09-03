@@ -184,7 +184,10 @@ export function attemptSilentUnlock() {
   // hadSrcの条件にする（それ以外＝本編の曲のURLや解放済みURLが残っている場合は、
   // 必ず無音URIに差し替えてからplay()する）。
   const hadSrc = audioElement.src === SILENT_UNLOCK_DATA_URI;
-  if (!hadSrc) audioElement.src = SILENT_UNLOCK_DATA_URI;
+  if (!hadSrc) {
+    audioElement.src = SILENT_UNLOCK_DATA_URI;
+    cumulativeSrcAssignmentCount++;
+  }
 
   diag("[UNLOCK] play()呼び出し", { hadSrc, visibilityState: document.visibilityState });
   const playResult = audioElement.play();
@@ -212,6 +215,7 @@ export function attemptSilentUnlock() {
           } else {
             audioElement.removeAttribute("src");
             audioElement.load();
+            cumulativeLoadCallCount++;
           }
         }
       })
@@ -227,6 +231,7 @@ export function attemptSilentUnlock() {
         if (!hadSrc && audioElement.src === SILENT_UNLOCK_DATA_URI) {
           audioElement.removeAttribute("src");
           audioElement.load();
+          cumulativeLoadCallCount++;
         }
       })
       .finally(() => {
@@ -395,6 +400,48 @@ let currentObjectUrl = null;
 // （別のaudio要素や独自の競合対策を新設しない、という本人の明確な要望どおり）。
 let currentPlaybackToken = 0;
 
+// 【2026-11-XX新設・本人指示：Bug A（オンライン対戦の音源トラブル）継続調査】
+// audioElement.errorのリセット自体は正しく機能したにもかかわらず実機で失敗が再発したため
+// （docs/HANDOFF.md 83章参照）、「audio要素側の一時的な状態」だけでなく「同じページを
+// 開いたまま累積してきた使用量」に何か関係があるのではという新しい仮説を検証するための、
+// 軽量な累計カウンタ群。ここではカウントを増やすだけで、既存の再生ロジック・制御フローには
+// 一切影響しない（read-onlyな観測用の副作用のみ）。ページを離れるまでリセットされない
+// （セッション全体の累積値であることが今回の仮説検証に必要なため、意図的にリセットしない）。
+let cumulativeObjectUrlCreatedCount = 0;
+let cumulativeObjectUrlRevokedCount = 0;
+let cumulativeStopAudioCallCount = 0;
+let cumulativeSrcAssignmentCount = 0;
+let cumulativeLoadCallCount = 0;
+let cumulativePlayCallCount = 0;
+let cumulativePlaySuccessCount = 0;
+let cumulativePlayFailureCount = 0;
+let cumulativeNotSupportedErrorCount = 0;
+
+// 診断ログへ埋め込む用の、上記カウンタ群のスナップショット。aliveObjectUrlCountは
+// 「作った数−解放した数」で、その時点で生きているはずのObject URL数の目安になる
+// （0付近であるべきで、増え続けているならリーク疑いの手がかりになる）。
+function getAudioLifecycleDiagnosticsSnapshot() {
+  return {
+    cumulativeObjectUrlCreatedCount,
+    cumulativeObjectUrlRevokedCount,
+    aliveObjectUrlCount: cumulativeObjectUrlCreatedCount - cumulativeObjectUrlRevokedCount,
+    cumulativeStopAudioCallCount,
+    cumulativeSrcAssignmentCount,
+    cumulativeLoadCallCount,
+    cumulativePlayCallCount,
+    cumulativePlaySuccessCount,
+    cumulativePlayFailureCount,
+    cumulativeNotSupportedErrorCount,
+  };
+}
+
+// 【2026-11-XX新設・再監査に伴うテスト追加】外部（テストコード・将来のデバッグ画面）から
+// 読み取れるようにexportする、副作用の無い読み取り専用ヘルパー
+// （getAudioUnlockDiagnostics()と同じ位置づけ）。
+export function getAudioLifecycleDiagnostics() {
+  return getAudioLifecycleDiagnosticsSnapshot();
+}
+
 // 【2026-09-21新設・本人指示：Q1無音の再調査】このセッションで「本物の曲」が実際に
 // playing状態へ入ったことを一度でも確認できたかどうか。診断ログのタグ分け
 // （[FIRST_REAL_AUDIO] / [NORMAL_AUDIO]）に使う。「play()のPromiseが成功した」だけでは
@@ -476,6 +523,7 @@ function releaseCurrentObjectUrl() {
     currentObjectUrl = null;
     setTimeout(() => {
       URL.revokeObjectURL(urlToRevoke);
+      cumulativeObjectUrlRevokedCount++;
     }, 0);
   }
 }
@@ -501,7 +549,12 @@ async function acquireBlobForNewPlayback(song) {
   currentPlaybackSongId = song.id;
   diag(`IndexedDB取得開始 song=${song.id} token=${myToken}`);
   const blob = await getAudioBlob(song.id);
-  diag(`IndexedDB取得完了 song=${song.id} token=${myToken}`, { hasBlob: !!blob, stale: myToken !== currentPlaybackToken });
+  diag(`IndexedDB取得完了 song=${song.id} token=${myToken}`, {
+    hasBlob: !!blob,
+    stale: myToken !== currentPlaybackToken,
+    blobSize: blob?.size ?? null,
+    blobType: blob?.type ?? null,
+  });
   if (myToken !== currentPlaybackToken) {
     return { myToken, blob: null, stale: true };
   }
@@ -535,10 +588,12 @@ function resetAudioElementIfInErrorState(diagnosticContext) {
   });
   audioElement.removeAttribute("src");
   audioElement.load();
+  cumulativeLoadCallCount++;
   diag(`[ERROR_RESET] audio要素をload()で明示的にリセットした (${diagnosticContext})`, {
     errorAfterReset: audioElement.error,
     readyStateAfterReset: audioElement.readyState,
     networkStateAfterReset: audioElement.networkState,
+    ...getAudioLifecycleDiagnosticsSnapshot(),
   });
 }
 
@@ -557,10 +612,12 @@ function claimAsCurrentPlayback(blob) {
     // 万一未解放のまま次が来ても、ここで確実に解放してからでないと取りこぼしになるため）。
     diag("[OBJECT_URL] 前回分の解放漏れを検知、ここで解放", { url: pendingPreviousObjectUrl });
     URL.revokeObjectURL(pendingPreviousObjectUrl);
+    cumulativeObjectUrlRevokedCount++;
     pendingPreviousObjectUrl = null;
   }
   pendingPreviousObjectUrl = currentObjectUrl;
   const myObjectUrl = URL.createObjectURL(blob);
+  cumulativeObjectUrlCreatedCount++;
   currentObjectUrl = myObjectUrl;
   return myObjectUrl;
 }
@@ -575,6 +632,7 @@ function releasePreviousObjectUrlAfterSrcSwap() {
       currentSrc: audioElement.src,
     });
     URL.revokeObjectURL(pendingPreviousObjectUrl);
+    cumulativeObjectUrlRevokedCount++;
     pendingPreviousObjectUrl = null;
   }
 }
@@ -636,6 +694,7 @@ async function attemptPlay(myToken, myObjectUrl, onError, diagnosticContext) {
       // Promise.raceする。play()呼び出し自体（audioElement.play()）は取り消せないため、
       // 万一その後に本当にresolve/rejectしても、追い越し判定（myToken !== currentPlaybackToken）
       // が安全側に処理する（下の既存ロジックと同じ枠組み）。
+      cumulativePlayCallCount++;
       const settleResult = await Promise.race([
         audioElement.play().then(() => "resolved"),
         new Promise((resolve) => setTimeout(() => resolve("timeout"), PLAY_SETTLE_TIMEOUT_MS)),
@@ -649,19 +708,28 @@ async function attemptPlay(myToken, myObjectUrl, onError, diagnosticContext) {
       // 分かっていない。実際に音が鳴り始めたかどうかは、この後発火する（はずの）
       // onplayingイベント側のverifyRealPlaybackStarted()が、readyState・currentTimeの
       // 実際の進行まで確認して初めて判断する。
+      cumulativePlaySuccessCount++;
       diag(`[${playbackTag}] play()のPromiseは成功（※音が鳴ったことの確認ではない） (${diagnosticContext}) attempt=${attempt}`, {
         readyState: audioElement.readyState,
         paused: audioElement.paused,
         muted: audioElement.muted,
         volume: audioElement.volume,
+        ...getAudioLifecycleDiagnosticsSnapshot(),
       });
       break;
     } catch (error) {
       lastError = error;
+      cumulativePlayFailureCount++;
+      if (error?.name === "NotSupportedError") cumulativeNotSupportedErrorCount++;
       // 【2026-11-XX追加・実機バグ調査】原因の切り分けのため、失敗時点のaudio要素の
       // 状態（.error・readyState・networkState・currentSrc）もあわせて記録する。
       // 「なぜ最初のNotSupportedErrorが起きたか」と「なぜその後も同じエラーが続くか」を
       // 後から区別できるようにするため（docs/HANDOFF.md 81章参照）。
+      // 【2026-11-XX追加・83章のセッション累積使用量仮説】これに加えて、ページを開いてから
+      // このセッションで累計何回のObject URL生成・破棄・play()呼び出し・src差し替え・
+      // load()呼び出しを行ってきたかのスナップショットも記録する。「何回目の再生で
+      // 何個Object URLが生きている状態で失敗が起きたか」を後から実機ログだけで追えるように
+      // するため（挙動そのものへの影響は無い、純粋な観測用の追加情報）。
       diag(`[${playbackTag}] play()失敗 (${diagnosticContext}) attempt=${attempt}`, {
         name: error?.name,
         message: error?.message,
@@ -670,6 +738,8 @@ async function attemptPlay(myToken, myObjectUrl, onError, diagnosticContext) {
         readyState: audioElement.readyState,
         networkState: audioElement.networkState,
         currentSrc: audioElement.currentSrc,
+        duration: audioElement.duration,
+        ...getAudioLifecycleDiagnosticsSnapshot(),
       });
     }
   }
@@ -757,6 +827,7 @@ export async function playSongIntro(song, onError, onPlaybackStart) {
   const playbackTag = hasConfirmedFirstRealPlayback ? "NORMAL_AUDIO" : "FIRST_REAL_AUDIO";
   diag(`[${playbackTag}] src設定 (intro, song=${song.id})`, { unlock: audioUnlockState });
   audioElement.src = myObjectUrl;
+  cumulativeSrcAssignmentCount++;
   // 前の曲のURLは、audioElement.srcが自分のURLへ切り替わった今なら安全に解放できる。
   releasePreviousObjectUrlAfterSrcSwap();
 
@@ -827,6 +898,7 @@ export async function playSongFromRandomPosition(song, computeStartTimeSec, play
   const randomPositionPlaybackTag = hasConfirmedFirstRealPlayback ? "NORMAL_AUDIO" : "FIRST_REAL_AUDIO";
   diag(`[${randomPositionPlaybackTag}] src設定 (randomPosition, song=${song.id})`, { unlock: audioUnlockState });
   audioElement.src = myObjectUrl;
+  cumulativeSrcAssignmentCount++;
   // 前の曲のURLは、audioElement.srcが自分のURLへ切り替わった今なら安全に解放できる。
   releasePreviousObjectUrlAfterSrcSwap();
 
@@ -858,7 +930,12 @@ export function stopAudio() {
   // 【2026-09-22新設・本人指示：全モード共通「新規プレイのQ1だけ無音」の再調査】どの関数から
   // stopAudio()が呼ばれたかを診断ログに残す。「Q1の再生開始直後に、想定外の場所から
   // stopAudio()が遅れて呼ばれて再生を打ち切っていないか」を実機ログから追えるようにする。
-  diag("[STOP_AUDIO] 呼び出し", { caller: getStopAudioCallerLabel(), tokenBefore: currentPlaybackToken });
+  cumulativeStopAudioCallCount++;
+  diag("[STOP_AUDIO] 呼び出し", {
+    caller: getStopAudioCallerLabel(),
+    tokenBefore: currentPlaybackToken,
+    ...getAudioLifecycleDiagnosticsSnapshot(),
+  });
   // 世代番号を進めることで、この時点で裏に残っている古いplaySongIntro()/
   // playSongFromRandomPosition()の処理（自動停止タイマーを含む）をすべて「無効」にする
   // （stopAudio()の後に遅れて鳴り出す事故を防ぐ）。
