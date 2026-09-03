@@ -11329,6 +11329,25 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   opacity: 1;
 }
 
+/* 【2026-11-XX新設・本人指示：右上の音量ボタンが何のボタンか分かりにくい】
+   クイズ画面右上のSFX ON/OFFボタンは、丸いアイコンのみの.header-icon-buttonのままだと
+   近くにある「🔇 音が出ない」ボタンと役割が見分けづらいという実プレイでの指摘を受け、
+   アイコンの隣に短い文字ラベル「音量」を添えた横長のピル形状へ変更する（既存のピンク・白
+   基調のデザイン・色は変えず、形だけを丸から横長の角丸へ変更するだけに留める）。 */
+.quiz-header-sfx-toggle-button {
+  width: auto;
+  height: auto;
+  padding: 5px 10px 5px 8px;
+  border-radius: 999px;
+  gap: 4px;
+}
+
+.quiz-header-sfx-toggle-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 /* list-headerに3つ目の要素（設定アイコン）が入るときも、戻るボタン・タイトルの
    位置関係が崩れないようにする。 */
 #continuous-play-screen .list-header {
@@ -16040,8 +16059,20 @@ body[data-screen="instantChallengeQuestion"] .game-frame {
   display: flex;
   flex-direction: column;
   /* 【2026-08-29再改訂】固定値20pxではなく、Dynamic Island・ノッチのsafe areaぶんを
-     必ず確保する（実機で戻るボタンがステータスバーと重なっていた不具合の修正）。 */
-  padding: max(16px, env(safe-area-inset-top)) 20px 0;
+     必ず確保する（実機で戻るボタンがステータスバーと重なっていた不具合の修正）。
+     【2026-11-XX再改訂・本人指示：iPhone実機で上部UIがステータスバーに寄りすぎている
+     不具合の修正】.game-frameをviewport高さへ固定する設計へ移行した際（このコメントブロック
+     の上にある「①bodyのpadding-topを0にした際」の記録参照）、元々bodyが持っていた
+     max(64px, calc(env(safe-area-inset-top) + 20px))という余裕のある安全域確保が、
+     この画面側のmax(16px, env(safe-area-inset-top))という控えめな値に置き換わって
+     しまっており、safe-area-inset-topぴったりの位置に「戻る」リンクが接するため、
+     Dynamic Island環境で時刻表示・ステータスバーと窮屈に重なって見える・押しにくいという
+     実機報告につながっていた。安全域の実測値そのものに、追加で12pxの余白を必ず足す
+     （下限も20pxへ引き上げ、safe-areaが取得できない環境でも最低限の余白を確保する）。
+     以前の64pxほど大きくはしない（本人指示：「下げすぎて無駄な空白だらけにはしないで」＝
+     .quiz-middle-zone側の内部スクロールfallbackへ不必要に頼らせない範囲で、わずかに
+     増やすだけに留める）。 */
+  padding: max(20px, calc(env(safe-area-inset-top) + 12px)) 20px 0;
   flex: 1;
   min-height: 0;
 }
