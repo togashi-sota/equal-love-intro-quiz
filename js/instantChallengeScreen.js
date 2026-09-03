@@ -350,6 +350,11 @@ function quitRun() {
   stopAudio();
   cancelLocalReplayCountdown();
   clearTimeout(autoAdvanceTimerId);
+  // 【2026-11-XX追加・実機バグ調査：仕様総監査で発見】renderCurrentQuestion()・
+  // abortRunDueToAudioFailure()では既にクリアしていたが、この途中終了経路だけ
+  // 漏れていた。答え合わせ音源ON設定時の「次へ」再有効化タイマー（500ms）が
+  // 離脱後に発火しても実害は無いが（次回描画時に必ず作り直される）、一貫性のため揃える。
+  clearTimeout(revealAudioNextEnableTimeoutId);
   questionElements.answerSearchInput.value = "";
   questions = [];
   currentIndex = 0;
@@ -362,6 +367,8 @@ async function restartRun() {
   stopAudio();
   cancelLocalReplayCountdown();
   clearTimeout(autoAdvanceTimerId);
+  // 【2026-11-XX追加・実機バグ調査：仕様総監査で発見】quitRun()と同じ理由。
+  clearTimeout(revealAudioNextEnableTimeoutId);
   questionElements.answerSearchInput.value = "";
   await retryInstantChallengeRun();
 }
@@ -436,6 +443,7 @@ function abortRunDueToAudioFailure() {
   stopAudio();
   cancelLocalReplayCountdown();
   clearTimeout(autoAdvanceTimerId);
+  clearTimeout(revealAudioNextEnableTimeoutId);
   questionElements.onAudioFailureAbort?.(
     "音源を正常に再生できない状態が続いているため、この回は中断しました。データパックの導入状況や通信環境をご確認のうえ、もう一度お試しください。"
   );

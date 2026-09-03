@@ -457,4 +457,59 @@ export function runInstantCoopMatchProgressTests() {
       );
     }
   }
+
+  // ---- 統合シナリオ：無効を挟みながら3問成立するまで継続する ----
+  // 【2026-11-XX新設・本人指示：一瞬系の失敗→復旧シナリオの恒久テスト化】
+  // 「初回再生が失敗→ローカル自動復旧→再生成功」自体は各端末のローカルな再試行
+  // （js/onlineInstantCoopBattleScreen.jsのhasAttemptedLocalRecoveryThisAttempt）の話で
+  // このファイルの状態には一切現れない（サーバーへ報告されなければtick()からは
+  // 「普通に投票が揃った」ようにしか見えないため）。このファイルのレベルで再現できる
+  // 「失敗→復旧」シナリオは、hasAudioFailureReport=trueによる無効化と、その後の
+  // 予備曲への差し替えによる続行。ここでは「1問目は音源トラブルで無効→2問目は
+  // 正常投票で成立→3問目も正常投票で成立→3問目でtarget(2問)に到達し終了」という
+  // 一連の流れを1つの連続したシナリオとして確認する（本人指示の
+  // 「1.初回再生失敗 2.ローカル自動復旧 3.再生成功 …6.回答 7.次問 8.結果画面遷移」の
+  // うち、このファイルが担当する部分＝6〜8に相当する「無効を挟んでも最終的に
+  // targetQuestionCountぶん成立するまで進む」ことの確認）。
+  {
+    let state = createMatchProgress({
+      questions: buildDummyQuestions(5), // targetより多い予備を持たせておく
+      allPlayerUids: ["p1", "p2"],
+      hostUid: "p1",
+      seed: 42,
+      nowMs: 0,
+      targetQuestionCount: 2,
+    });
+
+    // 1問目：音源トラブルで無効（「サーバーへ報告するに至った」ケース）。
+    state = tick(state, 100, true);
+    assertEqual(state.currentQuestion.outcome.isVoid, true, "1問目：音源トラブルで無効として確定する");
+    state = advanceToNextQuestion(state, 150);
+    assertEqual(state.status, "inProgress", "1問目が無効でも、targetにまだ届いていないため続行する");
+    assertEqual(state.teamHistory.length, 0, "1問目：無効な問題はteamHistoryに積まれない");
+    assertEqual(state.currentQuestionIndex, 1, "1問目：無効だった分、内部的には予備曲（index1）へ進む");
+
+    // 2問目：正常に投票が揃い成立（「もう一度聞く」を使ったかどうかはこの層には現れない）。
+    state = recordVote(state, "p1", "song-1");
+    state = recordVote(state, "p2", "song-1");
+    state = tick(state, 200, false);
+    assertEqual(state.currentQuestion.outcome.isVoid, undefined, "2問目：正常に成立すればisVoidは付かない");
+    state = advanceToNextQuestion(state, 250);
+    assertEqual(state.teamHistory.length, 1, "2問目：正常に成立した1問目がteamHistoryへ積まれる");
+    assertEqual(state.status, "inProgress", "2問目：まだtarget(2問)に届いていないため続行する");
+
+    // 3問目：正常に投票が揃い成立し、target(2問)に到達して終了する（2人とも同じ不正解の
+    // 曲へ投票＝単独トップだがハズレ、というパターンで確認する）。
+    state = recordVote(state, "p1", "distractor-2-a");
+    state = recordVote(state, "p2", "distractor-2-a");
+    state = tick(state, 300, false);
+    state = advanceToNextQuestion(state, 350);
+    assertEqual(state.status, "finished", "3問目：2問目の成立でtarget(2問)へ到達し試合が終了する");
+    assertEqual(state.teamHistory.length, 2, "最終的に、無効を除いた2問だけがteamHistoryに積まれる");
+
+    // 結果画面遷移相当：確定した成績（無効な1問は一切影響しないこと）を確認する。
+    const finalResult = finalizeMatch(state);
+    assertEqual(finalResult.totalQuestions, 2, "結果：無効だった1問は分母に含まれない");
+    assertEqual(finalResult.correctCount, 1, "結果：2問中1問正解（song-1は正解、3問目は全員ハズレの曲で不正解）");
+  }
 }

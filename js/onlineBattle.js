@@ -637,9 +637,20 @@ export async function updateRoomSettings({ roomId, settings }) {
   const uid = getCurrentUid();
   if (!uid) return { ok: false, reason: "not-signed-in" };
 
-  const snapshot = await get(ref(database, `rooms/${roomId}`));
-  if (!snapshot.exists()) return { ok: false, reason: "not-found" };
-  const room = snapshot.val();
+  // 【2026-11-XX追加・実機バグ調査：仕様総監査で発見】この関数だけ、読み取り（get）・
+  // 書き込み（update）のどちらもtry/catchで守られていなかった。ロビーで設定を変更する
+  // （出題数・ルール等のラジオを切り替える）という頻繁な操作のたびに呼ばれる経路のため、
+  // オフライン・Firebase側の一時的な拒否等で例外が起きると、そのままUnhandled Promise
+  // Rejectionとして伝播していた。他の同種関数（kickPlayer・transferHost等）と同じ
+  // 「読み書き失敗時はok:falseを返す」設計へ揃える。
+  let room;
+  try {
+    const snapshot = await get(ref(database, `rooms/${roomId}`));
+    if (!snapshot.exists()) return { ok: false, reason: "not-found" };
+    room = snapshot.val();
+  } catch (error) {
+    return { ok: false, reason: "read-failed" };
+  }
   if (room.host !== uid) return { ok: false, reason: "not-host" };
 
   // 【2026-09-26改訂・本人指示：オンライン対戦総合改修19-2/19-3章】以前はここで
@@ -672,7 +683,11 @@ export async function updateRoomSettings({ roomId, settings }) {
     [`rooms/${roomId}/settingsRevision`]: nextRevision,
   };
 
-  await update(ref(database), updates);
+  try {
+    await update(ref(database), updates);
+  } catch (error) {
+    return { ok: false, reason: "write-failed" };
+  }
   return errorMessage
     ? { ok: true, settingsRevision: nextRevision, validationMessage: errorMessage }
     : { ok: true, settingsRevision: nextRevision };

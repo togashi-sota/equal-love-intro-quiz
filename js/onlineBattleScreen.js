@@ -1606,6 +1606,15 @@ function resetOnlineBattleMatchState() {
   // 対戦中の問題音源が、退出・ルーム消滅・再戦などのタイミングで鳴り続けたままにならないよう、
   // ここで確実に止める（既に止まっている場合も安全に呼べる、js/audio.js側の設計どおり）。
   stopAudio();
+  // 【2026-11-XX追加・実機バグ調査：仕様総監査で発見】「全員確認後、2秒待ってから開始」の
+  // 2つの自動開始タイマー（対戦開始前ルール確認・再戦準備）は、発火時にlatestRoom
+  // （このタイミングで既にnullへリセットされる）を再確認して自己終了するガードを
+  // 持っているため実害は無かったが、共通のcleanup処理にも明示的に含めておく
+  // （本人指示：cleanup処理は1箇所に集約し、漏れが起きにくい形にする）。
+  clearTimeout(matchConfirmAutoStartTimerId);
+  matchConfirmAutoStartTimerId = null;
+  clearTimeout(rematchReadyAutoStartTimerId);
+  rematchReadyAutoStartTimerId = null;
   // 一瞬バトル専用画面（js/onlineInstantBattleScreen.js）が持つ問題・回答・再視聴回数等の
   // 状態も、離脱・ルーム消滅・再戦のたびに必ずリセットする（次のルーム・次の試合へ
   // 誤って引き継がないため）。
@@ -2884,8 +2893,13 @@ function goToResultScreen(room) {
 // されていた不具合を修正（本人指示Tのプレイ履歴確認作業で判明）。
 // 【2026-09-09修正・本人指示：プレイ履歴の完成】instantBattleが登録されておらず、
 // タイムアタックとして誤保存されていた不具合を修正（19-24章のoutroQuizと同じ原因）。
-// 一瞬バトルはgoToResultScreen()（このファイルの共有結果画面）をそのまま使う設計のため、
-// 専用の結果画面・専用の保存関数を持たず、この対応表に1行足すだけで正しく保存される。
+// 【2026-11-XX修正・仕様総監査で発見：コメントの古い記述を修正】以前はここで「一瞬バトルは
+// goToResultScreen()をそのまま使う」と書いていたが、その後の設計変更で一瞬バトルは
+// 専用の結果画面 enterInstantBattleResult()（js/onlineInstantBattleScreen.js）へ
+// resolveOnlineBattleStatusTransition()経由で分岐するようになり、履歴保存も
+// modeId:"onlineInstantBattle"を直接指定する専用コードを持つに至った（そちらが実際に
+// 使われる）。そのため下のinstantBattleのエントリは、現状この対応表（saveOnlineBattleHistoryEntry()
+// 経由）からは実質的に参照されないが、実害はないため残してある。
 const HISTORY_MODE_ID_BY_GAME_MODE = {
   timeAttack: "onlineTimeAttack",
   randomPlayback: "onlineRandomPlayback",
@@ -3712,7 +3726,15 @@ export function initOnlineBattleScreens(newElements) {
     // 確認モーダルを開くだけの軽い操作音（モーダル自体はjs/onlineBattleLeaveMatchPrompt.js
     // 側で既に対応済みのため、ここでは重ねない）。
     playSfx(SFX_EVENTS.UI_CLICK);
+    // 【2026-11-XX追加・実機バグ調査：仕様総監査で発見】他3画面
+    // （js/onlineInstantBattleScreen.js等）のpromptLeaveMatch()コールバックは
+    // 必ずsaveVoluntaryLeaveHistoryEntry()をここで呼んでいたが、この画面（イントロ/
+    // ランダム再生/アウトロ対戦）だけ呼び忘れており、途中退出がプレイ履歴に一切
+    // 記録されていなかった。room/matchIdは非同期のleave処理を挟む前の値を使う。
+    const room = latestRoom;
+    const matchId = currentMatchId;
     promptLeaveMatch(currentRoomId, currentMatchId, () => {
+      saveVoluntaryLeaveHistoryEntry(room, matchId);
       elements.navigateTo("onlineBattleLobby");
       if (latestRoom) renderLobby(latestRoom);
     });

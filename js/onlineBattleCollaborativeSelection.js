@@ -15,13 +15,16 @@ export { computeMergedSelectedSongIds, areSongIdSetsEqual };
 // ホストか参加者かを問わず、誰でも自分の分だけを書き込める設計（本人指示：
 // 全員が共同で選曲できるようにする）。
 //
-// 【重要・現状の制約】本番のFirebaseセキュリティルールがこの新しいフィールド
-// （selectedSongIds）へのplayers/{uid}書き込みをまだ許可していない環境では、
-// この書き込みはPERMISSION_DENIEDで失敗する。この機能は「今までの動作を変えない
-// background機能」ではなく「選んだはずなのに反映されない」と利用者を混乱させる
-// 可能性がある操作のため、他の所持データ報告（reportMyAvailableSongIdsForKind）とは
-// 異なり、例外を握りつぶさずそのまま呼び出し元へ伝える（呼び出し元がエラーを
-// 画面に表示できるようにするため）。
+// 【2026-11-XX修正・仕様総監査で発見：コメントの古い記述を修正】以前はここで
+// 「本番のFirebaseセキュリティルールがselectedSongIdsへのplayers/{uid}書き込みを
+// まだ許可していない環境ではPERMISSION_DENIEDで失敗する」と書いていたが、現在の
+// firebase/database.rules.jsonのplayers/$uidは`auth.uid===$uid`の親ルールで
+// 未列挙のフィールドも含めて書き込めるため、この制約は既に当てはまらない
+// （Rules側の制限ではなく、単にコメントの更新が漏れていただけ）。
+// 他の所持データ報告（reportMyAvailableSongIdsForKind）とは異なり、例外を握りつぶさず
+// そのまま呼び出し元へ伝える設計自体は維持する（呼び出し元がエラーを画面に
+// 表示できるようにするため。「選んだはずなのに反映されない」と利用者を混乱させる
+// 可能性がある操作のため）。
 export async function reportMySelectedSongIds({ roomId, songIds }) {
   await authReady;
   const uid = getCurrentUid();

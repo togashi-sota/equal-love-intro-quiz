@@ -13751,7 +13751,11 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   position: fixed;
   left: 12px;
   right: 12px;
-  bottom: 12px;
+  /* 【2026-11-XX修正・仕様総監査で発見】他の下部固定UI（.mini-player・
+     .song-picker-sticky-bar等）はenv(safe-area-inset-bottom)を考慮しているのに、
+     このバナーだけ固定12pxのままだった。ホームインジケーターのある端末では
+     画面最下端に近すぎるため、同じ考え方で安全マージンを確保する。 */
+  bottom: max(12px, env(safe-area-inset-bottom));
   z-index: 500;
   padding: 12px 16px;
   border-radius: 14px;

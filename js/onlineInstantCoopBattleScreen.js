@@ -487,6 +487,11 @@ function stopAllLocalTimers() {
     clearTimeout(firstQuestionDelayTimerId);
     firstQuestionDelayTimerId = null;
   }
+  // 【2026-11-XX追加・実機バグ調査：仕様総監査で発見】「全員準備OK後、2秒待ってから
+  // 開始」の再戦自動開始タイマーは、発火時にlatestRoomを再確認して自己終了する
+  // ガードを持っているため実害は無かったが、共通のcleanup処理にも明示的に含めておく。
+  clearTimeout(instantCoopRematchAutoStartTimerId);
+  instantCoopRematchAutoStartTimerId = null;
   // 【2026-11-XX新設】js/audio.jsの予防的unlock心拍（音源無効化の頻発対策、
   // js/onlineInstantBattleScreen.jsの同じ修正と同じ理由）。
   stopAudioUnlockHeartbeat();

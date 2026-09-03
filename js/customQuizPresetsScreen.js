@@ -12,7 +12,13 @@ import { getPresets, CUSTOM_QUIZ_TYPE } from "./customQuizPresets.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
 
 // ダミー選択肢モードの表示ラベル。プリセットカード・詳細モーダルに添える。
-const DISTRACTOR_MODE_LABELS = { selected: "選択した曲だけ", all: "全収録曲" };
+// 【2026-11-XX修正・仕様総監査で発見】2026-10-01の改訂で、distractorModeの値が
+// 「選択した曲だけ／全収録曲」（selected/all）から、カテゴリー3択
+// （title-track/title-and-group/all、index.html:4530-4532参照）へ変わったが、
+// このラベル表だけ旧仕様のまま取り残されていた。プリセット一覧・詳細モーダルに
+// 内部コード値（"title-track"等）がそのまま表示されてしまう表示バグだったため、
+// 実際の選択肢と同じ文言へ揃える。
+const DISTRACTOR_MODE_LABELS = { "title-track": "表題曲のみ", "title-and-group": "表題曲＋全員曲", all: "全曲" };
 // 歌詞クイズタイプの回答候補数の表示ラベル。js/lyricsQuizEngine.jsのANSWER_POOL_SIZE_VALUESと
 // 同じ値の並び（このファイルはFirebase同様、歌詞クイズ関連ファイルへの依存を増やしたくないため、
 // 表示ラベルだけこちらにも軽量に複製している。値自体の一覧はlyricsQuizEngine.js側が正）。

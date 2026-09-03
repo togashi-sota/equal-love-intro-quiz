@@ -97,6 +97,14 @@ let viewingHintLevel = 1;
 let hasAnsweredCurrentQuestion = false;
 let questionStartedAt = 0;
 let runStartedAt = 0;
+// 【2026-11-XX新設・実機バグ調査：仕様総監査で発見】buildAndStartRun()は
+// loadSongsWithLyrics()でIndexedDBの読み込みを非同期に待つ。この待機中に
+// quitLyricsQuizRun()で明示的に離脱した後、遅れてbuildAndStartRun()が解決すると、
+// 既に離脱したはずのrunStateを上書きし、elements.onStart()が強制的に問題画面へ
+// 呼び戻してしまう不具合があった（js/audio.jsのcurrentPlaybackTokenと同じ考え方の
+// 世代トークン。buildAndStartRun()が呼ばれるたびに発行し、await後に「自分がまだ
+// 最新の開始要求か」を確認してから状態を書き換える）。
+let runRequestToken = 0;
 let elapsedTimerId = null;
 // 正解/不正解演出のあと、自動で次の問題へ進むsetTimeoutの予約ID。
 // 途中でクイズをやめたときにこれを解除し忘れると、離脱後に古いタイマーが発火して
@@ -241,6 +249,11 @@ export async function startManualSelectionLyricsQuizRun(songIds, answerPoolSizeV
 // （通常の入り口）今までどおりカテゴリー絞り込みでプールを決める。
 async function buildAndStartRun(settings) {
   elements.startError.hidden = true;
+  // 【2026-11-XX追加・実機バグ調査：仕様総監査で発見】この呼び出し自身の世代番号を
+  // 発行する。下のawait（IndexedDB読み込み）の間に、より新しい開始要求
+  // （retry/restart/開始ボタン連打）や明示的な離脱（quitLyricsQuizRun()）が入ったら、
+  // 自分は「追い越された」と判断してrunStateを一切書き換えずに終える。
+  const myToken = ++runRequestToken;
 
   // 【2026-08-08修正】resolveSongPool()ではなく、歌詞クイズ対象外の曲
   // （Overture等、ボーカルの無い曲）を除いたresolveLyricsQuizSongPool()を使う。
@@ -250,6 +263,8 @@ async function buildAndStartRun(settings) {
       : { type: QUESTION_SOURCE_TYPE.CATEGORY, categoryFilterValue: settings.categoryFilterValue }
   );
   const songsWithLyrics = await loadSongsWithLyrics(songPool);
+  if (myToken !== runRequestToken) return false; // 追い越された：何もせず終える
+
   const availability = validateLyricsQuizAvailability(songsWithLyrics, settings.questionCountValue);
 
   if (!availability.ok) {
@@ -390,6 +405,11 @@ function quitLyricsQuizRun() {
   clearPendingAnswerFeedbackTimeout();
   questionElements.answerSearchInput.value = "";
   hideAnswerReveal(); // 正解確認カードを表示したまま離脱した場合に備え、必ず隠しておく
+  // 【2026-11-XX追加・実機バグ調査：仕様総監査で発見】まだ解決していないbuildAndStartRun()
+  // （やり直す・開始ボタン連打等で予約されたもの）があれば無効化する。これが無いと、
+  // 明示的に離脱した直後に古いbuildAndStartRun()が遅れて解決し、問題画面へ引き戻して
+  // しまう競合状態があった。
+  runRequestToken += 1;
 
   runState = null;
   viewingHintLevel = 1;
