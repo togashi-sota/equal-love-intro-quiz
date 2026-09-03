@@ -143,6 +143,7 @@
     import { runOnlineBattleMatchConfirmationPayloadsTests } from "./tests/onlineBattleMatchConfirmationPayloads.test.js";
     import { runAudioTests } from "./tests/audio.test.js";
     import { runAnswerButtonInteractionTests } from "./tests/answerButtonInteraction.test.js";
+    import { runOnlineBattleRoomIdTests } from "./tests/onlineBattleRoomId.test.js";
     import { printSummary } from "./tests/test-utils.js";
 
     runScoreTests();
@@ -252,6 +253,7 @@
     // 集計（printSummary）より前に必ず完了を待つ。
     await runAudioTests();
     runAnswerButtonInteractionTests();
+    runOnlineBattleRoomIdTests();
     const { passCount, failCount, failedDetails } = printSummary();
 
     const summaryElement = document.getElementById("test-summary");

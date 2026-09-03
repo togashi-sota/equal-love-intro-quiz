@@ -111,12 +111,24 @@ export const COUNTDOWN_DURATION_MS = 3000;
 // オフライン対戦（js/localBattle.js、24bit）より広い32bitをそのまま使う。
 const ONLINE_SEED_BITS = 32;
 
-// 6文字のルームコードを1つ作る。対戦コード（js/localBattle.js）と同じBase32文字セット
-// （紛らわしいI・L・O・Uを含まない）を再利用し、見た目の一貫性を保っている。
-function generateRoomId() {
+// 【2026-11-XX改訂・本人指示：ルームコードの0/O判読性改善】新規生成するルームコードからは
+// 数字の「0」も除外する。BASE32_ALPHABET（js/bitCode.js）は既にI・L・O・Uを除いた32文字だが、
+// これは対戦コード・結果コードのビット詰め込み（5bit/文字）で使われている実データエンコード用の
+// 文字セットのため、文字数を32から変えると既存のエンコード方式が壊れてしまい、ここでは
+// 変更できない。ルームコードは単なるランダムな短い文字列（ビット詰め込みではない）なので、
+// 表示用にBASE32_ALPHABETから「0」だけをさらに除いた専用の文字セットを用意する
+// （フォントによっては「0」と「O」が非常に似て見え、人に口頭やメモで伝える際に紛らわしいという
+// 本人指摘への対応。既存の0/O入りルームコードへの参加自体は、Firebase側のルームIDをそのまま
+// キーとして引くだけで文字種チェックをしていないため、互換性は保たれる＝これから新しく
+// 生成するコードにだけ影響する変更）。
+const ROOM_ID_ALPHABET = BASE32_ALPHABET.replace(/0/g, "");
+
+// 【2026-11-XX追加・再監査に伴うテスト追加】0/O除外の回帰テストのため、この純粋関数
+// （Firebase等の副作用を一切持たない）をexportしてテストコードから直接検証できるようにする。
+export function generateRoomId() {
   let id = "";
   for (let i = 0; i < ROOM_ID_LENGTH; i++) {
-    id += BASE32_ALPHABET[Math.floor(Math.random() * BASE32_ALPHABET.length)];
+    id += ROOM_ID_ALPHABET[Math.floor(Math.random() * ROOM_ID_ALPHABET.length)];
   }
   return id;
 }
