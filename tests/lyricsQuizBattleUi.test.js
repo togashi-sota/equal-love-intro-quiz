@@ -73,6 +73,11 @@ export function runLyricsQuizBattleUiTests() {
   // ===== describeResultTable：ミリ秒の項目は秒表示に変換される =====
   // 【2026-09-03追加・本人指摘】以前はunit: "ms"の指定を無視しており、総回答時間が
   // 「9620」のような生のミリ秒のまま画面に表示されてしまっていた。
+  // 【2026-XX-XX改訂・本人指示9：正解数バトルからポイント概念を撤廃】classicRule.jsの
+  // resultColumnsは「正解数」の1項目だけになり、ms単位の列を持たなくなったため、
+  // このunit変換自体の回帰テストはms列を持つstealRule（早押しバトル）で検証する
+  // （formatDisplayValue()自体はルール非依存の共通処理のため、対象ルールを変えても
+  // 検証したい挙動は変わらない）。
   {
     const rankedEntries = [
       {
@@ -81,13 +86,13 @@ export function runLyricsQuizBattleUiTests() {
         isHost: true,
         isYou: false,
         isDnf: false,
-        result: { detail: { totalPoints: 100, totalHintsUsed: 8, totalElapsedMs: 13600, missCount: 1, skippedCount: 0 } },
+        result: { detail: { totalPoints: 100, questionsWon: 3, wonElapsedMsTotal: 13600, skippedCount: 0 } },
       },
     ];
-    const table = describeResultTable("classic", rankedEntries);
-    assertEqual(table.header.includes("回答時間"), true, "結果表の見出しに「回答時間」列がある");
-    const elapsedColumnIndex = table.header.indexOf("回答時間") - 2; // header先頭の「順位」「表示名」の分だけずらす
-    assertEqual(table.rows[0].cells[elapsedColumnIndex], "13.60秒", "結果表のtotalElapsedMs（ミリ秒）も「秒」表示に変換される");
+    const table = describeResultTable("steal", rankedEntries);
+    assertEqual(table.header.includes("獲得時の総回答時間"), true, "結果表の見出しに「獲得時の総回答時間」列がある");
+    const elapsedColumnIndex = table.header.indexOf("獲得時の総回答時間") - 2; // header先頭の「順位」「表示名」の分だけずらす
+    assertEqual(table.rows[0].cells[elapsedColumnIndex], "13.60秒", "結果表のwonElapsedMsTotal（ミリ秒）も「秒」表示に変換される");
   }
 
   // ===== describeResultTable：resultColumns宣言 + 順位付け済み結果 + 同点は同じ順位 =====

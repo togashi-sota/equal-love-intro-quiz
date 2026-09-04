@@ -6,7 +6,7 @@
 
 const QUESTION_COUNT_LABELS = { "5": "5問", "10": "10問", "20": "20問", "50": "50問", all: "全問" };
 const CATEGORY_LABELS = { all: "全曲", "title-and-group": "表題＋全員", "title-track": "表題のみ" };
-const RULE_LABELS = { normal: "ノーマル", hard: "ハード", loveChain: "LOVE連チャン" };
+const RULE_LABELS = { normal: "タイムアタック", hard: "正解数バトル", loveChain: "ノーミスチャレンジ" };
 const VARIANT_LABELS = { intro: "🎧イントロ", randomPlayback: "🔀ランダム再生" };
 
 // この画面が使うDOM要素一式。initTimeAttackHistoryDetailScreen()で受け取って保持する。

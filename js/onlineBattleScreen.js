@@ -791,7 +791,11 @@ function buildDetailList(sections) {
     dt.textContent = heading;
     const dd = document.createElement("dd");
     // 本文中の改行（\n）を段落として保持する（style.cssでwhite-space:pre-lineにする）。
-    dd.textContent = body;
+    // 【2026-XX-XX改訂・本人指示3：「ルール・遊び方」監査】bodyはjs/onlineBattleRulesContent.js
+    // 側でアプリ開発者が書いた固定文言のみ（ユーザー入力を一切含まない）のため、innerHTMLで
+    // <strong>による太字強調を許可する。勝敗条件・得点条件など「本当に理解してほしい部分」
+    // だけを太字にし、全体を太字にしないことで可読性を保つ（本人指示どおり）。
+    dd.innerHTML = body;
     dl.append(dt, dd);
   });
   return dl;
@@ -2268,6 +2272,16 @@ function renderLobbyInner(room) {
       // 混ざらないこと。対戦の途中で呼ばれた場合も同じ後片付けで安全に戻せる）。
       resetOnlineBattleMatchState();
       resetLyricsQuizBattleState();
+      // 【2026-XX-XX修正・実機バグ調査：結果→ロビー復帰後「ルール・遊び方」等が反応しなくなる
+      // 再発バグ】resetOnlineBattleMatchState()はlatestRoomをnullへ戻す（タイマーの自己終了
+      // ガードのため必要）。この分岐は「もう一度」以外でのロビー復帰時にほぼ毎回、この
+      // renderLobbyInner(room)呼び出しの途中で発生する（全員resultReturned→ホストが
+      // status:waitingを書き込み→その更新がこの関数を再度呼ぶ、という一連の流れの一部）。
+      // resultReturnButtonのクリックハンドラ側では直後にrenderLobby(room)で復元しているが、
+      // この自動遷移分岐だけは復元しておらず、isCurrentUserRoomHost()等latestRoom依存の
+      // 判定が以後nullのまま固まり、ロビーのボタン群が無反応になっていた。ここで受け取った
+      // 最新のroomを使ってlatestRoomを復元する。
+      latestRoom = room;
       elements.navigateTo("onlineBattleLobby");
       // 【本人指示：「音が出ない」救済ボタン第2段階の再設計（試合全体無効化）】ホスト・
       // ゲストを問わず、全参加者に「なぜこの試合が無効になり、ロビーへ戻ったのか」が

@@ -85,6 +85,14 @@ const STORAGE_KEYS = {
   // 古いバージョンにはこのキー自体が存在しないため、読み込み時に無ければ「上書きなし」
   // （＝すべてテーマに従う）として扱う。既存ユーザーの設定を壊さない後方互換。
   eventOverrides: "equalLoveIntroQuiz.sfxEventThemeOverrides",
+  // 【2026-XX-XX新設・本人指示：オンライン正解音設定とオフライン効果音設定を完全分離】
+  // オンライン対戦画面右上の「正解音 ON/OFF」専用の永続フラグ。上のmaster/ui/gameは
+  // オフライン側（ホーム画面・クイック効果音設定・詳細設定）が引き続き使う既存のフラグで、
+  // このonlineResultだけがオンライン対戦の正解・不正解音（回答結果音）を独立に制御する。
+  // 意図的に別のlocalStorageキーにすることで、「オフラインは効果音ON、オンラインは
+  // 正解音OFF」のような食い違った状態を、ルーム解散・再作成・アプリの再起動をまたいでも
+  // そのまま保持できる（本人指示どおり）。
+  onlineResult: "equalLoveIntroQuiz.sfxOnlineResultEnabled",
 };
 
 function readBoolean(key, defaultValue) {
@@ -163,6 +171,7 @@ let sfxGameEnabled = readBoolean(STORAGE_KEYS.game, true);
 let sfxTheme = readTheme();
 let sfxVolumePercent = readVolumePercent();
 let sfxEventOverrides = readEventOverrides();
+let sfxOnlineResultEnabled = readBoolean(STORAGE_KEYS.onlineResult, true);
 
 export function getSfxSettings() {
   return {
@@ -172,6 +181,12 @@ export function getSfxSettings() {
     theme: sfxTheme,
     volumePercent: sfxVolumePercent,
   };
+}
+
+// オンライン対戦「正解音 ON/OFF」専用。オフライン側のmasterEnabled等とは完全に独立した
+// 状態を返す（js/onlineBattleScreen.js・js/onlineInstantBattleScreen.js等が使う）。
+export function getSfxOnlineResultEnabled() {
+  return sfxOnlineResultEnabled;
 }
 
 // このイベントに、テーマ全体とは別の個別上書きが設定されていればそのテーマIDを、
@@ -227,6 +242,14 @@ export function setSfxUiEnabled(enabled) {
 export function setSfxGameEnabled(enabled) {
   sfxGameEnabled = !!enabled;
   writeBoolean(STORAGE_KEYS.game, sfxGameEnabled);
+}
+export function setSfxOnlineResultEnabled(enabled) {
+  sfxOnlineResultEnabled = !!enabled;
+  writeBoolean(STORAGE_KEYS.onlineResult, sfxOnlineResultEnabled);
+}
+export function toggleSfxOnlineResultEnabled() {
+  setSfxOnlineResultEnabled(!sfxOnlineResultEnabled);
+  return sfxOnlineResultEnabled;
 }
 export function setSfxTheme(themeId) {
   sfxTheme = Object.values(SFX_THEMES).includes(themeId) ? themeId : DEFAULT_THEME;
@@ -624,11 +647,10 @@ const SOUND_DEFINITIONS = {
 // 1回のプレイ・1回のクリックで、UIクリック共通音＋そのボタン専用の音が二重に鳴らないよう、
 // 呼び出し側（画面側）はUI_CLICKとUI_CONFIRM/UI_BACKを同時に呼ばない設計にすること
 // （このファイル自体は「呼ばれたら鳴らす」だけで、二重呼び出しの防止は呼び出し側の責務）。
-export function playSfx(eventName) {
-  if (!sfxMasterEnabled) return;
-  const isUiEvent = UI_EVENT_SET.has(eventName);
-  if (isUiEvent ? !sfxUiEnabled : !sfxGameEnabled) return;
-
+// ON/OFF判定を挟まず、指定イベントの音を実際に鳴らすだけの共通処理。
+// playSfx()（オフライン側：master/ui/gameで判定）とplayOnlineResultSfx()
+// （オンライン側：sfxOnlineResultEnabledだけで判定）の両方から呼ぶ。
+function renderSfxEvent(eventName) {
   const context = getAudioContext();
   if (!context) return;
 
@@ -645,6 +667,23 @@ export function playSfx(eventName) {
   } catch {
     // 効果音は補助的な演出のため、失敗してもゲーム進行には影響させない
   }
+}
+
+export function playSfx(eventName) {
+  if (!sfxMasterEnabled) return;
+  const isUiEvent = UI_EVENT_SET.has(eventName);
+  if (isUiEvent ? !sfxUiEnabled : !sfxGameEnabled) return;
+  renderSfxEvent(eventName);
+}
+
+// 【2026-XX-XX新設・本人指示：オンライン正解音設定とオフライン効果音設定を完全分離】
+// オンライン対戦中の正解・不正解等の回答結果音だけを鳴らす専用の入口。オフライン側の
+// sfxMasterEnabled/sfxUiEnabled/sfxGameEnabledは一切参照せず、sfxOnlineResultEnabled
+// だけで判定する（呼び出し側：js/onlineBattleScreen.js「正解音 ON/OFF」ボタン配下の
+// オンライン対戦画面、および一瞬バトル・一瞬協力・歌詞クイズ対戦の各オンライン専用画面）。
+export function playOnlineResultSfx(eventName) {
+  if (!sfxOnlineResultEnabled) return;
+  renderSfxEvent(eventName);
 }
 
 // 単発の試聴：指定イベント・指定テーマの音を1回だけ鳴らす（本人指示：明示的な試聴操作の

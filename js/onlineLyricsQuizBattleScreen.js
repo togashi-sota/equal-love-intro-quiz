@@ -175,7 +175,7 @@ import { buildParticipantIcon } from "./onlineParticipantIcon.js";
 // 止めない」設計にする（下のstartRevealMusic参照）。
 import { playSongFromRandomPosition, stopAudio, attemptSilentUnlock, getAudioElementDiagnosticSnapshot } from "./audio.js";
 import { QUESTION_COUNT_LABELS } from "./localBattleScreen.js";
-import { SFX_EVENTS, playSfx } from "./soundManager.js";
+import { SFX_EVENTS, playSfx, playOnlineResultSfx } from "./soundManager.js";
 import { STEAL_CLAIM_OUTCOME } from "./lyricsQuizBattleFirebasePayloads.js";
 
 // ホストが問題の確定（正解発表）を見せてから、次の問題／最終結果へ進むまでの待ち時間。
@@ -233,6 +233,20 @@ let myQuestionStartedAtCache = {};
 // 「勝者が確定しなかった問題の後」でも前の問題の値が残り続ける不正確さがあったため、
 // 問題インデックスごとに持つ形へ変更した（qIndex -> 表示名 | undefined）。
 let winnerNameByQuestionIndex = {};
+
+// 【2026-XX-XX追加・実機バグ調査：早押し「奪い取り」ルールの二重勝利表示バグ対策】
+// 自分がwinner claimを送った問題インデックスのうち、submitLyricsQuizAnswerWithStealClaim()の
+// 戻り値（サーバーの応答を待ったawait結果）でSTEAL_CLAIM_OUTCOME.WONが確定した番号だけを
+// 記録するSet。Firebase Realtime DatabaseのクライアントSDKは、自分が送ったset()の結果が
+// サーバーで確定・却下される前に、その場で書き込んだ値をonValueのローカルキャッシュへ
+// 即座に反映してしまう。そのため、questionClaims/{qIndex}/winnerが一瞬「自分のuid」に
+// 見えても、実際にはサーバーからPERMISSION_DENIEDで却下される直前の状態、ということが
+// 起こり得る（早押しの奪い取りルールは「最初の1件だけ書き込み成立」というFirebase Rules側の
+// 一発勝負のため、僅差で負けた側の端末で必ずこの一瞬が発生する）。
+// maybeRecordMyOutcomeForResolvedQuestions()は、winnerUidが自分のuidである問題を確定
+// させる前に、必ずこのSetでの確認待ちを挟む（実際にサーバーへ確認済みのawait結果とだけ
+// 突き合わせることで、まだ却下されるかもしれないローカルの楽観的反映を信用しない）。
+const confirmedOwnWinQuestionIndexes = new Set();
 
 // 【2026-08-31新設、本人指示：ヒントを手動で開く方式への変更】正解数バトル・
 // ポイントバトルで、自分が今のヒントで開いている最大段階（1〜4）。新しい問題に移るたびに
@@ -656,6 +670,7 @@ export function resetLyricsQuizBattleState() {
   myComboCount = 0;
   myQuestionStartedAtCache = {};
   winnerNameByQuestionIndex = {};
+  confirmedOwnWinQuestionIndexes.clear();
   myOpenedHintLevel = 1;
   myCurrentStealHintLevel = 1;
   myAnswerHintLevel = 1;
@@ -1164,6 +1179,7 @@ export async function enterLyricsQuizBattlePlay(room) {
   myComboCount = 0;
   myQuestionStartedAtCache = {};
   winnerNameByQuestionIndex = {};
+  confirmedOwnWinQuestionIndexes.clear();
   myOpenedHintLevel = 1;
   myCurrentStealHintLevel = 1;
   myAnswerHintLevel = 1;
@@ -1475,7 +1491,17 @@ function maybeRecordMyOutcomeForResolvedQuestions(match) {
     const question = currentQuestions[qIndex];
     if (!question) break;
 
-    const winner = match.questionClaims?.[qIndex]?.winner ?? null;
+    const rawWinner = match.questionClaims?.[qIndex]?.winner ?? null;
+    // 【2026-XX-XX追加・実機バグ調査：早押し「奪い取り」ルールの二重勝利表示バグ対策】
+    // rawWinner.uidが自分自身の場合、それがFirebaseサーバーで確定した値なのか、まだ
+    // 却下されるかもしれない自分自身の楽観的ローカル反映なのかを、このスナップショット
+    // だけからは区別できない。確認済み（confirmedOwnWinQuestionIndexes）でない限り、
+    // 「自分が勝者」という情報はまだ信用しない＝この問題の確定をここでは行わず、次の
+    // room更新（自分自身のawait結果が届いた後の再呼び出し）を待つ。
+    const winnerClaimIsUnconfirmedSelf =
+      rawWinner?.uid === myUid && !confirmedOwnWinQuestionIndexes.has(qIndex);
+    if (winnerClaimIsUnconfirmedSelf) break;
+    const winner = rawWinner;
     const winnerUid = winner?.uid;
     const uidsToResolve = winnerUid && winnerUid !== myUid ? [myUid, winnerUid] : [myUid];
     const answersByUid = {};
@@ -2046,6 +2072,15 @@ async function handleAnswerChoiceClick(selectedSongId) {
     latestRoom?.matches?.[currentMatchId]?.currentQuestionIndex !== qIndex;
   if (result.ok) {
     mySubmittedForQuestionIndex = qIndex;
+    // 【2026-XX-XX追加・実機バグ調査：早押し「奪い取り」ルールの二重勝利表示バグ対策】
+    // ここのresult.outcomeは、Firebaseへのset()がサーバーで確定・応答した後に初めて
+    // 分かる値（await済み）。STEAL_CLAIM_OUTCOME.WONはサーバーが実際に自分を勝者と
+    // 認めた場合だけ返るため、この時点で初めてconfirmedOwnWinQuestionIndexesへ記録してよい
+    // （isStaleQuestion＝既に次の問題/試合へ進んでいるかどうかとは無関係に、この問題番号
+    // 自体の勝敗はここで確定するので、下のUI表示用ガードとは別に判定する）。
+    if (result.outcome === STEAL_CLAIM_OUTCOME.WON) {
+      confirmedOwnWinQuestionIndexes.add(qIndex);
+    }
     // 【2026-10-01新設】待機メッセージの出し分け用（下のrenderCurrentQuestionState()参照）。
     // 不正解だった場合だけこの問題番号を記録し、それ以外（正解・惜敗）はクリアする。
     mySubmissionOutcomeForQuestionIndex = result.outcome === STEAL_CLAIM_OUTCOME.ANSWERED_WRONG ? qIndex : -1;
@@ -2055,14 +2090,14 @@ async function handleAnswerChoiceClick(selectedSongId) {
     // ただし、その通知が届く前に次の問題／試合へ進んでいた場合は、今の画面に
     // 前問の効果音・メッセージを混ぜないよう鳴らさない・表示しない。
     if (result.outcome === STEAL_CLAIM_OUTCOME.WON && !isStaleQuestion) {
-      playSfx(SFX_EVENTS.STEAL_SUCCESS);
+      playOnlineResultSfx(SFX_EVENTS.STEAL_SUCCESS);
     }
     // 【2026-10-01新設・本人指示：早押しで不正解だった本人にその場で分かるようにする】
     // 不正解SEを1回だけ鳴らす（7秒間の答え合わせ演出中に繰り返し鳴らす既存のSFX多重発火
     // 対策＝lastRevealSfxPlayedForQuestionIndexとは別軸で、ここは送信結果が返ってきた
     // 瞬間の1回きりの通知のため重複の心配はない）。
     if (result.outcome === STEAL_CLAIM_OUTCOME.ANSWERED_WRONG && !isStaleQuestion) {
-      playSfx(SFX_EVENTS.QUIZ_WRONG);
+      playOnlineResultSfx(SFX_EVENTS.QUIZ_WRONG);
     }
     const outcomeMessage = describeStealClaimOutcomeMessage(result.outcome);
     if (outcomeMessage && !isStaleQuestion) {
@@ -2353,7 +2388,7 @@ function renderCurrentQuestionState() {
     // ガードを追加した（7秒の答え表示中に答え合わせ楽曲へ重ねて何度も鳴っていた不具合）。
     if (ruleId !== "steal" && lastRevealSfxPlayedForQuestionIndex !== qIndex) {
       lastRevealSfxPlayedForQuestionIndex = qIndex;
-      playSfx(gotPoints ? SFX_EVENTS.QUIZ_CORRECT : SFX_EVENTS.QUIZ_WRONG);
+      playOnlineResultSfx(gotPoints ? SFX_EVENTS.QUIZ_CORRECT : SFX_EVENTS.QUIZ_WRONG);
     }
     elements.battleAnswerRevealTitle.textContent = question.song.title;
 
@@ -2392,12 +2427,16 @@ function renderCurrentQuestionState() {
       // 【2026-09-06改訂、本人指示：実機フィードバック第3弾①】以前は「わからない」選択も
       // 時間切れ未回答も一律「✕ 不正解」に統一していたが、本人が自分の意思で選んだ
       // 「わからない」は不正解と区別して伝えたほうが分かりやすいとの指示により、
-      // 「今回はわからない」という専用の文言に変更した。獲得ポイントは、正解時は
-      // 実際の獲得値、それ以外は明示的に「0pt」と表示する（ポイントバトルの配点が
-      // ヒント段階で変わることを、0の場合も含めて毎回はっきり伝えるため）。
+      // 「今回はわからない」という専用の文言に変更した。
       const isSkip = mySelectedSongId === SKIP_SELECTION;
       elements.battleAnswerRevealStatus.textContent = gotPoints ? "🎉 正解！" : isSkip ? "今回はわからない" : "残念、不正解";
-      metaParts.push(`獲得：${gotPoints ? `+${myOutcome.pointsAwarded}pt` : "0pt"}`);
+      // 【2026-XX-XX改訂・本人指示9：正解数バトルからポイント概念を撤廃】正解数バトル
+      // （ruleId === "classic"）は「正解／不正解」とだけ伝え、「pt」表記を出さない。
+      // ポイントバトル（combo）は従来どおり、ヒント段階で変わる獲得ポイントを毎回
+      // 明示する（本人指示11：ポイントバトルのメイン指標は従来通りポイント）。
+      if (ruleId !== "classic") {
+        metaParts.push(`獲得：${gotPoints ? `+${myOutcome.pointsAwarded}pt` : "0pt"}`);
+      }
     }
     elements.battleAnswerRevealStatus.classList.toggle("is-correct-answer-reveal-status", gotPoints);
     elements.battleAnswerRevealMeta.textContent = metaParts.join("・");

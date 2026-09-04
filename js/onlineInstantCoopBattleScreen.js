@@ -140,7 +140,7 @@ import { CATEGORY_LABELS, QUESTION_COUNT_LABELS } from "./localBattleScreen.js";
 import { getMemberById } from "./memberUtils.js";
 // 【2026-09-26新設・本人指示：サウンドシステム全面整備7章】以前はこのファイルにSFX呼び出しが
 // 1件も無く、一瞬協力は完全に無音だった（本人指示の監査で発覚）。
-import { SFX_EVENTS, playSfx } from "./soundManager.js";
+import { SFX_EVENTS, playSfx, playOnlineResultSfx } from "./soundManager.js";
 // 【2026-09-26新設・本人指示：オンライン対戦総合改修19-8/19-10章】共通の参加者アイコン
 // （推し色＋代表称号バッジ）と、参加者プロフィールモーダルを結果画面・回答状況一覧から
 // 再利用する。
@@ -1761,7 +1761,8 @@ function renderCurrentQuestionState() {
         // （1問につき1回だけ）。「全員わからない」はどちらとも言えないため鳴らさない。
         if (lastRevealSfxPlayedForQIndex !== qIndex) {
           lastRevealSfxPlayedForQIndex = qIndex;
-          if (!isAllUnknown) playSfx(outcome.isCorrect ? SFX_EVENTS.QUIZ_CORRECT : SFX_EVENTS.QUIZ_WRONG);
+          // 【2026-XX-XX改訂・本人指示：オンライン正解音設定とオフライン効果音設定を完全分離】
+          if (!isAllUnknown) playOnlineResultSfx(outcome.isCorrect ? SFX_EVENTS.QUIZ_CORRECT : SFX_EVENTS.QUIZ_WRONG);
           // 【2026-09-30新設・本人指示：オンライン対戦総合改修 第2ラウンド16章】SFXと同じ
           // 「この問題では1回だけ」の瞬間に、問題の続きの楽曲を鳴らし始める。サーバー時刻
           // 基準のresolvedAtから残り時間を計算する（js/onlineInstantBattleScreen.jsの

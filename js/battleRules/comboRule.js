@@ -176,9 +176,15 @@ export const hudFields = [{ key: "totalPoints", label: "現在のポイント" }
 // resultColumnsの並び順＝カード上の表示順（1列目が上部の大きな主要スタット、
 // 2列目以降がカード下部の一覧、というjs/lyricsQuizBattleUi.jsのrenderResultCards()の
 // 既存の描画ルールをそのまま利用しているだけで、その関数自体は変更していない）。
+// 【2026-XX-XX改訂・本人指示11：ポイントバトル結果配置修正】以前は「正解数／ヒント1」
+// 「ヒント2／ヒント3」「ヒント4」という2列×3段の中途半端な並びだった（5項目を単純に
+// 2列グリッドへ詰めていたため）。希望のレイアウトは「正解数を独立した1行」→「ヒント1〜4を
+// 完全な2×2」なので、correctCountLabelにfullWidth:trueを付けて単独行にし、
+// 残り4項目（ヒント1〜4）だけを2×2グリッドに詰める
+// （js/lyricsQuizBattleUi.jsのrenderResultCards()参照）。
 export const resultColumns = [
   { key: "totalPoints", label: "獲得ポイント" },
-  { key: "correctCountLabel", label: "正解数" },
+  { key: "correctCountLabel", label: "正解数", fullWidth: true },
   { key: "firstHintCorrectCount", label: "ヒント1" },
   { key: "hint2CorrectCount", label: "ヒント2" },
   { key: "hint3CorrectCount", label: "ヒント3" },

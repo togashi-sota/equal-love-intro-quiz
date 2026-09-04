@@ -73,7 +73,13 @@ import {
   isSfxEnabled,
   toggleSfxEnabled,
 } from "./sfx.js";
-import { SFX_EVENTS, playSfx } from "./soundManager.js";
+import {
+  SFX_EVENTS,
+  playSfx,
+  playOnlineResultSfx,
+  getSfxOnlineResultEnabled,
+  toggleSfxOnlineResultEnabled,
+} from "./soundManager.js";
 import { initSoundSettingsScreen, refreshSfxSettingsUI } from "./soundSettingsScreen.js";
 import { initQuickSfxSettingsPanel, openQuickSfxSettingsPanel } from "./quickSfxSettingsPanel.js";
 import { renderBackgroundSparkles } from "./decorations.js";
@@ -411,25 +417,39 @@ const sfxToggleButtonQuizLabelElement = sfxToggleButtonQuizElement.querySelector
 const sfxToggleButtonStartElement = document.getElementById("sfx-toggle-button-start");
 const sfxToggleButtonStartLabelElement = document.getElementById("sfx-toggle-button-start-label");
 
+// スタート画面の効果音ON/OFF（オフライン専用。js/soundManager.jsのsfxMasterEnabled等、
+// クイック効果音設定・詳細設定と共通のオフライン用フラグを操作する）。
 function syncSfxToggleUI() {
   const enabled = isSfxEnabled();
-  sfxToggleButtonQuizElement.classList.toggle("is-muted", !enabled);
   sfxToggleButtonStartElement.classList.toggle("is-muted", !enabled);
   sfxToggleButtonStartElement.setAttribute("aria-label", enabled ? "効果音を消す" : "効果音を鳴らす");
   sfxToggleButtonStartLabelElement.textContent = enabled ? "ON" : "OFF";
-  // 【2026-09-05改訂・本人指示：オフラインの簡易効果音設定パネル】クイズ画面のボタンは
-  // オフライン中「効果音設定」（クリックでパネルを開く）へ役割が変わるため、
-  // ここでのON/OFF表示・aria-labelの更新はオンライン対戦中（既存のトグル動作）のときだけ行う。
-  // syncQuizHeaderSfxButtonMode()がオフライン用の表示へ切り替える。
-  if (!isQuizHeaderSfxButtonInQuickSettingsMode) {
-    sfxToggleButtonQuizElement.setAttribute("aria-label", enabled ? "効果音を消す" : "効果音を鳴らす");
-  }
   refreshSfxSettingsUI(); // 詳細設定モーダル側のマスタートグル表示も一致させる
 }
 
 function handleSfxToggleClick() {
   const enabledAfterToggle = toggleSfxEnabled();
   syncSfxToggleUI();
+  if (enabledAfterToggle) playClickSound();
+}
+
+// 【2026-XX-XX新設・本人指示：オンライン正解音設定とオフライン効果音設定を完全分離】
+// クイズ画面右上ボタンがオンライン対戦モード（#quiz-screenを使う従来のオンライン対戦：
+// イントロ/ランダム再生/アウトロ対戦）のときだけ使う、「正解音 ON/OFF」専用の表示更新。
+// スタート画面のsyncSfxToggleUI()とは完全に別のフラグ（sfxOnlineResultEnabled）を見る。
+// 本人指示：「色だけでON/OFFを表現しない」ため、表示テキスト自体をON/OFFで出し分ける。
+function syncOnlineResultSfxToggleUI() {
+  const enabled = getSfxOnlineResultEnabled();
+  sfxToggleButtonQuizElement.classList.toggle("is-muted", !enabled);
+  sfxToggleButtonQuizElement.setAttribute("aria-label", enabled ? "正解音を消す" : "正解音を鳴らす");
+  if (sfxToggleButtonQuizLabelElement) {
+    sfxToggleButtonQuizLabelElement.textContent = enabled ? "正解音 ON" : "正解音 OFF";
+  }
+}
+
+function handleOnlineResultSfxToggleClick() {
+  const enabledAfterToggle = toggleSfxOnlineResultEnabled();
+  syncOnlineResultSfxToggleUI();
   if (enabledAfterToggle) playClickSound();
 }
 
@@ -448,8 +468,9 @@ function syncQuizHeaderSfxButtonMode(isOffline) {
     sfxToggleButtonQuizElement.setAttribute("aria-label", "効果音設定を開く");
     sfxToggleButtonQuizElement.classList.remove("is-muted");
   } else {
-    if (sfxToggleButtonQuizLabelElement) sfxToggleButtonQuizLabelElement.textContent = "音量";
-    syncSfxToggleUI();
+    // 【2026-XX-XX改訂・本人指示6・7】オンライン対戦中はオフラインのsyncSfxToggleUI()
+    // ではなく、オンライン専用フラグを見るsyncOnlineResultSfxToggleUI()を使う。
+    syncOnlineResultSfxToggleUI();
   }
 }
 
@@ -458,7 +479,7 @@ function handleQuizHeaderSfxButtonClick() {
     openQuickSfxSettingsPanel();
     return;
   }
-  handleSfxToggleClick();
+  handleOnlineResultSfxToggleClick();
 }
 
 sfxToggleButtonQuizElement.addEventListener("click", handleQuizHeaderSfxButtonClick);
@@ -3399,6 +3420,20 @@ function clearPendingTimeAttackAdvance() {
   pendingTimeAttackAdvanceTimeoutId = null;
 }
 
+// 【2026-XX-XX新設・本人指示：オンライン正解音設定とオフライン効果音設定を完全分離】
+// 正解・不正解の音は、handleTimedChoiceClick()・handleNormalChoiceClick()等、
+// タイムアタック系オフラインモードとオンライン対戦（gameState.playMode === "onlineBattle"）
+// の両方から共通で呼ばれる。オンライン対戦中だけ、オフラインのsfxMasterEnabled等とは別の
+// 独立したsfxOnlineResultEnabledフラグ（js/soundManager.jsのplayOnlineResultSfx()）で
+// 判定する。呼び出し元を1箇所に集約することで、分岐漏れを防ぐ。
+function playAnswerResultSfx(eventName) {
+  if (gameState.playMode === "onlineBattle") {
+    playOnlineResultSfx(eventName);
+  } else {
+    playSfx(eventName);
+  }
+}
+
 // タイムアタック専用の選択肢クリック処理。
 // 通常モードの「正解！次へ」のような手動確認は挟まず、短い演出のあと自動で次に進む。
 // ノーマルルール：不正解の選択肢はその場で無効化するだけで、問題そのものは終わらせない
@@ -3434,7 +3469,7 @@ function handleTimedChoiceClick(selectedChoice, { onAdvance, onRunEnd }) {
     hideAudioTroubleButton();
     stopTimer();
     stopAudio();
-    playCorrectSound();
+    playAnswerResultSfx(SFX_EVENTS.QUIZ_CORRECT);
     markChoiceButtons(selectedChoice.id); // 押した（＝正解の）選択肢だけを黄色く光らせる
     choiceButtonElements.forEach((button) => {
       button.disabled = true;
@@ -3444,7 +3479,7 @@ function handleTimedChoiceClick(selectedChoice, { onAdvance, onRunEnd }) {
     return;
   }
 
-  playWrongSound();
+  playAnswerResultSfx(SFX_EVENTS.QUIZ_WRONG);
 
   if (rule === TIME_ATTACK_RULE.NORMAL) {
     // ノーマルルール：この選択肢だけ赤くして無効化する。正解はまだ明かさず、

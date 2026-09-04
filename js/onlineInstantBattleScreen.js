@@ -134,7 +134,7 @@ import { savePlayHistoryEntryIfNew } from "./playHistory.js";
 import { QUESTION_SOURCE_TYPE } from "./questionSource.js";
 import { buildInstantBattleQuestionBreakdown, capQuestionBreakdownForStorage } from "./battleQuestionBreakdown.js";
 import { renderQuestionBreakdownAccordion } from "./battleQuestionBreakdownUi.js";
-import { SFX_EVENTS, playSfx } from "./soundManager.js";
+import { SFX_EVENTS, playSfx, playOnlineResultSfx } from "./soundManager.js";
 import { MAX_REPLAY_COUNT_PER_QUESTION } from "./battleModes/instantBattleMode.js";
 
 // ホストが結果を見せてから、次の問題／最終結果へ進むまでの待ち時間。
@@ -1354,7 +1354,10 @@ function renderCurrentQuestionState() {
         // QUIZ_CORRECT/QUIZ_WRONGで統一する（1問につき1回だけ）。
         if (lastRevealSfxPlayedForQIndex !== qIndex) {
           lastRevealSfxPlayedForQIndex = qIndex;
-          playSfx(myOutcome?.isCorrect ? SFX_EVENTS.QUIZ_CORRECT : SFX_EVENTS.QUIZ_WRONG);
+          // 【2026-XX-XX改訂・本人指示：オンライン正解音設定とオフライン効果音設定を完全分離】
+          // このモードは常にオンライン対戦のため、オフライン側のsfxMasterEnabled等ではなく
+          // 「正解音 ON/OFF」専用のsfxOnlineResultEnabledだけで判定する。
+          playOnlineResultSfx(myOutcome?.isCorrect ? SFX_EVENTS.QUIZ_CORRECT : SFX_EVENTS.QUIZ_WRONG);
           // 【2026-09-30新設・本人指示：オンライン対戦総合改修 第2ラウンド16章】
           // SFXと同じ「この問題では1回だけ」の瞬間に、問題の続きの楽曲を鳴らし始める
           // （本人指示18：全員の回答が揃うまでは絶対に鳴らさない＝isResolvedになった

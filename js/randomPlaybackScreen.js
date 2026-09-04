@@ -94,9 +94,9 @@ function formatSeconds(ms) {
 }
 
 const RULE_LABELS = {
-  [TIME_ATTACK_RULE.NORMAL]: "ノーマル",
-  [TIME_ATTACK_RULE.HARD]: "ハード",
-  [TIME_ATTACK_RULE.LOVE_CHAIN]: "LOVE連チャン",
+  [TIME_ATTACK_RULE.NORMAL]: "タイムアタック",
+  [TIME_ATTACK_RULE.HARD]: "正解数バトル",
+  [TIME_ATTACK_RULE.LOVE_CHAIN]: "ノーミスチャレンジ",
 };
 
 // 結果画面を描画し、自己ベスト・最高到達記録の判定・保存もすべてここで行う。
@@ -124,7 +124,7 @@ export function renderRandomPlaybackResult(questionCountValue, categoryFilterVal
   resultElements.totalTime.textContent = `${formatSeconds(stats.totalElapsedMs)}秒`;
   resultElements.correctCount.textContent = `${stats.correctCount} / ${stats.perQuestionResults.length}問`;
   resultElements.missCount.textContent = `${stats.missCount}回`;
-  resultElements.ruleLabel.textContent = RULE_LABELS[rule] ?? "ノーマル";
+  resultElements.ruleLabel.textContent = RULE_LABELS[rule] ?? "タイムアタック";
 
   resultElements.newRecordBadge.hidden = !isNewRecord;
   resultElements.failStatus.hidden = !stats.runFailed;

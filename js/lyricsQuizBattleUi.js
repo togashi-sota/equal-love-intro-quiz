@@ -166,6 +166,11 @@ export function describeResultTable(ruleId, rankedEntries) {
   const rule = findRule(ruleId);
   const columns = rule?.resultColumns ?? [];
   const header = ["順位", "表示名", ...columns.map((column) => column.label)];
+  // 【2026-XX-XX追加・本人指示11：ポイントバトル結果配置修正】2列目以降（restLabels）の
+  // うち、column.fullWidth===trueを付けたものだけは、他の項目と2列グリッドに詰め込まず
+  // カード内で独立した1行として表示する（「正解数」を「ヒント1〜4」の2×2グリッドとは
+  // 別に、その上へ単独行で置くため）。renderResultCards()側はルールを一切知らないまま、
+  // このフラグだけを見て組み立てを分ける。
 
   let previousPoints = null;
   let previousRank = 0;
@@ -190,7 +195,8 @@ export function describeResultTable(ruleId, rankedEntries) {
         : columns.map((column) => formatDisplayValue(entry.result?.detail?.[column.key], column.unit)),
     };
   });
-  return { header, rows };
+  const columnLayout = columns.map((column) => ({ label: column.label, fullWidth: !!column.fullWidth }));
+  return { header, rows, columnLayout };
 }
 
 // lyricsCoverageの状態から、READY可否とホスト向けの表示内容を整形する。
@@ -425,6 +431,11 @@ export function renderResultCards(containerElement, tableData) {
 
   const [, , ...columnLabels] = tableData.header;
   const [primaryLabel, ...restLabels] = columnLabels;
+  // 【2026-XX-XX追加・本人指示11：ポイントバトル結果配置修正】restLabelsのうち
+  // fullWidth指定された列（正解数）だけを独立した1行に、残り（ヒント1〜4）を
+  // 2×2グリッドにまとめて別々に描画するための対応表。columnLayoutが無い（古い呼び出し元・
+  // テスト等）場合は、全項目をこれまでどおり2列グリッド扱いにする後方互換を保つ。
+  const [, ...restColumnLayout] = tableData.columnLayout ?? columnLabels.map((label) => ({ label, fullWidth: false }));
 
   for (const row of tableData.rows) {
     const cardElement = document.createElement("li");
@@ -478,20 +489,46 @@ export function renderResultCards(containerElement, tableData) {
         primaryStat.textContent = `${row.cells[0]} ${primaryLabel}`;
         cardElement.appendChild(primaryStat);
       }
-      if (restLabels.length > 0) {
+      // 【2026-XX-XX改訂・本人指示11】restLabelsを「独立した1行で見せる項目」と
+      // 「2×2グリッドでまとめる項目」に分ける。前者（正解数）を先に、後者
+      // （ヒント1〜4）を後にレイアウトすることで「正解数の下にヒントの2×2」という
+      // 希望どおりの並びになる。
+      const fullWidthStats = [];
+      const gridStats = [];
+      restLabels.forEach((label, index) => {
+        const entry = { label, value: row.cells[index + 1] };
+        if (restColumnLayout[index]?.fullWidth) fullWidthStats.push(entry);
+        else gridStats.push(entry);
+      });
+
+      fullWidthStats.forEach(({ label, value }) => {
+        const secondaryStat = document.createElement("div");
+        secondaryStat.className = "lyrics-battle-result-card-secondary-stat";
+        const term = document.createElement("p");
+        term.className = "lyrics-battle-result-card-secondary-stat-label";
+        term.textContent = label;
+        const valueElement = document.createElement("p");
+        valueElement.className = "lyrics-battle-result-card-secondary-stat-value";
+        valueElement.textContent = value;
+        secondaryStat.appendChild(term);
+        secondaryStat.appendChild(valueElement);
+        cardElement.appendChild(secondaryStat);
+      });
+
+      if (gridStats.length > 0) {
         const statsList = document.createElement("dl");
         statsList.className = "lyrics-battle-result-card-stats";
         // 【2026-09-06新設】label→valueの1組ずつをdivでまとめてグリッドの1マスにする
         // （dt・ddを直接2列グリッドに流し込むと、項目数によって段組みが崩れるため）。
-        restLabels.forEach((label, index) => {
+        gridStats.forEach(({ label, value }) => {
           const statItem = document.createElement("div");
           statItem.className = "lyrics-battle-result-card-stat";
           const term = document.createElement("dt");
           term.textContent = label;
-          const value = document.createElement("dd");
-          value.textContent = row.cells[index + 1];
+          const valueElement = document.createElement("dd");
+          valueElement.textContent = value;
           statItem.appendChild(term);
-          statItem.appendChild(value);
+          statItem.appendChild(valueElement);
           statsList.appendChild(statItem);
         });
         cardElement.appendChild(statsList);

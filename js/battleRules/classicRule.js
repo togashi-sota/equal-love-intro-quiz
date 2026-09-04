@@ -126,7 +126,21 @@ export function aggregateResult(questionOutcomes) {
     ruleVersion,
     completed: true,
     common: { elapsedMs: totalElapsedMs, correctCount, missCount },
-    detail: { totalPoints, firstHintCorrectCount, totalHintsUsed, totalElapsedMs, missCount, skippedCount, correctCount },
+    detail: {
+      totalPoints,
+      firstHintCorrectCount,
+      totalHintsUsed,
+      totalElapsedMs,
+      missCount,
+      skippedCount,
+      correctCount,
+      // 【2026-XX-XX追加・本人指示9・10：正解数バトルからポイント概念を撤廃】結果カードの
+      // 「2 / 5問 正解」表示用に、正解数と出題数をまとめた文字列をここで完成させておく。
+      // js/lyricsQuizBattleUi.jsのUI層はルールを一切知らずresultColumns宣言のkeyを
+      // そのまま出すだけの設計（本人指示による既存方針）のため、表示専用の完成値を
+      // このルール自身が作る。
+      correctCountFraction: `${correctCount} / ${questionOutcomes.length}問`,
+    },
   };
 }
 
@@ -140,7 +154,7 @@ export function compareResults(resultA, resultB) {
 }
 
 export function getRuleDescription() {
-  return "全員が同じ問題に挑戦し、正解した数（ポイント）を競います。ヒントは自分のペースで手動で開けます（ヒント段階は得点に影響しません）。同点の場合は同じ順位になります。";
+  return "全員が同じ問題に挑戦し、正解した問題数を競います。ヒントは自分のペースで手動で開けます（ヒント段階は正解数に影響しません）。同点の場合は同じ順位になります。";
 }
 
 // 【Phase6.5新設】画面層が「回答を送信するときに何を送るか」をruleIdで分岐せずに
@@ -155,17 +169,20 @@ export function getAnswerSubmissionPlan() {
 export const settingsFields = [];
 
 // 対戦中HUDが自動生成するための宣言（追記⑦12章）。
-// 【2026-08-31改訂・本人指示】「対戦中は自分の現在ポイントだけを見せ、順位や他人の
-// ポイントとの比較は最終結果画面まで見せない」という明確な指示により、対戦中HUDは
-// 自分の現在ポイントのみに簡略化した（以前あったヒント1正解数・総使用ヒント数・
-// 総回答時間は結果画面（resultColumns）にのみ残す）。
-export const hudFields = [{ key: "totalPoints", label: "現在のポイント" }];
+// 【2026-08-31改訂・本人指示】「対戦中は自分の現在の正解数だけを見せ、順位や他人との
+// 比較は最終結果画面まで見せない」という明確な指示により、対戦中HUDは自分の現在の
+// 正解数のみに簡略化した（以前あったヒント1正解数・総使用ヒント数・総回答時間は
+// 結果画面（resultColumns）にのみ残す）。
+// 【2026-XX-XX改訂・本人指示9：ポイント概念を撤廃】totalPoints→correctCountへ変更
+// （正解数バトルはpointsAwardedが常に0/1のため数値としては同じだが、ユーザーに
+// 見える概念を「ポイント」から「正解数」へ統一する）。
+export const hudFields = [{ key: "correctCount", label: "現在の正解数" }];
 
 // 結果画面が自動生成するための宣言（追記⑥10章）。
-export const resultColumns = [
-  { key: "totalPoints", label: "獲得ポイント" },
-  { key: "totalHintsUsed", label: "使用ヒント数" },
-  { key: "totalElapsedMs", label: "回答時間", unit: "ms" },
-  { key: "missCount", label: "ミス回数" },
-  { key: "skippedCount", label: "わからない回数" },
-];
+// 【2026-XX-XX改訂・本人指示9・10：正解数バトルからポイント概念を完全撤廃】結果カードに
+// 出すのは「正解数」の1項目だけにする（使用ヒント数・回答時間・ミス回数・わからない回数は
+// 成績情報として表示しない、という明確な指示）。correctCountFractionは
+// aggregateResult()が組み立てる「2 / 5問」形式の文字列（js/lyricsQuizBattleUi.jsの
+// renderResultCards()は`${cells[0]} ${label}`をそのまま連結するだけなので、
+// ここでは「2 / 5問 正解」という完成した文言になるようlabelを"正解"にする）。
+export const resultColumns = [{ key: "correctCountFraction", label: "正解" }];

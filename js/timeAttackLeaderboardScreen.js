@@ -37,13 +37,14 @@ const QUESTION_COUNT_LABELS = { "5": "5問", "10": "10問", "20": "20問", "50":
 // （表題曲のみ/表題曲＋全員曲/全曲）とも、既存クイズの全ラジオボタン値がそのまま対象。
 const QUESTION_COUNT_ORDER = LEADERBOARD_QUESTION_COUNT_VALUES;
 
-// 【2026-08-16改訂・本人指示】ルールはもうランキングの区分（タブ）ではない。ノーマル/ハード/
-// LOVE連チャンをまたいで同じランキングで比較する。RULE_LABELSは、各記録がどのルールで
-// 出したタイムかを行に小さく添えるバッジ表示にだけ使う（entry.ruleがnullなら何も表示しない）。
+// 【2026-08-16改訂・本人指示】ルールはもうランキングの区分（タブ）ではない。タイムアタック/
+// 正解数バトル/ノーミスチャレンジをまたいで同じランキングで比較する。RULE_LABELSは、各記録が
+// どのルールで出したタイムかを行に小さく添えるバッジ表示にだけ使う（entry.ruleがnullなら
+// 何も表示しない）。
 const RULE_LABELS = {
-  [TIME_ATTACK_RULE.NORMAL]: "ノーマル",
-  [TIME_ATTACK_RULE.HARD]: "ハード",
-  [TIME_ATTACK_RULE.LOVE_CHAIN]: "LOVE連チャン",
+  [TIME_ATTACK_RULE.NORMAL]: "タイムアタック",
+  [TIME_ATTACK_RULE.HARD]: "正解数バトル",
+  [TIME_ATTACK_RULE.LOVE_CHAIN]: "ノーミスチャレンジ",
 };
 
 // 【2026-08-16追加】プレイ方法バッジ。entry.sourceがnormalなら「通常」、timeAttackなら

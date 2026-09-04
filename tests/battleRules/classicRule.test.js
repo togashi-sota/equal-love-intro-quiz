@@ -118,13 +118,19 @@ export function runClassicRuleTests() {
   {
     assertEqual(classicRule.allowedAnswerPoolSizes, [4, 10, 30, 50, "all"], "正解数バトルは全ての回答方式を許可");
     assertEqual(classicRule.settingsFields.length, 0, "ヒント表示時間の設定が無くなったためsettingsFieldsは空配列");
-    assertEqual(classicRule.hudFields.length, 1, "対戦中HUDは自分の現在ポイントのみ（本人指示：他人との比較を対戦中に見せない）");
-    assertEqual(classicRule.hudFields[0].key, "totalPoints", "対戦中HUDのキーはtotalPoints");
-    assertEqual(classicRule.resultColumns.length > 0, true, "resultColumnsが宣言されている");
+    // 【2026-XX-XX改訂・本人指示9：正解数バトルからポイント概念を撤廃】HUDのキーを
+    // totalPoints→correctCountへ変更（値としては同じだが「ポイント」という概念を
+    // ユーザーに見せないため）。
+    assertEqual(classicRule.hudFields.length, 1, "対戦中HUDは自分の現在の正解数のみ（本人指示：他人との比較を対戦中に見せない）");
+    assertEqual(classicRule.hudFields[0].key, "correctCount", "対戦中HUDのキーはcorrectCount");
+    // 【2026-XX-XX改訂・本人指示9・10：結果カードは「正解数」の1項目だけにする】
+    // 使用ヒント数・回答時間・ミス回数・わからない回数は成績情報として表示しない。
+    assertEqual(classicRule.resultColumns.length, 1, "resultColumnsは正解数の1項目だけ");
+    assertEqual(classicRule.resultColumns[0].key, "correctCountFraction", "resultColumnsのキーはcorrectCountFraction");
     assertEqual(
       classicRule.resultColumns.some((column) => column.key === "skippedCount"),
-      true,
-      "resultColumnsにわからない回数（skippedCount）が含まれる"
+      false,
+      "resultColumnsにわからない回数（skippedCount）は含まれない（ポイント概念撤廃・成績情報の簡略化）"
     );
   }
 

@@ -262,9 +262,9 @@ function formatSeconds(ms) {
 }
 
 const RULE_LABELS = {
-  [TIME_ATTACK_RULE.NORMAL]: "ノーマル",
-  [TIME_ATTACK_RULE.HARD]: "ハード",
-  [TIME_ATTACK_RULE.LOVE_CHAIN]: "LOVE連チャン",
+  [TIME_ATTACK_RULE.NORMAL]: "タイムアタック",
+  [TIME_ATTACK_RULE.HARD]: "正解数バトル",
+  [TIME_ATTACK_RULE.LOVE_CHAIN]: "ノーミスチャレンジ",
 };
 
 // 結果画面を描画し、自己ベスト・最高到達記録の判定・保存、履歴の保存もすべてここで行う
@@ -322,7 +322,7 @@ export function renderTimeAttackResult() {
   resultElements.missCount.textContent = `${missCount}回`;
   // ランダム再生variantのときだけ、既存の「ルール」表示に🔀マークを添えて見分けられるようにする
   // （イントロ形式は今までどおりの表示のまま、新しいHTML要素を増やさずに区別を伝えるための工夫）。
-  const ruleLabelText = RULE_LABELS[currentRule] ?? "ノーマル";
+  const ruleLabelText = RULE_LABELS[currentRule] ?? "タイムアタック";
   resultElements.ruleLabel.textContent =
     currentVariant === TIME_ATTACK_VARIANT.RANDOM_PLAYBACK ? `🔀${ruleLabelText}` : ruleLabelText;
 

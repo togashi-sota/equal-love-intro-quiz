@@ -365,7 +365,7 @@ export const HISTORY_MODE_DISPLAY = {
 
 // ===== 一覧カード・サマリー用の表示ヘルパー（純粋関数） =====
 
-const BATTLE_RULE_LABELS = { normal: "ノーマル", hard: "ハード", loveChain: "LOVE連チャン" };
+const BATTLE_RULE_LABELS = { normal: "タイムアタック", hard: "正解数バトル", loveChain: "ノーミスチャレンジ" };
 // 【2026-08-31改訂・本人指示による3ルール全面見直し】表示名をクラシック/奪い取り/コンボ→
 // 正解数バトル/早押しバトル/ポイントバトルへ変更（内部のbattleRuleId自体は既存のまま）。
 const LYRICS_BATTLE_RULE_LABELS = { classic: "正解数バトル", steal: "早押しバトル", combo: "ポイントバトル" };
@@ -480,13 +480,25 @@ export function describeEntrySummaryLines(entry) {
           .filter(Boolean)
           .join(" / ")
       );
+      // 【2026-XX-XX改訂・本人指示9：正解数バトルからポイント概念を撤廃】正解数バトル
+      // （battleRuleId === "classic"）だけは「◯pt」ではなく「◯問正解」で表示する。
+      // 早押しバトル・ポイントバトルは従来どおりポイント表示のまま（本人指示11：
+      // ポイントバトルのメイン指標は従来通りポイント）。
+      const isClassicRule = entry.details?.battleRuleId === "classic";
+      const scoreText = isClassicRule
+        ? entry.correctCount !== null && entry.correctCount !== undefined
+          ? `${entry.correctCount}問正解`
+          : null
+        : entry.score !== null
+          ? `${entry.score}pt`
+          : null;
       if (entry.details?.isVoluntaryLeave) {
-        lines.push(`🚪 途中退出${entry.score !== null ? `・${entry.score}pt` : ""}`);
+        lines.push(`🚪 途中退出${scoreText ? `・${scoreText}` : ""}`);
       } else if (!entry.completed) {
         lines.push("途中退出（DNF）");
       } else {
         const rankText = formatRank(entry.details?.myRank);
-        lines.push([rankText, entry.score !== null ? `${entry.score}pt` : null].filter(Boolean).join(" / "));
+        lines.push([rankText, scoreText].filter(Boolean).join(" / "));
       }
       break;
     }
@@ -541,7 +553,14 @@ export function describeEntryDetailFields(entry) {
   push("正解数", entry.correctCount !== null ? `${entry.correctCount}問` : null);
   push("誤答数", entry.wrongCount !== null ? `${entry.wrongCount}問` : null);
   push("未回答・スキップ数", entry.skippedCount !== null ? `${entry.skippedCount}問` : null);
-  push("スコア", entry.score !== null ? `${entry.score}点` : null);
+  // 【2026-XX-XX改訂・本人指示9：正解数バトルからポイント概念を撤廃】歌詞クイズ対戦の
+  // 正解数バトル（battleRuleId === "classic"）だけは、上の「正解数」と同じ値を
+  // 「スコア」欄に「◯点」として重複表示しない（ポイント/スコアという概念自体を
+  // 見せないため）。他のモード・他のルールは従来どおり表示する。
+  const isOnlineLyricsClassicEntry = entry.modeId === "onlineLyricsQuiz" && entry.details?.battleRuleId === "classic";
+  if (!isOnlineLyricsClassicEntry) {
+    push("スコア", entry.score !== null ? `${entry.score}点` : null);
+  }
   push("平均回答時間", formatResponseSeconds(entry.averageResponseMs));
 
   const details = entry.details ?? {};

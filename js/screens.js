@@ -2,6 +2,8 @@
 // 「スタート画面」「クイズ画面」「結果画面」のうち、どれか1つだけに
 // is-active クラスを付け、それ以外からは外すことで表示を切り替える。
 
+import { hasVisibleOverlay, applyScrollLock, releaseScrollLock } from "./scrollLock.js";
+
 // 画面名(screenName)と、対応するHTML要素(id)の対応表。
 // 新しい画面を増やしたくなったときは、ここに1行足すだけでよい。
 const SCREEN_ELEMENTS = {
@@ -87,6 +89,36 @@ export function onScreenChange(listener) {
   screenChangeListeners.add(listener);
 }
 
+// 【2026-XX-XX新設・実機バグ調査：問題画面の縦位置が設定開閉で変わる問題】
+// css/style.cssの--game-frame-safe-height（100dvh基準）を使う4つの問題画面
+// （通常クイズ・歌詞クイズ対戦・オンライン歌詞クイズ対戦・一瞬チャレンジ）で、
+// 画面に入った直後だけ.quiz-middle-zone-innerの縦位置が本来より上すぎる状態になる
+// 実機不具合があった。原因調査の結果、js/scrollLock.jsがモーダルの開閉時にbodyへ
+// 一瞬position:fixedを適用→解除する副作用として、iOS Safariの動的ツールバー起因の
+// dvh測定が正しく再計算されていたことが判明した（クイック効果音設定を開いて閉じると
+// 位置が直ることの原因）。ユーザーが偶然モーダルを開くのを待つのではなく、この画面へ
+// 入った直後に同じposition:fixed往復を意図的に1回だけ起こし、dvhを最初から正しく
+// 確定させる。
+const GAME_FRAME_SAFE_HEIGHT_SCREENS = new Set([
+  "quiz",
+  "lyricsQuizQuestion",
+  "onlineLyricsBattleQuestion",
+  "instantChallengeQuestion",
+]);
+
+function forceViewportHeightRecalcForGameFrame() {
+  // 既に本物のモーダル（js/scrollLock.jsのisLocked）でbodyがロックされている場合は
+  // 何もしない。ここでbody.styleを上書きすると、そのモーダルの復元処理と競合するため。
+  if (hasVisibleOverlay()) return;
+  const scrollY = window.scrollY;
+  applyScrollLock(scrollY);
+  // 1フレームだけ固定してすぐ解除する。見た目の位置は変えず（top:-scrollYで同じ
+  // スクロール位置に固定するだけ）、ブラウザ側の再計算だけを狙って起こす。
+  requestAnimationFrame(() => {
+    if (!hasVisibleOverlay()) releaseScrollLock(scrollY);
+  });
+}
+
 // 指定した画面だけを表示し、それ以外の画面は隠す。
 export function showScreen(screenName) {
   for (const [name, element] of Object.entries(SCREEN_ELEMENTS)) {
@@ -97,6 +129,10 @@ export function showScreen(screenName) {
   // CSS側（style.css）が「クイズ画面のときだけ背景演出を控えめにする」といった
   // 画面ごとの見た目の調整をできるようにするためのフック。
   document.body.dataset.screen = screenName;
+
+  if (GAME_FRAME_SAFE_HEIGHT_SCREENS.has(screenName)) {
+    forceViewportHeightRecalcForGameFrame();
+  }
 
   screenChangeListeners.forEach((listener) => listener(screenName));
 }

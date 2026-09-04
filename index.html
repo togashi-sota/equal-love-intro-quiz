@@ -2198,7 +2198,7 @@
         </div>
       </div>
 
-      <p class="special-modes-intro">全問終了までの合計タイムを競います。正解するまで（ノーマル）、または1回間違えるまで（ハード・LOVE連チャン）はテンポよく次々に進みます。LOVE連チャンは1回でも間違えたらその場で終了、全問クリアしたタイムだけが記録になります。</p>
+      <p class="special-modes-intro">全問終了までの合計タイムを競います。正解するまで（タイムアタック）、または1回間違えるまで（正解数バトル・ノーミスチャレンジ）はテンポよく次々に進みます。ノーミスチャレンジは1回でも間違えたらその場で終了、全問クリアしたタイムだけが記録になります。</p>
 
       <!-- 出題タイプ：イントロ形式／ランダム再生形式の切り替え（2026-08-07新設）。
            自己ベスト・称号（ノーミスマスター・電光石火）はイントロ形式だけを対象にしたまま、
@@ -2245,10 +2245,22 @@
 
       <fieldset>
         <legend>ルール</legend>
-        <div class="option-row">
-          <label><input type="radio" name="time-attack-rule" value="normal" checked> ノーマル（間違えた選択肢が消える）</label>
-          <label><input type="radio" name="time-attack-rule" value="hard"> ハード（1回間違えたら即次へ）</label>
-          <label><input type="radio" name="time-attack-rule" value="loveChain"> LOVE連チャン（1回間違えたら即終了）</label>
+        <div class="option-row rule-option-row">
+          <label class="rule-option-card">
+            <input type="radio" name="time-attack-rule" value="normal" checked>
+            <span class="rule-option-card-title">タイムアタック</span>
+            <span class="rule-option-card-desc">全問正解までのタイムで記録</span>
+          </label>
+          <label class="rule-option-card">
+            <input type="radio" name="time-attack-rule" value="hard">
+            <span class="rule-option-card-title">正解数バトル</span>
+            <span class="rule-option-card-desc">正解した問題数で記録</span>
+          </label>
+          <label class="rule-option-card">
+            <input type="radio" name="time-attack-rule" value="loveChain">
+            <span class="rule-option-card-title">ノーミスチャレンジ</span>
+            <span class="rule-option-card-desc">1問でも間違えると即終了</span>
+          </label>
         </div>
       </fieldset>
 
@@ -2282,7 +2294,7 @@
       </div>
 
       <p id="time-attack-result-new-record" hidden>🎉 新記録！</p>
-      <!-- LOVE連チャンで全問クリアできずに終了したときだけ表示する（2026-08-06追加）。
+      <!-- ノーミスチャレンジで全問クリアできずに終了したときだけ表示する（2026-08-06追加）。
            新記録バッジとは同時に出ない（js/timeAttackScreen.jsのrenderTimeAttackResult参照）。 -->
       <p id="time-attack-result-fail-status" hidden></p>
 
@@ -2300,7 +2312,7 @@
         </div>
         <div class="time-attack-result-stat">
           <p class="time-attack-result-stat-label">ルール</p>
-          <p id="time-attack-result-rule-label" class="time-attack-result-stat-value">ノーマル</p>
+          <p id="time-attack-result-rule-label" class="time-attack-result-stat-value">タイムアタック</p>
         </div>
       </div>
 
@@ -2452,7 +2464,7 @@
 
     <!-- ===== ランダム再生クイズ（2026-08-08新設） =====
          曲の途中のランダムな位置から数秒間だけ再生し、曲名を当てるモード。
-         進行ルール（ノーマル／ハード／LOVE連チャン）・タイマー・記録の仕組みは
+         進行ルール（タイムアタック／正解数バトル／ノーミスチャレンジ）・タイマー・記録の仕組みは
          タイムアタックと完全に共通（js/timeAttackScreen.jsをそのまま再利用）で、
          「どこから再生するか」だけがタイムアタックと異なる（js/randomPlaybackEngine.js参照）。
          自己ベストだけはタイムアタックと混ざらないよう、専用のjs/randomPlaybackScore.jsに保存する。 -->
@@ -2473,7 +2485,7 @@
         </div>
       </div>
 
-      <p class="special-modes-intro">曲の途中のランダムな位置から数秒間だけ再生されます。イントロだけでなく、曲全体を覚えているか試したいときに。進み方（ノーマル・ハード・LOVE連チャン）や記録の仕組みはタイムアタックと同じです。</p>
+      <p class="special-modes-intro">曲の途中のランダムな位置から数秒間だけ再生されます。イントロだけでなく、曲全体を覚えているか試したいときに。進み方（タイムアタック・正解数バトル・ノーミスチャレンジ）や記録の仕組みはタイムアタックと同じです。</p>
 
       <fieldset>
         <legend>出題数</legend>
@@ -2499,10 +2511,22 @@
 
       <fieldset>
         <legend>ルール</legend>
-        <div class="option-row">
-          <label><input type="radio" name="random-playback-rule" value="normal" checked> ノーマル（間違えた選択肢が消える）</label>
-          <label><input type="radio" name="random-playback-rule" value="hard"> ハード（1回間違えたら即次へ）</label>
-          <label><input type="radio" name="random-playback-rule" value="loveChain"> LOVE連チャン（1回間違えたら即終了）</label>
+        <div class="option-row rule-option-row">
+          <label class="rule-option-card">
+            <input type="radio" name="random-playback-rule" value="normal" checked>
+            <span class="rule-option-card-title">タイムアタック</span>
+            <span class="rule-option-card-desc">全問正解までのタイムで記録</span>
+          </label>
+          <label class="rule-option-card">
+            <input type="radio" name="random-playback-rule" value="hard">
+            <span class="rule-option-card-title">正解数バトル</span>
+            <span class="rule-option-card-desc">正解した問題数で記録</span>
+          </label>
+          <label class="rule-option-card">
+            <input type="radio" name="random-playback-rule" value="loveChain">
+            <span class="rule-option-card-title">ノーミスチャレンジ</span>
+            <span class="rule-option-card-desc">1問でも間違えると即終了</span>
+          </label>
         </div>
       </fieldset>
 
@@ -2543,7 +2567,7 @@
         </div>
         <div class="time-attack-result-stat">
           <p class="time-attack-result-stat-label">ルール</p>
-          <p id="random-playback-result-rule-label" class="time-attack-result-stat-value">ノーマル</p>
+          <p id="random-playback-result-rule-label" class="time-attack-result-stat-value">タイムアタック</p>
         </div>
       </div>
 
@@ -3103,18 +3127,30 @@
 
       <fieldset>
         <legend>ルール</legend>
-        <div class="option-row">
-          <label><input type="radio" name="battle-rule" value="normal" checked> ノーマル（間違えた選択肢が消える）</label>
-          <label><input type="radio" name="battle-rule" value="hard"> ハード（1回間違えたら即次へ）</label>
-          <label><input type="radio" name="battle-rule" value="loveChain"> LOVE連チャン（1回間違えたら即終了）</label>
+        <div class="option-row rule-option-row">
+          <label class="rule-option-card">
+            <input type="radio" name="battle-rule" value="normal" checked>
+            <span class="rule-option-card-title">タイムアタック</span>
+            <span class="rule-option-card-desc">全問正解までのタイムで記録</span>
+          </label>
+          <label class="rule-option-card">
+            <input type="radio" name="battle-rule" value="hard">
+            <span class="rule-option-card-title">正解数バトル</span>
+            <span class="rule-option-card-desc">正解した問題数で記録</span>
+          </label>
+          <label class="rule-option-card">
+            <input type="radio" name="battle-rule" value="loveChain">
+            <span class="rule-option-card-title">ノーミスチャレンジ</span>
+            <span class="rule-option-card-desc">1問でも間違えると即終了</span>
+          </label>
         </div>
         <p class="battle-rule-hint" id="battle-setup-rule-hint"></p>
       </fieldset>
 
-      <!-- ノーマルのときだけ表示するミスペナルティ選択。js/localBattleScreen.jsが
+      <!-- タイムアタックルールのときだけ表示するミスペナルティ選択。js/localBattleScreen.jsが
            ルールの選択に応じて表示/非表示を切り替える。 -->
       <fieldset id="battle-setup-penalty-fieldset">
-        <legend>ミスペナルティ（ノーマルのみ）</legend>
+        <legend>ミスペナルティ（タイムアタックルールのみ）</legend>
         <div class="option-row">
           <label><input type="radio" name="battle-penalty" value="0"> なし（0秒）</label>
           <label><input type="radio" name="battle-penalty" value="1"> 軽め（1秒）</label>
@@ -3125,7 +3161,7 @@
           <label><input type="radio" name="battle-penalty" value="5"> 厳しめ（5秒）</label>
           <label><input type="radio" name="battle-penalty" value="10"> ガチ（10秒）</label>
         </div>
-        <p style="font-size:0.7rem;opacity:0.6;margin:6px 0 0;">ノーマルでは、ミス1回ごとに選択した秒数が最終記録へ加算されます</p>
+        <p style="font-size:0.7rem;opacity:0.6;margin:6px 0 0;">タイムアタックルールでは、ミス1回ごとに選択した秒数が最終記録へ加算されます</p>
       </fieldset>
 
       <button id="battle-setup-create-code-button" class="primary-button" type="button">対戦コードを作る</button>
@@ -3447,14 +3483,26 @@
           </fieldset>
           <fieldset>
             <legend>ルール</legend>
-            <div class="option-row">
-              <label><input type="radio" name="online-battle-settings-rule" value="normal"> ノーマル</label>
-              <label><input type="radio" name="online-battle-settings-rule" value="hard"> ハード</label>
-              <label><input type="radio" name="online-battle-settings-rule" value="loveChain"> LOVE連チャン</label>
+            <div class="option-row rule-option-row">
+              <label class="rule-option-card">
+                <input type="radio" name="online-battle-settings-rule" value="normal">
+                <span class="rule-option-card-title">タイムアタック</span>
+                <span class="rule-option-card-desc">全問正解までのタイムで記録</span>
+              </label>
+              <label class="rule-option-card">
+                <input type="radio" name="online-battle-settings-rule" value="hard">
+                <span class="rule-option-card-title">正解数バトル</span>
+                <span class="rule-option-card-desc">正解した問題数で記録</span>
+              </label>
+              <label class="rule-option-card">
+                <input type="radio" name="online-battle-settings-rule" value="loveChain">
+                <span class="rule-option-card-title">ノーミスチャレンジ</span>
+                <span class="rule-option-card-desc">1問でも間違えると即終了</span>
+              </label>
             </div>
           </fieldset>
           <fieldset id="online-battle-lobby-settings-penalty-fieldset">
-            <legend>ミスペナルティ（ノーマルのみ）</legend>
+            <legend>ミスペナルティ（タイムアタックルールのみ）</legend>
             <div class="option-row">
               <label><input type="radio" name="online-battle-settings-penalty" value="0"> なし（0秒）</label>
               <label><input type="radio" name="online-battle-settings-penalty" value="1"> 軽め（1秒）</label>
@@ -3841,7 +3889,7 @@
       </div>
     </section>
 
-    <!-- オンライン対戦：結果待機画面（Step3）。全問終了、またはLOVE連チャンで脱落して
+    <!-- オンライン対戦：結果待機画面（Step3）。全問終了、またはノーミスチャレンジで脱落して
          自分の結果を送信し終えた直後に遷移する。固定参加者（対戦開始時点のメンバー）ごとの
          進捗・接続状態を一覧表示し、全員そろえば自動的に結果画面へ進む。
          ホストだけ、自分が終了した後に「結果を確定する」ボタンが現れる
@@ -4423,7 +4471,7 @@
     </section>
 
     <!-- オンライン対戦：歌詞クイズ専用の結果画面（Phase6新設）。既存の#online-battle-result-screenは
-         正解数・ミス数・LOVE連チャンの到達数等、タイムアタック系のresult形状を前提にした固定の
+         正解数・ミス数・ノーミスチャレンジの到達数等、タイムアタック系のresult形状を前提にした固定の
          描画（js/onlineBattleScreen.jsのgoToResultScreen()）のため流用せず、
          js/lyricsQuizBattleUi.js（Phase5）のルール別列自動生成をそのまま使う専用画面にした。
          「もう一度」「ルーム設定に戻る」は、js/onlineBattle.jsのbeginRematchReadyCheck()・
@@ -5494,9 +5542,9 @@
 
       <h3>3つのルール</h3>
       <ul class="modal-category-list">
-        <li><strong>ノーマル</strong>：間違えた選択肢が消えるだけで、正解するまで選び直せます。</li>
-        <li><strong>ハード</strong>：1回間違えたら、その問題は不正解のまま次の問題へ進みます。</li>
-        <li><strong>LOVE連チャン</strong>：1回間違えた時点で、残りの問題を待たずゲームがそこで終了します（クリアできなかった扱いになります）。</li>
+        <li><strong>タイムアタック</strong>：間違えた選択肢が消えるだけで、正解するまで選び直せます。<strong>全問正解までのタイム</strong>で記録を競います。</li>
+        <li><strong>正解数バトル</strong>：1回間違えたら、その問題は不正解のまま次の問題へ進みます。<strong>正解した問題数</strong>で記録を競います。</li>
+        <li><strong>ノーミスチャレンジ</strong>：1問でも間違えた時点で、残りの問題を待たず<strong>その場でゲームが終了</strong>します（クリアできなかった扱いになります）。</li>
       </ul>
 
       <h3>記録について</h3>
@@ -5512,7 +5560,7 @@
       <p class="modal-lead">曲の冒頭（イントロ）ではなく、曲の途中のランダムな位置から流れる音源を聞いて曲名を当てる、タイムアタックの上級者向けバリエーションです。</p>
 
       <h3>遊び方</h3>
-      <p>操作方法・4択での回答方法、ノーマル/ハード/LOVE連チャンの3ルールは、タイムアタックと全く同じです。違うのは、出題される音源の位置だけです。</p>
+      <p>操作方法・4択での回答方法、タイムアタック/正解数バトル/ノーミスチャレンジの3ルールは、タイムアタックと全く同じです。違うのは、出題される音源の位置だけです。</p>
 
       <h3>おすすめの遊び方</h3>
       <p>イントロだけでなく曲全体を知っている必要があるため、まずはタイムアタックでイントロを覚えてから挑戦するのがおすすめです。</p>
@@ -5656,7 +5704,7 @@
       <p class="modal-lead">同じ端末を順番に回して遊ぶ、その場にいる友達との対戦です。インターネット接続は必要ありません。</p>
 
       <h3>遊び方</h3>
-      <p>ホストが出題数・ルール（ノーマル/ハード/LOVE連チャン）を決めると、全員が同じ問題で順番にタイムアタックに挑戦します。1人が終わったら端末を次の人に渡してください。</p>
+      <p>ホストが出題数・ルール（タイムアタック/正解数バトル/ノーミスチャレンジ）を決めると、全員が同じ問題で順番にタイムアタックに挑戦します。1人が終わったら端末を次の人に渡してください。</p>
 
       <h3>結果の見方</h3>
       <p>全員がプレイし終えると、クリアタイムを基準にした順位表が表示されます。プレイ履歴・自己ベストへの保存は行われません（対戦専用の記録として、その場限りで表示されます）。</p>
@@ -5675,7 +5723,7 @@
 
       <h3>選べるゲームモード</h3>
       <ul class="modal-category-list">
-        <li><strong>タイムアタック</strong>：ノーマル/ハード/LOVE連チャンの3ルールから選んで対戦します。</li>
+        <li><strong>タイムアタック</strong>：タイムアタック/正解数バトル/ノーミスチャレンジの3ルールから選んで対戦します。</li>
         <li><strong>ランダム再生クイズ</strong>：曲の途中から出題される、タイムアタックの上級者向けバージョンです。</li>
         <li><strong>歌詞クイズ</strong>：正解数バトル／早押しバトル／ポイントバトルの3つの対戦ルールがあります。ルーム設定画面の「？」から詳しく確認できます。</li>
       </ul>
@@ -5867,6 +5915,7 @@
 
       <div class="sfx-settings-section">
         <p class="sfx-settings-section-title">効果音の音量</p>
+        <p class="sfx-settings-section-hint">正解・不正解・カウントダウン・開始・結果など、クイズ中に鳴る効果音の音量です。曲そのものの音量には影響しません。</p>
         <div id="quick-sfx-settings-volume-list" class="quick-sfx-volume-option-list"></div>
       </div>
 
