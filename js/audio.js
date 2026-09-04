@@ -833,6 +833,19 @@ export async function playSongIntro(song, onError, onPlaybackStart) {
     // 自分より新しい呼び出しに既に追い越されている場合、このエラーはもう
     // 今の問題とは関係ない曲のものなので、画面には出さず無視する。
     if (myToken !== currentPlaybackToken) return;
+    // 【2026-11-XX追加・本人指示：一瞬協力Q1のNotSupportedError次回調査】これまでconsole.warn
+    // だけで、実機で簡単に確認できる診断ログ（js/audioDiagnosticLog.js）には残っていなかった。
+    // play()のPromiseが拒否される失敗（attemptPlay()側で記録済み）とは別に、audio要素自体が
+    // 発する`error`イベント（デコード失敗・ネットワーク断など）もこの後diagへ記録する。
+    diag(`[ERROR_EVENT] onerrorイベント発火 (intro, song=${song.id})`, {
+      code: audioElement.error?.code ?? null,
+      message: audioElement.error?.message ?? null,
+      readyState: audioElement.readyState,
+      networkState: audioElement.networkState,
+      currentTime: audioElement.currentTime,
+      currentSrc: audioElement.currentSrc,
+      unlock: audioUnlockState,
+    });
     console.warn(`[audio] onerror (intro, song=${song.id}) unlock=${audioUnlockState}`, audioElement.error?.code, audioElement.error?.message);
     onError("音源を再生できませんでした");
   };
@@ -900,6 +913,17 @@ export async function playSongFromRandomPosition(song, computeStartTimeSec, play
 
   audioElement.onerror = () => {
     if (myToken !== currentPlaybackToken) return;
+    // 【2026-11-XX追加・本人指示：一瞬協力Q1のNotSupportedError次回調査】上のplaySongIntro()と
+    // 同じ理由・同じ対策（詳しいコメントはそちら参照）。
+    diag(`[ERROR_EVENT] onerrorイベント発火 (randomPosition, song=${song.id})`, {
+      code: audioElement.error?.code ?? null,
+      message: audioElement.error?.message ?? null,
+      readyState: audioElement.readyState,
+      networkState: audioElement.networkState,
+      currentTime: audioElement.currentTime,
+      currentSrc: audioElement.currentSrc,
+      unlock: audioUnlockState,
+    });
     console.warn(`[audio] onerror (randomPosition, song=${song.id}) unlock=${audioUnlockState}`, audioElement.error?.code, audioElement.error?.message);
     onError("音源を再生できませんでした");
   };

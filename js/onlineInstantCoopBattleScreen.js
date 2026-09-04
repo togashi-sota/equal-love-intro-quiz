@@ -176,6 +176,9 @@ function describeInstantDiagnosticContext() {
     platform,
     uid: myUid,
     role: latestRoom && myUid === latestRoom.host ? "host" : "guest",
+    // 【2026-11-XX追加・本人指示：一瞬協力Q1のNotSupportedError次回調査】診断ログだけを
+    // 見て、どのルームでの出来事かを追えるようにするため。
+    roomId: latestRoom?.roomId ?? null,
   };
 }
 
@@ -1059,6 +1062,9 @@ function handleCoopPlaybackFailure(questionIndex, message) {
     ...describeInstantDiagnosticContext(),
     matchId: requestMatchId,
     questionIndex,
+    // 【2026-11-XX追加・本人指示：一瞬協力Q1のNotSupportedError次回調査】どの曲での
+    // 失敗かを、この失敗検知ログ単体からも追えるようにするため。
+    songId: currentQuestions[questionIndex]?.song?.id ?? null,
     message,
     visibilityState,
     alreadyAttemptedLocalRecovery: hasAttemptedLocalRecoveryThisAttempt,

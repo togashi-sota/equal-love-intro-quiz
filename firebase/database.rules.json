@@ -437,7 +437,7 @@
           }
         },
         "lastSeen": {
-          ".validate": "newData.isNumber()"
+          ".validate": "newData.isNumber() && newData.val() <= now + 120000 && newData.val() >= now - 120000"
         },
         "$other": { ".validate": false }
       }
@@ -447,14 +447,14 @@
       "$recipientUid": {
         ".read": "auth != null && auth.uid === $recipientUid",
         "$roomId": {
-          ".write": "auth != null && ((auth.uid === $recipientUid && newData.val() === null) || (newData.exists() && auth.uid !== $recipientUid && newData.child('inviterUid').val() === auth.uid && newData.child('recipientUid').val() === $recipientUid && newData.child('roomId').val() === $roomId && (!data.exists() || newData.child('createdAt').val() - data.child('createdAt').val() >= 30000)))",
+          ".write": "auth != null && ((auth.uid === $recipientUid && newData.val() === null) || (newData.exists() && auth.uid !== $recipientUid && newData.child('inviterUid').val() === auth.uid && newData.child('recipientUid').val() === $recipientUid && newData.child('roomId').val() === $roomId && (!data.exists() || now - data.child('createdAt').val() >= 30000)))",
           ".validate": "newData.hasChildren(['inviterUid', 'inviterDisplayName', 'recipientUid', 'roomId', 'createdAt', 'expiresAt'])",
           "inviterUid": { ".validate": "newData.isString() && newData.val().length > 0" },
           "inviterDisplayName": { ".validate": "newData.isString() && newData.val().length <= 40" },
           "recipientUid": { ".validate": "newData.val() === $recipientUid" },
           "roomId": { ".validate": "newData.val() === $roomId" },
-          "createdAt": { ".validate": "newData.isNumber()" },
-          "expiresAt": { ".validate": "newData.isNumber() && newData.val() > newData.parent().child('createdAt').val()" },
+          "createdAt": { ".validate": "newData.isNumber() && newData.val() <= now + 120000 && newData.val() >= now - 120000" },
+          "expiresAt": { ".validate": "newData.isNumber() && newData.val() > newData.parent().child('createdAt').val() && newData.val() <= now + 420000" },
           "$other": { ".validate": false }
         }
       }

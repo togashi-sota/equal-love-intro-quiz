@@ -17,13 +17,57 @@ const MAX_ENTRIES = 1000; // 長時間触っても際限なく増え続けない
 const entries = [];
 const logStartTime = performance.now();
 
+// 【2026-11-XX新設・本人指示：一瞬協力Q1のNotSupportedError再調査、次回への備え】
+// 通常はページのリロードだけで記録が失われる（performance.now()由来のelapsedMsも
+// メモリ上のentries配列もリセットされるため）。本人からの明示的な要望
+// 「リロード程度では消えにくくする方法を検討してほしい。ただし古いログと混ざって
+// 誤診する方が危険なら無理に行わなくて良い」を受け、sessionStorage（同じタブ・
+// 同じ起動セッションの間だけ残る、アプリを完全に終了すれば消える）へも保存する。
+// 【誤診対策】リロードをまたぐと、performance.now()基準のelapsedMsは前回の記録と
+// 連続しない（新しいログはゼロから数え直す）ため、時系列を誤解しないよう、
+// 各記録に絶対時刻（atIso）を必ず付け、復元時には目立つ区切り行を1本挿入する。
+const SESSION_STORAGE_KEY = "equalLoveIntroQuiz.audioDiagnosticLog.v1";
+// sessionStorageの容量を圧迫しない範囲で、直近の記録だけを保存する
+// （本文の表示・コピー自体はメモリ上のMAX_ENTRIES件をそのまま使うため、ここを絞っても
+// 「今のページ表示」には影響しない。あくまで次回リロード直後に復元する分の上限）。
+const SESSION_STORAGE_MAX_ENTRIES = 300;
+
+function loadPersistedEntriesOnce() {
+  try {
+    const raw = sessionStorage.getItem(SESSION_STORAGE_KEY);
+    if (!raw) return;
+    const restored = JSON.parse(raw);
+    if (!Array.isArray(restored) || restored.length === 0) return;
+    entries.push(...restored);
+    entries.push({
+      elapsedMs: 0,
+      label: "===== ここでページが再読み込みされました（この行より上は前回の読み込み時の記録・下の経過msは0からやり直し） =====",
+      detail: { restoredAt: new Date().toISOString() },
+    });
+  } catch {
+    // sessionStorageが使えない環境（プライベートブラウジング等）でも、通常のメモリ上の
+    // ログ記録自体は問題なく続行できるため、ここでの失敗は無視してよい。
+  }
+}
+loadPersistedEntriesOnce();
+
+function persistEntries() {
+  try {
+    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(entries.slice(-SESSION_STORAGE_MAX_ENTRIES)));
+  } catch {
+    // 容量超過・プライベートブラウジング等での失敗は無視する（あくまで保険的な機能のため、
+    // 失敗してもメモリ上の記録・アプリの動作自体には一切影響させない）。
+  }
+}
+
 // tag: "[UNLOCK]" 等の分類タグ（無くても良い）。label: 内容の説明。detail: 任意の追加情報。
 export function recordAudioDiagnostic(label, detail) {
   const elapsedMs = Math.round(performance.now() - logStartTime);
-  entries.push({ elapsedMs, label, detail });
+  entries.push({ elapsedMs, label, detail, atIso: new Date().toISOString() });
   if (entries.length > MAX_ENTRIES) {
     entries.shift();
   }
+  persistEntries();
 }
 
 // 現在の記録全体を、コピー&ペーストしやすい1つのテキストへ整形する。
@@ -33,7 +77,8 @@ export function formatAudioDiagnosticLogText() {
   }
   const lines = entries.map((entry) => {
     const timeLabel = `+${String(entry.elapsedMs).padStart(7, " ")}ms`;
-    let line = `${timeLabel}  ${entry.label}`;
+    const timeIso = entry.atIso ? ` (${entry.atIso})` : "";
+    let line = `${timeLabel}${timeIso}  ${entry.label}`;
     if (entry.detail !== undefined) {
       try {
         line += `  ${JSON.stringify(entry.detail)}`;
@@ -49,6 +94,7 @@ export function formatAudioDiagnosticLogText() {
 // 記録をすべて消す（本人が「ここから新しく記録し直したい」ときに使う）。
 export function clearAudioDiagnosticLog() {
   entries.length = 0;
+  persistEntries();
 }
 
 // 今何件記録されているか（デバッグ画面の見出し表示用）。
