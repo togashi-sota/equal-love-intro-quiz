@@ -57,13 +57,17 @@ function closeInvitePicker() {
   pendingInviteRoomId = null;
 }
 
-function buildInviteRow(profile) {
+// 【本人指示：プレイ中の相手にも招待は送れる】isPlayingは表示・送信後メッセージの
+// 出し分けだけに使い、招待の送信自体を止める判定には一切使わない。
+function buildInviteRow(profile, isPlaying) {
   const row = document.createElement("div");
   row.className = "room-invite-picker-row";
 
   const name = document.createElement("span");
   name.className = "room-invite-picker-row-name";
-  name.textContent = profile.displayName;
+  // 【2026-11-XX新設・本人指示：「🎮 プレイ中」表示】招待する側にも、相手が今
+  // 対戦・出題中かどうかが分かるようにする（詳しい曲名・モード・対戦相手までは出さない）。
+  name.textContent = isPlaying ? `🎮 ${profile.displayName}` : `🟢 ${profile.displayName}`;
   row.appendChild(name);
 
   const button = document.createElement("button");
@@ -88,7 +92,9 @@ function buildInviteRow(profile) {
     button.disabled = false;
     if (result.ok) {
       sendCooldownByRecipientUid.set(profile.uid, { createdAt: Date.now() });
-      button.textContent = "招待を送りました";
+      // 【本人指示】プレイ中の相手へ送った場合は、その場では相手のプレイを邪魔しないこと・
+      // ホームへ戻った時に通知されることが招待した側にも分かるようにする。
+      button.textContent = isPlaying ? "招待しました（プレイ終了後に通知されます）" : "招待を送りました";
       setTimeout(() => {
         if (!button.isConnected) return;
         button.textContent = "招待する";
@@ -137,7 +143,9 @@ async function loadInvitePickerList() {
     return;
   }
 
-  onlineFriends.forEach((profile) => elements.pickerList.appendChild(buildInviteRow(profile)));
+  onlineFriends.forEach((profile) =>
+    elements.pickerList.appendChild(buildInviteRow(profile, presenceByUid[profile.uid]?.isPlaying === true))
+  );
 }
 
 // ロビー画面から呼ぶ想定（js/main.jsの「友達を招待」ボタン配線から）。

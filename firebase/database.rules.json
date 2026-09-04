@@ -439,6 +439,9 @@
         "lastSeen": {
           ".validate": "newData.isNumber() && newData.val() <= now + 120000 && newData.val() >= now - 120000"
         },
+        "isPlaying": {
+          ".validate": "newData.isBoolean()"
+        },
         "$other": { ".validate": false }
       }
     },

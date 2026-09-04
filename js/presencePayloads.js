@@ -76,9 +76,39 @@ export function sortProfilesByPresence(profiles, presenceByUid, nowMs) {
 // フレンドカードに表示する短いラベル（例："🟢 オンライン" または "⚫ 3時間前"）を組み立てる。
 // presence記録が一度も無いuid（このアプリのpresence機能導入前からの公開プロフィール等）は
 // 「記録なし」と表示し、エラーにはしない。
+// 【2026-11-XX追加・本人指示：「🎮 プレイ中」表示】presenceEntry.isPlayingがtrueのときは、
+// オンラインである前提のもとで表示テキストだけを「プレイ中」に差し替える（isOnline自体は
+// 常にtrue側で扱う＝「プレイ中」は「オンライン」の一種であり、独立した3値目ではない）。
 export function buildPresenceStatusLabel(presenceEntry, nowMs) {
   const isOnline = computeIsOnlineForDisplay(presenceEntry, nowMs);
-  if (isOnline) return { text: "オンライン", isOnline: true };
+  if (isOnline) {
+    if (presenceEntry?.isPlaying === true) return { text: "プレイ中", isOnline: true, isPlaying: true };
+    return { text: "オンライン", isOnline: true, isPlaying: false };
+  }
   const label = formatLastSeenLabel(presenceEntry?.lastSeen, nowMs);
-  return { text: label ?? "記録なし", isOnline: false };
+  return { text: label ?? "記録なし", isOnline: false, isPlaying: false };
+}
+
+// 【2026-11-XX新設・本人指示：「🎮 プレイ中」表示】今表示している画面が「対戦・出題中の
+// 画面」かどうかを判定する。js/screens.jsの画面名（SCREEN_ELEMENTSのキー）を直接使い、
+// 新しい概念を増やさない。既存のaudio unlock heartbeat・ルーム内presence・ゲーム進行
+// ロジックには一切触れず、「今どの画面を表示しているか」という既に存在する情報だけから
+// 判定する（本人指示：「ゲーム内heartbeatやaudio heartbeatと結合しない」）。
+// 【対象に含めた理由】いずれも「出題中で、離脱すると対戦相手やスコアに影響しうる」画面。
+// ロビー・設定・結果画面・待機画面は、離脱してもゲーム進行に実害が無いため含めない
+// （「プレイ中」は本人の言う「今まさに遊んでいる最中かどうか」に絞る）。
+const GAMEPLAY_SCREEN_NAMES = new Set([
+  "quiz",
+  "lyricsQuizQuestion",
+  "instantChallengeQuestion",
+  "onlineBattleCountdown",
+  "onlineInstantBattleQuestion",
+  "onlineInstantCoopBattleQuestion",
+  "onlineLyricsBattleQuestion",
+  "liveCallModePlayer",
+  "liveCallModeKaraoke",
+]);
+
+export function isGameplayScreenName(screenName) {
+  return GAMEPLAY_SCREEN_NAMES.has(screenName);
 }

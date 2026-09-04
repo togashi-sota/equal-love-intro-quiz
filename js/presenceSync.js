@@ -33,6 +33,13 @@ import {
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 import { database, authReady, getCurrentUid } from "./firebaseClient.js";
+// 【2026-11-XX新設・本人指示：「🎮 プレイ中」表示】既存のonScreenChange（js/roomInviteUi.jsの
+// 招待バナー表示判定と同じ、js/screens.jsの画面切り替え通知フック）を再利用する。新しい
+// heartbeat・新しいタイマーは一切増やさず、「今どの画面を表示しているか」という既に
+// 存在する情報だけからisPlayingを判定する（本人指示：ゲーム内heartbeat・audio
+// heartbeatとは結合しない）。
+import { onScreenChange } from "./screens.js";
+import { isGameplayScreenName } from "./presencePayloads.js";
 
 // 【本人指示：presence heartbeatは他のheartbeatと共用しない】接続が続いている間、
 // lastSeenを定期的に上書きしておくための専用インターバル。onDisconnect()による
@@ -44,10 +51,15 @@ let currentConnectionRef = null;
 let infoConnectedUnsubscribe = null;
 let lastSeenHeartbeatTimerId = null;
 let isTracking = false;
+// 【2026-11-XX新設・本人指示：「🎮 プレイ中」表示】自分のuidが分かった後だけ、
+// 画面切り替えのたびにisPlayingを書き込めるようにするための保持。
+let trackedUid = null;
+let lastWrittenIsPlaying = null;
 
 async function armPresenceForUid(uid) {
   const infoConnectedRef = ref(database, ".info/connected");
   const lastSeenRef = ref(database, `presence/${uid}/lastSeen`);
+  const isPlayingRef = ref(database, `presence/${uid}/isPlaying`);
 
   // 【js/onlineBattle.jsの既存の.info/connected実装と同じ教訓】この監視は「接続が
   // 確立・再確立されるたびに」何度も発火する（切断→自動再接続のたびに再度trueになる）。
@@ -61,10 +73,25 @@ async function armPresenceForUid(uid) {
     set(connectionRef, true).catch(() => {});
     onDisconnect(lastSeenRef).set(serverTimestamp());
     set(lastSeenRef, serverTimestamp()).catch(() => {});
+    // 【本人指示：切断時はプレイ中表示を残さない】再接続のたびに毎回予約し直す
+    // （connectionRef・lastSeenRefの予約と同じ理由）。
+    onDisconnect(isPlayingRef).set(false);
   };
   onValue(infoConnectedRef, handleValue);
   infoConnectedUnsubscribe = () => off(infoConnectedRef, "value", handleValue);
 }
+
+// 【2026-11-XX新設・本人指示：「🎮 プレイ中」表示】画面が切り替わるたびに1回だけ呼ばれる
+// （js/screens.jsのshowScreen()からの通知）。対戦・出題中の画面かどうかをisGameplayScreenName()
+// だけで判定し、直前と同じ値なら無駄な書き込みをしない。認証未完了・presence未開始の間は
+// 何もしない（起動直後の画面遷移で失敗ログを出さないため）。
+onScreenChange((screenName) => {
+  if (!trackedUid) return;
+  const isPlaying = isGameplayScreenName(screenName);
+  if (isPlaying === lastWrittenIsPlaying) return;
+  lastWrittenIsPlaying = isPlaying;
+  set(ref(database, `presence/${trackedUid}/isPlaying`), isPlaying).catch(() => {});
+});
 
 // アプリ起動時に1回だけ呼ぶ想定（js/main.js参照）。認証待ちを含むため非同期だが、
 // 呼び出し側をブロックしない（awaitせず呼び捨てにされてよい設計）。
@@ -83,6 +110,14 @@ export async function startFriendPresenceTracking() {
     lastSeenHeartbeatTimerId = setInterval(() => {
       set(lastSeenRef, serverTimestamp()).catch(() => {});
     }, PRESENCE_LASTSEEN_HEARTBEAT_INTERVAL_MS);
+    // 【実機相当のBrowserペイン確認で発見・修正済みの過去のバグ（js/roomInviteUi.jsの
+    // currentScreenName初期化漏れ）と同じ理由】起動時点で既にshowScreen()が呼ばれ終えて
+    // いる可能性があるため、以後のonScreenChange通知を待つだけでなく、ここで現在画面を
+    // 直接読んで初期値を書き込む。
+    trackedUid = uid;
+    const initialIsPlaying = isGameplayScreenName(document.body.dataset.screen ?? null);
+    lastWrittenIsPlaying = initialIsPlaying;
+    set(ref(database, `presence/${uid}/isPlaying`), initialIsPlaying).catch(() => {});
   } catch (error) {
     console.warn("フレンドpresenceの開始に失敗しました（フレンド一覧のオンライン表示に影響する可能性があります）", error);
     isTracking = false;
@@ -104,6 +139,8 @@ export function stopFriendPresenceTracking() {
     remove(currentConnectionRef).catch(() => {});
     currentConnectionRef = null;
   }
+  trackedUid = null;
+  lastWrittenIsPlaying = null;
   isTracking = false;
 }
 

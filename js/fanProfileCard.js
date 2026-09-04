@@ -107,11 +107,14 @@ export function buildProfileCard(profile, members, onSelect, options = {}) {
   // ときだけ表示する（options自体が省略された既存の呼び出し元・既存テストの見た目は
   // 変えない）。
   if (options.presenceEntry !== undefined) {
-    const { text, isOnline } = buildPresenceStatusLabel(presenceEntry, Date.now());
+    const { text, isOnline, isPlaying } = buildPresenceStatusLabel(presenceEntry, Date.now());
     const statusChip = document.createElement("span");
     statusChip.className = "fan-profile-card-presence";
     statusChip.classList.toggle("is-online", isOnline);
-    statusChip.textContent = `${isOnline ? "🟢" : "⚫"} ${text}`;
+    // 【2026-11-XX新設・本人指示：「🎮 プレイ中」表示】オンライン中の特別な一状態として、
+    // 絵文字だけを🎮に差し替える（isOnline自体の判定・並び順・色分けはオンラインのまま）。
+    const icon = isPlaying ? "🎮" : isOnline ? "🟢" : "⚫";
+    statusChip.textContent = `${icon} ${text}`;
     nameRow.appendChild(statusChip);
   }
   body.appendChild(nameRow);

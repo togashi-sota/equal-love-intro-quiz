@@ -7,6 +7,7 @@ import {
   formatLastSeenLabel,
   sortProfilesByPresence,
   buildPresenceStatusLabel,
+  isGameplayScreenName,
   PRESENCE_OFFLINE_GRACE_MS,
 } from "../js/presencePayloads.js";
 import { assertEqual } from "./test-utils.js";
@@ -62,19 +63,41 @@ export function runPresencePayloadsTests() {
   // ===== buildPresenceStatusLabel =====
   assertEqual(
     buildPresenceStatusLabel({ connections: { a: true }, lastSeen: now }, now),
-    { text: "オンライン", isOnline: true },
+    { text: "オンライン", isOnline: true, isPlaying: false },
     "オンライン中のラベル"
   );
   assertEqual(
     buildPresenceStatusLabel({ connections: {}, lastSeen: now - 3 * 60 * 60 * 1000 - PRESENCE_OFFLINE_GRACE_MS }, now),
-    { text: "3時間前", isOnline: false },
+    { text: "3時間前", isOnline: false, isPlaying: false },
     "オフライン中のラベル（最終ログイン表示）"
   );
   assertEqual(
     buildPresenceStatusLabel(undefined, now),
-    { text: "記録なし", isOnline: false },
+    { text: "記録なし", isOnline: false, isPlaying: false },
     "presence記録が一度も無い場合は「記録なし」（エラーにしない）"
   );
+
+  // ===== buildPresenceStatusLabel：「🎮 プレイ中」（2026-11-XX追加・本人指示） =====
+  assertEqual(
+    buildPresenceStatusLabel({ connections: { a: true }, lastSeen: now, isPlaying: true }, now),
+    { text: "プレイ中", isOnline: true, isPlaying: true },
+    "オンライン中かつisPlaying:trueなら「プレイ中」（isOnline自体はtrueのまま）"
+  );
+  assertEqual(
+    buildPresenceStatusLabel({ connections: {}, lastSeen: now - 30000, isPlaying: true }, now),
+    { text: "たった今", isOnline: false, isPlaying: false },
+    "オフラインならisPlaying:trueが残っていても「プレイ中」とは表示しない（切断時にfalseへ戻す設計の保険）"
+  );
+
+  // ===== isGameplayScreenName（2026-11-XX新設・本人指示：「🎮 プレイ中」表示） =====
+  assertEqual(isGameplayScreenName("quiz"), true, "isGameplayScreenName：quiz画面はプレイ中扱い");
+  assertEqual(isGameplayScreenName("onlineInstantBattleQuestion"), true, "isGameplayScreenName：一瞬バトル出題画面はプレイ中扱い");
+  assertEqual(isGameplayScreenName("onlineLyricsBattleQuestion"), true, "isGameplayScreenName：歌詞クイズ対戦出題画面はプレイ中扱い");
+  assertEqual(isGameplayScreenName("start"), false, "isGameplayScreenName：ホーム画面はプレイ中ではない");
+  assertEqual(isGameplayScreenName("onlineBattleLobby"), false, "isGameplayScreenName：ロビー画面（出題前）はプレイ中ではない");
+  assertEqual(isGameplayScreenName("onlineBattleResult"), false, "isGameplayScreenName：結果画面はプレイ中ではない（離脱してもゲーム進行に実害が無いため）");
+  assertEqual(isGameplayScreenName("fanProfiles"), false, "isGameplayScreenName：フレンド一覧画面はプレイ中ではない");
+  assertEqual(isGameplayScreenName(null), false, "isGameplayScreenName：画面名が無い場合はプレイ中ではない");
 
   // ===== sortProfilesByPresence =====
   const profiles = [
