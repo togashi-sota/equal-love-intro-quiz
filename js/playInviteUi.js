@@ -29,6 +29,7 @@ import {
   attachRoomIdToOutgoingPlayInvite,
   cleanupExpiredPlayInvites,
   fetchInviterPresenceOnce,
+  fetchOutgoingPlayInviteOnce,
 } from "./playInvites.js";
 import {
   listActivePlayInvites,
@@ -492,7 +493,13 @@ function flashIncomingMessage(text) {
 
 function renderOutgoingCard() {
   if (!elements?.outgoingCard) return;
-  const isFlash = myOutbox === null && outgoingFlashText !== null;
+  // 【実機検証で発見・修正：あとでのトーストが表示されないバグ】以前はmyOutbox===nullの
+  // ときだけflash表示にしていたが、「あとで」（snoozed）はmyOutboxをnullにしないまま
+  // トーストだけ出す設計のため、この条件だと下のstatus==='snoozed'分岐（カードを隠すだけ）
+  // が先に確定してしまい、flashOutgoingMessage()で設定したテキストが一度も画面に出ずに
+  // 消えていた。myOutboxの有無に関わらず、outgoingFlashTextがある間は必ずそれを優先して
+  // 表示するようにする（5秒後にflashが消えれば、下の通常表示へ自然に戻る）。
+  const isFlash = outgoingFlashText !== null;
   const canShowHere = canShowInviteNotification(currentScreenName);
 
   if (isFlash) {
@@ -848,4 +855,24 @@ export function initPlayInviteUi(newElements) {
     renderJoinRequestStatus();
     renderOutgoingCard();
   }, 20000);
+  // 【実機マルチクライアント検証で発見・対策：リアルタイム購読の取りこぼし対策】
+  // 送信者が招待作成直後にその招待自体をwatchPlayInvite()で購読する構造上、まれに
+  // （複数の実端末・複数の匿名UIDで確認済み）相手側の後続の更新（あとで／断る／
+  // 後から参加希望等）をリアルタイムには検知できないケースがあることを確認した
+  // （購読自体は生きているが、以降のリモート更新イベントが届かない。リロードや
+  // 新しい購読を張り直すと直ちに正しい最新値へ復帰することから、データそのものの
+  // 問題ではなく、SDK側の購読の取りこぼしと判断した。原因はFirebase SDK側の内部
+  // 挙動に起因する可能性が高く、アプリ側の呼び出し順序の変更だけでは確実な回避が
+  // 難しいため、定期的に1回だけの取得（get）で状態を確認し直す安全側のフォールバックを
+  // 追加する。これにより、万一リアルタイム購読が更新を取りこぼしても、最大でも
+  // このポーリング間隔分の遅延で必ず正しい状態へ復帰する（「送信者側の待機表示が
+  // 相手の操作後も固まったまま残り続ける」ことを二重に防ぐ））。
+  setInterval(async () => {
+    if (!myOutbox) return;
+    const { recipientUid, inviteId } = myOutbox;
+    const freshData = await fetchOutgoingPlayInviteOnce({ recipientUid, inviteId });
+    // 取得中に自分から取り消した・別の招待へ切り替わった場合は、この結果を無視する。
+    if (!myOutbox || myOutbox.recipientUid !== recipientUid || myOutbox.inviteId !== inviteId) return;
+    await handleOutboxInviteDataChange(freshData);
+  }, 6000);
 }

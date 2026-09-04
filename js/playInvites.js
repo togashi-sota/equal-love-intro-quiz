@@ -145,6 +145,27 @@ export function watchPlayInvite({ recipientUid, inviteId }, callback) {
   return () => off(inviteRef, "value", handleValue);
 }
 
+// 【実機マルチクライアント検証で発見・対策】送信者が招待を作成した直後にその同じパスへ
+// watchPlayInvite()でリアルタイム購読を張ると、Firebase JS SDK側の挙動（自分自身が
+// 直前に書き込んだパスの購読を、書き込み完了とほぼ同時に開始した場合の内部キャッシュ
+// マージ）により、ごく稀にその後の「相手（別クライアント）からの更新」を購読が
+// 検知できなくなることを確認した（複数のブラウザ・複数の匿名UIDで再現、リロードや
+// 新規に購読し直すと直ちに正しい最新値が取得できることから、データそのものではなく
+// 購読側の問題と判断）。原因はFirebase SDK側の挙動に起因する可能性が高く、アプリ側の
+// 呼び出し順序だけでは確実な回避が難しいため、js/playInviteUi.js側で定期的にこの
+// 関数を使い1回だけの取得（get）を行い、リアルタイム購読が万一取りこぼしても
+// 一定時間以内に必ず最新状態へ復帰できるようにする（安全側のフォールバック）。
+export async function fetchOutgoingPlayInviteOnce({ recipientUid, inviteId }) {
+  await authReady;
+  try {
+    const snap = await get(ref(database, `playInvites/${recipientUid}/${inviteId}`));
+    return snap.exists() ? snap.val() : null;
+  } catch (error) {
+    console.warn("送信中の招待の状態確認に失敗しました", error);
+    return null;
+  }
+}
+
 // 受信者側が、自分宛の招待のstatusを書き換える共通処理（参加する／断る／あとで／
 // 後から参加する／後からの参加希望を取り消す、のいずれも最終的にはこの1本を通る）。
 // Firebase Rules側（$recipientUid === auth.uid かつ、遷移元・遷移先の組み合わせが
