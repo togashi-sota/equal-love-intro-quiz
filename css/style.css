@@ -1999,6 +1999,35 @@ fieldset label:has(input:focus-visible) {
   line-height: 1.5;
 }
 
+/* 【2026-09-05新設・本人指示：オフライン問題中の簡易効果音設定】OFF/小/中/大の
+   4段階ボタン。.sfx-theme-option（選択中カード）と同じ配色ルールで統一感を持たせる。 */
+.quick-sfx-volume-option-list {
+  display: flex;
+  gap: 8px;
+}
+
+.quick-sfx-volume-option {
+  flex: 1 1 0;
+  padding: 10px 4px;
+  border-radius: 12px;
+  background: var(--color-surface-glass);
+  border: 1.5px solid var(--color-card-border);
+  color: var(--color-text);
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+.quick-sfx-volume-option.is-selected {
+  background: var(--color-primary-light);
+  border-color: var(--color-primary);
+  color: var(--color-primary-dark);
+}
+
+.quick-sfx-volume-option:active {
+  transform: scale(0.96);
+}
+
 /* 詳細設定（音ごとの個別変更）：折りたたみ式にして、普段の設定画面を大きくしない。 */
 .sfx-settings-advanced {
   margin-top: 16px;
@@ -8461,6 +8490,17 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   cursor: default;
 }
 
+/* 【2026-09-05新設・本人指示：実機フィードバックによる改善】既に同じオンライン
+   ルームにいるフレンドの状態表示。ボタンではなく、既存のオンライン状態チップ
+   （.fan-profile-card-presence等）と同じ「短い文字だけ」の見せ方に揃える。 */
+.fan-profile-play-invite-same-room-status {
+  padding: 6px 4px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-text);
+  opacity: 0.65;
+}
+
 .fan-profile-card {
   display: flex;
   align-items: center;
@@ -12563,6 +12603,26 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   font-variant-numeric: tabular-nums;
 }
 
+/* 【2026-09-05新設・本人指示：実機フィードバックによる結果画面改善】今回のMVP。
+   .online-instant-coop-result-hero-statの見た目（グラスカード）はそのまま流用し、
+   名前部分・内訳部分だけ専用クラスで調整する。 */
+.online-instant-coop-mvp-names {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  overflow-wrap: anywhere;
+}
+
+.online-instant-coop-mvp-detail {
+  margin: 4px 0 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-text);
+  opacity: 0.75;
+  font-variant-numeric: tabular-nums;
+}
+
 .time-attack-result-best-time {
   margin: 0 0 18px;
   text-align: center;
@@ -14091,6 +14151,20 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   color: var(--color-primary-dark);
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+/* 【2026-09-05新設・本人指示：一瞬協力結果画面「メンバーの活躍」】各自の正解選択数
+   （X / 総問題数問）。.online-lobby-player-actions（キック等のボタン群）と同じ
+   margin-left: autoで、行の右端へ寄せる。 */
+.online-lobby-player-stat {
+  flex: none;
+  margin-left: auto;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+  opacity: 0.85;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 /* 【2026-09-07新設・本人指示：ルーム参加者プロフィール】名前をタップして簡易プロフィールを

@@ -7,6 +7,7 @@ import {
   buildSharedEngineQuestionBreakdown,
   buildInstantCoopQuestionBreakdown,
   buildLyricsQuizQuestionBreakdown,
+  computeCoopMvpStats,
 } from "../js/battleQuestionBreakdown.js";
 import { SONGS } from "../js/data/songs.js";
 import { assertEqual } from "./test-utils.js";
@@ -125,5 +126,65 @@ export function runBattleQuestionBreakdownTests() {
       null,
       "回答していない参加者はselectedTitleがnull（未回答として表示される）"
     );
+  }
+
+  // ---- computeCoopMvpStats（2026-09-05新設・本人指示：一瞬協力結果画面のMVP集計） ----
+  {
+    // チームの最終回答（多数決）が不正解でも、本人が正解曲を選んでいればカウントする、
+    // という定義の確認：Q1はチームとしては不正解想定でも、Aさんは正解曲を選んでいる。
+    const breakdown = [
+      {
+        questionNumber: 1,
+        rows: [
+          { uid: "a", isCorrect: true }, // Aさんは正解曲を選択（チームの最終回答が別でも関係ない）
+          { uid: "b", isCorrect: false },
+          { uid: "c", isCorrect: false },
+        ],
+      },
+      {
+        questionNumber: 2,
+        rows: [
+          { uid: "a", isCorrect: true },
+          { uid: "b", isCorrect: true },
+          { uid: "c", isCorrect: false },
+        ],
+      },
+    ];
+    const stats = computeCoopMvpStats(breakdown);
+    assertEqual(stats.totalQuestions, 2, "totalQuestionsは実際に成立した問題数");
+    assertEqual(stats.countsByUid, { a: 2, b: 1, c: 0 }, "正解選択数は本人が正解曲を選んだ回数（チームの最終回答とは独立）");
+    assertEqual(stats.maxCount, 2, "最大値はAさんの2問");
+    assertEqual(stats.mvpUids, ["a"], "MVPは正解選択数が最も多い1人");
+  }
+
+  // ---- computeCoopMvpStats：同率MVP（無理に1人へ絞らない） ----
+  {
+    const breakdown = [
+      { questionNumber: 1, rows: [{ uid: "a", isCorrect: true }, { uid: "b", isCorrect: true }, { uid: "c", isCorrect: false }] },
+      { questionNumber: 2, rows: [{ uid: "a", isCorrect: false }, { uid: "b", isCorrect: false }, { uid: "c", isCorrect: true }] },
+      { questionNumber: 3, rows: [{ uid: "a", isCorrect: true }, { uid: "b", isCorrect: true }, { uid: "c", isCorrect: false }] },
+    ];
+    const stats = computeCoopMvpStats(breakdown);
+    assertEqual(stats.countsByUid, { a: 2, b: 2, c: 1 }, "正解選択数の内訳");
+    assertEqual(stats.maxCount, 2, "最大値は2");
+    assertEqual(stats.mvpUids, ["a", "b"], "同率最多は全員をMVPとして返す（無理に1人へ絞らない）");
+  }
+
+  // ---- computeCoopMvpStats：全員0問の場合はmvpUidsが空配列（「該当者なし」の判定に使う） ----
+  {
+    const breakdown = [
+      { questionNumber: 1, rows: [{ uid: "a", isCorrect: false }, { uid: "b", isCorrect: false }] },
+    ];
+    const stats = computeCoopMvpStats(breakdown);
+    assertEqual(stats.maxCount, 0, "全員不正解なら最大値は0");
+    assertEqual(stats.mvpUids, [], "全員0問の場合はmvpUidsが空配列（呼び出し側が「該当者なし」を表示する）");
+  }
+
+  // ---- computeCoopMvpStats：問題別結果が空（結果を計算できない状況）でも例外を投げない ----
+  {
+    const stats = computeCoopMvpStats([]);
+    assertEqual(stats.totalQuestions, 0, "問題が無ければtotalQuestionsは0");
+    assertEqual(stats.countsByUid, {}, "問題が無ければcountsByUidは空オブジェクト");
+    assertEqual(stats.mvpUids, [], "問題が無ければmvpUidsは空配列");
   }
 }

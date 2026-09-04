@@ -86,7 +86,18 @@ export function buildRepresentativeLabel(profile) {
 // コールバックを呼ぶだけ」という役割分担）。options.myUidと同じuidのカードには
 // このボタン自体を出さない（自分を自分に招待できないようにする）。
 export function buildProfileCard(profile, members, onSelect, options = {}) {
-  const { isAdmin = false, onAdminDeleteRequest = null, presenceEntry = null, onPlayInviteRequest = null, myUid = null } = options;
+  const {
+    isAdmin = false,
+    onAdminDeleteRequest = null,
+    presenceEntry = null,
+    onPlayInviteRequest = null,
+    myUid = null,
+    // 【2026-09-05新設・本人指示：実機フィードバックによる改善】このプロフィールの人が、
+    // 今自分がいるオンラインルームに既に参加しているかどうか。js/fanProfilesScreen.jsが
+    // js/onlineBattleScreen.jsのgetCurrentOnlineRoomPlayerUids()から判定して渡す
+    // （このファイル自体はFirebase・オンライン対戦の状態に一切触れない設計を保つため）。
+    isInMyCurrentRoom = false,
+  } = options;
   const card = document.createElement("button");
   card.type = "button";
   card.className = "fan-profile-card";
@@ -165,7 +176,7 @@ export function buildProfileCard(profile, members, onSelect, options = {}) {
   // 「一緒に遊ぶ」ボタンが必要な相手（＝自分以外）のときだけ、下に1段追加する。
   const showPlayInviteButton = onPlayInviteRequest !== null && profile.uid !== myUid;
   const playInviteRow = showPlayInviteButton
-    ? buildPlayInviteButtonRow(profile, presenceEntry, onPlayInviteRequest)
+    ? buildPlayInviteButtonRow(profile, presenceEntry, onPlayInviteRequest, isInMyCurrentRoom)
     : null;
 
   if (!isAdmin) {
@@ -211,13 +222,26 @@ export function buildProfileCard(profile, members, onSelect, options = {}) {
 // 実際に「一緒に遊ぶ」を利用できるオンライン/プレイ中ユーザーだけにします」）。
 // オフラインのときはnullを返し、呼び出し側（buildProfileCard）はそのまま何も
 // 追加しない（カード本体だけを返す、既存の「ボタン行が無い場合」の経路に自然に乗る）。
-function buildPlayInviteButtonRow(profile, presenceEntry, onPlayInviteRequest) {
+// 【2026-09-05改訂・本人指示：実機フィードバックによる改善】既に自分と同じオンライン
+// ルームにいるフレンドには、「一緒に遊ぶ」ボタンではなく「🏠 同じルームにいます」という
+// 状態表示にする（既に同じゲームにいる相手を、同じゲームへ改めて招待する意味が無いため）。
+// 大きな無効ボタンを置くより、既存のオンライン状態表示（🟢オンライン・🎮プレイ中）と
+// 同じ「状態を短く伝えるだけ」の見せ方に馴染ませる。
+function buildPlayInviteButtonRow(profile, presenceEntry, onPlayInviteRequest, isInMyCurrentRoom) {
   const isOnline = computeIsOnlineForDisplay(presenceEntry, Date.now());
   if (!isOnline) return null;
   const isPlaying = presenceEntry?.isPlaying === true;
 
   const row = document.createElement("div");
   row.className = "fan-profile-play-invite-row";
+
+  if (isInMyCurrentRoom) {
+    const status = document.createElement("span");
+    status.className = "fan-profile-play-invite-same-room-status";
+    status.textContent = "🏠 同じルームにいます";
+    row.appendChild(status);
+    return row;
+  }
 
   const button = document.createElement("button");
   button.type = "button";

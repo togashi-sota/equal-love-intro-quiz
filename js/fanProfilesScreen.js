@@ -29,6 +29,9 @@ import { subscribeToAllPresence } from "./presenceSync.js";
 import { sortProfilesByPresence } from "./presencePayloads.js";
 import { onScreenChange } from "./screens.js";
 import { requestPlayInvite } from "./playInviteUi.js";
+// 【2026-09-05新設・本人指示：実機フィードバックによる改善】既に自分と同じオンライン
+// ルームにいるフレンドを「一緒に遊ぶ」の対象から除外するための判定に使う。
+import { getCurrentOnlineRoomPlayerUids } from "./onlineBattleScreen.js";
 
 let elements = null;
 let members = null;
@@ -73,6 +76,9 @@ function renderLoadingState() {
 function renderProfileListFromCache() {
   if (latestProfiles.length === 0) return;
   elements.listContainer.innerHTML = "";
+  // 【2026-09-05新設・本人指示】この一覧を描画する瞬間の「今のルームの参加者」を
+  // 1回だけ取得し、全カードで使い回す（カード1枚ごとに問い合わせる必要はない値のため）。
+  const currentRoomPlayerUids = getCurrentOnlineRoomPlayerUids();
   sortProfilesByPresence(sortProfiles(latestProfiles), latestPresenceByUid, Date.now()).forEach((profile) =>
     elements.listContainer.appendChild(
       buildProfileCard(profile, members, openDetailModal, {
@@ -81,6 +87,7 @@ function renderProfileListFromCache() {
         presenceEntry: latestPresenceByUid[profile.uid] ?? null,
         onPlayInviteRequest: requestPlayInvite,
         myUid,
+        isInMyCurrentRoom: currentRoomPlayerUids.has(profile.uid),
       })
     )
   );

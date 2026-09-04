@@ -32,3 +32,17 @@ export function stopTimer() {
   clearInterval(gameState.timerId);
   gameState.timerId = null;
 }
+
+// 【2026-09-05新設・本人指示：オフラインの簡易効果音設定パネル】stopTimer()と違い、
+// gameState.elapsedSecを0へ戻さずに、そこから数え直しを再開する（「一時停止→再開」用）。
+// パネルを開いている間はstopTimer()を呼んで止め（elapsedSecはそのまま残る）、
+// 閉じたときにこちらを呼んで、止めていた値からそのままカウントアップを再開する。
+// 既にintervalが動いている場合は何もしない（二重にsetIntervalを張らないための安全策、
+// startTimer()冒頭の「古いintervalを必ず止める」対策と対になる考え方）。
+export function resumeTimer(onTick) {
+  if (gameState.timerId) return;
+  gameState.timerId = setInterval(() => {
+    gameState.elapsedSec += 1;
+    onTick(gameState.elapsedSec);
+  }, 1000);
+}

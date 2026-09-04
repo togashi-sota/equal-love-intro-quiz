@@ -414,6 +414,18 @@ export function isCurrentUserRoomHost() {
   return latestRoom !== null && latestRoom.host === getCurrentUid();
 }
 
+// 【2026-09-05新設・本人指示：実機フィードバックによる改善】今自分がいるルームに、
+// 既に参加している全員のuidをSetで返す。フレンド一覧の「一緒に遊ぶ」・既存ルーム
+// 「友達を招待」ピッカーの両方で、「既に同じルームにいる人」を除外するために使う
+// （js/onlineBattleScreen.jsのgetCurrentOnlineRoomId()と同じ「今の状況を外部へ
+// 教える窓口」の設計方針）。ルームにいない・まだ参加者一覧を受信していない場合は
+// 空のSetを返す（安全側：判定できないときは「除外しない」のではなく、呼び出し側が
+// 空集合として扱えるようにするだけで、招待そのものを止めはしない）。
+export function getCurrentOnlineRoomPlayerUids() {
+  if (latestRoom === null) return new Set();
+  return new Set(Object.keys(latestRoom.players ?? {}));
+}
+
 // 【2026-11-XX新設・本人指示：ルーム招待】招待を受けて参加するときに、js/roomInviteUi.js
 // （このファイルを一切importしない、循環import回避のための末端モジュール。
 // js/onlineBattleLeaveMatchPrompt.js冒頭のコメントと同じ設計方針）から呼ぶための窓口。
@@ -3816,9 +3828,21 @@ export function initOnlineBattleScreens(newElements) {
     }
     await markResultReturned({ roomId: currentRoomId });
     elements.resultReturnButton.disabled = false;
+    // 【2026-09-05修正・実機バグ調査：結果画面→ロビー復帰後に「ルール・遊び方」
+    // 「友達を招待」が反応しなくなる不具合】resetOnlineBattleMatchState()はlatestRoomを
+    // nullへリセットするが、その直後にnavigateTo()でロビー画面を表示しても、次にFirebaseの
+    // room更新イベントが実際に届くまでrenderLobby()は呼ばれない。その間、
+    // openLobbyHelpModal()・isCurrentUserRoomHost()はどちらもlatestRoomを見て判定するため、
+    // nullのままだと「ロビー画面は表示されているのにボタンだけ反応しない」状態になっていた
+    // （対戦モード変更のradioで過去に見つかった同じ根本原因、3465行目付近のコメント参照）。
+    // resetでnullにされる直前のroomをここで確保しておき、リセット後に手動で一度
+    // renderLobby()を呼んで即座に復元することで、次のFirebase更新を待たずに両方の
+    // ボタンを正しい状態に戻す。
+    const roomForImmediateLobbyRerender = latestRoom;
     resetOnlineBattleMatchState();
     resetLyricsQuizBattleState();
     elements.navigateTo("onlineBattleLobby");
+    if (roomForImmediateLobbyRerender) renderLobby(roomForImmediateLobbyRerender);
   });
 
   // 【2026-09-05新設、本人指示】対戦中、ホストだけに見える「ルーム設定へ戻る」。

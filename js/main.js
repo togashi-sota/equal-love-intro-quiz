@@ -36,7 +36,15 @@ import {
   buildReviewQuizQuestions,
   buildQuestionsFromSongIds,
 } from "./quiz.js";
-import { playSongIntro, playSongFromRandomPosition, stopAudio, attemptSilentUnlock, reportPlaybackTrouble } from "./audio.js";
+import {
+  playSongIntro,
+  playSongFromRandomPosition,
+  stopAudio,
+  attemptSilentUnlock,
+  reportPlaybackTrouble,
+  pauseAudioForExternalUi,
+  resumeAudioForExternalUi,
+} from "./audio.js";
 import { bindPressReleaseAnswer } from "./answerButtonInteraction.js";
 import { recordAudioDiagnostic } from "./audioDiagnosticLog.js";
 import { initDebugAudioLogScreen, renderDebugAudioLog } from "./debugAudioLogScreen.js";
@@ -54,7 +62,7 @@ import {
   startInstantChallengeFromCustomPreset,
   isInstantChallengeFromCustomPreset,
 } from "./instantChallengeScreen.js";
-import { startTimer, stopTimer } from "./timer.js";
+import { startTimer, stopTimer, resumeTimer } from "./timer.js";
 import { calculateScore, calculateRank } from "./score.js";
 import { getHighScore, saveHighScoreIfBetter } from "./highscore.js";
 import {
@@ -67,6 +75,7 @@ import {
 } from "./sfx.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
 import { initSoundSettingsScreen, refreshSfxSettingsUI } from "./soundSettingsScreen.js";
+import { initQuickSfxSettingsPanel, openQuickSfxSettingsPanel } from "./quickSfxSettingsPanel.js";
 import { renderBackgroundSparkles } from "./decorations.js";
 import {
   renderSongList,
@@ -398,16 +407,23 @@ renderSongList(SONGS);
 // 2026-08-06追加）。ボタンを押した本人にもクリック音で切替が分かるよう、ONにした瞬間だけ
 // 確認のクリック音を鳴らす（OFFにした瞬間に鳴らすと「消したのに鳴った」と紛らわしいため）。
 const sfxToggleButtonQuizElement = document.getElementById("sfx-toggle-button-quiz");
+const sfxToggleButtonQuizLabelElement = sfxToggleButtonQuizElement.querySelector(".quiz-header-sfx-toggle-label");
 const sfxToggleButtonStartElement = document.getElementById("sfx-toggle-button-start");
 const sfxToggleButtonStartLabelElement = document.getElementById("sfx-toggle-button-start-label");
 
 function syncSfxToggleUI() {
   const enabled = isSfxEnabled();
   sfxToggleButtonQuizElement.classList.toggle("is-muted", !enabled);
-  sfxToggleButtonQuizElement.setAttribute("aria-label", enabled ? "効果音を消す" : "効果音を鳴らす");
   sfxToggleButtonStartElement.classList.toggle("is-muted", !enabled);
   sfxToggleButtonStartElement.setAttribute("aria-label", enabled ? "効果音を消す" : "効果音を鳴らす");
   sfxToggleButtonStartLabelElement.textContent = enabled ? "ON" : "OFF";
+  // 【2026-09-05改訂・本人指示：オフラインの簡易効果音設定パネル】クイズ画面のボタンは
+  // オフライン中「効果音設定」（クリックでパネルを開く）へ役割が変わるため、
+  // ここでのON/OFF表示・aria-labelの更新はオンライン対戦中（既存のトグル動作）のときだけ行う。
+  // syncQuizHeaderSfxButtonMode()がオフライン用の表示へ切り替える。
+  if (!isQuizHeaderSfxButtonInQuickSettingsMode) {
+    sfxToggleButtonQuizElement.setAttribute("aria-label", enabled ? "効果音を消す" : "効果音を鳴らす");
+  }
   refreshSfxSettingsUI(); // 詳細設定モーダル側のマスタートグル表示も一致させる
 }
 
@@ -417,9 +433,61 @@ function handleSfxToggleClick() {
   if (enabledAfterToggle) playClickSound();
 }
 
-sfxToggleButtonQuizElement.addEventListener("click", handleSfxToggleClick);
+// 【2026-09-05新設・本人指示：実機フィードバックによる改善】クイズ画面右上の
+// 🔊ボタンは、オンライン対戦中は今までどおり単純なON/OFFトグル、オフライン中は
+// 「効果音設定」（簡易パネルを開く）に役割を切り替える。この2つの画面は同じ
+// #quiz-screen・同じボタン要素を共有しているため（js/main.jsのrenderQuestion()参照）、
+// クリックハンドラ自体は1つのまま、その場のモードで分岐する形にする
+// （オンライン対戦中の挙動は完全に変更していない）。
+let isQuizHeaderSfxButtonInQuickSettingsMode = false;
+
+function syncQuizHeaderSfxButtonMode(isOffline) {
+  isQuizHeaderSfxButtonInQuickSettingsMode = isOffline;
+  if (isOffline) {
+    if (sfxToggleButtonQuizLabelElement) sfxToggleButtonQuizLabelElement.textContent = "効果音設定";
+    sfxToggleButtonQuizElement.setAttribute("aria-label", "効果音設定を開く");
+    sfxToggleButtonQuizElement.classList.remove("is-muted");
+  } else {
+    if (sfxToggleButtonQuizLabelElement) sfxToggleButtonQuizLabelElement.textContent = "音量";
+    syncSfxToggleUI();
+  }
+}
+
+function handleQuizHeaderSfxButtonClick() {
+  if (isQuizHeaderSfxButtonInQuickSettingsMode) {
+    openQuickSfxSettingsPanel();
+    return;
+  }
+  handleSfxToggleClick();
+}
+
+sfxToggleButtonQuizElement.addEventListener("click", handleQuizHeaderSfxButtonClick);
 sfxToggleButtonStartElement.addEventListener("click", handleSfxToggleClick);
 syncSfxToggleUI();
+
+// 【2026-09-05新設・本人指示：実機フィードバックによる改善】オフラインのクイズ問題中に
+// 開ける簡易効果音設定パネル。開いている間は問題の楽曲・経過時間タイマーを完全に
+// 一時停止し、閉じた瞬間に停止していた位置からそのまま再開する（本人指示：
+// 「設定画面を開いている裏側で進んでいた」という状態を避けるため）。
+initQuickSfxSettingsPanel(
+  {
+    overlay: document.getElementById("quick-sfx-settings-modal"),
+    closeButton: document.getElementById("quick-sfx-settings-modal-close"),
+    volumeList: document.getElementById("quick-sfx-settings-volume-list"),
+    themeList: document.getElementById("quick-sfx-settings-theme-list"),
+    hint: document.getElementById("quick-sfx-settings-hint"),
+  },
+  {
+    onOpen: () => {
+      pauseAudioForExternalUi();
+      stopTimer();
+    },
+    onClose: () => {
+      resumeAudioForExternalUi();
+      resumeTimer(updateTimerDisplay);
+    },
+  }
+);
 
 // 効果音の詳細設定モーダル（2026-08-10新設）。テーマ・音量・UI音/ゲーム音の分離設定。
 initSoundSettingsScreen({
@@ -1302,6 +1370,10 @@ const onlineInstantCoopResultReturnPanelElement = document.getElementById("onlin
 const onlineInstantCoopResultReturnStatusListElement = document.getElementById("online-instant-coop-battle-result-return-status-list");
 const onlineInstantCoopResultReturnButtonElement = document.getElementById("online-instant-coop-battle-result-return-button");
 const onlineInstantCoopResultCorrectCountElement = document.getElementById("online-instant-coop-battle-result-correct-count");
+// 【2026-09-05新設・本人指示：実機フィードバックによる結果画面改善】今回のMVP（正解選択数が
+// 最も多かったプレイヤー、同率は全員表示）の要素参照。
+const onlineInstantCoopResultMvpNamesElement = document.getElementById("online-instant-coop-battle-result-mvp-names");
+const onlineInstantCoopResultMvpDetailElement = document.getElementById("online-instant-coop-battle-result-mvp-detail");
 const onlineInstantCoopResultAudioFailureNoticeElement = document.getElementById("online-instant-coop-battle-result-audio-failure-notice");
 const onlineInstantCoopResultNormalElement = document.getElementById("online-instant-coop-battle-result-normal");
 const onlineInstantCoopResultMemberListElement = document.getElementById("online-instant-coop-battle-result-member-list");
@@ -3677,6 +3749,23 @@ function renderQuestion() {
     questionCount: gameState.questions.length,
   });
   updateQuizQuitDisplay();
+  // 【2026-09-05修正・実機バグ調査：オフライン画面に「⚙ ルーム設定へ戻る」が
+  // 誤表示される不具合】この2つのボタンは、オンライン対戦中だけjs/onlineBattleScreen.js
+  // 側がhidden状態を管理する設計（元々はhidden属性つきでHTMLに書かれている）。しかし
+  // 同じセッション内でオンライン対戦→オフラインプレイと移った場合、オフライン側の
+  // renderQuestion()はこの2ボタンに一切触れないため、直前のオンライン対戦での
+  // 表示状態（host側でhidden:falseだった等）がそのまま残ってしまうことがあった
+  // （通常プレイ・オリジナル問題作成モードいずれも、この共通#quiz-screenを使うため同様）。
+  // オンライン対戦中（playMode:"onlineBattle"）は今までどおりjs/onlineBattleScreen.js側の
+  // 判定に委ねて何もしないが、それ以外（オフライン・ローカル対戦）では、このボタンは
+  // 常に不要なため、問題を描画するたびに確実に隠す。
+  if (gameState.playMode !== "onlineBattle") {
+    if (onlineBattleQuizBackToLobbyButtonElement) onlineBattleQuizBackToLobbyButtonElement.hidden = true;
+    if (onlineBattleQuizLeaveMatchButtonElement) onlineBattleQuizLeaveMatchButtonElement.hidden = true;
+  }
+  // 【2026-09-05新設・本人指示】オフライン中は🔊ボタンを「効果音設定」（簡易パネルを開く）
+  // へ切り替え、オンライン対戦中は今までどおりの単純なON/OFFトグルのままにする。
+  syncQuizHeaderSfxButtonMode(gameState.playMode !== "onlineBattle");
   const question = getCurrentQuestion();
   const progressLabel = `第${gameState.currentIndex + 1}問 / ${gameState.questions.length}問`;
   // 復習中は進捗表示に「🔁 復習」を、特別モード中はモードごとの接頭辞を添えて、
@@ -6457,6 +6546,8 @@ initOnlineInstantCoopBattleScreens({
   resultGuestActions: onlineInstantCoopResultGuestActionsElement,
   resultLeaveButton: onlineInstantCoopResultLeaveButtonElement,
   resultCorrectCount: onlineInstantCoopResultCorrectCountElement,
+  resultMvpNames: onlineInstantCoopResultMvpNamesElement,
+  resultMvpDetail: onlineInstantCoopResultMvpDetailElement,
   resultAudioFailureNotice: onlineInstantCoopResultAudioFailureNoticeElement,
   resultNormalContainer: onlineInstantCoopResultNormalElement,
   resultMemberList: onlineInstantCoopResultMemberListElement,

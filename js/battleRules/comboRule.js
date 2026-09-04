@@ -79,14 +79,24 @@ export function shouldEndQuestion({ answersByUid, allPlayerUids }) {
 // 【2026-08-31改訂】コンボ（currentCombo・maxCombo）の集計を削除した
 // （概念自体を撤廃したため）。ヒント段階別の正解数（firstHintCorrectCountのように
 // 「ヒント1で何回正解したか」）は、獲得ポイントの内訳として参考になるため残す。
+// 【2026-09-05改訂・本人指示：実機フィードバックによる結果画面刷新】結果カードで
+// 「何問中何問正解したか」「ヒント2〜4それぞれで何問正解したか」を表示できるよう、
+// hint2CorrectCount〜hint4CorrectCount・totalQuestions・correctCountLabel（"X / Y問"の
+// 整形済み文字列）を追加した。firstHintCorrectCount・totalHintsUsed等の既存フィールドは、
+// 他のルール（classicRule.js等）と同じ形を保つため名前も値も変更していない
+// （既存フィールドを消す・改名すると、他の参照箇所を壊すリスクがあるため純粋に追加のみ）。
 export function aggregateResult(questionOutcomes) {
   let totalPoints = 0;
   let firstHintCorrectCount = 0;
+  let hint2CorrectCount = 0;
+  let hint3CorrectCount = 0;
+  let hint4CorrectCount = 0;
   let totalHintsUsed = 0;
   let totalElapsedMs = 0;
   let missCount = 0;
   let skippedCount = 0;
   let correctCount = 0;
+  const totalQuestions = questionOutcomes.length;
 
   for (const outcome of questionOutcomes) {
     totalPoints += outcome.pointsAwarded;
@@ -95,6 +105,9 @@ export function aggregateResult(questionOutcomes) {
     if (outcome.outcome === "correct") {
       correctCount += 1;
       if (outcome.hintLevel === 1) firstHintCorrectCount += 1;
+      else if (outcome.hintLevel === 2) hint2CorrectCount += 1;
+      else if (outcome.hintLevel === 3) hint3CorrectCount += 1;
+      else if (outcome.hintLevel === 4) hint4CorrectCount += 1;
     } else if (outcome.outcome === "wrongAnswer") {
       missCount += 1;
     } else if (outcome.outcome === "skipped") {
@@ -106,7 +119,20 @@ export function aggregateResult(questionOutcomes) {
     ruleVersion,
     completed: true,
     common: { elapsedMs: totalElapsedMs, correctCount, missCount },
-    detail: { totalPoints, firstHintCorrectCount, totalHintsUsed, totalElapsedMs, missCount, skippedCount, correctCount },
+    detail: {
+      totalPoints,
+      firstHintCorrectCount,
+      hint2CorrectCount,
+      hint3CorrectCount,
+      hint4CorrectCount,
+      totalHintsUsed,
+      totalElapsedMs,
+      missCount,
+      skippedCount,
+      correctCount,
+      totalQuestions,
+      correctCountLabel: `${correctCount} / ${totalQuestions}問`,
+    },
   };
 }
 
@@ -144,9 +170,17 @@ export const settingsFields = [];
 // （コンボの概念自体を撤廃したため、そもそも表示する値が無い）。
 export const hudFields = [{ key: "totalPoints", label: "現在のポイント" }];
 
+// 【2026-09-05改訂・本人指示：実機フィードバックによる結果画面刷新】「使用ヒント数」
+// （合計値だけでは何段階目で正解したか分からず直感的でない、という指摘）を削除し、
+// 代わりに「正解数／総問題数」とヒント1〜4それぞれの正解数を表示する。
+// resultColumnsの並び順＝カード上の表示順（1列目が上部の大きな主要スタット、
+// 2列目以降がカード下部の一覧、というjs/lyricsQuizBattleUi.jsのrenderResultCards()の
+// 既存の描画ルールをそのまま利用しているだけで、その関数自体は変更していない）。
 export const resultColumns = [
   { key: "totalPoints", label: "獲得ポイント" },
-  { key: "firstHintCorrectCount", label: "ヒント1正解数" },
-  { key: "totalHintsUsed", label: "使用ヒント数" },
-  { key: "skippedCount", label: "わからない回数" },
+  { key: "correctCountLabel", label: "正解数" },
+  { key: "firstHintCorrectCount", label: "ヒント1" },
+  { key: "hint2CorrectCount", label: "ヒント2" },
+  { key: "hint3CorrectCount", label: "ヒント3" },
+  { key: "hint4CorrectCount", label: "ヒント4" },
 ];

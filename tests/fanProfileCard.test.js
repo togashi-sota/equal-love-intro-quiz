@@ -238,6 +238,41 @@ export function runFanProfileCardTests() {
   const playingInviteButton = playingWrap.querySelector(".fan-profile-play-invite-button");
   assertEqual(playingInviteButton?.disabled, false, "プレイ中でも「一緒に遊ぶ」ボタンは有効のまま");
 
+  // 【2026-09-05新設・本人指示：実機フィードバックによる改善】既に自分と同じオンライン
+  // ルームにいるフレンドには、「一緒に遊ぶ」ボタンの代わりに状態表示だけを出す
+  // （同じゲームにいる相手を改めて招待する必要は無いため）。
+  const sameRoomWrap = buildProfileCard(buildProfile({ uid: "uid-same-room-friend" }), MEMBERS, null, {
+    presenceEntry: { connections: { a: true } },
+    onPlayInviteRequest: () => {},
+    isInMyCurrentRoom: true,
+  });
+  assertEqual(
+    sameRoomWrap.querySelector(".fan-profile-play-invite-button"),
+    null,
+    "同じルームにいるフレンドには「一緒に遊ぶ」ボタンを出さない"
+  );
+  const sameRoomStatus = sameRoomWrap.querySelector(".fan-profile-play-invite-same-room-status");
+  assertEqual(sameRoomStatus?.textContent, "🏠 同じルームにいます", "代わりに状態表示だけを出す");
+  assertEqual(
+    sameRoomWrap.className,
+    "fan-profile-card-wrap",
+    "ボタンではなく状態表示でも、ラッパーdiv自体はオンライン時と同じ構造で作られる"
+  );
+
+  // 別のルーム・別ゲームでプレイ中のフレンドは、isInMyCurrentRoomがfalse
+  // （既定値）のままなら、これまでどおり「一緒に遊ぶ」ボタンを出す（本人指示：
+  // 「別のルーム・別ゲームでプレイ中のフレンドについては、既存仕様を維持する」）。
+  const differentRoomWrap = buildProfileCard(buildProfile({ uid: "uid-different-room-friend" }), MEMBERS, null, {
+    presenceEntry: { connections: { a: true }, isPlaying: true },
+    onPlayInviteRequest: () => {},
+    isInMyCurrentRoom: false,
+  });
+  assertEqual(
+    differentRoomWrap.querySelector(".fan-profile-play-invite-button")?.textContent,
+    "🤝 一緒に遊ぶ",
+    "別のルームでプレイ中のフレンドには、今までどおり「一緒に遊ぶ」ボタンを出す"
+  );
+
   // 【2026-11-XX改訂・本人の実機テスト指摘】オフラインのフレンドには「一緒に遊ぶ」の
   // ボタン行自体を出さない（名前横の最終ログイン表示と情報が重複し、カード下部に大きな
   // 横長のUIが増えるだけだったため）。onPlayInviteRequestを渡していても、オフラインなら

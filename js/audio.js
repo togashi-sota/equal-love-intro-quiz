@@ -421,6 +421,64 @@ let currentObjectUrl = null;
 // （別のaudio要素や独自の競合対策を新設しない、という本人の明確な要望どおり）。
 let currentPlaybackToken = 0;
 
+// 【2026-09-05新設・本人指示：オフラインの簡易効果音設定パネル】パネルを開いている間、
+// 問題の楽曲を「止める」（stopAudio()、位置が0へ戻る）のではなく「一時停止する」
+// （位置を保持したまま止め、閉じたら同じ位置から再開する）ための状態。
+// pausedByExternalUiは、pauseAudioForExternalUi()自身が止めた場合だけtrueにする
+// （既にstopAudio()等で止まっている音を誤って再開しないための、呼び出し元非依存の安全策）。
+let pausedByExternalUi = false;
+// playSongFromRandomPosition()（ランダム再生・アウトロクイズ共通）が持つ「指定秒数だけ
+// 鳴らしたら自動的に一時停止する」タイマーは、以前は同関数のローカル変数だったため
+// 外部から一時停止・再開できなかった。一時停止中に経過した時間ぶんタイマーが進んで
+// しまわないよう、モジュールスコープへ持ち上げ、残り時間を計算し直せるようにする。
+let autoStopState = null; // { timeoutId, remainingMs, scheduledAtMs, callback } | null
+
+function scheduleAutoStop(remainingMs, callback) {
+  if (autoStopState?.timeoutId !== null && autoStopState?.timeoutId !== undefined) {
+    clearTimeout(autoStopState.timeoutId);
+  }
+  autoStopState = { timeoutId: null, remainingMs, scheduledAtMs: Date.now(), callback };
+  autoStopState.timeoutId = setTimeout(() => {
+    autoStopState = null;
+    callback();
+  }, remainingMs);
+}
+
+function clearAutoStopTimerForPause() {
+  if (!autoStopState || autoStopState.timeoutId === null) return;
+  clearTimeout(autoStopState.timeoutId);
+  const elapsedMs = Date.now() - autoStopState.scheduledAtMs;
+  autoStopState = {
+    ...autoStopState,
+    timeoutId: null,
+    remainingMs: Math.max(0, autoStopState.remainingMs - elapsedMs),
+  };
+}
+
+function resumeAutoStopTimerAfterPause() {
+  if (!autoStopState || autoStopState.timeoutId !== null) return;
+  scheduleAutoStop(autoStopState.remainingMs, autoStopState.callback);
+}
+
+// 問題の楽曲を、今の再生位置を保ったまま一時停止する（stopAudio()と違い、位置は0へ
+// 戻さない）。既に止まっている（もともと鳴っていない）場合は何もしない。
+export function pauseAudioForExternalUi() {
+  if (audioElement.paused) return;
+  audioElement.pause();
+  pausedByExternalUi = true;
+  clearAutoStopTimerForPause();
+}
+
+// pauseAudioForExternalUi()で止めた楽曲を、止めた位置からそのまま再開する。
+// 自分（pauseAudioForExternalUi）が止めたのでなければ何もしない
+// （stopAudio()等で既に止まっている音を誤って再生し始めることを防ぐ）。
+export function resumeAudioForExternalUi() {
+  if (!pausedByExternalUi) return;
+  pausedByExternalUi = false;
+  audioElement.play().catch(() => {});
+  resumeAutoStopTimerAfterPause();
+}
+
 // 【2026-11-XX新設・本人指示：Bug A（オンライン対戦の音源トラブル）継続調査】
 // audioElement.errorのリセット自体は正しく機能したにもかかわらず実機で失敗が再発したため
 // （docs/HANDOFF.md 83章参照）、「audio要素側の一時的な状態」だけでなく「同じページを
@@ -909,7 +967,6 @@ export async function playSongFromRandomPosition(song, computeStartTimeSec, play
   resetAudioElementIfInErrorState(`randomPosition, song=${song.id}`);
 
   const myObjectUrl = claimAsCurrentPlayback(blob);
-  let autoStopTimeoutId = null;
 
   audioElement.onerror = () => {
     if (myToken !== currentPlaybackToken) return;
@@ -935,14 +992,15 @@ export async function playSongFromRandomPosition(song, computeStartTimeSec, play
     // タイマー発火時に既に追い越されていた場合は何もしない（stopAudio()や次の
     // playSongIntro()/playSongFromRandomPosition()が世代番号を進めているはずなので、
     // ここで誤って別の曲を止めてしまうことはない）。
-    if (autoStopTimeoutId !== null) {
-      clearTimeout(autoStopTimeoutId);
-    }
-    autoStopTimeoutId = setTimeout(() => {
+    // 【2026-09-05改訂・本人指示：オフラインの簡易効果音設定パネル】このタイマーは
+    // 以前はここのローカル変数だったが、pauseAudioForExternalUi()から一時停止・
+    // 残り時間を計算し直せるよう、モジュールスコープのscheduleAutoStop()へ差し替えた
+    // （タイマーの発火条件・myTokenチェックは変更していない）。
+    scheduleAutoStop(playDurationSec * 1000, () => {
       if (myToken !== currentPlaybackToken) return;
       audioElement.pause();
       onAutoStop();
-    }, playDurationSec * 1000);
+    });
   };
   audioElement.onloadedmetadata = () => {
     if (myToken !== currentPlaybackToken) return;
@@ -1009,6 +1067,15 @@ export function stopAudio() {
   audioElement.pause();
   audioElement.currentTime = 0;
   releaseCurrentObjectUrl();
+  // 【2026-09-05新設・本人指示：オフラインの簡易効果音設定パネル】明示的に停止した
+  // （位置が0へ戻った）以上、「一時停止からの再開」「自動停止の残り時間」という概念自体が
+  // もう意味を持たない。次にpauseAudioForExternalUi()等が呼ばれたときに古い状態を
+  // 引きずらないよう、ここで確実にリセットする。
+  pausedByExternalUi = false;
+  if (autoStopState?.timeoutId !== null && autoStopState?.timeoutId !== undefined) {
+    clearTimeout(autoStopState.timeoutId);
+  }
+  autoStopState = null;
 }
 
 registerPlaybackStopper("quiz", stopAudio);

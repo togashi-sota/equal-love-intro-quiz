@@ -4186,8 +4186,18 @@
           <p id="online-instant-coop-battle-result-correct-count" class="online-instant-coop-result-hero-stat-value">0 / 0問</p>
         </div>
 
+        <!-- 【2026-09-05新設・本人指示：実機フィードバックによる結果画面改善】チームの
+             最終回答が多数決で不正解になっても、本人が正解曲を選んでいれば「正解選択数」に
+             カウントする（js/onlineInstantCoopBattleScreen.jsのcomputeCoopMvpStats()参照）。
+             同率最多は全員をMVPとして表示し、無理に1人へ絞らない。 -->
+        <div class="online-instant-coop-result-hero-stat online-instant-coop-mvp-stat">
+          <p class="online-instant-coop-result-hero-stat-label">🏆 今回のMVP</p>
+          <p id="online-instant-coop-battle-result-mvp-names" class="online-instant-coop-mvp-names">―</p>
+          <p id="online-instant-coop-battle-result-mvp-detail" class="online-instant-coop-mvp-detail"></p>
+        </div>
+
         <div class="online-battle-result-return-panel">
-          <p class="online-battle-result-return-heading">参加メンバー</p>
+          <p class="online-battle-result-return-heading">メンバーの活躍</p>
           <ul id="online-instant-coop-battle-result-member-list" class="online-lobby-player-list"></ul>
         </div>
 
@@ -5837,6 +5847,33 @@
         </div>
         <input id="sfx-settings-music-volume-range" class="seek-range sfx-settings-volume-range" type="range" min="0" max="100" step="5" value="100">
         <p class="sfx-settings-section-hint">通常のクイズ楽曲・歌詞クイズ対戦の答え合わせで流れる楽曲の音量です。</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 【2026-09-05新設・本人指示：実機フィードバックによる改善】オフラインのクイズ問題中に
+       開ける簡易効果音設定。開いている間は問題の楽曲・経過時間を完全に一時停止し、閉じた
+       瞬間に停止した位置からそのまま再開する（js/main.jsのhandleQuizHeaderSfxButtonClick・
+       js/quickSfxSettingsPanel.js参照）。既存の本設定画面（#sfx-settings-modal）と同じ質感・
+       同じテーマ選択UI（.sfx-theme-option）をそのまま流用し、「音ごとの詳細設定」は
+       含まない（本人指示：問題中は効果音音量・テーマ・試聴だけで十分）。
+       オンライン対戦中はこのパネル自体を開けない（このボタンはオフラインの問題画面
+       だけで「効果音設定」に切り替わる。js/main.jsのsyncQuizHeaderSfxButtonMode参照）。 -->
+  <div id="quick-sfx-settings-modal" class="modal-overlay" hidden>
+    <div class="modal-card sfx-settings-modal-card" role="dialog" aria-modal="true" aria-labelledby="quick-sfx-settings-modal-title">
+      <button id="quick-sfx-settings-modal-close" class="modal-close-button" type="button" aria-label="閉じる">×</button>
+      <h2 id="quick-sfx-settings-modal-title">効果音設定</h2>
+      <p class="sfx-settings-section-hint">閉じると、問題の楽曲・経過時間は一時停止していた位置からそのまま再開します。</p>
+
+      <div class="sfx-settings-section">
+        <p class="sfx-settings-section-title">効果音の音量</p>
+        <div id="quick-sfx-settings-volume-list" class="quick-sfx-volume-option-list"></div>
+      </div>
+
+      <div class="sfx-settings-section">
+        <p class="sfx-settings-section-title">サウンドテーマ</p>
+        <div id="quick-sfx-settings-theme-list" class="sfx-theme-option-list"></div>
+        <p id="quick-sfx-settings-hint" class="sfx-settings-section-hint" hidden></p>
       </div>
     </div>
   </div>

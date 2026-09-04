@@ -89,6 +89,27 @@ export function runComboRuleTests() {
     assertEqual("currentCombo" in result.detail, false, "コンボの概念を撤廃したため、currentComboはもう集計しない");
   }
 
+  // ===== aggregateResult：ヒント2〜4別の正解数・正解数ラベル
+  //       （2026-09-05新設・本人指示：結果画面刷新でヒント段階別の正解数を表示） =====
+  {
+    const questionOutcomes = [
+      buildOutcome({ hintLevel: 1, outcome: "correct" }), // ヒント1正解
+      buildOutcome({ hintLevel: 2, outcome: "correct" }), // ヒント2正解
+      buildOutcome({ hintLevel: 2, outcome: "correct" }), // ヒント2正解（2問目）
+      buildOutcome({ hintLevel: 3, outcome: "correct" }), // ヒント3正解
+      buildOutcome({ hintLevel: 4, outcome: "correct" }), // ヒント4正解
+      buildOutcome({ hintLevel: 4, outcome: "wrongAnswer" }), // 不正解（どのヒント別正解数にも入らない）
+    ];
+    const result = comboRule.aggregateResult(questionOutcomes);
+    assertEqual(result.detail.firstHintCorrectCount, 1, "ヒント1正解は1問");
+    assertEqual(result.detail.hint2CorrectCount, 2, "ヒント2正解は2問");
+    assertEqual(result.detail.hint3CorrectCount, 1, "ヒント3正解は1問");
+    assertEqual(result.detail.hint4CorrectCount, 1, "ヒント4正解は1問（不正解の1問は含まない）");
+    assertEqual(result.detail.correctCount, 5, "正解数は5問");
+    assertEqual(result.detail.totalQuestions, 6, "総問題数は出題された6問すべて（不正解も含む）");
+    assertEqual(result.detail.correctCountLabel, "5 / 6問", "正解数ラベルは「正解数 / 総問題数問」の形式");
+  }
+
   // ===== compareResults：合計ポイントのみで比較。同点は完全に同順位（0） =====
   {
     const wrap = (totalPoints) => ({ detail: { totalPoints } });
@@ -119,14 +140,25 @@ export function runComboRuleTests() {
     assertEqual(comboRule.hudFields.length, 1, "対戦中HUDは自分の現在ポイントのみ（本人指示：他人との比較を対戦中に見せない）");
     assertEqual(comboRule.hudFields[0].key, "totalPoints", "対戦中HUDのキーはtotalPoints");
     assertEqual(
-      comboRule.resultColumns.some((column) => column.key === "skippedCount"),
-      true,
-      "resultColumnsにわからない回数（skippedCount）が含まれる"
-    );
-    assertEqual(
       comboRule.resultColumns.some((column) => column.key === "maxCombo"),
       false,
       "コンボの概念を撤廃したため、resultColumnsにmaxComboは含まれない"
+    );
+    // ===== 2026-09-05改訂：結果画面刷新で表示列を入れ替え =====
+    assertEqual(
+      comboRule.resultColumns.map((column) => column.key),
+      ["totalPoints", "correctCountLabel", "firstHintCorrectCount", "hint2CorrectCount", "hint3CorrectCount", "hint4CorrectCount"],
+      "resultColumnsは獲得ポイント→正解数→ヒント1〜4の順（使用ヒント数・わからない回数は結果カードから削除）"
+    );
+    assertEqual(
+      comboRule.resultColumns.some((column) => column.key === "totalHintsUsed"),
+      false,
+      "「使用ヒント数」は結果画面から削除済み（本人指示）"
+    );
+    assertEqual(
+      comboRule.resultColumns.some((column) => column.key === "skippedCount"),
+      false,
+      "「わからない回数」も新しい結果カードの表示項目からは外れている（本人指示の表示項目一覧に無いため）"
     );
   }
 

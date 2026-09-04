@@ -116,6 +116,30 @@ export function buildInstantCoopQuestionBreakdown({ questions, coopVotes, coopQu
   return breakdown;
 }
 
+// 一瞬協力：結果画面のMVP集計（2026-09-05新設・本人指示：実機フィードバックによる
+// 結果画面改善）。「正解選択数」＝チームの最終回答（多数決）が不正解になった問題でも、
+// 本人自身が正解曲を選んでいれば+1する、という本人指示の定義どおりに、
+// buildInstantCoopQuestionBreakdown()が既に組み立てた各問題のrows（{uid, isCorrect}）を
+// そのまま数えるだけの純粋関数。新しいFirebase読み取りは発生しない。
+// 戻り値：
+//   totalQuestions … 実際に成立した問題数（isVoidを除いた問題数。questionBreakdown.length）
+//   countsByUid … { [uid]: 正解選択数 }
+//   maxCount … 参加者の中での正解選択数の最大値（全員0問なら0）
+//   mvpUids … maxCountに達した参加者のuid一覧（同率なら複数、全員0問なら空配列）
+export function computeCoopMvpStats(questionBreakdown) {
+  const totalQuestions = questionBreakdown.length;
+  const countsByUid = {};
+  for (const question of questionBreakdown) {
+    for (const row of question.rows) {
+      if (!(row.uid in countsByUid)) countsByUid[row.uid] = 0;
+      if (row.isCorrect === true) countsByUid[row.uid] += 1;
+    }
+  }
+  const maxCount = Object.values(countsByUid).reduce((max, count) => Math.max(max, count), 0);
+  const mvpUids = maxCount > 0 ? Object.keys(countsByUid).filter((uid) => countsByUid[uid] === maxCount) : [];
+  return { totalQuestions, countsByUid, maxCount, mvpUids };
+}
+
 // 一瞬バトル：一瞬協力と同じ理由（音源再生失敗で無効になった問題は結果から除外する）だが、
 // チームで1つの回答ではなく各自が個別に回答するため、行（row）の正誤も参加者ごとに別々になる。
 //

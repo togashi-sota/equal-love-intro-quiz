@@ -17,7 +17,7 @@ import { fetchAllPublicProfiles, getMyUid } from "./publicProfileSync.js";
 import { fetchAllPresenceOnce } from "./presenceSync.js";
 import { computeIsOnlineForDisplay, canShowInviteNotification } from "./presencePayloads.js";
 import { onScreenChange } from "./screens.js";
-import { joinRoomFromInvite } from "./onlineBattleScreen.js";
+import { joinRoomFromInvite, getCurrentOnlineRoomPlayerUids } from "./onlineBattleScreen.js";
 import { getActivePlayer } from "./playerProfile.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
 
@@ -152,8 +152,15 @@ async function loadInvitePickerList() {
   }
 
   const now = Date.now();
+  // 【2026-09-05新設・本人指示：実機フィードバックによる改善】既にこのルーム（招待先の
+  // ルーム）にいる相手は、招待対象から除外する（既に同じルームにいる人を、同じルームへ
+  // 改めて招待する意味が無いため）。
+  const currentRoomPlayerUids = getCurrentOnlineRoomPlayerUids();
   const onlineFriends = profiles.filter(
-    (profile) => profile.uid !== myUid && computeIsOnlineForDisplay(presenceByUid[profile.uid], now)
+    (profile) =>
+      profile.uid !== myUid &&
+      computeIsOnlineForDisplay(presenceByUid[profile.uid], now) &&
+      !currentRoomPlayerUids.has(profile.uid)
   );
 
   if (onlineFriends.length === 0) {

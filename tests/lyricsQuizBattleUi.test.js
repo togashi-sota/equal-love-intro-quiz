@@ -103,7 +103,16 @@ export function runLyricsQuizBattleUiTests() {
         isYou: false,
         isDnf: false,
         oshiColor: "#ff69b4",
-        result: { detail: { totalPoints: 8, firstHintCorrectCount: 5, totalHintsUsed: 8, skippedCount: 2 } },
+        result: {
+          detail: {
+            totalPoints: 8,
+            correctCountLabel: "5 / 5問",
+            firstHintCorrectCount: 5,
+            hint2CorrectCount: 0,
+            hint3CorrectCount: 0,
+            hint4CorrectCount: 0,
+          },
+        },
       },
       {
         uid: "p2",
@@ -111,7 +120,16 @@ export function runLyricsQuizBattleUiTests() {
         isHost: false,
         isYou: true,
         isDnf: false,
-        result: { detail: { totalPoints: 8, firstHintCorrectCount: 4, totalHintsUsed: 10, skippedCount: 0 } },
+        result: {
+          detail: {
+            totalPoints: 8,
+            correctCountLabel: "4 / 5問",
+            firstHintCorrectCount: 4,
+            hint2CorrectCount: 1,
+            hint3CorrectCount: 0,
+            hint4CorrectCount: 0,
+          },
+        },
       },
       {
         uid: "p4",
@@ -119,25 +137,42 @@ export function runLyricsQuizBattleUiTests() {
         isHost: false,
         isYou: false,
         isDnf: false,
-        result: { detail: { totalPoints: 5, firstHintCorrectCount: 3, totalHintsUsed: 9, skippedCount: 1 } },
+        result: {
+          detail: {
+            totalPoints: 5,
+            correctCountLabel: "3 / 5問",
+            firstHintCorrectCount: 3,
+            hint2CorrectCount: 0,
+            hint3CorrectCount: 1,
+            hint4CorrectCount: 0,
+          },
+        },
       },
       { uid: "p3", displayName: "じろう", isHost: false, isYou: false, isDnf: true, result: null },
     ];
     const table = describeResultTable("combo", rankedEntries);
     assertEqual(
       table.header,
-      ["順位", "表示名", "獲得ポイント", "ヒント1正解数", "使用ヒント数", "わからない回数"],
-      "見出しはresultColumns宣言から自動生成される（本人の指示・2026-08-06：未回答/わからない列を含む）"
+      ["順位", "表示名", "獲得ポイント", "正解数", "ヒント1", "ヒント2", "ヒント3", "ヒント4"],
+      "見出しはresultColumns宣言から自動生成される（2026-09-05改訂：結果画面刷新でヒント1〜4別の正解数を表示）"
     );
     assertEqual(table.rows[0].rank, 1, "同点1位（p1）のrankは1");
     assertEqual(table.rows[0].isHost, true, "ホストであることが反映される");
-    assertEqual(table.rows[0].cells, ["8", "5", "8", "2"], "1位の各列の値（本人指示どおりヒント段階は順位に影響しないが列としては表示する）");
+    assertEqual(
+      table.rows[0].cells,
+      ["8", "5 / 5問", "5", "0", "0", "0"],
+      "1位の各列の値（本人指示どおりヒント段階は順位に影響しないが列としては表示する）"
+    );
     assertEqual(table.rows[1].rank, 1, "同点1位（p2）も同じrank1になる（回答時間・ヒント使用数で無理に分けない）");
     assertEqual(table.rows[1].isYou, true, "本人であることが反映される");
     assertEqual(table.rows[2].rank, 3, "次に点数が違うp4は、同点2人ぶんスキップして3位になる（competition方式）");
     assertEqual(table.rows[3].isDnf, true, "DNFフラグが反映される");
     assertEqual(table.rows[3].rank, null, "DNFの行にはrank番号を付けない（表示はcellsとは別にDNF文字列で行う）");
-    assertEqual(table.rows[3].cells, ["DNF", "DNF", "DNF", "DNF"], "DNFの行は全列がDNF表示になる");
+    assertEqual(
+      table.rows[3].cells,
+      ["DNF", "DNF", "DNF", "DNF", "DNF", "DNF"],
+      "DNFの行は全列（獲得ポイント・正解数・ヒント1〜4の6列）がDNF表示になる"
+    );
   }
 
   // ===== describeLyricsReadiness：ホスト向けの件数表示（曲名は含まない） =====

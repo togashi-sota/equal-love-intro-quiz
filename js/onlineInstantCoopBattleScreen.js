@@ -147,7 +147,11 @@ import { SFX_EVENTS, playSfx } from "./soundManager.js";
 import { buildParticipantIcon } from "./onlineParticipantIcon.js";
 import { MEMBERS } from "./data/members.js";
 import { savePlayHistoryEntryIfNew } from "./playHistory.js";
-import { buildInstantCoopQuestionBreakdown, capQuestionBreakdownForStorage } from "./battleQuestionBreakdown.js";
+import {
+  buildInstantCoopQuestionBreakdown,
+  capQuestionBreakdownForStorage,
+  computeCoopMvpStats,
+} from "./battleQuestionBreakdown.js";
 import { renderQuestionBreakdownAccordion } from "./battleQuestionBreakdownUi.js";
 
 // ホストが結果を見せてから、次の問題／最終結果へ進むまでの待ち時間。
@@ -1919,8 +1923,47 @@ export function enterInstantCoopResult(room) {
     // 削除した（HTML側のelements.resultReplayCount自体も削除済み）。
 
     const participants = match.participants || {};
+
+    // 【2026-09-12新設・本人指示：結果画面の問題別結果アコーディオンを完成させる】
+    // 音源再生失敗で無効になった問題を除いた、実際に成立した問題だけの問題別結果を
+    // 既に同期済みのcoopVotes・coopQuestionOutcomesから組み立てる（新しいFirebase書き込みは
+    // 発生しない。js/battleQuestionBreakdown.jsのbuildInstantCoopQuestionBreakdown参照）。
+    // 【2026-09-05改訂・本人指示：MVP集計のためにメンバー一覧より先に計算する】
+    const questionBreakdown = buildInstantCoopQuestionBreakdown({
+      questions: currentQuestions,
+      coopVotes: match.coopVotes,
+      coopQuestionOutcomes: match.coopQuestionOutcomes,
+      participants,
+      myUid,
+    });
+
+    // 【2026-09-05新設・本人指示：実機フィードバックによる結果画面改善】チームの最終回答
+    // （多数決）が不正解でも、本人が正解曲を選んでいれば正解選択数へ数える
+    // （js/battleQuestionBreakdown.jsのcomputeCoopMvpStats()参照）。
+    const mvpStats = computeCoopMvpStats(questionBreakdown);
+    if (elements.resultMvpNames && elements.resultMvpDetail) {
+      if (mvpStats.mvpUids.length === 0) {
+        elements.resultMvpNames.textContent = "該当者なし";
+        elements.resultMvpDetail.textContent = "";
+      } else {
+        // 同率最多は無理に1人へ絞らず、全員を「・」区切りで並べる（本人指示）。
+        elements.resultMvpNames.textContent = mvpStats.mvpUids
+          .map((uid) => participants[uid]?.displayName ?? "参加者")
+          .join("・");
+        elements.resultMvpDetail.textContent = `正解選択数　${mvpStats.maxCount} / ${mvpStats.totalQuestions}問`;
+      }
+    }
+
+    // 【2026-09-05改訂・本人指示】以前は単なる参加者一覧（順不同・名前のみ）だったが、
+    // 各自の正解選択数を添え、正解選択数が多い順に並べる「メンバーの活躍」へ変更した。
+    // 協力モードのため「1位」「2位」等の個人順位は付けない（本人指示）。同数の場合は
+    // 無理なタイブレークをせず、Object.entries()の既存の並び順（参加者順）を維持する
+    // 安定ソートに任せる。
     clearElement(elements.resultMemberList);
-    Object.entries(participants).forEach(([uid, participant]) => {
+    const sortedParticipantEntries = Object.entries(participants).sort(
+      ([uidA], [uidB]) => (mvpStats.countsByUid[uidB] ?? 0) - (mvpStats.countsByUid[uidA] ?? 0)
+    );
+    sortedParticipantEntries.forEach(([uid, participant]) => {
       const li = document.createElement("li");
       li.className = "online-lobby-player-row";
       // 【2026-09-26改訂・本人指示：オンライン対戦総合改修19-8/19-15章】以前は
@@ -1935,20 +1978,17 @@ export function enterInstantCoopResult(room) {
       name.className = "online-lobby-player-name";
       name.textContent = participant.displayName + (participant.isHost ? "（ホスト）" : "");
       li.appendChild(name);
+
+      // 【2026-09-05新設・本人指示】各自の正解選択数（X / 総問題数問）。
+      const stat = document.createElement("span");
+      stat.className = "online-lobby-player-stat";
+      const myCount = mvpStats.countsByUid[uid] ?? 0;
+      stat.textContent = `${myCount} / ${mvpStats.totalQuestions}問`;
+      li.appendChild(stat);
+
       elements.resultMemberList.appendChild(li);
     });
 
-    // 【2026-09-12新設・本人指示：結果画面の問題別結果アコーディオンを完成させる】
-    // 音源再生失敗で無効になった問題を除いた、実際に成立した問題だけの問題別結果を
-    // 既に同期済みのcoopVotes・coopQuestionOutcomesから組み立てる（新しいFirebase書き込みは
-    // 発生しない。js/battleQuestionBreakdown.jsのbuildInstantCoopQuestionBreakdown参照）。
-    const questionBreakdown = buildInstantCoopQuestionBreakdown({
-      questions: currentQuestions,
-      coopVotes: match.coopVotes,
-      coopQuestionOutcomes: match.coopQuestionOutcomes,
-      participants,
-      myUid,
-    });
     if (elements.resultQuestionBreakdownSection) {
       elements.resultQuestionBreakdownSection.hidden = questionBreakdown.length === 0;
     }
