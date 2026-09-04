@@ -74,7 +74,8 @@
     <!-- ①既存ルームへの招待（3人目以降を誘う「友達を招待」から届いたもの）。
          【3択仕様】参加する／あとで／断る。「あとで」はFirebase上の招待データには
          一切触れず、この端末でのバナー表示だけを閉じる（js/roomInviteUi.jsの
-         snoozedRoomIds参照。この画面を離れて再訪すると再表示）。 -->
+         snoozedRoomIds参照）。2026-11-XX改訂：画面を切り替えただけでは再表示せず、
+         代わりに下の再確認チップ（#room-invite-banner-reminder）を出す。 -->
     <div id="room-invite-banner" class="room-invite-banner" hidden>
       <p id="room-invite-banner-text" class="room-invite-banner-text"></p>
       <p id="room-invite-banner-more-label" class="room-invite-banner-more-label" hidden></p>
@@ -85,6 +86,10 @@
         <button id="room-invite-banner-accept-button" class="primary-button" type="button">参加する</button>
       </div>
     </div>
+    <!-- 【2026-11-XX新設・本人指示：「あとで」のUX再設計】有効な招待がすべて「あとで」で
+         隠れている間だけ表示する、小さな再確認チップ。押すとスヌーズを全解除して
+         通常のバナーへ戻す（js/roomInviteUi.jsのhandleReminderClick()参照）。 -->
+    <button id="room-invite-banner-reminder" class="invite-reminder-chip" type="button" hidden></button>
 
     <!-- ②「一緒に遊ぶ」（フレンド一覧から直接届く1対1招待）（2026-11-XX新設・本人指示）。
          「参加する」を押すと、相手（送信者）が新しいルームを作るのを少し待つ
@@ -101,6 +106,8 @@
         <button id="play-invite-banner-accept-button" class="primary-button" type="button">参加する</button>
       </div>
     </div>
+    <!-- ②と同じ再確認チップ（js/playInviteUi.jsのhandleIncomingReminderClick()参照）。 -->
+    <button id="play-invite-banner-reminder" class="invite-reminder-chip" type="button" hidden></button>
   </div>
 
   <!-- 【2026-11-XX新設・本人指示：「一緒に遊ぶ」】送信者（inviter）側の待機表示。

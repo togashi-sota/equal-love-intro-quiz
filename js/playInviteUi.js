@@ -40,6 +40,11 @@ let currentScreenName = null;
 let latestRawIncoming = {};
 let activeIncoming = [];
 let displayableIncoming = [];
+// 【2026-11-XX改訂・本人指示：「あとで」のUX再設計】js/roomInviteUi.jsのsnoozedRoomIdsと
+// 同じ設計方針。「あとで」を押した招待は、ページの再読み込みまでは自動的には再表示しない
+// （画面を切り替えただけで押し付けない）。有効な招待がすべてスヌーズで隠れている間だけ、
+// 通常のバナーの代わりに「保留中の招待があります」チップを表示し、いつでも手動で
+// スヌーズを全解除して確認できるようにする（renderIncomingBanner()参照）。
 const snoozedIncomingInviteIds = new Set();
 // 「参加する」を押した後、送信者側がルームを作ってroomIdを書き戻すのを待っている間だけtrue。
 // この間はボタンを無効化し、「参加処理中…」を表示する。
@@ -89,9 +94,19 @@ function renderIncomingBanner() {
 
   displayableIncoming = activeIncoming.filter((invite) => !snoozedIncomingInviteIds.has(invite.inviteId));
 
-  const shouldShow =
-    displayableIncoming.length > 0 && canShowInviteNotification(currentScreenName);
+  const canShowHere = canShowInviteNotification(currentScreenName);
+  const shouldShow = canShowHere && displayableIncoming.length > 0;
+  // 有効な招待は残っているが、全部「あとで」で隠れている間だけ再確認チップを出す
+  // （本人指示：「あとでを押した結果、その招待へ二度とアクセスできなくなるのは避ける」）。
+  const shouldShowReminder = canShowHere && !shouldShow && activeIncoming.length > 0;
+
   elements.incomingBanner.hidden = !shouldShow;
+  if (elements.incomingReminder) {
+    elements.incomingReminder.hidden = !shouldShowReminder;
+    elements.incomingReminder.textContent = shouldShowReminder
+      ? `📩 保留中の「一緒に遊ぶ」招待が${activeIncoming.length}件あります`
+      : "";
+  }
   if (!shouldShow) return;
 
   const topInvite = displayableIncoming[0];
@@ -208,6 +223,14 @@ function handleIncomingLaterClick() {
   playSfx(SFX_EVENTS.UI_BACK);
   const topInvite = displayableIncoming[0];
   snoozedIncomingInviteIds.add(topInvite.inviteId);
+  renderIncomingBanner();
+}
+
+// 「保留中の招待があります」チップを押したとき：スヌーズを全解除し、あとでにしていた
+// 招待をまとめて通常のバナーへ戻す（js/roomInviteUi.jsのhandleReminderClick()と同じ）。
+function handleIncomingReminderClick() {
+  playSfx(SFX_EVENTS.UI_CLICK);
+  snoozedIncomingInviteIds.clear();
   renderIncomingBanner();
 }
 
@@ -362,44 +385,62 @@ async function sendFlow(profile) {
   renderOutgoingCard();
 }
 
+// 【2026-11-XX新設・実機相当バグ調査：二重タップ対策】requestPlayInvite()は
+// fetchAllPresenceOnce()等のawaitを複数挟む非同期関数のため、同じボタンを素早く連打すると、
+// 1回目の処理がoutgoingInviteを設定し終える前に2回目の呼び出しが素通りしてしまい、
+// 同じ相手へ2件の別々のplayInviteが送信される恐れがあった（js/roomInviteUi.js側の
+// 「ボタンをdisabledにしてから送る」対策と違い、こちらはボタン自体をこの関数の外
+// （js/fanProfileCard.js）で作っているため、この関数の入口で同期的にガードする）。
+let isSendingInvite = false;
+
 // フレンド一覧の「一緒に遊ぶ」ボタン（js/fanProfileCard.jsのonPlayInviteRequest）から呼ぶ。
 export async function requestPlayInvite(profile, { isOnline }) {
   if (!isOnline) return; // ボタン自体がdisabledのはずだが念のため
-  hideFlowError();
+  if (isSendingInvite) return; // 二重タップ・連打防止
+  isSendingInvite = true;
+  try {
+    hideFlowError();
 
-  // 【本人指示：既に別ルームに参加中なら1対1ルームを作らせない】
-  if (getCurrentOnlineRoomId() !== null) {
-    showFlowError("現在ルームに参加中です。先にルームから退出してください。");
-    return;
+    // 【本人指示：既に別ルームに参加中なら1対1ルームを作らせない】
+    if (getCurrentOnlineRoomId() !== null) {
+      showFlowError("現在ルームに参加中です。先にルームから退出してください。");
+      return;
+    }
+
+    // 【本人指示：送信直前に最新のオンライン状態を確認する】フレンド一覧の表示は
+    // 少し前に取得したものである可能性があるため、送信直前にもう一度だけ確認する。
+    const presenceByUid = await fetchAllPresenceOnce();
+    const stillOnline = computeIsOnlineForDisplay(presenceByUid[profile.uid], Date.now());
+    if (!stillOnline) {
+      showFlowError("現在オフラインのため招待できません。");
+      return;
+    }
+
+    if (outgoingInvite && outgoingInvite.recipientUid === profile.uid) {
+      // 既に同じ相手を招待中：何もしない（重複送信しない）。
+      renderOutgoingCard();
+      return;
+    }
+
+    if (outgoingInvite) {
+      // 切り替え確認モーダルを開くところまでがこの関数の役割。実際の切り替え処理は
+      // ユーザーが後でモーダルの「切り替える」を押した瞬間（この関数の外）に実行される
+      // ため、その時点ではこのisSendingInviteガード（finallyで既に解除済み）は
+      // 影響しない。
+      openSwitchConfirm(
+        `現在${outgoingInvite.recipientDisplayName}さんを招待中です。取り消して${profile.displayName}さんを招待しますか？`,
+        async () => {
+          await cancelOutgoing();
+          await sendFlow(profile);
+        }
+      );
+      return;
+    }
+
+    await sendFlow(profile);
+  } finally {
+    isSendingInvite = false;
   }
-
-  // 【本人指示：送信直前に最新のオンライン状態を確認する】フレンド一覧の表示は
-  // 少し前に取得したものである可能性があるため、送信直前にもう一度だけ確認する。
-  const presenceByUid = await fetchAllPresenceOnce();
-  const stillOnline = computeIsOnlineForDisplay(presenceByUid[profile.uid], Date.now());
-  if (!stillOnline) {
-    showFlowError("現在オフラインのため招待できません。");
-    return;
-  }
-
-  if (outgoingInvite && outgoingInvite.recipientUid === profile.uid) {
-    // 既に同じ相手を招待中：何もしない（重複送信しない）。
-    renderOutgoingCard();
-    return;
-  }
-
-  if (outgoingInvite) {
-    openSwitchConfirm(
-      `現在${outgoingInvite.recipientDisplayName}さんを招待中です。取り消して${profile.displayName}さんを招待しますか？`,
-      async () => {
-        await cancelOutgoing();
-        await sendFlow(profile);
-      }
-    );
-    return;
-  }
-
-  await sendFlow(profile);
 }
 
 // ===== 切り替え確認モーダル（共用） =====
@@ -430,6 +471,7 @@ export function initPlayInviteUi(newElements) {
   elements.incomingAcceptButton.addEventListener("click", handleIncomingAcceptClick);
   elements.incomingDeclineButton.addEventListener("click", handleIncomingDeclineClick);
   elements.incomingLaterButton?.addEventListener("click", handleIncomingLaterClick);
+  elements.incomingReminder?.addEventListener("click", handleIncomingReminderClick);
 
   elements.outgoingCancelButton.addEventListener("click", async () => {
     playSfx(SFX_EVENTS.UI_BACK);
@@ -452,10 +494,12 @@ export function initPlayInviteUi(newElements) {
     closeSwitchConfirm();
   });
 
+  // 【2026-11-XX改訂・本人指示：「あとで」のUX再設計】以前は画面が切り替わるたびに
+  // スヌーズを解除していたが、招待バナーを表示できる画面が拡大したため、単なる画面遷移
+  // だけで同じ招待が即座に再表示され「あとで」の意味が薄れてしまう（js/roomInviteUi.jsと
+  // 同じ指摘・同じ理由）。画面遷移によるスヌーズ解除はやめ、renderIncomingBanner()側の
+  // 「保留中の招待があります」チップ（本人が能動的に押したときだけ全解除）だけに委ねる。
   onScreenChange((screenName) => {
-    if (currentScreenName !== null && screenName !== currentScreenName) {
-      snoozedIncomingInviteIds.clear();
-    }
     currentScreenName = screenName;
     renderIncomingBanner();
     renderOutgoingCard();

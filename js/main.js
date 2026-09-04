@@ -1104,6 +1104,7 @@ const roomInviteBannerErrorElement = document.getElementById("room-invite-banner
 const roomInviteBannerAcceptButtonElement = document.getElementById("room-invite-banner-accept-button");
 const roomInviteBannerDeclineButtonElement = document.getElementById("room-invite-banner-decline-button");
 const roomInviteBannerLaterButtonElement = document.getElementById("room-invite-banner-later-button");
+const roomInviteBannerReminderElement = document.getElementById("room-invite-banner-reminder");
 // 【2026-11-XX新設・本人指示：「一緒に遊ぶ」】受信バナー・送信者側の待機カード・
 // 送信先切り替え確認モーダルの要素参照（js/playInviteUi.js参照）。
 const playInviteBannerElement = document.getElementById("play-invite-banner");
@@ -1115,6 +1116,7 @@ const playInviteBannerActionsElement = document.getElementById("play-invite-bann
 const playInviteBannerAcceptButtonElement = document.getElementById("play-invite-banner-accept-button");
 const playInviteBannerDeclineButtonElement = document.getElementById("play-invite-banner-decline-button");
 const playInviteBannerLaterButtonElement = document.getElementById("play-invite-banner-later-button");
+const playInviteBannerReminderElement = document.getElementById("play-invite-banner-reminder");
 const playInviteOutgoingCardElement = document.getElementById("play-invite-outgoing-card");
 const playInviteOutgoingTextElement = document.getElementById("play-invite-outgoing-text");
 const playInviteOutgoingCancelButtonElement = document.getElementById("play-invite-outgoing-cancel-button");
@@ -6043,6 +6045,7 @@ initRoomInviteUi({
   bannerAcceptButton: roomInviteBannerAcceptButtonElement,
   bannerDeclineButton: roomInviteBannerDeclineButtonElement,
   bannerLaterButton: roomInviteBannerLaterButtonElement,
+  bannerReminder: roomInviteBannerReminderElement,
 });
 // 【2026-11-XX新設・本人指示：「一緒に遊ぶ」】js/playInviteUi.jsもjs/roomInviteUi.jsと
 // 同じ理由（js/onlineBattleScreen.jsを一切importしない末端モジュールにはできない：
@@ -6057,6 +6060,7 @@ initPlayInviteUi({
   incomingAcceptButton: playInviteBannerAcceptButtonElement,
   incomingDeclineButton: playInviteBannerDeclineButtonElement,
   incomingLaterButton: playInviteBannerLaterButtonElement,
+  incomingReminder: playInviteBannerReminderElement,
   outgoingCard: playInviteOutgoingCardElement,
   outgoingText: playInviteOutgoingTextElement,
   outgoingCancelButton: playInviteOutgoingCancelButtonElement,

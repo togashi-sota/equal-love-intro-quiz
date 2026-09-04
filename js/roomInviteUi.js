@@ -41,11 +41,22 @@ let activeInvites = [];
 let displayableInvites = [];
 let isAcceptBusy = false;
 
-// 【本人指示：3択仕様「参加する／あとで／断る」】「あとで」を押した招待のroomIdを
+// 【2026-11-XX改訂・本人指示：「あとで」のUX再設計】「あとで」を押した招待のroomIdを
 // 保持する。Firebaseの招待データそのものには一切触れず、この端末のこのセッション内だけの
-// 表示状態として扱う（ページを離れず「あとで」を押した直後は表示から消えるが、
-// ホーム画面を離れて再訪すると自動的に消える＝次に来たときにまた確認できる、という
-// 本人指定の仕様を、onScreenChangeでホーム以外に切り替わった瞬間にクリアする形で実現する）。
+// 表示状態として扱う。
+//
+// 【改訂の経緯】以前は「画面が切り替わるたびにスヌーズを解除する」設計だったが、招待通知を
+// 表示できる画面がホーム限定から「バトル中以外すべて」へ拡大したことで、「あとで」を押した
+// 直後にメンバー紹介やフレンド画面へ移動しただけで、同じ招待バナーが即座に再表示されてしまう
+// （＝「あとで」の意味が実質無くなる）という本人指摘を受け、以下の設計へ改めた。
+//   ・「あとで」を押した招待は、ページの再読み込み（アプリを閉じて開き直す等）までは
+//     自動的には再表示しない（画面を1回切り替えただけで何度も同じ招待を押し付けない）。
+//   ・ただし、有効な招待がすべて「あとで」で隠れている間は、通常のバナーの代わりに
+//     「📩 保留中の招待が◯件あります」という小さな再確認チップを表示し続ける
+//     （renderBanner()参照）。これを押すといつでもスヌーズを解除して確認できるため、
+//     「あとで」を押した招待に二度とアクセスできなくなることはない。
+//   ・新しい招待が別途届いた場合は、その新しい招待はスヌーズされていないため、通常どおり
+//     バナーとして表示される（あとで中の1件だけが再確認チップ側に退避する形になる）。
 const snoozedRoomIds = new Set();
 
 // ---- ①ロビーの「友達を招待」ピッカー ----
@@ -179,9 +190,19 @@ function renderBanner() {
   // 含まれ続ける）だが、バナーに表示する候補からは除外する。
   displayableInvites = activeInvites.filter((invite) => !snoozedRoomIds.has(invite.roomId));
 
-  const shouldShow =
-    !isAcceptBusy && displayableInvites.length > 0 && canShowInviteNotification(currentScreenName);
+  const canShowHere = !isAcceptBusy && canShowInviteNotification(currentScreenName);
+  const shouldShow = canShowHere && displayableInvites.length > 0;
+  // 有効な招待は残っているが、全部「あとで」で隠れている間だけ、小さな再確認チップを出す
+  // （本人指示：「あとでを押した結果、その招待へ二度とアクセスできなくなるのは避ける」）。
+  const shouldShowReminder = canShowHere && !shouldShow && activeInvites.length > 0;
+
   elements.banner.hidden = !shouldShow;
+  if (elements.bannerReminder) {
+    elements.bannerReminder.hidden = !shouldShowReminder;
+    elements.bannerReminder.textContent = shouldShowReminder
+      ? `📩 保留中のルーム招待が${activeInvites.length}件あります`
+      : "";
+  }
   if (!shouldShow) return;
 
   const topInvite = displayableInvites[0];
@@ -248,6 +269,14 @@ function handleLaterClick() {
   renderBanner();
 }
 
+// 「保留中の招待が◯件あります」チップを押したとき：スヌーズを全解除し、あとでにしていた
+// 招待をまとめて通常のバナーへ戻す。
+function handleReminderClick() {
+  playSfx(SFX_EVENTS.UI_CLICK);
+  snoozedRoomIds.clear();
+  renderBanner();
+}
+
 function handleInvitesUpdate(rawInvitesValue) {
   latestRawInvites = rawInvitesValue || {};
   renderBanner();
@@ -278,6 +307,7 @@ export function initRoomInviteUi(newElements) {
   elements.bannerAcceptButton.addEventListener("click", handleAcceptClick);
   elements.bannerDeclineButton.addEventListener("click", handleDeclineClick);
   elements.bannerLaterButton?.addEventListener("click", handleLaterClick);
+  elements.bannerReminder?.addEventListener("click", handleReminderClick);
 
   elements.pickerCloseButton.addEventListener("click", () => {
     playSfx(SFX_EVENTS.UI_BACK);
@@ -294,17 +324,12 @@ export function initRoomInviteUi(newElements) {
     closeInvitePicker();
   });
 
+  // 【2026-11-XX再改訂・本人指示：「あとで」のUX再設計】以前はここで「画面が切り替わる
+  // たびにスヌーズを解除する」処理をしていたが、招待バナーを表示できる画面が拡大した結果、
+  // 単なる画面遷移だけで同じ招待バナーが即座に再表示され「あとで」の意味が薄れてしまう
+  // という指摘を受け、画面遷移によるスヌーズ解除はやめた（snoozedRoomIds宣言部のコメント
+  // 参照）。ここではcurrentScreenNameの更新とrenderBanner()の再判定だけを行う。
   onScreenChange((screenName) => {
-    // 【2026-11-XX改訂・本人指示：「あとで」は画面を離れると再表示される】以前は
-    // 「ホーム画面（"start"）から他画面へ切り替わった瞬間だけ」クリアしていたが、
-    // 招待バナーを表示できる画面がホーム以外にも増えたため、画面が実際に切り替わる
-    // たびにスヌーズ状態をクリアするよう一般化する。「あとで」はあくまで「今見ている
-    // この画面ではいったん閉じる」という一時的な操作であり、次にどの安全な画面へ
-    // 移動しても（canShowInviteNotification()がtrueであれば）renderBanner()が
-    // 改めて表示するかどうかを判定する。
-    if (currentScreenName !== null && screenName !== currentScreenName) {
-      snoozedRoomIds.clear();
-    }
     currentScreenName = screenName;
     renderBanner();
   });

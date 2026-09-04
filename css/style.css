@@ -7742,6 +7742,33 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   display: none;
 }
 
+/* 【2026-11-XX新設・本人指示：「あとで」のUX再設計】有効な招待がすべて「あとで」で
+   隠れている間だけ表示する、小さな再確認チップ。フルサイズのバナーより控えめな見た目にし、
+   押すとまた通常のバナーへ戻る（js/roomInviteUi.js・js/playInviteUi.js共通で使う）。 */
+.invite-reminder-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1.5px solid var(--color-card-border);
+  background: rgba(255, 255, 255, 0.75);
+  color: var(--color-primary-dark);
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 6px 16px -10px rgba(74, 46, 66, 0.35);
+}
+
+.invite-reminder-chip[hidden] {
+  display: none;
+}
+
+.invite-reminder-chip:active {
+  transform: scale(0.96);
+}
+
 /* 【本人指示：3択（参加する／あとで／断る）】340px幅の中に3つ並べると、端末幅や
    フォントサイズ次第で収まりきらないことがあるため、折り返しを許可し、各ボタンが
    均等に伸縮する形にする（固定pxで幅を決め打ちしない）。 */

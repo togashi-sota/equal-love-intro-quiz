@@ -450,14 +450,14 @@
       "$recipientUid": {
         ".read": "auth != null && auth.uid === $recipientUid",
         "$roomId": {
-          ".write": "auth != null && ((auth.uid === $recipientUid && newData.val() === null) || (newData.exists() && auth.uid !== $recipientUid && newData.child('inviterUid').val() === auth.uid && newData.child('recipientUid').val() === $recipientUid && newData.child('roomId').val() === $roomId && (!data.exists() || now - data.child('createdAt').val() >= 30000)))",
+          ".write": "auth != null && ((auth.uid === $recipientUid && newData.val() === null) || (newData.exists() && auth.uid !== $recipientUid && newData.child('inviterUid').val() === auth.uid && newData.child('recipientUid').val() === $recipientUid && newData.child('roomId').val() === $roomId && root.child('rooms/' + $roomId + '/players/' + auth.uid).exists() && (!data.exists() || now - data.child('createdAt').val() >= 30000)))",
           ".validate": "newData.hasChildren(['inviterUid', 'inviterDisplayName', 'recipientUid', 'roomId', 'createdAt', 'expiresAt'])",
           "inviterUid": { ".validate": "newData.isString() && newData.val().length > 0" },
           "inviterDisplayName": { ".validate": "newData.isString() && newData.val().length <= 40" },
           "recipientUid": { ".validate": "newData.val() === $recipientUid" },
           "roomId": { ".validate": "newData.val() === $roomId" },
           "createdAt": { ".validate": "newData.isNumber() && newData.val() <= now + 120000 && newData.val() >= now - 120000" },
-          "expiresAt": { ".validate": "newData.isNumber() && newData.val() > newData.parent().child('createdAt').val() && newData.val() <= now + 420000" },
+          "expiresAt": { ".validate": "newData.isNumber() && newData.val() > newData.parent().child('createdAt').val() && newData.val() <= now + 420000 && newData.val() - newData.parent().child('createdAt').val() <= 300000" },
           "$other": { ".validate": false }
         }
       }
@@ -476,7 +476,7 @@
           "inviterDisplayName": { ".validate": "newData.isString() && newData.val().length <= 40" },
           "recipientUid": { ".validate": "newData.val() === $recipientUid" },
           "createdAt": { ".validate": "newData.isNumber() && newData.val() <= now + 120000 && newData.val() >= now - 120000" },
-          "expiresAt": { ".validate": "newData.isNumber() && newData.val() > newData.parent().child('createdAt').val() && newData.val() <= now + 420000" },
+          "expiresAt": { ".validate": "newData.isNumber() && newData.val() > newData.parent().child('createdAt').val() && newData.val() <= now + 420000 && newData.val() - newData.parent().child('createdAt').val() <= 300000" },
 
           "status": {
             ".write": "auth != null && auth.uid === $recipientUid && data.val() === 'pending' && newData.val() === 'accepted' && data.parent().child('expiresAt').val() > now",
@@ -484,7 +484,7 @@
           },
 
           "roomId": {
-            ".write": "auth != null && data.parent().child('inviterUid').val() === auth.uid && data.parent().child('status').val() === 'accepted' && !data.exists() && data.parent().child('expiresAt').val() > now",
+            ".write": "auth != null && data.parent().child('inviterUid').val() === auth.uid && data.parent().child('status').val() === 'accepted' && !data.exists() && data.parent().child('expiresAt').val() > now && root.child('rooms/' + newData.val() + '/host').val() === auth.uid && root.child('rooms/' + newData.val() + '/status').val() === 'waiting'",
             ".validate": "newData.isString() && newData.val().length > 0"
           },
 
