@@ -146,6 +146,7 @@
     import { runOnlineBattleRoomIdTests } from "./tests/onlineBattleRoomId.test.js";
     import { runPresencePayloadsTests } from "./tests/presencePayloads.test.js";
     import { runRoomInvitePayloadsTests } from "./tests/roomInvitePayloads.test.js";
+    import { runPlayInvitePayloadsTests } from "./tests/playInvitePayloads.test.js";
     import { printSummary } from "./tests/test-utils.js";
 
     runScoreTests();
@@ -258,6 +259,7 @@
     runOnlineBattleRoomIdTests();
     runPresencePayloadsTests();
     runRoomInvitePayloadsTests();
+    runPlayInvitePayloadsTests();
     const { passCount, failCount, failedDetails } = printSummary();
 
     const summaryElement = document.getElementById("test-summary");

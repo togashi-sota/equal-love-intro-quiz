@@ -28,6 +28,7 @@ import { SFX_EVENTS, playSfx } from "./soundManager.js";
 import { subscribeToAllPresence } from "./presenceSync.js";
 import { sortProfilesByPresence } from "./presencePayloads.js";
 import { onScreenChange } from "./screens.js";
+import { requestPlayInvite } from "./playInviteUi.js";
 
 let elements = null;
 let members = null;
@@ -39,6 +40,9 @@ let unsubscribePresence = null;
 // 2026-08-16追加：この端末が管理者（js/adminConfig.jsのADMIN_UID）かどうか。
 // ADMIN_UIDがnullの間は誰であってもfalseになり、管理者用UIは一切表示されない。
 let isAdminUser = false;
+// 【2026-11-XX新設・本人指示：「一緒に遊ぶ」】自分自身のカードには「一緒に遊ぶ」ボタンを
+// 出さないための判定に使う（js/fanProfileCard.jsのbuildProfileCard()のmyUid参照）。
+let myUid = null;
 // 削除確認モーダルで「削除する」が押されたときに対象を特定するための一時保持。
 let pendingAdminDeleteProfile = null;
 
@@ -75,6 +79,8 @@ function renderProfileListFromCache() {
         isAdmin: isAdminUser,
         onAdminDeleteRequest: openAdminDeleteConfirm,
         presenceEntry: latestPresenceByUid[profile.uid] ?? null,
+        onPlayInviteRequest: requestPlayInvite,
+        myUid,
       })
     )
   );
@@ -100,6 +106,7 @@ async function renderProfileList() {
 // 通信に失敗してUIDが取れない場合でも、isAdminUserはfalseのままになるだけで画面は壊れない。
 async function renderMyUidAndAdminState() {
   const uid = await getMyUid();
+  myUid = uid;
   if (elements.myUidValue) {
     elements.myUidValue.textContent = uid ?? "取得できませんでした";
   }

@@ -14,18 +14,30 @@
 import {
   ref,
   set,
-  get,
   remove,
   update,
   onValue,
   off,
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 import { database, authReady, getCurrentUid } from "./firebaseClient.js";
-import { buildInvitePayload, canResendInvite } from "./roomInvitePayloads.js";
+import { buildInvitePayload } from "./roomInvitePayloads.js";
 
 // 招待を1件送る（または、クールダウンが明けていれば送り直す）。
+//
+// 【2026-11-XX修正・実機バグ調査：「送信に失敗しました」】以前はここで、送信前に
+// get(inviteRef)で既存の招待を読み、js/roomInvitePayloads.jsのcanResendInvite()で
+// クールダウン中かどうかを事前に判定していた。しかしfirebase/database.rules.jsonの
+// invites/$recipientUid/.readは「auth.uid === $recipientUid（＝招待される本人）」しか
+// 許可しておらず、招待する側（inviterUid）はそもそもこのパスを読む権限が無い。
+// そのため、この事前チェックの時点で常にPERMISSION_DENIEDとなり、初回の送信から
+// 必ず失敗する不具合になっていた（実機で確認・再現済み）。
+// クールダウンの実体は、①呼び出し側（js/roomInviteUi.js）が持つ端末内のクールダウン
+// 記録と、②firebase/database.rules.json側の書き込み条件
+// （`now - data.child('createdAt').val() >= 30000`）の二重で既に守られているため、
+// この事前読み取りは無くても安全性は落ちない。Rules側を緩めるのではなく、
+// 権限の無い読み取りをそもそも行わないようクライアント側を修正した。
 // 戻り値：{ ok: true } または
-//   { ok: false, reason: "not-signed-in" | "invalid-arguments" | "cooldown" | "write-failed" }
+//   { ok: false, reason: "not-signed-in" | "invalid-arguments" | "write-failed" }
 export async function sendRoomInvite({ roomId, recipientUid, inviterDisplayName }) {
   await authReady;
   const uid = getCurrentUid();
@@ -34,11 +46,6 @@ export async function sendRoomInvite({ roomId, recipientUid, inviterDisplayName 
 
   const inviteRef = ref(database, `invites/${recipientUid}/${roomId}`);
   try {
-    const existingSnapshot = await get(inviteRef);
-    const existing = existingSnapshot.exists() ? existingSnapshot.val() : null;
-    if (!canResendInvite(existing, Date.now())) {
-      return { ok: false, reason: "cooldown" };
-    }
     const payload = buildInvitePayload({
       inviterUid: uid,
       inviterDisplayName: inviterDisplayName || "フレンド",

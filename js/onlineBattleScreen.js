@@ -2402,7 +2402,11 @@ function renderResultReturnPanel(room) {
   }
 }
 
-function goToLobby(roomId) {
+// 【2026-11-XX追加・本人指示：「一緒に遊ぶ」】js/playInviteUi.jsから、1対1招待が成立して
+// 新しいルームを作った直後にロビーへ入るために呼ぶ（既存のcreateSubmitButtonハンドラが
+// 呼んでいるのと全く同じ関数。招待経由でも「ルームを作った後にロビーへ移動する」という
+// 処理自体は変わらないため、新しい関数は作らずそのままexportする）。
+export function goToLobby(roomId) {
   currentRoomId = roomId;
   currentGameMode = null;
   currentLyricsQuizSettings = null;

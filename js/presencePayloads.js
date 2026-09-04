@@ -112,3 +112,19 @@ const GAMEPLAY_SCREEN_NAMES = new Set([
 export function isGameplayScreenName(screenName) {
   return GAMEPLAY_SCREEN_NAMES.has(screenName);
 }
+
+// 【2026-11-XX新設・本人指示：招待通知を表示してよい画面の一元管理】ルーム招待・
+// 「一緒に遊ぶ」招待のどちらのバナーも、この1つの関数だけで「今表示してよいか」を
+// 判定する（本人指示：「画面ごとにバラバラのif文を大量に書くのではなく、
+// canShowInviteNotification()等で一元管理することを検討してください」）。
+// 判定基準は「出題・回答中の画面（＝GAMEPLAY_SCREEN_NAMES、isGameplayScreenName()）
+// でなければ表示してよい」というシンプルな1本のルールにする。GAMEPLAY_SCREEN_NAMESは
+// 元々「プレイ中」表示のために作った"今まさに遊んでいる最中かどうか"の定義だが、
+// 本人指示の「実際のバトルを邪魔しない画面なら表示してよい／出題中・回答中・早押し中・
+// 歌詞クイズ進行中・一瞬バトル進行中・一瞬協力進行中には表示しない」という基準と
+// ちょうど一致するため、新しい画面リストを二重管理せずそのまま流用する。
+// オンボーディング中（screenNameがまだ無い＝null）も安全側として非表示にする。
+export function canShowInviteNotification(screenName) {
+  if (!screenName) return false;
+  return !isGameplayScreenName(screenName);
+}

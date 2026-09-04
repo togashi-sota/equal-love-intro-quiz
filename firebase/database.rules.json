@@ -463,6 +463,36 @@
       }
     },
 
+    "playInvites": {
+      "$recipientUid": {
+        ".read": "auth != null && auth.uid === $recipientUid",
+        "$inviteId": {
+          ".read": "auth != null && (auth.uid === $recipientUid || (data.exists() && data.child('inviterUid').val() === auth.uid))",
+
+          ".write": "auth != null && ((!data.exists() && newData.exists() && auth.uid !== $recipientUid && newData.child('inviterUid').val() === auth.uid && newData.child('recipientUid').val() === $recipientUid && newData.child('status').val() === 'pending' && !newData.hasChild('roomId')) || (data.exists() && newData.val() === null && (auth.uid === $recipientUid || data.child('inviterUid').val() === auth.uid)))",
+          ".validate": "newData.hasChildren(['inviterUid', 'inviterDisplayName', 'recipientUid', 'createdAt', 'expiresAt', 'status'])",
+
+          "inviterUid": { ".validate": "newData.isString() && newData.val().length > 0" },
+          "inviterDisplayName": { ".validate": "newData.isString() && newData.val().length <= 40" },
+          "recipientUid": { ".validate": "newData.val() === $recipientUid" },
+          "createdAt": { ".validate": "newData.isNumber() && newData.val() <= now + 120000 && newData.val() >= now - 120000" },
+          "expiresAt": { ".validate": "newData.isNumber() && newData.val() > newData.parent().child('createdAt').val() && newData.val() <= now + 420000" },
+
+          "status": {
+            ".write": "auth != null && auth.uid === $recipientUid && data.val() === 'pending' && newData.val() === 'accepted' && data.parent().child('expiresAt').val() > now",
+            ".validate": "newData.isString() && (newData.val() === 'pending' || newData.val() === 'accepted')"
+          },
+
+          "roomId": {
+            ".write": "auth != null && data.parent().child('inviterUid').val() === auth.uid && data.parent().child('status').val() === 'accepted' && !data.exists() && data.parent().child('expiresAt').val() > now",
+            ".validate": "newData.isString() && newData.val().length > 0"
+          },
+
+          "$other": { ".validate": false }
+        }
+      }
+    },
+
     "backups": {
       ".read": "auth != null && auth.uid === '1lg2urCowcMqF6r8E7tkc9OOm3r1'",
       "$backupId": {

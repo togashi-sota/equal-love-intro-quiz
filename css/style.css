@@ -6829,6 +6829,17 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   opacity: 0.7;
 }
 
+/* 【2026-11-XX新設・本人指示：「一緒に遊ぶ」】フレンド一覧直前の短い案内文。
+   .special-modes-introと同じ控えめなトーンだが、一覧の直上という別の位置で使うため
+   専用クラスにしている。 */
+.fan-profiles-invite-hint {
+  margin: 0 0 12px;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--color-text);
+  opacity: 0.7;
+}
+
 /* ランキング画面：通常クイズからも参加できることを伝える一言（2026-08-16追加）。
    上の.special-modes-intro（条件の説明）とは分けて、招待の一言だけ軽く強調する。 */
 .leaderboard-mode-invite {
@@ -7686,16 +7697,36 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   box-shadow: 0 10px 24px -16px rgba(74, 46, 66, 0.35);
 }
 
-/* 【2026-11-XX新設・本人指示：ルーム招待】ホーム画面の招待バナー。player-hero-cardと
-   同じ「通常のページ内カード」として配置しているため、position:fixed等の特別な
-   safe-area対応は不要（ページ全体のスクロール・上部余白にそのまま従う）。 */
+/* 【2026-11-XX改訂・本人指示：招待通知を表示する画面を拡大】以前はホーム画面内の
+   通常のページ内カードだったが、複数の画面で表示できるようbodyの直下へ移動したため、
+   #update-applied-banner（.update-applied-banner）と同じposition:fixed＋safe-area対応の
+   考え方に変更した。実際のfixed配置・safe-area paddingは親の.invite-notification-stack
+   側で行い、このクラス自体は見た目（カードのデザイン）だけを担当する。 */
+.invite-notification-stack {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 45; /* update-applied-banner（50）より奥、モーダル（20）より手前 */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: max(10px, env(safe-area-inset-top)) 16px 0;
+  pointer-events: none; /* 何も無い部分はタップを素通りさせる */
+}
+
+.invite-notification-stack > * {
+  pointer-events: auto;
+}
+
 .room-invite-banner {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin: 0 auto 14px;
-  padding: 14px 16px;
+  width: 100%;
   max-width: 340px;
+  padding: 14px 16px;
   border-radius: 20px;
   background: linear-gradient(135deg, rgba(111, 189, 242, 0.18), rgba(255, 111, 168, 0.14));
   border: 1.5px solid var(--color-card-border);
@@ -7718,9 +7749,32 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   flex-wrap: wrap;
 }
 
+/* 【2026-11-XX修正・実機相当バグ発見：320px幅で文字が縦1文字ずつに潰れる】
+   以前はmin-width: 0を指定していたが、これは「内容の幅より小さくは絶対に縮めない」
+   というボタンのデフォルト挙動（min-width: auto）を打ち消してしまっていた。
+   min-widthを指定しない（＝既定のauto）に戻すことで、内容の最小幅より縮められなくなる。
+   ただし日本語テキストは英単語と違い、どの文字と文字の間でも改行できてしまうため、
+   min-width: autoが基準にする「最小内容幅（min-content）」が実質1文字分にしかならず、
+   これだけでは3つのボタンが同じ行に無理やり並んで縦1文字ずつに潰れる崩れを防げなかった
+   （320px幅の実機相当テストで発見）。white-space: nowrapでボタン内テキストの折り返し
+   自体を禁止することで、min-content幅が「文言全体の横幅」まで正しく広がり、
+   1行に収まりきらない分は上のflex-wrap: wrapどおりボタンごと次の行へ折り返されるようになる
+   （文字が潰れるのではなく、ボタンが2段になる本来の設計に戻る）。 */
 .room-invite-banner-actions button {
   flex: 1 1 auto;
-  min-width: 0;
+  white-space: nowrap;
+}
+
+/* 【2026-11-XX追加・同じ調査で発見】.button-row .primary-button（2026-09-06追加、上記
+   2417行目付近）が「参加する」ボタンにflex: 1（flex-basis: 0%）を指定しており、これが
+   上のflex: 1 1 autoより詳細度で勝ってしまう（クラス2つ vs クラス1つ+要素1つ）。
+   flex-basisが0%のままだと、折り返すかどうかの判定（ブラウザが行間の折返し可否を
+   決める計算）はこの「0%」を基準に行われるため、実際にはmin-widthで下限が効いて
+   3つ目のボタンだけがコンテナ幅からはみ出す（折り返さずに右へ食い込む）崩れになる。
+   ここだけflex-basisをautoへ戻し、他の2ボタンと同じ土俵で折返し判定させる
+   （詳細度はどちらもクラス2つで並ぶため、後に書いた本ルールが有効になる）。 */
+.room-invite-banner-actions .primary-button {
+  flex-basis: auto;
 }
 
 .room-invite-banner-text {
@@ -7732,6 +7786,42 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 .room-invite-banner-more-label {
   font-size: 0.72rem;
   opacity: 0.75;
+}
+
+/* 【2026-11-XX新設・本人指示：「一緒に遊ぶ」送信者側の待機表示】受信側の招待バナー
+   （.invite-notification-stack、画面上部）とぶつからないよう、あえて画面下部に固定する。
+   #update-applied-bannerと同じposition:fixed＋safe-area対応の考え方。 */
+.play-invite-outgoing-card {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: max(14px, env(safe-area-inset-bottom));
+  z-index: 45;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: 340px;
+  margin: 0 auto;
+  padding: 14px 16px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, rgba(255, 111, 168, 0.22), rgba(111, 189, 242, 0.16));
+  border: 1.5px solid var(--color-card-border);
+  box-shadow: 0 10px 24px -16px rgba(74, 46, 66, 0.35);
+  text-align: center;
+}
+
+/* 【本人指示済みの既知パターン：tests/cssHiddenAttributeEffectiveness.test.js参照】
+   display:flexを明示指定するクラスは、[hidden]属性の打ち消しルールを個別に持たないと
+   実際には非表示にならない。 */
+.play-invite-outgoing-card[hidden] {
+  display: none;
+}
+
+.play-invite-outgoing-text {
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1.5;
 }
 
 .room-invite-picker-list {
@@ -8223,6 +8313,34 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 
 .fan-profile-admin-delete-button:active {
   transform: scale(0.95);
+}
+
+/* 【2026-11-XX新設・本人指示：「一緒に遊ぶ」】カードの下にもう1段「一緒に遊ぶ」ボタンを
+   足すためのラッパー。.fan-profile-card-row（管理者削除ボタンとの横並び行）とは独立した
+   概念のため、削除ボタンの有無に関わらずこの縦積みコンテナで包む
+   （js/fanProfileCard.jsのbuildProfileCard()参照）。 */
+.fan-profile-card-wrap {
+  margin-bottom: 10px;
+}
+
+.fan-profile-card-wrap .fan-profile-card,
+.fan-profile-card-wrap .fan-profile-card-row {
+  margin-bottom: 6px;
+}
+
+.fan-profile-play-invite-row {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.fan-profile-play-invite-button {
+  padding: 6px 16px;
+  font-size: 0.8rem;
+}
+
+.fan-profile-play-invite-button:disabled {
+  opacity: 0.55;
+  cursor: default;
 }
 
 .fan-profile-card {

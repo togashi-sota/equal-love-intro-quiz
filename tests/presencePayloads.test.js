@@ -8,6 +8,7 @@ import {
   sortProfilesByPresence,
   buildPresenceStatusLabel,
   isGameplayScreenName,
+  canShowInviteNotification,
   PRESENCE_OFFLINE_GRACE_MS,
 } from "../js/presencePayloads.js";
 import { assertEqual } from "./test-utils.js";
@@ -98,6 +99,20 @@ export function runPresencePayloadsTests() {
   assertEqual(isGameplayScreenName("onlineBattleResult"), false, "isGameplayScreenName：結果画面はプレイ中ではない（離脱してもゲーム進行に実害が無いため）");
   assertEqual(isGameplayScreenName("fanProfiles"), false, "isGameplayScreenName：フレンド一覧画面はプレイ中ではない");
   assertEqual(isGameplayScreenName(null), false, "isGameplayScreenName：画面名が無い場合はプレイ中ではない");
+
+  // ===== canShowInviteNotification（2026-11-XX新設・本人指示：招待通知を表示する画面の一元管理） =====
+  // 出題・回答中の画面（isGameplayScreenNameがtrueの画面）だけ非表示、それ以外は表示可、という
+  // 単純な1本のルール（本人指示：「バトル中には絶対表示しない／閲覧系画面では表示できる」）。
+  assertEqual(canShowInviteNotification("start"), true, "canShowInviteNotification：ホーム画面では表示できる");
+  assertEqual(canShowInviteNotification("fanProfiles"), true, "canShowInviteNotification：フレンド一覧画面では表示できる");
+  assertEqual(canShowInviteNotification("onlineBattleLobby"), true, "canShowInviteNotification：ロビー画面（出題前）では表示できる");
+  assertEqual(canShowInviteNotification("onlineBattleResult"), true, "canShowInviteNotification：結果画面では表示できる");
+  assertEqual(canShowInviteNotification("members"), true, "canShowInviteNotification：メンバー紹介等の閲覧画面では表示できる");
+  assertEqual(canShowInviteNotification("quiz"), false, "canShowInviteNotification：出題中の画面では表示しない");
+  assertEqual(canShowInviteNotification("onlineInstantBattleQuestion"), false, "canShowInviteNotification：一瞬バトル出題中は表示しない");
+  assertEqual(canShowInviteNotification("onlineLyricsBattleQuestion"), false, "canShowInviteNotification：歌詞クイズ対戦出題中は表示しない");
+  assertEqual(canShowInviteNotification("onlineBattleCountdown"), false, "canShowInviteNotification：カウントダウン中は表示しない");
+  assertEqual(canShowInviteNotification(null), false, "canShowInviteNotification：画面名が無い間（オンボーディング等）は安全側で表示しない");
 
   // ===== sortProfilesByPresence =====
   const profiles = [

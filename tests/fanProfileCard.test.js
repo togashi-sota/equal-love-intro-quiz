@@ -196,6 +196,89 @@ export function runFanProfileCardTests() {
   );
   document.body.removeChild(adminRow);
 
+  // ---- 2026-11-XX新設・本人指示：「一緒に遊ぶ」ボタン ----
+  // onPlayInviteRequest未指定なら、今までどおり何も追加されない（isAdmin未指定の場合と同じ）。
+  const noInviteCard = buildProfileCard(buildProfile({ uid: "uid-no-invite" }), MEMBERS, null, {
+    presenceEntry: { connections: { a: true } },
+  });
+  assertEqual(
+    noInviteCard.tagName,
+    "BUTTON",
+    "onPlayInviteRequest未指定なら戻り値はbutton要素のまま（presenceEntryがあっても変わらない）"
+  );
+
+  // オンラインのフレンドには、押せる状態の「一緒に遊ぶ」ボタンが1段追加される。
+  let invitedProfile = null;
+  let invitedPresenceInfo = null;
+  const onlineProfile = buildProfile({ uid: "uid-online-friend", displayName: "オンラインさん" });
+  const onlineWrap = buildProfileCard(onlineProfile, MEMBERS, null, {
+    presenceEntry: { connections: { a: true } },
+    onPlayInviteRequest: (profile, info) => {
+      invitedProfile = profile;
+      invitedPresenceInfo = info;
+    },
+  });
+  assertEqual(onlineWrap.className, "fan-profile-card-wrap", "onPlayInviteRequest指定時はラッパーdivが返る");
+  const onlineInviteButton = onlineWrap.querySelector(".fan-profile-play-invite-button");
+  assertEqual(onlineInviteButton?.textContent, "🤝 一緒に遊ぶ", "オンラインなら押せる文言のボタンになる");
+  assertEqual(onlineInviteButton?.disabled, false, "オンラインならボタンは有効");
+  onlineInviteButton.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  assertEqual(invitedProfile?.uid, "uid-online-friend", "「一緒に遊ぶ」タップでonPlayInviteRequestが正しいprofileで呼ばれる");
+  assertEqual(
+    invitedPresenceInfo,
+    { isOnline: true, isPlaying: false },
+    "onPlayInviteRequestにはisOnline/isPlayingの状態も渡される"
+  );
+
+  // プレイ中でも招待は送れる（本人指示：「プレイ中でも招待可能」）。
+  const playingWrap = buildProfileCard(buildProfile({ uid: "uid-playing-friend" }), MEMBERS, null, {
+    presenceEntry: { connections: { a: true }, isPlaying: true },
+    onPlayInviteRequest: () => {},
+  });
+  const playingInviteButton = playingWrap.querySelector(".fan-profile-play-invite-button");
+  assertEqual(playingInviteButton?.disabled, false, "プレイ中でも「一緒に遊ぶ」ボタンは有効のまま");
+
+  // オフラインのフレンドには、押せない状態のボタンが表示される（消えはしない）。
+  const offlineWrap = buildProfileCard(buildProfile({ uid: "uid-offline-friend" }), MEMBERS, null, {
+    presenceEntry: null,
+    onPlayInviteRequest: () => {},
+  });
+  const offlineInviteButton = offlineWrap.querySelector(".fan-profile-play-invite-button");
+  assertEqual(offlineInviteButton?.textContent, "オフライン", "オフラインなら「オフライン」という文言に変わる");
+  assertEqual(offlineInviteButton?.disabled, true, "オフラインならボタンはdisabledになる（存在は消さない）");
+
+  // 自分自身のカードには「一緒に遊ぶ」ボタン自体を出さない。
+  const selfWrap = buildProfileCard(buildProfile({ uid: "uid-self" }), MEMBERS, null, {
+    presenceEntry: { connections: { a: true } },
+    onPlayInviteRequest: () => {},
+    myUid: "uid-self",
+  });
+  assertEqual(
+    selfWrap.tagName,
+    "BUTTON",
+    "自分自身のカードには「一緒に遊ぶ」ボタンが無いため、ラッパーではなくbutton要素のまま返る"
+  );
+
+  // isAdmin: trueとonPlayInviteRequestを両方指定した場合、削除ボタンの行と
+  // 「一緒に遊ぶ」ボタンの両方が縦に並ぶ。
+  const adminWithInviteWrap = buildProfileCard(buildProfile({ uid: "uid-admin-and-invite" }), MEMBERS, null, {
+    isAdmin: true,
+    onAdminDeleteRequest: () => {},
+    presenceEntry: { connections: { a: true } },
+    onPlayInviteRequest: () => {},
+  });
+  assertEqual(adminWithInviteWrap.className, "fan-profile-card-wrap", "isAdmin+onPlayInviteRequest指定時もラッパーdivが返る");
+  assertEqual(
+    adminWithInviteWrap.querySelector(".fan-profile-card-row") !== null,
+    true,
+    "管理者削除ボタンの行はそのまま存在する"
+  );
+  assertEqual(
+    adminWithInviteWrap.querySelector(".fan-profile-play-invite-button") !== null,
+    true,
+    "「一緒に遊ぶ」ボタンも同時に存在する"
+  );
+
   // ---- 表示名順の並び替え（ランキングではない、称号数などは一切見ない） ----
   const unsorted = [
     buildProfile({ uid: "a", displayName: "ひまわり" }),

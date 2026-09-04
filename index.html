@@ -60,6 +60,73 @@
     ✨ アプリを最新版に更新しました
   </div>
 
+  <!-- 【2026-11-XX改訂・本人指示：招待通知を表示する画面を拡大】以前は#start-screen
+       （ホーム画面）の内部に置かれており、ホーム画面が非表示（display:none）の間は
+       バナー自体も一切表示できなかった。「実際のバトルを邪魔しない画面なら表示してよい」
+       という指示により、どの画面（.screen）にも属さない、bodyの直下・常に存在する位置へ
+       移動した（js/audio.jsの#intro-audio要素と同じ考え方）。表示・非表示自体は
+       js/roomInviteUi.js・js/playInviteUi.jsが、js/presencePayloads.jsの
+       canShowInviteNotification()で「今の画面がバトル中でないか」を判定して切り替える
+       （.screenのis-activeには一切頼らない）。
+       ルーム招待・「一緒に遊ぶ」招待の両方をこの1つの縦積みコンテナにまとめることで、
+       片方を処理してももう片方が消えない・見た目の統一感を保つ、という本人指示を満たす。 -->
+  <div id="invite-notification-stack" class="invite-notification-stack">
+    <!-- ①既存ルームへの招待（3人目以降を誘う「友達を招待」から届いたもの）。
+         【3択仕様】参加する／あとで／断る。「あとで」はFirebase上の招待データには
+         一切触れず、この端末でのバナー表示だけを閉じる（js/roomInviteUi.jsの
+         snoozedRoomIds参照。この画面を離れて再訪すると再表示）。 -->
+    <div id="room-invite-banner" class="room-invite-banner" hidden>
+      <p id="room-invite-banner-text" class="room-invite-banner-text"></p>
+      <p id="room-invite-banner-more-label" class="room-invite-banner-more-label" hidden></p>
+      <p id="room-invite-banner-error" class="battle-warning-box" hidden></p>
+      <div class="button-row room-invite-banner-actions">
+        <button id="room-invite-banner-later-button" class="secondary-button" type="button">あとで</button>
+        <button id="room-invite-banner-decline-button" class="secondary-button" type="button">断る</button>
+        <button id="room-invite-banner-accept-button" class="primary-button" type="button">参加する</button>
+      </div>
+    </div>
+
+    <!-- ②「一緒に遊ぶ」（フレンド一覧から直接届く1対1招待）（2026-11-XX新設・本人指示）。
+         「参加する」を押すと、相手（送信者）が新しいルームを作るのを少し待つ
+         （js/playInviteUi.js参照）ため、通常の3択に加えて「参加処理中…」の待機表示を
+         追加で持つ。 -->
+    <div id="play-invite-banner" class="room-invite-banner" hidden>
+      <p id="play-invite-banner-text" class="room-invite-banner-text"></p>
+      <p id="play-invite-banner-more-label" class="room-invite-banner-more-label" hidden></p>
+      <p id="play-invite-banner-error" class="battle-warning-box" hidden></p>
+      <p id="play-invite-banner-waiting" class="room-invite-banner-more-label" hidden>参加処理中…</p>
+      <div id="play-invite-banner-actions" class="button-row room-invite-banner-actions">
+        <button id="play-invite-banner-later-button" class="secondary-button" type="button">あとで</button>
+        <button id="play-invite-banner-decline-button" class="secondary-button" type="button">断る</button>
+        <button id="play-invite-banner-accept-button" class="primary-button" type="button">参加する</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 【2026-11-XX新設・本人指示：「一緒に遊ぶ」】送信者（inviter）側の待機表示。
+       「○○さんを招待しています…」＋「招待を取り消す」。大きな別画面へは移動させない
+       （本人指示：「待機中に何も起きていないように見える状態は禁止」）。
+       表示・非表示の判定も、受信側バナーと同じcanShowInviteNotification()を使う
+       （バトル中は表示しない）。 -->
+  <div id="play-invite-outgoing-card" class="play-invite-outgoing-card" hidden>
+    <p id="play-invite-outgoing-text" class="play-invite-outgoing-text"></p>
+    <button id="play-invite-outgoing-cancel-button" class="secondary-button" type="button">招待を取り消す</button>
+  </div>
+
+  <!-- 【2026-11-XX新設・本人指示：送信者1件制限の切り替え確認】「既に別の人を招待中／
+       既に別の人へ招待に応じようとしている」状態で、もう一方を選ぼうとしたときに出す
+       確認モーダル。文言は状況に応じてjs/playInviteUi.jsが差し替える。 -->
+  <div id="play-invite-switch-confirm-modal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="play-invite-switch-confirm-title">
+      <h2 id="play-invite-switch-confirm-title">招待の切り替え</h2>
+      <p id="play-invite-switch-confirm-text"></p>
+      <div class="button-row">
+        <button id="play-invite-switch-confirm-cancel-button" class="secondary-button" type="button">やめる</button>
+        <button id="play-invite-switch-confirm-ok-button" class="primary-button" type="button">切り替える</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 新曲のセンター就任などを祝う、期間限定のお祝いポップアップ（2026-08-24新設、本人指示）。
        js/main.jsが「対象の曲データが揃っていて、まだこのプレイヤーが見ていない」ときだけ、
        安全なタイミング（ホーム画面表示時）で中身を組み立てて表示する。
@@ -193,23 +260,6 @@
             <span id="oshi-summary-chip-text">推しメンを登録しよう</span>
             <span class="player-hero-oshi-arrow" aria-hidden="true">→</span>
           </button>
-        </div>
-      </div>
-
-      <!-- 【2026-11-XX新設・本人指示：ルーム招待】フレンドから対戦ルームへ招待されたとき、
-           ホーム画面（この画面）にいる間だけ表示するバナー。対戦中・クイズ中の画面へは
-           絶対に割り込ませない（js/roomInviteUi.js側のSAFE_SCREENS_FOR_INVITE_BANNER判定）。
-           【2026-11-XX改訂・本人指示：3択仕様】参加する／あとで／断る の3択。
-           「あとで」はFirebase上の招待データには一切触れず、この画面をいったん閉じるだけ
-           （js/roomInviteUi.jsのsnoozedRoomIds参照。ホーム画面を離れて再訪すると再表示）。 -->
-      <div id="room-invite-banner" class="room-invite-banner" hidden>
-        <p id="room-invite-banner-text" class="room-invite-banner-text"></p>
-        <p id="room-invite-banner-more-label" class="room-invite-banner-more-label" hidden></p>
-        <p id="room-invite-banner-error" class="battle-warning-box" hidden></p>
-        <div class="button-row room-invite-banner-actions">
-          <button id="room-invite-banner-later-button" class="secondary-button" type="button">あとで</button>
-          <button id="room-invite-banner-decline-button" class="secondary-button" type="button">断る</button>
-          <button id="room-invite-banner-accept-button" class="primary-button" type="button">参加する</button>
         </div>
       </div>
 
@@ -1598,6 +1648,13 @@
            管理者専用：音源診断ログの閲覧画面への入口。上のバックアップ管理と全く同じ
            isAdminUser判定を流用する（一般ユーザーには表示されない）。 -->
       <button id="debug-audio-log-link" class="secondary-button admin-backup-link-button" type="button" hidden>🔧 音源診断ログ（管理者用）</button>
+
+      <!-- 【2026-11-XX新設・本人指示：「一緒に遊ぶ」】フレンド一覧から直接オンライン対戦へ
+           誘えることが初見ユーザーにも伝わるよう、一覧の直前に短い案内を添える。 -->
+      <p class="fan-profiles-invite-hint">🤝 オンラインのフレンドをゲームに招待できます</p>
+      <!-- 「一緒に遊ぶ」を押した直後のバリデーションエラー（既にルームに参加中・相手が
+           直前にオフラインになった・送信失敗等）を一時的に表示する場所（js/playInviteUi.js）。 -->
+      <p id="play-invite-flow-error" class="battle-warning-box" hidden></p>
 
       <!-- 一覧本体。中身はjs/fanProfilesScreen.jsが組み立てる -->
       <div id="fan-profiles-list"></div>

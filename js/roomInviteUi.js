@@ -15,16 +15,17 @@ import { sendRoomInvite, subscribeToMyInvites, removeMyInvite, cleanupExpiredInv
 import { listActiveInvites, listExpiredInviteRoomIds, canResendInvite, INVITE_RESEND_COOLDOWN_MS } from "./roomInvitePayloads.js";
 import { fetchAllPublicProfiles, getMyUid } from "./publicProfileSync.js";
 import { fetchAllPresenceOnce } from "./presenceSync.js";
-import { computeIsOnlineForDisplay } from "./presencePayloads.js";
+import { computeIsOnlineForDisplay, canShowInviteNotification } from "./presencePayloads.js";
 import { onScreenChange } from "./screens.js";
 import { joinRoomFromInvite } from "./onlineBattleScreen.js";
 import { getActivePlayer } from "./playerProfile.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
 
-// 【本人指示：招待バナーは「安全な画面」＝ホームでだけ表示する】対戦中・クイズ中の画面へ
-// 割り込ませない、という要件を満たす唯一の判定箇所。将来「ホーム以外の待機的な画面でも
-// 出してよい」となった場合は、ここへ画面名を足すだけで済む。
-const SAFE_SCREENS_FOR_INVITE_BANNER = new Set(["start"]);
+// 【2026-11-XX改訂・本人指示：招待通知を表示できる画面の拡大】以前は「ホーム画面
+// （"start"）でだけ表示する」という固定の1画面限定だったが、「実際のバトルを邪魔しない
+// 画面なら表示してよい」という指示により、js/presencePayloads.jsの
+// canShowInviteNotification()（出題・回答中の画面以外はすべて許可）へ判定を一本化した。
+// バトル中には絶対表示しない、という核心のルールはこちらの関数がそのまま担う。
 
 // バナーの再判定（期限切れの掃除も含む）を、画面遷移が無いままでも取りこぼさないための
 // 定期チェック間隔。招待の有効期限（5分）に対して十分細かく、かつ無駄なタイマー負荷にならない
@@ -99,9 +100,10 @@ function buildInviteRow(profile, isPlaying) {
         if (!button.isConnected) return;
         button.textContent = "招待する";
       }, INVITE_RESEND_COOLDOWN_MS);
-    } else if (result.reason === "cooldown") {
-      button.textContent = "少し待ってから再送できます";
     } else {
+      // 【2026-11-XX修正】js/roomInvites.jsのsendRoomInvite()はもう"cooldown"を返さない
+      // （クールダウン判定は、この関数の直前で行っている端末内のcanResendInvite()判定だけで
+      // 十分なため）。ここに来るのは「送信に失敗しました」という素直な失敗のみ。
       button.textContent = "送信に失敗しました";
     }
   });
@@ -178,7 +180,7 @@ function renderBanner() {
   displayableInvites = activeInvites.filter((invite) => !snoozedRoomIds.has(invite.roomId));
 
   const shouldShow =
-    !isAcceptBusy && displayableInvites.length > 0 && SAFE_SCREENS_FOR_INVITE_BANNER.has(currentScreenName);
+    !isAcceptBusy && displayableInvites.length > 0 && canShowInviteNotification(currentScreenName);
   elements.banner.hidden = !shouldShow;
   if (!shouldShow) return;
 
@@ -293,11 +295,14 @@ export function initRoomInviteUi(newElements) {
   });
 
   onScreenChange((screenName) => {
-    // 【本人指示：「あとで」はホームへ再訪すると再表示される】ホーム画面から他の画面へ
-    // 切り替わった瞬間にスヌーズ状態をクリアする。次にホームへ戻ってきたとき
-    // （screenNameが再び"start"になったとき）、renderBanner()がまだ有効な招待を
-    // 見つければ、スヌーズされていない状態として自然に再表示される。
-    if (currentScreenName === "start" && screenName !== "start") {
+    // 【2026-11-XX改訂・本人指示：「あとで」は画面を離れると再表示される】以前は
+    // 「ホーム画面（"start"）から他画面へ切り替わった瞬間だけ」クリアしていたが、
+    // 招待バナーを表示できる画面がホーム以外にも増えたため、画面が実際に切り替わる
+    // たびにスヌーズ状態をクリアするよう一般化する。「あとで」はあくまで「今見ている
+    // この画面ではいったん閉じる」という一時的な操作であり、次にどの安全な画面へ
+    // 移動しても（canShowInviteNotification()がtrueであれば）renderBanner()が
+    // 改めて表示するかどうかを判定する。
+    if (currentScreenName !== null && screenName !== currentScreenName) {
       snoozedRoomIds.clear();
     }
     currentScreenName = screenName;

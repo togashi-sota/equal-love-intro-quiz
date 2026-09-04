@@ -177,6 +177,7 @@ import {
   getCurrentOnlineRoomId,
 } from "./onlineBattleScreen.js";
 import { initRoomInviteUi, openInvitePicker } from "./roomInviteUi.js";
+import { initPlayInviteUi } from "./playInviteUi.js";
 import { initOnlineLyricsQuizBattleScreens } from "./onlineLyricsQuizBattleScreen.js";
 import { initOnlineInstantBattleScreens } from "./onlineInstantBattleScreen.js";
 import { initOnlineInstantCoopBattleScreens } from "./onlineInstantCoopBattleScreen.js";
@@ -1103,6 +1104,25 @@ const roomInviteBannerErrorElement = document.getElementById("room-invite-banner
 const roomInviteBannerAcceptButtonElement = document.getElementById("room-invite-banner-accept-button");
 const roomInviteBannerDeclineButtonElement = document.getElementById("room-invite-banner-decline-button");
 const roomInviteBannerLaterButtonElement = document.getElementById("room-invite-banner-later-button");
+// 【2026-11-XX新設・本人指示：「一緒に遊ぶ」】受信バナー・送信者側の待機カード・
+// 送信先切り替え確認モーダルの要素参照（js/playInviteUi.js参照）。
+const playInviteBannerElement = document.getElementById("play-invite-banner");
+const playInviteBannerTextElement = document.getElementById("play-invite-banner-text");
+const playInviteBannerMoreLabelElement = document.getElementById("play-invite-banner-more-label");
+const playInviteBannerErrorElement = document.getElementById("play-invite-banner-error");
+const playInviteBannerWaitingElement = document.getElementById("play-invite-banner-waiting");
+const playInviteBannerActionsElement = document.getElementById("play-invite-banner-actions");
+const playInviteBannerAcceptButtonElement = document.getElementById("play-invite-banner-accept-button");
+const playInviteBannerDeclineButtonElement = document.getElementById("play-invite-banner-decline-button");
+const playInviteBannerLaterButtonElement = document.getElementById("play-invite-banner-later-button");
+const playInviteOutgoingCardElement = document.getElementById("play-invite-outgoing-card");
+const playInviteOutgoingTextElement = document.getElementById("play-invite-outgoing-text");
+const playInviteOutgoingCancelButtonElement = document.getElementById("play-invite-outgoing-cancel-button");
+const playInviteSwitchConfirmModalElement = document.getElementById("play-invite-switch-confirm-modal");
+const playInviteSwitchConfirmTextElement = document.getElementById("play-invite-switch-confirm-text");
+const playInviteSwitchConfirmCancelButtonElement = document.getElementById("play-invite-switch-confirm-cancel-button");
+const playInviteSwitchConfirmOkButtonElement = document.getElementById("play-invite-switch-confirm-ok-button");
+const playInviteFlowErrorElement = document.getElementById("play-invite-flow-error");
 const onlineBattleLobbyHelpModalElement = document.getElementById("online-battle-lobby-help-modal");
 const onlineBattleLobbyHelpCloseElement = document.getElementById("online-battle-lobby-help-close");
 const onlineBattleLobbyHelpCurrentSettingsElement = document.getElementById("online-battle-lobby-help-current-settings");
@@ -6023,6 +6043,28 @@ initRoomInviteUi({
   bannerAcceptButton: roomInviteBannerAcceptButtonElement,
   bannerDeclineButton: roomInviteBannerDeclineButtonElement,
   bannerLaterButton: roomInviteBannerLaterButtonElement,
+});
+// 【2026-11-XX新設・本人指示：「一緒に遊ぶ」】js/playInviteUi.jsもjs/roomInviteUi.jsと
+// 同じ理由（js/onlineBattleScreen.jsを一切importしない末端モジュールにはできない：
+// ルーム作成・参加・goToLobbyそのものを必要とするため）で、こちらは直接importしている。
+initPlayInviteUi({
+  incomingBanner: playInviteBannerElement,
+  incomingText: playInviteBannerTextElement,
+  incomingMoreLabel: playInviteBannerMoreLabelElement,
+  incomingError: playInviteBannerErrorElement,
+  incomingWaitingLabel: playInviteBannerWaitingElement,
+  incomingActionsRow: playInviteBannerActionsElement,
+  incomingAcceptButton: playInviteBannerAcceptButtonElement,
+  incomingDeclineButton: playInviteBannerDeclineButtonElement,
+  incomingLaterButton: playInviteBannerLaterButtonElement,
+  outgoingCard: playInviteOutgoingCardElement,
+  outgoingText: playInviteOutgoingTextElement,
+  outgoingCancelButton: playInviteOutgoingCancelButtonElement,
+  switchConfirmModal: playInviteSwitchConfirmModalElement,
+  switchConfirmText: playInviteSwitchConfirmTextElement,
+  switchConfirmCancelButton: playInviteSwitchConfirmCancelButtonElement,
+  switchConfirmOkButton: playInviteSwitchConfirmOkButtonElement,
+  flowError: playInviteFlowErrorElement,
 });
 // 【2026-09-15新設、本人指示：ゲスト側の退出操作にも必ず確認ダイアログ】
 initResultLeavePrompt({
