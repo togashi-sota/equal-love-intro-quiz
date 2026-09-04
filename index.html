@@ -3318,9 +3318,13 @@
              分かりづらいという指摘を受け、意味の分かる文言＋押しやすいサイズへ変更した。 -->
         <button id="online-battle-lobby-help-button" class="secondary-button online-battle-lobby-help-button" type="button">📖 ルール・遊び方</button>
         <!-- 【2026-11-XX新設・本人指示：ルーム招待】オンラインのフレンド（みんなのプロフィール
-             公開中の人）を、今このルームへ招待できる。ホスト・参加者どちらからでも押せる
-             （js/roomInviteUi.js参照。相手がプレイ中でも招待自体は届くが、通知は相手が
-             ホーム画面へ戻るまで表示されない）。 -->
+             公開中の人）を、今このルームへ招待できる（js/roomInviteUi.js参照。相手が
+             プレイ中でも招待自体は届くが、通知は相手がホーム画面へ戻るまで表示されない）。
+             【2026-11-XX改訂・本人指示：「一緒に遊ぶ」との役割分担を確定】「一緒に遊ぶ」
+             （フレンド一覧）＝最初の2人を作る入口、この「友達を招待」（ロビー）＝既に
+             成立したルームへ3人目以降を追加する入口、という役割分担に伴い、この
+             ボタンはhostだけが使える（js/onlineBattleScreen.jsのrenderLobby()が
+             !isHostのときhidden=trueにする）。guestには表示されない。 -->
         <button id="online-battle-lobby-invite-button" class="secondary-button online-battle-lobby-help-button" type="button">📨 友達を招待</button>
       </div>
 

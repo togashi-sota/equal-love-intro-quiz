@@ -450,7 +450,7 @@
       "$recipientUid": {
         ".read": "auth != null && auth.uid === $recipientUid",
         "$roomId": {
-          ".write": "auth != null && ((auth.uid === $recipientUid && newData.val() === null) || (newData.exists() && auth.uid !== $recipientUid && newData.child('inviterUid').val() === auth.uid && newData.child('recipientUid').val() === $recipientUid && newData.child('roomId').val() === $roomId && root.child('rooms/' + $roomId + '/players/' + auth.uid).exists() && (!data.exists() || now - data.child('createdAt').val() >= 30000)))",
+          ".write": "auth != null && ((auth.uid === $recipientUid && newData.val() === null) || (newData.exists() && auth.uid !== $recipientUid && newData.child('inviterUid').val() === auth.uid && newData.child('recipientUid').val() === $recipientUid && newData.child('roomId').val() === $roomId && root.child('rooms/' + $roomId + '/host').val() === auth.uid && (!data.exists() || now - data.child('createdAt').val() >= 30000)))",
           ".validate": "newData.hasChildren(['inviterUid', 'inviterDisplayName', 'recipientUid', 'roomId', 'createdAt', 'expiresAt'])",
           "inviterUid": { ".validate": "newData.isString() && newData.val().length > 0" },
           "inviterDisplayName": { ".validate": "newData.isString() && newData.val().length <= 40" },

@@ -3,9 +3,15 @@
 // js/roomInvitePayloads.jsに分離してあり、このファイルはFirebaseの読み書きだけを担当する
 // （js/presenceSync.js・js/presencePayloads.jsと同じ分離方針）。
 //
-// 【本人指示：招待はホスト・ゲストを問わず「今このルームにいる人」から送れる】送信元が
-// ホストかどうかはこのファイルでは一切判定しない（UI側で「ルームに入っている間だけ
-// 招待ボタンを出す」という形で自然に制限する）。
+// 【2026-11-XX改訂・本人指示：既存ルーム追加招待をhost限定にする】以前は
+// 「ホスト・ゲストを問わず今このルームにいる人なら誰でも送れる」設計だったが、
+// 「一緒に遊ぶ」（フレンド一覧、最初の2人を作る入口）とロビーのこの「友達を招待」
+// （既に成立したルームへ3人目以降を追加する入口）で役割を分けたことに伴い、この
+// 「友達を招待」はhostだけが送れる仕様へ変更した。送信元がhostかどうかの判定自体は
+// このファイルでは行わない（UI側＝js/onlineBattleScreen.jsのrenderLobby()がhostの
+// ときだけボタンを表示し、js/main.jsのクリックハンドラでisCurrentUserRoomHost()を
+// 二重確認する。最終的な担保はfirebase/database.rules.jsonのinvites/側で、
+// root.child('rooms/'+roomId+'/host').val() === auth.uidを検証している）。
 //
 // 【本人指示：招待経由なら合言葉（ルームコード）入力は不要】招待を受け取った側は
 // js/onlineBattleScreen.jsの既存joinRoom()をそのまま呼ぶだけで参加できる（招待データ自体は

@@ -404,6 +404,16 @@ export function getCurrentOnlineRoomId() {
   return currentRoomId;
 }
 
+// 【2026-11-XX新設・本人指示：既存ルーム追加招待をhost限定にする】今のルームで
+// 自分がhostかどうかをjs/main.js側から確認するための窓口。ロビーの「友達を招待」
+// ボタンはrenderLobby()側で!isHostのときhidden=trueにしているが（本来はこれで
+// 十分）、ボタンの表示・非表示だけに頼らず、実際にピッカーを開く直前にもこの関数で
+// 二重に確認する（本人指示：「guestが何らかの方法で関数を直接呼んでも送信できない
+// よう」という要件に対する、UI層でのもう1段の防御。最終的な担保はFirebase Rules側）。
+export function isCurrentUserRoomHost() {
+  return latestRoom !== null && latestRoom.host === getCurrentUid();
+}
+
 // 【2026-11-XX新設・本人指示：ルーム招待】招待を受けて参加するときに、js/roomInviteUi.js
 // （このファイルを一切importしない、循環import回避のための末端モジュール。
 // js/onlineBattleLeaveMatchPrompt.js冒頭のコメントと同じ設計方針）から呼ぶための窓口。
@@ -2033,6 +2043,11 @@ function renderLobbyInner(room) {
   elements.lobbyReadyButton.hidden = isHost;
   elements.lobbyStartButton.hidden = !isHost;
   elements.lobbyStartHint.hidden = !isHost;
+  // 【2026-11-XX改訂・本人指示：既存ルーム追加招待をhost限定にする】以前は
+  // 「ホスト・参加者どちらからでも押せる」だったが、「一緒に遊ぶ」で成立した2人が
+  // 3人目以降を追加する導線として、ロビー右上の「友達を招待」はhostだけが使える
+  // 仕様へ変更した（他の要素と同じ、host/guestで表示を出し分ける既存の書き方に揃える）。
+  if (elements.lobbyInviteButton) elements.lobbyInviteButton.hidden = !isHost;
 
   if (isHost) {
     if (isLyricsQuiz) {

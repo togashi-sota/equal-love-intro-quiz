@@ -175,6 +175,8 @@ import {
   abortOnlineBattleMatchDueToAudioTrouble,
   // 【2026-11-XX新設・本人指示：ルーム招待】
   getCurrentOnlineRoomId,
+  // 【2026-11-XX新設・本人指示：既存ルーム追加招待をhost限定にする】
+  isCurrentUserRoomHost,
 } from "./onlineBattleScreen.js";
 import { initRoomInviteUi, openInvitePicker } from "./roomInviteUi.js";
 import { initPlayInviteUi } from "./playInviteUi.js";
@@ -6028,7 +6030,13 @@ initLeaveMatchPrompt({
 // 【2026-11-XX新設・本人指示：ルーム招待】js/roomInviteUi.jsはjs/onlineBattleScreen.jsを
 // importしない末端モジュールのため（循環import回避）、ロビーの「友達を招待」ボタンの
 // クリック配線だけはここ（両方をimportできる場所）で行う。
+// 【2026-11-XX改訂・本人指示：既存ルーム追加招待をhost限定にする】ボタン自体は
+// js/onlineBattleScreen.jsのrenderLobby()側でhostのときだけhidden=falseにしているが、
+// それとは別にここでもisCurrentUserRoomHost()で二重に確認する（本人指示：「guestが
+// 何らかの方法で関数を直接呼んでも送信できないよう」というUI層でのもう1段の防御。
+// 最終的な担保はFirebase Rules側のホスト検証）。
 onlineBattleLobbyInviteButtonElement?.addEventListener("click", () => {
+  if (!isCurrentUserRoomHost()) return;
   const roomId = getCurrentOnlineRoomId();
   if (roomId) openInvitePicker(roomId);
 });
@@ -6166,6 +6174,7 @@ initOnlineBattleScreens({
   lobbyReadyButton: onlineBattleLobbyReadyButtonElement,
   lobbyStartButton: onlineBattleLobbyStartButtonElement,
   lobbyStartHint: onlineBattleLobbyStartHintElement,
+  lobbyInviteButton: onlineBattleLobbyInviteButtonElement,
   lobbyStartError: onlineBattleLobbyStartErrorElement,
   countdownNumber: onlineBattleCountdownNumberElement,
   // 【2026-09-13新設・本人指示：対戦開始前ルール確認画面】
