@@ -77,6 +77,16 @@ export function runCssHiddenAttributeEffectivenessTests() {
     // 招待が無いときもホーム画面にバナーが表示され続けてしまう回帰を実機テストで発見。
     // js/roomInviteUi.js・css/style.css参照。
     { className: "room-invite-banner", visibleDisplay: "flex" },
+    // 【2026-11-XX追加・本人指示：[hidden]系CSSの全面監査で発見・修正】以下5件は、
+    // 今回の招待機能の作業とは無関係に以前から存在していた同種のバグ（[hidden]が
+    // 一切効かず、対象の要素が常に表示され続けていた）。css/style.cssの静的な文字列
+    // 一致だけでなく、実際のCSSカスケード計算（Browserペインでの実機相当確認）で
+    // 個別に確認した上で対策を追加した。
+    { className: "breakdown-chip-row", visibleDisplay: "flex" },
+    { className: "info-link-button", visibleDisplay: "flex" },
+    { className: "lyrics-warning-list", visibleDisplay: "flex" },
+    { className: "fan-profile-detail-all-toggle", visibleDisplay: "block" },
+    { className: "admin-backup-delete-request-button", visibleDisplay: "block" },
   ];
   alreadyFixedClasses.forEach(({ className, visibleDisplay }) => {
     const { displayWhenHidden, displayWhenVisible } = checkHiddenEffectiveness(className);

@@ -198,13 +198,17 @@
 
       <!-- 【2026-11-XX新設・本人指示：ルーム招待】フレンドから対戦ルームへ招待されたとき、
            ホーム画面（この画面）にいる間だけ表示するバナー。対戦中・クイズ中の画面へは
-           絶対に割り込ませない（js/roomInviteUi.js側のSAFE_SCREENS_FOR_INVITE_BANNER判定）。 -->
+           絶対に割り込ませない（js/roomInviteUi.js側のSAFE_SCREENS_FOR_INVITE_BANNER判定）。
+           【2026-11-XX改訂・本人指示：3択仕様】参加する／あとで／断る の3択。
+           「あとで」はFirebase上の招待データには一切触れず、この画面をいったん閉じるだけ
+           （js/roomInviteUi.jsのsnoozedRoomIds参照。ホーム画面を離れて再訪すると再表示）。 -->
       <div id="room-invite-banner" class="room-invite-banner" hidden>
         <p id="room-invite-banner-text" class="room-invite-banner-text"></p>
         <p id="room-invite-banner-more-label" class="room-invite-banner-more-label" hidden></p>
         <p id="room-invite-banner-error" class="battle-warning-box" hidden></p>
-        <div class="button-row">
-          <button id="room-invite-banner-decline-button" class="secondary-button" type="button">辞退する</button>
+        <div class="button-row room-invite-banner-actions">
+          <button id="room-invite-banner-later-button" class="secondary-button" type="button">あとで</button>
+          <button id="room-invite-banner-decline-button" class="secondary-button" type="button">断る</button>
           <button id="room-invite-banner-accept-button" class="primary-button" type="button">参加する</button>
         </div>
       </div>
@@ -1696,6 +1700,15 @@
         音源の再生・停止・効果音まわりの操作を、時系列で記録したものです。
         クイズを1回プレイしたあと、この画面を開いて「コピー」ボタンを押し、
         コピーした内容をそのまま共有してください。
+      </p>
+      <!-- 【2026-11-XX新設・本人指示：一瞬協力Q1のNotSupportedError次回調査】記録は
+           「ページの再読み込み」程度なら残るが（js/audioDiagnosticLog.js参照）、
+           アプリを完全に終了して開き直す（PWAをホーム画面から再起動する等）と消える。
+           症状が出たその場でコピーしてもらうための注意書き。 -->
+      <p class="battle-warning-box">
+        ⚠️ 症状が起きたら、アプリを再起動する前にこの画面を開いて「コピー」してください。
+        アプリを完全に終了して開き直すと、それまでの記録は消えてしまいます
+        （通常のページ再読み込み程度であれば記録は残ります）。
       </p>
 
       <div class="button-row">

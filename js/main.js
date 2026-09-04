@@ -1102,6 +1102,7 @@ const roomInviteBannerMoreLabelElement = document.getElementById("room-invite-ba
 const roomInviteBannerErrorElement = document.getElementById("room-invite-banner-error");
 const roomInviteBannerAcceptButtonElement = document.getElementById("room-invite-banner-accept-button");
 const roomInviteBannerDeclineButtonElement = document.getElementById("room-invite-banner-decline-button");
+const roomInviteBannerLaterButtonElement = document.getElementById("room-invite-banner-later-button");
 const onlineBattleLobbyHelpModalElement = document.getElementById("online-battle-lobby-help-modal");
 const onlineBattleLobbyHelpCloseElement = document.getElementById("online-battle-lobby-help-close");
 const onlineBattleLobbyHelpCurrentSettingsElement = document.getElementById("online-battle-lobby-help-current-settings");
@@ -6021,6 +6022,7 @@ initRoomInviteUi({
   bannerError: roomInviteBannerErrorElement,
   bannerAcceptButton: roomInviteBannerAcceptButtonElement,
   bannerDeclineButton: roomInviteBannerDeclineButtonElement,
+  bannerLaterButton: roomInviteBannerLaterButtonElement,
 });
 // 【2026-09-15新設、本人指示：ゲスト側の退出操作にも必ず確認ダイアログ】
 initResultLeavePrompt({

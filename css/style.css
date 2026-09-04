@@ -1102,6 +1102,12 @@ h1 .note-icon svg {
   overflow-y: auto;
 }
 
+/* 【2026-11-XX追加・本人指示：[hidden]系CSSの全面監査で発見】.breakdown-chip-rowと
+   同じ原因のため、同じ対策を追加。 */
+.lyrics-warning-list[hidden] {
+  display: none;
+}
+
 .lyrics-warning-item {
   padding: 6px 8px;
   border-radius: 8px;
@@ -3590,6 +3596,12 @@ fieldset label:has(input:focus-visible) {
   transform: scale(0.92);
 }
 
+/* 【2026-11-XX追加・本人指示：[hidden]系CSSの全面監査で発見】.breakdown-chip-rowと
+   同じ原因のため、同じ対策を追加（#live-call-mode-fullscreen-button等が対象）。 */
+.info-link-button[hidden] {
+  display: none;
+}
+
 /* .list-headerの3列目に、？ボタンだけでなくコールガイドボタンも並べて置くための
    ラッパー（2026-08-06追加）。中の.info-link-buttonはgrid-column指定を持つが、
    このラッパー自体がgridの子要素になるため、中のgrid-column指定はブラウザに無視され問題ない。 */
@@ -4085,6 +4097,13 @@ fieldset label:has(input:focus-visible) {
   justify-content: center;
   gap: 6px;
   margin: 0 0 16px;
+}
+
+/* 【2026-11-XX追加・本人指示：[hidden]系CSSの全面監査で発見】displayを明示指定して
+   いるため、[hidden]属性の既定（display:none）が上書きされてしまっていた
+   （tests/cssHiddenAttributeEffectiveness.test.jsと同じ既知パターン）。 */
+.breakdown-chip-row[hidden] {
+  display: none;
 }
 
 .breakdown-chip {
@@ -7692,6 +7711,18 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   display: none;
 }
 
+/* 【本人指示：3択（参加する／あとで／断る）】340px幅の中に3つ並べると、端末幅や
+   フォントサイズ次第で収まりきらないことがあるため、折り返しを許可し、各ボタンが
+   均等に伸縮する形にする（固定pxで幅を決め打ちしない）。 */
+.room-invite-banner-actions {
+  flex-wrap: wrap;
+}
+
+.room-invite-banner-actions button {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .room-invite-banner-text {
   font-size: 0.86rem;
   font-weight: 700;
@@ -8060,6 +8091,12 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   margin-top: 8px;
   display: block;
   width: 100%;
+}
+
+/* 【2026-11-XX追加・本人指示：[hidden]系CSSの全面監査で発見】.breakdown-chip-rowと
+   同じ原因のため、同じ対策を追加。 */
+.admin-backup-delete-request-button[hidden] {
+  display: none;
 }
 
 /* バックアップ一覧で「名前未設定＝テストデータの可能性が高い」ことを示す注意書き。
@@ -8562,6 +8599,13 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 .fan-profile-detail-all-toggle:active {
   transform: scale(0.97);
   border-color: var(--color-primary);
+}
+
+/* 【2026-11-XX追加・本人指示：[hidden]系CSSの全面監査で発見】.breakdown-chip-rowと
+   同じ原因のため、同じ対策を追加（称号を1つも持たないフレンドの詳細を開くと、
+   本来非表示のはずの「すべての称号を見る」ボタンが常に見えてしまっていた）。 */
+.fan-profile-detail-all-toggle[hidden] {
+  display: none;
 }
 
 .fan-profile-detail-all-achievements {

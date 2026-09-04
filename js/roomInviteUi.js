@@ -35,7 +35,17 @@ let elements = null;
 let currentScreenName = null;
 let latestRawInvites = {};
 let activeInvites = [];
+// 表示対象（activeInvitesからsnoozedRoomIdsを除いたもの）。accept/decline/laterの
+// 各ハンドラは、常にこの配列の先頭（＝今バナーに表示されている招待）を対象にする。
+let displayableInvites = [];
 let isAcceptBusy = false;
+
+// 【本人指示：3択仕様「参加する／あとで／断る」】「あとで」を押した招待のroomIdを
+// 保持する。Firebaseの招待データそのものには一切触れず、この端末のこのセッション内だけの
+// 表示状態として扱う（ページを離れず「あとで」を押した直後は表示から消えるが、
+// ホーム画面を離れて再訪すると自動的に消える＝次に来たときにまた確認できる、という
+// 本人指定の仕様を、onScreenChangeでホーム以外に切り替わった瞬間にクリアする形で実現する）。
+const snoozedRoomIds = new Set();
 
 // ---- ①ロビーの「友達を招待」ピッカー ----
 let pendingInviteRoomId = null;
@@ -143,17 +153,31 @@ function renderBanner() {
   if (!elements) return;
   const now = Date.now();
   activeInvites = listActiveInvites(latestRawInvites, now);
+  // snoozedRoomIdsに無い有効期限切れの招待IDは、次にactiveInvitesへ現れることが無いため
+  // 自然に意味を失う（掃除自体は下のcleanupExpiredInvitesが担当）。ここでは、有効期限が
+  // 切れた招待をいつまでもsnoozedRoomIdsに残さないよう、現存する招待のroomId集合に無い
+  // ものを取り除いておく（メモリリークにはならない規模だが、意味の無いIDを持ち続けない）。
+  const activeRoomIdSet = new Set(activeInvites.map((invite) => invite.roomId));
+  [...snoozedRoomIds].forEach((roomId) => {
+    if (!activeRoomIdSet.has(roomId)) snoozedRoomIds.delete(roomId);
+  });
 
   const expiredRoomIds = listExpiredInviteRoomIds(latestRawInvites, now);
   if (expiredRoomIds.length > 0) cleanupExpiredInvites(expiredRoomIds);
 
+  // 「あとで」にした招待は、Firebase上のデータとしては有効なまま（activeInvitesには
+  // 含まれ続ける）だが、バナーに表示する候補からは除外する。
+  displayableInvites = activeInvites.filter((invite) => !snoozedRoomIds.has(invite.roomId));
+
   const shouldShow =
-    !isAcceptBusy && activeInvites.length > 0 && SAFE_SCREENS_FOR_INVITE_BANNER.has(currentScreenName);
+    !isAcceptBusy && displayableInvites.length > 0 && SAFE_SCREENS_FOR_INVITE_BANNER.has(currentScreenName);
   elements.banner.hidden = !shouldShow;
   if (!shouldShow) return;
 
-  const topInvite = activeInvites[0];
+  const topInvite = displayableInvites[0];
   elements.bannerText.textContent = `${topInvite.inviterDisplayName}さんから対戦ルームへの招待が届いています`;
+  // 「ほか◯件」は、今表示している1件を除いた「有効な招待の総数」（あとで中のものも含む）。
+  // あとでにした招待も本人にとっては「まだ残っている招待」であるため、件数からは省かない。
   const restCount = activeInvites.length - 1;
   if (elements.bannerMoreLabel) {
     elements.bannerMoreLabel.hidden = restCount <= 0;
@@ -161,19 +185,23 @@ function renderBanner() {
   }
 }
 
+function setBannerButtonsDisabled(disabled) {
+  elements.bannerAcceptButton.disabled = disabled;
+  elements.bannerDeclineButton.disabled = disabled;
+  if (elements.bannerLaterButton) elements.bannerLaterButton.disabled = disabled;
+}
+
 async function handleAcceptClick() {
-  if (isAcceptBusy || activeInvites.length === 0) return;
-  const topInvite = activeInvites[0];
+  if (isAcceptBusy || displayableInvites.length === 0) return;
+  const topInvite = displayableInvites[0];
   playSfx(SFX_EVENTS.UI_CONFIRM);
   isAcceptBusy = true;
-  elements.bannerAcceptButton.disabled = true;
-  elements.bannerDeclineButton.disabled = true;
+  setBannerButtonsDisabled(true);
 
   const playerName = getActivePlayer().playerName || "プレイヤー";
   const result = await joinRoomFromInvite({ roomId: topInvite.roomId, playerName });
 
-  elements.bannerAcceptButton.disabled = false;
-  elements.bannerDeclineButton.disabled = false;
+  setBannerButtonsDisabled(false);
   isAcceptBusy = false;
 
   // 参加の成否によらず、この招待自体は消す（参加失敗時は「ルームが既に無い」等、参加時点の
@@ -190,11 +218,23 @@ async function handleAcceptClick() {
   renderBanner();
 }
 
+// 「断る」：処理済み扱い（本人指示どおり）。Firebase上の招待データを削除する。
 function handleDeclineClick() {
-  if (activeInvites.length === 0) return;
+  if (displayableInvites.length === 0) return;
   playSfx(SFX_EVENTS.UI_BACK);
-  const topInvite = activeInvites[0];
+  const topInvite = displayableInvites[0];
   removeMyInvite(topInvite.roomId);
+  renderBanner();
+}
+
+// 【本人指示：3択仕様】「あとで」：Firebase上の招待データには一切触れない（未処理のまま
+// 有効期限まで残る）。この端末では、いま表示していたバナーだけをその場で閉じる。
+// 他の招待（複数招待のうち残りの分）には一切影響しない。
+function handleLaterClick() {
+  if (displayableInvites.length === 0) return;
+  playSfx(SFX_EVENTS.UI_BACK);
+  const topInvite = displayableInvites[0];
+  snoozedRoomIds.add(topInvite.roomId);
   renderBanner();
 }
 
@@ -203,12 +243,31 @@ function handleInvitesUpdate(rawInvitesValue) {
   renderBanner();
 }
 
+// 【動作確認用】Firebaseの実データを介さずに、invites/{自分のuid}の生データが届いた場合と
+// 全く同じ経路（handleInvitesUpdate→renderBanner）を直接呼び出す。本番Firebase Rulesが
+// 未公開の間、Browserペインで3択（参加する／あとで／断る）の表示・状態遷移を検証するために
+// 追加した（実際のFirebase書き込みには一切触れない、副作用の無い診断用の入口）。
+export function simulateInvitesUpdateForTesting(rawInvitesValue) {
+  handleInvitesUpdate(rawInvitesValue);
+}
+
 // js/main.jsから一度だけ呼ぶ。
 export function initRoomInviteUi(newElements) {
   elements = newElements;
 
+  // 【実機相当のBrowserペイン確認で発見・修正】js/main.jsは起動時、このinitRoomInviteUi()
+  // より前の時点で既にshowScreen("start")を呼び終えている（オンボーディング不要な
+  // 既存ユーザーの場合）。onScreenChange()は「これから先に起きる画面切り替え」しか
+  // 通知しないため、登録が遅れるこのタイミングでは最初のstart画面表示を取りこぼし、
+  // currentScreenNameがnullのままになる＝home画面にいるのにバナーが一切表示されない、
+  // という実害のあるバグになっていた。js/screens.jsのshowScreen()がdocument.body.dataset.
+  // screenへ同期的に書き込んでいることを利用し、起動時点の現在画面をここで直接読み取って
+  // 初期同期する。
+  currentScreenName = document.body.dataset.screen ?? null;
+
   elements.bannerAcceptButton.addEventListener("click", handleAcceptClick);
   elements.bannerDeclineButton.addEventListener("click", handleDeclineClick);
+  elements.bannerLaterButton?.addEventListener("click", handleLaterClick);
 
   elements.pickerCloseButton.addEventListener("click", () => {
     playSfx(SFX_EVENTS.UI_BACK);
@@ -226,6 +285,13 @@ export function initRoomInviteUi(newElements) {
   });
 
   onScreenChange((screenName) => {
+    // 【本人指示：「あとで」はホームへ再訪すると再表示される】ホーム画面から他の画面へ
+    // 切り替わった瞬間にスヌーズ状態をクリアする。次にホームへ戻ってきたとき
+    // （screenNameが再び"start"になったとき）、renderBanner()がまだ有効な招待を
+    // 見つければ、スヌーズされていない状態として自然に再表示される。
+    if (currentScreenName === "start" && screenName !== "start") {
+      snoozedRoomIds.clear();
+    }
     currentScreenName = screenName;
     renderBanner();
   });
