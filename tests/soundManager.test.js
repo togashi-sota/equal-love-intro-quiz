@@ -8,6 +8,7 @@ import {
   SFX_THEMES,
   SFX_THEME_INFO,
   playSfx,
+  playOnlineResultSfx,
   previewSfxTheme,
   playCountUpSweep,
   getSfxSettings,
@@ -17,6 +18,9 @@ import {
   setSfxGameEnabled,
   setSfxTheme,
   setSfxVolumePercent,
+  getSfxOnlineResultEnabled,
+  setSfxOnlineResultEnabled,
+  toggleSfxOnlineResultEnabled,
 } from "../js/soundManager.js";
 import { assertEqual } from "./test-utils.js";
 
@@ -26,6 +30,7 @@ const KEYS = {
   game: "equalLoveIntroQuiz.sfxGameEnabled",
   theme: "equalLoveIntroQuiz.sfxTheme",
   volume: "equalLoveIntroQuiz.sfxVolume",
+  onlineResult: "equalLoveIntroQuiz.sfxOnlineResultEnabled",
 };
 
 function clearAllKeys() {
@@ -248,6 +253,73 @@ export function runSoundManagerTests() {
       threwRapid = true;
     }
     assertEqual(threwRapid, false, "UIクリック音を50回連続で呼んでも例外を投げない");
+  }
+
+  clearAllKeys();
+
+  // ===== 【2026-09-06新設・本人指示：オンライン正解音とオフライン効果音の完全分離】
+  // sfxOnlineResultEnabledが、オフライン側（master/ui/game）とは完全に独立した
+  // 別のlocalStorageキー・別のフラグであることを確認する（本人指示4〜7の回帰防止）。 =====
+  {
+    const defaultOnline = getSfxOnlineResultEnabled();
+    assertEqual(defaultOnline, true, "デフォルトのオンライン正解音はON");
+
+    // ---- 「オフラインON・オンラインOFF」という食い違った組み合わせを保持できる ----
+    setSfxMasterEnabled(true);
+    setSfxOnlineResultEnabled(false);
+    assertEqual(getSfxSettings().masterEnabled, true, "オフライン効果音はONのまま");
+    assertEqual(getSfxOnlineResultEnabled(), false, "オンライン正解音だけをOFFにできる（オフラインには影響しない）");
+    assertEqual(localStorage.getItem(KEYS.master), "true", "オフライン側のlocalStorageキーはtrueのまま");
+    assertEqual(localStorage.getItem(KEYS.onlineResult), "false", "オンライン側の別キーだけがfalseになる");
+
+    // ---- 逆方向：「オフラインOFF・オンラインON」も保持できる ----
+    setSfxMasterEnabled(false);
+    setSfxOnlineResultEnabled(true);
+    assertEqual(getSfxSettings().masterEnabled, false, "オフライン効果音をOFFにしても");
+    assertEqual(getSfxOnlineResultEnabled(), true, "オンライン正解音のON設定は影響を受けない");
+
+    // ---- toggleSfxOnlineResultEnabled()はtoggleSfxMasterEnabled()と完全に独立して動く ----
+    setSfxMasterEnabled(true);
+    setSfxOnlineResultEnabled(true);
+    const afterOnlineToggle = toggleSfxOnlineResultEnabled();
+    assertEqual(afterOnlineToggle, false, "toggleSfxOnlineResultEnabled()はON→OFF切替後の値を返す");
+    assertEqual(getSfxSettings().masterEnabled, true, "オンライン側をトグルしても、オフライン側のmasterEnabledは変化しない");
+    assertEqual(getSfxOnlineResultEnabled(), false, "オンライン側のトグル結果が正しく反映される");
+
+    // ---- playSfx()とplayOnlineResultSfx()は別々の判定ロジックを使う（例外を投げないことの確認） ----
+    setSfxMasterEnabled(false);
+    setSfxOnlineResultEnabled(true);
+    let threwOffline = false;
+    try {
+      playSfx(SFX_EVENTS.QUIZ_CORRECT); // オフラインmasterがOFFなので実質何もしないはず
+    } catch {
+      threwOffline = true;
+    }
+    let threwOnline = false;
+    try {
+      playOnlineResultSfx(SFX_EVENTS.QUIZ_CORRECT); // オンラインはONなので鳴らす経路を通るはず
+    } catch {
+      threwOnline = true;
+    }
+    assertEqual(threwOffline, false, "オフラインmasterEnabled:falseの状態でplaySfx()を呼んでも例外を投げない");
+    assertEqual(threwOnline, false, "同時にsfxOnlineResultEnabled:trueの状態でplayOnlineResultSfx()を呼んでも例外を投げない（互いに独立して動作する）");
+
+    setSfxOnlineResultEnabled(false);
+    let threwOnlineOff = false;
+    try {
+      playOnlineResultSfx(SFX_EVENTS.QUIZ_WRONG);
+    } catch {
+      threwOnlineOff = true;
+    }
+    assertEqual(threwOnlineOff, false, "sfxOnlineResultEnabled:falseの状態でplayOnlineResultSfx()を呼んでも例外を投げない（早期return）");
+
+    // ---- 「ルーム解散→新しいルームを作成→アプリの再起動」を経ても設定が保持されることの
+    // シミュレーション（本人指示7）。モジュールの実際の再importはブラウザの性質上できないため、
+    // 「保存されているlocalStorageの値が、次回の読み込み時にそのまま初期値になる」という
+    // 設計をコードレビューで確認した上で、保存値自体が壊れず残ることを確認する
+    // （js/soundManager.jsのreadBoolean(STORAGE_KEYS.onlineResult, true)が読み取る値）。 ----
+    setSfxOnlineResultEnabled(false);
+    assertEqual(localStorage.getItem(KEYS.onlineResult), "false", "オンライン正解音OFFの状態が、ルーム解散・再作成・アプリ再起動を経てもlocalStorageに残り続ける（次回読み込み時の初期値になる）");
   }
 
   clearAllKeys();

@@ -68,6 +68,8 @@
     import { runLyricsQuizBattleFirebaseTests } from "./tests/lyricsQuizBattleFirebase.test.js";
     import { runLyricsQuizBattleSecurityRulesTests } from "./tests/lyricsQuizBattleSecurityRules.test.js";
     import { runLyricsQuizBattleUiTests } from "./tests/lyricsQuizBattleUi.test.js";
+    import { runLyricsQuizStealClaimTrustTests } from "./tests/lyricsQuizStealClaimTrust.test.js";
+    import { runOnlineBattleRoomStateRestoreRegressionTests } from "./tests/onlineBattleRoomStateRestoreRegression.test.js";
     import { runLyricsQuizBattleTimingTests } from "./tests/lyricsQuizBattleTiming.test.js";
     import { runOnlineBattleStartSettingsTests } from "./tests/onlineBattleStartSettings.test.js";
     import { runQuestionSourceTests } from "./tests/questionSource.test.js";
@@ -181,6 +183,8 @@
     runLyricsQuizBattleFirebaseTests();
     runLyricsQuizBattleSecurityRulesTests();
     runLyricsQuizBattleUiTests();
+    runLyricsQuizStealClaimTrustTests();
+    await runOnlineBattleRoomStateRestoreRegressionTests();
     runLyricsQuizBattleTimingTests();
     runOnlineBattleStartSettingsTests();
     runQuestionSourceTests();

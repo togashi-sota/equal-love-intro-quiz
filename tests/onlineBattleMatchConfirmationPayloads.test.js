@@ -10,6 +10,7 @@ import {
   resolveRematchToggleButtonLabel,
   filterPlayersForRematchParticipants,
   buildRematchProposalUpdates,
+  canBeginRematchReadyCheckFromRoomStatus,
 } from "../js/onlineBattleMatchConfirmationPayloads.js";
 import { assertEqual } from "./test-utils.js";
 
@@ -428,6 +429,122 @@ export function runOnlineBattleMatchConfirmationPayloadsTests() {
         computeAllPlayersResultReturned(players),
         true,
         "10人中3人が切断中：残り7人全員が戻り終えていれば、切断中の3人を待たずに戻り終えたと判定する"
+      );
+    }
+
+    // ---- canBeginRematchReadyCheckFromRoomStatus（2026-09-06新設・実機バグ調査：
+    // 「もう一度」→キャンセル→もう一度が2回目以降効かないバグの再発防止） ----
+    {
+      assertEqual(
+        canBeginRematchReadyCheckFromRoomStatus({ status: "result", confirmingRematch: undefined }),
+        true,
+        "結果画面（status:result）からは常に再戦提案を開始できる（1回目の通常ケース）"
+      );
+      assertEqual(
+        canBeginRematchReadyCheckFromRoomStatus({ status: "waiting", confirmingRematch: false }),
+        true,
+        "1回目の提案がキャンセル済み（status:waiting・confirmingRematch:false）なら、2回目の提案を開始できる（今回のバグ修正の核心）"
+      );
+      assertEqual(
+        canBeginRematchReadyCheckFromRoomStatus({ status: "waiting", confirmingRematch: undefined }),
+        true,
+        "confirmingRematchが未設定（そもそも一度も再戦提案していないwaiting状態）でも開始できる"
+      );
+      assertEqual(
+        canBeginRematchReadyCheckFromRoomStatus({ status: "waiting", confirmingRematch: true }),
+        false,
+        "既に再戦提案が進行中（status:waiting・confirmingRematch:true）のときは、二重に開始させない"
+      );
+      assertEqual(
+        canBeginRematchReadyCheckFromRoomStatus({ status: "playing", confirmingRematch: false }),
+        false,
+        "対戦中（status:playing）は再戦提案を開始できない"
+      );
+      assertEqual(
+        canBeginRematchReadyCheckFromRoomStatus({ status: "countdown", confirmingRematch: false }),
+        false,
+        "カウントダウン中（status:countdown）は再戦提案を開始できない"
+      );
+    }
+
+    // ---- 「もう一度→キャンセル」を100回連続シミュレーション（本人指示5：耐久確認） ----
+    // 【シミュレーションの設計】実際のFirebase呼び出しは行わず、buildRematchProposalUpdates()
+    // が返すupdatesを素朴なインメモリのroomオブジェクトへ適用する→
+    // canBeginRematchReadyCheckFromRoomStatus()で次の提案が開始できるか確認する→
+    // キャンセル（confirmingRematch:falseだけを反映、cancelRematchReadyCheck()と同じ）を
+    // 適用する、を1サイクルとして100回繰り返す。毎サイクル必ず開始できることを確認する
+    // （1回でも失敗すれば、今回のバグが再発したことを意味する）。
+    {
+      const REMATCH_CANCEL_CYCLE_COUNT = 100;
+      let room = { status: "result", confirmingRematch: undefined, players: { host1: {}, guest1: {} } };
+      let successfulCycles = 0;
+
+      for (let cycle = 0; cycle < REMATCH_CANCEL_CYCLE_COUNT; cycle++) {
+        const canBegin = canBeginRematchReadyCheckFromRoomStatus({
+          status: room.status,
+          confirmingRematch: room.confirmingRematch,
+        });
+        if (!canBegin) break; // 失敗した時点で打ち切り、下のassertで検出させる
+
+        // 「もう一度」：buildRematchProposalUpdates()が返すキーのうち、room直下の値だけを反映する。
+        const updates = buildRematchProposalUpdates({ roomId: "R", players: room.players, hostUid: "host1" });
+        room = { ...room, status: updates["rooms/R/status"], confirmingRematch: updates["rooms/R/confirmingRematch"] };
+
+        // 「キャンセル」：cancelRematchReadyCheck()と同じく、confirmingRematchだけを下ろす
+        // （statusは意図的に"result"へは戻さない、既存の設計どおり）。
+        room = { ...room, confirmingRematch: false };
+
+        successfulCycles++;
+      }
+
+      assertEqual(
+        successfulCycles,
+        REMATCH_CANCEL_CYCLE_COUNT,
+        `「もう一度→キャンセル」のサイクルを${REMATCH_CANCEL_CYCLE_COUNT}回連続で実行し、毎回必ず次の「もう一度」を開始できることを確認した（1回でも失敗すれば今回のバグの再発を意味する）`
+      );
+    }
+
+    // ---- 正常系（キャンセルせず最後まで再戦を成立させる）を50回繰り返しても壊れないこと ----
+    // 【本人指示5】「もう一度→ゲストready→再戦開始→結果→もう一度」の正常系も繰り返して
+    // 確認する、との指示に対応。試合が成立すると、js/onlineBattle.jsのwriteNewMatchStart()
+    // 相当の処理でstatusは"result"以外（実際には次の試合が進行して最終的にまた"result"）へ
+    // 遷移する想定のため、ここでは「試合成立後、次の結果画面（status:result）に戻った時点で
+    // 再び提案できるか」をシミュレートする。
+    {
+      const NORMAL_CYCLE_COUNT = 50;
+      let room = { status: "result", confirmingRematch: undefined, players: { host1: {}, guest1: {}, guest2: {} } };
+      let successfulCycles = 0;
+
+      for (let cycle = 0; cycle < NORMAL_CYCLE_COUNT; cycle++) {
+        const canBegin = canBeginRematchReadyCheckFromRoomStatus({
+          status: room.status,
+          confirmingRematch: room.confirmingRematch,
+        });
+        if (!canBegin) break;
+
+        const updates = buildRematchProposalUpdates({ roomId: "R", players: room.players, hostUid: "host1" });
+        room = { ...room, status: updates["rooms/R/status"], confirmingRematch: updates["rooms/R/confirmingRematch"] };
+
+        // 全員がrematchReady:trueになった（ゲストも準備OKを押した）ことを表す。
+        const allReady = computeAllPlayersRematchReady({
+          host1: { rematchReady: true },
+          guest1: { rematchReady: true },
+          guest2: { rematchReady: true },
+        });
+        if (!allReady) break;
+
+        // 再戦が実際に開始・終了し、次の結果画面へ戻った状態を表す
+        // （writeNewMatchStart()相当：confirmingRematchは下ろされ、新しい試合の結果が
+        // 出た時点でstatusは再びresultに戻る）。
+        room = { ...room, status: "result", confirmingRematch: false };
+
+        successfulCycles++;
+      }
+
+      assertEqual(
+        successfulCycles,
+        NORMAL_CYCLE_COUNT,
+        `「もう一度→全員準備OK→再戦成立→結果」の正常系サイクルを3人参加で${NORMAL_CYCLE_COUNT}回連続実行し、毎回問題なく次のサイクルへ進めることを確認した`
       );
     }
   }

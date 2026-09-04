@@ -129,7 +129,7 @@ export function renderRandomPlaybackResult(questionCountValue, categoryFilterVal
   resultElements.newRecordBadge.hidden = !isNewRecord;
   resultElements.failStatus.hidden = !stats.runFailed;
   if (stats.runFailed) {
-    resultElements.failStatus.textContent = `${stats.perQuestionResults.length}問目で失敗しました（LOVE連チャンは全問クリアのタイムだけが記録されます）`;
+    resultElements.failStatus.textContent = `${stats.perQuestionResults.length}問目で失敗しました（ノーミスチャレンジは全問クリアのタイムだけが記録されます）`;
   }
 
   // グローバルランキングへの送信（2026-08-16追加、本人指示）。タイムアタックの

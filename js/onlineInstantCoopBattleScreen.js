@@ -1761,7 +1761,7 @@ function renderCurrentQuestionState() {
         // （1問につき1回だけ）。「全員わからない」はどちらとも言えないため鳴らさない。
         if (lastRevealSfxPlayedForQIndex !== qIndex) {
           lastRevealSfxPlayedForQIndex = qIndex;
-          // 【2026-XX-XX改訂・本人指示：オンライン正解音設定とオフライン効果音設定を完全分離】
+          // 【2026-09-06改訂・本人指示：オンライン正解音設定とオフライン効果音設定を完全分離】
           if (!isAllUnknown) playOnlineResultSfx(outcome.isCorrect ? SFX_EVENTS.QUIZ_CORRECT : SFX_EVENTS.QUIZ_WRONG);
           // 【2026-09-30新設・本人指示：オンライン対戦総合改修 第2ラウンド16章】SFXと同じ
           // 「この問題では1回だけ」の瞬間に、問題の続きの楽曲を鳴らし始める。サーバー時刻

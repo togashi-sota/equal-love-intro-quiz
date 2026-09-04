@@ -100,6 +100,65 @@ export function runClassicRuleTests() {
       0,
       "合計ポイントが同じなら、回答時間・使用ヒント数等に関わらず必ず0（完全な同順位）"
     );
+
+    // 【2026-09-06追加・本人指示：正解数バトルの「同数は完全同順位」再確認】totalPoints
+    // （＝正解数バトルでは正解数と同値）以外のフィールド（回答時間・使用ヒント数・ミス数・
+    // わからない回数）が大きく異なっていても、正解数さえ同じなら必ず同順位になることを、
+    // 実際のaggregateResult()の出力形そのもの（totalPointsだけのラップではなく）で確認する。
+    const fastFewHints = classicRule.aggregateResult([
+      buildOutcome({ outcome: "correct", hintLevel: 1, responseMs: 500, pointsAwarded: 1 }),
+      buildOutcome({ outcome: "correct", hintLevel: 1, responseMs: 400, pointsAwarded: 1 }),
+      buildOutcome({ outcome: "wrongAnswer", hintLevel: 4, responseMs: 300, pointsAwarded: 0 }),
+    ]);
+    const slowManyHints = classicRule.aggregateResult([
+      buildOutcome({ outcome: "correct", hintLevel: 4, responseMs: 29000, pointsAwarded: 1 }),
+      buildOutcome({ outcome: "correct", hintLevel: 3, responseMs: 27000, pointsAwarded: 1 }),
+      buildOutcome({ outcome: "skipped", hintLevel: 4, responseMs: 30000, pointsAwarded: 0 }),
+    ]);
+    assertEqual(fastFewHints.detail.correctCount, 2, "1人目：正解数2問（前提確認）");
+    assertEqual(slowManyHints.detail.correctCount, 2, "2人目：正解数も2問（前提確認）");
+    assertEqual(
+      fastFewHints.detail.totalElapsedMs !== slowManyHints.detail.totalElapsedMs,
+      true,
+      "回答時間は大きく異なる（前提確認：片方は速答・片方は毎回ヒント4まで見て遅い）"
+    );
+    assertEqual(
+      classicRule.compareResults(fastFewHints, slowManyHints),
+      0,
+      "正解数が同じ2人は、実際の回答時間・使用ヒント段階が大きく異なっていても必ず同順位になる（回答時間等でタイブレークしない、本人指示の再確認）"
+    );
+  }
+
+  // ===== ユーザー向け表示に「ポイント」「pt」概念が残っていないことの確認 =====
+  // 【2026-09-06追加・本人指示9・15：正解数バトルからポイント概念を完全撤廃】
+  {
+    assertEqual(/pt|ポイント/.test(classicRule.description), false, "選択カードの説明文（description）にpt/ポイント表記が無い");
+    assertEqual(
+      /pt|ポイント/.test(classicRule.getRuleDescription()),
+      false,
+      "ルール説明（getRuleDescription()）にpt/ポイント表記が無い"
+    );
+    assertEqual(
+      classicRule.hudFields.every((field) => !/pt|ポイント/.test(field.label)),
+      true,
+      "対戦中HUDのラベルにpt/ポイント表記が無い（「現在の正解数」等の表記になっている）"
+    );
+    assertEqual(
+      classicRule.resultColumns.every((column) => !/pt|ポイント/.test(column.label)),
+      true,
+      "結果カードの列ラベルにpt/ポイント表記が無い"
+    );
+
+    // aggregateResult()が組み立てるcorrectCountFraction（結果カード表示用）自体の形式も確認する。
+    const result = classicRule.aggregateResult([
+      buildOutcome({ outcome: "correct" }),
+      buildOutcome({ outcome: "correct" }),
+      buildOutcome({ outcome: "wrongAnswer", pointsAwarded: 0 }),
+      buildOutcome({ outcome: "skipped", pointsAwarded: 0 }),
+      buildOutcome({ outcome: "skipped", pointsAwarded: 0 }),
+    ]);
+    assertEqual(result.detail.correctCountFraction, "2 / 5問", '5問中2問正解の場合、correctCountFractionは"2 / 5問"になる（「2 / 5問 正解」として結果カードに表示される）');
+    assertEqual(/pt|ポイント/.test(result.detail.correctCountFraction), false, "correctCountFraction自体にpt/ポイント表記が無い");
   }
 
   // ===== validateSettings・defaultSettings =====

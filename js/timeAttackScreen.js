@@ -329,7 +329,7 @@ export function renderTimeAttackResult() {
   resultElements.newRecordBadge.hidden = !isNewRecord;
   resultElements.failStatus.hidden = !runFailed;
   if (runFailed) {
-    resultElements.failStatus.textContent = `${perQuestionResults.length}問目で失敗しました（LOVE連チャンは全問クリアのタイムだけが記録されます）`;
+    resultElements.failStatus.textContent = `${perQuestionResults.length}問目で失敗しました（ノーミスチャレンジは全問クリアのタイムだけが記録されます）`;
   }
 
   // グローバルランキングへの送信（2026-08-07追加）。このファイル自体はFirebaseに一切触れない

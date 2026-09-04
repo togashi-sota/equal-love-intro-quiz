@@ -89,7 +89,7 @@ export function onScreenChange(listener) {
   screenChangeListeners.add(listener);
 }
 
-// 【2026-XX-XX新設・実機バグ調査：問題画面の縦位置が設定開閉で変わる問題】
+// 【2026-09-06新設・実機バグ調査：問題画面の縦位置が設定開閉で変わる問題】
 // css/style.cssの--game-frame-safe-height（100dvh基準）を使う4つの問題画面
 // （通常クイズ・歌詞クイズ対戦・オンライン歌詞クイズ対戦・一瞬チャレンジ）で、
 // 画面に入った直後だけ.quiz-middle-zone-innerの縦位置が本来より上すぎる状態になる

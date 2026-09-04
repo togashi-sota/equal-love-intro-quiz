@@ -480,7 +480,7 @@ export function describeEntrySummaryLines(entry) {
           .filter(Boolean)
           .join(" / ")
       );
-      // 【2026-XX-XX改訂・本人指示9：正解数バトルからポイント概念を撤廃】正解数バトル
+      // 【2026-09-06改訂・本人指示9：正解数バトルからポイント概念を撤廃】正解数バトル
       // （battleRuleId === "classic"）だけは「◯pt」ではなく「◯問正解」で表示する。
       // 早押しバトル・ポイントバトルは従来どおりポイント表示のまま（本人指示11：
       // ポイントバトルのメイン指標は従来通りポイント）。
@@ -553,7 +553,7 @@ export function describeEntryDetailFields(entry) {
   push("正解数", entry.correctCount !== null ? `${entry.correctCount}問` : null);
   push("誤答数", entry.wrongCount !== null ? `${entry.wrongCount}問` : null);
   push("未回答・スキップ数", entry.skippedCount !== null ? `${entry.skippedCount}問` : null);
-  // 【2026-XX-XX改訂・本人指示9：正解数バトルからポイント概念を撤廃】歌詞クイズ対戦の
+  // 【2026-09-06改訂・本人指示9：正解数バトルからポイント概念を撤廃】歌詞クイズ対戦の
   // 正解数バトル（battleRuleId === "classic"）だけは、上の「正解数」と同じ値を
   // 「スコア」欄に「◯点」として重複表示しない（ポイント/スコアという概念自体を
   // 見せないため）。他のモード・他のルールは従来どおり表示する。

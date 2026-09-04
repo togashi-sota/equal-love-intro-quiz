@@ -433,7 +433,7 @@ function handleSfxToggleClick() {
   if (enabledAfterToggle) playClickSound();
 }
 
-// 【2026-XX-XX新設・本人指示：オンライン正解音設定とオフライン効果音設定を完全分離】
+// 【2026-09-06新設・本人指示：オンライン正解音設定とオフライン効果音設定を完全分離】
 // クイズ画面右上ボタンがオンライン対戦モード（#quiz-screenを使う従来のオンライン対戦：
 // イントロ/ランダム再生/アウトロ対戦）のときだけ使う、「正解音 ON/OFF」専用の表示更新。
 // スタート画面のsyncSfxToggleUI()とは完全に別のフラグ（sfxOnlineResultEnabled）を見る。
@@ -468,7 +468,7 @@ function syncQuizHeaderSfxButtonMode(isOffline) {
     sfxToggleButtonQuizElement.setAttribute("aria-label", "効果音設定を開く");
     sfxToggleButtonQuizElement.classList.remove("is-muted");
   } else {
-    // 【2026-XX-XX改訂・本人指示6・7】オンライン対戦中はオフラインのsyncSfxToggleUI()
+    // 【2026-09-06改訂・本人指示6・7】オンライン対戦中はオフラインのsyncSfxToggleUI()
     // ではなく、オンライン専用フラグを見るsyncOnlineResultSfxToggleUI()を使う。
     syncOnlineResultSfxToggleUI();
   }
@@ -3420,7 +3420,7 @@ function clearPendingTimeAttackAdvance() {
   pendingTimeAttackAdvanceTimeoutId = null;
 }
 
-// 【2026-XX-XX新設・本人指示：オンライン正解音設定とオフライン効果音設定を完全分離】
+// 【2026-09-06新設・本人指示：オンライン正解音設定とオフライン効果音設定を完全分離】
 // 正解・不正解の音は、handleTimedChoiceClick()・handleNormalChoiceClick()等、
 // タイムアタック系オフラインモードとオンライン対戦（gameState.playMode === "onlineBattle"）
 // の両方から共通で呼ばれる。オンライン対戦中だけ、オフラインのsfxMasterEnabled等とは別の

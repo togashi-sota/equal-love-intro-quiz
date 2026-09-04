@@ -58,6 +58,7 @@ import {
   computeAllPlayersRematchReady,
   computeAllPlayersResultReturned,
   buildRematchProposalUpdates,
+  canBeginRematchReadyCheckFromRoomStatus,
 } from "./onlineBattleMatchConfirmationPayloads.js";
 import { startActivityPresenceTracking, stopActivityPresenceTracking } from "./onlineBattlePresence.js";
 import { isMatchReadyToFinalize } from "./onlineBattleMatchProgress.js";
@@ -1808,18 +1809,12 @@ export async function beginRematchReadyCheck({ roomId }) {
   if (!snapshot?.exists()) return { ok: false, reason: "not-found" };
   const room = snapshot.val();
   if (room.host !== uid) return { ok: false, reason: "not-host" };
-  // 【2026-XX-XX修正・実機バグ調査：「もう一度」→キャンセル→もう一度が2回目以降効かないバグ】
-  // 1回目の提案でroom.statusは"waiting"へ書き換わり（意図的な設計、上のコメント参照）、
-  // キャンセルされてもcancelRematchReadyCheck()はconfirmingRematchを下ろすだけで
-  // statusを"result"へ戻さない。それでも結果画面の参加者はこの画面に留まり続け
-  // （js/onlineBattleScreen.jsのRETURN_TO_LOBBY分岐を参照）、「もう一度」ボタンは
-  // 再表示されるため、2回目以降はここがstatus !== "result"で常に弾いていた。
-  // 「result」または「(前回の提案がキャンセル済みの)waiting」のどちらから始めても
-  // 再戦提案を開始できるようにする。
-  const canStartFromCurrentStatus =
-    room.status === ROOM_STATUS.RESULT ||
-    (room.status === ROOM_STATUS.WAITING && room.confirmingRematch !== true);
-  if (!canStartFromCurrentStatus) return { ok: false, reason: "not-result" };
+  // 【2026-09-06修正・実機バグ調査：「もう一度」→キャンセル→もう一度が2回目以降効かないバグ】
+  // 判定の実体はjs/onlineBattleMatchConfirmationPayloads.jsの純粋関数へ切り出した
+  // （恒久テストのためFirebase呼び出しから分離、tests/onlineBattleMatchConfirmationPayloads.test.js参照）。
+  if (!canBeginRematchReadyCheckFromRoomStatus({ status: room.status, confirmingRematch: room.confirmingRematch })) {
+    return { ok: false, reason: "not-result" };
+  }
   // 【2026-10-01追加・本人指示：結果画面/再戦フロー全面設計12-6章】オンライン対戦の再戦は
   // 最低2人必要。ホストだけになっている場合は、そもそも再戦提案を始めさせない。
   if (Object.keys(room.players || {}).length < 2) {

@@ -61,6 +61,26 @@ export function runGuideContentTests() {
     }
   });
 
+  // ---- 【2026-09-06追加・本人指示9・15：正解数バトルからポイント概念を完全撤廃】
+  // 「ルール・遊び方」ガイド内の歌詞クイズ対戦説明（onlineBattleModes）で、正解数バトルの
+  // 説明部分だけにpt/ポイント表記が残っていないことを確認する（早押しバトル・ポイントバトルは
+  // 従来どおりpt表記を維持するため、pointテキスト全体ではなく正解数バトルの節だけを
+  // 切り出して検査する）。過去に実際、guideContent.jsのこの節だけ改称漏れで
+  // 「正解1問＝1pt」という表記が残っていたことが今回の監査で発覚したための回帰テスト。
+  {
+    const onlineBattleModesSection = getGuideSectionById("onlineBattleModes");
+    const pointText = onlineBattleModesSection?.point ?? "";
+    const classicRuleClauseMatch = pointText.match(/正解数バトル：([^。]*(?:。[^早]*)?)早押しバトル/);
+    assertEqual(classicRuleClauseMatch !== null, true, "onlineBattleModesのpointに「正解数バトル：〜早押しバトル」という節が見つかる（前提条件）");
+    if (classicRuleClauseMatch) {
+      assertEqual(
+        /pt|ポイント/.test(classicRuleClauseMatch[1]),
+        false,
+        "「ルール・遊び方」ガイドの正解数バトルの説明にpt/ポイント表記が残っていない"
+      );
+    }
+  }
+
   // ---- getGuideSectionById()の動作確認 ----
   assertEqual(
     getGuideSectionById("intro")?.title,

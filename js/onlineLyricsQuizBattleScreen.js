@@ -177,6 +177,7 @@ import { playSongFromRandomPosition, stopAudio, attemptSilentUnlock, getAudioEle
 import { QUESTION_COUNT_LABELS } from "./localBattleScreen.js";
 import { SFX_EVENTS, playSfx, playOnlineResultSfx } from "./soundManager.js";
 import { STEAL_CLAIM_OUTCOME } from "./lyricsQuizBattleFirebasePayloads.js";
+import { isSelfWinnerClaimTrustworthy } from "./lyricsQuizStealClaimTrust.js";
 
 // ホストが問題の確定（正解発表）を見せてから、次の問題／最終結果へ進むまでの待ち時間。
 // 【2026-09-03改訂→2026-09-06再改訂、本人指示】一度「4秒固定」に変更していたが、
@@ -234,7 +235,7 @@ let myQuestionStartedAtCache = {};
 // 問題インデックスごとに持つ形へ変更した（qIndex -> 表示名 | undefined）。
 let winnerNameByQuestionIndex = {};
 
-// 【2026-XX-XX追加・実機バグ調査：早押し「奪い取り」ルールの二重勝利表示バグ対策】
+// 【2026-09-06追加・実機バグ調査：早押し「奪い取り」ルールの二重勝利表示バグ対策】
 // 自分がwinner claimを送った問題インデックスのうち、submitLyricsQuizAnswerWithStealClaim()の
 // 戻り値（サーバーの応答を待ったawait結果）でSTEAL_CLAIM_OUTCOME.WONが確定した番号だけを
 // 記録するSet。Firebase Realtime DatabaseのクライアントSDKは、自分が送ったset()の結果が
@@ -1492,15 +1493,23 @@ function maybeRecordMyOutcomeForResolvedQuestions(match) {
     if (!question) break;
 
     const rawWinner = match.questionClaims?.[qIndex]?.winner ?? null;
-    // 【2026-XX-XX追加・実機バグ調査：早押し「奪い取り」ルールの二重勝利表示バグ対策】
+    // 【2026-09-06追加・実機バグ調査：早押し「奪い取り」ルールの二重勝利表示バグ対策】
+    // 判定の実体はjs/lyricsQuizStealClaimTrust.jsの純粋関数へ切り出した（回帰テストの
+    // ためDOM/Firebaseに触れない形にする、tests/lyricsQuizStealClaimTrust.test.js参照）。
     // rawWinner.uidが自分自身の場合、それがFirebaseサーバーで確定した値なのか、まだ
     // 却下されるかもしれない自分自身の楽観的ローカル反映なのかを、このスナップショット
-    // だけからは区別できない。確認済み（confirmedOwnWinQuestionIndexes）でない限り、
-    // 「自分が勝者」という情報はまだ信用しない＝この問題の確定をここでは行わず、次の
-    // room更新（自分自身のawait結果が届いた後の再呼び出し）を待つ。
-    const winnerClaimIsUnconfirmedSelf =
-      rawWinner?.uid === myUid && !confirmedOwnWinQuestionIndexes.has(qIndex);
-    if (winnerClaimIsUnconfirmedSelf) break;
+    // だけからは区別できない。信用できないと判定された場合は、この問題の確定をここでは
+    // 行わず、次のroom更新（自分自身のawait結果が届いた後の再呼び出し）を待つ。
+    if (
+      !isSelfWinnerClaimTrustworthy({
+        rawWinnerUid: rawWinner?.uid,
+        myUid,
+        qIndex,
+        confirmedSelfWinQuestionIndexes: confirmedOwnWinQuestionIndexes,
+      })
+    ) {
+      break;
+    }
     const winner = rawWinner;
     const winnerUid = winner?.uid;
     const uidsToResolve = winnerUid && winnerUid !== myUid ? [myUid, winnerUid] : [myUid];
@@ -2072,7 +2081,7 @@ async function handleAnswerChoiceClick(selectedSongId) {
     latestRoom?.matches?.[currentMatchId]?.currentQuestionIndex !== qIndex;
   if (result.ok) {
     mySubmittedForQuestionIndex = qIndex;
-    // 【2026-XX-XX追加・実機バグ調査：早押し「奪い取り」ルールの二重勝利表示バグ対策】
+    // 【2026-09-06追加・実機バグ調査：早押し「奪い取り」ルールの二重勝利表示バグ対策】
     // ここのresult.outcomeは、Firebaseへのset()がサーバーで確定・応答した後に初めて
     // 分かる値（await済み）。STEAL_CLAIM_OUTCOME.WONはサーバーが実際に自分を勝者と
     // 認めた場合だけ返るため、この時点で初めてconfirmedOwnWinQuestionIndexesへ記録してよい
@@ -2430,7 +2439,7 @@ function renderCurrentQuestionState() {
       // 「今回はわからない」という専用の文言に変更した。
       const isSkip = mySelectedSongId === SKIP_SELECTION;
       elements.battleAnswerRevealStatus.textContent = gotPoints ? "🎉 正解！" : isSkip ? "今回はわからない" : "残念、不正解";
-      // 【2026-XX-XX改訂・本人指示9：正解数バトルからポイント概念を撤廃】正解数バトル
+      // 【2026-09-06改訂・本人指示9：正解数バトルからポイント概念を撤廃】正解数バトル
       // （ruleId === "classic"）は「正解／不正解」とだけ伝え、「pt」表記を出さない。
       // ポイントバトル（combo）は従来どおり、ヒント段階で変わる獲得ポイントを毎回
       // 明示する（本人指示11：ポイントバトルのメイン指標は従来通りポイント）。

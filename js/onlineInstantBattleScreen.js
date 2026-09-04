@@ -1354,7 +1354,7 @@ function renderCurrentQuestionState() {
         // QUIZ_CORRECT/QUIZ_WRONGで統一する（1問につき1回だけ）。
         if (lastRevealSfxPlayedForQIndex !== qIndex) {
           lastRevealSfxPlayedForQIndex = qIndex;
-          // 【2026-XX-XX改訂・本人指示：オンライン正解音設定とオフライン効果音設定を完全分離】
+          // 【2026-09-06改訂・本人指示：オンライン正解音設定とオフライン効果音設定を完全分離】
           // このモードは常にオンライン対戦のため、オフライン側のsfxMasterEnabled等ではなく
           // 「正解音 ON/OFF」専用のsfxOnlineResultEnabledだけで判定する。
           playOnlineResultSfx(myOutcome?.isCorrect ? SFX_EVENTS.QUIZ_CORRECT : SFX_EVENTS.QUIZ_WRONG);

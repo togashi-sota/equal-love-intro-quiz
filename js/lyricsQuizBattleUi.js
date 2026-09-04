@@ -166,7 +166,7 @@ export function describeResultTable(ruleId, rankedEntries) {
   const rule = findRule(ruleId);
   const columns = rule?.resultColumns ?? [];
   const header = ["順位", "表示名", ...columns.map((column) => column.label)];
-  // 【2026-XX-XX追加・本人指示11：ポイントバトル結果配置修正】2列目以降（restLabels）の
+  // 【2026-09-06追加・本人指示11：ポイントバトル結果配置修正】2列目以降（restLabels）の
   // うち、column.fullWidth===trueを付けたものだけは、他の項目と2列グリッドに詰め込まず
   // カード内で独立した1行として表示する（「正解数」を「ヒント1〜4」の2×2グリッドとは
   // 別に、その上へ単独行で置くため）。renderResultCards()側はルールを一切知らないまま、
@@ -431,7 +431,7 @@ export function renderResultCards(containerElement, tableData) {
 
   const [, , ...columnLabels] = tableData.header;
   const [primaryLabel, ...restLabels] = columnLabels;
-  // 【2026-XX-XX追加・本人指示11：ポイントバトル結果配置修正】restLabelsのうち
+  // 【2026-09-06追加・本人指示11：ポイントバトル結果配置修正】restLabelsのうち
   // fullWidth指定された列（正解数）だけを独立した1行に、残り（ヒント1〜4）を
   // 2×2グリッドにまとめて別々に描画するための対応表。columnLayoutが無い（古い呼び出し元・
   // テスト等）場合は、全項目をこれまでどおり2列グリッド扱いにする後方互換を保つ。
@@ -489,7 +489,7 @@ export function renderResultCards(containerElement, tableData) {
         primaryStat.textContent = `${row.cells[0]} ${primaryLabel}`;
         cardElement.appendChild(primaryStat);
       }
-      // 【2026-XX-XX改訂・本人指示11】restLabelsを「独立した1行で見せる項目」と
+      // 【2026-09-06改訂・本人指示11】restLabelsを「独立した1行で見せる項目」と
       // 「2×2グリッドでまとめる項目」に分ける。前者（正解数）を先に、後者
       // （ヒント1〜4）を後にレイアウトすることで「正解数の下にヒントの2×2」という
       // 希望どおりの並びになる。

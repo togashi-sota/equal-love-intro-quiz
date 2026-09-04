@@ -19,6 +19,21 @@ export function hasMatchMembershipChanged({ previousParticipantUids, currentPlay
   return !previousParticipantUids.every((uid) => currentSet.has(uid));
 }
 
+// 【2026-09-06新設・実機バグ調査：「もう一度」→キャンセル→もう一度が2回目以降効かない
+// バグの再発防止】js/onlineBattle.jsのbeginRematchReadyCheck()が、今のroom.status/
+// confirmingRematchから「ここで新しく再戦提案を開始してよいか」を判定する部分だけを
+// 切り出した純粋関数（Firebase呼び出し自体はonlineBattle.js側に残す）。
+//
+// 【なぜ"waiting"も許可するか】1回目の再戦提案でroom.statusは意図的に"waiting"へ
+// 書き換わる設計（buildRematchProposalUpdates参照）。cancelRematchReadyCheck()は
+// confirmingRematchを下ろすだけでstatusを"result"へは戻さない。それでも結果画面の
+// 参加者はこの画面に留まり続けるため、2回目の「もう一度」はstatus==="result"だけを
+// 見るガードに常に弾かれていた（実機で再現・確定した根本原因）。
+export function canBeginRematchReadyCheckFromRoomStatus({ status, confirmingRematch }) {
+  if (status === "result") return true;
+  return status === "waiting" && confirmingRematch !== true;
+}
+
 // room.players（{uid: {..., ruleConfirmed}}）を渡すと、1人以上存在し、かつ全員が
 // ruleConfirmed===trueであればtrueを返す。0人（誰もいない）の場合はfalse
 // （安全側：誰もいないのに「全員確認済み」として開始してしまうことを防ぐ）。

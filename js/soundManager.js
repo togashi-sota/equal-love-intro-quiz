@@ -85,7 +85,7 @@ const STORAGE_KEYS = {
   // 古いバージョンにはこのキー自体が存在しないため、読み込み時に無ければ「上書きなし」
   // （＝すべてテーマに従う）として扱う。既存ユーザーの設定を壊さない後方互換。
   eventOverrides: "equalLoveIntroQuiz.sfxEventThemeOverrides",
-  // 【2026-XX-XX新設・本人指示：オンライン正解音設定とオフライン効果音設定を完全分離】
+  // 【2026-09-06新設・本人指示：オンライン正解音設定とオフライン効果音設定を完全分離】
   // オンライン対戦画面右上の「正解音 ON/OFF」専用の永続フラグ。上のmaster/ui/gameは
   // オフライン側（ホーム画面・クイック効果音設定・詳細設定）が引き続き使う既存のフラグで、
   // このonlineResultだけがオンライン対戦の正解・不正解音（回答結果音）を独立に制御する。
@@ -676,7 +676,7 @@ export function playSfx(eventName) {
   renderSfxEvent(eventName);
 }
 
-// 【2026-XX-XX新設・本人指示：オンライン正解音設定とオフライン効果音設定を完全分離】
+// 【2026-09-06新設・本人指示：オンライン正解音設定とオフライン効果音設定を完全分離】
 // オンライン対戦中の正解・不正解等の回答結果音だけを鳴らす専用の入口。オフライン側の
 // sfxMasterEnabled/sfxUiEnabled/sfxGameEnabledは一切参照せず、sfxOnlineResultEnabled
 // だけで判定する（呼び出し側：js/onlineBattleScreen.js「正解音 ON/OFF」ボタン配下の
