@@ -71,11 +71,17 @@
        ルーム招待・「一緒に遊ぶ」招待の両方をこの1つの縦積みコンテナにまとめることで、
        片方を処理してももう片方が消えない・見た目の統一感を保つ、という本人指示を満たす。 -->
   <div id="invite-notification-stack" class="invite-notification-stack">
-    <!-- ①既存ルームへの招待（3人目以降を誘う「友達を招待」から届いたもの）。
-         【3択仕様】参加する／あとで／断る。「あとで」はFirebase上の招待データには
-         一切触れず、この端末でのバナー表示だけを閉じる（js/roomInviteUi.jsの
-         snoozedRoomIds参照）。2026-11-XX改訂：画面を切り替えただけでは再表示せず、
-         代わりに下の再確認チップ（#room-invite-banner-reminder）を出す。 -->
+    <!-- 【2026-11-XX全面改訂・本人の実機テスト指摘】以前は招待が届くと最初から
+         「あとで／断る／参加する」の3ボタンを含む大きめのパネルが表示されており、
+         実機（曲一覧画面など）で「戻る」リンクを覆ってしまうことがあった。
+         二段階UIへ変更：①まずコンパクトな1行通知（このカード）＋「確認する」だけを
+         表示し、②「確認する」を押した人だけ、下の詳細カード（3択）を開く。 -->
+    <!-- ①既存ルームへの招待（3人目以降を誘う「友達を招待」から届いたもの）：コンパクト通知。 -->
+    <div id="room-invite-compact" class="invite-compact-notice" hidden>
+      <span id="room-invite-compact-text" class="invite-compact-text"></span>
+      <button id="room-invite-compact-confirm-button" class="invite-compact-confirm-button" type="button">確認する</button>
+    </div>
+    <!-- ①の詳細（3択）。「確認する」を押すまでは常にhidden。 -->
     <div id="room-invite-banner" class="room-invite-banner" hidden>
       <p id="room-invite-banner-text" class="room-invite-banner-text"></p>
       <p id="room-invite-banner-more-label" class="room-invite-banner-more-label" hidden></p>
@@ -86,15 +92,18 @@
         <button id="room-invite-banner-accept-button" class="primary-button" type="button">参加する</button>
       </div>
     </div>
-    <!-- 【2026-11-XX新設・本人指示：「あとで」のUX再設計】有効な招待がすべて「あとで」で
-         隠れている間だけ表示する、小さな再確認チップ。押すとスヌーズを全解除して
-         通常のバナーへ戻す（js/roomInviteUi.jsのhandleReminderClick()参照）。 -->
+    <!-- 【本人指示：「あとで」のUX】有効な招待がすべて「あとで」で隠れている間だけ表示する、
+         小さな再確認チップ。押すとスヌーズを全解除して通常の通知へ戻す
+         （js/roomInviteUi.jsのhandleReminderClick()参照）。 -->
     <button id="room-invite-banner-reminder" class="invite-reminder-chip" type="button" hidden></button>
 
-    <!-- ②「一緒に遊ぶ」（フレンド一覧から直接届く1対1招待）（2026-11-XX新設・本人指示）。
-         「参加する」を押すと、相手（送信者）が新しいルームを作るのを少し待つ
-         （js/playInviteUi.js参照）ため、通常の3択に加えて「参加処理中…」の待機表示を
-         追加で持つ。 -->
+    <!-- ②「一緒に遊ぶ」（フレンド一覧から直接届く1対1招待）：コンパクト通知。 -->
+    <div id="play-invite-compact" class="invite-compact-notice" hidden>
+      <span id="play-invite-compact-text" class="invite-compact-text"></span>
+      <button id="play-invite-compact-confirm-button" class="invite-compact-confirm-button" type="button">確認する</button>
+    </div>
+    <!-- ②の詳細（3択）。「参加する」を押すと、相手（送信者）が新しいルームを作るのを
+         少し待つ（js/playInviteUi.js参照）ため、3択に加えて「参加処理中…」の待機表示も持つ。 -->
     <div id="play-invite-banner" class="room-invite-banner" hidden>
       <p id="play-invite-banner-text" class="room-invite-banner-text"></p>
       <p id="play-invite-banner-more-label" class="room-invite-banner-more-label" hidden></p>
@@ -108,16 +117,33 @@
     </div>
     <!-- ②と同じ再確認チップ（js/playInviteUi.jsのhandleIncomingReminderClick()参照）。 -->
     <button id="play-invite-banner-reminder" class="invite-reminder-chip" type="button" hidden></button>
+
+    <!-- 【2026-11-XX新設・本人指示：あとで→後から参加フロー】保留中の招待から「参加する」を
+         押した後、送信者の再承認を待っている間だけ表示するコンパクト通知（受信者側）。 -->
+    <div id="play-invite-join-request-status" class="invite-compact-notice" hidden>
+      <span id="play-invite-join-request-text" class="invite-compact-text"></span>
+      <button id="play-invite-join-request-cancel-button" class="invite-compact-confirm-button" type="button">取り消す</button>
+    </div>
+
+    <!-- 【2026-11-XX新設・本人指示：相手からの通知（自分の操作を伴わないもの）】
+         「今回は一緒に遊べませんでした」等、受信者側の操作を経由しない通知を数秒だけ
+         表示するトースト（js/playInviteUi.jsのflashIncomingMessage()参照）。 -->
+    <p id="play-invite-incoming-flash" class="invite-compact-notice invite-flash-notice" hidden></p>
   </div>
 
-  <!-- 【2026-11-XX新設・本人指示：「一緒に遊ぶ」】送信者（inviter）側の待機表示。
-       「○○さんを招待しています…」＋「招待を取り消す」。大きな別画面へは移動させない
-       （本人指示：「待機中に何も起きていないように見える状態は禁止」）。
-       表示・非表示の判定も、受信側バナーと同じcanShowInviteNotification()を使う
-       （バトル中は表示しない）。 -->
+  <!-- 【2026-11-XX新設・本人指示：「一緒に遊ぶ」】送信者（inviter）側の状態表示（コンパクトな
+       1行バー）。大きな別画面へは移動させない（本人指示：「待機中に何も起きていないように
+       見える状態は禁止」）。表示・非表示の判定も、受信側バナーと同じcanShowInviteNotification()
+       を使う（バトル中は表示しない）。状態に応じて右側のボタンが変わる：
+       ・招待中（pending/snoozed/joinRequestedいずれも自分が送った側として認識している間）→［取消］
+       ・後から参加希望への回答待ち（joinRequested、相手からの表明）→［今回はやめる］［一緒に遊ぶ］ -->
   <div id="play-invite-outgoing-card" class="play-invite-outgoing-card" hidden>
     <p id="play-invite-outgoing-text" class="play-invite-outgoing-text"></p>
-    <button id="play-invite-outgoing-cancel-button" class="secondary-button" type="button">招待を取り消す</button>
+    <div id="play-invite-outgoing-actions" class="play-invite-outgoing-actions">
+      <button id="play-invite-outgoing-cancel-button" class="secondary-button" type="button">取消</button>
+      <button id="play-invite-outgoing-decline-request-button" class="secondary-button" type="button" hidden>今回はやめる</button>
+      <button id="play-invite-outgoing-approve-request-button" class="primary-button" type="button" hidden>一緒に遊ぶ</button>
+    </div>
   </div>
 
   <!-- 【2026-11-XX新設・本人指示：送信者1件制限の切り替え確認】「既に別の人を招待中／

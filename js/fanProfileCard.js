@@ -203,25 +203,37 @@ export function buildProfileCard(profile, members, onSelect, options = {}) {
   return wrap;
 }
 
-// 「一緒に遊ぶ」ボタン1件分。オンライン・プレイ中なら押せる状態、オフラインなら
-// 押せない状態で「オフライン」と表示する（本人指示：「機能の存在自体が分かるよう、
-// ボタンを完全に消すより、disabled状態で見える形を基本としてください」）。
+// 「一緒に遊ぶ」ボタン1件分。オンライン・プレイ中のときだけ組み立てて返す。
+// 【2026-11-XX改訂・本人の実機テスト指摘】以前はオフラインのときも「オフライン」という
+// disabled状態のボタンを表示していたが、実機で見ると名前横に既に「● 3分前」等の
+// 最終ログイン表示があるため情報が重複し、カード下部に大きな横長のUIが増えるだけで
+// 見た目が良くなかった（本人指示：「カード下部に大きなアクションボタンが出るのは、
+// 実際に「一緒に遊ぶ」を利用できるオンライン/プレイ中ユーザーだけにします」）。
+// オフラインのときはnullを返し、呼び出し側（buildProfileCard）はそのまま何も
+// 追加しない（カード本体だけを返す、既存の「ボタン行が無い場合」の経路に自然に乗る）。
 function buildPlayInviteButtonRow(profile, presenceEntry, onPlayInviteRequest) {
+  const isOnline = computeIsOnlineForDisplay(presenceEntry, Date.now());
+  if (!isOnline) return null;
+  const isPlaying = presenceEntry?.isPlaying === true;
+
   const row = document.createElement("div");
   row.className = "fan-profile-play-invite-row";
-
-  const isOnline = computeIsOnlineForDisplay(presenceEntry, Date.now());
-  const isPlaying = presenceEntry?.isPlaying === true;
 
   const button = document.createElement("button");
   button.type = "button";
   button.className = "secondary-button fan-profile-play-invite-button";
-  button.textContent = isOnline ? "🤝 一緒に遊ぶ" : "オフライン";
-  button.disabled = !isOnline;
+  button.textContent = "🤝 一緒に遊ぶ";
   button.addEventListener("click", (event) => {
     event.stopPropagation();
+    if (button.disabled) return;
+    // 【2026-11-XX新設・本人指示：重要操作の二重押し防止】送信処理は非同期のため、
+    // 応答が返るまでボタン自体を無効化する（js/roomInviteUi.jsの招待ピッカーボタンと
+    // 同じ「ボタンをdisabledにしてから送る」方式）。
+    button.disabled = true;
     playSfx(SFX_EVENTS.UI_CLICK);
-    onPlayInviteRequest(profile, { isOnline, isPlaying });
+    Promise.resolve(onPlayInviteRequest(profile, { isOnline, isPlaying })).finally(() => {
+      if (button.isConnected) button.disabled = false;
+    });
   });
   row.appendChild(button);
 

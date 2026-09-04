@@ -238,14 +238,24 @@ export function runFanProfileCardTests() {
   const playingInviteButton = playingWrap.querySelector(".fan-profile-play-invite-button");
   assertEqual(playingInviteButton?.disabled, false, "プレイ中でも「一緒に遊ぶ」ボタンは有効のまま");
 
-  // オフラインのフレンドには、押せない状態のボタンが表示される（消えはしない）。
+  // 【2026-11-XX改訂・本人の実機テスト指摘】オフラインのフレンドには「一緒に遊ぶ」の
+  // ボタン行自体を出さない（名前横の最終ログイン表示と情報が重複し、カード下部に大きな
+  // 横長のUIが増えるだけだったため）。onPlayInviteRequestを渡していても、オフラインなら
+  // 何も追加されず、カード本体（button要素）だけが返る。
   const offlineWrap = buildProfileCard(buildProfile({ uid: "uid-offline-friend" }), MEMBERS, null, {
     presenceEntry: null,
     onPlayInviteRequest: () => {},
   });
-  const offlineInviteButton = offlineWrap.querySelector(".fan-profile-play-invite-button");
-  assertEqual(offlineInviteButton?.textContent, "オフライン", "オフラインなら「オフライン」という文言に変わる");
-  assertEqual(offlineInviteButton?.disabled, true, "オフラインならボタンはdisabledになる（存在は消さない）");
+  assertEqual(
+    offlineWrap.querySelector(".fan-profile-play-invite-button"),
+    null,
+    "オフラインなら「一緒に遊ぶ」ボタン自体が存在しない"
+  );
+  assertEqual(
+    offlineWrap.tagName,
+    "BUTTON",
+    "オフラインならラッパーdivも作られず、カード本体（button要素）のまま返る"
+  );
 
   // 自分自身のカードには「一緒に遊ぶ」ボタン自体を出さない。
   const selfWrap = buildProfileCard(buildProfile({ uid: "uid-self" }), MEMBERS, null, {

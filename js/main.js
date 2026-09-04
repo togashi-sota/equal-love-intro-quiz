@@ -1107,8 +1107,21 @@ const roomInviteBannerAcceptButtonElement = document.getElementById("room-invite
 const roomInviteBannerDeclineButtonElement = document.getElementById("room-invite-banner-decline-button");
 const roomInviteBannerLaterButtonElement = document.getElementById("room-invite-banner-later-button");
 const roomInviteBannerReminderElement = document.getElementById("room-invite-banner-reminder");
+// 【2026-11-XX追加・本人の実機テスト指摘：招待通知の二段階UI】
+const roomInviteCompactElement = document.getElementById("room-invite-compact");
+const roomInviteCompactTextElement = document.getElementById("room-invite-compact-text");
+const roomInviteCompactConfirmButtonElement = document.getElementById("room-invite-compact-confirm-button");
 // 【2026-11-XX新設・本人指示：「一緒に遊ぶ」】受信バナー・送信者側の待機カード・
 // 送信先切り替え確認モーダルの要素参照（js/playInviteUi.js参照）。
+// 【2026-11-XX追加・本人の実機テスト指摘：招待通知の二段階UI】コンパクト通知・
+// 後から参加希望の待機表示・相手からの通知トーストの要素参照。
+const playInviteCompactElement = document.getElementById("play-invite-compact");
+const playInviteCompactTextElement = document.getElementById("play-invite-compact-text");
+const playInviteCompactConfirmButtonElement = document.getElementById("play-invite-compact-confirm-button");
+const playInviteJoinRequestStatusElement = document.getElementById("play-invite-join-request-status");
+const playInviteJoinRequestTextElement = document.getElementById("play-invite-join-request-text");
+const playInviteJoinRequestCancelButtonElement = document.getElementById("play-invite-join-request-cancel-button");
+const playInviteIncomingFlashElement = document.getElementById("play-invite-incoming-flash");
 const playInviteBannerElement = document.getElementById("play-invite-banner");
 const playInviteBannerTextElement = document.getElementById("play-invite-banner-text");
 const playInviteBannerMoreLabelElement = document.getElementById("play-invite-banner-more-label");
@@ -1122,6 +1135,9 @@ const playInviteBannerReminderElement = document.getElementById("play-invite-ban
 const playInviteOutgoingCardElement = document.getElementById("play-invite-outgoing-card");
 const playInviteOutgoingTextElement = document.getElementById("play-invite-outgoing-text");
 const playInviteOutgoingCancelButtonElement = document.getElementById("play-invite-outgoing-cancel-button");
+// 【2026-11-XX追加・本人指示：あとで→後から参加フロー】送信者側の再承認プロンプト用。
+const playInviteOutgoingDeclineRequestButtonElement = document.getElementById("play-invite-outgoing-decline-request-button");
+const playInviteOutgoingApproveRequestButtonElement = document.getElementById("play-invite-outgoing-approve-request-button");
 const playInviteSwitchConfirmModalElement = document.getElementById("play-invite-switch-confirm-modal");
 const playInviteSwitchConfirmTextElement = document.getElementById("play-invite-switch-confirm-text");
 const playInviteSwitchConfirmCancelButtonElement = document.getElementById("play-invite-switch-confirm-cancel-button");
@@ -6046,6 +6062,9 @@ initRoomInviteUi({
   pickerList: roomInvitePickerListElement,
   pickerLoading: roomInvitePickerLoadingElement,
   pickerEmpty: roomInvitePickerEmptyElement,
+  compact: roomInviteCompactElement,
+  compactText: roomInviteCompactTextElement,
+  compactConfirmButton: roomInviteCompactConfirmButtonElement,
   banner: roomInviteBannerElement,
   bannerText: roomInviteBannerTextElement,
   bannerMoreLabel: roomInviteBannerMoreLabelElement,
@@ -6059,6 +6078,9 @@ initRoomInviteUi({
 // 同じ理由（js/onlineBattleScreen.jsを一切importしない末端モジュールにはできない：
 // ルーム作成・参加・goToLobbyそのものを必要とするため）で、こちらは直接importしている。
 initPlayInviteUi({
+  incomingCompact: playInviteCompactElement,
+  incomingCompactText: playInviteCompactTextElement,
+  incomingCompactConfirmButton: playInviteCompactConfirmButtonElement,
   incomingBanner: playInviteBannerElement,
   incomingText: playInviteBannerTextElement,
   incomingMoreLabel: playInviteBannerMoreLabelElement,
@@ -6069,9 +6091,15 @@ initPlayInviteUi({
   incomingDeclineButton: playInviteBannerDeclineButtonElement,
   incomingLaterButton: playInviteBannerLaterButtonElement,
   incomingReminder: playInviteBannerReminderElement,
+  incomingFlash: playInviteIncomingFlashElement,
+  joinRequestStatus: playInviteJoinRequestStatusElement,
+  joinRequestStatusText: playInviteJoinRequestTextElement,
+  joinRequestCancelButton: playInviteJoinRequestCancelButtonElement,
   outgoingCard: playInviteOutgoingCardElement,
   outgoingText: playInviteOutgoingTextElement,
   outgoingCancelButton: playInviteOutgoingCancelButtonElement,
+  outgoingDeclineRequestButton: playInviteOutgoingDeclineRequestButtonElement,
+  outgoingApproveRequestButton: playInviteOutgoingApproveRequestButtonElement,
   switchConfirmModal: playInviteSwitchConfirmModalElement,
   switchConfirmText: playInviteSwitchConfirmTextElement,
   switchConfirmCancelButton: playInviteSwitchConfirmCancelButtonElement,

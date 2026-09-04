@@ -7769,6 +7769,91 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   transform: scale(0.96);
 }
 
+/* 【2026-11-XX新設・本人の実機テスト指摘：招待通知の二段階UI】招待到着直後に出す、
+   1行だけのコンパクトな通知。以前の3択パネルが実機でDynamic Island下の「戻る」
+   リンク等を覆ってしまっていたため、まずはこの小さな通知だけを出し、
+   「確認する」を押した人だけ詳細（3択・.room-invite-banner）を開く設計にした。
+   横幅が足りない場合はテキストを省略して1行に収める（本人指示：「長いユーザー名の
+   場合もレイアウトを壊さず」）。 */
+.invite-compact-notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 340px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(111, 189, 242, 0.22), rgba(255, 111, 168, 0.18));
+  border: 1.5px solid var(--color-card-border);
+  box-shadow: 0 8px 20px -14px rgba(74, 46, 66, 0.4);
+}
+
+.invite-compact-notice[hidden] {
+  display: none;
+}
+
+.invite-compact-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.invite-compact-confirm-button {
+  flex: none;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: none;
+  background: linear-gradient(120deg, var(--color-primary-dark), var(--color-primary));
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.invite-compact-confirm-button:active {
+  transform: scale(0.95);
+}
+
+/* 【2026-11-XX新設・本人指示】相手の操作結果を伝えるだけの受信トースト
+   （「今回は一緒に遊べませんでした」等）。.invite-compact-noticeのボタン付き通知と
+   見た目で区別できるよう、ボタンが無い＝タップ不要であることが伝わる控えめな配色にし、
+   中央寄せの1行テキストにする（本人指示：能動的な確認が要る通知と、結果を知らせるだけの
+   受け身の通知を混同しないUIにする）。 */
+.invite-flash-notice {
+  justify-content: center;
+  text-align: center;
+  background: rgba(120, 120, 130, 0.14);
+  border-color: var(--color-card-border);
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color-text-muted, var(--color-text));
+}
+
+/* 【2026-11-XX新設・本人指示：送信者側の状態バーをコンパクト化】以前は
+   「◯◯さんを招待しています…」＋大きめの「招待を取り消す」ボタンが縦にかなりの
+   高さを取っていた。1行のバーへ変更し、状態に応じてボタンが入れ替わる
+   （通常は［取消］、後からの参加希望への回答待ちは［今回はやめる］［一緒に遊ぶ］）。 */
+.play-invite-outgoing-actions {
+  display: flex;
+  flex: none;
+  gap: 6px;
+}
+
+.play-invite-outgoing-actions button {
+  flex: none;
+  padding: 6px 12px;
+  font-size: 0.76rem;
+  white-space: nowrap;
+}
+
 /* 【本人指示：3択（参加する／あとで／断る）】340px幅の中に3つ並べると、端末幅や
    フォントサイズ次第で収まりきらないことがあるため、折り返しを許可し、各ボタンが
    均等に伸縮する形にする（固定pxで幅を決め打ちしない）。 */
@@ -7818,6 +7903,10 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 /* 【2026-11-XX新設・本人指示：「一緒に遊ぶ」送信者側の待機表示】受信側の招待バナー
    （.invite-notification-stack、画面上部）とぶつからないよう、あえて画面下部に固定する。
    #update-applied-bannerと同じposition:fixed＋safe-area対応の考え方。 */
+/* 【2026-11-XX改訂・本人指示：送信者側の状態バーをコンパクト化】以前は縦積みの
+   カードで、フレンド一覧をかなり押し下げていた。1行の細いバーへ変更し、
+   .invite-compact-noticeと同じ「テキスト＋右側にボタン」の考え方に揃えた
+   （ただし位置は画面下部のまま。受信側の通知スタック（画面上部）とぶつからない）。 */
 .play-invite-outgoing-card {
   position: fixed;
   left: 16px;
@@ -7825,17 +7914,15 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   bottom: max(14px, env(safe-area-inset-bottom));
   z-index: 45;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   max-width: 340px;
   margin: 0 auto;
-  padding: 14px 16px;
-  border-radius: 20px;
+  padding: 10px 14px;
+  border-radius: 999px;
   background: linear-gradient(135deg, rgba(255, 111, 168, 0.22), rgba(111, 189, 242, 0.16));
   border: 1.5px solid var(--color-card-border);
   box-shadow: 0 10px 24px -16px rgba(74, 46, 66, 0.35);
-  text-align: center;
 }
 
 /* 【本人指示済みの既知パターン：tests/cssHiddenAttributeEffectiveness.test.js参照】
@@ -7846,9 +7933,13 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 }
 
 .play-invite-outgoing-text {
-  font-size: 0.86rem;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.82rem;
   font-weight: 700;
-  line-height: 1.5;
 }
 
 .room-invite-picker-list {

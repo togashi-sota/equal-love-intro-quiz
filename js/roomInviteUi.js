@@ -36,6 +36,12 @@ let elements = null;
 let currentScreenName = null;
 let latestRawInvites = {};
 let activeInvites = [];
+// 【2026-11-XX新設・本人の実機テスト指摘：招待通知の二段階UI】以前は招待が届くと
+// 最初から「あとで／断る／参加する」の3ボタンを含むパネルが表示されており、実機で
+// 「戻る」リンク等を覆ってしまうことがあった。まずコンパクトな1行通知だけを出し、
+// 「確認する」を押した人だけ詳細（3択）を開く。js/playInviteUi.jsと同じ設計。
+let isDetailExpanded = false;
+let expandedForRoomId = null;
 // 表示対象（activeInvitesからsnoozedRoomIdsを除いたもの）。accept/decline/laterの
 // 各ハンドラは、常にこの配列の先頭（＝今バナーに表示されている招待）を対象にする。
 let displayableInvites = [];
@@ -191,21 +197,41 @@ function renderBanner() {
   displayableInvites = activeInvites.filter((invite) => !snoozedRoomIds.has(invite.roomId));
 
   const canShowHere = !isAcceptBusy && canShowInviteNotification(currentScreenName);
-  const shouldShow = canShowHere && displayableInvites.length > 0;
+  const topInvite = displayableInvites[0] ?? null;
+
+  // 表示対象そのものが変わったら、常にコンパクト表示からやり直す。
+  if (!topInvite || topInvite.roomId !== expandedForRoomId) {
+    isDetailExpanded = false;
+  }
+
+  const shouldShowAnything = canShowHere && topInvite !== null;
+  const shouldShowDetail = shouldShowAnything && isDetailExpanded;
+  const shouldShowCompact = shouldShowAnything && !isDetailExpanded;
   // 有効な招待は残っているが、全部「あとで」で隠れている間だけ、小さな再確認チップを出す
   // （本人指示：「あとでを押した結果、その招待へ二度とアクセスできなくなるのは避ける」）。
-  const shouldShowReminder = canShowHere && !shouldShow && activeInvites.length > 0;
+  const shouldShowReminder = canShowHere && !shouldShowAnything && activeInvites.length > 0;
 
-  elements.banner.hidden = !shouldShow;
+  if (elements.compact) {
+    elements.compact.hidden = !shouldShowCompact;
+    if (shouldShowCompact) {
+      const restCount = activeInvites.length - 1;
+      elements.compactText.textContent =
+        restCount > 0
+          ? `📨 ${topInvite.inviterDisplayName}さんからほか${restCount}件のルーム招待が届いています`
+          : `📨 ${topInvite.inviterDisplayName}さんからルーム招待が届きました`;
+    }
+  }
+
+  elements.banner.hidden = !shouldShowDetail;
   if (elements.bannerReminder) {
     elements.bannerReminder.hidden = !shouldShowReminder;
     elements.bannerReminder.textContent = shouldShowReminder
       ? `📩 保留中のルーム招待が${activeInvites.length}件あります`
       : "";
   }
-  if (!shouldShow) return;
+  if (!shouldShowDetail) return;
+  expandedForRoomId = topInvite.roomId;
 
-  const topInvite = displayableInvites[0];
   elements.bannerText.textContent = `${topInvite.inviterDisplayName}さんから対戦ルームへの招待が届いています`;
   // 「ほか◯件」は、今表示している1件を除いた「有効な招待の総数」（あとで中のものも含む）。
   // あとでにした招待も本人にとっては「まだ残っている招待」であるため、件数からは省かない。
@@ -214,6 +240,14 @@ function renderBanner() {
     elements.bannerMoreLabel.hidden = restCount <= 0;
     elements.bannerMoreLabel.textContent = restCount > 0 ? `ほか${restCount}件の招待があります` : "";
   }
+}
+
+function handleCompactConfirmClick() {
+  if (displayableInvites.length === 0) return;
+  playSfx(SFX_EVENTS.UI_CLICK);
+  isDetailExpanded = true;
+  expandedForRoomId = displayableInvites[0].roomId;
+  renderBanner();
 }
 
 function setBannerButtonsDisabled(disabled) {
@@ -304,6 +338,7 @@ export function initRoomInviteUi(newElements) {
   // 初期同期する。
   currentScreenName = document.body.dataset.screen ?? null;
 
+  elements.compactConfirmButton?.addEventListener("click", handleCompactConfirmClick);
   elements.bannerAcceptButton.addEventListener("click", handleAcceptClick);
   elements.bannerDeclineButton.addEventListener("click", handleDeclineClick);
   elements.bannerLaterButton?.addEventListener("click", handleLaterClick);

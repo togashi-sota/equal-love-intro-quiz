@@ -479,8 +479,8 @@
           "expiresAt": { ".validate": "newData.isNumber() && newData.val() > newData.parent().child('createdAt').val() && newData.val() <= now + 420000 && newData.val() - newData.parent().child('createdAt').val() <= 300000" },
 
           "status": {
-            ".write": "auth != null && auth.uid === $recipientUid && data.val() === 'pending' && newData.val() === 'accepted' && data.parent().child('expiresAt').val() > now",
-            ".validate": "newData.isString() && (newData.val() === 'pending' || newData.val() === 'accepted')"
+            ".write": "auth != null && data.parent().child('expiresAt').val() > now && ((auth.uid === $recipientUid && ((data.val() === 'pending' && (newData.val() === 'accepted' || newData.val() === 'declinedByRecipient' || newData.val() === 'snoozed')) || (data.val() === 'snoozed' && (newData.val() === 'joinRequested' || newData.val() === 'declinedByRecipient' || newData.val() === 'snoozed')) || (data.val() === 'joinRequested' && newData.val() === 'snoozed'))) || (data.parent().child('inviterUid').val() === auth.uid && data.val() === 'joinRequested' && (newData.val() === 'accepted' || newData.val() === 'declinedBySender')))",
+            ".validate": "newData.isString() && (newData.val() === 'pending' || newData.val() === 'accepted' || newData.val() === 'declinedByRecipient' || newData.val() === 'declinedBySender' || newData.val() === 'snoozed' || newData.val() === 'joinRequested')"
           },
 
           "roomId": {
@@ -490,6 +490,19 @@
 
           "$other": { ".validate": false }
         }
+      }
+    },
+
+    "playInviteOutbox": {
+      "$inviterUid": {
+        ".read": "auth != null && auth.uid === $inviterUid",
+        ".write": "auth != null && auth.uid === $inviterUid && (newData.val() === null || !data.exists())",
+        ".validate": "newData.hasChildren(['recipientUid', 'recipientDisplayName', 'inviteId', 'createdAt'])",
+        "recipientUid": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val() !== $inviterUid" },
+        "recipientDisplayName": { ".validate": "newData.isString() && newData.val().length <= 40" },
+        "inviteId": { ".validate": "newData.isString() && newData.val().length > 0" },
+        "createdAt": { ".validate": "newData.isNumber() && newData.val() <= now + 120000 && newData.val() >= now - 120000" },
+        "$other": { ".validate": false }
       }
     },
 
