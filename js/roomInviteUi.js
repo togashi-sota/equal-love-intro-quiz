@@ -17,7 +17,7 @@ import { fetchAllPublicProfiles, getMyUid } from "./publicProfileSync.js";
 import { fetchAllPresenceOnce } from "./presenceSync.js";
 import { computeIsOnlineForDisplay, canShowInviteNotification } from "./presencePayloads.js";
 import { onScreenChange } from "./screens.js";
-import { joinRoomFromInvite, getCurrentOnlineRoomPlayerUids } from "./onlineBattleScreen.js";
+import { joinRoomFromInvite, getCurrentOnlineRoomPlayerUids, getCurrentOnlineRoomId } from "./onlineBattleScreen.js";
 import { getActivePlayer } from "./playerProfile.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
 
@@ -266,6 +266,23 @@ function setBannerButtonsDisabled(disabled) {
 async function handleAcceptClick() {
   if (isAcceptBusy || displayableInvites.length === 0) return;
   const topInvite = displayableInvites[0];
+
+  // 【2026-09-06修正・真の同時実行テストで発見】canShowInviteNotification()は「対戦中の
+  // 画面（出題・回答中）でなければ表示してよい」という基準のため、既に別のルームの
+  // ロビーで待機中でもこのバナーは表示され得る。ここで「今どこかのルームに参加中か」を
+  // 確認しないまま参加すると、joinRoomFromInvite()が新しいルームへは正しく参加させる一方、
+  // 元居たルームからは何も退出処理をしないため、元のルームには「本人はもう居ないのに
+  // connected:trueのまま」という幽霊プレイヤーが残ってしまう（実Firebaseで実際に再現・確認
+  // 済み）。js/playInviteUi.jsの「一緒に遊ぶ」招待では既にこの確認（getCurrentOnlineRoomId()
+  // !== null）が実装されており、同じ会話文言・同じガードをこちらにも揃える。
+  if (getCurrentOnlineRoomId() !== null) {
+    if (elements.bannerError) {
+      elements.bannerError.textContent = "現在ルームに参加中です。先にルームから退出してください。";
+      elements.bannerError.hidden = false;
+    }
+    return;
+  }
+
   playSfx(SFX_EVENTS.UI_CONFIRM);
   isAcceptBusy = true;
   setBannerButtonsDisabled(true);

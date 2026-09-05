@@ -31,7 +31,10 @@ export async function runInviteFullRoomRegressionTests() {
 
     const fnStart = source.indexOf("async function handleAcceptClick() {");
     assertEqual(fnStart !== -1, true, "handleAcceptClick()が存在する（前提条件）");
-    const fnBody = source.slice(fnStart, fnStart + 1600);
+    // 【2026-09-06追記】handleAcceptClick()の先頭に「既にどこかのルームに参加中か」の
+    // 確認（tests/roomInviteAlreadyInRoomRegression.test.js参照）が追加され、関数の
+    // 前半が長くなったため、スライス幅を広げて既存のfull判定部分まで確実に含める。
+    const fnBody = source.slice(fnStart, fnStart + 2400);
 
     assertEqual(
       fnBody.includes('result.reason === "full"'),

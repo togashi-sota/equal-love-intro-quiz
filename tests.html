@@ -134,6 +134,7 @@
     import { runOnlineBattleResultScreenMatchIdRegressionTests } from "./tests/onlineBattleResultScreenMatchIdRegression.test.js";
     import { runLyricsQuizStealRaceAndHintSyncRegressionTests } from "./tests/lyricsQuizStealRaceAndHintSyncRegression.test.js";
     import { runInviteFullRoomRegressionTests } from "./tests/inviteFullRoomRegression.test.js";
+    import { runRoomInviteAlreadyInRoomRegressionTests } from "./tests/roomInviteAlreadyInRoomRegression.test.js";
     import { runRankingCandidateStoreTests } from "./tests/rankingCandidateStore.test.js";
     import { runCenterCelebrationTests } from "./tests/centerCelebration.test.js";
     import { runYoutubeThumbnailTests } from "./tests/youtubeThumbnail.test.js";
@@ -264,6 +265,7 @@
     await runOnlineBattleResultScreenMatchIdRegressionTests();
     await runLyricsQuizStealRaceAndHintSyncRegressionTests();
     await runInviteFullRoomRegressionTests();
+    await runRoomInviteAlreadyInRoomRegressionTests();
     runOnlineBattlePropertyFuzzTests();
     runStealRaceArbitrationFuzzTests();
     await runServiceWorkerCacheCompletenessTests();
