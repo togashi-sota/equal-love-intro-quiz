@@ -170,6 +170,9 @@
     import { runPresencePayloadsTests } from "./tests/presencePayloads.test.js";
     import { runRoomInvitePayloadsTests } from "./tests/roomInvitePayloads.test.js";
     import { runPlayInvitePayloadsTests } from "./tests/playInvitePayloads.test.js";
+    import { runOnlineBattlePropertyFuzzTests } from "./tests/onlineBattlePropertyFuzz.test.js";
+    import { runServiceWorkerCacheCompletenessTests } from "./tests/serviceWorkerCacheCompleteness.test.js";
+    import { runPresenceUnhandledRejectionRegressionTests } from "./tests/presenceUnhandledRejectionRegression.test.js";
     import { printSummary } from "./tests/test-utils.js";
 
     runScoreTests();
@@ -260,6 +263,9 @@
     await runOnlineBattleResultScreenMatchIdRegressionTests();
     await runLyricsQuizStealRaceAndHintSyncRegressionTests();
     await runInviteFullRoomRegressionTests();
+    runOnlineBattlePropertyFuzzTests();
+    await runServiceWorkerCacheCompletenessTests();
+    await runPresenceUnhandledRejectionRegressionTests();
     runRankingCandidateStoreTests();
     runCenterCelebrationTests();
     runYoutubeThumbnailTests();

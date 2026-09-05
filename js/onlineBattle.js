@@ -208,8 +208,12 @@ function startPresenceTracking(roomId, uid, kind = "players") {
       return; // 切断中はここでは何もしない（onDisconnectの予約に任せる）
     }
     // 「次に切断したらfalseにする」予約を毎回張り直してから、今の接続状態をtrueにする。
-    onDisconnect(entityConnectedRef).set(false);
-    set(entityConnectedRef, true);
+    // 【2026-09-06修正、PHASE L監査で発見】以前はcatchが無く、書き込み失敗時に
+    // 未処理のPromise rejectionとなり、connectedフラグが直らないまま気付けなかった。
+    onDisconnect(entityConnectedRef)
+      .set(false)
+      .catch((error) => console.error("onDisconnect予約に失敗しました", error));
+    set(entityConnectedRef, true).catch((error) => console.error("接続状態の書き込みに失敗しました", error));
   };
   onValue(infoConnectedRef, handleValue);
   presenceUnsubscribe = () => off(infoConnectedRef, "value", handleValue);
@@ -225,7 +229,11 @@ function startPresenceTracking(roomId, uid, kind = "players") {
 function handlePresenceVisibilityChange() {
   if (!presenceRoomId || !presenceUid) return;
   const entityConnectedRef = ref(database, `rooms/${presenceRoomId}/${presenceKind}/${presenceUid}/connected`);
-  set(entityConnectedRef, document.visibilityState === "visible");
+  // 【2026-09-06修正、PHASE L監査で発見】catch無しの書き込みだったため、失敗時に
+  // 未処理のPromise rejectionとなっていた（他の書き込み箇所と同じ形に揃える）。
+  set(entityConnectedRef, document.visibilityState === "visible").catch((error) =>
+    console.error("表示状態変化時の接続状態書き込みに失敗しました", error)
+  );
 }
 
 if (typeof document !== "undefined") {
