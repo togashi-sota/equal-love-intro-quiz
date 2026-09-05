@@ -172,9 +172,21 @@ export function getRuleDescription() {
 // 早押しバトルだけ、正解だった場合に限り「勝者claim」も一緒に送る必要がある
 // （js/lyricsQuizBattleFirebase.jsのsubmitLyricsQuizAnswerWithStealClaim()参照）。
 // selectedSongId・correctSongIdだけを見て決める、採点そのものとは独立した判定。
+// 【2026-09-06修正・本人の3人実機テストで発見した重大バグ】以前はsubmitWinnerClaim
+// （正解だったかどうか）だけを画面層へ渡しており、画面層（js/onlineLyricsQuizBattleScreen.js）
+// はこの値がtrueのときだけsubmitLyricsQuizAnswerWithStealClaim()を呼び、falseのとき
+// （＝不正解だったとき）は他ルールと同じ汎用のsubmitLyricsQuizAnswer()を呼んでいた。
+// しかしoutcome（STEAL_CLAIM_OUTCOME.ANSWERED_WRONG等）を返せるのは
+// submitLyricsQuizAnswerWithStealClaim()だけであり、汎用の方は{ok:true}しか返さない。
+// その結果、早押しバトルで本当に不正解だった場合、result.outcomeが常にundefinedになり、
+// 「残念、不正解」という専用表示（即時のお知らせ・待機中の持続表示のどちらも）が
+// 一度も出せていなかった（本人の実機報告で発覚するまで、この不具合は表示テストだけでは
+// 気づけなかった）。usesStealClaimSubmissionを新設し、「submitLyricsQuizAnswer
+// WithStealClaim()を呼ぶべきかどうか」（正解・不正解を問わず早押しバトルなら常にtrue）と
+// 「実際にwinner claimを試みるべきか」（submitWinnerClaim、正解のときだけtrue）を分離した。
 export function getAnswerSubmissionPlan({ selectedSongId, correctSongId }) {
   const outcome = deriveAnswerOutcome(correctSongId, selectedSongId);
-  return { submitAnswer: true, submitWinnerClaim: outcome === "correct" };
+  return { submitAnswer: true, submitWinnerClaim: outcome === "correct", usesStealClaimSubmission: true };
 }
 
 // 【2026-08-31改訂】ヒント表示時間の選択が無くなったため空配列にした。

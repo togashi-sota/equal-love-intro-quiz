@@ -221,7 +221,14 @@ let mySubmittedForQuestionIndex = -1;
 // 対する自分の回答結果（STEAL_CLAIM_OUTCOME.ANSWERED_WRONG等）を覚えておく。答え合わせ
 // までの「待機中」表示を、正誤で出し分けるために使う（本人指示：本人が間違えたかどうか
 // 「回答しました」だけでは分からない、を解消する）。
+// 【2026-09-06改訂・本人の3人実機テストで発見：正解したが先着負けした場合の表示】
+// 以前はANSWERED_WRONG（本当に違う曲を選んだ）かどうかだけを覚えており、LOST_RACE
+// （正しい曲を選んだが、他の人が先にwinner claimを確定させていた）は「それ以外」として
+// 通常の「回答しました！」表示に埋もれてしまい、本人が間違えたのか惜敗だったのか
+// 待機中の表示だけでは分からなかった。mySubmissionOutcomeValueに実際のSTEAL_CLAIM_OUTCOME
+// をそのまま覚えておき、ANSWERED_WRONG・LOST_RACEを待機表示でも区別できるようにする。
 let mySubmissionOutcomeForQuestionIndex = -1;
+let mySubmissionOutcomeValue = null;
 let mySelectedSongId = null;
 let submitInFlight = false;
 
@@ -665,6 +672,7 @@ export function resetLyricsQuizBattleState() {
   lastRevealSfxPlayedForQuestionIndex = -1;
   mySubmittedForQuestionIndex = -1;
   mySubmissionOutcomeForQuestionIndex = -1;
+  mySubmissionOutcomeValue = null;
   mySelectedSongId = null;
   submitInFlight = false;
   myOutcomeHistory = [];
@@ -1200,6 +1208,7 @@ export async function enterLyricsQuizBattlePlay(room) {
   lastRevealSfxPlayedForQuestionIndex = -1;
   mySubmittedForQuestionIndex = -1;
   mySubmissionOutcomeForQuestionIndex = -1;
+  mySubmissionOutcomeValue = null;
   mySelectedSongId = null;
   myOutcomeHistory = [];
   myComboCount = 0;
@@ -1666,17 +1675,29 @@ function renderHintArea(question, { ruleId, elapsedMs, isResolved, myAnsweredThi
     // 1段階（hints[length-1]）だけを表示していたが、ヒント1から順番に「1文字/秒で
     // 全文表示→2秒待機→次のヒントへ」を繰り返し、既に表示済みのヒントは消さずに
     // 積み上げて見せる仕様に変更した（js/lyricsQuizBattleTiming.jsのcomputeStealHintProgress
-    // 参照）。回答済みの本人には全段階を即座にフル表示する（他プレイヤーの回答を
-    // 待っている間、自分の画面だけヒントが止まって見えるのを避けるため）。
+    // 参照）。
+    // 【2026-09-06改訂・本人の3人実機テストで発見：不公平な先読み】以前はここで回答済みの
+    // 本人（不正解・惜敗どちらも含む）にだけ、経過時間をPOSITIVE_INFINITYへ強制して
+    // ヒント1〜4を即座に全段階フル表示していた。しかしまだ他のプレイヤーがヒント2までしか
+    // 見ていない状況で、間違えた本人だけ先にヒント3・4まで見えてしまうのは対戦として
+    // 不公平（同じ場所で遊んでいれば画面を見せ合えてしまう）であり、本人からも
+    // 「まだ回答している人と同じ共有進行を見続けたい」という指示を受けた。
+    // elements.battleHintLinesContainerはrunTick()のsetInterval（400ms間隔）で
+    // room.matches[currentMatchId].currentQuestionStartedAt基準の経過時間から毎回
+    // 再計算されるため（renderCurrentQuestionState()参照）、回答後もInfinityへ固定せず
+    // 実際の経過時間（elapsedMs）をそのまま使えば、端末ごとに独立させることなく
+    // 「今その試合で共有されているヒント段階」に自然と追いつき続ける（通信が一瞬遅れても、
+    // 次のtickで正しい段階へ復帰する）。全員の回答が確定してisResolvedになった瞬間は、
+    // この関数の先頭のrenderResolvedHintSummary()が全段階をまとめて表示する。
     elements.battleHintActions.hidden = true;
     elements.battleHintLevel.textContent = "";
     const hintTexts = question.hints.map((hint) => hint.segment?.text ?? "");
-    const effectiveElapsedMs = myAnsweredThisQuestion ? Number.POSITIVE_INFINITY : elapsedMs;
-    const { levels } = computeStealHintProgress({ elapsedMs: effectiveElapsedMs, hintTexts });
+    const { levels } = computeStealHintProgress({ elapsedMs, hintTexts });
     // 【2026-10-01新設】回答前（まだelapsedMsが進み続けている間）だけ、今画面に出ている
     // 最大ヒント段階を記録する（回答した瞬間にhandleAnswerChoiceClick()がこの値を固定
-    // コピーして使う。myAnsweredThisQuestion===trueの間はeffectiveElapsedMsが無限大になり
-    // levelsが常に全段階を返してしまうため、ここでは更新しない＝回答時点の値のまま保つ）。
+    // コピーして使う）。回答後もlevelsは共有進行に合わせて増え続けるが、この記録先
+    // （myCurrentStealHintLevel＝「回答した瞬間、本人が見ていたヒント段階」という
+    // 自己申告値）は回答時点の値のまま更新しない。
     if (!myAnsweredThisQuestion && levels.length > 0) {
       myCurrentStealHintLevel = levels[levels.length - 1].level;
     }
@@ -2082,14 +2103,22 @@ async function handleAnswerChoiceClick(selectedSongId) {
   // 【Phase6.5・2段階送信】奪い取りのwinner claimは、submitLyricsQuizAnswerWithStealClaim()
   // 内部でanswer保存→claim送信の2段階を行う（claim側のセキュリティルールが、確定済みの
   // answerをroot経由で必ず参照できるようにするため。詳細は同関数のコメント参照）。
-  const result = submissionPlan.submitWinnerClaim
+  // 【2026-09-06修正・本人の3人実機テストで発見した重大バグ】以前はここをsubmissionPlan.
+  // submitWinnerClaim（＝正解だったかどうか）で分岐しており、不正解のときは汎用の
+  // submitLyricsQuizAnswer()を呼んでいた。汎用の方はresult.outcomeを返せないため、
+  // 早押しバトルで不正解だった場合に「残念、不正解」という専用表示が一度も出せていなかった
+  // （js/battleRules/stealRule.jsのgetAnswerSubmissionPlan()の改訂コメント参照）。
+  // usesStealClaimSubmission（正解・不正解を問わず早押しバトルなら常にtrue）で
+  // どちらの関数を呼ぶかを決め、実際にwinner claimを試みるかどうかは
+  // submitWinnerClaim（正解のときだけtrue）で別途渡す。
+  const result = submissionPlan.usesStealClaimSubmission
     ? await submitLyricsQuizAnswerWithStealClaim({
         roomId: latestRoom.roomId,
         matchId: currentMatchId,
         questionIndex: qIndex,
         selectedSongId,
         hintLevel,
-        attemptWinnerClaim: true,
+        attemptWinnerClaim: submissionPlan.submitWinnerClaim,
       })
     : await submitLyricsQuizAnswer({
         roomId: latestRoom.roomId,
@@ -2115,9 +2144,13 @@ async function handleAnswerChoiceClick(selectedSongId) {
     if (result.outcome === STEAL_CLAIM_OUTCOME.WON) {
       confirmedOwnWinQuestionIndexes.add(qIndex);
     }
-    // 【2026-10-01新設】待機メッセージの出し分け用（下のrenderCurrentQuestionState()参照）。
-    // 不正解だった場合だけこの問題番号を記録し、それ以外（正解・惜敗）はクリアする。
-    mySubmissionOutcomeForQuestionIndex = result.outcome === STEAL_CLAIM_OUTCOME.ANSWERED_WRONG ? qIndex : -1;
+    // 【2026-10-01新設→2026-09-06拡張】待機メッセージの出し分け用（下の
+    // renderCurrentQuestionState()参照）。不正解・惜敗（LOST_RACE）だった場合はこの問題番号と
+    // 実際のoutcomeを記録し、それ以外（勝者確定＝WON）はクリアする。
+    const isNotableLoss =
+      result.outcome === STEAL_CLAIM_OUTCOME.ANSWERED_WRONG || result.outcome === STEAL_CLAIM_OUTCOME.LOST_RACE;
+    mySubmissionOutcomeForQuestionIndex = isNotableLoss ? qIndex : -1;
+    mySubmissionOutcomeValue = isNotableLoss ? result.outcome : null;
     // 奪い取り成功音（2026-08-09新設）は、Firebase側でwinner claimの書き込みが実際に
     // 成功した（＝サーバー側で自分が勝者だと確定した）STEAL_CLAIM_OUTCOME.WONの
     // ときだけ鳴らす。ローカルで選択した直後や、通信結果を待っている段階では鳴らさない。
@@ -2149,6 +2182,25 @@ async function handleAnswerChoiceClick(selectedSongId) {
     }
   } else if (result.reason === "already-answered") {
     mySubmittedForQuestionIndex = qIndex;
+    // 【2026-09-06追加・本人の3人実機テストで発見】ページのリロード等でローカルの回答記録
+    // （mySubmittedForQuestionIndex）だけがリセットされ、再送信を試みてサーバーに
+    // 「既に回答済み」と拒否されるケースでも、早押しバトルに限りFirebase上の実際の回答・
+    // winner claimから不正解・惜敗（LOST_RACE）を復元し、持続表示（下の
+    // renderCurrentQuestionState()参照）がリロード後だけ汎用の「回答しました」に
+    // 戻ってしまわないようにする（正解数バトル・ポイントバトルは、答え合わせより前に
+    // 本人にだけでも正誤を明かさない既存方針のため対象外のままにする）。
+    if (ruleId === "steal") {
+      const myUid = getCurrentUid();
+      const existingAnswer = match?.answers?.[qIndex]?.[myUid];
+      const winnerUid = match?.questionClaims?.[qIndex]?.winner?.uid ?? null;
+      if (existingAnswer && existingAnswer.selectedSongId !== correctSongId) {
+        mySubmissionOutcomeForQuestionIndex = qIndex;
+        mySubmissionOutcomeValue = STEAL_CLAIM_OUTCOME.ANSWERED_WRONG;
+      } else if (existingAnswer && winnerUid && winnerUid !== myUid) {
+        mySubmissionOutcomeForQuestionIndex = qIndex;
+        mySubmissionOutcomeValue = STEAL_CLAIM_OUTCOME.LOST_RACE;
+      }
+    }
   } else if (!isStaleQuestion) {
     const failureMessage = describeAnswerSubmissionFailureMessage(result.reason);
     elements.battleError.classList.toggle("is-notice", !!failureMessage);
@@ -2303,6 +2355,7 @@ function renderCurrentQuestionState() {
     lastRenderedQuestionIndex = qIndex;
     mySubmittedForQuestionIndex = -1;
     mySubmissionOutcomeForQuestionIndex = -1;
+    mySubmissionOutcomeValue = null;
     mySelectedSongId = null;
     hideAnswerSubmissionNotice();
     // 【2026-09-07新設・本人指示：前問の答え合わせが一瞬見えるバグ対策】この下の
@@ -2395,12 +2448,20 @@ function renderCurrentQuestionState() {
     // 本人も間違えたのか分かりづらいため、待機メッセージ自体にも「残念、不正解」を含める
     // （即時の案内＝elements.battleErrorは一定時間で消えるが、こちらは正誤確定まで
     // 表示され続けるため、遅れて画面を見た場合でも分かるようにする）。
-    const wasWrong = mySubmissionOutcomeForQuestionIndex === qIndex;
+    // 【2026-09-06拡張・本人の3人実機テストで発見】上と同じ理由で、「正しい曲を選んだが
+    // 他の人が先にwinner claimを確定させていた」（LOST_RACE）場合も、それ専用の文言で
+    // 区別する。本当に違う曲を選んだ（ANSWERED_WRONG）と混同すると、正しい曲を選べていた
+    // のに「不正解」と言われてしまい紛らわしいため。早押しの「サーバーで最初に確定した
+    // 1人だけが勝者」という判定ロジック自体（js/battleRules/stealRule.jsのwinner検算）は
+    // 一切変更していない。表示だけの区別。
+    const notableOutcome = mySubmissionOutcomeForQuestionIndex === qIndex ? mySubmissionOutcomeValue : null;
     elements.battleStatusMessage.textContent = myForcedSkip
       ? "ホストにより、この問題は「わからない」扱いになりました。他のプレイヤーの回答を待っています…"
-      : wasWrong
+      : notableOutcome === STEAL_CLAIM_OUTCOME.ANSWERED_WRONG
         ? "残念、不正解。他のプレイヤーの回答を待っています…"
-        : "回答しました！他のプレイヤーの回答を待っています…";
+        : notableOutcome === STEAL_CLAIM_OUTCOME.LOST_RACE
+          ? "惜しい！先に正解した人がいます。他のプレイヤーの回答を待っています…"
+          : "回答しました！他のプレイヤーの回答を待っています…";
   }
 
   // 【2026-08-31改訂、本人指示：歌詞クイズ3ルール全面改修】対戦中は他プレイヤーとの
@@ -2462,8 +2523,16 @@ function renderCurrentQuestionState() {
       // 時間切れ未回答も一律「✕ 不正解」に統一していたが、本人が自分の意思で選んだ
       // 「わからない」は不正解と区別して伝えたほうが分かりやすいとの指示により、
       // 「今回はわからない」という専用の文言に変更した。
+      // 【2026-09-06再改訂・本人の3人実機テストで発見】「今回はわからない」だと、この行が
+      // 結果判定そのものに見えてしまい分かりにくいとの指摘を受け、「『わからない』を
+      // 選びました」という、押したボタン名と操作結果がそのまま対応する文言へ変更した
+      // （通常の誤答「残念、不正解」はそのまま維持）。
       const isSkip = mySelectedSongId === SKIP_SELECTION;
-      elements.battleAnswerRevealStatus.textContent = gotPoints ? "🎉 正解！" : isSkip ? "今回はわからない" : "残念、不正解";
+      elements.battleAnswerRevealStatus.textContent = gotPoints
+        ? "🎉 正解！"
+        : isSkip
+          ? "「わからない」を選びました"
+          : "残念、不正解";
       // 【2026-09-06改訂・本人指示9：正解数バトルからポイント概念を撤廃】正解数バトル
       // （ruleId === "classic"）は「正解／不正解」とだけ伝え、「pt」表記を出さない。
       // ポイントバトル（combo）は従来どおり、ヒント段階で変わる獲得ポイントを毎回

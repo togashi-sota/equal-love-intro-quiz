@@ -276,16 +276,32 @@ async function handleAcceptClick() {
   setBannerButtonsDisabled(false);
   isAcceptBusy = false;
 
-  // 参加の成否によらず、この招待自体は消す（参加失敗時は「ルームが既に無い」等、参加時点の
-  // 最新状態で無効と判明したケースが多く、招待を残しても本人が再度押せるだけで意味が無い。
-  // 本人指示のとおり、招待時点ではなく参加時点の最新状態を優先する設計）。
-  removeMyInvite(topInvite.roomId);
-
-  if (!result.ok && elements.bannerError) {
-    elements.bannerError.textContent = "ルームへの参加に失敗しました（ルームが終了しているか、満員の可能性があります）。";
-    elements.bannerError.hidden = false;
-  } else if (elements.bannerError) {
-    elements.bannerError.hidden = true;
+  // 【2026-09-06改訂・本人の実機報告：満員ルームへの招待で「参加するを押しても何も
+  // 起きない」ように見える】招待が届いた時点では空きがあっても、実際に「参加する」を
+  // 押す直前・直後に別の人が入って満員になっている場合がある（逆に、届いた時点で満員でも
+  // その後1人退出して空くこともある）。そのため参加を試みた「その瞬間」の結果を正本とし、
+  // reason:"full"（プレイヤー・観戦者どちらの定員超過も含む）のときだけは、
+  // 「満員だった」という理由だけで招待自体を消費済み扱いにしない：招待はそのまま残し、
+  // 5分の有効期限（js/roomInvitePayloads.jsのINVITE_EXPIRY_MS、変更なし）が来るまでは
+  // 何度でも「参加する」を押しなおせるようにする。それ以外の失敗理由（ルーム自体が
+  // 既に無い・バージョン不一致・未対応モード・書き込み失敗等）は、参加時点の最新状態で
+  // 恒久的に無効と判明したケースであり、招待を残しても再度押せるだけで意味が無いため、
+  // 従来どおりここで消費する。
+  if (result.ok) {
+    removeMyInvite(topInvite.roomId);
+    if (elements.bannerError) elements.bannerError.hidden = true;
+  } else if (result.reason === "full") {
+    if (elements.bannerError) {
+      elements.bannerError.textContent =
+        "ルームが満員です。参加しようとしたルームは定員に達しているため、現在は参加できません。空きができたら、もう一度「参加する」を押してください。";
+      elements.bannerError.hidden = false;
+    }
+  } else {
+    removeMyInvite(topInvite.roomId);
+    if (elements.bannerError) {
+      elements.bannerError.textContent = "ルームへの参加に失敗しました（ルームが終了している可能性があります）。";
+      elements.bannerError.hidden = false;
+    }
   }
   renderBanner();
 }

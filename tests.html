@@ -132,6 +132,8 @@
     import { runQuestionSourceModeLeakageTests } from "./tests/questionSourceModeLeakage.test.js";
     import { runAutoRestrictedSongPoolLeakageTests } from "./tests/autoRestrictedSongPoolLeakage.test.js";
     import { runOnlineBattleResultScreenMatchIdRegressionTests } from "./tests/onlineBattleResultScreenMatchIdRegression.test.js";
+    import { runLyricsQuizStealRaceAndHintSyncRegressionTests } from "./tests/lyricsQuizStealRaceAndHintSyncRegression.test.js";
+    import { runInviteFullRoomRegressionTests } from "./tests/inviteFullRoomRegression.test.js";
     import { runRankingCandidateStoreTests } from "./tests/rankingCandidateStore.test.js";
     import { runCenterCelebrationTests } from "./tests/centerCelebration.test.js";
     import { runYoutubeThumbnailTests } from "./tests/youtubeThumbnail.test.js";
@@ -256,6 +258,8 @@
     await runQuestionSourceModeLeakageTests();
     await runAutoRestrictedSongPoolLeakageTests();
     await runOnlineBattleResultScreenMatchIdRegressionTests();
+    await runLyricsQuizStealRaceAndHintSyncRegressionTests();
+    await runInviteFullRoomRegressionTests();
     runRankingCandidateStoreTests();
     runCenterCelebrationTests();
     runYoutubeThumbnailTests();

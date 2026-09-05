@@ -238,20 +238,23 @@ export function runStealRuleTests() {
 
   // ===== getAnswerSubmissionPlan（Phase6.5新設・変更なし） =====
   {
+    // 【2026-09-06追加・本人の3人実機テストで発見】usesStealClaimSubmissionは、正解・不正解を
+    // 問わず常にtrue（早押しバトルは常にsubmitLyricsQuizAnswerWithStealClaim()を通す必要が
+    // あるため。詳しい理由はjs/battleRules/stealRule.jsのgetAnswerSubmissionPlan()参照）。
     assertEqual(
       stealRule.getAnswerSubmissionPlan({ selectedSongId: "song-1", correctSongId: "song-1" }),
-      { submitAnswer: true, submitWinnerClaim: true },
+      { submitAnswer: true, submitWinnerClaim: true, usesStealClaimSubmission: true },
       "正解を選んだ場合は勝者claimも一緒に送る"
     );
     assertEqual(
       stealRule.getAnswerSubmissionPlan({ selectedSongId: "song-2", correctSongId: "song-1" }),
-      { submitAnswer: true, submitWinnerClaim: false },
-      "不正解の場合は回答ログだけを送る（claimは送らない）"
+      { submitAnswer: true, submitWinnerClaim: false, usesStealClaimSubmission: true },
+      "不正解の場合はwinner claimを試みない（が、outcomeを受け取るためsubmitLyricsQuizAnswerWithStealClaim()自体は呼ぶ）"
     );
     assertEqual(
       stealRule.getAnswerSubmissionPlan({ selectedSongId: SKIP_SELECTION, correctSongId: "song-1" }),
-      { submitAnswer: true, submitWinnerClaim: false },
-      "スキップの場合も回答ログだけを送る"
+      { submitAnswer: true, submitWinnerClaim: false, usesStealClaimSubmission: true },
+      "スキップの場合もwinner claimは試みない"
     );
   }
 

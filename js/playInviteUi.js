@@ -412,10 +412,31 @@ async function handleIncomingInvitesUpdate(rawValue) {
       const inviteId = pendingAcceptInviteId;
       finishAcceptFlow();
       const playerName = getActivePlayer().playerName || "プレイヤー";
-      await joinRoomFromInvite({ roomId, playerName });
-      // ルーム参加後は自分の受信箱からこの招待を消す（既存invites/と同じ、参加時点の
-      // 最新状態を優先する設計）。
+      // 【2026-09-06改訂・本人の実機報告：招待経由の満員ルームで参加するを押しても
+      // 何も起きないように見える】以前はjoinRoomFromInvite()の戻り値を一切確認せず、
+      // 成功・失敗どちらでも無条件にこの招待を削除していた（失敗時は本人に何も
+      // 伝わらないまま招待だけが消える、静かな失敗だった）。js/roomInviteUi.jsの
+      // handleAcceptClick()と同じ方針に揃え、reason:"full"のときだけは招待を消費済み
+      // 扱いにせず残す（5分の有効期限内なら再度参加を試せる）。それ以外の失敗理由は
+      // 参加時点の最新状態で恒久的に無効と判明したケースのため、従来どおり削除する。
+      const result = await joinRoomFromInvite({ roomId, playerName });
+      if (result.ok) {
+        await removeMyIncomingPlayInvite(inviteId);
+        return;
+      }
+      if (result.reason === "full") {
+        if (elements.incomingError) {
+          elements.incomingError.textContent =
+            "ルームが満員です。参加しようとしたルームは定員に達しているため、現在は参加できません。空きができたら、もう一度参加してください。";
+          elements.incomingError.hidden = false;
+        }
+        return;
+      }
       await removeMyIncomingPlayInvite(inviteId);
+      if (elements.incomingError) {
+        elements.incomingError.textContent = "参加できませんでした。もう一度お試しください。";
+        elements.incomingError.hidden = false;
+      }
       return;
     }
   }

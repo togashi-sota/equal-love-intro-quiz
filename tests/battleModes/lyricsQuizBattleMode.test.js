@@ -268,7 +268,7 @@ export async function runLyricsQuizBattleModeTests() {
     const stealSettings = withBattleRule(lyricsQuizBattleMode.defaultSettings(), "steal");
     assertEqual(
       lyricsQuizBattleMode.getAnswerSubmissionPlan(stealSettings, { selectedSongId: "x", correctSongId: "x" }),
-      { submitAnswer: true, submitWinnerClaim: true },
+      { submitAnswer: true, submitWinnerClaim: true, usesStealClaimSubmission: true },
       "battleRuleId経由でstealRuleへ正しく委譲される"
     );
     // 【2026-08-31改訂】ポイントバトル（旧コンボ）からコンボ倍率の概念を撤廃したため、

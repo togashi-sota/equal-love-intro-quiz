@@ -53,7 +53,7 @@ export function runBattleRulesIndexTests() {
   {
     assertEqual(
       battleRules.getAnswerSubmissionPlan("steal", { selectedSongId: "song-1", correctSongId: "song-1" }),
-      { submitAnswer: true, submitWinnerClaim: true },
+      { submitAnswer: true, submitWinnerClaim: true, usesStealClaimSubmission: true },
       "stealへ正しく委譲され、正解ならsubmitWinnerClaim:trueになる"
     );
     assertEqual(
