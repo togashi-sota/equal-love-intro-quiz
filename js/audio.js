@@ -632,7 +632,12 @@ async function acquireBlobForNewPlayback(song) {
     hasBlob: !!blob,
     stale: myToken !== currentPlaybackToken,
     blobSize: blob?.size ?? null,
+    // 【2026-09-05追加】blobTypeは常にaudioStorage.js側で正規化済みの値（audio/mpeg）に
+    // なる（js/audioStorage.jsのtoPlayableAudioBlob()参照）。originalBlobTypeBeforeNormalize
+    // には正規化前の元の値（大抵は空文字）を残し、「この曲は元々どんな状態だったか」を
+    // 実機ログから後で区別できるようにする（ID3タグ無し音源のNotSupportedError調査用）。
     blobType: blob?.type ?? null,
+    originalBlobTypeBeforeNormalize: blob?.originalTypeBeforeNormalization ?? null,
   });
   if (myToken !== currentPlaybackToken) {
     return { myToken, blob: null, stale: true };

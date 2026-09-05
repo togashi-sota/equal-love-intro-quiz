@@ -325,6 +325,14 @@ function syncRowAudioPlayingIcon() {
   currentlyPlayingRowElement.classList.toggle("is-audio-paused", previewAudioElement.paused);
 }
 
+// 「この曲を再生できませんでした」の小さな案内文の表示・非表示を切り替える
+// （2026-09-05追加。createTrackRow()側で常に要素自体は作ってあるので、ここではhiddenの
+// 切り替えだけを行う）。
+function setPlaybackErrorNoteVisible(rowElement, isVisible) {
+  const noteElement = rowElement.querySelector(".track-playback-error-note");
+  if (noteElement) noteElement.hidden = !isVisible;
+}
+
 // 行のシークバー・時間表示を初期状態（0秒）に戻す。
 function resetRowSeekUI(rowElement) {
   const rangeElement = rowElement.querySelector(".seek-range");
@@ -402,6 +410,11 @@ async function playPreview(song, rowElement) {
   // （playbackCoordinator.js参照、2026-08-04追加）。
   notifyPlaybackStarting("preview");
 
+  // 今回は「読み込み済みなのに再生に失敗した」ケースかどうかをこれから判定するので、
+  // 前回このボタンを押したときに出た案内文が残っていれば、いったん消しておく
+  // （2026-09-05追加）。
+  setPlaybackErrorNoteVisible(rowElement, false);
+
   releaseCurrentPreviewObjectUrl();
   currentPreviewObjectUrl = URL.createObjectURL(blob);
 
@@ -414,8 +427,13 @@ async function playPreview(song, rowElement) {
   previewAudioElement.src = currentPreviewObjectUrl;
 
   previewAudioElement.play().catch(() => {
-    // 試聴は補助機能なので、再生に失敗してもエラー表示は出さず、再生中の見た目だけ元に戻す
+    // 試聴は補助機能なので、大げさなエラー画面やロビー移動などはしない、という既存方針は
+    // 変えないが、「押しても本当に何も起きていないように見える」状態は分かりにくいという
+    // 指摘を受け、曲名の下に小さな案内文だけ出すようにした（2026-09-05追加。
+    // 音源が未読み込みの場合はこの関数の先頭の`if (!blob) return;`で既に抜けているため、
+    // ここに来るのは「読み込み済みなのに再生できなかった」場合だけに絞られる）。
     setRowPlayingState(rowElement, false);
+    setPlaybackErrorNoteVisible(rowElement, true);
     currentlyPlayingRowElement = null;
   });
 
@@ -444,7 +462,13 @@ function handlePlayButtonClick(song, rowElement) {
       // 【2026-08-25追記】「歌詞を見る」から音源を読み込み済み・一時停止中の行を、
       // そのままこの再生ボタンで再開するケースも通るため、srcが無い場合でも
       // 未処理rejectionでコンソールを汚さないよう安全策を追加（lyricsFullscreen.jsと同じ対応）。
-      previewAudioElement.play().catch(() => {});
+      // 2026-09-05追加：再開の一発目も、playPreview()と同じく失敗時だけ小さな案内文を出す
+      // （一度再生できていた行がここで急に失敗するのは稀だが、分かりにくい無反応を防ぐため）。
+      previewAudioElement.play().catch(() => {
+        setRowPlayingState(rowElement, false);
+        setPlaybackErrorNoteVisible(rowElement, true);
+        currentlyPlayingRowElement = null;
+      });
     } else {
       previewAudioElement.pause();
     }
@@ -605,6 +629,20 @@ export function createTrackRow(song, options = {}) {
     audioStatusElement.textContent = "音源・歌詞 Coming Soon";
     infoBlock.appendChild(audioStatusElement);
   }
+
+  // 【2026-09-05追加・本人指示：試聴の無音失敗が分かりにくい問題への対応】
+  // 「音源・歌詞 Coming Soon」（=この端末に音源が未読み込み。上のaudioStatusElement）とは別に、
+  // 「この端末に音源は読み込み済みなのに、実際の再生には失敗した」場合だけの案内文。
+  // 上のComing Soon表示とは意味が異なる（未読み込み vs 読み込み済みだが再生失敗）ため、
+  // audioAvailableの値に関わらず要素自体は常に作っておき（曲を選び直すたびに毎回作り直す
+  // 手間を避けるため）、普段はhiddenにしておいてplayPreview()の再生失敗時だけ表示する。
+  // 「試聴は補助機能なのでエラー表示は出さない」という既存方針自体は変えていない
+  // （大きなエラー画面やロビー強制移動などはしない。曲名の下に小さく添えるだけ）。
+  const playbackErrorNoteElement = document.createElement("span");
+  playbackErrorNoteElement.className = "track-meta-line track-playback-error-note";
+  playbackErrorNoteElement.textContent = "この曲を再生できませんでした（音源データを確認してください）";
+  playbackErrorNoteElement.hidden = true;
+  infoBlock.appendChild(playbackErrorNoteElement);
 
   // 歌唱メンバー：ユニット曲・ソロ曲のみ（表題曲・全員曲はカテゴリバッジで「全員曲」と分かるため省略）
   if (song.members) {

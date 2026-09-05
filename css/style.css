@@ -4512,6 +4512,16 @@ fieldset label.rule-option-card:has(input:checked) .rule-option-card-title::befo
   opacity: 0.75;
 }
 
+/* 「この曲を再生できませんでした」の案内文（.track-playback-error-note、2026-09-05追加）。
+   「音源・歌詞 Coming Soon」（＝未読み込み）とは意味が異なる（読み込み済みだが再生失敗）ため、
+   混同されないよう赤系（--color-danger、不正解と同じ色）にして、はっきり区別できるようにする。
+   .track-meta-line側のopacity:0.6を確実に上書きするため、上と同じく2クラス分の詳細度で指定する。 */
+.track-meta-line.track-playback-error-note {
+  color: var(--color-danger);
+  font-weight: 700;
+  opacity: 0.85;
+}
+
 /* 再生/一時停止アイコンの切り替え。
    hidden属性・hiddenプロパティはインラインSVG要素への反映がブラウザによって不安定なため使わず、
    行の.is-playingクラスだけで見た目を決める、より確実なクラスベースの方式にしている。 */

@@ -42,6 +42,7 @@
     import { runQuizTests } from "./tests/quiz.test.js";
     import { runAudioTroubleClassificationTests } from "./tests/audioTroubleClassification.test.js";
     import { runLyricsStorageTests } from "./tests/lyricsStorage.test.js";
+    import { runAudioStorageTests } from "./tests/audioStorage.test.js";
     import { runLyricsSyncTests } from "./tests/lyricsSync.test.js";
     import { runCallSyncTests } from "./tests/callSync.test.js";
     import { runCallStorageTests } from "./tests/callStorage.test.js";
@@ -113,6 +114,7 @@
     import { runOnboardingScreenTests } from "./tests/onboardingScreen.test.js";
     import { runGuideContentTests } from "./tests/guideContent.test.js";
     import { runSonglistTests } from "./tests/songlist.test.js";
+    import { runSonglistPlaybackErrorNoteTests } from "./tests/songlistPlaybackErrorNote.test.js";
     import { runRankingCandidateStoreTests } from "./tests/rankingCandidateStore.test.js";
     import { runCenterCelebrationTests } from "./tests/centerCelebration.test.js";
     import { runYoutubeThumbnailTests } from "./tests/youtubeThumbnail.test.js";
@@ -157,6 +159,9 @@
     // runLyricsStorageTestsは内部でFile APIを使う非同期テストを含むため、
     // 集計（printSummary）より前に必ず完了を待つ（module scriptはトップレベルawaitに対応している）。
     await runLyricsStorageTests();
+    // runAudioStorageTestsは実在しない曲IDでのIndexedDB再試行を含むため完了までに1秒強かかる
+    // （tests/audio.test.jsのrunAudioTestsと同じ理由）。集計（printSummary）より前に必ず完了を待つ。
+    await runAudioStorageTests();
     runLyricsSyncTests();
     runCallSyncTests();
     await runCallStorageTests();
@@ -226,6 +231,7 @@
     runOnboardingScreenTests();
     runGuideContentTests();
     runSonglistTests();
+    await runSonglistPlaybackErrorNoteTests();
     runRankingCandidateStoreTests();
     runCenterCelebrationTests();
     runYoutubeThumbnailTests();

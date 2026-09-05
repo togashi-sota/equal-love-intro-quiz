@@ -127,6 +127,39 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// 【2026-09-05新設・本人指示：ID3タグ無し音源のNotSupportedError根本対応】
+// 保存されているBlob（importAudioFiles()が選択されたFileをそのまま保存したもの）は、
+// ブラウザやOSによってMIMEタイプ（blob.type）が空文字や不正確な値になることがある。
+// 通常のCD由来曲はファイル自体に「ID3」タグが付いており、それが再生時のヒントになって
+// ブラウザ側の中身判定（コンテンツスニッフィング）を助けてくれるが、mora購入・VLC変換で
+// 入手した一部の曲（ID3タグが無い）は、blob.typeも空という「判定材料が二重に無い」状態になり、
+// 一部の環境（実機調査でiOS Safariにて確認）でMP3として認識されず、
+// NotSupportedError（MEDIA_ERR_SRC_NOT_SUPPORTED）で再生に失敗することが分かった
+// （docs/HANDOFF.md参照）。
+// このストアに保存されるファイルはimportAudioFiles()の時点で必ず「.mp3」だけに
+// 絞り込まれているため、中身は常にMP3で確定している。そこで、取得したBlobを
+// 毎回「audio/mpeg」という正しいMIMEタイプを明示した新しいBlobへラップしてから返す
+// ことで、元のタグ付け状況に関わらず、常にブラウザへ正確な種類を伝えられるようにする。
+// 【安全性】new Blob([blob], {type})は中身のバイト列を一切変更せず、参照をラップするだけの
+// 軽量な操作（IndexedDB本体・元のFile/Blobには一切書き戻さない、読み取り時の一時的な変換）。
+// 曲を特定して分岐する処理ではないため、今後mora等からID3タグ無しの曲を追加しても
+// 自動的に同じ扱いになる。
+const PLAYABLE_AUDIO_MIME_TYPE = "audio/mpeg";
+
+// テスト（tests/audioStorage.test.js）から直接呼べるようexportする。DOM・IndexedDBに
+// 一切触れない純粋関数のため、テストしやすい（js/dataPackImport.jsのvalidateManifest()と
+// 同じ考え方）。
+export function toPlayableAudioBlob(blob) {
+  if (!blob) return blob;
+  const playableBlob = new Blob([blob], { type: PLAYABLE_AUDIO_MIME_TYPE });
+  // 診断ログ専用の非標準プロパティ。正規化前の元のtype（大抵は空文字）を、呼び出し元
+  // （js/audio.jsのacquireBlobForNewPlayback()）が診断ログに残せるよう、Blob本体に
+  // そのまま乗せておく（構造化複製やIndexedDBへの保存では消える、あくまでこのタブ内の
+  // メモリ上でだけ読める値。既存のblob.size/blob.typeの扱いには一切影響しない）。
+  playableBlob.originalTypeBeforeNormalization = blob.type;
+  return playableBlob;
+}
+
 // IndexedDBから1回だけ取得する処理そのもの。例外（DBが開けない等）はここでは
 // 一切もみ消さず、そのまま呼び出し元へ伝える（原因を隠さないため）。
 async function getAudioBlobOnce(songId) {
@@ -137,7 +170,10 @@ async function getAudioBlobOnce(songId) {
     request.onsuccess = () => resolve(request.result ? request.result.blob : null);
     request.onerror = () => reject(request.error);
   });
-  return blob;
+  // 再生用に返す直前で、常に正しいMIMEタイプ（audio/mpeg）を明示したBlobへ正規化する
+  // （上のtoPlayableAudioBlob()のコメント参照）。IndexedDBに保存されている中身自体は
+  // 一切変更しないため、この関数はここで返す値だけに影響する。
+  return toPlayableAudioBlob(blob);
 }
 
 // 指定したsongIdの音源データ（Blob）を取得する。未読み込みならnullを返す。
