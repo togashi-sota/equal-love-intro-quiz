@@ -2257,6 +2257,35 @@ window.visualViewport?.addEventListener("resize", () => {
   captureViewportSnapshot("[RESIZE] visualViewport");
 });
 
+// 【2026-09-05新設・本人指示：アプリ全体でユーザー操作によるページ拡大縮小を禁止】
+// このゲームUIはボタン・文字サイズを端末幅に合わせて設計済みで、アプリ内に拡大表示が
+// 必要なコンテンツが無いため、誤操作によるダブルタップズーム・ピンチズームを全画面で防ぐ
+// 方針にした（本人指示）。以前は「viewportのuser-scalable=noは、他画面のピンチズームや
+// アクセシビリティに影響するため使わない」という方針だったが（css/style.cssの
+// 「16px未満で自動ズーム」対策コメント参照）、今回の本人指示によりこの方針自体を
+// 見直し、ズーム無効化を明示的な仕様として採用する。
+//
+// 【メインの対策はCSS側】css/style.cssの`html, body { touch-action: pan-x pan-y; }`
+// （このファイルの近くに追記済み）が、ダブルタップズーム・ピンチズームの両方を
+// アプリ全体で防ぐ主な仕組み。touch-actionでpan-x/pan-yだけを許可すると、
+// 縦横のスクロール・タップ・ボタン操作・長押し・入力欄の操作には一切影響を与えずに、
+// ズーム系のジェスチャーだけが仕様上抑えられる（このアプリの他画面
+// （オンラインロビー・結果画面等）で既に同じ考え方が採用・実機確認済み、
+// css/style.cssの該当コメント参照）。
+//
+// 【このJS側の対策は、iOS Safariの一部バージョン向けの補助】touch-actionは標準の
+// タッチジェスチャー（1本指のパン、2本指のピンチズーム）を対象にした仕組みだが、
+// iOS SafariにはWebKit独自の「gesturestart」等のジェスチャーイベントがあり、
+// 一部のバージョンではtouch-actionの制御を素通りしてズームが起きることがあるため、
+// 保険としてこの3イベントだけをpreventDefault()する。この3つは「2本指以上の
+// ジェスチャー操作」でしか発火しない、ズーム専用のイベントのため、通常のタップ・
+// スクロール・長押し・高速タップ・フォーム操作には一切影響しない
+// （touchstart/touchmoveを対象にした広範なpreventDefault()とは異なり、副作用の
+// リスクが無い、ズームだけに絞った最小限の追加対策）。
+["gesturestart", "gesturechange", "gestureend"].forEach((eventName) => {
+  document.addEventListener(eventName, (event) => event.preventDefault());
+});
+
 // スタート画面のプレイヤー名・推しメン表示と、プレイヤー管理モーダル（2026-08-03追加）。
 initPlayerScreen(
   {

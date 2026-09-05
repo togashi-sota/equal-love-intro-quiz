@@ -115,6 +115,7 @@
     import { runGuideContentTests } from "./tests/guideContent.test.js";
     import { runSonglistTests } from "./tests/songlist.test.js";
     import { runSonglistPlaybackErrorNoteTests } from "./tests/songlistPlaybackErrorNote.test.js";
+    import { runPageZoomPreventionTests } from "./tests/pageZoomPrevention.test.js";
     import { runRankingCandidateStoreTests } from "./tests/rankingCandidateStore.test.js";
     import { runCenterCelebrationTests } from "./tests/centerCelebration.test.js";
     import { runYoutubeThumbnailTests } from "./tests/youtubeThumbnail.test.js";
@@ -232,6 +233,7 @@
     runGuideContentTests();
     runSonglistTests();
     await runSonglistPlaybackErrorNoteTests();
+    await runPageZoomPreventionTests();
     runRankingCandidateStoreTests();
     runCenterCelebrationTests();
     runYoutubeThumbnailTests();
