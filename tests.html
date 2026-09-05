@@ -171,6 +171,7 @@
     import { runRoomInvitePayloadsTests } from "./tests/roomInvitePayloads.test.js";
     import { runPlayInvitePayloadsTests } from "./tests/playInvitePayloads.test.js";
     import { runOnlineBattlePropertyFuzzTests } from "./tests/onlineBattlePropertyFuzz.test.js";
+    import { runStealRaceArbitrationFuzzTests } from "./tests/stealRaceArbitrationFuzz.test.js";
     import { runServiceWorkerCacheCompletenessTests } from "./tests/serviceWorkerCacheCompleteness.test.js";
     import { runPresenceUnhandledRejectionRegressionTests } from "./tests/presenceUnhandledRejectionRegression.test.js";
     import { printSummary } from "./tests/test-utils.js";
@@ -264,6 +265,7 @@
     await runLyricsQuizStealRaceAndHintSyncRegressionTests();
     await runInviteFullRoomRegressionTests();
     runOnlineBattlePropertyFuzzTests();
+    runStealRaceArbitrationFuzzTests();
     await runServiceWorkerCacheCompletenessTests();
     await runPresenceUnhandledRejectionRegressionTests();
     runRankingCandidateStoreTests();
