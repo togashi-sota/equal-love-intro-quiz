@@ -63,6 +63,43 @@ export function runOnlineBattleSongSourceUiTests() {
     );
   }
 
+  // ---- 2026-09-05追加（本人指示）：自動絞り込み（autoRestrictedToCommonSongs）は④として
+  // 表示しない ----
+  // 実機・実Firebeaseで発見：js/onlineBattleSongAvailability.jsのrestrictSettingsTo
+  // CommonlyAvailableSongs()が「参加者全員が利用できる曲」へ自動的に絞り込んだ結果
+  // （ホストは①②③のどれかを選んだままで、システムが裏で付けたcollaborativeSelection）を
+  // ④「曲を選んで出題」として表示してしまうと、実際には選んでいないのに選んでいるように
+  // 見える上、js/onlineBattleScreen.jsのsyncCollaborativeSongPoolIfHost()が「まだ誰も
+  // 選曲画面を開いていない（selectedSongIds空）」と誤認してsongIdsを0件へ上書きし、
+  // 「出題する曲が選ばれていません」で再戦がブロックされる不具合につながっていた
+  // （questionSourceのモード間残留が原因だった不具合1とは別の発生経路）。
+  {
+    assertEqual(
+      resolveSongSourceOptionValue({
+        categoryFilterValue: "all",
+        questionSource: { type: QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION, songIds: ["a"], autoRestrictedToCommonSongs: true },
+      }),
+      "all",
+      "autoRestrictedToCommonSongs:trueのcollaborativeSelectionは④に見せず、categoryFilterValueどおり③全曲として表示する"
+    );
+    assertEqual(
+      resolveSongSourceOptionValue({
+        categoryFilterValue: "title-track",
+        questionSource: { type: QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION, songIds: [], autoRestrictedToCommonSongs: true },
+      }),
+      "title-track",
+      "songIdsが0件の自動絞り込みでも④には見せず、categoryFilterValueどおり①表題曲のみとして表示する"
+    );
+    assertEqual(
+      resolveSongSourceOptionValue({
+        categoryFilterValue: "all",
+        questionSource: { type: QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION, songIds: ["a"], autoRestrictedToCommonSongs: false },
+      }),
+      "manual",
+      "autoRestrictedToCommonSongsが明示的にfalseなら、今までどおり④として表示する（本人が実際に選んだ場合）"
+    );
+  }
+
   // ---- buildSongSourceSettingsFields：①②③はcategoryFilterValueのみ（既存動作を維持） ----
   {
     const fields = buildSongSourceSettingsFields("title-track", { mergedSongIds: ["x", "y"] });

@@ -88,6 +88,25 @@ export function getAvailabilityKind(gameMode) {
   return getBattleMode(gameMode)?.availabilityKind ?? "audio";
 }
 
+// 【2026-09-05新設・本人指示：モード切替時の設定残留バグ対応】このgameModeのロビーUIが、
+// 「①表題曲のみ②表題曲＋全員曲③全曲④曲を選んで出題」の4択（settings.questionSource、
+// type: collaborativeSelection）を実際に表示・管理できるかどうか。
+// 【経緯】イントロ対戦・ランダム再生対戦・アウトロ対戦・歌詞クイズ対戦はこのUIを持つが、
+// 一瞬バトル・一瞬協力は「①②③のみのカテゴリ3択」しか持たず、④に相当するUI自体が
+// 存在しない。以前は、あるモードでquestionSourceがcollaborativeSelectionになっていると、
+// モード変更時（js/onlineBattle.jsのupdateRoomGameMode()）や参加者の共通曲絞り込み後の
+// 再同期（js/onlineBattleScreen.jsのsyncCollaborativeSongPoolIfHost()）が、
+// このUIを持たない一瞬バトル・一瞬協力にまでその状態を引き継いでしまい、
+// 「誰も編集できない、曲数0件のquestionSource」が残ったまま出題可能曲の判定に
+// 使われてしまう不具合があった（「歌詞クイズを遊んだ後に一瞬バトルへ切り替えると
+// 再戦がブロックされる」不具合として実機・実Firebase双方で確認済み）。
+// このモードごとの対応可否を明示することで、上記2箇所がモード名を直接比較する
+// ハードコードをせずに、正しい判定ができるようにする。未登録・未実装のモードは、
+// UIが無いのと同じ（false）として安全側に倒す。
+export function supportsManualSongSelection(gameMode) {
+  return getBattleMode(gameMode)?.supportsManualSongSelection ?? false;
+}
+
 // 【2026-08-27新設】このgameModeで「そもそも出題対象になりうる全曲ID」を返す
 // （今の設定・選択状態とは無関係に、モードの性質だけで決まる母集団）。
 // ロビー画面が「今の参加者全員に共通する曲は何曲か」をリアルタイムに見積もったり、

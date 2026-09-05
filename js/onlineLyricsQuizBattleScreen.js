@@ -834,7 +834,11 @@ export function forceHideLyricsCollabSongSection() {
 
 // 【2026-08-27新設】共同選曲セクション（ホスト・参加者共通）の表示を更新する。
 function updateLyricsCollabSongSectionUi(room) {
-  const isCollaborative = room.settings?.questionSource?.type === QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION;
+  // 【js/onlineBattleScreen.jsのupdateCollabSongSectionUi()と同じ理由】自動絞り込み由来の
+  // collaborativeSelectionでは、④専用の選曲編集UIを表示しない。
+  const isCollaborative =
+    room.settings?.questionSource?.type === QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION &&
+    !room.settings.questionSource.autoRestrictedToCommonSongs;
   elements.lyricsCollabSongSection.hidden = !isCollaborative;
   if (!isCollaborative) {
     resetCollaborativeSelectionDetailsPanel(elements.lyricsCollabDetailsToggle, elements.lyricsCollabDetailsPanel);
@@ -878,6 +882,9 @@ async function syncLyricsCollaborativeSongPoolIfHost(room, isHost) {
   if (!isHost) return;
   const settings = room.settings;
   if (settings.questionSource?.type !== QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION) return;
+  // 【js/onlineBattleScreen.jsのsyncCollaborativeSongPoolIfHost()と同じ理由】自動絞り込み由来の
+  // collaborativeSelectionは、参加者のselectedSongIds集合と同期させてはいけない。
+  if (settings.questionSource.autoRestrictedToCommonSongs) return;
 
   const merged = computeMergedSelectedSongIds(room.players || {});
   const restricted = merged.filter((songId) => currentLyricsCommonSongPool.has(songId));
@@ -1048,6 +1055,24 @@ async function refreshAndSubmitLyricsCoverage(room) {
     requiredCount: songPool.length,
     poolHash,
   });
+}
+
+// 【2026-09-05新設・本人指示：ロビー内での歌詞データ追加インポート後、表示が更新されない
+// 不具合対応】refreshAndSubmitLyricsCoverage()は「曲プール（カテゴリ条件）が前回チェック時と
+// 同じなら、IndexedDBを読み直さない」という最適化（lyricsCoverageSubmittedHashによる
+// memoization）を持っている。この最適化自体は「同じ条件なら結果も同じはず」という前提では
+// 正しいが、ロビー画面を開いたまま「データ管理を開く」から歌詞データを追加インポートした
+// 場合のように、**カテゴリ条件は変わらないのにIndexedDBの中身だけが増える**ケースを
+// 想定しておらず、カテゴリを一度切り替えて戻す・画面を開き直すまで曲数表示が古いまま
+// 残ってしまっていた（実機・実Firebaseで確認済み）。
+// 歌詞データの保存が成功した直後にこの関数を呼ぶことで、「今のカテゴリ条件のまま」
+// 強制的に再チェック・再送信・再描画する（無関係なオンライン状態やFirebaseのroomデータを
+// 読み直す必要は無いため、ローカルのlatestRoomだけを使う。歌詞クイズのロビーを
+// 見ていない/まだルームにも入っていない場合は何もしない、安全なno-op）。
+export async function recheckLyricsCoverageAfterImport() {
+  if (!latestRoom || latestRoom.gameMode !== lyricsQuizBattleMode.gameMode) return;
+  lyricsCoverageSubmittedHash = null;
+  await refreshAndSubmitLyricsCoverage(latestRoom);
 }
 
 function renderLyricsQuizReadinessSection(room, isHost) {

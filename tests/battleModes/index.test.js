@@ -20,6 +20,7 @@ import {
   getModeLabel,
   isKnownGameMode,
   computeFinisherRanks,
+  supportsManualSongSelection,
 } from "../../js/battleModes/index.js";
 import { createResult } from "../../js/battleModes/instantBattleMode.js";
 import { createResult as createTimeAttackResult } from "../../js/battleModes/timeAttackBattleMode.js";
@@ -143,5 +144,19 @@ export function runBattleModesIndexAvailabilityTests() {
       const ranks = computeFinisherRanks("timeAttack", finishers, { rule: "normal", penaltySeconds: 2 });
       assertEqual(ranks, [1, 2, 3], "一瞬バトル以外（タイムアタック）は完全同着でも既存どおり連番のまま（同順位表示にしない）");
     }
+  }
+
+  // ---- 2026-09-05追加（本人指示）：supportsManualSongSelection() ----
+  // 「歌詞クイズを遊んだ後に一瞬バトル／一瞬協力へモード変更すると再戦がブロックされる」
+  // 不具合（questionSourceのモード間残留）の修正で新設した、モードごとの対応可否の判定。
+  // 「①表題曲のみ②表題曲＋全員曲③全曲④曲を選んで出題」の4択UIを持つモードだけがtrueになる。
+  {
+    assertEqual(supportsManualSongSelection("timeAttack"), true, "イントロ対戦は「曲を選んで出題」UIに対応する");
+    assertEqual(supportsManualSongSelection("randomPlayback"), true, "ランダム再生対戦は「曲を選んで出題」UIに対応する");
+    assertEqual(supportsManualSongSelection("outroQuiz"), true, "アウトロ対戦は「曲を選んで出題」UIに対応する");
+    assertEqual(supportsManualSongSelection("lyricsQuiz"), true, "歌詞クイズ対戦は「曲を選んで出題」UIに対応する");
+    assertEqual(supportsManualSongSelection("instantBattle"), false, "一瞬バトルには「曲を選んで出題」UI自体が無い（カテゴリ3択のみ）");
+    assertEqual(supportsManualSongSelection("instantCoop"), false, "一瞬協力には「曲を選んで出題」UI自体が無い（カテゴリ3択のみ）");
+    assertEqual(supportsManualSongSelection("未対応の対戦モード"), false, "未登録のgameModeは安全側でfalseを返す");
   }
 }

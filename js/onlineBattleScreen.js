@@ -79,6 +79,7 @@ import {
   getAvailabilityKind,
   resolveAllEligibleSongIdsForMode,
   resolveSongPoolForSettings,
+  supportsManualSongSelection,
 } from "./battleModes/index.js";
 import { QUESTION_COUNT_LABELS, RULE_LABELS } from "./localBattleScreen.js";
 import { ONLINE_BATTLE_MODE_GUIDES } from "./onlineBattleRulesContent.js";
@@ -1299,8 +1300,15 @@ function resolveSongTitleForCollabUi(songId) {
 // 「今の自分の選択数」「参加者全員を合わせた選択数・実際に使える数」を表示するだけの
 // 表示専用関数（Firebaseへは一切書き込まない）。
 function updateCollabSongSectionUi(room, isLyricsQuiz) {
+  // 【2026-09-05追加・実機・実Firebaseで確認：同種不具合の横断監査で発見】
+  // autoRestrictedToCommonSongs:trueのcollaborativeSelectionは、ホストが①②③のどれかを
+  // 選んだままシステムが裏で絞り込んだだけなので、④専用の選曲編集UI（このセクション）は
+  // 表示しない（表示すると、①②③を選んでいるはずの参加者にも「曲を選んで出題」の選曲画面が
+  // 出てしまい、しかもそこで選んでも自動絞り込み側には一切反映されず矛盾する）。
   const isCollaborative =
-    !isLyricsQuiz && room.settings?.questionSource?.type === QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION;
+    !isLyricsQuiz &&
+    room.settings?.questionSource?.type === QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION &&
+    !room.settings.questionSource.autoRestrictedToCommonSongs;
   elements.collabSongSection.hidden = !isCollaborative;
   if (!isCollaborative) {
     // 【2026-09-15新設・本人指示：共有曲選択UIをモード変更しても壊れないように】
@@ -1357,10 +1365,24 @@ function updateCollabSongSectionUi(room, isLyricsQuiz) {
 // 【settingsRevisionが上がりREADYがリセットされることについて】updateRoomSettings()は
 // 呼ばれるたびに非ホスト全員のreadyをfalseへ戻す（既存の仕様）。選曲内容が変わった
 // 場合に準備完了を解除するのは安全側の挙動として本人が望んだ動作のため、そのまま利用する。
+// 【2026-09-05修正・本人指示：モード切替時の設定残留バグ対応】以前はisLyricsQuizだけを
+// 除外していたが、一瞬バトル・一瞬協力にはそもそも「曲を選んで出題」のUI自体が無いため、
+// これらのモードでquestionSourceがcollaborativeSelectionになっていた場合（他モードから
+// 引き継がれた残留データ、または対戦開始時の共通曲絞り込みの副作用）に、この関数が
+// 「誰も編集できない選択の和集合＝0件」で上書きしてしまい、出題可能曲が消えてしまう
+// 実機バグの原因になっていた（js/battleModes/index.jsのsupportsManualSongSelection()参照）。
 async function syncCollaborativeSongPoolIfHost(room, isHost, isLyricsQuiz) {
-  if (!isHost || isLyricsQuiz) return;
+  if (!isHost || isLyricsQuiz || !supportsManualSongSelection(room.gameMode)) return;
   const settings = room.settings;
   if (settings.questionSource?.type !== QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION) return;
+  // 【2026-09-05追加・実機・実Firebaseで確認：同種不具合の横断監査で発見】このcollaborative
+  // Selectionが、js/onlineBattleSongAvailability.jsのrestrictSettingsToCommonlyAvailableSongs()
+  // による自動絞り込み（ホストは①②③のどれかを選んだままで、参加者のselectedSongIdsとは
+  // 無関係にシステムが決めた一時的な曲一覧）なら、ここで参加者のselectedSongIds集合と
+  // 同期させてはいけない。まだ誰も曲選択画面を開いていない（selectedSongIds空）ことを理由に
+  // songIdsを0件へ上書きしてしまい、「出題する曲が選ばれていません」で再戦がブロックされる
+  // 不具合につながるため。
+  if (settings.questionSource.autoRestrictedToCommonSongs) return;
 
   const merged = computeMergedSelectedSongIds(room.players || {});
   const restricted = merged.filter((songId) => currentCommonSongPool.has(songId));
@@ -1867,8 +1889,13 @@ function renderLobbyInner(room) {
   // このnoticeは隠す（categoryFilterValueによる絞り込み自体は行っていない・今回追加調査でも
   // 発見できなかった。この通知の重複表示が「隠れフィルタが効いている」ように見えていた
   // 主因と判断した）。
+  // 【2026-09-05追加・実機・実Firebaseで確認：同種不具合の横断監査で発見】自動絞り込み
+  // （autoRestrictedToCommonSongs:true）のときは、この共通曲バナーが「今まさに絞り込みが
+  // 効いている」ことを利用者へ伝える唯一の表示になる（④専用の内訳表示は出ていないため）ので、
+  // 隠さずそのまま表示する。
   const isUsingCollaborativeSelection =
-    room.settings?.questionSource?.type === QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION;
+    room.settings?.questionSource?.type === QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION &&
+    !room.settings.questionSource.autoRestrictedToCommonSongs;
   if (isUsingCollaborativeSelection) {
     elements.lobbyCommonSongNotice.hidden = true;
     elements.lobbyCommonSongNotice.classList.remove("is-empty");
@@ -2793,6 +2820,21 @@ function updateOnlineBattlePlayUi(room) {
 // DNFとして最下位グループに表示する（オフライン対戦のjs/localBattleResultScreen.jsと
 // 同じ考え方だが、結果の集まり方がFirebase経由の自動集計である点が異なる）。
 function goToResultScreen(room) {
+  // 【2026-09-05追加・実機・実Firebaseで確認：5人テスト中に発見】この関数はcurrentMatchId
+  // （このファイルのモジュール変数）から試合記録（room.matches[currentMatchId]）を
+  // 引くが、以前はここで自分では設定し直さず、enterOnlineBattlePlay()等が対戦中に
+  // 一度設定した値をそのまま信じていた。そのため、「対戦が既にresultになっているルームへ、
+  // このタブでは一度も対戦中を経由せずに入った」場合（例：結果画面の途中でブラウザを
+  // リロードした・アプリを再度開いた・スペクテイター側の経路とは別に、この画面へ
+  // 直接たどり着いた等）、currentMatchIdがnull（または前回の試合のまま）になっており、
+  // room.matches[currentMatchId]が空オブジェクトになって、ルール概要は表示されるのに
+  // 順位一覧（参加者ごとの結果）が0件のまま表示される不具合が実機・実Firebaseで再現した。
+  // js/onlineBattleScreen.js自身のrenderSpectatorView()（観戦者向け）は既にこの関数を呼ぶ
+  // 直前でcurrentMatchId = room.activeMatchIdを行っていたが、通常参加者向けの経路
+  // （resolveOnlineBattleStatusTransition()のENTER_RESULT分岐）には同じ代入が無かった。
+  // room.activeMatchIdは常に「今のルームの試合」を指す確定値のため、ここで毎回
+  // 上書きしておけば、どの経路から呼ばれても安全に一致する。
+  currentMatchId = room.activeMatchId;
   // 【2026-11-XX追加・実機バグ調査：結果画面のスクロール位置】「同じ条件でもう一度」を
   // 連続で使うと、前回結果画面のスクロール位置を引き継いだまま表示され、「対戦結果」
   // 「順位」が見えない状態で始まっていた。結果画面へ入るたび必ず一番上から見せる。

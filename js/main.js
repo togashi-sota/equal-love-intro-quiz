@@ -195,7 +195,7 @@ import {
 } from "./onlineBattleScreen.js";
 import { initRoomInviteUi, openInvitePicker } from "./roomInviteUi.js";
 import { initPlayInviteUi } from "./playInviteUi.js";
-import { initOnlineLyricsQuizBattleScreens } from "./onlineLyricsQuizBattleScreen.js";
+import { initOnlineLyricsQuizBattleScreens, recheckLyricsCoverageAfterImport } from "./onlineLyricsQuizBattleScreen.js";
 import { initOnlineInstantBattleScreens } from "./onlineInstantBattleScreen.js";
 import { initOnlineInstantCoopBattleScreens } from "./onlineInstantCoopBattleScreen.js";
 import { initReturnToLobbyPrompt } from "./onlineBattleLobbyReturnPrompt.js";
@@ -6986,6 +6986,12 @@ dataPackImportInputElement.addEventListener("change", async () => {
 
   const result = await importAnalyzedDataPack(analyzed);
 
+  // 【2026-09-05新設・本人指示：オンラインロビー内でのデータパック追加インポート対応】
+  // データパックは歌詞データを含みうるため、js/main.jsの直接インポート経路と同じく、
+  // オンライン歌詞クイズのロビーを表示中であれば今のカテゴリ条件のまま読み込み済み
+  // 曲数を再チェック・再描画する（無関係な場合は何もしない安全なno-op）。
+  await recheckLyricsCoverageAfterImport();
+
   // 新しく保護すべきデータ（音源等）が増えた直後のタイミングで、改めて永続ストレージを要求する
   // （音源インポート時と同じ理由。js/main.jsの「音源を読み込む」ハンドラ参照）。
   requestPersistentStorage();
@@ -7261,6 +7267,11 @@ lyricsImportInputElement.addEventListener("change", async () => {
   }
 
   await updateLyricsImportStatus();
+  // 【2026-09-05新設・本人指示：オンラインロビー内での歌詞データ追加インポート対応】
+  // オンライン歌詞クイズのロビーを表示中に歌詞データを追加インポートした場合、
+  // 今のカテゴリ条件のまま読み込み済み曲数を再チェック・再描画する（無関係な画面を
+  // 見ている場合は何もしない安全なno-op、js/onlineLyricsQuizBattleScreen.js参照）。
+  await recheckLyricsCoverageAfterImport();
 
   pendingLyricsReadyTally = { newCount, updateCount };
   pendingLyricsFailedFiles = collectedFailures;
@@ -7299,6 +7310,7 @@ lyricsWarningSaveButtonElement.addEventListener("click", async () => {
   }
 
   await updateLyricsImportStatus();
+  await recheckLyricsCoverageAfterImport();
   lyricsWarningPanelElement.hidden = true;
 
   showLyricsImportResult({

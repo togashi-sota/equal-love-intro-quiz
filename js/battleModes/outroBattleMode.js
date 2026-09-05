@@ -41,6 +41,9 @@ export const resolveSettingsSongPool = timeAttackBattleMode.resolveSettingsSongP
 export const resolveAllEligibleSongIds = timeAttackBattleMode.resolveAllEligibleSongIds;
 // 音源の所持状況で共通曲を絞り込む（歌詞データは使わないモードのため）。
 export const availabilityKind = "audio";
+// 【2026-09-05新設・本人指示：モード切替時の設定残留バグ対応】このモードもtimeAttackBattleMode
+// のresolveSettingsSongPoolをそのまま再利用しており、同じ4択「曲を選んで出題」UIを共有している。
+export const supportsManualSongSelection = timeAttackBattleMode.supportsManualSongSelection;
 
 function resolveSongPoolForValidation(questionSource) {
   return resolveSongPool(questionSource);

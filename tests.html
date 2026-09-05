@@ -129,6 +129,9 @@
     import { runViewportMeasurementTests } from "./tests/viewportMeasurement.test.js";
     import { runOnlineBattleLobbyConfirmModalsTests } from "./tests/onlineBattleLobbyConfirmModals.test.js";
     import { runQuickSfxSettingsWordingTests } from "./tests/quickSfxSettingsWording.test.js";
+    import { runQuestionSourceModeLeakageTests } from "./tests/questionSourceModeLeakage.test.js";
+    import { runAutoRestrictedSongPoolLeakageTests } from "./tests/autoRestrictedSongPoolLeakage.test.js";
+    import { runOnlineBattleResultScreenMatchIdRegressionTests } from "./tests/onlineBattleResultScreenMatchIdRegression.test.js";
     import { runRankingCandidateStoreTests } from "./tests/rankingCandidateStore.test.js";
     import { runCenterCelebrationTests } from "./tests/centerCelebration.test.js";
     import { runYoutubeThumbnailTests } from "./tests/youtubeThumbnail.test.js";
@@ -250,6 +253,9 @@
     runViewportMeasurementTests();
     await runOnlineBattleLobbyConfirmModalsTests();
     await runQuickSfxSettingsWordingTests();
+    await runQuestionSourceModeLeakageTests();
+    await runAutoRestrictedSongPoolLeakageTests();
+    await runOnlineBattleResultScreenMatchIdRegressionTests();
     runRankingCandidateStoreTests();
     runCenterCelebrationTests();
     runYoutubeThumbnailTests();

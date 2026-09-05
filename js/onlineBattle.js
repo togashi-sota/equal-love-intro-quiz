@@ -50,6 +50,7 @@ import {
   validateRoomSettings,
   resolveSongPoolForSettings,
   getAvailabilityKind,
+  supportsManualSongSelection,
 } from "./battleModes/index.js";
 import { restrictSettingsToCommonlyAvailableSongs } from "./onlineBattleSongAvailability.js";
 import { QUESTION_SOURCE_TYPE } from "./questionSource.js";
@@ -818,8 +819,27 @@ export async function updateRoomGameMode({ roomId, gameMode }) {
   // songIdsは新モードでの有効曲数によって変わりうるため、ここでは空にしておき、次に
   // ホストが設定を保存する際（applyHostSettingsChangeFromForm等）に新モードの有効曲で
   // 絞り込んだ最新の値へ自動的に更新される（syncCollaborativeSongPoolIfHostが担当）。
-  const wasCollaborativeSelection = room.settings?.questionSource?.type === QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION;
-  if (wasCollaborativeSelection) {
+  // 【2026-09-05修正・本人指示：モード切替時の設定残留バグ対応】以前はwasCollaborativeSelection
+  // （切り替え前のモードが「曲を選んで出題」だったか）だけを見ており、切り替え先の新しい
+  // gameModeがそもそも「曲を選んで出題」のUI自体を持っているかを確認していなかった。
+  // 一瞬バトル・一瞬協力にはこのUIが無いため、引き継いだ「誰も編集できない、曲数0件の
+  // questionSource」がそのまま残り、以後の対戦開始・再戦の判定で「出題する曲が
+  // 選ばれていません」という誤ったエラーの原因になっていた（実機・実Firebaseで確認済み）。
+  // 切り替え先のモードが対応している場合だけ引き継ぐ（js/battleModes/index.jsの
+  // supportsManualSongSelection()参照。モードごとの対応可否を1箇所に持たせることで、
+  // ここではモード名を直接比較しない）。
+  // 【2026-09-05追加・実機・実Firebaseで確認：同種不具合の横断監査で発見】ここでの
+  // collaborativeSelectionは「ホストが④曲を選んで出題を選んだ」場合だけを引き継ぎ対象にする。
+  // js/onlineBattleSongAvailability.jsのrestrictSettingsToCommonlyAvailableSongs()が
+  // 自動で付けたcollaborativeSelection（autoRestrictedToCommonSongs:true、ホストは
+  // ①②③のどれかを選んだままで、システムが裏で一時的に絞り込んだだけ）まで「④の選択」として
+  // 引き継いでしまうと、新モードでも誰も編集できない曲数0件のcollaborativeSelectionが
+  // 残ってしまい、この関数が元々修正した不具合と同じ症状（出題する曲が選ばれていません）が
+  // 別の経路から再発する。
+  const wasCollaborativeSelection =
+    room.settings?.questionSource?.type === QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION &&
+    !room.settings.questionSource.autoRestrictedToCommonSongs;
+  if (wasCollaborativeSelection && supportsManualSongSelection(gameMode)) {
     settings.questionSource = { type: QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION, songIds: [] };
   }
 
@@ -1047,6 +1067,24 @@ export async function setReady({ roomId, ready }) {
 // 両方から呼ぶことで、判定ロジックを2重に持たない（本人指示のとおり、既存の安全な
 // チェックは複製せず再利用する）。戻り値は{ ok:false, reason, message? }、または
 // { ok:true, room, players, finalSettings }。
+// 【2026-09-05新設・実機・実Firebaseで確認：同種不具合の横断監査で発見】settings.questionSourceが
+// js/onlineBattleSongAvailability.jsのrestrictSettingsToCommonlyAvailableSongs()による
+// 自動絞り込み（autoRestrictedToCommonSongs:true）の結果である場合、それを「今回の絞り込み前の
+// 出題対象」として扱ってしまうと、前回絞り込んだ曲同士でしか次の絞り込みができなくなり、
+// 参加者のデータ状況が改善して共通曲が増えても、一度絞り込まれた曲数が二度と元のカテゴリ
+// （①表題曲のみ／②表題曲＋全員曲／③全曲）の広さへ戻らない不具合につながる。対戦開始・
+// 再戦準備のたびに必ず「ホストが実際に選んでいるカテゴリ」から出題対象を計算しなおすため、
+// 自動絞り込みマーカーが付いた設定は、questionSourceを一旦取り除いた状態
+// （＝categoryFilterValueだけの状態）を絞り込み前の基準として使う。
+// 【④「曲を選んで出題」を本当に選んでいる場合には影響しない】autoRestrictedToCommonSongsが
+// 付くのはこの自動絞り込みだけなので、本人が手動選択した曲（questionSourceにこのフラグが
+// 無い）はここで一切変更しない。
+function resolveBaseSettingsForSongPool(settings) {
+  if (!settings.questionSource?.autoRestrictedToCommonSongs) return settings;
+  const { questionSource, ...baseSettings } = settings;
+  return baseSettings;
+}
+
 async function resolveBattleStartValidation({ roomId, settings }) {
   await authReady;
   const uid = getCurrentUid();
@@ -1098,7 +1136,8 @@ async function resolveBattleStartValidation({ roomId, settings }) {
   // Firebaseセキュリティルールがまだ対応していない環境では、この処理は何も変えない
   // （今までと完全に同じ動作のまま安全に開始できる）。
   let finalSettings = settings;
-  const resolvedSongPool = resolveSongPoolForSettings(room.gameMode, settings);
+  const baseSettingsForSongPool = resolveBaseSettingsForSongPool(settings);
+  const resolvedSongPool = resolveSongPoolForSettings(room.gameMode, baseSettingsForSongPool);
   if (resolvedSongPool) {
     // 【2026-08-27新設】共同選曲（collaborativeSelection）は、ロビーでの設定保存自体は
     // 0曲でもエラーにしない設計にしてある（js/battleModes/timeAttackBattleMode.js・
@@ -1116,11 +1155,11 @@ async function resolveBattleStartValidation({ roomId, settings }) {
     finalSettings = await restrictSettingsToCommonlyAvailableSongs({
       roomId,
       playerUids: Object.keys(players),
-      settings,
+      settings: baseSettingsForSongPool,
       resolvedSongPool,
       kind: getAvailabilityKind(room.gameMode),
     });
-    if (finalSettings !== settings) {
+    if (finalSettings !== baseSettingsForSongPool) {
       // 絞り込みが実際に発生した場合のみ、絞り込んだ結果でも出題可能か再検証する
       // （絞り込みすぎて曲数が足りなくなる可能性があるため、安全側に倒して開始を拒否する）。
       const restrictedSongCount = (finalSettings.questionSource?.songIds ?? []).length;
@@ -1739,7 +1778,8 @@ async function resolveRematchSettingsValidation({ roomId, room, playersOverride 
 
   const players = playersOverride ?? room.players ?? {};
   let finalSettings = room.settings;
-  const resolvedSongPool = resolveSongPoolForSettings(room.gameMode, room.settings);
+  const baseSettingsForSongPool = resolveBaseSettingsForSongPool(room.settings);
+  const resolvedSongPool = resolveSongPoolForSettings(room.gameMode, baseSettingsForSongPool);
   if (resolvedSongPool) {
     if (resolvedSongPool.length === 0) {
       return {
@@ -1751,11 +1791,11 @@ async function resolveRematchSettingsValidation({ roomId, room, playersOverride 
     finalSettings = await restrictSettingsToCommonlyAvailableSongs({
       roomId,
       playerUids: Object.keys(players),
-      settings: room.settings,
+      settings: baseSettingsForSongPool,
       resolvedSongPool,
       kind: getAvailabilityKind(room.gameMode),
     });
-    if (finalSettings !== room.settings) {
+    if (finalSettings !== baseSettingsForSongPool) {
       const restrictedSongCount = (finalSettings.questionSource?.songIds ?? []).length;
       const restrictedErrorMessage = validateRoomSettings(room.gameMode, finalSettings);
       if (restrictedErrorMessage) {

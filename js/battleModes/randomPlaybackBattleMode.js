@@ -37,6 +37,9 @@ export const resolveSettingsSongPool = timeAttackBattleMode.resolveSettingsSongP
 export const resolveAllEligibleSongIds = timeAttackBattleMode.resolveAllEligibleSongIds;
 // 【2026-08-27新設】タイムアタックと同じく、音源の所持状況で共通曲を絞り込む。
 export const availabilityKind = "audio";
+// 【2026-09-05新設・本人指示：モード切替時の設定残留バグ対応】js/battleModes/timeAttackBattleMode.js
+// の同名エクスポートと同じ理由（このモードも4択の「曲を選んで出題」UIを共有している）。
+export const supportsManualSongSelection = true;
 
 // settings.questionSourceから、出題対象になりうる曲プールを解決する。
 //

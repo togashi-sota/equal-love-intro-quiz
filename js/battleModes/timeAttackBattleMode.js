@@ -39,6 +39,13 @@ export const playbackType = "intro";
 // 【2026-08-27新設】オンライン対戦の共通曲判定（js/onlineBattleSongAvailability.js）が、
 // このモードを「音源の所持状況」で絞り込むべきと判断するための識別子。
 export const availabilityKind = "audio";
+// 【2026-09-05新設・本人指示：モード切替時の設定残留バグ対応】このモードのロビーUI
+// （js/onlineBattleScreen.jsの4択「①表題曲のみ②表題曲＋全員曲③全曲④曲を選んで出題」）が
+// settings.questionSource（type: collaborativeSelection）を実際に管理・表示できることを表す
+// 印。js/battleModes/index.jsのsupportsManualSongSelection()経由で、モード変更時に
+// この情報を引き継いでよいモードかどうかの判定に使う（詳細はjs/onlineBattle.jsの
+// updateRoomGameMode()・js/onlineBattleScreen.jsのsyncCollaborativeSongPoolIfHost()参照）。
+export const supportsManualSongSelection = true;
 
 // ロビー画面のホスト用設定フォームが最初に表示する既定値。
 export function defaultSettings() {

@@ -116,8 +116,23 @@ export async function restrictSettingsToCommonlyAvailableSongs({
     return settings; // 絞り込みの必要が無かった（今までと同じ出題範囲）
   }
 
+  // 【2026-09-05追加・実機・実Firebaseで確認：同種不具合の横断監査で発見】
+  // ここで作るcollaborativeSelectionは、ホストが「④曲を選んで出題」を選んで
+  // 参加者が手動で選んだ曲（js/onlineBattleScreen.jsのopenCollabSongPicker等）とは
+  // 出自が全く違う、システムが自動的に付け足した一時的な絞り込みでしかない。
+  // この違いを区別するタグを付けないと、①②③のカテゴリ選択中でも常時ホスト側で動いている
+  // syncCollaborativeSongPoolIfHost()（参加者のselectedSongIds集合とsongIdsを同期させる
+  // 仕組み）が「④が手動選択された」と誤認し、まだ誰も選曲画面を開いていない
+  // （selectedSongIds空）ことを理由にsongIdsを0件へ上書きしてしまい、「出題する曲が
+  // 選ばれていません」で再戦がブロックされる不具合が実機・実Firebaseで再現した
+  // （歌詞クイズ対戦のモード切替が原因だった以前の不具合1とは別の発生経路）。
+  // autoRestrictedToCommonSongs:trueを付けることで、syncCollaborativeSongPoolIfHost()・
+  // js/onlineBattleSongSourceUi.jsのresolveSongSourceOptionValue()・
+  // js/onlineBattle.jsのwasCollaborativeSelection判定（モード変更時の引き継ぎ）の
+  // 3箇所に「これは④の手動選択ではない」と伝え、それぞれ安全側の動作（上書きしない・
+  // ④として表示しない・引き継がない）に倒す。
   return {
     ...settings,
-    questionSource: { type: "collaborativeSelection", songIds: restrictedPool },
+    questionSource: { type: "collaborativeSelection", songIds: restrictedPool, autoRestrictedToCommonSongs: true },
   };
 }

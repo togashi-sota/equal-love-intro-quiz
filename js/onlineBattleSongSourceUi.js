@@ -41,7 +41,19 @@ export const SONG_SOURCE_OPTION_LABELS = {
 // 古い形のsettings（categoryFilterValueが無い・不明な値）でも、最も安全な既定
 // （表題曲のみ）へ安全に収束する。
 export function resolveSongSourceOptionValue(settings) {
-  if (settings?.questionSource?.type === QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION) return "manual";
+  // 【2026-09-05追加・実機・実Firebaseで確認：同種不具合の横断監査で発見】
+  // autoRestrictedToCommonSongs:trueが付いたcollaborativeSelectionは、
+  // js/onlineBattleSongAvailability.jsが参加者の所持データ差を吸収するために裏で
+  // 自動的に付けた一時的な絞り込みであり、ホストが実際に④「曲を選んで出題」を
+  // 選んだわけではない。この場合は④として表示せず、ホストが本来選んでいる
+  // categoryFilterValue（①②③のいずれか）をそのまま表示する（絞り込みの事実自体は、
+  // ロビーの「現在、参加者全員が利用できる共通曲はN曲です」という別の表示が伝える）。
+  if (
+    settings?.questionSource?.type === QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION &&
+    !settings.questionSource.autoRestrictedToCommonSongs
+  ) {
+    return "manual";
+  }
   const category = settings?.categoryFilterValue;
   return SONG_SOURCE_CATEGORY_VALUES.has(category) ? category : "title-track";
 }

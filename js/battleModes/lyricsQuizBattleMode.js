@@ -76,6 +76,13 @@ export const playbackType = "lyricsQuiz";
 // このモードを「歌詞データの所持状況」で絞り込むべきと判断するための識別子
 // （音源が無くても歌詞さえ揃っていれば歌詞クイズは成立するため、音源基準では絞り込まない）。
 export const availabilityKind = "lyrics";
+// 【2026-09-05新設・本人指示：モード切替時の設定残留バグ対応】歌詞クイズも独自の4択
+// 「曲を選んで出題」UI（js/onlineLyricsQuizBattleScreen.js）でquestionSourceを管理している。
+// なお、この画面自身の共同選曲の同期はjs/onlineBattleScreen.jsのsyncCollaborativeSongPoolIfHost()
+// とは別の専用処理（refreshAndSubmitLyricsCoverage()等）で行っており、この定数は主に
+// js/onlineBattle.jsのupdateRoomGameMode()（モード変更時に「曲を選んで出題」の選択を
+// 引き継いでよいかの判定）で使われる。
+export const supportsManualSongSelection = true;
 
 const DEFAULT_BATTLE_RULE_ID = "classic";
 

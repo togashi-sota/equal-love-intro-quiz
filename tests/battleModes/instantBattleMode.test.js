@@ -156,4 +156,40 @@ export function runInstantBattleModeTests() {
       AUDIO_METADATA[targetSongId] = originalMetadata;
     }
   }
+
+  // ---- 2026-09-05追加（本人指示）：questionSourceのモード間残留バグの回帰確認 ----
+  // 「歌詞クイズ対戦を遊んだ後に一瞬バトルへモード変更すると、他モードから引き継がれた
+  // 『誰も編集できない、曲数0件のcollaborativeSelection』が原因で再戦がブロックされる」
+  // 不具合の修正（js/battleModes/index.jsのsupportsManualSongSelection()新設）に伴い、
+  // 一瞬バトル自身のresolveSettingsSongPool()・validateSettings()の既存動作
+  // （questionSourceが実際に渡された場合はそのまま尊重する）が変わっていないことを確認する
+  // （修正はモード変更時の引き継ぎ側で行っており、このモード自身の判定ロジックは
+  // 意図的に変更していないため）。
+  {
+    // 他モードから引き継がれた「曲数0件」のcollaborativeSelectionが渡された場合、
+    // 一瞬バトル自身は今までどおり空配列を返す（＝呼び出し元が「曲が選ばれていない」と
+    // 正しく検出できる。本人指示のシナリオE：曲を選んで出題を本当に選択していて曲数が
+    // 0件の場合は、引き続き正しくエラーになるべき）。
+    const leakedSettings = {
+      ...settings,
+      questionSource: { type: QUESTION_SOURCE_TYPE.COLLABORATIVE_SELECTION, songIds: [] },
+    };
+    assertEqual(
+      resolveSettingsSongPool(leakedSettings),
+      [],
+      "questionSourceがcollaborativeSelectionで曲数0件なら、一瞬バトルの曲プールは空配列になる（今回の修正で挙動を変えていない）"
+    );
+    // 【validateSettings()自体は0曲をエラーにしない、既存の仕様】共同選曲がまだ0曲の
+    // 「選択中」状態は、ロビーでの設定保存自体はエラーにしない設計になっている
+    // （instantBattleMode.js内のコメント「共同選曲がまだ0曲の一時状態は、設定の保存自体は
+    // エラーにしない」参照）。実際に「出題する曲が選ばれていません」という利用者向けの
+    // エラーになるのは、対戦開始直前のjs/onlineBattle.jsのresolveBattleStartValidation()
+    // （resolvedSongPool.length === 0の分岐）であり、そちらはFirebase接続を伴うため
+    // tests/questionSourceModeLeakage.test.jsのソース構造確認で別途カバーしている。
+    assertEqual(
+      validateSettings(leakedSettings),
+      null,
+      "曲数0件のcollaborativeSelectionは、一瞬バトルのvalidateSettings()単体では（既存仕様どおり）エラーにしない"
+    );
+  }
 }
