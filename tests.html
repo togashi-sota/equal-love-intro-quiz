@@ -166,6 +166,7 @@
     import { runBattleQuestionBreakdownTests } from "./tests/battleQuestionBreakdown.test.js";
     import { runOnlineBattleMatchConfirmationPayloadsTests } from "./tests/onlineBattleMatchConfirmationPayloads.test.js";
     import { runAudioTests } from "./tests/audio.test.js";
+    import { runAudioIndexedDbErrorRegressionTests } from "./tests/audioIndexedDbErrorRegression.test.js";
     import { runAnswerButtonInteractionTests } from "./tests/answerButtonInteraction.test.js";
     import { runOnlineBattleRoomIdTests } from "./tests/onlineBattleRoomId.test.js";
     import { runPresencePayloadsTests } from "./tests/presencePayloads.test.js";
@@ -303,6 +304,7 @@
     // runAudioTestsは実在しない曲IDでのIndexedDB再試行を含むため完了までに1秒強かかる。
     // 集計（printSummary）より前に必ず完了を待つ。
     await runAudioTests();
+    await runAudioIndexedDbErrorRegressionTests();
     runAnswerButtonInteractionTests();
     runOnlineBattleRoomIdTests();
     runPresencePayloadsTests();

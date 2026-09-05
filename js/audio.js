@@ -627,7 +627,21 @@ async function acquireBlobForNewPlayback(song) {
   const myToken = ++currentPlaybackToken;
   currentPlaybackSongId = song.id;
   diag(`IndexedDB取得開始 song=${song.id} token=${myToken}`);
-  const blob = await getAudioBlob(song.id);
+  let blob;
+  try {
+    blob = await getAudioBlob(song.id);
+  } catch (error) {
+    // 【2026-09-06追加・長時間耐久検証で発見】js/audioStorage.jsのgetAudioBlob()は、
+    // IndexedDBが開けない・トランザクションが失敗する等の例外を意図的にもみ消さず
+    // 呼び出し元へ伝える設計（audioStorage.js側のコメント参照）。しかしこのファイル・
+    // 呼び出し元（js/main.js）のどちらにも受け止め先が無く、未処理のPromise rejectionと
+    // なって「エラーメッセージが一切出ないまま曲が鳴らない」という無言の失敗になっていた
+    // （呼び出し元main.jsはこの関数をawaitしない設計のため、例外は行き場を失ったまま消える）。
+    // 既存のonError()コールバック（音源未読み込み時と同じ通知経路）へ流し込むことで、
+    // 少なくとも「何かが起きて再生できなかった」ことは必ず本人に伝わるようにする。
+    diag(`IndexedDB取得失敗 song=${song.id} token=${myToken}`, { errorName: error?.name, errorMessage: error?.message });
+    return { myToken, blob: null, stale: myToken !== currentPlaybackToken, indexedDbError: true };
+  }
   diag(`IndexedDB取得完了 song=${song.id} token=${myToken}`, {
     hasBlob: !!blob,
     stale: myToken !== currentPlaybackToken,
@@ -873,9 +887,13 @@ async function attemptPlay(myToken, myObjectUrl, onError, diagnosticContext) {
 // markPlaybackStarted()・startTimer()は元々この関数の完了を待たずに動く設計のため、
 // 呼び出し側を変更する必要はない。
 export async function playSongIntro(song, onError, onPlaybackStart) {
-  const { myToken, blob, stale } = await acquireBlobForNewPlayback(song);
+  const { myToken, blob, stale, indexedDbError } = await acquireBlobForNewPlayback(song);
   if (stale) return;
 
+  if (indexedDbError) {
+    onError("音源データの読み込み中にエラーが発生しました。もう一度お試しください");
+    return;
+  }
   if (!blob) {
     onError("この曲の音源が読み込まれていません。スタート画面の「音源を読み込む」から追加してください");
     return;
@@ -956,9 +974,13 @@ export async function playSongIntro(song, onError, onPlaybackStart) {
 //                    呼び出し側でタイムアウト等の別の後始末をする必要はない。
 //                    自然終了時に鳴りっぱなしになることもない＝audio要素自体が止まるため）。
 export async function playSongFromRandomPosition(song, computeStartTimeSec, playDurationSec, onError, onPlaybackStart, onAutoStop) {
-  const { myToken, blob, stale } = await acquireBlobForNewPlayback(song);
+  const { myToken, blob, stale, indexedDbError } = await acquireBlobForNewPlayback(song);
   if (stale) return;
 
+  if (indexedDbError) {
+    onError("音源データの読み込み中にエラーが発生しました。もう一度お試しください");
+    return;
+  }
   if (!blob) {
     onError("この曲の音源が読み込まれていません。スタート画面の「音源を読み込む」から追加してください");
     return;
