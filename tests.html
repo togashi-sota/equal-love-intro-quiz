@@ -37,6 +37,16 @@
        ここにも用意しておく（他のテストの要素とは無関係・非表示）。 -->
   <audio id="intro-audio" style="display:none"></audio>
 
+  <!-- tests/onlineBattleResultReturnState.rematch.test.js用。js/onlineBattleResultReturnState.jsは
+       モジュール読み込み時にこのモーダルの要素をdocument.getElementById()で一度だけ取得するため
+       （2026-09-05新設：再戦準備フェーズのキック確認をwindow.confirm()から独自モーダルへ変更）、
+       本編（index.html）と同じidの要素をここにも用意しておく（非表示、他のテストとは無関係）。 -->
+  <div id="online-battle-rematch-kick-confirm-modal" hidden style="display:none">
+    <p id="online-battle-rematch-kick-confirm-message"></p>
+    <button id="online-battle-rematch-kick-cancel-button" type="button"></button>
+    <button id="online-battle-rematch-kick-confirm-button" type="button"></button>
+  </div>
+
   <script type="module">
     import { runScoreTests } from "./tests/score.test.js";
     import { runQuizTests } from "./tests/quiz.test.js";
@@ -116,6 +126,9 @@
     import { runSonglistTests } from "./tests/songlist.test.js";
     import { runSonglistPlaybackErrorNoteTests } from "./tests/songlistPlaybackErrorNote.test.js";
     import { runPageZoomPreventionTests } from "./tests/pageZoomPrevention.test.js";
+    import { runViewportMeasurementTests } from "./tests/viewportMeasurement.test.js";
+    import { runOnlineBattleLobbyConfirmModalsTests } from "./tests/onlineBattleLobbyConfirmModals.test.js";
+    import { runQuickSfxSettingsWordingTests } from "./tests/quickSfxSettingsWording.test.js";
     import { runRankingCandidateStoreTests } from "./tests/rankingCandidateStore.test.js";
     import { runCenterCelebrationTests } from "./tests/centerCelebration.test.js";
     import { runYoutubeThumbnailTests } from "./tests/youtubeThumbnail.test.js";
@@ -196,7 +209,7 @@
     runQuestionSourceTests();
     runOnlineBattleSongSourceUiTests();
     runOnlineBattleResultReturnStateTests();
-    runOnlineBattleResultReturnStateRematchTests();
+    await runOnlineBattleResultReturnStateRematchTests();
     runOnlineBattleRevealTimingTests();
     runOnlineBattleStatusTransitionPayloadsTests();
     runSpecialModesScreenTests();
@@ -234,6 +247,9 @@
     runSonglistTests();
     await runSonglistPlaybackErrorNoteTests();
     await runPageZoomPreventionTests();
+    runViewportMeasurementTests();
+    await runOnlineBattleLobbyConfirmModalsTests();
+    await runQuickSfxSettingsWordingTests();
     runRankingCandidateStoreTests();
     runCenterCelebrationTests();
     runYoutubeThumbnailTests();

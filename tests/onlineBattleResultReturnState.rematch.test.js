@@ -22,7 +22,7 @@ function buildPlayers(count, { readyUptoIndex = -1, hostIndex = 0 } = {}) {
   return players;
 }
 
-export function runOnlineBattleResultReturnStateRematchTests() {
+export async function runOnlineBattleResultReturnStateRematchTests() {
   // ---- renderRematchReadinessList：N人（2/3/5/10）で行数・準備バッジ・キックボタンの出し分け ----
   [2, 3, 5, 10].forEach((n) => {
     const container = document.createElement("ul");
@@ -68,7 +68,14 @@ export function runOnlineBattleResultReturnStateRematchTests() {
     assertEqual(readyBadges.length, 5, "5人：全員準備OKなら5人ぶん「準備OK」バッジが付く");
   }
 
-  // ---- createRematchKickHandler：確認ダイアログを拒否した場合はkickPlayerFnを呼ばない ----
+  // 【2026-09-05改訂・本人指示：OS標準confirmから独自モーダルへ】以前はwindow.confirm()を
+  // モックして同期的に承認/拒否をシミュレートしていたが、確認手段がアプリ独自モーダル
+  // （tests.htmlに用意した#online-battle-rematch-kick-confirm-modal、js/onlineBattleResultReturnState.js
+  // 参照）へ変わったため、実際のキャンセル/確定ボタンをクリックする形に書き換える。
+  const rematchKickCancelButton = document.getElementById("online-battle-rematch-kick-cancel-button");
+  const rematchKickConfirmButton = document.getElementById("online-battle-rematch-kick-confirm-button");
+
+  // ---- createRematchKickHandler：モーダルを開くだけではkickPlayerFnを呼ばない（確定操作が必要） ----
   {
     const container = document.createElement("ul");
     const players = buildPlayers(3, { hostIndex: 0 });
@@ -76,8 +83,6 @@ export function runOnlineBattleResultReturnStateRematchTests() {
     const kickButton = container.querySelector("[data-rematch-kick-uid]");
 
     let kickCallCount = 0;
-    const originalConfirm = window.confirm;
-    window.confirm = () => false; // ユーザーがキャンセルしたことを模擬する
     const handler = createRematchKickHandler({
       getRoomId: () => "ROOM1",
       kickPlayerFn: async () => {
@@ -86,11 +91,12 @@ export function runOnlineBattleResultReturnStateRematchTests() {
       playConfirmSfx: () => {},
     });
     handler({ target: kickButton });
-    window.confirm = originalConfirm;
-    assertEqual(kickCallCount, 0, "確認ダイアログでキャンセルした場合はkickPlayerFnを呼ばない");
+    assertEqual(kickCallCount, 0, "モーダルを開いただけ（まだ確定していない）ではkickPlayerFnを呼ばない");
+    rematchKickCancelButton.click();
+    assertEqual(kickCallCount, 0, "キャンセルボタンを押した場合はkickPlayerFnを呼ばない");
   }
 
-  // ---- createRematchKickHandler：確認ダイアログを承認した場合はkickPlayerFnを正しい引数で呼ぶ ----
+  // ---- createRematchKickHandler：確定ボタンを押した場合はkickPlayerFnを正しい引数で呼ぶ ----
   {
     const container = document.createElement("ul");
     const players = buildPlayers(3, { hostIndex: 0 });
@@ -99,8 +105,6 @@ export function runOnlineBattleResultReturnStateRematchTests() {
     const targetUid = kickButton.dataset.rematchKickUid;
 
     let calledWith = null;
-    const originalConfirm = window.confirm;
-    window.confirm = () => true; // ユーザーが確認したことを模擬する
     const handler = createRematchKickHandler({
       getRoomId: () => "ROOM1",
       kickPlayerFn: async (args) => {
@@ -109,8 +113,33 @@ export function runOnlineBattleResultReturnStateRematchTests() {
       playConfirmSfx: () => {},
     });
     handler({ target: kickButton });
-    window.confirm = originalConfirm;
-    assertEqual(calledWith, { roomId: "ROOM1", targetUid }, "確認ダイアログを承認した場合、正しいroomId・targetUidでkickPlayerFnを呼ぶ");
+    rematchKickConfirmButton.click();
+    await Promise.resolve(); // kickPlayerFnの非同期呼び出しが解決するのを待つ
+    assertEqual(calledWith, { roomId: "ROOM1", targetUid }, "確定ボタンを押した場合、正しいroomId・targetUidでkickPlayerFnを呼ぶ");
+  }
+
+  // ---- createRematchKickHandler：モーダルを二重に確定しても、1回しかkickPlayerFnを呼ばない ----
+  {
+    const container = document.createElement("ul");
+    const players = buildPlayers(3, { hostIndex: 0 });
+    renderRematchReadinessList(container, players, "p0", true);
+    const kickButton = container.querySelector("[data-rematch-kick-uid]");
+
+    let kickCallCount = 0;
+    const handler = createRematchKickHandler({
+      getRoomId: () => "ROOM1",
+      kickPlayerFn: async () => {
+        kickCallCount += 1;
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      },
+      playConfirmSfx: () => {},
+    });
+    handler({ target: kickButton });
+    rematchKickConfirmButton.click();
+    rematchKickConfirmButton.click(); // 連打（二重確定）を模擬
+    rematchKickConfirmButton.click();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    assertEqual(kickCallCount, 1, "確定ボタンを連打しても、kickPlayerFnは1回しか呼ばれない（二重確定防止）");
   }
 
   // ---- createRematchKickHandler：roomIdが取得できない場合は何もしない（安全側） ----

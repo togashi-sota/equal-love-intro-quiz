@@ -5009,6 +5009,49 @@
     </div>
   </div>
 
+  <!-- 【2026-09-05新設・本人指示：ホスト移譲・キックの確認をOS標準confirmから
+       アプリ独自モーダルへ変更】ロビーの参加者行にあるホスト専用「ホストを渡す」ボタン用。
+       対象の名前は行ごとに変わるため、本文（#online-battle-lobby-transfer-host-confirm-message）の
+       textContentを開く直前にJS側で差し込む（js/onlineBattleScreen.js参照）。長い名前でも
+       崩れないよう、既存の.modal-card（幅制限＋overflow-wrap）をそのまま使う。 -->
+  <div id="online-battle-lobby-transfer-host-confirm-modal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="online-battle-lobby-transfer-host-confirm-title">
+      <h2 id="online-battle-lobby-transfer-host-confirm-title">ホストを交代しますか？</h2>
+      <p id="online-battle-lobby-transfer-host-confirm-message" class="modal-lead"></p>
+      <div class="button-row">
+        <button id="online-battle-lobby-transfer-host-cancel-button" class="secondary-button" type="button">キャンセル</button>
+        <button id="online-battle-lobby-transfer-host-confirm-button" class="primary-button" type="button">ホストを渡す</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- キックの確認モーダル。上の「ホストを渡す」と同じ設計（対象の名前を本文へ動的に差し込む）。
+       退出させる側の操作のため、削除等と同じ危険色（danger-button）にする。 -->
+  <div id="online-battle-lobby-kick-confirm-modal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="online-battle-lobby-kick-confirm-title">
+      <h2 id="online-battle-lobby-kick-confirm-title">ルームから退出させますか？</h2>
+      <p id="online-battle-lobby-kick-confirm-message" class="modal-lead"></p>
+      <div class="button-row">
+        <button id="online-battle-lobby-kick-cancel-button" class="secondary-button" type="button">キャンセル</button>
+        <button id="online-battle-lobby-kick-confirm-button" class="danger-button" type="button">退出させる</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 再戦準備フェーズ専用のキック確認モーダル（js/onlineBattleResultReturnState.js参照）。
+       共有エンジン・歌詞クイズ・一瞬バトル・一瞬協力の4つの結果画面すべてから、
+       この1つのモーダルを共通で使う。 -->
+  <div id="online-battle-rematch-kick-confirm-modal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="online-battle-rematch-kick-confirm-title">
+      <h2 id="online-battle-rematch-kick-confirm-title">ルームから退出させますか？</h2>
+      <p id="online-battle-rematch-kick-confirm-message" class="modal-lead"></p>
+      <div class="button-row">
+        <button id="online-battle-rematch-kick-cancel-button" class="secondary-button" type="button">キャンセル</button>
+        <button id="online-battle-rematch-kick-confirm-button" class="danger-button" type="button">退出させる</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 【2026-09-15新設・本人指示：ゲスト側の退出操作にも必ず確認ダイアログ】結果画面の
        「ルームから退出」（共有エンジン・歌詞クイズ・一瞬協力の3画面で共通利用）。
        上のロビー用モーダルとはDOM・リスナーを分け、既存の動作中のロビー離脱処理に
@@ -5914,8 +5957,8 @@
       <p class="sfx-settings-section-hint">閉じると、問題の楽曲・経過時間は一時停止していた位置からそのまま再開します。</p>
 
       <div class="sfx-settings-section">
-        <p class="sfx-settings-section-title">効果音の音量</p>
-        <p class="sfx-settings-section-hint">正解・不正解・カウントダウン・開始・結果など、クイズ中に鳴る効果音の音量です。曲そのものの音量には影響しません。</p>
+        <p class="sfx-settings-section-title">正解・不正解音の音量</p>
+        <p class="sfx-settings-section-hint">正解・不正解・カウントダウン・開始・結果など、クイズ中に鳴るゲーム側の音の音量です。問題の楽曲（＝LOVEの曲）の音量には影響しません。</p>
         <div id="quick-sfx-settings-volume-list" class="quick-sfx-volume-option-list"></div>
       </div>
 

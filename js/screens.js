@@ -3,6 +3,7 @@
 // is-active クラスを付け、それ以外からは外すことで表示を切り替える。
 
 import { hasVisibleOverlay, applyScrollLock, releaseScrollLock } from "./scrollLock.js";
+import { remeasureViewportVars } from "./viewportMeasurement.js";
 
 // 画面名(screenName)と、対応するHTML要素(id)の対応表。
 // 新しい画面を増やしたくなったときは、ここに1行足すだけでよい。
@@ -107,15 +108,30 @@ const GAME_FRAME_SAFE_HEIGHT_SCREENS = new Set([
 ]);
 
 function forceViewportHeightRecalcForGameFrame() {
+  // 【2026-09-05改訂・本人指示：この対策だけでは実機で直っていなかった不具合の追加対応】
+  // 主な対策はjs/viewportMeasurement.jsのremeasureViewportVars()（実測値をCSS変数へ
+  // 直接書き込む方式）へ移した。この関数（position:fixedの瞬間的な切り替え）は、
+  // 万一実測方式でも直らない環境があった場合の保険として、そのまま残しておく
+  // （二重に安全策を持たせる。害はないため削除しない）。
+  remeasureViewportVars();
+
   // 既に本物のモーダル（js/scrollLock.jsのisLocked）でbodyがロックされている場合は
   // 何もしない。ここでbody.styleを上書きすると、そのモーダルの復元処理と競合するため。
   if (hasVisibleOverlay()) return;
   const scrollY = window.scrollY;
   applyScrollLock(scrollY);
-  // 1フレームだけ固定してすぐ解除する。見た目の位置は変えず（top:-scrollYで同じ
-  // スクロール位置に固定するだけ）、ブラウザ側の再計算だけを狙って起こす。
+  // 固定してすぐ解除する。見た目の位置は変えず（top:-scrollYで同じスクロール位置に
+  // 固定するだけ）、ブラウザ側の再計算だけを狙って起こす。
+  // 【2026-09-05改訂】以前はrequestAnimationFrame 1回分（約16ms）だけ固定して即解除して
+  // いたが、実機ではこの短さでは足りなかった可能性があるため、2フレーム分待ってから
+  // 解除するよう変更した（ブラウザに再計算のための時間を少しだけ多く与える）。
   requestAnimationFrame(() => {
-    if (!hasVisibleOverlay()) releaseScrollLock(scrollY);
+    requestAnimationFrame(() => {
+      if (!hasVisibleOverlay()) {
+        releaseScrollLock(scrollY);
+        remeasureViewportVars();
+      }
+    });
   });
 }
 

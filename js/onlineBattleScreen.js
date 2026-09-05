@@ -304,6 +304,12 @@ let lastObservedHostUid = null;
 // leaveRoom()のFirebase書き込み中にもrenderLobby()（room監視のコールバック）が呼ばれうるため、
 // これが無いと自主退出を「キックされた」と誤検知してしまう。
 let isLeavingIntentionally = false;
+// 【2026-09-05新設・本人指示：ホスト移譲・キックの確認をOS標準confirmから独自モーダルへ】
+// 確認モーダルを開いている間、「どのuidに対する操作か」を覚えておくための保留状態。
+// js/onlineBattleLeaveMatchPrompt.jsのpendingRoomId等と同じ考え方（モーダルは1つしか
+// 同時に開けないため、対象を1つだけ保持すれば足りる）。
+let pendingTransferHostTargetUid = null;
+let pendingKickTargetUid = null;
 // 【2026-08-06新設】歌詞クイズの対戦設定は、既存のタイムアタック用フォーム
 // （readSettingsFromHostForm、online-battle-settings-*という名前のラジオボタン群）とは
 // 別物で、ロビーの各設定項目を触るたびにapplyLyricsQuizSettingsChange()が
@@ -3515,29 +3521,80 @@ export function initOnlineBattleScreens(newElements) {
   // 【2026-08-30新設、本人指示】ホスト専用：ロビーの参加者行に添えた「キック」「ホストを渡す」
   // ボタンのクリックを、リスト全体への1つのイベント委任で受け取る（renderLobby()側は
   // 行ごとにリスナーを付け外ししない設計にして、再描画のたびの登録漏れ・二重登録を防ぐ）。
-  elements.lobbyPlayerList.addEventListener("click", async (event) => {
+  // 【2026-09-05改訂・本人指示：OS標準confirmから独自モーダルへ】実際の処理（kickPlayer()・
+  // transferHost()の呼び出し）はそのまま、確認手段だけをwindow.confirm()から、下で配線する
+  // 独自モーダル（キャンセル時は何もしない、確定時だけFirebase処理を行う）へ差し替える。
+  elements.lobbyPlayerList.addEventListener("click", (event) => {
     const kickButton = event.target.closest("[data-kick-uid]");
     if (kickButton) {
       if (!currentRoomId) return;
-      const targetUid = kickButton.dataset.kickUid;
+      pendingKickTargetUid = kickButton.dataset.kickUid;
       const targetName = kickButton.dataset.kickName ?? "このプレイヤー";
-      if (!window.confirm(`${targetName}さんをルームから退出させますか？`)) return;
-      playSfx(SFX_EVENTS.UI_CONFIRM);
-      kickButton.disabled = true;
-      await kickPlayer({ roomId: currentRoomId, targetUid });
+      playSfx(SFX_EVENTS.UI_CLICK);
+      elements.lobbyKickConfirmMessage.textContent = `${targetName}さんをこのルームから退出させます。`;
+      elements.lobbyKickConfirmModal.hidden = false;
       return;
     }
     const transferButton = event.target.closest("[data-transfer-host-uid]");
     if (transferButton) {
       if (!currentRoomId) return;
-      const targetUid = transferButton.dataset.transferHostUid;
+      pendingTransferHostTargetUid = transferButton.dataset.transferHostUid;
       const targetName = transferButton.dataset.transferHostName ?? "このプレイヤー";
-      if (!window.confirm(`ホストを${targetName}さんに渡しますか？`)) return;
-      playSfx(SFX_EVENTS.UI_CONFIRM);
-      transferButton.disabled = true;
-      await transferHost({ roomId: currentRoomId, newHostUid: targetUid });
+      playSfx(SFX_EVENTS.UI_CLICK);
+      elements.lobbyTransferHostConfirmMessage.textContent = `${targetName}さんにホストを渡します。`;
+      elements.lobbyTransferHostConfirmModal.hidden = false;
       return;
     }
+  });
+
+  // キック確認モーダル：キャンセル・背景クリックでは何も変更せず閉じるだけ。
+  elements.lobbyKickCancelButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_BACK);
+    elements.lobbyKickConfirmModal.hidden = true;
+    pendingKickTargetUid = null;
+  });
+  elements.lobbyKickConfirmModal.addEventListener("click", (event) => {
+    if (event.target === elements.lobbyKickConfirmModal) {
+      playSfx(SFX_EVENTS.UI_BACK);
+      elements.lobbyKickConfirmModal.hidden = true;
+      pendingKickTargetUid = null;
+    }
+  });
+  elements.lobbyKickConfirmButton.addEventListener("click", async () => {
+    // 【二重確定防止】確認モーダルを閉じてpendingを消してから処理する既存パターン
+    // （lobbyLeaveConfirmButton等と同じ）に加え、Firebase処理中はボタン自体も無効化する。
+    if (!currentRoomId || !pendingKickTargetUid || elements.lobbyKickConfirmButton.disabled) return;
+    playSfx(SFX_EVENTS.UI_CONFIRM);
+    const targetUid = pendingKickTargetUid;
+    pendingKickTargetUid = null;
+    elements.lobbyKickConfirmModal.hidden = true;
+    elements.lobbyKickConfirmButton.disabled = true;
+    await kickPlayer({ roomId: currentRoomId, targetUid });
+    elements.lobbyKickConfirmButton.disabled = false;
+  });
+
+  // ホスト移譲確認モーダル：同上の考え方。
+  elements.lobbyTransferHostCancelButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_BACK);
+    elements.lobbyTransferHostConfirmModal.hidden = true;
+    pendingTransferHostTargetUid = null;
+  });
+  elements.lobbyTransferHostConfirmModal.addEventListener("click", (event) => {
+    if (event.target === elements.lobbyTransferHostConfirmModal) {
+      playSfx(SFX_EVENTS.UI_BACK);
+      elements.lobbyTransferHostConfirmModal.hidden = true;
+      pendingTransferHostTargetUid = null;
+    }
+  });
+  elements.lobbyTransferHostConfirmButton.addEventListener("click", async () => {
+    if (!currentRoomId || !pendingTransferHostTargetUid || elements.lobbyTransferHostConfirmButton.disabled) return;
+    playSfx(SFX_EVENTS.UI_CONFIRM);
+    const targetUid = pendingTransferHostTargetUid;
+    pendingTransferHostTargetUid = null;
+    elements.lobbyTransferHostConfirmModal.hidden = true;
+    elements.lobbyTransferHostConfirmButton.disabled = true;
+    await transferHost({ roomId: currentRoomId, newHostUid: targetUid });
+    elements.lobbyTransferHostConfirmButton.disabled = false;
   });
 
   // 【2026-08-30新設、本人指示→2026-09-15改訂・本人指示：ゲスト側の戻る／退出操作を

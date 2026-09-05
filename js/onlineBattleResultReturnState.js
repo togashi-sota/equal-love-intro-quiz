@@ -128,20 +128,56 @@ export function renderRematchReadinessList(listElement, players, myUid, isHost) 
   });
 }
 
+// 【2026-09-05新設・本人指示：OS標準confirmから独自モーダルへ】再戦準備フェーズの
+// キック確認も、ロビーのキック確認（js/onlineBattleScreen.js参照）と同じ理由で、
+// アプリ独自のモーダルへ変更する。4つの結果画面（共有エンジン・歌詞クイズ・一瞬バトル・
+// 一瞬協力）すべてが同じ意味の操作を持つため、モーダル自体はDOM上に1つだけ用意し
+// （index.htmlの#online-battle-rematch-kick-confirm-modal）、この中立ファイルが
+// 配線を一度だけ行う。どの画面から開いても、確定時にその画面が渡したkickPlayerFn・roomIdが
+// 正しく使われるよう、保留状態（pendingRematchKick）に呼び出し元の情報をまとめて持たせる。
+const rematchKickModalElement = document.getElementById("online-battle-rematch-kick-confirm-modal");
+const rematchKickMessageElement = document.getElementById("online-battle-rematch-kick-confirm-message");
+const rematchKickCancelButtonElement = document.getElementById("online-battle-rematch-kick-cancel-button");
+const rematchKickConfirmButtonElement = document.getElementById("online-battle-rematch-kick-confirm-button");
+
+let pendingRematchKick = null; // { roomId, targetUid, kickPlayerFn, playConfirmSfx } | null
+
+function closeRematchKickModal() {
+  if (rematchKickModalElement) rematchKickModalElement.hidden = true;
+  pendingRematchKick = null;
+}
+
+rematchKickCancelButtonElement?.addEventListener("click", closeRematchKickModal);
+rematchKickModalElement?.addEventListener("click", (event) => {
+  if (event.target === rematchKickModalElement) closeRematchKickModal();
+});
+rematchKickConfirmButtonElement?.addEventListener("click", async () => {
+  // 【二重確定防止】pendingが無い・処理中（disabled）なら何もしない。
+  if (!pendingRematchKick || rematchKickConfirmButtonElement.disabled) return;
+  const { roomId, targetUid, kickPlayerFn, playConfirmSfx } = pendingRematchKick;
+  pendingRematchKick = null;
+  if (rematchKickModalElement) rematchKickModalElement.hidden = true;
+  playConfirmSfx?.();
+  rematchKickConfirmButtonElement.disabled = true;
+  await kickPlayerFn({ roomId, targetUid });
+  rematchKickConfirmButtonElement.disabled = false;
+});
+
 // 上のrenderRematchReadinessList()が出すキックボタンのクリックを、リスト全体への1つの
 // イベント委任で受け取るための共通ハンドラを作る工場関数。roomIdGetterは「今のroomId」を
 // 返す関数（各結果画面が自分のcurrentRoomId/latestRoom.roomIdを渡す）、kickPlayerFnは
 // js/onlineBattle.jsのkickPlayer()をそのまま渡す想定。
 export function createRematchKickHandler({ getRoomId, kickPlayerFn, playConfirmSfx }) {
-  return async function handleRematchKickClick(event) {
+  return function handleRematchKickClick(event) {
     const kickButton = event.target.closest("[data-rematch-kick-uid]");
     const roomId = getRoomId();
     if (!kickButton || !roomId) return;
     const targetUid = kickButton.dataset.rematchKickUid;
     const targetName = kickButton.dataset.rematchKickName ?? "このプレイヤー";
-    if (!window.confirm(`${targetName}さんをルームから退出させますか？\nこのプレイヤーは今回の再戦には参加できません。`)) return;
-    if (playConfirmSfx) playConfirmSfx();
-    kickButton.disabled = true;
-    await kickPlayerFn({ roomId, targetUid });
+    pendingRematchKick = { roomId, targetUid, kickPlayerFn, playConfirmSfx };
+    if (rematchKickMessageElement) {
+      rematchKickMessageElement.textContent = `${targetName}さんをこのルームから退出させます。今回の再戦には参加できません。`;
+    }
+    if (rematchKickModalElement) rematchKickModalElement.hidden = false;
   };
 }

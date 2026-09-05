@@ -1089,6 +1089,15 @@ const onlineBattleLobbyLeaveButtonElement = document.getElementById("online-batt
 const onlineBattleLobbyLeaveConfirmModalElement = document.getElementById("online-battle-lobby-leave-confirm-modal");
 const onlineBattleLobbyLeaveCancelButtonElement = document.getElementById("online-battle-lobby-leave-cancel-button");
 const onlineBattleLobbyLeaveConfirmButtonElement = document.getElementById("online-battle-lobby-leave-confirm-button");
+// 【2026-09-05新設・本人指示：ホスト移譲・キックの確認モーダル】
+const onlineBattleLobbyTransferHostConfirmModalElement = document.getElementById("online-battle-lobby-transfer-host-confirm-modal");
+const onlineBattleLobbyTransferHostConfirmMessageElement = document.getElementById("online-battle-lobby-transfer-host-confirm-message");
+const onlineBattleLobbyTransferHostCancelButtonElement = document.getElementById("online-battle-lobby-transfer-host-cancel-button");
+const onlineBattleLobbyTransferHostConfirmButtonElement = document.getElementById("online-battle-lobby-transfer-host-confirm-button");
+const onlineBattleLobbyKickConfirmModalElement = document.getElementById("online-battle-lobby-kick-confirm-modal");
+const onlineBattleLobbyKickConfirmMessageElement = document.getElementById("online-battle-lobby-kick-confirm-message");
+const onlineBattleLobbyKickCancelButtonElement = document.getElementById("online-battle-lobby-kick-cancel-button");
+const onlineBattleLobbyKickConfirmButtonElement = document.getElementById("online-battle-lobby-kick-confirm-button");
 const onlineBattleLobbyGoneNoticeElement = document.getElementById("online-battle-lobby-gone-notice");
 const onlineBattleLobbyContentElement = document.getElementById("online-battle-lobby-content");
 const onlineBattleLobbyRoomCodeElement = document.getElementById("online-battle-lobby-room-code");
@@ -6309,6 +6318,14 @@ initOnlineBattleScreens({
   lobbyLeaveConfirmModal: onlineBattleLobbyLeaveConfirmModalElement,
   lobbyLeaveCancelButton: onlineBattleLobbyLeaveCancelButtonElement,
   lobbyLeaveConfirmButton: onlineBattleLobbyLeaveConfirmButtonElement,
+  lobbyTransferHostConfirmModal: onlineBattleLobbyTransferHostConfirmModalElement,
+  lobbyTransferHostConfirmMessage: onlineBattleLobbyTransferHostConfirmMessageElement,
+  lobbyTransferHostCancelButton: onlineBattleLobbyTransferHostCancelButtonElement,
+  lobbyTransferHostConfirmButton: onlineBattleLobbyTransferHostConfirmButtonElement,
+  lobbyKickConfirmModal: onlineBattleLobbyKickConfirmModalElement,
+  lobbyKickConfirmMessage: onlineBattleLobbyKickConfirmMessageElement,
+  lobbyKickCancelButton: onlineBattleLobbyKickCancelButtonElement,
+  lobbyKickConfirmButton: onlineBattleLobbyKickConfirmButtonElement,
   lobbyGoneNotice: onlineBattleLobbyGoneNoticeElement,
   lobbyContent: onlineBattleLobbyContentElement,
   lobbyRoomCode: onlineBattleLobbyRoomCodeElement,

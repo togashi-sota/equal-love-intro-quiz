@@ -37,7 +37,20 @@
      物理的な最下端まで伸ばす）と全く同じ考え方を、height指定で組む.game-frame系にも
      一般化して適用する。safe-area-inset-bottomが無い環境（notch/ホームインジケーターの
      無い端末・PC等）では0pxに解決されるため、100dvhと完全に同じ挙動のまま変化しない。 */
-  --game-frame-safe-height: calc(100dvh + env(safe-area-inset-bottom, 0px));
+  /* 【2026-09-05改訂・本人指示：クイズ画面が最初だけ上に寄る不具合の根本対応】
+     100dvhというCSS単位そのものが、iOS Safariでは「ページを開いた直後の最初の1回だけ」
+     正しい値に確定していないことがある（ブラウザのツールバー収縮状態が確定する前の、
+     暫定的な値のまま描画されてしまう）。これまでは効果音設定モーダルを開閉した際の
+     副作用（js/scrollLock.jsのposition:fixed切り替え）でこの再計算がたまたま誘発され、
+     ユーザーが操作するまで正しい位置にならない、という不具合として現れていた。
+     js/viewportMeasurement.jsが、実際に見えているビューポートの高さを
+     window.visualViewport（無ければwindow.innerHeight）からJSで直接測定し、
+     --measured-viewport-heightへ書き込む（読み込み直後・複数フレーム後・画面表示後・
+     resize/orientationchange時に測り直す）。100dvhの代わりにこの測定値を使うことで、
+     ブラウザ内部のdvh確定タイミングに依存せず、常に「今実際に見えている高さ」を使える。
+     JSが実行される前（理論上のみ、通常は発生しない）や、visualViewport非対応の環境では
+     100dvhへ自然にフォールバックする。 */
+  --game-frame-safe-height: calc(var(--measured-viewport-height, 100dvh) + env(safe-area-inset-bottom, 0px));
 
   /* ガラス風カードの影・ぼかし */
   --shadow-card: 0 24px 60px -14px rgba(255, 79, 150, 0.38), 0 6px 18px rgba(255, 79, 150, 0.16);
@@ -16653,8 +16666,14 @@ body[data-screen="instantChallengeQuestion"] .game-frame {
      （下限も20pxへ引き上げ、safe-areaが取得できない環境でも最低限の余白を確保する）。
      以前の64pxほど大きくはしない（本人指示：「下げすぎて無駄な空白だらけにはしないで」＝
      .quiz-middle-zone側の内部スクロールfallbackへ不必要に頼らせない範囲で、わずかに
-     増やすだけに留める）。 */
-  padding: max(20px, calc(env(safe-area-inset-top) + 12px)) 20px 0;
+     増やすだけに留める）。
+     【2026-09-05再々改訂・本人指示：最初だけ上に寄る不具合の根本対応】env(safe-area-inset-top)も
+     dvhと同様、iOS Safariでは画面表示直後の最初の1回だけ0に近い値のまま確定していないことが
+     あり、それがこの「最初だけ上に詰まって見え、効果音設定を開閉すると直る」不具合の原因の
+     1つだった（js/viewportMeasurement.js参照、--game-frame-safe-heightの説明と同じ理由）。
+     env()の代わりに、JSで実測して書き込む--measured-safe-area-inset-topを優先的に使い、
+     測定前・非対応環境ではenv(safe-area-inset-top)へ自然にフォールバックする。 */
+  padding: max(20px, calc(var(--measured-safe-area-inset-top, env(safe-area-inset-top, 0px)) + 12px)) 20px 0;
   flex: 1;
   min-height: 0;
 }
