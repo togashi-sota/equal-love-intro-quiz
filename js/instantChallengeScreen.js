@@ -38,6 +38,7 @@ import {
   resetAnswerPoolBrowseState,
   filterAnswerPool,
   renderAnswerJumpBar,
+  bindSearchInputKeyboardAvoidance,
 } from "./answerPoolBrowseUi.js";
 import { playSongFromRandomPosition, stopAudio, attemptSilentUnlock } from "./audio.js";
 import { recordAudioDiagnostic } from "./audioDiagnosticLog.js";
@@ -298,6 +299,7 @@ export function initInstantChallengeQuestionScreen(newElements) {
       renderAnswerButtons(pool);
     }
   });
+  bindSearchInputKeyboardAvoidance(questionElements.answerSearchInput, questionElements.answerSearchRow);
 
   // 【2026-08-30追加・本人指示⑨】「もう一度聞く」：ソロプレイでは回数無制限。
   // 回答後（hasAnsweredCurrentQuestion===true）は正解が確定済みのため押せないようにする。
@@ -615,7 +617,15 @@ function handleAnswerSelected(selectedSongId, buttonElement) {
   }
 
   // OFF：今までどおり、余計な待ち時間を入れずに進行する（本人指示）。
-  questionElements.nextButton.disabled = false;
+  // 【2026-09-06修正・js/lyricsQuizScreen.jsの同種バグ調査で発見】以前はここで無条件に
+  // disabled=falseにしていたため、「次の問題へ」ボタンが表示直後から押せる状態になっており、
+  // 回答した候補ボタンの直後（同じ画面位置）にこのボタンが現れるケースで、連打・タップの
+  // 押し直し等により意図せずこのボタンまで反応し、答え合わせカードがほぼ表示されないまま
+  // 次の問題へ進んでしまう恐れがあった。音源ONの経路と同じ誤タップ防止時間を設ける。
+  questionElements.nextButton.disabled = true;
+  revealAudioNextEnableTimeoutId = setTimeout(() => {
+    questionElements.nextButton.disabled = false;
+  }, REVEAL_AUDIO_NEXT_BUTTON_DELAY_MS);
   // 【2026-09-07改訂】4秒経てば自動的に進むが、早く読み終えた人向けに、ボタンを押せば
   // 待たずに進めるようにしておく（本人指示の「4秒後に自動遷移」を基本にしつつ、
   // 待たされている感覚を減らすための補助。ゲームルール・結果には影響しない）。

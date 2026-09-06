@@ -34,6 +34,7 @@ import {
   resetAnswerPoolBrowseState,
   filterAnswerPool,
   renderAnswerJumpBar,
+  bindSearchInputKeyboardAvoidance,
 } from "./answerPoolBrowseUi.js";
 import {
   loadSongsWithLyrics,
@@ -352,6 +353,7 @@ export function initLyricsQuizQuestionScreen(newElements) {
       renderAnswerButtons(pool);
     }
   });
+  bindSearchInputKeyboardAvoidance(questionElements.answerSearchInput, questionElements.answerSearchRow);
 
   questionElements.backButton.addEventListener("click", openLyricsQuizQuitConfirmModal);
   questionElements.quitCancelButton.addEventListener("click", closeLyricsQuizQuitConfirmModal);
@@ -771,7 +773,24 @@ function showAnswerReveal(
   }
   questionElements.answerRevealMeta.textContent = buildAnswerRevealMetaText(questionNumber, hintLevelUsed);
   questionElements.answerReveal.hidden = false;
-  questionElements.answerRevealNextButton.disabled = false;
+
+  // 【2026-09-06修正・本人のiPhone実機報告：回答した瞬間、答え合わせを一切表示せず次問題へ飛ぶ】
+  // 以前はここで無条件にdisabled=falseにしていたため、「次の問題へ」ボタンが表示直後から
+  // 押せる状態になっていた。回答した候補ボタンの直後（同じ画面位置）にこのボタンが現れる
+  // ケースがあり、連打・タップの押し直し等で意図せずこのボタンまで反応してしまうと、
+  // 答え合わせカードがほぼ表示されないまま次の問題へ進んでしまう（本人の実機報告と一致）。
+  // 音源ONの答え合わせ（showAnswerRevealWithAudio）は元々REVEAL_AUDIO_NEXT_BUTTON_DELAY_MSだけ
+  // 解禁を遅らせる誤タップ防止を持っていたが、音源OFFの経路（showAnswerRevealを直接呼ぶ側）には
+  // 同じ保護が無かった。ここへ一本化し、音源ON/OFFどちらの経路でも必ず同じ誤タップ防止時間を
+  // 経由するようにした（showAnswerRevealWithAudio側の個別実装は撤去、この関数に統一）。
+  questionElements.answerRevealNextButton.disabled = true;
+  if (revealAudioNextEnableTimeoutId !== null) {
+    clearTimeout(revealAudioNextEnableTimeoutId);
+  }
+  revealAudioNextEnableTimeoutId = setTimeout(() => {
+    revealAudioNextEnableTimeoutId = null;
+    questionElements.answerRevealNextButton.disabled = false;
+  }, REVEAL_AUDIO_NEXT_BUTTON_DELAY_MS);
 }
 
 // 正解確認カードを隠し、選択肢・スキップボタンを元通り表示する。
@@ -843,14 +862,9 @@ function showAnswerRevealWithAudio(
   questionNumber,
   hintLevelUsed
 ) {
+  // 「次へ」ボタンの誤タップ防止時間はshowAnswerReveal()側に一本化済み（音源OFFの経路と共通化）。
   showAnswerReveal(question, statusText, isCorrect, isNeutral, myAnswerSongTitle, questionNumber, hintLevelUsed);
-  questionElements.answerRevealNextButton.disabled = true;
   playAnswerRevealAudio(question);
-
-  revealAudioNextEnableTimeoutId = setTimeout(() => {
-    revealAudioNextEnableTimeoutId = null;
-    questionElements.answerRevealNextButton.disabled = false;
-  }, REVEAL_AUDIO_NEXT_BUTTON_DELAY_MS);
 
   clearPendingAnswerFeedbackTimeout();
   pendingAnswerFeedbackTimeoutId = setTimeout(() => {

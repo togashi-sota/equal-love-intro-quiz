@@ -73,3 +73,34 @@ export function renderAnswerJumpBar(containerElement, state, onChange) {
     containerElement.appendChild(button);
   });
 }
+
+// 【2026-09-06追加・本人のiPhone実機報告：全曲検索でソフトウェアキーボード表示中に
+// 検索結果がほとんど見えない】検索欄にフォーカスした直後・iOS側でキーボードの開閉
+// アニメーションが落ち着いた頃合い（visualViewportのresizeイベント）の両方で、検索欄
+// 自身を画面の上寄りへスクロールし、その下に続く回答候補一覧になるべく広い表示領域を
+// 残す。「キーボードを自動的に閉じてごまかす」のではなく、あくまでスクロール位置の
+// 調整だけを行う（js/viewportMeasurement.jsと同じ「タイミングをずらして複数回試す」
+// 考え方。1回だけでは、キーボードの開閉アニメーションが終わる前に実行してしまい
+// 効果が無いことがあるため）。
+export function bindSearchInputKeyboardAvoidance(inputElement, rowElement) {
+  if (!inputElement || !rowElement) return;
+
+  let isFocused = false;
+
+  function scrollRowNearTop() {
+    if (!isFocused) return;
+    rowElement.scrollIntoView({ block: "start", behavior: "smooth" });
+  }
+
+  inputElement.addEventListener("focus", () => {
+    isFocused = true;
+    setTimeout(scrollRowNearTop, 50);
+    setTimeout(scrollRowNearTop, 400);
+  });
+  inputElement.addEventListener("blur", () => {
+    isFocused = false;
+  });
+  // 実際にキーボードが開閉してvisualViewportの高さが変わった瞬間にも追従する
+  // （フォーカス直後の固定時間待ちだけに頼らない、二重の安全策）。
+  window.visualViewport?.addEventListener("resize", scrollRowNearTop);
+}
