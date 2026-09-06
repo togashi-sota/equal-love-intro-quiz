@@ -3757,6 +3757,14 @@ fieldset label.rule-option-card:has(input:checked) .rule-option-card-title::befo
   font-size: 0.85rem;
   font-weight: 700;
   cursor: pointer;
+  /* 【2026-09-07追加・最終QAで発見】.list-headerは3列グリッド（戻るボタン/タイトル/空き列、
+     両端1fr）で中央のタイトル列がauto（コンテンツに合わせて伸びる）のため、タイトルが
+     長い画面（例：「オリジナル問題作成モード」）では中央列がタイトル全体を1行に収めようと
+     広がり、その分だけ両端の戻るボタン列が圧迫され、アイコンと「戻る」の文字が2行に
+     折り返されてしまっていた（オリジナル問題作成モードの選択画面で発見）。戻るボタン自体を
+     折り返させない（white-space:nowrap）ことで、幅が足りない場合はタイトル側（日本語なので
+     自然に複数行へ折り返せる）で吸収させる。 */
+  white-space: nowrap;
 }
 
 .back-link-icon {
