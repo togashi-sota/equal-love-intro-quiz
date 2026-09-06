@@ -290,20 +290,34 @@ export async function syncRankingCandidatesToFirebase(playerKeyPrefix) {
     let updated = 0;
     let failed = 0;
     for (const candidate of candidates) {
-      const result = await submitTimeAttackScoreIfBetter({
-        variant: candidate.variant,
-        rule: candidate.rule,
-        source: candidate.source,
-        questionCountValue: candidate.questionCountValue,
-        categoryFilterValue: candidate.categoryFilterValue,
-        clearTimeMs: candidate.clearTimeMs,
-        missCount: candidate.missCount,
-        playerKeyPrefix,
-        actualQuestionCount: candidate.actualQuestionCount,
-      });
-      if (result.ok) {
-        if (result.updated) updated += 1;
-      } else {
+      // 【2026-09-07追加・最終QAでの監査で発見】1件のcandidateが壊れた形（例えば将来の
+      // バックアップ復元経路の不具合等でnull・想定外の型が紛れ込んだ場合）でも、
+      // その1件だけ失敗扱いにしてループ全体を止めない。これが無いと、たった1件の
+      // 壊れた候補のせいで、それ以降のcombo（曲数・カテゴリーの組み合わせ）が
+      // 一切ランキングへ反映されなくなってしまう。
+      if (!candidate || typeof candidate !== "object") {
+        failed += 1;
+        continue;
+      }
+      try {
+        const result = await submitTimeAttackScoreIfBetter({
+          variant: candidate.variant,
+          rule: candidate.rule,
+          source: candidate.source,
+          questionCountValue: candidate.questionCountValue,
+          categoryFilterValue: candidate.categoryFilterValue,
+          clearTimeMs: candidate.clearTimeMs,
+          missCount: candidate.missCount,
+          playerKeyPrefix,
+          actualQuestionCount: candidate.actualQuestionCount,
+        });
+        if (result.ok) {
+          if (result.updated) updated += 1;
+        } else {
+          failed += 1;
+        }
+      } catch (error) {
+        console.warn("ランキング候補の同期中に1件だけ失敗しました（他の候補の同期は続行します）", error);
         failed += 1;
       }
     }
