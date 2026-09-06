@@ -123,6 +123,7 @@ export async function openLiveCallModePlayer(songId) {
   elements.songTitle.textContent = song.title;
   elements.fullscreenButton.hidden = true;
   elements.noLyricsNotice.hidden = true;
+  elements.playbackErrorNotice.hidden = true;
   elements.lyricsPanel.hidden = true;
 
   const blob = await getAudioBlob(songId);
@@ -172,7 +173,15 @@ function handlePlayButtonClick() {
   if (!currentSongId) return;
   if (elements.audio.paused) {
     notifyPlaybackStarting("liveCallMode");
-    elements.audio.play().catch(() => {});
+    // 【QAで発見・修正：2026-09-07】以前はplay()が拒否された場合に何も起きず、押しても
+    // 無反応に見えていた（js/songlist.jsの試聴プレイヤーが2026-09-05に同じ理由で
+    // 修正済みだったのと同じ不具合形状）。この画面は音源の再生自体が主目的のため、
+    // 案内文を出して気付けるようにする。
+    elements.playbackErrorNotice.hidden = true;
+    elements.audio.play().catch(() => {
+      syncPlayButtonIcon();
+      elements.playbackErrorNotice.hidden = false;
+    });
   } else {
     elements.audio.pause();
   }
@@ -188,7 +197,8 @@ function handleFullscreenButtonClick() {
 // elements: {
 //   listContainer, listEmptyState: 曲一覧画面,
 //   songTitle, playButton, seekRange, currentTime, duration,
-//   seekBackButton, audio, lyricsPanel, fullscreenButton, noLyricsNotice: 再生画面
+//   seekBackButton, audio, lyricsPanel, fullscreenButton, noLyricsNotice,
+//   playbackErrorNotice: 再生画面
 //   （UI/UX第4版で+10秒ボタン(seekForwardButton)は廃止した）,
 //   onSelectSong: 曲一覧で曲がタップされたときに呼ばれるコールバック（songIdを受け取る）,
 // }

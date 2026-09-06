@@ -847,6 +847,7 @@ const liveCallModeAudioElement = document.getElementById("live-call-mode-audio")
 const liveCallModeLyricsPanelElement = document.getElementById("live-call-mode-lyrics-panel");
 const liveCallModeFullscreenButtonElement = document.getElementById("live-call-mode-fullscreen-button");
 const liveCallModeNoLyricsNoticeElement = document.getElementById("live-call-mode-no-lyrics-notice");
+const liveCallModePlaybackErrorNoticeElement = document.getElementById("live-call-mode-playback-error-notice");
 const liveCallModePlayerHelpLinkElement = document.getElementById("live-call-mode-player-help-link");
 const liveCallModeGuideButtonElement = document.getElementById("live-call-mode-guide-button");
 const liveCallModeListHelpLinkElement = document.getElementById("live-call-mode-list-help-link");
@@ -1958,6 +1959,7 @@ initLiveCallModeScreen({
   lyricsPanel: liveCallModeLyricsPanelElement,
   fullscreenButton: liveCallModeFullscreenButtonElement,
   noLyricsNotice: liveCallModeNoLyricsNoticeElement,
+  playbackErrorNotice: liveCallModePlaybackErrorNoticeElement,
   onSelectSong: (songId) => {
     playClickSound();
     openLiveCallPlayTypeChoice(songId);

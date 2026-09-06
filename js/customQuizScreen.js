@@ -11,6 +11,7 @@
 
 import { SONGS } from "./data/songs.js";
 import { buildSongGroups, CATEGORY_PILL_INFO, normalizeForSearch, songMatchesSearch } from "./songlist.js";
+import { bindSearchInputKeyboardAvoidance } from "./answerPoolBrowseUi.js";
 import { hasAudioSource } from "./data/audioMetadata.js";
 import { MIN_SONGS_REQUIRED } from "./quiz.js";
 import { attemptSilentUnlock } from "./audio.js";
@@ -814,6 +815,11 @@ export function initCustomQuizScreen(newElements) {
     elements.searchClearButton.hidden = searchQuery === "";
     updateRowVisibility();
   });
+  // 【QAで発見・修正：2026-09-07】歌詞クイズ・一瞬チャレンジの検索欄にだけ適用されていた
+  // iPhoneキーボード対策（js/answerPoolBrowseUi.js参照）が、同じ「検索欄＋その下の一覧」
+  // という形の他の検索欄には未適用だった。同じ不具合形状（キーボード表示中は絞り込み結果が
+  // ほぼ見えない）が起きるため、ここにも適用する。
+  bindSearchInputKeyboardAvoidance(elements.searchInput, elements.searchInput.closest(".search-field-row"));
   // 検索欄の「×」ボタン：検索語を空にし、一覧を元の状態に戻し、検索欄へフォーカスを戻す
   // （消したあとすぐ別の語を打ち始められるようにするため。songlist.jsの検索欄と同じ挙動）。
   elements.searchClearButton.addEventListener("click", () => {

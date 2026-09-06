@@ -14,6 +14,7 @@
 import { SONGS } from "./data/songs.js";
 import { buildSongGroups, CATEGORY_PILL_INFO, normalizeForSearch, songMatchesSearch } from "./songlist.js";
 import { buildSelectorUidsBySongId } from "./onlineBattleCollaborativeSelectionPayloads.js";
+import { bindSearchInputKeyboardAvoidance } from "./answerPoolBrowseUi.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
 
 let elements = null;
@@ -375,6 +376,9 @@ export function initOnlineBattleSongPicker(newElements) {
     elements.searchClearButton.hidden = searchQuery === "";
     updateRowVisibility();
   });
+  // 【QAで発見・修正：2026-09-07】歌詞クイズ・一瞬チャレンジの検索欄にだけ適用されていた
+  // iPhoneキーボード対策が、同じ形の他の検索欄には未適用だったため、ここにも適用する。
+  bindSearchInputKeyboardAvoidance(elements.searchInput, elements.searchInput.closest(".search-field-row"));
   elements.searchClearButton.addEventListener("click", () => {
     playSfx(SFX_EVENTS.UI_CLICK);
     searchQuery = "";

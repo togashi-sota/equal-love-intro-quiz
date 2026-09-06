@@ -13,6 +13,7 @@ import {
   resolveGroupWorkId,
 } from "./songlist.js";
 import { getPlaylistById, addSongsToPlaylist } from "./playlists.js";
+import { bindSearchInputKeyboardAvoidance } from "./answerPoolBrowseUi.js";
 // この画面内で完結する操作（曲選択・作品単位の一括選択・アコーディオン開閉）に効果音を鳴らすため追加。
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
 
@@ -307,6 +308,9 @@ export function initPlaylistAddSongsScreen(newElements) {
     elements.searchClearButton.hidden = searchQuery === "";
     updateRowVisibility();
   });
+  // 【QAで発見・修正：2026-09-07】歌詞クイズ・一瞬チャレンジの検索欄にだけ適用されていた
+  // iPhoneキーボード対策が、同じ形の他の検索欄には未適用だったため、ここにも適用する。
+  bindSearchInputKeyboardAvoidance(elements.searchInput, elements.searchInput.closest(".search-field-row"));
   elements.searchClearButton.addEventListener("click", () => {
     playSfx(SFX_EVENTS.UI_CLICK);
     searchQuery = "";

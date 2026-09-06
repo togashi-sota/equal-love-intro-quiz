@@ -127,6 +127,7 @@ import { computeElapsedMs, computeStealHintProgress } from "./lyricsQuizBattleTi
 // 既存の「収録曲一覧」検索と完全に同じ判定にする（本人指示：新しい簡易検索を別に作らない）。
 // 50音ジャンプバーの行分けも、この共有ファイルの定義をそのまま使う。
 import { normalizeForSearch, songMatchesSearch, GOJUON_ROWS, deriveGojuonRowKey, sortSongsByReading } from "./songlist.js";
+import { bindSearchInputKeyboardAvoidance } from "./answerPoolBrowseUi.js";
 import { LARGE_ANSWER_POOL_THRESHOLD } from "./lyricsQuizEngine.js";
 import { computeRevealedHintLines } from "./lyricsSegmentEngine.js";
 // 【2026-08-08新設】出題する曲をホストが選べる機能。他の対戦モード（js/onlineBattleScreen.js）と
@@ -416,6 +417,11 @@ export function initOnlineLyricsQuizBattleScreens(newElements) {
     reportMyQuestionActivity();
     renderCurrentQuestionState();
   });
+  // 【QAで発見・修正：2026-09-07】js/answerPoolBrowseUi.js新設時、この画面は既に本番で
+  // 動いている実装のため書き換えを避けていたが、iPhoneキーボード対策（検索欄フォーカス時に
+  // 結果一覧が隠れないようスクロールする処理）自体は既存ロジックに一切手を加えない
+  // 追加のみのため、ここにも適用する。
+  bindSearchInputKeyboardAvoidance(elements.battleAnswerSearchInput, elements.battleAnswerSearchRow);
 
   // 【2026-09-06新設・3分無操作の放置救済】30・50・全曲プールの回答一覧をスクロールする
   // ことも「考えている」意味のある操作として扱う。

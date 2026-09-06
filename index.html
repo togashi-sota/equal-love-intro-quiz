@@ -2044,6 +2044,12 @@
         <p id="live-call-mode-no-lyrics-notice" class="history-empty-state" hidden>
           この曲にはまだ歌詞データが登録されていないため、コールだけを表示できません。歌詞データの登録が先に必要です。
         </p>
+
+        <!-- QAで発見・修正：2026-09-07。以前は再生に失敗しても何も表示されず、押しても
+             無反応に見えていた（js/songlist.jsの試聴プレイヤーに既にある案内文と同じ役割）。 -->
+        <p id="live-call-mode-playback-error-notice" class="history-empty-state" hidden>
+          この曲を再生できませんでした（音源データを確認してください）
+        </p>
       </div>
 
       <!-- 下部：最低限の再生操作だけを固定表示する。 -->

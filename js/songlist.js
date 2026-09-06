@@ -1263,6 +1263,31 @@ searchInputElement.addEventListener("input", () => {
   updateRowVisibility();
 });
 
+// 【QAで発見・修正：2026-09-07】歌詞クイズ・一瞬チャレンジの検索欄にだけ適用されていた
+// iPhoneキーボード対策（js/answerPoolBrowseUi.jsのbindSearchInputKeyboardAvoidance()と
+// 全く同じロジック）が、この収録曲一覧の検索欄には未適用だった。同じ不具合形状
+// （キーボード表示中は絞り込み結果がほぼ見えない）が起きるため、ここにも適用する。
+// このファイル自身をanswerPoolBrowseUi.jsからimportすると循環参照になるため
+// （answerPoolBrowseUi.js側がこのファイルのnormalizeForSearch等を使っている）、
+// 同じロジックをそのままこのファイル内に複製する。
+{
+  const searchFieldRowElement = searchInputElement.closest(".search-field-row");
+  let isSearchInputFocused = false;
+  const scrollSearchRowNearTop = () => {
+    if (!isSearchInputFocused || !searchFieldRowElement) return;
+    searchFieldRowElement.scrollIntoView({ block: "start", behavior: "smooth" });
+  };
+  searchInputElement.addEventListener("focus", () => {
+    isSearchInputFocused = true;
+    setTimeout(scrollSearchRowNearTop, 50);
+    setTimeout(scrollSearchRowNearTop, 400);
+  });
+  searchInputElement.addEventListener("blur", () => {
+    isSearchInputFocused = false;
+  });
+  window.visualViewport?.addEventListener("resize", scrollSearchRowNearTop);
+}
+
 // 検索欄の「×」ボタン：検索語を空にし、一覧を元の状態に戻し、検索欄へフォーカスを戻す
 // （消したあとすぐ別の語を打ち始められるようにするため）。
 searchClearButtonElement.addEventListener("click", () => {
