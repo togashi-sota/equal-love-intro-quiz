@@ -363,6 +363,11 @@ export async function importAnalyzedDataPack(analyzed) {
   const skippedLyricsSongIds = [];
   const changedLyricsSongIds = new Set();
   const lyricsFailures = [];
+  // 【QAで発見・修正：2026-09-07】このループにtry/catchが無く、1件（IndexedDBへの
+  // 書き込み自体が失敗する等）で例外が起きると、それ以降の歌詞ファイル・さらには
+  // このあとの呼び出し（コール・コールガイド）まで巻き込んで、データパック全体の
+  // 取り込みが無言で止まっていた（呼び出し元js/main.jsにもtry/catchが無いため）。
+  // 1件ずつ独立させ、失敗した1件だけをlyricsFailuresへ記録して続行する。
   for (const file of lyricsFilesAll) {
     const songId = file.normalizedData.songId;
     const action = classifyByHash(file.existingContentHash, file.normalizedData.contentHash);
@@ -371,11 +376,16 @@ export async function importAnalyzedDataPack(analyzed) {
       continue;
     }
     if (action === "changed") changedLyricsSongIds.add(songId);
-    const result = await saveLyricsData(file.normalizedData);
-    if (result.saved) {
-      savedLyricsSongIds.push(songId);
-    } else {
-      lyricsFailures.push({ fileName: file.fileName, reason: result.errors.join(" / ") });
+    try {
+      const result = await saveLyricsData(file.normalizedData);
+      if (result.saved) {
+        savedLyricsSongIds.push(songId);
+      } else {
+        lyricsFailures.push({ fileName: file.fileName, reason: result.errors.join(" / ") });
+      }
+    } catch (error) {
+      console.warn(`歌詞データの保存に失敗しました（他のファイルの取り込みは続行します）: ${file.fileName}`, error);
+      lyricsFailures.push({ fileName: file.fileName, reason: "保存中に予期しないエラーが発生しました" });
     }
   }
   const correctedLyricsSongIds = savedLyricsSongIds.filter((songId) => changedLyricsSongIds.has(songId));

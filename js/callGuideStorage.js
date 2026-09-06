@@ -264,15 +264,22 @@ export async function importCallGuideDataEntries(readyGuides) {
   const savedGuideIds = [];
   const saveFailures = [];
 
+  // 【QAで発見・修正：2026-09-07】1件（IndexedDB書き込み失敗等）で例外が起きると、
+  // それ以降のガイドの取り込みが無言で止まっていた。1件ずつ独立させる。
   for (const guide of readyGuides) {
     // isUpdate・existingContentHashは解析結果を運ぶための一時的な情報であり、保存する
     // レコード自体には含めない（2026-08-29、contentHash追加に合わせて明示的に選別するよう整理）。
     const { isUpdate, existingContentHash, ...recordToSave } = guide;
-    const result = await saveCallGuideData(recordToSave);
-    if (result.saved) {
-      savedGuideIds.push(guide.guideId);
-    } else {
-      saveFailures.push({ guideId: guide.guideId, reason: result.errors.join(" / ") });
+    try {
+      const result = await saveCallGuideData(recordToSave);
+      if (result.saved) {
+        savedGuideIds.push(guide.guideId);
+      } else {
+        saveFailures.push({ guideId: guide.guideId, reason: result.errors.join(" / ") });
+      }
+    } catch (error) {
+      console.warn(`コールガイドの保存に失敗しました（他のガイドの取り込みは続行します）: ${guide.guideId}`, error);
+      saveFailures.push({ guideId: guide.guideId, reason: "保存中に予期しないエラーが発生しました" });
     }
   }
 

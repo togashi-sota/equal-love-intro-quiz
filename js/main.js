@@ -6989,7 +6989,20 @@ dataPackImportInputElement.addEventListener("change", async () => {
     return;
   }
 
-  const result = await importAnalyzedDataPack(analyzed);
+  // 【QAで発見・修正：2026-09-07】importAnalyzedDataPack()自体は内部の各ループを
+  // 1件ずつ独立させたが、念のため呼び出し側にも防御を入れておく（js/audioStorage.jsの
+  // importAudioFiles()呼び出し側と同じ理由）。
+  let result;
+  try {
+    result = await importAnalyzedDataPack(analyzed);
+  } catch (error) {
+    console.warn("データパックの取り込み処理自体に失敗しました", error);
+    dataPackImportInputElement.value = "";
+    resetDataPackImportStatus();
+    dataPackImportResultElement.hidden = false;
+    dataPackImportResultElement.textContent = "データパックの取り込みに失敗しました。もう一度お試しください。";
+    return;
+  }
 
   // 【2026-09-05新設・本人指示：オンラインロビー内でのデータパック追加インポート対応】
   // データパックは歌詞データを含みうるため、js/main.jsの直接インポート経路と同じく、

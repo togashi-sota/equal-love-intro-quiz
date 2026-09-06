@@ -308,12 +308,19 @@ export async function importCallDataSongs(readySongs) {
   const savedSongIds = [];
   const saveFailures = [];
 
+  // 【QAで発見・修正：2026-09-07】1件（IndexedDB書き込み失敗等）で例外が起きると、
+  // それ以降の曲の取り込みが無言で止まっていた。1件ずつ独立させる。
   for (const song of readySongs) {
-    const result = await saveCallData({ songId: song.songId, calls: song.calls, contentHash: song.contentHash });
-    if (result.saved) {
-      savedSongIds.push(song.songId);
-    } else {
-      saveFailures.push({ songId: song.songId, reason: result.errors.join(" / ") });
+    try {
+      const result = await saveCallData({ songId: song.songId, calls: song.calls, contentHash: song.contentHash });
+      if (result.saved) {
+        savedSongIds.push(song.songId);
+      } else {
+        saveFailures.push({ songId: song.songId, reason: result.errors.join(" / ") });
+      }
+    } catch (error) {
+      console.warn(`コールデータの保存に失敗しました（他の曲の取り込みは続行します）: ${song.songId}`, error);
+      saveFailures.push({ songId: song.songId, reason: "保存中に予期しないエラーが発生しました" });
     }
   }
 
