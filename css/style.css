@@ -14901,6 +14901,12 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   gap: 8px;
   max-height: 42vh;
   overflow-y: auto;
+  /* 【2026-09-06追加・本人の実機報告】縦スクロールだけをブラウザ自身に明示しておくことで、
+     「このドラッグはスクロールなのかタップなのか」というブラウザ側の判定を安定させる
+     （#quiz-screen等の.quiz-middle-zoneで既に使っている考え方と同じ、pan-y以外は
+     JS側のタップ判定に委ねる）。js/answerButtonInteraction.jsのscrollTop実測による
+     判定と合わせて、二重に確実性を高める。 */
+  touch-action: pan-y;
   padding-right: 2px;
 }
 

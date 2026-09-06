@@ -341,9 +341,16 @@ export function initLyricsQuizQuestionScreen(newElements) {
   questionElements.answerSearchInput.addEventListener("input", () => {
     // 検索を始めたら50音ジャンプの選択行はいったん解除する（js/onlineLyricsQuizBattleScreen.js・
     // js/instantChallengeScreen.jsと同じ、検索を優先する既存の設計）。
+    // 【2026-09-06修正】jumpRowKeyをnullに戻すのに合わせて、ジャンプバー自身の見た目
+    // （「すべて」がactiveに戻る）も必ず再描画する（renderAnswerJumpBarAndButtons参照）。
     answerBrowseState.searchQuery = questionElements.answerSearchInput.value;
     answerBrowseState.jumpRowKey = null;
-    renderAnswerButtons(getCurrentQuestion(runState).answerPool);
+    const pool = getCurrentQuestion(runState).answerPool;
+    if (questionElements.answerJumpBar && !questionElements.answerJumpBar.hidden) {
+      renderAnswerJumpBarAndButtons(pool);
+    } else {
+      renderAnswerButtons(pool);
+    }
   });
 
   questionElements.backButton.addEventListener("click", openLyricsQuizQuitConfirmModal);
@@ -644,9 +651,26 @@ function renderAnswerArea(question) {
   }
   if (questionElements.answerJumpBar) {
     questionElements.answerJumpBar.hidden = !isLargePool;
-    if (isLargePool) renderAnswerJumpBar(questionElements.answerJumpBar, answerBrowseState, () => renderAnswerButtons(pool));
+    if (isLargePool) renderAnswerJumpBarAndButtons(pool);
+    else renderAnswerButtons(pool);
+  } else {
+    renderAnswerButtons(pool);
   }
+}
 
+// 【2026-09-06修正・本人のiPhone実機報告で発覚】50音ジャンプバー（すべて／あ／か…）の
+// チップを押すと絞り込み自体（filterAnswerPool）は正しく効いていたのに、押したチップの
+// 見た目（is-active）がいつまでも「すべて」のままになる不具合があった。原因は、
+// renderAnswerJumpBar()のonChangeコールバックがrenderAnswerButtons(pool)しか呼んでおらず、
+// ジャンプバー自身（各チップのis-active）を再描画していなかったこと。検索欄への入力時も
+// 同様に、jumpRowKeyをnullへ戻しているのにジャンプバーの見た目は再描画していなかった。
+// js/onlineLyricsQuizBattleScreen.js（この検索・ジャンプUIの元になった実装）は
+// renderCurrentQuestionState()という共通の再描画関数を都度呼んでいるため、この問題が
+// 起きていなかった。ここでは同じように「ジャンプバーと回答候補一覧の両方を必ずセットで
+// 再描画する」関数を用意し、絞り込み状態が変わりうる箇所（ジャンプバー自身のクリック・
+// 検索欄への入力）の両方から必ずこちらを呼ぶようにする。
+function renderAnswerJumpBarAndButtons(pool) {
+  renderAnswerJumpBar(questionElements.answerJumpBar, answerBrowseState, () => renderAnswerJumpBarAndButtons(pool));
   renderAnswerButtons(pool);
 }
 

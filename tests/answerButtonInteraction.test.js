@@ -31,7 +31,38 @@ function firePointerEvent(button, type, { x, y, pointerId }) {
   );
 }
 
-export function runAnswerButtonInteractionTests() {
+// 全曲検索一覧（overflow-y:auto、実際に中身がはみ出している）と、その中の1つのボタンを
+// 用意する。scrollTopを実際に動かして「本物のスクロールが起きた」状況を再現するのに使う。
+function makeScrollableListWithButton() {
+  const list = document.createElement("div");
+  list.style.position = "fixed";
+  list.style.left = "0px";
+  list.style.top = "0px";
+  list.style.width = "200px";
+  list.style.height = "100px";
+  list.style.overflowY = "auto";
+  document.body.appendChild(list);
+
+  // 中身がコンテナより十分大きくないと、scrollHeight > clientHeightにならず
+  // findScrollableAncestor()がスクロールコンテナとして認識しない。
+  const spacerBefore = document.createElement("div");
+  spacerBefore.style.height = "50px";
+  list.appendChild(spacerBefore);
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.style.width = "100%";
+  button.style.height = "50px";
+  list.appendChild(button);
+
+  const spacerAfter = document.createElement("div");
+  spacerAfter.style.height = "400px";
+  list.appendChild(spacerAfter);
+
+  return { list, button };
+}
+
+export async function runAnswerButtonInteractionTests() {
   // ===== 通常の素早いタップ：1回だけ確定する =====
   {
     const button = makeButton();
@@ -212,6 +243,124 @@ export function runAnswerButtonInteractionTests() {
     button.remove();
   }
 
+  // ===== 【2026-09-06再修正・本人の実機再現報告（全曲検索モードでまだ再発）を受けた
+  //      回帰テスト】実際のスクロールコンテナのscrollTopを動かした場合、ボタン自身の
+  //      矩形の再計測タイミングに一切頼らず、scrollTopの変化そのものを確定的な
+  //      キャンセル理由として検知できることを検証する（frozenPressRectだけに頼っていた
+  //      前回の実装は、実機でのレイアウト確定タイミング次第でこの判定がすり抜ける
+  //      余地があった）。 =====
+  {
+    const { list, button } = makeScrollableListWithButton();
+    let confirmCount = 0;
+    bindPressReleaseAnswer(button, () => confirmCount++);
+    const pointerId = nextPointerId++;
+    const rect = button.getBoundingClientRect();
+
+    firePointerEvent(button, "pointerdown", { x: rect.left + 10, y: rect.top + 10, pointerId });
+    assertEqual(button.classList.contains("is-pressed"), true, "押した直後はis-pressedが付く");
+    // 実際にリストをスクロールする（ボタン自身の位置やポインタ座標は一切変えない。
+    // 「scrollTopが動いた」という事実だけでキャンセルされることを確認するため）。
+    list.scrollTop = 30;
+    list.dispatchEvent(new Event("scroll"));
+    firePointerEvent(button, "pointermove", { x: rect.left + 10, y: rect.top + 10, pointerId });
+    assertEqual(
+      button.classList.contains("is-pressed"),
+      false,
+      "scrollTopが実際に動いた時点で、指の座標自体は変わっていなくても即座にキャンセルされる"
+    );
+    firePointerEvent(button, "pointerup", { x: rect.left + 10, y: rect.top + 10, pointerId });
+    assertEqual(confirmCount, 0, "一覧が実際にスクロールした場合、指を離しても回答が確定しない");
+    list.remove();
+  }
+
+  // ===== 上と対になる確認：一覧はスクロール可能だが、実際にはスクロールが起きていない
+  //      （scrollTopが変化していない）通常のタップは、そのまま確定する =====
+  {
+    const { list, button } = makeScrollableListWithButton();
+    let confirmCount = 0;
+    bindPressReleaseAnswer(button, () => confirmCount++);
+    const pointerId = nextPointerId++;
+    const rect = button.getBoundingClientRect();
+
+    firePointerEvent(button, "pointerdown", { x: rect.left + 10, y: rect.top + 10, pointerId });
+    firePointerEvent(button, "pointermove", { x: rect.left + 11, y: rect.top + 11, pointerId }); // 指ブレ程度
+    firePointerEvent(button, "pointerup", { x: rect.left + 11, y: rect.top + 11, pointerId });
+    assertEqual(confirmCount, 1, "スクロール可能な一覧内でも、実際にスクロールが起きていなければ通常どおり確定する");
+    list.remove();
+  }
+
+  // ===== 【2026-09-06追加】setPointerCapture()が実機で無言に失敗しても（try/catchで
+  //      握りつぶされる設計のため）、pointermove/up/cancelをdocumentレベルでも監視して
+  //      いるおかげで、押した後に指を離せば正しく確定できることを検証する。以前の実装は
+  //      これらのイベントをボタン自身にしかbindしていなかったため、setPointerCaptureが
+  //      失敗する実機環境（挙動が仕様上実装依存）では「押したのに何も起きない」を
+  //      引き起こしうる構造だった。 =====
+  {
+    const button = makeButton();
+    button.setPointerCapture = () => {
+      throw new Error("このテスト環境ではsetPointerCaptureに対応していない、という状況を再現する");
+    };
+    let confirmCount = 0;
+    bindPressReleaseAnswer(button, () => confirmCount++);
+    const pointerId = nextPointerId++;
+
+    firePointerEvent(button, "pointerdown", { x: 50, y: 25, pointerId });
+    assertEqual(button.classList.contains("is-pressed"), true, "setPointerCaptureが失敗してもpointerdown自体は正常に処理される");
+    // documentへ直接dispatchする（button.setPointerCaptureが無効な環境では、実機でも
+    // 指がボタンの外に多少はみ出た状態でpointerup相当のイベントが発生しうる）。
+    document.dispatchEvent(new PointerEvent("pointerup", { pointerId, clientX: 50, clientY: 25, bubbles: true }));
+    assertEqual(
+      confirmCount,
+      1,
+      "setPointerCaptureが失敗しても、documentレベルの監視によりpointerupを取りこぼさず確定できる"
+    );
+    button.remove();
+  }
+
+  // ===== 【2026-09-06再修正・本人の実機再現テストで実際に踏んだ重大なバグの回帰テスト】
+  //      pointermoveが（ブラウザによる間引き等で）ボタン付近にいる間の1回しか発火せず、
+  //      その直後のpointerupが実際にはボタンから大きく離れた位置で発生する、という
+  //      イベントの間引きを再現する。pointerup自身がrelease位置を再確認していないと、
+  //      「最後に処理したpointermoveの時点ではまだキャンセルされていなかった」という
+  //      理由だけで、実際には大きく離れた位置で指を離したのに確定してしまう
+  //      （このテストで実際にこの不具合を再現し、修正を確認できた）。 =====
+  {
+    const button = makeButton(); // position:fixed; top:0; left:0; width:100; height:50
+    let confirmCount = 0;
+    bindPressReleaseAnswer(button, () => confirmCount++);
+    const pointerId = nextPointerId++;
+    const slop = getAnswerButtonCancelSlopPx();
+
+    firePointerEvent(button, "pointerdown", { x: 50, y: 25, pointerId });
+    // pointermoveはボタンの内側にとどまっている間の1回だけ（＝キャンセルにはならない）。
+    firePointerEvent(button, "pointermove", { x: 60, y: 25, pointerId });
+    assertEqual(button.classList.contains("is-pressed"), true, "ボタン内側のpointermoveではまだキャンセルされない");
+    // その直後、pointermoveを一切経由せずに、ボタンから明確に離れた位置でpointerupが
+    // 発生する（実機での素早いフリック操作で、途中のpointermoveが間引かれる状況を再現）。
+    firePointerEvent(button, "pointerup", { x: 100 + slop + 40, y: 25, pointerId });
+    assertEqual(
+      confirmCount,
+      0,
+      "pointermoveが間引かれても、pointerup自身のrelease位置がボタンから離れていれば確定しない"
+    );
+    button.remove();
+  }
+
+  // ===== 上と対になる確認：pointermoveが1回も発火しない即座のタップ（ボタン内側で
+  //      押してそのまま同じ位置で離す）は、引き続き問題なく確定する =====
+  {
+    const button = makeButton();
+    let confirmCount = 0;
+    bindPressReleaseAnswer(button, () => confirmCount++);
+    const pointerId = nextPointerId++;
+
+    firePointerEvent(button, "pointerdown", { x: 50, y: 25, pointerId });
+    // pointermoveを一切経由しない（実機の素早いタップでよくあるパターン）。
+    firePointerEvent(button, "pointerup", { x: 50, y: 25, pointerId });
+    assertEqual(confirmCount, 1, "pointermoveが無い素早いタップも、release位置がボタン内側なら確定する");
+    button.remove();
+  }
+
   // ===== キーボード操作等、pointer eventsを経由しない.click()合成呼び出しでも確定する =====
   {
     const button = makeButton();
@@ -237,6 +386,45 @@ export function runAnswerButtonInteractionTests() {
     // ブラウザが実機のタップで自動的に発火させるネイティブclickを模して手動で発火する。
     button.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
     assertEqual(confirmCount, 1, "pointerupに続くネイティブclickは二重処理されない（合計は1回のまま）");
+    button.remove();
+  }
+
+  // ===== 【2026-09-06再修正・実際のブラウザ操作で発見した致命的な回帰バグの再現テスト】
+  //      本人の全曲検索モードでの実機再現テストと全く同じ操作（一覧をスクロールする
+  //      つもりでボタンを押し、離した）を、実際のブラウザでBrowser paneのドラッグ操作
+  //      経由で再現したところ、「pointerup時点では正しくキャンセル判定されている
+  //      （cancelled:true・shouldConfirm:false）のに、その後に続くネイティブclickが
+  //      suppressNextNativeClickをすり抜けて素通りし、結局onConfirm()が呼ばれてしまう」
+  //      という不具合を、実際のイベントログで確認した。原因は、suppressNextNativeClickを
+  //      解除するのにqueueMicrotask（マイクロタスクキューが1回flushされた時点で即解除）を
+  //      使っていたため、実際のブラウザでネイティブclickがpointerupの処理後・マイクロタスク
+  //      キューのflush後に発火する場合、clickが来る前にフラグが解除されてしまっていたこと。
+  //      このテストは、pointerupとネイティブclickの間にマイクロタスクの境界（Promiseの
+  //      resolve待ち）を意図的に挟むことで、この間引きが起きる状況を合成dispatchEvent()でも
+  //      再現し、修正（setTimeout・マクロタスクでの解除）が正しく機能することを検証する
+  //      （setTimeoutでの解除は、マイクロタスクが何回flushされても影響を受けないはず）。 =====
+  {
+    const button = makeButton();
+    let confirmCount = 0;
+    bindPressReleaseAnswer(button, () => confirmCount++);
+    const pointerId = nextPointerId++;
+    const slop = getAnswerButtonCancelSlopPx();
+
+    firePointerEvent(button, "pointerdown", { x: 50, y: 25, pointerId });
+    // ボタンから明確に離れた位置でpointerupする＝キャンセル（確定しない）はず。
+    firePointerEvent(button, "pointerup", { x: 100 + slop + 40, y: 25, pointerId });
+    assertEqual(confirmCount, 0, "ボタンから離れた位置でのpointerup直後は、まだ確定していない");
+    // pointerupとネイティブclickの間に、マイクロタスクの境界を意図的にまたぐ
+    // （以前のqueueMicrotaskによる解除が、ここで誤って先に走ってしまっていた）。
+    await Promise.resolve();
+    await Promise.resolve();
+    button.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    assertEqual(
+      confirmCount,
+      0,
+      "pointerupとの間にマイクロタスクの境界をまたいで発火したネイティブclickも、" +
+        "キャンセル済みの操作を正しく無視し続け、誤って確定させない"
+    );
     button.remove();
   }
 }

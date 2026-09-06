@@ -287,9 +287,16 @@ export function initInstantChallengeQuestionScreen(newElements) {
   questionElements.answerSearchInput.addEventListener("input", () => {
     // 検索を始めたら50音ジャンプの選択行はいったん解除する（検索語のほうを優先して見せる。
     // js/onlineLyricsQuizBattleScreen.jsの既存の考え方と同じ）。
+    // 【2026-09-06修正】jumpRowKeyをnullに戻すのに合わせて、ジャンプバー自身の見た目
+    // （「すべて」がactiveに戻る）も必ず再描画する（renderAnswerJumpBarAndButtons参照）。
     answerBrowseState.searchQuery = questionElements.answerSearchInput.value;
     answerBrowseState.jumpRowKey = null;
-    renderAnswerButtons(questions[currentIndex].answerPool);
+    const pool = questions[currentIndex].answerPool;
+    if (questionElements.answerJumpBar && !questionElements.answerJumpBar.hidden) {
+      renderAnswerJumpBarAndButtons(pool);
+    } else {
+      renderAnswerButtons(pool);
+    }
   });
 
   // 【2026-08-30追加・本人指示⑨】「もう一度聞く」：ソロプレイでは回数無制限。
@@ -506,12 +513,23 @@ function renderAnswerArea(question) {
   }
   if (questionElements.answerJumpBar) {
     questionElements.answerJumpBar.hidden = !isLargePool;
-    if (isLargePool) renderAnswerJumpBar(questionElements.answerJumpBar, answerBrowseState, () => renderAnswerButtons(pool));
+    if (isLargePool) renderAnswerJumpBarAndButtons(pool);
+    else renderAnswerButtons(pool);
+  } else {
+    renderAnswerButtons(pool);
   }
-  renderAnswerButtons(pool);
   // 選択肢一覧のスクロール位置も、新しい問題ごとに先頭へ戻す。
   questionElements.answerList.scrollTop = 0;
   questionElements.answerList.hidden = false;
+}
+
+// 【2026-09-06修正・js/lyricsQuizScreen.jsと同じ不具合をこちらでも発見】50音ジャンプバーの
+// onChangeがrenderAnswerButtons(pool)しか呼んでおらず、チップ自身のis-active表示が
+// 更新されていなかった（絞り込みは効くが見た目が「すべて」のまま）。ジャンプバーと
+// 回答候補一覧を必ずセットで再描画する。
+function renderAnswerJumpBarAndButtons(pool) {
+  renderAnswerJumpBar(questionElements.answerJumpBar, answerBrowseState, () => renderAnswerJumpBarAndButtons(pool));
+  renderAnswerButtons(pool);
 }
 
 function renderAnswerButtons(pool) {
