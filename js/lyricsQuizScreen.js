@@ -697,9 +697,16 @@ function isWideAnswerMode() {
 
 // 「第X問・ヒントYまで使用」のような、正解確認カードに添える簡潔な内訳を組み立てる。
 // 歌詞本文には一切触れない（曲名・問題番号・ヒント段階だけ）。
-function buildAnswerRevealMetaText(question) {
-  const questionNumber = runState.currentQuestionIndex + 1;
-  const hintLevelUsed = runState.currentHintCount;
+//
+// 【2026-09-06修正・本人のiPhone実機報告の周辺調査で発見】以前はここでrunState（モジュール
+// 変数）を直接読んでいたが、この関数はrecordAnswerAndAdvance()で状態が「次の問題」へ
+// 進んだ後に呼ばれるため、常に「今答えたばかりの問題」ではなく「次の問題」の番号を、
+// ヒント使用数も常にリセット後の1を表示してしまっていた（常に発生する不具合だが、
+// 保存される自己ベスト・成績・履歴自体は進行前の値を使っており無事だったため、
+// これまでの環境上の制約でこのカード自体を実機以外で確認できず見つかっていなかった）。
+// 呼び出し側（handleAnswerSelected/handleSkipButtonClick）に、状態を進める「前」の
+// 正しい問題番号・ヒント使用数を明示的に渡してもらう方式へ変更した。
+function buildAnswerRevealMetaText(questionNumber, hintLevelUsed) {
   return `第${questionNumber}問・ヒント${hintLevelUsed}まで使用`;
 }
 
@@ -707,14 +714,38 @@ function buildAnswerRevealMetaText(question) {
 // 自動で次へ進まず、「次の問題へ」を押すまでこのカードにとどまる）。
 // isCorrect（2026-11-XX追加）：正解発表の音源ONのときは、正解時もこのカードを使うため、
 // 赤（不正解）／控えめ（わからない）／ピンク（正解）を出し分けられるようにした。
-function showAnswerReveal(question, statusText, isCorrect = false) {
+// 【2026-09-06修正・本人の実機報告：正解・不正解・わからないを一目で区別したい】
+// isNeutralを追加。以前はこのコメントで「出し分けられるようにした」と書かれていながら、
+// 実際には isCorrect の2値（赤／ピンク）しか出し分けておらず、「わからない」も不正解と
+// 全く同じ赤色になっていた（テキストでしか区別できなかった）。js/onlineInstantCoopBattleScreen.js
+// が既に持っている.is-neutral-answer-reveal-status（同じCSSで定義済み、控えめな中間トーン）を
+// オフライン歌詞クイズ側でも使い、3状態を色でも区別できるようにする。
+// myAnswerSongTitle（2026-09-06追加・本人の実機報告）：不正解時に選んだ曲名。指定があれば
+// 「あなたの回答：〇〇」を表示する（js/onlineLyricsQuizBattleScreen.jsの
+// battleAnswerRevealMyAnswerと全く同じ表示方式・文言を流用）。正解時・わからない時はnullを渡し、
+// この欄自体を隠す（正解時は自分の回答＝正解の曲と同じで表示する意味が無く、わからない時は
+// そもそも何も選んでいないため）。
+function showAnswerReveal(
+  question,
+  statusText,
+  isCorrect = false,
+  isNeutral = false,
+  myAnswerSongTitle = null,
+  questionNumber,
+  hintLevelUsed
+) {
   questionElements.answerSection.hidden = true;
   questionElements.skipButton.hidden = true;
 
   questionElements.answerRevealStatus.textContent = statusText;
   questionElements.answerRevealStatus.classList.toggle("is-correct-answer-reveal-status", isCorrect);
+  questionElements.answerRevealStatus.classList.toggle("is-neutral-answer-reveal-status", isNeutral);
   questionElements.answerRevealTitle.textContent = question.song.title;
-  questionElements.answerRevealMeta.textContent = buildAnswerRevealMetaText(question);
+  if (questionElements.answerRevealMyAnswer) {
+    questionElements.answerRevealMyAnswer.hidden = !myAnswerSongTitle;
+    questionElements.answerRevealMyAnswer.textContent = myAnswerSongTitle ? `あなたの回答：${myAnswerSongTitle}` : "";
+  }
+  questionElements.answerRevealMeta.textContent = buildAnswerRevealMetaText(questionNumber, hintLevelUsed);
   questionElements.answerReveal.hidden = false;
   questionElements.answerRevealNextButton.disabled = false;
 }
@@ -725,7 +756,11 @@ function hideAnswerReveal() {
   questionElements.answerReveal.hidden = true;
   questionElements.answerSection.hidden = false;
   questionElements.skipButton.hidden = false;
-  questionElements.answerRevealStatus.classList.remove("is-correct-answer-reveal-status");
+  questionElements.answerRevealStatus.classList.remove("is-correct-answer-reveal-status", "is-neutral-answer-reveal-status");
+  if (questionElements.answerRevealMyAnswer) {
+    questionElements.answerRevealMyAnswer.hidden = true;
+    questionElements.answerRevealMyAnswer.textContent = "";
+  }
   stopAnswerRevealAudio();
 }
 
@@ -775,8 +810,16 @@ function playAnswerRevealAudio(question) {
 // 時間（REVEAL_AUDIO_NEXT_BUTTON_DELAY_MS）だけ待ってから解禁する。7秒経つ前でも「次へ」を
 // 押せば即座に次の問題へ進める（本人指示：「7秒を待たず次問へ進めるようにしてください」）。
 // 7秒経っても押されなければ自動的に次へ進む（放置しても止まらない）。
-function showAnswerRevealWithAudio(question, statusText, isCorrect) {
-  showAnswerReveal(question, statusText, isCorrect);
+function showAnswerRevealWithAudio(
+  question,
+  statusText,
+  isCorrect,
+  isNeutral = false,
+  myAnswerSongTitle = null,
+  questionNumber,
+  hintLevelUsed
+) {
+  showAnswerReveal(question, statusText, isCorrect, isNeutral, myAnswerSongTitle, questionNumber, hintLevelUsed);
   questionElements.answerRevealNextButton.disabled = true;
   playAnswerRevealAudio(question);
 
@@ -802,13 +845,22 @@ function showAnswerRevealWithAudio(question, statusText, isCorrect) {
 // ・音源OFF：これまでどおりの挙動を一切変えない（本人指示：「今までどおり余計な待ち時間を
 //   入れずに進行」）。4択の正解／不正解は自動進行のまま、それ以外（正解が画面外になりうる
 //   回答方式での不正解・わからない）だけ答え合わせカードを出す。
-function presentAnswerOutcome(question, statusText, isCorrect, showsCardWhenAudioOff) {
+function presentAnswerOutcome(
+  question,
+  statusText,
+  isCorrect,
+  showsCardWhenAudioOff,
+  isNeutral = false,
+  myAnswerSongTitle = null,
+  questionNumber,
+  hintLevelUsed
+) {
   if (getLyricsQuizRevealAudioEnabled()) {
-    showAnswerRevealWithAudio(question, statusText, isCorrect);
+    showAnswerRevealWithAudio(question, statusText, isCorrect, isNeutral, myAnswerSongTitle, questionNumber, hintLevelUsed);
     return;
   }
   if (showsCardWhenAudioOff) {
-    showAnswerReveal(question, statusText, isCorrect);
+    showAnswerReveal(question, statusText, isCorrect, isNeutral, myAnswerSongTitle, questionNumber, hintLevelUsed);
     return;
   }
   scheduleAnswerFeedbackAdvance();
@@ -830,6 +882,12 @@ function handleAnswerSelected(selectedSongId, buttonElement) {
 
   const question = getCurrentQuestion(runState);
   const isCorrect = selectedSongId === question.song.id;
+  // 【2026-09-06修正・本人のiPhone実機報告の周辺調査で発見】正解確認カードの
+  // 「第X問・ヒントYまで使用」表示は、state進行前のこの時点の値を必ず使う
+  // （buildAnswerRevealMetaText参照。recordAnswerAndAdvance()後に読むと、
+  // 既に「次の問題」の番号・リセット後のヒント数になってしまう）。
+  const questionNumberForReveal = runState.currentQuestionIndex + 1;
+  const hintLevelUsedForReveal = runState.currentHintCount;
   // 回答時間は、この時点（回答を確定した瞬間）で必ず確定させる。この後に表示する
   // 正解確認カードをどれだけ長く見ていても、平均回答時間・称号判定・自己ベストには
   // 一切影響しない（本人指示）。
@@ -858,9 +916,30 @@ function handleAnswerSelected(selectedSongId, buttonElement) {
   disableAllAnswerButtons();
 
   // 正解発表の音源がONなら、正解／不正解を問わず必ず答え合わせカード＋楽曲再生を経由する
-  // （presentAnswerOutcome参照）。OFFなら今までどおりの挙動（正解時は今までどおり自動で
-  // 次へ進む。不正解時は、4択だけ自動進行のまま、それ以外は正解確認カードで自動進行を止める）。
-  presentAnswerOutcome(question, isCorrect ? "正解！" : "不正解", isCorrect, !isCorrect && isWideAnswerMode());
+  // （presentAnswerOutcome参照）。
+  // 【2026-09-06修正・本人の実機報告：正解時のフィードバックが分かりにくい】音源OFFのときも
+  // 以前は正解時だけ常にscheduleAnswerFeedbackAdvance()（ボタンが黄色く光るだけ）に
+  // なっており、10択以上の検索式（isWideAnswerMode）では「正解！」の明確な表示が
+  // 一切出ないまま次の問題へ進んでいた（4択は正解ボタン自体が常に画面内に見えているため、
+  // 本人の既存指示どおりこれまでの自動進行のまま維持する）。不正解／わからないと同じ
+  // 正解確認カード（showAnswerReveal、isCorrect=trueで「正解！」表示＋専用スタイル）を、
+  // 正解時にもisWideAnswerMode()なら使うようにした（4択のときの挙動は変更なし）。
+  // 【2026-09-06追加・本人の実機報告】不正解時は、自分が選んだ曲名も
+  // 「あなたの回答：〇〇」としてカードへ渡す（js/onlineLyricsQuizBattleScreen.jsの
+  // 正解数バトル・ポイントバトルと同じ表示。正解時は自分の回答＝正解の曲なので渡さない）。
+  const myAnswerSongTitle = isCorrect
+    ? null
+    : question.answerPool.find((song) => song.id === selectedSongId)?.title ?? null;
+  presentAnswerOutcome(
+    question,
+    isCorrect ? "正解！" : "不正解",
+    isCorrect,
+    isWideAnswerMode(),
+    false,
+    myAnswerSongTitle,
+    questionNumberForReveal,
+    hintLevelUsedForReveal
+  );
 }
 
 function handleSkipButtonClick() {
@@ -868,6 +947,10 @@ function handleSkipButtonClick() {
   hasAnsweredCurrentQuestion = true;
 
   const question = getCurrentQuestion(runState);
+  // 【2026-09-06修正・本人のiPhone実機報告の周辺調査で発見】handleAnswerSelected()と同じ理由で、
+  // state進行前の値をここで確定させる（buildAnswerRevealMetaText参照）。
+  const questionNumberForReveal = runState.currentQuestionIndex + 1;
+  const hintLevelUsedForReveal = runState.currentHintCount;
   const elapsedMs = Date.now() - questionStartedAt;
   runState = recordAnswerAndAdvance(runState, LYRICS_QUIZ_ANSWER_OUTCOME.SKIPPED, elapsedMs);
   // 【2026-08-29追加】スキップも「間違えた」扱いでattemptsだけ積む（js/state.jsのrecordAnswer()が
@@ -881,7 +964,20 @@ function handleSkipButtonClick() {
   questionElements.nextHintButton.disabled = true;
   disableAllAnswerButtons();
 
-  presentAnswerOutcome(question, "スキップ", false, isWideAnswerMode());
+  // 【2026-09-06修正・本人の実機報告】「不正解」と紛らわしくないよう、自分の意思で
+  // わからないを選んだことが一目で分かる文言にし、かつ「不正解」と同じ赤色ではなく
+  // 中間トーン（isNeutral）にすることで、正解・不正解・わからないの3状態が
+  // 一目で区別できるようにした。
+  presentAnswerOutcome(
+    question,
+    "『わからない』を選びました",
+    false,
+    isWideAnswerMode(),
+    true,
+    null,
+    questionNumberForReveal,
+    hintLevelUsedForReveal
+  );
 }
 
 // 正解/不正解演出のあと、少し待ってから次の問題（または結果画面）へ自動で進める予約を入れる。

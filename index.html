@@ -2730,6 +2730,11 @@
           <p id="lyrics-quiz-answer-reveal-status" class="lyrics-quiz-answer-reveal-status">不正解</p>
           <p class="lyrics-quiz-answer-reveal-caption">正解は</p>
           <p id="lyrics-quiz-answer-reveal-title" class="lyrics-quiz-answer-reveal-title">－</p>
+          <!-- 【2026-09-06追加・本人の実機報告】不正解時に「自分が何を回答したか」がこのカード
+               単体で分かるようにする。js/onlineLyricsQuizBattleScreen.jsの
+               #online-lyrics-battle-answer-reveal-my-answerと全く同じクラス・表示方式を流用した
+               （新しいデザインは作らず、既存のオンライン対戦側の実装をそのまま踏襲）。 -->
+          <p id="lyrics-quiz-answer-reveal-my-answer" class="lyrics-quiz-answer-reveal-my-answer" hidden></p>
           <p id="lyrics-quiz-answer-reveal-meta" class="lyrics-quiz-answer-reveal-meta"></p>
           <button id="lyrics-quiz-answer-reveal-next-button" class="primary-button" type="button">次の問題へ</button>
         </div>

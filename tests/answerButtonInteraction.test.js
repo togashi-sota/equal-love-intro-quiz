@@ -162,6 +162,56 @@ export function runAnswerButtonInteractionTests() {
     button.remove();
   }
 
+  // ===== 【2026-09-06追加・本人のiPhone実機報告バグの回帰テスト】検索式の回答候補一覧は
+  //      スクロール可能（overflow-y:auto）で、ボタンを押さえたまま一覧を指でスクロールすると
+  //      ボタン自身も指と一緒に画面上を移動する。以前はonPointerMoveのたびに
+  //      button.getBoundingClientRect()を取り直していたため、ボタンが指と一緒に動く限り
+  //      「範囲内」と判定され続け、単にスクロールして曲を探していただけなのに指を離した
+  //      瞬間にそのボタンの回答が誤って確定してしまっていた（実機での「回答していないのに
+  //      勝手に不正解になる」不具合の直接の原因）。押し始めた時点の矩形（frozenPressRect）を
+  //      固定して比較することで、ボタンがスクロールで動いても正しくキャンセル扱いになることを
+  //      検証する。
+  {
+    const button = makeButton(); // position:fixed; top:0; left:0; width:100; height:50
+    let confirmCount = 0;
+    bindPressReleaseAnswer(button, () => confirmCount++);
+    const pointerId = nextPointerId++;
+
+    firePointerEvent(button, "pointerdown", { x: 50, y: 25, pointerId });
+    // 一覧が指と一緒に上へ100pxスクロールした状況を再現する：ボタン自身がtop:-100pxへ動き、
+    // 指もそれに追従して同じ量（100px）だけ上へ動く（＝相対位置は変わらず「範囲内」に
+    // 見えるが、絶対位置としては押し始めた場所から明確に離れている）。
+    button.style.top = "-100px";
+    firePointerEvent(button, "pointermove", { x: 50, y: 25 - 100, pointerId });
+    assertEqual(
+      button.classList.contains("is-pressed"),
+      false,
+      "スクロールでボタンごと指に付いてきても、押し始めた位置基準で範囲外と判定されキャンセルされる"
+    );
+    firePointerEvent(button, "pointerup", { x: 50, y: 25 - 100, pointerId });
+    assertEqual(
+      confirmCount,
+      0,
+      "一覧をスクロールしただけ（曲を探していただけ）では、指を離しても回答が確定しない"
+    );
+    button.remove();
+  }
+
+  // ===== 上と対になる確認：ボタンが動かず（＝スクロールが起きず）、その場で押して
+  //      離す通常のタップは、frozenPressRect導入後も変わらず確定する =====
+  {
+    const button = makeButton();
+    let confirmCount = 0;
+    bindPressReleaseAnswer(button, () => confirmCount++);
+    const pointerId = nextPointerId++;
+
+    firePointerEvent(button, "pointerdown", { x: 50, y: 25, pointerId });
+    firePointerEvent(button, "pointermove", { x: 52, y: 26, pointerId }); // 通常の指ブレ程度
+    firePointerEvent(button, "pointerup", { x: 52, y: 26, pointerId });
+    assertEqual(confirmCount, 1, "ボタンが動かない通常のタップは、わずかな指ブレがあっても確定する");
+    button.remove();
+  }
+
   // ===== キーボード操作等、pointer eventsを経由しない.click()合成呼び出しでも確定する =====
   {
     const button = makeButton();

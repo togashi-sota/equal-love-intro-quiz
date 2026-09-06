@@ -88,6 +88,28 @@ export function runLyricsQuizRunStateTests() {
     assertEqual(state.currentHintCount, 3, "最大段階数を超えて進めようとしても変化しない");
   }
 
+  // ===== 【2026-09-06追加・本人のiPhone実機報告バグの回帰テスト】ヒントを最大段階まで
+  //      進めた（＝ヒント4/4を開いた）だけでは、回答は一切記録されない・
+  //      currentQuestionIndexも進まない。advanceHint()はcurrentHintCount以外の
+  //      フィールドを一切変更しない設計になっているため、この不変条件は構造的に
+  //      成立するはずだが、明示的なテストとして固定しておく（本人の実機報告：
+  //      「ヒント4/4まで開いて放置しただけで勝手に不正解になった」）。 =====
+  {
+    const questions = buildDummyQuestions(2, 4);
+    let state = createLyricsQuizRunState(questions);
+    state = advanceHint(state);
+    state = advanceHint(state);
+    state = advanceHint(state); // ここでちょうどヒント4/4（上限）に到達する
+    assertEqual(state.currentHintCount, 4, "前提：ヒント4/4（上限）まで進んだ");
+    assertEqual(state.answers, [], "ヒントを上限まで開いただけでは回答が記録されない（自動不正解にならない）");
+    assertEqual(state.currentQuestionIndex, 0, "ヒントを上限まで開いただけでは次の問題へ進まない");
+
+    // さらに何度呼んでも（＝「放置」を模して繰り返し呼んでも）変化しない。
+    for (let i = 0; i < 5; i++) state = advanceHint(state);
+    assertEqual(state.answers, [], "ヒント上限到達後にさらに時間が経っても（何度呼んでも）回答は記録されない");
+    assertEqual(state.currentQuestionIndex, 0, "ヒント上限到達後にさらに時間が経っても次の問題へ進まない");
+  }
+
   // ===== 最終問題の後にisRunFinished()がちょうど1回だけtrueへ切り替わる =====
 
   {

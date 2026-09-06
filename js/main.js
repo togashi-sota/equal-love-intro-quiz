@@ -998,6 +998,7 @@ const lyricsQuizAnswerSectionElement = document.getElementById("lyrics-quiz-answ
 const lyricsQuizAnswerRevealElement = document.getElementById("lyrics-quiz-answer-reveal");
 const lyricsQuizAnswerRevealStatusElement = document.getElementById("lyrics-quiz-answer-reveal-status");
 const lyricsQuizAnswerRevealTitleElement = document.getElementById("lyrics-quiz-answer-reveal-title");
+const lyricsQuizAnswerRevealMyAnswerElement = document.getElementById("lyrics-quiz-answer-reveal-my-answer");
 const lyricsQuizAnswerRevealMetaElement = document.getElementById("lyrics-quiz-answer-reveal-meta");
 const lyricsQuizAnswerRevealNextButtonElement = document.getElementById("lyrics-quiz-answer-reveal-next-button");
 const lyricsQuizBackButtonElement = document.getElementById("lyrics-quiz-back-button");
@@ -6062,6 +6063,7 @@ initLyricsQuizQuestionScreen({
   answerReveal: lyricsQuizAnswerRevealElement,
   answerRevealStatus: lyricsQuizAnswerRevealStatusElement,
   answerRevealTitle: lyricsQuizAnswerRevealTitleElement,
+  answerRevealMyAnswer: lyricsQuizAnswerRevealMyAnswerElement,
   answerRevealMeta: lyricsQuizAnswerRevealMetaElement,
   answerRevealNextButton: lyricsQuizAnswerRevealNextButtonElement,
   backButton: lyricsQuizBackButtonElement,

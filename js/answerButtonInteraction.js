@@ -45,6 +45,19 @@ export function bindPressReleaseAnswer(button, onConfirm) {
   let trackingPointerId = null;
   let cancelled = false;
   let suppressNextNativeClick = false;
+  // 【2026-09-06修正・本人のiPhone実機報告で発覚した実バグの根本原因】押し始めた瞬間の
+  // ボタンの位置（frozenPressRect）。以前はonPointerMoveのたびにbutton.getBoundingClientRect()を
+  // その場で取り直しており、これが実機での「回答していないのに勝手に不正解になる」不具合の
+  // 直接の原因だった：検索式の回答候補一覧はスクロール可能（overflow-y:auto）なため、
+  // 曲名を探して一覧を指でスクロールしているだけのとき、ボタンを含む一覧全体が指と
+  // 一緒に画面上を動く。その場で取り直した矩形は毎回「今の（movedあとの）ボタン位置」に
+  // なるため、指とボタンの相対位置は終始「範囲内」のままに見えてしまい、スクロールの
+  // つもりで指を離した瞬間にそのボタンのonConfirm()が誤って呼ばれていた（＝押してもいない
+  // 曲がランダムに回答確定してしまう）。押し始めた時点の矩形をここで固定し、以後は
+  // 常にこの固定値と比較することで、「指の位置が押し始めた場所からどれだけ離れたか」を
+  // 正しく判定できるようにする（スクロールでボタンごと指に付いてきても、固定矩形との
+  // 比較では正しく「範囲外＝キャンセル」と判定される）。
+  let frozenPressRect = null;
 
   function setPressed(pressed) {
     button.classList.toggle("is-pressed", pressed);
@@ -62,6 +75,7 @@ export function bindPressReleaseAnswer(button, onConfirm) {
     const shouldConfirm = !cancelled && !viaCancelEvent;
     trackingPointerId = null;
     cancelled = false;
+    frozenPressRect = null;
     // このジェスチャーに続いてブラウザが自動的に発火させるネイティブのclickイベントを
     // 1回だけ無視する（下のonNativeClick参照）。同期的なイベント連鎖の中で処理されるため、
     // queueMicrotaskでのクリアはその後（次の操作までの間）の安全な後始末として機能する。
@@ -79,6 +93,7 @@ export function bindPressReleaseAnswer(button, onConfirm) {
     if (trackingPointerId !== null) return;
     trackingPointerId = event.pointerId;
     cancelled = false;
+    frozenPressRect = button.getBoundingClientRect();
     setPressed(true);
     try {
       button.setPointerCapture(event.pointerId);
@@ -90,8 +105,9 @@ export function bindPressReleaseAnswer(button, onConfirm) {
 
   function onPointerMove(event) {
     if (event.pointerId !== trackingPointerId || cancelled) return;
-    const rect = button.getBoundingClientRect();
-    if (!isPointInsideRectWithSlop(event.clientX, event.clientY, rect, CANCEL_SLOP_PX)) {
+    // frozenPressRect（押し始めた時点の矩形）と比較する。button.getBoundingClientRect()を
+    // ここで取り直さないのが重要（上のfrozenPressRectのコメント参照）。
+    if (!isPointInsideRectWithSlop(event.clientX, event.clientY, frozenPressRect, CANCEL_SLOP_PX)) {
       cancelled = true;
       setPressed(false);
     }
