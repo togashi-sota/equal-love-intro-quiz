@@ -627,11 +627,18 @@ async function handleOutboxInviteDataChange(inviteData) {
   if (inviteData === null) {
     // 【本人指示：Firebaseを正本にする】相手が断った場合はdeclinedByRecipientを経由する
     // ため、ここに来るのは主に期限切れ（自然消滅）のケース。
+    // 【QAで発見・修正：2026-09-07】このブランチだけplayInviteOutbox/{自分のuid}を
+    // 消しておらず、期限切れ・相手の「参加待ちを取り消す」等で招待データが自然消滅する
+    // たびに送信者側のoutboxが永久に残ってしまっていた。Firebase Rules側はoutboxが
+    // 既に存在すると新規招待の送信自体を拒否する設計のため、この片付け漏れがあると
+    // 「一緒に遊ぶ」を二度と送れなくなる（reason: "already-sending"）実害があった。
     const name = myOutbox.recipientDisplayName;
+    const target = { recipientUid: myOutbox.recipientUid, inviteId: myOutbox.inviteId };
     lastKnownOutboxStatus = null;
     await stopWatchingOutboxInvite();
     myOutbox = null;
     roomCreationInFlightForInviteId = null;
+    await finalizeOutgoingPlayInvite(target);
     flashOutgoingMessage(`${name}さんとの「一緒に遊ぶ」招待の有効期限が切れました。`);
     return;
   }

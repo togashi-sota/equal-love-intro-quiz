@@ -13,6 +13,16 @@ export const ONLINE_BATTLE_TRANSITION_ACTION = {
   NONE: "none",
   ENTER_COUNTDOWN: "enterCountdown",
   ENTER_PLAY: "enterPlay",
+  // 【QAで発見・修正：2026-09-07】タイムアタック・ランダム再生・アウトロクイズ対戦は
+  // 各自が独立してクイズを進める設計のため、自分だけ先に全問終えて待機画面
+  // （onlineBattleWaiting）にいる間に、他のプレイヤーがまだ遊んでいて room.status が
+  // "playing" のまま端末をリロードすると、本来ENTER_PLAY（「カウントダウンを経由せず
+  // 参加した出遅れ端末」向け）が誤って発火し、出題をゼロからやり直させてしまっていた。
+  // やり直した末にfinishMyMatch()を呼ぶと、Firebase上には既に自分のresultsが存在するため
+  // （本人以外は上書き不可というルール上）reason:"result-mismatch"で弾かれ、やり直しても
+  // 解決しない案内のまま行き詰まる不具合があった。自分の進捗（hasAlreadyFinishedActiveMatch）
+  // が既にtrueな場合はこちらを返し、出題をやり直さず待機画面へ戻す。
+  ENTER_WAITING_FOR_OTHERS: "enterWaitingForOthers",
   ENTER_RESULT: "enterResult",
   RETURN_TO_LOBBY: "returnToLobby",
   // 「もう一度」提案・結果画面のresultReturned待ちなど、まだ自分の意思表示をしていない
@@ -59,6 +69,10 @@ function resolveResultKind({ isLyricsQuiz, isInstantBattle, isInstantCoop }) {
 // - hasRespondedToCurrentResultScreen: 今の結果画面で「もう一度」「ルーム設定に戻る」の
 //   いずれかへの意思表示を既に行ったか
 // - isLyricsQuiz / isInstantBattle / isInstantCoop: room.gameModeの種類
+// - hasAlreadyFinishedActiveMatch: 今の試合について、自分の結果（進捗のfinishedフラグ）を
+//   既に送信済みか（QAで発見・修正：タイムアタック・ランダム再生・アウトロクイズ対戦だけが
+//   使う値。歌詞クイズ・一瞬バトル・一瞬協力は別の進捗の仕組みを使うため、常にfalse/undefined
+//   のまま渡ってきて、この分岐には一切影響しない）
 export function resolveOnlineBattleStatusTransition({
   statusJustChanged,
   previousStatus,
@@ -72,6 +86,7 @@ export function resolveOnlineBattleStatusTransition({
   isLyricsQuiz,
   isInstantBattle,
   isInstantCoop,
+  hasAlreadyFinishedActiveMatch,
 }) {
   if (!statusJustChanged) {
     return { action: ONLINE_BATTLE_TRANSITION_ACTION.NONE };
@@ -87,6 +102,9 @@ export function resolveOnlineBattleStatusTransition({
     !hasVoluntarilyLeftActiveMatch &&
     !isActiveMatchInvalidated
   ) {
+    if (hasAlreadyFinishedActiveMatch) {
+      return { action: ONLINE_BATTLE_TRANSITION_ACTION.ENTER_WAITING_FOR_OTHERS };
+    }
     return { action: ONLINE_BATTLE_TRANSITION_ACTION.ENTER_PLAY };
   }
 

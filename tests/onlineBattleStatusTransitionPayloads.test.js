@@ -33,6 +33,7 @@ function baseArgs(overrides = {}) {
     isLyricsQuiz: false,
     isInstantBattle: false,
     isInstantCoop: false,
+    hasAlreadyFinishedActiveMatch: false,
     ...overrides,
   };
 }
@@ -104,6 +105,66 @@ export function runOnlineBattleStatusTransitionPayloadsTests() {
       ONLINE_BATTLE_TRANSITION_ACTION.NONE,
       "T10（通常経路）：previousStatusがcountdownの場合はNONE（ローカルタイマー側が進行を担当するため、二重に開始しない）"
     );
+  }
+
+  // ---- QAで発見・修正：既に自分の結果を送信済みの試合をリロードで検知した場合 ----
+  // タイムアタック・ランダム再生・アウトロクイズ対戦は各自が独立してクイズを進めるため、
+  // 自分だけ先に終えて待機画面にいる間に他のプレイヤーがまだ遊んでいる状態でリロードすると、
+  // room.statusが"playing"のままstatusJustChangedが再びtrueになる。この場合に出題を
+  // ゼロからやり直させず（やり直すとresult-mismatchで行き詰まる）、待機画面へ戻すだけに
+  // することを確認する。
+  {
+    const alreadyFinished = resolveOnlineBattleStatusTransition(
+      baseArgs({
+        statusJustChanged: true,
+        previousStatus: "waiting",
+        roomStatus: "playing",
+        hasAlreadyFinishedActiveMatch: true,
+      })
+    );
+    assertEqual(
+      alreadyFinished.action,
+      ONLINE_BATTLE_TRANSITION_ACTION.ENTER_WAITING_FOR_OTHERS,
+      "既に自分の結果を送信済みの試合でplaying検知した場合は、出題をやり直さずENTER_WAITING_FOR_OTHERS"
+    );
+
+    const notFinishedYet = resolveOnlineBattleStatusTransition(
+      baseArgs({
+        statusJustChanged: true,
+        previousStatus: "waiting",
+        roomStatus: "playing",
+        hasAlreadyFinishedActiveMatch: false,
+      })
+    );
+    assertEqual(
+      notFinishedYet.action,
+      ONLINE_BATTLE_TRANSITION_ACTION.ENTER_PLAY,
+      "まだ自分の結果を送信していなければ、従来どおりENTER_PLAY（出遅れ参加/再接続）"
+    );
+
+    // 歌詞クイズ・一瞬バトル・一瞬協力は別の進捗の仕組みを使うため、呼び出し側からは
+    // 常にhasAlreadyFinishedActiveMatch:falseが渡ってくる想定だが、念のため
+    // gameModeの種類に関わらずfalseなら影響が無いことも確認する。
+    [
+      { isLyricsQuiz: true },
+      { isInstantBattle: true },
+      { isInstantCoop: true },
+    ].forEach((flags) => {
+      const result = resolveOnlineBattleStatusTransition(
+        baseArgs({
+          statusJustChanged: true,
+          previousStatus: "waiting",
+          roomStatus: "playing",
+          hasAlreadyFinishedActiveMatch: false,
+          ...flags,
+        })
+      );
+      assertEqual(
+        result.action,
+        ONLINE_BATTLE_TRANSITION_ACTION.ENTER_PLAY,
+        "歌詞クイズ・一瞬バトル・一瞬協力でも、hasAlreadyFinishedActiveMatch:falseなら従来どおりENTER_PLAY"
+      );
+    });
   }
 
   // ---- 途中離脱・試合無効化の除外条件 ----

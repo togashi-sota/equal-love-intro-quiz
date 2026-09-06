@@ -2266,6 +2266,7 @@ function renderLobbyInner(room) {
     isLyricsQuiz,
     isInstantBattle,
     isInstantCoop,
+    hasAlreadyFinishedActiveMatch: room.matches?.[room.activeMatchId]?.progress?.[myUid]?.finished === true,
   });
 
   switch (transition.action) {
@@ -2276,6 +2277,15 @@ function renderLobbyInner(room) {
       // カウントダウンを経由せずplayingを検知した＝出遅れて参加/再接続した端末。
       // 自分のローカルカウントダウンは持っていないので、直接出題を開始する。
       enterOnlineBattlePlay(room);
+      break;
+    case ONLINE_BATTLE_TRANSITION_ACTION.ENTER_WAITING_FOR_OTHERS:
+      // 【QAで発見・修正：2026-09-07】自分は既にこの試合の結果を送信済み（＝待機画面を
+      // 一度見た後にリロードした等）。出題をやり直さず、待機画面へ戻すだけにする。
+      currentMatchId = room.activeMatchId;
+      elements.waitingSubmitError.hidden = true;
+      elements.waitingRetryButton.hidden = true;
+      elements.waitingLeadText.textContent = "あなたの結果はすでに送信済みです。他のプレイヤーの終了を待っています。";
+      elements.navigateTo("onlineBattleWaiting");
       break;
     case ONLINE_BATTLE_TRANSITION_ACTION.ENTER_RESULT:
       // 結果確定を検知したら結果画面へ進む（自分がまだクイズ回答中のときは
