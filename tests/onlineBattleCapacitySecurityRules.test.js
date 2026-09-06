@@ -4,7 +4,7 @@
 // 集合的な不変条件を、tests/stealRaceArbitrationFuzz.test.jsと同じ考え方の
 // 逐次シミュレーションで大量にfuzz検査する。
 import { createSeededRandom } from "../js/seededRandom.js";
-import { canWritePlayerSlot } from "../js/onlineBattleCapacitySecurityRules.js";
+import { canWritePlayerCount } from "../js/onlineBattleCapacitySecurityRules.js";
 import { assertEqual } from "./test-utils.js";
 
 const FUZZ_SEED = 20260906;
@@ -20,37 +20,47 @@ function shuffle(array, random) {
 }
 
 export function runOnlineBattleCapacitySecurityRulesTests() {
-  // ===== canWritePlayerSlot：許可/拒否一覧 =====
+  // ===== canWritePlayerCount：許可/拒否一覧 =====
   {
     assertEqual(
-      canWritePlayerSlot({ authUid: "p1", targetUid: "p1", existingEntryExists: false, playerCountAfterWrite: 3, maxPlayers: 5 }),
+      canWritePlayerCount({ authUid: "p1", previousCount: 3, newCount: 4, maxPlayers: 5 }),
       true,
-      "許可：新規参加で、書き込み後の人数が定員以内"
+      "許可：+1で、定員以内"
     );
     assertEqual(
-      canWritePlayerSlot({ authUid: "p1", targetUid: "p1", existingEntryExists: false, playerCountAfterWrite: 5, maxPlayers: 5 }),
+      canWritePlayerCount({ authUid: "p1", previousCount: 4, newCount: 5, maxPlayers: 5 }),
       true,
-      "許可：新規参加で、書き込み後の人数がちょうど定員（境界値）"
+      "許可：+1で、ちょうど定員（境界値）"
     );
     assertEqual(
-      canWritePlayerSlot({ authUid: "p1", targetUid: "p1", existingEntryExists: false, playerCountAfterWrite: 6, maxPlayers: 5 }),
+      canWritePlayerCount({ authUid: "p1", previousCount: 5, newCount: 6, maxPlayers: 5 }),
       false,
-      "拒否：新規参加で、書き込み後の人数が定員を1人超える"
+      "拒否：+1した結果が定員を1人超える"
     );
     assertEqual(
-      canWritePlayerSlot({ authUid: "p1", targetUid: "p2", existingEntryExists: false, playerCountAfterWrite: 3, maxPlayers: 5 }),
-      false,
-      "拒否：他人の枠への新規書き込み（なりすまし）"
-    );
-    assertEqual(
-      canWritePlayerSlot({ authUid: "p1", targetUid: "p1", existingEntryExists: true, playerCountAfterWrite: 999, maxPlayers: 5 }),
+      canWritePlayerCount({ authUid: "p1", previousCount: 3, newCount: 2, maxPlayers: 5 }),
       true,
-      "許可：既存エントリの更新（再接続等）は人数に関わらず常に許可"
+      "許可：-1（退出・キック）"
     );
     assertEqual(
-      canWritePlayerSlot({ authUid: null, targetUid: "p1", existingEntryExists: false, playerCountAfterWrite: 1, maxPlayers: 5 }),
+      canWritePlayerCount({ authUid: "p1", previousCount: 3, newCount: 5, maxPlayers: 5 }),
+      false,
+      "拒否：±1以外の飛び値（他の参加者の増減を無視した古い読み取りに基づく書き込み＝レースに負けた）"
+    );
+    assertEqual(
+      canWritePlayerCount({ authUid: "p1", previousCount: null, newCount: 1, maxPlayers: 5 }),
+      true,
+      "許可：ルーム作成時の初回書き込み（previousCountがまだ存在しない）"
+    );
+    assertEqual(
+      canWritePlayerCount({ authUid: null, previousCount: 3, newCount: 4, maxPlayers: 5 }),
       false,
       "拒否：未認証"
+    );
+    assertEqual(
+      canWritePlayerCount({ authUid: "p1", previousCount: 3, newCount: "4", maxPlayers: 5 }),
+      false,
+      "拒否：数値でない値"
     );
   }
 
@@ -68,13 +78,13 @@ export function runOnlineBattleCapacitySecurityRulesTests() {
     let currentCount = initialCount;
     let successCount = 0;
     for (const uid of arrivalOrder) {
-      // 到着した順に1件ずつ、Firebaseのroot参照が表す「この書き込みが適用された後」の
-      // 人数（＝現在の人数＋1）を渡して判定する。
-      const allowed = canWritePlayerSlot({
+      // 到着した順に1件ずつ、「その時点でサーバーが実際に保持している値」から+1した値を
+      // 書き込もうとする（実際のFirebaseの動作を模す：各clientは自分が読んだ古い値から
+      // +1を計算するが、ルールは常にその瞬間の実際のprevious値と比較する）。
+      const allowed = canWritePlayerCount({
         authUid: uid,
-        targetUid: uid,
-        existingEntryExists: false,
-        playerCountAfterWrite: currentCount + 1,
+        previousCount: currentCount,
+        newCount: currentCount + 1,
         maxPlayers,
       });
       if (allowed) {

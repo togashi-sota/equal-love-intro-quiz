@@ -13,31 +13,38 @@
 // 見てしまい、定員を超えて全員参加できてしまうことを実機の真の同時実行テストで
 // 確認した（2人部屋に2人が同時参加で4/4回とも3人になる等）。
 //
-// 【対策の考え方】runTransaction()は過去の実機不具合（Firebase RTDB SDK側の
-// 未解明の癖）により使わない方針を維持しつつ、rooms/$roomId/players/$uidの
-// Firebase Rules（.validate）へ「新規追加のときだけ、書き込み後の人数が
-// maxPlayersを超えないこと」を追加する。Firebase Realtime Databaseのルール評価時の
-// root参照は「この書き込みが適用された後の状態」を表すため、サーバー側で1件ずつ
-// 順に確定・評価されることで、クライアント側の事前チェックだけに頼らない、
-// 本当の意味での定員超過防止を実現できる（questionClaims/{questionIndex}/winnerの
-// write-once判定（js/lyricsQuizBattleSecurityRules.jsのcanWriteStealClaim()参照）と
-// 全く同じ、既にこのアプリで実績のある「rootを使った原子的な検証」の考え方）。
+// 【なぜruntTransaction()・numChildren()のどちらも使わないか】
+// ・runTransaction()：過去の実機不具合（Firebase RTDB SDK側の未解明の癖）により不採用。
+//   加えてplayersコレクション全体への書き込み権限がどのプレイヤーにも無いため、
+//   そもそも権限的に成立しない。
+// ・newData.numChildren()：クライアントSDKのDataSnapshotにのみ存在するメソッドで、
+//   Firebase Realtime Database Security Rulesの式言語（RuleDataSnapshot）には
+//   存在しない（本番Firebase Consoleへの公開時に「No such method/property
+//   'numChildren'」で実際に拒否されることを過去に確認済み。docs/HANDOFF.md参照）。
 //
-// room: { maxPlayers, players: { [uid]: {...} } } という、Firebase上の該当部分を
-// 模した最小限の形を引数として渡す想定。
+// 【採用した方式：カウンタパターン】rooms/$roomId/playerCountという専用の数値
+// フィールドを新設し、参加者エントリの追加/削除と必ず同じupdate()（複数パス同時
+// 書き込み）の中でこの値も±1だけ更新する。Firebase Rules側のplayerCountの
+// .validateは、val()・isNumber()等の実在が確認済みのメソッドだけを使い、
+// 「新しい値は、サーバーが実際に保持している値からちょうど±1で、かつmaxPlayers
+// 以下であること」だけを検証する。複数の同時書き込みがあっても、Firebase Realtime
+// Databaseは同じパスへの書き込みを1件ずつ順に確定・評価するため、2件目以降の
+// 書き込みは「既に更新済みの実際の値」に対して±1を計算し直さない限り拒否される
+// ＝本当の意味での定員超過防止が実現できる。また、players/{uid}とplayerCountを
+// 同じupdate()にまとめることで、Firebaseの「複数パス更新はall-or-nothingで適用
+// される」という保証により、「参加者エントリだけ作られてplayerCountが更新
+// されない」という不整合は起こり得ない。
 
-// rooms/$roomId/players/$uidへの書き込み可否（本人の新規参加・観戦者からの昇格の
-// どちらも、最終的にこの1つの検証を通る）。
+// rooms/$roomId/playerCountへの書き込み可否（新規参加・観戦者昇格・退出・キックの
+// どれも、最終的にこの1つの検証を通る）。
 //
-// existingEntryExists: 書き込み先uidに、既に参加者エントリが存在するか
-//   （再接続・ready変更等の「既存エントリの更新」なら、人数は変わらないため
-//   定員チェックの対象外にする＝常に許可）。
-// playerCountAfterWrite: この書き込みが実際に適用された「後」の参加者人数
-//   （＝現在の人数＋新規追加なら1）。Firebase Rulesのroot参照が表す
-//   「書き込み後の状態」をそのまま数値として渡す。
-export function canWritePlayerSlot({ authUid, targetUid, existingEntryExists, playerCountAfterWrite, maxPlayers }) {
+// previousCount: 書き込み直前の、サーバーが実際に保持しているplayerCountの値
+//   （undefined/nullなら「まだこのフィールドが存在しない」＝ルーム作成時の初回書き込み）。
+// newCount: このクライアントが書き込もうとしている値。
+export function canWritePlayerCount({ authUid, previousCount, newCount, maxPlayers }) {
   if (authUid == null) return false;
-  if (existingEntryExists) return true; // 既存エントリの更新（再接続・ready等）は人数が変わらないため常に許可
-  if (targetUid !== authUid) return false; // 新規追加は必ず本人による自分の枠への書き込みのみ
-  return playerCountAfterWrite <= maxPlayers;
+  if (typeof newCount !== "number") return false;
+  if (newCount > maxPlayers) return false;
+  if (previousCount == null) return true; // ルーム作成時の初回書き込み（上位のルームcreateルール側で厳密にvalを縛る）
+  return newCount === previousCount + 1 || newCount === previousCount - 1;
 }
