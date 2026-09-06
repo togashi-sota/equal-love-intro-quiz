@@ -345,6 +345,18 @@ export async function checkRecoveryRequestStatus(code) {
 // 復元後は、以後の自動バックアップが同じbackupIdへ書き込まれるよう、
 // このプレイヤーへそのbackupIdを覚えさせ、直ちに1回同期し直す。
 export async function restoreFromBackup(backupId) {
+  // 【QAで発見・修正：2026-09-07】直前のローカル操作（設定変更・称号解除等）によって
+  // scheduleBackupSync()のデバウンスタイマーが既に予約されている状態で復元を始めると、
+  // このFirebase読み取り（get）の完了を待っている間にそのタイマーが先に発火し、
+  // 「これから上書きされる古いローカルの内容」を復元対象のバックアップへ書き込んで
+  // しまう競合があった（本人が意図して復元しようとしたバックアップの中身が、
+  // 復元処理の最中に壊れる）。復元処理の一番最初でこのタイマーを確実に止めておく
+  // （関数末尾のsyncNow()も同じ後始末を行うが、そこまで待つと手遅れになるため、
+  // ここでも先んじて止める）。
+  if (debounceTimer !== null) {
+    clearTimeout(debounceTimer);
+    debounceTimer = null;
+  }
   try {
     const { database, authReady, getCurrentUid } = await import("./firebaseClient.js");
     const { ref, get } = await import("https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js");
