@@ -8,7 +8,9 @@ import { canWritePlayerCount } from "../js/onlineBattleCapacitySecurityRules.js"
 import { assertEqual } from "./test-utils.js";
 
 const FUZZ_SEED = 20260906;
-const TRIAL_COUNT = 300;
+// 2026-09-06追記・最終QAフェーズ（本人指示PHASE21：最終ランダムfuzzは最低1000seedを
+// 要求）を受け、300→1000へ引き上げた。
+const TRIAL_COUNT = 1000;
 
 function shuffle(array, random) {
   const result = array.slice();

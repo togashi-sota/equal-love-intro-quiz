@@ -26,7 +26,10 @@ import { restrictSongPoolToCommonAvailability } from "../js/onlineBattleSongAvai
 import { assertEqual } from "./test-utils.js";
 
 const FUZZ_SEED = 20260906;
-const ITERATIONS_PER_TARGET = 300; // 6つの対象関数 × 300回 = 1800回（1000回規模の要求を満たす）
+// 2026-09-06追記・最終QAフェーズ（本人指示PHASE21：「最終ランダムstate-machine fuzz」は
+// 最低1000seed・可能なら5000seedを要求）を受け、300→850へ引き上げた
+// （6つの対象関数×850回＝5100回で5000回規模を満たす）。
+const ITERATIONS_PER_TARGET = 850;
 
 function pickBool(random) {
   return random() < 0.5;

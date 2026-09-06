@@ -23,7 +23,9 @@ import { canWriteAnswer, canWriteStealClaim } from "../js/lyricsQuizBattleSecuri
 import { assertEqual } from "./test-utils.js";
 
 const FUZZ_SEED = 20260906;
-const TRIAL_COUNT = 300;
+// 2026-09-06追記・最終QAフェーズ（本人指示PHASE6-3：早押しレースの追加soak、
+// 最低100〜500seed相当を要求）を受け、300→1500へ引き上げた。
+const TRIAL_COUNT = 1500;
 
 function shuffle(array, random) {
   const result = array.slice();
