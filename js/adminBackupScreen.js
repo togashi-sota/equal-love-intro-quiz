@@ -75,9 +75,6 @@ function buildBackupRow(backup) {
   row.className = "admin-backup-row";
 
   const oshiMember = backup.oshiMemberId ? getMemberById(members, backup.oshiMemberId) : null;
-  const suspiciousNote = looksLikeTestBackup(backup)
-    ? '<p class="admin-backup-row-detail admin-backup-suspicious-note">⚠️ 名前未設定（テストデータの可能性）</p>'
-    : "";
 
   // 【2026-09-05新設】まとめて削除するための選択チェックボックス。
   const selectLabel = document.createElement("label");
@@ -94,15 +91,53 @@ function buildBackupRow(backup) {
   selectLabel.appendChild(document.createTextNode("選択する"));
   row.appendChild(selectLabel);
 
+  // 【QAで発見・修正：2026-09-07（重大なXSS）】backup.displayNameは他人（バックアップの
+  // 持ち主）が自由に設定できる表示名で、Firebase Rulesは文字数（40文字以内）しか検証して
+  // いない。以前はここをinnerHTMLへテンプレートリテラルでそのまま埋め込んでおり、
+  // 悪意ある表示名（例："<img src=x onerror=...>"）が同期されると、この管理者専用画面を
+  // 開いた本人（管理者）のブラウザで任意のJSが実行され、同じ画面が持つ削除・復旧解決等の
+  // 強い権限まで悪用されうる、実害のあるXSSだった。ユーザー由来の値は必ずtextContentで
+  // 挿入し、HTMLとして解釈させない（このファイルの他の箇所・buildRecoveryRequestRow()と
+  // 同じ安全なパターンに統一した）。
   const content = document.createElement("div");
-  content.innerHTML = `
-    <p class="admin-backup-row-title">${backup.displayName ?? "（名前未設定）"}</p>
-    <p class="admin-backup-row-detail">推し：${oshiMember ? oshiMember.name : "未設定"}／称号数：${backup.achievementCount}</p>
-    <p class="admin-backup-row-detail">バックアップID：<code>${backup.backupId}</code></p>
-    <p class="admin-backup-row-detail">現在のUID：<code>${shortId(backup.currentUid)}</code></p>
-    <p class="admin-backup-row-detail">最終バックアップ：${formatTimestamp(backup.updatedAt)}</p>
-    ${suspiciousNote}
-  `;
+
+  const titleElement = document.createElement("p");
+  titleElement.className = "admin-backup-row-title";
+  titleElement.textContent = backup.displayName ?? "（名前未設定）";
+  content.appendChild(titleElement);
+
+  const oshiDetail = document.createElement("p");
+  oshiDetail.className = "admin-backup-row-detail";
+  oshiDetail.textContent = `推し：${oshiMember ? oshiMember.name : "未設定"}／称号数：${backup.achievementCount}`;
+  content.appendChild(oshiDetail);
+
+  const backupIdDetail = document.createElement("p");
+  backupIdDetail.className = "admin-backup-row-detail";
+  backupIdDetail.append("バックアップID：");
+  const backupIdCode = document.createElement("code");
+  backupIdCode.textContent = backup.backupId;
+  backupIdDetail.appendChild(backupIdCode);
+  content.appendChild(backupIdDetail);
+
+  const uidDetail = document.createElement("p");
+  uidDetail.className = "admin-backup-row-detail";
+  uidDetail.append("現在のUID：");
+  const uidCode = document.createElement("code");
+  uidCode.textContent = shortId(backup.currentUid);
+  uidDetail.appendChild(uidCode);
+  content.appendChild(uidDetail);
+
+  const updatedDetail = document.createElement("p");
+  updatedDetail.className = "admin-backup-row-detail";
+  updatedDetail.textContent = `最終バックアップ：${formatTimestamp(backup.updatedAt)}`;
+  content.appendChild(updatedDetail);
+
+  if (looksLikeTestBackup(backup)) {
+    const suspiciousNoteElement = document.createElement("p");
+    suspiciousNoteElement.className = "admin-backup-row-detail admin-backup-suspicious-note";
+    suspiciousNoteElement.textContent = "⚠️ 名前未設定（テストデータの可能性）";
+    content.appendChild(suspiciousNoteElement);
+  }
   row.appendChild(content);
 
   const deleteButton = document.createElement("button");

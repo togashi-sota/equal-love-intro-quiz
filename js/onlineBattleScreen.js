@@ -2516,6 +2516,13 @@ export function goToLobby(roomId) {
   // 冒頭のlastHandledConfirmingRematch宣言部のコメント参照）。
   if (elements.lobbyRematchCancelledNotice) elements.lobbyRematchCancelledNotice.hidden = true;
   lastHandledConfirmingRematch = false;
+  // 【QAで発見・修正：2026-09-07】上のlastHandledConfirmingRematchと全く同じ理由で、
+  // こちらも新しいルームへ持ち越してはいけない状態だったが、リセット漏れがあった。
+  // 前のルームを離れた瞬間がたまたま「対戦開始確認画面を見ていた」状態（true）だった場合、
+  // 次に参加したルームが既に「確認中」状態だと、変化検知（!==）が起きず
+  // enterMatchConfirmScreen()が呼ばれないまま、本来進むべき確認画面に進めず
+  // 通常のロビー画面に取り残されてしまっていた。
+  lastHandledConfirmingMatch = false;
   clearTimeout(rematchReadyAutoStartTimerId);
   rematchReadyAutoStartTimerId = null;
   elements.lobbyStartError.hidden = true;

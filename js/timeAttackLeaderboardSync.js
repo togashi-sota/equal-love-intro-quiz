@@ -200,8 +200,20 @@ export async function backfillTimeAttackLeaderboardIfNeeded(playerKeyPrefix) {
   try {
     const historyEntries = getTimeAttackHistoryEntries();
     const bestEntries = findBestEntryPerVariantQuestionCountAndCategory(historyEntries);
+    // 【QAで発見・修正：2026-09-07】このループにtry/catchが無く、1件でも不正な形の
+    // データ（bestEntriesの1件がnull・型違い等）が混じると例外でループ全体が止まり、
+    // その後のlocalStorage.setItem(flagKey, "true")にも到達しないため、次回起動時も
+    // 同じ地点で必ず失敗し、それより後ろの自己ベストが永久にランキングへ反映されない
+    // 不具合があった（js/timeAttackLeaderboardSync.jsの
+    // syncRankingCandidatesToFirebase()で見つかったのと同じ不具合の形）。1件ずつ
+    // 独立させ、フラグは全件を試行し終えた後に必ず立てる。
     for (const best of bestEntries) {
-      await submitTimeAttackScoreIfBetter({ ...best, playerKeyPrefix });
+      if (!best || typeof best !== "object") continue;
+      try {
+        await submitTimeAttackScoreIfBetter({ ...best, playerKeyPrefix });
+      } catch (error) {
+        console.warn("タイムアタック自己ベストの1件だけ反映に失敗しました（他の自己ベストの反映は続行します）", error);
+      }
     }
     localStorage.setItem(flagKey, "true");
   } catch (error) {

@@ -76,17 +76,25 @@ import { SFX_EVENTS, playSfx } from "./soundManager.js";
 const BEGINNER_NAV_STORAGE_KEY = "equalLoveIntroQuiz.karaokeBeginnerNavEnabled";
 
 function readBooleanSetting(key, defaultValue) {
-  const saved = localStorage.getItem(key);
-  if (saved === "true") return true;
-  if (saved === "false") return false;
-  return defaultValue;
+  try {
+    const saved = localStorage.getItem(key);
+    if (saved === "true") return true;
+    if (saved === "false") return false;
+    return defaultValue;
+  } catch {
+    return defaultValue;
+  }
 }
 
 export function isKaraokeBeginnerNavEnabled() {
   return readBooleanSetting(BEGINNER_NAV_STORAGE_KEY, true);
 }
 export function setKaraokeBeginnerNavEnabled(enabled) {
-  localStorage.setItem(BEGINNER_NAV_STORAGE_KEY, String(enabled));
+  try {
+    localStorage.setItem(BEGINNER_NAV_STORAGE_KEY, String(enabled));
+  } catch {
+    // 保存に失敗しても（プライベートブラウズ・ストレージ容量超過等）アプリ自体は動き続けられるようにする。
+  }
 }
 
 // lyricsSync.jsに「本物の<audio>要素」の代わりとして渡す、時計だけの偽物。
@@ -352,7 +360,16 @@ async function handleStartButtonClick() {
 // 未読み込みの曲ではエラーにせず、静かに「端末音源なしで同期する」旨を案内して続行する。
 async function startDeviceAudioPlayback() {
   if (!currentSongId) return;
-  const blob = await getAudioBlob(currentSongId);
+  // 【QAで発見・修正：2026-09-07】IndexedDB自体が読み取りに失敗した場合（例外を投げた
+  // 場合）にtry/catchが無く、未処理のPromise rejectionになっていた。下のblobが無い
+  // 場合と同じ「端末音源なしで同期する」案内で扱う。
+  let blob;
+  try {
+    blob = await getAudioBlob(currentSongId);
+  } catch (error) {
+    console.warn("カラオケ同期用の端末音源の読み込みに失敗しました", error);
+    blob = null;
+  }
   if (!blob) {
     elements.deviceAudioNotice.hidden = false;
     elements.deviceAudioNotice.textContent =

@@ -7138,7 +7138,21 @@ audioImportInputElement.addEventListener("change", async () => {
   const files = [...audioImportInputElement.files];
   if (files.length === 0) return;
 
-  const { savedSongIds, unmatchedFileNames } = await importAudioFiles(files);
+  // 【QAで発見・修正：2026-09-07】以前はimportAudioFiles()自体が例外を投げた場合
+  // （IndexedDBを開けない等）、この関数もtry/catch無しで呼んでいたため、結果表示の
+  // 更新もfile inputのリセットも一切行われない無言の失敗になっていた。
+  let savedSongIds = [];
+  let unmatchedFileNames = [];
+  let failedFileNames = [];
+  try {
+    ({ savedSongIds, unmatchedFileNames, failedFileNames } = await importAudioFiles(files));
+  } catch (error) {
+    console.warn("音源ファイルの読み込み処理自体に失敗しました", error);
+    audioImportResultElement.hidden = false;
+    audioImportResultElement.textContent = "音源の読み込みに失敗しました。もう一度お試しください。";
+    audioImportInputElement.value = "";
+    return;
+  }
 
   // 音源を読み込んだタイミングは「保護してほしいデータが増えた瞬間」であり、ブラウザによっては
   // ユーザー操作の直後の方が永続ストレージの許可判定に有利なため、ここでも改めて要求する
@@ -7146,10 +7160,11 @@ audioImportInputElement.addEventListener("change", async () => {
   requestPersistentStorage();
 
   audioImportResultElement.hidden = false;
+  const notices = [];
+  if (unmatchedFileNames.length > 0) notices.push(`${unmatchedFileNames.length}件はファイル名が曲データと一致しませんでした`);
+  if (failedFileNames.length > 0) notices.push(`${failedFileNames.length}件は保存に失敗しました`);
   audioImportResultElement.textContent =
-    unmatchedFileNames.length > 0
-      ? `${savedSongIds.length}曲を読み込みました（${unmatchedFileNames.length}件はファイル名が曲データと一致しませんでした）`
-      : `${savedSongIds.length}曲を読み込みました`;
+    notices.length > 0 ? `${savedSongIds.length}曲を読み込みました（${notices.join("・")}）` : `${savedSongIds.length}曲を読み込みました`;
 
   // 同じファイルをもう一度選んでも change イベントが発火するように、選択状態をリセットする
   audioImportInputElement.value = "";

@@ -85,13 +85,23 @@ function putRecord(db, record) {
 // 音源と中身が同じか違うか」を、ファイルを毎回読み直さずに素早く比較できるようにするため
 // （js/dataPackImport.js参照）。
 //
-// 戻り値: { savedSongIds: string[], unmatchedFileNames: string[] }
+// 戻り値: { savedSongIds: string[], unmatchedFileNames: string[], failedFileNames: string[] }
 //   savedSongIds       : 保存できた曲のsongId一覧
 //   unmatchedFileNames : 拡張子が.mp3でない等の理由で保存できなかったファイル名一覧
+//   failedFileNames    : 拡張子は正しいが、ハッシュ計算・IndexedDB書き込みに失敗したファイル名一覧
+//                        （QAで発見・修正：2026-09-07。以前はこのループにtry/catchが無く、
+//                        たくさんのファイルを一括で選んだときに1件が壊れている・読み取り
+//                        エラーになる等の理由で例外を投げると、それ以降のファイルが
+//                        全く保存されないまま関数自体が例外を投げて終わっていた
+//                        （呼び出し元のjs/main.jsにもtry/catchが無く、結果表示も一切
+//                        更新されない、file inputもリセットされない、という無言の
+//                        全体失敗になっていた）。1件の失敗が残り全部を巻き込まないよう、
+//                        1ファイルずつtry/catchで独立させる）。
 export async function importAudioFiles(fileList) {
   const db = await openDatabase();
   const savedSongIds = [];
   const unmatchedFileNames = [];
+  const failedFileNames = [];
 
   for (const file of fileList) {
     const match = file.name.match(/^(.+)\.mp3$/i);
@@ -100,15 +110,20 @@ export async function importAudioFiles(fileList) {
       continue;
     }
     const songId = match[1];
-    const contentHash = await computeSha256Hex(file);
-    await putRecord(db, { songId, blob: file, importedAt: Date.now(), contentHash });
-    savedSongIds.push(songId);
+    try {
+      const contentHash = await computeSha256Hex(file);
+      await putRecord(db, { songId, blob: file, importedAt: Date.now(), contentHash });
+      savedSongIds.push(songId);
+    } catch (error) {
+      console.warn(`音源ファイルの保存に失敗しました（他のファイルの読み込みは続行します）: ${file.name}`, error);
+      failedFileNames.push(file.name);
+    }
   }
 
   // 【2026-09-15改訂】接続はキャッシュして使い回す設計にしたため、ここでは閉じない
   // （db.close()すると、以後この関数が返したPromiseの接続は使えなくなるが、
   // cachedDbPromise自体はまだそれを指したままになってしまうため）。
-  return { savedSongIds, unmatchedFileNames };
+  return { savedSongIds, unmatchedFileNames, failedFileNames };
 }
 
 // 再試行の様子を調べたいときだけtrueにする（本番では常時falseのままにしておくこと）。

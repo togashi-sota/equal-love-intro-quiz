@@ -229,7 +229,16 @@ async function playCurrentIndex() {
   }
 
   const song = queue[currentIndex];
-  const blob = await getAudioBlob(song.id);
+  // 【QAで発見・修正：2026-09-07】IndexedDB自体が読み取りに失敗した場合（例外を投げた
+  // 場合）にtry/catchが無く、未処理のPromise rejectionで連続再生がそこで止まって
+  // いた。下のblobが無い場合と同じ「次の曲へ安全に進める」扱いにする。
+  let blob;
+  try {
+    blob = await getAudioBlob(song.id);
+  } catch (error) {
+    console.warn("連続再生用の音源の読み込みに失敗しました", error);
+    blob = null;
+  }
   if (!blob) {
     // buildAndStartQueue()で事前に音源の有無を確認しているため通常は起きないが、
     // 万一取得できなかった場合に処理を止めないよう、次の曲へ安全に進める。

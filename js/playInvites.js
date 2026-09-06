@@ -61,7 +61,17 @@ export async function sendPlayInvite({ recipientUid, recipientDisplayName, invit
   } catch (error) {
     console.warn("一緒に遊ぶ招待の送信に失敗しました", error);
     // outboxだけ作られて実際の招待が作れなかった場合、ポインタを残さない（後始末）。
-    await remove(outboxRef).catch(() => {});
+    // 【QAで発見・修正：2026-09-07】この後始末自体が失敗した場合（通信断が続いている等）を
+    // 完全に無音で握りつぶしていた。招待本体の作成失敗とoutbox削除の両方が失敗すると、
+    // ちょうど今回修正した「期限切れ時の消し忘れ」バグと同じ症状（outboxが残り続け、
+    // 以後この送信者は「一緒に遊ぶ」を二度と送れなくなる）を再現してしまう。二重失敗という
+    // まれなケースまで自動で解決するのは難しいが、少なくとも診断できるようログには残す。
+    await remove(outboxRef).catch((cleanupError) => {
+      console.warn(
+        "一緒に遊ぶ招待の送信失敗後、outboxの後始末にも失敗しました（次回このユーザーが送信できなくなる可能性があります）",
+        cleanupError
+      );
+    });
     return { ok: false, reason: "write-failed" };
   }
 }

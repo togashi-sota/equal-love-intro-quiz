@@ -21,13 +21,29 @@ const DISPLAY_MODE_STORAGE_KEY = "equalLoveIntroQuiz.lyricsDisplayMode";
 const DISPLAY_MODE_SYNC = "sync";
 const DISPLAY_MODE_FULL = "full";
 
+// 【QAで発見・修正：2026-09-07】このファイルはmain.jsのimportグラフからモジュール読み込み
+// 時点（DOMContentLoaded等より前）で即座に評価され、下のdisplayMode初期化がその場で
+// loadDisplayModePreference()を呼ぶ。localStorage自体が使えない環境（一部のプライベート
+// ブラウズ・サンドボックス化されたWebView等ではgetItem()が例外を投げることがある）だと、
+// try/catch無しではこのモジュール自体の評価が失敗し、main.js以下の初期化処理が
+// 1つも実行されないまま真っ白な画面で起動不能になっていた。js/audio.js・
+// js/soundManager.js等、他の「モジュール読み込み時に即座にlocalStorageを読む」箇所は
+// 既にtry/catchで保護済みで、このファイルだけ抜け漏れていた。
 function loadDisplayModePreference() {
-  const saved = localStorage.getItem(DISPLAY_MODE_STORAGE_KEY);
-  return saved === DISPLAY_MODE_FULL ? DISPLAY_MODE_FULL : DISPLAY_MODE_SYNC;
+  try {
+    const saved = localStorage.getItem(DISPLAY_MODE_STORAGE_KEY);
+    return saved === DISPLAY_MODE_FULL ? DISPLAY_MODE_FULL : DISPLAY_MODE_SYNC;
+  } catch {
+    return DISPLAY_MODE_SYNC;
+  }
 }
 
 function saveDisplayModePreference(mode) {
-  localStorage.setItem(DISPLAY_MODE_STORAGE_KEY, mode);
+  try {
+    localStorage.setItem(DISPLAY_MODE_STORAGE_KEY, mode);
+  } catch {
+    // 保存に失敗しても（プライベートブラウズ・ストレージ容量超過等）アプリ自体は動き続けられるようにする。
+  }
 }
 
 let audioElement = null;

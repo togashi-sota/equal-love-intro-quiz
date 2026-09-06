@@ -688,7 +688,25 @@ async function handleOutboxInviteDataChange(inviteData) {
       flashOutgoingMessage("ルームの作成に失敗しました。通信環境をご確認のうえ、もう一度お試しください。");
       return;
     }
-    await attachRoomIdToOutgoingPlayInvite({ recipientUid, inviteId, roomId: result.roomId });
+    // 【QAで発見・修正：2026-09-07】以前はこの戻り値を確認しておらず、通信の一時的な
+    // 不調でroomIdの書き込みだけが失敗した場合、送信者側は（ルーム作成自体は成功して
+    // いるため）そのまま何事もなくロビーへ進んでしまっていた。一方、受信者側は招待に
+    // roomIdが付かないままなので永久に「招待中」から進めなくなり、送信者もそれに
+    // 気付く手段が無かった（＝相手だけが行き詰まる、サイレントな不具合）。1回だけ
+    // 間を置いて再試行し、それでも失敗したらルーム作成失敗時と同じ案内を出す。
+    let attachResult = await attachRoomIdToOutgoingPlayInvite({ recipientUid, inviteId, roomId: result.roomId });
+    if (!attachResult.ok) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      attachResult = await attachRoomIdToOutgoingPlayInvite({ recipientUid, inviteId, roomId: result.roomId });
+    }
+    if (!attachResult.ok) {
+      roomCreationInFlightForInviteId = null;
+      await stopWatchingOutboxInvite();
+      myOutbox = null;
+      await finalizeOutgoingPlayInvite({ recipientUid, inviteId });
+      flashOutgoingMessage("招待の送信に失敗しました。通信環境をご確認のうえ、もう一度お試しください。");
+      return;
+    }
 
     // 【設計メモ：js/playInvites.jsのclearMyOutboxOnly()コメント参照】招待データ本体は
     // ここでは消さない（受信者側がroomIdを読み取って参加した後、自分で消す）。

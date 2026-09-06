@@ -126,7 +126,16 @@ export async function openLiveCallModePlayer(songId) {
   elements.playbackErrorNotice.hidden = true;
   elements.lyricsPanel.hidden = true;
 
-  const blob = await getAudioBlob(songId);
+  // 【QAで発見・修正：2026-09-07】IndexedDB自体が読み取りに失敗した場合（例外を投げた
+  // 場合）にtry/catchが無く、未処理のPromise rejectionになっていた。下のblobが無い
+  // 場合と同じ案内文で扱う。
+  let blob;
+  try {
+    blob = await getAudioBlob(songId);
+  } catch (error) {
+    console.warn("ライブコールモード用の音源の読み込みに失敗しました", error);
+    blob = null;
+  }
   if (!blob) {
     elements.noLyricsNotice.hidden = false;
     elements.noLyricsNotice.textContent =

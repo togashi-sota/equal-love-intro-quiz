@@ -403,7 +403,17 @@ registerPlaybackStopper("preview", stopSongListPreview);
 // 未読み込みの曲の場合は、試聴が補助機能であることに合わせて、エラー表示は出さず
 // 静かに何もしない（再生中の見た目にもしない）。
 async function playPreview(song, rowElement) {
-  const blob = await getAudioBlob(song.id);
+  // 【QAで発見・修正：2026-09-07】IndexedDB自体が読み取りに失敗した場合（getAudioBlobが
+  // 例外を投げた場合）にtry/catchが無く、未処理のPromise rejectionになっていた。
+  // このファイルは「未読み込みの曲は静かに何もしない」という既存方針のため、
+  // IndexedDBの読み取り失敗も同じ扱い（blobが無い場合と同じ早期return）にする。
+  let blob;
+  try {
+    blob = await getAudioBlob(song.id);
+  } catch (error) {
+    console.warn("試聴用の音源の読み込みに失敗しました", error);
+    return;
+  }
   if (!blob) return;
 
   // 試聴の音声を鳴らす直前に、クイズ・連続再生など他の音声を止める
