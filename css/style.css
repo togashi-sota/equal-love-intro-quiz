@@ -8121,6 +8121,11 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 .room-invite-picker-row-name {
   font-size: 0.86rem;
   font-weight: 700;
+  /* 【2026-09-06修正・最終QAフェーズで発見】min-width:0が無いと、長い表示名の相手を
+     招待しようとしたとき、flexアイテムが縮まずに「招待する」ボタンを画面外へ押し出し、
+     ボタンが押せなくなる不具合があった。.online-lobby-player-nameと同じ対策を適用する。 */
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .room-invite-picker-row-button {
