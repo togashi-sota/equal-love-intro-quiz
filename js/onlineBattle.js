@@ -488,82 +488,72 @@ export async function joinRoom({ roomId, playerName }) {
   const uid = getCurrentUid();
   if (!uid) return { ok: false, reason: "not-signed-in" };
 
-  // 【2026-11-XX修正・本人指示Q7】読み取り失敗時はsafeGetSnapshot()がnullを返すが、
-  // checkCapacity(null, uid)は元々「不正な形のroom」をnot-foundとして安全に扱う設計の
-  // ため、`snapshot?.exists()`にするだけで既存の戻り値契約を変えずに保護できる。
-  const snapshot = await safeGetSnapshot(`rooms/${roomId}`);
-  const room = snapshot?.exists() ? snapshot.val() : null;
-  const capacity = checkCapacity(room, uid);
-  if (!capacity.ok) {
-    return { ok: false, reason: capacity.reason };
-  }
-
-  try {
-    await reservePlayerSlot({
-      roomId,
-      uid,
-      playerName,
-      alreadyJoined: capacity.alreadyJoined,
-      currentPlayerCount: getEffectivePlayerCount(room),
-    });
-  } catch (error) {
-    // 【2026-09-06修正・長時間耐久検証「真の同時実行」テストで発見・本人指示による
-    // 最優先修正】以前はここの事前チェック（上のcheckCapacity()）だけで満員判定をしており、
-    // 「読む→人数確認→書く」がトランザクション無しだったため、複数人が本当に同時に
-    // 参加すると全員が同じ「まだ空きがある」という古い読み取り結果を見てしまい、
-    // 定員を超えて全員参加できてしまっていた（2人部屋に2人が同時参加で4/4回とも
-    // 3人になる等、実機で高頻度の再現を確認）。
-    // 対策（詳しくはreservePlayerSlot()直前のコメント参照）：rooms/$roomId/playerCountという
-    // カウンタフィールドを新設し、Firebase Rules側で「新しい値は現在の実際の値から
-    // ちょうど±1で、かつmaxPlayers以下であること」を検証させることで、runTransaction()を
-    // 使わずに本当の意味での定員超過を防ぐ。このtry/catchは、事前チェックは通過したが
-    // 実際の書き込み時点でこの新しいルールに拒否された（＝直前に他の人が最後の枠を取った、
-    // 本物の同時参加レースに負けた）場合を拾う。js/lyricsQuizBattleFirebase.jsの
-    // submitLyricsQuizAnswer()と同じ考え方で、拒否直後に最新状態を読み直し、
-    // 可能な限り正確な理由（大抵は"full"）を返す。
-    if (error?.code === "PERMISSION_DENIED") {
-      const retrySnapshot = await safeGetSnapshot(`rooms/${roomId}`);
-      const retryRoom = retrySnapshot?.exists() ? retrySnapshot.val() : null;
-      const retryCapacity = checkCapacity(retryRoom, uid);
-      if (!retryCapacity.ok) return { ok: false, reason: retryCapacity.reason };
-      // 【2026-09-06追加・独立レビューで指摘】playerCountは単一フィールドのcompare-and-swap
-      // のため、定員超過とは無関係な別の同時書き込み（他の誰かのleave/kick/promote/join）が
-      // 割り込んだだけでも拒否されうる。読み直した結果「実際にはまだ空きがある」
-      // （retryCapacity.ok === true）なら、最新のplayerCountを元に1回だけ書き込みを
-      // 再試行する（無限リトライはしない。再試行も失敗した場合はwrite-failedへ）。
-      try {
-        await reservePlayerSlot({
-          roomId,
-          uid,
-          playerName,
-          alreadyJoined: retryCapacity.alreadyJoined,
-          currentPlayerCount: getEffectivePlayerCount(retryRoom),
-        });
-      } catch (retryError) {
-        return { ok: false, reason: "write-failed" };
-      }
-      // 再試行が成功したので、下の通常の成功時の後処理（ルール確認リセット・
-      // finalizeJoin等）へそのまま進む。
-      resetRuleConfirmationsIfConfirming({ roomId, room: retryRoom, joiningUid: uid });
-      finalizeJoin(roomId, playerName, uid);
-      return { ok: true, roomId };
+  // 【2026-09-06修正・長時間耐久検証「真の同時実行」テストで発見・本人指示による
+  // 最優先修正】以前は「読む→人数確認→書く」がトランザクション無しだったため、複数人が
+  // 本当に同時に参加すると全員が同じ「まだ空きがある」という古い読み取り結果を見てしまい、
+  // 定員を超えて全員参加できてしまっていた（2人部屋に2人が同時参加で4/4回とも3人になる等、
+  // 実機で高頻度の再現を確認）。対策（詳しくはreservePlayerSlot()直前のコメント参照）：
+  // rooms/$roomId/playerCountというカウンタフィールドを新設し、Firebase Rules側で
+  // 「新しい値は現在の実際の値からちょうど±1で、かつmaxPlayers以下であること」を
+  // 検証させることで、runTransaction()を使わずに本当の意味での定員超過を防ぐ。
+  // 【2026-09-06追加・独立レビュー指摘＋実機の多人数同時参加テストで判明】playerCountは
+  // 単一フィールドのcompare-and-swapのため、複数人が真に同時に押し寄せた場合、1回の
+  // 書き込みで成功できるのは常に1人だけで、残りは「定員超過とは無関係な、他の同時書き込みとの
+  // 衝突」としてPERMISSION_DENIEDになる。当初はこれを「1回だけ再試行」する設計にしていたが、
+  // 「定員5人の部屋の残り4枠に8人が真に同時参加すると、実際には空きが余っているのに
+  // 再試行の権利を使い切ってwrite-failedになる人が出て、最終的に3人にしかならない」ことを
+  // 実機テストで確認したため、「最新状態を読み直してまだ空きがあれば再挑戦する」という
+  // ループに変更した（定員を超えることは無い＝checkCapacity()が実際の空き枠を毎回
+  // 正しく判定するため安全。無限ループ防止のため上限回数のみ設ける。最大定員10人に
+  // 対して十分すぎる余裕を持たせた回数）。
+  const MAX_JOIN_ATTEMPTS = 20;
+  for (let attempt = 0; attempt < MAX_JOIN_ATTEMPTS; attempt++) {
+    // 【2026-11-XX修正・本人指示Q7】読み取り失敗時はsafeGetSnapshot()がnullを返すが、
+    // checkCapacity(null, uid)は元々「不正な形のroom」をnot-foundとして安全に扱う設計の
+    // ため、`snapshot?.exists()`にするだけで既存の戻り値契約を変えずに保護できる。
+    const snapshot = await safeGetSnapshot(`rooms/${roomId}`);
+    const room = snapshot?.exists() ? snapshot.val() : null;
+    const capacity = checkCapacity(room, uid);
+    if (!capacity.ok) {
+      return { ok: false, reason: capacity.reason };
     }
-    return { ok: false, reason: "write-failed" };
+
+    try {
+      await reservePlayerSlot({
+        roomId,
+        uid,
+        playerName,
+        alreadyJoined: capacity.alreadyJoined,
+        currentPlayerCount: getEffectivePlayerCount(room),
+      });
+    } catch (error) {
+      if (error?.code === "PERMISSION_DENIED") {
+        // 直前に他の人が同じplayerCountを更新した（本物の同時参加レースに負けた、または
+        // 定員超過とは無関係な同時書き込みと衝突した）。次の周回で最新状態を読み直して
+        // 再挑戦する（checkCapacity()が実際に満員だと判断すれば、そこで正しく
+        // reason:"full"が返る）。
+        continue;
+      }
+      return { ok: false, reason: "write-failed" };
+    }
+
+    // 【2026-09-13追加・本人指示：対戦開始前ルール確認画面】ルール確認中（room.confirmingMatch）
+    // に新しく参加した場合、既存参加者を含めて確認状態を一度リセットする（本人指示24）。
+    // 参加自体を失敗させないよう、この後始末はfire-and-forgetで行う
+    // （resetRuleConfirmationsIfConfirming自体が失敗を握りつぶす設計）。
+    resetRuleConfirmationsIfConfirming({ roomId, room, joiningUid: uid });
+    // 【2026-11-XX変更・実機バグ調査：再戦準備中に新規参加者が来ても巻き込まない仕様】
+    // 以前はここでresetRematchReadyIfConfirming()を呼び、再戦準備中に新しく参加した人が
+    // いれば提案そのものを取り消していたが、今は新規参加者をrematchParticipantUidsの
+    // スナップショットから自然に除外する方式へ変更したため、この呼び出しは不要になった
+    // （進行中の再戦・既存参加者のREADY状態には一切触れない）。
+
+    finalizeJoin(roomId, playerName, uid);
+    return { ok: true, roomId };
   }
-
-  // 【2026-09-13追加・本人指示：対戦開始前ルール確認画面】ルール確認中（room.confirmingMatch）
-  // に新しく参加した場合、既存参加者を含めて確認状態を一度リセットする（本人指示24）。
-  // 参加自体を失敗させないよう、この後始末はfire-and-forgetで行う
-  // （resetRuleConfirmationsIfConfirming自体が失敗を握りつぶす設計）。
-  resetRuleConfirmationsIfConfirming({ roomId, room, joiningUid: uid });
-  // 【2026-11-XX変更・実機バグ調査：再戦準備中に新規参加者が来ても巻き込まない仕様】
-  // 以前はここでresetRematchReadyIfConfirming()を呼び、再戦準備中に新しく参加した人が
-  // いれば提案そのものを取り消していたが、今は新規参加者をrematchParticipantUidsの
-  // スナップショットから自然に除外する方式へ変更したため、この呼び出しは不要になった
-  // （進行中の再戦・既存参加者のREADY状態には一切触れない）。
-
-  finalizeJoin(roomId, playerName, uid);
-  return { ok: true, roomId };
+  // 上限回数まで再試行しても決着しなかった（想定を超える極端な同時アクセス等）。
+  // 安全側としてfailed扱いにする（呼び出し元は通信エラー相当として案内する）。
+  return { ok: false, reason: "write-failed" };
 }
 
 // 【2026-08-30新設、本人指示：観戦機能】試合中（waiting以外）のルームへ、競技参加ではなく
@@ -644,97 +634,82 @@ export async function promoteSpectatorToPlayer({ roomId, playerName }) {
   const uid = getCurrentUid();
   if (!uid) return { ok: false, reason: "not-signed-in" };
 
-  // 【2026-11-XX修正・本人指示Q7】読み取り失敗時はnot-foundと同じ扱いにする（安全側）。
-  const snapshot = await safeGetSnapshot(`rooms/${roomId}`);
-  if (!snapshot?.exists()) return { ok: false, reason: "not-found" };
-  const room = snapshot.val();
-  if (room.status !== ROOM_STATUS.WAITING) return { ok: false, reason: "not-waiting" };
+  // 【2026-09-06修正・長時間耐久検証「真の同時実行」テストで発見・本人指示による
+  // 最優先修正】上のjoinRoom()と全く同じ理由・同じ対策（詳しくはreservePlayerSlot()
+  // 直前のコメント参照：runTransaction()・numChildren()はどちらも使えないため、
+  // rooms/$roomId/playerCountというカウンタフィールドをFirebase Rules側で±1の
+  // compare-and-swapとして検証させるカウンタパターンを採用）。
+  // 【2026-09-06追加・独立レビュー指摘＋実機の多人数同時参加テストで判明】playerCountは
+  // 単一フィールドのcompare-and-swapのため、複数の観戦者が真に同時に昇格を試みた場合、
+  // 1回の書き込みで成功できるのは常に1人だけになる。当初は「1回だけ再試行」する設計に
+  // していたが、実際には空きが余っているのに再試行の権利を使い切ってwrite-failedになる
+  // ケースがあり得るため、joinRoom()と同じく「最新状態を読み直してまだ空きがあれば
+  // 再挑戦する」というループに変更した（定員を超えることは無い。無限ループ防止のため
+  // 上限回数のみ設ける）。
+  const MAX_PROMOTE_ATTEMPTS = 20;
+  for (let attempt = 0; attempt < MAX_PROMOTE_ATTEMPTS; attempt++) {
+    // 【2026-11-XX修正・本人指示Q7】読み取り失敗時はnot-foundと同じ扱いにする（安全側）。
+    const snapshot = await safeGetSnapshot(`rooms/${roomId}`);
+    if (!snapshot?.exists()) return { ok: false, reason: "not-found" };
+    const room = snapshot.val();
+    if (room.status !== ROOM_STATUS.WAITING) return { ok: false, reason: "not-waiting" };
 
-  const players = room.players || {};
-  const spectators = room.spectators || {};
-  if (!Object.prototype.hasOwnProperty.call(spectators, uid)) return { ok: false, reason: "not-spectating" };
-  // 既にプレイヤーとしても存在する場合（通常起こらないが、安全のため）は何もせず成功扱い。
-  if (Object.prototype.hasOwnProperty.call(players, uid)) {
-    // 【2026-11-XX修正・本人指示Q7】このremove()もtry/catchが無かった。
-    try {
-      await remove(ref(database, `rooms/${roomId}/spectators/${uid}`));
-    } catch (error) {
-      return { ok: false, reason: "write-failed" };
-    }
-    return { ok: true };
-  }
-  if (Object.keys(players).length >= room.maxPlayers) {
-    return { ok: false, reason: "full" };
-  }
-
-  const newPlayerEntry = {
-    name: playerName,
-    isHost: false,
-    joinedAt: Date.now(),
-    connected: true,
-    ready: false,
-    readyForRevision: 0,
-    oshiMemberId: getMostOshiMemberId(),
-  };
-  try {
-    await update(ref(database), {
-      [`rooms/${roomId}/players/${uid}`]: newPlayerEntry,
-      [`rooms/${roomId}/spectators/${uid}`]: null,
-      [`rooms/${roomId}/playerCount`]: getEffectivePlayerCount(room) + 1,
-    });
-  } catch (error) {
-    // 【2026-09-06修正・長時間耐久検証「真の同時実行」テストで発見・本人指示による
-    // 最優先修正】上のjoinRoom()と全く同じ理由・同じ対策（詳しくはreservePlayerSlot()
-    // 直前のコメント参照：runTransaction()・numChildren()はどちらも使えないため、
-    // rooms/$roomId/playerCountというカウンタフィールドをFirebase Rules側で
-    // ±1のcompare-and-swapとして検証させるカウンタパターンを採用）。この関数も
-    // 「読む→人数確認→書く」がトランザクション無しだったため、複数の観戦者が本当に
-    // 同時に昇格を試みると全員が同じ古い人数を見てしまい、定員を超えて全員昇格できて
-    // しまっていた（実機で確認：残り1枠に観戦者4人が同時昇格し5人になる等）。
-    // 事前チェックを通過していても実際の書き込み時点でplayerCountのルールに拒否される
-    // ことがある（＝本物の同時昇格レースに負けた）。その場合は最新状態を読み直し、
-    // 正確な理由を返す。
-    if (error?.code === "PERMISSION_DENIED") {
-      const retrySnapshot = await safeGetSnapshot(`rooms/${roomId}`);
-      const retryRoom = retrySnapshot?.exists() ? retrySnapshot.val() : null;
-      if (!retryRoom) return { ok: false, reason: "not-found" };
-      if (Object.keys(retryRoom.players || {}).length >= retryRoom.maxPlayers) {
-        return { ok: false, reason: "full" };
-      }
-      if (retryRoom.status !== ROOM_STATUS.WAITING) {
-        return { ok: false, reason: "not-waiting" };
-      }
-      // 【2026-09-06追加・独立レビューで指摘】playerCountは単一フィールドのcompare-and-swap
-      // のため、定員超過とは無関係な別の同時書き込み（他の誰かのleave/kick/join/promote）が
-      // 割り込んだだけでも拒否されうる。読み直した結果「実際にはまだ空きがある」なら、
-      // 最新のplayerCountを元に1回だけ書き込みを再試行する（無限リトライはしない）。
+    const players = room.players || {};
+    const spectators = room.spectators || {};
+    if (!Object.prototype.hasOwnProperty.call(spectators, uid)) return { ok: false, reason: "not-spectating" };
+    // 既にプレイヤーとしても存在する場合（通常起こらないが、安全のため）は何もせず成功扱い。
+    if (Object.prototype.hasOwnProperty.call(players, uid)) {
+      // 【2026-11-XX修正・本人指示Q7】このremove()もtry/catchが無かった。
       try {
-        await update(ref(database), {
-          [`rooms/${roomId}/players/${uid}`]: newPlayerEntry,
-          [`rooms/${roomId}/spectators/${uid}`]: null,
-          [`rooms/${roomId}/playerCount`]: getEffectivePlayerCount(retryRoom) + 1,
-        });
-      } catch (retryError) {
+        await remove(ref(database, `rooms/${roomId}/spectators/${uid}`));
+      } catch (error) {
         return { ok: false, reason: "write-failed" };
       }
-      startPresenceTracking(roomId, uid, "players");
-      startActivityPresenceTracking(roomId, uid, "players");
-      resetRuleConfirmationsIfConfirming({ roomId, room: retryRoom, joiningUid: uid });
       return { ok: true };
     }
-    return { ok: false, reason: "write-failed" };
+    if (Object.keys(players).length >= room.maxPlayers) {
+      return { ok: false, reason: "full" };
+    }
+
+    const newPlayerEntry = {
+      name: playerName,
+      isHost: false,
+      joinedAt: Date.now(),
+      connected: true,
+      ready: false,
+      readyForRevision: 0,
+      oshiMemberId: getMostOshiMemberId(),
+    };
+    try {
+      await update(ref(database), {
+        [`rooms/${roomId}/players/${uid}`]: newPlayerEntry,
+        [`rooms/${roomId}/spectators/${uid}`]: null,
+        [`rooms/${roomId}/playerCount`]: getEffectivePlayerCount(room) + 1,
+      });
+    } catch (error) {
+      if (error?.code === "PERMISSION_DENIED") {
+        // 直前に他の人が同じplayerCountを更新した（本物の同時昇格レースに負けた、または
+        // 定員超過とは無関係な同時書き込みと衝突した）。次の周回で最新状態を読み直して
+        // 再挑戦する（実際に満員ならそこで正しくreason:"full"が返る）。
+        continue;
+      }
+      return { ok: false, reason: "write-failed" };
+    }
+
+    startPresenceTracking(roomId, uid, "players");
+    startActivityPresenceTracking(roomId, uid, "players");
+    // 【2026-09-13追加・本人指示：対戦開始前ルール確認画面】観戦者が競技参加へ昇格した
+    // 場合もjoinRoom()と同じ理由でルール確認状態をリセットする（js/onlineBattle.jsの
+    // joinRoom()参照）。
+    resetRuleConfirmationsIfConfirming({ roomId, room, joiningUid: uid });
+    // 【2026-11-XX変更・実機バグ調査：再戦準備中に新規参加者が来ても巻き込まない仕様】
+    // 観戦者からの昇格も「新規参加」の一種のため、上のjoinRoom()と同じ理由で
+    // resetRematchReadyIfConfirming()の呼び出しを廃止した（rematchParticipantUidsの
+    // スナップショットに含まれない限り、この人は自動的に今の再戦の対象外になる）。
+    return { ok: true };
   }
-  startPresenceTracking(roomId, uid, "players");
-  startActivityPresenceTracking(roomId, uid, "players");
-  // 【2026-09-13追加・本人指示：対戦開始前ルール確認画面】観戦者が競技参加へ昇格した
-  // 場合もjoinRoom()と同じ理由でルール確認状態をリセットする（js/onlineBattle.jsの
-  // joinRoom()参照）。
-  resetRuleConfirmationsIfConfirming({ roomId, room, joiningUid: uid });
-  // 【2026-11-XX変更・実機バグ調査：再戦準備中に新規参加者が来ても巻き込まない仕様】
-  // 観戦者からの昇格も「新規参加」の一種のため、上のjoinRoom()と同じ理由で
-  // resetRematchReadyIfConfirming()の呼び出しを廃止した（rematchParticipantUidsの
-  // スナップショットに含まれない限り、この人は自動的に今の再戦の対象外になる）。
-  return { ok: true };
+  // 上限回数まで再試行しても決着しなかった（想定を超える極端な同時アクセス等）。
+  return { ok: false, reason: "write-failed" };
 }
 
 // ルームから退出する。

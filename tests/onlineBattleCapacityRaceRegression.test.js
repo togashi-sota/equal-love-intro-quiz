@@ -34,8 +34,12 @@
 // ②joinRoom()・promoteSpectatorToPlayer()のPERMISSION_DENIEDのcatch節は、当初「読み
 //   直した結果、実際にはまだ空きがある」場合でも再試行せず失敗にしていた。playerCountは
 //   単一フィールドのCASのため、定員超過とは無関係な別の同時書き込み（他の誰かの
-//   leave/kick/promote/join）が割り込んだだけでも拒否されうる。読み直して空きがあると
-//   分かった場合は、最新の値を元に1回だけ書き込みを再試行するようにした。
+//   leave/kick/promote/join）が割り込んだだけでも拒否されうる。当初は「1回だけ再試行」
+//   する設計にしたが、Firebase Console公開後の実機テストで「定員5人の部屋の残り4枠に
+//   8人が真に同時参加すると、実際には空きが余っているのに再試行の権利を使い切って
+//   write-failedになる人が出て最終的に3人にしかならない」ことを確認したため、
+//   「最新状態を読み直してまだ空きがあれば再挑戦する」という上限付きループ
+//   （MAX_JOIN_ATTEMPTS/MAX_PROMOTE_ATTEMPTS=20）に変更した。
 // ③playerCountフィールド新設前から開いていた既存ルーム（このフィールドを持たない）では
 //   room.playerCountがundefinedになり、+1/-1がNaNになって書き込みが失敗し続ける穴が
 //   あった。room.players（実際の参加者一覧）のキー数を安全なフォールバックとして使う
@@ -110,21 +114,25 @@ export async function runOnlineBattleCapacityRaceRegressionTests() {
 
     const joinStart = source.indexOf("export async function joinRoom({ roomId, playerName }) {");
     assertEqual(joinStart !== -1, true, "joinRoom()が存在する（前提条件）");
-    const joinBody = source.slice(joinStart, joinStart + 5800);
+    const joinBody = source.slice(joinStart, joinStart + 5500);
     assertEqual(
       joinBody.includes("currentPlayerCount: getEffectivePlayerCount(room)") &&
         joinBody.includes('error?.code === "PERMISSION_DENIED"') &&
-        joinBody.includes("checkCapacity(retryRoom, uid)"),
+        joinBody.includes("checkCapacity(room, uid)"),
       true,
       "joinRoom()がreservePlayerSlot()へgetEffectivePlayerCount(room)を渡し、定員超過レースに負けた場合のPERMISSION_DENIEDを検知して再チェックできる"
     );
-    // 【独立レビューで指摘・是正②】読み直した結果、実際にはまだ空きがある場合は
-    // reservePlayerSlot()を再試行していることを確認する（再試行せず即failed扱いに
-    // していた退行を防ぐ）。
+    // 【独立レビューで指摘・是正②、さらに実機の8人同時参加テストで判明した追加是正】
+    // 「1回だけ再試行」では、実際には空きが余っているのに再試行の権利を使い切って
+    // write-failedになるケースがあったため、「まだ空きがあれば再挑戦し続ける」という
+    // 上限付きループに変更した。ループそのもの（for文とMAX_JOIN_ATTEMPTS）・PERMISSION_DENIED
+    // 時にcontinueで次の周回へ進むことの両方をソースレベルで確認する。
     assertEqual(
-      joinBody.includes("currentPlayerCount: getEffectivePlayerCount(retryRoom)"),
+      joinBody.includes("MAX_JOIN_ATTEMPTS") &&
+        /for\s*\(\s*let attempt = 0; attempt < MAX_JOIN_ATTEMPTS/.test(joinBody) &&
+        joinBody.includes("continue;"),
       true,
-      "joinRoom()のPERMISSION_DENIEDリトライ経路が、読み直して空きがあった場合にreservePlayerSlot()を再試行している"
+      "joinRoom()が、PERMISSION_DENIED時に1回きりの再試行ではなく上限付きループで再挑戦し続ける設計になっている"
     );
 
     const reserveStart = source.indexOf("async function reservePlayerSlot({ roomId, uid, playerName, alreadyJoined, currentPlayerCount }) {");
@@ -138,19 +146,22 @@ export async function runOnlineBattleCapacityRaceRegressionTests() {
 
     const promoteStart = source.indexOf("export async function promoteSpectatorToPlayer({ roomId, playerName }) {");
     assertEqual(promoteStart !== -1, true, "promoteSpectatorToPlayer()が存在する（前提条件）");
-    const promoteBody = source.slice(promoteStart, promoteStart + 5900);
+    const promoteBody = source.slice(promoteStart, promoteStart + 5100);
     assertEqual(
       promoteBody.includes("[`rooms/${roomId}/playerCount`]: getEffectivePlayerCount(room) + 1") &&
         promoteBody.includes('error?.code === "PERMISSION_DENIED"'),
       true,
       "promoteSpectatorToPlayer()が新規昇格時にplayerCountを+1し、定員超過レースに負けた場合のPERMISSION_DENIEDを検知できる"
     );
-    // 【独立レビューで指摘・是正②】promoteSpectatorToPlayer()側も同様に、読み直して
-    // 空きがあった場合は再試行していることを確認する。
+    // 【独立レビューで指摘・是正②、さらに実機の複数観戦者同時昇格テストで判明した追加是正】
+    // joinRoom()と同じ理由で、promoteSpectatorToPlayer()も「1回だけ再試行」ではなく
+    // 上限付きループで再挑戦し続ける設計になっていることを確認する。
     assertEqual(
-      promoteBody.includes("[`rooms/${roomId}/playerCount`]: getEffectivePlayerCount(retryRoom) + 1"),
+      promoteBody.includes("MAX_PROMOTE_ATTEMPTS") &&
+        /for\s*\(\s*let attempt = 0; attempt < MAX_PROMOTE_ATTEMPTS/.test(promoteBody) &&
+        promoteBody.includes("continue;"),
       true,
-      "promoteSpectatorToPlayer()のPERMISSION_DENIEDリトライ経路が、読み直して空きがあった場合に昇格を再試行している"
+      "promoteSpectatorToPlayer()が、PERMISSION_DENIED時に1回きりの再試行ではなく上限付きループで再挑戦し続ける設計になっている"
     );
 
     const kickStart = source.indexOf("export async function kickPlayer({ roomId, targetUid }) {");
