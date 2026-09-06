@@ -3505,14 +3505,32 @@ fieldset label.rule-option-card:has(input:checked) .rule-option-card-title::befo
 
 /* モーダルの中身。他の画面のようなガラスの透け感は使わず、不透明な背景で文字の読みやすさを優先する */
 /* 【2026-09-06新設、本人指示：実機フィードバック②】回答確認モーダル
-   （js/answerConfirmPrompt.js）の曲名部分だけ、他の見出しと見分けやすいよう強調する。 */
+   （js/answerConfirmPrompt.js）の曲名部分だけ、他の見出しと見分けやすいよう強調する。
+   【2026-09-06改訂・本人のiPhone実機報告：長い曲名でレイアウトが崩れる】以前は
+   「「曲名」で回答しますか？」を1つの文として横並びのままcenter寄せしていたため、
+   長い英語曲名（例：「Sweetest girl」）のとき、ブラウザが単語・かぎ括弧・末尾の
+   「で回答しますか？」まで区別なく折り返し、意味のまとまりを無視した不自然な分割に
+   なっていた。曲名部分（かぎ括弧込み）と末尾の定型文言を別ブロック（縦積み）に分け、
+   曲名だけが独立して2行まで自然に折り返せるようにし、末尾の定型文言は常に1行のまま
+   崩れないようにする。 */
 .answer-confirm-modal-title {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
   text-align: center;
-  word-break: break-word;
 }
 
-.answer-confirm-modal-title span {
+.answer-confirm-modal-title-song {
+  overflow-wrap: break-word;
+}
+
+.answer-confirm-modal-title-song span {
   color: var(--color-primary-dark);
+}
+
+.answer-confirm-modal-title-suffix {
+  white-space: nowrap;
 }
 
 .modal-card {

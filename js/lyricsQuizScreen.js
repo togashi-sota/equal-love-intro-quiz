@@ -66,7 +66,7 @@ import {
   initRevealAudioToggle,
 } from "./revealAudioPreference.js";
 import { playSongFromRandomPosition, stopAudio } from "./audio.js";
-import { bindPressReleaseAnswer } from "./answerButtonInteraction.js";
+import { promptAnswerConfirm } from "./answerConfirmPrompt.js";
 
 // 正解/不正解の演出（既存の.choice-buttonのis-correct/is-wrong）を見せてから次の問題へ進むまでの待ち時間。
 const ANSWER_FEEDBACK_DELAY_MS = 900;
@@ -686,9 +686,20 @@ function renderAnswerButtons(pool) {
     button.className = "choice-button lyrics-quiz-answer-button";
     button.textContent = song.title;
     button.dataset.songId = song.id;
-    // 【2026-11-XX改訂・本人指示：回答ボタンの操作性改善】タップ即確定ではなく、
-    // 押したままボタンの外へ指を逃がせばキャンセルできる方式に変更（js/answerButtonInteraction.js）。
-    bindPressReleaseAnswer(button, () => handleAnswerSelected(song.id, button));
+    // 【2026-09-06改訂・本人指示：誤タップ防止のため回答確認モーダルを導入】以前は
+    // bindPressReleaseAnswer（押したままボタンの外へ指を逃がせばキャンセルできる方式）を
+    // 使っていたが、スクロール中の誤回答・ネイティブclickのすり抜け等、実機で複数回
+    // 不具合が発生していた。オフライン歌詞クイズは対戦と違って回答速度が成績に関係しない
+    // ため、js/instantChallengeScreen.js・js/onlineInstantBattleScreen.js等の非速度系
+    // モードと同じ「候補タップ→確認モーダル→『回答する』で初めて確定」という、より安全な
+    // 設計（js/answerConfirmPrompt.js共用）へ統一する。候補タップの時点ではスコア・
+    // 履歴・問題進行を一切確定しない（＝candidate tap ≠ answer submit）。
+    // hasAnsweredCurrentQuestionのチェックはjs/instantChallengeScreen.jsと同じ理由
+    // （確認モーダルが開いている間に既に別経路で回答確定していても、ここで安全に弾く）。
+    button.addEventListener("click", () => {
+      if (hasAnsweredCurrentQuestion) return;
+      promptAnswerConfirm(song.title, () => handleAnswerSelected(song.id, button));
+    });
     questionElements.answerList.appendChild(button);
   });
 }
