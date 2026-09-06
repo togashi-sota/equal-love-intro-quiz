@@ -314,11 +314,18 @@ async function handleAcceptClick() {
       elements.bannerError.hidden = false;
     }
   } else {
-    removeMyInvite(topInvite.roomId);
     if (elements.bannerError) {
       elements.bannerError.textContent = "ルームへの参加に失敗しました（ルームが終了している可能性があります）。";
       elements.bannerError.hidden = false;
     }
+    // 【2026-09-06修正・最終QAフェーズの実機テストで発見】以前はここで即座に
+    // removeMyInvite()していたが、Firebase側の削除がonValue()の再描画へ伝播すると
+    // renderBanner()がtopInviteを見失ってバナーごと閉じてしまい、上で今まさに
+    // 表示したエラー文を利用者が読む間もなく一緒に消えてしまっていた（「満員」以外の
+    // 恒久的な失敗理由が、実質的に一度も見えないのと同じ状態だった）。エラー文を
+    // 読む時間を確保するため、実際の削除を数秒遅らせる（動作確認済み：エラー表示自体は
+    // renderBanner()の中でこの直後に即座に行われ、削除だけがここで4秒遅延する）。
+    setTimeout(() => removeMyInvite(topInvite.roomId), 4000);
   }
   renderBanner();
 }
