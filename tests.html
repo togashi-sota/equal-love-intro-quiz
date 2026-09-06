@@ -169,6 +169,7 @@
     import { runAudioIndexedDbErrorRegressionTests } from "./tests/audioIndexedDbErrorRegression.test.js";
     import { runOnlineBattleCapacitySecurityRulesTests } from "./tests/onlineBattleCapacitySecurityRules.test.js";
     import { runOnlineBattleCapacityRaceRegressionTests } from "./tests/onlineBattleCapacityRaceRegression.test.js";
+    import { runLocalBattleResultTests } from "./tests/localBattleResult.test.js";
     import { runAnswerButtonInteractionTests } from "./tests/answerButtonInteraction.test.js";
     import { runOnlineBattleRoomIdTests } from "./tests/onlineBattleRoomId.test.js";
     import { runPresencePayloadsTests } from "./tests/presencePayloads.test.js";
@@ -309,6 +310,7 @@
     await runAudioIndexedDbErrorRegressionTests();
     runOnlineBattleCapacitySecurityRulesTests();
     await runOnlineBattleCapacityRaceRegressionTests();
+    runLocalBattleResultTests();
     runAnswerButtonInteractionTests();
     runOnlineBattleRoomIdTests();
     runPresencePayloadsTests();
