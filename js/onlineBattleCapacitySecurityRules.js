@@ -35,8 +35,21 @@
 // される」という保証により、「参加者エントリだけ作られてplayerCountが更新
 // されない」という不整合は起こり得ない。
 
+// 【2026-09-06追記・独立レビューで指摘・是正】当初のFirebase Rules案は".write": "auth != null"
+// だけだったため、このルームの参加者でも観戦者でもない無関係な認証済みユーザーが単独で
+// playerCountだけを書き換えられてしまい（±1・maxPlayers以下という.validateだけは通る）、
+// players一覧との整合性が崩れて定員超過が再発しうるという穴があった。実際のFirebase Rules
+// （firebase/database.rules.jsonのplayerCount）には、書き込み元を「このルームの
+// 書き込み後の参加者」または「このルームの書き込み前の参加者」のどちらかに限定する
+// 認可条件を追加した（players/$uidの.write権限を持つのは常にその本人か、キックする
+// ホストのどちらかであり、その全パターンを過不足なくカバーする）。この認可条件は
+// canWritePlayerCount()のfuzzテストとは別に、tests/onlineBattleCapacityRaceRegression.test.js
+// でルールファイルの実際の文言を確認している。
+
 // rooms/$roomId/playerCountへの書き込み可否（新規参加・観戦者昇格・退出・キックの
-// どれも、最終的にこの1つの検証を通る）。
+// どれも、最終的にこの1つの検証を通る）。この関数は.validateの検証内容だけを再現する
+// （.writeの認可条件＝「呼び出し元が実際にこのルームの参加者かどうか」は、
+// tests/onlineBattleCapacityRaceRegression.test.jsで別途、実際のルール文言を確認する）。
 //
 // previousCount: 書き込み直前の、サーバーが実際に保持しているplayerCountの値
 //   （undefined/nullなら「まだこのフィールドが存在しない」＝ルーム作成時の初回書き込み）。

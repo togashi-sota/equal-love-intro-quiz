@@ -119,4 +119,80 @@ export function runOnlineBattleCapacitySecurityRulesTests() {
       `「最終人数は定員を超えない」「成功人数は空き枠数を超えない」「空き枠が足りていれば全員成功する」が全トライアルで成立する` +
       `（詳細はconsole.error参照。1件目: ${failures[0] ? JSON.stringify(failures[0]) : "なし"}）`
   );
+
+  // ===== fuzz2（2026-09-06追加・独立レビューで指摘・是正）=====
+  // 上のfuzzは、各joinerが提案する値を常に「その時点の最新currentCount」から
+  // その都度計算し直しており、この修正が本来防ぐべき「複数人が同じ古い読み取り値を
+  // 見て、同じ提案値でconflictする」という本物の同時実行レース—CASのズレ判定
+  // （newCount !== previousCount±1）による拒否—を一度も踏んでいなかった（成功人数の
+  // 上限は、専らmaxPlayers境界チェックの分岐だけで実現されていた）。
+  // このfuzz2は、「N人が同じ古いスナップショットから同じnewCountを提案する」という
+  // より実機に近い同時参加を再現し、①CASのズレによる拒否が実際に発生すること
+  // （＝この修正の核心部分が本当にテストされていること）②同じ提案値である以上、
+  // 成功できるのは高々1人であること、の2点を検査する。
+  const random2 = createSeededRandom(FUZZ_SEED + 1);
+  const failures2 = [];
+  let staleRejectionCount = 0;
+  let capRejectionCount = 0;
+
+  for (let trial = 0; trial < TRIAL_COUNT; trial++) {
+    const maxPlayers = 1 + Math.floor(random2() * 9); // 1〜9人
+    const initialCount = Math.floor(random2() * maxPlayers); // 0〜maxPlayers-1人が既に在室
+    const waveSize = 2 + Math.floor(random2() * 8); // 2〜9人が「真に同時」に参加を試みる
+
+    // 全員がルームの状態を読み取った「その瞬間」のスナップショット（以降、誰も
+    // 読み直さずに一斉に書き込みを試みる＝実機の「真の同時実行」テストと同じ状況）。
+    const staleSnapshot = initialCount;
+    let currentCount = initialCount;
+    let successCount = 0;
+
+    for (let i = 0; i < waveSize; i++) {
+      const proposedNewCount = staleSnapshot + 1; // 全員が同じ古い値から同じ+1を提案する
+      const allowed = canWritePlayerCount({
+        authUid: `wave-${trial}-${i}`,
+        previousCount: currentCount,
+        newCount: proposedNewCount,
+        maxPlayers,
+      });
+      if (allowed) {
+        currentCount = proposedNewCount;
+        successCount++;
+      } else if (proposedNewCount > maxPlayers) {
+        capRejectionCount++;
+      } else {
+        staleRejectionCount++;
+      }
+    }
+
+    // 【不変条件1】最終人数は定員を絶対に超えない。
+    if (currentCount > maxPlayers) {
+      failures2.push({ trial, reason: `最終人数(${currentCount})が定員(${maxPlayers})を超えた`, maxPlayers, initialCount, waveSize });
+    }
+    // 【不変条件2】全員が同じ提案値である以上、成功できるのは高々1人のはず
+    // （2人以上が成功したなら、CASのズレ検知が機能していない＝この修正の根幹が壊れている）。
+    if (successCount > 1) {
+      failures2.push({ trial, reason: `同じ古い値からの同一提案なのに${successCount}人が成功した`, maxPlayers, initialCount, waveSize });
+    }
+  }
+
+  if (failures2.length > 0) {
+    console.error(`onlineBattleCapacitySecurityRulesTests(fuzz2): ${failures2.length}件の不変条件違反を検出（seed=${FUZZ_SEED + 1}）`, failures2.slice(0, 10));
+  }
+  assertEqual(
+    failures2.length,
+    0,
+    `シード${FUZZ_SEED + 1}による${TRIAL_COUNT}件の「同じ古い値から同時提案」シミュレーションで、` +
+      `「最終人数は定員を超えない」「同一提案での成功者は高々1人」が全トライアルで成立する` +
+      `（詳細はconsole.error参照。1件目: ${failures2[0] ? JSON.stringify(failures2[0]) : "なし"}）`
+  );
+  // 【最重要】このfuzz2自体が「CASのズレによる拒否」という、この修正の核心部分を
+  // 実際に踏んでいることを確認する（踏んでいなければ、上の不変条件チェック自体が
+  // 無意味になってしまうため）。
+  assertEqual(
+    staleRejectionCount > 0,
+    true,
+    `fuzz2の${TRIAL_COUNT}トライアル中、CASのズレ（newCount !== previousCount±1）による拒否が` +
+      `少なくとも1回は発生している（実際: staleRejectionCount=${staleRejectionCount}, capRejectionCount=${capRejectionCount}）` +
+      `＝この修正が防ごうとしている本物の同時参加レースの拒否ロジックが、fuzzで実際に検証されている`
+  );
 }

@@ -433,6 +433,17 @@ function checkSpectatorCapacity(room, uid) {
 // 呼び出し元（joinRoom()・promoteSpectatorToPlayer()）は、事前チェック通過後にこの
 // playerCountのルールへ拒否された場合（＝本物の同時参加レースに負けた場合）を
 // PERMISSION_DENIEDとして個別にcatchし、最新状態を読み直して正確な理由（"full"）を返す。
+// 【2026-09-06追加・独立レビューで指摘された移行時の穴への対策】playerCountフィールドは
+// 今回新設したばかりのため、公開・デプロイの瞬間に既に開いていた（playerCountを持たない）
+// 古いルームでは値がundefinedになる。undefined + 1 / undefined - 1はNaNになりFirebaseへの
+// 書き込み自体が失敗するため、そのようなルームでは新規参加・観戦者昇格・退出・キックの
+// いずれも動かなくなってしまう。room.playersの実際のキー数を安全なフォールバックとして
+// 使うことで、フィールドが無い場合でも正しい値からの±1で自己修復できるようにする
+// （playerCountが既に存在する場合はそのまま使うため、通常時の挙動は変わらない）。
+function getEffectivePlayerCount(room) {
+  return typeof room?.playerCount === "number" ? room.playerCount : Object.keys(room?.players || {}).length;
+}
+
 async function reservePlayerSlot({ roomId, uid, playerName, alreadyJoined, currentPlayerCount }) {
   const playerRef = ref(database, `rooms/${roomId}/players/${uid}`);
   if (alreadyJoined) {
@@ -493,7 +504,7 @@ export async function joinRoom({ roomId, playerName }) {
       uid,
       playerName,
       alreadyJoined: capacity.alreadyJoined,
-      currentPlayerCount: room?.playerCount,
+      currentPlayerCount: getEffectivePlayerCount(room),
     });
   } catch (error) {
     // 【2026-09-06修正・長時間耐久検証「真の同時実行」テストで発見・本人指示による
@@ -515,9 +526,27 @@ export async function joinRoom({ roomId, playerName }) {
       const retryRoom = retrySnapshot?.exists() ? retrySnapshot.val() : null;
       const retryCapacity = checkCapacity(retryRoom, uid);
       if (!retryCapacity.ok) return { ok: false, reason: retryCapacity.reason };
-      // 読み直しても具体的な理由が特定できない想定外の拒否は、安全側として
-      // "full"ではなく通信エラー相当のwrite-failedにフォールバックする。
-      return { ok: false, reason: "write-failed" };
+      // 【2026-09-06追加・独立レビューで指摘】playerCountは単一フィールドのcompare-and-swap
+      // のため、定員超過とは無関係な別の同時書き込み（他の誰かのleave/kick/promote/join）が
+      // 割り込んだだけでも拒否されうる。読み直した結果「実際にはまだ空きがある」
+      // （retryCapacity.ok === true）なら、最新のplayerCountを元に1回だけ書き込みを
+      // 再試行する（無限リトライはしない。再試行も失敗した場合はwrite-failedへ）。
+      try {
+        await reservePlayerSlot({
+          roomId,
+          uid,
+          playerName,
+          alreadyJoined: retryCapacity.alreadyJoined,
+          currentPlayerCount: getEffectivePlayerCount(retryRoom),
+        });
+      } catch (retryError) {
+        return { ok: false, reason: "write-failed" };
+      }
+      // 再試行が成功したので、下の通常の成功時の後処理（ルール確認リセット・
+      // finalizeJoin等）へそのまま進む。
+      resetRuleConfirmationsIfConfirming({ roomId, room: retryRoom, joiningUid: uid });
+      finalizeJoin(roomId, playerName, uid);
+      return { ok: true, roomId };
     }
     return { ok: false, reason: "write-failed" };
   }
@@ -638,19 +667,20 @@ export async function promoteSpectatorToPlayer({ roomId, playerName }) {
     return { ok: false, reason: "full" };
   }
 
+  const newPlayerEntry = {
+    name: playerName,
+    isHost: false,
+    joinedAt: Date.now(),
+    connected: true,
+    ready: false,
+    readyForRevision: 0,
+    oshiMemberId: getMostOshiMemberId(),
+  };
   try {
     await update(ref(database), {
-      [`rooms/${roomId}/players/${uid}`]: {
-        name: playerName,
-        isHost: false,
-        joinedAt: Date.now(),
-        connected: true,
-        ready: false,
-        readyForRevision: 0,
-        oshiMemberId: getMostOshiMemberId(),
-      },
+      [`rooms/${roomId}/players/${uid}`]: newPlayerEntry,
       [`rooms/${roomId}/spectators/${uid}`]: null,
-      [`rooms/${roomId}/playerCount`]: room.playerCount + 1,
+      [`rooms/${roomId}/playerCount`]: getEffectivePlayerCount(room) + 1,
     });
   } catch (error) {
     // 【2026-09-06修正・長時間耐久検証「真の同時実行」テストで発見・本人指示による
@@ -667,9 +697,30 @@ export async function promoteSpectatorToPlayer({ roomId, playerName }) {
     if (error?.code === "PERMISSION_DENIED") {
       const retrySnapshot = await safeGetSnapshot(`rooms/${roomId}`);
       const retryRoom = retrySnapshot?.exists() ? retrySnapshot.val() : null;
-      if (retryRoom && Object.keys(retryRoom.players || {}).length >= retryRoom.maxPlayers) {
+      if (!retryRoom) return { ok: false, reason: "not-found" };
+      if (Object.keys(retryRoom.players || {}).length >= retryRoom.maxPlayers) {
         return { ok: false, reason: "full" };
       }
+      if (retryRoom.status !== ROOM_STATUS.WAITING) {
+        return { ok: false, reason: "not-waiting" };
+      }
+      // 【2026-09-06追加・独立レビューで指摘】playerCountは単一フィールドのcompare-and-swap
+      // のため、定員超過とは無関係な別の同時書き込み（他の誰かのleave/kick/join/promote）が
+      // 割り込んだだけでも拒否されうる。読み直した結果「実際にはまだ空きがある」なら、
+      // 最新のplayerCountを元に1回だけ書き込みを再試行する（無限リトライはしない）。
+      try {
+        await update(ref(database), {
+          [`rooms/${roomId}/players/${uid}`]: newPlayerEntry,
+          [`rooms/${roomId}/spectators/${uid}`]: null,
+          [`rooms/${roomId}/playerCount`]: getEffectivePlayerCount(retryRoom) + 1,
+        });
+      } catch (retryError) {
+        return { ok: false, reason: "write-failed" };
+      }
+      startPresenceTracking(roomId, uid, "players");
+      startActivityPresenceTracking(roomId, uid, "players");
+      resetRuleConfirmationsIfConfirming({ roomId, room: retryRoom, joiningUid: uid });
+      return { ok: true };
     }
     return { ok: false, reason: "write-failed" };
   }
@@ -747,7 +798,7 @@ export async function leaveRoom({ roomId }) {
         const updates = {
           [`rooms/${roomId}/host`]: nextHostUid,
           [`rooms/${roomId}/players/${uid}`]: null,
-          [`rooms/${roomId}/playerCount`]: room.playerCount - 1,
+          [`rooms/${roomId}/playerCount`]: getEffectivePlayerCount(room) - 1,
         };
         if (shouldCancelRematch) updates[`rooms/${roomId}/confirmingRematch`] = false;
         await update(ref(database), updates);
@@ -755,13 +806,13 @@ export async function leaveRoom({ roomId }) {
     } else if (shouldCancelRematch) {
       await update(ref(database), {
         [`rooms/${roomId}/players/${uid}`]: null,
-        [`rooms/${roomId}/playerCount`]: room.playerCount - 1,
+        [`rooms/${roomId}/playerCount`]: getEffectivePlayerCount(room) - 1,
         [`rooms/${roomId}/confirmingRematch`]: false,
       });
     } else {
       await update(ref(database), {
         [`rooms/${roomId}/players/${uid}`]: null,
-        [`rooms/${roomId}/playerCount`]: room.playerCount - 1,
+        [`rooms/${roomId}/playerCount`]: getEffectivePlayerCount(room) - 1,
       });
     }
   } catch (error) {
@@ -1080,13 +1131,13 @@ export async function kickPlayer({ roomId, targetUid }) {
     if (shouldCancelRematch) {
       await update(ref(database), {
         [`rooms/${roomId}/players/${targetUid}`]: null,
-        [`rooms/${roomId}/playerCount`]: room.playerCount - 1,
+        [`rooms/${roomId}/playerCount`]: getEffectivePlayerCount(room) - 1,
         [`rooms/${roomId}/confirmingRematch`]: false,
       });
     } else {
       await update(ref(database), {
         [`rooms/${roomId}/players/${targetUid}`]: null,
-        [`rooms/${roomId}/playerCount`]: room.playerCount - 1,
+        [`rooms/${roomId}/playerCount`]: getEffectivePlayerCount(room) - 1,
       });
     }
   } catch (error) {

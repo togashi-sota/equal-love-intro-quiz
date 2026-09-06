@@ -80,7 +80,7 @@
         },
 
         "playerCount": {
-          ".write": "auth != null",
+          ".write": "auth != null && (root.child('rooms/' + $roomId + '/players').hasChild(auth.uid) || data.parent().child('players').hasChild(auth.uid))",
           ".validate": "newData.isNumber() && newData.val() <= root.child('rooms/' + $roomId + '/maxPlayers').val() && (!data.exists() || newData.val() === data.val() + 1 || newData.val() === data.val() - 1)"
         },
 
