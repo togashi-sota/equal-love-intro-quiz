@@ -399,9 +399,24 @@ function checkSpectatorCapacity(room, uid) {
 // また、ルーム全体を対象にすると「ホストだけが設定を書き換えられる」というセキュリティルールと
 // 両立しない（参加者はルーム全体への書き込み権限を持たないため）。
 // 本人と相談のうえ、「参加人数を確認してから、自分の枠だけ直接書き込む」というシンプルな
-// 方式に変更した。ごく稀に「満員ちょうどのタイミングで2人が同時に参加すると、一瞬だけ
-// 定員を1人超える」可能性が理論上残るが、友達内で遊ぶ規模では実害がほぼ無いと判断し、
-// 安定性・保守性を優先した（本人合意済み、2026-08-08）。
+// 方式に変更した（この読む→書くの間隔は、下記の追記のとおりFirebase Rules側で別途守っている）。
+//
+// 【2026-09-06追記・長時間耐久検証「真の同時実行」テストで発見・本人指示による最優先修正】
+// 上のクライアント側の人数確認だけでは、複数人が本当に同時に参加すると全員が同じ
+// 「まだ空きがある」という古い読み取り結果を見てしまい、定員を超えて全員参加できてしまう
+// ことを実機で確認した（2人部屋に2人が同時参加で4/4回とも3人になる・5枠に8人同時参加で
+// 9人になる等、当初の「一瞬だけ1人超える程度」という想定より遥かに高頻度・大幅な超過）。
+// runTransaction()は上記の理由で依然として避けつつ、この関数の直接の書き込み先である
+// rooms/$roomId/players/$uidのFirebase Rules（.validate）に「新規追加のときだけ、
+// 書き込み後の人数がmaxPlayersを超えないこと」というroot参照ベースの検証を追加した。
+// Firebase Realtime Databaseのルール評価時のroot参照は「この書き込みが適用された後の
+// 状態」を表すため、サーバー側で1件ずつ順に確定・評価されることで、runTransaction()を
+// 使わずに本当の意味での定員超過防止を実現できる（questionClaims/{questionIndex}/winnerの
+// write-once判定と全く同じ、既にこのアプリで実績のある仕組み）。この関数自体（クライアント側の
+// 事前チェック＋自分の枠だけ書き込む構造）は変更していない——実際の安全性の担保だけを
+// Firebase Rules側に追加した。呼び出し元（joinRoom()・promoteSpectatorToPlayer()）は、
+// 事前チェック通過後にこのルールへ拒否された場合（＝本物の同時参加レースに負けた場合）を
+// 個別にcatchし、最新状態を読み直して正確な理由（"full"）を返す。
 async function reservePlayerSlot({ roomId, uid, playerName, alreadyJoined }) {
   const playerRef = ref(database, `rooms/${roomId}/players/${uid}`);
   if (alreadyJoined) {
@@ -452,6 +467,30 @@ export async function joinRoom({ roomId, playerName }) {
   try {
     await reservePlayerSlot({ roomId, uid, playerName, alreadyJoined: capacity.alreadyJoined });
   } catch (error) {
+    // 【2026-09-06修正・長時間耐久検証「真の同時実行」テストで発見・本人指示による
+    // 最優先修正】以前はここの事前チェック（上のcheckCapacity()）だけで満員判定をしており、
+    // 「読む→人数確認→書く」がトランザクション無しだったため、複数人が本当に同時に
+    // 参加すると全員が同じ「まだ空きがある」という古い読み取り結果を見てしまい、
+    // 定員を超えて全員参加できてしまっていた（2人部屋に2人が同時参加で4/4回とも
+    // 3人になる等、実機で高頻度の再現を確認）。
+    // 対策として、firebase/database.rules.jsonのrooms/$roomId/players/$uidに
+    // 「新規追加のときだけ、書き込み後の人数がmaxPlayersを超えないこと」という
+    // Firebase Realtime Database自身による原子的な検証を追加した（ルールのroot参照は
+    // 「この書き込みが適用された後の状態」を表すため、複数の同時書き込みでも
+    // サーバー側で1件ずつ順に確定・検証されることで、本当の意味で定員超過を防げる）。
+    // このtry/catchは、事前チェックは通過したが実際の書き込み時点でこの新しいルールに
+    // 拒否された（＝直前に他の人が最後の枠を取った、本物の同時参加レースに負けた）場合を
+    // 拾う。js/lyricsQuizBattleFirebase.jsのsubmitLyricsQuizAnswer()と同じ考え方で、
+    // 拒否直後に最新状態を読み直し、可能な限り正確な理由（大抵は"full"）を返す。
+    if (error?.code === "PERMISSION_DENIED") {
+      const retrySnapshot = await safeGetSnapshot(`rooms/${roomId}`);
+      const retryRoom = retrySnapshot?.exists() ? retrySnapshot.val() : null;
+      const retryCapacity = checkCapacity(retryRoom, uid);
+      if (!retryCapacity.ok) return { ok: false, reason: retryCapacity.reason };
+      // 読み直しても具体的な理由が特定できない想定外の拒否は、安全側として
+      // "full"ではなく通信エラー相当のwrite-failedにフォールバックする。
+      return { ok: false, reason: "write-failed" };
+    }
     return { ok: false, reason: "write-failed" };
   }
 
@@ -585,6 +624,23 @@ export async function promoteSpectatorToPlayer({ roomId, playerName }) {
       [`rooms/${roomId}/spectators/${uid}`]: null,
     });
   } catch (error) {
+    // 【2026-09-06修正・長時間耐久検証「真の同時実行」テストで発見・本人指示による
+    // 最優先修正】上のjoinRoom()と全く同じ理由・同じ対策。この関数も「読む→人数確認→
+    // 書く」がトランザクション無しだったため、複数の観戦者が本当に同時に昇格を試みると
+    // 全員が同じ古い人数を見てしまい、定員を超えて全員昇格できてしまっていた
+    // （実機で確認：残り1枠に観戦者4人が同時昇格し5人になる等）。
+    // firebase/database.rules.jsonのrooms/$roomId/players/$uidに追加した、
+    // 「新規追加のときだけ書き込み後の人数がmaxPlayersを超えないこと」という
+    // Firebase Realtime Database自身による原子的な検証により、事前チェックを
+    // 通過していても実際の書き込み時点で拒否されることがある（＝本物の同時昇格
+    // レースに負けた）。その場合は最新状態を読み直し、正確な理由を返す。
+    if (error?.code === "PERMISSION_DENIED") {
+      const retrySnapshot = await safeGetSnapshot(`rooms/${roomId}`);
+      const retryRoom = retrySnapshot?.exists() ? retrySnapshot.val() : null;
+      if (retryRoom && Object.keys(retryRoom.players || {}).length >= retryRoom.maxPlayers) {
+        return { ok: false, reason: "full" };
+      }
+    }
     return { ok: false, reason: "write-failed" };
   }
   startPresenceTracking(roomId, uid, "players");

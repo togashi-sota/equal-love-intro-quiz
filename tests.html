@@ -167,6 +167,8 @@
     import { runOnlineBattleMatchConfirmationPayloadsTests } from "./tests/onlineBattleMatchConfirmationPayloads.test.js";
     import { runAudioTests } from "./tests/audio.test.js";
     import { runAudioIndexedDbErrorRegressionTests } from "./tests/audioIndexedDbErrorRegression.test.js";
+    import { runOnlineBattleCapacitySecurityRulesTests } from "./tests/onlineBattleCapacitySecurityRules.test.js";
+    import { runOnlineBattleCapacityRaceRegressionTests } from "./tests/onlineBattleCapacityRaceRegression.test.js";
     import { runAnswerButtonInteractionTests } from "./tests/answerButtonInteraction.test.js";
     import { runOnlineBattleRoomIdTests } from "./tests/onlineBattleRoomId.test.js";
     import { runPresencePayloadsTests } from "./tests/presencePayloads.test.js";
@@ -305,6 +307,8 @@
     // 集計（printSummary）より前に必ず完了を待つ。
     await runAudioTests();
     await runAudioIndexedDbErrorRegressionTests();
+    runOnlineBattleCapacitySecurityRulesTests();
+    await runOnlineBattleCapacityRaceRegressionTests();
     runAnswerButtonInteractionTests();
     runOnlineBattleRoomIdTests();
     runPresencePayloadsTests();
