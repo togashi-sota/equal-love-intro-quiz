@@ -139,6 +139,7 @@ import {
 import { initTimeAttackHistoryScreen, renderTimeAttackHistoryScreen } from "./timeAttackHistoryScreen.js";
 import { submitTimeAttackScoreIfBetter, backfillTimeAttackLeaderboardIfNeeded } from "./timeAttackLeaderboardSync.js";
 import { saveRankingCandidateIfBetter } from "./rankingCandidateStore.js";
+import { initRankingCandidateAutoSync } from "./rankingCandidateAutoSync.js";
 import {
   initTimeAttackLeaderboardScreen,
   showTimeAttackLeaderboard,
@@ -4283,7 +4284,7 @@ function renderResult() {
             if (!result.ok) {
               const messageByReason = {
                 "privacy-disabled": "「フレンド」を公開するとランキングに参加できます",
-                offline: "オフラインのため、ランキングへの送信はできませんでした",
+                offline: "記録を端末に保存しました。オンラインに戻ると自動的にランキングへ反映されます。",
                 error: "ランキングへの送信に失敗しました",
                 "invalid-record": "1問でも間違えると、公開ランキングには反映されません（自己ベストには保存済みです）",
                 "unsupported-dimension": "このカテゴリーはランキング対象外です（表題曲のみ・表題曲＋全員曲が対象）",
@@ -4477,7 +4478,7 @@ function renderResult() {
         if (!result.ok) {
           const messageByReason = {
             "privacy-disabled": "「フレンド」を公開するとランキングに参加できます",
-            offline: "オフラインのため、ランキングへの送信はできませんでした",
+            offline: "記録を端末に保存しました。オンラインに戻ると自動的にランキングへ反映されます。",
             error: "ランキングへの送信に失敗しました",
             "invalid-record": "1問でも間違えると、公開ランキングには反映されません（自己ベストには保存済みです）",
             "unsupported-dimension": "このカテゴリーはランキング対象外です（表題曲のみ・表題曲＋全員曲が対象）",
@@ -5687,7 +5688,7 @@ initTimeAttackResultScreen({
       if (!result.ok) {
         const messageByReason = {
           "privacy-disabled": "「フレンド」を公開するとランキングに参加できます",
-          offline: "オフラインのため、ランキングへの送信はできませんでした",
+          offline: "記録を端末に保存しました。オンラインに戻ると自動的にランキングへ反映されます。",
           error: "ランキングへの送信に失敗しました",
           "invalid-record": "1問でも間違えると、公開ランキングには反映されません（自己ベストには保存済みです）",
           "unsupported-dimension": "このカテゴリーはランキング対象外です（表題曲のみ・表題曲＋全員曲が対象）",
@@ -5943,7 +5944,7 @@ initRandomPlaybackResultScreen({
       if (!result.ok) {
         const messageByReason = {
           "privacy-disabled": "「フレンド」を公開するとランキングに参加できます",
-          offline: "オフラインのため、ランキングへの送信はできませんでした",
+          offline: "記録を端末に保存しました。オンラインに戻ると自動的にランキングへ反映されます。",
           error: "ランキングへの送信に失敗しました",
           "invalid-record": "1問でも間違えると、公開ランキングには反映されません（自己ベストには保存済みです）",
           "unsupported-dimension": "このカテゴリーはランキング対象外です（表題曲のみ・表題曲＋全員曲が対象）",
@@ -7746,6 +7747,13 @@ onScreenChange((screenName) => {
 });
 
 initServiceWorker();
+
+// 【2026-09-06新設・本人指示：圏外プレイ結果をランキングへ自動反映】
+// js/rankingCandidateAutoSync.js参照。起動時・オンライン復帰時・フォアグラウンド復帰時に、
+// 未送信だったランキング候補（js/rankingCandidateStore.js）を自動的に再送信する。
+initRankingCandidateAutoSync({
+  toastElement: document.getElementById("ranking-auto-sync-toast"),
+});
 
 // 【2026-08-29追加、本人指示】ページ読み込み時に「直前の読み込みで自動更新を適用した」
 // フラグ（UPDATE_APPLIED_FLAG_KEY、tryApplyPendingUpdate()参照）が立っていれば、

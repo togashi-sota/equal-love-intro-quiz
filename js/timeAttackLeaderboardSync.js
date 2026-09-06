@@ -262,8 +262,17 @@ export async function fetchMyTimeAttackLeaderboardEntry(variant, questionCountVa
 // （rankingCandidateStore.js側は「読むだけ」で、この関数からは何も削除しない設計にしている）。
 // 次にこの関数が呼ばれた機会に、同じ候補がまた比較・送信の対象になる。
 //
+// 【2026-09-06追加・本人指示：圏外プレイ結果の自動再送信】この関数はjs/main.jsから
+// オンライン復帰イベント・画面フォアグラウンド復帰・アプリ起動時など複数のタイミングで
+// 呼ばれるようになった（js/rankingCandidateAutoSync.js参照）。ほぼ同時に複数回呼ばれても
+// （例：オンライン復帰と同時にvisibilitychangeも発火する等）、同じ候補を並行して何度も
+// Firebaseへ問い合わせに行かないよう、実行中は新しい呼び出しを即座に無視する
+// single-flightロックを設ける。取りこぼしはない（ロック中に来た呼び出しは何もせず
+// 早期returnするだけで、次にこの関数が呼ばれた機会にまた同じ候補が対象になるため）。
+let isSyncInFlight = false;
+
 // 戻り値: { attempted, updated, failed }（呼び出し側のUI表示用の件数サマリー）。
-// 公開設定がOFFのまま呼ばれた場合・オフラインの場合は、何も送信せず全て0で返す。
+// 公開設定がOFFのまま呼ばれた場合・オフラインの場合・既に実行中の場合は、何も送信せず全て0で返す。
 export async function syncRankingCandidatesToFirebase(playerKeyPrefix) {
   if (!isPublicProfileSharingEnabled(playerKeyPrefix)) {
     return { attempted: 0, updated: 0, failed: 0 };
@@ -271,27 +280,35 @@ export async function syncRankingCandidatesToFirebase(playerKeyPrefix) {
   if (isOffline()) {
     return { attempted: 0, updated: 0, failed: 0 };
   }
-
-  const candidates = getAllRankingCandidateBests();
-  let updated = 0;
-  let failed = 0;
-  for (const candidate of candidates) {
-    const result = await submitTimeAttackScoreIfBetter({
-      variant: candidate.variant,
-      rule: candidate.rule,
-      source: candidate.source,
-      questionCountValue: candidate.questionCountValue,
-      categoryFilterValue: candidate.categoryFilterValue,
-      clearTimeMs: candidate.clearTimeMs,
-      missCount: candidate.missCount,
-      playerKeyPrefix,
-      actualQuestionCount: candidate.actualQuestionCount,
-    });
-    if (result.ok) {
-      if (result.updated) updated += 1;
-    } else {
-      failed += 1;
-    }
+  if (isSyncInFlight) {
+    return { attempted: 0, updated: 0, failed: 0 };
   }
-  return { attempted: candidates.length, updated, failed };
+
+  isSyncInFlight = true;
+  try {
+    const candidates = getAllRankingCandidateBests();
+    let updated = 0;
+    let failed = 0;
+    for (const candidate of candidates) {
+      const result = await submitTimeAttackScoreIfBetter({
+        variant: candidate.variant,
+        rule: candidate.rule,
+        source: candidate.source,
+        questionCountValue: candidate.questionCountValue,
+        categoryFilterValue: candidate.categoryFilterValue,
+        clearTimeMs: candidate.clearTimeMs,
+        missCount: candidate.missCount,
+        playerKeyPrefix,
+        actualQuestionCount: candidate.actualQuestionCount,
+      });
+      if (result.ok) {
+        if (result.updated) updated += 1;
+      } else {
+        failed += 1;
+      }
+    }
+    return { attempted: candidates.length, updated, failed };
+  } finally {
+    isSyncInFlight = false;
+  }
 }

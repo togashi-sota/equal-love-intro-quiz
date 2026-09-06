@@ -6218,6 +6218,12 @@
     </div>
   </div>
 
+  <!-- 【2026-09-06新設・本人指示：圏外プレイ結果の自動反映通知】js/rankingCandidateAutoSync.js
+       が、オンライン復帰時などに未送信だったランキング記録を自動送信できた場合だけ、
+       この控えめなトーストで知らせる。他のモーダルと同じ理由で.game-frameの外・bodyの
+       直下に置き、常に画面の実際の位置に表示する。 -->
+  <div id="ranking-auto-sync-toast" class="ranking-auto-sync-toast" hidden></div>
+
   <!-- ES Modulesを使うため type="module" が必須。ローカルサーバー経由でないと動かない -->
   <script type="module" src="js/main.js"></script>
 </body>

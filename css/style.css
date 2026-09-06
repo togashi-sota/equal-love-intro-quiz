@@ -522,6 +522,37 @@ body[data-screen="onlineBattleSongPicker"] .game-frame {
   padding: 0;
 }
 
+/* 【2026-09-06新設・本人指示：圏外プレイ結果の自動反映通知】オンライン復帰時などに
+   未送信だったランキング記録を自動送信できたことを知らせる、控えめなトースト。
+   ミニプレイヤーと同じ理由で.game-frameの外・bodyの直下に置き、常に画面下端付近に表示する。
+   z-indexはミニプレイヤー（12）より前面、モーダル（20）より背面にする
+   （モーダル表示中に重なって邪魔にならないよう、あくまで控えめな通知にとどめる）。 */
+.ranking-auto-sync-toast {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: max(14px, env(safe-area-inset-bottom));
+  z-index: 15;
+  margin: 0 auto;
+  max-width: 448px;
+  padding: 12px 18px;
+  border-radius: 999px;
+  background: var(--color-surface-glass);
+  backdrop-filter: blur(var(--blur-glass)) saturate(150%);
+  -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(150%);
+  border: 1px solid var(--color-card-border);
+  box-shadow: var(--shadow-card);
+  color: var(--color-text);
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-align: center;
+  pointer-events: none;
+}
+
+.ranking-auto-sync-toast[hidden] {
+  display: none;
+}
+
 /* 連続再生のミニプレイヤー。他のモーダルと同じ理由で.game-frameの外・bodyの直下に置き、
    常に画面の実際の下端に固定表示する（.game-frameのbackdrop-filterの影響を受けない）。
    z-indexは背景演出（0）・.game-frame（2）より前面、モーダル（20）より背面にする。 */
