@@ -1,0 +1,57 @@
+name: Deploy to GitHub Pages
+
+# masterブランチへのpush、またはActionsタブからの手動実行をトリガーにする。
+# dev/・tests/・tests.htmlはリポジトリには残したまま、
+# 公開されるWebページ(GitHub Pages)からだけ除外してデプロイする。
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+# 同時に複数のデプロイが走らないようにする(前のデプロイ中に新しいpushが来たら、
+# 前のものは中断して最新のpush内容を優先する)。
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+# GitHub Pagesへのデプロイに必要な権限。
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: リポジトリを取得
+        uses: actions/checkout@v4
+
+      - name: 公開しないフォルダ・ファイルを除外する
+        # ここで削除しても、削除されるのは今回のデプロイ用に一時的に
+        # チェックアウトされたコピーだけ。リポジトリ本体(Git管理下のファイル)は
+        # 一切変更されない。
+        run: |
+          rm -rf dev
+          rm -rf tests
+          rm -f tests.html
+
+      - name: Pages用の設定
+        uses: actions/configure-pages@v5
+
+      - name: 公開用データをアップロード
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: .
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: GitHub Pagesへデプロイ
+        id: deployment
+        uses: actions/deploy-pages@v4
