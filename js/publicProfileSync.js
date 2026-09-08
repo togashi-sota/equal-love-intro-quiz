@@ -190,7 +190,16 @@ export function syncFriendPresenceToActivePlayer() {
         startFriendPresenceTracking();
       }
     } else {
-      if (!hasActiveFriendPresenceTracking()) return; // 既に正しい状態
+      // 【自己修復・本人指示】ここでhasActiveFriendPresenceTracking()による早期returnを
+      // 行わない。isTrackingはページを開くたびにfalseから始まるメモリ上だけの値のため、
+      // 「このセッションで一度もtrackingを始めていない」ことは「Firebase上にもう
+      // presenceが残っていない」ことを意味しない。過去のセッションでdeleteFriendPresence()
+      // の通信が失敗し、presence/{uid}が消えないまま残ってしまった場合、公開設定がOFFで
+      // ある限り毎回ここでstop・削除を試みることで、次にアプリを開いたとき・
+      // プレイヤーを切り替えたときに自動的に片付く（実機不具合の再発防止、2026-09-09）。
+      // stopFriendPresenceTracking()・deleteFriendPresence()はどちらも「消すものが
+      // 既に無い」状態で呼んでも安全（前者は全箇所がnullチェック済み、後者はFirebase側で
+      // 存在しないパスへのremoveが無害なため）。
       stopFriendPresenceTracking();
       await deleteFriendPresence();
     }

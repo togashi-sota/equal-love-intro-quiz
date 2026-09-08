@@ -188,6 +188,7 @@
     import { runServiceWorkerCacheCompletenessTests } from "./tests/serviceWorkerCacheCompleteness.test.js";
     import { runPresenceUnhandledRejectionRegressionTests } from "./tests/presenceUnhandledRejectionRegression.test.js";
     import { runPresenceStage1RegressionTests } from "./tests/presenceStage1Regression.test.js";
+    import { runPresenceSecurityRulesTests } from "./tests/presenceSecurityRules.test.js";
     import { printSummary } from "./tests/test-utils.js";
 
     runScoreTests();
@@ -286,6 +287,7 @@
     await runServiceWorkerCacheCompletenessTests();
     await runPresenceUnhandledRejectionRegressionTests();
     await runPresenceStage1RegressionTests();
+    runPresenceSecurityRulesTests();
     runRankingCandidateStoreTests();
     runCenterCelebrationTests();
     runYoutubeThumbnailTests();

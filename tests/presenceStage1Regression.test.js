@@ -27,8 +27,11 @@ export async function runPresenceStage1RegressionTests() {
   );
   assertEqual(
     presenceRules?.["$uid"]?.[".write"],
-    "auth != null && auth.uid === $uid && root.child('publicProfiles/' + $uid).exists()",
-    "presence書き込みは、本人のuidかつpublicProfiles/{uid}が存在する場合だけ許可する"
+    "auth != null && auth.uid === $uid && (!newData.exists() || root.child('publicProfiles/' + $uid).exists())",
+    "presence書き込みは、本人のuidが条件。新規作成/更新はpublicProfiles/{uid}が存在する" +
+      "場合だけ許可し、削除（!newData.exists()）はpublicProfilesの有無に関係なく許可する" +
+      "（2026-09-09追記・本人指示：削除までpublicProfiles存在必須にすると、先にpublicProfilesが" +
+      "消えた場合にpresenceを二度と削除できなくなる『詰み』状態が実機で再現したため修正）"
   );
 
   // ===== js/presenceSync.js：停止処理でonDisconnect予約を明示的にcancelしているか =====
@@ -106,6 +109,41 @@ export async function runPresenceStage1RegressionTests() {
     enabledFnBody.includes("if (success)") && enabledFnBody.includes("startFriendPresenceTracking()"),
     true,
     "ON時は、publicProfileの作成・確認に成功した場合だけstartFriendPresenceTracking()を呼ぶ"
+  );
+
+  // 【自己修復・2026-09-09追加】syncFriendPresenceToActivePlayer()のOFF側（else分岐）が、
+  // 「このセッションで既にtrackingを開始していた場合だけ」停止・削除する早期returnを
+  // 持たないこと（＝公開OFFであれば、過去のセッションの残骸であっても毎回stop・削除を
+  // 試みる作りになっていること）を確認する。実機で、presence削除の通信が一度失敗すると
+  // 二度と自動的には消えなくなる不具合が見つかったため、この自己修復を追加した経緯がある。
+  const syncFnStart = publicProfileSyncSource.indexOf("export function syncFriendPresenceToActivePlayer");
+  assertEqual(syncFnStart !== -1, true, "syncFriendPresenceToActivePlayer()の定義が見つかる（前提条件）");
+  const syncFnEnd = publicProfileSyncSource.indexOf(
+    "// TOP10ランキング",
+    syncFnStart
+  );
+  assertEqual(syncFnEnd !== -1, true, "syncFriendPresenceToActivePlayer()の後に次のセクションが続く（前提条件）");
+  const syncFnBody = publicProfileSyncSource.slice(syncFnStart, syncFnEnd);
+
+  const elseIndex = syncFnBody.indexOf("} else {");
+  assertEqual(elseIndex !== -1, true, "syncFriendPresenceToActivePlayer()にOFF側のelse分岐がある（前提条件）");
+  const elseBranchBody = syncFnBody.slice(elseIndex);
+
+  // 【前提条件】説明コメント中に関数名だけが登場すること自体は問題ないため（実際、今回の
+  // 自己修復を追加した経緯を説明するコメント中に関数名が出てくる）、実際の「呼び出して
+  // 早期returnする」形（ ...()) return ）だけを対象にする。js/main.jsの
+  // startFriendPresenceTracking()呼び出し検出と同じ考え方。
+  assertEqual(
+    /hasActiveFriendPresenceTracking\(\)\)\s*return/.test(elseBranchBody),
+    false,
+    "OFF側の分岐に「このセッションで既に追跡していたか」による早期returnが残っていない" +
+      "（残っていると、過去のセッションの残骸presenceを次回起動時に自己修復できないため）"
+  );
+  assertEqual(
+    elseBranchBody.includes("stopFriendPresenceTracking()") && elseBranchBody.includes("deleteFriendPresence()"),
+    true,
+    "OFF側の分岐は、条件なしでstopFriendPresenceTracking()とdeleteFriendPresence()の" +
+      "両方を必ず試みる（自己修復設計）"
   );
 
   // ===== js/main.js：起動時の無条件呼び出しが廃止され、連動する呼び出しに置き換わっているか =====
