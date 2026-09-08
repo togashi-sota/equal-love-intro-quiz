@@ -289,8 +289,7 @@ import {
   claimTransferCode,
   scheduleBackupSync,
 } from "./backupSync.js";
-import { syncPublicProfileIfEnabled } from "./publicProfileSync.js";
-import { startFriendPresenceTracking } from "./presenceSync.js";
+import { syncPublicProfileIfEnabled, syncFriendPresenceToActivePlayer } from "./publicProfileSync.js";
 import { getFavoriteSongIds } from "./favoriteSongs.js";
 import { getPlaylists } from "./playlists.js";
 import { initPlaylistScreen, renderPlaylistList, renderPlaylistDetail } from "./playlistScreen.js";
@@ -2176,11 +2175,15 @@ initMembersScreen({
   },
 });
 
-// 【2026-11-XX新設・本人指示：フレンドのオンライン状態】アプリを開いている間ずっと、
-// 自分のpresence（presence/{uid}）を維持する。認証待ちを含む非同期処理だが、ここでは
+// 【Stage1・本人指示：presence Stage1（公開プロフィールOFFユーザーへのpresence
+// 書き込み停止）】以前はここで無条件にstartFriendPresenceTracking()を呼んでいたが、
+// 「公開プロフィールをOFFにしている人のオンライン状態まで書き込まれてしまう」という
+// 設定と実際の動作のズレを解消するため、現在アクティブなプレイヤーの公開設定を
+// 確認したうえで開始要否を判断するsyncFriendPresenceToActivePlayer()
+// （js/publicProfileSync.js）へ置き換えた。認証待ちを含む非同期処理だが、ここでは
 // 呼び捨てにする（起動シーケンス全体をこれで止めない。失敗してもフレンド一覧の
 // オンライン表示に影響するだけで、他の機能には一切影響しない設計）。
-startFriendPresenceTracking();
+syncFriendPresenceToActivePlayer();
 
 // 「みんなのプロフィール」画面：公開設定トグル・一覧・詳細モーダル（2026-08-07新設）。
 initFanProfilesScreen(
@@ -2333,6 +2336,14 @@ initPlayerScreen(
       handleContinuousPlayerChanged();
       // スタート画面タイルのお気に入り・プレイリスト数も、新しいプレイヤーのものに更新する。
       updateListenTileCounts();
+      // 【Stage1・本人指示】presence（フレンド一覧用オンライン状態）はFirebase匿名認証の
+      // UID単位（端末に1つ）で書き込まれる一方、公開プロフィールのON/OFF設定は
+      // プレイヤーごとに別々に保存されている。そのため、同じ端末で「公開ONのプレイヤー」
+      // →「公開OFFのプレイヤー」のように切り替えた場合にpresenceの開始・停止が
+      // 自動では再評価されず、切り替え後も直前のプレイヤーの設定のままpresenceが
+      // 書き込まれ続けてしまう問題があった。切り替え後の新しいアクティブプレイヤーの
+      // 設定に合わせて、ここでpresence trackingの開始/停止を明示的に合わせ直す。
+      syncFriendPresenceToActivePlayer();
     },
   },
   MEMBERS

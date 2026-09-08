@@ -124,8 +124,13 @@ export async function startFriendPresenceTracking() {
   }
 }
 
-// テスト・将来の明示的な後始末のために用意する（現状、通常のアプリ利用では
-// ページを開いている間ずっと呼び続けたままでよく、明示的に停止する必要はない）。
+// 【Stage1・本人指示】公開プロフィールをOFFにしたとき、および同じ端末で公開OFFの
+// プレイヤーへ切り替えたときに呼ぶ（js/publicProfileSync.jsのsyncFriendPresenceToActivePlayer()・
+// setPublicProfileSharingEnabled()参照）。connections子ノードの削除に加えて、
+// armPresenceForUid()がlastSeen・isPlayingへ予約したonDisconnect自体もここで明示的に
+// cancel()する。cancelしないまま放置すると、その後何らかの理由でこのタブが切断された
+// ときに、既に停止・削除したはずのpresenceへ古いonDisconnect予約が発火してしまう
+// 可能性があるため（本人指示：「OFF後に古いonDisconnect予約が残らないようにする」）。
 export function stopFriendPresenceTracking() {
   if (infoConnectedUnsubscribe) {
     infoConnectedUnsubscribe();
@@ -136,12 +141,34 @@ export function stopFriendPresenceTracking() {
     lastSeenHeartbeatTimerId = null;
   }
   if (currentConnectionRef) {
+    onDisconnect(currentConnectionRef).cancel().catch(() => {});
     remove(currentConnectionRef).catch(() => {});
     currentConnectionRef = null;
+  }
+  if (trackedUid) {
+    onDisconnect(ref(database, `presence/${trackedUid}/lastSeen`)).cancel().catch(() => {});
+    onDisconnect(ref(database, `presence/${trackedUid}/isPlaying`)).cancel().catch(() => {});
   }
   trackedUid = null;
   lastWrittenIsPlaying = null;
   isTracking = false;
+}
+
+// 【Stage1・本人指示】presence/{uid}を丸ごと削除する。公開プロフィールをOFFにしたときに、
+// stopFriendPresenceTracking()の直後（まだpublicProfiles/{uid}が存在するうちに。
+// firebase/database.rules.jsonのpresence書き込みルールは「publicProfiles/{uid}が
+// 存在すること」を書き込み条件にする予定のため、削除する順番はpublicProfiles削除より
+// 必ず先にする必要がある）に呼ぶ想定。js/publicProfileSync.jsのdeletePublicProfile()と
+// 対になる、presence側の削除関数。
+export async function deleteFriendPresence() {
+  try {
+    await authReady;
+    const uid = getCurrentUid();
+    if (!uid) return;
+    await remove(ref(database, `presence/${uid}`));
+  } catch (error) {
+    console.warn("presenceの削除に失敗しました", error);
+  }
 }
 
 export function hasActiveFriendPresenceTracking() {

@@ -187,6 +187,7 @@
     import { runStealRaceArbitrationFuzzTests } from "./tests/stealRaceArbitrationFuzz.test.js";
     import { runServiceWorkerCacheCompletenessTests } from "./tests/serviceWorkerCacheCompleteness.test.js";
     import { runPresenceUnhandledRejectionRegressionTests } from "./tests/presenceUnhandledRejectionRegression.test.js";
+    import { runPresenceStage1RegressionTests } from "./tests/presenceStage1Regression.test.js";
     import { printSummary } from "./tests/test-utils.js";
 
     runScoreTests();
@@ -284,6 +285,7 @@
     runStealRaceArbitrationFuzzTests();
     await runServiceWorkerCacheCompletenessTests();
     await runPresenceUnhandledRejectionRegressionTests();
+    await runPresenceStage1RegressionTests();
     runRankingCandidateStoreTests();
     runCenterCelebrationTests();
     runYoutubeThumbnailTests();

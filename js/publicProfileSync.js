@@ -25,7 +25,7 @@ import {
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 import { database, authReady, getCurrentUid } from "./firebaseClient.js";
-import { getActivePlayer } from "./playerProfile.js";
+import { getActivePlayer, getPlayerKeyPrefix } from "./playerProfile.js";
 import { getMostOshiMemberId } from "./oshiMembers.js";
 import { getAchievementListSnapshot, getOshiBadgeState } from "./achievementProgress.js";
 import {
@@ -34,6 +34,16 @@ import {
   buildPublicProfilePayload,
   normalizePublicProfileEntry,
 } from "./publicProfilePayloads.js";
+// 【Stage1・本人指示：presence書き込みをフレンド一覧の公開設定へ連動させる】
+// js/presenceSync.jsはこのファイル（js/publicProfileSync.js）を一切importしていないため
+// （firebaseClient.js・screens.js・presencePayloads.jsのみに依存する末端モジュール）、
+// この向きのimportを追加しても循環importにはならないことを事前に確認済み。
+import {
+  startFriendPresenceTracking,
+  stopFriendPresenceTracking,
+  deleteFriendPresence,
+  hasActiveFriendPresenceTracking,
+} from "./presenceSync.js";
 
 export { isRunningAsInstalledPwa, isPublicProfileSharingEnabled } from "./publicProfilePayloads.js";
 
@@ -57,24 +67,30 @@ let lastSyncedPayloadJson = null;
 // 公開設定がONのときだけ、現在のローカル状態をpublicProfiles/{uid}へ同期する。
 // 呼び出し側を絶対にブロックしない（awaitせず呼び捨てにされる想定）。認証待ち・通信失敗は
 // すべてこの関数の中で吸収し、コンソール警告だけを出す。
+// 【Stage1・本人指示で追加】戻り値（true/false）は、既存の呼び出し側（await せず
+// 呼び捨てにしている箇所）には一切影響しない後方互換の追加。新設の
+// applyPublicProfileSharingEnabled()が「公開プロフィールの作成・確認が実際に
+// できたときだけpresence trackingを開始する」ために、この戻り値を利用する。
 export async function syncPublicProfileIfEnabled(playerKeyPrefix) {
-  if (!isPublicProfileSharingEnabled(playerKeyPrefix)) return;
+  if (!isPublicProfileSharingEnabled(playerKeyPrefix)) return false;
 
   try {
     const payload = buildPublicProfilePayload(collectCurrentProfileMaterials());
     const payloadJson = JSON.stringify(payload);
-    if (payloadJson === lastSyncedPayloadJson) return; // 前回と内容が同じなら書き込まない
+    if (payloadJson === lastSyncedPayloadJson) return true; // 前回と内容が同じなら書き込まないが、同期済みとして扱う
 
     await authReady;
     const uid = getCurrentUid();
-    if (!uid) return;
+    if (!uid) return false;
 
     await set(ref(database, `publicProfiles/${uid}`), { ...payload, updatedAt: serverTimestamp() });
     lastSyncedPayloadJson = payloadJson;
+    return true;
   } catch (error) {
     // 本人指示：Firebase更新に失敗しても、称号取得・プレイ自体は失敗扱いにしない。
     // 次回の同期タイミング（次のプレイ後、次回起動時など）に再同期される。
     console.warn("公開プロフィールの同期に失敗しました（ローカルのプレイには影響ありません）", error);
+    return false;
   }
 }
 
@@ -93,15 +109,92 @@ export async function deletePublicProfile() {
   }
 }
 
+// 【Stage1・本人指示】presence関連の一連の処理（開始・停止・削除、公開プロフィールの
+// 作成・削除）を、呼ばれた順番どおりに1つずつ実行するための直列化キュー。
+// 「短時間でON→OFF→ONと切り替えた場合」「アプリ起動時の判定と、直後のプレイヤー
+// 切り替えが重なった場合」等に、複数の非同期処理が同時に進んでFirebaseへの書き込み順が
+// 入れ替わってしまう（＝最終的な状態が意図と逆転してしまう）ことを防ぐ。
+// キュー自体は絶対にreject（失敗）しない設計にしてあり、1つの処理が失敗しても
+// 後続の処理は必ず実行される。
+let presenceSettingsQueue = Promise.resolve();
+
+function queuePresenceSettingsTask(task) {
+  presenceSettingsQueue = presenceSettingsQueue.then(
+    () =>
+      task().catch((error) => {
+        console.warn("presence関連の同期処理でエラーが発生しました", error);
+      }),
+    () => task().catch((error) => {
+      console.warn("presence関連の同期処理でエラーが発生しました", error);
+    })
+  );
+  return presenceSettingsQueue;
+}
+
+// 公開設定をONにした場合の後始末：公開プロフィールを作成・確認できたときだけ、
+// presence trackingを開始する（本人指示：「publicProfile作成に失敗した場合は、
+// presenceだけ開始されないようにする」）。
+async function applyPublicProfileSharingEnabled(playerKeyPrefix) {
+  const success = await syncPublicProfileIfEnabled(playerKeyPrefix);
+  if (success) {
+    startFriendPresenceTracking();
+  }
+}
+
+// 公開設定をOFFにした場合の後始末。順番が重要：
+// ①presence tracking停止＋onDisconnect予約解除（js/presenceSync.jsのstopFriendPresenceTracking()）
+// ②presence/{uid}を削除（まだpublicProfiles/{uid}が存在するうちに行う。Firebase Rules
+//   （Stage1で追加予定）がpresence書き込みの条件に「publicProfiles/{uid}が存在すること」を
+//   使うため、先にpublicProfilesを消すとpresence削除自体が拒否されうる）
+// ③publicProfiles/{uid}を削除
+async function applyPublicProfileSharingDisabled() {
+  stopFriendPresenceTracking();
+  await deleteFriendPresence();
+  await deletePublicProfile();
+}
+
 // 公開設定のON/OFFを切り替える。ONにした瞬間は即座に同期し、OFFにした瞬間は
 // 即座に削除する（本人指示：「一度ONにした後でもOFFへ戻せる」「OFFにした場合は削除」）。
+// 【Stage1で変更】実際の後始末（公開プロフィールの作成・削除、presence trackingの
+// 開始・停止・削除）はqueuePresenceSettingsTask()を経由して直列に実行する。
+// この関数自体の呼び出し方（同期関数として、awaitせず呼び捨てにできる）は
+// 既存の呼び出し側（js/fanProfilesScreen.js）に合わせて変更していない。
 export function setPublicProfileSharingEnabled(playerKeyPrefix, enabled) {
   writeEnabledFlag(playerKeyPrefix, enabled);
   if (enabled) {
-    syncPublicProfileIfEnabled(playerKeyPrefix);
+    queuePresenceSettingsTask(() => applyPublicProfileSharingEnabled(playerKeyPrefix));
   } else {
-    deletePublicProfile();
+    queuePresenceSettingsTask(() => applyPublicProfileSharingDisabled());
   }
+}
+
+// 【Stage1・本人指示で新設】「現在アクティブなプレイヤーの公開設定」に、presence
+// trackingの状態を合わせ直す。以下の3箇所から呼ばれる想定：
+//   ①アプリ起動時（js/main.js、以前のstartFriendPresenceTracking()無条件呼び出しの代わり）
+//   ②同じ端末でのプレイヤー切り替え直後（js/main.jsのonPlayerChanged）
+//   ③バックアップ・機種変更コードでの復元後（js/main.js側でwindow.location.reload()が
+//     必ず行われるため、実際にはこの関数を明示的に呼び直す追加コードは不要。
+//     reload後の①の起動時呼び出しがそのまま復元後の設定を反映する）
+// 公開プロフィール自体の作成・削除はここでは行わない（プレイヤー切り替えのたびに
+// 他プレイヤーの公開プロフィールを勝手に消してしまわないようにするため）。
+// あくまで「今すでに始まっているpresence trackingを、今の設定に合わせて
+// 始める／止める」だけを行う、副作用の小さい調整用の関数。
+export function syncFriendPresenceToActivePlayer() {
+  return queuePresenceSettingsTask(async () => {
+    const playerKeyPrefix = getPlayerKeyPrefix();
+    const shouldTrack = isPublicProfileSharingEnabled(playerKeyPrefix);
+    if (shouldTrack) {
+      if (hasActiveFriendPresenceTracking()) return; // 既に正しい状態
+      const success = await syncPublicProfileIfEnabled(playerKeyPrefix);
+      if (success) {
+        startFriendPresenceTracking();
+      }
+    } else {
+      if (!hasActiveFriendPresenceTracking()) return; // 既に正しい状態
+      stopFriendPresenceTracking();
+      await deleteFriendPresence();
+    }
+  });
 }
 
 // TOP10ランキングの各行に、みんなのプロフィールと同じ王冠・ダイヤ装飾を表示するための、
