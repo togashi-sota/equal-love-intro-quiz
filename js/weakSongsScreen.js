@@ -247,10 +247,14 @@ function handleStart() {
   }
   if (currentMode === "instant") {
     // 【重要】一瞬タブだけは、出題数ぶんに絞り込んだsongIdsではなく対象曲全部
-    // （currentWeakSongs）を渡す。一瞬チャレンジの回答候補（4/10/全曲検索）は出題対象曲
-    // そのものから作られるため、出題数より少ない曲数を渡すと回答候補を作るための曲数が
-    // 足りなくなってしまう（js/instantChallengeScreen.jsのbuildAndStartRun()が、渡された
-    // 曲プールの中から実際に出題するquestionCount問を選ぶ設計のため）。
+    // （currentWeakSongs）を渡す。js/instantChallengeScreen.jsのbuildAndStartRun()が、
+    // 渡された曲プール（＝苦手曲全部）の中から実際に出題するquestionCount問を自分で
+    // 選ぶ設計のため、ここで先に絞り込んでしまうと「音源読み込み済みかどうかの再判定」や
+    // 出題数の決定が二重管理になってしまう。
+    // 【2026-09-09改訂】回答候補（4/10/全曲検索）自体は、以前は出題対象曲（苦手曲）
+    // そのものから作られていたが、本人指示によりdistractorMode: "all"を渡して「通常の
+    // 一瞬チャレンジで利用可能な全曲」から作られるように修正した
+    // （js/instantChallengeScreen.jsのstartInstantChallengeWeakSongsPractice参照）。
     const playDurationValue = document.querySelector('input[name="weak-songs-instant-play-duration"]:checked').value;
     const answerPoolSizeValue = document.querySelector('input[name="weak-songs-instant-answer-pool-size"]:checked').value;
     const allWeakSongIds = currentWeakSongs.map((song) => song.id);

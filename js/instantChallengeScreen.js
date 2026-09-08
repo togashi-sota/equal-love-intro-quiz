@@ -181,9 +181,18 @@ export async function retryInstantChallengeRun() {
 // 通常の開始（handleStartButtonClick）と違う。設定画面のUIはjs/weakSongsScreen.js側の
 // 専用fieldset（再生時間・回答方式・出題数）を使うため、このファイルの設定画面
 // （#instant-challenge-setup-screen）は経由しない。
+// 【2026-09-09改訂・本人指示：苦手曲モード全体の出題プールと回答候補プールの設計統一】
+// distractorMode: "all"（オリジナル問題作成モードの「全曲」選択と同じ既存の値）を渡すことで、
+// buildAndStartRun()内の「distractorPool＝カテゴリー全体（音源読み込み済みのみ）」という
+// 既存の分岐をそのまま使う。これにより、出題される正解曲は苦手曲だけのまま、回答候補
+// （ダミー選択肢）だけは通常の一瞬チャレンジで利用可能な全曲から選ばれるようになる
+// （本人指示：「苦手曲だけを出題するのであって、苦手曲だけを回答候補にするモードでは
+// ない」）。以前はここでdistractorModeを渡していなかったため、buildAndStartRun()の
+// 分岐がdistractorPool＝pool（苦手曲そのもの）を選んでしまい、苦手曲が4曲未満の場合
+// 「4択を選んでも回答候補が苦手曲数までしか出ない」実機バグの直接原因になっていた。
 export async function startInstantChallengeWeakSongsPractice(songIds, settings) {
   practiceModeId = "weakSongsInstant";
-  return buildAndStartRun({ ...settings, categoryFilterValue: "weakSongs" }, songIds);
+  return buildAndStartRun({ ...settings, categoryFilterValue: "weakSongs", distractorMode: "all" }, songIds);
 }
 
 // オリジナル問題作成モード・一瞬チャレンジタイプからの開始（2026-08-30新設、本人指示：後半②）。

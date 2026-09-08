@@ -70,6 +70,10 @@
       runInstantChallengeMinSongsRequiredTests,
     } from "./tests/instantChallengeAnswerPool.test.js";
     import { runRevealAudioPlayUntilEndedTests } from "./tests/revealAudioPlayUntilEnded.test.js";
+    import {
+      runWeakSongsAnswerPoolEngineTests,
+      runWeakSongsAnswerPoolWiringRegressionTests,
+    } from "./tests/weakSongsAnswerPoolRegression.test.js";
     import { runOnlineBattleRulesContentTests } from "./tests/onlineBattleRulesContent.test.js";
     import { runLyricsQuizRunStateTests } from "./tests/lyricsQuizRunState.test.js";
     import { runLyricsQuizScoreTests } from "./tests/lyricsQuizScore.test.js";
@@ -208,6 +212,7 @@
     runLyricsQuizQuestionBuilderTests();
     runInstantChallengeAnswerPoolTests();
     runInstantChallengeMinSongsRequiredTests();
+    runWeakSongsAnswerPoolEngineTests();
     runOnlineBattleRulesContentTests();
     runLyricsQuizRunStateTests();
     runLyricsQuizScoreTests();
@@ -314,6 +319,7 @@
     await runAudioTests();
     await runAudioIndexedDbErrorRegressionTests();
     await runRevealAudioPlayUntilEndedTests();
+    await runWeakSongsAnswerPoolWiringRegressionTests();
     runOnlineBattleCapacitySecurityRulesTests();
     await runOnlineBattleCapacityRaceRegressionTests();
     runLocalBattleResultTests();

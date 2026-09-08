@@ -236,10 +236,13 @@ export async function retryLyricsQuizRun() {
 // 戻り値：実際に開始できたかどうか（呼び出し側が、開始できなかった場合に案内を出せる
 // ようにするため。この画面自身のstartErrorはここでは表示されない別画面からの呼び出しのため）。
 // distractorMode（2026-10-01追加・本人指示：正解プールと不正解候補プールの分離）：
-// 省略時（苦手曲モードBの練習）は今までどおり曲IDそのものが回答候補の母集団にもなる。
-// オリジナル問題作成モードの歌詞クイズタイプから渡された場合は、選んだ曲（正解の出題対象）
-// とは別に、このカテゴリー全体（表題曲のみ/表題曲＋全員曲/全曲）を回答候補の母集団にする
-// （js/main.jsのbeginCustomQuiz()等、他のオリジナル問題作成タイプと同じ設計）。
+// 選んだ曲（正解の出題対象）とは別に、指定カテゴリー全体（表題曲のみ/表題曲＋全員曲/全曲）を
+// 回答候補の母集団にする（js/main.jsのbeginCustomQuiz()等、他のオリジナル問題作成タイプと
+// 同じ設計）。省略時（null）だけ、今までどおり曲IDそのものが回答候補の母集団にもなる。
+// 【2026-09-09改訂・本人指示：苦手曲モード全体の出題プールと回答候補プールの設計統一】
+// 苦手曲モードBの練習（js/main.jsのbeginWeakSongsLyricsPractice）は"all"（全曲）を渡す
+// ように改訂した。以前はここを省略しており、苦手曲が4曲未満だと回答候補も苦手曲数までしか
+// 出ないバグ（苦手曲モード「一瞬」と同型）を抱えていたため。
 export async function startManualSelectionLyricsQuizRun(songIds, answerPoolSizeValue, source, distractorMode = null) {
   currentRunSource = source;
   return buildAndStartRun({
@@ -283,12 +286,13 @@ async function buildAndStartRun(settings) {
     return false;
   }
 
-  // 【2026-10-01新設・本人指示：正解プールと不正解候補プールの分離】オリジナル問題作成
-  // モードの歌詞クイズタイプ（settings.distractorModeが渡された場合）だけ、回答候補
-  // （ダミー選択肢）の母集団を「選んだ曲だけ」ではなく「指定カテゴリー全体」にする
-  // （js/main.jsのbeginCustomQuiz()等、他のオリジナル問題作成タイプと同じ設計）。
-  // 苦手曲モードBの練習・通常の入り口（distractorModeを渡さない）は今までどおり
-  // songPool自身が回答候補の母集団になる。
+  // 【2026-10-01新設・本人指示：正解プールと不正解候補プールの分離】settings.distractorMode
+  // が渡された場合、回答候補（ダミー選択肢）の母集団を「選んだ曲だけ」ではなく「指定
+  // カテゴリー全体」にする（js/main.jsのbeginCustomQuiz()等、他のオリジナル問題作成
+  // タイプと同じ設計）。オリジナル問題作成モードの歌詞クイズタイプ・苦手曲モードBの練習
+  // （2026-09-09改訂でdistractorMode: "all"を渡すようにした）はこちらを通る。
+  // distractorModeを渡さない通常の入り口（カテゴリー絞り込みでの通常プレイ）だけは
+  // 今までどおりsongPool自身が回答候補の母集団になる。
   const distractorSongPool = settings.distractorMode
     ? filterSongsByCategory(SONGS, settings.distractorMode)
         .filter(isLyricsQuizEligibleSong)

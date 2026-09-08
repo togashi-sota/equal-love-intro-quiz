@@ -2759,8 +2759,15 @@ async function beginWeakSongsShufflePractice(songIds, questionCountValue) {
 // （js/lyricsQuizScreen.jsのstartManualSelectionLyricsQuizRun参照）。
 // 戻り値：実際に開始できたか（曲の歌詞データが後から削除された等で開始できない、
 // ごく稀なケースをjs/weakSongsScreen.js側が案内できるようにするため）。
+// 【2026-09-09改訂・本人指示：苦手曲モード全体の出題プールと回答候補プールの設計統一】
+// distractorMode: "all"を渡すことで、js/lyricsQuizScreen.jsのbuildAndStartRun()内の
+// 「distractorSongPool＝カテゴリー全体」という既存の分岐（オリジナル問題作成モードの
+// 歌詞クイズタイプと同じ仕組み）をそのまま使う。出題される正解曲は苦手曲だけのまま、
+// 回答候補（ダミー選択肢）だけは通常の歌詞クイズで利用可能な全曲から選ばれるようになる。
+// 以前はここでdistractorModeを渡していなかったため、苦手曲が4曲未満の場合に回答候補が
+// 苦手曲数までしか出ない問題（苦手曲モード「一瞬」と同型のバグ）を抱えていた。
 async function beginWeakSongsLyricsPractice(songIds, answerPoolSizeValue) {
-  const started = await startManualSelectionLyricsQuizRun(songIds, answerPoolSizeValue, "weakSongPractice");
+  const started = await startManualSelectionLyricsQuizRun(songIds, answerPoolSizeValue, "weakSongPractice", "all");
   if (!started) return false;
   playSfx(SFX_EVENTS.GAME_START);
   updateLyricsQuizBackButtonLabel();
