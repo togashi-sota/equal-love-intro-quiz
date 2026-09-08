@@ -22,7 +22,7 @@
 // その条件（再生時間×回答候補数）のクリアとして js/instantChallengeClearStore.js へ記録する。
 // 称号・特殊ランキングの具体的な条件は今回決めない（本人指示）。
 import { resolveSongPool, QUESTION_SOURCE_TYPE } from "./questionSource.js";
-import { MIN_SONGS_REQUIRED, filterSongsByCategory } from "./quiz.js";
+import { filterSongsByCategory } from "./quiz.js";
 // 【2026-09-26追加・本人指示：サウンドシステム全面整備7章】正解・不正解は他のクイズ
 // モードと同じ効果音で統一する。以前はこのモードだけSFXの呼び出しが1件もなく、
 // 完全に無音だった（本人指示の監査で発覚）。
@@ -31,7 +31,7 @@ import { SFX_EVENTS, playSfx } from "./soundManager.js";
 import { filterSongsWithImportedAudio } from "./audioStorage.js";
 import { SONGS } from "./data/songs.js";
 import { LARGE_ANSWER_POOL_THRESHOLD } from "./lyricsQuizEngine.js";
-import { buildInstantChallengeQuestion } from "./instantChallengeQuestionBuilder.js";
+import { buildInstantChallengeQuestion, resolveInstantChallengeMinSongsRequired } from "./instantChallengeQuestionBuilder.js";
 import { computeRandomStartTimeSec } from "./randomPlaybackEngine.js";
 import {
   createAnswerPoolBrowseState,
@@ -227,7 +227,11 @@ async function buildAndStartRun(settings, explicitSongIds = null) {
   elements.startError.hidden = true;
 
   const pool = await resolvePlayableSongPool(settings.categoryFilterValue, explicitSongIds);
-  if (pool.length < MIN_SONGS_REQUIRED) {
+  // 【QAで発見・修正：2026-09-09】苦手曲モード「一瞬」タブだけ、開始に必要な最低曲数を
+  // 緩和する（js/instantChallengeQuestionBuilder.jsのresolveInstantChallengeMinSongsRequired()
+  // 参照。判定ロジック自体はDOMに触れない純粋関数として切り出し、恒久テストで検証している）。
+  const minSongsRequired = resolveInstantChallengeMinSongsRequired(practiceModeId);
+  if (pool.length < minSongsRequired) {
     elements.startError.hidden = false;
     elements.startError.textContent =
       "音源を読み込んだ曲が足りません。スタート画面の「音源を読み込む」から追加するか、カテゴリの範囲を広げてください。";
@@ -564,13 +568,16 @@ function renderAnswerButtons(pool) {
 // ボタンを押せるようにする形にしていたが、今回「4秒後に自動で次へ進む」ことを正式仕様として
 // 確定する指示を受けたため、以前の「必ずボタンを押す」仕様をこの部分に限り上書きする
 // （試合終了後の「もう一度」「ルーム設定に戻る」等は今までどおり自動選択しない）。
+// 【2026-09-09改訂・本人指示：答え合わせ音源を最後まで聴けるようにする】この4秒
+// 自動進行は「音源OFF」の経路にだけ引き続き使う。音源ONのときは下のREVEAL_AUDIO_MAX_
+// DURATION_SECのコメントの通り、自動進行そのものを廃止した（ユーザーが「次へ」を
+// 押すまで待つ）。
 const AUTO_ADVANCE_DELAY_MS = 4000;
-// 【2026-11-XX新設・本人指示：最優先1・正解発表の音源ON/OFF】音源ONのときは、答え合わせ
-// 楽曲の再生時間（REVEAL_AUDIO_DURATION_SEC）に合わせて自動進行までの待ち時間を延ばす
-// （OFFのときは今までどおりAUTO_ADVANCE_DELAY_MSのまま）。
-const REVEAL_AUDIO_DURATION_SEC = 7;
-const REVEAL_AUDIO_AUTO_ADVANCE_DELAY_MS = REVEAL_AUDIO_DURATION_SEC * 1000;
 const REVEAL_AUDIO_NEXT_BUTTON_DELAY_MS = 500;
+// 【2026-09-09新設】答え合わせ楽曲に渡すplaySongFromRandomPosition()の再生時間上限。
+// js/lyricsQuizScreen.jsのREVEAL_AUDIO_MAX_DURATION_SECと同じ考え方（「最後まで再生する」
+// の実体は、この安全上限に達する前に音源そのものが自然に終わって止まること）。
+const REVEAL_AUDIO_MAX_DURATION_SEC = 600;
 let autoAdvanceTimerId = null;
 let revealAudioNextEnableTimeoutId = null;
 
@@ -601,18 +608,20 @@ function handleAnswerSelected(selectedSongId, buttonElement) {
   clearTimeout(revealAudioNextEnableTimeoutId);
 
   // 【2026-11-XX新設・本人指示：最優先1・正解発表の音源ON/OFF】ONのときだけ、この問題で
-  // 実際に出題した位置から答え合わせ楽曲を再生する（本人指示：「問題で使用した開始位置から、
-  // 答え合わせとして7秒」）。回答前には絶対に鳴らさない設計のため、必ずここ（回答確定後）で
-  // 初めて再生を始める。誤タップ防止のため、「次へ」ボタンは短い時間だけ無効化する。
+  // 実際に出題した位置から答え合わせ楽曲を再生する（本人指示：「問題で使用した開始位置
+  // から」）。回答前には絶対に鳴らさない設計のため、必ずここ（回答確定後）で初めて再生を
+  // 始める。誤タップ防止のため、「次へ」ボタンは短い時間だけ無効化する。
+  // 【2026-09-09改訂・本人指示：答え合わせ音源を最後まで聴けるようにする】以前はここに
+  // 「音源の再生時間に合わせて自動的に次の問題へ進む」タイマーがあったが、本人指示
+  // （「音源がendedになっても自動で次の問題へ進んではいけない」「ユーザーが次へを押すまで
+  // 待機」）により廃止した。音源ONのときは、ユーザーが「次へ」を押すまで自動では一切
+  // 進まない（放置しても、音源が鳴り終わっても、自動では進まない）。
   if (getInstantChallengeRevealAudioEnabled()) {
     playAnswerRevealAudio(question);
     questionElements.nextButton.disabled = true;
     revealAudioNextEnableTimeoutId = setTimeout(() => {
       questionElements.nextButton.disabled = false;
     }, REVEAL_AUDIO_NEXT_BUTTON_DELAY_MS);
-    autoAdvanceTimerId = setTimeout(() => {
-      advanceToNextQuestionOrFinish();
-    }, REVEAL_AUDIO_AUTO_ADVANCE_DELAY_MS);
     return;
   }
 
@@ -635,9 +644,11 @@ function handleAnswerSelected(selectedSongId, buttonElement) {
 }
 
 // 回答確定後、この問題で実際に出題した開始位置（seed・songId・questionIndexから
-// computeRandomStartTimeSec()で決定論的に求まる、出題時と全く同じ位置）から、答え合わせ
-// 楽曲をREVEAL_AUDIO_DURATION_SEC秒だけ再生する。曲の残りが足りない場合は、
-// playSongFromRandomPosition()自身の自然終了に任せる（js/lyricsQuizScreen.jsの
+// computeRandomStartTimeSec()で決定論的に求まる、出題時と全く同じ位置）から答え合わせ
+// 楽曲を再生する。
+// 【2026-09-09改訂・本人指示：答え合わせ音源を最後まで聴けるようにする】以前は固定7秒
+// だけ再生していたが、REVEAL_AUDIO_MAX_DURATION_SEC（安全上限）を渡すことで、音源
+// そのものが自然に終わるまで再生され続けるようにした（js/lyricsQuizScreen.jsの
 // playAnswerRevealAudio()と同じ設計）。
 function playAnswerRevealAudio(question) {
   const questionIndex = currentIndex;
@@ -647,7 +658,7 @@ function playAnswerRevealAudio(question) {
   playSongFromRandomPosition(
     question.song,
     computeStartTimeSec,
-    REVEAL_AUDIO_DURATION_SEC,
+    REVEAL_AUDIO_MAX_DURATION_SEC,
     (message) =>
       console.warn(
         "[一瞬チャレンジ] 答え合わせ楽曲の再生に失敗しました（演出のみのため進行には影響しません）",

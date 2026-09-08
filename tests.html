@@ -65,7 +65,11 @@
     import { runLyricsSegmentEngineTests } from "./tests/lyricsSegmentEngine.test.js";
     import { runLyricsQuizEngineTests } from "./tests/lyricsQuizEngine.test.js";
     import { runLyricsQuizQuestionBuilderTests } from "./tests/lyricsQuizQuestionBuilder.test.js";
-    import { runInstantChallengeAnswerPoolTests } from "./tests/instantChallengeAnswerPool.test.js";
+    import {
+      runInstantChallengeAnswerPoolTests,
+      runInstantChallengeMinSongsRequiredTests,
+    } from "./tests/instantChallengeAnswerPool.test.js";
+    import { runRevealAudioPlayUntilEndedTests } from "./tests/revealAudioPlayUntilEnded.test.js";
     import { runOnlineBattleRulesContentTests } from "./tests/onlineBattleRulesContent.test.js";
     import { runLyricsQuizRunStateTests } from "./tests/lyricsQuizRunState.test.js";
     import { runLyricsQuizScoreTests } from "./tests/lyricsQuizScore.test.js";
@@ -203,6 +207,7 @@
     runLyricsQuizEngineTests();
     runLyricsQuizQuestionBuilderTests();
     runInstantChallengeAnswerPoolTests();
+    runInstantChallengeMinSongsRequiredTests();
     runOnlineBattleRulesContentTests();
     runLyricsQuizRunStateTests();
     runLyricsQuizScoreTests();
@@ -308,6 +313,7 @@
     // 集計（printSummary）より前に必ず完了を待つ。
     await runAudioTests();
     await runAudioIndexedDbErrorRegressionTests();
+    await runRevealAudioPlayUntilEndedTests();
     runOnlineBattleCapacitySecurityRulesTests();
     await runOnlineBattleCapacityRaceRegressionTests();
     runLocalBattleResultTests();

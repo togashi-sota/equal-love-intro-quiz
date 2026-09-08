@@ -113,14 +113,21 @@ let elapsedTimerId = null;
 // 勝手に次の問題や結果画面へ進んでしまう（quitLyricsQuizRun()参照）。
 let pendingAnswerFeedbackTimeoutId = null;
 
-// 【2026-11-XX新設・本人指示：最優先1・正解発表の音源ON/OFF】答え合わせ楽曲を止める
-// setTimeoutの予約ID・「次へ」ボタンを解禁するsetTimeoutの予約ID。js/onlineLyricsQuizBattleScreen.js
-// のstartRevealMusic()と同じ「setTimeoutで止める・stopAudio()で確実に止める」の二重構造。
-let revealAudioStopTimeoutId = null;
+// 【2026-11-XX新設→2026-09-09改訂・本人指示：答え合わせ音源を最後まで聴けるようにする】
+// 以前は答え合わせ楽曲をREVEAL_AUDIO_DURATION_SEC（7秒）で強制停止していたが、本人指示
+// により「固定時間では止めず、音源そのものの終わりまで再生できる。止めるのは『次へ』を
+// 押した瞬間だけ」という仕様へ変更した。そのため「止めるためのタイマー」は廃止し、
+// 「次へ」ボタンを解禁するsetTimeoutの予約ID（誤タップ防止）だけが残る。
 let revealAudioNextEnableTimeoutId = null;
-// 答え合わせで曲を鳴らす場合の再生秒数・「次へ」ボタンを解禁するまでの誤タップ防止時間。
-const REVEAL_AUDIO_DURATION_SEC = 7;
+// 「次へ」ボタンを解禁するまでの誤タップ防止時間。
 const REVEAL_AUDIO_NEXT_BUTTON_DELAY_MS = 500;
+// 【2026-09-09新設】答え合わせ楽曲に渡すplaySongFromRandomPosition()の再生時間上限。
+// 「最後まで再生する」の実体は、この上限に達する前に音源そのものが自然に終わって
+// 止まること（playSongFromRandomPosition()は残り時間が上限に満たない場合、自然終了に
+// 任せる設計になっている）。この上限自体は「万一に備えた安全装置」であり、＝LOVEの
+// 実際の楽曲尺（数分程度）よりも十分大きい値にしてあるため、実用上は音源の末尾までしか
+// 再生されない。次へ押下時はこの秒数を待たず、その場でstopAudio()により即座に停止する。
+const REVEAL_AUDIO_MAX_DURATION_SEC = 600;
 
 // ===== 1. 設定画面 =====
 
@@ -818,14 +825,10 @@ function hideAnswerReveal() {
   stopAnswerRevealAudio();
 }
 
-// 【2026-11-XX新設・本人指示：最優先1・正解発表の音源ON/OFF】答え合わせ楽曲の再生・
-// 後片付けをまとめて行う。js/onlineLyricsQuizBattleScreen.jsのstartRevealMusic()と同じ
-// 「setTimeoutで止める・stopAudio()で確実に止める」の二重構造を踏襲している。
+// 【2026-11-XX新設→2026-09-09改訂】答え合わせ楽曲の再生・後片付けをまとめて行う。
+// 「止めるためのタイマー」は無くなったため（上のREVEAL_AUDIO_MAX_DURATION_SECのコメント
+// 参照）、ここではもう「次へ」ボタンの誤タップ防止タイマーの解除とstopAudio()だけを行う。
 function stopAnswerRevealAudio() {
-  if (revealAudioStopTimeoutId !== null) {
-    clearTimeout(revealAudioStopTimeoutId);
-    revealAudioStopTimeoutId = null;
-  }
   if (revealAudioNextEnableTimeoutId !== null) {
     clearTimeout(revealAudioNextEnableTimeoutId);
     revealAudioNextEnableTimeoutId = null;
@@ -833,19 +836,22 @@ function stopAnswerRevealAudio() {
   stopAudio();
 }
 
-// 回答確定時点で最後に見ていたヒント段階（viewingHintLevel）の歌詞開始位置から
-// REVEAL_AUDIO_DURATION_SEC秒だけ答え合わせ楽曲を再生する（本人指示：「回答時点の最後に
-// 開いたヒント位置から7秒」。オンライン対戦のstartRevealMusic()と同じ考え方）。
-// 曲の残りがREVEAL_AUDIO_DURATION_SEC秒に満たない場合は、playSongFromRandomPosition()
-// 自身の自然終了（音源が尽きて止まる）に任せる＝「残り時間だけ再生」を追加のロジック無しで
-// 実現できる（js/onlineLyricsQuizBattleScreen.jsのplaySongIntroFromOffset()と同じ設計）。
+// 回答確定時点で最後に見ていたヒント段階（viewingHintLevel）の歌詞開始位置から答え合わせ
+// 楽曲を再生する（本人指示：「回答時点の最後に開いたヒント位置から」。オンライン対戦の
+// startRevealMusic()と同じ考え方）。
+// 【2026-09-09改訂・本人指示：答え合わせ音源を最後まで聴けるようにする】以前はここで
+// REVEAL_AUDIO_DURATION_SEC（7秒）で強制停止していたが、その固定停止タイマーを廃止した。
+// playSongFromRandomPosition()へ渡す再生時間はREVEAL_AUDIO_MAX_DURATION_SEC（安全上限、
+// 実際の楽曲尺より十分大きい）にすることで、音源そのものが自然に終わるまで再生され続ける
+// （＝「音源ファイルの最後まで再生可能」という新しい仕様の実体）。停止するのは「次へ」を
+// 押してstopAnswerRevealAudio()が呼ばれた瞬間だけになる。
 function playAnswerRevealAudio(question) {
   const byLevel = question.revealStartTimeSecByHintLevel ?? {};
   const startTimeSec = byLevel[viewingHintLevel] ?? question.revealStartTimeSec ?? 0;
   playSongFromRandomPosition(
     question.song,
     (actualDurationSec) => Math.min(Math.max(startTimeSec, 0), Math.max(actualDurationSec - 0.5, 0)),
-    REVEAL_AUDIO_DURATION_SEC,
+    REVEAL_AUDIO_MAX_DURATION_SEC,
     (message) =>
       console.warn(
         "[歌詞クイズ] 答え合わせ楽曲の再生に失敗しました（演出のみのため進行には影響しません）",
@@ -854,16 +860,16 @@ function playAnswerRevealAudio(question) {
     () => {},
     () => {}
   );
-  revealAudioStopTimeoutId = setTimeout(() => {
-    revealAudioStopTimeoutId = null;
-    stopAudio();
-  }, REVEAL_AUDIO_DURATION_SEC * 1000);
 }
 
-// 正解確認カードを表示したうえで、答え合わせ楽曲を再生し、「次へ」ボタンを短い誤タップ防止
-// 時間（REVEAL_AUDIO_NEXT_BUTTON_DELAY_MS）だけ待ってから解禁する。7秒経つ前でも「次へ」を
-// 押せば即座に次の問題へ進める（本人指示：「7秒を待たず次問へ進めるようにしてください」）。
-// 7秒経っても押されなければ自動的に次へ進む（放置しても止まらない）。
+// 正解確認カードを表示したうえで、答え合わせ楽曲を再生する。「次へ」ボタンは短い誤タップ
+// 防止時間（REVEAL_AUDIO_NEXT_BUTTON_DELAY_MS）だけ待ってから解禁される。
+// 【2026-09-09改訂・本人指示：答え合わせ音源を最後まで聴けるようにする】以前はここに
+// 「7秒経っても『次へ』が押されなければ自動的に次の問題へ進む」という保険のタイマーが
+// あったが、本人指示（「音源がendedになっても自動で次の問題へ進んではいけない」「ユーザーが
+// 次へを押すまで待機」）により廃止した。音源を最後まで聴くかどうか・いつ次へ進むかは、
+// 完全にユーザー自身の「次へ」タップに委ねる（放置しても、音源が鳴り終わっても、自動では
+// 進まない）。
 function showAnswerRevealWithAudio(
   question,
   statusText,
@@ -876,13 +882,9 @@ function showAnswerRevealWithAudio(
   // 「次へ」ボタンの誤タップ防止時間はshowAnswerReveal()側に一本化済み（音源OFFの経路と共通化）。
   showAnswerReveal(question, statusText, isCorrect, isNeutral, myAnswerSongTitle, questionNumber, hintLevelUsed);
   playAnswerRevealAudio(question);
-
+  // 音源OFFの経路（scheduleAnswerFeedbackAdvance）から予約が残っている可能性に備え、
+  // 念のため解除しておく（この経路自体は新しく予約を入れない）。
   clearPendingAnswerFeedbackTimeout();
-  pendingAnswerFeedbackTimeoutId = setTimeout(() => {
-    pendingAnswerFeedbackTimeoutId = null;
-    if (questionElements.answerRevealNextButton.disabled) return; // 誤タップ防止時間中なら少し待つ
-    handleAnswerRevealNextButtonClick();
-  }, REVEAL_AUDIO_DURATION_SEC * 1000);
 }
 
 // 1問分の回答が確定した直後に必ず呼ぶ、進行方法の振り分け（本人指示・2026-11-XX新設：

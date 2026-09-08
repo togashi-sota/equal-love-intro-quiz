@@ -18,6 +18,26 @@ import {
   validateLyricsQuizQuestionAnswerPool,
   buildFallbackAnswerPool,
 } from "./lyricsQuizEngine.js";
+import { MIN_SONGS_REQUIRED } from "./quiz.js";
+
+// 【QAで発見・修正：2026-09-09】苦手曲モード「一瞬」タブ（practiceModeId === "weakSongsInstant"）
+// だけ、出題開始に必要な最低曲数を通常の4曲（MIN_SONGS_REQUIRED、正解1＋ダミー3）から
+// 2曲（正解1＋誤答1）へ緩和する判定を、js/instantChallengeScreen.js（DOM直結でテスト
+// できない）から切り出した純粋関数にする。
+//
+// 【なぜ4曲でなくてよいか】generateAnswerPool()（js/lyricsQuizEngine.js）は、要求された
+// 回答候補数（4/10/全曲）をプールの実際のサイズまで自動的に切り詰める設計のため、
+// 4曲に満たなくても「正解1＋誤答1以上」さえあれば有効な問題を組み立てられる。苦手曲
+// モードは対象曲そのものが元々少数（1桁）になりやすいため、他の開始経路（通常の一瞬
+// チャレンジ・オリジナル問題作成モード）と同じ4曲固定の下限をそのまま当てはめると、
+// 音源が実際に読み込まれていても開始できなくなってしまっていた（本人の実機報告：3曲を
+// 苦手曲として正しく認識しているのに「音源が読み込まれていない」という誤った案内が出て
+// 開始できなかった）。
+export const MIN_SONGS_REQUIRED_FOR_WEAK_SONGS_PRACTICE = 2;
+
+export function resolveInstantChallengeMinSongsRequired(practiceModeId) {
+  return practiceModeId === "weakSongsInstant" ? MIN_SONGS_REQUIRED_FOR_WEAK_SONGS_PRACTICE : MIN_SONGS_REQUIRED;
+}
 
 // 1曲分の問題データ（回答候補まで含めて）を組み立てる。初回の出題・音源再生失敗時の
 // 差し替えのどちらからも呼ぶ共通処理（本人指示：新しい生成ロジックを重複させない）。
