@@ -4093,11 +4093,16 @@ function renderQuestion() {
       () => {}
     );
   } else if (
-    gameState.playMode === "special" &&
-    (gameState.specialModeId === "outroQuiz" ||
-      gameState.specialModeId === "customQuizOutro" ||
-      gameState.specialModeId === "weakSongsOutro")
+    (gameState.playMode === "special" &&
+      (gameState.specialModeId === "outroQuiz" ||
+        gameState.specialModeId === "customQuizOutro" ||
+        gameState.specialModeId === "weakSongsOutro")) ||
+    (gameState.playMode === "timeAttack" && getCurrentTimeAttackVariant() === TIME_ATTACK_VARIANT.OUTRO)
   ) {
+    // 【2026-09-15追加、本人指示】タイムアタックのアウトロvariantも、この既存のアウトロ再生分岐を
+    // そのまま共用する（イントロ／ランダム再生variantと同じく「音源のどこを再生するか」だけの違いで、
+    // 出題・回答・記録の流れはjs/timeAttackScreen.jsが変わらず担当する）。再生ロジックを
+    // タイムアタック側へ二重実装しないための設計。
     // 【2026-08-30新設、本人指示】アウトロクイズ：曲の最後5秒（無音・フェードアウトを
     // 機械的に避けた位置、js/data/audioMetadata.jsのoutroStartSec参照）を再生する。
     // この値が無い曲（音源はあるがまだdev/generate_audio_metadata.pyを再実行していない場合の
@@ -5654,7 +5659,7 @@ timeAttackSetupBackButtonElement.addEventListener("click", () => {
 // （既存のfilterSongsByCategory・validatePoolSize・resolveQuestionCount・buildQuizQuestionsを
 // 内部でそのまま再利用しているだけで、出題ロジック自体には一切手を加えていない）。
 async function beginTimeAttackQuiz(questionCountValue, categoryFilterValue, rule, variant = TIME_ATTACK_VARIANT.INTRO) {
-  // 出題タイプ（イントロ／ランダム再生）は「音源をどこから再生するか」だけの違いで、
+  // 出題タイプ（イントロ／ランダム再生／アウトロ）は「音源をどこから再生するか」だけの違いで、
   // 出題する曲・4択の作り方自体はどちらも同じため、問題生成はvariantによらず共通のまま
   // （実際の再生開始位置の計算はshowQuestion()側でvariantを見て分岐する）。
   const questions = await buildTimeAttackQuestions(questionCountValue, categoryFilterValue);

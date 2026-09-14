@@ -11,7 +11,7 @@ const CATEGORY_LABELS = { all: "全曲", "title-and-group": "表題＋全員", "
 const RULE_LABELS = { normal: "タイムアタック", hard: "正解数バトル", loveChain: "ノーミスチャレンジ" };
 // 出題タイプ（2026-08-07追加）。古い履歴データにはentry.variant自体が無いため、
 // 未設定は従来通りイントロ形式として扱う（entry.variant ?? "intro"）。
-const VARIANT_LABELS = { intro: "🎧イントロ", randomPlayback: "🔀ランダム再生" };
+const VARIANT_LABELS = { intro: "🎧イントロ", randomPlayback: "🔀ランダム再生", outro: "🎬アウトロ" };
 
 // この画面が使うDOM要素一式。initTimeAttackHistoryScreen()で受け取って保持する。
 let elements = null;

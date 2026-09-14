@@ -87,7 +87,14 @@ function buildInitialStatsFromExistingHistory() {
     });
   });
 
+  // 【2026-09-15追記】タイムアタック履歴のうち、イントロ以外の出題タイプ（ランダム再生＝
+  // シャッフル系統、アウトロ＝アウトロ系統）はここ（イントロ系統）には含めない。
+  // 2026-08-30の「苦手曲5系統完全分離」より前に書かれた処理のため、それ以降に追加された
+  // variant付き履歴まで合算してしまう状態が残っていた（実害はこの移行処理が走る
+  // 「イントロ系統の集計をまだ一度も保存していない端末」に限られる）。variantが無い古い履歴は
+  // 従来どおりイントロ扱い（js/timeAttackHistoryScreen.jsと同じ後方互換の考え方）。
   getTimeAttackHistoryEntries().forEach((entry) => {
+    if ((entry.variant ?? "intro") !== "intro") return;
     entry.questions.forEach((question) => {
       bumpStat(songs, question.songId, question.mistakeCount === 0);
     });

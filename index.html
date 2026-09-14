@@ -1687,6 +1687,7 @@
           <button id="fan-profiles-uid-merge-plan-button" class="secondary-button" type="button">内容を確認する</button>
           <button id="fan-profiles-uid-merge-execute-button" class="primary-button" type="button" hidden>引き継いで整理する</button>
         </div>
+      </div>
 
       <!-- 管理者専用：バックアップ管理画面への入口（2026-08-29新設）。ADMIN_UIDと一致する
            場合だけ表示される（js/fanProfilesScreen.jsのisAdminUser判定を流用）。
@@ -2240,6 +2241,16 @@
           <span class="game-mode-option-content">
             <span class="game-mode-option-name">🔀 ランダム再生</span>
             <span class="game-mode-option-description">曲の途中から5秒間流れる音を聴いて当てます</span>
+          </span>
+        </label>
+        <!-- 【2026-09-15追加、本人指示】アウトロ：通常の「アウトロクイズ」と同じ「曲の最後5秒」を
+             聴いて当てる出題タイプ。再生ロジックはjs/main.jsの既存のアウトロ再生分岐をそのまま共用し、
+             自己ベスト・履歴・苦手曲・称号はイントロ／ランダム再生と同じ仕組みでアウトロ用に独立して記録する。 -->
+        <label class="game-mode-option">
+          <input type="radio" name="time-attack-variant" value="outro">
+          <span class="game-mode-option-content">
+            <span class="game-mode-option-name">🎬 アウトロ</span>
+            <span class="game-mode-option-description">曲の最後5秒を聴いて当てます</span>
           </span>
         </label>
       </fieldset>
@@ -5529,7 +5540,7 @@
       <p>タブごとに対象モードで答えた回数を曲ごとに合算し、合計3回以上答えていて、正答率が75%未満の曲が苦手曲として表示されます。</p>
       <ul class="modal-category-list">
         <li>🎧 イントロ：通常イントロクイズ＋イントロ形式のタイムアタック</li>
-        <li>🎬 アウトロ：アウトロクイズ</li>
+        <li>🎬 アウトロ：アウトロクイズ＋アウトロ形式のタイムアタック</li>
         <li>🔀 シャッフル：ランダム再生クイズ＋ランダム再生形式のタイムアタック</li>
         <li>📝 リリック：歌詞クイズ</li>
         <li>⚡ 一瞬：一瞬チャレンジ</li>

@@ -356,6 +356,8 @@ export function runAchievementEvaluationTests() {
       label: "シャッフル（タイムアタック）",
     },
     { modeId: "lyricsQuiz", ids: ["lyric_beginner", "lyric_challenger", "lyric_ace"], label: "リリック" },
+    // 【2026-09-15追加、本人指示】アウトロタイムアタックはアウトロ系の成長段階に乗る。
+    { modeId: "timeAttackOutro", ids: ["outro_beginner", "outro_challenger", "outro_ace"], label: "アウトロ（タイムアタック）" },
   ];
   const GROWTH_QUESTION_COUNTS = ["5", "10", "20"];
 
@@ -494,6 +496,28 @@ export function runAchievementEvaluationTests() {
     evaluateSpeedAchievements(buildResult({ modeId: "outroQuiz", questionCountValue: "all", averageResponseMs: 500 })),
     [],
     "アウトロには電光石火に相当する速度称号は存在しない（平均回答時間が速くても何も返らない）"
+  );
+  // 【2026-09-15追加、本人指示】アウトロタイムアタック（modeId:"timeAttackOutro"）は、
+  // イントロタイムアタックがノーミスマスターの対象になるのと同じく、アウトロマスター・完全終曲の対象。
+  assertEqual(
+    evaluateNoMissMasterAchievement(buildResult({ modeId: "timeAttackOutro", questionCountValue: "all" })),
+    ["outro_master", "complete_finale"],
+    "アウトロタイムアタック・本当の全曲ノーミスで、アウトロマスターと完全終曲が同時に解放される"
+  );
+  assertEqual(
+    evaluateNoMissMasterAchievement(buildResult({ modeId: "timeAttackOutro", questionCountValue: "all", categoryFilterValue: "title-track" })),
+    [],
+    "アウトロタイムアタックでもカテゴリーを絞った全曲では、アウトロマスター・完全終曲を獲得できない"
+  );
+  assertEqual(
+    evaluateNoMissMasterAchievement(buildResult({ modeId: "timeAttackOutro", questionCountValue: "all", wrongCount: 1 })),
+    [],
+    "アウトロタイムアタックで1ミスでもあればアウトロマスターを獲得できない"
+  );
+  assertEqual(
+    evaluateSpeedAchievements(buildResult({ modeId: "timeAttackOutro", questionCountValue: "all", averageResponseMs: 500 })),
+    [],
+    "アウトロタイムアタックは電光石火（イントロ限定）の対象にならない"
   );
 
   // ==================================================================

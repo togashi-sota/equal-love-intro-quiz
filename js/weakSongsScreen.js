@@ -53,7 +53,7 @@ const MODE_CONFIG = {
     reasonPrefix: "イントロ",
   },
   outro: {
-    explanation: "アウトロクイズだけの結果を対象に、間違えやすい曲を自動で集めて練習できます（他の系統とは別の判定です）。",
+    explanation: "アウトロクイズ・アウトロタイムアタックの結果を対象に、間違えやすい曲を自動で集めて練習できます（他の系統とは別の判定です）。",
     reasonPrefix: "アウトロ",
   },
   shuffle: {

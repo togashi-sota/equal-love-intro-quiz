@@ -19,6 +19,7 @@ import { filterSongsWithImportedAudio } from "./audioStorage.js";
 import { gameState } from "./state.js";
 import { recordWeakSongAttempt } from "./weakSongStats.js";
 import { recordShuffleWeakSongAttempt } from "./shuffleWeakSongStats.js";
+import { recordOutroWeakSongAttempt } from "./outroWeakSongStats.js";
 import {
   getTimeAttackBest,
   saveTimeAttackBestIfBetter,
@@ -48,12 +49,34 @@ export const TIME_ATTACK_RULE = { NORMAL: "normal", HARD: "hard", LOVE_CHAIN: "l
 //                 「アダプター方式」と同じ考え方を、今度はタイムアタック自身の中に取り込む形）。
 // 将来のメロディアス等の追加を見込み、文字列のvariantIdとして結果データに残す設計にしている。
 //
-// 【2026-08-30追加、本人指示（後半③）】outro：アウトロクイズ専用のグローバルランキング区分。
-// タイムアタックのルール（ノーマル/ハード/LOVE連チャン）としては存在しない（本人指示：
-// アウトロのタイムアタックは今回追加しない）が、ランキングの区分キーとしてはintro・
-// randomPlaybackと全く同じ仕組みをそのまま再利用したいため、ここに追加する
-// （js/main.jsのrenderResult()、アウトロクイズ通常導線からのみ使う）。
+// 【2026-08-30追加、本人指示（後半③）】outro：当初はアウトロクイズ専用のグローバルランキング
+// 区分としてだけ追加した（js/main.jsのrenderResult()、アウトロクイズ通常導線から使用）。
+// 【2026-09-15追加、本人指示】outroをタイムアタックの3つ目の出題タイプとしても正式に使う。
+// 曲の最後5秒を聴いて当てる（再生位置の計算はjs/main.jsのshowQuestion()にある既存の
+// アウトロ再生分岐をそのまま共用）。自己ベスト・履歴・苦手曲・称号は、randomPlaybackと同じ
+// 「variantごとに独立した記録」の仕組みに乗せる。ランキングは既存の🎬アウトロ区分
+// （通常アウトロクイズと共用。イントロが通常イントロクイズとイントロタイムアタックで
+// 1つの区分を共用しているのと同じ扱い）。
 export const TIME_ATTACK_VARIANT = { INTRO: "intro", RANDOM_PLAYBACK: "randomPlayback", OUTRO: "outro" };
+
+// 結果画面の「ルール」表示に添えるvariantの目印（イントロは従来どおり何も付けない）。
+const VARIANT_RESULT_MARKS = {
+  [TIME_ATTACK_VARIANT.RANDOM_PLAYBACK]: "🔀",
+  [TIME_ATTACK_VARIANT.OUTRO]: "🎬",
+};
+
+// 称号（実績）判定に渡すmodeId。variantごとに別の文字列にして、
+// js/achievementEvaluation.js側で「どの系統の称号の対象か」を判別できるようにする。
+// intro：従来どおり "timeAttack"（ノーミスマスター・電光石火・イントロ系成長段階の対象）。
+// randomPlayback："timeAttackRandomPlayback"（シャッフル系成長段階のみ。フルコーラスマスター・
+//   メロディエースは単体のランダム再生クイズ限定のまま）。
+// outro："timeAttackOutro"（【2026-09-15追加、本人指示】アウトロ系成長段階＋アウトロマスター・
+//   完全終曲の対象。イントロタイムアタックがノーミスマスターの対象になるのと同じ扱い）。
+const ACHIEVEMENT_MODE_ID_BY_VARIANT = {
+  [TIME_ATTACK_VARIANT.INTRO]: "timeAttack",
+  [TIME_ATTACK_VARIANT.RANDOM_PLAYBACK]: "timeAttackRandomPlayback",
+  [TIME_ATTACK_VARIANT.OUTRO]: "timeAttackOutro",
+};
 
 let elements = null;
 let resultElements = null;
@@ -199,10 +222,15 @@ export function recordTimeAttackAnswer({ elapsedMs, isCorrect, question }) {
     gameState.playMode === "randomPlayback" ||
     (gameState.playMode === "timeAttack" && currentVariant === TIME_ATTACK_VARIANT.RANDOM_PLAYBACK);
   const isIntroAnswer = gameState.playMode === "timeAttack" && currentVariant === TIME_ATTACK_VARIANT.INTRO;
+  // 【2026-09-15追加、本人指示】アウトロvariantは「アウトロ」系統（js/outroWeakSongStats.js、
+  // 通常アウトロクイズ・苦手曲アウトロタブと同じ集計先）へ記録する。
+  const isOutroAnswer = gameState.playMode === "timeAttack" && currentVariant === TIME_ATTACK_VARIANT.OUTRO;
   if (isShuffleAnswer) {
     recordShuffleWeakSongAttempt(question.song.id, missCountThisQuestion === 0);
   } else if (isIntroAnswer) {
     recordWeakSongAttempt(question.song.id, missCountThisQuestion === 0);
+  } else if (isOutroAnswer) {
+    recordOutroWeakSongAttempt(question.song.id, missCountThisQuestion === 0);
   }
 
   perQuestionResults.push({
@@ -320,11 +348,12 @@ export function renderTimeAttackResult() {
   resultElements.totalTime.textContent = `${formatSeconds(totalElapsedMs)}秒`;
   resultElements.correctCount.textContent = `${correctCount} / ${perQuestionResults.length}問`;
   resultElements.missCount.textContent = `${missCount}回`;
-  // ランダム再生variantのときだけ、既存の「ルール」表示に🔀マークを添えて見分けられるようにする
-  // （イントロ形式は今までどおりの表示のまま、新しいHTML要素を増やさずに区別を伝えるための工夫）。
+  // ランダム再生／アウトロvariantのときだけ、既存の「ルール」表示に🔀／🎬マークを添えて
+  // 見分けられるようにする（イントロ形式は今までどおりの表示のまま、新しいHTML要素を
+  // 増やさずに区別を伝えるための工夫）。
   const ruleLabelText = RULE_LABELS[currentRule] ?? "タイムアタック";
-  resultElements.ruleLabel.textContent =
-    currentVariant === TIME_ATTACK_VARIANT.RANDOM_PLAYBACK ? `🔀${ruleLabelText}` : ruleLabelText;
+  const variantMark = VARIANT_RESULT_MARKS[currentVariant] ?? "";
+  resultElements.ruleLabel.textContent = `${variantMark}${ruleLabelText}`;
 
   resultElements.newRecordBadge.hidden = !isNewRecord;
   resultElements.failStatus.hidden = !runFailed;
@@ -377,8 +406,7 @@ export function renderTimeAttackResult() {
   // タイムアタックがこれらを勝手に満たしてしまわないよう、modeIdをintro variantとは別の
   // 文字列にしている（js/achievementEvaluation.jsのmodeId判定に一致しないため、
   // このmodeIdからは現時点でどの称号も付与されない）。
-  const achievementModeId =
-    currentVariant === TIME_ATTACK_VARIANT.RANDOM_PLAYBACK ? "timeAttackRandomPlayback" : "timeAttack";
+  const achievementModeId = ACHIEVEMENT_MODE_ID_BY_VARIANT[currentVariant] ?? "timeAttack";
   const achievementInput = buildAchievementResultInput(
     getCurrentTimeAttackStats(),
     achievementModeId,

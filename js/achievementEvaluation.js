@@ -106,7 +106,9 @@ function isFastEnough(result) {
 export function evaluateNoMissMasterAchievement(result) {
   if (!isCleanClear(result) || !result.isAllSongsMode) return [];
   if (result.modeId === "intro" || result.modeId === "timeAttack") return ["no_miss_master"];
-  if (result.modeId === "outroQuiz") return ["outro_master", "complete_finale"];
+  // 【2026-09-15追加、本人指示】アウトロタイムアタック（modeId:"timeAttackOutro"）も対象に含める
+  // （イントロタイムアタックがノーミスマスターの対象になるのと同じ扱い）。
+  if (result.modeId === "outroQuiz" || result.modeId === "timeAttackOutro") return ["outro_master", "complete_finale"];
   return [];
 }
 
@@ -125,6 +127,7 @@ const GROWTH_MODE_GROUP_BY_MODE_ID = {
   intro: "intro",
   timeAttack: "intro",
   outroQuiz: "outro",
+  timeAttackOutro: "outro",
   randomPlayback: "shuffle",
   timeAttackRandomPlayback: "shuffle",
   lyricsQuiz: "lyric",

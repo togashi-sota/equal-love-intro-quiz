@@ -153,6 +153,18 @@ export function runPlayHistoryTests() {
     assertEqual(adaptedRandom.modeId, "timeAttackRandomPlayback", "variant:'randomPlayback'は専用のmodeIdになる");
     assertEqual(adaptedRandom.questionCount, 22, "questionCountValue:'all'のときは実際の問題数(questions.length)を使う");
     assertEqual(adaptedRandom.completed, false, "未完了(LOVE連チャン失敗等)はcompleted:falseのまま引き継がれる");
+
+    // 【2026-09-15追加、本人指示】アウトロvariant
+    const outroVariant = saveTimeAttackHistoryEntry({
+      rule: "normal", questionCountValue: "5", categoryFilterValue: "all",
+      totalElapsedMs: 9000, correctCount: 5, missCount: 0, completed: true,
+      failedAtQuestionNumber: null, isNewRecord: true,
+      perQuestionResults: Array.from({ length: 5 }, (_, i) => ({ questionNumber: i + 1 })),
+      variant: "outro",
+    });
+    const adaptedOutro = adaptTimeAttackHistoryEntry(outroVariant);
+    assertEqual(adaptedOutro.modeId, "timeAttackOutro", "variant:'outro'は専用のmodeId(timeAttackOutro)になる");
+    assertEqual(adaptedOutro.modeLabel, "タイムアタック（アウトロ）", "variant:'outro'の表示名は「タイムアタック（アウトロ）」");
   }
   clearTimeAttackHistoryEntries();
 

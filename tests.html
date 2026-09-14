@@ -76,6 +76,7 @@
     } from "./tests/weakSongsAnswerPoolRegression.test.js";
     import { runOnlineBattleRulesContentTests } from "./tests/onlineBattleRulesContent.test.js";
     import { runAdminAccessTests, runAdminAccessRulesRegressionTests } from "./tests/adminAccess.test.js";
+    import { runTimeAttackOutroVariantTests, runTimeAttackOutroVariantWiringTests } from "./tests/timeAttackOutroVariant.test.js";
     import { runBackupOwnershipTests, runBackupOwnershipRulesAndWiringTests } from "./tests/backupOwnership.test.js";
     import { runLyricsQuizRunStateTests } from "./tests/lyricsQuizRunState.test.js";
     import { runLyricsQuizScoreTests } from "./tests/lyricsQuizScore.test.js";
@@ -330,6 +331,8 @@
     await runOnlineBattleCapacityRaceRegressionTests();
     runAdminAccessTests();
     await runAdminAccessRulesRegressionTests();
+    runTimeAttackOutroVariantTests();
+    await runTimeAttackOutroVariantWiringTests();
     runBackupOwnershipTests();
     await runBackupOwnershipRulesAndWiringTests();
     runLocalBattleResultTests();

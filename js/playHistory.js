@@ -168,6 +168,8 @@ export function adaptIntroHistoryEntry(entry) {
 const TIME_ATTACK_VARIANT_META = {
   intro: { modeId: "timeAttack", modeLabel: "タイムアタック" },
   randomPlayback: { modeId: "timeAttackRandomPlayback", modeLabel: "タイムアタック（ランダム再生）" },
+  // 【2026-09-15追加、本人指示】アウトロvariant（曲の最後5秒）。
+  outro: { modeId: "timeAttackOutro", modeLabel: "タイムアタック（アウトロ）" },
 };
 
 // entry.questions[]（問題ごとの内訳、isCorrect・elapsedMs）から、正解した問題だけの
@@ -241,6 +243,7 @@ export const HISTORY_FILTER_CATEGORY = {
   customQuizInstant: "randomPlayback",
   timeAttack: "timeAttack",
   timeAttackRandomPlayback: "timeAttack",
+  timeAttackOutro: "timeAttack",
   randomPlayback: "randomPlayback",
   lyricsQuiz: "lyricsQuiz",
   localBattle: "battle",
@@ -345,6 +348,7 @@ export const HISTORY_MODE_DISPLAY = {
   customQuiz: { label: "オリジナル問題", iconKey: "originalQuiz" },
   timeAttack: { label: "タイムアタック", iconKey: "timeAttack" },
   timeAttackRandomPlayback: { label: "タイムアタック（ランダム再生）", iconKey: "timeAttack" },
+  timeAttackOutro: { label: "タイムアタック（アウトロ）", iconKey: "timeAttack" },
   localBattle: { label: "1台対戦", iconKey: "localBattle" },
   onlineTimeAttack: { label: "オンライン対戦（イントロ）", iconKey: "onlineBattle" },
   onlineRandomPlayback: { label: "オンライン対戦（ランダム再生）", iconKey: "onlineBattle" },
