@@ -163,6 +163,7 @@ import {
   initRandomPlaybackScreen,
   initRandomPlaybackResultScreen,
   startRandomPlaybackRun,
+  RANDOM_PLAYBACK_RULE,
   getCurrentRandomPlaybackSeed,
   generateNewRandomPlaybackSeed,
   renderRandomPlaybackResult,
@@ -3740,8 +3741,8 @@ function handleReveal() {
 // 通常のランダム再生クイズ（playMode:"randomPlayback"）用の「スキップ」。
 // 見た目・操作は通常イントロの handleSkip と同じ（音源停止・クリック音・すぐ次へ）だが、
 // 記録はタイムアタックのエンジン（recordTimeAttackSkip＝その問題を不正解・ミス＋1として確定）へ行う。
-// ノーマルルールの不正解時は isAnswered が true にならない（選び直せる）設計のため、
-// 途中で何度か外した後でもスキップできる。ノーミスチャレンジでは1ミス扱い＝その場で終了。
+// 通常ランダム再生の内部ルールは normal 固定（js/randomPlaybackScreen.js の RANDOM_PLAYBACK_RULE）で、
+// 不正解時は isAnswered が true にならない（選び直せる）設計のため、途中で何度か外した後でもスキップできる。
 function handleRandomPlaybackSkip() {
   if (gameState.isAnswered) return;
   gameState.isAnswered = true;
@@ -3756,18 +3757,12 @@ function handleRandomPlaybackSkip() {
 
   const question = getCurrentQuestion();
   recordTimeAttackSkip({ elapsedMs: getElapsedMsSincePlaybackStart(), question, resolution: "skip" });
-  if (getCurrentTimeAttackRule() === TIME_ATTACK_RULE.LOVE_CHAIN) {
-    markTimeAttackRunFailed();
-    showRandomPlaybackResult();
-    return;
-  }
   goToNextQuestionOrResult();
 }
 
 // 通常のランダム再生クイズ用の「答えを見る」。通常イントロの handleReveal と同じく、
 // 正解の選択肢を表示し、自動では進まず「次へ」を押すまで待つ（本人指示：3モードで操作感を統一）。
-// 記録は handleRandomPlaybackSkip と同じ（不正解・ミス＋1）。ノーミスチャレンジの場合は
-// 失敗として記録し、「次へ」を押すと結果画面へ進む（下の next-button のクリック処理参照）。
+// 記録は handleRandomPlaybackSkip と同じ（不正解・ミス＋1）。「次へ」で次の問題（または結果画面）へ進む。
 function handleRandomPlaybackReveal() {
   if (gameState.isAnswered) return;
   gameState.isAnswered = true;
@@ -3781,9 +3776,6 @@ function handleRandomPlaybackReveal() {
 
   const question = getCurrentQuestion();
   recordTimeAttackSkip({ elapsedMs: getElapsedMsSincePlaybackStart(), question, resolution: "reveal" });
-  if (getCurrentTimeAttackRule() === TIME_ATTACK_RULE.LOVE_CHAIN) {
-    markTimeAttackRunFailed();
-  }
   markChoiceButtons(null);
   playWrongSound();
   feedbackElement.textContent = `正解は「${question.song.title}」でした`;
@@ -4918,12 +4910,6 @@ document.getElementById("next-button").addEventListener("click", () => {
   playClickSound();
   stopTimer();
   stopAudio();
-  // 【2026-09-15追加】通常ランダム再生のノーミスチャレンジで「答えを見る」を使った場合は、
-  // その時点で終了（失敗）が確定しているため、次の問題ではなく結果画面へ進む。
-  if (gameState.playMode === "randomPlayback" && getCurrentTimeAttackStats().runFailed) {
-    showRandomPlaybackResult();
-    return;
-  }
   goToNextQuestionOrResult();
 });
 
@@ -5182,8 +5168,8 @@ quizQuitRestartButtonElement.addEventListener("click", () => {
     const { questionCountValue, categoryFilterValue, rule, variant } = getLastTimeAttackSelection();
     beginTimeAttackQuiz(questionCountValue, categoryFilterValue, rule, variant);
   } else if (gameState.playMode === "randomPlayback") {
-    const { questionCountValue, categoryFilterValue, rule } = getLastTimeAttackSelection();
-    beginRandomPlaybackQuiz(questionCountValue, categoryFilterValue, rule);
+    const { questionCountValue, categoryFilterValue } = getLastTimeAttackSelection();
+    beginRandomPlaybackQuiz(questionCountValue, categoryFilterValue);
   } else if (gameState.playMode === "normal" || gameState.playMode === "review") {
     // 通常プレイ・復習：#retry-button（もう一度挑戦する）と全く同じ処理。
     beginQuiz(gameState.questionCountValue, gameState.categoryFilterValue);
@@ -5971,8 +5957,9 @@ timeAttackHistoryDetailBackButtonElement.addEventListener("click", () => {
 function updateRandomPlaybackBestChip() {
   const questionCountValue = document.querySelector('input[name="random-playback-question-count"]:checked').value;
   const categoryFilterValue = document.querySelector('input[name="random-playback-category-filter"]:checked').value;
-  const rule = document.querySelector('input[name="random-playback-rule"]:checked').value;
-  const bestMs = getRandomPlaybackBest(rule, questionCountValue, categoryFilterValue);
+  // 【2026-09-15】ルール選択は無くなったため、内部固定ルール（normal）の自己ベストを表示する
+  // （js/randomPlaybackScreen.js の RANDOM_PLAYBACK_RULE。既存の自己ベストと同じキー）。
+  const bestMs = getRandomPlaybackBest(RANDOM_PLAYBACK_RULE, questionCountValue, categoryFilterValue);
 
   randomPlaybackBestChipElement.textContent =
     bestMs !== null ? `自己ベスト：${(bestMs / 1000).toFixed(2)}秒` : "自己ベスト：記録なし";
@@ -5981,7 +5968,7 @@ function updateRandomPlaybackBestChip() {
 
 document
   .querySelectorAll(
-    'input[name="random-playback-question-count"], input[name="random-playback-category-filter"], input[name="random-playback-rule"]'
+    'input[name="random-playback-question-count"], input[name="random-playback-category-filter"]'
   )
   .forEach((radio) => radio.addEventListener("change", updateRandomPlaybackBestChip));
 
@@ -5996,7 +5983,7 @@ randomPlaybackSetupBackButtonElement.addEventListener("click", () => {
 // beginTimeAttackQuiz()と全く同じ考え方だが、問題生成自体はbuildTimeAttackQuestions()を
 // そのまま再利用する（曲・選択肢の選び方自体はタイムアタックと変える必要がないため。
 // 変わるのは「どこから再生するか」だけで、それはrenderQuestion()側で処理する）。
-async function beginRandomPlaybackQuiz(questionCountValue, categoryFilterValue, rule) {
+async function beginRandomPlaybackQuiz(questionCountValue, categoryFilterValue) {
   const questions = await buildTimeAttackQuestions(questionCountValue, categoryFilterValue);
 
   if (!questions) {
@@ -6007,7 +5994,7 @@ async function beginRandomPlaybackQuiz(questionCountValue, categoryFilterValue, 
   }
 
   randomPlaybackStartErrorElement.hidden = true;
-  startRandomPlaybackRun(rule, questionCountValue, categoryFilterValue);
+  startRandomPlaybackRun(questionCountValue, categoryFilterValue);
   startRandomPlaybackQuiz(questions, questionCountValue, categoryFilterValue);
   showScreen("quiz");
   renderQuestion();
@@ -6015,11 +6002,11 @@ async function beginRandomPlaybackQuiz(questionCountValue, categoryFilterValue, 
 
 initRandomPlaybackScreen({
   startButton: randomPlaybackStartButtonElement,
-  onStart: (questionCountValue, categoryFilterValue, rule) => {
+  onStart: (questionCountValue, categoryFilterValue) => {
     // 【2026-09-23新設・本人指示：新規プレイのたびに第1問だけ無音になる問題の再調査】
     recordAudioDiagnostic("[GAME_START] スタートボタン押下（ランダム再生クイズ）");
     playSfx(SFX_EVENTS.GAME_START);
-    beginRandomPlaybackQuiz(questionCountValue, categoryFilterValue, rule);
+    beginRandomPlaybackQuiz(questionCountValue, categoryFilterValue);
   },
 });
 
@@ -6031,6 +6018,7 @@ initRandomPlaybackResultScreen({
   missCount: randomPlaybackResultMissCountElement,
   skippedStatus: randomPlaybackResultSkippedStatusElement,
   ruleLabel: randomPlaybackResultRuleLabelElement,
+  ruleStat: document.getElementById("random-playback-result-rule-stat"),
   averageTime: randomPlaybackResultAverageTimeElement,
   speedProgressContainer: randomPlaybackResultSpeedProgressElement,
   bestTime: randomPlaybackResultBestTimeElement,
@@ -6087,11 +6075,11 @@ initRandomPlaybackResultScreen({
   },
 });
 
-// 「もう一度挑戦する」：直前と同じ出題数・カテゴリ・ルールのまま、問題を再抽選して開始する。
+// 「もう一度挑戦する」：直前と同じ出題数・カテゴリのまま、問題を再抽選して開始する。
 randomPlaybackResultRetryButtonElement.addEventListener("click", () => {
   playClickSound();
-  const { questionCountValue, categoryFilterValue, rule } = getLastTimeAttackSelection();
-  beginRandomPlaybackQuiz(questionCountValue, categoryFilterValue, rule);
+  const { questionCountValue, categoryFilterValue } = getLastTimeAttackSelection();
+  beginRandomPlaybackQuiz(questionCountValue, categoryFilterValue);
 });
 
 randomPlaybackResultSetupButtonElement.addEventListener("click", () => {

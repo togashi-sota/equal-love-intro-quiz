@@ -5,7 +5,9 @@
 //   タイムアタック（イントロ／ランダム再生／アウトロ）・1台対戦・オンライン対戦では今までどおり非表示。
 // ・押した問題は「不正解として確定し、ミス数＋1」（Q1）。skippedCount として別に数える。
 //   → ランキング対象外・自己ベスト対象外・称号の対象外・苦手曲では不正解扱い。
-// ・ノーミスチャレンジで押した場合は1ミス＝その場で終了（失敗）。
+// ・（2026-09-15改訂）通常ランダム再生の内部ルールは normal 固定（ルール選択は廃止、tests/randomPlaybackNormalQuiz.test.js）。
+//   エンジン自体はノーミスチャレンジでも成立する（失敗終了は呼び出し側の markTimeAttackRunFailed）ため、
+//   エンジン単体のケースとして残している。
 // ・「答えを見る」は正解の選択肢を表示し、自動では進まず「次へ」を押すまで待つ（Q2＝(b)。通常イントロ／アウトロと同じ）。
 // ・ランキング候補の判定は missCount===0 だけに頼らず skippedCount===0 も明示的に確認する。
 //
@@ -61,6 +63,7 @@ function buildFakeResultElements(callbacks) {
     newRecordBadge: document.createElement("p"),
     failStatus: document.createElement("p"),
     skippedStatus: document.createElement("p"),
+    ruleStat: document.createElement("div"),
     totalTime: document.createElement("p"),
     correctCount: document.createElement("p"),
     missCount: document.createElement("p"),
@@ -209,15 +212,16 @@ export async function runRandomPlaybackSkipRevealWiringTests() {
   const revealBody = main.slice(revealStart, revealEnd);
   assertEqual(skipBody.includes('recordTimeAttackSkip({ elapsedMs: getElapsedMsSincePlaybackStart(), question, resolution: "skip" });'), true, "スキップ：タイムアタックエンジンへ『スキップ＝不正解・ミス＋1』として記録する");
   assertEqual(skipBody.includes("stopTimer();") && skipBody.includes("stopAudio();"), true, "スキップ：タイマーと音源を止める");
-  assertEqual(skipBody.includes("markTimeAttackRunFailed();") && skipBody.includes("showRandomPlaybackResult();"), true, "スキップ：ノーミスチャレンジなら失敗として結果画面へ");
-  assertEqual(skipBody.includes("goToNextQuestionOrResult();"), true, "スキップ：それ以外はすぐ次の問題へ");
+  assertEqual(skipBody.includes("markTimeAttackRunFailed();"), false, "スキップ：ルール選択廃止後は到達不能だったノーミスチャレンジ用の終了分岐を持たない");
+  assertEqual(skipBody.includes("goToNextQuestionOrResult();"), true, "スキップ：すぐ次の問題へ");
   assertEqual(revealBody.includes('recordTimeAttackSkip({ elapsedMs: getElapsedMsSincePlaybackStart(), question, resolution: "reveal" });'), true, "答えを見る：『不正解・ミス＋1』として記録する");
   assertEqual(revealBody.includes("markChoiceButtons(null);") && revealBody.includes("nextButtonElement.hidden = false;"), true, "答えを見る：正解の選択肢を表示し『次へ』ボタンを出す");
   assertEqual(revealBody.includes("goToNextQuestionOrResult()") || revealBody.includes("scheduleTimeAttackAdvance("), false, "答えを見る：自動では次へ進まない（通常イントロ／アウトロと同じく『次へ』待ち）");
   assertEqual(revealBody.includes("playWrongSound();"), true, "答えを見る：不正解音を鳴らす");
 
-  // ---- 「次へ」：ノーミスチャレンジで答えを見た後は結果画面へ ----
-  assertEqual(main.includes('if (gameState.playMode === "randomPlayback" && getCurrentTimeAttackStats().runFailed) {\r\n    showRandomPlaybackResult();') || main.includes('if (gameState.playMode === "randomPlayback" && getCurrentTimeAttackStats().runFailed) {\n    showRandomPlaybackResult();'), true, "次へ：ノーミスチャレンジ失敗後は次の問題ではなく結果画面へ進む");
+  // ---- 「次へ」：通常ランダム再生専用の分岐は持たない（ルール選択廃止で不要になった）----
+  assertEqual(main.includes('gameState.playMode === "randomPlayback" && getCurrentTimeAttackStats().runFailed'), false, "次へ：通常ランダム再生の失敗終了用分岐は残っていない");
+  assertEqual(revealBody.includes("markTimeAttackRunFailed"), false, "答えを見る：ノーミスチャレンジ用の失敗記録は残っていない");
 
   // ---- タイムアタック側の処理（handleTimedChoiceClick）は無変更 ----
   assertEqual(main.includes("function handleTimedChoiceClick(selectedChoice, { onAdvance, onRunEnd }) {"), true, "タイムアタックの回答処理は残っている");
@@ -232,5 +236,5 @@ export async function runRandomPlaybackSkipRevealWiringTests() {
   // ---- 説明文 ----
   const html = await fetchText("index.html");
   assertEqual(html.includes('id="random-playback-result-skipped-status"'), true, "結果画面に案内用の要素がある");
-  assertEqual(html.includes("通常のイントロ／アウトロクイズと同じく「スキップ」「答えを見る」も使えます"), true, "設定画面の説明文にスキップ／答えを見るの案内がある");
+  assertEqual(html.includes("「スキップ」「答えを見る」も使えます"), true, "設定画面の説明文にスキップ／答えを見るの案内がある");
 }

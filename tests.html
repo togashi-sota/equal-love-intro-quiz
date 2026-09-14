@@ -79,6 +79,7 @@
     import { runTimeAttackOutroVariantTests, runTimeAttackOutroVariantWiringTests } from "./tests/timeAttackOutroVariant.test.js";
     import { runBackupOwnershipTests, runBackupOwnershipRulesAndWiringTests } from "./tests/backupOwnership.test.js";
     import { runRandomPlaybackSkipRevealTests, runRandomPlaybackSkipRevealWiringTests } from "./tests/randomPlaybackSkipReveal.test.js";
+    import { runRandomPlaybackNormalQuizTests, runRandomPlaybackNormalQuizWiringTests } from "./tests/randomPlaybackNormalQuiz.test.js";
     import { runLyricsQuizRunStateTests } from "./tests/lyricsQuizRunState.test.js";
     import { runLyricsQuizScoreTests } from "./tests/lyricsQuizScore.test.js";
     import { runBattleRulesSharedDefaultsTests } from "./tests/battleRules/sharedDefaults.test.js";
@@ -338,6 +339,8 @@
     await runBackupOwnershipRulesAndWiringTests();
     runRandomPlaybackSkipRevealTests();
     await runRandomPlaybackSkipRevealWiringTests();
+    runRandomPlaybackNormalQuizTests();
+    await runRandomPlaybackNormalQuizWiringTests();
     runLocalBattleResultTests();
     await runAnswerButtonInteractionTests();
     runOnlineBattleRoomIdTests();

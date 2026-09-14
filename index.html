@@ -2519,7 +2519,7 @@
         </div>
       </div>
 
-      <p class="special-modes-intro">曲の途中のランダムな位置から数秒間だけ再生されます。イントロだけでなく、曲全体を覚えているか試したいときに。進み方（タイムアタック・正解数バトル・ノーミスチャレンジ）や記録の仕組みはタイムアタックと同じです。通常のイントロ／アウトロクイズと同じく「スキップ」「答えを見る」も使えます（使った問題はミス扱いになり、その回は自己ベスト・ランキングの対象外です）。</p>
+      <p class="special-modes-intro">曲の途中のランダムな位置から数秒間だけ再生されます。イントロだけでなく、曲全体を覚えているか試したいときに。イントロ／アウトロクイズと同じ4択で、「スキップ」「答えを見る」も使えます（使った問題はミス扱いになり、その回は自己ベスト・ランキングの対象外です）。記録は全問正解までの合計タイムです。タイムアタック／正解数バトル／ノーミスチャレンジで遊ぶには、タイムアタックの出題タイプで「ランダム再生」を選んでください。</p>
 
       <fieldset>
         <legend>出題数</legend>
@@ -2543,26 +2543,10 @@
         </div>
       </fieldset>
 
-      <fieldset>
-        <legend>ルール</legend>
-        <div class="option-row rule-option-row">
-          <label class="rule-option-card">
-            <input type="radio" name="random-playback-rule" value="normal" checked>
-            <span class="rule-option-card-title">タイムアタック</span>
-            <span class="rule-option-card-desc">全問正解までのタイムで記録</span>
-          </label>
-          <label class="rule-option-card">
-            <input type="radio" name="random-playback-rule" value="hard">
-            <span class="rule-option-card-title">正解数バトル</span>
-            <span class="rule-option-card-desc">正解した問題数で記録</span>
-          </label>
-          <label class="rule-option-card">
-            <input type="radio" name="random-playback-rule" value="loveChain">
-            <span class="rule-option-card-title">ノーミスチャレンジ</span>
-            <span class="rule-option-card-desc">1問でも間違えると即終了</span>
-          </label>
-        </div>
-      </fieldset>
+      <!-- 【2026-09-15削除、本人指示】「ルール」選択（タイムアタック／正解数バトル／ノーミスチャレンジ）は
+           通常ランダム再生からは外した。通常イントロ／アウトロと同じ「通常クイズ」として、出題数・カテゴリだけを
+           選ぶ画面に揃えるため。3ルールはタイムアタック側の出題タイプ「ランダム再生」で引き続き選べる。
+           内部の進行ルールは js/randomPlaybackScreen.js の RANDOM_PLAYBACK_RULE（normal 固定）。 -->
 
       <!-- 選択中の出題数・カテゴリに対応する自己ベスト。ラジオボタンを切り替えるたびにJSで更新する。 -->
       <p id="random-playback-best-chip" class="mode-best-chip is-empty">自己ベスト：記録なし</p>
@@ -2602,7 +2586,9 @@
           <p class="time-attack-result-stat-label">ミス数</p>
           <p id="random-playback-result-miss-count" class="time-attack-result-stat-value">0回</p>
         </div>
-        <div class="time-attack-result-stat">
+        <!-- 【2026-09-15】通常ランダム再生にはルール選択が無いため、この欄は常に非表示
+             （要素はjs/randomPlaybackScreen.jsの既存の受け渡し先として残している）。 -->
+        <div class="time-attack-result-stat" id="random-playback-result-rule-stat" hidden>
           <p class="time-attack-result-stat-label">ルール</p>
           <p id="random-playback-result-rule-label" class="time-attack-result-stat-value">タイムアタック</p>
         </div>
@@ -5640,16 +5626,16 @@
       <button id="random-playback-rules-modal-close" class="modal-close-button" type="button" aria-label="閉じる">×</button>
 
       <h2 id="random-playback-rules-modal-title">ランダム再生クイズについて</h2>
-      <p class="modal-lead">曲の冒頭（イントロ）ではなく、曲の途中のランダムな位置から流れる音源を聞いて曲名を当てる、タイムアタックの上級者向けバリエーションです。</p>
+      <p class="modal-lead">曲の冒頭（イントロ）ではなく、曲の途中のランダムな位置から流れる音源を聞いて曲名を当てる、イントロクイズの上級者向けバリエーションです。</p>
 
       <h3>遊び方</h3>
-      <p>操作方法・4択での回答方法、タイムアタック/正解数バトル/ノーミスチャレンジの3ルールは、タイムアタックと全く同じです。違うのは、出題される音源の位置だけです。</p>
+      <p>操作方法・4択での回答方法は、イントロクイズ／アウトロクイズと同じです（「スキップ」「答えを見る」も使えます）。違うのは、出題される音源の位置だけです。タイムアタック／正解数バトル／ノーミスチャレンジの3ルールで遊びたいときは、タイムアタックの出題タイプで「ランダム再生」を選んでください。</p>
 
       <h3>おすすめの遊び方</h3>
-      <p>イントロだけでなく曲全体を知っている必要があるため、まずはタイムアタックでイントロを覚えてから挑戦するのがおすすめです。</p>
+      <p>イントロだけでなく曲全体を知っている必要があるため、まずはイントロクイズでイントロを覚えてから挑戦するのがおすすめです。</p>
 
       <h3>記録について</h3>
-      <p>クリアタイムはタイムアタックとは別に、このモード専用の自己ベストとして保存されます（プレイ履歴一覧への表示は今後の対応予定です）。オンライン対戦のゲームモードとしても選べます。</p>
+      <p>全問正解までの合計タイムが、このモード専用の自己ベストとして保存されます（スキップ／答えを見るを使った回は対象外）。スキップ・答えを見るを使わずミス0で完走した記録は、タイムアタックのランダム再生と同じクイズランキングに参加できます。オンライン対戦のゲームモードとしても選べます。</p>
     </div>
   </div>
 
