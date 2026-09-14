@@ -3,7 +3,7 @@
     "publicProfiles": {
       ".read": "auth != null",
       "$uid": {
-        ".write": "auth != null && (auth.uid === $uid || (auth.uid === '1lg2urCowcMqF6r8E7tkc9OOm3r1' && !newData.exists()))"
+        ".write": "auth != null && (auth.uid === $uid || (root.child('admins').child(auth.uid).val() === true && !newData.exists()))"
       }
     },
     "timeAttackLeaderboards": {
@@ -32,7 +32,7 @@
               ".read": "auth != null",
               ".indexOn": "clearTimeMs",
               "$uid": {
-                ".write": "auth != null && (auth.uid === $uid || (auth.uid === '1lg2urCowcMqF6r8E7tkc9OOm3r1' && !newData.exists()))",
+                ".write": "auth != null && (auth.uid === $uid || (root.child('admins').child(auth.uid).val() === true && !newData.exists()))",
                 ".validate": "newData.hasChildren(['displayName','clearTimeMs','missCount','achievedAt'])",
                 "displayName": { ".validate": "newData.isString() && newData.val().length <= 40" },
                 "oshiMemberId": { ".validate": "newData.val() === null || newData.isString()" },
@@ -53,7 +53,7 @@
             ".read": "auth != null",
             ".indexOn": "clearTimeMs",
             "$uid": {
-              ".write": "auth != null && (auth.uid === $uid || (auth.uid === '1lg2urCowcMqF6r8E7tkc9OOm3r1' && !newData.exists()))",
+              ".write": "auth != null && (auth.uid === $uid || (root.child('admins').child(auth.uid).val() === true && !newData.exists()))",
               ".validate": "newData.hasChildren(['displayName','clearTimeMs','missCount','achievedAt'])",
               "displayName": { ".validate": "newData.isString() && newData.val().length <= 40" },
               "oshiMemberId": { ".validate": "newData.val() === null || newData.isString()" },
@@ -512,10 +512,10 @@
     },
 
     "backups": {
-      ".read": "auth != null && auth.uid === '1lg2urCowcMqF6r8E7tkc9OOm3r1'",
+      ".read": "auth != null && root.child('admins').child(auth.uid).val() === true",
       "$backupId": {
         ".read": "auth != null && data.child('currentUid').val() === auth.uid",
-        ".write": "auth != null && (auth.uid === '1lg2urCowcMqF6r8E7tkc9OOm3r1' || data.child('currentUid').val() === auth.uid || (!data.exists() && newData.child('currentUid').val() === auth.uid) || (data.child('transfer/secret').exists() && !data.child('transfer/usedAt').exists() && data.child('transfer/expiresAt').val() > now && newData.child('currentUid').val() === auth.uid && newData.child('transfer/secret').val() === data.child('transfer/secret').val() && newData.child('transfer/usedAt').val() === now))",
+        ".write": "auth != null && (root.child('admins').child(auth.uid).val() === true || data.child('currentUid').val() === auth.uid || (!data.exists() && newData.child('currentUid').val() === auth.uid) || (data.child('transfer/secret').exists() && !data.child('transfer/usedAt').exists() && data.child('transfer/expiresAt').val() > now && newData.child('currentUid').val() === auth.uid && newData.child('transfer/secret').val() === data.child('transfer/secret').val() && newData.child('transfer/usedAt').val() === now))",
         ".validate": "newData.hasChildren(['schemaVersion', 'currentUid', 'updatedAt', 'payload'])",
         "schemaVersion": { ".validate": "newData.isNumber()" },
         "currentUid": { ".validate": "newData.isString() && newData.val().length > 0" },
@@ -536,11 +536,19 @@
       }
     },
 
+    "admins": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": false,
+        ".validate": "newData.val() === true"
+      }
+    },
+
     "recoveryRequests": {
-      ".read": "auth != null && auth.uid === '1lg2urCowcMqF6r8E7tkc9OOm3r1'",
+      ".read": "auth != null && root.child('admins').child(auth.uid).val() === true",
       "$code": {
         ".read": "auth != null && data.child('newUid').val() === auth.uid",
-        ".write": "auth != null && (auth.uid === '1lg2urCowcMqF6r8E7tkc9OOm3r1' || (!data.exists() && newData.child('newUid').val() === auth.uid && newData.child('status').val() === 'pending'))",
+        ".write": "auth != null && (root.child('admins').child(auth.uid).val() === true || (!data.exists() && newData.child('newUid').val() === auth.uid && newData.child('status').val() === 'pending'))",
         ".validate": "newData.hasChildren(['newUid', 'status', 'requestedAt'])",
         "newUid": { ".validate": "newData.isString() && newData.val().length > 0" },
         "status": { ".validate": "newData.isString() && (newData.val() === 'pending' || newData.val() === 'resolved')" },

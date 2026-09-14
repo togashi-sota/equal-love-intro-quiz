@@ -222,7 +222,7 @@ export async function backfillTimeAttackLeaderboardIfNeeded(playerKeyPrefix) {
 }
 
 // 管理者専用：ランキングの特定の1件だけを削除する（2026-08-17追加）。
-// 【安全設計】呼び出し側（js/timeAttackLeaderboardScreen.js）が事前にADMIN_UIDとの一致を
+// 【安全設計】呼び出し側（js/timeAttackLeaderboardScreen.js）が事前にresolveIsAdminUser()で管理者であることを
 // 確認したうえでだけ呼ぶ想定。js/publicProfileSync.jsのdeletePublicProfileByAdminと同じ
 // 設計思想で、本当の権限チェックはFirebase Security Rules側で行う必要がある。
 // 削除対象はvariant×questionCountValue×categoryFilterValue×targetUidで一意に決まる

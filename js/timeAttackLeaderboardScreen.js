@@ -20,7 +20,7 @@ import {
 } from "./timeAttackLeaderboard.js";
 import { fetchPublicProfileBadgeState, getMyUid, isPublicProfileSharingEnabled } from "./publicProfileSync.js";
 import { getPlayerKeyPrefix } from "./playerProfile.js";
-import { ADMIN_UID } from "./adminConfig.js";
+import { resolveIsAdminUser } from "./adminConfig.js";
 import { TIME_ATTACK_VARIANT, TIME_ATTACK_RULE } from "./timeAttackScreen.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
 
@@ -65,8 +65,9 @@ let currentCategoryFilterValue = "title-track";
 // 連打・タブ切り替え中の描画競合を防ぐための世代番号（js/audio.jsのcurrentPlaybackTokenと
 // 同じ考え方）。古い非同期取得が後から戻ってきても、世代が古ければ描画結果を捨てる。
 let renderToken = 0;
-// 2026-08-17追加：この端末が管理者（js/adminConfig.jsのADMIN_UID）かどうか。
-// ADMIN_UIDがnullの間は誰であってもfalseになり、削除ボタンは一切表示されない。
+// 2026-08-17追加：この端末が管理者かどうか。
+// 【2026-09-15改訂】js/adminConfig.jsのresolveIsAdminUser()（Firebase上の admins/{uid} を読む）で
+// 判定する。読めない・未登録の間は誰であってもfalseになり、削除ボタンは一切表示されない。
 let isAdminUser = false;
 // 削除確認モーダルで「削除する」が押されたときに対象を特定するための一時保持。
 let pendingAdminDeleteEntry = null;
@@ -332,11 +333,11 @@ async function renderMyRecordIfNeeded(myRenderToken, top10Entries) {
   elements.myRecordSection.hidden = false;
 }
 
-// 自分のUIDを確認し、管理者判定を更新する（2026-08-17追加）。
-// ADMIN_UIDがnullの間は誰であってもfalseのままになり、削除ボタンは一切表示されない。
+// 自分のUIDを確認し、管理者判定を更新する（2026-08-17追加、2026-09-15改訂）。
+// admins/{uid} が読めない・未登録の間は誰であってもfalseのままになり、削除ボタンは一切表示されない。
 async function refreshAdminState() {
   const uid = await getMyUid();
-  isAdminUser = ADMIN_UID !== null && uid !== null && uid === ADMIN_UID;
+  isAdminUser = uid !== null && (await resolveIsAdminUser());
 }
 
 // ---- 管理者限定：ランキング記録削除の確認モーダル（2026-08-17追加） ----

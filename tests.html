@@ -75,6 +75,7 @@
       runWeakSongsAnswerPoolWiringRegressionTests,
     } from "./tests/weakSongsAnswerPoolRegression.test.js";
     import { runOnlineBattleRulesContentTests } from "./tests/onlineBattleRulesContent.test.js";
+    import { runAdminAccessTests, runAdminAccessRulesRegressionTests } from "./tests/adminAccess.test.js";
     import { runLyricsQuizRunStateTests } from "./tests/lyricsQuizRunState.test.js";
     import { runLyricsQuizScoreTests } from "./tests/lyricsQuizScore.test.js";
     import { runBattleRulesSharedDefaultsTests } from "./tests/battleRules/sharedDefaults.test.js";
@@ -326,6 +327,8 @@
     await runWeakSongsAnswerPoolWiringRegressionTests();
     runOnlineBattleCapacitySecurityRulesTests();
     await runOnlineBattleCapacityRaceRegressionTests();
+    runAdminAccessTests();
+    await runAdminAccessRulesRegressionTests();
     runLocalBattleResultTests();
     await runAnswerButtonInteractionTests();
     runOnlineBattleRoomIdTests();

@@ -247,7 +247,7 @@ export async function fetchPublicProfileByUid(uid) {
 }
 
 // 自分の現在のUID（匿名認証ID）を返す（2026-08-16追加）。フレンド画面の
-// 「🆔 あなたのID」表示と、管理者判定（js/adminConfig.jsのADMIN_UIDとの一致確認）の
+// 「🆔 あなたのID」表示と、管理者判定（js/adminConfig.jsのresolveIsAdminUser()）の
 // 両方で使う共通関数。認証待ちを含むため非同期。
 export async function getMyUid() {
   await authReady;
@@ -255,7 +255,7 @@ export async function getMyUid() {
 }
 
 // 管理者専用：他人の公開プロフィールをUID指定で削除する（2026-08-16追加）。
-// 【安全設計】呼び出し側（js/fanProfilesScreen.js）が事前にADMIN_UIDとの一致を確認した
+// 【安全設計】呼び出し側（js/fanProfilesScreen.js）が事前にresolveIsAdminUser()で管理者であることを確認した
 // うえでだけ呼ぶ想定。ただしそれはUIの誤操作防止のための二重チェックに過ぎず、
 // 本当の権限チェックはFirebase Security Rules側で行う必要がある。ルールを適用するまでは、
 // 一般ユーザーがブラウザの開発者ツール等から直接Firebaseへ書き込めば同じ削除ができてしまう

@@ -13,7 +13,7 @@ import {
   deletePublicProfileByAdmin,
 } from "./publicProfileSync.js";
 import { syncRankingCandidatesToFirebase } from "./timeAttackLeaderboardSync.js";
-import { ADMIN_UID } from "./adminConfig.js";
+import { resolveIsAdminUser } from "./adminConfig.js";
 import { getPlayerKeyPrefix } from "./playerProfile.js";
 import { getMemberById } from "./memberUtils.js";
 import {
@@ -40,8 +40,10 @@ let members = null;
 let latestProfiles = [];
 let latestPresenceByUid = {};
 let unsubscribePresence = null;
-// 2026-08-16追加：この端末が管理者（js/adminConfig.jsのADMIN_UID）かどうか。
-// ADMIN_UIDがnullの間は誰であってもfalseになり、管理者用UIは一切表示されない。
+// 2026-08-16追加：この端末が管理者かどうか。
+// 【2026-09-15改訂】以前はjs/adminConfig.jsに直書きしたADMIN_UIDとの一致で判定していたが、
+// Firebase上の許可リスト admins/{uid} を読む方式（resolveIsAdminUser()）へ変更した。
+// 読めない・未登録の間は誰であってもfalseになり、管理者用UIは一切表示されない。
 let isAdminUser = false;
 // 【2026-11-XX新設・本人指示：「一緒に遊ぶ」】自分自身のカードには「一緒に遊ぶ」ボタンを
 // 出さないための判定に使う（js/fanProfileCard.jsのbuildProfileCard()のmyUid参照）。
@@ -117,7 +119,7 @@ async function renderMyUidAndAdminState() {
   if (elements.myUidValue) {
     elements.myUidValue.textContent = uid ?? "取得できませんでした";
   }
-  isAdminUser = ADMIN_UID !== null && uid !== null && uid === ADMIN_UID;
+  isAdminUser = uid !== null && (await resolveIsAdminUser());
   // 【2026-08-29追加】バックアップ管理画面への入口も、この時点で判明した管理者判定に合わせて
   // 表示/非表示を切り替える（既存の削除ボタンと同じ「非表示はUI上の配慮に過ぎず、
   // 本当の権限チェックはFirebase Rules側」という設計方針）。

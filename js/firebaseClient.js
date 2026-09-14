@@ -34,6 +34,18 @@ export const authReady = new Promise((resolve) => {
   resolveAuthReady = resolve;
 });
 
+// 【2026-09-15追加：自動テストでの匿名ユーザー増殖防止】tests.html（自動テスト）から読み込まれた
+// 場合は匿名ログインを行わない。理由：Firebase匿名認証は「ブラウザの保存領域ごと」に新しい
+// ユーザーを作るため、Claude Code等のブラウザ検証で tests.html を新しい環境で開くたびに
+// Authentication上の匿名ユーザーが1件ずつ増えていた（js/playerProfile.js → js/backupSync.js →
+// このファイル、という間接importの経路で、テスト自身は意図せずログインしていた）。
+// テストは本番Firebaseへ書き込まない設計（tests/onlineBattleSongAvailability.test.js等の
+// コメント参照）なので、ログインしなくても結果に影響しない。ログインしない場合 authReady は
+// 解決されないままになるが、待っている処理（バックアップ同期等）が静かに待機するだけで
+// 例外にはならない。本番アプリ（index.html）・開発用ツール（dev/）の挙動は変わらない。
+export const IS_TEST_RUNNER =
+  typeof location !== "undefined" && /\/tests\.html$/.test(location.pathname);
+
 let hasStartedSignIn = false;
 onAuthStateChanged(auth, (user) => {
   if (user) {
@@ -44,6 +56,10 @@ onAuthStateChanged(auth, (user) => {
   // （匿名ログイン成功後は必ずuserが渡ってくるため）。
   if (!hasStartedSignIn) {
     hasStartedSignIn = true;
+    if (IS_TEST_RUNNER) {
+      console.info("自動テスト（tests.html）のため、Firebaseへの匿名ログインは行いません");
+      return;
+    }
     signInAnonymously(auth).catch((error) => {
       console.error("匿名ログインに失敗しました", error);
     });

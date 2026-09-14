@@ -4,7 +4,7 @@
 //
 // 【設計方針】js/publicProfileSync.jsのdeletePublicProfileByAdmin()と全く同じ考え方：
 // このファイルの関数を呼べること自体は、UI側（js/fanProfilesScreen.js等）が
-// 「今ログイン中のUIDがjs/adminConfig.jsのADMIN_UIDと一致するか」を事前に確認した
+// 「今ログイン中のUIDがFirebase上の admins/{uid} に登録されているか」（js/adminConfig.js）を事前に確認した
 // うえでだけ呼ぶ想定だが、それはあくまで誤操作防止のための二重チェックに過ぎない。
 // 本当の権限チェックはfirebase/database.rules.jsonのbackups・recoveryRequestsの
 // ".read"/".write"ルール側で行っており、管理者UID以外のユーザーがこのファイルの関数を
