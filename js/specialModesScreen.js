@@ -44,10 +44,12 @@ export const SPECIAL_MODES = [
     description: "歌詞の一部分をヒントに曲名を当てます",
     available: true,
   },
+  // 【2026-09-15改訂・本人指示】旧「1台対戦」（対戦コード共有方式）のカードを「パーティー対戦」へ置き換えた。
+  // 旧モードの画面・コード（js/localBattle*.js）は互換のため残しているが、ホームからは開けない。
   {
-    id: "localBattle",
-    title: "1台対戦",
-    description: "1台の端末を交代で使い、友達とタイムを競えます",
+    id: "partyBattle",
+    title: "パーティー対戦",
+    description: "1台のスマホ・タブレットを囲んで、2〜4人で早押し対戦！",
     available: true,
   },
   {
@@ -215,7 +217,7 @@ export const HOME_SPECIAL_MODES_ORDER = [
   "originalQuiz",
   "liveCallMode",
   "weakSongs",
-  "localBattle",
+  "partyBattle",
 ];
 
 function renderHomeSpecialModesGrid() {

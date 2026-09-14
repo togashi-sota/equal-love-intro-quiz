@@ -1,7 +1,7 @@
 // 「遊び方ガイド」画面（目次⇄各ページ）を組み立てるファイル（2026-08-15新設）。
 // 内容（見出し・手順・ポイント）はすべてjs/data/guideContent.jsが持ち、このファイルは
 // DOM組み立てと目次⇄詳細ページの切り替えだけを行う。
-import { GUIDE_CATEGORIES, getGuideSectionById } from "./data/guideContent.js";
+import { GUIDE_CATEGORIES, GUIDE_VIDEO, getGuideSectionById } from "./data/guideContent.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
 
 let elements = null;
@@ -70,6 +70,39 @@ function buildTocEntryButton(section) {
   return button;
 }
 
+// 【2026-09-15新設・本人指示：アプリ紹介動画への導線】目次最上部の動画カードを組み立てる。
+// hrefと文言はjs/data/guideContent.jsのGUIDE_VIDEOから入れる（URLを1箇所で管理するため）。
+// オフライン時（navigator.onLine === false）はタブを開かず、カード直下に注意文を数秒表示する
+// （開けないYouTubeのエラーページへ飛ばしてPWAの見た目を壊さないため）。
+// 「オンラインなのにonLineがfalse」という誤判定は稀にあるが、その場合も注意文が出るだけで
+// 再タップすれば開ける（判定を信用しすぎず、ページを壊さないことを優先）。
+const OFFLINE_NOTE_VISIBLE_MS = 3000;
+let offlineNoteTimerId = null;
+
+function renderVideoCard() {
+  if (!elements.videoCard) return;
+  elements.videoCard.href = GUIDE_VIDEO.url;
+  elements.videoCardTitle.textContent = GUIDE_VIDEO.title;
+  elements.videoCardDesc.textContent = GUIDE_VIDEO.description;
+  elements.videoCardNote.textContent = GUIDE_VIDEO.note;
+  elements.videoCardCtaLabel.textContent = `${GUIDE_VIDEO.ctaLabel} ▶`;
+  elements.videoCardExternal.textContent = GUIDE_VIDEO.externalLabel;
+  elements.videoCard.addEventListener("click", (event) => {
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      event.preventDefault();
+      playSfx(SFX_EVENTS.UI_BACK);
+      elements.videoOfflineNote.textContent = GUIDE_VIDEO.offlineMessage;
+      elements.videoOfflineNote.hidden = false;
+      clearTimeout(offlineNoteTimerId);
+      offlineNoteTimerId = setTimeout(() => {
+        elements.videoOfflineNote.hidden = true;
+      }, OFFLINE_NOTE_VISIBLE_MS);
+      return;
+    }
+    playSfx(SFX_EVENTS.UI_CLICK);
+  });
+}
+
 function renderToc() {
   elements.tocGroups.innerHTML = "";
   GUIDE_CATEGORIES.forEach((category) => {
@@ -111,9 +144,12 @@ export function getGuideReturnScreenId() {
 //   detailBackButton: 詳細ページの「目次へ戻る」ボタン,
 //   detailIcon, detailTitle, detailTagline, detailStepsHeading, detailSteps, detailPoint:
 //     詳細ページの各部品,
+//   videoCard, videoCardTitle, videoCardDesc, videoCardNote, videoCardCtaLabel, videoCardExternal,
+//   videoOfflineNote: 目次最上部の「アプリ紹介動画」カード一式（2026-09-15新設）,
 // }
 export function initGuideScreen(newElements) {
   elements = newElements;
+  renderVideoCard();
   renderToc();
   elements.detailBackButton.addEventListener("click", () => {
     playSfx(SFX_EVENTS.UI_BACK);

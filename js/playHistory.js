@@ -265,6 +265,9 @@ export const HISTORY_FILTER_CATEGORY = {
   weakSongsOutro: "intro",
   weakSongsShuffle: "randomPlayback",
   weakSongsInstant: "randomPlayback",
+  // 【2026-09-15追加・本人指示】パーティー対戦。旧1台対戦（localBattle）と同じく"battle"系だが、
+  // 一覧では専用の「パーティー」タブに出す（下のisPartyHistoryEntry参照）。
+  partyBattle: "battle",
 };
 
 // 【2026-09-09新設・本人指示3-1：プレイ履歴のオフライン/オンライン分離】modeIdだけを見て、
@@ -274,12 +277,26 @@ export function isOnlineHistoryEntry(entry) {
   return typeof entry.modeId === "string" && entry.modeId.startsWith("online");
 }
 
-// タブ（オフライン／オンライン）でタイムラインを分ける。
+// 【2026-09-15新設・本人指示：プレイ履歴に「パーティー」タブを追加】パーティー対戦の記録と、
+// 旧1台対戦（localBattle）の過去の記録は「パーティー」タブにまとめる。旧記録は削除・書き換えせず、
+// 「旧1台対戦」として引き続き閲覧できるようにする（本人確定：旧カードのdetailsを壊さない）。
+export function isPartyHistoryEntry(entry) {
+  return entry.modeId === "partyBattle" || entry.modeId === "localBattle";
+}
+
+// タブ（オフライン／オンライン／パーティー）でタイムラインを分ける。
+// 【2026-09-15改訂】戻り値にparty（パーティー対戦＋旧1台対戦）を追加。offlineからは
+// 旧1台対戦が抜ける（以前はオフラインタブの「1台対戦」チップで見ていたもの）。
 export function splitHistoryEntriesByOnlineStatus(entries) {
   const offline = [];
   const online = [];
-  entries.forEach((entry) => (isOnlineHistoryEntry(entry) ? online : offline).push(entry));
-  return { offline, online };
+  const party = [];
+  entries.forEach((entry) => {
+    if (isPartyHistoryEntry(entry)) party.push(entry);
+    else if (isOnlineHistoryEntry(entry)) online.push(entry);
+    else offline.push(entry);
+  });
+  return { offline, online, party };
 }
 
 export const HISTORY_FILTER_LABELS = {
@@ -288,12 +305,25 @@ export const HISTORY_FILTER_LABELS = {
   randomPlayback: "ランダム",
   lyricsQuiz: "歌詞",
   timeAttack: "タイムアタック",
-  // 【2026-09-09改訂・本人指示3-1：オフライン/オンライン分離】このチップはオフライン
-  // タブ専用になった（オンライン対戦の記録は別タブへ分離済みのため、実質的に1台対戦だけを
-  // 指す）。文言もそれに合わせて明確化した。
-  battle: "1台対戦",
+  // 【2026-09-15改訂・本人指示】旧「1台対戦」チップは、旧1台対戦の記録が「パーティー」タブへ
+  // 移ったためオフラインタブの並び（HISTORY_FILTER_ORDER）から外した。ラベル自体は
+  // 分類表（HISTORY_FILTER_CATEGORY）との整合のため残している。
+  battle: "対戦",
 };
-export const HISTORY_FILTER_ORDER = ["all", "intro", "randomPlayback", "lyricsQuiz", "timeAttack", "battle"];
+export const HISTORY_FILTER_ORDER = ["all", "intro", "randomPlayback", "lyricsQuiz", "timeAttack"];
+
+// 【2026-09-15新設】パーティータブ専用のフィルター（パーティー対戦／旧1台対戦）。
+export const HISTORY_FILTER_LABELS_PARTY = {
+  all: "すべて",
+  partyBattle: "パーティー対戦",
+  localBattle: "旧1台対戦",
+};
+export const HISTORY_FILTER_ORDER_PARTY = ["all", "partyBattle", "localBattle"];
+
+export function filterPartyHistoryEntries(entries, filterId) {
+  if (!filterId || filterId === "all") return entries;
+  return entries.filter((entry) => entry.modeId === filterId);
+}
 
 // 【2026-09-09新設・本人指示3-1：オフライン/オンライン分離】オンラインタブ専用の、より
 // 粗いフィルター（6モードそれぞれではなく、系統でまとめる。件数が少ないタブで
@@ -350,6 +380,8 @@ export const HISTORY_MODE_DISPLAY = {
   timeAttackRandomPlayback: { label: "タイムアタック（ランダム再生）", iconKey: "timeAttack" },
   timeAttackOutro: { label: "タイムアタック（アウトロ）", iconKey: "timeAttack" },
   localBattle: { label: "1台対戦", iconKey: "localBattle" },
+  // 【2026-09-15追加】パーティー対戦（ホームのカードと同じアイコン）。
+  partyBattle: { label: "パーティー対戦", iconKey: "partyBattle" },
   onlineTimeAttack: { label: "オンライン対戦（イントロ）", iconKey: "onlineBattle" },
   onlineRandomPlayback: { label: "オンライン対戦（ランダム再生）", iconKey: "onlineBattle" },
   onlineLyricsQuiz: { label: "オンライン対戦（歌詞）", iconKey: "onlineBattle" },
@@ -477,6 +509,30 @@ export function describeEntrySummaryLines(entry) {
       }
       break;
     }
+    // 【2026-09-15追加・本人指示】パーティー対戦：人数・出題タイプ・回答方式と、優勝者・得点を要約する。
+    case "partyBattle": {
+      const details = entry.details ?? {};
+      lines.push(
+        [
+          details.playerCount ? `${details.playerCount}人` : null,
+          details.quizTypeLabel ?? null,
+          questionCountLabel,
+          details.answerMethod === "voice" ? "音声回答" : details.answerMethod === "fourChoice" ? "4択" : null,
+        ]
+          .filter(Boolean)
+          .join("・")
+      );
+      const winner = Array.isArray(details.standings) ? details.standings.find((standing) => standing.isWinner) : null;
+      lines.push(
+        [
+          winner ? `🏆 ${winner.playerName} ${winner.score}pt` : null,
+          details.hadSuddenDeath ? "サドンデスあり" : null,
+        ]
+          .filter(Boolean)
+          .join(" / ")
+      );
+      break;
+    }
     case "onlineLyricsQuiz": {
       const ruleLabel = LYRICS_BATTLE_RULE_LABELS[entry.details?.battleRuleId] ?? entry.details?.battleRuleId;
       lines.push(
@@ -582,6 +638,20 @@ export function describeEntryDetailFields(entry) {
   );
   push("初手正解数", details.firstHintCorrectCount !== undefined ? `${details.firstHintCorrectCount}問` : null);
   push("新記録", details.isNewRecord ? "🎉 新記録" : null);
+  // 【2026-09-15追加・本人指示】パーティー対戦の設定項目。
+  if (entry.modeId === "partyBattle") {
+    push("人数", details.playerCount ? `${details.playerCount}人` : null);
+    push("出題タイプ", details.quizTypeLabel ?? null);
+    push("選曲", details.songSourceLabel ?? null);
+    push("回答方式", details.answerMethod === "voice" ? "音声回答" : details.answerMethod === "fourChoice" ? "4択回答" : null);
+    push("お手つき", typeof details.otetsuki === "boolean" ? (details.otetsuki ? "あり" : "なし") : null);
+    push("音声回答の制限時間", details.voiceStartTimeoutSec ? `${details.voiceStartTimeoutSec}秒` : null);
+    push(
+      "一瞬の設定",
+      details.instantClipSec ? `${details.instantClipSec}秒×最大${details.instantMaxListens}回` : null
+    );
+    push("サドンデス", details.hadSuddenDeath ? `あり（${details.suddenDeathQuestionCount}問）` : "なし");
+  }
   // 【2026-09-15追加・本人指示：一瞬バトルの結果／履歴データモデルを完成させる】
   // 順位判定に使った「正解した問題だけの再視聴合計」を、参考記録の「総再視聴回数」と
   // はっきり区別して見せる（本人指示：どちらがランキングに使われた値か分かるように）。
@@ -609,7 +679,9 @@ export function describeEntryDetailFields(entry) {
           const name = standing.playerName ?? standing.displayName ?? "";
           if (standing.isDnf) return `${name}：DNF${standing.isYou ? "（あなた）" : ""}`;
           const rankText = standing.rank ? `${standing.rank}位` : "";
-          return `${rankText} ${name}${standing.isYou ? "（あなた）" : ""}`.trim();
+          // パーティー対戦は各自の得点も併記する（誰が何点だったかを見返せるように）
+          const scoreText = typeof standing.score === "number" && entry.modeId === "partyBattle" ? `（${standing.score}pt）` : "";
+          return `${rankText} ${name}${scoreText}${standing.isYou ? "（あなた）" : ""}`.trim();
         })
         .join(" / ");
       push("参加者・順位", standingsText);

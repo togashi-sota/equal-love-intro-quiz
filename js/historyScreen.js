@@ -21,6 +21,9 @@ import {
   HISTORY_FILTER_LABELS,
   HISTORY_FILTER_ORDER_ONLINE,
   HISTORY_FILTER_LABELS_ONLINE,
+  HISTORY_FILTER_ORDER_PARTY,
+  HISTORY_FILTER_LABELS_PARTY,
+  filterPartyHistoryEntries,
   HISTORY_MODE_DISPLAY,
 } from "./playHistory.js";
 import { clearHistoryEntries } from "./history.js";
@@ -63,7 +66,7 @@ export function buildTitleBadges(titleResults) {
 let elements = null;
 let activeFilterId = "all";
 // 【2026-09-09新設・本人指示3-1：プレイ履歴のオフライン/オンライン分離】
-let activeTab = "offline"; // "offline" | "online"
+let activeTab = "offline"; // "offline" | "online" | "party"（2026-09-15：パーティー対戦タブを追加）
 
 function isConfirmModalOpen() {
   return elements !== null && !elements.confirmModalOverlay.hidden;
@@ -211,8 +214,10 @@ function renderSummary(entries) {
 // （オフライン＝すべて／イントロ／ランダム／歌詞／タイムアタック／1台対戦、
 // オンライン＝すべて／イントロ系／歌詞クイズ／一瞬系）を出し分ける。
 function renderFilterChips() {
-  const order = activeTab === "online" ? HISTORY_FILTER_ORDER_ONLINE : HISTORY_FILTER_ORDER;
-  const labels = activeTab === "online" ? HISTORY_FILTER_LABELS_ONLINE : HISTORY_FILTER_LABELS;
+  const order =
+    activeTab === "online" ? HISTORY_FILTER_ORDER_ONLINE : activeTab === "party" ? HISTORY_FILTER_ORDER_PARTY : HISTORY_FILTER_ORDER;
+  const labels =
+    activeTab === "online" ? HISTORY_FILTER_LABELS_ONLINE : activeTab === "party" ? HISTORY_FILTER_LABELS_PARTY : HISTORY_FILTER_LABELS;
   elements.filterChipsContainer.innerHTML = "";
   order.forEach((filterId) => {
     const chip = document.createElement("button");
@@ -241,6 +246,7 @@ function switchHistoryTab(tab) {
   activeFilterId = "all";
   elements.tabOfflineButton.classList.toggle("is-active", tab === "offline");
   elements.tabOnlineButton.classList.toggle("is-active", tab === "online");
+  elements.tabPartyButton.classList.toggle("is-active", tab === "party");
   renderHistoryScreen();
 }
 
@@ -309,7 +315,9 @@ function renderHistoryList(entries) {
   elements.emptyState.textContent =
     activeTab === "online"
       ? "まだオンライン対戦の記録がありません。オンライン対戦で遊ぶと、ここに記録が残っていきます。"
-      : "まだプレイ履歴がありません。クイズを遊ぶと、ここに記録が残っていきます。";
+      : activeTab === "party"
+        ? "まだパーティー対戦の記録がありません。最後まで遊んだ対戦だけがここに残ります（途中で終了した対戦は保存されません）。"
+        : "まだプレイ履歴がありません。クイズを遊ぶと、ここに記録が残っていきます。";
   elements.listContainer.hidden = isEmpty;
 
   elements.listContainer.innerHTML = "";
@@ -325,8 +333,8 @@ function renderHistoryList(entries) {
 // オンライン対戦の回数が紛れ込まないようにするため）。
 export function renderHistoryScreen() {
   const allEntries = getUnifiedPlayHistoryEntries();
-  const { offline, online } = splitHistoryEntriesByOnlineStatus(allEntries);
-  const tabEntries = activeTab === "online" ? online : offline;
+  const { offline, online, party } = splitHistoryEntriesByOnlineStatus(allEntries);
+  const tabEntries = activeTab === "online" ? online : activeTab === "party" ? party : offline;
 
   elements.clearButton.hidden = allEntries.length === 0;
   renderSummary(tabEntries);
@@ -334,7 +342,9 @@ export function renderHistoryScreen() {
   const filteredEntries =
     activeTab === "online"
       ? filterOnlineHistoryEntries(tabEntries, activeFilterId)
-      : filterUnifiedPlayHistoryEntries(tabEntries, activeFilterId);
+      : activeTab === "party"
+        ? filterPartyHistoryEntries(tabEntries, activeFilterId)
+        : filterUnifiedPlayHistoryEntries(tabEntries, activeFilterId);
   renderHistoryList(filteredEntries);
 }
 
@@ -342,7 +352,7 @@ export function renderHistoryScreen() {
 //
 // elements: {
 //   summaryPlayCount, summaryAnswerCount, summaryAccuracy: サマリーの数値を表示する要素,
-//   tabOfflineButton, tabOnlineButton: オフライン/オンラインの切り替えタブ,
+//   tabOfflineButton, tabOnlineButton, tabPartyButton: オフライン/オンライン/パーティーの切り替えタブ,
 //   filterChipsContainer: フィルターチップを並べる入れ物,
 //   listContainer: 履歴カードを並べる入れ物,
 //   emptyState: 履歴が0件のときだけ表示するメッセージ要素,
@@ -355,6 +365,7 @@ export function initHistoryScreen(newElements) {
 
   elements.tabOfflineButton.addEventListener("click", () => switchHistoryTab("offline"));
   elements.tabOnlineButton.addEventListener("click", () => switchHistoryTab("online"));
+  elements.tabPartyButton.addEventListener("click", () => switchHistoryTab("party"));
   elements.clearButton.addEventListener("click", openConfirmModal);
   elements.confirmCancelButton.addEventListener("click", closeConfirmModal);
   elements.confirmDeleteButton.addEventListener("click", handleDeleteConfirmed);

@@ -33,9 +33,9 @@ export function runSpecialModesScreenTests() {
   assertEqual(
     HOME_SPECIAL_MODES_ORDER.join(","),
     [
-      "randomPlayback", "lyricsQuiz", "outroQuiz", "instantChallenge", "timeAttack", "onlineBattle", "originalQuiz", "liveCallMode", "weakSongs", "localBattle",
+      "randomPlayback", "lyricsQuiz", "outroQuiz", "instantChallenge", "timeAttack", "onlineBattle", "originalQuiz", "liveCallMode", "weakSongs", "partyBattle",
     ].join(","),
-    "ホーム画面の並び順が指定通り（ランダム再生→歌詞クイズ→アウトロ→一瞬→タイムアタック→オンライン対戦の順）"
+    "ホーム画面の並び順が指定通り（ランダム再生→歌詞クイズ→アウトロ→一瞬→タイムアタック→オンライン対戦の順。末尾は2026-09-15に1台対戦→パーティー対戦へ置換）"
   );
 
   // ---- 特別モード8個すべてにアイコン要素が存在する ----

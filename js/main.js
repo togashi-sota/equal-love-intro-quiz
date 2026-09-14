@@ -219,6 +219,9 @@ import {
   createDefaultBattleRuleSettings,
 } from "./battleRules/index.js";
 import { initLocalBattleResultScreens, startBattleResultCollection } from "./localBattleResultScreen.js";
+// 【2026-09-15新設・本人指示】パーティー対戦（旧「1台対戦」の導線を置き換える新モード）。
+import { initPartyBattleScreens, openPartyBattleSetup, abortPartyBattle } from "./partyBattleScreen.js";
+import { initPartyPlayScreen } from "./partyBattlePlayScreen.js";
 import {
   initCustomQuizScreen,
   openCustomQuizScreenForNewPreset,
@@ -1862,6 +1865,7 @@ initHistoryScreen({
   summaryAccuracy: document.getElementById("history-summary-accuracy"),
   tabOfflineButton: document.getElementById("history-tab-offline"),
   tabOnlineButton: document.getElementById("history-tab-online"),
+  tabPartyButton: document.getElementById("history-tab-party"),
   filterChipsContainer: document.getElementById("history-filter-chips"),
   listContainer: document.getElementById("history-list"),
   emptyState: document.getElementById("history-empty-state"),
@@ -1940,6 +1944,10 @@ initSpecialModesScreen({
       navigateWithScrollMemory("lyricsQuizSetup");
     } else if (modeId === "localBattle") {
       navigateWithScrollMemory("battleModeSelect");
+    } else if (modeId === "partyBattle") {
+      // 【2026-09-15新設】旧「1台対戦」の位置にあるカード。設定画面は開くたびに前回の設定を初期値にする。
+      openPartyBattleSetup();
+      navigateWithScrollMemory("partyBattleSetup");
     } else if (modeId === "onlineBattle") {
       navigateWithScrollMemory("onlineBattleEntry");
     } else if (modeId === "outroQuiz") {
@@ -5230,6 +5238,10 @@ const SPECIAL_MODE_HELP_MODALS = {
   liveCallKaraoke: { modal: karaokeSyncRulesModalElement, closeButton: karaokeSyncRulesModalCloseButtonElement },
   lyricsQuiz: { modal: lyricsQuizRulesModalElement, closeButton: lyricsQuizRulesModalCloseButtonElement },
   localBattle: { modal: localBattleRulesModalElement, closeButton: localBattleRulesModalCloseButtonElement },
+  partyBattle: {
+    modal: document.getElementById("party-battle-rules-modal"),
+    closeButton: document.getElementById("party-battle-rules-modal-close"),
+  },
   onlineBattle: { modal: onlineBattleRulesModalElement, closeButton: onlineBattleRulesModalCloseButtonElement },
 };
 
@@ -5526,6 +5538,14 @@ initGuideScreen({
   detailStepsHeading: guideDetailStepsHeadingElement,
   detailSteps: guideDetailStepsElement,
   detailPoint: guideDetailPointElement,
+  // 【2026-09-15新設・本人指示：アプリ紹介動画への導線】目次最上部の動画カード。
+  videoCard: document.getElementById("guide-video-card"),
+  videoCardTitle: document.getElementById("guide-video-card-title"),
+  videoCardDesc: document.getElementById("guide-video-card-desc"),
+  videoCardNote: document.getElementById("guide-video-card-note"),
+  videoCardCtaLabel: document.getElementById("guide-video-card-cta-label"),
+  videoCardExternal: document.getElementById("guide-video-card-external"),
+  videoOfflineNote: document.getElementById("guide-video-offline-note"),
 });
 guideLinkElement.addEventListener("click", () => {
   playClickSound();
@@ -6275,6 +6295,105 @@ initLocalBattleScreens({
     playClickSound();
     beginLocalBattlePlay(config);
   },
+});
+
+// ===== パーティー対戦（2026-09-15新設、本人指示） =====
+// 旧1台対戦と同じく、画面遷移（効果音＋showScreen）はnavigateBattleScreenへ委譲する。
+const partyBattleQuitModalElement = document.getElementById("party-battle-quit-modal");
+initPartyBattleScreens({
+  navigateTo: navigateBattleScreen,
+  onShowHelp: () => openSpecialModeHelp("partyBattle"),
+  setupBackButton: document.getElementById("party-battle-setup-back-button"),
+  setupHelpLink: document.getElementById("party-battle-setup-help-link"),
+  setupNextButton: document.getElementById("party-battle-setup-next-button"),
+  setupError: document.getElementById("party-battle-setup-error"),
+  playerNameFields: document.getElementById("party-player-name-fields"),
+  recentNames: document.getElementById("party-recent-names"),
+  recentNamesChips: document.getElementById("party-recent-names-chips"),
+  seatFieldset: document.getElementById("party-seat-fieldset"),
+  seatFigure: document.getElementById("party-seat-figure"),
+  questionCountOptions: document.getElementById("party-question-count-options"),
+  instantFieldset: document.getElementById("party-instant-fieldset"),
+  voiceFieldset: document.getElementById("party-voice-fieldset"),
+  manualSourceRow: document.getElementById("party-manual-source-row"),
+  manualSourceSummary: document.getElementById("party-manual-source-summary"),
+  manualSourceButton: document.getElementById("party-manual-source-button"),
+  playlistSourceRow: document.getElementById("party-playlist-source-row"),
+  playlistSelect: document.getElementById("party-playlist-select"),
+  songSourceStatus: document.getElementById("party-song-source-status"),
+  pickerBackButton: document.getElementById("party-song-picker-back-button"),
+  pickerCount: document.getElementById("party-song-picker-count"),
+  pickerSelectAllButton: document.getElementById("party-song-picker-select-all-button"),
+  pickerDeselectAllButton: document.getElementById("party-song-picker-deselect-all-button"),
+  pickerSearchInput: document.getElementById("party-song-picker-search-input"),
+  pickerSearchClearButton: document.getElementById("party-song-picker-search-clear-button"),
+  pickerList: document.getElementById("party-song-picker-list"),
+  pickerDoneButton: document.getElementById("party-song-picker-done-button"),
+  preflightBackButton: document.getElementById("party-battle-preflight-back-button"),
+  preflightSummary: document.getElementById("party-preflight-summary"),
+  preflightPoolStatus: document.getElementById("party-preflight-pool-status"),
+  preflightPoolError: document.getElementById("party-preflight-pool-error"),
+  preflightError: document.getElementById("party-battle-preflight-error"),
+  voiceBox: document.getElementById("party-preflight-voice-box"),
+  voiceTestDesc: document.getElementById("party-voice-test-desc"),
+  voiceTestButton: document.getElementById("party-voice-test-button"),
+  voiceTestResult: document.getElementById("party-voice-test-result"),
+  startButton: document.getElementById("party-battle-start-button"),
+  resultConfigSummary: document.getElementById("party-result-config-summary"),
+  resultList: document.getElementById("party-result-list"),
+  winnerCard: document.getElementById("party-result-winner"),
+  winnerName: document.getElementById("party-result-winner-name"),
+  winnerPoints: document.getElementById("party-result-winner-points"),
+  confetti: document.getElementById("party-result-confetti"),
+  resultNote: document.getElementById("party-result-note"),
+  resultActions: document.getElementById("party-result-actions"),
+  rematchButton: document.getElementById("party-result-rematch-button"),
+  changeSettingsButton: document.getElementById("party-result-change-button"),
+  resultHomeButton: document.getElementById("party-result-home-button"),
+});
+initPartyPlayScreen({
+  root: document.getElementById("party-play-root"),
+  seats: document.getElementById("party-play-seats"),
+  questionLabel: document.getElementById("party-play-question-label"),
+  lyrics: document.getElementById("party-play-lyrics"),
+  status: document.getElementById("party-play-status"),
+  passButton: document.getElementById("party-play-pass-button"),
+  passProgress: document.getElementById("party-play-pass-progress"),
+  quitButton: document.getElementById("party-play-quit-button"),
+  quitProgress: document.getElementById("party-play-quit-progress"),
+  introOverlay: document.getElementById("party-play-intro-overlay"),
+  introText: document.getElementById("party-play-intro-text"),
+  resultOverlay: document.getElementById("party-play-result-overlay"),
+  resultHeadline: document.getElementById("party-play-result-headline"),
+  resultSong: document.getElementById("party-play-result-song"),
+  resultDetail: document.getElementById("party-play-result-detail"),
+  overrideButton: document.getElementById("party-play-override-button"),
+  resultNextButton: document.getElementById("party-play-result-next-button"),
+  voiceOverlay: document.getElementById("party-play-voice-overlay"),
+  voicePlayer: document.getElementById("party-play-voice-player"),
+  voiceTimer: document.getElementById("party-play-voice-timer"),
+  voiceTranscript: document.getElementById("party-play-voice-transcript"),
+  voiceHint: document.getElementById("party-play-voice-hint"),
+  judgeRow: document.getElementById("party-play-judge-row"),
+  judgeCorrectButton: document.getElementById("party-play-judge-correct-button"),
+  judgeWrongButton: document.getElementById("party-play-judge-wrong-button"),
+  notice: document.getElementById("party-play-notice"),
+  pauseOverlay: document.getElementById("party-play-pause-overlay"),
+  resumeButton: document.getElementById("party-play-resume-button"),
+  // 「終了｜長押し」成立 → 確認モーダル。確定したときだけ試合を中断する（履歴は保存しない）。
+  onQuitRequested: () => {
+    playClickSound();
+    partyBattleQuitModalElement.hidden = false;
+  },
+});
+document.getElementById("party-battle-quit-cancel-button").addEventListener("click", () => {
+  playClickSound();
+  partyBattleQuitModalElement.hidden = true;
+});
+document.getElementById("party-battle-quit-confirm-button").addEventListener("click", () => {
+  playClickSound();
+  partyBattleQuitModalElement.hidden = true;
+  abortPartyBattle();
 });
 
 initLocalBattleResultScreens({

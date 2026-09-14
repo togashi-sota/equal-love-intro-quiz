@@ -72,6 +72,14 @@ const ICON_DEFINITIONS = {
       '<path d="M3 21 12 12M21 21 12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' +
       '<path d="M3 3l5 1 1 5-3 3-3-3 1-5ZM21 3l-5 1-1 5 3 3 3-3-1-5Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" fill="none"/>',
   },
+  partyBattle: {
+    // 【2026-09-15新設】パーティー対戦：中央の端末を4人が囲むイメージ（中央の四角＋四隅の丸）。
+    viewBox: "0 0 24 24",
+    markup:
+      '<rect x="8" y="8" width="8" height="8" rx="2" fill="none" stroke="currentColor" stroke-width="2"/>' +
+      '<circle cx="4.5" cy="4.5" r="2.2"/><circle cx="19.5" cy="4.5" r="2.2"/>' +
+      '<circle cx="4.5" cy="19.5" r="2.2"/><circle cx="19.5" cy="19.5" r="2.2"/>',
+  },
   onlineBattle: {
     // オンライン対戦：地球儀（離れた場所とつながるイメージ）。
     viewBox: "0 0 24 24",

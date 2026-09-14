@@ -59,6 +59,13 @@ const SCREEN_ELEMENTS = {
   battleRuleConfirm: document.getElementById("battle-rule-confirm-screen"),
   battleResultCollect: document.getElementById("battle-result-collect-screen"),
   battleResultRanking: document.getElementById("battle-result-ranking-screen"),
+  // パーティー対戦（2026-09-15新設）。旧1台対戦（battle*）の画面は互換のため残しているが、
+  // ホームからの導線はこちらへ置き換わっている。
+  partyBattleSetup: document.getElementById("party-battle-setup-screen"),
+  partyBattleSongPicker: document.getElementById("party-battle-song-picker-screen"),
+  partyBattlePreflight: document.getElementById("party-battle-preflight-screen"),
+  partyBattlePlay: document.getElementById("party-battle-play-screen"),
+  partyBattleResult: document.getElementById("party-battle-result-screen"),
   onlineBattleEntry: document.getElementById("online-battle-entry-screen"),
   onlineBattleCreate: document.getElementById("online-battle-create-screen"),
   onlineBattleJoin: document.getElementById("online-battle-join-screen"),
@@ -105,6 +112,8 @@ const GAME_FRAME_SAFE_HEIGHT_SCREENS = new Set([
   "lyricsQuizQuestion",
   "onlineLyricsBattleQuestion",
   "instantChallengeQuestion",
+  // パーティー対戦の盤面（2026-09-15新設）も同じ「viewport高さに固定した全画面」設計。
+  "partyBattlePlay",
 ]);
 
 function forceViewportHeightRecalcForGameFrame() {

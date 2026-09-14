@@ -17,6 +17,9 @@ import {
   computeUnifiedHistorySummary,
   HISTORY_FILTER_CATEGORY,
   HISTORY_FILTER_ORDER,
+  splitHistoryEntriesByOnlineStatus,
+  filterPartyHistoryEntries,
+  HISTORY_MODE_DISPLAY,
 } from "../js/playHistory.js";
 import { saveHistoryEntry, clearHistoryEntries } from "../js/history.js";
 import { saveTimeAttackHistoryEntry, clearTimeAttackHistoryEntries } from "../js/timeAttackHistory.js";
@@ -228,13 +231,37 @@ export function runPlayHistoryTests() {
       "'battle'フィルターはローカル対戦・オンライン対戦3種をまとめる（本人指示）"
     );
     // すべてのmodeIdがどこかのフィルターに属していることの網羅チェック。
+    // 【2026-09-15改訂】対戦系（"battle"＝旧1台対戦・オンライン対戦・パーティー対戦）は、
+    // オフラインタブのチップ（HISTORY_FILTER_ORDER）からは外れ、それぞれオンライン／パーティーの
+    // 専用タブで見る（splitHistoryEntriesByOnlineStatus参照）。
     entries.forEach((entry) => {
+      const category = HISTORY_FILTER_CATEGORY[entry.modeId];
       assertEqual(
-        HISTORY_FILTER_ORDER.includes(HISTORY_FILTER_CATEGORY[entry.modeId]),
+        HISTORY_FILTER_ORDER.includes(category) || category === "battle",
         true,
-        `modeId:"${entry.modeId}"はいずれかのフィルターに属している`
+        `modeId:"${entry.modeId}"はいずれかのフィルター（または対戦系）に属している`
       );
     });
+    assertEqual(HISTORY_FILTER_ORDER.includes("battle"), false, "オフラインタブのチップに「1台対戦」は無い（パーティータブへ移動）");
+    const split = splitHistoryEntriesByOnlineStatus([
+      { modeId: "intro" },
+      { modeId: "localBattle" },
+      { modeId: "partyBattle" },
+      { modeId: "onlineTimeAttack" },
+    ]);
+    assertEqual(split.offline.map((e) => e.modeId), ["intro"], "オフラインタブには通常クイズだけ");
+    assertEqual(split.online.map((e) => e.modeId), ["onlineTimeAttack"], "オンラインタブにはオンライン対戦だけ");
+    assertEqual(split.party.map((e) => e.modeId), ["localBattle", "partyBattle"], "パーティータブには旧1台対戦とパーティー対戦（旧記録は削除・書き換えしない）");
+    assertEqual(filterPartyHistoryEntries(split.party, "localBattle").map((e) => e.modeId), ["localBattle"], "パーティータブの「旧1台対戦」チップ");
+    assertEqual(filterPartyHistoryEntries(split.party, "all").length, 2, "パーティータブの「すべて」");
+    assertEqual(HISTORY_MODE_DISPLAY.partyBattle.label, "パーティー対戦", "パーティー対戦の表示名");
+    const partyLines = describeEntrySummaryLines({
+      modeId: "partyBattle",
+      questionCount: 5,
+      isAllSongsMode: true,
+      details: { playerCount: 3, quizTypeLabel: "イントロ", answerMethod: "fourChoice", hadSuddenDeath: true, standings: [{ playerName: "あい", rank: 1, score: 3, isWinner: true }] },
+    });
+    assertEqual(partyLines, ["3人・イントロ・5問・4択", "🏆 あい 3pt / サドンデスあり"], "パーティー対戦の一覧カード要約");
   }
 
   // ===== describeEntrySummaryLines（一覧カード用の要約行、モードごとの出し分け） =====
