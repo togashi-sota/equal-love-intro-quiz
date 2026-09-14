@@ -14,6 +14,7 @@ import {
 } from "./publicProfileSync.js";
 import { syncRankingCandidatesToFirebase } from "./timeAttackLeaderboardSync.js";
 import { resolveIsAdminUser } from "./adminConfig.js";
+import { hasPendingUidMerge, planUidMerge, executeUidMerge, describeUidMergePlan } from "./uidSupersession.js";
 import { getPlayerKeyPrefix } from "./playerProfile.js";
 import { getMemberById } from "./memberUtils.js";
 import {
@@ -291,8 +292,78 @@ async function handleAdminDeleteConfirmClick() {
 export async function renderFanProfilesScreen() {
   renderSharingSettings();
   await renderMyUidAndAdminState();
+  renderUidMergeCard();
   renderProfileList();
   startPresenceSubscriptionIfNeeded();
+}
+
+// ---- 【2026-09-15新設】旧IDからの引き継ぎ案内（js/uidSupersession.js） ----
+// 自動バックアップがUIDの変化を検知して「確認待ち」を残しているときだけカードを出す。
+// 「内容を確認する」→ 計画（読み取りのみ）を箇条書きで表示 →「引き継いで整理する」→ 実行。
+let currentUidMergePlan = null;
+
+function renderUidMergeCard() {
+  if (!elements.uidMergeCard) return;
+  const pending = hasPendingUidMerge();
+  elements.uidMergeCard.hidden = !pending;
+  if (!pending) {
+    currentUidMergePlan = null;
+    if (elements.uidMergePlanList) elements.uidMergePlanList.hidden = true;
+    if (elements.uidMergeExecuteButton) elements.uidMergeExecuteButton.hidden = true;
+    if (elements.uidMergeStatus) elements.uidMergeStatus.hidden = true;
+  }
+}
+
+function setUidMergeStatus(text) {
+  if (!elements.uidMergeStatus) return;
+  elements.uidMergeStatus.textContent = text;
+  elements.uidMergeStatus.hidden = !text;
+}
+
+async function handleUidMergePlanClick() {
+  playSfx(SFX_EVENTS.UI_CLICK);
+  elements.uidMergePlanButton.disabled = true;
+  setUidMergeStatus("確認しています…");
+  try {
+    const plan = await planUidMerge();
+    if (!plan.ok) {
+      setUidMergeStatus(plan.reason);
+      return;
+    }
+    currentUidMergePlan = plan;
+    const lines = describeUidMergePlan(plan);
+    elements.uidMergePlanList.innerHTML = "";
+    (lines.length ? lines : ["整理が必要な記録はありません（このまま「引き継いで整理する」で案内を閉じられます）"]).forEach((line) => {
+      const item = document.createElement("li");
+      item.textContent = line;
+      elements.uidMergePlanList.appendChild(item);
+    });
+    elements.uidMergePlanList.hidden = false;
+    elements.uidMergeExecuteButton.hidden = false;
+    setUidMergeStatus("");
+  } finally {
+    elements.uidMergePlanButton.disabled = false;
+  }
+}
+
+async function handleUidMergeExecuteClick() {
+  if (!currentUidMergePlan) return;
+  playSfx(SFX_EVENTS.UI_CLICK);
+  elements.uidMergeExecuteButton.disabled = true;
+  setUidMergeStatus("引き継いでいます…");
+  try {
+    const result = await executeUidMerge(currentUidMergePlan);
+    if (!result.ok) {
+      setUidMergeStatus(result.reason ?? `一部を整理できませんでした：${result.errors.join(" / ")}`);
+      return;
+    }
+    setUidMergeStatus(`引き継ぎが完了しました（ランキング引き継ぎ ${result.copied}件・重複整理 ${result.deletedOld}件）`);
+    currentUidMergePlan = null;
+    renderUidMergeCard();
+    renderProfileList();
+  } finally {
+    elements.uidMergeExecuteButton.disabled = false;
+  }
 }
 
 // 【2026-11-XX新設・本人指示：フレンドのオンライン状態】この画面を開いている間だけ
@@ -361,6 +432,9 @@ export function initFanProfilesScreen(newElements, allMembers) {
   elements.detailAllToggle.addEventListener("click", handleDetailAllToggleClick);
   elements.detailOverlay.addEventListener("click", handleDetailOverlayClick);
   document.addEventListener("keydown", handleDetailKeydown);
+
+  if (elements.uidMergePlanButton) elements.uidMergePlanButton.addEventListener("click", handleUidMergePlanClick);
+  if (elements.uidMergeExecuteButton) elements.uidMergeExecuteButton.addEventListener("click", handleUidMergeExecuteClick);
 
   elements.adminDeleteCancelButton.addEventListener("click", () => {
     playSfx(SFX_EVENTS.UI_BACK);

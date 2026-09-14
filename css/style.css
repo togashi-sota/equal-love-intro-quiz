@@ -17585,3 +17585,21 @@ body[data-screen="onlineInstantCoopBattleResult"] {
     transition-duration: 0.001ms !important;
   }
 }
+
+/* 【2026-09-15新設】フレンド画面：旧IDからの引き継ぎ案内カード（js/uidSupersession.js）。
+   公開設定カード（.fan-profiles-settings-card）の見た目を流用し、ボタンを縦に並べる。 */
+.fan-profiles-uid-merge-card {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+}
+.fan-profiles-uid-merge-card .modal-category-list {
+  margin: 8px 0 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+.fan-profiles-uid-merge-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}

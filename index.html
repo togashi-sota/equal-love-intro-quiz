@@ -1671,6 +1671,23 @@
            開発者（本人）が管理者機能を設定する際の参照用。 -->
       <p class="fan-profiles-my-id">🆔 あなたのID：<code id="fan-profiles-my-uid">確認中…</code></p>
 
+      <!-- 【2026-09-15新設】旧IDからの引き継ぎ案内（js/uidSupersession.js・js/fanProfilesScreen.js）。
+           Firebase匿名認証のIDが本人の操作と無関係に変わったことを、自動バックアップの同期
+           （ownerSecretによる所有権の自己修復）で検知したときだけ表示される。旧IDに残った
+           公開プロフィール・ランキング記録の整理は自動では行わず、ここで内容を確認してから
+           本人が実行する（本人指示：自動的に何でも旧IDのデータを削除する設計にはしない）。 -->
+      <div id="fan-profiles-uid-merge-card" class="fan-profiles-settings-card fan-profiles-uid-merge-card" hidden>
+        <div class="fan-profiles-settings-text">
+          <p class="fan-profiles-settings-title">🔁 以前のIDの記録が見つかりました</p>
+          <p class="fan-profiles-settings-description">この端末のIDが変わったため、フレンド一覧やランキングに「以前のあなた」が残っています。以前の記録を今のIDへ引き継いで、重複を整理できます（速い方の記録が残ります。記録が消えることはありません）。</p>
+          <ul id="fan-profiles-uid-merge-plan" class="modal-category-list" hidden></ul>
+          <p id="fan-profiles-uid-merge-status" class="fan-profiles-ranking-sync-status" hidden></p>
+        </div>
+        <div class="fan-profiles-uid-merge-actions">
+          <button id="fan-profiles-uid-merge-plan-button" class="secondary-button" type="button">内容を確認する</button>
+          <button id="fan-profiles-uid-merge-execute-button" class="primary-button" type="button" hidden>引き継いで整理する</button>
+        </div>
+
       <!-- 管理者専用：バックアップ管理画面への入口（2026-08-29新設）。ADMIN_UIDと一致する
            場合だけ表示される（js/fanProfilesScreen.jsのisAdminUser判定を流用）。
            ここに表示されること自体は見た目上の制御にすぎず、実際の閲覧・操作権限は

@@ -125,6 +125,9 @@ export async function adminResolveRecoveryRequest(code, backupId) {
     await update(ref(database), {
       [`backups/${backupId}/currentUid`]: newUid,
       [`backups/${backupId}/updatedAt`]: serverTimestamp(),
+      // 【2026-09-15追加】以前の端末の ownerSecret（js/backupOwnership.js）を無効化する。
+      // 新しい端末は復元後の最初の同期で自分の ownerSecret を新規に保存する。
+      [`backups/${backupId}/ownerSecret`]: null,
       [`recoveryRequests/${code}/status`]: "resolved",
       [`recoveryRequests/${code}/resolvedBackupId`]: backupId,
       [`recoveryRequests/${code}/resolvedAt`]: serverTimestamp(),

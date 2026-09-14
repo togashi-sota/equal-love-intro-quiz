@@ -45,7 +45,13 @@ import {
   getOrCreateBackupId,
   getBackupId,
   applyRestoredPlayerInfo,
+  getOrCreateOwnerSecret,
+  rotateOwnerSecret,
+  getLastKnownUid,
+  setLastKnownUid,
+  setPendingUidMerge,
 } from "./playerProfile.js";
+import { generateOwnerSecret, detectUidChange, isValidOwnerSecret } from "./backupOwnership.js";
 
 const SCHEMA_VERSION = 1;
 const LOCAL_STORAGE_PREFIX = "equalLoveIntroQuiz.";
@@ -190,6 +196,42 @@ let pendingResyncNeeded = false;
 // 実際にFirebaseへ書き込む（内部専用）。認証待ち・通信失敗はすべてここで吸収し、
 // 呼び出し側を絶対にブロックしない。失敗時はpendingResyncNeededを立てて、
 // 次回のscheduleBackupSync()呼び出しで再試行されるようにする。
+// 【2026-09-15追加：Firebase Rules 未公開時のための互換フォールバック】
+// ownerSecret・previousUids（js/backupOwnership.js参照）は、firebase/database.rules.json の
+// 対応ルールが本番へ公開されて初めて受け付けられる。万一「コードは新しいがRulesは古い」状態で
+// 動いた場合、新しいフィールドを含む書き込みは PERMISSION_DENIED になるため、
+// その場合は従来どおりのフィールドだけで書き直す（バックアップ自体は止めない）。
+// 一度検知したら、このセッション中は最初から従来形式で書く（無駄な失敗を繰り返さない）。
+let legacyRulesDetected = false;
+
+function isPermissionDenied(error) {
+  const code = error?.code ?? "";
+  const message = error?.message ?? "";
+  return /PERMISSION_DENIED|permission_denied|permission-denied/i.test(`${code} ${message}`);
+}
+
+// UIDが変わっていた場合に「前の持ち主のUID」を求める。
+// ①前回同期成功時のUID（lastKnownUid）と今のUIDが違えば、それが旧UID。
+// ②lastKnownUid がまだ無い（この機能の導入前から使っている端末の初回同期）場合だけ、
+//   クラウド側の currentUid を1回読んで比べる。読めるのは「現在の持ち主」か「管理者」だけ
+//   （Rules）なので、持ち主なら同じUIDが返り（＝変化なし）、管理者は自分のUID変更後に
+//   管理者権限を復旧したケースで旧UIDを知ることができる。一般ユーザーで既にUIDが変わって
+//   いる場合は読めない（PERMISSION_DENIED）ため null＝旧UID不明として扱う。
+async function resolvePreviousUid(playerId, uid, backupId, { database, ref, get }) {
+  const lastKnownUid = getLastKnownUid(playerId);
+  const detection = detectUidChange(lastKnownUid, uid);
+  if (detection.changed) return detection.previousUid;
+  if (lastKnownUid !== null) return null;
+  try {
+    const snapshot = await get(ref(database, `backups/${backupId}/currentUid`));
+    const cloudUid = snapshot.val();
+    if (typeof cloudUid === "string" && cloudUid && cloudUid !== uid) return cloudUid;
+  } catch {
+    // 読めない＝自分が持ち主ではない（または未作成）。旧UIDは不明のまま進める。
+  }
+  return null;
+}
+
 async function performSync() {
   const player = getActivePlayer();
   const payload = buildBackupPayload();
@@ -198,7 +240,7 @@ async function performSync() {
 
   try {
     const { database, authReady, getCurrentUid } = await import("./firebaseClient.js");
-    const { ref, set, serverTimestamp } = await import(
+    const { ref, get, update, serverTimestamp } = await import(
       "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js"
     );
     await authReady;
@@ -213,7 +255,11 @@ async function performSync() {
       firebaseSafeEntries[encodeKeyForFirebase(logicalKey)] = value;
     }
 
-    await set(ref(database, `backups/${backupId}`), {
+    // 従来どおりのフィールド（このアプリの「ローカルが正本」の設計は変えない）。
+    // 【2026-09-15改訂】set()（ノード全体の置き換え）から update()（列挙したキーだけの上書き）へ変更。
+    // 理由：ownerSecret・previousUids・transfer（引き継ぎコード）を、通常の同期で消してしまわないため
+    // （以前は同期のたびに transfer が消え、発行直後の引き継ぎコードがデータ変更で無効になり得た）。
+    const baseRecord = {
       schemaVersion: payload.schemaVersion,
       currentUid: uid,
       updatedAt: serverTimestamp(),
@@ -221,10 +267,84 @@ async function performSync() {
       oshiMemberId: payload.oshiMemberId,
       achievementCount: payload.achievementCount,
       payload: firebaseSafeEntries,
-    });
+    };
+
+    // 【2026-09-15追加：所有権の自己修復】ownerSecret を毎回一緒に送る。
+    // ・UIDが変わっていなければ：ただ保存されるだけ（既存ユーザーには次回起動時に自動で付与される。
+    //   値は端末に1つだけ持ち、何度起動しても同じ値を送る＝冪等）。
+    // ・UIDが変わっていれば：Rulesの「ownerSecretが一致すれば currentUid を自分へ書き換えてよい」枝を
+    //   通り、この通常同期そのものが所有権の回復になる。合わせて旧UIDを previousUids に記録する。
+    const ownerSecret = legacyRulesDetected ? null : getOrCreateOwnerSecret(player.playerId, generateOwnerSecret);
+    const previousUid = legacyRulesDetected ? null : await resolvePreviousUid(player.playerId, uid, backupId, { database, ref, get });
+    // UIDの変化を「前回同期時のUID」から検知した場合だけ、所有権の回復（claim）を試みる。
+    // lastKnownUid が無くクラウドの currentUid を読めた（＝管理者）場合は、管理者の枝で書けるので claim は不要。
+    const detectedByLastKnownUid = detectUidChange(getLastKnownUid(player.playerId), uid).changed;
+    const needsClaim = !legacyRulesDetected && previousUid !== null && detectedByLastKnownUid && isValidOwnerSecret(ownerSecret);
+    const rotatedOwnerSecret = needsClaim ? generateOwnerSecret() : null;
+
+    // 試す順番：①claim（旧UIDの記録つき）→②claim（記録なし）→③通常（既に持ち主の場合）→④従来形式
+    const buildWrites = ({ claim, withPreviousUid, withOwnerSecret, legacy }) => {
+      const writes = { ...baseRecord };
+      if (claim) {
+        writes.ownerClaim = { secret: ownerSecret, at: serverTimestamp() };
+        writes.ownerSecret = rotatedOwnerSecret;
+      } else {
+        if (withOwnerSecret && ownerSecret) writes.ownerSecret = ownerSecret;
+        // 使い終わった証明（ownerClaim）が残っていれば消す（持ち主の通常同期で削除できる。
+        // 無ければ何も起きない。旧Rules向けの従来形式では触らない）。
+        if (!legacy) writes.ownerClaim = null;
+      }
+      if (withPreviousUid && previousUid) writes[`previousUids/${previousUid}`] = serverTimestamp();
+      return writes;
+    };
+    const attempts = [];
+    if (needsClaim) {
+      attempts.push({ claim: true, withPreviousUid: true, withOwnerSecret: false });
+      attempts.push({ claim: true, withPreviousUid: false, withOwnerSecret: false });
+    } else if (previousUid) {
+      attempts.push({ claim: false, withPreviousUid: true, withOwnerSecret: true });
+    }
+    attempts.push({ claim: false, withPreviousUid: false, withOwnerSecret: true });
+    attempts.push({ claim: false, withPreviousUid: false, withOwnerSecret: false, legacy: true });
+
+    let applied = null;
+    let lastError = null;
+    for (const attempt of attempts) {
+      try {
+        await update(ref(database, `backups/${backupId}`), buildWrites(attempt));
+        applied = attempt;
+        break;
+      } catch (error) {
+        lastError = error;
+        if (!isPermissionDenied(error)) throw error;
+      }
+    }
+    if (!applied) throw lastError;
+    if (applied.legacy && (ownerSecret || previousUid)) legacyRulesDetected = true;
+    if (applied.claim) {
+      // 回復に成功した書き込みで ownerSecret を作り直したので、端末側も同じ値へ更新する。
+      rotateOwnerSecret(player.playerId, () => rotatedOwnerSecret);
+      // 使い終わった証明をすぐ消す（もう持ち主なので通常の書き込みで削除できる）。
+      // 失敗しても次回の通常同期で消えるため、ここでは失敗を無視する。
+      try {
+        await update(ref(database, `backups/${backupId}`), { ownerClaim: null });
+      } catch {
+        // 次回同期で削除される
+      }
+    }
+    const recordedPreviousUid = applied.withPreviousUid ? previousUid : null;
 
     lastSyncedFingerprint = fingerprint;
     pendingResyncNeeded = false;
+    setLastKnownUid(player.playerId, uid);
+
+    if (recordedPreviousUid) {
+      // 旧UIDのデータ（公開プロフィール・ランキング等）の整理は自動では行わず、
+      // フレンド画面で本人に案内して確認を取る（js/uidSupersession.js・js/fanProfilesScreen.js）。
+      setPendingUidMerge(player.playerId, { oldUid: recordedPreviousUid, backupId });
+      const { recordUidSupersession } = await import("./uidSupersession.js");
+      await recordUidSupersession(recordedPreviousUid, backupId);
+    }
   } catch (error) {
     // 本人指示：通信に失敗してもローカルのプレイ自体には一切影響させない。
     // 次にscheduleBackupSync()が呼ばれたタイミングで自然に再試行される。
@@ -383,6 +503,11 @@ export async function restoreFromBackup(backupId) {
     const player = getActivePlayer();
     // このプレイヤーに、復元したbackupIdを覚えさせる（以後の自動バックアップの送り先を固定する）。
     applyRestoredPlayerInfo(player.playerId, { backupId, playerName: record.displayName });
+    // 【2026-09-15追加】このバックアップは今この端末のものになった。ownerSecret を作り直して
+    // 直後の同期で保存し、以前の端末が持っていた ownerSecret を無効化する（js/backupOwnership.js参照）。
+    // lastKnownUid も今のUIDにそろえる（復元＝UID変更の検知対象ではない）。
+    rotateOwnerSecret(player.playerId, generateOwnerSecret);
+    setLastKnownUid(player.playerId, uid);
 
     lastSyncedFingerprint = null; // 復元直後は必ず1回同期し直す
     await syncNow();
@@ -506,14 +631,31 @@ export async function claimTransferCode(rawCode) {
   }
   if (!uid) return { ok: false, reason: "ログイン状態を確認できませんでした。通信環境をご確認のうえ、もう一度お試しください。" };
 
+  // 【2026-09-15追加】所有権の書き換えと同時に ownerSecret も新しい値へ差し替える
+  // （旧端末が持つ ownerSecret でこのバックアップを取り返せないようにする）。
+  // Rulesが未公開で ownerSecret を受け付けない場合に備え、従来どおりの3項目だけでも再試行する。
+  const claimedOwnerSecret = generateOwnerSecret();
+  const baseClaim = {
+    [`backups/${backupId}/currentUid`]: uid,
+    [`backups/${backupId}/transfer/secret`]: secret,
+    [`backups/${backupId}/transfer/usedAt`]: serverTimestamp(),
+  };
+  let claimed = false;
   try {
-    await update(ref(database), {
-      [`backups/${backupId}/currentUid`]: uid,
-      [`backups/${backupId}/transfer/secret`]: secret,
-      [`backups/${backupId}/transfer/usedAt`]: serverTimestamp(),
-    });
+    await update(ref(database), { ...baseClaim, [`backups/${backupId}/ownerSecret`]: claimedOwnerSecret });
+    claimed = true;
   } catch (error) {
-    console.warn("引き継ぎコードでの認証に失敗しました（無効・期限切れ・使用済みの可能性があります）", error);
+    try {
+      await update(ref(database), baseClaim);
+      claimed = true;
+    } catch (retryError) {
+      console.warn("引き継ぎコードでの認証に失敗しました（無効・期限切れ・使用済みの可能性があります）", retryError);
+    }
+  }
+  if (claimed) {
+    // restoreFromBackup() 内で改めて作り直されるため、ここで保存した値が最終値になるわけではないが、
+    // 直後の同期までの間に旧端末側の値へ戻らないよう、端末側も先に更新しておく。
+    rotateOwnerSecret(getActivePlayer().playerId, () => claimedOwnerSecret);
   }
 
   const result = await restoreFromBackup(backupId);

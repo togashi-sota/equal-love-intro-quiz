@@ -215,6 +215,8 @@ const APP_SHELL_FILES = [
   "./js/playInviteUi.js",
   "./js/adminConfig.js",
   "./js/adminAccess.js",
+  "./js/backupOwnership.js",
+  "./js/uidSupersession.js",
   "./js/favoriteSongs.js",
   "./js/playlists.js",
   "./js/playlistScreen.js",

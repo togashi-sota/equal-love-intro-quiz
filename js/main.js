@@ -779,6 +779,11 @@ const fanProfilesTitleListLinkElement = document.getElementById("fan-profiles-ti
 const fanProfileDetailTitleListLinkElement = document.getElementById("fan-profile-detail-title-list-link");
 const fanProfilesMyUidElement = document.getElementById("fan-profiles-my-uid");
 const adminBackupLinkButtonElement = document.getElementById("admin-backup-link");
+const fanProfilesUidMergeCardElement = document.getElementById("fan-profiles-uid-merge-card");
+const fanProfilesUidMergePlanElement = document.getElementById("fan-profiles-uid-merge-plan");
+const fanProfilesUidMergeStatusElement = document.getElementById("fan-profiles-uid-merge-status");
+const fanProfilesUidMergePlanButtonElement = document.getElementById("fan-profiles-uid-merge-plan-button");
+const fanProfilesUidMergeExecuteButtonElement = document.getElementById("fan-profiles-uid-merge-execute-button");
 // 【2026-09-23新設・本人指示：新規プレイのたびに第1問だけ無音になる問題の再調査】
 const debugAudioLogLinkButtonElement = document.getElementById("debug-audio-log-link");
 const fanProfilesAdminDeleteOverlayElement = document.getElementById("fan-profiles-admin-delete-confirm-modal");
@@ -2205,6 +2210,11 @@ initFanProfilesScreen(
     myUidValue: fanProfilesMyUidElement,
     adminBackupLinkButton: adminBackupLinkButtonElement,
     debugAudioLogLinkButton: debugAudioLogLinkButtonElement,
+    uidMergeCard: fanProfilesUidMergeCardElement,
+    uidMergePlanList: fanProfilesUidMergePlanElement,
+    uidMergeStatus: fanProfilesUidMergeStatusElement,
+    uidMergePlanButton: fanProfilesUidMergePlanButtonElement,
+    uidMergeExecuteButton: fanProfilesUidMergeExecuteButtonElement,
     adminDeleteOverlay: fanProfilesAdminDeleteOverlayElement,
     adminDeleteTargetName: fanProfilesAdminDeleteTargetNameElement,
     adminDeleteCancelButton: fanProfilesAdminDeleteCancelButtonElement,

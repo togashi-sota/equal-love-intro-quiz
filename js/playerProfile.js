@@ -218,6 +218,84 @@ export function getBackupId(playerId) {
   return player?.backupId ?? null;
 }
 
+// ---------------------------------------------------------------------------
+// 【2026-09-15追加：バックアップ所有権の自己修復（js/backupOwnership.js参照）】
+// プレイヤーごとに、backupIdとは別の3つの値を players 一覧に持つ。
+// ・ownerSecret … 端末だけが知る長い秘密。backups/{backupId}/ownerSecret にも保存され、
+//   Firebase匿名UIDが変わったときに「同じ端末＝同じ本人」であることをRules側へ証明する材料。
+//   画面・公開プロフィール・ログには一切出さない（players 一覧は端末の外へ出ない）。
+// ・lastKnownUid … 最後にバックアップ同期が成功したときのUID。次回同期時に現在のUIDと
+//   比べて「UIDが変わった」ことを検知し、旧UIDとして記録するために使う。
+// ・pendingUidMerge … UID変更後、旧UIDのデータ（公開プロフィール・ランキング等）を
+//   新UIDへ引き継いで整理する作業が「本人の確認待ち」であることを示す。
+//   { oldUid, backupId, recordedAt } または null。
+// いずれも writePlayers() 経由で保存する（cachedPlayersと食い違わせないため）。
+// ---------------------------------------------------------------------------
+
+// ownerSecret は複数タブで同時に使われても食い違わないよう、キャッシュではなく毎回 localStorage を読み直す
+//（別タブで作り直された直後の値を取りこぼさないため）。
+function refreshPlayersCache() {
+  cachedPlayers = null;
+  return getPlayers();
+}
+
+function updatePlayerFields(playerId, fields) {
+  const players = refreshPlayersCache();
+  if (!players.some((p) => p.playerId === playerId)) return false;
+  const updated = players.map((p) => (p.playerId === playerId ? { ...p, ...fields, updatedAt: nowIso() } : p));
+  writePlayers(updated);
+  return true;
+}
+
+// ownerSecret を返す。無ければその場で発行して保存する（backupIdと同じ「初回に自然に発行」方式。
+// 既存プレイヤーにも次回の同期時に1回だけ付与され、以後は同じ値を使い続ける＝冪等）。
+// generate は差し替え可能（テスト用）。
+export function getOrCreateOwnerSecret(playerId, generate) {
+  const player = refreshPlayersCache().find((p) => p.playerId === playerId);
+  if (!player) return null;
+  if (typeof player.ownerSecret === "string" && player.ownerSecret.length > 0) return player.ownerSecret;
+  const ownerSecret = generate();
+  updatePlayerFields(playerId, { ownerSecret });
+  return ownerSecret;
+}
+
+// 引き継ぎコード・復旧でバックアップを新しい端末のものにした直後に、ownerSecret を作り直す。
+// 旧端末が持っていた ownerSecret を無効化し、旧端末がこのバックアップを取り返せないようにするため。
+export function rotateOwnerSecret(playerId, generate) {
+  const ownerSecret = generate();
+  updatePlayerFields(playerId, { ownerSecret });
+  return ownerSecret;
+}
+
+export function getLastKnownUid(playerId) {
+  const player = getPlayers().find((p) => p.playerId === playerId);
+  return typeof player?.lastKnownUid === "string" && player.lastKnownUid ? player.lastKnownUid : null;
+}
+
+export function setLastKnownUid(playerId, uid) {
+  if (typeof uid !== "string" || !uid) return;
+  if (getLastKnownUid(playerId) === uid) return; // 変化が無ければ書かない（不要な再同期を避ける）
+  updatePlayerFields(playerId, { lastKnownUid: uid });
+}
+
+export function getPendingUidMerge(playerId) {
+  const player = getPlayers().find((p) => p.playerId === playerId);
+  const pending = player?.pendingUidMerge;
+  if (!pending || typeof pending !== "object") return null;
+  if (typeof pending.oldUid !== "string" || typeof pending.backupId !== "string") return null;
+  return { oldUid: pending.oldUid, backupId: pending.backupId, recordedAt: pending.recordedAt ?? null };
+}
+
+export function setPendingUidMerge(playerId, { oldUid, backupId }) {
+  updatePlayerFields(playerId, { pendingUidMerge: { oldUid, backupId, recordedAt: Date.now() } });
+}
+
+export function clearPendingUidMerge(playerId) {
+  const player = getPlayers().find((p) => p.playerId === playerId);
+  if (!player || !player.pendingUidMerge) return;
+  updatePlayerFields(playerId, { pendingUidMerge: null });
+}
+
 // highscore.js/history.js/titleProgress.js等が、保存キーの先頭に付ける接頭辞を返す。
 // デフォルトプレイヤーのときは空文字列（＝今まで通りのキー名をそのまま使う、
 // 例: "equalLoveIntroQuiz.highScore.5.all"）、それ以外は"player.{playerId}."を返す

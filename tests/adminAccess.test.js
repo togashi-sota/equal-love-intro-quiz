@@ -67,7 +67,8 @@ export async function runAdminAccessRulesRegressionTests() {
   assertEqual(rulesText.includes("1lg2urCowcMqF6r8E7tkc9OOm3r1"), false, "旧管理者UIDがRulesに残っていない");
 
   const adminClauseCount = rulesText.split(ADMIN_CLAUSE).length - 1;
-  assertEqual(adminClauseCount, 7, "管理者用の枝（admins参照）が従来のUID直書き7箇所すべてに置き換わっている");
+  // 7箇所＝従来のUID直書きの置き換え、＋1箇所＝2026-09-15追加の backups/ownerSecret の .validate（管理者は無効化できる）
+  assertEqual(adminClauseCount, 8, "管理者用の枝（admins参照）が従来のUID直書き7箇所すべて＋ownerSecret検証の1箇所に置き換わっている");
 
   const admins = rules.admins;
   assertEqual(typeof admins, "object", "admins ノードがRulesに定義されている");

@@ -27,7 +27,9 @@ export async function runPresenceStage1RegressionTests() {
   );
   assertEqual(
     presenceRules?.["$uid"]?.[".write"],
-    "auth != null && auth.uid === $uid && (!newData.exists() || root.child('publicProfiles/' + $uid).exists())",
+    // 【2026-09-15追記】UID変更後の後継者（uidSupersession/{uid}/newUid === auth.uid）による削除だけを
+    // 追加で許可（js/backupOwnership.js）。本人による条件・削除の扱いは従来どおり。
+    "auth != null && ((auth.uid === $uid && (!newData.exists() || root.child('publicProfiles/' + $uid).exists())) || (!newData.exists() && root.child('uidSupersession').child($uid).child('newUid').val() === auth.uid))",
     "presence書き込みは、本人のuidが条件。新規作成/更新はpublicProfiles/{uid}が存在する" +
       "場合だけ許可し、削除（!newData.exists()）はpublicProfilesの有無に関係なく許可する" +
       "（2026-09-09追記・本人指示：削除までpublicProfiles存在必須にすると、先にpublicProfilesが" +
