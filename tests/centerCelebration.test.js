@@ -3,7 +3,11 @@
 // 既読にするとその起動中は満たさなくなること、sessionStorageベースの既読管理なので
 // 「新しい起動（＝sessionStorageがリセットされた状態）」では既読が引き継がれず再び表示対象に
 // なること、そして複数件のお祝いが並び順どおりに連続して対象になっていくことを確認する。
-import { findEligibleCelebration } from "../js/centerCelebration.js";
+import {
+  findEligibleCelebration,
+  showCenterCelebrationIfEligible,
+  CELEBRATION_POPUPS_ENABLED,
+} from "../js/centerCelebration.js";
 import { assertEqual } from "./test-utils.js";
 
 const TEST_PLAYER_KEY_PREFIX = "player.center-celebration-test.";
@@ -142,5 +146,32 @@ export function runCenterCelebrationTests() {
     "既読フラグはプレイヤーごとに独立しており、別プレイヤーには影響しない"
   );
 
+  cleanup();
+
+  // ---- 【2026-09-15追加】就活ポートフォリオ公開期間の表示スイッチ ----
+  // 表示条件を満たす曲データがあっても、スイッチが false なら何も表示しない（DOMに触れない）。
+  // findEligibleCelebration() 自体の判定は上のテストどおり変わらない（機能は残っている）。
+  const fakeElements = { overlay: { hidden: true, dataset: {} } };
+  assertEqual(
+    showCenterCelebrationIfEligible([SONG_WITH_CENTER], TEST_PLAYER_KEY_PREFIX, fakeElements, { enabled: false }),
+    false,
+    "表示スイッチが false のときは、対象条件を満たしていてもポップアップを表示しない"
+  );
+  assertEqual(fakeElements.overlay.hidden, true, "表示スイッチが false のときはオーバーレイに一切触れない");
+  assertEqual(
+    findEligibleCelebration([SONG_WITH_CENTER], TEST_PLAYER_KEY_PREFIX)?.id,
+    "obaCenterNatsunagori",
+    "表示スイッチが false でも、表示条件の判定（再表示のときに使う）はそのまま機能する"
+  );
+  if (CELEBRATION_POPUPS_ENABLED) {
+    // 再表示に戻した状態。実際の描画には本物のDOMが必要なので、ここでは型だけ確認する。
+    assertEqual(typeof CELEBRATION_POPUPS_ENABLED, "boolean", "表示スイッチは真偽値");
+  } else {
+    assertEqual(
+      showCenterCelebrationIfEligible([SONG_WITH_CENTER], TEST_PLAYER_KEY_PREFIX, fakeElements),
+      false,
+      "引数を省略したときは CELEBRATION_POPUPS_ENABLED（就活公開期間中は false）に従い、表示しない"
+    );
+  }
   cleanup();
 }

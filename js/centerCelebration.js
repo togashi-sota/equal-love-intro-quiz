@@ -29,6 +29,16 @@
 
 import { playSfx, SFX_EVENTS } from "./soundManager.js";
 
+// 【2026-09-15追加・本人指示：就活ポートフォリオ公開期間の対応】
+// 就活用のPDF・動画のQRから初めてこのアプリを開く採用担当者が、お祝いポップアップを2回
+// 閉じることなく通常のホーム画面へ直接入れるように、提出期間中はポップアップの「表示」だけを
+// 止めるスイッチ。false の間は showCenterCelebrationIfEligible() が何もしない。
+// ・CELEBRATIONS配列・表示条件（findEligibleCelebration）・既読管理・DOM・CSSはそのまま残す。
+//   ファン向けに再表示したくなったら、この値を true に戻すだけでよい（他の変更は不要）。
+// ・ユーザーデータ（sessionStorage／localStorage）・Firebase・他の画面には一切触れない。
+// ・false の間はYouTube公式サムネイル（img.youtube.com）への参照も発生しない。
+export const CELEBRATION_POPUPS_ENABLED = false;
+
 const CELEBRATIONS = [
   {
     id: "obaCenterNatsunagori",
@@ -270,8 +280,14 @@ export function initCenterCelebration(elements, songs) {
 
 // 表示条件を満たしていれば、実際にポップアップを組み立てて表示する。
 // 満たしていなければ何もしない（呼び出し側は条件分岐を書かなくてよい）。
-export function showCenterCelebrationIfEligible(songs, playerKeyPrefix, elements) {
+// 戻り値：表示したら true、表示しなかったら false（テストで確認しやすくするため）。
+// options.enabled：ポップアップ表示スイッチ（既定値は上の CELEBRATION_POPUPS_ENABLED）。
+// テストから true/false を明示して渡せるようにしてある。
+export function showCenterCelebrationIfEligible(songs, playerKeyPrefix, elements,
+  { enabled = CELEBRATION_POPUPS_ENABLED } = {}) {
+  if (!enabled) return false; // 就活ポートフォリオ公開期間中：何も表示せず、通常のホーム画面へ
   const celebration = findEligibleCelebration(songs, playerKeyPrefix);
-  if (!celebration) return;
+  if (!celebration) return false;
   renderCelebration(celebration, playerKeyPrefix, elements);
+  return true;
 }
