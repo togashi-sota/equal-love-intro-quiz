@@ -128,6 +128,7 @@ import {
   getCurrentTimeAttackVariant,
   getCurrentTimeAttackSeed,
   recordTimeAttackAnswer,
+  recordTimeAttackSkip,
   registerTimeAttackMiss,
   registerTimeAttackSelection,
   markTimeAttackRunFailed,
@@ -970,6 +971,7 @@ const randomPlaybackResultFailStatusElement = document.getElementById("random-pl
 const randomPlaybackResultTotalTimeElement = document.getElementById("random-playback-result-total-time");
 const randomPlaybackResultCorrectCountElement = document.getElementById("random-playback-result-correct-count");
 const randomPlaybackResultMissCountElement = document.getElementById("random-playback-result-miss-count");
+const randomPlaybackResultSkippedStatusElement = document.getElementById("random-playback-result-skipped-status");
 const randomPlaybackResultRuleLabelElement = document.getElementById("random-playback-result-rule-label");
 const randomPlaybackResultAverageTimeElement = document.getElementById("random-playback-result-average-time");
 const randomPlaybackResultSpeedProgressElement = document.getElementById("random-playback-result-speed-progress");
@@ -3696,6 +3698,10 @@ function handleChoiceClick(selectedChoice) {
 // 「スキップ」ボタンを押したときの処理。
 // 0点として記録し、正解は見せずにそのまま次の問題（または結果画面）へ進める。
 function handleSkip() {
+  if (gameState.playMode === "randomPlayback") {
+    handleRandomPlaybackSkip();
+    return;
+  }
   if (gameState.isAnswered) return;
   gameState.isAnswered = true;
   hideAudioTroubleButton();
@@ -3710,6 +3716,10 @@ function handleSkip() {
 // 「答えを見る」ボタンを押したときの処理。
 // 0点として記録し、正解の曲名を表示してから「次へ」ボタンで進めるようにする。
 function handleReveal() {
+  if (gameState.playMode === "randomPlayback") {
+    handleRandomPlaybackReveal();
+    return;
+  }
   if (gameState.isAnswered) return;
   gameState.isAnswered = true;
   hideAudioTroubleButton();
@@ -3722,6 +3732,63 @@ function handleReveal() {
   markChoiceButtons(null);
   playWrongSound();
   feedbackElement.textContent = `正解は「${question.song.title}」でした`;
+  feedbackElement.hidden = false;
+  nextButtonElement.hidden = false;
+}
+
+// 【2026-09-15追加、本人指示：通常ランダム再生のUXを通常イントロ／アウトロへ統一】
+// 通常のランダム再生クイズ（playMode:"randomPlayback"）用の「スキップ」。
+// 見た目・操作は通常イントロの handleSkip と同じ（音源停止・クリック音・すぐ次へ）だが、
+// 記録はタイムアタックのエンジン（recordTimeAttackSkip＝その問題を不正解・ミス＋1として確定）へ行う。
+// ノーマルルールの不正解時は isAnswered が true にならない（選び直せる）設計のため、
+// 途中で何度か外した後でもスキップできる。ノーミスチャレンジでは1ミス扱い＝その場で終了。
+function handleRandomPlaybackSkip() {
+  if (gameState.isAnswered) return;
+  gameState.isAnswered = true;
+  hideAudioTroubleButton();
+  stopTimer();
+  stopAudio();
+  hideSkipAndRevealButtons();
+  playClickSound();
+  choiceButtonElements.forEach((button) => {
+    button.disabled = true;
+  });
+
+  const question = getCurrentQuestion();
+  recordTimeAttackSkip({ elapsedMs: getElapsedMsSincePlaybackStart(), question, resolution: "skip" });
+  if (getCurrentTimeAttackRule() === TIME_ATTACK_RULE.LOVE_CHAIN) {
+    markTimeAttackRunFailed();
+    showRandomPlaybackResult();
+    return;
+  }
+  goToNextQuestionOrResult();
+}
+
+// 通常のランダム再生クイズ用の「答えを見る」。通常イントロの handleReveal と同じく、
+// 正解の選択肢を表示し、自動では進まず「次へ」を押すまで待つ（本人指示：3モードで操作感を統一）。
+// 記録は handleRandomPlaybackSkip と同じ（不正解・ミス＋1）。ノーミスチャレンジの場合は
+// 失敗として記録し、「次へ」を押すと結果画面へ進む（下の next-button のクリック処理参照）。
+function handleRandomPlaybackReveal() {
+  if (gameState.isAnswered) return;
+  gameState.isAnswered = true;
+  hideAudioTroubleButton();
+  stopTimer();
+  stopAudio();
+  hideSkipAndRevealButtons();
+  choiceButtonElements.forEach((button) => {
+    button.disabled = true;
+  });
+
+  const question = getCurrentQuestion();
+  recordTimeAttackSkip({ elapsedMs: getElapsedMsSincePlaybackStart(), question, resolution: "reveal" });
+  if (getCurrentTimeAttackRule() === TIME_ATTACK_RULE.LOVE_CHAIN) {
+    markTimeAttackRunFailed();
+  }
+  markChoiceButtons(null);
+  playWrongSound();
+  feedbackElement.textContent = `正解は「${question.song.title}」でした`;
+  feedbackElement.classList.remove("is-correct");
+  feedbackElement.classList.add("is-wrong");
   feedbackElement.hidden = false;
   nextButtonElement.hidden = false;
 }
@@ -3903,13 +3970,17 @@ function renderQuestion() {
   nextButtonElement.hidden = true;
   // タイムアタック・対戦モードは「正解！次へ」の一時停止を挟まないテンポ重視の進め方のため、
   // スキップ・答えを見るボタンは表示しない（正解するか、ハードルールで間違えるまで進めない）。
-  const isTimedMode =
+  // 【2026-09-15改訂、本人指示】通常のランダム再生クイズ（playMode:"randomPlayback"）は、
+  // 通常イントロ／アウトロと同じく「練習・通常プレイ」の位置づけのため2ボタンを表示する
+  // （記録の仕組みはタイムアタックのエンジンのままだが、押した問題は「不正解・ミス＋1」として
+  // 確定する。js/timeAttackScreen.js の recordTimeAttackSkip 参照）。タイムアタック側の
+  // ランダム再生（playMode:"timeAttack"）は今までどおり非表示。
+  const hidesSkipAndReveal =
     gameState.playMode === "timeAttack" ||
-    gameState.playMode === "randomPlayback" ||
     gameState.playMode === "localBattle" ||
     gameState.playMode === "onlineBattle";
-  skipButtonElement.hidden = isTimedMode;
-  revealButtonElement.hidden = isTimedMode;
+  skipButtonElement.hidden = hidesSkipAndReveal;
+  revealButtonElement.hidden = hidesSkipAndReveal;
   audioErrorElement.hidden = true;
   clearChoiceButtonStates();
   // 「🔇 音が出ない」救済ボタン：音源を使う問題の回答収集中だけ表示する
@@ -4847,6 +4918,12 @@ document.getElementById("next-button").addEventListener("click", () => {
   playClickSound();
   stopTimer();
   stopAudio();
+  // 【2026-09-15追加】通常ランダム再生のノーミスチャレンジで「答えを見る」を使った場合は、
+  // その時点で終了（失敗）が確定しているため、次の問題ではなく結果画面へ進む。
+  if (gameState.playMode === "randomPlayback" && getCurrentTimeAttackStats().runFailed) {
+    showRandomPlaybackResult();
+    return;
+  }
   goToNextQuestionOrResult();
 });
 
@@ -5952,6 +6029,7 @@ initRandomPlaybackResultScreen({
   totalTime: randomPlaybackResultTotalTimeElement,
   correctCount: randomPlaybackResultCorrectCountElement,
   missCount: randomPlaybackResultMissCountElement,
+  skippedStatus: randomPlaybackResultSkippedStatusElement,
   ruleLabel: randomPlaybackResultRuleLabelElement,
   averageTime: randomPlaybackResultAverageTimeElement,
   speedProgressContainer: randomPlaybackResultSpeedProgressElement,

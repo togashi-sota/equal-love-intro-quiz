@@ -128,6 +128,10 @@ let correctCount = 0;
 let missCount = 0;
 let perQuestionResults = []; // 履歴の詳細画面に必要な情報一式（下のrecordTimeAttackAnswer参照）
 let missCountThisQuestion = 0; // 今の問題で、これまでに何回間違えたか（ノーマルルールで加算していく）
+// 【2026-09-15追加、本人指示】「スキップ」「答えを見る」で不正解として確定した問題の数。
+// 通常のランダム再生クイズ（playMode:"randomPlayback"）だけが使う。タイムアタック・対戦では
+// この2ボタン自体が表示されないため常に0のまま（通常イントロ／アウトロの skippedCount と同じ意味）。
+let skippedCount = 0;
 let selectedAnswersThisQuestion = []; // 今の問題で、押した順に選択肢の曲名を貯める（履歴の詳細表示用）
 let runFailed = false; // LOVE連チャンで、全問クリアできずに終了したかどうか
 
@@ -145,6 +149,7 @@ export function startTimeAttackRun(rule, questionCountValue, categoryFilterValue
   perQuestionResults = [];
   missCountThisQuestion = 0;
   selectedAnswersThisQuestion = [];
+  skippedCount = 0;
   runFailed = false;
 }
 
@@ -167,7 +172,7 @@ export function getCurrentTimeAttackSeed() {
 // 対戦モードは結果の保存先（自己ベスト・履歴）がタイムアタックとは完全に別なので、
 // renderTimeAttackResult()（保存まで行う）は呼ばず、この関数で生の数値だけを受け取る。
 export function getCurrentTimeAttackStats() {
-  return { totalElapsedMs, correctCount, missCount, perQuestionResults, runFailed };
+  return { totalElapsedMs, correctCount, missCount, skippedCount, perQuestionResults, runFailed };
 }
 
 // LOVE連チャンで1回間違えて即終了になったときに呼ぶ。renderTimeAttackResult()側で、
@@ -195,7 +200,20 @@ export function registerTimeAttackSelection(choiceTitle) {
 // 記録し終えたら次の問題のためにリセットする。
 // question（js/state.jsのgetCurrentQuestion()の戻り値）から、履歴の詳細表示に必要な
 // 「その問題で表示された4択」「正解の曲名」を取り出して一緒に保存する。
-export function recordTimeAttackAnswer({ elapsedMs, isCorrect, question }) {
+// 【2026-09-15追加、本人指示：通常ランダム再生のUXを通常イントロ／アウトロへ統一】
+// 「スキップ」「答えを見る」を押したとき、その問題を「不正解として確定（ミス＋1）」して記録する。
+// resolution は "skip" | "reveal"。通常クイズ側（js/state.js の recordAnswer）が skip/reveal を
+// 「0点・間違えた扱い」にしているのと同じ考え方で、こちらは「ミス1回分」として扱う。
+// これにより、既存の判定（ランキング候補は missCount===0、自己ベストは完走、称号はミス0、
+// 苦手曲は missCountThisQuestion===0 で正解したか）がすべて自動的に「対象外／不正解」になる。
+// ノーミスチャレンジで押した場合の「即終了」は呼び出し側（js/main.js）が markTimeAttackRunFailed() で行う。
+export function recordTimeAttackSkip({ elapsedMs, question, resolution }) {
+  registerTimeAttackMiss();
+  skippedCount += 1;
+  recordTimeAttackAnswer({ elapsedMs, isCorrect: false, question, resolution });
+}
+
+export function recordTimeAttackAnswer({ elapsedMs, isCorrect, question, resolution = null }) {
   if (elapsedMs !== null) {
     totalElapsedMs += elapsedMs;
   }
@@ -242,6 +260,7 @@ export function recordTimeAttackAnswer({ elapsedMs, isCorrect, question }) {
     elapsedMs,
     missCountThisQuestion,
     isCorrect,
+    resolution, // "skip" | "reveal" | null（通常ランダム再生のスキップ／答えを見るのときだけ値が入る）
   });
   missCountThisQuestion = 0;
   selectedAnswersThisQuestion = [];
@@ -260,12 +279,16 @@ export function initTimeAttackResultScreen(newElements) {
 // 1問でもmissCountThisQuestion>0（一度でも間違った選択肢を選んだ）なら、
 // 最終的に正解していてもその問題は「誤答あり」として扱う（本人指示の「誤答なし」の趣旨、
 // 消去法で何度か外してから当てた場合まで含めてしまわないようにするため）。
-// タイムアタック・ランダム再生クイズには「スキップ」の概念が無いため、skippedCountは常に0。
+// 【2026-09-15改訂】通常ランダム再生の「スキップ」「答えを見る」で確定した問題は skippedCount として
+// 分けて数える（通常イントロ／アウトロの集計と同じ形）。タイムアタック・対戦では常に0。
 export function buildAchievementResultInput(stats, modeId, questionCountValue, categoryFilterValue = null) {
   const cleanCorrectCount = stats.perQuestionResults.filter(
     (result) => result.isCorrect && result.missCountThisQuestion === 0
   ).length;
-  const impureCount = stats.perQuestionResults.length - cleanCorrectCount;
+  const skippedQuestionCount = stats.perQuestionResults.filter(
+    (result) => result.resolution === "skip" || result.resolution === "reveal"
+  ).length;
+  const impureCount = stats.perQuestionResults.length - cleanCorrectCount - skippedQuestionCount;
 
   const averageResponseMs = calculateAverageResponseMs(
     stats.perQuestionResults
@@ -279,7 +302,7 @@ export function buildAchievementResultInput(stats, modeId, questionCountValue, c
     categoryFilterValue,
     correctCount: cleanCorrectCount,
     wrongCount: impureCount,
-    skippedCount: 0,
+    skippedCount: skippedQuestionCount,
     completed: !stats.runFailed,
     averageResponseMs,
   };

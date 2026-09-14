@@ -2519,7 +2519,7 @@
         </div>
       </div>
 
-      <p class="special-modes-intro">曲の途中のランダムな位置から数秒間だけ再生されます。イントロだけでなく、曲全体を覚えているか試したいときに。進み方（タイムアタック・正解数バトル・ノーミスチャレンジ）や記録の仕組みはタイムアタックと同じです。</p>
+      <p class="special-modes-intro">曲の途中のランダムな位置から数秒間だけ再生されます。イントロだけでなく、曲全体を覚えているか試したいときに。進み方（タイムアタック・正解数バトル・ノーミスチャレンジ）や記録の仕組みはタイムアタックと同じです。通常のイントロ／アウトロクイズと同じく「スキップ」「答えを見る」も使えます（使った問題はミス扱いになり、その回は自己ベスト・ランキングの対象外です）。</p>
 
       <fieldset>
         <legend>出題数</legend>
@@ -2586,6 +2586,9 @@
 
       <p id="random-playback-result-new-record" hidden>🎉 新記録！</p>
       <p id="random-playback-result-fail-status" hidden></p>
+      <!-- 【2026-09-15追加、本人指示】スキップ・答えを見るを使った回だけ表示する案内
+           （使った問題はミス扱いになり、自己ベスト・ランキングの対象外であることを伝える）。 -->
+      <p id="random-playback-result-skipped-status" class="time-attack-result-note" hidden></p>
 
       <p class="time-attack-result-total-label">合計タイム</p>
       <p id="random-playback-result-total-time" class="time-attack-result-total-time">0.00秒</p>

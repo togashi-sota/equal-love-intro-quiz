@@ -12720,6 +12720,28 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   display: none;
 }
 
+/* 【2026-09-15追加】通常ランダム再生の結果：スキップ・答えを見るを使った回の案内
+   （失敗表示と同じピル型。色は注意色ではなく控えめなグレー系にして「失敗」と区別する）。 */
+.time-attack-result-note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  max-width: 100%;
+  margin: 10px auto 0;
+  padding: 6px 16px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-align: center;
+  color: var(--color-text-muted, #6b6b6b);
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.time-attack-result-note[hidden] {
+  display: none;
+}
+
 .time-attack-result-total-label {
   margin: 18px 0 2px;
   text-align: center;

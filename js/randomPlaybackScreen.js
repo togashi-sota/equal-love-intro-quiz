@@ -108,11 +108,15 @@ export function renderRandomPlaybackResult(questionCountValue, categoryFilterVal
   const rule = getCurrentTimeAttackRule();
 
   const previousBest = getRandomPlaybackBest(rule, questionCountValue, categoryFilterValue);
+  // 【2026-09-15追加、本人指示】「スキップ」「答えを見る」を1回でも使った回は、全問クリアではないため
+  // 自己ベスト・最高到達記録の対象外（ランキング・称号も下の判定で対象外になる）。
+  const usedSkipOrReveal = (stats.skippedCount ?? 0) > 0;
   const isNewRecord =
     !stats.runFailed &&
+    !usedSkipOrReveal &&
     saveRandomPlaybackBestIfBetter(stats.totalElapsedMs, rule, questionCountValue, categoryFilterValue);
 
-  if (rule === TIME_ATTACK_RULE.LOVE_CHAIN) {
+  if (rule === TIME_ATTACK_RULE.LOVE_CHAIN && !usedSkipOrReveal) {
     saveRandomPlaybackBestReachIfBetter(
       stats.perQuestionResults.length,
       stats.totalElapsedMs,
@@ -130,6 +134,12 @@ export function renderRandomPlaybackResult(questionCountValue, categoryFilterVal
   resultElements.failStatus.hidden = !stats.runFailed;
   if (stats.runFailed) {
     resultElements.failStatus.textContent = `${stats.perQuestionResults.length}問目で失敗しました（ノーミスチャレンジは全問クリアのタイムだけが記録されます）`;
+  }
+  if (resultElements.skippedStatus) {
+    resultElements.skippedStatus.hidden = !usedSkipOrReveal;
+    if (usedSkipOrReveal) {
+      resultElements.skippedStatus.textContent = `スキップ・答えを見る：${stats.skippedCount}回（この回は自己ベスト・ランキングの対象外です）`;
+    }
   }
 
   // グローバルランキングへの送信（2026-08-16追加、本人指示）。タイムアタックの
@@ -157,7 +167,8 @@ export function renderRandomPlaybackResult(questionCountValue, categoryFilterVal
   // 満たした記録は常にローカルへ保存しておく（js/timeAttackScreen.jsのonCleanClearと
   // 同じ理由・同じ設計。isNewRecordだけに頼るとランキング条件を満たした記録を
   // 取りこぼす場合があるため、意図的に別の判定にしている）。
-  if (!stats.runFailed && stats.missCount === 0) {
+  // ランキング候補：完走・ミス0・スキップ/答えを見る0（本人指示：missCount だけに頼らず skippedCount も明示的に確認）
+  if (!stats.runFailed && stats.missCount === 0 && (stats.skippedCount ?? 0) === 0) {
     resultElements.onCleanClear?.({
       variant: TIME_ATTACK_VARIANT.RANDOM_PLAYBACK,
       questionCountValue,
@@ -227,7 +238,7 @@ export function renderRandomPlaybackResult(questionCountValue, categoryFilterVal
     isAllSongsMode: categoryFilterValue === "all",
     correctCount: stats.correctCount,
     wrongCount: stats.missCount,
-    skippedCount: null,
+    skippedCount: stats.skippedCount ?? 0,
     score: null,
     averageResponseMs: achievementInput.averageResponseMs,
     completed: !stats.runFailed,
@@ -243,10 +254,12 @@ export function renderRandomPlaybackResult(questionCountValue, categoryFilterVal
     resultElements.bestTime.textContent = isNewRecord
       ? `自己ベストを更新しました（前回: ${formatSeconds(previousBest)}秒）`
       : `自己ベスト: ${formatSeconds(previousBest)}秒`;
-  } else if (!stats.runFailed) {
+  } else if (!stats.runFailed && !usedSkipOrReveal) {
     resultElements.bestTime.hidden = false;
     resultElements.bestTime.textContent = "はじめての記録です";
   } else {
+    // 失敗した回、またはスキップ／答えを見るを使った回（自己ベストを保存していない）は「はじめての記録」と
+    // 誤解させないよう表示しない。
     resultElements.bestTime.hidden = true;
   }
 }
