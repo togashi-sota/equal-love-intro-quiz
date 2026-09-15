@@ -33,6 +33,7 @@ import {
   requestMicrophonePermission,
   describeVoiceEnvironment,
   getVoiceDiagnostics,
+  getVoiceSessionLogs,
   clearVoiceDiagnostics,
 } from "./partyBattleVoice.js";
 import { renderPartyPlaySnapshot, setPartyPlayEngine, resetPartyPlayScreen } from "./partyBattlePlayScreen.js";
@@ -397,6 +398,8 @@ function renderVoiceTestInitial() {
   elements.voiceTestResult.hidden = true;
   elements.voiceDiagnostics.hidden = true;
   elements.voiceDiagnosticsToggle.hidden = true;
+  // 【第6回】直前の試合の発話セッションログが残っていれば「診断情報を表示」を出せるようにする（本番画面は汚さない：折りたたみのまま）
+  if (getVoiceSessionLogs().length > 0) renderVoiceDiagnostics();
   const env = describeVoiceEnvironment();
   voiceTestPhase = env.hasMicrophoneApi ? "mic" : "recognition";
   elements.voiceTestButton.disabled = false;
@@ -418,12 +421,36 @@ function renderVoiceTestInitial() {
   }
 }
 
+// 【第6回】発話セッション1件を、開発者が読める1ブロックの文字列にする（時系列の各イベントの相対ms・候補・判定）。
+export function formatVoiceSessionLog(log) {
+  const lines = [`--- 発話 #${log.id}（${log.origin === "prewarm" ? "押した瞬間に先行起動" : "回答権確定で起動"}）`];
+  lines.push(`  events: ${log.events.map((event) => `${event.name}@${event.dtMs}ms${event.detail ? `(${event.detail})` : ""}`).join(" → ")}`);
+  if (log.candidates.length > 0) {
+    lines.push(`  candidates: ${log.candidates.map((candidate) => `[${candidate.source}${typeof candidate.confidence === "number" ? ` ${candidate.confidence.toFixed(2)}` : ""}@${candidate.atMs}ms]「${candidate.transcript}」`).join(" ")}`);
+  }
+  const judgement = log.judgement;
+  if (judgement) {
+    lines.push(
+      `  judge: ${judgement.verdict}${judgement.manualReason ? `（${judgement.manualReason}）` : ""} / top=${judgement.top ? `${judgement.top.title} ${judgement.top.score}（final ${judgement.top.finalScore}, support ${judgement.top.support}）` : "-"} / 2nd=${judgement.runnerUp ? `${judgement.runnerUp.title} ${judgement.runnerUp.score}` : "-"}`
+    );
+    lines.push(
+      `  timing: prewarm=${judgement.prewarmed ? `${judgement.prewarmLeadMs}ms先行` : "なし"} / claim→ready=${judgement.claimToReadyMs ?? "-"}ms / claim→speech=${judgement.claimToSpeechMs ?? "-"}ms / claim→judge=${judgement.claimToJudgeMs}ms`
+    );
+  }
+  return lines.join("\n");
+}
+
 function renderVoiceDiagnostics() {
   const env = describeVoiceEnvironment();
   const lines = [
     `環境: SpeechRecognition=${env.hasSpeechRecognition ? (env.usesWebkitPrefix ? "webkit" : "yes") : "no"} / getUserMedia=${env.hasMicrophoneApi ? "yes" : "no"} / secure=${env.isSecureContext} / standalone=${env.isStandalone} / iOS=${env.isIos}`,
     ...getVoiceDiagnostics().map((entry) => `${entry.atMs}ms ${entry.stage}${entry.detail ? ` ${entry.detail}` : ""}`),
   ];
+  const sessionLogs = getVoiceSessionLogs();
+  if (sessionLogs.length > 0) {
+    lines.push("", `【直近の発話セッション（${sessionLogs.length}件・この端末のメモリ上のみ。console: window.__partyVoiceLogs()）】`);
+    sessionLogs.forEach((log) => lines.push(formatVoiceSessionLog(log)));
+  }
   elements.voiceDiagnostics.textContent = lines.join("\n");
   elements.voiceDiagnosticsToggle.hidden = false;
 }

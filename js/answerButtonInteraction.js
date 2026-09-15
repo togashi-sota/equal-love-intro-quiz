@@ -84,7 +84,12 @@ function findScrollableAncestor(element) {
 //
 // 戻り値：後始末用のdispose()関数（現状どの呼び出し元も画面ごとdisposeしていないため
 // 必須ではないが、将来的にボタンをJSから明示的に破棄したくなった場合のために用意する）。
-export function bindPressReleaseAnswer(button, onConfirm) {
+// 【2026-09-16 第6回・パーティー対戦の音声回答】第3引数 hooks（省略可）：
+//   onPressStart({ pressStartedAtMs }) … 追跡を始めた pointerdown の直後（ユーザー操作の同期処理内）
+//   onPressEnd({ confirmed, pressStartedAtMs }) … 指を離した／キャンセルされた直後（onConfirm より前）
+// パーティー対戦の「回答！」が、押した瞬間に音声認識を先行起動（pre-warm）し、キャンセル時に止めるために使う。
+// 省略時の挙動は従来と完全に同じ（他画面の呼び出し元は無変更）。
+export function bindPressReleaseAnswer(button, onConfirm, hooks = {}) {
   let trackingPointerId = null;
   let cancelled = false;
   let suppressNextNativeClick = false;
@@ -153,6 +158,7 @@ export function bindPressReleaseAnswer(button, onConfirm) {
     setTimeout(() => {
       suppressNextNativeClick = false;
     }, 0);
+    hooks.onPressEnd?.({ confirmed: shouldConfirm, pressStartedAtMs: startedAtMs });
     if (shouldConfirm) onConfirm({ pressStartedAtMs: startedAtMs });
   }
 
@@ -218,6 +224,7 @@ export function bindPressReleaseAnswer(button, onConfirm) {
     document.addEventListener("pointermove", onDocPointerMove);
     document.addEventListener("pointerup", onDocPointerUp);
     document.addEventListener("pointercancel", onDocPointerCancel);
+    hooks.onPressStart?.({ pressStartedAtMs });
   }
 
   // 【なぜclickも見るか】キーボードの1〜4キー・スクリーンリーダー等、実際のpointerイベントを

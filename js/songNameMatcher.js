@@ -1,4 +1,5 @@
-// 音声回答（パーティー対戦、2026-09-15新設／同日 第3回実機QA修正で段階的マッチャーへ全面改訂）で、
+// 音声回答（パーティー対戦、2026-09-15新設／同日 第3回実機QA修正で段階的マッチャーへ全面改訂／
+// 2026-09-16 第6回「音声早押し認識 最大精度化」で複数候補の証拠統合・冒頭／末尾欠けの救済を追加）で、
 // 音声認識が返した文字列（transcript）と曲データを突き合わせて「どの曲を言ったか」を判定する純粋関数のファイル。
 //
 // 【辞書は既存のものだけ】js/data/songs.jsの title（公式曲名）／searchReading（ひらがな読み）／
@@ -15,9 +16,15 @@
 //             長音・語尾（です／かな等）・同音異義（漢字違い）を正規化と読み照合で吸収
 //   第4段階 近似一致 … 編集距離（レーベンシュタイン）。許容文字数は文字列長に連動（短い語ほど厳しく、
 //             長い曲名は1〜2文字の誤認識まで寛容）
+//   第4.5段階 冒頭／末尾欠け … 【第6回】音声認識が発話の頭（マイクが開く前に話し始めた）や末尾（早く切られた）を
+//             1〜2文字落とした場合。残りが十分長く（4文字以上・曲名の60%以上）、曲名の長さに応じた文字数以内の欠けなら
+//             近似一致（2）として扱う。残りが短い／一般的な語は対象外（競合チェックと最低長で弾く）
 //   第5段階 部分・略称的回答 … 「青春サブ」のように曲名／読みの先頭部分（十分な長さ）で、他の曲と衝突しないもの
 //   第6段階 競合チェック … 1位と2位のスコアが近ければ自動判定せず人間判定へ
-// 【絶対条件】全く無関係な回答は自動正解にしない。別の曲名を明確に答えた（完全一致）なら自動不正解にできる。
+//   第7段階 【第6回】証拠統合 … 認識器が返した複数の候補（最終結果・その代替候補・安定した途中結果）を
+//             1つの文字列にせず全部照合し、最終結果を最も強く、途中結果は少し弱く重み付けして曲ごとに集計。
+//             最終結果と途中結果が別の曲を強く支持するなら自動判定せず人間判定へ。
+// 【絶対条件】全く無関係な回答は自動正解にしない。別の曲名を明確に答えた（最終結果が完全一致）なら自動不正解にできる。
 
 import { normalizeForSearch } from "./songSearch.js";
 
@@ -69,7 +76,7 @@ export function resolveSpokenReading(normalizedInput) {
 
 // 1曲ぶんの照合候補（正規化済み文字列）。
 //   official: 曲名・読み（近似・部分一致を許す）
-//   aliases: 略称・別名の表記（完全一致のみ）
+//   aliases: 略称・別名の表記（完全一致のみ。5文字以上なら欠け救済の対象にもする）
 //   readings: 読み（searchReading と別名の reading。読み照合＝同音異義の吸収に使う）
 export function buildSongNameCandidates(song) {
   const official = new Set();
@@ -94,6 +101,19 @@ export function buildSongNameCandidates(song) {
   // 将来拡張用の音声専用別名（今回は推測で大量追加しない。本人確定）。
   (song.voiceAliases ?? []).forEach((alias) => add(aliases, alias));
   return { official: [...official], aliases: [...aliases], readings: [...readings] };
+}
+
+// 【第6回】曲ごとの照合候補は曲データが変わらない限り同じなので、曲オブジェクトをキーに1回だけ作る
+// （84曲 × 複数候補 × 毎回の正規化を省き、発話終了→判定表示を遅くしない）。
+const candidateCache = new WeakMap();
+function getSongNameCandidates(song) {
+  if (!song || typeof song !== "object") return buildSongNameCandidates(song ?? {});
+  let cached = candidateCache.get(song);
+  if (!cached) {
+    cached = buildSongNameCandidates(song);
+    candidateCache.set(song, cached);
+  }
+  return cached;
 }
 
 // ===== 近似一致（編集距離） =====
@@ -125,17 +145,41 @@ export function resolveAllowedEditDistance(length) {
   return 3;
 }
 
+// 【第6回】冒頭／末尾の欠けとして許容する文字数（曲名の長さに連動。編集距離の許容と同じ刻みだが、
+// 4文字の曲名は1文字欠けで3文字の断片になるため対象外にする）。
+//   〜4文字: 0（欠けを認めない）／5〜7文字: 1／8〜13文字: 2／14文字〜: 3
+export function resolveAllowedDropCount(length) {
+  if (length <= 4) return 0;
+  if (length <= 7) return 1;
+  if (length <= 13) return 2;
+  return 3;
+}
+
 const MIN_PARTIAL_MATCH_LENGTH = 3; // 部分一致に必要な最短文字数（「青春」のような2文字の一般語は対象外）
 const MIN_PARTIAL_MATCH_RATIO = 0.4; // 先頭部分一致で必要な「曲名に対する長さの割合」（「青春サブ」= 4/8 = 0.5）
+const MIN_DROP_REMAINDER_LENGTH = 4; // 欠け救済で「残り」に必要な最短文字数
+const MIN_DROP_REMAINDER_RATIO = 0.6; // 欠け救済で「残り」に必要な曲名に対する割合
+
+// 【第6回】input が candidate の「冒頭が欠けたもの」または「末尾が欠けたもの」か。
+// 残りが十分長く（4文字以上・60%以上）、欠けた文字数が曲名の長さに応じた許容内なら true。
+export function isDroppedEdgeMatch(candidate, input) {
+  if (!candidate || !input) return false;
+  if (input.length >= candidate.length) return false;
+  if (input.length < MIN_DROP_REMAINDER_LENGTH) return false;
+  if (input.length / candidate.length < MIN_DROP_REMAINDER_RATIO) return false;
+  const dropped = candidate.length - input.length;
+  if (dropped > resolveAllowedDropCount(candidate.length)) return false;
+  return candidate.endsWith(input) || candidate.startsWith(input);
+}
 
 // スコア（高いほど確からしい）。0は不一致。
 //   3.0: 完全一致（曲名／読み／別名）、または読み一致（同音異義）
-//   2.0: 近似一致（編集距離が長さ連動の許容内）
+//   2.0: 近似一致（編集距離が長さ連動の許容内）、または冒頭／末尾の欠け（残りが十分長い）
 //   1.5: 先頭部分一致（3文字以上かつ曲名の40%以上）、または入力の中に曲名／読みが丸ごと含まれる（4文字以上）
 //   1.0: 途中一致（4文字以上）
 export function scoreSongAgainstSpokenText(song, normalizedInput) {
   if (!normalizedInput) return 0;
-  const { official, aliases, readings } = buildSongNameCandidates(song);
+  const { official, aliases, readings } = getSongNameCandidates(song);
   if (official.includes(normalizedInput) || aliases.includes(normalizedInput)) return 3;
   const inputReading = resolveSpokenReading(normalizedInput);
   if (inputReading && readings.includes(inputReading)) return 3;
@@ -148,6 +192,7 @@ export function scoreSongAgainstSpokenText(song, normalizedInput) {
       const distance = computeEditDistance(candidate, normalizedInput);
       if (distance <= allowed) best = Math.max(best, 2);
     }
+    if (isDroppedEdgeMatch(candidate, normalizedInput)) best = Math.max(best, 2);
     if (candidate.startsWith(normalizedInput) && normalizedInput.length / candidate.length >= MIN_PARTIAL_MATCH_RATIO) {
       best = Math.max(best, 1.5);
     } else if (candidate.length >= 4 && normalizedInput.includes(candidate)) {
@@ -156,7 +201,69 @@ export function scoreSongAgainstSpokenText(song, normalizedInput) {
       best = Math.max(best, 1);
     }
   });
+  // 5文字以上の別名（「ビーピーエム170」等）だけ、欠けの救済を認める（短い略称は完全一致のみ）
+  aliases.forEach((alias) => {
+    if (alias.length >= 5 && isDroppedEdgeMatch(alias, normalizedInput)) best = Math.max(best, 2);
+  });
   return best;
+}
+
+// 【第6回】入力（正規化済み）が、その曲の曲名／読みの「一部分」（真部分文字列）か。
+// 「ヒロイン」のように別々の曲名（ヒロインズ／僕のヒロイン）の両方に含まれる断片は、どちらの欠けか決められないため
+// 人間判定へ回す判定（shared-fragment）に使う。
+export function songContainsFragment(song, normalizedInput) {
+  if (!normalizedInput) return false;
+  const { official } = getSongNameCandidates(song);
+  return official.some((candidate) => candidate.length > normalizedInput.length && candidate.includes(normalizedInput));
+}
+
+// ===== 認識候補（第6回：単一文字列ではなく「証拠の集まり」として扱う） =====
+
+// 候補の出どころごとの重み。最終結果（第1候補）を最も強く、代替候補・途中結果は少し弱く扱う。
+export const CANDIDATE_SOURCE_WEIGHT = {
+  final: 1, // 最終結果の第1候補
+  alternative: 0.9, // 最終結果の第2候補以降（maxAlternatives）
+  interim: 0.85, // 最後に届いた途中結果（一番安定している）
+  "interim-earlier": 0.7, // それより前の途中結果（変化しやすい）
+};
+
+// 入力を候補オブジェクトへそろえる。文字列配列（従来の呼び出し）は「最終結果・信頼度順」とみなす。
+//   候補オブジェクト: { transcript, isFinal?, rank?, confidence?, source?, sequence? }
+export function normalizeRecognitionCandidates(inputs) {
+  const list = Array.isArray(inputs) ? inputs : [inputs];
+  const candidates = [];
+  list.forEach((entry, index) => {
+    if (typeof entry === "string") {
+      const normalized = normalizeSpokenText(entry);
+      if (normalized) candidates.push({ transcript: entry, normalized, isFinal: true, rank: index, confidence: null, source: index === 0 ? "final" : "alternative", sequence: index });
+      return;
+    }
+    if (!entry || typeof entry.transcript !== "string") return;
+    const normalized = normalizeSpokenText(entry.transcript);
+    if (!normalized) return;
+    const isFinal = entry.isFinal !== false;
+    const rank = Number.isInteger(entry.rank) ? entry.rank : 0;
+    let source = entry.source;
+    if (!source) source = isFinal ? (rank === 0 ? "final" : "alternative") : "interim";
+    candidates.push({
+      transcript: entry.transcript,
+      normalized,
+      isFinal,
+      rank,
+      confidence: typeof entry.confidence === "number" && Number.isFinite(entry.confidence) ? entry.confidence : null,
+      source,
+      sequence: Number.isFinite(entry.sequence) ? entry.sequence : index,
+    });
+  });
+  // 途中結果は「最後に届いたもの」だけ interim、それより前は interim-earlier として弱める
+  const interims = candidates.filter((candidate) => !candidate.isFinal);
+  if (interims.length > 1) {
+    const latestSequence = Math.max(...interims.map((candidate) => candidate.sequence));
+    interims.forEach((candidate) => {
+      if (candidate.sequence !== latestSequence && candidate.source === "interim") candidate.source = "interim-earlier";
+    });
+  }
+  return candidates;
 }
 
 // 自動判定に使うスコアの下限（これ未満は候補として弱すぎる）。
@@ -164,40 +271,85 @@ const AUTO_MATCH_MIN_SCORE = 1.5;
 // 1位と2位のスコア差がこれ未満なら「競合」として人間判定へ。
 const COMPETITION_MARGIN = 0.5;
 
-// 音声認識の結果（複数候補可）を曲一覧と照合する。
-//   transcripts: 認識結果の文字列配列（信頼度の高い順）。
+// 音声認識の結果を曲一覧と照合する。
+//   inputs: 認識結果の文字列配列（信頼度の高い順。従来どおり）、または候補オブジェクト配列
+//           （{ transcript, isFinal, rank, confidence, source, sequence }。最終・代替・途中を混在させてよい）。
 //   songs: 照合対象の曲オブジェクト配列（通常はSONGS全体）。
-// 戻り値: { status: "match" | "ambiguous" | "none", song, score, candidates }
-//   candidates: スコア降順の [{ song, score }]（表示・デバッグ用）。
-export function matchSpokenSongName(transcripts, songs) {
-  const inputs = (Array.isArray(transcripts) ? transcripts : [transcripts])
-    .map((text) => normalizeSpokenText(text))
-    .filter((text) => text.length > 0);
-  if (inputs.length === 0) return { status: "none", song: null, score: 0, candidates: [] };
+// 戻り値: { status: "match" | "ambiguous" | "none", song, score, candidates, reason, evidence, topFinalScore }
+//   score: 重み付き後の1位スコア／topFinalScore: 1位の曲に対する「最終結果」だけの生スコア（自動不正解の根拠に使う）
+//   candidates: スコア降順の [{ song, score, rawScore, support, finalScore }]（表示・デバッグ用）
+//   evidence: 候補ごとの「最も強く支持した曲」（診断用）
+//   reason: 人間判定へ回した理由（"weak" | "competition" | "final-vs-interim-conflict" | null）
+export function matchSpokenSongName(inputs, songs) {
+  const candidates = normalizeRecognitionCandidates(inputs);
+  if (candidates.length === 0) return { status: "none", song: null, score: 0, candidates: [], evidence: [], reason: "no-input", topFinalScore: 0 };
 
-  const scored = songs
-    .map((song) => ({ song, score: Math.max(...inputs.map((input) => scoreSongAgainstSpokenText(song, input))) }))
+  const perSong = songs.map((song) => {
+    let weighted = 0;
+    let raw = 0;
+    let finalScore = 0;
+    let support = 0;
+    candidates.forEach((candidate) => {
+      const score = scoreSongAgainstSpokenText(song, candidate.normalized);
+      if (score <= 0) return;
+      const weight = CANDIDATE_SOURCE_WEIGHT[candidate.source] ?? 0.7;
+      weighted = Math.max(weighted, score * weight);
+      raw = Math.max(raw, score);
+      if (candidate.isFinal) finalScore = Math.max(finalScore, score);
+      if (score >= 2) support += 1;
+    });
+    return { song, score: weighted, rawScore: raw, finalScore, support };
+  });
+  const scored = perSong
     .filter((entry) => entry.score > 0)
-    .sort((a, b) => b.score - a.score || a.song.title.localeCompare(b.song.title));
+    .sort((a, b) => b.score - a.score || b.support - a.support || a.song.title.localeCompare(b.song.title));
 
-  if (scored.length === 0) return { status: "none", song: null, score: 0, candidates: [] };
+  // 候補ごとの最有力曲（診断用。「途中結果と最終結果が別の曲を支持」の判定にも使う）
+  const evidence = candidates.map((candidate) => {
+    let bestSong = null;
+    let bestScore = 0;
+    songs.forEach((song) => {
+      const score = scoreSongAgainstSpokenText(song, candidate.normalized);
+      if (score > bestScore) {
+        bestScore = score;
+        bestSong = song;
+      }
+    });
+    return { transcript: candidate.transcript, normalized: candidate.normalized, source: candidate.source, isFinal: candidate.isFinal, confidence: candidate.confidence, songId: bestSong?.id ?? null, songTitle: bestSong?.title ?? null, score: bestScore };
+  });
+
+  if (scored.length === 0) return { status: "none", song: null, score: 0, candidates: [], evidence, reason: "no-match", topFinalScore: 0 };
   const top = scored[0];
   const second = scored[1];
-  if (top.score < AUTO_MATCH_MIN_SCORE) return { status: "ambiguous", song: top.song, score: top.score, candidates: scored };
+  const base = { song: top.song, score: top.score, candidates: scored, evidence, topFinalScore: top.finalScore };
+  if (top.score < AUTO_MATCH_MIN_SCORE) return { status: "ambiguous", ...base, reason: "weak" };
   // 第6段階：競合チェック。完全一致（3）が1曲だけなら他の弱い候補は無視してよい。
-  if (second && top.score - second.score < COMPETITION_MARGIN) {
-    return { status: "ambiguous", song: top.song, score: top.score, candidates: scored };
+  if (second && top.score - second.score < COMPETITION_MARGIN) return { status: "ambiguous", ...base, reason: "competition" };
+  // 【第6回】1位が完全一致でなく、入力が「1位の曲名の一部分」であり、かつ同じ入力が別の曲の曲名の一部分でもあるなら
+  // 「どちらの曲の欠けか分からない」（例：「ヒロイン」＝「ヒロインズ」の末尾欠け／「僕のヒロイン」の冒頭欠け）→ 人間判定。
+  // 「イコラブ」（＝LOVE の読みの1文字違いであって部分文字列ではない）のような近似一致はこの規則の対象外。
+  if (top.rawScore < 3) {
+    const sharedFragment = candidates.some(
+      (candidate) => songContainsFragment(top.song, candidate.normalized) && songs.some((song) => song !== top.song && songContainsFragment(song, candidate.normalized))
+    );
+    if (sharedFragment) return { status: "ambiguous", ...base, reason: "shared-fragment" };
   }
-  return { status: "match", song: top.song, score: top.score, candidates: scored };
+  // 第7段階：最終結果が別の曲を近似以上（2）で支持しているのに、1位が途中結果頼み（最終結果では完全一致していない）なら
+  // 「途中と最終で別の曲」＝人間判定へ
+  const conflictingFinal = evidence.find((entry) => entry.isFinal && entry.songId && entry.songId !== top.song.id && entry.score >= 2);
+  if (conflictingFinal && top.finalScore < 3) return { status: "ambiguous", ...base, reason: "final-vs-interim-conflict" };
+  return { status: "match", ...base, reason: null };
 }
 
 // 正解曲と照合結果から、自動判定の結論を出す。
-//   "correct": 十分な信頼で正解曲に一致（完全・読み・近似・一意な部分一致）
-//   "wrong": 別の曲名を明確に答えた（完全一致）
+//   "correct": 十分な信頼で正解曲に一致（完全・読み・近似・欠け救済・一意な部分一致。途中結果の支持も含む）
+//   "wrong": 別の曲名を明確に答えた（最終結果が完全一致）
 //   "manual": 認識失敗・曖昧・競合・別曲への近似／部分一致（聞き間違いの可能性）→ 人間判定へ
 export function decideVoiceVerdict(matchResult, correctSongId) {
   if (!matchResult || matchResult.status === "none") return "manual";
   if (matchResult.status === "ambiguous") return "manual";
   if (matchResult.song?.id === correctSongId) return "correct";
-  return matchResult.score >= 3 ? "wrong" : "manual";
+  // 自動不正解は「最終結果で別の曲名を完全に言った」ときだけ。途中結果だけの完全一致・近似・欠け救済は人間判定へ
+  const finalScore = typeof matchResult.topFinalScore === "number" ? matchResult.topFinalScore : matchResult.score;
+  return finalScore >= 3 ? "wrong" : "manual";
 }

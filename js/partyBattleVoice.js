@@ -25,6 +25,16 @@
 //     → onend 時点で途中結果があればそれを最終結果として扱う（以前はここで人間判定へ落としていた）
 //   ・音源（HTMLAudio）の再生直後は、音声セッションの切り替えで認識開始が遅れる／失敗する
 //     → 回答権確定時に音源を止めてから start() を呼ぶ（エンジン側）。
+//
+// 【2026-09-16 第6回「音声早押し認識 最大精度化」】
+//   ・start() を呼んだ瞬間と、認識器が実際に音を受け取れる瞬間（onstart／onaudiostart）は別。早押し直後に話すと
+//     その差のぶん発話の冒頭が録れない。→ エンジンは「回答！」の pointerdown（押した瞬間）で認識を先行起動し
+//     （pre-warm）、pointerup で回答権を取った時点では既にマイクが開き始めている状態にする。
+//   ・途中結果（interim）・最終結果の代替候補（alternatives）を捨てずに候補履歴（candidates）として保持し、
+//     曲名マッチャー（js/songNameMatcher.js）へ「証拠の集まり」として渡す。
+//   ・onReady（onstart／onaudiostart のどちらか早い方）を通知し、回答時間の起点をそこへ寄せられるようにする。
+//   ・1回の発話セッションの時系列（各イベントの相対ms・候補・判定）をメモリ上に最大10件残す
+//     （getVoiceSessionLogs。外部送信・保存・録音はしない）。
 
 import { PARTY_VOICE_MAX_SPEECH_MS } from "./partyBattleState.js";
 
@@ -51,10 +61,41 @@ export function getVoiceDiagnostics() {
 export function clearVoiceDiagnostics() {
   diagnosticEntries.length = 0;
   diagnosticStartMs = null;
+  sessionLogs.length = 0;
+}
+
+// 【第6回】発話セッション単位の時系列ログ（直近 MAX_SESSION_LOGS 件。メモリ上のみ）。
+//   { id, startedAtMs, origin: "prewarm"|"claim", events: [{ name, dtMs, detail }], candidates: [...], judgement: {...} | null }
+//   dtMs は start() 呼び出し時刻からの相対ms。judgement はエンジンが判定後に attachVoiceSessionJudgement で書き込む。
+const MAX_SESSION_LOGS = 10;
+const sessionLogs = [];
+let sessionSequence = 0;
+
+export function getVoiceSessionLogs() {
+  return sessionLogs.map((log) => ({ ...log, events: log.events.map((event) => ({ ...event })), candidates: log.candidates.map((candidate) => ({ ...candidate })) }));
+}
+
+// エンジンが判定結果（matcher の1位・2位・スコア・verdict・人間判定へ落ちた理由・回答権からの経過ms）を書き込む。
+export function attachVoiceSessionJudgement(sessionId, judgement) {
+  const log = sessionLogs.find((entry) => entry.id === sessionId);
+  if (log) log.judgement = { ...judgement };
+}
+
+// 開発者向け：console から `window.__partyVoiceLogs()` で直近のセッションを見られるようにする（本番画面は汚さない）。
+if (typeof window !== "undefined") {
+  window.__partyVoiceLogs = () => getVoiceSessionLogs();
 }
 
 // ===== 環境の判定 =====
+// 【第6回・テスト用】本物の SpeechRecognition の代わりに使うコンストラクタ（Fake）を差し込む。
+// tests/ から「start→audiostart→speechstart→interim→final→end」等のイベント順を再現するために使う。null で元に戻す。
+let speechRecognitionFactoryOverride = null;
+export function setSpeechRecognitionFactoryForTest(factory) {
+  speechRecognitionFactoryOverride = typeof factory === "function" ? factory : null;
+}
+
 function resolveSpeechRecognitionConstructor() {
+  if (speechRecognitionFactoryOverride) return speechRecognitionFactoryOverride;
   if (typeof window === "undefined") return null;
   return window.SpeechRecognition || window.webkitSpeechRecognition || null;
 }
@@ -115,13 +156,23 @@ export function getVoiceUnavailableReason() {
   return unavailableReason;
 }
 
+// マイクが開くのを待つ時間として、回答時間の起点をずらしてよい上限（回答権から）。これを超えて開かない場合は
+// 起点をここで打ち切る（「マイクが開かないと永遠に締切が来ない」を防ぐ。start-timeout の猶予 2.5 秒より少し短い）。
+export const PARTY_VOICE_READY_SHIFT_CAP_MS = 1500;
+
 // 回答の締切時刻を求める純粋関数。
-//   claimedAtMs: 回答権を取った時刻、speechStartedAtMs: 発話開始を検出した時刻（未検出はnull）
+//   claimedAtMs: 回答権を取った時刻（有効な pointerup）、speechStartedAtMs: 発話開始を検出した時刻（未検出はnull）
+//   readyAtMs: 【第6回】認識器が実際に音を受け取れる状態になった時刻（onstart／onaudiostart。未検出はnull）
 //   startTimeoutSec: 話し始めるまでの制限秒数
-// 発話が始まっていなければ「claimedAt＋制限時間」、始まっていれば「発話開始＋最大待ち時間」
-// （ただし制限時間ぎりぎりに話し始めた場合も有効にするため、両者の大きい方）。
-export function computeVoiceDeadline({ claimedAtMs, speechStartedAtMs, startTimeoutSec, maxSpeechMs = PARTY_VOICE_MAX_SPEECH_MS }) {
-  const onsetDeadline = claimedAtMs + startTimeoutSec * 1000;
+// 「話し始めるまで」の締切は、以前は claimedAt 起点だった（マイクの初期化に時間がかかると、その分だけ実質の回答時間が
+// 削られていた）。第6回から、認識器が ready になった時刻（ただし claimedAt＋1.5秒を上限）を起点にする。ready が
+// まだ来ていない間は従来どおり claimedAt を起点にし、ready が来た時点で締切を後ろへ延ばす（残り時間が減る方向には
+// 動かない。ready が一度も来なければ従来と同じ締切＝無限に延びない）。
+// 発話が始まっていれば「発話開始＋最大待ち時間」（ただし制限時間ぎりぎりに話し始めた場合も有効にするため、両者の大きい方）。
+export function computeVoiceDeadline({ claimedAtMs, speechStartedAtMs, startTimeoutSec, readyAtMs = null, maxSpeechMs = PARTY_VOICE_MAX_SPEECH_MS, readyShiftCapMs = PARTY_VOICE_READY_SHIFT_CAP_MS }) {
+  const shiftCap = claimedAtMs + readyShiftCapMs;
+  const onsetOrigin = typeof readyAtMs === "number" ? Math.min(Math.max(readyAtMs, claimedAtMs), shiftCap) : claimedAtMs;
+  const onsetDeadline = onsetOrigin + startTimeoutSec * 1000;
   if (typeof speechStartedAtMs !== "number") return onsetDeadline;
   return Math.max(onsetDeadline, speechStartedAtMs + maxSpeechMs);
 }
@@ -136,48 +187,69 @@ export const VOICE_STAGE = {
 };
 
 // 1回分の音声認識セッションを開始する。
-//   onTranscripts(transcripts: string[], isFinal): 途中結果・最終結果（信頼度順の候補配列）
+//   onTranscripts(transcripts: string[], isFinal, candidates): 途中結果・最終結果（transcripts は信頼度順の候補配列、
+//       candidates はこのセッションで得た全候補の履歴 { transcript, isFinal, rank, confidence, source, sequence, atMs }）
 //   onSpeechStart(): 発話（音）を検出した
+//   onReady(): 認識器が実際に音を受け取れる状態になった（onstart／onaudiostart のどちらか早い方。1回だけ）
 //   onStage(stage, detail): 段階が進んだ（画面の状態表示用）
 //   onEnd(reason): "final" | "no-final"（途中結果のみ）| "no-speech" | "aborted" | "unsupported" |
 //                  "start-timeout"（start後に何も起きない）| "error:<code>"（一度だけ呼ぶ）
-// 戻り値: { abort() } （締切や画面離脱で強制終了する）。
+// 戻り値: { id, abort(), getCandidates(), getTimeline() } （締切や画面離脱で強制終了する）。
 // APIが無い環境では即座にonEnd("unsupported")を呼ぶ。
-// 【呼び出し条件】iOSでは start() をユーザー操作（pointerup／click）の同期処理内で呼ぶ必要があるため、
+// 【呼び出し条件】iOSでは start() をユーザー操作（pointerdown／pointerup／click）の同期処理内で呼ぶ必要があるため、
 // この関数は同期的に start() まで進める（await を挟まない）。
-export function startVoiceRecognitionSession({ lang = "ja-JP", onTranscripts, onSpeechStart, onStage, onEnd }) {
+export function startVoiceRecognitionSession({ lang = "ja-JP", origin = "claim", onTranscripts, onSpeechStart, onReady, onStage, onEnd }) {
   const Recognition = resolveSpeechRecognitionConstructor();
+  const nowMs = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
+  const startedAtMs = nowMs();
+  const log = { id: ++sessionSequence, startedAtMs, origin, events: [], candidates: [], judgement: null };
+  sessionLogs.push(log);
+  if (sessionLogs.length > MAX_SESSION_LOGS) sessionLogs.shift();
+  const mark = (name, detail = "") => {
+    log.events.push({ name, dtMs: Math.round(nowMs() - startedAtMs), detail: String(detail ?? "") });
+    pushDiagnostic(name, detail);
+  };
   let ended = false;
   let graceTimerId = null;
   const finish = (reason) => {
     if (ended) return;
     ended = true;
     if (graceTimerId !== null) clearTimeout(graceTimerId);
-    pushDiagnostic("end", reason);
+    mark("end", reason);
     onStage?.(VOICE_STAGE.ENDED, reason);
     onEnd?.(reason);
   };
+  const handle = {
+    id: log.id,
+    getCandidates: () => log.candidates.map((candidate) => ({ ...candidate })),
+    getTimeline: () => log.events.map((event) => ({ ...event })),
+    abort() {},
+  };
   if (!Recognition || markedUnavailable) {
-    pushDiagnostic("unsupported", markedUnavailable ? `marked:${unavailableReason}` : "no SpeechRecognition constructor");
+    mark("unsupported", markedUnavailable ? `marked:${unavailableReason}` : "no SpeechRecognition constructor");
     finish("unsupported");
-    return { abort() {} };
+    return handle;
   }
   let recognition;
   try {
     recognition = new Recognition();
   } catch (error) {
-    pushDiagnostic("construct-error", error?.message ?? error);
+    mark("construct-error", error?.message ?? error);
     finish("error:construct");
-    return { abort() {} };
+    return handle;
   }
   recognition.lang = lang;
+  // 途中結果も受け取る（最終結果が崩れても、安定した途中結果を証拠として使う）。代替候補は最大5件まで要求する
+  // （返す数はブラウザ次第。iOS は1件のことが多い）。
   recognition.interimResults = true;
-  recognition.maxAlternatives = 3;
+  recognition.maxAlternatives = 5;
   recognition.continuous = false;
   let gotFinal = false;
   let sawSpeech = false;
   let sawStart = false;
+  let sawReady = false;
   let latestTranscripts = [];
+  let resultSequence = 0;
 
   const noteStart = (eventName) => {
     if (!sawStart) {
@@ -186,10 +258,16 @@ export function startVoiceRecognitionSession({ lang = "ja-JP", onTranscripts, on
       graceTimerId = null;
       onStage?.(VOICE_STAGE.LISTENING, eventName);
     }
-    pushDiagnostic(eventName);
+    mark(eventName);
+    // onstart／onaudiostart のどちらか早い方＝「実際に音を受け取れる状態」。回答時間の起点に使う
+    if (!sawReady && (eventName === "onstart" || eventName === "onaudiostart")) {
+      sawReady = true;
+      mark("ready", eventName);
+      onReady?.();
+    }
   };
   const noteSpeech = (eventName) => {
-    pushDiagnostic(eventName);
+    mark(eventName);
     if (!sawSpeech) {
       sawSpeech = true;
       onStage?.(VOICE_STAGE.HEARING, eventName);
@@ -201,25 +279,49 @@ export function startVoiceRecognitionSession({ lang = "ja-JP", onTranscripts, on
   recognition.onaudiostart = () => noteStart("onaudiostart");
   recognition.onsoundstart = () => noteSpeech("onsoundstart");
   recognition.onspeechstart = () => noteSpeech("onspeechstart");
-  recognition.onnomatch = () => pushDiagnostic("onnomatch");
+  recognition.onspeechend = () => mark("onspeechend");
+  recognition.onsoundend = () => mark("onsoundend");
+  recognition.onaudioend = () => mark("onaudioend");
+  recognition.onnomatch = () => mark("onnomatch");
   recognition.onresult = (event) => {
     const transcripts = [];
     let isFinal = false;
-    for (let i = event.resultIndex; i < event.results.length; i++) {
-      const result = event.results[i];
+    resultSequence += 1;
+    const atMs = Math.round(nowMs() - startedAtMs);
+    const results = event?.results ?? [];
+    const startIndex = Number.isInteger(event?.resultIndex) ? event.resultIndex : 0;
+    for (let i = startIndex; i < results.length; i++) {
+      const result = results[i];
+      if (!result) continue;
       if (result.isFinal) isFinal = true;
-      for (let j = 0; j < result.length; j++) {
-        const text = result[j]?.transcript;
-        if (typeof text === "string" && text.trim()) transcripts.push(text.trim());
+      const alternativeCount = typeof result.length === "number" ? result.length : 0;
+      for (let j = 0; j < alternativeCount; j++) {
+        const alternative = result[j];
+        const text = alternative?.transcript;
+        if (typeof text !== "string" || !text.trim()) continue;
+        transcripts.push(text.trim());
+        // 候補履歴：同じ文字列・同じ final/interim の重複は「最新の情報」で上書き（順序は最初に出た位置のまま）
+        const candidate = {
+          transcript: text.trim(),
+          isFinal: Boolean(result.isFinal),
+          rank: j,
+          confidence: typeof alternative?.confidence === "number" && Number.isFinite(alternative.confidence) ? alternative.confidence : null,
+          source: result.isFinal ? (j === 0 ? "final" : "alternative") : "interim",
+          sequence: resultSequence,
+          atMs,
+        };
+        const existingIndex = log.candidates.findIndex((entry) => entry.transcript === candidate.transcript && entry.isFinal === candidate.isFinal);
+        if (existingIndex >= 0) log.candidates[existingIndex] = { ...log.candidates[existingIndex], ...candidate };
+        else log.candidates.push(candidate);
       }
     }
-    pushDiagnostic("onresult", `${isFinal ? "final" : "interim"}: ${transcripts[0] ?? ""}`);
+    mark("onresult", `${isFinal ? "final" : "interim"}: ${transcripts.join(" / ")}`);
     if (!sawStart) noteStart("onresult");
     if (transcripts.length > 0 && !sawSpeech) noteSpeech("onresult");
     if (transcripts.length > 0) {
       latestTranscripts = transcripts;
       onStage?.(VOICE_STAGE.RESULT, transcripts[0]);
-      onTranscripts?.(transcripts, isFinal);
+      onTranscripts?.(transcripts, isFinal, handle.getCandidates());
     }
     if (isFinal) {
       gotFinal = true;
@@ -228,7 +330,7 @@ export function startVoiceRecognitionSession({ lang = "ja-JP", onTranscripts, on
   };
   recognition.onerror = (event) => {
     const code = event?.error;
-    pushDiagnostic("onerror", `${code ?? "unknown"} ${event?.message ?? ""}`);
+    mark("onerror", `${code ?? "unknown"} ${event?.message ?? ""}`);
     if (code === "no-speech") {
       finish("no-speech");
       return;
@@ -241,41 +343,41 @@ export function startVoiceRecognitionSession({ lang = "ja-JP", onTranscripts, on
     finish(`error:${code ?? "unknown"}`);
   };
   recognition.onend = () => {
-    pushDiagnostic("onend", `final=${gotFinal} speech=${sawSpeech} interim=${latestTranscripts.length}`);
+    mark("onend", `final=${gotFinal} speech=${sawSpeech} interim=${latestTranscripts.length}`);
     // 途中結果しか来ないまま終わった場合は "no-final"（呼び出し側はその途中結果で判定する）
     finish(gotFinal ? "final" : latestTranscripts.length > 0 ? "no-final" : sawSpeech ? "no-speech" : sawStart ? "no-speech" : "no-start");
   };
   try {
-    pushDiagnostic("start()", `lang=${lang}`);
+    mark("start()", `lang=${lang} origin=${origin}`);
     onStage?.(VOICE_STAGE.STARTING);
     recognition.start();
   } catch (error) {
-    pushDiagnostic("start-exception", error?.message ?? error);
+    mark("start-exception", error?.message ?? error);
     finish("error:start");
-    return { abort() {} };
+    return handle;
   }
   // start() 後に onstart／onaudiostart／onresult／onerror／onend のどれも来ない（iOS standalone で報告される
   // 「無反応」）場合は、猶予後に開始失敗として打ち切る。
   graceTimerId = setTimeout(() => {
     if (ended || sawStart) return;
-    pushDiagnostic("start-timeout", `${PARTY_VOICE_START_GRACE_MS}ms no events`);
+    mark("start-timeout", `${PARTY_VOICE_START_GRACE_MS}ms no events`);
+    finish("start-timeout");
     try {
       recognition.abort();
     } catch {
       /* 無視 */
     }
-    finish("start-timeout");
   }, PARTY_VOICE_START_GRACE_MS);
-  return {
-    abort() {
-      try {
-        recognition.abort();
-      } catch {
-        /* 既に終了している場合は無視 */
-      }
-      finish("aborted");
-    },
+  handle.abort = () => {
+    // 先に "aborted" で終了扱いにしてから abort() を呼ぶ（abort() が同期的に onend を起こす実装でも理由が "aborted" になる）
+    finish("aborted");
+    try {
+      recognition.abort();
+    } catch {
+      /* 既に終了している場合は無視 */
+    }
   };
+  return handle;
 }
 
 // 終了理由が「認識APIそのものが使えない」ことを意味するか（試合中は以降を人間判定に固定する）。

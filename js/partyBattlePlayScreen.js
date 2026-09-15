@@ -152,7 +152,14 @@ function buildSeatBodyForQuestion(match, runtime) {
       button.type = "button";
       button.className = "party-answer-button";
       button.textContent = "回答！";
-      attachPressHandler(button, (pointerStartedAtMs) => engine.pressAnswer(playerId, pointerStartedAtMs));
+      // 【第6回】押した瞬間に音声認識を先行起動（pre-warm）し、離した瞬間（回答権確定）にそのまま引き継ぐ。
+      // キャンセル（スライドして離す・pointercancel）なら止める。回答権の順位は従来どおり有効な pointerup で決まる。
+      attachPressHandler(button, (pointerStartedAtMs) => engine.pressAnswer(playerId, pointerStartedAtMs), {
+        onPressStart: (pointerStartedAtMs) => engine?.prewarmVoice(playerId, pointerStartedAtMs),
+        onPressEnd: ({ confirmed }) => {
+          if (!confirmed) engine?.cancelVoicePrewarm(playerId);
+        },
+      });
       seat.body.appendChild(button);
       seat.answerButton = button;
     }
@@ -502,7 +509,10 @@ function updateRescueBox(match, runtime, ui) {
     row.dataset.order = String(attempt.order);
     const info = document.createElement("p");
     info.className = "party-rescue-info";
-    const heard = attempt.transcripts?.[0] ? `認識：「${attempt.transcripts[0]}」` : "認識：（音声を取得できず）";
+    // 【第6回】最終結果と違う途中結果があれば添える（「途中では正しく聞き取れていた」を人間が確認できるように）
+    const finalText = attempt.transcripts?.[0] ?? null;
+    const interimText = (attempt.candidates ?? []).filter((candidate) => !candidate.isFinal).map((candidate) => candidate.transcript).reverse().find((text) => text && text !== finalText) ?? null;
+    const heard = finalText ? `認識：「${finalText}」${interimText ? `（途中：「${interimText}」）` : ""}` : "認識：（音声を取得できず）";
     const judged = attempt.outcome === "overtaken" ? "正解扱い → 先の回答を救済したため取り消し" : `${attempt.judgedBy === "human" ? "人間判定" : "自動判定"}：不正解`;
     info.textContent = `${attempt.order}番目　${player?.name ?? ""}　${heard}　${judged}`;
     row.appendChild(info);
@@ -541,6 +551,10 @@ function describeManualReason(reason, recognitionAvailable) {
   if (reason === "no-speech") return "音声を検出できませんでした → 人間判定へ";
   if (reason === "timeout") return "制限時間内に認識できませんでした → 人間判定へ";
   if (reason === "aborted") return "認識が中断されました → 人間判定へ";
+  if (reason === "verdict:competition") return "2つの曲名に近く、自動では決められません → 人間判定へ";
+  if (reason === "verdict:final-vs-interim-conflict") return "聞き取りの途中と最後で別の曲名になりました → 人間判定へ";
+  if (reason === "verdict:weak") return "曲名として弱い聞き取りでした → 人間判定へ";
+  if (reason === "verdict:no-match") return "収録曲に近い聞き取りがありませんでした → 人間判定へ";
   if (reason.startsWith("verdict:")) return "曲名を自動判定できませんでした（曖昧）→ 人間判定へ";
   return "自動判定できませんでした → 人間判定へ";
 }
@@ -569,7 +583,9 @@ function updateVoiceOverlay(match, runtime, ui) {
   elements.voicePlayer.textContent = `${player?.name ?? ""} が回答権を獲得`;
   if (voice.status === "listening") {
     const seconds = (voice.remainingMs / 1000).toFixed(1);
-    elements.voiceTimer.textContent = voice.speechStarted ? `認識中… 残り ${seconds}秒` : `残り ${seconds}秒（話し始めてください）`;
+    // 【第6回】マイクが実際に開いた（ready）ら 🎤 を添える（待つことを要求する表示ではなく、状態の目印）
+    const micMark = voice.ready ? "🎤 " : "";
+    elements.voiceTimer.textContent = voice.speechStarted ? `${micMark}認識中… 残り ${seconds}秒` : `${micMark}残り ${seconds}秒（話し始めてください）`;
     elements.voiceTranscript.textContent = voice.transcripts.length > 0 ? `認識：「${voice.transcripts[0]}」` : describeVoiceStage(voice);
     elements.voiceHint.textContent = "曲名をはっきり言ってください";
     elements.judgeRow.hidden = true;

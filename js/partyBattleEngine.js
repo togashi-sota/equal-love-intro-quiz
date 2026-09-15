@@ -53,6 +53,7 @@ import {
   beginCountdown,
   activateQuestion,
   claimAnswer,
+  canPlayerAnswer,
   isClaimedChoiceCorrect,
   resolveCorrect,
   resolveWrong,
@@ -82,6 +83,7 @@ import {
   markVoiceRecognitionUnavailable,
   getVoiceUnavailableReason,
   startVoiceRecognitionSession,
+  attachVoiceSessionJudgement,
   computeVoiceDeadline,
   isVoiceFatalEndReason,
   VOICE_STAGE,
@@ -390,6 +392,9 @@ export function createPartyBattleEngine({ onUpdate }) {
               playerId: voiceState.playerId,
               status: voiceState.status,
               transcripts: voiceState.transcripts,
+              candidates: voiceState.candidates,
+              prewarmed: voiceState.prewarmed,
+              ready: voiceState.readyAtMs !== null,
               remainingMs: Math.max(0, voiceState.deadlineMs - now()),
               speechStarted: voiceState.speechStartedAtMs !== null,
               verdict: voiceState.verdict,
@@ -576,6 +581,7 @@ export function createPartyBattleEngine({ onUpdate }) {
   }
 
   function startCountdown() {
+    discardVoicePrewarm({ resumePlayback: false });
     // 【公開ルール】正解曲名を公開した問題は二度と出題中へ戻さない（beginCountdown が null を返す）
     const next = beginCountdown(runtime);
     if (!next) {
@@ -747,6 +753,7 @@ export function createPartyBattleEngine({ onUpdate }) {
       key: `${voiceState.playerId}:${voiceState.claimedAtMs}`,
       playerId: voiceState.playerId,
       transcripts: [...voiceState.transcripts],
+      candidates: voiceState.candidates.map((candidate) => ({ transcript: candidate.transcript, isFinal: candidate.isFinal, source: candidate.source })),
       matchedTitle: voiceState.verdict?.matchedTitle ?? null,
       autoVerdict: voiceState.verdict?.byHuman ? "manual" : voiceState.verdict?.kind ?? "manual",
       judgedBy,
@@ -781,63 +788,200 @@ export function createPartyBattleEngine({ onUpdate }) {
 
   // ----- 音声回答 -----
   function clearVoice() {
+    discardVoicePrewarm({ resumePlayback: false });
     if (!voiceState) return;
     voiceState.session?.abort?.();
     if (voiceState.intervalId !== null) clearInterval(voiceState.intervalId);
     voiceState = null;
   }
 
+  // ===== 【2026-09-16 第6回「音声早押し認識 最大精度化」】 =====
+  //
+  // 【問題】「回答！」を離した直後に話すと、認識器が実際に音を受け取れる状態（onstart／onaudiostart）になる前の
+  // 音声が録れず、発話の冒頭が欠けたり崩れやすい。iOS の Web Speech API は start() から音の受付までに数百msかかる
+  // ことがある。
+  // 【対策1：先行起動（pre-warm）】「回答！」の pointerdown（押した瞬間）に認識を開始し、pointerup で回答権を取った
+  // 時点ではマイクが開き始めているようにする。押している間の時間（数十〜数百ms）ぶん、冒頭を拾いやすくなる。
+  //   ・先行起動できるのは「今その押し始めで回答権を取れる状態」（ACTIVE・未ロック・START後の押し始め）のときだけ。
+  //   ・同時に複数人が押し始めても、認識器は同時に1つしか動かせないので最初の1人だけ先行起動する。
+  //   ・回答権を取った人が先行起動した本人ならそのセッションを引き継ぐ。別の人なら止めて改めて開始する。
+  //   ・スライドして離す等でキャンセルされたら止め、止めていた音源を元の位置から再開する。
+  //   ・回答権の順位は従来どおり「最初の有効な pointerup」で決まる。先行起動の有無・マイクが開くまでの時間は順位に
+  //     一切影響しない（arbiter は無変更）。
+  // 【対策2：候補履歴】途中結果・代替候補を捨てず、セッションの全候補（candidates）を曲名マッチャーへ渡す。
+  // 【対策3：回答時間の起点】「話し始めるまで」の締切は、認識器が ready になった時刻（上限：回答権＋1.5秒）を起点にする。
+  // 【対策4：診断】各セッションの時系列・候補・判定理由を attachVoiceSessionJudgement でセッションログへ残す。
+
+  // 先行起動中のセッション { playerId, pointerStartedAtMs, session, readyAtMs, speechStartedAtMs, transcripts, candidates,
+  //   stage, stageDetail, endReason, pausedPlayback }
+  let voicePrewarm = null;
+
+  function isVoiceAnswerMethod() {
+    return match?.settings?.answerMethod === PARTY_ANSWER_METHOD.VOICE;
+  }
+
+  // セッションのコールバック先を「先行起動中の一時置き場」または「確定した voiceState」へ切り替えられるようにする。
+  function createVoiceSessionSink() {
+    const sink = { target: null };
+    sink.onStage = (stage, detail) => sink.target?.onStage?.(stage, detail);
+    sink.onReady = () => sink.target?.onReady?.();
+    sink.onSpeechStart = () => sink.target?.onSpeechStart?.();
+    sink.onTranscripts = (transcripts, isFinal, candidates) => sink.target?.onTranscripts?.(transcripts, isFinal, candidates);
+    sink.onEnd = (reason) => sink.target?.onEnd?.(reason);
+    return sink;
+  }
+
+  // 「回答！」の pointerdown。回答権を取れる状態なら音声認識を先行起動する（本人が離せばそのまま引き継ぐ）。
+  function prewarmVoice(playerId, pointerStartedAtMs) {
+    if (paused || !runtime || !isVoiceAnswerMethod()) return false;
+    if (voiceState || voicePrewarm) return false;
+    if (!isVoiceRecognitionAvailable()) return false;
+    if (!arbiter.wouldAccept(pointerStartedAtMs) || !canPlayerAnswer(runtime, playerId)) return false;
+    const sink = createVoiceSessionSink();
+    const prewarm = {
+      playerId,
+      pointerStartedAtMs,
+      startedAtMs: now(),
+      session: null,
+      sink,
+      readyAtMs: null,
+      speechStartedAtMs: null,
+      transcripts: [],
+      candidates: [],
+      stage: VOICE_STAGE.STARTING,
+      stageDetail: "",
+      endReason: null,
+      pausedPlayback: false,
+    };
+    // 押した瞬間に音源を止める（曲がマイクに入って冒頭の認識を汚さないため。キャンセルなら同じ位置から再開する）
+    pausePlaybackKeepingPosition();
+    prewarm.pausedPlayback = true;
+    sink.target = {
+      onStage: (stage, detail) => {
+        prewarm.stage = stage;
+        prewarm.stageDetail = detail ?? "";
+      },
+      onReady: () => {
+        if (prewarm.readyAtMs === null) prewarm.readyAtMs = now();
+      },
+      onSpeechStart: () => {
+        if (prewarm.speechStartedAtMs === null) prewarm.speechStartedAtMs = now();
+      },
+      onTranscripts: (transcripts, isFinal, candidates) => {
+        prewarm.transcripts = transcripts;
+        prewarm.candidates = candidates;
+      },
+      onEnd: (reason) => {
+        prewarm.endReason = reason;
+      },
+    };
+    voicePrewarm = prewarm;
+    prewarm.session = startVoiceRecognitionSession({ origin: "prewarm", ...sinkCallbacks(sink) });
+    return true;
+  }
+
+  function sinkCallbacks(sink) {
+    return { onStage: sink.onStage, onReady: sink.onReady, onSpeechStart: sink.onSpeechStart, onTranscripts: sink.onTranscripts, onEnd: sink.onEnd };
+  }
+
+  // 先行起動を取りやめる（キャンセル・別の人が回答権を取った・問題が終わった）。resumePlayback=true なら音源を戻す。
+  function discardVoicePrewarm({ resumePlayback }) {
+    const prewarm = voicePrewarm;
+    if (!prewarm) return;
+    voicePrewarm = null;
+    prewarm.sink.target = null;
+    prewarm.session?.abort?.();
+    if (resumePlayback && prewarm.pausedPlayback && runtime?.phase === PARTY_PHASE.ACTIVE) resumePlaybackFromPosition();
+  }
+
+  // 「回答！」をキャンセルして離した（スライド・pointercancel）。本人の先行起動だけを止める。
+  function cancelVoicePrewarm(playerId) {
+    if (!voicePrewarm || voicePrewarm.playerId !== playerId) return;
+    discardVoicePrewarm({ resumePlayback: true });
+    emit();
+  }
+
   function beginVoiceAnswer(playerId) {
     const claimedAtMs = now();
     const startTimeoutSec = match.settings.voiceStartTimeoutSec;
-    const recognitionAvailable = isVoiceRecognitionAvailable();
+    // 本人の先行起動が生きていれば引き継ぐ。別の人の先行起動なら止める（回答権を取った人を優先）
+    let adopted = null;
+    if (voicePrewarm) {
+      if (voicePrewarm.playerId === playerId && voicePrewarm.endReason === null) {
+        adopted = voicePrewarm;
+        voicePrewarm = null;
+      } else if (voicePrewarm.playerId === playerId && voicePrewarm.endReason === "final" && voicePrewarm.transcripts.length > 0) {
+        // 押している間に最終結果まで出た（極端に早い発話）：その結果で判定する
+        adopted = voicePrewarm;
+        voicePrewarm = null;
+      } else {
+        discardVoicePrewarm({ resumePlayback: false });
+      }
+    }
+    const recognitionAvailable = adopted ? true : isVoiceRecognitionAvailable();
     voiceState = {
       playerId,
       claimedAtMs,
-      speechStartedAtMs: null,
-      deadlineMs: computeVoiceDeadline({ claimedAtMs, speechStartedAtMs: null, startTimeoutSec }),
-      transcripts: [],
+      readyAtMs: adopted?.readyAtMs ?? null,
+      speechStartedAtMs: adopted?.speechStartedAtMs ?? null,
+      deadlineMs: 0,
+      transcripts: adopted?.transcripts ?? [],
+      candidates: adopted?.candidates ?? [],
       status: recognitionAvailable ? "listening" : "manual",
       session: null,
+      sessionId: adopted?.session?.id ?? null,
+      prewarmed: Boolean(adopted),
+      prewarmLeadMs: adopted ? Math.max(0, Math.round(claimedAtMs - adopted.startedAtMs)) : 0,
       intervalId: null,
       verdict: null,
       recognitionAvailable,
-      stage: recognitionAvailable ? VOICE_STAGE.STARTING : null,
-      stageDetail: "",
+      stage: adopted ? adopted.stage : recognitionAvailable ? VOICE_STAGE.STARTING : null,
+      stageDetail: adopted?.stageDetail ?? "",
       // 人間判定へ落ちた理由（画面に「なぜ人間判定なのか」を出すため）
       manualReason: recognitionAvailable ? null : `unavailable:${getVoiceUnavailableReason() ?? "unsupported"}`,
     };
+    const refreshDeadline = () => {
+      voiceState.deadlineMs = computeVoiceDeadline({
+        claimedAtMs: voiceState.claimedAtMs,
+        readyAtMs: voiceState.readyAtMs,
+        speechStartedAtMs: voiceState.speechStartedAtMs,
+        startTimeoutSec,
+      });
+    };
+    refreshDeadline();
     if (!recognitionAvailable) {
       emit();
       return;
     }
-    // 【iOS対策】start() はユーザー操作（回答！を離した pointerup）の同期処理内で呼ぶ（await を挟まない）。
-    voiceState.session = startVoiceRecognitionSession({
+    const target = {
       onStage: (stage, detail) => {
         if (!voiceState) return;
         voiceState.stage = stage;
         voiceState.stageDetail = detail ?? "";
         emit();
       },
+      onReady: () => {
+        if (!voiceState || voiceState.readyAtMs !== null) return;
+        voiceState.readyAtMs = now();
+        refreshDeadline();
+        emit();
+      },
       onSpeechStart: () => {
         if (!voiceState || voiceState.speechStartedAtMs !== null) return;
         voiceState.speechStartedAtMs = now();
-        voiceState.deadlineMs = computeVoiceDeadline({
-          claimedAtMs: voiceState.claimedAtMs,
-          speechStartedAtMs: voiceState.speechStartedAtMs,
-          startTimeoutSec,
-        });
+        refreshDeadline();
         emit();
       },
-      onTranscripts: (transcripts, isFinal) => {
+      onTranscripts: (transcripts, isFinal, candidates) => {
         if (!voiceState) return;
         voiceState.transcripts = transcripts;
+        voiceState.candidates = candidates ?? voiceState.candidates;
         if (isFinal) judgeVoiceTranscripts(transcripts);
         else emit();
       },
       onEnd: (reason) => {
         if (!voiceState || voiceState.status !== "listening") return;
-        // 途中結果しか来ないまま終わった（iOSで多い）：その途中結果で判定する
+        // 途中結果しか来ないまま終わった（iOSで多い）：その途中結果（候補履歴）で判定する
         if (reason === "no-final" && voiceState.transcripts.length > 0) {
           judgeVoiceTranscripts(voiceState.transcripts);
           return;
@@ -850,7 +994,22 @@ export function createPartyBattleEngine({ onUpdate }) {
         }
         if (reason !== "final") fallbackToManualJudgement(reason);
       },
-    });
+    };
+    if (adopted) {
+      voiceState.session = adopted.session;
+      adopted.sink.target = target;
+      if (adopted.endReason === "final") {
+        // 既に最終結果が出ている：即判定
+        judgeVoiceTranscripts(voiceState.transcripts);
+        return;
+      }
+    } else {
+      // 【iOS対策】start() はユーザー操作（回答！を離した pointerup）の同期処理内で呼ぶ（await を挟まない）。
+      const sink = createVoiceSessionSink();
+      sink.target = target;
+      voiceState.session = startVoiceRecognitionSession({ origin: "claim", ...sinkCallbacks(sink) });
+      voiceState.sessionId = voiceState.session?.id ?? null;
+    }
     voiceState.intervalId = setInterval(() => {
       if (!voiceState || voiceState.status !== "listening") return;
       if (now() >= voiceState.deadlineMs) {
@@ -877,24 +1036,53 @@ export function createPartyBattleEngine({ onUpdate }) {
     stopVoiceListening();
     voiceState.status = "manual";
     voiceState.manualReason = reason;
+    recordVoiceJudgementDiagnostics(null, "manual", reason);
     emit();
+  }
+
+  // 診断ログへ判定を書き込む（メモリ上のみ。外部送信・保存はしない）。
+  function recordVoiceJudgementDiagnostics(matchResult, verdict, manualReason) {
+    if (!voiceState?.sessionId) return;
+    const top = matchResult?.candidates?.[0] ?? null;
+    const runnerUp = matchResult?.candidates?.[1] ?? null;
+    attachVoiceSessionJudgement(voiceState.sessionId, {
+      playerId: voiceState.playerId,
+      prewarmed: voiceState.prewarmed,
+      prewarmLeadMs: voiceState.prewarmLeadMs,
+      claimToReadyMs: voiceState.readyAtMs !== null ? Math.round(voiceState.readyAtMs - voiceState.claimedAtMs) : null,
+      claimToSpeechMs: voiceState.speechStartedAtMs !== null ? Math.round(voiceState.speechStartedAtMs - voiceState.claimedAtMs) : null,
+      claimToJudgeMs: Math.round(now() - voiceState.claimedAtMs),
+      transcripts: [...voiceState.transcripts],
+      candidateCount: voiceState.candidates.length,
+      top: top ? { title: top.song.title, score: top.score, finalScore: top.finalScore, support: top.support } : null,
+      runnerUp: runnerUp ? { title: runnerUp.song.title, score: runnerUp.score } : null,
+      status: matchResult?.status ?? null,
+      matchReason: matchResult?.reason ?? null,
+      verdict,
+      manualReason: manualReason ?? null,
+    });
   }
 
   function judgeVoiceTranscripts(transcripts) {
     if (!voiceState || voiceState.status !== "listening") return;
     stopVoiceListening();
-    const matchResult = matchSpokenSongName(transcripts, SONGS);
+    // 候補履歴（最終・代替・途中）があればそれを証拠として渡す。無ければ従来どおり文字列配列
+    const inputs = voiceState.candidates.length > 0 ? voiceState.candidates : transcripts;
+    const matchResult = matchSpokenSongName(inputs, SONGS);
     const verdict = decideVoiceVerdict(matchResult, runtime.question.song.id);
-    voiceState.verdict = { kind: verdict, matchedTitle: matchResult.song?.title ?? null };
+    voiceState.verdict = { kind: verdict, matchedTitle: matchResult.song?.title ?? null, reason: matchResult.reason ?? null };
     if (verdict === "correct") {
       voiceState.status = "judged";
+      recordVoiceJudgementDiagnostics(matchResult, verdict, null);
       applyCorrect({ judgedBy: "auto" });
     } else if (verdict === "wrong") {
       voiceState.status = "judged";
+      recordVoiceJudgementDiagnostics(matchResult, verdict, null);
       applyWrong({ judgedBy: "auto" });
     } else {
       voiceState.status = "manual";
-      voiceState.manualReason = `verdict:${verdict}`;
+      voiceState.manualReason = `verdict:${matchResult.reason ?? verdict}`;
+      recordVoiceJudgementDiagnostics(matchResult, verdict, voiceState.manualReason);
       emit();
     }
   }
@@ -938,6 +1126,7 @@ export function createPartyBattleEngine({ onUpdate }) {
         return;
       }
       runtime = next;
+      discardVoicePrewarm({ resumePlayback: false });
       pausePlaybackKeepingPosition();
       if (isClaimedChoiceCorrect(runtime)) applyCorrect({ judgedBy: "auto" });
       else applyWrong({ judgedBy: "auto" });
@@ -946,16 +1135,31 @@ export function createPartyBattleEngine({ onUpdate }) {
     // 音声：「回答！」が押された。
     pressAnswer(playerId, pointerStartedAtMs) {
       if (paused || !runtime) return;
-      if (!arbiter.tryClaim(pointerStartedAtMs)) return;
+      if (!arbiter.tryClaim(pointerStartedAtMs)) {
+        // 受理されない押し（フライング・既に誰かが回答権を取った後）：この人の先行起動は止める
+        if (voicePrewarm?.playerId === playerId) discardVoicePrewarm({ resumePlayback: runtime.phase === PARTY_PHASE.ACTIVE && !voiceState });
+        return;
+      }
       const next = claimAnswer(runtime, { playerId, choiceId: null });
       if (!next) {
-        arbiter.enable(now());
+        arbiter.enable(now()); // 無効な入力だったので受付を戻す
+        if (voicePrewarm?.playerId === playerId) discardVoicePrewarm({ resumePlayback: true });
         return;
       }
       runtime = next;
-      pausePlaybackKeepingPosition();
+      pausePlaybackKeepingPosition(); // 先行起動で既に止めていれば何もしない（pauseAudioForExternalUi は二重に止めない）
       beginVoiceAnswer(playerId);
       emit();
+    },
+
+    // 【第6回】「回答！」の pointerdown：音声認識の先行起動（回答権の順位には影響しない）。
+    prewarmVoice(playerId, pointerStartedAtMs) {
+      return prewarmVoice(playerId, pointerStartedAtMs);
+    },
+
+    // 【第6回】「回答！」をキャンセルして離した：先行起動を止め、音源を戻す。
+    cancelVoicePrewarm(playerId) {
+      cancelVoicePrewarm(playerId);
     },
 
     // 音声：人間判定（曖昧時・「判定を修正」）。
@@ -1024,6 +1228,7 @@ export function createPartyBattleEngine({ onUpdate }) {
       const next = passQuestion(runtime);
       if (!next) return;
       arbiter.disable();
+      discardVoicePrewarm({ resumePlayback: false });
       runtime = next;
       stopAudio();
       stopLyricsClock();
@@ -1100,6 +1305,7 @@ export function createPartyBattleEngine({ onUpdate }) {
       pausedPhaseSnapshot = runtime.phase;
       clearAllTimers();
       arbiter.disable();
+      discardVoicePrewarm({ resumePlayback: false });
       pausePlaybackKeepingPosition();
       if (voiceState && voiceState.status === "listening") {
         stopVoiceListening();

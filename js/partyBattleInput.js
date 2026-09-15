@@ -40,6 +40,11 @@ export function createClaimArbiter() {
     isEnabled() {
       return enabledAtMs !== null && !claimed;
     },
+    // 【第6回】受理せずに「この押し始め時刻なら受理できるか」だけを調べる（音声認識の先行起動の可否に使う）。
+    wouldAccept(pointerStartedAtMs) {
+      if (enabledAtMs === null || claimed) return false;
+      return typeof pointerStartedAtMs === "number" && pointerStartedAtMs >= enabledAtMs;
+    },
     tryClaim(pointerStartedAtMs) {
       if (enabledAtMs === null || claimed) return false;
       if (typeof pointerStartedAtMs !== "number" || !(pointerStartedAtMs >= enabledAtMs)) return false;
@@ -54,8 +59,13 @@ export function createClaimArbiter() {
 // onConfirm(pressStartedAtMs) は「ボタンの中で指を離した」瞬間だけ呼ばれる。
 // 受理するかどうか（フライング・回答権の有無・ロック）はエンジン側（arbiter＋状態遷移）が決める。
 // 押している間は .is-pressed が付く（js/answerButtonInteraction.js が管理。CSSは.party-*用に用意）。
-export function attachPressHandler(element, onConfirm) {
-  return bindPressReleaseAnswer(element, ({ pressStartedAtMs } = {}) => onConfirm(pressStartedAtMs ?? null));
+// hooks（省略可）: { onPressStart(pressStartedAtMs), onPressEnd({ confirmed, pressStartedAtMs }) }
+// 【第6回】「回答！」は押した瞬間（pointerdown）に音声認識を先行起動するため、押し始め・キャンセルの通知を受け取れるようにした。
+export function attachPressHandler(element, onConfirm, hooks = {}) {
+  return bindPressReleaseAnswer(element, ({ pressStartedAtMs } = {}) => onConfirm(pressStartedAtMs ?? null), {
+    onPressStart: hooks.onPressStart ? ({ pressStartedAtMs }) => hooks.onPressStart(pressStartedAtMs ?? null) : undefined,
+    onPressEnd: hooks.onPressEnd,
+  });
 }
 
 // ===== 長押し（全員PASS＝約1秒、終了＝約2秒） =====

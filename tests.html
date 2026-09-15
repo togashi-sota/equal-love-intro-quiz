@@ -211,6 +211,15 @@
       runPartyBattleFinalResultTests,
       runPartyBattleSfxEngineFlowTests,
     } from "./tests/partyBattleResultPresentation.test.js";
+    // 第6回：音声早押し認識 最大精度化（2026-09-16）
+    import {
+      runVoicePipelineMatcherTests,
+      runVoicePipelineFalsePositiveSweepTests,
+      runVoicePipelineDeadlineTests,
+      runVoiceSessionEventOrderTests,
+      runVoicePipelineEngineFlowTests,
+      runVoicePipelineWiringTests,
+    } from "./tests/partyBattleVoicePipeline.test.js";
     import { runAnswerButtonInteractionTests } from "./tests/answerButtonInteraction.test.js";
     import { runOnlineBattleRoomIdTests } from "./tests/onlineBattleRoomId.test.js";
     import { runPresencePayloadsTests } from "./tests/presencePayloads.test.js";
@@ -392,6 +401,12 @@
     await runPartyBattleSfxWiringTests();
     await runPartyBattleFinalResultTests();
     await runPartyBattleSfxEngineFlowTests();
+    runVoicePipelineMatcherTests();
+    runVoicePipelineFalsePositiveSweepTests();
+    runVoicePipelineDeadlineTests();
+    runVoiceSessionEventOrderTests();
+    await runVoicePipelineEngineFlowTests();
+    await runVoicePipelineWiringTests();
     await runAnswerButtonInteractionTests();
     runOnlineBattleRoomIdTests();
     runPresencePayloadsTests();
