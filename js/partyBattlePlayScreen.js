@@ -22,6 +22,7 @@ import {
   canRevealSolution,
   resolveRemainingReplays,
   resolveSeatRotation,
+  resolveLyricSlotOrder,
 } from "./partyBattleState.js";
 import { attachPressHandler, attachLongPressHandler } from "./partyBattleInput.js";
 import { computeStealHintProgress } from "./lyricsQuizBattleTiming.js";
@@ -229,28 +230,35 @@ function updateCenter(match, runtime, ui) {
         elements.lyrics.appendChild(container);
       });
     }
-    // 【2026-09-15 第4回実機QA修正・本人指示】「ヒントN　歌詞」を同じ1行（row）に置き、最新のヒントを一番上に積む
-    // （オンライン早押し歌詞対戦の .online-lyrics-battle-hint-summary-item と同じ「バッジ＋本文」構造）。
-    // 表示順を逆にするだけで、進行（computeStealHintProgress）・段階（level）・答え合わせ位置は一切変えない。
-    // 2人対戦の2ビューは同じDOM順で描き、相手側はビューごと回転させる（DOM順の反転はしない）ので、
-    // どちらの向きから見ても「最新→過去」の順になる。
-    const rowsNewestFirst = [...levels].reverse();
+    // 【2026-09-16 第7回実機QA修正・本人指示】4行の「画面上の位置」は曲中の登場位置順（resolveLyricSlotOrder）で
+    // 問題開始時に固定し、以後は動かさない。公開はヒント1→2→3→4 の順（computeStealHintProgress の levels）で、
+    // 公開済みの段階だけ「その固定スロット」に本文を出す。未公開のスロットは薄い「…」の行（位置は取っておく）。
+    // 「表示位置」と「公開順」は別物：新しく公開されたヒントを先頭へ動かしたり hintLevel で並べ替えたりしない。
+    // 2人対戦の2ビューは同じDOM順で描き、相手側はビューごと回転させる（DOM順の反転はしない）。
+    // 「ヒントN　歌詞」を同じ1行（row）に置く構造（バッジ＋本文）は第4回のまま。
+    const hints = runtime.question.hints ?? [];
+    const slotOrder = resolveLyricSlotOrder(hints);
+    const levelByNumber = new Map(levels.map((level) => [level.level, level]));
+    const latestLevel = levels.length > 0 ? levels[levels.length - 1].level : null;
     [...elements.lyrics.children].forEach((container) => {
       container.innerHTML = "";
-      rowsNewestFirst.forEach((level, index) => {
+      slotOrder.forEach((slot) => {
+        const level = levelByNumber.get(slot.hintLevel) ?? null;
         const row = document.createElement("p");
-        row.className = `party-lyric-row${index === 0 ? " is-latest" : ""}`;
-        row.dataset.level = String(level.level);
+        row.className = `party-lyric-row${level ? "" : " is-pending"}${level && slot.hintLevel === latestLevel ? " is-latest" : ""}`;
+        row.dataset.level = String(slot.hintLevel);
+        row.dataset.slot = String(slot.slotIndex);
+        row.dataset.revealed = level ? "true" : "false";
         const badge = document.createElement("span");
         badge.className = "party-lyric-level";
-        badge.textContent = `ヒント${level.level}`;
+        badge.textContent = level ? `ヒント${slot.hintLevel}` : "…";
         const text = document.createElement("span");
         text.className = "party-lyric-text";
-        text.textContent = level.revealedText;
+        text.textContent = level ? level.revealedText : "";
         row.append(badge, text);
         container.appendChild(row);
       });
-      if (levels.length === 0) {
+      if (slotOrder.length === 0) {
         const row = document.createElement("p");
         row.className = "party-lyric-row is-placeholder";
         row.textContent = "…";
@@ -554,6 +562,7 @@ function describeManualReason(reason, recognitionAvailable) {
   if (reason === "verdict:competition") return "2つの曲名に近く、自動では決められません → 人間判定へ";
   if (reason === "verdict:final-vs-interim-conflict") return "聞き取りの途中と最後で別の曲名になりました → 人間判定へ";
   if (reason === "verdict:weak") return "曲名として弱い聞き取りでした → 人間判定へ";
+  if (reason === "verdict:shared-fragment") return "2つの曲名に含まれる言葉で、どちらか決められません → 人間判定へ";
   if (reason === "verdict:no-match") return "収録曲に近い聞き取りがありませんでした → 人間判定へ";
   if (reason.startsWith("verdict:")) return "曲名を自動判定できませんでした（曖昧）→ 人間判定へ";
   return "自動判定できませんでした → 人間判定へ";

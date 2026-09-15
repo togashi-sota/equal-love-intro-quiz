@@ -18705,6 +18705,18 @@ body[data-screen="partyBattlePlay"] .game-frame {
   opacity: 0.5;
 }
 
+/* 【第7回】まだ公開されていない固定スロット：位置だけ取っておき、薄い「…」で示す（曲名や歌詞は一切出さない） */
+.party-lyric-row.is-pending {
+  opacity: 0.35;
+  min-height: 1.5em;
+}
+
+.party-lyric-row.is-pending .party-lyric-level {
+  background: transparent;
+  color: var(--color-text);
+  opacity: 0.6;
+}
+
 .party-pass-button {
   position: relative;
   flex: none;

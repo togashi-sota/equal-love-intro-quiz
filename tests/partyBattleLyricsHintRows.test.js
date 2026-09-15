@@ -2,21 +2,24 @@
 //
 // 【検証すること】
 //   ・各行（.party-lyric-row）が「ヒント番号バッジ＋歌詞本文」の同一row構造で、ラベルだけの行を作らない
-//   ・最新ヒントが先頭（ヒント1→2→3→4 の進行で、上から 4,3,2,1）
+//   ・【第7回】4行の画面上の位置は「曲中の登場位置順（startLine）」で固定し、公開（ヒント1→2→3→4）はその固定スロットに出すだけ
+//     （hint1=20行目／hint2=30／hint3=10／hint4=40 なら DOM 順は必ず 3,1,2,4。段階1では hint1 のスロットだけ本文、以後増えても順は不変）
 //   ・2人対戦は2ビューで内容一致（DOM順は同じ。相手側はビューごと回転：縦180度／横90・-90度）
 //   ・3／4人は1ビュー
 //   ・表示順を変えても、段階（level）と答え合わせの開始位置（resolveReviewPlaybackPlan）は変わらない
 import { assertEqual } from "./test-utils.js";
-import { PARTY_PHASE, PARTY_QUIZ_TYPE, normalizePartySettings, buildPartyPlayers, createPartyMatch, createQuestionRuntime, resolveParticipantIds } from "../js/partyBattleState.js";
+import { PARTY_PHASE, PARTY_QUIZ_TYPE, normalizePartySettings, buildPartyPlayers, createPartyMatch, createQuestionRuntime, resolveParticipantIds, resolveLyricSlotOrder } from "../js/partyBattleState.js";
+import { buildLyricsQuizQuestions } from "../js/lyricsQuizQuestionBuilder.js";
 import { computeStealHintProgress } from "../js/lyricsQuizBattleTiming.js";
 import { resolveReviewPlaybackPlan } from "../js/partyBattleEngine.js";
 
 const HINTS = [
-  { hintLevel: 1, segment: { text: "寄せる波にちょっと焦って" } },
-  { hintLevel: 2, segment: { text: "秋が来てもサマーチューン" } },
-  { hintLevel: 3, segment: { text: "ベタつく風 なびくストレート" } },
-  { hintLevel: 4, segment: { text: "（でも）僕のもの" } },
+  { hintLevel: 1, startLine: 20, segment: { text: "寄せる波にちょっと焦って" } },
+  { hintLevel: 2, startLine: 30, segment: { text: "秋が来てもサマーチューン" } },
+  { hintLevel: 3, startLine: 10, segment: { text: "ベタつく風 なびくストレート" } },
+  { hintLevel: 4, startLine: 40, segment: { text: "（でも）僕のもの" } },
 ];
+const SLOT_ORDER = [3, 1, 2, 4]; // 曲中の登場位置順（startLine 10,20,30,40）
 const QUESTION = { song: { id: "s1", title: "夏名残サマーチューン" }, choices: [], hints: HINTS, revealStartTimeSec: 10, revealStartTimeSecByHintLevel: { 1: 10, 2: 20, 3: 30, 4: 40 } };
 
 const ELEMENT_IDS = {
@@ -113,24 +116,28 @@ export async function runPartyBattleLyricsHintRowsTests() {
         assertEqual(expectedLevels[expectedLevels.length - 1], level, `${label}／ヒント${level}：前提（段階 ${level} まで開いている）`);
         views.forEach((view) => {
           const rows = [...view.querySelectorAll(".party-lyric-row")];
-          assertEqual(rows.map((row) => Number(row.dataset.level)), [...expectedLevels].reverse(), `${label}／ヒント${level}／${view.dataset.view}：最新ヒントが先頭（${[...expectedLevels].reverse().join(",")}）`);
+          assertEqual(rows.map((row) => Number(row.dataset.level)), SLOT_ORDER, `${label}／ヒント${level}／${view.dataset.view}：DOM順は曲中位置順 3,1,2,4 で固定（公開段階に関係なく不変）`);
+          const revealedLevels = rows.filter((row) => row.dataset.revealed === "true").map((row) => Number(row.dataset.level)).sort();
+          assertEqual(revealedLevels, [...expectedLevels].sort(), `${label}／ヒント${level}：公開済みスロットだけ本文（段階${level}までのヒント）`);
           rows.forEach((row) => {
             const badge = row.querySelector(".party-lyric-level");
             const text = row.querySelector(".party-lyric-text");
             assertEqual(Boolean(badge && text), true, `${label}：各行が「ヒント番号バッジ＋本文」の同一row`);
-            assertEqual(badge.textContent, `ヒント${row.dataset.level}`, `${label}：バッジの番号`);
+            const revealed = row.dataset.revealed === "true";
+            assertEqual(badge.textContent, revealed ? `ヒント${row.dataset.level}` : "…", `${label}：バッジ（公開済みは番号、未公開は…）`);
+            if (!revealed) assertEqual(text.textContent, "", `${label}：未公開スロットに歌詞を出さない`);
             assertEqual(badge.parentElement === row && text.parentElement === row, true, `${label}：バッジと本文が同じ行（ラベルだけの行を作らない）`);
             // 同じ行に横並び（バッジの下に本文が落ちない）
             const badgeRect = badge.getBoundingClientRect();
             const textRect = text.getBoundingClientRect();
             const rotated = view.dataset.rotation === "90" || view.dataset.rotation === "-90";
-            if (!rotated && badgeRect.width > 0) {
+            if (revealed && !rotated && badgeRect.width > 0) {
               assertEqual(textRect.top < badgeRect.bottom, true, `${label}：本文の先頭行がバッジと同じ行にある`);
               assertEqual(badgeRect.width < row.getBoundingClientRect().width * 0.4, true, `${label}：バッジが行幅の40%未満（過剰に幅を取らない）`);
             }
           });
-          assertEqual(rows[0].classList.contains("is-latest"), true, `${label}：先頭行が最新（強調）`);
-          assertEqual(rows.slice(1).every((row) => !row.classList.contains("is-latest")), true, `${label}：最新以外は強調しない`);
+          const latestRows = rows.filter((row) => row.classList.contains("is-latest"));
+          assertEqual(latestRows.map((row) => Number(row.dataset.level)), [level], `${label}：最新に公開された段階${level}の行だけ強調（位置は動かない）`);
         });
         if (views.length === 2) {
           assertEqual(views[0].textContent, views[1].textContent, `${label}／ヒント${level}：2ビューの内容が一致（1 state・2 view）`);
@@ -160,4 +167,31 @@ export async function runPartyBattleLyricsHintRowsTests() {
     }
     iframe.remove();
   }
+}
+
+// ===== 【第7回】固定スロットの並び（純粋関数）＋ 実データの seed 多数で「単純な1→2→3→4順ではない」 =====
+export function runLyricSlotOrderTests() {
+  const order = resolveLyricSlotOrder(HINTS).map((slot) => slot.hintLevel);
+  assertEqual(order, [3, 1, 2, 4], "hint1=20／hint2=30／hint3=10／hint4=40 → 上から 3,1,2,4");
+  assertEqual(resolveLyricSlotOrder(HINTS).map((slot) => slot.slotIndex), [0, 1, 2, 3], "slotIndex は上から 0,1,2,3");
+  assertEqual(resolveLyricSlotOrder([{ hintLevel: 2, startLine: 5 }, { hintLevel: 1, startLine: 5 }]).map((slot) => slot.hintLevel), [1, 2], "同じ行なら hintLevel 順");
+  assertEqual(resolveLyricSlotOrder([{ hintLevel: 1 }, { hintLevel: 2 }]).map((slot) => slot.hintLevel), [1, 2], "startLine が無い旧データは hintLevel 順（壊れない）");
+  assertEqual(resolveLyricSlotOrder([]), [], "ヒントなし→空");
+  assertEqual(resolveLyricSlotOrder(null), [], "null→空（例外にしない）");
+  // 公開段階を進めても並びは変わらない（並びは hints だけで決まり、公開状態を引数に取らない）
+  assertEqual(resolveLyricSlotOrder(HINTS).map((slot) => slot.hintLevel).join(","), resolveLyricSlotOrder([...HINTS]).map((slot) => slot.hintLevel).join(","), "同じ hints なら常に同じ並び");
+
+  // 実データ相当：共通の問題生成（buildLyricsQuizQuestions）で seed を多数変えると、スロット順が 1,2,3,4 でないことが十分ある
+  const texts = ["あさのひかりがまどからさす", "きみのことをおもいだしてる", "そらはあおくてかぜはあたたかい", "あしたもおなじみちをあるく", "とおくのまちへむかっている", "ゆうがたのかねがなりひびく", "ふたりでみたあのなつのそら", "なみだのあとにわらえるように", "よるのしずけさにみみをすます", "ほしをかぞえてねむりにつく", "あめあがりのにおいがすき", "さいごのてがみをひらいた"];
+  const lines = texts.map((text, index) => ({ line: index + 1, text, start: index * 3, end: index * 3 + 2.8 }));
+  const song = { id: "dummy-slot-song", title: "夜明けの歌", searchAliases: [] };
+  let nonTrivial = 0;
+  for (let seed = 1; seed <= 40; seed++) {
+    const [question] = buildLyricsQuizQuestions({ songsWithLyrics: [{ song, lines }], songPool: [song.id], distractorSongPool: [song.id], questionCountValue: "1", answerPoolSizeValue: "4", seed });
+    const slots = resolveLyricSlotOrder(question.hints);
+    const startLines = slots.map((slot) => question.hints.find((hint) => hint.hintLevel === slot.hintLevel).startLine);
+    assertEqual(startLines.every((line, index) => index === 0 || line >= startLines[index - 1]), true, `seed ${seed}：スロット順は曲中位置の昇順`);
+    if (slots.map((slot) => slot.hintLevel).join(",") !== "1,2,3,4") nonTrivial += 1;
+  }
+  assertEqual(nonTrivial >= 20, true, `40 seed 中 ${nonTrivial} 件はヒント番号順と異なる配置（単純な上下順ではない）`);
 }

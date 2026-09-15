@@ -68,10 +68,8 @@ export const CUSTOMIZABLE_SFX_EVENT_INFO = [
   { id: SFX_EVENTS.BATTLE_LOSE, label: "対戦：敗北" },
   { id: SFX_EVENTS.ACHIEVEMENT_UNLOCK, label: "称号獲得" },
   { id: SFX_EVENTS.STEAL_SUCCESS, label: "早押し成功" },
-  { id: SFX_EVENTS.PARTY_CORRECT, label: "パーティー対戦：正解（ピンポン）" },
-  { id: SFX_EVENTS.PARTY_WRONG, label: "パーティー対戦：不正解（ブー）" },
-  { id: SFX_EVENTS.PARTY_WINNER, label: "パーティー対戦：優勝ファンファーレ" },
 ];
+// 【第7回】パーティー対戦の正解／不正解／優勝（PARTY_*）は全端末・全テーマ共通の固定音なので、この一覧（テーマ差し替え）には載せない。
 const CUSTOMIZABLE_SFX_EVENT_IDS = new Set(CUSTOMIZABLE_SFX_EVENT_INFO.map((info) => info.id));
 
 const DEFAULT_THEME = SFX_THEMES.SPARKLE;
@@ -444,14 +442,15 @@ function renderSoundDescriptor(context, descriptor, volumeScale) {
       detuneCents: note.detuneCents,
     });
   });
-  if (descriptor.noise) {
-    scheduleNoiseBurst(context, startTime + (descriptor.noise.startSec ?? 0), {
-      durationSec: descriptor.noise.durationSec,
-      gain: descriptor.noise.gain * volumeScale,
-      filterFreq: descriptor.noise.filterFreq,
-      filterType: descriptor.noise.filterType,
+  const noises = [...(descriptor.noise ? [descriptor.noise] : []), ...(descriptor.noises ?? [])];
+  noises.forEach((noise) => {
+    scheduleNoiseBurst(context, startTime + (noise.startSec ?? 0), {
+      durationSec: noise.durationSec,
+      gain: noise.gain * volumeScale,
+      filterFreq: noise.filterFreq,
+      filterType: noise.filterType,
     });
-  }
+  });
 }
 
 // ===== テーマ別の音の定義（データ）=====
@@ -654,72 +653,66 @@ const SOUND_DEFINITIONS = {
     [SFX_THEMES.LIVE]: { notes: [N("D5", 0, 0.05, 0.2, { type: "square" }), N("A5", 0.04, 0.14, 0.25, { type: "square" })] },
     [SFX_THEMES.CLASSIC]: { notes: [N("E5", 0, 0.06, 0.2, { type: "triangle" }), N("A5", 0.05, 0.14, 0.24, { type: "triangle" })] },
   },
+};
 
-  // ===== パーティー対戦専用（2026-09-16 第5回実機QA修正） =====
-  // 正解「ピンポン・ピンポン！」：高い音→少し低い音の2音チャイム（G6→E6 相当）を2回。基音に倍音を1本重ねて
-  // 「鐘」らしい抜けの良さを出す。gain は既存の正解音（0.26〜0.28）より少し強い 0.30〜0.34（曲と同時でも埋もれず、爆音にはしない）。
+
+// ===== パーティー対戦専用の固定サウンド（2026-09-16 第7回実機QA修正・本人指示） =====
+//
+// 【テーマ非依存】通常クイズの効果音は Sparkle／Live／Classic のテーマを端末ごとに選べるが、パーティー対戦の
+// 正解／不正解／優勝の音は「どの端末・どのテーマでも同じクイズ用の音」にする（1台を囲んで遊ぶモードなので、
+// 端末の設定で正解音の印象が変わらないように）。ON/OFF と音量スライダーはユーザー設定を尊重する（playSfx の判定はそのまま）。
+// テーマ上書き（sfxEventOverrides）もこの3イベントには効かせない。
+// 【音の設計（すべて自前生成。既存番組・市販音源のコピーではない）】
+//   PARTY_CORRECT「ピンポン！ピンポン！」：高い音（G6）→少し低い音（E6）の2打を2回＝4打。各打にアタック用の短い
+//     ノイズと倍音（1オクターブ上）を重ねてベル感を出し、2打目・4打目を少し長く伸ばす。約1.1秒。gain ≤ 0.38。
+//   PARTY_WRONG「ブーーー」：低いブザー（A2=110Hz の sawtooth ＋ E2=82Hz の square ＋ うなり用に 112Hz）を約0.9秒、
+//     最後にわずかに下げて止める。正解音（高い鐘）とは音域が完全に別で聞き間違えない。gain ≤ 0.32。
+//   PARTY_WINNER ファンファーレ：上昇3連（C5→E5→G5）→ C6 ロング＋ハーモニー（E6／G5／C5）＋高音の飾り。約1.4秒。
+const N2 = (freq, startSec, durationSec, gain, extra = {}) => ({ freq, startSec, durationSec, gain, ...extra });
+const PARTY_FIXED_SOUND_DEFINITIONS = {
   [SFX_EVENTS.PARTY_CORRECT]: {
-    [SFX_THEMES.SPARKLE]: {
-      notes: [
-        N("G6", 0, 0.16, 0.3, { type: "sine" }), N("G7", 0, 0.08, 0.08, { type: "sine" }),
-        N("E6", 0.14, 0.24, 0.32, { type: "sine" }), N("E7", 0.14, 0.1, 0.08, { type: "sine" }),
-        N("G6", 0.42, 0.16, 0.3, { type: "sine" }), N("G7", 0.42, 0.08, 0.08, { type: "sine" }),
-        N("E6", 0.56, 0.4, 0.34, { type: "sine" }), N("E7", 0.56, 0.12, 0.08, { type: "sine" }),
-      ],
-    },
-    [SFX_THEMES.LIVE]: {
-      notes: [
-        N("G6", 0, 0.14, 0.24, { type: "triangle" }), N("G5", 0, 0.14, 0.12, { type: "square" }),
-        N("E6", 0.13, 0.22, 0.26, { type: "triangle" }), N("E5", 0.13, 0.22, 0.12, { type: "square" }),
-        N("G6", 0.4, 0.14, 0.24, { type: "triangle" }), N("G5", 0.4, 0.14, 0.12, { type: "square" }),
-        N("E6", 0.53, 0.4, 0.28, { type: "triangle" }), N("E5", 0.53, 0.4, 0.12, { type: "square" }),
-      ],
-    },
-    [SFX_THEMES.CLASSIC]: {
-      notes: [
-        N("G6", 0, 0.18, 0.3, { type: "sine" }), N("E6", 0.16, 0.26, 0.32, { type: "sine" }),
-        N("G6", 0.46, 0.18, 0.3, { type: "sine" }), N("E6", 0.62, 0.42, 0.34, { type: "sine" }),
-      ],
-    },
+    notes: [
+      // 1打目「ピン」
+      N2("G6", 0, 0.2, 0.36, { type: "sine" }), N2("G7", 0, 0.08, 0.1, { type: "sine" }), N2("G5", 0, 0.12, 0.12, { type: "triangle" }),
+      // 2打目「ポン」（少し長く）
+      N2("E6", 0.17, 0.32, 0.38, { type: "sine" }), N2("E7", 0.17, 0.1, 0.1, { type: "sine" }), N2("E5", 0.17, 0.16, 0.12, { type: "triangle" }),
+      // 3打目「ピン」
+      N2("G6", 0.5, 0.2, 0.36, { type: "sine" }), N2("G7", 0.5, 0.08, 0.1, { type: "sine" }), N2("G5", 0.5, 0.12, 0.12, { type: "triangle" }),
+      // 4打目「ポン」（一番長く伸ばす）
+      N2("E6", 0.67, 0.48, 0.38, { type: "sine" }), N2("E7", 0.67, 0.12, 0.1, { type: "sine" }), N2("E5", 0.67, 0.2, 0.12, { type: "triangle" }),
+    ],
+    // 各打の頭に短いノイズを重ねてアタックを立たせる（「マイク起動音っぽい」柔らかさをなくす）
+    noises: [
+      { startSec: 0, durationSec: 0.02, gain: 0.12, filterFreq: 4200, filterType: "bandpass" },
+      { startSec: 0.17, durationSec: 0.02, gain: 0.12, filterFreq: 3400, filterType: "bandpass" },
+      { startSec: 0.5, durationSec: 0.02, gain: 0.12, filterFreq: 4200, filterType: "bandpass" },
+      { startSec: 0.67, durationSec: 0.02, gain: 0.12, filterFreq: 3400, filterType: "bandpass" },
+    ],
   },
-  // 不正解「ブーッ！」：低い2音（約 110Hz＋165Hz）を重ねた 0.5 秒のブザー。最後にわずかに下がって止まる。
   [SFX_EVENTS.PARTY_WRONG]: {
-    [SFX_THEMES.SPARKLE]: {
-      notes: [N(165, 0, 0.5, 0.22, { type: "sawtooth", endFreq: 150 }), N(110, 0, 0.5, 0.2, { type: "square", endFreq: 100 })],
-    },
-    [SFX_THEMES.LIVE]: {
-      notes: [N(150, 0, 0.55, 0.24, { type: "sawtooth", endFreq: 130 }), N(100, 0, 0.55, 0.2, { type: "sawtooth", endFreq: 90 })],
-    },
-    [SFX_THEMES.CLASSIC]: {
-      notes: [N(175, 0, 0.5, 0.22, { type: "square", endFreq: 160 }), N(117, 0, 0.5, 0.2, { type: "square", endFreq: 105 })],
-    },
+    notes: [
+      N2(110, 0, 0.9, 0.3, { type: "sawtooth", endFreq: 98 }),
+      N2(112, 0, 0.9, 0.16, { type: "sawtooth", endFreq: 100 }),
+      N2(82.4, 0, 0.9, 0.22, { type: "square", endFreq: 74 }),
+      N2(220, 0, 0.5, 0.08, { type: "square", endFreq: 196 }),
+    ],
+    noises: [{ startSec: 0, durationSec: 0.03, gain: 0.1, filterFreq: 900, filterType: "lowpass" }],
   },
-  // 優勝ファンファーレ：上昇3連（C5→E5→G5）→ 高い C6 を長く伸ばし、その下に G4／C5 のハーモニーを重ねる（約1.4秒）。
-  // 1問ごとの正解音とは別格。既存の BATTLE_WIN（0.5秒）より長く華やか。
   [SFX_EVENTS.PARTY_WINNER]: {
-    [SFX_THEMES.SPARKLE]: {
-      notes: [
-        N("C5", 0, 0.12, 0.24, { type: "sine" }), N("E5", 0.11, 0.12, 0.25, { type: "sine" }), N("G5", 0.22, 0.12, 0.26, { type: "sine" }),
-        N("C6", 0.34, 0.9, 0.3, { type: "sine" }), N("E6", 0.34, 0.9, 0.16, { type: "sine" }), N("G5", 0.34, 0.9, 0.16, { type: "triangle" }),
-        N("C5", 0.34, 0.9, 0.14, { type: "triangle" }), N("G6", 0.7, 0.6, 0.14, { type: "sine" }), N("C7", 0.9, 0.5, 0.1, { type: "sine" }),
-      ],
-    },
-    [SFX_THEMES.LIVE]: {
-      notes: [
-        N("A4", 0, 0.1, 0.22, { type: "square" }), N("D5", 0.1, 0.1, 0.24, { type: "square" }), N("A5", 0.2, 0.12, 0.26, { type: "square" }),
-        N("D6", 0.32, 0.95, 0.3, { type: "sawtooth" }), N("A5", 0.32, 0.95, 0.16, { type: "square" }), N("D5", 0.32, 0.95, 0.16, { type: "sawtooth" }),
-        N("A4", 0.32, 0.95, 0.14, { type: "sawtooth" }), N("F#6", 0.7, 0.6, 0.12, { type: "square" }),
-      ],
-    },
-    [SFX_THEMES.CLASSIC]: {
-      notes: [
-        N("C5", 0, 0.12, 0.22, { type: "triangle" }), N("F5", 0.11, 0.12, 0.24, { type: "triangle" }), N("A5", 0.22, 0.12, 0.26, { type: "triangle" }),
-        N("C6", 0.34, 0.9, 0.3, { type: "triangle" }), N("F5", 0.34, 0.9, 0.16, { type: "triangle" }), N("C5", 0.34, 0.9, 0.14, { type: "triangle" }),
-        N("F6", 0.72, 0.6, 0.14, { type: "sine" }),
-      ],
-    },
+    notes: [
+      N2("C5", 0, 0.12, 0.24, { type: "sine" }), N2("E5", 0.11, 0.12, 0.25, { type: "sine" }), N2("G5", 0.22, 0.12, 0.26, { type: "sine" }),
+      N2("C6", 0.34, 0.9, 0.3, { type: "sine" }), N2("E6", 0.34, 0.9, 0.16, { type: "sine" }), N2("G5", 0.34, 0.9, 0.16, { type: "triangle" }),
+      N2("C5", 0.34, 0.9, 0.14, { type: "triangle" }), N2("G6", 0.7, 0.6, 0.14, { type: "sine" }), N2("C7", 0.9, 0.5, 0.1, { type: "sine" }),
+    ],
+    noises: [{ startSec: 0.34, durationSec: 0.04, gain: 0.1, filterFreq: 5000, filterType: "bandpass" }],
   },
 };
+export const PARTY_FIXED_SFX_EVENT_IDS = Object.keys(PARTY_FIXED_SOUND_DEFINITIONS);
+
+// パーティー固定音なら（テーマ・上書きに関係なく）その定義、それ以外は null。
+export function resolvePartyFixedSoundDescriptor(eventName) {
+  return PARTY_FIXED_SOUND_DEFINITIONS[eventName] ?? null;
+}
 
 // ===== 再生の入口 =====
 
@@ -733,12 +726,14 @@ function renderSfxEvent(eventName) {
   const context = getAudioContext();
   if (!context) return;
 
+  // 【第7回】パーティー対戦の正解／不正解／優勝はテーマ非依存の固定音（音量・ON/OFF は既に判定済み）
+  const fixedDescriptor = resolvePartyFixedSoundDescriptor(eventName);
   const themeTable = SOUND_DEFINITIONS[eventName];
-  if (!themeTable) return;
+  if (!fixedDescriptor && !themeTable) return;
   // 【2026-09-26改訂・本人指示：サウンドシステム全面整備3章】このイベントだけ個別に
   // テーマ上書きが設定されていれば、現在のテーマではなくそちらの音を使う。
   const effectiveTheme = sfxEventOverrides[eventName] ?? sfxTheme;
-  const descriptor = themeTable[effectiveTheme] ?? themeTable[DEFAULT_THEME];
+  const descriptor = fixedDescriptor ?? themeTable[effectiveTheme] ?? themeTable[DEFAULT_THEME];
   if (!descriptor) return;
 
   try {
@@ -787,10 +782,11 @@ export function playOnlineResultSfx(eventName) {
 export function previewSfxEvent(eventId, themeId) {
   const context = getAudioContext();
   if (!context) return;
+  const fixedDescriptor = resolvePartyFixedSoundDescriptor(eventId);
   const table = SOUND_DEFINITIONS[eventId];
-  if (!table) return;
+  if (!fixedDescriptor && !table) return;
   const validTheme = Object.values(SFX_THEMES).includes(themeId) ? themeId : DEFAULT_THEME;
-  const descriptor = table[validTheme] ?? table[DEFAULT_THEME];
+  const descriptor = fixedDescriptor ?? table[validTheme] ?? table[DEFAULT_THEME];
   if (!descriptor) return;
   try {
     renderSoundDescriptor(context, descriptor, sfxVolumePercent / 100);

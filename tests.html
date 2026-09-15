@@ -198,7 +198,7 @@
     import { runPartyBattlePlaybackTests } from "./tests/partyBattlePlayback.test.js";
     // 第4回実機QA修正（2026-09-15）
     import { runPartyBattleVoiceRescueStateTests, runPartyBattleVoiceRescueUiTests } from "./tests/partyBattleVoiceRescue.test.js";
-    import { runPartyBattleLyricsHintRowsTests } from "./tests/partyBattleLyricsHintRows.test.js";
+    import { runPartyBattleLyricsHintRowsTests, runLyricSlotOrderTests } from "./tests/partyBattleLyricsHintRows.test.js";
     import { runPartyBattleSongPickerTests } from "./tests/partyBattleSongPicker.test.js";
     import { runPartyBattleNavigationTests } from "./tests/partyBattleNavigation.test.js";
     // 第5回実機QA修正（2026-09-16）
@@ -220,6 +220,13 @@
       runVoicePipelineEngineFlowTests,
       runVoicePipelineWiringTests,
     } from "./tests/partyBattleVoicePipeline.test.js";
+    // 第7回実機QA修正（2026-09-16）
+    import {
+      runVoiceLeniencyAcceptanceTests,
+      runVoiceLeniencySweepTests,
+      runPartyFixedSfxTests,
+      runPartyFixedSfxWiringTests,
+    } from "./tests/partyBattleVoiceLeniency.test.js";
     import { runAnswerButtonInteractionTests } from "./tests/answerButtonInteraction.test.js";
     import { runOnlineBattleRoomIdTests } from "./tests/onlineBattleRoomId.test.js";
     import { runPresencePayloadsTests } from "./tests/presencePayloads.test.js";
@@ -391,6 +398,7 @@
     await runPartyBattlePlaybackTests();
     runPartyBattleVoiceRescueStateTests();
     await runPartyBattleVoiceRescueUiTests();
+    runLyricSlotOrderTests();
     await runPartyBattleLyricsHintRowsTests();
     await runPartyBattleSongPickerTests();
     await runPartyBattleNavigationTests();
@@ -407,6 +415,10 @@
     runVoiceSessionEventOrderTests();
     await runVoicePipelineEngineFlowTests();
     await runVoicePipelineWiringTests();
+    runVoiceLeniencyAcceptanceTests();
+    runVoiceLeniencySweepTests();
+    runPartyFixedSfxTests();
+    await runPartyFixedSfxWiringTests();
     await runAnswerButtonInteractionTests();
     runOnlineBattleRoomIdTests();
     runPresencePayloadsTests();

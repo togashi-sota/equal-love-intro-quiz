@@ -435,18 +435,18 @@ export async function runVoicePipelineEngineFlowTests() {
     assertEqual(latest.runtime.phase, PARTY_PHASE.CORRECT_RESULT, "C：冒頭欠け「名残サマーチューン」→夏名残サマーチューンとして自動正解");
     engine.next();
 
-    // ----- D: 曖昧（「ブリミナル」＝弱い途中一致）→ 人間判定 → 人間が⭕ → 正解（曲名は人間判定中に出さない） -----
+    // ----- D: 曖昧（「ヒロイン」＝ヒロインズ／僕のヒロインの両方の断片）→ 人間判定 → 人間が⭕ → 正解（曲名は人間判定中に出さない） -----
     await waitActive(4);
     const t3 = performance.now();
     engine.prewarmVoice(p2, t3);
     engine.pressAnswer(p2, t3);
     const fakeD = FakeRecognition.lastStarted;
     fakeD.onstart?.();
-    fakeD.emitResult([{ alternatives: [{ transcript: "ブリミナル" }], isFinal: true }]); // 途中一致（1.0）だけ＝弱い
+    fakeD.emitResult([{ alternatives: [{ transcript: "ヒロイン" }], isFinal: true }]); // 2曲の断片＝どちらか決められない
     fakeD.onend?.();
     assertEqual(latest.runtime.phase, PARTY_PHASE.CLAIMED, "D：曖昧なら確定しない（人間判定待ち）");
     assertEqual(voice().status, "manual", "D：人間判定");
-    assertEqual(voice().manualReason, "verdict:weak", "D：理由（弱い聞き取り）");
+    assertEqual(voice().manualReason, "verdict:shared-fragment", "D：理由（別の曲名にも含まれる断片）");
     assertEqual(latest.runtime.solutionRevealed, false, "D：人間判定中は正解曲名を公開しない");
     engine.humanJudge(true);
     assertEqual(latest.runtime.phase, PARTY_PHASE.CORRECT_RESULT, "D：人間の⭕で正解");

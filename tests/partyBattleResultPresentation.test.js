@@ -304,15 +304,15 @@ export async function runPartyBattleSfxWiringTests() {
   assertEqual(correctResultEarlyReturn, true, "engine：正解表示中に⭕を押し直しても applyCorrect を再実行しない（二重発火なし）");
   const rescueBody = engine.slice(engine.indexOf("    rescueVoiceAttempt(order) {"), engine.indexOf("    requestJudgementOverride() {"));
   assertEqual((rescueBody.match(/playSfx\(SFX_EVENTS\.PARTY_CORRECT\)/g) ?? []).length, 1, "engine：救済確定で正解音を1回");
-  assertEqual(engine.includes("const REVIEW_PLAYBACK_DELAY_MS = 1100;"), true, "engine：答え合わせ再生は正解音（約1秒）が鳴り終わってから");
+  assertEqual(engine.includes("const REVIEW_PLAYBACK_DELAY_MS = 1300;"), true, "engine：答え合わせ再生は正解音（約1.15秒）が鳴り終わってから");
   const screen = await fetchText("js/partyBattleScreen.js");
   assertEqual(screen.includes("playSfx(SFX_EVENTS.PARTY_WINNER)"), true, "最終結果：優勝発表で専用ファンファーレ");
   assertEqual(screen.includes("playSfx(SFX_EVENTS.BATTLE_WIN)"), false, "最終結果：汎用の勝利音ではなく専用音");
   const sound = await fetchText("js/soundManager.js");
   assertEqual(sound.includes("sfxListeners.forEach") && sound.indexOf("if (!sfxMasterEnabled) return;") < sound.indexOf("sfxListeners.forEach"), true, "soundManager：リスナー通知は ON/OFF 判定の後（設定尊重）");
   const definitionsBlock = sound.slice(sound.indexOf("[SFX_EVENTS.PARTY_CORRECT]: {"), sound.indexOf("[SFX_EVENTS.PARTY_WINNER]: {"));
-  const gains = [...definitionsBlock.matchAll(/N\([^)]*?,\s*[\d.]+,\s*[\d.]+,\s*([\d.]+)/g)].map((m) => Number(m[1]));
-  assertEqual(gains.length > 0 && gains.every((gain) => gain <= 0.35), true, "soundManager：パーティー音の各音の gain は 0.35 以下（爆音にしない。音量スライダーはこの値に掛かる）");
+  const gains = [...definitionsBlock.matchAll(/N2\([^)]*?,\s*[\d.]+,\s*[\d.]+,\s*([\d.]+)/g)].map((m) => Number(m[1]));
+  assertEqual(gains.length > 0 && gains.every((gain) => gain <= 0.4), true, "soundManager：パーティー音の各音の gain は 0.4 以下（爆音にしない。音量スライダーはこの値に掛かる）");
   assertEqual(sound.includes("function getAudioContext()") && sound.includes(".resume()"), true, "soundManager：既存の AudioContext 共有・resume（iPhone PWA の unlock）をそのまま使う");
 }
 

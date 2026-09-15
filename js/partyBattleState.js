@@ -565,6 +565,22 @@ export function rescueVoiceAttempt(match, runtime, order) {
   return { match: nextMatch, runtime: nextRuntime };
 }
 
+// ===== 歌詞ヒントの画面配置（2026-09-16 第7回実機QA修正・本人指示） =====
+//
+// 【仕様（本人確定）】4つのヒント行の「画面上の位置」は、ヒント番号（公開順）ではなく、その曲の歌詞の中での登場位置順
+// （hint.startLine 昇順。同じ行なら hintLevel 順）で問題開始時に固定する。公開はこれまでどおりヒント1→2→3→4 の順だが、
+// 新しく公開されたヒントを先頭へ動かしたり hintLevel で並べ替えたりはせず、固定スロットの「その場所」に本文を出すだけ。
+// 「表示位置」と「公開順」は別物。2人対戦の2ビュー・3／4人の1ビューとも同じ順（向きだけ回転）。
+// 戻り値: [{ hintLevel, startLine, slotIndex }]（画面の上から順）。startLine が無いヒント（旧データ）は hintLevel 順で末尾へ。
+export function resolveLyricSlotOrder(hints) {
+  const list = (hints ?? []).map((hint, index) => ({
+    hintLevel: Number.isFinite(hint?.hintLevel) ? hint.hintLevel : index + 1,
+    startLine: Number.isFinite(hint?.startLine) ? hint.startLine : Number.POSITIVE_INFINITY,
+  }));
+  list.sort((a, b) => a.startLine - b.startLine || a.hintLevel - b.hintLevel);
+  return list.map((entry, slotIndex) => ({ ...entry, slotIndex }));
+}
+
 // ===== 再生回数と「もう一度聴く」（2026-09-15 第3回実機QA修正） =====
 
 // 再聴できる出題タイプ（イントロは曲頭〜曲末を流すため対象外。歌詞は音源を流さない）。
