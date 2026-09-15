@@ -76,8 +76,11 @@ function findScrollableAncestor(element) {
 }
 
 // button: 対象のボタン要素。onConfirm: 正式に回答確定していいと判断できた瞬間に呼ばれる
-// コールバック（引数無し）。呼び出し元は、この中で実際の回答処理（正誤判定・SE・
-// 次問遷移等）を行う。
+// コールバック。呼び出し元は、この中で実際の回答処理（正誤判定・SE・次問遷移等）を行う。
+// 【2026-09-15追加・パーティー対戦の早押し用】onConfirm には { pressStartedAtMs } を渡す
+// （このボタンを押し始めた pointerdown の event.timeStamp。pointer を経由しない click フォールバック
+// では null）。既存の呼び出し元は引数を使っていないため挙動は変わらない。パーティー対戦は
+// この値で「START前から押していた指を START 後に離した」フライングを弾く（js/partyBattleInput.js）。
 //
 // 戻り値：後始末用のdispose()関数（現状どの呼び出し元も画面ごとdisposeしていないため
 // 必須ではないが、将来的にボタンをJSから明示的に破棄したくなった場合のために用意する）。
@@ -86,6 +89,7 @@ export function bindPressReleaseAnswer(button, onConfirm) {
   let cancelled = false;
   let suppressNextNativeClick = false;
   let frozenPressRect = null;
+  let pressStartedAtMs = null;
   let scrollContainer = null;
   let startScrollTop = 0;
 
@@ -123,9 +127,11 @@ export function bindPressReleaseAnswer(button, onConfirm) {
     }
     setPressed(false);
     const shouldConfirm = !cancelled && !viaCancelEvent;
+    const startedAtMs = pressStartedAtMs;
     trackingPointerId = null;
     cancelled = false;
     frozenPressRect = null;
+    pressStartedAtMs = null;
     scrollContainer = null;
     // このジェスチャーに続いてブラウザが自動的に発火させるネイティブのclickイベントを
     // 1回だけ無視する（下のonNativeClick参照。確定・キャンセルのどちらでも、pointerdown→
@@ -147,7 +153,7 @@ export function bindPressReleaseAnswer(button, onConfirm) {
     setTimeout(() => {
       suppressNextNativeClick = false;
     }, 0);
-    if (shouldConfirm) onConfirm();
+    if (shouldConfirm) onConfirm({ pressStartedAtMs: startedAtMs });
   }
 
   // 指の現在位置から、キャンセルすべきかどうかを判定する。
@@ -198,6 +204,7 @@ export function bindPressReleaseAnswer(button, onConfirm) {
     if (trackingPointerId !== null) return;
     trackingPointerId = event.pointerId;
     cancelled = false;
+    pressStartedAtMs = event.timeStamp;
     frozenPressRect = button.getBoundingClientRect();
     scrollContainer = findScrollableAncestor(button);
     startScrollTop = scrollContainer ? scrollContainer.scrollTop : 0;
@@ -227,7 +234,7 @@ export function bindPressReleaseAnswer(button, onConfirm) {
       return;
     }
     if (button.disabled) return;
-    onConfirm();
+    onConfirm({ pressStartedAtMs: null });
   }
 
   button.addEventListener("pointerdown", onPointerDown);

@@ -9,7 +9,13 @@ import {
   getInstantChallengeRevealAudioEnabled,
   syncRevealAudioToggle,
 } from "./revealAudioPreference.js";
-import { initCenterCelebration, showCenterCelebrationIfEligible } from "./centerCelebration.js";
+import {
+  initCenterCelebration,
+  showCenterCelebrationIfEligible,
+  applyCelebrationQueryOverride,
+  isCelebrationSuppressed,
+  setCelebrationSuppressed,
+} from "./centerCelebration.js";
 import {
   gameState,
   resetGameState,
@@ -323,6 +329,9 @@ const centerCelebrationElements = {
   seenButton: document.getElementById("center-celebration-seen-button"),
 };
 initCenterCelebration(centerCelebrationElements, SONGS);
+// 【2026-09-15 第1回実機QA修正】?celebration=off／on で「この端末だけ」お祝いポップアップの表示／非表示を
+// 切り替える（ポートフォリオ撮影用）。指定が無ければ何もしない（他ユーザーの設定は変えない）。
+applyCelebrationQueryOverride();
 
 // 初回セットアップが必要な新規ユーザーかどうかを、他のどの初期化よりも先に判定する
 // （2026-08-15新設）。例えばこの下のinitPlayerScreen()は、内部でgetActivePlayer()を通じて
@@ -807,6 +816,20 @@ const debugAudioLogStatusElement = document.getElementById("debug-audio-log-stat
 const debugAudioLogCountElement = document.getElementById("debug-audio-log-count");
 const debugAudioLogTextareaElement = document.getElementById("debug-audio-log-textarea");
 const adminBackupRefreshButtonElement = document.getElementById("admin-backup-refresh-button");
+// 【2026-09-15 第1回実機QA修正】お祝いポップアップの端末別スイッチ（ポートフォリオ撮影用）
+const adminCelebrationToggleButtonElement = document.getElementById("admin-celebration-toggle-button");
+function renderAdminCelebrationToggle() {
+  if (!adminCelebrationToggleButtonElement) return;
+  adminCelebrationToggleButtonElement.textContent = isCelebrationSuppressed()
+    ? "🎉 お祝いポップアップ：この端末では非表示中 → タップで通常表示に戻す"
+    : "🎉 お祝いポップアップ：通常表示中 → タップでこの端末だけ非表示にする（撮影用）";
+}
+adminCelebrationToggleButtonElement?.addEventListener("click", () => {
+  playClickSound();
+  setCelebrationSuppressed(!isCelebrationSuppressed());
+  renderAdminCelebrationToggle();
+});
+renderAdminCelebrationToggle();
 const adminBackupStatusElement = document.getElementById("admin-backup-status");
 const adminRecoveryRequestsListElement = document.getElementById("admin-recovery-requests-list");
 const adminBackupsListElement = document.getElementById("admin-backups-list");
@@ -6338,6 +6361,8 @@ initPartyBattleScreens({
   voiceTestDesc: document.getElementById("party-voice-test-desc"),
   voiceTestButton: document.getElementById("party-voice-test-button"),
   voiceTestResult: document.getElementById("party-voice-test-result"),
+  voiceDiagnosticsToggle: document.getElementById("party-voice-diagnostics-toggle"),
+  voiceDiagnostics: document.getElementById("party-voice-diagnostics"),
   startButton: document.getElementById("party-battle-start-button"),
   resultConfigSummary: document.getElementById("party-result-config-summary"),
   resultList: document.getElementById("party-result-list"),

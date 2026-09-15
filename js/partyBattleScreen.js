@@ -26,7 +26,15 @@ import {
 } from "./partyBattleState.js";
 import { getLastPartySettings, getRecentPartyPlayerNames, describePartySongSource } from "./partyBattleStorage.js";
 import { resolvePartySongPool, preparePartyMatch, createPartyBattleEngine } from "./partyBattleEngine.js";
-import { isSpeechRecognitionSupported, runVoiceRecognitionTest, resetVoiceRecognitionAvailability } from "./partyBattleVoice.js";
+import {
+  isSpeechRecognitionSupported,
+  runVoiceRecognitionTest,
+  resetVoiceRecognitionAvailability,
+  requestMicrophonePermission,
+  describeVoiceEnvironment,
+  getVoiceDiagnostics,
+  clearVoiceDiagnostics,
+} from "./partyBattleVoice.js";
 import { renderPartyPlaySnapshot, setPartyPlayEngine, resetPartyPlayScreen } from "./partyBattlePlayScreen.js";
 
 let elements = null;
@@ -330,35 +338,111 @@ function renderPreflight() {
   elements.preflightError.hidden = true;
   const isVoice = settings.answerMethod === PARTY_ANSWER_METHOD.VOICE;
   elements.voiceBox.hidden = !isVoice;
-  if (isVoice) {
-    elements.voiceTestResult.hidden = true;
-    const supported = isSpeechRecognitionSupported();
-    elements.voiceTestButton.disabled = !supported;
-    elements.voiceTestDesc.textContent = supported
-      ? "「テスト開始」を押してから、曲名を1つ話してください（例：「イコールラブ」「青春サブリミナル」）。"
-      : "この端末では音声認識を安定して利用できません。4択回答がおすすめです（このまま開始すると、回答はすべて「正解／不正解」を人が判定する方式になります）。";
+  if (isVoice) renderVoiceTestInitial();
+}
+
+// ===== 開始前のマイク／音声認識テスト（2026-09-15 第1回実機QA修正で段階化） =====
+// 段階：①マイクAPI／権限（getUserMedia、明確なボタン操作から権限プロンプトを出す）
+//       ②SpeechRecognition の有無 → ③start() が受理されマイクが開く → ④音・発話の検出 → ⑤文字起こし
+// iOS では start() をユーザー操作の同期処理内で呼ぶ必要があり、getUserMedia（await あり）の後では
+// 操作扱いにならない可能性がある。そのため1つのボタンを2段階に分け、1回目のタップでマイク権限、
+// 2回目のタップで認識テスト（同期的に start()）を行う。マイクAPIが無い環境では1回目から認識テストへ進む。
+let voiceTestPhase = "mic"; // "mic" | "recognition"
+
+function renderVoiceTestInitial() {
+  elements.voiceTestResult.hidden = true;
+  elements.voiceDiagnostics.hidden = true;
+  elements.voiceDiagnosticsToggle.hidden = true;
+  const env = describeVoiceEnvironment();
+  voiceTestPhase = env.hasMicrophoneApi ? "mic" : "recognition";
+  elements.voiceTestButton.disabled = false;
+  elements.voiceTestButton.textContent = voiceTestPhase === "mic" ? "① マイクの許可を確認" : "音声認識テスト開始";
+  if (!env.hasSpeechRecognition) {
+    elements.voiceTestDesc.textContent =
+      "この端末・ブラウザには音声認識API（SpeechRecognition）がありません。このまま開始すると、回答はすべて「正解／不正解」を人が判定する方式になります。4択回答がおすすめです。";
+    elements.voiceTestButton.textContent = env.hasMicrophoneApi ? "① マイクの許可を確認（参考）" : "音声認識テスト開始";
+    elements.voiceTestButton.disabled = !env.hasMicrophoneApi;
+    return;
   }
+  elements.voiceTestDesc.textContent =
+    voiceTestPhase === "mic"
+      ? "まず「① マイクの許可を確認」を押してマイクの使用を許可してください。次に「② 音声認識テスト」を押してから曲名を1つ話します（例：「イコールラブ」「青春サブリミナル」）。"
+      : "「音声認識テスト開始」を押してから、曲名を1つ話してください（例：「イコールラブ」「青春サブリミナル」）。";
+  if (env.isStandalone && env.isIos) {
+    elements.voiceTestDesc.textContent +=
+      " ※iPhone／iPadのホーム画面版では音声認識が起動しないことがあります。その場合は自動的に人間判定へ切り替わります。";
+  }
+}
+
+function renderVoiceDiagnostics() {
+  const env = describeVoiceEnvironment();
+  const lines = [
+    `環境: SpeechRecognition=${env.hasSpeechRecognition ? (env.usesWebkitPrefix ? "webkit" : "yes") : "no"} / getUserMedia=${env.hasMicrophoneApi ? "yes" : "no"} / secure=${env.isSecureContext} / standalone=${env.isStandalone} / iOS=${env.isIos}`,
+    ...getVoiceDiagnostics().map((entry) => `${entry.atMs}ms ${entry.stage}${entry.detail ? ` ${entry.detail}` : ""}`),
+  ];
+  elements.voiceDiagnostics.textContent = lines.join("\n");
+  elements.voiceDiagnosticsToggle.hidden = false;
+}
+
+function describeVoiceTestFailure(result) {
+  const { stage, reason } = result;
+  if (stage === "mic") {
+    if (reason === "not-allowed") return "マイクの使用が許可されませんでした（端末の設定でこのアプリのマイクを許可してください）";
+    if (reason === "not-found") return "マイクが見つかりませんでした";
+    return `マイクを使えませんでした（${reason}）`;
+  }
+  if (stage === "api" || reason === "unsupported") return "この端末では音声認識API（SpeechRecognition）を利用できません";
+  if (reason === "start-timeout" || reason === "no-start") return "音声認識が起動しませんでした（ホーム画面版のiPhone／iPadで起こる既知の制約。マイクは使えても認識APIが動かない状態です）";
+  if (reason === "error:not-allowed" || reason === "error:service-not-allowed") return "音声認識サービスの利用が許可されませんでした（マイク権限は取得済み。認識API側で拒否）";
+  if (reason === "error:network") return "音声認識サービスに接続できませんでした（通信を確認してください）";
+  if (reason === "error:audio-capture") return "マイクから音を取得できませんでした";
+  if (reason === "no-speech") return `マイクは開きましたが、音声を検出できませんでした（到達段階：${stage}）`;
+  if (reason === "timeout") return `時間内に認識できませんでした（到達段階：${stage}）`;
+  if (typeof reason === "string" && reason.startsWith("error:")) return `音声認識エラー（${reason.slice(6)}、到達段階：${stage}）`;
+  return `音声を認識できませんでした（${reason}、到達段階：${stage}）`;
 }
 
 async function handleVoiceTest() {
   playSfx(SFX_EVENTS.UI_CLICK);
   elements.voiceTestButton.disabled = true;
   elements.voiceTestResult.hidden = false;
-  elements.voiceTestResult.textContent = "🎤 認識中… 曲名を話してください";
-  const result = await runVoiceRecognitionTest();
+  if (voiceTestPhase === "mic") {
+    elements.voiceTestResult.textContent = "🎤 マイクの許可を確認しています…";
+    const mic = await requestMicrophonePermission();
+    renderVoiceDiagnostics();
+    if (mic.ok) {
+      if (!isSpeechRecognitionSupported()) {
+        elements.voiceTestResult.textContent = "✓ マイクは使えます。ただし音声認識API（SpeechRecognition）が無いため、回答は人間判定になります。4択回答がおすすめです。";
+        elements.voiceTestButton.disabled = true;
+        return;
+      }
+      voiceTestPhase = "recognition";
+      elements.voiceTestResult.textContent = "✓ マイクを使えます。次に「② 音声認識テスト」を押してから曲名を話してください。";
+      elements.voiceTestButton.textContent = "② 音声認識テスト";
+      elements.voiceTestButton.disabled = false;
+      return;
+    }
+    if (mic.reason === "unsupported" && isSpeechRecognitionSupported()) {
+      voiceTestPhase = "recognition";
+      elements.voiceTestResult.textContent = "マイクAPI（getUserMedia）は無いため、音声認識APIで直接試します。「② 音声認識テスト」を押してください。";
+      elements.voiceTestButton.textContent = "② 音声認識テスト";
+      elements.voiceTestButton.disabled = false;
+      return;
+    }
+    elements.voiceTestResult.textContent = `✕ ${describeVoiceTestFailure({ stage: "mic", reason: mic.reason })}。うまくいかない場合は4択回答がおすすめです。`;
+    elements.voiceTestButton.disabled = false;
+    return;
+  }
+  // 認識テスト：start() はこの click の同期処理内で呼ばれる（runVoiceRecognitionTest は skipMicRequest で await を挟まない）
+  elements.voiceTestResult.textContent = "🎤 認識中… 曲名を話してください（数秒で自動終了します）";
+  const result = await runVoiceRecognitionTest({ skipMicRequest: true });
+  renderVoiceDiagnostics();
   elements.voiceTestButton.disabled = false;
+  elements.voiceTestButton.textContent = "もう一度テスト";
   if (result.ok) {
-    elements.voiceTestResult.textContent = `✓ 認識できました：「${result.transcripts[0]}」`;
+    elements.voiceTestResult.textContent = `✓ 認識できました：「${result.transcripts[0]}」（到達段階：${result.stage}）`;
   } else {
-    const reason =
-      result.reason === "unsupported"
-        ? "この端末では音声認識を利用できません"
-        : result.reason.startsWith("error:not-allowed") || result.reason.startsWith("error:service-not-allowed")
-          ? "マイクの使用が許可されませんでした"
-          : result.reason.startsWith("error:network")
-            ? "音声認識サービスに接続できませんでした（通信を確認してください）"
-            : "音声を認識できませんでした";
-    elements.voiceTestResult.textContent = `✕ ${reason}。うまくいかない場合は4択回答がおすすめです。`;
+    elements.voiceTestResult.textContent = `✕ ${describeVoiceTestFailure(result)}。うまくいかない場合は4択回答がおすすめです（このまま開始しても、認識できない回答は人間判定で続行します）。`;
   }
 }
 
@@ -392,6 +476,7 @@ function handleVisibilityChange() {
 function startMatch(match, pool) {
   engine?.dispose();
   resetVoiceRecognitionAvailability();
+  clearVoiceDiagnostics();
   engine = createPartyBattleEngine({
     onUpdate: (snapshot) => {
       if (snapshot.ui.finished) {
@@ -621,6 +706,10 @@ export function initPartyBattleScreens(newElements) {
   // 開始前チェック
   elements.preflightBackButton.addEventListener("click", () => elements.navigateTo("partyBattleSetup"));
   elements.voiceTestButton.addEventListener("click", handleVoiceTest);
+  elements.voiceDiagnosticsToggle.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
+    elements.voiceDiagnostics.hidden = !elements.voiceDiagnostics.hidden;
+  });
   elements.startButton.addEventListener("click", () => {
     playSfx(SFX_EVENTS.UI_CONFIRM);
     handleStart();

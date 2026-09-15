@@ -17782,13 +17782,79 @@ body[data-screen="onlineInstantCoopBattleResult"] {
 [data-color="yellow"] { --seat-color: var(--party-yellow); --seat-color-soft: var(--party-yellow-soft); }
 
 /* ---------- 設定画面 ---------- */
+/* 【2026-09-15 第1回実機QA修正・本人のiPhone／iPad実機スクリーンショットで確認】
+   以前は .party-setup-grid を grid-template-columns: 1fr（＝minmax(auto,1fr)：最小幅がmin-content）にし、
+   タブレットは columns:2 の段組みにしていた。iOS Safariでは
+     ・fieldset の既定 min-inline-size: min-content
+     ・出題タイプの「auto-fill」による可変列（min-content計算で複数トラック分に膨らむ）
+     ・<input>／<select> の固有幅（size属性由来の幅）が min-content に乗る
+   の組み合わせで列の最小幅がviewportを超え、iPhoneでは全fieldsetが右へはみ出し、iPadでは段組みの
+   列幅を超えたfieldsetが隣の列へ重なっていた。対策：
+     ・すべてのトラックを minmax(0, 1fr) にして min-content を一切参照しない
+     ・party設定画面内の fieldset は min-inline-size: 0 / max-width: 100% / box-sizing: border-box
+     ・フレックス子要素は min-width: 0、入力欄・selectは width を明示（固有幅を寄与させない）
+     ・タブレットは段組みではなく「独立した2つの列（.party-setup-col）」を minmax(0,1fr) の2トラックへ置く
+   これは #party-battle-setup-screen のスコープ内だけに当て、アプリ全体の fieldset には影響させない。 */
 .party-setup-grid {
   display: grid;
-  grid-template-columns: 1fr;
-  gap: 4px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  width: 100%;
+  min-width: 0;
 }
 
-/* タブレットでは余白を無駄にせず2列に並べる（同じ情報を広く使う。本人確定） */
+.party-setup-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  max-width: 100%;
+}
+
+#party-battle-setup-screen fieldset {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  min-inline-size: 0;
+  margin: 0 0 12px;
+}
+
+#party-battle-setup-screen fieldset > .option-row,
+#party-battle-setup-screen fieldset > .rule-option-row {
+  min-width: 0;
+  max-width: 100%;
+}
+
+#party-battle-setup-screen fieldset label {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* 回答方式・お手つきのカード（2枚）は横並びのまま、幅は必ず折半（min-contentに依存しない） */
+#party-battle-setup-screen .rule-option-row:not(.party-quiz-type-row) {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+#party-battle-setup-screen .rule-option-row label.rule-option-card {
+  margin: 4px 0;
+  width: auto;
+}
+
+/* 出題タイプ（5枚）は2列固定（auto-fill は使わない：iOS Safariの min-content 計算で列幅が膨らむため） */
+.party-quiz-type-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.party-quiz-type-row label.rule-option-card {
+  padding: 8px 8px 8px 12px;
+}
+
+/* タブレット以上：2列。列同士は独立して縦に流れるため、重なりは構造上起きない */
 @media (min-width: 720px) {
   body[data-screen="partyBattleSetup"] .game-frame,
   body[data-screen="partyBattlePreflight"] .game-frame,
@@ -17797,28 +17863,17 @@ body[data-screen="onlineInstantCoopBattleResult"] {
     max-width: 860px;
   }
 
-  /* 2列に流し込む（グリッドだと行の高さが揃って片側に大きな空白が残るため、段組みにする） */
   .party-setup-grid {
-    display: block;
-    columns: 2;
-    column-gap: 16px;
-  }
-
-  .party-setup-grid > fieldset {
-    break-inside: avoid;
-    -webkit-column-break-inside: avoid;
-    margin-bottom: 12px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 16px;
+    align-items: start;
   }
 }
 
-.party-quiz-type-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 6px;
-}
-
-.party-quiz-type-row label.rule-option-card {
-  padding: 8px 8px 8px 12px;
+@media (min-width: 1100px) {
+  body[data-screen="partyBattleSetup"] .game-frame {
+    max-width: 1000px;
+  }
 }
 
 .party-help-row {
@@ -17858,8 +17913,10 @@ body[data-screen="onlineInstantCoopBattleResult"] {
 }
 
 .party-player-name-input {
-  flex: 1;
+  flex: 1 1 0;
+  width: 0; /* 固有幅（size属性由来）を親の最小幅計算に寄与させない。実際の幅はflexで決まる */
   min-width: 0;
+  box-sizing: border-box;
   padding: 10px 12px;
   border: 1.5px solid var(--color-card-border);
   border-radius: 12px;
@@ -17884,6 +17941,14 @@ body[data-screen="onlineInstantCoopBattleResult"] {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  min-width: 0;
+}
+
+.party-recent-name-chip {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .party-recent-name-chip {
@@ -17916,6 +17981,8 @@ body[data-screen="onlineInstantCoopBattleResult"] {
   width: min(100%, 300px);
   aspect-ratio: 3 / 4;
   max-width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
   display: grid;
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
@@ -17970,7 +18037,13 @@ body[data-screen="onlineInstantCoopBattleResult"] {
   justify-content: center;
   gap: 10px;
   flex-wrap: wrap;
+  min-width: 0;
   margin-top: 8px;
+}
+
+.party-source-detail > * {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .party-source-summary {
@@ -17985,6 +18058,9 @@ body[data-screen="onlineInstantCoopBattleResult"] {
 
 .party-playlist-select {
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
   padding: 10px 12px;
   border: 1.5px solid var(--color-card-border);
   border-radius: 12px;
@@ -18066,6 +18142,33 @@ body[data-screen="onlineInstantCoopBattleResult"] {
 .party-voice-test-note {
   opacity: 0.8;
   font-weight: 600;
+}
+
+.party-voice-diagnostics-toggle {
+  margin: 6px 0 0;
+  padding: 4px 10px;
+  border: 1px solid var(--color-card-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 0.68rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.party-voice-diagnostics {
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  max-height: 180px;
+  overflow: auto;
+  border-radius: 10px;
+  background: #1f1b26;
+  color: #e8e4f0;
+  font-size: 0.62rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 
 /* ---------- 対戦盤面（全画面固定） ---------- */
@@ -18291,9 +18394,13 @@ body[data-screen="partyBattlePlay"] .game-frame {
   transition: transform 0.08s ease, opacity 0.15s ease;
 }
 
+/* 【2026-09-15 第1回実機QA修正】押下表現はJS（js/answerButtonInteraction.js）が付け外しする .is-pressed を正とする
+   （:activeだけだと、指をボタン外へスライドしてキャンセルした瞬間に見た目を戻せない）。 */
+.party-choice-button.is-pressed:not(:disabled),
 .party-choice-button:active:not(:disabled) {
-  transform: scale(0.96);
+  transform: scale(0.95) translateY(1px);
   background: var(--seat-color-soft);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.12);
 }
 
 .party-choice-button:disabled {
@@ -18344,8 +18451,11 @@ body[data-screen="partyBattlePlay"] .game-frame {
   transition: transform 0.08s ease, opacity 0.15s ease;
 }
 
+.party-answer-button.is-pressed:not(:disabled),
 .party-answer-button:active:not(:disabled) {
-  transform: scale(0.96);
+  transform: scale(0.96) translateY(1px);
+  filter: brightness(0.92);
+  box-shadow: inset 0 3px 10px rgba(0, 0, 0, 0.18);
 }
 
 .party-answer-button:disabled {
@@ -18369,6 +18479,11 @@ body[data-screen="partyBattlePlay"] .game-frame {
 .party-instant-pass-button:disabled {
   opacity: 0.4;
   cursor: default;
+}
+
+.party-instant-pass-button.is-pressed:not(:disabled) {
+  transform: scale(0.95);
+  background: var(--seat-color-soft);
 }
 
 .party-seat-lock {
@@ -18504,6 +18619,12 @@ body[data-screen="partyBattlePlay"] .game-frame {
   display: none;
 }
 
+.party-pass-button.is-pressed {
+  transform: scale(0.95) translateY(1px);
+  background: var(--color-primary-light);
+  box-shadow: inset 0 2px 6px rgba(255, 79, 150, 0.25);
+}
+
 .party-pass-button-label {
   position: relative;
   z-index: 1;
@@ -18546,6 +18667,14 @@ body[data-screen="partyBattlePlay"] .game-frame {
 
 .party-quit-progress {
   background: var(--color-danger);
+}
+
+/* 終了ボタンは小さく指で隠れるため、長押し中はボタン全体を赤系に変えて「反応している」ことを伝える */
+.party-quit-button.is-pressed {
+  transform: translateX(-50%) scale(0.95);
+  background: var(--color-danger-soft);
+  border-color: var(--color-danger);
+  color: var(--color-danger);
 }
 
 /* 上部中央の終了ボタンが4人時の上段の席と重ならないよう、席側に少しだけ上余白を与える */

@@ -73,8 +73,11 @@ import { createClaimArbiter } from "./partyBattleInput.js";
 import {
   isVoiceRecognitionAvailable,
   markVoiceRecognitionUnavailable,
+  getVoiceUnavailableReason,
   startVoiceRecognitionSession,
   computeVoiceDeadline,
+  isVoiceFatalEndReason,
+  VOICE_STAGE,
 } from "./partyBattleVoice.js";
 import { matchSpokenSongName, decideVoiceVerdict } from "./songNameMatcher.js";
 import { savePartyBattleHistory, rememberPartyPlayerNames, saveLastPartySettings } from "./partyBattleStorage.js";
@@ -319,6 +322,9 @@ export function createPartyBattleEngine({ onUpdate }) {
               speechStarted: voiceState.speechStartedAtMs !== null,
               verdict: voiceState.verdict,
               recognitionAvailable: voiceState.recognitionAvailable,
+              stage: voiceState.stage,
+              stageDetail: voiceState.stageDetail,
+              manualReason: voiceState.manualReason,
             }
           : null,
         playbackStarted,
@@ -676,12 +682,23 @@ export function createPartyBattleEngine({ onUpdate }) {
       intervalId: null,
       verdict: null,
       recognitionAvailable,
+      stage: recognitionAvailable ? VOICE_STAGE.STARTING : null,
+      stageDetail: "",
+      // 人間判定へ落ちた理由（画面に「なぜ人間判定なのか」を出すため）
+      manualReason: recognitionAvailable ? null : `unavailable:${getVoiceUnavailableReason() ?? "unsupported"}`,
     };
     if (!recognitionAvailable) {
       emit();
       return;
     }
+    // 【iOS対策】start() はユーザー操作（回答！を離した pointerup）の同期処理内で呼ぶ（await を挟まない）。
     voiceState.session = startVoiceRecognitionSession({
+      onStage: (stage, detail) => {
+        if (!voiceState) return;
+        voiceState.stage = stage;
+        voiceState.stageDetail = detail ?? "";
+        emit();
+      },
       onSpeechStart: () => {
         if (!voiceState || voiceState.speechStartedAtMs !== null) return;
         voiceState.speechStartedAtMs = now();
@@ -700,11 +717,18 @@ export function createPartyBattleEngine({ onUpdate }) {
       },
       onEnd: (reason) => {
         if (!voiceState || voiceState.status !== "listening") return;
-        if (reason.startsWith("error:") || reason === "unsupported") {
-          markVoiceRecognitionUnavailable();
+        // 途中結果しか来ないまま終わった（iOSで多い）：その途中結果で判定する
+        if (reason === "no-final" && voiceState.transcripts.length > 0) {
+          judgeVoiceTranscripts(voiceState.transcripts);
+          return;
+        }
+        if (isVoiceFatalEndReason(reason)) {
+          // 認識APIそのものが使えない：以降の回答はこの試合の間ずっと人間判定で続ける
+          // （4択へは自動変更しない。公平性を変えないため）
+          markVoiceRecognitionUnavailable(reason);
           voiceState.recognitionAvailable = false;
         }
-        if (reason !== "final") fallbackToManualJudgement();
+        if (reason !== "final") fallbackToManualJudgement(reason);
       },
     });
     voiceState.intervalId = setInterval(() => {
@@ -713,7 +737,7 @@ export function createPartyBattleEngine({ onUpdate }) {
         const transcripts = voiceState.transcripts;
         voiceState.session?.abort?.();
         if (transcripts.length > 0) judgeVoiceTranscripts(transcripts);
-        else fallbackToManualJudgement();
+        else fallbackToManualJudgement("timeout");
         return;
       }
       emit();
@@ -728,10 +752,11 @@ export function createPartyBattleEngine({ onUpdate }) {
     voiceState.intervalId = null;
   }
 
-  function fallbackToManualJudgement() {
+  function fallbackToManualJudgement(reason = "unknown") {
     if (!voiceState) return;
     stopVoiceListening();
     voiceState.status = "manual";
+    voiceState.manualReason = reason;
     emit();
   }
 
@@ -749,6 +774,7 @@ export function createPartyBattleEngine({ onUpdate }) {
       applyWrong({ judgedBy: "auto" });
     } else {
       voiceState.status = "manual";
+      voiceState.manualReason = `verdict:${verdict}`;
       emit();
     }
   }

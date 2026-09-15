@@ -7,6 +7,10 @@ import {
   findEligibleCelebration,
   showCenterCelebrationIfEligible,
   CELEBRATION_POPUPS_ENABLED,
+  CELEBRATION_SUPPRESS_KEY,
+  isCelebrationSuppressed,
+  setCelebrationSuppressed,
+  applyCelebrationQueryOverride,
 } from "../js/centerCelebration.js";
 import { assertEqual } from "./test-utils.js";
 
@@ -163,15 +167,41 @@ export function runCenterCelebrationTests() {
     "obaCenterNatsunagori",
     "表示スイッチが false でも、表示条件の判定（再表示のときに使う）はそのまま機能する"
   );
-  if (CELEBRATION_POPUPS_ENABLED) {
-    // 再表示に戻した状態。実際の描画には本物のDOMが必要なので、ここでは型だけ確認する。
-    assertEqual(typeof CELEBRATION_POPUPS_ENABLED, "boolean", "表示スイッチは真偽値");
-  } else {
-    assertEqual(
-      showCenterCelebrationIfEligible([SONG_WITH_CENTER], TEST_PLAYER_KEY_PREFIX, fakeElements),
-      false,
-      "引数を省略したときは CELEBRATION_POPUPS_ENABLED（就活公開期間中は false）に従い、表示しない"
-    );
-  }
+  // ---- 【2026-09-15 第1回実機QA修正】通常利用では表示、ポートフォリオ撮影用は端末ごとに非表示 ----
+  assertEqual(CELEBRATION_POPUPS_ENABLED, true, "通常利用（本人・フレンド・一般ユーザー）ではお祝いポップアップを表示する（全体スイッチは true）");
+  localStorage.removeItem(CELEBRATION_SUPPRESS_KEY);
+  assertEqual(isCelebrationSuppressed(), false, "非表示フラグが無い端末は通常表示");
+  // 既定引数（enabled 省略）は「全体スイッチ かつ 端末で非表示にしていない」。表示条件を満たさない曲データを渡せば
+  // DOMに触れずに false を返す＝抑止ではなく通常の判定経路を通っていることを確認する。
+  // 全件を「この起動中は見た」状態にして、通常の判定経路（抑止ではなく既読判定）で false になることを確認する
+  sessionStorage.setItem(SEEN_KEY_OBA, "true");
+  sessionStorage.setItem(SEEN_KEY_YUME, "true");
+  assertEqual(
+    showCenterCelebrationIfEligible([SONG_WITH_CENTER], TEST_PLAYER_KEY_PREFIX, fakeElements),
+    false,
+    "通常利用時は抑止されず、通常の表示条件判定（全件既読→false）へ進む"
+  );
+  cleanup();
+  setCelebrationSuppressed(true);
+  assertEqual(isCelebrationSuppressed(), true, "撮影用の非表示フラグを立てられる");
+  assertEqual(
+    showCenterCelebrationIfEligible([SONG_WITH_CENTER], TEST_PLAYER_KEY_PREFIX, fakeElements),
+    false,
+    "この端末で非表示にしているときだけ、対象曲があっても表示しない"
+  );
+  assertEqual(fakeElements.overlay.hidden, true, "非表示中はオーバーレイに触れない");
+  setCelebrationSuppressed(false);
+  assertEqual(localStorage.getItem(CELEBRATION_SUPPRESS_KEY), null, "通常表示へ戻すとフラグ自体を消す（他ユーザーの既存設定と同じ「無し」状態）");
+  assertEqual(applyCelebrationQueryOverride("?celebration=off"), "off", "URLの ?celebration=off で非表示");
+  assertEqual(isCelebrationSuppressed(), true, "?celebration=off は端末に保存される（PWA再起動後も保持）");
+  assertEqual(applyCelebrationQueryOverride("?celebration=on"), "on", "URLの ?celebration=on で通常表示へ");
+  assertEqual(isCelebrationSuppressed(), false, "?celebration=on で非表示フラグが消える");
+  assertEqual(applyCelebrationQueryOverride("?foo=1"), null, "指定が無ければ何も変えない");
+  assertEqual(isCelebrationSuppressed(), false, "指定なしでは設定を変えない");
+  assertEqual(
+    findEligibleCelebration([SONG_WITH_CENTER], TEST_PLAYER_KEY_PREFIX)?.id,
+    "obaCenterNatsunagori",
+    "既存の表示済み判定（sessionStorage）は変更しておらず、そのまま機能する"
+  );
   cleanup();
 }

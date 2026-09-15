@@ -1757,6 +1757,15 @@
       <p class="special-modes-intro">全プレイヤーのバックアップ状況・復旧依頼を確認できます。</p>
 
       <button id="admin-backup-refresh-button" class="secondary-button" type="button">最新の状態に更新する</button>
+
+      <!-- 【2026-09-15 第1回実機QA修正】ポートフォリオ撮影用：この端末だけお祝いポップアップを非表示にする切り替え。
+           通常利用（本人・フレンド・一般ユーザー）では表示が既定。js/centerCelebration.js の
+           CELEBRATION_SUPPRESS_KEY（localStorage）を切り替えるだけで、他ユーザー・Firebaseには影響しない。
+           URLに ?celebration=off／on を付けて開いても同じ切り替えができる。 -->
+      <div class="admin-celebration-switch">
+        <p class="special-modes-intro">センターお祝いポップアップ（この端末のみ・ポートフォリオ撮影用）</p>
+        <button id="admin-celebration-toggle-button" class="secondary-button" type="button">読み込み中…</button>
+      </div>
       <p id="admin-backup-status" class="lyrics-import-status"></p>
 
       <!-- 【2026-09-04新設、本人指示：予防対応】いくみさんの件を受けて、「まだ一度も
@@ -3345,7 +3354,14 @@
       <p class="special-modes-intro">1台のスマホ・タブレットを机の中央に置いて囲み、2〜4人で同じ問題を同時に聞いて早押し対戦！ インターネット接続は不要です。</p>
       <div class="party-help-row"><button id="party-battle-setup-help-link" class="rules-link" type="button">❓ 遊び方・ルール</button></div>
 
+      <!-- 【2026-09-15 第1回実機QA修正】設定項目は2つの「列」要素に分けて置く。スマホ縦では列を縦に積んで
+           1カラム（DOM順＝人数→名前→席→出題タイプ→問題数→一瞬→選曲→回答方式→音声→お手つき）、
+           タブレット以上では左右2カラムに並べる。以前の「grid 1fr」「columns:2」は、iOS Safariで
+           fieldsetの既定 min-inline-size:min-content ＋ grid の auto-fill／入力欄の固有幅により
+           列幅がviewportや列を超えて重なる原因になったため、列ごとに独立して縦に流す構造へ変更した
+           （CSS側は全トラック minmax(0,1fr)・fieldset min-inline-size:0 で固有幅の影響を断つ）。 -->
       <div class="party-setup-grid">
+        <div class="party-setup-col">
         <fieldset>
           <legend>人数</legend>
           <div class="option-row">
@@ -3403,6 +3419,8 @@
             <label><input type="radio" name="party-instant-max-listens" value="5"> 5回</label>
           </div>
         </fieldset>
+        </div>
+        <div class="party-setup-col">
 
         <fieldset>
           <legend>選曲</legend>
@@ -3451,8 +3469,8 @@
             <label class="rule-option-card"><input type="radio" name="party-otetsuki" value="off"><span class="rule-option-card-title">なし</span><span class="rule-option-card-desc">不正解しても次の3・2・1から再び回答できる</span></label>
           </div>
         </fieldset>
+        </div>
       </div>
-
       <p id="party-battle-setup-error" class="error-message" hidden></p>
       <button id="party-battle-setup-next-button" class="primary-button" type="button">開始前チェックへ</button>
     </section>
@@ -3523,6 +3541,9 @@
         <p id="party-voice-test-desc" class="party-voice-test-desc">「テスト開始」を押してから、曲名を1つ話してください（例：「イコールラブ」「青春サブリミナル」）。</p>
         <button id="party-voice-test-button" class="secondary-button" type="button">テスト開始</button>
         <p id="party-voice-test-result" class="party-voice-test-result" hidden></p>
+        <!-- 診断情報（どの段階で失敗したか）。一般ユーザーには常時見せず、開いたときだけ表示する -->
+        <button id="party-voice-diagnostics-toggle" class="party-voice-diagnostics-toggle" type="button" hidden>診断情報を表示／隠す</button>
+        <pre id="party-voice-diagnostics" class="party-voice-diagnostics" hidden></pre>
         <p id="party-voice-test-note" class="party-voice-test-note">音声認識はブラウザの機能（Web Speech API）を使う補助機能です。iPhoneのSafari／ホーム画面版では使えないことが多く、Android Chromeでも通信が必要です。認識できないときは自動的に「正解／不正解」を人が判定する方式になります。うまくいかない場合は4択回答がおすすめです。</p>
       </div>
 

@@ -192,6 +192,7 @@
       runPartyBattleStorageTests,
       runPartyBattleWiringTests,
     } from "./tests/partyBattleInputAndVoice.test.js";
+    import { runPartyBattleSetupLayoutTests } from "./tests/partyBattleSetupLayout.test.js";
     import { runAnswerButtonInteractionTests } from "./tests/answerButtonInteraction.test.js";
     import { runOnlineBattleRoomIdTests } from "./tests/onlineBattleRoomId.test.js";
     import { runPresencePayloadsTests } from "./tests/presencePayloads.test.js";
@@ -357,6 +358,7 @@
     runSongNameMatcherTests();
     runPartyBattleStorageTests();
     await runPartyBattleWiringTests();
+    await runPartyBattleSetupLayoutTests();
     await runAnswerButtonInteractionTests();
     runOnlineBattleRoomIdTests();
     runPresencePayloadsTests();

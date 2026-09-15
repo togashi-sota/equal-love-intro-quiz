@@ -29,15 +29,60 @@
 
 import { playSfx, SFX_EVENTS } from "./soundManager.js";
 
-// 【2026-09-15追加・本人指示：就活ポートフォリオ公開期間の対応】
-// 就活用のPDF・動画のQRから初めてこのアプリを開く採用担当者が、お祝いポップアップを2回
-// 閉じることなく通常のホーム画面へ直接入れるように、提出期間中はポップアップの「表示」だけを
-// 止めるスイッチ。false の間は showCenterCelebrationIfEligible() が何もしない。
-// ・CELEBRATIONS配列・表示条件（findEligibleCelebration）・既読管理・DOM・CSSはそのまま残す。
-//   ファン向けに再表示したくなったら、この値を true に戻すだけでよい（他の変更は不要）。
-// ・ユーザーデータ（sessionStorage／localStorage）・Firebase・他の画面には一切触れない。
-// ・false の間はYouTube公式サムネイル（img.youtube.com）への参照も発生しない。
-export const CELEBRATION_POPUPS_ENABLED = false;
+// 【2026-09-15追加・本人指示：就活ポートフォリオ公開期間の対応】→【同日 第1回実機QA修正で見直し】
+// 以前はこの定数を false にして「全ユーザー・全端末で」ポップアップを止めていた（ポートフォリオ撮影・
+// 採用担当者向けの一時対応）。その結果、本人の通常利用でもフレンド端末でもお祝いが一切出なくなっていた
+// （本人報告：「夢の続き」等のお祝いが通常利用で表示されない）。
+// 新しい仕様（本人確定）：
+//   ・通常利用（本人・フレンド・一般ユーザー）：条件を満たせば従来どおり表示する（この定数は true）
+//   ・ポートフォリオ撮影・紹介用：必要なときだけ「この端末で」非表示にできる
+//     → localStorage の CELEBRATION_SUPPRESS_KEY（端末ごとの設定）。切り替え方法は2つ：
+//        ① URLに ?celebration=off（非表示）／?celebration=on（通常に戻す）を付けて開く
+//           （applyCelebrationQueryOverride が起動時に読んで保存する。PWA再起動後も保持）
+//        ② 管理者向け「バックアップ管理」画面の「お祝いポップアップ」切り替えボタン（js/main.js）
+//   ・他ユーザーの既存設定は一切書き換えない（このキーが無い端末は「通常表示」）。
+// ・CELEBRATIONS配列・表示条件（findEligibleCelebration）・既読管理（sessionStorage）・DOM・CSSは無変更。
+export const CELEBRATION_POPUPS_ENABLED = true;
+
+// 端末ごとの「ポートフォリオ撮影用に非表示」フラグ（localStorage）。
+export const CELEBRATION_SUPPRESS_KEY = "equalLoveIntroQuiz.celebrationPopupsSuppressed";
+
+export function isCelebrationSuppressed() {
+  try {
+    return localStorage.getItem(CELEBRATION_SUPPRESS_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+export function setCelebrationSuppressed(suppressed) {
+  try {
+    if (suppressed) localStorage.setItem(CELEBRATION_SUPPRESS_KEY, "true");
+    else localStorage.removeItem(CELEBRATION_SUPPRESS_KEY);
+  } catch {
+    // 保存できない環境では何もしない（通常表示のまま）
+  }
+}
+
+// URLクエリ ?celebration=off / on を読んで端末の設定へ保存する（起動時に1回呼ぶ）。
+// 戻り値: "off" | "on" | null（指定なし）。search は省略時 location.search。
+export function applyCelebrationQueryOverride(search = typeof location !== "undefined" ? location.search : "") {
+  let value = null;
+  try {
+    value = new URLSearchParams(search).get("celebration");
+  } catch {
+    return null;
+  }
+  if (value === "off") {
+    setCelebrationSuppressed(true);
+    return "off";
+  }
+  if (value === "on") {
+    setCelebrationSuppressed(false);
+    return "on";
+  }
+  return null;
+}
 
 const CELEBRATIONS = [
   {
@@ -281,11 +326,11 @@ export function initCenterCelebration(elements, songs) {
 // 表示条件を満たしていれば、実際にポップアップを組み立てて表示する。
 // 満たしていなければ何もしない（呼び出し側は条件分岐を書かなくてよい）。
 // 戻り値：表示したら true、表示しなかったら false（テストで確認しやすくするため）。
-// options.enabled：ポップアップ表示スイッチ（既定値は上の CELEBRATION_POPUPS_ENABLED）。
-// テストから true/false を明示して渡せるようにしてある。
+// options.enabled：ポップアップ表示スイッチ（既定値は CELEBRATION_POPUPS_ENABLED かつ端末で非表示に
+// していないこと）。テストから true/false を明示して渡せるようにしてある。
 export function showCenterCelebrationIfEligible(songs, playerKeyPrefix, elements,
-  { enabled = CELEBRATION_POPUPS_ENABLED } = {}) {
-  if (!enabled) return false; // 就活ポートフォリオ公開期間中：何も表示せず、通常のホーム画面へ
+  { enabled = CELEBRATION_POPUPS_ENABLED && !isCelebrationSuppressed() } = {}) {
+  if (!enabled) return false; // ポートフォリオ撮影用に非表示にしている端末：何も表示せず、通常のホーム画面へ
   const celebration = findEligibleCelebration(songs, playerKeyPrefix);
   if (!celebration) return false;
   renderCelebration(celebration, playerKeyPrefix, elements);

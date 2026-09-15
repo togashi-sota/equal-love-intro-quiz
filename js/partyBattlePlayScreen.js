@@ -298,6 +298,42 @@ function updateResultOverlay(match, runtime, ui) {
   elements.overrideButton.hidden = !canOverride;
 }
 
+// 人間判定へ落ちた理由を、ユーザーに分かる短い文へ（本人指示：「音声回答を選んだのに何も起きない」を禁止）。
+function describeManualReason(reason, recognitionAvailable) {
+  if (!reason) return recognitionAvailable ? "自動判定できませんでした" : "人間判定モード";
+  if (reason.startsWith("unavailable:")) {
+    const inner = reason.slice("unavailable:".length);
+    if (inner === "unsupported") return "この端末では音声認識APIが利用できません → 人間判定へ";
+    return `音声認識が使えなくなったため人間判定へ（${inner}）`;
+  }
+  if (reason === "unsupported") return "この端末では音声認識APIが利用できません → 人間判定へ";
+  if (reason === "start-timeout" || reason === "no-start") return "音声認識が起動しませんでした → 人間判定へ";
+  if (reason === "error:not-allowed" || reason === "error:service-not-allowed") return "マイクの使用が許可されていません → 人間判定へ";
+  if (reason === "error:network") return "音声認識サービスに接続できません → 人間判定へ";
+  if (reason === "error:audio-capture") return "マイクから音を取得できません → 人間判定へ";
+  if (reason.startsWith("error:")) return `音声認識エラー（${reason.slice(6)}）→ 人間判定へ`;
+  if (reason === "no-speech") return "音声を検出できませんでした → 人間判定へ";
+  if (reason === "timeout") return "制限時間内に認識できませんでした → 人間判定へ";
+  if (reason === "aborted") return "認識が中断されました → 人間判定へ";
+  if (reason.startsWith("verdict:")) return "曲名を自動判定できませんでした（曖昧）→ 人間判定へ";
+  return "自動判定できませんでした → 人間判定へ";
+}
+
+function describeVoiceStage(voice) {
+  switch (voice.stage) {
+    case "starting":
+      return "音声認識を起動中…";
+    case "listening":
+      return "聞き取り中（話してください）";
+    case "hearing":
+      return "認識中…";
+    case "result":
+      return "認識中…";
+    default:
+      return "音声認識を準備中…";
+  }
+}
+
 function updateVoiceOverlay(match, runtime, ui) {
   const voice = ui.voice;
   const show = Boolean(voice) && !ui.paused && (runtime.phase === PARTY_PHASE.CLAIMED || voice.status === "manual");
@@ -308,16 +344,13 @@ function updateVoiceOverlay(match, runtime, ui) {
   if (voice.status === "listening") {
     const seconds = (voice.remainingMs / 1000).toFixed(1);
     elements.voiceTimer.textContent = voice.speechStarted ? `認識中… 残り ${seconds}秒` : `残り ${seconds}秒（話し始めてください）`;
-    elements.voiceTranscript.textContent = voice.transcripts.length > 0 ? `認識：「${voice.transcripts[0]}」` : "";
+    elements.voiceTranscript.textContent = voice.transcripts.length > 0 ? `認識：「${voice.transcripts[0]}」` : describeVoiceStage(voice);
     elements.voiceHint.textContent = "曲名をはっきり言ってください";
     elements.judgeRow.hidden = true;
   } else {
-    elements.voiceTimer.textContent = voice.recognitionAvailable ? "自動判定できませんでした" : "人間判定モード";
-    elements.voiceTranscript.textContent = voice.transcripts.length > 0
-      ? `認識：「${voice.transcripts[0]}」`
-      : voice.recognitionAvailable
-        ? "（音声を認識できませんでした）"
-        : "（この端末では音声認識を使えません）";
+    elements.voiceTimer.textContent = "人間判定";
+    const reasonText = describeManualReason(voice.manualReason, voice.recognitionAvailable);
+    elements.voiceTranscript.textContent = voice.transcripts.length > 0 ? `認識：「${voice.transcripts[0]}」／${reasonText}` : reasonText;
     elements.voiceHint.textContent = `正解は「${runtime.question.song.title}」。回答が合っていたか、みんなで判定してください`;
     elements.judgeRow.hidden = false;
   }
