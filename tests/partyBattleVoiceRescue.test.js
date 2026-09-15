@@ -221,7 +221,8 @@ export function runPartyBattleVoiceRescueStateTests() {
 const ELEMENT_IDS = {
   root: "party-play-root", seats: "party-play-seats", questionLabel: "party-play-question-label", lyrics: "party-play-lyrics",
   status: "party-play-status", passButton: "party-play-pass-button", passProgress: "party-play-pass-progress", replayButton: "party-play-replay-button",
-  rescueBox: "party-play-rescue-box",
+  rescueBox: "party-play-rescue-box", resultIcon: "party-play-result-icon", resultPlayer: "party-play-result-player", resultPoints: "party-play-result-points",
+  resultSongLabel: "party-play-result-song-label", resultScores: "party-play-result-scores",
   quitButton: "party-play-quit-button", quitProgress: "party-play-quit-progress", introOverlay: "party-play-intro-overlay",
   introText: "party-play-intro-text", resultOverlay: "party-play-result-overlay", resultHeadline: "party-play-result-headline",
   resultSong: "party-play-result-song", resultDetail: "party-play-result-detail", overrideButton: "party-play-override-button",
@@ -274,8 +275,9 @@ export async function runPartyBattleVoiceRescueUiTests() {
   // 救済後の表示
   const rescued = rescueVoiceAttempt(match, passed, 1);
   renderPartyPlaySnapshot({ match: rescued.match, runtime: rescued.runtime, ui: ui({ rescuableVoiceAttempts: listRescuableVoiceAttempts(rescued.runtime), voice: { playerId: p1, status: "judged", transcripts: ["イコールラブ"], remainingMs: 0, speechStarted: true, verdict: { kind: "wrong" }, recognitionAvailable: true, stage: "result", stageDetail: "", manualReason: null } }) });
-  assertEqual(elements.resultHeadline.textContent, "⭕ 判定を修正しました", "救済後の見出し");
-  assertEqual(elements.resultDetail.textContent.includes("がしお +1pt"), true, "誰が最終正解者になったか");
+  assertEqual(elements.resultHeadline.textContent, "判定を修正しました", "救済後の見出し");
+  assertEqual(host.querySelector("#party-play-result-icon").textContent, "⭕", "救済後は⭕アイコン");
+  assertEqual(host.querySelector("#party-play-result-player").textContent === "がしお" && host.querySelector("#party-play-result-points").textContent === "+1pt", true, "誰が最終正解者になったか（回答者チップ＋+1pt）");
   assertEqual(elements.resultSong.textContent, "＝LOVE", "正解曲名は公開のまま");
   assertEqual(elements.rescueBox.hidden, true, "候補が無くなれば救済UIは消える");
   assertEqual(elements.overrideButton.hidden, true, "救済で確定した結果には既存の「判定を修正」を出さない（混同しない）");
@@ -303,6 +305,7 @@ export async function runPartyBattleVoiceRescueUiTests() {
   const rescuedB = rescueVoiceAttempt(matchBc, correctB, 1);
   renderPartyPlaySnapshot({ match: rescuedB.match, runtime: rescuedB.runtime, ui: ui({ rescuableVoiceAttempts: listRescuableVoiceAttempts(rescuedB.runtime) }) });
   assertEqual(elements.resultDetail.textContent.includes("さな の+1点は取り消し"), true, "後から正解した人の +1 取り消しを表示");
+  assertEqual(host.querySelector("#party-play-result-player").textContent, "がしお", "救済で正解者になった人の名前");
   assertEqual(elements.rescueBox.hidden, false, "取り消された回答（overtaken）は候補として残る（戻し道）");
   assertEqual(elements.rescueBox.textContent.includes("他に見直す回答があります"), true, "救済後の見出しは「他に見直す回答があります」");
   assertEqual(elements.rescueBox.textContent.includes("先の回答を救済したため取り消し"), true, "overtaken の説明");

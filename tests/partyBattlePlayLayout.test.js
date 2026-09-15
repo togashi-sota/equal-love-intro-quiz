@@ -68,6 +68,11 @@ const ELEMENT_IDS = {
   passProgress: "party-play-pass-progress",
   replayButton: "party-play-replay-button",
   rescueBox: "party-play-rescue-box",
+  resultIcon: "party-play-result-icon",
+  resultPlayer: "party-play-result-player",
+  resultPoints: "party-play-result-points",
+  resultSongLabel: "party-play-result-song-label",
+  resultScores: "party-play-result-scores",
   quitButton: "party-play-quit-button",
   quitProgress: "party-play-quit-progress",
   introOverlay: "party-play-intro-overlay",
@@ -311,9 +316,18 @@ export async function runPartyBattlePlayLayoutTests() {
           const nextButton = doc.getElementById("party-play-result-next-button");
           const overrideButton = doc.getElementById("party-play-override-button");
           const resultVisible = isVisible(doc.getElementById("party-play-result-overlay"));
+          // 【第5回実機QA修正】結果カード（.party-result-card）は横向きスマホ等で縦に収まらないときだけカード内スクロールになる。
+          // その場合は「カード自体がviewport内」であれば、「次へ」はスクロールで届くので問題にしない
+          const resultCard = doc.querySelector(".party-result-card");
+          const cardScrollable = Boolean(resultCard) && resultVisible && resultCard.scrollHeight > resultCard.clientHeight + 1;
+          if (resultVisible && resultCard) {
+            const cardRect = resultCard.getBoundingClientRect();
+            if (cardRect.top < -1 || cardRect.bottom > viewport.h + 1 || cardRect.left < -1 || cardRect.right > viewport.w + 1) note(`${label}：結果カードがviewport外`);
+            if (cardScrollable && viewport.h >= 600) note(`${label}：縦長画面なのに結果カードがスクロールになる（${resultCard.scrollHeight}>${resultCard.clientHeight}）`);
+          }
           if ((phase === PARTY_PHASE.CORRECT_RESULT || phase === PARTY_PHASE.PASS_RESULT) && resultVisible) {
             if (!isVisible(nextButton)) note(`${label}：「次へ」が表示されていない`);
-            else {
+            else if (!cardScrollable) {
               const nextRect = nextButton.getBoundingClientRect();
               if (nextRect.bottom > viewport.h + 1 || nextRect.top < -1) note(`${label}：「次へ」がviewport外（bottom=${Math.round(nextRect.bottom)}）`);
             }
@@ -322,7 +336,8 @@ export async function runPartyBattlePlayLayoutTests() {
           const rescueBox = doc.getElementById("party-play-rescue-box");
           if (isVisible(rescueBox)) {
             const boxRect = rescueBox.getBoundingClientRect();
-            if (boxRect.right > viewport.w + 1 || boxRect.left < -1 || boxRect.bottom > viewport.h + 1 || boxRect.top < -1) note(`${label}：救済候補の箱がviewport外`);
+            if (boxRect.right > viewport.w + 1 || boxRect.left < -1 || (!cardScrollable && (boxRect.bottom > viewport.h + 1 || boxRect.top < -1))) note(`${label}：救済候補の箱がviewport外`);
+            if (boxRect.height < 60) note(`${label}：救済候補の箱が潰れて読めない（${Math.round(boxRect.height)}px）`);
             const expectedRows = state.ui.rescuableVoiceAttempts.length;
             const rows = rescueBox.querySelectorAll(".party-rescue-row").length;
             if (rows !== expectedRows) note(`${label}：救済候補の行数 ${rows}（期待 ${expectedRows}）`);

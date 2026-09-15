@@ -108,8 +108,8 @@ export async function runPartyBattlePlaybackTests() {
   const judgeBody = engine.slice(engine.indexOf("    humanJudge("), engine.indexOf("    requestJudgementOverride() {"));
   assertEqual(judgeBody.includes("stopAudio(); // 答え合わせ音源を即停止"), true, "engine：正解→不正解への修正で答え合わせ音源を即停止（再開しない・0点終了）");
   const correctBody = engine.slice(engine.indexOf("  function applyCorrect("), engine.indexOf("  // ----- 音声回答 -----"));
-  assertEqual(correctBody.includes("playSfx(SFX_EVENTS.QUIZ_CORRECT)") && correctBody.includes("schedule(startReviewPlayback, REVIEW_PLAYBACK_DELAY_MS)"), true, "engine：正解SFX → 少し置いて答え合わせ再生（重ねない）");
-  assertEqual(correctBody.indexOf("playSfx(SFX_EVENTS.QUIZ_CORRECT)") < correctBody.indexOf("schedule(startReviewPlayback"), true, "engine：SFXが先、答え合わせは後");
+  assertEqual(correctBody.includes("playSfx(SFX_EVENTS.PARTY_CORRECT)") && correctBody.includes("schedule(startReviewPlayback, REVIEW_PLAYBACK_DELAY_MS)"), true, "engine：正解SFX（パーティー専用のピンポン）→ 少し置いて答え合わせ再生（重ねない）");
+  assertEqual(correctBody.indexOf("playSfx(SFX_EVENTS.PARTY_CORRECT)") < correctBody.indexOf("schedule(startReviewPlayback"), true, "engine：SFXが先、答え合わせは後");
   const reviewBody = engine.slice(engine.indexOf("  function startReviewPlayback() {"), engine.indexOf("  function pausePlaybackKeepingPosition() {"));
   assertEqual(reviewBody.includes("runtime.phase !== PARTY_PHASE.CORRECT_RESULT) return;"), true, "engine：答え合わせは正解表示中にしか始まらない");
   assertEqual(reviewBody.includes("console.warn"), true, "engine：答え合わせの読み込み失敗は警告のみ（正解・得点・公開・次へに影響しない）");

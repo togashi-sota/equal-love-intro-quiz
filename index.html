@@ -3581,14 +3581,22 @@
           <span id="party-play-quit-progress" class="party-quit-progress"></span>
         </button>
         <div id="party-play-intro-overlay" class="party-intro-overlay" hidden><span id="party-play-intro-text"></span></div>
+        <!-- 【2026-09-16 第5回実機QA修正】結果カード：アイコン → 見出し → 回答者 → 得点 → 正解曲（公開時のみ）→ 補足 → 救済候補 → 全員の得点 → ボタン -->
         <div id="party-play-result-overlay" class="party-result-overlay" hidden>
+          <div class="party-result-card">
+          <div id="party-play-result-icon" class="party-result-icon" aria-hidden="true"></div>
           <p id="party-play-result-headline" class="party-result-headline"></p>
+          <p id="party-play-result-player" class="party-result-player" hidden></p>
+          <p id="party-play-result-points" class="party-result-points" hidden></p>
+          <p id="party-play-result-song-label" class="party-result-song-label" hidden>正解</p>
           <p id="party-play-result-song" class="party-result-song"></p>
           <p id="party-play-result-detail" class="party-result-detail"></p>
           <!-- 【2026-09-15 第4回実機QA修正】正解公開後だけ出る、音声回答の救済候補（js/partyBattlePlayScreen.js の updateRescueBox が描く） -->
           <div id="party-play-rescue-box" class="party-rescue-box" hidden></div>
+          <div id="party-play-result-scores" class="party-result-scores" aria-label="現在の得点"></div>
           <button id="party-play-override-button" class="secondary-button party-override-button" type="button" hidden>判定を修正</button>
           <button id="party-play-result-next-button" class="primary-button party-result-next-button" type="button" hidden>次の問題へ</button>
+          </div>
         </div>
         <div id="party-play-voice-overlay" class="party-voice-overlay" hidden>
           <p id="party-play-voice-player" class="party-voice-player"></p>
@@ -3621,6 +3629,8 @@
       <p id="party-result-config-summary" class="battle-ranking-config-summary"></p>
       <ol id="party-result-list" class="party-result-list"></ol>
       <div id="party-result-winner" class="party-winner-card" hidden>
+        <div id="party-result-winner-burst" class="party-winner-burst" aria-hidden="true"></div>
+        <p class="party-winner-trophy" aria-hidden="true">🏆</p>
         <p class="party-winner-label">WINNER</p>
         <p id="party-result-winner-name" class="party-winner-name"></p>
         <p id="party-result-winner-points" class="party-winner-points"></p>

@@ -47,6 +47,8 @@ const QUIZ_TYPES = ["intro", "random", "outro", "instant", "lyrics"];
 const ELEMENT_IDS = {
   root: "party-play-root", seats: "party-play-seats", questionLabel: "party-play-question-label", lyrics: "party-play-lyrics",
   status: "party-play-status", passButton: "party-play-pass-button", passProgress: "party-play-pass-progress", replayButton: "party-play-replay-button",
+  rescueBox: "party-play-rescue-box", resultIcon: "party-play-result-icon", resultPlayer: "party-play-result-player", resultPoints: "party-play-result-points",
+  resultSongLabel: "party-play-result-song-label", resultScores: "party-play-result-scores",
   quitButton: "party-play-quit-button", quitProgress: "party-play-quit-progress", introOverlay: "party-play-intro-overlay",
   introText: "party-play-intro-text", resultOverlay: "party-play-result-overlay", resultHeadline: "party-play-result-headline",
   resultSong: "party-play-result-song", resultDetail: "party-play-result-detail", overrideButton: "party-play-override-button",

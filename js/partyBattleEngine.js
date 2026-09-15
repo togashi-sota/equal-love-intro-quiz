@@ -94,7 +94,7 @@ const COUNTDOWN_STEP_MS = 800; // 3→2→1の各表示時間
 const START_LABEL_MS = 700; // 「START!」の表示時間（この間も入力は有効）
 const QUESTION_INTRO_MS = 1200; // 「第N問」の表示時間
 const OUTRO_PLAY_DURATION_SEC = 5; // 既存アウトロクイズと同じ「曲の最後5秒」
-const REVIEW_PLAYBACK_DELAY_MS = 900; // 正解SFXが鳴り終わってから答え合わせ音源を始めるまでの間
+const REVIEW_PLAYBACK_DELAY_MS = 1100; // 正解SFX（ピンポン・ピンポン≒1秒）が鳴り終わってから答え合わせ音源を始めるまでの間
 const MAX_RESERVE_COUNT = 3; // 音源失敗時の差し替え用に余分に用意する曲数
 const VOICE_TICK_MS = 100;
 const LYRICS_TICK_MS = 100;
@@ -732,7 +732,7 @@ export function createPartyBattleEngine({ onUpdate }) {
     ({ match, runtime } = revokeCorrectScore(match, runtime, claimerId));
     match = countWrongAttempt(match);
     recordVoiceOutcome("wrong", judgedBy);
-    playSfx(SFX_EVENTS.QUIZ_WRONG);
+    playSfx(SFX_EVENTS.PARTY_WRONG); // 「ブーッ！」（4択の自動判定・音声の自動判定・人間判定❌のすべてここを通る＝1回だけ）
     emit();
     scheduleWrongResultEnd();
   }
@@ -773,7 +773,7 @@ export function createPartyBattleEngine({ onUpdate }) {
     recordVoiceOutcome("correct", judgedBy);
     stopAudio();
     stopLyricsClock(); // 歌詞のヒント段階（答え合わせの開始位置）はここで止まった値を使う
-    playSfx(SFX_EVENTS.QUIZ_CORRECT);
+    playSfx(SFX_EVENTS.PARTY_CORRECT); // 「ピンポン・ピンポン！」（自動判定・人間判定⭕のすべてここを通る＝1回だけ）
     emit();
     // 正解SFXと重ならないよう少し置いてから、その問題で使った箇所を答え合わせとして流す
     schedule(startReviewPlayback, REVIEW_PLAYBACK_DELAY_MS);
@@ -985,7 +985,7 @@ export function createPartyBattleEngine({ onUpdate }) {
           const voided = voidRevealedCorrect(runtime);
           if (voided) runtime = voided;
           recordVoiceOutcome("voided", "human");
-          playSfx(SFX_EVENTS.QUIZ_WRONG);
+          playSfx(SFX_EVENTS.PARTY_WRONG);
           emit();
           return;
         }
@@ -1001,7 +1001,7 @@ export function createPartyBattleEngine({ onUpdate }) {
       const result = rescueVoiceAttempt(match, runtime, order);
       if (!result) return;
       ({ match, runtime } = result);
-      playSfx(SFX_EVENTS.QUIZ_CORRECT);
+      playSfx(SFX_EVENTS.PARTY_CORRECT); // 救済確定＝正解確定として1回だけ鳴らす
       emit();
     },
 

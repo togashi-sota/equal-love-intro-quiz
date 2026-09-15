@@ -30,6 +30,12 @@ export const SFX_EVENTS = {
   BATTLE_LOSE: "battleLose",
   ACHIEVEMENT_UNLOCK: "achievementUnlock",
   STEAL_SUCCESS: "stealSuccess",
+  // 【2026-09-16 第5回実機QA修正・本人指示：パーティー対戦をクイズ番組らしく】1台を囲んで遊ぶ場では、
+  // 曲に埋もれず誰が聞いても瞬時に分かる「ピンポンピンポン！」「ブー！」と、試合終了の別格のファンファーレが必要。
+  // 通常クイズの QUIZ_CORRECT／QUIZ_WRONG より長く・はっきりした専用イベント（全部この場で自前生成。既存番組の音は使わない）。
+  PARTY_CORRECT: "partyCorrect",
+  PARTY_WRONG: "partyWrong",
+  PARTY_WINNER: "partyWinner",
 };
 
 // 「操作音」「クイズ・対戦音」どちらのON/OFFで制御するかの対応表（本人指示：分離できるように）。
@@ -62,6 +68,9 @@ export const CUSTOMIZABLE_SFX_EVENT_INFO = [
   { id: SFX_EVENTS.BATTLE_LOSE, label: "対戦：敗北" },
   { id: SFX_EVENTS.ACHIEVEMENT_UNLOCK, label: "称号獲得" },
   { id: SFX_EVENTS.STEAL_SUCCESS, label: "早押し成功" },
+  { id: SFX_EVENTS.PARTY_CORRECT, label: "パーティー対戦：正解（ピンポン）" },
+  { id: SFX_EVENTS.PARTY_WRONG, label: "パーティー対戦：不正解（ブー）" },
+  { id: SFX_EVENTS.PARTY_WINNER, label: "パーティー対戦：優勝ファンファーレ" },
 ];
 const CUSTOMIZABLE_SFX_EVENT_IDS = new Set(CUSTOMIZABLE_SFX_EVENT_INFO.map((info) => info.id));
 
@@ -345,7 +354,12 @@ const NOTE_FREQ = {
   C6: 1046.5,
   D6: 1174.66,
   E6: 1318.51,
+  F6: 1396.91,
+  "F#6": 1479.98,
   G6: 1567.98,
+  C7: 2093.0,
+  E7: 2637.02,
+  G7: 3135.96,
 };
 
 function resolveFreq(freq) {
@@ -640,6 +654,71 @@ const SOUND_DEFINITIONS = {
     [SFX_THEMES.LIVE]: { notes: [N("D5", 0, 0.05, 0.2, { type: "square" }), N("A5", 0.04, 0.14, 0.25, { type: "square" })] },
     [SFX_THEMES.CLASSIC]: { notes: [N("E5", 0, 0.06, 0.2, { type: "triangle" }), N("A5", 0.05, 0.14, 0.24, { type: "triangle" })] },
   },
+
+  // ===== パーティー対戦専用（2026-09-16 第5回実機QA修正） =====
+  // 正解「ピンポン・ピンポン！」：高い音→少し低い音の2音チャイム（G6→E6 相当）を2回。基音に倍音を1本重ねて
+  // 「鐘」らしい抜けの良さを出す。gain は既存の正解音（0.26〜0.28）より少し強い 0.30〜0.34（曲と同時でも埋もれず、爆音にはしない）。
+  [SFX_EVENTS.PARTY_CORRECT]: {
+    [SFX_THEMES.SPARKLE]: {
+      notes: [
+        N("G6", 0, 0.16, 0.3, { type: "sine" }), N("G7", 0, 0.08, 0.08, { type: "sine" }),
+        N("E6", 0.14, 0.24, 0.32, { type: "sine" }), N("E7", 0.14, 0.1, 0.08, { type: "sine" }),
+        N("G6", 0.42, 0.16, 0.3, { type: "sine" }), N("G7", 0.42, 0.08, 0.08, { type: "sine" }),
+        N("E6", 0.56, 0.4, 0.34, { type: "sine" }), N("E7", 0.56, 0.12, 0.08, { type: "sine" }),
+      ],
+    },
+    [SFX_THEMES.LIVE]: {
+      notes: [
+        N("G6", 0, 0.14, 0.24, { type: "triangle" }), N("G5", 0, 0.14, 0.12, { type: "square" }),
+        N("E6", 0.13, 0.22, 0.26, { type: "triangle" }), N("E5", 0.13, 0.22, 0.12, { type: "square" }),
+        N("G6", 0.4, 0.14, 0.24, { type: "triangle" }), N("G5", 0.4, 0.14, 0.12, { type: "square" }),
+        N("E6", 0.53, 0.4, 0.28, { type: "triangle" }), N("E5", 0.53, 0.4, 0.12, { type: "square" }),
+      ],
+    },
+    [SFX_THEMES.CLASSIC]: {
+      notes: [
+        N("G6", 0, 0.18, 0.3, { type: "sine" }), N("E6", 0.16, 0.26, 0.32, { type: "sine" }),
+        N("G6", 0.46, 0.18, 0.3, { type: "sine" }), N("E6", 0.62, 0.42, 0.34, { type: "sine" }),
+      ],
+    },
+  },
+  // 不正解「ブーッ！」：低い2音（約 110Hz＋165Hz）を重ねた 0.5 秒のブザー。最後にわずかに下がって止まる。
+  [SFX_EVENTS.PARTY_WRONG]: {
+    [SFX_THEMES.SPARKLE]: {
+      notes: [N(165, 0, 0.5, 0.22, { type: "sawtooth", endFreq: 150 }), N(110, 0, 0.5, 0.2, { type: "square", endFreq: 100 })],
+    },
+    [SFX_THEMES.LIVE]: {
+      notes: [N(150, 0, 0.55, 0.24, { type: "sawtooth", endFreq: 130 }), N(100, 0, 0.55, 0.2, { type: "sawtooth", endFreq: 90 })],
+    },
+    [SFX_THEMES.CLASSIC]: {
+      notes: [N(175, 0, 0.5, 0.22, { type: "square", endFreq: 160 }), N(117, 0, 0.5, 0.2, { type: "square", endFreq: 105 })],
+    },
+  },
+  // 優勝ファンファーレ：上昇3連（C5→E5→G5）→ 高い C6 を長く伸ばし、その下に G4／C5 のハーモニーを重ねる（約1.4秒）。
+  // 1問ごとの正解音とは別格。既存の BATTLE_WIN（0.5秒）より長く華やか。
+  [SFX_EVENTS.PARTY_WINNER]: {
+    [SFX_THEMES.SPARKLE]: {
+      notes: [
+        N("C5", 0, 0.12, 0.24, { type: "sine" }), N("E5", 0.11, 0.12, 0.25, { type: "sine" }), N("G5", 0.22, 0.12, 0.26, { type: "sine" }),
+        N("C6", 0.34, 0.9, 0.3, { type: "sine" }), N("E6", 0.34, 0.9, 0.16, { type: "sine" }), N("G5", 0.34, 0.9, 0.16, { type: "triangle" }),
+        N("C5", 0.34, 0.9, 0.14, { type: "triangle" }), N("G6", 0.7, 0.6, 0.14, { type: "sine" }), N("C7", 0.9, 0.5, 0.1, { type: "sine" }),
+      ],
+    },
+    [SFX_THEMES.LIVE]: {
+      notes: [
+        N("A4", 0, 0.1, 0.22, { type: "square" }), N("D5", 0.1, 0.1, 0.24, { type: "square" }), N("A5", 0.2, 0.12, 0.26, { type: "square" }),
+        N("D6", 0.32, 0.95, 0.3, { type: "sawtooth" }), N("A5", 0.32, 0.95, 0.16, { type: "square" }), N("D5", 0.32, 0.95, 0.16, { type: "sawtooth" }),
+        N("A4", 0.32, 0.95, 0.14, { type: "sawtooth" }), N("F#6", 0.7, 0.6, 0.12, { type: "square" }),
+      ],
+    },
+    [SFX_THEMES.CLASSIC]: {
+      notes: [
+        N("C5", 0, 0.12, 0.22, { type: "triangle" }), N("F5", 0.11, 0.12, 0.24, { type: "triangle" }), N("A5", 0.22, 0.12, 0.26, { type: "triangle" }),
+        N("C6", 0.34, 0.9, 0.3, { type: "triangle" }), N("F5", 0.34, 0.9, 0.16, { type: "triangle" }), N("C5", 0.34, 0.9, 0.14, { type: "triangle" }),
+        N("F6", 0.72, 0.6, 0.14, { type: "sine" }),
+      ],
+    },
+  },
 };
 
 // ===== 再生の入口 =====
@@ -673,7 +752,23 @@ export function playSfx(eventName) {
   if (!sfxMasterEnabled) return;
   const isUiEvent = UI_EVENT_SET.has(eventName);
   if (isUiEvent ? !sfxUiEnabled : !sfxGameEnabled) return;
+  sfxListeners.forEach((listener) => {
+    try {
+      listener(eventName);
+    } catch {
+      /* 監視側の失敗は再生に影響させない */
+    }
+  });
   renderSfxEvent(eventName);
+}
+
+// 【2026-09-16新設・テスト／診断用】「実際に鳴らす判定を通った効果音」を外から観測するためのリスナー。
+// AudioContext が無い環境（テストページ等）でも、どのイベントが何回鳴ったかを検証できる。
+// ON/OFF 設定で止められた呼び出しは通知しない（＝設定が尊重されていることも観測できる）。
+const sfxListeners = new Set();
+export function addSfxListener(listener) {
+  sfxListeners.add(listener);
+  return () => sfxListeners.delete(listener);
 }
 
 // 【2026-09-06新設・本人指示：オンライン正解音設定とオフライン効果音設定を完全分離】

@@ -201,6 +201,16 @@
     import { runPartyBattleLyricsHintRowsTests } from "./tests/partyBattleLyricsHintRows.test.js";
     import { runPartyBattleSongPickerTests } from "./tests/partyBattleSongPicker.test.js";
     import { runPartyBattleNavigationTests } from "./tests/partyBattleNavigation.test.js";
+    // 第5回実機QA修正（2026-09-16）
+    import {
+      runPartyLyricsHintRandomnessTests,
+      runPartyLyricsHintSharedLogicTests,
+      runPartyBattleResultPresentationTests,
+      runPartyBattleSfxTests,
+      runPartyBattleSfxWiringTests,
+      runPartyBattleFinalResultTests,
+      runPartyBattleSfxEngineFlowTests,
+    } from "./tests/partyBattleResultPresentation.test.js";
     import { runAnswerButtonInteractionTests } from "./tests/answerButtonInteraction.test.js";
     import { runOnlineBattleRoomIdTests } from "./tests/onlineBattleRoomId.test.js";
     import { runPresencePayloadsTests } from "./tests/presencePayloads.test.js";
@@ -375,6 +385,13 @@
     await runPartyBattleLyricsHintRowsTests();
     await runPartyBattleSongPickerTests();
     await runPartyBattleNavigationTests();
+    runPartyLyricsHintRandomnessTests();
+    await runPartyLyricsHintSharedLogicTests();
+    await runPartyBattleResultPresentationTests();
+    runPartyBattleSfxTests();
+    await runPartyBattleSfxWiringTests();
+    await runPartyBattleFinalResultTests();
+    await runPartyBattleSfxEngineFlowTests();
     await runAnswerButtonInteractionTests();
     runOnlineBattleRoomIdTests();
     runPresencePayloadsTests();

@@ -323,56 +323,160 @@ function updateIntroOverlay(match, runtime, ui) {
   }
 }
 
+// 直前に演出（pop／shake・バイブ）を出した結果の識別子。同じ結果を再描画（100ms ごとの snapshot 更新）しても
+// 演出とバイブを繰り返さないためのメモ。問題（ordinal）・結果の種類・回答者で区別する。
+let lastResultEffectKey = null;
+
+// 結果カードの登場演出（CSS アニメーションのやり直し）と、対応端末での短いバイブ。
+// prefers-reduced-motion のときは CSS 側でアニメーションを止め、バイブも省く。
+function playResultEffect(kind) {
+  const overlay = elements.resultOverlay;
+  overlay.classList.remove("is-entering");
+  void overlay.offsetWidth; // reflow を挟んでアニメーションを最初から再生させる
+  overlay.classList.add("is-entering");
+  const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  if (reduceMotion) return;
+  try {
+    if (kind === "correct" || kind === "rescued") navigator.vibrate?.([30, 40, 60]);
+    else if (kind === "wrong" || kind === "voided") navigator.vibrate?.([120]);
+  } catch {
+    /* 非対応は無視 */
+  }
+}
+
+// 全員の現在得点（結果カードの下の小さなスコアボード）。得点が動いた人（scoredPlayerId）を強調する。
+function renderResultScores(match, scoredPlayerId, delta) {
+  const container = elements.resultScores;
+  if (!container) return;
+  container.innerHTML = "";
+  match.players.forEach((player) => {
+    const chip = document.createElement("span");
+    chip.className = "party-result-score-chip";
+    chip.dataset.color = player.color;
+    if (player.id === scoredPlayerId) chip.classList.add("is-scored");
+    const name = document.createElement("span");
+    name.className = "party-result-score-name";
+    name.textContent = player.name;
+    const score = document.createElement("span");
+    score.className = "party-result-score-value";
+    score.textContent = `${match.scores[player.id] ?? 0}pt`;
+    chip.append(name, score);
+    if (player.id === scoredPlayerId && delta) {
+      const badge = document.createElement("span");
+      badge.className = "party-result-score-delta";
+      badge.textContent = delta;
+      chip.appendChild(badge);
+    }
+    container.appendChild(chip);
+  });
+}
+
+// 【2026-09-16 第5回実機QA修正・本人指示：結果表示を「みんなで遊ぶクイズ番組」らしく】
+// 結果カード＝ 大きなアイコン（⭕／❌／PASS）→ 見出し → 回答者チップ（席の色） → 得点（+1pt／0pt）
+// → 正解曲名（公開できるときだけ。「正解」ラベル付きで大きく） → 補足 → 救済候補 → 全員の得点 → ボタン。
+// 曲名の公開ルール（canRevealSolution）・「次へ」「判定を修正」・救済UIは従来どおり。
 function updateResultOverlay(match, runtime, ui) {
   const phase = runtime.phase;
   const isResult = phase === PARTY_PHASE.CORRECT_RESULT || phase === PARTY_PHASE.WRONG_RESULT || phase === PARTY_PHASE.PASS_RESULT;
   const manualOverride = ui.voice?.status === "manual" && isResult;
   elements.resultOverlay.hidden = !isResult || manualOverride || ui.paused;
-  if (!isResult) return;
+  if (!isResult) {
+    lastResultEffectKey = null;
+    return;
+  }
   const result = runtime.lastResult;
   const player = playerById(match, result?.playerId);
   // 【公開ルール（2026-09-15 第2回実機QA修正）】正解曲名は canRevealSolution（問題終了が確定）のときだけ描く。
   // 不正解（問題継続）では曲名を一切出さず、音声回答なら認識した文字列だけを添える。
   const revealedTitle = canRevealSolution(runtime) ? runtime.question.song.title : "";
   const heard = ui.voice?.transcripts?.[0] ? `認識：「${ui.voice.transcripts[0]}」` : "";
-  elements.resultOverlay.dataset.kind = result?.type ?? "";
-  if (result?.type === "correct") {
-    elements.resultHeadline.textContent = "⭕ 正解！";
-    elements.resultSong.textContent = revealedTitle;
-    elements.resultDetail.textContent = `${player?.name ?? ""} +1pt${result.judgedBy === "human" ? "（人間判定）" : ""}`;
-  } else if (result?.type === "wrong") {
-    elements.resultHeadline.textContent = "❌ 不正解…";
-    elements.resultSong.textContent = "";
-    const resumeText = runtime.revivedAll
-      ? `${player?.name ?? ""}　全員復活！ もう一度3・2・1から`
-      : `${player?.name ?? ""}${match.settings.otetsuki ? "はこの問題では回答できません" : ""}　3・2・1から再開`;
-    elements.resultDetail.textContent = heard ? `${heard}　${resumeText}` : resumeText;
-  } else if (result?.type === "voided") {
-    elements.resultHeadline.textContent = "❌ 判定を不正解に修正";
-    elements.resultSong.textContent = revealedTitle;
+  const kind = result?.type ?? "";
+  elements.resultOverlay.dataset.kind = kind;
+  const setPlayer = (text) => {
+    elements.resultPlayer.hidden = !text;
+    elements.resultPlayer.textContent = text ?? "";
+    if (player) elements.resultPlayer.dataset.color = player.color;
+    else delete elements.resultPlayer.dataset.color;
+  };
+  const setPoints = (text) => {
+    elements.resultPoints.hidden = !text;
+    elements.resultPoints.textContent = text ?? "";
+  };
+  const setSong = (title) => {
+    elements.resultSong.textContent = title;
+    elements.resultSongLabel.hidden = !title;
+    elements.resultSong.hidden = !title;
+  };
+  let scoredPlayerId = null;
+  let delta = "";
+  if (kind === "correct") {
+    elements.resultIcon.textContent = "⭕";
+    elements.resultHeadline.textContent = "正解！";
+    setPlayer(player?.name ?? "");
+    setPoints("+1pt");
+    setSong(revealedTitle);
+    elements.resultDetail.textContent = result.judgedBy === "human" ? "人間判定で正解" : "";
+    scoredPlayerId = player?.id ?? null;
+    delta = "+1";
+  } else if (kind === "wrong") {
+    elements.resultIcon.textContent = "❌";
+    elements.resultHeadline.textContent = "不正解！";
+    setPlayer(player?.name ?? "");
+    setPoints("");
+    setSong(""); // 問題は続くので正解曲名は絶対に出さない
+    const lockText = runtime.revivedAll
+      ? "全員が回答できなくなったので全員復活！"
+      : match.settings.otetsuki
+        ? `${player?.name ?? ""} はこの問題では回答できません`
+        : "";
+    const parts = [heard, lockText, "3・2・1から再開"].filter(Boolean);
+    elements.resultDetail.textContent = parts.join("　");
+  } else if (kind === "voided") {
+    elements.resultIcon.textContent = "❌";
+    elements.resultHeadline.textContent = "判定を不正解に修正";
+    setPlayer(player?.name ?? "");
+    setPoints("0pt");
+    setSong(revealedTitle);
     elements.resultDetail.textContent = `${player?.name ?? ""} の+1点を取り消しました。正解は公開済みのため、この問題は0点で終了します`;
-  } else if (result?.type === "rescued") {
+    scoredPlayerId = player?.id ?? null;
+    delta = "-1";
+  } else if (kind === "rescued") {
     // 【第4回実機QA修正】正解公開後に、過去の音声回答を人間が「本当は正解だった」と救済した
     const previous = playerById(match, result.previousPlayerId);
-    elements.resultHeadline.textContent = "⭕ 判定を修正しました";
-    elements.resultSong.textContent = revealedTitle;
+    elements.resultIcon.textContent = "⭕";
+    elements.resultHeadline.textContent = "判定を修正しました";
+    setPlayer(player?.name ?? "");
+    setPoints("+1pt");
+    setSong(revealedTitle);
     elements.resultDetail.textContent = previous
-      ? `${player?.name ?? ""} +1pt（先に正解していた回答として救済。${previous.name} の+1点は取り消し）`
-      : `${player?.name ?? ""} +1pt（正解だった回答として救済）`;
+      ? `先に正解していた回答として救済。${previous.name} の+1点は取り消し`
+      : "正解だった回答として救済";
+    scoredPlayerId = player?.id ?? null;
+    delta = "+1";
   } else {
+    elements.resultIcon.textContent = "PASS";
     elements.resultHeadline.textContent = "全員PASS";
-    elements.resultSong.textContent = revealedTitle;
-    elements.resultDetail.textContent = "正解は上の曲でした（0点）";
+    setPlayer("");
+    setPoints("0pt");
+    setSong(revealedTitle);
+    elements.resultDetail.textContent = "この問題は誰も得点なし";
   }
+  renderResultScores(match, scoredPlayerId, delta);
   const showNext = phase === PARTY_PHASE.CORRECT_RESULT || phase === PARTY_PHASE.PASS_RESULT;
   elements.resultNextButton.hidden = !showNext;
   // サドンデスで正解が出た＝決着。それ以外は（最終問題でも首位同点ならサドンデスへ進むため）「次へ」で統一。
-  elements.resultNextButton.textContent = runtime.isSuddenDeath && result?.type === "correct" ? "結果発表へ" : "次へ";
+  elements.resultNextButton.textContent = runtime.isSuddenDeath && (kind === "correct" || kind === "rescued") ? "結果発表へ" : "次へ";
   // 既存の「判定を修正」（正解→不正解にして0点で終了）。救済で確定した結果（rescued）には出さない（別機能なので混同しない）
-  const canOverride = Boolean(ui.voice) && result?.type !== "rescued" && (phase === PARTY_PHASE.CORRECT_RESULT || phase === PARTY_PHASE.WRONG_RESULT);
+  const canOverride = Boolean(ui.voice) && kind !== "rescued" && (phase === PARTY_PHASE.CORRECT_RESULT || phase === PARTY_PHASE.WRONG_RESULT);
   elements.overrideButton.hidden = !canOverride;
   elements.overrideButton.textContent = phase === PARTY_PHASE.CORRECT_RESULT ? "判定を修正（不正解にして0点で終了）" : "判定を修正";
   updateRescueBox(match, runtime, ui);
+  // 登場演出・バイブは「新しい結果」のときだけ（同じ結果の再描画では繰り返さない）
+  const effectKey = `${runtime.ordinal}:${kind}:${result?.playerId ?? ""}:${result?.previousPlayerId ?? ""}`;
+  if (!elements.resultOverlay.hidden && effectKey !== lastResultEffectKey) {
+    lastResultEffectKey = effectKey;
+    playResultEffect(kind);
+  }
 }
 
 // 【2026-09-15 第4回実機QA修正・本人指示：音声回答の誤判定を正解公開後に救済】
@@ -536,6 +640,8 @@ export function resetPartyPlayScreen() {
   [elements.resultOverlay, elements.voiceOverlay, elements.pauseOverlay, elements.notice, elements.introOverlay, elements.replayButton, elements.rescueBox].forEach((el) => {
     if (el) el.hidden = true;
   });
+  lastResultEffectKey = null;
+  elements.resultOverlay.classList.remove("is-entering");
   elements.lyrics.innerHTML = "";
   delete elements.lyrics.dataset.views;
 }

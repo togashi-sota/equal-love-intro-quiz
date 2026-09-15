@@ -577,10 +577,32 @@ function clearRevealTimers() {
   revealTimers = [];
 }
 
+// 【2026-09-16 第5回実機QA修正】優勝カードの中心から放射状に飛ぶ小さな光（sparkle）。confetti（画面全体）と組み合わせる。
+// prefers-reduced-motion のときは出さない。
+function spawnWinnerBurst() {
+  const burst = elements.winnerBurst;
+  if (!burst) return;
+  burst.innerHTML = "";
+  const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  const count = reduceMotion ? 0 : 22;
+  for (let i = 0; i < count; i++) {
+    const piece = document.createElement("span");
+    piece.className = "party-winner-burst-piece";
+    const angle = (Math.PI * 2 * i) / count + Math.random() * 0.3;
+    const distance = 90 + Math.random() * 110;
+    piece.style.setProperty("--burst-x", `${Math.round(Math.cos(angle) * distance)}px`);
+    piece.style.setProperty("--burst-y", `${Math.round(Math.sin(angle) * distance)}px`);
+    piece.style.setProperty("--burst-delay", `${(Math.random() * 0.25).toFixed(2)}s`);
+    piece.style.setProperty("--burst-hue", `${[45, 330, 200, 120][i % 4]}`);
+    burst.appendChild(piece);
+  }
+}
+
 function spawnConfetti() {
   elements.confetti.innerHTML = "";
   const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-  const count = reduceMotion ? 0 : 36;
+  // 【第5回実機QA修正】1問ごとの正解とは別格の「試合終了」なので紙吹雪を増量（36→64）。画面全体が見えなくなるほどにはしない
+  const count = reduceMotion ? 0 : 64;
   for (let i = 0; i < count; i++) {
     const piece = document.createElement("span");
     piece.className = "party-confetti-piece";
@@ -602,8 +624,10 @@ function showResult(match) {
   const order = buildRevealOrder(standings);
   elements.resultList.innerHTML = "";
   elements.winnerCard.hidden = true;
+  elements.winnerCard.classList.remove("is-final");
   elements.resultActions.hidden = true;
   elements.confetti.innerHTML = "";
+  if (elements.winnerBurst) elements.winnerBurst.innerHTML = "";
   elements.resultNote.textContent = match.stats.suddenDeathQuestionCount > 0 ? `サドンデス ${match.stats.suddenDeathQuestionCount}問で決着` : "";
   elements.navigateTo("partyBattleResult");
 
@@ -630,23 +654,32 @@ function showResult(match) {
         score.textContent = `${row.score}pt`;
         item.append(rank, name, score);
         elements.resultList.prepend(item);
-        playSfx(SFX_EVENTS.UI_CLICK);
+        // 順位発表の「ドラムロール」代わり：1行ごとに秒読み音（優勝発表へ向けて緊張感を出す）
+        playSfx(SFX_EVENTS.COUNTDOWN_TICK);
       }, stepMs * (index + 1))
     );
   });
   const winnerDelay = stepMs * (order.length + 1);
   revealTimers.push(
     setTimeout(() => {
+      // 【2026-09-16 第5回実機QA修正・本人指示：試合終了は1問ごとの正解とは別格に】
+      // 優勝カード（🏆 WINNER／名前／pt）＋ カード起点の sparkle burst ＋ 画面全体の紙吹雪（増量）＋ 専用ファンファーレ
+      // （PARTY_WINNER。SFX設定を尊重）＋ 対応端末での長めのバイブ。最終勝者が確定したここでだけ出す（通常問題の正解では出さない）。
       elements.winnerCard.hidden = false;
+      elements.winnerCard.classList.add("is-final");
       elements.winnerCard.dataset.color = winner.color;
       elements.winnerName.textContent = winner.name;
       elements.winnerPoints.textContent = `${winner.score} POINTS`;
-      playSfx(SFX_EVENTS.BATTLE_WIN);
+      playSfx(SFX_EVENTS.PARTY_WINNER);
       spawnConfetti();
-      try {
-        navigator.vibrate?.([80, 40, 120]);
-      } catch {
-        /* 非対応は無視 */
+      spawnWinnerBurst();
+      const reduceMotionNow = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+      if (!reduceMotionNow) {
+        try {
+          navigator.vibrate?.([120, 60, 120, 60, 240]);
+        } catch {
+          /* 非対応は無視 */
+        }
       }
       elements.resultActions.hidden = false;
     }, winnerDelay)
