@@ -19,6 +19,7 @@ import {
   PARTY_QUIT_LONG_PRESS_MS,
   canPlayerAnswer,
   canTapChoice,
+  canRevealSolution,
   resolveSeatRotation,
 } from "./partyBattleState.js";
 import { attachPressHandler, attachLongPressHandler } from "./partyBattleInput.js";
@@ -273,21 +274,29 @@ function updateResultOverlay(match, runtime, ui) {
   if (!isResult) return;
   const result = runtime.lastResult;
   const player = playerById(match, result?.playerId);
-  const songTitle = runtime.question.song.title;
+  // 【公開ルール（2026-09-15 第2回実機QA修正）】正解曲名は canRevealSolution（問題終了が確定）のときだけ描く。
+  // 不正解（問題継続）では曲名を一切出さず、音声回答なら認識した文字列だけを添える。
+  const revealedTitle = canRevealSolution(runtime) ? runtime.question.song.title : "";
+  const heard = ui.voice?.transcripts?.[0] ? `認識：「${ui.voice.transcripts[0]}」` : "";
   elements.resultOverlay.dataset.kind = result?.type ?? "";
   if (result?.type === "correct") {
     elements.resultHeadline.textContent = "⭕ 正解！";
-    elements.resultSong.textContent = songTitle;
+    elements.resultSong.textContent = revealedTitle;
     elements.resultDetail.textContent = `${player?.name ?? ""} +1pt${result.judgedBy === "human" ? "（人間判定）" : ""}`;
   } else if (result?.type === "wrong") {
     elements.resultHeadline.textContent = "❌ 不正解…";
     elements.resultSong.textContent = "";
-    elements.resultDetail.textContent = runtime.revivedAll
+    const resumeText = runtime.revivedAll
       ? `${player?.name ?? ""}　全員復活！ もう一度3・2・1から`
       : `${player?.name ?? ""}${match.settings.otetsuki ? "はこの問題では回答できません" : ""}　3・2・1から再開`;
+    elements.resultDetail.textContent = heard ? `${heard}　${resumeText}` : resumeText;
+  } else if (result?.type === "voided") {
+    elements.resultHeadline.textContent = "❌ 判定を不正解に修正";
+    elements.resultSong.textContent = revealedTitle;
+    elements.resultDetail.textContent = `${player?.name ?? ""} の+1点を取り消しました。正解は公開済みのため、この問題は0点で終了します`;
   } else {
     elements.resultHeadline.textContent = "全員PASS";
-    elements.resultSong.textContent = songTitle;
+    elements.resultSong.textContent = revealedTitle;
     elements.resultDetail.textContent = "正解は上の曲でした（0点）";
   }
   const showNext = phase === PARTY_PHASE.CORRECT_RESULT || phase === PARTY_PHASE.PASS_RESULT;
@@ -296,6 +305,7 @@ function updateResultOverlay(match, runtime, ui) {
   elements.resultNextButton.textContent = runtime.isSuddenDeath && result?.type === "correct" ? "結果発表へ" : "次へ";
   const canOverride = Boolean(ui.voice) && (phase === PARTY_PHASE.CORRECT_RESULT || phase === PARTY_PHASE.WRONG_RESULT);
   elements.overrideButton.hidden = !canOverride;
+  elements.overrideButton.textContent = phase === PARTY_PHASE.CORRECT_RESULT ? "判定を修正（不正解にして0点で終了）" : "判定を修正";
 }
 
 // 人間判定へ落ちた理由を、ユーザーに分かる短い文へ（本人指示：「音声回答を選んだのに何も起きない」を禁止）。
@@ -351,7 +361,12 @@ function updateVoiceOverlay(match, runtime, ui) {
     elements.voiceTimer.textContent = "人間判定";
     const reasonText = describeManualReason(voice.manualReason, voice.recognitionAvailable);
     elements.voiceTranscript.textContent = voice.transcripts.length > 0 ? `認識：「${voice.transcripts[0]}」／${reasonText}` : reasonText;
-    elements.voiceHint.textContent = `正解は「${runtime.question.song.title}」。回答が合っていたか、みんなで判定してください`;
+    // 【公開ルール】人間が⭕／❌を確定するまで正解曲名は出さない（❌なら同じ問題が続くため）。
+    // 正解表示中からの「判定を修正」（曲名は公開済み）では、❌にすると0点で終了することを伝える。
+    elements.voiceHint.textContent =
+      runtime.phase === PARTY_PHASE.CORRECT_RESULT
+        ? "今の回答を正解のままにしますか？（❌にすると+1点を取り消し、この問題は0点で終了します）"
+        : "今の回答を正解にしますか？（その場で聞いた回答で判定してください）";
     elements.judgeRow.hidden = false;
   }
 }

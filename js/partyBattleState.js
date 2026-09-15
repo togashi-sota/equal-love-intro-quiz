@@ -337,10 +337,22 @@ export function createQuestionRuntime({ question, questionNumber, totalQuestions
     instantListenIndex: 1, // 一瞬：今何回目の試聴か（1始まり）
     instantPassedPlayerIds: [], // 一瞬：この試聴回でPASSした人（次の試聴で解除）
     voice: null, // 音声回答の進行状況（エンジンが埋める。純粋関数はここを見ない）
+    // 【2026-09-15 第2回実機QA修正・本人指示：正解曲名の公開ルール】
+    // 「問題が継続する可能性がある間は正解曲名を公開しない。正解／PASS等で問題終了が確定した瞬間だけ公開する」
+    // を5出題タイプ共通のルールにするためのフラグ。true になった問題は二度と出題中（COUNTDOWN／ACTIVE）へ戻さない。
+    // 正解確定（resolveCorrect）・全員PASS（passQuestion／一瞬の最終試聴）・判定の取り消し（voidRevealedCorrect）で立つ。
+    solutionRevealed: false,
   };
 }
 
+// この問題の正解曲名を画面に出してよいか（＝問題終了が確定したか）。画面側はこの関数だけを見て曲名を描く。
+export function canRevealSolution(runtime) {
+  return runtime.solutionRevealed === true;
+}
+
 export function beginCountdown(runtime) {
+  // 正解曲名を公開した問題は、出題中へ戻せない（答えを全員が知っているため）。呼び出し側は null を「戻せない」として扱う。
+  if (runtime.solutionRevealed) return null;
   return { ...runtime, phase: PARTY_PHASE.COUNTDOWN, acceptedClaim: null, revivedAll: false };
 }
 
@@ -390,6 +402,7 @@ export function resolveCorrect(runtime, { judgedBy = "auto" } = {}) {
   return {
     ...runtime,
     phase: PARTY_PHASE.CORRECT_RESULT,
+    solutionRevealed: true, // 正解確定＝問題終了。ここで初めて正解曲名を公開してよい
     // 不正解→正解へ人間が覆した場合、直前の不正解で付いたロックは取り消す
     lockedPlayerIds: runtime.lockedPlayerIds.filter((id) => id !== claim.playerId),
     revivedAll: false,
@@ -401,7 +414,10 @@ export function resolveCorrect(runtime, { judgedBy = "auto" } = {}) {
 // ロックの結果、参加者全員が回答不可になったら「全員復活！」＝プレイヤーロックだけ全解除
 // （消えた選択肢は復活しない。本人確定）。
 export function resolveWrong(runtime, { otetsuki, judgedBy = "auto" } = {}) {
-  if (runtime.phase !== PARTY_PHASE.CLAIMED && runtime.phase !== PARTY_PHASE.CORRECT_RESULT) return null;
+  // 【公開ルール】CORRECT_RESULT（正解曲名を公開済み）からの「不正解へ修正」は、同じ問題を再開できないため
+  // ここでは扱わない（voidRevealedCorrect で「0点で問題終了」にする）。不正解にできるのは回答中（CLAIMED）だけ。
+  if (runtime.phase !== PARTY_PHASE.CLAIMED) return null;
+  if (runtime.solutionRevealed) return null;
   const claim = runtime.acceptedClaim;
   if (!claim) return null;
   const eliminatedChoiceIds =
@@ -441,7 +457,21 @@ export function passQuestion(runtime) {
     ...runtime,
     phase: PARTY_PHASE.PASS_RESULT,
     acceptedClaim: null,
+    solutionRevealed: true, // 全員PASS＝問題終了。ここで公開
     lastResult: { type: "pass", playerId: null, choiceId: null, revived: false, judgedBy: "auto" },
+  };
+}
+
+// 【2026-09-15 第2回実機QA修正】正解表示（正解曲名を公開済み）のあとで、人間判定により「不正解」へ修正された場合。
+// 答えを全員が見ているため同じ問題は再開せず、+1点を取り消して「0点で問題終了」にする（本人確定）。
+// 得点の取り消し自体は revokeCorrectScore（match側）で行う。
+export function voidRevealedCorrect(runtime) {
+  if (runtime.phase !== PARTY_PHASE.CORRECT_RESULT || !runtime.solutionRevealed) return null;
+  const claim = runtime.acceptedClaim;
+  return {
+    ...runtime,
+    phase: PARTY_PHASE.PASS_RESULT,
+    lastResult: { type: "voided", playerId: claim?.playerId ?? null, choiceId: claim?.choiceId ?? null, revived: false, judgedBy: "human" },
   };
 }
 
@@ -466,6 +496,7 @@ export function resolveInstantAllPassed(runtime, maxListens) {
       phase: PARTY_PHASE.PASS_RESULT,
       acceptedClaim: null,
       instantPassedPlayerIds: [],
+      solutionRevealed: true, // 最終試聴で全員PASS＝問題終了。ここで公開（途中の試聴回では公開しない）
       lastResult: { type: "pass", playerId: null, choiceId: null, revived: false, judgedBy: "auto" },
     };
   }
@@ -489,6 +520,7 @@ export function applyQuestionOutcome(match, runtime) {
   if (result.type === "pass") {
     next = { ...next, stats: { ...next.stats, passCount: next.stats.passCount + 1 } };
   }
+  // result.type === "voided"（正解→不正解へ修正）は0点で完了扱い。得点は revokeCorrectScore で既に戻している
   if (runtime.isSuddenDeath) {
     next = {
       ...next,

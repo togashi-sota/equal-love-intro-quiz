@@ -186,10 +186,11 @@ function buildStates({ match, runtime }, answerMethod) {
   const p1 = match.players[0].id;
   const active = { ...runtime, phase: PARTY_PHASE.ACTIVE };
   const claimed = { ...runtime, phase: PARTY_PHASE.CLAIMED, acceptedClaim: { playerId: p1, choiceId: null } };
-  const correct = { ...runtime, phase: PARTY_PHASE.CORRECT_RESULT, acceptedClaim: { playerId: p1, choiceId: "s1" }, lastResult: { type: "correct", playerId: p1, choiceId: "s1", revived: false, judgedBy: "human" } };
+  const correct = { ...runtime, phase: PARTY_PHASE.CORRECT_RESULT, solutionRevealed: true, acceptedClaim: { playerId: p1, choiceId: "s1" }, lastResult: { type: "correct", playerId: p1, choiceId: "s1", revived: false, judgedBy: "human" } };
   const wrong = { ...runtime, phase: PARTY_PHASE.WRONG_RESULT, acceptedClaim: { playerId: p1, choiceId: "s2" }, eliminatedChoiceIds: ["s2"], lockedPlayerIds: [p1], lastResult: { type: "wrong", playerId: p1, choiceId: "s2", revived: false, judgedBy: "auto" } };
   const revived = { ...wrong, lockedPlayerIds: [], revivedAll: true, lastResult: { ...wrong.lastResult, revived: true } };
-  const pass = { ...runtime, phase: PARTY_PHASE.PASS_RESULT, lastResult: { type: "pass", playerId: null, choiceId: null, revived: false, judgedBy: "auto" } };
+  const pass = { ...runtime, phase: PARTY_PHASE.PASS_RESULT, solutionRevealed: true, lastResult: { type: "pass", playerId: null, choiceId: null, revived: false, judgedBy: "auto" } };
+  const voided = { ...correct, phase: PARTY_PHASE.PASS_RESULT, lastResult: { type: "voided", playerId: p1, choiceId: null, revived: false, judgedBy: "human" } };
   const states = [
     { name: "問題番号表示", runtime: { ...runtime }, ui: buildUi({ showQuestionIntro: true }) },
     { name: "カウントダウン", runtime: { ...runtime, phase: PARTY_PHASE.COUNTDOWN }, ui: buildUi({ countdownValue: 3 }) },
@@ -212,7 +213,8 @@ function buildStates({ match, runtime }, answerMethod) {
       { name: "音声：自動正解（判定を修正あり）", runtime: correct, ui: buildUi({ voice: voiceUi(p1, "judged", { verdict: { kind: "correct" } }) }) },
       { name: "音声：人間判定で正解（判定を修正あり）", runtime: correct, ui: buildUi({ voice: voiceUi(p1, "judged", { verdict: { kind: "correct", byHuman: true } }) }) },
       { name: "音声：自動不正解（判定を修正あり）", runtime: wrong, ui: buildUi({ voice: voiceUi(p1, "judged", { verdict: { kind: "wrong" } }) }) },
-      { name: "音声：判定修正中", runtime: correct, ui: buildUi({ voice: voiceUi(p1, "manual", { manualReason: "override" }) }) }
+      { name: "音声：判定修正中", runtime: correct, ui: buildUi({ voice: voiceUi(p1, "manual", { manualReason: "override" }) }) },
+      { name: "音声：正解→不正解へ修正（0点で終了）", runtime: voided, ui: buildUi({ voice: voiceUi(p1, "judged", { verdict: { kind: "wrong", byHuman: true } }) }) }
     );
   }
   return states;

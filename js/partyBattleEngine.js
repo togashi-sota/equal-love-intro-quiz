@@ -59,6 +59,7 @@ import {
   passQuestion,
   instantPass,
   resolveInstantAllPassed,
+  voidRevealedCorrect,
   applyQuestionOutcome,
   creditCorrectScore,
   revokeCorrectScore,
@@ -487,7 +488,13 @@ export function createPartyBattleEngine({ onUpdate }) {
   }
 
   function startCountdown() {
-    runtime = beginCountdown(runtime);
+    // 【公開ルール】正解曲名を公開した問題は二度と出題中へ戻さない（beginCountdown が null を返す）
+    const next = beginCountdown(runtime);
+    if (!next) {
+      emit();
+      return;
+    }
+    runtime = next;
     arbiter.disable();
     countdownValue = 3;
     playSfx(SFX_EVENTS.COUNTDOWN_TICK);
@@ -643,7 +650,9 @@ export function createPartyBattleEngine({ onUpdate }) {
   function scheduleWrongResultEnd() {
     schedule(() => {
       if (runtime.phase !== PARTY_PHASE.WRONG_RESULT) return;
-      runtime = finishWrongResult(runtime);
+      const next = finishWrongResult(runtime);
+      if (!next) return;
+      runtime = next;
       startCountdown();
     }, PARTY_WRONG_RESULT_MS);
   }
@@ -856,9 +865,17 @@ export function createPartyBattleEngine({ onUpdate }) {
           emit();
           return;
         }
-        // 正解表示中に「不正解」へ覆した場合、正解確定時に音源を止めている（位置は残っていない）ため、
-        // 再開時は同じ問題の音源を最初から（ランダム再生等は同じ位置から）鳴らし直す。
-        if (runtime.phase === PARTY_PHASE.CORRECT_RESULT) runtime = { ...runtime, needsFreshPlayback: true };
+        // 【2026-09-15 第2回実機QA修正・公開ルール】正解表示中（正解曲名は公開済み）に「不正解」へ修正した場合、
+        // 同じ問題を再開すると全員が答えを知った状態になるため再開しない。+1点を取り消し、0点でこの問題を終了する。
+        if (runtime.phase === PARTY_PHASE.CORRECT_RESULT) {
+          const claimerId = runtime.acceptedClaim?.playerId ?? null;
+          ({ match, runtime } = revokeCorrectScore(match, runtime, claimerId));
+          const voided = voidRevealedCorrect(runtime);
+          if (voided) runtime = voided;
+          playSfx(SFX_EVENTS.QUIZ_WRONG);
+          emit();
+          return;
+        }
         applyWrong({ judgedBy: "human" });
       }
     },
@@ -984,9 +1001,12 @@ export function createPartyBattleEngine({ onUpdate }) {
         return;
       }
       if (phase === PARTY_PHASE.WRONG_RESULT) {
-        runtime = finishWrongResult(runtime) ?? runtime;
-        startCountdown();
-        return;
+        const next = finishWrongResult(runtime);
+        if (next) {
+          runtime = next;
+          startCountdown();
+          return;
+        }
       }
       emit();
     },

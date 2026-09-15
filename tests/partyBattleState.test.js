@@ -35,6 +35,8 @@ import {
   pickSuddenDeathSong,
   buildRevealOrder,
   isWaitingForNext,
+  canRevealSolution,
+  voidRevealedCorrect,
 } from "../js/partyBattleState.js";
 import { assertEqual } from "./test-utils.js";
 
@@ -229,14 +231,51 @@ export function runPartyBattleStateTests() {
     assertEqual(match.scores.p2, 0, "人間判定で不正解へ覆したら1点戻す");
     ({ match, runtime } = revokeCorrectScore(match, runtime, "p2"));
     assertEqual(match.scores.p2, 0, "二重に戻さない");
-    runtime = resolveWrong(runtime, { otetsuki: true, judgedBy: "human" });
-    assertEqual(runtime.phase, PARTY_PHASE.WRONG_RESULT, "CORRECT_RESULTからWRONG_RESULTへ覆せる");
-    runtime = resolveCorrect(runtime, { judgedBy: "human" });
-    assertEqual(runtime.phase, PARTY_PHASE.CORRECT_RESULT, "WRONG_RESULTからCORRECT_RESULTへも覆せる");
-    assertEqual(runtime.lockedPlayerIds, [], "不正解→正解へ覆したらロックも取り消す");
-    const after = applyQuestionOutcome(match, runtime);
-    assertEqual(after.scores.p2, match.scores.p2, "問題終了時に得点を再加算しない");
+    // 【公開ルール】正解表示中（曲名公開済み）からは、不正解へ「覆して同じ問題を再開」できない
+    assertEqual(resolveWrong(runtime, { otetsuki: true, judgedBy: "human" }), null, "CORRECT_RESULT（曲名公開済み）から WRONG_RESULT へは戻せない");
+    assertEqual(beginCountdown(runtime), null, "曲名を公開した問題はカウントダウン（出題中）へ戻せない");
+    const voided = voidRevealedCorrect(runtime);
+    assertEqual(voided.phase, PARTY_PHASE.PASS_RESULT, "正解→不正解へ修正したら、その問題は0点で終了（結果表示のまま次へ）");
+    assertEqual(voided.lastResult.type, "voided", "結果種別は voided");
+    assertEqual(isWaitingForNext(voided), true, "終了確定なので「次へ」を押せる");
+    // 不正解表示（未公開）→ 正解へ覆すのは可能
+    let runtime2 = buildActiveRuntime(match);
+    runtime2 = resolveWrong(claimAnswer(runtime2, { playerId: "p1", choiceId: null }), { otetsuki: true });
+    assertEqual(canRevealSolution(runtime2), false, "不正解表示中は曲名を公開しない");
+    runtime2 = resolveCorrect(runtime2, { judgedBy: "human" });
+    assertEqual(runtime2.phase, PARTY_PHASE.CORRECT_RESULT, "WRONG_RESULTからCORRECT_RESULTへは覆せる");
+    assertEqual(runtime2.lockedPlayerIds, [], "不正解→正解へ覆したらロックも取り消す");
+    assertEqual(canRevealSolution(runtime2), true, "正解確定で初めて曲名を公開できる");
+    const after = applyQuestionOutcome(match, voided);
+    assertEqual(after.scores.p2, 0, "voided は0点のまま（問題終了時に加算しない）");
+    assertEqual(after.completedQuestionCount, 1, "voided でも問題は完了扱い");
     assertEqual(after.usedSongIds, ["a"], "出題済みの曲を記録する");
+  }
+
+  // ===== 正解曲名の公開ルール：問題継続中は非公開、終了確定で公開（5出題タイプ共通の状態遷移） =====
+  {
+    const match = buildMatch({ playerCount: 2 });
+    let runtime = buildActiveRuntime(match);
+    assertEqual(canRevealSolution(runtime), false, "出題中は非公開");
+    runtime = claimAnswer(runtime, { playerId: "p1", choiceId: null });
+    assertEqual(canRevealSolution(runtime), false, "回答権獲得中（音声の認識中・人間判定待ち）は非公開");
+    runtime = resolveWrong(runtime, { otetsuki: false });
+    assertEqual(canRevealSolution(runtime), false, "不正解（問題継続）は非公開");
+    runtime = activateQuestion(finishWrongResult(runtime));
+    assertEqual(canRevealSolution(runtime), false, "再開後も非公開");
+    runtime = resolveCorrect(claimAnswer(runtime, { playerId: "p2", choiceId: "a" }));
+    assertEqual(canRevealSolution(runtime), true, "正解確定で公開");
+    assertEqual(canRevealSolution(passQuestion(buildActiveRuntime(match))), true, "全員PASS（問題終了）で公開");
+    // 一瞬：途中の試聴回の全員PASSでは非公開、最終試聴で公開
+    let instant = buildActiveRuntime(match);
+    let replay = resolveInstantAllPassed(instantPass(instantPass(instant, "p1").runtime, "p2").runtime, 3);
+    assertEqual(replay.phase, PARTY_PHASE.COUNTDOWN, "一瞬：残り試聴があれば再試聴");
+    assertEqual(canRevealSolution(replay), false, "一瞬：再試聴に進む全員PASSでは非公開");
+    replay = activateQuestion(replay);
+    replay = { ...replay, instantListenIndex: 3 };
+    const final = resolveInstantAllPassed(instantPass(instantPass(replay, "p1").runtime, "p2").runtime, 3);
+    assertEqual(final.phase, PARTY_PHASE.PASS_RESULT, "一瞬：最終試聴の全員PASSで問題終了");
+    assertEqual(canRevealSolution(final), true, "一瞬：最終試聴の全員PASSで公開");
   }
 
   // ===== 順位・サドンデス =====
