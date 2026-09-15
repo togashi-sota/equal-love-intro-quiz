@@ -18754,16 +18754,42 @@ body[data-screen="partyBattlePlay"] .game-frame {
   font-weight: 700;
 }
 
+/* 【2026-09-15 第2回実機QA修正・iPhone実機で「判定を修正」が画面中央を縦いっぱいに占有した不具合】
+   原因：アプリ共通の .secondary-button は flex: 1（横並びの .button-row で幅を等分するための指定）を持つ。
+   盤面のオーバーレイ（.party-result-overlay／.party-voice-overlay／.party-pause-overlay）は
+   「縦方向の flex コンテナ（flex-direction: column、inset:0 で盤面全体の高さ）」なので、その中に置いた
+   .secondary-button は flex:1 が「縦方向の伸長」として働き、残りの高さすべてを奪って細長いカプセルになった。
+   同じ理由で .primary-button（display:block; width:100%）も盤面の中では横幅いっぱいになる。
+   対策：盤面（.party-play-root）の中に置く共通ボタンは、盤面スコープで flex:none／幅を内容＋上限に固定する
+   （共通ボタンの定義そのものは変えない：他画面の .button-row 等に影響させないため）。
+   これは出題タイプ（イントロ／ランダム／アウトロ／一瞬／歌詞）・人数・向きに関係なく、全オーバーレイ共通の修正。 */
+.party-play-root .secondary-button,
+.party-play-root .primary-button {
+  flex: none;
+  align-self: center;
+  width: auto;
+  min-width: 200px;
+  max-width: min(340px, 100%);
+  box-sizing: border-box;
+}
+
 .party-result-next-button {
   margin-top: 10px;
-  width: auto;
   min-width: 220px;
-  max-width: 340px;
 }
 
 .party-override-button {
   padding: 8px 16px;
   font-size: 0.8rem;
+  min-width: 160px;
+}
+
+/* オーバーレイ内の文章・ボタンはどれも「内容の高さ」だけを取り、縦方向に伸ばさない */
+.party-result-overlay > *,
+.party-voice-overlay > *,
+.party-pause-overlay > * {
+  flex: none;
+  max-width: 100%;
 }
 
 .party-voice-overlay {
@@ -18998,6 +19024,13 @@ body[data-screen="partyBattlePlay"] .game-frame {
   flex-direction: column;
   gap: 10px;
   margin-top: 12px;
+}
+
+.party-result-actions > .secondary-button,
+.party-result-actions > .primary-button {
+  flex: none;
+  width: 100%;
+  margin-top: 0;
 }
 
 .party-result-actions[hidden] {
