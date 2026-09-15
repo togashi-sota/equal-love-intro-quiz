@@ -67,6 +67,7 @@ const ELEMENT_IDS = {
   passButton: "party-play-pass-button",
   passProgress: "party-play-pass-progress",
   replayButton: "party-play-replay-button",
+  rescueBox: "party-play-rescue-box",
   quitButton: "party-play-quit-button",
   quitProgress: "party-play-quit-progress",
   introOverlay: "party-play-intro-overlay",
@@ -165,8 +166,24 @@ function buildUi(overrides = {}) {
     finished: false,
     aborted: false,
     canReplay: false,
+    rescuableVoiceAttempts: [],
     ...overrides,
   };
+}
+
+// 【第4回実機QA修正】音声回答の救済候補（正解公開後の結果表示に出る）
+function rescueAttempts(match, count) {
+  return match.players.slice(0, count).map((player, index) => ({
+    order: index + 1,
+    key: `${player.id}:${index}`,
+    playerId: player.id,
+    transcripts: [index === 0 ? "イコールラブ" : "とても長い認識結果の文字列がここに入ります"],
+    matchedTitle: null,
+    autoVerdict: "wrong",
+    judgedBy: "auto",
+    outcome: "wrong",
+    atMs: index * 1000,
+  }));
 }
 
 function voiceUi(playerId, status, extra = {}) {
@@ -204,6 +221,8 @@ function buildStates({ match, runtime }, answerMethod) {
     { name: "不正解（お手つき）", runtime: wrong, ui: buildUi() },
     { name: "全員復活", runtime: revived, ui: buildUi() },
     { name: "全員PASS", runtime: pass, ui: buildUi() },
+    { name: "全員PASS＋救済候補2件", runtime: pass, ui: buildUi({ rescuableVoiceAttempts: rescueAttempts(match, Math.min(2, match.players.length)) }) },
+    { name: "救済後（判定を修正しました）", runtime: { ...correct, acceptedClaim: { playerId: p1, choiceId: null }, lastResult: { type: "rescued", playerId: p1, choiceId: null, revived: false, judgedBy: "human", previousPlayerId: match.players[1]?.id ?? null, previousType: "correct" } }, ui: buildUi({ rescuableVoiceAttempts: rescueAttempts(match, 1).map((entry) => ({ ...entry, order: 2, outcome: "overtaken" })) }) },
     { name: "サドンデス出題中", runtime: { ...active, isSuddenDeath: true, participantIds: [p1] }, ui: buildUi() },
     { name: "一時停止", runtime: active, ui: buildUi({ paused: true, resumeRequired: true }) },
     { name: "差し替え通知", runtime: active, ui: buildUi({ notice: { text: "この問題の音源を再生できません。別の問題に差し替えます。", kind: "warn" } }) },
@@ -294,7 +313,31 @@ export async function runPartyBattlePlayLayoutTests() {
           const resultVisible = isVisible(doc.getElementById("party-play-result-overlay"));
           if ((phase === PARTY_PHASE.CORRECT_RESULT || phase === PARTY_PHASE.PASS_RESULT) && resultVisible) {
             if (!isVisible(nextButton)) note(`${label}：「次へ」が表示されていない`);
+            else {
+              const nextRect = nextButton.getBoundingClientRect();
+              if (nextRect.bottom > viewport.h + 1 || nextRect.top < -1) note(`${label}：「次へ」がviewport外（bottom=${Math.round(nextRect.bottom)}）`);
+            }
           }
+          // 【第4回実機QA修正】救済候補の箱：中身のボタンがviewport内・横長・「次へ」「判定を修正」と重ならない
+          const rescueBox = doc.getElementById("party-play-rescue-box");
+          if (isVisible(rescueBox)) {
+            const boxRect = rescueBox.getBoundingClientRect();
+            if (boxRect.right > viewport.w + 1 || boxRect.left < -1 || boxRect.bottom > viewport.h + 1 || boxRect.top < -1) note(`${label}：救済候補の箱がviewport外`);
+            const expectedRows = state.ui.rescuableVoiceAttempts.length;
+            const rows = rescueBox.querySelectorAll(".party-rescue-row").length;
+            if (rows !== expectedRows) note(`${label}：救済候補の行数 ${rows}（期待 ${expectedRows}）`);
+            rescueBox.querySelectorAll(".party-rescue-button").forEach((button) => {
+              const rect = button.getBoundingClientRect();
+              if (rect.height > rect.width) note(`${label}：救済ボタンが縦長`);
+              if (rect.right > boxRect.right + 1 || rect.left < boxRect.left - 1) note(`${label}：救済ボタンが箱の横幅からはみ出す`);
+            });
+            [nextButton, overrideButton].forEach((button) => {
+              if (isVisible(button) && overlaps(boxRect, button.getBoundingClientRect())) note(`${label}：救済候補の箱が ${button.id} と重なる`);
+            });
+          } else if (state.ui.rescuableVoiceAttempts.length > 0 && resultVisible && (phase === PARTY_PHASE.CORRECT_RESULT || phase === PARTY_PHASE.PASS_RESULT)) {
+            note(`${label}：救済候補があるのに箱が出ていない`);
+          }
+          if (state.runtime.lastResult?.type === "rescued" && isVisible(overrideButton)) note(`${label}：救済後に既存の「判定を修正」が出ている`);
           if (isVisible(overrideButton)) {
             const rect = overrideButton.getBoundingClientRect();
             if (rect.height > 64) note(`${label}：「判定を修正」の高さ ${Math.round(rect.height)}px（実機で縦長になった箇所）`);

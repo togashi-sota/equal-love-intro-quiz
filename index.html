@@ -3493,16 +3493,24 @@
           <h2>出題する曲を選ぶ</h2>
         </div>
       </div>
-      <p class="custom-quiz-selected-count">選択中：<span id="party-song-picker-count">0</span>曲（4択回答は4曲以上必要）</p>
+      <!-- 【2026-09-15 第4回実機QA修正】オンライン対戦の曲選択（#online-battle-song-picker-screen）と同じ構造：
+           合計数 → 全曲選択／全曲解除 → 検索 → 選択中だけ表示 → シングルごとの折りたたみグループ（js/songGroupSelectList.js） -->
+      <p class="custom-quiz-selected-count">選択中：<strong id="party-song-picker-count">0</strong>曲（全シングルを通した合計）</p>
+      <p id="party-song-picker-min-notice" class="question-count-notice" hidden>4択回答は異なる4曲以上必要です</p>
       <div class="custom-quiz-bulk-actions">
-        <button id="party-song-picker-select-all-button" class="single-group-bulk-button" type="button">表示中を全選択</button>
+        <button id="party-song-picker-select-all-button" class="single-group-bulk-button" type="button">全曲選択</button>
         <button id="party-song-picker-deselect-all-button" class="single-group-bulk-button" type="button">全曲解除</button>
       </div>
       <div class="search-field-row">
         <input type="text" id="party-song-picker-search-input" class="pill-search-input" placeholder="曲名で検索" aria-label="曲名で検索">
         <button id="party-song-picker-search-clear-button" class="search-clear-button" type="button" aria-label="検索語をクリア" hidden>×</button>
       </div>
+      <label class="custom-quiz-selected-only-toggle">
+        <input type="checkbox" id="party-song-picker-selected-only-checkbox">
+        選択中の曲だけ表示
+      </label>
       <div id="party-song-picker-list" class="party-song-picker-list"></div>
+      <p id="party-song-picker-no-results-notice" class="question-count-notice" hidden>該当する曲が見つかりませんでした</p>
       <button id="party-song-picker-done-button" class="primary-button" type="button">この曲で決定</button>
     </section>
 
@@ -3577,6 +3585,8 @@
           <p id="party-play-result-headline" class="party-result-headline"></p>
           <p id="party-play-result-song" class="party-result-song"></p>
           <p id="party-play-result-detail" class="party-result-detail"></p>
+          <!-- 【2026-09-15 第4回実機QA修正】正解公開後だけ出る、音声回答の救済候補（js/partyBattlePlayScreen.js の updateRescueBox が描く） -->
+          <div id="party-play-rescue-box" class="party-rescue-box" hidden></div>
           <button id="party-play-override-button" class="secondary-button party-override-button" type="button" hidden>判定を修正</button>
           <button id="party-play-result-next-button" class="primary-button party-result-next-button" type="button" hidden>次の問題へ</button>
         </div>
@@ -3620,7 +3630,7 @@
       <div id="party-result-actions" class="party-result-actions" hidden>
         <button id="party-result-rematch-button" class="primary-button" type="button">同じ設定でもう一戦</button>
         <button id="party-result-change-button" class="secondary-button" type="button">設定を変えて再戦</button>
-        <button id="party-result-home-button" class="secondary-button" type="button">終了（ホームへ）</button>
+        <button id="party-result-home-button" class="secondary-button" type="button">終了（設定画面へ）</button>
       </div>
     </section>
 
@@ -5579,6 +5589,21 @@
        （js/playlistAddSongsScreen.jsまわりの既存コメントと同じ結論）、ミニプレイヤーと
        同じ理由でbody直下・position:fixedに置く。曲選択画面が開いている間だけ
        js/onlineBattleSongPicker.js側でhiddenを切り替える。 -->
+  <!-- 【2026-09-15 第4回実機QA修正】パーティー対戦「曲を選んで出題」の画面下固定バー（オンライン対戦の曲選択と同じ部品・同じCSS）。
+       js/partyBattleScreen.js が選曲画面を開いている間だけ表示する。 -->
+  <div id="party-song-picker-sticky-bar" class="song-picker-sticky-bar" hidden>
+    <div id="party-song-picker-review-panel" class="song-picker-review-panel" hidden>
+      <div id="party-song-picker-review-chips" class="song-picker-review-chips"></div>
+    </div>
+    <div class="song-picker-sticky-bar-row">
+      <button id="party-song-picker-sticky-toggle" type="button" class="song-picker-sticky-toggle" aria-expanded="false">
+        <span>選択中 <strong id="party-song-picker-sticky-count">0</strong>曲</span>
+        <svg class="chevron" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 5l7 7-7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button id="party-song-picker-sticky-confirm-button" type="button" class="primary-button">この曲で決定</button>
+    </div>
+  </div>
+
   <div id="online-battle-song-picker-sticky-bar" class="song-picker-sticky-bar" hidden>
     <div id="online-battle-song-picker-review-panel" class="song-picker-review-panel" hidden>
       <div id="online-battle-song-picker-review-chips" class="song-picker-review-chips"></div>
@@ -6103,10 +6128,10 @@
       <p>人数・名前・出題タイプ（イントロ／ランダム再生／アウトロ／一瞬／歌詞）・問題数・選曲・回答方式（4択／音声）・お手つきを決めて開始します。3・2・1・START!の後に曲（歌詞）が始まり、自分の席の選択肢（音声なら「回答！」）を最初に押した人だけが回答できます。</p>
 
       <h3>得点・お手つき・再聴・PASS</h3>
-      <p>正解+1点（その瞬間に正解曲名が公開され、その問題で使った箇所から答え合わせの音源が流れます）。不正解・PASSは0点（減点なし）。不正解のあとは約2秒後に3・2・1から再開し、曲は止めた位置から続きます。お手つき「あり」では不正解した人はその問題の残りで回答できません（全員が回答できなくなったら全員復活）。再生が終わっても分からないときは中央の「🔁 もう一度聴く」（ランダム再生・アウトロは何度でも、一瞬は最大3回／5回）。全員で諦めるときは中央の「全員PASS｜長押し」で、その問題は0点で終了します。1位が同点ならサドンデスです。</p>
+      <p>正解+1点（その瞬間に正解曲名が公開され、その問題で使った箇所から答え合わせの音源が流れます）。音声回答で「不正解」と判定された回答は、正解公開後の結果画面に回答順で並び、その場の全員が正解曲を言っていたと認めれば「この回答を正解に修正」でその人を正解者（+1点）にできます（あとから正解した人の+1点は取り消し。問題はやり直しません）。不正解・PASSは0点（減点なし）。不正解のあとは約2秒後に3・2・1から再開し、曲は止めた位置から続きます。お手つき「あり」では不正解した人はその問題の残りで回答できません（全員が回答できなくなったら全員復活）。再生が終わっても分からないときは中央の「🔁 もう一度聴く」（ランダム再生・アウトロは何度でも、一瞬は最大3回／5回）。全員で諦めるときは中央の「全員PASS｜長押し」で、その問題は0点で終了します。1位が同点ならサドンデスです。</p>
 
       <h3>記録</h3>
-      <p>結果はプレイ履歴の「パーティー」タブにだけ残り、自己ベスト・ランキング・称号・苦手曲には影響しません。途中で終了した対戦は保存されません。詳しくは遊び方ガイドの「パーティー対戦」をご覧ください。</p>
+      <p>結果はプレイ履歴の「パーティー」タブにだけ残り、自己ベスト・ランキング・称号・苦手曲には影響しません。途中で終了した対戦は保存されません。「終了」はホームではなくパーティー対戦の設定画面へ戻ります。詳しくは遊び方ガイドの「パーティー対戦」をご覧ください。</p>
     </div>
   </div>
 

@@ -59,6 +59,9 @@ import {
   finishWrongResult,
   passQuestion,
   voidRevealedCorrect,
+  recordVoiceAttempt,
+  listRescuableVoiceAttempts,
+  rescueVoiceAttempt,
   markPlaybackStarted,
   markPlaybackEnded,
   canReplay,
@@ -400,6 +403,7 @@ export function createPartyBattleEngine({ onUpdate }) {
         finished,
         aborted,
         canReplay: runtime && match ? canReplay(runtime, match.settings) : false,
+        rescuableVoiceAttempts: runtime ? listRescuableVoiceAttempts(runtime) : [],
       },
     });
   }
@@ -727,9 +731,28 @@ export function createPartyBattleEngine({ onUpdate }) {
     // 正解表示中に人間判定で覆された場合、既に入れた1点を戻す
     ({ match, runtime } = revokeCorrectScore(match, runtime, claimerId));
     match = countWrongAttempt(match);
+    recordVoiceOutcome("wrong", judgedBy);
     playSfx(SFX_EVENTS.QUIZ_WRONG);
     emit();
     scheduleWrongResultEnd();
+  }
+
+  // 【2026-09-15 第4回実機QA修正・本人指示：音声回答の誤判定を正解公開後に救済】
+  // 音声回答の確定（正解／不正解）のたびに、この問題の一時履歴（runtime.voiceAttempts）へ
+  // 「誰が・何と認識され・どう判定されたか」を記録する。同じ回答権の再判定（人間判定で覆す）は
+  // 同じ key へ上書きされる。4択回答では何もしない（voiceState が無い）。
+  function recordVoiceOutcome(outcome, judgedBy) {
+    if (!voiceState || !runtime) return;
+    runtime = recordVoiceAttempt(runtime, {
+      key: `${voiceState.playerId}:${voiceState.claimedAtMs}`,
+      playerId: voiceState.playerId,
+      transcripts: [...voiceState.transcripts],
+      matchedTitle: voiceState.verdict?.matchedTitle ?? null,
+      autoVerdict: voiceState.verdict?.byHuman ? "manual" : voiceState.verdict?.kind ?? "manual",
+      judgedBy,
+      outcome,
+      atMs: voiceState.claimedAtMs,
+    });
   }
 
   function scheduleWrongResultEnd() {
@@ -747,6 +770,7 @@ export function createPartyBattleEngine({ onUpdate }) {
     if (!next) return;
     runtime = next;
     ({ match, runtime } = creditCorrectScore(match, runtime));
+    recordVoiceOutcome("correct", judgedBy);
     stopAudio();
     stopLyricsClock(); // 歌詞のヒント段階（答え合わせの開始位置）はここで止まった値を使う
     playSfx(SFX_EVENTS.QUIZ_CORRECT);
@@ -960,6 +984,7 @@ export function createPartyBattleEngine({ onUpdate }) {
           ({ match, runtime } = revokeCorrectScore(match, runtime, claimerId));
           const voided = voidRevealedCorrect(runtime);
           if (voided) runtime = voided;
+          recordVoiceOutcome("voided", "human");
           playSfx(SFX_EVENTS.QUIZ_WRONG);
           emit();
           return;
@@ -968,10 +993,25 @@ export function createPartyBattleEngine({ onUpdate }) {
       }
     },
 
+    // 【2026-09-15 第4回実機QA修正・本人指示】正解公開後の救済：過去に不正解として処理された音声回答（order）を
+    // 「本当は正解だった」として最終正解者に修正する。問題は終了したまま（再開・再カウントしない）、
+    // 答え合わせ音源も止めない（「次へ」で既存どおり停止）。得点の移動は rescueVoiceAttempt（純粋関数）が行う。
+    rescueVoiceAttempt(order) {
+      if (paused || !runtime) return;
+      const result = rescueVoiceAttempt(match, runtime, order);
+      if (!result) return;
+      ({ match, runtime } = result);
+      playSfx(SFX_EVENTS.QUIZ_CORRECT);
+      emit();
+    },
+
     // 音声：「判定を修正」→人間判定オーバーレイへ（自動判定の結果表示を止める）。
     requestJudgementOverride() {
       if (paused || !runtime || !voiceState) return;
       if (runtime.phase !== PARTY_PHASE.CORRECT_RESULT && runtime.phase !== PARTY_PHASE.WRONG_RESULT) return;
+      // 救済で確定した正解（rescued）は人間が最終判断した結果なので、既存の「判定を修正」の対象にしない
+      // （取り消したいときは、別の回答を救済し直す。voiceState は最後の回答権の人のものなので混同を避ける）
+      if (runtime.lastResult?.type === "rescued") return;
       clearAllTimers();
       if (runtime.phase === PARTY_PHASE.CORRECT_RESULT) stopAudio(); // 答え合わせ音源を止めて判定に集中する
       voiceState.status = "manual";

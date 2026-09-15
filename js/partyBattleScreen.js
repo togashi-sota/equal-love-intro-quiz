@@ -6,8 +6,8 @@
 // 残し、「設定を変えて再戦」「次回開いたとき」の初期値にする。
 
 import { SONGS } from "./data/songs.js";
-import { CATEGORY_PILL_INFO } from "./songlist.js";
-import { normalizeForSearch, songMatchesSearch } from "./songSearch.js";
+import { createSongGroupSelectList } from "./songGroupSelectList.js";
+import { bindSearchInputKeyboardAvoidance } from "./answerPoolBrowseUi.js";
 import { getPlaylists } from "./playlists.js";
 import { getFavoriteSongIds } from "./favoriteSongs.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
@@ -258,48 +258,92 @@ async function handleSetupNext() {
 }
 
 // ===== 選曲画面（曲を選んで出題） =====
+//
+// 【2026-09-15 第4回実機QA修正・本人指示】以前は全84曲を1本の長い縦リストにしていたが、iPhone実機で目的の曲を
+// 探しにくかった。オンライン対戦の曲選択画面（js/onlineBattleSongPicker.js）と同じ操作感＝「シングルごと
+// （1枚目／2枚目…）の折りたたみグループ・グループ単位の全選択／全解除・検索・選択中だけ表示・画面下の固定バー」
+// へ揃えた。DOM の組み立ては共通部品 js/songGroupSelectList.js（オンライン側と同じ CSS クラス）を使う。
+// 選択状態は pickerSelected（Set）1つに集約し、グループの開閉・検索・表示切替・ページ（グループ）移動で失わない。
 
 let pickerSelected = new Set();
+let pickerList = null;
 
-function renderSongPickerList() {
-  const query = normalizeForSearch(elements.pickerSearchInput.value);
-  elements.pickerSearchClearButton.hidden = elements.pickerSearchInput.value === "";
-  elements.pickerList.innerHTML = "";
-  SONGS.forEach((song) => {
-    if (!songMatchesSearch(song.title, song.searchReading, song.searchAliases, query)) return;
-    const row = document.createElement("div");
-    row.className = "song-select-row";
-    const label = document.createElement("label");
-    label.className = "song-select-label";
-    const checkbox = document.createElement("input");
-    checkbox.type = "checkbox";
-    checkbox.value = song.id;
-    checkbox.checked = pickerSelected.has(song.id);
-    checkbox.addEventListener("change", () => {
-      playSfx(SFX_EVENTS.UI_CLICK);
-      if (checkbox.checked) pickerSelected.add(song.id);
-      else pickerSelected.delete(song.id);
-      elements.pickerCount.textContent = String(pickerSelected.size);
-    });
+// 「選択中：N曲」は全グループを通した合計（= pickerSelected.size）。4択回答は異なる4曲以上が開始条件
+// （js/partyBattleEngine.js resolvePartySongPool と同じ基準。今表示中のグループの曲数では判定しない）。
+function updatePickerSummary() {
+  const count = pickerSelected.size;
+  elements.pickerCount.textContent = String(count);
+  if (elements.pickerStickyCount) elements.pickerStickyCount.textContent = String(count);
+  const needsFour = settings.answerMethod === PARTY_ANSWER_METHOD.FOUR_CHOICE && count < 4;
+  elements.pickerMinNotice.hidden = !needsFour;
+  if (needsFour) elements.pickerMinNotice.textContent = `4択回答は異なる4曲以上必要です（あと${4 - count}曲）`;
+  renderPickerReviewChips();
+}
+
+// 「選択中 N曲 ▾」を開いたときの、選択曲のチップ一覧（×で解除できる）。songs.js の登録順
+function renderPickerReviewChips() {
+  const chipsContainer = elements.pickerReviewChips;
+  if (!chipsContainer) return;
+  chipsContainer.innerHTML = "";
+  SONGS.filter((song) => pickerSelected.has(song.id)).forEach((song) => {
+    const chip = document.createElement("span");
+    chip.className = "song-picker-review-chip";
     const title = document.createElement("span");
-    title.className = "song-select-title";
     title.textContent = song.title;
-    const info = CATEGORY_PILL_INFO[song.category];
-    const pill = document.createElement("span");
-    pill.className = `category-pill ${info?.className ?? ""}`;
-    pill.textContent = info?.text ?? song.category;
-    label.append(checkbox, title, pill);
-    row.appendChild(label);
-    elements.pickerList.appendChild(row);
+    const removeButton = document.createElement("button");
+    removeButton.type = "button";
+    removeButton.setAttribute("aria-label", `${song.title}の選択を解除`);
+    removeButton.textContent = "×";
+    removeButton.addEventListener("click", () => {
+      playSfx(SFX_EVENTS.UI_CLICK);
+      pickerSelected.delete(song.id);
+      pickerList?.syncCheckboxes();
+    });
+    chip.append(title, removeButton);
+    chipsContainer.appendChild(chip);
   });
-  elements.pickerCount.textContent = String(pickerSelected.size);
+}
+
+function setPickerStickyBarVisible(visible) {
+  if (!elements.pickerStickyBar) return;
+  elements.pickerStickyBar.hidden = !visible;
+  if (!visible && elements.pickerReviewPanel) {
+    elements.pickerReviewPanel.hidden = true;
+    elements.pickerStickyToggle?.setAttribute("aria-expanded", "false");
+  }
 }
 
 function openSongPicker() {
   pickerSelected = new Set(settings.manualSongIds);
   elements.pickerSearchInput.value = "";
-  renderSongPickerList();
+  elements.pickerSearchClearButton.hidden = true;
+  elements.pickerSelectedOnlyCheckbox.checked = false;
+  pickerList = createSongGroupSelectList({
+    container: elements.pickerList,
+    songs: SONGS,
+    selectedSongIds: pickerSelected,
+    onSelectionChange: updatePickerSummary,
+    noResultsNotice: elements.pickerNoResultsNotice,
+    playClick: () => playSfx(SFX_EVENTS.UI_CLICK),
+  });
+  pickerList.render();
+  setPickerStickyBarVisible(true);
   elements.navigateTo("partyBattleSongPicker");
+}
+
+// 「この曲で決定」／「戻る」：どちらも固定バーを隠してから設定画面へ
+function closeSongPicker({ confirm }) {
+  if (confirm) {
+    settings.manualSongIds = SONGS.filter((song) => pickerSelected.has(song.id)).map((song) => song.id);
+    renderSongSourceDetails();
+  }
+  setPickerStickyBarVisible(false);
+  elements.navigateTo("partyBattleSetup");
+}
+
+// テスト用：選曲画面の内部状態（選択集合・グループ数）を読む
+export function getPartySongPickerStateForTest() {
+  return { selectedSongIds: [...pickerSelected], groupCount: pickerList?.getGroupCount() ?? 0 };
 }
 
 // ===== 開始前チェック =====
@@ -501,11 +545,20 @@ function startMatch(match, pool) {
   engine.start();
 }
 
+// 【2026-09-15 第4回実機QA修正・本人指示：終了後の戻り先】試合を途中終了したら、ホーム最上部ではなく
+// 「パーティー対戦カードを押した直後の設定画面（設定トップ）」へ戻す。設定はその試合の内容のまま
+// （もう一度遊ぶときに再入力が要らない）。設定画面は先頭までスクロールを戻す。
+function returnToPartySetupTop() {
+  if (settings) renderSetupFromSettings();
+  elements.navigateTo("partyBattleSetup");
+  elements.scrollToTop?.();
+}
+
 function finishAbort() {
   engine?.dispose();
   engine = null;
   resetPartyPlayScreen();
-  elements.navigateTo("start");
+  returnToPartySetupTop();
 }
 
 // 「終了｜長押し」成立 → 確認モーダル（main.js側）→ 確定でここが呼ばれる。
@@ -673,34 +726,59 @@ export function initPartyBattleScreens(newElements) {
     playSfx(SFX_EVENTS.UI_CLICK);
     openSongPicker();
   });
-  elements.setupBackButton.addEventListener("click", () => elements.navigateTo("start"));
+  // 【第4回実機QA修正】設定トップの「戻る」はホームの「パーティー対戦」カードが見える位置へ（main.js 側が実装。
+  // 無ければ従来どおりスクロール記憶付きでホームへ）
+  elements.setupBackButton.addEventListener("click", () => {
+    if (elements.navigateHomeToPartyCard) elements.navigateHomeToPartyCard();
+    else elements.navigateTo("start");
+  });
   elements.setupHelpLink.addEventListener("click", () => elements.onShowHelp());
   elements.setupNextButton.addEventListener("click", () => {
     playSfx(SFX_EVENTS.UI_CONFIRM);
     handleSetupNext();
   });
 
-  // 選曲画面
-  elements.pickerBackButton.addEventListener("click", () => elements.navigateTo("partyBattleSetup"));
-  elements.pickerSearchInput.addEventListener("input", renderSongPickerList);
-  elements.pickerSearchClearButton.addEventListener("click", () => {
-    elements.pickerSearchInput.value = "";
-    renderSongPickerList();
+  // 選曲画面（オンライン対戦の曲選択と同じ操作感。js/songGroupSelectList.js 参照）
+  elements.pickerBackButton.addEventListener("click", () => closeSongPicker({ confirm: false }));
+  // 【本人指示：テキスト入力中には音を付けない】検索欄の input は効果音なし
+  elements.pickerSearchInput.addEventListener("input", () => {
+    elements.pickerSearchClearButton.hidden = elements.pickerSearchInput.value === "";
+    pickerList?.setSearchQuery(elements.pickerSearchInput.value);
   });
+  bindSearchInputKeyboardAvoidance(elements.pickerSearchInput, elements.pickerSearchInput.closest(".search-field-row"));
+  elements.pickerSearchClearButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
+    elements.pickerSearchInput.value = "";
+    elements.pickerSearchClearButton.hidden = true;
+    pickerList?.setSearchQuery("");
+    elements.pickerSearchInput.focus();
+  });
+  elements.pickerSelectedOnlyCheckbox.addEventListener("change", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
+    pickerList?.setShowSelectedOnly(elements.pickerSelectedOnlyCheckbox.checked);
+  });
+  // 全曲選択／全曲解除（グループ単位の全選択／全解除とは別。検索で隠れている曲も含む全曲が対象）
   elements.pickerSelectAllButton.addEventListener("click", () => {
     playSfx(SFX_EVENTS.UI_CLICK);
-    elements.pickerList.querySelectorAll('input[type="checkbox"]').forEach((checkbox) => pickerSelected.add(checkbox.value));
-    renderSongPickerList();
+    pickerList?.selectAll();
   });
   elements.pickerDeselectAllButton.addEventListener("click", () => {
     playSfx(SFX_EVENTS.UI_CLICK);
-    pickerSelected = new Set();
-    renderSongPickerList();
+    pickerList?.deselectAll();
   });
   elements.pickerDoneButton.addEventListener("click", () => {
-    settings.manualSongIds = SONGS.filter((song) => pickerSelected.has(song.id)).map((song) => song.id);
-    renderSongSourceDetails();
-    elements.navigateTo("partyBattleSetup");
+    playSfx(SFX_EVENTS.UI_CONFIRM);
+    closeSongPicker({ confirm: true });
+  });
+  elements.pickerStickyConfirmButton?.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CONFIRM);
+    closeSongPicker({ confirm: true });
+  });
+  elements.pickerStickyToggle?.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
+    const isOpen = !elements.pickerReviewPanel.hidden;
+    elements.pickerReviewPanel.hidden = isOpen;
+    elements.pickerStickyToggle.setAttribute("aria-expanded", String(!isOpen));
   });
 
   // 開始前チェック
@@ -726,8 +804,11 @@ export function initPartyBattleScreens(newElements) {
     renderSetupFromSettings();
     elements.navigateTo("partyBattleSetup");
   });
+  // 【第4回実機QA修正】結果画面の「終了」も設定トップへ（「同じ設定でもう一戦」＝即再戦、「設定を変えて再戦」＝
+  // 設定画面へ、「終了」＝設定トップへ戻って一区切り。ホームへはそこから「戻る」でカード付近へ）
   elements.resultHomeButton.addEventListener("click", () => {
     clearRevealTimers();
-    elements.navigateTo("start");
+    if (lastMatch) settings = normalizePartySettings(lastMatch.settings);
+    returnToPartySetupTop();
   });
 }

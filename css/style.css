@@ -18659,15 +18659,49 @@ body[data-screen="partyBattlePlay"] .game-frame {
   display: none;
 }
 
-.party-lyric-line {
+/* 【2026-09-15 第4回実機QA修正・本人指示】歌詞ヒントは「ヒントN」バッジ＋本文を同じ1行（flex row）に置き、
+   最新のヒントを一番上へ積む。バッジは本文より小さく淡く（1行を独占しない）、本文だけ自然に折り返す。
+   オンライン早押し歌詞対戦の .online-lyrics-battle-hint-summary-item と同じ構造・同系の色。 */
+.party-lyric-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
   margin: 2px 0;
   font-size: clamp(0.78rem, 2.6vmin, 1rem);
   font-weight: 800;
   line-height: 1.5;
-  word-break: break-all;
 }
 
-.party-lyric-line.is-placeholder {
+.party-lyric-level {
+  flex: none;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--color-accent-soft);
+  color: var(--color-primary-dark);
+  font-size: 0.68em;
+  font-weight: 800;
+  white-space: nowrap;
+  opacity: 0.85;
+}
+
+.party-lyric-text {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.party-lyric-row.is-latest .party-lyric-level {
+  background: var(--color-primary);
+  color: #fff;
+  opacity: 1;
+}
+
+.party-lyric-row.is-latest {
+  color: var(--color-primary-dark);
+}
+
+.party-lyric-row.is-placeholder {
   opacity: 0.5;
 }
 
@@ -18854,6 +18888,76 @@ body[data-screen="partyBattlePlay"] .game-frame {
   padding: 8px 16px;
   font-size: 0.8rem;
   min-width: 160px;
+}
+
+/* 【2026-09-15 第4回実機QA修正・本人指示】正解公開後の音声回答の救済候補。結果オーバーレイの中で
+   「内容の高さ」だけを取り、候補が多いときはこの箱の中だけスクロール（「次へ」を画面外へ押し出さない）。 */
+.party-result-overlay > .party-rescue-box {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 42%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  width: min(360px, 100%);
+  box-sizing: border-box;
+  margin-top: 6px;
+  padding: 8px 10px;
+  border: 1.5px solid var(--color-card-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+  text-align: left;
+}
+
+.party-rescue-box[hidden] {
+  display: none;
+}
+
+.party-rescue-title {
+  margin: 0 0 4px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+}
+
+.party-rescue-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 0;
+  border-top: 1px dashed var(--color-card-border);
+}
+
+.party-rescue-info {
+  margin: 0;
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.party-rescue-note {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--color-danger);
+}
+
+.party-rescue-button {
+  align-self: flex-start;
+  flex: none;
+  padding: 6px 12px;
+  border: 2px solid var(--color-primary);
+  border-radius: 999px;
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+  font-family: inherit;
+  font-size: 0.74rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.party-rescue-button:active {
+  transform: scale(0.96);
 }
 
 /* オーバーレイ内の文章・ボタンはどれも「内容の高さ」だけを取り、縦方向に伸ばさない */

@@ -222,19 +222,32 @@ function updateCenter(match, runtime, ui) {
         elements.lyrics.appendChild(container);
       });
     }
+    // 【2026-09-15 第4回実機QA修正・本人指示】「ヒントN　歌詞」を同じ1行（row）に置き、最新のヒントを一番上に積む
+    // （オンライン早押し歌詞対戦の .online-lyrics-battle-hint-summary-item と同じ「バッジ＋本文」構造）。
+    // 表示順を逆にするだけで、進行（computeStealHintProgress）・段階（level）・答え合わせ位置は一切変えない。
+    // 2人対戦の2ビューは同じDOM順で描き、相手側はビューごと回転させる（DOM順の反転はしない）ので、
+    // どちらの向きから見ても「最新→過去」の順になる。
+    const rowsNewestFirst = [...levels].reverse();
     [...elements.lyrics.children].forEach((container) => {
       container.innerHTML = "";
-      levels.forEach((level) => {
-        const line = document.createElement("p");
-        line.className = "party-lyric-line";
-        line.textContent = level.revealedText;
-        container.appendChild(line);
+      rowsNewestFirst.forEach((level, index) => {
+        const row = document.createElement("p");
+        row.className = `party-lyric-row${index === 0 ? " is-latest" : ""}`;
+        row.dataset.level = String(level.level);
+        const badge = document.createElement("span");
+        badge.className = "party-lyric-level";
+        badge.textContent = `ヒント${level.level}`;
+        const text = document.createElement("span");
+        text.className = "party-lyric-text";
+        text.textContent = level.revealedText;
+        row.append(badge, text);
+        container.appendChild(row);
       });
       if (levels.length === 0) {
-        const line = document.createElement("p");
-        line.className = "party-lyric-line is-placeholder";
-        line.textContent = "…";
-        container.appendChild(line);
+        const row = document.createElement("p");
+        row.className = "party-lyric-row is-placeholder";
+        row.textContent = "…";
+        container.appendChild(row);
       }
     });
     applyLyricViewRotations(match);
@@ -338,6 +351,14 @@ function updateResultOverlay(match, runtime, ui) {
     elements.resultHeadline.textContent = "❌ 判定を不正解に修正";
     elements.resultSong.textContent = revealedTitle;
     elements.resultDetail.textContent = `${player?.name ?? ""} の+1点を取り消しました。正解は公開済みのため、この問題は0点で終了します`;
+  } else if (result?.type === "rescued") {
+    // 【第4回実機QA修正】正解公開後に、過去の音声回答を人間が「本当は正解だった」と救済した
+    const previous = playerById(match, result.previousPlayerId);
+    elements.resultHeadline.textContent = "⭕ 判定を修正しました";
+    elements.resultSong.textContent = revealedTitle;
+    elements.resultDetail.textContent = previous
+      ? `${player?.name ?? ""} +1pt（先に正解していた回答として救済。${previous.name} の+1点は取り消し）`
+      : `${player?.name ?? ""} +1pt（正解だった回答として救済）`;
   } else {
     elements.resultHeadline.textContent = "全員PASS";
     elements.resultSong.textContent = revealedTitle;
@@ -347,9 +368,56 @@ function updateResultOverlay(match, runtime, ui) {
   elements.resultNextButton.hidden = !showNext;
   // サドンデスで正解が出た＝決着。それ以外は（最終問題でも首位同点ならサドンデスへ進むため）「次へ」で統一。
   elements.resultNextButton.textContent = runtime.isSuddenDeath && result?.type === "correct" ? "結果発表へ" : "次へ";
-  const canOverride = Boolean(ui.voice) && (phase === PARTY_PHASE.CORRECT_RESULT || phase === PARTY_PHASE.WRONG_RESULT);
+  // 既存の「判定を修正」（正解→不正解にして0点で終了）。救済で確定した結果（rescued）には出さない（別機能なので混同しない）
+  const canOverride = Boolean(ui.voice) && result?.type !== "rescued" && (phase === PARTY_PHASE.CORRECT_RESULT || phase === PARTY_PHASE.WRONG_RESULT);
   elements.overrideButton.hidden = !canOverride;
   elements.overrideButton.textContent = phase === PARTY_PHASE.CORRECT_RESULT ? "判定を修正（不正解にして0点で終了）" : "判定を修正";
+  updateRescueBox(match, runtime, ui);
+}
+
+// 【2026-09-15 第4回実機QA修正・本人指示：音声回答の誤判定を正解公開後に救済】
+// 正解曲名が公開された結果表示（正解／全員PASS）で、この問題中に「不正解」として処理された音声回答があれば、
+// 回答順に「誰が・何と認識され・どう判定されたか」を並べ、その場の人間が「この回答を正解に修正」できる。
+// 候補が無ければ何も出さない（通常のテンポは変えない）。候補は engine の snapshot（ui.rescuableVoiceAttempts）から。
+function updateRescueBox(match, runtime, ui) {
+  const box = elements.rescueBox;
+  if (!box) return;
+  const candidates = ui.rescuableVoiceAttempts ?? [];
+  const show = candidates.length > 0 && canRevealSolution(runtime) && !ui.paused;
+  box.hidden = !show;
+  box.innerHTML = "";
+  if (!show) return;
+  const title = document.createElement("p");
+  title.className = "party-rescue-title";
+  title.textContent = runtime.lastResult?.type === "rescued" ? "他に見直す回答があります" : "判定を見直す回答があります";
+  box.appendChild(title);
+  candidates.forEach((attempt) => {
+    const player = playerById(match, attempt.playerId);
+    const row = document.createElement("div");
+    row.className = "party-rescue-row";
+    row.dataset.order = String(attempt.order);
+    const info = document.createElement("p");
+    info.className = "party-rescue-info";
+    const heard = attempt.transcripts?.[0] ? `認識：「${attempt.transcripts[0]}」` : "認識：（音声を取得できず）";
+    const judged = attempt.outcome === "overtaken" ? "正解扱い → 先の回答を救済したため取り消し" : `${attempt.judgedBy === "human" ? "人間判定" : "自動判定"}：不正解`;
+    info.textContent = `${attempt.order}番目　${player?.name ?? ""}　${heard}　${judged}`;
+    row.appendChild(info);
+    // これより前に別の候補があるなら注意書き（早押しなので、本当に正解だった中で最も早い人を正解者にする運用）
+    const earlier = candidates.filter((other) => other.order < attempt.order);
+    if (earlier.length > 0) {
+      const note = document.createElement("p");
+      note.className = "party-rescue-note";
+      note.textContent = `※これより前に ${earlier.map((other) => playerById(match, other.playerId)?.name ?? "").join("・")} の回答があります`;
+      row.appendChild(note);
+    }
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "party-rescue-button";
+    button.textContent = "この回答を正解に修正";
+    button.addEventListener("click", () => engine?.rescueVoiceAttempt(attempt.order));
+    row.appendChild(button);
+    box.appendChild(row);
+  });
 }
 
 // 人間判定へ落ちた理由を、ユーザーに分かる短い文へ（本人指示：「音声回答を選んだのに何も起きない」を禁止）。
@@ -465,8 +533,8 @@ export function resetPartyPlayScreen() {
   renderedQuestionOrdinal = null;
   elements.seats.innerHTML = "";
   seatElements = new Map();
-  [elements.resultOverlay, elements.voiceOverlay, elements.pauseOverlay, elements.notice, elements.introOverlay, elements.replayButton].forEach((el) => {
-    el.hidden = true;
+  [elements.resultOverlay, elements.voiceOverlay, elements.pauseOverlay, elements.notice, elements.introOverlay, elements.replayButton, elements.rescueBox].forEach((el) => {
+    if (el) el.hidden = true;
   });
   elements.lyrics.innerHTML = "";
   delete elements.lyrics.dataset.views;

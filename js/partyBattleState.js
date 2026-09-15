@@ -345,6 +345,13 @@ export function createQuestionRuntime({ question, questionNumber, totalQuestions
     playCount: 0,
     playbackEnded: false,
     voice: null, // 音声回答の進行状況（エンジンが埋める。純粋関数はここを見ない）
+    // 【2026-09-15 第4回実機QA修正・本人指示：音声回答の誤判定を正解公開後に救済】
+    // この問題の中で行われた音声回答の一時履歴（永続保存しない。個人PB・ランキング・苦手曲には一切混ぜない）。
+    // 要素: { order, key, playerId, transcripts, matchedTitle, autoVerdict, judgedBy, outcome, atMs }
+    //   order: 回答順（1始まり）／key: 同じ回答権の再判定（人間判定で覆す等）を同じ要素へ上書きするための識別子
+    //   outcome: "wrong"（不正解として処理）| "correct"（正解として処理）| "overtaken"（正解扱いだったが、
+    //            より早い回答が救済されて正解者でなくなった）| "voided"（正解表示から不正解へ修正）
+    voiceAttempts: [],
     // 【2026-09-15 第2回実機QA修正・本人指示：正解曲名の公開ルール】
     // 「問題が継続する可能性がある間は正解曲名を公開しない。正解／PASS等で問題終了が確定した瞬間だけ公開する」
     // を5出題タイプ共通のルールにするためのフラグ。true になった問題は二度と出題中（COUNTDOWN／ACTIVE）へ戻さない。
@@ -482,6 +489,82 @@ export function voidRevealedCorrect(runtime) {
   };
 }
 
+// ===== 音声回答の履歴と「正解公開後の救済」（2026-09-15 第4回実機QA修正・本人指示） =====
+//
+// 【背景】音声認識＋曲名マッチャーは100%ではない。「イコールラブ」と言ったのに不正解と判定され、本人もその場では
+// 確信が無くそのまま続行 → 全員PASSで正解「＝LOVE」が公開されて初めて「さっきの回答は正解だった」と分かる、
+// というケースを救うための仕組み。通常のテンポは変えない（自動不正解のたびに確認画面を出さない）。
+// 正解曲名が公開された（solutionRevealed）結果表示中にだけ、過去に「不正解」処理された音声回答を一覧し、
+// その場の人間が「確かに今の正解曲を言っていた」と判断した回答だけを +1pt の正解者へ修正できる。
+// 既存の「判定を修正（正解→不正解にして0点で終了）」＝voidRevealedCorrect とは逆方向の操作で、lastResult.type
+// を "rescued" にして区別する。
+
+// 音声回答1件を履歴へ記録（同じ key があれば上書き＝同じ回答権の再判定。order は最初の記録時のまま）。
+export function recordVoiceAttempt(runtime, attempt) {
+  const attempts = runtime.voiceAttempts ?? [];
+  const existingIndex = attempts.findIndex((entry) => entry.key === attempt.key);
+  if (existingIndex >= 0) {
+    const next = [...attempts];
+    next[existingIndex] = { ...attempts[existingIndex], ...attempt, order: attempts[existingIndex].order };
+    return { ...runtime, voiceAttempts: next };
+  }
+  return { ...runtime, voiceAttempts: [...attempts, { ...attempt, order: attempts.length + 1 }] };
+}
+
+// 履歴の中で「正解として処理されている」要素の outcome を newOutcome へ（救済で正解者が入れ替わるとき用）。
+function replaceVoiceAttemptOutcome(attempts, fromOutcome, toOutcome) {
+  return attempts.map((entry) => (entry.outcome === fromOutcome ? { ...entry, outcome: toOutcome } : entry));
+}
+
+// 救済候補（正解公開後にだけ意味を持つ）。不正解として処理された回答と、救済で正解者でなくなった回答。回答順。
+export function listRescuableVoiceAttempts(runtime) {
+  if (!runtime.solutionRevealed) return [];
+  if (runtime.phase !== PARTY_PHASE.CORRECT_RESULT && runtime.phase !== PARTY_PHASE.PASS_RESULT) return [];
+  return (runtime.voiceAttempts ?? [])
+    .filter((entry) => entry.outcome === "wrong" || entry.outcome === "overtaken")
+    .sort((a, b) => a.order - b.order);
+}
+
+// 指定の回答（order）を「本当は正解だった」として救済し、その問題の最終正解者にする。
+//   ・問題は終了したまま（phase は CORRECT_RESULT、solutionRevealed は true のまま。再開しない）
+//   ・現在の正解者（scoreCredited なら）の +1 を取り消し、救済した人へ +1（二重加算しない。1問の正解者は1人）
+//   ・lastResult.type = "rescued"（既存の "correct"／"voided" と区別）
+// 戻り値: { match, runtime } または、救済できない状態なら null。
+export function rescueVoiceAttempt(match, runtime, order) {
+  const candidates = listRescuableVoiceAttempts(runtime);
+  const target = candidates.find((entry) => entry.order === order);
+  if (!target) return null;
+  let nextMatch = match;
+  let attempts = runtime.voiceAttempts ?? [];
+  const previousPlayerId = runtime.lastResult?.playerId ?? null;
+  const previousType = runtime.lastResult?.type ?? null;
+  // 今の正解者の得点を取り消す（全員PASS＝0点なら何もしない）
+  if (runtime.scoreCredited && previousPlayerId) {
+    nextMatch = addScore(nextMatch, previousPlayerId, -1);
+    attempts = replaceVoiceAttemptOutcome(attempts, "correct", "overtaken");
+  }
+  nextMatch = addScore(nextMatch, target.playerId, 1);
+  attempts = attempts.map((entry) => (entry.order === order ? { ...entry, outcome: "correct", judgedBy: "human" } : entry));
+  const nextRuntime = {
+    ...runtime,
+    phase: PARTY_PHASE.CORRECT_RESULT,
+    solutionRevealed: true,
+    scoreCredited: true,
+    acceptedClaim: { playerId: target.playerId, choiceId: null },
+    voiceAttempts: attempts,
+    lastResult: {
+      type: "rescued",
+      playerId: target.playerId,
+      choiceId: null,
+      revived: false,
+      judgedBy: "human",
+      previousPlayerId: previousType === "correct" || previousType === "rescued" ? previousPlayerId : null,
+      previousType,
+    },
+  };
+  return { match: nextMatch, runtime: nextRuntime };
+}
+
 // ===== 再生回数と「もう一度聴く」（2026-09-15 第3回実機QA修正） =====
 
 // 再聴できる出題タイプ（イントロは曲頭〜曲末を流すため対象外。歌詞は音源を流さない）。
@@ -588,7 +671,7 @@ export function resolveAfterPlannedQuestions(match) {
 // 誰も正解しなかった（全員PASS）なら次のサドンデス問題へ。
 export function resolveSuddenDeathOutcome(runtime) {
   const result = runtime.lastResult;
-  if (result?.type === "correct" && result.playerId) return { kind: "finished", winnerId: result.playerId };
+  if ((result?.type === "correct" || result?.type === "rescued") && result.playerId) return { kind: "finished", winnerId: result.playerId };
   return { kind: "continue" };
 }
 

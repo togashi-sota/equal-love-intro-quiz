@@ -196,6 +196,11 @@
     import { runPartyBattlePlayLayoutTests } from "./tests/partyBattlePlayLayout.test.js";
     import { runPartyBattleRevealPolicyTests } from "./tests/partyBattleRevealPolicy.test.js";
     import { runPartyBattlePlaybackTests } from "./tests/partyBattlePlayback.test.js";
+    // 第4回実機QA修正（2026-09-15）
+    import { runPartyBattleVoiceRescueStateTests, runPartyBattleVoiceRescueUiTests } from "./tests/partyBattleVoiceRescue.test.js";
+    import { runPartyBattleLyricsHintRowsTests } from "./tests/partyBattleLyricsHintRows.test.js";
+    import { runPartyBattleSongPickerTests } from "./tests/partyBattleSongPicker.test.js";
+    import { runPartyBattleNavigationTests } from "./tests/partyBattleNavigation.test.js";
     import { runAnswerButtonInteractionTests } from "./tests/answerButtonInteraction.test.js";
     import { runOnlineBattleRoomIdTests } from "./tests/onlineBattleRoomId.test.js";
     import { runPresencePayloadsTests } from "./tests/presencePayloads.test.js";
@@ -365,6 +370,11 @@
     await runPartyBattlePlayLayoutTests();
     await runPartyBattleRevealPolicyTests();
     await runPartyBattlePlaybackTests();
+    runPartyBattleVoiceRescueStateTests();
+    await runPartyBattleVoiceRescueUiTests();
+    await runPartyBattleLyricsHintRowsTests();
+    await runPartyBattleSongPickerTests();
+    await runPartyBattleNavigationTests();
     await runAnswerButtonInteractionTests();
     runOnlineBattleRoomIdTests();
     runPresencePayloadsTests();

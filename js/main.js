@@ -3,7 +3,7 @@
 
 import { SONGS } from "./data/songs.js";
 import { AUDIO_METADATA } from "./data/audioMetadata.js";
-import { showScreen, onScreenChange } from "./screens.js";
+import { showScreen, onScreenChange, scrollToTop } from "./screens.js";
 import {
   getLyricsQuizRevealAudioEnabled,
   getInstantChallengeRevealAudioEnabled,
@@ -6286,6 +6286,16 @@ function navigateBattleScreen(screenName) {
   navigateWithScrollMemory(screenName);
 }
 
+// ホームの特別モードカード（data-mode-id）を画面内へスクロールして見せる（1フレーム後：DOM更新・レイアウト確定を待つ）。
+// カードが見つからなければ何もしない（スクロール記憶による復元位置のまま）。
+function scrollHomeToSpecialModeCard(modeId) {
+  requestAnimationFrame(() => {
+    const card = document.querySelector(`#start-screen .special-mode-card[data-mode-id="${modeId}"]`);
+    if (!card) return;
+    card.scrollIntoView({ block: "center", behavior: "auto" });
+  });
+}
+
 initLocalBattleScreens({
   navigateTo: navigateBattleScreen,
   modeSelectBackButton: battleModeSelectBackButtonElement,
@@ -6325,6 +6335,13 @@ initLocalBattleScreens({
 const partyBattleQuitModalElement = document.getElementById("party-battle-quit-modal");
 initPartyBattleScreens({
   navigateTo: navigateBattleScreen,
+  scrollToTop,
+  // 【2026-09-15 第4回実機QA修正・本人指示】設定トップの「戻る」はホーム最上部ではなく「パーティー対戦」カード付近へ。
+  // スクロール記憶（navigateWithScrollMemory）で戻したあと、レイアウト確定後にカードを画面中央へ寄せる。
+  navigateHomeToPartyCard: () => {
+    navigateBattleScreen("start");
+    scrollHomeToSpecialModeCard("partyBattle");
+  },
   onShowHelp: () => openSpecialModeHelp("partyBattle"),
   setupBackButton: document.getElementById("party-battle-setup-back-button"),
   setupHelpLink: document.getElementById("party-battle-setup-help-link"),
@@ -6352,6 +6369,15 @@ initPartyBattleScreens({
   pickerSearchClearButton: document.getElementById("party-song-picker-search-clear-button"),
   pickerList: document.getElementById("party-song-picker-list"),
   pickerDoneButton: document.getElementById("party-song-picker-done-button"),
+  pickerMinNotice: document.getElementById("party-song-picker-min-notice"),
+  pickerSelectedOnlyCheckbox: document.getElementById("party-song-picker-selected-only-checkbox"),
+  pickerNoResultsNotice: document.getElementById("party-song-picker-no-results-notice"),
+  pickerStickyBar: document.getElementById("party-song-picker-sticky-bar"),
+  pickerReviewPanel: document.getElementById("party-song-picker-review-panel"),
+  pickerReviewChips: document.getElementById("party-song-picker-review-chips"),
+  pickerStickyToggle: document.getElementById("party-song-picker-sticky-toggle"),
+  pickerStickyCount: document.getElementById("party-song-picker-sticky-count"),
+  pickerStickyConfirmButton: document.getElementById("party-song-picker-sticky-confirm-button"),
   preflightBackButton: document.getElementById("party-battle-preflight-back-button"),
   preflightSummary: document.getElementById("party-preflight-summary"),
   preflightPoolStatus: document.getElementById("party-preflight-pool-status"),
@@ -6385,6 +6411,7 @@ initPartyPlayScreen({
   passButton: document.getElementById("party-play-pass-button"),
   passProgress: document.getElementById("party-play-pass-progress"),
   replayButton: document.getElementById("party-play-replay-button"),
+  rescueBox: document.getElementById("party-play-rescue-box"),
   quitButton: document.getElementById("party-play-quit-button"),
   quitProgress: document.getElementById("party-play-quit-progress"),
   introOverlay: document.getElementById("party-play-intro-overlay"),

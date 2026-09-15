@@ -86,6 +86,7 @@ let elements = null;
 export function buildAvailableCard(mode) {
   const card = document.createElement("div");
   card.className = "special-mode-card";
+  card.dataset.modeId = mode.id; // 画面遷移で「このカード付近へ戻る」ために参照する（js/main.js scrollHomeToSpecialModeCard）
 
   const tapTarget = document.createElement("button");
   tapTarget.type = "button";
