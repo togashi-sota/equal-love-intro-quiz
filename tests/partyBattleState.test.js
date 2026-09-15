@@ -22,8 +22,11 @@ import {
   resolveWrong,
   finishWrongResult,
   passQuestion,
-  instantPass,
-  resolveInstantAllPassed,
+  markPlaybackStarted,
+  markPlaybackEnded,
+  canReplay,
+  beginReplay,
+  resolveRemainingReplays,
   applyQuestionOutcome,
   creditCorrectScore,
   revokeCorrectScore,
@@ -193,29 +196,57 @@ export function runPartyBattleStateTests() {
     assertEqual(after.scores.p1 + after.scores.p2, 0, "PASSは0点");
   }
 
-  // ===== 一瞬：個別PASS、全員PASSで同じ箇所を再試聴、最終試聴で終了。お手つきロックは試聴を跨ぐ =====
+  // ===== 再生回数と「🔁 もう一度聴く」（2026-09-15 第3回実機QA修正：一瞬の席PASSは撤去） =====
   {
     const match = buildMatch({ playerCount: 3, emptySeatId: "topLeft" });
+    const instantSettings = normalizePartySettings({ ...match.settings, quizType: "instant", instantMaxListens: 3 });
+    const randomSettings = normalizePartySettings({ ...match.settings, quizType: "random" });
+    const outroSettings = normalizePartySettings({ ...match.settings, quizType: "outro" });
+    const introSettings = normalizePartySettings({ ...match.settings, quizType: "intro" });
     let runtime = buildActiveRuntime(match);
+    assertEqual("instantPassedPlayerIds" in runtime, false, "一瞬の席ごとのPASS状態は持たない（撤去済み）");
+    assertEqual(runtime.playCount, 0, "問題開始時の再生回数は0");
+    runtime = markPlaybackStarted(runtime);
+    assertEqual(runtime.playCount, 1, "STARTで最初の出題再生を1回目として数える");
+    assertEqual(canReplay(runtime, instantSettings), false, "再生中（終了前）は「もう一度聴く」を出さない");
+    runtime = markPlaybackEnded(runtime);
+    assertEqual(canReplay(runtime, instantSettings), true, "一瞬：区間の再生が終わったら再聴できる（1/3）");
+    assertEqual(resolveRemainingReplays(runtime, instantSettings), 2, "一瞬3回設定：初回1回＋再聴2回");
+    assertEqual(canReplay(runtime, randomSettings), true, "ランダム再生：曲末到達後に再聴できる");
+    assertEqual(canReplay(runtime, outroSettings), true, "アウトロ：区間終了後に再聴できる");
+    assertEqual(canReplay(runtime, introSettings), false, "イントロ：再聴なし（曲頭〜曲末を流すため）");
+    assertEqual(resolveRemainingReplays(runtime, randomSettings), null, "ランダム再生の再聴は無制限");
+
+    // お手つきロック・消去済み候補は再聴で変わらない
     runtime = resolveWrong(claimAnswer(runtime, { playerId: "p1", choiceId: "b" }), { otetsuki: true });
     runtime = activateQuestion(finishWrongResult(runtime));
-    let result = instantPass(runtime, "p2");
-    assertEqual(result.allPassed, false, "p3がまだ回答できるので全員PASSではない");
-    assertEqual(canPlayerAnswer(result.runtime, "p2"), false, "PASSした人はその試聴回は回答不可");
-    assertEqual(instantPass(result.runtime, "p1"), null, "お手つきロック中の人はPASSできない");
-    result = instantPass(result.runtime, "p3");
-    assertEqual(result.allPassed, true, "回答可能な全員がPASSしたら全員PASS");
-    runtime = resolveInstantAllPassed(result.runtime, 3);
-    assertEqual(runtime.phase, PARTY_PHASE.COUNTDOWN, "残り試聴があれば3・2・1から再試聴");
-    assertEqual(runtime.instantListenIndex, 2, "試聴回数が進む");
-    assertEqual(runtime.instantPassedPlayerIds, [], "PASSロックは試聴単位でリセット");
-    assertEqual(runtime.lockedPlayerIds, ["p1"], "お手つきロックは試聴を跨いで維持");
-    runtime = activateQuestion(runtime);
-    runtime = resolveInstantAllPassed(instantPass(instantPass(runtime, "p2").runtime, "p3").runtime, 3);
-    assertEqual(runtime.instantListenIndex, 3, "3回目");
-    runtime = activateQuestion(runtime);
-    runtime = resolveInstantAllPassed(instantPass(instantPass(runtime, "p2").runtime, "p3").runtime, 3);
-    assertEqual(runtime.phase, PARTY_PHASE.PASS_RESULT, "最終試聴で全員PASSなら問題終了（0点）");
+    assertEqual(canReplay(runtime, instantSettings), true, "誤答→再開後も、再生が終わっていれば再聴できる（playbackEnded は再開で変わらない）");
+    let replay = beginReplay(runtime, instantSettings);
+    assertEqual(replay.phase, PARTY_PHASE.COUNTDOWN, "再聴は3・2・1から");
+    assertEqual(replay.needsFreshPlayback, true, "再聴は同じ位置を最初から鳴らす");
+    assertEqual(replay.lockedPlayerIds, ["p1"], "再聴してもお手つきロックは解除されない");
+    assertEqual(replay.eliminatedChoiceIds, ["b"], "再聴しても消去済みの候補は復活しない");
+    assertEqual(canRevealSolution(replay), false, "再聴は問題継続：正解曲名は公開しない");
+    assertEqual(canPlayerAnswer(replay, "p2"), false, "再聴のカウントダウン中は回答できない");
+    replay = markPlaybackStarted(activateQuestion(replay));
+    assertEqual(replay.playCount, 2, "再聴で再生回数が進む（2/3）");
+    assertEqual(replay.playbackEnded, false, "鳴らし始めたら「もう一度聴く」は消える");
+    replay = markPlaybackStarted(activateQuestion(beginReplay(markPlaybackEnded(replay), instantSettings)));
+    assertEqual(replay.playCount, 3, "3/3");
+    replay = markPlaybackEnded(replay);
+    assertEqual(resolveRemainingReplays(replay, instantSettings), 0, "上限に到達");
+    assertEqual(canReplay(replay, instantSettings), false, "上限到達後は再聴できない");
+    assertEqual(beginReplay(replay, instantSettings), null, "上限到達後の再聴要求は無視");
+    assertEqual(replay.phase, PARTY_PHASE.ACTIVE, "上限到達＝自動PASSにはならず問題は継続（ACTIVEのまま）");
+    assertEqual(canPlayerAnswer(replay, "p2"), true, "上限到達後も回答できる");
+    assertEqual(passQuestion(replay).phase, PARTY_PHASE.PASS_RESULT, "上限到達後も全員PASSで問題終了できる");
+    assertEqual(canReplay(replay, randomSettings), true, "ランダム再生なら同じ状態でも無制限に再聴できる");
+    const passed = passQuestion(replay);
+    assertEqual(canReplay(passed, randomSettings), false, "問題終了後（PASS）は再聴できない");
+    const correct = resolveCorrect(claimAnswer(replay, { playerId: "p2", choiceId: "a" }));
+    assertEqual(canReplay(correct, randomSettings), false, "正解後は再聴できない");
+    assertEqual(canPlayerAnswer(correct, "p3"), false, "正解後は回答できない");
+    assertEqual(passQuestion(correct), null, "正解後は全員PASSできない");
   }
 
   // ===== 得点：正解確定時に+1、人間判定で覆したら戻す（二重計上なし） =====
@@ -266,16 +297,15 @@ export function runPartyBattleStateTests() {
     runtime = resolveCorrect(claimAnswer(runtime, { playerId: "p2", choiceId: "a" }));
     assertEqual(canRevealSolution(runtime), true, "正解確定で公開");
     assertEqual(canRevealSolution(passQuestion(buildActiveRuntime(match))), true, "全員PASS（問題終了）で公開");
-    // 一瞬：途中の試聴回の全員PASSでは非公開、最終試聴で公開
-    let instant = buildActiveRuntime(match);
-    let replay = resolveInstantAllPassed(instantPass(instantPass(instant, "p1").runtime, "p2").runtime, 3);
-    assertEqual(replay.phase, PARTY_PHASE.COUNTDOWN, "一瞬：残り試聴があれば再試聴");
-    assertEqual(canRevealSolution(replay), false, "一瞬：再試聴に進む全員PASSでは非公開");
-    replay = activateQuestion(replay);
-    replay = { ...replay, instantListenIndex: 3 };
-    const final = resolveInstantAllPassed(instantPass(instantPass(replay, "p1").runtime, "p2").runtime, 3);
-    assertEqual(final.phase, PARTY_PHASE.PASS_RESULT, "一瞬：最終試聴の全員PASSで問題終了");
-    assertEqual(canRevealSolution(final), true, "一瞬：最終試聴の全員PASSで公開");
+    // 一瞬・ランダム・アウトロ：再聴（問題継続）では非公開、全員PASS（問題終了）で公開
+    const instantSettings = normalizePartySettings({ ...match.settings, quizType: "instant", instantMaxListens: 3 });
+    let instant = markPlaybackEnded(markPlaybackStarted(buildActiveRuntime(match)));
+    const replay = beginReplay(instant, instantSettings);
+    assertEqual(replay.phase, PARTY_PHASE.COUNTDOWN, "一瞬：「もう一度聴く」は3・2・1から");
+    assertEqual(canRevealSolution(replay), false, "一瞬：再聴では非公開");
+    const replayed = markPlaybackEnded(markPlaybackStarted(activateQuestion(replay)));
+    assertEqual(canRevealSolution(replayed), false, "一瞬：再聴後も回答待ちの間は非公開");
+    assertEqual(canRevealSolution(passQuestion(replayed)), true, "一瞬：全員PASSで公開");
   }
 
   // ===== 順位・サドンデス =====

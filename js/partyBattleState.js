@@ -334,8 +334,16 @@ export function createQuestionRuntime({ question, questionNumber, totalQuestions
     lockedPlayerIds: [], // お手つきで回答不可になったプレイヤー。問題終了まで維持（全員ロック時だけ解除）
     lastResult: null, // { type: "correct"|"wrong"|"pass", playerId, choiceId, revived, judgedBy }
     revivedAll: false, // 直前の不正解で「全員復活！」が起きた（表示用）
-    instantListenIndex: 1, // 一瞬：今何回目の試聴か（1始まり）
-    instantPassedPlayerIds: [], // 一瞬：この試聴回でPASSした人（次の試聴で解除）
+    // 【2026-09-15 第3回実機QA修正・本人指示：「もう一度聴く」と「全員PASS」の分離】
+    // playCount：この問題で音源を（最初から）鳴らした回数。最初の出題再生を1回目として数える。
+    //   一瞬モードは settings.instantMaxListens（3／5）が上限（出題1回＋再聴2／4回）。
+    //   ランダム再生／アウトロは回数無制限。イントロは再聴なし（曲頭から曲末まで流すため）。
+    // playbackEnded：今の再生が最後まで終わった（曲末到達・区間の自動停止）。true の間だけ「もう一度聴く」を出せる。
+    //   再聴で新しく鳴らし始めるときに false へ戻す。
+    // 以前あった一瞬の「席ごとのPASS→全員PASSで再試聴」（instantPass／resolveInstantAllPassed）は、
+    // 「再聴＝中央の🔁もう一度聴く」「諦め＝中央の全員PASS｜長押し」に役割を分けたため撤去した。
+    playCount: 0,
+    playbackEnded: false,
     voice: null, // 音声回答の進行状況（エンジンが埋める。純粋関数はここを見ない）
     // 【2026-09-15 第2回実機QA修正・本人指示：正解曲名の公開ルール】
     // 「問題が継続する可能性がある間は正解曲名を公開しない。正解／PASS等で問題終了が確定した瞬間だけ公開する」
@@ -365,7 +373,6 @@ export function canPlayerAnswer(runtime, playerId) {
   if (runtime.phase !== PARTY_PHASE.ACTIVE) return false;
   if (!runtime.participantIds.includes(playerId)) return false;
   if (runtime.lockedPlayerIds.includes(playerId)) return false;
-  if (runtime.instantPassedPlayerIds.includes(playerId)) return false;
   return true;
 }
 
@@ -475,36 +482,46 @@ export function voidRevealedCorrect(runtime) {
   };
 }
 
-// 一瞬モード：各プレイヤーのPASS。その試聴回では以後回答不可。
-// 戻り値 { runtime, allPassed }：今回答できる人全員がPASSしたらallPassed=true。
-export function instantPass(runtime, playerId) {
-  if (!canPlayerAnswer(runtime, playerId)) return null;
-  const instantPassedPlayerIds = [...runtime.instantPassedPlayerIds, playerId];
-  const next = { ...runtime, instantPassedPlayerIds };
-  const answerable = runtime.participantIds.filter(
-    (id) => !runtime.lockedPlayerIds.includes(id) && !instantPassedPlayerIds.includes(id)
-  );
-  return { runtime: next, allPassed: answerable.length === 0 };
+// ===== 再生回数と「もう一度聴く」（2026-09-15 第3回実機QA修正） =====
+
+// 再聴できる出題タイプ（イントロは曲頭〜曲末を流すため対象外。歌詞は音源を流さない）。
+export const PARTY_REPLAYABLE_QUIZ_TYPES = [PARTY_QUIZ_TYPE.RANDOM, PARTY_QUIZ_TYPE.OUTRO, PARTY_QUIZ_TYPE.INSTANT];
+
+// 音源を（最初から）鳴らし始めた：回数を1つ進め、終了フラグを下ろす。エンジンが START で呼ぶ。
+export function markPlaybackStarted(runtime) {
+  return { ...runtime, playCount: runtime.playCount + 1, playbackEnded: false };
 }
 
-// 一瞬モード：全員PASS後の処理。残り試聴回数があれば「3・2・1→同じ箇所をもう一度」
-// （PASSロックだけ試聴単位でリセット。お手つきロックは維持）。最終試聴なら問題終了（0点）。
-export function resolveInstantAllPassed(runtime, maxListens) {
-  if (runtime.instantListenIndex >= maxListens) {
-    return {
-      ...runtime,
-      phase: PARTY_PHASE.PASS_RESULT,
-      acceptedClaim: null,
-      instantPassedPlayerIds: [],
-      solutionRevealed: true, // 最終試聴で全員PASS＝問題終了。ここで公開（途中の試聴回では公開しない）
-      lastResult: { type: "pass", playerId: null, choiceId: null, revived: false, judgedBy: "auto" },
-    };
-  }
-  return {
-    ...beginCountdown(runtime),
-    instantListenIndex: runtime.instantListenIndex + 1,
-    instantPassedPlayerIds: [],
-  };
+// 今の再生が最後まで終わった（曲末到達／区間の自動停止）。
+export function markPlaybackEnded(runtime) {
+  return { ...runtime, playbackEnded: true };
+}
+
+// 一瞬モードの残り再聴回数（上限 − 使用済み）。他のタイプは無制限（null）。
+export function resolveRemainingReplays(runtime, settings) {
+  if (settings.quizType !== PARTY_QUIZ_TYPE.INSTANT) return null;
+  return Math.max(0, settings.instantMaxListens - runtime.playCount);
+}
+
+// 「🔁 もう一度聴く」を出せるか：出題中（ACTIVE）で、今の再生が終わっていて、再聴可能なタイプで、
+// 一瞬なら上限に達していない。問題終了（正解・PASS・公開済み）では絶対に出さない。
+// 上限に達しても問題は終わらない（回答・全員PASSは引き続き可能。本人確定）。
+export function canReplay(runtime, settings) {
+  if (runtime.phase !== PARTY_PHASE.ACTIVE) return false;
+  if (runtime.solutionRevealed) return false;
+  if (!runtime.playbackEnded) return false;
+  if (!PARTY_REPLAYABLE_QUIZ_TYPES.includes(settings.quizType)) return false;
+  const remaining = resolveRemainingReplays(runtime, settings);
+  return remaining === null || remaining > 0;
+}
+
+// 再聴を始める：3・2・1 からやり直し、START で同じ位置（同じ問題の固定位置）を最初から鳴らす。
+// 得点・回答権・お手つきロック・消去済み候補・問題番号・公開フラグは一切変えない（本人確定）。
+export function beginReplay(runtime, settings) {
+  if (!canReplay(runtime, settings)) return null;
+  const next = beginCountdown(runtime);
+  if (!next) return null;
+  return { ...next, needsFreshPlayback: true };
 }
 
 // ===== 試合の進行 =====

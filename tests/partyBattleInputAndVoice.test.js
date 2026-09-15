@@ -27,7 +27,12 @@ import {
 } from "../js/partyBattleVoice.js";
 import {
   normalizeSpokenText,
+  isKanaOnly,
+  resolveSpokenReading,
+  SPOKEN_HOMOPHONE_READINGS,
   buildSongNameCandidates,
+  computeEditDistance,
+  resolveAllowedEditDistance,
   scoreSongAgainstSpokenText,
   matchSpokenSongName,
   decideVoiceVerdict,
@@ -469,11 +474,121 @@ export function runSongNameMatcherTests() {
   assertEqual(decideVoiceVerdict(matchSpokenSongName(["まったく関係ない言葉"], SONGS), "x"), "manual", "何にも一致しなければ人間判定へ");
   assertEqual(decideVoiceVerdict(null, "x"), "manual", "結果なしは人間判定へ");
   assertEqual(scoreSongAgainstSpokenText({ title: "ABC", searchAliases: ["ab"] }, "ab"), 3, "別名は完全一致で最高スコア");
-  assertEqual(scoreSongAgainstSpokenText({ title: "ABCDE" }, "abc"), 2, "3文字以上の前方一致は中スコア");
+  assertEqual(scoreSongAgainstSpokenText({ title: "ABCDE" }, "abc"), 1.5, "3文字以上かつ40%以上の前方一致は自動判定できる下限スコア（1.5）");
   assertEqual(scoreSongAgainstSpokenText({ title: "ABCDE" }, "cd"), 0, "3文字未満の部分一致は不一致扱い");
-  // 前方一致（score 2）で別の曲になった場合は聞き間違いの可能性があるので人間判定へ
-  assertEqual(decideVoiceVerdict({ status: "match", song: { id: "y" }, score: 2 }, "x"), "manual", "前方一致レベルの別曲は自動不正解にしない");
+  // 近似一致（score 2）・前方一致（1.5）で別の曲になった場合は聞き間違いの可能性があるので人間判定へ
+  assertEqual(decideVoiceVerdict({ status: "match", song: { id: "y" }, score: 2 }, "x"), "manual", "近似一致レベルの別曲は自動不正解にしない");
+  assertEqual(decideVoiceVerdict({ status: "match", song: { id: "y" }, score: 1.5 }, "x"), "manual", "前方一致レベルの別曲は自動不正解にしない");
   assertEqual(decideVoiceVerdict({ status: "ambiguous", song: { id: "x" }, score: 3 }, "x"), "manual", "曖昧（同点候補が複数）は人間判定へ");
+
+  runSongNameMatcherLeniencyTests();
+}
+
+// ===== 【2026-09-15 第3回実機QA修正】段階的マッチャー：表記揺れ・読み・略称・近似・誤爆防止 =====
+function runSongNameMatcherLeniencyTests() {
+  const love = SONGS.find((song) => song.id === "love");
+  assertEqual(love?.title, "＝LOVE", "前提：＝LOVE（全角＝）の曲データがある");
+  assertEqual(love.searchAliases.some((alias) => alias?.text === "国歌" && alias.reading === "こっか"), true, "前提：「国歌」はsongs.jsの既存searchAliasesにある（party専用辞書は作らない）");
+  assertEqual(love.searchAliases.some((alias) => alias === "国家" || alias?.text === "国家"), false, "本人確定：songs.jsに同音の「国家」は追加しない（matcher側で吸収）");
+
+  // --- 第3段階：表記・認識揺れ（全角／半角・空白・記号・大小） ---
+  assertEqual(normalizeSpokenText("＝LOVE"), normalizeSpokenText("=LOVE"), "全角「＝」と半角「=」は同じ正規化結果（第3回実機QAの根本原因）");
+  assertEqual(normalizeSpokenText("＝ＬＯＶＥ"), "=love", "全角英字も半角小文字へ");
+  assertEqual(normalizeSpokenText("イコール ラブ"), "いこるらぶ", "空白・長音を落としてひらがなへ");
+  ["＝LOVE", "=LOVE", "= LOVE", "=love", "イコールラブ", "いこーるらぶ", "イコール ラブ", "イコラブ", "いこらぶ", "国歌", "こっか", "LOVE", "love"].forEach((input) => {
+    const result = matchSpokenSongName([input], SONGS);
+    assertEqual(`${result.status}:${result.song?.id}`, "match:love", `「${input}」→＝LOVEに自動一致`);
+    assertEqual(decideVoiceVerdict(result, "love"), "correct", `「${input}」は正解曲が＝LOVEなら自動正解`);
+  });
+
+  // --- 同音異義（読みベース）：「国歌」を認識器が「国家」と書き起こしても、既存aliasの reading「こっか」で拾う ---
+  assertEqual(resolveSpokenReading("国家"), "こっか", "同音表記「国家」→読み「こっか」");
+  assertEqual(resolveSpokenReading("こっか"), "こっか", "かなだけの入力は入力そのものが読み");
+  assertEqual(resolveSpokenReading("=love"), null, "かな以外で表にない入力は読み不明（null）");
+  assertEqual(isKanaOnly("いこらぶ"), true, "ひらがなだけ→かな判定");
+  assertEqual(isKanaOnly("国家"), false, "漢字→かなではない");
+  assertEqual(typeof SPOKEN_HOMOPHONE_READINGS, "object", "同音表記の表は一般化されたデータ（partyBattleVoice.jsのベタ書きではない）");
+  const kokka = matchSpokenSongName(["国家"], SONGS);
+  assertEqual(`${kokka.status}:${kokka.song?.id}:${kokka.score}`, "match:love:3", "「国家」（同音）→読み一致で＝LOVEに最高スコア");
+  assertEqual(matchSpokenSongName(["国家です"], SONGS).song?.id, "love", "「国家です」も語尾を落として同音一致");
+  assertEqual(decideVoiceVerdict(matchSpokenSongName(["国家"], SONGS), "love"), "correct", "正解曲が＝LOVEなら「国家」は自動正解");
+  const otherSong = SONGS.find((song) => song.id !== "love");
+  assertEqual(decideVoiceVerdict(matchSpokenSongName(["国家"], SONGS), otherSong.id), "wrong", "正解曲が別の曲なら「国家」（＝LOVEの別名）は明確な別曲回答として自動不正解");
+
+  // --- 読みの衝突は人間判定へ：同じ読みを2曲が持つ架空データ ---
+  const clashing = [
+    { id: "a", title: "曲A", searchReading: "きょくえー", searchAliases: [{ text: "花", reading: "はな" }] },
+    { id: "b", title: "曲B", searchReading: "きょくびー", searchAliases: [{ text: "鼻", reading: "はな" }] },
+  ];
+  const clash = matchSpokenSongName(["はな"], clashing);
+  assertEqual(clash.status, "ambiguous", "同じ読みを2曲が持つ→競合として曖昧");
+  assertEqual(decideVoiceVerdict(clash, "a"), "manual", "読み衝突は自動判定せず人間判定へ");
+
+  // --- 第4段階：編集距離（長さ連動） ---
+  assertEqual(computeEditDistance("abc", "abd"), 1, "編集距離：置換1");
+  assertEqual(computeEditDistance("あいう", "あいうえ"), 1, "編集距離：挿入1");
+  assertEqual(computeEditDistance("", "abc"), 3, "編集距離：空文字");
+  assertEqual(resolveAllowedEditDistance(3), 0, "3文字以下は完全一致のみ");
+  assertEqual(resolveAllowedEditDistance(5), 1, "4〜7文字は1文字まで");
+  assertEqual(resolveAllowedEditDistance(10), 2, "8〜13文字は2文字まで");
+  assertEqual(resolveAllowedEditDistance(20), 3, "14文字以上は3文字まで");
+  assertEqual(scoreSongAgainstSpokenText({ title: "あいうえおかきく" }, "あいうえおかきけ"), 2, "8文字で1文字違い→近似一致");
+  assertEqual(scoreSongAgainstSpokenText({ title: "あいうえおかきく" }, "あいうえおかけこ"), 2, "8文字で2文字違い→近似一致");
+  assertEqual(scoreSongAgainstSpokenText({ title: "あいうえおかきく" }, "あいうえさしすせ"), 0, "8文字で4文字違い→不一致");
+  assertEqual(scoreSongAgainstSpokenText({ title: "あいう" }, "あいえ"), 0, "3文字の1文字違いは不一致（短い語は厳しく）");
+  assertEqual(scoreSongAgainstSpokenText({ title: "あいうえ" }, "あいうお"), 2, "4文字の1文字違いは近似一致");
+
+  // --- 実データ：長い曲名の1〜2文字の聞き間違いは自分の曲に自動一致（誤爆なし） ---
+  const seishun = SONGS.find((song) => song.title === '青春"サブリミナル"');
+  assertEqual(matchSpokenSongName(["青春サブリミナルー"], SONGS).song?.id, seishun.id, "「青春サブリミナルー」（長音付き）→青春サブリミナル");
+  assertEqual(matchSpokenSongName(["せいしゅんさぶりみなろ"], SONGS).song?.id, seishun.id, "読みの末尾1文字違い→青春サブリミナル");
+  assertEqual(matchSpokenSongName(["青春サブ"], SONGS).song?.id, seishun.id, "「青春サブ」（先頭部分・一意）→青春サブリミナル");
+  assertEqual(matchSpokenSongName(["青春サブ"], SONGS).status, "match", "「青春サブ」は一意なので自動判定");
+  assertEqual(matchSpokenSongName(["青春"], SONGS).status === "match", false, "「青春」（2文字の一般語）だけでは自動判定しない");
+
+  // --- 第5段階：部分一致は一意なときだけ。短い断片・一般語は人間判定 ---
+  ["あ", "らぶ", "サブ", "うた", "の"].forEach((input) => {
+    assertEqual(matchSpokenSongName([input], SONGS).status === "match", false, `「${input}」（短い断片）は自動判定しない`);
+  });
+
+  // --- 絶対条件：無関係な言葉は自動正解にならない／別曲の完全一致は自動不正解／曖昧は人間 ---
+  ["こんにちは", "わかりません", "えっとなんだっけ", "ぱす", "もう一回", "イコールラブの何か"].forEach((input) => {
+    const verdict = decideVoiceVerdict(matchSpokenSongName([input], SONGS), seishun.id);
+    assertEqual(verdict === "correct", false, `「${input}」（無関係）は自動正解にならない`);
+  });
+  assertEqual(decideVoiceVerdict(matchSpokenSongName(["＝LOVE"], SONGS), seishun.id), "wrong", "正解が青春サブリミナルのとき「＝LOVE」は別曲の完全一致→自動不正解");
+  assertEqual(decideVoiceVerdict(matchSpokenSongName(["青サブ"], SONGS), "love"), "wrong", "正解が＝LOVEのとき「青サブ」（別曲の既知略称）→自動不正解");
+  assertEqual(decideVoiceVerdict(matchSpokenSongName(["せいしゅんさぶりみなろ"], SONGS), "love"), "manual", "別曲への近似一致は聞き間違いの可能性があるので人間判定");
+
+  // --- 複数候補（認識器のalternatives）：どれかが一致すれば拾う ---
+  assertEqual(matchSpokenSongName(["国家", "こっか", "告花"], SONGS).song?.id, "love", "候補のどれかが一致すれば拾う");
+
+  // --- 全84曲クロスチェック：どの曲名・読み・別名も「別の曲」へ自動一致しない（誤爆検査） ---
+  let crossChecked = 0;
+  SONGS.forEach((song) => {
+    const inputs = [song.title, song.searchReading].filter(Boolean);
+    (song.searchAliases ?? []).forEach((alias) => {
+      if (typeof alias === "string") inputs.push(alias);
+      else inputs.push(alias.text, alias.reading);
+    });
+    inputs.filter(Boolean).forEach((input) => {
+      const result = matchSpokenSongName([input], SONGS);
+      if (result.status === "match" && result.song.id !== song.id) {
+        assertEqual(result.song.title, song.title, `「${input}」（${song.title}）が別の曲へ自動一致しない`);
+      }
+      crossChecked += 1;
+    });
+    // 曲名（8文字以上）の末尾1文字を変えた聞き間違いは、自分の曲に一致するか人間判定（別曲へ自動一致しない）
+    const normalized = normalizeSpokenText(song.title);
+    if (normalized.length >= 8) {
+      const mutated = normalized.slice(0, -1) + (normalized.endsWith("ん") ? "る" : "ん");
+      const result = matchSpokenSongName([mutated], SONGS);
+      assertEqual(result.status === "match" && result.song.id !== song.id, false, `「${mutated}」（${song.title}の末尾1文字違い）が別の曲へ自動一致しない`);
+      assertEqual(decideVoiceVerdict(result, song.id) !== "wrong", true, `「${mutated}」は自分の曲が正解なら自動不正解にならない`);
+      crossChecked += 1;
+    }
+  });
+  assertEqual(crossChecked > 150, true, `全曲の曲名・読み・別名・1文字違いを横断検査した（${crossChecked}件）`);
 }
 
 export function runPartyBattleStorageTests() {

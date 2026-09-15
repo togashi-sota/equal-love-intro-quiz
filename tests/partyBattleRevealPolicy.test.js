@@ -25,8 +25,10 @@ import {
   resolveWrong,
   finishWrongResult,
   passQuestion,
-  instantPass,
-  resolveInstantAllPassed,
+  markPlaybackStarted,
+  markPlaybackEnded,
+  canReplay,
+  beginReplay,
   voidRevealedCorrect,
   canRevealSolution,
 } from "../js/partyBattleState.js";
@@ -44,7 +46,7 @@ const QUIZ_TYPES = ["intro", "random", "outro", "instant", "lyrics"];
 
 const ELEMENT_IDS = {
   root: "party-play-root", seats: "party-play-seats", questionLabel: "party-play-question-label", lyrics: "party-play-lyrics",
-  status: "party-play-status", passButton: "party-play-pass-button", passProgress: "party-play-pass-progress",
+  status: "party-play-status", passButton: "party-play-pass-button", passProgress: "party-play-pass-progress", replayButton: "party-play-replay-button",
   quitButton: "party-play-quit-button", quitProgress: "party-play-quit-progress", introOverlay: "party-play-intro-overlay",
   introText: "party-play-intro-text", resultOverlay: "party-play-result-overlay", resultHeadline: "party-play-result-headline",
   resultSong: "party-play-result-song", resultDetail: "party-play-result-detail", overrideButton: "party-play-override-button",
@@ -82,7 +84,7 @@ function buildCase(quizType, answerMethod) {
 }
 
 function ui(overrides = {}) {
-  return { countdownValue: null, showQuestionIntro: false, paused: false, resumeRequired: false, notice: null, lyricsElapsedMs: 3000, voice: null, playbackStarted: true, finished: false, aborted: false, ...overrides };
+  return { countdownValue: null, showQuestionIntro: false, paused: false, resumeRequired: false, notice: null, lyricsElapsedMs: 3000, voice: null, playbackStarted: true, finished: false, aborted: false, canReplay: false, ...overrides };
 }
 
 function voice(status, extra = {}) {
@@ -170,18 +172,23 @@ export async function runPartyBattleRevealPolicyTests() {
       assertEqual(host.querySelector("#party-play-result-next-button").hidden, false, `${label}：修正後は「次へ」で次の問題へ`);
 
       // 全員PASS（問題終了）：公開。一瞬は最終試聴の全員PASSだけ公開
-      if (quizType === "instant") {
-        const replay = resolveInstantAllPassed(instantPass(instantPass(active, "p1").runtime, "p2").runtime, 3);
+      if (["random", "outro", "instant"].includes(quizType)) {
+        // 再聴（問題継続）：「🔁 もう一度聴く」が出ている状態でも、カウントダウン中でも正解曲名を出さない
+        const ended = markPlaybackEnded(markPlaybackStarted(active));
+        render(match, ended, ui({ canReplay: canReplay(ended, match.settings) }));
+        assertEqual(host.querySelector("#party-play-replay-button").hidden, false, `${label}：再生終了後に「もう一度聴く」が出る`);
+        assertEqual(host.querySelector("#party-play-pass-button").hidden, false, `${label}：「もう一度聴く」と同時に「全員PASS」も使える`);
+        assertEqual(visibleTextContainsTitle(), false, `${label}：再聴できる状態でも正解曲名を出さない`);
+        const replay = beginReplay(ended, match.settings);
         render(match, replay, ui({ countdownValue: 3 }));
-        assertEqual(visibleTextContainsTitle(), false, `${label}：一瞬の再試聴（残り試聴あり）では正解曲名を出さない`);
-        const finalRuntime = resolveInstantAllPassed(instantPass(instantPass({ ...active, instantListenIndex: 3 }, "p1").runtime, "p2").runtime, 3);
-        render(match, finalRuntime, ui());
-        assertEqual(host.querySelector("#party-play-result-song").textContent, CORRECT_TITLE, `${label}：最終試聴の全員PASSで正解曲名を公開`);
-      } else {
-        const passed = passQuestion(active);
-        render(match, passed, ui());
-        assertEqual(host.querySelector("#party-play-result-song").textContent, CORRECT_TITLE, `${label}：全員PASS（問題終了）で正解曲名を公開`);
+        assertEqual(visibleTextContainsTitle(), false, `${label}：再聴のカウントダウン中も正解曲名を出さない`);
+        assertEqual(host.querySelector("#party-play-replay-button").hidden, true, `${label}：再聴のカウントダウン中は「もう一度聴く」を出さない`);
       }
+      const passed = passQuestion(active);
+      render(match, passed, ui());
+      assertEqual(host.querySelector("#party-play-result-song").textContent, CORRECT_TITLE, `${label}：全員PASS（問題終了）で正解曲名を公開`);
+      assertEqual(host.querySelector("#party-play-replay-button").hidden, true, `${label}：問題終了後は「もう一度聴く」を出さない`);
+      assertEqual(host.querySelector("#party-play-pass-button").hidden, true, `${label}：問題終了後は「全員PASS」を出さない`);
       resetPartyPlayScreen();
     }
   }

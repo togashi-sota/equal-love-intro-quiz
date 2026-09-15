@@ -38,6 +38,7 @@ import {
   resumeAudioForExternalUi,
 } from "./audio.js";
 import { RANDOM_PLAYBACK_DEFAULTS, computeRandomStartTimeSec, clampStartTimeToActualDuration } from "./randomPlaybackEngine.js";
+import { computeStealHintProgress } from "./lyricsQuizBattleTiming.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
 import { getPlaylistById } from "./playlists.js";
 import { notifyPlaybackStarting } from "./playbackCoordinator.js";
@@ -57,9 +58,11 @@ import {
   resolveWrong,
   finishWrongResult,
   passQuestion,
-  instantPass,
-  resolveInstantAllPassed,
   voidRevealedCorrect,
+  markPlaybackStarted,
+  markPlaybackEnded,
+  canReplay,
+  beginReplay,
   applyQuestionOutcome,
   creditCorrectScore,
   revokeCorrectScore,
@@ -88,6 +91,7 @@ const COUNTDOWN_STEP_MS = 800; // 3→2→1の各表示時間
 const START_LABEL_MS = 700; // 「START!」の表示時間（この間も入力は有効）
 const QUESTION_INTRO_MS = 1200; // 「第N問」の表示時間
 const OUTRO_PLAY_DURATION_SEC = 5; // 既存アウトロクイズと同じ「曲の最後5秒」
+const REVIEW_PLAYBACK_DELAY_MS = 900; // 正解SFXが鳴り終わってから答え合わせ音源を始めるまでの間
 const MAX_RESERVE_COUNT = 3; // 音源失敗時の差し替え用に余分に用意する曲数
 const VOICE_TICK_MS = 100;
 const LYRICS_TICK_MS = 100;
@@ -191,7 +195,13 @@ function buildQuestionForSong(song, { settings, distractorSongs, songsWithLyrics
       seed: (seed + ordinal * 7919) >>> 0,
     });
     if (!question) return null;
-    return { song, choices: question.answerPool, hints: question.hints };
+    return {
+      song,
+      choices: question.answerPool,
+      hints: question.hints,
+      revealStartTimeSec: question.revealStartTimeSec,
+      revealStartTimeSecByHintLevel: question.revealStartTimeSecByHintLevel,
+    };
   }
   if (settings.quizType === PARTY_QUIZ_TYPE.INSTANT) {
     const question = buildInstantChallengeQuestion(song, distractorSongs, { answerPoolSizeValue: "4" }, distractorSongs);
@@ -215,7 +225,13 @@ function buildInitialQuestions({ settings, poolSongs, distractorSongs, songsWith
       answerPoolSizeValue: "4",
       seed,
     });
-    questions = built.map((question) => ({ song: question.song, choices: question.answerPool, hints: question.hints }));
+    questions = built.map((question) => ({
+      song: question.song,
+      choices: question.answerPool,
+      hints: question.hints,
+      revealStartTimeSec: question.revealStartTimeSec,
+      revealStartTimeSecByHintLevel: question.revealStartTimeSecByHintLevel,
+    }));
   } else if (settings.quizType === PARTY_QUIZ_TYPE.INSTANT) {
     const songs = pickQuestionSongs(poolSongs, plannedCount + reserveCount, random);
     questions = songs.map((song) =>
@@ -256,6 +272,58 @@ export async function preparePartyMatch(settings) {
     seed,
   });
   return { ok: true, match, pool };
+}
+
+// ===== 再生位置（出題中・再聴・答え合わせで共有する純粋関数） =====
+
+// その問題の「出題で使う開始位置」を、実際の音源の長さ（durationSec）から求める。
+// ランダム再生／一瞬：seed・songId・ordinal から決定論的に1回だけ決まる（再聴・答え合わせでも同じ値）。
+// アウトロ：audioMetadata の outroStartSec（無ければ曲末5秒前）。イントロ：曲頭（introLeadInSec は playSongIntro 側）。
+export function resolveQuestionStartTimeSec({ quizType, song, seed, ordinal, instantClipSec }, durationSec) {
+  if (quizType === PARTY_QUIZ_TYPE.OUTRO) {
+    return AUDIO_METADATA[song.id]?.outroStartSec ?? Math.max(0, durationSec - OUTRO_PLAY_DURATION_SEC);
+  }
+  if (quizType === PARTY_QUIZ_TYPE.INTRO || quizType === PARTY_QUIZ_TYPE.LYRICS) {
+    return song.introLeadInSec || 0;
+  }
+  const playDurationSec = quizType === PARTY_QUIZ_TYPE.INSTANT ? Number(instantClipSec) : RANDOM_PLAYBACK_DEFAULTS.playDurationSec;
+  const canonical = computeRandomStartTimeSec({ seed, songId: song.id, questionIndex: ordinal, durationSec, playDurationSec });
+  return clampStartTimeToActualDuration(canonical, durationSec);
+}
+
+// 出題中の再生プラン：{ computeStartTimeSec(durationSec), playDurationSec }
+//   playDurationSec: null＝曲末まで止めない（ランダム再生はランダム位置から曲末まで。本人確定）
+//   アウトロ＝曲末の約5秒、一瞬＝設定した長さ（0.5／1／1.5秒）
+export function resolveQuestionPlaybackPlan({ quizType, song, seed, ordinal, instantClipSec }) {
+  const computeStartTimeSec = (durationSec) => resolveQuestionStartTimeSec({ quizType, song, seed, ordinal, instantClipSec }, durationSec);
+  if (quizType === PARTY_QUIZ_TYPE.OUTRO) return { computeStartTimeSec, playDurationSec: OUTRO_PLAY_DURATION_SEC };
+  if (quizType === PARTY_QUIZ_TYPE.INSTANT) return { computeStartTimeSec, playDurationSec: Number(instantClipSec) };
+  return { computeStartTimeSec, playDurationSec: null };
+}
+
+// 【2026-09-15 第3回実機QA修正・本人指示：正解後の答え合わせ再生】正解確定後に「その問題で使った箇所」から
+// 音源を流すためのプラン。開始位置はモードごとに次のとおり（本人確定）：
+//   イントロ：その問題のイントロ開始位置（＝曲頭）／ランダム再生：その問題の固定ランダム開始位置（新しく作らない）／
+//   アウトロ：同じアウトロ区間をもう一度（約5秒、1回だけ）／一瞬：その問題の一瞬区間の開始位置から続きを流す／
+//   歌詞：正解確定時点のヒント段階に対応する曲中位置（オンライン歌詞対戦と同じ revealStartTimeSecByHintLevel）。
+// 戻り値: { computeStartTimeSec(durationSec), playDurationSec }（null＝曲末まで）
+export function resolveReviewPlaybackPlan({ quizType, question, seed, ordinal, instantClipSec, lyricsElapsedMs }) {
+  const song = question.song;
+  if (quizType === PARTY_QUIZ_TYPE.LYRICS) {
+    const hintTexts = (question.hints ?? []).map((hint) => hint.segment?.text ?? "");
+    const { currentLevel } = computeStealHintProgress({ elapsedMs: lyricsElapsedMs ?? 0, hintTexts });
+    const byLevel = question.revealStartTimeSecByHintLevel ?? {};
+    const level = Math.max(1, currentLevel);
+    const startTimeSec = byLevel[level] ?? question.revealStartTimeSec ?? 0;
+    return {
+      computeStartTimeSec: (durationSec) => Math.min(Math.max(startTimeSec, 0), Math.max(durationSec - 0.5, 0)),
+      playDurationSec: null,
+      hintLevel: level,
+    };
+  }
+  const computeStartTimeSec = (durationSec) => resolveQuestionStartTimeSec({ quizType, song, seed, ordinal, instantClipSec }, durationSec);
+  if (quizType === PARTY_QUIZ_TYPE.OUTRO) return { computeStartTimeSec, playDurationSec: OUTRO_PLAY_DURATION_SEC };
+  return { computeStartTimeSec, playDurationSec: null };
 }
 
 // ===== エンジン本体 =====
@@ -331,6 +399,7 @@ export function createPartyBattleEngine({ onUpdate }) {
         playbackStarted,
         finished,
         aborted,
+        canReplay: runtime && match ? canReplay(runtime, match.settings) : false,
       },
     });
   }
@@ -382,22 +451,14 @@ export function createPartyBattleEngine({ onUpdate }) {
   }
 
   // ----- 再生 -----
-  function computeStartTimeForQuestion(durationSec) {
-    const { settings } = match;
-    const song = runtime.question.song;
-    if (settings.quizType === PARTY_QUIZ_TYPE.OUTRO) {
-      return AUDIO_METADATA[song.id]?.outroStartSec ?? Math.max(0, durationSec - OUTRO_PLAY_DURATION_SEC);
-    }
-    const playDurationSec =
-      settings.quizType === PARTY_QUIZ_TYPE.INSTANT ? Number(settings.instantClipSec) : RANDOM_PLAYBACK_DEFAULTS.playDurationSec;
-    const canonical = computeRandomStartTimeSec({
+  function currentPlaybackKey() {
+    return {
+      quizType: match.settings.quizType,
+      song: runtime.question.song,
       seed: match.seed,
-      songId: song.id,
-      questionIndex: runtime.ordinal,
-      durationSec,
-      playDurationSec,
-    });
-    return clampStartTimeToActualDuration(canonical, durationSec);
+      ordinal: runtime.ordinal,
+      instantClipSec: match.settings.instantClipSec,
+    };
   }
 
   function handleAudioFailure(message) {
@@ -421,24 +482,47 @@ export function createPartyBattleEngine({ onUpdate }) {
       startLyricsClock();
       return;
     }
+    // 曲末到達／区間の自動停止：playbackEnded を立てる（再聴できるタイプでは「🔁 もう一度聴く」が出る）。
+    // 別の問題・答え合わせ再生のコールバックが漏れて届かないよう、問題の ordinal を照合する。
+    const ordinalAtStart = runtime.ordinal;
+    const onEnded = () => {
+      if (!runtime || runtime.ordinal !== ordinalAtStart || runtime.solutionRevealed) return;
+      runtime = markPlaybackEnded(runtime);
+      emit();
+    };
     if (settings.quizType === PARTY_QUIZ_TYPE.INTRO) {
-      playSongIntro(runtime.question.song, onError, onStart);
+      playSongIntro(runtime.question.song, onError, onStart, onEnded);
       return;
     }
-    const playDurationSec =
-      settings.quizType === PARTY_QUIZ_TYPE.INSTANT
-        ? Number(settings.instantClipSec)
-        : settings.quizType === PARTY_QUIZ_TYPE.OUTRO
-          ? OUTRO_PLAY_DURATION_SEC
-          : RANDOM_PLAYBACK_DEFAULTS.playDurationSec;
-    playSongFromRandomPosition(
-      runtime.question.song,
-      (durationSec) => computeStartTimeForQuestion(durationSec),
-      playDurationSec,
-      onError,
-      onStart,
-      () => {}
-    );
+    const plan = resolveQuestionPlaybackPlan(currentPlaybackKey());
+    playSongFromRandomPosition(runtime.question.song, plan.computeStartTimeSec, plan.playDurationSec, onError, onStart, onEnded, onEnded);
+  }
+
+  // 正解後の答え合わせ再生（演出）。失敗しても正解・得点・公開・次へには影響させない。
+  function startReviewPlayback() {
+    if (!runtime || runtime.phase !== PARTY_PHASE.CORRECT_RESULT) return;
+    const ordinalAtStart = runtime.ordinal;
+    const plan = resolveReviewPlaybackPlan({
+      quizType: match.settings.quizType,
+      question: runtime.question,
+      seed: match.seed,
+      ordinal: runtime.ordinal,
+      instantClipSec: match.settings.instantClipSec,
+      lyricsElapsedMs: getLyricsElapsedMs(),
+    });
+    const ignore = () => {};
+    const onReviewError = (message) => {
+      console.warn("[パーティー対戦] 答え合わせ音源の再生に失敗しました（演出のみのため進行には影響しません）", message);
+    };
+    const onReviewStart = () => {
+      // 答え合わせ中に「次へ」「判定を修正」で結果表示を抜けていたら、鳴り始めた音を止める
+      if (!runtime || runtime.ordinal !== ordinalAtStart || runtime.phase !== PARTY_PHASE.CORRECT_RESULT) stopAudio();
+    };
+    if (match.settings.quizType === PARTY_QUIZ_TYPE.INTRO) {
+      playSongIntro(runtime.question.song, onReviewError, onReviewStart, ignore);
+      return;
+    }
+    playSongFromRandomPosition(runtime.question.song, plan.computeStartTimeSec, plan.playDurationSec, onReviewError, onReviewStart, ignore, ignore);
   }
 
   function pausePlaybackKeepingPosition() {
@@ -521,7 +605,8 @@ export function createPartyBattleEngine({ onUpdate }) {
     if (runtime.hasStartedPlayback && !runtime.needsFreshPlayback) {
       resumePlaybackFromPosition();
     } else {
-      runtime = { ...runtime, hasStartedPlayback: true, needsFreshPlayback: false };
+      // 最初から鳴らす（初回の出題再生／再聴）：再生回数を1つ進める（一瞬の「再生 N／M回」）
+      runtime = markPlaybackStarted({ ...runtime, hasStartedPlayback: true, needsFreshPlayback: false });
       startPlaybackForCurrentQuestion();
     }
     emit();
@@ -663,9 +748,11 @@ export function createPartyBattleEngine({ onUpdate }) {
     runtime = next;
     ({ match, runtime } = creditCorrectScore(match, runtime));
     stopAudio();
-    stopLyricsClock();
+    stopLyricsClock(); // 歌詞のヒント段階（答え合わせの開始位置）はここで止まった値を使う
     playSfx(SFX_EVENTS.QUIZ_CORRECT);
     emit();
+    // 正解SFXと重ならないよう少し置いてから、その問題で使った箇所を答え合わせとして流す
+    schedule(startReviewPlayback, REVIEW_PLAYBACK_DELAY_MS);
   }
 
   // ----- 音声回答 -----
@@ -868,6 +955,7 @@ export function createPartyBattleEngine({ onUpdate }) {
         // 【2026-09-15 第2回実機QA修正・公開ルール】正解表示中（正解曲名は公開済み）に「不正解」へ修正した場合、
         // 同じ問題を再開すると全員が答えを知った状態になるため再開しない。+1点を取り消し、0点でこの問題を終了する。
         if (runtime.phase === PARTY_PHASE.CORRECT_RESULT) {
+          stopAudio(); // 答え合わせ音源を即停止（clearAllTimers は上で済み）
           const claimerId = runtime.acceptedClaim?.playerId ?? null;
           ({ match, runtime } = revokeCorrectScore(match, runtime, claimerId));
           const voided = voidRevealedCorrect(runtime);
@@ -885,6 +973,7 @@ export function createPartyBattleEngine({ onUpdate }) {
       if (paused || !runtime || !voiceState) return;
       if (runtime.phase !== PARTY_PHASE.CORRECT_RESULT && runtime.phase !== PARTY_PHASE.WRONG_RESULT) return;
       clearAllTimers();
+      if (runtime.phase === PARTY_PHASE.CORRECT_RESULT) stopAudio(); // 答え合わせ音源を止めて判定に集中する
       voiceState.status = "manual";
       emit();
     },
@@ -902,34 +991,26 @@ export function createPartyBattleEngine({ onUpdate }) {
       emit();
     },
 
-    // 一瞬モード：各プレイヤーのPASS。
-    pressInstantPass(playerId) {
+    // 中央「🔁 もう一度聴く」（ランダム再生／アウトロ／一瞬。誰が押してもよい）。
+    // 問題は継続したまま、3・2・1 → START で同じ問題の同じ位置を最初から鳴らす。得点・回答権・お手つき・
+    // 消去済み候補・問題番号・公開フラグは変えない。カウントダウン中は入力を受理しない（arbiter.disable）。
+    replay() {
       if (paused || !runtime) return;
-      const result = instantPass(runtime, playerId);
-      if (!result) return;
-      runtime = result.runtime;
-      playSfx(SFX_EVENTS.UI_CLICK);
-      if (!result.allPassed) {
-        emit();
-        return;
-      }
-      arbiter.disable();
-      stopAudio();
-      const next = resolveInstantAllPassed(runtime, match.settings.instantMaxListens);
-      runtime = { ...next, needsFreshPlayback: true };
-      if (runtime.phase === PARTY_PHASE.PASS_RESULT) {
-        emit();
-        return;
-      }
-      // 残り試聴あり：3・2・1→同じ箇所をもう一度
-      emit();
+      const next = beginReplay(runtime, match.settings);
+      if (!next) return;
       clearAllTimers();
-      schedule(startCountdown, 400);
+      stopAudio();
+      runtime = next;
+      playSfx(SFX_EVENTS.UI_CLICK);
+      startCountdown();
     },
 
     // 「次の問題へ」（誰が押してもよい）。
     next() {
       if (paused || !runtime || !isWaitingForNext(runtime)) return;
+      // 答え合わせ音源（再生中でも開始予約中でも）を止め、前の問題のタイマーが次へ漏れないようにする
+      clearAllTimers();
+      stopAudio();
       playSfx(SFX_EVENTS.UI_CONFIRM);
       match = applyQuestionOutcome(match, runtime);
       if (runtime.isSuddenDeath) {

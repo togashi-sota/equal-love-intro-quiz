@@ -206,6 +206,7 @@ export function attemptSilentUnlock() {
     audioElement.onloadedmetadata = null;
     audioElement.onplaying = null;
     audioElement.onerror = null;
+    audioElement.onended = null;
     audioElement.src = SILENT_UNLOCK_DATA_URI;
     cumulativeSrcAssignmentCount++;
   }
@@ -886,7 +887,10 @@ async function attemptPlay(myToken, myObjectUrl, onError, diagnosticContext) {
 // この関数はasyncだが、呼び出し側（main.js）はawaitせずに呼びっぱなしにしている。
 // markPlaybackStarted()・startTimer()は元々この関数の完了を待たずに動く設計のため、
 // 呼び出し側を変更する必要はない。
-export async function playSongIntro(song, onError, onPlaybackStart) {
+// 【2026-09-15追加・パーティー対戦（第3回実機QA修正）】onEnded は省略可能。曲末まで自然に再生し終えた
+// （audio要素の ended）ときに1回だけ呼ぶ。stopAudio()／pauseAudioForExternalUi() による停止では呼ばれない。
+// 既存の呼び出し元（通常クイズ等）は引数を渡さないため挙動は変わらない。
+export async function playSongIntro(song, onError, onPlaybackStart, onEnded = null) {
   const { myToken, blob, stale, indexedDbError } = await acquireBlobForNewPlayback(song);
   if (stale) return;
 
@@ -935,6 +939,11 @@ export async function playSongIntro(song, onError, onPlaybackStart) {
     verifyRealPlaybackStarted(myToken, `intro, song=${song.id}`);
     onPlaybackStart();
   };
+  audioElement.onended = () => {
+    if (myToken !== currentPlaybackToken) return;
+    diag(`[ENDED] 曲末まで再生 (intro, song=${song.id})`);
+    onEnded?.();
+  };
   audioElement.onloadedmetadata = () => {
     if (myToken !== currentPlaybackToken) return;
     // 【2026-11-XX新設・本人指示：一瞬バトル「もう一度聞く」不具合の防御的二重チェック】
@@ -973,7 +982,12 @@ export async function playSongIntro(song, onError, onPlaybackStart) {
 //                    （その場合はonerror/onplaying以外のイベントが発生しないため、
 //                    呼び出し側でタイムアウト等の別の後始末をする必要はない。
 //                    自然終了時に鳴りっぱなしになることもない＝audio要素自体が止まるため）。
-export async function playSongFromRandomPosition(song, computeStartTimeSec, playDurationSec, onError, onPlaybackStart, onAutoStop) {
+// 【2026-09-15追加・パーティー対戦（第3回実機QA修正）】
+//   playDurationSec に null を渡すと「指定秒数で止めず、曲末まで流す」（自動停止タイマーを張らない）。
+//   onEnded（省略可）は曲末まで自然に再生し終えたときに1回だけ呼ぶ（自動停止・stopAudio では呼ばれない）。
+// 既存の呼び出し元（ランダム再生クイズ・一瞬・オンライン対戦・答え合わせ）は playDurationSec を数値で渡し、
+// onEnded を渡さないため挙動は変わらない。
+export async function playSongFromRandomPosition(song, computeStartTimeSec, playDurationSec, onError, onPlaybackStart, onAutoStop, onEnded = null) {
   const { myToken, blob, stale, indexedDbError } = await acquireBlobForNewPlayback(song);
   if (stale) return;
 
@@ -1023,11 +1037,18 @@ export async function playSongFromRandomPosition(song, computeStartTimeSec, play
     // 以前はここのローカル変数だったが、pauseAudioForExternalUi()から一時停止・
     // 残り時間を計算し直せるよう、モジュールスコープのscheduleAutoStop()へ差し替えた
     // （タイマーの発火条件・myTokenチェックは変更していない）。
-    scheduleAutoStop(playDurationSec * 1000, () => {
-      if (myToken !== currentPlaybackToken) return;
-      audioElement.pause();
-      onAutoStop();
-    });
+    if (typeof playDurationSec === "number" && Number.isFinite(playDurationSec)) {
+      scheduleAutoStop(playDurationSec * 1000, () => {
+        if (myToken !== currentPlaybackToken) return;
+        audioElement.pause();
+        onAutoStop();
+      });
+    }
+  };
+  audioElement.onended = () => {
+    if (myToken !== currentPlaybackToken) return;
+    diag(`[ENDED] 曲末まで再生 (randomPosition, song=${song.id})`);
+    onEnded?.();
   };
   audioElement.onloadedmetadata = () => {
     if (myToken !== currentPlaybackToken) return;

@@ -18463,29 +18463,6 @@ body[data-screen="partyBattlePlay"] .game-frame {
   cursor: default;
 }
 
-.party-instant-pass-button {
-  flex: none;
-  height: clamp(28px, 6vmin, 40px);
-  border: 2px dashed var(--seat-color);
-  border-radius: 999px;
-  background: var(--color-surface);
-  color: var(--seat-color);
-  font-family: inherit;
-  font-size: clamp(0.62rem, 2.2vmin, 0.8rem);
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.party-instant-pass-button:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
-.party-instant-pass-button.is-pressed:not(:disabled) {
-  transform: scale(0.95);
-  background: var(--seat-color-soft);
-}
-
 .party-seat-lock {
   position: absolute;
   inset: 0;
@@ -18585,6 +18562,101 @@ body[data-screen="partyBattlePlay"] .game-frame {
   background: var(--color-primary-light);
   text-align: left;
   touch-action: pan-y;
+}
+
+/* 【2026-09-15 第3回実機QA修正】2人対戦の歌詞は同じ進行を2方向へ同時表示（1 state・2 view）。
+   縦向き：上（相手側=180度回転）／下（通常）。横向き：左（90度）／右（-90度）を横に並べ、
+   90度系は js/partyBattlePlayScreen.js が幅と高さを入れ替えて指定する（席の回転と同じ方式）。 */
+.party-center-lyrics.is-dual {
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  gap: 6px;
+  max-height: 40vh;
+  overflow: hidden;
+  padding: 4px;
+  background: transparent;
+}
+
+.party-center-lyrics.is-dual[data-orientation="landscape"] {
+  grid-template-rows: none;
+  grid-template-columns: 1fr 1fr;
+  /* 中央カード（縦flex）の残り高さを使うが、問題番号・状態文・操作ボタンぶん（約160px）は必ず残す。
+     height:100% にすると問題番号が上端へ押し出され「終了｜長押し」と重なった（QA harnessで確認） */
+  flex: 1 1 0;
+  height: auto;
+  max-height: calc(100% - 160px);
+  min-height: 0;
+}
+
+.party-lyric-view {
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 6px;
+  border-radius: 10px;
+  background: var(--color-primary-light);
+}
+
+.party-lyric-view[data-rotation="180"] {
+  transform: rotate(180deg);
+}
+
+.party-center-lyrics.is-dual[data-orientation="landscape"] {
+  position: relative;
+}
+
+.party-center-lyrics.is-dual[data-orientation="landscape"] .party-lyric-view {
+  position: absolute;
+  top: 50%;
+  box-sizing: border-box;
+}
+
+.party-center-lyrics.is-dual[data-orientation="landscape"] .party-lyric-view[data-rotation="90"] {
+  left: 25%;
+  transform: translate(-50%, -50%) rotate(90deg);
+}
+
+.party-center-lyrics.is-dual[data-orientation="landscape"] .party-lyric-view[data-rotation="-90"] {
+  left: 75%;
+  transform: translate(-50%, -50%) rotate(-90deg);
+}
+
+/* 中央の操作（🔁もう一度聴く／全員PASS）：横に並べ、狭いときは折り返す。縦に伸ばさない */
+.party-center-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+}
+
+.party-center-actions > * {
+  flex: none;
+  max-width: 100%;
+}
+
+.party-replay-button {
+  padding: 8px 14px;
+  border: 2px solid var(--color-secondary);
+  border-radius: 999px;
+  background: var(--color-secondary-light);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: clamp(0.68rem, 2.3vmin, 0.85rem);
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.party-replay-button:active,
+.party-replay-button.is-pressed {
+  transform: scale(0.96);
+}
+
+.party-replay-button[hidden] {
+  display: none;
 }
 
 .party-lyric-line {

@@ -208,16 +208,23 @@ export async function runRevealAudioPlayUntilEndedTests() {
       );
     }
 
-    // js/audio.jsの共有プリミティブ（playSongFromRandomPosition）自体には一切手を加えて
-    // いないことを、シグネチャの文字列一致で確認する（オフライン側の呼び出し引数だけを
-    // 変えており、共有関数は変更していないことの保証）。
+    // js/audio.jsの共有プリミティブ（playSongFromRandomPosition）の既存の引数（第1〜第6引数）には
+    // 一切手を加えていないことを、シグネチャの文字列一致で確認する（オフライン側の呼び出し引数だけを
+    // 変えており、オンライン側の呼び出しに影響しないことの保証）。
+    // 【2026-09-15 パーティー対戦・第3回実機QA修正】第7引数 onEnded（省略可・既定null）が末尾に追加された。
+    // 省略時の挙動は従来どおりなので、既存の6引数の並びが不変であることを前方一致で確認する。
     const audioSource = await fetchSource("js/audio.js");
     assertEqual(
       audioSource.includes(
-        "export async function playSongFromRandomPosition(song, computeStartTimeSec, playDurationSec, onError, onPlaybackStart, onAutoStop) {"
+        "export async function playSongFromRandomPosition(song, computeStartTimeSec, playDurationSec, onError, onPlaybackStart, onAutoStop"
       ),
       true,
-      "js/audio.js：共有関数playSongFromRandomPosition()のシグネチャは今回一切変更していない（オフライン側の呼び出し引数だけを変えているため、オンライン側の呼び出しに影響しない）"
+      "js/audio.js：共有関数playSongFromRandomPosition()の既存6引数の並びは変更していない（末尾の省略可能な onEnded 追加のみ。オンライン側の呼び出しに影響しない）"
+    );
+    assertEqual(
+      audioSource.includes("onAutoStop, onEnded = null) {"),
+      true,
+      "js/audio.js：追加された onEnded は省略可能（既定null）で、既存呼び出しはそのまま動く"
     );
   }
 }

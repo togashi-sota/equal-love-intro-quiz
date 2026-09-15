@@ -20,6 +20,7 @@ import {
   canPlayerAnswer,
   canTapChoice,
   canRevealSolution,
+  resolveRemainingReplays,
   resolveSeatRotation,
 } from "./partyBattleState.js";
 import { attachPressHandler, attachLongPressHandler } from "./partyBattleInput.js";
@@ -118,13 +119,12 @@ function applySeatRotations(match) {
 
 // ----- 席の中身（問題が変わるたび） -----
 function buildSeatBodyForQuestion(match, runtime) {
-  const { answerMethod, quizType } = match.settings;
+  const { answerMethod } = match.settings;
   seatElements.forEach((seat) => {
     if (!seat.body) return;
     seat.body.innerHTML = "";
     seat.choiceButtons = new Map();
     seat.answerButton = null;
-    seat.passButton = null;
     const playerId = seat.playerId;
 
     if (answerMethod === PARTY_ANSWER_METHOD.FOUR_CHOICE) {
@@ -156,29 +156,19 @@ function buildSeatBodyForQuestion(match, runtime) {
       seat.body.appendChild(button);
       seat.answerButton = button;
     }
-
-    if (quizType === PARTY_QUIZ_TYPE.INSTANT) {
-      const pass = document.createElement("button");
-      pass.type = "button";
-      pass.className = "party-instant-pass-button";
-      pass.textContent = "PASS";
-      attachPressHandler(pass, () => engine.pressInstantPass(playerId));
-      seat.body.appendChild(pass);
-      seat.passButton = pass;
-    }
+    // 【2026-09-15 第3回実機QA修正】以前ここにあった一瞬モードの「席ごとのPASS」は撤去した。
+    // 再聴は中央の「🔁 もう一度聴く」、諦めは中央の「全員PASS｜長押し」に統一（本人確定）。
   });
 }
 
 // ----- 席の状態（毎回） -----
 function updateSeats(match, runtime) {
-  const active = runtime.phase === PARTY_PHASE.ACTIVE;
   seatElements.forEach((seat) => {
     if (!seat.playerId) return;
     const playerId = seat.playerId;
     seat.scoreEl.textContent = `${match.scores[playerId] ?? 0}pt`;
     const isParticipant = runtime.participantIds.includes(playerId);
     const isLocked = runtime.lockedPlayerIds.includes(playerId);
-    const hasPassed = runtime.instantPassedPlayerIds.includes(playerId);
     const isClaimer = runtime.acceptedClaim?.playerId === playerId;
     const answerable = canPlayerAnswer(runtime, playerId);
 
@@ -192,12 +182,10 @@ function updateSeats(match, runtime) {
       button.disabled = !canTapChoice(runtime, playerId, choiceId);
     });
     if (seat.answerButton) seat.answerButton.disabled = !answerable;
-    if (seat.passButton) seat.passButton.disabled = !answerable;
 
     let lockText = null;
     if (!isParticipant) lockText = "観戦中";
     else if (isLocked) lockText = "お手つき";
-    else if (hasPassed && active) lockText = "PASS済み";
     seat.lockOverlay.hidden = lockText === null;
     seat.lockLabel.textContent = lockText ?? "";
   });
@@ -214,37 +202,63 @@ function updateCenter(match, runtime, ui) {
     ? "サドンデス"
     : `第${runtime.questionNumber}問 / 全${runtime.totalQuestions}問`;
 
-  // 歌詞：ACTIVE中に進む時計から、今見せる文字数を毎回計算する（既存の早押し歌詞と同じ関数）
+  // 歌詞：ACTIVE中に進む時計から、今見せる文字数を毎回計算する（既存の早押し歌詞と同じ関数）。
+  // 【2026-09-15 第3回実機QA修正・本人指示】2人対戦は向かい合うため、同じ歌詞進行（1つの state）を
+  // 2つのビュー（相手側は180度／横向きは±90度回転）へ同時に描く。3人／4人は従来どおり中央に1つ。
   if (settings.quizType === PARTY_QUIZ_TYPE.LYRICS) {
     elements.lyrics.hidden = false;
     const hintTexts = (runtime.question.hints ?? []).map((hint) => hint.segment?.text ?? "");
     const { levels } = computeStealHintProgress({ elapsedMs: ui.lyricsElapsedMs, hintTexts });
-    elements.lyrics.innerHTML = "";
-    levels.forEach((level) => {
-      const line = document.createElement("p");
-      line.className = "party-lyric-line";
-      line.textContent = level.revealedText;
-      elements.lyrics.appendChild(line);
-    });
-    if (levels.length === 0) {
-      const line = document.createElement("p");
-      line.className = "party-lyric-line is-placeholder";
-      line.textContent = "…";
-      elements.lyrics.appendChild(line);
+    const isTwoPlayers = match.layout === "two";
+    elements.lyrics.classList.toggle("is-dual", isTwoPlayers);
+    const views = isTwoPlayers ? ["mirror", "normal"] : ["normal"];
+    if (elements.lyrics.childElementCount !== views.length || elements.lyrics.dataset.views !== views.join(",")) {
+      elements.lyrics.innerHTML = "";
+      elements.lyrics.dataset.views = views.join(",");
+      views.forEach((view) => {
+        const container = document.createElement("div");
+        container.className = `party-lyric-view is-${view}`;
+        container.dataset.view = view;
+        elements.lyrics.appendChild(container);
+      });
     }
+    [...elements.lyrics.children].forEach((container) => {
+      container.innerHTML = "";
+      levels.forEach((level) => {
+        const line = document.createElement("p");
+        line.className = "party-lyric-line";
+        line.textContent = level.revealedText;
+        container.appendChild(line);
+      });
+      if (levels.length === 0) {
+        const line = document.createElement("p");
+        line.className = "party-lyric-line is-placeholder";
+        line.textContent = "…";
+        container.appendChild(line);
+      }
+    });
+    applyLyricViewRotations(match);
   } else {
     elements.lyrics.hidden = true;
   }
 
   let status = "";
+  const remaining = resolveRemainingReplays(runtime, settings);
+  const playCountText =
+    settings.quizType === PARTY_QUIZ_TYPE.INSTANT && runtime.playCount > 0
+      ? `再生 ${Math.min(runtime.playCount, settings.instantMaxListens)} / ${settings.instantMaxListens}回`
+      : "";
   if (ui.countdownValue !== null) {
     status = ui.countdownValue === "START" ? "START!" : String(ui.countdownValue);
   } else if (runtime.phase === PARTY_PHASE.ACTIVE) {
-    status = settings.quizType === PARTY_QUIZ_TYPE.INSTANT
-      ? `試聴 ${runtime.instantListenIndex} / ${settings.instantMaxListens}回目`
-      : settings.answerMethod === PARTY_ANSWER_METHOD.VOICE
-        ? "分かったら「回答！」"
-        : "分かったら選択肢をタップ";
+    const base = settings.answerMethod === PARTY_ANSWER_METHOD.VOICE ? "分かったら「回答！」" : "分かったら選択肢をタップ";
+    if (settings.quizType === PARTY_QUIZ_TYPE.INSTANT) {
+      status = `${playCountText}${runtime.playbackEnded && remaining === 0 ? "（再生は上限まで使いました）" : ""}　${base}`;
+    } else if (runtime.playbackEnded && settings.quizType !== PARTY_QUIZ_TYPE.LYRICS) {
+      status = `${settings.quizType === PARTY_QUIZ_TYPE.INTRO ? "曲が終わりました" : "再生が終わりました"}　${base}`;
+    } else {
+      status = base;
+    }
   } else if (runtime.phase === PARTY_PHASE.CLAIMED) {
     const player = playerById(match, runtime.acceptedClaim?.playerId);
     status = `${player?.name ?? ""} が回答中`;
@@ -253,8 +267,38 @@ function updateCenter(match, runtime, ui) {
   elements.status.classList.toggle("is-countdown", ui.countdownValue !== null);
   elements.status.classList.toggle("is-start", ui.countdownValue === "START");
 
-  const showPass = runtime.phase === PARTY_PHASE.ACTIVE && settings.quizType !== PARTY_QUIZ_TYPE.INSTANT && !ui.paused;
+  // 「🔁 もう一度聴く」：ランダム再生／アウトロ／一瞬で、再生が終わったあとだけ（一瞬は上限まで）。
+  // 「全員PASS｜長押し」：5出題タイプ共通で、出題中はいつでも。両方出るときも同時に押せる配置（CSS側）。
+  const showReplay = Boolean(ui.canReplay) && !ui.paused;
+  elements.replayButton.hidden = !showReplay;
+  if (showReplay) {
+    elements.replayButton.textContent = remaining === null ? "🔁 もう一度聴く" : `🔁 もう一度聴く（あと${remaining}回）`;
+  }
+  const showPass = runtime.phase === PARTY_PHASE.ACTIVE && !ui.paused;
   elements.passButton.hidden = !showPass;
+}
+
+// 2人対戦の歌詞ビュー：相手側（mirror）は席と同じ向きへ回転する。縦向き＝180度、横向き＝左が90度／右が-90度
+// （横向きでは自分側（normal）も-90度＝右席の向き）。90度系は席と同じく幅と高さを入れ替えて収める。
+function applyLyricViewRotations(match) {
+  if (!elements.lyrics || match.layout !== "two") return;
+  const landscape = isLandscape();
+  elements.lyrics.dataset.orientation = landscape ? "landscape" : "portrait";
+  [...elements.lyrics.children].forEach((container) => {
+    const view = container.dataset.view;
+    const rotation = landscape ? (view === "mirror" ? 90 : -90) : view === "mirror" ? 180 : 0;
+    container.dataset.rotation = String(rotation);
+    const inner = container; // 回転はコンテナ自身（CSS側で transform）
+    if (Math.abs(rotation) === 90) {
+      const slot = container.parentElement.getBoundingClientRect();
+      const slotWidth = slot.width / 2;
+      inner.style.width = `${Math.max(0, slot.height)}px`;
+      inner.style.height = `${Math.max(0, slotWidth)}px`;
+    } else {
+      inner.style.width = "";
+      inner.style.height = "";
+    }
+  });
 }
 
 function updateIntroOverlay(match, runtime, ui) {
@@ -421,13 +465,15 @@ export function resetPartyPlayScreen() {
   renderedQuestionOrdinal = null;
   elements.seats.innerHTML = "";
   seatElements = new Map();
-  [elements.resultOverlay, elements.voiceOverlay, elements.pauseOverlay, elements.notice, elements.introOverlay].forEach((el) => {
+  [elements.resultOverlay, elements.voiceOverlay, elements.pauseOverlay, elements.notice, elements.introOverlay, elements.replayButton].forEach((el) => {
     el.hidden = true;
   });
+  elements.lyrics.innerHTML = "";
+  delete elements.lyrics.dataset.views;
 }
 
 // elements: {
-//   root, seats, questionLabel, lyrics, status, passButton, passProgress,
+//   root, seats, questionLabel, lyrics, status, passButton, passProgress, replayButton,
 //   quitButton, quitProgress, introOverlay, introText,
 //   resultOverlay, resultHeadline, resultSong, resultDetail, overrideButton, resultNextButton,
 //   voiceOverlay, voicePlayer, voiceTimer, voiceTranscript, voiceHint, judgeRow, judgeCorrectButton, judgeWrongButton,
@@ -466,6 +512,8 @@ export function initPartyPlayScreen(newElements) {
   });
 
   elements.resultNextButton.addEventListener("click", () => engine?.next());
+  // 「🔁 もう一度聴く」は通常のタップ（長押し不要）。問題は継続したまま同じ位置を最初から鳴らす
+  elements.replayButton.addEventListener("click", () => engine?.replay());
   elements.overrideButton.addEventListener("click", () => engine?.requestJudgementOverride());
   elements.judgeCorrectButton.addEventListener("click", () => engine?.humanJudge(true));
   elements.judgeWrongButton.addEventListener("click", () => engine?.humanJudge(false));
@@ -483,7 +531,10 @@ export function initPartyPlayScreen(newElements) {
 
   // 向き・サイズが変わったら席の回転寸法を取り直す
   const relayout = () => {
-    if (lastSnapshot?.match) applySeatRotations(lastSnapshot.match);
+    if (lastSnapshot?.match) {
+      applySeatRotations(lastSnapshot.match);
+      applyLyricViewRotations(lastSnapshot.match);
+    }
   };
   window.addEventListener("resize", relayout);
   window.addEventListener("orientationchange", relayout);

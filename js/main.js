@@ -6384,6 +6384,7 @@ initPartyPlayScreen({
   status: document.getElementById("party-play-status"),
   passButton: document.getElementById("party-play-pass-button"),
   passProgress: document.getElementById("party-play-pass-progress"),
+  replayButton: document.getElementById("party-play-replay-button"),
   quitButton: document.getElementById("party-play-quit-button"),
   quitProgress: document.getElementById("party-play-quit-progress"),
   introOverlay: document.getElementById("party-play-intro-overlay"),

@@ -35,6 +35,7 @@ const TYPE_CASES = [
   { quizType: "intro", answerMethod: "fourChoice" },
   { quizType: "intro", answerMethod: "voice" },
   { quizType: "instant", answerMethod: "fourChoice" },
+  { quizType: "random", answerMethod: "fourChoice" }, // 再聴（もう一度聴く）＋全員PASSの同時表示
   { quizType: "lyrics", answerMethod: "voice" },
 ];
 const MAX_BUTTON_HEIGHT_PX = 90;
@@ -65,6 +66,7 @@ const ELEMENT_IDS = {
   status: "party-play-status",
   passButton: "party-play-pass-button",
   passProgress: "party-play-pass-progress",
+  replayButton: "party-play-replay-button",
   quitButton: "party-play-quit-button",
   quitProgress: "party-play-quit-progress",
   introOverlay: "party-play-intro-overlay",
@@ -162,6 +164,7 @@ function buildUi(overrides = {}) {
     playbackStarted: true,
     finished: false,
     aborted: false,
+    canReplay: false,
     ...overrides,
   };
 }
@@ -196,6 +199,7 @@ function buildStates({ match, runtime }, answerMethod) {
     { name: "カウントダウン", runtime: { ...runtime, phase: PARTY_PHASE.COUNTDOWN }, ui: buildUi({ countdownValue: 3 }) },
     { name: "START!", runtime: active, ui: buildUi({ countdownValue: "START" }) },
     { name: "出題中", runtime: active, ui: buildUi() },
+    { name: "再生終了（もう一度聴く＋全員PASS）", runtime: { ...active, playCount: 1, playbackEnded: true }, ui: buildUi({ canReplay: true }) },
     { name: "正解", runtime: correct, ui: buildUi() },
     { name: "不正解（お手つき）", runtime: wrong, ui: buildUi() },
     { name: "全員復活", runtime: revived, ui: buildUi() },
@@ -314,6 +318,44 @@ export async function runPartyBattlePlayLayoutTests() {
             if (typeCase.answerMethod === "fourChoice") {
               const expected = (playerCount === 3 ? 3 : playerCount) * 4;
               if (choiceButtons.length !== expected) note(`${label}：4択ボタン数 ${choiceButtons.length}（期待 ${expected}）`);
+            }
+            // 【第3回実機QA】中央の「🔁 もう一度聴く」と「全員PASS｜長押し」：両方出るときも重ならず中央カード内・横長
+            const replayButton = doc.getElementById("party-play-replay-button");
+            const passButton = doc.getElementById("party-play-pass-button");
+            if (state.ui.canReplay && !isVisible(replayButton)) note(`${label}：canReplay なのに「もう一度聴く」が出ていない`);
+            if (!state.ui.canReplay && isVisible(replayButton)) note(`${label}：canReplay でないのに「もう一度聴く」が出ている`);
+            if (!isVisible(passButton)) note(`${label}：出題中なのに「全員PASS」が出ていない（5タイプ共通）`);
+            [replayButton, passButton].forEach((button) => {
+              if (!isVisible(button)) return;
+              const rect = button.getBoundingClientRect();
+              if (rect.height > rect.width) note(`${label}：${button.id} が縦長（${Math.round(rect.width)}×${Math.round(rect.height)}）`);
+              if (rect.height > MAX_BUTTON_HEIGHT_PX) note(`${label}：${button.id} の高さ ${Math.round(rect.height)}px`);
+              if (rect.left < center.left - 1 || rect.right > center.right + 1 || rect.top < center.top - 1 || rect.bottom > center.bottom + 1) note(`${label}：${button.id} が中央カードからはみ出す`);
+            });
+            if (isVisible(replayButton) && isVisible(passButton) && overlaps(replayButton.getBoundingClientRect(), passButton.getBoundingClientRect())) {
+              note(`${label}：「もう一度聴く」と「全員PASS」が重なる`);
+            }
+            // 問題番号が「終了｜長押し」と重ならない（2人・横向きの歌詞2ビューで起きた崩れ）
+            const questionLabel = doc.getElementById("party-play-question-label").getBoundingClientRect();
+            const quitButton = doc.getElementById("party-play-quit-button").getBoundingClientRect();
+            if (overlaps(questionLabel, quitButton)) note(`${label}：問題番号が「終了｜長押し」と重なる`);
+            // 【第3回実機QA】2人対戦の歌詞：1つの進行を2ビュー（相手側は回転）で表示。3人／4人は1ビュー
+            if (typeCase.quizType === "lyrics") {
+              const views = [...doc.querySelectorAll(".party-lyric-view")];
+              const expectedViews = playerCount === 2 ? 2 : 1;
+              if (views.length !== expectedViews) note(`${label}：歌詞ビュー数 ${views.length}（期待 ${expectedViews}）`);
+              views.forEach((view) => {
+                const rect = view.getBoundingClientRect();
+                if (rect.width < 40 || rect.height < 20) note(`${label}：歌詞ビュー（${view.dataset.view}）が小さすぎる（${Math.round(rect.width)}×${Math.round(rect.height)}）`);
+                if (rect.left < center.left - 1 || rect.right > center.right + 1 || rect.top < center.top - 1 || rect.bottom > center.bottom + 1) note(`${label}：歌詞ビュー（${view.dataset.view}）が中央カードからはみ出す`);
+              });
+              if (views.length === 2) {
+                if (overlaps(views[0].getBoundingClientRect(), views[1].getBoundingClientRect())) note(`${label}：2つの歌詞ビューが重なる`);
+                if (views[0].textContent !== views[1].textContent) note(`${label}：2つの歌詞ビューの内容が異なる（1 state・2 view）`);
+                const landscape = viewport.w > viewport.h;
+                const rotations = views.map((view) => view.dataset.rotation).join(",");
+                if (rotations !== (landscape ? "90,-90" : "180,0")) note(`${label}：歌詞ビューの回転が ${rotations}（期待 ${landscape ? "90,-90" : "180,0"}）`);
+              }
             }
           }
         }

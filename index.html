@@ -3393,7 +3393,7 @@
           <legend>出題タイプ</legend>
           <div class="option-row rule-option-row party-quiz-type-row">
             <label class="rule-option-card"><input type="radio" name="party-quiz-type" value="intro" checked><span class="rule-option-card-title">🎧 イントロ</span><span class="rule-option-card-desc">曲の頭から</span></label>
-            <label class="rule-option-card"><input type="radio" name="party-quiz-type" value="random"><span class="rule-option-card-title">🔀 ランダム再生</span><span class="rule-option-card-desc">曲の途中から5秒</span></label>
+            <label class="rule-option-card"><input type="radio" name="party-quiz-type" value="random"><span class="rule-option-card-title">🔀 ランダム再生</span><span class="rule-option-card-desc">曲の途中から曲末まで</span></label>
             <label class="rule-option-card"><input type="radio" name="party-quiz-type" value="outro"><span class="rule-option-card-title">🎬 アウトロ</span><span class="rule-option-card-desc">曲の最後5秒</span></label>
             <label class="rule-option-card"><input type="radio" name="party-quiz-type" value="instant"><span class="rule-option-card-title">⚡ 一瞬</span><span class="rule-option-card-desc">0.5〜1.5秒だけ</span></label>
             <label class="rule-option-card"><input type="radio" name="party-quiz-type" value="lyrics"><span class="rule-option-card-title">📝 歌詞</span><span class="rule-option-card-desc">歌詞が1文字ずつ</span></label>
@@ -3413,7 +3413,7 @@
             <label><input type="radio" name="party-instant-clip" value="1" checked> 1秒</label>
             <label><input type="radio" name="party-instant-clip" value="1.5"> 1.5秒</label>
           </div>
-          <p class="party-field-sublabel">最大試聴回数（全員PASSで同じ箇所をもう一度）</p>
+          <p class="party-field-sublabel">最大再生回数（最初の出題を1回目として数え、同じ箇所を中央の「🔁 もう一度聴く」で再生できる回数）</p>
           <div class="option-row">
             <label><input type="radio" name="party-instant-max-listens" value="3" checked> 3回</label>
             <label><input type="radio" name="party-instant-max-listens" value="5"> 5回</label>
@@ -3559,10 +3559,14 @@
           <p id="party-play-question-label" class="party-center-question-label"></p>
           <div id="party-play-lyrics" class="party-center-lyrics" hidden></div>
           <p id="party-play-status" class="party-center-status"></p>
+          <div class="party-center-actions">
+            <!-- 【2026-09-15 第3回実機QA修正】再聴（問題継続）とPASS（問題終了）は別の操作。両方出るときも同時に押せる -->
+            <button id="party-play-replay-button" class="party-replay-button" type="button" hidden>🔁 もう一度聴く</button>
           <button id="party-play-pass-button" class="party-pass-button" type="button">
             <span class="party-pass-button-label">全員PASS｜長押し</span>
             <span id="party-play-pass-progress" class="party-pass-progress"></span>
           </button>
+          </div>
         </div>
         <button id="party-play-quit-button" class="party-quit-button" type="button" aria-label="対戦を終了（長押し）">
           <span>終了｜長押し</span>
@@ -6098,8 +6102,8 @@
       <h3>遊び方</h3>
       <p>人数・名前・出題タイプ（イントロ／ランダム再生／アウトロ／一瞬／歌詞）・問題数・選曲・回答方式（4択／音声）・お手つきを決めて開始します。3・2・1・START!の後に曲（歌詞）が始まり、自分の席の選択肢（音声なら「回答！」）を最初に押した人だけが回答できます。</p>
 
-      <h3>得点・お手つき・PASS</h3>
-      <p>正解+1点、不正解・PASSは0点（減点なし）。不正解のあとは約2秒後に3・2・1から再開し、曲は止めた位置から続きます。お手つき「あり」では不正解した人はその問題の残りで回答できません（全員が回答できなくなったら全員復活）。誰も分からないときは中央の「全員PASS｜長押し」（一瞬は各自のPASS）。1位が同点ならサドンデスです。</p>
+      <h3>得点・お手つき・再聴・PASS</h3>
+      <p>正解+1点（その瞬間に正解曲名が公開され、その問題で使った箇所から答え合わせの音源が流れます）。不正解・PASSは0点（減点なし）。不正解のあとは約2秒後に3・2・1から再開し、曲は止めた位置から続きます。お手つき「あり」では不正解した人はその問題の残りで回答できません（全員が回答できなくなったら全員復活）。再生が終わっても分からないときは中央の「🔁 もう一度聴く」（ランダム再生・アウトロは何度でも、一瞬は最大3回／5回）。全員で諦めるときは中央の「全員PASS｜長押し」で、その問題は0点で終了します。1位が同点ならサドンデスです。</p>
 
       <h3>記録</h3>
       <p>結果はプレイ履歴の「パーティー」タブにだけ残り、自己ベスト・ランキング・称号・苦手曲には影響しません。途中で終了した対戦は保存されません。詳しくは遊び方ガイドの「パーティー対戦」をご覧ください。</p>
