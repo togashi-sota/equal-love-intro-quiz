@@ -680,7 +680,7 @@ export async function runPartyBattleWiringTests() {
   assertEqual(specialModes.includes('id: "localBattle"'), false, "ホームのカードから旧1台対戦は消えている");
 
   const guide = await fetchText("js/data/guideContent.js");
-  assertEqual(guide.includes("https://www.youtube.com/watch?v=n3YIZBR-Zl8"), true, "動画URLはguideContent.jsに1箇所");
+  assertEqual(guide.includes("https://www.youtube.com/watch?v=2__t1a39MTg"), true, "動画URLはguideContent.jsに1箇所");
   assertEqual(guide.includes('id: "partyBattle"'), true, "ガイドにパーティー対戦の項目がある");
   assertEqual(guide.includes('id: "localBattle"'), false, "ガイドから旧1台対戦の項目は消えている");
   assertEqual(guide.includes("間違えた曲だけ復習する"), true, "ガイドに復習クイズの記述がある");
