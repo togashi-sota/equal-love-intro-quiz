@@ -287,8 +287,9 @@ export function runTimeAttackLeaderboardTests() {
       source: "normal",
       achievedAt: 1700000000000,
       actualQuestionCount: null,
+      identityKey: null, // 2026-09-22追加：本人キーが無い旧データは null（誰とも統合しない）
     },
-    "正常な形のentryは、値をそのまま保った形に正規化される（actualQuestionCountが無い旧データはnullになる）"
+    "正常な形のentryは、値をそのまま保った形に正規化される（actualQuestionCount・identityKeyが無い旧データはnullになる）"
   );
 
   const normalizedWithActualQuestionCount = normalizeLeaderboardEntry("uid4", {

@@ -63,6 +63,7 @@
               "source": { ".validate": "newData.val() === null || (newData.isString() && (newData.val() === 'timeAttack' || newData.val() === 'normal'))" },
               "achievedAt": { ".validate": "newData.isNumber()" },
               "actualQuestionCount": { ".validate": "!newData.exists() || (newData.isNumber() && newData.val() > 0)" },
+              "identityKey": { ".validate": "!newData.exists() || (newData.isString() && newData.val().length >= 16 && newData.val().length <= 64)" },
               "$other": { ".validate": false }
             }
           }

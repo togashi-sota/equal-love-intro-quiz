@@ -13380,6 +13380,14 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   opacity: 0.55;
 }
 
+/* 管理者にだけ出す「ID末尾／登録日」（2026-09-22追加。同一人物の重複整理で見た目が同じ2行を区別するため） */
+.leaderboard-row-admin-meta {
+  margin: 2px 0 0;
+  font-size: 0.66rem;
+  opacity: 0.6;
+  word-break: break-all;
+}
+
 /* クリアタイムと平均タイムを縦に並べて右端にまとめる箱（2026-08-24追加）。
    .leaderboard-rowのalign-items:centerで箱ごと縦中央に来るので、中はtop寄せでよい。 */
 .leaderboard-row-time-block {

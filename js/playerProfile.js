@@ -283,7 +283,21 @@ export function getPendingUidMerge(playerId) {
   const pending = player?.pendingUidMerge;
   if (!pending || typeof pending !== "object") return null;
   if (typeof pending.oldUid !== "string" || typeof pending.backupId !== "string") return null;
-  return { oldUid: pending.oldUid, backupId: pending.backupId, recordedAt: pending.recordedAt ?? null };
+  return {
+    oldUid: pending.oldUid,
+    backupId: pending.backupId,
+    recordedAt: pending.recordedAt ?? null,
+    // 【2026-09-22追加】ランキング記録の引き継ぎ（旧UID→新UID）だけは本人の確認を待たずに自動で行う
+    // （記録を失わない統合のため）。完了した時刻。公開プロフィール・presence の整理は従来どおり本人確認待ち。
+    leaderboardMergedAt: typeof pending.leaderboardMergedAt === "number" ? pending.leaderboardMergedAt : null,
+  };
+}
+
+// 【2026-09-22追加】ランキング記録の自動引き継ぎが完了したことを記録する（同じ旧UIDについて二度と走らせない）。
+export function markPendingUidMergeLeaderboardMerged(playerId, mergedAt = Date.now()) {
+  const player = getPlayers().find((p) => p.playerId === playerId);
+  if (!player || !player.pendingUidMerge || typeof player.pendingUidMerge !== "object") return false;
+  return updatePlayerFields(playerId, { pendingUidMerge: { ...player.pendingUidMerge, leaderboardMergedAt: mergedAt } });
 }
 
 export function setPendingUidMerge(playerId, { oldUid, backupId }) {

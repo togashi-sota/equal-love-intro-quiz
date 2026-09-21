@@ -157,6 +157,13 @@ function buildLeaderboardRow(
   row.appendChild(timeBlock);
 
   if (isAdmin) {
+    // 【2026-09-22追加】管理者にだけ、記録のID末尾と登録日を小さく表示する。旧UIDと新UIDに同じ内容の
+    // 記録が残っている場合、画面上は全く同じ2行になり、どちらを削除すべきか区別できないため。
+    const adminMeta = document.createElement("p");
+    adminMeta.className = "leaderboard-row-admin-meta";
+    adminMeta.textContent = `ID …${entry.uid.slice(-6)} ／ ${formatAchievedDate(entry.achievedAt)}${entry.identityKey ? "" : " ／ 旧形式（本人キー無し）"}`;
+    body.appendChild(adminMeta);
+
     const deleteButton = document.createElement("button");
     deleteButton.type = "button";
     deleteButton.className = "leaderboard-admin-delete-button";
@@ -170,6 +177,14 @@ function buildLeaderboardRow(
   }
 
   return row;
+}
+
+// 登録日時（serverTimestamp のミリ秒）を「2026/09/17 19:33」の形にする。無ければ「日時不明」。
+function formatAchievedDate(achievedAt) {
+  if (typeof achievedAt !== "number" || achievedAt <= 0) return "日時不明";
+  const d = new Date(achievedAt);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 function buildTabButton(label, isActive, onClick) {
@@ -280,7 +295,7 @@ async function loadAndRenderLeaderboard() {
 
   result.entries.forEach((entry, index) => {
     const rank = index + 1;
-    const isOwnRow = elements.currentUid && entry.uid === elements.currentUid;
+    const isOwnRow = isOwnEntry(entry);
     elements.listContainer.appendChild(
       buildLeaderboardRow(
         entry,
@@ -302,8 +317,15 @@ async function loadAndRenderLeaderboard() {
 // 「あなたの記録」：TOP10にすでに含まれていれば重ねて表示しない。含まれていなければ、
 // 自分のuidの記録だけを軽量に取得して「あなたのベスト ○○秒」の形で表示する
 // （本人指示：「順位計算が重い場合は、あなたのベストだけでも可」）。
+// 【2026-09-22追加】「自分の記録」かどうか：UIDが同じ、または identityKey（本人キー）が同じ。
+// UIDが変わった後に旧UID名義の記録が残っている間も、自分の記録として強調される。
+function isOwnEntry(entry) {
+  if (elements.currentUid && entry.uid === elements.currentUid) return true;
+  return Boolean(elements.currentIdentityKey && entry.identityKey && entry.identityKey === elements.currentIdentityKey);
+}
+
 async function renderMyRecordIfNeeded(myRenderToken, top10Entries) {
-  const alreadyInTop10 = elements.currentUid && top10Entries.some((entry) => entry.uid === elements.currentUid);
+  const alreadyInTop10 = top10Entries.some((entry) => isOwnEntry(entry));
   if (alreadyInTop10) {
     elements.myRecordSection.hidden = true;
     return;
@@ -316,6 +338,7 @@ async function renderMyRecordIfNeeded(myRenderToken, top10Entries) {
   );
   if (myRenderToken !== renderToken) return;
   elements.currentUid = myResult.uid ?? elements.currentUid;
+  elements.currentIdentityKey = myResult.identityKey ?? elements.currentIdentityKey ?? null;
 
   if (!myResult.ok || !myResult.entry) {
     elements.myRecordSection.hidden = true;
@@ -349,6 +372,9 @@ function openAdminDeleteConfirm(entry) {
   elements.adminDeleteVariant.textContent = VARIANT_LABELS[currentVariant] ?? currentVariant;
   elements.adminDeleteQuestionCount.textContent = QUESTION_COUNT_LABELS[currentQuestionCountValue] ?? currentQuestionCountValue;
   elements.adminDeleteCategory.textContent = CATEGORY_LABELS[currentCategoryFilterValue] ?? currentCategoryFilterValue;
+  // 【2026-09-22追加】同じ内容の記録が旧UID・新UIDで2件ある場合に、どちらを消すのか確認できるようにする
+  if (elements.adminDeleteUid) elements.adminDeleteUid.textContent = `…${entry.uid.slice(-6)}`;
+  if (elements.adminDeleteDate) elements.adminDeleteDate.textContent = formatAchievedDate(entry.achievedAt);
   elements.adminDeleteOverlay.hidden = false;
 }
 
@@ -427,7 +453,7 @@ export async function showTimeAttackLeaderboard(variant, questionCountValue, cat
 //     管理者限定の記録削除確認モーダル（2026-08-17追加、2026-08-16にruleを区分から除いた）,
 // }
 export function initTimeAttackLeaderboardScreen(newElements, membersList) {
-  elements = { ...newElements, currentUid: null };
+  elements = { ...newElements, currentUid: null, currentIdentityKey: null };
   members = membersList;
   elements.backButton.addEventListener("click", () => {
     playSfx(SFX_EVENTS.UI_BACK);

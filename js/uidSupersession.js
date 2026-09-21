@@ -23,6 +23,7 @@ import {
   getBackupId,
   getPendingUidMerge,
   clearPendingUidMerge,
+  markPendingUidMergeLeaderboardMerged,
 } from "./playerProfile.js";
 import { getMostOshiMemberId } from "./oshiMembers.js";
 import {
@@ -30,6 +31,7 @@ import {
   LEADERBOARD_CATEGORY_VALUES,
   LEADERBOARD_RULE_VALUES,
   buildLeaderboardPath,
+  isValidLeaderboardIdentityKey,
 } from "./timeAttackLeaderboard.js";
 import { planLeaderboardMerge, buildCopiedLeaderboardEntry } from "./backupOwnership.js";
 
@@ -58,6 +60,113 @@ export async function recordUidSupersession(oldUid, backupId) {
     console.warn("旧UIDと新UIDの対応の記録に失敗しました（既に記録済みの場合も含む）", error);
     return false;
   }
+}
+
+// ---------------------------------------------------------------------------
+// 【2026-09-22追加：ランキング記録の自動引き継ぎ（重複を作らない第一線）】
+// 旧UIDが端末で分かっている（pendingUidMerge がある）のに本人の手動実行を待つ間、
+// ランキング候補の自動再送信（js/rankingCandidateAutoSync.js）が新UID名義の記録を先に作り、
+// 旧UID名義の記録と並んで「同じ人が2人」に見えていた（2026-09-22の再発調査で判明）。
+// ランキング記録の統合は「速い方を新UID名義で1件残す」だけで何も失わないため、本人の確認を
+// 待たずに自動で行う。公開プロフィール・presence の整理（本人が見て判断する項目）は従来どおり
+// フレンド画面の案内から手動で行う（planUidMerge／executeUidMerge は無変更）。
+// 【失敗時】1区分でも失敗（通信・権限）したら「完了」にはせず、次の機会に同じ処理をやり直す。
+// 同じ旧UIDについて短時間に何度も45区分を読みに行かないよう、試行間隔を空ける。
+// ---------------------------------------------------------------------------
+const AUTO_MERGE_RETRY_INTERVAL_MS = 6 * 60 * 60 * 1000;
+const AUTO_MERGE_TRIED_AT_KEY_PREFIX = "equalLoveIntroQuiz.uidMergeLeaderboardTriedAt.";
+
+function readAutoMergeTriedAt(oldUid) {
+  try {
+    const raw = localStorage.getItem(`${AUTO_MERGE_TRIED_AT_KEY_PREFIX}${oldUid}`);
+    const value = Number(raw);
+    return Number.isFinite(value) ? value : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function writeAutoMergeTriedAt(oldUid, at) {
+  try {
+    localStorage.setItem(`${AUTO_MERGE_TRIED_AT_KEY_PREFIX}${oldUid}`, String(at));
+  } catch {
+    // 保存できなくても処理自体は続ける（次回また試すだけ）
+  }
+}
+
+function isPermissionDenied(error) {
+  const code = error?.code ?? "";
+  const message = error?.message ?? "";
+  return /PERMISSION_DENIED|permission_denied|permission-denied/i.test(`${code} ${message}`);
+}
+
+// 戻り値: { attempted: boolean, copied, deletedOld, errors: string[], completed: boolean }
+export async function autoMergeSupersededLeaderboardEntries({ identityKey = null, now = Date.now() } = {}) {
+  const result = { attempted: false, copied: 0, deletedOld: 0, errors: [], completed: false };
+  const player = getActivePlayer();
+  const pending = getPendingUidMerge(player.playerId);
+  if (!pending || pending.leaderboardMergedAt) return result;
+  if (now - readAutoMergeTriedAt(pending.oldUid) < AUTO_MERGE_RETRY_INTERVAL_MS) return result;
+
+  let fb;
+  try {
+    fb = await loadFirebase();
+  } catch {
+    return result;
+  }
+  const { database, uid, ref, get, set, remove } = fb;
+  if (!uid || pending.oldUid === uid) return result;
+  result.attempted = true;
+  writeAutoMergeTriedAt(pending.oldUid, now);
+
+  // 旧UIDの記録を消す権限（Rules：uidSupersession/{旧UID}/newUid が自分）に必要な対応表を確実に用意する
+  // （既に記録済みなら Rules で拒否されるが、それは正常）。
+  await recordUidSupersession(pending.oldUid, pending.backupId);
+
+  const displayName = player.playerName;
+  const oshiMemberId = getMostOshiMemberId();
+  for (const variant of LEADERBOARD_VARIANT_VALUES) {
+    for (const questionCountValue of LEADERBOARD_QUESTION_COUNT_VALUES) {
+      for (const categoryFilterValue of LEADERBOARD_CATEGORY_VALUES) {
+        const path = buildLeaderboardPath(variant, questionCountValue, categoryFilterValue);
+        const label = `${variant}/${questionCountValue}/${categoryFilterValue}`;
+        try {
+          const division = (await get(ref(database, path))).val() ?? {};
+          const oldEntry = division[pending.oldUid] ?? null;
+          const newEntry = division[uid] ?? null;
+          const action = planLeaderboardMerge(oldEntry, newEntry);
+          if (action === "none") continue;
+          if (action === "copyThenDeleteOld") {
+            const copied = buildCopiedLeaderboardEntry(oldEntry, { displayName, oshiMemberId });
+            // identityKey（同一人物の印）も付けて複製する。Rules が未対応で拒否されたらキー無しで書き直す。
+            try {
+              await set(ref(database, `${path}/${uid}`), isValidLeaderboardIdentityKey(identityKey) ? { ...copied, identityKey } : copied);
+            } catch (error) {
+              if (!isPermissionDenied(error) || !isValidLeaderboardIdentityKey(identityKey)) throw error;
+              await set(ref(database, `${path}/${uid}`), copied);
+            }
+            const readBack = (await get(ref(database, `${path}/${uid}`))).val();
+            if (!readBack || readBack.clearTimeMs !== copied.clearTimeMs) {
+              result.errors.push(`${label}: 新IDへの複製を確認できなかったため、旧IDの記録は残しました`);
+              continue;
+            }
+            result.copied += 1;
+          }
+          await remove(ref(database, `${path}/${pending.oldUid}`));
+          result.deletedOld += 1;
+        } catch (error) {
+          console.warn(`[uidMerge:auto] ${label} の処理に失敗`, error);
+          result.errors.push(`${label}: ${error?.code ?? "エラー"}（旧IDの記録は残しました）`);
+        }
+      }
+    }
+  }
+
+  if (result.errors.length === 0) {
+    markPendingUidMergeLeaderboardMerged(player.playerId, now);
+    result.completed = true;
+  }
+  return result;
 }
 
 // 引き継ぎ・整理の「計画」だけを作る（Firebaseは読み取りのみ。何も書かない）。

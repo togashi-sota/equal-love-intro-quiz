@@ -5912,6 +5912,9 @@ initTimeAttackLeaderboardScreen(
     adminDeleteVariant: timeAttackLeaderboardAdminDeleteVariantElement,
     adminDeleteQuestionCount: timeAttackLeaderboardAdminDeleteQuestionCountElement,
     adminDeleteCategory: timeAttackLeaderboardAdminDeleteCategoryElement,
+    // 【2026-09-22追加】削除確認にID末尾・登録日時を出す（同じ内容の旧UID／新UIDの記録を区別するため）
+    adminDeleteUid: document.getElementById("time-attack-leaderboard-admin-delete-uid"),
+    adminDeleteDate: document.getElementById("time-attack-leaderboard-admin-delete-date"),
     adminDeleteCancelButton: timeAttackLeaderboardAdminDeleteCancelButtonElement,
     adminDeleteConfirmButton: timeAttackLeaderboardAdminDeleteConfirmButtonElement,
   },

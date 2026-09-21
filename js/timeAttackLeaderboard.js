@@ -23,6 +23,21 @@
 // 【記録の比較基準】クリアタイム昇順（速い方が上位）。同タイムは①クリアタイム②ミス数
 // ③登録日時（早い方が上位）の順で決める（本人の第一候補どおり、変更なし）。
 //
+// 【2026-09-22追加：論理ユーザー識別キー identityKey（ランキング重複の恒久対策）】
+// ランキングの記録は「Firebase匿名認証のUID」をキーに保存している（同じUIDなら set() で上書き＝
+// 二重送信しても1件のまま）。しかしこのアプリでは匿名UIDが差し替わることがある
+// （Firebase側の匿名アカウント自動削除〈HANDOFF 116章〉、機種変更・復旧によるバックアップの
+// 引き継ぎ）。UIDが変わっても端末内の自己ベスト（rankingCandidateBest）はそのまま残るため、
+// 新UIDで同じ記録が自動再送信され、旧UIDの記録と並んで「同じ人が2人」見えていた（2026-09-22 実機で
+// じゅ・サブ・Olkya の3人に再発。前回〈がしお〉の修正は「旧UID→新UIDの対応が分かる端末だけ・本人が
+// フレンド画面で手動実行」だったため、対応が取れない端末では防げなかった）。
+// 対策の第一線：各記録に identityKey（UIDに依存しない「同じ人」の印）を保存する。値は backupId
+// （crypto.randomUUID 由来・UIDが変わっても引き継がれる・バックアップ復元でも同じ値になる）の
+// SHA-256 ハッシュ。backupId そのものは引き継ぎコードの一部になる値のため公開しない（ハッシュは一方向）。
+// 第二線：表示時に identityKey が同じ記録は最良の1件だけを残す（dedupeLeaderboardEntriesByIdentity）。
+// 【絶対に名前で同一人物と判断しない】同名の別人（identityKey が違う／無い）は別々に載せる。
+// 旧記録（identityKey 無し）は互いに別人として扱う（誤統合しない側に倒す）。
+//
 // 【旧データとの互換性】以前の構造（timeAttackLeaderboardsV2/{variant}/{rule}/{questionCountValue}/
 // {categoryFilterValue}/{uid}、ルールごとに別ランキング）は、この新しい構造とは別の場所
 // （トップレベルのキー名をtimeAttackLeaderboardsV3に変える）に置く。旧データは削除せず、
@@ -35,6 +50,16 @@
 // ランキング対象にしてほしい」という指示により、元の5種類全てに戻した。カテゴリーの
 // 絞り込み（表題のみ／表題＋全員曲だけ、「全曲」は対象外）はそのまま維持する。
 export const LEADERBOARD_QUESTION_COUNT_VALUES = ["5", "10", "20", "50", "all"];
+
+// TOP10 として表示する件数と、同一人物の重複を統合する前にサーバーから取得する件数
+// （2026-09-22追加）。identityKey が同じ記録を統合すると10件に満たなくなる可能性があるため、
+// 少し多めに取得してから統合し、先頭10件だけを表示する（全件ダウンロードはしない）。
+export const LEADERBOARD_TOP_DISPLAY_COUNT = 10;
+export const LEADERBOARD_TOP_FETCH_LIMIT = 30;
+
+// identityKey として受け付ける長さ（SHA-256 の16進64文字。Rules の .validate と同じ範囲）。
+const IDENTITY_KEY_MIN_LENGTH = 16;
+const IDENTITY_KEY_MAX_LENGTH = 64;
 
 // ランキング記録に「参考情報として」残すルールの値（js/timeAttackScreen.jsのTIME_ATTACK_RULEと
 // 同じ文字列をあえて複製している。このファイルをFirebase非依存の恒久テスト対象に保つ設計方針を
@@ -100,6 +125,9 @@ export function buildLeaderboardPath(variant, questionCountValue, categoryFilter
 // 呼び出し側が渡さなかった（undefined）場合や不正な値の場合はnullのまま保存し、
 // 表示側は既存のcomputeAverageSecondsPerQuestion／findVerifiedAllModeAverageSecondsに
 // フォールバックする（古い記録・この値を渡さない呼び出し元があっても壊れない）。
+// 【2026-09-22追加】identityKey（論理ユーザー識別キー）を渡すと記録に含める。無い（null）ときは
+// キー自体を付けない（Rules の .validate は「無い or 文字列」を受け付ける。null を入れると
+// 旧Rulesで拒否されるため、存在しない形にそろえる）。
 export function buildLeaderboardEntryPayload({
   displayName,
   oshiMemberId,
@@ -109,9 +137,10 @@ export function buildLeaderboardEntryPayload({
   source,
   achievedAt,
   actualQuestionCount,
+  identityKey = null,
 }) {
   const normalizedActualQuestionCount = Number(actualQuestionCount);
-  return {
+  const payload = {
     displayName: typeof displayName === "string" && displayName.trim() !== "" ? displayName.trim() : "名無しのファン",
     oshiMemberId: oshiMemberId ?? null,
     clearTimeMs,
@@ -124,6 +153,35 @@ export function buildLeaderboardEntryPayload({
         ? normalizedActualQuestionCount
         : null,
   };
+  if (isValidLeaderboardIdentityKey(identityKey)) payload.identityKey = identityKey;
+  return payload;
+}
+
+// identityKey の形式チェック（16〜64文字の英数字）。Firebase から読んだ値・自分で作った値の両方に使う。
+export function isValidLeaderboardIdentityKey(value) {
+  return (
+    typeof value === "string" &&
+    value.length >= IDENTITY_KEY_MIN_LENGTH &&
+    value.length <= IDENTITY_KEY_MAX_LENGTH &&
+    /^[0-9a-zA-Z]+$/.test(value)
+  );
+}
+
+// backupId → identityKey（SHA-256 の16進文字列）。同じ backupId からは必ず同じ値になり（決定的）、
+// 値から backupId を逆算することはできない。crypto.subtle が使えない環境（非セキュアコンテキスト等）や
+// backupId が無い場合は null（＝記録に identityKey を付けない。従来どおりの記録になるだけで壊れない）。
+// subtle は差し替え可能（テストで「使えない環境」を再現するため）。
+export async function computeLeaderboardIdentityKey(backupId, subtle = globalThis.crypto?.subtle) {
+  if (typeof backupId !== "string" || backupId.length < 8) return null;
+  if (!subtle || typeof subtle.digest !== "function") return null;
+  try {
+    const bytes = new TextEncoder().encode(`equalLoveIntroQuiz.leaderboardIdentity.v1:${backupId}`);
+    const digest = await subtle.digest("SHA-256", bytes);
+    const hex = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+    return isValidLeaderboardIdentityKey(hex) ? hex : null;
+  } catch {
+    return null;
+  }
 }
 
 // 新しい記録が、既存の自己ベスト記録より「良い」かどうかを判定する。
@@ -156,6 +214,31 @@ export function needsActualQuestionCountBackfill(existingEntry, candidate) {
   return existingEntry.clearTimeMs === candidate.clearTimeMs && existingEntry.missCount === candidate.missCount;
 }
 
+// 【2026-09-22追加】既存の自分の記録（同じUID）に identityKey が無く、今回は分かっている場合だけ
+// 後から書き足せるかを判定する。タイム・ミス数は問わない（自分のUIDの記録は必ず自分のものなので、
+// キーを付けても他人の記録と混ざることはない）。既に値があれば触らない。
+export function needsIdentityKeyBackfill(existingEntry, identityKey) {
+  if (!existingEntry) return false;
+  if (isValidLeaderboardIdentityKey(existingEntry.identityKey)) return false;
+  return isValidLeaderboardIdentityKey(identityKey);
+}
+
+// 【2026-09-22追加】「今回の記録をどう保存するか」を1箇所で決める純粋関数（保存処理の冪等性の要）。
+// 戻り値：
+//   { action: "set" }                     … 新記録（既存より速い／既存なし）→ 記録全体を set() で置き換える
+//   { action: "update", fields: {...} }   … 新記録ではないが、欠けている項目（identityKey・
+//                                            actualQuestionCount）だけを update() で書き足す
+//   { action: "none" }                    … 何もしない（同じ記録の再送信・遅い記録）
+// 同じUID・同じ区分の記録は必ずこの1件に集約されるため、同じ結果保存が2回・3回呼ばれても
+// 記録が増えることはない（キーがUIDで、push() を使わないため）。
+export function resolveLeaderboardWritePlan({ existingEntry, candidate, identityKey = null }) {
+  if (isBetterLeaderboardRecord(existingEntry, candidate)) return { action: "set" };
+  const fields = {};
+  if (needsActualQuestionCountBackfill(existingEntry, candidate)) fields.actualQuestionCount = candidate.actualQuestionCount;
+  if (needsIdentityKeyBackfill(existingEntry, identityKey)) fields.identityKey = identityKey;
+  return Object.keys(fields).length > 0 ? { action: "update", fields } : { action: "none" };
+}
+
 // Firebaseから読み込んだ生データ（uidをキーとするオブジェクト、または個別の1件）を、
 // 型が壊れていても安全な形へ正規化する（js/publicProfilePayloads.jsのnormalizePublicProfileEntry
 // と同じ考え方。他人が意図的に不正な値を書き込んでいた場合でも画面が壊れないようにする）。
@@ -185,6 +268,8 @@ export function normalizeLeaderboardEntry(uid, raw) {
     // 数値でなければ、ソートの安定性のためだけに0（＝最も古い扱い）にフォールバックする。
     achievedAt: typeof raw.achievedAt === "number" ? raw.achievedAt : 0,
     actualQuestionCount,
+    // 2026-09-22追加：無い・壊れている場合は null（＝他のどの記録とも同一人物とは判断しない）
+    identityKey: isValidLeaderboardIdentityKey(raw.identityKey) ? raw.identityKey : null,
   };
 }
 
@@ -235,6 +320,25 @@ export function sortLeaderboardEntries(entries) {
     if (a.missCount !== b.missCount) return a.missCount - b.missCount;
     return a.achievedAt - b.achievedAt;
   });
+}
+
+// 【2026-09-22追加】同じ identityKey（＝同じ論理ユーザー）の記録が複数あれば、並び順で最初の1件
+// （＝最良の記録）だけを残す。identityKey が無い記録は誰とも統合しない（旧記録・別人を守る）。
+// 名前・推し・タイムの一致では絶対に統合しない（同名の別人が共存できるようにするため）。
+// 入力は sortLeaderboardEntries() で並び替え済みであること（先頭＝最良）。
+export function dedupeLeaderboardEntriesByIdentity(sortedEntries) {
+  const seen = new Set();
+  return sortedEntries.filter((entry) => {
+    if (!isValidLeaderboardIdentityKey(entry.identityKey)) return true;
+    if (seen.has(entry.identityKey)) return false;
+    seen.add(entry.identityKey);
+    return true;
+  });
+}
+
+// 【2026-09-22追加】取得した記録を「並び替え → 同一人物の統合 → 先頭N件」の順で TOP 表示用に整える。
+export function buildLeaderboardTopEntries(entries, displayCount = LEADERBOARD_TOP_DISPLAY_COUNT) {
+  return dedupeLeaderboardEntriesByIdentity(sortLeaderboardEntries(entries)).slice(0, displayCount);
 }
 
 // 並び替え済みの配列の中で、指定したuidが何位か（1始まり）を返す。見つからなければnull。

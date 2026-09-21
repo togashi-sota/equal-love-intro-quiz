@@ -32,7 +32,7 @@ import {
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 import { database, authReady, getCurrentUid } from "./firebaseClient.js";
-import { getActivePlayer } from "./playerProfile.js";
+import { getActivePlayer, getOrCreateBackupId } from "./playerProfile.js";
 import { getMostOshiMemberId } from "./oshiMembers.js";
 import { isPublicProfileSharingEnabled } from "./publicProfilePayloads.js";
 import { getTimeAttackHistoryEntries } from "./timeAttackHistory.js";
@@ -40,14 +40,57 @@ import { getAllRankingCandidateBests } from "./rankingCandidateStore.js";
 import {
   buildLeaderboardPath,
   buildLeaderboardEntryPayload,
-  isBetterLeaderboardRecord,
-  needsActualQuestionCountBackfill,
+  resolveLeaderboardWritePlan,
   normalizeLeaderboardEntry,
-  sortLeaderboardEntries,
+  buildLeaderboardTopEntries,
   findBestEntryPerVariantQuestionCountAndCategory,
   isValidLeaderboardCandidate,
   isSupportedLeaderboardDimension,
+  computeLeaderboardIdentityKey,
+  LEADERBOARD_TOP_FETCH_LIMIT,
 } from "./timeAttackLeaderboard.js";
+import { autoMergeSupersededLeaderboardEntries } from "./uidSupersession.js";
+
+// 【2026-09-22追加：論理ユーザー識別キー（js/timeAttackLeaderboard.js の説明参照）】
+// 現在のプレイヤーの backupId から identityKey を求める。backupId は UID が変わっても・バックアップを
+// 復元しても同じ値が引き継がれるため、「同じ人」の印として使える。求められない環境では null
+// （記録にキーを付けないだけで、送信自体は従来どおり行う）。
+async function resolveMyIdentityKey() {
+  try {
+    const player = getActivePlayer();
+    const backupId = getOrCreateBackupId(player.playerId);
+    return await computeLeaderboardIdentityKey(backupId);
+  } catch {
+    return null;
+  }
+}
+
+// Firebase Rules が identityKey をまだ受け付けない（Rules未公開）場合の退避。
+// 一度 PERMISSION_DENIED を検知したら、このセッション中は identityKey を付けずに送る（無駄な失敗を繰り返さない）。
+let identityKeyRejectedByRules = false;
+
+function isPermissionDenied(error) {
+  const code = error?.code ?? "";
+  const message = error?.message ?? "";
+  return /PERMISSION_DENIED|permission_denied|permission-denied/i.test(`${code} ${message}`);
+}
+
+// identityKey を含む書き込みを試し、Rules に拒否されたときだけ identityKey 無しで書き直す。
+// writeFn(withIdentityKey: boolean) は実際の set()/update() を行う関数。
+async function writeWithIdentityKeyFallback(writeFn, identityKey) {
+  if (!identityKey || identityKeyRejectedByRules) {
+    await writeFn(false);
+    return;
+  }
+  try {
+    await writeFn(true);
+  } catch (error) {
+    if (!isPermissionDenied(error)) throw error;
+    identityKeyRejectedByRules = true;
+    console.warn("ランキング記録の identityKey が Firebase Rules に拒否されたため、キー無しで保存します（Rulesの更新が必要です）");
+    await writeFn(false);
+  }
+}
 
 // オフライン時はそもそもFirebaseへ接続を試みない（本人指示：「オフライン時は『ランキングは
 // オンライン時に表示できます』等の案内」。無駄な接続待ちで画面が固まるのを防ぐ）。
@@ -104,32 +147,46 @@ export async function submitTimeAttackScoreIfBetter({
       ? normalizeLeaderboardEntry(uid, existingSnapshot.val())
       : null;
 
-    if (!isBetterLeaderboardRecord(existingEntry, { clearTimeMs, missCount })) {
-      // 【2026-08-29追加、本人指示】タイム・ミス数は同じ（＝新記録ではない）でも、
-      // 既存記録にactualQuestionCountが欠けていて今回はそれが分かる場合だけ、
-      // その項目だけを後から書き足す（registered日時・タイムなど他の項目は一切変更しない）。
-      // これにより、actualQuestionCountの記録開始（2026-08-29）より前に登録された記録も、
-      // 次にこの関数が呼ばれた機会（ランキング画面を開く・公開設定をON等）に平均タイムが
-      // 表示されるようになる。
-      if (needsActualQuestionCountBackfill(existingEntry, { clearTimeMs, missCount, actualQuestionCount })) {
-        await update(ref(database, entryPath), { actualQuestionCount });
-        return { ok: true, updated: true };
-      }
-      return { ok: true, updated: false };
+    // 【2026-09-22改訂】「set／欠けた項目だけupdate／何もしない」の判断を純粋関数
+    // resolveLeaderboardWritePlan() に集約した（js/timeAttackLeaderboard.js）。
+    // キーは常に自分のUID・push() は使わないため、同じ結果保存が何度呼ばれても記録は1件のまま。
+    // 【2026-08-29、本人指示】タイム・ミス数は同じ（＝新記録ではない）でも、既存記録に
+    // actualQuestionCount／identityKey が欠けていて今回分かる場合は、その項目だけ後から書き足す
+    // （登録日時・タイムなど他の項目は一切変更しない）。
+    const identityKey = await resolveMyIdentityKey();
+    const plan = resolveLeaderboardWritePlan({
+      existingEntry,
+      candidate: { clearTimeMs, missCount, actualQuestionCount },
+      identityKey,
+    });
+    if (plan.action === "none") return { ok: true, updated: false };
+    if (plan.action === "update") {
+      let wrote = false;
+      await writeWithIdentityKeyFallback(async (withIdentityKey) => {
+        const fields = { ...plan.fields };
+        if (!withIdentityKey) delete fields.identityKey;
+        if (Object.keys(fields).length === 0) return; // Rules未対応で identityKey だけ落ちた＝書くものが無い
+        await update(ref(database, entryPath), fields);
+        wrote = true;
+      }, plan.fields.identityKey ?? null);
+      return { ok: true, updated: wrote };
     }
 
     const activePlayer = getActivePlayer();
-    const payload = buildLeaderboardEntryPayload({
-      displayName: activePlayer.playerName,
-      oshiMemberId: getMostOshiMemberId(),
-      clearTimeMs,
-      missCount,
-      rule,
-      source,
-      achievedAt: serverTimestamp(),
-      actualQuestionCount,
-    });
-    await set(ref(database, entryPath), payload);
+    await writeWithIdentityKeyFallback(async (withIdentityKey) => {
+      const payload = buildLeaderboardEntryPayload({
+        displayName: activePlayer.playerName,
+        oshiMemberId: getMostOshiMemberId(),
+        clearTimeMs,
+        missCount,
+        rule,
+        source,
+        achievedAt: serverTimestamp(),
+        actualQuestionCount,
+        identityKey: withIdentityKey ? identityKey : null,
+      });
+      await set(ref(database, entryPath), payload);
+    }, identityKey);
     return { ok: true, updated: true };
   } catch (error) {
     console.warn("タイムアタックランキングへの送信に失敗しました（ローカルの記録には影響ありません）", error);
@@ -139,6 +196,9 @@ export async function submitTimeAttackScoreIfBetter({
 
 // TOP10を取得する。サーバー側のquery（orderByChild+limitToFirst）で絞り込むため、
 // 全記録をダウンロードすることはない。
+// 【2026-09-22改訂】同じ identityKey（同一人物）の記録は最良の1件に統合してから TOP10 にする
+// （第二の防衛線。旧UIDの記録が残っていても画面上で同じ人が2人並ばない）。統合で件数が減っても
+// 10件を保てるよう、LEADERBOARD_TOP_FETCH_LIMIT 件だけ多めに取得する。名前では統合しない。
 // 戻り値: { ok: true, entries: [...] }（0件でも成功扱い） または { ok: false, entries: [], reason }
 export async function fetchTimeAttackLeaderboardTop10(variant, questionCountValue, categoryFilterValue) {
   if (isOffline()) {
@@ -150,7 +210,7 @@ export async function fetchTimeAttackLeaderboardTop10(variant, questionCountValu
     const leaderboardQuery = query(
       ref(database, buildLeaderboardPath(variant, questionCountValue, categoryFilterValue)),
       orderByChild("clearTimeMs"),
-      limitToFirst(10)
+      limitToFirst(LEADERBOARD_TOP_FETCH_LIMIT)
     );
     const snapshot = await get(leaderboardQuery);
     if (!snapshot.exists()) return { ok: true, entries: [] };
@@ -159,7 +219,7 @@ export async function fetchTimeAttackLeaderboardTop10(variant, questionCountValu
     const entries = Object.entries(value)
       .map(([uid, raw]) => normalizeLeaderboardEntry(uid, raw))
       .filter((entry) => entry !== null);
-    return { ok: true, entries: sortLeaderboardEntries(entries) };
+    return { ok: true, entries: buildLeaderboardTopEntries(entries) };
   } catch (error) {
     console.warn("タイムアタックランキングの取得に失敗しました", error);
     return { ok: false, entries: [], reason: "error" };
@@ -248,7 +308,7 @@ export async function fetchMyTimeAttackLeaderboardEntry(variant, questionCountVa
     const entryPath = `${buildLeaderboardPath(variant, questionCountValue, categoryFilterValue)}/${uid}`;
     const snapshot = await get(ref(database, entryPath));
     const entry = snapshot.exists() ? normalizeLeaderboardEntry(uid, snapshot.val()) : null;
-    return { ok: true, entry, uid };
+    return { ok: true, entry, uid, identityKey: await resolveMyIdentityKey() };
   } catch (error) {
     console.warn("あなたのタイムアタック記録の取得に失敗しました", error);
     return { ok: false, entry: null };
@@ -298,6 +358,16 @@ export async function syncRankingCandidatesToFirebase(playerKeyPrefix) {
 
   isSyncInFlight = true;
   try {
+    // 【2026-09-22追加：重複を作らない第一線】UIDの変更（旧UID）が端末で分かっている場合は、
+    // 自分の候補を送る前に、旧UID名義のランキング記録を新UID名義へ引き継いで旧を消す
+    // （旧の方が速ければ旧の内容を複製してから消す＝記録は失われない。js/uidSupersession.js）。
+    // これにより、旧UIDの記録と新UIDの再送信が並んで「同じ人が2人」になる時間を作らない。
+    // 旧UIDが分からない端末（対応表を作れない）では何もしない → 表示側の identityKey 統合が受け持つ。
+    try {
+      await autoMergeSupersededLeaderboardEntries({ identityKey: await resolveMyIdentityKey() });
+    } catch (error) {
+      console.warn("旧IDのランキング記録の自動引き継ぎに失敗しました（次の機会に再試行します）", error);
+    }
     const candidates = getAllRankingCandidateBests();
     let updated = 0;
     let failed = 0;
