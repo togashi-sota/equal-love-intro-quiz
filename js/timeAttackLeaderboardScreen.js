@@ -17,6 +17,7 @@ import {
   LEADERBOARD_QUESTION_COUNT_VALUES,
   LEADERBOARD_CATEGORY_VALUES,
   resolveAverageSecondsPerQuestion,
+  formatLeaderboardAchievedDate,
 } from "./timeAttackLeaderboard.js";
 import { fetchPublicProfileBadgeState, getMyUid, isPublicProfileSharingEnabled } from "./publicProfileSync.js";
 import { getPlayerKeyPrefix } from "./playerProfile.js";
@@ -90,7 +91,7 @@ function buildRankBadge(rank) {
 // 管理者専用の削除ボタンを追加する（一般ユーザーには絶対に見えない導線。
 // js/fanProfileCard.jsのbuildProfileCardと同じ考え方だが、この行はbutton要素ではなく
 // div要素のため、button-in-buttonの制約なく直接子要素として追加できる）。
-function buildLeaderboardRow(
+export function buildLeaderboardRow(
   entry,
   rank,
   badgeState,
@@ -123,12 +124,16 @@ function buildLeaderboardRow(
 
   // プレイ方法・ルールの小さなバッジ（2026-08-16追加、本人指示セクション13）。
   // どちらも参考情報のため、値が無ければ静かに何も表示しない（古い記録には無い場合がある）。
+  // 【2026-09-22追加・本人指示】記録日（今ランキングに残っているベスト記録が保存された日、Asia/Tokyo、月日のみ）。
+  // 既存の小さな補助行に「記録日 9月22日」として同居させる（カードを縦に伸ばさない）。日付が無い旧記録は出さない。
   const sourceLabel = SOURCE_LABELS[entry.source];
   const ruleLabel = RULE_LABELS[entry.rule];
-  if (sourceLabel || ruleLabel) {
+  const achievedDateLabel = formatLeaderboardAchievedDate(entry.achievedAt);
+  const metaSegments = [sourceLabel, ruleLabel, achievedDateLabel ? `記録日 ${achievedDateLabel}` : null].filter(Boolean);
+  if (metaSegments.length > 0) {
     const meta = document.createElement("p");
     meta.className = "leaderboard-row-meta";
-    meta.textContent = [sourceLabel, ruleLabel].filter(Boolean).join(" ・ ");
+    meta.textContent = metaSegments.join(" ・ ");
     body.appendChild(meta);
   }
 

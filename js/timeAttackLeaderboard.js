@@ -369,6 +369,24 @@ export async function collectUniqueTopEntries(
   return buildLeaderboardTopEntries(collected, displayCount);
 }
 
+// 【2026-09-22追加・本人指示】ランキング記録の「記録日」表示（例：9月22日）。
+// achievedAt は Firebase の serverTimestamp（ミリ秒）で、記録が「新記録として保存された瞬間」。
+// 表示は日本での利用を前提に Asia/Tokyo 固定（端末のタイムゾーンで前日／翌日にずれないように）。
+// achievedAt が無い・0・不正な旧記録は null を返し、画面側は日付欄を出さない（推測で日付を作らない）。
+// 順位・タイム・統合には一切影響しない表示専用の関数。
+export function formatLeaderboardAchievedDate(achievedAt, { timeZone = "Asia/Tokyo" } = {}) {
+  if (typeof achievedAt !== "number" || !Number.isFinite(achievedAt) || achievedAt <= 0) return null;
+  try {
+    const parts = new Intl.DateTimeFormat("ja-JP", { timeZone, month: "numeric", day: "numeric" }).formatToParts(new Date(achievedAt));
+    const month = parts.find((p) => p.type === "month")?.value;
+    const day = parts.find((p) => p.type === "day")?.value;
+    if (!month || !day) return null;
+    return `${Number(month)}月${Number(day)}日`;
+  } catch {
+    return null;
+  }
+}
+
 // 並び替え済みの配列の中で、指定したuidが何位か（1始まり）を返す。見つからなければnull。
 export function findRankByUid(sortedEntries, uid) {
   const index = sortedEntries.findIndex((entry) => entry.uid === uid);
