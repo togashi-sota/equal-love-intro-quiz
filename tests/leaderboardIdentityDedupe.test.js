@@ -314,7 +314,7 @@ export async function runLeaderboardIdentityRulesAndWiringTests() {
   const fetchText = async (file) => (await fetch(file, { cache: "no-store" })).text();
   const rules = JSON.parse(await fetchText("firebase/database.rules.json")).rules;
   const v3 = rules.timeAttackLeaderboardsV3?.["$variant"]?.["$questionCount"]?.["$category"]?.["$uid"];
-  assertEqual(v3?.identityKey?.[".validate"], "!newData.exists() || (newData.isString() && newData.val().length >= 16 && newData.val().length <= 64)", "Rules: ランキングV3の記録に identityKey（16〜64文字の文字列、省略可）を保存できる");
+  assertEqual(v3?.identityKey?.[".validate"], "newData.isString() && newData.val().length >= 16 && newData.val().length <= 64", "Rules: ランキングV3の記録に identityKey（16〜64文字の文字列）を保存できる（第11回：新規作成では必須）");
   assertEqual(v3?.["$other"]?.[".validate"], false, "Rules: それ以外の未知のキーは引き続き拒否");
   assertEqual(v3?.[".write"]?.includes("auth.uid === $uid"), true, "Rules: 記録を書けるのは自分のUIDのキーだけ（push() で別キーが増える余地が無い）");
 
@@ -330,7 +330,9 @@ export async function runLeaderboardIdentityRulesAndWiringTests() {
   assertEqual(sync.includes("limitToFirst(LEADERBOARD_TOP_FETCH_LIMIT + (cursor ? 1 : 0))"), true, "sync: TOP取得は統合前に1ページ（30件）ずつ取得する");
   assertEqual(sync.includes("const entries = await collectUniqueTopEntries(fetchPage);"), true, "sync: 取得後に並び替え→同一人物の統合→ユニーク10人まで次ページ");
   assertEqual(sync.includes("await autoMergeSupersededLeaderboardEntries({ identityKey: await resolveMyIdentityKey() });"), true, "sync: 候補の再送信より前に旧UID名義の記録を自動で引き継ぐ");
-  assertEqual(sync.includes("identityKeyRejectedByRules = true;"), true, "sync: Rules が identityKey 未対応でもキー無しで保存を続ける退避がある");
+  assertEqual(sync.includes("identityKeyRejectedByRules") || sync.includes("writeWithIdentityKeyFallback"), false, "sync: 【第11回】キー無しで保存する退避は撤去済み（キーが無ければクラウドへ書かない）");
+  assertEqual(sync.includes('if (!identityKey) return { ok: false, reason: "identity-key-unavailable" };'), true, "sync: 本人キーを作れなければ送信しない（候補はローカルに残る）");
+  assertEqual(sync.includes('return { ok: false, reason: "rules-rejected" };'), true, "sync: Rules に拒否されてもキー無しで強行しない");
 
   const supersession = await fetchText("js/uidSupersession.js");
   assertEqual(supersession.includes("export async function autoMergeSupersededLeaderboardEntries("), true, "uidSupersession: 自動引き継ぎ関数がある");

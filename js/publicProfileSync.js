@@ -26,7 +26,8 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 import { database, authReady, getCurrentUid } from "./firebaseClient.js";
 import { ensureIdentityBootstrap, canAutoSyncToCloud } from "./identityBootstrap.js";
-import { getActivePlayer, getPlayerKeyPrefix } from "./playerProfile.js";
+import { getActivePlayer, getPlayerKeyPrefix, getOrCreateBackupId } from "./playerProfile.js";
+import { computeLeaderboardIdentityKey } from "./timeAttackLeaderboard.js";
 import { getMostOshiMemberId } from "./oshiMembers.js";
 import { getAchievementListSnapshot, getOshiBadgeState } from "./achievementProgress.js";
 import {
@@ -80,7 +81,11 @@ export async function syncPublicProfileIfEnabled(playerKeyPrefix) {
   if (!canAutoSyncToCloud(await ensureIdentityBootstrap())) return false;
 
   try {
-    const payload = buildPublicProfilePayload(collectCurrentProfileMaterials());
+    // 【第11回】本人キー（ランキングと同じ identityKey）を必ず付ける。作れなければ公開しない
+    // （Rules は新規プロフィールに identityKey 必須。キー無しで別人のように増やさない）。
+    const identityKey = await computeLeaderboardIdentityKey(getOrCreateBackupId(getActivePlayer().playerId));
+    if (!identityKey) return false;
+    const payload = buildPublicProfilePayload({ ...collectCurrentProfileMaterials(), identityKey });
     const payloadJson = JSON.stringify(payload);
     if (payloadJson === lastSyncedPayloadJson) return true; // 前回と内容が同じなら書き込まないが、同期済みとして扱う
 

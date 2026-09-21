@@ -131,6 +131,7 @@
     import { runLeaderboardIdentityDedupeTests, runLeaderboardIdentityRulesAndWiringTests } from "./tests/leaderboardIdentityDedupe.test.js";
     import { runIdentityBootstrapTests, runIdentityBootstrapWiringTests } from "./tests/identityBootstrap.test.js";
     import { runUidRepairPlannerTests, runUidRepairWiringTests, runLeaderboardPaginationTests } from "./tests/uidRepairPlanner.test.js";
+    import { runIdentityRulesInvariantTests, runIdentityRulesWiringTests } from "./tests/identityRulesInvariant.test.js";
     import { runPlayHistoryTests } from "./tests/playHistory.test.js";
     import { runResponseTimeTests } from "./tests/responseTime.test.js";
     import { runSpeedAchievementProgressTests } from "./tests/speedAchievementProgress.test.js";
@@ -321,6 +322,8 @@
     await runUidRepairPlannerTests();
     await runUidRepairWiringTests();
     await runLeaderboardPaginationTests();
+    runIdentityRulesInvariantTests();
+    await runIdentityRulesWiringTests();
     runPlayHistoryTests();
     runResponseTimeTests();
     runSpeedAchievementProgressTests();

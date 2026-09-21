@@ -32,6 +32,7 @@ import {
   LEADERBOARD_RULE_VALUES,
   buildLeaderboardPath,
   isValidLeaderboardIdentityKey,
+  computeLeaderboardIdentityKey,
 } from "./timeAttackLeaderboard.js";
 import { planLeaderboardMerge, buildCopiedLeaderboardEntry } from "./backupOwnership.js";
 
@@ -96,12 +97,6 @@ function writeAutoMergeTriedAt(oldUid, at) {
   }
 }
 
-function isPermissionDenied(error) {
-  const code = error?.code ?? "";
-  const message = error?.message ?? "";
-  return /PERMISSION_DENIED|permission_denied|permission-denied/i.test(`${code} ${message}`);
-}
-
 // 戻り値: { attempted: boolean, copied, deletedOld, errors: string[], completed: boolean }
 //   completed は「旧UIDのランキング記録がもう残っていない」＝既に完了済みの場合も true。
 export async function autoMergeSupersededLeaderboardEntries({ identityKey = null, now = Date.now() } = {}) {
@@ -141,14 +136,14 @@ export async function autoMergeSupersededLeaderboardEntries({ identityKey = null
           const action = planLeaderboardMerge(oldEntry, newEntry);
           if (action === "none") continue;
           if (action === "copyThenDeleteOld") {
-            const copied = buildCopiedLeaderboardEntry(oldEntry, { displayName, oshiMemberId });
-            // identityKey（同一人物の印）も付けて複製する。Rules が未対応で拒否されたらキー無しで書き直す。
-            try {
-              await set(ref(database, `${path}/${uid}`), isValidLeaderboardIdentityKey(identityKey) ? { ...copied, identityKey } : copied);
-            } catch (error) {
-              if (!isPermissionDenied(error) || !isValidLeaderboardIdentityKey(identityKey)) throw error;
-              await set(ref(database, `${path}/${uid}`), copied);
+            // 【第11回】複製には identityKey（同一人物の印）が必須（Rules で新規記録は identityKey 必須）。
+            // キーが無ければ複製せず旧記録を残す（記録を失わない側に倒す）。
+            if (!isValidLeaderboardIdentityKey(identityKey)) {
+              result.errors.push(`${label}: 本人キーを作れないため新IDへ複製できません（旧IDの記録は残しました）`);
+              continue;
             }
+            const copied = { ...buildCopiedLeaderboardEntry(oldEntry, { displayName, oshiMemberId }), identityKey };
+            await set(ref(database, `${path}/${uid}`), copied);
             const readBack = (await get(ref(database, `${path}/${uid}`))).val();
             if (!readBack || readBack.clearTimeMs !== copied.clearTimeMs) {
               result.errors.push(`${label}: 新IDへの複製を確認できなかったため、旧IDの記録は残しました`);
@@ -383,10 +378,19 @@ export async function executeUidMerge(plan) {
     const label = `${d.variant}/${d.questionCountValue}/${d.categoryFilterValue}`;
     try {
       if (d.action === "copyThenDeleteOld") {
-        const copied = buildCopiedLeaderboardEntry(d.bestOldCandidate, {
-          displayName: player.playerName,
-          oshiMemberId: getMostOshiMemberId(),
-        });
+        // 【第11回】新規記録は identityKey 必須（Rules）。本人キーを付けて複製する
+        const identityKey = await computeLeaderboardIdentityKey(getBackupId(player.playerId));
+        if (!isValidLeaderboardIdentityKey(identityKey)) {
+          result.errors.push(`${label}: 本人キーを作れないため新IDへ複製できませんでした（旧IDの記録は残しました）`);
+          continue;
+        }
+        const copied = {
+          ...buildCopiedLeaderboardEntry(d.bestOldCandidate, {
+            displayName: player.playerName,
+            oshiMemberId: getMostOshiMemberId(),
+          }),
+          identityKey,
+        };
         await set(ref(database, `${path}/${uid}`), copied);
         const readBack = (await get(ref(database, `${path}/${uid}`))).val();
         if (!readBack || readBack.clearTimeMs !== copied.clearTimeMs) {

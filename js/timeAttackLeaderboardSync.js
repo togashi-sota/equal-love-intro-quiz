@@ -74,31 +74,14 @@ async function resolveMyIdentityKey() {
   }
 }
 
-// Firebase Rules が identityKey をまだ受け付けない（Rules未公開）場合の退避。
-// 一度 PERMISSION_DENIED を検知したら、このセッション中は identityKey を付けずに送る（無駄な失敗を繰り返さない）。
-let identityKeyRejectedByRules = false;
-
+// 【2026-09-22 第11回・本人指示】identityKey 無しの退避（第7回で入れた「Rules に拒否されたらキー無しで保存」）は撤去した。
+// 本人キーの無い記録は「別人として二重登録される」方向の退避になるため、キーを作れない／Rules に拒否された
+// ときはクラウドへ書かず、候補をローカル（js/rankingCandidateStore.js）に残して次の機会に再送信する。
+// 「ランキングに載らない」方が「同じ人が2人になる」より安全（Rules 側でも新規記録は identityKey 必須にしている）。
 function isPermissionDenied(error) {
   const code = error?.code ?? "";
   const message = error?.message ?? "";
   return /PERMISSION_DENIED|permission_denied|permission-denied/i.test(`${code} ${message}`);
-}
-
-// identityKey を含む書き込みを試し、Rules に拒否されたときだけ identityKey 無しで書き直す。
-// writeFn(withIdentityKey: boolean) は実際の set()/update() を行う関数。
-async function writeWithIdentityKeyFallback(writeFn, identityKey) {
-  if (!identityKey || identityKeyRejectedByRules) {
-    await writeFn(false);
-    return;
-  }
-  try {
-    await writeFn(true);
-  } catch (error) {
-    if (!isPermissionDenied(error)) throw error;
-    identityKeyRejectedByRules = true;
-    console.warn("ランキング記録の identityKey が Firebase Rules に拒否されたため、キー無しで保存します（Rulesの更新が必要です）");
-    await writeFn(false);
-  }
 }
 
 // オフライン時はそもそもFirebaseへ接続を試みない（本人指示：「オフライン時は『ランキングは
@@ -168,7 +151,9 @@ export async function submitTimeAttackScoreIfBetter({
     // 【2026-08-29、本人指示】タイム・ミス数は同じ（＝新記録ではない）でも、既存記録に
     // actualQuestionCount／identityKey が欠けていて今回分かる場合は、その項目だけ後から書き足す
     // （登録日時・タイムなど他の項目は一切変更しない）。
+    // 【第11回】本人キーを作れない環境では書かない（候補はローカルに残り、後で再送信される）
     const identityKey = await resolveMyIdentityKey();
+    if (!identityKey) return { ok: false, reason: "identity-key-unavailable" };
     const plan = resolveLeaderboardWritePlan({
       existingEntry,
       candidate: { clearTimeMs, missCount, actualQuestionCount },
@@ -176,34 +161,30 @@ export async function submitTimeAttackScoreIfBetter({
     });
     if (plan.action === "none") return { ok: true, updated: false };
     if (plan.action === "update") {
-      let wrote = false;
-      await writeWithIdentityKeyFallback(async (withIdentityKey) => {
-        const fields = { ...plan.fields };
-        if (!withIdentityKey) delete fields.identityKey;
-        if (Object.keys(fields).length === 0) return; // Rules未対応で identityKey だけ落ちた＝書くものが無い
-        await update(ref(database, entryPath), fields);
-        wrote = true;
-      }, plan.fields.identityKey ?? null);
-      return { ok: true, updated: wrote };
+      await update(ref(database, entryPath), plan.fields);
+      return { ok: true, updated: true };
     }
 
     const activePlayer = getActivePlayer();
-    await writeWithIdentityKeyFallback(async (withIdentityKey) => {
-      const payload = buildLeaderboardEntryPayload({
-        displayName: activePlayer.playerName,
-        oshiMemberId: getMostOshiMemberId(),
-        clearTimeMs,
-        missCount,
-        rule,
-        source,
-        achievedAt: serverTimestamp(),
-        actualQuestionCount,
-        identityKey: withIdentityKey ? identityKey : null,
-      });
-      await set(ref(database, entryPath), payload);
-    }, identityKey);
+    const payload = buildLeaderboardEntryPayload({
+      displayName: activePlayer.playerName,
+      oshiMemberId: getMostOshiMemberId(),
+      clearTimeMs,
+      missCount,
+      rule,
+      source,
+      achievedAt: serverTimestamp(),
+      actualQuestionCount,
+      identityKey,
+    });
+    await set(ref(database, entryPath), payload);
     return { ok: true, updated: true };
   } catch (error) {
+    if (isPermissionDenied(error)) {
+      // Rules に拒否された（設定の食い違い等）。キー無しで強行はせず、候補をローカルに残す。
+      console.warn("タイムアタックランキングへの送信が Firebase Rules に拒否されました（キー無しでは保存しません。ローカルの記録には影響ありません）", error);
+      return { ok: false, reason: "rules-rejected" };
+    }
     console.warn("タイムアタックランキングへの送信に失敗しました（ローカルの記録には影響ありません）", error);
     return { ok: false, reason: "error" };
   }

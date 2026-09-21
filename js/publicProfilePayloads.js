@@ -58,8 +58,12 @@ export function writeEnabledFlag(playerKeyPrefix, enabled) {
 // 【送らないもの】音源Blob・歌詞本文・コール本文・自己ベスト詳細・Firebase UID・メールアドレス・
 // IP・端末情報などは一切payloadに含めない。称号もIDだけを送り、名前・説明文・アイコンは
 // 常にjs/achievementDefinitions.js側の定義から表示する（説明文の二重管理をしない）。
-export function buildPublicProfilePayload({ playerName, oshiMemberId, achievementsSnapshot, oshiBadgeState }) {
-  return {
+// 【2026-09-22 第11回追加】identityKey（backupId の SHA-256＝UIDに依存しない本人キー。ランキングと同じ値）を
+// 渡すと payload に含める。Firebase Rules は「publicProfiles/{uid} の新規作成には identityKey 必須」になっており、
+// 匿名UIDが差し替わった古いクライアントが新UID名義の公開プロフィールを作ることを Firebase 側で拒否する。
+// backupId そのもの（引き継ぎコードの一部）は公開しない。
+export function buildPublicProfilePayload({ playerName, oshiMemberId, achievementsSnapshot, oshiBadgeState, identityKey = null }) {
+  const payload = {
     schemaVersion: SCHEMA_VERSION,
     displayName: (playerName || "").trim() || "名無しのファン",
     oshiMemberId: oshiMemberId ?? null,
@@ -70,6 +74,8 @@ export function buildPublicProfilePayload({ playerName, oshiMemberId, achievemen
     hasEqualLoveMaster: oshiBadgeState.hasEqualLoveMaster,
     hasEqualLoveComplete: oshiBadgeState.hasEqualLoveComplete,
   };
+  if (typeof identityKey === "string" && identityKey.length >= 16 && identityKey.length <= 64) payload.identityKey = identityKey;
+  return payload;
 }
 
 // publicProfiles/{uid}から読んだ生データ（Firebaseから返る形はどんな壊れ方をしているか
@@ -89,5 +95,7 @@ export function normalizePublicProfileEntry(uid, entry) {
     hasEqualLoveMaster: entry.hasEqualLoveMaster === true,
     hasEqualLoveComplete: entry.hasEqualLoveComplete === true,
     updatedAt: typeof entry.updatedAt === "number" ? entry.updatedAt : null,
+    // 2026-09-22追加：本人キー（無い旧プロフィールは null）
+    identityKey: typeof entry.identityKey === "string" && entry.identityKey.length >= 16 && entry.identityKey.length <= 64 ? entry.identityKey : null,
   };
 }

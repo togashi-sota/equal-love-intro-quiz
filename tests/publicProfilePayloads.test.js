@@ -150,9 +150,20 @@ export function runPublicProfilePayloadsTests() {
       hasEqualLoveMaster: true,
       hasEqualLoveComplete: false,
       updatedAt: 1700000000000,
+      identityKey: null, // 2026-09-22追加：本人キーが無い旧プロフィールは null
     },
     "正常な形のentryは、値をそのまま保った形に正規化される"
   );
+  // 2026-09-22追加：identityKey を渡すと payload に入る（旧クライアント再現＝渡さなければ従来の7キーのまま）
+  const keyedPayload = buildPublicProfilePayload({
+    playerName: "颯太",
+    oshiMemberId: null,
+    achievementsSnapshot: buildSnapshot([]),
+    oshiBadgeState: { hasNoMissMaster: false, hasEqualLoveMaster: false, hasEqualLoveComplete: false },
+    identityKey: "k".repeat(64),
+  });
+  assertEqual(keyedPayload.identityKey, "k".repeat(64), "identityKey を渡すと payload に含まれる（本人キー。backupId そのものは含めない）");
+  assertEqual(Object.keys(keyedPayload).length, 8, "identityKey ありの payload は8キー");
 
   localStorage.removeItem(FLAG_KEY);
   localStorage.removeItem(FLAG_KEY_PLAYER_A);

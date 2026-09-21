@@ -3,7 +3,9 @@
     "publicProfiles": {
       ".read": "auth != null",
       "$uid": {
-        ".write": "auth != null && (auth.uid === $uid || (root.child('admins').child(auth.uid).val() === true && !newData.exists()) || (!newData.exists() && root.child('uidSupersession').child($uid).child('newUid').val() === auth.uid))"
+        ".write": "auth != null && (auth.uid === $uid || (root.child('admins').child(auth.uid).val() === true && !newData.exists()) || (!newData.exists() && root.child('uidSupersession').child($uid).child('newUid').val() === auth.uid))",
+        ".validate": "data.exists() ? (!data.hasChild('identityKey') || newData.hasChild('identityKey')) : newData.hasChild('identityKey')",
+        "identityKey": { ".validate": "newData.isString() && newData.val().length >= 16 && newData.val().length <= 64" }
       }
     },
     "timeAttackLeaderboards": {
@@ -54,7 +56,7 @@
             ".indexOn": "clearTimeMs",
             "$uid": {
               ".write": "auth != null && (auth.uid === $uid || (root.child('admins').child(auth.uid).val() === true && !newData.exists()) || (!newData.exists() && root.child('uidSupersession').child($uid).child('newUid').val() === auth.uid))",
-              ".validate": "newData.hasChildren(['displayName','clearTimeMs','missCount','achievedAt'])",
+              ".validate": "newData.hasChildren(['displayName','clearTimeMs','missCount','achievedAt']) && (data.exists() ? (!data.hasChild('identityKey') || newData.hasChild('identityKey')) : newData.hasChild('identityKey'))",
               "displayName": { ".validate": "newData.isString() && newData.val().length <= 40" },
               "oshiMemberId": { ".validate": "newData.val() === null || newData.isString()" },
               "clearTimeMs": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() < 3600000" },
@@ -63,7 +65,7 @@
               "source": { ".validate": "newData.val() === null || (newData.isString() && (newData.val() === 'timeAttack' || newData.val() === 'normal'))" },
               "achievedAt": { ".validate": "newData.isNumber()" },
               "actualQuestionCount": { ".validate": "!newData.exists() || (newData.isNumber() && newData.val() > 0)" },
-              "identityKey": { ".validate": "!newData.exists() || (newData.isString() && newData.val().length >= 16 && newData.val().length <= 64)" },
+              "identityKey": { ".validate": "newData.isString() && newData.val().length >= 16 && newData.val().length <= 64" },
               "$other": { ".validate": false }
             }
           }
