@@ -147,6 +147,7 @@ import { initTimeAttackHistoryScreen, renderTimeAttackHistoryScreen } from "./ti
 import { submitTimeAttackScoreIfBetter, backfillTimeAttackLeaderboardIfNeeded } from "./timeAttackLeaderboardSync.js";
 import { saveRankingCandidateIfBetter } from "./rankingCandidateStore.js";
 import { initRankingCandidateAutoSync } from "./rankingCandidateAutoSync.js";
+import { ensureIdentityBootstrap, resetIdentityBootstrap } from "./identityBootstrap.js";
 import {
   initTimeAttackLeaderboardScreen,
   showTimeAttackLeaderboard,
@@ -292,6 +293,7 @@ import { needsOnboarding, initOnboardingScreen } from "./onboardingScreen.js";
 import { initGuideScreen, openGuideScreen, getGuideReturnScreenId } from "./guideScreen.js";
 import { initFanProfilesScreen, renderFanProfilesScreen } from "./fanProfilesScreen.js";
 import { initAdminBackupScreen, renderAdminBackupScreen } from "./adminBackupScreen.js";
+import { initAdminUidRepairScreen, resetAdminUidRepairScreen } from "./adminUidRepairScreen.js";
 import {
   createRecoveryRequest,
   checkRecoveryRequestStatus,
@@ -2277,6 +2279,16 @@ initAdminBackupScreen(
   },
   MEMBERS
 );
+// 【2026-09-22新設・本人指示 第8回】管理者用「UID移行・重複修復」（バックアップ管理画面内のセクション）。
+initAdminUidRepairScreen(
+  {
+    section: document.getElementById("admin-uid-repair-section"),
+    scanButton: document.getElementById("admin-uid-repair-scan-button"),
+    statusText: document.getElementById("admin-uid-repair-status"),
+    list: document.getElementById("admin-uid-repair-list"),
+  },
+  MEMBERS
+);
 
 // 【2026-09-23新設・本人指示：新規プレイのたびに第1問だけ無音になる問題の再調査】
 // 音源診断ログ画面（管理者専用）。
@@ -2369,6 +2381,9 @@ initPlayerScreen(
       showScreen("members");
     },
     onPlayerChanged: () => {
+      // 【2026-09-22追加】プレイヤーが変わると backupId（本人の前提）も変わるため、本人確認の関門を判定し直す
+      // （次のクラウド書き込みの直前に、新しいプレイヤーの持ち主確認からやり直す）。
+      resetIdentityBootstrap();
       // プレイヤーが切り替わったら、スタート画面の自己ベスト表示も新しいプレイヤーのものに更新する。
       updateModeBestScoreDisplay();
       // 収録曲一覧「すべての曲」タブは起動時に一度だけ作られて使い回されるため、
@@ -5412,6 +5427,7 @@ fanProfilesLinkElement.addEventListener("click", () => {
 adminBackupLinkButtonElement.addEventListener("click", () => {
   playClickSound();
   renderAdminBackupScreen();
+  resetAdminUidRepairScreen(); // 古い dry-run 結果で実行しないよう、開くたびに候補表示を消す
   navigateWithScrollMemory("adminBackup");
 });
 // 【2026-09-23新設・本人指示：新規プレイのたびに第1問だけ無音になる問題の再調査】
@@ -8061,6 +8077,12 @@ initServiceWorker();
 // 【2026-09-06新設・本人指示：圏外プレイ結果をランキングへ自動反映】
 // js/rankingCandidateAutoSync.js参照。起動時・オンライン復帰時・フォアグラウンド復帰時に、
 // 未送信だったランキング候補（js/rankingCandidateStore.js）を自動的に再送信する。
+// 【2026-09-22追加：本人確認の関門（js/identityBootstrap.js）】起動時のクラウド同期の順序を明示する：
+//   匿名認証 → バックアップの持ち主確認（必要なら ownerSecret で回復）→ 旧UID名義の記録の引き継ぎ → ready
+// が終わるまで、下のランキング候補の自動再送信・公開プロフィール・presence は待機する
+// （各同期関数の内部でも同じ関門を通るため、ここで await しなくても順序は守られる。
+// 起動直後に判定を始めておくことで、ready までの待ち時間を短くするための呼び出し）。
+ensureIdentityBootstrap();
 initRankingCandidateAutoSync({
   toastElement: document.getElementById("ranking-auto-sync-toast"),
 });

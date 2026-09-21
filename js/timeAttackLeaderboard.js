@@ -56,6 +56,9 @@ export const LEADERBOARD_QUESTION_COUNT_VALUES = ["5", "10", "20", "50", "all"];
 // 少し多めに取得してから統合し、先頭10件だけを表示する（全件ダウンロードはしない）。
 export const LEADERBOARD_TOP_DISPLAY_COUNT = 10;
 export const LEADERBOARD_TOP_FETCH_LIMIT = 30;
+// 【2026-09-22追加】ページ取得の上限ページ数（30件×20ページ＝600件まで。無限取得を防ぐ安全弁。
+// 現在の総記録数は1区分あたり10件前後なので、通常は1ページで終わる）。
+export const LEADERBOARD_TOP_MAX_PAGES = 20;
 
 // identityKey として受け付ける長さ（SHA-256 の16進64文字。Rules の .validate と同じ範囲）。
 const IDENTITY_KEY_MIN_LENGTH = 16;
@@ -339,6 +342,31 @@ export function dedupeLeaderboardEntriesByIdentity(sortedEntries) {
 // 【2026-09-22追加】取得した記録を「並び替え → 同一人物の統合 → 先頭N件」の順で TOP 表示用に整える。
 export function buildLeaderboardTopEntries(entries, displayCount = LEADERBOARD_TOP_DISPLAY_COUNT) {
   return dedupeLeaderboardEntriesByIdentity(sortLeaderboardEntries(entries)).slice(0, displayCount);
+}
+
+// 【2026-09-22追加：ページ取得で正しいユニークTOP10を作る】
+// fetchPage(cursor) は「clearTimeMs 昇順の1ページ」を返す非同期関数：{ entries: [正規化済み], nextCursor: any|null }
+//   nextCursor が null ならデータの終わり。cursor の中身はこの関数は解釈しない（Firebase側の startAt 用）。
+// 「同一人物（identityKey）の統合後にユニークが displayCount 人そろう」か「データが尽きる」か
+// 「maxPages に達する」まで次のページを取り続ける。固定30件では、上位30件に重複が大量にあると
+// 31位以降の別ユーザーを取り損ねて真のTOP10が欠けるため（本人指摘）。
+// 戻り値は並び替え → 統合 → 先頭 displayCount 件。
+export async function collectUniqueTopEntries(
+  fetchPage,
+  { displayCount = LEADERBOARD_TOP_DISPLAY_COUNT, maxPages = LEADERBOARD_TOP_MAX_PAGES } = {}
+) {
+  const collected = [];
+  let cursor = null;
+  for (let page = 0; page < maxPages; page += 1) {
+    const result = await fetchPage(cursor);
+    const entries = Array.isArray(result?.entries) ? result.entries : [];
+    collected.push(...entries);
+    const unique = dedupeLeaderboardEntriesByIdentity(sortLeaderboardEntries(collected));
+    if (unique.length >= displayCount) return unique.slice(0, displayCount);
+    if (!result?.nextCursor || entries.length === 0) break;
+    cursor = result.nextCursor;
+  }
+  return buildLeaderboardTopEntries(collected, displayCount);
 }
 
 // 並び替え済みの配列の中で、指定したuidが何位か（1始まり）を返す。見つからなければnull。

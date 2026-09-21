@@ -324,11 +324,11 @@ export async function runLeaderboardIdentityRulesAndWiringTests() {
   assertEqual(/\.displayName\s*===\s*\w+\.displayName/.test(pure), false, "純粋関数: 名前の一致で同一人物と判断するコードが無い");
 
   const sync = await fetchText("js/timeAttackLeaderboardSync.js");
-  assertEqual(sync.replace(/\/\/.*$/gm, "").includes("push("), false, "sync: push() は使わない（キーは常にUID）");
+  assertEqual(/push\(ref\(|import \{[^}]*push/.test(sync), false, "sync: Firebase の push() は使わない（キーは常にUID）");
   assertEqual(sync.includes("await set(ref(database, entryPath), payload);"), true, "sync: 記録は UID のキーへ set() で置き換える");
   assertEqual(sync.includes("resolveLeaderboardWritePlan({"), true, "sync: 保存の判断は resolveLeaderboardWritePlan に集約");
-  assertEqual(sync.includes("limitToFirst(LEADERBOARD_TOP_FETCH_LIMIT)"), true, "sync: TOP取得は統合前に多めに取得する");
-  assertEqual(sync.includes("return { ok: true, entries: buildLeaderboardTopEntries(entries) };"), true, "sync: 取得後に並び替え→同一人物の統合→TOP10");
+  assertEqual(sync.includes("limitToFirst(LEADERBOARD_TOP_FETCH_LIMIT + (cursor ? 1 : 0))"), true, "sync: TOP取得は統合前に1ページ（30件）ずつ取得する");
+  assertEqual(sync.includes("const entries = await collectUniqueTopEntries(fetchPage);"), true, "sync: 取得後に並び替え→同一人物の統合→ユニーク10人まで次ページ");
   assertEqual(sync.includes("await autoMergeSupersededLeaderboardEntries({ identityKey: await resolveMyIdentityKey() });"), true, "sync: 候補の再送信より前に旧UID名義の記録を自動で引き継ぐ");
   assertEqual(sync.includes("identityKeyRejectedByRules = true;"), true, "sync: Rules が identityKey 未対応でもキー無しで保存を続ける退避がある");
 

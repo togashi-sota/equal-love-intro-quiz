@@ -28,6 +28,7 @@ import {
   remove,
   query,
   orderByChild,
+  startAt,
   limitToFirst,
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
@@ -42,7 +43,7 @@ import {
   buildLeaderboardEntryPayload,
   resolveLeaderboardWritePlan,
   normalizeLeaderboardEntry,
-  buildLeaderboardTopEntries,
+  collectUniqueTopEntries,
   findBestEntryPerVariantQuestionCountAndCategory,
   isValidLeaderboardCandidate,
   isSupportedLeaderboardDimension,
@@ -50,6 +51,14 @@ import {
   LEADERBOARD_TOP_FETCH_LIMIT,
 } from "./timeAttackLeaderboard.js";
 import { autoMergeSupersededLeaderboardEntries } from "./uidSupersession.js";
+import { ensureIdentityBootstrap, canAutoSyncToCloud } from "./identityBootstrap.js";
+
+// 【2026-09-22追加：本人確認の関門（js/identityBootstrap.js）】クラウドへ自分名義で書く前に必ず通す。
+// 関門が ready（本人確認済み・旧UIDの引き継ぎ済み）のときだけ true。pending／migrating／unresolved なら false。
+async function isIdentityReadyForCloudWrite() {
+  const state = await ensureIdentityBootstrap();
+  return canAutoSyncToCloud(state);
+}
 
 // 【2026-09-22追加：論理ユーザー識別キー（js/timeAttackLeaderboard.js の説明参照）】
 // 現在のプレイヤーの backupId から identityKey を求める。backupId は UID が変わっても・バックアップを
@@ -135,6 +144,12 @@ export async function submitTimeAttackScoreIfBetter({
   if (isOffline()) {
     return { ok: false, reason: "offline" };
   }
+  // 【2026-09-22追加：本人確認の関門】UIDが変わった直後（旧UID名義の記録がまだ残っている／持ち主確認が
+  // 取れていない）に「新UID名義」で書くと重複を作るため、関門が ready になるまで一切書かない。
+  // 記録はローカルの候補（js/rankingCandidateStore.js）に残っているので、ready 後の自動同期で送られる。
+  if (!(await isIdentityReadyForCloudWrite())) {
+    return { ok: false, reason: "identity-not-ready" };
+  }
 
   try {
     await authReady;
@@ -207,19 +222,30 @@ export async function fetchTimeAttackLeaderboardTop10(variant, questionCountValu
 
   try {
     await authReady;
-    const leaderboardQuery = query(
-      ref(database, buildLeaderboardPath(variant, questionCountValue, categoryFilterValue)),
-      orderByChild("clearTimeMs"),
-      limitToFirst(LEADERBOARD_TOP_FETCH_LIMIT)
-    );
-    const snapshot = await get(leaderboardQuery);
-    if (!snapshot.exists()) return { ok: true, entries: [] };
-
-    const value = snapshot.val();
-    const entries = Object.entries(value)
-      .map(([uid, raw]) => normalizeLeaderboardEntry(uid, raw))
-      .filter((entry) => entry !== null);
-    return { ok: true, entries: buildLeaderboardTopEntries(entries) };
+    const divisionRef = ref(database, buildLeaderboardPath(variant, questionCountValue, categoryFilterValue));
+    // 【2026-09-22改訂：ページ取得】同一人物（identityKey）の重複が上位に何件あっても、存在する限り正しい
+    // ユニークTOP10を返すため、「ユニークが10人そろうか、データが尽きるまで」次のページを取りに行く
+    // （js/timeAttackLeaderboard.js collectUniqueTopEntries）。1ページは LEADERBOARD_TOP_FETCH_LIMIT 件、
+    // ページ数には上限があり（LEADERBOARD_TOP_MAX_PAGES）、無限取得にはならない。
+    // 次ページの起点は「最後の記録の clearTimeMs とキー（UID）」（startAt(value, key)）。同じ記録が
+    // 先頭に重なって返るため、1件多く取って重なりを捨てる。順序は snapshot.forEach で保つ（val() は順序を失う）。
+    const fetchPage = async (cursor) => {
+      const constraints = [orderByChild("clearTimeMs")];
+      if (cursor) constraints.push(startAt(cursor.clearTimeMs, cursor.uid));
+      constraints.push(limitToFirst(LEADERBOARD_TOP_FETCH_LIMIT + (cursor ? 1 : 0)));
+      const snapshot = await get(query(divisionRef, ...constraints));
+      const ordered = [];
+      snapshot.forEach((child) => {
+        ordered.push({ uid: child.key, raw: child.val() });
+      });
+      const page = cursor && ordered[0]?.uid === cursor.uid ? ordered.slice(1) : ordered;
+      const entries = page.map(({ uid, raw }) => normalizeLeaderboardEntry(uid, raw)).filter((entry) => entry !== null);
+      const last = page[page.length - 1];
+      const hasMore = page.length >= LEADERBOARD_TOP_FETCH_LIMIT && last && Number.isFinite(Number(last.raw?.clearTimeMs));
+      return { entries, nextCursor: hasMore ? { clearTimeMs: Number(last.raw.clearTimeMs), uid: last.uid } : null };
+    };
+    const entries = await collectUniqueTopEntries(fetchPage);
+    return { ok: true, entries };
   } catch (error) {
     console.warn("タイムアタックランキングの取得に失敗しました", error);
     return { ok: false, entries: [], reason: "error" };
@@ -249,6 +275,9 @@ function buildBackfillFlagKey(playerKeyPrefix) {
 export async function backfillTimeAttackLeaderboardIfNeeded(playerKeyPrefix) {
   if (!isPublicProfileSharingEnabled(playerKeyPrefix)) return;
   if (isOffline()) return; // オフライン時はフラグを立てず、次回オンライン時に再試行できるようにする
+  // 【2026-09-22追加】本人確認の関門が ready になるまでは、過去の自己ベストを（別UID名義で）一括送信しない。
+  // フラグも立てないので、ready になった後の起動で改めて実行される。
+  if (!(await isIdentityReadyForCloudWrite())) return;
 
   const flagKey = buildBackfillFlagKey(playerKeyPrefix);
   try {
@@ -347,26 +376,36 @@ let isSyncInFlight = false;
 // 公開設定がOFFのまま呼ばれた場合・オフラインの場合・既に実行中の場合は、何も送信せず全て0で返す。
 export async function syncRankingCandidatesToFirebase(playerKeyPrefix) {
   if (!isPublicProfileSharingEnabled(playerKeyPrefix)) {
-    return { attempted: 0, updated: 0, failed: 0 };
+    return { attempted: 0, updated: 0, failed: 0, reason: "privacy-disabled" };
   }
   if (isOffline()) {
-    return { attempted: 0, updated: 0, failed: 0 };
+    return { attempted: 0, updated: 0, failed: 0, reason: "offline" };
   }
   if (isSyncInFlight) {
-    return { attempted: 0, updated: 0, failed: 0 };
+    return { attempted: 0, updated: 0, failed: 0, reason: "in-flight" };
   }
 
   isSyncInFlight = true;
   try {
-    // 【2026-09-22追加：重複を作らない第一線】UIDの変更（旧UID）が端末で分かっている場合は、
-    // 自分の候補を送る前に、旧UID名義のランキング記録を新UID名義へ引き継いで旧を消す
-    // （旧の方が速ければ旧の内容を複製してから消す＝記録は失われない。js/uidSupersession.js）。
-    // これにより、旧UIDの記録と新UIDの再送信が並んで「同じ人が2人」になる時間を作らない。
-    // 旧UIDが分からない端末（対応表を作れない）では何もしない → 表示側の identityKey 統合が受け持つ。
+    // 【2026-09-22改訂：本人確認の関門（js/identityBootstrap.js）】過去の自己ベストを一括送信する前に、
+    //   認証確定 → バックアップの持ち主確認（必要なら ownerSecret で claim）→ 旧UID名義のランキング記録の
+    //   引き継ぎ（速い方を新UID名義で1件残して旧を消す）
+    // が終わって ready になっていることを必ず確認する。ready でなければ何も送らない
+    // （候補はローカルに残るので、ready になった後の起動・復帰で改めて送られる）。
+    // これが「UIDが変わっても、identity 移行より先に新UID名義で過去記録を再送信しない」順序保証。
+    if (!(await isIdentityReadyForCloudWrite())) {
+      return { attempted: 0, updated: 0, failed: 0, reason: "identity-not-ready" };
+    }
+    // 関門が ready でも、その後に旧UIDの確認待ちが新たに付いた場合に備えて、送信直前にもう一度だけ
+    // 旧UID名義の記録の引き継ぎを試す（既に完了済みなら何もしない・冪等）。
     try {
-      await autoMergeSupersededLeaderboardEntries({ identityKey: await resolveMyIdentityKey() });
+      const merge = await autoMergeSupersededLeaderboardEntries({ identityKey: await resolveMyIdentityKey() });
+      if (merge.attempted && !merge.completed) {
+        return { attempted: 0, updated: 0, failed: 0, reason: "migration-incomplete" };
+      }
     } catch (error) {
       console.warn("旧IDのランキング記録の自動引き継ぎに失敗しました（次の機会に再試行します）", error);
+      return { attempted: 0, updated: 0, failed: 0, reason: "migration-error" };
     }
     const candidates = getAllRankingCandidateBests();
     let updated = 0;

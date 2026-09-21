@@ -300,14 +300,33 @@ export function markPendingUidMergeLeaderboardMerged(playerId, mergedAt = Date.n
   return updatePlayerFields(playerId, { pendingUidMerge: { ...player.pendingUidMerge, leaderboardMergedAt: mergedAt } });
 }
 
+// 【2026-09-22改訂】既に同じ旧UIDの引き継ぎが完了済み（completedUidMerges）なら、確認待ちを作り直さない
+// （クラウド側の previousUids から旧UIDを再発見するたびに同じ整理を繰り返さないため）。
 export function setPendingUidMerge(playerId, { oldUid, backupId }) {
+  if (getCompletedUidMerges(playerId).includes(oldUid)) return false;
+  const existing = getPendingUidMerge(playerId);
+  if (existing && existing.oldUid === oldUid) return false; // 同じ旧UIDの確認待ちが既にある（進行中の印を消さない）
   updatePlayerFields(playerId, { pendingUidMerge: { oldUid, backupId, recordedAt: Date.now() } });
+  return true;
 }
 
+// 引き継ぎが完了した旧UIDを記録してから確認待ちを消す（2026-09-22改訂：completedUidMerges に残す）。
 export function clearPendingUidMerge(playerId) {
   const player = getPlayers().find((p) => p.playerId === playerId);
   if (!player || !player.pendingUidMerge) return;
-  updatePlayerFields(playerId, { pendingUidMerge: null });
+  const completed = getCompletedUidMerges(playerId);
+  const oldUid = typeof player.pendingUidMerge.oldUid === "string" ? player.pendingUidMerge.oldUid : null;
+  updatePlayerFields(playerId, {
+    pendingUidMerge: null,
+    completedUidMerges: oldUid && !completed.includes(oldUid) ? [...completed, oldUid].slice(-20) : completed,
+  });
+}
+
+// 【2026-09-22追加】この端末で引き継ぎ（旧UID→新UID）を完了済みの旧UID一覧（最大20件）。
+export function getCompletedUidMerges(playerId) {
+  const player = getPlayers().find((p) => p.playerId === playerId);
+  const list = player?.completedUidMerges;
+  return Array.isArray(list) ? list.filter((uid) => typeof uid === "string" && uid) : [];
 }
 
 // highscore.js/history.js/titleProgress.js等が、保存キーの先頭に付ける接頭辞を返す。

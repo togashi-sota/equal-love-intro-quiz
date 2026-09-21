@@ -1768,6 +1768,18 @@
       </div>
       <p id="admin-backup-status" class="lyrics-import-status"></p>
 
+      <!-- 【2026-09-22新設・本人指示 第8回】UID移行・重複修復：匿名UIDが差し替わった人の
+           バックアップの持ち主付け替え／旧ID名義のランキング・公開プロフィールの整理を、
+           本人の端末を触らずに「dry-run → 証拠確認 → 確認語入力 → 実行 → 読み戻し」で行う。
+           js/adminUidRepairScreen.js・js/adminUidRepair.js・js/uidRepairPlanner.js -->
+      <div id="admin-uid-repair-section" class="admin-uid-repair-section">
+        <h3 class="admin-backup-section-title">UID移行・重複修復（匿名IDが変わった人）</h3>
+        <p class="special-modes-intro">Firebase上のバックアップ・ランキング・公開プロフィールを読み取り、「同じ人の旧IDと新ID」を証拠つきで探します。まず読み取りだけ（dry-run）を行い、候補ごとに内容を確認してから実行します。名前が同じだけでは候補にしません。</p>
+        <button id="admin-uid-repair-scan-button" class="secondary-button" type="button">候補を調べる（dry-run・読み取りのみ）</button>
+        <p id="admin-uid-repair-status" class="lyrics-import-status" hidden></p>
+        <div id="admin-uid-repair-list" class="admin-backup-list"></div>
+      </div>
+
       <!-- 【2026-09-04新設、本人指示：予防対応】いくみさんの件を受けて、「まだ一度も
            バックアップが無い＝今すぐ端末データが消えたら称号すら復元できない」人を
            事前に見つけて、今のうちに予防的なバックアップを作れる機能。 -->

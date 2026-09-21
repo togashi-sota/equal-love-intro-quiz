@@ -73,7 +73,9 @@ export async function recordUidSupersession(oldUid, backupId) {
 // 【失敗時】1区分でも失敗（通信・権限）したら「完了」にはせず、次の機会に同じ処理をやり直す。
 // 同じ旧UIDについて短時間に何度も45区分を読みに行かないよう、試行間隔を空ける。
 // ---------------------------------------------------------------------------
-const AUTO_MERGE_RETRY_INTERVAL_MS = 6 * 60 * 60 * 1000;
+// 【2026-09-22改訂】6時間→10分。起動時の「本人確認の関門」（js/identityBootstrap.js）はこの統合が終わるまで
+// ランキング再送信を止めるため、失敗時の再試行を長く待たせない。
+const AUTO_MERGE_RETRY_INTERVAL_MS = 10 * 60 * 1000;
 const AUTO_MERGE_TRIED_AT_KEY_PREFIX = "equalLoveIntroQuiz.uidMergeLeaderboardTriedAt.";
 
 function readAutoMergeTriedAt(oldUid) {
@@ -101,11 +103,13 @@ function isPermissionDenied(error) {
 }
 
 // 戻り値: { attempted: boolean, copied, deletedOld, errors: string[], completed: boolean }
+//   completed は「旧UIDのランキング記録がもう残っていない」＝既に完了済みの場合も true。
 export async function autoMergeSupersededLeaderboardEntries({ identityKey = null, now = Date.now() } = {}) {
   const result = { attempted: false, copied: 0, deletedOld: 0, errors: [], completed: false };
   const player = getActivePlayer();
   const pending = getPendingUidMerge(player.playerId);
-  if (!pending || pending.leaderboardMergedAt) return result;
+  if (!pending) return result;
+  if (pending.leaderboardMergedAt) return { ...result, completed: true };
   if (now - readAutoMergeTriedAt(pending.oldUid) < AUTO_MERGE_RETRY_INTERVAL_MS) return result;
 
   let fb;
@@ -167,6 +171,62 @@ export async function autoMergeSupersededLeaderboardEntries({ identityKey = null
     result.completed = true;
   }
   return result;
+}
+
+// ---------------------------------------------------------------------------
+// 【2026-09-22追加：UID変更後の自動引き継ぎ（本人確認の関門から呼ばれる）】
+// 端末に「旧UID→新UID」の確認待ち（pendingUidMerge）があるとき、本人の操作を待たずに
+//   ①旧UIDのランキング記録を新UID名義へ引き継ぐ（速い方を1件残す。記録は失わない）
+//   ②旧UIDの公開プロフィールを消す（フレンド一覧の重複を解消。新UIDの公開プロフィールは通常同期で再作成される）
+//   ③旧UIDの presence を消す
+// を順に行う。①が終わるまで js/identityBootstrap.js は READY にならない（＝ランキング再送信を止める）。
+// ②③は「できなければ次回」で、READY を妨げない（実害が「フレンド一覧に旧名義が残る」程度のため）。
+// 何回実行しても結果は同じ（冪等）：既に消えているものは「無い」として成功扱い、途中で閉じても次回続きから。
+// 戻り値: { status: "none" | "leaderboard-incomplete" | "completed" | "partial", leaderboard, profileDeleted, presenceDeleted, errors }
+// ---------------------------------------------------------------------------
+export async function runPendingUidMigration({ identityKey = null, now = Date.now() } = {}) {
+  const player = getActivePlayer();
+  const pending = getPendingUidMerge(player.playerId);
+  if (!pending) return { status: "none", errors: [] };
+
+  const leaderboard = await autoMergeSupersededLeaderboardEntries({ identityKey, now });
+  if (!leaderboard.completed) {
+    return { status: "leaderboard-incomplete", leaderboard, profileDeleted: false, presenceDeleted: false, errors: leaderboard.errors };
+  }
+
+  const result = { status: "completed", leaderboard, profileDeleted: false, presenceDeleted: false, errors: [] };
+  let fb;
+  try {
+    fb = await loadFirebase();
+  } catch {
+    return { ...result, status: "partial", errors: ["通信エラーにより公開プロフィール・presence の整理を保留しました"] };
+  }
+  const { database, uid, ref, get, remove } = fb;
+  if (!uid || pending.oldUid === uid) return { ...result, status: "partial", errors: ["ログインIDを確認できませんでした"] };
+  // 旧UIDのノードを消す権限（後継者）に必要な対応表を確実に用意する（既にあれば Rules で拒否＝正常）
+  await recordUidSupersession(pending.oldUid, pending.backupId);
+
+  for (const [node, label] of [
+    ["publicProfiles", "旧IDの公開プロフィール"],
+    ["presence", "旧IDのオンライン状態"],
+  ]) {
+    const path = `${node}/${pending.oldUid}`;
+    try {
+      const exists = (await get(ref(database, path))).exists();
+      if (exists) await remove(ref(database, path));
+      if (node === "publicProfiles") result.profileDeleted = true;
+      else result.presenceDeleted = true;
+    } catch (error) {
+      console.warn(`[uidMerge:auto] ${label} の整理に失敗`, error);
+      result.errors.push(`${label}を整理できませんでした（${error?.code ?? "エラー"}）`);
+    }
+  }
+
+  if (result.errors.length === 0) {
+    clearPendingUidMerge(player.playerId); // 完了：completedUidMerges に旧UIDを残し、確認待ちを消す
+    return result;
+  }
+  return { ...result, status: "partial" };
 }
 
 // 引き継ぎ・整理の「計画」だけを作る（Firebaseは読み取りのみ。何も書かない）。

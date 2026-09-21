@@ -232,11 +232,23 @@ async function resolvePreviousUid(playerId, uid, backupId, { database, ref, get 
   return null;
 }
 
+// 【2026-09-22改訂：同期結果を返す】js/identityBootstrap.js（起動時の「本人確認の関門」）が、
+// この同期の結果で「クラウドへ自己ベスト等を再送信してよいか」を決めるため、結果を返すようにした。
+//   { status: "synced" | "claimed" | "denied" | "no-change" | "no-auth" | "error", previousUid }
+//   synced   … 持ち主として書けた（UID変更なし、または新規作成）
+//   claimed  … ownerSecret による所有権の回復に成功した（UIDが変わっていた）
+//   denied   … 持ち主でも claim でも書けなかった（＝このバックアップの持ち主確認が取れていない。
+//              旧UIDが Firebase 側で消えた pre-v329 端末など）
+//   no-change… 前回と内容が同じで書かなかった（前回の結果を引き継ぐ）
+//   error    … 通信エラー等（次回再試行）
+// 既存の呼び出し側（scheduleBackupSync／syncNow）は戻り値を使わなくても動作が変わらない。
+let lastSyncResult = { status: "no-change", previousUid: null };
+
 async function performSync() {
   const player = getActivePlayer();
   const payload = buildBackupPayload();
   const fingerprint = fingerprintPayload(payload);
-  if (fingerprint === lastSyncedFingerprint && !pendingResyncNeeded) return;
+  if (fingerprint === lastSyncedFingerprint && !pendingResyncNeeded) return lastSyncResult;
 
   try {
     const { database, authReady, getCurrentUid } = await import("./firebaseClient.js");
@@ -245,10 +257,11 @@ async function performSync() {
     );
     await authReady;
     const uid = getCurrentUid();
-    if (!uid) return;
+    if (!uid) return { status: "no-auth", previousUid: null };
 
     const backupId = getOrCreateBackupId(player.playerId);
-    if (!backupId) return;
+    if (!backupId) return { status: "error", previousUid: null };
+    const lastKnownUidBeforeSync = getLastKnownUid(player.playerId);
 
     const firebaseSafeEntries = {};
     for (const [logicalKey, value] of Object.entries(payload.entries)) {
@@ -306,12 +319,20 @@ async function performSync() {
     }
     attempts.push({ claim: false, withPreviousUid: false, withOwnerSecret: true });
     attempts.push({ claim: false, withPreviousUid: false, withOwnerSecret: false, legacy: true });
+    // 【2026-09-22追加】lastKnownUid が無い（旧UIDが分からない）端末でも、持ち主としての書き込みが
+    // 全て拒否されたら、最後に ownerSecret による claim（旧UIDの記録なし）を試す。
+    // クラウド側に同じ ownerSecret が保存されていれば所有権を取り戻せる。無ければ拒否＝denied。
+    const canClaimWithoutPreviousUid = !needsClaim && !legacyRulesDetected && isValidOwnerSecret(ownerSecret);
+    const fallbackRotatedOwnerSecret = canClaimWithoutPreviousUid ? generateOwnerSecret() : null;
+    if (canClaimWithoutPreviousUid) attempts.push({ claim: true, withPreviousUid: false, withOwnerSecret: false, fallbackClaim: true });
 
     let applied = null;
     let lastError = null;
     for (const attempt of attempts) {
       try {
-        await update(ref(database, `backups/${backupId}`), buildWrites(attempt));
+        const writes = buildWrites(attempt);
+        if (attempt.fallbackClaim) writes.ownerSecret = fallbackRotatedOwnerSecret;
+        await update(ref(database, `backups/${backupId}`), writes);
         applied = attempt;
         break;
       } catch (error) {
@@ -319,11 +340,19 @@ async function performSync() {
         if (!isPermissionDenied(error)) throw error;
       }
     }
-    if (!applied) throw lastError;
+    if (!applied) {
+      // 全ての書き込みが権限で拒否された＝このバックアップの持ち主確認が取れていない。
+      // （旧UIDが消えて lastKnownUid も ownerSecret のクラウド保存も無い pre-v329 端末が典型）
+      // 例外にはせず「denied」として返す。ローカルのプレイには影響しない。
+      pendingResyncNeeded = true;
+      console.warn("バックアップの持ち主確認が取れませんでした（UIDが変わった可能性があります。管理者による付け替えが必要です）", lastError);
+      lastSyncResult = { status: "denied", previousUid: null };
+      return lastSyncResult;
+    }
     if (applied.legacy && (ownerSecret || previousUid)) legacyRulesDetected = true;
     if (applied.claim) {
       // 回復に成功した書き込みで ownerSecret を作り直したので、端末側も同じ値へ更新する。
-      rotateOwnerSecret(player.playerId, () => rotatedOwnerSecret);
+      rotateOwnerSecret(player.playerId, () => (applied.fallbackClaim ? fallbackRotatedOwnerSecret : rotatedOwnerSecret));
       // 使い終わった証明をすぐ消す（もう持ち主なので通常の書き込みで削除できる）。
       // 失敗しても次回の通常同期で消えるため、ここでは失敗を無視する。
       try {
@@ -332,25 +361,61 @@ async function performSync() {
         // 次回同期で削除される
       }
     }
-    const recordedPreviousUid = applied.withPreviousUid ? previousUid : null;
+    let recordedPreviousUid = applied.withPreviousUid ? previousUid : null;
 
     lastSyncedFingerprint = fingerprint;
     pendingResyncNeeded = false;
     setLastKnownUid(player.playerId, uid);
 
+    // 【2026-09-22追加：クラウド側に残された旧UIDの発見】このUIDでの初回同期（lastKnownUid が無かった）で
+    // 持ち主として書けた場合、backups/{id}/previousUids（管理者の付け替え・過去の claim が残した旧UID）を
+    // 1回だけ読み、未整理の旧UIDがあれば引き継ぎ対象にする。管理者が「友達の端末を触らずに」
+    // currentUid を新UIDへ付け替えた後、本人の端末が次に起動したときに旧UIDの残骸
+    // （presence 等、管理者には消せないもの）を本人が後継者として整理できるようにするため。
+    if (!recordedPreviousUid && lastKnownUidBeforeSync === null && !applied.legacy) {
+      try {
+        const previousUidsSnap = await get(ref(database, `backups/${backupId}/previousUids`));
+        const previousUids = previousUidsSnap.val();
+        if (previousUids && typeof previousUids === "object") {
+          const { getCompletedUidMerges } = await import("./playerProfile.js");
+          const completed = getCompletedUidMerges(player.playerId);
+          const candidates = Object.entries(previousUids)
+            .filter(([oldUid, at]) => oldUid !== uid && typeof at === "number" && !completed.includes(oldUid))
+            .sort((a, b) => b[1] - a[1]);
+          if (candidates.length > 0) recordedPreviousUid = candidates[0][0];
+        }
+      } catch {
+        // 読めない（旧Rules等）場合は何もしない
+      }
+    }
+
     if (recordedPreviousUid) {
-      // 旧UIDのデータ（公開プロフィール・ランキング等）の整理は自動では行わず、
-      // フレンド画面で本人に案内して確認を取る（js/uidSupersession.js・js/fanProfilesScreen.js）。
+      // 旧UIDのデータ（ランキング・公開プロフィール・presence）の整理は js/identityBootstrap.js →
+      // js/uidSupersession.js の runUidMigration が自動で行う（記録を失わない統合のみ）。
+      // 自動で片付かなかった分だけ、フレンド画面の案内（js/fanProfilesScreen.js）から本人が実行する。
       setPendingUidMerge(player.playerId, { oldUid: recordedPreviousUid, backupId });
       const { recordUidSupersession } = await import("./uidSupersession.js");
       await recordUidSupersession(recordedPreviousUid, backupId);
     }
+    lastSyncResult = { status: applied.claim ? "claimed" : "synced", previousUid: recordedPreviousUid };
+    return lastSyncResult;
   } catch (error) {
     // 本人指示：通信に失敗してもローカルのプレイ自体には一切影響させない。
     // 次にscheduleBackupSync()が呼ばれたタイミングで自然に再試行される。
     pendingResyncNeeded = true;
     console.warn("プレイヤーデータのバックアップに失敗しました（ローカルのデータには影響ありません）", error);
+    return { status: "error", previousUid: null };
   }
+}
+
+// 【2026-09-22追加】起動時の「本人確認の関門」（js/identityBootstrap.js）用：今すぐ同期し、結果を返す。
+// syncNow() と同じだが、戻り値の status で「持ち主として書けたか／拒否されたか」を伝える。
+export async function syncBackupOwnership() {
+  if (debounceTimer !== null) {
+    clearTimeout(debounceTimer);
+    debounceTimer = null;
+  }
+  return performSync();
 }
 
 // 称号取得・クイズ完了・自己ベスト更新等、プレイヤーデータが変化した直後に呼ぶ。
@@ -511,6 +576,13 @@ export async function restoreFromBackup(backupId) {
 
     lastSyncedFingerprint = null; // 復元直後は必ず1回同期し直す
     await syncNow();
+    // 【2026-09-22追加】本人の前提（backupId）が変わったので、本人確認の関門を次回判定し直させる
+    try {
+      const { resetIdentityBootstrap } = await import("./identityBootstrap.js");
+      resetIdentityBootstrap();
+    } catch {
+      // 関門モジュールが無い環境（テスト等）では無視
+    }
 
     return { ok: true, restoredKeyCount: Object.keys(entries).length, displayName: record.displayName ?? null };
   } catch (error) {

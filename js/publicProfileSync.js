@@ -25,6 +25,7 @@ import {
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 import { database, authReady, getCurrentUid } from "./firebaseClient.js";
+import { ensureIdentityBootstrap, canAutoSyncToCloud } from "./identityBootstrap.js";
 import { getActivePlayer, getPlayerKeyPrefix } from "./playerProfile.js";
 import { getMostOshiMemberId } from "./oshiMembers.js";
 import { getAchievementListSnapshot, getOshiBadgeState } from "./achievementProgress.js";
@@ -73,6 +74,10 @@ let lastSyncedPayloadJson = null;
 // できたときだけpresence trackingを開始する」ために、この戻り値を利用する。
 export async function syncPublicProfileIfEnabled(playerKeyPrefix) {
   if (!isPublicProfileSharingEnabled(playerKeyPrefix)) return false;
+  // 【2026-09-22追加：本人確認の関門（js/identityBootstrap.js）】UIDが変わった直後に「新UID名義」の
+  // 公開プロフィールを先に作ると、旧UID名義と並んでフレンド一覧に同じ人が2人出る。
+  // 関門が ready（持ち主確認・旧UIDの引き継ぎ済み）になるまでは書かない（次のスタート画面表示で再試行される）。
+  if (!canAutoSyncToCloud(await ensureIdentityBootstrap())) return false;
 
   try {
     const payload = buildPublicProfilePayload(collectCurrentProfileMaterials());

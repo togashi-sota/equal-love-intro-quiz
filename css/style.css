@@ -8507,6 +8507,56 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   min-width: 0;
 }
 
+/* 管理者用「UID移行・重複修復」（2026-09-22追加）。候補カード：実行不可は赤枠、完了は薄く */
+.admin-uid-repair-section {
+  margin: 12px 0 18px;
+}
+.admin-uid-repair-card {
+  border: 1px solid rgba(120, 100, 130, 0.25);
+  border-radius: 14px;
+  padding: 12px;
+  margin: 10px 0;
+  background: rgba(255, 255, 255, 0.55);
+}
+.admin-uid-repair-card.is-blocked {
+  border-color: rgba(192, 57, 43, 0.6);
+}
+.admin-uid-repair-card.is-done {
+  opacity: 0.6;
+}
+.admin-uid-repair-subtitle {
+  margin-top: 8px;
+  font-weight: 700;
+}
+.admin-uid-repair-evidence {
+  color: #1b7a3d;
+}
+.admin-uid-repair-risk,
+.admin-uid-repair-log-error {
+  color: #c0392b;
+  font-weight: 700;
+}
+.admin-uid-repair-log-ok {
+  color: #1b7a3d;
+}
+.admin-uid-repair-log-warn {
+  color: #b7791f;
+}
+.admin-uid-repair-confirm-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+.admin-uid-repair-log {
+  margin-top: 8px;
+  padding: 8px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.04);
+  max-height: 260px;
+  overflow: auto;
+}
+
 .admin-backup-fallback-match-row {
   padding: 8px 10px;
   margin-top: 6px;

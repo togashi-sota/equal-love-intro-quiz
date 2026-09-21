@@ -277,7 +277,7 @@ export function runBackupOwnershipTests() {
   // ---- 端末側の保存（playerProfile.js） ----
   const player = getActivePlayer();
   // 端末側の保存は、前のテスト実行で残った値があると期待値がずれるため、先に消しておく
-  localStorage.setItem("equalLoveIntroQuiz.players", JSON.stringify(getPlayers().map(({ ownerSecret, lastKnownUid, pendingUidMerge, ...rest }) => rest)));
+  localStorage.setItem("equalLoveIntroQuiz.players", JSON.stringify(getPlayers().map(({ ownerSecret, lastKnownUid, pendingUidMerge, completedUidMerges, ...rest }) => rest)));
   const s1 = getOrCreateOwnerSecret(player.playerId, () => SECRET);
   const s2 = getOrCreateOwnerSecret(player.playerId, () => "SHOULD-NOT-BE-USED-AGAIN-XXXXXXXXX");
   assertEqual(s1, SECRET, "H: 初回は生成関数の値が保存される");
@@ -294,9 +294,12 @@ export function runBackupOwnershipTests() {
   assertEqual(getPendingUidMerge(player.playerId)?.oldUid, OLD, "確認待ちの旧UIDを保存できる");
   clearPendingUidMerge(player.playerId);
   assertEqual(getPendingUidMerge(player.playerId), null, "確認待ちを解除できる");
+  // 【2026-09-22追加】解除した旧UIDは「完了済み」に残り、同じ旧UIDの確認待ちは作り直されない（冪等）
+  assertEqual(setPendingUidMerge(player.playerId, { oldUid: OLD, backupId: "b1" }), false, "完了済みの旧UIDは確認待ちを作り直さない");
+  assertEqual(getPendingUidMerge(player.playerId), null, "完了済みの旧UIDは確認待ちのまま残らない");
   // 後片付け（他のテストに影響させない）
   const players = getPlayers().map((p) => {
-    const { ownerSecret, lastKnownUid, pendingUidMerge, ...rest } = p;
+    const { ownerSecret, lastKnownUid, pendingUidMerge, completedUidMerges, ...rest } = p;
     return rest;
   });
   localStorage.setItem("equalLoveIntroQuiz.players", JSON.stringify(players));
@@ -336,10 +339,10 @@ export async function runBackupOwnershipRulesAndWiringTests() {
 
   // ---- コード配線：js/backupSync.js ----
   const sync = await fetchText("js/backupSync.js");
-  assertEqual(sync.includes("await update(ref(database, `backups/${backupId}`), buildWrites(attempt));"), true, "backupSync: 同期は update() で行い、claim→通常→従来形式の順に試す");
+  assertEqual(sync.includes("await update(ref(database, `backups/${backupId}`), writes);") && sync.includes("const writes = buildWrites(attempt);"), true, "backupSync: 同期は update() で行い、claim→通常→従来形式の順に試す");
   assertEqual(sync.includes("writes.ownerClaim = { secret: ownerSecret, at: serverTimestamp() };"), true, "backupSync: claim では手元の ownerSecret を証明として送り、at にサーバー時刻を使う");
   assertEqual(sync.includes("writes.ownerSecret = rotatedOwnerSecret;"), true, "backupSync: claim では ownerSecret を作り直す");
-  assertEqual(sync.includes("rotateOwnerSecret(player.playerId, () => rotatedOwnerSecret);"), true, "backupSync: claim 成功後に端末側の ownerSecret も新しい値へ更新する");
+  assertEqual(sync.includes("rotateOwnerSecret(player.playerId, () => (applied.fallbackClaim ? fallbackRotatedOwnerSecret : rotatedOwnerSecret));"), true, "backupSync: claim 成功後に端末側の ownerSecret も新しい値へ更新する");
   assertEqual(sync.includes("await update(ref(database, `backups/${backupId}`), { ownerClaim: null });"), true, "backupSync: claim 成功直後に使い終わった ownerClaim を削除する");
   assertEqual(sync.includes("if (!legacy) writes.ownerClaim = null;"), true, "backupSync: 通常同期でも残った ownerClaim を消す（旧Rules向け従来形式では触らない）");
   assertEqual(sync.includes("const needsClaim = !legacyRulesDetected && previousUid !== null && detectedByLastKnownUid && isValidOwnerSecret(ownerSecret);"), true, "backupSync: claim は前回同期時のUIDとの不一致を検知したときだけ行う");
@@ -349,7 +352,7 @@ export async function runBackupOwnershipRulesAndWiringTests() {
   assertEqual(sync.includes("legacyRulesDetected = true;"), true, "backupSync: Rules未公開時は従来形式へフォールバックする");
   assertEqual(sync.includes("setLastKnownUid(player.playerId, uid);"), true, "backupSync: 同期成功後に lastKnownUid を更新する");
   assertEqual(sync.includes("setPendingUidMerge(player.playerId, { oldUid: recordedPreviousUid, backupId });"), true, "backupSync: 旧UIDを記録できたときだけ『確認待ち』を立てる");
-  assertEqual(sync.includes("const recordedPreviousUid = applied.withPreviousUid ? previousUid : null;"), true, "backupSync: 実際に通った書き込みに旧UIDの記録が含まれていた場合だけ記録済みとみなす");
+  assertEqual(sync.includes("let recordedPreviousUid = applied.withPreviousUid ? previousUid : null;"), true, "backupSync: 実際に通った書き込みに旧UIDの記録が含まれていた場合だけ記録済みとみなす");
   assertEqual(sync.includes("[`backups/${backupId}/ownerSecret`]: claimedOwnerSecret"), true, "backupSync: 引き継ぎコード使用時に ownerSecret を差し替える");
   assertEqual(sync.includes("rotateOwnerSecret(player.playerId, generateOwnerSecret);"), true, "backupSync: 復元後に ownerSecret を作り直す");
   assertEqual(sync.includes("resolvePreviousUid(player.playerId, uid, backupId"), true, "backupSync: 旧UIDの解決（lastKnownUid → 管理者ならクラウドの currentUid）を行う");
