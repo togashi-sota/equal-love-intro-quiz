@@ -16,7 +16,14 @@ import {
   buildLeaderboardPath,
 } from "./timeAttackLeaderboard.js";
 import { LEADERBOARD_VARIANT_VALUES } from "./uidSupersession.js";
-import { hashPayload, buildBackupRebindWrites, evaluateRebindReadBack, planOldLeaderboardEntry } from "./uidRepairPlanner.js";
+import {
+  hashPayload,
+  buildBackupRebindWrites,
+  evaluateRebindReadBack,
+  planOldLeaderboardEntry,
+  buildUidRepairCandidates,
+  computeCandidateFingerprint,
+} from "./uidRepairPlanner.js";
 
 async function loadFirebase() {
   const firebaseClient = await import("./firebaseClient.js");
@@ -72,8 +79,31 @@ export async function adminExecuteUidRepair(candidate, { log = () => {} } = {}) 
   const { backupId, oldUid, newUid } = candidate;
   const backupRef = ref(database, `backups/${backupId}`);
 
-  // ---- ① バックアップの持ち主を付け替える ----
+  // ---- ⓪ 実行直前の再スキャン（本人指示 G）：dry-run 時の計画の指紋と一致し、今も実行可能な候補だけ進める ----
   try {
+    log("⓪ 実行直前に Firebase 全体を再スキャンして、dry-run 時の計画と同じか確認します", "info");
+    const rescan = await adminFetchUidRepairSnapshot();
+    if (!rescan.ok) throw new Error(rescan.reason ?? "再スキャンに失敗");
+    const latest = buildUidRepairCandidates(rescan.snapshot).find(
+      (c) => c.backupId === backupId && c.oldUid === oldUid && c.newUid === newUid
+    );
+    if (!latest) throw new Error("再スキャンでこの候補が見つかりません（状態が変わりました）");
+    if (!latest.executable) throw new Error(`再スキャンで実行不可になりました：${latest.blockers.join("／")}`);
+    if (computeCandidateFingerprint(latest) !== candidate.fingerprint) {
+      throw new Error("dry-run 時から計画の内容が変わっています。「候補を調べる」で計画を作り直してください");
+    }
+    log("⓪ 再スキャンOK：計画は dry-run 時と同一です", "ok");
+  } catch (error) {
+    errors.push(`⓪ 再スキャン：${error?.message ?? error?.code ?? "エラー"}`);
+    log(`⓪ 中止：${error?.message ?? error?.code ?? "エラー"}。何も変更していません`, "error");
+    return { ok: false, steps, errors };
+  }
+
+  // ---- ① バックアップの持ち主を付け替える（端末の自動バックアップのときだけ） ----
+  if (candidate.rebindPlan?.action !== "rebind") {
+    steps.rebind = "skipped";
+    log(`① 付け替えはしません：${candidate.rebindPlan?.reason ?? "対象外"}`, "info");
+  } else try {
     const before = (await get(backupRef)).val();
     if (!before) throw new Error("バックアップが見つかりません");
     if (before.currentUid !== oldUid) {

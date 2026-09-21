@@ -8548,6 +8548,18 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   gap: 8px;
   margin-top: 10px;
 }
+.admin-uid-repair-report {
+  margin-top: 12px;
+}
+.admin-uid-repair-report-text {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 8px;
+  font-size: 0.7rem;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  white-space: pre;
+  overflow: auto;
+}
 .admin-uid-repair-log {
   margin-top: 8px;
   padding: 8px;

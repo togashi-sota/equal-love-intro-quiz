@@ -10,6 +10,9 @@ import {
   buildBackupRebindWrites,
   evaluateRebindReadBack,
   shortUid,
+  classifyBackupOrigin,
+  computeCandidateFingerprint,
+  buildUidRepairInvestigationReport,
 } from "../js/uidRepairPlanner.js";
 import { collectUniqueTopEntries, normalizeLeaderboardEntry, LEADERBOARD_TOP_MAX_PAGES } from "../js/timeAttackLeaderboard.js";
 import { assertEqual } from "./test-utils.js";
@@ -195,6 +198,119 @@ export async function runUidRepairPlannerTests() {
     assertEqual(evaluateRebindReadBack({ before, after: notRebound, oldUid: "OLD-ju", newUid: "NEW-ju", hashBefore: hb, hashAfter: ha }).ok, false, "O: currentUid が変わっていなければ検証 NG");
   }
 
+  // ---- 【第9回】backups の出自分類と付け替えの扱い ----
+  assertEqual(classifyBackupOrigin({ payload: { achievements: "{}", oshiMembers: "{}" } }), "admin-created", "achievements＋oshiMembers だけの payload は管理者作成（予防／復旧用）");
+  assertEqual(classifyBackupOrigin({ payload: { achievements: "{}", "publicProfile~enabled": "true", rankingCandidateBest: "{}" } }), "device", "端末由来のキーがあれば端末の自動バックアップ");
+  assertEqual(classifyBackupOrigin({ payload: {} }), "empty", "空 payload は empty");
+  assertEqual(classifyBackupOrigin({}), "empty", "payload 無しは empty");
+  {
+    const deviceCandidate = buildUidRepairCandidates(buildSnapshot())[0];
+    assertEqual(deviceCandidate.rebindPlan.action, "rebind", "端末の自動バックアップは currentUid を付け替える");
+    assertEqual(deviceCandidate.backup.origin, "device", "出自が表示用に入る");
+    // 予防バックアップ（管理者が 08-31 に作ったもの＝payload は称号と推しだけ）に差し替える
+    const snapshot = buildSnapshot();
+    snapshot.backups["backup-ju"].payload = { achievements: "{}", oshiMembers: "{}" };
+    snapshot.backups["backup-ju"].updatedAt = 4000; // 管理者の操作時刻は「旧IDの活動」として扱わない（新IDより後でも時系列を崩さない）
+    const preventive = buildUidRepairCandidates(snapshot)[0];
+    assertEqual(preventive.backup.origin, "admin-created", "予防バックアップは管理者作成と分類される");
+    assertEqual(preventive.rebindPlan.action, "skip", "管理者作成のバックアップは付け替えない（本人端末はこの backupId を持たない）");
+    assertEqual(preventive.executable, true, "付け替え無しでも、旧記録・旧プロフィールの整理だけなら実行可能");
+    assertEqual(preventive.evidence.some((line) => line.includes("時系列が自然")), true, "管理者作成分の updatedAt は時系列判定に使わない");
+    assertEqual(preventive.leaderboardPlan.every((p) => p.action === "deleteOld"), true, "旧記録の整理計画は同じ");
+  }
+
+  // ---- 【第9回】実機で起きた形：別人（abekun）の予防バックアップが、称号一覧の一致だけで Olkya の新IDに結び付いた ----
+  {
+    const snapshot = buildSnapshot();
+    // abekun：自分のUIDがまだ生きている別人。予防バックアップ（管理者作成）の currentUid は abekun 本人のUID
+    snapshot.backups["backup-abekun"] = {
+      currentUid: "ABEKUN",
+      displayName: "abekun",
+      achievementCount: 2,
+      updatedAt: 900,
+      schemaVersion: 1,
+      payload: { achievements: "{}", oshiMembers: "{}" },
+    };
+    snapshot.publicProfiles["ABEKUN"] = { displayName: "abekun", oshiMemberId: "otoshima-risa", unlockedAchievementIds: ["intro_beginner", "outro_beginner"], updatedAt: 2900 };
+    snapshot.leaderboards["intro/10/title-track"] = { ABEKUN: { displayName: "abekun", clearTimeMs: 28070, missCount: 0, achievedAt: 2800 } };
+    snapshot.presence["ABEKUN"] = { lastSeen: 2950 };
+    const candidates = buildUidRepairCandidates(snapshot);
+    assertEqual(candidates.map((c) => c.backupId), ["backup-ju"], "称号一覧の一致だけの別人（abekun）は候補にならない（強い証拠が無い）");
+    assertEqual(candidates[0].executable, true, "本物の候補（じゅ）は影響を受けず実行可能");
+    const report = buildUidRepairInvestigationReport(snapshot, candidates);
+    assertEqual(report.includes("称号一覧のみ一致（強い証拠なし）"), true, "レポートには『参考：候補外の弱い一致』として残る");
+    assertEqual(report.includes("…ABEKUN") || report.includes("ABEKUN"), true, "レポートに abekun の backup が載る（末尾表記）");
+    assertEqual(report.includes("## 逆引き：新UID → 候補"), true, "レポートに逆引き表がある");
+    assertEqual(report.includes("| admin-created |"), true, "レポートに backups の出自が載る");
+  }
+
+  // ---- 【第9回】同じ新UIDが別々の旧UIDの移行先に現れたら、その新UIDの候補は全て実行不可 ----
+  {
+    const snapshot = buildSnapshot();
+    // 別の旧UID（OLD-x）の端末バックアップ。ランキング1区分で NEW-ju と同タイム（＝強い証拠が両方に立つ極端な状況を再現）
+    snapshot.backups["backup-x"] = {
+      currentUid: "OLD-x",
+      displayName: "じゅ",
+      achievementCount: 2,
+      updatedAt: 1000,
+      schemaVersion: 1,
+      payload: { achievements: "{}", "publicProfile~enabled": "true" },
+    };
+    snapshot.publicProfiles["OLD-x"] = { displayName: "じゅ", oshiMemberId: "takiwaki-shoko", unlockedAchievementIds: ["outro_beginner", "intro_beginner"], updatedAt: 1100 };
+    snapshot.leaderboards["outro/5/title-track"]["OLD-x"] = { displayName: "じゅ", clearTimeMs: 11747, missCount: 0, achievedAt: 1120 };
+    const candidates = buildUidRepairCandidates(snapshot);
+    assertEqual(candidates.length, 2, "2つの旧UIDが同じ新UIDを指す候補が2件できる");
+    assertEqual(candidates.every((c) => c.executable === false), true, "同じ新UIDが別々の旧UIDから指されたら全て実行不可");
+    assertEqual(candidates.every((c) => c.blockers.some((b) => b.includes("別々の旧ID"))), true, "理由が表示される");
+  }
+
+  // ---- 【第9回】同じ旧UIDに端末バックアップと予防バックアップの両方がある → 同一人物なので許容 ----
+  {
+    const snapshot = buildSnapshot();
+    snapshot.backups["backup-ju-preventive"] = { currentUid: "OLD-ju", displayName: "じゅ", achievementCount: 2, updatedAt: 500, schemaVersion: 1, payload: { achievements: "{}", oshiMembers: "{}" } };
+    const candidates = buildUidRepairCandidates(snapshot);
+    assertEqual(candidates.length, 2, "同じ旧UIDの backups が2件なら候補も2件");
+    assertEqual(candidates.map((c) => c.executable), [true, true], "同じ旧UID→同じ新UIDなら別人ではないので実行可能のまま");
+    assertEqual(candidates.map((c) => c.rebindPlan.action).sort(), ["rebind", "skip"], "端末分は付け替え、予防分は付け替えない");
+  }
+
+  // ---- 【第9回】旧UIDが新UIDの出現後にも活動している（まだ生きている）→ 実行不可 ----
+  {
+    const snapshot = buildSnapshot();
+    snapshot.leaderboards["outro/5/title-track"]["OLD-ju"].achievedAt = 3500; // 新IDの最初の活動（3000）より後
+    const c = buildUidRepairCandidates(snapshot)[0];
+    assertEqual(c.executable, false, "旧IDに新IDの出現後の記録があれば実行不可");
+    assertEqual(c.blockers.some((b) => b.includes("時系列が不自然")), true, "旧IDが生きている可能性として表示");
+  }
+
+  // ---- 【第9回】計画の指紋：同じ計画なら同じ、内容が変われば違う ----
+  {
+    const a = buildUidRepairCandidates(buildSnapshot())[0];
+    const b = buildUidRepairCandidates(buildSnapshot())[0];
+    assertEqual(a.fingerprint, b.fingerprint, "同じデータからは同じ指紋");
+    assertEqual(a.fingerprint, computeCandidateFingerprint(a), "候補に指紋が入っている");
+    const changed = buildSnapshot();
+    changed.leaderboards["intro/5/title-track"]["NEW-ju"].clearTimeMs = 8000; // 新側が更新された
+    const c = buildUidRepairCandidates(changed)[0];
+    assertEqual(a.fingerprint !== c.fingerprint, true, "ランキングが変われば指紋が変わる（実行直前の再スキャンで中止できる）");
+  }
+
+  // ---- 【第9回・commit前の最終確認】表示名の一致だけでは候補化されない ----
+  {
+    const snapshot = buildSnapshot({ noNewEntry: true });
+    // 新IDは名前だけ同じで、ランキング・payload・称号のどれも一致しない
+    snapshot.publicProfiles["NEW-ju"].unlockedAchievementIds = ["lyric_beginner", "instant_beginner"];
+    const candidates = buildUidRepairCandidates(snapshot);
+    assertEqual(candidates.length, 0, "表示名が同じだけ（記録・自己ベスト・称号が一致しない）では候補にならない");
+  }
+  // 称号一覧の一致だけでも候補化されない（名前も同じでも）
+  {
+    const snapshot = buildSnapshot({ noNewEntry: true });
+    snapshot.backups["backup-ju"].payload = { achievements: "{}", oshiMembers: "{}" }; // payload の自己ベストも無い
+    const candidates = buildUidRepairCandidates(snapshot);
+    assertEqual(candidates.length, 0, "名前＋称号一覧が一致しても、強い一致（ランキング／自己ベスト）が無ければ候補にならない");
+  }
+
   // ---- P. 旧公開プロフィール削除は新側が存在するときだけ ----
   {
     const snapshot = buildSnapshot();
@@ -204,6 +320,31 @@ export async function runUidRepairPlannerTests() {
     assertEqual(c?.profilePlan?.action ?? "hold", "hold", "P: 新IDの公開プロフィールが無ければ旧を削除しない");
     assertEqual(c?.executable ?? false, false, "P: その候補は実行不可");
   }
+}
+
+// ---- 【第9回】配線の構造テスト：dry-run は読み取りだけ／実行は再スキャン＋指紋一致が必須 ----
+export async function runUidRepairWiringTests() {
+  const fetchText = async (file) => (await fetch(file, { cache: "no-store" })).text();
+  const repair = await fetchText("js/adminUidRepair.js");
+  const scanBody = repair.slice(repair.indexOf("export async function adminFetchUidRepairSnapshot("), repair.indexOf("export async function adminExecuteUidRepair("));
+  assertEqual(/(set|update|remove)\(/.test(scanBody), false, "dry-run（adminFetchUidRepairSnapshot）は set/update/remove を一切呼ばない（読み取りのみ）");
+  assertEqual(/push\(ref\(/.test(repair), false, "adminUidRepair: push() は使わない");
+  const execBody = repair.slice(repair.indexOf("export async function adminExecuteUidRepair("));
+  const rescanIndex = execBody.indexOf("const rescan = await adminFetchUidRepairSnapshot();");
+  const fingerprintIndex = execBody.indexOf("if (computeCandidateFingerprint(latest) !== candidate.fingerprint) {");
+  const firstWriteIndex = Math.min(...["await update(", "await remove("].map((s) => execBody.indexOf(s)).filter((i) => i >= 0));
+  assertEqual(rescanIndex >= 0 && fingerprintIndex > rescanIndex && fingerprintIndex < firstWriteIndex, true, "実行は『再スキャン → 指紋一致』の後でだけ書き込む");
+  assertEqual(execBody.includes('if (!latest.executable) throw new Error('), true, "再スキャンで実行不可なら中止");
+  assertEqual(execBody.includes('if (candidate.rebindPlan?.action !== "rebind") {'), true, "管理者作成の予防バックアップは currentUid を付け替えない");
+  const screen = await fetchText("js/adminUidRepairScreen.js");
+  const scanHandler = screen.slice(screen.indexOf("async function handleScanClick()"), screen.indexOf("function appendReportBox("));
+  assertEqual(scanHandler.includes("adminFetchUidRepairSnapshot()") && !scanHandler.includes("adminExecuteUidRepair("), true, "画面の dry-run ボタンは読み取り関数だけを呼ぶ");
+  assertEqual(screen.includes('input.value.trim() !== CONFIRM_WORD'), true, "実行には確認語の入力が必要");
+  assertEqual(screen.includes("buildUidRepairInvestigationReport(snapshot, candidates)"), true, "調査レポートを生成する");
+  const planner = await fetchText("js/uidRepairPlanner.js");
+  assertEqual(planner.includes(".filter((pair) => pair.hardEvidenceCount > 0);"), true, "planner: 候補条件は強い一致（ランキング／自己ベスト）が1件以上");
+  assertEqual(planner.includes("if (oldUids && oldUids.size > 1) {"), true, "planner: 同じ新UIDに別々の旧UIDが競合したら実行不可");
+  assertEqual(planner.includes("export function classifyBackupOrigin(backup)"), true, "planner: backups の出自を分類する");
 }
 
 // ---- Q／R. TOP10 のページ取得（同一人物の重複が何件あっても正しいユニーク10人。データが尽きれば止まる） ----

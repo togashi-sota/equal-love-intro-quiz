@@ -8,7 +8,7 @@
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
 import { getMemberById } from "./memberUtils.js";
 import { adminFetchUidRepairSnapshot, adminExecuteUidRepair } from "./adminUidRepair.js";
-import { buildUidRepairCandidates, hashPayload, shortUid } from "./uidRepairPlanner.js";
+import { buildUidRepairCandidates, buildUidRepairInvestigationReport, hashPayload, shortUid } from "./uidRepairPlanner.js";
 import { describeLeaderboardDivision } from "./uidSupersession.js";
 
 const CONFIRM_WORD = "実行";
@@ -52,14 +52,15 @@ function buildCandidateCard(candidate) {
   const title = document.createElement("p");
   title.className = "admin-backup-row-name";
   const oshi = candidate.newProfile?.oshiMemberId ? getMemberById(members, candidate.newProfile.oshiMemberId) : null;
-  title.textContent = `${candidate.backup.displayName ?? "（名前なし）"}${oshi ? `（推し：${oshi.name}）` : ""} ${candidate.executable ? "✅ 実行可能" : "⛔ 実行不可（要個別対応）"}`;
+  title.textContent = `${candidate.backup.displayName ?? "（名前なし）"}${oshi ? `（新IDの推し：${oshi.name}）` : ""} ${candidate.executable ? "✅ 実行可能" : "⛔ 実行不可（要個別対応）"}`;
   card.appendChild(title);
 
   appendLine(card, `旧ID ${shortUid(candidate.oldUid)} → 新ID ${shortUid(candidate.newUid)} ／ backupId ${shortUid(candidate.backupId)}`);
   appendLine(
     card,
-    `バックアップ：最終同期 ${formatTimestamp(candidate.backup.updatedAt)}／称号 ${candidate.backup.achievementCount ?? "?"}個／payload キー ${candidate.backup.payloadKeyCount} 件／schemaVersion ${candidate.backup.schemaVersion ?? "?"}`
+    `バックアップ：${candidate.backup.originLabel}／最終更新 ${formatTimestamp(candidate.backup.updatedAt)}／称号 ${candidate.backup.achievementCount ?? "?"}個／payload キー ${candidate.backup.payloadKeyCount} 件／schemaVersion ${candidate.backup.schemaVersion ?? "?"}／ownerSecret ${candidate.backup.hasOwnerSecret ? "あり" : "なし"}／previousUids ${candidate.backup.previousUids.length ? candidate.backup.previousUids.map(shortUid).join("、") : "なし"}`
   );
+  appendLine(card, `旧IDの最終活動 ${formatTimestamp(candidate.oldLastActivityAt)} → 新IDの最初の活動 ${formatTimestamp(candidate.newFirstActivityAt)}`);
   const hashLine = appendLine(card, "payload ハッシュ：計算中…");
   hashPayload(candidate.payloadForHash ?? null).then((hash) => {
     hashLine.textContent = `payload ハッシュ：${hash.slice(0, 16)}…（実行後に同じ値であることを確認します。payload は変更しません）`;
@@ -71,7 +72,11 @@ function buildCandidateCard(candidate) {
   candidate.blockers.forEach((line) => appendLine(card, `✖ ${line}`, "admin-backup-row-detail admin-uid-repair-risk"));
 
   appendLine(card, "計画：", "admin-backup-row-detail admin-uid-repair-subtitle");
-  appendLine(card, `① backups/${shortUid(candidate.backupId)} の currentUid を ${shortUid(candidate.oldUid)} → ${shortUid(candidate.newUid)} へ（previousUids に旧IDを記録、ownerSecret を無効化。payload・updatedAt は変更しない）`);
+  if (candidate.rebindPlan.action === "rebind") {
+    appendLine(card, `① backups/${shortUid(candidate.backupId)} の currentUid を ${shortUid(candidate.oldUid)} → ${shortUid(candidate.newUid)} へ（previousUids に旧IDを記録、ownerSecret は本人端末が次回同期で登録し直せるよう削除。payload・updatedAt は変更しない）`);
+  } else {
+    appendLine(card, `① backups の付け替え：しない（${candidate.rebindPlan.reason}）`);
+  }
   if (candidate.leaderboardPlan.length === 0) {
     appendLine(card, "② 旧IDのランキング記録：なし");
   } else {
@@ -163,15 +168,35 @@ async function handleScanClick() {
     const profileCount = Object.keys(snapshot.publicProfiles ?? {}).length;
     if (candidates.length === 0) {
       setStatus(`修復候補はありません（バックアップ ${backupCount} 件・公開プロフィール ${profileCount} 件を確認。dry-run のみ、何も変更していません）`);
+      appendReportBox(snapshot, candidates);
       return;
     }
     const executableCount = candidates.filter((c) => c.executable).length;
     setStatus(`候補 ${candidates.length} 件（実行可能 ${executableCount} 件・要個別対応 ${candidates.length - executableCount} 件）。dry-run のみ、まだ何も変更していません。`);
     candidates.forEach((candidate) => elements.list.appendChild(buildCandidateCard(candidate)));
+    appendReportBox(snapshot, candidates);
   } finally {
     isScanning = false;
     elements.scanButton.disabled = false;
   }
+}
+
+// 【第9回】調査レポート（IDは末尾6文字のみ）を折りたたみで表示し、全選択してコピーできるようにする
+// （候補にならなかった弱い一致・逆引き表・全 backups の出自など、実行判断の材料を1つの文章にまとめる）。
+function appendReportBox(snapshot, candidates) {
+  const details = document.createElement("details");
+  details.className = "admin-uid-repair-report";
+  const summary = document.createElement("summary");
+  summary.textContent = "調査レポートを表示（コピー用・IDは末尾6文字のみ）";
+  details.appendChild(summary);
+  const textarea = document.createElement("textarea");
+  textarea.className = "admin-uid-repair-report-text";
+  textarea.readOnly = true;
+  textarea.rows = 18;
+  textarea.value = buildUidRepairInvestigationReport(snapshot, candidates);
+  textarea.addEventListener("focus", () => textarea.select());
+  details.appendChild(textarea);
+  elements.list.appendChild(details);
 }
 
 // elements: { section, scanButton, statusText, list }
