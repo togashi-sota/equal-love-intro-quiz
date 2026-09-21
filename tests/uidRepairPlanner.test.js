@@ -37,7 +37,8 @@ function buildSnapshot({ withOldProfile = true, newIsBackupOwner = false, oldFas
     },
   };
   if (newIsBackupOwner) {
-    backups["backup-other"] = { currentUid: "NEW-ju", displayName: "じゅ", achievementCount: 2, updatedAt: 1500, schemaVersion: 1, payload: {} };
+    // 新UIDが「端末の自動バックアップ」の持ち主（＝別人の端末）である状況
+    backups["backup-other"] = { currentUid: "NEW-ju", displayName: "じゅ", achievementCount: 2, updatedAt: 1500, schemaVersion: 1, payload: { achievements: "{}", "publicProfile~enabled": "true" } };
   }
   const publicProfiles = {
     "NEW-ju": { displayName: "じゅ", oshiMemberId: "takiwaki-shoko", unlockedAchievementIds: ["intro_beginner", "outro_beginner"], updatedAt: 3000 },
@@ -309,6 +310,23 @@ export async function runUidRepairPlannerTests() {
     snapshot.backups["backup-ju"].payload = { achievements: "{}", oshiMembers: "{}" }; // payload の自己ベストも無い
     const candidates = buildUidRepairCandidates(snapshot);
     assertEqual(candidates.length, 0, "名前＋称号一覧が一致しても、強い一致（ランキング／自己ベスト）が無ければ候補にならない");
+  }
+
+  // ---- 【第10回・実機で判明】管理者が新UIDに予防バックアップを作った直後でも、候補が消えてはいけない ----
+  {
+    const snapshot = buildSnapshot();
+    snapshot.backups["backup-new-preventive"] = { currentUid: "NEW-ju", displayName: "じゅ", achievementCount: 2, updatedAt: 5000, schemaVersion: 1, payload: { achievements: "{}", oshiMembers: "{}" } };
+    const candidates = buildUidRepairCandidates(snapshot);
+    assertEqual(candidates.length, 1, "新UIDに管理者作成の予防バックアップがあっても候補は残る（端末の anchor ではない）");
+    assertEqual(candidates[0].executable, true, "実行可能のまま");
+    assertEqual(candidates[0].newUidAdminBackupIds, ["backup-new-preventive"], "新UIDの予防バックアップを表示用に持つ");
+    assertEqual(candidates[0].risks.some((r) => r.includes("別の端末バックアップの持ち主")), false, "予防バックアップは『別人の持ち主』扱いにしない");
+    // 一方、新UIDが「端末の自動バックアップ」の持ち主なら従来どおり候補にならない
+    const snapshot2 = buildSnapshot({ newIsBackupOwner: true });
+    snapshot2.backups["backup-other"].payload = { achievements: "{}", "publicProfile~enabled": "true" };
+    assertEqual(buildUidRepairCandidates(snapshot2).length, 0, "新UIDが端末バックアップの持ち主なら候補にしない");
+    const report = buildUidRepairInvestigationReport(snapshot, candidates);
+    assertEqual(report.includes("| 端末backup | 管理者作成backup）"), true, "レポートは端末backupと管理者作成backupを分けて表示");
   }
 
   // ---- P. 旧公開プロフィール削除は新側が存在するときだけ ----

@@ -8557,7 +8557,8 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   margin-top: 8px;
   font-size: 0.7rem;
   font-family: ui-monospace, Menlo, Consolas, monospace;
-  white-space: pre;
+  white-space: pre-wrap;
+  word-break: break-all;
   overflow: auto;
 }
 .admin-uid-repair-log {

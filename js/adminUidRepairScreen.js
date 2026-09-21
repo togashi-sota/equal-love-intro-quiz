@@ -61,6 +61,9 @@ function buildCandidateCard(candidate) {
     `バックアップ：${candidate.backup.originLabel}／最終更新 ${formatTimestamp(candidate.backup.updatedAt)}／称号 ${candidate.backup.achievementCount ?? "?"}個／payload キー ${candidate.backup.payloadKeyCount} 件／schemaVersion ${candidate.backup.schemaVersion ?? "?"}／ownerSecret ${candidate.backup.hasOwnerSecret ? "あり" : "なし"}／previousUids ${candidate.backup.previousUids.length ? candidate.backup.previousUids.map(shortUid).join("、") : "なし"}`
   );
   appendLine(card, `旧IDの最終活動 ${formatTimestamp(candidate.oldLastActivityAt)} → 新IDの最初の活動 ${formatTimestamp(candidate.newFirstActivityAt)}`);
+  if (candidate.newUidAdminBackupIds?.length) {
+    appendLine(card, `新IDには管理者作成の予防バックアップ（${candidate.newUidAdminBackupIds.map(shortUid).join("、")}）があります。端末の anchor ではないため候補判定には影響せず、修復でも触りません`);
+  }
   const hashLine = appendLine(card, "payload ハッシュ：計算中…");
   hashPayload(candidate.payloadForHash ?? null).then((hash) => {
     hashLine.textContent = `payload ハッシュ：${hash.slice(0, 16)}…（実行後に同じ値であることを確認します。payload は変更しません）`;
@@ -189,12 +192,40 @@ function appendReportBox(snapshot, candidates) {
   const summary = document.createElement("summary");
   summary.textContent = "調査レポートを表示（コピー用・IDは末尾6文字のみ）";
   details.appendChild(summary);
+  const reportText = buildUidRepairInvestigationReport(snapshot, candidates);
+  // 【第10回】iPhone では長い textarea の全選択が難しいため、1タップでクリップボードへコピーするボタンを置く
+  const copyButton = document.createElement("button");
+  copyButton.type = "button";
+  copyButton.className = "secondary-button";
+  copyButton.textContent = "📋 レポート全文をコピー";
+  const copyStatus = document.createElement("p");
+  copyStatus.className = "admin-backup-row-detail";
+  copyStatus.hidden = true;
+  copyButton.addEventListener("click", async () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
+    let copied = false;
+    try {
+      await navigator.clipboard.writeText(reportText);
+      copied = true;
+    } catch {
+      try {
+        textarea.focus();
+        textarea.select();
+        copied = document.execCommand("copy");
+      } catch {
+        copied = false;
+      }
+    }
+    copyStatus.hidden = false;
+    copyStatus.textContent = copied ? "コピーしました（そのままチャットに貼り付けてください）" : "コピーできませんでした。下の文章を長押し→全選択→コピーしてください";
+  });
   const textarea = document.createElement("textarea");
   textarea.className = "admin-uid-repair-report-text";
   textarea.readOnly = true;
   textarea.rows = 18;
-  textarea.value = buildUidRepairInvestigationReport(snapshot, candidates);
-  textarea.addEventListener("focus", () => textarea.select());
+  textarea.value = reportText;
+  details.appendChild(copyButton);
+  details.appendChild(copyStatus);
   details.appendChild(textarea);
   elements.list.appendChild(details);
 }

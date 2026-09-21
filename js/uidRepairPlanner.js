@@ -159,6 +159,16 @@ function minNumber(values) {
   return nums.length ? Math.min(...nums) : null;
 }
 
+// 端末の自動バックアップ（origin=device）の currentUid 一覧。管理者作成の予防バックアップは含めない。
+export function collectDeviceBackupCurrentUids(backups) {
+  return new Set(
+    Object.values(backups ?? {})
+      .filter((b) => classifyBackupOrigin(b) === "device")
+      .map((b) => b?.currentUid)
+      .filter((uid) => typeof uid === "string" && uid)
+  );
+}
+
 // 旧UID→新UID のペアについて証拠を集める（純粋）。
 export function collectPairEvidence({ backupId, backup, oldUid, newUid, publicProfiles, leaderboards, presence, backupCurrentUids }) {
   const oldProfile = publicProfiles?.[oldUid] ?? null;
@@ -167,7 +177,7 @@ export function collectPairEvidence({ backupId, backup, oldUid, newUid, publicPr
   const risks = [];
 
   if (backupCurrentUids.has(newUid)) {
-    risks.push(`新ID ${shortUid(newUid)} は別のバックアップの持ち主です（別人の可能性）`);
+    risks.push(`新ID ${shortUid(newUid)} は別の端末バックアップの持ち主です（別人の可能性）`);
   }
 
   // ランキング記録の完全一致
@@ -283,12 +293,10 @@ export function buildUidRepairCandidates(snapshot) {
   const publicProfiles = snapshot?.publicProfiles ?? {};
   const leaderboards = snapshot?.leaderboards ?? {};
   const presence = snapshot?.presence ?? {};
-  const backupCurrentUids = new Set(
-    Object.values(backups)
-      .map((b) => b?.currentUid)
-      .filter((uid) => typeof uid === "string" && uid)
-  );
-  // 「UIDが差し替わった端末」の特徴：公開プロフィール（または ランキング記録）はあるのに、どのバックアップの持ち主でもない
+  // 【第10回】「持ち主のUID」として数えるのは端末の自動バックアップだけ。管理者が作った予防バックアップは
+  // 端末の anchor ではない（管理者が新UIDに対して予防バックアップを作った直後も、その新UIDは移行先候補のまま）。
+  const backupCurrentUids = collectDeviceBackupCurrentUids(backups);
+  // 「UIDが差し替わった端末」の特徴：公開プロフィール（または ランキング記録）はあるのに、どの端末バックアップの持ち主でもない
   const leaderboardUids = new Set();
   Object.values(leaderboards).forEach((entries) => Object.keys(entries ?? {}).forEach((uid) => leaderboardUids.add(uid)));
   const unboundUids = [...new Set([...Object.keys(publicProfiles), ...leaderboardUids])].filter((uid) => !backupCurrentUids.has(uid));
@@ -355,6 +363,10 @@ export function buildUidRepairCandidates(snapshot) {
         payloadKeyCount: backup?.payload && typeof backup.payload === "object" ? Object.keys(backup.payload).length : 0,
       },
       newProfile: publicProfiles[chosen.newUid] ?? null,
+      // 新UIDに対して管理者が作った予防バックアップ（あれば表示のみ。付け替え後は不要になるが消さない）
+      newUidAdminBackupIds: Object.entries(backups)
+        .filter(([, b]) => b?.currentUid === chosen.newUid && classifyBackupOrigin(b) === "admin-created")
+        .map(([id]) => id),
       rebindPlan,
       leaderboardPlan,
       profilePlan,
@@ -397,7 +409,8 @@ export function buildUidRepairInvestigationReport(snapshot, candidates = buildUi
   lines.push(`# UID修復 調査レポート（${new Date().toISOString().slice(0, 16)}Z、IDは末尾6文字のみ）`);
   lines.push(`backups ${Object.keys(backups).length} 件 / publicProfiles ${Object.keys(publicProfiles).length} 件 / presence ${Object.keys(presence).length} 件 / ランキング区分 ${Object.keys(leaderboards).length}`);
 
-  const backupCurrentUids = new Set(Object.values(backups).map((b) => b?.currentUid).filter(Boolean));
+  const backupCurrentUids = collectDeviceBackupCurrentUids(backups);
+  const anyBackupCurrentUids = new Set(Object.values(backups).map((b) => b?.currentUid).filter(Boolean));
   lines.push("");
   lines.push("## backups（backupId末尾 | currentUid末尾 | 出自 | updatedAt | 称号数 | payloadキー数 | ownerSecret | previousUids | 名前）");
   Object.entries(backups)
@@ -408,11 +421,11 @@ export function buildUidRepairInvestigationReport(snapshot, candidates = buildUi
     });
 
   lines.push("");
-  lines.push("## publicProfiles（uid末尾 | 名前 | 推し | 称号数 | updatedAt | presence lastSeen | backupあり）");
+  lines.push("## publicProfiles（uid末尾 | 名前 | 推し | 称号数 | updatedAt | presence lastSeen | 端末backup | 管理者作成backup）");
   Object.entries(publicProfiles)
     .sort((a, b) => (b[1]?.updatedAt ?? 0) - (a[1]?.updatedAt ?? 0))
     .forEach(([uid, p]) => {
-      lines.push(`- ${shortUid(uid)} | ${p?.displayName ?? "—"} | ${p?.oshiMemberId ?? "—"} | ${Array.isArray(p?.unlockedAchievementIds) ? p.unlockedAchievementIds.length : 0} | ${fmt(p?.updatedAt)} | ${fmt(presence?.[uid]?.lastSeen)} | ${backupCurrentUids.has(uid) ? "はい" : "いいえ"}`);
+      lines.push(`- ${shortUid(uid)} | ${p?.displayName ?? "—"} | ${p?.oshiMemberId ?? "—"} | ${Array.isArray(p?.unlockedAchievementIds) ? p.unlockedAchievementIds.length : 0} | ${fmt(p?.updatedAt)} | ${fmt(presence?.[uid]?.lastSeen)} | ${backupCurrentUids.has(uid) ? "はい" : "いいえ"} | ${anyBackupCurrentUids.has(uid) && !backupCurrentUids.has(uid) ? "はい" : "いいえ"}`);
     });
 
   lines.push("");
