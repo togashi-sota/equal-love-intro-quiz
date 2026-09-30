@@ -17,9 +17,11 @@
 // （確認できなかった、または一度きりの出演等で「代表的」と言えないメンバーは未掲載のまま）。
 // 詳細な調査経緯はdocs/member-research-notes.md参照。
 //
-// 【2026-08-03追加】任意項目priority（数値、省略可）。指定した活動は数値の小さい順に最優先で
-// 並べる（例: 大谷映美里のブランド関連カードをRosé Muse→Ririmewの順で固定表示するため）。
-// priorityが無い活動同士は、従来通りstatusの代表性順（membersScreen.jsのsortActivitiesByStatus）で並ぶ。
+// 【2026-09-30改訂・本人指示】表示順は「日付が新しい活動ほど上」で全メンバー統一する
+// （membersScreen.jsのsortActivitiesByDateDesc）。基準日は「その活動に紐づく最新の日付」＝
+// 終了日があればendDate、無ければstartDate（＝公式発表・公開日）。日付が無い活動は末尾。
+// 任意項目priority（数値、省略可）は、同じ日付の活動どうしの並びを固定したいときだけ使う
+// （例: 大谷映美里のブランド関連カード）。日付が違えば日付の新しい方が必ず上に来る。
 //
 // 【2026-08-03追加】任意項目links（配列、省略可）：[{ label, url, sourceType }]。
 // 1つの活動に複数のリンク（例: 連載ページと単行本の購入ページ）を持たせたい場合に使う。
@@ -163,6 +165,28 @@ export const MEMBER_ACTIVITIES = [
       "https://www.kadokawa.co.jp/product/322310001490/",
     ],
     lastVerifiedDate: "2026-08-03",
+  },
+  {
+    // 2026-09-30追加：＝LOVE公式ニュース（equal-love.jp/news/detail/12166）と、本人のビジュアルが
+    // 掲載されているREDYAZELの特設ページ本体を確認して登録。urlは特設ページへ直接飛ばす（本人指示）。
+    id: "oba-redyazel",
+    memberId: "oba-hana",
+    relatedMemberIds: [],
+    title: "REDYAZEL「Azely ＆ Redyna collection」ビジュアルモデル",
+    type: ACTIVITY_TYPE.MODEL,
+    description:
+      "ファッションブランド「REDYAZEL」の「Azely（アゼリー）＆Redyna（レディーナ）collection」でビジュアルモデルを務めることが2026年9月30日に発表され、同日ブランドの特設ページが公開された。",
+    url: "https://www.burnedestrose.com/shop/e/e260930Ra/",
+    status: ACTIVITY_STATUS.ONGOING,
+    startDate: "2026-09-30",
+    endDate: null,
+    sourceType: "official",
+    sourceUrls: [
+      "https://equal-love.jp/news/detail/12166",
+      "https://www.burnedestrose.com/shop/e/e260930Ra/",
+      "https://www.x.com/RedyAzel",
+    ],
+    lastVerifiedDate: "2026-09-30",
   },
   {
     id: "oba-artistspoken",
@@ -526,6 +550,29 @@ export const MEMBER_ACTIVITIES = [
       "https://www.instagram.com/melady.official/",
     ],
     lastVerifiedDate: "2026-08-23",
+  },
+  {
+    // 2026-09-30追加：＝LOVE公式ニュース（equal-love.jp/news/detail/12180）と、実際に本人が
+    // 掲載されているWEBカタログ本体を確認して登録。urlはブランドのトップページではなく、
+    // 本人が載っているカタログページそのものへ直接飛ばす（本人指示）。
+    id: "noguchi-tocco-closet",
+    memberId: "noguchi-iori",
+    relatedMemberIds: [],
+    title: "tocco closet「2026 AW collection」モデル",
+    type: ACTIVITY_TYPE.MODEL,
+    description:
+      "レディースファッションブランド「tocco closet」の秋冬コレクション「2026 AW collection - tocco closet」でモデルを務め、2026年9月30日にWEBカタログが公開された。同ブランドでは2024 AW collection・2026 SS collection（いずれも髙松瞳と2人）でもモデルを務めている。",
+    url: "https://www.tocco-closet.co.jp/catalog/20260930/20260930_sp.html",
+    status: ACTIVITY_STATUS.ONGOING,
+    startDate: "2026-09-30",
+    endDate: null,
+    sourceType: "official",
+    sourceUrls: [
+      "https://equal-love.jp/news/detail/12180",
+      "https://www.tocco-closet.co.jp/catalog/20260930/20260930_sp.html",
+      "https://equal-love.jp/news/detail/11260",
+    ],
+    lastVerifiedDate: "2026-09-30",
   },
   {
     id: "noguchi-first-pitch",

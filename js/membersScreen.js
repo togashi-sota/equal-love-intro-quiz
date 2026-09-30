@@ -485,44 +485,52 @@ export const ACTIVITY_STATUS_LABELS = {
 };
 
 // カード一覧の並び順（現在も動きがある活動ほど代表的、という考え方で優先度を決める）。
+// 【2026-09-30改訂】並び順の主キーは日付になったため、この順序は表示ラベルの整理用にだけ残す。
 export const ACTIVITY_STATUS_ORDER = ["ongoing", "annual", "irregular", "ended", "past", "unknown"];
 
-// 「終了/過去」の活動は終了日（無ければ開始日）、「継続中/年次開催/不定期」の活動は
-// 開始日を、新しい順に並べるための基準日を1つ返す。どちらも無ければnull
-// （2026-08-23追加：同じstatus内が登録順のまま並んでしまい「新しい順」になっていなかったため）。
-function getActivitySortDate(activity) {
-  if (activity.status === ACTIVITY_STATUS.ENDED || activity.status === ACTIVITY_STATUS.PAST) {
-    return activity.endDate ?? activity.startDate ?? null;
-  }
-  return activity.startDate ?? null;
+// 並べ替えの基準日を1つ返す。「その活動に紐づく最新の日付」＝終了日があればendDate、
+// 無ければstartDate（＝公式発表・公開日）。どちらも無ければnull。
+// 【2026-09-30改訂】"YYYY-MM-DD" 以外（欠損・空文字・書式違い）は null 扱いにして、
+// 不正な日付が紛れ込んでも並びが壊れない・画面が落ちないようにする（本人指示の監査項目）。
+const ACTIVITY_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+export function getActivitySortDate(activity) {
+  // 終了済み（ENDED/PAST）は終了日が「最後の動き」、継続中はendDateが無いのでstartDateになる。
+  // status に関わらず同じ式で「最新の日付」を求められるため、全項目で意味が揃う。
+  const candidate = activity?.endDate ?? activity?.startDate;
+  if (typeof candidate !== "string" || !ACTIVITY_DATE_PATTERN.test(candidate)) return null;
+  // 2026-02-31 のような「書式は正しいが存在しない日」も弾く
+  const [year, month, day] = candidate.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null;
+  return candidate;
 }
 
-// 活動一覧を並べ替える。
-// 1. priorityを持つ活動（大谷映美里のブランドカード等、表示順を固定したいもの）を
-//    数値の小さい順に最優先で並べる（2026-08-03、本人希望の表示順固定に対応するため追加）。
-// 2. priorityを持たない活動同士は、まずstatusの代表性順（継続中→年次開催→不定期→終了→
-//    過去の活動→不明）で並べ、
-// 3. 同じstatus内では、日付が新しいものを上にする（2026-08-23追加：本人指示「継続中→新しい
-//    →古い」の並びを徹底するため）。日付が分かる活動を先に、日付不明の活動は元の登録順のまま
-//    そのstatus内の最後にまとめる。
-export function sortActivitiesByStatus(activities) {
-  return [...activities].sort((a, b) => {
-    const aPriority = a.priority ?? null;
-    const bPriority = b.priority ?? null;
-    if (aPriority !== null && bPriority !== null) return aPriority - bPriority;
-    if (aPriority !== null) return -1;
-    if (bPriority !== null) return 1;
+// 活動一覧を「日付が新しい順」に並べ替える（2026-09-30改訂・本人指示）。
+// 1. 基準日（getActivitySortDate）の降順。＝ 一番新しい活動が一番上、古い活動ほど下。
+//    今後どの位置にデータを追記しても、表示は必ず日付順になる（人が並びを気にしなくてよい）。
+// 2. 日付が分からない活動（noguchi-game-club 等）は、日付のある活動より後ろへまとめる。
+// 3. 同じ日付どうしは、priority（小さいほど上。省略時は最後）→ データの登録順、の順で決める。
+//    再描画のたびに順番が入れ替わらないよう、必ず決定的（安定）な並びになるようにしている。
+// 【旧仕様】2026-09-30まではstatus（継続中→年次開催→…→過去）が主キーだったため、
+// 例えば2021年開設のYouTubeが2026年の新しい仕事より上に出ていた。本人指示により日付主体へ変更。
+export function sortActivitiesByDateDesc(activities) {
+  return [...activities]
+    .map((activity, index) => ({ activity, index }))
+    .sort((a, b) => {
+      const aDate = getActivitySortDate(a.activity);
+      const bDate = getActivitySortDate(b.activity);
+      if (aDate && bDate && aDate !== bDate) return aDate < bDate ? 1 : -1;
+      if (aDate && !bDate) return -1;
+      if (!aDate && bDate) return 1;
 
-    const statusDiff = ACTIVITY_STATUS_ORDER.indexOf(a.status) - ACTIVITY_STATUS_ORDER.indexOf(b.status);
-    if (statusDiff !== 0) return statusDiff;
+      const aPriority = Number.isFinite(a.activity.priority) ? a.activity.priority : Number.POSITIVE_INFINITY;
+      const bPriority = Number.isFinite(b.activity.priority) ? b.activity.priority : Number.POSITIVE_INFINITY;
+      if (aPriority !== bPriority) return aPriority - bPriority;
 
-    const aDate = getActivitySortDate(a);
-    const bDate = getActivitySortDate(b);
-    if (aDate && bDate) return aDate < bDate ? 1 : aDate > bDate ? -1 : 0;
-    if (aDate) return -1;
-    if (bDate) return 1;
-    return 0;
-  });
+      return a.index - b.index;
+    })
+    .map((entry) => entry.activity);
 }
 
 export function buildActivityCard(activity) {
@@ -761,7 +769,7 @@ function renderMemberDetail(songs, members, profiles, activities, member) {
     elements.memberDetailContent.appendChild(buildSectionHeading("個人活動・レギュラー企画"));
     const activityList = document.createElement("div");
     activityList.className = "activity-list";
-    sortActivitiesByStatus(memberActivities).forEach((activity) => activityList.appendChild(buildActivityCard(activity)));
+    sortActivitiesByDateDesc(memberActivities).forEach((activity) => activityList.appendChild(buildActivityCard(activity)));
     elements.memberDetailContent.appendChild(activityList);
   }
 

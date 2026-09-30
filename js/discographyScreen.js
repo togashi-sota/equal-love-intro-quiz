@@ -11,7 +11,7 @@
 import { CATEGORY } from "./data/songs.js";
 import { MEMBER_STATUS } from "./data/members.js";
 import { getActiveMemberCount } from "./memberUtils.js";
-import { buildActivityCard, sortActivitiesByStatus } from "./membersScreen.js";
+import { buildActivityCard, sortActivitiesByDateDesc } from "./membersScreen.js";
 import { LIVE_STATUS } from "./data/liveHistory.js";
 import { buildMvThumbnailElement } from "./youtubeThumbnail.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
@@ -314,7 +314,7 @@ function buildGroupActivitiesSection(groupActivities) {
 
   const list = document.createElement("div");
   list.className = "activity-list";
-  sortActivitiesByStatus(groupActivities).forEach((activity) => list.appendChild(buildActivityCard(activity)));
+  sortActivitiesByDateDesc(groupActivities).forEach((activity) => list.appendChild(buildActivityCard(activity)));
   wrapper.appendChild(list);
 
   return wrapper;
