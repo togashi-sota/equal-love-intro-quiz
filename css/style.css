@@ -19780,3 +19780,130 @@ body[data-screen="partyBattlePlay"] .game-frame {
     animation: none;
   }
 }
+
+/* ===== メンバー個人ページ：STAGE（舞台・朗読劇）／VOICE（声優・ボイス出演）（2026-10-01） =====
+   見た目の土台は個人活動カード（.activity-card）を流用し、配役行・日程・展開UIだけを足している。 */
+.stage-voice-heading-sub {
+  font-weight: 700;
+  font-size: 0.72rem;
+  color: var(--color-text);
+  opacity: 0.7;
+}
+
+.stage-voice-year {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: #6b6470;
+  background: #ece7ea;
+  padding: 1px 9px;
+  border-radius: 999px;
+}
+
+.stage-voice-period {
+  margin: 4px 0 0;
+  font-size: 0.7rem;
+  color: var(--color-text);
+  opacity: 0.65;
+  overflow-wrap: anywhere;
+}
+
+/* 本人の配役行（「野口衣織 ／ オーロックス 役」）。ピンクの淡い帯で目立たせる */
+.stage-voice-role {
+  margin: 6px 0 0;
+  padding: 5px 10px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  background: var(--color-primary-light);
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+}
+
+.stage-voice-card .stage-voice-description {
+  margin-top: 6px;
+}
+
+.stage-voice-card[hidden] {
+  display: none;
+}
+
+.stage-voice-link-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.stage-voice-cast-details {
+  margin-top: 8px;
+  border: 1px solid var(--color-card-border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.stage-voice-cast-summary {
+  cursor: pointer;
+  padding: 7px 10px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+}
+
+.stage-voice-cast-list {
+  list-style: none;
+  margin: 0;
+  padding: 2px 10px 8px;
+}
+
+.stage-voice-cast-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 6px;
+  padding: 4px 0;
+  border-top: 1px dashed var(--color-card-border);
+  font-size: 0.75rem;
+}
+
+.stage-voice-cast-item:first-child {
+  border-top: none;
+}
+
+.stage-voice-cast-item.is-self {
+  font-weight: 800;
+  color: var(--color-primary-dark);
+}
+
+.stage-voice-cast-name {
+  font-weight: 800;
+}
+
+.stage-voice-former-note {
+  font-size: 0.62rem;
+  opacity: 0.65;
+}
+
+.stage-voice-cast-role {
+  margin-left: auto;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.stage-voice-more-button {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 9px 12px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  background: var(--color-surface);
+  border: 1px solid var(--color-card-border);
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+/* 白いカードの上でも「押せるボタン」と分かるよう、枠線を足す（個人活動カードの同ボタンと同寸法） */
+.stage-voice-link-row .official-link-button {
+  border: 1px solid var(--color-card-border);
+}
