@@ -75,7 +75,7 @@ export function runMemberStageVoiceTests() {
       host.remove();
     }
   });
-  // 元メンバー（ページ表示はしないが関数が落ちない／該当ありなら出る）
+  // 存在しないID
   assertEqual(buildMemberStageVoiceSections("存在しないID").childNodes.length, 0, "C: 該当なしのIDでは何も出さない");
 
   // ---- D. 個別の出演が正しいメンバーにだけ付く ----
@@ -137,7 +137,7 @@ export function runMemberStageVoiceTests() {
       ["大谷映美里", "大場花菜", "音嶋莉沙", "齋藤樹愛羅", "齊藤なぎさ", "佐々木舞香", "佐竹のん乃", "髙松瞳", "瀧脇笙古", "野口衣織", "諸橋沙夏", "山本杏奈"],
       "G: 12人が指定順の1つの一覧"
     );
-    assertEqual(kemonoCard.querySelectorAll(".stage-voice-former-note").length, 2, "G: 「（元メンバー）」の注記は元メンバー2人だけ");
+    assertEqual(kemonoCard.textContent.includes("元メンバー"), false, "G: キャスト一覧に「元メンバー」の表記が出ない（在籍状況で区別しない方針）");
     assertEqual(items.filter((item) => item.classList.contains("is-self")).length, 1, "G: 本人の行だけ強調される");
   } finally {
     noguchiStageHost.remove();
@@ -174,7 +174,7 @@ export function runMemberStageVoiceTests() {
         ["大谷映美里", "大場花菜", "音嶋莉沙", "齋藤樹愛羅", "齊藤なぎさ", "佐々木舞香", "佐竹のん乃", "髙松瞳", "瀧脇笙古", "野口衣織", "諸橋沙夏", "山本杏奈"],
         "I: 12人が現元の区切りなし・指定順で並ぶ"
       );
-      assertEqual(card.querySelectorAll(".stage-voice-former-note").length, 2, "I: 元メンバー注記は2人だけ");
+      assertEqual(card.textContent.includes("元メンバー"), false, "I: キャスト一覧に「元メンバー」の表記が出ない");
       assertEqual(card.textContent.includes("会場："), true, "I: 会場が出る");
       const anchors = [...card.querySelectorAll("a")];
       assertEqual(anchors.map((anchor) => anchor.textContent), ["舞台公式サイト", "出演情報を見る"], "I: ボタンは2つ");

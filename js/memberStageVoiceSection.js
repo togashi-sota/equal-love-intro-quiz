@@ -4,7 +4,7 @@
 // membersScreen.js から呼ばれる想定で、membersScreen.js 側は import するだけにして
 // 画面全体のコードが膨らまないようにしている（循環importを避けるため、このファイルは
 // membersScreen.js を import しない）。
-import { MEMBERS, MEMBER_STATUS } from "./data/members.js";
+import { MEMBERS } from "./data/members.js";
 import { STAGE_PRODUCTIONS, VOICE_APPEARANCES } from "./data/memberStageVoice.js";
 
 // VOICEは出演数がメンバーで大きく違う（野口衣織は20件超、2〜3件のメンバーもいる）。
@@ -32,7 +32,7 @@ export function formatCastRole(cast) {
 
 function getMemberName(memberId) {
   const member = MEMBERS.find((entry) => entry.id === memberId);
-  return { name: member?.name ?? memberId, isFormer: member?.status === MEMBER_STATUS.GRADUATED };
+  return { name: member?.name ?? memberId };
 }
 
 function buildTag(text, className) {
@@ -58,8 +58,10 @@ function buildLinkButtons(links) {
   return row;
 }
 
-// 全員出演作品の「配役を見る」展開部分。現役・元メンバーを分けず、dataのcasts順（本人指定の順）に
-// 1つの一覧で並べる。元メンバーだけ名前の横に小さく「（元メンバー）」を添える。
+// 全員出演作品の「配役を見る」展開部分。dataのcasts順（本人指定の順）に1つの一覧で並べる。
+// 【本人方針・2026-10-01】過去作品の出演者一覧では、現在の在籍状況（現役／卒業）によるラベル付けや
+// 区別をしない。全員を「名前＋役名」の同じ形式で出す（「元メンバー」等の注記は付けないこと）。
+// 「当時の12人全員が出演」といった説明は作品の紹介文（description）側に書く。
 function buildFullCastDetails(work, currentMemberId) {
   const details = document.createElement("details");
   details.className = "stage-voice-cast-details";
@@ -77,14 +79,11 @@ function buildFullCastDetails(work, currentMemberId) {
     if (entry.memberId === currentMemberId) {
       item.classList.add("is-self");
     }
-    const { name, isFormer } = getMemberName(entry.memberId);
+    const { name } = getMemberName(entry.memberId);
     const nameSpan = document.createElement("span");
     nameSpan.className = "stage-voice-cast-name";
     nameSpan.textContent = name;
     item.appendChild(nameSpan);
-    if (isFormer) {
-      item.appendChild(buildTag("（元メンバー）", "stage-voice-former-note"));
-    }
     const roleSpan = document.createElement("span");
     roleSpan.className = "stage-voice-cast-role";
     roleSpan.textContent = formatCastRole(entry);
