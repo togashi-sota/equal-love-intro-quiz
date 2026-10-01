@@ -188,6 +188,76 @@ export const GROUP_INFO = {
       lastVerifiedDate: "2026-08-23",
     },
   ],
+  // 【2026-10-01追加・本人指示】＝LOVEがアニメの主題歌（OP/ED）を担当した作品。「＝LOVEについて」の
+  // 「ANIME SONG」欄に年代順で表示する。新しい主題歌が増えたら、この配列に1件足すだけでよい。
+  // 公式（＝LOVE公式・アニメ公式・制作側公式）で確認できたものだけを載せる（推測では足さない）。
+  // 項目：title／animeTitle／year／themeType（"OP"|"ED"）／broadcast／description／
+  //   lyrics・composer・arranger（同じ人なら同じ文字列を入れると「作詞・作曲・編曲：○○」にまとめて表示）／
+  //   voiceCast（＝LOVEメンバーの声優出演。memberIdと役名）／
+  //   animeUrl（アニメ公式。無ければnull）／animeUrlLabel／equalLoveUrl（＝LOVE公式情報）／mvUrl／subLinks（小さな補助リンク）。
+  animeSongs: [
+    {
+      id: "anime-song-aikatsu-happy-end",
+      title: "アイカツハッピーエンド",
+      animeTitle: "走り続けてよかったって。",
+      year: "2018年",
+      themeType: "ED",
+      broadcast: "2018年10月8日よりBS11ほか放送（全4話）",
+      description:
+        "代々木アニメーション学院をモデルに、声優を目指す若者たちの青春を描いたオリジナルアニメ。＝LOVEの「アイカツハッピーエンド」がエンディング主題歌として使われた。4thシングル「Want you! Want you!」に収録。",
+      lyrics: "HoneyWorks",
+      composer: "HoneyWorks",
+      arranger: "HoneyWorks",
+      voiceCast: [{ memberId: "noguchi-iori", role: "大森千歌子" }],
+      // 当時の作品公式サイト（hashiyoka.com）は現在正常に開けないため載せず、現在も閲覧できる
+      // 代々木アニメーション学院の公式発表を「作品情報」として案内している。
+      animeUrl: "https://prtimes.jp/main/html/rd/p/000000058.000025517.html",
+      animeUrlLabel: "作品情報",
+      equalLoveUrl: "https://equal-love.jp/news/detail/975",
+      mvUrl: "https://www.youtube.com/watch?v=SrqqHpWIN9M",
+      subLinks: [
+        { label: "4thシングル情報", url: "https://equal-love.jp/discography/detail/11/" },
+        { label: "HoneyWorks公式", url: "https://honeyworks.jp/news/4624/" },
+      ],
+      sourceType: "official",
+      sourceUrls: [
+        "https://equal-love.jp/news/detail/975",
+        "https://honeyworks.jp/news/4624/",
+        "https://prtimes.jp/main/html/rd/p/000000058.000025517.html",
+      ],
+      lastVerifiedDate: "2026-10-01",
+    },
+    {
+      id: "anime-song-koibito-ijou-suki-miman",
+      title: "恋人以上、好き未満",
+      animeTitle: "クラスの大嫌いな女子と結婚することになった。",
+      year: "2025年",
+      themeType: "OP",
+      broadcast: "2025年1月3日よりTOKYO MX・BS11ほか放送",
+      description:
+        "TVアニメ「クラスの大嫌いな女子と結婚することになった。」のオープニングテーマ。＝LOVEがアニメのオープニングテーマを担当した作品で、2025年2月26日発売の18thシングル「とくべチュ、して／恋人以上、好き未満」に収録。",
+      lyrics: "指原莉乃",
+      composer: "中村瑛彦",
+      arranger: "古川貴浩",
+      voiceCast: [
+        { memberId: "saito-kiara", role: "上園桃香" },
+        { memberId: "takamatsu-hitomi", role: "長谷川柚希" },
+        { memberId: "noguchi-iori", role: "奥山梨央" },
+      ],
+      animeUrl: "https://kura-kon.com/music/",
+      animeUrlLabel: "アニメ公式サイト",
+      equalLoveUrl: "https://equal-love.jp/news/detail/9394",
+      mvUrl: "https://www.youtube.com/watch?v=p-jc9qMpBb4",
+      subLinks: [{ label: "シングル情報", url: "https://equal-love.jp/discography/detail/115/" }],
+      sourceType: "official",
+      sourceUrls: [
+        "https://equal-love.jp/news/detail/9394",
+        "https://kura-kon.com/music/",
+        "https://equal-love.jp/schedule/detail/9538",
+      ],
+      lastVerifiedDate: "2026-10-01",
+    },
+  ],
   // 【2026-08-23追加】＝LOVEと姉妹グループ（≠ME・≒JOY）による合同楽曲。年代順（2020年→2022年）に
   // 並べることで、姉妹グループが増えるにつれ合同楽曲の規模も広がっていった流れが自然に伝わる構成にした
   // （本人指示）。

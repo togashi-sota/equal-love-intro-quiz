@@ -9,7 +9,7 @@
 // このマージ方式により、卒業日・発売日をhistoryEvents.js側に二重入力せずに済む。
 
 import { CATEGORY } from "./data/songs.js";
-import { MEMBER_STATUS } from "./data/members.js";
+import { MEMBER_STATUS, MEMBERS } from "./data/members.js";
 import { getActiveMemberCount } from "./memberUtils.js";
 import { buildActivityCard, sortActivitiesByDateDesc } from "./membersScreen.js";
 import { LIVE_STATUS } from "./data/liveHistory.js";
@@ -691,6 +691,118 @@ function buildDramaCard(drama) {
   return card;
 }
 
+// 【2026-10-01新設】＝LOVEがアニメの主題歌（OP/ED）を担当した作品のカード（「ANIME SONG」欄）。
+// データは groupInfo.animeSongs。見た目はドラマ・舞台カードと同じ .sister-group-card を流用し、
+// ボタンは「アニメ公式／作品情報」「＝LOVE公式情報」の2つに絞って、補助リンク（MV・シングル情報など）は
+// カード下部の小さな文字リンクにしている（スマホでボタンが増えすぎないようにするため）。
+function buildAnimeSongCard(song) {
+  const card = document.createElement("div");
+  card.className = "sister-group-card anime-song-card";
+  card.dataset.songId = song.id;
+
+  const name = document.createElement("p");
+  name.className = "sister-group-name";
+  name.textContent = `『${song.title}』`;
+  card.appendChild(name);
+
+  const relation = document.createElement("p");
+  relation.className = "sister-group-reading";
+  relation.textContent = `${song.year} ／ アニメ『${song.animeTitle}』`;
+  card.appendChild(relation);
+
+  const themeRow = document.createElement("p");
+  themeRow.className = "sister-group-reading";
+  const themeTag = document.createElement("span");
+  themeTag.className = `anime-song-theme-tag is-${song.themeType.toLowerCase()}`;
+  themeTag.textContent = song.themeType === "OP" ? "オープニングテーマ（OP）" : "エンディングテーマ（ED）";
+  themeRow.appendChild(themeTag);
+  if (song.broadcast) {
+    themeRow.appendChild(document.createTextNode(` ${song.broadcast}`));
+  }
+  card.appendChild(themeRow);
+
+  const description = document.createElement("p");
+  description.className = "sister-group-description";
+  description.textContent = song.description;
+  card.appendChild(description);
+
+  // 作詞・作曲・編曲が全部同じ人なら「作詞・作曲・編曲：○○」にまとめる
+  const credits = document.createElement("p");
+  credits.className = "sister-group-description anime-song-credits";
+  if (song.lyrics && song.lyrics === song.composer && song.composer === song.arranger) {
+    credits.textContent = `作詞・作曲・編曲：${song.lyrics}`;
+  } else {
+    credits.textContent = [
+      song.lyrics && `作詞：${song.lyrics}`,
+      song.composer && `作曲：${song.composer}`,
+      song.arranger && `編曲：${song.arranger}`,
+    ].filter(Boolean).join(" ／ ");
+  }
+  card.appendChild(credits);
+
+  if (song.voiceCast?.length > 0) {
+    const castHeading = document.createElement("p");
+    castHeading.className = "sister-group-description";
+    castHeading.textContent = "＝LOVEメンバーも声優として出演：";
+    card.appendChild(castHeading);
+    const castList = document.createElement("ul");
+    castList.className = "producer-facts anime-song-cast";
+    song.voiceCast.forEach((entry) => {
+      const memberName = MEMBERS.find((member) => member.id === entry.memberId)?.name ?? entry.memberId;
+      const item = document.createElement("li");
+      item.textContent = `${memberName} ／ ${entry.role} 役`;
+      castList.appendChild(item);
+    });
+    card.appendChild(castList);
+  }
+
+  const appendLink = (parent, className, label, url) => {
+    const link = document.createElement("a");
+    link.className = className;
+    link.href = url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = label;
+    parent.appendChild(link);
+  };
+
+  const buttonRow = document.createElement("div");
+  buttonRow.className = "sister-group-links";
+  if (song.animeUrl) appendLink(buttonRow, "official-link-button", song.animeUrlLabel ?? "アニメ公式サイト", song.animeUrl);
+  if (song.equalLoveUrl) appendLink(buttonRow, "official-link-button", "＝LOVE公式情報", song.equalLoveUrl);
+  card.appendChild(buttonRow);
+
+  const subLinks = [...(song.mvUrl ? [{ label: "MVを見る", url: song.mvUrl }] : []), ...(song.subLinks ?? [])];
+  if (subLinks.length > 0) {
+    const subRow = document.createElement("p");
+    subRow.className = "anime-song-sub-links";
+    subLinks.forEach((entry) => appendLink(subRow, "anime-song-sub-link", entry.label, entry.url));
+    card.appendChild(subRow);
+  }
+  return card;
+}
+
+// 該当データが無ければ空のdivを返す（呼び出し側は無条件にappendしてよい）。
+export function buildAnimeSongSection(animeSongs) {
+  const wrapper = document.createElement("div");
+  if (!animeSongs || animeSongs.length === 0) return wrapper;
+
+  const heading = document.createElement("p");
+  heading.className = "section-heading";
+  heading.textContent = "ANIME SONG";
+  const sub = document.createElement("span");
+  sub.className = "stage-voice-heading-sub";
+  sub.textContent = "　アニメ主題歌（＝LOVEが担当した作品）";
+  heading.appendChild(sub);
+  wrapper.appendChild(heading);
+
+  const list = document.createElement("div");
+  list.className = "sister-group-list";
+  animeSongs.forEach((song) => list.appendChild(buildAnimeSongCard(song)));
+  wrapper.appendChild(list);
+  return wrapper;
+}
+
 function buildDramaSection(dramaAppearances) {
   const wrapper = document.createElement("div");
   if (!dramaAppearances || dramaAppearances.length === 0) return wrapper;
@@ -892,6 +1004,9 @@ function renderAboutTab(members, groupInfo, groupActivities, sisterGroups) {
 
   // ドラマ・映像作品の直下：全員出演の舞台作品（個人ページと同じ memberStageVoice.js のデータを再利用）
   elements.aboutContent.appendChild(buildGroupStageSection());
+
+  // STAGEの直下：＝LOVEが担当したアニメ主題歌（OP/ED）
+  elements.aboutContent.appendChild(buildAnimeSongSection(groupInfo.animeSongs));
 
   const linksHeading = document.createElement("p");
   linksHeading.className = "section-heading";

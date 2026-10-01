@@ -19908,3 +19908,44 @@ body[data-screen="partyBattlePlay"] .game-frame {
 .group-stage-card .stage-voice-cast-details {
   margin: 0 0 10px;
 }
+
+/* ===== 「＝LOVEについて」ANIME SONG（アニメ主題歌）カード（2026-10-01） ===== */
+.anime-song-theme-tag {
+  display: inline-block;
+  padding: 1px 9px;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-weight: 800;
+}
+
+.anime-song-theme-tag.is-op {
+  color: #1c5f8a;
+  background: #e1f0fa;
+}
+
+.anime-song-theme-tag.is-ed {
+  color: #9a5b12;
+  background: #fbedd9;
+}
+
+.anime-song-credits {
+  margin-bottom: 8px;
+}
+
+.anime-song-cast {
+  margin-bottom: 10px;
+}
+
+.anime-song-sub-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 10px 0 0;
+  font-size: 0.72rem;
+}
+
+.anime-song-sub-link {
+  color: var(--color-primary-dark);
+  font-weight: 700;
+  text-decoration: underline;
+}
