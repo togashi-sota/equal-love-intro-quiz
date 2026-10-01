@@ -19907,3 +19907,8 @@ body[data-screen="partyBattlePlay"] .game-frame {
 .stage-voice-link-row .official-link-button {
   border: 1px solid var(--color-card-border);
 }
+
+/* グループ画面の舞台カード内の「全キャスト・配役を見る」：本文との間隔だけ調整 */
+.group-stage-card .stage-voice-cast-details {
+  margin: 0 0 10px;
+}

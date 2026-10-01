@@ -88,7 +88,17 @@ export const STAGE_PRODUCTIONS = [
       cast(ID.morohashi, "ディアトリマ"),
       cast(ID.yamamoto, "ダイアウルフ"),
     ],
-    links: [{ label: EL_INFO, url: "https://prtimes.jp/main/html/rd/p/000000027.000027285.html" }],
+    links: [
+      { label: OFFICIAL, url: "https://www.nelke.co.jp/stage/anitele=love_kemono-friends/" },
+      { label: EL_INFO, url: "https://equal-love.jp/news/detail/389" },
+    ],
+    // 「＝LOVEについて」画面の舞台カード用。個人ページと共通のcasts・linksを再利用し、ここには追加の概要だけを持たせる。
+    groupStage: {
+      dateText: "2018年2月15日〜18日",
+      venue: "AiiA 2.5 Theater Tokyo",
+      summary: "テレビ東京「あにてれ」と＝LOVEによるステージプロジェクト第1弾。結成当時の＝LOVEメンバー12人が『けものフレンズ』のキャラクターを演じ、芝居・歌・ダンスを組み合わせたステージに挑戦した。",
+      credit: "脚本・演出：川尻恵太",
+    },
     lastVerifiedDate: LAST_VERIFIED,
   },
   {
@@ -118,6 +128,12 @@ export const STAGE_PRODUCTIONS = [
       { label: OFFICIAL, url: "https://www.nelke.co.jp/stage/anitele=love_girlfriend-kari/" },
       { label: EL_INFO, url: "https://equal-love.jp/news/detail/765" },
     ],
+    groupStage: {
+      dateText: "2018年7月16日〜22日",
+      venue: "品川プリンスホテル クラブeX",
+      summary: "「あにてれ×＝LOVE ステージプロジェクト」第2弾。結成当時の＝LOVEメンバー12人が人気ゲーム『ガールフレンド（仮）』のキャラクターを演じた舞台作品。舞台本編に加えて、＝LOVE楽曲を披露するアフターミニライブも行われた。",
+      credit: null,
+    },
     lastVerifiedDate: LAST_VERIFIED,
   },
   {

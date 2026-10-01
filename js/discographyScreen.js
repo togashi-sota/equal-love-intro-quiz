@@ -15,6 +15,7 @@ import { buildActivityCard, sortActivitiesByDateDesc } from "./membersScreen.js"
 import { LIVE_STATUS } from "./data/liveHistory.js";
 import { buildMvThumbnailElement } from "./youtubeThumbnail.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
+import { buildGroupStageSection } from "./memberStageVoiceSection.js";
 
 // workIdから種別が判定できない場合だけ使う、最後のフォールバック表示。
 const WORK_TYPE_LABELS_FALLBACK = {
@@ -888,6 +889,9 @@ function renderAboutTab(members, groupInfo, groupActivities, sisterGroups) {
   elements.aboutContent.appendChild(buildGroupActivitiesSection(groupActivities));
 
   elements.aboutContent.appendChild(buildDramaSection(groupInfo.dramaAppearances));
+
+  // ドラマ・映像作品の直下：全員出演の舞台作品（個人ページと同じ memberStageVoice.js のデータを再利用）
+  elements.aboutContent.appendChild(buildGroupStageSection());
 
   const linksHeading = document.createElement("p");
   linksHeading.className = "section-heading";

@@ -11,6 +11,7 @@ import { STAGE_PRODUCTIONS, VOICE_APPEARANCES } from "./data/memberStageVoice.js
 // 最初に見せる件数。これを超えた分だけ「もっと見る」で折りたたむ（少ないメンバーでは折りたたみ自体を出さない）。
 export const VOICE_INITIAL_VISIBLE_COUNT = 5;
 export const STAGE_INITIAL_VISIBLE_COUNT = 5;
+const OFFICIAL_LABEL = "公式サイト";
 
 // 作品配列から「このメンバーが出演する作品」だけを、sortKeyの新しい順で返す。
 // 各要素は { work, cast } で、castはそのメンバー本人の配役。
@@ -204,4 +205,68 @@ export function buildMemberStageVoiceSections(memberId) {
     fragment.appendChild(buildSection(voiceEntries, memberId, "voice", "VOICE", "　声優・ボイス出演", VOICE_INITIAL_VISIBLE_COUNT));
   }
   return fragment;
+}
+
+// ---- 「＝LOVEについて」画面（グループ全体）の舞台セクション ----
+// groupStage を持つ作品（全員出演の舞台）だけを、「ドラマ・映像作品」と同じ見た目（.sister-group-card）の
+// カードにする。出演者・リンクは個人ページと同じデータ（casts / links）を使うので、修正は1か所で済む。
+export function pickGroupStageWorks() {
+  return STAGE_PRODUCTIONS.filter((work) => work.groupStage).sort((a, b) => (a.sortKey < b.sortKey ? -1 : 1));
+}
+
+function buildGroupStageCard(work) {
+  const card = document.createElement("div");
+  card.className = "sister-group-card group-stage-card";
+  card.dataset.workId = work.id;
+
+  const title = document.createElement("p");
+  title.className = "sister-group-name";
+  title.textContent = work.title;
+  card.appendChild(title);
+
+  const period = document.createElement("p");
+  period.className = "sister-group-reading";
+  period.textContent = `${work.yearLabel} ／ ${work.groupStage.dateText}`;
+  card.appendChild(period);
+
+  const venue = document.createElement("p");
+  venue.className = "sister-group-reading";
+  venue.textContent = `会場：${work.groupStage.venue}`;
+  card.appendChild(venue);
+
+  [work.groupStage.summary, work.groupStage.credit].filter(Boolean).forEach((text) => {
+    const paragraph = document.createElement("p");
+    paragraph.className = "sister-group-description";
+    paragraph.textContent = text;
+    card.appendChild(paragraph);
+  });
+
+  card.appendChild(buildFullCastDetails(work, null));
+
+  const linkRow = document.createElement("div");
+  linkRow.className = "sister-group-links";
+  work.links.forEach((link) => {
+    const anchor = document.createElement("a");
+    anchor.className = "official-link-button";
+    anchor.href = link.url;
+    anchor.target = "_blank";
+    anchor.rel = "noopener noreferrer";
+    anchor.textContent = link.label === OFFICIAL_LABEL ? "舞台公式サイト" : link.label;
+    linkRow.appendChild(anchor);
+  });
+  card.appendChild(linkRow);
+  return card;
+}
+
+// 該当作品が無ければ空のdivを返す（呼び出し側は無条件にappendしてよい）。
+export function buildGroupStageSection() {
+  const wrapper = document.createElement("div");
+  const works = pickGroupStageWorks();
+  if (works.length === 0) return wrapper;
+  wrapper.appendChild(buildHeading("STAGE", "　舞台・ステージ作品"));
+  const list = document.createElement("div");
+  list.className = "sister-group-list";
+  works.forEach((work) => list.appendChild(buildGroupStageCard(work)));
+  wrapper.appendChild(list);
+  return wrapper;
 }

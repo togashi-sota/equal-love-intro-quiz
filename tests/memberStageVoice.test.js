@@ -8,6 +8,7 @@ import { STAGE_PRODUCTIONS, VOICE_APPEARANCES } from "../js/data/memberStageVoic
 import { MEMBERS } from "../js/data/members.js";
 import {
   buildMemberStageVoiceSections,
+  buildGroupStageSection,
   pickMemberWorks,
   formatCastRole,
   VOICE_INITIAL_VISIBLE_COUNT,
@@ -155,4 +156,41 @@ export function runMemberStageVoiceTests() {
     true,
     "H: 全リンクが target=_blank rel=noopener noreferrer"
   );
+
+  // ---- I. 「＝LOVEについて」画面の舞台セクション（2026-10-01追加） ----
+  const group = buildGroupStageSection();
+  const groupHost = document.createElement("div");
+  groupHost.style.cssText = "position:absolute;left:-9999px;top:0;width:375px;box-sizing:border-box;";
+  groupHost.appendChild(group);
+  document.body.appendChild(groupHost);
+  try {
+    assertEqual(groupHost.querySelector(".section-heading").textContent.includes("STAGE"), true, "I: STAGE見出しがある");
+    const cards = [...groupHost.querySelectorAll(".group-stage-card")];
+    assertEqual(cards.map((card) => card.dataset.workId), ["stage-kemono-friends-2018", "stage-girlfriend-kari-2018"], "I: 2作品が日付順に出る");
+    cards.forEach((card) => {
+      const items = [...card.querySelectorAll(".stage-voice-cast-item")];
+      assertEqual(
+        items.map((item) => item.querySelector(".stage-voice-cast-name").textContent),
+        ["大谷映美里", "大場花菜", "音嶋莉沙", "齋藤樹愛羅", "齊藤なぎさ", "佐々木舞香", "佐竹のん乃", "髙松瞳", "瀧脇笙古", "野口衣織", "諸橋沙夏", "山本杏奈"],
+        "I: 12人が現元の区切りなし・指定順で並ぶ"
+      );
+      assertEqual(card.querySelectorAll(".stage-voice-former-note").length, 2, "I: 元メンバー注記は2人だけ");
+      assertEqual(card.textContent.includes("会場："), true, "I: 会場が出る");
+      const anchors = [...card.querySelectorAll("a")];
+      assertEqual(anchors.map((anchor) => anchor.textContent), ["舞台公式サイト", "出演情報を見る"], "I: ボタンは2つ");
+      assertEqual(anchors.every((anchor) => anchor.target === "_blank" && anchor.rel.includes("noopener")), true, "I: 別タブで安全に開く");
+    });
+    const kemonoItems = [...cards[0].querySelectorAll(".stage-voice-cast-item")].map((item) => item.textContent);
+    assertEqual(kemonoItems.some((text) => text.includes("野口衣織") && text.includes("オーロックス 役")), true, "I: けものフレンズ 野口＝オーロックス");
+    const girlItems = [...cards[1].querySelectorAll(".stage-voice-cast-item")].map((item) => item.textContent);
+    assertEqual(girlItems.some((text) => text.includes("齊藤なぎさ") && text.includes("クロエ・ルメール 役")), true, "I: ガールフレンド 齊藤なぎさ＝クロエ・ルメール");
+    const links = cards.map((card) => [...card.querySelectorAll("a")].map((anchor) => anchor.href));
+    assertEqual(links, [
+      ["https://www.nelke.co.jp/stage/anitele=love_kemono-friends/", "https://equal-love.jp/news/detail/389"],
+      ["https://www.nelke.co.jp/stage/anitele=love_girlfriend-kari/", "https://equal-love.jp/news/detail/765"],
+    ], "I: 公式リンクが2作品とも正しい");
+    assertEqual(groupHost.scrollWidth <= groupHost.clientWidth + 1, true, "I: 375px幅で横にはみ出さない");
+  } finally {
+    groupHost.remove();
+  }
 }
