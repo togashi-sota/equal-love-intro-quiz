@@ -75,11 +75,12 @@ export function runMemberActivitiesOrderTests() {
   const noguchiSorted = sortActivitiesByDateDesc(getMemberActivities(MEMBER_ACTIVITIES, "noguchi-iori"));
   assertEqual(noguchiSorted[0].id, "noguchi-tocco-closet", "E: 野口衣織は 2026-09-30 の tocco closet が一番上");
   const obaSorted = sortActivitiesByDateDesc(getMemberActivities(MEMBER_ACTIVITIES, "oba-hana"));
-  assertEqual(obaSorted[0].id, "oba-redyazel", "E: 大場花菜は 2026-09-30 の REDYAZEL が一番上");
+  // 2026-10-02：さいたま観光大使（2026-10-01）が加わったため、REDYAZEL（2026-09-30）は2番目になる
+  assertEqual(obaSorted[1].id, "oba-redyazel", "E: 大場花菜は 2026-09-30 の REDYAZEL が（さいたま観光大使の次の）2番目");
   assertEqual(
     obaSorted.map((activity) => activity.id),
-    ["oba-redyazel", "oba-manga", "oba-artistspoken"],
-    "F: 大場花菜は 2026-09-30 → 2026-03-30（終了）→ 2024-06-14（継続中）の順（＝継続中でも日付が古ければ下）"
+    ["oba-saitama-tourism-ambassador", "oba-redyazel", "oba-manga", "oba-artistspoken"],
+    "F: 大場花菜は 2026-10-01 → 2026-09-30 → 2026-03-30（終了）→ 2024-06-14（継続中）の順（＝継続中でも日付が古ければ下）"
   );
 
   // 旧仕様（status優先）なら上に来ていた継続中の古い活動が、新しい活動より下になる
@@ -138,13 +139,15 @@ export function runMemberActivitiesOrderTests() {
   assertEqual(new Set(ids).size, ids.length, "監査: 活動IDに重複が無い");
   const badDates = [];
   const futureDates = [];
-  const today = "2026-09-30";
+  // 2026-10-02：基準日を更新。終了日(endDate)だけは「任期の満了日」など未来の予定日が正しい場合があるため対象外にする
+  //（開始日・確認日が未来なら入力ミスの疑い）。
+  const today = "2026-10-02";
   [...MEMBER_ACTIVITIES, ...GROUP_ACTIVITIES].forEach((activity) => {
     ["startDate", "endDate", "lastVerifiedDate"].forEach((key) => {
       const value = activity[key];
       if (value === null || value === undefined) return;
       if (typeof value !== "string" || !DATE_PATTERN.test(value)) badDates.push(`${activity.id}.${key}=${value}`);
-      else if (value > today) futureDates.push(`${activity.id}.${key}=${value}`);
+      else if (key !== "endDate" && value > today) futureDates.push(`${activity.id}.${key}=${value}`);
     });
     if (activity.startDate && activity.endDate) {
       assertEqual(activity.startDate <= activity.endDate, true, `監査: ${activity.id} は開始日 ≦ 終了日`);
@@ -191,6 +194,40 @@ export function runMemberActivityCardLayoutTests() {
       assertEqual(link.target, "_blank", "K: 外部リンクは新しいタブで開く");
       assertEqual(link.rel.includes("noopener") && link.rel.includes("noreferrer"), true, "K: rel=noopener noreferrer が付く");
     });
+  } finally {
+    container.remove();
+  }
+}
+
+// 【2026-10-02追加】大場花菜「さいたま観光大使」（さいたま市公式発表 2026-10-01）の回帰テスト。
+export function runSaitamaAmbassadorTests() {
+  const activity = findActivity("oba-saitama-tourism-ambassador");
+  assertEqual(activity !== null, true, "S: さいたま観光大使が登録されている");
+  assertEqual(activity.memberId, "oba-hana", "S: 大場花菜の活動");
+  assertEqual(activity.type, "ambassador", "S: 種別は観光大使（汎用のAMBASSADOR）");
+  assertEqual(activity.status, ACTIVITY_STATUS.ONGOING, "S: 継続中");
+  assertEqual([activity.startDate, activity.endDate], ["2026-10-01", "2028-03-31"], "S: 就任日と任期末が公式どおり");
+  assertEqual(activity.url, "https://www.city.saitama.lg.jp/006/014/008/003/015/007/p133595.html", "S: 主リンクは就任発表ページ");
+  assertEqual(activity.sourceType, "official", "S: 公式情報");
+
+  const sorted = sortActivitiesByDateDesc(getMemberActivities(MEMBER_ACTIVITIES, "oba-hana"));
+  assertEqual(sorted[0].id, "oba-saitama-tourism-ambassador", "S: 大場花菜の活動一覧で一番上");
+  assertEqual(sorted[1].id, "oba-redyazel", "S: 2番目はREDYAZEL（既存の並びを壊さない）");
+  assertEqual(sorted.some((entry) => entry.id === "oba-manga") && sorted.some((entry) => entry.id === "oba-artistspoken"), true, "S: はなコミ！・イマフレランチも残っている");
+
+  const container = document.createElement("div");
+  container.style.cssText = "position:absolute;left:-9999px;top:0;width:375px;box-sizing:border-box;";
+  const card = buildActivityCard(activity);
+  container.appendChild(card);
+  document.body.appendChild(container);
+  try {
+    assertEqual(card.querySelector(".activity-card-type").textContent, "観光大使", "S: タグ「観光大使」");
+    assertEqual(card.querySelector(".activity-card-status").textContent, "継続中", "S: タグ「継続中」");
+    assertEqual(card.querySelector(".activity-card-status").classList.contains("is-ongoing"), true, "S: 継続中は既存の緑タグ");
+    const link = card.querySelector("a");
+    assertEqual([link.textContent, link.target, link.rel.includes("noopener")], ["公式ページ", "_blank", true], "S: 「公式ページ」ボタンが別タブで開く");
+    assertEqual(card.textContent.includes("2028年3月31日まで"), true, "S: 任期が説明文にある");
+    assertEqual(container.scrollWidth <= container.clientWidth + 1, true, "S: 375px幅で横にはみ出さない");
   } finally {
     container.remove();
   }

@@ -37,6 +37,8 @@ export const ACTIVITY_TYPE = {
   STAGE: "stage",
   VOICE: "voice",
   SPORTS: "sports",
+  // 観光大使・アンバサダー・公的なPR大使など（2026-10-02追加。大場花菜のさいたま観光大使が最初の例）
+  AMBASSADOR: "ambassador",
   OTHER: "other",
 };
 
@@ -144,6 +146,28 @@ export const MEMBER_ACTIVITIES = [
     sourceType: "official",
     sourceUrls: ["https://equal-love.jp/schedule/detail/6558", "https://x.com/Equal_LOVE_12"],
     lastVerifiedDate: "2026-08-23",
+  },
+  {
+    // 【2026-10-02追加】さいたま市公式発表（2026-10-01付）で確認。委嘱式は2026年10月1日、任期は2028年3月31日まで。
+    // 今後ほかのメンバーに観光大使・アンバサダーなどの継続的な活動が決まったときも、
+    // この形（type: AMBASSADOR）で1件足すだけでよい。
+    id: "oba-saitama-tourism-ambassador",
+    memberId: "oba-hana",
+    relatedMemberIds: [],
+    title: "さいたま観光大使",
+    type: ACTIVITY_TYPE.AMBASSADOR,
+    description:
+      "2026年10月1日、さいたま市の魅力を広く発信する「さいたま観光大使」に就任。埼玉県出身で、今後は日々の活動やメディアなどを通じて、さいたま市の特色や魅力をPRしていく。任期は2028年3月31日まで。",
+    url: "https://www.city.saitama.lg.jp/006/014/008/003/015/007/p133595.html",
+    status: ACTIVITY_STATUS.ONGOING,
+    startDate: "2026-10-01",
+    endDate: "2028-03-31",
+    sourceType: "official",
+    sourceUrls: [
+      "https://www.city.saitama.lg.jp/006/014/008/003/015/007/p133595.html",
+      "https://www.city.saitama.lg.jp/004/001/001/p071091.html",
+    ],
+    lastVerifiedDate: "2026-10-02",
   },
   {
     id: "oba-manga",
