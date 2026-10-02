@@ -283,6 +283,35 @@ export const MEMBER_ACTIVITIES = [
     lastVerifiedDate: "2026-08-12",
   },
   {
+    // 【2026-10-02追加】栃木県公式「とちぎ未来大使」名簿（令和8年3月31日現在・芸能分野）で
+    // 「齋藤 樹愛羅／アイドル ＝LOVE／担当名 とちぎ＝LOVE♡／委嘱日 令和6年4月17日」を確認。
+    // 県公式「魅せます！とちブラ」の出演者一覧（2026-10-01更新）にも掲載。退任・終了の情報は確認できないため継続中として扱う。
+    // 大場花菜のさいたま観光大使と同じ type: AMBASSADOR（観光・PR大使）の仕組みで管理している。
+    id: "saito-tochigi-future-ambassador",
+    memberId: "saito-kiara",
+    relatedMemberIds: [],
+    title: "とちぎ未来大使",
+    type: ACTIVITY_TYPE.AMBASSADOR,
+    description:
+      "2024年4月17日、栃木県の魅力や地域資源を県内外へ発信する「とちぎ未来大使」に就任。栃木県出身で、担当名は「とちぎ＝LOVE♡」。県の広報番組「魅せます！とちブラ～とちぎブランド・ぶらり～」にも出演している。",
+    url: null,
+    links: [
+      { label: "栃木県公式ページ", url: "https://www.pref.tochigi.lg.jp/c05/pref/kihon/sonota/1285545941380.html", sourceType: "official" },
+      { label: "とちブラ（県公式）", url: "https://www.pref.tochigi.lg.jp/c05/pref/kouhou/terebi/newtv.html", sourceType: "official" },
+    ],
+    status: ACTIVITY_STATUS.ONGOING,
+    startDate: "2024-04-17",
+    endDate: null,
+    sourceType: "official",
+    sourceUrls: [
+      "https://www.pref.tochigi.lg.jp/c05/pref/kihon/sonota/1285545941380.html",
+      "https://www.pref.tochigi.lg.jp/c05/pref/kihon/sonota/documents/02_geinou_20260331.pdf",
+      "https://www.pref.tochigi.lg.jp/c05/pref/kouhou/terebi/newtv.html",
+      "https://x.com/Equal_LOVE_12/status/1780472508275400783",
+    ],
+    lastVerifiedDate: "2026-10-02",
+  },
+  {
     id: "saito-sasaki-einstein-tv",
     memberId: "saito-kiara",
     relatedMemberIds: ["sasaki-maika"],

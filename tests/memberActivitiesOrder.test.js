@@ -221,7 +221,7 @@ export function runSaitamaAmbassadorTests() {
   container.appendChild(card);
   document.body.appendChild(container);
   try {
-    assertEqual(card.querySelector(".activity-card-type").textContent, "観光大使", "S: タグ「観光大使」");
+    assertEqual(card.querySelector(".activity-card-type").textContent, "観光・PR大使", "S: タグ「観光・PR大使」");
     assertEqual(card.querySelector(".activity-card-status").textContent, "継続中", "S: タグ「継続中」");
     assertEqual(card.querySelector(".activity-card-status").classList.contains("is-ongoing"), true, "S: 継続中は既存の緑タグ");
     const link = card.querySelector("a");
@@ -231,4 +231,38 @@ export function runSaitamaAmbassadorTests() {
   } finally {
     container.remove();
   }
+}
+
+// 【2026-10-02追加】齋藤樹愛羅「とちぎ未来大使」（栃木県公式名簿・令和8年3月31日現在で確認）の回帰テスト。
+export function runTochigiAmbassadorTests() {
+  const activity = findActivity("saito-tochigi-future-ambassador");
+  assertEqual(activity !== null, true, "T: とちぎ未来大使が登録されている");
+  assertEqual(activity.memberId, "saito-kiara", "T: 齋藤樹愛羅の活動");
+  assertEqual(activity.type, "ambassador", "T: さいたま観光大使と同じ汎用種別AMBASSADOR");
+  assertEqual(activity.status, ACTIVITY_STATUS.ONGOING, "T: 継続中");
+  assertEqual([activity.startDate, activity.endDate], ["2024-04-17", null], "T: 就任日は2024-04-17、終了日なし");
+  assertEqual(activity.description.includes("2024年4月17日") && activity.description.includes("とちぎ＝LOVE♡") && activity.description.includes("とちブラ"), true, "T: 就任日・担当名・とちブラが説明文にある");
+  assertEqual(activity.links[0].url, "https://www.pref.tochigi.lg.jp/c05/pref/kihon/sonota/1285545941380.html", "T: 主リンクは栃木県公式のとちぎ未来大使ページ");
+  assertEqual(activity.links.every((link) => link.url.startsWith("https://www.pref.tochigi.lg.jp/")), true, "T: リンクは全て栃木県公式");
+  assertEqual(activity.type !== "stage" && activity.type !== "voice", true, "T: STAGE/VOICEの種別ではない（個人活動・レギュラー企画の扱い）");
+
+  const container = document.createElement("div");
+  container.style.cssText = "position:absolute;left:-9999px;top:0;width:375px;box-sizing:border-box;";
+  const card = buildActivityCard(activity);
+  container.appendChild(card);
+  document.body.appendChild(container);
+  try {
+    assertEqual(card.querySelector(".activity-card-type").textContent, "観光・PR大使", "T: さいたま観光大使と同じタグ「観光・PR大使」");
+    assertEqual(card.querySelector(".activity-card-status").textContent, "継続中", "T: 「継続中」");
+    assertEqual(card.querySelector(".activity-card-status").classList.contains("is-ongoing"), true, "T: 既存の緑タグ");
+    const anchors = [...card.querySelectorAll("a")];
+    assertEqual(anchors.length, 2, "T: ボタンは2つ");
+    assertEqual(anchors.every((link) => link.target === "_blank" && link.rel.includes("noopener")), true, "T: 別タブ・安全属性");
+    assertEqual(container.scrollWidth <= container.clientWidth + 1, true, "T: 375px幅で横にはみ出さない");
+  } finally {
+    container.remove();
+  }
+  const ids = sortActivitiesByDateDesc(getMemberActivities(MEMBER_ACTIVITIES, "saito-kiara")).map((entry) => entry.id);
+  assertEqual(ids.indexOf("saito-kiara-berippichi-radio") < ids.indexOf("saito-tochigi-future-ambassador"), true, "T: 2026年開始のラジオより下（日付降順）");
+  assertEqual(ids.indexOf("saito-tochigi-future-ambassador") < ids.indexOf("saito-sasaki-einstein-tv"), true, "T: 2022年開始のTVより上（日付降順）");
 }

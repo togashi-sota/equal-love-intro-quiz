@@ -472,7 +472,7 @@ const ACTIVITY_TYPE_LABELS = {
   stage: "舞台",
   voice: "声優",
   sports: "スポーツ",
-  ambassador: "観光大使",
+  ambassador: "観光・PR大使",
   other: "活動",
 };
 
