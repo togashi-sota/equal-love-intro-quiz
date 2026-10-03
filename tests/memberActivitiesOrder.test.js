@@ -141,7 +141,8 @@ export function runMemberActivitiesOrderTests() {
   const futureDates = [];
   // 2026-10-02：基準日を更新。終了日(endDate)だけは「任期の満了日」など未来の予定日が正しい場合があるため対象外にする
   //（開始日・確認日が未来なら入力ミスの疑い）。
-  const today = "2026-10-02";
+  // 基準日は「実行した日（日本時間）」。以前は固定日付だったため、新しい確認日を入れるたびに更新が必要だった。
+  const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" });
   [...MEMBER_ACTIVITIES, ...GROUP_ACTIVITIES].forEach((activity) => {
     ["startDate", "endDate", "lastVerifiedDate"].forEach((key) => {
       const value = activity[key];
@@ -265,4 +266,34 @@ export function runTochigiAmbassadorTests() {
   const ids = sortActivitiesByDateDesc(getMemberActivities(MEMBER_ACTIVITIES, "saito-kiara")).map((entry) => entry.id);
   assertEqual(ids.indexOf("saito-kiara-berippichi-radio") < ids.indexOf("saito-tochigi-future-ambassador"), true, "T: 2026年開始のラジオより下（日付降順）");
   assertEqual(ids.indexOf("saito-tochigi-future-ambassador") < ids.indexOf("saito-sasaki-einstein-tv"), true, "T: 2022年開始のTVより上（日付降順）");
+}
+
+// 【2026-10-04追加】大谷映美里「アッパレやってまーす！～土曜日です～」2026年10月3日放送で卒業（終了表示）の回帰テスト。
+export function runOtaniAppareGraduationTests() {
+  const activity = findActivity("otani-appare-saturday-radio");
+  assertEqual(activity !== null, true, "U: アッパレ土曜日のカードが残っている（削除していない）");
+  assertEqual(activity.status, ACTIVITY_STATUS.ENDED, "U: 継続中ではなく終了");
+  assertEqual(activity.endDate, "2026-10-03", "U: 終了日は2026年10月3日放送");
+  assertEqual(activity.description.includes("2026年10月3日放送をもって卒業"), true, "U: 説明文に卒業日");
+  assertEqual(/理由|改編|ため/.test(activity.description), false, "U: 推測の卒業理由を書いていない");
+  assertEqual(activity.links.map((link) => link.url), ["https://www.mbs1179.com/yaru/"], "U: 番組公式URLが残っている");
+  assertEqual(activity.links[0].label, "番組公式ページ", "U: ボタンは「番組公式ページ」");
+
+  const container = document.createElement("div");
+  container.style.cssText = "position:absolute;left:-9999px;top:0;width:375px;box-sizing:border-box;";
+  const card = buildActivityCard(activity);
+  container.appendChild(card);
+  document.body.appendChild(container);
+  try {
+    assertEqual(card.querySelector(".activity-card-type").textContent, "ラジオ", "U: タグ「ラジオ」");
+    assertEqual(card.querySelector(".activity-card-status").textContent, "終了", "U: タグ「終了」");
+    assertEqual(card.querySelector(".activity-card-status").classList.contains("is-ended"), true, "U: 既存の終了タグの見た目");
+    const link = card.querySelector("a");
+    assertEqual([link.target, link.rel.includes("noopener")], ["_blank", true], "U: 別タブ・安全属性");
+    assertEqual(container.scrollWidth <= container.clientWidth + 1, true, "U: 375px幅で横にはみ出さない");
+  } finally {
+    container.remove();
+  }
+  const otani = sortActivitiesByDateDesc(getMemberActivities(MEMBER_ACTIVITIES, "otani-emiri"));
+  assertEqual(otani.some((entry) => entry.id === "otani-jins-midface") && otani.some((entry) => entry.id === "otani-rose-muse"), true, "U: ほかの大谷映美里の活動カードは残っている");
 }

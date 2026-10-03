@@ -531,18 +531,24 @@ export const MEMBER_ACTIVITIES = [
     relatedMemberIds: [],
     title: "アッパレやってまーす！～土曜日です～",
     type: ACTIVITY_TYPE.RADIO,
-    description: "MBSラジオの帯番組「アッパレやってまーす！」土曜日版のレギュラーパーソナリティを務める（毎週土曜25:00〜25:30、生放送）。",
-    url: "https://www.mbs1179.com/yaru/",
-    status: ACTIVITY_STATUS.ONGOING,
+    // 【2026-10-04更新】2026年10月3日放送分（番組から「大切なお知らせ」あり）をもって卒業。
+    // 卒業の理由は公式に確認できていないため、説明文には書かない（秋の番組改編と結び付けて断定しない）。
+    // 実際の放送終了は10月4日未明だが、放送日の「2026-10-03」を終了日にしている。
+    description:
+      "MBSラジオのレギュラー番組。2020年から「アッパレやってまーす！」（木曜版）に出演し、2021年秋から土曜版「～土曜日です～」に出演。2026年10月3日放送をもって卒業した。",
+    url: null,
+    links: [{ label: "番組公式ページ", url: "https://www.mbs1179.com/yaru/", sourceType: "official" }],
+    status: ACTIVITY_STATUS.ENDED,
     startDate: "2021-10-10",
-    endDate: null,
+    endDate: "2026-10-03",
     sourceType: "reliable",
     sourceUrls: [
       "https://www.mbs1179.com/yaru/",
+      "https://radioupdate.net/mbs/yaru/yarudo/20261003/",
       "https://equal-love.jp/schedule/detail/9234",
       "https://ja.wikipedia.org/wiki/大谷映美里",
     ],
-    lastVerifiedDate: "2026-08-23",
+    lastVerifiedDate: "2026-10-04",
   },
   {
     id: "otani-jins-midface",
