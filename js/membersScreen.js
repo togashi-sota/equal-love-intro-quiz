@@ -490,16 +490,34 @@ export const ACTIVITY_STATUS_LABELS = {
 // 【2026-09-30改訂】並び順の主キーは日付になったため、この順序は表示ラベルの整理用にだけ残す。
 export const ACTIVITY_STATUS_ORDER = ["ongoing", "annual", "irregular", "ended", "past", "unknown"];
 
-// 並べ替えの基準日を1つ返す。「その活動に紐づく最新の日付」＝終了日があればendDate、
-// 無ければstartDate（＝公式発表・公開日）。どちらも無ければnull。
-// 【2026-09-30改訂】"YYYY-MM-DD" 以外（欠損・空文字・書式違い）は null 扱いにして、
-// 不正な日付が紛れ込んでも並びが壊れない・画面が落ちないようにする（本人指示の監査項目）。
+// 活動の「グループ順位」。個人活動・レギュラー企画の表示は必ずこの順位が最優先になる
+// （2026-10-04改訂・本人指示：継続中を必ず上、終了をその下）。
+//   0 = 継続中（ongoing）
+//   1 = 年次開催・不定期（annual / irregular）＝終了ではなく現在も動きがある活動。status未設定・unknownもここ
+//   2 = 終了・過去の活動（ended / past）
+// 「新しく終了したから」という理由だけで、現在活動中の仕事より上に出ないようにするための仕組み。
+export function getActivityGroupRank(activity) {
+  switch (activity?.status) {
+    case ACTIVITY_STATUS.ONGOING:
+      return 0;
+    case ACTIVITY_STATUS.ENDED:
+    case ACTIVITY_STATUS.PAST:
+      return 2;
+    default:
+      return 1;
+  }
+}
+
+// 並べ替えの基準日を1つ返す。
+//   ・継続中／年次／不定期：開始日（startDate）。endDateは「任期の満了日」など未来の予定日のことがあるので使わない。
+//   ・終了／過去：終了日（endDate）。無ければ開始日。
+// どちらも無ければnull。
+// "YYYY-MM-DD" 以外（欠損・空文字・書式違い）は null 扱いにして、不正な日付が紛れ込んでも
+// 並びが壊れない・画面が落ちないようにする（本人指示の監査項目）。
 const ACTIVITY_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 export function getActivitySortDate(activity) {
-  // 終了済み（ENDED/PAST）は終了日が「最後の動き」、継続中はendDateが無いのでstartDateになる。
-  // status に関わらず同じ式で「最新の日付」を求められるため、全項目で意味が揃う。
-  const candidate = activity?.endDate ?? activity?.startDate;
+  const candidate = getActivityGroupRank(activity) === 2 ? (activity?.endDate ?? activity?.startDate) : activity?.startDate;
   if (typeof candidate !== "string" || !ACTIVITY_DATE_PATTERN.test(candidate)) return null;
   // 2026-02-31 のような「書式は正しいが存在しない日」も弾く
   const [year, month, day] = candidate.split("-").map(Number);
@@ -508,18 +526,23 @@ export function getActivitySortDate(activity) {
   return candidate;
 }
 
-// 活動一覧を「日付が新しい順」に並べ替える（2026-09-30改訂・本人指示）。
-// 1. 基準日（getActivitySortDate）の降順。＝ 一番新しい活動が一番上、古い活動ほど下。
-//    今後どの位置にデータを追記しても、表示は必ず日付順になる（人が並びを気にしなくてよい）。
-// 2. 日付が分からない活動（noguchi-game-club 等）は、日付のある活動より後ろへまとめる。
-// 3. 同じ日付どうしは、priority（小さいほど上。省略時は最後）→ データの登録順、の順で決める。
-//    再描画のたびに順番が入れ替わらないよう、必ず決定的（安定）な並びになるようにしている。
-// 【旧仕様】2026-09-30まではstatus（継続中→年次開催→…→過去）が主キーだったため、
-// 例えば2021年開設のYouTubeが2026年の新しい仕事より上に出ていた。本人指示により日付主体へ変更。
+// 活動一覧の共通の並び順（メンバー個人ページ・グループ活動の両方で使う）。
+//   1. グループ順位（継続中 → 年次/不定期 → 終了/過去）
+//   2. 同じグループ内は基準日の新しい順（継続中系＝開始日、終了系＝終了日）
+//   3. 日付が分からない活動（noguchi-game-club 等）は、そのグループの末尾にまとめる
+//   4. 同じ日付どうしは、priority（小さいほど上。省略時は最後）→ データの登録順
+// 新しい活動を足すときは startDate と status を入れるだけで、自動的に正しい位置に並ぶ。
+// 再描画のたびに順番が入れ替わらないよう、必ず決定的（安定）な並びになるようにしている。
+// 【旧仕様】2026-09-30〜10-03は status を見ず日付だけで並べていたため、終了した活動が
+// 継続中の活動より上に出ることがあった（例：2026-10-03に終了した大谷映美里のアッパレ）。
 export function sortActivitiesByDateDesc(activities) {
   return [...activities]
     .map((activity, index) => ({ activity, index }))
     .sort((a, b) => {
+      const aRank = getActivityGroupRank(a.activity);
+      const bRank = getActivityGroupRank(b.activity);
+      if (aRank !== bRank) return aRank - bRank;
+
       const aDate = getActivitySortDate(a.activity);
       const bDate = getActivitySortDate(b.activity);
       if (aDate && bDate && aDate !== bDate) return aDate < bDate ? 1 : -1;

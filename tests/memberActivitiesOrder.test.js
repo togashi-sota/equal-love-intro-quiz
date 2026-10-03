@@ -7,7 +7,7 @@ import { MEMBER_ACTIVITIES, ACTIVITY_STATUS } from "../js/data/memberActivities.
 import { GROUP_ACTIVITIES } from "../js/data/groupActivities.js";
 import { MEMBERS } from "../js/data/members.js";
 import { getMemberActivities } from "../js/memberUtils.js";
-import { sortActivitiesByDateDesc, getActivitySortDate, buildActivityCard } from "../js/membersScreen.js";
+import { sortActivitiesByDateDesc, getActivitySortDate, getActivityGroupRank, buildActivityCard } from "../js/membersScreen.js";
 import { assertEqual } from "./test-utils.js";
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -57,17 +57,20 @@ export function runMemberActivitiesOrderTests() {
     const activities = sortActivitiesByDateDesc(getMemberActivities(MEMBER_ACTIVITIES, member.id));
     if (activities.length === 0) return;
     memberWithActivities += 1;
-    const dates = activities.map((activity) => getActivitySortDate(activity));
-    const dated = dates.filter((date) => date !== null);
-    // E/F: 日付のあるものは必ず降順、日付が無いものは必ず後ろ
-    const sortedDesc = [...dated].sort().reverse();
-    assertEqual(dated, sortedDesc, `D/E/F: ${member.name} の活動が日付の新しい順に並ぶ`);
-    const firstNullIndex = dates.indexOf(null);
-    assertEqual(
-      firstNullIndex === -1 || dates.slice(firstNullIndex).every((date) => date === null),
-      true,
-      `D: ${member.name} は日付不明の活動が末尾にまとまる`
-    );
+    // 2026-10-04改訂：グループ順位（継続中→年次/不定期→終了）が最優先。その中で日付の新しい順、日付不明は各グループ末尾。
+    const ranks = activities.map((activity) => getActivityGroupRank(activity));
+    assertEqual(ranks, [...ranks].sort((a, b) => a - b), `D: ${member.name} は継続中→年次/不定期→終了の順に並ぶ`);
+    [0, 1, 2].forEach((rank) => {
+      const dates = activities.filter((activity) => getActivityGroupRank(activity) === rank).map((activity) => getActivitySortDate(activity));
+      const dated = dates.filter((date) => date !== null);
+      assertEqual(dated, [...dated].sort().reverse(), `D/E/F: ${member.name} のグループ${rank}は日付の新しい順`);
+      const firstNullIndex = dates.indexOf(null);
+      assertEqual(
+        firstNullIndex === -1 || dates.slice(firstNullIndex).every((date) => date === null),
+        true,
+        `D: ${member.name} のグループ${rank}は日付不明の活動が末尾にまとまる`
+      );
+    });
   });
   assertEqual(memberWithActivities > 0, true, "D: 活動を持つメンバーが存在する（テストが空振りしていない）");
 
@@ -79,8 +82,8 @@ export function runMemberActivitiesOrderTests() {
   assertEqual(obaSorted[1].id, "oba-redyazel", "E: 大場花菜は 2026-09-30 の REDYAZEL が（さいたま観光大使の次の）2番目");
   assertEqual(
     obaSorted.map((activity) => activity.id),
-    ["oba-saitama-tourism-ambassador", "oba-redyazel", "oba-manga", "oba-artistspoken"],
-    "F: 大場花菜は 2026-10-01 → 2026-09-30 → 2026-03-30（終了）→ 2024-06-14（継続中）の順（＝継続中でも日付が古ければ下）"
+    ["oba-saitama-tourism-ambassador", "oba-redyazel", "oba-artistspoken", "oba-manga"],
+    "F: 大場花菜は 継続中（2026-10-01 → 2026-09-30 → 2024-06-14）→ 終了（はなコミ！）の順"
   );
 
   // 旧仕様（status優先）なら上に来ていた継続中の古い活動が、新しい活動より下になる
@@ -93,12 +96,17 @@ export function runMemberActivitiesOrderTests() {
   );
   const takamatsuIds = sortActivitiesByDateDesc(getMemberActivities(MEMBER_ACTIVITIES, "takamatsu-hitomi")).map((a) => a.id);
   assertEqual(takamatsuIds[0], "takamatsu-heather", "E: 髙松瞳は 2026-09-04 の Heather が一番上");
-  assertEqual(takamatsuIds[takamatsuIds.length - 1], "takamatsu-hamburger-club", "F: 日付の無い活動が一番下");
+  assertEqual(takamatsuIds[takamatsuIds.length - 1], "takamatsu-first-pitch", "F: 終了済み（過去の活動）が一番下");
+  assertEqual(takamatsuIds.indexOf("takamatsu-hamburger-club") < takamatsuIds.indexOf("takamatsu-first-pitch"), true, "F: 日付不明の不定期活動でも、終了した活動より上");
 
   // グループ活動（ディスコグラフィ画面）も同じ関数で日付降順になる
-  const groupDates = sortActivitiesByDateDesc(GROUP_ACTIVITIES).map((activity) => getActivitySortDate(activity));
-  const groupDated = groupDates.filter((date) => date !== null);
-  assertEqual(groupDated, [...groupDated].sort().reverse(), "D: グループ活動一覧も日付の新しい順");
+  const groupSorted = sortActivitiesByDateDesc(GROUP_ACTIVITIES);
+  const groupRanks = groupSorted.map((activity) => getActivityGroupRank(activity));
+  assertEqual(groupRanks, [...groupRanks].sort((a, b) => a - b), "D: グループ活動一覧も継続中→終了の順");
+  [0, 1, 2].forEach((rank) => {
+    const dated = groupSorted.filter((activity) => getActivityGroupRank(activity) === rank).map((activity) => getActivitySortDate(activity)).filter((date) => date !== null);
+    assertEqual(dated, [...dated].sort().reverse(), `D: グループ活動のグループ${rank}は日付の新しい順`);
+  });
 
   // ---- G. 同日データでも安定した順序（何度並べ替えても同じ／priority→登録順） ----
   const sameDay = [
@@ -120,7 +128,8 @@ export function runMemberActivitiesOrderTests() {
 
   // ---- H. 不正日付・欠損があっても壊れない ----
   assertEqual(getActivitySortDate({ startDate: "2026-09-30" }), "2026-09-30", "H: 正常な日付はそのまま基準日になる");
-  assertEqual(getActivitySortDate({ startDate: "2026-09-30", endDate: "2026-10-05" }), "2026-10-05", "H: 終了日があれば終了日が基準日（最新の動き）");
+  assertEqual(getActivitySortDate({ status: ACTIVITY_STATUS.ENDED, startDate: "2026-09-30", endDate: "2026-10-05" }), "2026-10-05", "H: 終了した活動は終了日が基準日");
+  assertEqual(getActivitySortDate({ status: ACTIVITY_STATUS.ONGOING, startDate: "2026-09-30", endDate: "2028-03-31" }), "2026-09-30", "H: 継続中は開始日が基準日（任期満了日などの未来のendDateは使わない）");
   assertEqual(getActivitySortDate({ startDate: null, endDate: null }), null, "H: 日付が無ければ null");
   assertEqual(getActivitySortDate({ startDate: "2026/09/30" }), null, "H: YYYY/MM/DD 表記は不正として null（並びを壊さない）");
   assertEqual(getActivitySortDate({ startDate: "2026-02-31" }), null, "H: 存在しない日付は null");
@@ -132,7 +141,7 @@ export function runMemberActivitiesOrderTests() {
     { id: "b2", status: ACTIVITY_STATUS.ONGOING, startDate: "こわれた日付", endDate: null },
     { id: "b3", status: ACTIVITY_STATUS.PAST, startDate: null, endDate: "2026-05-05" },
   ];
-  assertEqual(sortActivitiesByDateDesc(broken).map((a) => a.id), ["b3", "b1", "b2"], "H: 壊れた日付が混ざっても例外にならず、末尾にまとまる");
+  assertEqual(sortActivitiesByDateDesc(broken).map((a) => a.id), ["b1", "b2", "b3"], "H: 壊れた日付が混ざっても例外にならず、継続中の末尾・終了の上にまとまる");
 
   // ---- 全データの日付監査（書式・欠損・未来日・重複ID） ----
   const ids = MEMBER_ACTIVITIES.map((activity) => activity.id);
@@ -295,5 +304,8 @@ export function runOtaniAppareGraduationTests() {
     container.remove();
   }
   const otani = sortActivitiesByDateDesc(getMemberActivities(MEMBER_ACTIVITIES, "otani-emiri"));
+  const otaniIds = otani.map((entry) => entry.id);
+  assertEqual(otaniIds[otaniIds.length - 1], "otani-appare-saturday-radio", "U: 終了したアッパレは継続中の活動より下（終了グループの先頭＝末尾側）");
+  assertEqual(otaniIds.indexOf("otani-jins-midface") < otaniIds.indexOf("otani-appare-saturday-radio"), true, "U: JINS（継続中）がアッパレ（終了）より上");
   assertEqual(otani.some((entry) => entry.id === "otani-jins-midface") && otani.some((entry) => entry.id === "otani-rose-muse"), true, "U: ほかの大谷映美里の活動カードは残っている");
 }
