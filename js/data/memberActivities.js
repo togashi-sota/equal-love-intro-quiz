@@ -313,6 +313,33 @@ export const MEMBER_ACTIVITIES = [
     lastVerifiedDate: "2026-10-02",
   },
   {
+    // 【2026-10-10追加】＝LOVE公式NEWS（2026-10-09掲載）・MeloRia公式サイト・QUEEN EYES販売ページ（2026-10-21 12:00〜）で確認。
+    // 終了が発表されたら status を ENDED にして endDate を入れるだけで、共通ソートにより終了グループへ移動する。
+    id: "saito-meloria-image-model",
+    memberId: "saito-kiara",
+    relatedMemberIds: [],
+    title: "MeloRia（メロリア）イメージモデル",
+    type: ACTIVITY_TYPE.MODEL,
+    description:
+      "2026年10月9日、新カラーコンタクトブランド「MeloRia（メロリア）」のイメージモデルに就任。「瞳に魔法、心にティアラ」をコンセプトに、“お姫様の瞳”をテーマとした全6色を展開。2026年10月21日（水）12:00より発売開始予定。",
+    url: null,
+    links: [
+      { label: "ブランド公式サイト", url: "https://www.meloria.jp/", sourceType: "official" },
+      { label: "＝LOVE公式情報", url: "https://equal-love.jp/news/detail/12240", sourceType: "official" },
+    ],
+    status: ACTIVITY_STATUS.ONGOING,
+    startDate: "2026-10-09",
+    endDate: null,
+    sourceType: "official",
+    sourceUrls: [
+      "https://equal-love.jp/news/detail/12240",
+      "https://www.meloria.jp/",
+      "https://www.queen-eyes.com/c/meloria",
+      "https://prtimes.jp/main/html/rd/p/000000145.000018275.html",
+    ],
+    lastVerifiedDate: "2026-10-10",
+  },
+  {
     id: "saito-sasaki-einstein-tv",
     memberId: "saito-kiara",
     relatedMemberIds: ["sasaki-maika"],

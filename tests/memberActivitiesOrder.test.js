@@ -309,3 +309,49 @@ export function runOtaniAppareGraduationTests() {
   assertEqual(otaniIds.indexOf("otani-jins-midface") < otaniIds.indexOf("otani-appare-saturday-radio"), true, "U: JINS（継続中）がアッパレ（終了）より上");
   assertEqual(otani.some((entry) => entry.id === "otani-jins-midface") && otani.some((entry) => entry.id === "otani-rose-muse"), true, "U: ほかの大谷映美里の活動カードは残っている");
 }
+
+// 【2026-10-10追加】齋藤樹愛羅「MeloRia（メロリア）イメージモデル」（＝LOVE公式NEWS 2026-10-09）の回帰テスト。
+export function runMeloRiaImageModelTests() {
+  const activity = findActivity("saito-meloria-image-model");
+  assertEqual(activity !== null, true, "M: MeloRiaイメージモデルが登録されている");
+  assertEqual(activity.memberId, "saito-kiara", "M: 齋藤樹愛羅の活動");
+  assertEqual(activity.type, "model", "M: 種別はモデル");
+  assertEqual(activity.status, ACTIVITY_STATUS.ONGOING, "M: 継続中");
+  assertEqual([activity.startDate, activity.endDate], ["2026-10-09", null], "M: 発表日（開始日）は2026-10-09、終了日なし");
+  assertEqual(activity.title.includes("MeloRia") && activity.title.includes("メロリア"), true, "M: ブランド名の表記");
+  assertEqual(
+    ["2026年10月9日", "MeloRia", "イメージモデルに就任", "2026年10月21日（水）12:00", "全6色", "瞳に魔法、心にティアラ"].every((text) => activity.description.includes(text)),
+    true,
+    "M: 説明文に発表日・ブランド名・就任・発売日時・全6色・コンセプト"
+  );
+  assertEqual(activity.links.map((link) => link.url), ["https://www.meloria.jp/", "https://equal-love.jp/news/detail/12240"], "M: リンクはブランド公式と＝LOVE公式NEWS");
+  assertEqual(activity.sourceType, "official", "M: 公式情報");
+
+  const ids = sortActivitiesByDateDesc(getMemberActivities(MEMBER_ACTIVITIES, "saito-kiara")).map((entry) => entry.id);
+  assertEqual(ids.indexOf("saito-meloria-image-model") < ids.indexOf("saito-tochigi-future-ambassador"), true, "M: 共通ソートで、とちぎ未来大使（2024開始）より上");
+  assertEqual(ids.indexOf("saito-meloria-image-model") < ids.indexOf("saito-sasaki-einstein-tv"), true, "M: テレビ朝日の番組（2022開始）より上");
+  assertEqual(ids.indexOf("saito-meloria-image-model") > ids.indexOf("saito-kiara-berippichi-radio") || ids.indexOf("saito-meloria-image-model") === 0, true, "M: 位置は開始日の順（手動固定ではない）");
+  assertEqual(ids[0], "saito-meloria-image-model", "M: 継続中で最も新しいため一番上");
+
+  // 終了に変えるだけで終了グループへ自動移動する（今後の終了発表への備え）
+  const ended = { ...activity, status: ACTIVITY_STATUS.ENDED, endDate: "2027-03-31" };
+  const moved = sortActivitiesByDateDesc(getMemberActivities(MEMBER_ACTIVITIES, "saito-kiara").map((entry) => (entry.id === activity.id ? ended : entry))).map((entry) => entry.id);
+  assertEqual(moved.indexOf("saito-meloria-image-model") > moved.indexOf("saito-tochigi-future-ambassador"), true, "M: 終了にするととちぎ未来大使（継続中）より下へ移る");
+
+  const container = document.createElement("div");
+  container.style.cssText = "position:absolute;left:-9999px;top:0;width:375px;box-sizing:border-box;";
+  const card = buildActivityCard(activity);
+  container.appendChild(card);
+  document.body.appendChild(container);
+  try {
+    assertEqual(card.querySelector(".activity-card-type").textContent, "モデル", "M: タグ「モデル」");
+    assertEqual(card.querySelector(".activity-card-status").textContent, "継続中", "M: タグ「継続中」");
+    assertEqual(card.querySelector(".activity-card-status").classList.contains("is-ongoing"), true, "M: 既存の緑タグ");
+    const anchors = [...card.querySelectorAll("a")];
+    assertEqual(anchors.map((link) => link.textContent), ["ブランド公式サイト", "＝LOVE公式情報"], "M: ボタン2つ");
+    assertEqual(anchors.every((link) => link.target === "_blank" && link.rel.includes("noopener")), true, "M: 別タブ・安全属性");
+    assertEqual(container.scrollWidth <= container.clientWidth + 1, true, "M: 375px幅で横にはみ出さない");
+  } finally {
+    container.remove();
+  }
+}
