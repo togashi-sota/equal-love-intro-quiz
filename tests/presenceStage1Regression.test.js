@@ -127,6 +127,20 @@ export async function runPresenceStage1RegressionTests() {
   assertEqual(syncFnEnd !== -1, true, "syncFriendPresenceToActivePlayer()の後に次のセクションが続く（前提条件）");
   const syncFnBody = publicProfileSyncSource.slice(syncFnStart, syncFnEnd);
 
+  // 【2026-10-11追加】本人確認の関門が未完了（ready以外）の端末でも、presenceだけは開始する
+  // （公開プロフィールの作成は止めたまま。presenceはRulesで既存プロフィールが必須）。
+  const beforeElse = syncFnBody.slice(0, syncFnBody.indexOf("} else {"));
+  assertEqual(
+    /if \(!isIdentityReady\(\)\) \{\s*startFriendPresenceTracking\(\);/.test(beforeElse),
+    true,
+    "公開プロフィールの同期が止まる（関門が未完了の）端末でも、既存プロフィールがある人のpresenceは開始する"
+  );
+  assertEqual(
+    publicProfileSyncSource.includes("isIdentityReady } from \"./identityBootstrap.js\""),
+    true,
+    "isIdentityReadyをidentityBootstrap.jsからimportしている"
+  );
+
   const elseIndex = syncFnBody.indexOf("} else {");
   assertEqual(elseIndex !== -1, true, "syncFriendPresenceToActivePlayer()にOFF側のelse分岐がある（前提条件）");
   const elseBranchBody = syncFnBody.slice(elseIndex);

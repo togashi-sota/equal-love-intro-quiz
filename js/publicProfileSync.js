@@ -25,7 +25,7 @@ import {
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 import { database, authReady, getCurrentUid } from "./firebaseClient.js";
-import { ensureIdentityBootstrap, canAutoSyncToCloud } from "./identityBootstrap.js";
+import { ensureIdentityBootstrap, canAutoSyncToCloud, isIdentityReady } from "./identityBootstrap.js";
 import { getActivePlayer, getPlayerKeyPrefix, getOrCreateBackupId } from "./playerProfile.js";
 import { computeLeaderboardIdentityKey } from "./timeAttackLeaderboard.js";
 import { getMostOshiMemberId } from "./oshiMembers.js";
@@ -197,6 +197,18 @@ export function syncFriendPresenceToActivePlayer() {
       if (hasActiveFriendPresenceTracking()) return; // 既に正しい状態
       const success = await syncPublicProfileIfEnabled(playerKeyPrefix);
       if (success) {
+        startFriendPresenceTracking();
+        return;
+      }
+      // 【2026-10-11追加：abekunがオンライン対戦できるのにフレンド一覧で緑にならない問題】
+      // 公開プロフィールの「作成・更新」は本人確認の関門（js/identityBootstrap.js）が ready になるまで
+      // 止めるが、オンライン状態（presence）は別物。presence は Rules により「publicProfiles/{自分のuid}が
+      // 既にある場合しか書けない」ので、関門が未完了（unresolved/pending）でも、すでに公開プロフィールが
+      // ある人のオンライン表示だけは始めて安全（プロフィールが無ければ Rules が拒否するので何も作られず、
+      // 新UID名義の重複プロフィールも作らない）。以前は同期失敗＝presence 開始なしだったため、
+      // 関門が未完了の端末はオンライン対戦ができても一覧が灰色のままになっていた。
+      // 通信エラー等で関門が ready なのに同期だけ失敗した場合は、従来どおり presence も始めない。
+      if (!isIdentityReady()) {
         startFriendPresenceTracking();
       }
     } else {
