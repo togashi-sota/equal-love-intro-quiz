@@ -151,7 +151,7 @@ export async function runIdentityRulesWiringTests() {
   assertEqual(candidateBody.includes("localStorage.removeItem") || candidateBody.includes("removeRankingCandidate") || candidateBody.includes("clearRankingCandidate"), false, "sync: 送信結果によってローカルの候補（rankingCandidateBest）を消す処理は無い（失敗分は次の機会に再送信）");
 
   const profileSync = await fetchText("js/publicProfileSync.js");
-  assertEqual(profileSync.includes("const identityKey = await computeLeaderboardIdentityKey(getOrCreateBackupId(getActivePlayer().playerId));") && profileSync.includes("if (!identityKey) return false;"), true, "publicProfileSync: 本人キーを付けて公開、作れなければ公開しない");
+  assertEqual(profileSync.includes("const identityKey = await computeLeaderboardIdentityKey(getOrCreateBackupId(getActivePlayer().playerId));") && /if \(!identityKey\) \{[^}]*return false;/.test(profileSync), true, "publicProfileSync: 本人キーを付けて公開、作れなければ公開しない");
   assertEqual(profileSync.includes("buildPublicProfilePayload({ ...collectCurrentProfileMaterials(), identityKey })"), true, "publicProfileSync: payload に identityKey を渡す");
 
   const supersession = await fetchText("js/uidSupersession.js");

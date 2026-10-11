@@ -26,6 +26,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 import { database, authReady, getCurrentUid } from "./firebaseClient.js";
 import { ensureIdentityBootstrap, canAutoSyncToCloud, isIdentityReady } from "./identityBootstrap.js";
+import { setPresenceFact } from "./presenceDiagnostics.js";
 import { getActivePlayer, getPlayerKeyPrefix, getOrCreateBackupId } from "./playerProfile.js";
 import { computeLeaderboardIdentityKey } from "./timeAttackLeaderboard.js";
 import { getMostOshiMemberId } from "./oshiMembers.js";
@@ -78,28 +79,44 @@ export async function syncPublicProfileIfEnabled(playerKeyPrefix) {
   // 【2026-09-22追加：本人確認の関門（js/identityBootstrap.js）】UIDが変わった直後に「新UID名義」の
   // 公開プロフィールを先に作ると、旧UID名義と並んでフレンド一覧に同じ人が2人出る。
   // 関門が ready（持ち主確認・旧UIDの引き継ぎ済み）になるまでは書かない（次のスタート画面表示で再試行される）。
-  if (!canAutoSyncToCloud(await ensureIdentityBootstrap())) return false;
+  const identityStateNow = await ensureIdentityBootstrap();
+  setPresenceFact("identity", identityStateNow);
+  if (!canAutoSyncToCloud(identityStateNow)) {
+    setPresenceFact("profileSync", "identity");
+    return false;
+  }
 
   try {
     // 【第11回】本人キー（ランキングと同じ identityKey）を必ず付ける。作れなければ公開しない
     // （Rules は新規プロフィールに identityKey 必須。キー無しで別人のように増やさない）。
     const identityKey = await computeLeaderboardIdentityKey(getOrCreateBackupId(getActivePlayer().playerId));
-    if (!identityKey) return false;
+    if (!identityKey) {
+      setPresenceFact("profileSync", "no-key");
+      return false;
+    }
     const payload = buildPublicProfilePayload({ ...collectCurrentProfileMaterials(), identityKey });
     const payloadJson = JSON.stringify(payload);
-    if (payloadJson === lastSyncedPayloadJson) return true; // 前回と内容が同じなら書き込まないが、同期済みとして扱う
+    if (payloadJson === lastSyncedPayloadJson) {
+      setPresenceFact("profileSync", "ok");
+      return true; // 前回と内容が同じなら書き込まないが、同期済みとして扱う
+    }
 
     await authReady;
     const uid = getCurrentUid();
-    if (!uid) return false;
+    if (!uid) {
+      setPresenceFact("profileSync", "no-uid");
+      return false;
+    }
 
     await set(ref(database, `publicProfiles/${uid}`), { ...payload, updatedAt: serverTimestamp() });
     lastSyncedPayloadJson = payloadJson;
+    setPresenceFact("profileSync", "ok");
     return true;
   } catch (error) {
     // 本人指示：Firebase更新に失敗しても、称号取得・プレイ自体は失敗扱いにしない。
     // 次回の同期タイミング（次のプレイ後、次回起動時など）に再同期される。
     console.warn("公開プロフィールの同期に失敗しました（ローカルのプレイには影響ありません）", error);
+    setPresenceFact("profileSync", "error");
     return false;
   }
 }
@@ -171,6 +188,7 @@ async function applyPublicProfileSharingDisabled() {
 // 既存の呼び出し側（js/fanProfilesScreen.js）に合わせて変更していない。
 export function setPublicProfileSharingEnabled(playerKeyPrefix, enabled) {
   writeEnabledFlag(playerKeyPrefix, enabled);
+  setPresenceFact("sharing", enabled === true);
   if (enabled) {
     queuePresenceSettingsTask(() => applyPublicProfileSharingEnabled(playerKeyPrefix));
   } else {
@@ -193,6 +211,7 @@ export function syncFriendPresenceToActivePlayer() {
   return queuePresenceSettingsTask(async () => {
     const playerKeyPrefix = getPlayerKeyPrefix();
     const shouldTrack = isPublicProfileSharingEnabled(playerKeyPrefix);
+    setPresenceFact("sharing", shouldTrack);
     if (shouldTrack) {
       if (hasActiveFriendPresenceTracking()) return; // 既に正しい状態
       const success = await syncPublicProfileIfEnabled(playerKeyPrefix);

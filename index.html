@@ -1692,6 +1692,13 @@
            開発者（本人）が管理者機能を設定する際の参照用。 -->
       <p class="fan-profiles-my-id">🆔 あなたのID：<code id="fan-profiles-my-uid">確認中…</code></p>
 
+      <!-- 【2026-10-11新設・本人指示】オンライン状態の送信が動いているかの診断表示（表示専用、
+           js/presenceDiagnostics.js・js/fanProfilesScreen.js）。 -->
+      <div class="fan-profiles-presence-diag" id="fan-profiles-presence-diag" hidden>
+        <p class="fan-profiles-presence-diag-verdict" id="fan-profiles-presence-diag-verdict"></p>
+        <p class="fan-profiles-presence-diag-detail" id="fan-profiles-presence-diag-detail"></p>
+      </div>
+
       <!-- 【2026-09-15新設】旧IDからの引き継ぎ案内（js/uidSupersession.js・js/fanProfilesScreen.js）。
            Firebase匿名認証のIDが本人の操作と無関係に変わったことを、自動バックアップの同期
            （ownerSecretによる所有権の自己修復）で検知したときだけ表示される。旧IDに残った

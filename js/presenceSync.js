@@ -40,6 +40,7 @@ import { database, authReady, getCurrentUid } from "./firebaseClient.js";
 // heartbeatとは結合しない）。
 import { onScreenChange } from "./screens.js";
 import { isGameplayScreenName } from "./presencePayloads.js";
+import { setPresenceFact } from "./presenceDiagnostics.js";
 
 // 【本人指示：presence heartbeatは他のheartbeatと共用しない】接続が続いている間、
 // lastSeenを定期的に上書きしておくための専用インターバル。onDisconnect()による
@@ -70,7 +71,15 @@ async function armPresenceForUid(uid) {
     const connectionRef = push(ref(database, `presence/${uid}/connections`));
     currentConnectionRef = connectionRef;
     onDisconnect(connectionRef).remove();
-    set(connectionRef, true).catch(() => {});
+    set(connectionRef, true)
+      .then(() => {
+        setPresenceFact("writeError", null);
+      })
+      .catch((error) => {
+        // 診断表示用：Rulesに拒否された場合（permission_denied＝今のIDに公開プロフィールが無い等）が分かるようにする
+        setPresenceFact("writeError", error?.code ?? error?.message ?? "unknown");
+      });
+    setPresenceFact("connected", true);
     onDisconnect(lastSeenRef).set(serverTimestamp());
     set(lastSeenRef, serverTimestamp()).catch(() => {});
     // 【本人指示：切断時はプレイ中表示を残さない】再接続のたびに毎回予約し直す
@@ -105,6 +114,7 @@ export async function startFriendPresenceTracking() {
       isTracking = false;
       return;
     }
+    setPresenceFact("tracking", true);
     await armPresenceForUid(uid);
     const lastSeenRef = ref(database, `presence/${uid}/lastSeen`);
     lastSeenHeartbeatTimerId = setInterval(() => {
@@ -121,6 +131,8 @@ export async function startFriendPresenceTracking() {
   } catch (error) {
     console.warn("フレンドpresenceの開始に失敗しました（フレンド一覧のオンライン表示に影響する可能性があります）", error);
     isTracking = false;
+    setPresenceFact("tracking", false);
+    setPresenceFact("writeError", error?.code ?? error?.message ?? "start-failed");
   }
 }
 
@@ -152,6 +164,8 @@ export function stopFriendPresenceTracking() {
   trackedUid = null;
   lastWrittenIsPlaying = null;
   isTracking = false;
+  setPresenceFact("tracking", false);
+  setPresenceFact("connected", false);
 }
 
 // 【Stage1・本人指示】presence/{uid}を丸ごと削除する。公開プロフィールをOFFにしたときに、

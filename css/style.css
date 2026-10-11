@@ -19949,3 +19949,35 @@ body[data-screen="partyBattlePlay"] .game-frame {
   font-weight: 700;
   text-decoration: underline;
 }
+
+/* フレンド画面：オンライン状態の送信の診断表示（2026-10-11、表示専用） */
+.fan-profiles-presence-diag {
+  margin: 6px 0 10px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid var(--color-card-border);
+}
+
+.fan-profiles-presence-diag[data-tone="ok"] {
+  background: #e8f7ee;
+}
+
+.fan-profiles-presence-diag[data-tone="ng"] {
+  background: #fdecec;
+}
+
+.fan-profiles-presence-diag-verdict {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.fan-profiles-presence-diag-detail {
+  margin: 2px 0 0;
+  font-size: 0.66rem;
+  color: var(--color-text);
+  opacity: 0.7;
+  overflow-wrap: anywhere;
+}

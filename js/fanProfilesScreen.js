@@ -27,6 +27,7 @@ import {
 } from "./fanProfileCard.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
 import { subscribeToAllPresence } from "./presenceSync.js";
+import { describePresenceDiagnostics } from "./presenceDiagnostics.js";
 import { sortProfilesByPresence } from "./presencePayloads.js";
 import { onScreenChange } from "./screens.js";
 import { requestPlayInvite } from "./playInviteUi.js";
@@ -370,18 +371,38 @@ async function handleUidMergeExecuteClick() {
 // presence/を購読し、離れたら止める（js/screens.jsのonScreenChangeを使い、
 // 「フレンド画面以外へ切り替わった瞬間」を検知する。既存のshowScreen()自体の動きは
 // 一切変更しない、末尾への通知フックへ乗るだけの追加）。
+// 【2026-10-11新設・本人指示】「オンライン状態の送信」診断の表示を更新する（表示専用）。
+function renderPresenceDiagnostics() {
+  if (!elements?.presenceDiag) return;
+  const { verdict, tone, detail } = describePresenceDiagnostics();
+  elements.presenceDiag.hidden = false;
+  elements.presenceDiag.dataset.tone = tone;
+  if (elements.presenceDiagVerdict) elements.presenceDiagVerdict.textContent = `📡 オンライン状態の送信：${verdict}`;
+  if (elements.presenceDiagDetail) elements.presenceDiagDetail.textContent = detail;
+}
+
+let presenceDiagTimerId = null;
+
 function startPresenceSubscriptionIfNeeded() {
   if (unsubscribePresence) return;
   unsubscribePresence = subscribeToAllPresence((presenceByUid) => {
     latestPresenceByUid = presenceByUid;
     renderProfileListFromCache();
+    renderPresenceDiagnostics();
   });
+  // 画面を開いている間だけ、診断表示を2秒ごとに更新する（Firebaseには何も書かない・読まない）
+  renderPresenceDiagnostics();
+  presenceDiagTimerId = setInterval(renderPresenceDiagnostics, 2000);
 }
 
 function stopPresenceSubscription() {
   if (unsubscribePresence) {
     unsubscribePresence();
     unsubscribePresence = null;
+  }
+  if (presenceDiagTimerId !== null) {
+    clearInterval(presenceDiagTimerId);
+    presenceDiagTimerId = null;
   }
 }
 
