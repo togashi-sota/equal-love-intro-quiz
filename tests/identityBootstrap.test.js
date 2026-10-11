@@ -282,7 +282,7 @@ export async function runIdentityBootstrapWiringTests() {
 
   const profileSync = await fetchText("js/publicProfileSync.js");
   const profileBody = profileSync.slice(profileSync.indexOf("export async function syncPublicProfileIfEnabled("), profileSync.indexOf("export async function deletePublicProfile("));
-  assertEqual(profileBody.includes("if (!canAutoSyncToCloud(identityStateNow)) {") && profileBody.includes("await ensureIdentityBootstrap()") && profileBody.indexOf("ensureIdentityBootstrap") < profileBody.indexOf("await set(ref(database, `publicProfiles/${uid}`)"), true, "publicProfileSync: 公開プロフィールも関門の後でだけ書く（presence 開始はその成功が条件）");
+  assertEqual(profileBody.includes("if (!canAutoSyncToCloud(identityStateNow) && identityStateNow !== IDENTITY_STATE.UNRESOLVED) {") && profileBody.includes("await ensureIdentityBootstrap()") && profileBody.indexOf("ensureIdentityBootstrap") < profileBody.indexOf("await set(ref(database, `publicProfiles/${uid}`)"), true, "publicProfileSync: 公開プロフィールも関門の後でだけ書く（presence 開始はその成功が条件）");
 
   const backupSync = await fetchText("js/backupSync.js");
   assertEqual(backupSync.includes('lastSyncResult = { status: "denied", previousUid: null };'), true, "backupSync: 持ち主確認が取れなければ denied を返す（例外にしない）");

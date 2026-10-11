@@ -136,9 +136,25 @@ export async function runPresenceStage1RegressionTests() {
     "公開プロフィールの同期が止まる（関門が未完了の）端末でも、既存プロフィールがある人のpresenceは開始する"
   );
   assertEqual(
-    publicProfileSyncSource.includes("isIdentityReady } from \"./identityBootstrap.js\""),
+    /import \{[^}]*\bisIdentityReady\b[^}]*\} from "\.\/identityBootstrap\.js"/.test(publicProfileSyncSource),
     true,
     "isIdentityReadyをidentityBootstrap.jsからimportしている"
+  );
+
+  // 【2026-10-11追加】unresolved の端末でも公開プロフィール（表示名・推し・称号のみ）は作る。
+  // ランキングへの自動送信は ready のときだけのまま変えていないこと、pending/migrating は待つことも確認する。
+  const profileFnStart = publicProfileSyncSource.indexOf("export async function syncPublicProfileIfEnabled(");
+  const profileFnBody = publicProfileSyncSource.slice(profileFnStart, publicProfileSyncSource.indexOf("export async function deletePublicProfile(", profileFnStart));
+  assertEqual(
+    profileFnBody.includes("identityStateNow !== IDENTITY_STATE.UNRESOLVED"),
+    true,
+    "公開プロフィールの同期は、本人確認が unresolved の端末では止めない（pending/migrating は従来どおり待つ）"
+  );
+  const leaderboardSyncSource = await (await fetch("js/timeAttackLeaderboardSync.js")).text();
+  assertEqual(
+    leaderboardSyncSource.includes("IDENTITY_STATE.UNRESOLVED"),
+    false,
+    "ランキングの自動送信側には unresolved の例外を入れていない（ready のときだけ送る）"
   );
 
   const elseIndex = syncFnBody.indexOf("} else {");

@@ -25,7 +25,7 @@ import {
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 import { database, authReady, getCurrentUid } from "./firebaseClient.js";
-import { ensureIdentityBootstrap, canAutoSyncToCloud, isIdentityReady } from "./identityBootstrap.js";
+import { ensureIdentityBootstrap, canAutoSyncToCloud, isIdentityReady, IDENTITY_STATE } from "./identityBootstrap.js";
 import { setPresenceFact } from "./presenceDiagnostics.js";
 import { getActivePlayer, getPlayerKeyPrefix, getOrCreateBackupId } from "./playerProfile.js";
 import { computeLeaderboardIdentityKey } from "./timeAttackLeaderboard.js";
@@ -81,7 +81,16 @@ export async function syncPublicProfileIfEnabled(playerKeyPrefix) {
   // 関門が ready（持ち主確認・旧UIDの引き継ぎ済み）になるまでは書かない（次のスタート画面表示で再試行される）。
   const identityStateNow = await ensureIdentityBootstrap();
   setPresenceFact("identity", identityStateNow);
-  if (!canAutoSyncToCloud(identityStateNow)) {
+  // 【2026-10-11変更・本人指示（abekun）：unresolved の端末でも公開プロフィールだけは作る】
+  // unresolved＝「backupId はあるのにバックアップの持ち主確認が取れない（旧UIDが消えた pre-v329 端末など）」。
+  // この状態は管理者が手で直すまで続くため、以前は公開プロフィールを作れず、フレンド一覧に古いUID名義の
+  // プロフィールだけが残り、本人はオンライン対戦ができるのに一覧で灰色のままだった。
+  // 公開プロフィールは「表示名・推し・称号だけ」でランキング記録を含まないので、関門が止めたい
+  // 「過去の自己ベストを別UID名義で一括送信して同じ人が二重にランキングへ出る」リスクが無い。
+  // 一覧に古い名義と並んで一時的に2人出ても、管理者が古い方を既存の削除ボタンで消せる。
+  // pending / migrating（通信待ち・引き継ぎ途中）は一時的な状態なので、従来どおり待つ。
+  // ランキングへの自動送信（js/timeAttackLeaderboardSync.js）は ready のときだけのまま変えない。
+  if (!canAutoSyncToCloud(identityStateNow) && identityStateNow !== IDENTITY_STATE.UNRESOLVED) {
     setPresenceFact("profileSync", "identity");
     return false;
   }
