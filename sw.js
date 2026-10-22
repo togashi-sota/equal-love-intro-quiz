@@ -7,7 +7,7 @@
 //
 // 新しいバージョンを配信したいときは、CACHE_VERSIONの値を必ず上げること。
 // 上げないと、ブラウザが「内容が変わっていない」と判断し、更新が反映されない。
-const CACHE_VERSION = "v362";
+const CACHE_VERSION = "v363";
 const CACHE_NAME = `equal-love-intro-quiz-${CACHE_VERSION}`;
 
 // キャッシュするアプリ本体のファイル一覧。
@@ -268,7 +268,12 @@ const APP_SHELL_FILES = [
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL_FILES))
+    // 【2026-10-23追加】GitHub Pages は各ファイルを max-age=600（10分）でブラウザにキャッシュさせるため、
+    // 更新直前に開いていた端末では、新しい版のキャッシュに「10分以内に取得した古いJS」が混ざることがあった
+    // （実際に公開直後の確認で古い presencePayloads.js が使われた）。cache:"reload" で必ずサーバーから取り直す。
+    caches.open(CACHE_NAME).then((cache) =>
+      cache.addAll(APP_SHELL_FILES.map((url) => new Request(url, { cache: "reload" })))
+    )
   );
 });
 
