@@ -1,8 +1,8 @@
-// 【2026-10-23新設・本人指示】「CM・広告出演」（個人ページ）と「CM・広告・企業タイアップ」（＝LOVEについて）の表示。
-// データは js/data/commercials.js（1作品＝1件、出演者は memberIds／全員出演は isGroup）。
+// 【2026-10-23新設・本人指示】個人ページ「CM・広告・企業コラボ」と、＝LOVEについて「CM・広告・企業コラボ（＝LOVE名義）」の表示。
+// データは js/data/commercials.js（1作品＝1件、出演者は memberIds／＝LOVE名義の案件は isGroup＋groupParticipation）。
 // 個人ページは STAGE／VOICE と同じカード（.activity-card .stage-voice-card）、
 // ＝LOVEについてはドラマ・舞台・アニメ主題歌と同じカード（.sister-group-card）で見た目を揃えている。
-import { COMMERCIALS } from "./data/commercials.js";
+import { COMMERCIALS, GROUP_PARTICIPATION } from "./data/commercials.js";
 import { MEMBERS } from "./data/members.js";
 
 // 最初に見せる件数（STAGE／VOICE と同じ5件）。超えた分は「もっと見る」で開く。
@@ -18,14 +18,54 @@ function byDateDesc(a, b) {
   return a.date < b.date ? 1 : -1;
 }
 
-// そのメンバーが個人・数人で出演した作品（全員出演は含めない）を新しい順で返す
-export function getMemberCommercials(memberId, commercials = COMMERCIALS) {
-  return commercials.filter((cm) => !cm.isGroup && (cm.memberIds ?? []).includes(memberId)).sort(byDateDesc);
+// グループ案件の中で、そのメンバーが特に担った役割（例：パッケージイラスト）。無ければ null
+export function getFeaturedRole(cm, memberId) {
+  return (cm.featuredMembers ?? []).find((entry) => entry.memberId === memberId)?.role || null;
 }
 
-// ＝LOVE全員で出演した作品を新しい順で返す
+// そのメンバーが個人・数人で出演した作品と、グループ案件のうち本人が特定の役割を担ったもの
+// （featuredMembers）を新しい順で返す。＝LOVE名義の案件そのものは個人ページに複製しない。
+export function getMemberCommercials(memberId, commercials = COMMERCIALS) {
+  return commercials
+    .filter((cm) => (!cm.isGroup && (cm.memberIds ?? []).includes(memberId)) || getFeaturedRole(cm, memberId) !== null)
+    .sort(byDateDesc);
+}
+
+// ＝LOVE名義のグループ案件を新しい順で返す
 export function getGroupCommercials(commercials = COMMERCIALS) {
   return commercials.filter((cm) => cm.isGroup === true).sort(byDateDesc);
+}
+
+// 加入日が書かれていない場合の加入日。members.js の結成時メンバーの joinDate と同じ結成発表日。
+const GROUP_FORMATION_DATE = "2017-04-29";
+
+// その日に在籍していたメンバーの人数（加入日・卒業日から計算。当時の12人体制を今の10人と取り違えないため）。
+// 卒業メンバーは activePeriod（在籍期間）を優先し、卒業公演の当日までは在籍として数える。
+export function countMembersOnDate(dateText, members = MEMBERS) {
+  return members.filter((member) => {
+    const start = member.joinDate ?? member.activePeriod?.start ?? GROUP_FORMATION_DATE;
+    const end = member.graduationDate ?? member.activePeriod?.end ?? null;
+    return start <= dateText && (!end || end >= dateText);
+  }).length;
+}
+
+// グループ案件の参加範囲の表示（例：「＝LOVE全員（当時10人）」「＝LOVE名義（当時12人体制）」）。
+// 元メンバーの名前やバッジは出さず、当時の人数だけを添える（本人指示）。
+export function describeGroupParticipation(cm, members = MEMBERS) {
+  const count = countMembersOnDate(cm.date, members);
+  if (cm.groupParticipation === GROUP_PARTICIPATION.ALL) return `＝LOVE全員（当時${count}人）`;
+  if (cm.groupParticipation === GROUP_PARTICIPATION.UNSPECIFIED) return "＝LOVE名義（出演メンバーは公式発表では特定できず）";
+  // 全員参加と確認できていない案件は、参加人数ではなく「当時の体制」として書く（言い過ぎを避けるため）
+  return `＝LOVE名義（当時${count}人体制）`;
+}
+
+// 期間の表示。終了日が公式に分かっているときだけ「開始日〜終了日」にする
+export function formatCommercialPeriod(cm, today = getTodayInJapanForCommercials()) {
+  const start = formatCommercialDate(cm.date, today);
+  if (typeof cm.endDate !== "string" || cm.endDate === cm.date) return start;
+  const [year, month, day] = cm.endDate.split("-").map(Number);
+  const sameYear = cm.endDate.slice(0, 4) === cm.date.slice(0, 4);
+  return `${start}〜${sameYear ? "" : `${year}年`}${month}月${day}日`;
 }
 
 // 「2026年10月27日」形式。今日より先の日付なら「〜開始予定」を付ける（放送・公開前に「出演済み」と見せないため）。
@@ -86,7 +126,7 @@ export function buildMemberCommercialCard(cm, memberId, today = getTodayInJapanF
   card.className = "activity-card stage-voice-card commercial-card";
   card.dataset.commercialId = cm.id;
   card.appendChild(buildTag(cm.kind, "activity-card-type"));
-  card.appendChild(buildTag(formatCommercialDate(cm.date, today), "stage-voice-year"));
+  card.appendChild(buildTag(formatCommercialPeriod(cm, today), "stage-voice-year"));
 
   const brand = document.createElement("p");
   brand.className = "activity-card-title";
@@ -98,7 +138,16 @@ export function buildMemberCommercialCard(cm, memberId, today = getTodayInJapanF
   title.textContent = cm.title;
   card.appendChild(title);
 
-  const coStars = describeCoStars(cm, memberId);
+  // ＝LOVE名義の案件で本人が特定の役割を担ったもの（例：パッケージイラスト）は、その役割を添える
+  const featuredRole = getFeaturedRole(cm, memberId);
+  if (cm.isGroup && featuredRole) {
+    const roleLine = document.createElement("p");
+    roleLine.className = "stage-voice-role commercial-featured-role";
+    roleLine.textContent = `＝LOVE名義の企画で${featuredRole}`;
+    card.appendChild(roleLine);
+  }
+
+  const coStars = cm.isGroup ? "" : describeCoStars(cm, memberId);
   if (coStars) {
     const coStarLine = document.createElement("p");
     coStarLine.className = "stage-voice-role commercial-costars";
@@ -128,12 +177,12 @@ function buildGroupReference(groupCount) {
   note.className = "commercial-group-note";
   const text = document.createElement("p");
   text.className = "commercial-group-note-text";
-  text.textContent = `＝LOVE全員で出演したCM・広告（${groupCount}件）は「＝LOVEについて」にまとめています。`;
+  text.textContent = `＝LOVE名義のCM・広告・コラボ（${groupCount}件）は「＝LOVEについて」にまとめています。`;
   note.appendChild(text);
   const button = document.createElement("button");
   button.type = "button";
   button.className = "stage-voice-more-button commercial-group-note-button";
-  button.textContent = "＝LOVE全員のCM・広告を見る";
+  button.textContent = "＝LOVEのCM・広告・コラボを見る";
   button.addEventListener("click", () => {
     window.dispatchEvent(new CustomEvent("app-navigate", { detail: { screen: "discography", scrollToId: "group-cm-section" } }));
   });
@@ -156,7 +205,8 @@ export function buildMemberCommercialsSection(memberId, commercials = COMMERCIAL
   heading.textContent = "CM・AD";
   const sub = document.createElement("span");
   sub.className = "stage-voice-heading-sub";
-  sub.textContent = "　CM・広告出演";
+  // 【2026-10-23】Webモデル・商品共同開発なども載せるようになったため「企業コラボ」を見出しに加えた
+  sub.textContent = "　CM・広告・企業コラボ";
   heading.appendChild(sub);
   section.appendChild(heading);
 
@@ -187,8 +237,20 @@ export function buildGroupCommercialCard(cm, today = getTodayInJapanForCommercia
 
   const meta = document.createElement("p");
   meta.className = "sister-group-reading";
-  meta.textContent = `${cm.kind} ／ ${formatCommercialDate(cm.date, today)}`;
+  meta.textContent = `${cm.kind} ／ ${formatCommercialPeriod(cm, today)}`;
   card.appendChild(meta);
+
+  // 参加範囲（当時の人数つき）と、特定のメンバーが担った役割
+  const participation = document.createElement("p");
+  participation.className = "sister-group-reading commercial-participation";
+  participation.textContent = `参加：${describeGroupParticipation(cm)}`;
+  card.appendChild(participation);
+  (cm.featuredMembers ?? []).forEach((entry) => {
+    const featured = document.createElement("p");
+    featured.className = "sister-group-reading commercial-featured-role";
+    featured.textContent = `${MEMBERS.find((member) => member.id === entry.memberId)?.name ?? entry.memberId}：${entry.role}`;
+    card.appendChild(featured);
+  });
 
   const title = document.createElement("p");
   title.className = "sister-group-description commercial-title";
@@ -222,7 +284,8 @@ export function buildGroupCommercialsSection(commercials = COMMERCIALS, today = 
   heading.textContent = "CM・AD";
   const sub = document.createElement("span");
   sub.className = "stage-voice-heading-sub";
-  sub.textContent = "　CM・広告・企業タイアップ（＝LOVE全員）";
+  // 【2026-10-23】全員出演とは限らない（当時の人数・出演者未特定の案件もある）ため「＝LOVE名義」に改めた
+  sub.textContent = "　CM・広告・企業コラボ（＝LOVE名義）";
   heading.appendChild(sub);
   wrapper.appendChild(heading);
 

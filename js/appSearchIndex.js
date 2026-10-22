@@ -22,6 +22,8 @@ import { SPECIAL_MODES } from "./specialModesScreen.js";
 import { ACTIVITY_TYPE_LABELS, getTodayInJapan } from "./membersScreen.js";
 import { buildWorkSummaries, buildWorkTypeLabel } from "./discographyScreen.js";
 import { formatCastRole } from "./memberStageVoiceSection.js";
+import { describeGroupParticipation, formatCommercialPeriod, getMemberCommercials } from "./commercialsSection.js";
+import { COMMERCIAL_KIND } from "./data/commercials.js";
 import { normalizeSearchText, editDistanceWithin, allowedTypoCount } from "./searchNormalize.js";
 
 // 絞り込みのカテゴリ（表示順もこの順）。一般のファンが分かる言葉にしている。
@@ -129,12 +131,13 @@ function buildMemberEntries({ members, profiles, memberActivities, commercials, 
     const nicknames = (profile?.nicknames ?? []).map((nickname) => nickname.text);
     const isGraduated = member.status === MEMBER_STATUS.GRADUATED;
     const activityCount = memberActivities.filter((activity) => activity.memberId === member.id).length;
-    const cmCount = commercials.filter((cm) => !cm.isGroup && (cm.memberIds ?? []).includes(member.id)).length;
+    // 個人ページの「CM・広告・企業コラボ」欄と同じ数え方（グループ案件で本人が担当したものも含む）
+    const cmCount = getMemberCommercials(member.id, commercials).length;
     const stageVoiceCount = [...stageProductions, ...voiceAppearances].filter((work) => work.casts.some((cast) => cast.memberId === member.id)).length;
     const highlights = [
       activityCount > 0 ? `個人活動 ${activityCount}件` : null,
       stageVoiceCount > 0 ? `舞台・声優 ${stageVoiceCount}件` : null,
-      cmCount > 0 ? `個人CM・広告 ${cmCount}件` : null,
+      cmCount > 0 ? `CM・広告・コラボ ${cmCount}件` : null,
     ].filter(Boolean);
     return createEntry({
       key: `member:${member.id}`,
@@ -209,11 +212,20 @@ function buildWorkEntries({ songs, discographyEntries }) {
 }
 
 // ---- CM・広告 ----
-function buildCommercialEntries({ commercials, members }) {
+const COLLAB_KINDS = new Set([
+  COMMERCIAL_KIND.COLLAB,
+  COMMERCIAL_KIND.COLLAB_PRODUCT,
+  COMMERCIAL_KIND.COLLAB_CAMPAIGN,
+  COMMERCIAL_KIND.PRODUCT_DEVELOPMENT,
+  COMMERCIAL_KIND.TIE_UP,
+]);
+function buildCommercialEntries({ commercials, members, today }) {
   const nameOf = memberNameById(members);
   return commercials.map((cm) => {
-    const performerNames = cm.isGroup ? [] : (cm.memberIds ?? []).map(nameOf).filter(Boolean);
-    const performerLabel = cm.isGroup ? "＝LOVE（全員）" : performerNames.join("・");
+    // グループ案件は「＝LOVE全員（当時10人）」「＝LOVE名義（当時12人体制）」のように参加範囲を出し、今の10人全員とは扱わない
+    const featuredIds = (cm.featuredMembers ?? []).map((entry) => entry.memberId);
+    const performerNames = (cm.isGroup ? featuredIds : cm.memberIds ?? []).map(nameOf).filter(Boolean);
+    const performerLabel = cm.isGroup ? describeGroupParticipation(cm, members) : performerNames.join("・");
     const focusSelector = `[data-commercial-id="${cm.id}"]`;
     const target = cm.isGroup ? { kind: "discography", tab: "about", focusSelector } : memberPageTarget(members, cm.memberIds, focusSelector);
     return createEntry({
@@ -223,15 +235,26 @@ function buildCommercialEntries({ commercials, members }) {
       subtitle: `${cm.kind}／${performerLabel}`,
       lines: [
         cm.title,
-        `出演：${performerLabel}${cm.coStars ? `（共演：${cm.coStars}）` : ""}`,
-        formatJapaneseDate(cm.date) ? `時期：${formatJapaneseDate(cm.date)}〜` : null,
+        `${cm.isGroup ? "参加" : "出演"}：${performerLabel}${cm.coStars ? `（共演：${cm.coStars}）` : ""}`,
+        ...(cm.featuredMembers ?? []).map((entry) => `${nameOf(entry.memberId)}：${entry.role}`),
+        `時期：${formatCommercialPeriod(cm, today)}`,
         cm.description,
       ],
       links: cm.links,
       action: { label: cm.isGroup ? "＝LOVEについてで詳しく見る" : describeTargetLabel(target, nameOf), target },
       terms: {
         primary: [cm.brand, cm.title],
-        secondary: [cm.kind, ...performerNames, ...memberReadingsByIds(members, cm.isGroup ? [] : cm.memberIds ?? []), cm.coStars, cm.isGroup ? "＝LOVE" : null, "CM", "広告"],
+        secondary: [
+          cm.kind,
+          ...performerNames,
+          ...memberReadingsByIds(members, cm.isGroup ? featuredIds : cm.memberIds ?? []),
+          cm.coStars,
+          cm.isGroup ? "＝LOVE" : null,
+          // 「CM」「コラボ」で探したときに、CMでないもの・コラボでないものが混ざらないよう種別に応じて付ける
+          cm.kind.includes("CM") ? "CM" : null,
+          COLLAB_KINDS.has(cm.kind) ? "コラボ" : null,
+          "広告",
+        ],
         body: [cm.description],
       },
     });

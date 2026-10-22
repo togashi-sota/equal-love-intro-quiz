@@ -50,13 +50,15 @@ export async function runCommercialsAndFriendsUiTests() {
 
   // ===== C. メンバーごとの振り分け =====
   const count = (id) => getMemberCommercials(id).length;
-  assertEqual(count("sasaki-maika"), 7, "C: 佐々木舞香は7件（代アニ・OPPO・サムライマック・Galaxy・月見パイ・ザクザクマック・ももチキン）");
-  assertEqual(["otani-emiri", "noguchi-iori"].map(count), [1, 1], "C: 大谷映美里・野口衣織は Galaxy Z の1件");
+  // 【2026-10-23再調査で更新】とくべチューハイ（大谷・佐々木・野口・諸橋）、メイプルストーリー（音嶋・佐々木・野口）、koe×2（音嶋・野口）、
+  // ひざつき製菓（＝LOVE名義・大場花菜がパッケージイラスト）を追加
+  assertEqual(count("sasaki-maika"), 9, "C: 佐々木舞香は9件（代アニ・メイプル・OPPO・サムライマック・Galaxy・月見パイ・とくべチューハイ・ザクザクマック・ももチキン）");
+  assertEqual(["otani-emiri", "noguchi-iori"].map(count), [2, 5], "C: 大谷映美里2件（Galaxy・とくべ）／野口衣織5件（koe×2・メイプル・Galaxy・とくべ）");
   assertEqual([count("takamatsu-hitomi"), count("saito-kiara"), count("yamamoto-anna")], [1, 1, 1], "C: 髙松瞳・齋藤樹愛羅・山本杏奈は各1件");
-  assertEqual(["oba-hana", "otoshima-risa", "takiwaki-shoko", "morohashi-sana"].map(count), [0, 0, 0, 0], "C: 個人CMが確認できなかった4人は0件（全員出演のみ）");
+  assertEqual(["oba-hana", "otoshima-risa", "takiwaki-shoko", "morohashi-sana"].map(count), [1, 3, 0, 1], "C: 大場1件（ひざつき製菓のイラスト）・音嶋3件・瀧脇0件・諸橋1件（とくべ）");
   assertEqual(getMemberCommercials("sasaki-maika").map((cm) => cm.date), [...getMemberCommercials("sasaki-maika").map((cm) => cm.date)].sort().reverse(), "C: 新しい順");
-  assertEqual(getGroupCommercials().length, 7, "C: ＝LOVE全員の CM・広告・タイアップは7件");
-  assertEqual(getGroupCommercials().every((cm) => cm.isGroup === true), true, "C: グループ欄には全員出演だけ");
+  assertEqual(getGroupCommercials().length, 21, "C: ＝LOVE名義の CM・広告・コラボは21件");
+  assertEqual(getGroupCommercials().every((cm) => cm.isGroup === true), true, "C: グループ欄には＝LOVE名義の案件だけ");
   const galaxy = COMMERCIALS.find((cm) => cm.id === "cm-softbank-galaxy-z-2026");
   assertEqual(describeCoStars(galaxy, "sasaki-maika"), "大谷映美里・野口衣織・白戸家のお父さん", "C: 共演者に他のメンバー名と共演者が出る");
 
@@ -80,7 +82,7 @@ export async function runCommercialsAndFriendsUiTests() {
   const sasakiHost = mount(buildMemberCommercialsSection("sasaki-maika", COMMERCIALS, TODAY));
   try {
     const cards = [...sasakiHost.querySelectorAll(".commercial-card")];
-    assertEqual(cards.length, 7, "E: 佐々木舞香のカードは7枚");
+    assertEqual(cards.length, 9, "E: 佐々木舞香のカードは9枚");
     assertEqual(cards.filter((card) => !card.hidden).length, COMMERCIAL_INITIAL_VISIBLE_COUNT, "E: 最初は5件だけ見える");
     assertEqual(cards[0].textContent.includes("開始予定"), true, "E: 先頭は放送開始前のももチキン（開始予定）");
     const more = sasakiHost.querySelector('[data-section="cm"] > .stage-voice-more-button:not(.commercial-group-note-button)');
@@ -97,7 +99,7 @@ export async function runCommercialsAndFriendsUiTests() {
   try {
     assertEqual(groupHost.querySelector("#group-cm-section") !== null, true, "F: 個人ページから飛べるよう id=group-cm-section を持つ");
     const cards = [...groupHost.querySelectorAll(".group-commercial-card")];
-    assertEqual(cards.length, 7, "F: 7件");
+    assertEqual(cards.length, 21, "F: 21件");
     assertEqual(cards[0].dataset.commercialId, "cm-group-hotpepper-beauty-2026", "F: 新しい順（2026-09-09 が先頭）");
     assertEqual(cards.filter((card) => !card.hidden).length, 5, "F: 最初は5件");
     assertEqual(groupHost.scrollWidth <= groupHost.clientWidth + 1, true, "F: 375px幅で横にはみ出さない");

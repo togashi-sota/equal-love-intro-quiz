@@ -1,28 +1,43 @@
-// 【2026-10-23新設・本人指示】CM・広告出演のデータ（個人ページ「CM・広告出演」と、
-// 「＝LOVEについて」の「CM・広告・企業タイアップ」の両方から参照する、1件＝1作品の正規データ）。
+// 【2026-10-23新設・本人指示】CM・広告・企業コラボのデータ（個人ページ「CM・広告・企業コラボ」と、
+// 「＝LOVEについて」の「CM・広告・企業コラボ（＝LOVE名義）」の両方から参照する、1件＝1作品の正規データ）。
 //
 // ■ 構造
 //   1つのCMに複数メンバーが出ていても、作品ごとに1件だけ書き、出演者は memberIds に並べる
 //   （例：ソフトバンク Galaxy Z は大谷映美里・佐々木舞香・野口衣織の3人 → 3人の個人ページに同じ1件が出る）。
-//   ＝LOVE全員の出演は isGroup: true にし、個人ページには複製せず「＝LOVEについて」に1か所だけ載せる
+//   ＝LOVE名義の案件は isGroup: true にし、個人ページには複製せず「＝LOVEについて」に1か所だけ載せる
 //   （同じ情報が10か所に散らばって更新が大変になるのを防ぐため）。
+//   【2026-10-23追加】isGroup は「＝LOVE名義のグループ案件」という意味で、「今の10人全員が出演した」という意味ではない。
+//   出演範囲は groupParticipation で区別する（当時の人数は members.js の加入日・卒業日から画面側で自動計算）：
+//     "all"         … 公式情報で当時のメンバー全員の参加が確認できた
+//     "group"       … ＝LOVE名義の案件（全員かどうかまでは公式情報に書かれていない）
+//     "unspecified" … ＝LOVE名義だが、出演メンバーを公式情報から特定できない（例：ululisのWEB CM）
+//   グループ案件の中で特定のメンバーが重要な役割を担った場合は featuredMembers に書く
+//   （例：ひざつき製菓のパッケージイラスト＝大場花菜 → 大場花菜の個人ページにも同じ1件が出る）。
+//   元メンバーは名前に「元メンバー」等のバッジを付けない（本人指示）。
 //
 // ■ 掲載ルール（本人指示）
 //   ・＝LOVE公式／企業公式／公式プレスリリースで出演が確認できたものだけ載せる。推測では足さない。
-//   ・kind は「テレビCM」「WebCM」「テレビCM・WebCM」「企業タイアップ」「キャンペーン」を区別して書く
-//     （CMでないものをCMと断定しない）。
+//   ・kind は「テレビCM」「WebCM」「PR動画」「アンバサダー」「イメージキャラクター」「Webモデル」
+//     「商品共同開発」「コラボ商品」「コラボキャンペーン」等を区別して書く（CMでないものをCMと断定しない）。
+//   ・通常のテレビ出演・雑誌掲載・通常の物販・CDの販促、会場コラボ・景品中心の企画は載せない
+//     （企業・団体の宣伝やPRに実際に参加したものに限る。2026-10-23 本人指示）。
+//   ・公開状態を確認できない動画のURLは載せず、＝LOVE公式情報から辿る形にする。
 //   ・放送・公開が終わっても「出演実績」として残す。「放送中」とは書かない（確認できないため）。
 //   ・date が未来なら、画面上は自動で「〜開始予定」と表示する（js/commercialsSection.js）。
+//   ・期間が公式に書かれている場合だけ endDate を書く（画面では「開始日〜終了日」と表示）。
 //
 // ■ 新しいCMが決まったとき
 //   この配列に1件足すだけでよい（並びは date の新しい順に自動で決まる）。
 
 const ID = {
   otani: "otani-emiri",
+  oba: "oba-hana",
+  otoshima: "otoshima-risa",
   sasaki: "sasaki-maika",
   takamatsu: "takamatsu-hitomi",
   saito: "saito-kiara",
   noguchi: "noguchi-iori",
+  morohashi: "morohashi-sana",
   yamamoto: "yamamoto-anna",
 };
 
@@ -31,18 +46,37 @@ export const COMMERCIAL_KIND = {
   WEB: "WebCM",
   TV_WEB: "テレビCM・WebCM",
   REGIONAL_TV: "テレビCM（地域限定）",
+  PR_VIDEO: "PR動画",
   TIE_UP: "企業タイアップ",
   CAMPAIGN: "キャンペーン",
+  // 【2026-10-23追加】CM以外の企業・団体の広告・コラボを正しく区別するための種別
+  COLLAB_CAMPAIGN: "コラボキャンペーン",
+  SALES_CAMPAIGN: "販促キャンペーン",
+  AMBASSADOR: "アンバサダー",
+  IMAGE_CHARACTER: "イメージキャラクター",
+  CAMPAIGN_CHARACTER: "キャンペーンキャラクター",
+  WEB_MODEL: "Webモデル",
+  PRODUCT_DEVELOPMENT: "商品共同開発",
+  COLLAB_PRODUCT: "コラボ商品",
+  COLLAB: "企業コラボ",
+};
+
+// グループ案件の出演範囲（上の説明を参照）
+export const GROUP_PARTICIPATION = {
+  ALL: "all",
+  GROUP: "group",
+  UNSPECIFIED: "unspecified",
 };
 
 const EL = "＝LOVE公式情報";
 const VERIFIED = "2026-10-23";
 
 export const COMMERCIALS = [
-  // ===================== ＝LOVE全員 =====================
+  // ===================== ＝LOVE名義（グループ案件） =====================
   {
     id: "cm-group-hotpepper-beauty-2026",
     isGroup: true,
+    groupParticipation: GROUP_PARTICIPATION.GROUP,
     brand: "ホットペッパービューティー",
     title: "【＝LOVE×ホットペッパービューティー】〜一緒に、ラブな自分になろ？篇〜",
     kind: COMMERCIAL_KIND.WEB,
@@ -58,6 +92,8 @@ export const COMMERCIALS = [
   {
     id: "cm-group-mcdonalds-viva-world-mac-2026",
     isGroup: true,
+    // ＝LOVE公式の発表で「＝LOVE全員でのマクドナルド初出演」
+    groupParticipation: GROUP_PARTICIPATION.ALL,
     brand: "日本マクドナルド「VIVA！ワールドマック」",
     title: "「VIVA！ワールドマックを食べられる」",
     kind: COMMERCIAL_KIND.WEB,
@@ -72,6 +108,7 @@ export const COMMERCIALS = [
     // 以前は js/data/groupActivities.js（グループ活動）にあったものを、CM・広告欄へ移した（同じ作品の二重表示を避けるため）。
     id: "cm-group-mynumber-card-2026",
     isGroup: true,
+    groupParticipation: GROUP_PARTICIPATION.GROUP,
     brand: "政府広報（内閣府大臣官房政府広報室・デジタル庁）",
     title: "「まだまだマイナー？マイナカード」",
     kind: COMMERCIAL_KIND.TV_WEB,
@@ -93,6 +130,8 @@ export const COMMERCIALS = [
   {
     id: "tieup-group-rohto-lycee-2024",
     isGroup: true,
+    // メンバー全員分のアイムービーが公開された
+    groupParticipation: GROUP_PARTICIPATION.ALL,
     brand: "ロート製薬「ロートリセ」",
     title: "ロートリセ×＝LOVE「ときめくアイドルアイムービー」",
     kind: COMMERCIAL_KIND.TIE_UP,
@@ -105,11 +144,13 @@ export const COMMERCIALS = [
   {
     id: "tieup-group-ululis-2024",
     isGroup: true,
+    // 【2026-10-23再確認】＝LOVE公式・ululis公式とも出演メンバーの記載が無く、全員か一部かを特定できないため「全員出演」とは断定しない
+    groupParticipation: GROUP_PARTICIPATION.UNSPECIFIED,
     brand: "ululis（ウルリス）「Water in Matomake」",
     title: "ululis「Water in Matomake」タイアップ",
     kind: COMMERCIAL_KIND.TIE_UP,
     date: "2024-07-10",
-    description: "ヘアケアブランドululisの新作まとめ髪スティックとのタイアップ。2024年8月1日の全国発売に合わせ、SNSでのWEB CMなどの特別コンテンツ公開が告知された。",
+    description: "ヘアケアブランドululisの新作まとめ髪スティック（2024年7月17日PLAZA先行発売、8月1日全国発売）とのタイアップ。各種SNSでのWEB CMなどの特別コンテンツ公開が告知された。",
     links: [{ label: EL, url: "https://equal-love.jp/news/detail/8632" }],
     sourceUrls: ["https://equal-love.jp/news/detail/8632", "https://x.com/ululis_pr/status/1810952074202599683"],
     lastVerifiedDate: VERIFIED,
@@ -117,10 +158,12 @@ export const COMMERCIALS = [
   {
     id: "cm-group-meiji-essel-supercup-2024",
     isGroup: true,
+    groupParticipation: GROUP_PARTICIPATION.GROUP,
     brand: "明治 エッセル スーパーカップ",
     title: "「スーパーカップがある瞬間＝LOVE」",
     kind: COMMERCIAL_KIND.WEB,
     date: "2024-07-08",
+    endDate: "2024-08-30",
     description: "メンバーが“アイドルではない世界のもう1人のわたし”を演じるオリジナルWEB CMと、対象商品から見られるAR動画のコラボ企画（2024年7月8日〜8月30日）。",
     links: [
       { label: EL, url: "https://equal-love.jp/news/detail/8617" },
@@ -132,24 +175,255 @@ export const COMMERCIALS = [
   {
     id: "campaign-group-acecook-harusame-2023",
     isGroup: true,
+    groupParticipation: GROUP_PARTICIPATION.GROUP,
     brand: "エースコック「スープはるさめ」",
-    title: "スープはるさめ＝LOVEキャンペーン（2023年）・はるさめ＝LOVEキャンペーン（2024年）",
-    kind: COMMERCIAL_KIND.CAMPAIGN,
+    // 【2026-10-23】以前は2023年・2024年を1件にまとめていたが、公式に「第二弾」と書かれた別企画のため2件に分けた
+    title: "スープはるさめ＝LOVEキャンペーン（第1弾）",
+    kind: COMMERCIAL_KIND.COLLAB_CAMPAIGN,
     date: "2023-05-01",
-    description: "対象商品を買って応募すると＝LOVEのサイン入りチェキやグッズが当たるコラボキャンペーン。2023年5月と2024年5〜6月の2回実施。",
+    endDate: "2023-05-31",
+    description: "スープはるさめ全品が対象のコラボキャンペーン。応募するとメンバーの直筆サイン入りワイドチェキやアクリルスタンドが当たり、応募者全員にメンバーの壁紙をプレゼント。2024年に第2弾を実施。",
+    links: [{ label: EL, url: "https://equal-love.jp/news/detail/6592" }],
+    sourceUrls: ["https://equal-love.jp/news/detail/6592"],
+    lastVerifiedDate: VERIFIED,
+  },
+  {
+    id: "campaign-group-acecook-harusame-2024",
+    isGroup: true,
+    groupParticipation: GROUP_PARTICIPATION.GROUP,
+    brand: "エースコック「スープはるさめ」",
+    title: "はるさめ＝LOVEキャンペーン（第2弾）",
+    kind: COMMERCIAL_KIND.COLLAB_CAMPAIGN,
+    date: "2024-05-01",
+    endDate: "2024-06-30",
+    description: "2023年に続くコラボキャンペーン第2弾。スープはるさめ・福福彩菜・ヌードルはるさめが対象で、A賞はステッカーと「＝LOVE 7周年コンサート」への招待（10組20名）。",
     links: [
-      { label: "＝LOVE公式（2023年）", url: "https://equal-love.jp/news/detail/6592" },
-      { label: "＝LOVE公式（2024年）", url: "https://equal-love.jp/news/detail/8419" },
+      { label: EL, url: "https://equal-love.jp/news/detail/8419" },
+      { label: "エースコックの発表", url: "https://www.acecook.co.jp/news/002812/" },
+    ],
+    sourceUrls: ["https://equal-love.jp/news/detail/8419", "https://www.acecook.co.jp/news/002812/"],
+    lastVerifiedDate: VERIFIED,
+  },
+
+  // ---- 【2026-10-23追加】2017年のデビューまで遡った再調査で、公式情報から確認できた＝LOVE名義の案件 ----
+  {
+    id: "pr-group-etax-2026",
+    isGroup: true,
+    groupParticipation: GROUP_PARTICIPATION.GROUP,
+    brand: "国税庁「e-Tax（国税電子申告・納税システム）」",
+    title: "「スマホでカンタンe-Tax」（15秒）・「確定申告も納付もスマートに！」（30秒）",
+    kind: COMMERCIAL_KIND.PR_VIDEO,
+    date: "2026-01-05",
+    description: "自宅などからe-Taxで申告する便利さを伝える国税庁のPR動画（2026年版）。国税庁動画チャンネルで公開。2022年から毎年出演している。日付は＝LOVE公式の告知日。",
+    links: [
+      { label: EL, url: "https://equal-love.jp/news/detail/11055" },
+      { label: "PR動画（15秒）を見る", url: "https://youtu.be/y923u6VIUiQ" },
+      { label: "PR動画（30秒）を見る", url: "https://youtu.be/Y9NYBcztSWE" },
+    ],
+    sourceUrls: ["https://equal-love.jp/news/detail/11055"],
+    lastVerifiedDate: VERIFIED,
+  },
+  {
+    id: "pr-group-etax-2025",
+    isGroup: true,
+    groupParticipation: GROUP_PARTICIPATION.GROUP,
+    brand: "国税庁「e-Tax（国税電子申告・納税システム）」",
+    title: "「スマホで便利なe-Tax！」（2025年版・15秒／30秒）",
+    kind: COMMERCIAL_KIND.PR_VIDEO,
+    date: "2025-01-06",
+    description: "自宅などからe-Taxで申告する便利さを伝える国税庁のPR動画（2025年版）。国税庁動画チャンネルで公開。日付は＝LOVE公式の告知日。",
+    // 動画の公開状態を確認できなかったため、動画URLは載せず＝LOVE公式情報から辿る形にしている
+    links: [{ label: EL, url: "https://equal-love.jp/news/detail/9509" }],
+    sourceUrls: ["https://equal-love.jp/news/detail/9509"],
+    lastVerifiedDate: VERIFIED,
+  },
+  {
+    id: "pr-group-etax-2024",
+    isGroup: true,
+    groupParticipation: GROUP_PARTICIPATION.GROUP,
+    brand: "国税庁「e-Tax（国税電子申告・納税システム）」",
+    title: "「スマホで便利なe-Tax！」（2024年版・15秒／30秒）",
+    kind: COMMERCIAL_KIND.PR_VIDEO,
+    date: "2024-01-04",
+    description: "自宅などからe-Taxで申告する便利さを伝える国税庁のPR動画（2024年版）。国税庁動画チャンネルで公開。日付は＝LOVE公式の告知日。",
+    links: [
+      { label: EL, url: "https://equal-love.jp/news/detail/7733" },
+      { label: "PR動画（15秒）を見る", url: "https://youtu.be/vrx3Iyii1ZQ" },
+      { label: "PR動画（30秒）を見る", url: "https://youtu.be/v9PHM-FuSpU" },
+    ],
+    sourceUrls: ["https://equal-love.jp/news/detail/7733"],
+    lastVerifiedDate: VERIFIED,
+  },
+  {
+    id: "pr-group-etax-2023",
+    isGroup: true,
+    groupParticipation: GROUP_PARTICIPATION.GROUP,
+    brand: "国税庁「e-Tax（国税電子申告・納税システム）」",
+    title: "「自宅のパソコンからe-Tax！」（15秒／30秒）",
+    kind: COMMERCIAL_KIND.PR_VIDEO,
+    date: "2023-01-30",
+    description: "自宅などからe-Taxで申告する便利さを伝える国税庁のPR動画（2023年版）。国税庁動画チャンネルで公開。日付は＝LOVE公式の告知日。",
+    links: [{ label: EL, url: "https://equal-love.jp/news/detail/6226" }],
+    sourceUrls: ["https://equal-love.jp/news/detail/6226"],
+    lastVerifiedDate: VERIFIED,
+  },
+  {
+    id: "pr-group-etax-2022",
+    isGroup: true,
+    groupParticipation: GROUP_PARTICIPATION.GROUP,
+    brand: "国税庁「e-Tax（国税電子申告・納税システム）」",
+    title: "「スマホでチャレンジ！e-Tax」（15秒／30秒）",
+    kind: COMMERCIAL_KIND.PR_VIDEO,
+    date: "2022-01-12",
+    description: "自宅などからe-Taxで申告する便利さを伝える国税庁のPR動画（初出演の2022年版）。国税庁動画チャンネルで公開。日付は＝LOVE公式の告知日。",
+    links: [{ label: EL, url: "https://equal-love.jp/news/detail/4923" }],
+    sourceUrls: ["https://equal-love.jp/news/detail/4923"],
+    lastVerifiedDate: VERIFIED,
+  },
+  {
+    id: "campaign-group-donki-kate-2023",
+    isGroup: true,
+    // ＝LOVE公式の告知に「メンバー全員(10人)」と明記
+    groupParticipation: GROUP_PARTICIPATION.ALL,
+    brand: "ドン・キホーテ × KATE",
+    title: "＝LOVE × ドン・キホーテ KATEキャンペーン",
+    kind: COMMERCIAL_KIND.SALES_CAMPAIGN,
+    date: "2023-11-10",
+    endDate: "2023-12-10",
+    description: "KATE「カールアウェイキングマスカラ」（覚醒マスカラ）の販促キャンペーン。ドン・キホーテのmajicaアプリから応募する抽選（A〜D賞・全員特典あり）。",
+    links: [{ label: EL, url: "https://equal-love.jp/news/detail/7430" }],
+    sourceUrls: ["https://equal-love.jp/news/detail/7430"],
+    lastVerifiedDate: VERIFIED,
+  },
+  {
+    id: "collab-group-jill-stuart-cinnamoroll-2023",
+    isGroup: true,
+    // 特典のチェキ風カードがメンバー10種＋集合カット1種
+    groupParticipation: GROUP_PARTICIPATION.ALL,
+    brand: "JILL STUART Beauty × シナモロール",
+    title: "JILL STUART Beauty×シナモロール＝LOVE コラボ",
+    kind: COMMERCIAL_KIND.COLLAB_CAMPAIGN,
+    date: "2023-08-25",
+    endDate: "2023-09-07",
+    description: "新商品「ブルームクチュール アイズ ジュエルドブーケ」の発売記念コラボ。購入金額に応じてシナモロールのヘアクリップや、メンバーのチェキ風カード（メンバー10種＋集合1種）がもらえた（店頭・公式オンライン）。",
+    links: [{ label: EL, url: "https://equal-love.jp/news/detail/7068" }],
+    sourceUrls: ["https://equal-love.jp/news/detail/7068"],
+    lastVerifiedDate: VERIFIED,
+  },
+  {
+    // グループのコラボ商品。パッケージのイラストは大場花菜の描き下ろし（両方の公式ページに明記）のため、
+    // 大場花菜の個人ページにも同じ1件を表示する（featuredMembers。カードは複製しない）。
+    id: "collab-group-hizatsuki-ebisen-2023",
+    isGroup: true,
+    groupParticipation: GROUP_PARTICIPATION.GROUP,
+    featuredMembers: [{ memberId: ID.oba, role: "パッケージイラストを描き下ろし" }],
+    brand: "ひざつき製菓",
+    title: "「しみわたるえびせん 過去最上キュンレモン味」",
+    kind: COMMERCIAL_KIND.COLLAB_PRODUCT,
+    date: "2023-07-17",
+    description: "＝LOVEとの限定コラボ商品（数量限定）。全国のセブン-イレブンで先行発売（一部店舗を除く）。パッケージのイラストは大場花菜の描き下ろし。",
+    links: [
+      { label: EL, url: "https://equal-love.jp/news/detail/6842" },
+      { label: "ひざつき製菓の発表", url: "https://hizatsuki.com/news/2023/07/saijo_kyun/" },
+    ],
+    sourceUrls: ["https://equal-love.jp/news/detail/6842", "https://hizatsuki.com/news/2023/07/saijo_kyun/"],
+    lastVerifiedDate: VERIFIED,
+  },
+  {
+    id: "image-group-astra-tale-2020",
+    isGroup: true,
+    groupParticipation: GROUP_PARTICIPATION.GROUP,
+    brand: "ゲーム「アストラ・テイル～愛と絆の物語～」",
+    title: "「アストラ・テイル」イメージキャラクター",
+    kind: COMMERCIAL_KIND.IMAGE_CHARACTER,
+    date: "2020-12-17",
+    description: "横スクロール型ファンタジー冒険RPG「アストラ・テイル」（アステル）のイメージキャラクターに起用され、ライブ衣装のビジュアルが公式Twitterで公開された（事前登録受付中の時期の発表）。",
+    links: [{ label: "運営会社の発表", url: "https://prtimes.jp/main/html/rd/p/000000002.000071286.html" }],
+    sourceUrls: ["https://prtimes.jp/main/html/rd/p/000000002.000071286.html"],
+    lastVerifiedDate: VERIFIED,
+  },
+  {
+    id: "image-group-joyo-bank-2020",
+    isGroup: true,
+    groupParticipation: GROUP_PARTICIPATION.GROUP,
+    brand: "常陽銀行「新生活応援キャンペーン」",
+    title: "常陽銀行「新生活応援キャンペーン」イメージキャラクター",
+    kind: COMMERCIAL_KIND.IMAGE_CHARACTER,
+    date: "2020-03-02",
+    endDate: "2020-06-30",
+    description: "全184店舗で展開したキャンペーンのイメージキャラクター。ポスター・リーフレット・行内サイネージ・茨城放送のラジオCM・茨城新聞の広告・行内音声放送・キャンペーンサイトのボイスメッセージに登場。",
+    links: [{ label: EL, url: "https://equal-love.jp/news/detail/2700" }],
+    sourceUrls: ["https://equal-love.jp/news/detail/2700"],
+    lastVerifiedDate: VERIFIED,
+  },
+  {
+    id: "ambassador-group-karaoke-tetsujin-2019",
+    isGroup: true,
+    groupParticipation: GROUP_PARTICIPATION.GROUP,
+    brand: "カラオケの鉄人",
+    title: "カラオケの鉄人 応援アンバサダー",
+    kind: COMMERCIAL_KIND.AMBASSADOR,
+    date: "2019-04-01",
+    description: "カラオケの鉄人の応援アンバサダーに就任し、2019年4月1日から店舗で＝LOVEの曲間CMを放送。関連する企画・イベントはこのアンバサダー活動の一部としてまとめている。",
+    links: [{ label: EL, url: "https://equal-love.jp/news/detail/1534" }],
+    sourceUrls: ["https://equal-love.jp/news/detail/1534"],
+    lastVerifiedDate: VERIFIED,
+  },
+  {
+    id: "campaign-character-group-amu-plaza-oita-2018",
+    isGroup: true,
+    groupParticipation: GROUP_PARTICIPATION.GROUP,
+    brand: "アミュプラザおおいた",
+    title: "「だって、大分LOVE」キャンペーンキャラクター",
+    kind: COMMERCIAL_KIND.CAMPAIGN_CHARACTER,
+    date: "2018-02-28",
+    description: "「だって、大分LOVE」キャンペーンのキャンペーンキャラクターに就任（日付は＝LOVE公式の告知日）。2018年3月18日にアミュプラザおおいたでグランドリニューアル記念イベントに出演した。",
+    links: [{ label: EL, url: "https://equal-love.jp/news/detail/473" }],
+    sourceUrls: ["https://equal-love.jp/news/detail/473"],
+    lastVerifiedDate: VERIFIED,
+  },
+  {
+    // スペシャルムービー・店内放送・コラボうどん2種・店頭ビジュアル・1日アルバイトは、すべてこのアンバサダー活動の一部として1件にまとめる
+    id: "ambassador-group-hanamaru-udon-2018",
+    isGroup: true,
+    groupParticipation: GROUP_PARTICIPATION.GROUP,
+    brand: "はなまるうどん「美と健康プロジェクト」",
+    title: "はなまるうどん×＝LOVE「美と健康プロジェクト」アンバサダー",
+    kind: COMMERCIAL_KIND.AMBASSADOR,
+    date: "2018-01-11",
+    description: "「おいしく、元気、キレイ」をテーマにしたプロジェクトのアンバサダー。スペシャルムービー「二年LOVE組はなまる先生」、＝LOVEナレーションの店内放送、バレンタインうどん（2018年2月14日・3店舗限定）、ファン投票1位の「ハニーマスタードチキンサラダうどん」（4月16日〜・店頭にコラボビジュアル）、はなまるうどんの日の1日アルバイト（8月7日）を実施。",
+    links: [
+      { label: "プロジェクト始動の発表", url: "https://prtimes.jp/main/html/rd/p/000000039.000019432.html" },
+      { label: "バレンタインうどん", url: "https://prtimes.jp/main/html/rd/p/000000040.000019432.html" },
+      { label: "コラボうどん（ファン投票1位）", url: "https://prtimes.jp/main/html/rd/p/000000048.000019432.html" },
+      { label: "1日アルバイト", url: "https://prtimes.jp/main/html/rd/p/000000060.000019432.html" },
     ],
     sourceUrls: [
-      "https://equal-love.jp/news/detail/6592",
-      "https://equal-love.jp/news/detail/8419",
-      "https://www.acecook.co.jp/news/002812/",
+      "https://prtimes.jp/main/html/rd/p/000000039.000019432.html",
+      "https://prtimes.jp/main/html/rd/p/000000040.000019432.html",
+      "https://prtimes.jp/main/html/rd/p/000000048.000019432.html",
+      "https://prtimes.jp/main/html/rd/p/000000060.000019432.html",
     ],
     lastVerifiedDate: VERIFIED,
   },
 
   // ===================== メンバー個人・数人 =====================
+  {
+    // 【2026-10-23追加】CM出演ではなく商品の共同開発（開発決定の発表段階。発売済みとはしない）
+    id: "collab-asahi-tokube-chuhai-2026",
+    memberIds: [ID.otani, ID.sasaki, ID.noguchi, ID.morohashi],
+    brand: "アサヒビール「アサヒ空想開発局」",
+    title: "「とくべチューハイ」（イコラブチューハイ開発局）",
+    kind: COMMERCIAL_KIND.PRODUCT_DEVELOPMENT,
+    date: "2026-10-06",
+    description: "テスト販売サイト「アサヒ空想開発局」とのコラボで、4人が「イコラブチューハイ開発局」の局員に就任し、中味と缶デザインを担当。2026年10月6日に開発決定を発表した段階で、発売日は未発表。",
+    links: [
+      { label: EL, url: "https://equal-love.jp/news/detail/12237" },
+      { label: "発表動画を見る", url: "https://www.youtube.com/watch?v=vXcCyKIqCns" },
+    ],
+    sourceUrls: ["https://equal-love.jp/news/detail/12237"],
+    lastVerifiedDate: VERIFIED,
+  },
   {
     id: "cm-sasaki-mcdonalds-momo-chicken-2026",
     memberIds: [ID.sasaki],
@@ -256,6 +530,7 @@ export const COMMERCIALS = [
     title: "『ケンミン熱愛！広島グルメ総選挙』CM",
     kind: COMMERCIAL_KIND.REGIONAL_TV,
     date: "2025-06-27",
+    endDate: "2025-07-31",
     coStars: "≠ME 河口夏音・永田詩央里",
     description: "広島県出身の3人が広島弁でキャンペーンを紹介した地域限定CM（広島テレビ・福岡放送・熊本県民テレビ、2025年7月31日まで）。7月からはゆめタウン・ゆめマートの店内放送も担当。",
     links: [
@@ -282,12 +557,54 @@ export const COMMERCIALS = [
     lastVerifiedDate: VERIFIED,
   },
   {
+    // 【2026-10-23追加】
+    id: "collab-maplestory-2021",
+    memberIds: [ID.otoshima, ID.sasaki, ID.noguchi],
+    brand: "オンラインゲーム「メイプルストーリー」",
+    title: "メイプルストーリー×＝LOVE コラボ（「ON AIR」アップデート）",
+    kind: COMMERCIAL_KIND.COLLAB,
+    date: "2021-12-16",
+    endDate: "2021-12-22",
+    description: "「ON AIR」アップデートを盛り上げるコラボ企画で、＝LOVE公式の告知に音嶋莉沙・佐々木舞香・野口衣織の3人が参加メンバーとして明記されている。公式生放送「メイプル公式生散歩路」には野口衣織がゲスト出演した。",
+    links: [{ label: EL, url: "https://equal-love.jp/news/detail/4837" }],
+    sourceUrls: ["https://equal-love.jp/news/detail/4837"],
+    lastVerifiedDate: VERIFIED,
+  },
+  {
+    // 【2026-10-23追加】CMではなくWebモデル（期間限定の掲載）
+    id: "webmodel-koe-autumn-2021",
+    memberIds: [ID.otoshima, ID.noguchi],
+    brand: "koe",
+    title: "koe Autumn collection Webモデル",
+    kind: COMMERCIAL_KIND.WEB_MODEL,
+    date: "2021-09-24",
+    endDate: "2021-10-04",
+    description: "ファッションブランドkoeの「Autumn collection」のWebモデル（期間限定の掲載）。",
+    links: [{ label: EL, url: "https://equal-love.jp/news/detail/4534" }],
+    sourceUrls: ["https://equal-love.jp/news/detail/4534"],
+    lastVerifiedDate: VERIFIED,
+  },
+  {
+    id: "webmodel-koe-early-summer-2021",
+    memberIds: [ID.otoshima, ID.noguchi],
+    brand: "koe",
+    title: "koe early summer collection Webモデル",
+    kind: COMMERCIAL_KIND.WEB_MODEL,
+    date: "2021-04-28",
+    endDate: "2021-05-11",
+    description: "ファッションブランドkoeの「early summer collection」のWebモデル（期間限定の掲載）。",
+    links: [{ label: EL, url: "https://equal-love.jp/news/detail/3973" }],
+    sourceUrls: ["https://equal-love.jp/news/detail/3973"],
+    lastVerifiedDate: VERIFIED,
+  },
+  {
     id: "cm-sasaki-yoani-2020",
     memberIds: [ID.sasaki],
     brand: "代々木アニメーション学院",
     title: "「手に入れる勇気もその先も篇」",
     kind: COMMERCIAL_KIND.TV,
     date: "2020-02-15",
+    endDate: "2020-02-29",
     description: "森の中で“心の声”を聞きながら将来を考える少女を演じたテレビCM（2020年2月15日〜29日、テレビ朝日・朝日放送）。CMソングは天月-あまつき-『アイビー』。",
     links: [
       { label: EL, url: "https://equal-love.jp/news/detail/2651" },
