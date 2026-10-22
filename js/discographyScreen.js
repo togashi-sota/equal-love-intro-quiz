@@ -1387,6 +1387,13 @@ function renderLiveTab(liveEvents) {
 
 function switchDiscographyTab(tabName) {
   playSfx(SFX_EVENTS.UI_CLICK);
+  activateDiscographyTab(tabName);
+}
+
+// 【2026-10-23追加（レビュー指摘）】効果音なしでタブだけを切り替える。個人ページの「＝LOVE全員のCM・広告を見る」から
+// 来たとき、前回開いていたタブ（年表・ライブ等）のままだと #group-cm-section が非表示でスクロールできないため。
+export function activateDiscographyTab(tabName) {
+  if (!elements?.tabButtons?.[tabName]) return;
   TAB_NAMES.forEach((name) => {
     const isActive = name === tabName;
     elements.tabButtons[name].classList.toggle("is-active", isActive);

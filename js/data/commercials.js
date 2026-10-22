@@ -63,10 +63,8 @@ export const COMMERCIALS = [
     kind: COMMERCIAL_KIND.WEB,
     date: "2026-06-17",
     description: "＝LOVE全員でのマクドナルド初出演。『ラブソングに襲われる』を替え歌でセルフカバーし、限定ユニフォーム姿でMVをオマージュした。",
-    links: [
-      { label: EL, url: "https://equal-love.jp/news/detail/11599" },
-      { label: "CMを見る", url: "https://www.youtube.com/watch?v=Sn0l6C7YLwg" },
-    ],
+    // 動画URLは公開状態を確認できなかった（ログイン要求）ため載せず、＝LOVE公式情報から辿る形にしている
+    links: [{ label: EL, url: "https://equal-love.jp/news/detail/11599" }],
     sourceUrls: ["https://equal-love.jp/news/detail/11599", "https://www.thefirsttimes.jp/news/0000829545/"],
     lastVerifiedDate: VERIFIED,
   },

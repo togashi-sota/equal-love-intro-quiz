@@ -127,7 +127,8 @@ async function renderMyUidAndAdminState() {
   if (elements.details && isAdminUser && !detailsInitialized) {
     elements.details.open = true;
   }
-  detailsInitialized = true;
+  // ログインIDが取れなかった（オフライン等）ときは判定できていないので、次回の表示で改めて判定する
+  if (uid !== null) detailsInitialized = true;
   // 【2026-08-29追加】バックアップ管理画面への入口も、この時点で判明した管理者判定に合わせて
   // 表示/非表示を切り替える（既存の削除ボタンと同じ「非表示はUI上の配慮に過ぎず、
   // 本当の権限チェックはFirebase Rules側」という設計方針）。
@@ -164,7 +165,13 @@ async function handleSharingToggleClick() {
   setPublicProfileSharingEnabled(playerKeyPrefix, nextEnabled);
   renderSharingSettings();
   // 公開ON/OFFの直後は、自分の表示が一覧へ反映されたかどうかも合わせて確認できるよう再読込する。
-  renderProfileList();
+  // 【2026-10-23追加（レビュー指摘）】公開設定が一覧の下に移ったため、再読込中に一覧が「読み込み中…」へ縮むと
+  // 押したトグルが指の下から逃げる。読み込みが終わるまで一覧の高さを保つ。
+  const list = elements.listContainer;
+  if (list) list.style.minHeight = `${list.offsetHeight}px`;
+  Promise.resolve(renderProfileList()).finally(() => {
+    if (list) list.style.minHeight = "";
+  });
 
   if (!nextEnabled) {
     if (elements.rankingSyncStatus) elements.rankingSyncStatus.hidden = true;

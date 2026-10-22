@@ -285,7 +285,7 @@ import { SISTER_GROUPS } from "./data/sisterGroups.js";
 import { UPCOMING_RELEASE } from "./data/upcomingRelease.js";
 import { HISTORY_EVENTS } from "./data/historyEvents.js";
 import { LIVE_EVENTS } from "./data/liveHistory.js";
-import { initDiscographyScreen, renderDiscographyScreen, openWorkDetail } from "./discographyScreen.js";
+import { initDiscographyScreen, renderDiscographyScreen, openWorkDetail, activateDiscographyTab } from "./discographyScreen.js";
 import { initMembersScreen, renderMembersScreen, openMemberDetail } from "./membersScreen.js";
 import { initPlayerScreen, renderPlayerSummary } from "./playerScreen.js";
 import { getPlayerKeyPrefix } from "./playerProfile.js";
@@ -5670,6 +5670,8 @@ window.addEventListener("app-navigate", (event) => {
     // 【2026-10-23追加】遷移先の特定の欄（例：CM・広告）へスクロールしたい場合
     const scrollToId = event.detail?.scrollToId;
     if (scrollToId) {
+      // 欄は「＝LOVEについて」タブの中にあるので、先にそのタブを開く（前回のタブが残っていると表示されないため）
+      activateDiscographyTab("about");
       requestAnimationFrame(() => document.getElementById(scrollToId)?.scrollIntoView({ block: "start" }));
     }
   } else if (screen === "songlist") {
