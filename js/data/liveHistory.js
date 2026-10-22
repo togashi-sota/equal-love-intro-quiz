@@ -380,7 +380,7 @@ export const LIVE_EVENTS = [
     // 公式の映像商品発売決定ページ（形態・価格の詳細はここに掲載）へ飛ぶようにする。
     productLinks: [
       {
-        label: "Blu-ray / DVD発売（2026.10.14発売）を見る",
+        label: "Blu-ray / DVD（2026.10.14発売）を見る",
         url: "https://equal-love.jp/news/detail/11855",
         sourceType: "official",
       },
@@ -391,7 +391,8 @@ export const LIVE_EVENTS = [
     episodeNote: null,
     sourceType: "official",
     sourceUrls: ["https://natalie.mu/music/news/668885", "https://equal-love.jp/news/detail/11855"],
-    lastVerifiedDate: "2026-08-23",
+    // 【2026-10-23確認】公式ニュース（11855）の発売日 2026-10-14 を過ぎ、発売済み。
+    lastVerifiedDate: "2026-10-23",
   },
   {
     id: "live-stadium-beyond-kyun",
@@ -403,13 +404,22 @@ export const LIVE_EVENTS = [
     startDate: "2026-06-20",
     endDate: "2026-06-21",
     venues: [{ name: "MUFGスタジアム（国立競技場）", city: "東京", date: "2026-06-20" }],
-    blurayReleased: null,
-    productLinks: [],
+    // 【2026-10-23更新】映像商品の発売が決定（2026年12月23日発売予定、公式ニュース 12281）。
+    // まだ発売前なので blurayReleased は false のまま。videoReleaseDate を見て画面に「映像化決定（発売予定）」を出す。
+    blurayReleased: false,
+    videoReleaseDate: "2026-12-23",
+    productLinks: [
+      {
+        label: "Blu-ray / DVD（2026.12.23発売予定）を見る",
+        url: "https://equal-love.jp/news/detail/12281",
+        sourceType: "official",
+      },
+    ],
     setlist: null,
     episodeNote: null,
-    sourceType: "reliable",
-    sourceUrls: ["https://prtimes.jp/main/html/rd/p/000004904.000013546.html"],
-    lastVerifiedDate: "2026-08-03",
+    sourceType: "official",
+    sourceUrls: ["https://prtimes.jp/main/html/rd/p/000004904.000013546.html", "https://equal-love.jp/news/detail/12281"],
+    lastVerifiedDate: "2026-10-23",
   },
   {
     id: "live-9th-anniversary-premium-concert",
@@ -437,7 +447,8 @@ export const LIVE_EVENTS = [
   },
   {
     id: "live-tokyo-dome-announced",
-    title: "＝LOVE初の東京ドーム公演",
+    // 【2026-10-23更新】公式の公演名「＝LOVE in TOKYO DOME」に合わせた（公式ニュース 11613・12269）。
+    title: "＝LOVE in TOKYO DOME",
     type: LIVE_TYPE.SOLO,
     isAnniversary: false,
     isGraduation: false,
@@ -448,9 +459,33 @@ export const LIVE_EVENTS = [
     blurayReleased: null,
     productLinks: [],
     setlist: null,
+    episodeNote: "＝LOVE初の東京ドーム公演。開場16:00／開演18:00（2日間とも）。",
+    sourceType: "official",
+    sourceUrls: [
+      "https://equal-love.jp/news/detail/11613",
+      "https://equal-love.jp/news/detail/12269",
+      "https://news.yahoo.co.jp/articles/b12009da8bcb7ac318d921770128010c8f26cd4e",
+    ],
+    lastVerifiedDate: "2026-10-23",
+  },
+  {
+    // 【2026-10-23追加】9周年公演（2026-10-16）で発表。公式ニュース 12275 で公演名・日程・会場を確認。
+    // 開場・開演時間は公式未発表のため載せていない。
+    id: "live-nagoya-dome-announced",
+    title: "＝LOVE DOME LIVE in NAGOYA「全ては＝LOVE」",
+    type: LIVE_TYPE.SOLO,
+    isAnniversary: false,
+    isGraduation: false,
+    status: LIVE_STATUS.ANNOUNCED,
+    startDate: "2027-02-24",
+    endDate: "2027-02-25",
+    venues: [{ name: "バンテリンドーム ナゴヤ", city: "愛知", date: "2027-02-24" }],
+    blurayReleased: null,
+    productLinks: [],
+    setlist: null,
     episodeNote: null,
-    sourceType: "reliable",
-    sourceUrls: ["https://news.yahoo.co.jp/articles/b12009da8bcb7ac318d921770128010c8f26cd4e"],
-    lastVerifiedDate: "2026-08-03",
+    sourceType: "official",
+    sourceUrls: ["https://equal-love.jp/news/detail/12275"],
+    lastVerifiedDate: "2026-10-23",
   },
 ];

@@ -144,8 +144,8 @@ export const HISTORY_EVENTS = [
     type: HISTORY_EVENT_TYPE.MILESTONE,
     title: "初の東京ドーム公演（開催予定）",
     description: "＝LOVEにとって初となる東京ドーム公演の開催が発表された（2027年1月19日・20日）。",
-    sourceType: "reliable",
-    sourceUrls: ["https://mdpr.jp/news/detail/4802393"],
+    sourceType: "official",
+    sourceUrls: ["https://equal-love.jp/news/detail/11613", "https://mdpr.jp/news/detail/4802393"],
     lastVerifiedDate: "2026-08-23",
   },
 ];
