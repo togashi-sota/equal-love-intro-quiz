@@ -19981,3 +19981,15 @@ body[data-screen="partyBattlePlay"] .game-frame {
   opacity: 0.7;
   overflow-wrap: anywhere;
 }
+
+/* 【2026-10-23追加】個人活動の「開始予定」タグ（放送開始前の番組など） */
+.activity-card-status.is-upcoming {
+  color: #6a3fa0;
+  background: #efe6fb;
+}
+
+/* 【2026-10-23追加】開催予定のまま日程が過ぎた公演（公式の開催結果を反映するまでの表示） */
+.live-event-tag.is-date-passed {
+  color: #6b6470;
+  background: #ece7ea;
+}

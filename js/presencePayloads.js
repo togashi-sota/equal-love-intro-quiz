@@ -17,6 +17,16 @@
 // 主目的で、実際のオンライン判定そのものはFirebase側のonDisconnectに委ねる。
 export const PRESENCE_OFFLINE_GRACE_MS = 12000;
 
+// 【2026-10-23追加・本人指示（「ゆき」が1週間以上オンライン表示のままの不具合）】
+// 本番データで、切断時に消えるはずの接続ノード（connections/{id}）が1件だけ残り続け、lastSeen は
+// 8日以上前で止まっている状態を確認した（onDisconnect が何らかの理由で実行されなかった残骸）。
+// 接続中の端末は js/presenceSync.js の専用ハートビートで lastSeen を2分ごとに更新し続けるため、
+// 「接続ノードはあるのに lastSeen が長く更新されていない」ものは、実際には接続していない残骸とみなす
+// （Firebase公式の presence 例と同じ「接続ノード＋最終オンライン時刻」の2本立ての考え方）。
+// 2分ごとの更新が7回続けて届かない時間（15分）を基準にし、通常プレイ中の人を誤ってオフラインにしない。
+// 端末どうしの時計のずれ（数分程度）を吸収できる余裕も含めた値。
+export const PRESENCE_STALE_CONNECTION_MS = 15 * 60 * 1000;
+
 // connections（{connectionId: true, ...} 形式のオブジェクト、またはnull/undefined）から、
 // 有効な接続が1件でもあるかを判定する。
 export function hasActiveConnections(connections) {
@@ -30,7 +40,12 @@ export function hasActiveConnections(connections) {
 // オンライン相当として扱う（瞬断からの再接続中の短いちらつきを防ぐための猶予）。
 export function computeIsOnlineForDisplay(presenceEntry, nowMs) {
   if (!presenceEntry) return false;
-  if (hasActiveConnections(presenceEntry.connections)) return true;
+  if (hasActiveConnections(presenceEntry.connections)) {
+    // lastSeen が無い古い形式の記録は、従来どおり接続ノードだけで判定する
+    if (typeof presenceEntry.lastSeen !== "number") return true;
+    // 接続ノードがあっても lastSeen が長く更新されていなければ、切断済みの残骸として扱う
+    return nowMs - presenceEntry.lastSeen <= PRESENCE_STALE_CONNECTION_MS;
+  }
   const lastSeen = presenceEntry.lastSeen;
   if (typeof lastSeen !== "number") return false;
   return nowMs - lastSeen <= PRESENCE_OFFLINE_GRACE_MS;
@@ -127,4 +142,37 @@ export function isGameplayScreenName(screenName) {
 export function canShowInviteNotification(screenName) {
   if (!screenName) return false;
   return !isGameplayScreenName(screenName);
+}
+
+// 【2026-10-23追加】Firebase の push() で作られた子キー（例："-P3tBH9O..."）の先頭8文字には、
+// 作成時刻（ミリ秒）が埋め込まれている。本人の端末が自分の古い接続ノードを掃除するときに、
+// 「いつ作られた接続か」を知るために使う。形式が違えば null。
+const PUSH_ID_CHARS = "-0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz";
+
+export function getPushIdTimestampMs(pushId) {
+  if (typeof pushId !== "string" || pushId.length < 8) return null;
+  let timestamp = 0;
+  for (let i = 0; i < 8; i += 1) {
+    const value = PUSH_ID_CHARS.indexOf(pushId.charAt(i));
+    if (value < 0) return null;
+    timestamp = timestamp * 64 + value;
+  }
+  return timestamp;
+}
+
+// 本人の端末が接続したときに消してよい「自分の古い接続ノード」を選ぶ（純粋関数）。
+// ・今この端末が作った接続（currentConnectionId）は絶対に選ばない
+// ・作成から maxAgeMs（既定24時間）以上たったものだけを選ぶ（別の端末で今まさに遊んでいる
+//   接続を消してしまわないよう、十分に古いものに限定する）
+// ・作成時刻が読めないキーは選ばない（安全側）
+export const PRESENCE_OWN_GHOST_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+export function selectStaleOwnConnectionIds(connections, currentConnectionId, nowMs, maxAgeMs = PRESENCE_OWN_GHOST_MAX_AGE_MS) {
+  if (!connections || typeof connections !== "object") return [];
+  return Object.keys(connections).filter((connectionId) => {
+    if (connectionId === currentConnectionId) return false;
+    const createdAt = getPushIdTimestampMs(connectionId);
+    if (createdAt === null) return false;
+    return nowMs - createdAt >= maxAgeMs;
+  });
 }

@@ -79,10 +79,11 @@ export function runMemberActivitiesOrderTests() {
   assertEqual(noguchiSorted[0].id, "noguchi-tocco-closet", "E: 野口衣織は 2026-09-30 の tocco closet が一番上");
   const obaSorted = sortActivitiesByDateDesc(getMemberActivities(MEMBER_ACTIVITIES, "oba-hana"));
   // 2026-10-02：さいたま観光大使（2026-10-01）が加わったため、REDYAZEL（2026-09-30）は2番目になる
-  assertEqual(obaSorted[1].id, "oba-redyazel", "E: 大場花菜は 2026-09-30 の REDYAZEL が（さいたま観光大使の次の）2番目");
+  // 2026-10-23：放送開始予定の「はなまる！」（2026-11-01）が先頭に加わったため、REDYAZELは3番目
+  assertEqual(obaSorted[2].id, "oba-redyazel", "E: 大場花菜は 2026-09-30 の REDYAZEL が（はなまる！・さいたま観光大使の次の）3番目");
   assertEqual(
     obaSorted.map((activity) => activity.id),
-    ["oba-saitama-tourism-ambassador", "oba-redyazel", "oba-artistspoken", "oba-manga"],
+    ["oba-nack5-hanamaru", "oba-saitama-tourism-ambassador", "oba-redyazel", "oba-artistspoken", "oba-manga"],
     "F: 大場花菜は 継続中（2026-10-01 → 2026-09-30 → 2024-06-14）→ 終了（はなコミ！）の順"
   );
 
@@ -157,7 +158,8 @@ export function runMemberActivitiesOrderTests() {
       const value = activity[key];
       if (value === null || value === undefined) return;
       if (typeof value !== "string" || !DATE_PATTERN.test(value)) badDates.push(`${activity.id}.${key}=${value}`);
-      else if (key !== "endDate" && value > today) futureDates.push(`${activity.id}.${key}=${value}`);
+      // 開始予定（UPCOMING）の活動は、公式に発表済みの未来の開始日を持つのが正しいので開始日を対象外にする
+      else if (key !== "endDate" && !(key === "startDate" && activity.status === ACTIVITY_STATUS.UPCOMING) && value > today) futureDates.push(`${activity.id}.${key}=${value}`);
     });
     if (activity.startDate && activity.endDate) {
       assertEqual(activity.startDate <= activity.endDate, true, `監査: ${activity.id} は開始日 ≦ 終了日`);
@@ -221,8 +223,9 @@ export function runSaitamaAmbassadorTests() {
   assertEqual(activity.sourceType, "official", "S: 公式情報");
 
   const sorted = sortActivitiesByDateDesc(getMemberActivities(MEMBER_ACTIVITIES, "oba-hana"));
-  assertEqual(sorted[0].id, "oba-saitama-tourism-ambassador", "S: 大場花菜の活動一覧で一番上");
-  assertEqual(sorted[1].id, "oba-redyazel", "S: 2番目はREDYAZEL（既存の並びを壊さない）");
+  // 2026-10-23：開始予定の「はなまる！」（2026-11-01）が先頭に加わった。さいたま観光大使は継続中で開始日が最も新しいので2番目
+  assertEqual(sorted[1].id, "oba-saitama-tourism-ambassador", "S: 大場花菜の活動一覧で、はなまる！（開始予定）の次");
+  assertEqual(sorted[2].id, "oba-redyazel", "S: その次はREDYAZEL（既存の並びを壊さない）");
   assertEqual(sorted.some((entry) => entry.id === "oba-manga") && sorted.some((entry) => entry.id === "oba-artistspoken"), true, "S: はなコミ！・イマフレランチも残っている");
 
   const container = document.createElement("div");

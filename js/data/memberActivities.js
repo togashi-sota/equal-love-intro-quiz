@@ -52,6 +52,10 @@ export const ACTIVITY_STATUS = {
   ENDED: "ended", // かつて継続していたが、既に終了したもの
   PAST: "past", // 一度きりの出演など、そもそも「継続」を前提としない過去の活動
   UNKNOWN: "unknown", // 現況が確認できないもの
+  // 【2026-10-23追加】公式に開始日が発表済みで、まだ始まっていないもの（例：放送開始前のレギュラー番組）。
+  // startDate を過ぎると表示上は自動で「継続中」として扱う（membersScreen.js の getEffectiveActivityStatus）。
+  // 開始が延期・中止になった場合は、データ側の status を直す。
+  UPCOMING: "upcoming",
 };
 
 export const MEMBER_ACTIVITIES = [
@@ -214,6 +218,35 @@ export const MEMBER_ACTIVITIES = [
     lastVerifiedDate: "2026-09-30",
   },
   {
+    // 【2026-10-23追加】FM NACK5公式（番組ページ・2026-10-21告知）・＝LOVE公式NEWS 12291・PR TIMESで確認。
+    // 初回 2026年11月1日（日）25:00〜25:30（月曜 午前1:00〜1:30）、録音番組（PR TIMES）。
+    // status は UPCOMING。初回放送日を迎えると表示上は自動で「継続中」になる。
+    // 番組公式X（@hanamaru795）は本人（利用者）提供のリンク。公式発表文には記載が無く、Claude側では未確認。
+    id: "oba-nack5-hanamaru",
+    memberId: "oba-hana",
+    relatedMemberIds: [],
+    title: "＝LOVE 大場花菜の「はなまる！」",
+    type: ACTIVITY_TYPE.RADIO,
+    description:
+      "FM NACK5の冠ラジオ番組。2026年11月1日（日）放送開始、毎週日曜25:00〜25:30（録音番組）。日々の出来事を募集し、大場花菜がリスナーに「はなまる」を届ける。",
+    url: null,
+    links: [
+      { label: "番組公式ページ", url: "https://www.nack5.co.jp/program/love_oba_hanamaru/", sourceType: "official" },
+      { label: "番組公式X", url: "https://x.com/hanamaru795", sourceType: "user-provided" },
+    ],
+    status: ACTIVITY_STATUS.UPCOMING,
+    startDate: "2026-11-01",
+    endDate: null,
+    sourceType: "official",
+    sourceUrls: [
+      "https://www.nack5.co.jp/program/love_oba_hanamaru/",
+      "https://www.nack5.co.jp/information/589/",
+      "https://equal-love.jp/news/detail/12291",
+      "https://prtimes.jp/main/html/rd/p/000000097.000123797.html",
+    ],
+    lastVerifiedDate: "2026-10-23",
+  },
+  {
     id: "oba-artistspoken",
     memberId: "oba-hana",
     relatedMemberIds: [],
@@ -252,9 +285,15 @@ export const MEMBER_ACTIVITIES = [
     relatedMemberIds: [],
     title: "「evelyn」シーズンモデル",
     type: ACTIVITY_TYPE.MODEL,
+    // 【2026-10-23更新】2026 Winter collection（＝LOVE公式 2026-10-17）を反映。シーズンごとに別カードへ
+    // 分けず、ブランドの継続起用として1枚にまとめる（過去シーズンの履歴は説明文に残す）。
     description:
-      "ファッションブランド「evelyn」のシーズンコレクションモデルを継続して務めている。2025年冬シーズンから、2026年春夏・秋と複数シーズン連続で起用されている。",
+      "ファッションブランド「evelyn」のシーズンコレクションモデルを継続して務めている。2025 Winter collectionから、2026 Spring・Autumnと続き、2026 Winter collectionでもモデルを務める（2026年10月17日発表）。",
     url: null,
+    links: [
+      { label: "ブランド公式サイト", url: "https://evelyn.tokyo.jp/", sourceType: "official" },
+      { label: "＝LOVE公式情報", url: "https://equal-love.jp/news/detail/12272", sourceType: "official" },
+    ],
     status: ACTIVITY_STATUS.ONGOING,
     startDate: "2025-08-25",
     endDate: null,
@@ -264,8 +303,10 @@ export const MEMBER_ACTIVITIES = [
       "https://x.com/evelyn_tokyo/status/1959888905643213247",
       "https://x.com/Equal_LOVE_12/status/2040685870802739226",
       "https://x.com/otoshima_risa/status/2060340693470740928",
+      "https://equal-love.jp/news/detail/12272",
+      "https://equal-love.jp/news/detail/11043",
     ],
-    lastVerifiedDate: "2026-08-23",
+    lastVerifiedDate: "2026-10-23",
   },
   {
     id: "otoshima-youtube",
@@ -321,7 +362,7 @@ export const MEMBER_ACTIVITIES = [
     title: "MeloRia（メロリア）イメージモデル",
     type: ACTIVITY_TYPE.MODEL,
     description:
-      "2026年10月9日、新カラーコンタクトブランド「MeloRia（メロリア）」のイメージモデルに就任。「瞳に魔法、心にティアラ」をコンセプトに、“お姫様の瞳”をテーマとした全6色を展開。2026年10月21日（水）12:00より発売開始予定。",
+      "2026年10月9日、新カラーコンタクトブランド「MeloRia（メロリア）」のイメージモデルに就任。「瞳に魔法、心にティアラ」をコンセプトに、“お姫様の瞳”をテーマとした全6色を展開し、2026年10月21日（水）12:00に発売開始。",
     url: null,
     links: [
       { label: "ブランド公式サイト", url: "https://www.meloria.jp/", sourceType: "official" },
@@ -336,8 +377,9 @@ export const MEMBER_ACTIVITIES = [
       "https://www.meloria.jp/",
       "https://www.queen-eyes.com/c/meloria",
       "https://prtimes.jp/main/html/rd/p/000000145.000018275.html",
+      "https://www.lilyanna.jp/c/brand/meloria",
     ],
-    lastVerifiedDate: "2026-10-10",
+    lastVerifiedDate: "2026-10-23",
   },
   {
     id: "saito-sasaki-einstein-tv",

@@ -91,7 +91,8 @@ export function runActivitySortRuleTests() {
   assertEqual(otani[otani.length - 1], "otani-appare-saturday-radio", "I: 大谷映美里：終了したアッパレは継続中の下");
   assertEqual(otani.slice(0, -1).every((id) => id !== "otani-appare-saturday-radio"), true, "I: アッパレは継続中より上に出ない");
   const oba = ids(getMemberActivities(MEMBER_ACTIVITIES, "oba-hana"));
-  assertEqual(oba.slice(0, 2), ["oba-saitama-tourism-ambassador", "oba-redyazel"], "I: 大場花菜：さいたま観光大使→REDYAZELが先頭");
+  // 2026-10-23：放送開始予定の「はなまる！」（2026-11-01開始）が継続中グループの先頭に加わった
+  assertEqual(oba.slice(0, 3), ["oba-nack5-hanamaru", "oba-saitama-tourism-ambassador", "oba-redyazel"], "I: 大場花菜：はなまる！（開始予定）→さいたま観光大使→REDYAZEL");
   const saito = ids(getMemberActivities(MEMBER_ACTIVITIES, "saito-kiara"));
   assertEqual(saito.indexOf("saito-tochigi-future-ambassador") < saito.indexOf("saito-sasaki-einstein-tv"), true, "I: 齋藤樹愛羅：とちぎ未来大使（2024）はTV（2022）より上");
   assertEqual(saito.indexOf("saito-tochigi-future-ambassador") > saito.indexOf("saito-kiara-berippichi-radio"), true, "I: 齋藤樹愛羅：とちぎ未来大使はラジオ（2026）の下");

@@ -1276,8 +1276,13 @@ function buildLiveEventCard(event) {
   // 発表済みだが未開催の公演は、実績と混同しないよう必ず見分けられるタグを付ける。
   if (event.status === LIVE_STATUS.ANNOUNCED) {
     const announcedTag = document.createElement("span");
-    announcedTag.className = "live-event-tag is-announced";
-    announcedTag.textContent = "開催予定";
+    // 【2026-10-23追加】日程（終了日。無ければ開始日）を過ぎても「開催予定」のままだと誤解を招くため、
+    // 公式の開催結果をデータへ反映するまでは「日程終了」と表示する（開催済みとは断定しない）。
+    const lastDay = event.endDate ?? event.startDate;
+    const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" });
+    const isDatePassed = typeof lastDay === "string" && lastDay < today;
+    announcedTag.className = isDatePassed ? "live-event-tag is-date-passed" : "live-event-tag is-announced";
+    announcedTag.textContent = isDatePassed ? "日程終了" : "開催予定";
     tagRow.appendChild(announcedTag);
   }
 

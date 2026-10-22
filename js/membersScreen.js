@@ -479,6 +479,7 @@ const ACTIVITY_TYPE_LABELS = {
 // activity.status（ACTIVITY_STATUS）ごとの表示ラベルと見た目のクラス。
 // unknownはタグ自体を出さない（現況が確認できないものをあえて強調しないため）。
 export const ACTIVITY_STATUS_LABELS = {
+  upcoming: { text: "開始予定", className: "is-upcoming" },
   ongoing: { text: "継続中", className: "is-ongoing" },
   annual: { text: "年次開催", className: "is-annual" },
   irregular: { text: "不定期", className: "is-irregular" },
@@ -496,8 +497,25 @@ export const ACTIVITY_STATUS_ORDER = ["ongoing", "annual", "irregular", "ended",
 //   1 = 年次開催・不定期（annual / irregular）＝終了ではなく現在も動きがある活動。status未設定・unknownもここ
 //   2 = 終了・過去の活動（ended / past）
 // 「新しく終了したから」という理由だけで、現在活動中の仕事より上に出ないようにするための仕組み。
+// 【2026-10-23追加】日本時間の今日（YYYY-MM-DD）。表示上のステータス判定に使う。
+export function getTodayInJapan(now = new Date()) {
+  return now.toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" });
+}
+
+// 【2026-10-23追加】表示に使うステータス。「開始予定」は startDate（日本時間）を迎えたら「継続中」として扱う。
+// 公式に開始日が決まっている定期番組などが、日付を過ぎても「予定」のまま残る構造的な問題を防ぐため。
+// それ以外のステータスは、日付で勝手に変えない（終了・開催などは公式情報を確認してデータを直す）。
+export function getEffectiveActivityStatus(activity, today = getTodayInJapan()) {
+  const status = activity?.status;
+  if (status === ACTIVITY_STATUS.UPCOMING && typeof activity.startDate === "string" && activity.startDate <= today) {
+    return ACTIVITY_STATUS.ONGOING;
+  }
+  return status;
+}
+
 export function getActivityGroupRank(activity) {
-  switch (activity?.status) {
+  switch (getEffectiveActivityStatus(activity)) {
+    case ACTIVITY_STATUS.UPCOMING:
     case ACTIVITY_STATUS.ONGOING:
       return 0;
     case ACTIVITY_STATUS.ENDED:
@@ -567,7 +585,7 @@ export function buildActivityCard(activity) {
   typeTag.textContent = ACTIVITY_TYPE_LABELS[activity.type] ?? activity.type;
   card.appendChild(typeTag);
 
-  const statusInfo = ACTIVITY_STATUS_LABELS[activity.status];
+  const statusInfo = ACTIVITY_STATUS_LABELS[getEffectiveActivityStatus(activity)];
   if (statusInfo) {
     const statusTag = document.createElement("span");
     statusTag.className = `activity-card-status ${statusInfo.className}`;

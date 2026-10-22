@@ -39,7 +39,7 @@ import { database, authReady, getCurrentUid } from "./firebaseClient.js";
 // 存在する情報だけからisPlayingを判定する（本人指示：ゲーム内heartbeat・audio
 // heartbeatとは結合しない）。
 import { onScreenChange } from "./screens.js";
-import { isGameplayScreenName } from "./presencePayloads.js";
+import { isGameplayScreenName, selectStaleOwnConnectionIds } from "./presencePayloads.js";
 import { setPresenceFact } from "./presenceDiagnostics.js";
 
 // 【本人指示：presence heartbeatは他のheartbeatと共用しない】接続が続いている間、
@@ -85,6 +85,18 @@ async function armPresenceForUid(uid) {
     // 【本人指示：切断時はプレイ中表示を残さない】再接続のたびに毎回予約し直す
     // （connectionRef・lastSeenRefの予約と同じ理由）。
     onDisconnect(isPlayingRef).set(false);
+    // 【2026-10-23追加・「ゆき」の不具合】onDisconnect が実行されずに残った「自分の」古い接続ノードを、
+    // 次に接続したときに本人の端末が掃除する。消すのは作成から24時間以上たったものだけで、
+    // 今作った接続と、他の人の presence には一切触れない（Rules上も本人の presence しか書けない）。
+    const thisConnectionId = connectionRef.key;
+    get(ref(database, `presence/${uid}/connections`))
+      .then((snapshot) => {
+        const staleIds = selectStaleOwnConnectionIds(snapshot.val(), thisConnectionId, Date.now());
+        staleIds.forEach((connectionId) => {
+          remove(ref(database, `presence/${uid}/connections/${connectionId}`)).catch(() => {});
+        });
+      })
+      .catch(() => {});
   };
   onValue(infoConnectedRef, handleValue);
   infoConnectedUnsubscribe = () => off(infoConnectedRef, "value", handleValue);
