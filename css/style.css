@@ -4850,6 +4850,9 @@ button.track-credit-link {
   opacity: 1;
   color: var(--color-primary-dark);
   font-weight: 700;
+  /* 【2026-10-23】強調が「付く」ときはフェードを待たず即座に切り替える（実際の歌より遅れて見えないように）。
+     外れるときは .synced-lyrics-line の transition が効くので、これまでどおりなめらかに薄くなる。 */
+  transition-duration: 0s;
 }
 
 /* 全文表示モードでは、どの行も同じ濃さで読みやすく表示する（ハイライトなしのため） */
@@ -5032,7 +5035,8 @@ button.track-credit-link {
     transform: scale(0.2) rotate(-10deg);
     opacity: 0;
   }
-  20% {
+  /* 【2026-10-23】表示の立ち上がりを短縮（不透明になるまで 180ms → 約55ms）。演出の動き自体は同じ */
+  6% {
     opacity: 1;
   }
   30% {
@@ -5093,6 +5097,8 @@ button.track-credit-link {
 .call-longform-overlay.is-active {
   opacity: 1;
   transform: scale(1);
+  /* 【2026-10-23】表示されるときの立ち上がりを短縮（420ms → 不透明まで120ms）。消えるときは上の420msのまま */
+  transition: opacity 120ms ease-out, transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .call-longform-overlay-text {
@@ -5152,6 +5158,10 @@ button.track-credit-link {
     transform: scale(0.5) translateY(36px);
     opacity: 0;
   }
+  /* 【2026-10-23】文字が読める濃さになるまでを短縮（約280ms → 約70ms）。弾む動きはそのまま */
+  15% {
+    opacity: 1;
+  }
   60% {
     transform: scale(1.1) translateY(-6px);
     opacity: 1;
@@ -5175,6 +5185,10 @@ button.track-credit-link {
   0% {
     transform: scale(0.35) rotate(-5deg);
     opacity: 0;
+  }
+  /* 【2026-10-23】文字が読める濃さになるまでを短縮（約350ms → 約80ms）。ズームの動きはそのまま */
+  12% {
+    opacity: 1;
   }
   55% {
     transform: scale(1.08) rotate(2deg);

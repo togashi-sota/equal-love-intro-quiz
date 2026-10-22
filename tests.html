@@ -134,6 +134,7 @@
     import { runSearchFeaturesTests } from "./tests/searchFeatures.test.js";
     import { runCommercialsResearchTests } from "./tests/commercialsResearch.test.js";
     import { runLyricsGroupNameTests } from "./tests/lyricsGroupName.test.js";
+    import { runSyncTrackingTests } from "./tests/syncTracking.test.js";
     import { runTimeAttackScoreTests } from "./tests/timeAttackScore.test.js";
     import { runTimeAttackHistoryTests } from "./tests/timeAttackHistory.test.js";
     import { runTimeAttackScreenTests } from "./tests/timeAttackScreen.test.js";
@@ -380,6 +381,8 @@
     runCommercialsResearchTests();
     // 【2026-10-23新設】歌詞検索のグループ名表記揺れ・曲名／愛称（国歌）
     await runLyricsGroupNameTests();
+    // 【2026-10-23新設】歌詞・コール表示の追尾性能改善（第1段階）
+    await runSyncTrackingTests();
     runPresenceSecurityRulesTests();
     runRankingCandidateStoreTests();
     runCenterCelebrationTests();

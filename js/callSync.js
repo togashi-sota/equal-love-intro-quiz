@@ -11,13 +11,14 @@
 // という順序を守ること（歌詞の行要素が先に存在していないと、コールを差し込む位置を
 // 判断できないため）。
 //
-// findActiveLineIndex()はjs/lyricsSync.jsの純粋関数をそのまま再利用している
-// （「start<=現在時刻<endの行を現在行とする」という判定基準を、歌詞・コールの
+// 現在のコールの判定は js/lyricsSync.js の純粋関数（findActiveLineIndex を土台にした findDisplayLineIndex）を
+// そのまま再利用している（「start<=現在時刻<endの行を現在行とする」という判定基準を、歌詞・コールの
 // 両方で完全に統一するため。実装を2箇所に複製しない）。
 
 import { getCallData } from "./callStorage.js";
 import { getLyricsData } from "./lyricsStorage.js";
-import { findActiveLineIndex } from "./lyricsSync.js";
+import { findDisplayLineIndex } from "./lyricsSync.js";
+import { createPlaybackFrameTicker } from "./playbackFrameTicker.js";
 
 let audioElement = null;
 let panelElement = null;
@@ -25,6 +26,14 @@ let renderedCalls = []; // { element, start, end, text }（時刻順に並べ替
 let activeIndex = -1;
 let callsVisible = true; // 「歌詞＋コール」/「通常歌詞のみ」の表示切り替え状態
 let toggleButtonElement = null;
+// 【2026-10-23追加：追尾性能改善 第1段階】再生中だけ毎フレーム再生位置を確認する（js/playbackFrameTicker.js）。
+// timeupdate（約0.25秒ごと）だけだと、短いコールが表示されないまま飛ばされたり、開始が遅れて見えたりしていた。
+// コールの時刻データは一切変えていない（一律の前倒しもしていない）。
+let frameTicker = null;
+// コールとコールの間のごく短い隙間（この秒数以下）では、前のコールを現在のまま扱う。毎フレーム判定にしたことで
+// 0.05秒程度の隙間も拾えるようになり、長いコールの表示が1フレームだけ消えるちらつきが起き得るため（レビュー指摘）。
+// 前のコールのままなので演出は再発火せず、次のコールが始まった瞬間に次の演出が出る。
+const CALL_GAP_HOLD_SEC = 0.15;
 
 // ===== 短いコールの「飛び出しバースト」演出（2026-08-06、本人要望で追加） =====
 // 「Hi!」「Yeah!」「オレ！」のような一瞬で終わる短いコールは、歌詞パネル内の
@@ -227,7 +236,7 @@ function applyActiveIndex(index) {
 
 function updateActiveCallLine(currentTime) {
   if (renderedCalls.length === 0) return;
-  const index = findActiveLineIndex(renderedCalls, currentTime);
+  const index = findDisplayLineIndex(renderedCalls, currentTime, CALL_GAP_HOLD_SEC);
   applyActiveIndex(index);
 }
 
@@ -252,6 +261,10 @@ function handleToggleClick() {
 // （lyricsSync.jsのdestroyLyricsSync()が、次にloadLyricsForSong()するときに
 // panelElement.textContent = ""で歌詞ごとまとめて消してくれるため、二重に消す必要がない）。
 export function destroyCallSync() {
+  if (frameTicker) {
+    frameTicker.destroy();
+    frameTicker = null;
+  }
   if (audioElement) {
     audioElement.removeEventListener("timeupdate", handleTimeUpdate);
     audioElement.removeEventListener("seeking", handleSeeking);
@@ -289,6 +302,16 @@ export async function loadCallsForSong(songId, targetAudioElement, targetPanelEl
   // 歌詞の各行の開始時刻を、コールの差し込み位置の判断材料として使う
   // （lyricsSync.js自体は変更せず、歌詞データを読み取り専用でもう一度取得するだけ）。
   const lyricsRecord = await getLyricsData(songId);
+  return startCallSyncWithRecords(callRecord, lyricsRecord, targetAudioElement, targetPanelElement);
+}
+
+// 【2026-10-23分離】取得済みのコール・歌詞データで、コールを歌詞パネルへ差し込み同期表示を始める。
+// loadCallsForSong() の後半をそのまま切り出したもので、動きは変えていない（テストで端末のデータに触れないため）。
+export function startCallSyncWithRecords(callRecord, lyricsRecord, targetAudioElement, targetPanelElement) {
+  destroyCallSync();
+  if (!callRecord || !Array.isArray(callRecord.calls) || callRecord.calls.length === 0) {
+    return false;
+  }
   const lyricsLines = lyricsRecord && Array.isArray(lyricsRecord.lines) ? lyricsRecord.lines : [];
   const lyricsLineElements = [...targetPanelElement.querySelectorAll(".synced-lyrics-line")];
 
@@ -349,5 +372,11 @@ export async function loadCallsForSong(songId, targetAudioElement, targetPanelEl
 
   activeIndex = -1;
   updateActiveCallLine(audioElement.currentTime);
+  // 演出（バースト・長文表示）は applyActiveIndex() が「現在のコールが変わった」ときだけ出すため、
+  // 毎フレーム呼んでも同じコールの演出が何度も出ることはない。
+  frameTicker = createPlaybackFrameTicker(audioElement, {
+    onFrame: (currentTime) => updateActiveCallLine(currentTime),
+    onResume: (currentTime) => updateActiveCallLine(currentTime),
+  });
   return true;
 }
