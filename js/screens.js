@@ -17,6 +17,9 @@ const SCREEN_ELEMENTS = {
   historyDetail: document.getElementById("history-detail-screen"),
   specialModes: document.getElementById("special-modes-screen"),
   guide: document.getElementById("guide-screen"),
+  // 【2026-10-23新設】全体検索・歌詞検索
+  appSearch: document.getElementById("app-search-screen"),
+  lyricsSearch: document.getElementById("lyrics-search-screen"),
   fanProfiles: document.getElementById("fan-profiles-screen"),
   adminBackup: document.getElementById("admin-backup-screen"),
   debugAudioLog: document.getElementById("debug-audio-log-screen"),

@@ -134,6 +134,16 @@ export function openGuideScreen(fromScreenId = "start") {
   showToc();
 }
 
+// 【2026-10-23追加】全体検索の「ガイドで詳しく見る」から、目次を経由せず該当ページを開く。
+export function openGuideSection(sectionId, fromScreenId = "start") {
+  returnScreenId = fromScreenId;
+  if (getGuideSectionById(sectionId)) {
+    showDetail(sectionId);
+  } else {
+    showToc();
+  }
+}
+
 export function getGuideReturnScreenId() {
   return returnScreenId;
 }

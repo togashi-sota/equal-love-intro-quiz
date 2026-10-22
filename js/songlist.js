@@ -1216,6 +1216,16 @@ searchClearButtonElement.addEventListener("click", () => {
 // あわせて検索語・タブ選択もリセットする。
 // initialTabに"favorites"を渡すと、開いた直後から「お気に入り」タブを表示する
 // （スタート画面の「お気に入り」タイルから直接開くための入口。UI/UX再設計で追加）。
+// 【2026-10-23追加】全体検索・歌詞検索の「収録曲一覧で見る」「曲を聴く」用。一覧を初期表示に戻したうえで、
+// 指定した曲を含む作品の折りたたみを開き、その曲の行（要素）を返す。自動再生はしない（本人資料の仕様）。
+export function revealSongInList(songId) {
+  resetSongListToDefaultView();
+  const row = [...groupsContainerElement.querySelectorAll(".track-row")].find((element) => element.dataset.songId === songId) ?? null;
+  if (!row) return null;
+  row.closest(".single-group")?.classList.add("is-open");
+  return row;
+}
+
 export function resetSongListToDefaultView(initialTab = "all") {
   const groupElements = groupsContainerElement.querySelectorAll(".single-group");
   groupElements.forEach((element, index) => {

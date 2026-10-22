@@ -41,7 +41,7 @@ function toOrdinal(number) {
 // workId（例:"single-06"）から「6thシングル」「1stアルバム」「配信限定」「特別作品」のような
 // 表示ラベルを組み立てる。番号はworkId自体から取り出すため、songs.js側に番号を
 // 二重に持たせる必要がない（本人希望、年表・作品一覧・作品詳細のすべてでこの関数を使う）。
-function buildWorkTypeLabel(workId, type) {
+export function buildWorkTypeLabel(workId, type) {
   const numberMatch = workId.match(/-(\d+)$/);
   const number = numberMatch ? Number(numberMatch[1]) : null;
 
@@ -1254,6 +1254,8 @@ const LIVE_TYPE_LABELS = { tour: "ツアー", festival: "フェス出演", solo:
 function buildLiveEventCard(event) {
   const card = document.createElement("div");
   card.className = "live-event-card";
+  // 全体検索から該当公演へ移動するための目印（2026-10-23追加）
+  card.dataset.liveId = event.id;
 
   const tagRow = document.createElement("div");
   tagRow.className = "live-event-tag-row";
@@ -1297,6 +1299,14 @@ function buildLiveEventCard(event) {
     const videoTag = document.createElement("span");
     videoTag.className = "live-event-tag is-video-available";
     videoTag.textContent = "映像作品あり";
+    tagRow.appendChild(videoTag);
+  } else if (typeof event.videoReleaseDate === "string") {
+    // 【2026-10-23追加】映像商品の発売が決まっているが、まだ公式に発売済みと反映していない公演。
+    // 発売日前は「発売予定」、発売日を過ぎても データ更新までは「映像化決定」とだけ出す（発売済みとは断定しない）。
+    const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" });
+    const videoTag = document.createElement("span");
+    videoTag.className = "live-event-tag is-video-upcoming";
+    videoTag.textContent = event.videoReleaseDate > today ? "映像化決定（発売予定）" : "映像化決定";
     tagRow.appendChild(videoTag);
   }
 
@@ -1358,7 +1368,10 @@ function buildLiveEventCard(event) {
 function renderLiveTab(liveEvents) {
   // 開催予定（announced）は年代が先でも末尾に別枠でまとめ、実績と混同しないようにする。
   const heldEvents = liveEvents.filter((event) => event.status === LIVE_STATUS.HELD);
-  const announcedEvents = liveEvents.filter((event) => event.status === LIVE_STATUS.ANNOUNCED);
+  // 開催予定が複数（東京ドーム・バンテリンドーム等）になったため、近い日程から順に並べる
+  const announcedEvents = liveEvents
+    .filter((event) => event.status === LIVE_STATUS.ANNOUNCED)
+    .sort((a, b) => (a.startDate ?? "").localeCompare(b.startDate ?? ""));
   const heldAscending = [...heldEvents].sort((a, b) => (a.startDate ?? "").localeCompare(b.startDate ?? ""));
 
   elements.liveList.innerHTML = "";

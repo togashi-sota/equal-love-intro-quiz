@@ -205,6 +205,7 @@ function rerenderActiveMembers() {
 function buildGraduatedCard(songs, members, profiles, member) {
   const card = document.createElement("div");
   card.className = "graduated-card";
+  card.dataset.memberId = member.id; // 全体検索から該当カードへ移動するための目印（2026-10-23追加）
 
   const swatch = document.createElement("span");
   swatch.className = "graduated-card-swatch";
@@ -464,7 +465,7 @@ function buildOfficialLinksSection(officialLinks) {
   return wrapper;
 }
 
-const ACTIVITY_TYPE_LABELS = {
+export const ACTIVITY_TYPE_LABELS = {
   youtube: "YouTube",
   radio: "ラジオ",
   showroom: "SHOWROOM",
@@ -580,6 +581,8 @@ export function sortActivitiesByDateDesc(activities) {
 export function buildActivityCard(activity) {
   const card = document.createElement("div");
   card.className = "activity-card";
+  // 全体検索から該当カードへ移動するための目印（2026-10-23追加）
+  card.dataset.activityId = activity.id;
 
   const typeTag = document.createElement("span");
   typeTag.className = "activity-card-type";

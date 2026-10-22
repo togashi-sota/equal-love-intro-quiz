@@ -308,6 +308,15 @@
            id="title-list-link"のボタン本体は、以前「🏆 記録・やり込み」セクション
            （record-pill-row）にあったものをそのままここへ移動しただけで、js/main.js側の
            参照（document.getElementById("title-list-link")）は変更していない。 -->
+      <!-- 【2026-10-23新設・本人資料】全体検索（アプリ内検索）の入口。検索バー風のボタンで、押すと専用の
+           検索画面（#app-search-screen）へ移動する。ホームで直接入力させないのは、結果の一覧・絞り込み・
+           「もっと見る」を十分な広さで見せるため。 -->
+      <button id="app-search-link" class="home-search-entry" type="button">
+        <span class="home-search-entry-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="2.2"/><path d="m16 16 4.5 4.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
+        <span class="home-search-entry-placeholder">アプリ内を検索する…</span>
+        <span class="home-search-entry-hint">メンバー・曲・CM・ライブ</span>
+      </button>
+
       <div class="home-quicknav-grid">
         <button id="fan-profiles-link" class="home-quicknav-button" type="button">
           <span class="home-quicknav-icon" aria-hidden="true">👥</span>
@@ -519,6 +528,16 @@
             <span class="listen-tile-desc">通信なしで続けて再生</span>
           </button>
         </div>
+        <!-- 【2026-10-23新設・本人資料】歌詞検索の入口。曲名が分からないときに歌詞の一部から探す・
+             歌詞クイズの予習に使う、楽曲・歌詞を見る系の機能なので「曲を聴く」のすぐ下に置く。 -->
+        <button id="lyrics-search-link" class="listen-wide-tile" type="button">
+          <span class="listen-tile-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="2.2"/><path d="m16 16 4.5 4.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
+          <span class="listen-wide-tile-text">
+            <span class="listen-tile-label">歌詞検索</span>
+            <span class="listen-tile-desc">歌詞の一部から曲を探す</span>
+          </span>
+          <span class="listen-wide-tile-arrow" aria-hidden="true">→</span>
+        </button>
       </div>
 
       <!-- ＝LOVEについて／メンバー情報ページへの入口。
@@ -1585,6 +1604,70 @@
          showScreen("guide")の1つだけ）。中身はjs/guideScreen.js・js/data/guideContent.jsが
          組み立てる。既存の各モードの「？」ヘルプ（ルール中心の説明）とは役割を分けており、
          こちらは「まだ触ったことのない機能を見つけてもらう」チュートリアル形式にしている。 -->
+    <!-- 【2026-10-23新設・本人資料】全体検索（アプリ内検索）画面。js/appSearchScreen.js が描画する。
+         検索語・カテゴリ・表示件数・開いている結果は同じ利用中だけ覚え、保存はしない。 -->
+    <section id="app-search-screen" class="screen search-screen">
+      <div class="list-header">
+        <button id="app-search-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            SEARCH
+          </p>
+          <h2>アプリ内検索</h2>
+        </div>
+      </div>
+      <div class="search-screen-field">
+        <span class="search-screen-field-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="2.2"/><path d="m16 16 4.5 4.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
+        <input id="app-search-input" class="search-screen-input" type="search" placeholder="メンバー・曲・CM・ライブなど" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" aria-label="アプリ内を検索">
+        <button id="app-search-clear-button" class="search-screen-clear" type="button" aria-label="検索をリセット" hidden>×</button>
+      </div>
+      <div id="app-search-categories" class="search-category-row" aria-label="カテゴリで絞り込む"></div>
+      <p id="app-search-status" class="search-screen-status" role="status"></p>
+      <ol id="app-search-results" class="search-result-list"></ol>
+      <div id="app-search-more" class="search-more-row"></div>
+      <div id="app-search-suggestions" class="search-suggestions" hidden></div>
+    </section>
+
+    <!-- 【2026-10-23新設・本人資料】歌詞検索画面。js/lyricsSearchScreen.js が描画する。
+         端末に読み込み済みの歌詞データ（IndexedDB）を読み取るだけで、歌詞・検索語は外部へ送らない。 -->
+    <section id="lyrics-search-screen" class="screen search-screen">
+      <div class="list-header">
+        <button id="lyrics-search-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            LYRICS SEARCH
+          </p>
+          <h2>歌詞検索</h2>
+        </div>
+      </div>
+      <p class="special-modes-intro">歌詞の一部から曲を探せます。曲名が思い出せないときや、歌詞クイズの予習に使えます。</p>
+      <div class="search-screen-field">
+        <span class="search-screen-field-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="2.2"/><path d="m16 16 4.5 4.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
+        <input id="lyrics-search-input" class="search-screen-input" type="search" placeholder="歌詞の一部を入力…" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" aria-label="歌詞を検索">
+        <button id="lyrics-search-clear-button" class="search-screen-clear" type="button" aria-label="検索をリセット" hidden>×</button>
+      </div>
+      <div id="lyrics-search-not-installed" class="lyrics-search-not-installed" hidden>
+        <p>歌詞データがまだ読み込まれていません。ホーム下部の「データ管理（音源・歌詞の読み込み）」から歌詞データを読み込むと、歌詞から曲を探せるようになります（音源は無くても検索できます）。</p>
+        <button id="lyrics-search-open-data-button" class="search-result-action" type="button">データ管理を開く →</button>
+      </div>
+      <p id="lyrics-search-status" class="search-screen-status" role="status"></p>
+      <ol id="lyrics-search-results" class="search-result-list"></ol>
+      <div id="lyrics-search-more" class="search-more-row"></div>
+      <div id="lyrics-search-similar" class="search-suggestions" hidden></div>
+    </section>
+
     <section id="guide-screen" class="screen">
       <div class="list-header">
         <button id="guide-back-button" class="back-link" type="button">

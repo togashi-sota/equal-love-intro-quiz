@@ -328,6 +328,21 @@ export async function getImportedLyricsSongIds() {
   return ids;
 }
 
+// 読み込み済みの全曲の歌詞データをまとめて取得する（2026-10-23追加、歌詞検索用）。
+// 1曲ずつ getLyricsData() を呼ぶとデータベースの開閉を曲数分くり返すため、1回の読み取りでまとめて取る。
+// 読み取り専用（readonly）で、保存されている歌詞データは一切変更しない。
+export async function getAllLyricsData() {
+  const db = await openDatabase();
+  const records = await new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readonly");
+    const request = tx.objectStore(STORE_NAME).getAll();
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  db.close();
+  return records;
+}
+
 // 読み込み済みの全曲について、songId→contentHashの対応表を取得する（2026-08-29追加）。
 // 追加データパックの読み込み時、「既にある歌詞と中身が同じか違うか」を判定するために使う。
 export async function getLyricsContentHashes() {

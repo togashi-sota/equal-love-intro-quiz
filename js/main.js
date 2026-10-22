@@ -92,6 +92,7 @@ import { renderBackgroundSparkles } from "./decorations.js";
 import {
   renderSongList,
   resetSongListToDefaultView,
+  revealSongInList,
   stopSongListPreview,
   refreshAllFavoriteButtons,
   getActiveSonglistTab,
@@ -290,7 +291,9 @@ import { initMembersScreen, renderMembersScreen, openMemberDetail } from "./memb
 import { initPlayerScreen, renderPlayerSummary } from "./playerScreen.js";
 import { getPlayerKeyPrefix } from "./playerProfile.js";
 import { needsOnboarding, initOnboardingScreen } from "./onboardingScreen.js";
-import { initGuideScreen, openGuideScreen, getGuideReturnScreenId } from "./guideScreen.js";
+import { initGuideScreen, openGuideScreen, openGuideSection, getGuideReturnScreenId } from "./guideScreen.js";
+import { initAppSearchScreen, openAppSearchScreen, shouldFocusAppSearchInput, focusAppSearchInput } from "./appSearchScreen.js";
+import { initLyricsSearchScreen, openLyricsSearchScreen, shouldFocusLyricsSearchInput, focusLyricsSearchInput } from "./lyricsSearchScreen.js";
 import { initFanProfilesScreen, renderFanProfilesScreen } from "./fanProfilesScreen.js";
 import { initAdminBackupScreen, renderAdminBackupScreen } from "./adminBackupScreen.js";
 import { initAdminUidRepairScreen, resetAdminUidRepairScreen } from "./adminUidRepairScreen.js";
@@ -5680,6 +5683,192 @@ window.addEventListener("app-navigate", (event) => {
   }
 });
 
+// ===== 全体検索・歌詞検索（2026-10-23新設・本人資料「検索機能 実装資料」） =====
+// 検索画面から開いた先のページで「戻る」を押したら、検索画面（前回の検索語・開いた結果・スクロール位置のまま）へ戻す。
+// 開いた先のページの「戻る」ボタン自体の処理（試聴停止・一覧の描き直し等）はそのまま実行させ、
+// その直後に検索画面へ移るだけにしている（各画面の戻る処理を書き換えて壊さないため）。
+//   searchReturn: { searchScreen: 戻り先の検索画面, landingScreen: 検索から開いた画面 }
+let searchReturn = null;
+let backClickScreenBefore = null;
+document.addEventListener(
+  "click",
+  (event) => {
+    if (searchReturn && event.target.closest?.(".back-link")) backClickScreenBefore = document.body.dataset.screen;
+  },
+  true
+);
+document.addEventListener("click", (event) => {
+  const screenBefore = backClickScreenBefore;
+  backClickScreenBefore = null;
+  if (!searchReturn || screenBefore === null || !event.target.closest?.(".back-link")) return;
+  const screenAfter = document.body.dataset.screen;
+  // 開いたページそのものの「戻る」で、実際に画面が変わったときだけ（ガイドの「目次へ戻る」等の画面内の戻るは対象外）
+  if (screenBefore === searchReturn.landingScreen && screenAfter !== screenBefore) {
+    const target = searchReturn.searchScreen;
+    searchReturn = null;
+    navigateWithScrollMemory(target);
+  } else if (screenAfter === "start") {
+    // 検索から開いたページから、さらに別のページへ移ってからホームへ戻った場合（レビュー指摘）
+    searchReturn = null;
+  }
+});
+// 検索を経由せずにホームへ戻った場合は、以後の「戻る」を検索へ戻さない（古い記録を残さない）
+onScreenChange((screenName) => {
+  if (screenName === "start" && backClickScreenBefore === null) searchReturn = null;
+});
+
+// 検索結果から開いたカード等を、折りたたみ（もっと見る・details）を開いてから画面中央へスクロールし、少しの間目立たせる
+function revealSearchFocusTarget(selector, root = document) {
+  if (!selector) return;
+  const element = root.querySelector(selector);
+  if (!element) return;
+  if (element.hidden) {
+    element.closest(".stage-voice-section, #group-cm-section")?.querySelector('.stage-voice-more-button[aria-expanded="false"]')?.click();
+  }
+  if (element.tagName === "DETAILS") element.open = true;
+  for (let details = element.parentElement?.closest("details"); details; details = details.parentElement?.closest("details")) {
+    details.open = true;
+  }
+  element.scrollIntoView({ block: "center" });
+  element.classList.add("is-search-focus");
+  setTimeout(() => element.classList.remove("is-search-focus"), 2400);
+}
+
+function renderDiscographyForSearch() {
+  renderDiscographyScreen({
+    songs: SONGS,
+    members: MEMBERS,
+    discographyEntries: DISCOGRAPHY,
+    historyEvents: HISTORY_EVENTS,
+    groupInfo: GROUP_INFO,
+    groupActivities: GROUP_ACTIVITIES,
+    liveEvents: LIVE_EVENTS,
+    sisterGroups: SISTER_GROUPS,
+    upcomingRelease: UPCOMING_RELEASE,
+  });
+}
+
+// 「機能を開く」：ホーム画面の既存ボタンを押したのと同じ動きにする（各画面の準備処理を二重に書かないため）
+async function openSearchFeatureAction(action) {
+  if (action.type === "lyricsSearch") {
+    playClickSound();
+    await openLyricsSearchAndNavigate();
+  } else if (action.type === "click") {
+    document.querySelector(action.selector)?.click();
+  } else if (action.type === "specialMode") {
+    document.querySelector(`.special-mode-card[data-mode-id="${action.modeId}"] .special-mode-card-tap-target`)?.click();
+  } else if (action.type === "homeSection") {
+    playClickSound();
+    navigateWithScrollMemory("start");
+    revealSearchFocusTarget(action.selector, document.getElementById("start-screen"));
+  }
+}
+
+// 検索結果の「ページで詳しく見る」等で、該当ページ（できれば該当カード）を開く
+async function openSearchTarget(target) {
+  const searchScreen = document.body.dataset.screen;
+  if (target.kind === "feature") {
+    await openSearchFeatureAction(target.action);
+  } else {
+    playClickSound();
+    if (target.kind === "member") {
+      membersScrollY = 0;
+      openMemberDetail(SONGS, MEMBERS, MEMBER_PROFILES, MEMBER_ACTIVITIES, target.memberId);
+      navigateWithScrollMemory("memberDetail");
+      window.scrollTo(0, 0);
+      revealSearchFocusTarget(target.focusSelector, document.getElementById("member-detail-screen"));
+    } else if (target.kind === "membersList") {
+      renderMembersScreen(SONGS, MEMBERS, MEMBER_PROFILES);
+      navigateWithScrollMemory("members");
+      revealSearchFocusTarget(`[data-member-id="${target.memberId}"]`, document.getElementById("members-screen"));
+    } else if (target.kind === "discography") {
+      renderDiscographyForSearch();
+      navigateWithScrollMemory("discography");
+      activateDiscographyTab(target.tab ?? "about");
+      window.scrollTo(0, 0);
+      revealSearchFocusTarget(target.focusSelector, document.getElementById("discography-screen"));
+    } else if (target.kind === "work") {
+      discographyScrollY = 0;
+      openWorkDetail(SONGS, DISCOGRAPHY, target.workId);
+      navigateWithScrollMemory("workDetail");
+      window.scrollTo(0, 0);
+    } else if (target.kind === "song") {
+      const row = revealSongInList(target.songId);
+      navigateWithScrollMemory("songlist");
+      if (row) {
+        row.scrollIntoView({ block: "center" });
+        row.classList.add("is-search-focus");
+        setTimeout(() => row.classList.remove("is-search-focus"), 2400);
+      }
+    } else if (target.kind === "guide") {
+      openGuideSection(target.sectionId);
+      navigateWithScrollMemory("guide");
+      window.scrollTo(0, 0);
+    }
+  }
+  const landingScreen = document.body.dataset.screen;
+  // ホームや、検索画面の上に開くモーダル（サウンド設定等）では「戻る」の付け替えは不要
+  searchReturn = landingScreen !== searchScreen && landingScreen !== "start" ? { searchScreen, landingScreen } : null;
+}
+
+initAppSearchScreen(
+  {
+    input: document.getElementById("app-search-input"),
+    clearButton: document.getElementById("app-search-clear-button"),
+    categoryRow: document.getElementById("app-search-categories"),
+    status: document.getElementById("app-search-status"),
+    resultList: document.getElementById("app-search-results"),
+    moreRow: document.getElementById("app-search-more"),
+    suggestions: document.getElementById("app-search-suggestions"),
+  },
+  { onOpenTarget: openSearchTarget }
+);
+
+initLyricsSearchScreen(
+  {
+    input: document.getElementById("lyrics-search-input"),
+    clearButton: document.getElementById("lyrics-search-clear-button"),
+    status: document.getElementById("lyrics-search-status"),
+    notInstalled: document.getElementById("lyrics-search-not-installed"),
+    openDataButton: document.getElementById("lyrics-search-open-data-button"),
+    resultList: document.getElementById("lyrics-search-results"),
+    moreRow: document.getElementById("lyrics-search-more"),
+    similar: document.getElementById("lyrics-search-similar"),
+  },
+  {
+    // 「曲を聴く」：収録曲一覧の該当曲の位置を開く（自動再生はしない）
+    onOpenSong: (songId) => openSearchTarget({ kind: "song", songId }),
+    onOpenDataManagement: () => openSearchTarget({ kind: "feature", action: { type: "homeSection", selector: "#lyrics-import-section" } }),
+  }
+);
+
+document.getElementById("app-search-link").addEventListener("click", () => {
+  playClickSound();
+  searchReturn = null;
+  openAppSearchScreen();
+  navigateWithScrollMemory("appSearch");
+  if (shouldFocusAppSearchInput()) focusAppSearchInput();
+});
+document.getElementById("app-search-back-button").addEventListener("click", () => {
+  playSfx(SFX_EVENTS.UI_BACK);
+  navigateWithScrollMemory("start");
+});
+// 先に画面を切り替えてから歌詞データを読む（曲数が多い端末でも、押してすぐ画面が切り替わるように）
+async function openLyricsSearchAndNavigate() {
+  navigateWithScrollMemory("lyricsSearch");
+  await openLyricsSearchScreen();
+  if (shouldFocusLyricsSearchInput()) focusLyricsSearchInput();
+}
+document.getElementById("lyrics-search-link").addEventListener("click", async () => {
+  playClickSound();
+  searchReturn = null;
+  await openLyricsSearchAndNavigate();
+});
+document.getElementById("lyrics-search-back-button").addEventListener("click", () => {
+  playSfx(SFX_EVENTS.UI_BACK);
+  navigateWithScrollMemory("start");
+});
+
 workDetailBackButtonElement.addEventListener("click", () => {
   playSfx(SFX_EVENTS.UI_BACK);
   showScreen("discography");
@@ -8015,6 +8204,8 @@ const SAFE_SCREENS_FOR_UPDATE = new Set([
 // （呼び出し側は「今安全かどうか」を気にせず、何度でも安全にこの関数を呼べる）。
 function tryApplyPendingUpdate() {
   if (!pendingUpdateRegistration || hasAppliedPendingUpdate) return;
+  // 検索から開いたページの「戻る」で検索画面へ戻る途中（一瞬ホームを通る）は適用しない（2026-10-23）
+  if (backClickScreenBefore !== null) return;
   if (!SAFE_SCREENS_FOR_UPDATE.has(document.body.dataset.screen)) return;
   hasAppliedPendingUpdate = true;
   // 実際にskipWaitingを送る＝本当にバージョンが切り替わる瞬間なので、ここでだけ
