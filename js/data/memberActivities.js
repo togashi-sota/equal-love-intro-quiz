@@ -118,26 +118,6 @@ export const MEMBER_ACTIVITIES = [
     lastVerifiedDate: "2026-08-23",
   },
   {
-    id: "sasaki-mcdonalds-samurai-mac",
-    memberId: "sasaki-maika",
-    relatedMemberIds: [],
-    title: "日本マクドナルド「サムライマック」CM出演",
-    type: ACTIVITY_TYPE.MODEL,
-    description:
-      "堺雅人と共演した日本マクドナルド「サムライマック」新CM「普通のマックじゃ物足んねえ。」篇に、2026年5月6日から出演（本人にとって初のマクドナルドCM出演）。",
-    url: "https://equal-love.jp/news/detail/11421",
-    status: ACTIVITY_STATUS.PAST,
-    startDate: "2026-05-06",
-    endDate: null,
-    sourceType: "official",
-    sourceUrls: [
-      "https://equal-love.jp/news/detail/11421",
-      "https://tower.jp/article/news/2026/05/07/tg003",
-      "https://www.thefirsttimes.jp/news/0000803798/",
-    ],
-    lastVerifiedDate: "2026-08-23",
-  },
-  {
     id: "yamamoto-showroom",
     memberId: "yamamoto-anna",
     relatedMemberIds: [],
@@ -852,3 +832,4 @@ export const MEMBER_ACTIVITIES = [
     lastVerifiedDate: "2026-08-23",
   },
 ];
+// 【2026-10-23】佐々木舞香「サムライマック」CMは js/data/commercials.js（CM・広告出演）へ移した。

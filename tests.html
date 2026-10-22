@@ -130,6 +130,7 @@
     import { runActivitySortRuleTests } from "./tests/activitySortRule.test.js";
     import { runPresenceDiagnosticsTests } from "./tests/presenceDiagnostics.test.js";
     import { runOct23UpdatesTests } from "./tests/oct23Updates.test.js";
+    import { runCommercialsAndFriendsUiTests } from "./tests/commercialsAndFriendsUi.test.js";
     import { runTimeAttackScoreTests } from "./tests/timeAttackScore.test.js";
     import { runTimeAttackHistoryTests } from "./tests/timeAttackHistory.test.js";
     import { runTimeAttackScreenTests } from "./tests/timeAttackScreen.test.js";
@@ -369,6 +370,7 @@
     await runServiceWorkerCacheCompletenessTests();
     await runPresenceUnhandledRejectionRegressionTests();
     await runPresenceStage1RegressionTests();
+    await runCommercialsAndFriendsUiTests();
     runPresenceSecurityRulesTests();
     runRankingCandidateStoreTests();
     runCenterCelebrationTests();

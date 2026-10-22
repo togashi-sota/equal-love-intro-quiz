@@ -19993,3 +19993,67 @@ body[data-screen="partyBattlePlay"] .game-frame {
   color: #6b6470;
   background: #ece7ea;
 }
+
+/* ===== 【2026-10-23】フレンド画面：一覧を主役にした並び（公開設定・詳細情報は一覧の下） ===== */
+.fan-profiles-section-title {
+  margin: 26px 0 8px;
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+}
+
+.fan-profiles-private-note {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  font-size: 0.75rem;
+  line-height: 1.6;
+  color: var(--color-text);
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px dashed var(--color-card-border);
+  border-radius: 12px;
+}
+
+.fan-profiles-details {
+  margin: 4px 0 14px;
+  padding: 6px 12px;
+  border: 1px solid var(--color-card-border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.fan-profiles-details-summary {
+  cursor: pointer;
+  padding: 6px 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--color-text);
+  opacity: 0.75;
+}
+
+.fan-profiles-details[open] .fan-profiles-details-summary {
+  margin-bottom: 6px;
+}
+
+/* ===== 【2026-10-23】CM・広告出演 ===== */
+.commercial-title {
+  font-weight: 700;
+}
+
+.commercial-group-note {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px dashed var(--color-card-border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.commercial-group-note-text {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.6;
+  color: var(--color-text);
+}
+
+.group-commercial-card[hidden] {
+  display: none;
+}

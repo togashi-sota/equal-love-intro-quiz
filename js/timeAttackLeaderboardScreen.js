@@ -162,13 +162,9 @@ export function buildLeaderboardRow(
   row.appendChild(timeBlock);
 
   if (isAdmin) {
-    // 【2026-09-22追加】管理者にだけ、記録のID末尾と登録日を小さく表示する。旧UIDと新UIDに同じ内容の
-    // 記録が残っている場合、画面上は全く同じ2行になり、どちらを削除すべきか区別できないため。
-    const adminMeta = document.createElement("p");
-    adminMeta.className = "leaderboard-row-admin-meta";
-    adminMeta.textContent = `ID …${entry.uid.slice(-6)} ／ ${formatAchievedDate(entry.achievedAt)}${entry.identityKey ? "" : " ／ 旧形式（本人キー無し）"}`;
-    body.appendChild(adminMeta);
-
+    // 【2026-10-23変更・本人指示】以前はカードにID末尾・登録日時・旧形式を常時表示していたが、ランキングを
+    // 見やすくするためカードからは外し、削除確認ダイアログ（openAdminDeleteConfirm）でだけ確認できるようにした。
+    // 削除対象は従来どおり entry.uid（内部キー）で特定する（表示名や表示順では特定しない）。
     const deleteButton = document.createElement("button");
     deleteButton.type = "button";
     deleteButton.className = "leaderboard-admin-delete-button";
@@ -380,6 +376,8 @@ function openAdminDeleteConfirm(entry) {
   // 【2026-09-22追加】同じ内容の記録が旧UID・新UIDで2件ある場合に、どちらを消すのか確認できるようにする
   if (elements.adminDeleteUid) elements.adminDeleteUid.textContent = `…${entry.uid.slice(-6)}`;
   if (elements.adminDeleteDate) elements.adminDeleteDate.textContent = formatAchievedDate(entry.achievedAt);
+  // 【2026-10-23追加】カードから外した「記録の形式（本人キーの有無）」を、削除確認で確認できるようにする
+  if (elements.adminDeleteFormat) elements.adminDeleteFormat.textContent = entry.identityKey ? "本人キーあり" : "旧形式（本人キー無し）";
   elements.adminDeleteOverlay.hidden = false;
 }
 

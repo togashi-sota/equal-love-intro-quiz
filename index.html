@@ -1671,34 +1671,6 @@
 
       <p class="special-modes-intro">このゲームを遊んでいるプレイヤーの、表示名・推し・称号を見られます。</p>
 
-      <!-- 公開設定カード：自分のプロフィールをこの一覧に出すかどうかを選ぶ（初期値OFF）。
-           本人指示：本人が意図しない情報を勝手に公開しない設計にするため、必ず自分で選んでもらう。 -->
-      <div class="fan-profiles-settings-card">
-        <div class="fan-profiles-settings-text">
-          <p class="fan-profiles-settings-title">あなたのプロフィールをフレンドに公開する</p>
-          <p class="fan-profiles-settings-description">表示名・推し・取得済みの称号だけが公開されます。メールアドレスや内部IDなどは一切公開されません。いつでもOFFに戻せます。</p>
-        </div>
-        <button id="fan-profiles-sharing-toggle" class="sfx-toggle-button" type="button" aria-pressed="false" aria-label="プロフィール公開を切り替える">
-          <span id="fan-profiles-sharing-toggle-label">OFF</span>
-        </button>
-      </div>
-
-      <!-- クイズランキングの後追い同期状況（2026-08-16新設）。公開設定をOFF→ONへ切り替えた
-           瞬間だけ、控えめに表示する。普段は空・非表示。 -->
-      <p id="fan-profiles-ranking-sync-status" class="fan-profiles-ranking-sync-status" hidden></p>
-
-      <!-- あなたの識別ID表示（2026-08-16新設）：他人には公開されない、この端末の匿名認証IDを
-           確認できる小さな表示。センシティブな情報（メールアドレス等）は一切含まない。
-           開発者（本人）が管理者機能を設定する際の参照用。 -->
-      <p class="fan-profiles-my-id">🆔 あなたのID：<code id="fan-profiles-my-uid">確認中…</code></p>
-
-      <!-- 【2026-10-11新設・本人指示】オンライン状態の送信が動いているかの診断表示（表示専用、
-           js/presenceDiagnostics.js・js/fanProfilesScreen.js）。 -->
-      <div class="fan-profiles-presence-diag" id="fan-profiles-presence-diag" hidden>
-        <p class="fan-profiles-presence-diag-verdict" id="fan-profiles-presence-diag-verdict"></p>
-        <p class="fan-profiles-presence-diag-detail" id="fan-profiles-presence-diag-detail"></p>
-      </div>
-
       <!-- 【2026-09-15新設】旧IDからの引き継ぎ案内（js/uidSupersession.js・js/fanProfilesScreen.js）。
            Firebase匿名認証のIDが本人の操作と無関係に変わったことを、自動バックアップの同期
            （ownerSecretによる所有権の自己修復）で検知したときだけ表示される。旧IDに残った
@@ -1717,6 +1689,54 @@
         </div>
       </div>
 
+      <!-- 【2026-10-23新設】公開設定がOFFの人への短い案内（公開設定カードは一覧の下へ移動したため）。 -->
+      <p id="fan-profiles-private-note" class="fan-profiles-private-note" hidden>あなたのプロフィールは非公開です。一覧の下の「公開設定」でONにすると、フレンド一覧に表示されます。</p>
+
+      <!-- 【2026-11-XX新設・本人指示：「一緒に遊ぶ」】フレンド一覧から直接オンライン対戦へ
+           誘えることが初見ユーザーにも伝わるよう、一覧の直前に短い案内を添える。 -->
+      <p class="fan-profiles-invite-hint">🤝 オンラインのフレンドをゲームに招待できます</p>
+      <!-- 「一緒に遊ぶ」を押した直後のバリデーションエラー（既にルームに参加中・相手が
+           直前にオフラインになった・送信失敗等）を一時的に表示する場所（js/playInviteUi.js）。 -->
+      <p id="play-invite-flow-error" class="battle-warning-box" hidden></p>
+
+      <!-- 一覧本体。中身はjs/fanProfilesScreen.jsが組み立てる -->
+      <div id="fan-profiles-list"></div>
+
+      <!-- 【2026-10-23変更・本人指示】フレンド一覧を主役にするため、公開設定・詳細情報は一覧の下へ移動した。 -->
+      <h3 class="fan-profiles-section-title">公開設定</h3>
+      <!-- 公開設定カード：自分のプロフィールをこの一覧に出すかどうかを選ぶ（初期値OFF）。
+           本人指示：本人が意図しない情報を勝手に公開しない設計にするため、必ず自分で選んでもらう。 -->
+      <div class="fan-profiles-settings-card">
+        <div class="fan-profiles-settings-text">
+          <p class="fan-profiles-settings-title">あなたのプロフィールをフレンドに公開する</p>
+          <p class="fan-profiles-settings-description">表示名・推し・取得済みの称号だけが公開されます。メールアドレスや内部IDなどは一切公開されません。いつでもOFFに戻せます。</p>
+        </div>
+        <button id="fan-profiles-sharing-toggle" class="sfx-toggle-button" type="button" aria-pressed="false" aria-label="プロフィール公開を切り替える">
+          <span id="fan-profiles-sharing-toggle-label">OFF</span>
+        </button>
+      </div>
+
+      <!-- クイズランキングの後追い同期状況（2026-08-16新設）。公開設定をOFF→ONへ切り替えた
+           瞬間だけ、控えめに表示する。普段は空・非表示。 -->
+      <p id="fan-profiles-ranking-sync-status" class="fan-profiles-ranking-sync-status" hidden></p>
+
+      <!-- 【2026-10-23変更・本人指示】ID・オンライン送信の診断は一般ユーザーには常時不要なので、
+           フレンド一覧の下の「詳細情報」に折りたたむ（処理自体は従来どおり動く。管理者は最初から開いた状態）。 -->
+      <details id="fan-profiles-details" class="fan-profiles-details">
+        <summary class="fan-profiles-details-summary">詳細情報（あなたのID・接続状態）</summary>
+        <!-- あなたの識別ID表示（2026-08-16新設）：他人には公開されない、この端末の匿名認証IDを
+             確認できる小さな表示。センシティブな情報（メールアドレス等）は一切含まない。
+             開発者（本人）が管理者機能を設定する際の参照用。 -->
+        <p class="fan-profiles-my-id">🆔 あなたのID：<code id="fan-profiles-my-uid">確認中…</code></p>
+
+        <!-- 【2026-10-11新設・本人指示】オンライン状態の送信が動いているかの診断表示（表示専用、
+             js/presenceDiagnostics.js・js/fanProfilesScreen.js）。 -->
+        <div class="fan-profiles-presence-diag" id="fan-profiles-presence-diag" hidden>
+          <p class="fan-profiles-presence-diag-verdict" id="fan-profiles-presence-diag-verdict"></p>
+          <p class="fan-profiles-presence-diag-detail" id="fan-profiles-presence-diag-detail"></p>
+        </div>
+      </details>
+
       <!-- 管理者専用：バックアップ管理画面への入口（2026-08-29新設）。ADMIN_UIDと一致する
            場合だけ表示される（js/fanProfilesScreen.jsのisAdminUser判定を流用）。
            ここに表示されること自体は見た目上の制御にすぎず、実際の閲覧・操作権限は
@@ -1728,15 +1748,6 @@
            isAdminUser判定を流用する（一般ユーザーには表示されない）。 -->
       <button id="debug-audio-log-link" class="secondary-button admin-backup-link-button" type="button" hidden>🔧 音源診断ログ（管理者用）</button>
 
-      <!-- 【2026-11-XX新設・本人指示：「一緒に遊ぶ」】フレンド一覧から直接オンライン対戦へ
-           誘えることが初見ユーザーにも伝わるよう、一覧の直前に短い案内を添える。 -->
-      <p class="fan-profiles-invite-hint">🤝 オンラインのフレンドをゲームに招待できます</p>
-      <!-- 「一緒に遊ぶ」を押した直後のバリデーションエラー（既にルームに参加中・相手が
-           直前にオフラインになった・送信失敗等）を一時的に表示する場所（js/playInviteUi.js）。 -->
-      <p id="play-invite-flow-error" class="battle-warning-box" hidden></p>
-
-      <!-- 一覧本体。中身はjs/fanProfilesScreen.jsが組み立てる -->
-      <div id="fan-profiles-list"></div>
     </section>
 
     <!-- 管理者専用：バックアップ・復旧依頼の管理画面（2026-08-29新設）。
@@ -5350,6 +5361,8 @@
         <!-- 【2026-09-22追加】旧UID・新UIDで同じ内容の記録が2件あるとき、どちらを消すのか区別するため -->
         <div><dt>ID末尾</dt><dd id="time-attack-leaderboard-admin-delete-uid"></dd></div>
         <div><dt>登録日時</dt><dd id="time-attack-leaderboard-admin-delete-date"></dd></div>
+        <!-- 【2026-10-23追加】ランキングカードから外した記録の形式（本人キーの有無）を、削除確認でだけ表示する -->
+        <div><dt>記録の形式</dt><dd id="time-attack-leaderboard-admin-delete-format"></dd></div>
       </dl>
       <p class="modal-lead">このランキング記録だけを削除します。他の記録・本人の端末内データ（プレイデータ・音源・歌詞・称号・履歴等）は削除されません。</p>
       <div class="button-row">

@@ -16,6 +16,7 @@ import { LIVE_STATUS } from "./data/liveHistory.js";
 import { buildMvThumbnailElement } from "./youtubeThumbnail.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
 import { buildGroupStageSection } from "./memberStageVoiceSection.js";
+import { buildGroupCommercialsSection } from "./commercialsSection.js";
 
 // workIdから種別が判定できない場合だけ使う、最後のフォールバック表示。
 const WORK_TYPE_LABELS_FALLBACK = {
@@ -1007,6 +1008,9 @@ function renderAboutTab(members, groupInfo, groupActivities, sisterGroups) {
 
   // STAGEの直下：＝LOVEが担当したアニメ主題歌（OP/ED）
   elements.aboutContent.appendChild(buildAnimeSongSection(groupInfo.animeSongs));
+
+  // ANIME SONG の直下：＝LOVE全員のCM・広告・企業タイアップ（2026-10-23新設。js/data/commercials.js）
+  elements.aboutContent.appendChild(buildGroupCommercialsSection());
 
   const linksHeading = document.createElement("p");
   linksHeading.className = "section-heading";

@@ -28,6 +28,7 @@ import {
 import { ACTIVITY_STATUS } from "./data/memberActivities.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
 import { buildMemberStageVoiceSections } from "./memberStageVoiceSection.js";
+import { buildMemberCommercialsSection } from "./commercialsSection.js";
 
 // この画面が使うDOM要素一式。initMembersScreen()で受け取って保持する。
 let elements = null;
@@ -818,6 +819,8 @@ function renderMemberDetail(songs, members, profiles, activities, member) {
 
   // 10-2. STAGE（舞台・朗読劇）／VOICE（声優・ボイス出演）。該当が無いメンバーは何も追加されない。
   elements.memberDetailContent.appendChild(buildMemberStageVoiceSections(member.id));
+  // 10-3. CM・広告出演（2026-10-23新設。js/data/commercials.js を参照。全員出演は「＝LOVEについて」へ案内）
+  elements.memberDetailContent.appendChild(buildMemberCommercialsSection(member.id));
 
   // 11. ファンの愛称・ニックネーム（無ければセクションごと非表示）
   const nicknames = profile?.nicknames ?? [];

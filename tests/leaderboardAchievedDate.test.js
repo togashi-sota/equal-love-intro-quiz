@@ -136,7 +136,9 @@ export async function runLeaderboardAchievedDateLayoutTests() {
 
     render(true);
     const adminRows = [...container.querySelectorAll(".leaderboard-row")];
-    assertEqual(container.querySelectorAll(".leaderboard-row-admin-meta").length, 10, "L: 管理者の追加情報（ID末尾・登録日時）が全行に出る");
+    // 2026-10-23変更：ID末尾・登録日時・旧形式はカードに出さず、削除確認ダイアログでだけ確認する
+    assertEqual(container.querySelectorAll(".leaderboard-row-admin-meta").length, 0, "L: 管理者でもカードにID末尾・登録日時は出さない（削除確認でのみ表示）");
+    assertEqual(container.querySelectorAll(".leaderboard-admin-delete-button").length, 10, "L: 管理者には削除ボタンが全行に出る");
     assertEqual(container.querySelectorAll(".leaderboard-row-meta").length, 10, "L: 管理者表示でも記録日の行は残る");
     assertEqual(adminRows.every((row) => row.scrollWidth <= row.clientWidth + 1), true, "L: 管理者情報ありでも横にはみ出さない");
 

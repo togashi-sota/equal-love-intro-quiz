@@ -122,6 +122,12 @@ async function renderMyUidAndAdminState() {
     elements.myUidValue.textContent = uid ?? "取得できませんでした";
   }
   isAdminUser = uid !== null && (await resolveIsAdminUser());
+  // 【2026-10-23】管理者は「詳細情報（ID・接続状態）」を最初から開いた状態にする（一般ユーザーは閉じたまま）。
+  // 判定は既存の正式な管理者判定（admins/{uid}）だけを使う。
+  if (elements.details && isAdminUser && !detailsInitialized) {
+    elements.details.open = true;
+  }
+  detailsInitialized = true;
   // 【2026-08-29追加】バックアップ管理画面への入口も、この時点で判明した管理者判定に合わせて
   // 表示/非表示を切り替える（既存の削除ボタンと同じ「非表示はUI上の配慮に過ぎず、
   // 本当の権限チェックはFirebase Rules側」という設計方針）。
@@ -142,6 +148,8 @@ function renderSharingSettings() {
   elements.sharingToggleButton.classList.toggle("is-on", enabled);
   elements.sharingToggleButton.setAttribute("aria-pressed", String(enabled));
   elements.sharingToggleLabel.textContent = enabled ? "ON" : "OFF";
+  // 【2026-10-23】公開設定カードを一覧の下へ移したので、OFFの人には一覧の上で短く案内する
+  if (elements.privateNote) elements.privateNote.hidden = enabled;
 }
 
 // 【2026-08-16追加、本人指示】OFF→ONへ切り替えた瞬間、OFF中でもランキング条件を満たして
@@ -302,6 +310,8 @@ export async function renderFanProfilesScreen() {
 // 自動バックアップがUIDの変化を検知して「確認待ち」を残しているときだけカードを出す。
 // 「内容を確認する」→ 計画（読み取りのみ）を箇条書きで表示 →「引き継いで整理する」→ 実行。
 let currentUidMergePlan = null;
+// 詳細情報の折りたたみを、管理者向けに初回だけ開く（本人が閉じた後に勝手に開き直さない）
+let detailsInitialized = false;
 
 function renderUidMergeCard() {
   if (!elements.uidMergeCard) return;
@@ -328,6 +338,12 @@ async function handleUidMergePlanClick() {
   try {
     const plan = await planUidMerge();
     if (!plan.ok) {
+      // 【2026-10-23】起動時の自動引き継ぎで既に片付いていた（＝確認待ちが無くなった）場合は、
+      // 「必要な記録はありません」と言いながら大きなカードが残り続けないよう、カード自体を閉じる。
+      if (!hasPendingUidMerge()) {
+        renderUidMergeCard();
+        return;
+      }
       setUidMergeStatus(plan.reason);
       return;
     }
@@ -392,7 +408,12 @@ function startPresenceSubscriptionIfNeeded() {
   });
   // 画面を開いている間だけ、診断表示を2秒ごとに更新する（Firebaseには何も書かない・読まない）
   renderPresenceDiagnostics();
-  presenceDiagTimerId = setInterval(renderPresenceDiagnostics, 2000);
+  presenceDiagTimerId = setInterval(() => {
+    renderPresenceDiagnostics();
+    // 【2026-10-23】起動直後の自動引き継ぎで確認待ちが消えたら、引き継ぎ案内カードも自動で閉じる
+    // （計画を立てている途中・提示中は触らない）
+    if (!currentUidMergePlan && !hasPendingUidMerge()) renderUidMergeCard();
+  }, 2000);
 }
 
 function stopPresenceSubscription() {

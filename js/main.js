@@ -2247,6 +2247,8 @@ initFanProfilesScreen(
     presenceDiag: document.getElementById("fan-profiles-presence-diag"),
     presenceDiagVerdict: document.getElementById("fan-profiles-presence-diag-verdict"),
     presenceDiagDetail: document.getElementById("fan-profiles-presence-diag-detail"),
+    details: document.getElementById("fan-profiles-details"),
+    privateNote: document.getElementById("fan-profiles-private-note"),
     adminBackupLinkButton: adminBackupLinkButtonElement,
     debugAudioLogLinkButton: debugAudioLogLinkButtonElement,
     uidMergeCard: fanProfilesUidMergeCardElement,
@@ -5665,6 +5667,11 @@ window.addEventListener("app-navigate", (event) => {
       upcomingRelease: UPCOMING_RELEASE,
     });
     navigateWithScrollMemory("discography");
+    // 【2026-10-23追加】遷移先の特定の欄（例：CM・広告）へスクロールしたい場合
+    const scrollToId = event.detail?.scrollToId;
+    if (scrollToId) {
+      requestAnimationFrame(() => document.getElementById(scrollToId)?.scrollIntoView({ block: "start" }));
+    }
   } else if (screen === "songlist") {
     resetSongListToDefaultView();
     navigateWithScrollMemory("songlist");
@@ -5934,6 +5941,7 @@ initTimeAttackLeaderboardScreen(
     // 【2026-09-22追加】削除確認にID末尾・登録日時を出す（同じ内容の旧UID／新UIDの記録を区別するため）
     adminDeleteUid: document.getElementById("time-attack-leaderboard-admin-delete-uid"),
     adminDeleteDate: document.getElementById("time-attack-leaderboard-admin-delete-date"),
+    adminDeleteFormat: document.getElementById("time-attack-leaderboard-admin-delete-format"),
     adminDeleteCancelButton: timeAttackLeaderboardAdminDeleteCancelButtonElement,
     adminDeleteConfirmButton: timeAttackLeaderboardAdminDeleteConfirmButtonElement,
   },
