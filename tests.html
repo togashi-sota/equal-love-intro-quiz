@@ -133,6 +133,7 @@
     import { runCommercialsAndFriendsUiTests } from "./tests/commercialsAndFriendsUi.test.js";
     import { runSearchFeaturesTests } from "./tests/searchFeatures.test.js";
     import { runCommercialsResearchTests } from "./tests/commercialsResearch.test.js";
+    import { runLyricsGroupNameTests } from "./tests/lyricsGroupName.test.js";
     import { runTimeAttackScoreTests } from "./tests/timeAttackScore.test.js";
     import { runTimeAttackHistoryTests } from "./tests/timeAttackHistory.test.js";
     import { runTimeAttackScreenTests } from "./tests/timeAttackScreen.test.js";
@@ -377,6 +378,8 @@
     await runSearchFeaturesTests();
     // 【2026-10-23新設】CM・広告・企業コラボの過去全期間再調査
     runCommercialsResearchTests();
+    // 【2026-10-23新設】歌詞検索のグループ名表記揺れ・曲名／愛称（国歌）
+    await runLyricsGroupNameTests();
     runPresenceSecurityRulesTests();
     runRankingCandidateStoreTests();
     runCenterCelebrationTests();

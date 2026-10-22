@@ -120,6 +120,64 @@ function buildResultCard(result) {
   return item;
 }
 
+// 曲名・愛称（例：国歌）で一致した曲。歌詞本文に書かれているわけではないので、歌詞の一致とは別枠で、
+// そのことを見出しに明記する（「国歌」が歌詞に出てくるように見せないため。2026-10-23追加）
+function renderNameMatches(nameMatches) {
+  if (!elements.nameMatches) return;
+  elements.nameMatches.innerHTML = "";
+  elements.nameMatches.hidden = nameMatches.length === 0;
+  if (nameMatches.length === 0) return;
+  const heading = document.createElement("p");
+  heading.className = "search-suggestions-title";
+  heading.textContent = "曲名・愛称で一致した曲（歌詞の一致ではありません）";
+  elements.nameMatches.appendChild(heading);
+  const list = document.createElement("ul");
+  list.className = "search-result-list";
+  nameMatches.forEach((match) => {
+    const item = document.createElement("li");
+    item.className = "search-result-item lyrics-search-name-match";
+    item.dataset.songId = match.songId;
+    const title = document.createElement("p");
+    title.className = "search-result-title";
+    title.textContent = match.title;
+    item.appendChild(title);
+    const actions = document.createElement("div");
+    actions.className = "lyrics-search-actions";
+    const full = document.createElement("div");
+    full.className = "lyrics-search-full-wrapper";
+    if (match.hasLyrics) {
+      const key = `name:${match.songId}`;
+      const toggle = document.createElement("button");
+      toggle.type = "button";
+      toggle.className = "search-result-action";
+      const apply = () => {
+        const expanded = state.expandedKeys.has(key);
+        toggle.textContent = expanded ? "歌詞全文を閉じる" : "歌詞全文を表示";
+        toggle.setAttribute("aria-expanded", String(expanded));
+        full.hidden = !expanded;
+        if (expanded && full.childElementCount === 0) full.appendChild(buildFullLyrics({ lines: match.lines }));
+      };
+      toggle.addEventListener("click", () => {
+        if (state.expandedKeys.has(key)) state.expandedKeys.delete(key);
+        else state.expandedKeys.add(key);
+        apply();
+      });
+      apply();
+      actions.appendChild(toggle);
+    } else {
+      const note = document.createElement("p");
+      note.className = "lyrics-search-audio-note";
+      note.textContent = "この曲の歌詞データはまだ読み込まれていません。";
+      item.appendChild(note);
+    }
+    actions.appendChild(buildListenButton(match.songId));
+    item.appendChild(actions);
+    item.appendChild(full);
+    list.appendChild(item);
+  });
+  elements.nameMatches.appendChild(list);
+}
+
 function renderSimilar(similar) {
   elements.similar.innerHTML = "";
   elements.similar.hidden = similar.length === 0;
@@ -155,6 +213,7 @@ function render() {
   elements.resultList.innerHTML = "";
   elements.moreRow.innerHTML = "";
   renderSimilar([]);
+  renderNameMatches([]);
 
   // 歌詞データが1曲も無い場合は、読み込み方を案内する（再生用の音源は無くても検索できる）
   const hasLyrics = index.length > 0;
@@ -169,7 +228,7 @@ function render() {
     return;
   }
 
-  const { status, results, similar } = searchLyrics(index, state.query);
+  const { status, results, similar, nameMatches } = searchLyrics(index, state.query, { songs: SONGS });
   const scope = index.length < SONGS.length ? `歌詞データがある${index.length}曲から探します。` : `全${index.length}曲の歌詞から探します。`;
   if (status === "empty") {
     elements.status.textContent = `歌詞の一部を入力してください。${scope}`;
@@ -179,6 +238,7 @@ function render() {
     elements.status.textContent = `${LYRICS_SEARCH_MIN_QUERY_LENGTH}文字以上入力してください。`;
     return;
   }
+  renderNameMatches(nameMatches);
   if (results.length === 0) {
     elements.status.textContent = `「${state.query.trim()}」を含む歌詞は見つかりませんでした。`;
     renderSimilar(similar);
@@ -247,7 +307,7 @@ export function focusLyricsSearchInput() {
   elements.input.focus();
 }
 
-// elements: { input, clearButton, status, notInstalled, openDataButton, resultList, moreRow, similar }
+// elements: { input, clearButton, status, notInstalled, openDataButton, resultList, moreRow, nameMatches, similar }
 // options.onOpenSong(songId): 「曲を聴く」→ 収録曲一覧の該当曲へ（自動再生はしない）
 // options.onOpenDataManagement(): 歌詞データ未導入時の「データ管理を開く」
 export function initLyricsSearchScreen(newElements, options = {}) {

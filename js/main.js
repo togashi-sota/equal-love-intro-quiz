@@ -5833,6 +5833,7 @@ initLyricsSearchScreen(
     openDataButton: document.getElementById("lyrics-search-open-data-button"),
     resultList: document.getElementById("lyrics-search-results"),
     moreRow: document.getElementById("lyrics-search-more"),
+    nameMatches: document.getElementById("lyrics-search-name-matches"),
     similar: document.getElementById("lyrics-search-similar"),
   },
   {

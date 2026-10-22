@@ -531,9 +531,23 @@ export function searchAppEntries(entries, rawQuery, categoryId = "all") {
 
 // 1件も一致しなかったときの「もしかして」候補。見出しの言葉（名前・曲名など）と、
 // 全体または先頭部分が軽微な誤字（1〜2文字違い）で一致するものだけを出す。
+function suggestTwoCharTypos(entries, normalizedQuery) {
+  const isKanji = (char) => /\p{Script=Han}/u.test(char);
+  if (![...normalizedQuery].every(isKanji)) return [];
+  return entries
+    .filter((entry) =>
+      [...entry.terms.primary, ...entry.terms.aliases].some(
+        (term) => term.length === 2 && term[0] === normalizedQuery[0] && term[1] !== normalizedQuery[1] && isKanji(term[1])
+      )
+    )
+    .slice(0, APP_SEARCH_SUGGESTION_LIMIT);
+}
+
 export function suggestSimilarEntries(entries, normalizedQuery) {
   const maxDistance = allowedTypoCount(normalizedQuery.length);
-  if (maxDistance === 0) return [];
+  // 2文字の語は通常は誤字扱いしないが、「国家」→「国歌」のような漢字1文字違いの2文字の見出し語・愛称だけは拾う
+  // （1文字目が同じで2文字目だけ違う漢字2文字の語に限る。一致が0件のときだけ呼ばれる。2026-10-23追加）
+  if (maxDistance === 0) return normalizedQuery.length === 2 ? suggestTwoCharTypos(entries, normalizedQuery) : [];
   const candidates = [];
   entries.forEach((entry) => {
     let best = null;

@@ -115,3 +115,39 @@ export function findApproximateSubstring(text, pattern, maxDistance) {
   }
   return best;
 }
+
+// ===== グループ名「＝LOVE」の表記揺れ（2026-10-23追加・本人指示） =====
+// 歌詞本文では「＝LOVE」「=LOVE」「イコールラブ」「イコラブ」などが混在しているため、歌詞検索ではこれらを同じ言葉として扱う。
+// 通常の正規化では「＝」が記号として消え「＝LOVE」が「love」になるが、「イコールラブ」を「love」へ変換すると
+// ただの英単語「love」まで大量に一致してしまう。そこで、グループ名と分かる表記だけを元の文字列の上で見つけ、
+// 専用の1文字（私用領域の文字）に置き換えた別の正規化結果を作る。検索語にグループ名が含まれるときだけ、こちらで探す。
+export const GROUP_NAME_TOKEN = String.fromCharCode(0xe000);
+const GROUP_NAME_PATTERN = /[=＝][ 　]*(?:love|ｌｏｖｅ)|イコール[・･ 　]*ラブ|いこーる[・･ 　]*らぶ|イコラブ|いこらぶ|ｲｺｰﾙﾗﾌﾞ|ｲｺﾗﾌﾞ/giu;
+
+// normalizeWithIndexMap() と同じ形（normalized・map・mapEnd）で返す。グループ名の表記は GROUP_NAME_TOKEN 1文字になり、
+// その1文字の map／mapEnd は元の表記全体（例：「イコールラブ」の6文字）を指す（ハイライトで表記全体を光らせるため）。
+export function normalizeWithGroupNameToken(text) {
+  const source = String(text ?? "");
+  let normalized = "";
+  const map = [];
+  const mapEnd = [];
+  const appendSegment = (from, to) => {
+    if (to <= from) return;
+    const mapped = normalizeWithIndexMap(source.slice(from, to));
+    normalized += mapped.normalized;
+    mapped.map.forEach((offset, unitIndex) => {
+      map.push(from + offset);
+      mapEnd.push(from + mapped.mapEnd[unitIndex]);
+    });
+  };
+  let cursor = 0;
+  for (const match of source.matchAll(GROUP_NAME_PATTERN)) {
+    appendSegment(cursor, match.index);
+    normalized += GROUP_NAME_TOKEN;
+    map.push(match.index);
+    mapEnd.push(match.index + match[0].length);
+    cursor = match.index + match[0].length;
+  }
+  appendSegment(cursor, source.length);
+  return { normalized, map, mapEnd, sourceLength: source.length };
+}
