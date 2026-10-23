@@ -1,0 +1,151 @@
+/* ライブコール「文字モード」の見た目（2026-10-24新設）。アプリ（index.html）と確認用プレビュー
+   （tools/live-call-text/preview.html）の両方が読み込む。色は --color-* が無い環境でも崩れないよう既定値を持たせる。 */
+/* =========================================================
+   【2026-10-24新設・本人指示】ライブコール「文字モード」
+   歌詞＝黒文字、コール＝赤文字の全文コール表（js/callTextView.js）。読むための表示なので
+   自動スクロール・ハイライトはしない。同期モードの見た目には手を加えない。
+   ========================================================= */
+.live-call-mode-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin: 6px 0 4px;
+  padding: 4px;
+  border-radius: 14px;
+  background: var(--color-primary-light, #ffe1ee);
+}
+
+.live-call-mode-tab {
+  min-height: 40px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--color-primary-dark, #ff4f96);
+  font-family: inherit;
+  font-size: 0.84rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.live-call-mode-tab.is-active {
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(255, 111, 168, 0.18);
+}
+
+/* 文字モードのときは、同期モード用の歌詞パネル・案内・全画面ボタンを隠す（同期モードの状態そのものは変えない） */
+#live-call-mode-player-screen.is-text-mode #live-call-mode-lyrics-panel,
+#live-call-mode-player-screen.is-text-mode #live-call-mode-no-lyrics-notice,
+#live-call-mode-player-screen.is-text-mode #live-call-mode-playback-error-notice,
+#live-call-mode-player-screen.is-text-mode #live-call-mode-fullscreen-button {
+  display: none !important;
+}
+
+.live-call-text-panel {
+  padding: 4px 2px 24px;
+}
+
+.live-call-text-note {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.8);
+  font-size: 0.72rem;
+  line-height: 1.6;
+  color: var(--color-text, #4a2e42);
+}
+
+.call-text-view {
+  padding: 14px 14px 18px;
+  border-radius: 16px;
+  background: #fff;
+  color: #222;
+  line-height: 1.75;
+}
+
+.call-text-group + .call-text-group,
+.call-text-group + .call-text-block,
+.call-text-block + .call-text-group {
+  margin-top: 6px;
+}
+
+.call-text-line {
+  margin: 0;
+  font-size: 1.02rem;
+  word-break: break-word;
+}
+
+.call-text-line-no {
+  display: inline-block;
+  min-width: 2em;
+  margin-right: 6px;
+  color: #999;
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.call-text-lyric {
+  color: #222;
+}
+
+.call-text-calls {
+  margin: 0;
+  font-size: 0.98rem;
+  word-break: break-word;
+}
+
+.call-text-call {
+  color: #e0262d;
+  font-weight: 700;
+}
+
+/* 歌詞と同時に入るコールは、歌詞の横に（ ）付きで並べる（横幅が足りなければ自然に折り返す） */
+.call-text-line .call-text-call::before {
+  content: "（";
+}
+
+.call-text-line .call-text-call::after {
+  content: "）";
+}
+
+.call-text-block {
+  margin: 12px 0;
+  padding: 8px 10px;
+  border-left: 3px solid #e0262d;
+  border-radius: 6px;
+  background: #fff5f5;
+}
+
+.call-text-block-label {
+  margin: 0 0 2px;
+  color: #b3141a;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.call-text-type {
+  display: inline-block;
+  margin-right: 4px;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: #e0262d;
+  color: #fff;
+  font-size: 0.62rem;
+  vertical-align: 2px;
+}
+
+.call-text-call.is-review {
+  text-decoration: underline dotted #e0262d;
+  text-underline-offset: 3px;
+}
+
+.call-text-review-mark {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: #fff2bf;
+  color: #8a6100;
+  font-size: 0.6rem;
+  font-weight: 800;
+  vertical-align: 2px;
+}

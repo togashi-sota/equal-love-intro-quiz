@@ -7,7 +7,7 @@
 //
 // 新しいバージョンを配信したいときは、CACHE_VERSIONの値を必ず上げること。
 // 上げないと、ブラウザが「内容が変わっていない」と判断し、更新が反映されない。
-const CACHE_VERSION = "v370";
+const CACHE_VERSION = "v371";
 const CACHE_NAME = `equal-love-intro-quiz-${CACHE_VERSION}`;
 
 // キャッシュするアプリ本体のファイル一覧。
@@ -36,6 +36,7 @@ const APP_SHELL_FILES = [
   "./assets/images/guide/datapack-android-step-zip-preview.png",
   "./assets/images/guide/datapack-android-step-recent-files.png",
   "./css/style.css",
+  "./css/callText.css",
   "./js/main.js",
   "./js/onboardingScreen.js",
   "./js/guideScreen.js",
@@ -166,6 +167,10 @@ const APP_SHELL_FILES = [
   "./js/data/appSearchFeatures.js",
   "./js/liveGuideScreen.js",
   "./js/data/liveGuideContent.js",
+  "./js/callTextLayout.js",
+  "./js/callTextView.js",
+  "./js/data/callTextPlacements.js",
+  "./js/liveCallTextModeFlag.js",
   "./js/firebaseClient.js",
   "./js/onlineBattle.js",
   "./js/onlineBattlePresence.js",

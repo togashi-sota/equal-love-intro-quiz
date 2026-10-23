@@ -29,6 +29,7 @@
   <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap" rel="stylesheet">
 
   <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/callText.css">
 </head>
 <body data-screen="start">
 
@@ -2240,10 +2241,18 @@
             <button id="live-call-mode-player-help-link" class="info-link-button" type="button" aria-label="ライブコールモードの使い方を見る">？</button>
           </div>
         </div>
+        <!-- 【2026-10-24新設・本人指示】同期モード／文字モードの切り替え。文字モードは歌詞全文（黒）にコール（赤）を
+             差し込んだ全文コール表（js/callTextLayout.js・js/callTextView.js）。本人の承認前は、?calltext=on で
+             有効にした端末だけに表示する（js/liveCallTextModeFlag.js）。 -->
+        <div id="live-call-mode-tabs" class="live-call-mode-tabs" role="tablist" aria-label="表示の切り替え" hidden>
+          <button id="live-call-mode-tab-sync" class="live-call-mode-tab is-active" type="button" role="tab" aria-selected="true">同期モード</button>
+          <button id="live-call-mode-tab-text" class="live-call-mode-tab" type="button" role="tab" aria-selected="false">文字モード</button>
+        </div>
       </div>
 
       <!-- 中央：内容によらずここだけが縦スクロールする。使える縦幅を可能な限り歌詞＋コール表示へ回す。 -->
       <div class="live-call-player-middle-zone">
+        <div id="live-call-text-panel" class="live-call-text-panel" hidden></div>
         <!-- 歌詞パネル：既存の.synced-lyrics-panelと同じクラスにすることで、
              歌詞の見た目・全文表示切替ボタン等の既存スタイルをそのまま流用する。 -->
         <div id="live-call-mode-lyrics-panel" class="synced-lyrics-panel" hidden></div>

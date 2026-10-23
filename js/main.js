@@ -122,6 +122,7 @@ import {
   closeLiveCallModePlayer,
   getCurrentLiveCallSongId,
 } from "./liveCallModeScreen.js";
+import { setLiveCallTextModeEnabled } from "./liveCallTextModeFlag.js";
 import { renderCallGuideTab } from "./callGuidePanel.js";
 import { initKaraokeSyncScreen, openKaraokeSyncScreen, closeKaraokeSyncScreen } from "./karaokeSyncScreen.js";
 import { getTimeAttackBest } from "./timeAttackScore.js";
@@ -1990,6 +1991,18 @@ initSpecialModesScreen({
 
 // ライブコールモード：曲一覧画面・再生画面。
 // 収録曲一覧（songlist.js）とは完全に独立した専用の画面（本人の希望で新設、2026-08-06）。
+// 【2026-10-24新設】ライブコール文字モードの有効化（本人がコールの配置を確認するまでの一時的な入口）。
+// アプリのURLに ?calltext=on を付けて開くとこの端末だけで文字モードのタブが出る（?calltext=off で消える）。
+{
+  const params = new URLSearchParams(window.location.search);
+  const callTextParam = params.get("calltext");
+  if (callTextParam === "on" || callTextParam === "off") {
+    setLiveCallTextModeEnabled(callTextParam === "on");
+    params.delete("calltext");
+    const rest = params.toString();
+    window.history.replaceState(null, "", `${window.location.pathname}${rest ? `?${rest}` : ""}${window.location.hash}`);
+  }
+}
 initLiveCallModeScreen({
   listContainer: liveCallModeSongListElement,
   listEmptyState: liveCallModeListEmptyStateElement,
@@ -2004,6 +2017,13 @@ initLiveCallModeScreen({
   fullscreenButton: liveCallModeFullscreenButtonElement,
   noLyricsNotice: liveCallModeNoLyricsNoticeElement,
   playbackErrorNotice: liveCallModePlaybackErrorNoticeElement,
+  // 【2026-10-24新設】同期モード／文字モードの切り替え
+  playerScreen: document.getElementById("live-call-mode-player-screen"),
+  tabs: document.getElementById("live-call-mode-tabs"),
+  tabSync: document.getElementById("live-call-mode-tab-sync"),
+  tabText: document.getElementById("live-call-mode-tab-text"),
+  textPanel: document.getElementById("live-call-text-panel"),
+  middleZone: document.querySelector("#live-call-mode-player-screen .live-call-player-middle-zone"),
   onSelectSong: (songId) => {
     playClickSound();
     openLiveCallPlayTypeChoice(songId);

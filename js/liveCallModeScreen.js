@@ -10,7 +10,12 @@
 
 import { SONGS, getSongById } from "./data/songs.js";
 import { getAudioBlob } from "./audioStorage.js";
-import { getSongIdsWithCallData } from "./callStorage.js";
+import { getSongIdsWithCallData, getCallData } from "./callStorage.js";
+import { getLyricsData } from "./lyricsStorage.js";
+import { buildCallTextLayout } from "./callTextLayout.js";
+import { renderCallTextView } from "./callTextView.js";
+import { APPROVED_CALL_TEXT_PLACEMENTS } from "./data/callTextPlacements.js";
+import { isLiveCallTextModeEnabled } from "./liveCallTextModeFlag.js";
 import { loadLyricsForSong, destroyLyricsSync } from "./lyricsSync.js";
 import { loadCallsForSong, destroyCallSync } from "./callSync.js";
 import { openFullscreenLyrics } from "./lyricsFullscreen.js";
@@ -18,6 +23,14 @@ import { registerPlaybackStopper, notifyPlaybackStarting } from "./playbackCoord
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
 
 const SEEK_SKIP_SECONDS = 10;
+
+// 【2026-10-24新設】文字モード。本人がコールの配置を確認・承認するまでは、?calltext=on で有効にした端末だけに出す
+// （有効かどうかは js/liveCallTextModeFlag.js）。
+const MODE = { SYNC: "sync", TEXT: "text" };
+const SWIPE_MIN_DX = 60; // これ以上横に動いたら切り替え
+const SWIPE_EDGE_PX = 24; // 画面の端から始まる横スワイプは iPhone の「戻る」操作に任せる
+let currentMode = MODE.SYNC;
+let swipeStart = null;
 
 let elements = null;
 let currentObjectUrl = null;
@@ -121,6 +134,11 @@ export async function openLiveCallModePlayer(songId) {
 
   currentSongId = songId;
   elements.songTitle.textContent = song.title;
+  // 文字モード：音源の有無に関係なく、端末内の歌詞とコールから全文コール表を作る（同期モードの処理とは独立）
+  const textModeEnabled = isLiveCallTextModeEnabled();
+  elements.tabs.hidden = !textModeEnabled;
+  applyMode(textModeEnabled ? currentMode : MODE.SYNC);
+  if (textModeEnabled) renderTextPanel(songId);
   elements.fullscreenButton.hidden = true;
   elements.noLyricsNotice.hidden = true;
   elements.playbackErrorNotice.hidden = true;
@@ -176,6 +194,87 @@ export function closeLiveCallModePlayer() {
   destroyLyricsSync();
   destroyCallSync();
   currentSongId = null;
+  elements.textPanel.textContent = "";
+}
+
+// ===== 文字モード =====
+
+function applyMode(mode) {
+  currentMode = mode;
+  const isText = mode === MODE.TEXT;
+  elements.playerScreen.classList.toggle("is-text-mode", isText);
+  elements.textPanel.hidden = !isText;
+  elements.tabSync.classList.toggle("is-active", !isText);
+  elements.tabText.classList.toggle("is-active", isText);
+  elements.tabSync.setAttribute("aria-selected", String(!isText));
+  elements.tabText.setAttribute("aria-selected", String(isText));
+}
+
+async function renderTextPanel(songId) {
+  const panel = elements.textPanel;
+  panel.textContent = "";
+  let lyricsRecord = null;
+  let callRecord = null;
+  try {
+    [lyricsRecord, callRecord] = await Promise.all([getLyricsData(songId), getCallData(songId)]);
+  } catch (error) {
+    console.warn("文字モード：歌詞・コールの読み込みに失敗しました", error);
+  }
+  if (songId !== currentSongId) return; // 読み込み中に別の曲へ移った
+  const lines = Array.isArray(lyricsRecord?.lines) ? lyricsRecord.lines : [];
+  const calls = Array.isArray(callRecord?.calls) ? callRecord.calls : [];
+  const note = document.createElement("p");
+  note.className = "live-call-text-note";
+  if (lines.length === 0 && calls.length === 0) {
+    note.textContent = "この曲の歌詞データとコールデータがこの端末にありません。データ管理から読み込むと表示できます。";
+    panel.appendChild(note);
+    return;
+  }
+  const approved = APPROVED_CALL_TEXT_PLACEMENTS[songId] ?? null;
+  if (lines.length === 0) {
+    note.textContent = "この曲の歌詞データがこの端末にありません（インスト曲の場合はコールだけを順に表示します）。歌詞データはデータ管理から読み込めます。";
+  } else if (calls.length === 0) {
+    note.textContent = "この曲にはまだコールが登録されていません（歌詞だけを表示しています）。";
+  } else if (approved) {
+    note.textContent = "歌詞は黒、コールは赤で表示しています。コールの位置は確認済みです。";
+  } else {
+    note.textContent = "歌詞は黒、コールは赤で表示しています。この曲のコールの位置はまだ確認前の自動配置です（「配置要確認」の所は1行前後ずれている可能性があります）。";
+  }
+  panel.appendChild(note);
+  const layout = buildCallTextLayout(lines, calls, { overrides: approved?.placements ?? null });
+  const body = document.createElement("div");
+  panel.appendChild(body);
+  renderCallTextView(body, layout, { showTypes: true, showReview: !approved });
+}
+
+function handleSwipeStart(event) {
+  if (elements.tabs.hidden || event.touches.length !== 1) {
+    swipeStart = null;
+    return;
+  }
+  const touch = event.touches[0];
+  const fromEdge = touch.clientX < SWIPE_EDGE_PX || touch.clientX > window.innerWidth - SWIPE_EDGE_PX;
+  swipeStart = fromEdge ? null : { x: touch.clientX, y: touch.clientY, time: Date.now() };
+}
+
+function handleSwipeEnd(event) {
+  if (!swipeStart) return;
+  const touch = event.changedTouches[0];
+  const dx = touch.clientX - swipeStart.x;
+  const dy = touch.clientY - swipeStart.y;
+  const elapsed = Date.now() - swipeStart.time;
+  swipeStart = null;
+  // 縦スクロール中・ゆっくりした操作では切り替えない（歌詞のスクロールと競合させない）
+  if (Math.abs(dx) < SWIPE_MIN_DX || Math.abs(dx) < Math.abs(dy) * 2 || elapsed > 700) return;
+  if (dx < 0 && currentMode === MODE.SYNC) selectMode(MODE.TEXT);
+  else if (dx > 0 && currentMode === MODE.TEXT) selectMode(MODE.SYNC);
+}
+
+function selectMode(mode) {
+  if (mode === currentMode) return;
+  playSfx(SFX_EVENTS.UI_CLICK);
+  applyMode(mode);
+  if (mode === MODE.TEXT && currentSongId && !elements.textPanel.childElementCount) renderTextPanel(currentSongId);
 }
 
 function handlePlayButtonClick() {
@@ -228,4 +327,9 @@ export function initLiveCallModeScreen(newElements) {
   });
 
   elements.fullscreenButton.addEventListener("click", handleFullscreenButtonClick);
+
+  elements.tabSync.addEventListener("click", () => selectMode(MODE.SYNC));
+  elements.tabText.addEventListener("click", () => selectMode(MODE.TEXT));
+  elements.middleZone.addEventListener("touchstart", handleSwipeStart, { passive: true });
+  elements.middleZone.addEventListener("touchend", handleSwipeEnd, { passive: true });
 }

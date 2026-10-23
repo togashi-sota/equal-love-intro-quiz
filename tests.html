@@ -136,6 +136,7 @@
     import { runLyricsGroupNameTests } from "./tests/lyricsGroupName.test.js";
     import { runSyncTrackingTests } from "./tests/syncTracking.test.js";
     import { runLiveGuideAndSearchSwitchTests } from "./tests/liveGuideAndSearchSwitch.test.js";
+    import { runCallTextModeTests, runCallTextModeMarkupTests } from "./tests/callTextMode.test.js";
     import { runTimeAttackScoreTests } from "./tests/timeAttackScore.test.js";
     import { runTimeAttackHistoryTests } from "./tests/timeAttackHistory.test.js";
     import { runTimeAttackScreenTests } from "./tests/timeAttackScreen.test.js";
@@ -385,6 +386,8 @@
     // 【2026-10-23新設】歌詞・コール表示の追尾性能改善（第1段階）
     await runSyncTrackingTests();
     await runLiveGuideAndSearchSwitchTests();
+    runCallTextModeTests();
+    await runCallTextModeMarkupTests();
     runPresenceSecurityRulesTests();
     runRankingCandidateStoreTests();
     runCenterCelebrationTests();
