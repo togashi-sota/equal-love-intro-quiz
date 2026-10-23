@@ -135,6 +135,7 @@
     import { runCommercialsResearchTests } from "./tests/commercialsResearch.test.js";
     import { runLyricsGroupNameTests } from "./tests/lyricsGroupName.test.js";
     import { runSyncTrackingTests } from "./tests/syncTracking.test.js";
+    import { runLiveGuideAndSearchSwitchTests } from "./tests/liveGuideAndSearchSwitch.test.js";
     import { runTimeAttackScoreTests } from "./tests/timeAttackScore.test.js";
     import { runTimeAttackHistoryTests } from "./tests/timeAttackHistory.test.js";
     import { runTimeAttackScreenTests } from "./tests/timeAttackScreen.test.js";
@@ -383,6 +384,7 @@
     await runLyricsGroupNameTests();
     // 【2026-10-23新設】歌詞・コール表示の追尾性能改善（第1段階）
     await runSyncTrackingTests();
+    await runLiveGuideAndSearchSwitchTests();
     runPresenceSecurityRulesTests();
     runRankingCandidateStoreTests();
     runCenterCelebrationTests();

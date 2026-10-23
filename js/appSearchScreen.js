@@ -188,6 +188,11 @@ export function focusAppSearchInput() {
   elements.input.focus();
 }
 
+// 今入力されている検索語（「歌詞検索へ」で引き継ぐため。全体検索の状態は変えない）
+export function getAppSearchQuery() {
+  return state.query;
+}
+
 // elements: { input, clearButton, categoryRow, status, resultList, moreRow, suggestions }
 // options.onOpenTarget(target): 「ページで詳しく見る」「この機能を開く」が押されたとき（画面遷移は main.js が行う）
 export function initAppSearchScreen(newElements, options = {}) {

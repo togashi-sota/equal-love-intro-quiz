@@ -292,8 +292,9 @@ import { initPlayerScreen, renderPlayerSummary } from "./playerScreen.js";
 import { getPlayerKeyPrefix } from "./playerProfile.js";
 import { needsOnboarding, initOnboardingScreen } from "./onboardingScreen.js";
 import { initGuideScreen, openGuideScreen, openGuideSection, getGuideReturnScreenId } from "./guideScreen.js";
-import { initAppSearchScreen, openAppSearchScreen, shouldFocusAppSearchInput, focusAppSearchInput } from "./appSearchScreen.js";
-import { initLyricsSearchScreen, openLyricsSearchScreen, shouldFocusLyricsSearchInput, focusLyricsSearchInput } from "./lyricsSearchScreen.js";
+import { initAppSearchScreen, openAppSearchScreen, shouldFocusAppSearchInput, focusAppSearchInput, getAppSearchQuery } from "./appSearchScreen.js";
+import { initLyricsSearchScreen, openLyricsSearchScreen, shouldFocusLyricsSearchInput, focusLyricsSearchInput, presetLyricsSearchQuery } from "./lyricsSearchScreen.js";
+import { initLiveGuideScreen, openLiveGuideScreen } from "./liveGuideScreen.js";
 import { initFanProfilesScreen, renderFanProfilesScreen } from "./fanProfilesScreen.js";
 import { initAdminBackupScreen, renderAdminBackupScreen } from "./adminBackupScreen.js";
 import { initAdminUidRepairScreen, resetAdminUidRepairScreen } from "./adminUidRepairScreen.js";
@@ -5860,6 +5861,29 @@ async function openLyricsSearchAndNavigate() {
   await openLyricsSearchScreen();
   if (shouldFocusLyricsSearchInput()) focusLyricsSearchInput();
 }
+// 【2026-10-24新設】ライブ初心者ガイド。ガイド内の「コールを練習してみる」等は、全体検索の「この機能を開く」と
+// 同じ openSearchFeatureAction() で既存機能を開く（各画面の準備処理を二重に書かないため）。
+initLiveGuideScreen(
+  { container: document.getElementById("live-guide-content") },
+  { onOpenAction: (action) => openSearchFeatureAction(action) }
+);
+document.getElementById("live-guide-link").addEventListener("click", () => {
+  playClickSound();
+  openLiveGuideScreen();
+  navigateWithScrollMemory("liveGuide");
+});
+document.getElementById("live-guide-back-button").addEventListener("click", () => {
+  playSfx(SFX_EVENTS.UI_BACK);
+  navigateWithScrollMemory("start");
+});
+
+// 【2026-10-24新設】全体検索の上部「歌詞検索へ」：入力中の言葉は、歌詞検索の入力欄が空のときだけ引き継ぐ
+document.getElementById("app-search-to-lyrics-button").addEventListener("click", async () => {
+  playClickSound();
+  searchReturn = null;
+  presetLyricsSearchQuery(getAppSearchQuery());
+  await openLyricsSearchAndNavigate();
+});
 document.getElementById("lyrics-search-link").addEventListener("click", async () => {
   playClickSound();
   searchReturn = null;

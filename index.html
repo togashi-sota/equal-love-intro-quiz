@@ -577,6 +577,16 @@
           <span class="know-more-label">メンバー紹介</span>
           <span class="know-more-description">現役10人と卒業メンバーを見る</span>
         </button>
+        <!-- 【2026-10-24新設・本人指示】ライブ初心者ガイド（#live-guide-screen、js/liveGuideScreen.js）への入口 -->
+        <button id="live-guide-link" class="know-more-button know-more-button-wide" type="button">
+          <svg class="know-more-icon" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+            <rect x="13.5" y="13" width="5" height="16" rx="2.5" fill="#4a2e42" opacity="0.75"/>
+            <rect x="12" y="3" width="8" height="12" rx="4" fill="#ff6fa8"/>
+            <path d="M8 6.5 5 4.5M24 6.5l3-2M7 12H3.5M25 12h3.5" stroke="#ffd93d" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          <span class="know-more-label">ライブ初心者ガイド</span>
+          <span class="know-more-description">初めてのライブの準備・持ち物・ペンライト・マナー</span>
+        </button>
       </div>
 
       <!-- 効果音のON/OFF設定（2026-08-06追加）。端末共通（プレイヤーごとではない）の設定として、
@@ -1604,6 +1614,27 @@
          showScreen("guide")の1つだけ）。中身はjs/guideScreen.js・js/data/guideContent.jsが
          組み立てる。既存の各モードの「？」ヘルプ（ルール中心の説明）とは役割を分けており、
          こちらは「まだ触ったことのない機能を見つけてもらう」チュートリアル形式にしている。 -->
+    <!-- 【2026-10-24新設・本人指示】＝LOVEライブ初心者ガイド。中身は js/liveGuideScreen.js が
+         js/data/liveGuideContent.js から組み立てる。持ち物チェックはこの端末の localStorage にだけ保存する。 -->
+    <section id="live-guide-screen" class="screen">
+      <div class="list-header">
+        <button id="live-guide-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            FIRST LIVE GUIDE
+          </p>
+          <h2>ライブ初心者ガイド</h2>
+        </div>
+      </div>
+      <div id="live-guide-content" class="live-guide-content"></div>
+    </section>
+
     <!-- 【2026-10-23新設・本人資料】全体検索（アプリ内検索）画面。js/appSearchScreen.js が描画する。
          検索語・カテゴリ・表示件数・開いている結果は同じ利用中だけ覚え、保存はしない。 -->
     <section id="app-search-screen" class="screen search-screen">
@@ -1621,6 +1652,19 @@
           </p>
           <h2>アプリ内検索</h2>
         </div>
+      </div>
+      <!-- 【2026-10-24新設・本人指示】全体検索から歌詞検索へ移れる切り替え。歌詞検索側に「全体検索へ戻る」切り替えは置かない
+           （戻る・ホームの既存操作のまま）。入力中の言葉は、歌詞検索の入力欄が空のときだけ引き継ぐ（js/main.js 参照）。 -->
+      <div class="search-mode-switch" role="group" aria-label="検索の種類">
+        <span class="search-mode-tab is-current" aria-current="page">
+          <svg class="search-mode-tab-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="2.2"/><path d="m16 16 4.5 4.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+          <span class="search-mode-tab-text"><strong>全体検索</strong><small>メンバー・曲・CM・ライブ</small></span>
+        </span>
+        <button id="app-search-to-lyrics-button" class="search-mode-tab" type="button">
+          <svg class="search-mode-tab-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 18V5l11-2v13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6.5" cy="18" r="2.5" stroke="currentColor" stroke-width="2.2"/><circle cx="17.5" cy="16" r="2.5" stroke="currentColor" stroke-width="2.2"/></svg>
+          <span class="search-mode-tab-text"><strong>歌詞検索へ</strong><small>歌詞の一部から曲を探す</small></span>
+          <span class="search-mode-tab-arrow" aria-hidden="true">›</span>
+        </button>
       </div>
       <div class="search-screen-field">
         <span class="search-screen-field-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="2.2"/><path d="m16 16 4.5 4.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>

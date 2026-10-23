@@ -20,6 +20,7 @@ const SCREEN_ELEMENTS = {
   // 【2026-10-23新設】全体検索・歌詞検索
   appSearch: document.getElementById("app-search-screen"),
   lyricsSearch: document.getElementById("lyrics-search-screen"),
+  liveGuide: document.getElementById("live-guide-screen"),
   fanProfiles: document.getElementById("fan-profiles-screen"),
   adminBackup: document.getElementById("admin-backup-screen"),
   debugAudioLog: document.getElementById("debug-audio-log-screen"),

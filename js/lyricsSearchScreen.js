@@ -272,6 +272,18 @@ function resetSearch() {
   elements.input.focus();
 }
 
+// 【2026-10-24追加】全体検索の「歌詞検索へ」から来たとき、全体検索に入力していた言葉を引き継ぐ。
+// 歌詞検索に前の検索語が残っているときは上書きしない（歌詞検索の検索内容を壊さないため）。
+// 引き継いだら true。画面への反映は、このあと呼ぶ openLyricsSearchScreen() が行う。
+export function presetLyricsSearchQuery(query) {
+  const trimmed = typeof query === "string" ? query.trim() : "";
+  if (state.query !== "" || trimmed === "") return false;
+  state.query = trimmed;
+  state.visibleCount = SEARCH_PAGE_SIZE;
+  state.expandedKeys.clear();
+  return true;
+}
+
 // 画面を開くたびに呼ぶ。端末内の歌詞データを読み直す（データ管理で歌詞を追加した直後でも反映されるように）。
 // 歌詞データはここで読み取るだけで、変更・保存はしない。
 export async function openLyricsSearchScreen() {
