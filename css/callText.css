@@ -71,7 +71,10 @@
 .call-text-line {
   margin: 0;
   font-size: 1.02rem;
-  word-break: break-word;
+  /* 【2026-10-25 スマホ幅の改善】以前は word-break: break-word で、赤いコールが画面の端で
+     「（開｜け！）」のように途中で切れていた。普通の折り返しにして、はみ出しそうなときだけ途中で折る */
+  overflow-wrap: anywhere;
+  line-break: strict;
 }
 
 .call-text-line-no {
@@ -90,12 +93,28 @@
 .call-text-calls {
   margin: 0;
   font-size: 0.98rem;
-  word-break: break-word;
+  overflow-wrap: anywhere;
+  line-break: strict;
 }
 
 .call-text-call {
   color: #e0262d;
   font-weight: 700;
+}
+
+/* 【2026-10-25 スマホ幅の改善】コール1つを、折り返しの1単位として扱う。入りきらなければコールごと次の行へ送り、
+   短いコールが途中で切れないようにする。画面幅より長いコール（MIXなど）だけ、コールの中で自然に折り返す */
+.call-text-line .call-text-call,
+.call-text-calls .call-text-call {
+  display: inline-block;
+  max-width: 100%;
+  text-indent: 0;
+}
+
+/* 本人が改行を入れたコールは、ひとかたまりにせず文章と同じように流す（改行の位置は本人の指定どおり） */
+.call-text-line .call-text-call.has-break,
+.call-text-calls .call-text-call.has-break {
+  display: inline;
 }
 
 /* 歌詞と同時に入るコールは、歌詞の横に（ ）付きで並べる（横幅が足りなければ自然に折り返す） */

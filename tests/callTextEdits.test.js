@@ -16,7 +16,7 @@ const keyOf = (c) => callKey(c);
 const record = (c, extra) => ({ lineNo: 1, position: "inline", originalTextHash: hashText(c.text), ...extra });
 const order = (layout) => layout.items.flatMap((i) => (i.kind === "block" ? i.calls : [...i.before, ...i.inline, ...i.after])).map((c) => c.text);
 
-export function runCallTextEditsTests() {
+export async function runCallTextEditsTests() {
   console.log("--- ライブコール文字モード（編集・承認データ） ---");
 
   // 指紋
@@ -121,5 +121,27 @@ export function runCallTextEditsTests() {
     assertEqual(calls.map((c) => c.classList.contains("is-pre")), [true, false], "空白の表示：直した文章だけ空白・改行をそのまま見せる（元のコールは今までどおり）");
     assertEqual(box.querySelector('.call-text-group[data-line-no="2"] .call-text-lyric').classList.contains("is-pre"), true, "空白の表示：表示用の歌詞は空白・改行をそのまま見せる");
     assertEqual(box.querySelector('.call-text-group[data-line-no="1"] .call-text-lyric').classList.contains("is-pre"), false, "空白の表示：元の歌詞の行は今までどおり");
+  }
+
+  // 【2026-10-25追加3】スマホ幅の折り返し・区切りの空白・編集用の入口
+  if (typeof document !== "undefined") {
+    const spaceLine = [{ line: 1, text: "ダミーA！　ダミーB！", start: 10, end: 14 }];
+    const anchored = buildCallTextLayout(spaceLine, [call(10.5, "callback", "掛け声")], {
+      overrides: { [keyOf(call(10.5, "callback", "掛け声"))]: { lineNo: 1, position: "inline", offset: 6, lineTextHash: hashText(spaceLine[0].text) } },
+    });
+    const box1 = document.createElement("div");
+    renderCallTextView(box1, anchored, {});
+    assertEqual(box1.querySelector(".call-text-line").textContent, "ダミーA！　掛け声 ダミーB！", "区切りの空白：歌詞がすでに空白で終わるときは足さない（間が空きすぎない）");
+    const units = [];
+    const box2 = document.createElement("div");
+    renderCallTextView(box2, wordLayout, { unitHook: (node, unit) => units.push(unit.kind === "lyric" ? [unit.start, unit.end] : unit.call.text) });
+    assertEqual(units, [[0, 5], "掛け声1", [5, WORD_LINE[0].text.length], "掛け声2"], "編集用の入口：歌詞の一部（文字の範囲）とコールが表示順に渡る");
+    assertEqual(box2.querySelector(".call-text-line").textContent.replace(/\s/g, ""), "ダミーA！掛け声1ダミーB！掛け声2", "編集用の入口：表示は変わらない");
+    const box3 = document.createElement("div");
+    renderCallTextView(box3, buildCallTextLayout(LINES, [{ ...call(11, "callback", "一行目\n二行目"), edited: true }, call(17, "callback", "そのまま")]), {});
+    assertEqual([...box3.querySelectorAll(".call-text-call")].map((c) => c.classList.contains("has-break")), [true, false], "本人が改行を入れたコールは、ひとかたまりにせず文章として流す");
+    const css = await (await fetch("./css/callText.css", { cache: "no-store" })).text();
+    assertEqual(/\.call-text-line \.call-text-call,\s*\.call-text-calls \.call-text-call \{\s*display: inline-block;/.test(css), true, "スマホ幅：コールは折り返しの1単位（短いコールが途中で切れない）");
+    assertEqual(/word-break: break-word/.test(css.replace(/\/\*[\s\S]*?\*\//g, "")), false, "スマホ幅：コールを途中で切る指定を使わない（説明のコメントは除いて確かめる）");
   }
 }
