@@ -8,9 +8,13 @@
 // 1曲分の編集データ（entry）の形：
 // {
 //   songId, baseFingerprint,          … 編集したときのコール一式の指紋（computeCallsFingerprint）
-//   calls: { [callKey]: { lineNo, position, order?, hidden?, editedText?, originalTextHash } },
-//   added: [ { key: "added-…", text, type, lineNo, position, order } ]   … 本人が文字モード用に追加したコール
+//   calls: { [callKey]: { lineNo, position, order?, offset?, lineTextHash?, hidden?, editedText?, split?, originalTextHash } },
+//   added: [ { key: "added-…", text, type, lineNo, position, order, offset?, lineTextHash? } ]   … 本人が文字モード用に追加したコール
 // }
+// offset・lineTextHash：行の途中の文字位置に置くとき（js/callTextLayout.js の説明）。
+// split：1件のコール（例「おい！　おい！　おい！　おい！」）を文字モードだけで複数に分けて別々の位置に置くとき。
+//   { at: [区切る文字位置…], parts: [ { lineNo, position, order?, offset?, lineTextHash? }, … ] }（parts は at の数＋1）
+//   分けた表示単位のキーは「元のキー#1」「元のキー#2」…。分けた文章をつなげると必ず元の文章に戻る（欠けない・重ならない）。
 // 歌詞本文は含めない。editedText・added の text はコール本文なので、公開してよいかは採用時に別に判断する。
 
 export const CALL_TEXT_EDITS_SCHEMA = "equal-love-call-text-edits";
@@ -29,6 +33,35 @@ export function hashText(text) {
 
 function baseKey(call) {
   return `${call.type}@${Number(call.start).toFixed(2)}`;
+}
+
+// 文章を区切る：at（文字位置。昇順・範囲内・サロゲートペアの途中でない）で分け、各部分が空白だけにならないこと。
+// 使えない区切りなら null。つなげると元の文章に戻る。
+export function splitTextAt(text, at) {
+  const source = String(text ?? "");
+  if (!Array.isArray(at) || at.length === 0) return null;
+  let previous = 0;
+  const parts = [];
+  for (const index of at) {
+    if (!Number.isInteger(index) || index <= previous || index >= source.length) return null;
+    const code = source.charCodeAt(index);
+    if (code >= 0xdc00 && code <= 0xdfff) return null;
+    parts.push(source.slice(previous, index));
+    previous = index;
+  }
+  parts.push(source.slice(previous));
+  if (parts.some((part) => part.trim() === "") || parts.join("") !== source) return null;
+  return parts;
+}
+
+// 位置情報だけを取り出す（文字位置・並び順は持っているときだけ）
+export function placementOf(record) {
+  return {
+    lineNo: record.lineNo,
+    position: record.position,
+    ...(Number.isFinite(record.order) ? { order: record.order } : {}),
+    ...(Number.isInteger(record.offset) ? { offset: record.offset, lineTextHash: record.lineTextHash } : {}),
+  };
 }
 
 // コール一式の指紋（キーと本文。並び順に左右されない）
@@ -65,8 +98,21 @@ export function applyCallTextEntry(baseCalls, entry) {
       return;
     }
     const text = typeof record.editedText === "string" && record.editedText.trim() !== "" ? record.editedText : call.text;
+    if (record.split) {
+      const pieces = splitTextAt(text, record.split.at);
+      if (pieces && Array.isArray(record.split.parts) && record.split.parts.length === pieces.length) {
+        pieces.forEach((piece, index) => {
+          const partKey = `${key}#${index + 1}`;
+          // 分けた表示単位も元のコールと同じ時刻の扱い（順番は分けた順）
+          calls.push({ ...call, key: partKey, text: piece.trim(), start: call.start + index * 0.001, edited: text !== call.text, splitFrom: key, splitIndex: index, splitCount: pieces.length });
+          overrides[partKey] = placementOf(record.split.parts[index]);
+        });
+        return;
+      }
+      mismatches.push({ key, reason: "分割の位置が本文と合わない" });
+    }
     calls.push({ ...call, text, edited: text !== call.text });
-    overrides[key] = { lineNo: record.lineNo, position: record.position, ...(Number.isFinite(record.order) ? { order: record.order } : {}) };
+    overrides[key] = placementOf(record);
   });
   Object.keys(records).forEach((key) => {
     if (!seen.has(key)) mismatches.push({ key, reason: "端末のコールに見つからない" });
@@ -75,7 +121,7 @@ export function applyCallTextEntry(baseCalls, entry) {
     if (typeof added?.key !== "string" || typeof added.text !== "string" || added.text.trim() === "") return;
     const order = Number.isFinite(added.order) ? added.order : 0;
     calls.push({ key: added.key, text: added.text, type: added.type ?? "unique", start: order, end: order + 1.5, added: true });
-    overrides[added.key] = { lineNo: added.lineNo, position: added.position, order };
+    overrides[added.key] = { ...placementOf(added), order };
   });
   return {
     calls,

@@ -43,6 +43,28 @@ function callRow(calls, className, options) {
   return row;
 }
 
+// 歌詞本文を、文字位置に置いたコール（item.anchored）の所で区切って、黒と赤が交互になるように並べる。
+// 歌詞本文は区切るだけで、文字を足したり消したりしない（区切った部分をつなげると元の行になる）。
+function appendLyricWithAnchoredCalls(line, item, options) {
+  const text = item.text ?? "";
+  const groups = item.anchored ?? [];
+  if (!groups.length) {
+    line.appendChild(el("span", "call-text-lyric", text));
+    return;
+  }
+  let position = 0;
+  groups.forEach((group) => {
+    if (group.offset > position) line.appendChild(el("span", "call-text-lyric", text.slice(position, group.offset)));
+    group.calls.forEach((call) => {
+      if (line.childNodes.length && !line.lastChild.classList?.contains("call-text-line-no")) line.appendChild(document.createTextNode(" "));
+      line.appendChild(callSpan(call, options));
+    });
+    line.appendChild(document.createTextNode(" "));
+    position = group.offset;
+  });
+  if (position < text.length) line.appendChild(el("span", "call-text-lyric", text.slice(position)));
+}
+
 // container に全文コール表を描く。
 // options: { showTypes: MIXの印を出すか, showReview: 配置要確認の印を出すか, showLineNumbers, onCallClick }
 export function renderCallTextView(container, layout, options = {}) {
@@ -61,7 +83,7 @@ export function renderCallTextView(container, layout, options = {}) {
     if (item.before.length) group.appendChild(callRow(item.before, "is-before", options));
     const line = el("p", "call-text-line");
     if (options.showLineNumbers) line.appendChild(el("span", "call-text-line-no", String(item.lineNo)));
-    line.appendChild(el("span", "call-text-lyric", item.text));
+    appendLyricWithAnchoredCalls(line, item, options);
     item.inline.forEach((call) => {
       line.appendChild(document.createTextNode(" "));
       line.appendChild(callSpan(call, options));

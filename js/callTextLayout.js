@@ -8,6 +8,13 @@
 // 承認済みの位置情報（overrides）があればそれを優先する。無い場合だけ時刻から推定し、行の境目で
 // 判断しにくいものには needsReview（配置要確認）を付ける。
 // どの場合も、既存のコールは1件ずつ必ず1回だけ表示する（増やさない・減らさない・本文を変えない）。
+//
+// 【2026-10-25追加：文字位置】「横（同時）」のコールは、行の途中の文字位置（offset）にも置ける
+// （例：「叫べ！」の後に「おい！」）。offset は歌詞本文の先頭からの位置（JavaScript の文字列の位置）で、
+// エディターが文字の区切り（絵文字や結合文字の途中ではない所）だけを選ぶ。歌詞本文は書き換えない。
+// 位置を決めたときの歌詞の行の指紋（lineTextHash）と端末の歌詞が違う場合は、文字位置を使わず行の横に出す
+// （誤った文字位置に差し込まない）。offset の無いコールは、これまでどおり行の横（行末）に並ぶ。
+import { hashText } from "./callTextEdits.js";
 
 export const CALL_POSITION = {
   INTRO: "intro", // 1行目より前
@@ -27,6 +34,15 @@ const OUTRO_AFTER_SEC = 2; // 最後の行の終わりからこれ以上後は�
 export function callKey(call) {
   if (typeof call.key === "string" && call.key) return call.key;
   return `${call.type}@${Number(call.start).toFixed(2)}`;
+}
+
+// 文字位置が使えるか：歌詞が位置を決めたときと同じで、位置が本文の範囲内・サロゲートペアの途中でないこと
+export function isValidLineOffset(line, offset, lineTextHash) {
+  if (!line || !Number.isInteger(offset) || typeof lineTextHash !== "string") return false;
+  const text = String(line.text ?? "");
+  if (offset < 0 || offset > text.length || hashText(text) !== lineTextHash) return false;
+  const code = text.charCodeAt(offset);
+  return !(code >= 0xdc00 && code <= 0xdfff); // 下位サロゲート＝絵文字などの途中
 }
 
 export function sortCalls(calls) {
@@ -66,17 +82,20 @@ export function estimateCallPlacement(lines, call) {
 }
 
 // lines: [{ line, text, start, end }]（端末内の歌詞データ）、calls: [{ text, start, end, type }]（端末内のコールデータ）
-// overrides: { [callKey]: { lineNo, position, needsReview?, order? } }（承認済み・または確認用の位置情報。無ければ時刻から推定）
+// overrides: { [callKey]: { lineNo, position, needsReview?, order?, offset?, lineTextHash? } }（承認済み・または確認用の位置情報。無ければ時刻から推定）
 //   order：同じ行・同じ位置に複数のコールがあるときの並び順（小さい順。省略時はコールの開始時刻）
+//   offset・lineTextHash：position が inline のときだけ。行の途中の文字位置（上の説明）
 // uncertainLineNos: 歌詞の時刻が不確かな行番号（確認用プレビューだけが渡す。その行に推定で置いたコールは要確認にする）
 // 戻り値：{ items, placements, stats }
 //   items は表示順の並び：{ kind: "block", position: "intro"|"interlude"|"outro", lineNo, calls } または
-//                         { kind: "line", lineNo, text, before: [], inline: [], after: [] }
+//                         { kind: "line", lineNo, text, before: [], inline: [], after: [], anchored: [{ offset, calls }] }
+//   anchored は文字位置に置いたコール（offset の小さい順）。inline は行の横（行末）のコール
 //   各コールは { callIndex, key, text, type, needsReview, source: "override"|"estimate", reason }
 export function buildCallTextLayout(lines, calls, { overrides = null, uncertainLineNos = null } = {}) {
   const sortedLines = [...(lines ?? [])].sort((a, b) => a.line - b.line);
   const sortedCalls = sortCalls(calls);
   const lineNos = new Set(sortedLines.map((l) => l.line));
+  const lineByNo = new Map(sortedLines.map((l) => [l.line, l]));
   const placements = sortedCalls.map((call, callIndex) => {
     const key = callKey(call);
     const override = overrides?.[key];
@@ -89,6 +108,10 @@ export function buildCallTextLayout(lines, calls, { overrides = null, uncertainL
     if (overrideValid) {
       placement = { lineNo: override.lineNo, position: override.position, needsReview: Boolean(override.needsReview), reason: override.reason ?? "位置情報あり" };
       source = "override";
+      if (override.position === CALL_POSITION.INLINE && override.offset !== undefined && override.offset !== null) {
+        if (isValidLineOffset(lineByNo.get(override.lineNo), override.offset, override.lineTextHash)) placement.offset = override.offset;
+        else placement.anchorFallback = true; // 歌詞が違う：文字位置は使わず行の横に出す
+      }
     } else {
       placement = estimateCallPlacement(sortedLines, call);
       if (uncertainLineNos?.has(placement.lineNo)) {
@@ -106,7 +129,17 @@ export function buildCallTextLayout(lines, calls, { overrides = null, uncertainL
   if (intro.length) items.push({ kind: "block", position: CALL_POSITION.INTRO, lineNo: sortedLines[0]?.line ?? null, calls: intro });
   sortedLines.forEach((line, index) => {
     const at = (position) => byOrder(placements.filter((p) => p.lineNo === line.line && p.position === position));
-    items.push({ kind: "line", lineNo: line.line, text: line.text, before: at(CALL_POSITION.BEFORE), inline: at(CALL_POSITION.INLINE), after: at(CALL_POSITION.AFTER) });
+    const inlineAll = at(CALL_POSITION.INLINE);
+    const offsets = [...new Set(inlineAll.filter((p) => p.offset !== undefined).map((p) => p.offset))].sort((a, b) => a - b);
+    items.push({
+      kind: "line",
+      lineNo: line.line,
+      text: line.text,
+      before: at(CALL_POSITION.BEFORE),
+      inline: inlineAll.filter((p) => p.offset === undefined),
+      after: at(CALL_POSITION.AFTER),
+      anchored: offsets.map((offset) => ({ offset, calls: inlineAll.filter((p) => p.offset === offset) })),
+    });
     const interlude = at(CALL_POSITION.INTERLUDE);
     if (interlude.length) items.push({ kind: "block", position: CALL_POSITION.INTERLUDE, lineNo: line.line, calls: interlude });
     if (index === sortedLines.length - 1) {
@@ -116,7 +149,11 @@ export function buildCallTextLayout(lines, calls, { overrides = null, uncertainL
   });
 
   const shown = items.reduce(
-    (sum, item) => sum + (item.kind === "block" ? item.calls.length : item.before.length + item.inline.length + item.after.length),
+    (sum, item) =>
+      sum +
+      (item.kind === "block"
+        ? item.calls.length
+        : item.before.length + item.inline.length + item.after.length + item.anchored.reduce((n, group) => n + group.calls.length, 0)),
     0
   );
   return {
@@ -128,6 +165,7 @@ export function buildCallTextLayout(lines, calls, { overrides = null, uncertainL
       shownCalls: shown,
       reviewCalls: placements.filter((p) => p.needsReview).length,
       overrideCalls: placements.filter((p) => p.source === "override").length,
+      anchorFallbacks: placements.filter((p) => p.anchorFallback).length,
     },
   };
 }

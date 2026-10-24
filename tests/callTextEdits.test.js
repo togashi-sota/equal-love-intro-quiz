@@ -1,7 +1,8 @@
 // 【2026-10-25新設】ライブコール文字モードの「本人が編集・承認した内容」を当てはめる部品の回帰テスト。
 // 実在の歌詞・コールは使わず、テスト用のダミーだけで行う。
-import { buildCallTextLayout, callKey } from "../js/callTextLayout.js";
-import { applyCallTextEntry, computeCallsFingerprint, hashText, resolveApprovedCallText } from "../js/callTextEdits.js";
+import { buildCallTextLayout, callKey, isValidLineOffset } from "../js/callTextLayout.js";
+import { applyCallTextEntry, computeCallsFingerprint, hashText, resolveApprovedCallText, splitTextAt } from "../js/callTextEdits.js";
+import { renderCallTextView } from "../js/callTextView.js";
 import { assertEqual } from "./test-utils.js";
 
 const LINES = [
@@ -69,4 +70,40 @@ export function runCallTextEditsTests() {
   assertEqual([refused.approved, refused.mismatch, refused.overrides, refused.calls], [false, true, null, otherVersion], "承認：別の版のコールには何も当てはめず未確認に戻す");
   const extraCall = resolveApprovedCallText([...CALLS, call(30)], entry);
   assertEqual([extraCall.approved, extraCall.mismatch], [false, true], "承認：コールが増えた端末にも当てはめない（指紋の違い）");
+
+  // 【2026-10-25追加】行の途中の文字位置
+  const WORD_LINE = [{ line: 1, text: "ダミーA！　ダミーB！", start: 10, end: 14 }];
+  const shouts = [call(10.5, "callback", "掛け声1"), call(12.5, "callback", "掛け声2")];
+  const anchor = (offset) => ({ lineNo: 1, position: "inline", offset, lineTextHash: hashText(WORD_LINE[0].text) });
+  const wordLayout = buildCallTextLayout(WORD_LINE, shouts, { overrides: { [keyOf(shouts[0])]: anchor(5), [keyOf(shouts[1])]: anchor(WORD_LINE[0].text.length) } });
+  assertEqual(wordLayout.items[0].anchored.map((g) => [g.offset, g.calls.map((c) => c.text)]), [[5, ["掛け声1"]], [WORD_LINE[0].text.length, ["掛け声2"]]], "文字位置：フレーズの後ろに1件ずつ");
+  assertEqual([wordLayout.items[0].inline.length, wordLayout.stats.shownCalls], [0, 2], "文字位置：行末に残らず、件数も合う");
+  const otherLyrics = [{ ...WORD_LINE[0], text: "違う歌詞" }];
+  const fallback = buildCallTextLayout(otherLyrics, shouts, { overrides: { [keyOf(shouts[0])]: anchor(4) } });
+  assertEqual([fallback.items[0].anchored.length, fallback.items[0].inline.length, fallback.stats.anchorFallbacks], [0, 2, 1], "文字位置：歌詞が違えば文字位置を使わず行の横へ");
+  assertEqual([isValidLineOffset({ text: "あ😀い" }, 2, hashText("あ😀い")), isValidLineOffset({ text: "あ😀い" }, 3, hashText("あ😀い"))], [false, true], "文字位置：絵文字の途中には置けない");
+  if (typeof document !== "undefined") {
+    const box = document.createElement("div");
+    renderCallTextView(box, wordLayout, {});
+    const line = box.querySelector(".call-text-line");
+    assertEqual([...line.querySelectorAll(".call-text-lyric")].map((n) => n.textContent).join(""), WORD_LINE[0].text, "文字位置の表示：歌詞をつなげると元の行（文字を足さない・消さない）");
+    assertEqual(line.textContent.replace(/\s/g, ""), "ダミーA！掛け声1ダミーB！掛け声2", "文字位置の表示：黒と赤が交互");
+  }
+
+  // 【2026-10-25追加】1件のコールの分割（文字モードだけ）
+  assertEqual(splitTextAt("A！　B！　C！", [2, 5]), ["A！", "　B！", "　C！"], "分割：区切った文章");
+  assertEqual(splitTextAt("A！　B！", [2, 3]), null, "分割：空白だけの部分は作れない");
+  assertEqual(splitTextAt("A！B", [0]), null, "分割：先頭では区切れない");
+  const multi = call(40, "callback", "A！　B！　C！");
+  const splitEntry = {
+    calls: { [keyOf(multi)]: { lineNo: 1, position: "after", originalTextHash: hashText(multi.text), split: { at: [2, 5], parts: [{ lineNo: 1, position: "after" }, { lineNo: 2, position: "after" }, { lineNo: 3, position: "inline" }] } } },
+  };
+  const splitApplied = applyCallTextEntry([multi], splitEntry);
+  assertEqual(splitApplied.calls.map((c) => [c.key, c.text]), [[`${keyOf(multi)}#1`, "A！"], [`${keyOf(multi)}#2`, "B！"], [`${keyOf(multi)}#3`, "C！"]], "分割：表示単位に分ける");
+  assertEqual(multi.text, "A！　B！　C！", "分割：元のコールデータは変えない");
+  const splitLayout = buildCallTextLayout(LINES, splitApplied.calls, { overrides: splitApplied.overrides });
+  assertEqual([2, 3].map((n) => splitLayout.items.find((i) => i.kind === "line" && i.lineNo === n)[n === 2 ? "after" : "inline"].map((c) => c.text)), [["B！"], ["C！"]], "分割：それぞれ別の位置に置ける");
+  const badSplit = applyCallTextEntry([multi], { calls: { [keyOf(multi)]: { ...splitEntry.calls[keyOf(multi)], split: { at: [2], parts: [{ lineNo: 1, position: "after" }] } } } });
+  assertEqual([badSplit.mismatches.map((m) => m.reason), badSplit.calls.length], [["分割の位置が本文と合わない"], 1], "分割：区切りと表示単位の数が合わなければ分けない");
+  assertEqual(resolveApprovedCallText([multi], { ...splitEntry, calls: { [keyOf(multi)]: { ...splitEntry.calls[keyOf(multi)], originalTextHash: hashText("別の本文") } } }).mismatch, true, "分割：本文が違う端末には当てはめない");
 }
