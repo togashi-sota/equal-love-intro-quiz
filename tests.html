@@ -137,6 +137,7 @@
     import { runSyncTrackingTests } from "./tests/syncTracking.test.js";
     import { runLiveGuideAndSearchSwitchTests } from "./tests/liveGuideAndSearchSwitch.test.js";
     import { runCallTextModeTests, runCallTextModeMarkupTests } from "./tests/callTextMode.test.js";
+    import { runCallTextEditsTests } from "./tests/callTextEdits.test.js";
     import { runTimeAttackScoreTests } from "./tests/timeAttackScore.test.js";
     import { runTimeAttackHistoryTests } from "./tests/timeAttackHistory.test.js";
     import { runTimeAttackScreenTests } from "./tests/timeAttackScreen.test.js";
@@ -388,6 +389,7 @@
     await runLiveGuideAndSearchSwitchTests();
     runCallTextModeTests();
     await runCallTextModeMarkupTests();
+    runCallTextEditsTests();
     runPresenceSecurityRulesTests();
     runRankingCandidateStoreTests();
     runCenterCelebrationTests();

@@ -4,5 +4,9 @@
 // 確認用プレビュー（tools/live-call-text/preview.html、ローカル専用）の「承認済みの配置を書き出す」で作った内容を、
 // 本人の確認後にここへ追加する。承認前の曲は空のまま（時刻からの推定で並べ、「配置要確認」を表示する）。
 //
-// 形式：{ [songId]: { approvedAt: "YYYY-MM-DD", placements: { [callKey]: { lineNo, position } } } }
+// 形式（旧）：{ [songId]: { approvedAt: "YYYY-MM-DD", placements: { [callKey]: { lineNo, position } } } }
+// 形式（新・2026-10-25）：コール表エディター（tools/live-call-text/editor.html）の「承認済みデータを書き出す」の1曲分
+//   { [songId]: { approvedAt, baseFingerprint, calls: { [callKey]: { lineNo, position, order?, hidden?, editedText?, originalTextHash } }, added: [...] } }
+//   当てはめは js/callTextEdits.js の resolveApprovedCallText（端末のコールと照合し、違えば当てはめない）。
+//   editedText・added の文章はコール本文なので、ここ（公開されるファイル）へ入れてよいかは本人に確認してから決める。
 export const APPROVED_CALL_TEXT_PLACEMENTS = {};

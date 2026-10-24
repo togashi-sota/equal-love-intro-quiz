@@ -23,7 +23,9 @@ const INTERLUDE_GAP_SEC = 4; // 行と行の間がこれ以上空いていれば
 const OUTRO_AFTER_SEC = 2; // 最後の行の終わりからこれ以上後はアウトロ
 
 // コールを特定するための安定したキー（種類＋開始時刻）。本文は含めない（位置情報を公開しても本文が出ないように）。
+// 本人が文字モード用に追加したコール（js/callTextEdits.js）は、自分のキー（key）を持つのでそれを使う。
 export function callKey(call) {
+  if (typeof call.key === "string" && call.key) return call.key;
   return `${call.type}@${Number(call.start).toFixed(2)}`;
 }
 
@@ -64,7 +66,8 @@ export function estimateCallPlacement(lines, call) {
 }
 
 // lines: [{ line, text, start, end }]（端末内の歌詞データ）、calls: [{ text, start, end, type }]（端末内のコールデータ）
-// overrides: { [callKey]: { lineNo, position, needsReview? } }（承認済み・または確認用の位置情報。無ければ時刻から推定）
+// overrides: { [callKey]: { lineNo, position, needsReview?, order? } }（承認済み・または確認用の位置情報。無ければ時刻から推定）
+//   order：同じ行・同じ位置に複数のコールがあるときの並び順（小さい順。省略時はコールの開始時刻）
 // uncertainLineNos: 歌詞の時刻が不確かな行番号（確認用プレビューだけが渡す。その行に推定で置いたコールは要確認にする）
 // 戻り値：{ items, placements, stats }
 //   items は表示順の並び：{ kind: "block", position: "intro"|"interlude"|"outro", lineNo, calls } または
@@ -93,14 +96,16 @@ export function buildCallTextLayout(lines, calls, { overrides = null, uncertainL
       }
       source = "estimate";
     }
-    return { callIndex, key, text: call.text, type: call.type, start: call.start, source, ...placement };
+    const order = overrideValid && Number.isFinite(override.order) ? override.order : call.start;
+    return { callIndex, key, text: call.text, type: call.type, start: call.start, added: Boolean(call.added), order, source, ...placement };
   });
 
   const items = [];
-  const intro = placements.filter((p) => p.position === CALL_POSITION.INTRO || (p.lineNo === null && sortedLines.length === 0));
+  const byOrder = (list) => [...list].sort((a, b) => a.order - b.order || a.callIndex - b.callIndex);
+  const intro = byOrder(placements.filter((p) => p.position === CALL_POSITION.INTRO || (p.lineNo === null && sortedLines.length === 0)));
   if (intro.length) items.push({ kind: "block", position: CALL_POSITION.INTRO, lineNo: sortedLines[0]?.line ?? null, calls: intro });
   sortedLines.forEach((line, index) => {
-    const at = (position) => placements.filter((p) => p.lineNo === line.line && p.position === position);
+    const at = (position) => byOrder(placements.filter((p) => p.lineNo === line.line && p.position === position));
     items.push({ kind: "line", lineNo: line.line, text: line.text, before: at(CALL_POSITION.BEFORE), inline: at(CALL_POSITION.INLINE), after: at(CALL_POSITION.AFTER) });
     const interlude = at(CALL_POSITION.INTERLUDE);
     if (interlude.length) items.push({ kind: "block", position: CALL_POSITION.INTERLUDE, lineNo: line.line, calls: interlude });

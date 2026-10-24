@@ -107,7 +107,7 @@ export async function runCallTextModeMarkupTests() {
   assertEqual(html.includes('id="live-call-text-panel"') && html.includes('href="css/callText.css"'), true, "画面：文字モードの表示場所と見た目");
   const sw = await (await fetch("./sw.js", { cache: "no-store" })).text();
   assertEqual(
-    ["./js/callTextLayout.js", "./js/callTextView.js", "./js/data/callTextPlacements.js", "./css/callText.css"].every((f) => sw.includes(f)),
+    ["./js/callTextLayout.js", "./js/callTextEdits.js", "./js/callTextView.js", "./js/data/callTextPlacements.js", "./css/callText.css"].every((f) => sw.includes(f)),
     true,
     "オフライン：文字モードのファイルをキャッシュ対象に入れる"
   );

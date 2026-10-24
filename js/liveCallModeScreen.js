@@ -13,6 +13,7 @@ import { getAudioBlob } from "./audioStorage.js";
 import { getSongIdsWithCallData, getCallData } from "./callStorage.js";
 import { getLyricsData } from "./lyricsStorage.js";
 import { buildCallTextLayout } from "./callTextLayout.js";
+import { resolveApprovedCallText } from "./callTextEdits.js";
 import { renderCallTextView } from "./callTextView.js";
 import { APPROVED_CALL_TEXT_PLACEMENTS } from "./data/callTextPlacements.js";
 import { isLiveCallTextModeEnabled } from "./liveCallTextModeFlag.js";
@@ -230,18 +231,22 @@ async function renderTextPanel(songId) {
     panel.appendChild(note);
     return;
   }
-  const approved = APPROVED_CALL_TEXT_PLACEMENTS[songId] ?? null;
+  // 承認済みの配置・文章を当てはめる（端末のコールが承認したときと違えば当てはめず、未確認として表示する）
+  const resolved = resolveApprovedCallText(calls, APPROVED_CALL_TEXT_PLACEMENTS[songId] ?? null);
+  const approved = resolved.approved;
   if (lines.length === 0) {
     note.textContent = "この曲の歌詞データがこの端末にありません（インスト曲の場合はコールだけを順に表示します）。歌詞データはデータ管理から読み込めます。";
   } else if (calls.length === 0) {
     note.textContent = "この曲にはまだコールが登録されていません（歌詞だけを表示しています）。";
+  } else if (resolved.mismatch) {
+    note.textContent = "この端末のコールデータが、位置を確認したときの内容と違うため、確認済みの配置は使わず自動配置で表示しています（「配置要確認」の所は1行前後ずれている可能性があります）。";
   } else if (approved) {
     note.textContent = "歌詞は黒、コールは赤で表示しています。コールの位置は確認済みです。";
   } else {
     note.textContent = "歌詞は黒、コールは赤で表示しています。この曲のコールの位置はまだ確認前の自動配置です（「配置要確認」の所は1行前後ずれている可能性があります）。";
   }
   panel.appendChild(note);
-  const layout = buildCallTextLayout(lines, calls, { overrides: approved?.placements ?? null });
+  const layout = buildCallTextLayout(lines, resolved.calls, { overrides: resolved.overrides });
   const body = document.createElement("div");
   panel.appendChild(body);
   renderCallTextView(body, layout, { showTypes: true, showReview: !approved });
