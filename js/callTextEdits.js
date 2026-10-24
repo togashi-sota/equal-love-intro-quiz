@@ -64,6 +64,18 @@ export function placementOf(record) {
   };
 }
 
+// 文字モードで見せる歌詞（表示用）を当てはめる（2026-10-25追加）。lineTexts：{ [行番号]: { text, originalTextHash } }
+// 端末の歌詞が、表示用の歌詞を作ったときの元の歌詞と同じ行だけ置き換える（違う行はそのまま＝元の歌詞）。
+// 元の歌詞データは書き換えず、新しい行の一覧を返す。置き換えた行には displayEdited: true を付ける（空白・改行をそのまま見せる）。
+export function applyDisplayLyrics(lines, lineTexts) {
+  if (!lineTexts) return lines ?? [];
+  return (lines ?? []).map((line) => {
+    const lt = lineTexts[line.line];
+    if (!lt || typeof lt.text !== "string" || lt.text.trim() === "" || lt.originalTextHash !== hashText(line.text)) return line;
+    return { ...line, text: lt.text, displayEdited: true };
+  });
+}
+
 // コール一式の指紋（キーと本文。並び順に左右されない）
 export function computeCallsFingerprint(calls) {
   const rows = (calls ?? []).map((call) => `${baseKey(call)}\u0001${call.text}`).sort();

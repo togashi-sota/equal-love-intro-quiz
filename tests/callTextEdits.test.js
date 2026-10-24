@@ -1,7 +1,7 @@
 // 【2026-10-25新設】ライブコール文字モードの「本人が編集・承認した内容」を当てはめる部品の回帰テスト。
 // 実在の歌詞・コールは使わず、テスト用のダミーだけで行う。
 import { buildCallTextLayout, callKey, isValidLineOffset } from "../js/callTextLayout.js";
-import { applyCallTextEntry, computeCallsFingerprint, hashText, resolveApprovedCallText, splitTextAt } from "../js/callTextEdits.js";
+import { applyCallTextEntry, applyDisplayLyrics, computeCallsFingerprint, hashText, resolveApprovedCallText, splitTextAt } from "../js/callTextEdits.js";
 import { renderCallTextView } from "../js/callTextView.js";
 import { assertEqual } from "./test-utils.js";
 
@@ -106,4 +106,20 @@ export function runCallTextEditsTests() {
   const badSplit = applyCallTextEntry([multi], { calls: { [keyOf(multi)]: { ...splitEntry.calls[keyOf(multi)], split: { at: [2], parts: [{ lineNo: 1, position: "after" }] } } } });
   assertEqual([badSplit.mismatches.map((m) => m.reason), badSplit.calls.length], [["分割の位置が本文と合わない"], 1], "分割：区切りと表示単位の数が合わなければ分けない");
   assertEqual(resolveApprovedCallText([multi], { ...splitEntry, calls: { [keyOf(multi)]: { ...splitEntry.calls[keyOf(multi)], originalTextHash: hashText("別の本文") } } }).mismatch, true, "分割：本文が違う端末には当てはめない");
+
+  // 【2026-10-25追加2】表示用の歌詞・空白と改行を保つ表示
+  const shownLines = applyDisplayLyrics(LINES, { 2: { text: "ダミー　二行目", originalTextHash: hashText("ダミー二行目") }, 3: { text: "別", originalTextHash: hashText("違う元の歌詞") } });
+  assertEqual(shownLines.map((l) => l.text), ["ダミー一行目", "ダミー　二行目", "ダミー三行目"], "表示用の歌詞：元の歌詞が同じ行だけ置き換える");
+  assertEqual([shownLines[1].displayEdited, Boolean(shownLines[0].displayEdited), LINES[1].text], [true, false, "ダミー二行目"], "表示用の歌詞：元の歌詞データは書き換えない");
+  assertEqual(applyDisplayLyrics(LINES, null), LINES, "表示用の歌詞：無ければそのまま");
+  const preLayout = buildCallTextLayout(shownLines, [{ ...call(14, "callback", "　　　ダミー"), edited: true }, call(17, "callback", "元の  まま")]);
+  assertEqual([preLayout.items[1].displayEdited, preLayout.items[0].displayEdited], [true, false], "表示用の歌詞の行に印");
+  if (typeof document !== "undefined") {
+    const box = document.createElement("div");
+    renderCallTextView(box, preLayout, {});
+    const calls = [...box.querySelectorAll(".call-text-call")];
+    assertEqual(calls.map((c) => c.classList.contains("is-pre")), [true, false], "空白の表示：直した文章だけ空白・改行をそのまま見せる（元のコールは今までどおり）");
+    assertEqual(box.querySelector('.call-text-group[data-line-no="2"] .call-text-lyric').classList.contains("is-pre"), true, "空白の表示：表示用の歌詞は空白・改行をそのまま見せる");
+    assertEqual(box.querySelector('.call-text-group[data-line-no="1"] .call-text-lyric').classList.contains("is-pre"), false, "空白の表示：元の歌詞の行は今までどおり");
+  }
 }

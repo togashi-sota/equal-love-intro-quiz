@@ -120,7 +120,7 @@ export function buildCallTextLayout(lines, calls, { overrides = null, uncertainL
       source = "estimate";
     }
     const order = overrideValid && Number.isFinite(override.order) ? override.order : call.start;
-    return { callIndex, key, text: call.text, type: call.type, start: call.start, added: Boolean(call.added), order, source, ...placement };
+    return { callIndex, key, text: call.text, type: call.type, start: call.start, added: Boolean(call.added), edited: Boolean(call.edited), order, source, ...placement };
   });
 
   const items = [];
@@ -135,6 +135,7 @@ export function buildCallTextLayout(lines, calls, { overrides = null, uncertainL
       kind: "line",
       lineNo: line.line,
       text: line.text,
+      displayEdited: Boolean(line.displayEdited), // 表示用の歌詞（空白・改行をそのまま見せる）
       before: at(CALL_POSITION.BEFORE),
       inline: inlineAll.filter((p) => p.offset === undefined),
       after: at(CALL_POSITION.AFTER),

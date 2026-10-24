@@ -18,8 +18,11 @@ function el(tag, className, text) {
   return node;
 }
 
+// 本人が直した文章・追加したコールは、入れた空白・改行をそのまま見せる（is-pre）。
+// 元のままのコールは、これまでどおり（連続した空白は1つにまとまる）表示にして見た目を変えない。
 function callSpan(call, options) {
-  const span = el("span", `call-text-call is-${call.type}${call.needsReview && options.showReview ? " is-review" : ""}`);
+  const pre = call.edited || call.added ? " is-pre" : "";
+  const span = el("span", `call-text-call is-${call.type}${call.needsReview && options.showReview ? " is-review" : ""}${pre}`);
   if (options.showTypes && call.type === "mix") span.appendChild(el("span", "call-text-type", TYPE_LABELS.mix));
   span.appendChild(document.createTextNode(call.text));
   if (call.needsReview && options.showReview) {
@@ -48,13 +51,14 @@ function callRow(calls, className, options) {
 function appendLyricWithAnchoredCalls(line, item, options) {
   const text = item.text ?? "";
   const groups = item.anchored ?? [];
+  const lyricClass = item.displayEdited ? "call-text-lyric is-pre" : "call-text-lyric";
   if (!groups.length) {
-    line.appendChild(el("span", "call-text-lyric", text));
+    line.appendChild(el("span", lyricClass, text));
     return;
   }
   let position = 0;
   groups.forEach((group) => {
-    if (group.offset > position) line.appendChild(el("span", "call-text-lyric", text.slice(position, group.offset)));
+    if (group.offset > position) line.appendChild(el("span", lyricClass, text.slice(position, group.offset)));
     group.calls.forEach((call) => {
       if (line.childNodes.length && !line.lastChild.classList?.contains("call-text-line-no")) line.appendChild(document.createTextNode(" "));
       line.appendChild(callSpan(call, options));
@@ -62,7 +66,7 @@ function appendLyricWithAnchoredCalls(line, item, options) {
     line.appendChild(document.createTextNode(" "));
     position = group.offset;
   });
-  if (position < text.length) line.appendChild(el("span", "call-text-lyric", text.slice(position)));
+  if (position < text.length) line.appendChild(el("span", lyricClass, text.slice(position)));
 }
 
 // container に全文コール表を描く。

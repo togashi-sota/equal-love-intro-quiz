@@ -149,3 +149,9 @@
   font-weight: 800;
   vertical-align: 2px;
 }
+
+/* 本人が直した文章・表示用の歌詞は、入れた空白・改行をそのまま見せる（2026-10-25） */
+.call-text-call.is-pre,
+.call-text-lyric.is-pre {
+  white-space: pre-wrap;
+}
