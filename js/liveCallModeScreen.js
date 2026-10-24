@@ -249,7 +249,7 @@ async function renderTextPanel(songId) {
   const layout = buildCallTextLayout(lines, resolved.calls, { overrides: resolved.overrides });
   const body = document.createElement("div");
   panel.appendChild(body);
-  renderCallTextView(body, layout, { showTypes: true, showReview: !approved });
+  renderCallTextView(body, layout, { showReview: !approved });
 }
 
 function handleSwipeStart(event) {

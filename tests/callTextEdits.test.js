@@ -144,4 +144,18 @@ export async function runCallTextEditsTests() {
     assertEqual(/\.call-text-line \.call-text-call,\s*\.call-text-calls \.call-text-call \{\s*display: inline-block;/.test(css), true, "スマホ幅：コールは折り返しの1単位（短いコールが途中で切れない）");
     assertEqual(/word-break: break-word/.test(css.replace(/\/\*[\s\S]*?\*\//g, "")), false, "スマホ幅：コールを途中で切る指定を使わない（説明のコメントは除いて確かめる）");
   }
+
+  // 【2026-10-25追加4・本人指示】カッコを自動で付けない・種類（MIX など）の印を出さない
+  if (typeof document !== "undefined") {
+    const box4 = document.createElement("div");
+    renderCallTextView(box4, buildCallTextLayout(LINES, [call(2, "mix", "ダミーMIX"), call(11, "callback", "ダミーA")]), { showTypes: true });
+    assertEqual(box4.querySelectorAll(".call-text-type").length, 0, "種類の印（MIX）は出さない（古い指定が渡されても）");
+    assertEqual(box4.textContent.includes("MIX") && !box4.textContent.includes("ダミーMIX"), false, "コールの文面はそのまま");
+    const css4 = await (await fetch("./css/callText.css", { cache: "no-store" })).text();
+    assertEqual(/content:\s*"[（）()]"/.test(css4), false, "カッコを自動で付ける指定を使わない");
+    document.body.appendChild(box4);
+    const inline = box4.querySelector('.call-text-group[data-line-no="1"] .call-text-call');
+    assertEqual([getComputedStyle(inline, "::before").content, getComputedStyle(inline, "::after").content].every((c) => c === "none" || c === "normal" || c === ""), true, "表示されたコールにカッコが付かない");
+    box4.remove();
+  }
 }

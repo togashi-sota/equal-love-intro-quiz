@@ -9,7 +9,6 @@ const BLOCK_LABELS = {
   [CALL_POSITION.OUTRO]: "アウトロ",
 };
 
-const TYPE_LABELS = { mix: "MIX", "member-call": "コール", callback: "合いの手", unique: "固有コール" };
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -25,7 +24,7 @@ function callSpan(call, options) {
   // 本人が改行を入れたコールは、ひとかたまりにせず普通の文章と同じように流す（1行目が歌詞の上に浮かないように）
   const hasBreak = pre && String(call.text).includes("\n") ? " has-break" : "";
   const span = el("span", `call-text-call is-${call.type}${call.needsReview && options.showReview ? " is-review" : ""}${pre}${hasBreak}`);
-  if (options.showTypes && call.type === "mix") span.appendChild(el("span", "call-text-type", TYPE_LABELS.mix));
+  // 【2026-10-25 本人指示】種類（MIX・合いの手など）の印は出さない。見せるのは「その場所で言うコールの文面」だけ
   span.appendChild(document.createTextNode(call.text));
   if (call.needsReview && options.showReview) {
     const mark = el("span", "call-text-review-mark", "配置要確認");
@@ -85,7 +84,8 @@ function appendLineContents(line, item, options) {
 }
 
 // container に全文コール表を描く。
-// options: { showTypes: MIXの印を出すか, showReview: 配置要確認の印を出すか, showLineNumbers, onCallClick, unitHook（エディター専用） }
+// options: { showReview: 配置要確認の印を出すか, showLineNumbers, onCallClick, unitHook（エディター専用） }
+// （以前の showTypes ＝ MIX の印は、2026-10-25 本人指示で廃止。渡されても使わない）
 export function renderCallTextView(container, layout, options = {}) {
   container.textContent = "";
   const list = el("div", "call-text-view");

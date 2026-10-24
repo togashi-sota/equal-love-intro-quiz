@@ -117,13 +117,10 @@
   display: inline;
 }
 
-/* 歌詞と同時に入るコールは、歌詞の横に（ ）付きで並べる（横幅が足りなければ自然に折り返す） */
-.call-text-line .call-text-call::before {
-  content: "（";
-}
-
-.call-text-line .call-text-call::after {
-  content: "）";
+/* 歌詞の横に入るコール。【2026-10-25 本人指示】以前は（ ）を自動で付けていたが、やめた
+   （編集画面とスマホの見た目をそろえ、コールの文面そのものだけを見せる）。カッコの代わりに歌詞とのあいだを少し空ける */
+.call-text-line .call-text-call {
+  margin-left: 0.35em;
 }
 
 .call-text-block {
@@ -141,16 +138,6 @@
   font-weight: 800;
 }
 
-.call-text-type {
-  display: inline-block;
-  margin-right: 4px;
-  padding: 0 5px;
-  border-radius: 4px;
-  background: #e0262d;
-  color: #fff;
-  font-size: 0.62rem;
-  vertical-align: 2px;
-}
 
 .call-text-call.is-review {
   text-decoration: underline dotted #e0262d;
