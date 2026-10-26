@@ -21130,3 +21130,597 @@ button.search-mode-tab:active {
 .live-guide-source-list .live-guide-kind {
   margin: 0 6px 0 0;
 }
+
+/* ===== 歴代センター一覧（2026-10-27新設・js/centersScreen.js） =====
+   スマホで横に長い表にしないため、1曲＝1枚の小さなカードにする。
+   右側の「センターのマス」はメンバーカラーを背景にし、文字色（黒／白）は js/centerChart.js が
+   背景の明るさから選ぶ。どちらでも読みにくい色には has-outline で縁取りを付ける。 */
+.centers-entry-button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin: 4px 0 14px;
+  padding: 12px 14px;
+  border: 1.5px solid var(--color-primary-light);
+  border-radius: 16px;
+  background: linear-gradient(120deg, #fff, var(--color-primary-light));
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 3px 12px rgba(255, 111, 168, 0.12);
+}
+
+.centers-entry-button:active {
+  transform: scale(0.98);
+}
+
+.centers-entry-swatches {
+  display: grid;
+  grid-template-columns: repeat(2, 12px);
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.centers-entry-swatches span {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.centers-entry-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.centers-entry-label {
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+}
+
+.centers-entry-description {
+  font-size: 0.72rem;
+  color: #7a6170;
+}
+
+.centers-entry-arrow {
+  font-weight: 800;
+  color: var(--color-primary-dark);
+}
+
+.centers-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 32px;
+}
+
+.centers-intro {
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-card-border);
+}
+
+.centers-intro-text {
+  margin: 0 0 8px;
+  font-size: 0.8rem;
+  line-height: 1.6;
+}
+
+.centers-legend summary {
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  cursor: pointer;
+}
+
+.centers-legend-list {
+  margin: 8px 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.centers-legend-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.centers-legend-list .center-evidence-badge {
+  flex-shrink: 0;
+  min-width: 7.5em;
+  text-align: center;
+}
+
+.centers-legend-text {
+  font-size: 0.72rem;
+  line-height: 1.55;
+  color: #6b5462;
+}
+
+.centers-controls .search-field-row {
+  margin-bottom: 8px;
+}
+
+.center-member-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.center-member-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border: 1.5px solid var(--color-card-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.center-member-chip.is-active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+}
+
+.center-member-chip-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+}
+
+.centers-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  font-size: 0.75rem;
+}
+
+.centers-summary {
+  margin: 8px 0 0;
+  font-size: 0.72rem;
+  color: #7a6170;
+}
+
+.center-row-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.center-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-card-border);
+}
+
+.center-row-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+
+.center-row-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.center-tag {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 800;
+  color: #5f4a57;
+  background: #f1ecef;
+}
+
+.center-tag.is-role-title {
+  color: var(--color-primary-dark);
+  background: var(--color-primary-light);
+}
+
+.center-tag.is-role-unit {
+  color: #1c5f8a;
+  background: #e1f0fa;
+}
+
+.center-tag.is-work-album,
+.center-tag.is-work-digital,
+.center-tag.is-work-special {
+  color: #7a4d00;
+  background: #fff0c9;
+}
+
+.center-row-date {
+  font-size: 0.64rem;
+  color: #8a7482;
+}
+
+.center-row-title {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 800;
+  line-height: 1.35;
+  text-align: left;
+  text-decoration: underline dotted rgba(74, 46, 66, 0.35);
+  text-underline-offset: 3px;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.center-row-note {
+  margin: 0;
+  font-size: 0.68rem;
+  line-height: 1.5;
+  color: #7a6170;
+}
+
+.center-cells {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 7.6em;
+}
+
+.center-cells-label {
+  font-size: 0.6rem;
+  font-weight: 800;
+  text-align: center;
+  color: #8a7482;
+}
+
+/* センターのマス本体（メンバーカラーが背景） */
+.center-cell {
+  display: block;
+  width: 100%;
+  padding: 8px 4px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 9px;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 800;
+  line-height: 1.25;
+  text-align: center;
+  cursor: pointer;
+}
+
+.center-cell:active {
+  transform: scale(0.97);
+}
+
+.center-cell:disabled {
+  cursor: default;
+}
+
+/* 背景と文字のコントラストが足りない色だけ、文字に縁取りを付ける */
+.center-cell.has-outline[data-text-tone="dark"],
+.center-cell.is-all {
+  text-shadow: 0 0 2px #fff, 0 0 2px #fff, 0 0 3px #fff;
+}
+
+.center-cell.has-outline[data-text-tone="light"] {
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.7), 0 0 3px rgba(0, 0, 0, 0.5);
+}
+
+.center-cell.is-all {
+  color: #24151f;
+  cursor: default;
+}
+
+.center-cell.is-none {
+  color: #6b5a66;
+  background: repeating-linear-gradient(135deg, #f3f0f2, #f3f0f2 6px, #e9e4e8 6px, #e9e4e8 12px);
+  cursor: default;
+}
+
+.center-cell.is-unconfirmed {
+  color: #8a7482;
+  background: transparent;
+  border-style: dashed;
+  cursor: default;
+}
+
+/* ソロ・2人の曲の「歌っているメンバー」は、センターと区別するため小さく・控えめに */
+.center-cell.is-singer {
+  padding: 5px 4px;
+  font-size: 0.72rem;
+  opacity: 0.85;
+}
+
+/* 根拠のラベル（公式／報道／メンバー発言／ファン資料のみ／本人指定・公式記載なし／根拠未確認） */
+.center-evidence-badge {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.64rem;
+  font-weight: 800;
+  line-height: 1.6;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.center-evidence-badge.is-official {
+  color: #1d6b3c;
+  background: #dff3e6;
+}
+
+.center-evidence-badge.is-press {
+  color: #1c5f8a;
+  background: #e1f0fa;
+}
+
+.center-evidence-badge.is-member {
+  color: #5b3a8c;
+  background: #ece3f7;
+}
+
+.center-evidence-badge.is-fan {
+  color: #8a4b00;
+  background: #ffe9c7;
+}
+
+.center-evidence-badge.is-user {
+  color: #8c2f5d;
+  background: #fbe3ee;
+}
+
+.center-evidence-badge.is-unknown {
+  color: #5f5a5d;
+  background: #ebe8ea;
+}
+
+.track-center-line .center-evidence-badge {
+  vertical-align: 1px;
+}
+
+.track-centers-link {
+  font-size: 0.7rem;
+}
+
+@media (max-width: 360px) {
+  .center-cells {
+    width: 6.6em;
+  }
+}
+
+/* ===== ライブのセットリスト・「ライブでの披露」（2026-10-27新設・js/setlistView.js） ===== */
+.live-setlist {
+  margin-top: 8px;
+  border-top: 1px dashed var(--color-primary-light);
+  padding-top: 6px;
+}
+
+.live-setlist-summary {
+  font-size: 0.76rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  cursor: pointer;
+}
+
+.live-setlist-body {
+  margin-top: 6px;
+}
+
+.live-setlist-meta,
+.live-setlist-note,
+.live-setlist-sources {
+  margin: 0 0 4px;
+  font-size: 0.7rem;
+  line-height: 1.5;
+  color: #7a6170;
+}
+
+.live-setlist-source-link {
+  color: var(--color-primary-dark);
+}
+
+.setlist-items {
+  margin: 6px 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.setlist-item {
+  display: grid;
+  grid-template-columns: 2em minmax(0, 1fr);
+  gap: 6px;
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(74, 46, 66, 0.06);
+  font-size: 0.78rem;
+}
+
+.setlist-item.is-encore,
+.setlist-item.is-double-encore {
+  background: rgba(111, 189, 242, 0.08);
+}
+
+.setlist-item.is-reference {
+  opacity: 0.7;
+}
+
+.setlist-item-order {
+  text-align: right;
+  font-weight: 800;
+  color: #8a7482;
+}
+
+.setlist-item-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 6px;
+  min-width: 0;
+}
+
+.setlist-item-title {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.setlist-item-title.is-link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  text-decoration: underline dotted rgba(74, 46, 66, 0.4);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.setlist-item-tag {
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 0.6rem;
+  font-weight: 800;
+  color: #1c5f8a;
+  background: #e1f0fa;
+}
+
+.setlist-item-note {
+  flex-basis: 100%;
+  font-size: 0.66rem;
+  line-height: 1.45;
+  color: #7a6170;
+}
+
+/* 収録曲一覧の行（.track-row は横並び）の2段目に、行の幅いっぱいで出す */
+.track-row.has-live-section {
+  flex-wrap: wrap;
+}
+
+.track-row > .song-live-section {
+  flex: 0 0 calc(100% - 42px);
+  margin: -4px 0 0 42px;
+  min-width: 0;
+}
+
+.song-live-section-summary {
+  font-size: 0.74rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  cursor: pointer;
+}
+
+.song-live-section-body {
+  margin-top: 6px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 225, 238, 0.35);
+}
+
+.song-live-sentence,
+.song-live-caption {
+  margin: 0 0 4px;
+  font-size: 0.72rem;
+  line-height: 1.55;
+}
+
+.song-live-caption {
+  color: #7a6170;
+}
+
+.song-live-subheading {
+  margin: 8px 0 4px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+}
+
+.song-live-performances,
+.song-live-videos {
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.song-live-performance,
+.song-live-video {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.song-live-performance-link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-primary-dark);
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.song-live-performance-text {
+  font-weight: 700;
+}
+
+.song-live-performance-meta,
+.song-live-performance-note,
+.song-live-video-note {
+  font-size: 0.66rem;
+  color: #7a6170;
+}
+
+.song-live-video-tag {
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 0.6rem;
+  font-weight: 800;
+  color: #1d6b3c;
+  background: #dff3e6;
+}
+
+.song-live-video-tag.is-undisclosed {
+  color: #5f5a5d;
+  background: #ebe8ea;
+}
+
+.song-live-video-link {
+  font-size: 0.66rem;
+  color: var(--color-primary-dark);
+}

@@ -48,6 +48,8 @@ const SCREEN_ELEMENTS = {
   customQuiz: document.getElementById("custom-quiz-screen"),
   discography: document.getElementById("discography-screen"),
   workDetail: document.getElementById("work-detail-screen"),
+  // 【2026-10-27新設】歴代センター一覧
+  centers: document.getElementById("centers-screen"),
   members: document.getElementById("members-screen"),
   memberDetail: document.getElementById("member-detail-screen"),
   playlists: document.getElementById("playlist-screen"),

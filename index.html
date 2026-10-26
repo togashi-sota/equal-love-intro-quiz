@@ -5379,6 +5379,17 @@
       </div>
 
       <div id="discography-works-panel" class="tab-panel">
+        <!-- 【2026-10-27新設・本人承認「案C」】歴代センター一覧（#centers-screen、js/centersScreen.js）への入口 -->
+        <button id="centers-link" class="centers-entry-button" type="button">
+          <span class="centers-entry-swatches" aria-hidden="true">
+            <span style="background:#ff5c5c"></span><span style="background:#9d6fe0"></span><span style="background:#e0e0e0"></span><span style="background:#ffb3d1"></span>
+          </span>
+          <span class="centers-entry-text">
+            <span class="centers-entry-label">歴代センター一覧</span>
+            <span class="centers-entry-description">シングル・アルバム・配信曲のセンターを発売順に見る</span>
+          </span>
+          <span class="centers-entry-arrow" aria-hidden="true">→</span>
+        </button>
         <div id="discography-work-list"></div>
       </div>
 
@@ -5407,6 +5418,27 @@
       </div>
 
       <div id="work-detail-content"></div>
+    </section>
+
+    <!-- 【2026-10-27新設・本人承認「案C」】歴代センター一覧。中身は js/centersScreen.js が
+         js/data/songs.js（センター）・js/data/centerSources.js（根拠）から組み立てる。 -->
+    <section id="centers-screen" class="screen">
+      <div class="list-header">
+        <button id="centers-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            CENTERS
+          </p>
+          <h2>歴代センター一覧</h2>
+        </div>
+      </div>
+      <div id="centers-content" class="centers-content"></div>
     </section>
 
     <!-- メンバー一覧画面：現役メンバー（出席番号順）と、卒業メンバーの簡易紹介をまとめる画面。
