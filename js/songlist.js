@@ -10,6 +10,9 @@ import { loadLyricsForSong, destroyLyricsSync } from "./lyricsSync.js";
 import { openFullscreenLyrics } from "./lyricsFullscreen.js";
 import { isLyricsQuizEligibleSong } from "./lyricsQuizQuestionBuilder.js";
 import { buildMvThumbnailElement } from "./youtubeThumbnail.js";
+// 【2026-10-27追加】センターの根拠の表示・「ライブでの披露」
+import { classifyCenter, formatCenterLine } from "./centerChart.js";
+import { buildSongLiveSection } from "./setlistView.js";
 import {
   isFavoriteSong,
   toggleFavoriteSong,
@@ -186,21 +189,7 @@ function formatMembersLine(members) {
   return `歌唱：${members.join("・")}`;
 }
 
-// センター欄の文字列を組み立てる。単独／Wセンター／全員センター／センターなしの4パターン。
-// centerTypeが省略されている曲（未確認、またはソロ・デュオ曲）では呼び出さない。
-export function formatCenterLine(center, centerType) {
-  if (centerType === "none") {
-    return "センター：なし";
-  }
-  // 【2026-10-27追加】全員センター（songs.js の centerType "all"）
-  if (centerType === "all") {
-    return "センター：全員";
-  }
-  if (centerType === "double") {
-    return `Wセンター：${center.join("・")}`;
-  }
-  return `センター：${center[0]}`;
-}
+// センター欄の文字列（formatCenterLine）は js/centerChart.js へ移した（2026-10-27。tests.html から確かめられるようにするため）。
 
 // 秒数を「分:秒」の表示用文字列にする（例: 65秒 → "1:05"）。
 function formatTime(totalSeconds) {
@@ -574,8 +563,29 @@ export function createTrackRow(song, options = {}) {
   // センター：centerTypeが確認できている曲のみ（ソロ・デュオ曲、Overture、未確認の曲では表示しない）
   if (song.centerType) {
     const centerElement = document.createElement("span");
-    centerElement.className = "track-meta-line";
+    centerElement.className = "track-meta-line track-center-line";
     centerElement.textContent = formatCenterLine(song.center, song.centerType);
+    // 【2026-10-27追加】公式・報道で確認できていないセンター情報には、根拠の種類を小さく添える
+    // （「ファン資料のみ」等を公式と同じ見た目にしないため。確認済みの曲には何も足さない）
+    const center = classifyCenter(song);
+    if (center.evidenceKind && !center.isConfirmed) {
+      const evidence = document.createElement("span");
+      evidence.className = `center-evidence-badge is-${center.evidenceKind}`;
+      evidence.textContent = center.evidenceLabel;
+      centerElement.appendChild(document.createTextNode(" "));
+      centerElement.appendChild(evidence);
+    }
+    // 「歴代センター一覧へ」：一覧のこの曲の行を開く（画面移動は main.js の app-navigate に任せる）
+    centerElement.appendChild(document.createTextNode(" "));
+    const centersLink = document.createElement("button");
+    centersLink.type = "button";
+    centersLink.className = "track-credit-link track-credit-nav-button track-centers-link";
+    centersLink.textContent = "歴代センター一覧へ";
+    centersLink.addEventListener("click", () => {
+      stopSongListPreview();
+      window.dispatchEvent(new CustomEvent("app-navigate", { detail: { screen: "centers", songId: song.id } }));
+    });
+    centerElement.appendChild(centersLink);
     infoBlock.appendChild(centerElement);
   }
 
@@ -720,6 +730,7 @@ export function createTrackRow(song, options = {}) {
 
   infoBlock.appendChild(actionButtonsRow);
 
+
   // 再生中だけ表示する、イコライザー演出＋「再生中」の文字
   const nowPlayingTag = document.createElement("span");
   nowPlayingTag.className = "now-playing-tag";
@@ -803,6 +814,20 @@ export function createTrackRow(song, options = {}) {
   // options.playlistControlsを渡されたときだけ追加する。収録曲一覧・お気に入り一覧には出さない）。
   if (playlistControls) {
     row.appendChild(buildPlaylistControlButtons(playlistControls));
+  }
+
+  // 【2026-10-27追加】ライブでの披露（確認できた公演・映像商品）。折りたたみで、開いたときに中身を作る。
+  // 狭い曲名の列ではなく行の幅いっぱいに出すため、行の最後（折り返した2段目）に置く（.track-row.has-live-section）。
+  // 公演名をタップすると、ライブ履歴（＝LOVEについて→ライブ）の該当カードを開く。
+  const liveSection = buildSongLiveSection(song, {
+    onOpenLive: (liveId) => {
+      stopSongListPreview();
+      window.dispatchEvent(new CustomEvent("app-navigate", { detail: { screen: "liveHistory", liveId } }));
+    },
+  });
+  if (liveSection) {
+    row.classList.add("has-live-section");
+    row.appendChild(liveSection);
   }
 
   return row;

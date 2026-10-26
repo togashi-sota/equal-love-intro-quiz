@@ -17,6 +17,9 @@ import { buildMvThumbnailElement } from "./youtubeThumbnail.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
 import { buildGroupStageSection } from "./memberStageVoiceSection.js";
 import { buildGroupCommercialsSection } from "./commercialsSection.js";
+// 【2026-10-27追加】公演カードのセットリスト（js/data/setlists.js）
+import { buildSetlistDetails, buildSetlistCoverageNote } from "./setlistView.js";
+import { findPerformancesForLive, findUnlinkedPerformances } from "./liveSetlistStats.js";
 
 // workIdから種別が判定できない場合だけ使う、最後のフォールバック表示。
 const WORK_TYPE_LABELS_FALLBACK = {
@@ -1362,6 +1365,11 @@ function buildLiveEventCard(event) {
     card.appendChild(bluray);
   }
 
+  // 【2026-10-27追加】曲順を公式・報道で確認できた公演だけ、セットリストを折りたたみで出す（DAY1／DAY2 等は別々）
+  findPerformancesForLive(event.id).forEach((performance) => {
+    card.appendChild(buildSetlistDetails(performance, { onOpenSong: elements?.onOpenSong }));
+  });
+
   return card;
 }
 
@@ -1396,6 +1404,35 @@ function renderLiveTab(liveEvents) {
     announcedEvents.forEach((event) => announcedList.appendChild(buildLiveEventCard(event)));
     elements.liveList.appendChild(announcedList);
   }
+
+  // 【2026-10-27追加】ライブ履歴にカードが無い公演（1stコンサート等）のセットリストと、掲載範囲の注記
+  const unlinked = findUnlinkedPerformances();
+  if (unlinked.length > 0) {
+    const heading = document.createElement("p");
+    heading.className = "section-heading";
+    heading.textContent = "そのほかの公演のセットリスト";
+    elements.liveList.appendChild(heading);
+    const list = document.createElement("div");
+    list.className = "live-event-list";
+    unlinked.forEach((performance) => {
+      const card = document.createElement("div");
+      card.className = "live-event-card";
+      card.dataset.performanceId = performance.id;
+      const title = document.createElement("p");
+      title.className = "live-event-title";
+      title.textContent = performance.title;
+      const date = document.createElement("p");
+      date.className = "live-event-date";
+      date.textContent = formatDate(performance.date);
+      const venue = document.createElement("p");
+      venue.className = "live-event-venue";
+      venue.textContent = performance.venue ?? "会場未確認";
+      card.append(title, date, venue, buildSetlistDetails(performance, { onOpenSong: elements?.onOpenSong }));
+      list.appendChild(card);
+    });
+    elements.liveList.appendChild(list);
+  }
+  elements.liveList.appendChild(buildSetlistCoverageNote());
 }
 
 function switchDiscographyTab(tabName) {
@@ -1583,6 +1620,7 @@ export function openWorkDetail(songs, discographyEntries, workId) {
 //   liveList: ライブタブの中身,
 //   workDetailTitle, workDetailContent: 作品詳細画面の中身,
 //   onSelectWork: 作品カードがタップされたときに呼ばれるコールバック（workIdを受け取る）,
+//   onOpenSong: セットリストの曲名がタップされたときに呼ばれるコールバック（songIdを受け取る。2026-10-27追加）,
 // }
 export function initDiscographyScreen(newElements) {
   elements = newElements;

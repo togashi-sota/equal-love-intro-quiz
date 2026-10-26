@@ -167,6 +167,13 @@ const APP_SHELL_FILES = [
   "./js/data/appSearchFeatures.js",
   "./js/liveGuideScreen.js",
   "./js/data/liveGuideContent.js",
+  // 【2026-10-27追加】歴代センター一覧・ライブのセットリスト
+  "./js/centersScreen.js",
+  "./js/centerChart.js",
+  "./js/setlistView.js",
+  "./js/liveSetlistStats.js",
+  "./js/data/centerSources.js",
+  "./js/data/setlists.js",
   "./js/callTextLayout.js",
   "./js/callTextView.js",
   "./js/data/callTextPlacements.js",
