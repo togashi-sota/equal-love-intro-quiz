@@ -265,13 +265,17 @@ export const STAGE_PRODUCTIONS = [
 
 // ---------------- VOICE ----------------
 
-// 駅メモ！の配役（12人のうち現役10人分。2017年の公式発表で全員の配役を確認済み）
+// 駅メモ！の配役（2017年の公式発表＝代々木アニメーション学院 2017-09-12 で12人全員の配役を確認済み）。
+// 【2026-10-27修正】以前は現役10人分だけだったが、冒頭の本人方針「当時の出演者を全員同列に表示」に合わせ、
+// 在籍当時に担当していた齊藤なぎさ（新阪ルナ）・佐竹のん乃（象潟いろは）を追加した（並びは12人の指定順）。
 const EKIMEMO_CASTS = [
   cast(ID.otani, "黄陽セリア"),
   cast(ID.oba, "汀良いちほ"),
   cast(ID.otoshima, "作草部チコ"),
   cast(ID.saito, "黄陽レイカ", "（初代）"),
+  cast(ID.nagisa, "新阪ルナ"),
   cast(ID.sasaki, "恋浜みろく"),
+  cast(ID.nonno, "象潟いろは"),
   cast(ID.takamatsu, "王子しぐれ"),
   cast(ID.takiwaki, "新居浜ありす"),
   cast(ID.noguchi, "為栗メロ"),
@@ -309,14 +313,17 @@ export const VOICE_APPEARANCES = [
     yearLabel: "2018年",
     sortKey: "2018-01-31",
     description: "ゲームのショートアニメ版（横手編）。＝LOVEメンバーが出演。",
+    // 【2026-10-27修正】公式ニュース427の配役表どおり、在籍当時の齊藤なぎさ（ルナ）・佐竹のん乃（女生徒）を追加（並びも公式の表の順）
     casts: [
       cast(ID.sasaki, "みろく"),
       cast(ID.noguchi, "メロ"),
+      cast(ID.nagisa, "ルナ"),
       cast(ID.otani, "愛美"),
       cast(ID.takamatsu, "静香"),
       cast(ID.otoshima, "女生徒"),
       cast(ID.oba, "女生徒"),
       cast(ID.takiwaki, "女生徒"),
+      cast(ID.nonno, "女生徒"),
       cast(ID.saito, "女生徒"),
       cast(ID.morohashi, "女生徒"),
       cast(ID.yamamoto, "女生徒"),
@@ -384,6 +391,34 @@ export const VOICE_APPEARANCES = [
     lastVerifiedDate: LAST_VERIFIED,
   },
   {
+    // 【2026-10-27追加】＝LOVE公式ニュース1142（2018-11-06）を開いて確認。ゲーム内での実装日・入手方法は
+    // ゲーム公式の告知を確認できなかったため書かない（sortKey は公式ニュースの掲載日）。
+    id: "voice-othellonia-2018",
+    category: VOICE_CATEGORY.GAME,
+    title: "逆転オセロニア",
+    yearLabel: "2018年",
+    sortKey: "2018-11-06",
+    description: "DeNAのスマートフォンゲーム。新キャラクター「レアー」（進化後［大地の息吹］レアー／闘化後［惠穣の女神］レアー）のキャラクターボイスを担当。",
+    casts: [cast(ID.morohashi, "レアー")],
+    links: [{ label: EL_INFO, url: "https://equal-love.jp/news/detail/1142" }],
+    lastVerifiedDate: "2026-10-27",
+  },
+  {
+    // 【2026-10-27追加】＝LOVE公式の告知は見つからなかったが、ゲーム専門メディア 4Gamer.net の記事（2017-11-14）を
+    // 開いて確認した。このファイルの掲載ルール（作品公式 → ＝LOVE公式 → 制作側公式 → 信頼できる報道）の
+    // 「信頼できる報道」に当たり、既存のファミ通・Gamer の記事と同じ扱い（REPORTラベル）にしている。
+    // sortKey は記事の掲載日（起用の発表日）。サービスの現況は未確認のため書かない。
+    id: "voice-minna-de-casino-2017",
+    category: VOICE_CATEGORY.GAME,
+    title: "みんなでカジノ",
+    yearLabel: "2017年",
+    sortKey: "2017-11-14",
+    description: "エイジのソーシャルカジノゲーム。ナビゲートキャラクター「七星さくら」の声を担当。",
+    casts: [cast(ID.morohashi, "七星さくら")],
+    links: [{ label: REPORT, url: "https://www.4gamer.net/games/401/G040163/20171114036/" }],
+    lastVerifiedDate: "2026-10-27",
+  },
+  {
     id: "voice-enoshimans-jellyfish-2019",
     category: VOICE_CATEGORY.TV_ANIME,
     title: "えのしまんず SPIN OFF「クラゲの相談」",
@@ -402,16 +437,21 @@ export const VOICE_APPEARANCES = [
     title: "モンスターコレクト ＝LOVEコラボ",
     yearLabel: "2019〜2020年",
     sortKey: "2019-05-17",
-    description: "メンバーがキャラクターを考案し、ボイスも担当した企画（第1弾〜第4弾で全メンバーが参加）。",
+    description: "メンバーがキャラクターを考案し、ボイスも担当した企画（第1弾〜第4弾で当時の12人全員が参加）。",
+    // 【2026-10-27修正】公式ニュース1755（2020-01-14）の各弾の表記に合わせた：第1弾に齊藤なぎさ、
+    // 第3弾-2に佐竹のん乃を追加し、第3弾を「-1（大場・山本）」「-2（音嶋・佐竹）」に分けて表記。
+    // 担当キャラクター名は公式ページに記載が無い（画像のみ）ため、引き続き載せない。
     casts: [
       cast(ID.sasaki, null, "キャラクター考案・ボイス（第1弾）"),
       cast(ID.noguchi, null, "キャラクター考案・ボイス（第1弾）"),
+      cast(ID.nagisa, null, "キャラクター考案・ボイス（第1弾）"),
       cast(ID.takiwaki, null, "キャラクター考案・ボイス（第1弾）"),
       cast(ID.takamatsu, null, "キャラクター考案・ボイス（第2弾）"),
       cast(ID.otani, null, "キャラクター考案・ボイス（第2弾）"),
-      cast(ID.oba, null, "キャラクター考案・ボイス（第3弾）"),
-      cast(ID.yamamoto, null, "キャラクター考案・ボイス（第3弾）"),
-      cast(ID.otoshima, null, "キャラクター考案・ボイス（第3弾）"),
+      cast(ID.oba, null, "キャラクター考案・ボイス（第3弾-1）"),
+      cast(ID.yamamoto, null, "キャラクター考案・ボイス（第3弾-1）"),
+      cast(ID.otoshima, null, "キャラクター考案・ボイス（第3弾-2）"),
+      cast(ID.nonno, null, "キャラクター考案・ボイス（第3弾-2）"),
       cast(ID.saito, null, "キャラクター考案・ボイス（第4弾）"),
       cast(ID.morohashi, null, "キャラクター考案・ボイス（第4弾）"),
     ],
@@ -447,8 +487,13 @@ export const VOICE_APPEARANCES = [
     title: "メギド72",
     yearLabel: "2020年",
     sortKey: "2020-01-06",
+    // 【2026-10-27追記】XRライブは別カードにせず、同じ作品の説明に1文足す（二重登録を避けるため）。公式ニュース11053で確認。
+    description: "2026年1月9日の「メギド７２ 1st XR Live『幻境エンタングル -交錯する運命-』」にもネフィリム役で出演した（本人の登壇はなし）。",
     casts: [cast(ID.noguchi, "ネフィリム")],
-    links: [{ label: EL_INFO, url: "https://equal-love.jp/news/detail/2516" }],
+    links: [
+      { label: EL_INFO, url: "https://equal-love.jp/news/detail/2516" },
+      { label: "XRライブの出演情報", url: "https://equal-love.jp/news/detail/11053" },
+    ],
     lastVerifiedDate: LAST_VERIFIED,
   },
   {
@@ -479,8 +524,20 @@ export const VOICE_APPEARANCES = [
     title: "シャインポスト",
     yearLabel: "2022年",
     sortKey: "2022-07-19",
+    // 【2026-10-27追記】ゆらゆらシスターズは作品内（劇中）のユニット。本人がVTuber・別名義で活動したわけではないので、
+    // 独立したカードにはせず、この作品の説明に1文足す形にしている（作品公式のキャラクターページ・RELEASEページで確認）。
+    // 『ゆらゆらワンダフルワールド』の配信日は作品公式ページに記載が無い（配信サイトの表示のみ）ため、日付は書かない。
+    description:
+      "齋藤樹愛羅（広瀬実唯菜）は、劇中の2人組アイドルユニット「ゆらゆらシスターズ」（ナターリャ CV.古賀葵 とのユニット）の一員として歌唱も担当。配信曲『ゆらゆらワンダフルワールド』。",
     casts: [cast(ID.noguchi, "兎塚七海"), cast(ID.saito, "広瀬実唯菜")],
-    links: [{ label: EL_INFO, url: "https://equal-love.jp/news/detail/5116" }],
+    links: [
+      { label: EL_INFO, url: "https://equal-love.jp/news/detail/5116" },
+      { label: "ゆらゆらシスターズ（作品公式）", url: "https://anime.shinepost.jp/character/yurayura/" },
+      {
+        label: "楽曲情報（作品公式）",
+        url: "https://shinepost.jp/release/%E3%82%86%E3%82%89%E3%82%86%E3%82%89%E3%83%AF%E3%83%B3%E3%83%80%E3%83%95%E3%83%AB%E3%83%AF%E3%83%BC%E3%83%AB%E3%83%89/",
+      },
+    ],
     lastVerifiedDate: LAST_VERIFIED,
   },
   {
@@ -575,8 +632,14 @@ export const VOICE_APPEARANCES = [
     title: "シャインポスト Be Your アイドル！",
     yearLabel: "2025年",
     sortKey: "2025-06-05",
+    // 【2026-10-27追記】ゲーム内楽曲の配信日は作品公式ニュース955（2025-04-04）で確認
+    description:
+      "齋藤樹愛羅（広瀬実唯菜）は劇中ユニット「ゆらゆらシスターズ」（ナターリャ CV.古賀葵 とのユニット）としても歌唱。ゲーム内楽曲『絶対王者チョコレート』（2025年4月11日配信）・『僕達には歌がある』（4月25日配信）・『あの日の夢を』（5月16日配信）。",
     casts: [cast(ID.noguchi, "兎塚七海"), cast(ID.saito, "広瀬実唯菜")],
-    links: [{ label: OFFICIAL, url: "https://www.konami.com/games/shinepost/" }],
+    links: [
+      { label: OFFICIAL, url: "https://www.konami.com/games/shinepost/" },
+      { label: "楽曲配信のお知らせ（作品公式）", url: "https://shinepost.jp/news/955/" },
+    ],
     lastVerifiedDate: LAST_VERIFIED,
   },
   {
