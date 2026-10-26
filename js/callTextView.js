@@ -57,18 +57,25 @@ function callRow(calls, className, options) {
 function appendLineContents(line, item, options) {
   const text = item.text ?? "";
   const groups = item.anchored ?? [];
-  const lyricClass = item.displayEdited ? "call-text-lyric is-pre" : "call-text-lyric";
+  // 表示行の部分（元の歌詞の行ごとの部分・つなぎ目）。古い形の並び（parts なし）は、行全体を1つの部分とみなす
+  const lineParts = item.parts ?? [{ kind: "segment", lineNo: item.lineNo, start: 0, end: text.length, textStart: 0, textEnd: text.length, displayEdited: Boolean(item.displayEdited) }];
+  const cuts = new Set([0, text.length, ...groups.map((g) => g.offset), ...lineParts.map((p) => p.textStart)]);
+  const sortedCuts = [...cuts].filter((c) => c >= 0 && c <= text.length).sort((a, b) => a - b);
+  const groupAt = new Map(groups.map((g) => [g.offset, g.calls]));
   const parts = []; // 表示順の「歌詞の一部」と「コール」
-  let position = 0;
-  groups.forEach((group) => {
-    if (group.offset > position) parts.push({ kind: "lyric", start: position, end: group.offset });
-    group.calls.forEach((call) => parts.push({ kind: "call", call }));
-    position = group.offset;
+  sortedCuts.forEach((cut, index) => {
+    (groupAt.get(cut) ?? []).forEach((call) => parts.push({ kind: "call", call }));
+    const next = sortedCuts[index + 1];
+    if (next === undefined || next === cut) return;
+    const owner = lineParts.find((p) => p.textStart <= cut && cut < p.textEnd);
+    if (owner) parts.push({ kind: "lyric", start: cut, end: next, owner });
   });
-  if (position < text.length || !parts.some((part) => part.kind === "lyric")) parts.push({ kind: "lyric", start: position, end: text.length });
+  if (!parts.some((part) => part.kind === "lyric")) parts.push({ kind: "lyric", start: text.length, end: text.length, owner: lineParts[0] }); // 歌詞が空の行（以前と同じ並び）
   (item.inline ?? []).forEach((call) => parts.push({ kind: "call", call }));
-  const endsWithSpace = (part) => part.kind === "lyric" && /\s$/.test(text.slice(part.start, part.end));
-  const startsWithSpace = (part) => part.kind === "lyric" && /^\s/.test(text.slice(part.start, part.end));
+  const pieceText = (part) => text.slice(part.start, part.end);
+  const endsWithSpace = (part) => part.kind === "lyric" && /\s$/.test(pieceText(part));
+  const startsWithSpace = (part) => part.kind === "lyric" && /^\s/.test(pieceText(part));
+  const firstLyric = parts.findIndex((part) => part.kind === "lyric");
   parts.forEach((part, index) => {
     const previous = parts[index - 1];
     const needsGap = previous && (previous.kind === "call" || part.kind === "call") && !endsWithSpace(previous) && !startsWithSpace(part);
@@ -77,8 +84,19 @@ function appendLineContents(line, item, options) {
       line.appendChild(callSpan(part.call, options));
       return;
     }
-    const span = el("span", lyricClass, text.slice(part.start, part.end));
-    if (options.unitHook) options.unitHook(span, { kind: "lyric", lineNo: item.lineNo, start: part.start, end: part.end, text, displayEdited: Boolean(item.displayEdited) });
+    const owner = part.owner;
+    const pre = owner.kind === "joiner" || owner.displayEdited;
+    const span = el("span", pre ? "call-text-lyric is-pre" : "call-text-lyric", pieceText(part));
+    if (options.unitHook) {
+      const unit =
+        owner.kind === "joiner"
+          ? { kind: "joiner", lineNo: owner.lineNo, text: owner.text }
+          : { kind: "lyric", lineNo: owner.lineNo, start: owner.start + (part.start - owner.textStart), end: owner.start + (part.end - owner.textStart), pieceText: pieceText(part), displayEdited: Boolean(owner.displayEdited) };
+      unit.lineStart = index === firstLyric && index === 0 && part.start === 0; // 表示行の先頭（前にコールが無い）
+      unit.lineEnd = index === parts.length - 1 && part.end === text.length; // 表示行の最後（後ろにコールが無い）
+      unit.lineId = item.id ?? `${item.lineNo}:0`;
+      options.unitHook(span, unit);
+    }
     line.appendChild(span);
   });
 }
@@ -101,7 +119,7 @@ export function renderCallTextView(container, layout, options = {}) {
     group.dataset.lineNo = String(item.lineNo);
     if (item.before.length) group.appendChild(callRow(item.before, "is-before", options));
     const line = el("p", "call-text-line");
-    if (options.showLineNumbers) line.appendChild(el("span", "call-text-line-no", String(item.lineNo)));
+    if (options.showLineNumbers) line.appendChild(el("span", "call-text-line-no", String(item.displayNo ?? item.lineNo)));
     appendLineContents(line, item, options);
     group.appendChild(line);
     if (item.after.length) group.appendChild(callRow(item.after, "is-after", options));

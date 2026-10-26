@@ -36,6 +36,17 @@ export function callKey(call) {
   return `${call.type}@${Number(call.start).toFixed(2)}`;
 }
 
+const OFFSET_POSITIONS = new Set([CALL_POSITION.INLINE, CALL_POSITION.BEFORE, CALL_POSITION.AFTER, CALL_POSITION.INTERLUDE]);
+
+// 表示行を分ける位置（splits）のうち使えるもの：行の途中（端ではない）・昇順・重複なし・絵文字の途中でない
+export function validSplits(line) {
+  const text = String(line?.text ?? "");
+  if (!Array.isArray(line?.splits)) return [];
+  return [...new Set(line.splits)]
+    .filter((s) => Number.isInteger(s) && s > 0 && s < text.length && !(text.charCodeAt(s) >= 0xdc00 && text.charCodeAt(s) <= 0xdfff))
+    .sort((a, b) => a - b);
+}
+
 // 文字位置が使えるか：歌詞が位置を決めたときと同じで、位置が本文の範囲内・サロゲートペアの途中でないこと
 export function isValidLineOffset(line, offset, lineTextHash) {
   if (!line || !Number.isInteger(offset) || typeof lineTextHash !== "string") return false;
@@ -108,9 +119,10 @@ export function buildCallTextLayout(lines, calls, { overrides = null, uncertainL
     if (overrideValid) {
       placement = { lineNo: override.lineNo, position: override.position, needsReview: Boolean(override.needsReview), reason: override.reason ?? "位置情報あり" };
       source = "override";
-      if (override.position === CALL_POSITION.INLINE && override.offset !== undefined && override.offset !== null) {
+      // 文字位置：横（同時）はその文字の所、前・後・間奏は表示行の区切り（Enter で分けた所）を指すときに使う
+      if (OFFSET_POSITIONS.has(override.position) && override.offset !== undefined && override.offset !== null) {
         if (isValidLineOffset(lineByNo.get(override.lineNo), override.offset, override.lineTextHash)) placement.offset = override.offset;
-        else placement.anchorFallback = true; // 歌詞が違う：文字位置は使わず行の横に出す
+        else placement.anchorFallback = true; // 歌詞が違う：文字位置は使わず、行の横・前・後に出す
       }
     } else {
       placement = estimateCallPlacement(sortedLines, call);
@@ -123,31 +135,123 @@ export function buildCallTextLayout(lines, calls, { overrides = null, uncertainL
     return { callIndex, key, text: call.text, type: call.type, start: call.start, added: Boolean(call.added), edited: Boolean(call.edited), order, source, ...placement };
   });
 
-  const items = [];
-  const byOrder = (list) => [...list].sort((a, b) => a.order - b.order || a.callIndex - b.callIndex);
-  const intro = byOrder(placements.filter((p) => p.position === CALL_POSITION.INTRO || (p.lineNo === null && sortedLines.length === 0)));
-  if (intro.length) items.push({ kind: "block", position: CALL_POSITION.INTRO, lineNo: sortedLines[0]?.line ?? null, calls: intro });
+  // ---- 表示行（2026-10-26追加） ----
+  // 歌詞の行（元のデータの行番号）を、文字モードで見せる「表示行」に組み立てる。
+  //   splits：その行の表示用の歌詞の、どの文字位置で表示行を分けるか（Enter で分けた所）
+  //   joinNext：その行の最後と次の行の最初を1つの表示行につなげる（値はつなぎ目に入れる文字。"" も可）
+  // どちらも無ければ、これまでどおり歌詞の1行＝表示行1つ（見た目も並びも以前と同じ）。
+  // コールの位置は、元の歌詞の行番号＋その行の中の文字位置のまま持ち、表示行への割り当てはここで毎回決める
+  // （表示行の番号は、つないだり分けたりするたびに上から数え直すだけで、コールの位置そのものは変わらない）。
+  const displayLines = [];
   sortedLines.forEach((line, index) => {
-    const at = (position) => byOrder(placements.filter((p) => p.lineNo === line.line && p.position === position));
-    const inlineAll = at(CALL_POSITION.INLINE);
-    const offsets = [...new Set(inlineAll.filter((p) => p.offset !== undefined).map((p) => p.offset))].sort((a, b) => a - b);
-    items.push({
-      kind: "line",
-      lineNo: line.line,
-      text: line.text,
-      displayEdited: Boolean(line.displayEdited), // 表示用の歌詞（空白・改行をそのまま見せる）
-      before: at(CALL_POSITION.BEFORE),
-      inline: inlineAll.filter((p) => p.offset === undefined),
-      after: at(CALL_POSITION.AFTER),
-      anchored: offsets.map((offset) => ({ offset, calls: inlineAll.filter((p) => p.offset === offset) })),
-    });
-    const interlude = at(CALL_POSITION.INTERLUDE);
-    if (interlude.length) items.push({ kind: "block", position: CALL_POSITION.INTERLUDE, lineNo: line.line, calls: interlude });
-    if (index === sortedLines.length - 1) {
-      const outro = at(CALL_POSITION.OUTRO);
-      if (outro.length) items.push({ kind: "block", position: CALL_POSITION.OUTRO, lineNo: line.line, calls: outro });
+    const text = line.text ?? "";
+    const cuts = validSplits(line);
+    const bounds = [0, ...cuts, text.length];
+    const previous = sortedLines[index - 1];
+    const joined = previous && typeof previous.joinNext === "string" && displayLines.length > 0;
+    for (let i = 0; i < bounds.length - 1; i += 1) {
+      const segment = { lineNo: line.line, start: bounds[i], end: bounds[i + 1], displayEdited: Boolean(line.displayEdited) };
+      if (i === 0 && joined) {
+        const current = displayLines[displayLines.length - 1];
+        current.parts.push({ kind: "joiner", lineNo: previous.line, text: previous.joinNext });
+        current.parts.push({ kind: "segment", ...segment, text: text.slice(segment.start, segment.end) });
+      } else {
+        displayLines.push({ parts: [{ kind: "segment", ...segment, text: text.slice(segment.start, segment.end) }] });
+      }
     }
   });
+  // 表示行の文章と、各部分の表示行の中での位置
+  displayLines.forEach((display, index) => {
+    let cursor = 0;
+    display.parts.forEach((part) => {
+      part.textStart = cursor;
+      cursor += part.text.length;
+      part.textEnd = cursor;
+    });
+    display.text = display.parts.map((part) => part.text).join("");
+    display.segments = display.parts.filter((part) => part.kind === "segment");
+    display.index = index;
+  });
+  // 元の行の文字位置 → 表示行とその中の位置。分けた所ちょうどの位置は、preferUpper なら上の表示行の最後、そうでなければ下の表示行の最初
+  const locate = (lineNo, offset, preferUpper) => {
+    let found = null;
+    if (!lineByNo.has(lineNo)) return null;
+    for (const display of displayLines) {
+      for (const segment of display.segments) {
+        if (segment.lineNo !== lineNo || offset < segment.start || offset > segment.end) continue;
+        const at = { display, at: segment.textStart + (offset - segment.start) };
+        if (offset === segment.end && preferUpper) return at;
+        if (offset === segment.start && !preferUpper) return at;
+        found = found ?? at;
+      }
+    }
+    // 見つからない（壊れた位置情報）ときは、その行の最初の表示行の先頭
+    return found ?? (offset !== 0 ? locate(lineNo, 0, false) : null);
+  };
+  const lineLength = (lineNo) => (lineByNo.get(lineNo)?.text ?? "").length;
+  const slots = displayLines.map(() => ({ before: [], inline: [], after: [], anchored: new Map(), interlude: [] }));
+  const outro = [];
+  const intro = [];
+  placements.forEach((p) => {
+    if (p.position === CALL_POSITION.INTRO || (p.lineNo === null && sortedLines.length === 0)) return intro.push(p);
+    if (p.position === CALL_POSITION.OUTRO) return outro.push(p);
+    const length = lineLength(p.lineNo);
+    const anchor = (loc) => {
+      const slot = slots[loc.display.index];
+      if (!slot.anchored.has(loc.at)) slot.anchored.set(loc.at, []);
+      slot.anchored.get(loc.at).push(p);
+    };
+    if (p.position === CALL_POSITION.BEFORE) {
+      const loc = locate(p.lineNo, p.offset ?? 0, false);
+      return loc.at === 0 ? slots[loc.display.index].before.push(p) : anchor(loc);
+    }
+    if (p.position === CALL_POSITION.AFTER) {
+      const loc = locate(p.lineNo, p.offset ?? length, true);
+      return loc.at === loc.display.text.length ? slots[loc.display.index].after.push(p) : anchor(loc);
+    }
+    if (p.position === CALL_POSITION.INTERLUDE) {
+      const loc = locate(p.lineNo, p.offset ?? length, true);
+      return slots[loc.display.index].interlude.push(p);
+    }
+    // 横（同時）：文字位置があればその位置、無ければその行の最後（表示行の最後なら行末の横、つないだ途中ならその位置）
+    if (p.offset !== undefined) return anchor(locate(p.lineNo, p.offset, true));
+    const loc = locate(p.lineNo, length, true);
+    return loc.at === loc.display.text.length ? slots[loc.display.index].inline.push(p) : anchor(loc);
+  });
+
+  const items = [];
+  const byOrder = (list) => [...list].sort((a, b) => a.order - b.order || a.callIndex - b.callIndex);
+  if (intro.length) items.push({ kind: "block", position: CALL_POSITION.INTRO, lineNo: sortedLines[0]?.line ?? null, calls: byOrder(intro) });
+  displayLines.forEach((display, index) => {
+    const slot = slots[index];
+    const first = display.segments[0];
+    const last = display.segments[display.segments.length - 1];
+    items.push({
+      kind: "line",
+      lineNo: first.lineNo, // この表示行が始まる元の歌詞の行番号
+      displayNo: index + 1, // 画面に出す行番号（上から数え直す）
+      id: `${first.lineNo}:${first.start}`, // 表示行の目印（元の行番号:その行の中の開始位置）
+      text: display.text,
+      displayEdited: display.segments.some((segment) => segment.displayEdited), // 表示用の歌詞（空白・改行をそのまま見せる）
+      parts: display.parts.map(({ kind, lineNo, start, end, text, textStart, textEnd, displayEdited }) => ({
+        kind,
+        lineNo,
+        start,
+        end,
+        text,
+        textStart,
+        textEnd,
+        displayEdited: Boolean(displayEdited),
+        lineLength: kind === "segment" ? lineLength(lineNo) : undefined, // 元の行（表示用の歌詞）の長さ
+      })),
+      before: byOrder(slot.before),
+      inline: byOrder(slot.inline),
+      after: byOrder(slot.after),
+      anchored: [...slot.anchored.keys()].sort((a, b) => a - b).map((offset) => ({ offset, calls: byOrder(slot.anchored.get(offset)) })),
+    });
+    if (slot.interlude.length) items.push({ kind: "block", position: CALL_POSITION.INTERLUDE, lineNo: last.lineNo, calls: byOrder(slot.interlude) });
+  });
+  if (outro.length) items.push({ kind: "block", position: CALL_POSITION.OUTRO, lineNo: sortedLines[sortedLines.length - 1]?.line ?? null, calls: byOrder(outro) });
 
   const shown = items.reduce(
     (sum, item) =>

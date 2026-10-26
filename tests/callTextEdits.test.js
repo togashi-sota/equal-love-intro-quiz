@@ -1,6 +1,6 @@
 // 【2026-10-25新設】ライブコール文字モードの「本人が編集・承認した内容」を当てはめる部品の回帰テスト。
 // 実在の歌詞・コールは使わず、テスト用のダミーだけで行う。
-import { buildCallTextLayout, callKey, isValidLineOffset } from "../js/callTextLayout.js";
+import { buildCallTextLayout, callKey, isValidLineOffset, validSplits } from "../js/callTextLayout.js";
 import { applyCallTextEntry, applyDisplayLyrics, computeCallsFingerprint, hashText, resolveApprovedCallText, splitTextAt } from "../js/callTextEdits.js";
 import { renderCallTextView } from "../js/callTextView.js";
 import { assertEqual } from "./test-utils.js";
@@ -157,5 +157,51 @@ export async function runCallTextEditsTests() {
     const inline = box4.querySelector('.call-text-group[data-line-no="1"] .call-text-call');
     assertEqual([getComputedStyle(inline, "::before").content, getComputedStyle(inline, "::after").content].every((c) => c === "none" || c === "normal" || c === ""), true, "表示されたコールにカッコが付かない");
     box4.remove();
+  }
+
+  // 【2026-10-26追加】表示行の分割（splits）・結合（joinNext）
+  const DL = [
+    { line: 1, text: "ダミーあいう", start: 10, end: 12 },
+    { line: 2, text: "ダミーえお", start: 12, end: 14 },
+    { line: 3, text: "ダミーかき", start: 14, end: 16 },
+  ];
+  const dc = (start, text) => ({ text, start, end: start + 1, type: "callback" });
+  const DC = [dc(10.5, "前"), dc(11, "後"), dc(12.5, "横")];
+  const dOver = {
+    [keyOf(DC[0])]: { lineNo: 2, position: "before" },
+    [keyOf(DC[1])]: { lineNo: 1, position: "after" },
+    [keyOf(DC[2])]: { lineNo: 1, position: "inline", offset: 4, lineTextHash: hashText(DL[0].text) },
+  };
+  const lineItemsOf = (layout) => layout.items.filter((i) => i.kind === "line");
+  const dlPlainLayout = buildCallTextLayout(DL, DC, { overrides: dOver });
+  assertEqual(lineItemsOf(dlPlainLayout).map((i) => [i.displayNo, i.text]), [[1, "ダミーあいう"], [2, "ダミーえお"], [3, "ダミーかき"]], "表示行：分割・結合が無ければ歌詞の1行＝表示行1つ");
+  const dlSplitLayout = buildCallTextLayout([{ ...DL[0], splits: [3] }, DL[1], DL[2]], DC, { overrides: dOver });
+  assertEqual(lineItemsOf(dlSplitLayout).map((i) => [i.displayNo, i.id, i.text]), [[1, "1:0", "ダミー"], [2, "1:3", "あいう"], [3, "2:0", "ダミーえお"], [4, "3:0", "ダミーかき"]], "表示行：分けると行番号が増え、後ろが繰り下がる");
+  assertEqual(lineItemsOf(dlSplitLayout)[1].anchored.map((g) => [g.offset, g.calls[0].text]), [[1, "横"]], "表示行：文字位置のコールは分けた下の行のその位置へ");
+  assertEqual(lineItemsOf(dlSplitLayout)[1].after.map((c) => c.text), ["後"], "表示行：行の後のコールは、分けた最後の表示行の後");
+  const dlJoinLayout = buildCallTextLayout([{ ...DL[0], joinNext: "　" }, DL[1], DL[2]], DC, { overrides: dOver });
+  const joinedItem = lineItemsOf(dlJoinLayout)[0];
+  assertEqual([lineItemsOf(dlJoinLayout).length, joinedItem.text, joinedItem.displayNo, lineItemsOf(dlJoinLayout)[1].displayNo], [2, "ダミーあいう　ダミーえお", 1, 2], "表示行：つなげると1行になり、行番号が詰まる");
+  assertEqual(joinedItem.anchored.map((g) => [g.offset, g.calls.map((c) => c.text)]), [[4, ["横"]], [6, ["後"]], [7, ["前"]]], "表示行：つないだ行の後・次の行の前のコールは、つなぎ目の前後に出る");
+  assertEqual(dlJoinLayout.stats.shownCalls, DC.length, "表示行：分割・結合でもコールは全部1回ずつ");
+  // 分けた所の「前・後」：文字位置つきの前・後
+  const dlEdgeLayout = buildCallTextLayout([{ ...DL[0], splits: [3] }, DL[1], DL[2]], DC, {
+    overrides: {
+      ...dOver,
+      [keyOf(DC[0])]: { lineNo: 1, position: "before", offset: 3, lineTextHash: hashText(DL[0].text) },
+      [keyOf(DC[1])]: { lineNo: 1, position: "after", offset: 3, lineTextHash: hashText(DL[0].text) },
+    },
+  });
+  assertEqual([lineItemsOf(dlEdgeLayout)[0].after.map((c) => c.text), lineItemsOf(dlEdgeLayout)[1].before.map((c) => c.text)], [["後"], ["前"]], "表示行：分けた上の行の後・下の行の前に置ける");
+  assertEqual(validSplits({ text: "あいう", splits: [0, 3, 2, 2, 1, "x"] }), [1, 2], "表示行：使えない区切り（端・重複・数字でない）は無視");
+  // 表示用の歌詞の当てはめ：文章なしで区切り・つなぎだけでも当てはめる。元の歌詞が違えば当てはめない
+  const withStructure = applyDisplayLyrics(DL, { 1: { originalTextHash: hashText(DL[0].text), splits: [3], joinNext: "" }, 2: { originalTextHash: "00000000", splits: [2] } });
+  assertEqual([withStructure[0].splits, withStructure[0].joinNext, withStructure[0].text, Boolean(withStructure[0].displayEdited), withStructure[1].splits], [[3], "", "ダミーあいう", false, undefined], "表示行：区切り・つなぎを当てはめる（元の歌詞が違う行は当てはめない）");
+  if (typeof document !== "undefined") {
+    const units5 = [];
+    const box5 = document.createElement("div");
+    renderCallTextView(box5, dlJoinLayout, { unitHook: (node, unit) => units5.push(unit.kind === "call" ? `C:${unit.call.text}` : `${unit.kind}:${unit.lineNo}:${unit.kind === "joiner" ? unit.text : `${unit.start}-${unit.end}`}`) });
+    assertEqual(units5.slice(0, 7), ["lyric:1:0-4", "C:横", "lyric:1:4-6", "C:後", "joiner:1:　", "C:前", "lyric:2:0-5"], "表示行の表示：つないだ行は、元の行ごとの部分・つなぎ目・コールの順に並ぶ");
+    assertEqual(box5.querySelector(".call-text-line").textContent.replace(/\s/g, ""), "ダミーあ横いう後前ダミーえお", "表示行の表示：歌詞の文字は足さない・消さない");
   }
 }

@@ -64,15 +64,22 @@ export function placementOf(record) {
   };
 }
 
-// 文字モードで見せる歌詞（表示用）を当てはめる（2026-10-25追加）。lineTexts：{ [行番号]: { text, originalTextHash } }
-// 端末の歌詞が、表示用の歌詞を作ったときの元の歌詞と同じ行だけ置き換える（違う行はそのまま＝元の歌詞）。
-// 元の歌詞データは書き換えず、新しい行の一覧を返す。置き換えた行には displayEdited: true を付ける（空白・改行をそのまま見せる）。
+// 文字モードで見せる歌詞（表示用）を当てはめる（2026-10-25追加・10-26 表示行の分割・結合を追加）。
+// lineTexts：{ [行番号]: { text?, originalTextHash, splits?, joinNext? } }
+//   text：表示用の歌詞（無ければ元の歌詞のまま）
+//   splits：表示行を分ける文字位置（Enter で分けた所）。joinNext：次の行と1つの表示行につなげる（つなぎ目の文字。"" も可）
+// 端末の歌詞が、表示用の歌詞を作ったときの元の歌詞と同じ行だけ当てはめる（違う行はそのまま＝元の歌詞・分割や結合もしない）。
+// 元の歌詞データは書き換えず、新しい行の一覧を返す。文章を置き換えた行には displayEdited: true を付ける（空白・改行をそのまま見せる）。
 export function applyDisplayLyrics(lines, lineTexts) {
   if (!lineTexts) return lines ?? [];
   return (lines ?? []).map((line) => {
     const lt = lineTexts[line.line];
-    if (!lt || typeof lt.text !== "string" || lt.text.trim() === "" || lt.originalTextHash !== hashText(line.text)) return line;
-    return { ...line, text: lt.text, displayEdited: true };
+    if (!lt || lt.originalTextHash !== hashText(line.text)) return line;
+    const hasText = typeof lt.text === "string" && lt.text.trim() !== "";
+    const next = hasText ? { ...line, text: lt.text, displayEdited: true } : { ...line };
+    if (Array.isArray(lt.splits) && lt.splits.length) next.splits = [...lt.splits];
+    if (typeof lt.joinNext === "string") next.joinNext = lt.joinNext;
+    return next;
   });
 }
 
