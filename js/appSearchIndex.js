@@ -15,6 +15,8 @@ import { GROUP_ACTIVITIES } from "./data/groupActivities.js";
 import { STAGE_PRODUCTIONS, VOICE_APPEARANCES } from "./data/memberStageVoice.js";
 import { COMMERCIALS } from "./data/commercials.js";
 import { LIVE_EVENTS, LIVE_STATUS } from "./data/liveHistory.js";
+// 【2026-10-27追加】公演カードのセットリスト（曲名でも公演が見つかるようにする）
+import { SETLIST_PERFORMANCES } from "./data/setlists.js";
 import { DISCOGRAPHY } from "./data/discography.js";
 import { GUIDE_SECTIONS } from "./data/guideContent.js";
 import { APP_SEARCH_FEATURES } from "./data/appSearchFeatures.js";
@@ -277,10 +279,15 @@ export function describeLiveVideo(event, today) {
   return null;
 }
 
-function buildLiveEntries({ liveEvents, today }) {
+function buildLiveEntries({ liveEvents, today, setlistPerformances = SETLIST_PERFORMANCES, songs = [] }) {
+  const songTitleById = new Map(songs.map((song) => [song.id, song.title]));
   return liveEvents.map((event) => {
     const venues = (event.venues ?? []).filter((venue) => venue.name || venue.city);
     const year = (event.startDate ?? "").slice(0, 4);
+    const setlists = setlistPerformances.filter((performance) => performance.liveId === event.id);
+    const setlistSongTitles = [
+      ...new Set(setlists.flatMap((performance) => performance.items.map((item) => songTitleById.get(item.songId) ?? item.title))),
+    ];
     return createEntry({
       key: `live:${event.id}`,
       category: "live",
@@ -292,13 +299,22 @@ function buildLiveEntries({ liveEvents, today }) {
         `状態：${describeLiveStatus(event, today)}`,
         describeLiveVideo(event, today),
         event.episodeNote,
+        setlists.length > 0 ? `セットリスト：${setlists.length}公演分を掲載（公式・報道で確認できたもの）` : null,
       ],
       links: event.productLinks,
       action: { label: "ライブ履歴で詳しく見る", target: { kind: "discography", tab: "live", focusSelector: `[data-live-id="${event.id}"]` } },
       terms: {
         primary: [event.title],
-        secondary: [...venues.map((venue) => venue.name), ...venues.map((venue) => venue.city), year ? `${year}年` : null, year, "ライブ", "公演"],
-        body: [event.episodeNote, describeLiveVideo(event, today)],
+        secondary: [
+          ...venues.map((venue) => venue.name),
+          ...venues.map((venue) => venue.city),
+          year ? `${year}年` : null,
+          year,
+          "ライブ",
+          "公演",
+          ...(setlists.length > 0 ? ["セットリスト", "セトリ"] : []),
+        ],
+        body: [event.episodeNote, describeLiveVideo(event, today), ...setlistSongTitles],
       },
     });
   });
