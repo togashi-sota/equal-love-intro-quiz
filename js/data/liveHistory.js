@@ -223,8 +223,12 @@ export const LIVE_EVENTS = [
     endDate: "2023-01-13",
     venues: [{ name: "パシフィコ横浜 国立大ホール", city: "横浜", date: "2023-01-13" }],
     blurayReleased: true,
+    // 【2026-10-27修正】以前は「Blu-ray+CD」のボタンが DVD の品番（VVBL-184）を指していた。
+    // 公式ニュース（equal-love.jp/news/detail/6496）で TYPE A Blu-ray＋CD＝VVXL-140～141、
+    // TYPE B DVD＝VVBL-184 と確認したため、正しい品番に直して DVD を別ボタンにした。
     productLinks: [
-      { label: "Blu-ray+CD（完全生産限定盤）を見る", url: "https://www.sonymusic.co.jp/artist/equal-love/discography/VVBL-184", sourceType: "official" },
+      { label: "Blu-ray+CD（完全生産限定盤）を見る", url: "https://www.sonymusic.co.jp/artist/equal-love/discography/VVXL-140", sourceType: "official" },
+      { label: "DVD（初回仕様限定盤）を見る", url: "https://www.sonymusic.co.jp/artist/equal-love/discography/VVBL-184", sourceType: "official" },
     ],
     setlist: null,
     episodeNote: null,
