@@ -61,6 +61,7 @@ export function placementOf(record) {
     position: record.position,
     ...(Number.isFinite(record.order) ? { order: record.order } : {}),
     ...(Number.isInteger(record.offset) ? { offset: record.offset, lineTextHash: record.lineTextHash } : {}),
+    ...(Number.isInteger(record.offset) && record.atLineStart === true ? { atLineStart: true } : {}), // 分けた下の表示行の先頭
   };
 }
 

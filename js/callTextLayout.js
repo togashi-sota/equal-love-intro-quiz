@@ -121,7 +121,11 @@ export function buildCallTextLayout(lines, calls, { overrides = null, uncertainL
       source = "override";
       // 文字位置：横（同時）はその文字の所、前・後・間奏は表示行の区切り（Enter で分けた所）を指すときに使う
       if (OFFSET_POSITIONS.has(override.position) && override.offset !== undefined && override.offset !== null) {
-        if (isValidLineOffset(lineByNo.get(override.lineNo), override.offset, override.lineTextHash)) placement.offset = override.offset;
+        if (isValidLineOffset(lineByNo.get(override.lineNo), override.offset, override.lineTextHash)) {
+          placement.offset = override.offset;
+          // Enter で分けた所ちょうどの文字位置は、ふつうは上の表示行の最後。atLineStart なら下の表示行の先頭（2026-10-27）
+          if (override.atLineStart === true) placement.atLineStart = true;
+        }
         else placement.anchorFallback = true; // 歌詞が違う：文字位置は使わず、行の横・前・後に出す
       }
     } else {
@@ -214,7 +218,7 @@ export function buildCallTextLayout(lines, calls, { overrides = null, uncertainL
       return slots[loc.display.index].interlude.push(p);
     }
     // 横（同時）：文字位置があればその位置、無ければその行の最後（表示行の最後なら行末の横、つないだ途中ならその位置）
-    if (p.offset !== undefined) return anchor(locate(p.lineNo, p.offset, true));
+    if (p.offset !== undefined) return anchor(locate(p.lineNo, p.offset, !p.atLineStart));
     const loc = locate(p.lineNo, length, true);
     return loc.at === loc.display.text.length ? slots[loc.display.index].inline.push(p) : anchor(loc);
   });

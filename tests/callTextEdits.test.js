@@ -204,4 +204,13 @@ export async function runCallTextEditsTests() {
     assertEqual(units5.slice(0, 7), ["lyric:1:0-4", "C:横", "lyric:1:4-6", "C:後", "joiner:1:　", "C:前", "lyric:2:0-5"], "表示行の表示：つないだ行は、元の行ごとの部分・つなぎ目・コールの順に並ぶ");
     assertEqual(box5.querySelector(".call-text-line").textContent.replace(/\s/g, ""), "ダミーあ横いう後前ダミーえお", "表示行の表示：歌詞の文字は足さない・消さない");
   }
+
+  // 【2026-10-27追加】Enter で分けた所ちょうどの文字位置：ふつうは上の表示行の最後、atLineStart なら下の表示行の先頭
+  const cutLine = [{ ...DL[0], splits: [3] }, DL[1], DL[2]];
+  const cutHash = hashText(DL[0].text);
+  const upperEnd = buildCallTextLayout(cutLine, [DC[2]], { overrides: { [keyOf(DC[2])]: { lineNo: 1, position: "inline", offset: 3, lineTextHash: cutHash } } });
+  const lowerStart = buildCallTextLayout(cutLine, [DC[2]], { overrides: { [keyOf(DC[2])]: { lineNo: 1, position: "inline", offset: 3, lineTextHash: cutHash, atLineStart: true } } });
+  assertEqual([lineItemsOf(upperEnd)[0].anchored.map((g) => g.offset), lineItemsOf(upperEnd)[1].anchored.length], [[3], 0], "分けた所：ふつうは上の表示行の最後");
+  assertEqual([lineItemsOf(lowerStart)[0].anchored.length, lineItemsOf(lowerStart)[1].anchored.map((g) => g.offset)], [0, [0]], "分けた所：atLineStart なら下の表示行の先頭");
+  assertEqual(applyCallTextEntry([DC[2]], { calls: { [keyOf(DC[2])]: { lineNo: 1, position: "inline", offset: 3, lineTextHash: cutHash, atLineStart: true, originalTextHash: hashText(DC[2].text) } } }).overrides[keyOf(DC[2])].atLineStart, true, "atLineStart：承認データからアプリへ引き継ぐ");
 }
