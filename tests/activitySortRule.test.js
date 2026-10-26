@@ -88,8 +88,11 @@ export function runActivitySortRuleTests() {
 
   // ---- I. 今回問題になった個別ページ ----
   const otani = ids(getMemberActivities(MEMBER_ACTIVITIES, "otani-emiri"));
-  assertEqual(otani[otani.length - 1], "otani-appare-saturday-radio", "I: 大谷映美里：終了したアッパレは継続中の下");
-  assertEqual(otani.slice(0, -1).every((id) => id !== "otani-appare-saturday-radio"), true, "I: アッパレは継続中より上に出ない");
+  // 【2026-10-27】大谷映美里に終了済みの活動（ラヴィット！2024・写真集）が加わったため、「末尾」ではなく
+  // 「継続中グループのすぐ下＝終了グループの先頭（終了日が一番新しい）」であることを確かめる
+  const otaniFirstEndedIndex = otani.findIndex((id) => getActivityGroupRank(MEMBER_ACTIVITIES.find((entry) => entry.id === id)) === getActivityGroupRank({ status: ACTIVITY_STATUS.ENDED }));
+  assertEqual(otani[otaniFirstEndedIndex], "otani-appare-saturday-radio", "I: 大谷映美里：終了したアッパレは継続中の下（終了グループの先頭）");
+  assertEqual(otani.slice(0, otaniFirstEndedIndex).every((id) => id !== "otani-appare-saturday-radio"), true, "I: アッパレは継続中より上に出ない");
   const oba = ids(getMemberActivities(MEMBER_ACTIVITIES, "oba-hana"));
   // 2026-10-23：放送開始予定の「はなまる！」（2026-11-01開始）が継続中グループの先頭に加わった
   assertEqual(oba.slice(0, 3), ["oba-nack5-hanamaru", "oba-saitama-tourism-ambassador", "oba-redyazel"], "I: 大場花菜：はなまる！（開始予定）→さいたま観光大使→REDYAZEL");

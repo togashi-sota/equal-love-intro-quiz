@@ -53,7 +53,8 @@ function mount(node, width = 375) {
 export function runCommercialsResearchTests() {
   // ===== A. 既存17件を維持し、18件を追加して35件 =====
   assertEqual(ORIGINAL_17_IDS.filter((id) => !find(id)), [], "A: 既存の17件を1件も消していない");
-  assertEqual(COMMERCIALS.length, 35, "A: 登録総数は35件（17件＋新規18件）");
+  // 【2026-10-27】齋藤樹愛羅のUSJ「ユニハロ」WebCMを1件追加して36件
+  assertEqual(COMMERCIALS.length, 36, "A: 登録総数は36件（17件＋新規18件＋2026-10-27追加1件）");
   assertEqual(new Set(COMMERCIALS.map((cm) => cm.id)).size, COMMERCIALS.length, "A: IDに重複が無い");
   const signature = (cm) => `${cm.brand}|${cm.title}|${cm.date}`;
   assertEqual(new Set(COMMERCIALS.map(signature)).size, COMMERCIALS.length, "A: 同じ企業・タイトル・日付の二重登録が無い");

@@ -133,7 +133,11 @@ export async function runSearchFeaturesTests() {
   assertEqual(top("みりにゃ")[0], "大谷映美里", "C: 愛称でメンバーが見つかる");
   assertEqual(top("マック", "cm").length >= 3, true, "C: 企業・商品名でCMが見つかる");
   assertEqual(top("東京ドーム")[0], "＝LOVE in TOKYO DOME", "C: 会場名でライブが見つかる");
-  assertEqual(top("横浜 2026"), ["＝LOVE 8th ANNIVERSARY PREMIUM TOUR FINAL in 横浜スタジアム"], "C: 空白区切りの複数語で絞り込める");
+  // 【2026-10-27】瀧脇笙古の『BAY☆スタ』コラム（説明文に「横浜DeNA」「2026年6月」を含む）が加わり、両方の語に一致する
+  // 正しい結果が1件増えたため、「ライブが先頭」かつ「結果が2件以内に絞られる」ことを確かめる形にした
+  const yokohama2026 = top("横浜 2026");
+  assertEqual(yokohama2026[0], "＝LOVE 8th ANNIVERSARY PREMIUM TOUR FINAL in 横浜スタジアム", "C: 空白区切りの複数語で絞り込める（ライブが先頭）");
+  assertEqual(yokohama2026.length <= 2, true, "C: 空白区切りの複数語で絞り込める（件数が絞られる）");
   assertEqual(top("バンテリン")[0], "＝LOVE DOME LIVE in NAGOYA「全ては＝LOVE」", "C: 追加したナゴヤ公演も検索できる");
   assertEqual(top("効果音")[0], "サウンド設定（効果音の詳細設定）", "C: 設定項目が見つかる");
   assertEqual(top("タイムアタック").includes("タイムアタック"), true, "C: 機能・ガイドが見つかる");

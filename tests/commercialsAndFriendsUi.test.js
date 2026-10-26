@@ -54,7 +54,8 @@ export async function runCommercialsAndFriendsUiTests() {
   // ひざつき製菓（＝LOVE名義・大場花菜がパッケージイラスト）を追加
   assertEqual(count("sasaki-maika"), 9, "C: 佐々木舞香は9件（代アニ・メイプル・OPPO・サムライマック・Galaxy・月見パイ・とくべチューハイ・ザクザクマック・ももチキン）");
   assertEqual(["otani-emiri", "noguchi-iori"].map(count), [2, 5], "C: 大谷映美里2件（Galaxy・とくべ）／野口衣織5件（koe×2・メイプル・Galaxy・とくべ）");
-  assertEqual([count("takamatsu-hitomi"), count("saito-kiara"), count("yamamoto-anna")], [1, 1, 1], "C: 髙松瞳・齋藤樹愛羅・山本杏奈は各1件");
+  // 【2026-10-27】齋藤樹愛羅にUSJ「ユニハロ」WebCMを追加して2件
+  assertEqual([count("takamatsu-hitomi"), count("saito-kiara"), count("yamamoto-anna")], [1, 2, 1], "C: 髙松瞳1件・齋藤樹愛羅2件（月見スイーツ・ユニハロ）・山本杏奈1件");
   assertEqual(["oba-hana", "otoshima-risa", "takiwaki-shoko", "morohashi-sana"].map(count), [1, 3, 0, 1], "C: 大場1件（ひざつき製菓のイラスト）・音嶋3件・瀧脇0件・諸橋1件（とくべ）");
   assertEqual(getMemberCommercials("sasaki-maika").map((cm) => cm.date), [...getMemberCommercials("sasaki-maika").map((cm) => cm.date)].sort().reverse(), "C: 新しい順");
   assertEqual(getGroupCommercials().length, 21, "C: ＝LOVE名義の CM・広告・コラボは21件");

@@ -462,6 +462,20 @@ export const COMMERCIALS = [
     lastVerifiedDate: VERIFIED,
   },
   {
+    // 【2026-10-27追加】＝LOVE公式ニュース11918で確認。公式ページに公開日・楽曲（キャンペーンソングの歌唱）の記載が無いため、
+    // 日付は＝LOVE公式の告知日とし、楽曲については書かない（本人Xの検索表示のみで未確認）。
+    id: "cm-saito-usj-unihalo-2026",
+    memberIds: [ID.saito],
+    brand: "ユニバーサル・スタジオ・ジャパン「ハロウィーン・ホラー・ナイト」",
+    title: "学生向けキャンペーン「ユニハロ」新WebCM",
+    kind: COMMERCIAL_KIND.WEB,
+    date: "2026-09-04",
+    description: "USJ「ハロウィーン・ホラー・ナイト」（2026年9月11日〜11月8日）の学生向けキャンペーン「ユニハロ」の新WebCMに出演。日付は＝LOVE公式の告知日。",
+    links: [{ label: EL, url: "https://equal-love.jp/news/detail/11918" }],
+    sourceUrls: ["https://equal-love.jp/news/detail/11918"],
+    lastVerifiedDate: "2026-10-27",
+  },
+  {
     id: "cm-saito-mcdonalds-tsukimi-sweets-2026",
     memberIds: [ID.saito],
     brand: "日本マクドナルド 月見スイーツ",

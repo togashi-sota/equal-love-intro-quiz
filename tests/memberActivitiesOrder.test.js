@@ -83,8 +83,9 @@ export function runMemberActivitiesOrderTests() {
   assertEqual(obaSorted[2].id, "oba-redyazel", "E: 大場花菜は 2026-09-30 の REDYAZEL が（はなまる！・さいたま観光大使の次の）3番目");
   assertEqual(
     obaSorted.map((activity) => activity.id),
-    ["oba-nack5-hanamaru", "oba-saitama-tourism-ambassador", "oba-redyazel", "oba-artistspoken", "oba-manga"],
-    "F: 大場花菜は 継続中（2026-10-01 → 2026-09-30 → 2024-06-14）→ 終了（はなコミ！）の順"
+    // 2026-10-27：開始日未確認の継続中連載「咲かせて！クリエイティ部」が加わった（日付の無い活動は継続中グループの末尾）
+    ["oba-nack5-hanamaru", "oba-saitama-tourism-ambassador", "oba-redyazel", "oba-artistspoken", "oba-ex-taishu-creative-bu", "oba-manga"],
+    "F: 大場花菜は 継続中（2026-10-01 → 2026-09-30 → 2024-06-14 → 日付なし）→ 終了（はなコミ！）の順"
   );
 
   // 旧仕様（status優先）なら上に来ていた継続中の古い活動が、新しい活動より下になる
@@ -308,7 +309,15 @@ export function runOtaniAppareGraduationTests() {
   }
   const otani = sortActivitiesByDateDesc(getMemberActivities(MEMBER_ACTIVITIES, "otani-emiri"));
   const otaniIds = otani.map((entry) => entry.id);
-  assertEqual(otaniIds[otaniIds.length - 1], "otani-appare-saturday-radio", "U: 終了したアッパレは継続中の活動より下（終了グループの先頭＝末尾側）");
+  // 【2026-10-27】大谷映美里に終了済みの活動（ラヴィット！2024・写真集）が加わったため、アッパレは末尾ではなく
+  // 「継続中の活動すべてより下で、終了グループの先頭（終了日が一番新しい）」であることを確かめる
+  const appareIndex = otaniIds.indexOf("otani-appare-saturday-radio");
+  assertEqual(
+    otani.slice(0, appareIndex).every((entry) => !["ended", "past"].includes(entry.status)) &&
+      otani.slice(appareIndex + 1).every((entry) => ["ended", "past"].includes(entry.status)),
+    true,
+    "U: 終了したアッパレは継続中の活動より下（終了グループの先頭）"
+  );
   assertEqual(otaniIds.indexOf("otani-jins-midface") < otaniIds.indexOf("otani-appare-saturday-radio"), true, "U: JINS（継続中）がアッパレ（終了）より上");
   assertEqual(otani.some((entry) => entry.id === "otani-jins-midface") && otani.some((entry) => entry.id === "otani-rose-muse"), true, "U: ほかの大谷映美里の活動カードは残っている");
 }
