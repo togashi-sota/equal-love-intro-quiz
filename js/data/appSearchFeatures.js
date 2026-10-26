@@ -116,6 +116,15 @@ export const APP_SEARCH_FEATURES = [
     action: { type: "click", selector: "#members-link" },
   },
   {
+    // 【2026-10-27新設】歴代センター一覧（js/centersScreen.js）。入口は「＝LOVEについて」の作品一覧タブ
+    id: "feature-centers",
+    category: FEATURE,
+    title: "歴代センター一覧",
+    aliases: ["センター", "歴代センター", "センター一覧", "センター曲", "Wセンター", "ダブルセンター"],
+    description: "シングル・アルバム・配信曲のセンターを発売順に一覧できます。メンバーで絞り込めて、根拠（公式・報道・ファン資料のみ 等）も表示します。",
+    action: { type: "click", selector: "#centers-link" },
+  },
+  {
     id: "feature-call-guide",
     category: FEATURE,
     title: "コールガイド（ライブコールモード）",

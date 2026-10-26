@@ -277,7 +277,7 @@ import { analyzeDataPack, importAnalyzedDataPack, PACK_KIND } from "./dataPackIm
 import { isZipFile, extractZipToFiles } from "./zipPackImport.js";
 import { closeFullscreenLyrics } from "./lyricsFullscreen.js";
 import { initScrollLock } from "./scrollLock.js";
-import { MEMBERS } from "./data/members.js";
+import { MEMBERS, MEMBER_STATUS } from "./data/members.js";
 import { MEMBER_PROFILES } from "./data/memberProfiles.js";
 import { MEMBER_ACTIVITIES } from "./data/memberActivities.js";
 import { GROUP_ACTIVITIES } from "./data/groupActivities.js";
@@ -296,6 +296,8 @@ import { initGuideScreen, openGuideScreen, openGuideSection, getGuideReturnScree
 import { initAppSearchScreen, openAppSearchScreen, shouldFocusAppSearchInput, focusAppSearchInput, getAppSearchQuery } from "./appSearchScreen.js";
 import { initLyricsSearchScreen, openLyricsSearchScreen, shouldFocusLyricsSearchInput, focusLyricsSearchInput, presetLyricsSearchQuery } from "./lyricsSearchScreen.js";
 import { initLiveGuideScreen, openLiveGuideScreen } from "./liveGuideScreen.js";
+// 【2026-10-27新設】歴代センター一覧
+import { initCentersScreen, openCentersScreen } from "./centersScreen.js";
 import { initFanProfilesScreen, renderFanProfilesScreen } from "./fanProfilesScreen.js";
 import { initAdminBackupScreen, renderAdminBackupScreen } from "./adminBackupScreen.js";
 import { initAdminUidRepairScreen, resetAdminUidRepairScreen } from "./adminUidRepairScreen.js";
@@ -2216,6 +2218,8 @@ initDiscographyScreen({
   liveList: document.getElementById("discography-live-list"),
   workDetailTitle: document.getElementById("work-detail-title"),
   workDetailContent: document.getElementById("work-detail-content"),
+  // 【2026-10-27追加】ライブ履歴のセットリストの曲名から、収録曲一覧の該当曲を開く（「戻る」でライブ履歴へ戻る）
+  onOpenSong: (songId) => openSearchTarget({ kind: "song", songId }),
   onSelectWork: (workId) => {
     playClickSound();
     discographyScrollY = window.scrollY;
@@ -5701,6 +5705,19 @@ window.addEventListener("app-navigate", (event) => {
   } else if (screen === "songlist") {
     resetSongListToDefaultView();
     navigateWithScrollMemory("songlist");
+  } else if (screen === "centers") {
+    // 【2026-10-27追加】収録曲一覧の「歴代センター一覧へ」：その曲の行を開き、「戻る」で元の画面へ戻す
+    openCentersFrom(document.body.dataset.screen, event.detail?.songId ?? null);
+  } else if (screen === "liveHistory") {
+    // 【2026-10-27追加】収録曲一覧の「ライブでの披露」から、ライブ履歴の該当公演カードを開く
+    const fromScreen = document.body.dataset.screen;
+    renderDiscographyForSearch();
+    navigateWithScrollMemory("discography");
+    activateDiscographyTab("live");
+    window.scrollTo(0, 0);
+    revealSearchFocusTarget(`[data-live-id="${event.detail?.liveId}"]`, document.getElementById("discography-screen"));
+    // 「戻る」で元の画面（収録曲一覧など）へ戻す（全体検索と同じ戻り先の付け替えを使う）
+    searchReturn = fromScreen !== "discography" ? { searchScreen: fromScreen, landingScreen: "discography" } : null;
   }
 });
 
@@ -5895,6 +5912,34 @@ document.getElementById("live-guide-link").addEventListener("click", () => {
 document.getElementById("live-guide-back-button").addEventListener("click", () => {
   playSfx(SFX_EVENTS.UI_BACK);
   navigateWithScrollMemory("start");
+});
+
+// 【2026-10-27新設】歴代センター一覧。入口は「＝LOVEについて」の作品一覧タブと、収録曲一覧のセンター欄。
+// 曲名・メンバーをタップした先では、全体検索と同じ openSearchTarget() を使い、「戻る」でこの一覧へ戻す。
+let centersReturnScreen = "discography";
+function openCentersFrom(returnScreen, focusSongId = null) {
+  centersReturnScreen = returnScreen && returnScreen !== "centers" ? returnScreen : "discography";
+  navigateWithScrollMemory("centers");
+  openCentersScreen({ focusSongId });
+}
+initCentersScreen(
+  { container: document.getElementById("centers-content") },
+  {
+    onOpenSong: (songId) => openSearchTarget({ kind: "song", songId }),
+    // 卒業メンバーは詳細ページを持たないため、メンバー紹介の該当カードを開く
+    onOpenMember: (member) =>
+      openSearchTarget(
+        member.status === MEMBER_STATUS.ACTIVE ? { kind: "member", memberId: member.id } : { kind: "membersList", memberId: member.id }
+      ),
+  }
+);
+document.getElementById("centers-link").addEventListener("click", () => {
+  playClickSound();
+  openCentersFrom("discography");
+});
+document.getElementById("centers-back-button").addEventListener("click", () => {
+  playSfx(SFX_EVENTS.UI_BACK);
+  navigateWithScrollMemory(centersReturnScreen);
 });
 
 // 【2026-10-24新設】全体検索の上部「歌詞検索へ」：入力中の言葉は、歌詞検索の入力欄が空のときだけ引き継ぐ
