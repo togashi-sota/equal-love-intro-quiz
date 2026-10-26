@@ -186,11 +186,15 @@ function formatMembersLine(members) {
   return `歌唱：${members.join("・")}`;
 }
 
-// センター欄の文字列を組み立てる。単独／Wセンター／センターなし確定の3パターン。
+// センター欄の文字列を組み立てる。単独／Wセンター／全員センター／センターなしの4パターン。
 // centerTypeが省略されている曲（未確認、またはソロ・デュオ曲）では呼び出さない。
-function formatCenterLine(center, centerType) {
+export function formatCenterLine(center, centerType) {
   if (centerType === "none") {
     return "センター：なし";
+  }
+  // 【2026-10-27追加】全員センター（songs.js の centerType "all"）
+  if (centerType === "all") {
+    return "センター：全員";
   }
   if (centerType === "double") {
     return `Wセンター：${center.join("・")}`;

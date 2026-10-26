@@ -82,8 +82,11 @@ export const DIFFICULTY = {
 // members        : 歌唱メンバーの配列（ユニット曲・ソロ曲のみ。表題曲・全員曲では省略）
 // center         : センターを務めるメンバーの配列（表題曲・全員曲、および3人以上のユニット曲で
 //                  公式にセンターが確認できた曲のみ。未確認の曲では省略する）
-// centerType     : "single"（単独センター）/ "double"（Wセンター）/ "none"（センターなしと確認済み）
-//                  centerが省略されている曲ではcenterTypeも省略する
+// centerType     : "single"（単独センター）/ "double"（Wセンター）/ "none"（センターなし）/
+//                  "all"（全員センター。center は ["全員"]。2026-10-27追加：以前は "single" に「全員」を入れていたが、
+//                  「1人のセンター」という定義と合わないため分けた）
+//                  centerが省略されている曲ではcenterTypeも省略する。
+//                  センター情報の根拠（公式・報道・ファン資料のみ 等）は js/data/centerSources.js にまとめている
 // releaseContext : 曲がなぜ・どんな位置付けで配信/制作されたかの短い説明（該当曲のみ）
 // description    : 曲の内容・位置付けの短い補足（該当曲のみ）
 // comingSoonNote : まだ収録曲が出揃っていないシングルの表題曲だけが持つ、収録曲一覧の見出しに
@@ -1284,7 +1287,7 @@ export const SONGS = [
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
     center: ["全員"],
-    centerType: "single",
+    centerType: "all",
   },
   // 21stシングル カップリング曲「夏名残サマーチューン」（2026-08-24追加）。
   // ＝LOVE公式YouTubeチャンネルにMVが公開され、概要欄で「2026年8月26日(水)発売、
@@ -1320,7 +1323,7 @@ export const SONGS = [
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
     center: ["全員"],
-    centerType: "single",
+    centerType: "all",
   },
   {
     id: "866",
