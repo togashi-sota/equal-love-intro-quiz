@@ -136,6 +136,8 @@
     import { runLyricsGroupNameTests } from "./tests/lyricsGroupName.test.js";
     import { runSyncTrackingTests } from "./tests/syncTracking.test.js";
     import { runLiveGuideAndSearchSwitchTests } from "./tests/liveGuideAndSearchSwitch.test.js";
+    // 【2026-10-27新設】歴代センター一覧・ライブのセットリスト
+    import { runCentersAndSetlistsTests } from "./tests/centersAndSetlists.test.js";
     import { runCallTextModeTests, runCallTextModeMarkupTests } from "./tests/callTextMode.test.js";
     import { runCallTextEditsTests } from "./tests/callTextEdits.test.js";
     import { runTimeAttackScoreTests } from "./tests/timeAttackScore.test.js";
@@ -387,6 +389,7 @@
     // 【2026-10-23新設】歌詞・コール表示の追尾性能改善（第1段階）
     await runSyncTrackingTests();
     await runLiveGuideAndSearchSwitchTests();
+    runCentersAndSetlistsTests();
     runCallTextModeTests();
     await runCallTextModeMarkupTests();
     await runCallTextEditsTests();
