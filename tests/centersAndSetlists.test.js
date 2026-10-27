@@ -26,6 +26,10 @@ import {
   describeVideoRelease,
   findPerformancesForLive,
   findUnlinkedPerformances,
+  describeVideoEditions,
+  describeVideoStreaming,
+  findVideoPosition,
+  findVideosBySongQuery,
 } from "../js/liveSetlistStats.js";
 import { buildAppSearchEntries, searchAppEntries } from "../js/appSearchIndex.js";
 import { normalizeForSearch } from "../js/songSearch.js";
@@ -47,7 +51,7 @@ function runCenterTests() {
   });
   ["koi-hajimemashita", "yume-no-tsuzuki"].forEach((id) => {
     const center = classifyCenter(songById(id));
-    assertEqual([center.state, center.evidenceLabel, center.isConfirmed, describeCenterState(center)], ["all", "本人指定・公式記載なし", false, "全員センター"], `A: ${id} は全員センター・本人指定`);
+    assertEqual([center.state, center.evidenceLabel, center.isConfirmed, describeCenterState(center)], ["all", "アプリ内設定・公式未確認", false, "全員センター"], `A: ${id} は全員センター・本人指定`);
   });
   const doko = classifyCenter(songById("doko-ga-suki-ka-itte"));
   assertEqual([doko.state, doko.evidenceLabel, doko.isConfirmed], ["none", "根拠未確認", false], "A: どこが好きか言っては「センターなし」だが根拠未確認");
@@ -176,9 +180,38 @@ function runSearchTests() {
   assertEqual(["live:live-6th-anniversary", "live:live-9th-anniversary-premium-concert"].every((key) => lockeLives.includes(key)), true, "G: 曲名で、その曲を披露した公演が見つかる");
 }
 
+// 【2026-10-28追加】曲からライブ映像を探す・映像商品の形態／配信の言い方・映像商品の検索
+function runVideoFinderTests() {
+  console.log("--- 曲からライブ映像を探す（2026-10-28） ---");
+  // 形態：editions があればそれを、無ければ従来の productCodes の文
+  assertEqual(describeVideoEditions({ productCodes: "Blu-ray X-1" }), ["Blu-ray X-1"], "H: editions が無い古いデータは productCodes をそのまま");
+  assertEqual(describeVideoEditions({ editions: [{ label: "TYPE-A", format: "Blu-ray", productCode: "A-1" }, { label: "TYPE-C", format: "DVD", productCode: "C-1" }] }), ["TYPE-A Blu-ray A-1", "TYPE-C DVD C-1"], "H: 形態ごとに「種類 形式 品番」");
+  // 配信：映像商品にあることと配信で見られることは別。データが無ければ「未確認」（あるとは言わない）
+  assertEqual(describeVideoStreaming({}).status, "unknown", "H: 配信の記録が無ければ未確認");
+  assertEqual(describeVideoStreaming({ streaming: { status: "available", note: "カバー曲は配信対象外", sourceUrl: "u" } }), { status: "available", text: "公式配信あり（カバー曲は配信対象外）", url: "u" }, "H: 公式配信ありは注意書きと出典つき");
+  // 収録順：公式の収録順に並べたもの（ordered）だけ「何曲目」を出す
+  assertEqual([findVideoPosition({ ordered: true, songIds: ["a", "b"] }, "b"), findVideoPosition({ songIds: ["a", "b"] }, "b"), findVideoPosition({ ordered: true, songIds: null }, "a")], [2, null, null], "H: 収録順が確かなときだけ「何曲目」");
+  // 曲名から探す：アイカツハッピーエンドは公式の収録内容で確認できる映像がある
+  const aikatsu = findVideosBySongQuery("アイカツ", SONGS).find((entry) => entry.song.id === "aikatsu-happy-end");
+  assertEqual(Boolean(aikatsu) && aikatsu.included.length > 0, true, "H: 曲名の一部から、その曲が入っている映像商品が見つかる");
+  assertEqual(findVideosBySongQuery("", SONGS), [], "H: 空の入力では何も出さない");
+  assertEqual(findVideosBySongQuery("Overture", SONGS).length, 0, "H: Overture（SE）は対象外");
+  // 全体検索：映像商品も「ライブ」に出て、曲名で見つかる。リンクは公式の紹介（購入とは書かない）
+  const entries = buildAppSearchEntries();
+  const videoEntries = entries.filter((entry) => entry.key.startsWith("video:"));
+  assertEqual(videoEntries.length, LIVE_VIDEO_PRODUCTS.length, "H: 映像商品がすべて検索の対象");
+  assertEqual(videoEntries.every((entry) => entry.category === "live"), true, "H: 映像商品は「ライブ」に分類");
+  assertEqual(videoEntries.every((entry) => entry.links.every((link) => !link.label.includes("購入"))), true, "H: 映像のリンクに「購入」と書かない");
+  const hits = searchAppEntries(entries, "アイカツハッピーエンド", "live").results.map((result) => result.entry.key);
+  assertEqual(hits.some((key) => key.startsWith("video:")), true, "H: 曲名で、その曲が入っている映像商品が見つかる");
+  const songEntry = entries.find((entry) => entry.key === "song:aikatsu-happy-end");
+  assertEqual(songEntry.lines.some((line) => line.startsWith("ライブ映像：")), true, "H: 曲の検索結果に、収録を確認できた映像の数を出す");
+}
+
 export function runCentersAndSetlistsTests() {
   runCenterTests();
   runSetlistDataTests();
   runLiveStatsTests();
   runSearchTests();
+  runVideoFinderTests();
 }

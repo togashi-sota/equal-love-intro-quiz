@@ -18,7 +18,7 @@ import { SFX_EVENTS, playSfx } from "./soundManager.js";
 import { buildGroupStageSection } from "./memberStageVoiceSection.js";
 import { buildGroupCommercialsSection } from "./commercialsSection.js";
 // 【2026-10-27追加】公演カードのセットリスト（js/data/setlists.js）
-import { buildSetlistDetails, buildSetlistCoverageNote } from "./setlistView.js";
+import { buildSetlistDetails, buildSetlistCoverageNote, buildSongVideoFinder, buildVideoProductList } from "./setlistView.js";
 import { findPerformancesForLive, findUnlinkedPerformances } from "./liveSetlistStats.js";
 
 // workIdから種別が判定できない場合だけ使う、最後のフォールバック表示。
@@ -1313,6 +1313,16 @@ function buildLiveEventCard(event) {
     tagRow.appendChild(videoTag);
   }
 
+  // 【2026-10-28追加】セットリストを載せている公演は、全曲判明か一部だけかをタグで示す
+  const performances = findPerformancesForLive(event.id);
+  if (performances.length > 0) {
+    const setlistTag = document.createElement("span");
+    const allFull = performances.every((performance) => performance.completeness === "full");
+    setlistTag.className = `live-event-tag ${allFull ? "is-setlist-full" : "is-setlist-partial"}`;
+    setlistTag.textContent = allFull ? "セットリスト掲載" : "セットリスト一部";
+    tagRow.appendChild(setlistTag);
+  }
+
   card.appendChild(tagRow);
 
   const title = document.createElement("p");
@@ -1389,6 +1399,9 @@ function renderLiveTab(liveEvents) {
   notice.textContent = "公式情報を確認できた主な単独公演・周年公演・ツアーを掲載しています（お渡し会・サイン会等は対象外）。";
   elements.liveList.appendChild(notice);
 
+  // 【2026-10-28追加】曲からライブ映像を探す（「どの映像を見ればその曲があるか」）
+  elements.liveList.appendChild(buildSongVideoFinder({ onOpenSong: elements?.onOpenSong }));
+
   const list = document.createElement("div");
   list.className = "live-event-list";
   heldAscending.forEach((event) => list.appendChild(buildLiveEventCard(event)));
@@ -1432,6 +1445,8 @@ function renderLiveTab(liveEvents) {
     });
     elements.liveList.appendChild(list);
   }
+  // 【2026-10-28追加】映像商品ごとの一覧（形態・品番・収録曲・公式配信）
+  elements.liveList.appendChild(buildVideoProductList({ onOpenSong: elements?.onOpenSong }));
   elements.liveList.appendChild(buildSetlistCoverageNote());
 }
 

@@ -16,7 +16,8 @@ import { STAGE_PRODUCTIONS, VOICE_APPEARANCES } from "./data/memberStageVoice.js
 import { COMMERCIALS } from "./data/commercials.js";
 import { LIVE_EVENTS, LIVE_STATUS } from "./data/liveHistory.js";
 // 【2026-10-27追加】公演カードのセットリスト（曲名でも公演が見つかるようにする）
-import { SETLIST_PERFORMANCES } from "./data/setlists.js";
+import { SETLIST_PERFORMANCES, LIVE_VIDEO_PRODUCTS } from "./data/setlists.js";
+import { describeVideoEditions, describeVideoStreaming, findVideosForSong } from "./liveSetlistStats.js";
 import { DISCOGRAPHY } from "./data/discography.js";
 import { GUIDE_SECTIONS } from "./data/guideContent.js";
 import { APP_SEARCH_FEATURES } from "./data/appSearchFeatures.js";
@@ -167,6 +168,13 @@ function buildMemberEntries({ members, profiles, memberActivities, commercials, 
 }
 
 // ---- 楽曲・作品 ----
+// 曲が収録されているライブ映像の数（公式の収録内容で確認できたものだけ。2026-10-28追加）
+function liveVideoLine(songId) {
+  if (songId === "overture") return null;
+  const count = findVideosForSong(songId).included.length;
+  return count > 0 ? `ライブ映像：${count}作品で収録を確認（「ライブ」で映像名を表示）` : null;
+}
+
 function buildSongEntries({ songs, members }) {
   return songs.map((song) =>
     createEntry({
@@ -179,6 +187,7 @@ function buildSongEntries({ songs, members }) {
         formatJapaneseDate(song.releaseDate) ? `発売日：${formatJapaneseDate(song.releaseDate)}` : null,
         song.category ? `種類：${song.category}` : null,
         (song.center ?? []).length > 0 ? `センター：${song.center.join("・")}` : null,
+        liveVideoLine(song.id),
       ],
       links: song.youtubeUrl ? [{ label: "MV・動画を見る（YouTube）", url: song.youtubeUrl }] : [],
       action: { label: "収録曲一覧で見る", target: { kind: "song", songId: song.id } },
@@ -315,6 +324,43 @@ function buildLiveEntries({ liveEvents, today, setlistPerformances = SETLIST_PER
           ...(setlists.length > 0 ? ["セットリスト", "セトリ"] : []),
         ],
         body: [event.episodeNote, describeLiveVideo(event, today), ...setlistSongTitles],
+      },
+    });
+  });
+}
+
+// ---- ライブ映像商品（Blu-ray／DVD。2026-10-28追加） ----
+// 曲名で検索すると、その曲が公式の収録内容で確認できる映像商品が「ライブ」に出る。
+// リンクは公式の商品紹介ページ（購入ページとは書かない）
+function buildLiveVideoEntries({ liveVideos = LIVE_VIDEO_PRODUCTS, setlistPerformances = SETLIST_PERFORMANCES, songs = [], today }) {
+  const songTitleById = new Map(songs.map((song) => [song.id, song.title]));
+  return liveVideos.map((video) => {
+    const songIds = [...new Set(video.coverage.flatMap((cover) => cover.songIds ?? []))].filter((id) => id !== "overture");
+    const titles = songIds.map((id) => songTitleById.get(id)).filter(Boolean);
+    const performance = video.coverage.map((cover) => setlistPerformances.find((p) => p.id === cover.performanceId)).find(Boolean);
+    const target = performance?.liveId
+      ? { kind: "discography", tab: "live", focusSelector: `[data-live-id="${performance.liveId}"]` }
+      : { kind: "discography", tab: "live", focusSelector: `[data-video-id="${video.id}"]` };
+    const editionLinks = (video.editions ?? []).filter((edition) => edition.url).map((edition) => ({ label: `公式の商品紹介（${edition.label ?? edition.format ?? "商品"}）`, url: edition.url }));
+    const streaming = describeVideoStreaming(video);
+    const released = video.status === "upcoming" && !(today && video.releaseDate <= today) ? "発売予定" : "発売済み";
+    return createEntry({
+      key: `video:${video.id}`,
+      category: "live",
+      title: video.title,
+      subtitle: `ライブ映像（Blu-ray／DVD）／${released}`,
+      lines: [
+        formatJapaneseDate(video.releaseDate) ? `発売日：${formatJapaneseDate(video.releaseDate)}` : `発売：${video.releaseDate}`,
+        describeVideoEditions(video).length > 0 ? `形態・品番：${describeVideoEditions(video).join("／")}` : null,
+        titles.length > 0 ? `収録曲（公式の収録内容で確認）：${titles.join("、")}` : "収録曲：未発表",
+        streaming.text,
+      ],
+      links: editionLinks.length > 0 ? editionLinks : video.sourceUrl ? [{ label: "公式の情報", url: video.sourceUrl }] : [],
+      action: { label: "ライブ履歴で詳しく見る", target },
+      terms: {
+        primary: [video.title],
+        secondary: ["ライブ映像", "Blu-ray", "ブルーレイ", "DVD", "映像", ...(video.editions ?? []).map((edition) => edition.productCode)],
+        body: titles,
       },
     });
   });
@@ -472,6 +518,7 @@ export function buildAppSearchEntries(sources = {}) {
     ...buildWorkEntries(resolved),
     ...buildCommercialEntries(resolved),
     ...buildLiveEntries(resolved),
+    ...buildLiveVideoEntries(resolved),
     ...buildStageVoiceEntries(resolved),
     ...buildActivityEntries(resolved),
     ...buildGuideEntries(resolved),
