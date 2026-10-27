@@ -123,6 +123,11 @@ function scoreSegmentQuality(segment, { minTextLength, idealMaxTextLength }) {
 //
 // options.title・options.titleAliases を渡すと曲名含有判定を行う（省略時はcontainsTitleは
 // 常にfalseになる）。
+// 【2026-10-28追加・本人指示：答えが1曲に決まらない問題の防止】options.excludedLineNumbers
+// （行番号＝line.lineの値の集合。Setまたは配列）を渡すと、その行は「別の曲にも出てくる・
+// 短すぎる等で答えが1曲に決まらない行」としてisAmbiguous:true・quality:0にする。
+// quality:0の行はpickPrimarySegment()・buildHintSequence()のどちらでも選ばれないため、
+// ヒントに出ることはない（除外する行の決め方はjs/lyricsQuestionUniqueness.js参照）。
 export function generateAnchorLineCandidates(lines, options = {}) {
   if (!Array.isArray(lines) || lines.length === 0) return [];
 
@@ -131,6 +136,7 @@ export function generateAnchorLineCandidates(lines, options = {}) {
     options.idealMaxTextLength ?? SEGMENT_GENERATION_DEFAULTS.idealMaxTextLength;
   const title = options.title ?? null;
   const titleAliases = options.titleAliases ?? [];
+  const excludedLineNumbers = new Set(options.excludedLineNumbers ?? []);
 
   const firstOccurrenceByNormalizedText = new Set();
 
@@ -149,9 +155,10 @@ export function generateAnchorLineCandidates(lines, options = {}) {
       normalizedText,
       containsTitle,
       isRepeat,
+      isAmbiguous: excludedLineNumbers.has(line.line),
       quality: 0,
     };
-    segment.quality = scoreSegmentQuality(segment, { minTextLength, idealMaxTextLength });
+    segment.quality = segment.isAmbiguous ? 0 : scoreSegmentQuality(segment, { minTextLength, idealMaxTextLength });
     return segment;
   });
 }
@@ -216,6 +223,8 @@ export function pickPrimarySegment(candidates, seed, songId, questionIndex, opti
 // options.seed / options.songId / options.questionIndex : 抽選用の乱数の種
 //                   （js/lyricsQuizEngine.jsのcreateAnswerPoolRandom()と同じ考え方で、
 //                   全端末が同じ入力から同じ4行を再現できるようにする）。
+// options.excludedLineNumbers : 答えが1曲に決まらないため出題しない行番号
+//                   （generateAnchorLineCandidates()と同じ。js/lyricsQuestionUniqueness.js参照）。
 // 戻り値: { hintLevel, segmentId, startLine, endLine, segment }[]（要素数は1〜maxHints、
 // 曲名を含まない使える行がmaxHints未満しか無い曲では、それより少なくなることがある）。
 // maxHints未満で打ち切られた場合のみ、最後の要素に打ち切り理由stopReason:
@@ -235,9 +244,15 @@ export function buildHintSequence(lines, primaryLineIndex, options = {}) {
     return [];
   }
 
-  const candidates = generateAnchorLineCandidates(lines, { title, titleAliases, minTextLength, idealMaxTextLength });
+  const candidates = generateAnchorLineCandidates(lines, {
+    title,
+    titleAliases,
+    minTextLength,
+    idealMaxTextLength,
+    excludedLineNumbers: options.excludedLineNumbers,
+  });
   const primaryCandidate = candidates[primaryLineIndex];
-  if (!primaryCandidate || primaryCandidate.containsTitle) return [];
+  if (!primaryCandidate || primaryCandidate.containsTitle || primaryCandidate.isAmbiguous) return [];
 
   // 曲名を含まない・quality>0（0点=曲名を含む・文字数0）の行だけを、歌詞の登場順のまま使う。
   const usable = candidates.filter((c) => !c.containsTitle && c.quality > 0);

@@ -11,7 +11,7 @@
 // tests/lyricsStorage.test.jsと同じ方針（IndexedDBには実際に触れずテストする）を踏襲している。
 
 import { getLyricsData } from "./lyricsStorage.js";
-import { resolveSongPool, resolveSongObjects } from "./questionSource.js";
+import { resolveSongPool, resolveSongObjects, QUESTION_SOURCE_TYPE } from "./questionSource.js";
 import { resolveQuestionCount } from "./quiz.js";
 import { generateAnchorLineCandidates, pickPrimarySegment, buildHintSequence } from "./lyricsSegmentEngine.js";
 import {
@@ -21,6 +21,7 @@ import {
   buildFallbackAnswerPool,
 } from "./lyricsQuizEngine.js";
 import { createSeededRandom } from "./seededRandom.js";
+import { computeLyricsUniquenessExclusions } from "./lyricsQuestionUniqueness.js";
 
 // 1曲を「出題可能」とみなすために必要な、曲名を含まない・品質0でない区間候補の最低数。
 export const MIN_USABLE_SEGMENTS_REQUIRED = 1;
@@ -67,19 +68,117 @@ export async function loadSongsWithLyrics(songPool) {
   return entries.filter((entry) => entry !== null);
 }
 
-// 1曲分の { song, lines } から、出題に使える基準行候補（曲名を含まない・quality>0）の件数を返す。
-function countUsableSegments(song, lines) {
-  const candidates = generateAnchorLineCandidates(lines, { title: song.title, titleAliases: song.searchAliases });
+// ===== 答えが1曲に決まらない行の除外（2026-10-28新設・本人指示） =====
+//
+// 同じフレーズが複数の曲に出てくると「正解が2曲以上ある問題」になってしまうため、
+// js/lyricsQuestionUniqueness.jsの共通フィルターで「別の曲にも出てくる行・短すぎる行・
+// 手作業で除外した行」をヒント候補から外す。1人用・オンライン対戦・パーティーの
+// 歌詞クイズは、すべてこのファイルの関数を通るため、全モードで同じ判定になる。
+//
+// lyricsUniqueness（省略可）: {
+//   enabled,        // false のときだけ除外しない（古い端末と同じ部屋で対戦するときの互換用。既定はtrue）
+//   corpusEntries,  // 比較相手に追加する { song, lines }[]（songsWithLyrics自身は常に比較相手に入る）
+// }
+// songsWithLyricsの各要素が uniqueExcludedLineNumbers（行番号の配列）を持っている場合は、
+// それを優先して使う（loadSongsWithLyricsForUniqueQuiz()が、端末にある全曲の歌詞と
+// 比べて事前に計算したもの。1曲だけ渡して問題を作るパーティーの差し替え問題でも、
+// 全曲と比べた結果がそのまま使われるようにするため）。
+// 戻り値: Map<songId, number[]>（出題しない行番号）
+//
+// 【計算の使い回し】全曲（約80曲）を比べる計算は端末によっては数百ミリ秒かかるため、
+// 同じsongsWithLyrics配列（オンライン対戦の開始前チェック→問題生成のように、同じ配列が
+// 続けて渡される）に対しては、1回目の結果を使い回す。比較相手を追加で渡された場合
+// （corpusEntriesあり）は、組み合わせが毎回違いうるので使い回さない。
+const uniquenessExclusionsCache = new WeakMap();
+
+function resolveUniquenessExclusions(songsWithLyrics, lyricsUniqueness = {}) {
+  if (lyricsUniqueness.enabled === false) return new Map();
+  const canCache = !lyricsUniqueness.corpusEntries && Array.isArray(songsWithLyrics);
+  if (canCache && uniquenessExclusionsCache.has(songsWithLyrics)) {
+    return uniquenessExclusionsCache.get(songsWithLyrics);
+  }
+  const exclusions = computeUniquenessExclusionsWithoutCache(songsWithLyrics, lyricsUniqueness);
+  if (canCache) uniquenessExclusionsCache.set(songsWithLyrics, exclusions);
+  return exclusions;
+}
+
+function computeUniquenessExclusionsWithoutCache(songsWithLyrics, lyricsUniqueness) {
+  const exclusions = new Map();
+
+  const needsComputation = [];
+  for (const entry of songsWithLyrics) {
+    if (Array.isArray(entry.uniqueExcludedLineNumbers)) {
+      exclusions.set(entry.song.id, entry.uniqueExcludedLineNumbers);
+    } else {
+      needsComputation.push(entry);
+    }
+  }
+  if (needsComputation.length > 0) {
+    const computed = computeLyricsUniquenessExclusions(needsComputation, {
+      corpusEntries: [...songsWithLyrics, ...(lyricsUniqueness.corpusEntries ?? [])],
+    });
+    for (const [songId, lineNumbers] of computed) exclusions.set(songId, [...lineNumbers]);
+  }
+  return exclusions;
+}
+
+// 対象の曲（targetEntries）に、端末にある歌詞（corpusEntries）全体と比べた
+// 「出題しない行番号」を付けた新しい配列を返す（元の配列・要素は書き換えない）。純粋関数。
+export function annotateLyricsUniqueness(targetEntries, corpusEntries) {
+  const exclusions = computeLyricsUniquenessExclusions(targetEntries, { corpusEntries });
+  return targetEntries.map((entry) => ({
+    ...entry,
+    uniqueExcludedLineNumbers: [...(exclusions.get(entry.song.id) ?? [])],
+  }));
+}
+
+// 1人用・パーティー（1台の端末だけで完結するモード）向けの読み込み。songPoolの曲の歌詞に加えて、
+// 端末にある「歌詞クイズ対象の全曲」の歌詞も読み込み、それと比べた除外行を付けて返す
+// （出題範囲を「表題曲のみ」等に絞っていても、範囲外の曲と同じフレーズは出題しないため）。
+// 戻り値の並びはloadSongsWithLyrics(songPool)と同じ（songPoolの順）。
+// 【オンライン対戦では使わない】端末ごとに持っている曲が違うと除外行がずれ、全員が同じ問題を
+// 見られなくなるため。オンライン対戦は、全員が持っている出題範囲の曲どうしの比較＋
+// 事前計算の一覧（js/data/lyricsAmbiguityIndex.js）で判定する（js/battleModes/lyricsQuizBattleMode.js）。
+export async function loadSongsWithLyricsForUniqueQuiz(songPool) {
+  const allEligibleIds = resolveLyricsQuizSongPool({ type: QUESTION_SOURCE_TYPE.ALL_SONGS });
+  const allIds = [...new Set([...allEligibleIds, ...songPool])];
+  const allEntries = await loadSongsWithLyrics(allIds);
+  const entryById = new Map(allEntries.map((entry) => [entry.song.id, entry]));
+  const poolEntries = songPool.map((songId) => entryById.get(songId)).filter((entry) => entry !== undefined);
+  return annotateLyricsUniqueness(poolEntries, allEntries);
+}
+
+// 1曲分の { song, lines } から、出題に使える基準行候補（曲名を含まない・quality>0・
+// 答えが1曲に決まらない行ではない）の件数を返す。
+function countUsableSegments(song, lines, excludedLineNumbers = []) {
+  const candidates = generateAnchorLineCandidates(lines, {
+    title: song.title,
+    titleAliases: song.searchAliases,
+    excludedLineNumbers,
+  });
   return candidates.filter((candidate) => !candidate.containsTitle && candidate.quality > 0).length;
 }
 
-// songsWithLyrics（{song, lines}[]）から、実際に歌詞クイズの出題対象にできる曲だけに絞り込む
-// （区間候補が少なすぎる曲＝歌詞が極端に短い・ほぼ曲名だらけ等は出題対象から除外する）。
-// 純粋関数（IndexedDBに触れない）。
-export function filterQuizzableSongs(songsWithLyrics) {
+function filterQuizzableWithExclusions(songsWithLyrics, exclusions) {
   return songsWithLyrics.filter(
-    ({ song, lines }) => countUsableSegments(song, lines) >= MIN_USABLE_SEGMENTS_REQUIRED
+    ({ song, lines }) =>
+      countUsableSegments(song, lines, exclusions.get(song.id) ?? []) >= MIN_USABLE_SEGMENTS_REQUIRED
   );
+}
+
+// songsWithLyrics（{song, lines}[]）から、実際に歌詞クイズの出題対象にできる曲だけに絞り込む
+// （区間候補が少なすぎる曲＝歌詞が極端に短い・ほぼ曲名だらけ・全部の行が他の曲と重複している
+// 等は出題対象から除外する）。純粋関数（IndexedDBに触れない）。
+export function filterQuizzableSongs(songsWithLyrics, lyricsUniqueness = {}) {
+  return filterQuizzableWithExclusions(songsWithLyrics, resolveUniquenessExclusions(songsWithLyrics, lyricsUniqueness));
+}
+
+// 歌詞データはあるのに「全部の行が他の曲と重複している等で、答えが1曲に決まる行が無い」ため
+// 出題できない曲の数（案内文・デバッグ表示用）。
+export function countSongsExcludedByUniqueness(songsWithLyrics, lyricsUniqueness = {}) {
+  if (lyricsUniqueness.enabled === false) return 0;
+  const withoutFilter = filterQuizzableWithExclusions(songsWithLyrics, new Map()).length;
+  return withoutFilter - filterQuizzableSongs(songsWithLyrics, lyricsUniqueness).length;
 }
 
 // 歌詞クイズが指定の出題数で開始できる状態かを検証する。
@@ -87,8 +186,15 @@ export function filterQuizzableSongs(songsWithLyrics) {
 // 呼び出し側（画面）で同じような分岐処理を書ける。
 // 戻り値: { ok: true, quizzableCount } または
 //         { ok: false, quizzableCount, requiredCount, reason }（requiredCountは"all"のときnull）
-export function validateLyricsQuizAvailability(songsWithLyrics, questionCountValue) {
-  const quizzableCount = filterQuizzableSongs(songsWithLyrics).length;
+export function validateLyricsQuizAvailability(songsWithLyrics, questionCountValue, lyricsUniqueness = {}) {
+  const quizzableCount = filterQuizzableSongs(songsWithLyrics, lyricsUniqueness).length;
+  // 【2026-10-28追加】歌詞が他の曲と重複していて出題できない曲がある場合は、理由に一言添える
+  // （「歌詞を読み込んだのに足りない」と言われて混乱しないように）。
+  const excludedByUniqueness = countSongsExcludedByUniqueness(songsWithLyrics, lyricsUniqueness);
+  const uniquenessNote =
+    excludedByUniqueness > 0
+      ? `（うち${excludedByUniqueness}曲は、歌詞が他の曲と重複していて答えが1曲に決まらないため出題できません）`
+      : "";
 
   if (questionCountValue === "all") {
     if (quizzableCount === 0) {
@@ -96,7 +202,7 @@ export function validateLyricsQuizAvailability(songsWithLyrics, questionCountVal
         ok: false,
         quizzableCount,
         requiredCount: null,
-        reason: "歌詞クイズに出題できる曲がありません（歌詞データの読み込み、または曲の追加が必要です）。",
+        reason: `歌詞クイズに出題できる曲がありません（歌詞データの読み込み、または曲の追加が必要です）。${uniquenessNote}`,
       };
     }
     return { ok: true, quizzableCount };
@@ -108,7 +214,7 @@ export function validateLyricsQuizAvailability(songsWithLyrics, questionCountVal
       ok: false,
       quizzableCount,
       requiredCount,
-      reason: `歌詞クイズに出題できる曲が足りません（${requiredCount}曲必要ですが、${quizzableCount}曲しかありません）。`,
+      reason: `歌詞クイズに出題できる曲が足りません（${requiredCount}曲必要ですが、${quizzableCount}曲しかありません）。${uniquenessNote}`,
     };
   }
   return { ok: true, quizzableCount };
@@ -149,23 +255,30 @@ export function buildLyricsQuizQuestions({
   questionCountValue,
   answerPoolSizeValue,
   seed,
+  lyricsUniqueness = {},
 }) {
-  const quizzable = filterQuizzableSongs(songsWithLyrics);
+  // 【2026-10-28追加】答えが1曲に決まらない行を、出題前に1回だけまとめて求める
+  // （resolveUniquenessExclusions()参照。同じ入力なら全端末で同じ結果になる純粋な計算）。
+  const exclusions = resolveUniquenessExclusions(songsWithLyrics, lyricsUniqueness);
+  const quizzable = filterQuizzableWithExclusions(songsWithLyrics, exclusions);
   const questionCount = resolveQuestionCount(questionCountValue, quizzable.length);
   const random = createSeededRandom(seed);
   const questionEntries = pickQuestionEntries(quizzable, questionCount, random);
   const poolSongs = resolveSongObjects(distractorSongPool);
 
   const questions = questionEntries.map((entry, questionIndex) => {
+    const excludedLineNumbers = exclusions.get(entry.song.id) ?? [];
     const candidates = generateAnchorLineCandidates(entry.lines, {
       title: entry.song.title,
       titleAliases: entry.song.searchAliases,
+      excludedLineNumbers,
     });
     const primary = pickPrimarySegment(candidates, seed, entry.song.id, questionIndex);
     const hints = primary
       ? buildHintSequence(entry.lines, primary.index, {
           title: entry.song.title,
           titleAliases: entry.song.searchAliases,
+          excludedLineNumbers,
           maxHints: 4,
           seed,
           songId: entry.song.id,

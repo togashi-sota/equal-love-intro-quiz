@@ -38,13 +38,17 @@ async function fetchSource(path) {
 }
 
 // 十分な行数・十分な多様性を持つダミー歌詞（tests/lyricsQuizQuestionBuilder.test.jsと同じもの）。
-function buildRichDummyLines() {
+// 【2026-10-28追加】uniqueTag（数字）を渡すと、各行の末尾に「第◯曲」を付けて曲ごとに歌詞を変える。
+// 歌詞クイズは「別の曲にも出てくる行は出題しない」ようになった（js/lyricsQuestionUniqueness.js）ため、
+// 複数の曲に全く同じダミー歌詞を渡すと、どの曲も出題できなくなる。
+function buildRichDummyLines(uniqueTag = null) {
+  const suffix = uniqueTag === null ? "" : `第${uniqueTag}曲`;
   return [
-    { line: 1, text: "あさのひかりがまどからさす", start: 0, end: 3 },
-    { line: 2, text: "きみのことをおもいだしてる", start: 3.2, end: 6 },
-    { line: 3, text: "そらはあおくてかぜはあたたかい。", start: 6.2, end: 9 },
-    { line: 4, text: "あしたもおなじみちをあるく", start: 9.2, end: 12 },
-    { line: 5, text: "とおくのまちへむかっている", start: 12.2, end: 15 },
+    { line: 1, text: `あさのひかりがまどからさす${suffix}`, start: 0, end: 3 },
+    { line: 2, text: `きみのことをおもいだしてる${suffix}`, start: 3.2, end: 6 },
+    { line: 3, text: `そらはあおくてかぜはあたたかい。${suffix}`, start: 6.2, end: 9 },
+    { line: 4, text: `あしたもおなじみちをあるく${suffix}`, start: 9.2, end: 12 },
+    { line: 5, text: `とおくのまちへむかっている${suffix}`, start: 12.2, end: 15 },
   ];
 }
 
@@ -112,7 +116,7 @@ export function runWeakSongsAnswerPoolEngineTests() {
   {
     const weakSongs = SONGS.slice(0, 3);
     const songPool = weakSongs.map((song) => song.id);
-    const songsWithLyrics = weakSongs.map((song) => ({ song, lines: buildRichDummyLines() }));
+    const songsWithLyrics = weakSongs.map((song, index) => ({ song, lines: buildRichDummyLines(index + 1) }));
     const allAvailableSongIds = SONGS.slice(0, 15).map((song) => song.id);
 
     const questionsWithoutDistractorSongPool = buildLyricsQuizQuestions({
