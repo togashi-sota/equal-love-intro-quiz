@@ -21724,3 +21724,64 @@ button.search-mode-tab:active {
   font-size: 0.66rem;
   color: var(--color-primary-dark);
 }
+
+/* ===== 【2026-10-28追加】曲からライブ映像を探す・映像商品の一覧・セットリストのタグ ===== */
+.song-live-video-meta {
+  display: block;
+  font-size: 0.66rem;
+  color: #5c4a55;
+}
+
+.song-live-video-meta.is-streaming-available {
+  color: #1d6b3c;
+  font-weight: 700;
+}
+
+.song-live-video-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+
+.live-event-tag.is-setlist-full {
+  color: #7a3b8f;
+  background: #f1e3f7;
+}
+
+.live-event-tag.is-setlist-partial {
+  color: #6b5a2a;
+  background: #f5edd3;
+}
+
+.song-video-finder,
+.video-product-list {
+  margin: 12px 0 16px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 2px 10px rgba(232, 106, 160, 0.12);
+}
+
+.song-video-finder-input {
+  width: 100%;
+  box-sizing: border-box;
+  margin: 6px 0 4px;
+  padding: 10px 14px;
+  border: 1.5px solid var(--color-primary-light);
+  border-radius: 999px;
+  font: inherit;
+  font-size: 0.9rem;
+  background: #fff;
+}
+
+.song-video-finder-song {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--color-primary-light);
+}
+
+.video-product {
+  margin-top: 8px;
+  border-top: 1px dashed var(--color-primary-light);
+  padding-top: 6px;
+}

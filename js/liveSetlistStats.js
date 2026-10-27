@@ -128,6 +128,39 @@ export function describeVideoRelease(video, today = null) {
   return `${date}発売`;
 }
 
+// 【2026-10-28追加】映像商品の形態（TYPE-A／Blu-ray など）。editions が無い古いデータは productCodes の文をそのまま使う
+export function describeVideoEditions(video) {
+  const editions = Array.isArray(video.editions) ? video.editions : [];
+  if (editions.length === 0) return video.productCodes ? [video.productCodes] : [];
+  return editions.map((edition) => [edition.label, edition.format, edition.productCode].filter(Boolean).join(" "));
+}
+
+// 映像の中で、その曲が何曲目か（公式の収録順どおりに songIds を並べた商品だけ。それ以外は null）
+export function findVideoPosition(coverage, songId) {
+  if (!coverage?.ordered || !Array.isArray(coverage.songIds)) return null;
+  const index = coverage.songIds.indexOf(songId);
+  return index >= 0 ? index + 1 : null;
+}
+
+// 公式配信の状態の言い方。映像商品に入っていることと、配信で見られることは別の事実なので、必ず分けて言う
+export function describeVideoStreaming(video) {
+  const streaming = video.streaming;
+  if (!streaming || streaming.status === "unknown") return { status: "unknown", text: "公式配信：未確認" };
+  if (streaming.status === "available") return { status: "available", text: `公式配信あり${streaming.note ? `（${streaming.note}）` : ""}`, url: streaming.sourceUrl ?? null };
+  return { status: "none", text: `公式配信：確認できず${streaming.note ? `（${streaming.note}）` : ""}`, url: streaming.sourceUrl ?? null };
+}
+
+// 曲名の一部から、その曲が入っている映像商品を探す（「曲から映像を探す」用）。曲の候補が複数なら全部返す
+export function findVideosBySongQuery(query, songs, options = {}) {
+  const text = String(query ?? "").trim();
+  if (!text) return [];
+  const normalize = (value) => String(value ?? "").toLowerCase().replace(/[\s　・、。！!？?「」『』"']/g, "");
+  const needle = normalize(text);
+  return songs
+    .filter((song) => song.id !== "overture" && [song.title, song.searchReading].some((value) => normalize(value).includes(needle)))
+    .map((song) => ({ song, ...findVideosForSong(song.id, options) }));
+}
+
 // 公演カード（liveHistory の id）ごとの、確定したセットリスト（日付順）
 export function findPerformancesForLive(liveId, performances = SETLIST_PERFORMANCES) {
   return performances.filter((performance) => performance.liveId === liveId).sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));

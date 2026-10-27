@@ -128,7 +128,7 @@ function buildRow(row) {
 
   if (row.center.evidenceKind) {
     info.appendChild(buildEvidenceBadge(row.center));
-    // 確認済みでない（ファン資料のみ・本人指定・根拠未確認）ものは、理由を一行で必ず見せる
+    // 確認済みでない（ファン資料のみ・アプリ内設定・根拠未確認）ものは、理由を一行で必ず見せる
     if (!row.center.isConfirmed && row.center.sourceNote) {
       info.appendChild(el("p", "center-row-note", row.center.sourceNote));
     }
@@ -248,7 +248,7 @@ function buildLegend() {
     el(
       "p",
       "centers-legend-text",
-      `「ファン資料のみ」「本人指定」「根拠未確認」の曲は、公式に確認できた情報ではありません。「本人指定」はこのアプリの作成者による指定です。調査日：${formatDate(CENTER_SOURCES_RESEARCHED_AT)}。`
+      `「ファン資料のみ」「アプリ内設定・公式未確認」「根拠未確認」の曲は、公式に確認できた情報ではありません。「アプリ内設定・公式未確認」は、このアプリの作成者が設定したもので、メンバー本人や公式が指定したものではありません。調査日：${formatDate(CENTER_SOURCES_RESEARCHED_AT)}。`
     )
   );
   return legend;
