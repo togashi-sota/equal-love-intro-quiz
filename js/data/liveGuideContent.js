@@ -422,7 +422,8 @@ export const LIVE_GUIDE_LINKS = [
   { id: "lyrics-search", label: "歌詞検索で曲を探す", action: { type: "lyricsSearch" } },
   { id: "songlist", label: "曲を聴いて予習する（収録曲一覧）", action: { type: "click", selector: "#songlist-link" } },
   { id: "members", label: "メンバー紹介を見る", action: { type: "click", selector: "#members-link" } },
-  { id: "about", label: "＝LOVEについて（ライブの記録）", action: { type: "click", selector: "#discography-link" } },
+  // 【2026-10-28】ライブの記録は【ライブ】ページへまとめたため、行き先をそちらにした（id は既存のまま）
+  { id: "about", label: "過去のライブ・セットリスト・ライブ映像（ライブのページ）", action: { type: "click", selector: "#live-hub-link" } },
 ];
 
 // 開場・開演時刻から、行動の目安を作る（制作者の目安。DOM に触れない純粋関数）

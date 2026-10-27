@@ -17,9 +17,6 @@ import { buildMvThumbnailElement } from "./youtubeThumbnail.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
 import { buildGroupStageSection } from "./memberStageVoiceSection.js";
 import { buildGroupCommercialsSection } from "./commercialsSection.js";
-// 【2026-10-27追加】公演カードのセットリスト（js/data/setlists.js）
-import { buildSetlistDetails, buildSetlistCoverageNote, buildSongVideoFinder, buildVideoProductList } from "./setlistView.js";
-import { findPerformancesForLive, findUnlinkedPerformances } from "./liveSetlistStats.js";
 
 // workIdから種別が判定できない場合だけ使う、最後のフォールバック表示。
 const WORK_TYPE_LABELS_FALLBACK = {
@@ -1233,221 +1230,49 @@ function renderWorksTab(workSummaries, upcomingRelease) {
 const TAB_NAMES = ["about", "history", "works", "live"];
 
 // ---- ライブタブ ----
-
-// venuesの1件を「会場名（都市）」の形にまとめる。会場名が未確認（null）の場合は
-// 「会場未確認」と表示し、無いことをごまかさない（本人方針：未確認の情報を断定しない）。
-// showDateがtrueのときだけ、会場ごとの開催日も添える（例:「IGアリーナ（愛知）・2025.11.16」）。
-// 1会場だけのカードでは、カード上部の日付表示（formatDateRange）と重複するため付けない。
-// 複数会場にまたがるツアーカードで、映像商品が会場ごとに別々に発売されている場合など、
-// どの会場・日程の公演かをボタンと一緒に判別しやすくするために2026-08-23追加。
-function formatVenue(venue, showDate = false) {
-  const name = venue.name ?? "会場未確認";
-  const base = venue.city ? `${name}（${venue.city}）` : name;
-  return showDate && venue.date ? `${base}・${formatDate(venue.date)}` : base;
-}
-
-function formatDateRange(startDate, endDate) {
-  if (!startDate) return "日付未確認";
-  if (!endDate || endDate === startDate) return formatDate(startDate);
-  return `${formatDate(startDate)}〜${formatDate(endDate)}`;
-}
-
-const LIVE_TYPE_LABELS = { tour: "ツアー", festival: "フェス出演", solo: "単独公演" };
-
-function buildLiveEventCard(event) {
-  const card = document.createElement("div");
-  card.className = "live-event-card";
-  // 全体検索から該当公演へ移動するための目印（2026-10-23追加）
-  card.dataset.liveId = event.id;
-
-  const tagRow = document.createElement("div");
-  tagRow.className = "live-event-tag-row";
-
-  const typeTag = document.createElement("span");
-  typeTag.className = "live-event-tag";
-  typeTag.textContent = LIVE_TYPE_LABELS[event.type] ?? event.type;
-  tagRow.appendChild(typeTag);
-
-  if (event.isAnniversary) {
-    const anniversaryTag = document.createElement("span");
-    anniversaryTag.className = "live-event-tag is-anniversary";
-    anniversaryTag.textContent = "周年記念";
-    tagRow.appendChild(anniversaryTag);
-  }
-
-  if (event.isGraduation) {
-    const graduationTag = document.createElement("span");
-    graduationTag.className = "live-event-tag is-graduation";
-    graduationTag.textContent = "卒業公演";
-    tagRow.appendChild(graduationTag);
-  }
-
-  // 発表済みだが未開催の公演は、実績と混同しないよう必ず見分けられるタグを付ける。
-  if (event.status === LIVE_STATUS.ANNOUNCED) {
-    const announcedTag = document.createElement("span");
-    // 【2026-10-23追加】日程（終了日。無ければ開始日）を過ぎても「開催予定」のままだと誤解を招くため、
-    // 公式の開催結果をデータへ反映するまでは「日程終了」と表示する（開催済みとは断定しない）。
-    const lastDay = event.endDate ?? event.startDate;
-    const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" });
-    const isDatePassed = typeof lastDay === "string" && lastDay < today;
-    announcedTag.className = isDatePassed ? "live-event-tag is-date-passed" : "live-event-tag is-announced";
-    announcedTag.textContent = isDatePassed ? "日程終了" : "開催予定";
-    tagRow.appendChild(announcedTag);
-  }
-
-  // 映像商品化されている公演は、下部のリンクボタンだけでなくタグ行でも一目で分かるようにする
-  // （本人指示：「映像作品一覧」ではなく「＝LOVEの歴史」として、映像化の有無が一目で分かるように。
-  // 2026-08-23追加）。
-  if (event.blurayReleased) {
-    const videoTag = document.createElement("span");
-    videoTag.className = "live-event-tag is-video-available";
-    videoTag.textContent = "映像作品あり";
-    tagRow.appendChild(videoTag);
-  } else if (typeof event.videoReleaseDate === "string") {
-    // 【2026-10-23追加】映像商品の発売が決まっているが、まだ公式に発売済みと反映していない公演。
-    // 発売日前は「発売予定」、発売日を過ぎても データ更新までは「映像化決定」とだけ出す（発売済みとは断定しない）。
-    const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" });
-    const videoTag = document.createElement("span");
-    videoTag.className = "live-event-tag is-video-upcoming";
-    videoTag.textContent = event.videoReleaseDate > today ? "映像化決定（発売予定）" : "映像化決定";
-    tagRow.appendChild(videoTag);
-  }
-
-  // 【2026-10-28追加】セットリストを載せている公演は、全曲判明か一部だけかをタグで示す
-  const performances = findPerformancesForLive(event.id);
-  if (performances.length > 0) {
-    const setlistTag = document.createElement("span");
-    const allFull = performances.every((performance) => performance.completeness === "full");
-    setlistTag.className = `live-event-tag ${allFull ? "is-setlist-full" : "is-setlist-partial"}`;
-    setlistTag.textContent = allFull ? "セットリスト掲載" : "セットリスト一部";
-    tagRow.appendChild(setlistTag);
-  }
-
-  card.appendChild(tagRow);
-
-  const title = document.createElement("p");
-  title.className = "live-event-title";
-  title.textContent = event.title;
-  card.appendChild(title);
-
-  const date = document.createElement("p");
-  date.className = "live-event-date";
-  date.textContent = formatDateRange(event.startDate, event.endDate);
-  card.appendChild(date);
-
-  const showVenueDate = event.venues.length > 1;
-  event.venues.forEach((venue) => {
-    const venueLine = document.createElement("p");
-    venueLine.className = "live-event-venue";
-    venueLine.textContent = formatVenue(venue, showVenueDate);
-    card.appendChild(venueLine);
-  });
-
-  // 開場・開演時間など、会場名だけでは伝わらない補足情報（データはあったが今まで未使用だった
-  // episodeNoteフィールドをここで初めて表示する。2026-08-23）。
-  if (event.episodeNote) {
-    const noteLine = document.createElement("p");
-    noteLine.className = "live-event-note";
-    noteLine.textContent = event.episodeNote;
-    card.appendChild(noteLine);
-  }
-
-  // Blu-ray/DVDの購入ページ（productLinks）が確認できている場合だけボタンを出す。
-  // 未確認のまま推測でリンクを出さない・販売終了時もページ全体は壊れない設計（本人方針）。
-  const productLinks = event.productLinks ?? [];
-  if (productLinks.length > 0) {
-    const linkRow = document.createElement("div");
-    linkRow.className = "live-event-product-links";
-    productLinks.forEach((link) => {
-      const a = document.createElement("a");
-      a.className = "official-link-button live-event-product-link";
-      a.href = link.url;
-      a.target = "_blank";
-      a.rel = "noopener noreferrer";
-      a.textContent = link.label;
-      linkRow.appendChild(a);
-    });
-    card.appendChild(linkRow);
-  } else if (event.blurayReleased) {
-    const bluray = document.createElement("p");
-    bluray.className = "live-event-bluray";
-    bluray.textContent = "Blu-ray / DVD化あり（購入ページ未確認）";
-    card.appendChild(bluray);
-  }
-
-  // 【2026-10-27追加】曲順を公式・報道で確認できた公演だけ、セットリストを折りたたみで出す（DAY1／DAY2 等は別々）
-  findPerformancesForLive(event.id).forEach((performance) => {
-    card.appendChild(buildSetlistDetails(performance, { onOpenSong: elements?.onOpenSong }));
-  });
-
-  return card;
-}
+// 【2026-10-28変更・本人指示】ライブ履歴・セットリスト・ライブ映像は【ライブ】ページ（#live-hub-screen、
+// js/liveHubScreen.js）へまとめた。同じ内容を2か所に置かない（情報の食い違い・更新漏れを防ぐ）ため、
+// このタブは【ライブ】ページの各表示への短い案内だけにする。画面の移動は main.js の "app-navigate"
+// （screen: "liveHub"）に任せ、【ライブ】ページの「戻る」でこのタブへ戻る。
+const LIVE_TAB_LINKS = [
+  { view: "history", label: "過去のライブを調べる", description: "公演・日程・会場・DAY1／DAY2" },
+  { view: "setlists", label: "セットリストを見る", description: "公演を選んで曲順を見る" },
+  { view: "videos", label: "ライブ映像を探す", description: "Blu-ray・DVD・公式配信" },
+  { view: "home", label: "【ライブ】ページのトップへ", description: "曲からライブを探す・初心者ガイド・コールも" },
+];
 
 function renderLiveTab(liveEvents) {
-  // 開催予定（announced）は年代が先でも末尾に別枠でまとめ、実績と混同しないようにする。
-  const heldEvents = liveEvents.filter((event) => event.status === LIVE_STATUS.HELD);
-  // 開催予定が複数（東京ドーム・バンテリンドーム等）になったため、近い日程から順に並べる
-  const announcedEvents = liveEvents
-    .filter((event) => event.status === LIVE_STATUS.ANNOUNCED)
-    .sort((a, b) => (a.startDate ?? "").localeCompare(b.startDate ?? ""));
-  const heldAscending = [...heldEvents].sort((a, b) => (a.startDate ?? "").localeCompare(b.startDate ?? ""));
-
   elements.liveList.innerHTML = "";
-
   const notice = document.createElement("p");
   notice.className = "live-list-notice";
-  notice.textContent = "公式情報を確認できた主な単独公演・周年公演・ツアーを掲載しています（お渡し会・サイン会等は対象外）。";
+  const heldCount = liveEvents.filter((event) => event.status === LIVE_STATUS.HELD).length;
+  notice.textContent = `ライブの記録（${heldCount}公演）・セットリスト・ライブ映像は、【ライブ】ページにまとめました。`;
   elements.liveList.appendChild(notice);
 
-  // 【2026-10-28追加】曲からライブ映像を探す（「どの映像を見ればその曲があるか」）
-  elements.liveList.appendChild(buildSongVideoFinder({ onOpenSong: elements?.onOpenSong }));
-
-  const list = document.createElement("div");
-  list.className = "live-event-list";
-  heldAscending.forEach((event) => list.appendChild(buildLiveEventCard(event)));
-  elements.liveList.appendChild(list);
-
-  if (announcedEvents.length > 0) {
-    const heading = document.createElement("p");
-    heading.className = "section-heading";
-    heading.textContent = "開催予定";
-    elements.liveList.appendChild(heading);
-    const announcedList = document.createElement("div");
-    announcedList.className = "live-event-list";
-    announcedEvents.forEach((event) => announcedList.appendChild(buildLiveEventCard(event)));
-    elements.liveList.appendChild(announcedList);
-  }
-
-  // 【2026-10-27追加】ライブ履歴にカードが無い公演（1stコンサート等）のセットリストと、掲載範囲の注記
-  const unlinked = findUnlinkedPerformances();
-  if (unlinked.length > 0) {
-    const heading = document.createElement("p");
-    heading.className = "section-heading";
-    heading.textContent = "そのほかの公演のセットリスト";
-    elements.liveList.appendChild(heading);
-    const list = document.createElement("div");
-    list.className = "live-event-list";
-    unlinked.forEach((performance) => {
-      const card = document.createElement("div");
-      card.className = "live-event-card";
-      card.dataset.performanceId = performance.id;
-      const title = document.createElement("p");
-      title.className = "live-event-title";
-      title.textContent = performance.title;
-      const date = document.createElement("p");
-      date.className = "live-event-date";
-      date.textContent = formatDate(performance.date);
-      const venue = document.createElement("p");
-      venue.className = "live-event-venue";
-      venue.textContent = performance.venue ?? "会場未確認";
-      card.append(title, date, venue, buildSetlistDetails(performance, { onOpenSong: elements?.onOpenSong }));
-      list.appendChild(card);
+  LIVE_TAB_LINKS.forEach((link) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "centers-entry-button live-tab-pointer-button";
+    button.dataset.liveHubView = link.view;
+    const text = document.createElement("span");
+    text.className = "centers-entry-text";
+    const label = document.createElement("span");
+    label.className = "centers-entry-label";
+    label.textContent = link.label;
+    const description = document.createElement("span");
+    description.className = "centers-entry-description";
+    description.textContent = link.description;
+    text.append(label, description);
+    const arrow = document.createElement("span");
+    arrow.className = "centers-entry-arrow";
+    arrow.setAttribute("aria-hidden", "true");
+    arrow.textContent = "→";
+    button.append(text, arrow);
+    button.addEventListener("click", () => {
+      window.dispatchEvent(new CustomEvent("app-navigate", { detail: { screen: "liveHub", view: link.view } }));
     });
-    elements.liveList.appendChild(list);
-  }
-  // 【2026-10-28追加】映像商品ごとの一覧（形態・品番・収録曲・公式配信）
-  elements.liveList.appendChild(buildVideoProductList({ onOpenSong: elements?.onOpenSong }));
-  elements.liveList.appendChild(buildSetlistCoverageNote());
+    elements.liveList.appendChild(button);
+  });
 }
 
 function switchDiscographyTab(tabName) {

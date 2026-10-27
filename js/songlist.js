@@ -10,9 +10,8 @@ import { loadLyricsForSong, destroyLyricsSync } from "./lyricsSync.js";
 import { openFullscreenLyrics } from "./lyricsFullscreen.js";
 import { isLyricsQuizEligibleSong } from "./lyricsQuizQuestionBuilder.js";
 import { buildMvThumbnailElement } from "./youtubeThumbnail.js";
-// 【2026-10-27追加】センターの根拠の表示・「ライブでの披露」
+// 【2026-10-27追加】センターの根拠の表示（「ライブでの披露」は2026-10-28に【ライブ】ページへ移した）
 import { classifyCenter, formatCenterLine } from "./centerChart.js";
-import { buildSongLiveSection } from "./setlistView.js";
 import {
   isFavoriteSong,
   toggleFavoriteSong,
@@ -565,16 +564,10 @@ export function createTrackRow(song, options = {}) {
     const centerElement = document.createElement("span");
     centerElement.className = "track-meta-line track-center-line";
     centerElement.textContent = formatCenterLine(song.center, song.centerType);
-    // 【2026-10-27追加】公式・報道で確認できていないセンター情報には、根拠の種類を小さく添える
-    // （「ファン資料のみ」等を公式と同じ見た目にしないため。確認済みの曲には何も足さない）
+    // 【2026-10-28 本人指示】ふだんの画面には根拠の種類（ファン資料のみ・アプリ内設定 等）を出さない。
+    // 根拠のデータは js/data/centerSources.js に残し、要素の属性にだけ持たせる（後から確かめられるように）
     const center = classifyCenter(song);
-    if (center.evidenceKind && !center.isConfirmed) {
-      const evidence = document.createElement("span");
-      evidence.className = `center-evidence-badge is-${center.evidenceKind}`;
-      evidence.textContent = center.evidenceLabel;
-      centerElement.appendChild(document.createTextNode(" "));
-      centerElement.appendChild(evidence);
-    }
+    if (center.evidenceKind) centerElement.dataset.evidenceKind = center.evidenceKind;
     // 「歴代センター一覧へ」：一覧のこの曲の行を開く（画面移動は main.js の app-navigate に任せる）
     centerElement.appendChild(document.createTextNode(" "));
     const centersLink = document.createElement("button");
@@ -816,19 +809,9 @@ export function createTrackRow(song, options = {}) {
     row.appendChild(buildPlaylistControlButtons(playlistControls));
   }
 
-  // 【2026-10-27追加】ライブでの披露（確認できた公演・映像商品）。折りたたみで、開いたときに中身を作る。
-  // 狭い曲名の列ではなく行の幅いっぱいに出すため、行の最後（折り返した2段目）に置く（.track-row.has-live-section）。
-  // 公演名をタップすると、ライブ履歴（＝LOVEについて→ライブ）の該当カードを開く。
-  const liveSection = buildSongLiveSection(song, {
-    onOpenLive: (liveId) => {
-      stopSongListPreview();
-      window.dispatchEvent(new CustomEvent("app-navigate", { detail: { screen: "liveHistory", liveId } }));
-    },
-  });
-  if (liveSection) {
-    row.classList.add("has-live-section");
-    row.appendChild(liveSection);
-  }
+  // 【2026-10-28削除・本人指示】曲ごとの「ライブでの披露」（2026-10-27追加）は、収録曲一覧を簡潔にするため外した。
+  // 曲からライブ・ライブ映像を探すのは【ライブ】ページ（js/liveHubScreen.js）で行う
+  // （表示部品 buildSongLiveSection は js/setlistView.js に残している）。
 
   return row;
 }
