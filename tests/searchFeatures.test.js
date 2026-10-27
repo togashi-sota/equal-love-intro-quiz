@@ -93,9 +93,10 @@ export async function runSearchFeaturesTests() {
   );
   const domeHistory = HISTORY_EVENTS.find((event) => event.date === "2027-01-19");
   assertEqual(domeHistory.sourceUrls[0], "https://equal-love.jp/news/detail/11613", "A: 年表の東京ドームも公式ニュースを出典に");
-  const discographySource = await fetchText("js/discographyScreen.js");
-  assertEqual(discographySource.includes("映像化決定（発売予定）"), true, "A: ライブ履歴に「映像化決定（発売予定）」タグ");
-  assertEqual(discographySource.includes("card.dataset.liveId = event.id;"), true, "A: ライブカードに検索からの移動用の目印");
+  // 【2026-10-28】ライブ履歴のカードは【ライブ】ページ（js/liveHubScreen.js）へ移した
+  const liveHubSource = await fetchText("js/liveHubScreen.js");
+  assertEqual(liveHubSource.includes("映像化決定（発売予定）"), true, "A: ライブ履歴に「映像化決定（発売予定）」タグ");
+  assertEqual(liveHubSource.includes("card.dataset.liveId = event.id;"), true, "A: ライブカードに検索からの移動用の目印");
 
   // ===== B. 検索用の正規化（表記揺れ） =====
   assertEqual(normalizeSearchText("サクラ"), normalizeSearchText("さくら"), "B: カタカナとひらがなを同じに扱う");
@@ -120,7 +121,7 @@ export async function runSearchFeaturesTests() {
   assertEqual(entries.filter((entry) => entry.key.startsWith("cm:")).length, COMMERCIALS.length, "C: CM・広告が全件検索対象（データ追加で自動的に増える）");
   assertEqual(entries.filter((entry) => entry.key.startsWith("live:")).length, LIVE_EVENTS.length, "C: ライブが全件検索対象");
   assertEqual(entries.filter((entry) => entry.key.startsWith("mode:")).length, SPECIAL_MODES.filter((mode) => mode.available).length, "C: 特別モードはSPECIAL_MODESから自動で組み立てる");
-  const allTargetsValid = entries.every((entry) => entry.action && ["member", "membersList", "discography", "work", "song", "guide", "feature"].includes(entry.action.target.kind));
+  const allTargetsValid = entries.every((entry) => entry.action && ["member", "membersList", "discography", "work", "song", "guide", "feature", "liveHub"].includes(entry.action.target.kind));
   assertEqual(allTargetsValid, true, "C: すべての項目に元ページへの移動先がある");
 
   const top = (query, category = "all") => searchAppEntries(entries, query, category).results.map(({ entry }) => entry.title);
@@ -160,7 +161,8 @@ export async function runSearchFeaturesTests() {
   const memberCm = entries.find((entry) => entry.key.startsWith("cm:") && entry.action.target.kind === "member");
   assertEqual(memberCm.action.target.focusSelector.startsWith("[data-commercial-id="), true, "C: 個人CMはメンバーページの該当カードへ");
   const liveEntry = entries.find((entry) => entry.key === "live:live-tokyo-dome-announced");
-  assertEqual([liveEntry.action.target.tab, liveEntry.lines.includes("状態：開催予定")], ["live", true], "C: ライブはライブ履歴タブへ・状態を表示");
+  // 【2026-10-28】ライブ履歴は【ライブ】ページ（js/liveHubScreen.js）の「過去のライブ」へ移した
+  assertEqual([liveEntry.action.target.kind, liveEntry.action.target.view, liveEntry.lines.includes("状態：開催予定")], ["liveHub", "history", true], "C: ライブは【ライブ】ページの過去のライブへ・状態を表示");
 
   // 個人データ・管理者情報・歌詞本文を検索対象にしていない（データの読み込み元を確認）
   const indexSource = await fetchText("js/appSearchIndex.js");

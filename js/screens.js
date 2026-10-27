@@ -21,6 +21,7 @@ const SCREEN_ELEMENTS = {
   appSearch: document.getElementById("app-search-screen"),
   lyricsSearch: document.getElementById("lyrics-search-screen"),
   liveGuide: document.getElementById("live-guide-screen"),
+  liveHub: document.getElementById("live-hub-screen"), // 【2026-10-28新設】【ライブ】ページ（js/liveHubScreen.js）
   fanProfiles: document.getElementById("fan-profiles-screen"),
   adminBackup: document.getElementById("admin-backup-screen"),
   debugAudioLog: document.getElementById("debug-audio-log-screen"),

@@ -296,6 +296,7 @@ import { initGuideScreen, openGuideScreen, openGuideSection, getGuideReturnScree
 import { initAppSearchScreen, openAppSearchScreen, shouldFocusAppSearchInput, focusAppSearchInput, getAppSearchQuery } from "./appSearchScreen.js";
 import { initLyricsSearchScreen, openLyricsSearchScreen, shouldFocusLyricsSearchInput, focusLyricsSearchInput, presetLyricsSearchQuery } from "./lyricsSearchScreen.js";
 import { initLiveGuideScreen, openLiveGuideScreen } from "./liveGuideScreen.js";
+import { initLiveHubScreen, openLiveHubScreen, goBackInLiveHub } from "./liveHubScreen.js";
 // 【2026-10-27新設】歴代センター一覧
 import { initCentersScreen, openCentersScreen } from "./centersScreen.js";
 import { initFanProfilesScreen, renderFanProfilesScreen } from "./fanProfilesScreen.js";
@@ -5709,15 +5710,11 @@ window.addEventListener("app-navigate", (event) => {
     // 【2026-10-27追加】収録曲一覧の「歴代センター一覧へ」：その曲の行を開き、「戻る」で元の画面へ戻す
     openCentersFrom(document.body.dataset.screen, event.detail?.songId ?? null);
   } else if (screen === "liveHistory") {
-    // 【2026-10-27追加】収録曲一覧の「ライブでの披露」から、ライブ履歴の該当公演カードを開く
-    const fromScreen = document.body.dataset.screen;
-    renderDiscographyForSearch();
-    navigateWithScrollMemory("discography");
-    activateDiscographyTab("live");
-    window.scrollTo(0, 0);
-    revealSearchFocusTarget(`[data-live-id="${event.detail?.liveId}"]`, document.getElementById("discography-screen"));
-    // 「戻る」で元の画面（収録曲一覧など）へ戻す（全体検索と同じ戻り先の付け替えを使う）
-    searchReturn = fromScreen !== "discography" ? { searchScreen: fromScreen, landingScreen: "discography" } : null;
+    // 【2026-10-27追加】公演の該当カードを開く（2026-10-28：ライブ履歴は【ライブ】ページへ移したので、そちらを開く）
+    openLiveHubFrom(document.body.dataset.screen, { view: "history", liveId: event.detail?.liveId });
+  } else if (screen === "liveHub") {
+    // 【2026-10-28追加】「＝LOVEについて→ライブ」タブの案内ボタンから【ライブ】ページの各表示を開く。「戻る」で元の画面へ
+    openLiveHubFrom(document.body.dataset.screen, event.detail ?? {});
   }
 });
 
@@ -5743,7 +5740,9 @@ document.addEventListener("click", (event) => {
   // 開いたページそのものの「戻る」で、実際に画面が変わったときだけ（ガイドの「目次へ戻る」等の画面内の戻るは対象外）
   if (screenBefore === searchReturn.landingScreen && screenAfter !== screenBefore) {
     const target = searchReturn.searchScreen;
-    searchReturn = null;
+    // 【2026-10-28追加】戻った先の画面自体も検索などから開いていた場合は、その記録に戻す
+    // （例：全体検索→ライブ→セットリスト→曲 の「戻る」を2回で、ライブ→全体検索の順に戻れるように）
+    searchReturn = searchReturn.previous ?? null;
     navigateWithScrollMemory(target);
   } else if (screenAfter === "start") {
     // 検索から開いたページから、さらに別のページへ移ってからホームへ戻った場合（レビュー指摘）
@@ -5842,11 +5841,20 @@ async function openSearchTarget(target) {
       openGuideSection(target.sectionId);
       navigateWithScrollMemory("guide");
       window.scrollTo(0, 0);
+    } else if (target.kind === "liveHub") {
+      // 【2026-10-28追加】【ライブ】ページの該当の表示（過去のライブの公演・ライブ映像のカード等）
+      openLiveHubFrom(searchScreen, target);
     }
   }
   const landingScreen = document.body.dataset.screen;
-  // ホームや、検索画面の上に開くモーダル（サウンド設定等）では「戻る」の付け替えは不要
-  searchReturn = landingScreen !== searchScreen && landingScreen !== "start" ? { searchScreen, landingScreen } : null;
+  // ホームでは「戻る」の付け替えは不要。検索画面の上に開くモーダル（サウンド設定等）では、今の記録をそのまま残す。
+  // 【2026-10-28追加】今いる画面自体が検索などから開いた画面なら、その記録を previous に残す（戻るを重ねられるように）
+  if (landingScreen === "start") {
+    searchReturn = null;
+  } else if (landingScreen !== searchScreen) {
+    const previous = searchReturn && searchReturn.landingScreen === searchScreen ? searchReturn : null;
+    searchReturn = { searchScreen, landingScreen, previous };
+  }
 }
 
 initAppSearchScreen(
@@ -5892,8 +5900,18 @@ document.getElementById("app-search-back-button").addEventListener("click", () =
   playSfx(SFX_EVENTS.UI_BACK);
   navigateWithScrollMemory("start");
 });
+// 【2026-10-28追加・本人指示】歌詞検索の「戻る」の行き先＝開いた画面（全体検索・ホーム・ライブ初心者ガイド等）。
+// 全体検索から開いたときだけ「全体検索へ」の切り替えを出す。全体検索の検索語・カテゴリ・開いた結果は
+// js/appSearchScreen.js が、スクロール位置は navigateWithScrollMemory が覚えているので、戻るだけで元どおりになる。
+let lyricsSearchReturnScreen = "start";
+const lyricsSearchToAppSwitchElement = document.getElementById("lyrics-search-to-app-switch");
+function setLyricsSearchReturnScreen(fromScreen) {
+  lyricsSearchReturnScreen = fromScreen && fromScreen !== "lyricsSearch" ? fromScreen : "start";
+  lyricsSearchToAppSwitchElement.hidden = lyricsSearchReturnScreen !== "appSearch";
+}
 // 先に画面を切り替えてから歌詞データを読む（曲数が多い端末でも、押してすぐ画面が切り替わるように）
 async function openLyricsSearchAndNavigate() {
+  setLyricsSearchReturnScreen(document.body.dataset.screen);
   navigateWithScrollMemory("lyricsSearch");
   await openLyricsSearchScreen();
   if (shouldFocusLyricsSearchInput()) focusLyricsSearchInput();
@@ -5912,6 +5930,37 @@ document.getElementById("live-guide-link").addEventListener("click", () => {
 document.getElementById("live-guide-back-button").addEventListener("click", () => {
   playSfx(SFX_EVENTS.UI_BACK);
   navigateWithScrollMemory("start");
+});
+
+// 【2026-10-28新設・本人指示】【ライブ】ページ。曲名をタップした先・ガイド・ライブコールモードへは、全体検索と同じ
+// openSearchTarget() で移り、移った先の「戻る」でこのページ（開いていた表示・スクロール位置のまま）へ戻す。
+// ページの中の表示の行き来（トップ→セットリスト一覧→1公演 など）は js/liveHubScreen.js が受け持つ。
+const liveHubScreenElement = document.getElementById("live-hub-screen");
+let liveHubReturnScreen = "start";
+function openLiveHubFrom(returnScreen, options = {}) {
+  liveHubReturnScreen = returnScreen && returnScreen !== "liveHub" ? returnScreen : "start";
+  const { focusSelector } = openLiveHubScreen(options);
+  navigateWithScrollMemory("liveHub");
+  window.scrollTo(0, 0);
+  if (focusSelector) revealSearchFocusTarget(focusSelector, liveHubScreenElement);
+}
+initLiveHubScreen(
+  { container: document.getElementById("live-hub-content") },
+  {
+    onOpenSong: (songId) => openSearchTarget({ kind: "song", songId }),
+    onOpenAction: (action) => openSearchTarget({ kind: "feature", action }),
+    onRevealTarget: (selector) => revealSearchFocusTarget(selector, liveHubScreenElement),
+  }
+);
+// ホームの入口のほか、全体検索の「この機能を開く」・ライブ初心者ガイドのリンクからも押される（戻る先＝押した画面）
+document.getElementById("live-hub-link").addEventListener("click", () => {
+  playClickSound();
+  openLiveHubFrom(document.body.dataset.screen);
+});
+document.getElementById("live-hub-back-button").addEventListener("click", () => {
+  playSfx(SFX_EVENTS.UI_BACK);
+  if (goBackInLiveHub()) return; // ページの中の1つ前の表示へ戻った
+  navigateWithScrollMemory(liveHubReturnScreen);
 });
 
 // 【2026-10-27新設】歴代センター一覧。入口は「＝LOVEについて」の作品一覧タブと、収録曲一覧のセンター欄。
@@ -5956,7 +6005,15 @@ document.getElementById("lyrics-search-link").addEventListener("click", async ()
 });
 document.getElementById("lyrics-search-back-button").addEventListener("click", () => {
   playSfx(SFX_EVENTS.UI_BACK);
-  navigateWithScrollMemory("start");
+  navigateWithScrollMemory(lyricsSearchReturnScreen);
+});
+// 「全体検索へ」：全体検索から来たときだけ出す切り替え。全体検索は描き直さず、前の状態のまま戻る
+document.getElementById("lyrics-search-to-app-button").addEventListener("click", () => {
+  playSfx(SFX_EVENTS.UI_BACK);
+  // 全体検索から歌詞検索を開いた記録が残っていれば片付ける（以後の「戻る」が歌詞検索へ戻らないように）
+  if (searchReturn?.landingScreen === "lyricsSearch") searchReturn = searchReturn.previous ?? null;
+  setLyricsSearchReturnScreen("start");
+  navigateWithScrollMemory("appSearch");
 });
 
 workDetailBackButtonElement.addEventListener("click", () => {

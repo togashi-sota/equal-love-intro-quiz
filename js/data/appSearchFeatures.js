@@ -103,9 +103,18 @@ export const APP_SEARCH_FEATURES = [
     id: "feature-about",
     category: FEATURE,
     title: "＝LOVEについて",
-    aliases: ["イコラブ", "イコールラブ", "年表", "作品一覧", "ディスコグラフィー", "ライブ履歴"],
-    description: "＝LOVEのプロフィール・年表・作品一覧・ライブ履歴・CM・広告をまとめたページです。",
+    aliases: ["イコラブ", "イコールラブ", "年表", "作品一覧", "ディスコグラフィー"],
+    description: "＝LOVEのプロフィール・年表・作品一覧・CM・広告をまとめたページです（ライブの記録は【ライブ】ページにまとめています）。",
     action: { type: "click", selector: "#discography-link" },
+  },
+  {
+    // 【2026-10-28新設】【ライブ】ページ（js/liveHubScreen.js）
+    id: "feature-live-hub",
+    category: FEATURE,
+    title: "ライブ（過去の公演・セットリスト・ライブ映像）",
+    aliases: ["ライブ", "ライブ履歴", "過去のライブ", "公演", "セットリスト", "セトリ", "ライブ映像", "ブルーレイ", "Blu-ray", "DVD", "映像作品"],
+    description: "過去の公演・セットリスト・曲からライブを探す・ライブ映像（Blu-ray／DVD・公式配信）を、目的から調べられるページです。",
+    action: { type: "click", selector: "#live-hub-link" },
   },
   {
     id: "feature-members",

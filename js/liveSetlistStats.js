@@ -170,3 +170,111 @@ export function findPerformancesForLive(liveId, performances = SETLIST_PERFORMAN
 export function findUnlinkedPerformances(performances = SETLIST_PERFORMANCES) {
   return performances.filter((performance) => !performance.liveId).sort((a, b) => a.date.localeCompare(b.date));
 }
+
+// ===== 【2026-10-28追加】ライブページ（js/liveHubScreen.js）用の計算 =====
+// 画面の文と並べ方をここに集め、tests/liveHub.test.js から直接テストする。
+
+// 公演（1日・1部）を、年ごとにまとめる（新しい年が先、年の中も新しい日付が先）
+export function groupPerformancesByYear(performances = SETLIST_PERFORMANCES) {
+  const groups = new Map();
+  [...performances]
+    .sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))
+    .forEach((performance) => {
+      const year = performance.date.slice(0, 4);
+      if (!groups.has(year)) groups.set(year, []);
+      groups.get(year).push(performance);
+    });
+  return [...groups.entries()].map(([year, items]) => ({ year, performances: items }));
+}
+
+// その公演（1日・1部）を収録している映像商品
+export function findVideosForPerformance(performanceId, videos = LIVE_VIDEO_PRODUCTS) {
+  return videos.filter((video) => video.coverage.some((cover) => cover.performanceId === performanceId));
+}
+
+// ライブ履歴の公演カード（liveHistory.js の id）に属する公演を収録している映像商品（発売日順）
+export function findVideosForLive(liveId, { videos = LIVE_VIDEO_PRODUCTS, performances = SETLIST_PERFORMANCES } = {}) {
+  const performanceIds = new Set(performances.filter((performance) => performance.liveId === liveId).map((performance) => performance.id));
+  return videos
+    .filter((video) => video.coverage.some((cover) => performanceIds.has(cover.performanceId)))
+    .sort((a, b) => String(a.releaseDate).localeCompare(String(b.releaseDate)));
+}
+
+// 映像商品を発売日順に並べる（order: "desc" 新しい順／"asc" 古い順）
+export function sortVideosByRelease(videos = LIVE_VIDEO_PRODUCTS, order = "desc") {
+  const sign = order === "asc" ? 1 : -1;
+  return [...videos].sort((a, b) => sign * String(a.releaseDate).localeCompare(String(b.releaseDate)) || a.id.localeCompare(b.id));
+}
+
+// 映像商品の形式（Blu-ray／DVD）を短くまとめる。形態の情報が無ければ productCodes の文から読む
+export function summarizeVideoFormats(video) {
+  const text = [...(video.editions ?? []).map((edition) => edition.format ?? ""), video.productCodes ?? ""].join(" ");
+  const formats = [];
+  if (/blu-?ray/i.test(text)) formats.push("Blu-ray");
+  if (/DVD/i.test(text)) formats.push("DVD");
+  return formats.length > 0 ? formats.join("／") : "形式未確認";
+}
+
+// 映像に収録されている公演の開催日（例：「2023年10月19日（DAY2）」）。公演の記録が無いものは出さない
+export function describeVideoLiveDates(video, performances = SETLIST_PERFORMANCES) {
+  return video.coverage
+    .map((cover) => performances.find((performance) => performance.id === cover.performanceId))
+    .filter(Boolean)
+    .map((performance) => `${formatJapaneseDate(performance.date)}${performance.dayLabel ? `（${performance.dayLabel}）` : ""}`);
+}
+
+// その曲が、映像のどこに入っているか。収録順が公式の曲目どおりのときだけ「N曲目」と言う
+//   { included: true/false, undisclosed: true/false, positions: ["本編 3曲目", ...] }
+export function describeSongPositionInVideo(video, songId, performances = SETLIST_PERFORMANCES) {
+  const withSong = video.coverage.filter((cover) => Array.isArray(cover.songIds) && cover.songIds.includes(songId));
+  const undisclosed = withSong.length === 0 && video.coverage.some((cover) => cover.songIds === null);
+  const multiple = video.coverage.length > 1;
+  const positions = withSong.map((cover) => {
+    const performance = performances.find((p) => p.id === cover.performanceId);
+    const prefix = multiple && performance ? `${formatJapaneseDate(performance.date)}${performance.dayLabel ? `（${performance.dayLabel}）` : ""}の公演：` : "";
+    // 同じ曲が2回入っている公演（アンコールでもう一度など）は、両方の曲目を出す
+    const positions = cover.ordered ? cover.songIds.map((id, index) => (id === songId ? index + 1 : null)).filter(Boolean) : [];
+    return `${prefix}${positions.length > 0 ? positions.map((n) => `${n}曲目`).join("・") : "収録（曲順は商品の曲目で確認してください）"}`;
+  });
+  return { included: withSong.length > 0, undisclosed, positions };
+}
+
+// 公式配信の短い表示（カードのバッジ用）。映像に収録されていることと、配信で見られることは別の事実
+export function describeStreamingBadge(video) {
+  const status = video.streaming?.status ?? "unknown";
+  if (status === "available") return { status, label: "公式配信あり" };
+  if (status === "none") return { status, label: "公式配信：確認できず" };
+  return { status: "unknown", label: "公式配信：未確認" };
+}
+
+// 公式の商品ページへのリンク。同じページを指す形態はまとめる。
+// どれも商品の紹介ページで、購入ページとは確認していないため「公式商品ページ」と書く（「購入」とは書かない）
+export function buildOfficialProductLinks(video) {
+  const byUrl = new Map();
+  (video.editions ?? [])
+    .filter((edition) => edition.url)
+    .forEach((edition) => {
+      const name = [edition.label, edition.format].filter(Boolean).join(" ");
+      if (!byUrl.has(edition.url)) byUrl.set(edition.url, []);
+      byUrl.get(edition.url).push(name);
+    });
+  const links = [...byUrl.entries()].map(([url, names]) => ({ label: `公式商品ページ（${names.filter(Boolean).join("・") || "商品"}）`, url }));
+  if (links.length === 0 && video.sourceUrl) links.push({ label: "公式の告知ページ", url: video.sourceUrl });
+  return links;
+}
+
+// 次に開催予定のライブ（今日以降に日程があるもののうち、いちばん近いもの）。無ければ null
+export function findNextAnnouncedLive(liveEvents, today) {
+  return (
+    liveEvents
+      .filter((event) => event.status === "announced" && typeof (event.endDate ?? event.startDate) === "string" && (event.endDate ?? event.startDate) >= today)
+      .sort((a, b) => (a.startDate ?? "").localeCompare(b.startDate ?? ""))[0] ?? null
+  );
+}
+
+// 公演カードの「セットリスト」ボタンの文字（DAY1／DAY2 などを付ける。「DAY2（ファイナル）」のように
+// 括弧を含む呼び名があるので、括弧で囲まずに空白で続ける）
+export function setlistButtonLabel(performance) {
+  const day = performance.dayLabel ? ` ${performance.dayLabel}` : "";
+  return performance.completeness === "full" ? `セットリスト${day}` : `披露を確認できた曲${day}`;
+}

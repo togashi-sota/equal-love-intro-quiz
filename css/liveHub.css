@@ -1,0 +1,685 @@
+/* ===== 【ライブ】ページ（#live-hub-screen、js/liveHubScreen.js。2026-10-28新設） =====
+   iPhone の縦画面（幅390px前後）を基準にした作り。色はアプリ共通の変数（css/style.css の :root）を使う。
+   映像カード（.live-video-*）は js/setlistView.js の buildVideoCard が作る。 */
+
+.live-hub-content {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 32px;
+}
+
+.live-hub-view {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* display を指定した要素は hidden 属性が効かなくなるため、明示して隠す（このアプリの他の部品と同じ書き方） */
+.live-hub-view[hidden],
+.live-hub-search-field .search-screen-clear[hidden],
+#lyrics-search-to-app-switch[hidden] {
+  display: none;
+}
+
+.live-hub-intro {
+  margin: 2px 0 4px;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  color: var(--color-text);
+  opacity: 0.8;
+  text-align: center;
+}
+
+.live-hub-note,
+.live-hub-empty {
+  margin: 6px 0 0;
+  font-size: 0.7rem;
+  line-height: 1.6;
+  color: #7a6170;
+}
+
+.live-hub-empty {
+  padding: 14px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.7);
+  text-align: center;
+}
+
+/* ---- トップ：次のライブ ---- */
+.live-hub-next-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "label arrow"
+    "title arrow"
+    "date arrow";
+  gap: 2px 10px;
+  align-items: center;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1.5px solid var(--color-primary-light);
+  border-radius: 16px;
+  background: linear-gradient(120deg, #fff 0%, var(--color-primary-light) 100%);
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 3px 12px rgba(255, 111, 168, 0.14);
+}
+
+.live-hub-next-card:active {
+  transform: scale(0.98);
+}
+
+.live-hub-next-label {
+  grid-area: label;
+  justify-self: start;
+  padding: 1px 9px;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 800;
+  color: #1c5f8a;
+  background: #e1f0fa;
+}
+
+.live-hub-next-title {
+  grid-area: title;
+  font-size: 0.86rem;
+  font-weight: 800;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.live-hub-next-date {
+  grid-area: date;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #7a6170;
+}
+
+.live-hub-next-arrow {
+  grid-area: arrow;
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+}
+
+/* ---- トップ：タイル ---- */
+.live-hub-tile-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.live-hub-tile {
+  --tile-color: var(--color-primary-dark);
+  --tile-soft: var(--color-primary-light);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-height: 118px;
+  padding: 14px 12px 12px;
+  border: 1.5px solid var(--color-card-border);
+  border-radius: 18px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 3px 12px rgba(255, 111, 168, 0.12);
+  transition: transform 0.15s ease, box-shadow 0.2s ease;
+}
+
+.live-hub-tile:active {
+  transform: scale(0.97);
+  box-shadow: 0 0 0 3px rgba(255, 111, 168, 0.18);
+}
+
+.live-hub-tile.is-lavender { --tile-color: #7a3b8f; --tile-soft: #f1e3f7; }
+.live-hub-tile.is-blue { --tile-color: #1c5f8a; --tile-soft: #e1f0fa; }
+.live-hub-tile.is-green { --tile-color: #1d6b3c; --tile-soft: #dff3e6; }
+.live-hub-tile.is-yellow { --tile-color: #8a6400; --tile-soft: var(--color-accent-soft); }
+.live-hub-tile.is-orange { --tile-color: #a24a12; --tile-soft: #ffe8d6; }
+
+.live-hub-tile-icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  margin-bottom: 4px;
+  border-radius: 12px;
+  color: var(--tile-color);
+  background: var(--tile-soft);
+}
+
+.live-hub-tile-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.live-hub-tile-label {
+  font-size: 0.86rem;
+  font-weight: 800;
+  line-height: 1.35;
+  color: var(--tile-color);
+}
+
+.live-hub-tile-description {
+  font-size: 0.68rem;
+  line-height: 1.45;
+  color: #7a6170;
+}
+
+/* 既存の別画面へ移るタイル（ガイド・コール）であることを小さく示す */
+.live-hub-tile-external {
+  position: absolute;
+  top: 12px;
+  right: 10px;
+  font-size: 0.56rem;
+  font-weight: 800;
+  color: #8a7482;
+}
+
+/* ---- 各表示の上部 ---- */
+.live-hub-view-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 2px;
+}
+
+.live-hub-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.7rem;
+}
+
+.live-hub-crumb {
+  padding: 4px 10px;
+  border: 1px solid var(--color-primary-light);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--color-primary-dark);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.live-hub-crumb-sep {
+  color: #b39aaa;
+}
+
+.live-hub-crumb-current {
+  font-weight: 700;
+  color: #7a6170;
+}
+
+.live-hub-view-title {
+  margin: 4px 0 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+}
+
+.live-hub-view-lead {
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.6;
+  color: #7a6170;
+}
+
+.live-hub-group-heading {
+  margin: 10px 0 0;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+}
+
+.live-hub-card-list,
+.live-hub-row-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ---- 過去のライブのカード ---- */
+.live-hub-live-card {
+  padding: 12px 14px;
+  border: 1px solid var(--color-card-border);
+  border-radius: 14px;
+  background: var(--color-surface);
+}
+
+.live-hub-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.live-hub-chip {
+  min-height: 34px;
+  padding: 6px 12px;
+  border: 1.5px solid var(--color-primary-light);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--color-primary-dark);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.live-hub-chip.is-setlist {
+  border-color: #e3cdea;
+  color: #7a3b8f;
+  background: #faf3fc;
+}
+
+.live-hub-chip.is-video {
+  border-color: #cbe9d6;
+  color: #1d6b3c;
+  background: #f2fbf5;
+}
+
+.live-hub-chip:active {
+  transform: scale(0.97);
+}
+
+.live-hub-more {
+  margin-top: 8px;
+  border-top: 1px dashed var(--color-primary-light);
+  padding-top: 6px;
+}
+
+.live-hub-more-summary {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #7a6170;
+  cursor: pointer;
+}
+
+.live-hub-more-body {
+  margin-top: 6px;
+}
+
+.live-hub-venue-list {
+  margin: 0 0 4px;
+  padding-left: 1.1em;
+  font-size: 0.7rem;
+  line-height: 1.6;
+  color: #5c4a55;
+}
+
+/* ---- 公演を選ぶ行 ---- */
+.live-hub-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 52px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-card-border);
+  border-radius: 14px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.live-hub-row.is-compact {
+  min-height: 44px;
+  padding: 8px 10px;
+  border-color: rgba(255, 225, 238, 0.9);
+  background: rgba(255, 255, 255, 0.85);
+}
+
+.live-hub-row:active {
+  transform: scale(0.98);
+}
+
+.live-hub-row-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.live-hub-row-title {
+  font-size: 0.8rem;
+  font-weight: 800;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.live-hub-row-meta {
+  font-size: 0.68rem;
+  color: #7a6170;
+}
+
+.live-hub-row-badge {
+  flex: none;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 800;
+}
+
+.live-hub-row-badge.is-full {
+  color: #7a3b8f;
+  background: #f1e3f7;
+}
+
+.live-hub-row-badge.is-partial {
+  color: #6b5a2a;
+  background: #f5edd3;
+}
+
+.live-hub-row-arrow {
+  flex: none;
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+}
+
+/* ---- 1公演のセットリスト ---- */
+.live-hub-setlist-head {
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: linear-gradient(120deg, #fff, var(--color-primary-light));
+}
+
+.live-hub-setlist-title {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.live-hub-setlist-date {
+  margin: 4px 0 0;
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+}
+
+.live-hub-setlist-meta {
+  margin: 2px 0 0;
+  font-size: 0.68rem;
+  line-height: 1.5;
+  color: #7a6170;
+}
+
+.live-hub-setlist-items {
+  padding: 8px 10px;
+  border-radius: 14px;
+  background: var(--color-surface);
+}
+
+.live-hub-setlist-items .setlist-item {
+  padding: 6px 0;
+  font-size: 0.82rem;
+}
+
+/* ---- 曲から探す・映像を探す ---- */
+.live-hub-search-field {
+  margin: 2px 0 0;
+}
+
+.live-hub-results {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.live-hub-song-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.75);
+  box-shadow: 0 2px 10px rgba(232, 106, 160, 0.1);
+}
+
+.live-hub-song-title {
+  align-self: flex-start;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-primary-dark);
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 800;
+  text-align: left;
+  text-decoration: underline dotted rgba(255, 79, 150, 0.5);
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+
+.live-hub-inline-link {
+  align-self: flex-start;
+  min-height: 34px;
+  padding: 6px 2px;
+  border: none;
+  background: none;
+  color: var(--color-primary-dark);
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+}
+
+.live-hub-order-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.live-hub-order-label {
+  flex: 1;
+  font-size: 0.74rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+}
+
+.live-hub-order-chip {
+  padding: 4px 12px;
+  border: 1.5px solid var(--color-primary-light);
+  border-radius: 999px;
+  background: #fff;
+  color: #7a6170;
+  font: inherit;
+  font-size: 0.68rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.live-hub-order-chip.is-active {
+  border-color: var(--color-primary);
+  color: var(--color-primary-dark);
+  background: var(--color-primary-light);
+}
+
+/* ---- 映像カード（js/setlistView.js の buildVideoCard） ---- */
+.live-video-card {
+  padding: 12px 14px;
+  border: 1px solid var(--color-card-border);
+  border-radius: 14px;
+  background: var(--color-surface);
+}
+
+.live-video-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.live-video-tag {
+  padding: 1px 9px;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 800;
+  color: #5f5a5d;
+  background: #ebe8ea;
+}
+
+.live-video-tag.is-included {
+  color: #1d6b3c;
+  background: #dff3e6;
+}
+
+.live-video-tag.is-format {
+  color: #1c5f8a;
+  background: #e1f0fa;
+}
+
+.live-video-tag.is-upcoming {
+  color: #9a5b12;
+  background: #fbedd9;
+}
+
+.live-video-card-title {
+  margin: 0 0 6px;
+  font-size: 0.86rem;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.live-video-facts {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+}
+
+.live-video-fact {
+  display: grid;
+  grid-template-columns: 6.5em minmax(0, 1fr);
+  gap: 6px;
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
+
+.live-video-fact-label {
+  color: #8a7482;
+  font-weight: 700;
+}
+
+.live-video-fact-value {
+  margin: 0;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.live-video-streaming {
+  margin: 6px 0 0;
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: #7a6170;
+}
+
+.live-video-streaming.is-available {
+  color: #1d6b3c;
+}
+
+.live-video-more {
+  margin-top: 8px;
+  border-top: 1px dashed var(--color-primary-light);
+  padding-top: 4px;
+}
+
+.live-video-more-summary {
+  display: flex;
+  align-items: center;
+  min-height: 34px;
+  font-size: 0.74rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  cursor: pointer;
+}
+
+.live-video-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.live-video-detail-heading {
+  margin: 0 0 4px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+}
+
+.live-video-detail-text {
+  margin: 0 0 2px;
+  font-size: 0.72rem;
+  line-height: 1.55;
+}
+
+.live-video-detail-text.is-muted {
+  color: #7a6170;
+}
+
+.live-video-detail-text.is-streaming-available {
+  color: #1d6b3c;
+  font-weight: 700;
+}
+
+.live-video-detail-list {
+  margin: 0;
+  padding-left: 1.1em;
+  font-size: 0.72rem;
+  line-height: 1.6;
+}
+
+.live-video-detail-links {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.live-video-link-button {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  min-height: 34px;
+  margin-top: 4px;
+  padding: 6px 12px;
+  border: 1.5px solid var(--color-primary-light);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--color-primary-dark);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.live-video-link-button.is-secondary {
+  color: #1d6b3c;
+  border-color: #cbe9d6;
+}
+
+.setlist-item.is-current-song {
+  background: rgba(255, 217, 61, 0.22);
+}
+
+
+/* ホーム「＝LOVEをもっと知る」の【ライブ】入口（ステージの照明のような黄色とピンクの光） */
+#live-hub-link::before {
+  background: radial-gradient(circle at 75% 20%, rgba(255, 217, 61, 0.24), transparent 55%),
+    radial-gradient(circle at 25% 80%, rgba(255, 111, 168, 0.2), transparent 60%);
+}
+
+/* 歌詞検索の「全体検索へ」の切り替え（全体検索から来たときだけ表示）と、下の説明文とのすき間 */
+#lyrics-search-to-app-switch {
+  margin-bottom: 10px;
+}

@@ -30,6 +30,11 @@
 
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/callText.css">
+  <!-- 【2026-10-28新設】【ライブ】ページ（#live-hub-screen）と映像カードの見た目 -->
+  <link rel="stylesheet" href="css/liveHub.css">
+  <!-- 【2026-10-28新設】歴代センターの「センター表」・フレンド一覧の重複整理と在席表示 -->
+  <link rel="stylesheet" href="css/centersTable.css">
+  <link rel="stylesheet" href="css/friendsFix.css">
 </head>
 <body data-screen="start">
 
@@ -555,7 +560,7 @@
             <rect x="25.7" y="15" width="1.8" height="10.5" rx="0.9" fill="#ffd93d"/>
           </svg>
           <span class="know-more-label">＝LOVEについて</span>
-          <span class="know-more-description">グループの由来・歴史・作品・ライブの記録を見る</span>
+          <span class="know-more-description">グループの由来・歴史・作品を見る</span>
         </button>
         <button id="members-link" class="know-more-button" type="button">
           <svg class="know-more-icon" viewBox="0 0 32 32" fill="none" aria-hidden="true">
@@ -578,15 +583,27 @@
           <span class="know-more-label">メンバー紹介</span>
           <span class="know-more-description">現役10人と卒業メンバーを見る</span>
         </button>
-        <!-- 【2026-10-24新設・本人指示】ライブ初心者ガイド（#live-guide-screen、js/liveGuideScreen.js）への入口 -->
-        <button id="live-guide-link" class="know-more-button know-more-button-wide" type="button">
+        <!-- 【2026-10-28新設・本人指示】【ライブ】ページ（#live-hub-screen、js/liveHubScreen.js）への入口。
+             過去の公演・セットリスト・ライブ映像・コールをまとめて調べる。ライブ初心者ガイドと横に並べる -->
+        <button id="live-hub-link" class="know-more-button" type="button">
+          <svg class="know-more-icon" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+            <rect x="4" y="7" width="24" height="18" rx="4" fill="#ff6fa8"/>
+            <path d="m13.5 11.5 7 4.5-7 4.5v-9Z" fill="#fff"/>
+            <circle cx="25.5" cy="7.5" r="3" fill="#ffd93d"/>
+          </svg>
+          <span class="know-more-label">ライブ</span>
+          <span class="know-more-description">過去の公演・セットリスト・ライブ映像</span>
+        </button>
+        <!-- 【2026-10-24新設・本人指示】ライブ初心者ガイド（#live-guide-screen、js/liveGuideScreen.js）への入口
+             （2026-10-28：【ライブ】ページの入口と横に並べるため、横幅いっぱいの表示をやめた） -->
+        <button id="live-guide-link" class="know-more-button" type="button">
           <svg class="know-more-icon" viewBox="0 0 32 32" fill="none" aria-hidden="true">
             <rect x="13.5" y="13" width="5" height="16" rx="2.5" fill="#4a2e42" opacity="0.75"/>
             <rect x="12" y="3" width="8" height="12" rx="4" fill="#ff6fa8"/>
             <path d="M8 6.5 5 4.5M24 6.5l3-2M7 12H3.5M25 12h3.5" stroke="#ffd93d" stroke-width="2" stroke-linecap="round"/>
           </svg>
           <span class="know-more-label">ライブ初心者ガイド</span>
-          <span class="know-more-description">初めてのライブの準備・持ち物・ペンライト・マナー</span>
+          <span class="know-more-description">準備・持ち物・ペンライト・マナー</span>
         </button>
       </div>
 
@@ -1636,6 +1653,28 @@
       <div id="live-guide-content" class="live-guide-content"></div>
     </section>
 
+    <!-- 【2026-10-28新設・本人指示】【ライブ】ページ。中身（タイルのトップ・過去のライブ・セットリスト・
+         曲からライブを探す・ライブ映像を探す）は js/liveHubScreen.js が組み立て、この画面の中で表示を切り替える。
+         「戻る」は、画面の中の1つ前の表示へ戻り、最初の表示なら来た画面へ戻る（js/main.js）。 -->
+    <section id="live-hub-screen" class="screen">
+      <div class="list-header">
+        <button id="live-hub-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            LIVE
+          </p>
+          <h2>ライブ</h2>
+        </div>
+      </div>
+      <div id="live-hub-content" class="live-hub-content"></div>
+    </section>
+
     <!-- 【2026-10-23新設・本人資料】全体検索（アプリ内検索）画面。js/appSearchScreen.js が描画する。
          検索語・カテゴリ・表示件数・開いている結果は同じ利用中だけ覚え、保存はしない。 -->
     <section id="app-search-screen" class="screen search-screen">
@@ -1654,8 +1693,8 @@
           <h2>アプリ内検索</h2>
         </div>
       </div>
-      <!-- 【2026-10-24新設・本人指示】全体検索から歌詞検索へ移れる切り替え。歌詞検索側に「全体検索へ戻る」切り替えは置かない
-           （戻る・ホームの既存操作のまま）。入力中の言葉は、歌詞検索の入力欄が空のときだけ引き継ぐ（js/main.js 参照）。 -->
+      <!-- 【2026-10-24新設・本人指示】全体検索から歌詞検索へ移れる切り替え。入力中の言葉は、歌詞検索の入力欄が空のときだけ
+           引き継ぐ（js/main.js 参照）。【2026-10-28】全体検索から開いた歌詞検索には「全体検索へ」の切り替えを出す（歌詞検索画面側）。 -->
       <div class="search-mode-switch" role="group" aria-label="検索の種類">
         <span class="search-mode-tab is-current" aria-current="page">
           <svg class="search-mode-tab-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="2.2"/><path d="m16 16 4.5 4.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
@@ -1696,6 +1735,20 @@
           </p>
           <h2>歌詞検索</h2>
         </div>
+      </div>
+      <!-- 【2026-10-28新設・本人指示】全体検索から開いたときだけ表示する「全体検索へ」の切り替え（全体検索と同じ並び：
+           左＝全体検索、右＝歌詞検索）。押すと、検索語・カテゴリ・スクロール位置を残したままの全体検索へ戻る（js/main.js）。
+           ホームなど別の場所から開いたときは出さない（「戻る」で来た画面へ戻る）。 -->
+      <div id="lyrics-search-to-app-switch" class="search-mode-switch" role="group" aria-label="検索の種類" hidden>
+        <button id="lyrics-search-to-app-button" class="search-mode-tab" type="button">
+          <span class="search-mode-tab-arrow" aria-hidden="true">‹</span>
+          <svg class="search-mode-tab-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="2.2"/><path d="m16 16 4.5 4.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+          <span class="search-mode-tab-text"><strong>全体検索へ</strong><small>さっきの検索に戻る</small></span>
+        </button>
+        <span class="search-mode-tab is-current" aria-current="page">
+          <svg class="search-mode-tab-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 18V5l11-2v13" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6.5" cy="18" r="2.5" stroke="currentColor" stroke-width="2.2"/><circle cx="17.5" cy="16" r="2.5" stroke="currentColor" stroke-width="2.2"/></svg>
+          <span class="search-mode-tab-text"><strong>歌詞検索</strong><small>歌詞から曲を探す</small></span>
+        </span>
       </div>
       <p class="special-modes-intro">歌詞の一部から曲を探せます。曲名が思い出せないときや、歌詞クイズの予習に使えます。</p>
       <div class="search-screen-field">
@@ -5394,6 +5447,7 @@
       </div>
 
       <div id="discography-live-panel" class="tab-panel">
+        <!-- 【2026-10-28】ライブの記録は【ライブ】ページ（#live-hub-screen）へまとめたため、このタブはそこへの案内だけ（js/discographyScreen.js） -->
         <div id="discography-live-list"></div>
       </div>
     </section>

@@ -17,7 +17,7 @@ import { COMMERCIALS } from "./data/commercials.js";
 import { LIVE_EVENTS, LIVE_STATUS } from "./data/liveHistory.js";
 // 【2026-10-27追加】公演カードのセットリスト（曲名でも公演が見つかるようにする）
 import { SETLIST_PERFORMANCES, LIVE_VIDEO_PRODUCTS } from "./data/setlists.js";
-import { describeVideoEditions, describeVideoStreaming, findVideosForSong } from "./liveSetlistStats.js";
+import { describeVideoEditions, describeVideoStreaming, findVideosForSong, buildOfficialProductLinks } from "./liveSetlistStats.js";
 import { DISCOGRAPHY } from "./data/discography.js";
 import { GUIDE_SECTIONS } from "./data/guideContent.js";
 import { APP_SEARCH_FEATURES } from "./data/appSearchFeatures.js";
@@ -311,7 +311,8 @@ function buildLiveEntries({ liveEvents, today, setlistPerformances = SETLIST_PER
         setlists.length > 0 ? `セットリスト：${setlists.length}公演分を掲載（公式・報道で確認できたもの）` : null,
       ],
       links: event.productLinks,
-      action: { label: "ライブ履歴で詳しく見る", target: { kind: "discography", tab: "live", focusSelector: `[data-live-id="${event.id}"]` } },
+      // 【2026-10-28】ライブ履歴は【ライブ】ページ（js/liveHubScreen.js）の「過去のライブ」へ移した
+      action: { label: "ライブページで詳しく見る", target: { kind: "liveHub", view: "history", liveId: event.id } },
       terms: {
         primary: [event.title],
         secondary: [
@@ -332,16 +333,14 @@ function buildLiveEntries({ liveEvents, today, setlistPerformances = SETLIST_PER
 // ---- ライブ映像商品（Blu-ray／DVD。2026-10-28追加） ----
 // 曲名で検索すると、その曲が公式の収録内容で確認できる映像商品が「ライブ」に出る。
 // リンクは公式の商品紹介ページ（購入ページとは書かない）
-function buildLiveVideoEntries({ liveVideos = LIVE_VIDEO_PRODUCTS, setlistPerformances = SETLIST_PERFORMANCES, songs = [], today }) {
+function buildLiveVideoEntries({ liveVideos = LIVE_VIDEO_PRODUCTS, songs = [], today }) {
   const songTitleById = new Map(songs.map((song) => [song.id, song.title]));
   return liveVideos.map((video) => {
     const songIds = [...new Set(video.coverage.flatMap((cover) => cover.songIds ?? []))].filter((id) => id !== "overture");
     const titles = songIds.map((id) => songTitleById.get(id)).filter(Boolean);
-    const performance = video.coverage.map((cover) => setlistPerformances.find((p) => p.id === cover.performanceId)).find(Boolean);
-    const target = performance?.liveId
-      ? { kind: "discography", tab: "live", focusSelector: `[data-live-id="${performance.liveId}"]` }
-      : { kind: "discography", tab: "live", focusSelector: `[data-video-id="${video.id}"]` };
-    const editionLinks = (video.editions ?? []).filter((edition) => edition.url).map((edition) => ({ label: `公式の商品紹介（${edition.label ?? edition.format ?? "商品"}）`, url: edition.url }));
+    // 【2026-10-28】【ライブ】ページの「ライブ映像を探す」の該当カードを開く。リンクは「公式商品ページ」（購入とは書かない）
+    const target = { kind: "liveHub", view: "videos", videoId: video.id };
+    const editionLinks = buildOfficialProductLinks(video).filter((link) => link.label.startsWith("公式商品ページ"));
     const streaming = describeVideoStreaming(video);
     const released = video.status === "upcoming" && !(today && video.releaseDate <= today) ? "発売予定" : "発売済み";
     return createEntry({
@@ -356,7 +355,7 @@ function buildLiveVideoEntries({ liveVideos = LIVE_VIDEO_PRODUCTS, setlistPerfor
         streaming.text,
       ],
       links: editionLinks.length > 0 ? editionLinks : video.sourceUrl ? [{ label: "公式の情報", url: video.sourceUrl }] : [],
-      action: { label: "ライブ履歴で詳しく見る", target },
+      action: { label: "ライブ映像のカードを見る", target },
       terms: {
         primary: [video.title],
         secondary: ["ライブ映像", "Blu-ray", "ブルーレイ", "DVD", "映像", ...(video.editions ?? []).map((edition) => edition.productCode)],

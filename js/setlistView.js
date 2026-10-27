@@ -1,6 +1,7 @@
 // セットリスト・「ライブでの披露」の表示部品（2026-10-27新設）。
 //  - buildSetlistDetails：ライブ履歴の公演カードに入れる、1公演（1日・1部）分のセットリスト（折りたたみ）
 //  - buildSongLiveSection：収録曲一覧の曲の行に入れる「ライブでの披露」（折りたたみ。開いたときに中身を作る）
+//  - buildVideoCard：ライブページ（js/liveHubScreen.js）の映像商品カード（2026-10-28追加。最初は要点だけ、「詳細を見る」で品番など）
 // 計算と文の組み立ては js/liveSetlistStats.js、データは js/data/setlists.js。
 // 画面移動は、呼び出し側から渡される関数（onOpenSong / onOpenLive）に任せる。
 import { SONGS } from "./data/songs.js";
@@ -16,6 +17,11 @@ import {
   describeVideoStreaming,
   findVideoPosition,
   findVideosBySongQuery,
+  summarizeVideoFormats,
+  describeVideoLiveDates,
+  describeSongPositionInVideo,
+  describeStreamingBadge,
+  buildOfficialProductLinks,
 } from "./liveSetlistStats.js";
 
 const songById = new Map(SONGS.map((song) => [song.id, song]));
@@ -327,4 +333,141 @@ export function buildVideoProductList(options = {}) {
       section.appendChild(details);
     });
   return section;
+}
+
+// ---- 映像商品のカード（ライブページ用。2026-10-28追加・本人指示「最初は要点だけ、詳細は開いたときに」） ----
+// video：LIVE_VIDEO_PRODUCTS の1件。
+// options.songId：曲から探したときの曲（収録位置と「映像収録確認済み」を出す）
+// options.onOpenSong(songId)：収録曲の曲名をタップしたとき
+// options.onOpenPerformance(performanceId)：「この公演のセットリスト」をタップしたとき
+function buildFact(label, value) {
+  const row = el("div", "live-video-fact");
+  row.append(el("dt", "live-video-fact-label", label), el("dd", "live-video-fact-value", value));
+  return row;
+}
+
+function buildVideoDetailBody(video, options, today) {
+  const body = el("div", "live-video-detail");
+  const section = (title) => {
+    const block = el("div", "live-video-detail-section");
+    block.appendChild(el("p", "live-video-detail-heading", title));
+    body.appendChild(block);
+    return block;
+  };
+
+  section("正式名称").appendChild(el("p", "live-video-detail-text", video.title));
+
+  const editions = describeVideoEditions(video);
+  if (editions.length > 0) {
+    const list = el("ul", "live-video-detail-list");
+    editions.forEach((text) => list.appendChild(el("li", null, text)));
+    section("形態・品番").appendChild(list);
+  }
+
+  // 形態ごとの違い（どの形態にどの公演・特典が入るか）。データにある記載だけを出す
+  const differences = [video.note, ...video.coverage.map((cover) => cover.note)].filter(Boolean);
+  const differenceBlock = section("形態別の違い・収録について");
+  if (differences.length > 0) differences.forEach((text) => differenceBlock.appendChild(el("p", "live-video-detail-text", text)));
+  else differenceBlock.appendChild(el("p", "live-video-detail-text is-muted", "形態ごとの違いは、このアプリでは確認していません（公式商品ページで確認してください）。"));
+
+  video.coverage.forEach((cover) => {
+    const performance = SETLIST_PERFORMANCES.find((p) => p.id === cover.performanceId);
+    const block = section(performance ? `収録曲（${formatJapaneseDate(performance.date)}${performance.dayLabel ? ` ${performance.dayLabel}` : ""}の公演）` : "収録曲");
+    if (!Array.isArray(cover.songIds)) {
+      block.appendChild(el("p", "live-video-detail-text is-muted", "収録曲は未発表です。"));
+    } else {
+      const list = el(cover.ordered ? "ol" : "ul", "setlist-items");
+      cover.songIds.forEach((songId, index) => {
+        const song = songById.get(songId);
+        const row = el("li", `setlist-item${songId === options.songId ? " is-current-song" : ""}`);
+        // 公式の曲目どおりの並び（ordered）なら、並びの番号＝曲目（同じ曲が2回あっても、それぞれの番号を出す）
+        row.appendChild(el("span", "setlist-item-order", cover.ordered ? String(index + 1) : "・"));
+        const cell = el("div", "setlist-item-body");
+        if (song && songId !== "overture" && options.onOpenSong) {
+          const button = el("button", "setlist-item-title is-link", song.title);
+          button.type = "button";
+          button.addEventListener("click", () => options.onOpenSong(song.id));
+          cell.appendChild(button);
+        } else cell.appendChild(el("span", "setlist-item-title", song ? song.title : songId));
+        row.appendChild(cell);
+        list.appendChild(row);
+      });
+      block.appendChild(list);
+      if (!cover.ordered) block.appendChild(el("p", "live-video-detail-text is-muted", "＝LOVEのオリジナル曲だけを載せています（並びは収録順とは限りません。カバー曲などは含みません）。"));
+    }
+    if (performance && options.onOpenPerformance) {
+      const button = el("button", "live-hub-inline-link", "この公演のセットリストを見る →");
+      button.type = "button";
+      button.addEventListener("click", () => options.onOpenPerformance(performance.id));
+      block.appendChild(button);
+    }
+  });
+
+  // 特典映像：データに記載があるときだけ（今のデータには無い）
+  if (Array.isArray(video.bonusContents) && video.bonusContents.length > 0) {
+    const list = el("ul", "live-video-detail-list");
+    video.bonusContents.forEach((text) => list.appendChild(el("li", null, text)));
+    section("特典映像").appendChild(list);
+  }
+
+  const links = buildOfficialProductLinks(video);
+  if (links.length > 0) {
+    const row = el("div", "live-video-detail-links");
+    links.forEach((link) => row.appendChild(externalLink("live-video-link-button", `${link.label} ↗`, link.url)));
+    section("公式商品ページ").appendChild(row);
+  }
+
+  const streaming = describeVideoStreaming(video);
+  const streamingBlock = section("公式配信");
+  streamingBlock.appendChild(el("p", `live-video-detail-text is-streaming-${streaming.status}`, streaming.text));
+  if (streaming.url) streamingBlock.appendChild(externalLink("live-video-link-button is-secondary", streaming.status === "available" ? "公式配信のお知らせ ↗" : "公式のお知らせ ↗", streaming.url));
+
+  const notes = section("注意事項");
+  notes.appendChild(el("p", "live-video-detail-text is-muted", `${describeVideoRelease(video, today)}。リンク先は公式の商品紹介ページで、販売中とは限りません。`));
+  notes.appendChild(el("p", "live-video-detail-text is-muted", "「映像収録確認済み」は公式の収録内容で確認できたものです。ライブで披露したことと、映像に収録されていることは別に表示しています。"));
+  return body;
+}
+
+export function buildVideoCard(video, options = {}) {
+  const today = options.today ?? todayInJapan();
+  const card = el("article", "live-video-card");
+  card.dataset.videoId = video.id;
+
+  const tags = el("div", "live-video-card-tags");
+  if (options.songId) {
+    const position = describeSongPositionInVideo(video, options.songId);
+    if (position.included) tags.appendChild(el("span", "live-video-tag is-included", "映像収録確認済み"));
+    else if (position.undisclosed) tags.appendChild(el("span", "live-video-tag is-undisclosed", "収録曲未発表"));
+  }
+  tags.appendChild(el("span", "live-video-tag is-format", summarizeVideoFormats(video)));
+  if (video.status === "upcoming" && !(video.releaseDate <= today)) tags.appendChild(el("span", "live-video-tag is-upcoming", "発売予定"));
+  card.appendChild(tags);
+
+  card.appendChild(el("p", "live-video-card-title", video.title));
+
+  const facts = el("dl", "live-video-facts");
+  const liveDates = describeVideoLiveDates(video);
+  facts.appendChild(buildFact("ライブ開催日", liveDates.length > 0 ? liveDates.join("／") : "記録なし"));
+  facts.appendChild(buildFact("映像発売日", describeVideoRelease(video, today)));
+  if (options.songId) {
+    const position = describeSongPositionInVideo(video, options.songId);
+    const song = songById.get(options.songId);
+    const text = position.included ? position.positions.join("／") : position.undisclosed ? "収録曲が未発表のため未確認" : "収録を確認できず";
+    facts.appendChild(buildFact("収録位置", song && position.included ? `${text}（${song.title}）` : text));
+  }
+  card.appendChild(facts);
+
+  const badge = describeStreamingBadge(video);
+  card.appendChild(el("p", `live-video-streaming is-${badge.status}`, badge.label));
+
+  const more = el("details", "live-video-more");
+  more.appendChild(el("summary", "live-video-more-summary", "詳細を見る"));
+  more.addEventListener("toggle", () => {
+    more.querySelector(".live-video-more-summary").textContent = more.open ? "詳細を閉じる" : "詳細を見る";
+    if (!more.open || more.dataset.rendered) return;
+    more.dataset.rendered = "1";
+    more.appendChild(buildVideoDetailBody(video, options, today));
+  });
+  card.appendChild(more);
+  return card;
 }
