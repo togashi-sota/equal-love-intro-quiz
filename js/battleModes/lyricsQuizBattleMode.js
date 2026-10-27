@@ -54,6 +54,7 @@ import {
   getComboMultiplierForCount as getBattleRuleComboMultiplierForCount,
 } from "../battleRules/index.js";
 import { SKIP_SELECTION, MAX_HINT_LEVEL, IDLE_RESCUE_THRESHOLD_MS } from "../battleRules/sharedDefaults.js";
+import { LYRICS_UNIQUENESS_RULES_VERSION } from "../lyricsQuestionUniqueness.js";
 
 // js/lyricsQuizMatchProgress.js（対戦進行エンジン）が、期限切れで未回答のまま終わった
 // プレイヤーをスキップ扱いにするために使う定数。battleRules/を直接importするのは
@@ -119,8 +120,34 @@ export function defaultSettings() {
     categoryFilterValue: "title-track",
     questionCountValue: "10",
     answerPoolSizeValue: 4,
+    // 【2026-10-28追加・本人指示：答えが1曲に決まらない問題の防止】このルームでは
+    // 「別の曲にも出てくる歌詞の行を出題しない」ルール（js/lyricsQuestionUniqueness.js）の
+    // この版を使う、という印。resolveLyricsUniquenessForSettings()参照。
+    lyricsUniquenessRulesVersion: LYRICS_UNIQUENESS_RULES_VERSION,
   };
 }
+
+// 【2026-10-28新設】ルームの設定から、「答えが1曲に決まらない行の除外」をどう扱うかを決める。
+// オンライン対戦は、各端末が同じseed・同じsettingsから自分の端末で問題を作るため、
+// 全員が同じルールで除外しないと、ヒントの行（場合によっては出題される曲の順番）がずれる。
+//   ・設定に版が無い（この機能より前のアプリで作られたルーム）
+//       → 除外しない（作成したホストの古いアプリと同じ問題になるよう、旧来どおりに作る）
+//   ・自分のアプリと同じ版 → 除外する
+//   ・知らない版（自分より新しいアプリのホスト） → 開始しない（アプリの更新を案内する）
+// 戻り値: { supported: boolean, lyricsUniqueness: { enabled } }
+export function resolveLyricsUniquenessForSettings(settings) {
+  const version = settings?.lyricsUniquenessRulesVersion;
+  if (version === undefined || version === null) {
+    return { supported: true, lyricsUniqueness: { enabled: false } };
+  }
+  if (version === LYRICS_UNIQUENESS_RULES_VERSION) {
+    return { supported: true, lyricsUniqueness: { enabled: true } };
+  }
+  return { supported: false, lyricsUniqueness: { enabled: false } };
+}
+
+const UNSUPPORTED_UNIQUENESS_VERSION_MESSAGE =
+  "歌詞クイズの出題ルールのバージョンが一致しません。アプリを更新してください。";
 
 // 【2026-11-XX改訂・本人指示：「曲を選んで出題」にカテゴリー条件を絶対に追加適用しない】
 // settings.questionSource・categoryFilterValueから、実際に出題対象になりうる曲ID一覧を
@@ -175,6 +202,12 @@ export function validateSettings(settings) {
 
   if (!isSupportedBattleRuleVersion(settings.battleRuleId, settings.battleRuleVersion)) {
     return "対戦ルールのバージョンが一致しません。アプリを更新してください。";
+  }
+
+  // 【2026-10-28追加】出題ルール（答えが1曲に決まらない行の除外）の版が自分のアプリより新しい
+  // ルームでは、同じ問題を再現できないため開始しない。
+  if (!resolveLyricsUniquenessForSettings(settings).supported) {
+    return UNSUPPORTED_UNIQUENESS_VERSION_MESSAGE;
   }
 
   // 【2026-08-27追記・本人指示】共同選曲（collaborativeSelection）は、参加者全員が
@@ -260,14 +293,24 @@ export async function prepareRuntimeContext({ settings }) {
 // で読み込んだものを渡す想定。settings自体には歌詞データを一切含めない（設計⑩①）。
 // runtimeContextの準備に失敗していた場合（prepareRuntimeContext()がok:falseを返した場合）は、
 // 空の問題配列を返す安全側の挙動にする。
+//
+// 【2026-10-28追加・答えが1曲に決まらない行の除外】比較相手は「出題範囲の曲の歌詞」
+// （＝参加者全員が持っていることを開始前に確認している範囲）だけにし、範囲外の曲との重複は
+// 事前計算の一覧（js/data/lyricsAmbiguityIndex.js、歌詞本文なし）で補う。端末ごとに
+// 持っている曲が違っても、全員が同じ行を除外して同じ問題になるようにするため。
+// Firebaseへ送る内容（seed・settings）は増えない（版の番号がsettingsに1つ増えるだけで、
+// 歌詞本文・除外した行番号・正解の曲は送らない）。
 export function buildQuestions({ seed, settings, runtimeContext }) {
   if (!runtimeContext?.ok) return [];
+  const uniqueness = resolveLyricsUniquenessForSettings(settings);
+  if (!uniqueness.supported) return [];
   return buildLyricsQuizQuestions({
     seed,
     songsWithLyrics: runtimeContext.songsWithLyrics ?? [],
     songPool: runtimeContext.songPool ?? resolveQuestionSourceSongPool(settings.questionSource, settings.categoryFilterValue),
     questionCountValue: settings.questionCountValue,
     answerPoolSizeValue: settings.answerPoolSizeValue,
+    lyricsUniqueness: uniqueness.lyricsUniqueness,
   });
 }
 
@@ -280,7 +323,15 @@ export function checkRuntimeAvailability({ runtimeContext, settings }) {
   if (!runtimeContext?.ok) {
     return { ok: false, quizzableCount: 0, requiredCount: null, reason: runtimeContext?.reason ?? "歌詞データの読み込みに失敗しました。" };
   }
-  return validateLyricsQuizAvailability(runtimeContext.songsWithLyrics ?? [], settings.questionCountValue);
+  const uniqueness = resolveLyricsUniquenessForSettings(settings);
+  if (!uniqueness.supported) {
+    return { ok: false, quizzableCount: 0, requiredCount: null, reason: UNSUPPORTED_UNIQUENESS_VERSION_MESSAGE };
+  }
+  return validateLyricsQuizAvailability(
+    runtimeContext.songsWithLyrics ?? [],
+    settings.questionCountValue,
+    uniqueness.lyricsUniqueness
+  );
 }
 
 // 1人分の全問の結果（battleRules.resolveQuestionAnswers()の返り値を出題順に並べた配列）から、

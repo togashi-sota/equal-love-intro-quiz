@@ -26,13 +26,18 @@ import { assertEqual } from "./test-utils.js";
 const REAL_SONGS_SAMPLE = SONGS.slice(0, 6);
 
 // 十分な行数・十分な多様性を持つダミー歌詞（出題可能な曲を作るときに使う）。
-function buildRichDummyLines() {
+// 【2026-10-28追加】uniqueTag（数字）を渡すと、各行の末尾に「第◯曲」を付けて曲ごとに歌詞を変える。
+// 歌詞クイズは「別の曲にも出てくる行は出題しない」ようになった（js/lyricsQuestionUniqueness.js）ため、
+// 複数の曲に全く同じダミー歌詞を渡すと、どの曲も出題できなくなる。複数曲を使うテストでは
+// 曲ごとに別の番号を渡す（番号の前後を漢字で挟むので、「第1曲」が「第11曲」の一部になることはない）。
+function buildRichDummyLines(uniqueTag = null) {
+  const suffix = uniqueTag === null ? "" : `第${uniqueTag}曲`;
   return [
-    { line: 1, text: "あさのひかりがまどからさす", start: 0, end: 3 },
-    { line: 2, text: "きみのことをおもいだしてる", start: 3.2, end: 6 },
-    { line: 3, text: "そらはあおくてかぜはあたたかい。", start: 6.2, end: 9 },
-    { line: 4, text: "あしたもおなじみちをあるく", start: 9.2, end: 12 },
-    { line: 5, text: "とおくのまちへむかっている", start: 12.2, end: 15 },
+    { line: 1, text: `あさのひかりがまどからさす${suffix}`, start: 0, end: 3 },
+    { line: 2, text: `きみのことをおもいだしてる${suffix}`, start: 3.2, end: 6 },
+    { line: 3, text: `そらはあおくてかぜはあたたかい。${suffix}`, start: 6.2, end: 9 },
+    { line: 4, text: `あしたもおなじみちをあるく${suffix}`, start: 9.2, end: 12 },
+    { line: 5, text: `とおくのまちへむかっている${suffix}`, start: 12.2, end: 15 },
   ];
 }
 
@@ -71,9 +76,9 @@ export function runLyricsQuizQuestionBuilderTests() {
 
   {
     const songsWithLyrics = [
-      { song: buildDummySong("a", "曲A"), lines: buildRichDummyLines() },
-      { song: buildDummySong("b", "曲B"), lines: buildRichDummyLines() },
-      { song: buildDummySong("c", "曲C"), lines: buildRichDummyLines() },
+      { song: buildDummySong("a", "曲A"), lines: buildRichDummyLines(1) },
+      { song: buildDummySong("b", "曲B"), lines: buildRichDummyLines(2) },
+      { song: buildDummySong("c", "曲C"), lines: buildRichDummyLines(3) },
     ];
 
     assertEqual(validateLyricsQuizAvailability(songsWithLyrics, "3").ok, true, "出題可能な曲数＝要求数 → ok:true");
@@ -91,7 +96,7 @@ export function runLyricsQuizQuestionBuilderTests() {
 
   {
     const songs = REAL_SONGS_SAMPLE;
-    const songsWithLyrics = songs.map((song) => ({ song, lines: buildRichDummyLines() }));
+    const songsWithLyrics = songs.map((song, index) => ({ song, lines: buildRichDummyLines(index + 1) }));
     const songPool = songs.map((song) => song.id);
 
     const questionsA = buildLyricsQuizQuestions({
@@ -169,7 +174,7 @@ export function runLyricsQuizQuestionBuilderTests() {
     // 出題対象（songPool）はわずか2曲だけ選択したという想定。
     const selectedSongs = REAL_SONGS_SAMPLE.slice(0, 2);
     const songPool = selectedSongs.map((song) => song.id);
-    const songsWithLyrics = selectedSongs.map((song) => ({ song, lines: buildRichDummyLines() }));
+    const songsWithLyrics = selectedSongs.map((song, index) => ({ song, lines: buildRichDummyLines(index + 1) }));
     // 不正解候補の母集団は、選んだ2曲を含む、より広いカテゴリー全体（6曲）という想定。
     const distractorSongPool = REAL_SONGS_SAMPLE.map((song) => song.id);
 
@@ -277,15 +282,15 @@ export function runLyricsQuizQuestionBuilderTests() {
     const ANSWER_POOL_SIZE_VALUES_TO_CHECK = ["4", "10", "30", "50", "all"];
 
     // ---- パターンA：全曲に歌詞データがある想定（songPoolとsongsWithLyricsが完全一致） ----
-    const allSongsWithLyrics = SONGS.map((song) => ({ song, lines: buildRichDummyLines() }));
+    const allSongsWithLyrics = SONGS.map((song, index) => ({ song, lines: buildRichDummyLines(index + 1) }));
     const fullSongPool = SONGS.map((song) => song.id);
 
     // ---- パターンB：一部の曲だけ歌詞データがある想定（実際の端末に近い状態。
     //      songPool＝カテゴリ全曲だが、songsWithLyrics＝その一部だけ、という非対称な状況で
     //      answerPool生成に使うsongPoolと出題対象songsWithLyricsがズレていないかを確認する） ----
-    const partialSongsWithLyrics = SONGS.filter((_, index) => index % 3 === 0).map((song) => ({
+    const partialSongsWithLyrics = SONGS.filter((_, index) => index % 3 === 0).map((song, index) => ({
       song,
-      lines: buildRichDummyLines(),
+      lines: buildRichDummyLines(index + 1),
     }));
 
     const failures = [];

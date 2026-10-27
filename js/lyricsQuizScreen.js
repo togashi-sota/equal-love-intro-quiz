@@ -37,7 +37,7 @@ import {
   bindSearchInputKeyboardAvoidance,
 } from "./answerPoolBrowseUi.js";
 import {
-  loadSongsWithLyrics,
+  loadSongsWithLyricsForUniqueQuiz,
   filterQuizzableSongs,
   validateLyricsQuizAvailability,
   buildLyricsQuizQuestions,
@@ -274,7 +274,10 @@ async function buildAndStartRun(settings) {
       ? { type: QUESTION_SOURCE_TYPE.MANUAL_SELECTION, songIds: settings.manualSongIds }
       : { type: QUESTION_SOURCE_TYPE.CATEGORY, categoryFilterValue: settings.categoryFilterValue }
   );
-  const songsWithLyrics = await loadSongsWithLyrics(songPool);
+  // 【2026-10-28変更・本人指示：答えが1曲に決まらない問題の防止】出題範囲の曲の歌詞に加えて、
+  // 端末にある全曲の歌詞と比べた「出題しない行」を付けて読み込む
+  // （js/lyricsQuizQuestionBuilder.jsのloadSongsWithLyricsForUniqueQuiz()参照）。
+  const songsWithLyrics = await loadSongsWithLyricsForUniqueQuiz(songPool);
   if (myToken !== runRequestToken) return false; // 追い越された：何もせず終える
 
   const availability = validateLyricsQuizAvailability(songsWithLyrics, settings.questionCountValue);

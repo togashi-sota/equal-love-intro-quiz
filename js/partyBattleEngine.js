@@ -24,7 +24,7 @@ import { resolveQuestionCount, pickQuestionSongs, generateChoices, filterSongsBy
 import { getImportedSongIds } from "./audioStorage.js";
 import { createSeededRandom, generateRandomSeed } from "./seededRandom.js";
 import {
-  loadSongsWithLyrics,
+  loadSongsWithLyricsForUniqueQuiz,
   filterQuizzableSongs,
   buildLyricsQuizQuestions,
   isLyricsQuizEligibleSong,
@@ -141,7 +141,10 @@ export async function resolvePartySongPool(settings) {
   let songsWithLyrics = [];
   if (settings.quizType === PARTY_QUIZ_TYPE.LYRICS) {
     const eligibleIds = sourceSongIds.filter((songId) => isLyricsQuizEligibleSong({ id: songId }));
-    songsWithLyrics = filterQuizzableSongs(await loadSongsWithLyrics(eligibleIds));
+    // 【2026-10-28変更・本人指示：答えが1曲に決まらない問題の防止】端末にある全曲の歌詞と比べた
+    // 「出題しない行」を各曲に付けて読み込む。差し替え問題（buildQuestionForSong）で1曲だけ
+    // 渡して問題を作るときも、この付けた結果がそのまま使われる。
+    songsWithLyrics = filterQuizzableSongs(await loadSongsWithLyricsForUniqueQuiz(eligibleIds));
     poolSongs = songsWithLyrics.map((entry) => entry.song);
     if (poolSongs.length === 0) {
       return {
