@@ -138,6 +138,10 @@
     import { runLiveGuideAndSearchSwitchTests } from "./tests/liveGuideAndSearchSwitch.test.js";
     // 【2026-10-27新設】歴代センター一覧・ライブのセットリスト
     import { runCentersAndSetlistsTests } from "./tests/centersAndSetlists.test.js";
+    // 【2026-10-28新設】ライブページ・ID／在席の修正・歌詞クイズの重複フレーズ対策
+    import { runLiveHubTests } from "./tests/liveHub.test.js";
+    import { runIdentityPresenceFixTests } from "./tests/identityPresenceFix.test.js";
+    import { runLyricsQuestionUniquenessTests } from "./tests/lyricsQuestionUniqueness.test.js";
     import { runCallTextModeTests, runCallTextModeMarkupTests } from "./tests/callTextMode.test.js";
     import { runCallTextEditsTests } from "./tests/callTextEdits.test.js";
     import { runTimeAttackScoreTests } from "./tests/timeAttackScore.test.js";
@@ -481,6 +485,9 @@
     runPresencePayloadsTests();
     runRoomInvitePayloadsTests();
     runPlayInvitePayloadsTests();
+    await runLiveHubTests();
+    await runIdentityPresenceFixTests();
+    await runLyricsQuestionUniquenessTests();
     const { passCount, failCount, failedDetails } = printSummary();
 
     const summaryElement = document.getElementById("test-summary");
