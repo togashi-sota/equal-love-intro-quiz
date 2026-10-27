@@ -80,6 +80,9 @@ function buildCenterCells(row) {
     center.centerNames.forEach((name) => box.appendChild(buildMemberCell(name)));
   } else if (center.state === "all") {
     box.appendChild(buildAllMembersCell());
+  } else if (center.state === "none" && !center.isConfirmed) {
+    // 【2026-10-28】「センターなし」と書かれた資料が見つかっていない曲は、「なし」と断定せず「未確認」と出す
+    box.appendChild(el("span", "center-cell is-unconfirmed", "未確認"));
   } else if (center.state === "none") {
     box.appendChild(el("span", "center-cell is-none", "なし"));
   } else if (center.state === "solo" || center.state === "duo") {
