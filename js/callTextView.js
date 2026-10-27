@@ -43,7 +43,9 @@ function callSpan(call, options) {
 function callRow(calls, className, options) {
   const row = el("p", `call-text-calls ${className}`);
   calls.forEach((call, index) => {
-    if (index > 0) row.appendChild(document.createTextNode(" "));
+    // 前のコールが改行で終わる・次のコールが改行で始まるときは、あいだに空白を入れない（行頭に余計な空白が出ないように。2026-10-28）
+    const touchesBreak = index > 0 && (String(calls[index - 1].text ?? "").endsWith("\n") || String(call.text ?? "").startsWith("\n"));
+    if (index > 0 && !touchesBreak) row.appendChild(document.createTextNode(" "));
     row.appendChild(callSpan(call, options));
   });
   return row;

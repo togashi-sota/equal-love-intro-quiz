@@ -101,6 +101,11 @@ export async function runCallTextEditsTests() {
   const splitApplied = applyCallTextEntry([multi], splitEntry);
   assertEqual(splitApplied.calls.map((c) => [c.key, c.text]), [[`${keyOf(multi)}#1`, "A！"], [`${keyOf(multi)}#2`, "B！"], [`${keyOf(multi)}#3`, "C！"]], "分割：表示単位に分ける");
   assertEqual(multi.text, "A！　B！　C！", "分割：元のコールデータは変えない");
+  // 【2026-10-28】分けた1つの前後の改行は残す（空白だけ除く）
+  const breakEntry = { calls: { [keyOf(multi)]: { lineNo: 1, position: "after", originalTextHash: hashText(multi.text), editedText: "\nA！\n\n　B！\n", split: { at: [4], parts: [{ lineNo: 1, position: "after" }, { lineNo: 1, position: "after" }] } } } };
+  assertEqual(applyCallTextEntry([multi], breakEntry).calls.map((c) => c.text), ["\nA！\n", "\n　B！\n"], "分割：前後の改行は残す（改行のあとの行頭の空白は本人の入力として残す）");
+  const breakSpaceEntry = { calls: { [keyOf(multi)]: { lineNo: 1, position: "after", originalTextHash: hashText(multi.text), editedText: "A！\n　B！", split: { at: [3], parts: [{ lineNo: 1, position: "after" }, { lineNo: 2, position: "after" }] } } } };
+  assertEqual(applyCallTextEntry([multi], breakSpaceEntry).calls.map((c) => c.text), ["A！\n", "B！"], "分割：区切りの先頭の空白は除く（改行は残す）");
   const splitLayout = buildCallTextLayout(LINES, splitApplied.calls, { overrides: splitApplied.overrides });
   assertEqual([2, 3].map((n) => splitLayout.items.find((i) => i.kind === "line" && i.lineNo === n)[n === 2 ? "after" : "inline"].map((c) => c.text)), [["B！"], ["C！"]], "分割：それぞれ別の位置に置ける");
   const badSplit = applyCallTextEntry([multi], { calls: { [keyOf(multi)]: { ...splitEntry.calls[keyOf(multi)], split: { at: [2], parts: [{ lineNo: 1, position: "after" }] } } } });

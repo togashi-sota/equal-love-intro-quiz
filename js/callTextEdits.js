@@ -37,6 +37,11 @@ function baseKey(call) {
 
 // 文章を区切る：at（文字位置。昇順・範囲内・サロゲートペアの途中でない）で分け、各部分が空白だけにならないこと。
 // 使えない区切りなら null。つなげると元の文章に戻る。
+// 前後の空白（改行以外）を除く。改行は残す（分割したコールの表示用。2026-10-28）
+export function trimSpacesKeepBreaks(text) {
+  return String(text ?? "").replace(/^[^\S\n]+/, "").replace(/[^\S\n]+$/, "");
+}
+
 export function splitTextAt(text, at) {
   const source = String(text ?? "");
   if (!Array.isArray(at) || at.length === 0) return null;
@@ -124,7 +129,9 @@ export function applyCallTextEntry(baseCalls, entry) {
         pieces.forEach((piece, index) => {
           const partKey = `${key}#${index + 1}`;
           // 分けた表示単位も元のコールと同じ時刻の扱い（順番は分けた順）
-          calls.push({ ...call, key: partKey, text: piece.trim(), start: call.start + index * 0.001, edited: text !== call.text, splitFrom: key, splitIndex: index, splitCount: pieces.length });
+          // 【2026-10-28 本人指示】前後の空白（半角・全角スペース）だけ除き、改行は残す。
+          // 分けた1つの前後に本人が入れた改行（空行）を、そのまま見た目に出すため（以前は改行も消していた）
+          calls.push({ ...call, key: partKey, text: trimSpacesKeepBreaks(piece), start: call.start + index * 0.001, edited: text !== call.text, splitFrom: key, splitIndex: index, splitCount: pieces.length });
           overrides[partKey] = placementOf(record.split.parts[index]);
         });
         return;
