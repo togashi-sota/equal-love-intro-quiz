@@ -92,7 +92,8 @@ export function describeCenterState(classification) {
     case "all":
       return "全員センター";
     case "none":
-      return "センターなし";
+      // 「センターなし」と書かれた資料が見つかっていない曲は断定しない（2026-10-28）
+      return classification.isConfirmed === false && classification.evidenceKind === "unknown" ? "センター未確認" : "センターなし";
     case "solo":
       return "ソロ曲";
     case "duo":

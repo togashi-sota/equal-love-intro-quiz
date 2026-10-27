@@ -44,17 +44,19 @@ function runCenterTests() {
   const love = classifyCenter(songById("love"));
   assertEqual([love.state, love.centerNames, love.evidenceKind, love.isConfirmed], ["single", ["髙松瞳"], "press", true], "A: ＝LOVEは単独センター・報道で確認");
   const kioku = classifyCenter(songById("kioku-no-dokoka-de"));
-  assertEqual([kioku.state, kioku.evidenceKind, kioku.isConfirmed, describeCenterState(kioku)], ["double", "member", true, "Wセンター"], "A: 記憶のどこかでは複数センター・メンバー発言");
+  assertEqual([kioku.state, kioku.evidenceKind, kioku.isConfirmed, describeCenterState(kioku)], ["double", "official", true, "Wセンター"], "A: 記憶のどこかでは複数センター・公式（2026-10-28 公式リリースで確認）");
   ["start", "youkoso-ikorabu-numa", "bukatsuchu-ni-megaau-natte-omotteta-nda", "aikatsu-happy-end"].forEach((id) => {
     const center = classifyCenter(songById(id));
     assertEqual([center.state, center.evidenceKind, center.evidenceLabel, center.isConfirmed], ["single", "fan", "ファン資料のみ", false], `A: ${id} はデータを残したまま「ファン資料のみ」（公式扱いしない）`);
   });
-  ["koi-hajimemashita", "yume-no-tsuzuki"].forEach((id) => {
-    const center = classifyCenter(songById(id));
-    assertEqual([center.state, center.evidenceLabel, center.isConfirmed, describeCenterState(center)], ["all", "アプリ内設定・公式未確認", false, "全員センター"], `A: ${id} は全員センター・本人指定`);
-  });
+  // 【2026-10-28再調査】恋、はじめました。は報道（特定のセンターを置かない構成）で確認。夢の続きは根拠なしのまま
+  const koi = classifyCenter(songById("koi-hajimemashita"));
+  assertEqual([koi.state, koi.evidenceLabel, koi.isConfirmed, describeCenterState(koi)], ["all", "報道", true, "全員センター"], "A: 恋、はじめました。は全員センター・報道");
+  const yume = classifyCenter(songById("yume-no-tsuzuki"));
+  assertEqual([yume.state, yume.evidenceLabel, yume.isConfirmed, describeCenterState(yume)], ["all", "アプリ内設定・公式未確認", false, "全員センター"], "A: 夢の続きは全員センター・アプリ内設定（公式未確認）");
   const doko = classifyCenter(songById("doko-ga-suki-ka-itte"));
   assertEqual([doko.state, doko.evidenceLabel, doko.isConfirmed], ["none", "根拠未確認", false], "A: どこが好きか言っては「センターなし」だが根拠未確認");
+  assertEqual(describeCenterState(doko), "センター未確認", "A: 根拠が無い「センターなし」は「未確認」と出す（断定しない）");
   const solo = classifyCenter(songById("genneki-idol-chu"));
   assertEqual([solo.state, solo.evidenceKind], ["solo", null], "A: ソロ曲はセンターの区別なし（根拠ラベルも出さない）");
   assertEqual(classifyCenter(songById("ryuseigun")).state, "duo", "A: 2人の曲はセンターの区別なし");
@@ -97,7 +99,7 @@ function runCenterTests() {
   const noguchi = filterCenterRows(rows, { memberName: "野口衣織" });
   assertEqual(noguchi.length > 0 && noguchi.every((row) => row.center.centerNames.includes("野口衣織")), true, "D: メンバーで絞り込める（Wセンターも含む）");
   assertEqual(filterCenterRows(rows, { query: "らぶろけ", normalize: normalizeForSearch }).map((row) => row.song.id), ["love-locke"], "D: 曲名（読み）で絞り込める");
-  assertEqual(countEvidenceKinds(rows), { press: 19, member: 1, fan: 4, official: 42, unknown: 2, user: 2 }, "D: 根拠の内訳（公式42・報道19・メンバー発言1・ファン資料のみ4・本人指定2・根拠未確認2）");
+  assertEqual(countEvidenceKinds(rows), { press: 19, fan: 4, official: 44, unknown: 2, user: 1 }, "D: 根拠の内訳（2026-10-28再調査後：公式44・報道19・ファン資料のみ4・アプリ内設定1・根拠未確認2）");
 }
 
 function runSetlistDataTests() {
@@ -120,6 +122,41 @@ function runSetlistDataTests() {
   assertEqual(videoPerformanceIds.every((id) => ids.includes(id)), true, "E: 映像商品の収録公演は実在する公演");
   assertEqual(LIVE_VIDEO_PRODUCTS.every((video) => ["released", "upcoming"].includes(video.status)), true, "E: 映像商品は発売済み／発売予定のどちらか");
   assertEqual(LIVE_VIDEO_PRODUCTS.filter((video) => video.status === "upcoming").every((video) => video.coverage.every((cover) => cover.songIds === null)), true, "E: 発売予定で曲目未発表の映像に、推測で収録曲を入れない");
+
+  // 【2026-10-28追加調査】公式ディスコグラフィー・PR TIMES・報道との照合後の件数と、個別の修正
+  const allItems = SETLIST_PERFORMANCES.flatMap((performance) => performance.items);
+  assertEqual(
+    [SETLIST_PERFORMANCES.length, allItems.length, SETLIST_PERFORMANCES.filter((performance) => performance.completeness === "full").length, SETLIST_PERFORMANCES.filter((performance) => performance.verification === "official").length, SETLIST_PERFORMANCES.filter((performance) => performance.verification === "press").length],
+    [33, 794, 33, 27, 6],
+    "E: 公演33件・曲の行794件（全曲判明33・公式27・報道6）",
+  );
+  assertEqual([LIVE_VIDEO_PRODUCTS.length, UNVERIFIED_SETLIST_PERFORMANCES.length], [17, 32], "E: 映像商品17件・未確定の公演32件");
+  assertEqual(SETLIST_PERFORMANCES.every((performance) => {
+    const orders = performance.items.map((item) => item.order);
+    const start = orders[0] === 0 ? 0 : 1;
+    return orders.every((order, index) => order === start + index);
+  }), true, "E: 曲順の番号が公演ごとに連番（Overture は 0）");
+  assertEqual(LIVE_VIDEO_PRODUCTS.every((video) => video.coverage.every((cover) => {
+    const performance = SETLIST_PERFORMANCES.find((p) => p.id === cover.performanceId);
+    return (cover.songIds ?? []).every((id) => songIds.has(id) && performance.items.some((item) => item.songId === id));
+  })), true, "E: 映像の収録曲は、その公演で披露した曲（songs.js に実在）");
+  const yokohamaVideo = LIVE_VIDEO_PRODUCTS.find((video) => video.id === "video-8th-tour-yokohama-final").coverage[0];
+  assertEqual([yokohamaVideo.songIds.includes("kono-sora-ga-trigger"), yokohamaVideo.note.includes("記載なし")], [false, true], "E: 横浜FINALの映像は公式の曲目に無い「この空がトリガー」を収録曲に入れない（注記で伝える）");
+  assertEqual([findVideoPosition(yokohamaVideo, "natsumatsuri-koishitau"), findVideoPosition(yokohamaVideo, "nakanaori-shu-cream")], [21, 20], "E: 横浜FINALの映像は公式の番号どおり（20 仲直りシュークリーム→21 夏祭り恋慕う）");
+  const natsu1 = SETLIST_PERFORMANCES.find((performance) => performance.id === "perf-yokohama-natsumatsuri-2023-part1");
+  const natsu2 = SETLIST_PERFORMANCES.find((performance) => performance.id === "perf-yokohama-natsumatsuri-2023-part2");
+  assertEqual([natsu1.completeness, natsu1.items.length, natsu1.items[8].songId, natsu2.completeness, natsu2.items[4].songId, natsu2.items[5].songId], ["full", 22, "love-locke", "full", "24-7", "oneesan-ja-dame-desuka"], "E: 夏祭り1部・2部は公式リリースの全曲（2部は5・6曲目のユニット曲が違う）");
+  const videoById = (id) => LIVE_VIDEO_PRODUCTS.find((video) => video.id === id);
+  assertEqual([videoById("video-3rd-anniversary").streaming.status, videoById("video-3rd-anniversary").releaseDate], ["none", "2021-02-08"], "E: 3周年の映像は公式に配信なし・発売日は公式ディスコグラフィーの2021-02-08");
+  const firstStreaming = describeVideoStreaming(videoById("video-1st-concert-2019"));
+  assertEqual([firstStreaming.status, firstStreaming.text.includes("カバー曲"), firstStreaming.url], ["available", true, "https://equal-love.jp/news/detail/7211"], "E: 1stコンサートは公式の映像配信あり（カバー曲は配信対象外と注記）");
+  assertEqual(["video-timeless-tales-2025", "video-8th-tour-ig-arena"].every((id) => videoById(id).streaming.status !== "available" && videoById(id).streaming.note.includes("音声のみ")), true, "E: 音声だけの配信は「映像の配信あり」にしない");
+  assertEqual([describeVideoEditions(videoById("video-winter-tour-2021")), videoById("video-zenbu-naisho-2021").productCodes.includes("VVBL-156～157")], [["Type A Blu-ray（2枚組） VVXL-72～73", "Type B Blu-ray VVXL-74", "Type C DVD（2枚組） VVBL-150～151"], true], "E: 武道館・全部、内緒。の品番を公式どおりに修正");
+  const yokohamaDay1 = SETLIST_PERFORMANCES.find((performance) => performance.id === "perf-8th-anniversary-tour-yokohama-final-day1");
+  assertEqual([yokohamaDay1?.date, yokohamaDay1?.verification, yokohamaDay1?.items.some((item) => item.section === "double-encore"), UNVERIFIED_SETLIST_PERFORMANCES.some((performance) => performance.date === "2026-04-18")], ["2026-04-18", "official", false, false], "E: 横浜スタジアム DAY1（4/18）は公式で確認（Wアンコールは4/19のみ）・未確定リストから外した");
+  const ariake = SETLIST_PERFORMANCES.find((performance) => performance.id === "perf-arena-tour-2025-ariake-day2");
+  assertEqual([ariake.items.filter((item) => item.referenceOnly).map((item) => item.order), UNVERIFIED_SETLIST_PERFORMANCES.some((performance) => performance.date === "2025-07-13")], [[12], false], "E: 有明追加公演 DAY2 は資料が食い違う12曲目だけ参考扱い");
+  assertEqual(SETLIST_PERFORMANCES.filter((performance) => performance.kind === "festival").every((performance) => performance.liveId === null && performance.verification === "press"), true, "E: フェス出演は報道で確認・ライブ履歴のカードなし");
 
   // liveHistory.js の修正（公式ニュースで確認：Blu-ray+CD＝VVXL-140、DVD＝VVBL-184）
   const nagisa = LIVE_EVENTS.find((event) => event.id === "live-nagisa-graduation");

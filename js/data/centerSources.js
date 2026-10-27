@@ -12,13 +12,15 @@
 // ソロ曲・2人の曲（センターの区別が無い曲）と Overture はここに載せない。
 //
 // 元データ：tools/feature-research/centers-check.json（2026-10-27調査、Git管理外）。
-export const CENTER_SOURCES_RESEARCHED_AT = "2026-10-27";
+// 【2026-10-28再調査】tools/feature-research/2026-10-28/centers-proposal.json。センターの名前の誤りは0件。
+//   根拠を強められた3曲（記憶のどこかで・推しのいる世界・恋、はじめました。）のラベルを上げた。
+export const CENTER_SOURCES_RESEARCHED_AT = "2026-10-28";
 
 export const CENTER_SOURCES = {
   // ＝LOVE
   "love": { kind: "press", url: "https://natalie.mu/music/pp/equallove/page/2", note: "音楽ナタリーの記事・インタビューにセンターの記載あり" },
   // 記憶のどこかで
-  "kioku-no-dokoka-de": { kind: "member", url: "https://natalie.mu/music/pp/equallove09", note: "メンバー本人のコメント（音楽ナタリー掲載）で「Wセンター」と言及" },
+  "kioku-no-dokoka-de": { kind: "official", url: "https://prtimes.jp/main/html/rd/p/000003370.000013546.html", note: "ソニー・ミュージックレーベルズの公式プレスリリース（2022-08-14）に「野口衣織と諸橋沙夏がWセンター」と記載。メンバー本人の発言（音楽ナタリー）とも一致" },
   // スタート！
   "start": { kind: "fan", url: null, note: "ファンのまとめにだけ記載。公式・報道でのセンターの記載は見つかっていない" },
   // ズルいよ ズルいね
@@ -64,7 +66,7 @@ export const CENTER_SOURCES = {
   // Sweetest girl
   "sweetest-girl": { kind: "official", url: "https://x.com/Equal_LOVE_12/status/1185796350912282624", note: "公式Xの投稿で確認（検索結果の抜粋のみ・本文は未読）" },
   // 推しのいる世界
-  "oshi-no-iru-sekai": { kind: "press", url: "https://natalie.mu/music/news/419121", note: "音楽ナタリーの記事・インタビューにセンターの記載あり" },
+  "oshi-no-iru-sekai": { kind: "official", url: "https://x.com/Equal_LOVE_12/status/1185796350912282624", note: "＝LOVE公式X（2019-10-20）の本文に「センター:佐竹のん乃」と記載。音楽ナタリーの記事とも一致" },
   // CAMEO
   "cameo": { kind: "press", url: "https://natalie.mu/music/pp/equallove07", note: "音楽ナタリーの記事・インタビューにセンターの記載あり" },
   // 「君と私の歌」
@@ -144,11 +146,11 @@ export const CENTER_SOURCES = {
   // お姫様の作り方
   "ohimesama-no-tsukurikata": { kind: "official", url: "https://www.youtube.com/watch?v=2udLA8-QuD8", note: "公式YouTubeのMV説明欄にセンターの記載あり" },
   // 恋、はじめました。
-  "koi-hajimemashita": { kind: "user", url: null, note: "アプリ作成者の指定。公式MV説明欄・報道にはセンターの記載なし" },
+  "koi-hajimemashita": { kind: "press", url: "https://natalie.mu/music/pp/equallove-koihajimemashita", note: "音楽ナタリーの21stシングル特集（2026-08-28）に「今作は特定のセンターを置かない構成」とある（諸橋沙夏も同じ趣旨の発言）。資料の言い方は「全員センター」ではなく「特定のセンターなし」" },
   // 夏名残サマーチューン
   "natsunagori-summer-tune": { kind: "official", url: "https://www.youtube.com/watch?v=_Bm66BRnM1A", note: "公式YouTubeのMV説明欄にセンターの記載あり" },
   // 夢の続き
-  "yume-no-tsuzuki": { kind: "user", url: null, note: "アプリ作成者の指定。公式MV説明欄・報道にはセンターの記載なし" },
+  "yume-no-tsuzuki": { kind: "user", url: null, note: "アプリの設定。2026-10-28に再調査したが、公式MV説明欄・報道にセンター（全員を含む）の記載は見つからなかった" },
   // 866
   "866": { kind: "unknown", url: null, note: "「センターなし」と書かれた公式・報道の資料は見つかっていない（センターの記載が無いことだけ確認）" },
   // Be Selfish
