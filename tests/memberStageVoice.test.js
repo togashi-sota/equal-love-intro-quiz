@@ -94,6 +94,19 @@ export function runMemberStageVoiceTests() {
   assertEqual(formatCastRole({ role: "オーロックス", credit: null }), "オーロックス 役", "D: 役名には「役」が付く");
   assertEqual(formatCastRole({ role: null, credit: "ゲスト出演" }), "ゲスト出演", "D: 役名なしはcreditを出す");
 
+  // 【2026-10-28追加】公式ニュース再調査での修正・追加
+  const voiceById = (id) => VOICE_APPEARANCES.find((entry) => entry.id === id);
+  const latale = voiceById("voice-latale-2019");
+  assertEqual(latale.casts.find((entry) => entry.memberId === "saito-kiara")?.role, "トリシャ", "D: ラテールの配役に齋藤樹愛羅（トリシャ役）を含む");
+  assertEqual(latale.links.some((link) => link.url === "https://equal-love.jp/news/detail/2586"), true, "D: ラテールの齋藤樹愛羅は＝LOVE公式2586が出典");
+  const ekimemo = voiceById("voice-ekimemo-game-2017");
+  assertEqual(ekimemo.casts.every((entry) => entry.credit === null), true, "D: 駅メモ！の配役に1人だけの「（初代）」表記を付けない（不揃いを解消）");
+  assertEqual(ekimemo.casts.find((entry) => entry.memberId === "saito-kiara")?.role, "黄陽レイカ", "D: 駅メモ！の齋藤樹愛羅＝黄陽レイカ（重複していた個人活動カードをここへ統合）");
+  assertEqual(ekimemo.description.includes("ボイスリニューアル"), true, "D: 2020年のボイスリニューアルは説明文の1文で示す");
+  assertEqual(voiceById("voice-friday-13th-2018").sortKey, "2018-07-13", "D: Friday the 13th は＝LOVE公式553の発売日");
+  const qtta = voiceById("voice-qtta-uranaibu-2019");
+  assertEqual(qtta?.casts.map((entry) => [entry.memberId, entry.role]), [["sasaki-maika", "辻井雪穂"], ["noguchi-iori", "大喜閑子"]], "D: QTTA学園占い部は佐々木舞香（辻井雪穂）・野口衣織（大喜閑子）");
+
   // ---- E. 野口衣織：VOICEは多いので折りたたみ、もっと見るで開閉できる ----
   const noguchiVoiceCount = pickMemberWorks(VOICE_APPEARANCES, "noguchi-iori").length;
   assertEqual(noguchiVoiceCount > VOICE_INITIAL_VISIBLE_COUNT, true, "E: 野口衣織のVOICEは初期表示件数より多い");

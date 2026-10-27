@@ -201,7 +201,8 @@ export const MEMBER_ACTIVITIES = [
     // 【2026-10-23追加】FM NACK5公式（番組ページ・2026-10-21告知）・＝LOVE公式NEWS 12291・PR TIMESで確認。
     // 初回 2026年11月1日（日）25:00〜25:30（月曜 午前1:00〜1:30）、録音番組（PR TIMES）。
     // status は UPCOMING。初回放送日を迎えると表示上は自動で「継続中」になる。
-    // 番組公式X（@hanamaru795）は本人（利用者）提供のリンク。公式発表文には記載が無く、Claude側では未確認。
+    // 【2026-10-28更新】番組公式X（@hanamaru795）は、＝LOVE公式NEWS 12291の本文に「番組X：@hanamaru795」と
+    // 明記されていることを確認したため、sourceType を "official" に格上げした（以前は本人提供のリンク扱い）。
     id: "oba-nack5-hanamaru",
     memberId: "oba-hana",
     relatedMemberIds: [],
@@ -212,7 +213,7 @@ export const MEMBER_ACTIVITIES = [
     url: null,
     links: [
       { label: "番組公式ページ", url: "https://www.nack5.co.jp/program/love_oba_hanamaru/", sourceType: "official" },
-      { label: "番組公式X", url: "https://x.com/hanamaru795", sourceType: "user-provided" },
+      { label: "番組公式X", url: "https://x.com/hanamaru795", sourceType: "official" },
     ],
     status: ACTIVITY_STATUS.UPCOMING,
     startDate: "2026-11-01",
@@ -224,7 +225,7 @@ export const MEMBER_ACTIVITIES = [
       "https://equal-love.jp/news/detail/12291",
       "https://prtimes.jp/main/html/rd/p/000000097.000123797.html",
     ],
-    lastVerifiedDate: "2026-10-23",
+    lastVerifiedDate: "2026-10-28",
   },
   {
     id: "oba-artistspoken",
@@ -271,8 +272,9 @@ export const MEMBER_ACTIVITIES = [
     type: ACTIVITY_TYPE.MODEL,
     // 【2026-10-23更新】2026 Winter collection（＝LOVE公式 2026-10-17）を反映。シーズンごとに別カードへ
     // 分けず、ブランドの継続起用として1枚にまとめる（過去シーズンの履歴は説明文に残す）。
+    // 【2026-10-28更新】＝LOVE公式ニュースで確認できた全シーズン（Spring/Summer・New season を含む）を説明文と出典に揃えた。
     description:
-      "ファッションブランド「evelyn」のシーズンコレクションモデルを継続して務めている。2025 Winter collectionから、2026 Spring・Autumnと続き、2026 Winter collectionでもモデルを務める（2026年10月17日発表）。",
+      "ファッションブランド「evelyn」のシーズンコレクションモデルを継続して務めている。2025 Winter collection（2025年8月25日発表）から、2026 Spring collection（2026年1月5日）・2026 Spring/Summer collection（4月5日）・2026 Autumn collection（5月29日）・2026 New season collection（8月13日）と続き、2026 Winter collection（10月17日発表）でも引き続きモデルを務める。",
     url: null,
     links: [
       { label: "ブランド公式サイト", url: "https://evelyn.tokyo.jp/", sourceType: "official" },
@@ -284,13 +286,14 @@ export const MEMBER_ACTIVITIES = [
     sourceType: "official",
     sourceUrls: [
       "https://equal-love.jp/news/detail/10282",
-      "https://x.com/evelyn_tokyo/status/1959888905643213247",
-      "https://x.com/Equal_LOVE_12/status/2040685870802739226",
-      "https://x.com/otoshima_risa/status/2060340693470740928",
-      "https://equal-love.jp/news/detail/12272",
+      "https://equal-love.jp/news/detail/10833",
       "https://equal-love.jp/news/detail/11043",
+      "https://equal-love.jp/news/detail/11353",
+      "https://equal-love.jp/news/detail/11487",
+      "https://equal-love.jp/news/detail/11817",
+      "https://equal-love.jp/news/detail/12272",
     ],
-    lastVerifiedDate: "2026-10-23",
+    lastVerifiedDate: "2026-10-28",
   },
   {
     id: "otoshima-youtube",
@@ -319,7 +322,9 @@ export const MEMBER_ACTIVITIES = [
     title: "とちぎ未来大使",
     type: ACTIVITY_TYPE.AMBASSADOR,
     description:
-      "2024年4月17日、栃木県の魅力や地域資源を県内外へ発信する「とちぎ未来大使」に就任。栃木県出身で、担当名は「とちぎ＝LOVE♡」。県の広報番組「魅せます！とちブラ～とちぎブランド・ぶらり～」にも出演している。",
+      // 【2026-10-28更新】「とちブラ」は＝LOVE公式ニュース8279（2024-03-03）で「番組レポーター」と確認できたため、肩書きと開始時期を足した
+      // （別カードにはせず、大使カードの説明文にまとめる）。
+      "2024年4月17日、栃木県の魅力や地域資源を県内外へ発信する「とちぎ未来大使」に就任。栃木県出身で、担当名は「とちぎ＝LOVE♡」。それに先立つ2024年3月から、とちぎテレビの県広報番組「魅せます！とちブラ～とちぎブランド・ぶらり～」の番組レポーターも務めている。",
     url: null,
     links: [
       { label: "栃木県公式ページ", url: "https://www.pref.tochigi.lg.jp/c05/pref/kihon/sonota/1285545941380.html", sourceType: "official" },
@@ -334,8 +339,9 @@ export const MEMBER_ACTIVITIES = [
       "https://www.pref.tochigi.lg.jp/c05/pref/kihon/sonota/documents/02_geinou_20260331.pdf",
       "https://www.pref.tochigi.lg.jp/c05/pref/kouhou/terebi/newtv.html",
       "https://x.com/Equal_LOVE_12/status/1780472508275400783",
+      "https://equal-love.jp/news/detail/8279",
     ],
-    lastVerifiedDate: "2026-10-02",
+    lastVerifiedDate: "2026-10-28",
   },
   {
     // 【2026-10-10追加】＝LOVE公式NEWS（2026-10-09掲載）・MeloRia公式サイト・QUEEN EYES販売ページ（2026-10-21 12:00〜）で確認。
@@ -404,28 +410,9 @@ export const MEMBER_ACTIVITIES = [
     ],
     lastVerifiedDate: "2026-08-23",
   },
-  {
-    // 【2026-08-23修正】以前は「舞台」としていたが、実際はスマートフォンアプリ内の声優
-    // キャラクターボイス出演であり、舞台公演としての記録は確認できなかったため訂正した。
-    // 開始日・終了日は「初代・2017年〜2020年、2020年7月声優交代」という情報を基に、
-    // 年月精度の目安として設定している（日までは未確認）。
-    id: "saito-kiara-stage",
-    memberId: "saito-kiara",
-    relatedMemberIds: [],
-    title: "スマートフォンアプリ「ステーションメモリーズ！」",
-    type: ACTIVITY_TYPE.VOICE,
-    description: "スマートフォンアプリ内で、声優として黄陽レイカ役（初代）を演じた。2020年7月に声優交代となった。",
-    url: null,
-    status: ACTIVITY_STATUS.PAST,
-    startDate: "2017-01-01",
-    endDate: "2020-07-01",
-    sourceType: "reliable",
-    sourceUrls: [
-      "https://ja.wikipedia.org/wiki/齋藤樹愛羅",
-      "https://ja.wikipedia.org/wiki/ステーションメモリーズ!",
-    ],
-    lastVerifiedDate: "2026-08-23",
-  },
+  // 【2026-10-28】齋藤樹愛羅の「ステーションメモリーズ！」（旧id: saito-kiara-stage、出典はWikipediaのみ）は、
+  // js/data/memberStageVoice.js の voice-ekimemo-game-2017（代々木アニメーション学院の公式発表つき）と同じ作品の
+  // 二重登録だったため削除し、VOICE側に1か所でまとめた（黄陽レイカ役・2020年のボイスリニューアルはVOICE側に記載）。
   {
     id: "takiwaki-sasuke",
     memberId: "takiwaki-shoko",
@@ -544,6 +531,35 @@ export const MEMBER_ACTIVITIES = [
     lastVerifiedDate: "2026-08-03",
   },
   {
+    // 【2026-10-28追加】＝LOVE公式ニュース（2023-08〜2026-03に出演告知38件）・＝LOVE公式スケジュール11739（毎週火曜12:30〜として継続掲載）・
+    // 番組側の説明（radikoポッドキャスト「現地取材は…福島県出身の諸橋沙夏さん」）で確認。単発ゲストではなく番組の取材担当。
+    // 公式に「レギュラー」「リポーター」の語は無いため、番組説明の言葉どおり「現地取材」とした。
+    // startDate は公式で確認できた最も古い放送日（2023-08-18、当時は金曜08:10〜08:17）。
+    id: "morohashi-hand-in-hand",
+    memberId: "morohashi-sana",
+    relatedMemberIds: [],
+    title: "復興支援プログラム「Hand in Hand」 現地取材",
+    type: ACTIVITY_TYPE.RADIO,
+    description:
+      "TOKYO FMの復興支援プログラム「Hand in Hand」で、福島県出身として現地取材を担当し、東日本大震災からの復興に取り組む人たちの思いを伝えている。2023年8月から出演が告知されており、現在は毎週火曜12:30〜放送。",
+    url: null,
+    links: [
+      { label: "番組公式ページ", url: "https://www.tfm.co.jp/hand/", sourceType: "official" },
+      { label: "＝LOVE公式スケジュール", url: "https://equal-love.jp/schedule/detail/11739", sourceType: "official" },
+    ],
+    status: ACTIVITY_STATUS.ONGOING,
+    startDate: "2023-08-18",
+    endDate: null,
+    sourceType: "official",
+    sourceUrls: [
+      "https://equal-love.jp/news/detail/7069",
+      "https://equal-love.jp/schedule/detail/11739",
+      "https://www.tfm.co.jp/hand/",
+      "https://radiko.jp/podcast/channels/8e71da24-9c0c-43c1-878c-08e6b73a7543",
+    ],
+    lastVerifiedDate: "2026-10-28",
+  },
+  {
     id: "noguchi-tv",
     memberId: "noguchi-iori",
     relatedMemberIds: [],
@@ -599,14 +615,16 @@ export const MEMBER_ACTIVITIES = [
     status: ACTIVITY_STATUS.ENDED,
     startDate: "2021-10-10",
     endDate: "2026-10-03",
-    sourceType: "reliable",
+    // 【2026-10-28更新】「2020年から（木曜版）に出演」は＝LOVE公式ニュース2847（2020-04-24、木曜レギュラーメンバー決定）で
+    // 裏付けられたため、出典のWikipediaを公式2847に置き換え、sourceType を official にした。
+    sourceType: "official",
     sourceUrls: [
       "https://www.mbs1179.com/yaru/",
+      "https://equal-love.jp/news/detail/2847",
       "https://radioupdate.net/mbs/yaru/yarudo/20261003/",
       "https://equal-love.jp/schedule/detail/9234",
-      "https://ja.wikipedia.org/wiki/大谷映美里",
     ],
-    lastVerifiedDate: "2026-10-04",
+    lastVerifiedDate: "2026-10-28",
   },
   {
     id: "otani-jins-midface",
@@ -639,8 +657,13 @@ export const MEMBER_ACTIVITIES = [
     startDate: "2025-11-05",
     endDate: null,
     sourceType: "reliable",
-    sourceUrls: ["https://prtimes.jp/main/html/rd/p/000000875.000025517.html", "https://www.ririmew.com/"],
-    lastVerifiedDate: "2026-08-03",
+    // 【2026-10-28】startDate（イメージモデル就任）を＝LOVE公式ニュース10857で確認し、出典に追加した。
+    sourceUrls: [
+      "https://prtimes.jp/main/html/rd/p/000000875.000025517.html",
+      "https://www.ririmew.com/",
+      "https://equal-love.jp/news/detail/10857",
+    ],
+    lastVerifiedDate: "2026-10-28",
   },
   {
     id: "otani-melady",
@@ -667,6 +690,57 @@ export const MEMBER_ACTIVITIES = [
       "https://www.instagram.com/melady.official/",
     ],
     lastVerifiedDate: "2026-08-23",
+  },
+  {
+    // 【2026-10-28追加】＝LOVE公式ニュースで、2018秋〜2021summerの8シーズンのモデル起用とコラボ商品2回（1983・3976）を確認。
+    // 2021summer以降の起用告知も終了の告知も無いため status は UNKNOWN。ブランド公式サイトは閉鎖の可能性があるため url は＝LOVE公式にした。
+    id: "otani-honeycinnamon",
+    memberId: "otani-emiri",
+    relatedMemberIds: [],
+    title: "HoneyCinnamon（ハニーシナモン）コレクションモデル",
+    type: ACTIVITY_TYPE.MODEL,
+    description:
+      "女性向けアパレルブランド「HoneyCinnamon」のシーズンコレクションモデルを、2018秋コレクションから2021summerコレクションまで継続して務めた。期間中には大谷映美里とのコラボ商品も発売された。",
+    url: "https://equal-love.jp/news/detail/721",
+    status: ACTIVITY_STATUS.UNKNOWN,
+    startDate: "2018-06-05",
+    endDate: null,
+    sourceType: "official",
+    sourceUrls: [
+      "https://equal-love.jp/news/detail/721",
+      "https://equal-love.jp/news/detail/1011",
+      "https://equal-love.jp/news/detail/1906",
+      "https://equal-love.jp/news/detail/1983",
+      "https://equal-love.jp/news/detail/2751",
+      "https://equal-love.jp/news/detail/3244",
+      "https://equal-love.jp/news/detail/3540",
+      "https://equal-love.jp/news/detail/3871",
+      "https://equal-love.jp/news/detail/3976",
+    ],
+    lastVerifiedDate: "2026-10-28",
+  },
+  {
+    // 【2026-10-28追加】＝LOVE公式ニュース1740（2019-05-08）・3716（2021-02-01）・3975（2021-04-29、スペシャルコラボ第3弾）で確認。
+    // 第1・2弾のコラボは公式ニュースのメディア一覧で見つからなかったため、説明文は確認できた範囲だけにしている。
+    // 瀧脇笙古の titty&Co.PETIT（takiwaki-titty-petit）とは別ブランドライン・別人なので別カード。
+    id: "otani-titty-and-co",
+    memberId: "otani-emiri",
+    relatedMemberIds: [],
+    title: "titty&Co. モデル・コラボアイテム",
+    type: ACTIVITY_TYPE.MODEL,
+    description:
+      "アパレルブランド「titty&Co.」の2019 SUMMER mini COLLECTION、2021 Spring Collectionのモデルを務め、スペシャルコラボ第3弾「白昼夢 - Daydream in the morning. -」（2021年）などのコラボアイテムも発売された。",
+    url: "https://equal-love.jp/news/detail/3975",
+    status: ACTIVITY_STATUS.UNKNOWN,
+    startDate: "2019-05-08",
+    endDate: null,
+    sourceType: "official",
+    sourceUrls: [
+      "https://equal-love.jp/news/detail/1740",
+      "https://equal-love.jp/news/detail/3716",
+      "https://equal-love.jp/news/detail/3975",
+    ],
+    lastVerifiedDate: "2026-10-28",
   },
   {
     // 2026-09-30追加：＝LOVE公式ニュース（equal-love.jp/news/detail/12180）と、実際に本人が
@@ -849,7 +923,9 @@ export const MEMBER_ACTIVITIES = [
   // 説明文に放送・公開時期を書いているのは、個人ページのカードには日付が表示されないため。
   {
     // ＝LOVE公式スケジュール2986（2020-07-03放送回）と、株式会社アルジーのPR TIMES 2本（2022-02-03・2022-09-16）で確認。
-    // 肩書き「番組記者」「メインMC」はPR TIMESの表記どおり。startDate は公式で確認できた最も古い出演回の日付（実際の初出演はそれ以前の可能性あり）。
+    // 肩書き「番組記者」「メインMC」はPR TIMESの表記どおり（2022年時点）。
+    // 【2026-10-28修正】＝LOVE公式ニュース2864（2020-04-30）で「5/1(金)よりアシスタントとしてレギュラー出演」と確認できたため、
+    // startDate を 2020-07-03（確認できた最も古い出演回）から 2020-05-01 に直し、初期の肩書き「アシスタント」を説明文に足した。
     // レギュラー放送の最終回は番組公式Xの投稿（検索結果の表示のみ・本文未読）でしか確認できていないため、status は UNKNOWN。
     // 番組発のVTuber「青龍（セイ）」「紫狼（シロ）」については、野口衣織の構想から生まれた企画であることだけを書く
     // （どのキャラクターの声を誰が担当したかは公式に明記が無いため、「声を担当」とは書かない）。
@@ -859,22 +935,51 @@ export const MEMBER_ACTIVITIES = [
     title: "ジャパコンProject 二次元領域拡大通信",
     type: ACTIVITY_TYPE.TV,
     description:
-      "BSフジのアニメ・漫画・ゲーム情報番組（毎月第1金曜24:00〜）。番組記者・メインMCを務めた（番組編集長はニッポン放送の吉田尚記アナウンサー）。番組から生まれたVTuber「青龍（セイ）」「紫狼（シロ）」は、野口衣織の「理想の二次元男子を具現化したい」という構想が出発点となった番組企画。",
+      "BSフジのアニメ・漫画・ゲーム情報番組（毎月第1金曜24:00〜）。2020年5月1日からアシスタントとしてレギュラー出演し、のちに番組記者・メインMCを務めた（番組編集長はニッポン放送の吉田尚記アナウンサー）。番組から生まれたVTuber「青龍（セイ）」「紫狼（シロ）」は、野口衣織の「理想の二次元男子を具現化したい」という構想が出発点となった番組企画。",
     url: null,
     links: [
-      { label: "＝LOVE公式スケジュール", url: "https://equal-love.jp/schedule/detail/2986", sourceType: "official" },
+      { label: "＝LOVE公式情報", url: "https://equal-love.jp/news/detail/2864", sourceType: "official" },
       { label: "番組のお知らせ（PR TIMES）", url: "https://prtimes.jp/main/html/rd/p/000000002.000094380.html", sourceType: "official" },
     ],
     status: ACTIVITY_STATUS.UNKNOWN,
-    startDate: "2020-07-03",
+    startDate: "2020-05-01",
     endDate: null,
     sourceType: "official",
     sourceUrls: [
+      "https://equal-love.jp/news/detail/2864",
       "https://equal-love.jp/schedule/detail/2986",
       "https://prtimes.jp/main/html/rd/p/000000002.000094380.html",
       "https://prtimes.jp/main/html/rd/p/000000003.000094380.html",
     ],
-    lastVerifiedDate: "2026-10-27",
+    lastVerifiedDate: "2026-10-28",
+  },
+  {
+    // 【2026-10-28追加】＝LOVE公式ニュース11601（2026-07-17、参加決定）・11910（2026-09-01、劇中歌の先行配信）と作品公式サイトで確認。
+    // 公式の表現は「アーティストとして参加」「劇中歌の歌唱」で、声優として役を演じるとは書かれていないため VOICE には入れない。
+    // 公開日（2026-11-06）前なので UPCOMING。映画は一度きりなので、公開後は status を PAST・endDate を公開日に直すとよい
+    // （UPCOMING のままだと開始日以降は自動で「継続中」表示になるため）。
+    id: "noguchi-movie-grotesqque",
+    memberId: "noguchi-iori",
+    relatedMemberIds: [],
+    title: "映画『GROTESQQQUE-グロテスク-』第2部『夜露死駆★少女』アーティスト参加",
+    type: ACTIVITY_TYPE.OTHER,
+    description:
+      "錦織敦史監督・CloverWorks制作のオリジナルアニメーション映画（2026年11月6日公開）の第2部『夜露死駆★少女』にアーティストとして参加。劇中歌『Tokyo Gals』（歌唱：野口衣織、MIRI）を2026年9月2日に先行配信。",
+    url: null,
+    links: [
+      { label: "作品公式サイト", url: "https://movie-gtq123.com/", sourceType: "official" },
+      { label: "＝LOVE公式情報", url: "https://equal-love.jp/news/detail/11601", sourceType: "official" },
+    ],
+    status: ACTIVITY_STATUS.UPCOMING,
+    startDate: "2026-11-06",
+    endDate: null,
+    sourceType: "official",
+    sourceUrls: [
+      "https://equal-love.jp/news/detail/11601",
+      "https://equal-love.jp/news/detail/11910",
+      "https://movie-gtq123.com/",
+    ],
+    lastVerifiedDate: "2026-10-28",
   },
   {
     // ＝LOVE公式ニュース6585（2023-04-20）でレギュラーメンバー4人を確認。放送開始日はPR TIMES（番組側の発表、2023-04-20）で確認。
@@ -1127,20 +1232,27 @@ export const MEMBER_ACTIVITIES = [
   },
   {
     // ＝LOVE公式ニュース9747（2025-04-16）・11935（2026-09-15、「連載中」と明記）で確認。
-    // 連載の開始号は公式で確認できていないため startDate は null。
+    // 【2026-10-28更新】＝LOVE公式ニュース6288（2023-02-15発売号、旧題「教えて！クリエイティ部！」が「連載中」）を確認。
+    // 連載の開始号そのものは不明なので、startDate は「公式で確認できた最も古い連載中の時点」として 2023-02-15 にした。
+    // 改題の正確な時期は2023-11〜2024-09のあいだ（公式告知の間隔のため特定できない）なので、説明文では「告知されている」に留める。
     id: "oba-ex-taishu-creative-bu",
     memberId: "oba-hana",
     relatedMemberIds: [],
     title: "『EX大衆』連載「咲かせて！クリエイティ部」",
     type: ACTIVITY_TYPE.OTHER,
-    description: "双葉社『EX大衆』の連載。クリエイターに会ったり、創作の現場を体験したりする企画で、2026年9月15日発売の10月号でも掲載されている。",
+    description:
+      "双葉社『EX大衆』でクリエイターに会ったり、クリエイティブの現場を体験したりする連載。2023年2月発売号の時点では「教えて！クリエイティ部！」の題名で連載中で、2024年9月発売号からは「咲かせて！クリエイティ部」として告知されている。",
     url: "https://equal-love.jp/news/detail/11935",
     status: ACTIVITY_STATUS.ONGOING,
-    startDate: null,
+    startDate: "2023-02-15",
     endDate: null,
     sourceType: "official",
-    sourceUrls: ["https://equal-love.jp/news/detail/9747", "https://equal-love.jp/news/detail/11935"],
-    lastVerifiedDate: "2026-10-27",
+    sourceUrls: [
+      "https://equal-love.jp/news/detail/9747",
+      "https://equal-love.jp/news/detail/11935",
+      "https://equal-love.jp/news/detail/6288",
+    ],
+    lastVerifiedDate: "2026-10-28",
   },
   {
     // ＝LOVE公式ニュース5858（2022-09-29）と PR TIMES（2022-11-10、番組の告知）で確認。任期・現況は未確認のため UNKNOWN。
@@ -1159,21 +1271,28 @@ export const MEMBER_ACTIVITIES = [
     lastVerifiedDate: "2026-10-27",
   },
   {
-    // ＝LOVE公式ニュース10294（2025-09-05）・11357（2026-04-07）で確認。2026年9月以降のカタログは公式Xの検索表示のみで
-    // 未確認のため、説明文には書かず status も UNKNOWN にしている。
+    // ＝LOVE公式ニュース10294（2025-09-05）・11357（2026-04-07）で確認。
+    // 【2026-10-28更新】以前は公式Xの検索表示のみで保留していた2026年9月の2件を、＝LOVE公式ニュース11920・11921で確認できた。
+    // 直近2026-09-15まで起用が続いているため status を ONGOING にした。2026年の告知のブランド表記「Suyunn」に題名を合わせた。
     id: "saito-suyunn-model",
     memberId: "saito-kiara",
     relatedMemberIds: [],
-    title: "suyunn（スユン）WEBカタログモデル",
+    title: "Suyunn（スユン）カタログモデル",
     type: ACTIVITY_TYPE.MODEL,
-    description: "ファッションブランド「suyunn」のWEBカタログモデル。「suyunn 1st WEB カタログ 2025 AW collection」（2025年9月9日公開）、「2026 SS collection」（2026年4月7日公開）に登場した。",
-    url: "https://equal-love.jp/news/detail/11357",
-    status: ACTIVITY_STATUS.UNKNOWN,
+    description:
+      "ファッションブランド「Suyunn（suyunn）」のカタログモデル。「suyunn 1st WEB カタログ 2025 AW collection」（2025年9月9日公開）、「2026 SS collection」（2026年4月7日公開）、「1st anniversary Sweet Mood by Suyunn collection」（2026年9月9日公開）、「Dear Suyunn」（2026年9月15日公開）に登場した。",
+    url: "https://equal-love.jp/news/detail/11921",
+    status: ACTIVITY_STATUS.ONGOING,
     startDate: "2025-09-09",
     endDate: null,
     sourceType: "official",
-    sourceUrls: ["https://equal-love.jp/news/detail/10294", "https://equal-love.jp/news/detail/11357"],
-    lastVerifiedDate: "2026-10-27",
+    sourceUrls: [
+      "https://equal-love.jp/news/detail/10294",
+      "https://equal-love.jp/news/detail/11357",
+      "https://equal-love.jp/news/detail/11920",
+      "https://equal-love.jp/news/detail/11921",
+    ],
+    lastVerifiedDate: "2026-10-28",
   },
   {
     // 【C修正の代わり】野口衣織の tocco closet カード（noguchi-tocco-closet）は「2026 AW」のカードで、公式ニュース12180では
@@ -1282,24 +1401,87 @@ export const MEMBER_ACTIVITIES = [
   },
   {
     // ＝LOVE公式ニュース3008（2020-07-22、「連載中」・毎月22日）と、いわき民報の記事一覧ページ
-    // （2026-06-22掲載分まで確認、2025年10月以降は2か月ごとの掲載）で確認。連載の開始時期・連載名の表記は未確認のため書かない。
+    // （2026-06-22掲載分まで確認、2025年10月以降は2か月ごとの掲載）で確認。連載名の表記は未確認のため書かない。
+    // 【2026-10-28更新】＝LOVE公式ニュース2155（2019-09-25）の時点で既に「連載中」と告知されていた。連載開始日そのものは不明なので、
+    // startDate は「公式で確認できた最も古い時点」として 2019-09-25 を入れた（並べ替え用）。
     id: "morohashi-iwaki-minpo",
     memberId: "morohashi-sana",
     relatedMemberIds: [],
     title: "いわき民報 連載コラム",
     type: ACTIVITY_TYPE.OTHER,
-    description: "地元・福島県いわき市の新聞「いわき民報」でのコラム連載。22日（つんつんの日）に掲載され、2026年6月22日掲載分まで続いている（最近は2か月に1回のペース）。",
+    description:
+      "地元・福島県いわき市の新聞「いわき民報」でのコラム連載。毎月22日（つんつんの日）に掲載され、2019年9月の時点で連載中と告知されている。2026年6月22日掲載分まで続いている（最近は2か月に1回のペース）。",
     url: null,
     links: [
       { label: "＝LOVE公式情報", url: "https://equal-love.jp/news/detail/3008", sourceType: "official" },
       { label: "いわき民報の記事一覧", url: "https://iwaki-minpo.co.jp/category/sanatsun/", sourceType: "official" },
     ],
     status: ACTIVITY_STATUS.ONGOING,
-    startDate: null,
+    startDate: "2019-09-25",
     endDate: null,
     sourceType: "official",
-    sourceUrls: ["https://equal-love.jp/news/detail/3008", "https://iwaki-minpo.co.jp/category/sanatsun/"],
-    lastVerifiedDate: "2026-10-27",
+    sourceUrls: [
+      "https://equal-love.jp/news/detail/3008",
+      "https://iwaki-minpo.co.jp/category/sanatsun/",
+      "https://equal-love.jp/news/detail/2155",
+    ],
+    lastVerifiedDate: "2026-10-28",
+  },
+  {
+    // 【2026-10-28追加】＝LOVE公式ニュース6947（2023-07-24）で確認。コンテストの開催期間は公式文に無いので endDate は空、
+    // 一度きりの就任なので status は PAST。髙松瞳の Season3（takamatsu-kyobijin-award-s3）とは別の回なので別カード。
+    id: "sasaki-kyobijin-award-2024",
+    memberId: "sasaki-maika",
+    relatedMemberIds: [],
+    title: "「京美人Award 2024」応援アンバサダー",
+    type: ACTIVITY_TYPE.AMBASSADOR,
+    description: "着物姿の女性を発掘するコンテスト「京美人Award」の2度目の開催（京美人Award 2024）で応援アンバサダーを務めた。",
+    url: "https://equal-love.jp/news/detail/6947",
+    status: ACTIVITY_STATUS.PAST,
+    startDate: "2023-07-24",
+    endDate: null,
+    sourceType: "official",
+    sourceUrls: ["https://equal-love.jp/news/detail/6947", "https://www.kyoubijin-award.com/"],
+    lastVerifiedDate: "2026-10-28",
+  },
+  {
+    // 【2026-10-28追加】＝LOVE公式ニュース8857（2024-08-23）で確認。開催期間は公式文に無いので endDate は空、status は PAST。
+    id: "takamatsu-kyobijin-award-s3",
+    memberId: "takamatsu-hitomi",
+    relatedMemberIds: [],
+    title: "「京美人Award Season3」応援アンバサダー",
+    type: ACTIVITY_TYPE.AMBASSADOR,
+    description: "着物姿の女性を発掘するコンテスト「京美人Award」の3度目の開催（Season3）で応援アンバサダーを務めた。",
+    url: "https://equal-love.jp/news/detail/8857",
+    status: ACTIVITY_STATUS.PAST,
+    startDate: "2024-08-23",
+    endDate: null,
+    sourceType: "official",
+    sourceUrls: ["https://equal-love.jp/news/detail/8857", "https://www.kyoubijin-award.com/"],
+    lastVerifiedDate: "2026-10-28",
+  },
+  {
+    // 【2026-10-28追加】＝LOVE公式ニュース2812（2020-04-13、新連載）・3332（2020-10-08、第3回）・3969（2021-04-27）で確認
+    // （公式では2020-04〜2021-04に6回告知）。最終回は未確認なので UNKNOWN。utteco golf アンバサダー（2022）につながるゴルフ活動の出発点。
+    id: "otoshima-popnroll-golf",
+    memberId: "otoshima-risa",
+    relatedMemberIds: [],
+    title: "Pop'n'Roll 連載「＝LOVE 音嶋莉沙 ゴルフはじめました！」",
+    type: ACTIVITY_TYPE.OTHER,
+    description:
+      "音楽・アイドルメディア「Pop'n'Roll」でのWeb連載。ゴルフの楽しさやウェアの可愛さを伝える企画で、2020年4月に第1回（PUMA訪問編）が公開され、本格レッスンなどの回が続いた。",
+    url: "https://equal-love.jp/news/detail/2812",
+    status: ACTIVITY_STATUS.UNKNOWN,
+    startDate: "2020-04-13",
+    endDate: null,
+    sourceType: "official",
+    sourceUrls: [
+      "https://equal-love.jp/news/detail/2812",
+      "https://equal-love.jp/news/detail/3332",
+      "https://equal-love.jp/news/detail/3969",
+      "https://popnroll.tv/articles/7642",
+    ],
+    lastVerifiedDate: "2026-10-28",
   },
 ];
 // 【2026-10-23】佐々木舞香「サムライマック」CMは js/data/commercials.js（CM・広告出演）へ移した。

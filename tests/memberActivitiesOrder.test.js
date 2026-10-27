@@ -76,7 +76,8 @@ export function runMemberActivitiesOrderTests() {
 
   // 今回追加した2件が、それぞれのメンバーの先頭（＝一番新しい）に来る
   const noguchiSorted = sortActivitiesByDateDesc(getMemberActivities(MEMBER_ACTIVITIES, "noguchi-iori"));
-  assertEqual(noguchiSorted[0].id, "noguchi-tocco-closet", "E: 野口衣織は 2026-09-30 の tocco closet が一番上");
+  // 【2026-10-28】公開予定の映画『GROTESQQQUE』（2026-11-06、開始予定）が加わったため、tocco closet は継続中で2番目
+  assertEqual(noguchiSorted.slice(0, 2).map((activity) => activity.id), ["noguchi-movie-grotesqque", "noguchi-tocco-closet"], "E: 野口衣織は 2026-11-06 公開予定の映画 → 2026-09-30 の tocco closet の順で一番上");
   const obaSorted = sortActivitiesByDateDesc(getMemberActivities(MEMBER_ACTIVITIES, "oba-hana"));
   // 2026-10-02：さいたま観光大使（2026-10-01）が加わったため、REDYAZEL（2026-09-30）は2番目になる
   // 2026-10-23：放送開始予定の「はなまる！」（2026-11-01）が先頭に加わったため、REDYAZELは3番目
@@ -84,9 +85,28 @@ export function runMemberActivitiesOrderTests() {
   assertEqual(
     obaSorted.map((activity) => activity.id),
     // 2026-10-27：開始日未確認の継続中連載「咲かせて！クリエイティ部」が加わった（日付の無い活動は継続中グループの末尾）
+    // 2026-10-28：クリエイティ部に公式で確認できた最も古い連載中の時点（2023-02-15）を入れた（並びは変わらない）
     ["oba-nack5-hanamaru", "oba-saitama-tourism-ambassador", "oba-redyazel", "oba-artistspoken", "oba-ex-taishu-creative-bu", "oba-manga"],
-    "F: 大場花菜は 継続中（2026-10-01 → 2026-09-30 → 2024-06-14 → 日付なし）→ 終了（はなコミ！）の順"
+    "F: 大場花菜は 継続中（2026-10-01 → 2026-09-30 → 2024-06-14 → 2023-02-15）→ 終了（はなコミ！）の順"
   );
+
+  // 【2026-10-28追加】公式ニュース再調査で追加・統合した活動
+  const handInHand = findActivity("morohashi-hand-in-hand");
+  assertEqual(
+    [handInHand?.memberId, handInHand?.type, handInHand?.status, handInHand?.startDate, handInHand?.sourceType],
+    ["morohashi-sana", "radio", ACTIVITY_STATUS.ONGOING, "2023-08-18", "official"],
+    "N: 諸橋沙夏の TOKYO FM「Hand in Hand」現地取材（2023-08-18〜・継続中・公式出典）"
+  );
+  const honeyCinnamon = findActivity("otani-honeycinnamon");
+  assertEqual(
+    [honeyCinnamon?.memberId, honeyCinnamon?.type, honeyCinnamon?.status, honeyCinnamon?.startDate, honeyCinnamon?.endDate],
+    ["otani-emiri", "model", ACTIVITY_STATUS.UNKNOWN, "2018-06-05", null],
+    "N: 大谷映美里の HoneyCinnamon コレクションモデル（2018-06-05〜、終了の告知が無いので現況不明）"
+  );
+  assertEqual(honeyCinnamon.sourceUrls.every((url) => url.startsWith("https://equal-love.jp/news/detail/")), true, "N: HoneyCinnamon の出典は全て＝LOVE公式ニュース");
+  assertEqual(findActivity("saito-kiara-stage"), null, "N: 駅メモ！の重複カード（saito-kiara-stage）は削除され、VOICE側にまとめている");
+  assertEqual(findActivity("saito-suyunn-model")?.status, ACTIVITY_STATUS.ONGOING, "N: 齋藤樹愛羅の Suyunn は2026年9月の起用を公式で確認して継続中");
+  assertEqual(findActivity("noguchi-nijitsu")?.startDate, "2020-05-01", "N: 二次元領域拡大通信は公式2864の「5/1(金)より」が開始日");
 
   // 旧仕様（status優先）なら上に来ていた継続中の古い活動が、新しい活動より下になる
   const otaniSorted = sortActivitiesByDateDesc(getMemberActivities(MEMBER_ACTIVITIES, "otani-emiri"));
@@ -98,7 +118,9 @@ export function runMemberActivitiesOrderTests() {
   );
   const takamatsuIds = sortActivitiesByDateDesc(getMemberActivities(MEMBER_ACTIVITIES, "takamatsu-hitomi")).map((a) => a.id);
   assertEqual(takamatsuIds[0], "takamatsu-heather", "E: 髙松瞳は 2026-09-04 の Heather が一番上");
-  assertEqual(takamatsuIds[takamatsuIds.length - 1], "takamatsu-first-pitch", "F: 終了済み（過去の活動）が一番下");
+  // 【2026-10-28】過去の活動「京美人Award Season3」応援アンバサダー（2024-08-23）が加わったため、終了グループは
+  // 始球式（2025-09-22）→ 京美人Award（2024-08-23）の順で一番下に並ぶ
+  assertEqual(takamatsuIds.slice(-2), ["takamatsu-first-pitch", "takamatsu-kyobijin-award-s3"], "F: 終了済み（過去の活動）が一番下（その中も新しい順）");
   assertEqual(takamatsuIds.indexOf("takamatsu-hamburger-club") < takamatsuIds.indexOf("takamatsu-first-pitch"), true, "F: 日付不明の不定期活動でも、終了した活動より上");
 
   // グループ活動（ディスコグラフィ画面）も同じ関数で日付降順になる
@@ -196,8 +218,10 @@ export function runMemberActivityCardLayoutTests() {
     assertEqual(container.scrollWidth <= container.clientWidth + 1, true, "J: 375px 幅で横にはみ出さない");
     assertEqual(cards.every((card) => card.scrollWidth <= card.clientWidth + 1), true, "J: 各カードも横にはみ出さない");
 
-    const toccoCard = cards[0];
-    assertEqual(toccoCard.textContent.includes("tocco closet"), true, "I: 野口衣織の先頭カードが tocco closet");
+    // 【2026-10-28】公開予定の映画『GROTESQQQUE』（2026-11-06、開始予定）が継続中グループの先頭に加わったため、tocco closet は2番目
+    assertEqual(cards[0].textContent.includes("GROTESQQQUE"), true, "I: 野口衣織の先頭カードは公開予定の映画『GROTESQQQUE』");
+    const toccoCard = cards[1];
+    assertEqual(toccoCard.textContent.includes("tocco closet"), true, "I: 野口衣織の2番目のカードが tocco closet");
     const links = [...container.querySelectorAll("a")];
     const toccoLink = links.find((link) => link.href.includes("tocco-closet.co.jp"));
     const redyazelLink = links.find((link) => link.href.includes("burnedestrose.com"));
