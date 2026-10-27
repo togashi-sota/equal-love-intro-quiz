@@ -12,6 +12,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { getDatabase } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+import { recordAuthUidObservation, normalizeAuthUidHistory } from "./identityBootstrap.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBgkSOeXf9-6q0j2PgMpLzZ7HJuGhrB1B4",
@@ -46,9 +47,114 @@ export const authReady = new Promise((resolve) => {
 export const IS_TEST_RUNNER =
   typeof location !== "undefined" && /\/tests\.html$/.test(location.pathname);
 
+// ---------------------------------------------------------------------------
+// 【2026-10-28追加・本人の実機報告「プレイヤーIDがまた変わった」】認証UIDの端末内履歴（診断専用）。
+// 【永続化について】このファイルは setPersistence()／initializeAuth() を使っていない。getAuth() の既定
+// （IndexedDB → 使えなければ localStorage → sessionStorage の順で最初に使えるもの）でログイン情報を保存する。
+// iOS ではホーム画面アプリ（PWA）と Safari の保存領域が別なので、同じ端末でも起動方法が違えば別のUIDになる。
+// Service Worker の更新（sw.js）は Cache Storage しか消さないため、ログイン情報には影響しない。
+// ここでは挙動を一切変えず、「いつ・どんな状況でUIDが変わったか」を端末に記録するだけにする。
+// ---------------------------------------------------------------------------
+const AUTH_UID_HISTORY_STORAGE_KEY = "equalLoveIntroQuiz.authUidHistory";
+let createdNewAnonymousUserThisSession = false;
+let preSignInProbe = null;
+
+export function getAuthUidHistory() {
+  try {
+    return normalizeAuthUidHistory(JSON.parse(localStorage.getItem(AUTH_UID_HISTORY_STORAGE_KEY) ?? "null"));
+  } catch {
+    return normalizeAuthUidHistory(null);
+  }
+}
+
+export function getAuthSessionInfo() {
+  return { createdNewAnonymousUserThisSession, preSignInProbe };
+}
+
+function isStandaloneLaunch() {
+  try {
+    if (typeof window === "undefined") return null;
+    if (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) return true;
+    return window.navigator?.standalone === true;
+  } catch {
+    return null;
+  }
+}
+
+function recordAuthUid(uid) {
+  try {
+    const { history } = recordAuthUidObservation(getAuthUidHistory(), {
+      uid,
+      nowMs: Date.now(),
+      createdNewAnonymousUser: createdNewAnonymousUserThisSession,
+      standalone: isStandaloneLaunch(),
+      probe: preSignInProbe,
+    });
+    localStorage.setItem(AUTH_UID_HISTORY_STORAGE_KEY, JSON.stringify(history));
+  } catch {
+    // 診断用の記録なので、保存できなくてもログイン自体には影響させない
+  }
+}
+
+// 新しい匿名ユーザーを作る直前に、端末の保存領域に以前のログイン情報が残っているかを「読むだけ」で確認する。
+// 【安全のための約束】①IndexedDB は indexedDB.databases() で存在を確認できたときだけ開く（開くだけで
+// 空のデータベースが作られ、Firebase SDK 側の初期化を壊すことがあるため）②バージョンを指定せずに開き、
+// 万一アップグレードが走ったら中止する ③書き込みは一切しない ④最大800ミリ秒で打ち切る。
+function probeStoredAuthUser() {
+  const result = { indexedDbHasAuthUser: null, localStorageHasAuthUser: null };
+  try {
+    result.localStorageHasAuthUser = Object.keys(localStorage).some((key) => key.startsWith("firebase:authUser:"));
+  } catch {
+    result.localStorageHasAuthUser = null;
+  }
+  const probeIndexedDb = async () => {
+    if (typeof indexedDB === "undefined" || typeof indexedDB.databases !== "function") return;
+    const databases = await indexedDB.databases();
+    if (!databases.some((db) => db?.name === "firebaseLocalStorageDb")) {
+      result.indexedDbHasAuthUser = false;
+      return;
+    }
+    await new Promise((resolve) => {
+      const request = indexedDB.open("firebaseLocalStorageDb");
+      request.onupgradeneeded = () => {
+        request.transaction?.abort();
+      };
+      request.onerror = () => resolve();
+      request.onblocked = () => resolve();
+      request.onsuccess = () => {
+        const db = request.result;
+        try {
+          if (!db.objectStoreNames.contains("firebaseLocalStorage")) {
+            result.indexedDbHasAuthUser = false;
+            db.close();
+            resolve();
+            return;
+          }
+          const keysRequest = db.transaction("firebaseLocalStorage", "readonly").objectStore("firebaseLocalStorage").getAllKeys();
+          keysRequest.onsuccess = () => {
+            result.indexedDbHasAuthUser = (keysRequest.result ?? []).some((key) => String(key).startsWith("firebase:authUser:"));
+            db.close();
+            resolve();
+          };
+          keysRequest.onerror = () => {
+            db.close();
+            resolve();
+          };
+        } catch {
+          db.close();
+          resolve();
+        }
+      };
+    });
+  };
+  const timeout = new Promise((resolve) => setTimeout(resolve, 800));
+  return Promise.race([probeIndexedDb().catch(() => {}), timeout]).then(() => result);
+}
+
 let hasStartedSignIn = false;
 onAuthStateChanged(auth, (user) => {
   if (user) {
+    recordAuthUid(user.uid);
     resolveAuthReady(user);
     return;
   }
@@ -60,9 +166,17 @@ onAuthStateChanged(auth, (user) => {
       console.info("自動テスト（tests.html）のため、Firebaseへの匿名ログインは行いません");
       return;
     }
-    signInAnonymously(auth).catch((error) => {
-      console.error("匿名ログインに失敗しました", error);
-    });
+    // 【2026-10-28】新規作成の前に、保存領域の状態を読むだけで記録しておく（最大800ミリ秒。挙動は変えない）
+    probeStoredAuthUser()
+      .catch(() => null)
+      .then((probe) => {
+        preSignInProbe = probe;
+        createdNewAnonymousUserThisSession = true;
+        return signInAnonymously(auth);
+      })
+      .catch((error) => {
+        console.error("匿名ログインに失敗しました", error);
+      });
   }
 });
 

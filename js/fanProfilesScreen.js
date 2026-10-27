@@ -14,8 +14,15 @@ import {
 } from "./publicProfileSync.js";
 import { syncRankingCandidatesToFirebase } from "./timeAttackLeaderboardSync.js";
 import { resolveIsAdminUser } from "./adminConfig.js";
+// 【2026-10-28追加】管理者の診断表示（表示だけ。権限は一切与えない）
+import { getLastAdminCheck, getRememberedAdminUids } from "./adminConfig.js";
+import { describeAdminDiagnostics } from "./adminAccess.js";
 import { hasPendingUidMerge, planUidMerge, executeUidMerge, describeUidMergePlan } from "./uidSupersession.js";
-import { getPlayerKeyPrefix } from "./playerProfile.js";
+import { getPlayerKeyPrefix, getActivePlayer, getPendingUidMerge, getCompletedUidMerges, getLastKnownUid } from "./playerProfile.js";
+// 【2026-10-28追加】同じプレイヤーの重複カードをまとめる／同じ名前の別プレイヤーを見分ける（純粋関数）
+import { collapseSamePlayerProfiles, annotateSameNameProfiles, collectMyKnownOldUids, shortUidSuffix } from "./fanProfilesIdentity.js";
+import { getAuthUidHistory } from "./firebaseClient.js";
+import { summarizeAuthUidHistory } from "./identityBootstrap.js";
 import { getMemberById } from "./memberUtils.js";
 import {
   buildProfileCard,
@@ -26,9 +33,9 @@ import {
   sortProfiles,
 } from "./fanProfileCard.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
-import { subscribeToAllPresence } from "./presenceSync.js";
+import { subscribeToAllPresence, getPresenceNowMs } from "./presenceSync.js";
 import { describePresenceDiagnostics } from "./presenceDiagnostics.js";
-import { sortProfilesByPresence } from "./presencePayloads.js";
+import { sortProfilesByPresence, classifyPresenceEntry } from "./presencePayloads.js";
 import { onScreenChange } from "./screens.js";
 import { requestPlayInvite } from "./playInviteUi.js";
 // 【2026-09-05新設・本人指示：実機フィードバックによる改善】既に自分と同じオンライン
@@ -83,7 +90,10 @@ function renderProfileListFromCache() {
   // 【2026-09-05新設・本人指示】この一覧を描画する瞬間の「今のルームの参加者」を
   // 1回だけ取得し、全カードで使い回す（カード1枚ごとに問い合わせる必要はない値のため）。
   const currentRoomPlayerUids = getCurrentOnlineRoomPlayerUids();
-  sortProfilesByPresence(sortProfiles(latestProfiles), latestPresenceByUid, Date.now()).forEach((profile) =>
+  // 【2026-10-28変更】判定の「今」はサーバー時刻の推定値（端末の時計がずれていても正しく判定する）
+  const nowMs = getPresenceNowMs();
+  const displayProfiles = buildDisplayProfiles(latestProfiles, nowMs);
+  sortProfilesByPresence(sortProfiles(displayProfiles), latestPresenceByUid, nowMs).forEach((profile) =>
     elements.listContainer.appendChild(
       buildProfileCard(profile, members, openDetailModal, {
         isAdmin: isAdminUser,
@@ -92,9 +102,89 @@ function renderProfileListFromCache() {
         onPlayInviteRequest: requestPlayInvite,
         myUid,
         isInMyCurrentRoom: currentRoomPlayerUids.has(profile.uid),
+        nowMs,
       })
     )
   );
+  renderIdentityDiagnostics();
+}
+
+// 【2026-10-28新設・本人の実機報告「がしおが2人」】同じプレイヤーだと強い証拠で分かるカードを1枚にまとめ、
+// 同じ名前の別プレイヤーには短い印（UID末尾4文字）を付ける。Firebase のデータは一切変えない（表示だけ）。
+// 管理者には旧IDのカードも残す（「以前のID」と明記。既存の削除ボタンで整理できるように）。
+let lastHiddenDuplicates = [];
+
+function getMyKnownOldUids() {
+  const player = getActivePlayer();
+  return collectMyKnownOldUids({
+    currentUid: myUid,
+    pendingOldUid: getPendingUidMerge(player.playerId)?.oldUid ?? null,
+    completedOldUids: getCompletedUidMerges(player.playerId),
+    lastKnownUid: getLastKnownUid(player.playerId),
+  });
+}
+
+function buildDisplayProfiles(profiles, nowMs) {
+  const presenceRankByUid = {};
+  profiles.forEach((profile) => {
+    const classified = classifyPresenceEntry(latestPresenceByUid[profile.uid], nowMs);
+    presenceRankByUid[profile.uid] = {
+      online: classified.state === "online" || classified.state === "playing",
+      lastSeen: classified.lastSeen ?? -Infinity,
+    };
+  });
+  const { profiles: collapsed, hidden } = collapseSamePlayerProfiles(profiles, {
+    myUid,
+    myKnownOldUids: getMyKnownOldUids(),
+    presenceRankByUid,
+    keepHiddenForAdmin: isAdminUser,
+  });
+  lastHiddenDuplicates = hidden;
+  return annotateSameNameProfiles(collapsed);
+}
+
+// 【2026-10-28新設】「詳細情報」の中に、IDの変更履歴・旧IDの整理状況・管理者判定を表示する（表示専用）。
+// index.html を変えずに済むよう、要素はここで1回だけ作って詳細情報の末尾へ足す。
+let identityDiagElement = null;
+
+function renderIdentityDiagnostics() {
+  if (!elements?.details) return;
+  if (!identityDiagElement) {
+    identityDiagElement = document.createElement("div");
+    identityDiagElement.className = "fan-profiles-identity-diag";
+    elements.details.appendChild(identityDiagElement);
+  }
+  const lines = [];
+  const historySummary = summarizeAuthUidHistory(getAuthUidHistory());
+  if (historySummary.uidChangeCount > 0) {
+    const last = historySummary.lastChange;
+    const when = typeof last?.at === "number" ? new Date(last.at).toLocaleString("ja-JP") : "不明";
+    lines.push(`🔁 この端末でIDが変わった記録：${historySummary.uidChangeCount}回（最新：${when}、…${shortUidSuffix(last?.fromUid ?? "")} → …${shortUidSuffix(last?.toUid ?? "")}）`);
+    if (historySummary.lastChangeReason) lines.push(`　推定される原因：${historySummary.lastChangeReason}`);
+  }
+  const player = getActivePlayer();
+  const pending = getPendingUidMerge(player.playerId);
+  if (pending) lines.push(`🧹 以前のID（…${shortUidSuffix(pending.oldUid)}）の整理：未完了（上の案内から実行できます）`);
+  const completedCount = getCompletedUidMerges(player.playerId).length;
+  if (completedCount > 0) lines.push(`🧹 整理済みの以前のID：${completedCount}件`);
+  if (lastHiddenDuplicates.length > 0) {
+    lines.push(`👥 同じプレイヤーの重複カードを ${lastHiddenDuplicates.length}件まとめて表示しています（データは消していません）`);
+  }
+  const admin = describeAdminDiagnostics({
+    currentUid: myUid,
+    checkResult: getLastAdminCheck().result,
+    rememberedAdminUids: getRememberedAdminUids(),
+  });
+  if (admin.status !== "not-admin") lines.push(...admin.lines.map((line) => `🔑 ${line}`));
+
+  identityDiagElement.hidden = lines.length === 0;
+  identityDiagElement.innerHTML = "";
+  lines.forEach((line) => {
+    const p = document.createElement("p");
+    p.className = "fan-profiles-identity-diag-line";
+    p.textContent = line;
+    identityDiagElement.appendChild(p);
+  });
 }
 
 async function renderProfileList() {
@@ -140,6 +230,8 @@ async function renderMyUidAndAdminState() {
   if (elements.debugAudioLogLinkButton) {
     elements.debugAudioLogLinkButton.hidden = !isAdminUser;
   }
+  // 【2026-10-28追加】IDの変更履歴・管理者判定の診断表示（表示専用）
+  renderIdentityDiagnostics();
 }
 
 // 設定カード（「みんなに公開する」トグル）を、今の公開設定に合わせて描画する。

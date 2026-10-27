@@ -220,3 +220,96 @@ export function subscribeIdentityState(listener) {
 export function resetIdentityBootstrap() {
   appRunner?.reset();
 }
+
+// ---------------------------------------------------------------------------
+// 【2026-10-28追加・本人の実機報告「プレイヤーIDがまた変わった（2回目以上）」】
+// 端末内の「認証UIDの履歴」を扱う純粋関数。js/firebaseClient.js が onAuthStateChanged のたびに
+// recordAuthUidObservation() で更新し、localStorage（equalLoveIntroQuiz.authUidHistory）へ保存する。
+// 目的は「次にIDが変わったとき、原因を実機の画面1枚で切り分けられる」こと：
+//   ・createdNewAnonymousUser … そのセッションで signInAnonymously() を呼んで新しい匿名ユーザーを作ったか
+//                               （true＝端末の認証情報を読めなかった／消えていた）
+//   ・storedAuthUserInIndexedDb … 新規作成の直前に、Firebase の保存領域（IndexedDB）に以前のログイン情報が
+//                               残っていたか（true なのに新規作成になった＝SDKが保存領域を読めなかった疑い、
+//                               false＝保存領域ごと消えた／Firebase側でユーザーが削除されて片付けられた疑い）
+//   ・authUserInLocalStorage  … 同じく localStorage 側（IndexedDB が使えないときの保存先）に残っていたか
+//   ・standalone              … ホーム画面アプリ（PWA）として起動していたか（Safariとは保存領域が別）
+// UIDは秘密情報ではない（フレンド画面の「あなたのID」にも表示している）。ownerSecret・backupId は入れない。
+// ---------------------------------------------------------------------------
+export const AUTH_UID_HISTORY_MAX_ENTRIES = 10;
+export const AUTH_UID_HISTORY_MAX_EVENTS = 10;
+
+export function normalizeAuthUidHistory(raw) {
+  const history = raw && typeof raw === "object" ? raw : {};
+  const entries = Array.isArray(history.entries)
+    ? history.entries.filter((e) => e && typeof e.uid === "string" && e.uid)
+    : [];
+  const events = Array.isArray(history.events) ? history.events.filter((e) => e && typeof e === "object") : [];
+  return { entries, events };
+}
+
+// 1回分の観測（ログイン確定）を履歴へ反映した新しい履歴を返す（元の履歴は変更しない）。
+export function recordAuthUidObservation(rawHistory, { uid, nowMs, createdNewAnonymousUser = false, standalone = null, probe = null }) {
+  const history = normalizeAuthUidHistory(rawHistory);
+  if (typeof uid !== "string" || !uid) return { history, changed: false, previousUid: null };
+  const latest = history.entries.length ? history.entries[history.entries.length - 1] : null;
+  const entries = history.entries.map((e) => ({ ...e }));
+  let changed = false;
+  let previousUid = null;
+  const existing = entries.find((e) => e.uid === uid);
+  if (latest && latest.uid === uid) {
+    entries[entries.length - 1] = { ...entries[entries.length - 1], lastSeenAt: nowMs };
+  } else {
+    if (latest) {
+      changed = true;
+      previousUid = latest.uid;
+    }
+    const others = entries.filter((e) => e.uid !== uid);
+    others.push({ uid, firstSeenAt: existing?.firstSeenAt ?? nowMs, lastSeenAt: nowMs });
+    entries.length = 0;
+    entries.push(...others.slice(-AUTH_UID_HISTORY_MAX_ENTRIES));
+  }
+  const events = [...history.events];
+  if (changed) {
+    events.push({
+      type: existing ? "uid-returned" : "uid-changed",
+      fromUid: previousUid,
+      toUid: uid,
+      at: nowMs,
+      previousLastSeenAt: latest?.lastSeenAt ?? null,
+      createdNewAnonymousUser: createdNewAnonymousUser === true,
+      standalone: typeof standalone === "boolean" ? standalone : null,
+      storedAuthUserInIndexedDb: typeof probe?.indexedDbHasAuthUser === "boolean" ? probe.indexedDbHasAuthUser : null,
+      authUserInLocalStorage: typeof probe?.localStorageHasAuthUser === "boolean" ? probe.localStorageHasAuthUser : null,
+    });
+  }
+  return { history: { entries, events: events.slice(-AUTH_UID_HISTORY_MAX_EVENTS) }, changed, previousUid };
+}
+
+// 1件の「UIDが変わった」記録から、考えられる原因を日本語で返す（診断表示用・推定）。
+export function describeAuthUidChangeEvent(event) {
+  if (!event || typeof event !== "object") return null;
+  if (event.type === "uid-returned") return "以前使っていたIDに戻りました（別のプレイヤー切り替え・復元など）";
+  if (!event.createdNewAnonymousUser) {
+    return "ログインは保存領域から復元されましたが、前回と違うIDでした（別の保存領域・別の起動方法の可能性）";
+  }
+  if (event.storedAuthUserInIndexedDb === true || event.authUserInLocalStorage === true) {
+    return "端末にログイン情報が残っていたのに読み込めず、新しいIDが作られました（保存領域の読み込み失敗の疑い）";
+  }
+  if (event.storedAuthUserInIndexedDb === false && event.authUserInLocalStorage === false) {
+    return "端末のログイン情報が見つからず、新しいIDが作られました（保存領域の消去、またはFirebase側でIDが削除された疑い）";
+  }
+  return "端末のログイン情報を確認できないまま、新しいIDが作られました";
+}
+
+// 診断表示用の要約（純粋関数）。
+export function summarizeAuthUidHistory(rawHistory) {
+  const { entries, events } = normalizeAuthUidHistory(rawHistory);
+  const changeEvents = events.filter((e) => e.type === "uid-changed");
+  return {
+    knownUidCount: entries.length,
+    uidChangeCount: changeEvents.length,
+    lastChange: changeEvents.length ? changeEvents[changeEvents.length - 1] : null,
+    lastChangeReason: changeEvents.length ? describeAuthUidChangeEvent(changeEvents[changeEvents.length - 1]) : null,
+    previousUids: entries.slice(0, -1).map((e) => e.uid),
+  };
+}

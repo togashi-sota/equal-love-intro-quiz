@@ -176,3 +176,114 @@ export function selectStaleOwnConnectionIds(connections, currentConnectionId, no
     return nowMs - createdAt >= maxAgeMs;
   });
 }
+
+// ---------------------------------------------------------------------------
+// 【2026-10-28追加・本人の実機報告（オンラインのまま／オフラインにならない／オンラインなのに
+// オフライン／最終接続がおかしい／「記録なし」）への対応】
+// 既存の computeIsOnlineForDisplay()・buildPresenceStatusLabel() は互換のためそのまま残し、
+// フレンド一覧の表示は下の classifyPresenceEntry()／buildPresenceDisplay() で「5つの状態」に分ける。
+//   online  … 接続ノードがあり、サーバー時刻で見た最新の生存記録（lastSeen または接続ごとの時刻）が新しい
+//   playing … online のうち「🎮 プレイ中」
+//   unknown … 接続ノードは残っているが、生存記録が PRESENCE_STALE_CONNECTION_MS〜PRESENCE_UNKNOWN_MAX_MS の間
+//             更新されていない（本当に切れたのか、通信が詰まっているだけか判断できない）→「通信不明」
+//   offline … 接続ノードが無い、または生存記録が PRESENCE_UNKNOWN_MAX_MS より古い残骸だけ →「最終接続 ○前」
+//   none    … presence の記録そのものが無い（または接続も lastSeen も無い）→「記録なし」
+// 【時刻はサーバー基準】nowMs には端末の Date.now() ではなく、computeServerNowMs()（端末時刻＋
+// Firebase の .info/serverTimeOffset）を渡す。lastSeen は serverTimestamp() で書かれるため、
+// 見る側の端末の時計が15分以上ずれていると「オンラインなのにオフライン」になっていた。
+// 【複数端末】接続ノードの値が数値（将来 Rules を変えて接続ごとの生存時刻を書く場合）のときは
+// 接続ごとに判定し、1つでも新しければ online。値が true（現行 Rules）のときは共有の lastSeen で判定する。
+// ---------------------------------------------------------------------------
+
+// 接続ノードは残っているのに生存記録が止まっている状態を「通信不明」と表示する上限。
+// これより古い残骸は、ハートビート（2分ごと）が30回以上届いていない＝確実に切断済みとみなし、
+// 既存の「ゆき」対応と同じく最終接続時刻だけを表示する。
+export const PRESENCE_UNKNOWN_MAX_MS = 60 * 60 * 1000;
+
+// サーバー時刻の推定値（端末時刻＋オフセット）。オフセットが分からなければ端末時刻のまま。
+export function computeServerNowMs(localNowMs, serverTimeOffsetMs) {
+  const offset = typeof serverTimeOffsetMs === "number" && Number.isFinite(serverTimeOffsetMs) ? serverTimeOffsetMs : 0;
+  return localNowMs + offset;
+}
+
+// 接続ノード（connections）の中身を「時刻つき」「時刻なし（true）」に分けて数える。
+function summarizeConnections(connections) {
+  const summary = { total: 0, withTime: [], withoutTime: 0 };
+  if (!connections || typeof connections !== "object") return summary;
+  Object.values(connections).forEach((value) => {
+    summary.total += 1;
+    if (typeof value === "number" && Number.isFinite(value)) summary.withTime.push(value);
+    else summary.withoutTime += 1;
+  });
+  return summary;
+}
+
+// presence 1件を5状態のどれかに分類する（純粋関数）。
+// 戻り値：{ state, lastSeen: number|null（表示に使う最終接続時刻）, connectionCount, freshConnectionCount }
+export function classifyPresenceEntry(presenceEntry, nowMs) {
+  if (!presenceEntry || typeof presenceEntry !== "object") {
+    return { state: "none", lastSeen: null, connectionCount: 0, freshConnectionCount: 0 };
+  }
+  const lastSeen = typeof presenceEntry.lastSeen === "number" && Number.isFinite(presenceEntry.lastSeen) ? presenceEntry.lastSeen : null;
+  const connections = summarizeConnections(presenceEntry.connections);
+  const isFresh = (time) => nowMs - time <= PRESENCE_STALE_CONNECTION_MS;
+  const freshTimed = connections.withTime.filter(isFresh).length;
+  // 時刻なし（true）の接続は、共有の lastSeen が新しければ生きているとみなす（lastSeen が無い古い形式は従来どおり生存扱い）
+  const freshUntimed = connections.withoutTime > 0 && (lastSeen === null || isFresh(lastSeen)) ? connections.withoutTime : 0;
+  const freshConnectionCount = freshTimed + freshUntimed;
+  // 表示に使う最終接続時刻：lastSeen と接続ごとの時刻のうち最も新しいもの
+  const newestSeen = [lastSeen, ...connections.withTime].filter((t) => typeof t === "number").reduce((a, b) => Math.max(a, b), -Infinity);
+  const shownLastSeen = Number.isFinite(newestSeen) ? newestSeen : null;
+  const base = { lastSeen: shownLastSeen, connectionCount: connections.total, freshConnectionCount };
+
+  if (freshConnectionCount > 0) {
+    return { ...base, state: presenceEntry.isPlaying === true ? "playing" : "online" };
+  }
+  if (connections.total > 0) {
+    // 接続ノードはあるが、どれも生存記録が古い
+    if (shownLastSeen !== null && nowMs - shownLastSeen <= PRESENCE_UNKNOWN_MAX_MS) return { ...base, state: "unknown" };
+    if (shownLastSeen === null) return { ...base, state: "unknown" };
+    return { ...base, state: "offline" };
+  }
+  // 接続ノードが無い：瞬断の猶予（既存と同じ）だけオンライン相当、それ以外は最終接続時刻
+  if (shownLastSeen !== null && nowMs - shownLastSeen <= PRESENCE_OFFLINE_GRACE_MS) {
+    return { ...base, state: presenceEntry.isPlaying === true ? "playing" : "online" };
+  }
+  if (shownLastSeen !== null) return { ...base, state: "offline" };
+  return { ...base, state: "none" };
+}
+
+// フレンドカード用の表示（アイコン・文言・オンライン扱いか）を組み立てる（純粋関数）。
+// isOnline は「一緒に遊ぶ」ボタン・並び順に使う。unknown は安全側（オンライン扱いにしない）。
+export function buildPresenceDisplay(presenceEntry, nowMs) {
+  const result = classifyPresenceEntry(presenceEntry, nowMs);
+  const lastSeenLabel = formatLastSeenLabel(result.lastSeen ?? undefined, nowMs);
+  switch (result.state) {
+    case "playing":
+      return { state: "playing", icon: "🎮", text: "プレイ中", isOnline: true, isPlaying: true };
+    case "online":
+      return { state: "online", icon: "🟢", text: "オンライン", isOnline: true, isPlaying: false };
+    case "unknown":
+      return {
+        state: "unknown",
+        icon: "❔",
+        text: lastSeenLabel ? `通信不明（最終確認 ${lastSeenLabel}）` : "通信不明",
+        isOnline: false,
+        isPlaying: false,
+      };
+    case "offline":
+      return { state: "offline", icon: "⚫", text: lastSeenLabel ?? "記録なし", isOnline: false, isPlaying: false };
+    default:
+      return { state: "none", icon: "⚫", text: "記録なし", isOnline: false, isPlaying: false };
+  }
+}
+
+// 【2026-10-28追加】画面がバックグラウンド・ロックから戻ったときに lastSeen を即時更新するかの判定（純粋関数）。
+// iOS ではバックグラウンド中に setInterval が止まるため、復帰直後は lastSeen が数分古いことがある。
+export const PRESENCE_RESUME_HEARTBEAT_MIN_INTERVAL_MS = 30000;
+
+export function shouldWriteResumeHeartbeat({ visibilityState, trackedUid: uid, nowMs, lastWrittenAtMs, minIntervalMs = PRESENCE_RESUME_HEARTBEAT_MIN_INTERVAL_MS }) {
+  if (visibilityState !== "visible") return false;
+  if (!uid) return false;
+  return nowMs - lastWrittenAtMs >= minIntervalMs;
+}

@@ -8,7 +8,8 @@ import { getAchievementById } from "./achievementDefinitions.js";
 import { buildAchievementIconMedal } from "./achievementIcons.js";
 import { applyOshiBadgeDecorationsFromState } from "./oshiBadge.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
-import { buildPresenceStatusLabel, computeIsOnlineForDisplay } from "./presencePayloads.js";
+import { buildPresenceDisplay } from "./presencePayloads.js";
+import { buildProfileIdentityNote } from "./fanProfilesIdentity.js";
 
 export function buildOshiSwatch(members, oshiMemberId, badgeState) {
   const swatch = document.createElement("span");
@@ -97,6 +98,9 @@ export function buildProfileCard(profile, members, onSelect, options = {}) {
     // js/onlineBattleScreen.jsのgetCurrentOnlineRoomPlayerUids()から判定して渡す
     // （このファイル自体はFirebase・オンライン対戦の状態に一切触れない設計を保つため）。
     isInMyCurrentRoom = false,
+    // 【2026-10-28追加】オンライン判定に使う「今」。js/fanProfilesScreen.js はサーバー時刻の推定値
+    // （js/presenceSync.js の getPresenceNowMs()）を渡す。省略時は従来どおり端末時刻。
+    nowMs = Date.now(),
   } = options;
   const card = document.createElement("button");
   card.type = "button";
@@ -125,17 +129,29 @@ export function buildProfileCard(profile, members, onSelect, options = {}) {
   // ときだけ表示する（options自体が省略された既存の呼び出し元・既存テストの見た目は
   // 変えない）。
   if (options.presenceEntry !== undefined) {
-    const { text, isOnline, isPlaying } = buildPresenceStatusLabel(presenceEntry, Date.now());
+    // 【2026-10-28変更】「オンライン／プレイ中／通信不明／最終接続／記録なし」の5状態で表示する
+    // （js/presencePayloads.js の buildPresenceDisplay()）。オンライン・オフラインの文言は従来と同じ。
+    const { text, isOnline, icon, state } = buildPresenceDisplay(presenceEntry, nowMs);
     const statusChip = document.createElement("span");
     statusChip.className = "fan-profile-card-presence";
     statusChip.classList.toggle("is-online", isOnline);
+    statusChip.dataset.presenceState = state;
     // 【2026-11-XX新設・本人指示：「🎮 プレイ中」表示】オンライン中の特別な一状態として、
     // 絵文字だけを🎮に差し替える（isOnline自体の判定・並び順・色分けはオンラインのまま）。
-    const icon = isPlaying ? "🎮" : isOnline ? "🟢" : "⚫";
     statusChip.textContent = `${icon} ${text}`;
     nameRow.appendChild(statusChip);
   }
   body.appendChild(nameRow);
+
+  // 【2026-10-28追加】同じ名前の別プレイヤー・管理者向けの旧IDカードを見分ける短い補足
+  // （js/fanProfilesIdentity.js。名前だけでカードをまとめることは絶対にしない）。
+  const identityNote = buildProfileIdentityNote(profile, { myUid });
+  if (identityNote) {
+    const note = document.createElement("span");
+    note.className = "fan-profile-card-identity-note";
+    note.textContent = identityNote;
+    body.appendChild(note);
+  }
 
   const oshiMember = profile.oshiMemberId ? getMemberById(members, profile.oshiMemberId) : null;
   const oshiLine = document.createElement("span");
@@ -176,7 +192,7 @@ export function buildProfileCard(profile, members, onSelect, options = {}) {
   // 「一緒に遊ぶ」ボタンが必要な相手（＝自分以外）のときだけ、下に1段追加する。
   const showPlayInviteButton = onPlayInviteRequest !== null && profile.uid !== myUid;
   const playInviteRow = showPlayInviteButton
-    ? buildPlayInviteButtonRow(profile, presenceEntry, onPlayInviteRequest, isInMyCurrentRoom)
+    ? buildPlayInviteButtonRow(profile, presenceEntry, onPlayInviteRequest, isInMyCurrentRoom, nowMs)
     : null;
 
   if (!isAdmin) {
@@ -227,10 +243,10 @@ export function buildProfileCard(profile, members, onSelect, options = {}) {
 // 状態表示にする（既に同じゲームにいる相手を、同じゲームへ改めて招待する意味が無いため）。
 // 大きな無効ボタンを置くより、既存のオンライン状態表示（🟢オンライン・🎮プレイ中）と
 // 同じ「状態を短く伝えるだけ」の見せ方に馴染ませる。
-function buildPlayInviteButtonRow(profile, presenceEntry, onPlayInviteRequest, isInMyCurrentRoom) {
-  const isOnline = computeIsOnlineForDisplay(presenceEntry, Date.now());
+function buildPlayInviteButtonRow(profile, presenceEntry, onPlayInviteRequest, isInMyCurrentRoom, nowMs = Date.now()) {
+  // 【2026-10-28変更】カードの状態表示と同じ判定（buildPresenceDisplay）を使い、表示とボタンを食い違わせない
+  const { isOnline, isPlaying } = buildPresenceDisplay(presenceEntry, nowMs);
   if (!isOnline) return null;
-  const isPlaying = presenceEntry?.isPlaying === true;
 
   const row = document.createElement("div");
   row.className = "fan-profile-play-invite-row";

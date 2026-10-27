@@ -27,7 +27,7 @@
 
 import { database, authReady, getCurrentUid } from "./firebaseClient.js";
 import { ref, get } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
-import { isAdminFlagValue, buildAdminFlagPath } from "./adminAccess.js";
+import { isAdminFlagValue, buildAdminFlagPath, rememberAdminUid } from "./adminAccess.js";
 
 // 直近に確認したUIDと結果を覚えておき、同じUIDのまま何度も画面を開いたときに
 // Firebaseへ毎回読みに行かないようにする。
@@ -37,12 +37,45 @@ import { isAdminFlagValue, buildAdminFlagPath } from "./adminAccess.js";
 //   コストは無視できる）。
 let confirmedAdminUid = null;
 
+// 【2026-10-28追加・本人の実機報告「IDが変わって管理者機能が使えなくなった」】診断表示用の記録。
+// ・lastAdminCheck … 直近の判定結果（"admin" / "not-registered" / "error" / "no-auth"）。
+//   「未登録」と「通信失敗」を画面で区別するため（どちらも管理者UIは出さない＝従来どおり安全側）。
+// ・この端末で管理者と確認できたUIDを localStorage に覚えておく（rememberAdminUid）。UIDが変わった後に
+//   「以前のIDでは管理者でした → Console で admins/{新しいID} を追加してください」と案内するためだけに使い、
+//   権限の判定には一切使わない（判定は常に Firebase の admins/{uid} と Rules だけ）。
+const ADMIN_CONFIRMED_UIDS_STORAGE_KEY = "equalLoveIntroQuiz.adminConfirmedUids";
+let lastAdminCheck = { uid: null, result: null };
+
+export function getLastAdminCheck() {
+  return { ...lastAdminCheck };
+}
+
+export function getRememberedAdminUids() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(ADMIN_CONFIRMED_UIDS_STORAGE_KEY) ?? "[]");
+    return Array.isArray(parsed) ? parsed.filter((uid) => typeof uid === "string" && uid) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveRememberedAdminUid(uid) {
+  try {
+    localStorage.setItem(ADMIN_CONFIRMED_UIDS_STORAGE_KEY, JSON.stringify(rememberAdminUid(getRememberedAdminUids(), uid)));
+  } catch {
+    // 記録できなくても判定自体には影響しない
+  }
+}
+
 // 今ログイン中のユーザーが管理者かどうかを返す（非同期）。
 // 通信失敗・未ログイン・パス不正のときは必ずfalse（＝管理者UIを出さない安全側）。
 export async function resolveIsAdminUser() {
   await authReady;
   const uid = getCurrentUid();
-  if (uid === null) return false;
+  if (uid === null) {
+    lastAdminCheck = { uid: null, result: "no-auth" };
+    return false;
+  }
   if (confirmedAdminUid === uid) return true;
 
   const path = buildAdminFlagPath(uid);
@@ -51,12 +84,17 @@ export async function resolveIsAdminUser() {
   try {
     const snapshot = await get(ref(database, path));
     const isAdmin = isAdminFlagValue(snapshot.val());
-    if (isAdmin) confirmedAdminUid = uid;
+    if (isAdmin) {
+      confirmedAdminUid = uid;
+      saveRememberedAdminUid(uid);
+    }
+    lastAdminCheck = { uid, result: isAdmin ? "admin" : "not-registered" };
     return isAdmin;
   } catch (error) {
     // Rules上「自分のフラグ」は必ず読めるため、ここに来るのは通信断など環境側の失敗。
     // 管理者UIを出さないだけで画面自体は壊さない。
     console.warn("管理者判定の読み取りに失敗しました（管理者用UIは表示しません）", error);
+    lastAdminCheck = { uid, result: "error" };
     return false;
   }
 }
