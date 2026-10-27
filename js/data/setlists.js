@@ -13,6 +13,7 @@
 //
 // 項目：
 //   id            : 公演（1日・1部ごと）のID
+//   kind          : "festival"（フェス・イベントへの出演。持ち時間の短いステージ）。単独公演は省略
 //   liveId        : js/data/liveHistory.js の公演カードのID。カードが無い公演は null
 //   dayLabel      : DAY1／DAY2、昼公演／夜公演、第2部 など（単日公演は null）
 //   dayNote       : 昼夜どちらの曲順か分からない等の補足
@@ -21,8 +22,10 @@
 //   items         : { order, title, songId, section: opening/main/encore/double-encore, form: normal/unit/medley/other, note?, referenceOnly? }
 //
 // 元データ：tools/feature-research/setlists-2017-2023.json・setlists-2024-2026.json（2026-10-27調査、Git管理外）。
+// 【2026-10-28追加調査】tools/feature-research/2026-10-28/live-video-proposal.json（公式ディスコグラフィー・PR TIMES・報道で照合）。
+//   横浜スタジアム DAY1・有明アリーナ追加公演 DAY2・フェス4件を追加、夏祭り1部・2部を全曲に、3周年・6周年 DAY2 に Overture を追加。
 
-export const SETLIST_RESEARCHED_AT = "2026-10-27";
+export const SETLIST_RESEARCHED_AT = "2026-10-28";
 
 export const SETLIST_SECTION_LABELS = {
   opening: "オープニング",
@@ -133,6 +136,7 @@ export const SETLIST_PERFORMANCES = [
       { kind: "official", title: "=LOVE 3rd ANNIVERSARY PREMIUM CONCERT 受注受付開始（公式NEWS）", url: "https://equal-love.jp/news/detail/3737" },
     ],
     items: [
+      { order: 0, title: "Overture", songId: "overture", section: "opening", form: "other", note: "映像商品の曲目（SE. OVERTURE）" },
       { order: 1, title: "=LOVE", songId: "love", section: "main", form: "normal", note: "髙松瞳がサプライズ復帰し12人で1曲目" },
       { order: 2, title: "僕らの制服クリスマス", songId: "bokura-no-seifuku-christmas", section: "main", form: "normal" },
       { order: 3, title: "今、この船に乗れ！", songId: "ima-kono-fune-ni-nore", section: "main", form: "normal" },
@@ -548,16 +552,37 @@ export const SETLIST_PERFORMANCES = [
     title: "イコラブヨコハマ夏祭り Presented by Rakuten Optimism",
     date: "2023-08-05",
     dayLabel: "1部",
-    dayNote: "この公演は『ラブロケ』の披露（M9）だけを調べたもので、ほかの曲順は未収録",
+    dayNote: "番号は公式リリースの表記（アンコール1〜4を19〜22に通し番号化）。9曲目と10曲目の間にダンストラック（番号なし）。Overture の記載なし（オープニングは客席からの登場）",
     venue: "パシフィコ横浜 国立大ホール",
-    completeness: "partial",
+    completeness: "full",
     verification: "official",
     membersNote: null,
     sources: [
       { kind: "official", title: "「イコラブヨコハマ夏祭り」をパシフィコ横浜国立大ホールにて、2公演開催！（PR TIMES）", url: "https://prtimes.jp/main/html/rd/p/000003826.000013546.html" },
     ],
     items: [
-      { order: 9, title: "ラブロケ", songId: "love-locke", section: "main", form: "unit", note: "初披露（公式リリースに「※初披露」）。歌唱：大場花菜・音嶋莉沙・齋藤樹愛羅・髙松瞳・瀧脇笙古・山本杏奈（公式リリース）" },
+      { order: 1, title: "ナツマトペ", songId: "natsumatope", section: "main", form: "normal", note: "14thシングル表題曲（7/19発売）" },
+      { order: 2, title: "ウィークエンドシトロン", songId: "weekend-citron", section: "main", form: "normal" },
+      { order: 3, title: "セノビーインラブ", songId: "senobi-in-love", section: "main", form: "normal" },
+      { order: 4, title: "樹愛羅、助けに来たぞ", songId: "kiara-tasuke-ni-kita-zo", section: "main", form: "normal" },
+      { order: 5, title: "わたし、魔法使い", songId: "watashi-mahoutsukai", section: "main", form: "unit", note: "歌唱：大谷映美里、音嶋莉沙（PR TIMES）" },
+      { order: 6, title: "BPM170の君へ", songId: "bpm170-no-kimi-e", section: "main", form: "unit", note: "歌唱：大場花菜、髙松瞳、瀧脇笙古、野口衣織、諸橋沙夏（PR TIMES）" },
+      { order: 7, title: "おかえり、花便り", songId: "okaeri-hanadayori", section: "main", form: "unit", note: "歌唱：山本杏奈（ソロ）（PR TIMES）。初披露（PR TIMES本文。2部でも披露）" },
+      { order: 8, title: "虹の素", songId: "niji-no-moto", section: "main", form: "unit", note: "歌唱：佐々木舞香、野口衣織（PR TIMES）" },
+      { order: 9, title: "ラブロケ", songId: "love-locke", section: "main", form: "unit", note: "歌唱：大場花菜、音嶋莉沙、齋藤樹愛羅、髙松瞳、瀧脇笙古、山本杏奈（PR TIMES）。初披露（PR TIMES「※初披露」）" },
+      { order: 10, title: "Be Selfish", songId: "be-selfish", section: "main", form: "normal" },
+      { order: 11, title: "ヒロインズ", songId: "heroines", section: "main", form: "normal" },
+      { order: 12, title: "Junkies", songId: "junkies", section: "main", form: "normal" },
+      { order: 13, title: "記憶のどこかで", songId: "kioku-no-dokoka-de", section: "main", form: "normal" },
+      { order: 14, title: "だからとて", songId: "dakaratote", section: "main", form: "normal" },
+      { order: 15, title: "Oh！Darling", songId: "oh-darling", section: "main", form: "normal" },
+      { order: 16, title: "青春\"サブリミナル\"", songId: "seishun-subliminal", section: "main", form: "normal" },
+      { order: 17, title: "この空がトリガー", songId: "kono-sora-ga-trigger", section: "main", form: "normal" },
+      { order: 18, title: "夏祭り恋慕う", songId: "natsumatsuri-koishitau", section: "main", form: "normal" },
+      { order: 19, title: "笑顔のレシピ", songId: "egao-no-recipe", section: "encore", form: "normal" },
+      { order: 20, title: "探せ ダイヤモンドリリー", songId: "sagase-diamond-lily", section: "encore", form: "normal" },
+      { order: 21, title: "「部活中に目が合うなって思ってたんだ」", songId: "bukatsuchu-ni-megaau-natte-omotteta-nda", section: "encore", form: "normal" },
+      { order: 22, title: "ナツマトペ", songId: "natsumatope", section: "encore", form: "normal" },
     ],
   },
   {
@@ -566,16 +591,37 @@ export const SETLIST_PERFORMANCES = [
     title: "イコラブヨコハマ夏祭り Presented by Rakuten Optimism",
     date: "2023-08-05",
     dayLabel: "2部",
-    dayNote: "この公演は『ラブロケ』の披露（M9）だけを調べたもので、ほかの曲順は未収録",
+    dayNote: "番号は公式リリースの表記（アンコール1〜4を19〜22に通し番号化）。5・6曲目のユニット曲が1部と違う",
     venue: "パシフィコ横浜 国立大ホール",
-    completeness: "partial",
+    completeness: "full",
     verification: "official",
     membersNote: null,
     sources: [
       { kind: "official", title: "「イコラブヨコハマ夏祭り」をパシフィコ横浜国立大ホールにて、2公演開催！（PR TIMES）", url: "https://prtimes.jp/main/html/rd/p/000003826.000013546.html" },
     ],
     items: [
-      { order: 9, title: "ラブロケ", songId: "love-locke", section: "main", form: "unit", note: "歌唱メンバーは公式リリースでは1部と同じ6人の表記" },
+      { order: 1, title: "ナツマトペ", songId: "natsumatope", section: "main", form: "normal", note: "14thシングル表題曲（7/19発売）" },
+      { order: 2, title: "ウィークエンドシトロン", songId: "weekend-citron", section: "main", form: "normal" },
+      { order: 3, title: "セノビーインラブ", songId: "senobi-in-love", section: "main", form: "normal" },
+      { order: 4, title: "樹愛羅、助けに来たぞ", songId: "kiara-tasuke-ni-kita-zo", section: "main", form: "normal" },
+      { order: 5, title: "24/7", songId: "24-7", section: "main", form: "unit", note: "歌唱：齋藤樹愛羅、髙松瞳、野口衣織、諸橋沙夏、山本杏奈（PR TIMES）" },
+      { order: 6, title: "お姉さんじゃダメですか？", songId: "oneesan-ja-dame-desuka", section: "main", form: "unit", note: "歌唱：大谷映美里、大場花菜、音嶋莉沙、佐々木舞香、瀧脇笙古（PR TIMES）" },
+      { order: 7, title: "おかえり、花便り", songId: "okaeri-hanadayori", section: "main", form: "unit", note: "歌唱：山本杏奈（ソロ）（PR TIMES）" },
+      { order: 8, title: "虹の素", songId: "niji-no-moto", section: "main", form: "unit", note: "歌唱：佐々木舞香、野口衣織（PR TIMES）" },
+      { order: 9, title: "ラブロケ", songId: "love-locke", section: "main", form: "unit", note: "歌唱：大場花菜、音嶋莉沙、齋藤樹愛羅、髙松瞳、瀧脇笙古、山本杏奈（PR TIMES）" },
+      { order: 10, title: "Be Selfish", songId: "be-selfish", section: "main", form: "normal" },
+      { order: 11, title: "ヒロインズ", songId: "heroines", section: "main", form: "normal" },
+      { order: 12, title: "Junkies", songId: "junkies", section: "main", form: "normal" },
+      { order: 13, title: "記憶のどこかで", songId: "kioku-no-dokoka-de", section: "main", form: "normal" },
+      { order: 14, title: "だからとて", songId: "dakaratote", section: "main", form: "normal" },
+      { order: 15, title: "Oh！Darling", songId: "oh-darling", section: "main", form: "normal" },
+      { order: 16, title: "青春\"サブリミナル\"", songId: "seishun-subliminal", section: "main", form: "normal" },
+      { order: 17, title: "この空がトリガー", songId: "kono-sora-ga-trigger", section: "main", form: "normal" },
+      { order: 18, title: "夏祭り恋慕う", songId: "natsumatsuri-koishitau", section: "main", form: "normal" },
+      { order: 19, title: "笑顔のレシピ", songId: "egao-no-recipe", section: "encore", form: "normal" },
+      { order: 20, title: "探せ ダイヤモンドリリー", songId: "sagase-diamond-lily", section: "encore", form: "normal" },
+      { order: 21, title: "「部活中に目が合うなって思ってたんだ」", songId: "bukatsuchu-ni-megaau-natte-omotteta-nda", section: "encore", form: "normal" },
+      { order: 22, title: "ナツマトペ", songId: "natsumatope", section: "encore", form: "normal" },
     ],
   },
   {
@@ -638,6 +684,7 @@ export const SETLIST_PERFORMANCES = [
       { kind: "official", title: "「＝LOVE 6th ANNIVERSARY PREMIUM CONCERT」映像商品アートワーク・収録内容公開！（公式NEWS）", url: "https://equal-love.jp/news/detail/8513" },
     ],
     items: [
+      { order: 0, title: "Overture", songId: "overture", section: "opening", form: "other", note: "映像商品の曲目（SE. Overture）" },
       { order: 1, title: "＝LOVE", songId: "love", section: "main", form: "normal", note: "ストリングス生演奏付き" },
       { order: 2, title: "僕らの制服クリスマス", songId: "bokura-no-seifuku-christmas", section: "main", form: "normal" },
       { order: 3, title: "The 5th", songId: "the-5th", section: "main", form: "normal" },
@@ -712,6 +759,32 @@ export const SETLIST_PERFORMANCES = [
       { order: 26, title: "お姫様にしてよ！", songId: "ohimesama-ni-shiteyo", section: "encore", form: "normal" },
       { order: 27, title: "この空がトリガー", songId: "kono-sora-ga-trigger", section: "encore", form: "normal" },
       { order: 28, title: "笑顔のレシピ", songId: "egao-no-recipe", section: "double-encore", form: "normal", note: "PR TIMES のセトリでは EM6（ENCORE 欄）だが本文はダブルアンコールと記載" },
+    ],
+  },
+  {
+    id: "fest-tif-2024",
+    kind: "festival",
+    liveId: null,
+    title: "TOKYO IDOL FESTIVAL 2024 supported by にしたんクリニック",
+    date: "2024-08-04",
+    dayLabel: null,
+    dayNote: "8年連続のTIF出演（記事）",
+    venue: "お台場・青海周辺エリア（HOT STAGE）",
+    completeness: "full",
+    verification: "press",
+    membersNote: null,
+    sources: [
+      { kind: "press", title: "【ライブレポート】＝LOVE『TIF』に8年連続で出演！夏らしいセットリストでファンを魅了（THE FIRST TIMES）", url: "https://www.thefirsttimes.jp/report/0000464059/" },
+    ],
+    items: [
+      { order: 1, title: "絶対アイドル辞めないで", songId: "zettai-idol-yamenaide", section: "main", form: "normal" },
+      { order: 2, title: "「ドライブ デート 都内」", songId: "drive-date-tonai", section: "main", form: "normal" },
+      { order: 3, title: "ナツマトペ", songId: "natsumatope", section: "main", form: "normal" },
+      { order: 4, title: "Oh！Darling", songId: "oh-darling", section: "main", form: "normal" },
+      { order: 5, title: "夏祭り恋慕う", songId: "natsumatsuri-koishitau", section: "main", form: "normal" },
+      { order: 6, title: "「部活中に目が合うなって思ってたんだ」", songId: "bukatsuchu-ni-megaau-natte-omotteta-nda", section: "main", form: "normal" },
+      { order: 7, title: "青春\"サブリミナル\"", songId: "seishun-subliminal", section: "main", form: "normal" },
+      { order: 8, title: "＝LOVE", songId: "love", section: "main", form: "normal" },
     ],
   },
   {
@@ -864,6 +937,8 @@ export const SETLIST_PERFORMANCES = [
     sources: [
       { kind: "press", title: "THE FIRST TIMES ライブレポート（5/6公演）", url: "https://www.thefirsttimes.jp/report/0000612633/" },
       { kind: "official", title: "ARENA TOUR 2025「～Timeless Tales～」映像商品アートワーク・収録内容公開！", url: "https://equal-love.jp/news/detail/10951" },
+      { kind: "official", title: "ARENA TOUR 2025 ファイナル（PR TIMES）", url: "https://prtimes.jp/main/html/rd/p/000004526.000013546.html" },
+      { kind: "press", title: "音楽ナタリー（5/6）", url: "https://natalie.mu/music/news/622810" },
     ],
     items: [
       { order: 0, title: "Overture", songId: "overture", section: "opening", form: "other" },
@@ -896,6 +971,75 @@ export const SETLIST_PERFORMANCES = [
     ],
   },
   {
+    id: "perf-arena-tour-2025-ariake-day2",
+    liveId: "live-arena-tour-2025",
+    title: "＝LOVE ARENA TOUR 2025「～Timeless Tales～」追加公演",
+    date: "2025-07-13",
+    dayLabel: "追加公演 DAY2",
+    dayNote: "12曲目だけ公式と報道で曲名が違う（参考扱い）。Overture の記載はどちらの資料にも無い",
+    venue: "有明アリーナ",
+    completeness: "full",
+    verification: "official",
+    membersNote: "欠席の記載なし（未確認）",
+    sources: [
+      { kind: "official", title: "＝LOVE ARENA TOUR 2025「～Timeless Tales～」追加公演を有明アリーナにて2days開催！（PR TIMES・ソニー・ミュージックレーベルズ）", url: "https://prtimes.jp/main/html/rd/p/000004578.000013546.html" },
+      { kind: "press", title: "＝LOVEのアリーナツアー追加公演も大盛況！8周年を記念した過去最大規模ツアー決定（音楽ナタリー）", url: "https://natalie.mu/music/news/632096" },
+    ],
+    items: [
+      { order: 1, title: "とくべチュ、して", songId: "tokubechu-shite", section: "main", form: "normal" },
+      { order: 2, title: "Want you！Want you！", songId: "want-you-want-you", section: "main", form: "normal" },
+      { order: 3, title: "仲直りシュークリーム", songId: "nakanaori-shu-cream", section: "main", form: "normal" },
+      { order: 4, title: "ヒロインズ", songId: "heroines", section: "main", form: "normal" },
+      { order: 5, title: "呪って呪って", songId: "norotte-norotte", section: "main", form: "normal" },
+      { order: 6, title: "手遅れcaution", songId: "teokure-caution", section: "main", form: "normal" },
+      { order: 7, title: "ラブクリエイト", songId: "love-create", section: "main", form: "normal" },
+      { order: 8, title: "Oh！Darling", songId: "oh-darling", section: "main", form: "normal" },
+      { order: 9, title: "Junkies", songId: "junkies", section: "main", form: "normal" },
+      { order: 10, title: "いらない ツインテール", songId: "iranai-twintail", section: "main", form: "normal" },
+      { order: 11, title: "CAMEO", songId: "cameo", section: "main", form: "normal" },
+      { order: 12, title: "あの子コンプレックス", songId: "ano-ko-complex", section: "main", form: "normal", note: "【資料が食い違い】PR TIMES（公式）は「あの子コンプレックス」、音楽ナタリーは「ラストノートしか知らない」。どちらか確定できないため参考扱い", referenceOnly: true },
+      { order: 13, title: "この空がトリガー", songId: "kono-sora-ga-trigger", section: "main", form: "normal" },
+      { order: 14, title: "超特急逃走中", songId: "chotokkyu-tousouchu", section: "main", form: "normal" },
+      { order: 15, title: "君の第3ボタン", songId: "kimi-no-dai-3-button", section: "main", form: "normal" },
+      { order: 16, title: "青春\"サブリミナル\"", songId: "seishun-subliminal", section: "main", form: "normal" },
+      { order: 17, title: "絶対アイドル辞めないで", songId: "zettai-idol-yamenaide", section: "main", form: "normal" },
+      { order: 18, title: "とくべチュ、して", songId: "tokubechu-shite", section: "main", form: "normal", note: "スマホ撮影可（ナタリー）" },
+      { order: 19, title: "恋人以上、好き未満", songId: "koibito-ijou-suki-miman", section: "encore", form: "normal" },
+      { order: 20, title: "海とレモンティー", songId: "umi-to-lemon-tea", section: "encore", form: "normal" },
+      { order: 21, title: "夏祭り恋慕う", songId: "natsumatsuri-koishitau", section: "encore", form: "normal" },
+      { order: 22, title: "探せ ダイヤモンドリリー", songId: "sagase-diamond-lily", section: "encore", form: "normal" },
+      { order: 23, title: "＝LOVE", songId: "love", section: "double-encore", form: "normal" },
+    ],
+  },
+  {
+    id: "fest-luckyfes-2025-day1",
+    kind: "festival",
+    liveId: null,
+    title: "LuckyFes'25（初日）",
+    date: "2025-08-09",
+    dayLabel: null,
+    dayNote: "初出場。日付は主催発表の日程による（初日 8/9）。記事のセットリスト末尾に「SE. チェイサー」",
+    venue: "国営ひたち海浜公園（RAINBOW STAGE）",
+    completeness: "full",
+    verification: "press",
+    membersNote: null,
+    sources: [
+      { kind: "press", title: "【速レポ】＜LuckyFes’25＞＝LOVE、初降臨「私たちに恋慕ってください！」（BARKS）", url: "https://barks.jp/news/1006490/" },
+    ],
+    items: [
+      { order: 0, title: "Overture", songId: "overture", section: "opening", form: "other", note: "記事本文「定刻どおりにOvertureが流れ始める」" },
+      { order: 1, title: "絶対アイドル辞めないで", songId: "zettai-idol-yamenaide", section: "main", form: "normal" },
+      { order: 2, title: "青春\"サブリミナル\"", songId: "seishun-subliminal", section: "main", form: "normal" },
+      { order: 3, title: "仲直りシュークリーム", songId: "nakanaori-shu-cream", section: "main", form: "normal" },
+      { order: 4, title: "いらない ツインテール", songId: "iranai-twintail", section: "main", form: "normal" },
+      { order: 5, title: "Oh！Darling", songId: "oh-darling", section: "main", form: "normal" },
+      { order: 6, title: "ナツマトペ", songId: "natsumatope", section: "main", form: "normal" },
+      { order: 7, title: "夏祭り恋慕う", songId: "natsumatsuri-koishitau", section: "main", form: "normal" },
+      { order: 8, title: "探せ ダイヤモンドリリー", songId: "sagase-diamond-lily", section: "main", form: "normal" },
+      { order: 9, title: "とくべチュ、して", songId: "tokubechu-shite", section: "main", form: "normal" },
+    ],
+  },
+  {
     id: "perf-8th-anniversary-tour-ig-arena-day2",
     liveId: "live-8th-anniversary-tour-ig-arena",
     title: "＝LOVE 8th ANNIVERSARY PREMIUM TOUR（愛知公演）",
@@ -909,6 +1053,7 @@ export const SETLIST_PERFORMANCES = [
     sources: [
       { kind: "official", title: "8周年ツアー 映像商品発売決定！", url: "https://equal-love.jp/news/detail/11345" },
       { kind: "official", title: "8周年ツアー 映像商品アートワーク・収録内容公開！", url: "https://equal-love.jp/news/detail/11486" },
+      { kind: "official", title: "愛知公演にて横浜スタジアムでのツアーファイナル開催を発表（PR TIMES）", url: "https://prtimes.jp/main/html/rd/p/000004694.000013546.html" },
     ],
     items: [
       { order: 0, title: "Overture", songId: "overture", section: "opening", form: "other" },
@@ -925,7 +1070,7 @@ export const SETLIST_PERFORMANCES = [
       { order: 11, title: "仲直りシュークリーム", songId: "nakanaori-shu-cream", section: "main", form: "normal" },
       { order: 12, title: "恋人以上、好き未満", songId: "koibito-ijou-suki-miman", section: "main", form: "normal" },
       { order: 13, title: "内緒バナシ", songId: "naisho-banashi", section: "main", form: "normal" },
-      { order: 14, title: "僕のヒロイン", songId: "boku-no-heroine", section: "main", form: "unit" },
+      { order: 14, title: "僕のヒロイン", songId: "boku-no-heroine", section: "main", form: "unit", note: "メンバーセレクト楽曲：佐々木舞香が歌唱（髙松瞳のソロ曲。PR TIMES）" },
       { order: 15, title: "お姫様にしてよ！", songId: "ohimesama-ni-shiteyo", section: "main", form: "normal" },
       { order: 16, title: "Be Selfish", songId: "be-selfish", section: "main", form: "normal" },
       { order: 17, title: "記憶のどこかで", songId: "kioku-no-dokoka-de", section: "main", form: "normal" },
@@ -943,6 +1088,54 @@ export const SETLIST_PERFORMANCES = [
     ],
   },
   {
+    id: "perf-8th-anniversary-tour-yokohama-final-day1",
+    liveId: "live-8th-anniversary-tour-yokohama-final",
+    title: "＝LOVE 8th ANNIVERSARY PREMIUM TOUR FINAL in 横浜スタジアム",
+    date: "2026-04-18",
+    dayLabel: "DAY1",
+    dayNote: "PR TIMES は「※2日間共通」のセットリストとして掲載。Wアンコール（青春\"サブリミナル\"）は 4/19 のみ",
+    venue: "横浜スタジアム",
+    completeness: "full",
+    verification: "official",
+    membersNote: "欠席の記載なし（未確認）",
+    sources: [
+      { kind: "official", title: "＝LOVE 8周年ツアーFINAL in 横浜スタジアムを開催！！2日間で約7万人を動員！（PR TIMES・ソニー・ミュージックレーベルズ）", url: "https://prtimes.jp/main/html/rd/p/000004839.000013546.html" },
+      { kind: "press", title: "＝LOVE、超満員の横浜スタジアム2DAYS！（音楽ナタリー。4/18・4/19 を別々に掲載）", url: "https://natalie.mu/music/news/668885" },
+    ],
+    items: [
+      { order: 0, title: "Overture", songId: "overture", section: "opening", form: "other", note: "PR TIMES本文：髙松瞳が『青春\"サブリミナル\"』を一節歌った後に Overture" },
+      { order: 1, title: "青春\"サブリミナル\"", songId: "seishun-subliminal", section: "main", form: "normal" },
+      { order: 2, title: "ラブソングに襲われる", songId: "love-song-ni-osowareru", section: "main", form: "normal" },
+      { order: 3, title: "超特急逃走中", songId: "chotokkyu-tousouchu", section: "main", form: "normal" },
+      { order: 4, title: "ナツマトペ", songId: "natsumatope", section: "main", form: "normal" },
+      { order: 5, title: "お姫様の作り方", songId: "ohimesama-no-tsukurikata", section: "main", form: "normal", note: "初披露（PR TIMES）" },
+      { order: 6, title: "Sweetest girl", songId: "sweetest-girl", section: "main", form: "normal" },
+      { order: 7, title: "推しのいる世界", songId: "oshi-no-iru-sekai", section: "main", form: "normal" },
+      { order: 8, title: "「君と私の歌」", songId: "kimi-to-watashi-no-uta", section: "main", form: "normal" },
+      { order: 9, title: "「ドライブ デート 都内」", songId: "drive-date-tonai", section: "main", form: "normal" },
+      { order: 10, title: "Oh！Darling", songId: "oh-darling", section: "main", form: "normal" },
+      { order: 11, title: "虹の素", songId: "niji-no-moto", section: "main", form: "unit", note: "佐々木舞香・野口衣織のユニット曲（PR TIMES本文）" },
+      { order: 12, title: "誰にもバレずに", songId: "darenimo-barezuni", section: "main", form: "normal" },
+      { order: 13, title: "モラトリアム", songId: "moratorium", section: "main", form: "normal", note: "初披露（PR TIMES）" },
+      { order: 14, title: "呪って呪って", songId: "norotte-norotte", section: "main", form: "normal" },
+      { order: 15, title: "Junkies", songId: "junkies", section: "main", form: "normal" },
+      { order: 16, title: "内緒バナシ", songId: "naisho-banashi", section: "main", form: "normal" },
+      { order: 17, title: "ヒロインズ", songId: "heroines", section: "main", form: "normal" },
+      { order: 18, title: "劇薬中毒", songId: "gekiyaku-chudoku", section: "main", form: "normal", note: "ダブルセンター：佐々木舞香・野口衣織（PR TIMES本文）" },
+      { order: 19, title: "いらない ツインテール", songId: "iranai-twintail", section: "main", form: "normal" },
+      { order: 20, title: "仲直りシュークリーム", songId: "nakanaori-shu-cream", section: "main", form: "normal" },
+      { order: 21, title: "この空がトリガー", songId: "kono-sora-ga-trigger", section: "main", form: "normal" },
+      { order: 22, title: "夏祭り恋慕う", songId: "natsumatsuri-koishitau", section: "main", form: "normal" },
+      { order: 23, title: "探せ ダイヤモンドリリー", songId: "sagase-diamond-lily", section: "main", form: "normal" },
+      { order: 24, title: "＝LOVE", songId: "love", section: "main", form: "normal" },
+      { order: 25, title: "とくべチュ、して", songId: "tokubechu-shite", section: "main", form: "normal" },
+      { order: 26, title: "Want you！Want you！", songId: "want-you-want-you", section: "encore", form: "normal" },
+      { order: 27, title: "木漏れ日メゾフォルテ", songId: "komorebi-mezzoforte", section: "encore", form: "normal" },
+      { order: 28, title: "「部活中に目が合うなって思ってたんだ」", songId: "bukatsuchu-ni-megaau-natte-omotteta-nda", section: "encore", form: "normal" },
+      { order: 29, title: "絶対アイドル辞めないで", songId: "zettai-idol-yamenaide", section: "encore", form: "normal" },
+    ],
+  },
+  {
     id: "perf-8th-anniversary-tour-yokohama-final-day2",
     liveId: "live-8th-anniversary-tour-yokohama-final",
     title: "＝LOVE 8th ANNIVERSARY PREMIUM TOUR FINAL in 横浜スタジアム",
@@ -955,6 +1148,9 @@ export const SETLIST_PERFORMANCES = [
     membersNote: "欠席の記載は確認できず（未確認）",
     sources: [
       { kind: "press", title: "Real Sound ライブレポート（4/19公演）", url: "https://realsound.jp/2026/04/post-2380956.html" },
+      { kind: "official", title: "PR TIMES（2日間共通セットリスト＋Wアンコールは4/19のみ）", url: "https://prtimes.jp/main/html/rd/p/000004839.000013546.html" },
+      { kind: "press", title: "音楽ナタリー（4/18・4/19 別掲）", url: "https://natalie.mu/music/news/668885" },
+      { kind: "official", title: "映像商品の収録公演（4/19）", url: "https://equal-love.jp/news/detail/11855" },
     ],
     items: [
       { order: 0, title: "Overture", songId: "overture", section: "opening", form: "other" },
@@ -1089,6 +1285,61 @@ export const SETLIST_PERFORMANCES = [
     ],
   },
   {
+    id: "fest-rock-in-japan-2026",
+    kind: "festival",
+    liveId: null,
+    title: "ROCK IN JAPAN FESTIVAL 2026",
+    date: "2026-09-20",
+    dayLabel: null,
+    dayNote: "記事は「オフィシャルライブレポート」として掲載",
+    venue: "千葉市蘇我スポーツ公園",
+    completeness: "full",
+    verification: "press",
+    membersNote: null,
+    sources: [
+      { kind: "press", title: "＝LOVEがROCK IN JAPANフェスで圧巻のライブ!（Mikiki。オフィシャルライブレポート・セトリ）", url: "https://mikiki.tokyo.jp/articles/-/46165" },
+    ],
+    items: [
+      { order: 1, title: "絶対アイドル辞めないで", songId: "zettai-idol-yamenaide", section: "main", form: "normal" },
+      { order: 2, title: "恋、はじめました。", songId: "koi-hajimemashita", section: "main", form: "normal" },
+      { order: 3, title: "超特急逃走中", songId: "chotokkyu-tousouchu", section: "main", form: "normal" },
+      { order: 4, title: "いらない ツインテール", songId: "iranai-twintail", section: "main", form: "normal" },
+      { order: 5, title: "呪って呪って", songId: "norotte-norotte", section: "main", form: "normal" },
+      { order: 6, title: "夏名残サマーチューン", songId: "natsunagori-summer-tune", section: "main", form: "normal" },
+      { order: 7, title: "Oh！Darling", songId: "oh-darling", section: "main", form: "normal" },
+      { order: 8, title: "探せ ダイヤモンドリリー", songId: "sagase-diamond-lily", section: "main", form: "normal" },
+      { order: 9, title: "青春\"サブリミナル\"", songId: "seishun-subliminal", section: "main", form: "normal" },
+      { order: 10, title: "とくべチュ、して", songId: "tokubechu-shite", section: "main", form: "normal" },
+    ],
+  },
+  {
+    id: "fest-starfes-2026",
+    kind: "festival",
+    liveId: null,
+    title: "フジテレビ「STARフェス」",
+    date: "2026-10-10",
+    dayLabel: null,
+    dayNote: "フジテレビ「STAR」のイベント。2026-10-31 に放送予定",
+    venue: "ぴあアリーナMM",
+    completeness: "full",
+    verification: "press",
+    membersNote: null,
+    sources: [
+      { kind: "press", title: "＝LOVE、マーチング衣装で『STARフェス』へ 甘さと迫力の8曲で沸かせる（BUBKA Web）", url: "https://www.idol-culture.jp/geinou/227913/" },
+      { kind: "official", title: "【出演情報】フジテレビ「STARフェス」（公式NEWS：10/10 出演・10/31 放送）", url: "https://equal-love.jp/news/detail/12263" },
+    ],
+    items: [
+      { order: 1, title: "青春\"サブリミナル\"", songId: "seishun-subliminal", section: "main", form: "normal" },
+      { order: 2, title: "絶対アイドル辞めないで", songId: "zettai-idol-yamenaide", section: "main", form: "normal" },
+      { order: 3, title: "恋、はじめました。", songId: "koi-hajimemashita", section: "main", form: "normal" },
+      { order: 4, title: "ラストノートしか知らない", songId: "last-note-shika-shiranai", section: "main", form: "normal" },
+      { order: 5, title: "夏名残サマーチューン", songId: "natsunagori-summer-tune", section: "main", form: "normal" },
+      { order: 6, title: "仲直りシュークリーム", songId: "nakanaori-shu-cream", section: "main", form: "normal" },
+      { order: 7, title: "内緒バナシ", songId: "naisho-banashi", section: "main", form: "normal" },
+      { order: 8, title: "とくべチュ、して", songId: "tokubechu-shite", section: "main", form: "normal" },
+    ],
+  },
+  {
     id: "perf-9th-anniversary-premium-concert-day1",
     liveId: "live-9th-anniversary-premium-concert",
     title: "＝LOVE 9th ANNIVERSARY PREMIUM CONCERT",
@@ -1186,7 +1437,6 @@ export const SETLIST_PERFORMANCES = [
 // 曲の披露記録・「〜ぶり」の計算には使わない。画面では「調査したが未確定」として件数だけ伝える。
 export const UNVERIFIED_SETLIST_PERFORMANCES = [
   { date: "2018-09-06", title: "＝LOVE デビュー1周年記念プレミアムイベント", reason: "曲順が公式・報道で確認できていない" },
-  { date: "2026-04-18", title: "＝LOVE 8th ANNIVERSARY PREMIUM TOUR FINAL in 横浜スタジアム", dayLabel: "DAY1", reason: "曲順がファンの資料でしか確認できていない" },
   { date: "2025-09-06", title: "＝LOVE 8th ANNIVERSARY PREMIUM TOUR（広島公演）", dayLabel: "DAY1", reason: "曲順がファンの資料でしか確認できていない" },
   { date: "2025-09-07", title: "＝LOVE 8th ANNIVERSARY PREMIUM TOUR（広島公演）", dayLabel: "DAY2", reason: "曲順がファンの資料でしか確認できていない" },
   { date: "2025-09-27", title: "＝LOVE 8th ANNIVERSARY PREMIUM TOUR（山梨公演）", dayLabel: "DAY1", reason: "曲順がファンの資料でしか確認できていない" },
@@ -1211,7 +1461,6 @@ export const UNVERIFIED_SETLIST_PERFORMANCES = [
   { date: "2025-04-12", title: "＝LOVE ARENA TOUR 2025「～Timeless Tales～」", dayLabel: "夜公演", reason: "曲順がファンの資料でしか確認できていない" },
   { date: "2025-05-05", title: "＝LOVE ARENA TOUR 2025「～Timeless Tales～」", dayLabel: "DAY1", reason: "曲順がファンの資料でしか確認できていない" },
   { date: "2025-07-12", title: "＝LOVE ARENA TOUR 2025「～Timeless Tales～」", dayLabel: "追加公演 DAY1", reason: "曲順がファンの資料でしか確認できていない" },
-  { date: "2025-07-13", title: "＝LOVE ARENA TOUR 2025「～Timeless Tales～」", dayLabel: "追加公演 DAY2", reason: "曲順がファンの資料でしか確認できていない" },
   { date: "2024-02-03", title: "＝LOVEアリーナツアー2024「Tell me what's more than \"LOVE\"」", dayLabel: "昼公演", reason: "曲順がファンの資料でしか確認できていない" },
   { date: "2024-02-03", title: "＝LOVEアリーナツアー2024「Tell me what's more than \"LOVE\"」", dayLabel: "夜公演", reason: "曲順がファンの資料でしか確認できていない" },
   { date: "2024-03-02", title: "＝LOVEアリーナツアー2024「Tell me what's more than \"LOVE\"」", dayLabel: "昼公演", reason: "曲順がファンの資料でしか確認できていない" },
@@ -1222,9 +1471,16 @@ export const UNVERIFIED_SETLIST_PERFORMANCES = [
 ];
 
 // ライブ映像商品（Blu-ray／DVD）。「ライブで披露した」と「映像に収録されている」は別の事実なので分けて持つ。
-//   status   : "released"（発売済み）／"upcoming"（発売予定）
-//   coverage : 収録されている公演と、その公演の収録曲（公式の収録内容から照合した songId）。
-//              songIds が null のものは収録曲が未発表。
+//   status    : "released"（発売済み）／"upcoming"（発売予定）
+//   productCodes / sourceUrl : 従来の表示用（形態・品番の文と、公式の情報ページ）。editions が無い画面向けに残す
+//   editions  : 【2026-10-28追加】形態ごとの { label, format, productCode, url }。url は公式ディスコグラフィーの商品ページ
+//   streaming : 【2026-10-28追加】公式の「映像」配信 { status: available／none／unknown, note, sourceUrl }。
+//               音声だけの配信（ライブ音源）は映像ではないので available にしない
+//   coverage  : 収録されている公演と、その公演の収録曲（公式の収録内容から照合した songId）。
+//               songIds が null のものは収録曲が未発表。
+//               ordered: true は、公式の曲目の番号どおりに並べたもの（N番目＝公式のN曲目。SE・Overture は番号に数えないので入れない）。
+//               ordered が無いものは、カバー曲など songId の無い曲を除いた＝LOVEの曲だけ（並びは収録順とは限らない）。
+// 公式ディスコグラフィーと照合済み（2026-10-28）。合同公演（24girls・イコノイフェス・イコノイジョイ）・THE MOVIE・MV集は対象外。
 export const LIVE_VIDEO_PRODUCTS = [
   {
     id: "video-1st-concert-2019",
@@ -1234,6 +1490,11 @@ export const LIVE_VIDEO_PRODUCTS = [
     status: "released",
     note: "昼夜2部のどちらの映像かは、商品ページに記載がありません。",
     sourceUrl: "https://www.sonymusic.co.jp/artist/equal-love/discography/VVXL-68",
+    editions: [
+      { label: null, format: "Blu-ray", productCode: "VVXL-68", url: "https://equal-love.jp/discography/detail/28/" },
+      { label: null, format: "DVD（2枚組）", productCode: "VVBL-136", url: "https://equal-love.jp/discography/detail/28/" },
+    ],
+    streaming: { status: "available", note: "2023年9月13日から。カバー曲9曲は配信対象外", sourceUrl: "https://equal-love.jp/news/detail/7211" },
     coverage: [
       { performanceId: "perf-1st-concert-2019", note: null, songIds: ["overture", "love", "bukatsuchu-ni-megaau-natte-omotteta-nda", "youkoso-ikorabu-numa", "kiara-tasuke-ni-kita-zo", "kioku-no-dokoka-de", "teokure-caution", "todoite-love-you", "bokura-no-seifuku-christmas", "want-you-want-you", "ima-kono-fune-ni-nore", "aikatsu-happy-end", "start"] },
     ],
@@ -1246,18 +1507,27 @@ export const LIVE_VIDEO_PRODUCTS = [
     status: "released",
     note: null,
     sourceUrl: "https://www.sonymusic.co.jp/artist/equal-love/discography/VVXL-70",
+    editions: [
+      { label: null, format: "Blu-ray", productCode: "VVXL-70", url: "https://equal-love.jp/discography/detail/29/" },
+      { label: null, format: "DVD（2枚組）", productCode: "VVBL-138", url: "https://equal-love.jp/discography/detail/29/" },
+    ],
+    streaming: { status: "available", note: "2023年9月13日から", sourceUrl: "https://equal-love.jp/news/detail/7211" },
     coverage: [
-      { performanceId: "perf-2nd-anniversary", note: null, songIds: ["overture", "bukatsuchu-ni-megaau-natte-omotteta-nda", "aikatsu-happy-end", "ima-kono-fune-ni-nore", "want-you-want-you", "kioku-no-dokoka-de", "teokure-caution", "bokura-no-seifuku-christmas", "niji-no-moto", "todoite-love-you", "kiara-tasuke-ni-kita-zo", "youkoso-ikorabu-numa", "iranai-twintail", "sagase-diamond-lily", "866", "start", "love"] },
+      { performanceId: "perf-2nd-anniversary", note: null, ordered: true, songIds: ["bukatsuchu-ni-megaau-natte-omotteta-nda", "aikatsu-happy-end", "ima-kono-fune-ni-nore", "want-you-want-you", "kioku-no-dokoka-de", "teokure-caution", "bokura-no-seifuku-christmas", "bukatsuchu-ni-megaau-natte-omotteta-nda", "niji-no-moto", "todoite-love-you", "kiara-tasuke-ni-kita-zo", "youkoso-ikorabu-numa", "iranai-twintail", "sagase-diamond-lily", "866", "start", "bokura-no-seifuku-christmas", "love"] },
     ],
   },
   {
     id: "video-3rd-anniversary",
     title: "＝LOVE 3rd ANNIVERSARY PREMIUM CONCERT（公式ショップ受注販売）",
     productCodes: "特別版（FC限定）／通常版 × Blu-ray／DVD",
-    releaseDate: "2021-03",
+    releaseDate: "2021-02-08",
     status: "released",
-    note: "一般流通ではない受注生産品（2021年3月上旬から順次発送）。",
+    note: "一般流通ではない受注生産品。発売日は公式ディスコグラフィーの表記（発送は2021年3月上旬から順次）。",
     sourceUrl: "https://equal-love.jp/news/detail/3737",
+    editions: [
+      { label: "特別版（FC会員限定）・通常版", format: "Blu-ray／DVD（2枚組）", productCode: null, url: "https://equal-love.jp/discography/detail/30/" },
+    ],
+    streaming: { status: "none", note: "公式NEWSに、この公演の配信は無いと明記", sourceUrl: "https://equal-love.jp/news/detail/7211" },
     coverage: [
       { performanceId: "perf-3rd-anniversary", note: null, songIds: ["overture", "love", "bokura-no-seifuku-christmas", "ima-kono-fune-ni-nore", "aikatsu-happy-end", "zurui-yo-zurui-ne", "niji-no-moto", "my-voice-is-for-you", "oshi-no-iru-sekai", "sweetest-girl", "shukipi", "iranai-twintail", "todoite-love-you", "cameo", "kioku-no-dokoka-de", "teokure-caution", "kimi-to-watashi-no-uta", "bukatsuchu-ni-megaau-natte-omotteta-nda", "want-you-want-you", "sagase-diamond-lily", "866", "youkoso-ikorabu-numa", "kiara-tasuke-ni-kita-zo", "start"] },
     ],
@@ -1265,24 +1535,35 @@ export const LIVE_VIDEO_PRODUCTS = [
   {
     id: "video-winter-tour-2021",
     title: "WINTER TOUR「You all are \"My ideal\"」～日本武道館～",
-    productCodes: "Blu-ray Type A VVXL-72（2枚組）／Type B VVXL-74／DVD VVBL-150",
+    productCodes: "Blu-ray Type A VVXL-72～73（2枚組）／Type B VVXL-74／Type C DVD VVBL-150～151（2枚組）",
     releaseDate: "2021-06-30",
     status: "released",
     note: null,
     sourceUrl: "https://www.sonymusic.co.jp/artist/equal-love/discography/VVXL-72",
+    editions: [
+      { label: "Type A", format: "Blu-ray（2枚組）", productCode: "VVXL-72～73", url: "https://equal-love.jp/discography/detail/34/" },
+      { label: "Type B", format: "Blu-ray", productCode: "VVXL-74", url: "https://equal-love.jp/discography/detail/34/" },
+      { label: "Type C", format: "DVD（2枚組）", productCode: "VVBL-150～151", url: "https://equal-love.jp/discography/detail/34/" },
+    ],
+    streaming: { status: "available", note: "2023年9月13日から。日本武道館とTDCホールは別タイトル", sourceUrl: "https://equal-love.jp/news/detail/7211" },
     coverage: [
-      { performanceId: "perf-winter-tour-2021-budokan", note: null, songIds: ["overture", "love", "todoite-love-you", "want-you-want-you", "zurui-yo-zurui-ne", "cameo", "my-voice-is-for-you", "niji-no-moto", "sweetest-girl", "oshi-no-iru-sekai", "ryuseigun", "kiara-tasuke-ni-kita-zo", "bokura-no-seifuku-christmas", "shukipi", "teokure-caution", "iranai-twintail", "aikatsu-happy-end", "bukatsuchu-ni-megaau-natte-omotteta-nda", "sagase-diamond-lily", "kimi-to-watashi-no-uta", "seishun-subliminal", "866", "start"] },
-      { performanceId: "perf-winter-tour-2020-tdc-hall", note: "Type A の Disc 2 にだけ全編収録（商品ページに明記）", songIds: ["shukipi", "bokura-no-seifuku-christmas", "want-you-want-you", "todoite-love-you", "iranai-twintail", "cameo", "teokure-caution", "my-voice-is-for-you", "niji-no-moto", "oshi-no-iru-sekai", "sweetest-girl", "ryuseigun", "start", "aikatsu-happy-end", "zurui-yo-zurui-ne", "sagase-diamond-lily", "bukatsuchu-ni-megaau-natte-omotteta-nda", "kimi-to-watashi-no-uta", "love", "seishun-subliminal", "ima-kono-fune-ni-nore", "kiara-tasuke-ni-kita-zo"] },
+      { performanceId: "perf-winter-tour-2021-budokan", note: null, ordered: true, songIds: ["love", "todoite-love-you", "want-you-want-you", "zurui-yo-zurui-ne", "cameo", "my-voice-is-for-you", "niji-no-moto", "sweetest-girl", "oshi-no-iru-sekai", "ryuseigun", "kiara-tasuke-ni-kita-zo", "bokura-no-seifuku-christmas", "shukipi", "teokure-caution", "iranai-twintail", "aikatsu-happy-end", "bukatsuchu-ni-megaau-natte-omotteta-nda", "sagase-diamond-lily", "kimi-to-watashi-no-uta", "seishun-subliminal", "866", "start", "love"] },
+      { performanceId: "perf-winter-tour-2020-tdc-hall", note: "Type A の Disc 2 にだけ全編収録（商品ページに明記）", ordered: true, songIds: ["shukipi", "bokura-no-seifuku-christmas", "want-you-want-you", "todoite-love-you", "iranai-twintail", "cameo", "teokure-caution", "my-voice-is-for-you", "niji-no-moto", "oshi-no-iru-sekai", "sweetest-girl", "ryuseigun", "start", "aikatsu-happy-end", "zurui-yo-zurui-ne", "sagase-diamond-lily", "bukatsuchu-ni-megaau-natte-omotteta-nda", "kimi-to-watashi-no-uta", "love", "seishun-subliminal", "ima-kono-fune-ni-nore", "kiara-tasuke-ni-kita-zo", "shukipi"] },
     ],
   },
   {
     id: "video-zenbu-naisho-2021",
     title: "＝LOVE 全国ツアー「全部、内緒。」～横浜アリーナ～",
-    productCodes: "Blu-ray VVXL-79／DVD VVBL-156",
+    productCodes: "Blu-ray VVXL-79／DVD VVBL-156～157（2枚組）",
     releaseDate: "2022-03-16",
     status: "released",
     note: null,
     sourceUrl: "https://www.sonymusic.co.jp/artist/equal-love/discography/VVXL-79",
+    editions: [
+      { label: "Type A", format: "Blu-ray", productCode: "VVXL-79", url: "https://equal-love.jp/discography/detail/58/" },
+      { label: "Type B", format: "DVD（2枚組）", productCode: "VVBL-156～157", url: "https://equal-love.jp/discography/detail/58/" },
+    ],
+    streaming: { status: "available", note: "2023年9月13日から。カバー曲「いじわるチュー」は配信対象外", sourceUrl: "https://equal-love.jp/news/detail/7211" },
     coverage: [
       { performanceId: "perf-zenbu-naisho-tour-2021", note: null, songIds: ["overture", "sakura-no-saku-oto-ga-shita", "want-you-want-you", "cinema", "ima-kono-fune-ni-nore", "sagase-diamond-lily", "haikei-anata-sama", "genneki-idol-chu", "24-7", "oneesan-ja-dame-desuka", "cameo", "zurui-yo-zurui-ne", "teokure-caution", "shukipi", "iranai-twintail", "senobi-in-love", "bukatsuchu-ni-megaau-natte-omotteta-nda", "kimi-to-watashi-no-uta", "seishun-subliminal", "oh-darling", "weekend-citron", "youkoso-ikorabu-numa", "love"] },
     ],
@@ -1295,8 +1576,13 @@ export const LIVE_VIDEO_PRODUCTS = [
     status: "released",
     note: "昼夜2部のどちらの映像かは記載がありません。",
     sourceUrl: "https://equal-love.jp/news/detail/5644",
+    editions: [
+      { label: "Type A", format: "Blu-ray", productCode: "VVXL-88", url: "https://equal-love.jp/discography/detail/59/" },
+      { label: "Type B", format: "DVD（2枚組）", productCode: "VVBL-165～166", url: "https://equal-love.jp/discography/detail/59/" },
+    ],
+    streaming: { status: "available", note: "2023年9月13日から", sourceUrl: "https://equal-love.jp/news/detail/7211" },
     coverage: [
-      { performanceId: "perf-4th-anniversary", note: null, songIds: ["overture", "shukusai", "cameo", "iranai-twintail", "shukipi", "bokura-no-seifuku-christmas", "aikatsu-happy-end", "zurui-yo-zurui-ne", "teokure-caution", "kioku-no-dokoka-de", "cinema", "want-you-want-you", "bukatsuchu-ni-megaau-natte-omotteta-nda", "zuttomo-anken", "weekend-citron", "oh-darling", "kimi-to-watashi-no-uta", "sagase-diamond-lily", "seishun-subliminal", "natsumatsuri-koishitau", "866", "sakura-no-saku-oto-ga-shita", "start", "love"] },
+      { performanceId: "perf-4th-anniversary", note: null, ordered: true, songIds: ["shukusai", "cameo", "iranai-twintail", "shukipi", "bokura-no-seifuku-christmas", "aikatsu-happy-end", "zurui-yo-zurui-ne", "teokure-caution", "kioku-no-dokoka-de", "cinema", "want-you-want-you", "bukatsuchu-ni-megaau-natte-omotteta-nda", "zuttomo-anken", "weekend-citron", "oh-darling", "kimi-to-watashi-no-uta", "sagase-diamond-lily", "seishun-subliminal", "natsumatsuri-koishitau", "866", "sakura-no-saku-oto-ga-shita", "start", "love"] },
     ],
   },
   {
@@ -1307,6 +1593,11 @@ export const LIVE_VIDEO_PRODUCTS = [
     status: "released",
     note: "公式の収録内容に「2022年4月30日」の記載あり。昼・夜どちらの公演かは記載がありません。",
     sourceUrl: "https://equal-love.jp/news/detail/6416",
+    editions: [
+      { label: "Type A", format: "Blu-ray", productCode: "VVXL-142", url: "https://equal-love.jp/discography/detail/72/" },
+      { label: "Type B", format: "DVD（2枚組）", productCode: "VVBL-186～187", url: "https://equal-love.jp/discography/detail/73/" },
+    ],
+    streaming: { status: "available", note: "2026年9月13日から。≠MEの曲「まほろばアスタリスク」は配信対象外", sourceUrl: "https://equal-love.jp/news/detail/11946" },
     coverage: [
       { performanceId: "perf-nationwide-tour-2022", note: null, songIds: ["overture", "poison-girl", "iranai-twintail", "weekend-citron", "want-you-want-you", "shukipi", "cameo", "shukusai", "teokure-caution", "bpm170-no-kimi-e", "sweetest-girl", "zurui-yo-zurui-ne", "sakura-no-saku-oto-ga-shita", "the-5th", "aikatsu-happy-end", "oh-darling", "ohimesama-ni-shiteyo", "kimi-to-watashi-no-uta", "natsumatsuri-koishitau", "seishun-subliminal", "ano-ko-complex", "love", "sagase-diamond-lily"] },
     ],
@@ -1319,8 +1610,14 @@ export const LIVE_VIDEO_PRODUCTS = [
     status: "released",
     note: "昼の部・夜の部のどちらの映像かは記載がありません。",
     sourceUrl: "https://equal-love.jp/news/detail/6565",
+    editions: [
+      { label: "TYPE A", format: "Blu-ray（2枚組）", productCode: "VVXL-157～158", url: "https://equal-love.jp/discography/detail/66/" },
+      { label: "TYPE B", format: "Blu-ray", productCode: "VVXL-159", url: "https://equal-love.jp/discography/detail/67/" },
+      { label: "TYPE C", format: "DVD", productCode: "VVBL-195", url: "https://equal-love.jp/discography/detail/68/" },
+    ],
+    streaming: { status: "available", note: "2026年9月20日から", sourceUrl: "https://equal-love.jp/news/detail/11964" },
     coverage: [
-      { performanceId: "perf-5th-anniversary", note: null, songIds: ["overture", "be-selfish", "cameo", "ohimesama-ni-shiteyo", "want-you-want-you", "watashi-mahoutsukai", "my-voice-is-for-you", "zuttomo-anken", "genneki-idol-chu", "shiran-kedo", "boku-no-heroine", "haikei-anata-sama", "mayonaka-mermaid", "zurui-yo-zurui-ne", "ano-ko-complex", "oh-darling", "sagase-diamond-lily", "aikatsu-happy-end", "natsumatsuri-koishitau", "seishun-subliminal", "love", "egao-no-recipe", "sukitte-ienakatta", "weekend-citron", "kimi-to-watashi-no-uta", "866"] },
+      { performanceId: "perf-5th-anniversary", note: null, ordered: true, songIds: ["be-selfish", "cameo", "ohimesama-ni-shiteyo", "want-you-want-you", "watashi-mahoutsukai", "my-voice-is-for-you", "zuttomo-anken", "genneki-idol-chu", "shiran-kedo", "boku-no-heroine", "haikei-anata-sama", "mayonaka-mermaid", "zurui-yo-zurui-ne", "ano-ko-complex", "oh-darling", "sagase-diamond-lily", "aikatsu-happy-end", "natsumatsuri-koishitau", "seishun-subliminal", "love", "egao-no-recipe", "sukitte-ienakatta", "weekend-citron", "kimi-to-watashi-no-uta", "866"] },
     ],
   },
   {
@@ -1331,6 +1628,11 @@ export const LIVE_VIDEO_PRODUCTS = [
     status: "released",
     note: null,
     sourceUrl: "https://equal-love.jp/news/detail/6496",
+    editions: [
+      { label: "TYPE A 完全生産限定盤", format: "Blu-ray＋CD", productCode: "VVXL-140～141", url: "https://equal-love.jp/discography/detail/64/" },
+      { label: "TYPE B 初回仕様限定盤", format: "DVD", productCode: "VVBL-184", url: "https://equal-love.jp/discography/detail/65/" },
+    ],
+    streaming: { status: "none", note: "映像の配信は見つからず。音声のみ配信（カバー曲などを除く）", sourceUrl: null },
     coverage: [
       { performanceId: "perf-nagisa-graduation", note: null, songIds: ["overture", "genneki-idol-chu", "want-you-want-you", "be-selfish", "oh-darling", "cameo", "oshi-no-iru-sekai", "watashi-mahoutsukai", "ryuseigun", "zurui-yo-zurui-ne", "iranai-twintail", "bokura-no-seifuku-christmas", "the-5th", "bukatsuchu-ni-megaau-natte-omotteta-nda", "seishun-subliminal", "start", "sagase-diamond-lily", "kimi-dake-no-hanamichi", "love", "egao-no-recipe", "todoite-love-you"] },
     ],
@@ -1343,8 +1645,14 @@ export const LIVE_VIDEO_PRODUCTS = [
     status: "released",
     note: "昼・夜のどちらの映像かは記載がありません。",
     sourceUrl: "https://equal-love.jp/news/detail/8289",
+    editions: [
+      { label: "TYPE-A", format: "Blu-ray（2枚組）", productCode: "VVXL-186～187", url: "https://equal-love.jp/discography/detail/104/" },
+      { label: "TYPE-B", format: "Blu-ray", productCode: "VVXL-188", url: "https://equal-love.jp/discography/detail/105/" },
+      { label: "TYPE-C", format: "DVD", productCode: "VVBL-203", url: "https://equal-love.jp/discography/detail/106/" },
+    ],
+    streaming: { status: "available", note: "2026年9月27日から", sourceUrl: "https://equal-love.jp/news/detail/12163" },
     coverage: [
-      { performanceId: "perf-nationwide-tour-2023-budokan-night", note: null, songIds: ["overture", "kono-sora-ga-trigger", "bokura-no-seifuku-christmas", "weekend-citron", "shukipi", "iranai-twintail", "teokure-caution", "cameo", "want-you-want-you", "shiran-kedo", "boku-no-heroine", "mayonaka-mermaid", "ano-ko-complex", "kiara-tiara", "be-selfish", "oh-darling", "kimi-to-watashi-no-uta", "junkies", "seishun-subliminal", "sagase-diamond-lily", "egao-no-recipe", "love-create", "natsumatsuri-koishitau", "ohimesama-ni-shiteyo", "love"] },
+      { performanceId: "perf-nationwide-tour-2023-budokan-night", note: null, ordered: true, songIds: ["kono-sora-ga-trigger", "bokura-no-seifuku-christmas", "weekend-citron", "shukipi", "iranai-twintail", "teokure-caution", "cameo", "want-you-want-you", "shiran-kedo", "boku-no-heroine", "mayonaka-mermaid", "ano-ko-complex", "kiara-tiara", "be-selfish", "oh-darling", "kimi-to-watashi-no-uta", "junkies", "seishun-subliminal", "sagase-diamond-lily", "egao-no-recipe", "love-create", "natsumatsuri-koishitau", "ohimesama-ni-shiteyo", "kono-sora-ga-trigger", "love"] },
     ],
   },
   {
@@ -1355,8 +1663,14 @@ export const LIVE_VIDEO_PRODUCTS = [
     status: "released",
     note: null,
     sourceUrl: "https://equal-love.jp/news/detail/8513",
+    editions: [
+      { label: "TYPE A", format: "Blu-ray（2枚組）", productCode: "VVXL-205～206", url: "https://equal-love.jp/discography/detail/101/" },
+      { label: "TYPE-B", format: "Blu-ray", productCode: "VVXL-207", url: "https://equal-love.jp/discography/detail/102/" },
+      { label: "TYPE C", format: "DVD", productCode: "VVBL-205", url: "https://equal-love.jp/discography/detail/103/" },
+    ],
+    streaming: { status: "available", note: "2026年10月4日から", sourceUrl: "https://equal-love.jp/news/detail/12242" },
     coverage: [
-      { performanceId: "perf-6th-anniversary-day2", note: "公式ページに公演日の記載なし。収録曲の並びが DAY2 と同じため DAY2 と推定", songIds: ["overture", "love", "bokura-no-seifuku-christmas", "the-5th", "want-you-want-you", "kimi-to-watashi-no-uta", "ohimesama-ni-shiteyo", "love-locke", "haikei-anata-sama", "sweetest-girl", "watashi-mahoutsukai", "last-note-shika-shiranai", "cameo", "shukusai", "ano-ko-complex", "junkies", "iranai-twintail", "oh-darling", "heroines", "natsumatope", "kono-sora-ga-trigger", "sagase-diamond-lily", "seishun-subliminal", "bukatsuchu-ni-megaau-natte-omotteta-nda", "dakaratote", "love-create", "natsumatsuri-koishitau"] },
+      { performanceId: "perf-6th-anniversary-day2", note: "公式ページに公演日の記載なし。収録曲の並びが DAY2 と同じため DAY2 と推定", ordered: true, songIds: ["love", "bokura-no-seifuku-christmas", "the-5th", "want-you-want-you", "kimi-to-watashi-no-uta", "ohimesama-ni-shiteyo", "love-locke", "haikei-anata-sama", "sweetest-girl", "watashi-mahoutsukai", "last-note-shika-shiranai", "cameo", "shukusai", "ano-ko-complex", "junkies", "iranai-twintail", "oh-darling", "heroines", "natsumatope", "kono-sora-ga-trigger", "sagase-diamond-lily", "seishun-subliminal", "bukatsuchu-ni-megaau-natte-omotteta-nda", "dakaratote", "love-create", "natsumatsuri-koishitau", "love"] },
     ],
   },
   {
@@ -1367,6 +1681,12 @@ export const LIVE_VIDEO_PRODUCTS = [
     status: "released",
     note: null,
     sourceUrl: "https://equal-love.jp/news/detail/9998",
+    editions: [
+      { label: "初回生産限定盤", format: "Blu-ray（2枚組）", productCode: "VVXL-250～251", url: "https://equal-love.jp/discography/detail/132/" },
+      { label: "初回仕様限定盤", format: "Blu-ray", productCode: "VVXL-252", url: "https://equal-love.jp/discography/detail/133/" },
+      { label: "初回仕様限定盤", format: "DVD", productCode: "VVBL-220", url: "https://equal-love.jp/discography/detail/134/" },
+    ],
+    streaming: { status: "available", note: "2026年10月11日から。≠MEの曲も配信", sourceUrl: "https://equal-love.jp/news/detail/12260" },
     coverage: [
       { performanceId: "perf-arena-tour-2024-day2", note: "公式ページに公演日の記載なし。収録曲が 4/14 公演と同じため 4/14 と推定", songIds: ["overture", "junkies", "be-selfish", "weekend-citron", "heroines", "doko-ga-suki-ka-itte", "kiara-tiara", "poison-girl", "kyousou-catastrophe", "darenimo-barezuni", "kimi-no-dai-3-button", "norotte-norotte", "iranai-twintail", "drive-date-tonai", "natsumatope", "natsumatsuri-koishitau", "seishun-subliminal", "love", "sagase-diamond-lily", "ima-kono-fune-ni-nore", "oh-darling", "bukatsuchu-ni-megaau-natte-omotteta-nda", "ohimesama-ni-shiteyo", "kono-sora-ga-trigger", "egao-no-recipe"] },
     ],
@@ -1379,8 +1699,14 @@ export const LIVE_VIDEO_PRODUCTS = [
     status: "released",
     note: null,
     sourceUrl: "https://equal-love.jp/news/detail/9924",
+    editions: [
+      { label: "TYPE-A", format: "Blu-ray（2枚組）", productCode: "VVXL-237～238", url: "https://equal-love.jp/discography/detail/116/" },
+      { label: "TYPE-B", format: "Blu-ray", productCode: "VVXL-239", url: "https://equal-love.jp/discography/detail/117/" },
+      { label: "TYPE-C", format: "DVD", productCode: "VVBL-213", url: "https://equal-love.jp/discography/detail/118/" },
+    ],
+    streaming: { status: "available", note: "2026年10月18日から", sourceUrl: "https://equal-love.jp/news/detail/12273" },
     coverage: [
-      { performanceId: "perf-7th-anniversary-day2", note: "公式ページに公演日の記載なし。曲順が DAY2 と同じため DAY2 と推定", songIds: ["zettai-idol-yamenaide", "aikatsu-happy-end", "heroines", "watashi-mahoutsukai", "ohimesama-ni-shiteyo", "shiran-kedo", "senobi-in-love", "shukipi", "drive-date-tonai", "nakanaori-shu-cream", "want-you-want-you", "zurui-yo-zurui-ne", "the-5th", "sagase-diamond-lily", "youkoso-ikorabu-numa", "norotte-norotte", "kimi-to-watashi-no-uta", "oh-darling", "umi-to-lemon-tea", "natsumatsuri-koishitau", "kono-sora-ga-trigger", "seishun-subliminal", "natsumatope", "bokura-no-seifuku-christmas", "egao-no-recipe", "love"] },
+      { performanceId: "perf-7th-anniversary-day2", note: "公式ページに公演日の記載なし。曲順が DAY2 と同じため DAY2 と推定", ordered: true, songIds: ["zettai-idol-yamenaide", "aikatsu-happy-end", "heroines", "watashi-mahoutsukai", "ohimesama-ni-shiteyo", "shiran-kedo", "senobi-in-love", "shukipi", "drive-date-tonai", "nakanaori-shu-cream", "want-you-want-you", "zurui-yo-zurui-ne", "the-5th", "sagase-diamond-lily", "youkoso-ikorabu-numa", "norotte-norotte", "kimi-to-watashi-no-uta", "oh-darling", "umi-to-lemon-tea", "natsumatsuri-koishitau", "kono-sora-ga-trigger", "seishun-subliminal", "zettai-idol-yamenaide", "natsumatope", "bokura-no-seifuku-christmas", "egao-no-recipe", "love"] },
     ],
   },
   {
@@ -1389,11 +1715,17 @@ export const LIVE_VIDEO_PRODUCTS = [
     productCodes: "TYPE-A Blu-ray VVXL-272～273／TYPE-B VVXL-274／TYPE-C DVD VVBL-227",
     releaseDate: "2025-12-24",
     status: "released",
-    note: "TYPE-B／TYPE-C の収録範囲は未確認です。",
+    note: "TYPE-B／TYPE-C は代々木2日目（DISC1）のみ。さいたま夜公演とメイキングは TYPE-A のみ。",
     sourceUrl: "https://equal-love.jp/news/detail/10951",
+    editions: [
+      { label: "TYPE A", format: "Blu-ray（2枚組）", productCode: "VVXL-272～273", url: "https://equal-love.jp/discography/detail/128/" },
+      { label: "TYPE B", format: "Blu-ray", productCode: "VVXL-274", url: "https://equal-love.jp/discography/detail/129/" },
+      { label: "TYPE C", format: "DVD", productCode: "VVBL-227", url: "https://equal-love.jp/discography/detail/130/" },
+    ],
+    streaming: { status: "none", note: "映像ではなく音声のみ配信（代々木公演の音源・2026年9月6日から）", sourceUrl: "https://equal-love.jp/news/detail/11919" },
     coverage: [
-      { performanceId: "perf-arena-tour-2025-day2", note: "TYPE-A の DISC1（代々木 2日目）", songIds: ["tokubechu-shite", "want-you-want-you", "weekend-citron", "nakanaori-shu-cream", "heroines", "norotte-norotte", "teokure-caution", "love-create", "oh-darling", "junkies", "iranai-twintail", "cameo", "ano-ko-complex", "kono-sora-ga-trigger", "chotokkyu-tousouchu", "kimi-no-dai-3-button", "seishun-subliminal", "zettai-idol-yamenaide", "koibito-ijou-suki-miman", "natsumatope", "umi-to-lemon-tea", "natsumatsuri-koishitau", "dakaratote", "sagase-diamond-lily"] },
-      { performanceId: "perf-arena-tour-2025-saitama-night", note: "TYPE-A の DISC2（さいたまスーパーアリーナ 夜公演）", songIds: ["tokubechu-shite", "weekend-citron", "want-you-want-you", "nakanaori-shu-cream", "heroines", "norotte-norotte", "iranai-twintail", "teokure-caution", "love-create", "oh-darling", "poison-girl", "umi-to-lemon-tea", "my-voice-is-for-you", "cameo", "ano-ko-complex", "junkies", "kimi-to-watashi-no-uta", "kono-sora-ga-trigger", "seishun-subliminal", "kimi-no-dai-3-button", "zettai-idol-yamenaide", "drive-date-tonai", "natsumatsuri-koishitau", "koibito-ijou-suki-miman", "sagase-diamond-lily"] },
+      { performanceId: "perf-arena-tour-2025-day2", note: "TYPE-A の DISC1・TYPE-B・TYPE-C（代々木 2日目）", ordered: true, songIds: ["tokubechu-shite", "want-you-want-you", "weekend-citron", "nakanaori-shu-cream", "heroines", "norotte-norotte", "teokure-caution", "love-create", "oh-darling", "junkies", "iranai-twintail", "cameo", "ano-ko-complex", "kono-sora-ga-trigger", "chotokkyu-tousouchu", "kimi-no-dai-3-button", "seishun-subliminal", "zettai-idol-yamenaide", "tokubechu-shite", "koibito-ijou-suki-miman", "natsumatope", "umi-to-lemon-tea", "natsumatsuri-koishitau", "dakaratote", "sagase-diamond-lily", "tokubechu-shite"] },
+      { performanceId: "perf-arena-tour-2025-saitama-night", note: "TYPE-A の DISC2 のみ（さいたまスーパーアリーナ 夜公演）", ordered: true, songIds: ["tokubechu-shite", "weekend-citron", "want-you-want-you", "nakanaori-shu-cream", "heroines", "norotte-norotte", "iranai-twintail", "teokure-caution", "love-create", "oh-darling", "poison-girl", "umi-to-lemon-tea", "my-voice-is-for-you", "cameo", "ano-ko-complex", "junkies", "kimi-to-watashi-no-uta", "kono-sora-ga-trigger", "seishun-subliminal", "kimi-no-dai-3-button", "zettai-idol-yamenaide", "tokubechu-shite", "drive-date-tonai", "natsumatsuri-koishitau", "koibito-ijou-suki-miman", "sagase-diamond-lily"] },
     ],
   },
   {
@@ -1404,8 +1736,14 @@ export const LIVE_VIDEO_PRODUCTS = [
     status: "released",
     note: null,
     sourceUrl: "https://equal-love.jp/news/detail/11345",
+    editions: [
+      { label: "TYPE A", format: "Blu-ray（2枚組）", productCode: "VVXL-290～291", url: "https://equal-love.jp/discography/detail/141/" },
+      { label: "TYPE B", format: "Blu-ray", productCode: "VVXL-292", url: "https://equal-love.jp/discography/detail/142/" },
+      { label: "TYPE-C", format: "DVD", productCode: "VVBL-229", url: "https://equal-love.jp/discography/detail/143/" },
+    ],
+    streaming: { status: "none", note: "映像ではなく音声のみ配信（2026年9月6日から）", sourceUrl: "https://equal-love.jp/news/detail/11919" },
     coverage: [
-      { performanceId: "perf-8th-anniversary-tour-ig-arena-day2", note: null, songIds: ["shukusai", "norotte-norotte", "iranai-twintail", "junkies", "queens", "ano-ko-complex", "doko-ga-suki-ka-itte", "shiran-kedo", "heroines", "nakanaori-shu-cream", "koibito-ijou-suki-miman", "naisho-banashi", "boku-no-heroine", "ohimesama-ni-shiteyo", "be-selfish", "kioku-no-dokoka-de", "love-song-ni-osowareru", "komorebi-mezzoforte", "natsumatope", "natsumatsuri-koishitau", "sagase-diamond-lily", "seishun-subliminal", "zettai-idol-yamenaide", "chotokkyu-tousouchu", "kono-sora-ga-trigger", "tokubechu-shite"] },
+      { performanceId: "perf-8th-anniversary-tour-ig-arena-day2", note: null, ordered: true, songIds: ["shukusai", "norotte-norotte", "iranai-twintail", "junkies", "queens", "ano-ko-complex", "doko-ga-suki-ka-itte", "shiran-kedo", "heroines", "nakanaori-shu-cream", "koibito-ijou-suki-miman", "naisho-banashi", "boku-no-heroine", "ohimesama-ni-shiteyo", "be-selfish", "kioku-no-dokoka-de", "love-song-ni-osowareru", "komorebi-mezzoforte", "natsumatope", "natsumatsuri-koishitau", "sagase-diamond-lily", "seishun-subliminal", "zettai-idol-yamenaide", "chotokkyu-tousouchu", "love-song-ni-osowareru", "kono-sora-ga-trigger", "tokubechu-shite"] },
     ],
   },
   {
@@ -1416,8 +1754,14 @@ export const LIVE_VIDEO_PRODUCTS = [
     status: "released",
     note: null,
     sourceUrl: "https://equal-love.jp/news/detail/11855",
+    editions: [
+      { label: "TYPE-A 完全生産限定盤", format: "Blu-ray（2枚組）", productCode: "VVXL-305～307", url: "https://equal-love.jp/discography/detail/150/" },
+      { label: "TYPE-B 初回仕様限定盤", format: "Blu-ray", productCode: "VVXL-308", url: "https://equal-love.jp/discography/detail/151/" },
+      { label: "TYPE-C 初回仕様限定盤", format: "DVD", productCode: "VVBL-233", url: "https://equal-love.jp/discography/detail/152/" },
+    ],
+    streaming: { status: "none", note: "映像の配信の告知は見つからず（2026年10月28日時点）", sourceUrl: null },
     coverage: [
-      { performanceId: "perf-8th-anniversary-tour-yokohama-final-day2", note: "4/19 公演のみ収録（公式に明記）", songIds: ["seishun-subliminal", "love-song-ni-osowareru", "chotokkyu-tousouchu", "natsumatope", "ohimesama-no-tsukurikata", "sweetest-girl", "oshi-no-iru-sekai", "kimi-to-watashi-no-uta", "drive-date-tonai", "oh-darling", "niji-no-moto", "darenimo-barezuni", "moratorium", "norotte-norotte", "junkies", "naisho-banashi", "heroines", "gekiyaku-chudoku", "iranai-twintail", "nakanaori-shu-cream", "kono-sora-ga-trigger", "natsumatsuri-koishitau", "sagase-diamond-lily", "love", "tokubechu-shite", "want-you-want-you", "komorebi-mezzoforte", "bukatsuchu-ni-megaau-natte-omotteta-nda", "zettai-idol-yamenaide"] },
+      { performanceId: "perf-8th-anniversary-tour-yokohama-final-day2", note: "4/19 公演のみ収録（公式に明記）。「この空がトリガー」は公演では披露（M21）されたが、公式の商品の曲目には記載なし（未収録か記載漏れかは不明）", ordered: true, songIds: ["seishun-subliminal", "love-song-ni-osowareru", "chotokkyu-tousouchu", "natsumatope", "ohimesama-no-tsukurikata", "sweetest-girl", "oshi-no-iru-sekai", "kimi-to-watashi-no-uta", "drive-date-tonai", "oh-darling", "niji-no-moto", "darenimo-barezuni", "moratorium", "norotte-norotte", "junkies", "naisho-banashi", "heroines", "gekiyaku-chudoku", "iranai-twintail", "nakanaori-shu-cream", "natsumatsuri-koishitau", "sagase-diamond-lily", "love", "tokubechu-shite", "want-you-want-you", "komorebi-mezzoforte", "bukatsuchu-ni-megaau-natte-omotteta-nda", "zettai-idol-yamenaide", "seishun-subliminal"] },
     ],
   },
   {
@@ -1428,6 +1772,14 @@ export const LIVE_VIDEO_PRODUCTS = [
     status: "upcoming",
     note: "DAY1・DAY2 とも収録。収録曲は未発表です。",
     sourceUrl: "https://equal-love.jp/news/detail/12281",
+    editions: [
+      { label: "完全生産限定盤", format: "Blu-ray（3枚組）", productCode: "VVXL-317～320", url: null },
+      { label: "初回仕様限定盤 DAY1", format: "Blu-ray", productCode: "VVXL-321", url: null },
+      { label: "初回仕様限定盤 DAY2", format: "Blu-ray", productCode: "VVXL-322", url: null },
+      { label: "初回仕様限定盤 DAY1", format: "DVD", productCode: "VVBL-235", url: null },
+      { label: "初回仕様限定盤 DAY2", format: "DVD", productCode: "VVBL-236", url: null },
+    ],
+    streaming: { status: "unknown", note: "発売前", sourceUrl: null },
     coverage: [
       { performanceId: "perf-stadium-beyond-kyun-day1", note: null, songIds: null },
       { performanceId: "perf-stadium-beyond-kyun-day2", note: null, songIds: null },

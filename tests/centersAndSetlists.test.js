@@ -99,7 +99,7 @@ function runCenterTests() {
   const noguchi = filterCenterRows(rows, { memberName: "野口衣織" });
   assertEqual(noguchi.length > 0 && noguchi.every((row) => row.center.centerNames.includes("野口衣織")), true, "D: メンバーで絞り込める（Wセンターも含む）");
   assertEqual(filterCenterRows(rows, { query: "らぶろけ", normalize: normalizeForSearch }).map((row) => row.song.id), ["love-locke"], "D: 曲名（読み）で絞り込める");
-  assertEqual(countEvidenceKinds(rows), { press: 19, fan: 4, official: 44, unknown: 2, user: 1 }, "D: 根拠の内訳（2026-10-28再調査後：公式44・報道19・ファン資料のみ4・アプリ内設定1・根拠未確認2）");
+  assertEqual(Object.fromEntries(Object.entries(countEvidenceKinds(rows)).sort()), { fan: 4, official: 44, press: 19, unknown: 2, user: 1 }, "D: 根拠の内訳（2026-10-28再調査後：公式44・報道19・ファン資料のみ4・アプリ内設定1・根拠未確認2）");
 }
 
 function runSetlistDataTests() {
