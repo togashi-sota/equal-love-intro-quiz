@@ -1,0 +1,398 @@
+/* ===== 歴代センター一覧：表示の切り替えと「センター表」（2026-10-28新設・js/centersScreen.js / js/centerTable.js） =====
+   本人の参考画像（行＝シングル、列＝表題曲／全員曲／ユニット曲とそれぞれのセンター）と同じ読み方ができる表を、
+   songs.js から自動で組み立てて表示する。
+   ・スマホでは横スクロールの表にし、左端の「作品」の列は横にスクロールしても残す（position: sticky）
+   ・文字は小さくしすぎない（どの大きさでも 12px 未満にしない）
+   ・「全画面で見る」で画面いっぱいの重ね表示にできる（横向きにすると広く見られる）
+   css/style.css は変更せず、必要な上書きはこのファイルで行う。 */
+
+/* ---- 表示の切り替え（［一覧カード］［センター表］） ---- */
+.centers-view-tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.centers-view-tab {
+  flex: 1;
+  padding: 9px 8px;
+  border: 1.5px solid var(--color-primary-light);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-primary-dark);
+  font-family: inherit;
+  font-size: 0.86rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.centers-view-tab.is-active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #ffffff;
+  box-shadow: 0 3px 10px rgba(255, 111, 168, 0.25);
+}
+
+.centers-intro-text {
+  margin: 0;
+}
+
+/* hidden 属性が display の指定に負けないようにする（css/style.css の他の部品と同じ対策） */
+.centers-table-panel[hidden],
+.center-row-list[hidden],
+.centers-toggle[hidden] {
+  display: none;
+}
+
+/* ---- センター表のまわり ---- */
+.centers-table-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.centers-table-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.centers-table-hint {
+  flex: 1 1 auto;
+  margin: 0;
+  font-size: 0.75rem;
+  color: #7a6170;
+}
+
+.ct-text-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ct-text-size-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #7a6170;
+}
+
+.ct-text-size-button {
+  min-width: 34px;
+  min-height: 32px;
+  padding: 4px 8px;
+  border: 1.5px solid var(--color-primary-light);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ct-text-size-button.is-active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+}
+
+.centers-table-fullscreen-button,
+.centers-table-overlay-close {
+  min-height: 34px;
+  padding: 6px 14px;
+  border: none;
+  border-radius: 999px;
+  background: var(--color-primary);
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 3px 10px rgba(255, 111, 168, 0.25);
+}
+
+/* 表を入れる横スクロールの枠（白い角丸カード） */
+.centers-table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 14px;
+  border: 1.5px solid var(--color-primary-light);
+  background: var(--color-surface);
+  box-shadow: 0 3px 12px rgba(255, 111, 168, 0.1);
+}
+
+.centers-table-scroll:focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* ---- 表本体 ---- */
+.centers-table {
+  --ct-border: #f3d3e2;
+  --ct-group-border: #ffb3d1;
+  min-width: 100%; /* PC など枠が広いときは、枠いっぱいまで広げる */
+  border-collapse: separate; /* sticky の列と罫線を両立させるため collapse にしない */
+  border-spacing: 0;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--color-text);
+}
+
+/* 文字の大きさ（小でも 12px より小さくしない） */
+.centers-table[data-text-size="s"] {
+  font-size: 12px;
+}
+
+.centers-table[data-text-size="l"] {
+  font-size: 15px;
+}
+
+.centers-table th,
+.centers-table td {
+  padding: 6px 6px;
+  border-bottom: 1px solid var(--ct-border);
+  vertical-align: middle;
+  text-align: left;
+  background: var(--color-surface);
+}
+
+/* 列見出し */
+.centers-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 7px 6px;
+  border-bottom: 2px solid var(--ct-group-border);
+  background: #fff4f9;
+  color: var(--color-primary-dark);
+  font-size: max(12px, 0.9em);
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.centers-table thead .ct-head-center {
+  color: #8a6a7c;
+  font-size: max(12px, 0.82em);
+}
+
+/* 表題曲・全員曲・ユニット曲の区切り（曲とセンターの組ごとに縦線） */
+.centers-table .ct-song {
+  border-left: 1px solid var(--ct-border);
+}
+
+.centers-table thead .ct-head-song {
+  border-left: 1px solid var(--ct-border);
+}
+
+/* 左端の「作品」の列：横スクロールしても残す */
+.centers-table .ct-work {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  width: 5em;
+  min-width: 5em;
+  max-width: 5.6em;
+  padding: 8px 4px;
+  text-align: center;
+  vertical-align: middle;
+  background: #fff7fb;
+  border-right: 2px solid var(--ct-group-border);
+}
+
+.centers-table thead .ct-work {
+  z-index: 3; /* 左上の角は、縦・横どちらにスクロールしても一番手前 */
+  background: #ffeaf3;
+}
+
+.ct-work-badge {
+  display: block;
+  font-size: 1.35em;
+  font-weight: 900;
+  line-height: 1.1;
+  color: var(--color-primary-dark);
+  letter-spacing: -0.01em;
+}
+
+.ct-work-note,
+.ct-work-date {
+  display: block;
+  margin-top: 2px;
+  font-size: max(12px, 0.78em);
+  font-weight: 700;
+  color: #8a7482;
+  white-space: nowrap;
+}
+
+.ct-work-date {
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+/* 作品（シングル1枚など）の境目をはっきりさせる */
+.centers-table .ct-group > tr.is-first > th,
+.centers-table .ct-group > tr.is-first > td {
+  border-top: 2px solid var(--ct-group-border);
+}
+
+/* 区分の見出し（シングル／アルバム／配信限定シングル／その他） */
+.centers-table .ct-section-head {
+  padding: 0;
+  background: linear-gradient(90deg, var(--color-primary-light), #f6e6ff);
+  border-bottom: none;
+}
+
+.ct-section-label {
+  position: sticky;
+  left: 0;
+  display: inline-block;
+  padding: 6px 10px;
+  font-size: max(12px, 0.9em);
+  font-weight: 900;
+  color: var(--color-primary-dark);
+  white-space: nowrap;
+}
+
+/* 曲名のマス */
+.centers-table .ct-song {
+  min-width: 8.6em;
+  max-width: 12em;
+}
+
+.ct-song-title {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  font-weight: 800;
+  text-align: left;
+  text-decoration: underline dotted rgba(74, 46, 66, 0.35);
+  text-underline-offset: 3px;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+/* センターのマス */
+.centers-table .ct-center {
+  min-width: 6.4em;
+  width: 6.8em;
+  padding: 5px 6px;
+}
+
+.ct-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+/* 一覧カード用の .center-cell（css/style.css）を、表の中では小さめ・名前が1行に収まる大きさにする */
+.centers-table .center-cell {
+  padding: 5px 6px;
+  border-radius: 8px;
+  font-size: 1em;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+/* Wセンター：2つのマスを縦に並べ、間に細いすき間 */
+.centers-table .ct-center.is-multi .center-cell {
+  padding: 4px 6px;
+}
+
+/* 「全員」：特定のメンバーの色を使わない共通の表示（css/style.css の .center-cell.is-all をそのまま使う） */
+.centers-table .center-cell.is-all {
+  letter-spacing: 0.15em;
+}
+
+/* センターの区別が無いユニット曲の「歌唱メンバー」：センターと見間違えないよう小さく・控えめにする */
+.ct-singers-label {
+  align-self: flex-start;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #f1ecef;
+  color: #6b5a66;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.centers-table .center-cell.is-singer {
+  padding: 3px 6px;
+  font-size: max(12px, 0.86em);
+  opacity: 0.8;
+}
+
+.centers-table .center-cell.is-unconfirmed,
+.centers-table .center-cell.is-none {
+  font-size: max(12px, 0.86em);
+}
+
+/* 空のマス（その作品に該当の曲が無い） */
+.centers-table td.is-empty {
+  background: #fdfbfc;
+}
+
+/* メンバー・曲名で絞り込んだとき、条件に合わない曲は薄くする（作品のまとまりは見えたまま） */
+.centers-table td.is-dimmed {
+  opacity: 0.3;
+}
+
+.centers-table td.is-search-focus {
+  outline-offset: -3px;
+}
+
+/* ---- 全画面で見る ---- */
+.centers-table-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40; /* 歌詞の全画面表示と同じ高さ（更新通知バナーより手前） */
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-sizing: border-box;
+  background: linear-gradient(135deg, var(--color-background-start), var(--color-background-end));
+  /* padding のショートハンドに env()・max() を混ぜると実機の Safari で無効になることがあるため、個別に指定する
+     （css/style.css の .lyrics-fullscreen-overlay と同じ対策） */
+  padding-top: max(48px, calc(env(safe-area-inset-top) + 8px));
+  padding-right: max(10px, env(safe-area-inset-right));
+  padding-bottom: max(10px, env(safe-area-inset-bottom));
+  padding-left: max(10px, env(safe-area-inset-left));
+}
+
+.centers-table-overlay-header {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.centers-table-overlay-title {
+  flex: 1 1 auto;
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 900;
+  color: var(--color-primary-dark);
+}
+
+/* 全画面では表の枠が縦にもスクロールし、列見出しが上に残る。ピンチでの拡大も妨げない */
+.centers-table-overlay .centers-table-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  touch-action: pan-x pan-y pinch-zoom;
+}
+
+/* スマホの横向き（高さが低い）では上の余白を詰め、表を少しでも広く見せる */
+@media (orientation: landscape) and (max-height: 500px) {
+  .centers-table-overlay {
+    padding-top: max(8px, env(safe-area-inset-top));
+    gap: 6px;
+  }
+
+  .centers-table-overlay-title {
+    font-size: 0.9rem;
+  }
+}
