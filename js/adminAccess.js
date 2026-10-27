@@ -45,3 +45,45 @@ export function isAdminByRules(adminsMap, authUid) {
   if (!adminsMap || typeof adminsMap !== "object") return false;
   return isAdminFlagValue(adminsMap[authUid]);
 }
+
+// ---------------------------------------------------------------------------
+// 【2026-10-28追加・本人の実機報告「IDが変わって管理者機能が使えなくなった」】
+// 管理者の診断表示（純粋関数）。ここは「表示」だけを作り、権限は一切与えない。
+// 管理者かどうかの本当の判定は、今までどおり Firebase の admins/{uid}（Console でしか書けない）と Rules。
+// ---------------------------------------------------------------------------
+export const ADMIN_REMEMBERED_UIDS_MAX = 5;
+
+// この端末で管理者と確認できたUIDの一覧に uid を加えた新しい配列を返す（重複なし・新しい順に最大5件）。
+export function rememberAdminUid(list, uid) {
+  const base = Array.isArray(list) ? list.filter((v) => typeof v === "string" && v && v !== uid) : [];
+  if (typeof uid !== "string" || !uid) return base.slice(-ADMIN_REMEMBERED_UIDS_MAX);
+  return [...base, uid].slice(-ADMIN_REMEMBERED_UIDS_MAX);
+}
+
+// 管理者の状態を { status, lines } にまとめる。
+//   status: "admin" | "lost-after-uid-change"（以前のIDでは管理者だった）| "not-admin" | "check-failed" | "no-auth"
+// checkResult は js/adminConfig.js の getLastAdminCheck().result（"admin"/"not-registered"/"error"/"no-auth"/null）。
+export function describeAdminDiagnostics({ currentUid = null, checkResult = null, rememberedAdminUids = [] } = {}) {
+  const previousAdminUids = (rememberedAdminUids ?? []).filter((uid) => typeof uid === "string" && uid && uid !== currentUid);
+  if (!currentUid || checkResult === "no-auth") {
+    return { status: "no-auth", lines: ["管理者判定：ログインIDを確認できません"] };
+  }
+  if (checkResult === "admin") {
+    return { status: "admin", lines: [`管理者判定：管理者（admins/${currentUid} が登録済み）`] };
+  }
+  if (checkResult === "error") {
+    return { status: "check-failed", lines: ["管理者判定：通信エラーで確認できませんでした（管理者用UIは出しません）"] };
+  }
+  if (previousAdminUids.length > 0) {
+    const last = previousAdminUids[previousAdminUids.length - 1];
+    return {
+      status: "lost-after-uid-change",
+      lines: [
+        `管理者判定：この端末の以前のID（…${last.slice(-6)}）では管理者でしたが、今のIDは未登録です`,
+        `復旧：Firebase Console → Realtime Database → admins に「${currentUid}」を true（boolean）で追加`,
+        "（アプリから自分を管理者にすることはできません。手順は報告書を参照）",
+      ],
+    };
+  }
+  return { status: "not-admin", lines: ["管理者判定：管理者ではありません"] };
+}

@@ -46,6 +46,7 @@ import {
   stopFriendPresenceTracking,
   deleteFriendPresence,
   hasActiveFriendPresenceTracking,
+  needsFriendPresenceRearm,
 } from "./presenceSync.js";
 
 export { isRunningAsInstalledPwa, isPublicProfileSharingEnabled } from "./publicProfilePayloads.js";
@@ -120,6 +121,10 @@ export async function syncPublicProfileIfEnabled(playerKeyPrefix) {
     await set(ref(database, `publicProfiles/${uid}`), { ...payload, updatedAt: serverTimestamp() });
     lastSyncedPayloadJson = payloadJson;
     setPresenceFact("profileSync", "ok");
+    // 【2026-10-28追加・本人の実機報告「オンラインなのにオフライン／記録なし」】UIDが変わった直後などに
+    // 公開プロフィールより先に presence を始めていると、在席ノードの書き込みが Rules に拒否されたまま
+    // セッションが続いていた。プロフィールを作れた今、拒否されていた在席ノードを張り直す。
+    if (needsFriendPresenceRearm()) startFriendPresenceTracking();
     return true;
   } catch (error) {
     // 本人指示：Firebase更新に失敗しても、称号取得・プレイ自体は失敗扱いにしない。
@@ -222,7 +227,9 @@ export function syncFriendPresenceToActivePlayer() {
     const shouldTrack = isPublicProfileSharingEnabled(playerKeyPrefix);
     setPresenceFact("sharing", shouldTrack);
     if (shouldTrack) {
-      if (hasActiveFriendPresenceTracking()) return; // 既に正しい状態
+      // 【2026-10-28変更】追跡中でも、在席ノードの書き込みが拒否されたまま（公開プロフィールが無かった等）なら
+      // 張り直しへ進む（js/presenceSync.js の needsFriendPresenceRearm()）。
+      if (hasActiveFriendPresenceTracking() && !needsFriendPresenceRearm()) return; // 既に正しい状態
       const success = await syncPublicProfileIfEnabled(playerKeyPrefix);
       if (success) {
         startFriendPresenceTracking();

@@ -39,7 +39,12 @@ import { database, authReady, getCurrentUid } from "./firebaseClient.js";
 // 存在する情報だけからisPlayingを判定する（本人指示：ゲーム内heartbeat・audio
 // heartbeatとは結合しない）。
 import { onScreenChange } from "./screens.js";
-import { isGameplayScreenName, selectStaleOwnConnectionIds } from "./presencePayloads.js";
+import {
+  isGameplayScreenName,
+  selectStaleOwnConnectionIds,
+  computeServerNowMs,
+  shouldWriteResumeHeartbeat,
+} from "./presencePayloads.js";
 import { setPresenceFact } from "./presenceDiagnostics.js";
 
 // 【本人指示：presence heartbeatは他のheartbeatと共用しない】接続が続いている間、
@@ -56,6 +61,46 @@ let isTracking = false;
 // 画面切り替えのたびにisPlayingを書き込めるようにするための保持。
 let trackedUid = null;
 let lastWrittenIsPlaying = null;
+// 【2026-10-28追加・本人の実機報告「オンラインなのにオフライン表示」】在席ノードの書き込みが Rules に
+// 拒否された（例：UIDが変わった直後で publicProfiles/{新UID} がまだ無い）とき、.info/connected は
+// 再発火しないため、以前はそのセッションの間ずっと在席ノードが作られなかった（isTracking は true のまま）。
+// 拒否されたことを覚えておき、公開プロフィールの作成に成功した後などに「張り直し」できるようにする。
+let connectionWriteFailed = false;
+// 直近に lastSeen を書いた時刻（端末時刻）。画面復帰時の即時更新を短時間に何度も行わないため。
+let lastHeartbeatWrittenAtMs = 0;
+
+// 【2026-10-28追加】Firebase のサーバー時刻と端末時刻の差（.info/serverTimeOffset、端末内で計算される値で
+// 読み取り課金は発生しない）。フレンド一覧の「オンライン／最終接続」をサーバー時刻基準で判定するために使う。
+let serverTimeOffsetMs = 0;
+let serverTimeOffsetListening = false;
+
+function ensureServerTimeOffsetListener() {
+  if (serverTimeOffsetListening) return;
+  serverTimeOffsetListening = true;
+  try {
+    onValue(ref(database, ".info/serverTimeOffset"), (snapshot) => {
+      const value = snapshot.val();
+      serverTimeOffsetMs = typeof value === "number" && Number.isFinite(value) ? value : 0;
+    });
+  } catch {
+    serverTimeOffsetListening = false;
+  }
+}
+
+// フレンド一覧の判定に使う「今」（サーバー時刻の推定値）。
+export function getPresenceNowMs() {
+  return computeServerNowMs(Date.now(), serverTimeOffsetMs);
+}
+
+// 在席ノードの書き込みが拒否されたまま（＝張り直しが必要）かどうか。
+export function needsFriendPresenceRearm() {
+  return isTracking && connectionWriteFailed;
+}
+
+function writeHeartbeat(uid) {
+  lastHeartbeatWrittenAtMs = Date.now();
+  set(ref(database, `presence/${uid}/lastSeen`), serverTimestamp()).catch(() => {});
+}
 
 async function armPresenceForUid(uid) {
   const infoConnectedRef = ref(database, ".info/connected");
@@ -73,14 +118,17 @@ async function armPresenceForUid(uid) {
     onDisconnect(connectionRef).remove();
     set(connectionRef, true)
       .then(() => {
+        connectionWriteFailed = false;
         setPresenceFact("writeError", null);
       })
       .catch((error) => {
         // 診断表示用：Rulesに拒否された場合（permission_denied＝今のIDに公開プロフィールが無い等）が分かるようにする
+        connectionWriteFailed = true;
         setPresenceFact("writeError", error?.code ?? error?.message ?? "unknown");
       });
     setPresenceFact("connected", true);
     onDisconnect(lastSeenRef).set(serverTimestamp());
+    lastHeartbeatWrittenAtMs = Date.now();
     set(lastSeenRef, serverTimestamp()).catch(() => {});
     // 【本人指示：切断時はプレイ中表示を残さない】再接続のたびに毎回予約し直す
     // （connectionRef・lastSeenRefの予約と同じ理由）。
@@ -117,8 +165,15 @@ onScreenChange((screenName) => {
 // アプリ起動時に1回だけ呼ぶ想定（js/main.js参照）。認証待ちを含むため非同期だが、
 // 呼び出し側をブロックしない（awaitせず呼び捨てにされてよい設計）。
 export async function startFriendPresenceTracking() {
-  if (isTracking) return;
+  if (isTracking) {
+    // 【2026-10-28追加】在席ノードの書き込みが拒否されたままなら、いったん止めて張り直す
+    // （公開プロフィールが後から作られた場合に、そのセッションのうちにオンライン表示へ戻すため）
+    if (!connectionWriteFailed) return;
+    stopFriendPresenceTracking();
+    connectionWriteFailed = false;
+  }
   isTracking = true;
+  ensureServerTimeOffsetListener();
   try {
     await authReady;
     const uid = getCurrentUid();
@@ -130,6 +185,7 @@ export async function startFriendPresenceTracking() {
     await armPresenceForUid(uid);
     const lastSeenRef = ref(database, `presence/${uid}/lastSeen`);
     lastSeenHeartbeatTimerId = setInterval(() => {
+      lastHeartbeatWrittenAtMs = Date.now();
       set(lastSeenRef, serverTimestamp()).catch(() => {});
     }, PRESENCE_LASTSEEN_HEARTBEAT_INTERVAL_MS);
     // 【実機相当のBrowserペイン確認で発見・修正済みの過去のバグ（js/roomInviteUi.jsの
@@ -207,6 +263,7 @@ export function hasActiveFriendPresenceTracking() {
 // { [uid]: {connections, lastSeen} } 形式の生データをそのまま渡す（画面側で
 // js/presencePayloads.jsの関数を使って表示用に変換する）。
 export function subscribeToAllPresence(callback) {
+  ensureServerTimeOffsetListener();
   const presenceRef = ref(database, "presence");
   const handleValue = (snapshot) => {
     callback(snapshot.exists() ? snapshot.val() : {});
@@ -228,4 +285,25 @@ export async function fetchAllPresenceOnce() {
     console.warn("presenceの一括取得に失敗しました", error);
     return {};
   }
+}
+
+// 【2026-10-28追加・本人の実機報告（iPhoneでロック・バックグラウンドから戻った直後の表示ずれ）】
+// iOS ではバックグラウンド中に setInterval が止まるため、復帰直後は lastSeen が最大で数分古いまま
+// 残ることがある。画面が再び表示されたときに1回だけ lastSeen を更新する（30秒以内に書いていれば書かない）。
+// 追加の書き込みは「アプリへ戻った回数」ぶんだけ（1回数十バイト）で、読み取りは増えない。
+// バックグラウンドへ行ったときに自分からオフラインにする処理は、仕様の判断が必要なため入れていない
+// （報告書 tools/feature-research/2026-10-28/id-presence-report.md の「本人判断が必要な点」参照）。
+if (typeof document !== "undefined" && typeof document.addEventListener === "function") {
+  document.addEventListener("visibilitychange", () => {
+    if (
+      shouldWriteResumeHeartbeat({
+        visibilityState: document.visibilityState,
+        trackedUid,
+        nowMs: Date.now(),
+        lastWrittenAtMs: lastHeartbeatWrittenAtMs,
+      })
+    ) {
+      writeHeartbeat(trackedUid);
+    }
+  });
 }

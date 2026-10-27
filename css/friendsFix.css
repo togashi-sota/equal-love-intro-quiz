@@ -1,0 +1,32 @@
+/* 【2026-10-28新設】フレンド一覧のID・オンライン表示の修正に伴う追加スタイル。
+   css/style.css を変更せずに済むよう別ファイルにしている（index.html の <head> で style.css の後に読み込む）。
+   js/fanProfileCard.js・js/fanProfilesScreen.js が作る要素だけを対象にする。 */
+
+/* 「通信不明」：オンライン（緑）とオフライン（灰）の中間。色だけで区別せず、文言と❔でも伝える */
+.fan-profile-card-presence[data-presence-state="unknown"] {
+  color: var(--color-text);
+  opacity: 0.75;
+  white-space: normal;
+}
+
+/* 同じ名前の別プレイヤー・旧IDカード（管理者のみ）の短い補足。既存の推し・称号の行と同じ控えめな文字 */
+.fan-profile-card-identity-note {
+  display: block;
+  font-size: 0.7rem;
+  line-height: 1.4;
+  opacity: 0.7;
+  overflow-wrap: anywhere;
+}
+
+/* 「詳細情報」内のIDの変更履歴・管理者判定（既存の接続診断の詳細行と同じ見た目） */
+.fan-profiles-identity-diag {
+  margin-top: 8px;
+}
+
+.fan-profiles-identity-diag-line {
+  margin: 2px 0 0;
+  font-size: 0.66rem;
+  color: var(--color-text);
+  opacity: 0.8;
+  overflow-wrap: anywhere;
+}
