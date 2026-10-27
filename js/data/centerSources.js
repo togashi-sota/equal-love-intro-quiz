@@ -155,7 +155,8 @@ export const CENTER_SOURCES = {
   // 夢の続き
   "yume-no-tsuzuki": { appRule: "all", kind: "user", url: null, note: "本人のアプリ内ルールで「全員」。2026-10-28に再調査したが、公式MV説明欄・報道にセンター（全員を含む）の記載は見つからなかった" },
   // 866
-  "866": { kind: "unknown", url: null, note: "「センターなし」と書かれた公式・報道の資料は見つかっていない（センターの記載が無いことだけ確認）" },
+  // 【2026-10-28 本人の判断】固定センターなし→「全員」（アプリ内ルール）。公式・報道の根拠は無いので kind は "unknown" のまま
+  "866": { appRule: "all", kind: "unknown", url: null, note: "本人の判断（2026-10-28）でアプリ内ルール「全員」を適用。「センターなし」「全員センター」と書かれた公式・報道の資料は見つかっていない（センターの記載が無いことだけ確認）" },
   // Be Selfish
   "be-selfish": { kind: "official", url: "https://www.youtube.com/watch?v=suf7S4AKdmY", note: "公式YouTubeのMV説明欄にセンターの記載あり" },
   // 好きって、言えなかった

@@ -3,6 +3,10 @@
 import { SONGS } from "../js/data/songs.js";
 import { MEMBERS } from "../js/data/members.js";
 import { CENTER_SOURCES } from "../js/data/centerSources.js";
+import { DISCOGRAPHY } from "../js/data/discography.js";
+import { CATEGORY } from "../js/data/songs.js";
+import { buildCenterTableModel, filterCenterTableModel, describeCenterTableCell, pickCenterTableColumn } from "../js/centerTable.js";
+import { initCentersScreen, openCentersScreen } from "../js/centersScreen.js";
 import { LIVE_EVENTS } from "../js/data/liveHistory.js";
 import { SETLIST_PERFORMANCES, UNVERIFIED_SETLIST_PERFORMANCES, LIVE_VIDEO_PRODUCTS } from "../js/data/setlists.js";
 import {
@@ -57,10 +61,15 @@ function runCenterTests() {
   // 【2026-10-28 本人のアプリ内ルール】固定センターなし→「全員」。公式の根拠かどうかは別に持つ（公式扱いにしない）
   const doko = classifyCenter(songById("doko-ga-suki-ka-itte"));
   assertEqual([doko.state, doko.evidenceLabel, doko.isConfirmed, doko.appRule], ["all", "アプリ内設定・公式未確認", false, "all"], "A: どこが好きか言っては「全員」（アプリ内ルール・公式未確認）");
-  assertEqual(["koi-hajimemashita", "yume-no-tsuzuki", "doko-ga-suki-ka-itte"].map((id) => classifyCenter(songById(id)).appRule), ["all", "all", "all"], "A: 本人ルールの3曲は appRule all");
+  assertEqual(["koi-hajimemashita", "yume-no-tsuzuki", "doko-ga-suki-ka-itte", "866"].map((id) => classifyCenter(songById(id)).appRule), ["all", "all", "all", "all"], "A: 本人ルールの4曲は appRule all");
+  assertEqual(Object.keys(CENTER_SOURCES).filter((id) => CENTER_SOURCES[id].appRule === "all").sort(), ["866", "doko-ga-suki-ka-itte", "koi-hajimemashita", "yume-no-tsuzuki"], "A: appRule all は4曲だけ（2026-10-28 本人の判断）");
   assertEqual(classifyCenter(songById("love")).appRule, null, "A: ふつうの曲には appRule が付かない");
+  // 【2026-10-28 本人の判断】866 は固定センターなし→「全員」。根拠の種類は「根拠未確認」のまま（公式扱いに格上げしない）
   const eight = classifyCenter(songById("866"));
-  assertEqual([eight.state, eight.appRule, describeCenterState(eight)], ["none", null, "センター未確認"], "A: 866 は調査不足のまま（全員と断定しない）");
+  assertEqual([eight.state, eight.centerNames, eight.appRule, eight.evidenceKind, eight.isConfirmed, describeCenterState(eight)], ["all", [], "all", "unknown", false, "全員センター"], "A: 866 は「全員」（アプリ内ルール・根拠未確認のまま）");
+  assertEqual([songById("866").centerType, songById("866").center], ["all", ["全員"]], "A: 866 の songs.js は centerType all・center [\"全員\"]");
+  assertEqual(SONGS.filter((song) => song.centerType === "all").map((song) => song.id).sort(), ["866", "doko-ga-suki-ka-itte", "koi-hajimemashita", "yume-no-tsuzuki"], "A: 「全員」の曲は4曲だけ（ほかの曲のセンターは変えていない）");
+  assertEqual(SONGS.filter((song) => song.centerType === "none").length, 0, "A: centerType none の曲は無くなった（866 を全員にしたため）");
   assertEqual(SONGS.filter((song) => song.centerType === "all").every((song) => JSON.stringify(song.center) === JSON.stringify(["全員"])), true, "A: 全員の曲は center が [\"全員\"]");
   const solo = classifyCenter(songById("genneki-idol-chu"));
   assertEqual([solo.state, solo.evidenceKind], ["solo", null], "A: ソロ曲はセンターの区別なし（根拠ラベルも出さない）");
@@ -104,7 +113,122 @@ function runCenterTests() {
   const noguchi = filterCenterRows(rows, { memberName: "野口衣織" });
   assertEqual(noguchi.length > 0 && noguchi.every((row) => row.center.centerNames.includes("野口衣織")), true, "D: メンバーで絞り込める（Wセンターも含む）");
   assertEqual(filterCenterRows(rows, { query: "らぶろけ", normalize: normalizeForSearch }).map((row) => row.song.id), ["love-locke"], "D: 曲名（読み）で絞り込める");
-  assertEqual(Object.fromEntries(Object.entries(countEvidenceKinds(rows)).sort()), { fan: 4, official: 44, press: 19, unknown: 1, user: 2 }, "D: 根拠の内訳（2026-10-28：公式44・報道19・ファン資料のみ4・アプリ内設定2・根拠未確認1）");
+  assertEqual(Object.fromEntries(Object.entries(countEvidenceKinds(rows)).sort()), { fan: 4, official: 44, press: 19, unknown: 1, user: 2 }, "D: 根拠の内訳（2026-10-28：公式44・報道19・ファン資料のみ4・アプリ内設定2・根拠未確認1＝866。866 を「全員」にしても根拠の種類は変えない）");
+  const stateCounts = {};
+  rows.forEach((row) => { stateCounts[row.center.state] = (stateCounts[row.center.state] ?? 0) + 1; });
+  assertEqual([stateCounts.all, stateCounts.none ?? 0], [4, 0], "D: 「全員」は4曲・「センターなし／未確認」の曲は0曲（866 を全員にした後）");
+}
+
+// 【2026-10-28新設】センター表（js/centerTable.js）：songs.js から作品ごとの表を組み立てる純粋な関数
+function runCenterTableTests() {
+  console.log("--- 歴代センター表（2026-10-28） ---");
+  const model = buildCenterTableModel(SONGS, { discography: DISCOGRAPHY });
+  const groupById = (id, target = model) => target.groups.find((group) => group.workId === id);
+  const ids = (entries) => entries.map((entry) => entry.song.id);
+
+  // ---- I. 並び・区分 ----
+  assertEqual(model.sections.map((section) => section.kind), ["single", "album", "digital", "other"], "I: 区分は シングル→アルバム→配信限定→その他 の順");
+  const singles = model.sections[0].groups;
+  assertEqual(singles.map((group) => group.badge), Array.from({ length: 21 }, (_, i) => describeWork(`single-${String(i + 1).padStart(2, "0")}`).label.replace("シングル", "")), "I: シングルは 1st〜21st を発売順に1グループずつ");
+  assertEqual(singles.every((group, index) => index === 0 || singles[index - 1].releaseDate <= group.releaseDate), true, "I: シングルは発売日の古い順");
+  assertEqual([singles[0].workTitle, singles[0].releaseDate, singles[20].workTitle], ["＝LOVE", "2017-09-06", "恋、はじめました。"], "I: 作品名と発売日は songs.js から取る");
+  assertEqual(model.sections[2].groups.map((group) => group.workId), ["digital-01", "digital-02", "digital-03", "digital-04"], "I: 配信限定シングルは発売順に別グループ");
+  assertEqual([groupById("special-866").kind, groupById("special-866").badge], ["other", "他"], "I: 866（特別曲）は「その他」の区分");
+  const tableSongCount = model.groups.reduce((sum, group) => sum + group.columns.title.length + group.columns.group.length + group.columns.unit.length, 0);
+  assertEqual(tableSongCount, SONGS.filter((song) => song.category !== CATEGORY.SPECIAL).length, "I: Overture（特別収録曲）以外の全曲が表のどこかに1回ずつ入る");
+  assertEqual(pickCenterTableColumn(songById("overture")), null, "I: Overture は表に出さない");
+
+  // ---- J. 列（表題曲／全員曲／ユニット曲）と、作品の中の並び ----
+  const first = groupById("single-01");
+  assertEqual([ids(first.columns.title), ids(first.columns.group), ids(first.columns.unit), first.lineCount], [["love"], ["kioku-no-dokoka-de", "start"], [], 2], "J: 1st は 表題曲1・全員曲2（縦に積む）・行数は多いほうの2");
+  assertEqual(ids(groupById("single-18").columns.title), ["tokubechu-shite", "koibito-ijou-suki-miman"], "J: 表題曲が2曲の作品（18th）は同じマスに2曲");
+  const album = groupById("album-01");
+  assertEqual([album.badge, album.badgeNote, ids(album.columns.title), album.columns.unit.length, ids(album.columns.group).includes("overture")], ["1st", "アルバム", ["sakura-no-saku-oto-ga-shita"], 4, false], "J: アルバムは別グループ（表題曲・全員曲・ユニット曲4曲）");
+  assertEqual(ids(groupById("digital-04").columns.group), ["naisho-banashi"], "J: 配信限定の全員曲は全員曲の列");
+
+  // ---- K. センターのマス（Wセンター・全員・ユニット曲） ----
+  assertEqual(groupById("single-14").columns.title[0].cell, { type: "members", names: ["佐々木舞香", "野口衣織"] }, "K: Wセンターは2人ぶんのマス");
+  assertEqual(groupById("single-21").columns.title[0].cell, { type: "all", names: [] }, "K: 恋、はじめました。は「全員」（特定メンバーの色にしない）");
+  assertEqual(groupById("single-21").columns.group.map((entry) => entry.cell.type), ["members", "all"], "K: 夢の続きは「全員」");
+  assertEqual(groupById("special-866").columns.group[0].cell.type, "all", "K: 866 は「全員」");
+  assertEqual(groupById("single-15").columns.unit[0].cell.type, "all", "K: どこが好きか言って（ユニット曲）は「全員」");
+  assertEqual(groupById("single-06").columns.unit[0].cell, { type: "members", names: ["大谷映美里"] }, "K: センターのあるユニット曲はセンターを出す");
+  const soloEntry = album.columns.unit.find((entry) => entry.song.id === "genneki-idol-chu");
+  assertEqual([soloEntry.cell.type, soloEntry.cell.names.length], ["singers", 1], "K: ソロのユニット曲は「歌唱メンバー」として出す（センター扱いしない）");
+  assertEqual(groupById("single-08").columns.unit[0].cell.type, "singers", "K: 2人の曲も「歌唱メンバー」");
+  assertEqual(describeCenterTableCell({ members: [] }, { state: "none", isConfirmed: false, centerNames: [] }).type, "unknown", "K: 資料の無い「センターなし」は「未確認」");
+  assertEqual(describeCenterTableCell({}, { state: "none", isConfirmed: true, centerNames: [] }).type, "none", "K: 資料で確かめた「センターなし」は「なし」");
+
+  // ---- L. 新しいシングルは songs.js に足すだけで表に出る ----
+  const newSong = { id: "test-new-single", workId: "single-22", title: "テスト曲", category: CATEGORY.TITLE_TRACK, releaseDate: "2027-01-01", single: "22ndシングル「テスト曲」", center: ["髙松瞳"], centerType: "single" };
+  const grown = buildCenterTableModel([...SONGS, newSong], { discography: DISCOGRAPHY });
+  const lastSingle = grown.sections[0].groups.at(-1);
+  assertEqual([grown.sections[0].groups.length, lastSingle.workId, lastSingle.badge, lastSingle.workTitle, lastSingle.columns.title[0].cell.names], [22, "single-22", "22nd", "テスト曲", ["髙松瞳"]], "L: discography.js に無い 22nd も自動で最後の行に出る");
+  assertEqual(buildCenterTableModel(SONGS).sections.map((section) => section.kind), ["single", "album", "digital", "other"], "L: discography を渡さなくても workId から区分を決められる");
+
+  // ---- M. 絞り込み（作品ごと外す・該当しない曲は薄く） ----
+  const unfiltered = filterCenterTableModel(model, {});
+  assertEqual([unfiltered.groups.length, unfiltered.groups.some((group) => Object.values(group.columns).flat().some((entry) => entry.isDimmed))], [model.groups.length, false], "M: 条件なしなら全作品・薄くする曲なし");
+  const noguchi = filterCenterTableModel(model, { memberName: "野口衣織" });
+  const noguchiEntries = noguchi.groups.flatMap((group) => Object.values(group.columns).flat());
+  assertEqual(noguchi.groups.length > 0 && noguchi.groups.length < model.groups.length, true, "M: メンバーで絞ると、その人がセンターの曲がある作品だけ残る");
+  assertEqual(noguchiEntries.filter((entry) => !entry.isDimmed).every((entry) => entry.cell.type === "members" && entry.cell.names.includes("野口衣織")), true, "M: 濃く出るのはその人がセンター（Wセンター含む）の曲だけ");
+  assertEqual(noguchiEntries.filter((entry) => !entry.isDimmed).length, filterCenterRows(buildCenterRows(SONGS), { memberName: "野口衣織" }).length, "M: 表と一覧カードで、メンバーの絞り込み結果の曲数が同じ");
+  const locke = filterCenterTableModel(model, { query: "らぶろけ", normalize: normalizeForSearch });
+  assertEqual([locke.groups.map((group) => group.workId), locke.groups[0]?.matchCount], [["single-14"], 1], "M: 曲名（読み）で絞ると、その曲の作品だけ残る");
+  assertEqual(filterCenterTableModel(model, { query: "存在しない曲名" }).groups.length, 0, "M: 合う曲が無ければ空");
+}
+
+// 【2026-10-28 本人指示】ふだんの画面に根拠のラベル・説明・件数・「公式未確認」・「アプリ内ルール」を出さない（ブラウザで実行したときだけ）
+function runCentersScreenDomTests() {
+  if (typeof document === "undefined") return;
+  console.log("--- 歴代センター一覧の画面（2026-10-28） ---");
+  const storageKey = "equalLoveIntroQuiz.centersViewMode";
+  let savedMode = null;
+  try {
+    savedMode = localStorage.getItem(storageKey);
+  } catch {
+    savedMode = null;
+  }
+  const host = document.createElement("div");
+  host.hidden = true;
+  document.body.appendChild(host);
+  const openedSongs = [];
+  initCentersScreen({ container: host }, { onOpenSong: (songId) => openedSongs.push(songId), onOpenMember: () => {} });
+  openCentersScreen();
+  const clickTab = (view) => host.querySelector(`.centers-view-tab[data-view="${view}"]`).click();
+
+  clickTab("cards");
+  const hiddenWords = ["根拠", "公式未確認", "アプリ内ルール", "ファン資料", "アプリ内設定"];
+  assertEqual(hiddenWords.filter((word) => host.textContent.includes(word)), [], "N: 一覧カードに根拠の言葉を出さない");
+  assertEqual(host.querySelectorAll(".center-evidence-badge, .center-app-rule, .centers-legend, .center-row-note").length, 0, "N: 根拠のラベル・印・凡例・注記の要素が無い");
+  assertEqual(host.querySelector('[data-song-id="866"]')?.dataset.evidenceKind, "unknown", "N: 根拠の種類はデータ属性にだけ残す");
+  assertEqual(host.querySelector('[data-song-id="866"] .center-cell.is-all')?.textContent, "全員", "N: 866 は一覧カードで「全員」");
+
+  clickTab("table");
+  const table = host.querySelector(".centers-table");
+  assertEqual([Boolean(table), host.querySelector(".center-row-list").hidden], [true, true], "N: センター表に切り替わる（一覧カードは隠す）");
+  assertEqual(table.querySelectorAll("tbody.ct-group").length, buildCenterTableModel(SONGS, { discography: DISCOGRAPHY }).groups.length, "N: 作品ごとに1つの行のまとまり");
+  assertEqual(hiddenWords.filter((word) => host.textContent.includes(word)), [], "N: センター表にも根拠の言葉を出さない");
+  assertEqual(table.querySelector('tbody[data-work-id="special-866"] .center-cell.is-all')?.textContent, "全員", "N: センター表の866は「全員」");
+  assertEqual(table.querySelectorAll('tbody[data-work-id="single-14"] tr.is-first .ct-center.is-multi .center-cell').length, 2, "N: Wセンターは2つの色マス");
+  table.querySelector('.ct-song[data-song-id="love"] .ct-song-title').click();
+  assertEqual(openedSongs, ["love"], "N: 表の曲名タップで、一覧カードと同じ onOpenSong を呼ぶ");
+  let storedMode = null;
+  try {
+    storedMode = localStorage.getItem(storageKey);
+  } catch {
+    storedMode = "table";
+  }
+  assertEqual(storedMode, "table", "N: 最後に選んだ表示を覚える");
+
+  host.remove();
+  try {
+    if (savedMode === null) localStorage.removeItem(storageKey);
+    else localStorage.setItem(storageKey, savedMode);
+  } catch {
+    // 保存できない環境では何もしない
+  }
 }
 
 function runSetlistDataTests() {
@@ -252,6 +376,8 @@ function runVideoFinderTests() {
 
 export function runCentersAndSetlistsTests() {
   runCenterTests();
+  runCenterTableTests();
+  runCentersScreenDomTests();
   runSetlistDataTests();
   runLiveStatsTests();
   runSearchTests();

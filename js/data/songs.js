@@ -88,7 +88,7 @@ export const DIFFICULTY = {
 //                  【2026-10-28 本人のアプリ内ルール】固定センターがいないと本人が判断した曲は、画面では「全員」と表示する
 //                  （centerType "all"・center ["全員"]）。公式に「全員センター」と発表されたとは限らないので、
 //                  そうした曲は js/data/centerSources.js に appRule: "all" を付けて、公式の根拠と区別して記録する。
-//                  センター自体が未調査の曲（例：866）には適用しない（"none"＋根拠未確認のまま調べ続ける）
+//                  （2026-10-28：恋、はじめました。・夢の続き・どこが好きか言って・866 の4曲。866 は根拠未確認のまま本人判断で適用）
 //                  centerが省略されている曲ではcenterTypeも省略する。
 //                  センター情報の根拠（公式・報道・ファン資料のみ 等）は js/data/centerSources.js にまとめている
 // releaseContext : 曲がなぜ・どんな位置付けで配信/制作されたかの短い説明（該当曲のみ）
@@ -1341,8 +1341,9 @@ export const SONGS = [
     single: "＝LOVE 2周年記念コンサート関連曲（配信限定）",
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
-    center: [],
-    centerType: "none",
+    // 【2026-10-28 本人の判断】固定センターなし→「全員」（アプリ内ルール。根拠の種類は centerSources.js のまま「根拠未確認」）
+    center: ["全員"],
+    centerType: "all",
     releaseContext: "グループ結成から866日目に開催された、デビュー2周年記念コンサートで披露された記念曲。",
   },
   {
