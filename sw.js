@@ -7,7 +7,7 @@
 //
 // 新しいバージョンを配信したいときは、CACHE_VERSIONの値を必ず上げること。
 // 上げないと、ブラウザが「内容が変わっていない」と判断し、更新が反映されない。
-const CACHE_VERSION = "v381";
+const CACHE_VERSION = "v383";
 const CACHE_NAME = `equal-love-intro-quiz-${CACHE_VERSION}`;
 
 // キャッシュするアプリ本体のファイル一覧。
@@ -37,6 +37,16 @@ const APP_SHELL_FILES = [
   "./assets/images/guide/datapack-android-step-recent-files.png",
   "./css/style.css",
   "./css/callText.css",
+  // 【2026-10-28追加】ライブページ・センター表・フレンドの重複整理・歌詞クイズの重複フレーズ対策
+  "./css/liveHub.css",
+  "./css/centersTable.css",
+  "./css/friendsFix.css",
+  "./js/liveHubScreen.js",
+  "./js/centerTable.js",
+  "./js/fanProfilesIdentity.js",
+  "./js/lyricsQuestionUniqueness.js",
+  "./js/data/lyricsAmbiguityIndex.js",
+  "./js/data/lyricsUniquenessManualList.js",
   "./js/main.js",
   "./js/onboardingScreen.js",
   "./js/guideScreen.js",
