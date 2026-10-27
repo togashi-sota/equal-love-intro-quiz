@@ -21785,3 +21785,23 @@ button.search-mode-tab:active {
   border-top: 1px dashed var(--color-primary-light);
   padding-top: 6px;
 }
+
+/* 【2026-10-28 本人指示】歴代センターの「全員」は、特定のメンバーの色を使わず、アプリの基調色（ピンク〜ラベンダー）だけで表す */
+.center-cell.is-all {
+  color: var(--color-primary-dark);
+  background: linear-gradient(135deg, #ffe4f0 0%, #f6e6ff 55%, #e6efff 100%);
+  border: 1.5px solid var(--color-primary-light);
+  letter-spacing: 0.2em;
+  text-shadow: none;
+}
+
+.center-app-rule {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #6a4f8a;
+  background: #efe7f8;
+}

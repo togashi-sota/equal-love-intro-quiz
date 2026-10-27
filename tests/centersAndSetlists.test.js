@@ -54,9 +54,14 @@ function runCenterTests() {
   assertEqual([koi.state, koi.evidenceLabel, koi.isConfirmed, describeCenterState(koi)], ["all", "報道", true, "全員センター"], "A: 恋、はじめました。は全員センター・報道");
   const yume = classifyCenter(songById("yume-no-tsuzuki"));
   assertEqual([yume.state, yume.evidenceLabel, yume.isConfirmed, describeCenterState(yume)], ["all", "アプリ内設定・公式未確認", false, "全員センター"], "A: 夢の続きは全員センター・アプリ内設定（公式未確認）");
+  // 【2026-10-28 本人のアプリ内ルール】固定センターなし→「全員」。公式の根拠かどうかは別に持つ（公式扱いにしない）
   const doko = classifyCenter(songById("doko-ga-suki-ka-itte"));
-  assertEqual([doko.state, doko.evidenceLabel, doko.isConfirmed], ["none", "根拠未確認", false], "A: どこが好きか言っては「センターなし」だが根拠未確認");
-  assertEqual(describeCenterState(doko), "センター未確認", "A: 根拠が無い「センターなし」は「未確認」と出す（断定しない）");
+  assertEqual([doko.state, doko.evidenceLabel, doko.isConfirmed, doko.appRule], ["all", "アプリ内設定・公式未確認", false, "all"], "A: どこが好きか言っては「全員」（アプリ内ルール・公式未確認）");
+  assertEqual(["koi-hajimemashita", "yume-no-tsuzuki", "doko-ga-suki-ka-itte"].map((id) => classifyCenter(songById(id)).appRule), ["all", "all", "all"], "A: 本人ルールの3曲は appRule all");
+  assertEqual(classifyCenter(songById("love")).appRule, null, "A: ふつうの曲には appRule が付かない");
+  const eight = classifyCenter(songById("866"));
+  assertEqual([eight.state, eight.appRule, describeCenterState(eight)], ["none", null, "センター未確認"], "A: 866 は調査不足のまま（全員と断定しない）");
+  assertEqual(SONGS.filter((song) => song.centerType === "all").every((song) => JSON.stringify(song.center) === JSON.stringify(["全員"])), true, "A: 全員の曲は center が [\"全員\"]");
   const solo = classifyCenter(songById("genneki-idol-chu"));
   assertEqual([solo.state, solo.evidenceKind], ["solo", null], "A: ソロ曲はセンターの区別なし（根拠ラベルも出さない）");
   assertEqual(classifyCenter(songById("ryuseigun")).state, "duo", "A: 2人の曲はセンターの区別なし");
@@ -99,7 +104,7 @@ function runCenterTests() {
   const noguchi = filterCenterRows(rows, { memberName: "野口衣織" });
   assertEqual(noguchi.length > 0 && noguchi.every((row) => row.center.centerNames.includes("野口衣織")), true, "D: メンバーで絞り込める（Wセンターも含む）");
   assertEqual(filterCenterRows(rows, { query: "らぶろけ", normalize: normalizeForSearch }).map((row) => row.song.id), ["love-locke"], "D: 曲名（読み）で絞り込める");
-  assertEqual(Object.fromEntries(Object.entries(countEvidenceKinds(rows)).sort()), { fan: 4, official: 44, press: 19, unknown: 2, user: 1 }, "D: 根拠の内訳（2026-10-28再調査後：公式44・報道19・ファン資料のみ4・アプリ内設定1・根拠未確認2）");
+  assertEqual(Object.fromEntries(Object.entries(countEvidenceKinds(rows)).sort()), { fan: 4, official: 44, press: 19, unknown: 1, user: 2 }, "D: 根拠の内訳（2026-10-28：公式44・報道19・ファン資料のみ4・アプリ内設定2・根拠未確認1）");
 }
 
 function runSetlistDataTests() {

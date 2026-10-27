@@ -9,6 +9,9 @@
 //   "fan"      … ファンのまとめにしか無い（公式とは扱わない。参考表と一致していても公式確認にはならない）
 //   "user"     … アプリ作成者の指定（公式の記載は無い）
 //   "unknown"  … 根拠が見つかっていない
+// appRule（任意）：
+//   "all" … 本人のアプリ内ルール「固定センターがいないと判断した曲は『全員』と表示する」を当てはめた曲（2026-10-28）。
+//           画面は「全員」になるが、kind（根拠の種類）は公式の発表かどうかをそのまま表す（公式確定には格上げしない）。
 // ソロ曲・2人の曲（センターの区別が無い曲）と Overture はここに載せない。
 //
 // 元データ：tools/feature-research/centers-check.json（2026-10-27調査、Git管理外）。
@@ -116,7 +119,7 @@ export const CENTER_SOURCES = {
   // 狂想カタストロフィ
   "kyousou-catastrophe": { kind: "official", url: "https://www.youtube.com/watch?v=RG_B3gfOzLo", note: "公式YouTubeのMV説明欄にセンターの記載あり" },
   // どこが好きか言って
-  "doko-ga-suki-ka-itte": { kind: "unknown", url: null, note: "「センターなし」と書かれた公式・報道の資料は見つかっていない（センターの記載が無いことだけ確認）" },
+  "doko-ga-suki-ka-itte": { appRule: "all", kind: "user", url: null, note: "本人のアプリ内ルールで「全員」（4人のユニット曲。公式で確認できたのはユニット曲であることだけで、センターの記載は見つかっていない）" },
   // 呪って呪って
   "norotte-norotte": { kind: "official", url: "https://www.youtube.com/watch?v=cyRZGtNx_a4", note: "公式YouTubeのMV説明欄にセンターの記載あり" },
   // 誰にもバレずに
@@ -146,11 +149,11 @@ export const CENTER_SOURCES = {
   // お姫様の作り方
   "ohimesama-no-tsukurikata": { kind: "official", url: "https://www.youtube.com/watch?v=2udLA8-QuD8", note: "公式YouTubeのMV説明欄にセンターの記載あり" },
   // 恋、はじめました。
-  "koi-hajimemashita": { kind: "press", url: "https://natalie.mu/music/pp/equallove-koihajimemashita", note: "音楽ナタリーの21stシングル特集（2026-08-28）に「今作は特定のセンターを置かない構成」とある（諸橋沙夏も同じ趣旨の発言）。資料の言い方は「全員センター」ではなく「特定のセンターなし」" },
+  "koi-hajimemashita": { appRule: "all", kind: "press", url: "https://natalie.mu/music/pp/equallove-koihajimemashita", note: "音楽ナタリーの21stシングル特集（2026-08-28）に「今作は特定のセンターを置かない構成」とある（諸橋沙夏も同じ趣旨の発言）。資料の言い方は「全員センター」ではなく「特定のセンターなし」" },
   // 夏名残サマーチューン
   "natsunagori-summer-tune": { kind: "official", url: "https://www.youtube.com/watch?v=_Bm66BRnM1A", note: "公式YouTubeのMV説明欄にセンターの記載あり" },
   // 夢の続き
-  "yume-no-tsuzuki": { kind: "user", url: null, note: "アプリの設定。2026-10-28に再調査したが、公式MV説明欄・報道にセンター（全員を含む）の記載は見つからなかった" },
+  "yume-no-tsuzuki": { appRule: "all", kind: "user", url: null, note: "本人のアプリ内ルールで「全員」。2026-10-28に再調査したが、公式MV説明欄・報道にセンター（全員を含む）の記載は見つからなかった" },
   // 866
   "866": { kind: "unknown", url: null, note: "「センターなし」と書かれた公式・報道の資料は見つかっていない（センターの記載が無いことだけ確認）" },
   // Be Selfish
