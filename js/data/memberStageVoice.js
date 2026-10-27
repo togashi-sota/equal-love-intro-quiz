@@ -268,11 +268,15 @@ export const STAGE_PRODUCTIONS = [
 // 駅メモ！の配役（2017年の公式発表＝代々木アニメーション学院 2017-09-12 で12人全員の配役を確認済み）。
 // 【2026-10-27修正】以前は現役10人分だけだったが、冒頭の本人方針「当時の出演者を全員同列に表示」に合わせ、
 // 在籍当時に担当していた齊藤なぎさ（新阪ルナ）・佐竹のん乃（象潟いろは）を追加した（並びは12人の指定順）。
+// 【2026-10-28修正】齋藤樹愛羅にだけ付いていた credit「（初代）」を外した。2020年のボイスリニューアル（運営会社の発表 2020-06-26）で
+// ＝LOVE担当キャラクターの声が交代したことは読み取れるが、キャラクターごとの交代は公式で確認しきれず、1人だけ付けると不揃いになるため。
+// 交代の事実は作品の説明文（description）の1文で示す。memberActivities.js にあった齋藤樹愛羅の重複カード（旧id: saito-kiara-stage）は
+// このVOICE側にまとめて削除した。
 const EKIMEMO_CASTS = [
   cast(ID.otani, "黄陽セリア"),
   cast(ID.oba, "汀良いちほ"),
   cast(ID.otoshima, "作草部チコ"),
-  cast(ID.saito, "黄陽レイカ", "（初代）"),
+  cast(ID.saito, "黄陽レイカ"),
   cast(ID.nagisa, "新阪ルナ"),
   cast(ID.sasaki, "恋浜みろく"),
   cast(ID.nonno, "象潟いろは"),
@@ -290,10 +294,13 @@ export const VOICE_APPEARANCES = [
     title: "ステーションメモリーズ！（駅メモ！）",
     yearLabel: "2017年",
     sortKey: "2017-09-12",
-    description: "＝LOVEのメンバーがゲーム内キャラクターの声を担当。",
+    description: "＝LOVEのメンバーがゲーム内キャラクター（でんこ）の声を担当。2020年6月26日、運営会社が新たな声優の起用によるボイスリニューアルを発表した。",
     casts: EKIMEMO_CASTS,
-    links: [{ label: EL_INFO, url: "https://www.yoani.co.jp/20170912-2/" }],
-    lastVerifiedDate: LAST_VERIFIED,
+    links: [
+      { label: EL_INFO, url: "https://www.yoani.co.jp/20170912-2/" },
+      { label: "ボイスリニューアルの発表（運営会社）", url: "https://www.mobilefactory.jp/newsrelease/2020/20200626/" },
+    ],
+    lastVerifiedDate: "2026-10-28",
   },
   {
     id: "voice-haikara-2017",
@@ -374,10 +381,14 @@ export const VOICE_APPEARANCES = [
     category: VOICE_CATEGORY.GAME,
     title: "Friday the 13th: The Game（日本語版）",
     yearLabel: "2018年",
-    sortKey: "2018-08-02",
+    // 【2026-10-28修正】sortKey を根拠の見当たらない 2018-08-02 から、＝LOVE公式ニュース553 の発売日 2018-07-13 に直し、公式553を出典に足した。
+    sortKey: "2018-07-13",
     casts: [cast(ID.sasaki, "ジェニー・マイヤーズ"), cast(ID.noguchi, "ヴァネッサ・ジョーンズ")],
-    links: [{ label: REPORT, url: "https://www.famitsu.com/news/201806/30159416.html" }],
-    lastVerifiedDate: LAST_VERIFIED,
+    links: [
+      { label: EL_INFO, url: "https://equal-love.jp/news/detail/553" },
+      { label: REPORT, url: "https://www.famitsu.com/news/201806/30159416.html" },
+    ],
+    lastVerifiedDate: "2026-10-28",
   },
   {
     id: "voice-hashiritsuzukete-2018",
@@ -387,8 +398,12 @@ export const VOICE_APPEARANCES = [
     sortKey: "2018-10-08",
     description: "代々木アニメーション学院をモチーフにしたオリジナルアニメ。",
     casts: [cast(ID.noguchi, "大森千歌子")],
-    links: [{ label: OFFICIAL, url: "https://prtimes.jp/main/html/rd/p/000000054.000025517.html" }],
-    lastVerifiedDate: LAST_VERIFIED,
+    // 【2026-10-28】出典がPR TIMESだけだったため、＝LOVE公式ニュース934（役名・放送開始日を確認）を足した。
+    links: [
+      { label: OFFICIAL, url: "https://prtimes.jp/main/html/rd/p/000000054.000025517.html" },
+      { label: EL_INFO, url: "https://equal-love.jp/news/detail/934" },
+    ],
+    lastVerifiedDate: "2026-10-28",
   },
   {
     // 【2026-10-27追加】＝LOVE公式ニュース1142（2018-11-06）を開いて確認。ゲーム内での実装日・入手方法は
@@ -455,18 +470,42 @@ export const VOICE_APPEARANCES = [
       cast(ID.saito, null, "キャラクター考案・ボイス（第4弾）"),
       cast(ID.morohashi, null, "キャラクター考案・ボイス（第4弾）"),
     ],
-    links: [{ label: EL_INFO, url: "https://equal-love.jp/news/detail/1755" }],
-    lastVerifiedDate: LAST_VERIFIED,
+    // 【2026-10-28】sortKey 2019-05-17 は、運営会社のプレスリリース・4Gamer で第1弾（2019年5月17日〜31日）を確認できたため正しい
+    // （公式1755は第4弾までの一覧を後からまとめた告知）。根拠として4Gamerの記事を足した。
+    links: [
+      { label: EL_INFO, url: "https://equal-love.jp/news/detail/1755" },
+      { label: REPORT, url: "https://www.4gamer.net/games/410/G041058/20190520035/" },
+    ],
+    lastVerifiedDate: "2026-10-28",
   },
   {
+    // 【2026-10-28更新】＝LOVE公式ニュース2586（2020-01-27）で齋藤樹愛羅のトリシャ役（2020年1月30日実装）を確認し、
+    // 同じ作品なので新規カードにせず配役を1件足した。
     id: "voice-latale-2019",
     category: VOICE_CATEGORY.GAME,
     title: "ゆめいろファンタジー ラテール",
-    yearLabel: "2019年",
+    yearLabel: "2019・2020年",
     sortKey: "2019-10-16",
-    casts: [cast(ID.noguchi, "シャオ"), cast(ID.sasaki, "アネス"), cast(ID.takamatsu, "ユラ")],
-    links: [{ label: REPORT, url: "https://www.gamer.ne.jp/news/201909200111/" }],
-    lastVerifiedDate: LAST_VERIFIED,
+    description: "齋藤樹愛羅（トリシャ役）は2020年1月30日実装のキャラクター。",
+    casts: [cast(ID.noguchi, "シャオ"), cast(ID.sasaki, "アネス"), cast(ID.takamatsu, "ユラ"), cast(ID.saito, "トリシャ")],
+    links: [
+      { label: REPORT, url: "https://www.gamer.ne.jp/news/201909200111/" },
+      { label: EL_INFO, url: "https://equal-love.jp/news/detail/2586" },
+    ],
+    lastVerifiedDate: "2026-10-28",
+  },
+  {
+    // 【2026-10-28追加】＝LOVE公式ニュース2101（2019-09-10）で確認。企業キャンペーンのキャラクターボイスなので、
+    // 月見パイもち子と同じ「キャラクターボイス」で登録。キャンペーンサイトは終了している可能性があるためリンクは＝LOVE公式だけにした。
+    id: "voice-qtta-uranaibu-2019",
+    category: VOICE_CATEGORY.CHARACTER,
+    title: "東洋水産「QTTA」エールプロジェクト「QTTA学園占い部」",
+    yearLabel: "2019年",
+    sortKey: "2019-09-09",
+    description: "QTTA新フレーバー発売に合わせたキャンペーンサイト内コンテンツのキャラクターボイス。2019年9月9日〜20日、QTTA公式Twitterで占いボイス付きリプライが届くキャンペーンを実施。",
+    casts: [cast(ID.sasaki, "辻井雪穂"), cast(ID.noguchi, "大喜閑子")],
+    links: [{ label: EL_INFO, url: "https://equal-love.jp/news/detail/2101" }],
+    lastVerifiedDate: "2026-10-28",
   },
   {
     id: "voice-santa-company-2019",
@@ -663,8 +702,9 @@ export const VOICE_APPEARANCES = [
     sortKey: "2026-09-03",
     description: "マクドナルドの月見スイーツのキャラクター。キャラクターボイスと楽曲「ちゅきミー！」の歌唱を担当。",
     casts: [cast(ID.saito, "月見パイもち子")],
-    links: [{ label: "公式情報（＝LOVE公式X）", url: "https://x.com/Equal_LOVE_12/status/2095436639967629380" }],
-    lastVerifiedDate: LAST_VERIFIED,
+    // 【2026-10-28】リンクを＝LOVE公式X（読めない場合がある）から＝LOVE公式ニュース11913に差し替えた。
+    links: [{ label: EL_INFO, url: "https://equal-love.jp/news/detail/11913" }],
+    lastVerifiedDate: "2026-10-28",
   },
   {
     id: "voice-gacha-2027",

@@ -53,12 +53,14 @@ export async function runCommercialsAndFriendsUiTests() {
   // 【2026-10-23再調査で更新】とくべチューハイ（大谷・佐々木・野口・諸橋）、メイプルストーリー（音嶋・佐々木・野口）、koe×2（音嶋・野口）、
   // ひざつき製菓（＝LOVE名義・大場花菜がパッケージイラスト）を追加
   assertEqual(count("sasaki-maika"), 9, "C: 佐々木舞香は9件（代アニ・メイプル・OPPO・サムライマック・Galaxy・月見パイ・とくべチューハイ・ザクザクマック・ももチキン）");
-  assertEqual(["otani-emiri", "noguchi-iori"].map(count), [2, 5], "C: 大谷映美里2件（Galaxy・とくべ）／野口衣織5件（koe×2・メイプル・Galaxy・とくべ）");
+  // 【2026-10-28】大谷映美里にミスド福袋2026のWEB動画を追加して3件
+  assertEqual(["otani-emiri", "noguchi-iori"].map(count), [3, 5], "C: 大谷映美里3件（Galaxy・とくべ・ミスド福袋）／野口衣織5件（koe×2・メイプル・Galaxy・とくべ）");
   // 【2026-10-27】齋藤樹愛羅にUSJ「ユニハロ」WebCMを追加して2件
   assertEqual([count("takamatsu-hitomi"), count("saito-kiara"), count("yamamoto-anna")], [1, 2, 1], "C: 髙松瞳1件・齋藤樹愛羅2件（月見スイーツ・ユニハロ）・山本杏奈1件");
   assertEqual(["oba-hana", "otoshima-risa", "takiwaki-shoko", "morohashi-sana"].map(count), [1, 3, 0, 1], "C: 大場1件（ひざつき製菓のイラスト）・音嶋3件・瀧脇0件・諸橋1件（とくべ）");
   assertEqual(getMemberCommercials("sasaki-maika").map((cm) => cm.date), [...getMemberCommercials("sasaki-maika").map((cm) => cm.date)].sort().reverse(), "C: 新しい順");
-  assertEqual(getGroupCommercials().length, 21, "C: ＝LOVE名義の CM・広告・コラボは21件");
+  // 【2026-10-28】CoCo壱番屋「CoCo de オフカレー」（2019）を追加して22件
+  assertEqual(getGroupCommercials().length, 22, "C: ＝LOVE名義の CM・広告・コラボは22件");
   assertEqual(getGroupCommercials().every((cm) => cm.isGroup === true), true, "C: グループ欄には＝LOVE名義の案件だけ");
   const galaxy = COMMERCIALS.find((cm) => cm.id === "cm-softbank-galaxy-z-2026");
   assertEqual(describeCoStars(galaxy, "sasaki-maika"), "大谷映美里・野口衣織・白戸家のお父さん", "C: 共演者に他のメンバー名と共演者が出る");
@@ -100,7 +102,7 @@ export async function runCommercialsAndFriendsUiTests() {
   try {
     assertEqual(groupHost.querySelector("#group-cm-section") !== null, true, "F: 個人ページから飛べるよう id=group-cm-section を持つ");
     const cards = [...groupHost.querySelectorAll(".group-commercial-card")];
-    assertEqual(cards.length, 21, "F: 21件");
+    assertEqual(cards.length, 22, "F: 22件");
     assertEqual(cards[0].dataset.commercialId, "cm-group-hotpepper-beauty-2026", "F: 新しい順（2026-09-09 が先頭）");
     assertEqual(cards.filter((card) => !card.hidden).length, 5, "F: 最初は5件");
     assertEqual(groupHost.scrollWidth <= groupHost.clientWidth + 1, true, "F: 375px幅で横にはみ出さない");

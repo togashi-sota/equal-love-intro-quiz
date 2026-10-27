@@ -54,7 +54,8 @@ export function runCommercialsResearchTests() {
   // ===== A. 既存17件を維持し、18件を追加して35件 =====
   assertEqual(ORIGINAL_17_IDS.filter((id) => !find(id)), [], "A: 既存の17件を1件も消していない");
   // 【2026-10-27】齋藤樹愛羅のUSJ「ユニハロ」WebCMを1件追加して36件
-  assertEqual(COMMERCIALS.length, 36, "A: 登録総数は36件（17件＋新規18件＋2026-10-27追加1件）");
+  // 【2026-10-28】大谷映美里のミスド福袋2026 WEB動画・＝LOVE名義のCoCo壱番屋「CoCo de オフカレー」を追加して38件
+  assertEqual(COMMERCIALS.length, 38, "A: 登録総数は38件（17件＋新規18件＋2026-10-27追加1件＋2026-10-28追加2件）");
   assertEqual(new Set(COMMERCIALS.map((cm) => cm.id)).size, COMMERCIALS.length, "A: IDに重複が無い");
   const signature = (cm) => `${cm.brand}|${cm.title}|${cm.date}`;
   assertEqual(new Set(COMMERCIALS.map(signature)).size, COMMERCIALS.length, "A: 同じ企業・タイトル・日付の二重登録が無い");
@@ -64,7 +65,7 @@ export function runCommercialsResearchTests() {
     "A: グループ案件はすべて参加範囲（全員／＝LOVE名義／特定できず）を持つ"
   );
   assertEqual(
-    COMMERCIALS.every((cm) => cm.sourceUrls.every((url) => /^https:\/\/(equal-love\.jp|prtimes\.jp|www\.acecook\.co\.jp|hizatsuki\.com|www\.gov-online|www\.youtube\.com|x\.com|www\.atpress|www\.thefirsttimes|www\.oricon|www\.meiji|www\.mcdonalds|tower\.jp|kyodonewsprwire|natalie\.mu|www\.advertimes)/.test(url))),
+    COMMERCIALS.every((cm) => cm.sourceUrls.every((url) => /^https:\/\/(equal-love\.jp|prtimes\.jp|www\.acecook\.co\.jp|hizatsuki\.com|www\.gov-online|www\.youtube\.com|x\.com|www\.atpress|www\.thefirsttimes|www\.oricon|www\.meiji|www\.mcdonalds|tower\.jp|kyodonewsprwire|natalie\.mu|www\.advertimes|www\.ichibanya)/.test(url))),
     true,
     "A: 出典は公式・報道の確認済みドメインのみ"
   );
@@ -86,6 +87,22 @@ export function runCommercialsResearchTests() {
   const tetsujin = find("ambassador-group-karaoke-tetsujin-2019");
   assertEqual([tetsujin.kind, tetsujin.date, tetsujin.description.includes("曲間CM")], [COMMERCIAL_KIND.AMBASSADOR, "2019-04-01", true], "B: カラオケの鉄人は応援アンバサダー（曲間CMは説明に含める）");
   assertEqual(COMMERCIALS.filter((cm) => cm.brand.includes("鉄人")).length, 1, "B: カラオケの鉄人は1件だけ（関連企画を分割しない）");
+
+  // 【2026-10-28追加】CoCo壱番屋はグループ名義の企業タイアップ（店頭広告）。掲出期間つき
+  const cocoichi = find("tieup-group-cocoichi-off-curry-2019");
+  assertEqual(
+    [cocoichi?.isGroup, cocoichi?.groupParticipation, cocoichi?.kind, cocoichi?.date, cocoichi?.endDate, cocoichi?.sourceUrls[0]],
+    [true, GROUP_PARTICIPATION.GROUP, COMMERCIAL_KIND.TIE_UP, "2019-03-01", "2019-05-31", "https://equal-love.jp/news/detail/1414"],
+    "B: CoCo壱番屋「CoCo de オフカレー」は＝LOVE名義の企業タイアップ（2019-03-01〜05-31、＝LOVE公式が出典）"
+  );
+  // 【2026-10-28追加】大谷映美里のミスド福袋2026（公式表記「WEB動画」3本を1件にまとめる）
+  const misdo = find("cm-otani-misdo-fukubukuro-2026");
+  assertEqual([misdo?.memberIds, misdo?.kind, misdo?.date], [["otani-emiri"], COMMERCIAL_KIND.WEB, "2025-12-10"], "B: ミスド福袋2026は大谷映美里のWebCM（＝LOVE公式の告知日 2025-12-10）");
+  assertEqual(COMMERCIALS.filter((cm) => cm.brand.includes("ミスド福袋")).length, 1, "B: ミスド福袋のWEB動画3本は1件にまとめる");
+  // 【2026-10-28修正】ももチキンTVCMは阿部寛と共演（マクドナルド公式リリース）。同シリーズのWebCMとは別作品のまま
+  const momo = find("cm-sasaki-mcdonalds-momo-chicken-2026");
+  assertEqual([momo.coStars, momo.date, momo.sourceUrls.includes("https://www.mcdonalds.co.jp/company/news/2026/1008a/")], ["阿部寛", "2026-10-27", true], "B: ももチキンTVCMは阿部寛と共演・2026-10-27・マクドナルド公式が出典");
+  assertEqual(find("cm-sasaki-mcdonalds-tsukimi-pie-2026").title, "月見スイーツ「月見でたでた」佐々木さん篇", "B: 月見パイCMの題名は公式の篇名");
 
   const joyo = find("image-group-joyo-bank-2020");
   assertEqual([joyo.kind, joyo.date, joyo.endDate, joyo.description.includes("ラジオCM")], [COMMERCIAL_KIND.IMAGE_CHARACTER, "2020-03-02", "2020-06-30", true], "B: 常陽銀行はイメージキャラクター（ラジオCM・店頭広告を含む）");
@@ -177,7 +194,7 @@ export function runCommercialsResearchTests() {
     const hizatsukiCard = groupHost.querySelector('[data-commercial-id="collab-group-hizatsuki-ebisen-2023"]');
     assertEqual([...hizatsukiCard.querySelectorAll(".commercial-featured-role, .commercial-participation")].map((line) => line.textContent), ["参加：＝LOVE名義（当時10人体制）", "大場花菜：パッケージイラストを描き下ろし"], "E: グループ欄に参加範囲と担当を表示");
     assertEqual(groupHost.querySelector(".stage-voice-heading-sub").textContent, "　CM・広告・企業コラボ（＝LOVE名義）", "E: グループ欄の見出しは「＝LOVE名義」（全員出演とは限らない）");
-    assertEqual(groupHost.querySelectorAll(".stage-voice-more-button").length, 1, "E: 21件でも「もっと見る」で折りたたむ");
+    assertEqual(groupHost.querySelectorAll(".stage-voice-more-button").length, 1, "E: 22件でも「もっと見る」で折りたたむ");
     assertEqual(groupHost.scrollWidth <= groupHost.clientWidth + 1, true, "E: 375px幅で横にはみ出さない");
   } finally {
     groupHost.remove();

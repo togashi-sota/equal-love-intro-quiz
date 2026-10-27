@@ -370,6 +370,25 @@ export const COMMERCIALS = [
     lastVerifiedDate: VERIFIED,
   },
   {
+    // 【2026-10-28追加】＝LOVE公式ニュース1414（2019-03-01）・壱番屋のニュースリリース（PDF）で確認。グループ名義の店頭広告。
+    // 掲出期間は公式の「2019年3月1日〜5月31日予定」をそのまま endDate に入れている。壱番屋PDFのリンクの生存は未確認。
+    id: "tieup-group-cocoichi-off-curry-2019",
+    isGroup: true,
+    groupParticipation: GROUP_PARTICIPATION.GROUP,
+    brand: "カレーハウス CoCo壱番屋「CoCo de オフカレー」",
+    title: "CoCo壱番屋×＝LOVE「CoCo de オフカレー」",
+    kind: COMMERCIAL_KIND.TIE_UP,
+    date: "2019-03-01",
+    endDate: "2019-05-31",
+    description: "ココイチ初の糖質オフメニュー「CoCo de オフカレー」の店内ポスター・メニュー表に＝LOVEが登場（掲出期間 2019年3月1日〜5月31日予定、店舗によって掲出なし）。",
+    links: [
+      { label: EL, url: "https://equal-love.jp/news/detail/1414" },
+      { label: "壱番屋の発表（PDF）", url: "https://www.ichibanya.co.jp/comp/whatsnew/docs/20190301_%3Dlove.pdf" },
+    ],
+    sourceUrls: ["https://equal-love.jp/news/detail/1414", "https://www.ichibanya.co.jp/comp/whatsnew/docs/20190301_%3Dlove.pdf"],
+    lastVerifiedDate: "2026-10-28",
+  },
+  {
     id: "campaign-character-group-amu-plaza-oita-2018",
     isGroup: true,
     groupParticipation: GROUP_PARTICIPATION.GROUP,
@@ -425,28 +444,36 @@ export const COMMERCIALS = [
     lastVerifiedDate: VERIFIED,
   },
   {
+    // 【2026-10-28更新】マクドナルド公式リリース（2026-10-08）で、同シリーズのTVCM3本のうち佐々木舞香が出るのは
+    // この「ザクザクジューシーももチキン」篇（15秒、阿部寛と共演、2026-10-27〜）だけと確認。題名・共演者・出典を公式に合わせた。
+    // 同じシリーズのWebCM（cm-sasaki-mcdonalds-zakuzaku-mac-2026）とは媒体・公開日・作品が別なので、1件＝1作品のまま統合しない。
     id: "cm-sasaki-mcdonalds-momo-chicken-2026",
     memberIds: [ID.sasaki],
     brand: "日本マクドナルド",
-    title: "「ザクザクジューシーももチキン篇」",
+    title: "「ザクザクジューシーももチキン」篇（15秒）",
     kind: COMMERCIAL_KIND.TV,
     date: "2026-10-27",
-    description: "新レギュラーチキンのサイドメニュー「ザクザクジューシーももチキン」の新CM（全国・一部地域を除く）。",
-    links: [{ label: EL, url: "https://equal-love.jp/news/detail/12248" }],
-    sourceUrls: ["https://equal-love.jp/news/detail/12248"],
-    lastVerifiedDate: VERIFIED,
+    coStars: "阿部寛",
+    description: "新レギュラーメニュー「ザクザクジューシーマック」シリーズのサイドメニュー「ザクザクジューシーももチキン」の新テレビCM（全国・一部地域を除く）。阿部寛と共演。",
+    links: [
+      { label: EL, url: "https://equal-love.jp/news/detail/12248" },
+      { label: "マクドナルドの発表", url: "https://www.mcdonalds.co.jp/company/news/2026/1008a/" },
+    ],
+    sourceUrls: ["https://equal-love.jp/news/detail/12248", "https://www.mcdonalds.co.jp/company/news/2026/1008a/"],
+    lastVerifiedDate: "2026-10-28",
   },
   {
+    // 【2026-10-28更新】＝LOVE公式12286の公開日時「2026年10月21日（水）21:00」を説明文に足し、同じシリーズであることを明記した。
     id: "cm-sasaki-mcdonalds-zakuzaku-mac-2026",
     memberIds: [ID.sasaki],
     brand: "日本マクドナルド",
     title: "『ザクザクジューシーマック』WebCM",
     kind: COMMERCIAL_KIND.WEB,
     date: "2026-10-21",
-    description: "マクドナルド公式X・Instagramで公開されたWebCM。",
+    description: "新レギュラーメニュー「ザクザクジューシーマック」シリーズのWebCM。2026年10月21日21:00からマクドナルド公式X・Instagramで公開。",
     links: [{ label: EL, url: "https://equal-love.jp/news/detail/12286" }],
     sourceUrls: ["https://equal-love.jp/news/detail/12286"],
-    lastVerifiedDate: VERIFIED,
+    lastVerifiedDate: "2026-10-28",
   },
   {
     id: "cm-takamatsu-mcdonalds-390-pair-2026",
@@ -488,16 +515,18 @@ export const COMMERCIALS = [
     lastVerifiedDate: VERIFIED,
   },
   {
+    // 【2026-10-28更新】題名を＝LOVE公式11883の【タイトル】（「月見スイーツ「月見でたでた」佐々木さん」篇）に合わせた。
+    // 公式表記はかぎかっこが入れ子なので、画面表示の都合で外側のかぎかっこを省いている。
     id: "cm-sasaki-mcdonalds-tsukimi-pie-2026",
     memberIds: [ID.sasaki],
     brand: "日本マクドナルド 月見スイーツ",
-    title: "「北海道産バターとあんことおもちの月見パイ」新CM",
+    title: "月見スイーツ「月見でたでた」佐々木さん篇",
     kind: COMMERCIAL_KIND.TV,
     date: "2026-09-01",
-    description: "35周年の月見ファミリーより、月見スイーツの新CM（全国・一部地域を除く）。",
+    description: "35周年の月見ファミリーより、「北海道産バターとあんことおもちの月見パイ」の新テレビCM（全国・一部地域を除く）。民謡“炭坑節”をアレンジした「月見でたでた」のメロディーに乗せて、月見スイーツと過ごすひとときを描く。",
     links: [{ label: EL, url: "https://equal-love.jp/news/detail/11883" }],
     sourceUrls: ["https://equal-love.jp/news/detail/11883", "https://equal-love.jp/schedule/detail/11884"],
-    lastVerifiedDate: VERIFIED,
+    lastVerifiedDate: "2026-10-28",
   },
   {
     id: "cm-softbank-galaxy-z-2026",
@@ -536,6 +565,20 @@ export const COMMERCIALS = [
       "https://tower.jp/article/news/2026/05/07/tg003",
     ],
     lastVerifiedDate: VERIFIED,
+  },
+  {
+    // 【2026-10-28追加】＝LOVE公式ニュース11000（2025-12-10）で確認。公式の表記は「WEB動画」（本文に「#PR」）で、
+    // 企業の商品宣伝なので WebCM として扱う。特設サイトURLは期間限定ページの可能性が高いため links には入れない。
+    id: "cm-otani-misdo-fukubukuro-2026",
+    memberIds: [ID.otani],
+    brand: "ミスタードーナツ「ミスド福袋２０２６」",
+    title: "「ドーナツをデコるみりにゃ」篇 ほか（WEB動画3本）",
+    kind: COMMERCIAL_KIND.WEB,
+    date: "2025-12-10",
+    description: "「ドーナツをデコるみりにゃ」篇・「ポン・デ・みりにゃ」篇・「ミスド福袋を開封してみたみりにゃ」篇の3本のWEB動画がミスド福袋2026の特設サイトなどで公開された。日付は＝LOVE公式の告知日。",
+    links: [{ label: EL, url: "https://equal-love.jp/news/detail/11000" }],
+    sourceUrls: ["https://equal-love.jp/news/detail/11000"],
+    lastVerifiedDate: "2026-10-28",
   },
   {
     id: "cm-yamamoto-yumetown-kenmin-2025",

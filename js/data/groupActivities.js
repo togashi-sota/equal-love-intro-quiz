@@ -135,5 +135,72 @@ export const GROUP_ACTIVITIES = [
     ],
     lastVerifiedDate: "2026-08-23",
   },
+  {
+    // 【2026-10-28追加】＝LOVE公式ニュース3886（2021-04-08、放送開始）・4577（2021-10-04、CS-TBS特別版）で確認。
+    // 最終回（第24回、2021-09-27放送）の日付はTVerのエピソード表記（TBS配信）で確認。≠MEとの合同番組であることを説明文に明記した。
+    id: "group-tv-ikonoi-doudesuka",
+    title: "イコノイ、どーですか？",
+    type: ACTIVITY_TYPE.TV,
+    description:
+      "＝LOVEと≠ME初の合同冠番組（TBS・関東ローカル、毎週月曜深夜1:58〜2:28）。2組が所属する架空の芸能事務所を舞台に、お笑いコンビ・ニューヨークがマネージャー役でレギュラー出演。2021年4月19日から同年9月27日放送の第24回まで放送された。",
+    url: "https://equal-love.jp/news/detail/3886",
+    status: ACTIVITY_STATUS.ENDED,
+    startDate: "2021-04-19",
+    endDate: "2021-09-27",
+    sourceType: "official",
+    sourceUrls: [
+      "https://equal-love.jp/news/detail/3886",
+      "https://equal-love.jp/news/detail/4577",
+      "https://tver.jp/episode/90756530",
+    ],
+    lastVerifiedDate: "2026-10-28",
+  },
+  {
+    // 【2026-10-28追加】＝LOVE公式ニュース126（2017-09-26）で開始を確認。最終回（2021-03-27とされる）はファンサイトのみが根拠なので
+    // endDate は空にした。同じ超！A&G＋で2021-04-03に後番組「推しをあつめて」が始まっている（公式3852）ため、status ENDED は確実。
+    id: "group-radio-ikoraji",
+    title: "イコラジ\"RADIO=LOVE\"",
+    type: ACTIVITY_TYPE.RADIO,
+    description:
+      "＝LOVE初のレギュラーラジオ番組（文化放送 超！A&G＋、毎週土曜26:00〜26:30、動画付き）。メンバーの声優としての側面をクローズアップした番組で、初回はメンバー全員、以降はメンバーが交代でパーソナリティを務めた。",
+    url: "https://equal-love.jp/news/detail/126",
+    status: ACTIVITY_STATUS.ENDED,
+    startDate: "2017-10-07",
+    endDate: null,
+    sourceType: "official",
+    sourceUrls: ["https://equal-love.jp/news/detail/126", "http://www.agqr.jp/sp/topics/archives/post_959.php"],
+    lastVerifiedDate: "2026-10-28",
+  },
+  {
+    // 【2026-10-28追加】＝LOVE公式ニュース125（2017-09-26）で確認。FRESH!はサービス自体が終了しているので status ENDED は確実、
+    // 最終回の日付は不明。配信番組なので種別は OTHER。
+    id: "group-fresh-kitto-kimida",
+    title: "＝LOVEのきっと君だ！",
+    type: ACTIVITY_TYPE.OTHER,
+    description:
+      "動画配信サービス「FRESH!」のレギュラー番組（毎週水曜19:00〜20:00、2017年10月4日スタート）。デビュー間もないメンバーの隠れた才能を発掘するため、メンバー同士がチャレンジで競い、視聴者投票でNo.1を決めるバトル型の番組。",
+    url: "https://equal-love.jp/news/detail/125",
+    status: ACTIVITY_STATUS.ENDED,
+    startDate: "2017-10-04",
+    endDate: null,
+    sourceType: "official",
+    sourceUrls: ["https://equal-love.jp/news/detail/125"],
+    lastVerifiedDate: "2026-10-28",
+  },
+  {
+    // 【2026-10-28追加】＝LOVE公式ニュース1026（2018-10-07）で確認できるのは初回2018-10-09（火）19:00と出演者だけ。
+    // 定期の曜日・時間は公式文に無いので書いていない。2020年にも「出張編」（公式3261）がある。終了時期は不明なので UNKNOWN。
+    id: "group-showroom-ikotime",
+    title: "イコたいむ",
+    type: ACTIVITY_TYPE.SHOWROOM,
+    description: "2018年10月9日（初回19:00〜）に始まったSHOWROOMの＝LOVE番組。番組名はファンと一緒に決め、「イコたいむ」となった。",
+    url: "https://equal-love.jp/news/detail/1026",
+    status: ACTIVITY_STATUS.UNKNOWN,
+    startDate: "2018-10-09",
+    endDate: null,
+    sourceType: "official",
+    sourceUrls: ["https://equal-love.jp/news/detail/1026", "https://equal-love.jp/news/detail/3261"],
+    lastVerifiedDate: "2026-10-28",
+  },
 ];
 // 【2026-10-23】政府広報「まだまだマイナー？マイナカード」CMは js/data/commercials.js（CM・広告）へ移した。
