@@ -85,6 +85,10 @@ export const DIFFICULTY = {
 // centerType     : "single"（単独センター）/ "double"（Wセンター）/ "none"（センターなし）/
 //                  "all"（全員センター。center は ["全員"]。2026-10-27追加：以前は "single" に「全員」を入れていたが、
 //                  「1人のセンター」という定義と合わないため分けた）
+//                  【2026-10-28 本人のアプリ内ルール】固定センターがいないと本人が判断した曲は、画面では「全員」と表示する
+//                  （centerType "all"・center ["全員"]）。公式に「全員センター」と発表されたとは限らないので、
+//                  そうした曲は js/data/centerSources.js に appRule: "all" を付けて、公式の根拠と区別して記録する。
+//                  センター自体が未調査の曲（例：866）には適用しない（"none"＋根拠未確認のまま調べ続ける）
 //                  centerが省略されている曲ではcenterTypeも省略する。
 //                  センター情報の根拠（公式・報道・ファン資料のみ 等）は js/data/centerSources.js にまとめている
 // releaseContext : 曲がなぜ・どんな位置付けで配信/制作されたかの短い説明（該当曲のみ）
@@ -1052,8 +1056,9 @@ export const SONGS = [
     difficulty: DIFFICULTY.NORMAL,
     introLeadInSec: 0,
     members: ["大谷映美里", "佐々木舞香", "野口衣織", "諸橋沙夏"],
-    center: [],
-    centerType: "none",
+    // 2026-10-28 本人のアプリ内ルールで「全員」（固定センターなし）。根拠の区別は centerSources.js の appRule
+    center: ["全員"],
+    centerType: "all",
   },
   {
     id: "norotte-norotte",

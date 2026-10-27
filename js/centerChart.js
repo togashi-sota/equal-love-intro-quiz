@@ -62,6 +62,8 @@ export function classifyCenter(song, sources = CENTER_SOURCES) {
     isConfirmed: evidenceKind ? CONFIRMED_EVIDENCE_KINDS.has(evidenceKind) : false,
     sourceUrl: source?.url ?? null,
     sourceNote: source?.note ?? null,
+    // 本人のアプリ内ルールで「全員」にした曲（公式の「全員センター」発表とは区別する。2026-10-28）
+    appRule: state === "all" && source?.appRule === "all" ? "all" : null,
   };
 }
 

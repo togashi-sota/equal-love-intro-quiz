@@ -64,12 +64,10 @@ function buildMemberCell(name) {
 }
 
 // 「全員」のマス：現役メンバーのカラーを横に並べた背景にする（特定の1人の色にしない）
+// 「全員」は、特定のメンバーの色を使わない共通の表示にする（2026-10-28 本人指示）。
+// 以前は現役メンバー全員の色の帯だったが、色の並びで特定の人に見えるおそれがあるため、アプリの基調色だけで表す
 function buildAllMembersCell() {
-  const colors = MEMBERS.filter((member) => member.status === MEMBER_STATUS.ACTIVE).map((member) => member.memberColor.hex);
-  const stops = colors.map((color, index) => `${color} ${(index / colors.length) * 100}% ${((index + 1) / colors.length) * 100}%`);
-  const cell = el("span", "center-cell is-all has-outline", "全員");
-  cell.style.background = `linear-gradient(90deg, ${stops.join(", ")})`;
-  return cell;
+  return el("span", "center-cell is-all", "全員");
 }
 
 function buildCenterCells(row) {
@@ -131,6 +129,10 @@ function buildRow(row) {
 
   if (row.center.evidenceKind) {
     info.appendChild(buildEvidenceBadge(row.center));
+    // 本人のアプリ内ルールで「全員」にした曲は、公式の「全員センター」発表と区別できるよう印を付ける（2026-10-28）
+    if (row.center.appRule === "all") {
+      info.appendChild(el("span", "center-app-rule", "アプリ内ルール：固定センターなし→「全員」と表示"));
+    }
     // 確認済みでない（ファン資料のみ・アプリ内設定・根拠未確認）ものは、理由を一行で必ず見せる
     if (!row.center.isConfirmed && row.center.sourceNote) {
       info.appendChild(el("p", "center-row-note", row.center.sourceNote));
@@ -251,7 +253,7 @@ function buildLegend() {
     el(
       "p",
       "centers-legend-text",
-      `「ファン資料のみ」「アプリ内設定・公式未確認」「根拠未確認」の曲は、公式に確認できた情報ではありません。「アプリ内設定・公式未確認」は、このアプリの作成者が設定したもので、メンバー本人や公式が指定したものではありません。調査日：${formatDate(CENTER_SOURCES_RESEARCHED_AT)}。`
+      `「ファン資料のみ」「アプリ内設定・公式未確認」「根拠未確認」の曲は、公式に確認できた情報ではありません。「アプリ内設定・公式未確認」は、このアプリの作成者が設定したもので、メンバー本人や公式が指定したものではありません。「アプリ内ルール」の印がある曲は、固定センターがいないとこのアプリで判断し「全員」と表示しているもので、公式に「全員センター」と発表されたとは限りません。調査日：${formatDate(CENTER_SOURCES_RESEARCHED_AT)}。`
     )
   );
   return legend;
