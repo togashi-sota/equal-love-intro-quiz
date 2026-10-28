@@ -72,6 +72,7 @@ import { analyzeLyricsFiles, saveLyricsData } from "./lyricsStorage.js";
 import { analyzeCallDataBackupFile, importCallDataSongs } from "./callStorage.js";
 import { analyzeCallGuideBackupFile, importCallGuideDataEntries } from "./callGuideStorage.js";
 import { computeSha256Hex } from "./contentHash.js";
+import { backupCurrentLyrics } from "./lyricsBackupStorage.js";
 
 // マニフェストJSONの目印。js/callStorage.jsのBACKUP_FILE_TYPEと同じ考え方
 // （中身のtypeフィールドで、ファイル名に依存せず判別できるようにする）。
@@ -139,6 +140,12 @@ export function validateManifest(rawData) {
     if (unknownSongIds.length > 0) {
       errors.push(`songs.jsに登録されていない曲IDが含まれています（${unknownSongIds.join("、")}）`);
     }
+  }
+
+  // 【2026-10-29追加】updateExistingOnly（任意・真偽値）：true のパックは「この端末に既にある曲の修正だけ」。
+  // この端末に無い曲の歌詞は新しく作らない（1曲だけの歌詞修正パックで、持っていない曲が増えないように）。
+  if (rawData.updateExistingOnly !== undefined && typeof rawData.updateExistingOnly !== "boolean") {
+    errors.push("updateExistingOnlyはtrueかfalseで指定してください");
   }
 
   // correctionsフィールドはもう読み込み判定には使わない（2026-08-29、内容ハッシュ比較方式へ
@@ -303,6 +310,22 @@ export function classifyByHash(existingHash, newHash) {
   return existingHash === newHash ? "identical" : "changed";
 }
 
+// 【2026-10-29追加】歌詞ファイルごとに「どうするか」を決める純粋関数（IndexedDBに触れない。テスト用にexport）。
+// 戻り値：{ songId, action }[]。action は
+//   "skip-identical"     … この端末と内容が同じ（書き込まない）
+//   "skip-not-installed" … updateExistingOnly のパックで、この端末にまだ無い曲（新しく作らない）
+//   "save-new"           … この端末に無い曲を新しく保存
+//   "backup-and-update"  … この端末と内容が違う：元の歌詞を控えてから上書き（控えに失敗したら上書きしない）
+export function planLyricsImportActions(lyricsFiles, { updateExistingOnly = false } = {}) {
+  return (lyricsFiles ?? []).map((file) => {
+    const songId = file.normalizedData.songId;
+    const action = classifyByHash(file.existingContentHash, file.normalizedData.contentHash);
+    if (action === "identical") return { songId, action: "skip-identical" };
+    if (action === "new") return { songId, action: updateExistingOnly ? "skip-not-installed" : "save-new" };
+    return { songId, action: "backup-and-update" };
+  });
+}
+
 // analyzeDataPack()が検証済みと判定した内容を、実際にIndexedDBへ保存する。
 // 警告あり（lyrics.warningFiles）のファイルも、呼び出し側が続行を選んだ前提でそのまま保存する
 // （js/main.jsの既存インポートUIと同じ「警告は保存を止めない、事前確認のためだけにある」という方針）。
@@ -323,6 +346,8 @@ export function classifyByHash(existingHash, newHash) {
 //   savedAudioSongIds: string[], skippedAudioSongIds: string[], correctedAudioSongIds: string[],
 //   savedLyricsSongIds: string[], skippedLyricsSongIds: string[], lyricsFailures: { fileName, reason }[],
 //   correctedLyricsSongIds: string[],
+//   backedUpLyricsSongIds: string[],      … 【2026-10-29】上書きの前に元の歌詞を控えた曲（js/lyricsBackupStorage.js）
+//   notInstalledLyricsSongIds: string[],  … 【2026-10-29】updateExistingOnly のパックで、この端末に無いため作らなかった曲
 //   savedCallSongIds: string[], skippedCallSongIds: string[], callFailures: { songId, reason }[],
 //   correctedCallSongIds: string[],
 //   savedCallGuideIds: string[], skippedCallGuideIds: string[], callGuideFailures: { guideId, reason }[],
@@ -368,14 +393,33 @@ export async function importAnalyzedDataPack(analyzed) {
   // このあとの呼び出し（コール・コールガイド）まで巻き込んで、データパック全体の
   // 取り込みが無言で止まっていた（呼び出し元js/main.jsにもtry/catchが無いため）。
   // 1件ずつ独立させ、失敗した1件だけをlyricsFailuresへ記録して続行する。
-  for (const file of lyricsFilesAll) {
+  // 【2026-10-29追加】上書きの前に元の歌詞を端末の中に控える（js/lyricsBackupStorage.js）。控えに失敗したら上書きしない。
+  // updateExistingOnly のパックでは、この端末に無い曲の歌詞を新しく作らない。
+  const backedUpLyricsSongIds = [];
+  const notInstalledLyricsSongIds = [];
+  const lyricsPlan = planLyricsImportActions(lyricsFilesAll, { updateExistingOnly: analyzed.manifest?.updateExistingOnly === true });
+  for (const [index, file] of lyricsFilesAll.entries()) {
     const songId = file.normalizedData.songId;
-    const action = classifyByHash(file.existingContentHash, file.normalizedData.contentHash);
-    if (action === "identical") {
+    const planned = lyricsPlan[index].action;
+    if (planned === "skip-identical") {
       skippedLyricsSongIds.push(songId);
       continue;
     }
-    if (action === "changed") changedLyricsSongIds.add(songId);
+    if (planned === "skip-not-installed") {
+      notInstalledLyricsSongIds.push(songId);
+      continue;
+    }
+    if (planned === "backup-and-update") {
+      changedLyricsSongIds.add(songId);
+      try {
+        const backup = await backupCurrentLyrics(songId, `data-pack:${analyzed.manifest?.packId ?? ""}`);
+        if (backup.backedUp) backedUpLyricsSongIds.push(songId);
+      } catch (error) {
+        console.warn(`元の歌詞の控えを作れなかったため、この曲の歌詞は上書きしません: ${file.fileName}`, error);
+        lyricsFailures.push({ fileName: file.fileName, reason: "元の歌詞の控えを作れなかったため、上書きしませんでした" });
+        continue;
+      }
+    }
     try {
       const result = await saveLyricsData(file.normalizedData);
       if (result.saved) {
@@ -446,6 +490,8 @@ export async function importAnalyzedDataPack(analyzed) {
     skippedLyricsSongIds,
     lyricsFailures,
     correctedLyricsSongIds,
+    backedUpLyricsSongIds,
+    notInstalledLyricsSongIds,
     savedCallSongIds,
     skippedCallSongIds,
     callFailures,
