@@ -771,11 +771,19 @@ async function runRulesTests() {
   assertEqual(current.rules.presence.$uid.connections.$connectionId[".validate"], "newData.val() === true", "R2: 今の本番 Rules（接続ノードは true だけ）は変更していない");
   assertEqual(proposed.rules.presence.$uid.connections.$connectionId[".validate"].startsWith("newData.val() === true || "), true, "R2: 提案は true も引き続き許す（古いアプリが動く＝後方互換）");
   assertEqual(proposed.rules.presence.$uid.connections.$connectionId[".validate"], "newData.val() === true || (newData.isNumber() && newData.val() === now && data.exists())", "R2: 【2026-10-28 在席担当の確認済みの形】数値は「既にある接続ノードをサーバー時刻ちょうどに」だけ（消えた接続の書き戻しを防ぐ）");
-  assertEqual(JSON.stringify(proposed.rules.presence.$uid[".write"]), JSON.stringify(current.rules.presence.$uid[".write"]), "R2: 在席を書ける人（本人・後継者の削除）は変えていない");
+  // 【2026-10-29 v2.1】後継者の削除だけ「対応表の backupId が正しい形」の条件を足した（S18c：本番で作られたかもしれない偽の対応表を無効にする）
+  const SUCCESSOR_BACKUP_ID_CHECK = " && root.child('uidSupersession').child($uid).child('backupId').val().matches(/^[A-Za-z0-9_-]{1,128}$/)";
+  const SUCCESSOR_NEW_UID = "root.child('uidSupersession').child($uid).child('newUid').val() === auth.uid";
+  assertEqual(proposed.rules.presence.$uid[".write"], current.rules.presence.$uid[".write"].replace(SUCCESSOR_NEW_UID, SUCCESSOR_NEW_UID + SUCCESSOR_BACKUP_ID_CHECK), "R2: 在席を書ける人（本人・後継者の削除）は変えていない（v2.1：後継者の削除に backupId の形の確認を足しただけ）");
   const changedTop = Object.keys(current.rules).filter((k) => JSON.stringify(current.rules[k]) !== JSON.stringify(proposed.rules[k]));
-  assertEqual(changedTop.sort(), ["backups", "presence", "rooms", "uidSupersession"], "R3: 【2026-10-28 統合版】提案で変えたのは backups・presence・rooms（歌詞クイズ対戦の案A）・uidSupersession だけ");
+  assertEqual(changedTop.sort(), ["backups", "presence", "publicProfiles", "rooms", "timeAttackLeaderboardsV3", "uidSupersession"], "R3: 【2026-10-29 v2.1】提案で変えたのは backups・presence・rooms（歌詞クイズ対戦の案A）・uidSupersession と、後継者の削除の条件（publicProfiles・timeAttackLeaderboardsV3）だけ");
+  assertEqual(Object.keys(proposed.rules).filter((k) => !(k in current.rules)), ["backupSecrets"], "R3: 【2026-10-29 v2.1】新しく足した場所は backupSecrets（秘密の新しい置き場所）だけ");
+  assertEqual(proposed.rules.backupSecrets.$backupId[".read"], undefined, "R3: backupSecrets には .read が無い（管理者も含めて誰も読めない）");
+  assertEqual(proposed.rules[".read"] === undefined && proposed.rules[".write"] === undefined, true, "R3: ルートに .read・.write は無い（上の階層からの読み取り・書き込みの許可が backupSecrets に及ばない）");
+  assertEqual(proposed.rules.uidSupersession.$oldUid.backupId[".validate"].includes(".matches(/^[A-Za-z0-9_-]{1,128}$/)"), true, "R3: 対応表の backupId は英数字・-・_ だけ（\"/\" で別の場所を指せない＝S18）");
+  assertEqual(JSON.stringify(proposed.rules.publicProfiles.$uid[".write"]), JSON.stringify(current.rules.publicProfiles.$uid[".write"].replace(SUCCESSOR_NEW_UID, SUCCESSOR_NEW_UID + SUCCESSOR_BACKUP_ID_CHECK)), "R3: publicProfiles の変更は後継者の削除の条件だけ");
   assertEqual(proposed.rules.backups.$backupId[".write"].includes("(data.child('currentUid').val() === auth.uid && (!newData.exists() || newData.child('currentUid').val() === auth.uid))"), true, "R3: 持ち主の通常の書き込みでは currentUid を他人に書き換えられない（手渡しの穴を塞ぐ）");
-  assertEqual(proposed.rules.backups.$backupId.previousUids.$previousUid[".validate"].includes("newData.parent().parent().child('ownerClaim').child('at').val() === now"), true, "R3: previousUids は所有権の証明（ownerClaim）か管理者のときだけ増やせる");
+  assertEqual(proposed.rules.backups.$backupId.previousUids.$previousUid[".validate"].includes("newData.parent().parent().child('ownerClaim').child('at').val() === now && root.child('backups').child($backupId).child('ownerSecret').isString()"), true, "R3: previousUids は所有権の証明（ownerClaim の秘密が保存済みの秘密と一致）か管理者のときだけ増やせる（v2.1：でたらめな ownerClaim では増やせない＝H3d）");
   assertEqual(JSON.stringify(proposed.rules.rooms.$roomId.players.$uid[".write"]), JSON.stringify(current.rules.rooms.$roomId.players.$uid[".write"]), "R3: 対戦の players を書ける人は変えていない（歌詞クイズの検証を足しただけ）");
   assertEqual(proposed.rules.uidSupersession.$oldUid.newUid[".read"], "auth != null", "R4: 対応表は newUid だけ読める（backupId は読めない）");
   assertEqual(proposed.rules.uidSupersession.$oldUid[".read"], undefined, "R4: 対応表全体（backupId を含む）は読めないまま");
@@ -799,6 +807,16 @@ async function runRulesTests() {
 // ---------------------------------------------------------------------------
 async function runWiringTests() {
   const sync = await readSource("js/backupSync.js");
+  // 【2026-10-29】ownerSecret の新しい置き場所（backupSecrets）：先に試し、v2.1 が未公開なら従来の書き込みへ（機能の有無の判定）
+  assertEqual(sync.includes("applied = await tryVaultOwnershipAttempts(player.playerId, vaultAttempts, { database, ref, update });") && sync.includes("if (!applied) for (const attempt of attempts) {"), true, "W0: 同期は新しい置き場所の形を先に試し、通らなければ従来の形（v383 と同じ）へ");
+  assertEqual(sync.includes("vaultRulesUnavailable = true;"), true, "W0: 新しい置き場所が使えない Rules だと分かったら、そのセッションは試さない");
+  assertEqual(sync.includes("if (applied.claim && !applied.vault) {"), true, "W0: 新しい形の claim は端末の秘密を確定済み（従来の作り直し・ownerClaim の後始末はしない）");
+  assertEqual(sync.includes('["vault", buildVaultTransferClaimWrites(') && sync.includes('["legacy", { ...baseClaim,') && sync.includes('["minimal", baseClaim]'), true, "W0: 引き継ぎコードは 新しい形 → v383 の形 → 3項目 の順");
+  assertEqual(sync.includes('restoreFromBackup(backupId, { keepOwnerSecret, ownerSecretInVault: claimedForm === "vault" })'), true, "W0: 引き継ぎで書いた秘密を復元で作り直さない（端末とクラウドの秘密をそろえる）");
+  const adminSrc = await readSource("js/backupAdmin.js");
+  assertEqual(adminSrc.includes("await update(ref(database), { ...writes, [`backupSecrets/${backupId}`]: null });") && adminSrc.includes("await update(ref(database), writes);"), true, "W0: 管理者の復旧承認は backupSecrets も消し、未公開なら従来の形でやり直す");
+  const repairSrc = await readSource("js/adminUidRepair.js");
+  assertEqual(repairSrc.includes("includeSecretVault: true"), true, "W0: 管理者のUID付け替えも backupSecrets を消す形を先に試す");
   assertEqual(sync.includes("for (const [oldUid] of candidates) {") && sync.includes("setPendingUidMerge(player.playerId, { oldUid, backupId });"), true, "W1: クラウドの旧UIDを全部（1件だけでなく）列へ足す");
   assertEqual(sync.includes("(lastKnownUidBeforeSync === null || applied.claim)"), true, "W1: claim 直後にもクラウドの旧UIDを確認する");
   const sup = await readSource("js/uidSupersession.js");

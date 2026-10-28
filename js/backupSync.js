@@ -50,8 +50,20 @@ import {
   getLastKnownUid,
   setLastKnownUid,
   setPendingUidMerge,
+  getPendingOwnerSecrets,
+  addPendingOwnerSecret,
+  removePendingOwnerSecret,
+  isOwnerSecretInVault,
+  setOwnerSecretInVault,
+  commitOwnerSecret,
 } from "./playerProfile.js";
-import { generateOwnerSecret, detectUidChange, isValidOwnerSecret } from "./backupOwnership.js";
+import {
+  generateOwnerSecret,
+  detectUidChange,
+  isValidOwnerSecret,
+  planVaultOwnershipAttempts,
+  buildVaultTransferClaimWrites,
+} from "./backupOwnership.js";
 
 const SCHEMA_VERSION = 1;
 const LOCAL_STORAGE_PREFIX = "equalLoveIntroQuiz.";
@@ -204,6 +216,29 @@ let pendingResyncNeeded = false;
 // その場合は従来どおりのフィールドだけで書き直す（バックアップ自体は止めない）。
 // 一度検知したら、このセッション中は最初から従来形式で書く（無駄な失敗を繰り返さない）。
 let legacyRulesDetected = false;
+// 【2026-10-29追加】ownerSecret の新しい置き場所（backupSecrets）を受け付ける Rules（v2.1）が公開されているか。
+// 新しい置き場所への書き込みが全部拒否され、従来の書き込みが通った＝まだ公開されていない、と判断し、
+// このセッション中は新しい置き場所を試さない（無駄な失敗を繰り返さない）。次の起動でもう一度試す。
+let vaultRulesUnavailable = false;
+
+// 新しい置き場所への書き込み計画を、通るまで順に試す（js/backupOwnership.js の planVaultOwnershipAttempts）。
+// 作り直す秘密は、書く前に「確定を見届けていない秘密」として端末に控え、拒否されたら控えから消す
+// （拒否＝書かれていない。通信エラーのときは書かれたか分からないので控えを残し、次回の証明の候補にする）。
+async function tryVaultOwnershipAttempts(playerId, vaultAttempts, { database, ref, update }) {
+  for (const attempt of vaultAttempts) {
+    const isNewSecret = attempt.newOwnerSecret !== getOrCreateOwnerSecret(playerId, generateOwnerSecret);
+    if (isNewSecret) addPendingOwnerSecret(playerId, attempt.newOwnerSecret);
+    try {
+      await update(ref(database), attempt.writes);
+      commitOwnerSecret(playerId, attempt.newOwnerSecret, { inVault: true });
+      return attempt;
+    } catch (error) {
+      if (isNewSecret && isPermissionDenied(error)) removePendingOwnerSecret(playerId, attempt.newOwnerSecret);
+      if (!isPermissionDenied(error)) throw error;
+    }
+  }
+  return null;
+}
 
 function isPermissionDenied(error) {
   const code = error?.code ?? "";
@@ -329,7 +364,24 @@ async function performSync() {
 
     let applied = null;
     let lastError = null;
-    for (const attempt of attempts) {
+    // 【2026-10-29追加】まず秘密の新しい置き場所（backupSecrets。管理者にも見えない）を使う形を試す。
+    // v2.1 の Rules が未公開なら全部拒否されるので、下の従来の書き込み（旧置き場所）へ進む＝今までどおり動く。
+    const vaultAttempts = vaultRulesUnavailable
+      ? []
+      : planVaultOwnershipAttempts({
+          backupId,
+          baseRecord,
+          previousUid,
+          needsClaim: previousUid !== null && detectedByLastKnownUid,
+          canFallbackClaim: !(previousUid !== null && detectedByLastKnownUid),
+          ownerSecret: getOrCreateOwnerSecret(player.playerId, generateOwnerSecret),
+          pendingOwnerSecrets: getPendingOwnerSecrets(player.playerId),
+          ownerSecretInVault: isOwnerSecretInVault(player.playerId),
+          generateSecret: () => generateOwnerSecret(),
+          serverTimestamp,
+        });
+    applied = await tryVaultOwnershipAttempts(player.playerId, vaultAttempts, { database, ref, update });
+    if (!applied) for (const attempt of attempts) {
       try {
         const writes = buildWrites(attempt);
         if (attempt.fallbackClaim) writes.ownerSecret = fallbackRotatedOwnerSecret;
@@ -351,7 +403,13 @@ async function performSync() {
       return lastSyncResult;
     }
     if (applied.legacy && (ownerSecret || previousUid)) legacyRulesDetected = true;
-    if (applied.claim) {
+    // 新しい置き場所を試して拒否され、従来の書き込みが通った＝v2.1 の Rules はまだ公開されていない（このセッションは従来どおり）。
+    // 端末の「移行済み」の印も外す（Rules が戻された場合、旧置き場所に秘密を書き直して自己修復できるようにする）
+    if (!applied.vault && vaultAttempts.length > 0) {
+      vaultRulesUnavailable = true;
+      if (!applied.legacy && isOwnerSecretInVault(player.playerId)) setOwnerSecretInVault(player.playerId, false);
+    }
+    if (applied.claim && !applied.vault) {
       // 回復に成功した書き込みで ownerSecret を作り直したので、端末側も同じ値へ更新する。
       rotateOwnerSecret(player.playerId, () => (applied.fallbackClaim ? fallbackRotatedOwnerSecret : rotatedOwnerSecret));
       // 使い終わった証明をすぐ消す（もう持ち主なので通常の書き込みで削除できる）。
@@ -539,7 +597,11 @@ export async function checkRecoveryRequestStatus(code) {
 // バックアップ対象外のデータ（サウンド設定等）は保持される）。
 // 復元後は、以後の自動バックアップが同じbackupIdへ書き込まれるよう、
 // このプレイヤーへそのbackupIdを覚えさせ、直ちに1回同期し直す。
-export async function restoreFromBackup(backupId) {
+// 【2026-10-29追加】options.keepOwnerSecret … 引き継ぎコードの受け取りで、クラウドへ書いたばかりの新しい秘密を端末も
+//   既に持っている場合は true（ここで作り直すと、v383 では作り直した値をクラウドへ保存できず＝端末とクラウドの秘密が
+//   ずれたままになり、次にUIDが変わったときに自動で回復できなくなっていたため）。
+//   options.ownerSecretInVault … その秘密が新しい置き場所（backupSecrets）に書かれたか。
+export async function restoreFromBackup(backupId, { keepOwnerSecret = false, ownerSecretInVault = false } = {}) {
   // 【QAで発見・修正：2026-09-07】直前のローカル操作（設定変更・称号解除等）によって
   // scheduleBackupSync()のデバウンスタイマーが既に予約されている状態で復元を始めると、
   // このFirebase読み取り（get）の完了を待っている間にそのタイマーが先に発火し、
@@ -581,7 +643,9 @@ export async function restoreFromBackup(backupId) {
     // 【2026-09-15追加】このバックアップは今この端末のものになった。ownerSecret を作り直して
     // 直後の同期で保存し、以前の端末が持っていた ownerSecret を無効化する（js/backupOwnership.js参照）。
     // lastKnownUid も今のUIDにそろえる（復元＝UID変更の検知対象ではない）。
-    rotateOwnerSecret(player.playerId, generateOwnerSecret);
+    if (!keepOwnerSecret) rotateOwnerSecret(player.playerId, generateOwnerSecret);
+    // 別のバックアップの「移行済み」の印を持ち越さない（作り直した秘密は直後の同期で新しい置き場所へ書かれる）
+    setOwnerSecretInVault(player.playerId, keepOwnerSecret && ownerSecretInVault);
     setLastKnownUid(player.playerId, uid);
 
     lastSyncedFingerprint = null; // 復元直後は必ず1回同期し直す
@@ -722,25 +786,38 @@ export async function claimTransferCode(rawCode) {
     [`backups/${backupId}/transfer/secret`]: secret,
     [`backups/${backupId}/transfer/usedAt`]: serverTimestamp(),
   };
+  // 【2026-10-29追加】試す順番：①新しい形（秘密を backupSecrets へ。管理者に見えない）→②v383 の形（旧置き場所）→③3項目だけ。
+  // ①は v2.1 の Rules でだけ通る。今の本番・v2 では拒否されるので②へ進む（今までどおり）。
+  const playerId = getActivePlayer().playerId;
   let claimed = false;
-  try {
-    await update(ref(database), { ...baseClaim, [`backups/${backupId}/ownerSecret`]: claimedOwnerSecret });
-    claimed = true;
-  } catch (error) {
+  let claimedForm = null; // "vault" | "legacy" | "minimal"
+  addPendingOwnerSecret(playerId, claimedOwnerSecret);
+  const claimForms = [
+    ["vault", buildVaultTransferClaimWrites({ backupId, uid, transferSecret: secret, newOwnerSecret: claimedOwnerSecret, serverTimestamp })],
+    ["legacy", { ...baseClaim, [`backups/${backupId}/ownerSecret`]: claimedOwnerSecret }],
+    ["minimal", baseClaim],
+  ];
+  let lastClaimError = null;
+  for (const [form, writes] of claimForms) {
     try {
-      await update(ref(database), baseClaim);
+      await update(ref(database), writes);
       claimed = true;
-    } catch (retryError) {
-      console.warn("引き継ぎコードでの認証に失敗しました（無効・期限切れ・使用済みの可能性があります）", retryError);
+      claimedForm = form;
+      break;
+    } catch (error) {
+      lastClaimError = error;
     }
   }
-  if (claimed) {
-    // restoreFromBackup() 内で改めて作り直されるため、ここで保存した値が最終値になるわけではないが、
-    // 直後の同期までの間に旧端末側の値へ戻らないよう、端末側も先に更新しておく。
-    rotateOwnerSecret(getActivePlayer().playerId, () => claimedOwnerSecret);
+  if (!claimed) console.warn("引き継ぎコードでの認証に失敗しました（無効・期限切れ・使用済みの可能性があります）", lastClaimError);
+  if (claimed && claimedForm !== "minimal") {
+    // クラウドへ書いた新しい秘密を端末の正式な値にする（restoreFromBackup では作り直さない＝端末とクラウドの秘密をそろえる）
+    commitOwnerSecret(playerId, claimedOwnerSecret, { inVault: claimedForm === "vault" });
+  } else {
+    removePendingOwnerSecret(playerId, claimedOwnerSecret);
   }
 
-  const result = await restoreFromBackup(backupId);
+  const keepOwnerSecret = claimed && claimedForm !== "minimal";
+  const result = await restoreFromBackup(backupId, { keepOwnerSecret, ownerSecretInVault: claimedForm === "vault" });
   if (!result.ok) {
     return {
       ok: false,

@@ -29,6 +29,8 @@ import {
   evaluateSuccessorDelete,
   planLeaderboardMerge,
   buildCopiedLeaderboardEntry,
+  planVaultOwnershipAttempts,
+  buildVaultTransferClaimWrites,
 } from "../js/backupOwnership.js";
 import {
   getPlayers,
@@ -40,6 +42,12 @@ import {
   getPendingUidMerge,
   setPendingUidMerge,
   clearPendingUidMerge,
+  getPendingOwnerSecrets,
+  addPendingOwnerSecret,
+  removePendingOwnerSecret,
+  isOwnerSecretInVault,
+  setOwnerSecretInVault,
+  commitOwnerSecret,
 } from "../js/playerProfile.js";
 import { assertEqual } from "./test-utils.js";
 
@@ -297,9 +305,10 @@ export function runBackupOwnershipTests() {
   // 【2026-09-22追加】解除した旧UIDは「完了済み」に残り、同じ旧UIDの確認待ちは作り直されない（冪等）
   assertEqual(setPendingUidMerge(player.playerId, { oldUid: OLD, backupId: "b1" }), false, "完了済みの旧UIDは確認待ちを作り直さない");
   assertEqual(getPendingUidMerge(player.playerId), null, "完了済みの旧UIDは確認待ちのまま残らない");
+  runOwnerSecretVaultTests(player.playerId);
   // 後片付け（他のテストに影響させない）
   const players = getPlayers().map((p) => {
-    const { ownerSecret, lastKnownUid, pendingUidMerge, completedUidMerges, uidMergeQueue, ...rest } = p;
+    const { ownerSecret, lastKnownUid, pendingUidMerge, completedUidMerges, uidMergeQueue, pendingOwnerSecrets, ownerSecretVault, ...rest } = p;
     return rest;
   });
   localStorage.setItem("equalLoveIntroQuiz.players", JSON.stringify(players));
@@ -377,4 +386,68 @@ export async function runBackupOwnershipRulesAndWiringTests() {
   // 同じオリジンで以前に本番画面（index.html）を開いていた場合は、その時のユーザーがSDKにより復元される
   // （＝新規作成ではない）ため、ここでは「匿名ユーザーが居るとしても復元されたものか」だけを確認する。
   assertEqual(testAuth.currentUser === null || testAuth.currentUser.isAnonymous === true, true, "tests.html の実行中に新しい種類のログインは発生していない（既存の匿名セッションの復元のみ許容）");
+}
+
+// ---------------------------------------------------------------------------
+// 【2026-10-29追加】ownerSecret の新しい置き場所（backupSecrets）の書き込み計画と、端末側の控え
+// Rules に対して本当に通るか・拒否されるかは tools/rules-emulator（エミュレーター。NV・F のケース）で確かめる。
+// ここでは「何をどの順で書こうとするか」を固定する。
+// ---------------------------------------------------------------------------
+function runOwnerSecretVaultTests(playerId) {
+  const TS = { ".sv": "timestamp" };
+  let seq = 0;
+  const gen = () => `NEW${String(++seq).padStart(29, "0")}`; // 32文字
+  const LOCAL = "L".repeat(32);
+  const PEND = "P".repeat(32);
+  const base = { schemaVersion: 1, currentUid: NEW, updatedAt: TS, payload: { a: "1" } };
+  const common = { backupId: "bk", baseRecord: base, generateSecret: gen, serverTimestamp: () => TS };
+
+  // V1 UIDが変わった（claim）：証明の候補は「端末の秘密 → 確定を見届けていない秘密」、旧UIDの記録つき → 無し → 持ち主の順
+  const claimPlan = planVaultOwnershipAttempts({ ...common, previousUid: OLD, needsClaim: true, ownerSecret: LOCAL, pendingOwnerSecrets: [PEND] });
+  assertEqual(claimPlan.map((a) => [a.claim, a.withPreviousUid, a.writes["backupSecrets/bk"].proof ?? null]), [[true, true, LOCAL], [true, true, PEND], [true, false, LOCAL], [true, false, PEND], [false, false, null]], "V1: claim は端末の秘密→控えの秘密の順に、旧UIDの記録つき→無し→持ち主の順で試す");
+  const first = claimPlan[0];
+  assertEqual(first.writes["backups/bk/ownerSecret"], null, "V1: 旧置き場所（管理者に見える）の ownerSecret は消す");
+  assertEqual(first.writes["backups/bk/ownerClaim"], null, "V1: backups 側には証明（ownerClaim）を書かない");
+  assertEqual(first.writes["backups/bk/currentUid"], NEW, "V1: currentUid は自分");
+  assertEqual(first.writes[`backups/bk/previousUids/${OLD}`], TS, "V1: 旧UIDをサーバー時刻で記録");
+  assertEqual(first.writes["backupSecrets/bk"].proofAt, TS, "V1: 証明の時刻はサーバー時刻（使い回しを防ぐ）");
+  assertEqual(first.newOwnerSecret !== LOCAL && first.writes["backupSecrets/bk"].secret === first.newOwnerSecret && isValidOwnerSecret(first.newOwnerSecret), true, "V1: claim では必ず新しい秘密に作り直す");
+  assertEqual(Object.keys(first.writes).some((k) => k.startsWith("backups/") && typeof first.writes[k] === "string" && first.writes[k].length >= 32), false, "V1: 秘密の文字列は backups 側のどこにも書かない");
+
+  // V2 持ち主（UID変化なし）：未移行なら作り直す・移行済みなら同じ値（冪等）。UIDが分からない端末は最後に claim も試す
+  const notYet = planVaultOwnershipAttempts({ ...common, ownerSecret: LOCAL, ownerSecretInVault: false, canFallbackClaim: true });
+  assertEqual(notYet.map((a) => [a.claim, !!a.fallbackClaim]), [[false, false], [true, true]], "V2: 持ち主の書き込み → だめなら claim（UIDの変化を検知できなかった端末向け）");
+  assertEqual(notYet[0].newOwnerSecret !== LOCAL && notYet[0].writes["backupSecrets/bk"].proof === undefined, true, "V2: 移行のときは新しい秘密に作り直す（管理者に見えていた値を使い続けない）・証明は書かない");
+  const already = planVaultOwnershipAttempts({ ...common, ownerSecret: LOCAL, ownerSecretInVault: true });
+  assertEqual(already.length === 1 && already[0].newOwnerSecret === LOCAL && already[0].writes["backupSecrets/bk"].secret === LOCAL, true, "V2: 移行済みなら同じ値を書き直すだけ（端末とクラウドのずれも直る）");
+  const adminCase = planVaultOwnershipAttempts({ ...common, previousUid: OLD, needsClaim: false, ownerSecret: LOCAL, ownerSecretInVault: true });
+  assertEqual(adminCase.map((a) => a.withPreviousUid), [true, false], "V2: 旧UIDが分かっているが claim 不要（管理者の付け替え後）なら、記録つき→無しの順");
+
+  // V3 秘密が無い・壊れている端末は新しい置き場所を使わない（従来どおりの流れに任せる）
+  assertEqual(planVaultOwnershipAttempts({ ...common, ownerSecret: null }), [], "V3: 端末に秘密が無ければ何もしない");
+  assertEqual(planVaultOwnershipAttempts({ ...common, ownerSecret: "short" }), [], "V3: 形の正しくない秘密では何もしない");
+  assertEqual(planVaultOwnershipAttempts({ ...common, backupId: "", ownerSecret: LOCAL }), [], "V3: backupId が無ければ何もしない");
+  const dup = planVaultOwnershipAttempts({ ...common, previousUid: OLD, needsClaim: true, ownerSecret: LOCAL, pendingOwnerSecrets: [LOCAL, "bad"] });
+  assertEqual(dup.filter((a) => a.claim).length, 2, "V3: 控えの重複・壊れた値は証明の候補にしない");
+
+  // V4 引き継ぎコードの受け取り（新しい形）
+  assertEqual(buildVaultTransferClaimWrites({ backupId: "bk", uid: NEW, transferSecret: "T".repeat(20), newOwnerSecret: LOCAL, serverTimestamp: () => TS }), {
+    "backups/bk/currentUid": NEW,
+    "backups/bk/transfer/secret": "T".repeat(20),
+    "backups/bk/transfer/usedAt": TS,
+    "backups/bk/ownerSecret": null,
+    "backupSecrets/bk": { secret: LOCAL, updatedAt: TS },
+  }, "V4: 引き継ぎ（新しい形）は旧置き場所を消し、新しい秘密を backupSecrets へ");
+
+  // V5 端末側の控え（players 一覧）
+  commitOwnerSecret(playerId, LOCAL, { inVault: false });
+  assertEqual(getPendingOwnerSecrets(playerId), [], "V5: 確定すると控えは空");
+  ["A", "B", "C", "D"].forEach((c) => addPendingOwnerSecret(playerId, c.repeat(32)));
+  assertEqual(getPendingOwnerSecrets(playerId), ["B".repeat(32), "C".repeat(32), "D".repeat(32)], "V5: 控えは新しい3件まで");
+  removePendingOwnerSecret(playerId, "C".repeat(32));
+  assertEqual(getPendingOwnerSecrets(playerId), ["B".repeat(32), "D".repeat(32)], "V5: 拒否された値は控えから消せる");
+  commitOwnerSecret(playerId, "D".repeat(32), { inVault: true });
+  assertEqual([getOrCreateOwnerSecret(playerId, () => "X"), getPendingOwnerSecrets(playerId), isOwnerSecretInVault(playerId)], ["D".repeat(32), [], true], "V5: 確定で端末の秘密・控え・移行済みの印を1回で更新");
+  setOwnerSecretInVault(playerId, false);
+  assertEqual(isOwnerSecretInVault(playerId), false, "V5: 移行済みの印を外せる（Rules が戻されたとき）");
 }

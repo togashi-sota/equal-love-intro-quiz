@@ -122,7 +122,7 @@ export async function adminResolveRecoveryRequest(code, backupId) {
     const backupSnap = await get(ref(database, `backups/${backupId}`));
     if (!backupSnap.exists()) return { ok: false, reason: "指定されたバックアップが見つかりませんでした" };
 
-    await update(ref(database), {
+    const writes = {
       [`backups/${backupId}/currentUid`]: newUid,
       [`backups/${backupId}/updatedAt`]: serverTimestamp(),
       // 【2026-09-15追加】以前の端末の ownerSecret（js/backupOwnership.js）を無効化する。
@@ -131,7 +131,16 @@ export async function adminResolveRecoveryRequest(code, backupId) {
       [`recoveryRequests/${code}/status`]: "resolved",
       [`recoveryRequests/${code}/resolvedBackupId`]: backupId,
       [`recoveryRequests/${code}/resolvedAt`]: serverTimestamp(),
-    });
+    };
+    // 【2026-10-29追加】秘密の新しい置き場所（backupSecrets/{id}。管理者にも読めない）も同じ書き込みで消す。
+    // 管理者は秘密を読む必要は無い（消すだけ）。v2.1 の Rules は「持ち主を変えるなら前の秘密も無効化」を必須にしている。
+    // v2.1 が未公開（backupSecrets に Rules が無い）なら拒否されるので、従来の書き込みでやり直す。
+    try {
+      await update(ref(database), { ...writes, [`backupSecrets/${backupId}`]: null });
+    } catch (error) {
+      if (!/PERMISSION_DENIED|permission_denied|permission-denied/i.test(`${error?.code ?? ""} ${error?.message ?? ""}`)) throw error;
+      await update(ref(database), writes);
+    }
 
     return { ok: true };
   } catch (error) {

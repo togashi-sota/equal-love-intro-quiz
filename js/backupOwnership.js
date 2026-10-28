@@ -80,6 +80,95 @@ export function detectUidChange(lastKnownUid, currentUid) {
 }
 
 // ---------------------------------------------------------------------------
+// 【2026-10-29追加】ownerSecret の新しい置き場所 backupSecrets/{backupId} を使う書き込みの計画（純粋関数）
+// ---------------------------------------------------------------------------
+// 【なぜ移すか】旧置き場所 backups/{backupId}/ownerSecret は、管理者の「backups 全体を読める」権限
+// （Rules の backups/.read）が下の階層まで効くため、管理者には全員の秘密が見えていた。Realtime Database では
+// 上の階層で許した読み取りを下で取り消せないので、backups の外（ルート直下）に、誰も読めない置き場所を作る。
+// Rules は読み取り権限と関係なく root.child(...) で中身を比べられるので、照合（所有権の回復）はそのまま行える。
+//
+// 【書き込みの形】すべてルートからの update（複数の場所を1回で・全部通るか全部止まるか）。
+//   通常（持ち主）：backups/{id} の通常の項目＋ backups/{id}/ownerSecret=null・ownerClaim=null
+//                   ＋ backupSecrets/{id} = { secret, updatedAt }
+//                   まだ移していない端末は secret を新しい値に作り直す（管理者に見えていた値を使い続けないため）。
+//   回復（claim）：上と同じ＋ currentUid=自分 ＋ backupSecrets/{id} に proof（前の秘密）・proofAt（サーバー時刻）
+//                   ＋ 新しい secret。証明の文字列も管理者に見えない場所に書かれ、同じ書き込みで作り直されるので以後は使えない。
+// 【機能の有無の判定】v2.1 の Rules が未公開（今の本番・v2）だと backupSecrets への書き込みは必ず拒否される。
+// 呼び出し側（js/backupSync.js）は、この計画を全部試して拒否されたら、従来の書き込み（旧置き場所）へ進む。
+//
+// 引数：
+//   backupId, baseRecord（backups/{id} に書く通常の項目）, previousUid, needsClaim（UIDが変わったと分かっている）,
+//   canFallbackClaim（UIDが変わったか分からないが、持ち主として書けなければ claim を試してよい）,
+//   ownerSecret（端末の秘密）, pendingOwnerSecrets（書いたが確定を見届けていない秘密）,
+//   ownerSecretInVault（新しい置き場所へ保存済みか）, generateSecret, serverTimestamp
+// 戻り値：試す順の配列。各要素 { vault: true, claim, withPreviousUid, fallbackClaim, writes（ルートからのパス→値）, newOwnerSecret }
+export function planVaultOwnershipAttempts({
+  backupId,
+  baseRecord,
+  previousUid = null,
+  needsClaim = false,
+  canFallbackClaim = false,
+  ownerSecret,
+  pendingOwnerSecrets = [],
+  ownerSecretInVault = false,
+  generateSecret,
+  serverTimestamp,
+}) {
+  if (typeof backupId !== "string" || !backupId || !isValidOwnerSecret(ownerSecret)) return [];
+  // 証明の候補：端末の秘密 → 確定を見届けていない秘密（新しい順）
+  const proofs = [ownerSecret];
+  [...pendingOwnerSecrets].reverse().forEach((value) => {
+    if (isValidOwnerSecret(value) && !proofs.includes(value)) proofs.push(value);
+  });
+  const backupPath = (key) => `backups/${backupId}/${key}`;
+  const baseWrites = () => {
+    const writes = {};
+    for (const [key, value] of Object.entries(baseRecord ?? {})) writes[backupPath(key)] = value;
+    writes[backupPath("ownerSecret")] = null; // 旧置き場所（管理者に見える）からは消す
+    writes[backupPath("ownerClaim")] = null; // 使い終わった v383 の証明が残っていれば消す
+    return writes;
+  };
+  const claimAttempt = (proof, withPreviousUid, fallbackClaim = false) => {
+    const next = generateSecret();
+    const writes = baseWrites();
+    writes[`backupSecrets/${backupId}`] = { secret: next, proof, proofAt: serverTimestamp(), updatedAt: serverTimestamp() };
+    const recordPrevious = withPreviousUid && typeof previousUid === "string" && previousUid.length > 0;
+    if (recordPrevious) writes[backupPath(`previousUids/${previousUid}`)] = serverTimestamp();
+    return { vault: true, claim: true, withPreviousUid: recordPrevious, fallbackClaim, writes, newOwnerSecret: next };
+  };
+  const ownerAttempt = (withPreviousUid) => {
+    // 移行済みなら同じ値を書き直すだけ（冪等。端末とクラウドがずれていても端末の値にそろう）。未移行なら作り直す
+    const next = ownerSecretInVault ? ownerSecret : generateSecret();
+    const writes = baseWrites();
+    writes[`backupSecrets/${backupId}`] = { secret: next, updatedAt: serverTimestamp() };
+    const recordPrevious = withPreviousUid && typeof previousUid === "string" && previousUid.length > 0;
+    if (recordPrevious) writes[backupPath(`previousUids/${previousUid}`)] = serverTimestamp();
+    return { vault: true, claim: false, withPreviousUid: recordPrevious, fallbackClaim: false, writes, newOwnerSecret: next };
+  };
+  const attempts = [];
+  if (needsClaim) {
+    proofs.forEach((proof) => attempts.push(claimAttempt(proof, true)));
+    proofs.forEach((proof) => attempts.push(claimAttempt(proof, false)));
+  } else if (previousUid) {
+    attempts.push(ownerAttempt(true));
+  }
+  attempts.push(ownerAttempt(false));
+  if (canFallbackClaim && !needsClaim) proofs.forEach((proof) => attempts.push(claimAttempt(proof, false, true)));
+  return attempts;
+}
+
+// 引き継ぎコードの受け取り（新しい形）：currentUid を自分に・transfer を使用済みに・旧置き場所を消し・新しい秘密を backupSecrets へ。
+export function buildVaultTransferClaimWrites({ backupId, uid, transferSecret, newOwnerSecret, serverTimestamp }) {
+  return {
+    [`backups/${backupId}/currentUid`]: uid,
+    [`backups/${backupId}/transfer/secret`]: transferSecret,
+    [`backups/${backupId}/transfer/usedAt`]: serverTimestamp(),
+    [`backups/${backupId}/ownerSecret`]: null,
+    [`backupSecrets/${backupId}`]: { secret: newOwnerSecret, updatedAt: serverTimestamp() },
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Firebase Rules の意図を再現するシミュレーター（テスト専用）
 // firebase/database.rules.json の backups / uidSupersession / 後継者削除の各ルールと
 // 1対1で対応させている。本物のRules構文そのものではないが、「どの条件で許可・拒否されるか」の

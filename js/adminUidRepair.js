@@ -115,7 +115,13 @@ export async function adminExecuteUidRepair(candidate, { log = () => {} } = {}) 
     } else {
       const hashBefore = await hashPayload(before.payload);
       log(`① 付け替え前 payload ハッシュ ${hashBefore.slice(0, 12)}…（キー ${Object.keys(before.payload ?? {}).length} 件、updatedAt ${before.updatedAt ?? "なし"}）`, "info");
-      await update(ref(database), buildBackupRebindWrites({ backupId, oldUid, newUid, serverTimestampValue: serverTimestamp() }));
+      // 【2026-10-29】まず秘密の新しい置き場所（backupSecrets）も消す形で。v2.1 の Rules が未公開なら拒否されるので従来の形でやり直す
+      try {
+        await update(ref(database), buildBackupRebindWrites({ backupId, oldUid, newUid, serverTimestampValue: serverTimestamp(), includeSecretVault: true }));
+      } catch (vaultError) {
+        if (!/PERMISSION_DENIED|permission_denied|permission-denied/i.test(`${vaultError?.code ?? ""} ${vaultError?.message ?? ""}`)) throw vaultError;
+        await update(ref(database), buildBackupRebindWrites({ backupId, oldUid, newUid, serverTimestampValue: serverTimestamp() }));
+      }
       const after = (await get(backupRef)).val();
       const hashAfter = await hashPayload(after?.payload);
       const verdict = evaluateRebindReadBack({ before, after, oldUid, newUid, hashBefore, hashAfter });

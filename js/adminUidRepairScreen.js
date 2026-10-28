@@ -58,7 +58,7 @@ function buildCandidateCard(candidate) {
   appendLine(card, `旧ID ${shortUid(candidate.oldUid)} → 新ID ${shortUid(candidate.newUid)} ／ backupId ${shortUid(candidate.backupId)}`);
   appendLine(
     card,
-    `バックアップ：${candidate.backup.originLabel}／最終更新 ${formatTimestamp(candidate.backup.updatedAt)}／称号 ${candidate.backup.achievementCount ?? "?"}個／payload キー ${candidate.backup.payloadKeyCount} 件／schemaVersion ${candidate.backup.schemaVersion ?? "?"}／ownerSecret ${candidate.backup.hasOwnerSecret ? "あり" : "なし"}／previousUids ${candidate.backup.previousUids.length ? candidate.backup.previousUids.map(shortUid).join("、") : "なし"}`
+    `バックアップ：${candidate.backup.originLabel}／最終更新 ${formatTimestamp(candidate.backup.updatedAt)}／称号 ${candidate.backup.achievementCount ?? "?"}個／payload キー ${candidate.backup.payloadKeyCount} 件／schemaVersion ${candidate.backup.schemaVersion ?? "?"}／ownerSecret（旧置き場所）${candidate.backup.hasOwnerSecret ? "あり" : "なし（新しい置き場所へ移行済みの可能性。新しい置き場所は管理者にも見えません）"}／previousUids ${candidate.backup.previousUids.length ? candidate.backup.previousUids.map(shortUid).join("、") : "なし"}`
   );
   appendLine(card, `旧IDの最終活動 ${formatTimestamp(candidate.oldLastActivityAt)} → 新IDの最初の活動 ${formatTimestamp(candidate.newFirstActivityAt)}`);
   if (candidate.newUidAdminBackupIds?.length) {

@@ -483,12 +483,16 @@ export function buildUidRepairInvestigationReport(snapshot, candidates = buildUi
 // 付け替えの書き込み内容（root からの update 用。payload・updatedAt・schemaVersion には触れない）。
 // ownerSecret は null にする：旧端末が持っていた（クラウドに保存済みの）ownerSecret を無効化し、
 // 本人の端末が次回同期で自分の ownerSecret を新規保存できるようにする（復旧承認と同じ扱い）。
-export function buildBackupRebindWrites({ backupId, oldUid, newUid, serverTimestampValue }) {
-  return {
+// 【2026-10-29追加】includeSecretVault：秘密の新しい置き場所 backupSecrets/{id}（管理者にも読めない）も消す。
+// v2.1 の Rules では「持ち主を変えるなら前の秘密も無効化」が必須。未公開なら拒否されるので、呼び出し側は false でやり直す。
+export function buildBackupRebindWrites({ backupId, oldUid, newUid, serverTimestampValue, includeSecretVault = false }) {
+  const writes = {
     [`backups/${backupId}/currentUid`]: newUid,
     [`backups/${backupId}/previousUids/${oldUid}`]: serverTimestampValue,
     [`backups/${backupId}/ownerSecret`]: null,
   };
+  if (includeSecretVault) writes[`backupSecrets/${backupId}`] = null;
+  return writes;
 }
 
 // 付け替え後の読み戻し検証（純粋）。before/after は backups/{id} の生データ。

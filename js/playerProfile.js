@@ -278,6 +278,52 @@ export function rotateOwnerSecret(playerId, generate) {
   return ownerSecret;
 }
 
+// ---------------------------------------------------------------------------
+// 【2026-10-29追加：ownerSecret の新しい置き場所（backupSecrets/{backupId}）】
+// 旧置き場所 backups/{backupId}/ownerSecret は管理者が backups 全体を読めるため管理者にも見えていた。
+// 新しい置き場所は誰も読めない（Rules：firebase/database.rules.proposed.json の backupSecrets）。
+// 移すときは必ず新しい値に作り直す（管理者に見えていた値を使い続けないため）。そのため端末側に2つの値を持つ：
+// ・pendingOwnerSecrets … これからクラウドへ書く新しい秘密（最大3件）。書き込みの返事が届かずに終わっても
+//   （通信が切れた・タブを閉じた）クラウド側が新しい値になっている可能性があるので、回復の証明の候補として残す。
+//   書き込みが確定したら（commitOwnerSecret）全部消す。拒否された（＝書かれていない）値はその場で消す。
+// ・ownerSecretVault … この端末の秘密が新しい置き場所に保存済みか（true なら同期のたびに作り直さない）。
+// どちらも players 一覧（端末の外へ出ない）に保存する。
+// ---------------------------------------------------------------------------
+const MAX_PENDING_OWNER_SECRETS = 3;
+
+export function getPendingOwnerSecrets(playerId) {
+  const player = refreshPlayersCache().find((p) => p.playerId === playerId);
+  const list = Array.isArray(player?.pendingOwnerSecrets) ? player.pendingOwnerSecrets : [];
+  return list.filter((value) => typeof value === "string" && value.length > 0);
+}
+
+export function addPendingOwnerSecret(playerId, value) {
+  if (typeof value !== "string" || value.length === 0) return false;
+  const list = getPendingOwnerSecrets(playerId).filter((v) => v !== value);
+  list.push(value);
+  return updatePlayerFields(playerId, { pendingOwnerSecrets: list.slice(-MAX_PENDING_OWNER_SECRETS) });
+}
+
+export function removePendingOwnerSecret(playerId, value) {
+  const list = getPendingOwnerSecrets(playerId);
+  if (!list.includes(value)) return false;
+  return updatePlayerFields(playerId, { pendingOwnerSecrets: list.filter((v) => v !== value) });
+}
+
+export function isOwnerSecretInVault(playerId) {
+  const player = refreshPlayersCache().find((p) => p.playerId === playerId);
+  return player?.ownerSecretVault === true;
+}
+
+export function setOwnerSecretInVault(playerId, inVault) {
+  return updatePlayerFields(playerId, { ownerSecretVault: inVault === true });
+}
+
+// 新しい置き場所への書き込みが確定したときに呼ぶ：端末の秘密をその値にし、保留中の値を消し、移行済みにする（1回の保存）
+export function commitOwnerSecret(playerId, ownerSecret, { inVault }) {
+  return updatePlayerFields(playerId, { ownerSecret, pendingOwnerSecrets: [], ownerSecretVault: inVault === true });
+}
+
 export function getLastKnownUid(playerId) {
   const player = getPlayers().find((p) => p.playerId === playerId);
   return typeof player?.lastKnownUid === "string" && player.lastKnownUid ? player.lastKnownUid : null;
