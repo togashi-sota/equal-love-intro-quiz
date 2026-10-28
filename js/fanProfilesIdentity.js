@@ -219,3 +219,25 @@ export function selectSupersessionLookupCandidates(profiles, { myUid = null, max
     .map((p) => p.uid)
     .slice(0, maxCount);
 }
+
+// 【2026-10-29追加・本人指示「同じ名前の別人を誤って削除しないように」】管理者の削除確認に出す「対象の見分け方」（純粋関数）。
+// 名前だけで消す相手を決めないよう、ID（全体）・区分・称号の数を並べる。今の自分自身（myUid）は消せないようにする
+// （自分の公開をやめたいときは、公開設定のOFFを使う）。権限そのものは Firebase Rules が決める（ここは表示と誤操作の防止だけ）。
+export function describeAdminDeleteTarget(profile, { myUid = null, myKnownOldUids = [], sameNameCount = 1, oshiName = null } = {}) {
+  if (!profile || typeof profile.uid !== "string" || !profile.uid) {
+    return { allowed: false, reason: "削除する相手を特定できません", kind: "unknown", lines: [] };
+  }
+  const isMe = myUid !== null && profile.uid === myUid;
+  let kind;
+  if (isMe) kind = "あなた（今のID）";
+  else if (profile.duplicateOfUid) kind = `以前のID：#${shortUidSuffix(profile.duplicateOfUid)} と同じプレイヤー`;
+  else if ((myKnownOldUids ?? []).includes(profile.uid)) kind = "あなたの以前のID（この端末で所有を確認済み）";
+  else if (sameNameCount >= 2) kind = `ほかのプレイヤー（同じ名前のカードが ${sameNameCount}件あります。IDで確かめてください）`;
+  else kind = "ほかのプレイヤー";
+  const titles = Array.isArray(profile.unlockedAchievementIds) ? profile.unlockedAchievementIds.length : 0;
+  const lines = [`ID：${profile.uid}`, `区分：${kind}`, `推し：${oshiName ?? "未設定"}・称号 ${titles}個`];
+  if (isMe) {
+    return { allowed: false, reason: "今のあなた自身の公開プロフィールは、ここからは削除できません（公開設定をOFFにしてください）", kind: "me", lines };
+  }
+  return { allowed: true, reason: null, kind: profile.duplicateOfUid || (myKnownOldUids ?? []).includes(profile.uid) ? "my-old" : "other", lines };
+}

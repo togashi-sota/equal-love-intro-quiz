@@ -37,7 +37,7 @@ import {
   markPendingUidMergeLeaderboardMerged,
   getKnownOldUidsForPlayer,
 } from "../js/playerProfile.js";
-import { collapseSamePlayerProfiles, buildProfileIdentityNote, selectSupersessionLookupCandidates, resolveSupersessionTarget } from "../js/fanProfilesIdentity.js";
+import { collapseSamePlayerProfiles, buildProfileIdentityNote, selectSupersessionLookupCandidates, resolveSupersessionTarget, describeAdminDeleteTarget } from "../js/fanProfilesIdentity.js";
 import { dedupeLeaderboardEntriesByIdentity, sortLeaderboardEntries, normalizeLeaderboardEntry } from "../js/timeAttackLeaderboard.js";
 import {
   classifyBackupKey,
@@ -91,6 +91,20 @@ function simulateUidChanges(uids, { mergeEachBeforeNext = false } = {}) {
     }
   }
   return queue;
+}
+
+// 【2026-10-29】管理者の削除確認：名前だけで相手を決めない・今の自分は消せない
+function runAdminDeleteTargetTests() {
+  const me = describeAdminDeleteTarget({ uid: "ME01", displayName: "がしお" }, { myUid: "ME01" });
+  assertEqual([me.allowed, me.kind], [false, "me"], "D1: 今の自分自身の公開プロフィールは、管理者の削除確認でも消せない");
+  const other = describeAdminDeleteTarget({ uid: "OTHER123", displayName: "ゆき", unlockedAchievementIds: ["a"] }, { myUid: "ME01", sameNameCount: 2, oshiName: "齋藤樹愛羅" });
+  assertEqual(other.allowed, true, "D2: ほかのプレイヤーは削除できる（権限は Rules が決める）");
+  assertEqual(other.lines[0], "ID：OTHER123", "D3: 削除確認には ID 全体を出す（名前だけで決めない）");
+  assertEqual(other.lines[1].includes("同じ名前のカードが 2件"), true, "D4: 同じ名前のカードがあれば、IDで確かめるよう明記");
+  assertEqual(describeAdminDeleteTarget({ uid: "OLD1" }, { myUid: "ME01", myKnownOldUids: ["OLD1"] }).kind, "my-old", "D5: 所有を確認済みの自分の以前のIDは「以前のID」と表示");
+  assertEqual(describeAdminDeleteTarget({ uid: "OLD2", duplicateOfUid: "ME01" }, { myUid: "ME01" }).kind, "my-old", "D6: まとめ表示で残した以前のIDも「以前のID」");
+  assertEqual(describeAdminDeleteTarget(null).allowed, false, "D7: 相手を特定できなければ削除できない");
+  assertEqual(describeAdminDeleteTarget({ uid: "X", displayName: "がしお" }, { myUid: "Y", sameNameCount: 1 }).kind, "other", "D8: 名前が自分と同じでも、IDが違えば自分扱いしない");
 }
 
 function runQueueTests() {
@@ -851,6 +865,7 @@ export async function runAccountPermanentFixTests() {
   runPlayerProfileQueueTests();
   runFriendTests();
   runLeaderboardTests();
+  runAdminDeleteTargetTests();
   runComparisonTests();
   await runMergeRunnerTests();
   await runAccountTests();

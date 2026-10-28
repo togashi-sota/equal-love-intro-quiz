@@ -22,7 +22,7 @@ import { getPlayerKeyPrefix, getActivePlayer, getPendingUidMerge, getCompletedUi
 // 【2026-10-28追加】以前のあなた／現在のあなたの比較・管理者の確認コード・アカウント保護（詳細情報の中に JS で作る）
 import { mountAccountRecoveryPanel, refreshAccountRecoveryPanel } from "./accountRecoveryPanel.js";
 // 【2026-10-28追加】同じプレイヤーの重複カードをまとめる／同じ名前の別プレイヤーを見分ける（純粋関数）
-import { collapseSamePlayerProfiles, annotateSameNameProfiles, collectMyKnownOldUids, shortUidSuffix, selectSupersessionLookupCandidates } from "./fanProfilesIdentity.js";
+import { collapseSamePlayerProfiles, annotateSameNameProfiles, collectMyKnownOldUids, shortUidSuffix, selectSupersessionLookupCandidates, describeAdminDeleteTarget, normalizeDisplayNameForCompare } from "./fanProfilesIdentity.js";
 import { getAuthUidHistory } from "./firebaseClient.js";
 import { summarizeAuthUidHistory } from "./identityBootstrap.js";
 import { getMemberById } from "./memberUtils.js";
@@ -385,14 +385,39 @@ function handleDetailKeydown(event) {
 
 // ---- 管理者限定：公開プロフィール削除の確認モーダル（2026-08-16追加） ----
 // buildProfileCard()のonAdminDeleteRequestから、対象profileを引数に呼ばれる。
+// 【2026-10-29変更】名前だけでなく、ID（全体）・区分・推し・称号の数を出して、同じ名前の別人を取り違えないようにする。
+// 今の自分自身は消せない（確定ボタンを押せなくする）。
 function openAdminDeleteConfirm(profile) {
-  pendingAdminDeleteProfile = profile;
+  const nameKey = normalizeDisplayNameForCompare(profile.displayName);
+  const sameNameCount = latestProfiles.filter((p) => normalizeDisplayNameForCompare(p.displayName) === nameKey).length;
+  const oshi = profile.oshiMemberId ? getMemberById(members, profile.oshiMemberId) : null;
+  const target = describeAdminDeleteTarget(profile, { myUid, myKnownOldUids: getMyKnownOldUids(), sameNameCount, oshiName: oshi?.name ?? null });
+  pendingAdminDeleteProfile = target.allowed ? profile : null;
   elements.adminDeleteTargetName.textContent = profile.displayName;
+  renderAdminDeleteTargetDetails(target);
+  elements.adminDeleteConfirmButton.disabled = !target.allowed;
   elements.adminDeleteOverlay.hidden = false;
+}
+
+// 削除確認の中に「対象の見分け方」の一覧を出す（index.html を増やさず、名前の段落の後ろに1つだけ作る）
+let adminDeleteDetailsElement = null;
+function renderAdminDeleteTargetDetails(target) {
+  if (!adminDeleteDetailsElement) {
+    adminDeleteDetailsElement = document.createElement("ul");
+    adminDeleteDetailsElement.className = "modal-category-list fan-profiles-admin-delete-details";
+    elements.adminDeleteTargetName.closest("p")?.after(adminDeleteDetailsElement);
+  }
+  adminDeleteDetailsElement.innerHTML = "";
+  [...target.lines, ...(target.reason ? [`⚠️ ${target.reason}`] : [])].forEach((line) => {
+    const item = document.createElement("li");
+    item.textContent = line;
+    adminDeleteDetailsElement.appendChild(item);
+  });
 }
 
 function closeAdminDeleteConfirm() {
   pendingAdminDeleteProfile = null;
+  elements.adminDeleteConfirmButton.disabled = false;
   elements.adminDeleteOverlay.hidden = true;
 }
 
@@ -413,6 +438,8 @@ function handleAdminDeleteKeydown(event) {
 // 削除し、削除後は一覧を再読み込みする。失敗してもローカルデータには一切影響しない。
 async function handleAdminDeleteConfirmClick() {
   if (!isAdminUser || !pendingAdminDeleteProfile) return;
+  // 念のため確定の瞬間にも「今の自分ではない」ことを確かめる（確認を開いた後にIDが変わった場合など）
+  if (pendingAdminDeleteProfile.uid === myUid) return;
   playSfx(SFX_EVENTS.UI_CONFIRM);
   const targetUid = pendingAdminDeleteProfile.uid;
   elements.adminDeleteConfirmButton.disabled = true;
