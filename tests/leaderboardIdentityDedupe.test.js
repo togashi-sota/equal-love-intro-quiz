@@ -285,7 +285,8 @@ export async function runLeaderboardIdentityDedupeTests() {
     ["p12", KEY_B.replace(/b/g, "d"), 12000],
   ];
   people.forEach(([uid, identityKey, clearTimeMs], index) => {
-    store.submit({ uid, identityKey, ...DIV, clearTimeMs, displayName: uid, achievedAt: index });
+    // 【2026-10-28】同一人物（旧UID・新UID）は同じ表示名（統合は本人キー＋表示名が同じときだけ）
+    store.submit({ uid, identityKey, ...DIV, clearTimeMs, displayName: uid.startsWith("p3-") ? "p3" : uid, achievedAt: index });
   });
   top = store.fetchTop(DIV.variant, DIV.questionCountValue, DIV.categoryFilterValue);
   assertEqual(top.length, LEADERBOARD_TOP_DISPLAY_COUNT, "O: 統合後も10件表示される");
@@ -337,7 +338,7 @@ export async function runLeaderboardIdentityRulesAndWiringTests() {
   const supersession = await fetchText("js/uidSupersession.js");
   assertEqual(supersession.includes("export async function autoMergeSupersededLeaderboardEntries("), true, "uidSupersession: 自動引き継ぎ関数がある");
   assertEqual(supersession.includes("if (!readBack || readBack.clearTimeMs !== copied.clearTimeMs) {"), true, "uidSupersession: 複製を読み戻して確認してから旧を消す");
-  assertEqual(supersession.includes("markPendingUidMergeLeaderboardMerged(player.playerId, now);"), true, "uidSupersession: 全区分成功のときだけ完了の印を付ける");
+  assertEqual(supersession.includes("markPendingUidMergeLeaderboardMerged(player.playerId, now, pending.oldUid);"), true, "uidSupersession: 全区分成功のときだけ完了の印を付ける");
 
   const screen = await fetchText("js/timeAttackLeaderboardScreen.js");
   assertEqual(screen.includes("function isOwnEntry(entry) {"), true, "画面: 自分の行判定は UID または本人キー");

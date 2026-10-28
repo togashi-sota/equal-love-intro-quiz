@@ -10,6 +10,17 @@
 // （実際にhighscore.js等をプレイヤー対応させるのは次の段階。このファイル単体では
 // プレイヤーの一覧管理・切り替えロジックだけを提供する）。
 
+import {
+  UID_MERGE_STATE,
+  normalizeUidMergeQueue,
+  enqueueUidMerge,
+  selectActiveUidMerge,
+  updateUidMergeEntry,
+  buildLegacyPendingMirror,
+  buildLegacyCompletedList,
+  listKnownOldUids,
+} from "./uidMergeQueue.js";
+
 const PLAYERS_KEY = "equalLoveIntroQuiz.players";
 const ACTIVE_PLAYER_ID_KEY = "equalLoveIntroQuiz.activePlayerId";
 
@@ -278,48 +289,98 @@ export function setLastKnownUid(playerId, uid) {
   updatePlayerFields(playerId, { lastKnownUid: uid });
 }
 
-export function getPendingUidMerge(playerId) {
+// ---------------------------------------------------------------------------
+// 【2026-10-28改訂：旧UIDの整理待ちを「列」にした（js/uidMergeQueue.js）】
+// 以前は確認待ちを1件（pendingUidMerge）しか持てず、整理が終わる前にUIDがもう一度変わると前の旧UIDを
+// 上書きして忘れていた。今は players[].uidMergeQueue に旧UIDごとの記録を持ち、1件ずつ順番に整理する。
+// 既存の呼び出し側（getPendingUidMerge 等）は「今処理すべき1件」を返す形のまま使える。
+// 旧形式（pendingUidMerge・completedUidMerges）は読むときに列へ移し、保存時にも同じ値を写しておく
+// （古い版のアプリが別タブで動いていても壊れないように）。
+// ---------------------------------------------------------------------------
+export function getUidMergeQueue(playerId) {
+  const player = refreshPlayersCache().find((p) => p.playerId === playerId);
+  return player ? normalizeUidMergeQueue(player) : [];
+}
+
+function saveUidMergeQueue(playerId, queue) {
   const player = getPlayers().find((p) => p.playerId === playerId);
-  const pending = player?.pendingUidMerge;
-  if (!pending || typeof pending !== "object") return null;
-  if (typeof pending.oldUid !== "string" || typeof pending.backupId !== "string") return null;
+  if (!player) return false;
+  return updatePlayerFields(playerId, {
+    uidMergeQueue: queue,
+    pendingUidMerge: buildLegacyPendingMirror(queue),
+    completedUidMerges: buildLegacyCompletedList(queue, Array.isArray(player.completedUidMerges) ? player.completedUidMerges : []),
+  });
+}
+
+function toLegacyPendingShape(entry) {
+  if (!entry || typeof entry.backupId !== "string") return null;
   return {
-    oldUid: pending.oldUid,
-    backupId: pending.backupId,
-    recordedAt: pending.recordedAt ?? null,
+    oldUid: entry.oldUid,
+    backupId: entry.backupId,
+    recordedAt: entry.recordedAt ?? null,
     // 【2026-09-22追加】ランキング記録の引き継ぎ（旧UID→新UID）だけは本人の確認を待たずに自動で行う
     // （記録を失わない統合のため）。完了した時刻。公開プロフィール・presence の整理は従来どおり本人確認待ち。
-    leaderboardMergedAt: typeof pending.leaderboardMergedAt === "number" ? pending.leaderboardMergedAt : null,
+    leaderboardMergedAt: typeof entry.leaderboardMergedAt === "number" ? entry.leaderboardMergedAt : null,
+    // 【2026-10-28追加】列の中での状態と、残りの件数（画面表示用）
+    state: entry.state,
+    queuedCount: 0,
   };
 }
 
+// 今処理すべき旧UID（列の先頭）。無ければ null。権限で止まっている（blocked）旧UIDは再確認の時刻まで返さない。
+export function getPendingUidMerge(playerId, { nowMs = Date.now(), currentUid = null } = {}) {
+  const queue = getUidMergeQueue(playerId);
+  const head = selectActiveUidMerge(queue, { nowMs, currentUid });
+  const shaped = toLegacyPendingShape(head);
+  if (!shaped) return null;
+  shaped.queuedCount = queue.filter((e) => e.state !== UID_MERGE_STATE.MERGED && e.oldUid !== currentUid).length;
+  return shaped;
+}
+
 // 【2026-09-22追加】ランキング記録の自動引き継ぎが完了したことを記録する（同じ旧UIDについて二度と走らせない）。
-export function markPendingUidMergeLeaderboardMerged(playerId, mergedAt = Date.now()) {
-  const player = getPlayers().find((p) => p.playerId === playerId);
-  if (!player || !player.pendingUidMerge || typeof player.pendingUidMerge !== "object") return false;
-  return updatePlayerFields(playerId, { pendingUidMerge: { ...player.pendingUidMerge, leaderboardMergedAt: mergedAt } });
+// 【2026-10-28】oldUid を省略したときは列の先頭が対象。
+export function markPendingUidMergeLeaderboardMerged(playerId, mergedAt = Date.now(), oldUid = null) {
+  const target = oldUid ?? getPendingUidMerge(playerId)?.oldUid ?? null;
+  if (!target) return false;
+  const { queue, updated } = updateUidMergeEntry(getUidMergeQueue(playerId), target, { leaderboardMergedAt: mergedAt }, mergedAt);
+  return updated ? saveUidMergeQueue(playerId, queue) : false;
 }
 
 // 【2026-09-22改訂】既に同じ旧UIDの引き継ぎが完了済み（completedUidMerges）なら、確認待ちを作り直さない
 // （クラウド側の previousUids から旧UIDを再発見するたびに同じ整理を繰り返さないため）。
+// 【2026-10-28改訂】別の旧UIDが整理待ちでも上書きしない。列の末尾へ足す（戻り値：新しく足したら true）。
 export function setPendingUidMerge(playerId, { oldUid, backupId }) {
   if (getCompletedUidMerges(playerId).includes(oldUid)) return false;
-  const existing = getPendingUidMerge(playerId);
-  if (existing && existing.oldUid === oldUid) return false; // 同じ旧UIDの確認待ちが既にある（進行中の印を消さない）
-  updatePlayerFields(playerId, { pendingUidMerge: { oldUid, backupId, recordedAt: Date.now() } });
+  // 今のUIDと同じ旧UIDかどうかは、処理する側（runPendingUidMigration）が今のログインIDで判定する
+  const before = getUidMergeQueue(playerId);
+  const { queue, added } = enqueueUidMerge(before, { oldUid, backupId });
+  if (!added) {
+    // backupId を後から補えた場合だけ保存する（変化が無ければ書かない＝不要な保存・同期の予約をしない）
+    if (JSON.stringify(queue) !== JSON.stringify(before)) saveUidMergeQueue(playerId, queue);
+    return false;
+  }
+  saveUidMergeQueue(playerId, queue);
   return true;
 }
 
+// 【2026-10-28追加】整理の途中経過を記録する（merging／failed／blocked）。途中でアプリが閉じられても次回続きから。
+export function markUidMergeAttempt(playerId, oldUid, state, { error = null, countAttempt = false, nowMs = Date.now() } = {}) {
+  const { queue, updated } = updateUidMergeEntry(getUidMergeQueue(playerId), oldUid, { state, error, countAttempt }, nowMs);
+  return updated ? saveUidMergeQueue(playerId, queue) : false;
+}
+
 // 引き継ぎが完了した旧UIDを記録してから確認待ちを消す（2026-09-22改訂：completedUidMerges に残す）。
-export function clearPendingUidMerge(playerId) {
-  const player = getPlayers().find((p) => p.playerId === playerId);
-  if (!player || !player.pendingUidMerge) return;
-  const completed = getCompletedUidMerges(playerId);
-  const oldUid = typeof player.pendingUidMerge.oldUid === "string" ? player.pendingUidMerge.oldUid : null;
-  updatePlayerFields(playerId, {
-    pendingUidMerge: null,
-    completedUidMerges: oldUid && !completed.includes(oldUid) ? [...completed, oldUid].slice(-20) : completed,
-  });
+// 【2026-10-28改訂】列の中のその旧UIDを「整理済み」にし、次の旧UIDが先頭になる。oldUid 省略時は先頭。
+export function clearPendingUidMerge(playerId, oldUid = null) {
+  const target = oldUid ?? getPendingUidMerge(playerId)?.oldUid ?? null;
+  if (!target) return;
+  const { queue, updated } = updateUidMergeEntry(getUidMergeQueue(playerId), target, { state: UID_MERGE_STATE.MERGED });
+  if (updated) saveUidMergeQueue(playerId, queue);
+}
+
+// 【2026-10-28追加】端末が知っている「このプレイヤーの旧UID」全部（整理待ち＋整理済み）。表示の重複整理に使う。
+export function getKnownOldUidsForPlayer(playerId, currentUid = null) {
+  return listKnownOldUids(getUidMergeQueue(playerId), { currentUid });
 }
 
 // 【2026-09-22追加】この端末で引き継ぎ（旧UID→新UID）を完了済みの旧UID一覧（最大20件）。

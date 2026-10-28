@@ -25,6 +25,7 @@ import {
   ref,
   set,
   get,
+  update,
   remove,
   push,
   onValue,
@@ -44,6 +45,9 @@ import {
   selectStaleOwnConnectionIds,
   computeServerNowMs,
   shouldWriteResumeHeartbeat,
+  shouldTryConnectionTimestamp,
+  buildPresenceHeartbeatWrites,
+  PRESENCE_CONNECTION_TIMESTAMP_UNSUPPORTED_KEY,
 } from "./presencePayloads.js";
 import { setPresenceFact } from "./presenceDiagnostics.js";
 
@@ -97,9 +101,67 @@ export function needsFriendPresenceRearm() {
   return isTracking && connectionWriteFailed;
 }
 
+// 【2026-10-28追加：接続ごとの生存時刻（js/presencePayloads.js の説明参照）】
+//   "unknown"  … まだ試していない
+//   "supported" … 接続ノードへ時刻を書けた（Rules 更新済み）→ ハートビートで接続ノードも更新する
+//   "unsupported" … 今の Rules では拒否された → 従来どおり true のまま（24時間は試さない）
+let connectionTimestampMode = "unknown";
+let isInfoConnected = false;
+
+function readConnectionTimestampUnsupportedAt() {
+  try {
+    const value = Number(localStorage.getItem(PRESENCE_CONNECTION_TIMESTAMP_UNSUPPORTED_KEY));
+    return Number.isFinite(value) && value > 0 ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function rememberConnectionTimestampUnsupported() {
+  connectionTimestampMode = "unsupported";
+  try {
+    localStorage.setItem(PRESENCE_CONNECTION_TIMESTAMP_UNSUPPORTED_KEY, String(Date.now()));
+  } catch {
+    // 覚えられなくても、このセッション中は unsupported のまま
+  }
+}
+
+function isPresencePermissionDenied(error) {
+  return /PERMISSION_DENIED|permission_denied|permission-denied/i.test(`${error?.code ?? ""} ${error?.message ?? ""}`);
+}
+
+// 接続ノードを書く。時刻（数値）を試せるときは先に試し、拒否されたら true で書き直す（今の本番 Rules でも必ず動く）。
+function writeConnectionNode(connectionRef) {
+  const tryTimestamp =
+    connectionTimestampMode !== "unsupported" &&
+    shouldTryConnectionTimestamp({ unsupportedAtMs: readConnectionTimestampUnsupportedAt(), nowMs: Date.now() });
+  if (!tryTimestamp) return set(connectionRef, true);
+  return set(connectionRef, serverTimestamp()).then(
+    () => {
+      connectionTimestampMode = "supported";
+    },
+    (error) => {
+      if (!isPresencePermissionDenied(error)) throw error;
+      rememberConnectionTimestampUnsupported();
+      return set(connectionRef, true);
+    }
+  );
+}
+
 function writeHeartbeat(uid) {
   lastHeartbeatWrittenAtMs = Date.now();
-  set(ref(database, `presence/${uid}/lastSeen`), serverTimestamp()).catch(() => {});
+  const writes = buildPresenceHeartbeatWrites({
+    timestampMode: connectionTimestampMode,
+    connectionKey: currentConnectionRef?.key ?? null,
+    connected: isInfoConnected,
+    serverTimestampValue: serverTimestamp(),
+  });
+  if (Object.keys(writes).length === 1) {
+    set(ref(database, `presence/${uid}/lastSeen`), writes.lastSeen).catch(() => {});
+    return;
+  }
+  // lastSeen と自分の接続ノードを1回の書き込みでまとめて更新する（書き込み回数は増やさない）
+  update(ref(database, `presence/${uid}`), writes).catch(() => {});
 }
 
 async function armPresenceForUid(uid) {
@@ -112,11 +174,13 @@ async function armPresenceForUid(uid) {
   // そのたびに新しい接続子ノードを発行し直す必要がある（onDisconnectの予約は個々の
   // 物理的な接続に紐づくため、再接続後は前回の予約が失われているとされている）。
   const handleValue = (snapshot) => {
+    isInfoConnected = snapshot.val() === true;
     if (snapshot.val() !== true) return; // 切断中はここでは何もしない（onDisconnectの予約に任せる）
     const connectionRef = push(ref(database, `presence/${uid}/connections`));
     currentConnectionRef = connectionRef;
     onDisconnect(connectionRef).remove();
-    set(connectionRef, true)
+    // 【2026-10-28】接続ごとの生存時刻（Rules が許せば数値、拒否されたら従来どおり true）
+    writeConnectionNode(connectionRef)
       .then(() => {
         connectionWriteFailed = false;
         setPresenceFact("writeError", null);
@@ -185,6 +249,11 @@ export async function startFriendPresenceTracking() {
     await armPresenceForUid(uid);
     const lastSeenRef = ref(database, `presence/${uid}/lastSeen`);
     lastSeenHeartbeatTimerId = setInterval(() => {
+      // 【2026-10-28】接続ごとの生存時刻が使えるときは、lastSeen と一緒に自分の接続ノードも更新する（1回の書き込み）
+      if (connectionTimestampMode === "supported") {
+        writeHeartbeat(uid);
+        return;
+      }
       lastHeartbeatWrittenAtMs = Date.now();
       set(lastSeenRef, serverTimestamp()).catch(() => {});
     }, PRESENCE_LASTSEEN_HEARTBEAT_INTERVAL_MS);
@@ -231,6 +300,7 @@ export function stopFriendPresenceTracking() {
   }
   trackedUid = null;
   lastWrittenIsPlaying = null;
+  isInfoConnected = false;
   isTracking = false;
   setPresenceFact("tracking", false);
   setPresenceFact("connected", false);

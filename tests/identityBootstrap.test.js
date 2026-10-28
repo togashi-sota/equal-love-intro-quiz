@@ -303,7 +303,7 @@ export async function runIdentityBootstrapWiringTests() {
   const supersession = await fetchText("js/uidSupersession.js");
   assertEqual(supersession.includes("export async function runPendingUidMigration("), true, "uidSupersession: 自動引き継ぎ（ランキング→公開プロフィール→presence）がある");
   assertEqual(supersession.includes('return { status: "leaderboard-incomplete", leaderboard'), true, "uidSupersession: ランキングの引き継ぎが未完了なら明示的に返す");
-  assertEqual(supersession.includes("clearPendingUidMerge(player.playerId); // 完了"), true, "uidSupersession: 全て片付いたら確認待ちを消す（completedUidMerges に記録）");
+  assertEqual(supersession.includes("clearPendingUidMerge(player.playerId, pending.oldUid); // 完了"), true, "uidSupersession: 全て片付いたら確認待ちを消す（completedUidMerges に記録）");
 
   const profile = await fetchText("js/playerProfile.js");
   assertEqual(profile.includes("export function getCompletedUidMerges(playerId)"), true, "playerProfile: 完了済み旧UIDの記録がある");

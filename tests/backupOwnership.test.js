@@ -277,7 +277,7 @@ export function runBackupOwnershipTests() {
   // ---- 端末側の保存（playerProfile.js） ----
   const player = getActivePlayer();
   // 端末側の保存は、前のテスト実行で残った値があると期待値がずれるため、先に消しておく
-  localStorage.setItem("equalLoveIntroQuiz.players", JSON.stringify(getPlayers().map(({ ownerSecret, lastKnownUid, pendingUidMerge, completedUidMerges, ...rest }) => rest)));
+  localStorage.setItem("equalLoveIntroQuiz.players", JSON.stringify(getPlayers().map(({ ownerSecret, lastKnownUid, pendingUidMerge, completedUidMerges, uidMergeQueue, ...rest }) => rest)));
   const s1 = getOrCreateOwnerSecret(player.playerId, () => SECRET);
   const s2 = getOrCreateOwnerSecret(player.playerId, () => "SHOULD-NOT-BE-USED-AGAIN-XXXXXXXXX");
   assertEqual(s1, SECRET, "H: 初回は生成関数の値が保存される");
@@ -299,7 +299,7 @@ export function runBackupOwnershipTests() {
   assertEqual(getPendingUidMerge(player.playerId), null, "完了済みの旧UIDは確認待ちのまま残らない");
   // 後片付け（他のテストに影響させない）
   const players = getPlayers().map((p) => {
-    const { ownerSecret, lastKnownUid, pendingUidMerge, completedUidMerges, ...rest } = p;
+    const { ownerSecret, lastKnownUid, pendingUidMerge, completedUidMerges, uidMergeQueue, ...rest } = p;
     return rest;
   });
   localStorage.setItem("equalLoveIntroQuiz.players", JSON.stringify(players));

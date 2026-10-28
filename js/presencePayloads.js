@@ -287,3 +287,43 @@ export function shouldWriteResumeHeartbeat({ visibilityState, trackedUid: uid, n
   if (!uid) return false;
   return nowMs - lastWrittenAtMs >= minIntervalMs;
 }
+
+// ---------------------------------------------------------------------------
+// 【2026-10-28追加：接続ごとの生存時刻（後方互換）】
+// presence/{uid}/connections/{接続キー} の値を true ではなくサーバー時刻（数値）にし、2分ごとのハートビートで
+// lastSeen と一緒に更新する。複数端末・複数タブでも「どの接続が今も生きているか」を接続ごとに判定できる
+// （classifyPresenceEntry は値が数値なら接続ごとに判定、true なら共有の lastSeen で判定＝古いアプリも混在できる）。
+// 【今の本番 Rules との互換】今の Rules は接続ノードに true しか許さない。数値の書き込みが拒否されたら
+// その場で true を書き直し（従来どおりの表示）、「この環境では使えない」ことを端末に覚えて24時間は試さない
+// （無駄な失敗を繰り返さない）。Rules を更新した後は、24時間以内に自動で数値方式へ切り替わる。
+// ---------------------------------------------------------------------------
+export const PRESENCE_CONNECTION_TIMESTAMP_RETRY_MS = 24 * 60 * 60 * 1000;
+export const PRESENCE_CONNECTION_TIMESTAMP_UNSUPPORTED_KEY = "equalLoveIntroQuiz.presenceConnectionTimestampUnsupportedAt";
+
+// 接続ノードへ数値（時刻）を書いてみるか（純粋関数）。
+export function shouldTryConnectionTimestamp({ unsupportedAtMs = null, nowMs }) {
+  if (typeof unsupportedAtMs !== "number" || !Number.isFinite(unsupportedAtMs)) return true;
+  return nowMs - unsupportedAtMs >= PRESENCE_CONNECTION_TIMESTAMP_RETRY_MS;
+}
+
+// ハートビート1回で書く内容（presence/{uid} からの相対パス → 値）を作る（純粋関数）。
+//   timestampMode: "supported" のときだけ、接続中（connected）の自分の接続ノードも同じ時刻へ更新する。
+//   切断中は接続ノードを書かない（再接続時に、サーバーが既に消した古い接続ノードを書き戻して残骸にしないため）。
+//   serverTimestampValue には serverTimestamp() の戻り値を渡す（テストでは任意の値）。
+export function buildPresenceHeartbeatWrites({ timestampMode, connectionKey, connected, serverTimestampValue }) {
+  const writes = { lastSeen: serverTimestampValue };
+  if (timestampMode === "supported" && connected === true && typeof connectionKey === "string" && connectionKey) {
+    writes[`connections/${connectionKey}`] = serverTimestampValue;
+  }
+  return writes;
+}
+
+// 書き込み量の見積もり（純粋関数。報告書・テスト用）。1時間あたりの書き込み回数と概算バイト数。
+//   heartbeat は2分ごと（PRESENCE_LASTSEEN_HEARTBEAT_INTERVAL_MS と同じ値を渡す）。
+export function estimatePresenceWriteBudget({ heartbeatIntervalMs = 120000, connectionsPerUser = 1, timestampMode = "supported", resumesPerHour = 0 } = {}) {
+  const heartbeatsPerHour = Math.round((60 * 60 * 1000) / heartbeatIntervalMs);
+  const writesPerHour = (heartbeatsPerHour + resumesPerHour) * connectionsPerUser;
+  // lastSeen だけ ≒ 60バイト、接続ノードも書くと ≒ 110バイト（パス＋値の概算）
+  const bytesPerWrite = timestampMode === "supported" ? 110 : 60;
+  return { heartbeatsPerHour, writesPerHour, approxBytesPerHour: writesPerHour * bytesPerWrite };
+}

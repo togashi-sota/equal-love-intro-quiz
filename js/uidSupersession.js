@@ -24,7 +24,9 @@ import {
   getPendingUidMerge,
   clearPendingUidMerge,
   markPendingUidMergeLeaderboardMerged,
+  markUidMergeAttempt,
 } from "./playerProfile.js";
+import { UID_MERGE_STATE, decideUidMergeOutcome } from "./uidMergeQueue.js";
 import { getMostOshiMemberId } from "./oshiMembers.js";
 import {
   LEADERBOARD_QUESTION_COUNT_VALUES,
@@ -97,13 +99,23 @@ function writeAutoMergeTriedAt(oldUid, at) {
   }
 }
 
-// 戻り値: { attempted: boolean, copied, deletedOld, errors: string[], completed: boolean }
+// 【2026-10-28追加】権限で拒否されたか（Firebase の PERMISSION_DENIED）。js/backupSync.js と同じ判定。
+export function isPermissionDeniedError(error) {
+  const code = error?.code ?? "";
+  const message = error?.message ?? "";
+  return /PERMISSION_DENIED|permission_denied|permission-denied/i.test(`${code} ${message}`);
+}
+
+// 戻り値: { attempted: boolean, copied, deletedOld, errors: string[], completed: boolean, blocked: boolean, oldUid }
 //   completed は「旧UIDのランキング記録がもう残っていない」＝既に完了済みの場合も true。
-export async function autoMergeSupersededLeaderboardEntries({ identityKey = null, now = Date.now() } = {}) {
-  const result = { attempted: false, copied: 0, deletedOld: 0, errors: [], completed: false };
+//   blocked は「失敗がすべて権限による拒否だった」（端末からは片付けられない。js/uidMergeQueue.js の blocked）。
+// 【2026-10-28改訂】旧UIDの整理待ちが列になったため、target（列の1件）を受け取れるようにした。省略時は列の先頭。
+export async function autoMergeSupersededLeaderboardEntries({ identityKey = null, now = Date.now(), target = null } = {}) {
+  const result = { attempted: false, copied: 0, deletedOld: 0, errors: [], completed: false, blocked: false, oldUid: null };
   const player = getActivePlayer();
-  const pending = getPendingUidMerge(player.playerId);
+  const pending = target ?? getPendingUidMerge(player.playerId, { nowMs: now });
   if (!pending) return result;
+  result.oldUid = pending.oldUid;
   if (pending.leaderboardMergedAt) return { ...result, completed: true };
   if (now - readAutoMergeTriedAt(pending.oldUid) < AUTO_MERGE_RETRY_INTERVAL_MS) return result;
 
@@ -117,6 +129,8 @@ export async function autoMergeSupersededLeaderboardEntries({ identityKey = null
   if (!uid || pending.oldUid === uid) return result;
   result.attempted = true;
   writeAutoMergeTriedAt(pending.oldUid, now);
+  // 途中でアプリが閉じられても、次回起動時にこの旧UIDから続きを行う（列の中の印）
+  markUidMergeAttempt(player.playerId, pending.oldUid, UID_MERGE_STATE.MERGING, { countAttempt: true, nowMs: now });
 
   // 旧UIDの記録を消す権限（Rules：uidSupersession/{旧UID}/newUid が自分）に必要な対応表を確実に用意する
   // （既に記録済みなら Rules で拒否されるが、それは正常）。
@@ -124,6 +138,7 @@ export async function autoMergeSupersededLeaderboardEntries({ identityKey = null
 
   const displayName = player.playerName;
   const oshiMemberId = getMostOshiMemberId();
+  let deniedCount = 0;
   for (const variant of LEADERBOARD_VARIANT_VALUES) {
     for (const questionCountValue of LEADERBOARD_QUESTION_COUNT_VALUES) {
       for (const categoryFilterValue of LEADERBOARD_CATEGORY_VALUES) {
@@ -155,6 +170,7 @@ export async function autoMergeSupersededLeaderboardEntries({ identityKey = null
           result.deletedOld += 1;
         } catch (error) {
           console.warn(`[uidMerge:auto] ${label} の処理に失敗`, error);
+          if (isPermissionDeniedError(error)) deniedCount += 1;
           result.errors.push(`${label}: ${error?.code ?? "エラー"}（旧IDの記録は残しました）`);
         }
       }
@@ -162,34 +178,46 @@ export async function autoMergeSupersededLeaderboardEntries({ identityKey = null
   }
 
   if (result.errors.length === 0) {
-    markPendingUidMergeLeaderboardMerged(player.playerId, now);
+    markPendingUidMergeLeaderboardMerged(player.playerId, now, pending.oldUid);
     result.completed = true;
+  } else {
+    result.blocked = deniedCount === result.errors.length;
   }
   return result;
 }
 
 // ---------------------------------------------------------------------------
 // 【2026-09-22追加：UID変更後の自動引き継ぎ（本人確認の関門から呼ばれる）】
-// 端末に「旧UID→新UID」の確認待ち（pendingUidMerge）があるとき、本人の操作を待たずに
+// 端末に「旧UID→新UID」の確認待ちがあるとき、本人の操作を待たずに
 //   ①旧UIDのランキング記録を新UID名義へ引き継ぐ（速い方を1件残す。記録は失わない）
 //   ②旧UIDの公開プロフィールを消す（フレンド一覧の重複を解消。新UIDの公開プロフィールは通常同期で再作成される）
 //   ③旧UIDの presence を消す
 // を順に行う。①が終わるまで js/identityBootstrap.js は READY にならない（＝ランキング再送信を止める）。
 // ②③は「できなければ次回」で、READY を妨げない（実害が「フレンド一覧に旧名義が残る」程度のため）。
 // 何回実行しても結果は同じ（冪等）：既に消えているものは「無い」として成功扱い、途中で閉じても次回続きから。
-// 戻り値: { status: "none" | "leaderboard-incomplete" | "completed" | "partial", leaderboard, profileDeleted, presenceDeleted, errors }
+// 【2026-10-28改訂：旧UIDが複数あっても1件ずつ順番に】列（js/uidMergeQueue.js）の先頭から1件ずつ処理する。
+//   ・完了 → 整理済みにして次の旧UIDへ
+//   ・権限で拒否（例：その旧UIDの対応表がさらに前のUIDを後継者として指していて、今のUIDからは消せない）
+//     → blocked にして次の旧UIDへ（関門は止めない。24時間おきに再確認）
+//   ・通信エラーなど → failed にしてそこで止める（ランキング段階なら "leaderboard-incomplete"＝関門は待つ）
+// 戻り値: { status: "none" | "leaderboard-incomplete" | "completed" | "partial" | "blocked", leaderboard, profileDeleted, presenceDeleted, errors, items }
 // ---------------------------------------------------------------------------
-export async function runPendingUidMigration({ identityKey = null, now = Date.now() } = {}) {
-  const player = getActivePlayer();
-  const pending = getPendingUidMerge(player.playerId);
-  if (!pending) return { status: "none", errors: [] };
+export const UID_MIGRATION_MAX_ITEMS_PER_RUN = 5;
 
-  const leaderboard = await autoMergeSupersededLeaderboardEntries({ identityKey, now });
+async function runSingleUidMigration(player, pending, { identityKey, now }) {
+  const leaderboard = await autoMergeSupersededLeaderboardEntries({ identityKey, now, target: pending });
   if (!leaderboard.completed) {
-    return { status: "leaderboard-incomplete", leaderboard, profileDeleted: false, presenceDeleted: false, errors: leaderboard.errors };
+    if (leaderboard.attempted && leaderboard.blocked) {
+      markUidMergeAttempt(player.playerId, pending.oldUid, UID_MERGE_STATE.BLOCKED, { error: leaderboard.errors[0] ?? "permission-denied", nowMs: now });
+      return { oldUid: pending.oldUid, status: "blocked", leaderboard, profileDeleted: false, presenceDeleted: false, errors: leaderboard.errors };
+    }
+    if (leaderboard.attempted) {
+      markUidMergeAttempt(player.playerId, pending.oldUid, UID_MERGE_STATE.FAILED, { error: leaderboard.errors[0] ?? "error", nowMs: now });
+    }
+    return { oldUid: pending.oldUid, status: "leaderboard-incomplete", leaderboard, profileDeleted: false, presenceDeleted: false, errors: leaderboard.errors };
   }
 
-  const result = { status: "completed", leaderboard, profileDeleted: false, presenceDeleted: false, errors: [] };
+  const result = { oldUid: pending.oldUid, status: "completed", leaderboard, profileDeleted: false, presenceDeleted: false, errors: [] };
   let fb;
   try {
     fb = await loadFirebase();
@@ -201,6 +229,7 @@ export async function runPendingUidMigration({ identityKey = null, now = Date.no
   // 旧UIDのノードを消す権限（後継者）に必要な対応表を確実に用意する（既にあれば Rules で拒否＝正常）
   await recordUidSupersession(pending.oldUid, pending.backupId);
 
+  let deniedCount = 0;
   for (const [node, label] of [
     ["publicProfiles", "旧IDの公開プロフィール"],
     ["presence", "旧IDのオンライン状態"],
@@ -213,15 +242,58 @@ export async function runPendingUidMigration({ identityKey = null, now = Date.no
       else result.presenceDeleted = true;
     } catch (error) {
       console.warn(`[uidMerge:auto] ${label} の整理に失敗`, error);
+      if (isPermissionDeniedError(error)) deniedCount += 1;
       result.errors.push(`${label}を整理できませんでした（${error?.code ?? "エラー"}）`);
     }
   }
 
   if (result.errors.length === 0) {
-    clearPendingUidMerge(player.playerId); // 完了：completedUidMerges に旧UIDを残し、確認待ちを消す
+    clearPendingUidMerge(player.playerId, pending.oldUid); // 完了：整理済みにして（completedUidMerges にも残る）次の旧UIDへ
     return result;
   }
-  return { ...result, status: "partial" };
+  const state = decideUidMergeOutcome({ completed: false, errors: result.errors, permissionDeniedOnly: deniedCount === result.errors.length });
+  markUidMergeAttempt(player.playerId, pending.oldUid, state, { error: result.errors[0], nowMs: now });
+  return { ...result, status: state === UID_MERGE_STATE.BLOCKED ? "blocked" : "partial" };
+}
+
+export async function runPendingUidMigration({ identityKey = null, now = Date.now(), maxItems = UID_MIGRATION_MAX_ITEMS_PER_RUN } = {}) {
+  const player = getActivePlayer();
+  const items = [];
+  for (let i = 0; i < maxItems; i += 1) {
+    const pending = getPendingUidMerge(player.playerId, { nowMs: now });
+    if (!pending) break;
+    if (items.some((item) => item.oldUid === pending.oldUid)) break; // 同じ回で同じ旧UIDを二度扱わない（無限ループ防止）
+    // 旧UIDが今のUIDと同じ（＝IDが元に戻った）なら整理するものは無い
+    let currentUid = null;
+    try {
+      currentUid = (await loadFirebase()).uid;
+    } catch {
+      currentUid = null;
+    }
+    if (currentUid && pending.oldUid === currentUid) {
+      clearPendingUidMerge(player.playerId, pending.oldUid);
+      items.push({ oldUid: pending.oldUid, status: "completed", errors: [] });
+      continue;
+    }
+    const one = await runSingleUidMigration(player, pending, { identityKey, now });
+    items.push(one);
+    if (one.status === "leaderboard-incomplete") {
+      return { status: "leaderboard-incomplete", leaderboard: one.leaderboard, profileDeleted: false, presenceDeleted: false, errors: one.errors, items };
+    }
+    if (one.status === "partial") break; // 通信エラー：続きは次の機会に（ランキングは済んでいるので関門は止めない）
+  }
+  if (items.length === 0) return { status: "none", errors: [], items };
+  const last = items[items.length - 1];
+  const anyPartial = items.some((item) => item.status === "partial");
+  const anyBlocked = items.some((item) => item.status === "blocked");
+  return {
+    status: anyPartial ? "partial" : anyBlocked ? "blocked" : "completed",
+    leaderboard: last.leaderboard ?? null,
+    profileDeleted: last.profileDeleted ?? false,
+    presenceDeleted: last.presenceDeleted ?? false,
+    errors: items.flatMap((item) => item.errors ?? []),
+    items,
+  };
 }
 
 // 引き継ぎ・整理の「計画」だけを作る（Firebaseは読み取りのみ。何も書かない）。
@@ -427,7 +499,7 @@ export async function executeUidMerge(plan) {
   }
 
   if (result.errors.length === 0) {
-    clearPendingUidMerge(player.playerId);
+    clearPendingUidMerge(player.playerId, plan.oldUid);
   }
   result.ok = result.errors.length === 0;
   return result;
@@ -459,6 +531,54 @@ export function describeUidMergePlan(plan) {
   if (plan.profile.oldExists) lines.push("旧IDの公開プロフィール（フレンド一覧の重複）を整理");
   if (plan.presence.oldExists) lines.push("旧IDのオンライン状態を整理");
   return lines;
+}
+
+// ---------------------------------------------------------------------------
+// 【2026-10-28追加】フレンド一覧の重複整理に使う「改ざんできない対応」の読み取り。
+// uidSupersession/{旧UID}/newUid は、今の本番 Rules ではアプリから読めない（読み取り規則が無い）。
+// firebase/database.rules.proposed.json を公開すると newUid だけ読めるようになる（backupId は読めないまま）。
+// 読めない（PERMISSION_DENIED）と分かったら、このセッション中は二度と読みに行かない（無駄な読み取りをしない）。
+// 読む対象は「同じ本人キーのカードが他にもあるUID」だけ（最大20件・1回の画面表示につき1回まで。結果は覚えておく）。
+// ---------------------------------------------------------------------------
+let supersessionReadSupported = null; // null＝未確認、true＝読める、false＝今の Rules では読めない
+const supersessionLinkCache = new Map(); // 旧UID → 新UID（null＝対応なし）
+
+export function getSupersessionReadSupport() {
+  return supersessionReadSupported;
+}
+
+export async function fetchSupersessionLinks(oldUids) {
+  const links = {};
+  const targets = [...new Set((Array.isArray(oldUids) ? oldUids : []).filter((uid) => typeof uid === "string" && uid))].slice(0, 20);
+  targets.forEach((uid) => {
+    const cached = supersessionLinkCache.get(uid);
+    if (typeof cached === "string") links[uid] = cached;
+  });
+  if (supersessionReadSupported === false) return links;
+  const toRead = targets.filter((uid) => !supersessionLinkCache.has(uid));
+  if (toRead.length === 0) return links;
+  let fb;
+  try {
+    fb = await loadFirebase();
+  } catch {
+    return links;
+  }
+  const { database, ref, get } = fb;
+  for (const uid of toRead) {
+    try {
+      const value = (await get(ref(database, `uidSupersession/${uid}/newUid`))).val();
+      supersessionReadSupported = true;
+      supersessionLinkCache.set(uid, typeof value === "string" && value ? value : null);
+      if (typeof value === "string" && value) links[uid] = value;
+    } catch (error) {
+      if (isPermissionDeniedError(error)) {
+        supersessionReadSupported = false; // 今の本番 Rules：読めない → 表示では使わない（安全側：隠さない）
+        break;
+      }
+      // 通信エラー：次の表示でまた試す（覚えない）
+    }
+  }
+  return links;
 }
 
 // backupId を持たない・まだ何も同期していないプレイヤーでは案内を出さない（呼び出し側の補助）。

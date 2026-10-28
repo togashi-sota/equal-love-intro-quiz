@@ -372,7 +372,11 @@ async function performSync() {
     // 1回だけ読み、未整理の旧UIDがあれば引き継ぎ対象にする。管理者が「友達の端末を触らずに」
     // currentUid を新UIDへ付け替えた後、本人の端末が次に起動したときに旧UIDの残骸
     // （presence 等、管理者には消せないもの）を本人が後継者として整理できるようにするため。
-    if (!recordedPreviousUid && lastKnownUidBeforeSync === null && !applied.legacy) {
+    // 【2026-10-28改訂：旧UIDが複数あっても忘れない】以前は最新の1件だけを拾っていた。今は未整理の旧UIDを
+    // 古い順に全部、整理待ちの列（js/uidMergeQueue.js）へ足す。claim した直後（UIDが変わった直後）も1回読む
+    // （同じ backupId の過去の claim が残した、さらに前の旧UIDを取りこぼさないため）。読み取りは同期1回につき最大1回。
+    const shouldDiscoverCloudPreviousUids = !applied.legacy && (lastKnownUidBeforeSync === null || applied.claim);
+    if (shouldDiscoverCloudPreviousUids) {
       try {
         const previousUidsSnap = await get(ref(database, `backups/${backupId}/previousUids`));
         const previousUids = previousUidsSnap.val();
@@ -381,8 +385,13 @@ async function performSync() {
           const completed = getCompletedUidMerges(player.playerId);
           const candidates = Object.entries(previousUids)
             .filter(([oldUid, at]) => oldUid !== uid && typeof at === "number" && !completed.includes(oldUid))
-            .sort((a, b) => b[1] - a[1]);
-          if (candidates.length > 0) recordedPreviousUid = candidates[0][0];
+            .sort((a, b) => a[1] - b[1]);
+          for (const [oldUid] of candidates) {
+            if (oldUid === recordedPreviousUid) continue;
+            // 列へ足すだけ（同じ旧UIDは2件にならない・整理済みは作り直さない）。対応表は整理の直前に用意する
+            setPendingUidMerge(player.playerId, { oldUid, backupId });
+          }
+          if (!recordedPreviousUid && candidates.length > 0) recordedPreviousUid = candidates[candidates.length - 1][0];
         }
       } catch {
         // 読めない（旧Rules等）場合は何もしない

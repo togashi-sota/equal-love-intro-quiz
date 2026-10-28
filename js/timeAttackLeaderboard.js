@@ -329,12 +329,21 @@ export function sortLeaderboardEntries(entries) {
 // （＝最良の記録）だけを残す。identityKey が無い記録は誰とも統合しない（旧記録・別人を守る）。
 // 名前・推し・タイムの一致では絶対に統合しない（同名の別人が共存できるようにするため）。
 // 入力は sortLeaderboardEntries() で並び替え済みであること（先頭＝最良）。
+// 【2026-10-28改訂（identityKey の書き写し対策）】identityKey は公開されている値なので、他人が自分の記録へ
+// 書き写すことができる。一致だけで統合すると「書き写した人の速い記録の裏に、本物の人の記録が隠れる」ため、
+// 表示名（NFKC・前後空白・大文字小文字をそろえたもの）も同じときだけ統合する。本人の記録は引き継ぎ時に
+// 今の表示名で複製されるため、通常の「同じ人が2人」はこれまでどおり1人にまとまる。
+function normalizeLeaderboardNameForDedupe(name) {
+  return typeof name === "string" ? name.normalize("NFKC").trim().toLowerCase() : "";
+}
+
 export function dedupeLeaderboardEntriesByIdentity(sortedEntries) {
   const seen = new Set();
   return sortedEntries.filter((entry) => {
     if (!isValidLeaderboardIdentityKey(entry.identityKey)) return true;
-    if (seen.has(entry.identityKey)) return false;
-    seen.add(entry.identityKey);
+    const dedupeKey = `${entry.identityKey}|${normalizeLeaderboardNameForDedupe(entry.displayName)}`;
+    if (seen.has(dedupeKey)) return false;
+    seen.add(dedupeKey);
     return true;
   });
 }

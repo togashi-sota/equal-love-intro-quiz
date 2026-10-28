@@ -505,15 +505,21 @@ function runFriendListTests() {
       profile("XwpK1Ca6CTVh8h6ewjm0BMh7Gr72", "がしお", { identityKey: KEY_GASHIO, updatedAt: 2 }),
       profile("nanashi-1", "名無しのファン"),
     ];
+    // 【2026-10-28改訂】identityKey は誰でも書き写せるため、一致だけでは隠さない。改ざんできない証拠（対応表）があるときだけまとめる
+    const rank = { "XwpK1Ca6CTVh8h6ewjm0BMh7Gr72": { online: true, lastSeen: 10 }, "OLD-uid-0001": { online: false, lastSeen: 1 } };
+    const friendNoProof = collapseSamePlayerProfiles(profiles, { myUid: "friend-uid", presenceRankByUid: rank });
+    assertEqual(friendNoProof.profiles.map((p) => p.uid), ["OLD-uid-0001", "XwpK1Ca6CTVh8h6ewjm0BMh7Gr72", "nanashi-1"], "F1: 対応表が読めない間は、本人キーが同じでも隠さない（安全側）");
+    assertEqual(friendNoProof.profiles[0].unverifiedSameAsUid, "XwpK1Ca6CTVh8h6ewjm0BMh7Gr72", "F1: 旧カードには「以前のIDかもしれません（未確認）」の補足");
     const viewedByFriend = collapseSamePlayerProfiles(profiles, {
       myUid: "friend-uid",
-      presenceRankByUid: { "XwpK1Ca6CTVh8h6ewjm0BMh7Gr72": { online: true, lastSeen: 10 }, "OLD-uid-0001": { online: false, lastSeen: 1 } },
+      supersessionLinks: { "OLD-uid-0001": "XwpK1Ca6CTVh8h6ewjm0BMh7Gr72" },
+      presenceRankByUid: rank,
     });
-    assertEqual(viewedByFriend.profiles.map((p) => p.uid), ["XwpK1Ca6CTVh8h6ewjm0BMh7Gr72", "nanashi-1"], "F1: 友だちから見ても「がしお」は1人（オンラインの新UIDを代表に）");
-    assertEqual(viewedByFriend.hidden, [{ uid: "OLD-uid-0001", primaryUid: "XwpK1Ca6CTVh8h6ewjm0BMh7Gr72", reason: "same-identity-key" }], "F1: 隠したのは旧UIDだけ（データは消さない）");
+    assertEqual(viewedByFriend.profiles.map((p) => p.uid), ["XwpK1Ca6CTVh8h6ewjm0BMh7Gr72", "nanashi-1"], "F1: 対応表（uidSupersession）が読めれば、友だちから見ても「がしお」は1人");
+    assertEqual(viewedByFriend.hidden, [{ uid: "OLD-uid-0001", primaryUid: "XwpK1Ca6CTVh8h6ewjm0BMh7Gr72", reason: "superseded" }], "F1: 隠したのは旧UIDだけ（データは消さない）");
     assertEqual(viewedByFriend.profiles[0].mergedUids, ["OLD-uid-0001"], "F1: 代表カードにまとめた旧UIDを記録");
-    const viewedByMe = collapseSamePlayerProfiles(profiles, { myUid: "XwpK1Ca6CTVh8h6ewjm0BMh7Gr72" });
-    assertEqual(viewedByMe.profiles.map((p) => p.uid), ["XwpK1Ca6CTVh8h6ewjm0BMh7Gr72", "nanashi-1"], "F1: 本人から見ると、自分の今のカードが必ず代表");
+    const viewedByMe = collapseSamePlayerProfiles(profiles, { myUid: "XwpK1Ca6CTVh8h6ewjm0BMh7Gr72", myKnownOldUids: ["OLD-uid-0001"] });
+    assertEqual(viewedByMe.profiles.map((p) => p.uid), ["XwpK1Ca6CTVh8h6ewjm0BMh7Gr72", "nanashi-1"], "F1: 本人から見ると（端末が旧UIDを知っている）、自分の今のカードが必ず代表");
   }
 
   // F2. 引き継ぎ済み（completedUidMerges）・確認待ち（pendingUidMerge）の旧UIDは、identityKey が無い古いプロフィールでも隠す
@@ -554,7 +560,7 @@ function runFriendListTests() {
   // F4. 管理者には旧UIDのカードも「以前のID」と明記して残す（削除ボタンで整理できるように）
   {
     const profiles = [profile("OLD-x9z1", "がしお", { identityKey: KEY_GASHIO }), profile("NEW-ab12", "がしお", { identityKey: KEY_GASHIO })];
-    const result = collapseSamePlayerProfiles(profiles, { myUid: "NEW-ab12", keepHiddenForAdmin: true });
+    const result = collapseSamePlayerProfiles(profiles, { myUid: "NEW-ab12", myKnownOldUids: ["OLD-x9z1"], keepHiddenForAdmin: true });
     assertEqual(result.profiles.length, 2, "F4: 管理者には2枚とも出す");
     const oldCard = result.profiles.find((p) => p.uid === "OLD-x9z1");
     assertEqual(oldCard.duplicateOfUid, "NEW-ab12", "F4: 旧カードに「誰と同じか」を付ける");
@@ -566,7 +572,9 @@ function runFriendListTests() {
   {
     const profiles = [profile("victim", "A", { identityKey: KEY_GASHIO }), profile("copycat", "B", { identityKey: KEY_GASHIO })];
     const asVictim = collapseSamePlayerProfiles(profiles, { myUid: "victim", presenceRankByUid: { copycat: { online: true, lastSeen: 99 } } });
-    assertEqual(asVictim.profiles.map((p) => p.uid), ["victim"], "F5: 本人の画面では本人のカードが必ず代表（隠されない）");
+    assertEqual(asVictim.profiles.map((p) => p.uid), ["victim", "copycat"], "F5: 本人の画面では本人のカードが隠されない（書き写しでは誰もまとめない）");
+    const asThirdParty = collapseSamePlayerProfiles(profiles, { myUid: "someone", presenceRankByUid: { copycat: { online: true, lastSeen: 99 } } });
+    assertEqual(asThirdParty.profiles.map((p) => p.uid), ["victim", "copycat"], "F5: 【2026-10-28】第三者の画面でも、書き写した人の裏に本物が隠れない");
   }
 
   // F6. 壊れた入力

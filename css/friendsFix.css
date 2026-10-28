@@ -30,3 +30,95 @@
   opacity: 0.8;
   overflow-wrap: anywhere;
 }
+
+/* 【2026-10-28追加】詳細情報の中の「以前のあなた／現在のあなた」「管理者の確認コード」「アカウントの保護」（js/accountRecoveryPanel.js） */
+.account-recovery-panel {
+  margin-top: 12px;
+  display: grid;
+  gap: 12px;
+}
+
+.account-recovery-section {
+  border-top: 1px solid rgba(127, 127, 127, 0.25);
+  padding-top: 8px;
+  min-width: 0;
+}
+
+.account-recovery-title {
+  margin: 0 0 4px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-text);
+  cursor: default;
+}
+
+summary.account-recovery-title {
+  cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+.account-recovery-note,
+.account-recovery-line,
+.account-recovery-status {
+  margin: 4px 0;
+  font-size: 0.7rem;
+  line-height: 1.5;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.account-recovery-note {
+  opacity: 0.8;
+}
+
+.account-recovery-list {
+  margin: 4px 0;
+  padding-left: 1.2em;
+  font-size: 0.7rem;
+  line-height: 1.5;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.account-recovery-button {
+  min-height: 44px;
+  margin: 4px 6px 4px 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(127, 127, 127, 0.4);
+  background: transparent;
+  color: var(--color-text);
+  font-size: 0.75rem;
+}
+
+.account-recovery-button.is-primary {
+  font-weight: 700;
+  border-color: currentColor;
+}
+
+.account-recovery-button:disabled {
+  opacity: 0.45;
+}
+
+.account-recovery-confirm {
+  margin: 6px 0;
+  padding: 8px;
+  border-radius: 10px;
+  border: 1px dashed rgba(127, 127, 127, 0.5);
+  font-size: 0.72rem;
+}
+
+.account-recovery-input {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  min-height: 44px;
+  margin: 4px 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(127, 127, 127, 0.4);
+  font-size: 16px;
+}

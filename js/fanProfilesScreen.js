@@ -17,10 +17,12 @@ import { resolveIsAdminUser } from "./adminConfig.js";
 // 【2026-10-28追加】管理者の診断表示（表示だけ。権限は一切与えない）
 import { getLastAdminCheck, getRememberedAdminUids } from "./adminConfig.js";
 import { describeAdminDiagnostics } from "./adminAccess.js";
-import { hasPendingUidMerge, planUidMerge, executeUidMerge, describeUidMergePlan } from "./uidSupersession.js";
-import { getPlayerKeyPrefix, getActivePlayer, getPendingUidMerge, getCompletedUidMerges, getLastKnownUid } from "./playerProfile.js";
+import { hasPendingUidMerge, planUidMerge, executeUidMerge, describeUidMergePlan, fetchSupersessionLinks } from "./uidSupersession.js";
+import { getPlayerKeyPrefix, getActivePlayer, getPendingUidMerge, getCompletedUidMerges, getLastKnownUid, getUidMergeQueue, getKnownOldUidsForPlayer } from "./playerProfile.js";
+// 【2026-10-28追加】以前のあなた／現在のあなたの比較・管理者の確認コード・アカウント保護（詳細情報の中に JS で作る）
+import { mountAccountRecoveryPanel, refreshAccountRecoveryPanel } from "./accountRecoveryPanel.js";
 // 【2026-10-28追加】同じプレイヤーの重複カードをまとめる／同じ名前の別プレイヤーを見分ける（純粋関数）
-import { collapseSamePlayerProfiles, annotateSameNameProfiles, collectMyKnownOldUids, shortUidSuffix } from "./fanProfilesIdentity.js";
+import { collapseSamePlayerProfiles, annotateSameNameProfiles, collectMyKnownOldUids, shortUidSuffix, selectSupersessionLookupCandidates } from "./fanProfilesIdentity.js";
 import { getAuthUidHistory } from "./firebaseClient.js";
 import { summarizeAuthUidHistory } from "./identityBootstrap.js";
 import { getMemberById } from "./memberUtils.js";
@@ -113,6 +115,8 @@ function renderProfileListFromCache() {
 // 同じ名前の別プレイヤーには短い印（UID末尾4文字）を付ける。Firebase のデータは一切変えない（表示だけ）。
 // 管理者には旧IDのカードも残す（「以前のID」と明記。既存の削除ボタンで整理できるように）。
 let lastHiddenDuplicates = [];
+// 【2026-10-28追加】uidSupersession から読めた「旧UID→新UID」（今の本番 Rules では読めないので空のまま）
+let supersessionLinks = {};
 
 function getMyKnownOldUids() {
   const player = getActivePlayer();
@@ -121,6 +125,8 @@ function getMyKnownOldUids() {
     pendingOldUid: getPendingUidMerge(player.playerId)?.oldUid ?? null,
     completedOldUids: getCompletedUidMerges(player.playerId),
     lastKnownUid: getLastKnownUid(player.playerId),
+    // 【2026-10-28】整理待ちの列にある旧UID全部（UIDが2回以上変わっても全部わかる）
+    queuedOldUids: getKnownOldUidsForPlayer(player.playerId, myUid),
   });
 }
 
@@ -136,6 +142,7 @@ function buildDisplayProfiles(profiles, nowMs) {
   const { profiles: collapsed, hidden } = collapseSamePlayerProfiles(profiles, {
     myUid,
     myKnownOldUids: getMyKnownOldUids(),
+    supersessionLinks,
     presenceRankByUid,
     keepHiddenForAdmin: isAdminUser,
   });
@@ -164,7 +171,10 @@ function renderIdentityDiagnostics() {
   }
   const player = getActivePlayer();
   const pending = getPendingUidMerge(player.playerId);
-  if (pending) lines.push(`🧹 以前のID（…${shortUidSuffix(pending.oldUid)}）の整理：未完了（上の案内から実行できます）`);
+  if (pending) {
+    const more = pending.queuedCount > 1 ? `／ほかに ${pending.queuedCount - 1}件が順番待ち` : "";
+    lines.push(`🧹 以前のID（…${shortUidSuffix(pending.oldUid)}）の整理：未完了（上の案内から実行できます${more}）`);
+  }
   const completedCount = getCompletedUidMerges(player.playerId).length;
   if (completedCount > 0) lines.push(`🧹 整理済みの以前のID：${completedCount}件`);
   if (lastHiddenDuplicates.length > 0) {
@@ -201,6 +211,18 @@ async function renderProfileList() {
   }
   latestProfiles = profiles;
   renderProfileListFromCache();
+  // 【2026-10-28追加】同じ本人キーのカードがあるときだけ、改ざんできない対応表（uidSupersession）を読みに行く。
+  // 今の本番 Rules では読めない（1回拒否されたら、このセッション中は読みに行かない）。読めたら表示をまとめ直す。
+  const candidates = selectSupersessionLookupCandidates(profiles, { myUid });
+  if (candidates.length > 0) {
+    fetchSupersessionLinks(candidates)
+      .then((links) => {
+        if (Object.keys(links).length === 0) return;
+        supersessionLinks = { ...supersessionLinks, ...links };
+        renderProfileListFromCache();
+      })
+      .catch(() => {});
+  }
 }
 
 // 自分のUIDを取得し、「🆔 あなたのID」表示の更新と管理者判定を行う（2026-08-16追加）。
@@ -232,6 +254,18 @@ async function renderMyUidAndAdminState() {
   }
   // 【2026-10-28追加】IDの変更履歴・管理者判定の診断表示（表示専用）
   renderIdentityDiagnostics();
+  // 【2026-10-28追加】以前のあなた／現在のあなた・管理者の確認コード・アカウント保護（1回だけ作り、以後は表示の更新だけ）
+  if (elements.details) {
+    mountAccountRecoveryPanel(elements.details, {
+      getMyUid: () => myUid,
+      isAdmin: () => isAdminUser,
+      getRememberedAdminUids: () => getRememberedAdminUids(),
+      getUidMergeQueue: () => getUidMergeQueue(getActivePlayer().playerId),
+      getPendingUidMerge: () => getPendingUidMerge(getActivePlayer().playerId, { currentUid: myUid }),
+      onMerged: () => renderProfileList(),
+    });
+    refreshAccountRecoveryPanel();
+  }
 }
 
 // 設定カード（「みんなに公開する」トグル）を、今の公開設定に合わせて描画する。
