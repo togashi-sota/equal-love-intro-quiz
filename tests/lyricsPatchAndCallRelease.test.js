@@ -39,6 +39,15 @@ export function runLyricsPatchAndCallReleaseTests() {
     "修正だけのパック：この端末に無い曲は作らない"
   );
   assertEqual(planLyricsImportActions([]).length, 0, "歌詞が無いパックでは何もしない");
+  // 【2026-10-29】古い版のパックで、修正済みの歌詞を巻き戻さない
+  const superseded = { a: ["OLD1", "OLD2"] };
+  const plan = (incoming, existing) => planLyricsImportActions([fileOf("a", incoming, existing)], { supersededHashes: superseded })[0].action;
+  assertEqual(plan("OLD1", "NEW"), "skip-older", "古い版のパック × 端末は新しい版 → 上書きしない");
+  assertEqual(plan("NEW", "OLD1"), "backup-and-update", "新しい版のパック × 端末は古い版 → 控えてから更新");
+  assertEqual(plan("OLD2", "OLD1"), "backup-and-update", "古い版どうし（端末も古い版）→ 今までどおり更新（新しい版は壊さない）");
+  assertEqual(plan("OLD1", null), "save-new", "端末に無い曲は、古い版でも今までどおり保存（あとで修正パックで直せる）");
+  assertEqual(plan("NEW", "NEW"), "skip-identical", "同じ内容なら何もしない");
+  assertEqual(planLyricsImportActions([fileOf("b", "OLD1", "NEW")], { supersededHashes: superseded })[0].action, "backup-and-update", "一覧は曲ごと（別の曲には効かない）");
 
   // ===== 上書き前の控え（純粋関数の部分） =====
   const backups = [1, 5, 3, 4, 2].map((t) => ({ id: `s@${t}`, songId: "s", backedUpAt: t }));

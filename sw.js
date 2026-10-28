@@ -46,6 +46,7 @@ const APP_SHELL_FILES = [
   "./js/fanProfilesIdentity.js",
   "./js/lyricsQuestionUniqueness.js",
   "./js/data/lyricsAmbiguityIndex.js",
+  "./js/data/lyricsSupersededVersions.js",
   "./js/data/lyricsUniquenessManualList.js",
   // 【2026-10-28追加】アカウントの恒久対策・歌詞クイズ対戦の互換性
   "./js/uidMergeQueue.js",

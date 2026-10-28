@@ -7746,6 +7746,10 @@ dataPackImportInputElement.addEventListener("change", async () => {
       `※このパックに含まれていない曲があります（${analyzed.manifestSongIdsNotCovered.map(findSongTitle).join("、")}）`
     );
   }
+  // 【2026-10-29追加】古いパックを読み込んでも、修正済みの歌詞を古い版へ戻さない（js/data/lyricsSupersededVersions.js）
+  if ((result.olderLyricsSongIds ?? []).length > 0) {
+    lines.push(`この端末の歌詞の方が新しいため、古い版で上書きしなかった曲：「${result.olderLyricsSongIds.map(findSongTitle).join("」「")}」`);
+  }
   if (result.lyricsFailures.length > 0) {
     lines.push(`歌詞の保存に失敗したファイル：${result.lyricsFailures.length}件`);
   }

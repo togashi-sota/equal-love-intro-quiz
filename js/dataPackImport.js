@@ -72,6 +72,7 @@ import { analyzeLyricsFiles, saveLyricsData } from "./lyricsStorage.js";
 import { analyzeCallDataBackupFile, importCallDataSongs } from "./callStorage.js";
 import { analyzeCallGuideBackupFile, importCallGuideDataEntries } from "./callGuideStorage.js";
 import { computeSha256Hex } from "./contentHash.js";
+import { LYRICS_SUPERSEDED_CONTENT_HASHES } from "./data/lyricsSupersededVersions.js";
 import { backupCurrentLyrics } from "./lyricsBackupStorage.js";
 
 // マニフェストJSONの目印。js/callStorage.jsのBACKUP_FILE_TYPEと同じ考え方
@@ -316,12 +317,18 @@ export function classifyByHash(existingHash, newHash) {
 //   "skip-not-installed" … updateExistingOnly のパックで、この端末にまだ無い曲（新しく作らない）
 //   "save-new"           … この端末に無い曲を新しく保存
 //   "backup-and-update"  … この端末と内容が違う：元の歌詞を控えてから上書き（控えに失敗したら上書きしない）
-export function planLyricsImportActions(lyricsFiles, { updateExistingOnly = false } = {}) {
+//   "skip-older"         … 【2026-10-29追加】パックの歌詞が「古い版」（js/data/lyricsSupersededVersions.js）で、
+//                          この端末の歌詞は一覧に無い版（＝修正後の新しい版）：上書きしない（古いパックで巻き戻さない）
+export function planLyricsImportActions(lyricsFiles, { updateExistingOnly = false, supersededHashes = LYRICS_SUPERSEDED_CONTENT_HASHES } = {}) {
   return (lyricsFiles ?? []).map((file) => {
     const songId = file.normalizedData.songId;
     const action = classifyByHash(file.existingContentHash, file.normalizedData.contentHash);
     if (action === "identical") return { songId, action: "skip-identical" };
     if (action === "new") return { songId, action: updateExistingOnly ? "skip-not-installed" : "save-new" };
+    const oldVersions = supersededHashes?.[songId] ?? [];
+    if (oldVersions.includes(file.normalizedData.contentHash) && !oldVersions.includes(file.existingContentHash)) {
+      return { songId, action: "skip-older" };
+    }
     return { songId, action: "backup-and-update" };
   });
 }
@@ -348,6 +355,7 @@ export function planLyricsImportActions(lyricsFiles, { updateExistingOnly = fals
 //   correctedLyricsSongIds: string[],
 //   backedUpLyricsSongIds: string[],      … 【2026-10-29】上書きの前に元の歌詞を控えた曲（js/lyricsBackupStorage.js）
 //   notInstalledLyricsSongIds: string[],  … 【2026-10-29】updateExistingOnly のパックで、この端末に無いため作らなかった曲
+//   olderLyricsSongIds: string[],         … 【2026-10-29】パックの歌詞が古い版で、この端末の方が新しいため上書きしなかった曲
 //   savedCallSongIds: string[], skippedCallSongIds: string[], callFailures: { songId, reason }[],
 //   correctedCallSongIds: string[],
 //   savedCallGuideIds: string[], skippedCallGuideIds: string[], callGuideFailures: { guideId, reason }[],
@@ -397,6 +405,7 @@ export async function importAnalyzedDataPack(analyzed) {
   // updateExistingOnly のパックでは、この端末に無い曲の歌詞を新しく作らない。
   const backedUpLyricsSongIds = [];
   const notInstalledLyricsSongIds = [];
+  const olderLyricsSongIds = [];
   const lyricsPlan = planLyricsImportActions(lyricsFilesAll, { updateExistingOnly: analyzed.manifest?.updateExistingOnly === true });
   for (const [index, file] of lyricsFilesAll.entries()) {
     const songId = file.normalizedData.songId;
@@ -407,6 +416,10 @@ export async function importAnalyzedDataPack(analyzed) {
     }
     if (planned === "skip-not-installed") {
       notInstalledLyricsSongIds.push(songId);
+      continue;
+    }
+    if (planned === "skip-older") {
+      olderLyricsSongIds.push(songId);
       continue;
     }
     if (planned === "backup-and-update") {
@@ -492,6 +505,7 @@ export async function importAnalyzedDataPack(analyzed) {
     correctedLyricsSongIds,
     backedUpLyricsSongIds,
     notInstalledLyricsSongIds,
+    olderLyricsSongIds,
     savedCallSongIds,
     skippedCallSongIds,
     callFailures,
