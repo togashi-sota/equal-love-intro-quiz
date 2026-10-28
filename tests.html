@@ -149,6 +149,8 @@
     import { runPresenceSharingOffCleanupTests } from "./tests/presenceSharingOffCleanup.test.js";
     import { runPresenceAuthVerificationTests } from "./tests/presenceAuthVerification.test.js";
     import { runLyricsBattlePerfMatrixTests, runLyricsBattlePerfMatrixAsyncTests } from "./tests/lyricsBattlePerfMatrix.test.js";
+    // 【2026-10-29新設】歌詞の1曲だけの差し替え（控え・持っていない曲を作らない）と、完成したコール表の受け取り形式
+    import { runLyricsPatchAndCallReleaseTests } from "./tests/lyricsPatchAndCallRelease.test.js";
     import { runLyricsQuizBattleCompatibilityTests, runLyricsQuizBattleCompatibilityRulesTests } from "./tests/lyricsQuizBattleCompatibility.test.js";
     import { runCallTextModeTests, runCallTextModeMarkupTests } from "./tests/callTextMode.test.js";
     import { runCallTextEditsTests } from "./tests/callTextEdits.test.js";
@@ -504,6 +506,7 @@
     await runPresenceAuthVerificationTests();
     runLyricsBattlePerfMatrixTests();
     await runLyricsBattlePerfMatrixAsyncTests();
+    runLyricsPatchAndCallReleaseTests();
     const { passCount, failCount, failedDetails } = printSummary();
 
     const summaryElement = document.getElementById("test-summary");

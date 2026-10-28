@@ -7,7 +7,7 @@
 //
 // 新しいバージョンを配信したいときは、CACHE_VERSIONの値を必ず上げること。
 // 上げないと、ブラウザが「内容が変わっていない」と判断し、更新が反映されない。
-const CACHE_VERSION = "v388";
+const CACHE_VERSION = "v389";
 const CACHE_NAME = `equal-love-intro-quiz-${CACHE_VERSION}`;
 
 // キャッシュするアプリ本体のファイル一覧。
@@ -55,6 +55,8 @@ const APP_SHELL_FILES = [
   "./js/accountRecoveryPanel.js",
   "./js/lyricsQuizBattleCompatibility.js",
   "./js/lyricsBattleDerivedCache.js",
+  // 【2026-10-29追加】歌詞パックで上書きする前の控え（1曲ごとに戻せる）
+  "./js/lyricsBackupStorage.js",
   "./js/main.js",
   "./js/onboardingScreen.js",
   "./js/guideScreen.js",
