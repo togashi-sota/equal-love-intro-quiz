@@ -29,6 +29,10 @@ import { LYRICS_UNIQUENESS_MANUAL_EXCLUSIONS } from "./data/lyricsUniquenessManu
 // 【番号を上げるとき】判定方法・正規化・最短文字数を変えたとき、または
 // js/data/lyricsAmbiguityIndex.js・js/data/lyricsUniquenessManualList.jsの中身を
 // 変えたとき（どれも「どの行が出題されるか」が変わり、端末間で問題がずれる原因になるため）。
+// 【2026-10-29】Want you！Want you！の歌詞の修正で事前計算の一覧（内容ハッシュ）だけが変わったときは、番号を上げない。
+// 理由：公開中の v383 は「部屋の版が 1 のときだけ除外する」作りのため、2 に上げると v383 の人が新しい部屋で除外をせず、
+// 版の違う端末どうしの問題がずれる。一覧の中身の違いは、端末どうしの照合（js/lyricsQuizBattleCompatibility.js の
+// 一覧全体を含む署名）で確かめているので、番号を上げなくても新しい版どうしで食い違いは起きない。
 export const LYRICS_UNIQUENESS_RULES_VERSION = 1;
 
 // 正規化後の文字数がこれ未満の行は、短すぎて曲を特定できないとみなし出題しない

@@ -8,5 +8,6 @@ export const LYRICS_SUPERSEDED_CONTENT_HASHES = Object.freeze({
     "82acd8ea633be128453cc84d1127a6f5021f9bcc1fc624895a02a20a89203769", // 2026-10-24 より前の全曲パック
     "d4e18bdf352ce0a1352e001c3cf418370aafd713039ad7475aaf9f243efdc529", // 2026-10-24 歌詞タイミングパック・全曲パック
     "527ce364937783907397da0c8865641bfb8aa3c89cff7737fac7a863d4a77770", // 2026-10-29 途中版（70行目だけ修正・未配布）
+    "6e7ce20725853eec13f0056adf25b9d64e7eb5f244e5dcd9a612e6cb3fe2f2d6", // 2026-10-29 途中版（67・70行目修正・時刻は旧・未配布）
   ]),
 });

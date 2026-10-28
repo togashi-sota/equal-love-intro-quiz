@@ -3,7 +3,7 @@
 // 【重要・著作権】歌詞本文は含まない。曲ID・内容ハッシュ（FNV-1a 32bit、js/lyricsSegmentEngine.jsの
 // computeLyricsContentHash）・行数・除外する行番号だけ。端末の歌詞と内容ハッシュが一致する曲だけに使われる。
 // 【再生成したら】js/lyricsQuestionUniqueness.jsのLYRICS_UNIQUENESS_RULES_VERSIONを1つ上げる（中身が変わった場合）。
-// 生成日: 2026-10-28 / 対象: 83曲
+// 生成日: 2026-10-29 / 対象: 83曲
 export const LYRICS_AMBIGUITY_INDEX = Object.freeze({
   rulesVersion: 1,
   songs: {
@@ -82,7 +82,7 @@ export const LYRICS_AMBIGUITY_INDEX = Object.freeze({
     "todoite-love-you": {"contentHash":"d5ad2136","lineCount":46,"ambiguousLines":[4,15,19,25,38,42,46]},
     "tokubechu-shite": {"contentHash":"db166cd9","lineCount":59,"ambiguousLines":[34]},
     "umi-to-lemon-tea": {"contentHash":"78a088a5","lineCount":53,"ambiguousLines":[35]},
-    "want-you-want-you": {"contentHash":"b02a5ce8","lineCount":77,"ambiguousLines":[13,77]},
+    "want-you-want-you": {"contentHash":"fc264015","lineCount":77,"ambiguousLines":[13,77]},
     "watashi-mahoutsukai": {"contentHash":"f531ad01","lineCount":49,"ambiguousLines":[]},
     "weekend-citron": {"contentHash":"732a5eec","lineCount":103,"ambiguousLines":[2,19,34,49,56,73,74,87,95,101]},
     "youkoso-ikorabu-numa": {"contentHash":"63cdbf54","lineCount":73,"ambiguousLines":[51]},
