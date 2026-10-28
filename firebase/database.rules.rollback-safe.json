@@ -93,8 +93,8 @@
         },
 
         "host": {
-          ".write": "auth != null && ((data.val() === auth.uid && newData.val() !== auth.uid && root.child('rooms/' + $roomId + '/players/' + newData.val()).exists()) || (newData.val() === auth.uid && newData.val() !== data.val() && root.child('rooms/' + $roomId + '/players/' + auth.uid).exists() && root.child('rooms/' + $roomId + '/players/' + data.val() + '/connected').val() === false))",
-          ".validate": "newData.isString() && newData.val().length > 0"
+          ".write": "auth != null && ((data.val() === auth.uid && newData.val() !== auth.uid && newData.isString() && newData.val().matches(/^[A-Za-z0-9_-]{1,128}$/) && root.child('rooms/' + $roomId + '/players/' + newData.val()).exists()) || (newData.val() === auth.uid && newData.val() !== data.val() && root.child('rooms/' + $roomId + '/players/' + auth.uid).exists() && data.isString() && data.val().matches(/^[A-Za-z0-9_-]{1,128}$/) && root.child('rooms/' + $roomId + '/players/' + data.val() + '/connected').val() === false))",
+          ".validate": "newData.isString() && newData.val().matches(/^[A-Za-z0-9_-]{1,128}$/)"
         },
 
         "settings": {
@@ -492,8 +492,8 @@
           },
 
           "roomId": {
-            ".write": "auth != null && data.parent().child('inviterUid').val() === auth.uid && data.parent().child('status').val() === 'accepted' && !data.exists() && data.parent().child('expiresAt').val() > now && root.child('rooms/' + newData.val() + '/host').val() === auth.uid && root.child('rooms/' + newData.val() + '/status').val() === 'waiting'",
-            ".validate": "newData.isString() && newData.val().length > 0"
+            ".write": "auth != null && data.parent().child('inviterUid').val() === auth.uid && data.parent().child('status').val() === 'accepted' && !data.exists() && data.parent().child('expiresAt').val() > now && newData.isString() && newData.val().matches(/^[A-Za-z0-9_-]{1,64}$/) && root.child('rooms/' + newData.val() + '/host').val() === auth.uid && root.child('rooms/' + newData.val() + '/status').val() === 'waiting'",
+            ".validate": "newData.isString() && newData.val().matches(/^[A-Za-z0-9_-]{1,64}$/)"
           },
 
           "$other": { ".validate": false }
@@ -586,7 +586,7 @@
       ".read": "auth != null && root.child('admins').child(auth.uid).val() === true",
       "$code": {
         ".read": "auth != null && data.child('newUid').val() === auth.uid",
-        ".write": "auth != null && (root.child('admins').child(auth.uid).val() === true || (!data.exists() && newData.child('newUid').val() === auth.uid && newData.child('status').val() === 'pending'))",
+        ".write": "auth != null && (root.child('admins').child(auth.uid).val() === true || (!data.exists() && $code.matches(/^[0-9]{6}$/) && newData.child('newUid').val() === auth.uid && newData.child('status').val() === 'pending'))",
         ".validate": "newData.hasChildren(['newUid', 'status', 'requestedAt'])",
         "newUid": { ".validate": "newData.isString() && newData.val().length > 0" },
         "status": { ".validate": "newData.isString() && (newData.val() === 'pending' || newData.val() === 'resolved')" },
