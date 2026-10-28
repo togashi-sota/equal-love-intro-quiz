@@ -988,6 +988,17 @@ function renderMatchConfirmScreen(room) {
       attemptSilentUnlock();
       const startResult = await startBattle({ roomId, settings: latest.settings });
       recordLobbyRenderEvent("matchConfirmTimerStartBattleResult", { roomId, ok: startResult?.ok ?? null, reason: startResult?.reason ?? null });
+      // 【2026-10-28追加・本人指示：歌詞クイズ対戦で全員に同じヒントを出す】ルール確認の途中で
+      // 古いアプリの人が入ってきた・歌詞データを入れ替えた人がいる等で「全員が同じ問題を作れない」
+      // と分かった場合は、確認画面に黙って留まると原因が分からないため、確認を取りやめてロビーへ
+      // 戻し、理由をロビーの開始エラー欄へ出す（他の失敗理由は従来どおり確認画面へ留まる）。
+      if (startResult?.ok === false && startResult.reason === "incompatible-clients") {
+        await cancelMatchConfirmation({ roomId });
+        if (elements.lobbyStartError) {
+          elements.lobbyStartError.textContent = startResult.message ?? "参加者全員に同じ問題を出せないため、対戦を開始できません。全員アプリを最新に更新してください。";
+          elements.lobbyStartError.hidden = false;
+        }
+      }
       // 失敗した場合（設定が直前で不正になった等）は、renderLobby()の次回呼び出しで
       // confirmingMatchがまだtrueのままなのでこの画面に留まり、ホストは改めて
       // 確認OKを見て再試行できる（新しいエラー表示は今回は設けない。安全側に倒し、
@@ -3803,6 +3814,9 @@ export function initOnlineBattleScreens(newElements) {
           // 出題数に対して曲が足りない、の区別つき）が使われず、意味の薄い汎用エラーに
           // すり替わってしまっていた。result.messageをそのまま使うよう修正。
           "insufficient-common-songs": result.message ?? "参加者全員が利用できる曲が足りないため、対戦を開始できません。",
+          // 【2026-10-28追加】歌詞クイズ対戦で、参加者全員がホストと同じ問題を作れない場合
+          // （古いアプリ・歌詞データの版違い等。文言はjs/lyricsQuizBattleCompatibility.jsが組み立てる）。
+          "incompatible-clients": result.message ?? "参加者全員に同じ問題を出せないため、対戦を開始できません。全員アプリを最新に更新してください。",
           "not-host": "ホストのみ開始できます。",
           "not-found": "ルームが見つかりませんでした。",
           "not-waiting": "この対戦はすでに開始・終了しています。",

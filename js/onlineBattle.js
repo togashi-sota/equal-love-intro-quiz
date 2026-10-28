@@ -51,6 +51,7 @@ import {
   resolveSongPoolForSettings,
   getAvailabilityKind,
   supportsManualSongSelection,
+  validateParticipantCompatibilityForMode,
 } from "./battleModes/index.js";
 import { restrictSettingsToCommonlyAvailableSongs } from "./onlineBattleSongAvailability.js";
 import { QUESTION_SOURCE_TYPE } from "./questionSource.js";
@@ -1316,6 +1317,20 @@ async function resolveBattleStartValidation({ roomId, settings }) {
     }
   }
 
+  // 【2026-10-28追加・本人指示：歌詞クイズ対戦で全員に同じヒントを出す】出題範囲が確定した
+  // （共通曲へ絞り込んだ）後に、参加者全員の端末がホストと全く同じ問題を作れるかを確かめる。
+  // 古いアプリの参加者・歌詞データの版違い等があれば、ここで開始を止める
+  // （js/battleModes/lyricsQuizBattleMode.jsのvalidateParticipantCompatibility()参照。
+  // このメソッドを持たないモードでは何もしない）。
+  const compatibilityMessage = validateParticipantCompatibilityForMode(room.gameMode, {
+    settings: finalSettings,
+    players,
+    hostUid: uid,
+  });
+  if (compatibilityMessage) {
+    return { ok: false, reason: "incompatible-clients", message: compatibilityMessage };
+  }
+
   return { ok: true, uid, room, players, finalSettings };
 }
 
@@ -1940,6 +1955,17 @@ async function resolveRematchSettingsValidation({ roomId, room, playersOverride 
         return { ok: false, reason: "insufficient-common-songs", message };
       }
     }
+  }
+  // 【2026-10-28追加・本人指示】通常の対戦開始（resolveBattleStartValidation()）と同じ、
+  // 参加者全員が同じ問題を作れるかの確認（再戦でも、前の試合の後に歌詞データを入れ替えた・
+  // アプリを更新した人がいるかもしれないため）。
+  const compatibilityMessage = validateParticipantCompatibilityForMode(room.gameMode, {
+    settings: finalSettings,
+    players,
+    hostUid: room.host,
+  });
+  if (compatibilityMessage) {
+    return { ok: false, reason: "incompatible-clients", message: compatibilityMessage };
   }
   return { ok: true, finalSettings };
 }

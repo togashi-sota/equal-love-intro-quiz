@@ -55,6 +55,7 @@ import {
 } from "../battleRules/index.js";
 import { SKIP_SELECTION, MAX_HINT_LEVEL, IDLE_RESCUE_THRESHOLD_MS } from "../battleRules/sharedDefaults.js";
 import { LYRICS_UNIQUENESS_RULES_VERSION } from "../lyricsQuestionUniqueness.js";
+import { evaluateLyricsBattleCompatibility, describeCompatStartBlockMessage } from "../lyricsQuizBattleCompatibility.js";
 
 // js/lyricsQuizMatchProgress.js（対戦進行エンジン）が、期限切れで未回答のまま終わった
 // プレイヤーをスキップ扱いにするために使う定数。battleRules/を直接importするのは
@@ -265,6 +266,28 @@ export function resolveAllEligibleSongIds() {
   return resolveLyricsQuizSongPool({ type: QUESTION_SOURCE_TYPE.ALL_SONGS });
 }
 
+// 【2026-10-28新設・本人指示：全員に同じヒントを出す】対戦開始の直前（ホストの端末）に、
+// js/onlineBattle.jsのresolveBattleStartValidation()・resolveRematchSettingsValidation()から
+// js/battleModes/index.jsのvalidateParticipantCompatibilityForMode()経由で呼ばれる。
+// 参加者全員がロビーで書いたcapability（players/{uid}/lyricsCoverage.capability）を、
+// ホストのものと照合する（js/lyricsQuizBattleCompatibility.js参照）。
+//   ・この仕組みを知らない古いアプリの参加者がいる → 開始しない（古いアプリは除外ルールを
+//     知らず、ヒントの行がずれるため）。ただし古いホストの部屋（設定に版が無い＝全員除外なし）
+//     では古いアプリも同じ問題を作れるので止めない。
+//   ・除外ルールの版・一覧・問題の作り方・曲の一覧・出題する曲の歌詞データが1つでも違う → 開始しない。
+// 戻り値: 開始してよければnull、止めるならホストの画面に出す文言。
+export function validateParticipantCompatibility({ settings, players, hostUid }) {
+  const evaluation = evaluateLyricsBattleCompatibility({
+    settings,
+    songPool: resolveSettingsSongPool(settings),
+    hostUid,
+    players,
+  });
+  if (evaluation.ok) return null;
+  const displayNameByUid = Object.fromEntries(Object.entries(players ?? {}).map(([uid, player]) => [uid, player?.name]));
+  return describeCompatStartBlockMessage(evaluation, { displayNameByUid, viewerUid: hostUid, hostUid });
+}
+
 // 【設計⑩②：非同期の事前準備フック】questionSourceからsongPoolを解決し、
 // IndexedDBから歌詞データを読み込んで、buildQuestions()が使うruntimeContextを
 // 組み立てる。この関数の戻り値は「この端末だけのローカルなデータ」であり、
@@ -304,14 +327,33 @@ export function buildQuestions({ seed, settings, runtimeContext }) {
   if (!runtimeContext?.ok) return [];
   const uniqueness = resolveLyricsUniquenessForSettings(settings);
   if (!uniqueness.supported) return [];
+  const songPool = runtimeContext.songPool ?? resolveQuestionSourceSongPool(settings.questionSource, settings.categoryFilterValue);
   return buildLyricsQuizQuestions({
     seed,
-    songsWithLyrics: runtimeContext.songsWithLyrics ?? [],
-    songPool: runtimeContext.songPool ?? resolveQuestionSourceSongPool(settings.questionSource, settings.categoryFilterValue),
+    songsWithLyrics: orderEntriesBySongPool(runtimeContext.songsWithLyrics ?? [], songPool),
+    songPool,
     questionCountValue: settings.questionCountValue,
     answerPoolSizeValue: settings.answerPoolSizeValue,
     lyricsUniqueness: uniqueness.lyricsUniqueness,
   });
+}
+
+// 【2026-10-28新設・本人指示：全員に同じヒントを出す】歌詞データの並び順を、出題範囲（songPool）の
+// 並び順にそろえる。問題の曲はこの並び順の配列をseedでシャッフルして選ぶため、端末によって
+// 並び順が違うと（同じ歌詞でも）出題される曲がずれる（テストで確認済み）。prepareRuntimeContext()は
+// もともとsongPoolの順で読み込むので、今までの端末の動作は変わらない（古いアプリとも一致したまま）。
+// 念のため、呼び出し側の読み込み方が将来変わっても全員が同じ順になるよう、ここで必ずそろえる。
+// 出題範囲に無い曲が混ざっていた場合は、元の順のまま後ろへ置く。
+function orderEntriesBySongPool(songsWithLyrics, songPool) {
+  const orderById = new Map((songPool ?? []).map((songId, index) => [songId, index]));
+  return songsWithLyrics
+    .map((entry, originalIndex) => ({ entry, originalIndex }))
+    .sort((a, b) => {
+      const orderA = orderById.get(a.entry.song.id) ?? Number.MAX_SAFE_INTEGER;
+      const orderB = orderById.get(b.entry.song.id) ?? Number.MAX_SAFE_INTEGER;
+      return orderA - orderB || a.originalIndex - b.originalIndex;
+    })
+    .map(({ entry }) => entry);
 }
 
 // 【Phase6.5新設】出題可能な曲（実際に歌詞データが読み込まれている曲）が

@@ -11,13 +11,21 @@
 // 独自に偽った値を渡せないようにする（本人が虚偽報告すること自体は防げないが、
 // 「入力ミスでavailableCount>requiredCountなのにcomplete:falseになる」ような
 // 単純な不整合は起こらないようにする）。
-export function buildLyricsCoveragePayload({ availableCount, requiredCount, poolHash }) {
-  return {
+//
+// 【2026-10-28追加・本人指示：全員に同じヒントを出す】capability（js/lyricsQuizBattleCompatibility.jsの
+// buildLyricsBattleCapability()の戻り値：版の番号・ハッシュだけで歌詞本文は含まない）を渡すと、
+// 同じ場所へ一緒に書く。ホストは対戦開始の直前にこれを照合し、同じ問題を作れない人
+// （capabilityを書かない古いアプリを含む）がいれば開始しない。省略時は従来と全く同じ形
+// （古いアプリが書く形と同じ）になる。
+export function buildLyricsCoveragePayload({ availableCount, requiredCount, poolHash, capability = null }) {
+  const payload = {
     availableCount,
     requiredCount,
     complete: availableCount >= requiredCount,
     poolHash,
   };
+  if (capability) payload.capability = capability;
+  return payload;
 }
 
 export function isLyricsCoverageReady(lyricsCoverage) {

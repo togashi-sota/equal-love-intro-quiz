@@ -576,6 +576,27 @@ export function renderLyricsReadinessStatus(containerElement, readiness, { isHos
   containerElement.appendChild(statusElement);
 }
 
+// 【2026-10-28新設・本人指示：全員に同じヒントを出す】歌詞データの充足表示のすぐ下へ、
+// 「全員が同じ問題を作れない理由」（古いアプリ・歌詞データの版違い等）と、直前の対戦を
+// 出題内容の不一致で中止した案内を続けて出す。renderLyricsReadinessStatus()の後に呼ぶ想定で、
+// コンテナは消さずに末尾へ足すだけ（messagesが空なら何も足さない）。文言は
+// js/lyricsQuizBattleCompatibility.jsが組み立てる（歌詞本文は含まない）。
+export function renderLyricsCompatNotices(containerElement, messages) {
+  if (!containerElement || !Array.isArray(messages) || messages.length === 0) return;
+  const statusElement = document.createElement("div");
+  statusElement.className = "lyrics-battle-readiness-status is-not-ready lyrics-battle-compat-status";
+  statusElement.setAttribute("role", "status");
+  statusElement.setAttribute("aria-live", "polite");
+  const listElement = document.createElement("ul");
+  for (const message of messages) {
+    const itemElement = document.createElement("li");
+    itemElement.textContent = message;
+    listElement.appendChild(itemElement);
+  }
+  statusElement.appendChild(listElement);
+  containerElement.appendChild(statusElement);
+}
+
 // 本人の端末だけに、不足している曲名を表示する（他の参加者には見えない）。
 export function renderOwnMissingLyricsTitles(containerElement, ownMissing) {
   clearElement(containerElement);

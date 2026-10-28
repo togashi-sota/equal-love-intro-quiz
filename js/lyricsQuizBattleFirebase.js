@@ -85,7 +85,8 @@ const REASON = FIREBASE_FAILURE_REASON;
 
 // players/{uid}/lyricsCoverageを送信する（本人限定の自己スコープ書き込み）。
 // 曲名・不足曲名は一切含めない（件数だけ）。
-export async function submitLyricsCoverage({ roomId, availableCount, requiredCount, poolHash }) {
+// 【2026-10-28追加】capability（版の番号・ハッシュだけ）も一緒に書く（buildLyricsCoveragePayload参照）。
+export async function submitLyricsCoverage({ roomId, availableCount, requiredCount, poolHash, capability = null }) {
   await authReady;
   const uid = getCurrentUid();
   if (!uid) return { ok: false, reason: REASON.NOT_SIGNED_IN };
@@ -93,13 +94,38 @@ export async function submitLyricsCoverage({ roomId, availableCount, requiredCou
   try {
     await set(
       ref(database, `rooms/${roomId}/players/${uid}/lyricsCoverage`),
-      buildLyricsCoveragePayload({ availableCount, requiredCount, poolHash })
+      buildLyricsCoveragePayload({ availableCount, requiredCount, poolHash, capability })
     );
     return { ok: true };
   } catch (error) {
     if (error?.code === "PERMISSION_DENIED") return { ok: false, reason: REASON.PERMISSION_DENIED };
     return { ok: false, reason: REASON.NETWORK_ERROR };
   }
+}
+
+// 【2026-10-28新設・本人指示：全員に同じヒントを出す】players/{uid}/lyricsMatchCheckへ、
+// この端末が今の試合のために作った問題の「指紋」（js/lyricsQuizBattleCompatibility.jsの
+// buildLyricsMatchCheckPayload()の戻り値：問題ごとのハッシュだけで歌詞本文・正解の曲名は含まない）を
+// 書く（本人限定の自己スコープ書き込み。今の本番ルールはplayers/{uid}配下の未知の子要素を拒否しない）。
+// ホストは全員の指紋を自分のものと比べ、違う人がいれば対戦を中止する。
+// 通信の一時的な失敗に備えて、間隔を空けて最大3回まで書き直す。
+export async function submitLyricsMatchCheck({ roomId, payload }) {
+  await authReady;
+  const uid = getCurrentUid();
+  if (!uid) return { ok: false, reason: REASON.NOT_SIGNED_IN };
+
+  const MAX_ATTEMPTS = 3;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      await set(ref(database, `rooms/${roomId}/players/${uid}/lyricsMatchCheck`), payload);
+      return { ok: true };
+    } catch (error) {
+      if (error?.code === "PERMISSION_DENIED") return { ok: false, reason: REASON.PERMISSION_DENIED };
+      if (attempt === MAX_ATTEMPTS) return { ok: false, reason: REASON.NETWORK_ERROR };
+      await new Promise((resolve) => setTimeout(resolve, 300 * attempt));
+    }
+  }
+  return { ok: false, reason: REASON.NETWORK_ERROR };
 }
 
 // ホストが問題を開始する（currentQuestionIndex・currentQuestionStartedAt・questionStatusを

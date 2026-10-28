@@ -88,6 +88,17 @@ export function getAvailabilityKind(gameMode) {
   return getBattleMode(gameMode)?.availabilityKind ?? "audio";
 }
 
+// 【2026-10-28新設・本人指示：歌詞クイズ対戦で全員に同じヒントを出す】対戦開始の直前に、
+// 参加者全員の端末が「ホストと全く同じ問題を作れるか」をモードごとに確かめる窓口。
+// context: { settings（共通曲へ絞り込んだ後の設定）, players（room.players）, hostUid }
+// 戻り値: 開始してよければnull、止めるべきならホストの画面に出す文言。
+// このメソッドを持たないモード（音源を使うモード等）は、何もしない（null）。
+export function validateParticipantCompatibilityForMode(gameMode, context) {
+  const mode = getBattleMode(gameMode);
+  if (!mode?.validateParticipantCompatibility) return null;
+  return mode.validateParticipantCompatibility(context);
+}
+
 // 【2026-09-05新設・本人指示：モード切替時の設定残留バグ対応】このgameModeのロビーUIが、
 // 「①表題曲のみ②表題曲＋全員曲③全曲④曲を選んで出題」の4択（settings.questionSource、
 // type: collaborativeSelection）を実際に表示・管理できるかどうか。

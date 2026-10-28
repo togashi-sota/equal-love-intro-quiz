@@ -132,3 +132,43 @@ export function isValidAnswerPoolSizeValue({ answerPoolSizeValue, battleRuleId }
   if (battleRuleId === "steal") return STEAL_ONLY_ANSWER_POOL_SIZE_VALUES.includes(answerPoolSizeValue);
   return true;
 }
+
+// ===== 2026-10-28追加・本人指示：歌詞クイズ対戦で全員に同じヒントを出す =====
+//
+// 参加者全員が同じ問題を作れるかの照合（js/lyricsQuizBattleCompatibility.js）は、
+// 次の2か所へ「本人が自分の分だけ」書く：
+//   ・rooms/{roomId}/players/{uid}/lyricsCoverage/capability（開始前。版の番号・ハッシュだけ）
+//   ・rooms/{roomId}/players/{uid}/lyricsMatchCheck（開始後。問題ごとのハッシュだけ）
+// どちらも新しいルールを必要としない：今の本番ルール（firebase/database.rules.json）は
+// players/$uid の.writeが「auth.uid === $uid」で、配下に$other:falseを持たないため、
+// 本人は未知の子要素を書ける（既存のlyricsCoverage・availableLyricsSongIdsと同じ扱い）。
+// 値の形・大きさを本物のルールで制限する案は firebase/proposals/lyrics-battle-version.rules.diff.md。
+
+// capability・指紋の書き込み可否（本人限定の自己スコープ。canWriteLyricsCoverageと同じ意図）。
+export function canWriteLyricsMatchCheck({ authUid, targetUid }) {
+  return authUid != null && authUid === targetUid;
+}
+
+// ルールファイル（JSON.parse済みのrules）を読み、players/$uid 配下のfieldが
+// 「本人なら書ける・値の検証が無い（＝どんな形でも通る）」状態かを調べる。
+// テストで「今の本番ルールのまま、新しいフィールドが拒否されないこと」を確かめるために使う
+// （ルールが将来変わって$other:false等が入った場合に、テストが失敗して気づけるようにする）。
+// 戻り値: { selfWritable, hasValidate, blockedByOther }
+export function inspectPlayerSubfieldRule(rules, fieldPath) {
+  const playerRule = rules?.rooms?.["$roomId"]?.players?.["$uid"];
+  if (!playerRule) return { selfWritable: false, hasValidate: false, blockedByOther: false };
+  const selfWritable = typeof playerRule[".write"] === "string" && playerRule[".write"].includes("auth.uid === $uid");
+  let node = playerRule;
+  let hasValidate = false;
+  let blockedByOther = false;
+  for (const segment of String(fieldPath).split("/")) {
+    // $other・$key等の「残りすべての子要素」を受けるワイルドカードの規則
+    const wildcardKey = Object.keys(node ?? {}).find((key) => key.startsWith("$"));
+    const otherRule = wildcardKey ? node[wildcardKey] : null;
+    if (otherRule && (otherRule[".validate"] === false || otherRule[".validate"] === "false")) blockedByOther = true;
+    node = node?.[segment] ?? otherRule ?? null;
+    if (node && typeof node[".validate"] !== "undefined") hasValidate = true;
+    if (!node) break;
+  }
+  return { selfWritable, hasValidate, blockedByOther };
+}
