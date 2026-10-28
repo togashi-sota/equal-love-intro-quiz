@@ -62,7 +62,18 @@ export function hashStringToHex(source) {
 
 // 除外ルールの版＋2つの一覧（事前計算・手作業）の中身をまとめたハッシュ。
 // 版の番号を上げ忘れたまま一覧だけ作り直した場合でも、端末間の違いを見つけられるようにする。
-export function computeLyricsTablesSignature({
+// 【2026-10-28追加】引数なし（アプリ本体の一覧）の結果は変わらないので、1回だけ計算して使い回す
+// （一覧全体をJSON化するため、入室のたび・キャッシュのキーを作るたびに計算し直すと無駄になる）。
+let defaultTablesSignatureMemo = null;
+export function computeLyricsTablesSignature(options) {
+  if (options === undefined) {
+    defaultTablesSignatureMemo ??= computeLyricsTablesSignatureUncached({});
+    return defaultTablesSignatureMemo;
+  }
+  return computeLyricsTablesSignatureUncached(options);
+}
+
+function computeLyricsTablesSignatureUncached({
   rulesVersion = LYRICS_UNIQUENESS_RULES_VERSION,
   ambiguityIndex = LYRICS_AMBIGUITY_INDEX,
   manualExclusions = LYRICS_UNIQUENESS_MANUAL_EXCLUSIONS,
@@ -72,7 +83,15 @@ export function computeLyricsTablesSignature({
 
 // 曲の一覧（曲ID・曲名・別名）のハッシュ。曲名を含む行の判定（ヒントから外す）と
 // 回答候補の作り方がこの一覧に依存するため、違うと問題がずれる。
+let defaultCatalogSignatureMemo = null;
 export function computeSongCatalogSignature(songs = SONGS) {
+  if (songs === SONGS && defaultCatalogSignatureMemo !== null) return defaultCatalogSignatureMemo;
+  const signature = computeSongCatalogSignatureUncached(songs);
+  if (songs === SONGS) defaultCatalogSignatureMemo = signature;
+  return signature;
+}
+
+function computeSongCatalogSignatureUncached(songs) {
   const source = songs
     .map((song) => `${song.id}\u0001${song.title}\u0001${(song.searchAliases ?? []).join("\u0002")}`)
     .join("\u0003");
@@ -105,19 +124,34 @@ export function decodeSongHashes(encoded) {
 //   照合できるよう、出題範囲より広く確認しておく）
 // songsWithLyrics: その中で端末に歌詞データがあった曲（{ song, lines }[]）
 export function buildLyricsBattleCapability({ checkedSongIds, songsWithLyrics }) {
-  const linesBySongId = new Map((songsWithLyrics ?? []).map((entry) => [entry.song.id, entry.lines]));
   const songHashById = {};
-  for (const songId of checkedSongIds ?? []) {
-    const lines = linesBySongId.get(songId);
-    songHashById[songId] = Array.isArray(lines) ? computeLyricsContentHash(lines) : MISSING_LYRICS_MARK;
+  for (const entry of songsWithLyrics ?? []) {
+    // 同じ曲IDが複数あれば後のものを使う（以前の実装＝new Map()に入れた場合と同じ）。
+    if (entry?.song?.id === undefined) continue;
+    if (Array.isArray(entry.lines)) songHashById[entry.song.id] = computeLyricsContentHash(entry.lines);
+    else delete songHashById[entry.song.id];
   }
+  return buildLyricsBattleCapabilityFromHashes({ checkedSongIds, songHashById });
+}
+
+// 【2026-10-28新設・本人指示：入室を速くする】曲ごとの内容ハッシュが既に分かっている場合
+// （js/lyricsBattleDerivedCache.jsに保存した値）に、歌詞データを読まずにcapabilityを作る。
+// buildLyricsBattleCapability()と全く同じ値になる（テストで確認）。
+// songHashById: 曲ID→内容ハッシュ（歌詞データがある曲だけ。無い曲は「-」になる）
+export function buildLyricsBattleCapabilityFromHashes({ checkedSongIds, songHashById }) {
+  const checkedHashes = {};
+  for (const songId of checkedSongIds ?? []) {
+    const hash = songHashById?.[songId];
+    checkedHashes[songId] = typeof hash === "string" ? hash : MISSING_LYRICS_MARK;
+  }
+  const songHashes = encodeSongHashes(checkedHashes);
   return {
     v: LYRICS_BATTLE_COMPAT_FORMAT_VERSION,
     uniquenessRulesVersion: LYRICS_UNIQUENESS_RULES_VERSION,
     engineVersion: LYRICS_QUESTION_ENGINE_VERSION,
     tablesSignature: computeLyricsTablesSignature(),
     catalogSignature: computeSongCatalogSignature(),
-    songHashes: encodeSongHashes(songHashById),
+    songHashes,
   };
 }
 
@@ -129,6 +163,11 @@ export const COMPAT_PROBLEM = {
   VERSION_MISMATCH: "version-mismatch", // 版の番号は同じなのに中身が違う等（全員の更新が必要）
   MISSING_LYRICS: "missing-lyrics", // 出題する曲の歌詞データが無い
   LYRICS_MISMATCH: "lyrics-mismatch", // 歌詞データの版（内容）がホストと違う
+  // 【2026-10-28追加】除外ルールの版がある部屋なのに、ホストがcapabilityを書かない古いアプリ。
+  // v382以前（除外しない）とv383（除外する）は、Firebaseへ書く値が全く同じで見分けられないため、
+  // 新しいアプリの参加者は「ホストと同じ問題を作れる」と保証できない（js/battleModes/lyricsQuizBattleMode.jsの
+  // 版の対応表・tools/feature-research/2026-10-28/lyrics-battle-perf-matrix-report.md参照）。
+  HOST_UNVERIFIABLE: "host-unverifiable",
 };
 
 export const COMPAT_ROOM_MODE = {
@@ -196,7 +235,9 @@ export function evaluateLyricsBattleCompatibility({ settings, songPool, hostUid,
   // 基準となるホスト自身の確認がまだ（ホストの画面が歌詞データを読み込み中）。
   if (mode === COMPAT_ROOM_MODE.UNIQUE && !hostCapability) {
     const hasHostCoverage = !!players?.[hostUid]?.lyricsCoverage;
-    problems.push({ uid: hostUid, kind: hasHostCoverage ? COMPAT_PROBLEM.OUTDATED_APP : COMPAT_PROBLEM.CHECKING, count: 0 });
+    // 【2026-10-28改訂】古いホストは「v382以前（除外しない）」か「v383（除外する）」か見分けられないため、
+    // 「古いアプリ」ではなく「確かめられない」として扱う（参加者側は準備完了にできなくする）。
+    problems.push({ uid: hostUid, kind: hasHostCoverage ? COMPAT_PROBLEM.HOST_UNVERIFIABLE : COMPAT_PROBLEM.CHECKING, count: 0 });
     return { ok: false, mode, unverified: false, problems };
   }
 
@@ -282,9 +323,20 @@ export function describeCompatProblem(problem, { displayNameByUid = {}, viewerUi
   const who = isSelf ? "あなた" : `${name}さん`;
   switch (problem.kind) {
     case COMPAT_PROBLEM.CHECKING:
+      // 【2026-10-28追加】開始時に数秒待っても確認が届かなかった場合（problem.timedOut）は、
+      // 「待てば直る」ではなく、取るべき行動（入り直し）を先に書く。
+      if (problem.timedOut) {
+        return isSelf
+          ? "あなたの歌詞データの確認が終わりませんでした。ルームに入り直してから、もう一度お試しください。"
+          : `${who}の歌詞データの確認が、数秒待っても届きませんでした。${who}にルームへ入り直してもらってから、もう一度開始してください（古いアプリの場合は、アプリの更新も必要です）。`;
+      }
       return isSelf
         ? "あなたの歌詞データを確認中です…"
         : `${who}の歌詞データを確認中です。数秒待ってから、もう一度お試しください（表示が変わらない場合は、${who}にルームへ入り直してもらってください）。`;
+    case COMPAT_PROBLEM.HOST_UNVERIFIABLE:
+      return isSelf
+        ? "あなた（ホスト）のアプリが古いため、歌詞クイズ対戦で全員に同じヒントが出るかを確かめられません。アプリを更新してください。"
+        : `ホスト（${name}さん）のアプリが古い版のため、全員に同じヒントが出るかを確かめられません（古い版どうしでも、版の違いでヒントがずれることがあります）。ホストの${name}さんにアプリを更新してもらってください。更新されるまで、このルームの歌詞クイズ対戦には準備完了にできません。`;
     case COMPAT_PROBLEM.OUTDATED_APP:
       return isSelf
         ? "あなたのアプリが古いため、この歌詞クイズ対戦では全員に同じヒントを出せません。アプリを更新してください。"
@@ -311,19 +363,94 @@ export function describeCompatStartBlockMessage(evaluation, options = {}) {
   return evaluation.problems.map((problem) => describeCompatProblem(problem, options)).join(" ");
 }
 
-// 対戦に入る瞬間、問題を作るときに使う設定を決める。ふつうは部屋の設定そのまま。
-// 【例外：除外ルールの版がある部屋なのに、今のホストが古いアプリ】（新しいアプリのホストが
-// 作った部屋で、ホストが古いアプリの人へ交代した場合）。古いホストは開始前の照合をせず、
-// 自分は「除外なし」で問題を作るため、新しいアプリだけが除外すると問題がずれる。
-// このときは新しいアプリも「除外なし」で作り、ホスト（と古いアプリの参加者）に合わせる。
-// ホストが古いアプリかどうかは、ホストのlyricsCoverageがあるのにcapabilityが無いことで判断する
-// （lyricsCoverage自体が無い＝まだ分からない場合は、部屋の設定のままにする）。
-export function resolveQuestionSettingsForHost({ settings, hostUid, players }) {
-  if (settings?.lyricsUniquenessRulesVersion === undefined || settings?.lyricsUniquenessRulesVersion === null) return settings;
+// 対戦に入る瞬間、問題を作るときに使う設定を決める。
+// 【2026-10-28改訂・本人指示：版の対応表の見直し】以前は「除外ルールの版がある部屋なのに、今のホストが
+// capabilityを書かない古いアプリ」のとき、版を外して「除外なし」で作り、古いホストに合わせていた。
+// しかし古いホストには v382以前（除外しない）と v383（公開版。除外する）があり、Firebaseへ書く値が
+// 同じで見分けられない。「除外なし」に合わせると、いちばん多い v383 のホストと必ずずれていた。
+// 今は、この状況ではロビーで準備完了にできない（resolveLyricsParticipantGate()）ので、ここに来るのは
+// 準備完了の後にホストが古いアプリへ交代した等の、まれな行き違いだけ。そのときは部屋の設定のまま
+// （＝v383のホストと同じ「除外あり」）で作り、画面には確かめられないことを出す
+// （describeQuestionSettingsNoticeForHost()）。v382以前のホストとはずれうるが、どちらに合わせても
+// 片方とはずれるため、より多い方（公開版v383）に合わせる。
+export function resolveQuestionSettingsForHost({ settings }) {
+  return settings;
+}
+
+// 対戦中の画面に出す、ホストのアプリが古くて「同じ問題か確かめられない」ことの案内（無ければnull）。
+export function describeQuestionSettingsNoticeForHost({ settings, hostUid, players, viewerUid }) {
+  if (viewerUid === hostUid) return null;
+  if (settings?.lyricsUniquenessRulesVersion === undefined || settings?.lyricsUniquenessRulesVersion === null) return null;
   const hostCoverage = players?.[hostUid]?.lyricsCoverage;
-  if (!hostCoverage || hostCoverage.capability) return settings;
-  const { lyricsUniquenessRulesVersion, ...legacySettings } = settings;
-  return legacySettings;
+  if (!hostCoverage || hostCoverage.capability) return null;
+  return "ホストのアプリが古い版のため、この対戦で全員に同じヒントが出ているかを確かめられません。結果は参考にとどめ、次の対戦の前にホストにアプリを更新してもらってください。";
+}
+
+// ===== 【2026-10-28新設・本人指示】参加者側の「準備完了」の可否 =====
+//
+// 新しいアプリの参加者が、このルームで「ホストと同じ問題を作れる」と言えるかを判定する。
+// 古いホスト（v383以前）は開始前の照合をしないため、新しいアプリの参加者が自分で判断し、
+// 保証できないときは準備完了にしない（古いホストは「全員が準備完了」でないと開始できないので、
+// これで新しいアプリの参加者が公平でない対戦に巻き込まれるのを防げる）。
+//   ・ホストが新しいアプリ（capabilityあり）       → 準備完了にできる（照合はホストが開始時に行う）
+//   ・版の無い部屋（古いホストが作った部屋）        → 準備完了にできる（全員「除外なし」で同じ問題）
+//   ・版のある部屋で、ホストのcapabilityが無い     → 準備完了にできない（v382以前とv383を見分けられない）
+//   ・ホストの確認がまだ届いていない               → 準備完了にできる（誤って止めないため。届いた時点で再判定）
+// 戻り値: { canReady, kind, message }
+export function resolveLyricsParticipantGate({ settings, hostUid, players, viewerUid, displayNameByUid = {} }) {
+  if (viewerUid === hostUid) return { canReady: true, kind: null, message: null };
+  const roomVersion = settings?.lyricsUniquenessRulesVersion;
+  if (roomVersion === undefined || roomVersion === null) return { canReady: true, kind: null, message: null };
+  const hostCoverage = players?.[hostUid]?.lyricsCoverage;
+  if (!hostCoverage || hostCoverage.capability) return { canReady: true, kind: null, message: null };
+  const problem = { uid: hostUid, kind: COMPAT_PROBLEM.HOST_UNVERIFIABLE, count: 0 };
+  return {
+    canReady: false,
+    kind: COMPAT_PROBLEM.HOST_UNVERIFIABLE,
+    message: describeCompatProblem(problem, { displayNameByUid, viewerUid, hostUid }),
+  };
+}
+
+// ===== 【2026-10-28新設・本人指示：全員が新しいアプリなのに誤って止めない】開始時の「確認中」の待ち =====
+//
+// 入室した直後の人は、capabilityをまだ書き終えていないことがある（「確認中」）。この状態で
+// 開始ボタンが押された・ルール確認の自動開始が来たときは、すぐに止めずに、Firebaseを読み直しながら
+// 少しだけ待つ。届けばそのまま開始し、待っても届かなければ「入り直してもらう」案内で止める。
+export const COMPAT_CHECKING_WAIT_MS = 6000;
+export const COMPAT_CHECKING_POLL_MS = 500;
+
+// 問題が「確認中」だけ（待てば解消しうる）かどうか。
+export function isCompatibilityPendingOnly(evaluation) {
+  return !!evaluation && !evaluation.ok && evaluation.problems.length > 0 && evaluation.problems.every((problem) => problem.kind === COMPAT_PROBLEM.CHECKING);
+}
+
+// evaluate(players) → evaluateLyricsBattleCompatibility()の戻り値
+// reloadPlayers()   → 最新のroom.players（読めなければnull）
+// 戻り値: { evaluation, players, timedOut, waitedMs }
+export async function waitForLyricsBattleCompatibility({
+  players,
+  evaluate,
+  reloadPlayers,
+  timeoutMs = COMPAT_CHECKING_WAIT_MS,
+  intervalMs = COMPAT_CHECKING_POLL_MS,
+  sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  nowMs = () => Date.now(),
+}) {
+  const startedAt = nowMs();
+  let latestPlayers = players;
+  let evaluation = evaluate(latestPlayers);
+  while (isCompatibilityPendingOnly(evaluation) && nowMs() - startedAt < timeoutMs) {
+    await sleep(intervalMs);
+    const reloaded = await reloadPlayers();
+    if (!reloaded) break;
+    latestPlayers = reloaded;
+    evaluation = evaluate(latestPlayers);
+  }
+  const timedOut = isCompatibilityPendingOnly(evaluation);
+  if (timedOut) {
+    evaluation = { ...evaluation, problems: evaluation.problems.map((problem) => ({ ...problem, timedOut: true })) };
+  }
+  return { evaluation, players: latestPlayers, timedOut, waitedMs: nowMs() - startedAt };
 }
 
 // ロビーに出す案内文の一覧（ホスト・参加者の両方に見せる）。

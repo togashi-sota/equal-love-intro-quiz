@@ -31,6 +31,64 @@ const MAX_REASONABLE_SONG_LENGTH_SEC = 600; // 10分。この値を超える時�
 // 固まらないよう、1ファイルあたりの読み込み上限を設ける。
 const MAX_LYRICS_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
 
+// ===== 【2026-10-28新設・本人指示：オンライン歌詞クイズの入室を速くする】歌詞データの「版の印」 =====
+//
+// 歌詞データから計算した値（曲ごとの内容ハッシュ等。js/lyricsBattleDerivedCache.js）を保存して
+// 使い回すとき、「歌詞データがその後変わっていないか」を、歌詞の本体を読み直さずに確かめるための印。
+// 歌詞データを保存・削除するたびに（このファイルのsaveLyricsData()・deleteLyricsData()だけが
+// 歌詞データを書き換える）新しい値にする。
+//   persistent … localStorageに置く、ページを開き直しても残る印（別のタブでの保存にも気づける）。
+//                localStorageが使えない端末ではnull（保存した計算結果は信用せず、毎回計算する）。
+//   session    … このページの中だけの通し番号（localStorageが使えなくても、同じページ内の保存には気づける）。
+// 印には歌詞の内容を一切含めない（ランダムな文字列と時刻だけ）。
+export const LYRICS_DATA_REVISION_STORAGE_KEY = "equalLoveIntroQuiz.lyricsDataRevision";
+let lyricsDataSessionRevision = 0;
+
+function getLocalStorageSafely() {
+  try {
+    return typeof localStorage !== "undefined" ? localStorage : null;
+  } catch {
+    return null;
+  }
+}
+
+function createRevisionToken() {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+// 歌詞データが変わったことを記録する（保存・削除の直後に呼ぶ）。
+export function bumpLyricsDataRevision() {
+  lyricsDataSessionRevision += 1;
+  const storage = getLocalStorageSafely();
+  try {
+    storage?.setItem(LYRICS_DATA_REVISION_STORAGE_KEY, createRevisionToken());
+  } catch {
+    // 容量不足・プライベートモード等。persistentが古いままになるのを防ぐため、消しておく。
+    try {
+      storage?.removeItem(LYRICS_DATA_REVISION_STORAGE_KEY);
+    } catch {
+      // 何もできない（その場合は保存した計算結果が使われず、毎回計算するだけ）
+    }
+  }
+}
+
+// 今の印を返す。ensure=trueなら、まだ印が無い端末（この仕組みより前から歌詞データを入れていた端末）に
+// 新しい印を作る（計算結果をはじめて保存するとき、js/lyricsBattleDerivedCache.jsが使う）。
+export function getLyricsDataRevision({ ensure = false } = {}) {
+  const storage = getLocalStorageSafely();
+  let persistent = null;
+  try {
+    persistent = storage?.getItem(LYRICS_DATA_REVISION_STORAGE_KEY) ?? null;
+    if (persistent === null && ensure && storage) {
+      persistent = `init-${createRevisionToken()}`;
+      storage.setItem(LYRICS_DATA_REVISION_STORAGE_KEY, persistent);
+    }
+  } catch {
+    persistent = null;
+  }
+  return { persistent, session: lyricsDataSessionRevision };
+}
+
 // IndexedDBのデータベースを開く（なければ作る）。
 function openDatabase() {
   return new Promise((resolve, reject) => {
@@ -291,6 +349,8 @@ export async function saveLyricsData(record) {
   const db = await openDatabase();
   await putRecord(db, { ...record, updatedAt: Date.now(), contentHash });
   db.close();
+  // 【2026-10-28追加】保存した計算結果（js/lyricsBattleDerivedCache.js）を使い回さないようにする印。
+  bumpLyricsDataRevision();
 
   return { saved: true, errors: [], warnings };
 }
@@ -306,6 +366,36 @@ export async function getLyricsData(songId) {
   });
   db.close();
   return record;
+}
+
+// 【2026-10-28新設・本人指示：オンライン歌詞クイズの入室を速くする】複数の曲の歌詞データを、
+// データベースを1回だけ開いて1つの読み取りでまとめて取得する。
+// 以前は1曲ずつgetLyricsData()を呼んでいたため、約80曲ではデータベースの開閉が約80回起きていた
+// （スマホではこれだけで目に見える待ち時間になる）。結果は1曲ずつ取得した場合と全く同じ。
+// 戻り値: Map<songId, record>（歌詞データが無い曲は含まない）。読み取り専用。
+export async function getLyricsDataMany(songIds) {
+  const ids = [...new Set(songIds ?? [])];
+  const result = new Map();
+  if (ids.length === 0) return result;
+  const db = await openDatabase();
+  try {
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, "readonly");
+      const store = tx.objectStore(STORE_NAME);
+      for (const songId of ids) {
+        const request = store.get(songId);
+        request.onsuccess = () => {
+          if (request.result) result.set(songId, request.result);
+        };
+      }
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+  } finally {
+    db.close();
+  }
+  return result;
 }
 
 // 指定したsongIdの歌詞データが読み込み済みかどうかを返す。
@@ -367,6 +457,7 @@ export async function deleteLyricsData(songId) {
     tx.onerror = () => reject(tx.error);
   });
   db.close();
+  bumpLyricsDataRevision(); // 【2026-10-28追加】上のsaveLyricsData()と同じ理由
 }
 
 // analyzeLyricsFiles()が1ファイルずつ集めた「まだ保存していない」解析結果を、

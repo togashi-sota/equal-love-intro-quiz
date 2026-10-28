@@ -144,6 +144,8 @@ import {
   handleLyricsQuizRoomUpdate,
   resetLyricsQuizBattleState,
   forceHideLyricsCollabSongSection,
+  // 【2026-10-28新設・本人指示】歌詞クイズ対戦の「確認中は開始できない／保証できない部屋では準備完了にしない」
+  applyLyricsQuizLobbyGates,
   // 【再戦準備フェーズ新設・本人指示】再戦準備画面の「今回の設定の簡単な要約」チップに、
   // ロビーの参加者向けサマリーと全く同じ組み立てロジックを再利用する。
   buildLyricsQuizSettingsSummaryChips,
@@ -2120,6 +2122,11 @@ function renderLobbyInner(room) {
       applySettingsToHostForm(settings);
     }
     updateStartButton(room);
+    // 【2026-10-28追加・本人指示】歌詞クイズ対戦：参加者の歌詞データが「確認中」の間・全員に同じヒントを
+    // 出せないと分かっている間は、開始ボタンを押せなくする（押せるようにはしない。元の判断はそのまま）。
+    if (isLyricsQuiz) {
+      applyLyricsQuizLobbyGates(room, { isHost: true, startButton: elements.lobbyStartButton, startHint: elements.lobbyStartHint });
+    }
   } else {
     if (isLyricsQuiz) {
       renderLyricsQuizLobbySettings(room, false);
@@ -2136,6 +2143,18 @@ function renderLobbyInner(room) {
     // 外した（js/onlineBattle.jsのstartBattle()と同じ理由）。
     const myReady = Boolean(myPlayer?.ready);
     updateReadyButton(myReady);
+    // 【2026-10-28追加・本人指示】歌詞クイズ対戦：ホストのアプリが古く「全員に同じヒントが出るか」を
+    // 確かめられない部屋では、準備完了にできなくする（準備完了のままなら1回だけ自動で解除する）。
+    if (isLyricsQuiz) {
+      applyLyricsQuizLobbyGates(room, {
+        isHost: false,
+        readyButton: elements.lobbyReadyButton,
+        isReady: myReady,
+        requestUnready: () => {
+          if (currentRoomId) setReady({ roomId: currentRoomId, ready: false }).catch(() => {});
+        },
+      });
+    }
 
     // 【2026-09-07改訂】以前はREADYがtrue→falseへ変わった瞬間（＝設定変更でリセットされた
     // 瞬間）を「設定が変更されました」通知のトリガーにしていたが、READYを設定変更で

@@ -55,7 +55,12 @@ import {
 } from "../battleRules/index.js";
 import { SKIP_SELECTION, MAX_HINT_LEVEL, IDLE_RESCUE_THRESHOLD_MS } from "../battleRules/sharedDefaults.js";
 import { LYRICS_UNIQUENESS_RULES_VERSION } from "../lyricsQuestionUniqueness.js";
-import { evaluateLyricsBattleCompatibility, describeCompatStartBlockMessage } from "../lyricsQuizBattleCompatibility.js";
+import {
+  evaluateLyricsBattleCompatibility,
+  describeCompatStartBlockMessage,
+  waitForLyricsBattleCompatibility,
+} from "../lyricsQuizBattleCompatibility.js";
+import { defaultLyricsBattleDerivedCache, annotateEntriesWithPoolExclusions } from "../lyricsBattleDerivedCache.js";
 
 // js/lyricsQuizMatchProgress.js（対戦進行エンジン）が、期限切れで未回答のまま終わった
 // プレイヤーをスキップ扱いにするために使う定数。battleRules/を直接importするのは
@@ -277,15 +282,37 @@ export function resolveAllEligibleSongIds() {
 //   ・除外ルールの版・一覧・問題の作り方・曲の一覧・出題する曲の歌詞データが1つでも違う → 開始しない。
 // 戻り値: 開始してよければnull、止めるならホストの画面に出す文言。
 export function validateParticipantCompatibility({ settings, players, hostUid }) {
-  const evaluation = evaluateLyricsBattleCompatibility({
+  const evaluation = evaluateParticipantCompatibility({ settings, players, hostUid });
+  return describeParticipantCompatibilityEvaluation(evaluation, { players, hostUid });
+}
+
+function evaluateParticipantCompatibility({ settings, players, hostUid }) {
+  return evaluateLyricsBattleCompatibility({
     settings,
     songPool: resolveSettingsSongPool(settings),
     hostUid,
     players,
   });
+}
+
+function describeParticipantCompatibilityEvaluation(evaluation, { players, hostUid }) {
   if (evaluation.ok) return null;
   const displayNameByUid = Object.fromEntries(Object.entries(players ?? {}).map(([uid, player]) => [uid, player?.name]));
   return describeCompatStartBlockMessage(evaluation, { displayNameByUid, viewerUid: hostUid, hostUid });
+}
+
+// 【2026-10-28新設・本人指示：全員が新しいアプリなのに誤って止めない】validateParticipantCompatibility()の、
+// 「確認中」の人がいるときは少し待ってから判定する版（js/onlineBattle.jsの開始・再戦の確認が使う）。
+// reloadPlayers: 最新のroom.playersを読み直す関数（読めなければnull）
+// 戻り値: 開始してよければnull、止めるならホストの画面に出す文言（待っても届かなければ「入り直し」の文言）。
+export async function waitForParticipantCompatibility({ settings, players, hostUid, reloadPlayers, ...waitOptions }) {
+  const { evaluation, players: latestPlayers } = await waitForLyricsBattleCompatibility({
+    players,
+    evaluate: (currentPlayers) => evaluateParticipantCompatibility({ settings, players: currentPlayers, hostUid }),
+    reloadPlayers: reloadPlayers ?? (async () => null),
+    ...waitOptions,
+  });
+  return describeParticipantCompatibilityEvaluation(evaluation, { players: latestPlayers, hostUid });
 }
 
 // 【設計⑩②：非同期の事前準備フック】questionSourceからsongPoolを解決し、
@@ -298,16 +325,40 @@ export function validateParticipantCompatibility({ settings, players, hostUid })
 // 失敗した場合（ブラウザの制限等）に備えてtry/catchで確実に捕捉し、
 // 呼び出し元が「準備に失敗した」と明示的に判断できるok:falseを返す
 // （画面側は、okがfalseならbuildQuestions()を呼ばず、エラー表示に倒す想定）。
-export async function prepareRuntimeContext({ settings }) {
+//
+// 【2026-10-28改訂・本人指示：開始を速くする・画面を固めない】
+//   ・歌詞データは出題範囲の順にそろえて返す（orderEntriesBySongPool()。buildQuestions()でも同じ順に
+//     そろえるので、問題は以前と同じ）
+//   ・除外ルールが有効な部屋では、「出題しない行番号」を保存場所（js/lyricsBattleDerivedCache.js）から
+//     取り出して各曲に付ける。保存が無ければ、処理を区切りながら（画面を固めずに）計算して保存する。
+//     付ける値は、buildQuestions()の中で計算した場合と全く同じ（tests/lyricsBattlePerfMatrix.test.jsで確認）。
+//     以前は checkRuntimeAvailability() と buildQuestions() へ別々の配列が渡っていたため、
+//     同じ重い計算を2回していた（その分もなくなる）。
+// derivedCache・loadEntries（省略可）: テスト用に差し替えられる（derivedCache: null なら保存を使わない）。
+export async function prepareRuntimeContext({ settings, derivedCache = defaultLyricsBattleDerivedCache, loadEntries = loadSongsWithLyrics }) {
   try {
     // 【2026-09-16改訂・本人指示：他モードとの機能差解消】categoryFilterValueも考慮した
     // resolveQuestionSourceSongPool()を経由する。
     const songPool = resolveQuestionSourceSongPool(settings.questionSource, settings.categoryFilterValue);
-    const songsWithLyrics = await loadSongsWithLyrics(songPool);
-    return { ok: true, songsWithLyrics, songPool };
+    const loadedEntries = orderEntriesBySongPool(await loadEntries(songPool), songPool);
+    const uniqueness = resolveLyricsUniquenessForSettings(settings);
+    if (!uniqueness.supported || !uniqueness.lyricsUniqueness.enabled || !derivedCache) {
+      return { ok: true, songsWithLyrics: loadedEntries, songPool, exclusionsSource: null };
+    }
+    const annotated = await annotateEntriesWithPoolExclusions(loadedEntries, derivedCache);
+    return { ok: true, songsWithLyrics: annotated.entries, songPool, exclusionsSource: annotated.source };
   } catch (error) {
     return { ok: false, songsWithLyrics: [], songPool: [], reason: "歌詞データの読み込みに失敗しました。" };
   }
+}
+
+// 【2026-10-28新設・本人指示：開始を速くする】ロビーにいる間（手が空いたとき）に、これから出題する
+// 範囲の「出題しない行番号」を先に計算して保存しておく。対戦開始時のprepareRuntimeContext()は
+// 保存した値を使うので、開始の瞬間に重い計算をしなくて済む。結果（問題）は変わらない。
+// 戻り値: { ok, exclusionsSource }（"memory"|"persistent"|"computed"|null）
+export async function prewarmRuntimeContext({ settings, derivedCache = defaultLyricsBattleDerivedCache, loadEntries = loadSongsWithLyrics }) {
+  const context = await prepareRuntimeContext({ settings, derivedCache, loadEntries });
+  return { ok: context.ok, exclusionsSource: context.exclusionsSource ?? null };
 }
 
 // seed・settings・runtimeContextから、全端末で完全に一致する問題セットを組み立てる。

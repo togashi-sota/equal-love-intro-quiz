@@ -409,16 +409,19 @@ export function runLyricsQuizBattleCompatibilityTests() {
     );
   }
 
-  // ===== ホストが古いアプリへ交代した部屋 → 新しい端末もホストに合わせる =====
+  // ===== ホストが古いアプリへ交代した部屋 =====
+  // 【2026-10-28改訂】古いホストには v382以前（除外しない）と v383（公開版・除外する）があり、
+  // Firebaseへ書く値が同じで見分けられない。以前は「除外なし」に合わせていたが、それでは v383 のホストと
+  // 必ずずれていた。今は部屋の設定のまま（v383と同じ）で作り、ロビーでは準備完了にできなくする
+  // （詳しくは tests/lyricsBattlePerfMatrix.test.js の版の対応表）。
   {
     const hostOld = { [HOST]: oldPlayer("旧ホスト"), "p-a": newPlayer("Aさん", deviceEntries()) };
     const followed = resolveQuestionSettingsForHost({ settings: unique, hostUid: HOST, players: hostOld });
-    assertEqual("lyricsUniquenessRulesVersion" in followed, false, "ホスト交代：古いホストなら版を外して「除外なし」で作る");
+    assertEqual(followed, unique, "ホスト交代：古いホストでも部屋の設定のまま（v383のホストと同じ「除外あり」）");
     assertEqual(
-      hintLineSignature(buildDeviceQuestions({ seed: 7, settings: followed, entries: deviceEntries() })) ===
-        hintLineSignature(buildOldClientQuestions({ seed: 7, settings: unique, entries: deviceEntries() })),
-      true,
-      "ホスト交代：その結果、古いホストと同じ問題になる"
+      evaluateLyricsBattleCompatibility({ settings: unique, songPool: POOL_IDS, hostUid: HOST, players: hostOld }).problems.map((p) => p.kind),
+      [COMPAT_PROBLEM.HOST_UNVERIFIABLE],
+      "ホスト交代：古いホストは「確かめられない」として扱う（v382以前かv383か見分けられない）"
     );
     const hostNew = { [HOST]: newPlayer("ホスト", deviceEntries()) };
     assertEqual(resolveQuestionSettingsForHost({ settings: unique, hostUid: HOST, players: hostNew }), unique, "ホスト交代：新しいホストなら設定はそのまま");

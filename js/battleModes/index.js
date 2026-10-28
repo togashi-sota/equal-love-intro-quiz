@@ -99,6 +99,15 @@ export function validateParticipantCompatibilityForMode(gameMode, context) {
   return mode.validateParticipantCompatibility(context);
 }
 
+// 【2026-10-28新設・本人指示：全員が新しいアプリなのに誤って止めない】上の確認の、「確認中」の人が
+// いるときは少し待ってから判定する版。context: { settings, players, hostUid, reloadPlayers }
+// 待つ版を持たないモードは、上の validateParticipantCompatibilityForMode() と同じ。
+export async function waitForParticipantCompatibilityForMode(gameMode, context) {
+  const mode = getBattleMode(gameMode);
+  if (mode?.waitForParticipantCompatibility) return mode.waitForParticipantCompatibility(context);
+  return validateParticipantCompatibilityForMode(gameMode, context);
+}
+
 // 【2026-09-05新設・本人指示：モード切替時の設定残留バグ対応】このgameModeのロビーUIが、
 // 「①表題曲のみ②表題曲＋全員曲③全曲④曲を選んで出題」の4択（settings.questionSource、
 // type: collaborativeSelection）を実際に表示・管理できるかどうか。

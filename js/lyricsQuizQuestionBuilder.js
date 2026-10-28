@@ -10,7 +10,7 @@
 // 読み込む部分（loadSongsWithLyrics）だけは薄いラッパーとして分離し、
 // tests/lyricsStorage.test.jsと同じ方針（IndexedDBには実際に触れずテストする）を踏襲している。
 
-import { getLyricsData } from "./lyricsStorage.js";
+import { getLyricsDataMany } from "./lyricsStorage.js";
 import { resolveSongPool, resolveSongObjects, QUESTION_SOURCE_TYPE } from "./questionSource.js";
 import { resolveQuestionCount } from "./quiz.js";
 import { generateAnchorLineCandidates, pickPrimarySegment, buildHintSequence } from "./lyricsSegmentEngine.js";
@@ -57,15 +57,17 @@ export function resolveLyricsQuizSongPool(questionSource) {
 
 // songPool（曲IDの配列）から、実際に歌詞データがIndexedDBに読み込まれている曲だけを、
 // { song, lines } の形で返す（IndexedDBに実際に触れる、薄いラッパー関数。単体テスト対象外）。
+// 【2026-10-28改訂・本人指示：入室を速くする】1曲ずつデータベースを開く方式から、1回の読み取りで
+// まとめて取得する方式（getLyricsDataMany()）に変えた。戻り値（並び順・中身）は以前と全く同じ。
 export async function loadSongsWithLyrics(songPool) {
   const songs = resolveSongObjects(songPool);
-  const entries = await Promise.all(
-    songs.map(async (song) => {
-      const record = await getLyricsData(song.id);
+  const recordsBySongId = await getLyricsDataMany(songs.map((song) => song.id));
+  return songs
+    .map((song) => {
+      const record = recordsBySongId.get(song.id);
       return record ? { song, lines: record.lines } : null;
     })
-  );
-  return entries.filter((entry) => entry !== null);
+    .filter((entry) => entry !== null);
 }
 
 // ===== 答えが1曲に決まらない行の除外（2026-10-28新設・本人指示） =====
@@ -159,10 +161,33 @@ function countUsableSegments(song, lines, excludedLineNumbers = []) {
   return candidates.filter((candidate) => !candidate.containsTitle && candidate.quality > 0).length;
 }
 
+// 【2026-10-28追加・本人指示：開始を速くする】1曲分の「使える基準行の数」の使い回し。
+// オンライン対戦の開始時は、開始前チェック（validateLyricsQuizAvailability：除外あり・なしで3回）と
+// 問題生成（buildLyricsQuizQuestions：1回）で、同じ曲について同じ計算を約4回くり返していた
+// （約80曲ではスマホで数百ミリ秒、画面が固まる原因の1つ）。
+// 計算に使うのは「曲（song）・歌詞（lines）・除外する行番号の配列」だけなので、同じ曲の要素
+// （entryオブジェクト）と同じ除外配列の組み合わせなら、結果は必ず同じ。要素のオブジェクトごとに
+// 覚えておく（要素が使われなくなれば自動で消える）。歌詞データは読み込むたびに新しい要素になるので、
+// 歌詞を入れ替えた後に古い結果が使われることはない。
+const NO_EXCLUDED_LINES = Object.freeze([]);
+const usableSegmentCountCache = new WeakMap();
+
+function countUsableSegmentsForEntry(entry, excludedLineNumbers) {
+  const key = excludedLineNumbers ?? NO_EXCLUDED_LINES;
+  let perEntry = usableSegmentCountCache.get(entry);
+  if (!perEntry) {
+    perEntry = new Map();
+    usableSegmentCountCache.set(entry, perEntry);
+  }
+  if (perEntry.has(key) && perEntry.get(key).lines === entry.lines) return perEntry.get(key).count;
+  const count = countUsableSegments(entry.song, entry.lines, key);
+  perEntry.set(key, { lines: entry.lines, count });
+  return count;
+}
+
 function filterQuizzableWithExclusions(songsWithLyrics, exclusions) {
   return songsWithLyrics.filter(
-    ({ song, lines }) =>
-      countUsableSegments(song, lines, exclusions.get(song.id) ?? []) >= MIN_USABLE_SEGMENTS_REQUIRED
+    (entry) => countUsableSegmentsForEntry(entry, exclusions.get(entry.song.id) ?? NO_EXCLUDED_LINES) >= MIN_USABLE_SEGMENTS_REQUIRED
   );
 }
 

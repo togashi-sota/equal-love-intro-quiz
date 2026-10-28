@@ -102,7 +102,14 @@ import {
 // 【2026-10-28新設・本人指示：全員に同じヒントを出す】参加者全員がホストと全く同じ問題を
 // 作れるかの照合（開始前のcapability・開始後の問題の指紋）。歌詞本文は扱わない。
 import {
-  buildLyricsBattleCapability,
+  buildLyricsBattleCapabilityFromHashes,
+  decodeSongHashes,
+  MISSING_LYRICS_MARK,
+  evaluateLyricsBattleCompatibility,
+  describeCompatProblem,
+  COMPAT_PROBLEM,
+  resolveLyricsParticipantGate,
+  describeQuestionSettingsNoticeForHost,
   buildLyricsMatchCheckPayload,
   buildLyricsMatchAbortedCheckPayload,
   compareLyricsMatchChecks,
@@ -114,10 +121,10 @@ import {
   OWN_MATCH_MISMATCH_MESSAGE,
   HOST_MATCH_MISMATCH_MESSAGE,
 } from "./lyricsQuizBattleCompatibility.js";
-import {
-  loadSongsWithLyrics,
-  isLyricsQuizEligibleSong,
-} from "./lyricsQuizQuestionBuilder.js";
+import { isLyricsQuizEligibleSong } from "./lyricsQuizQuestionBuilder.js";
+// 【2026-10-28新設・本人指示：入室を速くする】歌詞データから計算した値（曲ごとの内容ハッシュ・
+// 出題しない行番号）の保存場所。歌詞本文は保存しない。
+import { defaultLyricsBattleDerivedCache } from "./lyricsBattleDerivedCache.js";
 import {
   describeRuleOptions,
   describeAnswerPoolSizeOptions,
@@ -342,6 +349,19 @@ let lyricsCoverageRefreshQueued = false;
 let lastSubmittedCapabilitySongHashes = null;
 let lastCoverageSubmitFailedAtMs = 0;
 const COVERAGE_RESUBMIT_BACKOFF_MS = 5000;
+// 【2026-10-28新設・本人指示：入室を速くする・「確認中」の扱い】
+//   capabilityVerificationScheduled … 保存した内容ハッシュを使ったあとの、手が空いたときの確認を予約済みか
+//   lastPrewarmPoolHash             … 出題しない行番号の事前計算を、どの出題範囲で済ませたか
+//   checkingSinceMsByUid            … 「確認中」の人が、いつから確認中か（長く続いたら案内を変える）
+//   lobbyGateRecheckTimerId         … 「確認中」が長く続いたときに、案内を出し直すためのタイマー
+//   autoUnreadyRequestedKey         … 準備完了を自動で解除したのはどの状況か（同じ状況で何度も解除しない）
+let capabilityVerificationScheduled = false;
+let lastPrewarmPoolHash = null;
+const checkingSinceMsByUid = new Map();
+let lobbyGateRecheckTimerId = null;
+let autoUnreadyRequestedKey = null;
+// 「確認中」がこれより長く続いたら、「入り直してもらう」案内に切り替える（開始ボタンは押せないまま）。
+const LOBBY_CHECKING_NOTICE_AFTER_MS = 10000;
 // 開始後：この端末が今の試合のために作った問題の指紋と、照合結果への対応を1試合1回にするための印。
 let myMatchCheck = null;
 let matchCheckAbortedForMatchId = null;
@@ -741,6 +761,11 @@ export function resetLyricsQuizBattleState() {
   lyricsCoverageRefreshQueued = false;
   lastSubmittedCapabilitySongHashes = null;
   lastCoverageSubmitFailedAtMs = 0;
+  lastPrewarmPoolHash = null;
+  checkingSinceMsByUid.clear();
+  if (lobbyGateRecheckTimerId !== null) clearTimeout(lobbyGateRecheckTimerId);
+  lobbyGateRecheckTimerId = null;
+  autoUnreadyRequestedKey = null;
   myMatchCheck = null;
   matchCheckAbortedForMatchId = null;
   ownMatchMismatchShownForMatchId = null;
@@ -1121,15 +1146,22 @@ async function refreshAndSubmitLyricsCoverage(room) {
 // 確認しておくのは、対戦開始の直前に「参加者全員が持っている曲」へ出題範囲が絞り込まれても、
 // 作り直さずにそのまま照合できるようにするため。読み込みに失敗した場合は、どの曲も
 // 確認できなかった（＝ホストの照合では「確認中」になる）capabilityを返す。
+//
+// 【2026-10-28改訂・本人指示：入室を速くする】曲ごとの内容ハッシュは、保存場所
+// （js/lyricsBattleDerivedCache.js）にあればそれを使い、歌詞データを読まずにcapabilityを作る
+// （同じページの2回目以降はデータベースも読まない）。保存した値を使ったときは、ロビーの表示が
+// 終わって手が空いたときに1回だけ歌詞データを読み直して確かめ、違っていれば送り直す。
+// 作られるcapabilityは、以前の「全曲を読み込んで計算する」方式と全く同じ値（テストで確認）。
 function getOwnLyricsBattleCapability() {
   if (!ownCapabilityPromise) {
     ownCapabilityPromise = (async () => {
       try {
         const checkedSongIds = lyricsQuizBattleMode.resolveAllEligibleSongIds();
-        const songsWithLyrics = await loadSongsWithLyrics(checkedSongIds);
-        return buildLyricsBattleCapability({ checkedSongIds, songsWithLyrics });
+        const { songHashById, needsVerification } = await defaultLyricsBattleDerivedCache.getSongHashes();
+        if (needsVerification) scheduleOwnCapabilityVerification();
+        return buildLyricsBattleCapabilityFromHashes({ checkedSongIds, songHashById });
       } catch {
-        return buildLyricsBattleCapability({ checkedSongIds: [], songsWithLyrics: [] });
+        return buildLyricsBattleCapabilityFromHashes({ checkedSongIds: [], songHashById: {} });
       }
     })().then((capability) => {
       ownCapabilityValue = capability;
@@ -1139,10 +1171,69 @@ function getOwnLyricsBattleCapability() {
   return ownCapabilityPromise;
 }
 
+// 手が空いたときに実行する（requestIdleCallbackが無いiPhoneのSafari等では、少し後に実行する）。
+function runWhenIdle(task) {
+  if (typeof requestIdleCallback === "function") {
+    requestIdleCallback(() => task(), { timeout: 3000 });
+  } else {
+    setTimeout(task, 1500);
+  }
+}
+
+function scheduleOwnCapabilityVerification() {
+  if (capabilityVerificationScheduled) return;
+  capabilityVerificationScheduled = true;
+  runWhenIdle(async () => {
+    try {
+      const result = await defaultLyricsBattleDerivedCache.verifySongHashes();
+      if (!result.changed) return;
+      // 保存していた値が今の歌詞データと違った（めったに起きない）→ 作り直して送り直す。
+      ownCapabilityPromise = null;
+      ownCapabilityValue = null;
+      lyricsCoverageSubmittedHash = null;
+      if (latestRoom && latestRoom.gameMode === lyricsQuizBattleMode.gameMode) refreshAndSubmitLyricsCoverage(latestRoom);
+    } catch {
+      // 確かめられなくても、対戦開始後の問題の指紋の照合が安全網になる
+    } finally {
+      capabilityVerificationScheduled = false;
+    }
+  });
+}
+
+// 【2026-10-28新設・本人指示：開始を速くする】除外ルールが有効な部屋では、これから出題する範囲
+// （参加者全員が歌詞を持っている曲へ絞った見込み）の「出題しない行番号」を、手が空いたときに
+// 先に計算して保存しておく（対戦開始の瞬間の重い計算をなくすため。問題の内容は変わらない）。
+function scheduleExclusionPrewarm(room) {
+  const settings = room?.settings;
+  if (!settings || !lyricsQuizBattleMode.resolveLyricsUniquenessForSettings(settings).lyricsUniqueness.enabled) return;
+  const songPool = resolveLobbyEstimatedSongPool(room);
+  const poolHash = computeSongPoolHash(songPool);
+  if (songPool.length === 0 || poolHash === lastPrewarmPoolHash) return;
+  lastPrewarmPoolHash = poolHash;
+  const prewarmSettings = { ...settings, questionSource: { type: QUESTION_SOURCE_TYPE.MANUAL_SELECTION, songIds: songPool } };
+  runWhenIdle(() => {
+    lyricsQuizBattleMode.prewarmRuntimeContext({ settings: prewarmSettings }).catch(() => {
+      lastPrewarmPoolHash = null; // 失敗したら、次の機会にもう一度
+    });
+  });
+}
+
+// ロビーでの「対戦開始時の出題範囲」の見込み（対戦開始時と同じく、参加者全員が歌詞データを
+// 持っている曲へ絞り込んだもの）。
+function resolveLobbyEstimatedSongPool(room) {
+  const settingsPool = lyricsQuizBattleMode.resolveSettingsSongPool(room.settings);
+  return currentLyricsCommonSongPool.size > 0 ? settingsPool.filter((songId) => currentLyricsCommonSongPool.has(songId)) : settingsPool;
+}
+
 async function refreshAndSubmitLyricsCoverageNow(room, songPool, poolHash) {
   const capability = await getOwnLyricsBattleCapability();
-  const availableEntries = await loadSongsWithLyrics(songPool);
-  const availableIds = new Set(availableEntries.map((entry) => entry.song.id));
+  // 【2026-10-28改訂・本人指示：入室を速くする】出題範囲のどの曲に歌詞データがあるかは、capabilityの
+  // 曲ごとの内容ハッシュ（歌詞データが無い曲は「-」）から分かるので、歌詞データを読み直さない
+  // （以前は出題範囲の曲の歌詞をもう一度すべて読み込んでいた。数え方の結果は同じ）。
+  const ownSongHashes = decodeSongHashes(capability?.songHashes);
+  const availableIds = new Set(
+    songPool.filter((songId) => ownSongHashes[songId] !== undefined && ownSongHashes[songId] !== MISSING_LYRICS_MARK)
+  );
   ownMissingSongTitlesCache = songPool
     .filter((songId) => !availableIds.has(songId))
     .map((songId) => SONGS.find((song) => song.id === songId)?.title ?? songId);
@@ -1174,6 +1265,7 @@ async function refreshAndSubmitLyricsCoverageNow(room, songPool, poolHash) {
   } else {
     lastCoverageSubmitFailedAtMs = Date.now();
   }
+  scheduleExclusionPrewarm(latestRoom ?? room);
 }
 
 // 【2026-09-05新設・本人指示：ロビー内での歌詞データ追加インポート後、表示が更新されない
@@ -1192,8 +1284,11 @@ export async function recheckLyricsCoverageAfterImport() {
   if (!latestRoom || latestRoom.gameMode !== lyricsQuizBattleMode.gameMode) return;
   lyricsCoverageSubmittedHash = null;
   // 【2026-10-28追加】歌詞データが変わったので、capability（曲ごとの内容ハッシュ）も作り直す。
+  // 保存場所の値は、歌詞データの保存時に変わる「版の印」で自動的に使われなくなる（念のためページ内の使い回しも捨てる）。
   ownCapabilityPromise = null;
   ownCapabilityValue = null;
+  lastPrewarmPoolHash = null;
+  defaultLyricsBattleDerivedCache.clearMemory();
   await refreshAndSubmitLyricsCoverage(latestRoom);
 }
 
@@ -1233,7 +1328,8 @@ function renderLyricsQuizReadinessSection(room, isHost) {
 // （送信中の間に「あなたのアプリが古い」と誤表示しないため）。出題範囲は、対戦開始時と同じく
 // 「参加者全員が歌詞データを持っている曲」へ絞り込んだもので見る（開始時に外れる曲の不足で
 // 「開始できません」と出さないため）。
-function describeLobbyCompatNoticesForRoom(room) {
+// 自分のcapabilityだけはFirebaseへの反映を待たずにローカルの値で上書きした、照合用のplayers。
+function buildPlayersWithOwnCapability(room) {
   const myUid = getCurrentUid();
   const players = { ...(room.players || {}) };
   if (ownCapabilityValue && players[myUid]) {
@@ -1242,9 +1338,13 @@ function describeLobbyCompatNoticesForRoom(room) {
       lyricsCoverage: { ...(players[myUid].lyricsCoverage ?? {}), capability: ownCapabilityValue },
     };
   }
-  const settingsPool = lyricsQuizBattleMode.resolveSettingsSongPool(room.settings);
-  const songPool =
-    currentLyricsCommonSongPool.size > 0 ? settingsPool.filter((songId) => currentLyricsCommonSongPool.has(songId)) : settingsPool;
+  return players;
+}
+
+function describeLobbyCompatNoticesForRoom(room) {
+  const myUid = getCurrentUid();
+  const players = buildPlayersWithOwnCapability(room);
+  const songPool = resolveLobbyEstimatedSongPool(room);
   const displayNameByUid = Object.fromEntries(Object.entries(players).map(([uid, player]) => [uid, player?.name]));
   const notices = describeLyricsLobbyCompatNotices({
     settings: room.settings,
@@ -1256,6 +1356,93 @@ function describeLobbyCompatNoticesForRoom(room) {
   });
   const abortNotice = describeLyricsMatchAbortNotice(room);
   return abortNotice ? [abortNotice, ...notices] : notices;
+}
+
+// ===== 【2026-10-28新設・本人指示：「確認中」の間は開始できない／保証できない部屋では準備完了にしない】 =====
+//
+// js/onlineBattleScreen.jsのrenderLobby()が、開始ボタン（ホスト）・準備完了ボタン（参加者）の状態を
+// いつもどおり決めた後に、歌詞クイズ対戦のときだけ呼ぶ。index.htmlは変えず、既存のボタンの
+// disabled属性と、既存の案内欄（startHint）の文言だけを使う。
+// ここでは「押せなくする」ことしかしない（押せるかどうかの元の判断＝全員の準備完了等はそのまま）。
+//   ホスト：
+//     ・誰かが「確認中」（capabilityがまだ届いていない） → 押せない。案内「○○さんの歌詞データを確認中です」
+//       （10秒以上続いたら「入り直してもらってください」に切り替える。届いたらすぐ押せるようになる）
+//     ・古いアプリ・版の不一致など、出題範囲に関係なく開始できない理由がある → 押せない（理由はロビーの案内欄）
+//     ・歌詞データの不足・版違い（出題範囲の絞り込み次第で変わる）→ 押せる（押すと理由が出る。従来どおり）
+//   参加者：
+//     ・ホストと同じ問題を作れると保証できない部屋（resolveLyricsParticipantGate()）→ 準備完了にできない。
+//       準備完了のままなら、1回だけ自動で解除する（requestUnready）。理由はロビーの案内欄に出る。
+// options: { isHost, startButton, startHint, readyButton, isReady, requestUnready }
+const DEFINITIVE_START_BLOCK_KINDS = new Set([
+  COMPAT_PROBLEM.OUTDATED_APP,
+  COMPAT_PROBLEM.HOST_APP_OUTDATED,
+  COMPAT_PROBLEM.VERSION_MISMATCH,
+  COMPAT_PROBLEM.HOST_UNVERIFIABLE,
+]);
+
+export function applyLyricsQuizLobbyGates(room, { isHost, startButton, startHint, readyButton, isReady = false, requestUnready } = {}) {
+  if (!room || room.gameMode !== lyricsQuizBattleMode.gameMode) return;
+  const myUid = getCurrentUid();
+  const players = buildPlayersWithOwnCapability(room);
+  const displayNameByUid = Object.fromEntries(Object.entries(players).map(([uid, player]) => [uid, player?.name]));
+
+  if (!isHost) {
+    const gate = resolveLyricsParticipantGate({ settings: room.settings, hostUid: room.host, players, viewerUid: myUid, displayNameByUid });
+    if (!readyButton) return;
+    if (!gate.canReady) {
+      readyButton.disabled = true;
+      readyButton.dataset.lyricsCompatGate = "1";
+      const key = `${room.roomId}|${room.host}|${gate.kind}`;
+      if (isReady && typeof requestUnready === "function" && autoUnreadyRequestedKey !== key) {
+        autoUnreadyRequestedKey = key;
+        requestUnready();
+      }
+    } else if (readyButton.dataset.lyricsCompatGate === "1") {
+      readyButton.disabled = false;
+      delete readyButton.dataset.lyricsCompatGate;
+      autoUnreadyRequestedKey = null;
+    }
+    return;
+  }
+
+  if (!startButton || room.status !== ROOM_STATUS.WAITING) return;
+  const evaluation = evaluateLyricsBattleCompatibility({
+    settings: room.settings,
+    songPool: resolveLobbyEstimatedSongPool(room),
+    hostUid: room.host,
+    players,
+  });
+  const nowMs = Date.now();
+  const checkingUids = new Set(evaluation.problems.filter((problem) => problem.kind === COMPAT_PROBLEM.CHECKING).map((problem) => problem.uid));
+  for (const uid of [...checkingSinceMsByUid.keys()]) if (!checkingUids.has(uid)) checkingSinceMsByUid.delete(uid);
+  for (const uid of checkingUids) if (!checkingSinceMsByUid.has(uid)) checkingSinceMsByUid.set(uid, nowMs);
+
+  if (checkingUids.size > 0) {
+    startButton.disabled = true;
+    const longest = Math.max(...[...checkingUids].map((uid) => nowMs - checkingSinceMsByUid.get(uid)));
+    const timedOut = longest >= LOBBY_CHECKING_NOTICE_AFTER_MS;
+    if (startHint) {
+      startHint.textContent = timedOut
+        ? [...checkingUids]
+            .map((uid) => describeCompatProblem({ uid, kind: COMPAT_PROBLEM.CHECKING, count: 0, timedOut: true }, { displayNameByUid, viewerUid: myUid, hostUid: room.host }))
+            .join(" ")
+        : `歌詞データを確認中です（${[...checkingUids].map((uid) => (uid === myUid ? "あなた" : `${displayNameByUid[uid] ?? "参加者"}さん`)).join("・")}）。確認が終わると開始できます。`;
+    }
+    // 長く続いたときに案内を切り替えるため、ルームの更新が無くても出し直す。
+    if (!timedOut && lobbyGateRecheckTimerId === null) {
+      lobbyGateRecheckTimerId = setTimeout(() => {
+        lobbyGateRecheckTimerId = null;
+        if (latestRoom && document.body.dataset.screen === "onlineBattleLobby") {
+          applyLyricsQuizLobbyGates(latestRoom, { isHost: true, startButton, startHint });
+        }
+      }, LOBBY_CHECKING_NOTICE_AFTER_MS - longest + 50);
+    }
+    return;
+  }
+  if (evaluation.problems.some((problem) => DEFINITIVE_START_BLOCK_KINDS.has(problem.kind))) {
+    startButton.disabled = true;
+    if (startHint) startHint.textContent = "全員に同じヒントを出せないため、開始できません（理由は上の歌詞データの案内をご覧ください）。";
+  }
 }
 
 // js/onlineBattleScreen.jsのrenderLobby()から、ホスト/参加者どちらの視点かとともに呼ばれる。
@@ -1465,8 +1652,8 @@ export async function enterLyricsQuizBattlePlay(room) {
   elements.navigateTo("onlineLyricsBattleQuestion");
   startServerTimeOffsetTracking();
 
-  // 【2026-10-28追加】問題を作るときの設定（ふつうは部屋の設定そのまま。今のホストが古いアプリなら
-  // 「除外なし」にしてホストに合わせる。js/lyricsQuizBattleCompatibility.jsのresolveQuestionSettingsForHost()参照）。
+  // 【2026-10-28追加・同日改訂】問題を作るときの設定（部屋の設定そのまま。古いホストの扱いは
+  // js/lyricsQuizBattleCompatibility.jsのresolveQuestionSettingsForHost()のコメント参照）。
   const questionSettings = resolveQuestionSettingsForHost({ settings: room.settings, hostUid: room.host, players: room.players });
   const runtimeContext = await lyricsQuizBattleMode.prepareRuntimeContext({ settings: questionSettings });
   if (myEntryToken !== battlePlayEntryToken) return; // 待っている間に、より新しい入場処理が始まっていた
@@ -1490,6 +1677,19 @@ export async function enterLyricsQuizBattlePlay(room) {
     return;
   }
   runtimeReady = true;
+  // 【2026-10-28追加】ホストが古いアプリで「同じ問題か確かめられない」まま対戦に入った場合
+  // （ロビーでは準備完了にできないため、行き違いのときだけ）、そのことを知らせる。
+  const hostVersionNotice = describeQuestionSettingsNoticeForHost({
+    settings: room.settings,
+    hostUid: room.host,
+    players: room.players,
+    viewerUid: getCurrentUid(),
+  });
+  if (hostVersionNotice) {
+    elements.battleError.textContent = hostVersionNotice;
+    elements.battleError.classList.add("is-notice");
+    elements.battleError.hidden = false;
+  }
 
   // 【2026-10-28追加・本人指示：全員に同じヒントを出す】この端末が作った問題の指紋
   // （問題ごとのハッシュだけ。歌詞本文・正解の曲名は含まない）を書く。ホストは全員の指紋を

@@ -52,6 +52,7 @@ import {
   getAvailabilityKind,
   supportsManualSongSelection,
   validateParticipantCompatibilityForMode,
+  waitForParticipantCompatibilityForMode,
 } from "./battleModes/index.js";
 import { restrictSettingsToCommonlyAvailableSongs } from "./onlineBattleSongAvailability.js";
 import { QUESTION_SOURCE_TYPE } from "./questionSource.js";
@@ -1220,6 +1221,12 @@ function resolveBaseSettingsForSongPool(settings) {
   return baseSettings;
 }
 
+// 【2026-10-28新設】開始前の互換性の確認で「確認中」の人を待つ間に、room.playersだけを読み直す。
+async function readRoomPlayersForCompatibilityCheck(roomId) {
+  const snapshot = await safeGetSnapshot(`rooms/${roomId}/players`);
+  return snapshot?.exists() ? snapshot.val() : null;
+}
+
 async function resolveBattleStartValidation({ roomId, settings }) {
   await authReady;
   const uid = getCurrentUid();
@@ -1322,10 +1329,14 @@ async function resolveBattleStartValidation({ roomId, settings }) {
   // 古いアプリの参加者・歌詞データの版違い等があれば、ここで開始を止める
   // （js/battleModes/lyricsQuizBattleMode.jsのvalidateParticipantCompatibility()参照。
   // このメソッドを持たないモードでは何もしない）。
-  const compatibilityMessage = validateParticipantCompatibilityForMode(room.gameMode, {
+  // 【2026-10-28改訂・本人指示：全員が新しいアプリなのに誤って止めない】入室直後でまだ「確認中」の
+  // 人がいる場合は、すぐに止めずにFirebaseを読み直しながら数秒だけ待つ（届けばそのまま開始、
+  // 届かなければ「入り直してもらう」案内で止める）。古いアプリ・版違い等はすぐに止める。
+  const compatibilityMessage = await waitForParticipantCompatibilityForMode(room.gameMode, {
     settings: finalSettings,
     players,
     hostUid: uid,
+    reloadPlayers: () => readRoomPlayersForCompatibilityCheck(roomId),
   });
   if (compatibilityMessage) {
     return { ok: false, reason: "incompatible-clients", message: compatibilityMessage };
@@ -1959,10 +1970,16 @@ async function resolveRematchSettingsValidation({ roomId, room, playersOverride 
   // 【2026-10-28追加・本人指示】通常の対戦開始（resolveBattleStartValidation()）と同じ、
   // 参加者全員が同じ問題を作れるかの確認（再戦でも、前の試合の後に歌詞データを入れ替えた・
   // アプリを更新した人がいるかもしれないため）。
-  const compatibilityMessage = validateParticipantCompatibilityForMode(room.gameMode, {
+  const compatibilityMessage = await waitForParticipantCompatibilityForMode(room.gameMode, {
     settings: finalSettings,
     players,
     hostUid: room.host,
+    // 再戦の対象者だけ（playersOverride）で確かめている場合は、読み直した結果も対象者だけに絞る。
+    reloadPlayers: async () => {
+      const latest = await readRoomPlayersForCompatibilityCheck(roomId);
+      if (!latest || !playersOverride) return latest;
+      return Object.fromEntries(Object.entries(latest).filter(([playerUid]) => playerUid in playersOverride));
+    },
   });
   if (compatibilityMessage) {
     return { ok: false, reason: "incompatible-clients", message: compatibilityMessage };
