@@ -142,6 +142,9 @@
     import { runLiveHubTests } from "./tests/liveHub.test.js";
     import { runIdentityPresenceFixTests } from "./tests/identityPresenceFix.test.js";
     import { runLyricsQuestionUniquenessTests } from "./tests/lyricsQuestionUniqueness.test.js";
+    // 【2026-10-28新設】アカウントの恒久対策（旧UIDの待ち行列・データ比較・整理・アカウント保護・接続ごとの在席）と、歌詞クイズ対戦の互換性
+    import { runAccountPermanentFixTests } from "./tests/accountPermanentFix.test.js";
+    import { runLyricsQuizBattleCompatibilityTests, runLyricsQuizBattleCompatibilityRulesTests } from "./tests/lyricsQuizBattleCompatibility.test.js";
     import { runCallTextModeTests, runCallTextModeMarkupTests } from "./tests/callTextMode.test.js";
     import { runCallTextEditsTests } from "./tests/callTextEdits.test.js";
     import { runTimeAttackScoreTests } from "./tests/timeAttackScore.test.js";
@@ -488,6 +491,9 @@
     await runLiveHubTests();
     await runIdentityPresenceFixTests();
     await runLyricsQuestionUniquenessTests();
+    await runAccountPermanentFixTests();
+    runLyricsQuizBattleCompatibilityTests();
+    await runLyricsQuizBattleCompatibilityRulesTests();
     const { passCount, failCount, failedDetails } = printSummary();
 
     const summaryElement = document.getElementById("test-summary");

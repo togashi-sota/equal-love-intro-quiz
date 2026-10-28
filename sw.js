@@ -7,7 +7,7 @@
 //
 // 新しいバージョンを配信したいときは、CACHE_VERSIONの値を必ず上げること。
 // 上げないと、ブラウザが「内容が変わっていない」と判断し、更新が反映されない。
-const CACHE_VERSION = "v384";
+const CACHE_VERSION = "v385";
 const CACHE_NAME = `equal-love-intro-quiz-${CACHE_VERSION}`;
 
 // キャッシュするアプリ本体のファイル一覧。
@@ -47,6 +47,13 @@ const APP_SHELL_FILES = [
   "./js/lyricsQuestionUniqueness.js",
   "./js/data/lyricsAmbiguityIndex.js",
   "./js/data/lyricsUniquenessManualList.js",
+  // 【2026-10-28追加】アカウントの恒久対策・歌詞クイズ対戦の互換性
+  "./js/uidMergeQueue.js",
+  "./js/identityDataComparison.js",
+  "./js/identityMergeRunner.js",
+  "./js/accountRecovery.js",
+  "./js/accountRecoveryPanel.js",
+  "./js/lyricsQuizBattleCompatibility.js",
   "./js/main.js",
   "./js/onboardingScreen.js",
   "./js/guideScreen.js",
