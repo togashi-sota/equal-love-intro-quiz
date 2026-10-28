@@ -104,7 +104,7 @@ function appendLineContents(line, item, options) {
 }
 
 // container に全文コール表を描く。
-// options: { showReview: 配置要確認の印を出すか, showLineNumbers, onCallClick, unitHook（エディター専用） }
+// options: { showReview: 配置要確認の印を出すか, showLineNumbers, onCallClick, unitHook（エディター専用）, extraHook（エディター専用：足した行） }
 // （以前の showTypes ＝ MIX の印は、2026-10-25 本人指示で廃止。渡されても使わない）
 export function renderCallTextView(container, layout, options = {}) {
   container.textContent = "";
@@ -115,6 +115,13 @@ export function renderCallTextView(container, layout, options = {}) {
       block.appendChild(el("p", "call-text-block-label", `【${BLOCK_LABELS[item.position] ?? ""}】`));
       block.appendChild(callRow(item.calls, "is-block", options));
       list.appendChild(block);
+      return;
+    }
+    if (item.kind === "extra") {
+      // 本人が足した表示だけの黒い行（2026-10-29。コール表エディターの並びにだけ入る。公式の歌詞ではないので時刻・行番号は持たない）
+      const extra = el("p", `call-text-extra${String(item.text ?? "").trim() === "" ? " is-empty" : ""}`, item.text ?? "");
+      if (options.extraHook) options.extraHook(extra, item);
+      list.appendChild(extra);
       return;
     }
     const group = el("div", "call-text-group");

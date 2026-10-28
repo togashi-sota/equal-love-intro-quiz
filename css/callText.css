@@ -68,6 +68,24 @@
   margin-top: 6px;
 }
 
+/* 本人が足した表示だけの黒い行（2026-10-29。コール表エディターの完成プレビュー・タイミングエディターと同じ見た目）。
+   歌詞の行（.call-text-line）と同じ文字・間隔。空の行は1行分の高さを空ける */
+.call-text-extra {
+  margin: 6px 0 0;
+  font-size: 1.02rem;
+  overflow-wrap: anywhere;
+  line-break: strict;
+  white-space: pre-wrap;
+}
+
+.call-text-extra.is-empty::before {
+  content: "\200b";
+}
+
+.call-text-extra + .call-text-block {
+  margin-top: 6px;
+}
+
 .call-text-line {
   margin: 0;
   font-size: 1.02rem;

@@ -776,7 +776,7 @@ async function runRulesTests() {
   const SUCCESSOR_NEW_UID = "root.child('uidSupersession').child($uid).child('newUid').val() === auth.uid";
   assertEqual(proposed.rules.presence.$uid[".write"], current.rules.presence.$uid[".write"].replace(SUCCESSOR_NEW_UID, SUCCESSOR_NEW_UID + SUCCESSOR_BACKUP_ID_CHECK), "R2: 在席を書ける人（本人・後継者の削除）は変えていない（v2.1：後継者の削除に backupId の形の確認を足しただけ）");
   const changedTop = Object.keys(current.rules).filter((k) => JSON.stringify(current.rules[k]) !== JSON.stringify(proposed.rules[k]));
-  assertEqual(changedTop.sort(), ["backups", "presence", "publicProfiles", "rooms", "timeAttackLeaderboardsV3", "uidSupersession"], "R3: 【2026-10-29 v2.1】提案で変えたのは backups・presence・rooms（歌詞クイズ対戦の案A）・uidSupersession と、後継者の削除の条件（publicProfiles・timeAttackLeaderboardsV3）だけ");
+  assertEqual(changedTop.sort(), ["backups", "playInvites", "presence", "publicProfiles", "recoveryRequests", "rooms", "timeAttackLeaderboardsV3", "uidSupersession"], "R3: 【2026-10-29 v2.2】提案で変えたのは backups・presence・rooms（歌詞クイズ対戦の案A）・uidSupersession、後継者の削除の条件（publicProfiles・timeAttackLeaderboardsV3）、v2.2 の横断監査で直した playInvites（招待の roomId の形）・recoveryRequests（6桁の依頼番号）だけ");
   assertEqual(Object.keys(proposed.rules).filter((k) => !(k in current.rules)), ["backupSecrets"], "R3: 【2026-10-29 v2.1】新しく足した場所は backupSecrets（秘密の新しい置き場所）だけ");
   assertEqual(proposed.rules.backupSecrets.$backupId[".read"], undefined, "R3: backupSecrets には .read が無い（管理者も含めて誰も読めない）");
   assertEqual(proposed.rules[".read"] === undefined && proposed.rules[".write"] === undefined, true, "R3: ルートに .read・.write は無い（上の階層からの読み取り・書き込みの許可が backupSecrets に及ばない）");
