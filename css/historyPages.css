@@ -1,0 +1,369 @@
+/* ===== 「＝LOVEの歩み・周年ヒストリー」（#anniversary-screen）と「音楽番組出演・披露曲アーカイブ」（#tv-appearances-screen）
+   2026-10-29新設。iPhone の縦画面（幅390px前後）を基準にした作り。色はアプリ共通の変数（css/style.css の :root）を使う。 ===== */
+
+.history-pages-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 32px;
+}
+
+.anniv-intro,
+.tv-intro {
+  margin: 2px 0 4px;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  color: var(--color-text);
+  opacity: 0.8;
+  text-align: center;
+}
+
+.anniv-note,
+.tv-note {
+  margin: 8px 0 0;
+  font-size: 0.7rem;
+  line-height: 1.6;
+  color: #7a6170;
+}
+
+/* 周年のカード：横にスクロールして選ぶ */
+.anniv-cards {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 4px 2px 10px;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+}
+
+.anniv-card {
+  flex: 0 0 auto;
+  width: 150px;
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 10px 12px;
+  border: 1px solid rgba(232, 96, 140, 0.25);
+  border-radius: 14px;
+  background: #fff;
+  text-align: left;
+  font: inherit;
+  color: var(--color-text);
+  scroll-snap-align: center;
+  cursor: pointer;
+}
+
+.anniv-card.is-active {
+  border-color: var(--color-primary, #e8608c);
+  box-shadow: 0 0 0 2px rgba(232, 96, 140, 0.25);
+  background: #fff5f8;
+}
+
+.anniv-card-label {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--color-primary, #e8608c);
+}
+
+.anniv-card-range {
+  font-size: 0.65rem;
+  opacity: 0.7;
+}
+
+.anniv-card-heads {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 2px;
+}
+
+.anniv-card-head {
+  font-size: 0.72rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.anniv-card-head::before {
+  content: "★ ";
+  color: var(--color-primary, #e8608c);
+}
+
+.anniv-detail-title {
+  margin: 4px 0 0;
+  font-size: 1.15rem;
+  color: var(--color-primary, #e8608c);
+}
+
+.anniv-detail-range {
+  margin: 2px 0 6px;
+  font-size: 0.72rem;
+  opacity: 0.75;
+}
+
+.anniv-event-list,
+.tv-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.anniv-event,
+.tv-item {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.anniv-event.is-highlight {
+  border-left: 4px solid var(--color-primary, #e8608c);
+}
+
+.anniv-event-head,
+.tv-item-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.7rem;
+}
+
+.anniv-event-date,
+.tv-item-date {
+  font-weight: 700;
+}
+
+.anniv-event-category,
+.anniv-event-status,
+.tv-badge {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #f3e8ee;
+  font-size: 0.65rem;
+}
+
+.anniv-event-status,
+.tv-badge.is-first {
+  background: #ffe1ea;
+  color: #b0305a;
+  font-weight: 700;
+}
+
+.tv-badge.is-unconfirmed {
+  background: #eee;
+  color: #666;
+}
+
+.anniv-event-title,
+.tv-item-program {
+  margin: 4px 0 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.anniv-event-description,
+.tv-item-notes {
+  margin: 3px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  opacity: 0.85;
+}
+
+.anniv-event-links,
+.tv-item-songs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.anniv-event-link,
+.tv-song {
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(232, 96, 140, 0.4);
+  background: #fff;
+  color: var(--color-primary, #e8608c);
+  font: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.tv-song.is-plain {
+  border-color: rgba(0, 0, 0, 0.12);
+  color: var(--color-text);
+  cursor: default;
+}
+
+.anniv-event-sources,
+.tv-item-sources {
+  margin: 6px 0 0;
+  font-size: 0.65rem;
+  opacity: 0.7;
+  overflow-wrap: anywhere;
+}
+
+/* 音楽番組アーカイブ：検索・絞り込み */
+.tv-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tv-search {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  font: inherit;
+  font-size: 16px; /* iPhone で入力時に拡大しないように */
+}
+
+.tv-chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.tv-chip {
+  flex: 0 0 auto;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: #fff;
+  font: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.tv-chip.is-active {
+  background: var(--color-primary, #e8608c);
+  border-color: var(--color-primary, #e8608c);
+  color: #fff;
+}
+
+.tv-count {
+  margin: 0;
+  font-size: 0.72rem;
+  opacity: 0.75;
+}
+
+.tv-year-heading {
+  margin: 10px 0 0;
+  font-size: 0.95rem;
+  color: var(--color-primary, #e8608c);
+}
+
+.tv-item.is-focused {
+  box-shadow: 0 0 0 3px rgba(232, 96, 140, 0.45);
+}
+
+/* 「＝LOVEについて」年表タブの入口（歴代センター一覧の入口と同じ見た目を使う） */
+.history-pages-entries {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+/* 2026-10-29 追加：周年記念公演の枠・もっと見る・年表の札・音楽番組の節目 */
+.anniv-concert-box {
+  padding: 10px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #fff5f8, #fffbe6);
+  border: 1px solid rgba(255, 111, 168, 0.3);
+}
+
+.anniv-section-title {
+  margin: 10px 0 6px;
+  font-size: 0.85rem;
+  color: var(--color-primary-dark, #ff4f96);
+}
+
+.anniv-concert-box .anniv-section-title {
+  margin-top: 0;
+}
+
+.anniv-event-period {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--color-primary-light, #ffe1ee);
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+.anniv-more-button,
+.tv-more-button {
+  align-self: center;
+  margin: 8px auto 0;
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 111, 168, 0.5);
+  background: #fff;
+  color: var(--color-primary-dark, #ff4f96);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.anniv-rest-list {
+  margin-top: 8px;
+}
+
+.anniv-rest-list[hidden],
+.anniv-timeline[hidden],
+.anniv-cards[hidden],
+.anniv-detail[hidden],
+.tv-more-button[hidden] {
+  display: none;
+}
+
+.anniv-detail {
+  display: flex;
+  flex-direction: column;
+}
+
+.tv-item.is-milestone {
+  border: 2px solid var(--color-accent, #ffd93d);
+  background: #fffdf2;
+}
+
+.tv-milestone {
+  margin: 0 0 4px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #b07800;
+}
+
+.tv-filter-row {
+  display: flex;
+  gap: 8px;
+}
+
+.tv-year-select {
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  font: inherit;
+  font-size: 16px;
+  background: #fff;
+}
+
+.tv-item-details {
+  margin-top: 6px;
+  font-size: 0.72rem;
+}
+
+.tv-item-details summary {
+  cursor: pointer;
+  opacity: 0.75;
+}

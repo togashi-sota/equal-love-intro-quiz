@@ -51,6 +51,9 @@ const SCREEN_ELEMENTS = {
   workDetail: document.getElementById("work-detail-screen"),
   // 【2026-10-27新設】歴代センター一覧
   centers: document.getElementById("centers-screen"),
+  // 【2026-10-29新設】周年ヒストリー・音楽番組出演アーカイブ
+  anniversary: document.getElementById("anniversary-screen"),
+  tvAppearances: document.getElementById("tv-appearances-screen"),
   members: document.getElementById("members-screen"),
   memberDetail: document.getElementById("member-detail-screen"),
   playlists: document.getElementById("playlist-screen"),

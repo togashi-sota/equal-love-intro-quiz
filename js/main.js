@@ -299,6 +299,8 @@ import { initLiveGuideScreen, openLiveGuideScreen } from "./liveGuideScreen.js";
 import { initLiveHubScreen, openLiveHubScreen, goBackInLiveHub } from "./liveHubScreen.js";
 // 【2026-10-27新設】歴代センター一覧
 import { initCentersScreen, openCentersScreen } from "./centersScreen.js";
+import { initAnniversaryScreen, openAnniversaryScreen } from "./anniversaryScreen.js";
+import { initTvAppearancesScreen, openTvAppearancesScreen } from "./tvAppearancesScreen.js";
 import { initFanProfilesScreen, renderFanProfilesScreen } from "./fanProfilesScreen.js";
 import { initAdminBackupScreen, renderAdminBackupScreen } from "./adminBackupScreen.js";
 import { initAdminUidRepairScreen, resetAdminUidRepairScreen } from "./adminUidRepairScreen.js";
@@ -5844,6 +5846,12 @@ async function openSearchTarget(target) {
     } else if (target.kind === "liveHub") {
       // 【2026-10-28追加】【ライブ】ページの該当の表示（過去のライブの公演・ライブ映像のカード等）
       openLiveHubFrom(searchScreen, target);
+    } else if (target.kind === "anniversary") {
+      // 【2026-10-29追加】周年ヒストリーのその周年
+      openAnniversaryFrom(searchScreen, { period: target.period });
+    } else if (target.kind === "tvAppearances") {
+      // 【2026-10-29追加】音楽番組出演アーカイブのその回
+      openTvAppearancesFrom(searchScreen, { focusDate: target.focusDate });
     }
   }
   const landingScreen = document.body.dataset.screen;
@@ -5989,6 +5997,66 @@ document.getElementById("centers-link").addEventListener("click", () => {
 document.getElementById("centers-back-button").addEventListener("click", () => {
   playSfx(SFX_EVENTS.UI_BACK);
   navigateWithScrollMemory(centersReturnScreen);
+});
+
+// 【2026-10-29新設・本人の要望】「＝LOVEの歩み・周年ヒストリー」。入口は「＝LOVEについて」の年表タブ。
+// 出来事から、ライブ履歴・収録曲・作品・メンバー・音楽番組出演へ飛び、「戻る」で元の画面へ戻れるようにする。
+let anniversaryReturnScreen = "discography";
+function openAnniversaryFrom(returnScreen, options = {}) {
+  anniversaryReturnScreen = returnScreen && returnScreen !== "anniversary" ? returnScreen : "discography";
+  navigateWithScrollMemory("anniversary");
+  openAnniversaryScreen(options);
+}
+initAnniversaryScreen(
+  { container: document.getElementById("anniversary-content") },
+  {
+    onOpenTarget: (target) => {
+      if (target.kind === "live") openLiveHubFrom("anniversary", { view: "history", liveId: target.liveId });
+      else if (target.kind === "song") openSearchTarget({ kind: "song", songId: target.songId });
+      else if (target.kind === "work") openSearchTarget({ kind: "work", workId: target.workId });
+      else if (target.kind === "member") {
+        const member = MEMBERS.find((m) => m.id === target.memberId);
+        openSearchTarget(member?.status === MEMBER_STATUS.ACTIVE ? { kind: "member", memberId: target.memberId } : { kind: "membersList", memberId: target.memberId });
+      } else if (target.kind === "tv") openTvAppearancesFrom("anniversary", { focusDate: target.date });
+    },
+  }
+);
+// ホーム「＝LOVEをもっと知る」の入口（2026-10-29）
+document.getElementById("anniversary-home-link").addEventListener("click", () => {
+  playClickSound();
+  openAnniversaryFrom("start");
+});
+document.getElementById("tv-appearances-home-link").addEventListener("click", () => {
+  playClickSound();
+  openTvAppearancesFrom("start");
+});
+document.getElementById("anniversary-link").addEventListener("click", () => {
+  playClickSound();
+  openAnniversaryFrom("discography");
+});
+document.getElementById("anniversary-back-button").addEventListener("click", () => {
+  playSfx(SFX_EVENTS.UI_BACK);
+  navigateWithScrollMemory(anniversaryReturnScreen);
+});
+
+// 【2026-10-29新設・本人の要望】「音楽番組出演・披露曲アーカイブ」。入口は「＝LOVEについて」の年表タブと、周年ヒストリーの出来事・全体検索。
+let tvAppearancesReturnScreen = "discography";
+function openTvAppearancesFrom(returnScreen, options = {}) {
+  tvAppearancesReturnScreen = returnScreen && returnScreen !== "tvAppearances" ? returnScreen : "discography";
+  navigateWithScrollMemory("tvAppearances");
+  openTvAppearancesScreen(options);
+}
+initTvAppearancesScreen(
+  { container: document.getElementById("tv-appearances-content") },
+  { onOpenSong: (songId) => openSearchTarget({ kind: "song", songId }) }
+);
+document.getElementById("tv-appearances-link").addEventListener("click", () => {
+  playClickSound();
+  openTvAppearancesFrom("discography");
+});
+document.getElementById("tv-appearances-back-button").addEventListener("click", () => {
+  playSfx(SFX_EVENTS.UI_BACK);
+  navigateWithScrollMemory(tvAppearancesReturnScreen);
 });
 
 // 【2026-10-24新設】全体検索の上部「歌詞検索へ」：入力中の言葉は、歌詞検索の入力欄が空のときだけ引き継ぐ

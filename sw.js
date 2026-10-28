@@ -190,6 +190,13 @@ const APP_SHELL_FILES = [
   "./js/data/liveGuideContent.js",
   // 【2026-10-27追加】歴代センター一覧・ライブのセットリスト
   "./js/centersScreen.js",
+  "./js/anniversaryScreen.js",
+  "./js/anniversaryHistoryModel.js",
+  "./js/tvAppearancesScreen.js",
+  "./js/tvAppearanceModel.js",
+  "./js/data/anniversaryHistory.js",
+  "./js/data/tvAppearances.js",
+  "./css/historyPages.css",
   "./js/centerChart.js",
   "./js/setlistView.js",
   "./js/liveSetlistStats.js",

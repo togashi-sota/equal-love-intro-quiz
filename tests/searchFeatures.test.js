@@ -121,7 +121,7 @@ export async function runSearchFeaturesTests() {
   assertEqual(entries.filter((entry) => entry.key.startsWith("cm:")).length, COMMERCIALS.length, "C: CM・広告が全件検索対象（データ追加で自動的に増える）");
   assertEqual(entries.filter((entry) => entry.key.startsWith("live:")).length, LIVE_EVENTS.length, "C: ライブが全件検索対象");
   assertEqual(entries.filter((entry) => entry.key.startsWith("mode:")).length, SPECIAL_MODES.filter((mode) => mode.available).length, "C: 特別モードはSPECIAL_MODESから自動で組み立てる");
-  const allTargetsValid = entries.every((entry) => entry.action && ["member", "membersList", "discography", "work", "song", "guide", "feature", "liveHub"].includes(entry.action.target.kind));
+  const allTargetsValid = entries.every((entry) => entry.action && ["member", "membersList", "discography", "work", "song", "guide", "feature", "liveHub", "anniversary", "tvAppearances"].includes(entry.action.target.kind));
   assertEqual(allTargetsValid, true, "C: すべての項目に元ページへの移動先がある");
 
   const top = (query, category = "all") => searchAppEntries(entries, query, category).results.map(({ entry }) => entry.title);
@@ -138,7 +138,8 @@ export async function runSearchFeaturesTests() {
   // 正しい結果が1件増えたため、「ライブが先頭」かつ「結果が2件以内に絞られる」ことを確かめる形にした
   const yokohama2026 = top("横浜 2026");
   assertEqual(yokohama2026[0], "＝LOVE 8th ANNIVERSARY PREMIUM TOUR FINAL in 横浜スタジアム", "C: 空白区切りの複数語で絞り込める（ライブが先頭）");
-  assertEqual(yokohama2026.length <= 2, true, "C: 空白区切りの複数語で絞り込める（件数が絞られる）");
+  // 【2026-10-29】周年ヒストリー（9周年＝横浜スタジアム公演を含む）が加わり、正しい結果が増えたため上限を4件にした
+  assertEqual(yokohama2026.length <= 4, true, "C: 空白区切りの複数語で絞り込める（件数が絞られる）");
   assertEqual(top("バンテリン")[0], "＝LOVE DOME LIVE in NAGOYA「全ては＝LOVE」", "C: 追加したナゴヤ公演も検索できる");
   assertEqual(top("効果音")[0], "サウンド設定（効果音の詳細設定）", "C: 設定項目が見つかる");
   assertEqual(top("タイムアタック").includes("タイムアタック"), true, "C: 機能・ガイドが見つかる");

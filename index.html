@@ -34,6 +34,7 @@
   <link rel="stylesheet" href="css/liveHub.css">
   <!-- 【2026-10-28新設】歴代センターの「センター表」・フレンド一覧の重複整理と在席表示 -->
   <link rel="stylesheet" href="css/centersTable.css">
+  <link rel="stylesheet" href="css/historyPages.css">
   <link rel="stylesheet" href="css/friendsFix.css">
 </head>
 <body data-screen="start">
@@ -604,6 +605,26 @@
           </svg>
           <span class="know-more-label">ライブ初心者ガイド</span>
           <span class="know-more-description">準備・持ち物・ペンライト・マナー</span>
+        </button>
+        <!-- 【2026-10-29新設・本人の要望】周年ヒストリー（#anniversary-screen）・音楽番組出演アーカイブ（#tv-appearances-screen）への入口 -->
+        <button id="anniversary-home-link" class="know-more-button" type="button">
+          <svg class="know-more-icon" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+            <circle cx="16" cy="16" r="12" fill="#ffe1ee"/>
+            <path d="M16 6.5 18.6 12l6 .7-4.4 4.1 1.2 5.9L16 19.8l-5.4 2.9 1.2-5.9-4.4-4.1 6-.7Z" fill="#ff6fa8"/>
+            <circle cx="25" cy="7" r="2.6" fill="#ffd93d"/>
+          </svg>
+          <span class="know-more-label">＝LOVEの歩み</span>
+          <span class="know-more-description">1周年〜9周年の大きな出来事</span>
+        </button>
+        <button id="tv-appearances-home-link" class="know-more-button" type="button">
+          <svg class="know-more-icon" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+            <rect x="4" y="8" width="24" height="17" rx="3.5" fill="#6fbdf2"/>
+            <rect x="7" y="11" width="18" height="11" rx="2" fill="#dff2ff"/>
+            <path d="m12 4 4 4 4-4" stroke="#6fbdf2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M14 13.5v6l5-3Z" fill="#ff6fa8"/>
+          </svg>
+          <span class="know-more-label">音楽番組出演</span>
+          <span class="know-more-description">出演した番組と披露した曲</span>
         </button>
       </div>
 
@@ -5428,6 +5449,25 @@
       </div>
 
       <div id="discography-history-panel" class="tab-panel">
+        <!-- 【2026-10-29新設・本人の要望】周年ヒストリー（#anniversary-screen）・音楽番組出演アーカイブ（#tv-appearances-screen）への入口 -->
+        <div class="history-pages-entries">
+        <button id="anniversary-link" class="centers-entry-button" type="button">
+          <span class="centers-entry-swatches" aria-hidden="true"><span style="background:#ff6fa8"></span><span style="background:#ffd93d"></span><span style="background:#6fbdf2"></span><span style="background:#ffe1ee"></span></span>
+          <span class="centers-entry-text">
+            <span class="centers-entry-label">＝LOVEの歩み・周年ヒストリー</span>
+            <span class="centers-entry-description">1周年〜9周年の大きな出来事を、周年ごとに振り返る</span>
+          </span>
+          <span class="centers-entry-arrow" aria-hidden="true">→</span>
+        </button>
+        <button id="tv-appearances-link" class="centers-entry-button" type="button">
+          <span class="centers-entry-swatches" aria-hidden="true"><span style="background:#6fbdf2"></span><span style="background:#ff6fa8"></span><span style="background:#dff2ff"></span><span style="background:#ffd93d"></span></span>
+          <span class="centers-entry-text">
+            <span class="centers-entry-label">音楽番組出演・披露曲アーカイブ</span>
+            <span class="centers-entry-description">Mステ・CDTV・うたコン…出演した番組と披露した曲を探す</span>
+          </span>
+          <span class="centers-entry-arrow" aria-hidden="true">→</span>
+        </button>
+        </div>
         <div id="discography-timeline"></div>
       </div>
 
@@ -5493,6 +5533,46 @@
         </div>
       </div>
       <div id="centers-content" class="centers-content"></div>
+    </section>
+
+    <!-- 【2026-10-29新設・本人の要望】＝LOVEの歩み（中身は js/anniversaryScreen.js が組み立てる） -->
+    <section id="anniversary-screen" class="screen">
+      <div class="list-header">
+        <button id="anniversary-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            HISTORY
+          </p>
+          <h2>＝LOVEの歩み</h2>
+        </div>
+      </div>
+      <div id="anniversary-content" class="history-pages-content"></div>
+    </section>
+
+    <!-- 【2026-10-29新設・本人の要望】音楽番組出演アーカイブ（中身は js/tvAppearancesScreen.js が組み立てる） -->
+    <section id="tv-appearances-screen" class="screen">
+      <div class="list-header">
+        <button id="tv-appearances-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            ON AIR
+          </p>
+          <h2>音楽番組出演アーカイブ</h2>
+        </div>
+      </div>
+      <div id="tv-appearances-content" class="history-pages-content"></div>
     </section>
 
     <!-- メンバー一覧画面：現役メンバー（出席番号順）と、卒業メンバーの簡易紹介をまとめる画面。

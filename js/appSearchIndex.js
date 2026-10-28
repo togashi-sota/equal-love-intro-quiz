@@ -15,6 +15,10 @@ import { GROUP_ACTIVITIES } from "./data/groupActivities.js";
 import { STAGE_PRODUCTIONS, VOICE_APPEARANCES } from "./data/memberStageVoice.js";
 import { COMMERCIALS } from "./data/commercials.js";
 import { LIVE_EVENTS, LIVE_STATUS } from "./data/liveHistory.js";
+import { TV_APPEARANCES } from "./data/tvAppearances.js";
+import { ANNIVERSARY_PERIODS, ANNIVERSARY_EVENTS } from "./data/anniversaryHistory.js";
+import { buildAnniversaryModel, formatPeriodRange } from "./anniversaryHistoryModel.js";
+import { seriesOf, TV_SERIES_ALIASES } from "./tvAppearanceModel.js";
 // 【2026-10-27追加】公演カードのセットリスト（曲名でも公演が見つかるようにする）
 import { SETLIST_PERFORMANCES, LIVE_VIDEO_PRODUCTS } from "./data/setlists.js";
 import { describeVideoEditions, describeVideoStreaming, findVideosForSong, buildOfficialProductLinks } from "./liveSetlistStats.js";
@@ -493,6 +497,53 @@ function buildFeatureEntries({ specialModes, features }) {
 }
 
 // 検索対象の全項目を組み立てる。sources を省略すると、アプリの既存データをそのまま使う。
+// ---- 音楽番組出演（2026-10-29追加）：1回の放送＝1件。番組名・曲名・年で見つかり、「音楽番組出演アーカイブ」のその回を開く ----
+function buildTvAppearanceEntries({ tvAppearances = TV_APPEARANCES }) {
+  return tvAppearances.map((entry) => {
+    const year = String(entry.date).slice(0, 4);
+    const songTitles = (entry.songs ?? []).map((song) => song.title);
+    const collabTitles = (entry.collabs ?? []).map((collab) => `${collab.title ?? ""}${collab.with ? `（${collab.with}）` : ""}`);
+    return createEntry({
+      key: `tv:${entry.date}:${entry.program}`,
+      category: "program",
+      title: `${entry.program}`,
+      subtitle: `音楽番組出演／${entry.date.replaceAll("-", "/")}${entry.station ? `・${entry.station}` : ""}`,
+      lines: [
+        songTitles.length ? `披露曲：${songTitles.join("、")}` : "披露曲：未確認",
+        collabTitles.length ? `コラボ・カバー：${collabTitles.join("、")}` : null,
+        entry.confidence !== "確認済み" ? `確度：${entry.confidence}` : null,
+      ],
+      action: { label: "音楽番組出演アーカイブで見る", target: { kind: "tvAppearances", focusDate: entry.date } },
+      terms: {
+        // 番組名は「見出し」より一段下げる（140件あるので、メンバー・曲・ライブの結果より上に並ばないように。
+        // 「Mステ」「CDTV」などのシリーズ名は別名として強く一致させる）
+        aliases: TV_SERIES_ALIASES[seriesOf(entry)] ?? [],
+        secondary: [entry.program, entry.station, `${year}年`, year, "音楽番組", "歌番組", "テレビ出演", entry.milestone],
+        body: [...songTitles, ...collabTitles, entry.notes],
+      },
+    });
+  });
+}
+
+// ---- 周年ヒストリー（2026-10-29追加）：周年ごとに1件。出来事の名前で見つかり、「＝LOVEの歩み」のその周年を開く ----
+function buildAnniversaryEntries({ anniversaryPeriods = ANNIVERSARY_PERIODS, anniversaryEvents = ANNIVERSARY_EVENTS }) {
+  return buildAnniversaryModel(anniversaryPeriods, anniversaryEvents).map((entry) =>
+    createEntry({
+      key: `anniversary:${entry.period}`,
+      category: "live",
+      title: `${entry.label}（＝LOVEの歩み）`,
+      subtitle: `周年ヒストリー${formatPeriodRange(entry) ? `／${formatPeriodRange(entry)}` : ""}`,
+      lines: entry.headlines.map((event) => `★ ${event.title}`),
+      action: { label: "周年ヒストリーで見る", target: { kind: "anniversary", period: entry.period } },
+      terms: {
+        primary: [entry.label],
+        secondary: ["周年", "周年ヒストリー", "歩み", "年表", entry.anniversaryVenue],
+        body: entry.events.map((event) => event.title),
+      },
+    })
+  );
+}
+
 export function buildAppSearchEntries(sources = {}) {
   const resolved = {
     songs: SONGS,
@@ -518,6 +569,8 @@ export function buildAppSearchEntries(sources = {}) {
     ...buildCommercialEntries(resolved),
     ...buildLiveEntries(resolved),
     ...buildLiveVideoEntries(resolved),
+    ...buildAnniversaryEntries(resolved),
+    ...buildTvAppearanceEntries(resolved),
     ...buildStageVoiceEntries(resolved),
     ...buildActivityEntries(resolved),
     ...buildGuideEntries(resolved),

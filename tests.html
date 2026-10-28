@@ -138,6 +138,7 @@
     import { runLiveGuideAndSearchSwitchTests } from "./tests/liveGuideAndSearchSwitch.test.js";
     // 【2026-10-27新設】歴代センター一覧・ライブのセットリスト
     import { runCentersAndSetlistsTests } from "./tests/centersAndSetlists.test.js";
+    import { runHistoryPagesTests } from "./tests/historyPages.test.js";
     // 【2026-10-28新設】ライブページ・ID／在席の修正・歌詞クイズの重複フレーズ対策
     import { runLiveHubTests } from "./tests/liveHub.test.js";
     import { runIdentityPresenceFixTests } from "./tests/identityPresenceFix.test.js";
@@ -404,6 +405,7 @@
     await runSyncTrackingTests();
     await runLiveGuideAndSearchSwitchTests();
     runCentersAndSetlistsTests();
+    runHistoryPagesTests();
     runCallTextModeTests();
     await runCallTextModeMarkupTests();
     await runCallTextEditsTests();
