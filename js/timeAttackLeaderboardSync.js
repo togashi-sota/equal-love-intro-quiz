@@ -33,7 +33,7 @@ import {
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 import { database, authReady, getCurrentUid } from "./firebaseClient.js";
-import { getActivePlayer, getOrCreateBackupId } from "./playerProfile.js";
+import { getActivePlayer, getOrCreateBackupId, getKnownOldUidsForPlayer } from "./playerProfile.js";
 import { getMostOshiMemberId } from "./oshiMembers.js";
 import { isPublicProfileSharingEnabled } from "./publicProfilePayloads.js";
 import { getTimeAttackHistoryEntries } from "./timeAttackHistory.js";
@@ -48,9 +48,10 @@ import {
   isValidLeaderboardCandidate,
   isSupportedLeaderboardDimension,
   computeLeaderboardIdentityKey,
+  selectLeaderboardSupersessionCandidates,
   LEADERBOARD_TOP_FETCH_LIMIT,
 } from "./timeAttackLeaderboard.js";
-import { autoMergeSupersededLeaderboardEntries } from "./uidSupersession.js";
+import { autoMergeSupersededLeaderboardEntries, fetchSupersessionLinks } from "./uidSupersession.js";
 import { ensureIdentityBootstrap, canAutoSyncToCloud } from "./identityBootstrap.js";
 
 // 【2026-09-22追加：本人確認の関門（js/identityBootstrap.js）】クラウドへ自分名義で書く前に必ず通す。
@@ -190,6 +191,23 @@ export async function submitTimeAttackScoreIfBetter({
   }
 }
 
+// 【2026-10-28追加】ランキングの統合に使う「検証済みのつながり」を集める。
+//   ・supersessionLinks：同じ identityKey の記録が2件以上あるUIDだけ（目印として使うだけ）、uidSupersession/{UID}/newUid を読む。
+//     今の本番 Rules では読めない（最初の拒否でそのセッションは読まない）＝つながり無し＝まとめない（安全側）
+//   ・ownPreviousUids：この端末の整理待ちの列にある自分の旧UID（自分の記録だけをまとめる）
+async function resolveLeaderboardIdentityLinks(collectedEntries) {
+  const selfUid = getCurrentUid();
+  let ownPreviousUids = [];
+  try {
+    ownPreviousUids = getKnownOldUidsForPlayer(getActivePlayer().playerId, selfUid);
+  } catch {
+    ownPreviousUids = [];
+  }
+  const candidates = selectLeaderboardSupersessionCandidates(collectedEntries, { selfUid });
+  const supersessionLinks = candidates.length ? await fetchSupersessionLinks(candidates) : {};
+  return { supersessionLinks, ownPreviousUids, selfUid };
+}
+
 // TOP10を取得する。サーバー側のquery（orderByChild+limitToFirst）で絞り込むため、
 // 全記録をダウンロードすることはない。
 // 【2026-09-22改訂】同じ identityKey（同一人物）の記録は最良の1件に統合してから TOP10 にする
@@ -225,7 +243,9 @@ export async function fetchTimeAttackLeaderboardTop10(variant, questionCountValu
       const hasMore = page.length >= LEADERBOARD_TOP_FETCH_LIMIT && last && Number.isFinite(Number(last.raw?.clearTimeMs));
       return { entries, nextCursor: hasMore ? { clearTimeMs: Number(last.raw.clearTimeMs), uid: last.uid } : null };
     };
-    const entries = await collectUniqueTopEntries(fetchPage);
+    // 【2026-10-28再改訂】同じ人としてまとめるのは「検証済みのつながり」があるときだけ
+    // （uidSupersession/{旧UID}/newUid と、この端末が知っている自分の旧UID）。identityKey・名前の一致ではまとめない。
+    const entries = await collectUniqueTopEntries(fetchPage, { resolveIdentity: resolveLeaderboardIdentityLinks });
     return { ok: true, entries };
   } catch (error) {
     console.warn("タイムアタックランキングの取得に失敗しました", error);

@@ -97,7 +97,8 @@ export function runIdentityRulesInvariantTests() {
     assertEqual(write("uid-old", baseRecord({ clearTimeMs: 8114, identityKey: KEY_A })), true, "I: 旧UIDの記録");
     assertEqual(write("uid-new", baseRecord({ clearTimeMs: 8114, identityKey: KEY_A })), true, "I: 新UIDの記録（同じ本人キー）");
     const both = ["uid-old", "uid-new"].map((uid) => normalizeLeaderboardEntry(uid, store.get(uid)));
-    assertEqual(dedupeLeaderboardEntriesByIdentity(sortLeaderboardEntries(both)).length, 1, "I: 同じ本人キーは表示で1人");
+    assertEqual(dedupeLeaderboardEntriesByIdentity(sortLeaderboardEntries(both)).length, 2, "I: 【2026-10-28】同じ本人キーだけでは表示でまとめない（書き写せる値のため）");
+    assertEqual(dedupeLeaderboardEntriesByIdentity(sortLeaderboardEntries(both), { supersessionLinks: { "uid-old": "uid-new" } }).length, 1, "I: 検証済みの対応表（旧UID→新UID）があれば表示で1人");
     const successorDelete = evaluateLeaderboardV3Write({ authUid: "uid-new", targetUid: "uid-old", supersessionMap: { "uid-old": { newUid: "uid-new" } }, existing: store.get("uid-old"), incoming: null });
     assertEqual(successorDelete.allowed, true, "I: 引き継ぎで旧UIDの記録を後継者が削除できる → 保存先も1件");
   }

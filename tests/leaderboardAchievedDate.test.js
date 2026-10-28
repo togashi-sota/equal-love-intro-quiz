@@ -92,7 +92,7 @@ export function runLeaderboardAchievedDateTests() {
   // ---- 順位・統合に影響しない（表示専用） ----
   const a = normalizeLeaderboardEntry("a", { clearTimeMs: 5000, missCount: 0, achievedAt: jst("2026-09-01T00:00:00"), identityKey: KEY_A });
   const b = normalizeLeaderboardEntry("b", { clearTimeMs: 5000, missCount: 0, achievedAt: jst("2026-08-01T00:00:00"), identityKey: KEY_A });
-  assertEqual(dedupeLeaderboardEntriesByIdentity(sortLeaderboardEntries([a, b])).map((e) => e.uid), ["b"], "同タイムは登録日時が早い方が残る（既存の tie-break は不変）");
+  assertEqual(dedupeLeaderboardEntriesByIdentity(sortLeaderboardEntries([a, b]), { supersessionLinks: { a: "b" } }).map((e) => e.uid), ["b"], "同タイムは登録日時が早い方が残る（既存の tie-break は不変）");
 }
 
 // ---- J／K／L. 実際の行 DOM：全カードに日付・スマホ幅で崩れない・管理者情報ありでも崩れない ----

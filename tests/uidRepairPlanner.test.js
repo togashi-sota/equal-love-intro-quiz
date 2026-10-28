@@ -388,7 +388,9 @@ export async function runLeaderboardPaginationTests() {
     for (let i = 0; i < 25; i += 1) all.push(makeEntry(`dupA-${i}`, 1000 + i, KEY_A));
     for (let i = 0; i < 20; i += 1) all.push(makeEntry(`other-${i}`, 5000 + i, `${"c".repeat(60)}${String(i).padStart(4, "0")}`));
     const { fetchPage, pageCalls } = createFakeFetcher(all, 30);
-    const top = await collectUniqueTopEntries(fetchPage, { displayCount: 10 });
+    // 【2026-10-28】同じ人の判定は検証済みのつながり（対応表）だけ。dupA-1〜24 は dupA-0 の旧UID
+    const resolveIdentity = async () => ({ supersessionLinks: Object.fromEntries(Array.from({ length: 24 }, (_, i) => ["dupA-" + (i + 1), "dupA-0"])) });
+    const top = await collectUniqueTopEntries(fetchPage, { displayCount: 10, resolveIdentity });
     assertEqual(top.length, 10, "Q: 重複が多くてもユニーク10人");
     assertEqual(top[0].uid, "dupA-0", "Q: 同一人物Aは最良の1件だけ");
     assertEqual(top.slice(1).map((e) => e.uid), ["other-0", "other-1", "other-2", "other-3", "other-4", "other-5", "other-6", "other-7", "other-8"], "Q: 31件目以降の別ユーザーが正しく繰り上がる");
@@ -401,7 +403,8 @@ export async function runLeaderboardPaginationTests() {
     for (let i = 0; i < 40; i += 1) all.push(makeEntry(`dupA-${i}`, 1000 + i, KEY_A));
     for (let i = 0; i < 6; i += 1) all.push(makeEntry(`u-${i}`, 3000 + i, `${"d".repeat(60)}${String(i).padStart(4, "0")}`));
     const { fetchPage, pageCalls } = createFakeFetcher(all, 30);
-    const top = await collectUniqueTopEntries(fetchPage, { displayCount: 10 });
+    const resolveIdentity = async () => ({ supersessionLinks: Object.fromEntries(Array.from({ length: 39 }, (_, i) => ["dupA-" + (i + 1), "dupA-0"])) });
+    const top = await collectUniqueTopEntries(fetchPage, { displayCount: 10, resolveIdentity });
     assertEqual(top.length, 7, "R: 存在するユニークが7人なら7人で終わる");
     assertEqual(pageCalls(), 2, "R: データが尽きたら止まる（46件＝2ページ）");
   }
@@ -413,9 +416,14 @@ export async function runLeaderboardPaginationTests() {
       calls += 1;
       return { entries: [makeEntry(`x-${calls}`, calls, KEY_B)], nextCursor: { index: calls } };
     };
-    const top = await collectUniqueTopEntries(fetchPage, { displayCount: 10, maxPages: 5 });
+    const resolveIdentity = async (collected) => ({ supersessionLinks: Object.fromEntries(collected.filter((e) => e.uid !== "x-1").map((e) => [e.uid, "x-1"])) });
+    const top = await collectUniqueTopEntries(fetchPage, { displayCount: 10, maxPages: 5, resolveIdentity });
     assertEqual(calls, 5, "maxPages で止まる");
     assertEqual(top.length, 1, "統合後の結果を返す");
+    const noLinks = await collectUniqueTopEntries(async () => ({ entries: [makeEntry("y-1", 1, KEY_B), makeEntry("y-2", 2, KEY_B)], nextCursor: null }));
+    assertEqual(noLinks.length, 2, "【2026-10-28】つながりが無ければ、同じ本人キーでも別の人として残す");
+    const brokenResolver = await collectUniqueTopEntries(async () => ({ entries: [makeEntry("z-1", 1, KEY_B)], nextCursor: null }), { resolveIdentity: async () => { throw new Error("x"); } });
+    assertEqual(brokenResolver.length, 1, "【2026-10-28】つながりの取得に失敗しても表示は続ける（統合しないだけ）");
     assertEqual(LEADERBOARD_TOP_MAX_PAGES, 20, "既定の上限ページ数は20");
   }
 
@@ -440,6 +448,6 @@ export async function runLeaderboardPaginationTests() {
   const sync = await (await fetch("js/timeAttackLeaderboardSync.js", { cache: "no-store" })).text();
   assertEqual(sync.includes("if (cursor) constraints.push(startAt(cursor.clearTimeMs, cursor.uid));"), true, "sync: 次ページは startAt(clearTimeMs, uid) から");
   assertEqual(sync.includes("snapshot.forEach((child) => {"), true, "sync: 取得順は forEach で保つ（val() は順序を失う）");
-  assertEqual(sync.includes("const entries = await collectUniqueTopEntries(fetchPage);"), true, "sync: ユニークTOP10 は collectUniqueTopEntries で作る");
+  assertEqual(sync.includes("const entries = await collectUniqueTopEntries(fetchPage, { resolveIdentity: resolveLeaderboardIdentityLinks });"), true, "sync: ユニークTOP10 は collectUniqueTopEntries で作る（検証済みのつながりで統合）");
   assertEqual(sync.includes("limitToFirst(LEADERBOARD_TOP_FETCH_LIMIT + (cursor ? 1 : 0))"), true, "sync: 2ページ目以降は重なる1件ぶん多く取る");
 }

@@ -3,6 +3,8 @@
 //
 // 中身は3つ：
 //   ① 🧭 以前のあなた／現在のあなた … 比べる（読み取りのみ）→ 整理する（試算を見る）→ 本当に整理する（確認つき）→ 元に戻す
+//      【2026-10-28追加】実行結果の内訳（衝突した項目・戻した／戻さなかった項目）、保留だけのときの「控えだけ記録する」、
+//      保留の控えの一覧と「控えを削除する（確認済み）」（確認つき。押すと控えを削除する＝js/identityMergeRunner.js の confirmHold() の動き）
 //   ② 🔑 管理者の確認コード … 今のIDの表示とコピー、Console で admins に追加する手順（権限は一切与えない）
 //   ③ 🛡 アカウントを保護する（任意・既定は非表示） … メール＋パスワードを今のアカウントに結び付ける／メールでログインし直す
 // 計算・判定は純粋関数（js/identityDataComparison.js・js/identityMergeRunner.js・js/accountRecovery.js）。ここは画面と配線だけ。
@@ -16,13 +18,86 @@ import {
   createAccountProtection,
   describeProtectionStatus,
 } from "./accountRecovery.js";
-import { comparePublicIdentity, describePublicIdentityComparison } from "./identityDataComparison.js";
+import { comparePublicIdentity, describePublicIdentityComparison, classifyBackupKey, CATEGORY_LABELS } from "./identityDataComparison.js";
 import { summarizeUidMergeQueue } from "./uidMergeQueue.js";
 
 let root = null;
 let ctx = null;
 let lastComparison = null;
 let mergeRunner = null;
+
+// ---- 整理の結果を「ふつうの日本語」にする純粋関数（DOM に触れない。tests/accountMergePanel.test.js で確認） ----
+// 論理キー（例 "achievements"・"highScore.xxx"）を、画面に出す記録の種類名へ。
+export function describeMergeKeyLabel(key) {
+  if (typeof key !== "string" || !key) return "記録";
+  return CATEGORY_LABELS[classifyBackupKey(key)] ?? "記録";
+}
+
+// 実行役（js/identityMergeRunner.js）の rollback・undoLast の項目（"端末:キー"／"クラウド:キー"）を読みやすく
+function describeRollbackItem(item) {
+  const text = String(item ?? "");
+  const sep = text.indexOf(":");
+  const where = sep >= 0 ? text.slice(0, sep) : "";
+  const key = sep >= 0 ? text.slice(sep + 1) : text;
+  const place = where === "クラウド" ? "クラウドのバックアップ" : where === "端末" ? "この端末" : "";
+  return place ? `${place}の「${describeMergeKeyLabel(key)}」` : `「${describeMergeKeyLabel(key)}」`;
+}
+
+// execute() の結果 → 画面の行（conflicts・rollback・保留を説明する）
+export function describeMergeExecuteResult(result) {
+  const lines = [];
+  if (!result) return lines;
+  const conflicts = Array.isArray(result.conflicts) ? result.conflicts : [];
+  conflicts.forEach((c) => {
+    const place = c?.where === "クラウド" ? "クラウドのバックアップ" : "この端末";
+    lines.push(`⚠ ${place}の「${describeMergeKeyLabel(c?.key)}」：${c?.message ?? "途中で別の操作が記録を変えたため、整理しませんでした"}`);
+  });
+  const rollback = result.rollback;
+  if (rollback) {
+    (rollback.restored ?? []).forEach((item) => lines.push(`↩ ${describeRollbackItem(item)}は、この整理の前の値に戻しました`));
+    (rollback.keptBecauseChanged ?? []).forEach((item) => lines.push(`・${describeRollbackItem(item)}は、別の端末・別のタブで新しく変わっていたので戻しませんでした（新しい記録をそのまま残しています）`));
+  }
+  if (result.ok && (result.heldKeyCount ?? 0) > 0) {
+    lines.push(`・保留の項目 ${result.heldKeyCount}種類（苦手曲の集計など）は統合していません。以前の値と現在の値を控えに記録しただけです（下の「保留の控え」で確認できます）`);
+  }
+  return lines;
+}
+
+// undoLast() の結果 → 画面の行
+export function describeMergeUndoResult(result) {
+  if (!result) return [];
+  if (!result.ok) return [result.reason ?? "元に戻せませんでした"];
+  const lines = [`整理前の状態に戻しました（この端末の記録 ${result.restoredKeyCount ?? 0}種類）`];
+  (result.keptBecauseChanged ?? []).forEach((item) => lines.push(`・${describeRollbackItem(item)}は、別の端末で新しく変わったので戻しませんでした`));
+  return lines;
+}
+
+function formatHoldDate(ms) {
+  if (typeof ms !== "number" || !Number.isFinite(ms)) return "日時不明";
+  const d = new Date(ms);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// listHolds() の1件 → 画面の1行
+export function describeMergeHold(hold) {
+  const items = Array.isArray(hold?.items) ? hold.items : [];
+  const notMergeable = items.filter((h) => h?.reason === "not-mergeable");
+  const kept = items.filter((h) => h?.reason !== "not-mergeable");
+  const overwritten = Array.isArray(hold?.overwritten) ? hold.overwritten : [];
+  const names = (list) => [...new Set(list.map((h) => describeMergeKeyLabel(h?.key)))].join("・");
+  const parts = [];
+  if (notMergeable.length) parts.push(`統合していない保留 ${notMergeable.length}種類（${names(notMergeable)}）`);
+  if (kept.length) parts.push(`今の値を残した項目の以前の値 ${kept.length}種類（${names(kept)}）`);
+  if (overwritten.length) parts.push(`整理で書き換えた項目の整理前の値 ${overwritten.length}種類`);
+  return `${formatHoldDate(hold?.savedAt)} の整理の控え：${parts.length ? parts.join("・") : "中身なし"}`;
+}
+
+// 「控えを削除する（確認済み）」の確認文（js/identityMergeRunner.js の confirmHold() が実際にすることだけを書く）
+export const CONFIRM_HOLD_MESSAGE =
+  "「控えを削除する（確認済み）」と、この控え（整理前の以前の値・現在の値の写し）をこの端末から削除します。次のバックアップ同期で、クラウドのバックアップに入っている控えからも消えます。" +
+  "苦手曲の集計など保留した項目の以前の値は、この控えにしか残っていないことがあり、削除すると元に戻せません。" +
+  "整理した記録そのもの（称号・履歴など、この端末の今の記録）は消えません。本当に確認済みにしますか？";
 
 function el(tag, { className = "", text = "", attrs = {} } = {}) {
   const node = document.createElement(tag);
@@ -66,8 +141,13 @@ function applyUrlFlag() {
 
 async function getMergeRunner() {
   if (!mergeRunner) {
-    const { createAppIdentityMergeRunner } = await import("./identityMergeRunner.js");
-    mergeRunner = await createAppIdentityMergeRunner();
+    // テストでは context.createMergeRunner で偽の実行役を渡す（Firebase を読み込まない）
+    if (typeof ctx?.createMergeRunner === "function") {
+      mergeRunner = await ctx.createMergeRunner();
+    } else {
+      const { createAppIdentityMergeRunner } = await import("./identityMergeRunner.js");
+      mergeRunner = await createAppIdentityMergeRunner();
+    }
   }
   return mergeRunner;
 }
@@ -94,17 +174,83 @@ function buildComparisonSection() {
   const confirmYes = el("button", { className: "account-recovery-button is-primary", text: "本当に整理する", attrs: { type: "button" } });
   const confirmNo = el("button", { className: "account-recovery-button", text: "やめる", attrs: { type: "button" } });
   confirmBox.append(confirmYes, confirmNo);
+  const confirmText = confirmBox.children[0];
+  const heldOnlyNote = el("p", {
+    className: "account-recovery-note",
+    text: "自動で整理できる違いはありません。保留の項目（苦手曲の集計など）は統合せず、以前の値と現在の値を「控え」として記録するだけです（この端末の記録もクラウドの記録も書き換えません）。",
+  });
+  heldOnlyNote.dataset.role = "merge-held-only-note";
   const undoButton = el("button", { className: "account-recovery-button", text: "直前の整理を元に戻す", attrs: { type: "button" } });
   const reloadButton = el("button", { className: "account-recovery-button", text: "画面を読み込み直す", attrs: { type: "button" } });
   const status = el("p", { className: "account-recovery-status", attrs: { role: "status" } });
-  [publicList, backupList, dryRunButton, dryRunList, executeButton, confirmBox, undoButton, reloadButton, status].forEach((n) => {
+  // 実行・元に戻すの結果の内訳（衝突・戻した／戻さなかった項目・保留）
+  const resultList = el("ul", { className: "account-recovery-list" });
+  resultList.dataset.role = "merge-result";
+  // 保留の控え（本人が確かめて「確認済み」にするまで消えない）
+  const holdsBox = el("div", { className: "account-recovery-holds" });
+  holdsBox.dataset.role = "merge-holds";
+  [publicList, backupList, dryRunButton, dryRunList, heldOnlyNote, executeButton, confirmBox, undoButton, reloadButton, status, resultList, holdsBox].forEach((n) => {
     n.hidden = true;
   });
-  section.append(compareButton, queueLine, publicList, backupList, dryRunButton, dryRunList, executeButton, confirmBox, undoButton, reloadButton, status);
+  section.append(compareButton, queueLine, publicList, backupList, dryRunButton, dryRunList, heldOnlyNote, executeButton, confirmBox, undoButton, reloadButton, status, resultList, holdsBox);
 
   const setStatus = (text) => {
     status.textContent = text;
     status.hidden = !text;
+  };
+  const setResultLines = (lines) => setLines(resultList, lines);
+
+  // ---- 保留の控えの一覧と「控えを削除する（確認済み）」（確認つき） ----
+  const renderHolds = (runner) => {
+    holdsBox.innerHTML = "";
+    let holds = [];
+    try {
+      holds = typeof runner?.listHolds === "function" ? runner.listHolds() : [];
+    } catch {
+      holds = [];
+    }
+    holdsBox.hidden = holds.length === 0;
+    if (holds.length === 0) return;
+    holdsBox.appendChild(el("h5", { className: "account-recovery-title", text: `📦 保留の控え（${holds.length}件）` }));
+    holdsBox.appendChild(
+      el("p", {
+        className: "account-recovery-note",
+        text: "整理の前に、以前の値と現在の値をここに控えています。中身を確かめて問題が無ければ「控えを削除する（確認済み）」を押してください。押さない限り、控えは自動では消えません。",
+      })
+    );
+    holds.forEach((hold) => {
+      const row = el("div", { className: "account-recovery-hold" });
+      row.dataset.holdId = hold.id;
+      row.appendChild(el("p", { className: "account-recovery-line", text: describeMergeHold(hold) }));
+      const confirmHoldButton = el("button", { className: "account-recovery-button", text: "控えを削除する（確認済み）", attrs: { type: "button" } });
+      const holdConfirm = el("div", { className: "account-recovery-confirm" });
+      holdConfirm.appendChild(el("p", { text: CONFIRM_HOLD_MESSAGE }));
+      const holdYes = el("button", { className: "account-recovery-button is-primary", text: "はい、控えを削除する", attrs: { type: "button" } });
+      const holdNo = el("button", { className: "account-recovery-button", text: "やめる", attrs: { type: "button" } });
+      holdConfirm.append(holdYes, holdNo);
+      holdConfirm.hidden = true;
+      row.append(confirmHoldButton, holdConfirm);
+      confirmHoldButton.addEventListener("click", () => {
+        holdConfirm.hidden = false;
+      });
+      holdNo.addEventListener("click", () => {
+        holdConfirm.hidden = true;
+      });
+      holdYes.addEventListener("click", async () => {
+        holdYes.disabled = true;
+        try {
+          const r = await getMergeRunner();
+          const result = await r.confirmHold(hold.id, { confirmed: true });
+          setStatus(result?.ok ? "控えを削除しました（確認済み）" : result?.reason ?? "控えを削除できませんでした");
+          renderHolds(r);
+        } catch (error) {
+          setStatus(`確認済みにできませんでした（${error?.message ?? "不明"}）。控えはそのまま残っています`);
+        } finally {
+          holdYes.disabled = false;
+        }
+      });
+      holdsBox.appendChild(row);
+    });
   };
 
   const refreshQueueLine = () => {
@@ -121,7 +267,7 @@ function buildComparisonSection() {
   compareButton.addEventListener("click", async () => {
     compareButton.disabled = true;
     setStatus("比べています（読み取りだけで、何も書き換えません）…");
-    [dryRunList, executeButton, confirmBox].forEach((n) => {
+    [dryRunList, heldOnlyNote, executeButton, confirmBox, resultList].forEach((n) => {
       n.hidden = true;
     });
     try {
@@ -141,6 +287,7 @@ function buildComparisonSection() {
         dryRunButton.hidden = false;
       }
       undoButton.hidden = !runner.hasUndo();
+      renderHolds(runner);
       setStatus("");
     } catch (error) {
       setStatus(`比べられませんでした（${error?.code ?? error?.message ?? "通信エラー"}）。電波の良い場所でもう一度お試しください`);
@@ -153,15 +300,27 @@ function buildComparisonSection() {
     const runner = await getMergeRunner();
     const result = runner.dryRun(lastComparison);
     setLines(dryRunList, result.lines);
-    executeButton.hidden = !result.ok || result.changedKeyCount === 0;
+    setResultLines([]);
+    // 【2026-10-28】保留の項目だけ（自動で整理できる違いが0種類）でも、控えを記録するために実行できるようにする
+    const heldCount = Math.max(result.heldKeyCount ?? 0, (lastComparison?.plan?.held ?? []).length);
+    const heldOnly = result.ok && result.changedKeyCount === 0 && heldCount > 0;
+    const actionable = result.ok && (result.changedKeyCount > 0 || heldCount > 0);
+    executeButton.hidden = !actionable;
     executeButton.disabled = !result.canExecute;
+    executeButton.textContent = heldOnly ? "控えだけ記録する（統合はしません）" : "この内容で整理する";
     executeButton.title = result.canExecute ? "" : "本人の確認が取れていないため実行できません";
-    if (result.ok && result.changedKeyCount > 0 && !result.canExecute) {
+    heldOnlyNote.hidden = !heldOnly;
+    executeButton.dataset.heldOnly = String(heldOnly);
+    if (actionable && !result.canExecute) {
       setStatus(`試算だけ表示しています。本人の確認が取れていないため実行はできません（${lastComparison.proof.reasons.join("／")}）`);
     } else setStatus("これは試算です。まだ何も書き換えていません");
   });
 
   executeButton.addEventListener("click", () => {
+    confirmText.textContent =
+      executeButton.dataset.heldOnly === "true"
+        ? "保留の項目（苦手曲の集計など）の以前の値と現在の値を、この端末に控えとして記録します（次のバックアップ同期でクラウドにも入ります）。統合はせず、記録そのものは書き換えません。記録しますか？"
+        : "整理する前に、書き換える記録の今の値をこの端末に控えます（「直前の整理を元に戻す」で戻せます）。本当に整理しますか？";
     confirmBox.hidden = false;
   });
   confirmNo.addEventListener("click", () => {
@@ -174,16 +333,29 @@ function buildComparisonSection() {
       const runner = await getMergeRunner();
       const result = await runner.execute(lastComparison, { confirmed: true });
       confirmBox.hidden = true;
+      setResultLines(describeMergeExecuteResult(result));
+      renderHolds(runner);
       if (!result.ok) {
         setStatus(result.reason);
+        undoButton.hidden = !runner.hasUndo();
         return;
       }
       executeButton.hidden = true;
+      heldOnlyNote.hidden = true;
       dryRunList.hidden = true;
       undoButton.hidden = !runner.hasUndo();
-      reloadButton.hidden = false;
-      setStatus(`整理しました（${result.changedKeyCount}種類の記録）。表示を最新にするため「画面を読み込み直す」を押してください`);
-      ctx.onMerged?.();
+      if (result.changedKeyCount > 0) {
+        reloadButton.hidden = false;
+        const conflictNote = (result.conflicts ?? []).length ? `。整理しなかった項目が ${(result.conflicts ?? []).length}件あります（下の内訳）` : "";
+        setStatus(`整理しました（${result.changedKeyCount}種類の記録）${conflictNote}。表示を最新にするため「画面を読み込み直す」を押してください`);
+        ctx.onMerged?.();
+      } else if ((result.conflicts ?? []).length) {
+        setStatus("途中で別の操作が記録を変えたため、書き換えた記録はありません（下の内訳）。もう一度「比べる」からやり直してください");
+      } else {
+        setStatus("控えを記録しました。統合はしていません（記録そのものは何も書き換えていません）");
+      }
+    } catch (error) {
+      setStatus(`整理できませんでした（${error?.message ?? "不明"}）。もう一度「比べる」からやり直してください`);
     } finally {
       confirmYes.disabled = false;
     }
@@ -193,9 +365,13 @@ function buildComparisonSection() {
     try {
       const runner = await getMergeRunner();
       const result = await runner.undoLast();
-      setStatus(result.ok ? `整理前の状態に戻しました（${result.restoredKeyCount}種類）。「画面を読み込み直す」を押してください` : result.reason);
+      const lines = describeMergeUndoResult(result);
+      setStatus(result.ok ? `${lines[0]}。「画面を読み込み直す」を押してください` : result.reason);
+      setResultLines(result.ok ? lines.slice(1) : []);
       undoButton.hidden = !runner.hasUndo();
       reloadButton.hidden = !result.ok;
+    } catch (error) {
+      setStatus(`元に戻せませんでした（${error?.message ?? "不明"}）`);
     } finally {
       undoButton.disabled = false;
     }
@@ -276,6 +452,8 @@ async function createAppAccountProtection() {
     makeEmailCredential: (email, password) => authSdk.EmailAuthProvider.credential(email, password),
     linkWithCredential: (user, credential) => authSdk.linkWithCredential(user, credential),
     signInWithEmailAndPassword: (email, password) => authSdk.signInWithEmailAndPassword(firebaseClient.auth, email, password),
+    // 【2026-10-28】パスワード再設定メール（画面のボタンは未設置。報告書の提案を本人が判断してから付ける）
+    sendPasswordResetEmail: (email) => authSdk.sendPasswordResetEmail(firebaseClient.auth, email),
   });
 }
 
@@ -372,6 +550,7 @@ function buildProtectionSection() {
 
 // context:
 //   getMyUid(), isAdmin(), getRememberedAdminUids(), getUidMergeQueue(), getPendingUidMerge(), onMerged()
+//   createMergeRunner()（省略可。テストで偽の実行役を渡すときだけ使う。省略時は js/identityMergeRunner.js の本物）
 export function mountAccountRecoveryPanel(container, context) {
   if (!container || root) return root;
   ctx = context;
@@ -403,4 +582,14 @@ export function refreshAccountRecoveryPanel({ urlParam = null } = {}) {
   });
   const summary = protection.querySelector('summary');
   if (summary) summary.textContent = enabled ? '🛡 アカウントを保護する（任意・メールで再ログインできるようにする）' : '🔐 保護したメールでログインし直す（保護済みの方だけ）';
+}
+
+// テスト用：パネルを外して、モジュール内の状態（1回だけ作る作り・試算・実行役）を初めの状態へ戻す。
+// アプリからは呼ばない（パネルはフレンド画面で1回だけ作る）。
+export function unmountAccountRecoveryPanel() {
+  if (root && typeof root.remove === "function") root.remove();
+  root = null;
+  ctx = null;
+  lastComparison = null;
+  mergeRunner = null;
 }

@@ -34,9 +34,9 @@
 // 対策の第一線：各記録に identityKey（UIDに依存しない「同じ人」の印）を保存する。値は backupId
 // （crypto.randomUUID 由来・UIDが変わっても引き継がれる・バックアップ復元でも同じ値になる）の
 // SHA-256 ハッシュ。backupId そのものは引き継ぎコードの一部になる値のため公開しない（ハッシュは一方向）。
-// 第二線：表示時に identityKey が同じ記録は最良の1件だけを残す（dedupeLeaderboardEntriesByIdentity）。
-// 【絶対に名前で同一人物と判断しない】同名の別人（identityKey が違う／無い）は別々に載せる。
-// 旧記録（identityKey 無し）は互いに別人として扱う（誤統合しない側に倒す）。
+// 第二線：表示時に「検証済みの 旧UID→新UID のつながり」がある記録だけ最良の1件にまとめる
+// （dedupeLeaderboardEntriesByIdentity。2026-10-28再改訂：identityKey・名前の一致ではまとめない）。
+// 【絶対に名前・identityKey で同一人物と判断しない】どちらも他人が書き写せるため。
 //
 // 【旧データとの互換性】以前の構造（timeAttackLeaderboardsV2/{variant}/{rule}/{questionCountValue}/
 // {categoryFilterValue}/{uid}、ルールごとに別ランキング）は、この新しい構造とは別の場所
@@ -325,32 +325,79 @@ export function sortLeaderboardEntries(entries) {
   });
 }
 
-// 【2026-09-22追加】同じ identityKey（＝同じ論理ユーザー）の記録が複数あれば、並び順で最初の1件
-// （＝最良の記録）だけを残す。identityKey が無い記録は誰とも統合しない（旧記録・別人を守る）。
-// 名前・推し・タイムの一致では絶対に統合しない（同名の別人が共存できるようにするため）。
+// 【2026-10-28再改訂：検証済みのつながりだけで同じ人をまとめる（本人指示）】
+// 以前は「identityKey が同じ（後に＋表示名も同じ）なら同じ人」としていたが、identityKey は公開されている値で、
+// 名前も自由に付けられるため、他人が両方を書き写すと本物の記録が隠れてしまう（なりすましで消せる）。
+// そこで、まとめてよいのは「改ざんできない証拠で 旧UID→新UID のつながりが分かるとき」だけにした：
+//   ① uidSupersession/{旧UID}/newUid（Rules の検証付きでしか作れない対応表。firebase/database.rules.proposed.json
+//      を公開すると newUid だけ読める。今の本番 Rules では読めないので、つながりは無い＝誰もまとめない）
+//   ② 見ている本人の端末が知っている「自分の旧UID」（整理待ちの列。ownerSecret の所有権確認を通ったものだけ）
+//      → 自分自身の記録だけをまとめる
+// identityKey と名前が同じだけの記録は「別の人」として両方載せる（同名の別人・書き写しを守る）。
+// まとめるときも記録の中身（名前・タイム）は書き換えず、並び順で最初の1件（＝最良の記録）をそのまま残す
+// （他人の速い記録が、別の名前で表示されることは起きない）。
 // 入力は sortLeaderboardEntries() で並び替え済みであること（先頭＝最良）。
-// 【2026-10-28改訂（identityKey の書き写し対策）】identityKey は公開されている値なので、他人が自分の記録へ
-// 書き写すことができる。一致だけで統合すると「書き写した人の速い記録の裏に、本物の人の記録が隠れる」ため、
-// 表示名（NFKC・前後空白・大文字小文字をそろえたもの）も同じときだけ統合する。本人の記録は引き継ぎ時に
-// 今の表示名で複製されるため、通常の「同じ人が2人」はこれまでどおり1人にまとまる。
-function normalizeLeaderboardNameForDedupe(name) {
-  return typeof name === "string" ? name.normalize("NFKC").trim().toLowerCase() : "";
+//
+// identity（省略可）：
+//   supersessionLinks … { 旧UID: 新UID }（①。js/uidSupersession.js fetchSupersessionLinks の戻り値）
+//   ownPreviousUids … 見ている本人の旧UIDの一覧（②）
+//   selfUid … 見ている本人の今のUID（②の結び付け先。無ければ②は使わない）
+export function buildVerifiedIdentityResolver({ supersessionLinks = {}, ownPreviousUids = [], selfUid = null } = {}) {
+  const parent = new Map();
+  const find = (uid) => {
+    let root = uid;
+    while (parent.has(root) && parent.get(root) !== root) root = parent.get(root);
+    // 経路を短くしておく（つながりが長くても速く引ける）
+    let cur = uid;
+    while (parent.has(cur) && parent.get(cur) !== root) {
+      const next = parent.get(cur);
+      parent.set(cur, root);
+      cur = next;
+    }
+    return root;
+  };
+  const union = (a, b) => {
+    if (typeof a !== "string" || typeof b !== "string" || !a || !b || a === b) return;
+    if (!parent.has(a)) parent.set(a, a);
+    if (!parent.has(b)) parent.set(b, b);
+    const ra = find(a);
+    const rb = find(b);
+    if (ra !== rb) parent.set(ra, rb);
+  };
+  const links = supersessionLinks && typeof supersessionLinks === "object" ? supersessionLinks : {};
+  Object.entries(links).forEach(([oldUid, newUid]) => union(oldUid, newUid));
+  if (typeof selfUid === "string" && selfUid) {
+    (Array.isArray(ownPreviousUids) ? ownPreviousUids : []).forEach((oldUid) => union(oldUid, selfUid));
+  }
+  // 戻り値：UID → 同じ人のまとまりの代表（つながりが無いUIDは自分自身）
+  return (uid) => (parent.has(uid) ? find(uid) : uid);
 }
 
-export function dedupeLeaderboardEntriesByIdentity(sortedEntries) {
+export function dedupeLeaderboardEntriesByIdentity(sortedEntries, identity = {}) {
+  const resolve = buildVerifiedIdentityResolver(identity ?? {});
   const seen = new Set();
   return sortedEntries.filter((entry) => {
-    if (!isValidLeaderboardIdentityKey(entry.identityKey)) return true;
-    const dedupeKey = `${entry.identityKey}|${normalizeLeaderboardNameForDedupe(entry.displayName)}`;
-    if (seen.has(dedupeKey)) return false;
-    seen.add(dedupeKey);
+    const groupKey = resolve(entry.uid);
+    if (seen.has(groupKey)) return false;
+    seen.add(groupKey);
     return true;
   });
 }
 
+// 対応表（①）を読むべき候補：同じ identityKey の記録が2件以上あるUIDだけ（最大 maxCount 件）。
+// identityKey は「読みに行く候補を絞る目印」にだけ使い、まとめる根拠には使わない。
+export function selectLeaderboardSupersessionCandidates(entries, { selfUid = null, maxCount = 20 } = {}) {
+  const list = Array.isArray(entries) ? entries.filter((e) => e && typeof e.uid === "string") : [];
+  const countByKey = new Map();
+  list.forEach((e) => {
+    if (isValidLeaderboardIdentityKey(e.identityKey)) countByKey.set(e.identityKey, (countByKey.get(e.identityKey) ?? 0) + 1);
+  });
+  return [...new Set(list.filter((e) => e.uid !== selfUid && isValidLeaderboardIdentityKey(e.identityKey) && countByKey.get(e.identityKey) >= 2).map((e) => e.uid))].slice(0, maxCount);
+}
+
 // 【2026-09-22追加】取得した記録を「並び替え → 同一人物の統合 → 先頭N件」の順で TOP 表示用に整える。
-export function buildLeaderboardTopEntries(entries, displayCount = LEADERBOARD_TOP_DISPLAY_COUNT) {
-  return dedupeLeaderboardEntriesByIdentity(sortLeaderboardEntries(entries)).slice(0, displayCount);
+export function buildLeaderboardTopEntries(entries, displayCount = LEADERBOARD_TOP_DISPLAY_COUNT, identity = {}) {
+  return dedupeLeaderboardEntriesByIdentity(sortLeaderboardEntries(entries), identity).slice(0, displayCount);
 }
 
 // 【2026-09-22追加：ページ取得で正しいユニークTOP10を作る】
@@ -360,22 +407,34 @@ export function buildLeaderboardTopEntries(entries, displayCount = LEADERBOARD_T
 // 「maxPages に達する」まで次のページを取り続ける。固定30件では、上位30件に重複が大量にあると
 // 31位以降の別ユーザーを取り損ねて真のTOP10が欠けるため（本人指摘）。
 // 戻り値は並び替え → 統合 → 先頭 displayCount 件。
+// 【2026-10-28追加】resolveIdentity(集めた記録) … 統合に使う「検証済みのつながり」（dedupeLeaderboardEntriesByIdentity の
+// identity）を返す非同期関数（省略時はつながり無し＝誰もまとめない）。失敗しても統合しないだけで表示は続ける。
 export async function collectUniqueTopEntries(
   fetchPage,
-  { displayCount = LEADERBOARD_TOP_DISPLAY_COUNT, maxPages = LEADERBOARD_TOP_MAX_PAGES } = {}
+  { displayCount = LEADERBOARD_TOP_DISPLAY_COUNT, maxPages = LEADERBOARD_TOP_MAX_PAGES, resolveIdentity = null } = {}
 ) {
   const collected = [];
   let cursor = null;
+  let identity = {};
+  const refreshIdentity = async () => {
+    if (typeof resolveIdentity !== "function") return;
+    try {
+      identity = (await resolveIdentity(collected)) ?? {};
+    } catch {
+      identity = {};
+    }
+  };
   for (let page = 0; page < maxPages; page += 1) {
     const result = await fetchPage(cursor);
     const entries = Array.isArray(result?.entries) ? result.entries : [];
     collected.push(...entries);
-    const unique = dedupeLeaderboardEntriesByIdentity(sortLeaderboardEntries(collected));
+    await refreshIdentity();
+    const unique = dedupeLeaderboardEntriesByIdentity(sortLeaderboardEntries(collected), identity);
     if (unique.length >= displayCount) return unique.slice(0, displayCount);
     if (!result?.nextCursor || entries.length === 0) break;
     cursor = result.nextCursor;
   }
-  return buildLeaderboardTopEntries(collected, displayCount);
+  return buildLeaderboardTopEntries(collected, displayCount, identity);
 }
 
 // 【2026-09-22追加・本人指示】ランキング記録の「記録日」表示（例：9月22日）。

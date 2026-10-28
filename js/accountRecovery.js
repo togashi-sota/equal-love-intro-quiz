@@ -80,6 +80,10 @@ export function describeAuthErrorJa(code) {
       return "試行回数が多すぎます。しばらく待ってからもう一度お試しください";
     case "auth/network-request-failed":
       return "通信できませんでした。電波の良い場所でもう一度お試しください（何も変更していません）";
+    case "auth/user-disabled":
+      return "このアカウントは管理者によって無効にされています（何も変更していません）";
+    case "auth/missing-password":
+      return "パスワードを入力してください";
     default:
       return `うまくいきませんでした（${code ?? "不明なエラー"}）。何も変更していません`;
   }
@@ -154,8 +158,33 @@ export function createAccountProtection(deps) {
     }
   }
 
-  return { protectWithEmail, reloginWithEmail, getStatus: () => describeProtectionStatus(deps.getCurrentUser()) };
+  // 【2026-10-28追加（エミュレータで流れを確認）】パスワードを忘れたときの再設定メール。
+  //   ・Firebase Console で「メール/パスワード」が有効なときだけ使える（無効なら operation-not-allowed の説明を返す）
+  //   ・今のログイン（UID）は一切変えない。メールのリンクは Safari 側で開いて新しいパスワードを決め、
+  //     その後この画面の「保護したメールでログインし直す」で新しいパスワードを使う（UIDは保護したときのまま）
+  //   ・そのメールのアカウントが有るかどうかは画面に出さない（他人がメールアドレスの登録有無を調べられないように）
+  //   deps.sendPasswordResetEmail(email): Promise<void>
+  async function requestPasswordReset({ email, confirmed = false }) {
+    if (!confirmed) return { ok: false, reason: "確認が済んでいません", sent: false };
+    const input = validateEmailPasswordInput(email, "xxxxxxxx");
+    if (!input.ok) return { ok: false, reason: input.errors.join("／"), sent: false };
+    if (typeof deps.sendPasswordResetEmail !== "function") return { ok: false, reason: "この画面では再設定メールを送れません", sent: false };
+    try {
+      await deps.sendPasswordResetEmail(input.email);
+      return { ok: true, sent: true, reason: PASSWORD_RESET_NEUTRAL_MESSAGE };
+    } catch (error) {
+      const code = error?.code ?? null;
+      // 登録の無いメールでも「送りました（あれば）」と同じ文言にする（登録の有無を漏らさない）
+      if (code === "auth/user-not-found") return { ok: true, sent: false, reason: PASSWORD_RESET_NEUTRAL_MESSAGE };
+      return { ok: false, code, reason: describeAuthErrorJa(code), sent: false };
+    }
+  }
+
+  return { protectWithEmail, reloginWithEmail, requestPasswordReset, getStatus: () => describeProtectionStatus(deps.getCurrentUser()) };
 }
+
+export const PASSWORD_RESET_NEUTRAL_MESSAGE =
+  "そのメールアドレスで保護したアカウントがあれば、パスワード再設定のメールを送りました。メールのリンクを開いて新しいパスワードを決めてから、「保護したメールでログインし直す」で新しいパスワードを使ってください（届かないときは迷惑メールのフォルダも確認してください）。今のログインは変えていません";
 
 // ---------------------------------------------------------------------------
 // 管理者の復旧手順（純粋関数）。uid は「今この端末に表示されているID」。

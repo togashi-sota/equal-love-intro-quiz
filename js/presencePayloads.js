@@ -167,10 +167,17 @@ export function getPushIdTimestampMs(pushId) {
 // ・作成時刻が読めないキーは選ばない（安全側）
 export const PRESENCE_OWN_GHOST_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
-export function selectStaleOwnConnectionIds(connections, currentConnectionId, nowMs, maxAgeMs = PRESENCE_OWN_GHOST_MAX_AGE_MS) {
+// 【2026-10-28追加（エミュレータ検証で確認）】接続ごとの生存時刻（数値）を持つ接続ノードは、作成時刻ではなく
+// 「最後に生存を書いた時刻」で判断できる。PRESENCE_UNKNOWN_MAX_MS（1時間）を超えて更新されていない数値ノードは、
+// 表示上も既に「オフライン」扱いの残骸なので、本人の端末が次に接続したときに消してよい
+// （別の端末で今まさに遊んでいる接続は2分ごとに時刻が新しくなるため、1時間止まっていることはない）。
+//   serverNowMs … サーバー時刻の推定値（数値ノードはサーバー時刻で書かれているため）。省略時は nowMs。
+export function selectStaleOwnConnectionIds(connections, currentConnectionId, nowMs, maxAgeMs = PRESENCE_OWN_GHOST_MAX_AGE_MS, { serverNowMs = nowMs, staleTimedMs = PRESENCE_UNKNOWN_MAX_MS } = {}) {
   if (!connections || typeof connections !== "object") return [];
   return Object.keys(connections).filter((connectionId) => {
     if (connectionId === currentConnectionId) return false;
+    const value = connections[connectionId];
+    if (typeof value === "number" && Number.isFinite(value) && serverNowMs - value > staleTimedMs) return true;
     const createdAt = getPushIdTimestampMs(connectionId);
     if (createdAt === null) return false;
     return nowMs - createdAt >= maxAgeMs;
@@ -220,28 +227,43 @@ function summarizeConnections(connections) {
 
 // presence 1件を5状態のどれかに分類する（純粋関数）。
 // 戻り値：{ state, lastSeen: number|null（表示に使う最終接続時刻）, connectionCount, freshConnectionCount }
+// 【2026-10-28改訂（エミュレータ検証で発見）】「通信不明」か「オフライン」かは、接続ノードごとの生存時刻で決める。
+//   以前は「共有の lastSeen と接続時刻のうち最新のもの」で1時間の線を判定していたため、
+//   iPhone（数値ノードが2時間止まった残骸）＋PC（今閉じた＝onDisconnect が lastSeen を今の時刻にした）のような場合に、
+//   本当は残骸しか無いのに「通信不明」と出ていた。今は：
+//   ・数値の接続ノード … そのノード自身の時刻で判定（15分以内＝生存／15分〜1時間＝通信不明／1時間超＝残骸）
+//   ・true の接続ノード（今の本番 Rules・古いアプリ）… 共有の lastSeen で判定（従来どおり）
+//   表示する時刻：生存・通信不明のときは、その接続の最終確認時刻。オフラインのときは全体の最終接続時刻。
 export function classifyPresenceEntry(presenceEntry, nowMs) {
   if (!presenceEntry || typeof presenceEntry !== "object") {
     return { state: "none", lastSeen: null, connectionCount: 0, freshConnectionCount: 0 };
   }
   const lastSeen = typeof presenceEntry.lastSeen === "number" && Number.isFinite(presenceEntry.lastSeen) ? presenceEntry.lastSeen : null;
   const connections = summarizeConnections(presenceEntry.connections);
-  const isFresh = (time) => nowMs - time <= PRESENCE_STALE_CONNECTION_MS;
+  const ageOf = (time) => nowMs - time;
+  const isFresh = (time) => ageOf(time) <= PRESENCE_STALE_CONNECTION_MS;
+  const isUnknownAge = (time) => !isFresh(time) && ageOf(time) <= PRESENCE_UNKNOWN_MAX_MS;
   const freshTimed = connections.withTime.filter(isFresh).length;
   // 時刻なし（true）の接続は、共有の lastSeen が新しければ生きているとみなす（lastSeen が無い古い形式は従来どおり生存扱い）
   const freshUntimed = connections.withoutTime > 0 && (lastSeen === null || isFresh(lastSeen)) ? connections.withoutTime : 0;
   const freshConnectionCount = freshTimed + freshUntimed;
-  // 表示に使う最終接続時刻：lastSeen と接続ごとの時刻のうち最も新しいもの
-  const newestSeen = [lastSeen, ...connections.withTime].filter((t) => typeof t === "number").reduce((a, b) => Math.max(a, b), -Infinity);
-  const shownLastSeen = Number.isFinite(newestSeen) ? newestSeen : null;
+  // 全体の最終接続時刻：lastSeen と接続ごとの時刻のうち最も新しいもの（オフライン表示に使う）
+  const newestOf = (list) => {
+    const newest = list.filter((t) => typeof t === "number" && Number.isFinite(t)).reduce((a, b) => Math.max(a, b), -Infinity);
+    return Number.isFinite(newest) ? newest : null;
+  };
+  const shownLastSeen = newestOf([lastSeen, ...connections.withTime]);
   const base = { lastSeen: shownLastSeen, connectionCount: connections.total, freshConnectionCount };
 
   if (freshConnectionCount > 0) {
     return { ...base, state: presenceEntry.isPlaying === true ? "playing" : "online" };
   }
   if (connections.total > 0) {
-    // 接続ノードはあるが、どれも生存記録が古い
-    if (shownLastSeen !== null && nowMs - shownLastSeen <= PRESENCE_UNKNOWN_MAX_MS) return { ...base, state: "unknown" };
+    // 接続ノードはあるが、どれも生存記録が古い。「通信不明」の候補＝15分〜1時間止まっている接続
+    const unknownTimes = connections.withTime.filter(isUnknownAge);
+    if (connections.withoutTime > 0 && lastSeen !== null && isUnknownAge(lastSeen)) unknownTimes.push(lastSeen);
+    if (unknownTimes.length > 0) return { ...base, lastSeen: newestOf(unknownTimes), state: "unknown" };
+    // 時刻の分からない接続（数値でも true でもない壊れた値で、lastSeen も無い）は判断できないので通信不明
     if (shownLastSeen === null) return { ...base, state: "unknown" };
     return { ...base, state: "offline" };
   }
@@ -316,6 +338,16 @@ export function buildPresenceHeartbeatWrites({ timestampMode, connectionKey, con
     writes[`connections/${connectionKey}`] = serverTimestampValue;
   }
   return writes;
+}
+
+// 【2026-10-28追加】ハートビート（lastSeen＋自分の接続ノード）が Rules に拒否されたときの対応（純粋関数）。
+//   提案 Rules では「存在しない接続ノードへ時刻を書く」ことが拒否される。拒否されたのが
+//   ・今も使っている接続（再接続していない・接続中）のノード → 誰かに消された → "recreate-connection"（作り直す）
+//   ・再接続より前の古い接続のノード（切断中に送れなかった分の送り直し）→ "ignore"（書き戻さないのが正しい）
+export function decideHeartbeatDenialAction({ deniedConnectionKey, currentConnectionKey, connected }) {
+  if (connected !== true) return "ignore";
+  if (typeof deniedConnectionKey !== "string" || !deniedConnectionKey) return "ignore";
+  return deniedConnectionKey === currentConnectionKey ? "recreate-connection" : "ignore";
 }
 
 // 書き込み量の見積もり（純粋関数。報告書・テスト用）。1時間あたりの書き込み回数と概算バイト数。

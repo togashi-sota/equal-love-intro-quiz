@@ -20,7 +20,7 @@ import {
   formatLeaderboardAchievedDate,
 } from "./timeAttackLeaderboard.js";
 import { fetchPublicProfileBadgeState, getMyUid, isPublicProfileSharingEnabled } from "./publicProfileSync.js";
-import { getPlayerKeyPrefix } from "./playerProfile.js";
+import { getPlayerKeyPrefix, getActivePlayer, getKnownOldUidsForPlayer } from "./playerProfile.js";
 import { resolveIsAdminUser } from "./adminConfig.js";
 import { TIME_ATTACK_VARIANT, TIME_ATTACK_RULE } from "./timeAttackScreen.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
@@ -320,9 +320,17 @@ async function loadAndRenderLeaderboard() {
 // （本人指示：「順位計算が重い場合は、あなたのベストだけでも可」）。
 // 【2026-09-22追加】「自分の記録」かどうか：UIDが同じ、または identityKey（本人キー）が同じ。
 // UIDが変わった後に旧UID名義の記録が残っている間も、自分の記録として強調される。
+// 【2026-10-28改訂】identityKey は他人が書き写せるため、自分の記録の判定には使わない。
+// UIDが同じか、この端末の「自分の旧UID」（整理待ちの列。ownerSecret の確認を通ったものだけ）に入っているときだけ自分。
 function isOwnEntry(entry) {
   if (elements.currentUid && entry.uid === elements.currentUid) return true;
-  return Boolean(elements.currentIdentityKey && entry.identityKey && entry.identityKey === elements.currentIdentityKey);
+  let ownPreviousUids = [];
+  try {
+    ownPreviousUids = getKnownOldUidsForPlayer(getActivePlayer().playerId, elements.currentUid);
+  } catch {
+    ownPreviousUids = [];
+  }
+  return Boolean(elements.currentUid && ownPreviousUids.includes(entry.uid));
 }
 
 async function renderMyRecordIfNeeded(myRenderToken, top10Entries) {

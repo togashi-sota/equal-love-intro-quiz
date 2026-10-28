@@ -162,6 +162,29 @@
             "presence": {
               ".write": "auth != null && auth.uid === $uid",
               ".validate": "newData.val() === 'active' || newData.val() === 'checking' || newData.val() === 'away'"
+            },
+            "lyricsCoverage": {
+              "capability": {
+                ".validate": "newData.hasChildren(['v', 'uniquenessRulesVersion', 'engineVersion', 'tablesSignature', 'catalogSignature', 'songHashes'])",
+                "v": { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 1000" },
+                "uniquenessRulesVersion": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000" },
+                "engineVersion": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000" },
+                "tablesSignature": { ".validate": "newData.isString() && newData.val().length <= 16" },
+                "catalogSignature": { ".validate": "newData.isString() && newData.val().length <= 16" },
+                "songHashes": { ".validate": "newData.isString() && newData.val().length <= 6000" },
+                "$other": { ".validate": false }
+              }
+            },
+            "lyricsMatchCheck": {
+              ".validate": "newData.hasChildren(['v', 'matchId', 'questionCount', 'fingerprint', 'questionHashes'])",
+              "v": { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 1000" },
+              "matchId": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 64" },
+              "questionCount": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 200" },
+              "fingerprint": { ".validate": "newData.isString() && newData.val().length <= 16" },
+              "questionHashes": { ".validate": "newData.isString() && newData.val().length <= 2000" },
+              "abortedReason": { ".validate": "newData.isString() && newData.val() === 'question-mismatch'" },
+              "abortedMismatchCount": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 20" },
+              "$other": { ".validate": false }
             }
           }
         },
@@ -441,7 +464,7 @@
         ".write": "auth != null && ((auth.uid === $uid && (!newData.exists() || root.child('publicProfiles/' + $uid).exists())) || (!newData.exists() && root.child('uidSupersession').child($uid).child('newUid').val() === auth.uid))",
         "connections": {
           "$connectionId": {
-            ".validate": "newData.val() === true || (newData.isNumber() && newData.val() <= now + 120000 && newData.val() >= now - 120000)"
+            ".validate": "newData.val() === true || (newData.isNumber() && newData.val() === now && data.exists())"
           }
         },
         "lastSeen": {
@@ -518,7 +541,7 @@
       ".read": "auth != null && root.child('admins').child(auth.uid).val() === true",
       "$backupId": {
         ".read": "auth != null && data.child('currentUid').val() === auth.uid",
-        ".write": "auth != null && (root.child('admins').child(auth.uid).val() === true || data.child('currentUid').val() === auth.uid || (!data.exists() && newData.child('currentUid').val() === auth.uid) || (data.child('transfer/secret').exists() && !data.child('transfer/usedAt').exists() && data.child('transfer/expiresAt').val() > now && newData.child('currentUid').val() === auth.uid && newData.child('transfer/secret').val() === data.child('transfer/secret').val() && newData.child('transfer/usedAt').val() === now) || (data.child('ownerSecret').isString() && data.child('ownerSecret').val().length >= 32 && newData.child('ownerClaim').child('secret').val() === data.child('ownerSecret').val() && newData.child('ownerClaim').child('at').val() === now && newData.child('ownerSecret').isString() && newData.child('ownerSecret').val() !== data.child('ownerSecret').val() && newData.child('currentUid').val() === auth.uid))",
+        ".write": "auth != null && (root.child('admins').child(auth.uid).val() === true || (data.child('currentUid').val() === auth.uid && (!newData.exists() || newData.child('currentUid').val() === auth.uid)) || (!data.exists() && newData.child('currentUid').val() === auth.uid) || (data.child('transfer/secret').exists() && !data.child('transfer/usedAt').exists() && data.child('transfer/expiresAt').val() > now && newData.child('currentUid').val() === auth.uid && newData.child('transfer/secret').val() === data.child('transfer/secret').val() && newData.child('transfer/usedAt').val() === now && (!data.child('ownerSecret').exists() || (newData.child('ownerSecret').isString() && newData.child('ownerSecret').val() !== data.child('ownerSecret').val()))) || (data.child('ownerSecret').isString() && data.child('ownerSecret').val().length >= 32 && newData.child('ownerClaim').child('secret').val() === data.child('ownerSecret').val() && newData.child('ownerClaim').child('at').val() === now && newData.child('ownerSecret').isString() && newData.child('ownerSecret').val() !== data.child('ownerSecret').val() && newData.child('currentUid').val() === auth.uid))",
         ".validate": "newData.hasChildren(['schemaVersion', 'currentUid', 'updatedAt', 'payload'])",
         "schemaVersion": { ".validate": "newData.isNumber()" },
         "currentUid": { ".validate": "newData.isString() && newData.val().length > 0" },
@@ -536,7 +559,7 @@
         },
         "previousUids": {
           "$previousUid": {
-            ".validate": "newData.isNumber() && $previousUid === root.child('backups').child($backupId).child('currentUid').val() && $previousUid !== auth.uid"
+            ".validate": "newData.isNumber() && $previousUid === root.child('backups').child($backupId).child('currentUid').val() && $previousUid !== auth.uid && (newData.parent().parent().child('ownerClaim').child('at').val() === now || root.child('admins').child(auth.uid).val() === true)"
           }
         },
         "transfer": {
@@ -561,7 +584,7 @@
 
     "uidSupersession": {
       "$oldUid": {
-        ".write": "auth != null && (!data.exists() || newData.child('backupId').val() === data.child('backupId').val()) && $oldUid !== auth.uid && newData.child('newUid').val() === auth.uid && root.child('backups').child(newData.child('backupId').val()).child('currentUid').val() === auth.uid && root.child('backups').child(newData.child('backupId').val()).child('previousUids').child($oldUid).exists()",
+        ".write": "auth != null && ((!newData.exists() && $oldUid === auth.uid) || (newData.exists() && $oldUid !== auth.uid && newData.child('newUid').val() === auth.uid && root.child('backups').child(newData.child('backupId').val()).child('currentUid').val() === auth.uid && root.child('backups').child(newData.child('backupId').val()).child('previousUids').child($oldUid).exists() && !newData.parent().child(auth.uid).exists() && (!data.exists() || data.child('newUid').val() === auth.uid || (data.child('backupId').val() === newData.child('backupId').val() && root.child('backups').child(data.child('backupId').val()).child('previousUids').child(data.child('newUid').val()).exists()))))",
         ".validate": "newData.hasChildren(['newUid', 'backupId', 'recordedAt'])",
         "newUid": { ".read": "auth != null", ".validate": "newData.isString() && newData.val().length > 0" },
         "backupId": { ".validate": "newData.isString() && newData.val().length > 0" },

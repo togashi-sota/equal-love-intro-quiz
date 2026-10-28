@@ -17,7 +17,10 @@
 //   ・称号 … 両方の和集合。取得日は早い方
 //   ・自己ベスト … 区分ごとに良い方（合計はしない）
 //   ・プレイ履歴 … 両方の和集合（同じ記録は id で1件に。id が無ければ日時＋内容で判定）。新しい順、各履歴の上限は既存と同じ
-//   ・累積の回数（苦手曲の集計など） … 1回ずつの記録が無く二重に数えてしまうため足さない。曲ごとに回数が多い方を採用
+//   ・累積の回数（苦手曲の集計など） … 【2026-10-28改訂】自動では統合しない（保留）。1回ずつの記録が無いため、
+//       足すと二重に数え、多い方を選ぶと片方の回答が消える。どちらも「正しく1つにまとめる」方法が無いので、
+//       両方の値を「保留（自動では統合しません）」として残し、端末の値は変えない（本人が確かめてから決める）
+//   ・保留の記録（identityMergeHold） … id ごとの和集合（保留した値を失わない）
 //   ・推しメン … 現在の選択を優先（以前の選択は計画・スナップショットに残す）
 //   ・設定に近いもの（お気に入り・公開設定など） … 現在を優先。現在に無いときだけ以前の値を入れる
 //   ・自作のもの（プレイリスト・オリジナル問題のセット） … id ごとの和集合（同じ id は現在を優先）
@@ -29,9 +32,13 @@ const LOWER_IS_BETTER_PREFIXES = ["normalQuizTimeBest.", "outroQuizTimeBest.", "
 const REACH_PREFIXES = ["timeAttackBestReach.", "randomPlaybackBestReach."];
 const COUNTER_KEYS = ["weakSongStats", "shuffleWeakSongStats", "outroWeakSongStats", "lyricsQuizWeakSongStats", "instantChallengeWeakSongStats"];
 const HISTORY_KEYS = Object.keys(HISTORY_LIMITS);
+// 【2026-10-28追加】統合で「保留」にした値の控え（js/identityMergeRunner.js が書く論理キー。バックアップにも含まれる）
+export const HOLD_LOGICAL_KEY = "identityMergeHold";
+export const HELD_LABEL = "保留（自動では統合しません）";
 
 // 論理キー（js/backupSync.js の BACKUP_KEY_* と同じ名前）をデータの種類に分ける。
 export function classifyBackupKey(key) {
+  if (key === HOLD_LOGICAL_KEY) return "hold";
   if (key === "achievements") return "achievements";
   if (HISTORY_KEYS.includes(key)) return "history";
   if (key.startsWith("highScore.")) return "best-higher";
@@ -59,6 +66,7 @@ export const CATEGORY_LABELS = Object.freeze({
   oshi: "推しメン",
   creations: "自作のプレイリスト・問題セット",
   setting: "設定・お気に入り",
+  hold: "保留中の値の控え",
 });
 
 function parseJson(raw) {
@@ -256,40 +264,53 @@ function mergeCounters(prevRaw, curRaw) {
   if (!c.ok && curRaw !== undefined) return { unreadable: true };
   const prevSongs = p.ok && p.value?.songs && typeof p.value.songs === "object" ? p.value.songs : {};
   const cur = c.ok && c.value?.songs && typeof c.value.songs === "object" ? c.value : { schemaVersion: p.value?.schemaVersion ?? 1, songs: {} };
-  const merged = { ...cur.songs };
   let onlyPrevious = 0;
   let same = 0;
   const conflicts = [];
-  let changed = false;
   Object.entries(prevSongs).forEach(([songId, record]) => {
     const mine = cur.songs[songId];
     if (!mine) {
-      onlyPrevious += 1;
-      merged[songId] = record;
-      changed = true;
+      onlyPrevious += 1; // 以前だけにある曲も、自動では足さない（現在の回数と重なっていないと確かめられないため）
       return;
     }
-    const a = counterTotal(record);
-    const b = counterTotal(mine);
-    if (a === b) {
+    if (JSON.stringify(record) === JSON.stringify(mine)) {
       same += 1;
       return;
     }
-    // 足さない（同じ回答を二重に数えてしまうため）。回数が多い方の記録をそのまま採用する
-    conflicts.push({ item: songId, previous: record, current: mine, chosen: a > b ? record : mine });
-    if (a > b) {
-      merged[songId] = record;
-      changed = true;
-    }
+    // 足さない（同じ回答を二重に数えてしまうため）。多い方も選ばない（片方の回答が消えるため）→ 保留
+    conflicts.push({ item: songId, previous: record, current: mine, chosen: null, previousTotal: counterTotal(record), currentTotal: counterTotal(mine) });
   });
   const onlyCurrent = Object.keys(cur.songs).filter((k) => !prevSongs[k]).length;
+  const held = onlyPrevious > 0 || conflicts.length > 0;
   return {
     onlyPrevious,
     onlyCurrent,
     conflicts,
     same,
-    mergedRaw: changed ? JSON.stringify({ ...cur, songs: merged }) : null,
-    notes: conflicts.length ? ["回数は足し算しません（同じ回答を二重に数えないため）。曲ごとに回数が多い方を採用します"] : [],
+    mergedRaw: null, // 【2026-10-28】自動では書かない
+    held,
+    notes: held ? [`苦手曲の集計（累積の回数）は${HELD_LABEL}。回数は足し算せず、多い方も選びません（1回ずつの記録が無く、正しく1つにできないため）。以前と現在の両方の値を保留として残し、この端末の値は変えません`] : [],
+  };
+}
+
+// 【2026-10-28追加】保留の控えは id ごとの和集合（どちらにしか無い保留も失わない）
+function mergeHolds(prevRaw, curRaw) {
+  const p = parseJson(prevRaw);
+  const c = parseJson(curRaw);
+  if (!c.ok && curRaw !== undefined) return { unreadable: true };
+  const listOf = (v) => (Array.isArray(v?.holds) ? v.holds.filter((h) => h && typeof h.id === "string") : []);
+  const prevList = p.ok ? listOf(p.value) : [];
+  const curValue = c.ok && c.value && typeof c.value === "object" ? c.value : { schemaVersion: 1, holds: [] };
+  const curList = listOf(curValue);
+  const curIds = new Set(curList.map((h) => h.id));
+  const onlyPrevious = prevList.filter((h) => !curIds.has(h.id));
+  return {
+    onlyPrevious: onlyPrevious.length,
+    onlyCurrent: curList.filter((h) => !prevList.some((x) => x.id === h.id)).length,
+    conflicts: [],
+    same: prevList.filter((h) => curIds.has(h.id)).length,
+    mergedRaw: onlyPrevious.length ? JSON.stringify({ ...curValue, holds: [...curList, ...onlyPrevious] }) : null,
+    notes: [],
   };
 }
 
@@ -393,6 +414,8 @@ function mergeOne(key, prevRaw, curRaw, options) {
       return mergeOshi(prevRaw, curRaw);
     case "creations":
       return mergeCreations(key, prevRaw, curRaw);
+    case "hold":
+      return mergeHolds(prevRaw, curRaw);
     default:
       return mergeSetting(prevRaw, curRaw);
   }
@@ -414,6 +437,9 @@ export function planBackupMerge(previousEntries, currentEntries, options = {}) {
   const rows = [];
   const writes = {};
   const categories = {};
+  // 【2026-10-28追加】書く値・保留する値の「計画時点の値」（実行役が、書く直前に変わっていないかを確かめる基準）
+  const baseline = {};
+  const held = [];
   keys.forEach((key) => {
     const prevRaw = typeof prev[key] === "string" ? prev[key] : undefined;
     const curRaw = typeof cur[key] === "string" ? cur[key] : undefined;
@@ -432,21 +458,35 @@ export function planBackupMerge(previousEntries, currentEntries, options = {}) {
           willChange: typeof outcome.mergedRaw === "string" && outcome.mergedRaw !== curRaw,
           notes: outcome.notes,
           unreadable: false,
+          held: !!outcome.held,
         };
-    if (row.willChange) writes[key] = outcome.mergedRaw;
+    if (row.willChange) {
+      writes[key] = outcome.mergedRaw;
+      baseline[key] = { previous: prevRaw ?? null, current: curRaw ?? null };
+    }
+    // 保留：累積の回数（自動で統合しない）と、今の値を残した食い違い（推し・設定）。以前の値を消さずに控える
+    const keepsCurrentOnConflict = (category === "oshi" || category === "setting") && row.conflicts.length > 0;
+    if (row.held || keepsCurrentOnConflict) {
+      held.push({ key, category, label: CATEGORY_LABELS[category], reason: row.held ? "not-mergeable" : "current-kept", previous: prevRaw ?? null, current: curRaw ?? null });
+      baseline[key] = baseline[key] ?? { previous: prevRaw ?? null, current: curRaw ?? null };
+    }
     rows.push(row);
     const cat = (categories[category] ??= { label: CATEGORY_LABELS[category], onlyPrevious: 0, onlyCurrent: 0, conflicts: 0, willChangeKeys: 0 });
     cat.onlyPrevious += row.onlyPrevious;
     cat.onlyCurrent += row.onlyCurrent;
     cat.conflicts += row.conflicts.length;
     if (row.willChange) cat.willChangeKeys += 1;
+    if (row.held) cat.heldKeys = (cat.heldKeys ?? 0) + 1;
   });
   return {
     keys: rows,
     categories,
     writes,
+    baseline,
+    held,
     summary: {
       changedKeyCount: Object.keys(writes).length,
+      heldKeyCount: held.filter((h) => h.reason === "not-mergeable").length,
       onlyPreviousTotal: rows.reduce((s, r) => s + r.onlyPrevious, 0),
       conflictTotal: rows.reduce((s, r) => s + r.conflicts.length, 0),
       unreadableKeys: rows.filter((r) => r.unreadable).map((r) => r.key),
@@ -501,7 +541,7 @@ export function comparePublicIdentity({ oldUid = null, newUid = null, oldProfile
 export function describeBackupMergePlan(plan) {
   if (!plan) return [];
   const lines = [];
-  const order = ["achievements", "history", "best-higher", "best-lower", "best-reach", "best-custom", "ranking-candidates", "counters", "clears", "oshi", "creations", "setting"];
+  const order = ["achievements", "history", "best-higher", "best-lower", "best-reach", "best-custom", "ranking-candidates", "counters", "clears", "oshi", "creations", "setting", "hold"];
   order.forEach((category) => {
     const c = plan.categories[category];
     if (!c) return;
@@ -510,11 +550,12 @@ export function describeBackupMergePlan(plan) {
     if (c.onlyCurrent) parts.push(`現在だけ ${c.onlyCurrent}`);
     if (c.conflicts) parts.push(`食い違い ${c.conflicts}`);
     if (parts.length === 0) parts.push("同じ");
-    lines.push(`${c.label}：${parts.join("・")}${c.willChangeKeys ? "（整理すると反映されます）" : ""}`);
+    lines.push(`${c.label}：${parts.join("・")}${c.willChangeKeys ? "（整理すると反映されます）" : ""}${c.heldKeys ? `（${HELD_LABEL}）` : ""}`);
   });
   const notes = [...new Set(plan.keys.flatMap((r) => r.notes))];
   notes.forEach((n) => lines.push(`・${n}`));
-  if (plan.summary.changedKeyCount === 0) lines.push("整理が必要な違いはありません（この端末の記録がすべてを含んでいます）");
+  if ((plan.held ?? []).length) lines.push("・保留した値・今の値を残した項目の以前の値は、消さずに控えとして残します（本人が確かめて「確認済み」にするまで消えません）");
+  if (plan.summary.changedKeyCount === 0) lines.push((plan.held ?? []).length ? "自動で整理できる違いはありません（保留の項目だけです）" : "整理が必要な違いはありません（この端末の記録がすべてを含んでいます）");
   return lines;
 }
 

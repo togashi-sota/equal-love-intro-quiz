@@ -88,6 +88,7 @@ const BACKUP_KEY_EXACT_NAMES = [
   "publicProfile.enabled", // 「みんなのプロフィール」公開設定（js/publicProfilePayloads.js）
   "customQuizPresets", // オリジナル問題作成モードのプリセット（js/customQuizPresets.js、2026-08-29よりプレイヤー単位）
   "titles.equalLoveKaiden", // 旧バージョンの称号進捗（js/achievementProgress.jsが読み取り専用で保持）
+  "identityMergeHold", // 【2026-10-28追加】「以前のあなた／現在のあなた」の整理で保留した値・以前の値の控え（js/identityMergeRunner.js。本人が確認するまで消さない）
 ];
 const BACKUP_KEY_PREFIXES = [
   "highScore.", // 通常イントロクイズのハイスコア（js/highscore.js）

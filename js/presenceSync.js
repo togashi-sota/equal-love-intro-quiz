@@ -47,6 +47,7 @@ import {
   shouldWriteResumeHeartbeat,
   shouldTryConnectionTimestamp,
   buildPresenceHeartbeatWrites,
+  decideHeartbeatDenialAction,
   PRESENCE_CONNECTION_TIMESTAMP_UNSUPPORTED_KEY,
 } from "./presencePayloads.js";
 import { setPresenceFact } from "./presenceDiagnostics.js";
@@ -130,38 +131,69 @@ function isPresencePermissionDenied(error) {
   return /PERMISSION_DENIED|permission_denied|permission-denied/i.test(`${error?.code ?? ""} ${error?.message ?? ""}`);
 }
 
-// 接続ノードを書く。時刻（数値）を試せるときは先に試し、拒否されたら true で書き直す（今の本番 Rules でも必ず動く）。
+// 接続ノードを書く。
+// 【2026-10-28改訂（エミュレータ検証で発見した「消えた接続の書き戻し」対策）】
+//   まず必ず true で作り（今の本番 Rules・提案 Rules のどちらでも通る）、その後に時刻（数値）へ書き換えてみる。
+//   提案 Rules は「既に存在する接続ノードしか時刻へ更新できない」（data.exists()）ため、通信が切れている間に
+//   送れなかったハートビートが再接続後に送り直されても、サーバーが onDisconnect で消した古い接続ノードは
+//   書き戻されない（以前は書き戻されて「閉じた後も通信不明」の残骸になっていた）。
+//   今の本番 Rules では時刻への書き換えが拒否される → true のまま（従来どおりの表示）。24時間は試さない。
 function writeConnectionNode(connectionRef) {
   const tryTimestamp =
     connectionTimestampMode !== "unsupported" &&
     shouldTryConnectionTimestamp({ unsupportedAtMs: readConnectionTimestampUnsupportedAt(), nowMs: Date.now() });
   if (!tryTimestamp) return set(connectionRef, true);
-  return set(connectionRef, serverTimestamp()).then(
-    () => {
-      connectionTimestampMode = "supported";
-    },
-    (error) => {
-      if (!isPresencePermissionDenied(error)) throw error;
-      rememberConnectionTimestampUnsupported();
-      return set(connectionRef, true);
-    }
+  return set(connectionRef, true).then(() =>
+    set(connectionRef, serverTimestamp()).then(
+      () => {
+        connectionTimestampMode = "supported";
+      },
+      (error) => {
+        // 通信エラー等は true のまま（表示は従来どおり）。次の接続で再挑戦する
+        if (!isPresencePermissionDenied(error)) return;
+        // 拒否の理由が「接続ノードがもう無い」（作った直後に切断され、サーバーが消した）なら Rules の問題ではない。
+        // 読み取り1回で確かめ、ノードが残っている（＝Rules が時刻を許さない）ときだけ「使えない」と覚える
+        return get(connectionRef).then(
+          (snapshot) => {
+            if (snapshot.exists()) rememberConnectionTimestampUnsupported();
+          },
+          () => {}
+        );
+      }
+    )
   );
 }
 
 function writeHeartbeat(uid) {
   lastHeartbeatWrittenAtMs = Date.now();
+  const connectionRefAtWrite = currentConnectionRef;
   const writes = buildPresenceHeartbeatWrites({
     timestampMode: connectionTimestampMode,
-    connectionKey: currentConnectionRef?.key ?? null,
+    connectionKey: connectionRefAtWrite?.key ?? null,
     connected: isInfoConnected,
     serverTimestampValue: serverTimestamp(),
   });
+  const lastSeenRef = ref(database, `presence/${uid}/lastSeen`);
   if (Object.keys(writes).length === 1) {
-    set(ref(database, `presence/${uid}/lastSeen`), writes.lastSeen).catch(() => {});
+    set(lastSeenRef, writes.lastSeen).catch(() => {});
     return;
   }
   // lastSeen と自分の接続ノードを1回の書き込みでまとめて更新する（書き込み回数は増やさない）
-  update(ref(database, `presence/${uid}`), writes).catch(() => {});
+  update(ref(database, `presence/${uid}`), writes).catch((error) => {
+    if (!isPresencePermissionDenied(error)) return;
+    // 提案 Rules で拒否された＝自分の接続ノードがサーバーに無い。lastSeen だけは書いておく
+    set(lastSeenRef, serverTimestamp()).catch(() => {});
+    const action = decideHeartbeatDenialAction({
+      deniedConnectionKey: connectionRefAtWrite?.key ?? null,
+      currentConnectionKey: currentConnectionRef?.key ?? null,
+      connected: isInfoConnected,
+    });
+    // 今も使っている接続のノードが消されていた（例：別の端末の掃除・手動削除）ときだけ作り直す。
+    // 再接続前の古い接続の送り直しが拒否された場合は、何もしない（新しい接続ノードは既に作ってある）
+    if (action === "recreate-connection" && currentConnectionRef) {
+      writeConnectionNode(currentConnectionRef).catch(() => {});
+    }
+  });
 }
 
 async function armPresenceForUid(uid) {
@@ -203,7 +235,8 @@ async function armPresenceForUid(uid) {
     const thisConnectionId = connectionRef.key;
     get(ref(database, `presence/${uid}/connections`))
       .then((snapshot) => {
-        const staleIds = selectStaleOwnConnectionIds(snapshot.val(), thisConnectionId, Date.now());
+        // 【2026-10-28】時刻つきの接続ノードは「最後の生存時刻」がサーバー時刻で1時間より古ければ残骸として消す
+        const staleIds = selectStaleOwnConnectionIds(snapshot.val(), thisConnectionId, Date.now(), undefined, { serverNowMs: getPresenceNowMs() });
         staleIds.forEach((connectionId) => {
           remove(ref(database, `presence/${uid}/connections/${connectionId}`)).catch(() => {});
         });

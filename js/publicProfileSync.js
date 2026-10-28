@@ -22,9 +22,10 @@ import {
   set,
   get,
   remove,
+  update,
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
-import { database, authReady, getCurrentUid } from "./firebaseClient.js";
+import { database, auth, authReady, getCurrentUid } from "./firebaseClient.js";
 import { ensureIdentityBootstrap, canAutoSyncToCloud, isIdentityReady, IDENTITY_STATE } from "./identityBootstrap.js";
 import { setPresenceFact } from "./presenceDiagnostics.js";
 import { getActivePlayer, getPlayerKeyPrefix, getOrCreateBackupId } from "./playerProfile.js";
@@ -36,6 +37,7 @@ import {
   writeEnabledFlag,
   buildPublicProfilePayload,
   normalizePublicProfileEntry,
+  cleanupPresenceWhileSharingOff,
 } from "./publicProfilePayloads.js";
 // 【Stage1・本人指示：presence書き込みをフレンド一覧の公開設定へ連動させる】
 // js/presenceSync.jsはこのファイル（js/publicProfileSync.js）を一切importしていないため
@@ -47,6 +49,7 @@ import {
   deleteFriendPresence,
   hasActiveFriendPresenceTracking,
   needsFriendPresenceRearm,
+  getPresenceNowMs,
 } from "./presenceSync.js";
 
 export { isRunningAsInstalledPwa, isPublicProfileSharingEnabled } from "./publicProfilePayloads.js";
@@ -257,8 +260,28 @@ export function syncFriendPresenceToActivePlayer() {
       // stopFriendPresenceTracking()・deleteFriendPresence()はどちらも「消すものが
       // 既に無い」状態で呼んでも安全（前者は全箇所がnullチェック済み、後者はFirebase側で
       // 存在しないパスへのremoveが無害なため）。
+      // 【2026-10-28変更：同じUIDの別の保存領域（保護済みアカウントの Safari／ホーム画面アプリ）に配慮】
+      // まず自分の接続を止めて消す（stopFriendPresenceTracking() が自分の接続ノードの削除と onDisconnect の取り消しを行う）。
+      // その後の後片付けは js/publicProfilePayloads.js の cleanupPresenceWhileSharingOff() が決める：
+      //   匿名のログイン → 従来どおり deleteFriendPresence()（presence/{uid} を丸ごと）。
+      //   保護済みのログイン → 他の保存領域の生きている接続が無ければ見えているものを消し、あれば残骸だけ消す。
+      // 理由・残るリスクは js/publicProfilePayloads.js の説明を参照。
       stopFriendPresenceTracking();
-      await deleteFriendPresence();
+      await cleanupPresenceWhileSharingOff({
+        getUid: async () => {
+          await authReady;
+          return getCurrentUid();
+        },
+        isAnonymous: () => (auth.currentUser ? auth.currentUser.isAnonymous !== false : null),
+        deleteAll: () => deleteFriendPresence(),
+        readPresence: async (uid) => {
+          const snapshot = await get(ref(database, `presence/${uid}`));
+          return snapshot.exists() ? snapshot.val() : null;
+        },
+        applyUpdates: (uid, updates) => update(ref(database, `presence/${uid}`), updates),
+        nowMs: () => Date.now(),
+        serverNowMs: () => getPresenceNowMs(),
+      });
     }
   });
 }

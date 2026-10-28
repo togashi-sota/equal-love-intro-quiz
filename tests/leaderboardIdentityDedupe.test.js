@@ -6,7 +6,8 @@
 // 新UID名義で自動再送信すると、旧UID名義の記録と並んで2件になる。前回の修正は「旧UIDが端末で分かる
 // （v329以降に一度同期していた）端末で、本人がフレンド画面から手動実行」したときだけ効いた。
 // 今回の恒久対策：①記録に identityKey（backupId のSHA-256＝UIDに依存しない本人キー）を保存する
-// ②表示時に identityKey が同じ記録は最良の1件へ統合する（名前では絶対に統合しない）
+// ②表示時に「検証済みの 旧UID→新UID のつながり」がある記録だけ最良の1件へ統合する
+//   （2026-10-28再改訂：identityKey・名前の一致では統合しない。どちらも他人が書き写せるため）
 // ③旧UIDが分かる端末では、候補の自動再送信より前に旧UID名義の記録を自動で引き継ぐ（記録は失わない）
 // ④保存は「UIDをキーにした set／欠けた項目だけ update／何もしない」の3択（resolveLeaderboardWritePlan）で
 //   二重送信しても1件のまま。
@@ -61,14 +62,15 @@ function createFakeLeaderboardStore() {
       return plan.action;
     },
     // fetchTimeAttackLeaderboardTop10 と同じ：clearTimeMs 昇順で上位 LEADERBOARD_TOP_FETCH_LIMIT 件 → 統合 → TOP10
-    fetchTop(variant, questionCountValue, categoryFilterValue) {
+    // identity … 統合に使う検証済みのつながり（{ supersessionLinks, ownPreviousUids, selfUid }。省略時はつながり無し）
+    fetchTop(variant, questionCountValue, categoryFilterValue, identity = {}) {
       const division = divisionOf(buildLeaderboardPath(variant, questionCountValue, categoryFilterValue));
       const limited = [...division.entries()]
         .sort((a, b) => a[1].clearTimeMs - b[1].clearTimeMs)
         .slice(0, LEADERBOARD_TOP_FETCH_LIMIT)
         .map(([uid, raw]) => normalizeLeaderboardEntry(uid, raw))
         .filter((entry) => entry !== null);
-      return buildLeaderboardTopEntries(limited);
+      return buildLeaderboardTopEntries(limited, LEADERBOARD_TOP_DISPLAY_COUNT, identity);
     },
     rawCount(variant, questionCountValue, categoryFilterValue) {
       return divisionOf(buildLeaderboardPath(variant, questionCountValue, categoryFilterValue)).size;
@@ -172,8 +174,14 @@ export async function runLeaderboardIdentityDedupeTests() {
   store.submit({ uid: "uid-new", identityKey: KEY_A, ...DIV, clearTimeMs: 8114, displayName: "じゅ", achievedAt: 200 });
   assertEqual(store.rawCount(DIV.variant, DIV.questionCountValue, DIV.categoryFilterValue), 2, "D: 保存先には旧UID・新UIDの2件がある（旧UIDは新UIDからは書き換えられない）");
   let top = store.fetchTop(DIV.variant, DIV.questionCountValue, DIV.categoryFilterValue);
-  assertEqual(top.length, 1, "D: 表示では identityKey が同じ2件が1人に統合される");
+  assertEqual(top.length, 2, "D: 【2026-10-28】identityKey が同じだけでは統合しない（証拠が無ければ別の人として2件）");
+  top = store.fetchTop(DIV.variant, DIV.questionCountValue, DIV.categoryFilterValue, { supersessionLinks: { "uid-old": "uid-new" } });
+  assertEqual(top.length, 1, "D: 対応表（uidSupersession）で 旧UID→新UID のつながりがあれば1人に統合される");
   assertEqual(top[0].uid, "uid-old", "D: 同タイムなら登録日時が早い方（旧UID）が代表になる（既存の並び順どおり）");
+  top = store.fetchTop(DIV.variant, DIV.questionCountValue, DIV.categoryFilterValue, { ownPreviousUids: ["uid-old"], selfUid: "uid-new" });
+  assertEqual(top.length, 1, "D: 見ている本人の端末が知っている自分の旧UIDなら、自分の記録として1人に統合される");
+  top = store.fetchTop(DIV.variant, DIV.questionCountValue, DIV.categoryFilterValue, { ownPreviousUids: ["uid-old"], selfUid: "someone-else" });
+  assertEqual(top.length, 2, "D: 他の人（selfUid が違う）の旧UID一覧では統合しない＝自分の記録だけに効く");
   // 旧UIDが分かる端末では、自動引き継ぎで旧を消し、保存先も1件になる（第一線）
   const merged = store.autoMerge({ oldUid: "uid-old", newUid: "uid-new", identityKey: KEY_A, displayName: "じゅ" });
   assertEqual(merged, { copied: 0, deletedOld: 1 }, "M: 新UIDが同等以上に速いので旧UIDだけ消す（記録は失われない）");
@@ -288,7 +296,7 @@ export async function runLeaderboardIdentityDedupeTests() {
     // 【2026-10-28】同一人物（旧UID・新UID）は同じ表示名（統合は本人キー＋表示名が同じときだけ）
     store.submit({ uid, identityKey, ...DIV, clearTimeMs, displayName: uid.startsWith("p3-") ? "p3" : uid, achievedAt: index });
   });
-  top = store.fetchTop(DIV.variant, DIV.questionCountValue, DIV.categoryFilterValue);
+  top = store.fetchTop(DIV.variant, DIV.questionCountValue, DIV.categoryFilterValue, { supersessionLinks: { "p3-old": "p3-new" } });
   assertEqual(top.length, LEADERBOARD_TOP_DISPLAY_COUNT, "O: 統合後も10件表示される");
   assertEqual(
     top.map((e) => e.uid),
@@ -302,12 +310,25 @@ export async function runLeaderboardIdentityDedupeTests() {
     normalizeLeaderboardEntry("slow", { clearTimeMs: 9000, missCount: 0, achievedAt: 1, identityKey: KEY_A }),
     normalizeLeaderboardEntry("fast", { clearTimeMs: 4000, missCount: 0, achievedAt: 2, identityKey: KEY_A }),
   ]);
-  assertEqual(dedupeLeaderboardEntriesByIdentity(sorted).map((e) => e.uid), ["fast"], "統合で残るのは速い方（並び順の先頭）");
+  assertEqual(dedupeLeaderboardEntriesByIdentity(sorted, { supersessionLinks: { slow: "fast" } }).map((e) => e.uid), ["fast"], "統合で残るのは速い方（並び順の先頭）");
   const tie = sortLeaderboardEntries([
     normalizeLeaderboardEntry("later", { clearTimeMs: 4000, missCount: 0, achievedAt: 200, identityKey: KEY_A }),
     normalizeLeaderboardEntry("earlier", { clearTimeMs: 4000, missCount: 0, achievedAt: 100, identityKey: KEY_A }),
   ]);
-  assertEqual(dedupeLeaderboardEntriesByIdentity(tie).map((e) => e.uid), ["earlier"], "同タイムなら登録日時が早い方が残る（既存の tie-break を維持）");
+  assertEqual(dedupeLeaderboardEntriesByIdentity(tie, { supersessionLinks: { later: "earlier" } }).map((e) => e.uid), ["earlier"], "同タイムなら登録日時が早い方が残る（既存の tie-break を維持）");
+
+  // ---- V. 【2026-10-28】検証済みのつながりだけで統合する（identityKey・名前の書き写し対策） ----
+  const entryOf = (uid, clearTimeMs, displayName, identityKey = KEY_A) => normalizeLeaderboardEntry(uid, { displayName, clearTimeMs, missCount: 0, achievedAt: 1, identityKey });
+  const copycat = sortLeaderboardEntries([entryOf("victim", 9000, "ゆき"), entryOf("copycat", 5000, "ゆき")]);
+  assertEqual(dedupeLeaderboardEntriesByIdentity(copycat).map((e) => e.uid), ["copycat", "victim"], "V1: 本人キーも名前も書き写した人がいても、本物の記録は隠れない（2人並ぶ）");
+  assertEqual(dedupeLeaderboardEntriesByIdentity(copycat, { ownPreviousUids: ["victim"], selfUid: "victim2" }).map((e) => e.uid), ["copycat", "victim"], "V1: 他人（copycat）は本人の旧UID一覧に入らないので統合されない");
+  const chain = sortLeaderboardEntries([entryOf("A", 7000, "じゅ"), entryOf("B", 8000, "じゅ"), entryOf("C", 9000, "じゅ"), entryOf("X", 7500, "じゅ")]);
+  assertEqual(dedupeLeaderboardEntriesByIdentity(chain, { supersessionLinks: { A: "B", B: "C" } }).map((e) => e.uid), ["A", "X"], "V2: A→B→C のつながりは1人（最良の A を残す）。つながりの無い同名・同キーの X は別の人");
+  assertEqual(dedupeLeaderboardEntriesByIdentity(chain, { supersessionLinks: { A: "B", B: "A" } }).map((e) => e.uid), ["A", "X", "C"], "V2: 循環したつながり（A↔B）でも止まらず、1人として扱う");
+  const kept = dedupeLeaderboardEntriesByIdentity(chain, { supersessionLinks: { A: "C" } })[0];
+  assertEqual([kept.uid, kept.displayName, kept.clearTimeMs], ["A", "じゅ", 7000], "V3: 統合しても残す行の中身（名前・タイム）は書き換えない");
+  assertEqual(dedupeLeaderboardEntriesByIdentity(chain, { supersessionLinks: { A: null, B: 5, "": "C" } }).length, 4, "V4: 壊れたつながりは無視する");
+  assertEqual(dedupeLeaderboardEntriesByIdentity(chain, null).length, 4, "V4: identity が無くても壊れない（誰も統合しない）");
 }
 
 // Rules・配線の構造テスト（実ファイルを読む）。
@@ -320,8 +341,9 @@ export async function runLeaderboardIdentityRulesAndWiringTests() {
   assertEqual(v3?.[".write"]?.includes("auth.uid === $uid"), true, "Rules: 記録を書けるのは自分のUIDのキーだけ（push() で別キーが増える余地が無い）");
 
   const pure = await fetchText("js/timeAttackLeaderboard.js");
-  assertEqual(pure.includes("export function dedupeLeaderboardEntriesByIdentity(sortedEntries)"), true, "純粋関数: 同一人物の統合関数がある");
-  assertEqual(pure.includes("if (!isValidLeaderboardIdentityKey(entry.identityKey)) return true;"), true, "純粋関数: 本人キーが無い記録は統合しない");
+  assertEqual(pure.includes("export function dedupeLeaderboardEntriesByIdentity(sortedEntries, identity = {})"), true, "純粋関数: 同一人物の統合関数がある（検証済みのつながりを受け取る）");
+  const dedupeBody = pure.slice(pure.indexOf("export function dedupeLeaderboardEntriesByIdentity("), pure.indexOf("export function selectLeaderboardSupersessionCandidates("));
+  assertEqual(/identityKey|displayName/.test(dedupeBody.replace(/\/\/.*$/gm, "")), false, "純粋関数: 統合の判断に identityKey・表示名を使わない");
   assertEqual(/\.displayName\s*===\s*\w+\.displayName/.test(pure), false, "純粋関数: 名前の一致で同一人物と判断するコードが無い");
 
   const sync = await fetchText("js/timeAttackLeaderboardSync.js");
@@ -329,7 +351,8 @@ export async function runLeaderboardIdentityRulesAndWiringTests() {
   assertEqual(sync.includes("await set(ref(database, entryPath), payload);"), true, "sync: 記録は UID のキーへ set() で置き換える");
   assertEqual(sync.includes("resolveLeaderboardWritePlan({"), true, "sync: 保存の判断は resolveLeaderboardWritePlan に集約");
   assertEqual(sync.includes("limitToFirst(LEADERBOARD_TOP_FETCH_LIMIT + (cursor ? 1 : 0))"), true, "sync: TOP取得は統合前に1ページ（30件）ずつ取得する");
-  assertEqual(sync.includes("const entries = await collectUniqueTopEntries(fetchPage);"), true, "sync: 取得後に並び替え→同一人物の統合→ユニーク10人まで次ページ");
+  assertEqual(sync.includes("const entries = await collectUniqueTopEntries(fetchPage, { resolveIdentity: resolveLeaderboardIdentityLinks });"), true, "sync: 取得後に並び替え→検証済みのつながりでの統合→ユニーク10人まで次ページ");
+  assertEqual(sync.includes("await fetchSupersessionLinks(candidates)") && sync.includes("getKnownOldUidsForPlayer(getActivePlayer().playerId, selfUid)"), true, "sync: つながりは対応表と本人の旧UID一覧だけ");
   assertEqual(sync.includes("await autoMergeSupersededLeaderboardEntries({ identityKey: await resolveMyIdentityKey() });"), true, "sync: 候補の再送信より前に旧UID名義の記録を自動で引き継ぐ");
   assertEqual(sync.includes("identityKeyRejectedByRules") || sync.includes("writeWithIdentityKeyFallback"), false, "sync: 【第11回】キー無しで保存する退避は撤去済み（キーが無ければクラウドへ書かない）");
   assertEqual(sync.includes('if (!identityKey) return { ok: false, reason: "identity-key-unavailable" };'), true, "sync: 本人キーを作れなければ送信しない（候補はローカルに残る）");
@@ -341,7 +364,9 @@ export async function runLeaderboardIdentityRulesAndWiringTests() {
   assertEqual(supersession.includes("markPendingUidMergeLeaderboardMerged(player.playerId, now, pending.oldUid);"), true, "uidSupersession: 全区分成功のときだけ完了の印を付ける");
 
   const screen = await fetchText("js/timeAttackLeaderboardScreen.js");
-  assertEqual(screen.includes("function isOwnEntry(entry) {"), true, "画面: 自分の行判定は UID または本人キー");
+  assertEqual(screen.includes("function isOwnEntry(entry) {"), true, "画面: 自分の行判定の関数がある");
+  const ownBody = screen.slice(screen.indexOf("function isOwnEntry(entry) {"), screen.indexOf("async function renderMyRecordIfNeeded("));
+  assertEqual(/entry.identityKey|currentIdentityKey/.test(ownBody), false, "画面: 【2026-10-28】自分の行判定に本人キーを使わない（UIDと自分の旧UIDだけ）");
   assertEqual(screen.includes("elements.adminDeleteUid.textContent = `…${entry.uid.slice(-6)}`;"), true, "画面: 管理者の削除確認にID末尾を出す");
   const html = await fetchText("index.html");
   assertEqual(html.includes('id="time-attack-leaderboard-admin-delete-uid"'), true, "HTML: 削除確認にID末尾の欄がある");

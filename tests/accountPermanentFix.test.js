@@ -297,17 +297,20 @@ function runFriendTests() {
 }
 
 // ---------------------------------------------------------------------------
-// L. ランキングの重複統合（本人キー＋表示名）
+// L. ランキングの重複統合（2026-10-28再改訂：検証済みのつながりだけ）
 // ---------------------------------------------------------------------------
 function runLeaderboardTests() {
   const entry = (uid, identityKey, clearTimeMs, displayName) =>
     normalizeLeaderboardEntry(uid, { displayName, clearTimeMs, missCount: 0, achievedAt: 1, identityKey });
   const copycat = [entry("victim", KEY_A, 9000, "ゆき"), entry("copycat", KEY_A, 5000, "悪い人")];
-  assertEqual(dedupeLeaderboardEntriesByIdentity(sortLeaderboardEntries(copycat)).map((e) => e.uid), ["copycat", "victim"], "L1: 本人キーを書き写しても、名前が違えば本物の記録は隠れない");
+  assertEqual(dedupeLeaderboardEntriesByIdentity(sortLeaderboardEntries(copycat)).map((e) => e.uid), ["copycat", "victim"], "L1: 本人キーを書き写しても本物の記録は隠れない");
+  // 【2026-10-28再改訂】名前まで書き写しても隠れない（identityKey＋名前での統合はやめた）
+  const fullCopy = [entry("victim", KEY_A, 9000, "ゆき"), entry("copycat", KEY_A, 5000, "ゆき")];
+  assertEqual(dedupeLeaderboardEntriesByIdentity(sortLeaderboardEntries(fullCopy)).map((e) => e.uid), ["copycat", "victim"], "L1: 本人キーと名前の両方を書き写しても、本物の記録は隠れない");
   const sameMe = [entry("old", KEY_A, 9000, "がしお"), entry("new", KEY_A, 8000, "がしお")];
-  assertEqual(dedupeLeaderboardEntriesByIdentity(sortLeaderboardEntries(sameMe)).map((e) => e.uid), ["new"], "L2: 本人（同じキー・同じ名前）は従来どおり速い方の1件");
-  const spaced = [entry("old", KEY_A, 9000, " がしお "), entry("new", KEY_A, 8000, "がしお")];
-  assertEqual(dedupeLeaderboardEntriesByIdentity(sortLeaderboardEntries(spaced)).length, 1, "L2: 前後の空白の違いは同じ名前");
+  assertEqual(dedupeLeaderboardEntriesByIdentity(sortLeaderboardEntries(sameMe)).map((e) => e.uid), ["new", "old"], "L2: 証拠（対応表・自分の旧UID）が無ければ、同じキー・同じ名前でもまとめない");
+  assertEqual(dedupeLeaderboardEntriesByIdentity(sortLeaderboardEntries(sameMe), { supersessionLinks: { old: "new" } }).map((e) => e.uid), ["new"], "L2: 対応表（uidSupersession）があれば速い方の1件");
+  assertEqual(dedupeLeaderboardEntriesByIdentity(sortLeaderboardEntries(sameMe), { ownPreviousUids: ["old"], selfUid: "new" }).map((e) => e.uid), ["new"], "L2: 本人の端末では自分の旧UIDとして1件");
 }
 
 // ---------------------------------------------------------------------------
@@ -357,7 +360,15 @@ function runComparisonTests() {
   const rc = JSON.parse(merged.rankingCandidateBest).bestsByCombo;
   assertEqual([rc["intro.5.all"].clearTimeMs, rc["outro.5.all"].clearTimeMs], [7000, 9000], "C4: ランキング候補は区分ごとに速い方・以前だけの区分は加える");
   const ws = JSON.parse(merged.weakSongStats).songs;
-  assertEqual([ws.s1, ws.s2], [{ attempts: 10, correct: 4 }, { attempts: 2, correct: 2 }], "C5: 累積の回数は足さない（10+3=13 にしない）。回数が多い方を採用");
+  assertEqual([ws.s1, ws.s2], [{ attempts: 3, correct: 1 }, undefined], "C5: 【2026-10-28】累積の回数は自動では統合しない（足さない・多い方も選ばない）＝端末の値はそのまま");
+  const heldWs = plan.held.find((h) => h.key === "weakSongStats");
+  assertEqual([heldWs?.reason, heldWs?.previous, heldWs?.current], ["not-mergeable", previous.weakSongStats, current.weakSongStats], "C5: 以前と現在の両方の値を「保留」として計画に残す");
+  assertEqual([plan.summary.heldKeyCount, "weakSongStats" in plan.writes], [1, false], "C5: 保留は1項目・書き込みには含めない");
+  assertEqual(plan.held.filter((h) => h.reason === "current-kept").map((h) => h.key).sort(), ["favoriteSongs", "oshiMembers"], "C5: 今の値を残す食い違い（推し・お気に入り）も、以前の値を保留の控えに残す");
+  assertEqual(classifyBackupKey("identityMergeHold"), "hold", "C5: 保留の控えは専用の種類（id ごとの和集合）");
+  const holdA = JSON.stringify({ schemaVersion: 1, holds: [{ id: "h1", items: [] }] });
+  const holdB = JSON.stringify({ schemaVersion: 1, holds: [{ id: "h2", items: [] }] });
+  assertEqual(JSON.parse(planBackupMerge({ identityMergeHold: holdA }, { identityMergeHold: holdB }).writes.identityMergeHold).holds.map((h) => h.id), ["h2", "h1"], "C5: 保留の控えは和集合（どちらにしか無い控えも失わない）");
   assertEqual(JSON.parse(merged.oshiMembers).mostOshiMemberId, "m2", "C6: 推しメンは今の選択を優先");
   assertEqual(plan.keys.find((k) => k.key === "oshiMembers").conflicts[0].previous, "m1", "C6: 以前の推しは計画に残る（控えにも入る）");
   assertEqual(JSON.parse(merged.playlists).map((p) => [p.id, p.name]), [["pl-both", "新版"], ["pl-old", "旧"]], "C7: 自作のものは id ごとの和集合（同じ id は今の内容）");
@@ -377,7 +388,7 @@ function runComparisonTests() {
   const lqNoCmp = planBackupMerge({ "lyricsQuizBest.5.4": JSON.stringify({ score: 9 }) }, { "lyricsQuizBest.5.4": JSON.stringify({ score: 5 }) });
   assertEqual(Object.keys(lqNoCmp.writes), [], "C12: 比較関数が無ければ今を残す（推測で入れ替えない）");
   const lines = describeBackupMergePlan(plan);
-  assertEqual(lines.some((l) => l.startsWith("称号：以前だけ 1・現在だけ 1")) && lines.some((l) => l.includes("足し算しません")), true, "C13: 日本語の説明（称号の件数・累積の注意）");
+  assertEqual(lines.some((l) => l.startsWith("称号：以前だけ 1・現在だけ 1")) && lines.some((l) => l.includes("足し算せず")) && lines.some((l) => l.startsWith("苦手曲の集計（累積の回数）：") && l.includes("保留（自動では統合しません）")), true, "C13: 日本語の説明（称号の件数・累積は保留）");
   // 公開データ（UIDごと）
   const cmp = comparePublicIdentity({
     oldUid: "o",
@@ -491,7 +502,7 @@ async function runMergeRunnerTests() {
     assertEqual((await runner.compare()).plan.summary.changedKeyCount, 0, "M3: もう一度比べると違いは無い（冪等）");
     // M4. 元に戻す
     const u = await runner.undoLast();
-    assertEqual([u.ok, env.storage.getItem("equalLoveIntroQuiz.achievements")], [true, curAch], "M4: 整理前の値に完全に戻る");
+    assertEqual([u.ok, env.storage.getItem("equalLoveIntroQuiz.achievements")], [true, curAch], "M4: 整理前の値に戻る（自分が書いた値のままの項目）");
     assertEqual(runner.hasUndo(), false, "M4: 使った控えは消える");
   }
   // M5. 試算の後に別のタブ・端末でデータが変わった → 中止（試算し直し）
@@ -529,6 +540,84 @@ async function runMergeRunnerTests() {
     }
     const snapshotKeys = [...env.storage.map.keys()].filter((k) => k.startsWith("equalLoveIntroQuiz.identityMergeSnapshot."));
     assertEqual(snapshotKeys.length, MERGE_SNAPSHOT_MAX, "M7: 控えは最新3件まで（端末の容量を使いすぎない）");
+    assertEqual(runner.listHolds().length, 5, "M7: 保留の控え（以前の値）は件数で捨てない（本人が確認するまで残す）");
+  }
+  // M8. 【2026-10-28】整理の途中で別のタブが書いた記録は上書きしない（項目ごとに比べてから書く）
+  {
+    const env = createFakeMergeEnv({
+      backup: { ok: true, currentUid: "me", entries: { achievements: prevAch, "highScore.5.all": "50" } },
+      local: { achievements: curAch, "highScore.5.all": "10" },
+    });
+    const runner = createIdentityMergeRunner(env.deps);
+    const cmp = await runner.compare();
+    env.deps.beforeEachWrite = (key) => {
+      if (key === "highScore.5.all") env.storage.setItem("equalLoveIntroQuiz.highScore.5.all", "70"); // 別のタブが新記録
+    };
+    const r = await runner.execute(cmp, { confirmed: true });
+    assertEqual([r.ok, r.conflicts.map((c) => c.key)], [true, ["highScore.5.all"]], "M8: 途中で変わった項目は衝突として報告し、書かない");
+    assertEqual(env.storage.getItem("equalLoveIntroQuiz.highScore.5.all"), "70", "M8: 別のタブが書いた新しい記録（70）はそのまま");
+    assertEqual(JSON.parse(env.storage.getItem("equalLoveIntroQuiz.achievements")).unlockedAchievementIds.sort(), ["new", "old"], "M8: 衝突していない項目は整理される");
+  }
+  // M9. 失敗したとき、自分が書いた値だけ・まだ自分が書いたままのときだけ戻す
+  {
+    const env = createFakeMergeEnv({
+      backup: { ok: true, currentUid: "me", entries: { achievements: prevAch, "highScore.5.all": "50", "timeAttackBest.normal.5.all": "7000" } },
+      local: { achievements: curAch, "highScore.5.all": "10", "timeAttackBest.normal.5.all": "9000" },
+    });
+    const runner = createIdentityMergeRunner(env.deps);
+    const cmp = await runner.compare();
+    env.deps.beforeEachWrite = (key) => {
+      if (key === "highScore.5.all") env.storage.setItem("equalLoveIntroQuiz.achievements", "別のタブの新しい称号"); // 書き終えた項目を別のタブが更新
+      if (key === "timeAttackBest.normal.5.all") throw new Error("injected-failure"); // 3つ目で失敗
+    };
+    const r = await runner.execute(cmp, { confirmed: true });
+    assertEqual(r.ok, false, "M9: 途中で失敗したら失敗を返す");
+    assertEqual(env.storage.getItem("equalLoveIntroQuiz.achievements"), "別のタブの新しい称号", "M9: 自分が書いた後に別のタブが書き換えた値は、戻さない（新しい記録を消さない）");
+    assertEqual(env.storage.getItem("equalLoveIntroQuiz.highScore.5.all"), "10", "M9: 自分が書いたままの値だけ元に戻す");
+    assertEqual([r.rollback.restored, r.rollback.keptBecauseChanged], [["端末:highScore.5.all"], ["端末:achievements"]], "M9: 何を戻し・何を残したかを報告する");
+    assertEqual(env.storage.getItem("equalLoveIntroQuiz.timeAttackBest.normal.5.all"), "9000", "M9: 失敗した項目は書いていない");
+    assertEqual(runner.listHolds().length, 1, "M9: 保留の控え（以前の値）は失敗しても残る");
+  }
+  // M10. 再実行（冪等）：同じ整理をもう一度しても結果は同じ
+  {
+    const env = createFakeMergeEnv({ backup: { ok: true, currentUid: "me", entries: { achievements: prevAch } }, local: { achievements: curAch } });
+    const runner = createIdentityMergeRunner(env.deps);
+    const cmp = await runner.compare();
+    await runner.execute(cmp, { confirmed: true });
+    const after = env.storage.getItem("equalLoveIntroQuiz.achievements");
+    const again = await runner.execute(cmp, { confirmed: true });
+    assertEqual([again.ok, again.stale, env.storage.getItem("equalLoveIntroQuiz.achievements") === after], [false, true, true], "M10: 古い試算での再実行は中止（何も変えない）");
+    const cmp2 = await runner.compare();
+    assertEqual([cmp2.plan.summary.changedKeyCount, (await runner.execute(cmp2, { confirmed: true })).changedKeyCount], [0, 0], "M10: 試算し直すと違いは無く、何も書かない");
+  }
+  // M11. 累積の回数は保留：端末の値は変えず、両方の値を控える。確認済みにするには confirmed が必要
+  {
+    const prevWs = JSON.stringify({ schemaVersion: 1, songs: { s1: { attempts: 10, correct: 4 } } });
+    const curWs = JSON.stringify({ schemaVersion: 1, songs: { s1: { attempts: 3, correct: 1 } } });
+    const env = createFakeMergeEnv({ backup: { ok: true, currentUid: "me", entries: { weakSongStats: prevWs } }, local: { weakSongStats: curWs } });
+    const runner = createIdentityMergeRunner(env.deps);
+    const cmp = await runner.compare();
+    const dry = runner.dryRun(cmp);
+    assertEqual([dry.changedKeyCount, dry.heldKeyCount, dry.lines.some((l) => l.includes("保留（自動では統合しません）"))], [0, 1, true], "M11: 試算に「保留（自動では統合しません）」と出る");
+    const r = await runner.execute(cmp, { confirmed: true });
+    assertEqual([r.ok, r.changedKeyCount, env.storage.getItem("equalLoveIntroQuiz.weakSongStats")], [true, 0, curWs], "M11: 端末の回数は変えない");
+    const hold = runner.listHolds()[0];
+    assertEqual([hold.items[0].key, hold.items[0].previous, hold.items[0].current], ["weakSongStats", prevWs, curWs], "M11: 以前と現在の両方の値を控えた");
+    assertEqual(runner.confirmHold(hold.id).ok, false, "M11: 確認なしでは控えを消さない");
+    assertEqual([runner.confirmHold(hold.id, { confirmed: true }).ok, runner.listHolds().length], [true, 0], "M11: 本人が確認済みにしたときだけ消える");
+  }
+  // M12. 元に戻す：自分が書いた値のままの項目だけ戻す（後から別のタブが書いた値は残す）
+  {
+    const env = createFakeMergeEnv({
+      backup: { ok: true, currentUid: "me", entries: { achievements: prevAch, "highScore.5.all": "50" } },
+      local: { achievements: curAch, "highScore.5.all": "10" },
+    });
+    const runner = createIdentityMergeRunner(env.deps);
+    await runner.execute(await runner.compare(), { confirmed: true });
+    env.storage.setItem("equalLoveIntroQuiz.highScore.5.all", "80"); // 整理の後に新記録
+    const u = await runner.undoLast();
+    assertEqual([u.ok, env.storage.getItem("equalLoveIntroQuiz.achievements"), env.storage.getItem("equalLoveIntroQuiz.highScore.5.all")], [true, curAch, "80"], "M12: 称号は元に戻り、整理の後の新記録（80）は残る");
+    assertEqual(u.keptBecauseChanged, ["端末:highScore.5.all"], "M12: 戻さなかった項目を報告する");
   }
 }
 
@@ -656,14 +745,20 @@ async function readSource(path) {
   return fs.readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 }
 
-// 提案ルールの uidSupersession 書き込み（re-point を含む）を写したシミュレーター（テスト内だけ）。
-function evaluateProposedSupersessionWrite({ authUid, oldUid, existing, incoming, backupsMap }) {
+// 提案ルール（2026-10-28 統合版）の uidSupersession 書き込みを写したシミュレーター（テスト内だけ）。
+// 本物の Rules での確認は tools/rules-emulator（エミュレーター）で行う。ここは意図の固定。
+//   ・取り消し：旧UID本人だけ（生きている旧UIDが「まだ使っている」と言える）
+//   ・作成・付け替え：今の持ち主・previousUids に旧UID・新しい持ち主自身は旧UIDになっていない（循環禁止）・
+//     既存があれば「同じ後継者」か「同じバックアップで前の後継者も旧UIDになった」場合だけ
+function evaluateProposedSupersessionWrite({ authUid, oldUid, existing, incoming, backupsMap, supersessionAfter = {} }) {
   if (!authUid) return false;
-  if (!incoming) return false; // 削除は不可（newUid が自分でない）
-  if (existing && incoming.backupId !== existing.backupId) return false;
+  if (!incoming) return oldUid === authUid;
   if (oldUid === authUid || incoming.newUid !== authUid) return false;
   const backup = backupsMap[incoming.backupId];
-  return !!backup && backup.currentUid === authUid && !!backup.previousUids?.[oldUid] && typeof incoming.recordedAt === "number";
+  if (!backup || backup.currentUid !== authUid || !backup.previousUids?.[oldUid] || typeof incoming.recordedAt !== "number") return false;
+  if (supersessionAfter[authUid]) return false;
+  if (!existing || existing.newUid === authUid) return true;
+  return existing.backupId === incoming.backupId && !!backupsMap[existing.backupId]?.previousUids?.[existing.newUid];
 }
 
 async function runRulesTests() {
@@ -675,9 +770,13 @@ async function runRulesTests() {
   assertEqual(JSON.stringify(proposed.rules.admins), JSON.stringify(current.rules.admins), "R1: 提案で admins は1文字も変えていない");
   assertEqual(current.rules.presence.$uid.connections.$connectionId[".validate"], "newData.val() === true", "R2: 今の本番 Rules（接続ノードは true だけ）は変更していない");
   assertEqual(proposed.rules.presence.$uid.connections.$connectionId[".validate"].startsWith("newData.val() === true || "), true, "R2: 提案は true も引き続き許す（古いアプリが動く＝後方互換）");
+  assertEqual(proposed.rules.presence.$uid.connections.$connectionId[".validate"], "newData.val() === true || (newData.isNumber() && newData.val() === now && data.exists())", "R2: 【2026-10-28 在席担当の確認済みの形】数値は「既にある接続ノードをサーバー時刻ちょうどに」だけ（消えた接続の書き戻しを防ぐ）");
   assertEqual(JSON.stringify(proposed.rules.presence.$uid[".write"]), JSON.stringify(current.rules.presence.$uid[".write"]), "R2: 在席を書ける人（本人・後継者の削除）は変えていない");
   const changedTop = Object.keys(current.rules).filter((k) => JSON.stringify(current.rules[k]) !== JSON.stringify(proposed.rules[k]));
-  assertEqual(changedTop.sort(), ["presence", "uidSupersession"], "R3: 提案で変えたのは presence と uidSupersession だけ");
+  assertEqual(changedTop.sort(), ["backups", "presence", "rooms", "uidSupersession"], "R3: 【2026-10-28 統合版】提案で変えたのは backups・presence・rooms（歌詞クイズ対戦の案A）・uidSupersession だけ");
+  assertEqual(proposed.rules.backups.$backupId[".write"].includes("(data.child('currentUid').val() === auth.uid && (!newData.exists() || newData.child('currentUid').val() === auth.uid))"), true, "R3: 持ち主の通常の書き込みでは currentUid を他人に書き換えられない（手渡しの穴を塞ぐ）");
+  assertEqual(proposed.rules.backups.$backupId.previousUids.$previousUid[".validate"].includes("newData.parent().parent().child('ownerClaim').child('at').val() === now"), true, "R3: previousUids は所有権の証明（ownerClaim）か管理者のときだけ増やせる");
+  assertEqual(JSON.stringify(proposed.rules.rooms.$roomId.players.$uid[".write"]), JSON.stringify(current.rules.rooms.$roomId.players.$uid[".write"]), "R3: 対戦の players を書ける人は変えていない（歌詞クイズの検証を足しただけ）");
   assertEqual(proposed.rules.uidSupersession.$oldUid.newUid[".read"], "auth != null", "R4: 対応表は newUid だけ読める（backupId は読めない）");
   assertEqual(proposed.rules.uidSupersession.$oldUid[".read"], undefined, "R4: 対応表全体（backupId を含む）は読めないまま");
   // R5. 提案の re-point：同じバックアップの現在の持ち主だけが、UIDが2回以上変わったときに後継者を付け替えられる
@@ -686,7 +785,11 @@ async function runRulesTests() {
   assertEqual(evaluateProposedSupersessionWrite({ authUid: "uid3", oldUid: "uid1", existing, incoming: { newUid: "uid3", backupId: "b1", recordedAt: 3 }, backupsMap: backups }), true, "R5: 今の持ち主（uid3）は uid1 の後継者を自分に付け替えられる");
   assertEqual(evaluateProposedSupersessionWrite({ authUid: "attacker", oldUid: "uid1", existing, incoming: { newUid: "attacker", backupId: "evil", recordedAt: 3 }, backupsMap: backups }), false, "R5: 他人は別のバックアップを使っても付け替えられない");
   assertEqual(evaluateProposedSupersessionWrite({ authUid: "attacker", oldUid: "victim", existing: null, incoming: { newUid: "attacker", backupId: "evil", recordedAt: 3 }, backupsMap: backups }), false, "R5: 自分のバックアップの旧UIDでない人（他人）の対応表は作れない");
-  assertEqual(evaluateProposedSupersessionWrite({ authUid: "uid3", oldUid: "uid1", existing, incoming: null, backupsMap: backups }), false, "R5: 対応表は消せない");
+  assertEqual(evaluateProposedSupersessionWrite({ authUid: "uid3", oldUid: "uid1", existing, incoming: null, backupsMap: backups }), false, "R5: 後継者・他人は対応表を消せない");
+  assertEqual(evaluateProposedSupersessionWrite({ authUid: "uid1", oldUid: "uid1", existing, incoming: null, backupsMap: backups }), true, "R5: 旧UID本人（生きていた）は自分の対応表を取り消せる");
+  const family = { x2: { currentUid: "sib", previousUids: { z: 1 } } };
+  assertEqual(evaluateProposedSupersessionWrite({ authUid: "sib", oldUid: "z", existing: { newUid: "a", backupId: "x2" }, incoming: { newUid: "sib", backupId: "x2", recordedAt: 3 }, backupsMap: family }), false, "R5: 引き継ぎコードの受け取り側は、前の後継者が旧UIDになっていない対応表を付け替えられない");
+  assertEqual(evaluateProposedSupersessionWrite({ authUid: "uid3", oldUid: "uid2", existing: null, incoming: { newUid: "uid3", backupId: "b1", recordedAt: 3 }, backupsMap: backups, supersessionAfter: { uid3: { newUid: "uid2" } } }), false, "R5: 自分が旧UIDのままでは対応表を作れない（循環を作らない）");
   // R6. 一般ユーザーは他人のバックアップを書けない（既存の検証の再確認）
   assertEqual(evaluateBackupWrite({ authUid: "attacker", existing: { schemaVersion: 1, currentUid: "victim", updatedAt: 1, payload: {} }, incoming: { currentUid: "attacker" }, now: NOW }).allowed, false, "R6: 他人のバックアップは乗っ取れない");
 }
@@ -702,6 +805,15 @@ async function runWiringTests() {
   assertEqual(sup.includes("const pending = getPendingUidMerge(player.playerId, { nowMs: now });") && sup.includes("for (let i = 0; i < maxItems; i += 1) {"), true, "W2: 旧UIDを1件ずつ順番に処理する");
   assertEqual(sup.includes("UID_MERGE_STATE.BLOCKED") && sup.includes("UID_MERGE_STATE.MERGING"), true, "W2: 途中・権限拒否の状態を記録する");
   assertEqual(sup.includes('if (one.status === "leaderboard-incomplete") {'), true, "W2: ランキングが途中なら関門を止める（重複を作らない）");
+  // 【2026-10-28】UIDが元に戻ったとき（循環になる）は「自分の対応表の取り消し＋新しい対応表」を1回の更新で
+  const { buildSupersessionWrites } = await import("../js/uidSupersession.js");
+  assertEqual(
+    buildSupersessionWrites({ oldUid: "B", newUid: "A", backupId: "x", recordedAt: 1, revokeOwn: true }),
+    { "uidSupersession/B": { newUid: "A", backupId: "x", recordedAt: 1 }, "uidSupersession/A": null },
+    "W2: 循環の解消は「自分の対応表の取り消し」と同じ1回の更新で行う（途中の状態を作らない）"
+  );
+  assertEqual(Object.keys(buildSupersessionWrites({ oldUid: "B", newUid: "A", backupId: "x", recordedAt: 1 })), ["uidSupersession/B"], "W2: 通常は対応表1件だけを書く");
+  assertEqual(sup.includes("if (!isPermissionDeniedError(error)) throw error;") && sup.includes("revokeOwn: true"), true, "W2: 取り消し付きの書き直しは、拒否されたときだけ（通信エラーでは行わない）");
   const presence = await readSource("js/presenceSync.js");
   assertEqual(presence.includes("return set(connectionRef, true);") && presence.includes("rememberConnectionTimestampUnsupported();"), true, "W3: 時刻の書き込みが拒否されたら true で書き直す（今の本番 Rules で動く）");
   assertEqual(presence.includes("PRESENCE_LASTSEEN_HEARTBEAT_INTERVAL_MS = 120000"), true, "W3: ハートビート間隔（2分）は変えていない");

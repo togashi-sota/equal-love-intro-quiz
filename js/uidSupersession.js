@@ -53,12 +53,28 @@ async function loadFirebase() {
 
 // 対応表 uidSupersession/{旧UID} を作る。既に存在する（＝過去に記録済み）場合はRulesで拒否されるが、
 // それは正常なので失敗扱いにしない。通信失敗も呼び出し側のプレイを止めない（console.warnのみ）。
+// 【2026-10-28追加】提案 Rules（firebase/database.rules.proposed.json）では「新しい持ち主自身が旧UIDとして記録されたまま」
+// だと対応表を作れない（循環 A→B・B→A を作らないため）。UIDが元に戻った（A→B の後に A へ戻った）ときがこれに当たるので、
+// 拒否されたら「自分の対応表の取り消し（旧UID本人だけができる）」と一緒に1回の更新で書き直す。
+// 今の本番 Rules ではこの書き直しも拒否される（従来どおり false＝既に記録済みと同じ扱い）。
+export function buildSupersessionWrites({ oldUid, newUid, backupId, recordedAt, revokeOwn = false }) {
+  const writes = { [`uidSupersession/${oldUid}`]: { newUid, backupId, recordedAt } };
+  if (revokeOwn) writes[`uidSupersession/${newUid}`] = null;
+  return writes;
+}
+
 export async function recordUidSupersession(oldUid, backupId) {
   try {
-    const { database, uid, ref, set, serverTimestamp } = await loadFirebase();
+    const { database, uid, ref, set, update, serverTimestamp } = await loadFirebase();
     if (!uid || !oldUid || oldUid === uid) return false;
-    await set(ref(database, `uidSupersession/${oldUid}`), { newUid: uid, backupId, recordedAt: serverTimestamp() });
-    return true;
+    try {
+      await set(ref(database, `uidSupersession/${oldUid}`), { newUid: uid, backupId, recordedAt: serverTimestamp() });
+      return true;
+    } catch (error) {
+      if (!isPermissionDeniedError(error)) throw error;
+      await update(ref(database), buildSupersessionWrites({ oldUid, newUid: uid, backupId, recordedAt: serverTimestamp(), revokeOwn: true }));
+      return true;
+    }
   } catch (error) {
     console.warn("旧UIDと新UIDの対応の記録に失敗しました（既に記録済みの場合も含む）", error);
     return false;
@@ -579,6 +595,24 @@ export async function fetchSupersessionLinks(oldUids) {
     }
   }
   return links;
+}
+
+// 【2026-10-28追加（組み込みは未実施・本人判断）】今のUIDが「旧UID」として対応表に載っていたら取り消す。
+// 生きている（今まさに使っている）UIDの対応表は、誤り（UIDが元に戻った）か、ownerSecret が漏れた他人の仕業。
+// どちらでも取り消すのが正しく、取り消すと「後継者」は今のUIDの公開プロフィール・在席・ランキングを消せなくなる。
+// 提案 Rules でだけ動く（旧UID本人の取り消しを許す）。今の本番 Rules では読めない・消せないので何もしない。
+// 呼び出し候補：js/backupSync.js performSync が持ち主として書けた直後（1セッション1回・読み取り1回）。
+export async function revokeOwnSupersessionIfPresent() {
+  try {
+    const { database, uid, ref, get, remove } = await loadFirebase();
+    if (!uid) return { revoked: false, reason: "no-auth" };
+    const successor = (await get(ref(database, `uidSupersession/${uid}/newUid`))).val();
+    if (typeof successor !== "string" || !successor || successor === uid) return { revoked: false, reason: "none" };
+    await remove(ref(database, `uidSupersession/${uid}`));
+    return { revoked: true, successor };
+  } catch (error) {
+    return { revoked: false, reason: isPermissionDeniedError(error) ? "permission-denied" : "error" };
+  }
 }
 
 // backupId を持たない・まだ何も同期していないプレイヤーでは案内を出さない（呼び出し側の補助）。
