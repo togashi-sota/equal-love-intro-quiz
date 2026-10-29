@@ -439,11 +439,14 @@ async function runHomeIntroSyncTests() {
   const hub = document.importNode(doc.querySelector("#game-hub-screen .game-hub-intro"), true);
   sandbox.appendChild(hub);
   document.body.appendChild(sandbox);
+  const savedScreen = document.body.dataset.screen;
+  document.body.dataset.screen = "start"; // ほかのテストの残りに左右されないよう、ホームにいる状態で確かめる
   try {
     localStorage.setItem(key, JSON.stringify({ questionCount: "20", category: "title-and-group" }));
     const homeRoot = sandbox.querySelector("#start-screen");
     const startButton = hub.querySelector("#start-button");
     const calls = { start: 0, data: 0, navigate: [], modes: [] };
+    const screenListeners = [];
     startButton.addEventListener("click", () => calls.start++);
     initHomeScreen(homeRoot, {
       songs: SONGS,
@@ -451,7 +454,7 @@ async function runHomeIntroSyncTests() {
       startButton,
       navigate: (name) => calls.navigate.push(name),
       playClickSound: () => {},
-      onScreenChange: () => {},
+      onScreenChange: (listener) => screenListeners.push(listener),
       openGameMode: (id) => calls.modes.push(id),
       openDataManagement: () => calls.data++,
       openTransferRecovery: () => {},
@@ -482,7 +485,8 @@ async function runHomeIntroSyncTests() {
     start.click();
     start.click();
     assertEqual(calls.start, 1, "D3: ［この設定でスタート］は #start-button を押したのと同じ。2回続けて押しても1回だけ");
-    await new Promise((resolve) => setTimeout(resolve, 250));
+    // 本物ではクイズの画面へ移る（画面が変わると、次に押せるようになる）
+    screenListeners.forEach((listener) => listener("quiz"));
     start.dataset.state = "noAudio";
     start.click();
     assertEqual([calls.start, calls.data], [1, 1], "D3: 音源が無いときは「音源を取り込む」＝データ管理を開く（クイズは始めない）");
@@ -493,6 +497,8 @@ async function runHomeIntroSyncTests() {
     assertEqual([calls.modes, calls.navigate], [["outroQuiz"], ["gameHub", "settings"]], "D3: 入口ボタンの行き先（アウトロ・全部のゲーム・設定）");
   } finally {
     sandbox.remove();
+    if (savedScreen === undefined) delete document.body.dataset.screen;
+    else document.body.dataset.screen = savedScreen;
     if (saved === null) localStorage.removeItem(key);
     else localStorage.setItem(key, saved);
   }
