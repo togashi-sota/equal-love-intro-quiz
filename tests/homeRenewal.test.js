@@ -385,7 +385,8 @@ function runHomePureFunctionTests() {
 
   // 入口の行き先
   const modes = Object.values(HOME_ACTIONS).filter((action) => action.type === "mode").map((action) => action.value);
-  assertEqual(modes, ["outroQuiz", "lyricsQuiz", "onlineBattle", "partyBattle", "weakSongs"], "D: ほかのゲーム：アウトロ・歌詞・オンライン・1台で対戦・苦手曲は、ゲーム画面のカードと同じ処理");
+  // 2026-10-29：ライブのカードの「ライブコール」（前の版）も、ゲーム画面の「ライブコールモード」のカードと同じ処理
+  assertEqual(modes, ["outroQuiz", "lyricsQuiz", "onlineBattle", "partyBattle", "weakSongs", "liveCallMode"], "D: ほかのゲーム（アウトロ・歌詞・オンライン・1台で対戦・苦手曲）とライブコール（前の版）は、ゲーム画面のカードと同じ処理");
   assertEqual(modes.every((id) => HOME_SPECIAL_MODES_ORDER.includes(id)), true, "D: どれも実在するモード");
   assertEqual(HOME_ACTIONS["all-games"], { type: "navigate", value: "gameHub" }, "D: 全部のゲーム → ゲーム画面");
   assertEqual([HOME_ACTIONS["live-call-classic"], HOME_ACTIONS["live-call-new"]].map((a) => `${a.type}:${a.value}`), ["mode:liveCallMode", "live:null"], "D: ライブコール＝前の版（ゲーム画面と同じ）／新しいライブコール＝新しい3モード");
