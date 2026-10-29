@@ -48,6 +48,7 @@ const APP_SHELL_FILES = [
   // 【2026-10-30追加】リニューアル第2段階：ホーム（案B）・まとめ画面・端末の「戻る」
   "./css/homeRenewal.css",
   "./css/liveCall.css",
+  "./css/karaokeStage.css",
   "./js/homeScreen.js",
   "./js/appHistory.js",
   "./js/appNavigationStack.js",
@@ -143,6 +144,7 @@ const APP_SHELL_FILES = [
   "./js/liveCallModeScreen.js",
   "./js/karaokeSync.js",
   "./js/karaokeSyncScreen.js",
+  "./js/karaokeStage.js",
   "./js/callGuidePanel.js",
   "./js/callGuideStorage.js",
   "./js/timeAttackScore.js",
