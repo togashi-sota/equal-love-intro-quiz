@@ -1207,6 +1207,12 @@ h1 .note-icon svg {
   flex-wrap: wrap;
 }
 
+/* 【2026-10-29追加】display:flex が [hidden] に勝ってしまい、「最新版データを読み込む」の「やめる／この内容で読み込む」が
+   ファイルを選ぶ前から・読み込みのあとも見えていた（js/unifiedPackImportUi.js は hidden を正しく付けていた）。 */
+.lyrics-warning-actions[hidden] {
+  display: none;
+}
+
 .lyrics-warning-actions .secondary-button {
   font-size: 0.72rem;
   padding: 8px;
