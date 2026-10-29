@@ -140,9 +140,10 @@
 #live-call-mode-karaoke-screen.kx-on .karaoke-lyrics-context-panel .synced-lyrics-line {
   border-radius: 8px;
   color: var(--kx-text);
-  font-size: 0.95rem;
+  font-size: 1rem;
   line-height: 1.55;
-  opacity: 0.5;
+  /* 【2026-10-30 fix-live】0.5 → 0.66（暗い板の上で読める明るさ。白 66% は板の上でコントラスト 7 以上） */
+  opacity: 0.66;
   transition:
     opacity 0.35s ease,
     background-color 0.35s ease,
@@ -151,13 +152,13 @@
 }
 /* 次の行：少しだけ明るく（今の行より目立たない） */
 #live-call-mode-karaoke-screen.kx-on .karaoke-lyrics-context-panel .synced-lyrics-line.kx-next-line {
-  opacity: 0.72;
+  opacity: 0.86;
 }
 /* 今の行：白く光る＋左にメンバーカラー（曲の色）の線。文字の大きさは変えない（行の高さが変わって画面が跳ねないように） */
 #live-call-mode-karaoke-screen.kx-on .karaoke-lyrics-context-panel .synced-lyrics-line.is-current-lyrics-line {
   opacity: 1;
   color: #ffffff;
-  font-size: 0.95rem;
+  font-size: 1rem;
   font-weight: 800;
   background-color: rgba(255, 255, 255, 0.09);
   box-shadow: inset 4px 0 0 var(--kx-c1);
@@ -170,12 +171,48 @@
 #live-call-mode-karaoke-screen.kx-on .karaoke-lyrics-context-panel.is-full-text-mode .synced-lyrics-line {
   opacity: 0.92;
 }
-/* 背の高い画面（iPad の縦など）：歌詞を少し大きく（今の行も同じ大きさ。行の高さは変わらない） */
-@media (min-height: 1000px) {
+/* 背の高い画面・幅の広い画面（iPad の縦など）：歌詞を少し大きく（今の行も同じ大きさ。行の高さは変わらない） */
+@media (min-height: 1000px), (min-width: 768px) {
   #live-call-mode-karaoke-screen.kx-on .karaoke-lyrics-context-panel .synced-lyrics-line,
   #live-call-mode-karaoke-screen.kx-on .karaoke-lyrics-context-panel .synced-lyrics-line.is-current-lyrics-line {
-    font-size: 1.12rem;
+    font-size: 1.22rem;
   }
+}
+
+/* ===== 歌詞とカードの高さの分け方（2026-10-30 fix-live） =====
+   コールのカードは画面の高さの約45%まで（以前はカードが中央の過半を占め、歌詞の枠が狭かった）。残りはすべて歌詞の枠。
+   長いコール（MIX など）の間も、歌詞を縮めたり暗くしすぎたりしない（前のカラオケ同期の .is-long-call-active の 0.45・0.55 を、新しい方では弱める） */
+#live-call-mode-karaoke-screen.kx-on .karaoke-lyrics-context-panel {
+  flex: 1 1 0;
+  min-height: clamp(150px, 30dvh, 520px);
+}
+/* カードの高さは状態（次のコール・もうすぐ・コール中・長いコール）で変えない（歌詞の枠が上下に跳ねないように） */
+#live-call-mode-karaoke-screen.kx-on .karaoke-call-hud-card {
+  flex: none;
+  height: clamp(190px, 34vh, 440px);
+  height: clamp(190px, 34dvh, 440px);
+  min-height: 0;
+  max-height: 45vh;
+  max-height: 45dvh;
+  padding: 14px 16px 20px;
+  gap: 6px;
+}
+/* カードの中の文字の上下の余白（p の標準の余白。大きな文字では 52px にもなる）を外し、間は gap だけにする。
+   背の低い画面で中身がカードからはみ出し、見出しがカードの上の縁に重なっていたため */
+#live-call-mode-karaoke-screen.kx-on .karaoke-call-hud-eyebrow,
+#live-call-mode-karaoke-screen.kx-on .karaoke-call-hud-text,
+#live-call-mode-karaoke-screen.kx-on .karaoke-call-hud-countdown {
+  margin: 0;
+}
+#live-call-mode-karaoke-screen.kx-on .karaoke-call-hud-countdown:empty {
+  display: none;
+}
+#live-call-mode-karaoke-screen.kx-on .karaoke-sync-panel.is-long-call-active .karaoke-lyrics-context-panel {
+  flex-grow: 1;
+  opacity: 0.9;
+}
+#live-call-mode-karaoke-screen.kx-on .karaoke-sync-panel.is-long-call-active .karaoke-call-hud-card {
+  flex-grow: 0;
 }
 
 /* ===== コールのカード ===== */
@@ -227,6 +264,15 @@
 #live-call-mode-karaoke-screen.kx-on .karaoke-call-hud-preview-item {
   color: #a9d8ff;
 }
+/* 長いコール（MIX など）：【2026-10-30 fix-live】16px・左寄せでは短いコールとの差がありすぎた → 大きく・中央揃えに。
+   カードは画面の約45%までなので、入らない分は文字の箱の中だけスクロールする */
+#live-call-mode-karaoke-screen.kx-on .karaoke-call-hud-card.is-now.is-tier-long .karaoke-call-hud-text {
+  max-height: calc(clamp(190px, 34dvh, 440px) - 84px);
+  font-size: clamp(1.2rem, 5.6vw, 1.55rem);
+  line-height: 1.45;
+  text-align: center;
+  white-space: pre-line;
+}
 /* もうすぐ！（3・2・1）：点滅させず、オレンジの縁と下のバーで知らせる */
 #live-call-mode-karaoke-screen.kx-on .karaoke-call-hud-card.is-imminent {
   border-color: rgba(255, 196, 107, 0.75);
@@ -268,23 +314,20 @@
 #live-call-mode-karaoke-screen.kx-on .karaoke-call-hud-card.kx-burst.is-tier-long .karaoke-call-hud-text {
   animation: kxLift 0.32s ease-out 1;
 }
+/* 【2026-10-30 fix-live】光の輪・火花は、カードの縁から外側へだけ広がる（文字の後ろ・外側だけ。中央の円は出さない）。
+   輪はカードと同じ角の丸い四角で、カードのすぐ外から少し大きくなって消える。火花はカードの縁の8か所から外へ */
 #live-call-mode-karaoke-screen.kx-on .kx-hud-fx {
   position: absolute;
   inset: 0;
   z-index: -1;
-  overflow: hidden;
   border-radius: inherit;
   pointer-events: none;
 }
 #live-call-mode-karaoke-screen.kx-on .kx-ring {
   position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 120px;
-  height: 120px;
-  margin: -60px 0 0 -60px;
+  inset: -4px;
   border: 3px solid var(--kx-call, #ffd36b);
-  border-radius: 50%;
+  border-radius: 28px;
   opacity: 0;
 }
 #live-call-mode-karaoke-screen.kx-on .kx-burst .kx-ring {
@@ -296,8 +339,8 @@
 }
 #live-call-mode-karaoke-screen.kx-on .kx-sparks i {
   position: absolute;
-  left: 50%;
-  top: 50%;
+  left: var(--x, 0%);
+  top: var(--y, 0%);
   width: 6px;
   height: 6px;
   margin: -3px 0 0 -3px;
@@ -351,6 +394,15 @@
   display: none;
 }
 
+/* ===== タイミング調整の「0に戻す」（2026-10-30 fix-live） =====
+   前のカラオケ同期では、いつもピンクの塗り（押されているように見える）。新しい方では、調整なし（0）のときは
+   となりの −0.1・+0.1 と同じ普通の見た目にし、調整しているとき（.kx-offset-set）だけピンクの塗りで「戻せる」ことを知らせる */
+#live-call-mode-karaoke-screen.kx-on:not(.kx-offset-set) .karaoke-timing-reset-button {
+  border: 1.5px solid var(--color-secondary);
+  background: transparent;
+  color: var(--color-secondary);
+}
+
 /* ===== 曲の終わり ===== */
 #live-call-mode-karaoke-screen.kx-on .karaoke-song-end-banner {
   background: rgba(30, 10, 52, 0.88);
@@ -359,6 +411,29 @@
 }
 #live-call-mode-karaoke-screen.kx-on .karaoke-song-end-title {
   color: #ffffff;
+}
+
+/* ===== iPad（幅 768px 以上）：列を広げた分、カードの文字を少し大きく（列の幅は css/liveCall.css） ===== */
+@media (min-width: 768px) {
+  #live-call-mode-karaoke-screen.kx-on .karaoke-call-hud-eyebrow {
+    font-size: 0.95rem;
+  }
+  #live-call-mode-karaoke-screen.kx-on .karaoke-call-hud-card.is-now.is-tier-short .karaoke-call-hud-text {
+    font-size: 4rem;
+  }
+  #live-call-mode-karaoke-screen.kx-on .karaoke-call-hud-card.is-now.is-tier-medium .karaoke-call-hud-text {
+    font-size: 2.4rem;
+  }
+  #live-call-mode-karaoke-screen.kx-on .karaoke-call-hud-card.is-now.is-tier-long .karaoke-call-hud-text {
+    font-size: 1.75rem;
+  }
+  #live-call-mode-karaoke-screen.kx-on .karaoke-call-hud-text {
+    font-size: 1.6rem;
+  }
+  #live-call-mode-karaoke-screen.kx-on .karaoke-call-hud-preview-item {
+    font-size: 0.9rem;
+    max-width: 260px;
+  }
 }
 
 /* ===== 一時停止中：動きを止めて、背景を少し落とす ===== */
@@ -467,21 +542,21 @@
 }
 @keyframes kxRing {
   0% {
-    transform: scale(0.3);
+    transform: scale(1);
     opacity: 0.9;
   }
   100% {
-    transform: scale(3.2);
+    transform: scale(1.05, 1.12);
     opacity: 0;
   }
 }
 @keyframes kxSpark {
   0% {
-    transform: rotate(var(--a, 0deg)) translateX(10px) scale(1);
+    transform: translate(0, 0) scale(1);
     opacity: 1;
   }
   100% {
-    transform: rotate(var(--a, 0deg)) translateX(115px) scale(0.4);
+    transform: translate(var(--dx, 0px), var(--dy, 0px)) scale(0.4);
     opacity: 0;
   }
 }

@@ -6545,6 +6545,44 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   display: none;
 }
 
+/* 【2026-10-30 fix-live】ライブコールモード（前の版）の曲一覧が空のときの案内。行き止まりにしないよう、データを足す場所へのボタンを出す */
+.live-call-mode-empty-state {
+  opacity: 1;
+}
+.live-call-mode-empty-title {
+  margin: 0 0 6px;
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+.live-call-mode-empty-text {
+  margin: 0 0 12px;
+  font-size: 0.85rem;
+}
+.live-call-mode-empty-actions {
+  display: grid;
+  gap: 8px;
+}
+.live-call-mode-empty-button {
+  min-height: 44px;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 14px;
+  background: linear-gradient(120deg, var(--color-primary-dark), var(--color-primary));
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.live-call-mode-empty-button.is-secondary {
+  background: var(--color-surface);
+  color: var(--color-primary-dark);
+  border: 1.5px solid var(--color-primary);
+}
+.live-call-mode-empty-button:active {
+  transform: scale(0.97);
+}
+
 /* 履歴カード1件分。タップで詳細画面を開けるよう<button>にしているため、
    ブラウザ標準のボタンの見た目（枠線・中央寄せ等）を打ち消して元のカードの見た目に揃える。 */
 .history-entry {

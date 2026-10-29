@@ -592,17 +592,13 @@ export function visualStateAt(vis, t, opts = {}) {
       s.ambient = off ? 0 : 0.45;
     }
   } else {
-    // 余韻：静かに消える（揺らさない）
+    // 終わった直後（余韻の時間）：【2026-10-30 fix-live】本人の終了時刻で、板（黄色の地）・光の枠・バー・浮き・舞台の光をすぐ 0 にする。
+    // 以前は余韻の 0.45 秒の間、時刻に合わせて少しずつ薄くしていたため、その間に一時停止・シークすると
+    // 「終わったコールが黄色の地と光の枠のまま＝今光っているように見える」ことがあった。
+    // 消え方のなめらかさは CSS の短いフェード（.is-post の transition。css/liveCall.css）に任せ、時刻の見た目は「終わった」にそろえる
     s.phase = "post";
     s.p = 1;
-    const q = 1 - smoothstep(0, 1, (t - end) / fade);
-    s.plateO = q;
-    s.glowO = off ? 0 : 0.6 * q;
-    s.liftY = (kind === VISUAL_KINDS.NORMAL ? -VIS_NORMAL_LIFT_PX : kind === VISUAL_KINDS.LONG ? -1 : 0) * k * q;
-    s.scale = kind === VISUAL_KINDS.NORMAL ? 1 + VIS_NORMAL_SCALE * k * q : 1;
-    s.barO = kind === VISUAL_KINDS.LONG ? q : 0;
     s.barP = 1;
-    s.ambient = off ? 0 : 0.4 * q;
   }
   const r = (v) => Math.round(v * 1000) / 1000;
   for (const key of ["p", "plateO", "glowO", "scale", "liftY", "barP", "barO", "ambient"]) s[key] = r(s[key]);

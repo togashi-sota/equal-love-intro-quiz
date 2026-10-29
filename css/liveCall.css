@@ -141,6 +141,16 @@
   display: flex;
   justify-content: flex-end;
 }
+/* 【2026-10-30 fix-live】ホームの3つの入口から来たとき、一覧の一番上に「そのモードが何か」を1行で */
+.lc-mode-lead {
+  order: -1;
+  margin: 0;
+  color: var(--lc-text);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.5;
+  text-align: center;
+}
 /* 【2026-10-30追加・ホーム案F】ホームで遊び方を選んで来たときの案内（一覧の上） */
 .lc-preferred-mode {
   display: flex;
@@ -370,6 +380,41 @@
 }
 .lc-toolbar.is-live {
   position: static;
+}
+/* 【2026-10-30 fix-live】ライブコールの上の部分：1行目に［ライブコール］の札と［表示の設定］。説明と設定は折りたためる（再生を始めたら自動で1回たたむ） */
+.lc-toolbar-head {
+  display: flex;
+  flex: 1 1 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.lc-toolbar-controls {
+  display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: center;
+}
+.lc-toolbar.is-collapsed .lc-toolbar-controls {
+  display: none;
+}
+.lc-settings-toggle {
+  min-height: 44px;
+  padding: 4px 12px;
+  border: 1px solid #f3b6cd;
+  border-radius: 999px;
+  background: #fff;
+  color: #8a1546;
+  font-size: 0.875rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.lc-settings-toggle::after {
+  content: " ▴";
+}
+.lc-toolbar.is-collapsed .lc-settings-toggle::after {
+  content: " ▾";
 }
 .lc-toolbar-note {
   flex: 1 1 100%;
@@ -968,6 +1013,29 @@ body[data-screen="liveCall"] .game-frame {
   inset: -1px -2px;
   box-shadow: inset 0 0 0 2px var(--lc-pink);
 }
+/* 【2026-10-30 fix-live】終わったコール：本人の終了時刻で板（黄色の地）・光の枠・バーを外す（js/callEffects.js は終了で 0 にする）。
+   消え方だけ、短いフェード（0.3 秒）でなめらかに。一時停止中でもフェードは最後まで進み、「今光っている」ようには残らない。
+   光り始め（is-active）には transition を付けない（始まりが遅れて見えないように） */
+.lc-stage .cx-call.is-post .cx-plate,
+.lc-stage .cx-call.is-post .cx-glow,
+.lc-stage .cx-call.is-post .cx-bar,
+.lc-stage .cx-call.is-post {
+  transition:
+    opacity 0.3s ease-out,
+    transform 0.3s ease-out;
+}
+.lc-stage .cx-call.is-post .cx-text {
+  transition: color 0.3s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lc-stage .cx-call.is-post .cx-plate,
+  .lc-stage .cx-call.is-post .cx-glow,
+  .lc-stage .cx-call.is-post .cx-bar,
+  .lc-stage .cx-call.is-post,
+  .lc-stage .cx-call.is-post .cx-text {
+    transition: none;
+  }
+}
 .lc-stage .cx-call.cx-v-long {
   padding-bottom: 7px;
 }
@@ -1009,4 +1077,29 @@ body[data-screen="liveCall"] .game-frame {
   box-shadow:
     inset 0 0 0 2px #ffc24d,
     inset 0 -4px 0 var(--cx-member, #ffc24d);
+}
+
+/* ===== 【2026-10-30 fix-live】iPad（幅 768px 以上）：ライブコール・新しいカラオケの列を広げ、文字を少し大きく =====
+   枠（.game-frame）の幅を広げるのは、この2つの画面を開いている間だけ（body[data-screen]）。ホーム・ほかの画面は変えない。
+   カラオケの画面は前の「カラオケ同期」と共通なので、新しいカラオケ（.kx-on）のときだけ広げる（前の版の見た目は変えない） */
+@media (min-width: 768px) {
+  body[data-screen="liveCall"] .game-frame,
+  body[data-screen="liveCallModeKaraoke"]:has(#live-call-mode-karaoke-screen.kx-on) .game-frame {
+    max-width: min(880px, 100%);
+  }
+  .lc-stage .call-text-line,
+  .lc-stage .call-text-extra {
+    font-size: calc(1.14rem * var(--lc-font, 1));
+  }
+  .lc-stage .call-text-calls {
+    font-size: calc(1.1rem * var(--lc-font, 1));
+  }
+  .lc-now-panel {
+    font-size: 1rem;
+  }
+  /* 下の再生の操作：列（#live-call-root）と同じ幅・同じ位置にそろえる */
+  #live-call-root .lc-player {
+    /* 枠の幅（画面の幅 − 左右の余白 32px、最大 880px）から、画面の内側の余白・枠線（50px）を引いた幅＝列の幅 */
+    width: calc(min(100% - 32px, 880px) - 50px);
+  }
 }

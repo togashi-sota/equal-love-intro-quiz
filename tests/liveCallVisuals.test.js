@@ -59,7 +59,8 @@ function runStateTests() {
   const afterPop = visualStateAt(s, 10.3, STD);
   assertEqual([afterPop.scale, afterPop.glowO], [1, 0.7], "B: 短い：0.28秒で 1.0 倍に戻り、光は落ち着く");
   const sPost = visualStateAt(s, 10.4 + VIS_FADE_SEC / 2, STD);
-  assertEqual([sPost.phase, sPost.plateO > 0 && sPost.plateO < 1, sPost.scale], ["post", true, 1], "B: 短い：終わったら静かに消える（膨らませない）");
+  // 【2026-10-30 fix-live】終わったら板・光の枠をすぐ外す（消え方のなめらかさは CSS の短いフェード）。一時停止しても「光っている」ように残らない
+  assertEqual([sPost.phase, sPost.plateO, sPost.glowO, sPost.scale, sPost.liftY], ["post", 0, 0, 1, 0], "B: 短い：終わったら板・光の枠をすぐ外す（膨らませない）");
   assertEqual(visualStateAt(s, 10.4 + VIS_FADE_SEC, STD).phase, "idle", "B: 消え終わったら何もしない");
   const s2 = prepareVisual({ key: "s2", text: "ダミー", start: 10.5, end: 10.8 });
   assertEqual([visualStateAt(s, 10.5, STD).phase, visualStateAt(s2, 10.5, STD).scale], ["post", 1.08], "B: 続けて来る短いコールも、それぞれ「ポン」");
