@@ -8840,6 +8840,12 @@ initHomeScreen(document.getElementById("start-screen"), {
     activateDiscographyTab("works");
     window.scrollTo(0, 0);
   },
+  // ＝LOVEについて（2026-10-30 夜間）：同じ画面の「＝LOVEについて」タブ（前に別のタブを開いていても、こちらに戻す）
+  openDiscographyAbout: () => {
+    discographyLinkElement.click();
+    activateDiscographyTab("about");
+    window.scrollTo(0, 0);
+  },
   // 歴代センター：戻る先はホーム
   openCenters: () => openCentersFrom("start"),
   // CM・企業コラボ：「＝LOVEについて」の「CM・広告・企業コラボ（＝LOVE名義）」の欄（メンバーの個人ページの案内ボタンと同じ仕組み）

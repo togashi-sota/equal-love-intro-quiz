@@ -18,6 +18,15 @@ import { buildRepresentativeLabel } from "./fanProfileCard.js";
 import { filterSongsByCategory, filterSongsByAvailableAudio, MIN_SONGS_REQUIRED } from "./quiz.js";
 import { getImportedSongIds } from "./audioStorage.js";
 import { getBackupStatusForDisplay, onBackupStatusChange } from "./backupSync.js";
+// ＝LOVE・ライブ・楽曲のカードの「何が見られるか」に出す数（アプリに入っている公開済みのデータだけから数える）
+import { MEMBERS } from "./data/members.js";
+import { ANNIVERSARY_PERIODS } from "./data/anniversaryHistory.js";
+import { TV_APPEARANCES } from "./data/tvAppearances.js";
+import { DISCOGRAPHY } from "./data/discography.js";
+import { LIVE_EVENTS } from "./data/liveHistory.js";
+import { SETLIST_PERFORMANCES } from "./data/setlists.js";
+import { getGroupCommercials, getTodayInJapanForCommercials } from "./commercialsSection.js";
+import { findNextAnnouncedLive, formatJapaneseDate } from "./liveSetlistStats.js";
 
 const QUICK_PLAY_STORAGE_KEY = "equalLoveIntroQuiz.homeQuickPlaySelection";
 
@@ -184,31 +193,125 @@ export function pickCurrentNavIndex(cardTops, line, atBottom) {
 // ここに無い入口（フレンド・ランキング・実績・プロフィール・検索・ライブ履歴・周年ヒストリー・音楽番組・メンバー）は、
 // 以前と同じ id のボタンを置き、main.js の今までの処理がそのまま動く。
 export const HOME_ACTIONS = {
-  "outro-quiz": { type: "mode", value: "outroQuiz" },
+  // ゲーム：ゲーム画面の10種類のカードと同じ処理（main.js の openSpecialModeById）。並びはホームの表示順
+  "random-playback": { type: "mode", value: "randomPlayback" },
   "lyrics-quiz": { type: "mode", value: "lyricsQuiz" },
+  "outro-quiz": { type: "mode", value: "outroQuiz" },
+  "instant-challenge": { type: "mode", value: "instantChallenge" },
+  "time-attack": { type: "mode", value: "timeAttack" },
+  "weak-songs": { type: "mode", value: "weakSongs" },
   "online-battle": { type: "mode", value: "onlineBattle" },
   "party-battle": { type: "mode", value: "partyBattle" },
-  "weak-songs": { type: "mode", value: "weakSongs" },
-  "all-games": { type: "navigate", value: "gameHub" },
-  // 【2026-10-29 本人の判断】ライブコールは前の版（ゲーム画面の「ライブコールモード」と同じ曲一覧）。新しい3モードは別の入口
+  "original-quiz": { type: "mode", value: "originalQuiz" },
+  // 【2026-10-29 本人の判断】ライブコール（「コールを覚える」）は前の版（ゲーム画面の「ライブコールモード」と同じ曲一覧）。
+  // ゲームのカードとライブのカードの両方にある（同じ行き先。10種類の数には1つとして数える）
   "live-call-classic": { type: "mode", value: "liveCallMode" },
-  "live-call-new": { type: "live", value: null },
+  // 「全部のゲーム」→ 役割を変えて「遊び方の説明・記録」（ゲーム画面：各モードの「？」の説明・プレイ履歴）
+  "all-games": { type: "navigate", value: "gameHub" },
+  // 新しいライブコール（試験中）：遊び方を選んだ状態で開く（使えない曲は曲のページで理由）
+  "live-call-sheet": { type: "live", value: "sheet" },
+  "live-call-live": { type: "live", value: "live" },
+  "live-call-karaoke": { type: "live", value: "karaoke" },
+  "next-live": { type: "click", value: "live-hub-link" },
   "live-guide": { type: "click", value: "live-guide-link" },
-  songlist: { type: "click", value: "songlist-link" },
-  "lyrics-search": { type: "click", value: "lyrics-search-link" },
   "continuous-play": { type: "click", value: "continuous-play-link" },
   playlists: { type: "click", value: "playlist-link" },
   favorites: { type: "click", value: "songlist-favorites-link" },
+  songlist: { type: "click", value: "songlist-link" },
   works: { type: "callback", value: "openDiscographyWorks", ownSound: true },
+  "lyrics-search": { type: "click", value: "lyrics-search-link" },
   centers: { type: "callback", value: "openCenters" },
   commercials: { type: "callback", value: "openGroupCommercials", ownSound: true },
+  "about-group": { type: "callback", value: "openDiscographyAbout", ownSound: true },
   "data-update": { type: "callback", value: "openDataManagement" },
-  "data-transfer": { type: "callback", value: "openTransferRecovery" },
   "data-status": { type: "callback", value: "openDataStatus" },
+  "data-transfer": { type: "callback", value: "openTransferRecovery" },
   history: { type: "click", value: "history-link" },
   guides: { type: "navigate", value: "guideHub" },
   settings: { type: "navigate", value: "settings" },
 };
+
+// ---- カードの見出しに出す数（純粋関数。テストで確かめる） ----
+
+// data：{ members, periods, tvAppearances, commercials, discography, setlists, songs, nextLive }
+// 戻り値の文はそのまま画面に出す。「|」は改行してよい所（画面では <wbr>。言葉の途中で折り返さないため）。
+// 数が取れないもの（0件など）は null にして、HTML の初めの文（数なし）のままにする。
+export function buildHomeInfoStats({ members = [], periods = [], tvAppearances = [], commercials = [], discography = [], setlists = [], songs = [], nextLive = null } = {}) {
+  const active = members.filter((member) => member.status === "active");
+  // 「N周年」の N のいちばん大きいもの（「これから（10周年へ）」のような、まだ来ていない周年は数えない）
+  const lastAnniversary = Math.max(0, ...periods.map((period) => Number(/^(\d+)周年$/.exec(period.label ?? "")?.[1] ?? 0)));
+  const tvYears = tvAppearances.map((entry) => Number(String(entry.date ?? "").slice(0, 4))).filter((year) => year > 0);
+  const singles = discography.filter((work) => work.type === "single").length;
+  const albums = discography.filter((work) => work.type === "album").length;
+  return {
+    membersHook: active.length > 0 ? `現役${active.length}人の|プロフィールと|メンバーカラー` : null,
+    memberColors: active.map((member) => member.memberColor?.hex).filter(Boolean),
+    historyHook: lastAnniversary > 0 ? `デビューから|${lastAnniversary}周年まで|1年ずつ` : null,
+    tvHook: tvAppearances.length > 0 ? `出演${tvAppearances.length}件${tvYears.length > 0 ? `・|${Math.min(...tvYears)}〜${Math.max(...tvYears)}年` : ""}・|番組と披露曲` : null,
+    cmHook: commercials.length > 0 ? `＝LOVE名義の|CM・コラボ|${commercials.length}件` : null,
+    worksSub: singles > 0 ? `シングル${singles}枚${albums > 0 ? `|・アルバム${albums}枚` : ""}` : null,
+    songsSub: songs.length > 0 ? `${songs.length}曲の|歌詞・曲の情報` : null,
+    liveHubSub: setlists.length > 0 ? `${setlists.length}公演の|セットリスト` : null,
+    nextLive: nextLive ? { title: nextLive.title, date: formatLiveDates(nextLive.startDate, nextLive.endDate) } : null,
+  };
+}
+
+function formatLiveDates(startDate, endDate) {
+  if (!startDate) return "";
+  if (!endDate || endDate === startDate) return formatJapaneseDate(startDate);
+  return `${formatJapaneseDate(startDate)}〜|${formatJapaneseDate(endDate)}`;
+}
+
+// 「|」の所に <wbr> を入れて文を置く（innerHTML は使わない）
+function setPhrasedText(element, text) {
+  const nodes = [];
+  text.split("|").forEach((part, index) => {
+    if (index > 0) nodes.push(document.createElement("wbr"));
+    nodes.push(document.createTextNode(part));
+  });
+  element.replaceChildren(...nodes);
+}
+
+// 数を画面へ（起動時に1回。データはアプリと一緒に配る固定のもの）
+function renderHomeInfoPreviews() {
+  const stats = buildHomeInfoStats({
+    members: MEMBERS,
+    periods: ANNIVERSARY_PERIODS,
+    tvAppearances: TV_APPEARANCES,
+    commercials: getGroupCommercials(),
+    discography: DISCOGRAPHY,
+    setlists: SETLIST_PERFORMANCES,
+    songs: callbacks.songs ?? [],
+    nextLive: findNextAnnouncedLive(LIVE_EVENTS, getTodayInJapanForCommercials()),
+  });
+  const put = (id, text) => {
+    const element = $(`#${id}`);
+    if (element && text) setPhrasedText(element, text);
+  };
+  put("home-know-members-hook", stats.membersHook);
+  put("home-know-history-hook", stats.historyHook);
+  put("home-know-tv-hook", stats.tvHook);
+  put("home-know-cm-hook", stats.cmHook);
+  put("home-music-works-sub", stats.worksSub);
+  put("home-music-songs-sub", stats.songsSub);
+  put("home-live-hub-sub", stats.liveHubSub);
+  const colors = $("#home-know-member-colors");
+  if (colors) {
+    colors.replaceChildren(...stats.memberColors.map((hex) => {
+      const dot = document.createElement("i");
+      dot.style.background = hex;
+      return dot;
+    }));
+  }
+  const next = $("#home-next-live");
+  if (next) {
+    next.hidden = !stats.nextLive;
+    if (stats.nextLive) {
+      put("home-next-live-title", stats.nextLive.title);
+      put("home-next-live-date", stats.nextLive.date);
+    }
+  }
+}
 
 // ---- 保存（この端末だけ・localStorage） ----
 
@@ -569,6 +672,7 @@ export function initHomeScreen(homeRoot, callbacksArg) {
 
   initCategoryNav();
   renderCategoryCounts();
+  renderHomeInfoPreviews();
 
   // 推しの色の点：プレイヤーの丸の色が変わったら合わせる
   const swatch = $("#player-hero-swatch");
