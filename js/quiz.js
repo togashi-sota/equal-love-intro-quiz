@@ -58,7 +58,7 @@ export function filterSongsByAvailableAudio(songs, importedSongIds) {
 // 「音源を読み込めば解決する」ことが伝わるようにする。
 export function validatePlayablePoolSize(pool) {
   if (pool.length < MIN_SONGS_REQUIRED) {
-    return "音源を読み込んだ曲が足りません。スタート画面の「音源を読み込む」から曲を追加するか、カテゴリの範囲を広げてください。";
+    return "音源を読み込んだ曲が足りません。ホームの「設定・データ管理」→「データ管理」から曲を追加するか、カテゴリの範囲を広げてください。";
   }
   return null;
 }

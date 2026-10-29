@@ -158,7 +158,7 @@ export async function openLiveCallModePlayer(songId) {
   if (!blob) {
     elements.noLyricsNotice.hidden = false;
     elements.noLyricsNotice.textContent =
-      "この曲の音源が読み込まれていません。スタート画面の「音源を読み込む」から先に取り込んでください。";
+      "この曲の音源が読み込まれていません。ホームの「設定・データ管理」→「データ管理」から先に取り込んでください。";
     return;
   }
 

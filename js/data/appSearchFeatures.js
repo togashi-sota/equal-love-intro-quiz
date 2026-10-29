@@ -24,7 +24,7 @@ export const APP_SEARCH_FEATURES = [
     category: FEATURE,
     title: "イントロクイズ（通常プレイ）",
     aliases: ["クイズ", "スタート", "出題数", "カテゴリ"],
-    description: "曲のイントロを聴いて曲名を4択から当てる、基本の遊び方です。ホームで出題数とカテゴリを選んで「スタート」を押します。",
+    description: "曲のイントロを聴いて曲名を4択から当てる、基本の遊び方です。ホームの「ゲームスタート」→ ゲーム画面の「イントロクイズ」で出題数とカテゴリを選んで「スタート」を押します（「すぐ遊ぶ」なら前回の設定ですぐ始まります）。",
     action: { type: "homeSection", selector: "#start-button" },
   },
   {
@@ -222,7 +222,7 @@ export const APP_SEARCH_FEATURES = [
     category: SETTING,
     title: "音源・歌詞データの読み込み（データ管理）",
     aliases: ["データ管理", "音源", "歌詞データ", "データパック", "読み込み", "インポート"],
-    description: "音源・歌詞・コールのデータを端末に読み込みます。ホーム下部の「データ管理」にあります。",
+    description: "音源・歌詞・コールのデータを端末に読み込みます。ホームの「設定・データ管理」にあります。",
     action: { type: "homeSection", selector: ".data-management-section" },
   },
   {

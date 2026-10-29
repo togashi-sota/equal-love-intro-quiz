@@ -899,7 +899,7 @@ export async function playSongIntro(song, onError, onPlaybackStart, onEnded = nu
     return;
   }
   if (!blob) {
-    onError("この曲の音源が読み込まれていません。スタート画面の「音源を読み込む」から追加してください");
+    onError("この曲の音源が読み込まれていません。ホームの「設定・データ管理」→「データ管理」から追加してください");
     return;
   }
 
@@ -996,7 +996,7 @@ export async function playSongFromRandomPosition(song, computeStartTimeSec, play
     return;
   }
   if (!blob) {
-    onError("この曲の音源が読み込まれていません。スタート画面の「音源を読み込む」から追加してください");
+    onError("この曲の音源が読み込まれていません。ホームの「設定・データ管理」→「データ管理」から追加してください");
     return;
   }
 
