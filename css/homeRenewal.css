@@ -336,12 +336,6 @@
   line-height: 1.5;
   color: var(--home-sub);
 }
-.home-card-sub {
-  margin: 12px 2px 6px;
-  font-size: 0.8125rem;
-  font-weight: 800;
-  color: var(--home-sub);
-}
 .home-card--game {
   border: none;
   background:
@@ -350,27 +344,10 @@
   box-shadow: 0 18px 36px -16px rgba(255, 79, 150, 0.75);
 }
 .home-card--game .home-card-title,
-.home-card--game .home-card-lead,
-.home-card-sub--onhero {
+.home-card--game .home-card-lead {
   color: #fff;
   text-shadow: 0 1px 2px rgba(160, 30, 90, 0.45);
 }
-.home-card--live {
-  background: linear-gradient(140deg, #fff 0%, #fff6ea 75%, #ffeedd 100%);
-  border-color: rgba(255, 159, 67, 0.35);
-}
-.home-card--music {
-  background: linear-gradient(140deg, #fff 0%, #f0f7ff 80%);
-  border-color: #d6e8fb;
-}
-.home-card--know {
-  background: linear-gradient(140deg, #fff 0%, #f6f0ff 80%);
-  border-color: #e2d6f7;
-}
-.home-card--my {
-  background: rgba(255, 255, 255, 0.94);
-}
-
 /* イントロクイズの白い板 */
 .home-intro {
   padding: 12px 10px 10px;
@@ -460,7 +437,6 @@
   color: #fff;
 }
 .home-seg-button:focus-visible,
-.home-chip:focus-visible,
 .home-cat-nav-item:focus-visible,
 .home-tact:focus-visible,
 .home-data-row:focus-visible,
@@ -521,89 +497,6 @@
   font-weight: 700;
   line-height: 1.45;
   color: var(--home-sub);
-}
-
-/* 入口の小ボタン（3列。カードの幅が 280px 未満なら2列） */
-.home-chips {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
-}
-.home-chip {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  min-width: 0;
-  min-height: 54px;
-  padding: 5px 3px;
-  border-radius: 16px;
-  border: 1px solid #f3dbe7;
-  background: #fff;
-  color: var(--color-text);
-  font-family: inherit;
-  font-size: 0.84375rem;
-  font-weight: 800;
-  line-height: 1.25;
-  text-align: center;
-  cursor: pointer;
-}
-.home-chip:active {
-  transform: scale(0.97);
-}
-.home-chip-icon {
-  font-size: 1.25rem;
-  line-height: 1;
-}
-.home-chip-label {
-  word-break: keep-all;
-  overflow-wrap: normal;
-}
-.home-chip-sub {
-  font-size: 0.78125rem;
-  font-weight: 700;
-  line-height: 1.3;
-  color: var(--home-sub);
-  word-break: keep-all;
-  overflow-wrap: anywhere;
-}
-.home-chips--onhero .home-chip {
-  border-color: transparent;
-  background: rgba(255, 255, 255, 0.94);
-  color: #b8256b;
-}
-.home-chips--onhero .home-chip-sub {
-  color: #b8256b;
-}
-.home-card--live .home-chip {
-  border-color: #f6dcc4;
-}
-.home-card--music .home-chip {
-  border-color: #d6e8fb;
-}
-.home-card--know .home-chip {
-  border-color: #e2d6f7;
-}
-/* 5個のカード（ライブ・＝LOVE）：上3つ＋下2つ（幅広）で空きを作らない */
-.home-chips--split {
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-}
-.home-chips--split .home-chip {
-  grid-column: span 2;
-}
-.home-chips--split .home-chip:nth-child(n + 4) {
-  grid-column: span 3;
-  min-height: 50px;
-}
-@container (max-width: 17.4375rem) { /* 279px 相当（文字を大きくした端末では広い幅から2列に） */
-  .home-chips {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .home-chips--split .home-chip,
-  .home-chips--split .home-chip:nth-child(n + 4) {
-    grid-column: auto;
-  }
 }
 
 /* マイページ・データ：データの箱 */
@@ -687,15 +580,10 @@
   line-height: 1.45;
   color: var(--home-sub);
 }
-@media (min-width: 440px) {
-  .home-data-pair {
-    grid-template-columns: 1fr 1fr;
-  }
-}
+/* データの箱の3つは、どの幅でも1列（3つを2列にすると1つだけ余るため。2026-10-30 夜間） */
 
 /* 動きを減らす設定：押したときの縮みもやめる */
 @media (prefers-reduced-motion: reduce) {
-  .home-chip:active,
   .home-tact:active,
   .home-data-row:active,
   .home-intro-start:active {
@@ -932,9 +820,859 @@
   min-height: 44px;
 }
 
-/* 【2026-10-29】ライブのカードは4つ（ライブコール・新しいライブコール・ライブ履歴・初心者ガイド）を2列×2段に */
-.home-chips--quad { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
 /* 【2026-10-29】この端末のデータの状態 */
 .data-status-result { margin-top: 10px; text-align: left; font-size: 13.5px; line-height: 1.6; }
 .data-status-result p { margin: 2px 0; overflow-wrap: anywhere; }
+
+/* =============================================================
+   ホーム：全部のゲーム・カテゴリのデザイン・iPad / PC の段組み（2026-10-30 夜間・本人の依頼）
+   - アイコンは index.html の <svg class="home-icon-sprite"> の <symbol>（線の色＝文字の色）
+   - 色の付いた文字は使わず（コントラストを保つため）、色はアイコンの丸・カードの帯・背景だけに使う
+   - 動き：押したときの軽い縮み（0.12秒）と、ライブのカードの光・楽曲のレコード（ホームを表示している間だけ。動きを減らす設定では止める）
+   - iPad / PC（幅 768px 以上）は、ホームだけ枠を広げて段組みにする（ほかの画面の枠は 480px のまま）
+   ============================================================= */
+.home-icon-sprite {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+.hi {
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.home-tact-icon {
+  display: inline-flex;
+}
+.home-intro-best-icon {
+  width: 1rem;
+  height: 1rem;
+  color: #b07a00;
+}
+
+/* 押したときの軽い反応（共通） */
+.home-game,
+.home-games-more,
+.home-live-main,
+.home-live-mode,
+.home-live-row,
+.home-next-live,
+.home-music-item,
+.home-know,
+.home-my-link,
+.home-data-row {
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.home-game:active,
+.home-games-more:active,
+.home-live-main:active,
+.home-live-mode:active,
+.home-live-row:active,
+.home-next-live:active,
+.home-music-item:active,
+.home-know:active,
+.home-my-link:active {
+  transform: scale(0.97);
+}
+.home-game:focus-visible,
+.home-games-more:focus-visible,
+.home-live-main:focus-visible,
+.home-live-mode:focus-visible,
+.home-live-row:focus-visible,
+.home-next-live:focus-visible,
+.home-music-item:focus-visible,
+.home-know:focus-visible,
+.home-my-link:focus-visible {
+  outline: 3px solid #4a9be0;
+  outline-offset: 2px;
+}
+
+/* ---------- ゲーム：10種類 ---------- */
+.home-game--random { --mode: #2b8a5e; --mode-soft: #e2f4ea; }
+.home-game--lyrics { --mode: #1c6fc4; --mode-soft: #e1eefb; }
+.home-game--outro { --mode: #6f42c1; --mode-soft: #eee6fb; }
+.home-game--instant { --mode: #c25e00; --mode-soft: #ffefd9; }
+.home-game--time { --mode: #c92a2a; --mode-soft: #ffe6e6; }
+.home-game--weak { --mode: #0b7f8f; --mode-soft: #dbf2f5; }
+.home-game--online { --mode: #3b5bdb; --mode-soft: #e5eaff; }
+.home-game--party { --mode: #c2255c; --mode-soft: #ffe2ee; }
+.home-game--original { --mode: #946200; --mode-soft: #fff1cc; }
+.home-game--call { --mode: #9c36b5; --mode-soft: #f5e4fa; }
+
+.home-games {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 8px;
+  margin-top: 12px;
+  container-type: inline-size;
+}
+.home-game-group--solo,
+.home-games-more {
+  grid-column: 1 / -1;
+}
+.home-game-group {
+  min-width: 0;
+}
+.home-game-group-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  margin: 0 0 6px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: rgba(120, 16, 70, 0.62);
+  font-size: 0.8125rem;
+  font-weight: 800;
+  color: #fff;
+}
+.home-game-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+}
+.home-game-group--solo .home-game-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+/* 案A（2列・横長・アイコンが左）。案B（3列の縦長）・案C（1列の一覧）と比べて決めた（renewal-notes/night-home.md） */
+.home-game {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 64px;
+  padding: 8px 8px 10px;
+  border: none;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #fff 55%, var(--mode-soft));
+  box-shadow: inset 0 -3px 0 var(--mode), 0 6px 14px -10px rgba(120, 20, 70, 0.55);
+  color: var(--color-text);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+}
+.home-game-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 2.125rem;
+  height: 2.125rem;
+  border-radius: 50%;
+  background: var(--mode);
+  color: #fff;
+  box-shadow: 0 3px 8px -3px var(--mode);
+}
+.home-game-icon .hi {
+  width: 1.2rem;
+  height: 1.2rem;
+}
+.home-game-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.home-game-title {
+  font-size: 0.875rem;
+  font-weight: 800;
+  line-height: 1.25;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.home-game-desc {
+  font-size: 0.78125rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--home-sub);
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+/* ゲームの一覧が広いとき（iPad 横・PC）：ひとりで挑戦を3列に */
+@container (min-width: 36rem) {
+  .home-game-group--solo .home-game-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+.home-games-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 4px 12px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  color: #a3195b;
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.home-games-more .home-chevron {
+  color: #a3195b;
+}
+/* ---------- ライブ：会場の光 ---------- */
+.home-card.home-card--live {
+  position: relative;
+  overflow: hidden;
+  border: none;
+  background:
+    radial-gradient(ellipse 60% 50% at 12% 0%, rgba(255, 92, 157, 0.55), transparent 70%),
+    radial-gradient(ellipse 50% 45% at 88% 4%, rgba(90, 170, 255, 0.5), transparent 70%),
+    radial-gradient(ellipse 70% 40% at 50% 100%, rgba(170, 90, 255, 0.45), transparent 70%),
+    linear-gradient(165deg, #2a1146 0%, #3d1658 50%, #1c2350 100%);
+  box-shadow: 0 16px 32px -18px rgba(40, 10, 70, 0.85);
+  color: #fff;
+}
+.home-card--live .home-card-head {
+  position: relative;
+  padding-right: 64px; /* 右上の光の棒と重ならない */
+}
+.home-card--live .home-card-title {
+  color: #fff;
+}
+.home-card--live .home-card-lead {
+  color: #f0e4ff;
+}
+.home-card--live .home-chevron {
+  color: #fff;
+}
+/* 右上の光の棒（飾り）。会場で振られる光のイメージ */
+.home-live-lights {
+  position: absolute;
+  top: 6px;
+  right: 12px;
+  display: flex;
+  gap: 7px;
+  pointer-events: none;
+}
+.home-live-lights i {
+  display: block;
+  width: 5px;
+  height: 30px;
+  border-radius: 3px;
+  background: var(--glow);
+  box-shadow: 0 0 8px 1px var(--glow), 0 0 18px 2px var(--glow);
+  transform: rotate(var(--tilt));
+  transform-origin: 50% 100%;
+  opacity: 0.9;
+}
+.home-live-lights i:nth-child(1) { --glow: #ff6fa8; --tilt: -14deg; }
+.home-live-lights i:nth-child(2) { --glow: #c9a8ff; --tilt: -6deg; }
+.home-live-lights i:nth-child(3) { --glow: #74c0fc; --tilt: 4deg; }
+.home-live-lights i:nth-child(4) { --glow: #ffe066; --tilt: 12deg; }
+.home-live-lights i:nth-child(5) { --glow: #8ce99a; --tilt: -8deg; }
+.home-live-lights i:nth-child(6) { --glow: #ff8787; --tilt: 6deg; }
+.home-live-lights i:nth-child(7) { --glow: #f8f9fa; --tilt: -3deg; }
+@media (prefers-reduced-motion: no-preference) {
+  body[data-screen="start"] .home-live-lights i {
+    animation: home-live-sway 2.6s ease-in-out infinite alternate;
+  }
+  body[data-screen="start"] .home-live-lights i:nth-child(2n) {
+    animation-delay: -1.3s;
+  }
+  body[data-screen="start"] .home-live-lights i:nth-child(3n) {
+    animation-delay: -0.6s;
+  }
+}
+@keyframes home-live-sway {
+  from { transform: rotate(var(--tilt)); }
+  to { transform: rotate(calc(var(--tilt) * -1)); }
+}
+@media (max-width: 400px) {
+  .home-live-lights i:nth-child(n + 5) {
+    display: none;
+  }
+}
+.home-next-live {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 48px;
+  margin: 0 0 8px;
+  padding: 6px 12px;
+  border: 1px solid rgba(255, 224, 102, 0.7);
+  border-radius: 14px;
+  background: rgba(255, 224, 102, 0.14);
+  color: #fff;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.home-next-live[hidden] {
+  display: none;
+}
+.home-next-live-label {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #ffe066;
+  color: #3d2a00;
+  font-size: 0.78125rem;
+  font-weight: 800;
+}
+.home-next-live-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.home-next-live-text b {
+  font-size: 0.875rem;
+  line-height: 1.3;
+}
+.home-next-live-text small {
+  font-size: 0.78125rem;
+  font-weight: 700;
+  color: #fff3c4;
+}
+.home-live-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 64px;
+  padding: 8px 14px;
+  border: none;
+  border-radius: 18px;
+  background: linear-gradient(120deg, #d6286e 0%, #9c36c9 100%);
+  box-shadow: 0 10px 22px -12px rgba(255, 79, 150, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  color: #fff;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.home-live-main-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22);
+}
+.home-live-main-icon .hi {
+  width: 1.4rem;
+  height: 1.4rem;
+}
+.home-live-main-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.home-live-main-text b {
+  font-size: 1.0625rem;
+}
+.home-live-main-text small {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #fff;
+}
+.home-live-new {
+  margin-top: 10px;
+}
+.home-live-new-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 2px 6px;
+  font-size: 0.8125rem;
+  font-weight: 800;
+  color: #fff;
+}
+.home-live-new-lead {
+  margin: -3px 2px 6px;
+  font-size: 0.78125rem;
+  font-weight: 700;
+  color: #eadcff;
+}
+.home-tag {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #ffe066;
+  color: #3d2a00;
+  font-size: 0.78125rem;
+  font-weight: 800;
+}
+.home-live-new-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.home-live-mode {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-width: 0;
+  min-height: 88px;
+  padding: 9px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.home-live-mode .hi {
+  width: 1.5rem;
+  height: 1.5rem;
+  margin-bottom: 2px;
+}
+.home-live-mode--sheet .hi { color: #ffc9a3; }
+.home-live-mode--live .hi { color: #ffe066; filter: drop-shadow(0 0 4px rgba(255, 224, 102, 0.8)); }
+.home-live-mode--karaoke .hi { color: #99e9f2; }
+.home-live-mode b {
+  font-size: 0.84375rem;
+  line-height: 1.25;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.home-live-mode small,
+.home-live-row small {
+  font-size: 0.78125rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: #eadcff;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.home-live-sub {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 8px;
+}
+.home-live-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 56px;
+  padding: 6px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.home-live-row > span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.home-live-row b {
+  font-size: 0.84375rem;
+  line-height: 1.25;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.home-live-row .hi {
+  width: 1.5rem;
+  height: 1.5rem;
+  color: #ffd8e8;
+}
+.hi--beginner {
+  stroke: none;
+}
+
+/* ---------- 楽曲・歌詞：プレイヤーとレコード ---------- */
+.home-card.home-card--music {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 0% 100%, rgba(255, 175, 215, 0.35), transparent 45%),
+    linear-gradient(150deg, #f4f0ff 0%, #e6f0ff 60%, #eef7ff 100%);
+  border-color: #cfdcfa;
+}
+.home-card--music .home-card-head,
+.home-card--music .home-card-note {
+  position: relative;
+  padding-right: 64px;
+}
+/* 右上のレコード（飾り） */
+.home-music-disc {
+  position: absolute;
+  top: -34px;
+  right: -30px;
+  width: 112px;
+  height: 112px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, #fff 0 4px, #ff6fa8 5px 17px, transparent 18px),
+    repeating-radial-gradient(circle, #2f2846 0 2px, #3c3459 2px 4px);
+  box-shadow: 0 8px 18px -8px rgba(40, 30, 80, 0.6);
+  pointer-events: none;
+}
+.home-music-cols {
+  display: grid;
+  gap: 8px;
+}
+.home-music-col {
+  display: grid;
+  grid-template-columns: 3.25rem repeat(auto-fit, minmax(0, 1fr));
+  gap: 6px;
+  align-items: stretch;
+}
+.home-music-col-title {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  margin: 0;
+  color: #2f3f8f;
+  font-size: 0.8125rem;
+  font-weight: 800;
+}
+.home-music-col-title .hi {
+  width: 1.3rem;
+  height: 1.3rem;
+}
+.home-music-item {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  min-width: 0;
+  min-height: 54px;
+  padding: 5px 8px;
+  border: 1px solid #d3def8;
+  border-radius: 14px;
+  background: #fff;
+  color: var(--color-text);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.home-music-item b {
+  font-size: 0.84375rem;
+  line-height: 1.25;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.home-music-item small {
+  font-size: 0.78125rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--home-sub);
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- ＝LOVEをもっと知る：何が見られるかの見出し ---------- */
+.home-card.home-card--know {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(255, 190, 220, 0.45), transparent 40%),
+    linear-gradient(150deg, #fff 0%, #faf2ff 60%, #fff0f6 100%);
+  border-color: #ead8f5;
+}
+.home-know--members { --know: #d6336c; }
+.home-know--centers { --know: #a35f00; }
+.home-know--history { --know: #5f3dc4; }
+.home-know--tv { --know: #1864ab; }
+.home-know--cm { --know: #c2410c; }
+.home-know--about { --know: #ae3ec9; }
+.home-know-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+/* カードが広いとき（iPad 縦の1列など）は3列 */
+@container (min-width: 36rem) {
+  .home-know-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+.home-know {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  min-width: 0;
+  min-height: 96px;
+  padding: 9px 10px 10px;
+  border: 1px solid #eedcf3;
+  border-radius: 16px;
+  background: #fff;
+  color: var(--color-text);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.home-know-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 10px;
+  background: var(--know);
+  color: #fff;
+}
+.home-know-icon .hi {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+.home-know-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.home-know-text b {
+  font-size: 0.9375rem;
+  line-height: 1.3;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.home-know-hook {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--home-sub);
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.home-know-colors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: 1px;
+}
+.home-know-colors i {
+  display: block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.15);
+}
+
+/* ---------- マイページ・データ：整っていて安心 ---------- */
+.home-card.home-card--my {
+  background: linear-gradient(150deg, #f6fcf9 0%, #f1f7ff 100%);
+  border-color: #d3e8e0;
+}
+.home-card--my .home-card-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.home-my-shield {
+  width: 1.35rem;
+  height: 1.35rem;
+  color: #2b8a5e;
+}
+.home-data-row-icon {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 10px;
+  background: #e3effc;
+  color: #1c6fc4;
+}
+.home-data-row-icon .hi {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+.home-my-links {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.home-my-link {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 0;
+  min-height: 56px;
+  padding: 4px;
+  border: 1px solid #d3e8e0;
+  border-radius: 14px;
+  background: #fff;
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 0.84375rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.home-my-link .hi {
+  color: #2b8a5e;
+}
+.home-my-link span {
+  word-break: keep-all;
+}
+
+/* ---------- 狭い板・文字を大きくした端末 ---------- */
+@container (max-width: 21rem) { /* 336px 相当（rem なので、文字を大きくした端末ではもっと広い幅から） */
+  .home-game-group--solo .home-game-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .home-game {
+    min-height: 0;
+  }
+  .home-live-new-grid {
+    grid-template-columns: 1fr;
+  }
+  .home-live-mode {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 8px;
+    min-height: 52px;
+  }
+  .home-live-mode small {
+    flex: 1 1 100%;
+    padding-left: calc(1.5rem + 8px);
+  }
+}
+@container (max-width: 19.5rem) { /* 320px のスマホなど：アイコンを少し小さくして、題名を1行に入れやすく */
+  .home-game {
+    gap: 6px;
+    padding-inline: 6px;
+  }
+  .home-game-icon {
+    width: 1.75rem;
+    height: 1.75rem;
+  }
+  .home-game-icon .hi {
+    width: 1rem;
+    height: 1rem;
+  }
+}
+@container (max-width: 16rem) { /* 文字を大きくした狭い端末：ひとりで挑戦も1列（題名を言葉の途中で折り返さない） */
+  .home-game-group--solo .home-game-grid {
+    grid-template-columns: 1fr;
+  }
+}
+@container (max-width: 17.5rem) {
+  .home-games {
+    grid-template-columns: 1fr;
+  }
+  .home-live-sub,
+  .home-know-grid {
+    grid-template-columns: 1fr;
+  }
+  .home-know {
+    min-height: 0;
+  }
+}
+
+/* ---------- iPad・PC：ホームだけ枠を広げて段組み ---------- */
+@media (min-width: 768px) {
+  body[data-screen="start"] .game-frame {
+    max-width: min(1200px, 100%);
+  }
+  .home-screen.screen {
+    padding: 18px 22px 28px;
+  }
+  .home-cat-nav {
+    margin-inline: -22px;
+    padding-inline: 22px;
+  }
+  .home-cards {
+    gap: 14px;
+    margin-top: 12px;
+  }
+  .home-card {
+    padding: 16px 14px 14px;
+  }
+  .home-cat-nav-item {
+    flex: 1 1 0;
+  }
+}
+/* iPad・PC：ライブと楽曲、＝LOVE とマイ・データを2列に（ゲームのカードは横いっぱい） */
+@media (min-width: 768px) {
+  .home-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start; /* iPad 縦：高さの違うカードを無理に伸ばさない */
+  }
+  .home-card--game {
+    grid-column: 1 / -1;
+  }
+}
+@media (min-width: 1024px) {
+  .home-cards {
+    align-items: stretch;
+  }
+  /* 楽曲のカードは隣のライブのカードと同じ高さになるので、ボタンの行を縦に広げて下の空きを作らない */
+  .home-card--music {
+    display: flex;
+    flex-direction: column;
+  }
+  .home-music-cols {
+    flex: 1;
+    grid-auto-rows: 1fr;
+  }
+}
+/* ゲームのカードが広いとき（iPad 横・PC。カードの幅 800px 相当以上）：イントロクイズ（左）と全部のゲーム（右）を横に */
+@container (min-width: 50rem) {
+  .home-game-layout {
+    display: grid;
+    grid-template-columns: minmax(22rem, 0.8fr) minmax(0, 1.2fr);
+    gap: 18px;
+    align-items: stretch;
+  }
+  .home-game-layout .home-games {
+    margin-top: 0;
+  }
+  /* 板の中のまとまり（見出し・出題数・カテゴリ・スタート）の間を均等に空ける（1か所だけ大きく空かないように） */
+  .home-game-layout .home-intro {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .home-game-layout .home-intro-start {
+    margin-top: 0;
+  }
+  .home-game-layout .home-seg-button {
+    min-height: 50px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-game,
+  .home-games-more,
+  .home-live-main,
+  .home-live-mode,
+  .home-live-row,
+  .home-next-live,
+  .home-music-item,
+  .home-know,
+  .home-my-link,
+  .home-data-row {
+    transition: none;
+  }
+  .home-game:active,
+  .home-games-more:active,
+  .home-live-main:active,
+  .home-live-mode:active,
+  .home-live-row:active,
+  .home-next-live:active,
+  .home-music-item:active,
+  .home-know:active,
+  .home-my-link:active {
+    transform: none;
+  }
+}

@@ -260,6 +260,44 @@
          ゲーム（#game-hub-screen）・楽曲・歌詞（#music-hub-screen）・ガイド（#guide-hub-screen）・設定・データ管理（#settings-screen）にある。 -->
     <section id="start-screen" class="screen is-active home-screen home-f">
       <h1 class="visually-hidden">＝LOVEイントロクイズ</h1>
+      <!-- ホームのアイコン（2026-10-30 夜間）。<use href="#hi-…"> で使う。線の太さ・色は css/homeRenewal.css の .hi（色は文字の色） -->
+      <svg class="home-icon-sprite" aria-hidden="true" focusable="false">
+        <symbol id="hi-shuffle" viewBox="0 0 24 24"><path d="M3 7h3.2c2 0 3.3 1 4.4 2.6l2.8 4.3C14.5 15.5 15.8 17 17.8 17H21M18 14l3 3-3 3M3 17h3.2c1.2 0 2.1-.4 2.9-1.1M14.6 8.1c.8-.7 1.7-1.1 2.9-1.1H21M18 4l3 3-3 3"/></symbol>
+        <symbol id="hi-lyrics" viewBox="0 0 24 24"><path d="M5 4h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-7l-5 4v-4H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2ZM7.5 9h9M7.5 12.5h5.5"/></symbol>
+        <symbol id="hi-outro" viewBox="0 0 24 24"><path d="M3.5 9v6M7.5 10v4M11.5 11.2v1.6M16 4v16M16 4.5h4.5l-1.6 2.5 1.6 2.5H16"/></symbol>
+        <symbol id="hi-bolt" viewBox="0 0 24 24"><path d="M13.5 2.5 5 13.5h6.5L10.5 21.5 19 10.5h-6.5Z"/></symbol>
+        <symbol id="hi-timer" viewBox="0 0 24 24"><circle cx="12" cy="13.5" r="7.5"/><path d="M12 13.5V9.5M9.5 2.5h5M12 2.5V6M18.3 6.7l1.6-1.6"/></symbol>
+        <symbol id="hi-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1" fill="currentColor"/></symbol>
+        <symbol id="hi-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.7 3.7 5.7 3.7 9s-1.2 6.3-3.7 9c-2.5-2.7-3.7-5.7-3.7-9S9.5 5.7 12 3Z"/></symbol>
+        <symbol id="hi-party" viewBox="0 0 24 24"><circle cx="12" cy="7.5" r="3"/><path d="M6.5 20v-.5a5.5 5.5 0 0 1 11 0v.5"/><circle cx="4.5" cy="9.5" r="2"/><circle cx="19.5" cy="9.5" r="2"/><path d="M1.5 18a3.5 3.5 0 0 1 4-3.4M22.5 18a3.5 3.5 0 0 0-4-3.4"/></symbol>
+        <symbol id="hi-pencil" viewBox="0 0 24 24"><path d="M4 20l1-4.5L15.5 5a2.1 2.1 0 0 1 3 3L8 18.5 4 20ZM13.5 7l3 3"/></symbol>
+        <symbol id="hi-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></symbol>
+        <symbol id="hi-grid" viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></symbol>
+        <symbol id="hi-sheet" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8.5 8h7M8.5 12h7M8.5 16h4"/></symbol>
+        <symbol id="hi-spark" viewBox="0 0 24 24"><path d="M11 3.5l1.8 5.2L18 10.5l-5.2 1.8L11 17.5l-1.8-5.2L4 10.5l5.2-1.8ZM18.5 15v5M16 17.5h5"/></symbol>
+        <symbol id="hi-karaoke" viewBox="0 0 24 24"><circle cx="15.5" cy="8.5" r="4.5"/><path d="M12.4 11.8 4.5 19.7l-.2 1.2 1.2-.2 7.9-7.9M18.5 18v-3.5l2.5-.6"/><circle cx="17.3" cy="18.6" r="1.4"/></symbol>
+        <symbol id="hi-ticket" viewBox="0 0 24 24"><path d="M3.5 6.5h17v3.3a2.2 2.2 0 0 0 0 4.4v3.3h-17v-3.3a2.2 2.2 0 0 0 0-4.4ZM14.5 6.5v2M14.5 11v2M14.5 15.5v2"/></symbol>
+        <symbol id="hi-beginner" viewBox="0 0 24 24"><path d="M5.5 3.5 12 7.5v13l-6.5-4Z" fill="#ffd43b" stroke="none"/><path d="M18.5 3.5 12 7.5v13l6.5-4Z" fill="#37b24d" stroke="none"/></symbol>
+        <symbol id="hi-headphones" viewBox="0 0 24 24"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4.5" height="6.5" rx="1.6"/><rect x="16.5" y="14" width="4.5" height="6.5" rx="1.6"/></symbol>
+        <symbol id="hi-book" viewBox="0 0 24 24"><path d="M5 4.5h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3ZM5 17.5a3 3 0 0 1 3-3h11M9 8.5h6"/></symbol>
+        <symbol id="hi-search-note" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5M9.5 13V8.3l2.8-.7"/><circle cx="8.6" cy="13" r="1" fill="currentColor"/></symbol>
+        <symbol id="hi-people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.6"/><path d="M16.2 14.1A5 5 0 0 1 21.5 19"/></symbol>
+        <symbol id="hi-crown" viewBox="0 0 24 24"><path d="M3.5 8l4.3 4L12 5l4.2 7 4.3-4-1.8 11H5.3ZM5.5 21h13"/></symbol>
+        <symbol id="hi-calendar" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="m12 12.6 1 2 2.2.3-1.6 1.5.4 2.2-2-1-2 1 .4-2.2-1.6-1.5 2.2-.3Z" fill="currentColor" stroke="none"/></symbol>
+        <symbol id="hi-tv" viewBox="0 0 24 24"><rect x="3" y="6.5" width="18" height="13" rx="2"/><path d="M8 2.8l4 3.7 4-3.7M10 11l4 2.2-4 2.3Z"/></symbol>
+        <symbol id="hi-megaphone" viewBox="0 0 24 24"><path d="M3.5 10v4H7l8 5V5L7 10ZM18.5 9a4.2 4.2 0 0 1 0 6M7 14l1.4 5.5h2.6l-1-5"/></symbol>
+        <symbol id="hi-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.6v.1"/></symbol>
+        <symbol id="hi-shield" viewBox="0 0 24 24"><path d="M12 3l7.5 3v5.5c0 4.5-3.2 8.2-7.5 9.5-4.3-1.3-7.5-5-7.5-9.5V6ZM8.7 12l2.4 2.4 4.2-4.6"/></symbol>
+        <symbol id="hi-download" viewBox="0 0 24 24"><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M4.5 19.5h15"/></symbol>
+        <symbol id="hi-check" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="m8.3 12.2 2.5 2.5 4.9-5.2"/></symbol>
+        <symbol id="hi-transfer" viewBox="0 0 24 24"><path d="M4 8h13.5M14 4.5 17.5 8 14 11.5M20 16H6.5M10 12.5 6.5 16l3.5 3.5"/></symbol>
+        <symbol id="hi-history" viewBox="0 0 24 24"><path d="M3.8 12a8.2 8.2 0 1 0 2.4-5.8M3.5 3.8v3.9h3.9M12 8v4.5l3 2"/></symbol>
+        <symbol id="hi-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.4M12 17v.1"/></symbol>
+        <symbol id="hi-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.6M12 18.6v2.6M2.8 12h2.6M18.6 12h2.6M5.5 5.5l1.8 1.8M16.7 16.7l1.8 1.8M5.5 18.5l1.8-1.8M16.7 7.3l1.8-1.8"/></symbol>
+        <symbol id="hi-friends" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.6"/><path d="M16.2 14.1A5 5 0 0 1 21.5 19"/></symbol>
+        <symbol id="hi-trophy" viewBox="0 0 24 24"><path d="M7 4h10v4.5a5 5 0 0 1-10 0ZM7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3M12 13.5V17M8.5 20.5h7M10 17h4v3.5h-4Z"/></symbol>
+        <symbol id="hi-medal" viewBox="0 0 24 24"><circle cx="12" cy="15" r="5.5"/><path d="M8.5 3l2.2 6.8M15.5 3l-2.2 6.8"/><path d="m12 12.4.9 1.7 1.9.3-1.4 1.3.3 1.9-1.7-.9-1.7.9.3-1.9-1.4-1.3 1.9-.3Z" fill="currentColor" stroke="none"/></symbol>
+      </svg>
 
       <!-- 上部バー：名前とランク（押すとプレイヤー設定）・推しの色と名前（押すとメンバー紹介）、右に フレンド／ランキング／実績。
            実績＝今までの「称号一覧」のモーダル（新しい実績は作らない）。幅 460px 未満では3つをプロフィールの下の1行へ。 -->
@@ -281,13 +319,13 @@
         </div>
         <nav class="home-topbar-actions" aria-label="フレンド・ランキング・実績">
           <button id="fan-profiles-link" class="home-tact" type="button" aria-label="フレンド">
-            <span class="home-tact-icon" aria-hidden="true">👥</span><span class="home-tact-label">フレンド</span>
+            <span class="home-tact-icon" aria-hidden="true"><svg class="hi"><use href="#hi-friends"/></svg></span><span class="home-tact-label">フレンド</span>
           </button>
           <button id="home-leaderboard-link" class="home-tact" type="button" aria-label="ランキング">
-            <span class="home-tact-icon" aria-hidden="true">🏆</span><span class="home-tact-label">ランキング</span>
+            <span class="home-tact-icon" aria-hidden="true"><svg class="hi"><use href="#hi-trophy"/></svg></span><span class="home-tact-label">ランキング</span>
           </button>
           <button id="title-list-link" class="home-tact" type="button" aria-label="実績（称号一覧）を開く">
-            <span class="home-tact-icon" aria-hidden="true">🎖️</span><span class="home-tact-label">実績</span>
+            <span class="home-tact-icon" aria-hidden="true"><svg class="hi"><use href="#hi-medal"/></svg></span><span class="home-tact-label">実績</span>
             <span id="home-player-titles" class="visually-hidden">称号 0</span>
           </button>
         </nav>
@@ -342,13 +380,15 @@
         <section id="home-card-game" class="home-card home-card--game" aria-labelledby="home-card-game-title">
           <div class="home-card-head">
             <h2 id="home-card-game-title" class="home-card-title">ゲームで遊ぶ</h2>
-            <span class="home-card-lead">いちばん人気はイントロクイズ</span>
+            <span class="home-card-lead">イントロクイズと、10種類のゲーム</span>
           </div>
+          <div class="home-game-layout">
           <div id="home-intro-panel" class="home-intro">
             <div class="home-intro-head">
               <h3 class="home-intro-title">イントロクイズ</h3>
-              <span id="home-intro-best" class="home-intro-best is-empty"><span aria-hidden="true">🏆</span> <span id="home-intro-best-condition">5問・表題のみ</span>　<b id="home-intro-best-value">ベスト 記録なし</b></span>
+              <span id="home-intro-best" class="home-intro-best is-empty"><svg class="hi home-intro-best-icon" aria-hidden="true"><use href="#hi-trophy"/></svg> <span id="home-intro-best-condition">5問・表題のみ</span>　<b id="home-intro-best-value">ベスト 記録なし</b></span>
             </div>
+            <div class="home-intro-block">
             <p id="home-intro-count-label" class="home-intro-label">出題数</p>
             <div class="home-seg home-seg--count" role="radiogroup" aria-labelledby="home-intro-count-label">
               <button class="home-seg-button" type="button" role="radio" data-home-count="5" aria-checked="true">5問</button>
@@ -357,11 +397,14 @@
               <button class="home-seg-button" type="button" role="radio" data-home-count="50" aria-checked="false">50問</button>
               <button class="home-seg-button" type="button" role="radio" data-home-count="all" aria-checked="false">全問</button>
             </div>
+            </div>
+            <div class="home-intro-block">
             <p id="home-intro-category-label" class="home-intro-label">カテゴリ</p>
             <div class="home-seg home-seg--cat" role="radiogroup" aria-labelledby="home-intro-category-label">
               <button class="home-seg-button" type="button" role="radio" data-home-category="title-track" aria-checked="true">表題曲のみ<small data-home-category-count="title-track"></small></button>
               <button class="home-seg-button" type="button" role="radio" data-home-category="title-and-group" aria-checked="false">表題曲＋<wbr>全員曲<small data-home-category-count="title-and-group"></small></button>
               <button class="home-seg-button" type="button" role="radio" data-home-category="all" aria-checked="false">全曲<small data-home-category-count="all"></small></button>
+            </div>
             </div>
             <button id="home-intro-start-button" class="home-intro-start" type="button" data-state="ok">
               <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5Z"/></svg>
@@ -369,86 +412,212 @@
             </button>
             <div id="home-intro-notices" class="home-intro-notices" aria-live="polite"></div>
           </div>
-          <p class="home-card-sub home-card-sub--onhero">ほかのゲーム</p>
-          <div class="home-chips home-chips--onhero">
-            <button class="home-chip" type="button" data-home-action="outro-quiz"><span class="home-chip-icon" aria-hidden="true">🎶</span><span class="home-chip-label">アウトロ<wbr>クイズ</span></button>
-            <button class="home-chip" type="button" data-home-action="lyrics-quiz"><span class="home-chip-icon" aria-hidden="true">📝</span><span class="home-chip-label">歌詞クイズ</span></button>
-            <button class="home-chip" type="button" data-home-action="online-battle"><span class="home-chip-icon" aria-hidden="true">🌐</span><span class="home-chip-label">オンライン<wbr>対戦</span></button>
-            <button class="home-chip" type="button" data-home-action="party-battle"><span class="home-chip-icon" aria-hidden="true">🎉</span><span class="home-chip-label">1台で対戦</span></button>
-            <button class="home-chip" type="button" data-home-action="weak-songs"><span class="home-chip-icon" aria-hidden="true">💪</span><span class="home-chip-label">苦手曲</span></button>
-            <button class="home-chip" type="button" data-home-action="all-games"><span class="home-chip-icon" aria-hidden="true">🎮</span><span class="home-chip-label">全部の<wbr>ゲーム</span><span class="home-chip-sub">10種類</span></button>
+          <!-- 【2026-10-30 夜間・本人の依頼】全部のゲーム（ゲーム画面の10種類）をホームにも並べる。
+               3つのまとまり（ひとりで挑戦・友達と対戦・つくる・覚える）は、ゲーム画面の GAME_HUB_GROUPS と同じ分け方。
+               押したときの処理はゲーム画面のカードと同じ（HOME_ACTIONS の type: "mode" → main.js の openSpecialModeById）。
+               題名は「何をするか」が分かる短い名前（例：「苦手曲モード」→「苦手曲を練習」）。色とアイコンはモードごとに別。 -->
+          <div id="home-games" class="home-games" aria-label="ほかのゲーム（10種類）">
+            <section class="home-game-group home-game-group--solo" aria-labelledby="home-games-solo-title">
+              <h3 id="home-games-solo-title" class="home-game-group-title">ひとりで挑戦</h3>
+              <div class="home-game-grid">
+                <button class="home-game home-game--random" type="button" data-home-action="random-playback">
+                  <span class="home-game-icon" aria-hidden="true"><svg class="hi"><use href="#hi-shuffle"/></svg></span>
+                  <span class="home-game-text"><span class="home-game-title">ランダム再生<wbr>クイズ</span><span class="home-game-desc">曲の途中から<wbr>出題</span></span>
+                </button>
+                <button class="home-game home-game--lyrics" type="button" data-home-action="lyrics-quiz">
+                  <span class="home-game-icon" aria-hidden="true"><svg class="hi"><use href="#hi-lyrics"/></svg></span>
+                  <span class="home-game-text"><span class="home-game-title">歌詞クイズ</span><span class="home-game-desc">歌詞の一部で<wbr>当てる</span></span>
+                </button>
+                <button class="home-game home-game--outro" type="button" data-home-action="outro-quiz">
+                  <span class="home-game-icon" aria-hidden="true"><svg class="hi"><use href="#hi-outro"/></svg></span>
+                  <span class="home-game-text"><span class="home-game-title">アウトロクイズ</span><span class="home-game-desc">最後の5秒で<wbr>当てる</span></span>
+                </button>
+                <button class="home-game home-game--instant" type="button" data-home-action="instant-challenge">
+                  <span class="home-game-icon" aria-hidden="true"><svg class="hi"><use href="#hi-bolt"/></svg></span>
+                  <span class="home-game-text"><span class="home-game-title">一瞬チャレンジ</span><span class="home-game-desc">最短0.5秒で<wbr>当てる</span></span>
+                </button>
+                <button class="home-game home-game--time" type="button" data-home-action="time-attack">
+                  <span class="home-game-icon" aria-hidden="true"><svg class="hi"><use href="#hi-timer"/></svg></span>
+                  <span class="home-game-text"><span class="home-game-title">タイムアタック</span><span class="home-game-desc">速さで<wbr>記録に挑戦</span></span>
+                </button>
+                <button class="home-game home-game--weak" type="button" data-home-action="weak-songs">
+                  <span class="home-game-icon" aria-hidden="true"><svg class="hi"><use href="#hi-target"/></svg></span>
+                  <span class="home-game-text"><span class="home-game-title">苦手曲を練習</span><span class="home-game-desc">間違えた曲を<wbr>集中練習</span></span>
+                </button>
+              </div>
+            </section>
+            <section class="home-game-group home-game-group--together" aria-labelledby="home-games-together-title">
+              <h3 id="home-games-together-title" class="home-game-group-title">友達と対戦</h3>
+              <div class="home-game-grid">
+                <button class="home-game home-game--online" type="button" data-home-action="online-battle">
+                  <span class="home-game-icon" aria-hidden="true"><svg class="hi"><use href="#hi-globe"/></svg></span>
+                  <span class="home-game-text"><span class="home-game-title">オンライン対戦</span><span class="home-game-desc">離れた友達と<wbr>ルームで</span></span>
+                </button>
+                <button class="home-game home-game--party" type="button" data-home-action="party-battle">
+                  <span class="home-game-icon" aria-hidden="true"><svg class="hi"><use href="#hi-party"/></svg></span>
+                  <span class="home-game-text"><span class="home-game-title">1台で対戦</span><span class="home-game-desc">2〜4人で<wbr>早押し</span></span>
+                </button>
+              </div>
+            </section>
+            <section class="home-game-group home-game-group--make" aria-labelledby="home-games-make-title">
+              <h3 id="home-games-make-title" class="home-game-group-title">つくる・覚える</h3>
+              <div class="home-game-grid">
+                <button class="home-game home-game--original" type="button" data-home-action="original-quiz">
+                  <span class="home-game-icon" aria-hidden="true"><svg class="hi"><use href="#hi-pencil"/></svg></span>
+                  <span class="home-game-text"><span class="home-game-title">問題をつくる</span><span class="home-game-desc">好きな曲だけで<wbr>出題</span></span>
+                </button>
+                <!-- ライブコールモード（前の版）。ライブのカードにも同じ入口がある（同じ処理・同じ画面。数は10種類の中で1つ） -->
+                <button class="home-game home-game--call" type="button" data-home-action="live-call-classic">
+                  <span class="home-game-icon" aria-hidden="true"><svg class="hi"><use href="#hi-mic"/></svg></span>
+                  <span class="home-game-text"><span class="home-game-title">コールを覚える</span><span class="home-game-desc">歌詞とコールで<wbr>予習</span></span>
+                </button>
+              </div>
+            </section>
+            <!-- 「全部のゲーム」は役割を変えた：全モードはホームに出したので、ゲーム画面（各モードの「？」の説明・プレイ履歴）への入口 -->
+            <button class="home-games-more" type="button" data-home-action="all-games">
+              <svg class="hi" aria-hidden="true"><use href="#hi-grid"/></svg>
+              <span class="home-games-more-text">遊び方の説明・記録</span>
+              <span class="home-chevron" aria-hidden="true">›</span>
+            </button>
+          </div>
           </div>
         </section>
 
-        <!-- ② ライブを楽しむ：【2026-10-29 本人の判断】ライブコールは前の版（同期モード・カラオケ同期）に戻す。
-             新しい3モード（コール表・光るコール・カラオケ）は「新しいライブコール（試験中）」から開く。
+        <!-- ② ライブを楽しむ：会場の光（暗い背景に色とりどりの光）。
+             【2026-10-29 本人の判断】「コールを覚える」＝前の版のライブコールモード（同期・カラオケ同期）。
+             新しい3つ（コール表・ライブコール・カラオケ）は試験中として、遊び方を選んだ状態で開く。
              ライブ履歴＝【ライブ】ページ（id は以前のホームの入口のまま）。 -->
         <section id="home-card-live" class="home-card home-card--live" aria-labelledby="home-card-live-title">
+          <div class="home-live-lights" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
           <div class="home-card-head">
             <h2 id="home-card-live-title" class="home-card-title">ライブを楽しむ</h2>
-            <span class="home-card-lead">コールの予習とライブの記録</span>
+            <span class="home-card-lead">予習も、当日も、思い出も</span>
           </div>
-          <div class="home-chips home-chips--quad">
-            <button class="home-chip" type="button" data-home-action="live-call-classic"><span class="home-chip-icon" aria-hidden="true">🎤</span><span class="home-chip-label">ライブ<wbr>コール</span><span class="home-chip-sub">同期・カラオケ</span></button>
-            <button class="home-chip" type="button" data-home-action="live-call-new"><span class="home-chip-icon" aria-hidden="true">✨</span><span class="home-chip-label">新しい<wbr>ライブコール</span><span class="home-chip-sub">試験中</span></button>
-            <button id="live-hub-link" class="home-chip" type="button"><span class="home-chip-icon" aria-hidden="true">🎫</span><span class="home-chip-label">ライブ履歴</span><span class="home-chip-sub">各公演の<wbr>セトリつき</span></button>
-            <button class="home-chip" type="button" data-home-action="live-guide"><span class="home-chip-icon" aria-hidden="true">🔰</span><span class="home-chip-label">初心者<wbr>ガイド</span></button>
+          <button id="home-next-live" class="home-next-live" type="button" data-home-action="next-live" hidden>
+            <span class="home-next-live-label">次のライブ</span>
+            <span class="home-next-live-text"><b id="home-next-live-title"></b><small id="home-next-live-date"></small></span>
+            <span class="home-chevron" aria-hidden="true">›</span>
+          </button>
+          <button class="home-live-main" type="button" data-home-action="live-call-classic">
+            <span class="home-live-main-icon" aria-hidden="true"><svg class="hi"><use href="#hi-mic"/></svg></span>
+            <span class="home-live-main-text"><b>コールを覚える</b><small>曲に合わせて、<wbr>歌詞とコールが流れる</small></span>
+            <span class="home-chevron" aria-hidden="true">›</span>
+          </button>
+          <div class="home-live-new" role="group" aria-labelledby="home-live-new-title">
+            <p id="home-live-new-title" class="home-live-new-title">新しいライブコール<span class="home-tag">おためし版</span></p>
+            <p class="home-live-new-lead">同じコールを、3つの見せ方で</p>
+            <div class="home-live-new-grid">
+              <button class="home-live-mode home-live-mode--sheet" type="button" data-home-action="live-call-sheet">
+                <svg class="hi" aria-hidden="true"><use href="#hi-sheet"/></svg>
+                <b>コール表を読む</b><small>コールを<wbr>一覧で予習</small>
+              </button>
+              <button class="home-live-mode home-live-mode--live" type="button" data-home-action="live-call-live">
+                <svg class="hi" aria-hidden="true"><use href="#hi-spark"/></svg>
+                <b>ライブ中に見る</b><small>今のコールが<wbr>光る</small>
+              </button>
+              <button class="home-live-mode home-live-mode--karaoke" type="button" data-home-action="live-call-karaoke">
+                <svg class="hi" aria-hidden="true"><use href="#hi-karaoke"/></svg>
+                <b>カラオケで歌う</b><small>派手に光って<wbr>盛り上がる</small>
+              </button>
+            </div>
+          </div>
+          <div class="home-live-sub">
+            <button id="live-hub-link" class="home-live-row" type="button">
+              <svg class="hi" aria-hidden="true"><use href="#hi-ticket"/></svg>
+              <span><b>ライブ履歴・セトリ</b><small id="home-live-hub-sub">過去の公演と曲順</small></span>
+            </button>
+            <button class="home-live-row" type="button" data-home-action="live-guide">
+              <svg class="hi hi--beginner" aria-hidden="true"><use href="#hi-beginner"/></svg>
+              <span><b>はじめてのライブ</b><small>持ち物・マナー・<wbr>当日の流れ</small></span>
+            </button>
           </div>
         </section>
 
-        <!-- ③ 楽曲・歌詞を楽しむ：楽曲・歌詞の画面（#music-hub-screen）の入口と同じボタンを押したのと同じ。 -->
+        <!-- ③ 楽曲・歌詞を楽しむ：音楽プレイヤーとアルバムの感じ。「聴く・読む・探す」に分ける。
+             行き先は楽曲・歌詞の画面（#music-hub-screen）のボタンと同じ。 -->
         <section id="home-card-music" class="home-card home-card--music" aria-labelledby="home-card-music-title">
+          <div class="home-music-disc" aria-hidden="true"></div>
           <div class="home-card-head">
             <h2 id="home-card-music-title" class="home-card-title">楽曲・歌詞を楽しむ</h2>
-            <span class="home-card-lead">探す・聴く・歌詞を調べる</span>
+            <span class="home-card-lead" id="home-music-lead">＝LOVEの曲を聴く・読む・探す</span>
           </div>
           <p class="home-card-note">曲の情報・歌詞は音源なしでも見られます</p>
-          <div class="home-chips">
-            <button class="home-chip" type="button" data-home-action="songlist"><span class="home-chip-icon" aria-hidden="true">🎧</span><span class="home-chip-label">楽曲一覧</span></button>
-            <button class="home-chip" type="button" data-home-action="lyrics-search"><span class="home-chip-icon" aria-hidden="true">🔎</span><span class="home-chip-label">歌詞検索</span></button>
-            <button class="home-chip" type="button" data-home-action="continuous-play"><span class="home-chip-icon" aria-hidden="true">▶️</span><span class="home-chip-label">曲を聴く</span><span class="home-chip-sub">連続再生</span></button>
-            <button class="home-chip" type="button" data-home-action="playlists"><span class="home-chip-icon" aria-hidden="true">🎼</span><span class="home-chip-label">プレイ<wbr>リスト</span></button>
-            <button class="home-chip" type="button" data-home-action="favorites"><span class="home-chip-icon" aria-hidden="true">⭐</span><span class="home-chip-label">お気に入り</span></button>
-            <button class="home-chip" type="button" data-home-action="works"><span class="home-chip-icon" aria-hidden="true">💿</span><span class="home-chip-label">シングル・<wbr>アルバム</span><span class="home-chip-sub">作品と<wbr>収録曲</span></button>
+          <div class="home-music-cols">
+            <div class="home-music-col" role="group" aria-labelledby="home-music-listen">
+              <p id="home-music-listen" class="home-music-col-title"><svg class="hi" aria-hidden="true"><use href="#hi-headphones"/></svg>聴く</p>
+              <button class="home-music-item" type="button" data-home-action="continuous-play"><b>曲を聴く</b><small>続けて再生</small></button>
+              <button class="home-music-item" type="button" data-home-action="playlists"><b>プレイリスト</b><small>好きな曲を<wbr>まとめる</small></button>
+              <button class="home-music-item" type="button" data-home-action="favorites"><b>お気に入り</b><small>ハートを付けた曲</small></button>
+            </div>
+            <div class="home-music-col" role="group" aria-labelledby="home-music-read">
+              <p id="home-music-read" class="home-music-col-title"><svg class="hi" aria-hidden="true"><use href="#hi-book"/></svg>読む</p>
+              <button class="home-music-item" type="button" data-home-action="songlist"><b>楽曲一覧</b><small id="home-music-songs-sub">歌詞・曲の情報</small></button>
+              <button class="home-music-item" type="button" data-home-action="works"><b>シングル・アルバム</b><small id="home-music-works-sub">作品と収録曲</small></button>
+            </div>
+            <div class="home-music-col" role="group" aria-labelledby="home-music-find">
+              <p id="home-music-find" class="home-music-col-title"><svg class="hi" aria-hidden="true"><use href="#hi-search-note"/></svg>探す</p>
+              <button class="home-music-item" type="button" data-home-action="lyrics-search"><b>歌詞検索</b><small>覚えている<wbr>フレーズから</small></button>
+            </div>
           </div>
         </section>
 
-        <!-- ④ ＝LOVEをもっと知る：メンバー・周年ヒストリー・音楽番組は以前のホームの入口と同じ id。 -->
+        <!-- ④ ＝LOVEをもっと知る：ページの名前（小さく）＋「何が見られるか」の見出し。数はアプリの中の公開済みのデータから数える（js/homeScreen.js の buildHomeInfoStats）。
+             メンバーの写真は使わない（メンバーカラーの点だけ）。メンバー・周年ヒストリー・音楽番組は以前のホームの入口と同じ id。 -->
         <section id="home-card-know" class="home-card home-card--know" aria-labelledby="home-card-know-title">
           <div class="home-card-head">
             <h2 id="home-card-know-title" class="home-card-title">＝LOVEをもっと知る</h2>
             <span class="home-card-lead">メンバーとグループの歩み</span>
           </div>
-          <div class="home-chips home-chips--split">
-            <button id="members-link" class="home-chip" type="button"><span class="home-chip-icon" aria-hidden="true">💗</span><span class="home-chip-label">メンバー</span></button>
-            <button class="home-chip" type="button" data-home-action="centers"><span class="home-chip-icon" aria-hidden="true">👑</span><span class="home-chip-label">歴代<wbr>センター</span></button>
-            <button id="anniversary-home-link" class="home-chip" type="button"><span class="home-chip-icon" aria-hidden="true">📅</span><span class="home-chip-label">周年<wbr>ヒストリー</span><span class="home-chip-sub">＝LOVEの歩み</span></button>
-            <button id="tv-appearances-home-link" class="home-chip" type="button"><span class="home-chip-icon" aria-hidden="true">📺</span><span class="home-chip-label">音楽番組</span></button>
-            <button class="home-chip" type="button" data-home-action="commercials"><span class="home-chip-icon" aria-hidden="true">📣</span><span class="home-chip-label">CM・<wbr>企業コラボ</span></button>
+          <div class="home-know-grid">
+            <button id="members-link" class="home-know home-know--members" type="button">
+              <span class="home-know-icon" aria-hidden="true"><svg class="hi"><use href="#hi-people"/></svg></span>
+              <span class="home-know-text"><b>メンバー</b><span class="home-know-hook" id="home-know-members-hook">プロフィールと<wbr>メンバーカラー</span></span>
+              <span id="home-know-member-colors" class="home-know-colors" aria-hidden="true"></span>
+            </button>
+            <button class="home-know home-know--centers" type="button" data-home-action="centers">
+              <span class="home-know-icon" aria-hidden="true"><svg class="hi"><use href="#hi-crown"/></svg></span>
+              <span class="home-know-text"><b>歴代センター</b><span class="home-know-hook">この曲の<wbr>センターは誰？</span></span>
+            </button>
+            <button id="anniversary-home-link" class="home-know home-know--history" type="button">
+              <span class="home-know-icon" aria-hidden="true"><svg class="hi"><use href="#hi-calendar"/></svg></span>
+              <span class="home-know-text"><b>周年ヒストリー</b><span class="home-know-hook" id="home-know-history-hook">デビューから<wbr>今まで<wbr>1年ずつ</span></span>
+            </button>
+            <button id="tv-appearances-home-link" class="home-know home-know--tv" type="button">
+              <span class="home-know-icon" aria-hidden="true"><svg class="hi"><use href="#hi-tv"/></svg></span>
+              <span class="home-know-text"><b>音楽番組</b><span class="home-know-hook" id="home-know-tv-hook">出演した番組と<wbr>披露した曲</span></span>
+            </button>
+            <button class="home-know home-know--cm" type="button" data-home-action="commercials">
+              <span class="home-know-icon" aria-hidden="true"><svg class="hi"><use href="#hi-megaphone"/></svg></span>
+              <span class="home-know-text"><b>CM・企業コラボ</b><span class="home-know-hook" id="home-know-cm-hook">＝LOVEが出た<wbr>CM・広告</span></span>
+            </button>
+            <button class="home-know home-know--about" type="button" data-home-action="about-group">
+              <span class="home-know-icon" aria-hidden="true"><svg class="hi"><use href="#hi-info"/></svg></span>
+              <span class="home-know-text"><b>＝LOVEについて</b><span class="home-know-hook">結成・名前の由来・<wbr>年表</span></span>
+            </button>
           </div>
         </section>
 
-        <!-- ⑤ マイページ・データ：データの箱（データを追加・更新／引き継ぎ・復旧・バックアップの状態）＋プレイ履歴・使い方ガイド・設定。
+        <!-- ⑤ マイページ・データ：データの箱（データを追加・更新／データの状態／引き継ぎ・復旧・バックアップの状態）＋プレイ履歴・使い方ガイド・設定。
              上部バーと同じ入口（フレンド・ランキング・実績・プロフィール）はここに置かない。 -->
         <section id="home-card-my" class="home-card home-card--my" aria-labelledby="home-card-my-title">
           <div class="home-card-head">
-            <h2 id="home-card-my-title" class="home-card-title">マイページ・データ</h2>
-            <span class="home-card-lead">データ管理・引き継ぎ</span>
+            <h2 id="home-card-my-title" class="home-card-title"><svg class="hi home-my-shield" aria-hidden="true"><use href="#hi-shield"/></svg>マイページ・データ</h2>
+            <span class="home-card-lead">記録とデータを守る</span>
           </div>
           <div id="home-data-box" class="home-data-box">
             <div class="home-data-pair">
               <button class="home-data-row" type="button" data-home-action="data-update">
-                <span class="home-data-row-icon" aria-hidden="true">📥</span>
+                <span class="home-data-row-icon" aria-hidden="true"><svg class="hi"><use href="#hi-download"/></svg></span>
                 <span class="home-data-row-text"><b>データを追加・更新</b><small id="home-data-audio-count">音源の数を確認中…</small></span>
                 <span class="home-chevron" aria-hidden="true">›</span>
               </button>
               <button class="home-data-row" type="button" data-home-action="data-status">
-                <span class="home-data-row-icon" aria-hidden="true">✅</span>
+                <span class="home-data-row-icon" aria-hidden="true"><svg class="hi"><use href="#hi-check"/></svg></span>
                 <span class="home-data-row-text"><b>データの状態を確かめる</b><small>音源・歌詞・コール表が入ったか</small></span>
                 <span class="home-chevron" aria-hidden="true">›</span>
               </button>
               <button class="home-data-row" type="button" data-home-action="data-transfer">
-                <span class="home-data-row-icon" aria-hidden="true">🔁</span>
+                <span class="home-data-row-icon" aria-hidden="true"><svg class="hi"><use href="#hi-transfer"/></svg></span>
                 <span class="home-data-row-text"><b>引き継ぎ・復旧</b><small>機種変更・データが消えたとき</small></span>
                 <span class="home-chevron" aria-hidden="true">›</span>
               </button>
@@ -456,10 +625,10 @@
             <p id="home-backup-status" class="home-backup-status" data-kind="unknown"><span class="home-backup-dot" aria-hidden="true"></span><span id="home-backup-status-text">バックアップはまだ確認していません</span></p>
             <p class="home-data-note">音源・歌詞・コールはこの端末だけに保存。消えたときは入れ直しが必要です</p>
           </div>
-          <div class="home-chips home-chips--my">
-            <button class="home-chip" type="button" data-home-action="history"><span class="home-chip-icon" aria-hidden="true">📒</span><span class="home-chip-label">プレイ履歴</span></button>
-            <button class="home-chip" type="button" data-home-action="guides"><span class="home-chip-icon" aria-hidden="true">📘</span><span class="home-chip-label">使い方<wbr>ガイド</span></button>
-            <button class="home-chip" type="button" data-home-action="settings"><span class="home-chip-icon" aria-hidden="true">⚙️</span><span class="home-chip-label">設定</span></button>
+          <div class="home-my-links">
+            <button class="home-my-link" type="button" data-home-action="history"><svg class="hi" aria-hidden="true"><use href="#hi-history"/></svg><span>プレイ履歴</span></button>
+            <button class="home-my-link" type="button" data-home-action="guides"><svg class="hi" aria-hidden="true"><use href="#hi-help"/></svg><span>使い方ガイド</span></button>
+            <button class="home-my-link" type="button" data-home-action="settings"><svg class="hi" aria-hidden="true"><use href="#hi-gear"/></svg><span>設定</span></button>
           </div>
         </section>
       </div>
