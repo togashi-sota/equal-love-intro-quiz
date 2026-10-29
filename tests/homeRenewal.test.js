@@ -677,23 +677,27 @@ async function runHomeNightTests() {
     commercials: [{}, {}],
     discography: [{ type: "single" }, { type: "single" }, { type: "album" }, { type: "digital" }],
     setlists: [{}, {}, {}],
-    songs: [{}, {}],
+    songs: [{ centerType: "single" }, { centerType: "none" }],
     nextLive: { title: "テスト公演", startDate: "2027-01-19", endDate: "2027-01-20" },
   });
-  assertEqual(fake.membersHook, "現役2人の|プロフィールと|メンバーカラー", "F: メンバーは現役だけ数える（卒業メンバーは数えない）");
-  assertEqual(fake.memberColors, ["#111111", "#222222"], "F: メンバーカラーの点も現役だけ");
-  assertEqual(fake.historyHook, "デビューから|3周年まで|1年ずつ", "F: 周年は来ている「N周年」のいちばん大きい数（「これから（10周年へ）」は数えない）");
-  assertEqual(fake.tvHook, "出演3件・|2019〜2024年・|番組と披露曲", "F: 音楽番組の件数と年の範囲");
-  assertEqual([fake.cmHook, fake.worksSub, fake.songsSub, fake.liveHubSub], ["＝LOVE名義の|CM・コラボ|2件", "シングル2枚|・アルバム1枚", "2曲の|歌詞・曲の情報", "3公演の|セットリスト"], "F: CM・作品・曲・セットリストの数");
+  // 【2026-10-30 fix-home】＝LOVE のカードは「見どころの札（数）」と「何が見られるか（文）」に分けた（文に同じ数を重ねない）
+  assertEqual([fake.membersBadge, fake.membersHook], ["現役2人", "プロフィールと|メンバーカラー"], "F: メンバーは現役だけ数える（卒業メンバーは数えない）。数は札に");
+  assertEqual(fake.memberColors, ["#111111", "#222222"], "F: メンバーカラーの帯も現役だけ");
+  assertEqual([fake.historyBadge, fake.historyHook], ["3周年まで", "デビューから|1年ずつ振り返る"], "F: 周年は来ている「N周年」のいちばん大きい数（「これから（10周年へ）」は数えない）");
+  assertEqual([fake.tvBadge, fake.tvHook], ["3件", "2019〜2024年の|番組と披露曲"], "F: 音楽番組の件数（札）と年の範囲（文）");
+  assertEqual(fake.centersBadge, "1曲", "F: 歴代センター：センターが記録されている曲の数（「なし」は数えない）");
+  assertEqual([fake.cmBadge, fake.cmHook, fake.worksSub, fake.songsSub, fake.liveHubSub], ["2件", "＝LOVE名義の|CM・企業コラボ", "シングル2枚|・アルバム1枚", "2曲の|歌詞・曲の情報", "3公演の|セットリスト"], "F: CM・作品・曲・セットリストの数");
   assertEqual(fake.nextLive?.title, "テスト公演", "F: 次のライブの名前");
   assertEqual(fake.nextLive?.date.replaceAll("|", "").includes("〜"), true, "F: 次のライブの日付（2日以上は「〜」でつなぐ）");
   const empty = buildHomeInfoStats({});
   assertEqual([empty.membersHook, empty.historyHook, empty.tvHook, empty.cmHook, empty.worksSub, empty.songsSub, empty.liveHubSub, empty.nextLive], [null, null, null, null, null, null, null, null], "F: データが無ければ数を出さない（HTML の数なしの文のまま）");
+  assertEqual([empty.membersBadge, empty.centersBadge, empty.historyBadge, empty.tvBadge, empty.cmBadge], [null, null, null, null, null], "F: データが無ければ見どころの札も出さない");
   // 本物のデータ：画面に出る数は、各ページが持つデータと同じ
   const real = buildHomeInfoStats({ members: MEMBERS, periods: ANNIVERSARY_PERIODS, tvAppearances: TV_APPEARANCES, commercials: getGroupCommercials(), discography: DISCOGRAPHY, setlists: SETLIST_PERFORMANCES, songs: SONGS });
-  assertEqual(real.membersHook.startsWith(`現役${MEMBERS.filter((member) => member.status === "active").length}人`), true, "F: 本物のメンバーの数");
-  assertEqual(real.tvHook.startsWith(`出演${TV_APPEARANCES.length}件`), true, "F: 本物の音楽番組の件数（音楽番組のページと同じデータ）");
-  assertEqual(real.cmHook.endsWith(`${getGroupCommercials().length}件`), true, "F: 本物の CM の件数（＝LOVE名義。CM の欄と同じ）");
+  assertEqual(real.membersBadge, `現役${MEMBERS.filter((member) => member.status === "active").length}人`, "F: 本物のメンバーの数");
+  assertEqual(real.tvBadge, `${TV_APPEARANCES.length}件`, "F: 本物の音楽番組の件数（音楽番組のページと同じデータ）");
+  assertEqual(real.cmBadge, `${getGroupCommercials().length}件`, "F: 本物の CM の件数（＝LOVE名義。CM の欄と同じ）");
+  assertEqual(real.centersBadge, `${SONGS.filter((song) => ["single", "double", "all"].includes(song.centerType)).length}曲`, "F: 本物の、センターが記録されている曲の数");
   assertEqual(real.songsSub.startsWith(`${SONGS.length}曲`), true, "F: 本物の曲数");
 
   const html = await fetchText("index.html");
@@ -705,7 +709,7 @@ async function runHomeNightTests() {
   assertEqual([...home.querySelectorAll(".home-game-group-title")].map((element) => element.textContent), ["ひとりで挑戦", "友達と対戦", "つくる・覚える"], "F: まとまりの見出しは3つだけ");
   const games = [...home.querySelectorAll(".home-game")];
   assertEqual(games.every((button) => button.querySelector(".home-game-title")?.textContent.trim() && button.querySelector(".home-game-desc")?.textContent.trim()), true, "F: どのゲームにも短い題と一言の説明");
-  assertEqual(games.map((button) => button.querySelector(".home-game-title").textContent), ["ランダム再生クイズ", "歌詞クイズ", "アウトロクイズ", "一瞬チャレンジ", "タイムアタック", "苦手曲を練習", "オンライン対戦", "1台で対戦", "問題をつくる", "コールを覚える"], "F: 題名（何をするかが分かる名前）");
+  assertEqual(games.map((button) => button.querySelector(".home-game-title").textContent), ["ランダム再生クイズ", "歌詞クイズ", "アウトロクイズ", "一瞬チャレンジ", "タイムアタック", "苦手曲を練習", "オンライン対戦", "1台で対戦", "問題をつくる", "コールを覚える（今までの版）"], "F: 題名（何をするかが分かる名前）");
   const colorClasses = games.map((button) => [...button.classList].find((name) => name.startsWith("home-game--")));
   assertEqual(new Set(colorClasses).size, 10, "F: 10種類それぞれに別の色の印");
   const homeCss = await fetchText("css/homeRenewal.css");
@@ -757,6 +761,97 @@ async function runHomeNightTests() {
   assertEqual(aboutStart >= 0 && aboutBody.includes("discographyLinkElement.click();") && aboutBody.includes('activateDiscographyTab("about");'), true, "F: ＝LOVEについて → 前に別のタブを開いていても「＝LOVEについて」タブ");
 }
 
+// 【2026-10-30 夜間の修正（fix-home）】独立レビューの指摘への直し（G）
+// 色の明るさ（WCAG の相対輝度）とコントラスト比
+function relativeLuminance(hex) {
+  const value = hex.replace("#", "");
+  const channel = (index) => {
+    const c = parseInt(value.slice(index, index + 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * channel(0) + 0.7152 * channel(2) + 0.0722 * channel(4);
+}
+function contrastRatio(hexA, hexB) {
+  const [high, low] = [relativeLuminance(hexA), relativeLuminance(hexB)].sort((a, b) => b - a);
+  return (high + 0.05) / (low + 0.05);
+}
+// CSS の文字列から、そのセレクタの最後の指定の中身を取り出す（上書きした値を確かめるため）
+// （行の頭から始まるセレクタだけを探し、コメントは除く。コメントの中の古い色を数えないため）
+function lastRuleBody(css, selector) {
+  const index = css.lastIndexOf(`\n${selector} {`);
+  if (index < 0) return "";
+  return css.slice(index, css.indexOf("}", index)).replace(/\/\*[\s\S]*?\*\//g, "");
+}
+
+async function runHomeFixTests() {
+  console.log("--- リニューアル G：独立レビューの指摘の直し（ライブの名前・コントラスト・新曲の案内・320 の改行・楽曲の空き） ---");
+  const html = await fetchText("index.html");
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const home = doc.getElementById("start-screen");
+  const homeCss = await fetchText("css/homeRenewal.css");
+  const styleCss = await fetchText("css/style.css");
+
+  // ライブ：今までの「コールを覚える」と新しい3つ（おためし版）の違いが分かる
+  const classicLive = home.querySelector('#home-card-live [data-home-action="live-call-classic"]');
+  assertEqual(classicLive?.querySelector("b")?.textContent, "コールを覚える（今までの版）", "G: ライブの「コールを覚える」は（今までの版）と分かる名前");
+  assertEqual(classicLive?.querySelector("small")?.textContent.includes("前からある練習モード"), true, "G: 説明に「前からある練習モード」");
+  assertEqual(home.querySelector('#home-card-game [data-home-action="live-call-classic"] .home-game-title')?.textContent, "コールを覚える（今までの版）", "G: ゲーム欄の「コールを覚える」も同じ名前");
+  assertEqual(home.querySelector("#home-live-new-title")?.textContent, "新しいライブコールおためし版", "G: 新しい3つは「新しいライブコール（おためし版）」のまま");
+  assertEqual([...home.querySelectorAll(".home-live-new-grid [data-home-action]")].map((button) => button.dataset.homeAction), ["live-call-sheet", "live-call-live", "live-call-karaoke"], "G: 新しい3つの行き先は変えない");
+  const liveMain = lastRuleBody(homeCss, ".home-live-main");
+  assertEqual(liveMain.includes("rgba(214, 40, 110, 0.45)") && liveMain.includes("min-height: 56px"), true, "G: 今までの版の入口は少し控えめ（透ける地・少し低く）");
+
+  // 言葉・改行
+  assertEqual(home.querySelector(".home-game--random .home-game-title")?.innerHTML, "ランダム再生クイズ", "G: 「ランダム再生クイズ」の題名の途中に改行の候補（<wbr>）を置かない");
+  assertEqual(home.querySelector(".home-game--online .home-game-desc")?.textContent, "離れた友達とルームで対戦", "G: オンライン対戦の説明「離れた友達とルームで対戦」");
+  const nowrapRule = homeCss.slice(homeCss.lastIndexOf(".home-game-title,\n.home-live-mode b,"));
+  assertEqual(nowrapRule.slice(0, 200).includes("white-space: nowrap;"), true, "G: カードの題名は折り返さない（「ライブ履歴・／セトリ」「はじめてのライ／ブ」にしない）");
+  assertEqual(homeCss.includes("@container (max-width: 23rem) {\n  .home-game {\n    flex-direction: column;"), true, "G: 狭いゲームの一覧ではアイコンを題名の上に（題名を1行に入れる）");
+  assertEqual(homeCss.includes("@container (max-width: 19rem) {\n  .home-live-sub {\n    grid-template-columns: 1fr;"), true, "G: 320px ではライブ履歴・はじめてのライブを1列に");
+
+  // iPad 横・PC：楽曲の下の空き
+  const wide = homeCss.slice(homeCss.lastIndexOf("@media (min-width: 1024px) {"));
+  assertEqual(wide.includes("align-items: stretch;") && wide.includes(".home-card--music .home-music-cols {\n    flex: 1;"), true, "G: 1024px 以上で、楽曲のカードをライブと同じ高さにし、中のボタンで埋める（下の空きを作らない）");
+
+  // ＝LOVE：見どころの札・メンバーカラーの帯
+  assertEqual([...home.querySelectorAll(".home-know")].map((button) => Boolean(button.querySelector(".home-know-badge"))), [true, true, true, true, true, true], "G: ＝LOVE の6つのカードに見どころの札");
+  assertEqual(home.querySelector(".home-know--about .home-know-badge")?.textContent, "はじめに", "G: ＝LOVEについては「はじめに」");
+  assertEqual(lastRuleBody(homeCss, ".home-know--members .home-know-colors").includes("position: absolute;"), true, "G: メンバーはメンバーカラーの帯（カードの下）");
+
+  // コントラスト：ピンクの地に白い文字（4.5 以上。19px の太字の開始ボタンは大きい文字なので 3 以上）。色は CSS の指定から計算
+  const hexes = (text) => text.match(/#[0-9a-fA-F]{6}\b/g) ?? [];
+  const minContrastWithWhite = (text) => Math.min(...hexes(text).map((hex) => contrastRatio(hex, "#ffffff")));
+  const seg = lastRuleBody(homeCss, '.home-seg-button[aria-checked="true"]');
+  assertEqual(hexes(seg).length >= 2 && minContrastWithWhite(seg) >= 4.5, true, `G: 選ばれた「5問」「表題曲のみ」の地と白い文字 ${minContrastWithWhite(seg).toFixed(2)}:1（4.5 以上）`);
+  const start = lastRuleBody(homeCss, ".home-intro-start");
+  assertEqual(hexes(start).length >= 2 && minContrastWithWhite(start) >= 3, true, `G: 開始ボタンの地と白い文字 ${minContrastWithWhite(start).toFixed(2)}:1（大きい文字 3 以上）`);
+  const nav = lastRuleBody(homeCss, '.home-cat-nav-item[aria-current="true"]');
+  assertEqual(hexes(nav).length >= 1 && minContrastWithWhite(nav) >= 4.5, true, `G: 目次の「ゲーム」の地と白い文字 ${minContrastWithWhite(nav).toFixed(2)}:1`);
+  const oshi = lastRuleBody(homeCss, ".home-topbar .home-topbar-oshi.is-empty");
+  assertEqual(hexes(oshi).length >= 2 && minContrastWithWhite(oshi) >= 4.5, true, `G: 「推しメンを登録しよう」の地と白い文字 ${minContrastWithWhite(oshi).toFixed(2)}:1`);
+  // 「ゲームで遊ぶ」の見出し：上に重ねる濃いピンク rgba(176,18,88,0.72) を、いちばん明るい地（光の円の白 42% の上）に重ねた色で計算
+  const band = lastRuleBody(homeCss, ".home-card--game");
+  assertEqual(band.includes("rgba(176, 18, 88, 0.72) 0, rgba(176, 18, 88, 0.72) 2.5rem"), true, "G: 「ゲームで遊ぶ」の見出しの所だけ、濃いピンクを重ねる");
+  const mix = (top, bottom, alpha) => top.map((value, index) => Math.round(value * alpha + bottom[index] * (1 - alpha)));
+  const toHex = (rgb) => `#${rgb.map((value) => value.toString(16).padStart(2, "0")).join("")}`;
+  const brightest = mix([255, 255, 255], [255, 134, 184], 0.42); // 光の円（白 42%）を #ff86b8 に重ねた、見出しの所で最も明るい地
+  const headingGround = toHex(mix([176, 18, 88], brightest, 0.72));
+  assertEqual(contrastRatio(headingGround, "#ffffff") >= 4.5, true, `G: 「ゲームで遊ぶ」の見出し・副題は、いちばん明るい所でも 4.5 以上（${contrastRatio(headingGround, "#ffffff").toFixed(2)}:1）`);
+  // 黄色の地の「データ管理を開く」
+  const openButton = lastRuleBody(styleCss, ".new-single-announcement-open-button");
+  const accent = /--color-accent:\s*(#[0-9a-fA-F]{6})/.exec(styleCss)?.[1];
+  const openColor = /color:\s*(#[0-9a-fA-F]{6})/.exec(openButton.replace(/background[^;]*;/, ""))?.[1];
+  assertEqual(Boolean(accent && openColor) && contrastRatio(accent, openColor) >= 4.5, true, `G: 黄色の地の「データ管理を開く」 ${accent && openColor ? contrastRatio(accent, openColor).toFixed(2) : "?"}:1`);
+  // プレイヤーのモーダル：「この名前で登録／この名前にする」と「✓ 登録しました」
+  const addButton = lastRuleBody(styleCss, ".player-add-section .player-add-button");
+  assertEqual(minContrastWithWhite(addButton) >= 4.5, true, `G: プレイヤーの登録ボタンの地と白い文字 ${minContrastWithWhite(addButton).toFixed(2)}:1`);
+  assertEqual(minContrastWithWhite(lastRuleBody(styleCss, ".player-add-section .player-add-button:disabled")) >= 4.5, true, "G: 「✓ 登録しました」の緑と白い文字 4.5 以上");
+  assertEqual(minContrastWithWhite(lastRuleBody(styleCss, ".player-row-active-tag")) >= 4.5, true, "G: 「使用中」の印と白い文字 4.5 以上");
+  // 320px で下に動かしても × が見える（プレイヤーのモーダルだけ。カードの中に貼り付ける）
+  const close = lastRuleBody(styleCss, "#player-modal .modal-close-button");
+  assertEqual(close.includes("position: sticky;") && close.includes("float: right;"), true, "G: プレイヤーのモーダルの × は、中を動かしても上に貼り付く");
+}
+
 export async function runHomeRenewalTests() {
   runNavigationStackTests();
   await runHistoryIntegrationTests();
@@ -766,4 +861,5 @@ export async function runHomeRenewalTests() {
   await runHomeIntroSyncTests();
   await runHomeEntryWiringTests();
   await runHomeNightTests();
+  await runHomeFixTests();
 }

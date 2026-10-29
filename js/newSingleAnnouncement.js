@@ -110,7 +110,15 @@ export function isAnnouncementFullyAvailable(announcement, availableAudioSongIds
 // （テストではブラウザの実際のsessionStorage/localStorageをそのまま使う）。
 // 「音源がすでに揃っている」announcementは、本来ここに来る前に自動でdone化されている想定だが、
 // 万一done化が漏れていても、ここで二重にチェックして安全側に倒す。
+//
+// 【2026-10-30 夜間の修正・独立レビューの指摘】音源が1曲も無い端末（初めての人）には出さない。
+// 「21枚目の楽曲データが追加されました！」は、もう音源を入れている人へのお知らせで、初めての人には
+// ホームの「まず音源・歌詞を取り込もう」の案内と2つ並んで紛らわしいため。音源を入れたあとで、
+// 21枚目の曲がまだ無ければ出る（recheckNewSingleAnnouncementAfterImport・次の起動）。「追加済み」にはしない。
 export function findEligibleAnnouncementSync(availableAudioSongIds) {
+  const availableCount =
+    availableAudioSongIds instanceof Set ? availableAudioSongIds.size : (availableAudioSongIds ?? []).length;
+  if (availableCount === 0) return null;
   for (const announcement of NEW_SINGLE_ANNOUNCEMENTS) {
     if (isDone(announcement.id)) continue;
     if (isAnnouncementFullyAvailable(announcement, availableAudioSongIds)) continue;
@@ -187,7 +195,24 @@ export function confirmAnnouncementDone(elements) {
 // （表示中のバナーはそのまま残る）。
 export async function recheckNewSingleAnnouncementAfterImport(elements) {
   const currentId = elements.banner.dataset.announcementId;
-  if (!currentId || elements.banner.hidden) return;
+  if (!currentId) {
+    // 【2026-10-30】音源が0曲だったので出していなかった場合：取り込んだあと、出すべきなら出す
+    // （「あとで」を押した起動中・「追加済み」・もう揃っている、のときは findEligibleAnnouncementSync が出さない）
+    if (!elements.banner.hidden) return;
+    const availableNow = await getAvailableSongIds(AVAILABLE_DATA_KIND.AUDIO);
+    for (const item of NEW_SINGLE_ANNOUNCEMENTS) {
+      if (!isDone(item.id) && isAnnouncementFullyAvailable(item, availableNow)) markDone(item.id);
+    }
+    const eligible = findEligibleAnnouncementSync(availableNow);
+    if (eligible) {
+      elements.titleText.textContent = eligible.title;
+      elements.bodyText.textContent = eligible.body;
+      elements.banner.hidden = false;
+      elements.banner.dataset.announcementId = eligible.id;
+    }
+    return;
+  }
+  if (elements.banner.hidden) return;
   const announcement = NEW_SINGLE_ANNOUNCEMENTS.find((item) => item.id === currentId);
   if (!announcement) return;
 
