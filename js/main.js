@@ -8905,6 +8905,17 @@ initLiveCallScreen(
   },
 );
 setLiveCallEntryHandler((mode) => openLiveCallFrom(document.body.dataset.screen || "start", mode));
+// 【2026-10-30 fix-live】ライブコールモード（前の版）の曲一覧が空のときの案内のボタン（行き止まりにしない。前の版の動きそのものは変えない）
+// ・データを追加する：設定・データ管理の「追加データパック」の欄（前の版のコールは、ここで入る）
+// ・新しいライブコールを開く：「最新版データ」のコール表を使う新しい画面（戻る先はこの一覧）
+document.getElementById("live-call-mode-empty-add-data-button").addEventListener("click", () => {
+  playClickSound();
+  openSettingsSection([document.getElementById("data-management-section")], document.getElementById("data-pack-import-section"));
+});
+document.getElementById("live-call-mode-empty-new-live-button").addEventListener("click", () => {
+  playClickSound();
+  openLiveCallFrom("liveCallModeList");
+});
 document.getElementById("live-call-back-button").addEventListener("click", () => {
   playSfx(SFX_EVENTS.UI_BACK);
   if (goBackInLiveCall()) return; // 画面の中の1つ前の表示へ戻った

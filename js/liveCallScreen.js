@@ -207,6 +207,18 @@ function show(next) {
 
 // 遊び方の名前（一覧の案内に出す）
 export const LIVE_CALL_MODE_LABELS = { sheet: "コール表", live: "ライブコール", karaoke: "カラオケ" };
+// 【2026-10-30 fix-live】ホームの3つの入口（押したカードの名前）から開いたときの、曲の一覧の見出しと、そのモードが何かの1行。
+// 見出しは押したカードの名前に合わせる（以前はどれも「ライブコール」で、何を選んだのか分からなかった）。名前は index.html のホームのカードと同じ
+export const LIVE_CALL_ENTRY_TITLES = { sheet: "コール表を読む", live: "ライブ中に見る", karaoke: "カラオケで歌う" };
+export const LIVE_CALL_ENTRY_LEADS = {
+  sheet: "歌詞（黒）とコール（赤）を1枚の表で、自分のペースで読みます。予習に。",
+  live: "この端末の音源に合わせて、今言うコールが光ります。ライブ中・練習中に。",
+  karaoke: "歌詞と次に言うコールを大きく表示。コールの瞬間に派手に光ります。",
+};
+// 一覧（とはじめに）の見出し（純粋関数）。遊び方を選んでいなければ今までどおり「ライブコール」
+export function liveCallListHeading(mode) {
+  return LIVE_CALL_ENTRY_TITLES[mode] ?? "ライブコール";
+}
 
 // 一覧で曲を押したとき、選んである遊び方を直接開くか（純粋関数）。avail は computeModeAvailability の戻り値
 export function resolvePreferredModeOpen(mode, avail) {
@@ -265,7 +277,7 @@ export function closeLiveCallScreen() {
 
 // ===== はじめに =====
 function renderNotice() {
-  setHeading("ライブコール");
+  setHeading(liveCallListHeading(preferredMode));
   const box = el("section", "lc-notice");
   box.appendChild(el("h3", "lc-notice-title", "はじめにお読みください"));
   const list = el("ul", "lc-notice-list");
@@ -293,8 +305,10 @@ function renderNotice() {
 
 // ===== 曲一覧 =====
 async function renderList() {
-  setHeading("ライブコール");
+  setHeading(liveCallListHeading(preferredMode));
   const wrap = el("section", "lc-list");
+  // そのモードが何かを1行で（ホームの3つの入口から来たときだけ）
+  if (preferredMode) wrap.appendChild(el("p", "lc-mode-lead", LIVE_CALL_ENTRY_LEADS[preferredMode]));
   const top = el("div", "lc-list-top");
   top.appendChild(
     button("lc-link-button", "はじめに（注意事項）を読む", () => {
@@ -306,7 +320,7 @@ async function renderList() {
   wrap.appendChild(top);
   if (preferredMode) {
     const modeNote = el("div", "lc-preferred-mode");
-    modeNote.appendChild(el("p", "lc-preferred-mode-text", `「${LIVE_CALL_MODE_LABELS[preferredMode]}」で開きます。使えない曲は、曲のページで理由を表示します。`));
+    modeNote.appendChild(el("p", "lc-preferred-mode-text", `曲を選ぶと「${LIVE_CALL_ENTRY_TITLES[preferredMode]}」をすぐ開きます。使えない曲は、曲のページで理由を表示します。`));
     modeNote.appendChild(
       button("lc-link-button", "遊び方を選ばずに探す", () => {
         playSfx(SFX_EVENTS.UI_CLICK);
@@ -491,6 +505,14 @@ async function renderSongPage() {
   if (pendingPreferredOpen) {
     pendingPreferredOpen = false;
     const direct = songData ? resolvePreferredModeOpen(preferredMode, songData.avail) : null;
+    // 【2026-10-30 fix-live】「カラオケで歌う」から来たとき：曲のページのカラオケのカードと同じ、本人の完成版のコール付きの新しいカラオケを開く
+    // （以前はここだけ、この画面の中の歌詞だけのカラオケを開いていて、コールも演出も出なかった）。［戻る］で曲の一覧へ戻る
+    if (direct === "karaoke" && callbacks?.openKaraokeWithCalls) {
+      const calls = songData.sheet?.calls ?? [];
+      show("list");
+      callbacks.openKaraokeWithCalls(songId, calls);
+      return;
+    }
     if (direct) {
       openedModeFromList = true;
       show(direct);
@@ -660,11 +682,25 @@ function renderLiveMode() {
   panel.hidden = !prefs.panel;
 
   // 設定（文字・演出の強さ・パネル）
+  // 【2026-10-30 fix-live】上の部分（説明・文字の大きさ・演出・いま／つぎ）は約320px を取っていたので、再生を始めたら折りたたむ
+  //   （［表示の設定］で開け閉めできる）。折りたたんだ分、コール表の箱を画面の下まで広げる（fitLiveStage）
   const toolbar = el("div", "lc-toolbar is-live");
-  const modeNote = el("p", "lc-toolbar-note");
-  modeNote.append(el("span", "lc-mode-chip", "ライブコール"), "光っているコールを、光っている間に言います。コールをタップすると、その少し前から再生します。");
-  toolbar.appendChild(modeNote);
-  toolbar.appendChild(buildFontControls(() => {
+  const toolbarHead = el("div", "lc-toolbar-head");
+  toolbarHead.appendChild(el("span", "lc-mode-chip", "ライブコール"));
+  const settingsToggle = button("lc-settings-toggle", "表示の設定", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
+    setLiveToolbarCollapsed(!live.toolbarCollapsed);
+  });
+  settingsToggle.setAttribute("aria-expanded", "true");
+  toolbarHead.appendChild(settingsToggle);
+  toolbar.appendChild(toolbarHead);
+  const controls = el("div", "lc-toolbar-controls");
+  controls.id = "lc-live-toolbar-controls";
+  settingsToggle.setAttribute("aria-controls", controls.id);
+  const modeNote = el("p", "lc-toolbar-note", "光っているコールを、光っている間に言います。コールをタップすると、その少し前から再生します。");
+  controls.appendChild(modeNote);
+  toolbar.appendChild(controls);
+  controls.appendChild(buildFontControls(() => {
     stage.style.setProperty("--lc-font", String(fontScale()));
     remeasure();
   }));
@@ -683,7 +719,7 @@ function renderLiveMode() {
     renderFrame({ force: true });
   });
   intensityLabel.appendChild(intensity);
-  toolbar.appendChild(intensityLabel);
+  controls.appendChild(intensityLabel);
   const panelToggle = button(`lc-chip${prefs.panel ? " is-selected" : ""}`, "いま／つぎ", () => {
     prefs.panel = !prefs.panel;
     savePrefs();
@@ -693,8 +729,8 @@ function renderLiveMode() {
     remeasure();
   });
   panelToggle.setAttribute("aria-pressed", String(prefs.panel));
-  toolbar.appendChild(panelToggle);
-  if (reducedMotion.matches) toolbar.appendChild(el("p", "lc-toolbar-note", "端末の「視差効果を減らす」がオンのため、動きを止めています（光り方だけ）。"));
+  controls.appendChild(panelToggle);
+  if (reducedMotion.matches) controls.appendChild(el("p", "lc-toolbar-note", "端末の「視差効果を減らす」がオンのため、動きを止めています（光り方だけ）。"));
   stage.classList.toggle("intensity-off", prefs.intensity === "off");
 
   // 自動スクロールを手で止めたときに出す「いまの場所へ戻る」
@@ -765,6 +801,11 @@ function renderLiveMode() {
   live = {
     stage,
     body,
+    toolbar,
+    settingsToggle,
+    toolbarCollapsed: false,
+    autoCollapsed: false,
+    player,
     callSpans,
     lineEls,
     fx,
@@ -825,7 +866,10 @@ function renderLiveMode() {
     live.followSong.duration = audio.duration || live.followSong.duration;
     remeasure();
   });
-  listen(window, "resize", remeasure);
+  listen(window, "resize", () => {
+    fitLiveStage();
+    remeasure();
+  });
   listen(reducedMotion, "change", () => renderFrame({ force: true }));
 
   objectUrl = URL.createObjectURL(blob);
@@ -834,6 +878,35 @@ function renderLiveMode() {
     remeasure();
     renderFrame({ force: true });
   });
+}
+
+// 【2026-10-30 fix-live】上の部分（説明・設定）を折りたたむ／開く。折りたたんだら、コール表の箱を再生の操作のすぐ上まで広げる
+function setLiveToolbarCollapsed(collapsed) {
+  if (!live) return;
+  live.toolbarCollapsed = Boolean(collapsed);
+  live.toolbar.classList.toggle("is-collapsed", live.toolbarCollapsed);
+  live.settingsToggle.setAttribute("aria-expanded", String(!live.toolbarCollapsed));
+  fitLiveStage();
+  remeasure();
+}
+
+// 折りたたんでいる間だけ、コール表の箱の高さを「画面の下の再生の操作の上まで」にする（開いているときは CSS の高さのまま）
+export const LIVE_STAGE_MIN_PX = 280;
+export function computeLiveStageHeight({ viewportH, stageTop, playerH, gap = 8, min = LIVE_STAGE_MIN_PX }) {
+  if (![viewportH, stageTop, playerH].every(Number.isFinite)) return null;
+  return Math.max(min, Math.round(viewportH - stageTop - playerH - gap));
+}
+function fitLiveStage() {
+  if (!live) return;
+  const { stage } = live;
+  if (!live.toolbarCollapsed) {
+    stage.style.removeProperty("height");
+    return;
+  }
+  // 画面の一番上から見たときの位置で測る（ページを少しスクロールしていても、同じ高さになるように）
+  const stageTop = stage.getBoundingClientRect().top + window.scrollY;
+  const height = computeLiveStageHeight({ viewportH: window.innerHeight, stageTop, playerH: live.player.getBoundingClientRect().height });
+  if (height !== null) stage.style.height = `${height}px`;
 }
 
 // 部品の位置を測り直して、スクロールの計算を作り直す（文字の大きさ・画面の幅・パネルの出し入れのあと）
@@ -873,6 +946,11 @@ function onPlayState() {
   live.play.classList.toggle("is-playing", !audio.paused);
   live.play.textContent = audio.paused ? "再生" : "一時停止";
   live.play.setAttribute("aria-label", audio.paused ? "再生" : "一時停止");
+  // 【2026-10-30 fix-live】再生を始めたら、上の部分を1回だけ自動で折りたたむ（あとは［表示の設定］で自由に開け閉め。止めても勝手に開かない＝画面が跳ねない）
+  if (!audio.paused && !live.autoCollapsed) {
+    live.autoCollapsed = true;
+    if (!live.toolbarCollapsed) setLiveToolbarCollapsed(true);
+  }
   if (!audio.paused && live.rafId === null) {
     live.lastWall = null;
     const loop = (wallMs) => {

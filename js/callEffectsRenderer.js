@@ -205,10 +205,11 @@ export function applyVisualState(c, v, t) {
     root.classList.toggle("is-cue", v.phase === "pre"); // 「is-pre」は使わない（コール表の「改行をそのまま見せる」の印と同じ名前のため）
     root.classList.toggle("is-active", v.phase === "active");
     root.classList.toggle("is-post", v.phase === "post");
-    root.classList.toggle("is-on", v.phase === "active" || v.phase === "post");
+    // 【2026-10-30 fix-live】is-on（光っている間の濃い赤の文字）は光っている間だけ。終わった直後（post）は、終わったコールと同じくすんだ色へ
+    root.classList.toggle("is-on", v.phase === "active");
     last.phase = v.phase;
   }
-  const done = v.phase === "idle" && t >= c.prep.end;
+  const done = (v.phase === "idle" || v.phase === "post") && t >= c.prep.end;
   if (last.done !== done) {
     root.classList.toggle("is-done", done);
     last.done = done;

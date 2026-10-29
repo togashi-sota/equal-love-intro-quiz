@@ -80,6 +80,8 @@ import {
   setKaraokeStagePaused,
   showKaraokeStageFinale,
   updateKaraokeStage,
+  setKaraokeStageOffset,
+  karaokePreviewLabel,
 } from "./karaokeStage.js";
 
 // ===== 設定の保存（端末ごと。既存のsfx設定等と同じ命名規則・保存方式） =====
@@ -221,6 +223,8 @@ function renderSyncStatus() {
     elements.offsetLabel.textContent = offsetLabel;
     lastRenderedOffsetLabel = offsetLabel;
   }
+  // 【2026-10-30 fix-live】新しいカラオケだけ：調整しているか（「0に戻す」の見た目を、調整なしのときは普通にする）
+  if (followDeviceAudio) setKaraokeStageOffset(syncState.offsetMs);
 }
 
 // 現在のコール／NEXT CALLを1枚のHUDカードにまとめて描画する。
@@ -313,10 +317,12 @@ function renderCallHudPreviews(previewCalls) {
 
   const first = previewCalls[0] ?? null;
   const second = previewCalls[1] ?? null;
+  // 【2026-10-30 fix-live】新しいカラオケだけ、長いコールを「固有コール」などの種類の名前にせず、コールの文字の始めの部分を出す
+  const previewLabel = followDeviceAudio ? karaokePreviewLabel : getCallPreviewLabel;
   elements.callHudPreviewItem1.hidden = !first;
-  elements.callHudPreviewItem1.textContent = first ? getCallPreviewLabel(first) : "";
+  elements.callHudPreviewItem1.textContent = first ? previewLabel(first) : "";
   elements.callHudPreviewItem2.hidden = !second;
-  elements.callHudPreviewItem2.textContent = second ? getCallPreviewLabel(second) : "";
+  elements.callHudPreviewItem2.textContent = second ? previewLabel(second) : "";
 }
 
 // 【2026-10-29】新しいライブコールのカラオケ（本人の完成版のコールを渡したとき）は、端末の音源が鳴っていれば

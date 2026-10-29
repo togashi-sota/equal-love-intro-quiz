@@ -2631,9 +2631,16 @@
       <!-- 曲一覧。中身はjs/liveCallModeScreen.jsが組み立てる -->
       <div id="live-call-mode-song-list"></div>
 
-      <p id="live-call-mode-list-empty-state" class="history-empty-state" hidden>
-        まだコールが登録された曲がありません。
-      </p>
+      <!-- 【2026-10-30 fix-live】空のときに行き止まりにしない：データを足す場所（設定・データ管理の「追加データパック」）と、
+           新しいライブコール（「最新版データ」のコール表を使う）への入口を出す。表示の切り替え（hidden）は今までどおり js/liveCallModeScreen.js -->
+      <div id="live-call-mode-list-empty-state" class="history-empty-state live-call-mode-empty-state" hidden>
+        <p class="live-call-mode-empty-title">まだコールが登録された曲がありません。</p>
+        <p class="live-call-mode-empty-text">この画面のコールは、配られた「追加データパック」を、設定の「データ管理」で読み込むと入ります。「最新版データ」のコール表は、新しいライブコールで見られます。</p>
+        <div class="live-call-mode-empty-actions">
+          <button id="live-call-mode-empty-add-data-button" class="live-call-mode-empty-button" type="button">データを追加する（設定）</button>
+          <button id="live-call-mode-empty-new-live-button" class="live-call-mode-empty-button is-secondary" type="button">新しいライブコールを開く</button>
+        </div>
+      </div>
     </section>
 
     <!-- ライブコールモード：再生方法の選択画面（2026-08-09新設）。

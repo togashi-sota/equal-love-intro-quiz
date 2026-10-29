@@ -15,12 +15,24 @@
 import { MEMBERS } from "./data/members.js";
 import { MEMBER_PROFILES } from "./data/memberProfiles.js";
 import { buildMemberNameIndex, memberIdForCallText } from "./callEffects.js";
+import { getCallDisplayTier } from "./callSync.js";
 
 export const KX_BURST_WINDOW_SEC = 0.4; // コールの始まりからこの時間の内に描いたときだけ「発光と弾み」を出す（途中へシークしたときは出さない）
 export const KX_COUNTDOWN_SEC = 3; // 次のコールまでの残りを、バーで見せる長さ（「もうすぐ！」の 3・2・1 と同じ）
 export const KX_LONG_CALL_SEC = 4; // これ以上のコールは、カードの下に進み具合のバーを出す（ライブコールの「長い」と同じ）
 export const KX_PARTICLE_COUNT = 10;
 export const KX_SPARK_COUNT = 8;
+// 火花の出る場所（カードの縁の上の点。x・y は %）と、外へ飛ぶ向き（px）。中央・文字の上からは出さない
+export const KX_SPARK_POINTS = [
+  [0, 0, -16, -14],
+  [50, 0, 0, -20],
+  [100, 0, 16, -14],
+  [100, 50, 22, 0],
+  [100, 100, 16, 14],
+  [50, 100, 0, 20],
+  [0, 100, -16, 14],
+  [0, 50, -22, 0],
+];
 export const KX_FINALE_PIECE_COUNT = 14;
 
 // センターがいない・全員の曲に使う色の組（曲の id から1つ選ぶ。同じ曲はいつも同じ色）
@@ -97,6 +109,19 @@ export function karaokeStageStateAt(calls, t, lines = []) {
   };
 }
 
+// 「そのあと」の予告に出す文字（新しいカラオケだけ。純粋関数）。
+// 前のカラオケ同期（js/karaokeSync.js の getCallPreviewLabel）は、長いコールを種類の名前（「固有コール」「MIX」など）にしているが、
+// 「固有コール」は初めての人に分からない言葉なので、新しい方では本人のコールの文字の始めの部分を出す（文字は変えない。省くだけ）。
+// 短い・ふつうのコールは今までどおり、そのままの文字
+export const KX_PREVIEW_MAX_CHARS = 10;
+export function karaokePreviewLabel(call) {
+  const text = String(call?.text ?? "");
+  if (getCallDisplayTier(text) !== "long") return text;
+  const head = text.replace(/\s+/g, " ").trim();
+  const chars = [...head];
+  return chars.length > KX_PREVIEW_MAX_CHARS ? `${chars.slice(0, KX_PREVIEW_MAX_CHARS).join("")}…` : head;
+}
+
 // ===== 画面の部品 =====
 let stage = null; // 使っている間だけ { screen, hudCard, ... }
 let memberNameIndex = null;
@@ -153,11 +178,19 @@ export function enableKaraokeStage(elements, { song, calls, lines = [] } = {}) {
   screen.insertBefore(fx, screen.firstChild);
 
   // コールのカード：始まりの光の輪・火花、長いコールの進み具合、次のコールまでのバー
+  // 【2026-10-30 fix-live】光の輪・火花は、カードの縁から外側へだけ広がる（文字の後ろ・外側だけ）。
+  //   以前はカードの中央から輪が広がり、中央に小さな赤い円が残って、短いコール（フッフー！など）の文字の上を横切っていた
   const hudFx = el("span", "kx-hud-fx");
   hudFx.setAttribute("aria-hidden", "true");
   hudFx.append(el("span", "kx-ring"), el("span", "kx-ring kx-ring-2"));
   const sparks = hudFx.appendChild(el("span", "kx-sparks"));
-  for (let i = 0; i < KX_SPARK_COUNT; i++) sparks.appendChild(el("i")).style.setProperty("--a", `${(360 / KX_SPARK_COUNT) * i}deg`);
+  KX_SPARK_POINTS.forEach(([x, y, dx, dy]) => {
+    const spark = sparks.appendChild(el("i"));
+    spark.style.setProperty("--x", `${x}%`);
+    spark.style.setProperty("--y", `${y}%`);
+    spark.style.setProperty("--dx", `${dx}px`);
+    spark.style.setProperty("--dy", `${dy}px`);
+  });
   const progress = el("span", "kx-progress");
   progress.setAttribute("aria-hidden", "true");
   const progressFill = progress.appendChild(el("span", "kx-progress-fill"));
@@ -193,7 +226,7 @@ export function disableKaraokeStage() {
   const { screen, hudCard } = stage;
   stage.parts.forEach((node) => node.remove());
   stage.lastNextLine?.classList.remove("kx-next-line");
-  screen.classList.remove("kx-on", "kx-call-now", "kx-long", "kx-soon", "kx-paused", "kx-finale", "kx-done");
+  screen.classList.remove("kx-on", "kx-call-now", "kx-long", "kx-soon", "kx-paused", "kx-finale", "kx-done", "kx-offset-set");
   delete screen.dataset.kxBasis;
   screen.style.removeProperty("--kx-c1");
   screen.style.removeProperty("--kx-c2");
@@ -218,6 +251,11 @@ export function resetKaraokeStage() {
 
 export function setKaraokeStagePaused(paused) {
   if (stage) toggle(stage.screen, "kx-paused", Boolean(paused));
+}
+
+// タイミング調整をしているか（0 以外）。「0に戻す」を、調整していないときは普通の見た目にするための印（css/karaokeStage.css）
+export function setKaraokeStageOffset(offsetMs) {
+  if (stage) toggle(stage.screen, "kx-offset-set", Number(offsetMs) !== 0);
 }
 
 // 曲の終わり（端末の音源が最後まで鳴った）：紙吹雪と光を1回だけ
