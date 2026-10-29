@@ -340,7 +340,7 @@ async function runWiringTests() {
   assertEqual(html.includes('id="call-release-import-input"') && html.includes('accept=".json,application/json,.zip,application/zip"'), true, "H: データ管理に「完成版コールデータを読み込む」（JSON・ZIP）");
   assertEqual(html.includes('id="data-pack-import-input"'), true, "H: 追加データパックの読み込みはそのまま残っている");
   assertEqual(main.includes("setLiveCallEntryHandler(() => openLiveCallFrom("), true, "H: ホームのライブコールは差し替え口から新しい流れへ");
-  assertEqual(/modeId === "liveCallMode"\) \{[\s\S]{0,400}openLiveCallFrom\("gameHub"\)/.test(main), true, "H: ゲーム画面のライブコールモードも新しい流れへ");
+  assertEqual(/modeId === "liveCallMode"\) \{[\s\S]{0,400}openLiveCallFrom\(document\.body\.dataset\.screen \|\| "gameHub"\)/.test(main), true, "H: ゲーム画面のライブコールモードも新しい流れへ");
   assertEqual(screens.includes('liveCall: document.getElementById("live-call-screen")'), true, "H: 画面の登録");
   assertEqual(/const DB_VERSION = 2;/.test(storage) && storage.includes('db.createObjectStore(STORE_NAME, { keyPath: "songId" })') && storage.includes("db.createObjectStore(RELEASED_CALLS_STORE_NAME, { keyPath: \"songId\" })"), true, "H: データベースは版2。元の callData ストア（keyPath songId）はそのまま、releasedCalls を足すだけ");
   assertEqual(/if \(!db\.objectStoreNames\.contains\(STORE_NAME\)\)/.test(storage) && /if \(!db\.objectStoreNames\.contains\(RELEASED_CALLS_STORE_NAME\)\)/.test(storage), true, "H: 版を上げるときは、無いストアを作るだけ（今あるストア・記録を消さない）");

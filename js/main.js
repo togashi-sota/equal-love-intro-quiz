@@ -1990,7 +1990,8 @@ initSpecialModesScreen({
     } else if (modeId === "liveCallMode") {
       // 【2026-10-30 リニューアル第3段階】ゲーム画面の「ライブコールモード」も、ホームのライブコールと同じ新しい流れへ
       // （本人の採用方針：完成版コールデータに入っていない曲はコールを出さない。以前の曲一覧は端末の元のコールをそのまま出すため使わない）
-      openLiveCallFrom("gameHub");
+      // 戻る先＝押した画面（ゲーム画面・全体検索・【ライブ】ページなど）
+      openLiveCallFrom(document.body.dataset.screen || "gameHub");
     } else if (modeId === "timeAttack") {
       updateTimeAttackBestChip();
       navigateWithScrollMemory("timeAttackSetup");
