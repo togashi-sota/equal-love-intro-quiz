@@ -7,7 +7,10 @@ import { showScreen, onScreenChange, scrollToTop } from "./screens.js";
 // 【2026-10-30新設・リニューアル第2段階】ホーム（案B）・ブラウザ／端末の「戻る」
 import { getScreenElement, findScreenNameOfElement } from "./screens.js";
 import { initAppHistory, resolveBackTarget } from "./appHistory.js";
-import { initHomeScreen, renderHomePlayerStats, renderQuickPlaySummary } from "./homeScreen.js";
+import { initHomeScreen, renderHomePlayerStats, renderQuickPlaySummary, setLiveCallEntryHandler } from "./homeScreen.js";
+// 【2026-10-30新設・リニューアル第3〜5段階】新しいライブコールと、データ管理の「完成版コールデータを読み込む」
+import { initLiveCallScreen, openLiveCallScreen, goBackInLiveCall, refreshLiveCallAfterDataChange } from "./liveCallScreen.js";
+import { initCallReleaseImportUi, onReleasedCallsChanged } from "./callReleaseImportUi.js";
 import {
   getLyricsQuizRevealAudioEnabled,
   getInstantChallengeRevealAudioEnabled,
@@ -1985,8 +1988,9 @@ initSpecialModesScreen({
       // （イントロ／ランダム再生／歌詞クイズ）の選択画面を必ず経由するようにした。
       navigateWithScrollMemory("customQuizTypeSelect");
     } else if (modeId === "liveCallMode") {
-      renderLiveCallModeList();
-      navigateWithScrollMemory("liveCallModeList");
+      // 【2026-10-30 リニューアル第3段階】ゲーム画面の「ライブコールモード」も、ホームのライブコールと同じ新しい流れへ
+      // （本人の採用方針：完成版コールデータに入っていない曲はコールを出さない。以前の曲一覧は端末の元のコールをそのまま出すため使わない）
+      openLiveCallFrom("gameHub");
     } else if (modeId === "timeAttack") {
       updateTimeAttackBestChip();
       navigateWithScrollMemory("timeAttackSetup");
@@ -8805,6 +8809,39 @@ initHomeScreen(
     },
   }
 );
+// 【2026-10-30新設・リニューアル第3〜5段階】新しいライブコール。ホームの［ライブコール］の差し替え口（setLiveCallEntryHandler）に入れる。
+// 戻る先＝開いた画面（ホーム・ゲーム画面・全体検索など）。画面の中の表示の行き来は js/liveCallScreen.js が受け持つ。
+let liveCallReturnScreen = "start";
+function openLiveCallFrom(returnScreen) {
+  liveCallReturnScreen = returnScreen && returnScreen !== "liveCall" ? returnScreen : "start";
+  openLiveCallScreen();
+  navigateWithScrollMemory("liveCall");
+  window.scrollTo(0, 0);
+}
+initLiveCallScreen({
+  root: document.getElementById("live-call-root"),
+  audio: document.getElementById("live-call-audio"),
+  heading: document.getElementById("live-call-heading"),
+});
+setLiveCallEntryHandler(() => openLiveCallFrom(document.body.dataset.screen || "start"));
+document.getElementById("live-call-back-button").addEventListener("click", () => {
+  playSfx(SFX_EVENTS.UI_BACK);
+  if (goBackInLiveCall()) return; // 画面の中の1つ前の表示へ戻った
+  navigateWithScrollMemory(liveCallReturnScreen);
+});
+initCallReleaseImportUi({
+  input: document.getElementById("call-release-import-input"),
+  version: document.getElementById("call-release-version"),
+  result: document.getElementById("call-release-import-result"),
+  rollbackPanel: document.getElementById("call-release-rollback-panel"),
+  rollbackMessage: document.getElementById("call-release-rollback-message"),
+  rollbackConfirm: document.getElementById("call-release-rollback-confirm-button"),
+  rollbackCancel: document.getElementById("call-release-rollback-cancel-button"),
+  undoSection: document.getElementById("call-release-undo-section"),
+  undoList: document.getElementById("call-release-undo-list"),
+});
+onReleasedCallsChanged(refreshLiveCallAfterDataChange);
+
 // 前回の出題数・カテゴリを戻したので、自己ベスト・出題数の案内を合わせ直す
 updateModeBestScoreDisplay();
 updateQuestionCountNotice();

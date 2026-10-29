@@ -35,6 +35,8 @@ const SCREEN_ELEMENTS = {
   liveCallModePlayType: document.getElementById("live-call-mode-play-type-screen"),
   liveCallModePlayer: document.getElementById("live-call-mode-player-screen"),
   liveCallModeKaraoke: document.getElementById("live-call-mode-karaoke-screen"),
+  // 【2026-10-30新設・リニューアル第3〜5段階】新しいライブコール（js/liveCallScreen.js）
+  liveCall: document.getElementById("live-call-screen"),
   timeAttackSetup: document.getElementById("time-attack-setup-screen"),
   timeAttackResult: document.getElementById("time-attack-result-screen"),
   timeAttackHistory: document.getElementById("time-attack-history-screen"),

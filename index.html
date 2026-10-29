@@ -43,6 +43,8 @@
   <link rel="stylesheet" href="css/friendsFix.css">
   <!-- 【2026-10-30新設】ホーム（案B）・まとめ画面・端末の「戻る」の案内 -->
   <link rel="stylesheet" href="css/homeRenewal.css">
+  <!-- 【2026-10-30新設・リニューアル第3〜5段階】新しいライブコール（はじめに→曲一覧→曲のページ→コール表／ライブコール／カラオケ） -->
+  <link rel="stylesheet" href="css/liveCall.css">
 </head>
 <body data-screen="start">
 
@@ -790,6 +792,33 @@
           </label>
           <!-- 読み込み結果（「○曲追加しました」等）。普段は空・非表示 -->
           <p id="data-pack-import-result" class="audio-import-result" hidden></p>
+        </div>
+
+        <!-- 【2026-10-30新設・リニューアル第3段階】完成版コールデータ（本人が確認したコール表と時刻）の読み込み。
+             上の「追加データパック」（音源・歌詞・元のコール）とは別の入口・別の保存場所（js/callReleaseImportUi.js・
+             コールのデータベースの releasedCalls ストア）。同じものをもう一度読み込んでも何も変わらず、
+             古い版で新しい版を上書きしない（戻すときは確認してから）。曲ごとに1つ前の版へ戻せる。 -->
+        <div id="call-release-import-section" class="audio-import-section">
+          <p class="lyrics-import-caption">
+            ライブコールの「完成版コールデータ」（コール表と光るタイミング）を読み込みます。配られた ZIP、または JSON ファイルを選んでください。音源・歌詞は変わりません。
+          </p>
+          <p id="call-release-version" class="audio-import-status">完成版コールデータ：確認中…</p>
+          <label class="audio-import-button">
+            完成版コールデータを読み込む
+            <input id="call-release-import-input" type="file" accept=".json,application/json,.zip,application/zip" multiple hidden>
+          </label>
+          <div id="call-release-rollback-panel" role="alert" hidden>
+            <p id="call-release-rollback-message"></p>
+            <div class="lyrics-warning-actions">
+              <button id="call-release-rollback-cancel-button" type="button" class="secondary-button">新しい版のままにする</button>
+              <button id="call-release-rollback-confirm-button" type="button" class="secondary-button">古い版に戻す</button>
+            </div>
+          </div>
+          <div id="call-release-import-result" class="audio-import-result" aria-live="polite" hidden></div>
+          <details id="call-release-undo-section" hidden>
+            <summary>曲ごとに元に戻す</summary>
+            <div id="call-release-undo-list"></div>
+          </details>
         </div>
 
         <!-- 【2026-08-27追加】音源・歌詞・コール・コールガイドを種類ごとに個別に読み込む機能。
@@ -2334,6 +2363,29 @@
     <!-- ライブコールモード：曲一覧画面。コールデータ（js/callStorage.js）が登録されている
          曲だけを一覧表示する。収録曲一覧（songlist.js）とは完全に独立した、専用の一覧
          （2026-08-06新設）。中身はjs/liveCallModeScreen.jsが組み立てる。 -->
+    <!-- 【2026-10-30新設・リニューアル第3〜5段階】新しいライブコール。中の表示（はじめに・曲一覧・曲のページ・3つのモード）は
+         js/liveCallScreen.js が #live-call-root の中に作る。［戻る］は中の1つ前の表示へ（端末の「戻る」も同じ）。
+         以前のライブコールモード（下の #live-call-mode-*）は消さずに残している（入口は新しい方へ付け替えた）。 -->
+    <section id="live-call-screen" class="screen">
+      <div class="list-header">
+        <button id="live-call-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            LIVE CALL
+          </p>
+          <h2 id="live-call-heading">ライブコール</h2>
+        </div>
+      </div>
+      <div id="live-call-root" class="lc-root"></div>
+      <audio id="live-call-audio" preload="metadata" playsinline></audio>
+    </section>
+
     <section id="live-call-mode-list-screen" class="screen">
       <div class="list-header">
         <button id="live-call-mode-list-back-button" class="back-link" type="button">
