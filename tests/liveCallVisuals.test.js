@@ -168,6 +168,7 @@ async function runPreviewAndSourceTests() {
   assertEqual(screen.includes('[call.key, { type: "normal" }]'), true, "F: 新しいライブコールは、今までどおり全部「ふつう」の演出データ（MIX の区切り・掛け声の分類を使わない）");
   assertEqual(screen.includes("previewLines"), false, "F: 棒グラフの見本はやめた");
   assertEqual(/@keyframes|animation\s*:/.test(css.replace(/\/\*[\s\S]*?\*\//g, "")), false, "F: ライブコールの CSS に無限アニメーション（@keyframes）は無い");
+  assertEqual(/\.cx-call\.is-done \.cx-text \{\s*color: #b0585e;/.test(css) && !/\.cx-call\.is-done \{\s*opacity/.test(css), true, "F: 終わったコールは薄くせず、くすんだ赤（白地でコントラスト 4.5 以上）");
   assertEqual(css.includes(".lc-stage .call-text-calls .cx-call.has-break") && css.includes("#live-call-root .lc-player {") && css.includes("backdrop-filter: none;"), true, "F: 改行のある長いコールの塊・下に固定の再生の操作はそのまま");
 }
 
