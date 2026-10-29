@@ -307,8 +307,19 @@ function renderCallHudPreviews(previewCalls) {
   elements.callHudPreviewItem2.textContent = second ? getCallPreviewLabel(second) : "";
 }
 
+// 【2026-10-29】新しいライブコールのカラオケ（本人の完成版のコールを渡したとき）は、端末の音源が鳴っていれば
+// 「音源の再生位置」を時計にする（文字モードと同じ基準）。今までの時計（曲スタートを押した時刻からの経過）だと、
+// 音源の読み込みにかかった時間の分だけ、コール・歌詞と音がずれていた。タイミング補正（±0.1秒など）はそのまま足す
+let followDeviceAudio = false;
+function currentPositionSec() {
+  if (followDeviceAudio && syncState.isSyncing && hasDeviceAudioLoaded() && elements.deviceAudio.readyState >= 2) {
+    return elements.deviceAudio.currentTime + syncState.offsetMs / 1000;
+  }
+  return getKaraokePositionSec(syncState, performance.now());
+}
+
 function tick() {
-  const positionSec = getKaraokePositionSec(syncState, performance.now());
+  const positionSec = currentPositionSec();
   if (positionSec === null) return;
 
   // 歌詞パネル側（js/lyricsSync.js）のハイライト・自動スクロールは、この偽時計への
@@ -466,7 +477,7 @@ function handleResyncButtonClick() {
     closeMoreMenu();
     return;
   }
-  const positionSec = getKaraokePositionSec(syncState, performance.now());
+  const positionSec = currentPositionSec();
   const syncPointCall = findCurrentOrNextSyncPoint(syncPointCandidates, positionSec ?? 0);
   if (!syncPointCall) {
     closeMoreMenu();
@@ -554,6 +565,7 @@ export async function openKaraokeSyncScreen(songId, options = {}) {
   elements.songTitle.textContent = song.title;
   resetPerSongRuntimeState();
 
+  followDeviceAudio = Array.isArray(options.calls);
   if (Array.isArray(options.calls)) {
     allCalls = options.calls
       .filter((call) => Number.isFinite(call.start) && Number.isFinite(call.end))
