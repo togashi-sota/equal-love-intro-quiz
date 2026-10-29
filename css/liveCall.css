@@ -885,3 +885,25 @@
 #call-release-rollback-panel[hidden] {
   display: none;
 }
+
+/* 【2026-10-29 修正】再生の操作が画面の下に貼り付かず、ページの一番下まで行かないと見えなかった
+   （まわりの要素の overflow などで sticky が効かない場合がある）→ 画面の下に固定（fixed）し、その分の余白を下に取る */
+#live-call-root .lc-player {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: min(100% - 16px, 720px);
+  margin: 0 auto;
+  box-shadow: 0 -6px 18px -10px rgba(120, 20, 70, 0.35);
+}
+#live-call-root:has(.lc-player) {
+  padding-bottom: calc(120px + env(safe-area-inset-bottom, 0px));
+}
+/* 外側の枠（.game-frame）の backdrop-filter・overflow:hidden があると、固定（fixed / sticky）が画面ではなく枠に対して効いてしまう。
+   ライブコールの画面を開いている間だけ外す */
+body[data-screen="liveCall"] .game-frame {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  overflow: visible;
+}
