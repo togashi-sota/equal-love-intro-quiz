@@ -12,7 +12,7 @@
 // 条件にする。js/main.jsの自動更新の仕組み（本人指示により「更新する」ボタンを撤廃し、
 // 安全な画面に来たときだけ自動でリロードする設計）と自然に噛み合う。
 //
-// 【複数件を順番に表示する仕組み（2026-08-25追加）】CELEBRATIONS配列の並び順どおりに、
+// 【複数件を順番に表示する仕組み（2026-08-25追加 → 2026-10-30改訂：1回の起動で1件だけ。下の pickLaunchCelebration 参照）】CELEBRATIONS配列の並び順どおりに、
 // 「未読で条件を満たしている最初の1件」を表示する。「見た！」を押すと、そのお祝いだけを
 // 既読にしたうえで、再度findEligibleCelebration()を呼び直す。次に条件を満たす未読の
 // お祝いが見つかれば、同じオーバーレイの中身を差し替えて続けて表示する（大場花菜→夢の続き、
@@ -175,6 +175,105 @@ export function findEligibleCelebration(songs, playerKeyPrefix) {
   return null;
 }
 
+// ---- 【2026-10-30追加・リニューアル第2段階】起動時に2枚続けて出ないようにする ----
+// 以前は「見た！」を押すと、条件を満たす次のお祝いを続けて表示していた（大場花菜→夢の続き）。
+// その結果、起動直後に「見た！」を2回押すまでホームを操作できず、ゲームを始めるのが遅れていた。
+// 新しい決まり：
+//   ・1回の起動（このタブ／PWA を開いている間。自動更新のリロードも含む）で表示するのは最大1件
+//   ・どれを出すかは「一番長く表示していないもの」から順番（ローテーション）。同じものばかり出ない
+//   ・お祝いそのもの（CELEBRATIONS・表示条件・期間中は毎回の起動で出る考え方）は変えない
+//   ・起動直後がホーム以外（初回セットアップ・招待リンクで対戦画面など）なら、その起動中に
+//     初めてホームへ来たときに出す（ゲームの途中には出さない）
+const LAUNCH_SHOWN_KEY = "equalLoveIntroQuiz.celebrationShownThisLaunch";
+
+function buildLastShownStorageKey(playerKeyPrefix, celebrationId) {
+  return `equalLoveIntroQuiz.${playerKeyPrefix}celebrationLastShownAt.${celebrationId}`;
+}
+
+// 表示できる候補（条件を満たし、この起動中にまだ見ていないもの）を、CELEBRATIONS の並び順で返す
+export function listEligibleCelebrations(songs, playerKeyPrefix) {
+  return CELEBRATIONS.filter((celebration) => {
+    if (celebration.songId) {
+      const song = songs.find((s) => s.id === celebration.songId);
+      if (!song) return false;
+      if (celebration.centerMemberName && !song.center?.includes(celebration.centerMemberName)) return false;
+    }
+    return !isCelebrationSeen(playerKeyPrefix, celebration.id);
+  });
+}
+
+// 候補の中から、最後に表示した時刻（lastShownAtById：{ id: ミリ秒 }）が一番古いものを1件選ぶ純粋関数。
+// 一度も表示していないもの（記録なし）を最優先し、同じなら並び順の早いもの。候補が無ければ null。
+export function chooseCelebrationForLaunch(candidates, lastShownAtById = {}) {
+  let chosen = null;
+  let chosenTime = Infinity;
+  for (const celebration of candidates) {
+    const raw = lastShownAtById[celebration.id];
+    const time = Number.isFinite(raw) ? raw : -Infinity;
+    if (chosen === null || time < chosenTime) {
+      chosen = celebration;
+      chosenTime = time;
+    }
+  }
+  return chosen;
+}
+
+function readLastShownAt(playerKeyPrefix, celebrationId) {
+  try {
+    const value = Number(localStorage.getItem(buildLastShownStorageKey(playerKeyPrefix, celebrationId)));
+    return Number.isFinite(value) && value > 0 ? value : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function writeLastShownAt(playerKeyPrefix, celebrationId, nowMs) {
+  try {
+    localStorage.setItem(buildLastShownStorageKey(playerKeyPrefix, celebrationId), String(nowMs));
+  } catch {
+    // 保存できなくても、並び順どおりに出るだけで困らない
+  }
+}
+
+export function hasShownCelebrationThisLaunch() {
+  try {
+    return sessionStorage.getItem(LAUNCH_SHOWN_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function markCelebrationShownThisLaunch() {
+  try {
+    sessionStorage.setItem(LAUNCH_SHOWN_KEY, "true");
+  } catch {
+    // 保存できない環境では、このページを開いている間だけ下の変数で防ぐ
+  }
+  shownThisPageLoad = true;
+}
+let shownThisPageLoad = false;
+
+// テスト用：起動ごとの記録を消す
+export function resetCelebrationLaunchStateForTest() {
+  shownThisPageLoad = false;
+  try {
+    sessionStorage.removeItem(LAUNCH_SHOWN_KEY);
+  } catch {
+    // 何もしない
+  }
+}
+
+// この起動で表示するお祝いを1件選ぶ（すでにこの起動で1件出していれば null）
+export function pickLaunchCelebration(songs, playerKeyPrefix) {
+  if (shownThisPageLoad || hasShownCelebrationThisLaunch()) return null;
+  const candidates = listEligibleCelebrations(songs, playerKeyPrefix);
+  const lastShownAtById = {};
+  candidates.forEach((celebration) => {
+    lastShownAtById[celebration.id] = readLastShownAt(playerKeyPrefix, celebration.id);
+  });
+  return chooseCelebrationForLaunch(candidates, lastShownAtById);
+}
+
 // お祝い表示中は、背後のホーム画面を完全に操作不能にする（本人指示）。
 // オーバーレイ自体は.modal-overlay（position:fixed; inset:0、17-17章のセーフエリア対策込みで
 // css/style.cssの.modal-overlay.celebration-overlay参照）で背後のクリック・タップを
@@ -298,7 +397,7 @@ function renderCelebration(celebration, playerKeyPrefix, elements) {
 }
 
 // elements: { overlay, bgImage, thumbLink, thumbImage, mvButton, seenButton }
-// songs: SONGS配列（次のお祝いへ進む際、findEligibleCelebration()を呼び直すために必要）。
+// songs: SONGS配列（2026-10-30以降は続けて表示しないため使っていないが、呼び出し側との互換のため引数は残す）。
 export function initCenterCelebration(elements, songs) {
   elements.seenButton.addEventListener("click", () => {
     // 【2026-11-XX追加・本人指示：無音ボタンの洗い出し】「見た！」は他の画面のボタンと
@@ -310,14 +409,9 @@ export function initCenterCelebration(elements, songs) {
       markCelebrationSeen(playerKeyPrefix, celebrationId);
     }
 
-    // 次に表示すべきお祝いがあれば、同じオーバーレイの中身を差し替えて続けて表示する
-    // （大場花菜→夢の続き、のように連続表示するための仕組み。2026-08-25追加）。
-    const next = findEligibleCelebration(songs ?? [], playerKeyPrefix);
-    if (next) {
-      renderCelebration(next, playerKeyPrefix, elements);
-      return;
-    }
-
+    // 【2026-10-30改訂】以前はここで次のお祝いを続けて表示していたが、起動直後に2枚続くと
+    // ゲームを始めるまでに「見た！」を2回押す必要があったため、1回の起動で1件だけにした
+    // （残りのお祝いは次の起動で順番に出る。上の pickLaunchCelebration 参照）。
     elements.overlay.hidden = true;
     unlockBackgroundScroll();
   });
@@ -331,8 +425,11 @@ export function initCenterCelebration(elements, songs) {
 export function showCenterCelebrationIfEligible(songs, playerKeyPrefix, elements,
   { enabled = CELEBRATION_POPUPS_ENABLED && !isCelebrationSuppressed() } = {}) {
   if (!enabled) return false; // ポートフォリオ撮影用に非表示にしている端末：何も表示せず、通常のホーム画面へ
-  const celebration = findEligibleCelebration(songs, playerKeyPrefix);
+  // 【2026-10-30改訂】1回の起動で1件だけ・一番長く表示していないものから（pickLaunchCelebration）
+  const celebration = pickLaunchCelebration(songs, playerKeyPrefix);
   if (!celebration) return false;
+  markCelebrationShownThisLaunch();
+  writeLastShownAt(playerKeyPrefix, celebration.id, Date.now());
   renderCelebration(celebration, playerKeyPrefix, elements);
   return true;
 }
