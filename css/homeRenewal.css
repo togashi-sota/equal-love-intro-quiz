@@ -931,3 +931,6 @@
 .hub-screen .secondary-button {
   min-height: 44px;
 }
+
+/* 【2026-10-29】ライブのカードは4つ（ライブコール・新しいライブコール・ライブ履歴・初心者ガイド）を2列×2段に */
+.home-chips--quad { grid-template-columns: repeat(2, minmax(0, 1fr)); }

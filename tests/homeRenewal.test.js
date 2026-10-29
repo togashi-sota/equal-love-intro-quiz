@@ -388,7 +388,7 @@ function runHomePureFunctionTests() {
   assertEqual(modes, ["outroQuiz", "lyricsQuiz", "onlineBattle", "partyBattle", "weakSongs"], "D: ほかのゲーム：アウトロ・歌詞・オンライン・1台で対戦・苦手曲は、ゲーム画面のカードと同じ処理");
   assertEqual(modes.every((id) => HOME_SPECIAL_MODES_ORDER.includes(id)), true, "D: どれも実在するモード");
   assertEqual(HOME_ACTIONS["all-games"], { type: "navigate", value: "gameHub" }, "D: 全部のゲーム → ゲーム画面");
-  assertEqual(["live-sheet", "live-live", "live-karaoke"].map((name) => HOME_ACTIONS[name].value), ["sheet", "live", "karaoke"], "D: コール表／ライブコール／カラオケ → その遊び方を選んだ曲一覧");
+  assertEqual([HOME_ACTIONS["live-call-classic"], HOME_ACTIONS["live-call-new"]].map((a) => `${a.type}:${a.value}`), ["mode:liveCallMode", "live:null"], "D: ライブコール＝前の版（ゲーム画面と同じ）／新しいライブコール＝新しい3モード");
   assertEqual(HOME_ACTIONS.guides, { type: "navigate", value: "guideHub" }, "D: 使い方ガイド → ガイド画面");
   assertEqual(HOME_ACTIONS.settings, { type: "navigate", value: "settings" }, "D: 設定 → 設定・データ管理");
 
@@ -524,7 +524,7 @@ async function runHomeEntryWiringTests() {
   HOME_NAV_SECTIONS.forEach((section) => assertEqual(home.querySelector(`#${section.target}`) !== null && home.querySelector(`#${section.card}`) !== null, true, `E: 目次「${section.label}」の行き先がある`));
   const cardIds = (cardId) => [...home.querySelectorAll(`#${cardId} .home-chip`)].map((element) => element.id || element.dataset.homeAction);
   assertEqual(cardIds("home-card-game"), ["outro-quiz", "lyrics-quiz", "online-battle", "party-battle", "weak-songs", "all-games"], "E: ゲーム：ほかのゲーム6つ");
-  assertEqual(cardIds("home-card-live"), ["live-sheet", "live-live", "live-karaoke", "live-hub-link", "live-guide"], "E: ライブ：コール表・ライブコール・カラオケ・ライブ履歴・初心者ガイド");
+  assertEqual(cardIds("home-card-live"), ["live-call-classic", "live-call-new", "live-hub-link", "live-guide"], "E: ライブ：ライブコール（前の版）・新しいライブコール・ライブ履歴・初心者ガイド");
   assertEqual(cardIds("home-card-music"), ["songlist", "lyrics-search", "continuous-play", "playlists", "favorites", "works"], "E: 楽曲：楽曲一覧・歌詞検索・曲を聴く・プレイリスト・お気に入り・シングル・アルバム");
   assertEqual(cardIds("home-card-know"), ["members-link", "centers", "anniversary-home-link", "tv-appearances-home-link", "commercials"], "E: ＝LOVE：メンバー・歴代センター・周年ヒストリー・音楽番組・CM・企業コラボ");
   assertEqual(cardIds("home-card-my"), ["history", "guides", "settings"], "E: マイページ：プレイ履歴・使い方ガイド・設定（フレンド・ランキング・実績・プロフィールは置かない）");

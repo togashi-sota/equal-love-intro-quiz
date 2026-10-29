@@ -380,17 +380,17 @@
           </div>
         </section>
 
-        <!-- ② ライブを楽しむ：コール表／ライブコール／カラオケは、新しいライブコールの曲一覧をその遊び方を選んだ状態で開く。
+        <!-- ② ライブを楽しむ：【2026-10-29 本人の判断】ライブコールは前の版（同期モード・カラオケ同期）に戻す。
+             新しい3モード（コール表・光るコール・カラオケ）は「新しいライブコール（試験中）」から開く。
              ライブ履歴＝【ライブ】ページ（id は以前のホームの入口のまま）。 -->
         <section id="home-card-live" class="home-card home-card--live" aria-labelledby="home-card-live-title">
           <div class="home-card-head">
             <h2 id="home-card-live-title" class="home-card-title">ライブを楽しむ</h2>
             <span class="home-card-lead">コールの予習とライブの記録</span>
           </div>
-          <div class="home-chips home-chips--split">
-            <button class="home-chip" type="button" data-home-action="live-sheet"><span class="home-chip-icon" aria-hidden="true">📄</span><span class="home-chip-label">コール表</span><span class="home-chip-sub">読んで予習</span></button>
-            <button class="home-chip" type="button" data-home-action="live-live"><span class="home-chip-icon" aria-hidden="true">🎤</span><span class="home-chip-label">ライブ<wbr>コール</span><span class="home-chip-sub">曲に合わせて<wbr>光る</span></button>
-            <button class="home-chip" type="button" data-home-action="live-karaoke"><span class="home-chip-icon" aria-hidden="true">🎙️</span><span class="home-chip-label">カラオケ</span><span class="home-chip-sub">歌詞が流れる</span></button>
+          <div class="home-chips home-chips--quad">
+            <button class="home-chip" type="button" data-home-action="live-call-classic"><span class="home-chip-icon" aria-hidden="true">🎤</span><span class="home-chip-label">ライブ<wbr>コール</span><span class="home-chip-sub">同期・カラオケ</span></button>
+            <button class="home-chip" type="button" data-home-action="live-call-new"><span class="home-chip-icon" aria-hidden="true">✨</span><span class="home-chip-label">新しい<wbr>ライブコール</span><span class="home-chip-sub">試験中</span></button>
             <button id="live-hub-link" class="home-chip" type="button"><span class="home-chip-icon" aria-hidden="true">🎫</span><span class="home-chip-label">ライブ履歴</span><span class="home-chip-sub">各公演の<wbr>セトリつき</span></button>
             <button class="home-chip" type="button" data-home-action="live-guide"><span class="home-chip-icon" aria-hidden="true">🔰</span><span class="home-chip-label">初心者<wbr>ガイド</span></button>
           </div>

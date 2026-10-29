@@ -1995,10 +1995,10 @@ function openSpecialModeById(modeId) {
     // （イントロ／ランダム再生／歌詞クイズ）の選択画面を必ず経由するようにした。
     navigateWithScrollMemory("customQuizTypeSelect");
   } else if (modeId === "liveCallMode") {
-    // 【2026-10-30 リニューアル第3段階】ゲーム画面の「ライブコールモード」も、ホームのライブコールと同じ新しい流れへ
-    // （本人の採用方針：完成版コールデータに入っていない曲はコールを出さない。以前の曲一覧は端末の元のコールをそのまま出すため使わない）
-    // 戻る先＝押した画面（ゲーム画面・全体検索・【ライブ】ページなど）
-    openLiveCallFrom(document.body.dataset.screen || "gameHub");
+    // 【2026-10-29 本人の判断で前の版に戻す】新しいライブコールの光り方（MIX の目安の進み方など）が本人の意図と違ったため、
+    // ライブコールモードは v383 と同じ曲一覧（同期モード・カラオケ同期）へ。新しい3モードはホームの「新しいライブコール（試験中）」から開く
+    renderLiveCallModeList();
+    navigateWithScrollMemory("liveCallModeList");
   } else if (modeId === "timeAttack") {
     updateTimeAttackBestChip();
     navigateWithScrollMemory("timeAttackSetup");

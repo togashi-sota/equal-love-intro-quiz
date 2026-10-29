@@ -190,9 +190,9 @@ export const HOME_ACTIONS = {
   "party-battle": { type: "mode", value: "partyBattle" },
   "weak-songs": { type: "mode", value: "weakSongs" },
   "all-games": { type: "navigate", value: "gameHub" },
-  "live-sheet": { type: "live", value: "sheet" },
-  "live-live": { type: "live", value: "live" },
-  "live-karaoke": { type: "live", value: "karaoke" },
+  // 【2026-10-29 本人の判断】ライブコールは前の版（ゲーム画面の「ライブコールモード」と同じ曲一覧）。新しい3モードは別の入口
+  "live-call-classic": { type: "mode", value: "liveCallMode" },
+  "live-call-new": { type: "live", value: null },
   "live-guide": { type: "click", value: "live-guide-link" },
   songlist: { type: "click", value: "songlist-link" },
   "lyrics-search": { type: "click", value: "lyrics-search-link" },

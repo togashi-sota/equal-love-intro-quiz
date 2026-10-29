@@ -703,7 +703,9 @@ function renderLiveMode() {
   root.append(toolbar, panel, stage, resume, player, playError);
 
   // 演出の下ごしらえ（読み込んだときに1回だけ）。分類の優先順位は js/liveCallData.js の classifyReleasedCalls
-  const preps = classifyReleasedCalls(sheet.calls, CALL_EFFECTS[currentSongId] ?? {}, hashText);
+  // 【2026-10-29 本人の指示】コールは全部「ふつう」の同じ光り方にする（MIX の目安の区切り・掛け声のポップなどの自動の分類はしない）。
+  // 本人が決めた開始〜終了の間、そのコール全体が光る。区切りは本人がタイミングで分けた所だけ
+  const preps = classifyReleasedCalls(sheet.calls.map((call) => call), Object.fromEntries((sheet.calls ?? []).map((call) => [call.key, { type: "normal" }])), hashText);
   const fx = preps.map((prep) => (callSpans.get(prep.key) ? decorateCallSpan(callSpans.get(prep.key), prep, { memberColorOf }) : null)).filter(Boolean);
   // 時刻の無いコール（今の完成版には無い）は光らせない
   const followSong = buildFollowSong({ layout: sheet.layout, calls: sheet.calls, lines: songData.lyricsRecord?.lines ?? [], duration: null });
