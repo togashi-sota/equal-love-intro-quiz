@@ -8,6 +8,7 @@
 // （書くのは文字の大きさ・演出の強さなどの表示の好みだけ。localStorage）。
 import { SONGS, getSongById } from "./data/songs.js";
 import { MEMBERS } from "./data/members.js";
+import { MEMBER_PROFILES } from "./data/memberProfiles.js";
 import { CALL_EFFECTS } from "./data/callEffects.js";
 import { getAudioBlob, getImportedSongIds } from "./audioStorage.js";
 import { getCallData, getAllReleasedCallRecords, getReleasedCallRecord } from "./callStorage.js";
@@ -16,7 +17,7 @@ import { renderCallTextView } from "./callTextView.js";
 import { hashText } from "./callTextEdits.js";
 import { buildReleasedCallSheet, computeModeAvailability, activeCallKeysAt, buildFollowSong, classifyReleasedCalls, SHEET_STATE } from "./liveCallData.js";
 import { createRunner, panelState } from "./callFollow.js";
-import { prepareVisual, visualStateAt, ambientAt } from "./callEffects.js";
+import { prepareVisual, visualStateAt, ambientAt, buildMemberNameIndex, memberIdForCallText } from "./callEffects.js";
 import { decorateCallSpan, applyVisualState } from "./callEffectsRenderer.js";
 import { loadLyricsForSong, destroyLyricsSync } from "./lyricsSync.js";
 import { registerPlaybackStopper, notifyPlaybackStarting } from "./playbackCoordinator.js";
@@ -132,6 +133,21 @@ const reducedMotion = typeof matchMedia === "function" ? matchMedia("(prefers-re
 
 const titleOf = (songId) => getSongById(songId)?.title ?? songId;
 const memberColorOf = (id) => MEMBERS.find((member) => member.id === id)?.memberColor?.hex ?? "#ffb3d1";
+// 名前コールのメンバーカラー：コールの文字列がメンバーのデータの名前・愛称と、まるごと1人に一致するときだけ（js/callEffects.js）
+let memberNameIndex = null;
+export function memberColorForCallText(text) {
+  memberNameIndex ??= buildMemberNameIndex(MEMBERS, MEMBER_PROFILES);
+  const memberId = memberIdForCallText(text, memberNameIndex);
+  return memberId ? { memberId, color: memberColorOf(memberId) } : null;
+}
+
+// 次のコールまでの残り時間（いま／つぎ のパネル）。控えめに、1秒単位。1秒を切ったら「まもなく」（純粋関数）
+export const NEXT_SOON_SEC = 3;
+export function formatNextWait(wait) {
+  if (!Number.isFinite(wait) || wait < 0) return "";
+  if (wait < 1) return "まもなく";
+  return `あと${Math.ceil(wait)}秒`;
+}
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -448,11 +464,12 @@ function modeCard({ id, title, description, availability, onOpen }) {
 // カードの見本の画像（2026-10-30 第2版）。本物のアプリの画面（コール表・ライブコール・カラオケの部品と CSS）を、
 // ダミーの文字（「〜〜歌詞〜〜〜」「Hey！」「○○ちゃーん！」など。本物の歌詞・コールではない）で描いて撮ったもの。
 // 作り直し：renewal-notes/livecall-visuals/capture_previews.py（Git に入れない）。表示は 140×112（画像は2倍の 280×224）
+// 【2026-10-30 夜】ライブコール（つぎ の残り時間）・カラオケ（新しい演出）を、同じダミーの文字で撮り直した（renewal-notes/night-live/capture_dummy.py）
 export const PREVIEW_IMAGE_SIZE = { width: 280, height: 224 };
 export const LIVE_CALL_MODE_PREVIEWS = {
   sheet: { src: "./assets/images/live-call-previews/sheet.webp", alt: "コール表の見本：黒い歌詞の行と赤いコール、【間奏】の見出し（文字はダミー）" },
   live: { src: "./assets/images/live-call-previews/live.webp", alt: "ライブコールの見本：いま／つぎ の表示と、光っている長いコールの進み具合のバー（文字はダミー）" },
-  karaoke: { src: "./assets/images/live-call-previews/karaoke.webp", alt: "カラオケの見本：NEXT CALL のカード・あと何秒・歌詞の行（文字はダミー）" },
+  karaoke: { src: "./assets/images/live-call-previews/karaoke.webp", alt: "カラオケの見本：暗い舞台に歌詞の行（今の行が白く光る）と、光っているコールのカード（文字はダミー）" },
 };
 
 async function renderSongPage() {
@@ -525,7 +542,7 @@ async function renderSongPage() {
     modeCard({
       id: "karaoke",
       title: "カラオケ",
-      description: "歌詞と、次に言うコール（完成版）を大きく表示。あと何秒かも出ます。",
+      description: "歌詞と、次に言うコール（完成版）を大きく表示。あと何秒かも出て、コールの瞬間に光ります。",
       availability: avail.karaoke,
       // 【2026-10-29 本人の希望】前の「カラオケ同期」と同じ画面（NEXT CALL・あと○秒・タイミング調整）を、本人の完成版のコールで開く
       onOpen: () => (callbacks.openKaraokeWithCalls ? callbacks.openKaraokeWithCalls(currentSongId, songData?.sheet?.calls ?? []) : show("karaoke")),
@@ -636,6 +653,9 @@ function renderLiveMode() {
   nextRow.appendChild(el("span", "lc-now-label", "つぎ"));
   const nextText = el("span", "lc-next-text", "");
   nextRow.appendChild(nextText);
+  // 【2026-10-30 夜】次のコールまでの残り時間は、コールの文字と分けて右に小さく（3秒を切ったら少し目立たせる）
+  const nextWait = el("span", "lc-next-wait", "");
+  nextRow.appendChild(nextWait);
   panel.append(nowRow, nextRow);
   panel.hidden = !prefs.panel;
 
@@ -728,7 +748,15 @@ function renderLiveMode() {
       const span = callSpans.get(prep.key);
       if (!span) return null;
       prep.vis = prepareVisual(callByKey.get(prep.key) ?? prep, { hasBreak: span.classList.contains("has-break") });
-      return decorateCallSpan(span, prep, { memberColorOf });
+      const decorated = decorateCallSpan(span, prep, { memberColorOf });
+      // 名前コール：メンバー名と確かに一致したときだけ、光の輪郭と下線をメンバーカラーに（文字の色は変えない＝読みやすさはそのまま）
+      const member = memberColorForCallText(callByKey.get(prep.key)?.text ?? prep.text);
+      if (member) {
+        span.classList.add("cx-member");
+        span.dataset.memberId = member.memberId;
+        span.style.setProperty("--cx-member", member.color);
+      }
+      return decorated;
     })
     .filter(Boolean);
   // 時刻の無いコール（今の完成版には無い）は光らせない
@@ -760,6 +788,8 @@ function renderLiveMode() {
     nowText,
     nowBarFill,
     nextText,
+    nextWait,
+    nextRow,
     resume,
     listeners: [],
   };
@@ -927,11 +957,15 @@ function renderFrame({ dt = 0, force = false } = {}) {
   // いま／つぎ
   const state = panelState(live.followSong, t);
   const nowLabel = state.now.map((n) => n.text.replace(/\s+/g, " ")).join("　／　") + (state.more ? `　ほか${state.more}` : "");
-  const nextLabel = state.next ? `${state.next.text.replace(/\s+/g, " ")}（${Math.ceil(state.next.wait)}秒後）` : "—";
-  const key = `${nowLabel}|${nextLabel}`;
+  const nextLabel = state.next ? state.next.text.replace(/\s+/g, " ") : "—";
+  const waitLabel = state.next ? formatNextWait(state.next.wait) : "";
+  const soon = Boolean(state.next) && state.next.wait < NEXT_SOON_SEC;
+  const key = `${nowLabel}|${nextLabel}|${waitLabel}|${soon}`;
   if (key !== live.panelKey) {
     live.nowText.textContent = nowLabel || "—";
     live.nextText.textContent = nextLabel;
+    live.nextWait.textContent = waitLabel;
+    live.nextRow.classList.toggle("is-soon", soon);
     live.panelKey = key;
   }
   const longNow = state.now.find((n) => n.long);
