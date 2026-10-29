@@ -442,6 +442,11 @@
                 <span class="home-data-row-text"><b>データを追加・更新</b><small id="home-data-audio-count">音源の数を確認中…</small></span>
                 <span class="home-chevron" aria-hidden="true">›</span>
               </button>
+              <button class="home-data-row" type="button" data-home-action="data-status">
+                <span class="home-data-row-icon" aria-hidden="true">✅</span>
+                <span class="home-data-row-text"><b>データの状態を確かめる</b><small>音源・歌詞・コール表が入ったか</small></span>
+                <span class="home-chevron" aria-hidden="true">›</span>
+              </button>
               <button class="home-data-row" type="button" data-home-action="data-transfer">
                 <span class="home-data-row-icon" aria-hidden="true">🔁</span>
                 <span class="home-data-row-text"><b>引き継ぎ・復旧</b><small>機種変更・データが消えたとき</small></span>
@@ -774,6 +779,12 @@
              新しく使う端末でも、長く使っている端末でも、同じ ZIP を選ぶと、この端末に足りないもの・新しくなったものだけが入る
              （js/unifiedPackImportUi.js・js/unifiedPackImport.js）。中身を確かめて見せてから、本人が押したときだけ入れる。
              下の「追加データパック」「完成版コールデータを読み込む」はそのまま残す。 -->
+        <!-- 【2026-10-29新設・本人の希望】全部入りを読み込んだあとに、音源・歌詞・コールが入ったかを確かめる（js/dataStatusCheck.js。読むだけ） -->
+        <div id="data-status-section" class="audio-import-section">
+          <p class="audio-import-description"><b>この端末のデータの状態</b><br>音源・歌詞・コール表が何曲入っているか、足りない曲はどれかを確かめます（何も変えません）。</p>
+          <button id="data-status-check-button" class="secondary-button" type="button">今の状態を確かめる</button>
+          <div id="data-status-result" class="data-status-result" hidden></div>
+        </div>
         <div id="unified-pack-import-section" class="audio-import-section">
           <p class="lyrics-import-caption">
             配られた「最新版データ」の ZIP を1つ選んでください。この端末に足りないもの・新しくなったものだけを入れます。選んだだけでは何も変わらず、中身を確かめてから「この内容で読み込む」を押したときだけ入ります。音源とプレイヤーの記録は変わりません。

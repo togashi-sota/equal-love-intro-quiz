@@ -934,3 +934,7 @@
 
 /* 【2026-10-29】ライブのカードは4つ（ライブコール・新しいライブコール・ライブ履歴・初心者ガイド）を2列×2段に */
 .home-chips--quad { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+/* 【2026-10-29】この端末のデータの状態 */
+.data-status-result { margin-top: 10px; text-align: left; font-size: 13.5px; line-height: 1.6; }
+.data-status-result p { margin: 2px 0; overflow-wrap: anywhere; }

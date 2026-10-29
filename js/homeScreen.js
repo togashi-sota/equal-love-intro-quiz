@@ -204,6 +204,7 @@ export const HOME_ACTIONS = {
   commercials: { type: "callback", value: "openGroupCommercials", ownSound: true },
   "data-update": { type: "callback", value: "openDataManagement" },
   "data-transfer": { type: "callback", value: "openTransferRecovery" },
+  "data-status": { type: "callback", value: "openDataStatus" },
   history: { type: "click", value: "history-link" },
   guides: { type: "navigate", value: "guideHub" },
   settings: { type: "navigate", value: "settings" },

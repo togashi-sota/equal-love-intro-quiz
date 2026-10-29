@@ -284,6 +284,7 @@ import {
 // 画面表示を更新するだけ（既存の音源・歌詞・コールの各インポートUIと同じ役割分担）。
 import { analyzeDataPack, importAnalyzedDataPack, PACK_KIND } from "./dataPackImport.js";
 import { isZipFile, looksLikeZipFile, extractZipToFiles } from "./zipPackImport.js";
+import { collectDeviceDataStatus, summarizeDeviceDataStatus, describeDeviceDataStatus } from "./dataStatusCheck.js";
 import { closeFullscreenLyrics } from "./lyricsFullscreen.js";
 import { initScrollLock, hasVisibleOverlay } from "./scrollLock.js";
 import { MEMBERS, MEMBER_STATUS } from "./data/members.js";
@@ -8841,6 +8842,11 @@ initHomeScreen(document.getElementById("start-screen"), {
   // データを追加・更新：データ管理の「最新版データを読み込む」の欄
   openDataManagement: () =>
     openSettingsSection([document.getElementById("data-management-section")], document.getElementById("unified-pack-import-section")),
+  // データの状態を確かめる：データ管理の「この端末のデータの状態」を開いて、すぐ確かめる
+  openDataStatus: () => {
+    openSettingsSection([document.getElementById("data-management-section")], document.getElementById("data-status-section"));
+    runDataStatusCheck();
+  },
   // 引き継ぎ・復旧：機種変更・データ引き継ぎ（すぐ下にデータの復旧）
   openTransferRecovery: () =>
     openSettingsSection(
@@ -8945,4 +8951,27 @@ initAppHistory({
   onScreenChange,
   navigate: navigateWithScrollMemory,
   getScreenElement,
+});
+
+// 【2026-10-29新設】この端末のデータの状態（音源・歌詞・コール表が入ったか）を確かめる。読むだけ
+let dataStatusRunning = false;
+async function runDataStatusCheck() {
+  const box = document.getElementById("data-status-result");
+  if (!box || dataStatusRunning) return;
+  dataStatusRunning = true;
+  box.hidden = false;
+  box.textContent = "確かめています…";
+  try {
+    const lines = describeDeviceDataStatus(summarizeDeviceDataStatus(await collectDeviceDataStatus()));
+    box.replaceChildren(...lines.map((text) => Object.assign(document.createElement("p"), { textContent: text })));
+  } catch (error) {
+    console.warn("データの状態を確かめられませんでした", error);
+    box.textContent = "データの状態を確かめられませんでした。もう一度押してください（この端末のデータは変わっていません）。";
+  } finally {
+    dataStatusRunning = false;
+  }
+}
+document.getElementById("data-status-check-button")?.addEventListener("click", () => {
+  playClickSound();
+  runDataStatusCheck();
 });
