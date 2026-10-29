@@ -49,7 +49,13 @@ async function handleFiles(fileList) {
   showLines(elements.summary, ["中身を確かめています…（まだ何も変えていません）"]);
   try {
     let files = [...fileList];
-    if (files.length === 1 && (isZipFile(files[0]) || (await looksLikeZipFile(files[0])))) files = await extractZipToFiles(files[0]);
+    // ZIP は全部ひらいて中身を1つにまとめる（【2026-10-29】大きいパックを分けて配ったものを、まとめて選んで1回で読み込めるように）
+    const expanded = [];
+    for (const file of files) {
+      if (isZipFile(file) || (await looksLikeZipFile(file))) expanded.push(...(await extractZipToFiles(file)));
+      else expanded.push(file);
+    }
+    files = expanded;
     const parsed = await readUnifiedPackFiles(files);
     const plan = await analyse(parsed);
     showLines(elements.summary, describeUnifiedPlan(plan), { error: !plan.ok });
