@@ -51,6 +51,8 @@
     import { runScoreTests } from "./tests/score.test.js";
     // 【2026-10-30新設】リニューアル第2段階：ホーム（案B）・端末の「戻る」・お祝いの順番待ち
     import { runHomeRenewalTests } from "./tests/homeRenewal.test.js";
+    // 【2026-10-30新設】リニューアル第3〜5段階：完成版コールデータの読み込み・ライブコール（ダミーのデータだけ）
+    import { runLiveCallRenewalTests } from "./tests/liveCallRenewal.test.js";
     import { runQuizTests } from "./tests/quiz.test.js";
     import { runAudioTroubleClassificationTests } from "./tests/audioTroubleClassification.test.js";
     import { runLyricsStorageTests } from "./tests/lyricsStorage.test.js";
@@ -512,6 +514,7 @@
     await runLyricsBattlePerfMatrixAsyncTests();
     runLyricsPatchAndCallReleaseTests();
     await runHomeRenewalTests();
+    await runLiveCallRenewalTests();
     const { passCount, failCount, failedDetails } = printSummary();
 
     const summaryElement = document.getElementById("test-summary");

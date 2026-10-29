@@ -7,7 +7,7 @@
 //
 // 新しいバージョンを配信したいときは、CACHE_VERSIONの値を必ず上げること。
 // 上げないと、ブラウザが「内容が変わっていない」と判断し、更新が反映されない。
-const CACHE_VERSION = "v390";
+const CACHE_VERSION = "v391";
 const CACHE_NAME = `equal-love-intro-quiz-${CACHE_VERSION}`;
 
 // キャッシュするアプリ本体のファイル一覧。
@@ -43,6 +43,7 @@ const APP_SHELL_FILES = [
   "./css/friendsFix.css",
   // 【2026-10-30追加】リニューアル第2段階：ホーム（案B）・まとめ画面・端末の「戻る」
   "./css/homeRenewal.css",
+  "./css/liveCall.css",
   "./js/homeScreen.js",
   "./js/appHistory.js",
   "./js/appNavigationStack.js",
@@ -212,6 +213,17 @@ const APP_SHELL_FILES = [
   "./js/callTextView.js",
   "./js/data/callTextPlacements.js",
   "./js/liveCallTextModeFlag.js",
+  // 【2026-10-30新設・リニューアル第3〜5段階】新しいライブコール・完成版コールデータの読み込み・演出・コール優先スクロール
+  "./js/callReleaseImport.js",
+  "./js/callReleasePack.js",
+  "./js/callReleaseImportUi.js",
+  "./js/liveCallData.js",
+  "./js/liveCallScreen.js",
+  "./js/callEffects.js",
+  "./js/callEffectsRenderer.js",
+  "./js/shoutWords.js",
+  "./js/callFollow.js",
+  "./js/data/callEffects.js",
   "./js/firebaseClient.js",
   "./js/onlineBattle.js",
   "./js/onlineBattlePresence.js",

@@ -481,7 +481,23 @@
   transform: scaleX(0);
   transform-origin: 0 50%;
 }
+/* 背の低い画面（iPhone SE など）：コール表の箱を少し低くして、再生の操作まで1画面に近づける */
+@media (max-height: 700px) {
+  .lc-stage.is-live {
+    height: 50vh;
+    height: 50dvh;
+  }
+}
 @media (max-width: 400px) {
+  .lc-player {
+    gap: 6px;
+  }
+  .lc-play-button {
+    min-width: 84px;
+  }
+  .lc-time {
+    font-size: 13px;
+  }
   .lc-now-panel {
     min-height: 48px;
     padding: 4px 8px;
@@ -532,12 +548,26 @@
   font-variant-numeric: tabular-nums;
 }
 
-.lc-karaoke-panel {
+/* カラオケ：同期歌詞の部品（js/lyricsSync.js）はそのまま。ここでは箱の高さと文字の大きさだけを、読みやすく変える
+   （収録曲一覧の試聴の小さなパネル 150px・0.72rem は変えない） */
+.synced-lyrics-panel.lc-karaoke-panel {
+  max-height: none;
   height: min(60vh, 600px);
   height: min(60dvh, 600px);
   overflow-y: auto;
   border-radius: 16px;
   background: #fff;
+}
+.lc-karaoke-panel .synced-lyrics-line {
+  padding: 6px 8px;
+  font-size: 1.05rem;
+  line-height: 1.7;
+}
+@media (max-height: 700px) {
+  .synced-lyrics-panel.lc-karaoke-panel {
+    height: 52vh;
+    height: 52dvh;
+  }
 }
 
 /* ===== 演出（デザイン C）。コール表の赤文字の部品（.call-text-call）に .cx-call を足して使う ===== */
@@ -811,6 +841,11 @@
 }
 .call-release-undo-button {
   min-height: 44px;
+}
+#call-release-import-result,
+#call-release-version {
+  font-size: max(13px, 0.8125rem);
+  line-height: 1.6;
 }
 #call-release-import-result p {
   margin: 0 0 4px;
