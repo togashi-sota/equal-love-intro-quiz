@@ -1683,3 +1683,170 @@
     transform: none;
   }
 }
+
+/* =====================================================================
+   【2026-10-30 夜間の修正（fix-home）】独立レビューの指摘への直し。
+   ここより上の同じ部品の指定を、ここで上書きする（直した所をまとめて見られるように）。
+   ===================================================================== */
+
+/* ---- コントラスト：ピンクの地に白い文字（4.5 以上、大きい文字は 3 以上）。ピンクの感じは保ち、地を少し濃くする ---- */
+/* 「ゲームで遊ぶ」：見出しの所だけ、上から濃いピンクを重ねる（下に行くほど今までの明るいピンク）。
+   右上の光の円も、見出しの所ではこの濃いピンクの下になる（白い文字と光の円が重ならない） */
+.home-card--game {
+  background:
+    linear-gradient(180deg, rgba(176, 18, 88, 0.72) 0, rgba(176, 18, 88, 0.72) 2.5rem, rgba(176, 18, 88, 0.42) 3.5rem, rgba(176, 18, 88, 0) 5.5rem),
+    radial-gradient(circle at 90% 8%, rgba(255, 255, 255, 0.42) 0 12%, transparent 13%),
+    linear-gradient(140deg, #ff5c9d 0%, #ff86b8 50%, #8fcaf5 100%);
+}
+/* 選ばれた「5問」「表題曲のみ」 */
+.home-seg-button[aria-checked="true"] {
+  background: linear-gradient(140deg, #c81e63, #d92672);
+}
+/* 開始ボタン（19px の太字＝大きい文字） */
+.home-intro-start {
+  background: linear-gradient(140deg, #d42568, #e8327a);
+}
+/* 目次の今いる所「ゲーム」 */
+.home-cat-nav-item[aria-current="true"] {
+  background: #d3286c;
+  border-color: #d3286c;
+}
+
+/* ---- 320px などの変な改行：題名は折り返さない ---- */
+.home-game-title,
+.home-live-mode b,
+.home-live-row b,
+.home-music-item b,
+.home-know-text b {
+  white-space: nowrap;
+}
+/* 「コールを覚える（今までの版）」：（今までの版）だけを、入らないときに次の行へ（言葉の途中では切らない） */
+.home-game-title,
+.home-live-main-text b {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+}
+.home-live-main-text b {
+  white-space: nowrap;
+}
+.home-game-title-sub,
+.home-live-main-sub {
+  font-size: 0.78125rem;
+  font-weight: 700;
+}
+.home-game-title-sub {
+  color: var(--home-sub);
+}
+/* ゲームの一覧が狭いとき（320〜390px のスマホ）：アイコンを題名の上に置き、題名を1行に（「ランダム再生／クイズ」にしない） */
+@container (max-width: 23rem) {
+  .home-game {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    padding: 8px 9px 10px;
+  }
+  .home-game-icon {
+    width: 1.75rem;
+    height: 1.75rem;
+  }
+  .home-game-icon .hi {
+    width: 1rem;
+    height: 1rem;
+  }
+}
+/* ライブのカードが狭いとき（320px）：ライブ履歴・セトリ／はじめてのライブを1列に（「ライブ履歴・／セトリ」にしない） */
+@container (max-width: 19rem) {
+  .home-live-sub {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---- ライブ：今までの「コールを覚える」は少し控えめに（新しい3つと同じくらいの強さ。ピンクの線で区別） ---- */
+.home-live-main {
+  min-height: 56px;
+  padding: 7px 12px;
+  border: 1px solid rgba(255, 140, 190, 0.6);
+  background: linear-gradient(120deg, rgba(214, 40, 110, 0.45) 0%, rgba(156, 54, 201, 0.35) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+.home-live-main-icon {
+  width: 2.125rem;
+  height: 2.125rem;
+}
+.home-live-main-icon .hi {
+  width: 1.2rem;
+  height: 1.2rem;
+}
+.home-live-main-text b {
+  font-size: 0.9375rem;
+}
+.home-live-main-text small {
+  font-size: 0.78125rem;
+  color: #f3e8ff;
+}
+
+/* ---- ＝LOVE：カードごとの小さな見どころ（数の札・下の色の帯。メンバーはメンバーカラーの帯） ---- */
+.home-know {
+  overflow: hidden;
+  padding-bottom: 13px;
+  box-shadow: inset 0 -3px 0 var(--know);
+}
+.home-know-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--know);
+  color: #fff;
+  font-size: 0.78125rem;
+  font-weight: 800;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.home-know-badge[hidden] {
+  display: none;
+}
+.home-know--members {
+  box-shadow: none;
+}
+.home-know--members .home-know-colors {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  flex-wrap: nowrap;
+  gap: 0;
+  height: 6px;
+  margin: 0;
+}
+.home-know--members .home-know-colors i {
+  flex: 1;
+  width: auto;
+  height: 100%;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* ---- iPad 横・PC：楽曲のカードの下の空き（約70px）を無くす（ライブと同じ高さにし、ボタンを少し高くして埋める） ---- */
+@media (min-width: 1024px) {
+  .home-cards {
+    align-items: stretch;
+  }
+  .home-card--music {
+    display: flex;
+    flex-direction: column;
+  }
+  .home-card--music .home-music-cols {
+    flex: 1;
+    grid-auto-rows: 1fr;
+  }
+  .home-card--music .home-music-col {
+    grid-template-rows: auto 1fr;
+  }
+}
+/* 上部バーの「推しメンを登録しよう」（白い文字・ピンクの地。今までは 約2.7:1） */
+.home-topbar .home-topbar-oshi.is-empty {
+  background: linear-gradient(120deg, #d3286c, #c81e63);
+}

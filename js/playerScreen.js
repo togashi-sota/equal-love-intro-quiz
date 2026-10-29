@@ -24,6 +24,7 @@ import { getMostOshiMemberId } from "./oshiMembers.js";
 import { applyOshiBadgeDecorations } from "./oshiBadge.js";
 import { getStoragePersistenceStatus } from "./storagePersistence.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
+import { isBackupWorthyLogicalKey } from "./backupSync.js";
 
 let elements = null;
 let members = null; // 推しメン表示用に、members.jsの配列を保持しておく
@@ -71,6 +72,60 @@ function displayNameOf(player) {
   return player?.playerName || "（名前未設定）";
 }
 
+// 【2026-10-30 夜間の修正・独立レビューの指摘】保存されている値に「中身」があるか（空の [] / {} / null / "" / false は中身なし）。
+// 例：推しメンを全部外したあとの {"memberIds":[]} は記録なしとみなす。数（0 も含む）・文字・true は中身あり。
+function hasMeaningfulValue(value) {
+  if (value === null || value === undefined) return false;
+  if (Array.isArray(value)) return value.some(hasMeaningfulValue);
+  if (typeof value === "object") return Object.values(value).some(hasMeaningfulValue);
+  if (typeof value === "string") return value.length > 0;
+  if (typeof value === "boolean") return value;
+  return true; // 数
+}
+
+function isStoredValueMeaningful(raw) {
+  if (raw === null || raw === "") return false;
+  try {
+    return hasMeaningfulValue(JSON.parse(raw));
+  } catch {
+    return true; // JSON でない文字列（中身がある）
+  }
+}
+
+// そのプレイヤーの「記録」（履歴・自己ベスト・称号・推しメン・お気に入り・プレイリストなど）が
+// この端末に保存されているか。どのキーが記録かは、クラウドのバックアップの対象（backupSync.js の
+// isBackupWorthyLogicalKey）と同じ一覧を使う（記録のキーの一覧を2か所に持たないため）。
+// 最初のプレイヤー（default）は接頭辞なしのキー、ほかの人は "equalLoveIntroQuiz.player.{id}." のキー。
+// 読むだけで、何も書かない。保存場所が読めないときは false（＝記録なし側。この結果で選ばれる
+// 「名前を付ける」は名前を変えるだけで、データを作らない安全な側のため）。
+export function hasStoredPlayerRecords(playerId, storage = globalThis.localStorage) {
+  try {
+    const base = "equalLoveIntroQuiz.";
+    const isDefault = playerId === DEFAULT_PLAYER_ID;
+    const prefix = isDefault ? base : `${base}player.${playerId}.`;
+    for (let index = 0; index < storage.length; index += 1) {
+      const key = storage.key(index);
+      if (!key || !key.startsWith(prefix)) continue;
+      const logicalKey = key.slice(prefix.length);
+      if (isDefault && logicalKey.startsWith("player.")) continue; // ほかの人のキー
+      if (!isBackupWorthyLogicalKey(logicalKey)) continue; // 設定・端末の印など（記録ではない）
+      if (isStoredValueMeaningful(storage.getItem(key))) return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+// 下の区画を「名前を付ける」にするか：今のプレイヤーに名前が無く、記録も無いときだけ。
+// 初めての人が「プレイヤー名を設定」から入って、いちばん目立つ欄に名前を入れたとき、
+// 2人目を作らず、今のプレイヤーの名前になるようにする（「（名前未設定）」が残らない）。
+export function shouldNameCurrentPlayer(storage = globalThis.localStorage) {
+  const active = getActivePlayer();
+  if (active.playerName) return false;
+  return !hasStoredPlayerRecords(active.playerId, storage);
+}
+
 // 欄の近くに理由・結果を出す（空文字で隠す）。tone："error"｜"success"｜""
 function setMessage(element, text, tone = "") {
   if (!element) return;
@@ -96,12 +151,23 @@ function showPlayerToast(text) {
     toastElement.hidden = true;
     document.body.appendChild(toastElement);
   }
+  // 前の知らせ（例：「○○さんを登録しました」）は、新しい知らせの前に消す（2つの知らせが続けて読まれないように）
+  hidePlayerToast();
   toastElement.textContent = text;
   toastElement.hidden = false;
-  clearTimeout(toastTimerId);
   toastTimerId = setTimeout(() => {
     toastElement.hidden = true;
   }, PLAYER_TOAST_MS);
+}
+
+// 知らせを消す（モーダルを開くとき・新しい知らせを出すとき）
+function hidePlayerToast() {
+  clearTimeout(toastTimerId);
+  toastTimerId = null;
+  if (toastElement) {
+    toastElement.hidden = true;
+    toastElement.textContent = "";
+  }
 }
 
 // 成功してから閉じるまでの間は true（二重押し・別の操作を受け付けない）
@@ -236,6 +302,7 @@ function buildPlayerRow(player) {
 
   const row = document.createElement("div");
   row.className = "player-row";
+  row.dataset.playerId = player.playerId;
   const isActive = player.playerId === getActivePlayerId();
   row.classList.toggle("is-active", isActive);
 
@@ -313,7 +380,18 @@ function handleSwitchClick(player) {
   }
   playSfx(SFX_EVENTS.UI_CONFIRM);
   renderPlayerModal(); // 「使用中」の印を、閉じる前に新しい人へ移す
-  finishWithSuccess(`${displayNameOf(result.player)}さんに切り替えました`);
+  markRowJustSwitched(result.player.playerId);
+  // 名前の無い人には「（名前未設定）さん」と言わない
+  finishWithSuccess(result.player.playerName ? `${result.player.playerName}さんに切り替えました` : "名前の無いプレイヤーに切り替えました");
+}
+
+// 切り替えた行に、閉じる前の一瞬だけ「✓ 切り替えました」を出す（押した所で結果が分かるように）
+function markRowJustSwitched(playerId) {
+  const row = [...elements.playerList.querySelectorAll(".player-row")].find((item) => item.dataset.playerId === playerId);
+  if (!row) return;
+  row.classList.add("is-just-switched");
+  const tag = row.querySelector(".player-row-active-tag");
+  if (tag) tag.textContent = "✓ 切り替えました";
 }
 
 // 切り替えに失敗したときの理由を出す場所（一覧のすぐ下に、JS で1つだけ作る）
@@ -337,9 +415,46 @@ function renderPlayerModal() {
   getPlayers().forEach((player) => {
     elements.playerList.appendChild(buildPlayerRow(player));
   });
-  // 使用中の人に名前が無いときだけ「名前を付けるだけなら ✎」の案内を出す（名前の変更中は出さない）
+  // 下の区画の役割（新しいプレイヤーを追加／今のプレイヤーに名前を付ける）。成功してから閉じるまでは変えない
+  if (!isFinishing) applyAddSectionMode(shouldNameCurrentPlayer() ? "name" : "add");
+  // 使用中の人に名前が無いときだけ「名前を付けるだけなら ✎」の案内を出す（名前の変更中は出さない）。
+  // 下の区画が「名前を付ける」のときは、その区画で名前を付けられるので出さない
   const unnamedNote = elements.playerUnnamedNote ?? document.getElementById("player-unnamed-note");
-  if (unnamedNote) unnamedNote.hidden = Boolean(getActivePlayer().playerName) || renamingPlayerId !== null;
+  if (unnamedNote) unnamedNote.hidden = Boolean(getActivePlayer().playerName) || renamingPlayerId !== null || addSectionMode === "name";
+}
+
+// 【2026-10-30 夜間の修正】下の区画の2つの役割。
+//   add ：＋ 新しいプレイヤーを追加（registerNewPlayer。新しい playerId・記録は最初から）
+//   name：あなたの名前を付ける（renamePlayerVerified。今のプレイヤーの名前だけ。playerId・記録はそのまま）
+// name にするのは「今のプレイヤーに名前が無く、記録も無い」ときだけ（shouldNameCurrentPlayer）。
+const ADD_SECTION_TEXTS = {
+  add: {
+    heading: "＋ 新しいプレイヤーを追加",
+    lead: "記録を分けて、別の人として最初から始めます。今のプレイヤーの記録はそのまま残ります。",
+    label: "新しいプレイヤー名を入力",
+    button: "この名前で登録",
+  },
+  name: {
+    heading: "あなたの名前を付ける",
+    lead: "今のプレイヤーに名前を付けます。新しいプレイヤーは作りません（別の人を追加するのは、名前を付けたあとでできます）。",
+    label: "あなたの名前を入力",
+    button: "この名前にする",
+  },
+};
+let addSectionMode = "add";
+
+function applyAddSectionMode(mode) {
+  addSectionMode = mode;
+  const texts = ADD_SECTION_TEXTS[mode];
+  const section = elements.playerAddButton.closest(".player-add-section");
+  if (section) section.dataset.mode = mode;
+  const heading = elements.playerAddHeading ?? document.getElementById("player-add-heading");
+  const lead = elements.playerAddLead ?? document.getElementById("player-add-lead");
+  const label = elements.playerAddLabel ?? document.getElementById("player-add-label");
+  if (heading) heading.textContent = texts.heading;
+  if (lead) lead.textContent = texts.lead;
+  if (label) label.textContent = texts.label;
+  if (!elements.playerAddButton.disabled) elements.playerAddButton.textContent = texts.button;
 }
 
 // 音源・歌詞データの永続化許可状況を表示する（2026-08-15追加）。
@@ -364,8 +479,6 @@ async function renderStoragePersistenceStatus() {
   }
 }
 
-const ADD_BUTTON_TEXT = "この名前で登録";
-
 // 「新しいプレイヤーを追加」の欄を、開いたとき・閉じたときの状態に戻す
 function resetAddForm() {
   elements.playerAddInput.value = "";
@@ -373,13 +486,14 @@ function resetAddForm() {
   elements.playerAddInput.classList.remove("is-invalid");
   elements.playerAddInput.removeAttribute("aria-invalid");
   elements.playerAddButton.disabled = false;
-  elements.playerAddButton.textContent = ADD_BUTTON_TEXT;
+  elements.playerAddButton.textContent = ADD_SECTION_TEXTS[addSectionMode].button;
   setMessage(elements.playerAddMessage, "");
   setMessage(elements.playerSwitchMessage, "");
 }
 
 function openPlayerModal() {
   playSfx(SFX_EVENTS.UI_CLICK);
+  hidePlayerToast(); // 前の知らせ（「○○さんを登録しました」など）が、開いたモーダルの上に残らないように
   clearTimeout(autoCloseTimerId);
   autoCloseTimerId = null;
   pendingToastText = "";
@@ -463,6 +577,10 @@ export function initPlayerScreen(newElements, allMembers) {
   // 入力中には何も作らない（押したとき・Enter のときだけ）。成功してから閉じるまでは二重に押せない。
   const commitAddPlayer = () => {
     if (isFinishing || elements.playerAddButton.disabled) return;
+    if (addSectionMode === "name") {
+      commitNameCurrentPlayer();
+      return;
+    }
     const result = registerNewPlayer(elements.playerAddInput.value);
     if (!result.ok) {
       playSfx(SFX_EVENTS.UI_BACK);
@@ -482,6 +600,30 @@ export function initPlayerScreen(newElements, allMembers) {
     setMessage(elements.playerAddMessage, `✓ ${name}さんを登録しました。使用中にしました（このあと自動で閉じます）`, "success");
     renderPlayerModal();
     finishWithSuccess(`${name}さんを登録しました`);
+  };
+  // 「この名前にする」（下の区画が name のとき）：今のプレイヤーの名前を変えるだけ。新しいプレイヤーは作らない。
+  // 失敗（空・重複・長すぎ・保存の失敗）のときは閉じず、理由を出し、入力は残す。
+  const commitNameCurrentPlayer = () => {
+    const activeId = getActivePlayerId();
+    const result = renamePlayerVerified(activeId, elements.playerAddInput.value);
+    if (!result.ok) {
+      playSfx(SFX_EVENTS.UI_BACK);
+      setMessage(elements.playerAddMessage, result.message, "error");
+      elements.playerAddInput.classList.add("is-invalid");
+      elements.playerAddInput.setAttribute("aria-invalid", "true");
+      elements.playerAddInput.focus();
+      return;
+    }
+    playSfx(SFX_EVENTS.UI_CONFIRM);
+    elements.playerAddInput.disabled = true;
+    elements.playerAddButton.disabled = true;
+    elements.playerAddButton.textContent = "✓ 名前を付けました";
+    renamingPlayerId = null;
+    setMessage(elements.playerAddMessage, `✓ 名前を「${result.name}」にしました（このあと自動で閉じます）`, "success");
+    isFinishing = true; // 一覧を描き直しても、区画の役割（name）を変えない
+    renderPlayerModal();
+    // 名前の変更なので、使用中の人は変わらない（onPlayerChanged は呼ばない。✎ の名前の変更と同じ）
+    finishWithSuccess(`名前を「${result.name}」にしました`, { changedPlayer: false });
   };
   elements.playerAddButton.addEventListener("click", commitAddPlayer);
   // キーボードのEnterでも登録できるようにする（日本語の変換を確定する Enter は除く）。

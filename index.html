@@ -423,7 +423,7 @@
               <div class="home-game-grid">
                 <button class="home-game home-game--random" type="button" data-home-action="random-playback">
                   <span class="home-game-icon" aria-hidden="true"><svg class="hi"><use href="#hi-shuffle"/></svg></span>
-                  <span class="home-game-text"><span class="home-game-title">ランダム再生<wbr>クイズ</span><span class="home-game-desc">曲の途中から<wbr>出題</span></span>
+                  <span class="home-game-text"><span class="home-game-title">ランダム再生クイズ</span><span class="home-game-desc">曲の途中から<wbr>出題</span></span>
                 </button>
                 <button class="home-game home-game--lyrics" type="button" data-home-action="lyrics-quiz">
                   <span class="home-game-icon" aria-hidden="true"><svg class="hi"><use href="#hi-lyrics"/></svg></span>
@@ -452,7 +452,7 @@
               <div class="home-game-grid">
                 <button class="home-game home-game--online" type="button" data-home-action="online-battle">
                   <span class="home-game-icon" aria-hidden="true"><svg class="hi"><use href="#hi-globe"/></svg></span>
-                  <span class="home-game-text"><span class="home-game-title">オンライン対戦</span><span class="home-game-desc">離れた友達と<wbr>ルームで</span></span>
+                  <span class="home-game-text"><span class="home-game-title">オンライン対戦</span><span class="home-game-desc">離れた友達と<wbr>ルームで対戦</span></span>
                 </button>
                 <button class="home-game home-game--party" type="button" data-home-action="party-battle">
                   <span class="home-game-icon" aria-hidden="true"><svg class="hi"><use href="#hi-party"/></svg></span>
@@ -467,10 +467,11 @@
                   <span class="home-game-icon" aria-hidden="true"><svg class="hi"><use href="#hi-pencil"/></svg></span>
                   <span class="home-game-text"><span class="home-game-title">問題をつくる</span><span class="home-game-desc">好きな曲だけで<wbr>出題</span></span>
                 </button>
-                <!-- ライブコールモード（前の版）。ライブのカードにも同じ入口がある（同じ処理・同じ画面。数は10種類の中で1つ） -->
+                <!-- ライブコールモード（前の版）。ライブのカードにも同じ入口がある（同じ処理・同じ画面・同じ名前。数は10種類の中で1つ）。
+                     【2026-10-30】新しいライブコール（おためし版）と見分けられるよう「（今までの版）」を付けた -->
                 <button class="home-game home-game--call" type="button" data-home-action="live-call-classic">
                   <span class="home-game-icon" aria-hidden="true"><svg class="hi"><use href="#hi-mic"/></svg></span>
-                  <span class="home-game-text"><span class="home-game-title">コールを覚える</span><span class="home-game-desc">歌詞とコールで<wbr>予習</span></span>
+                  <span class="home-game-text"><span class="home-game-title">コールを覚える<span class="home-game-title-sub">（今までの版）</span></span><span class="home-game-desc">歌詞とコールが<wbr>流れる</span></span>
                 </button>
               </div>
             </section>
@@ -499,9 +500,10 @@
             <span class="home-next-live-text"><b id="home-next-live-title"></b><small id="home-next-live-date"></small></span>
             <span class="home-chevron" aria-hidden="true">›</span>
           </button>
+          <!-- 【2026-10-30 夜間の修正・独立レビューの指摘】下の「新しいライブコール（おためし版）」との違いが分かる名前にし、少し控えめな見た目に -->
           <button class="home-live-main" type="button" data-home-action="live-call-classic">
             <span class="home-live-main-icon" aria-hidden="true"><svg class="hi"><use href="#hi-mic"/></svg></span>
-            <span class="home-live-main-text"><b>コールを覚える</b><small>曲に合わせて、<wbr>歌詞とコールが流れる</small></span>
+            <span class="home-live-main-text"><b>コールを覚える<span class="home-live-main-sub">（今までの版）</span></b><small>前からある練習モード。<wbr>曲に合わせて<wbr>歌詞とコールが流れる</small></span>
             <span class="home-chevron" aria-hidden="true">›</span>
           </button>
           <div class="home-live-new" role="group" aria-labelledby="home-live-new-title">
@@ -578,27 +580,33 @@
           <div class="home-know-grid">
             <button id="members-link" class="home-know home-know--members" type="button">
               <span class="home-know-icon" aria-hidden="true"><svg class="hi"><use href="#hi-people"/></svg></span>
+              <span class="home-know-badge" id="home-know-members-badge" hidden></span>
               <span class="home-know-text"><b>メンバー</b><span class="home-know-hook" id="home-know-members-hook">プロフィールと<wbr>メンバーカラー</span></span>
               <span id="home-know-member-colors" class="home-know-colors" aria-hidden="true"></span>
             </button>
             <button class="home-know home-know--centers" type="button" data-home-action="centers">
               <span class="home-know-icon" aria-hidden="true"><svg class="hi"><use href="#hi-crown"/></svg></span>
+              <span class="home-know-badge" id="home-know-centers-badge" hidden></span>
               <span class="home-know-text"><b>歴代センター</b><span class="home-know-hook">どの曲で<wbr>誰がセンター？</span></span>
             </button>
             <button id="anniversary-home-link" class="home-know home-know--history" type="button">
               <span class="home-know-icon" aria-hidden="true"><svg class="hi"><use href="#hi-calendar"/></svg></span>
+              <span class="home-know-badge" id="home-know-history-badge" hidden></span>
               <span class="home-know-text"><b>周年ヒストリー</b><span class="home-know-hook" id="home-know-history-hook">デビューから<wbr>今まで<wbr>1年ずつ</span></span>
             </button>
             <button id="tv-appearances-home-link" class="home-know home-know--tv" type="button">
               <span class="home-know-icon" aria-hidden="true"><svg class="hi"><use href="#hi-tv"/></svg></span>
+              <span class="home-know-badge" id="home-know-tv-badge" hidden></span>
               <span class="home-know-text"><b>音楽番組</b><span class="home-know-hook" id="home-know-tv-hook">出演した番組と<wbr>披露した曲</span></span>
             </button>
             <button class="home-know home-know--cm" type="button" data-home-action="commercials">
               <span class="home-know-icon" aria-hidden="true"><svg class="hi"><use href="#hi-megaphone"/></svg></span>
+              <span class="home-know-badge" id="home-know-cm-badge" hidden></span>
               <span class="home-know-text"><b>CM・企業コラボ</b><span class="home-know-hook" id="home-know-cm-hook">＝LOVEが出た<wbr>CM・広告</span></span>
             </button>
             <button class="home-know home-know--about" type="button" data-home-action="about-group">
               <span class="home-know-icon" aria-hidden="true"><svg class="hi"><use href="#hi-info"/></svg></span>
+              <span class="home-know-badge">はじめに</span>
               <span class="home-know-text"><b>＝LOVEについて</b><span class="home-know-hook">結成・名前の由来・<wbr>年表</span></span>
             </button>
           </div>
@@ -7275,8 +7283,9 @@
 
       <section class="player-modal-section player-add-section" aria-labelledby="player-add-heading">
         <h3 id="player-add-heading" class="player-modal-section-title">＋ 新しいプレイヤーを追加</h3>
-        <p class="player-modal-section-lead">記録を分けて、別の人として最初から始めます。今のプレイヤーの記録はそのまま残ります。</p>
-        <label class="player-add-label" for="player-add-input">新しいプレイヤー名を入力</label>
+        <!-- 見出し・説明・欄の名前・ボタンは、今のプレイヤーに名前も記録も無いときだけ「あなたの名前を付ける／この名前にする」に変わる（js/playerScreen.js の applyAddSectionMode） -->
+        <p id="player-add-lead" class="player-modal-section-lead">記録を分けて、別の人として最初から始めます。今のプレイヤーの記録はそのまま残ります。</p>
+        <label id="player-add-label" class="player-add-label" for="player-add-input">新しいプレイヤー名を入力</label>
         <input id="player-add-input" class="player-add-input" type="text" maxlength="20" placeholder="例：そうた（20文字まで）" autocomplete="off" enterkeyhint="done" aria-describedby="player-add-message">
         <p id="player-add-message" class="player-add-message" role="status" aria-live="polite" hidden></p>
         <button id="player-add-button" class="primary-button player-add-button" type="button">この名前で登録</button>

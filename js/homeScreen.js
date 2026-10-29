@@ -243,12 +243,20 @@ export function buildHomeInfoStats({ members = [], periods = [], tvAppearances =
   const tvYears = tvAppearances.map((entry) => Number(String(entry.date ?? "").slice(0, 4))).filter((year) => year > 0);
   const singles = discography.filter((work) => work.type === "single").length;
   const albums = discography.filter((work) => work.type === "album").length;
+  // センターが記録されている曲（単独・W・全員。「なし」と記録の無い曲は数えない）
+  const centerSongs = songs.filter((song) => ["single", "double", "all"].includes(song.centerType)).length;
+  // 【2026-10-30 夜間の修正】＝LOVE のカードは「見どころの札（数）」＋「何が見られるか（文）」に分けた（文に同じ数を重ねない）
   return {
-    membersHook: active.length > 0 ? `現役${active.length}人の|プロフィールと|メンバーカラー` : null,
+    membersHook: active.length > 0 ? "プロフィールと|メンバーカラー" : null,
+    membersBadge: active.length > 0 ? `現役${active.length}人` : null,
     memberColors: active.map((member) => member.memberColor?.hex).filter(Boolean),
-    historyHook: lastAnniversary > 0 ? `デビューから|${lastAnniversary}周年まで|1年ずつ` : null,
-    tvHook: tvAppearances.length > 0 ? `出演${tvAppearances.length}件${tvYears.length > 0 ? `・|${Math.min(...tvYears)}〜${Math.max(...tvYears)}年` : ""}・|番組と披露曲` : null,
-    cmHook: commercials.length > 0 ? `＝LOVE名義の|CM・コラボ|${commercials.length}件` : null,
+    centersBadge: centerSongs > 0 ? `${centerSongs}曲` : null,
+    historyHook: lastAnniversary > 0 ? "デビューから|1年ずつ振り返る" : null,
+    historyBadge: lastAnniversary > 0 ? `${lastAnniversary}周年まで` : null,
+    tvHook: tvAppearances.length > 0 ? (tvYears.length > 0 ? `${Math.min(...tvYears)}〜${Math.max(...tvYears)}年の|番組と披露曲` : "出演した番組と|披露した曲") : null,
+    tvBadge: tvAppearances.length > 0 ? `${tvAppearances.length}件` : null,
+    cmHook: commercials.length > 0 ? "＝LOVE名義の|CM・企業コラボ" : null,
+    cmBadge: commercials.length > 0 ? `${commercials.length}件` : null,
     worksSub: singles > 0 ? `シングル${singles}枚${albums > 0 ? `|・アルバム${albums}枚` : ""}` : null,
     songsSub: songs.length > 0 ? `${songs.length}曲の|歌詞・曲の情報` : null,
     liveHubSub: setlists.length > 0 ? `${setlists.length}公演の|セットリスト` : null,
@@ -292,6 +300,14 @@ function renderHomeInfoPreviews() {
   put("home-know-history-hook", stats.historyHook);
   put("home-know-tv-hook", stats.tvHook);
   put("home-know-cm-hook", stats.cmHook);
+  // 見どころの札（数が無ければ出さない）
+  [["home-know-members-badge", stats.membersBadge], ["home-know-centers-badge", stats.centersBadge], ["home-know-history-badge", stats.historyBadge],
+    ["home-know-tv-badge", stats.tvBadge], ["home-know-cm-badge", stats.cmBadge]].forEach(([id, text]) => {
+    const badge = $(`#${id}`);
+    if (!badge) return;
+    badge.textContent = text ?? "";
+    badge.hidden = !text;
+  });
   put("home-music-works-sub", stats.worksSub);
   put("home-music-songs-sub", stats.songsSub);
   put("home-live-hub-sub", stats.liveHubSub);

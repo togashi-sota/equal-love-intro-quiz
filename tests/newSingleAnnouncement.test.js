@@ -15,6 +15,8 @@ import { assertEqual } from "./test-utils.js";
 const ANNOUNCEMENT = NEW_SINGLE_ANNOUNCEMENTS[0]; // "single-21"
 const DONE_KEY = `equalLoveIntroQuiz.newSingleAnnouncementDone.${ANNOUNCEMENT.id}`;
 const LATER_KEY = `equalLoveIntroQuiz.newSingleAnnouncementHiddenThisSession.${ANNOUNCEMENT.id}`;
+// 21枚目以外の曲の音源だけがある端末（音源0曲の端末には出さないため、表示の条件を確かめるときに使う）
+const OTHER_AUDIO = ["other-song-id-for-test"];
 
 function cleanup() {
   localStorage.removeItem(DONE_KEY);
@@ -48,10 +50,31 @@ export function runNewSingleAnnouncementTests() {
   );
 
   // ---- findEligibleAnnouncementSync：初期状態（未対応・未読了）では表示対象になる ----
+  // 【2026-10-30 夜間の修正】音源が1曲も無い端末（初めての人）には出さない。ほかの曲の音源がある端末で確かめる
   assertEqual(
-    findEligibleAnnouncementSync([])?.id,
+    findEligibleAnnouncementSync(OTHER_AUDIO)?.id,
     ANNOUNCEMENT.id,
-    "音源が1つも無く、まだ既読/対応済みでなければ表示対象になる"
+    "ほかの曲の音源はあり、21枚目の曲がまだ無く、まだ既読/対応済みでなければ表示対象になる"
+  );
+  assertEqual(
+    findEligibleAnnouncementSync([]),
+    null,
+    "音源が1曲も無い端末（初めての人）には出さない（「まず音源・歌詞を取り込もう」と2つ並べない）"
+  );
+  assertEqual(
+    findEligibleAnnouncementSync(new Set()),
+    null,
+    "Set で0曲を渡しても出さない"
+  );
+  assertEqual(
+    localStorage.getItem(DONE_KEY),
+    null,
+    "0曲で出さなかったときも「追加済み」にはしない（音源を入れたあとで出せるように）"
+  );
+  assertEqual(
+    findEligibleAnnouncementSync([ANNOUNCEMENT.requiredAudioSongIds[0]])?.id,
+    ANNOUNCEMENT.id,
+    "21枚目の曲が一部だけある端末には、今までどおり出す"
   );
 
   // ---- 対象曲の音源がすべて揃っている場合は、doneフラグが立っていなくても対象外 ----
@@ -66,7 +89,7 @@ export function runNewSingleAnnouncementTests() {
   // ---- 「あとで」（セッション限定の非表示）は、doneフラグを立てない ----
   sessionStorage.setItem(LATER_KEY, "true");
   assertEqual(
-    findEligibleAnnouncementSync([]),
+    findEligibleAnnouncementSync(OTHER_AUDIO),
     null,
     "セッション限定で非表示にした場合、この起動中は表示対象外になる"
   );
@@ -81,7 +104,7 @@ export function runNewSingleAnnouncementTests() {
   // ---- 「追加済み・今後表示しない」（永久非表示）は、音源が揃っていなくても対象外にする ----
   localStorage.setItem(DONE_KEY, "true");
   assertEqual(
-    findEligibleAnnouncementSync([]),
+    findEligibleAnnouncementSync(OTHER_AUDIO),
     null,
     "永久に非表示（done）にした場合、音源がまだ無くても表示対象外になる（明示的な意思表示を優先）"
   );
@@ -92,7 +115,7 @@ export function runNewSingleAnnouncementTests() {
   sessionStorage.setItem(LATER_KEY, "true");
   sessionStorage.removeItem(LATER_KEY); // 新しい起動＝sessionStorageがリセットされた状態を再現
   assertEqual(
-    findEligibleAnnouncementSync([])?.id,
+    findEligibleAnnouncementSync(OTHER_AUDIO)?.id,
     ANNOUNCEMENT.id,
     "「あとで」は次回の起動（sessionStorageのリセット）で再び表示対象になる"
   );

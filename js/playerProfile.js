@@ -248,7 +248,14 @@ export function renamePlayerVerified(playerId, rawName) {
   const players = getPlayers();
   if (!players.some((p) => p.playerId === playerId)) return { ok: false, reason: "not-found", message: "このプレイヤーが見つかりませんでした。" };
   const check = validatePlayerName(rawName, players, { exceptPlayerId: playerId });
-  if (!check.ok) return check;
+  if (!check.ok) {
+    // 【2026-10-30 夜間の修正】名前の変更では「切り替わります」の案内は合わない（押しても名前は変わらない）。変更の場面の言葉にする
+    if (check.reason === "duplicate") {
+      const other = players.find((p) => p.playerId === check.duplicateOf);
+      return { ...check, message: `「${other?.playerName ?? check.name}」は、ほかのプレイヤーが使っている名前です。別の名前にしてください。` };
+    }
+    return check;
+  }
   renamePlayer(playerId, check.name);
   if (!isPlayerSavedToStorage(playerId, check.name)) {
     cachedPlayers = null;

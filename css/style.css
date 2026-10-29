@@ -9483,7 +9483,7 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   font-size: 0.62rem;
   font-weight: 800;
   color: #fff;
-  background: var(--color-primary);
+  background: #d3286c; /* 【2026-10-30】白い文字が読めるように（淡いピンク #ff6fa8 では 約2.6:1 → 約4.9:1） */
   padding: 2px 8px;
   border-radius: 999px;
 }
@@ -9660,12 +9660,14 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   margin-top: 10px;
   padding: 12px;
   font-size: 0.95rem;
+  /* 【2026-10-30】白い文字が読める濃さのピンク（今までの淡いピンクの所は 約2.6:1 → 約4.7:1 以上） */
+  background: linear-gradient(120deg, #c81e63, #d92672);
 }
 
 .player-add-section .player-add-button:disabled {
   cursor: default;
   opacity: 1;
-  background: #2e9e5b;
+  background: #1e7b45; /* 「✓ 登録しました」：白い文字と 約5.3:1（今までの明るい緑は 約3.4:1） */
 }
 
 /* 一覧の文字のボタン（✎ 名前を変える・保存・やめる）。丸い記号だけより、押すと何が起きるか分かるようにする */
@@ -9767,6 +9769,38 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   .player-row.is-renaming .player-row-text-button {
     flex: 1;
   }
+}
+
+/* 【2026-10-30 夜間の修正】切り替えた行：閉じる前の一瞬「✓ 切り替えました」（緑の印。白文字とのコントラスト 約6:1） */
+.player-row.is-just-switched .player-row-active-tag {
+  background: #1e6e40;
+  animation: player-row-switched-in 0.2s ease-out;
+}
+
+@keyframes player-row-switched-in {
+  from {
+    transform: scale(0.85);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .player-row.is-just-switched .player-row-active-tag {
+    animation: none;
+  }
+}
+
+/* 【2026-10-30 夜間の修正】320px などでモーダルの中を下に動かしても、× が見えたままにする（カードの中で上に貼り付ける）。
+   float で右に寄せるので、見出しの位置は今までと同じ（× の分だけ見出しが右で折り返す）。 */
+#player-modal .modal-close-button {
+  position: sticky;
+  top: -20px; /* 貼り付く位置は、カードの上の余白（26px）から 20px 上＝今までの × と同じ（カードの上から 6px） */
+  float: right;
+  z-index: 3;
+  margin: -20px -14px 0 8px;
+  box-shadow: 0 2px 8px -2px rgba(74, 46, 66, 0.35);
 }
 
 /* 登録・切り替えのあと、閉じたホームの上に短く出す知らせ（js/playerScreen.js の showPlayerToast） */
@@ -10474,7 +10508,7 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   gap: 6px;
   font-size: 0.82rem;
   font-weight: 800;
-  color: var(--color-primary-dark);
+  color: #b8145f; /* 【2026-10-30】淡い黄色の地の上でも読める濃さ（#ff4f96 では 約3:1） */
 }
 
 .new-single-announcement-body {
@@ -10497,7 +10531,7 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   border: none;
   border-radius: 999px;
   background: var(--color-accent);
-  color: var(--color-primary-dark);
+  color: #a3195b; /* 【2026-10-30】黄色の地の上の文字（#ff4f96 では 約2.2:1 → 約5.4:1） */
   font-family: inherit;
   font-size: 0.68rem;
   font-weight: 800;

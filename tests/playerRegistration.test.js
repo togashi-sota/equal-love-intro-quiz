@@ -18,7 +18,7 @@ import {
   PLAYER_NAME_MAX_LENGTH,
   clearPlayersCacheForTest,
 } from "../js/playerProfile.js";
-import { initPlayerScreen, PLAYER_MODAL_AUTO_CLOSE_MS } from "../js/playerScreen.js";
+import { initPlayerScreen, PLAYER_MODAL_AUTO_CLOSE_MS, hasStoredPlayerRecords, shouldNameCurrentPlayer } from "../js/playerScreen.js";
 import { MEMBERS } from "../js/data/members.js";
 import { assertEqual } from "./test-utils.js";
 
@@ -45,6 +45,9 @@ function buildFixture() {
         <button id="t-player-close" class="modal-close-button" type="button">×</button>
         <div id="t-player-list" class="player-list"></div>
         <p id="t-unnamed-note" class="player-unnamed-note" hidden></p>
+        <h3 id="t-player-add-heading">＋ 新しいプレイヤーを追加</h3>
+        <p id="t-player-add-lead"></p>
+        <label id="t-player-add-label" for="t-player-add-input">新しいプレイヤー名を入力</label>
         <input id="t-player-add-input" type="text" maxlength="20">
         <p id="t-player-add-message" class="player-add-message" hidden></p>
         <button id="t-player-add-button" class="primary-button" type="button">この名前で登録</button>
@@ -71,6 +74,9 @@ function buildFixture() {
     playerAddInput: $("t-player-add-input"),
     playerAddButton: $("t-player-add-button"),
     playerAddMessage: $("t-player-add-message"),
+    playerAddHeading: $("t-player-add-heading"),
+    playerAddLead: $("t-player-add-lead"),
+    playerAddLabel: $("t-player-add-label"),
     playerDeleteConfirmModal: $("t-delete-modal"),
     playerDeleteCancelButton: $("t-delete-cancel"),
     playerDeleteConfirmButton: $("t-delete-confirm"),
@@ -290,7 +296,12 @@ export async function runPlayerRegistrationTests() {
     assertEqual(elements.playerUnnamedNote.hidden, true, "名前のある人が使用中のときは、名前を付ける案内を出さない");
     elements.playerModalCloseButton.click();
     seedPlayers([{ ...base, playerName: "" }], DEFAULT_PLAYER_ID);
+    // 【2026-10-30】記録の無い名前の無い人は、下の区画が「名前を付ける」になる。ここは記録のある人の場合を確かめるので、記録を1件置く
+    const defaultHistoryKey = "equalLoveIntroQuiz.playHistory";
+    const savedDefaultHistory = localStorage.getItem(defaultHistoryKey);
+    if (!hasStoredPlayerRecords(DEFAULT_PLAYER_ID)) localStorage.setItem(defaultHistoryKey, JSON.stringify([{ test: "記録あり" }]));
     elements.playerNameChip.click();
+    assertEqual(elements.playerAddHeading.textContent, "＋ 新しいプレイヤーを追加", "名前が無くても記録がある人：下の区画は「＋ 新しいプレイヤーを追加」のまま");
     assertEqual(elements.playerUnnamedNote.hidden, false, "名前の無い人が使用中のときは「✎ 名前を付ける」の案内を出す（別の人を作ってしまう混同を防ぐ）");
     assertEqual(elements.playerList.querySelector(".player-row-text-button.is-rename")?.textContent, "✎ 名前を付ける", "名前の無い人の ✎ は「名前を付ける」");
     elements.playerList.querySelector(".player-row-text-button.is-rename").click();
@@ -301,6 +312,8 @@ export async function runPlayerRegistrationTests() {
     assertEqual([getPlayers().length, getPlayers()[0].playerId, getPlayers()[0].playerName], [1, DEFAULT_PLAYER_ID, "はじめての名前"], "初めての名前：最初の人の名前になる（新しい人は作らない）");
     await wait(PLAYER_MODAL_AUTO_CLOSE_MS + 200);
     assertEqual(elements.playerNameChipText.textContent, "はじめての名前", "初めての名前：ホームの名前に出る");
+    if (savedDefaultHistory === null) localStorage.removeItem(defaultHistoryKey);
+    else localStorage.setItem(defaultHistoryKey, savedDefaultHistory);
     seedPlayers([base, { ...newcomer }], DEFAULT_PLAYER_ID);
 
     // 画面：保存に失敗したとき
@@ -318,7 +331,10 @@ export async function runPlayerRegistrationTests() {
     assertEqual([modal.hidden, input.value, message.textContent.includes("保存できませんでした")], [false, "容量いっぱいの人", true], "保存の失敗：閉じない・入力を残す・理由を出す");
     assertEqual(getPlayers().length, 2, "保存の失敗：一覧に増えない");
     elements.playerModalCloseButton.click();
+
+    await runNameCurrentPlayerTests(fixture, base);
   } finally {
+    localStorage.removeItem(`equalLoveIntroQuiz.player.${UNNAMED_ID}.playHistory`);
     fixture.root.remove();
     document.querySelector(".player-toast")?.remove();
     if (savedPlayers === null) localStorage.removeItem(PLAYERS_KEY);
@@ -327,4 +343,132 @@ export async function runPlayerRegistrationTests() {
     else localStorage.setItem(ACTIVE_KEY, savedActive);
     clearPlayersCacheForTest();
   }
+}
+
+// ===================================================================================
+// 【2026-10-30 夜間の修正（fix-home）・独立レビューの指摘】
+// 初めての人が「プレイヤー名を設定」から入り、いちばん目立つ欄に名前を入れると2人目が作られ、
+// 「（名前未設定）」が消せないまま残っていた。→ 今のプレイヤーに名前も記録も無いときだけ、
+// 下の区画を「あなたの名前を付ける／この名前にする」（今のプレイヤーの名前の変更）にする。
+// ===================================================================================
+const UNNAMED_ID = "t-unnamed-player";
+
+// localStorage と同じ形（length・key・getItem）の、テスト用の保存場所
+function fakeStorage(entries) {
+  const keys = Object.keys(entries);
+  return { length: keys.length, key: (index) => keys[index] ?? null, getItem: (key) => (key in entries ? entries[key] : null) };
+}
+
+async function runNameCurrentPlayerTests(fixture, base) {
+  const { elements } = fixture;
+  const modal = elements.playerModal;
+  const input = elements.playerAddInput;
+  const button = elements.playerAddButton;
+  const message = elements.playerAddMessage;
+  const baseTime = base.createdAt;
+
+  // ---- 記録の判定（読むだけ・テスト用の保存場所で） ----
+  assertEqual(hasStoredPlayerRecords(DEFAULT_PLAYER_ID, fakeStorage({})), false, "記録の判定：何も無ければ記録なし");
+  assertEqual(
+    hasStoredPlayerRecords(DEFAULT_PLAYER_ID, fakeStorage({
+      "equalLoveIntroQuiz.players": "[{}]",
+      "equalLoveIntroQuiz.activePlayerId": "default",
+      "equalLoveIntroQuiz.onboardingCompleted": "true",
+      "equalLoveIntroQuiz.homeQuickPlaySelection": '{"questionCount":"10"}',
+      "equalLoveIntroQuiz.celebrationLastShownAt.x": "1793288298604",
+    })),
+    false,
+    "記録の判定：初めて開いた端末にあるキー（プレイヤー一覧・設定・お祝いの印など）は記録ではない"
+  );
+  assertEqual(hasStoredPlayerRecords(DEFAULT_PLAYER_ID, fakeStorage({ "equalLoveIntroQuiz.playHistory": "[]" })), false, "記録の判定：空の履歴 [] は記録なし");
+  assertEqual(hasStoredPlayerRecords(DEFAULT_PLAYER_ID, fakeStorage({ "equalLoveIntroQuiz.oshiMembers": '{"memberIds":[],"mostOshiMemberId":null}' })), false, "記録の判定：推しメンを全部外したあとの空の値は記録なし");
+  assertEqual(hasStoredPlayerRecords(DEFAULT_PLAYER_ID, fakeStorage({ "equalLoveIntroQuiz.playHistory": '[{"score":3}]' })), true, "記録の判定：履歴が1件でもあれば記録あり");
+  assertEqual(hasStoredPlayerRecords(DEFAULT_PLAYER_ID, fakeStorage({ "equalLoveIntroQuiz.highScore.5.all": "0" })), true, "記録の判定：自己ベストは 0 点でも記録あり");
+  assertEqual(hasStoredPlayerRecords(DEFAULT_PLAYER_ID, fakeStorage({ "equalLoveIntroQuiz.achievements": '{"unlockedAchievementIds":["a"]}' })), true, "記録の判定：称号があれば記録あり");
+  const otherOnly = fakeStorage({ "equalLoveIntroQuiz.player.p2.playHistory": '[{"score":3}]' });
+  assertEqual(hasStoredPlayerRecords(DEFAULT_PLAYER_ID, otherOnly), false, "記録の判定：最初の人に、ほかの人の記録（player.p2.〜）を数えない");
+  assertEqual(hasStoredPlayerRecords("p2", otherOnly), true, "記録の判定：ほかの人は player.{id}.〜 のキーで見る");
+  assertEqual(hasStoredPlayerRecords("p3", otherOnly), false, "記録の判定：別の人の記録は数えない");
+  const throwing = { get length() { throw new Error("テスト：読めない"); }, key: () => null, getItem: () => null };
+  assertEqual(hasStoredPlayerRecords(DEFAULT_PLAYER_ID, throwing), false, "記録の判定：保存場所が読めないときは記録なし側（＝名前を付ける。データを作らない安全な側）");
+
+  // ---- どちらの区画にするか ----
+  const named = { ...base };
+  const unnamed = { playerId: UNNAMED_ID, playerName: "", createdAt: baseTime, updatedAt: baseTime, backupId: "test-backup-unnamed" };
+  seedPlayers([named, unnamed], UNNAMED_ID);
+  assertEqual(shouldNameCurrentPlayer(fakeStorage({})), true, "区画：名前も記録も無い人が使用中 → 名前を付ける");
+  assertEqual(shouldNameCurrentPlayer(fakeStorage({ [`equalLoveIntroQuiz.player.${UNNAMED_ID}.playHistory`]: '[{"score":1}]' })), false, "区画：名前は無いが記録がある → 新しいプレイヤーを追加のまま");
+  seedPlayers([named, unnamed], DEFAULT_PLAYER_ID);
+  assertEqual(shouldNameCurrentPlayer(fakeStorage({})), false, "区画：名前のある人が使用中 → 新しいプレイヤーを追加のまま");
+
+  // ---- 画面：名前も記録も無い人 → 「あなたの名前を付ける」 ----
+  localStorage.removeItem(`equalLoveIntroQuiz.player.${UNNAMED_ID}.playHistory`);
+  seedPlayers([named, unnamed], UNNAMED_ID);
+  const before = JSON.parse(localStorage.getItem(PLAYERS_KEY));
+  const changedBefore = fixture.changed();
+  elements.playerNameChip.click();
+  assertEqual(
+    [elements.playerAddHeading.textContent, button.textContent, elements.playerAddLabel.textContent],
+    ["あなたの名前を付ける", "この名前にする", "あなたの名前を入力"],
+    "名前を付ける：見出し「あなたの名前を付ける」・ボタン「この名前にする」"
+  );
+  assertEqual(elements.playerAddLead.textContent.includes("新しいプレイヤーは作りません"), true, "名前を付ける：新しいプレイヤーは作らないと書く");
+  assertEqual(elements.playerUnnamedNote.hidden, true, "名前を付ける：「上の ✎ を押して」の案内は出さない（この区画で付けられる）");
+  input.value = "";
+  button.click();
+  assertEqual([modal.hidden, message.textContent], [false, "名前を入力してください。"], "名前を付ける：空なら閉じずに理由");
+  input.value = "テスト本人";
+  button.click();
+  assertEqual([modal.hidden, input.value], [false, "テスト本人"], "名前を付ける：ほかの人と同じ名前なら閉じない・入力を残す");
+  assertEqual(message.textContent.includes("ほかのプレイヤーが使っている名前です"), true, "名前を付ける：重複の文は名前の変更の場面の言葉");
+  assertEqual(message.textContent.includes("切り替わります"), false, "名前を付ける：重複の文に「押すと切り替わります」を出さない");
+  input.value = " 名付けテスト ";
+  pressEnter(input);
+  const after = JSON.parse(localStorage.getItem(PLAYERS_KEY));
+  assertEqual(after.length, 2, "名前を付ける：人は増えない（2人目を作らない）");
+  const renamedUnnamed = after.find((p) => p.playerId === UNNAMED_ID);
+  assertEqual([renamedUnnamed.playerName, renamedUnnamed.backupId, renamedUnnamed.createdAt], ["名付けテスト", unnamed.backupId, unnamed.createdAt], "名前を付ける：今のプレイヤーの名前だけ（playerId・backupId・作った日時はそのまま）");
+  assertEqual(after.find((p) => p.playerId === DEFAULT_PLAYER_ID), before.find((p) => p.playerId === DEFAULT_PLAYER_ID), "名前を付ける：ほかの人は1文字も変わらない");
+  assertEqual(getActivePlayerId(), UNNAMED_ID, "名前を付ける：使用中の人は変わらない");
+  assertEqual(fixture.changed(), changedBefore, "名前を付ける：切り替えの処理（onPlayerChanged）は呼ばない（✎ の名前の変更と同じ）");
+  assertEqual([button.disabled, button.textContent, message.textContent.startsWith("✓ 名前を「名付けテスト」にしました")], [true, "✓ 名前を付けました", true], "名前を付ける：成功を知らせる");
+  assertEqual(elements.playerNameChipText.textContent, "名付けテスト", "名前を付ける：ホームの名前がすぐ変わる");
+  button.disabled = false;
+  button.click();
+  assertEqual(JSON.parse(localStorage.getItem(PLAYERS_KEY)).length, 2, "名前を付ける：閉じるまでに押しても何も作らない");
+  await wait(PLAYER_MODAL_AUTO_CLOSE_MS + 200);
+  const toast = document.querySelector(".player-toast");
+  assertEqual([modal.hidden, toast?.hidden, toast?.textContent], [true, false, "名前を「名付けテスト」にしました"], "名前を付ける：自動で閉じ、知らせを出す");
+  elements.playerNameChip.click();
+  assertEqual(toast.hidden, true, "モーダルを開くと、前の知らせを消す");
+  assertEqual([elements.playerAddHeading.textContent, button.textContent], ["＋ 新しいプレイヤーを追加", "この名前で登録"], "名前を付けたあとは「＋ 新しいプレイヤーを追加」に戻る");
+  elements.playerModalCloseButton.click();
+
+  // ---- 画面：名前は無いが記録がある人 → 「＋ 新しいプレイヤーを追加」のまま ----
+  seedPlayers([named, unnamed], UNNAMED_ID);
+  localStorage.setItem(`equalLoveIntroQuiz.player.${UNNAMED_ID}.playHistory`, JSON.stringify([{ score: 2 }]));
+  elements.playerNameChip.click();
+  assertEqual([elements.playerAddHeading.textContent, button.textContent, elements.playerUnnamedNote.hidden], ["＋ 新しいプレイヤーを追加", "この名前で登録", false], "記録のある名前の無い人：追加のまま・「✎ で名前を付ける」の案内");
+  elements.playerModalCloseButton.click();
+
+  // ---- 切り替え：行に「✓ 切り替えました」・名前の無い人には「名前の無いプレイヤーに切り替えました」 ----
+  seedPlayers([named, unnamed], DEFAULT_PLAYER_ID);
+  elements.playerNameChip.click();
+  elements.playerList.querySelector(`.player-row[data-player-id="${UNNAMED_ID}"] .player-row-switch-button`).click();
+  const switchedRow = elements.playerList.querySelector(`.player-row[data-player-id="${UNNAMED_ID}"]`);
+  assertEqual([switchedRow?.classList.contains("is-just-switched"), switchedRow?.querySelector(".player-row-active-tag")?.textContent], [true, "✓ 切り替えました"], "切り替え：閉じる前に、その行に「✓ 切り替えました」");
+  assertEqual(modal.hidden, false, "切り替え：「✓ 切り替えました」を見せてから閉じる");
+  await wait(PLAYER_MODAL_AUTO_CLOSE_MS + 200);
+  assertEqual([modal.hidden, toast.hidden, toast.textContent], [true, false, "名前の無いプレイヤーに切り替えました"], "名前の無い人に切り替え：「名前の無いプレイヤーに切り替えました」（「（名前未設定）さん」と言わない）");
+  elements.playerNameChip.click();
+  assertEqual(toast.hidden, true, "開くと前の知らせ（切り替え）を消す");
+  elements.playerList.querySelector(`.player-row[data-player-id="${DEFAULT_PLAYER_ID}"] .player-row-switch-button`).click();
+  await wait(PLAYER_MODAL_AUTO_CLOSE_MS + 200);
+  assertEqual(toast.textContent, `${base.playerName}さんに切り替えました`, "名前のある人に切り替え：「○○さんに切り替えました」");
+  localStorage.removeItem(`equalLoveIntroQuiz.player.${UNNAMED_ID}.playHistory`);
+
+  // ---- 名前の変更（関数）：重複の文は変更の場面の言葉 ----
+  const dup = renamePlayerVerified(UNNAMED_ID, base.playerName);
+  assertEqual([dup.reason, dup.message.includes("ほかのプレイヤーが使っている名前です"), dup.message.includes("切り替わります")], ["duplicate", true, false], "名前の変更の重複：「ほかのプレイヤーが使っている名前です」");
+  assertEqual(validatePlayerName(base.playerName, getPlayers()).message.includes("一覧の名前を押すと"), true, "新規の登録の重複：今までどおり「一覧の名前を押すと切り替わる」");
 }
