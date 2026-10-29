@@ -871,7 +871,11 @@ function renderFrame({ dt = 0, force = false } = {}) {
     live.seekedPending = false;
     const result = live.runner.step(t, seeked ? 0 : dt, { seeked });
     if (!live.followPaused) {
-      const target = Math.round(result.scrollTop);
+      // 【2026-10-29 本人の指摘「上から始まらない」】曲の始めは、少しのスクロールなら一番上（題名・前奏の見出し）を見せたままにする。
+      // 少ない量ほど小さく、ある量（画面の高さの2割の2倍）を超えたら、元の計算どおりに進む（つなぎ目はなめらか）
+      const T = live.stage.clientHeight * 0.2;
+      const raw = Math.max(0, result.scrollTop);
+      const target = Math.round(raw < 2 * T ? (raw * raw) / (4 * T) : raw - T);
       if (Math.abs(live.stage.scrollTop - target) >= 1) live.stage.scrollTop = target;
     }
     const lineId = result.litLyric ? result.litLyric.slice("lyric:".length) : null;

@@ -907,3 +907,10 @@ body[data-screen="liveCall"] .game-frame {
   backdrop-filter: none;
   overflow: visible;
 }
+
+/* 【2026-10-29 修正】改行のある長いコール（has-break）は、元の CSS で display:inline になり、光る枠が1行目の左端だけに出ていた
+   → ライブコールでは塊（block）として扱い、コール全体を枠で囲む */
+.lc-stage .call-text-calls .cx-call.has-break,
+.lc-stage .cx-call.has-break {
+  display: block;
+}
