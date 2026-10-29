@@ -124,6 +124,10 @@ let songData = null; // { song, record, lyricsRecord, sheet, avail, hasAudio }
 let objectUrl = null;
 let live = null; // ライブコールの表示中の状態
 let karaokeCleanup = null; // カラオケの音源イベントの購読を外す関数
+// 【2026-10-30追加・ホーム案F】ホームの「コール表／ライブコール／カラオケ」から開いたときに選んでおく遊び方（無ければ null）。
+// 選んであれば、一覧で曲を押したとき、その遊び方が使える曲はそのモードを直接開く（使えない曲は今までどおり曲のページで理由を出す）。
+let preferredMode = null;
+let openedModeFromList = false; // 一覧から直接モードを開いた（［戻る］で一覧へ戻す）
 const reducedMotion = typeof matchMedia === "function" ? matchMedia("(prefers-reduced-motion: reduce)") : { matches: false, addEventListener() {} };
 
 const titleOf = (songId) => getSongById(songId)?.title ?? songId;
@@ -185,10 +189,22 @@ function show(next) {
   else if (next === "karaoke") renderKaraokeMode();
 }
 
+// 遊び方の名前（一覧の案内に出す）
+export const LIVE_CALL_MODE_LABELS = { sheet: "コール表", live: "ライブコール", karaoke: "カラオケ" };
+
+// 一覧で曲を押したとき、選んである遊び方を直接開くか（純粋関数）。avail は computeModeAvailability の戻り値
+export function resolvePreferredModeOpen(mode, avail) {
+  if (!mode || !LIVE_CALL_MODE_LABELS[mode]) return null;
+  return avail?.[mode]?.ok ? mode : null;
+}
+
 // 入口（ホームのライブコール・ゲームのライブコールモード）から開く。はじめに を見ていなければ先に出す
-export function openLiveCallScreen() {
+// options.mode：最初から選んでおく遊び方（"sheet" | "live" | "karaoke"。ホーム案Fから）。無ければ選ばない
+export function openLiveCallScreen(options = {}) {
   currentSongId = null;
   songData = null;
+  preferredMode = LIVE_CALL_MODE_LABELS[options?.mode] ? options.mode : null;
+  openedModeFromList = false;
   if (shouldShowLiveCallNotice(readNoticeVersion())) {
     noticeReturn = null;
     show("notice");
@@ -198,6 +214,13 @@ export function openLiveCallScreen() {
 
 // ［戻る］（端末の「戻る」も同じ）：中の1つ前の表示へ。曲一覧（または最初のはじめに）なら false（画面を出る）
 export function goBackInLiveCall() {
+  if ((view === "sheet" || view === "live" || view === "karaoke") && openedModeFromList) {
+    // 一覧から直接開いたモード：一覧の同じ位置へ戻す
+    openedModeFromList = false;
+    show("list");
+    window.scrollTo(0, listScrollTop);
+    return true;
+  }
   if (view === "sheet" || view === "live" || view === "karaoke") {
     show("song");
     window.scrollTo(0, 0);
@@ -265,6 +288,18 @@ async function renderList() {
     }),
   );
   wrap.appendChild(top);
+  if (preferredMode) {
+    const modeNote = el("div", "lc-preferred-mode");
+    modeNote.appendChild(el("p", "lc-preferred-mode-text", `「${LIVE_CALL_MODE_LABELS[preferredMode]}」で開きます。使えない曲は、曲のページで理由を表示します。`));
+    modeNote.appendChild(
+      button("lc-link-button", "遊び方を選ばずに探す", () => {
+        playSfx(SFX_EVENTS.UI_CLICK);
+        preferredMode = null;
+        show("list");
+      }),
+    );
+    wrap.appendChild(modeNote);
+  }
 
   const search = el("input", "lc-search");
   search.type = "search";
@@ -373,9 +408,12 @@ async function loadSongData(songId) {
 async function openSong(songId) {
   currentSongId = songId;
   songData = null;
+  openedModeFromList = false;
+  pendingPreferredOpen = Boolean(preferredMode);
   show("song");
   window.scrollTo(0, 0);
 }
+let pendingPreferredOpen = false; // 一覧から押した直後だけ、選んである遊び方を直接開く
 
 function modeCard({ id, title, description, availability, onOpen, preview }) {
   const card = el("div", `lc-mode-card is-${id}${availability.ok ? "" : " is-unavailable"}`);
@@ -422,6 +460,17 @@ async function renderSongPage() {
     }
   }
   if (view !== "song" || currentSongId !== songId) return;
+  // ホームで遊び方を選んで来たとき：その遊び方が使える曲なら、曲のページを飛ばしてモードを開く
+  if (pendingPreferredOpen) {
+    pendingPreferredOpen = false;
+    const direct = songData ? resolvePreferredModeOpen(preferredMode, songData.avail) : null;
+    if (direct) {
+      openedModeFromList = true;
+      show(direct);
+      window.scrollTo(0, 0);
+      return;
+    }
+  }
   page.textContent = "";
   if (!songData) {
     page.appendChild(el("p", "lc-status-message", "この曲のデータを読み込めませんでした。もう一度開き直してください。"));

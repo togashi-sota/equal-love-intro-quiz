@@ -7,7 +7,7 @@ import { showScreen, onScreenChange, scrollToTop } from "./screens.js";
 // 【2026-10-30新設・リニューアル第2段階】ホーム（案B）・ブラウザ／端末の「戻る」
 import { getScreenElement, findScreenNameOfElement } from "./screens.js";
 import { initAppHistory, resolveBackTarget } from "./appHistory.js";
-import { initHomeScreen, renderHomePlayerStats, renderQuickPlaySummary, setLiveCallEntryHandler } from "./homeScreen.js";
+import { initHomeScreen, renderHomePlayerStats, setLiveCallEntryHandler, formatIntroBest } from "./homeScreen.js";
 // 【2026-10-30新設・リニューアル第3〜5段階】新しいライブコールと、データ管理の「完成版コールデータを読み込む」
 import { initLiveCallScreen, openLiveCallScreen, goBackInLiveCall, refreshLiveCallAfterDataChange } from "./liveCallScreen.js";
 import { initCallReleaseImportUi, onReleasedCallsChanged, notifyReleasedCallsChanged, refreshCallReleaseStatus } from "./callReleaseImportUi.js";
@@ -1980,45 +1980,48 @@ initSpecialModesScreen({
   // 「戻る」で押した瞬間のカード位置へ復元できるようにする（本人指示：既存のスクロール
   // 位置復元の仕組み＝プレイリスト等と同じnavigateWithScrollMemoryを再利用し、新しい仕組みを
   // 重複して作らない）。
-  onSelectMode: (modeId) => {
-    playClickSound();
-    if (modeId === "weakSongs") {
-      renderWeakSongsScreen();
-      navigateWithScrollMemory("weakSongs");
-    } else if (modeId === "originalQuiz") {
-      // 【2026-08-29改訂、本人指示（⑭)】以前は一覧画面へ直接進んでいたが、今は3種類
-      // （イントロ／ランダム再生／歌詞クイズ）の選択画面を必ず経由するようにした。
-      navigateWithScrollMemory("customQuizTypeSelect");
-    } else if (modeId === "liveCallMode") {
-      // 【2026-10-30 リニューアル第3段階】ゲーム画面の「ライブコールモード」も、ホームのライブコールと同じ新しい流れへ
-      // （本人の採用方針：完成版コールデータに入っていない曲はコールを出さない。以前の曲一覧は端末の元のコールをそのまま出すため使わない）
-      // 戻る先＝押した画面（ゲーム画面・全体検索・【ライブ】ページなど）
-      openLiveCallFrom(document.body.dataset.screen || "gameHub");
-    } else if (modeId === "timeAttack") {
-      updateTimeAttackBestChip();
-      navigateWithScrollMemory("timeAttackSetup");
-    } else if (modeId === "randomPlayback") {
-      updateRandomPlaybackBestChip();
-      navigateWithScrollMemory("randomPlaybackSetup");
-    } else if (modeId === "lyricsQuiz") {
-      updateLyricsQuizBestChip();
-      navigateWithScrollMemory("lyricsQuizSetup");
-    } else if (modeId === "localBattle") {
-      navigateWithScrollMemory("battleModeSelect");
-    } else if (modeId === "partyBattle") {
-      // 【2026-09-15新設】旧「1台対戦」の位置にあるカード。設定画面は開くたびに前回の設定を初期値にする。
-      openPartyBattleSetup();
-      navigateWithScrollMemory("partyBattleSetup");
-    } else if (modeId === "onlineBattle") {
-      navigateWithScrollMemory("onlineBattleEntry");
-    } else if (modeId === "outroQuiz") {
-      navigateWithScrollMemory("outroQuizSetup");
-    } else if (modeId === "instantChallenge") {
-      navigateWithScrollMemory("instantChallengeSetup");
-    }
-  },
+  onSelectMode: (modeId) => openSpecialModeById(modeId),
   onShowHelp: openSpecialModeHelp,
 });
+
+// モードのカードを押したときの処理（ゲーム画面のカードと、ホーム案Fの「ほかのゲーム」の両方から使う）
+function openSpecialModeById(modeId) {
+  playClickSound();
+  if (modeId === "weakSongs") {
+    renderWeakSongsScreen();
+    navigateWithScrollMemory("weakSongs");
+  } else if (modeId === "originalQuiz") {
+    // 【2026-08-29改訂、本人指示（⑭)】以前は一覧画面へ直接進んでいたが、今は3種類
+    // （イントロ／ランダム再生／歌詞クイズ）の選択画面を必ず経由するようにした。
+    navigateWithScrollMemory("customQuizTypeSelect");
+  } else if (modeId === "liveCallMode") {
+    // 【2026-10-30 リニューアル第3段階】ゲーム画面の「ライブコールモード」も、ホームのライブコールと同じ新しい流れへ
+    // （本人の採用方針：完成版コールデータに入っていない曲はコールを出さない。以前の曲一覧は端末の元のコールをそのまま出すため使わない）
+    // 戻る先＝押した画面（ゲーム画面・全体検索・【ライブ】ページなど）
+    openLiveCallFrom(document.body.dataset.screen || "gameHub");
+  } else if (modeId === "timeAttack") {
+    updateTimeAttackBestChip();
+    navigateWithScrollMemory("timeAttackSetup");
+  } else if (modeId === "randomPlayback") {
+    updateRandomPlaybackBestChip();
+    navigateWithScrollMemory("randomPlaybackSetup");
+  } else if (modeId === "lyricsQuiz") {
+    updateLyricsQuizBestChip();
+    navigateWithScrollMemory("lyricsQuizSetup");
+  } else if (modeId === "localBattle") {
+    navigateWithScrollMemory("battleModeSelect");
+  } else if (modeId === "partyBattle") {
+    // 【2026-09-15新設】旧「1台対戦」の位置にあるカード。設定画面は開くたびに前回の設定を初期値にする。
+    openPartyBattleSetup();
+    navigateWithScrollMemory("partyBattleSetup");
+  } else if (modeId === "onlineBattle") {
+    navigateWithScrollMemory("onlineBattleEntry");
+  } else if (modeId === "outroQuiz") {
+    navigateWithScrollMemory("outroQuizSetup");
+  } else if (modeId === "instantChallenge") {
+    navigateWithScrollMemory("instantChallengeSetup");
+  }
+}
 
 // ライブコールモード：曲一覧画面・再生画面。
 // 収録曲一覧（songlist.js）とは完全に独立した専用の画面（本人の希望で新設、2026-08-06）。
@@ -3066,7 +3069,7 @@ initWeakSongsScreen({
     if (!started) {
       weakSongsCountNoticeElement.hidden = false;
       weakSongsCountNoticeElement.textContent =
-        "対象曲の音源が読み込まれていないため開始できませんでした。ホームの「設定・データ管理」→「データ管理」から追加してください。";
+        "対象曲の音源が読み込まれていないため開始できませんでした。ホームの「データを追加・更新」から追加してください。";
       return;
     }
     setInstantChallengeBackLabels("weakSongs");
@@ -3427,11 +3430,9 @@ function handleOnlineBattleAudioTroubleButtonClick() {
   abortOnlineBattleMatchDueToAudioTrouble();
 }
 
-// 自己ベストのチップに表示する、出題数・カテゴリの短縮ラベル。
-// 出題数の「全曲」（5問/10問/20問/50問/全曲）とカテゴリの「全曲」が
-// どちらも同じ表記だと紛らわしいため、出題数側だけ「全問」と表記して区別する。
-const QUESTION_COUNT_LABELS = { "5": "5問", "10": "10問", "20": "20問", "50": "50問", all: "全問" };
-const CATEGORY_LABELS = { all: "全曲", "title-and-group": "表題＋全員", "title-track": "表題のみ" };
+// 自己ベストのチップに表示する、出題数・カテゴリの短縮ラベルは js/homeScreen.js の formatIntroBest にある
+// （2026-10-30：ホーム案Fのイントロクイズの板と同じ文を使うため、ここから移した。表記は今までと同じ。
+// 出題数の「全曲」とカテゴリの「全曲」が紛らわしいため、出題数側だけ「全問」と表記して区別する）。
 
 // スタート画面で選択中の出題数・カテゴリに対応する自己ベストを表示する。
 // ラジオボタンが切り替わるたびと、スタート画面に戻るたびに呼び出す。
@@ -3439,10 +3440,10 @@ function updateModeBestScoreDisplay() {
   const questionCountValue = document.querySelector('input[name="question-count"]:checked').value;
   const categoryFilterValue = document.querySelector('input[name="category-filter"]:checked').value;
   const best = getHighScore(questionCountValue, categoryFilterValue);
+  const display = formatIntroBest(questionCountValue, categoryFilterValue, best);
 
-  modeBestConditionElement.textContent =
-    `${QUESTION_COUNT_LABELS[questionCountValue]}・${CATEGORY_LABELS[categoryFilterValue]}`;
-  modeBestValueElement.textContent = best > 0 ? `ベスト ${best}点` : "ベスト 記録なし";
+  modeBestConditionElement.textContent = display.condition;
+  modeBestValueElement.textContent = display.value;
   modeBestChipElement.classList.toggle("is-empty", best === 0);
 }
 
@@ -6233,7 +6234,7 @@ async function beginTimeAttackQuiz(questionCountValue, categoryFilterValue, rule
 
   if (!questions) {
     timeAttackStartErrorElement.textContent =
-      "音源を読み込んだ曲が足りません。ホームの「設定・データ管理」→「データ管理」から曲を追加するか、カテゴリの範囲を広げてください。";
+      "音源を読み込んだ曲が足りません。ホームの「データを追加・更新」から曲を追加するか、カテゴリの範囲を広げてください。";
     timeAttackStartErrorElement.hidden = false;
     return;
   }
@@ -6496,7 +6497,7 @@ async function beginRandomPlaybackQuiz(questionCountValue, categoryFilterValue) 
 
   if (!questions) {
     randomPlaybackStartErrorElement.textContent =
-      "音源を読み込んだ曲が足りません。ホームの「設定・データ管理」→「データ管理」から曲を追加するか、カテゴリの範囲を広げてください。";
+      "音源を読み込んだ曲が足りません。ホームの「データを追加・更新」から曲を追加するか、カテゴリの範囲を広げてください。";
     randomPlaybackStartErrorElement.hidden = false;
     return;
   }
@@ -8778,46 +8779,65 @@ initOnboardingScreen(
   }
 );
 
-// ===== ホーム（案B）とまとめ画面（2026-10-30新設・リニューアル第2段階） =====
+// ===== ホーム（案F・2026-10-30 本人が正式採用）とまとめ画面 =====
 // ボタンの処理そのものは js/homeScreen.js。ここでは main.js にある画面移動・各モードの準備処理を渡すだけ。
-initHomeScreen(
-  {
-    gameStartButton: document.getElementById("home-game-start-button"),
-    quickPlayButton: document.getElementById("home-quick-play-button"),
-    quickPlaySummary: document.getElementById("home-quick-play-summary"),
-    liveCallButton: document.getElementById("home-live-call-button"),
-    rank: document.getElementById("home-player-rank"),
-    titles: document.getElementById("home-player-titles"),
-    musicEntry: document.getElementById("home-entry-music"),
-    guidesEntry: document.getElementById("home-entry-guides"),
-    settingsEntry: document.getElementById("home-entry-settings"),
-    accountProtectionLink: document.getElementById("settings-account-protection-link"),
-    startButton: document.getElementById("start-button"),
+
+// 設定・データ管理の画面を開き、折りたたみの欄を開いてそこまでスクロールする（ホームのデータの箱から）
+function openSettingsSection(detailsElements, scrollTarget) {
+  if (document.body.dataset.screen !== "settings") navigateWithScrollMemory("settings");
+  detailsElements.forEach((details) => {
+    if (details) details.open = true;
+  });
+  requestAnimationFrame(() => scrollTarget?.scrollIntoView({ block: "start" }));
+}
+
+initHomeScreen(document.getElementById("start-screen"), {
+  songs: SONGS,
+  getHighScore,
+  startButton: document.getElementById("start-button"),
+  navigate: navigateWithScrollMemory,
+  playClickSound,
+  onScreenChange,
+  // 「ほかのゲーム」：ゲーム画面のモードのカードを押したのと同じ
+  openGameMode: (modeId) => openSpecialModeById(modeId),
+  // シングル・アルバム：「＝LOVEについて」の「作品一覧」タブ（楽曲・歌詞の画面の入口と同じ画面の準備をしてから、タブを切り替える）
+  openDiscographyWorks: () => {
+    discographyLinkElement.click();
+    activateDiscographyTab("works");
+    window.scrollTo(0, 0);
   },
-  {
-    navigate: navigateWithScrollMemory,
-    playClickSound,
-    // 第2段階のライブコールの入口＝ゲーム画面の「ライブコールモード」カードを押したのと同じ（今の曲一覧を開く）
-    openDefaultLiveCall: () =>
-      document
-        .querySelector('#game-hub-screen .special-mode-card[data-mode-id="liveCallMode"] .special-mode-card-tap-target')
-        ?.click(),
-    // アカウントの保護はフレンド画面の中（js/accountRecoveryPanel.js）。フレンド画面を開いて、その欄へ移動する
-    openAccountProtection: () => {
-      fanProfilesLinkElement.click();
-      requestAnimationFrame(() => {
-        const panel = document.querySelector("#fan-profiles-screen .account-recovery-panel");
-        if (panel && panel.getClientRects().length > 0) panel.scrollIntoView({ block: "start" });
-      });
-    },
-  }
-);
+  // 歴代センター：戻る先はホーム
+  openCenters: () => openCentersFrom("start"),
+  // CM・企業コラボ：「＝LOVEについて」の「CM・広告・企業コラボ（＝LOVE名義）」の欄（メンバーの個人ページの案内ボタンと同じ仕組み）
+  openGroupCommercials: () =>
+    window.dispatchEvent(new CustomEvent("app-navigate", { detail: { screen: "discography", scrollToId: "group-cm-section" } })),
+  // データを追加・更新：データ管理の「最新版データを読み込む」の欄
+  openDataManagement: () =>
+    openSettingsSection([document.getElementById("data-management-section")], document.getElementById("unified-pack-import-section")),
+  // 引き継ぎ・復旧：機種変更・データ引き継ぎ（すぐ下にデータの復旧）
+  openTransferRecovery: () =>
+    openSettingsSection(
+      [document.getElementById("device-transfer-section"), document.getElementById("data-recovery-section")],
+      document.getElementById("device-transfer-section"),
+    ),
+});
+
+// 設定・データ管理の「アカウントの保護」の案内（第2段階）：フレンド画面を開いて、その欄へ移動する
+document.getElementById("settings-account-protection-link").addEventListener("click", () => {
+  playClickSound();
+  fanProfilesLinkElement.click();
+  requestAnimationFrame(() => {
+    const panel = document.querySelector("#fan-profiles-screen .account-recovery-panel");
+    if (panel && panel.getClientRects().length > 0) panel.scrollIntoView({ block: "start" });
+  });
+});
 // 【2026-10-30新設・リニューアル第3〜5段階】新しいライブコール。ホームの［ライブコール］の差し替え口（setLiveCallEntryHandler）に入れる。
 // 戻る先＝開いた画面（ホーム・ゲーム画面・全体検索など）。画面の中の表示の行き来は js/liveCallScreen.js が受け持つ。
 let liveCallReturnScreen = "start";
-function openLiveCallFrom(returnScreen) {
+// mode：ホーム案Fの「コール表／ライブコール／カラオケ」から開いたときに、最初から選んでおく遊び方（無ければ null）
+function openLiveCallFrom(returnScreen, mode = null) {
   liveCallReturnScreen = returnScreen && returnScreen !== "liveCall" ? returnScreen : "start";
-  openLiveCallScreen();
+  openLiveCallScreen({ mode });
   navigateWithScrollMemory("liveCall");
   window.scrollTo(0, 0);
 }
@@ -8826,7 +8846,7 @@ initLiveCallScreen({
   audio: document.getElementById("live-call-audio"),
   heading: document.getElementById("live-call-heading"),
 });
-setLiveCallEntryHandler(() => openLiveCallFrom(document.body.dataset.screen || "start"));
+setLiveCallEntryHandler((mode) => openLiveCallFrom(document.body.dataset.screen || "start", mode));
 document.getElementById("live-call-back-button").addEventListener("click", () => {
   playSfx(SFX_EVENTS.UI_BACK);
   if (goBackInLiveCall()) return; // 画面の中の1つ前の表示へ戻った
@@ -8870,10 +8890,6 @@ initUnifiedPackImportUi(
 updateModeBestScoreDisplay();
 updateQuestionCountNotice();
 renderHomePlayerStats();
-onScreenChange((screenName) => {
-  if (screenName === "start") renderHomePlayerStats();
-  if (screenName === "gameHub") renderQuickPlaySummary();
-});
 // まとめ画面の［ホーム］（戻る）
 for (const backButtonId of ["game-hub-back-button", "music-hub-back-button", "guide-hub-back-button", "settings-back-button"]) {
   document.getElementById(backButtonId).addEventListener("click", () => {
