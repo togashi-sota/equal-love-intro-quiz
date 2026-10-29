@@ -476,6 +476,27 @@
   color: var(--lc-muted);
   text-overflow: ellipsis;
 }
+/* 【2026-10-30 夜】次のコールまでの残り時間：コールの文字と分けて右端に小さく。3秒を切ったら（is-soon）文字だけ少し濃く
+   （点滅・動きはなし。色だけでなく「まもなく」の言葉でも伝える） */
+.lc-next-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.lc-next-wait {
+  flex: none;
+  margin-left: auto;
+  color: var(--lc-muted);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+.lc-next-row.is-soon .lc-next-text {
+  color: var(--lc-call-strong);
+  font-weight: 700;
+}
+.lc-next-row.is-soon .lc-next-wait {
+  color: #8a1546;
+  font-weight: 800;
+}
 .lc-now-bar {
   position: absolute;
   left: 0;
@@ -492,6 +513,13 @@
   background: linear-gradient(90deg, var(--lc-pink), #ff9f43);
   transform: scaleX(0);
   transform-origin: 0 50%;
+}
+/* 【2026-10-30 夜】背の高い画面（iPad の縦など）：640px で止めると下が大きく空いていたので、画面の高さに合わせて広げる */
+@media (min-height: 1000px) {
+  .lc-stage.is-live {
+    height: min(64vh, 960px);
+    height: min(64dvh, 960px);
+  }
 }
 /* 背の低い画面（iPhone SE など）：コール表の箱を少し低くして、再生の操作まで1画面に近づける */
 @media (max-height: 700px) {
@@ -968,4 +996,17 @@ body[data-screen="liveCall"] .game-frame {
 .lc-stage.intensity-off .cx-cue,
 .lc-stage-frame:has(.intensity-off) .lc-stage-ambient {
   display: none;
+}
+
+/* 【2026-10-30 夜】名前コールのメンバーカラー（js/liveCallScreen.js の memberColorForCallText。メンバー名と確かに一致したときだけ .cx-member）。
+   文字の色・板の色は変えず、光の輪郭と、光っている間の下線だけをメンバーカラーにする（白・黄色のメンバーカラーでも文字は読める） */
+.lc-stage .cx-call.cx-member .cx-glow {
+  box-shadow:
+    0 0 0 2px var(--cx-member, #ffc24d),
+    0 0 12px 3px rgba(255, 111, 168, 0.4);
+}
+.lc-stage .cx-call.cx-member .cx-plate {
+  box-shadow:
+    inset 0 0 0 2px #ffc24d,
+    inset 0 -4px 0 var(--cx-member, #ffc24d);
 }

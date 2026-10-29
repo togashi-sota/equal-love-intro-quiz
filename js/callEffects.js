@@ -509,16 +509,19 @@ export function summarizeState(s) {
 // 分け方は控えめ（迷ったら normal）：
 //   long  ：4秒以上光る、または改行のある長いコール（has-break）→ 全体が光り、下に細い進み具合のバーを1本
 //   short ：1.2秒以下、または確定の短い掛け声（js/shoutWords.js）で 2.5秒以下 → 始まりに小さく「ポン」
-//   normal：それ以外 → やわらかい光・少し浮く・時刻から計算するゆっくりした呼吸
+//   normal：それ以外 → やわらかい光・少し浮く（第3版で呼吸はやめた。光は一定）
 // long を先に見る：改行のある塊を 1.15 倍に膨らませると、まわりの行に大きくかぶるため
 export const VISUAL_KINDS = { SHORT: "short", LONG: "long", NORMAL: "normal" };
 export const VIS_SHORT_MAX_SEC = 1.2;
 export const VIS_SHORT_WORD_MAX_SEC = 2.5;
 export const VIS_LONG_MIN_SEC = 4.0;
 export const VIS_POP_SEC = 0.28; // 短いコールの「ポン」（1.15 倍 → 1.0 倍）の長さ
-export const VIS_POP_SCALE = 0.15;
+// 【2026-10-30 夜・第3版】本人「文字とタイミングが見られればいい。演出は控えめでよい」→ 「ポン」を 1.15 倍から 1.08 倍に、
+// ふつう・長いコールの呼吸（光の濃さが 1.6 秒ごとに揺れる）をやめて、光ったら一定の光にする（読むときに揺れない）
+export const VIS_POP_SCALE = 0.08;
 export const VIS_FADE_SEC = 0.45; // 終わったあと静かに消える長さ（時刻は変えない。見た目の余韻だけ）
-export const VIS_PULSE_SEC = 1.6; // ふつうのコールの呼吸の周期（1秒に1回より遅い）
+export const VIS_NORMAL_LIFT_PX = 1; // ふつうのコールが光るときに浮く量（第2版の 1.5px から少し減らす）
+export const VIS_NORMAL_SCALE = 0.02; // ふつうのコールのやわらかい拡大（第2版の 1.03 倍から 1.02 倍へ）
 export const ANTICIPATE_SEC = 1.5; // 始まる前に「次はここ」とうっすら知らせる長さ
 export const ANTICIPATE_MAX = 0.4; // 知らせの濃さの上限（控えめ）
 
@@ -550,7 +553,6 @@ export function visualStateAt(vis, t, opts = {}) {
   const off = I.id === "off";
   const reduced = Boolean(opts.reduced);
   const k = reduced ? 0 : I.motion; // 動き（拡大・浮き）の倍率
-  const pulseAmp = off || reduced ? 0 : I.id === "low" ? 0.08 : 0.18; // 呼吸の幅（光の濃さだけ。視差効果を減らす設定では止める）
   const { start, end, d, kind } = vis;
   if (!Number.isFinite(t) || !Number.isFinite(start) || !Number.isFinite(end)) return VIS_IDLE;
   const cueLen = off ? 0 : ANTICIPATE_SEC;
@@ -574,21 +576,20 @@ export function visualStateAt(vis, t, opts = {}) {
       s.ambient = off ? 0 : 0.55 + 0.25 * (1 - u) * (reduced ? 0 : 1);
     } else if (kind === VISUAL_KINDS.LONG) {
       // 全体が光る＋進み具合のバー（バーは演出オフでも出す：どこまで進んだかの情報なので）。大きな塊は膨らませない
+      // 光は一定（呼吸させない）。始まりの 0.15 秒だけ、光がふわっと立ち上がる
       const rise = clamp(tau / 0.15, 0, 1);
-      const breath = 0.5 - 0.5 * Math.cos((2 * Math.PI * tau) / VIS_PULSE_SEC);
       s.liftY = -1 * k * rise;
-      s.glowO = off ? 0 : 0.8 - pulseAmp * 0.5 + pulseAmp * 0.5 * breath;
+      s.glowO = off ? 0 : 0.8 * (reduced ? 1 : 0.6 + 0.4 * rise);
       s.barO = 1;
       s.barP = s.p;
-      s.ambient = off ? 0 : 0.5 + (pulseAmp * breath) / 2;
+      s.ambient = off ? 0 : 0.5;
     } else {
-      // ふつう：やわらかい光・少し浮く・ゆっくり呼吸（すべて tau から計算）
+      // ふつう：やわらかい光・少し浮く（すべて tau から計算）。光は一定（呼吸させない）
       const rise = clamp(tau / 0.15, 0, 1);
-      const breath = 0.5 - 0.5 * Math.cos((2 * Math.PI * tau) / VIS_PULSE_SEC);
-      s.liftY = -1.5 * k * rise;
-      s.scale = 1 + 0.03 * k * rise;
-      s.glowO = off ? 0 : 0.75 - pulseAmp * 0.5 + pulseAmp * breath;
-      s.ambient = off ? 0 : 0.45 + (pulseAmp * breath) / 2;
+      s.liftY = -VIS_NORMAL_LIFT_PX * k * rise;
+      s.scale = 1 + VIS_NORMAL_SCALE * k * rise;
+      s.glowO = off ? 0 : 0.75 * (reduced ? 1 : 0.6 + 0.4 * rise);
+      s.ambient = off ? 0 : 0.45;
     }
   } else {
     // 余韻：静かに消える（揺らさない）
@@ -597,8 +598,8 @@ export function visualStateAt(vis, t, opts = {}) {
     const q = 1 - smoothstep(0, 1, (t - end) / fade);
     s.plateO = q;
     s.glowO = off ? 0 : 0.6 * q;
-    s.liftY = (kind === VISUAL_KINDS.NORMAL ? -1.5 : kind === VISUAL_KINDS.LONG ? -1 : 0) * k * q;
-    s.scale = kind === VISUAL_KINDS.NORMAL ? 1 + 0.03 * k * q : 1;
+    s.liftY = (kind === VISUAL_KINDS.NORMAL ? -VIS_NORMAL_LIFT_PX : kind === VISUAL_KINDS.LONG ? -1 : 0) * k * q;
+    s.scale = kind === VISUAL_KINDS.NORMAL ? 1 + VIS_NORMAL_SCALE * k * q : 1;
     s.barO = kind === VISUAL_KINDS.LONG ? q : 0;
     s.barP = 1;
     s.ambient = off ? 0 : 0.4 * q;
@@ -618,4 +619,48 @@ export function ambientAt(states, intensity = "std") {
 // 見た目の要約（テスト用：同じ時刻なら同じ文字列）
 export function summarizeVisual(s) {
   return [s.phase, s.p, s.plateO, s.glowO, s.cueO, s.scale, s.liftY, s.barO, s.barP, s.ambient].join("|");
+}
+
+// ===== 名前コールのメンバーカラー（2026-10-30 夜。新しいライブコール・新しいカラオケの見た目だけに使う） =====
+// 【本人の決まり】メンバー名が「確かに」分かったときだけメンバーカラーにする。迷ったら通常の色。
+// 確かめ方：コールの文字列が、メンバーのデータ（js/data/members.js の名前・読み、js/data/memberProfiles.js の愛称）の
+//   どれか1つと「まるごと」一致し、しかもその言い方を持つメンバーが1人だけのとき。
+//   一致を見る前にそろえるのは、全角半角（NFKC）・前後の空白・末尾の「！」「!」「ー」「〜」・末尾の「×2」などの繰り返しの印だけ。
+//   「超絶かわいい！○○！」「○○！ or △△！」のように、ほかの言葉・複数の名前を含むものは一致にしない。
+//   伸ばし棒を途中に入れた言い方（「さーなつん」など）も、データに無い言い方なので一致にしない（推測で広げない）。
+//   1文字の愛称（例：「姫」）は、ふつうの言葉と区別できないので使わない。
+export const MEMBER_NAME_MIN_LENGTH = 2;
+
+export function normalizeNameCallText(text) {
+  let s = String(text ?? "").normalize("NFKC").trim();
+  s = s.replace(/\s*[×xX]\s*\d+\s*$/u, "");
+  s = s.replace(/[！!ー〜~～\s]+$/u, "");
+  return s.trim();
+}
+
+// メンバーのデータから「言い方 → メンバーID」の表を作る（2人以上が同じ言い方を持つときは null＝使わない）
+export function buildMemberNameIndex(members = [], profiles = []) {
+  const index = new Map();
+  const add = (form, memberId) => {
+    const key = normalizeNameCallText(form);
+    if (!key || [...key].length < MEMBER_NAME_MIN_LENGTH || !memberId) return;
+    if (index.has(key) && index.get(key) !== memberId) index.set(key, null);
+    else index.set(key, memberId);
+  };
+  for (const member of members ?? []) {
+    add(member?.name, member?.id);
+    add(member?.reading, member?.id);
+  }
+  for (const profile of profiles ?? []) {
+    for (const nickname of profile?.nicknames ?? []) add(nickname?.text, profile?.memberId);
+  }
+  return index;
+}
+
+// コールの文字列が1人のメンバーの名前と確かに一致すれば、そのメンバーID。それ以外は null（通常の色）
+export function memberIdForCallText(text, index) {
+  if (!(index instanceof Map)) return null;
+  const key = normalizeNameCallText(text);
+  if (!key) return null;
+  return index.get(key) ?? null;
 }

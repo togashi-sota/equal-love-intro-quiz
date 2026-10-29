@@ -55,14 +55,14 @@ function runStateTests() {
   console.log("--- ライブコール第2版 B：時刻での見た目 ---");
   const s = prepareVisual(SHORT);
   const atStart = visualStateAt(s, 10, STD);
-  assertEqual([atStart.phase, atStart.scale, atStart.glowO, atStart.plateO], ["active", 1.15, 1, 1], "B: 短い：始まった瞬間は 1.15 倍・光が一番強い");
+  assertEqual([atStart.phase, atStart.scale, atStart.glowO, atStart.plateO], ["active", 1.08, 1, 1], "B: 短い：始まった瞬間は 1.08 倍（第3版で控えめに）・光が一番強い");
   const afterPop = visualStateAt(s, 10.3, STD);
   assertEqual([afterPop.scale, afterPop.glowO], [1, 0.7], "B: 短い：0.28秒で 1.0 倍に戻り、光は落ち着く");
   const sPost = visualStateAt(s, 10.4 + VIS_FADE_SEC / 2, STD);
   assertEqual([sPost.phase, sPost.plateO > 0 && sPost.plateO < 1, sPost.scale], ["post", true, 1], "B: 短い：終わったら静かに消える（膨らませない）");
   assertEqual(visualStateAt(s, 10.4 + VIS_FADE_SEC, STD).phase, "idle", "B: 消え終わったら何もしない");
   const s2 = prepareVisual({ key: "s2", text: "ダミー", start: 10.5, end: 10.8 });
-  assertEqual([visualStateAt(s, 10.5, STD).phase, visualStateAt(s2, 10.5, STD).scale], ["post", 1.15], "B: 続けて来る短いコールも、それぞれ「ポン」");
+  assertEqual([visualStateAt(s, 10.5, STD).phase, visualStateAt(s2, 10.5, STD).scale], ["post", 1.08], "B: 続けて来る短いコールも、それぞれ「ポン」");
 
   const l = prepareVisual(LONG);
   const mid = visualStateAt(l, 43, STD);
@@ -73,16 +73,18 @@ function runStateTests() {
 
   const n = prepareVisual(NORMAL);
   const nm = visualStateAt(n, 31, STD);
-  assertEqual([nm.phase, nm.liftY, nm.scale, nm.glowO > 0.5], ["active", -1.5, 1.03, true], "B: ふつう：少し浮いて（-1.5px・1.03倍）光る");
+  assertEqual([nm.phase, nm.liftY, nm.scale, nm.glowO > 0.5], ["active", -1, 1.02, true], "B: ふつう：少し浮いて（-1px・1.02倍。第3版で控えめに）光る");
   const pulse = [30.2, 30.6, 31, 31.4, 31.8].map((t) => visualStateAt(n, t, STD).glowO);
-  assertEqual(new Set(pulse).size > 1 && pulse.every((v) => v >= 0.6 && v <= 0.9), true, "B: ふつう：光はゆっくり呼吸する（t から計算・0.6〜0.9 の間）");
+  assertEqual(new Set(pulse).size === 1 && pulse[0] >= 0.6 && pulse[0] <= 0.9, true, "B: ふつう：光は一定（第3版で呼吸をやめた。読むときに揺れない）");
+  const longGlow = [40.3, 41, 42.2, 44, 45.5].map((t) => visualStateAt(prepareVisual(LONG), t, STD).glowO);
+  assertEqual(new Set(longGlow).size, 1, "B: 長い：光は一定（呼吸しない）");
 
   const reduced = visualStateAt(s, 10, { intensity: "std", reduced: true });
   assertEqual([reduced.scale, reduced.liftY, reduced.plateO], [1, 0, 1], "B: 視差効果を減らす設定：動かさない（光るだけ）");
   const reducedN = [30.2, 30.6, 31].map((t) => visualStateAt(n, t, { intensity: "std", reduced: true }).glowO);
   assertEqual(new Set(reducedN).size, 1, "B: 視差効果を減らす設定：呼吸も止める");
   const low = visualStateAt(s, 10, { intensity: "low", reduced: false });
-  assertEqual(low.scale, 1.06, "B: 控えめ：動きは 0.4 倍");
+  assertEqual(low.scale, 1.032, "B: 控えめ：動きは 0.4 倍");
   const off = visualStateAt(l, 43, { intensity: "off", reduced: false });
   assertEqual([off.plateO, off.glowO, off.scale, off.liftY, off.barO, off.ambient], [1, 0, 1, 0, 1, 0], "B: 演出オフ：板とバー（情報）だけ。光・動き・背景の光は出さない");
   assertEqual(visualStateAt(s, 10.41, { intensity: "off", reduced: false }).phase, "idle", "B: 演出オフ：終わったらすぐ消える（余韻なし）");

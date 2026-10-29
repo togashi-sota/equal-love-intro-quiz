@@ -55,6 +55,7 @@
     import { runLiveCallRenewalTests } from "./tests/liveCallRenewal.test.js";
     // 【2026-10-30新設】新しいライブコールの光り方（第2版）・曲のページのカードの見本画像（ダミーのデータだけ）
     import { runLiveCallVisualsTests } from "./tests/liveCallVisuals.test.js";
+    import { runLiveCallNightTests } from "./tests/liveCallNight.test.js";
     // 【2026-10-30新設】データ管理の「最新版データを読み込む」（ダミーのデータだけ・偽の端末）
     import { runUnifiedPackImportTests } from "./tests/unifiedPackImport.test.js";
     // 【2026-10-29新設】プレイヤーの登録画面（登録・切り替え・名前の変更・自動で閉じる）／公開プロフィールのデータの曲数
@@ -523,6 +524,7 @@
     await runHomeRenewalTests();
     await runLiveCallRenewalTests();
     await runLiveCallVisualsTests();
+    await runLiveCallNightTests();
     await runUnifiedPackImportTests();
     await runPlayerRegistrationTests();
     await runDataStatusShareTests();

@@ -71,6 +71,16 @@ import {
   getCallPreviewLabel,
 } from "./karaokeSync.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
+import { getLyricsData } from "./lyricsStorage.js";
+// 【2026-10-30 夜】新しいカラオケ（options.calls 付きで開いたとき）だけの演出。前のカラオケ同期では1つも使わない
+import {
+  enableKaraokeStage,
+  disableKaraokeStage,
+  resetKaraokeStage,
+  setKaraokeStagePaused,
+  showKaraokeStageFinale,
+  updateKaraokeStage,
+} from "./karaokeStage.js";
 
 // ===== 設定の保存（端末ごと。既存のsfx設定等と同じ命名規則・保存方式） =====
 const BEGINNER_NAV_STORAGE_KEY = "equalLoveIntroQuiz.karaokeBeginnerNavEnabled";
@@ -120,6 +130,8 @@ let allCalls = []; // 曲全体のコール（start昇順）
 let syncPointCandidates = [];
 let syncState = createKaraokeSyncState();
 let tickTimerId = null;
+let tickFrameId = null; // 新しいカラオケだけ：毎フレーム（requestAnimationFrame）で描く
+let lastFrameTickAt = -Infinity;
 let toastHideTimeoutId = null;
 
 // 端末音源。読み込まれていれば曲スタートと同時に常に自動再生する（選択UIは無い）。
@@ -330,16 +342,40 @@ function tick() {
 
   renderSyncStatus();
   renderCallHud(positionSec);
+  // 新しいカラオケだけ：演出（js/karaokeStage.js）。見た目はこの時刻だけから決まる
+  if (followDeviceAudio) updateKaraokeStage(positionSec, { ended: elements.deviceAudio.ended });
 }
 
+// 前のカラオケ同期：今までどおり 0.15 秒ごと（setInterval）。
+// 新しいカラオケ：コールの始まりの光・進み具合のバーをなめらかにするため毎フレーム（requestAnimationFrame）。
+//   画面が隠れている間は requestAnimationFrame 自体が止まる。端末の音源が止まっている間（読み込み中・曲の終わり）は
+//   今までと同じ 0.15 秒ごとに間引く（止まっている間に毎フレーム描かない）
 function startTickLoop() {
   stopTickLoop();
+  if (followDeviceAudio) {
+    lastFrameTickAt = -Infinity;
+    const loop = (now) => {
+      tickFrameId = window.requestAnimationFrame(loop);
+      // 音源が止まっている・この画面が隠れている（端末の「戻る」で別の画面へ移った等）ときは、0.15 秒ごとに間引く
+      const audioIdle = hasDeviceAudioLoaded() && elements.deviceAudio.paused;
+      const screenHidden = !elements.callHudCard.closest(".screen")?.classList.contains("is-active");
+      if ((audioIdle || screenHidden) && now - lastFrameTickAt < TICK_INTERVAL_MS) return;
+      lastFrameTickAt = now;
+      tick();
+    };
+    tickFrameId = window.requestAnimationFrame(loop);
+    return;
+  }
   tickTimerId = window.setInterval(tick, TICK_INTERVAL_MS);
 }
 function stopTickLoop() {
   if (tickTimerId !== null) {
     window.clearInterval(tickTimerId);
     tickTimerId = null;
+  }
+  if (tickFrameId !== null) {
+    window.cancelAnimationFrame(tickFrameId);
+    tickFrameId = null;
   }
 }
 
@@ -406,6 +442,7 @@ async function startDeviceAudioPlayback() {
 // カラオケ本体側の終了はユーザー自身の判断（「戻る」等）に委ねる、という自然な設計になる。
 function handleDeviceAudioEnded() {
   elements.songEndBanner.hidden = false;
+  if (followDeviceAudio) showKaraokeStageFinale();
 }
 
 // ===== 一時停止／再開（UI/UX第4版で追加、第6版で「両方まとめて」だけのシンプルな挙動に統一） =====
@@ -448,6 +485,7 @@ function handleMainPauseResumeClick() {
     elements.deviceAudio.pause();
     stopTickLoop();
   }
+  if (followDeviceAudio) setKaraokeStagePaused(syncState.isPaused); // 一時停止中は演出の CSS アニメーションも止める
   updateAllPauseUI();
   tick(); // 停止した瞬間・再開した瞬間の位置を、次のtickを待たずに即座に描画へ反映する
 }
@@ -531,6 +569,7 @@ function resetToStartPanel() {
   elements.deviceAudioNotice.hidden = true;
   elements.syncPanel.classList.remove("is-long-call-active");
   elements.callHudPreviewRow.hidden = true;
+  if (followDeviceAudio) resetKaraokeStage();
   updateAllPauseUI();
   lastRenderedCallHudEyebrow = null;
   lastRenderedCallHudText = null;
@@ -577,6 +616,21 @@ export async function openKaraokeSyncScreen(songId, options = {}) {
   }
   syncPointCandidates = selectSyncPointCandidates(allCalls);
 
+  // 新しいカラオケ（本人の完成版のコール）だけ、演出の部品を作る。前のカラオケ同期では作らない（closeKaraokeSyncScreen で外したまま）
+  if (followDeviceAudio) {
+    let lyricLines = [];
+    try {
+      const lyricsRecord = await getLyricsData(songId);
+      lyricLines = Array.isArray(lyricsRecord?.lines) ? lyricsRecord.lines.map((line) => ({ start: line.start, end: line.end })) : [];
+    } catch {
+      lyricLines = []; // 歌詞が読めなくても、コールの演出だけで続ける
+    }
+    enableKaraokeStage(
+      { screen: elements.callHudCard.closest(".screen"), hudCard: elements.callHudCard, lyricsPanel: elements.lyricsContextPanel },
+      { song, calls: allCalls, lines: lyricLines },
+    );
+  }
+
   clockSource = new KaraokeClockSource();
   // 「現在の歌詞」表示パネル（js/lyricsSync.jsをそのまま再利用）。歌詞データが無い曲では
   // 何も描画されず、パネルは自動的に非表示のままになる。行タップはhandleLyricTapSeek()へ。
@@ -601,6 +655,7 @@ export async function openKaraokeSyncScreen(songId, options = {}) {
 // この画面を離れるとき（戻る・曲を選び直す）に必ず呼ぶ。
 export function closeKaraokeSyncScreen() {
   stopTickLoop();
+  disableKaraokeStage(); // 新しいカラオケの演出の部品を外す（作っていなければ何もしない）
   stopDeviceAudio();
   destroyLyricsSync();
   clockSource = null;
