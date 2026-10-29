@@ -44,15 +44,21 @@
 }
 .home-player-bar-main {
   display: flex;
+  flex-wrap: wrap; /* 文字を大きくした端末では、名前を読める幅に保ち、フレンド・ランキングを次の行へ回す */
   align-items: center;
   gap: 8px;
+}
+.home-player-actions {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
 }
 .home-player-bar .player-hero-swatch {
   width: 40px;
   height: 40px;
 }
 .home-player-bar .player-hero-name {
-  flex: 1 1 auto;
+  flex: 1 1 6em;
   min-width: 0;
   min-height: 44px;
   padding: 0 4px;
@@ -563,7 +569,8 @@
   font-size: 0.9375rem;
 }
 .hub-screen .audio-import-button,
-.hub-screen .lyrics-import-button {
+.hub-screen .lyrics-import-button,
+.hub-screen .secondary-button {
   min-height: 44px;
 }
 .home-screen > .title-block .eyebrow-chip {
