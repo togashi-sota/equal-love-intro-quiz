@@ -14,8 +14,13 @@ import { SONGS } from "./data/songs.js";
 import { computeSha256Hex } from "./contentHash.js";
 
 const DB_NAME = "equalLoveIntroQuizCalls";
-const DB_VERSION = 1;
+// 【2026-10-30 版2】完成版コールデータ（本人が承認したコール表＋時刻）を入れる releasedCalls ストアを追加。
+// 版1の callData ストア（keyPath songId）とその中身は、そのまま残す（作り直さない・消さない）。
+const DB_VERSION = 2;
 const STORE_NAME = "callData";
+// 完成版コールデータ（js/callReleasePack.js が作る1曲1レコード、keyPath songId）。
+// 元のコール（callData）とは別のストアにし、片方の不具合がもう片方を壊さないようにする。
+export const RELEASED_CALLS_STORE_NAME = "releasedCalls";
 
 const LATEST_SCHEMA_VERSION = 1;
 
@@ -48,14 +53,26 @@ export const DEFAULT_CALL_DURATION_SEC = 1.5;
 function openDatabase() {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
+    // 版1→版2：足りないストアを作るだけ（既にあるストア・レコードには触れない）。
+    // 版0（新しい端末）→版2：両方のストアを作る。
     request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME, { keyPath: "songId" });
       }
+      if (!db.objectStoreNames.contains(RELEASED_CALLS_STORE_NAME)) {
+        db.createObjectStore(RELEASED_CALLS_STORE_NAME, { keyPath: "songId" });
+      }
     };
-    request.onsuccess = () => resolve(request.result);
+    request.onsuccess = () => {
+      const db = request.result;
+      // 別のタブが新しい版で開こうとしたら、こちらの接続を閉じて邪魔をしない
+      db.onversionchange = () => db.close();
+      resolve(db);
+    };
     request.onerror = () => reject(request.error);
+    // 古い版のこのアプリを別のタブで開いたままのときは、版を上げられず待たされる（そのタブを閉じれば進む）
+    request.onblocked = () => console.warn("コールデータのデータベースの更新が、別のタブに止められています。ほかのタブを閉じてください");
   });
 }
 
@@ -325,4 +342,51 @@ export async function importCallDataSongs(readySongs) {
   }
 
   return { savedSongIds, saveFailures };
+}
+
+// ===== 完成版コールデータ（releasedCalls ストア、2026-10-30新設） =====
+// 中身の形と、読み込むときの判断（同じ／新しい／古い版）は js/callReleasePack.js（DOM・IndexedDB を使わない純粋関数）。
+// ここは読み書きだけ。元のコール（callData）・歌詞・音源のデータベースには触れない。
+
+// 全曲分の完成版コールデータを Map（songId → レコード）で返す
+export async function getAllReleasedCallRecords() {
+  const db = await openDatabase();
+  const records = await new Promise((resolve, reject) => {
+    const tx = db.transaction(RELEASED_CALLS_STORE_NAME, "readonly");
+    const request = tx.objectStore(RELEASED_CALLS_STORE_NAME).getAll();
+    request.onsuccess = () => resolve(request.result ?? []);
+    request.onerror = () => reject(request.error);
+  });
+  db.close();
+  return new Map(records.map((record) => [record.songId, record]));
+}
+
+// 1曲分を読む（無ければ null）
+export async function getReleasedCallRecord(songId) {
+  const db = await openDatabase();
+  const record = await new Promise((resolve, reject) => {
+    const tx = db.transaction(RELEASED_CALLS_STORE_NAME, "readonly");
+    const request = tx.objectStore(RELEASED_CALLS_STORE_NAME).get(songId);
+    request.onsuccess = () => resolve(request.result || null);
+    request.onerror = () => reject(request.error);
+  });
+  db.close();
+  return record;
+}
+
+// 1曲分を保存する。曲ごとに別々の書き込みにする（1曲の失敗が、ほかの曲を巻き込まないように）
+export async function saveReleasedCallRecord(record) {
+  if (!record || typeof record.songId !== "string" || record.songId === "") throw new Error("曲IDがありません");
+  const db = await openDatabase();
+  try {
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(RELEASED_CALLS_STORE_NAME, "readwrite");
+      tx.objectStore(RELEASED_CALLS_STORE_NAME).put(record);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+  } finally {
+    db.close();
+  }
 }

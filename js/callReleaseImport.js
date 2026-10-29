@@ -22,13 +22,16 @@
 // 【安全の約束】端末の歌詞・コールが、成果物を作ったときと1つでも違えば、その曲には当てはめない（誤った行・時刻を出さない）。
 //   ・歌詞：行の数と「行ごとの指紋」が同じ（lyricsFingerprint）
 //   ・コール：resolveApprovedCallText（js/callTextEdits.js）の照合をそのまま使う
-//   ・時刻：開始 < 終了、長さ 0.1〜30 秒、0 以上
+//   ・時刻：開始 < 終了、長さ 0.1〜60 秒、0 以上
 import { hashText, resolveApprovedCallText } from "./callTextEdits.js";
 
 export const CALL_RELEASE_SCHEMA = "equal-love-call-release";
 export const CALL_RELEASE_VERSION = 1;
 const MIN_CALL_SEC = 0.1;
-const MAX_CALL_SEC = 30;
+// 【2026-10-30 変更】30 → 60 秒。本人の完成版（edits rev 2373・timing rev 3127）に 30.69 秒・30.90 秒光るコールが
+// 2件（love-locke の本人追加の長いコール）あり、30 秒のままだとその曲だけ丸ごと読み込めなかったため。
+// 本人の時刻は書き換えない（短く切らない）方針なので、受け取る側の上限を広げた。壊れたデータ（何分も光る）を止める役目は残す。
+const MAX_CALL_SEC = 60;
 
 // 歌詞の行ごとの指紋をまとめた値（歌詞本文は含まない）。tools/live-call-text/lyricsRemap.js の lyricsFingerprint と同じ計算。
 export function computeLyricsLineFingerprint(lines) {
