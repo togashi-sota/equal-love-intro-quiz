@@ -2066,7 +2066,7 @@
         <button id="fan-profiles-title-list-link" class="fan-profiles-title-list-button" type="button">🏅 称号一覧</button>
       </div>
 
-      <p class="special-modes-intro">このゲームを遊んでいるプレイヤーの、表示名・推し・称号を見られます。</p>
+      <p class="special-modes-intro">このゲームを遊んでいるプレイヤーの、表示名・推し・称号と、入れている音源・歌詞・コールの曲数を見られます。</p>
 
       <!-- 【2026-09-15新設】旧IDからの引き継ぎ案内（js/uidSupersession.js・js/fanProfilesScreen.js）。
            Firebase匿名認証のIDが本人の操作と無関係に変わったことを、自動バックアップの同期
@@ -2106,7 +2106,7 @@
       <div class="fan-profiles-settings-card">
         <div class="fan-profiles-settings-text">
           <p class="fan-profiles-settings-title">あなたのプロフィールをフレンドに公開する</p>
-          <p class="fan-profiles-settings-description">表示名・推し・取得済みの称号だけが公開されます。メールアドレスや内部IDなどは一切公開されません。いつでもOFFに戻せます。</p>
+          <p class="fan-profiles-settings-description">表示名・推し・取得済みの称号と、この端末に入っている音源・歌詞・コール表の曲数（数だけ。曲名や歌詞・コールの中身は送りません）だけが公開されます。メールアドレスや内部IDなどは一切公開されません。いつでもOFFに戻せます。</p>
         </div>
         <button id="fan-profiles-sharing-toggle" class="sfx-toggle-button" type="button" aria-pressed="false" aria-label="プロフィール公開を切り替える">
           <span id="fan-profiles-sharing-toggle-label">OFF</span>
@@ -6969,6 +6969,12 @@
         <button id="fan-profile-detail-title-list-link" class="fan-profile-detail-title-list-button" type="button">🏅 称号一覧</button>
       </div>
 
+      <!-- 【2026-10-29追加・本人の希望】この人の端末にどれだけデータが入っているか（数だけ。js/dataStatusShare.js）。
+           古い版のアプリの人など、記録が無いときは「まだ記録がありません」 -->
+      <div id="fan-profile-detail-data-status" class="fan-profile-detail-data-status">
+        <p id="fan-profile-detail-data-status-text" class="fan-profile-detail-data-status-text"></p>
+        <p id="fan-profile-detail-data-status-detail" class="fan-profile-detail-data-status-detail" hidden></p>
+      </div>
       <p id="fan-profile-detail-achievement-count" class="fan-profile-detail-achievement-count"></p>
       <div id="fan-profile-detail-summary"></div>
 

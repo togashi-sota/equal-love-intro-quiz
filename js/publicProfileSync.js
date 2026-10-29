@@ -30,6 +30,7 @@ import { ensureIdentityBootstrap, canAutoSyncToCloud, isIdentityReady, IDENTITY_
 import { setPresenceFact } from "./presenceDiagnostics.js";
 import { getActivePlayer, getPlayerKeyPrefix, getOrCreateBackupId } from "./playerProfile.js";
 import { computeLeaderboardIdentityKey } from "./timeAttackLeaderboard.js";
+import { getSharedDataStatusForProfile } from "./dataStatusShare.js";
 import { getMostOshiMemberId } from "./oshiMembers.js";
 import { getAchievementListSnapshot, getOshiBadgeState } from "./achievementProgress.js";
 import {
@@ -100,14 +101,26 @@ export async function syncPublicProfileIfEnabled(playerKeyPrefix) {
   }
 
   try {
+    // 【2026-10-29追加】この同期を始めたときのプレイヤー。下の待ち（本人キーの計算・データの曲数を数える）の間に
+    // 別のプレイヤーへ切り替わったり公開をOFFにされたりしたら、書かずにやめる（公開OFFの人の名前・推し・称号を
+    // 前の人の本人キーで書いてしまわないため。切り替え・OFF の側が、その人用の同期・削除をやり直す）。
+    const startedPlayerId = getActivePlayer().playerId;
+    const isStillSameTarget = () =>
+      getActivePlayer().playerId === startedPlayerId && getPlayerKeyPrefix() === playerKeyPrefix && isPublicProfileSharingEnabled(playerKeyPrefix);
     // 【第11回】本人キー（ランキングと同じ identityKey）を必ず付ける。作れなければ公開しない
     // （Rules は新規プロフィールに identityKey 必須。キー無しで別人のように増やさない）。
-    const identityKey = await computeLeaderboardIdentityKey(getOrCreateBackupId(getActivePlayer().playerId));
+    const identityKey = await computeLeaderboardIdentityKey(getOrCreateBackupId(startedPlayerId));
     if (!identityKey) {
       setPresenceFact("profileSync", "no-key");
       return false;
     }
-    const payload = buildPublicProfilePayload({ ...collectCurrentProfileMaterials(), identityKey });
+    // 表示名・推し・称号は、待つ前に集める（待っている間に切り替わっても、始めた人の材料だけを使う）
+    const materials = collectCurrentProfileMaterials();
+    // 【2026-10-29追加・本人の希望】この端末のデータの状態（音源・歌詞・コールの曲数だけ）も載せる（js/dataStatusShare.js）。
+    // まだ数えていなければここで数え始め、少しだけ待つ（間に合わなければ今回は載せず、数え終わったあとの同期で載る）。
+    const dataStatus = await getSharedDataStatusForProfile();
+    if (!isStillSameTarget()) return false;
+    const payload = buildPublicProfilePayload({ ...materials, identityKey, dataStatus });
     const payloadJson = JSON.stringify(payload);
     if (payloadJson === lastSyncedPayloadJson) {
       setPresenceFact("profileSync", "ok");
@@ -120,6 +133,7 @@ export async function syncPublicProfileIfEnabled(playerKeyPrefix) {
       setPresenceFact("profileSync", "no-uid");
       return false;
     }
+    if (!isStillSameTarget()) return false;
 
     await set(ref(database, `publicProfiles/${uid}`), { ...payload, updatedAt: serverTimestamp() });
     lastSyncedPayloadJson = payloadJson;

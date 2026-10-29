@@ -225,6 +225,7 @@ const APP_SHELL_FILES = [
   "./js/unifiedPackImport.js",
   "./js/unifiedPackImportUi.js",
   "./js/dataStatusCheck.js",
+  "./js/dataStatusShare.js",
   "./js/liveCallData.js",
   "./js/liveCallScreen.js",
   "./js/callEffects.js",

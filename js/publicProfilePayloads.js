@@ -7,6 +7,7 @@
 
 import { scheduleBackupSync } from "./backupSync.js";
 import { selectStaleOwnConnectionIds } from "./presencePayloads.js";
+import { normalizeSharedDataStatus, SHARED_DATA_STATUS_VERSION } from "./dataStatusShare.js";
 
 const SCHEMA_VERSION = 1;
 const ENABLED_FLAG_STORAGE_KEY_SUFFIX = "publicProfile.enabled";
@@ -63,7 +64,11 @@ export function writeEnabledFlag(playerKeyPrefix, enabled) {
 // 渡すと payload に含める。Firebase Rules は「publicProfiles/{uid} の新規作成には identityKey 必須」になっており、
 // 匿名UIDが差し替わった古いクライアントが新UID名義の公開プロフィールを作ることを Firebase 側で拒否する。
 // backupId そのもの（引き継ぎコードの一部）は公開しない。
-export function buildPublicProfilePayload({ playerName, oshiMemberId, achievementsSnapshot, oshiBadgeState, identityKey = null }) {
+// 【2026-10-29追加・本人の希望】dataStatus（js/dataStatusShare.js の buildSharedDataStatus() の結果＝音源・歌詞・コールの曲数と
+// コール表の版の日付だけ）を渡すと payload に含める。曲名・本文は入らない。渡さなければ今までと同じ7つ（＋identityKey）のキー。
+// 今の本番 Rules（firebase/database.rules.json の publicProfiles/$uid）は、決まった子以外を拒む決まり（$other の .validate:false）を
+// 持たないので、この子を足しても書き込みは通る（tests/dataStatusShare.test.js が Rules の中身で確かめる）。
+export function buildPublicProfilePayload({ playerName, oshiMemberId, achievementsSnapshot, oshiBadgeState, identityKey = null, dataStatus = null }) {
   const payload = {
     schemaVersion: SCHEMA_VERSION,
     displayName: (playerName || "").trim() || "名無しのファン",
@@ -76,6 +81,8 @@ export function buildPublicProfilePayload({ playerName, oshiMemberId, achievemen
     hasEqualLoveComplete: oshiBadgeState.hasEqualLoveComplete,
   };
   if (typeof identityKey === "string" && identityKey.length >= 16 && identityKey.length <= 64) payload.identityKey = identityKey;
+  const sharedDataStatus = normalizeSharedDataStatus(dataStatus);
+  if (sharedDataStatus) payload.dataStatus = { v: SHARED_DATA_STATUS_VERSION, ...sharedDataStatus };
   return payload;
 }
 
@@ -84,7 +91,7 @@ export function buildPublicProfilePayload({ playerName, oshiMemberId, achievemen
 // 欠けたフィールド・想定外の型でも、画面が壊れない安全なデフォルト値にフォールバックする。
 export function normalizePublicProfileEntry(uid, entry) {
   if (!entry || typeof entry !== "object") return null;
-  return {
+  const normalized = {
     uid,
     schemaVersion: typeof entry.schemaVersion === "number" ? entry.schemaVersion : 1,
     displayName: typeof entry.displayName === "string" && entry.displayName ? entry.displayName : "名無しのファン",
@@ -99,6 +106,11 @@ export function normalizePublicProfileEntry(uid, entry) {
     // 2026-09-22追加：本人キー（無い旧プロフィールは null）
     identityKey: typeof entry.identityKey === "string" && entry.identityKey.length >= 16 && entry.identityKey.length <= 64 ? entry.identityKey : null,
   };
+  // 2026-10-29追加：データの状態の曲数。あるときだけ足す（無い古いプロフィール・壊れた値は、キーごと無し＝
+  // 画面では「まだ記録がありません」。キーを足さないのは、今までの正規化の結果の形を変えないため）
+  const dataStatus = normalizeSharedDataStatus(entry.dataStatus);
+  if (dataStatus) normalized.dataStatus = dataStatus;
+  return normalized;
 }
 
 // ---------------------------------------------------------------------------

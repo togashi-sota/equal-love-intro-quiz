@@ -323,6 +323,8 @@ import {
   scheduleBackupSync,
 } from "./backupSync.js";
 import { syncPublicProfileIfEnabled, syncFriendPresenceToActivePlayer } from "./publicProfileSync.js";
+// 【2026-10-29追加・本人の希望】公開プロフィールに載せる「データの状態の曲数」（曲名・本文は載せない）
+import { refreshSharedDataStatus, setSharedDataStatusFromSummary } from "./dataStatusShare.js";
 import { getFavoriteSongIds } from "./favoriteSongs.js";
 import { getPlaylists } from "./playlists.js";
 import { initPlaylistScreen, renderPlaylistList, renderPlaylistDetail } from "./playlistScreen.js";
@@ -7781,6 +7783,7 @@ async function importDataPackSelection(selectedFiles, { isZip = false } = {}) {
   // オンライン歌詞クイズのロビーを表示中であれば今のカテゴリ条件のまま読み込み済み
   // 曲数を再チェック・再描画する（無関係な場合は何もしない安全なno-op）。
   await recheckLyricsCoverageAfterImport();
+  refreshSharedDataStatusAndSync(); // 【2026-10-29】公開プロフィールのデータの曲数も数え直して次の同期に乗せる
 
   // 新しく保護すべきデータ（音源等）が増えた直後のタイミングで、改めて永続ストレージを要求する
   // （音源インポート時と同じ理由。js/main.jsの「音源を読み込む」ハンドラ参照）。
@@ -7961,6 +7964,7 @@ audioImportInputElement.addEventListener("change", async () => {
   // 音源を読み込んだ直後に、出題数の案内（対象曲数が音源読み込み済みの曲数に基づく）も
   // 最新の状態へ更新する（本人指示・2026-08-15：音源を入れたらすぐクイズにも反映されるように）。
   await updateQuestionCountNotice();
+  refreshSharedDataStatusAndSync(); // 【2026-10-29】公開プロフィールのデータの曲数も数え直して次の同期に乗せる
 });
 
 updateAudioImportStatus();
@@ -8081,6 +8085,7 @@ lyricsImportInputElement.addEventListener("change", async () => {
   // 今のカテゴリ条件のまま読み込み済み曲数を再チェック・再描画する（無関係な画面を
   // 見ている場合は何もしない安全なno-op、js/onlineLyricsQuizBattleScreen.js参照）。
   await recheckLyricsCoverageAfterImport();
+  refreshSharedDataStatusAndSync(); // 【2026-10-29】公開プロフィールのデータの曲数も数え直して次の同期に乗せる
 
   pendingLyricsReadyTally = { newCount, updateCount };
   pendingLyricsFailedFiles = collectedFailures;
@@ -8120,6 +8125,7 @@ lyricsWarningSaveButtonElement.addEventListener("click", async () => {
 
   await updateLyricsImportStatus();
   await recheckLyricsCoverageAfterImport();
+  refreshSharedDataStatusAndSync(); // 【2026-10-29】公開プロフィールのデータの曲数も数え直して次の同期に乗せる
   lyricsWarningPanelElement.hidden = true;
 
   showLyricsImportResult({
@@ -8925,6 +8931,7 @@ initUnifiedPackImportUi(
     // 読み込み・元に戻すのあと：歌詞クイズのロビー・完成版コールの版の表示・ライブコールの一覧を作り直す
     onChanged: async () => {
       await recheckLyricsCoverageAfterImport();
+      refreshSharedDataStatusAndSync(); // 【2026-10-29】公開プロフィールのデータの曲数も数え直して次の同期に乗せる
       requestPersistentStorage();
       await refreshCallReleaseStatus();
       notifyReleasedCallsChanged();
@@ -8953,6 +8960,13 @@ initAppHistory({
   getScreenElement,
 });
 
+// 【2026-10-29追加・本人の希望】読み込み・元に戻すのあとに、公開プロフィールの「データの曲数」を数え直し、
+// 公開がONなら同期する（公開がOFFなら syncPublicProfileIfEnabled は何もしない）。起動のときは、最初の同期が
+// js/dataStatusShare.js の getSharedDataStatusForProfile() で自動的に数える。失敗しても読み込みの結果には影響しない。
+function refreshSharedDataStatusAndSync() {
+  refreshSharedDataStatus().then(() => syncPublicProfileIfEnabled(getPlayerKeyPrefix())).catch(() => {});
+}
+
 // 【2026-10-29新設】この端末のデータの状態（音源・歌詞・コール表が入ったか）を確かめる。読むだけ
 let dataStatusRunning = false;
 async function runDataStatusCheck() {
@@ -8962,7 +8976,11 @@ async function runDataStatusCheck() {
   box.hidden = false;
   box.textContent = "確かめています…";
   try {
-    const lines = describeDeviceDataStatus(summarizeDeviceDataStatus(await collectDeviceDataStatus()));
+    const summary = summarizeDeviceDataStatus(await collectDeviceDataStatus());
+    const lines = describeDeviceDataStatus(summary);
+    // 数えた結果を公開プロフィールの曲数にもそのまま使う（同じ読み取りを2回しない）
+    setSharedDataStatusFromSummary(summary);
+    syncPublicProfileIfEnabled(getPlayerKeyPrefix());
     box.replaceChildren(...lines.map((text) => Object.assign(document.createElement("p"), { textContent: text })));
   } catch (error) {
     console.warn("データの状態を確かめられませんでした", error);
