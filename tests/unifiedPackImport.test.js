@@ -220,7 +220,7 @@ async function testA() {
   const { plan, result } = await run(pack, device);
   assertEqual([plan.ok, plan.counts.newSongs, plan.counts.lyricsUpdates, plan.counts.callUpdates, plan.counts.unchanged], [true, 2, 0, 0, 0], "A：空の端末では2曲とも新規追加");
   assertEqual(plan.counts.audioMissing, 2, "A：音源が無い曲を数える（音源は別のパックで）");
-  assertEqual(describeUnifiedPlan(plan).some((line) => line.startsWith("音源が無い曲：2曲（音源は別のパックで")), true, "A：確認画面に「音源が無い曲：2曲（音源は別のパックで）」");
+  assertEqual(describeUnifiedPlan(plan).some((line) => line.startsWith("この端末に音源が無い曲：2曲（このパックに音源は入っていません。音源は別のパックで")), true, "A：確認画面に「この端末に音源が無い曲：2曲（このパックに音源は入っていません。音源は別のパックで…）」（v400 の文言）");
   assertEqual([result.newSongs.length, result.errors.length], [2, 0], "A：結果は新規追加2曲・エラー0件");
   assertEqual([callsWork(device, S1), callsWork(device, S2)], [true, true], "A：歌詞とコールの組が合っている");
   assertEqual(describeUnifiedResult(result)[0], "新規追加 2曲／歌詞更新 0曲／コール更新 0曲／変更なし 0曲／エラー 0件", "A：結果の1行目");

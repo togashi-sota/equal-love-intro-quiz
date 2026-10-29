@@ -529,7 +529,7 @@ async function runHomeEntryWiringTests() {
   assertEqual(cardIds("home-card-music"), ["songlist", "lyrics-search", "continuous-play", "playlists", "favorites", "works"], "E: 楽曲：楽曲一覧・歌詞検索・曲を聴く・プレイリスト・お気に入り・シングル・アルバム");
   assertEqual(cardIds("home-card-know"), ["members-link", "centers", "anniversary-home-link", "tv-appearances-home-link", "commercials"], "E: ＝LOVE：メンバー・歴代センター・周年ヒストリー・音楽番組・CM・企業コラボ");
   assertEqual(cardIds("home-card-my"), ["history", "guides", "settings"], "E: マイページ：プレイ履歴・使い方ガイド・設定（フレンド・ランキング・実績・プロフィールは置かない）");
-  assertEqual([...home.querySelectorAll("#home-data-box [data-home-action]")].map((element) => element.dataset.homeAction), ["data-update", "data-transfer"], "E: データの箱：データを追加・更新／引き継ぎ・復旧");
+  assertEqual([...home.querySelectorAll("#home-data-box [data-home-action]")].map((element) => element.dataset.homeAction), ["data-update", "data-status", "data-transfer"], "E: データの箱：データを追加・更新／データの状態を確かめる（v403 で追加）／引き継ぎ・復旧");
   assertEqual(home.querySelector("#home-card-music .home-card-note")?.textContent, "曲の情報・歌詞は音源なしでも見られます", "E: 楽曲の一言");
   assertEqual(home.querySelector("#home-data-box .home-data-note")?.textContent, "音源・歌詞・コールはこの端末だけに保存。消えたときは入れ直しが必要です", "E: データの箱の一言");
   const usedActions = [...home.querySelectorAll("[data-home-action]")].map((element) => element.dataset.homeAction);
