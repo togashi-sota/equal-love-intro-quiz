@@ -144,6 +144,119 @@ export function addPlayer(playerName) {
   return newPlayer;
 }
 
+// ---------------------------------------------------------------------------
+// 【2026-10-29追加：プレイヤーの登録画面を分かりやすくする（本人の iPad での報告）】
+// 「＋追加」を押しても、打てているのか・登録されたのかが分からなかった。画面（js/playerScreen.js）が
+// 「名前が使えるか」「本当に保存できたか」を確かめてから閉じられるよう、確かめる関数を足す。
+// 保存の形（players 一覧の中身・キー）は今までと同じ。addPlayer()・renamePlayer() もそのまま残す。
+// ---------------------------------------------------------------------------
+export const PLAYER_NAME_MAX_LENGTH = 20; // 入力欄の maxlength と同じ
+
+// テスト用：players 一覧のキャッシュを捨てる（テストが保存場所を直接書き換えたあとに読み直させるため）
+export function clearPlayersCacheForTest() {
+  cachedPlayers = null;
+}
+
+// 名前の比べ方：前後の空白を除き、全角・半角と大文字・小文字の違いを同じとみなす
+//（「そうた」と「そうた 」、「ＡＢＣ」と「abc」を別の人として2人作ってしまわないため）
+export function normalizePlayerNameForCompare(name) {
+  return String(name ?? "").normalize("NFKC").trim().toLowerCase();
+}
+
+// 名前が使えるかを確かめる（純粋関数）。exceptPlayerId は名前を変える本人（自分の今の名前とは重複扱いにしない）。
+// 戻り値：{ ok:true, name } または { ok:false, reason:"empty"|"too-long"|"duplicate", message, duplicateOf? }
+export function validatePlayerName(rawName, players, { exceptPlayerId = null } = {}) {
+  const name = String(rawName ?? "").trim();
+  if (!name) return { ok: false, reason: "empty", message: "名前を入力してください。" };
+  if (name.length > PLAYER_NAME_MAX_LENGTH) {
+    return { ok: false, reason: "too-long", message: `名前は${PLAYER_NAME_MAX_LENGTH}文字までです（今は${name.length}文字）。` };
+  }
+  const key = normalizePlayerNameForCompare(name);
+  const duplicate = (players ?? []).find(
+    (player) => player.playerId !== exceptPlayerId && player.playerName && normalizePlayerNameForCompare(player.playerName) === key
+  );
+  if (duplicate) {
+    return {
+      ok: false,
+      reason: "duplicate",
+      duplicateOf: duplicate.playerId,
+      message: `「${duplicate.playerName}」はもう登録されています。上の一覧の名前を押すと、その人に切り替わります。`,
+    };
+  }
+  return { ok: true, name };
+}
+
+// 端末（localStorage）に本当に書けたかを、キャッシュではなく保存場所を直接読んで確かめる。
+// writePlayers() は保存に失敗しても例外を投げない（プライベートブラウズ等でもアプリを止めないため）ので、
+// 画面が「登録しました」と言う前にここで確かめる。
+function readStoredPlayersDirectly() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(PLAYERS_KEY) ?? "null");
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+export function isPlayerSavedToStorage(playerId, expectedName = null) {
+  const stored = readStoredPlayersDirectly();
+  const player = stored?.find((p) => p.playerId === playerId);
+  if (!player) return false;
+  return expectedName === null || player.playerName === expectedName;
+}
+
+function isActivePlayerIdSavedToStorage(playerId) {
+  try {
+    return localStorage.getItem(ACTIVE_PLAYER_ID_KEY) === playerId;
+  } catch {
+    return false;
+  }
+}
+
+// 新しいプレイヤーを登録して、使用中にする。名前を確かめる → 追加 → 保存を確かめる → 使用中にする → 保存を確かめる。
+// 保存できなかったときは、画面のキャッシュから取り消して { ok:false, reason:"save-failed" } を返す
+//（保存されていない人が一覧に見えたまま「登録できた」と思い込ませないため）。既存のプレイヤーは一切書き換えない。
+export function registerNewPlayer(rawName) {
+  const check = validatePlayerName(rawName, getPlayers());
+  if (!check.ok) return check;
+  const newPlayer = addPlayer(check.name);
+  if (!isPlayerSavedToStorage(newPlayer.playerId, check.name)) {
+    cachedPlayers = null; // 保存場所の中身（＝追加されていない一覧）を読み直させる
+    return { ok: false, reason: "save-failed", message: "この端末に保存できませんでした（空き容量・プライベートブラウズ等）。名前はそのまま残っています。" };
+  }
+  setActivePlayerId(newPlayer.playerId);
+  if (!isActivePlayerIdSavedToStorage(newPlayer.playerId)) {
+    // 登録はできたが「使用中」を保存できなかった。登録した人は残す（消すと二度手間になる）
+    return { ok: false, reason: "activate-failed", player: newPlayer, message: "登録はできましたが、使用中に切り替えられませんでした。一覧の名前を押してください。" };
+  }
+  return { ok: true, player: newPlayer };
+}
+
+// 既存のプレイヤーに切り替える（保存できたかも確かめる）。データは何も作らない・消さない。
+export function switchToPlayer(playerId) {
+  const player = getPlayers().find((p) => p.playerId === playerId);
+  if (!player) return { ok: false, reason: "not-found", message: "このプレイヤーが見つかりませんでした。" };
+  setActivePlayerId(playerId);
+  if (!isActivePlayerIdSavedToStorage(playerId)) {
+    return { ok: false, reason: "save-failed", message: "切り替えを保存できませんでした。もう一度押してください。" };
+  }
+  return { ok: true, player };
+}
+
+// 今のプレイヤーの名前だけを変える（新しいプレイヤーは作らない。playerId・記録はそのまま）。名前を確かめ、保存も確かめる。
+export function renamePlayerVerified(playerId, rawName) {
+  const players = getPlayers();
+  if (!players.some((p) => p.playerId === playerId)) return { ok: false, reason: "not-found", message: "このプレイヤーが見つかりませんでした。" };
+  const check = validatePlayerName(rawName, players, { exceptPlayerId: playerId });
+  if (!check.ok) return check;
+  renamePlayer(playerId, check.name);
+  if (!isPlayerSavedToStorage(playerId, check.name)) {
+    cachedPlayers = null;
+    return { ok: false, reason: "save-failed", message: "名前を保存できませんでした。もう一度試してください。" };
+  }
+  return { ok: true, name: check.name };
+}
+
 // 指定したプレイヤーの名前だけを変更する（プレイ履歴等のデータはそのまま維持する）。
 export function renamePlayer(playerId, newName) {
   const players = getPlayers();

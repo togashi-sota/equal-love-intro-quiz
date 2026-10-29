@@ -35,6 +35,7 @@ import {
   sortProfiles,
 } from "./fanProfileCard.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
+import { describeSharedDataStatus } from "./dataStatusShare.js";
 import { subscribeToAllPresence, getPresenceNowMs } from "./presenceSync.js";
 import { describePresenceDiagnostics } from "./presenceDiagnostics.js";
 import { sortProfilesByPresence, classifyPresenceEntry } from "./presencePayloads.js";
@@ -323,6 +324,20 @@ async function handleSharingToggleClick() {
 const ALL_ACHIEVEMENTS_TOGGLE_CLOSED_TEXT = "すべての称号を見る ＞";
 const ALL_ACHIEVEMENTS_TOGGLE_OPEN_TEXT = "すべての称号を隠す";
 
+// 【2026-10-29追加・本人の希望】「データ：音源 ○／84・歌詞 ○／83・コール ○曲」（数だけ。曲名は持っていない）
+function renderDetailDataStatus(profile) {
+  const textElement = document.getElementById("fan-profile-detail-data-status-text");
+  const detailElement = document.getElementById("fan-profile-detail-data-status-detail");
+  if (!textElement) return;
+  const { text, detail, hasRecord } = describeSharedDataStatus(profile.dataStatus ?? null);
+  textElement.textContent = text;
+  textElement.classList.toggle("is-empty", !hasRecord);
+  if (detailElement) {
+    detailElement.textContent = detail;
+    detailElement.hidden = !detail;
+  }
+}
+
 function openDetailModal(profile) {
   elements.detailName.textContent = profile.displayName;
   const oshiMember = profile.oshiMemberId ? getMemberById(members, profile.oshiMemberId) : null;
@@ -339,6 +354,7 @@ function openDetailModal(profile) {
   // 【2026-08-29再設計・本人指示】ランキング順位は載せず、称号の総数・代表称号（最大3個）に
   // 特化する。総数は代表表示の絞り込み（getRepresentativeAchievementCandidates）とは別に、
   // unlockedAchievementIdsをそのまま数えるため、代表表示から省略された下位称号も含まれる。
+  renderDetailDataStatus(profile);
   elements.detailAchievementCount.textContent = buildAchievementCountText(profile.unlockedAchievementIds);
   elements.detailSummary.innerHTML = "";
   elements.detailSummary.appendChild(buildFriendAchievementSummary(profile.unlockedAchievementIds));
@@ -353,6 +369,13 @@ function openDetailModal(profile) {
   elements.detailAllToggle.textContent = ALL_ACHIEVEMENTS_TOGGLE_CLOSED_TEXT;
 
   elements.detailOverlay.hidden = false;
+}
+
+// 【2026-10-29追加】詳しい画面を、渡したプロフィール（normalizePublicProfileEntry の形）で開く。
+// 画面の撮影・確認用（Firebase に繋がない確認では一覧が読めないため）。開き方は一覧のカードを押したときと同じ。
+export function openFanProfileDetailForPreview(profile) {
+  if (!elements || !profile) return;
+  openDetailModal(profile);
 }
 
 function closeDetailModal() {

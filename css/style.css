@@ -1207,6 +1207,12 @@ h1 .note-icon svg {
   flex-wrap: wrap;
 }
 
+/* 【2026-10-29追加】display:flex が [hidden] に勝ってしまい、「最新版データを読み込む」の「やめる／この内容で読み込む」が
+   ファイルを選ぶ前から・読み込みのあとも見えていた（js/unifiedPackImportUi.js は hidden を正しく付けていた）。 */
+.lyrics-warning-actions[hidden] {
+  display: none;
+}
+
 .lyrics-warning-actions .secondary-button {
   font-size: 0.72rem;
   padding: 8px;
@@ -8975,6 +8981,40 @@ body[data-screen="liveCallModePlayer"] .game-frame {
    ランキング順位は使わず、称号の総数・ランク感・代表称号（最大3個）だけで実力が
    一目で伝わるようにする。中身の組み立てはjs/fanProfileCard.jsが担当し、ここでは
    見た目だけを整える。 */
+/* 【2026-10-29追加】フレンドのデータの曲数（音源・歌詞・コール）。称号の数の上に1行で */
+.fan-profile-detail-data-status {
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(111, 189, 242, 0.14);
+  text-align: left;
+}
+
+.fan-profile-detail-data-status-text {
+  margin: 0;
+  font-size: 0.84rem;
+  font-weight: 800;
+  line-height: 1.5;
+  color: var(--color-text);
+}
+
+.fan-profile-detail-data-status-text.is-empty {
+  font-weight: 700;
+  opacity: 0.75;
+}
+
+.fan-profile-detail-data-status-detail {
+  margin: 2px 0 0;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--color-text);
+  opacity: 0.8;
+}
+
+.fan-profile-detail-data-status-detail[hidden] {
+  display: none;
+}
+
 .fan-profile-detail-achievement-count {
   margin: 0 0 10px;
   font-size: 0.92rem;
@@ -9500,32 +9540,275 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   background: rgba(201, 75, 75, 0.1);
 }
 
-.player-add-row {
-  display: flex;
-  gap: 8px;
-  margin-top: 4px;
-  padding-top: 14px;
-  border-top: 1px dashed var(--color-card-border);
+/* 【2026-10-29改訂・本人の iPad での報告】「どこで入力して、何がOKなのか分からない」。
+   「使う人を選ぶ」と「＋ 新しいプレイヤーを追加」を区画に分け、見出し・説明・名前の欄・幅のある登録ボタン・
+   理由（エラー）／結果の表示を縦に並べる。登録ボタンは .primary-button（幅いっぱい）を使う。 */
+.player-modal-section {
+  margin-top: 14px;
+  text-align: left;
 }
 
-.player-add-row input {
-  /* min-width:0がないと、狭い画面で入力欄が縮まずに「＋追加」ボタンの幅を圧迫し、
-     ボタンの文字が縦積みになってしまう不具合があったため追加（2026-08-04）。 */
-  flex: 1;
+.modal-card .player-modal-section-title {
+  margin: 0 0 2px;
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+}
+
+.player-modal-section-lead {
+  margin: 0;
+  font-size: 0.74rem;
+  line-height: 1.55;
+  color: var(--color-text);
+  opacity: 0.8;
+}
+
+.player-modal-section .player-list {
+  margin: 10px 0 0;
+}
+
+/* 白い枠（--color-card-border）は白いモーダルの上では見えず、使用中でない人が「押せる行」に見えなかった */
+.player-modal-section .player-row {
+  border-color: rgba(74, 46, 66, 0.18);
+}
+
+.player-modal-section .player-row.is-active {
+  border-color: var(--color-primary);
+}
+
+.player-unnamed-note {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: var(--color-accent-soft);
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1.55;
+  color: var(--color-text);
+}
+
+.player-unnamed-note[hidden] {
+  display: none;
+}
+
+.player-add-section {
+  margin-top: 16px;
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(255, 111, 168, 0.07);
+  border: 1.5px dashed rgba(255, 79, 150, 0.4);
+}
+
+.player-add-label {
+  display: block;
+  margin: 10px 0 4px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.player-add-input {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
   min-width: 0;
   font-family: inherit;
-  font-size: 0.82rem;
-  padding: 9px 12px;
-  border: 1.5px solid var(--color-card-border);
+  /* 16px 未満だと iPhone の Safari が入力のたびに画面を拡大してしまうため 1rem にする */
+  font-size: 1rem;
+  padding: 11px 14px;
+  border: 2px solid rgba(74, 46, 66, 0.28);
+  border-radius: 12px;
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.player-add-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(255, 111, 168, 0.25);
+}
+
+.player-add-input.is-invalid {
+  border-color: #c0392b;
+}
+
+.player-add-input:disabled {
+  opacity: 0.7;
+}
+
+/* 理由（エラー）と結果を、欄のすぐ下に出す。色だけに頼らず、文の先頭にも ✓ ／ 理由を書く */
+.player-add-message {
+  margin: 6px 0 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.player-add-message[hidden] {
+  display: none;
+}
+
+.player-add-message.is-error {
+  color: #b3261e;
+}
+
+.player-add-message.is-success {
+  color: #1e7b45;
+}
+
+.player-add-section .player-add-button {
+  margin-top: 10px;
+  padding: 12px;
+  font-size: 0.95rem;
+}
+
+.player-add-section .player-add-button:disabled {
+  cursor: default;
+  opacity: 1;
+  background: #2e9e5b;
+}
+
+/* 一覧の文字のボタン（✎ 名前を変える・保存・やめる）。丸い記号だけより、押すと何が起きるか分かるようにする */
+.player-row-text-button {
+  flex: none;
+  min-height: 36px;
+  padding: 6px 10px;
+  font-family: inherit;
+  font-size: 0.74rem;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+  color: var(--color-primary-dark);
+  background: rgba(255, 111, 168, 0.12);
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.player-row-text-button:active {
+  transform: scale(0.96);
+}
+
+.player-row-text-button.is-save {
+  color: #fff;
+  background: var(--color-primary-dark);
+}
+
+.player-row-text-button.is-cancel {
+  color: var(--color-text);
+  background: rgba(74, 46, 66, 0.08);
+}
+
+.player-row-text-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* 切り替えられる人の「切り替える」の印（使用中の印とは見た目を分ける） */
+.player-row-switch-tag {
+  flex: none;
+  font-size: 0.62rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  border: 1.5px solid rgba(255, 79, 150, 0.45);
+  padding: 1px 7px;
   border-radius: 999px;
 }
 
-/* 「＋追加」ボタン（.secondary-button）は他画面でも使う共通クラスなので、
-   ここでは横に並ぶ入力欄を圧迫しないよう、このボタンだけ幅を文字なりに固定し、
-   折り返しも禁止する（2026-08-04追加）。 */
-.player-add-row .secondary-button {
-  flex: none;
-  white-space: nowrap;
+.player-row-switch-button {
+  min-height: 40px;
+}
+
+.player-row-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.player-row-rename-hint {
+  margin: 0 4px;
+  font-size: 0.7rem;
+  line-height: 1.5;
+  color: var(--color-text);
+  opacity: 0.8;
+}
+
+.player-row.is-renaming .player-row-rename-input {
+  font-size: 1rem; /* iPhone の自動拡大を防ぐ */
+}
+
+/* スマホの幅では、名前・使用中の印を1段目、「✎ 名前を変える」「×」を2段目にする
+   （1段に並べると、390px で「（名前未設定）」が切れ、320px では名前が見えなくなっていた） */
+@media (max-width: 480px) {
+  .player-modal-section .player-row:not(.is-renaming) {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+
+  .player-modal-section .player-row:not(.is-renaming) .player-row-switch-button {
+    flex: 1 1 calc(100% - 40px);
+  }
+
+  .player-modal-section .player-row:not(.is-renaming) .player-row-text-button.is-rename {
+    margin-left: auto;
+  }
+}
+
+/* 狭い画面（320px 前後）では、名前の変更中の行を2段にする（欄が潰れて打てなくならないように） */
+@media (max-width: 360px) {
+  .player-row.is-renaming {
+    flex-wrap: wrap;
+  }
+
+  .player-row.is-renaming .player-row-rename-input {
+    flex-basis: calc(100% - 40px);
+  }
+
+  .player-row.is-renaming .player-row-text-button {
+    flex: 1;
+  }
+}
+
+/* 登録・切り替えのあと、閉じたホームの上に短く出す知らせ（js/playerScreen.js の showPlayerToast） */
+.player-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  z-index: 10000;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  padding: 10px 18px;
+  border-radius: 14px;
+  background: rgba(30, 110, 64, 0.94);
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 800;
+  line-height: 1.5;
+  text-align: center;
+  box-shadow: 0 10px 24px -10px rgba(0, 0, 0, 0.5);
+  animation: player-toast-in 0.22s ease-out;
+}
+
+.player-toast[hidden] {
+  display: none;
+}
+
+@keyframes player-toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 8px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .player-toast {
+    animation: none;
+  }
 }
 
 /* ===== プレイリスト一覧画面 =====

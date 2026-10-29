@@ -152,8 +152,19 @@ export async function runIdentityRulesWiringTests() {
   assertEqual(candidateBody.includes("localStorage.removeItem") || candidateBody.includes("removeRankingCandidate") || candidateBody.includes("clearRankingCandidate"), false, "sync: 送信結果によってローカルの候補（rankingCandidateBest）を消す処理は無い（失敗分は次の機会に再送信）");
 
   const profileSync = await fetchText("js/publicProfileSync.js");
-  assertEqual(profileSync.includes("const identityKey = await computeLeaderboardIdentityKey(getOrCreateBackupId(getActivePlayer().playerId));") && /if \(!identityKey\) \{[^}]*return false;/.test(profileSync), true, "publicProfileSync: 本人キーを付けて公開、作れなければ公開しない");
-  assertEqual(profileSync.includes("buildPublicProfilePayload({ ...collectCurrentProfileMaterials(), identityKey })"), true, "publicProfileSync: payload に identityKey を渡す");
+  // 【2026-10-29】同期を始めた人（startedPlayerId）の本人キー・材料を使う形に変わった（待つ間の切り替えで混ざらないため）。確かめる中身は同じ
+  assertEqual(
+    profileSync.includes("const startedPlayerId = getActivePlayer().playerId;") &&
+      profileSync.includes("const identityKey = await computeLeaderboardIdentityKey(getOrCreateBackupId(startedPlayerId));") &&
+      /if \(!identityKey\) \{[^}]*return false;/.test(profileSync),
+    true,
+    "publicProfileSync: 本人キーを付けて公開、作れなければ公開しない"
+  );
+  assertEqual(
+    profileSync.includes("const materials = collectCurrentProfileMaterials();") && profileSync.includes("buildPublicProfilePayload({ ...materials, identityKey, dataStatus })"),
+    true,
+    "publicProfileSync: payload に identityKey を渡す"
+  );
 
   const supersession = await fetchText("js/uidSupersession.js");
   assertEqual(supersession.includes("const copied = { ...buildCopiedLeaderboardEntry(oldEntry, { displayName, oshiMemberId }), identityKey };"), true, "uidSupersession: 自動引き継ぎの複製にも identityKey を付ける（新規記録の Rules を満たす）");
