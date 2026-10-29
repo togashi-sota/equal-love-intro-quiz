@@ -43,6 +43,19 @@ export function isZipFile(file) {
   return /\.zip$/i.test(file.name);
 }
 
+// 【2026-10-29追加】ファイル名に .zip が付いていなくても（iPhone で受け取ったときに名前が変わる・種類の情報が無いなど）、
+// 中身の先頭が ZIP の印（PK）ならZIPとみなす。名前で .zip と分かるものはそのまま true
+export async function looksLikeZipFile(file) {
+  if (!file) return false;
+  if (isZipFile(file) || /zip/i.test(file.type ?? "")) return true;
+  try {
+    const head = new Uint8Array(await file.slice(0, 4).arrayBuffer());
+    return head[0] === 0x50 && head[1] === 0x4b && head[2] === 0x03 && head[3] === 0x04;
+  } catch {
+    return false;
+  }
+}
+
 // ZIPファイル（1個のFile）を展開し、中に入っていたファイルをFile[]として返す。
 // 既存のanalyzeDataPack()にそのまま渡せる形にするのが目的なので、ディレクトリ構造は捨て、
 // ベースファイル名だけを使う（このプロジェクトのパックはフラット構成のため）。

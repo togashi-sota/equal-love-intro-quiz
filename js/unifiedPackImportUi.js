@@ -1,7 +1,7 @@
 // データ管理の「最新版データを読み込む」の画面部分（2026-10-30新設）。
 // 判断と書き込みは js/unifiedPackImport.js。ここは「選ぶ → 中身を確かめて見せる → 本人が押したら入れる → 結果」と、
 // 曲ごとの「元に戻す」の一覧だけ。今の「追加データパック」「完成版コールデータを読み込む」はそのまま残す。
-import { isZipFile, extractZipToFiles } from "./zipPackImport.js";
+import { isZipFile, looksLikeZipFile, extractZipToFiles } from "./zipPackImport.js";
 import {
   readUnifiedPackFiles,
   loadUnifiedDeviceState,
@@ -49,7 +49,7 @@ async function handleFiles(fileList) {
   showLines(elements.summary, ["中身を確かめています…（まだ何も変えていません）"]);
   try {
     let files = [...fileList];
-    if (files.length === 1 && isZipFile(files[0])) files = await extractZipToFiles(files[0]);
+    if (files.length === 1 && (isZipFile(files[0]) || (await looksLikeZipFile(files[0])))) files = await extractZipToFiles(files[0]);
     const parsed = await readUnifiedPackFiles(files);
     const plan = await analyse(parsed);
     showLines(elements.summary, describeUnifiedPlan(plan), { error: !plan.ok });

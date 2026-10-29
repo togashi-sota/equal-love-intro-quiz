@@ -283,7 +283,7 @@ import {
 // 実際の解析・保存処理はjs/dataPackImport.jsに集約されており、ここでは結果を見て
 // 画面表示を更新するだけ（既存の音源・歌詞・コールの各インポートUIと同じ役割分担）。
 import { analyzeDataPack, importAnalyzedDataPack, PACK_KIND } from "./dataPackImport.js";
-import { isZipFile, extractZipToFiles } from "./zipPackImport.js";
+import { isZipFile, looksLikeZipFile, extractZipToFiles } from "./zipPackImport.js";
 import { closeFullscreenLyrics } from "./lyricsFullscreen.js";
 import { initScrollLock, hasVisibleOverlay } from "./scrollLock.js";
 import { MEMBERS, MEMBER_STATUS } from "./data/members.js";
@@ -7705,8 +7705,31 @@ resetDataPackImportStatus();
 // analyzeDataPack()に任せ、問題なければimportAnalyzedDataPack()で実際に保存する。
 // マニフェストが見つからない・壊れているなど、パックとして成立しない場合は
 // 一切保存を行わずエラーを表示する（本人指示：不正なパックを読み込んでも既存データが壊れない）。
+// 【2026-10-29追加】ZIP を何個かまとめて選んだとき（分けて配ったパックなど）は、1個ずつ順番に読み込み、結果をまとめて出す。
+// ファイル名に .zip が無くても、中身が ZIP なら ZIP として扱う（iPhone で受け取ったファイル向け）
 dataPackImportInputElement.addEventListener("change", async () => {
-  let files = [...dataPackImportInputElement.files];
+  const picked = [...dataPackImportInputElement.files];
+  if (picked.length === 0) return;
+  const zipFlags = await Promise.all(picked.map((file) => looksLikeZipFile(file)));
+  const zips = picked.filter((_, index) => zipFlags[index]);
+  if (zips.length >= 2) {
+    const texts = [];
+    for (const [index, zip] of zips.entries()) {
+      dataPackImportStatusElement.textContent = `パックを読み込んでいます…（${index + 1}／${zips.length}）`;
+      await importDataPackSelection([zip], { isZip: true });
+      texts.push(`【${index + 1}／${zips.length}：${zip.name}】\n${dataPackImportResultElement.textContent}`);
+    }
+    resetDataPackImportStatus();
+    dataPackImportResultElement.hidden = false;
+    dataPackImportResultElement.textContent = texts.join("\n\n");
+    dataPackImportInputElement.value = "";
+    return;
+  }
+  await importDataPackSelection(picked, { isZip: picked.length === 1 && zipFlags[0] });
+});
+
+async function importDataPackSelection(selectedFiles, { isZip = false } = {}) {
+  let files = [...selectedFiles];
   if (files.length === 0) return;
 
   dataPackImportResultElement.hidden = true;
@@ -7716,7 +7739,7 @@ dataPackImportInputElement.addEventListener("change", async () => {
   // ちょうど1個で、それがZIPファイルだった場合だけ展開し、中身のFile[]を以降の解析へ渡す。
   // 従来どおりの複数ファイル選択（manifest.json＋mp3…を直接選ぶ方式）は、この分岐を
   // 一切通らないため、既存の動作に影響しない。
-  if (files.length === 1 && isZipFile(files[0])) {
+  if (files.length === 1 && (isZip || isZipFile(files[0]))) {
     try {
       files = await extractZipToFiles(files[0]);
     } catch (error) {
@@ -7881,7 +7904,7 @@ dataPackImportInputElement.addEventListener("change", async () => {
   // 新曲追加のお知らせバナーが表示中で、かつ今回のインポートで対象曲の音源が揃った場合は、
   // ボタンを押さなくても自動的に閉じる（本人指示・項目8）。
   await recheckNewSingleAnnouncementAfterImport(newSingleAnnouncementElements);
-});
+}
 
 // 音源の読み込み状況（IndexedDBに何曲保存済みか）を表示に反映する。
 // SONGSの曲数と突き合わせ、未読み込みの曲があれば件数を案内する。
