@@ -16,8 +16,8 @@ import { renderCallTextView } from "./callTextView.js";
 import { hashText } from "./callTextEdits.js";
 import { buildReleasedCallSheet, computeModeAvailability, activeCallKeysAt, buildFollowSong, classifyReleasedCalls, SHEET_STATE } from "./liveCallData.js";
 import { createRunner, panelState } from "./callFollow.js";
-import { stateAt } from "./callEffects.js";
-import { decorateCallSpan, applyCallState } from "./callEffectsRenderer.js";
+import { prepareVisual, visualStateAt, ambientAt } from "./callEffects.js";
+import { decorateCallSpan, applyVisualState } from "./callEffectsRenderer.js";
 import { loadLyricsForSong, destroyLyricsSync } from "./lyricsSync.js";
 import { registerPlaybackStopper, notifyPlaybackStarting } from "./playbackCoordinator.js";
 import { normalizeForSearch, songMatchesSearch } from "./songSearch.js";
@@ -415,11 +415,20 @@ async function openSong(songId) {
 }
 let pendingPreferredOpen = false; // 一覧から押した直後だけ、選んである遊び方を直接開く
 
-function modeCard({ id, title, description, availability, onOpen, preview }) {
+function modeCard({ id, title, description, availability, onOpen }) {
   const card = el("div", `lc-mode-card is-${id}${availability.ok ? "" : " is-unavailable"}`);
   const previewBox = el("div", `lc-mode-preview is-${id}`);
-  previewBox.setAttribute("aria-hidden", "true");
-  preview(previewBox);
+  const preview = LIVE_CALL_MODE_PREVIEWS[id];
+  if (preview) {
+    const img = el("img", "lc-mode-preview-image");
+    img.src = preview.src;
+    img.alt = preview.alt;
+    img.width = PREVIEW_IMAGE_SIZE.width;
+    img.height = PREVIEW_IMAGE_SIZE.height;
+    img.loading = "lazy";
+    img.decoding = "async";
+    previewBox.appendChild(img);
+  }
   card.appendChild(previewBox);
   const body = el("div", "lc-mode-body");
   body.appendChild(el("h3", "lc-mode-title", title));
@@ -436,14 +445,15 @@ function modeCard({ id, title, description, availability, onOpen, preview }) {
   return card;
 }
 
-// カードの小さな見本（CSS だけ。本物の歌詞・コールは使わない）
-function previewLines(box, rows) {
-  rows.forEach(([kind, width]) => {
-    const bar = el("span", `lc-preview-bar is-${kind}`);
-    bar.style.width = `${width}%`;
-    box.appendChild(bar);
-  });
-}
+// カードの見本の画像（2026-10-30 第2版）。本物のアプリの画面（コール表・ライブコール・カラオケの部品と CSS）を、
+// ダミーの文字（「〜〜歌詞〜〜〜」「Hey！」「○○ちゃーん！」など。本物の歌詞・コールではない）で描いて撮ったもの。
+// 作り直し：renewal-notes/livecall-visuals/capture_previews.py（Git に入れない）。表示は 140×112（画像は2倍の 280×224）
+export const PREVIEW_IMAGE_SIZE = { width: 280, height: 224 };
+export const LIVE_CALL_MODE_PREVIEWS = {
+  sheet: { src: "./assets/images/live-call-previews/sheet.webp", alt: "コール表の見本：黒い歌詞の行と赤いコール、【間奏】の見出し（文字はダミー）" },
+  live: { src: "./assets/images/live-call-previews/live.webp", alt: "ライブコールの見本：いま／つぎ の表示と、光っている長いコールの進み具合のバー（文字はダミー）" },
+  karaoke: { src: "./assets/images/live-call-previews/karaoke.webp", alt: "カラオケの見本：NEXT CALL のカード・あと何秒・歌詞の行（文字はダミー）" },
+};
 
 async function renderSongPage() {
   const songId = currentSongId;
@@ -500,7 +510,6 @@ async function renderSongPage() {
       description: "歌詞（黒）とコール（赤）を1枚の表で読む。自分のペースでスクロール。",
       availability: short(avail.sheet),
       onOpen: () => show("sheet"),
-      preview: (box) => previewLines(box, [["call", 34], ["lyric", 86], ["lyric", 70], ["call", 52], ["lyric", 78]]),
     }),
   );
   cards.appendChild(
@@ -510,7 +519,6 @@ async function renderSongPage() {
       description: "音源に合わせて、言うタイミングのコールが光る。画面はコールを中心に自動で進む。",
       availability: short(avail.live),
       onOpen: () => show("live"),
-      preview: (box) => previewLines(box, [["lyric", 80], ["call-lit", 46], ["lyric", 72], ["call", 30]]),
     }),
   );
   cards.appendChild(
@@ -521,7 +529,6 @@ async function renderSongPage() {
       availability: avail.karaoke,
       // 【2026-10-29 本人の希望】前の「カラオケ同期」と同じ画面（NEXT CALL・あと○秒・タイミング調整）を、本人の完成版のコールで開く
       onOpen: () => (callbacks.openKaraokeWithCalls ? callbacks.openKaraokeWithCalls(currentSongId, songData?.sheet?.calls ?? []) : show("karaoke")),
-      preview: (box) => previewLines(box, [["lyric", 76], ["lyric-lit", 88], ["lyric", 64], ["lyric", 80]]),
     }),
   );
   page.appendChild(cards);
@@ -701,13 +708,29 @@ function renderLiveMode() {
   playError.hidden = true;
   player.append(back, play, seek, time);
 
-  root.append(toolbar, panel, stage, resume, player, playError);
+  // 舞台の背景の光（ふちだけ、ピンクでうっすら。文字の上には色を重ねない）。舞台はスクロールするので、外側の枠に重ねる
+  const stageFrame = el("div", "lc-stage-frame");
+  const ambient = el("span", "lc-stage-ambient");
+  ambient.setAttribute("aria-hidden", "true");
+  stageFrame.append(stage, ambient);
+
+  root.append(toolbar, panel, stageFrame, resume, player, playError);
 
   // 演出の下ごしらえ（読み込んだときに1回だけ）。分類の優先順位は js/liveCallData.js の classifyReleasedCalls
   // 【2026-10-29 本人の指示】コールは全部「ふつう」の同じ光り方にする（MIX の目安の区切り・掛け声のポップなどの自動の分類はしない）。
   // 本人が決めた開始〜終了の間、そのコール全体が光る。区切りは本人がタイミングで分けた所だけ
   const preps = classifyReleasedCalls(sheet.calls.map((call) => call), Object.fromEntries((sheet.calls ?? []).map((call) => [call.key, { type: "normal" }])), hashText);
-  const fx = preps.map((prep) => (callSpans.get(prep.key) ? decorateCallSpan(callSpans.get(prep.key), prep, { memberColorOf }) : null)).filter(Boolean);
+  // 【2026-10-30 第2版】見た目の味付けだけ、短い／長い／ふつうに分ける（js/callEffects.js の classifyVisualKind）。
+  // 区切り・1語ずつの光り方はしない。時刻（開始〜終了）はそのまま
+  const callByKey = new Map(sheet.calls.map((call) => [call.key, call]));
+  const fx = preps
+    .map((prep) => {
+      const span = callSpans.get(prep.key);
+      if (!span) return null;
+      prep.vis = prepareVisual(callByKey.get(prep.key) ?? prep, { hasBreak: span.classList.contains("has-break") });
+      return decorateCallSpan(span, prep, { memberColorOf });
+    })
+    .filter(Boolean);
   // 時刻の無いコール（今の完成版には無い）は光らせない
   const followSong = buildFollowSong({ layout: sheet.layout, calls: sheet.calls, lines: songData.lyricsRecord?.lines ?? [], duration: null });
 
@@ -717,6 +740,8 @@ function renderLiveMode() {
     callSpans,
     lineEls,
     fx,
+    ambient,
+    ambientLast: -1,
     followSong,
     runner: null,
     geom: null,
@@ -785,6 +810,8 @@ function renderLiveMode() {
 function remeasure() {
   if (!live) return;
   const { stage, followSong } = live;
+  // 光っているコールの拡大・浮き（transform）を外してから測る（測った位置が 1〜2px ずれないように）
+  stage.classList.add("is-measuring");
   const stageRect = stage.getBoundingClientRect();
   const items = {};
   const put = (id, node) => {
@@ -803,6 +830,7 @@ function remeasure() {
       .filter((row) => row.kind === "block" || items[row.id])
       .map((row) => (row.kind === "block" ? { ...row, calls: row.calls.filter((id) => items[id]) } : { ...row, before: row.before.filter((id) => items[id]), inlineStart: row.inlineStart.filter((id) => items[id]), inline: row.inline.filter((id) => items[id]), after: row.after.filter((id) => items[id]) })),
   };
+  stage.classList.remove("is-measuring");
   live.geom = { items, contentH: stage.scrollHeight };
   live.viewH = stage.clientHeight;
   live.runner = createRunner("callFirst", song, live.geom, live.viewH, { variant: "combo", mobile: true });
@@ -862,9 +890,20 @@ function renderFrame({ dt = 0, force = false } = {}) {
   for (const key of live.litKeys) if (!lit.has(key)) live.callSpans.get(key)?.classList.remove("is-lit");
   for (const key of lit) if (!live.litKeys.has(key)) live.callSpans.get(key)?.classList.add("is-lit");
   live.litKeys = lit;
-  // 演出
+  // 演出（見た目はすべて t だけから計算。js/callEffects.js の visualStateAt）
   const opts = effectOptions();
-  for (const c of live.fx) applyCallState(c, stateAt(c.prep, t, opts), t);
+  const states = [];
+  for (const c of live.fx) {
+    const v = visualStateAt(c.prep.vis, t, opts);
+    applyVisualState(c, v, t);
+    if (v.phase === "active" || v.phase === "post") states.push(v);
+  }
+  // 舞台の背景の光：値が変わったときだけ書く
+  const ambientValue = ambientAt(states, opts.reduced ? "low" : opts.intensity);
+  if (ambientValue !== live.ambientLast) {
+    live.ambient.style.opacity = String(ambientValue);
+    live.ambientLast = ambientValue;
+  }
   // スクロール（案D）。手で止めている間は動かさない（光る・パネルは続ける）
   if (live.runner) {
     const seeked = live.seekedPending;

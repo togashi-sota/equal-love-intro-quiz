@@ -76,7 +76,15 @@ export function decorateCallSpan(span, prep, { memberColorOf = () => "#ffb3d1" }
     parts.build = root.insertBefore(el("span", "cx-build"), parts.text);
     parts.build.setAttribute("aria-hidden", "true");
   }
-  if (prep.type === "mix" || prep.isLong) {
+  // 新しいライブコールの見た目（prep.vis。js/callEffects.js の prepareVisual）：外側の光・次の知らせの枠を足す
+  if (prep.vis) {
+    root.classList.add(`cx-v-${prep.vis.kind}`);
+    parts.glow = root.insertBefore(el("span", "cx-glow"), parts.plate);
+    parts.glow.setAttribute("aria-hidden", "true");
+    parts.cue = root.insertBefore(el("span", "cx-cue"), parts.plate);
+    parts.cue.setAttribute("aria-hidden", "true");
+  }
+  if (prep.type === "mix" || prep.isLong || prep.vis?.kind === "long") {
     const bar = root.appendChild(el("span", "cx-bar"));
     bar.setAttribute("aria-hidden", "true");
     parts.bar = bar;
@@ -185,5 +193,32 @@ export function applyCallState(c, s, t) {
       setStyle(c, h, "opacity", hs ? String(r3(hs.o)) : "0");
       setStyle(c, h, "transform", hs && hs.o > 0 ? `translateY(${r3(hs.y)}px) scale(${r3(hs.s)})` : "none");
     });
+  }
+}
+
+// 新しいライブコールの見た目（js/callEffects.js の visualStateAt の結果 v）を部品に反映する（2026-10-30 第2版）。
+// 動かすのは transform・opacity だけ（文字の位置・行の折り返しが変わらない＝レイアウトがずれない）。
+// 値が前と同じなら書き込まない。t：いまの再生位置（終わったコールを少し薄くするのに使う）
+export function applyVisualState(c, v, t) {
+  const { parts, el: root, last } = c;
+  if (v.phase !== last.phase) {
+    root.classList.toggle("is-cue", v.phase === "pre"); // 「is-pre」は使わない（コール表の「改行をそのまま見せる」の印と同じ名前のため）
+    root.classList.toggle("is-active", v.phase === "active");
+    root.classList.toggle("is-post", v.phase === "post");
+    root.classList.toggle("is-on", v.phase === "active" || v.phase === "post");
+    last.phase = v.phase;
+  }
+  const done = v.phase === "idle" && t >= c.prep.end;
+  if (last.done !== done) {
+    root.classList.toggle("is-done", done);
+    last.done = done;
+  }
+  setStyle(c, root, "transform", v.liftY || v.scale !== 1 ? `translateY(${r3(v.liftY)}px) scale(${r3(v.scale)})` : "");
+  setStyle(c, parts.plate, "opacity", String(r3(v.plateO)));
+  setStyle(c, parts.glow, "opacity", String(r3(v.glowO)));
+  setStyle(c, parts.cue, "opacity", String(r3(v.cueO)));
+  if (parts.bar) {
+    setStyle(c, parts.bar, "opacity", String(r3(v.barO)));
+    setStyle(c, parts.barFill, "transform", `scaleX(${r3(v.barP)})`);
   }
 }

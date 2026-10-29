@@ -294,50 +294,43 @@
 }
 .lc-mode-card {
   display: grid;
-  grid-template-columns: 84px 1fr;
+  grid-template-columns: 120px minmax(0, 1fr);
   gap: 12px;
   padding: 12px;
   border: 1px solid #f6d3e0;
   border-radius: 18px;
   background: #fff;
 }
+@media (min-width: 480px) {
+  .lc-mode-card {
+    grid-template-columns: 140px minmax(0, 1fr);
+  }
+}
 .lc-mode-card.is-unavailable .lc-mode-preview {
   opacity: 0.45;
 }
+/* 【2026-10-30 第2版】見本は本物の画面を撮った画像（文字はダミー）。角丸・細い枠・やわらかい影 */
+.lc-mode-preview {
+  align-self: start;
+}
+.lc-mode-preview-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 5 / 4;
+  border: 1px solid #f3c6d8;
+  border-radius: 12px;
+  background: #fff8fb;
+  box-shadow: 0 3px 10px -4px rgba(150, 30, 90, 0.28);
+}
+/* 幅の狭い画面（320px など）：見本を上、説明を下にして、説明の文字が細切れにならないように */
 @media (max-width: 359px) {
   .lc-mode-card {
     grid-template-columns: 1fr;
   }
   .lc-mode-preview {
-    max-width: 120px;
+    width: min(100%, 168px);
   }
-}
-.lc-mode-preview {
-  display: grid;
-  align-content: center;
-  gap: 6px;
-  min-height: 84px;
-  padding: 8px;
-  border-radius: 12px;
-  background: #fff8fb;
-}
-.lc-preview-bar {
-  display: block;
-  height: 7px;
-  border-radius: 4px;
-  background: #3d3238;
-}
-.lc-preview-bar.is-call {
-  background: var(--lc-call);
-}
-.lc-preview-bar.is-call-lit {
-  height: 11px;
-  background: var(--lc-call);
-  box-shadow: 0 0 0 3px #ffc24d;
-}
-.lc-preview-bar.is-lyric-lit {
-  height: 10px;
-  background: var(--lc-pink-dark);
 }
 .lc-mode-body {
   display: grid;
@@ -913,4 +906,64 @@ body[data-screen="liveCall"] .game-frame {
 .lc-stage .call-text-calls .cx-call.has-break,
 .lc-stage .cx-call.has-break {
   display: block;
+}
+
+/* 【2026-10-30 第2版】新しいライブコールの光り方（js/callEffects.js の visualStateAt・js/callEffectsRenderer.js の applyVisualState）。
+   動きは transform・opacity だけ（毎フレーム、値が変わったときだけ JS が書く）。@keyframes・無限アニメーションは使わない。
+   ・今ここ：黄色い板＋外側のピンク・金の光（.cx-glow）。文字は濃い赤（板の上でコントラスト 7 以上）
+   ・次の知らせ：始まる 1.5 秒前から、うっすらピンクの枠（.cx-cue。濃さは最大 0.4。中は塗らない）
+   ・長いコール：全体が光る＋下に細い進み具合のバー1本（区切り・1語ずつの光り方はしない） */
+.lc-stage .cx-call {
+  transform-origin: 50% 60%;
+}
+.lc-stage .cx-call.is-active,
+.lc-stage .cx-call.is-post {
+  z-index: 1;
+}
+.lc-stage .cx-glow,
+.lc-stage .cx-cue {
+  position: absolute;
+  border-radius: 9px;
+  opacity: 0;
+  pointer-events: none;
+}
+.lc-stage .cx-glow {
+  inset: -2px -3px;
+  box-shadow:
+    0 0 0 2px #ffc24d,
+    0 0 12px 3px rgba(255, 111, 168, 0.5),
+    0 0 22px 6px rgba(255, 194, 77, 0.25);
+}
+.lc-stage .cx-cue {
+  inset: -1px -2px;
+  box-shadow: inset 0 0 0 2px var(--lc-pink);
+}
+.lc-stage .cx-call.cx-v-long {
+  padding-bottom: 7px;
+}
+.lc-stage .cx-v-long .cx-bar {
+  height: 3px;
+}
+/* 位置を測るときだけ、拡大・浮きを外す（js/liveCallScreen.js の remeasure） */
+.lc-stage.is-measuring .cx-call {
+  transform: none !important;
+}
+/* 舞台の背景の光（ふちだけ。文字の上には色を重ねない） */
+.lc-stage-frame {
+  position: relative;
+}
+.lc-stage-ambient {
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+  opacity: 0;
+  pointer-events: none;
+  box-shadow:
+    0 0 18px 2px rgba(255, 111, 168, 0.32),
+    inset 0 0 0 2px rgba(255, 111, 168, 0.28);
+}
+.lc-stage.intensity-off .cx-glow,
+.lc-stage.intensity-off .cx-cue,
+.lc-stage-frame:has(.intensity-off) .lc-stage-ambient {
+  display: none;
 }

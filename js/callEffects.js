@@ -502,3 +502,120 @@ export function summarizeState(s) {
   const r = (v) => Math.round(v * 1000) / 1000;
   return [s.phase, r(s.p), r(s.plateO), r(s.plateS), r(s.textS), r(s.textY), r(s.barP), s.group, r(s.groupPop), r(s.nameS), r(s.prefixFill), s.hearts.map((h) => r(h.o)).join("/"), s.popLevel, s.beatIndex, r(s.sweep), s.ticks.map((x) => r(x.o)).join("/")].join("|");
 }
+
+// ===== 新しいライブコールの「見た目の種類」（2026-10-30 第2版。見た目だけに使う） =====
+// 【本人の決まり（2026-10-29）】コールは本人の開始〜終了の間、コール全体が光る。時刻は変えない・自動で区切らない・
+//   1語ずつ光らせない・「MIX・進み方は目安」の札は出さない。ここで決めるのは「光り方の味付け」だけ。
+// 分け方は控えめ（迷ったら normal）：
+//   long  ：4秒以上光る、または改行のある長いコール（has-break）→ 全体が光り、下に細い進み具合のバーを1本
+//   short ：1.2秒以下、または確定の短い掛け声（js/shoutWords.js）で 2.5秒以下 → 始まりに小さく「ポン」
+//   normal：それ以外 → やわらかい光・少し浮く・時刻から計算するゆっくりした呼吸
+// long を先に見る：改行のある塊を 1.15 倍に膨らませると、まわりの行に大きくかぶるため
+export const VISUAL_KINDS = { SHORT: "short", LONG: "long", NORMAL: "normal" };
+export const VIS_SHORT_MAX_SEC = 1.2;
+export const VIS_SHORT_WORD_MAX_SEC = 2.5;
+export const VIS_LONG_MIN_SEC = 4.0;
+export const VIS_POP_SEC = 0.28; // 短いコールの「ポン」（1.15 倍 → 1.0 倍）の長さ
+export const VIS_POP_SCALE = 0.15;
+export const VIS_FADE_SEC = 0.45; // 終わったあと静かに消える長さ（時刻は変えない。見た目の余韻だけ）
+export const VIS_PULSE_SEC = 1.6; // ふつうのコールの呼吸の周期（1秒に1回より遅い）
+export const ANTICIPATE_SEC = 1.5; // 始まる前に「次はここ」とうっすら知らせる長さ
+export const ANTICIPATE_MAX = 0.4; // 知らせの濃さの上限（控えめ）
+
+export function classifyVisualKind({ text, start, end, hasBreak = false } = {}) {
+  const d = Number(end) - Number(start);
+  if (!Number.isFinite(d)) return VISUAL_KINDS.NORMAL;
+  if (d >= VIS_LONG_MIN_SEC || hasBreak) return VISUAL_KINDS.LONG;
+  if (d <= VIS_SHORT_MAX_SEC) return VISUAL_KINDS.SHORT;
+  if (d <= VIS_SHORT_WORD_MAX_SEC && classifyShoutText(String(text ?? "")).status === "sure") return VISUAL_KINDS.SHORT;
+  return VISUAL_KINDS.NORMAL;
+}
+
+// 1つのコールの見た目の下ごしらえ（読み込んだときに1回だけ）。start・end は本人の時刻そのもの（書き換えない）
+export function prepareVisual(call, { hasBreak = false } = {}) {
+  const start = Number(call.start);
+  const end = Number(call.end);
+  return { key: call.key, start, end, d: Math.max(0, end - start), kind: classifyVisualKind({ text: call.text, start, end, hasBreak }) };
+}
+
+const VIS_IDLE = Object.freeze({ phase: "idle", p: 0, plateO: 0, glowO: 0, cueO: 0, scale: 1, liftY: 0, barO: 0, barP: 0, ambient: 0 });
+const easeOut = (u) => 1 - (1 - u) * (1 - u);
+
+// いまの時刻 t（秒）での見た目。同じ t なら必ず同じ結果（一時停止・シーク・ループに強い）。
+// opts：{ intensity: "std"|"low"|"off", reduced: 端末の「視差効果を減らす」 }
+// 戻り値：phase（idle／pre＝始まる前の知らせ／active＝光っている間／post＝消えていく余韻）と、
+//   plateO（今ここの板）・glowO（外側の光）・cueO（次の知らせの枠）・scale・liftY（px）・barO・barP（長いコールの進み具合）・ambient（舞台の背景の光）
+export function visualStateAt(vis, t, opts = {}) {
+  const I = INTENSITIES[opts.intensity] ?? INTENSITIES.std;
+  const off = I.id === "off";
+  const reduced = Boolean(opts.reduced);
+  const k = reduced ? 0 : I.motion; // 動き（拡大・浮き）の倍率
+  const pulseAmp = off || reduced ? 0 : I.id === "low" ? 0.08 : 0.18; // 呼吸の幅（光の濃さだけ。視差効果を減らす設定では止める）
+  const { start, end, d, kind } = vis;
+  if (!Number.isFinite(t) || !Number.isFinite(start) || !Number.isFinite(end)) return VIS_IDLE;
+  const cueLen = off ? 0 : ANTICIPATE_SEC;
+  const fade = off ? 0 : VIS_FADE_SEC;
+  if (t < start - cueLen || t >= end + fade) return VIS_IDLE;
+  if (t < start) {
+    // 始まる前：うっすら枠を出す（0 → 最大 0.4）。動かさない
+    const q = smoothstep(start - cueLen, start, t);
+    const cueMax = I.id === "low" ? ANTICIPATE_MAX * 0.7 : ANTICIPATE_MAX;
+    return { ...VIS_IDLE, phase: "pre", cueO: Math.round(cueMax * q * 1000) / 1000 };
+  }
+  const tau = t - start;
+  const s = { ...VIS_IDLE, phase: "active", p: d > 0 ? clamp(tau / d, 0, 1) : 1 };
+  if (t < end) {
+    s.plateO = 1;
+    if (kind === VISUAL_KINDS.SHORT) {
+      // 「ポン」：1.15 倍から 1.0 倍へ素早く戻る＋光がぱっと強くなってから落ち着く
+      const u = clamp(tau / VIS_POP_SEC, 0, 1);
+      s.scale = 1 + VIS_POP_SCALE * k * (1 - easeOut(u));
+      s.glowO = off ? 0 : 0.7 + 0.3 * (1 - u);
+      s.ambient = off ? 0 : 0.55 + 0.25 * (1 - u) * (reduced ? 0 : 1);
+    } else if (kind === VISUAL_KINDS.LONG) {
+      // 全体が光る＋進み具合のバー（バーは演出オフでも出す：どこまで進んだかの情報なので）。大きな塊は膨らませない
+      const rise = clamp(tau / 0.15, 0, 1);
+      const breath = 0.5 - 0.5 * Math.cos((2 * Math.PI * tau) / VIS_PULSE_SEC);
+      s.liftY = -1 * k * rise;
+      s.glowO = off ? 0 : 0.8 - pulseAmp * 0.5 + pulseAmp * 0.5 * breath;
+      s.barO = 1;
+      s.barP = s.p;
+      s.ambient = off ? 0 : 0.5 + (pulseAmp * breath) / 2;
+    } else {
+      // ふつう：やわらかい光・少し浮く・ゆっくり呼吸（すべて tau から計算）
+      const rise = clamp(tau / 0.15, 0, 1);
+      const breath = 0.5 - 0.5 * Math.cos((2 * Math.PI * tau) / VIS_PULSE_SEC);
+      s.liftY = -1.5 * k * rise;
+      s.scale = 1 + 0.03 * k * rise;
+      s.glowO = off ? 0 : 0.75 - pulseAmp * 0.5 + pulseAmp * breath;
+      s.ambient = off ? 0 : 0.45 + (pulseAmp * breath) / 2;
+    }
+  } else {
+    // 余韻：静かに消える（揺らさない）
+    s.phase = "post";
+    s.p = 1;
+    const q = 1 - smoothstep(0, 1, (t - end) / fade);
+    s.plateO = q;
+    s.glowO = off ? 0 : 0.6 * q;
+    s.liftY = (kind === VISUAL_KINDS.NORMAL ? -1.5 : kind === VISUAL_KINDS.LONG ? -1 : 0) * k * q;
+    s.scale = kind === VISUAL_KINDS.NORMAL ? 1 + 0.03 * k * q : 1;
+    s.barO = kind === VISUAL_KINDS.LONG ? q : 0;
+    s.barP = 1;
+    s.ambient = off ? 0 : 0.4 * q;
+  }
+  const r = (v) => Math.round(v * 1000) / 1000;
+  for (const key of ["p", "plateO", "glowO", "scale", "liftY", "barP", "barO", "ambient"]) s[key] = r(s[key]);
+  return s;
+}
+
+// 舞台の背景の光：光っているコールのうち一番強いもの（無ければ 0）。演出オフ・控えめでは弱く（オフは 0）
+export function ambientAt(states, intensity = "std") {
+  if (intensity === "off") return 0;
+  const max = Math.max(0, ...states.map((s) => s.ambient ?? 0));
+  return Math.round(max * (intensity === "low" ? 0.5 : 1) * 1000) / 1000;
+}
+
+// 見た目の要約（テスト用：同じ時刻なら同じ文字列）
+export function summarizeVisual(s) {
+  return [s.phase, s.p, s.plateO, s.glowO, s.cueO, s.scale, s.liftY, s.barO, s.barP, s.ambient].join("|");
+}
