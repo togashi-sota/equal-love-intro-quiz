@@ -764,6 +764,30 @@
       <details class="data-management-section">
         <summary>データ管理（音源・歌詞の読み込み）</summary>
 
+        <!-- 【2026-10-30新設】最新版データ（1つの ZIP：歌詞・完成版コール・表示用の歌詞・音源〈任意〉）。
+             新しく使う端末でも、長く使っている端末でも、同じ ZIP を選ぶと、この端末に足りないもの・新しくなったものだけが入る
+             （js/unifiedPackImportUi.js・js/unifiedPackImport.js）。中身を確かめて見せてから、本人が押したときだけ入れる。
+             下の「追加データパック」「完成版コールデータを読み込む」はそのまま残す。 -->
+        <div id="unified-pack-import-section" class="audio-import-section">
+          <p class="lyrics-import-caption">
+            配られた「最新版データ」の ZIP を1つ選んでください。この端末に足りないもの・新しくなったものだけを入れます。選んだだけでは何も変わらず、中身を確かめてから「この内容で読み込む」を押したときだけ入ります。音源とプレイヤーの記録は変わりません。
+          </p>
+          <label class="audio-import-button">
+            最新版データを読み込む
+            <input id="unified-pack-import-input" type="file" accept=".zip,application/zip,.json,application/json,audio/mpeg,.mp3" multiple hidden>
+          </label>
+          <div id="unified-pack-import-summary" class="audio-import-result" aria-live="polite" hidden></div>
+          <div id="unified-pack-import-actions" class="lyrics-warning-actions" hidden>
+            <button id="unified-pack-import-cancel-button" type="button" class="secondary-button">やめる</button>
+            <button id="unified-pack-import-apply-button" type="button" class="secondary-button">この内容で読み込む</button>
+          </div>
+          <div id="unified-pack-import-result" class="audio-import-result" aria-live="polite" hidden></div>
+          <details id="unified-pack-undo-section" hidden>
+            <summary>最新版データで変えた曲を、曲ごとに元に戻す</summary>
+            <div id="unified-pack-undo-list"></div>
+          </details>
+        </div>
+
         <!-- 追加データパック（新曲まとめ読み込み）。音源・歌詞・コール・コールガイドを1回の
              ファイル選択でまとめて読み込める、通常ユーザー向けの唯一の入口
              （js/dataPackImport.js参照、2026-08-26新設・2026-08-27に入口を1つに整理）。

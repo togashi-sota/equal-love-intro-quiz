@@ -7,7 +7,7 @@
 //
 // 新しいバージョンを配信したいときは、CACHE_VERSIONの値を必ず上げること。
 // 上げないと、ブラウザが「内容が変わっていない」と判断し、更新が反映されない。
-const CACHE_VERSION = "v391";
+const CACHE_VERSION = "v392";
 const CACHE_NAME = `equal-love-intro-quiz-${CACHE_VERSION}`;
 
 // キャッシュするアプリ本体のファイル一覧。
@@ -217,6 +217,9 @@ const APP_SHELL_FILES = [
   "./js/callReleaseImport.js",
   "./js/callReleasePack.js",
   "./js/callReleaseImportUi.js",
+  // 【2026-10-30新設】データ管理の「最新版データを読み込む」
+  "./js/unifiedPackImport.js",
+  "./js/unifiedPackImportUi.js",
   "./js/liveCallData.js",
   "./js/liveCallScreen.js",
   "./js/callEffects.js",

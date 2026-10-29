@@ -18,6 +18,10 @@ const titleOf = (songId) => SONGS.find((song) => song.id === songId)?.title ?? s
 export function onReleasedCallsChanged(listener) {
   changeListeners.add(listener);
 }
+// 【2026-10-30追加】「最新版データを読み込む」（js/unifiedPackImportUi.js）で完成版コールが変わったときにも知らせる
+export function notifyReleasedCallsChanged() {
+  notifyChanged();
+}
 function notifyChanged() {
   changeListeners.forEach((listener) => {
     try {

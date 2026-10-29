@@ -105,10 +105,20 @@ export async function backupCurrentLyrics(songId, reason = "") {
 // 戻す直前の歌詞データも控える（戻したことを、さらに取り消せるように）。
 // 戻り値：{ restored: boolean, reason?: string, errors?: string[] }
 export async function restoreLatestLyricsBackup(songId) {
-  const latest = pickLatestBackup(await listLyricsBackups(songId));
-  const record = prepareRestoreRecord(latest);
+  return restoreBackup(songId, pickLatestBackup(await listLyricsBackups(songId)));
+}
+
+// 【2026-10-30追加】決まった控え（id）に戻す。「最新版データを読み込む」の曲ごとの「元に戻す」が、
+// その読み込みの直前に作った控えへ戻すために使う（あとで別の控えが増えていても、正しい控えを選べるように）。
+export async function restoreLyricsBackupById(songId, backupId) {
+  const target = (await listLyricsBackups(songId)).find((backup) => backup.id === backupId) ?? null;
+  return restoreBackup(songId, target);
+}
+
+async function restoreBackup(songId, backup) {
+  const record = prepareRestoreRecord(backup);
   if (!record) return { restored: false, reason: "控えがありません" };
   await backupCurrentLyrics(songId, "before-restore");
   const result = await saveLyricsData(record);
-  return result.saved ? { restored: true, backupId: latest.id } : { restored: false, reason: "保存できませんでした", errors: result.errors };
+  return result.saved ? { restored: true, backupId: backup.id } : { restored: false, reason: "保存できませんでした", errors: result.errors };
 }

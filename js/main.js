@@ -10,7 +10,9 @@ import { initAppHistory, resolveBackTarget } from "./appHistory.js";
 import { initHomeScreen, renderHomePlayerStats, renderQuickPlaySummary, setLiveCallEntryHandler } from "./homeScreen.js";
 // 【2026-10-30新設・リニューアル第3〜5段階】新しいライブコールと、データ管理の「完成版コールデータを読み込む」
 import { initLiveCallScreen, openLiveCallScreen, goBackInLiveCall, refreshLiveCallAfterDataChange } from "./liveCallScreen.js";
-import { initCallReleaseImportUi, onReleasedCallsChanged } from "./callReleaseImportUi.js";
+import { initCallReleaseImportUi, onReleasedCallsChanged, notifyReleasedCallsChanged, refreshCallReleaseStatus } from "./callReleaseImportUi.js";
+// 【2026-10-30新設】データ管理の「最新版データを読み込む」（歌詞・完成版コールを1つの ZIP から）
+import { initUnifiedPackImportUi } from "./unifiedPackImportUi.js";
 import {
   getLyricsQuizRevealAudioEnabled,
   getInstantChallengeRevealAudioEnabled,
@@ -8842,6 +8844,27 @@ initCallReleaseImportUi({
   undoList: document.getElementById("call-release-undo-list"),
 });
 onReleasedCallsChanged(refreshLiveCallAfterDataChange);
+initUnifiedPackImportUi(
+  {
+    input: document.getElementById("unified-pack-import-input"),
+    summary: document.getElementById("unified-pack-import-summary"),
+    actions: document.getElementById("unified-pack-import-actions"),
+    applyButton: document.getElementById("unified-pack-import-apply-button"),
+    cancelButton: document.getElementById("unified-pack-import-cancel-button"),
+    result: document.getElementById("unified-pack-import-result"),
+    undoSection: document.getElementById("unified-pack-undo-section"),
+    undoList: document.getElementById("unified-pack-undo-list"),
+  },
+  {
+    // 読み込み・元に戻すのあと：歌詞クイズのロビー・完成版コールの版の表示・ライブコールの一覧を作り直す
+    onChanged: async () => {
+      await recheckLyricsCoverageAfterImport();
+      requestPersistentStorage();
+      await refreshCallReleaseStatus();
+      notifyReleasedCallsChanged();
+    },
+  },
+);
 
 // 前回の出題数・カテゴリを戻したので、自己ベスト・出題数の案内を合わせ直す
 updateModeBestScoreDisplay();
