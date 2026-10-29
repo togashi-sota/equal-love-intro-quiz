@@ -558,6 +558,10 @@
   border-radius: 16px;
   background: #fff;
 }
+.lc-karaoke-panel .lyrics-mode-toggle-button {
+  min-height: 44px;
+  font-size: 13px;
+}
 .lc-karaoke-panel .synced-lyrics-line {
   padding: 6px 8px;
   font-size: 1.05rem;

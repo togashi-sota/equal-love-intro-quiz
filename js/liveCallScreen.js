@@ -441,13 +441,15 @@ async function renderSongPage() {
   addStatus("歌詞", lineCount ? "この端末にあります" : "この端末にありません", lineCount > 0);
   page.appendChild(status);
   if (!sheet.ok) page.appendChild(el("p", `lc-status-message${sheet.state === SHEET_STATE.NO_SHEET ? "" : " is-warning"}`, sheet.message));
+  // 同じ長い案内をカードごとに繰り返さない（コール表が出せない理由は上に1回だけ）
+  const short = (availability) => (!sheet.ok && availability.reason === sheet.message ? { ok: false, reason: sheet.state === SHEET_STATE.NO_SHEET ? "この曲のコール表はまだありません。" : "上の案内のとおり、今は使えません。" } : availability);
   const cards = el("div", "lc-mode-cards");
   cards.appendChild(
     modeCard({
       id: "sheet",
       title: "コール表",
       description: "歌詞（黒）とコール（赤）を1枚の表で読む。自分のペースでスクロール。",
-      availability: avail.sheet,
+      availability: short(avail.sheet),
       onOpen: () => show("sheet"),
       preview: (box) => previewLines(box, [["call", 34], ["lyric", 86], ["lyric", 70], ["call", 52], ["lyric", 78]]),
     }),
@@ -457,7 +459,7 @@ async function renderSongPage() {
       id: "live",
       title: "ライブコール",
       description: "音源に合わせて、言うタイミングのコールが光る。画面はコールを中心に自動で進む。",
-      availability: avail.live,
+      availability: short(avail.live),
       onOpen: () => show("live"),
       preview: (box) => previewLines(box, [["lyric", 80], ["call-lit", 46], ["lyric", 72], ["call", 30]]),
     }),
