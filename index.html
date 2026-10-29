@@ -7076,21 +7076,29 @@
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="player-modal-title">
       <button id="player-modal-close-button" class="modal-close-button" type="button" aria-label="閉じる">×</button>
       <h2 id="player-modal-title">プレイヤー</h2>
-      <p class="modal-lead">選択中のプレイヤーによって、履歴・自己ベスト・称号・推しメン等が切り替わります。</p>
+      <p class="modal-lead">使う人を選んでください。人ごとに、履歴・自己ベスト・称号・推しメンが分かれて保存されます。</p>
 
-      <div id="player-list" class="player-list"></div>
+      <!-- 【2026-10-29改訂・本人の iPad での報告】「どこで入力して、何がOKなのか分からない」「完了したら閉じてほしい」。
+           ①使う人を選ぶ（一覧・名前を押すと切り替わって閉じる・✎で名前だけ変える）と
+           ②新しいプレイヤーを追加（見出し・名前の欄・幅のある「この名前で登録」・理由の表示）を、区画ではっきり分ける。
+           登録・切り替えが保存できたことを確かめてから「○○さんを登録しました」を出して自動で閉じる（js/playerScreen.js）。 -->
+      <section class="player-modal-section" aria-labelledby="player-switch-heading">
+        <h3 id="player-switch-heading" class="player-modal-section-title">使う人を選ぶ</h3>
+        <p class="player-modal-section-lead">名前を押すと、その人に切り替わります。「✎ 名前を変える」は、今の記録はそのままで名前だけを変えます。</p>
+        <div id="player-list" class="player-list"></div>
+        <!-- 使用中の人に名前が無いとき（初めて名前を付けたいとき）だけ出す。以前、名前を付けたいだけなのに
+             下の「新しいプレイヤーを追加」で別の人を作ってしまい、記録が見えなくなった混同があったため -->
+        <p id="player-unnamed-note" class="player-unnamed-note" hidden>今のプレイヤーに名前を付けるだけなら、上の「✎ 名前を付ける」を押してください。今までの記録はそのまま残ります（下の「新しいプレイヤーを追加」は、記録を分けて別の人を作るときだけ使います）。</p>
+      </section>
 
-      <!-- 「名前を変更する（✎）」と「新しいプレイヤーを追加する（＋）」の違いが分かりにくく、
-           名前を初めて設定したいだけなのに＋で別プレイヤーを作ってしまい、それまでの記録が
-           見えなくなった（実際は消えていない）という混同が報告されたため、注意書きを追加。 -->
-      <p class="player-modal-note">
-        ※ 今のプレイヤーの名前を設定・変更したいだけの場合は、一覧の「✎」ボタンを使ってください（記録はそのまま残ります）。「＋追加」は、記録を分けて別のプレイヤーを新しく作りたいときだけ使ってください。
-      </p>
-
-      <div class="player-add-row">
-        <input id="player-add-input" type="text" maxlength="20" placeholder="新しいプレイヤー名">
-        <button id="player-add-button" class="secondary-button" type="button">＋ 追加</button>
-      </div>
+      <section class="player-modal-section player-add-section" aria-labelledby="player-add-heading">
+        <h3 id="player-add-heading" class="player-modal-section-title">＋ 新しいプレイヤーを追加</h3>
+        <p class="player-modal-section-lead">記録を分けて、別の人として最初から始めます。今のプレイヤーの記録はそのまま残ります。</p>
+        <label class="player-add-label" for="player-add-input">新しいプレイヤー名を入力</label>
+        <input id="player-add-input" class="player-add-input" type="text" maxlength="20" placeholder="例：そうた（20文字まで）" autocomplete="off" enterkeyhint="done" aria-describedby="player-add-message">
+        <p id="player-add-message" class="player-add-message" role="status" aria-live="polite" hidden></p>
+        <button id="player-add-button" class="primary-button player-add-button" type="button">この名前で登録</button>
+      </section>
 
       <!-- 音源・歌詞データの永続化許可状況（js/storagePersistence.js）。対応していない
            端末でもレイアウトが崩れないよう、テキストが空でも高さを保つmin-heightをCSS側で指定。 -->

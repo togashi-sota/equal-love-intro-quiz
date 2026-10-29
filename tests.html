@@ -57,6 +57,8 @@
     import { runLiveCallVisualsTests } from "./tests/liveCallVisuals.test.js";
     // 【2026-10-30新設】データ管理の「最新版データを読み込む」（ダミーのデータだけ・偽の端末）
     import { runUnifiedPackImportTests } from "./tests/unifiedPackImport.test.js";
+    // 【2026-10-29新設】プレイヤーの登録画面（登録・切り替え・名前の変更・自動で閉じる）
+    import { runPlayerRegistrationTests } from "./tests/playerRegistration.test.js";
     import { runQuizTests } from "./tests/quiz.test.js";
     import { runAudioTroubleClassificationTests } from "./tests/audioTroubleClassification.test.js";
     import { runLyricsStorageTests } from "./tests/lyricsStorage.test.js";
@@ -521,6 +523,7 @@
     await runLiveCallRenewalTests();
     await runLiveCallVisualsTests();
     await runUnifiedPackImportTests();
+    await runPlayerRegistrationTests();
     const { passCount, failCount, failedDetails } = printSummary();
 
     const summaryElement = document.getElementById("test-summary");
