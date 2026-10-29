@@ -152,7 +152,19 @@ function writeJsonToLocalStorage(key, value) {
 
 // 戻り値：{ lyricsHashes, lyricsFingerprints, lyricsProvenance, audioSongIds, audioHashes, releasedCalls }
 export async function loadUnifiedDeviceState({ needAudioHashes = false } = {}) {
-  const [lyricsRecords, audioIds, releasedCalls] = await Promise.all([getAllLyricsData().catch(() => []), getImportedSongIds().catch(() => []), getAllReleasedCallRecords().catch(() => new Map())]);
+  // 【2026-10-29 修正】iPhone では、音源の保存場所の一覧を読む1回目が失敗することがある（js/audioStorage.js のウォームアップと同じ事情）。
+  // 失敗を「音源が1曲も無い」と取り違えて「音源が無い曲：84曲」と出していたため、少し待って読み直し、それでもだめなら「確認できない」とする
+  const readAudioIds = async () => {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        return await getImportedSongIds();
+      } catch {
+        await new Promise((resolve) => setTimeout(resolve, 300 * (attempt + 1)));
+      }
+    }
+    return null;
+  };
+  const [lyricsRecords, audioIds, releasedCalls] = await Promise.all([getAllLyricsData().catch(() => []), readAudioIds(), getAllReleasedCallRecords().catch(() => new Map())]);
   const lyricsHashes = new Map();
   const lyricsFingerprints = new Map();
   for (const record of lyricsRecords ?? []) {
@@ -162,7 +174,7 @@ export async function loadUnifiedDeviceState({ needAudioHashes = false } = {}) {
     lyricsFingerprints.set(record.songId, computeLyricsLineFingerprint(record.lines));
   }
   const audioHashes = needAudioHashes ? await getAudioContentHashes().catch(() => new Map()) : new Map();
-  return { lyricsHashes, lyricsFingerprints, lyricsProvenance: readJsonFromLocalStorage(LYRICS_PROVENANCE_STORAGE_KEY), audioSongIds: new Set(audioIds ?? []), audioHashes, releasedCalls };
+  return { lyricsHashes, lyricsFingerprints, lyricsProvenance: readJsonFromLocalStorage(LYRICS_PROVENANCE_STORAGE_KEY), audioSongIds: new Set(audioIds ?? []), audioKnown: Array.isArray(audioIds), audioHashes, releasedCalls };
 }
 
 // ===== 3. 計画（純粋関数。何も書き換えない） =====
@@ -318,8 +330,9 @@ export function planUnifiedImport(parsed, device, { knownSongIds = new Set(SONGS
 
   // 音源が無い曲（この端末にも、パックにも無い）。歌詞・コールは音源が無くても入る
   for (const song of songs.values()) {
-    song.audioMissing = Boolean(song.audio === null && !device.audioSongIds.has(song.songId) && knownSongIds.has(song.songId) && (song.lyrics || song.calls));
+    song.audioMissing = Boolean(device.audioKnown !== false && song.audio === null && !device.audioSongIds.has(song.songId) && knownSongIds.has(song.songId) && (song.lyrics || song.calls));
   }
+  if (device.audioKnown === false) warnings.push("この端末の音源の有無を確かめられませんでした（音源はそのまま残ります。歌詞・コールはこのまま入ります）。");
   const list = [...songs.values()].sort((a, b) => a.title.localeCompare(b.title, "ja"));
   return { ok: true, errors: [], warnings, pack, songs: list, counts: countUnified(list), ignored: parsed.ignored ?? [] };
 }
@@ -363,7 +376,7 @@ export function describeUnifiedPlan(plan) {
   add("コールが新しくなる曲", names((song) => song.calls?.action === PART_ACTION.UPDATE));
   add("コール表なしになる曲（新しい完成版で採用されていない）", names((song) => song.calls?.action === PART_ACTION.WITHDRAW));
   add("音源が入れ替わる曲", names((song) => song.audio?.action === PART_ACTION.UPDATE));
-  if (c.audioMissing) lines.push(`音源が無い曲：${c.audioMissing}曲（音源は別のパックで。歌詞・コールはこのまま入ります）：${shortList(names((song) => song.audioMissing))}`);
+  if (c.audioMissing) lines.push(`この端末に音源が無い曲：${c.audioMissing}曲（このパックに音源は入っていません。音源は別のパックで入れてください。歌詞・コールはこのまま入ります）：${shortList(names((song) => song.audioMissing))}`);
   const older = names((song) => [song.lyrics, song.calls].some((part) => part?.action === PART_ACTION.OLDER));
   if (older.length) lines.push(`この端末の方が新しいので入れない（${older.length}曲）：${older.join("、")}`);
   const held = plan.songs.flatMap((song) => [song.lyrics, song.calls].filter((part) => part?.action === PART_ACTION.HELD).map((part) => `${song.title}：${part.reason}`));
