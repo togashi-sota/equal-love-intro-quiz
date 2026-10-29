@@ -165,9 +165,11 @@
 @media (max-width: 459px) {
   .home-topbar-actions {
     flex: 1 1 100%;
+    flex-wrap: wrap; /* 文字を大きくした端末では、言葉の途中で折り返さず2行に回す */
   }
   .home-tact {
-    flex: 1;
+    flex: 1 1 auto;
+    white-space: nowrap;
     width: auto;
     min-height: 44px;
     flex-direction: row;
@@ -467,7 +469,7 @@
   outline-offset: 2px;
 }
 /* 狭い板（320px のスマホ・文字を大きくした端末）：出題数を 3個＋2個に */
-@container (max-width: 300px) {
+@container (max-width: 18.75rem) { /* 300px 相当。rem なので、文字を大きくした端末ではもっと広い幅から 3＋2 になる */
   .home-seg--count {
     grid-template-columns: repeat(6, minmax(0, 1fr));
   }
@@ -594,13 +596,13 @@
   grid-column: span 3;
   min-height: 50px;
 }
-@container (max-width: 279px) {
+@container (max-width: 17.4375rem) { /* 279px 相当（文字を大きくした端末では広い幅から2列に） */
   .home-chips {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .home-chips--split .home-chip,
   .home-chips--split .home-chip:nth-child(n + 4) {
-    grid-column: span 3;
+    grid-column: auto;
   }
 }
 
