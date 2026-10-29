@@ -517,9 +517,10 @@ async function renderSongPage() {
     modeCard({
       id: "karaoke",
       title: "カラオケ",
-      description: "歌詞だけを音源に合わせて行ごとに強調。コールは出しません。",
+      description: "歌詞と、次に言うコール（完成版）を大きく表示。あと何秒かも出ます。",
       availability: avail.karaoke,
-      onOpen: () => show("karaoke"),
+      // 【2026-10-29 本人の希望】前の「カラオケ同期」と同じ画面（NEXT CALL・あと○秒・タイミング調整）を、本人の完成版のコールで開く
+      onOpen: () => (callbacks.openKaraokeWithCalls ? callbacks.openKaraokeWithCalls(currentSongId, songData?.sheet?.calls ?? []) : show("karaoke")),
       preview: (box) => previewLines(box, [["lyric", 76], ["lyric-lit", 88], ["lyric", 64], ["lyric", 80]]),
     }),
   );

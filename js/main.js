@@ -2125,7 +2125,9 @@ liveCallModePlayerHelpLinkElement.addEventListener("click", () => {
 karaokeBackButtonElement.addEventListener("click", () => {
   playSfx(SFX_EVENTS.UI_BACK);
   closeKaraokeSyncScreen();
-  showScreen("liveCallModePlayType");
+  const back = karaokeReturnScreen;
+  karaokeReturnScreen = "liveCallModePlayType";
+  showScreen(back);
 });
 
 karaokeHelpLinkElement.addEventListener("click", () => {
@@ -8844,11 +8846,23 @@ function openLiveCallFrom(returnScreen, mode = null) {
   openLiveCallScreen({ mode });
   window.scrollTo(0, 0);
 }
-initLiveCallScreen({
-  root: document.getElementById("live-call-root"),
-  audio: document.getElementById("live-call-audio"),
-  heading: document.getElementById("live-call-heading"),
-});
+// 新しいライブコールの「カラオケ」から開いたカラオケ同期の画面の［戻る］は、新しいライブコールへ戻す
+let karaokeReturnScreen = "liveCallModePlayType";
+initLiveCallScreen(
+  {
+    root: document.getElementById("live-call-root"),
+    audio: document.getElementById("live-call-audio"),
+    heading: document.getElementById("live-call-heading"),
+  },
+  {
+    async openKaraokeWithCalls(songId, calls) {
+      document.getElementById("live-call-audio")?.pause();
+      await openKaraokeSyncScreen(songId, { calls });
+      karaokeReturnScreen = "liveCall";
+      showScreen("liveCallModeKaraoke");
+    },
+  },
+);
 setLiveCallEntryHandler((mode) => openLiveCallFrom(document.body.dataset.screen || "start", mode));
 document.getElementById("live-call-back-button").addEventListener("click", () => {
   playSfx(SFX_EVENTS.UI_BACK);

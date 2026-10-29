@@ -542,7 +542,9 @@ function handleRestartSongButtonClick() {
 // 指定した曲のカラオケ同期画面を開く。呼び出し前に、通常再生側は必ず閉じておくこと
 // （main.js側でclosePlayerを呼んでから遷移する想定。同じ<audio>要素を共有しないため、
 // 通常再生とカラオケ同期を同時に開くことはできない設計）。
-export async function openKaraokeSyncScreen(songId) {
+// options.calls：使うコール（{ start, end, text } の配列）。【2026-10-29】新しいライブコールのカラオケから、本人の完成版のコール
+// （本人の文章・本人の開始〜終了）を渡すために追加。渡さなければ今までどおり端末の元のコール
+export async function openKaraokeSyncScreen(songId, options = {}) {
   closeKaraokeSyncScreen();
 
   const song = getSongById(songId);
@@ -552,8 +554,15 @@ export async function openKaraokeSyncScreen(songId) {
   elements.songTitle.textContent = song.title;
   resetPerSongRuntimeState();
 
-  const callRecord = await getCallData(songId);
-  allCalls = callRecord && Array.isArray(callRecord.calls) ? [...callRecord.calls].sort((a, b) => a.start - b.start) : [];
+  if (Array.isArray(options.calls)) {
+    allCalls = options.calls
+      .filter((call) => Number.isFinite(call.start) && Number.isFinite(call.end))
+      .map((call) => ({ ...call }))
+      .sort((a, b) => a.start - b.start);
+  } else {
+    const callRecord = await getCallData(songId);
+    allCalls = callRecord && Array.isArray(callRecord.calls) ? [...callRecord.calls].sort((a, b) => a.start - b.start) : [];
+  }
   syncPointCandidates = selectSyncPointCandidates(allCalls);
 
   clockSource = new KaraokeClockSource();
