@@ -31,14 +31,33 @@ export function formatPeriodRange(period) {
   return "";
 }
 
+// 周年の区切り方（2026-10-30）。既定は "concert"（前の周年記念公演の翌日〜N周年記念公演の日）。
+// "debut" はデビュー日（9/6）で区切った場合（periodByDebut）。どちらを画面に使うかは本人が決める（今は "concert"）
+export const DEFAULT_PERIOD_GROUPING = "concert";
+
+// 出来事がどの周年に入るか（区切り方ごと）。periodByDebut が無い古いデータは period をそのまま使う
+export function periodOfEvent(event, grouping = DEFAULT_PERIOD_GROUPING) {
+  if (grouping === "debut") return event?.periodByDebut ?? event?.period;
+  return event?.periodByConcert ?? event?.period;
+}
+
+// 2つの区切り方で周年が変わる出来事の一覧（比較表・テストに使う）
+export function comparePeriodGroupings(events) {
+  return (events ?? [])
+    .map((event) => ({ event, byConcert: periodOfEvent(event, "concert"), byDebut: periodOfEvent(event, "debut") }))
+    .filter((row) => row.byConcert !== row.byDebut);
+}
+
 // 周年ごとにまとめる。出来事が1つも無い周年は除く。見出し＝highlight の出来事（日付順に最大3件、無ければ最初の出来事）
-export function buildAnniversaryModel(periods, events) {
+// options.grouping："concert"（既定）／"debut"
+export function buildAnniversaryModel(periods, events, { grouping = DEFAULT_PERIOD_GROUPING } = {}) {
   const byPeriod = new Map();
   [...(events ?? [])]
     .sort((a, b) => (a.date === b.date ? String(a.id).localeCompare(String(b.id)) : a.date < b.date ? -1 : 1))
     .forEach((event) => {
-      if (!byPeriod.has(event.period)) byPeriod.set(event.period, []);
-      byPeriod.get(event.period).push(event);
+      const period = periodOfEvent(event, grouping);
+      if (!byPeriod.has(period)) byPeriod.set(period, []);
+      byPeriod.get(period).push(event);
     });
   return (periods ?? [])
     .filter((period) => byPeriod.has(period.period))
@@ -67,16 +86,36 @@ export function relatedTargets(event, { liveIds = new Set(), songIds = new Set()
   return targets;
 }
 
-// 周年記念公演そのものか（「その周年の記念公演」と「周年期間中に起きた出来事」を分けて見せるため）
+// 周年記念公演そのものか（「その周年の記念公演」と「周年期間中に起きた出来事」を分けて見せるため）。
+// データに concertOfPeriod があればそれで決める（2026-10-30）。無い古いデータは題名に「周年」があるライブで判断する
 export function isAnniversaryConcert(event) {
+  if (event && "concertOfPeriod" in event) return event.concertOfPeriod !== null && event.concertOfPeriod !== undefined;
   return event?.category === "concert" && /周年/.test(event?.title ?? "");
 }
 
-// 1つの周年を「記念公演」「おもな出来事（見出し）」「そのほか」に分ける（どれにも重ならない）
+// 記念公演の日付の表示（"2023年10月18日・19日"、年や月をまたぐときは省略しない）
+export function formatConcertDates(dates) {
+  const list = (dates ?? []).filter(Boolean);
+  if (!list.length) return "";
+  return list
+    .map((date, index) => {
+      if (index === 0) return formatHistoryDate(date);
+      const prev = list[index - 1];
+      if (prev.slice(0, 7) === date.slice(0, 7)) return `${Number(date.slice(8, 10))}日`;
+      if (prev.slice(0, 4) === date.slice(0, 4)) return `${Number(date.slice(5, 7))}月${Number(date.slice(8, 10))}日`;
+      return formatHistoryDate(date);
+    })
+    .join("・");
+}
+
+// 1つの周年を「記念公演」「おもな出来事（見出し）」「そのほか」に分ける（どれにも重ならない）。
+// 記念公演の枠には「この周年の」記念公演だけを入れる（デビュー日で区切ったとき、前の周年の記念公演が入り込むため）
 export function splitPeriodEvents(entry) {
   const events = entry?.events ?? [];
-  const concerts = events.filter(isAnniversaryConcert);
-  const rest = events.filter((event) => !isAnniversaryConcert(event));
+  const isOwnConcert = (event) =>
+    isAnniversaryConcert(event) && (event.concertOfPeriod === undefined || event.concertOfPeriod === entry?.period);
+  const concerts = events.filter(isOwnConcert);
+  const rest = events.filter((event) => !isOwnConcert(event));
   return { concerts, highlights: rest.filter((event) => event.highlight), others: rest.filter((event) => !event.highlight) };
 }
 

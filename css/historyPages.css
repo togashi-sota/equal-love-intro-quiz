@@ -367,3 +367,30 @@
   cursor: pointer;
   opacity: 0.75;
 }
+
+/* 【2026-10-30】「要確認の記録も表示」（最初はオフ）。指で押しやすいように行全体を押せる大きさにする */
+.tv-unverified-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.tv-unverified-toggle input {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+}
+
+/* 要確認の記録（出演が確かめられない回・ファンの記録だけの曲）：点線で区別する */
+.tv-item.is-unverified {
+  border-color: rgba(0, 0, 0, 0.3);
+  border-style: dashed;
+}
+
+.tv-song.is-unverified {
+  border-style: dashed;
+  color: #666;
+}

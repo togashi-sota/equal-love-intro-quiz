@@ -14,6 +14,7 @@ import {
   isAnniversaryConcert,
   splitPeriodEvents,
   defaultAnniversaryPeriod,
+  formatConcertDates,
   formatHistoryDate,
   formatPeriodRange,
   relatedTargets,
@@ -107,7 +108,13 @@ function renderDetail() {
   const title = el("h3", "anniv-detail-title", entry.label);
   detailElement.appendChild(title);
   const range = formatPeriodRange(entry);
-  const venue = entry.anniversaryVenue ? `（周年記念公演：${entry.anniversaryVenue}）` : "";
+  // 記念公演の日付と会場（データの concert。2026-10-30：区切りの日と記念公演を分けて持つようにした）
+  const concert = entry.concert;
+  const venue = concert
+    ? `（${entry.label}記念公演：${formatConcertDates(concert.dates)} ${concert.venue}）`
+    : entry.anniversaryVenue
+      ? `（周年記念公演：${entry.anniversaryVenue}）`
+      : "";
   if (range || venue) detailElement.appendChild(el("p", "anniv-detail-range", `${range}${venue}`));
   const { concerts, highlights, others } = splitPeriodEvents(entry);
   // ① 周年記念公演（その周年の締めくくり）と、② その1年に起きた出来事を分けて見せる
@@ -192,7 +199,7 @@ export function openAnniversaryScreen(options = {}) {
     timelineElement = el("div", "anniv-timeline");
     timelineElement.hidden = true;
     container.append(viewTabs, cardsElement, detailElement, timelineElement);
-    container.appendChild(el("p", "anniv-note", "公式サイト・放送局・報道で確認できた出来事だけを載せています。"));
+    container.appendChild(el("p", "anniv-note", "公式サイト・放送局・報道で確認できた出来事だけを載せています。周年はデビュー日（9月6日）ではなく、周年記念公演の日で区切っています（記念公演は9月6日より後に開かれることが多いため）。"));
   }
   if (Number.isInteger(options.period)) setView("period");
   select(Number.isInteger(options.period) ? options.period : selectedPeriod);

@@ -1,84 +1,198 @@
 // 自動生成ファイル（手で編集しない）。生成元：tools/feature-research/2026-10-29/history-pages/build_anniversary.py
 // 【2026-10-29新設・本人の要望】「＝LOVEの歩み・周年ヒストリー」のデータ。1件＝1つの出来事（事実と出典URLだけ。歌詞・音源は含まない）。
-// 周年の区切り：「N周年」＝前の周年記念公演の翌日〜N周年記念公演の日。0＝結成・デビュー、10＝これから（予定）。
-// 確度：確認済み（公式・放送局・複数の報道）／準確認（報道1件）。要確認の出来事は載せていない。
+// 周年の区切り（既定）：「N周年」＝前の周年記念公演の翌日〜N周年記念公演の日（period＝periodByConcert）。0＝結成・デビュー、10＝これから。
+// 【2026-10-30】区切りの考え方を分けて持つ：periodByDebut＝デビュー日（9/6）で区切った場合の周年、
+//   concertOfPeriod＝その出来事が N周年の記念公演そのものなら N。周年ごとの記念公演の日付・会場は ANNIVERSARY_PERIODS の concert。
+//   firstEvidence＝「初」と書いた根拠（再調査で確かめた出典）。
+// 確度：確認済み（公式・放送局・複数の報道）／準確認（報道1件・公式の告知だけ等）。要確認の出来事は載せていない。
 export const ANNIVERSARY_PERIODS = [
   {
     "period": 0,
     "label": "結成・デビュー",
     "from": null,
     "to": null,
-    "anniversaryVenue": null
+    "startDate": null,
+    "anniversaryVenue": null,
+    "concert": null,
+    "debutFrom": null,
+    "debutTo": "2017-09-06"
   },
   {
     "period": 1,
     "label": "1周年",
     "from": "2017-09-06",
     "to": "2018-09-06",
-    "anniversaryVenue": "Zepp DiverCity（TOKYO）"
+    "startDate": "2017-09-07",
+    "anniversaryVenue": "Zepp DiverCity（TOKYO）",
+    "concert": {
+      "dates": [
+        "2018-09-06"
+      ],
+      "venue": "Zepp DiverCity（TOKYO）",
+      "title": "デビュー1周年記念プレミアムイベント",
+      "eventId": "anv-2018-1st-anniv-event"
+    },
+    "debutFrom": "2017-09-07",
+    "debutTo": "2018-09-06"
   },
   {
     "period": 2,
     "label": "2周年",
     "from": "2018-09-06",
     "to": "2019-09-12",
-    "anniversaryVenue": "中野サンプラザホール"
+    "startDate": "2018-09-07",
+    "anniversaryVenue": "中野サンプラザホール",
+    "concert": {
+      "dates": [
+        "2019-09-12"
+      ],
+      "venue": "中野サンプラザホール",
+      "title": "デビュー2周年記念コンサート",
+      "eventId": "anv-2019-2nd-anniv-concert"
+    },
+    "debutFrom": "2018-09-07",
+    "debutTo": "2019-09-06"
   },
   {
     "period": 3,
     "label": "3周年",
     "from": "2019-09-12",
     "to": "2020-09-06",
-    "anniversaryVenue": "パシフィコ横浜"
+    "startDate": "2019-09-13",
+    "anniversaryVenue": "パシフィコ横浜 国立大ホール",
+    "concert": {
+      "dates": [
+        "2020-09-06"
+      ],
+      "venue": "パシフィコ横浜 国立大ホール",
+      "title": "3rd ANNIVERSARY PREMIUM CONCERT",
+      "eventId": "anv-2020-3rd-anniv-concert"
+    },
+    "debutFrom": "2019-09-07",
+    "debutTo": "2020-09-06"
   },
   {
     "period": 4,
     "label": "4周年",
     "from": "2020-09-06",
     "to": "2021-09-20",
-    "anniversaryVenue": "幕張メッセ イベントホール"
+    "startDate": "2020-09-07",
+    "anniversaryVenue": "幕張メッセ イベントホール",
+    "concert": {
+      "dates": [
+        "2021-09-20"
+      ],
+      "venue": "幕張メッセ イベントホール",
+      "title": "4th ANNIVERSARY PREMIUM CONCERT",
+      "eventId": "anv-2021-4th-anniv-concert"
+    },
+    "debutFrom": "2020-09-07",
+    "debutTo": "2021-09-06"
   },
   {
     "period": 5,
     "label": "5周年",
     "from": "2021-09-20",
     "to": "2022-09-25",
-    "anniversaryVenue": "国立代々木競技場 第一体育館"
+    "startDate": "2021-09-21",
+    "anniversaryVenue": "国立代々木競技場 第一体育館",
+    "concert": {
+      "dates": [
+        "2022-09-25"
+      ],
+      "venue": "国立代々木競技場 第一体育館",
+      "title": "5th ANNIVERSARY PREMIUM CONCERT",
+      "eventId": "anv-2022-5th-anniv-concert"
+    },
+    "debutFrom": "2021-09-07",
+    "debutTo": "2022-09-06"
   },
   {
     "period": 6,
     "label": "6周年",
     "from": "2022-09-25",
     "to": "2023-10-19",
-    "anniversaryVenue": "さいたまスーパーアリーナ"
+    "startDate": "2022-09-26",
+    "anniversaryVenue": "さいたまスーパーアリーナ",
+    "concert": {
+      "dates": [
+        "2023-10-18",
+        "2023-10-19"
+      ],
+      "venue": "さいたまスーパーアリーナ",
+      "title": "6th ANNIVERSARY PREMIUM CONCERT",
+      "eventId": "anv-2023-6th-anniv-ssa"
+    },
+    "debutFrom": "2022-09-07",
+    "debutTo": "2023-09-06"
   },
   {
     "period": 7,
     "label": "7周年",
     "from": "2023-10-19",
     "to": "2024-09-08",
-    "anniversaryVenue": "Kアリーナ横浜"
+    "startDate": "2023-10-20",
+    "anniversaryVenue": "Kアリーナ横浜",
+    "concert": {
+      "dates": [
+        "2024-09-07",
+        "2024-09-08"
+      ],
+      "venue": "Kアリーナ横浜",
+      "title": "7th ANNIVERSARY PREMIUM CONCERT",
+      "eventId": "anv-2024-7th-anniv-k-arena"
+    },
+    "debutFrom": "2023-09-07",
+    "debutTo": "2024-09-06"
   },
   {
     "period": 8,
     "label": "8周年",
     "from": "2024-09-08",
     "to": "2025-09-07",
-    "anniversaryVenue": "8周年ツアー開幕（広島）"
+    "startDate": "2024-09-09",
+    "anniversaryVenue": "広島サンプラザホール（8周年ツアー開幕）",
+    "concert": {
+      "dates": [
+        "2025-09-06",
+        "2025-09-07"
+      ],
+      "venue": "広島サンプラザホール（8周年ツアー開幕）",
+      "title": "8th ANNIVERSARY PREMIUM TOUR（開幕公演）",
+      "eventId": "anv-2025-8th-tour-start"
+    },
+    "debutFrom": "2024-09-07",
+    "debutTo": "2025-09-06"
   },
   {
     "period": 9,
     "label": "9周年",
     "from": "2025-09-07",
     "to": "2026-10-16",
-    "anniversaryVenue": "TOYOTA ARENA TOKYO"
+    "startDate": "2025-09-08",
+    "anniversaryVenue": "TOYOTA ARENA TOKYO",
+    "concert": {
+      "dates": [
+        "2026-10-15",
+        "2026-10-16"
+      ],
+      "venue": "TOYOTA ARENA TOKYO",
+      "title": "9th ANNIVERSARY PREMIUM CONCERT",
+      "eventId": "anv-2026-9th-anniv-concert"
+    },
+    "debutFrom": "2025-09-07",
+    "debutTo": "2026-09-06"
   },
   {
     "period": 10,
     "label": "これから（10周年へ）",
     "from": "2026-10-16",
     "to": null,
-    "anniversaryVenue": null
+    "startDate": "2026-10-17",
+    "anniversaryVenue": null,
+    "concert": null,
+    "debutFrom": "2026-09-07",
+    "debutTo": null
   }
 ];
 
@@ -88,6 +202,9 @@ export const ANNIVERSARY_EVENTS = [
     "date": "2017-04-29",
     "endDate": null,
     "period": 0,
+    "periodByConcert": 0,
+    "periodByDebut": 0,
+    "concertOfPeriod": null,
     "title": "メンバー12人決定・グループ名「＝LOVE」発表",
     "description": "声優アイドルオーディションの最終審査でメンバーが決まり、グループ名「＝LOVE」が発表された。12人体制でスタート。",
     "category": "milestone",
@@ -103,13 +220,17 @@ export const ANNIVERSARY_EVENTS = [
         "type": "official",
         "label": "公式ABOUT"
       }
-    ]
+    ],
+    "firstEvidence": []
   },
   {
     "id": "anv-2017-tif-first-stage",
     "date": "2017-08-05",
     "endDate": null,
     "period": 0,
+    "periodByConcert": 0,
+    "periodByDebut": 0,
+    "concertOfPeriod": null,
     "title": "TOKYO IDOL FESTIVAL 2017で初ステージ",
     "description": "お台場のTIF2017（HOT STAGE）で、メンバーとして初めて観客の前に立った。",
     "category": "concert",
@@ -125,6 +246,14 @@ export const ANNIVERSARY_EVENTS = [
         "type": "press",
         "label": "音楽ナタリー"
       }
+    ],
+    "firstEvidence": [
+      {
+        "claim": "TIF2017で初ステージ",
+        "verdict": "確認済み",
+        "url": "https://barks.jp/news/796321/",
+        "evidence": "BARKSは＝LOVEにとってTIFが初ライブお披露目の場と記載。ナタリー1stコンサート記事でも「初のステージとなったTIF2017」と言及（検索要約）。"
+      }
     ]
   },
   {
@@ -132,6 +261,9 @@ export const ANNIVERSARY_EVENTS = [
     "date": "2017-09-06",
     "endDate": null,
     "period": 0,
+    "periodByConcert": 0,
+    "periodByDebut": 0,
+    "concertOfPeriod": null,
     "title": "1stシングル「＝LOVE」でデビュー",
     "description": "SACRA MUSICからデビューシングル「＝LOVE」を発売。センターは髙松瞳。この日が周年の起点（9月6日）になっている。",
     "category": "release",
@@ -148,13 +280,17 @@ export const ANNIVERSARY_EVENTS = [
         "type": "press",
         "label": "オリコン シングル売上一覧"
       }
-    ]
+    ],
+    "firstEvidence": []
   },
   {
     "id": "anv-2017-daitokkun",
     "date": "2017-09-25",
     "endDate": null,
     "period": 1,
+    "periodByConcert": 1,
+    "periodByDebut": 1,
+    "concertOfPeriod": null,
     "title": "初期レギュラー番組「イコラブ大特訓中！」配信開始",
     "description": "SHOWROOMでのレギュラー番組（MC：アンタッチャブル柴田英嗣）。デビュー直後のメンバーの成長を見守る番組。",
     "category": "tv",
@@ -171,13 +307,17 @@ export const ANNIVERSARY_EVENTS = [
         "type": "press",
         "label": "音楽ナタリー"
       }
-    ]
+    ],
+    "firstEvidence": []
   },
   {
     "id": "anv-2018-first-overseas-taiwan",
     "date": "2018-03-25",
     "endDate": null,
     "period": 1,
+    "periodByConcert": 1,
+    "periodByDebut": 1,
+    "concertOfPeriod": null,
     "title": "初の海外単独ライブ（台湾・台北）",
     "description": "「＝LOVE×#きっと君だ！presents ＝LOVEスペシャルライブ in 台湾」を台北のclapper studioで開催（約350人）。前日3月24日には高雄の「メガポートフェス」にも出演した。",
     "category": "milestone",
@@ -201,6 +341,14 @@ export const ANNIVERSARY_EVENTS = [
         "type": "press",
         "label": "ABEMA TIMES（海外初の単独ライブ）"
       }
+    ],
+    "firstEvidence": [
+      {
+        "claim": "初の海外単独ライブ（台湾）",
+        "verdict": "確認済み",
+        "url": "https://times.abema.tv/articles/-/4046601",
+        "evidence": "ABEMA TIMESが「初の海外単独ライブ」と明記し約350人動員と記載。公式NEWS431自体には「初」の語は無い。"
+      }
     ]
   },
   {
@@ -208,7 +356,10 @@ export const ANNIVERSARY_EVENTS = [
     "date": "2018-09-06",
     "endDate": null,
     "period": 1,
-    "title": "デビュー1周年記念プレミアムイベント",
+    "periodByConcert": 1,
+    "periodByDebut": 1,
+    "concertOfPeriod": 1,
+    "title": "デビュー1周年記念プレミアムイベント（Zepp DiverCity）",
     "description": "Zepp DiverCity（TOKYO）で1周年記念イベントを開催。4thシングル表題曲「Want you! Want you!」の初披露とMV初公開があった。",
     "category": "concert",
     "highlight": true,
@@ -229,13 +380,17 @@ export const ANNIVERSARY_EVENTS = [
         "type": "press",
         "label": "Musicman レポート"
       }
-    ]
+    ],
+    "firstEvidence": []
   },
   {
     "id": "anv-2019-1st-concert",
     "date": "2019-02-16",
     "endDate": null,
     "period": 2,
+    "periodByConcert": 2,
+    "periodByDebut": 2,
+    "concertOfPeriod": null,
     "title": "初の単独コンサート「初めまして、＝LOVEです。」",
     "description": "昭和女子大学人見記念講堂で1stコンサート（昼夜計4,000人）。公演中に初ツアーの開催がサプライズ発表された。",
     "category": "concert",
@@ -258,13 +413,58 @@ export const ANNIVERSARY_EVENTS = [
         "type": "press",
         "label": "音楽ナタリー ライブレポート"
       }
+    ],
+    "firstEvidence": [
+      {
+        "claim": "初の単独コンサート",
+        "verdict": "確認済み",
+        "url": "https://equal-love.jp/news/detail/1262",
+        "evidence": "公式タイトルが「=LOVE 1stコンサート『初めまして、＝LOVEです。』」。「初の単独コンサート」は1stの言い換え。"
+      }
     ]
+  },
+  {
+    "id": "anv-2019-shanghai",
+    "date": "2019-04-05",
+    "endDate": null,
+    "period": 2,
+    "periodByConcert": 2,
+    "periodByDebut": 2,
+    "concertOfPeriod": null,
+    "title": "上海「C3 in Shanghai 2019」で＝LOVEスペシャルステージ",
+    "description": "中国・上海のイベント「C3 in Shanghai 2019」（上海跨境采购展览中心）で、名古屋SUNSHINE SAKAEの人気企画を持ち込んだ「SUPER SUNSHINE」＝LOVEスペシャルステージに12人で出演した。",
+    "category": "concert",
+    "highlight": false,
+    "status": "held",
+    "related": {},
+    "confidence": "準確認",
+    "sources": [
+      {
+        "url": "https://ja.wikipedia.org/wiki/%3DLOVE",
+        "type": "fan",
+        "label": "Wikipedia（二次情報）"
+      },
+      {
+        "url": "https://equal-love.jp/news/detail/1506",
+        "type": "official",
+        "label": "公式：C3 in Shanghai 2019出演情報（4/5）"
+      },
+      {
+        "url": "https://www.sunshine-sakae.jp/event/eve_896.html",
+        "type": "official",
+        "label": "サンシャインサカエ：C3 in Shanghai 2019告知"
+      }
+    ],
+    "firstEvidence": []
   },
   {
     "id": "anv-2019-first-tour",
     "date": "2019-04-11",
     "endDate": "2019-04-19",
     "period": 2,
+    "periodByConcert": 2,
+    "periodByDebut": 2,
+    "concertOfPeriod": null,
     "title": "ファーストツアー「今、この船に乗れ！」",
     "description": "初のツアー。4/11 Zepp Nagoya、4/13 大阪BIGCAT、4/19 Zepp Tokyo（ファイナル）の東名阪3公演。公式表記は「全国ツアー」ではなく「ファーストツアー」。",
     "category": "concert",
@@ -283,6 +483,14 @@ export const ANNIVERSARY_EVENTS = [
         "type": "press",
         "label": "音楽ナタリー"
       }
+    ],
+    "firstEvidence": [
+      {
+        "claim": "ファーストツアー",
+        "verdict": "確認済み",
+        "url": "https://equal-love.jp/news/detail/1358",
+        "evidence": "公式表記「=LOVEファーストツアー『今、この船に乗れ！』」、東名阪3公演。"
+      }
     ]
   },
   {
@@ -290,6 +498,9 @@ export const ANNIVERSARY_EVENTS = [
     "date": "2019-08-20",
     "endDate": null,
     "period": 2,
+    "periodByConcert": 2,
+    "periodByDebut": 2,
+    "concertOfPeriod": null,
     "title": "髙松瞳、一時活動休止を発表",
     "description": "体調不良による療養のため、9月12日の2周年記念コンサートを区切りに当面の間活動休止すると公式発表。6thシングルは不参加。",
     "category": "member",
@@ -310,13 +521,17 @@ export const ANNIVERSARY_EVENTS = [
         "type": "press",
         "label": "モデルプレス"
       }
-    ]
+    ],
+    "firstEvidence": []
   },
   {
     "id": "anv-2019-2nd-anniv-concert",
     "date": "2019-09-12",
     "endDate": null,
     "period": 2,
+    "periodByConcert": 2,
+    "periodByDebut": 3,
+    "concertOfPeriod": 2,
     "title": "デビュー2周年記念コンサート（中野サンプラザ）",
     "description": "中野サンプラザホールで2周年記念コンサートを開催。髙松瞳はこの公演を最後に休養に入った。同日付で楽曲「866」もリリースされている（アプリの songs.js より）。",
     "category": "concert",
@@ -341,13 +556,17 @@ export const ANNIVERSARY_EVENTS = [
         "type": "press",
         "label": "音楽ナタリー"
       }
-    ]
+    ],
+    "firstEvidence": []
   },
   {
     "id": "anv-2019-first-oricon-no1",
     "date": "2019-10-30",
     "endDate": null,
     "period": 3,
+    "periodByConcert": 3,
+    "periodByDebut": 3,
+    "concertOfPeriod": null,
     "title": "「ズルいよ ズルいね」で初のオリコン週間1位",
     "description": "6thシングル（センター齊藤なぎさ）が初週14.3万枚で11/11付オリコン週間シングルランキング1位。6作目で自身初のシングル1位。",
     "category": "release",
@@ -364,6 +583,14 @@ export const ANNIVERSARY_EVENTS = [
         "type": "press",
         "label": "オリコン（自身初のシングル1位）"
       }
+    ],
+    "firstEvidence": [
+      {
+        "claim": "初のオリコン週間1位",
+        "verdict": "確認済み",
+        "url": "https://www.oricon.co.jp/news/2148002/full/",
+        "evidence": "オリコン見出し「指原莉乃プロデュースの＝LOVE、自身初のシングル1位」。"
+      }
     ]
   },
   {
@@ -371,13 +598,16 @@ export const ANNIVERSARY_EVENTS = [
     "date": "2019-12-25",
     "endDate": "2020-01-17",
     "period": 3,
-    "title": "初の5都市全国ツアー Winter Tour「866」",
-    "description": "仙台Rensaから福岡・名古屋・大阪を回り、2020/1/17 Zepp Tokyoでファイナル。",
+    "periodByConcert": 3,
+    "periodByDebut": 3,
+    "concertOfPeriod": null,
+    "title": "冬の全国ツアー Winter Tour「866」（5都市）",
+    "description": "仙台Rensa（12/25）・福岡DRUM LOGOS（12/27）・Zepp Nagoya（1/10）・Zepp Namba（1/12）を回り、2020/1/17 Zepp Tokyoでファイナル。公式表記は「冬の全国ツアー」。",
     "category": "concert",
     "highlight": false,
     "status": "held",
     "related": {},
-    "confidence": "準確認",
+    "confidence": "確認済み",
     "sources": [
       {
         "url": "https://mdpr.jp/music/detail/1878670",
@@ -388,36 +618,66 @@ export const ANNIVERSARY_EVENTS = [
         "url": "https://equal-love.jp/news/detail/2322",
         "type": "official",
         "label": "公式FC企画告知（ツアー名のみ）"
+      },
+      {
+        "url": "https://equal-love.jp/news/detail/2409",
+        "type": "official",
+        "label": "公式：冬の全国ツアー「866」日程（5会場）"
+      },
+      {
+        "url": "https://lp.p.pia.jp/article/news/92944/index.html",
+        "type": "press",
+        "label": "ぴあ：ツアーファイナル・全国5カ所"
+      }
+    ],
+    "firstEvidence": [
+      {
+        "claim": "初の5都市全国ツアー",
+        "verdict": "準確認",
+        "url": "https://equal-love.jp/news/detail/2409",
+        "evidence": "公式は「冬の全国ツアー」で5会場。「初の5都市」と明記する公式・報道は見つからず（Wikipedia表記）。それ以前のツアーは3都市なので事実上は正しい。"
       }
     ]
   },
   {
     "id": "anv-2020-ikonoijoy-youtube",
-    "date": "2020-05",
+    "date": "2020-05-01",
     "endDate": null,
     "period": 3,
+    "periodByConcert": 3,
+    "periodByDebut": 3,
+    "concertOfPeriod": null,
     "title": "＝LOVE・≠ME合同YouTubeチャンネル開設（現イコノイジョイ）",
-    "description": "2020年5月に＝LOVE・≠MEの合同チャンネルとして開設。後に≒JOYも加わった3グループ合同チャンネル。",
+    "description": "2020年5月1日、＝LOVE・≠MEの公式YouTubeチャンネル「イコラブノイミーチャンネル」開設を公式発表。後に≒JOYも加わり3グループ合同チャンネル（イコラブ ノイミー ニアジョイ チャンネル）に。",
     "category": "other",
     "highlight": false,
     "status": "held",
     "related": {
       "groupActivityId": "group-ikonoijoy-youtube"
     },
-    "confidence": "準確認",
+    "confidence": "確認済み",
     "sources": [
       {
         "url": "https://www.cyberagent-adagency.com/news/648/",
         "type": "press",
         "label": "CyberAgent"
+      },
+      {
+        "url": "https://equal-love.jp/news/detail/2890",
+        "type": "official",
+        "label": "公式：イコラブノイミーチャンネル開設（2020.05.01）"
       }
-    ]
+    ],
+    "firstEvidence": []
   },
   {
     "id": "anv-2020-3rd-anniv-concert",
     "date": "2020-09-06",
     "endDate": null,
     "period": 3,
+    "periodByConcert": 3,
+    "periodByDebut": 3,
+    "concertOfPeriod": 3,
     "title": "3周年記念コンサート（パシフィコ横浜）・髙松瞳復帰",
     "description": "パシフィコ横浜 国立大ホールで「3rd ANNIVERSARY PREMIUM CONCERT」を開催（有観客と配信）。約1年休養していた髙松瞳がサプライズで復帰し、12人で「＝LOVE」を歌った。",
     "category": "concert",
@@ -442,13 +702,17 @@ export const ANNIVERSARY_EVENTS = [
         "type": "official",
         "label": "公式NEWS"
       }
-    ]
+    ],
+    "firstEvidence": []
   },
   {
     "id": "anv-2020-kimiha-tv",
     "date": "2020-09-13",
     "endDate": null,
     "period": 4,
+    "periodByConcert": 4,
+    "periodByDebut": 4,
+    "concertOfPeriod": null,
     "title": "初の冠バラエティ「キミは＝LOVEを愛せるか！！」放送開始",
     "description": "フジテレビTWOでのパイロット放送から始まり、2021年からレギュラー化。2026年3月に終了。",
     "category": "tv",
@@ -464,6 +728,14 @@ export const ANNIVERSARY_EVENTS = [
         "type": "official",
         "label": "公式NEWS"
       }
+    ],
+    "firstEvidence": [
+      {
+        "claim": "初の冠バラエティ",
+        "verdict": "確認済み",
+        "url": "https://equal-love.jp/news/detail/3266",
+        "evidence": "公式が「＝LOVE初の単独冠バラエティ番組」と記載（フジテレビTWO、9/13放送）。"
+      }
     ]
   },
   {
@@ -471,6 +743,9 @@ export const ANNIVERSARY_EVENTS = [
     "date": "2021-01-16",
     "endDate": "2021-01-17",
     "period": 4,
+    "periodByConcert": 4,
+    "periodByDebut": 4,
+    "concertOfPeriod": null,
     "title": "初の日本武道館公演（2DAYS）",
     "description": "冬ツアー「You all are \"My ideal\"」のファイナルとして初めて日本武道館に立った。当初1日の予定が、ツアー初日に1/16・17の2日間へ拡大された（感染対策の制限付き開催）。",
     "category": "milestone",
@@ -495,6 +770,14 @@ export const ANNIVERSARY_EVENTS = [
         "type": "press",
         "label": "音楽ナタリー（武道館2DAYSに）"
       }
+    ],
+    "firstEvidence": [
+      {
+        "claim": "初の日本武道館",
+        "verdict": "確認済み",
+        "url": "https://natalie.mu/music/news/412879",
+        "evidence": "ナタリーのライブレポートで、1/16・17のツアーファイナルが＝LOVE初の武道館と記載（検索要約で確認、本文は403）。"
+      }
     ]
   },
   {
@@ -502,6 +785,9 @@ export const ANNIVERSARY_EVENTS = [
     "date": "2021-03-06",
     "endDate": null,
     "period": 4,
+    "periodByConcert": 4,
+    "periodByDebut": 4,
+    "concertOfPeriod": null,
     "title": "佐竹のん乃 卒業（グループ初の卒業）",
     "description": "2021年2月1日に卒業を発表し、3月6日のさいたま市文化センターでの卒業コンサート（配信形式）でグループを卒業。結成以来初の卒業メンバー。",
     "category": "member",
@@ -531,6 +817,14 @@ export const ANNIVERSARY_EVENTS = [
         "type": "official",
         "label": "公式NEWS"
       }
+    ],
+    "firstEvidence": [
+      {
+        "claim": "グループ初の卒業",
+        "verdict": "確認済み",
+        "url": "https://www.oricon.co.jp/news/2183374/full/",
+        "evidence": "オリコン見出し「佐竹のん乃が卒業発表 イコラブ初の卒業者」。"
+      }
     ]
   },
   {
@@ -538,6 +832,9 @@ export const ANNIVERSARY_EVENTS = [
     "date": "2021-05-12",
     "endDate": null,
     "period": 4,
+    "periodByConcert": 4,
+    "periodByDebut": 4,
+    "concertOfPeriod": null,
     "title": "1stアルバム『全部、内緒。』発売・オリコン週間1位",
     "description": "初のアルバム。初週4.4万枚で5/24付オリコン週間アルバムランキング1位。同時期に全国ツアー「全部、内緒。」（9会場）を開催。",
     "category": "release",
@@ -554,13 +851,17 @@ export const ANNIVERSARY_EVENTS = [
         "type": "press",
         "label": "オリコン（1stアルバムが1位）"
       }
-    ]
+    ],
+    "firstEvidence": []
   },
   {
     "id": "anv-2021-zenbunaisho-yokoari",
     "date": "2021-07-07",
     "endDate": null,
     "period": 4,
+    "periodByConcert": 4,
+    "periodByDebut": 4,
+    "concertOfPeriod": null,
     "title": "全国ツアー「全部、内緒。」横浜アリーナでファイナル",
     "description": "5/8茨城から始まった9会場のツアーの最終公演。「ウィークエンドシトロン」（フワちゃん作詞参加）を初披露。",
     "category": "concert",
@@ -585,13 +886,17 @@ export const ANNIVERSARY_EVENTS = [
         "type": "press",
         "label": "音楽ナタリー（ツアー発表）"
       }
-    ]
+    ],
+    "firstEvidence": []
   },
   {
     "id": "anv-2021-first-mstation",
     "date": "2021-09-17",
     "endDate": null,
     "period": 4,
+    "periodByConcert": 4,
+    "periodByDebut": 5,
+    "concertOfPeriod": null,
     "title": "「ミュージックステーション」初出演",
     "description": "デビュー4年目でテレビ朝日系「ミュージックステーション」に初出演し、「ウィークエンドシトロン」を披露。指原莉乃も応援に駆けつけた。",
     "category": "tv",
@@ -613,6 +918,14 @@ export const ANNIVERSARY_EVENTS = [
         "type": "press",
         "label": "ガルポ"
       }
+    ],
+    "firstEvidence": [
+      {
+        "claim": "Mステ初出演",
+        "verdict": "確認済み",
+        "url": "https://www.musicman.co.jp/artist/426947",
+        "evidence": "Musicmanが「=LOVEが初出演」と記載、公式Xも「#ミュージックステーション 初出演ありがとうございました」。"
+      }
     ]
   },
   {
@@ -620,6 +933,9 @@ export const ANNIVERSARY_EVENTS = [
     "date": "2021-09-20",
     "endDate": null,
     "period": 4,
+    "periodByConcert": 4,
+    "periodByDebut": 5,
+    "concertOfPeriod": 4,
     "title": "4周年記念コンサート（幕張メッセ イベントホール）",
     "description": "幕張メッセ イベントホールで昼夜2公演の「4th ANNIVERSARY PREMIUM CONCERT」を開催（生配信あり）。佐竹のん乃卒業後、11人で迎えた初の周年コンサート。",
     "category": "concert",
@@ -648,13 +964,17 @@ export const ANNIVERSARY_EVENTS = [
         "type": "press",
         "label": "ぴあ ライブレポート"
       }
-    ]
+    ],
+    "firstEvidence": []
   },
   {
     "id": "anv-2022-nationwide-tour",
     "date": "2022-04-03",
     "endDate": null,
     "period": 5,
+    "periodByConcert": 5,
+    "periodByDebut": 5,
+    "concertOfPeriod": null,
     "title": "全国ツアー2022「どう考えても、君ってイコラブのこと好きじゃん」",
     "description": "苫小牧市民会館を初日に全国10都市を回ったツアー。",
     "category": "concert",
@@ -673,13 +993,17 @@ export const ANNIVERSARY_EVENTS = [
         "type": "official",
         "label": "公式NEWS"
       }
-    ]
+    ],
+    "firstEvidence": []
   },
   {
     "id": "anv-2022-takamatsu-center-change",
     "date": "2022-04-29",
     "endDate": null,
     "period": 5,
+    "periodByConcert": 5,
+    "periodByDebut": 5,
+    "concertOfPeriod": null,
     "title": "髙松瞳、センター交代を自ら発表",
     "description": "公式YouTubeのビデオメッセージで、11thシングル「あの子コンプレックス」からセンターを退くことを本人が発表。新センターは佐々木舞香。",
     "category": "member",
@@ -702,13 +1026,17 @@ export const ANNIVERSARY_EVENTS = [
         "type": "press",
         "label": "音楽ナタリー 特集"
       }
-    ]
+    ],
+    "firstEvidence": []
   },
   {
     "id": "anv-2022-5th-anniv-concert",
     "date": "2022-09-25",
     "endDate": null,
     "period": 5,
+    "periodByConcert": 5,
+    "periodByDebut": 6,
+    "concertOfPeriod": 5,
     "title": "5周年記念コンサート（国立代々木競技場 第一体育館・約2万人）",
     "description": "周年コンサート史上最大の会場で昼夜2公演、計約2万人を動員（生配信あり）。12thシングル「Be Selfish」を初披露。",
     "category": "concert",
@@ -738,13 +1066,17 @@ export const ANNIVERSARY_EVENTS = [
         "type": "official",
         "label": "公式特設サイト"
       }
-    ]
+    ],
+    "firstEvidence": []
   },
   {
     "id": "anv-2022-nagisa-grad-announce",
     "date": "2022-09-25",
     "endDate": null,
     "period": 5,
+    "periodByConcert": 5,
+    "periodByDebut": 6,
+    "concertOfPeriod": null,
     "title": "齊藤なぎさ、卒業を発表",
     "description": "5周年コンサート夜の部で、齊藤なぎさがグループからの卒業を発表（時期は後日発表）。演技の仕事を新しい夢に挙げた。",
     "category": "member",
@@ -765,13 +1097,17 @@ export const ANNIVERSARY_EVENTS = [
         "type": "press",
         "label": "オリコン"
       }
-    ]
+    ],
+    "firstEvidence": []
   },
   {
     "id": "anv-2022-ikorafu-radio",
     "date": "2022-10-03",
     "endDate": null,
     "period": 6,
+    "periodByConcert": 6,
+    "periodByDebut": 6,
+    "concertOfPeriod": null,
     "title": "冠ラジオ「＝LOVEのイコラフ」（ニッポン放送）開始",
     "description": "毎週月曜のグループ冠レギュラーラジオ。メンバーが週替わりでパーソナリティ。",
     "category": "tv",
@@ -787,13 +1123,17 @@ export const ANNIVERSARY_EVENTS = [
         "type": "official",
         "label": "公式SCHEDULE"
       }
-    ]
+    ],
+    "firstEvidence": []
   },
   {
     "id": "anv-2023-nagisa-graduation",
     "date": "2023-01-13",
     "endDate": null,
     "period": 6,
+    "periodByConcert": 6,
+    "periodByDebut": 6,
+    "concertOfPeriod": null,
     "title": "齊藤なぎさ 卒業コンサート（パシフィコ横浜）",
     "description": "「現役アイドルちゅ～ みんなのこと大好きだよ♡」と題した卒業コンサートで、グループを卒業。以後10人体制。",
     "category": "member",
@@ -818,13 +1158,17 @@ export const ANNIVERSARY_EVENTS = [
         "type": "official",
         "label": "公式NEWS"
       }
-    ]
+    ],
+    "firstEvidence": []
   },
   {
     "id": "anv-2023-budokan-return",
     "date": "2023-03-02",
     "endDate": null,
     "period": 6,
+    "periodByConcert": 6,
+    "periodByDebut": 6,
+    "concertOfPeriod": null,
     "title": "2年ぶりの日本武道館（全国ツアー2023 追加公演）",
     "description": "全国ツアー2023「Today is your Trigger」の追加公演として、制限なしの超満員で2度目の武道館公演（昼夜2公演）。",
     "category": "concert",
@@ -848,15 +1192,19 @@ export const ANNIVERSARY_EVENTS = [
         "type": "official",
         "label": "公式SCHEDULE"
       }
-    ]
+    ],
+    "firstEvidence": []
   },
   {
     "id": "anv-2023-first-cdtv",
     "date": "2023-09-04",
     "endDate": null,
     "period": 6,
-    "title": "「CDTVライブ！ライブ！」初出演",
-    "description": "TBS系「CDTVライブ！ライブ！」に初出演し「ナツマトぺ」を披露。9/16には「CDTVライブ！ライブ！フェスティバル2023」にも初出演。",
+    "periodByConcert": 6,
+    "periodByDebut": 6,
+    "concertOfPeriod": null,
+    "title": "「CDTVライブ！ライブ！」通常回（2時間SP）に初出演",
+    "description": "TBS系「CDTVライブ！ライブ！」2時間スペシャルに生出演し「ナツマトぺ」をフルサイズでテレビ初披露（指原莉乃も出演）。CDTV自体は2021年大みそかの年越しスペシャル（2021→2022）が初出演。9/16には「CDTVライブ！ライブ！フェスティバル2023」にも初出演。",
     "category": "tv",
     "highlight": false,
     "status": "held",
@@ -864,12 +1212,35 @@ export const ANNIVERSARY_EVENTS = [
       "songId": "natsumatope",
       "tvAppearanceDate": "2023-09-04"
     },
-    "confidence": "準確認",
+    "confidence": "確認済み",
     "sources": [
       {
         "url": "https://www.thefirsttimes.jp/report/0000326879/",
         "type": "press",
         "label": "THE FIRST TIMES（フェス初出演レポート）"
+      },
+      {
+        "url": "https://equal-love.jp/news/detail/7091",
+        "type": "official",
+        "label": "公式：CDTV 2時間SP出演情報"
+      },
+      {
+        "url": "https://popnroll.tv/articles/35113",
+        "type": "press",
+        "label": "Pop'n'Roll：9/4生放送に初出演と記載"
+      },
+      {
+        "url": "https://equal-love.jp/news/detail/4898",
+        "type": "official",
+        "label": "公式：CDTV年越しSP 2021→2022出演情報"
+      }
+    ],
+    "firstEvidence": [
+      {
+        "claim": "CDTVライブ！ライブ！の通常回（生放送）に初出演",
+        "verdict": "準確認",
+        "url": "https://popnroll.tv/articles/35113",
+        "evidence": "Pop'n'Roll が9/4の生放送を「初出演」と記載（報道1件）。CDTV自体の初出演は2021年大みそかの年越しスペシャル（公式NEWS 4898）なので、題名を「通常回に初出演」に直した。"
       }
     ]
   },
@@ -878,6 +1249,9 @@ export const ANNIVERSARY_EVENTS = [
     "date": "2023-10-18",
     "endDate": "2023-10-19",
     "period": 6,
+    "periodByConcert": 6,
+    "periodByDebut": 7,
+    "concertOfPeriod": 6,
     "title": "6周年記念コンサート（さいたまスーパーアリーナ・約2万8000人）",
     "description": "初のさいたまスーパーアリーナ2DAYSで約2万8000人を動員（当時の過去最大規模）。新曲「ラストノートしか知らない」を初披露し、翌年の初アリーナツアー開催を発表。",
     "category": "concert",
@@ -908,6 +1282,14 @@ export const ANNIVERSARY_EVENTS = [
         "type": "official",
         "label": "公式特設サイト"
       }
+    ],
+    "firstEvidence": [
+      {
+        "claim": "初のさいたまスーパーアリーナ",
+        "verdict": "確認済み",
+        "url": "https://prtimes.jp/main/html/rd/p/000003922.000013546.html",
+        "evidence": "ソニーPRが「自身初のさいたまスーパーアリーナで2日間開催」と記載、約28,000人。"
+      }
     ]
   },
   {
@@ -915,6 +1297,9 @@ export const ANNIVERSARY_EVENTS = [
     "date": "2024-02-03",
     "endDate": "2024-04-14",
     "period": 7,
+    "periodByConcert": 7,
+    "periodByDebut": 7,
+    "concertOfPeriod": null,
     "title": "初のアリーナツアー2024「Tell me what's more than \"LOVE\"」",
     "description": "神戸ワールド記念ホールから有明アリーナ（4/14）まで回った自身初のアリーナツアー。ファイナルは9月の7周年Kアリーナ公演と位置づけられた。",
     "category": "concert",
@@ -938,13 +1323,55 @@ export const ANNIVERSARY_EVENTS = [
         "type": "press",
         "label": "音楽ナタリー（初アリーナツアー発表）"
       }
+    ],
+    "firstEvidence": [
+      {
+        "claim": "初のアリーナツアー",
+        "verdict": "確認済み",
+        "url": "https://prtimes.jp/main/html/rd/p/000004153.000013546.html",
+        "evidence": "ソニーPRが「自身初となるアリーナツアー」と記載。2/3神戸ワールド記念ホール〜4/14有明アリーナ。"
+      }
     ]
+  },
+  {
+    "id": "anv-2024-love-cross-love",
+    "date": "2024-03-18",
+    "endDate": null,
+    "period": 7,
+    "periodByConcert": 7,
+    "periodByDebut": 7,
+    "concertOfPeriod": null,
+    "title": "日本テレビ 冠番組「＝LOVExLOVE（イコラブクロスラブ）」放送開始",
+    "description": "＝LOVEとゲストの“クロス”から魅力を引き出す音楽バラエティー（全6回）。3月18日（月）深夜25:29から毎週放送。",
+    "category": "tv",
+    "highlight": false,
+    "status": "held",
+    "related": {
+      "groupActivityId": "group-tv-love-cross-love"
+    },
+    "confidence": "確認済み",
+    "sources": [
+      {
+        "url": "https://equal-love.jp/news/detail/8310",
+        "type": "official",
+        "label": "公式：日本テレビ冠番組「＝LOVExLOVE」放送決定"
+      },
+      {
+        "url": "https://www.thefirsttimes.jp/news/0000395928/",
+        "type": "press",
+        "label": "THE FIRST TIMES：冠番組放送決定"
+      }
+    ],
+    "firstEvidence": []
   },
   {
     "id": "anv-2024-zettai-idol",
     "date": "2024-07-31",
     "endDate": null,
     "period": 7,
+    "periodByConcert": 7,
+    "periodByDebut": 7,
+    "concertOfPeriod": null,
     "title": "「絶対アイドル辞めないで」発売・ロングヒットに",
     "description": "17thシングル（センター佐々木舞香、作詞 指原莉乃）。6/22公開のMVは24時間で100万回再生（自身最速）、発売日にストリーミング累計1,000万回を突破し、その後もTikTok等でロングヒット。",
     "category": "release",
@@ -971,13 +1398,17 @@ export const ANNIVERSARY_EVENTS = [
         "type": "official",
         "label": "PR TIMES（MV 11日で500万回）"
       }
-    ]
+    ],
+    "firstEvidence": []
   },
   {
     "id": "anv-2024-first-take",
     "date": "2024-08-28",
     "endDate": null,
     "period": 7,
+    "periodByConcert": 7,
+    "periodByDebut": 7,
+    "concertOfPeriod": null,
     "title": "「THE FIRST TAKE」にメンバー全員で初登場",
     "description": "「絶対アイドル辞めないで」を一発撮りで披露（#471）。以前の3人での出演（「あの子コンプレックス」）に続き、全員では初。11/13には音源も配信された。",
     "category": "tv",
@@ -998,6 +1429,14 @@ export const ANNIVERSARY_EVENTS = [
         "type": "press",
         "label": "音楽ナタリー（音源配信）"
       }
+    ],
+    "firstEvidence": [
+      {
+        "claim": "THE FIRST TAKEに全員で初登場",
+        "verdict": "確認済み",
+        "url": "https://www.oricon.co.jp/news/2342259/full/",
+        "evidence": "オリコンがメンバー全員での初登場と記載、以前は3人で出演したとのメンバーコメントあり。"
+      }
     ]
   },
   {
@@ -1005,6 +1444,9 @@ export const ANNIVERSARY_EVENTS = [
     "date": "2024-09-07",
     "endDate": "2024-09-08",
     "period": 7,
+    "periodByConcert": 7,
+    "periodByDebut": 8,
+    "concertOfPeriod": 7,
     "title": "7周年記念コンサート（Kアリーナ横浜・約3万6000人）",
     "description": "Kアリーナ横浜2DAYSで「7th ANNIVERSARY PREMIUM CONCERT」を開催。初のアリーナツアーのファイナルも兼ね、当時のグループ史上最大の約3万6000人を動員。",
     "category": "concert",
@@ -1030,13 +1472,17 @@ export const ANNIVERSARY_EVENTS = [
         "type": "press",
         "label": "音楽ナタリー"
       }
-    ]
+    ],
+    "firstEvidence": []
   },
   {
     "id": "anv-2024-zettai-mv-10m",
     "date": "2024-11-12",
     "endDate": null,
     "period": 8,
+    "periodByConcert": 8,
+    "periodByDebut": 8,
+    "concertOfPeriod": null,
     "title": "「絶対アイドル辞めないで」MVが1,000万回再生を突破",
     "description": "公開から約5か月でMV再生数1,000万回を突破（その後2025年12月に2,000万回）。",
     "category": "release",
@@ -1057,15 +1503,19 @@ export const ANNIVERSARY_EVENTS = [
         "type": "official",
         "label": "公式X（2,000万回）"
       }
-    ]
+    ],
+    "firstEvidence": []
   },
   {
     "id": "anv-2025-timeless-tales",
     "date": "2025-02-02",
     "endDate": "2025-07-13",
     "period": 8,
+    "periodByConcert": 8,
+    "periodByDebut": 8,
+    "concertOfPeriod": null,
     "title": "ARENA TOUR 2025「～Timeless Tales～」",
-    "description": "2度目のアリーナツアー。5/5・6の国立代々木競技場第一体育館を経て、7月に有明アリーナで追加公演。報道では過去最多の約9万人動員（追加公演前の時点）。",
+    "description": "2度目のアリーナツアー。2/2さいたまスーパーアリーナで開幕（新曲「とくべチュ、して」をサプライズ初披露）、5/5・6の国立代々木競技場第一体育館で千秋楽（本編5都市で過去最多の約9万人）。7/12・13に有明アリーナで追加公演を行い、全12公演で計約11.5万人を動員。",
     "category": "concert",
     "highlight": false,
     "status": "held",
@@ -1077,7 +1527,7 @@ export const ANNIVERSARY_EVENTS = [
         "perf-arena-tour-2025-ariake-day2"
       ]
     },
-    "confidence": "準確認",
+    "confidence": "確認済み",
     "sources": [
       {
         "url": "https://www.thefirsttimes.jp/report/0000612633/",
@@ -1093,14 +1543,33 @@ export const ANNIVERSARY_EVENTS = [
         "url": "https://oshigoto.fan/news/118640/",
         "type": "press",
         "label": "推しごと（約9万人）"
+      },
+      {
+        "url": "https://prtimes.jp/main/html/rd/p/000004443.000013546.html",
+        "type": "official",
+        "label": "ソニーPR：2/2たまアリで開幕"
+      },
+      {
+        "url": "https://www.galpo.info/feature/list/12694",
+        "type": "press",
+        "label": "ガルポ：追加公演含め全12公演11.5万人"
+      },
+      {
+        "url": "https://equal-love.jp/news/detail/10075",
+        "type": "official",
+        "label": "公式：有明アリーナ追加公演"
       }
-    ]
+    ],
+    "firstEvidence": []
   },
   {
     "id": "anv-2025-tokubechu-release",
     "date": "2025-02-26",
     "endDate": null,
     "period": 8,
+    "periodByConcert": 8,
+    "periodByDebut": 8,
+    "concertOfPeriod": null,
     "title": "「とくべチュ、して」発売",
     "description": "18thシングル（両A面「とくべチュ、して／恋人以上、好き未満」）。春ごろからTikTokのダンス動画で広がり、グループ最大のヒット曲になった。",
     "category": "release",
@@ -1117,13 +1586,17 @@ export const ANNIVERSARY_EVENTS = [
         "type": "press",
         "label": "Billboard JAPAN（Yahoo!）"
       }
-    ]
+    ],
+    "firstEvidence": []
   },
   {
     "id": "anv-2025-7th-movie",
     "date": "2025-04-04",
     "endDate": null,
     "period": 8,
+    "periodByConcert": 8,
+    "periodByDebut": 8,
+    "concertOfPeriod": null,
     "title": "映画『＝LOVE 7th ANNIVERSARY PREMIUM CONCERT THE MOVIE』公開",
     "description": "Kアリーナ横浜での7周年コンサート（2024/9/8）を収めたライブ映画が全国公開。ScreenX・4DXでも上映。",
     "category": "tv",
@@ -1149,13 +1622,17 @@ export const ANNIVERSARY_EVENTS = [
         "type": "press",
         "label": "OTOTOY（公開日決定）"
       }
-    ]
+    ],
+    "firstEvidence": []
   },
   {
     "id": "anv-2025-tokubechu-tiktok-1b",
-    "date": "2025-06",
+    "date": "2025-06-06",
     "endDate": null,
     "period": 8,
+    "periodByConcert": 8,
+    "periodByDebut": 8,
+    "concertOfPeriod": null,
     "title": "「とくべチュ、して」TikTok総再生10億回を突破",
     "description": "TikTokでの楽曲総再生回数が10億回を突破。同時点でCD売上36.4万枚、ストリーミング3,500万回超え。",
     "category": "release",
@@ -1164,22 +1641,31 @@ export const ANNIVERSARY_EVENTS = [
     "related": {
       "songId": "tokubechu-shite"
     },
-    "confidence": "準確認",
+    "confidence": "確認済み",
     "sources": [
       {
         "url": "https://prtimes.jp/main/html/rd/p/000004547.000013546.html",
         "type": "official",
         "label": "PR TIMES（ソニー・ミュージック）"
+      },
+      {
+        "url": "https://www.cdjournal.com/i/news/news.php?nno=119114",
+        "type": "press",
+        "label": "CDJournal：TikTok総再生10億回突破"
       }
-    ]
+    ],
+    "firstEvidence": []
   },
   {
     "id": "anv-2025-8th-tour-start",
     "date": "2025-09-06",
     "endDate": "2026-04-19",
     "period": 8,
+    "periodByConcert": 8,
+    "periodByDebut": 8,
+    "concertOfPeriod": 8,
     "title": "8周年ツアー「8th ANNIVERSARY PREMIUM TOUR」開幕（広島）",
-    "description": "デビュー記念日に広島サンプラザホールで開幕。富士急・沖縄・仙台・千葉・愛知IGアリーナ・北海道・大阪城ホールを回り、2026年4月の横浜スタジアムまで全18公演。",
+    "description": "8周年はツアー形式で開催（周年をツアーで行うのは初）。9/6・7の広島サンプラザホールで開幕し、全18公演。ファイナルは2026年4月の横浜スタジアム。",
     "category": "concert",
     "highlight": false,
     "status": "held",
@@ -1194,6 +1680,14 @@ export const ANNIVERSARY_EVENTS = [
         "type": "official",
         "label": "公式特設サイト（全日程）"
       }
+    ],
+    "firstEvidence": [
+      {
+        "claim": "（追加）周年ツアー形式は初",
+        "verdict": "確認済み",
+        "url": "https://prtimes.jp/main/html/rd/p/000004839.000013546.html",
+        "evidence": "ソニーPRがツアー形式での周年ライブ開催は初と記載。説明文に加えてもよい。"
+      }
     ]
   },
   {
@@ -1201,6 +1695,9 @@ export const ANNIVERSARY_EVENTS = [
     "date": "2025-10-08",
     "endDate": null,
     "period": 9,
+    "periodByConcert": 9,
+    "periodByDebut": 9,
+    "concertOfPeriod": null,
     "title": "「ラブソングに襲われる」初週33.0万枚で自己最高・オリコン1位",
     "description": "19thシングルが初週33.0万枚（自身初の30万枚超え）で10/20付オリコン週間1位。通算6作目の1位。",
     "category": "release",
@@ -1217,6 +1714,14 @@ export const ANNIVERSARY_EVENTS = [
         "type": "press",
         "label": "オリコン"
       }
+    ],
+    "firstEvidence": [
+      {
+        "claim": "自身初の30万枚超え・自己最高",
+        "verdict": "確認済み",
+        "url": "https://www.oricon.co.jp/news/2412088/full/",
+        "evidence": "オリコンが初週33.0万枚で自己最高、初の30万枚超え、通算6作目の1位と記載（ページ文字化けあり、読める範囲で確認）。"
+      }
     ]
   },
   {
@@ -1224,6 +1729,9 @@ export const ANNIVERSARY_EVENTS = [
     "date": "2025-11-16",
     "endDate": null,
     "period": 9,
+    "periodByConcert": 9,
+    "periodByDebut": 9,
+    "concertOfPeriod": null,
     "title": "初のスタジアム公演（横浜スタジアム）開催を発表",
     "description": "8周年ツアー愛知・IGアリーナ公演DAY2のアンコールで、ツアーファイナルを横浜スタジアム2DAYSで行うと発表。",
     "category": "milestone",
@@ -1247,6 +1755,14 @@ export const ANNIVERSARY_EVENTS = [
         "type": "official",
         "label": "公式NEWS"
       }
+    ],
+    "firstEvidence": [
+      {
+        "claim": "初のスタジアム公演を発表",
+        "verdict": "確認済み",
+        "url": "https://bezzy.jp/2025/11/77232/",
+        "evidence": "Bezzy見出し「＝LOVE初のスタジアムライブ開催決定」。公式NEWS10928には「初」の語は無い。"
+      }
     ]
   },
   {
@@ -1254,6 +1770,9 @@ export const ANNIVERSARY_EVENTS = [
     "date": "2025-12-30",
     "endDate": null,
     "period": 9,
+    "periodByConcert": 9,
+    "periodByDebut": 9,
+    "concertOfPeriod": null,
     "title": "第67回日本レコード大賞で「とくべチュ、して」が作詩賞",
     "description": "作詞の指原莉乃が「とくべチュ、して」で作詩賞を受賞（2025年11月発表）。12/30の放送に＝LOVEが出演し同曲を披露。",
     "category": "award",
@@ -1279,13 +1798,17 @@ export const ANNIVERSARY_EVENTS = [
         "type": "press",
         "label": "mora 各賞まとめ"
       }
-    ]
+    ],
+    "firstEvidence": []
   },
   {
     "id": "anv-2026-tokubechu-100m",
     "date": "2026-01-08",
     "endDate": null,
     "period": 9,
+    "periodByConcert": 9,
+    "periodByDebut": 9,
+    "concertOfPeriod": null,
     "title": "「とくべチュ、して」ストリーミング累積1億回突破（自身初）",
     "description": "オリコンの累積再生数で自身初の1億回を突破（Billboard JAPANでも1億回）。",
     "category": "release",
@@ -1311,6 +1834,14 @@ export const ANNIVERSARY_EVENTS = [
         "type": "press",
         "label": "Billboard JAPAN（Yahoo!）"
       }
+    ],
+    "firstEvidence": [
+      {
+        "claim": "自身初のストリーミング1億回",
+        "verdict": "確認済み",
+        "url": "https://www.cdjournal.com/news/equal-love/123705",
+        "evidence": "CDJournal（2026/1/8）が「自身初の累積再生数1億回突破作品」と記載。"
+      }
     ]
   },
   {
@@ -1318,6 +1849,9 @@ export const ANNIVERSARY_EVENTS = [
     "date": "2026-01-28",
     "endDate": null,
     "period": 9,
+    "periodByConcert": 9,
+    "periodByDebut": 9,
+    "concertOfPeriod": null,
     "title": "日本テレビ「イコラブコッコッコー!!」放送",
     "description": "相席スタートMCの期間限定冠バラエティ（全8週）。",
     "category": "tv",
@@ -1333,13 +1867,17 @@ export const ANNIVERSARY_EVENTS = [
         "type": "official",
         "label": "公式NEWS"
       }
-    ]
+    ],
+    "firstEvidence": []
   },
   {
     "id": "anv-2026-yokohama-stadium",
     "date": "2026-04-18",
     "endDate": "2026-04-19",
     "period": 9,
+    "periodByConcert": 9,
+    "periodByDebut": 9,
+    "concertOfPeriod": null,
     "title": "初のスタジアム公演・横浜スタジアム2DAYS（約7万人）",
     "description": "8周年ツアーFINALとして自身初のスタジアム公演。2日間で約7万人を動員し、新曲「モラトリアム」「お姫様の作り方」を初披露。",
     "category": "milestone",
@@ -1364,6 +1902,14 @@ export const ANNIVERSARY_EVENTS = [
         "type": "press",
         "label": "オリコン（7万人動員）"
       }
+    ],
+    "firstEvidence": [
+      {
+        "claim": "初のスタジアム公演",
+        "verdict": "確認済み",
+        "url": "https://prtimes.jp/main/html/rd/p/000004839.000013546.html",
+        "evidence": "ソニーPR（4/19）が周年ツアー形式もスタジアム規模の単独公演もこれが初と記載、約7万人。"
+      }
     ]
   },
   {
@@ -1371,6 +1917,9 @@ export const ANNIVERSARY_EVENTS = [
     "date": "2026-06-20",
     "endDate": "2026-06-21",
     "period": 9,
+    "periodByConcert": 9,
+    "periodByDebut": 9,
+    "concertOfPeriod": null,
     "title": "国立競技場（MUFGスタジアム）2DAYS・13万2千人",
     "description": "STADIUM LIVE「Beyond \"KYUN\"♡」で2日間計13万2千人を動員（グループ史上最大、両日完売）。6/20に9周年コンサート、6/21に初の東京ドーム公演の開催を発表。",
     "category": "milestone",
@@ -1391,13 +1940,17 @@ export const ANNIVERSARY_EVENTS = [
         "type": "official",
         "label": "PR TIMES（ソニー・ミュージック）"
       }
-    ]
+    ],
+    "firstEvidence": []
   },
   {
     "id": "anv-2026-tokyo-dome-announce",
     "date": "2026-06-21",
     "endDate": null,
     "period": 9,
+    "periodByConcert": 9,
+    "periodByDebut": 9,
+    "concertOfPeriod": null,
     "title": "初の東京ドーム公演を発表",
     "description": "国立競技場公演2日目に、2027年1月19日・20日の東京ドーム単独公演「＝LOVE in TOKYO DOME」を発表。",
     "category": "milestone",
@@ -1418,6 +1971,14 @@ export const ANNIVERSARY_EVENTS = [
         "type": "official",
         "label": "公式NEWS"
       }
+    ],
+    "firstEvidence": [
+      {
+        "claim": "初の東京ドーム公演",
+        "verdict": "確認済み",
+        "url": "https://mdpr.jp/news/detail/4802393",
+        "evidence": "モデルプレス見出し「＝LOVE、初の東京ドーム公演開催決定」。公式・ソニーPRは「念願の東京ドーム公演」表記。"
+      }
     ]
   },
   {
@@ -1425,6 +1986,9 @@ export const ANNIVERSARY_EVENTS = [
     "date": "2026-07-06",
     "endDate": null,
     "period": 9,
+    "periodByConcert": 9,
+    "periodByDebut": 9,
+    "concertOfPeriod": null,
     "title": "「キミはもっと＝LOVEを愛せるか!!!」放送開始",
     "description": "前番組のリニューアル版としてフジテレビで月2回放送。",
     "category": "tv",
@@ -1440,14 +2004,18 @@ export const ANNIVERSARY_EVENTS = [
         "type": "official",
         "label": "公式NEWS"
       }
-    ]
+    ],
+    "firstEvidence": []
   },
   {
     "id": "anv-2026-inkigayo",
     "date": "2026-08-23",
     "endDate": null,
     "period": 9,
-    "title": "韓国SBS「人気歌謡」に初出演",
+    "periodByConcert": 9,
+    "periodByDebut": 9,
+    "concertOfPeriod": null,
+    "title": "韓国SBS「人気歌謡」（通常回）に初出演",
     "description": "韓国の音楽番組「인기가요（人気歌謡）」に初出演し、「恋、はじめました。」の韓国語バージョンを初披露。",
     "category": "tv",
     "highlight": false,
@@ -1473,6 +2041,14 @@ export const ANNIVERSARY_EVENTS = [
         "type": "press",
         "label": "モデルプレス"
       }
+    ],
+    "firstEvidence": [
+      {
+        "claim": "人気歌謡に初出演",
+        "verdict": "確認済み",
+        "url": "https://prtimes.jp/main/html/rd/p/000004972.000013546.html",
+        "evidence": "ソニーPR（8/21）がSBS「인기가요（人気歌謡）」に＝LOVEが初出演と記載、8/23放送。"
+      }
     ]
   },
   {
@@ -1480,6 +2056,9 @@ export const ANNIVERSARY_EVENTS = [
     "date": "2026-08-26",
     "endDate": null,
     "period": 9,
+    "periodByConcert": 9,
+    "periodByDebut": 9,
+    "concertOfPeriod": null,
     "title": "「恋、はじめました。」初週51.5万枚・自身初の50万枚超え",
     "description": "21stシングルが初週51.5万枚で9/7付オリコン週間1位（3作連続・通算8作目）。デビューから21作連続TOP10入り。",
     "category": "release",
@@ -1501,6 +2080,14 @@ export const ANNIVERSARY_EVENTS = [
         "type": "official",
         "label": "PR TIMES"
       }
+    ],
+    "firstEvidence": [
+      {
+        "claim": "自身初の50万枚超え",
+        "verdict": "確認済み",
+        "url": "https://www.oricon.co.jp/news/2477365/full/",
+        "evidence": "オリコン（2026/9/1）が初週50万枚超えを「自身初」と記載（文字化けあり、読める範囲）。"
+      }
     ]
   },
   {
@@ -1508,6 +2095,9 @@ export const ANNIVERSARY_EVENTS = [
     "date": "2026-10-15",
     "endDate": "2026-10-16",
     "period": 9,
+    "periodByConcert": 9,
+    "periodByDebut": 10,
+    "concertOfPeriod": 9,
     "title": "9周年記念コンサート（TOYOTA ARENA TOKYO・約2万人）",
     "description": "TOYOTA ARENA TOKYO 2DAYSで約2万人を動員。DAY1は1stコンサート、DAY2は2周年コンサートの衣装で登場するなど9年間を振り返る構成。",
     "category": "concert",
@@ -1537,13 +2127,17 @@ export const ANNIVERSARY_EVENTS = [
         "type": "press",
         "label": "日刊エンタメクリップ（2万人動員）"
       }
-    ]
+    ],
+    "firstEvidence": []
   },
   {
     "id": "anv-2026-nagoya-dome-announce",
     "date": "2026-10-16",
     "endDate": null,
     "period": 9,
+    "periodByConcert": 9,
+    "periodByDebut": 10,
+    "concertOfPeriod": null,
     "title": "名古屋ドーム追加公演を発表・東京ドーム公演名「全ては＝LOVE」",
     "description": "9周年コンサートで、2027年2月24日・25日のバンテリンドーム ナゴヤ公演「＝LOVE DOME LIVE in NAGOYA『全ては＝LOVE』」を発表。東京ドーム公演のタイトルも「全ては＝LOVE」と発表された。",
     "category": "milestone",
@@ -1564,13 +2158,17 @@ export const ANNIVERSARY_EVENTS = [
         "type": "press",
         "label": "音楽ナタリー"
       }
-    ]
+    ],
+    "firstEvidence": []
   },
   {
     "id": "anv-2026-tokubechu-200m",
     "date": "2026-10-21",
     "endDate": null,
     "period": 10,
+    "periodByConcert": 10,
+    "periodByDebut": 10,
+    "concertOfPeriod": null,
     "title": "「とくべチュ、して」ストリーミング累積2億回突破（自身初）",
     "description": "オリコン週間ストリーミングランキングで累積2億63.7万回となり、自身初の2億回突破作品に。",
     "category": "release",
@@ -1586,6 +2184,14 @@ export const ANNIVERSARY_EVENTS = [
         "type": "press",
         "label": "オリコン（Yahoo!）"
       }
+    ],
+    "firstEvidence": [
+      {
+        "claim": "自身初のストリーミング2億回",
+        "verdict": "確認済み",
+        "url": "https://news.yahoo.co.jp/articles/c2ebde0aa18e78cb2ea1606d17a70263f2fc832b",
+        "evidence": "オリコン配信（10/21）見出し「自身初の累積再生数2億回突破」、累積2億63.7万回（検索結果で確認、記事ページは現在404）。"
+      }
     ]
   },
   {
@@ -1593,6 +2199,9 @@ export const ANNIVERSARY_EVENTS = [
     "date": "2027-01-19",
     "endDate": "2027-01-20",
     "period": 10,
+    "periodByConcert": 10,
+    "periodByDebut": 10,
+    "concertOfPeriod": null,
     "title": "初の東京ドーム公演「＝LOVE in TOKYO DOME」（開催予定）",
     "description": "＝LOVE初の東京ドーム単独公演。2027年1月19日・20日開催予定。",
     "category": "concert",
@@ -1614,6 +2223,14 @@ export const ANNIVERSARY_EVENTS = [
         "type": "official",
         "label": "公式NEWS"
       }
+    ],
+    "firstEvidence": [
+      {
+        "claim": "初の東京ドーム公演",
+        "verdict": "確認済み",
+        "url": "https://mdpr.jp/news/detail/4802393",
+        "evidence": "モデルプレス見出し「＝LOVE、初の東京ドーム公演開催決定」。公式・ソニーPRは「念願の東京ドーム公演」表記。"
+      }
     ]
   },
   {
@@ -1621,7 +2238,10 @@ export const ANNIVERSARY_EVENTS = [
     "date": "2027-02-24",
     "endDate": "2027-02-25",
     "period": 10,
-    "title": "初の名古屋ドーム公演（開催予定）",
+    "periodByConcert": 10,
+    "periodByDebut": 10,
+    "concertOfPeriod": null,
+    "title": "バンテリンドーム ナゴヤ公演（東京ドーム公演の追加・開催予定）",
     "description": "バンテリンドーム ナゴヤでの「＝LOVE DOME LIVE in NAGOYA『全ては＝LOVE』」。2027年2月24日・25日開催予定。",
     "category": "concert",
     "highlight": false,
@@ -1635,6 +2255,14 @@ export const ANNIVERSARY_EVENTS = [
         "url": "https://equal-love.jp/news/detail/12275",
         "type": "official",
         "label": "公式NEWS"
+      }
+    ],
+    "firstEvidence": [
+      {
+        "claim": "初の名古屋ドーム公演",
+        "verdict": "準確認",
+        "url": "https://equal-love.jp/news/detail/12275",
+        "evidence": "公式・報道とも「初」とは書いていない（過去に同会場での公演が無いので事実上は初）。東京ドームの追加公演扱いで、ドームとしては2会場目。表記は「初のバンテリンドーム ナゴヤ公演」等が無難。"
       }
     ]
   }
