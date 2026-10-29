@@ -35,7 +35,8 @@ export async function runPartyBattleNavigationTests() {
   assertEqual(main.includes("navigateHomeToPartyCard: () => {") && main.includes('scrollHomeToSpecialModeCard("partyBattle")'), true, "main.js：設定トップの「戻る」でホームのパーティー対戦カードへスクロール");
   const scrollBody = main.slice(main.indexOf("function scrollHomeToSpecialModeCard(modeId) {"), main.indexOf("initLocalBattleScreens({"));
   assertEqual(scrollBody.includes("requestAnimationFrame(") && scrollBody.includes('scrollIntoView({ block: "center"'), true, "main.js：レイアウト確定後（1フレーム後）にカードを画面中央へ");
-  assertEqual(scrollBody.includes('#start-screen .special-mode-card[data-mode-id="${modeId}"]'), true, "main.js：ホーム画面のカードを data-mode-id で特定");
+  // 【2026-10-30改訂】モードのカードはホームからゲーム画面（#game-hub-screen）へ移った
+  assertEqual(scrollBody.includes('#game-hub-screen .special-mode-card[data-mode-id="${modeId}"]'), true, "main.js：ゲーム画面のカードを data-mode-id で特定");
   assertEqual(main.includes("  scrollToTop,\n") && main.includes("import { showScreen, onScreenChange, scrollToTop }"), true, "main.js：設定トップへ戻すための scrollToTop（screens.js）を渡す");
 
   // ===== (2) ホームのカードが data-mode-id を持つ =====

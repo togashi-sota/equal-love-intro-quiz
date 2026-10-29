@@ -7,7 +7,7 @@
 //
 // 新しいバージョンを配信したいときは、CACHE_VERSIONの値を必ず上げること。
 // 上げないと、ブラウザが「内容が変わっていない」と判断し、更新が反映されない。
-const CACHE_VERSION = "v389";
+const CACHE_VERSION = "v390";
 const CACHE_NAME = `equal-love-intro-quiz-${CACHE_VERSION}`;
 
 // キャッシュするアプリ本体のファイル一覧。
@@ -41,6 +41,11 @@ const APP_SHELL_FILES = [
   "./css/liveHub.css",
   "./css/centersTable.css",
   "./css/friendsFix.css",
+  // 【2026-10-30追加】リニューアル第2段階：ホーム（案B）・まとめ画面・端末の「戻る」
+  "./css/homeRenewal.css",
+  "./js/homeScreen.js",
+  "./js/appHistory.js",
+  "./js/appNavigationStack.js",
   "./js/liveHubScreen.js",
   "./js/centerTable.js",
   "./js/fanProfilesIdentity.js",
