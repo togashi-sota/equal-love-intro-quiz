@@ -344,21 +344,28 @@ export function countUnified(songs) {
   return counts;
 }
 
-// 確認画面の文章（曲名つき）
+// 曲名の並び（長いときは途中まで。数は必ず全部を出す）
+const NAME_LIMIT = 20;
+export function shortList(names, limit = NAME_LIMIT) {
+  return names.length > limit ? `${names.slice(0, limit).join("、")} …ほか${names.length - limit}曲` : names.join("、");
+}
+
+// 確認画面の文章（曲名つき。保留・使えないデータ・古いものは全部の曲名を出す）
 export function describeUnifiedPlan(plan) {
   if (!plan.ok) return plan.errors;
   const c = plan.counts;
   const names = (predicate) => plan.songs.filter(predicate).map((song) => song.title);
   const lines = [`「${plan.pack.packLabel}」の中身を確かめました（まだ何も変えていません）。`];
   lines.push(`新規追加 ${c.newSongs}曲／歌詞更新 ${c.lyricsUpdates}曲／コール更新 ${c.callUpdates}曲／変更なし ${c.unchanged}曲`);
-  const add = (label, list) => list.length && lines.push(`${label}（${list.length}曲）：${list.join("、")}`);
+  const add = (label, list) => list.length && lines.push(`${label}（${list.length}曲）：${shortList(list)}`);
   add("新しく入る曲", names((song) => [song.audio, song.lyrics, song.calls].some((part) => part?.action === PART_ACTION.NEW)));
   add("歌詞が新しくなる曲", names((song) => song.lyrics?.action === PART_ACTION.UPDATE));
   add("コールが新しくなる曲", names((song) => song.calls?.action === PART_ACTION.UPDATE));
   add("コール表なしになる曲（新しい完成版で採用されていない）", names((song) => song.calls?.action === PART_ACTION.WITHDRAW));
   add("音源が入れ替わる曲", names((song) => song.audio?.action === PART_ACTION.UPDATE));
-  if (c.audioMissing) lines.push(`音源が無い曲：${c.audioMissing}曲（音源は別のパックで。歌詞・コールはこのまま入ります）：${names((song) => song.audioMissing).join("、")}`);
-  add("この端末の方が新しいので入れない", names((song) => [song.lyrics, song.calls].some((part) => part?.action === PART_ACTION.OLDER)));
+  if (c.audioMissing) lines.push(`音源が無い曲：${c.audioMissing}曲（音源は別のパックで。歌詞・コールはこのまま入ります）：${shortList(names((song) => song.audioMissing))}`);
+  const older = names((song) => [song.lyrics, song.calls].some((part) => part?.action === PART_ACTION.OLDER));
+  if (older.length) lines.push(`この端末の方が新しいので入れない（${older.length}曲）：${older.join("、")}`);
   const held = plan.songs.flatMap((song) => [song.lyrics, song.calls].filter((part) => part?.action === PART_ACTION.HELD).map((part) => `${song.title}：${part.reason}`));
   if (held.length) lines.push(`今回は入れないもの（${held.length}件）：${held.join(" ／ ")}`);
   const invalid = plan.songs.flatMap((song) => [song.audio, song.lyrics, song.calls].filter((part) => part?.action === PART_ACTION.INVALID).map((part) => `${song.title}：${part.reason}`));
@@ -505,7 +512,7 @@ export async function applyUnifiedPlan(plan, io) {
 
 // 結果の文章
 export function describeUnifiedResult(result) {
-  const name = (ids) => ids.map(titleOf).join("、");
+  const name = (ids) => shortList(ids.map(titleOf));
   const lines = [`新規追加 ${result.newSongs.length}曲／歌詞更新 ${result.lyricsUpdated.length}曲／コール更新 ${result.callsUpdated.length}曲／変更なし ${result.unchanged.length}曲／エラー ${result.errors.length}件`];
   if (result.newSongs.length) lines.push(`新しく入った曲：${name(result.newSongs)}`);
   if (result.lyricsUpdated.length) lines.push(`歌詞を新しくした曲：${name(result.lyricsUpdated)}（前の歌詞は端末に控えてあります）`);
