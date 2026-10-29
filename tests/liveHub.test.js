@@ -170,8 +170,8 @@ async function runLiveHubWiringTests() {
   const doc = new DOMParser().parseFromString(html, "text/html");
   assertEqual(doc.getElementById("live-hub-screen")?.classList.contains("screen"), true, "D: 【ライブ】画面がある");
   assertEqual(doc.querySelector("#live-hub-screen #live-hub-back-button.back-link") !== null, true, "D: 戻るは共通の back-link（検索・ライブから来たとき元の画面へ戻れる）");
-  // 【2026-10-30改訂・リニューアル第2段階】【ライブ】はホームの入口（案B）、ライブ初心者ガイドはガイド画面へ移した
-  assertEqual(doc.querySelector("#start-screen .home-entry-grid #live-hub-link") !== null && doc.querySelector("#guide-hub-screen #live-guide-link") !== null, true, "D: ホームの入口に【ライブ】、ガイド画面にライブ初心者ガイドの入口");
+  // 【2026-10-30改訂・ホーム案F】【ライブ】はホームの「ライブを楽しむ」の「ライブ履歴」、ライブ初心者ガイドはガイド画面（ホームの「初心者ガイド」からも同じボタンを押す）
+  assertEqual(doc.querySelector("#start-screen #home-card-live #live-hub-link") !== null && doc.querySelector("#guide-hub-screen #live-guide-link") !== null, true, "D: ホームの入口に【ライブ】、ガイド画面にライブ初心者ガイドの入口");
   assertEqual(html.includes('href="css/liveHub.css"'), true, "D: ライブページの CSS を読み込む");
   const lyricsSwitch = doc.getElementById("lyrics-search-to-app-switch");
   assertEqual([lyricsSwitch?.hasAttribute("hidden"), lyricsSwitch?.querySelector("#lyrics-search-to-app-button")?.textContent.includes("全体検索へ")], [true, true], "D: 歌詞検索の「全体検索へ」は最初は隠す（全体検索から来たときだけ出す）");

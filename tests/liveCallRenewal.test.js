@@ -339,7 +339,8 @@ async function runWiringTests() {
   assertEqual(/id="live-call-screen"[\s\S]*?class="back-link"/.test(html), true, "H: 新しいライブコールの画面に［戻る］（.back-link：端末の戻るも同じ動き）");
   assertEqual(html.includes('id="call-release-import-input"') && html.includes('accept=".json,application/json,.zip,application/zip"'), true, "H: データ管理に「完成版コールデータを読み込む」（JSON・ZIP）");
   assertEqual(html.includes('id="data-pack-import-input"'), true, "H: 追加データパックの読み込みはそのまま残っている");
-  assertEqual(main.includes("setLiveCallEntryHandler(() => openLiveCallFrom("), true, "H: ホームのライブコールは差し替え口から新しい流れへ");
+  // 2026-10-30 ホーム案F：差し替え口に遊び方（コール表／ライブコール／カラオケ）を渡せるようにした
+  assertEqual(main.includes("setLiveCallEntryHandler((mode) => openLiveCallFrom("), true, "H: ホームのライブコールは差し替え口から新しい流れへ");
   assertEqual(/modeId === "liveCallMode"\) \{[\s\S]{0,400}openLiveCallFrom\(document\.body\.dataset\.screen \|\| "gameHub"\)/.test(main), true, "H: ゲーム画面のライブコールモードも新しい流れへ");
   assertEqual(screens.includes('liveCall: document.getElementById("live-call-screen")'), true, "H: 画面の登録");
   assertEqual(/const DB_VERSION = 2;/.test(storage) && storage.includes('db.createObjectStore(STORE_NAME, { keyPath: "songId" })') && storage.includes("db.createObjectStore(RELEASED_CALLS_STORE_NAME, { keyPath: \"songId\" })"), true, "H: データベースは版2。元の callData ストア（keyPath songId）はそのまま、releasedCalls を足すだけ");

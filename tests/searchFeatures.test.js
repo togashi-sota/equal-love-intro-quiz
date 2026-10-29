@@ -288,10 +288,9 @@ export async function runSearchFeaturesTests() {
 
   // ===== F. 画面・導線（ソースとHTMLの確認） =====
   const startScreen = indexHtml.getElementById("start-screen");
-  // 【2026-10-30改訂・リニューアル第2段階】ホーム（案B）の並び：プレイヤー → ゲームスタート → ライブコール → 検索 → 入口。
-  // 以前の「クイックナビの上」は、クイックナビがプレイヤーのバーへまとまったため、案Bの位置で確かめる
-  const startChildren = [...startScreen.querySelectorAll("#home-live-call-button, #app-search-link, .home-entry-grid")].map((element) => element.id || element.className);
-  assertEqual(startChildren, ["home-live-call-button", "app-search-link", "home-entry-grid"], "F: 全体検索の入口はホーム（ライブコールの下・入口の上）");
+  // 【2026-10-30改訂・ホーム案F】ホームの並び：上部バー → 検索 → 目次 → カード。検索は上部バーのすぐ下・目次の上
+  const startChildren = [...startScreen.querySelectorAll(".home-topbar, #app-search-link, #home-category-nav")].map((element) => element.id || element.className.split(" ").find((name) => name === "home-topbar"));
+  assertEqual(startChildren, ["home-topbar", "app-search-link", "home-category-nav"], "F: 全体検索の入口はホーム（上部バーの下・目次の上）");
   assertEqual(indexHtml.querySelector(".listen-section #lyrics-search-link") !== null, true, "F: 歌詞検索の入口は「曲を聴く」の中");
   assertEqual(indexHtml.querySelector("#home-special-modes-grid #lyrics-search-link"), null, "F: 歌詞検索は特別モードに置かない");
   assertEqual(["app-search-screen", "lyrics-search-screen"].every((id) => indexHtml.getElementById(id)?.classList.contains("screen")), true, "F: 検索画面2つがある");
