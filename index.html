@@ -473,13 +473,13 @@
                 </button>
               </div>
             </section>
-            <!-- 「全部のゲーム」は役割を変えた：全モードはホームに出したので、ゲーム画面（各モードの「？」の説明・プレイ履歴）への入口 -->
-            <button class="home-games-more" type="button" data-home-action="all-games">
-              <svg class="hi" aria-hidden="true"><use href="#hi-grid"/></svg>
-              <span class="home-games-more-text">遊び方の説明・記録</span>
-              <span class="home-chevron" aria-hidden="true">›</span>
-            </button>
           </div>
+          <!-- 「全部のゲーム」は役割を変えた：全モードはホームに出したので、ゲーム画面（各モードの「？」の説明・プレイ履歴）への入口 -->
+          <button class="home-games-more" type="button" data-home-action="all-games">
+            <svg class="hi" aria-hidden="true"><use href="#hi-grid"/></svg>
+            <span class="home-games-more-text">遊び方の説明・記録</span>
+            <span class="home-chevron" aria-hidden="true">›</span>
+          </button>
           </div>
         </section>
 
@@ -505,7 +505,7 @@
           </button>
           <div class="home-live-new" role="group" aria-labelledby="home-live-new-title">
             <p id="home-live-new-title" class="home-live-new-title">新しいライブコール<span class="home-tag">おためし版</span></p>
-            <p class="home-live-new-lead">同じコールを、3つの見せ方で</p>
+            <p class="home-live-new-lead">作り直している新しい画面。3つの見せ方を先に試せます</p>
             <div class="home-live-new-grid">
               <button class="home-live-mode home-live-mode--sheet" type="button" data-home-action="live-call-sheet">
                 <svg class="hi" aria-hidden="true"><use href="#hi-sheet"/></svg>
@@ -545,18 +545,24 @@
           <div class="home-music-cols">
             <div class="home-music-col" role="group" aria-labelledby="home-music-listen">
               <p id="home-music-listen" class="home-music-col-title"><svg class="hi" aria-hidden="true"><use href="#hi-headphones"/></svg>聴く</p>
-              <button class="home-music-item" type="button" data-home-action="continuous-play"><b>曲を聴く</b><small>続けて再生</small></button>
-              <button class="home-music-item" type="button" data-home-action="playlists"><b>プレイリスト</b><small>好きな曲を<wbr>まとめる</small></button>
-              <button class="home-music-item" type="button" data-home-action="favorites"><b>お気に入り</b><small>ハートを付けた曲</small></button>
+              <div class="home-music-items">
+                <button class="home-music-item" type="button" data-home-action="continuous-play"><b>曲を聴く</b><small>続けて再生</small></button>
+                <button class="home-music-item" type="button" data-home-action="playlists"><b>プレイリスト</b><small>好きな曲を<wbr>まとめる</small></button>
+                <button class="home-music-item" type="button" data-home-action="favorites"><b>お気に入り</b><small>ハートを<wbr>付けた曲</small></button>
+              </div>
             </div>
             <div class="home-music-col" role="group" aria-labelledby="home-music-read">
               <p id="home-music-read" class="home-music-col-title"><svg class="hi" aria-hidden="true"><use href="#hi-book"/></svg>読む</p>
-              <button class="home-music-item" type="button" data-home-action="songlist"><b>楽曲一覧</b><small id="home-music-songs-sub">歌詞・曲の情報</small></button>
-              <button class="home-music-item" type="button" data-home-action="works"><b>シングル・アルバム</b><small id="home-music-works-sub">作品と収録曲</small></button>
+              <div class="home-music-items">
+                <button class="home-music-item" type="button" data-home-action="songlist"><b>楽曲一覧</b><small id="home-music-songs-sub">歌詞・曲の情報</small></button>
+                <button class="home-music-item" type="button" data-home-action="works"><b>シングル・アルバム</b><small id="home-music-works-sub">作品と収録曲</small></button>
+              </div>
             </div>
             <div class="home-music-col" role="group" aria-labelledby="home-music-find">
               <p id="home-music-find" class="home-music-col-title"><svg class="hi" aria-hidden="true"><use href="#hi-search-note"/></svg>探す</p>
-              <button class="home-music-item" type="button" data-home-action="lyrics-search"><b>歌詞検索</b><small>覚えている<wbr>フレーズから</small></button>
+              <div class="home-music-items">
+                <button class="home-music-item" type="button" data-home-action="lyrics-search"><b>歌詞検索</b><small>覚えている<wbr>フレーズから</small></button>
+              </div>
             </div>
           </div>
         </section>
@@ -576,7 +582,7 @@
             </button>
             <button class="home-know home-know--centers" type="button" data-home-action="centers">
               <span class="home-know-icon" aria-hidden="true"><svg class="hi"><use href="#hi-crown"/></svg></span>
-              <span class="home-know-text"><b>歴代センター</b><span class="home-know-hook">この曲の<wbr>センターは誰？</span></span>
+              <span class="home-know-text"><b>歴代センター</b><span class="home-know-hook">どの曲で<wbr>誰がセンター？</span></span>
             </button>
             <button id="anniversary-home-link" class="home-know home-know--history" type="button">
               <span class="home-know-icon" aria-hidden="true"><svg class="hi"><use href="#hi-calendar"/></svg></span>

@@ -914,8 +914,7 @@
   margin-top: 12px;
   container-type: inline-size;
 }
-.home-game-group--solo,
-.home-games-more {
+.home-game-group--solo {
   grid-column: 1 / -1;
 }
 .home-game-group {
@@ -1005,6 +1004,8 @@
 }
 .home-games-more {
   display: flex;
+  width: 100%;
+  margin-top: 10px;
   align-items: center;
   justify-content: center;
   gap: 6px;
@@ -1123,8 +1124,11 @@
   font-size: 0.78125rem;
   font-weight: 800;
 }
+.home-next-live {
+  flex-wrap: wrap;
+}
 .home-next-live-text {
-  flex: 1;
+  flex: 1 1 12rem;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -1134,6 +1138,7 @@
   line-height: 1.3;
 }
 .home-next-live-text small {
+  word-break: keep-all; /* 日付を「1月20／日」のように切らない（〜の後ろでだけ改行） */
   font-size: 0.78125rem;
   font-weight: 700;
   color: #fff3c4;
@@ -1326,24 +1331,26 @@
 }
 .home-music-col {
   display: grid;
-  grid-template-columns: 3.25rem repeat(auto-fit, minmax(0, 1fr));
+  gap: 4px;
+}
+/* ボタンは 6.5rem 以上の幅で並べ、入らなければ次の行へ（「プレイリス／ト」のような折り返しを作らない） */
+.home-music-items {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(6.25rem, 100%), 1fr));
   gap: 6px;
-  align-items: stretch;
 }
 .home-music-col-title {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 2px;
-  margin: 0;
+  gap: 4px;
+  margin: 0 2px;
   color: #2f3f8f;
   font-size: 0.8125rem;
   font-weight: 800;
 }
 .home-music-col-title .hi {
-  width: 1.3rem;
-  height: 1.3rem;
+  width: 1.15rem;
+  height: 1.15rem;
 }
 .home-music-item {
   display: flex;
@@ -1601,53 +1608,53 @@
     flex: 1 1 0;
   }
 }
-/* iPad・PC：ライブと楽曲、＝LOVE とマイ・データを2列に（ゲームのカードは横いっぱい） */
-@media (min-width: 768px) {
+/* iPad（1024 以上）・PC：ライブと楽曲、＝LOVE とマイ・データを2列に（ゲームのカードは横いっぱい）。
+   768〜1023 は1列のまま（半分の幅では、ライブのカードが縦に長くなり隣が大きく空くため）。カードの高さは中身に合わせる */
+@media (min-width: 1024px) {
   .home-cards {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-items: start; /* iPad 縦：高さの違うカードを無理に伸ばさない */
+    align-items: start;
   }
   .home-card--game {
     grid-column: 1 / -1;
   }
-}
-@media (min-width: 1024px) {
-  .home-cards {
-    align-items: stretch;
+  /* イントロと全ゲームが横に並ぶ幅：板の押す所を少し大きく（文字は大きくしない。板の中は板自身の幅で決まるので、ここは画面の幅で） */
+  .home-game-layout .home-seg-button {
+    min-height: 52px;
   }
-  /* 楽曲のカードは隣のライブのカードと同じ高さになるので、ボタンの行を縦に広げて下の空きを作らない */
-  .home-card--music {
-    display: flex;
-    flex-direction: column;
+  .home-game-layout .home-intro-label {
+    margin-top: 12px;
   }
-  .home-music-cols {
-    flex: 1;
-    grid-auto-rows: 1fr;
+  .home-game-layout .home-intro-start {
+    min-height: 60px;
+    margin-top: 14px;
   }
 }
 /* ゲームのカードが広いとき（iPad 横・PC。カードの幅 800px 相当以上）：イントロクイズ（左）と全部のゲーム（右）を横に */
 @container (min-width: 50rem) {
+  /* 左：イントロの板、その下に「遊び方の説明・記録」／右：全部のゲーム（2段分） */
   .home-game-layout {
     display: grid;
     grid-template-columns: minmax(22rem, 0.8fr) minmax(0, 1.2fr);
-    gap: 18px;
-    align-items: stretch;
+    grid-template-rows: auto 1fr;
+    gap: 0 18px;
+    align-items: start;
+  }
+  .home-game-layout .home-intro {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .home-game-layout .home-games {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+  .home-game-layout .home-games-more {
+    grid-column: 1;
+    grid-row: 2;
+    margin-top: 12px;
   }
   .home-game-layout .home-games {
     margin-top: 0;
-  }
-  /* 板の中のまとまり（見出し・出題数・カテゴリ・スタート）の間を均等に空ける（1か所だけ大きく空かないように） */
-  .home-game-layout .home-intro {
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    gap: 10px;
-  }
-  .home-game-layout .home-intro-start {
-    margin-top: 0;
-  }
-  .home-game-layout .home-seg-button {
-    min-height: 50px;
   }
 }
 

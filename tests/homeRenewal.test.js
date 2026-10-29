@@ -745,7 +745,7 @@ async function runHomeNightTests() {
   const animations = homeCss.match(/[^{};]+\{\s*animation:[^}]+\}/g) ?? [];
   assertEqual(animations.length > 0 && animations.every((rule) => rule.includes('body[data-screen="start"]')), true, "F: 動きはホームを表示している間だけ");
   assertEqual(homeCss.includes('@media (prefers-reduced-motion: no-preference) {\n  body[data-screen="start"] .home-live-lights i {'), true, "F: ライブの光の動きは「動きを減らす」設定では付けない");
-  assertEqual(homeCss.includes("@media (min-width: 768px)") && homeCss.includes("@media (min-width: 1024px)") && homeCss.includes("@container (min-width: 50rem)"), true, "F: iPad 縦（768）・横（1024）・PC の段組み");
+  assertEqual(homeCss.includes("@media (min-width: 768px)") && homeCss.includes("@media (min-width: 1024px)") && homeCss.includes("@container (min-width: 50rem)"), true, "F: 768（枠を広げる）・1024（カードを2列）・カードが広いとき（イントロと全ゲームを横に）の段組み");
   assertEqual(homeCss.includes(".home-f[data-variant"), false, "F: 案の比較用の CSS を残していない");
   // 案内の文：ホームのボタンの名前に合わせた
   const guide = await fetchText("js/data/guideContent.js");
