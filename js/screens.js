@@ -10,6 +10,11 @@ import { remeasureViewportVars } from "./viewportMeasurement.js";
 const SCREEN_ELEMENTS = {
   onboarding: document.getElementById("onboarding-screen"),
   start: document.getElementById("start-screen"),
+  // 【2026-10-30新設・リニューアル第2段階】ホーム（案B）から開くまとめ画面
+  gameHub: document.getElementById("game-hub-screen"),
+  musicHub: document.getElementById("music-hub-screen"),
+  guideHub: document.getElementById("guide-hub-screen"),
+  settings: document.getElementById("settings-screen"),
   quiz: document.getElementById("quiz-screen"),
   result: document.getElementById("result-screen"),
   songlist: document.getElementById("songlist-screen"),
@@ -96,6 +101,20 @@ const SCREEN_ELEMENTS = {
   onlineLyricsBattleQuestion: document.getElementById("online-lyrics-battle-question-screen"),
   onlineLyricsBattleResult: document.getElementById("online-lyrics-battle-result-screen"),
 };
+
+// 画面名から section 要素を返す（js/appHistory.js が「その画面の［戻る］ボタン」を探すのに使う）。
+export function getScreenElement(screenName) {
+  return SCREEN_ELEMENTS[screenName] ?? null;
+}
+
+// 要素が入っている画面の名前を返す（見つからなければ null）。全体検索の「設定の欄へ移動」などで、
+// 欄がどの画面にあるかを調べるのに使う（2026-10-30：ホームの欄を別の画面へ移したため）。
+export function findScreenNameOfElement(element) {
+  for (const [name, screenElement] of Object.entries(SCREEN_ELEMENTS)) {
+    if (screenElement && screenElement.contains(element)) return name;
+  }
+  return null;
+}
 
 // 画面が切り替わるたびに呼びたい処理（ミニプレイヤーの表示/非表示など）を登録できる、
 // 軽量なpub-sub（playbackCoordinator.js・continuousPlay.jsのonPlaybackStateChangeと

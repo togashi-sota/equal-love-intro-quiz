@@ -4,6 +4,10 @@
 import { SONGS } from "./data/songs.js";
 import { AUDIO_METADATA } from "./data/audioMetadata.js";
 import { showScreen, onScreenChange, scrollToTop } from "./screens.js";
+// 【2026-10-30新設・リニューアル第2段階】ホーム（案B）・ブラウザ／端末の「戻る」
+import { getScreenElement, findScreenNameOfElement } from "./screens.js";
+import { initAppHistory, resolveBackTarget } from "./appHistory.js";
+import { initHomeScreen, renderHomePlayerStats, renderQuickPlaySummary } from "./homeScreen.js";
 import {
   getLyricsQuizRevealAudioEnabled,
   getInstantChallengeRevealAudioEnabled,
@@ -276,7 +280,7 @@ import {
 import { analyzeDataPack, importAnalyzedDataPack, PACK_KIND } from "./dataPackImport.js";
 import { isZipFile, extractZipToFiles } from "./zipPackImport.js";
 import { closeFullscreenLyrics } from "./lyricsFullscreen.js";
-import { initScrollLock } from "./scrollLock.js";
+import { initScrollLock, hasVisibleOverlay } from "./scrollLock.js";
 import { MEMBERS, MEMBER_STATUS } from "./data/members.js";
 import { MEMBER_PROFILES } from "./data/memberProfiles.js";
 import { MEMBER_ACTIVITIES } from "./data/memberActivities.js";
@@ -362,9 +366,18 @@ if (needsOnboarding()) {
 // 「更新するボタンを押したから」ではなく「対象の楽曲データが揃っていて、まだこのプレイヤーが
 // 見ていない」ことだけを条件にする。新規ユーザー（初回セットアップ中）には、まだ推しメン等の
 // 登録も済んでいないため対象外にする（body.dataset.screenが"onboarding"のときは呼ばない）。
-if (document.body.dataset.screen === "start") {
-  showCenterCelebrationIfEligible(SONGS, getPlayerKeyPrefix(), centerCelebrationElements);
+// 【2026-10-30改訂・リニューアル第2段階】1回の起動で表示するのは1件だけ（js/centerCelebration.js の
+// pickLaunchCelebration）。起動直後がホームでなければ（初回セットアップ・招待リンクの対戦画面など）、
+// その起動中に初めてホームへ来たときに出す。ゲーム・対戦の画面の上には出さない。
+function tryShowLaunchCelebration() {
+  if (document.body.dataset.screen !== "start") return false;
+  if (hasVisibleOverlay()) return false; // ほかの確認画面が出ているときは重ねない（次にホームへ来たとき）
+  return showCenterCelebrationIfEligible(SONGS, getPlayerKeyPrefix(), centerCelebrationElements);
 }
+tryShowLaunchCelebration();
+onScreenChange((screenName) => {
+  if (screenName === "start") tryShowLaunchCelebration();
+});
 
 // 新曲追加のお知らせバナー（2026-08-27新設）。データ管理セクションの折りたたみを開いて
 // スクロールする処理・確認モーダルの表示制御は、DOM構造の詳細（details要素であること等）を
@@ -393,6 +406,8 @@ const newSingleAnnouncementResetResultElement = document.getElementById("new-sin
 function openDataManagementSectionForAnnouncement() {
   const dataManagementSection = document.querySelector(".data-management-section");
   if (!dataManagementSection) return;
+  // 【2026-10-30】データ管理はホームから「設定・データ管理」画面へ移したので、先にその画面へ移る
+  if (document.body.dataset.screen !== "settings") navigateWithScrollMemory("settings");
   dataManagementSection.open = true;
   dataManagementSection.scrollIntoView({ behavior: "smooth", block: "start" });
 }
@@ -560,6 +575,7 @@ initSoundSettingsScreen({
 });
 
 const startScreenElement = document.getElementById("start-screen");
+const gameHubScreenElement = document.getElementById("game-hub-screen");
 const quizScreenElement = document.getElementById("quiz-screen");
 const startErrorElement = document.getElementById("start-error");
 const questionCountNoticeElement = document.getElementById("question-count-notice");
@@ -732,12 +748,15 @@ let continuousPlayReturnScreen = "start";
 // フィードバックを受けて追加。スタート⇄各機能画面、プレイリスト一覧⇄詳細、
 // プレイリスト詳細⇄曲追加、連続再生⇄再生キュー、の行き来に使う）。
 const screenScrollPositions = new Map();
-function navigateWithScrollMemory(targetScreen) {
+function navigateWithScrollMemory(requestedScreen) {
   const fromScreen = document.body.dataset.screen;
+  // 【2026-10-30追加】「ホームへ」戻る［戻る］でも、ゲーム・楽曲・ガイドのまとめ画面を通って来ていれば、
+  // そのまとめ画面へ戻す（js/appNavigationStack.js の HUB_OF_SCREEN）
+  const targetScreen = resolveBackTarget(fromScreen, requestedScreen);
   screenScrollPositions.set(fromScreen, window.scrollY);
   showScreen(targetScreen);
   window.scrollTo(0, screenScrollPositions.get(targetScreen) || 0);
-  if (targetScreen === "start") {
+  if (targetScreen === "start" || targetScreen === "musicHub") {
     updateListenTileCounts();
   }
 }
@@ -3040,7 +3059,7 @@ initWeakSongsScreen({
     if (!started) {
       weakSongsCountNoticeElement.hidden = false;
       weakSongsCountNoticeElement.textContent =
-        "対象曲の音源が読み込まれていないため開始できませんでした。スタート画面の「音源を読み込む」から追加してください。";
+        "対象曲の音源が読み込まれていないため開始できませんでした。ホームの「設定・データ管理」→「データ管理」から追加してください。";
       return;
     }
     setInstantChallengeBackLabels("weakSongs");
@@ -5797,9 +5816,12 @@ async function openSearchFeatureAction(action) {
   } else if (action.type === "specialMode") {
     document.querySelector(`.special-mode-card[data-mode-id="${action.modeId}"] .special-mode-card-tap-target`)?.click();
   } else if (action.type === "homeSection") {
+    // 【2026-10-30改訂】欄はホームからゲーム画面・設定画面などへ移ったので、欄が入っている画面を探して移る
     playClickSound();
-    navigateWithScrollMemory("start");
-    revealSearchFocusTarget(action.selector, document.getElementById("start-screen"));
+    const targetElement = document.querySelector(action.selector);
+    const screenName = (targetElement && findScreenNameOfElement(targetElement)) || "start";
+    navigateWithScrollMemory(screenName);
+    revealSearchFocusTarget(action.selector, getScreenElement(screenName) ?? document.getElementById("start-screen"));
   }
 }
 
@@ -6204,7 +6226,7 @@ async function beginTimeAttackQuiz(questionCountValue, categoryFilterValue, rule
 
   if (!questions) {
     timeAttackStartErrorElement.textContent =
-      "音源を読み込んだ曲が足りません。スタート画面の「音源を読み込む」から曲を追加するか、カテゴリの範囲を広げてください。";
+      "音源を読み込んだ曲が足りません。ホームの「設定・データ管理」→「データ管理」から曲を追加するか、カテゴリの範囲を広げてください。";
     timeAttackStartErrorElement.hidden = false;
     return;
   }
@@ -6467,7 +6489,7 @@ async function beginRandomPlaybackQuiz(questionCountValue, categoryFilterValue) 
 
   if (!questions) {
     randomPlaybackStartErrorElement.textContent =
-      "音源を読み込んだ曲が足りません。スタート画面の「音源を読み込む」から曲を追加するか、カテゴリの範囲を広げてください。";
+      "音源を読み込んだ曲が足りません。ホームの「設定・データ管理」→「データ管理」から曲を追加するか、カテゴリの範囲を広げてください。";
     randomPlaybackStartErrorElement.hidden = false;
     return;
   }
@@ -6722,11 +6744,11 @@ function navigateBattleScreen(screenName) {
   navigateWithScrollMemory(screenName);
 }
 
-// ホームの特別モードカード（data-mode-id）を画面内へスクロールして見せる（1フレーム後：DOM更新・レイアウト確定を待つ）。
+// ゲーム画面（2026-10-30まではホーム）の特別モードカード（data-mode-id）を画面内へスクロールして見せる（1フレーム後：DOM更新・レイアウト確定を待つ）。
 // カードが見つからなければ何もしない（スクロール記憶による復元位置のまま）。
 function scrollHomeToSpecialModeCard(modeId) {
   requestAnimationFrame(() => {
-    const card = document.querySelector(`#start-screen .special-mode-card[data-mode-id="${modeId}"]`);
+    const card = document.querySelector(`#game-hub-screen .special-mode-card[data-mode-id="${modeId}"]`);
     if (!card) return;
     card.scrollIntoView({ block: "center", behavior: "auto" });
   });
@@ -6775,7 +6797,8 @@ initPartyBattleScreens({
   // 【2026-09-15 第4回実機QA修正・本人指示】設定トップの「戻る」はホーム最上部ではなく「パーティー対戦」カード付近へ。
   // スクロール記憶（navigateWithScrollMemory）で戻したあと、レイアウト確定後にカードを画面中央へ寄せる。
   navigateHomeToPartyCard: () => {
-    navigateBattleScreen("start");
+    // 【2026-10-30】モードのカードはホームからゲーム画面（#game-hub-screen）へ移った
+    navigateBattleScreen("gameHub");
     scrollHomeToSpecialModeCard("partyBattle");
   },
   onShowHelp: () => openSpecialModeHelp("partyBattle"),
@@ -8692,8 +8715,14 @@ document.addEventListener("keydown", (event) => {
     return;
   }
 
-  // スタート画面：Enterキーでスタート
-  if (startScreenElement.classList.contains("is-active") && event.key === "Enter") {
+  // ゲーム画面（2026-10-30まではスタート画面）：Enterキーでイントロクイズをスタート。
+  // ボタン・リンク・文字入力にフォーカスがあるときは、そちらのEnter（ボタンを押す等）を優先する
+  // （ゲーム画面にはモードのカードのボタンが並ぶため、二重に動かないようにする）。
+  if (
+    gameHubScreenElement.classList.contains("is-active") &&
+    event.key === "Enter" &&
+    !event.target?.closest?.('button, a, textarea, select, input:not([type="radio"])')
+  ) {
     document.getElementById("start-button").click();
     return;
   }
@@ -8738,5 +8767,65 @@ initOnboardingScreen(
     // renderPlayerSummary()以外の再描画（updateListenTileCounts等）は不要。
     showScreen("start");
     renderPlayerSummary();
+    renderHomePlayerStats();
   }
 );
+
+// ===== ホーム（案B）とまとめ画面（2026-10-30新設・リニューアル第2段階） =====
+// ボタンの処理そのものは js/homeScreen.js。ここでは main.js にある画面移動・各モードの準備処理を渡すだけ。
+initHomeScreen(
+  {
+    gameStartButton: document.getElementById("home-game-start-button"),
+    quickPlayButton: document.getElementById("home-quick-play-button"),
+    quickPlaySummary: document.getElementById("home-quick-play-summary"),
+    liveCallButton: document.getElementById("home-live-call-button"),
+    rank: document.getElementById("home-player-rank"),
+    titles: document.getElementById("home-player-titles"),
+    musicEntry: document.getElementById("home-entry-music"),
+    guidesEntry: document.getElementById("home-entry-guides"),
+    settingsEntry: document.getElementById("home-entry-settings"),
+    accountProtectionLink: document.getElementById("settings-account-protection-link"),
+    startButton: document.getElementById("start-button"),
+  },
+  {
+    navigate: navigateWithScrollMemory,
+    playClickSound,
+    // 第2段階のライブコールの入口＝ゲーム画面の「ライブコールモード」カードを押したのと同じ（今の曲一覧を開く）
+    openDefaultLiveCall: () =>
+      document
+        .querySelector('#game-hub-screen .special-mode-card[data-mode-id="liveCallMode"] .special-mode-card-tap-target')
+        ?.click(),
+    // アカウントの保護はフレンド画面の中（js/accountRecoveryPanel.js）。フレンド画面を開いて、その欄へ移動する
+    openAccountProtection: () => {
+      fanProfilesLinkElement.click();
+      requestAnimationFrame(() => {
+        const panel = document.querySelector("#fan-profiles-screen .account-recovery-panel");
+        if (panel && panel.getClientRects().length > 0) panel.scrollIntoView({ block: "start" });
+      });
+    },
+  }
+);
+// 前回の出題数・カテゴリを戻したので、自己ベスト・出題数の案内を合わせ直す
+updateModeBestScoreDisplay();
+updateQuestionCountNotice();
+renderHomePlayerStats();
+onScreenChange((screenName) => {
+  if (screenName === "start") renderHomePlayerStats();
+  if (screenName === "gameHub") renderQuickPlaySummary();
+});
+// まとめ画面の［ホーム］（戻る）
+for (const backButtonId of ["game-hub-back-button", "music-hub-back-button", "guide-hub-back-button", "settings-back-button"]) {
+  document.getElementById(backButtonId).addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_BACK);
+    navigateWithScrollMemory("start");
+  });
+}
+
+// ブラウザ・Android の戻るボタン・iPhone のスワイプで戻る操作を、アプリの中の「戻る」とそろえる（js/appHistory.js）。
+// 初回セットアップ・招待リンクなど、起動時の画面がすべて決まった後（このファイルの最後）で始める。
+initAppHistory({
+  initialScreen: document.body.dataset.screen || "start",
+  onScreenChange,
+  navigate: navigateWithScrollMemory,
+  getScreenElement,
+});

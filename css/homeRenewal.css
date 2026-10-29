@@ -1,0 +1,571 @@
+/* =============================================================
+   ホーム（案B）・まとめ画面（ゲーム／楽曲・歌詞／ガイド／設定）・端末の「戻る」の案内
+   （2026-10-30新設・リニューアル第2段階）
+   - 押せる部品は高さ・幅 44px 以上、文字は 13px（0.8125rem）以上にする
+   - 幅 320px でも、文字を大きくした端末（ルートの文字サイズが大きい）でも崩れないように、
+     文字の大きさは rem、並びは折り返せる grid / flex にする
+   - 色は css/style.css の :root の変数をそのまま使う
+   ============================================================= */
+
+/* ---------- 全画面共通：［戻る］を押しやすく ---------- */
+.back-link {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* ---------- ホーム ---------- */
+.home-screen.screen {
+  padding: 16px 16px 24px;
+}
+
+/* タイトルは小さく1行に（ゲームスタートを最初の画面に入れるため）。レコードの飾りはホームでは出さない */
+.home-screen > .title-block .logo-badge,
+.home-screen > .title-block .title-spark,
+.home-screen > .title-block .note-icon {
+  display: none;
+}
+.home-screen > .title-block .eyebrow-chip {
+  margin: 0 0 6px;
+  font-size: 0.8125rem;
+}
+.home-screen > .title-block h1 {
+  font-size: clamp(1.15rem, 5vw, 1.4rem);
+  line-height: 1.3;
+  flex-wrap: wrap;
+}
+
+/* プレイヤーのバー */
+.home-screen .home-player-bar {
+  display: block;
+  max-width: none;
+  margin: 12px 0 0;
+  padding: 8px 10px 10px;
+  border-radius: 22px;
+}
+.home-player-bar-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.home-player-bar .player-hero-swatch {
+  width: 40px;
+  height: 40px;
+}
+.home-player-bar .player-hero-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 4px;
+  font-size: 1.0625rem;
+  text-align: left;
+}
+.home-player-bar .player-hero-name > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.home-player-icon-button {
+  flex: none;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  min-width: 52px;
+  min-height: 48px;
+  padding: 2px 4px;
+  border: none;
+  border-radius: 14px;
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+  font-family: inherit;
+  cursor: pointer;
+}
+.home-player-icon {
+  font-size: 1.1rem;
+  line-height: 1.2;
+}
+.home-player-icon-label {
+  font-size: 0.8125rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+.home-player-bar-sub {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.home-player-bar .player-hero-oshi,
+.home-player-stats {
+  flex: 1 1 140px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 6px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid var(--color-card-border);
+  font-family: inherit;
+  font-size: 0.875rem;
+  text-align: left;
+  cursor: pointer;
+}
+.home-player-bar .player-hero-oshi-arrow {
+  font-size: 0.875rem;
+}
+.home-player-bar .player-hero-oshi {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.home-player-bar .player-hero-oshi.is-empty {
+  /* 未登録のときは「押して登録する」ボタンとして目立たせる（白い文字が読めるよう濃い色） */
+  background: #c8246a; /* 白い文字とのコントラスト 約5:1 */
+  color: #fff;
+}
+.home-player-stats {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0;
+  color: var(--color-text);
+}
+.home-player-rank {
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.home-player-titles {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--color-text-sub);
+  line-height: 1.3;
+}
+
+/* ［ゲームスタート］ */
+.home-hero {
+  margin-top: 14px;
+  padding: 16px 14px 14px;
+  border-radius: 24px;
+  color: #fff;
+  background:
+    radial-gradient(circle at 88% 12%, rgba(255, 255, 255, 0.45) 0 14%, transparent 15%),
+    radial-gradient(circle at 12% 110%, rgba(255, 217, 61, 0.55) 0 26%, transparent 27%),
+    linear-gradient(140deg, #ff5c9d 0%, #ff86b8 48%, #8fcaf5 100%);
+  box-shadow: 0 18px 36px -16px rgba(255, 79, 150, 0.75);
+}
+.home-hero-eyebrow {
+  margin: 0 0 8px;
+  font-size: 0.8125rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-shadow: 0 1px 6px rgba(200, 40, 110, 0.45);
+}
+.home-hero-cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 64px;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--color-primary-dark);
+  font-family: inherit;
+  font-size: 1.3rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  box-shadow: 0 10px 22px -10px rgba(120, 20, 70, 0.6), inset 0 -3px 0 rgba(255, 111, 168, 0.18);
+  cursor: pointer;
+  transition: transform 0.12s;
+}
+.home-hero-cta:active {
+  transform: scale(0.98);
+}
+.home-hero-cta svg {
+  flex: none;
+  width: 1.5em;
+  height: 1.5em;
+}
+.home-hero-modes {
+  margin: 8px 0 0;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  text-align: center;
+  text-shadow: 0 1px 6px rgba(200, 40, 110, 0.5);
+}
+.home-hero-quick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 2px 10px;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 8px;
+  padding: 6px 12px;
+  border: 1.5px solid rgba(255, 255, 255, 0.85);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 800;
+  text-shadow: 0 1px 6px rgba(200, 40, 110, 0.5);
+  cursor: pointer;
+}
+.home-hero-quick-label::after {
+  content: " ›";
+}
+.home-hero-quick-summary {
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+/* ライブコール */
+.home-livecall-entry {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 64px;
+  margin-top: 12px;
+  padding: 12px 14px 12px 16px;
+  border: 1.5px solid rgba(255, 159, 67, 0.4);
+  border-radius: 20px;
+  background: linear-gradient(120deg, #fff 0%, #fff6ea 60%, #ffe9d4 100%);
+  box-shadow: 0 10px 24px -14px rgba(255, 140, 50, 0.7);
+  color: var(--color-text);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.home-livecall-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.home-livecall-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 1.0625rem;
+  font-weight: 800;
+}
+.home-livecall-desc {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--color-text-sub);
+}
+.home-livecall-chevron,
+.hub-row-chevron {
+  flex: none;
+  font-size: 1.4rem;
+  color: var(--color-text-sub);
+}
+
+/* 新曲のお知らせ（ホーム）：ボタン・文字を押しやすく読みやすく */
+.home-screen .new-single-announcement-banner {
+  margin-top: 12px;
+}
+.home-screen .new-single-announcement-body {
+  font-size: 0.8125rem;
+}
+.home-screen .new-single-announcement-actions button {
+  min-height: 44px;
+  font-size: 0.8125rem;
+}
+
+/* アプリ内検索（ホームでは控えめに） */
+.home-screen .home-search-entry {
+  min-height: 48px;
+  margin-top: 12px;
+}
+.home-screen .home-search-entry-placeholder {
+  font-size: 0.875rem;
+}
+.home-screen .home-search-entry-hint {
+  font-size: 0.8125rem;
+}
+
+/* ＝LOVEを楽しむ（入口） */
+.home-section-title {
+  margin: 18px 0 8px;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--color-text);
+}
+.home-entry-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.home-entry-tile {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-items: center;
+  column-gap: 8px;
+  min-height: 64px;
+  padding: 10px;
+  border: 1px solid var(--color-card-border);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 6px 16px -12px rgba(74, 46, 66, 0.4);
+  color: var(--color-text);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.home-entry-icon {
+  grid-row: 1 / 3;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+}
+.home-entry-icon-svg {
+  width: 32px;
+  height: 32px;
+}
+.home-entry-label {
+  font-size: 0.9375rem;
+  font-weight: 800;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.home-entry-desc {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--color-text-sub);
+  overflow-wrap: anywhere;
+}
+.home-settings-row {
+  margin-top: 10px;
+}
+
+/* 幅が狭い端末・文字を大きくした端末：入口を1列にする（説明文が細切れにならないように） */
+@media (max-width: 359px) {
+  .home-entry-grid {
+    grid-template-columns: 1fr;
+  }
+  .home-player-icon-button {
+    min-width: 48px;
+  }
+}
+
+/* ---------- まとめ画面（ゲーム／楽曲・歌詞／ガイド／設定） ---------- */
+.hub-screen.screen {
+  padding: 16px 16px 28px;
+}
+.hub-lead {
+  margin: 6px 0 12px;
+  text-align: center;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--color-text-sub);
+}
+.hub-card {
+  margin: 0 0 16px;
+  padding: 14px 12px;
+  border-radius: 20px;
+  border: 1px solid var(--color-card-border);
+  background: rgba(255, 255, 255, 0.6);
+}
+.hub-row-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0 0;
+}
+.hub-row-button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 60px;
+  padding: 10px 14px;
+  border: 1px solid var(--color-card-border);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--color-text);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.hub-row-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+}
+.hub-row-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.hub-row-label {
+  font-size: 0.9375rem;
+  font-weight: 800;
+  line-height: 1.3;
+}
+.hub-row-desc {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--color-text-sub);
+}
+
+/* ゲーム画面：グループ見出し */
+.game-hub-group {
+  margin: 0 0 16px;
+}
+.game-hub-group-title {
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 800;
+  color: var(--color-text);
+}
+.game-hub-group-lead {
+  margin: 2px 0 8px;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--color-text-sub);
+}
+.game-hub-groups.home-special-modes-grid {
+  display: block;
+  margin: 0;
+}
+.game-hub-group-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+/* 以前のホームと同じ縦積みのカード（.home-special-modes-grid の中の見た目）をゲーム画面でも使う */
+.game-hub-group-grid .special-mode-card {
+  position: relative;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  width: auto;
+  min-width: 0;
+}
+.hub-screen .special-mode-card-title {
+  font-size: 0.9375rem;
+}
+.hub-screen .special-mode-card-description {
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+.hub-screen .special-mode-card-tap-target {
+  min-height: 44px;
+}
+/* 「？」は見た目は小さな丸のまま、押せる範囲を 44px にする */
+.hub-screen .special-mode-card-help-button {
+  width: 44px;
+  height: 44px;
+  background: radial-gradient(circle, var(--color-primary-light) 0 13px, transparent 14px);
+  font-size: 0.875rem;
+}
+@media (max-width: 359px) {
+  .game-hub-group-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.hub-screen .record-pill {
+  min-height: 48px;
+  font-size: 0.9375rem;
+}
+.hub-screen .eq-divider {
+  margin-top: 8px;
+}
+
+/* 設定画面：効果音の行・折りたたみの見出しを押しやすく */
+.hub-screen .sfx-settings-row {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.hub-screen .sfx-toggle-button,
+.hub-screen .sfx-settings-detail-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 64px;
+  font-size: 0.875rem;
+}
+.hub-screen .data-management-section > summary,
+.hub-screen .advanced-data-management-section > summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: 0.9375rem;
+}
+
+/* ---------- 端末の「戻る」を受け付けなかったときの短い案内（js/appHistory.js） ---------- */
+.app-nav-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  z-index: 10000;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  padding: 10px 16px;
+  border-radius: 14px;
+  background: rgba(74, 46, 66, 0.92);
+  color: #fff;
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.5;
+  text-align: center;
+  box-shadow: 0 10px 24px -10px rgba(0, 0, 0, 0.5);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-hero-cta {
+    transition: none;
+  }
+}
+
+/* ---------- まとめ画面へ移した既存の部品：文字を 13px 以上に（ホームにあった頃の小さい文字をここで底上げ） ---------- */
+.hub-screen .eyebrow-chip,
+.hub-screen .count-hint,
+.hub-screen .question-count-notice,
+.hub-screen .mode-best-condition,
+.hub-screen .mode-best-value,
+.hub-screen .listen-tile-label,
+.hub-screen .listen-tile-desc,
+.hub-screen .listen-wide-tile-arrow,
+.hub-screen .sfx-settings-label,
+.hub-screen .sfx-toggle-button span,
+.hub-screen .lyrics-import-caption,
+.hub-screen .audio-import-status,
+.hub-screen .lyrics-import-status,
+.hub-screen .audio-import-button,
+.hub-screen .lyrics-import-button,
+.hub-screen .optional-tag,
+.hub-screen .special-mode-card-new-badge {
+  font-size: max(0.8125rem, 13px);
+}
+.hub-screen .listen-tile-label {
+  font-size: 0.9375rem;
+}
+.hub-screen .audio-import-button,
+.hub-screen .lyrics-import-button {
+  min-height: 44px;
+}
+.home-screen > .title-block .eyebrow-chip {
+  font-size: max(0.8125rem, 13px);
+}

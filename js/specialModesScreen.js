@@ -221,9 +221,65 @@ export const HOME_SPECIAL_MODES_ORDER = [
   "partyBattle",
 ];
 
+// 【2026-10-30新設・リニューアル第2段階】ゲームハブ（ホームの［ゲームスタート］で開く画面）での
+// グループ分け。各グループの中の並びは HOME_SPECIAL_MODES_ORDER（本人指定の並び）の順をそのまま残す。
+// 10モードすべてがどこか1つのグループに入っていることを tests/homeRenewal.test.js で確かめている。
+export const GAME_HUB_GROUPS = [
+  {
+    id: "solo",
+    title: "ひとりで遊ぶ",
+    lead: "イントロ以外のクイズ・記録に挑戦",
+    modeIds: ["randomPlayback", "lyricsQuiz", "outroQuiz", "instantChallenge", "timeAttack", "weakSongs"],
+  },
+  {
+    id: "together",
+    title: "みんなで遊ぶ",
+    lead: "離れた友達と・1台を囲んで対戦",
+    modeIds: ["onlineBattle", "partyBattle"],
+  },
+  {
+    id: "create",
+    title: "つくる・練習する",
+    lead: "自分だけの問題・ライブ前のコール練習",
+    modeIds: ["originalQuiz", "liveCallMode"],
+  },
+];
+
+// ゲームハブ用：グループの見出し＋カードの並びを組み立てる
+function renderGroupedSpecialModes(container) {
+  GAME_HUB_GROUPS.forEach((group) => {
+    const groupElement = document.createElement("section");
+    groupElement.className = "game-hub-group";
+    groupElement.dataset.groupId = group.id;
+    const heading = document.createElement("h3");
+    heading.className = "game-hub-group-title";
+    heading.textContent = group.title;
+    groupElement.appendChild(heading);
+    if (group.lead) {
+      const lead = document.createElement("p");
+      lead.className = "game-hub-group-lead";
+      lead.textContent = group.lead;
+      groupElement.appendChild(lead);
+    }
+    const grid = document.createElement("div");
+    grid.className = "game-hub-group-grid";
+    group.modeIds.forEach((modeId) => {
+      const mode = SPECIAL_MODES.find((entry) => entry.id === modeId);
+      if (!mode) return;
+      grid.appendChild(mode.available ? buildAvailableCard(mode) : buildComingSoonCard(mode));
+    });
+    groupElement.appendChild(grid);
+    container.appendChild(groupElement);
+  });
+}
+
 function renderHomeSpecialModesGrid() {
   if (!elements.homeGridContainer) return;
   elements.homeGridContainer.innerHTML = "";
+  if (elements.homeGridContainer.dataset?.grouped === "true") {
+    renderGroupedSpecialModes(elements.homeGridContainer);
+    return;
+  }
   HOME_SPECIAL_MODES_ORDER.forEach((modeId) => {
     const mode = SPECIAL_MODES.find((entry) => entry.id === modeId);
     if (!mode) return; // 定義漏れがあっても画面が壊れないようにする（本来起きない想定）
