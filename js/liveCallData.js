@@ -97,7 +97,7 @@ export function computeModeAvailability({ sheet, hasAudio, lyricsRecord }) {
   const timedLines = lines.filter((line) => Number.isFinite(line.start)).length;
   const sheetOk = Boolean(sheet?.ok);
   const timed = sheetOk && sheet.calls.length > 0;
-  const audioReason = "この曲の音源がこの端末にありません。ホームの「設定・データ管理」→「データ管理」から読み込んでください。";
+  const audioReason = "この曲の音源がこの端末にありません。ホームの「データを追加・更新」から読み込んでください。";
   const sheetMode = sheetOk ? { ok: true, reason: "" } : { ok: false, reason: sheet?.message ?? SHEET_STATE_MESSAGES[SHEET_STATE.NO_SHEET] };
   let live;
   if (!sheetOk) live = { ok: false, reason: sheetMode.reason };

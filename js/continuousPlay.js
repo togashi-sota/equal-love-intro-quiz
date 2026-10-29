@@ -156,7 +156,7 @@ async function buildAndStartQueue({ source, playlistId, songs, shuffle, emptySou
   unavailableCount = deduped.length - playable.length;
 
   if (playable.length === 0) {
-    setEmptyState("この再生元には、音源が読み込まれている曲が1曲もありません。ホームの「設定・データ管理」→「データ管理」から追加してください。");
+    setEmptyState("この再生元には、音源が読み込まれている曲が1曲もありません。ホームの「データを追加・更新」から追加してください。");
     return;
   }
 
