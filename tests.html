@@ -53,6 +53,8 @@
     import { runHomeRenewalTests } from "./tests/homeRenewal.test.js";
     // 【2026-10-30新設】リニューアル第3〜5段階：完成版コールデータの読み込み・ライブコール（ダミーのデータだけ）
     import { runLiveCallRenewalTests } from "./tests/liveCallRenewal.test.js";
+    // 【2026-10-30新設】新しいライブコールの光り方（第2版）・曲のページのカードの見本画像（ダミーのデータだけ）
+    import { runLiveCallVisualsTests } from "./tests/liveCallVisuals.test.js";
     // 【2026-10-30新設】データ管理の「最新版データを読み込む」（ダミーのデータだけ・偽の端末）
     import { runUnifiedPackImportTests } from "./tests/unifiedPackImport.test.js";
     import { runQuizTests } from "./tests/quiz.test.js";
@@ -517,6 +519,7 @@
     runLyricsPatchAndCallReleaseTests();
     await runHomeRenewalTests();
     await runLiveCallRenewalTests();
+    await runLiveCallVisualsTests();
     await runUnifiedPackImportTests();
     const { passCount, failCount, failedDetails } = printSummary();
 
