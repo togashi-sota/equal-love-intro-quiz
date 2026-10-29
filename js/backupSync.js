@@ -280,7 +280,96 @@ async function resolvePreviousUid(playerId, uid, backupId, { database, ref, get 
 // 既存の呼び出し側（scheduleBackupSync／syncNow）は戻り値を使わなくても動作が変わらない。
 let lastSyncResult = { status: "no-change", previousUid: null };
 
+// ---------------------------------------------------------------------------
+// 【2026-10-30追加・ホーム案F】バックアップの状態を「画面に出すため」だけに読む口（読むだけ）。
+// 同期・書き込みの処理（performSyncCore）は変えない。結果を横から覚えておくだけにする。
+// ・displayResult：この起動中に最後に返った同期の結果（まだ1回も無ければ null）
+// ・lastSuccessAt：この端末で「本当に書き込めた」最後の時刻。synced／claimed を、前回と同じ内容で
+//   書かずに済ませた場合（no-change の早い戻り）と区別し、本当に書いたときだけ localStorage に1つ保存する。
+//   プレイヤーごとに分ける（別のプレイヤーの成功時刻を出さないため）。バックアップの対象のキーではない。
+// 仕様：tools/prototype-renewal-2026-10-30/backup-status-spec.md
+const BACKUP_LAST_SUCCESS_STORAGE_KEY = `${LOCAL_STORAGE_PREFIX}backupLastSuccessAt`;
+let displayResult = null;
+const backupStatusListeners = new Set();
+
+function readLastSuccessMap() {
+  try {
+    const value = JSON.parse(localStorage.getItem(BACKUP_LAST_SUCCESS_STORAGE_KEY) ?? "{}");
+    return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  } catch {
+    return {};
+  }
+}
+
+function recordSyncResultForDisplay(result, wroteNow, playerId, now = Date.now()) {
+  displayResult = result?.status ?? null;
+  if (wroteNow && (displayResult === "synced" || displayResult === "claimed") && playerId) {
+    try {
+      const map = readLastSuccessMap();
+      map[playerId] = now;
+      localStorage.setItem(BACKUP_LAST_SUCCESS_STORAGE_KEY, JSON.stringify(map));
+    } catch {
+      // 保存できなくても同期そのものには影響しない（表示が「まだ確認していません」になるだけ）
+    }
+  }
+  backupStatusListeners.forEach((listener) => {
+    try {
+      listener();
+    } catch {
+      // 表示側の失敗で同期を止めない
+    }
+  });
+}
+
+// 画面（ホーム・設定）に出すための状態。{ result, lastSuccessAt, checkedThisSession }
+//   result：この起動中に最後に返った結果（"synced" | "claimed" | "denied" | "no-change" | "no-auth" | "error" | null）
+//   lastSuccessAt：今のプレイヤーで最後に本当に書き込めた時刻（ミリ秒）。無ければ null
+//   checkedThisSession：この起動中に同期の結果が1回でも返ったか
+export function getBackupStatusForDisplay() {
+  let playerId = null;
+  try {
+    playerId = getActivePlayer()?.playerId ?? null;
+  } catch {
+    playerId = null;
+  }
+  const at = playerId ? readLastSuccessMap()[playerId] : null;
+  return {
+    result: displayResult,
+    lastSuccessAt: typeof at === "number" && Number.isFinite(at) ? at : null,
+    checkedThisSession: displayResult !== null,
+  };
+}
+
+// 状態が変わったら知らせてほしい画面用（戻り値の関数で購読をやめる）
+export function onBackupStatusChange(listener) {
+  backupStatusListeners.add(listener);
+  return () => backupStatusListeners.delete(listener);
+}
+
+// テスト用：表示用の状態だけを、同期を動かさずに入れる（本物の同期・書き込みは呼ばない）
+export function recordSyncResultForDisplayForTest(result, wroteNow, playerId, now) {
+  recordSyncResultForDisplay(result, wroteNow, playerId, now);
+}
+export function resetBackupDisplayStateForTest() {
+  displayResult = null;
+}
+
 async function performSync() {
+  // 「前回と同じ内容なので書かなかった」ときは、前回の結果の入れ物（lastSyncResult）がそのまま返る。
+  // 本当に書いたときは新しい入れ物が作られる。この違いで「本当に書き込めた時刻」だけを残す。
+  const before = lastSyncResult;
+  let playerId = null;
+  try {
+    playerId = getActivePlayer()?.playerId ?? null;
+  } catch {
+    playerId = null;
+  }
+  const result = await performSyncCore();
+  recordSyncResultForDisplay(result, result !== before, playerId);
+  return result;
+}
+
+async function performSyncCore() {
   const player = getActivePlayer();
   const payload = buildBackupPayload();
   const fingerprint = fingerprintPayload(payload);
