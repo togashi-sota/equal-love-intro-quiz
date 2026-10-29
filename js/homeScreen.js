@@ -251,6 +251,9 @@ let importedSongIds = null; // この端末に音源がある曲の id（読み�
 let starting = false; // ［この設定でスタート］を2回続けて押しても、ゲームを2つ始めない
 let navButtons = [];
 let scrollTicking = false;
+// 目次を押した直後は、押した分類を強調したままにする（最後の方のカードはページの終わりで止まり、
+// 「目次のすぐ下」まで来られないため）。本人が自分でスクロールし始めたら、位置から決める方へ戻す
+let navPinnedIndex = null;
 
 // ライブコールの入口で呼ぶ処理（main.js が setLiveCallEntryHandler で入れる。第3〜5段階の新しいライブコール）
 let liveCallEntryHandler = null;
@@ -411,7 +414,7 @@ export function markCurrentHomeSection() {
   const line = stickyTopOf(nav) + nav.offsetHeight + 24;
   const tops = HOME_NAV_SECTIONS.map((section) => document.getElementById(section.card)?.getBoundingClientRect().top ?? null);
   const atBottom = Math.ceil(window.scrollY + window.innerHeight) >= document.documentElement.scrollHeight - 2;
-  const index = pickCurrentNavIndex(tops, line, atBottom && window.scrollY > 0);
+  const index = navPinnedIndex ?? pickCurrentNavIndex(tops, line, atBottom && window.scrollY > 0);
   navButtons.forEach((button, i) => {
     if (i === index) button.setAttribute("aria-current", "true");
     else button.removeAttribute("aria-current");
@@ -427,12 +430,19 @@ function initCategoryNav() {
   const nav = $("#home-category-nav");
   if (!nav) return;
   navButtons = HOME_NAV_SECTIONS.map((section) => nav.querySelector(`[data-home-jump="${section.target}"]`));
-  navButtons.forEach((button) => {
+  navButtons.forEach((button, i) => {
     button?.addEventListener("click", () => {
       callbacks.playClickSound();
+      navPinnedIndex = i;
       scrollToHomeSection(button.dataset.homeJump);
+      markCurrentHomeSection();
     });
   });
+  // 自分でスクロールし始めた（指・ホイール・キー）ら、押した分類の固定をやめる
+  const unpin = () => {
+    navPinnedIndex = null;
+  };
+  ["touchstart", "wheel", "keydown"].forEach((type) => window.addEventListener(type, unpin, { passive: true }));
   window.addEventListener(
     "scroll",
     () => {
@@ -570,6 +580,7 @@ export function initHomeScreen(homeRoot, callbacksArg) {
   callbacks.onScreenChange((screenName) => {
     if (screenName !== "start") {
       releaseStartLock();
+      navPinnedIndex = null;
       return;
     }
     renderHomePlayerStats();

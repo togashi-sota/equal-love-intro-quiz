@@ -592,6 +592,10 @@ async function runHomeEntryWiringTests() {
   assertEqual(main.includes('document.getElementById("unified-pack-import-section")'), true, "E: データを追加・更新 → 最新版データを読み込む の欄");
   assertEqual(main.includes("setLiveCallEntryHandler((mode) => openLiveCallFrom(document.body.dataset.screen || \"start\", mode));"), true, "E: ライブコールの遊び方を選んで開く");
   assertEqual(main.includes("const display = formatIntroBest(questionCountValue, categoryFilterValue, best);"), true, "E: ゲーム画面の自己ベストもホームと同じ関数");
+  const liveOpen = main.slice(main.indexOf("function openLiveCallFrom("), main.indexOf("function openLiveCallFrom(") + 600);
+  assertEqual(liveOpen.indexOf('navigateWithScrollMemory("liveCall");') >= 0 && liveOpen.indexOf('navigateWithScrollMemory("liveCall");') < liveOpen.indexOf("openLiveCallScreen({ mode });"), true, "E: ライブコールを開く前にホームのスクロール位置を覚える（戻ると同じ位置）");
+  const partyBack = main.slice(main.indexOf("navigateHomeToPartyCard: () => {"), main.indexOf("navigateHomeToPartyCard: () => {") + 500);
+  assertEqual(partyBack.includes('navigateBattleScreen("start");') && !partyBack.includes('navigateBattleScreen("gameHub")'), true, "E: 1台で対戦の［戻る］は、ホームから来たらホームへ（ゲーム画面から来たらゲーム画面へ）");
   assertEqual(main.includes("const targetScreen = resolveBackTarget(fromScreen, requestedScreen);"), true, "E: ［戻る］でまとめ画面へ戻す判断を navigateWithScrollMemory に入れた");
   assertEqual(main.includes("initAppHistory({"), true, "E: 端末の戻るの仕組みを起動する");
   const sw = await fetchText("sw.js");

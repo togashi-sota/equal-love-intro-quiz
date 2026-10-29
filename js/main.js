@@ -6805,9 +6805,11 @@ initPartyBattleScreens({
   // 【2026-09-15 第4回実機QA修正・本人指示】設定トップの「戻る」はホーム最上部ではなく「パーティー対戦」カード付近へ。
   // スクロール記憶（navigateWithScrollMemory）で戻したあと、レイアウト確定後にカードを画面中央へ寄せる。
   navigateHomeToPartyCard: () => {
-    // 【2026-10-30】モードのカードはホームからゲーム画面（#game-hub-screen）へ移った
-    navigateBattleScreen("gameHub");
-    scrollHomeToSpecialModeCard("partyBattle");
+    // 【2026-10-30】モードのカードはホームからゲーム画面（#game-hub-screen）へ移った。
+    // ホーム案Fの「1台で対戦」から直接来たときはホームへ戻す（"start" を渡すと、ゲーム画面を通って来ていれば
+    // navigateWithScrollMemory がゲーム画面へ戻す）。ゲーム画面へ戻ったときだけ、カードを画面内へ寄せる
+    navigateBattleScreen("start");
+    if (document.body.dataset.screen === "gameHub") scrollHomeToSpecialModeCard("partyBattle");
   },
   onShowHelp: () => openSpecialModeHelp("partyBattle"),
   setupBackButton: document.getElementById("party-battle-setup-back-button"),
@@ -8837,8 +8839,9 @@ let liveCallReturnScreen = "start";
 // mode：ホーム案Fの「コール表／ライブコール／カラオケ」から開いたときに、最初から選んでおく遊び方（無ければ null）
 function openLiveCallFrom(returnScreen, mode = null) {
   liveCallReturnScreen = returnScreen && returnScreen !== "liveCall" ? returnScreen : "start";
-  openLiveCallScreen({ mode });
+  // 先に画面を移る（openLiveCallScreen は一番上へスクロールするので、後にしないと、戻る先の画面のスクロール位置が 0 で覚えられてしまう）
   navigateWithScrollMemory("liveCall");
+  openLiveCallScreen({ mode });
   window.scrollTo(0, 0);
 }
 initLiveCallScreen({
