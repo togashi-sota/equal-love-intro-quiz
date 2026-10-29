@@ -64,7 +64,10 @@
 
   /* フォント：丸みのある読みやすい日本語フォントを優先し、
      読み込めない環境ではOS標準の丸みのあるゴシックにフォールバックする */
-  --font-family-base: "M PLUS Rounded 1c", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+  /* 【2026-10-30改訂】M PLUS Rounded 1c が読み込めないとき（オフライン・通信が遅いとき）の代わりを増やした。
+     iPhone/Mac＝ヒラギノ丸ゴ・ヒラギノ角ゴ、Windows＝游ゴシック・メイリオ、Android＝Noto Sans JP の順 */
+  --font-family-base: "M PLUS Rounded 1c", "Hiragino Maru Gothic ProN", "Hiragino Kaku Gothic ProN", "Hiragino Sans",
+    "Yu Gothic UI", "Yu Gothic", YuGothic, Meiryo, "Noto Sans JP", "Noto Sans CJK JP", sans-serif;
 
   /* モーション（アニメーションの速さ）。演出自体は後のステップで追加する */
   --transition-fast: 120ms;
