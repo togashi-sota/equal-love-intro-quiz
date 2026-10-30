@@ -134,10 +134,13 @@ export function currentScreenOf(stack) {
 //   { type: "replace" }                 今の1件を書き換える（初回セットアップ→ホームなど、戻れなくてよい移動）
 //   { type: "back", toIndex, steps }    すでに通ってきた画面へ戻る（アプリの［戻る］・ホームへ・同じ条件で再挑戦など）
 //   { type: "push" }                    新しい画面を1件積む
-export function planScreenChange(stack, nextScreen) {
+// options.forcePush：前に通った画面でも「戻る」にせず、新しく1件積む（2026-10-31：ガイドの［イントロクイズへ］で、
+// ホームへ移ってもガイドの記録を消さず、端末の「戻る」でガイドへ帰れるようにするため）
+export function planScreenChange(stack, nextScreen, options = {}) {
   const current = currentScreenOf(stack);
   if (nextScreen === current) return { type: "none" };
   if (current === "onboarding") return { type: "replace" };
+  if (options.forcePush) return { type: "push" };
   for (let i = stack.index - 1; i >= 0; i--) {
     if (stack.entries[i] === nextScreen) {
       return { type: "back", toIndex: i, steps: stack.index - i };
@@ -195,8 +198,11 @@ export function resolveHubReturn(stack, fromScreen, targetScreen) {
   if (targetScreen !== "start") return targetScreen;
   const hubs = [HUB_OF_SCREEN[fromScreen], ...(GUIDE_RETURN_HUBS_OF_SCREEN[fromScreen] ?? [])].filter(Boolean);
   if (hubs.length === 0) return targetScreen;
-  // 今いる位置までの記録で、いちばん新しく通った戻り先（ホームへ戻ると記録は先頭まで戻るので、古い寄り道は残らない）
-  const path = stack.entries.slice(0, stack.index + 1);
+  // 今いる位置までの記録で、いちばん新しく通った戻り先。ホームより前の寄り道は数えない
+  // （ガイドの［イントロクイズへ］では、ホームを記録に積み直す〈forcePush〉ので、ホームが2回入ることがある。
+  //  そのホームから開いた画面の［戻る］は、ガイドではなくホームへ）
+  const fullPath = stack.entries.slice(0, stack.index + 1);
+  const path = fullPath.slice(Math.max(0, fullPath.lastIndexOf("start")));
   let found = targetScreen;
   let foundIndex = -1;
   hubs.forEach((hub) => {

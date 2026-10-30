@@ -6,7 +6,7 @@ import { AUDIO_METADATA } from "./data/audioMetadata.js";
 import { showScreen, onScreenChange, scrollToTop } from "./screens.js";
 // 【2026-10-30新設・リニューアル第2段階】ホーム（案B）・ブラウザ／端末の「戻る」
 import { getScreenElement, findScreenNameOfElement } from "./screens.js";
-import { initAppHistory, resolveBackTarget } from "./appHistory.js";
+import { initAppHistory, resolveBackTarget, forcePushNextScreen } from "./appHistory.js";
 import { initHomeScreen, renderHomePlayerStats, setLiveCallEntryHandler, formatIntroBest, runHomeAction } from "./homeScreen.js";
 // 【2026-10-30新設・リニューアル第3〜5段階】新しいライブコールと、データ管理の「完成版コールデータを読み込む」
 import { initLiveCallScreen, openLiveCallScreen, goBackInLiveCall, refreshLiveCallAfterDataChange, openLiveCallSongMode } from "./liveCallScreen.js";
@@ -5671,8 +5671,11 @@ function openFromGuide(open) {
     playClickSound();
     openAppGuide();
   } else if (open.intro) {
-    // イントロクイズはホームの箱から始める（出題数・カテゴリを選んでから［この設定でスタート］）
+    // イントロクイズはホームの箱から始める（出題数・カテゴリを選んでから［この設定でスタート］）。
+    // ホームは記録の先頭にあるので、そのまま移ると「戻る」扱いになりガイドの記録が消える（端末の「戻る」でアプリの外へ出てしまう）。
+    // ホームを新しく積み直して、端末の「戻る」でガイドへ帰れるようにする
     playClickSound();
+    forcePushNextScreen("start");
     navigateWithScrollMemory("start");
     requestAnimationFrame(() => {
       const panel = document.getElementById("home-intro-panel");
@@ -6437,9 +6440,11 @@ initTimeAttackLeaderboardScreen(
     myRecordSection: timeAttackLeaderboardMyRecordElement,
     myRecordText: timeAttackLeaderboardMyRecordTextElement,
     backButton: timeAttackLeaderboardBackButtonElement,
+    // 【2026-10-31】ほかの画面と同じ navigateWithScrollMemory で戻る（開いた画面のスクロールの位置へ戻す。
+    // ガイドから開いたときはガイドの同じ位置へ）
     onBack: () => {
       playClickSound();
-      showScreen(timeAttackLeaderboardReturnScreen);
+      navigateWithScrollMemory(timeAttackLeaderboardReturnScreen);
     },
     adminDeleteOverlay: timeAttackLeaderboardAdminDeleteOverlayElement,
     adminDeleteName: timeAttackLeaderboardAdminDeleteNameElement,
@@ -6484,7 +6489,9 @@ timeAttackResultLeaderboardLinkElement.addEventListener("click", () => {
 homeLeaderboardLinkElement.addEventListener("click", () => {
   playClickSound();
   const { questionCountValue, categoryFilterValue, variant } = getLastTimeAttackSelection();
-  timeAttackLeaderboardReturnScreen = "start";
+  // 【2026-10-31】「戻る」は押した画面へ（ホーム・ガイド・全体検索など。以前はいつもホームへ戻っていた）
+  const fromScreen = document.body.dataset.screen;
+  timeAttackLeaderboardReturnScreen = fromScreen && fromScreen !== "timeAttackLeaderboard" ? fromScreen : "start";
   showTimeAttackLeaderboard(variant, questionCountValue, categoryFilterValue);
   navigateWithScrollMemory("timeAttackLeaderboard");
 });
