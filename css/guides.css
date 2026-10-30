@@ -1,0 +1,826 @@
+/* =====================================================================
+   遊び方・機能ガイド（#guide-screen）・ゲームの遊び方・記録（#game-guide-screen）・
+   ホームのイントロの箱の下の入口（.home-intro-links）（2026-10-31 新設・本人の依頼 A・C・D）
+   - 色・角の丸み・影はホーム（css/homeRenewal.css）とそろえる。モードの色はホームの .home-game--… と同じ値
+   - 押せる部品は 44px 以上、文字は 0.8125rem（13px）以上。文字の大きさは rem
+   - 動きは「開く矢印の回転」だけ。prefers-reduced-motion では止める
+   ===================================================================== */
+
+/* ---------- ホーム：イントロクイズの箱のすぐ下の2つの入口（小さく・横に2つ） ---------- */
+.home-intro-links {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 8px;
+}
+.home-intro-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #a3195b;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  font-weight: 800;
+  line-height: 1.25;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.12s ease;
+}
+.home-intro-link .hi {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+.home-intro-link span {
+  min-width: 0;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.home-intro-link:active {
+  transform: scale(0.97);
+}
+.home-intro-link:focus-visible {
+  outline: 3px solid #4a9be0;
+  outline-offset: 2px;
+}
+/* 広いカード（iPad 横・PC）：左の列に イントロ → この2つ → ゲームの遊び方・記録、右に全部のゲーム */
+@container (min-width: 50rem) {
+  .home-game-layout {
+    grid-template-rows: auto auto 1fr;
+  }
+  .home-game-layout .home-intro-links {
+    grid-column: 1;
+    grid-row: 2;
+    margin-top: 10px;
+  }
+  .home-game-layout .home-games {
+    grid-row: 1 / span 3;
+  }
+  .home-game-layout .home-games-more {
+    grid-row: 3;
+    margin-top: 8px;
+  }
+}
+
+/* ---------- 2つのガイド画面の共通 ---------- */
+#guide-screen,
+#game-guide-screen {
+  --gd-sub: #765467;
+  --gd-line: #f2d3e1;
+  padding: 16px 16px 32px;
+}
+/* iPad・PC：読みやすい幅まで枠を広げる（ホーム以外の画面は 480px の枠のまま） */
+@media (min-width: 768px) {
+  body[data-screen="guide"] .game-frame,
+  body[data-screen="gameGuide"] .game-frame {
+    max-width: min(860px, 100%);
+  }
+  #guide-screen,
+  #game-guide-screen {
+    padding: 20px 28px 36px;
+  }
+}
+.gd-intro {
+  margin-bottom: 12px;
+}
+.gd-content,
+.gg-content {
+  display: grid;
+  gap: 16px;
+}
+/* 「開く」ボタン（機能を直接開く） */
+.gd-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.gd-open {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 6px 14px;
+  border: 1.5px solid #ffb3d1;
+  border-radius: 999px;
+  background: #fff;
+  color: #a3195b;
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 800;
+  line-height: 1.3;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.gd-open::after {
+  content: "›";
+  margin-left: 6px;
+  font-size: 1.1em;
+}
+.gd-open.is-primary {
+  border-color: transparent;
+  background: linear-gradient(135deg, #e0357a, #c2255c);
+  color: #fff;
+  box-shadow: 0 6px 14px -8px rgba(160, 30, 90, 0.8);
+}
+.gd-open:active {
+  transform: scale(0.97);
+}
+.gd-open:focus-visible,
+.gd-toc-button:focus-visible,
+.gd-item-summary:focus-visible,
+.gg-mode-summary:focus-visible,
+.gg-quick-button:focus-visible,
+.gd-back-to-toc:focus-visible,
+.gd-toc-toggle-all:focus-visible,
+.gg-video-link:focus-visible {
+  outline: 3px solid #4a9be0;
+  outline-offset: 2px;
+}
+
+/* ---------- 遊び方・機能ガイド：概要 ---------- */
+.gd-overview {
+  padding: 14px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 8px 20px -14px rgba(160, 30, 90, 0.6);
+}
+.gd-overview-title,
+.gd-toc-title {
+  margin: 0 0 6px;
+  font-size: 1.0625rem;
+  font-weight: 800;
+  color: #c2255c;
+}
+.gd-overview-lead {
+  margin: 0 0 10px;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+.gd-overview-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+@media (min-width: 640px) {
+  .gd-overview-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.gd-overview-item {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 8px 10px;
+  border-radius: 14px;
+  background: #fff7fa;
+}
+.gd-overview-icon {
+  flex: none;
+  font-size: 1.15rem;
+  line-height: 1.4;
+}
+.gd-overview-text {
+  display: grid;
+  gap: 1px;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+.gd-overview-text b {
+  font-size: 0.9375rem;
+}
+.gd-storage-note {
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: #eef6ff;
+  color: #24486e;
+  font-size: 0.84375rem;
+  line-height: 1.6;
+}
+.gd-quick {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+.gd-quick .gd-open {
+  width: 100%;
+  padding-inline: 8px;
+}
+
+/* ---------- 目次 ---------- */
+.gd-toc {
+  padding: 14px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 8px 20px -14px rgba(160, 30, 90, 0.6);
+}
+.gd-toc-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.gd-toc-head .gd-toc-title {
+  margin: 0;
+}
+.gd-toc-toggle-all {
+  min-height: 44px;
+  padding: 4px 12px;
+  border: none;
+  border-radius: 999px;
+  background: #f6eef2;
+  color: var(--gd-sub);
+  font-family: inherit;
+  font-size: 0.8125rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.gd-toc-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+@media (min-width: 640px) {
+  .gd-toc-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+.gd-toc-button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 48px;
+  padding: 6px 10px;
+  border: 1px solid var(--gd-line);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 800;
+  line-height: 1.3;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.gd-toc-icon {
+  flex: none;
+}
+.gd-toc-label {
+  flex: 1;
+  min-width: 0;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.gd-toc-count {
+  flex: none;
+  min-width: 1.6em;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #f6eef2;
+  color: var(--gd-sub);
+  font-size: 0.78125rem;
+  text-align: center;
+}
+
+/* ---------- 分類と項目 ---------- */
+.gd-cat {
+  scroll-margin-top: 12px;
+}
+.gd-cat-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 2px 4px;
+  font-size: 1.125rem;
+  font-weight: 800;
+  color: #c2255c;
+}
+.gd-cat-title:focus {
+  outline: none;
+}
+.gd-cat-lead {
+  margin: 0 2px 8px;
+  color: var(--gd-sub);
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+.gd-cat-actions {
+  margin: 0 0 10px;
+}
+.gd-items {
+  display: grid;
+  gap: 8px;
+}
+.gd-item,
+.gg-mode {
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 4px 14px -10px rgba(120, 20, 70, 0.55);
+  overflow: hidden;
+}
+.gd-item-summary,
+.gg-mode-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+  padding: 10px 12px;
+  cursor: pointer;
+  list-style: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.gd-item-summary::-webkit-details-marker,
+.gg-mode-summary::-webkit-details-marker {
+  display: none;
+}
+.gd-item-icon {
+  flex: none;
+  width: 1.75rem;
+  font-size: 1.25rem;
+  text-align: center;
+}
+.gd-item-head {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+.gd-item-title {
+  font-size: 0.96875rem;
+  font-weight: 800;
+  line-height: 1.4;
+}
+.gd-item-tagline {
+  color: var(--gd-sub);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+/* 開く・閉じるの矢印（下向き ⇄ 上向き） */
+.gd-item-chevron {
+  flex: none;
+  width: 0.6rem;
+  height: 0.6rem;
+  margin-right: 4px;
+  border-right: 2.5px solid #c2255c;
+  border-bottom: 2.5px solid #c2255c;
+  transform: rotate(45deg) translate(-2px, -2px);
+  transition: transform 0.2s ease;
+}
+details[open] > summary .gd-item-chevron {
+  transform: rotate(225deg) translate(-2px, -2px);
+}
+.gd-item-body {
+  padding: 0 14px 14px;
+  border-top: 1px dashed var(--gd-line);
+}
+.gd-where {
+  margin: 10px 0 6px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: #fff4d6;
+  color: #5c4100;
+  font-size: 0.84375rem;
+  line-height: 1.6;
+}
+.gd-steps-heading {
+  margin: 10px 0 2px;
+  color: #c2255c;
+  font-size: 0.8125rem;
+  font-weight: 800;
+}
+.gd-steps {
+  margin: 6px 0 0;
+  padding-left: 1.2em;
+  font-size: 0.90625rem;
+  line-height: 1.65;
+}
+.gd-steps li + li {
+  margin-top: 4px;
+}
+.gd-answer {
+  margin: 10px 0 0;
+  font-size: 0.90625rem;
+  line-height: 1.7;
+}
+.gd-point {
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  border-left: 4px solid #6fbdf2;
+  border-radius: 8px;
+  background: #eef6ff;
+  color: #24486e;
+  font-size: 0.84375rem;
+  line-height: 1.6;
+}
+/* 検索の使い分けの表 */
+.gd-search-table {
+  display: grid;
+  gap: 0;
+  margin: 10px 0 0;
+  border: 1px solid var(--gd-line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.gd-search-row {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  border-top: 1px solid var(--gd-line);
+}
+.gd-search-row:first-child {
+  border-top: none;
+}
+.gd-search-row dt {
+  padding: 8px 8px;
+  background: #fff4f8;
+  color: #a3195b;
+  font-size: 0.8125rem;
+  font-weight: 800;
+  line-height: 1.5;
+}
+.gd-search-row dd {
+  margin: 0;
+  padding: 8px 10px;
+  font-size: 0.84375rem;
+  line-height: 1.6;
+}
+@media (max-width: 359px) {
+  .gd-search-row {
+    grid-template-columns: 1fr;
+  }
+  .gd-search-row dt {
+    padding-bottom: 2px;
+  }
+}
+/* はじめての人の流れ */
+.gd-first-steps {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.gd-first-step {
+  display: flex;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 4px 14px -10px rgba(120, 20, 70, 0.55);
+}
+.gd-first-step-no {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #e0357a, #c2255c);
+  color: #fff;
+  font-weight: 800;
+}
+.gd-first-step-body {
+  min-width: 0;
+}
+.gd-first-step-title {
+  font-size: 0.96875rem;
+}
+.gd-first-step-text {
+  margin: 4px 0 0;
+  font-size: 0.875rem;
+  line-height: 1.65;
+}
+.gd-first-step .gd-actions {
+  margin-top: 8px;
+}
+.gd-back-to-toc {
+  display: block;
+  min-height: 44px;
+  margin: 8px 0 0 auto;
+  padding: 4px 12px;
+  border: none;
+  background: none;
+  color: var(--gd-sub);
+  font-family: inherit;
+  font-size: 0.8125rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+/* ---------- ゲームの遊び方・記録 ---------- */
+.gg-top {
+  padding: 14px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 8px 20px -14px rgba(160, 30, 90, 0.6);
+}
+.gg-lead {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+.gg-quick {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+.gg-quick-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 48px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #e0357a, #c2255c);
+  color: #fff;
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 800;
+  line-height: 1.25;
+  cursor: pointer;
+  box-shadow: 0 6px 14px -8px rgba(160, 30, 90, 0.8);
+  -webkit-tap-highlight-color: transparent;
+}
+.gg-quick-button + .gg-quick-button {
+  border: 1.5px solid #ffb3d1;
+  background: #fff;
+  color: #a3195b;
+  box-shadow: none;
+}
+.gg-quick-button span {
+  min-width: 0;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.gg-video-link {
+  display: grid;
+  gap: 2px;
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: #fff7fa;
+  color: var(--color-text);
+  text-decoration: none;
+}
+.gg-video-title {
+  font-size: 0.84375rem;
+  font-weight: 800;
+  color: #a3195b;
+}
+.gg-video-note {
+  color: var(--gd-sub);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+.gg-groups {
+  display: grid;
+  gap: 16px;
+  scroll-margin-top: 12px;
+}
+.gg-group-title {
+  margin: 0 2px 8px;
+  font-size: 1.0625rem;
+  font-weight: 800;
+  color: #c2255c;
+}
+.gg-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+}
+@media (min-width: 640px) {
+  .gg-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  /* 開いたカードは横いっぱい（説明を狭い列に詰めない） */
+  .gg-grid > .gg-mode[open] {
+    grid-column: 1 / -1;
+  }
+}
+/* モードの色（ホームの .home-game--… と同じ値） */
+.gg-tone--intro { --mode: #d0306f; --mode-soft: #ffe1ee; }
+.gg-tone--random { --mode: #2b8a5e; --mode-soft: #e2f4ea; }
+.gg-tone--lyrics { --mode: #1c6fc4; --mode-soft: #e1eefb; }
+.gg-tone--outro { --mode: #6f42c1; --mode-soft: #eee6fb; }
+.gg-tone--instant { --mode: #c25e00; --mode-soft: #ffefd9; }
+.gg-tone--time { --mode: #c92a2a; --mode-soft: #ffe6e6; }
+.gg-tone--weak { --mode: #0b7f8f; --mode-soft: #dbf2f5; }
+.gg-tone--online { --mode: #3b5bdb; --mode-soft: #e5eaff; }
+.gg-tone--party { --mode: #c2255c; --mode-soft: #ffe2ee; }
+.gg-tone--original { --mode: #946200; --mode-soft: #fff1cc; }
+.gg-tone--call { --mode: #9c36b5; --mode-soft: #f5e4fa; }
+.gg-mode {
+  box-shadow: inset 0 -3px 0 var(--mode), 0 4px 14px -10px rgba(120, 20, 70, 0.55);
+  scroll-margin-top: 12px;
+}
+.gg-mode-summary {
+  background: linear-gradient(180deg, #fff 55%, var(--mode-soft));
+}
+.gg-mode[open] > .gg-mode-summary {
+  background: var(--mode-soft);
+}
+.gg-mode-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  background: var(--mode);
+  color: #fff;
+}
+.gg-mode-icon .hi {
+  width: 1.2rem;
+  height: 1.2rem;
+}
+.gg-mode-text {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+.gg-mode-title {
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+.gg-mode-catch {
+  color: var(--gd-sub);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+.gg-mode .gd-item-chevron {
+  border-color: var(--mode);
+}
+.gg-mode-body {
+  padding: 12px 14px 16px;
+}
+.gg-key {
+  padding: 10px 12px;
+  border: 2px solid var(--mode);
+  border-radius: 14px;
+  background: var(--mode-soft);
+}
+.gg-key-title {
+  margin: 0 0 4px;
+  color: var(--mode);
+  font-size: 0.875rem;
+  font-weight: 800;
+}
+.gg-key-list {
+  margin: 0;
+  padding-left: 1.3em;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.6;
+}
+.gg-needs {
+  margin: 10px 0 0;
+  font-size: 0.84375rem;
+  line-height: 1.6;
+}
+.gg-images {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 10px;
+}
+.gg-figure {
+  margin: 0;
+  text-align: center;
+}
+.gg-figure img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 10px;
+  border: 1px solid var(--gd-line);
+  background: #fff;
+}
+.gg-figure figcaption {
+  margin-top: 2px;
+  color: var(--gd-sub);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+.gg-items {
+  display: grid;
+  gap: 0;
+  margin: 12px 0 0;
+}
+.gg-item {
+  padding: 8px 0;
+  border-top: 1px solid var(--gd-line);
+}
+.gg-item dt {
+  color: var(--mode);
+  font-size: 0.84375rem;
+  font-weight: 800;
+}
+.gg-item dd {
+  margin: 2px 0 0;
+  font-size: 0.875rem;
+  line-height: 1.65;
+}
+.gg-item dd ul {
+  margin: 0;
+  padding-left: 1.2em;
+}
+.gg-item dd li + li {
+  margin-top: 3px;
+}
+@media (min-width: 640px) {
+  .gg-item {
+    display: grid;
+    grid-template-columns: 13rem minmax(0, 1fr);
+    gap: 10px;
+  }
+  .gg-item dd {
+    margin: 0;
+  }
+}
+.gg-actions {
+  margin-top: 12px;
+}
+.gg-foot {
+  margin: 0;
+  color: var(--gd-sub);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  text-align: center;
+}
+.gg-foot-actions {
+  justify-content: center;
+  margin-top: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-intro-link,
+  .gd-item-chevron {
+    transition: none;
+  }
+  .home-intro-link:active,
+  .gd-open:active {
+    transform: none;
+  }
+}
+
+/* マイページ・データの下：設定だけになった（プレイ履歴・ガイドはイントロの下へ移した）ので、横長の1つのボタンにする */
+.home-my-links--single {
+  grid-template-columns: minmax(0, 1fr);
+}
+.home-my-links--single .home-my-link {
+  flex-direction: row;
+  gap: 6px;
+  min-height: 48px;
+}
+
+.gg-needs-note {
+  display: block;
+  color: var(--gd-sub);
+  font-size: 0.8125rem;
+}
+.gd-video-box {
+  margin-top: 12px;
+}
+.gd-video-lead {
+  margin: 0 2px 6px;
+  color: var(--gd-sub);
+  font-size: 0.84375rem;
+  font-weight: 700;
+}
+.gd-video-box .guide-video-card {
+  margin-bottom: 0;
+}
+
+/* 320px など狭い幅：目次の項目数の札を出さない（名前を言葉の途中で折り返さないため） */
+@media (max-width: 359px) {
+  .gd-toc-count {
+    display: none;
+  }
+  .gd-toc-button {
+    padding-inline: 8px;
+  }
+}

@@ -172,10 +172,20 @@ export const APP_SEARCH_FEATURES = [
   {
     id: "feature-guide",
     category: FEATURE,
-    title: "遊び方ガイド",
-    aliases: ["ガイド", "使い方", "ヘルプ", "よくある質問", "FAQ"],
-    description: "各モードの遊び方や、困ったときの対処をまとめたページです。",
+    // 【2026-10-31】アプリ全体の説明書に作り直した（名前もホームの入口と同じ「遊び方・機能ガイド」）
+    title: "遊び方・機能ガイド",
+    aliases: ["ガイド", "使い方", "使い方ガイド", "遊び方ガイド", "ヘルプ", "説明書", "よくある質問", "FAQ", "困ったとき", "検索の使い分け"],
+    description: "アプリ全体の使い方（はじめての人の流れ・各機能・検索の使い分け・よくある質問・データの保存と引き継ぎ・困ったとき）をまとめたページです。",
     action: { type: "click", selector: "#guide-link" },
+  },
+  {
+    // 【2026-10-31新設】ゲームの遊び方・記録（js/gameGuideScreen.js）。ホームの［ゲームの遊び方・記録］と同じ処理
+    id: "feature-game-guide",
+    category: FEATURE,
+    title: "ゲームの遊び方・記録",
+    aliases: ["遊び方", "ルール", "点数", "ゲームの説明", "あそびかた"],
+    description: "全部のゲームのモードについて、正解の条件・操作・設定・点数・記録される場所などをまとめたページです。",
+    action: { type: "click", selector: '[data-home-action="all-games"]' },
   },
   {
     id: "feature-rules",

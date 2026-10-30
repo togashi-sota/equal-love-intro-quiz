@@ -49,6 +49,7 @@ const APP_SHELL_FILES = [
   "./css/homeRenewal.css",
   "./css/liveCall.css",
   "./css/karaokeStage.css",
+  "./css/guides.css", // 【2026-10-31追加】遊び方・機能ガイド／ゲームの遊び方・記録
   "./js/homeScreen.js",
   "./js/appHistory.js",
   "./js/appNavigationStack.js",
@@ -72,6 +73,9 @@ const APP_SHELL_FILES = [
   "./js/main.js",
   "./js/onboardingScreen.js",
   "./js/guideScreen.js",
+  // 【2026-10-31追加】ゲームの遊び方・記録（説明のデータは全体のガイドと共通）
+  "./js/gameGuideScreen.js",
+  "./js/data/gameGuideContent.js",
   "./js/storagePersistence.js",
   "./js/data/guideContent.js",
   "./js/state.js",

@@ -222,6 +222,7 @@ export async function runTimeAttackOutroVariantWiringTests() {
   const evaluation = await fetchText("js/achievementEvaluation.js");
   assertEqual(evaluation.includes('timeAttackOutro: "outro"'), true, "成長段階系の判定で timeAttackOutro がアウトロ系に属する");
   assertEqual(evaluation.includes('result.modeId === "outroQuiz" || result.modeId === "timeAttackOutro"'), true, "アウトロマスター・完全終曲の判定に timeAttackOutro が含まれる");
-  const guide = await fetchText("js/data/guideContent.js");
-  assertEqual(guide.includes("🎧イントロ／🔀ランダム再生／🎬アウトロ"), true, "遊び方ガイドの出題タイプ説明にアウトロが追加されている");
+  // 【2026-10-31】ゲームの説明は js/data/gameGuideContent.js（全体のガイドと共通）へ移した
+  const guide = await fetchText("js/data/gameGuideContent.js");
+  assertEqual(guide.includes("出題タイプ：イントロ・ランダム再生（5秒）・アウトロ（5秒）"), true, "遊び方ガイドの出題タイプ説明にアウトロが追加されている");
 }

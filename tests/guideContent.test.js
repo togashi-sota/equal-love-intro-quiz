@@ -25,9 +25,9 @@ export function runGuideContentTests() {
   );
 
   // ---- 各ページが、表示に必要な項目をすべて持つ ----
-  // 【2026-09-08改訂・本人指示S：FAQ/トラブルの追加】kind:"faq"の項目は、質問(title)と
-  // 回答(steps)だけを必須とし、通常項目向けのtagline・pointは任意（無ければ詳細ページ側で
-  // 省略表示される、js/guideScreen.js参照）。
+  // 【2026-09-08改訂・本人指示S：FAQ/トラブルの追加】kind:"faq"の項目は、質問(title)と回答(steps)だけを必須とする。
+  // 【2026-10-31改訂・ガイドの全面改訂】point は補足なので任意にした（無い項目は画面で省く）。検索の項目（kind:"search"）は
+  // 表の中身（search）から steps を作る。ゲームの項目（kind:"game"）は js/data/gameGuideContent.js から作る。
   GUIDE_SECTIONS.forEach((section) => {
     const isFaq = section.kind === "faq";
     assertEqual(
@@ -52,13 +52,11 @@ export function runGuideContentTests() {
       true,
       `「${section.id}」はstepsを1件以上持つ`
     );
-    if (!isFaq) {
-      assertEqual(
-        typeof section.point === "string" && section.point.length > 0,
-        true,
-        `「${section.id}」はpointを持つ`
-      );
-    }
+    assertEqual(
+      section.point === undefined || typeof section.point === "string",
+      true,
+      `「${section.id}」のpointは文字（任意）`
+    );
   });
 
   // ---- 【2026-09-06追加・本人指示9・15：正解数バトルからポイント概念を完全撤廃】
