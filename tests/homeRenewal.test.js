@@ -399,14 +399,16 @@ function runHomePureFunctionTests() {
   assertEqual(new Set(modes).size, modes.length, "D: 同じモードを二重に数えない（HOME_ACTIONS の中で1回ずつ）");
   assertEqual([...modes].sort(), [...HOME_SPECIAL_MODES_ORDER].sort(), "D: ゲーム画面の10種類と、ホームの10種類が同じ（作っていないものを足さない・漏れもない）");
   assertEqual(modes.every((id) => HOME_SPECIAL_MODES_ORDER.includes(id)), true, "D: どれも実在するモード");
-  assertEqual(HOME_ACTIONS["all-games"], { type: "navigate", value: "gameHub" }, "D: 全部のゲーム → ゲーム画面");
+  // 【2026-10-31・本人の依頼 D】行き先を昔の「ゲーム」の画面から「ゲームの遊び方・記録」へ
+  assertEqual(HOME_ACTIONS["all-games"], { type: "callback", value: "openGameGuide" }, "D: ゲームの遊び方・記録 → 新しいゲームのガイド（main.js の openGameGuide）");
   // 【2026-10-31 live-unify・本人の指示】入口は「コールを覚える」の1つ（ゲーム画面の「コールを覚える」のカードと同じ処理＝新しいライブコール）。
   // 前の版の入口・「おためし版」の3つの入口は無くした
   assertEqual(HOME_ACTIONS["learn-calls"], { type: "mode", value: "liveCallMode" }, "D: コールを覚える＝ゲーム画面の「コールを覚える」と同じ処理（新しいライブコール）");
   assertEqual(["live-call-classic", "live-call-sheet", "live-call-live", "live-call-karaoke"].filter((name) => name in HOME_ACTIONS), [], "D: 前の版・おためし版の3つの入口は無い（二重にしない）");
   assertEqual(HOME_ACTIONS["about-group"], { type: "callback", value: "openDiscographyAbout", ownSound: true }, "D: ＝LOVEについて →「＝LOVEについて」タブ");
   assertEqual(HOME_ACTIONS["next-live"], { type: "click", value: "live-hub-link" }, "D: 次のライブ →【ライブ】ページ");
-  assertEqual(HOME_ACTIONS.guides, { type: "navigate", value: "guideHub" }, "D: 使い方ガイド → ガイド画面");
+  // 【2026-10-31・本人の依頼 A・C】ガイドのまとめ画面を通さず、アプリ全体のガイドを直接開く
+  assertEqual(HOME_ACTIONS.guides, { type: "callback", value: "openAppGuide" }, "D: 遊び方・機能ガイド（使い方ガイド）→ アプリ全体のガイド（main.js の openAppGuide）");
   assertEqual(HOME_ACTIONS.settings, { type: "navigate", value: "settings" }, "D: 設定 → 設定・データ管理");
 
   // ライブコール：選んである遊び方を直接開くか
@@ -480,6 +482,8 @@ async function runHomeIntroSyncTests() {
       openDiscographyWorks: () => calls.callbacks.push("works"),
       openDiscographyAbout: () => calls.callbacks.push("about"),
       openGroupCommercials: () => calls.callbacks.push("commercials"),
+      openGameGuide: () => calls.callbacks.push("gameGuide"),
+      openAppGuide: () => calls.callbacks.push("appGuide"),
     });
     const checked = (name) => hub.querySelector(`input[name="${name}"]:checked`)?.value;
     const homeChecked = (attr) => homeRoot.querySelector(`[${attr}][aria-checked="true"]`)?.getAttribute(attr);
@@ -513,7 +517,8 @@ async function runHomeIntroSyncTests() {
     homeRoot.querySelector('[data-home-action="outro-quiz"]').click();
     homeRoot.querySelector('[data-home-action="all-games"]').click();
     homeRoot.querySelector('[data-home-action="settings"]').click();
-    assertEqual([calls.modes, calls.navigate], [["outroQuiz"], ["gameHub", "settings"]], "D3: 入口ボタンの行き先（アウトロ・全部のゲーム・設定）");
+    assertEqual([calls.modes, calls.navigate, calls.callbacks], [["outroQuiz"], ["settings"], ["gameGuide"]], "D3: 入口ボタンの行き先（アウトロ・ゲームの遊び方・記録・設定）");
+    calls.callbacks.length = 0;
 
     // 2026-10-30 夜間：ホームの10種類のゲームを本物の部品で全部押す → ゲーム画面のカードと同じ処理（モードの id）が1回ずつ
     calls.modes.length = 0;
@@ -544,8 +549,9 @@ async function runHomeIntroSyncTests() {
     ["works", "centers", "commercials", "about-group", "data-status", "data-transfer"].forEach((name) => homeRoot.querySelector(`[data-home-action="${name}"]`).click());
     assertEqual(calls.callbacks, ["works", "centers", "commercials", "about", "status", "transfer"], "D3: 作品一覧・歴代センター・CM・＝LOVEについて・データの状態・引き継ぎ");
     calls.navigate.length = 0;
-    homeRoot.querySelector('[data-home-action="guides"]').click();
-    assertEqual(calls.navigate, ["guideHub"], "D3: 使い方ガイド → ガイド画面");
+    calls.callbacks.length = 0;
+    homeRoot.querySelectorAll('[data-home-action="guides"]').forEach((button) => button.click());
+    assertEqual([calls.navigate, calls.callbacks], [[], ["appGuide"]], "D3: イントロの下の「遊び方・機能ガイド」→ アプリ全体のガイド");
   } finally {
     sandbox.remove();
     if (savedScreen === undefined) delete document.body.dataset.screen;
@@ -575,11 +581,13 @@ async function runHomeEntryWiringTests() {
   HOME_NAV_SECTIONS.forEach((section) => assertEqual(home.querySelector(`#${section.target}`) !== null && home.querySelector(`#${section.card}`) !== null, true, `E: 目次「${section.label}」の行き先がある`));
   const cardIds = (cardId, selector) => [...home.querySelectorAll(`#${cardId} ${selector}`)].map((element) => element.id || element.dataset.homeAction);
   assertEqual(cardIds("home-card-game", ".home-game"), ["random-playback", "lyrics-quiz", "outro-quiz", "instant-challenge", "time-attack", "weak-songs", "online-battle", "party-battle", "original-quiz", "learn-calls"], "E: ゲーム：10種類（ひとりで挑戦6・友達と対戦2・つくる・覚える2）");
-  assertEqual(cardIds("home-card-game", ".home-games-more"), ["all-games"], "E: ゲーム：「遊び方の説明・記録」（ゲーム画面）");
+  assertEqual(cardIds("home-card-game", ".home-games-more"), ["all-games"], "E: ゲーム：「ゲームの遊び方・記録」（2026-10-31 から新しいゲームのガイド）");
   assertEqual(cardIds("home-card-live", "button"), ["home-next-live", "learn-calls", "live-hub-link", "live-guide"], "E: ライブ：次のライブ・コールを覚える（入口は1つ）・ライブ履歴・はじめてのライブ");
   assertEqual(cardIds("home-card-music", "button"), ["continuous-play", "playlists", "favorites", "songlist", "works", "lyrics-search"], "E: 楽曲：聴く（曲を聴く・プレイリスト・お気に入り）・読む（楽曲一覧・シングル・アルバム）・探す（歌詞検索）");
   assertEqual(cardIds("home-card-know", "button"), ["members-link", "centers", "anniversary-home-link", "tv-appearances-home-link", "commercials", "about-group"], "E: ＝LOVE：メンバー・歴代センター・周年ヒストリー・音楽番組・CM・企業コラボ・＝LOVEについて");
-  assertEqual(cardIds("home-card-my", ".home-my-link"), ["history", "guides", "settings"], "E: マイページ：プレイ履歴・使い方ガイド・設定（フレンド・ランキング・実績・プロフィールは置かない）");
+  // 【2026-10-31・本人の依頼 A】プレイ履歴・遊び方・機能ガイドはイントロクイズの箱のすぐ下へ移した（2か所に置かない）
+  assertEqual(cardIds("home-card-my", ".home-my-link"), ["settings"], "E: マイページ：設定（プレイ履歴・ガイドはイントロの下へ移した。フレンド・ランキング・実績・プロフィールは置かない）");
+  assertEqual(cardIds("home-card-game", ".home-intro-link"), ["history", "guides"], "E: イントロクイズの箱のすぐ下：プレイ履歴・遊び方・機能ガイド");
   assertEqual([...home.querySelectorAll("#home-data-box [data-home-action]")].map((element) => element.dataset.homeAction), ["data-update", "data-status", "data-transfer"], "E: データの箱：データを追加・更新／データの状態を確かめる（v403 で追加）／引き継ぎ・復旧");
   assertEqual(home.querySelector("#home-card-music .home-card-note")?.textContent, "曲の情報・歌詞は音源なしでも見られます", "E: 楽曲の一言");
   assertEqual(home.querySelector("#home-data-box .home-data-note")?.textContent, "音源・歌詞・コールはこの端末だけに保存。消えたときは入れ直しが必要です", "E: データの箱の一言");
@@ -757,7 +765,10 @@ async function runHomeNightTests() {
   // 案内の文：ホームのボタンの名前に合わせた
   const guide = await fetchText("js/data/guideContent.js");
   assertEqual(guide.includes("全部のゲーム"), false, "F: ガイドに無くなったボタン（「全部のゲーム」）の名前が残っていない");
-  assertEqual(guide.includes("ホームの「ゲームで遊ぶ」の「苦手曲を練習」（苦手曲モード）を選ぶ"), true, "F: ガイドの文は今のホームの名前");
+  // 【2026-10-31】ゲームの説明は js/data/gameGuideContent.js（全体のガイドと共通）へ移した
+  const gameGuide = await fetchText("js/data/gameGuideContent.js");
+  assertEqual(gameGuide.includes("ホームの「ゲームで遊ぶ」→「苦手曲を練習」"), true, "F: ガイドの文は今のホームの名前");
+  assertEqual(gameGuide.includes("全部のゲーム"), false, "F: ゲームのガイドにも、無くなったボタンの名前が残っていない");
   const main = await fetchText("js/main.js");
   const aboutStart = main.indexOf("openDiscographyAbout: () => {");
   const aboutBody = main.slice(aboutStart, aboutStart + 200);

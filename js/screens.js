@@ -22,6 +22,8 @@ const SCREEN_ELEMENTS = {
   historyDetail: document.getElementById("history-detail-screen"),
   specialModes: document.getElementById("special-modes-screen"),
   guide: document.getElementById("guide-screen"),
+  // 【2026-10-31新設】ゲームの遊び方・記録（js/gameGuideScreen.js）
+  gameGuide: document.getElementById("game-guide-screen"),
   // 【2026-10-23新設】全体検索・歌詞検索
   appSearch: document.getElementById("app-search-screen"),
   lyricsSearch: document.getElementById("lyrics-search-screen"),

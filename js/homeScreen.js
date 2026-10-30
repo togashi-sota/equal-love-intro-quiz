@@ -207,8 +207,9 @@ export const HOME_ACTIONS = {
   // 行き先は新しいライブコール（曲の一覧 → 曲のページ → コール表／ライブコール／カラオケ）。前の版はその一覧のいちばん下から。
   // ゲームのカードとライブのカードの両方にある（同じ行き先。10種類の数には1つとして数える）
   "learn-calls": { type: "mode", value: "liveCallMode" },
-  // 「全部のゲーム」→ 役割を変えて「遊び方の説明・記録」（ゲーム画面：各モードの「？」の説明・プレイ履歴）
-  "all-games": { type: "navigate", value: "gameHub" },
+  // 「全部のゲーム」→ 役割を変えて「ゲームの遊び方・記録」。
+  // 【2026-10-31・本人の依頼 D】行き先を昔の「ゲーム」の画面（gameHub）から、新しい「ゲームの遊び方・記録」（main.js の openGameGuide）へ
+  "all-games": { type: "callback", value: "openGameGuide" },
   "next-live": { type: "click", value: "live-hub-link" },
   "live-guide": { type: "click", value: "live-guide-link" },
   "continuous-play": { type: "click", value: "continuous-play-link" },
@@ -224,7 +225,9 @@ export const HOME_ACTIONS = {
   "data-status": { type: "callback", value: "openDataStatus" },
   "data-transfer": { type: "callback", value: "openTransferRecovery" },
   history: { type: "click", value: "history-link" },
-  guides: { type: "navigate", value: "guideHub" },
+  // 【2026-10-31・本人の依頼 A・C】「遊び方・機能ガイド」（イントロクイズの箱のすぐ下。以前はマイページ・データの「使い方ガイド」）：
+  // ガイドのまとめ画面（guideHub）を通さず、アプリ全体のガイド（main.js の openAppGuide）を直接開く
+  guides: { type: "callback", value: "openAppGuide" },
   settings: { type: "navigate", value: "settings" },
 };
 
@@ -576,7 +579,8 @@ function initCategoryNav() {
 
 // ---- 入口ボタン ----
 
-function runHomeAction(name) {
+// ガイド（js/guideScreen.js・js/gameGuideScreen.js）の［○○を開く］からも使う（ホームのボタンと同じ処理にするため）
+export function runHomeAction(name) {
   const action = HOME_ACTIONS[name];
   if (!action) return;
   if (action.type === "click") {

@@ -46,6 +46,8 @@
   <!-- 【2026-10-30新設・リニューアル第3〜5段階】新しいライブコール（はじめに→曲一覧→曲のページ→コール表／ライブコール／カラオケ） -->
   <link rel="stylesheet" href="css/liveCall.css">
   <link rel="stylesheet" href="css/karaokeStage.css">
+  <!-- 【2026-10-31追加】遊び方・機能ガイド・ゲームの遊び方・記録・ホームのイントロの下の入口 -->
+  <link rel="stylesheet" href="css/guides.css">
 </head>
 <body data-screen="start">
 
@@ -413,6 +415,12 @@
             </button>
             <div id="home-intro-notices" class="home-intro-notices" aria-live="polite"></div>
           </div>
+          <!-- 【2026-10-31・本人の依頼 A】プレイ履歴と遊び方・機能ガイドの入口を、イントロクイズの箱のすぐ下に小さく横に2つ。
+               以前はマイページ・データのいちばん下にあった（HOME_ACTIONS の history・guides）。そちらからは外した（同じ入口を2か所に置かない）。大きなカードは足さない -->
+          <nav class="home-intro-links" aria-label="記録と使い方">
+            <button class="home-intro-link" type="button" data-home-action="history"><svg class="hi" aria-hidden="true"><use href="#hi-history"/></svg><span>プレイ履歴</span></button>
+            <button class="home-intro-link" type="button" data-home-action="guides"><svg class="hi" aria-hidden="true"><use href="#hi-help"/></svg><span>遊び方・機能ガイド</span></button>
+          </nav>
           <!-- 【2026-10-30 夜間・本人の依頼】全部のゲーム（ゲーム画面の10種類）をホームにも並べる。
                3つのまとまり（ひとりで挑戦・友達と対戦・つくる・覚える）は、ゲーム画面の GAME_HUB_GROUPS と同じ分け方。
                押したときの処理はゲーム画面のカードと同じ（HOME_ACTIONS の type: "mode" → main.js の openSpecialModeById）。
@@ -476,10 +484,12 @@
               </div>
             </section>
           </div>
-          <!-- 「全部のゲーム」は役割を変えた：全モードはホームに出したので、ゲーム画面（各モードの「？」の説明・プレイ履歴）への入口 -->
+          <!-- 「全部のゲーム」は役割を変えた：全モードはホームに出したので、遊び方の説明と記録への入口。
+               【2026-10-31・本人の依頼 D】行き先を、昔の「ゲーム」の画面から「ゲームの遊び方・記録」（#game-guide-screen）へ。
+               名前も行き先の画面と同じ「ゲームの遊び方・記録」にした（上の「遊び方・機能ガイド」＝アプリ全体と区別するため） -->
           <button class="home-games-more" type="button" data-home-action="all-games">
             <svg class="hi" aria-hidden="true"><use href="#hi-grid"/></svg>
-            <span class="home-games-more-text">遊び方の説明・記録</span>
+            <span class="home-games-more-text">ゲームの遊び方・記録</span>
             <span class="home-chevron" aria-hidden="true">›</span>
           </button>
           </div>
@@ -600,7 +610,8 @@
           </div>
         </section>
 
-        <!-- ⑤ マイページ・データ：データの箱（データを追加・更新／データの状態／引き継ぎ・復旧・バックアップの状態）＋プレイ履歴・使い方ガイド・設定。
+        <!-- ⑤ マイページ・データ：データの箱（データを追加・更新／データの状態／引き継ぎ・復旧・バックアップの状態）＋設定
+             （プレイ履歴・遊び方・機能ガイドは 2026-10-31 にイントロクイズの箱のすぐ下へ移した）。
              上部バーと同じ入口（フレンド・ランキング・実績・プロフィール）はここに置かない。 -->
         <section id="home-card-my" class="home-card home-card--my" aria-labelledby="home-card-my-title">
           <div class="home-card-head">
@@ -628,9 +639,9 @@
             <p id="home-backup-status" class="home-backup-status" data-kind="unknown"><span class="home-backup-dot" aria-hidden="true"></span><span id="home-backup-status-text">バックアップはまだ確認していません</span></p>
             <p class="home-data-note">音源・歌詞・コールはこの端末だけに保存。消えたときは入れ直しが必要です</p>
           </div>
-          <div class="home-my-links">
-            <button class="home-my-link" type="button" data-home-action="history"><svg class="hi" aria-hidden="true"><use href="#hi-history"/></svg><span>プレイ履歴</span></button>
-            <button class="home-my-link" type="button" data-home-action="guides"><svg class="hi" aria-hidden="true"><use href="#hi-help"/></svg><span>使い方ガイド</span></button>
+          <!-- 【2026-10-31・本人の依頼 A】「プレイ履歴」「使い方ガイド」は、イントロクイズの箱のすぐ下（.home-intro-links）へ移した
+               （ホームの中で同じ行き先を2か所に置かない）。ここには設定だけを残す -->
+          <div class="home-my-links home-my-links--single">
             <button class="home-my-link" type="button" data-home-action="settings"><svg class="hi" aria-hidden="true"><use href="#hi-gear"/></svg><span>設定</span></button>
           </div>
         </section>
@@ -877,8 +888,8 @@
         <button id="guide-link" class="hub-row-button" type="button">
           <span class="hub-row-icon" aria-hidden="true"><svg class="home-entry-icon-svg" viewBox="0 0 32 32" fill="none" aria-hidden="true"><rect x="5" y="5" width="22" height="22" rx="5" fill="#dcf6ea"/><path d="M10 10.5h12M10 15.5h12M10 20.5h7" stroke="#1f9d6b" stroke-width="2.4" stroke-linecap="round"/></svg></span>
           <span class="hub-row-text">
-            <span class="hub-row-label">遊び方ガイド</span>
-            <span class="hub-row-desc">アプリ全体の使い方・各モードの遊び方</span>
+            <span class="hub-row-label">遊び方・機能ガイド</span>
+            <span class="hub-row-desc">アプリ全体の使い方・検索の使い分け・困ったとき</span>
           </span>
           <span class="hub-row-chevron" aria-hidden="true">›</span>
         </button>
@@ -2167,49 +2178,51 @@
             <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
             GUIDE
           </p>
-          <h2>遊び方ガイド</h2>
+          <h2>遊び方・機能ガイド</h2>
         </div>
       </div>
 
-      <div id="guide-toc-view">
-        <p class="special-modes-intro">＝LOVEイントロクイズの遊び方をまとめています。気になる項目をタップしてください。</p>
-        <!-- 【2026-09-15新設・本人指示：アプリ紹介動画への導線】目次の説明文直下・カテゴリ一覧より上に
-             固定表示する「アプリ紹介動画」カード。YouTubeは埋め込まず（iframeはオフライン・SW・自動再生の
-             面で扱いが難しい）、新しいタブで外部へ開く（既存の「▶ MVを見る」と同じtarget/rel）。
-             hrefと文言はjs/guideScreen.jsがjs/data/guideContent.jsのGUIDE_VIDEOから設定する
-             （URLを1箇所で管理するため。HTML側のhrefは初期値の"#"のまま）。
-             オフライン時はページを壊さず、クリックしてもタブを開かずに下の注意文を数秒表示する。 -->
-        <a id="guide-video-card" class="guide-video-card" href="#" target="_blank" rel="noopener noreferrer">
-          <span class="guide-video-card-icon" aria-hidden="true">🎬</span>
-          <span class="guide-video-card-body">
-            <span id="guide-video-card-title" class="guide-video-card-title">アプリ紹介動画</span>
-            <span id="guide-video-card-desc" class="guide-video-card-desc"></span>
-            <span id="guide-video-card-note" class="guide-video-card-note"></span>
-          </span>
-          <span class="guide-video-card-cta">
-            <span id="guide-video-card-cta-label" class="guide-video-card-cta-label">動画を見る ▶</span>
-            <span id="guide-video-card-external" class="guide-video-card-external"></span>
-          </span>
-        </a>
-        <p id="guide-video-offline-note" class="guide-video-offline-note" role="status" hidden></p>
-        <div id="guide-toc-groups"></div>
-      </div>
+      <!-- 【2026-10-31 全面改訂・本人の依頼 C】アプリ全体の説明書。中身（概要・目次・はじめての人の流れ・分類ごとの項目・検索の使い分け・
+           よくある質問・データの保存と引き継ぎ・困ったとき）は js/guideScreen.js が js/data/guideContent.js から #guide-content に作る。
+           アプリ紹介動画のカードは、URL を1か所（GUIDE_VIDEO）で管理するため HTML に置き、文と href を js/guideScreen.js が入れる。 -->
+      <p class="special-modes-intro gd-intro">アプリ全体の使い方です。目次から知りたい所へ移れます。項目を押すと開きます。</p>
+      <a id="guide-video-card" class="guide-video-card" href="#" target="_blank" rel="noopener noreferrer">
+        <span class="guide-video-card-icon" aria-hidden="true">🎬</span>
+        <span class="guide-video-card-body">
+          <span id="guide-video-card-title" class="guide-video-card-title">アプリ紹介動画</span>
+          <span id="guide-video-card-desc" class="guide-video-card-desc"></span>
+          <span id="guide-video-card-note" class="guide-video-card-note"></span>
+        </span>
+        <span class="guide-video-card-cta">
+          <span id="guide-video-card-cta-label" class="guide-video-card-cta-label">動画を見る ▶</span>
+          <span id="guide-video-card-external" class="guide-video-card-external"></span>
+        </span>
+      </a>
+      <p id="guide-video-offline-note" class="guide-video-offline-note" role="status" hidden></p>
+      <div id="guide-content" class="gd-content"></div>
+    </section>
 
-      <div id="guide-detail-view" hidden>
-        <button id="guide-detail-back-button" class="rules-link guide-toc-back-link" type="button">← 目次へ戻る</button>
-        <div class="guide-detail-card">
-          <p id="guide-detail-icon" class="guide-detail-icon"></p>
-          <h3 id="guide-detail-title" class="guide-detail-title"></h3>
-          <p id="guide-detail-tagline" class="guide-detail-tagline"></p>
-          <!-- 【2026-09-08改訂・本人指示P〜S：ガイド全面改修】FAQ/トラブルの項目では
-               「遊び方」という見出しが不自然なため、js/guideScreen.jsがセクションの種類に
-               応じてこの見出しの文字を書き換えられるようidを付けた。 -->
-          <p id="guide-detail-steps-heading" class="guide-detail-steps-heading">遊び方</p>
-          <ol id="guide-detail-steps" class="guide-detail-steps"></ol>
-          <p id="guide-detail-point" class="guide-detail-point"></p>
-          <button id="guide-detail-back-button-bottom" class="rules-link guide-toc-back-link" type="button">← 目次へ戻る</button>
+    <!-- 【2026-10-31 新設・本人の依頼 D】ゲームの遊び方・記録。ホームの「ゲームで遊ぶ」の下の［ゲームの遊び方・記録］で開く。
+         全モードを10の項目で説明し、［このゲームを遊ぶ］［プレイ履歴を見る］を付ける。中身は js/gameGuideScreen.js が
+         js/data/gameGuideContent.js（全体のガイドと共通の説明データ）から #game-guide-content に作る。
+         昔の「ゲーム」の画面（#game-hub-screen）は、イントロクイズの設定とスタートに使われているので残している。 -->
+    <section id="game-guide-screen" class="screen">
+      <div class="list-header">
+        <button id="game-guide-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            GAME GUIDE
+          </p>
+          <h2>ゲームの遊び方・記録</h2>
         </div>
       </div>
+      <div id="game-guide-content" class="gg-content"></div>
     </section>
 
     <!-- 「みんなのプロフィール」画面：このアプリを使っているファン同士で、表示名・推し・称号を

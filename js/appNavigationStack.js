@@ -81,6 +81,43 @@ export const HUB_OF_SCREEN = {
   liveGuide: "guideHub",
 };
 
+// 【2026-10-31 新設・本人の依頼 C・D】ガイドから開いた画面の［戻る］を、ガイドへ戻すための対応。
+// 「ゲームの遊び方・記録」（gameGuide）・「遊び方・機能ガイド」（guide）は、上の3つのまとめ画面と同じように「戻る先」になる。
+// HUB_OF_SCREEN と両方に当てはまるときは、記録の中で新しい方（あとから通った方）へ戻す
+// （例：ホーム → ゲームの遊び方・記録 → 歌詞クイズの設定 →［戻る］→ ゲームの遊び方・記録）。
+const GAME_SCREENS_FROM_GUIDES = [
+  "weakSongs",
+  "customQuizTypeSelect",
+  "timeAttackSetup",
+  "randomPlaybackSetup",
+  "lyricsQuizSetup",
+  "partyBattleSetup",
+  "onlineBattleEntry",
+  "outroQuizSetup",
+  "instantChallengeSetup",
+  "history",
+];
+const FEATURE_SCREENS_FROM_GUIDE = [
+  "songlist",
+  "playlists",
+  "continuousPlay",
+  "lyricsSearch",
+  "appSearch",
+  "discography",
+  "settings",
+  "liveGuide",
+  "members",
+  "centers",
+  "anniversary",
+  "tvAppearances",
+  "fanProfiles",
+  "timeAttackLeaderboard",
+];
+export const GUIDE_RETURN_HUBS_OF_SCREEN = Object.freeze({
+  ...Object.fromEntries(GAME_SCREENS_FROM_GUIDES.map((screen) => [screen, ["gameGuide", "guide"]])),
+  ...Object.fromEntries(FEATURE_SCREENS_FROM_GUIDE.map((screen) => [screen, ["guide"]])),
+});
+
 // 新しいスタック（最初の画面だけが入った状態）を作る。
 // entries：画面名の並び（ブラウザの履歴1件＝1要素）、index：今いる位置。
 export function createNavStack(rootScreen) {
@@ -156,7 +193,18 @@ export function findFallbackIndex(stack, poppedIndex) {
 // fromScreen がハブから開く画面で、今までの記録（今いる位置まで）の中にそのハブがあればハブ、それ以外は targetScreen のまま。
 export function resolveHubReturn(stack, fromScreen, targetScreen) {
   if (targetScreen !== "start") return targetScreen;
-  const hub = HUB_OF_SCREEN[fromScreen];
-  if (!hub) return targetScreen;
-  return stack.entries.slice(0, stack.index + 1).includes(hub) ? hub : targetScreen;
+  const hubs = [HUB_OF_SCREEN[fromScreen], ...(GUIDE_RETURN_HUBS_OF_SCREEN[fromScreen] ?? [])].filter(Boolean);
+  if (hubs.length === 0) return targetScreen;
+  // 今いる位置までの記録で、いちばん新しく通った戻り先（ホームへ戻ると記録は先頭まで戻るので、古い寄り道は残らない）
+  const path = stack.entries.slice(0, stack.index + 1);
+  let found = targetScreen;
+  let foundIndex = -1;
+  hubs.forEach((hub) => {
+    const index = path.lastIndexOf(hub);
+    if (index > foundIndex) {
+      foundIndex = index;
+      found = hub;
+    }
+  });
+  return found;
 }

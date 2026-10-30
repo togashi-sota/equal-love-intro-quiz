@@ -189,6 +189,7 @@
     import { runStoragePersistenceTests } from "./tests/storagePersistence.test.js";
     import { runOnboardingScreenTests } from "./tests/onboardingScreen.test.js";
     import { runGuideContentTests } from "./tests/guideContent.test.js";
+    import { runGuidesTests } from "./tests/guides.test.js";
     import { runSonglistTests } from "./tests/songlist.test.js";
     import { runSonglistPlaybackErrorNoteTests } from "./tests/songlistPlaybackErrorNote.test.js";
     import { runPageZoomPreventionTests } from "./tests/pageZoomPrevention.test.js";
@@ -533,6 +534,7 @@
     await runLiveCallNightTests();
     await runLiveCallFixLiveTests();
     await runLiveCallUnifyTests();
+    await runGuidesTests();
     await runUnifiedPackImportTests();
     await runPlayerRegistrationTests();
     await runDataStatusShareTests();

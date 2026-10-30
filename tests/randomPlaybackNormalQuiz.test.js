@@ -162,6 +162,7 @@ export async function runRandomPlaybackNormalQuizWiringTests() {
   // タイムアタック側は無変更
   assertEqual(main.includes("beginTimeAttackQuiz(questionCountValue, categoryFilterValue, rule, variant);"), true, "タイムアタック側のリトライはルール付きのまま");
   assertEqual(main.includes("function handleTimedChoiceClick(selectedChoice, { onAdvance, onRunEnd }) {"), true, "タイムアタックの回答処理は無変更");
-  const guide = await fetchText("js/data/guideContent.js");
-  assertEqual(guide.includes("出題数・カテゴリを選ぶ（タイムアタック／正解数バトル／ノーミスチャレンジで遊ぶときは、タイムアタックの出題タイプ「ランダム再生」から）"), true, "遊び方ガイドの手順からルール選択が消え、タイムアタック側へ案内している");
+  // 【2026-10-31】ゲームの説明は js/data/gameGuideContent.js（全体のガイドと共通）へ移した
+  const guide = await fetchText("js/data/gameGuideContent.js");
+  assertEqual(guide.includes("タイムアタックの3つのルールで遊びたいときは「タイムアタック」の出題タイプ「ランダム再生」を選ぶ"), true, "遊び方ガイドの手順からルール選択が消え、タイムアタック側へ案内している");
 }

@@ -7,7 +7,7 @@ import { showScreen, onScreenChange, scrollToTop } from "./screens.js";
 // 【2026-10-30新設・リニューアル第2段階】ホーム（案B）・ブラウザ／端末の「戻る」
 import { getScreenElement, findScreenNameOfElement } from "./screens.js";
 import { initAppHistory, resolveBackTarget } from "./appHistory.js";
-import { initHomeScreen, renderHomePlayerStats, setLiveCallEntryHandler, formatIntroBest } from "./homeScreen.js";
+import { initHomeScreen, renderHomePlayerStats, setLiveCallEntryHandler, formatIntroBest, runHomeAction } from "./homeScreen.js";
 // 【2026-10-30新設・リニューアル第3〜5段階】新しいライブコールと、データ管理の「完成版コールデータを読み込む」
 import { initLiveCallScreen, openLiveCallScreen, goBackInLiveCall, refreshLiveCallAfterDataChange, openLiveCallSongMode } from "./liveCallScreen.js";
 import { initCallReleaseImportUi, onReleasedCallsChanged, notifyReleasedCallsChanged, refreshCallReleaseStatus } from "./callReleaseImportUi.js";
@@ -302,7 +302,9 @@ import { initMembersScreen, renderMembersScreen, openMemberDetail } from "./memb
 import { initPlayerScreen, renderPlayerSummary } from "./playerScreen.js";
 import { getPlayerKeyPrefix } from "./playerProfile.js";
 import { needsOnboarding, initOnboardingScreen } from "./onboardingScreen.js";
-import { initGuideScreen, openGuideScreen, openGuideSection, getGuideReturnScreenId } from "./guideScreen.js";
+import { initGuideScreen, openGuideScreen, openGuideSection, getGuideReturnScreenId, revealGuideSection } from "./guideScreen.js";
+// 【2026-10-31新設・本人の依頼 D】ゲームの遊び方・記録
+import { initGameGuideScreen, openGameGuideScreen, getGameGuideReturnScreenId, revealGameGuideMode } from "./gameGuideScreen.js";
 import { initAppSearchScreen, openAppSearchScreen, shouldFocusAppSearchInput, focusAppSearchInput, getAppSearchQuery } from "./appSearchScreen.js";
 import { initLyricsSearchScreen, openLyricsSearchScreen, shouldFocusLyricsSearchInput, focusLyricsSearchInput, presetLyricsSearchQuery } from "./lyricsSearchScreen.js";
 import { initLiveGuideScreen, openLiveGuideScreen } from "./liveGuideScreen.js";
@@ -795,17 +797,6 @@ const specialModesBackButtonElement = document.getElementById("special-modes-bac
 const guideLinkElement = document.getElementById("guide-link");
 const homeLeaderboardLinkElement = document.getElementById("home-leaderboard-link");
 const guideBackButtonElement = document.getElementById("guide-back-button");
-const guideTocViewElement = document.getElementById("guide-toc-view");
-const guideDetailViewElement = document.getElementById("guide-detail-view");
-const guideTocGroupsElement = document.getElementById("guide-toc-groups");
-const guideDetailBackButtonElement = document.getElementById("guide-detail-back-button");
-const guideDetailBackButtonBottomElement = document.getElementById("guide-detail-back-button-bottom");
-const guideDetailIconElement = document.getElementById("guide-detail-icon");
-const guideDetailTitleElement = document.getElementById("guide-detail-title");
-const guideDetailTaglineElement = document.getElementById("guide-detail-tagline");
-const guideDetailStepsHeadingElement = document.getElementById("guide-detail-steps-heading");
-const guideDetailStepsElement = document.getElementById("guide-detail-steps");
-const guideDetailPointElement = document.getElementById("guide-detail-point");
 const fanProfilesLinkElement = document.getElementById("fan-profiles-link");
 const fanProfilesBackButtonElement = document.getElementById("fan-profiles-back-button");
 const fanProfilesSharingToggleElement = document.getElementById("fan-profiles-sharing-toggle");
@@ -1984,7 +1975,16 @@ initSpecialModesScreen({
   // 位置復元の仕組み＝プレイリスト等と同じnavigateWithScrollMemoryを再利用し、新しい仕組みを
   // 重複して作らない）。
   onSelectMode: (modeId) => openSpecialModeById(modeId),
-  onShowHelp: openSpecialModeHelp,
+  // 【2026-10-31】「コールを覚える」のカードの「？」は、前の版（同期モード）の説明が出ていたので、
+  // 今の3つのモードを説明した「ゲームの遊び方・記録」を開く（前の版の画面の「？」は今までどおり前の版の説明）
+  onShowHelp: (modeId) => {
+    if (modeId === "liveCallMode") {
+      playClickSound();
+      openGameGuide(modeId);
+      return;
+    }
+    openSpecialModeHelp(modeId);
+  },
 });
 
 // モードのカードを押したときの処理（ゲーム画面のカードと、ホーム案Fの「ほかのゲーム」の両方から使う）
@@ -5388,7 +5388,13 @@ function openSpecialModeHelp(modeId) {
     return;
   }
   const entry = SPECIAL_MODE_HELP_MODALS[modeId];
-  if (!entry) return;
+  if (!entry) {
+    // 【2026-10-31】「？」の説明の無いモード（アウトロクイズ・一瞬チャレンジ・コールを覚える）は、押しても何も起きなかった。
+    // 「ゲームの遊び方・記録」のそのモードを開く
+    playClickSound();
+    openGameGuide(modeId);
+    return;
+  }
   playClickSound();
   entry.modal.hidden = false;
 }
@@ -5647,36 +5653,81 @@ dataRecoveryCheckButtonElement.addEventListener("click", async () => {
   setTimeout(() => window.location.reload(), 2000);
 });
 
-// 「遊び方ガイド」リンク：開くたびに必ず目次から表示する（2026-08-15新設）。
-initGuideScreen({
-  tocView: guideTocViewElement,
-  detailView: guideDetailViewElement,
-  tocGroups: guideTocGroupsElement,
-  detailBackButton: guideDetailBackButtonElement,
-  detailBackButtonBottom: guideDetailBackButtonBottomElement,
-  detailIcon: guideDetailIconElement,
-  detailTitle: guideDetailTitleElement,
-  detailTagline: guideDetailTaglineElement,
-  detailStepsHeading: guideDetailStepsHeadingElement,
-  detailSteps: guideDetailStepsElement,
-  detailPoint: guideDetailPointElement,
-  // 【2026-09-15新設・本人指示：アプリ紹介動画への導線】目次最上部の動画カード。
-  videoCard: document.getElementById("guide-video-card"),
-  videoCardTitle: document.getElementById("guide-video-card-title"),
-  videoCardDesc: document.getElementById("guide-video-card-desc"),
-  videoCardNote: document.getElementById("guide-video-card-note"),
-  videoCardCtaLabel: document.getElementById("guide-video-card-cta-label"),
-  videoCardExternal: document.getElementById("guide-video-card-external"),
-  videoOfflineNote: document.getElementById("guide-video-offline-note"),
-});
+// 「遊び方・機能ガイド」（アプリ全体の使い方）と「ゲームの遊び方・記録」（2026-10-31 全面改訂・新設）。
+// ガイドの［○○を開く］は、ホームの同じボタンと同じ処理で機能を開く（openFromGuide）。開いた画面の［戻る］は
+// js/appNavigationStack.js の GUIDE_RETURN_HUBS_OF_SCREEN でガイドへ戻る（ホームから直接開いたときは今までどおりホームへ）。
+function openFromGuide(open) {
+  if (!open) return;
+  if (open.home) {
+    runHomeAction(open.home);
+  } else if (open.click) {
+    document.getElementById(open.click)?.click();
+  } else if (open.mode) {
+    openSpecialModeById(open.mode); // ゲーム画面のカードと同じ（効果音もそちら）
+  } else if (open.gameGuide !== undefined) {
+    playClickSound();
+    openGameGuide(open.gameGuide);
+  } else if (open.appGuide) {
+    playClickSound();
+    openAppGuide();
+  } else if (open.intro) {
+    // イントロクイズはホームの箱から始める（出題数・カテゴリを選んでから［この設定でスタート］）
+    playClickSound();
+    navigateWithScrollMemory("start");
+    requestAnimationFrame(() => {
+      const panel = document.getElementById("home-intro-panel");
+      if (!panel) return;
+      panel.scrollIntoView({ block: "start" });
+      window.scrollBy(0, -72); // 上に貼り付く目次の分だけ下げる
+    });
+  } else if (open.help) {
+    openSpecialModeHelp(open.help);
+  }
+}
+
+function openAppGuide(sectionId = "") {
+  const fromScreen = document.body.dataset.screen || "start";
+  if (sectionId) openGuideSection(sectionId, fromScreen === "guide" ? getGuideReturnScreenId() : fromScreen);
+  else openGuideScreen(fromScreen === "guide" ? getGuideReturnScreenId() : fromScreen);
+  navigateWithScrollMemory("guide");
+  if (!sectionId) window.scrollTo(0, 0);
+  else revealGuideSection(sectionId);
+}
+
+function openGameGuide(modeId = "") {
+  const fromScreen = document.body.dataset.screen || "start";
+  openGameGuideScreen(modeId, fromScreen === "gameGuide" ? getGameGuideReturnScreenId() : fromScreen);
+  navigateWithScrollMemory("gameGuide");
+  window.scrollTo(0, 0);
+  if (modeId) revealGameGuideMode(modeId);
+}
+
+initGuideScreen(
+  {
+    content: document.getElementById("guide-content"),
+    // 【2026-09-15新設・本人指示：アプリ紹介動画への導線】ガイドの上の動画カード。
+    videoCard: document.getElementById("guide-video-card"),
+    videoCardTitle: document.getElementById("guide-video-card-title"),
+    videoCardDesc: document.getElementById("guide-video-card-desc"),
+    videoCardNote: document.getElementById("guide-video-card-note"),
+    videoCardCtaLabel: document.getElementById("guide-video-card-cta-label"),
+    videoCardExternal: document.getElementById("guide-video-card-external"),
+    videoOfflineNote: document.getElementById("guide-video-offline-note"),
+  },
+  { onOpen: openFromGuide }
+);
+initGameGuideScreen({ content: document.getElementById("game-guide-content") }, { onOpen: openFromGuide });
 guideLinkElement.addEventListener("click", () => {
   playClickSound();
-  openGuideScreen();
-  navigateWithScrollMemory("guide");
+  openAppGuide();
 });
 guideBackButtonElement.addEventListener("click", () => {
   playSfx(SFX_EVENTS.UI_BACK);
   navigateWithScrollMemory(getGuideReturnScreenId());
+});
+document.getElementById("game-guide-back-button").addEventListener("click", () => {
+  playSfx(SFX_EVENTS.UI_BACK);
+  navigateWithScrollMemory(getGameGuideReturnScreenId());
 });
 
 fanProfilesBackButtonElement.addEventListener("click", () => {
@@ -5890,9 +5941,11 @@ async function openSearchTarget(target) {
         setTimeout(() => row.classList.remove("is-search-focus"), 2400);
       }
     } else if (target.kind === "guide") {
-      openGuideSection(target.sectionId);
+      // 【2026-10-31】ガイドは1ページになったので、その項目を開いてそこまで移る（戻ると検索へ）
+      openGuideSection(target.sectionId, searchScreen);
       navigateWithScrollMemory("guide");
       window.scrollTo(0, 0);
+      revealGuideSection(target.sectionId);
     } else if (target.kind === "liveHub") {
       // 【2026-10-28追加】【ライブ】ページの該当の表示（過去のライブの公演・ライブ映像のカード等）
       openLiveHubFrom(searchScreen, target);
@@ -8849,6 +8902,9 @@ initHomeScreen(document.getElementById("start-screen"), {
   onScreenChange,
   // 「ほかのゲーム」：ゲーム画面のモードのカードを押したのと同じ
   openGameMode: (modeId) => openSpecialModeById(modeId),
+  // 【2026-10-31】［ゲームの遊び方・記録］と［遊び方・機能ガイド］
+  openGameGuide: () => openGameGuide(),
+  openAppGuide: () => openAppGuide(),
   // シングル・アルバム：「＝LOVEについて」の「作品一覧」タブ（楽曲・歌詞の画面の入口と同じ画面の準備をしてから、タブを切り替える）
   openDiscographyWorks: () => {
     discographyLinkElement.click();
