@@ -378,6 +378,13 @@ async function runSourceTests() {
   assertEqual(liveCss.includes(".lc-stage .cx-flash") && liveCss.includes(".lc-stage.intensity-off .cx-flash"), true, "F: 瞬間のフラッシュ（演出なしでは出さない）");
   assertEqual(sw.includes('"./js/liveCallNames.js"') && sw.includes('"./js/liveCallModeTabs.js"'), true, "F: 新しいファイルを APP_SHELL に入れた");
   assertEqual(tests.includes("runLiveCallUnifyTests"), true, "F: tests.html に登録");
+  const namesJs = await fetchText("js/liveCallNames.js");
+  assertEqual(/\(\?<[!=]/.test(namesJs.replace(/\/\/.*$/gm, "")), false, "F: 後読みの正規表現を使わない（古い iPhone の Safari で読み込めずアプリが止まるため）");
+  if (typeof document !== "undefined") {
+    const box = document.createElement("span");
+    renderNameCallText(box, "ダミーA！ or Forever！", { kind: "or", parts: [{ text: "ダミーA！", memberId: MEMBERS[0].id, color: "#000000" }, { text: " or Forever！" }], members: [MEMBERS[0].id] });
+    assertEqual([...box.querySelectorAll(".cx-name-sep")].map((n) => n.textContent), ["or"], "F: 英単語の中の「or」（Forever）には印を付けない");
+  }
 }
 
 export async function runLiveCallUnifyTests() {

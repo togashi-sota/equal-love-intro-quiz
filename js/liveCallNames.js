@@ -83,10 +83,12 @@ export function nameCallAccent(result) {
   return { primary: colors[0], colors, gradient, kind: result.kind };
 }
 
-const OR_MARK = /(?<![A-Za-z])(?:or|OR|Or|／|\/)(?![A-Za-z])/g;
+// 後読み（(?<!…)）は古い iPhone（iOS 16.3 以前）の Safari で読み込めずアプリ全体が止まるので使わない。前の文字は自分で確かめる
+const OR_MARK = /(?:or|OR|Or|／|\/)(?![A-Za-z])/g;
 function appendWithOrMarks(target, text) {
   let last = 0;
   for (const match of text.matchAll(OR_MARK)) {
+    if (/[A-Za-z]/.test(text[match.index - 1] ?? "")) continue; // 英単語の一部（Forever など）は印を付けない
     if (match.index > last) target.appendChild(document.createTextNode(text.slice(last, match.index)));
     const sep = document.createElement("span");
     sep.className = "cx-name-sep";
