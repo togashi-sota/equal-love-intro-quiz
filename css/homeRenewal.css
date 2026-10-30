@@ -1850,3 +1850,60 @@
 .home-topbar .home-topbar-oshi.is-empty {
   background: linear-gradient(120deg, #d3286c, #c81e63);
 }
+
+/* ---- 【2026-10-31 live-unify】ライブ：入口は「コールを覚える」の1つ。主役のボタンとして目立たせ、中に3つの見せ方の札（飾り）を並べる ---- */
+.home-live-main.home-live-main--learn {
+  align-items: flex-start;
+  min-height: 72px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 190, 220, 0.75);
+  background: linear-gradient(120deg, #d6286e 0%, #9c36c9 100%);
+  box-shadow: 0 10px 22px -12px rgba(255, 79, 150, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+.home-live-main--learn .home-live-main-icon {
+  width: 2.5rem;
+  height: 2.5rem;
+}
+.home-live-main--learn .home-live-main-icon .hi {
+  width: 1.4rem;
+  height: 1.4rem;
+}
+.home-live-main--learn .home-live-main-text b {
+  font-size: 1.125rem;
+}
+.home-live-main--learn .home-live-main-text small {
+  margin-top: 1px;
+  font-size: 0.8125rem;
+  color: #fff;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.home-live-main--learn .home-chevron {
+  align-self: center;
+}
+.home-live-learn-modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 8px;
+}
+.home-live-learn-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px 3px 7px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 999px;
+  background: rgba(30, 6, 40, 0.28);
+  color: #fff;
+  font-size: 0.78125rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.home-live-learn-mode .hi {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+.home-live-learn-mode.is-sheet .hi { color: #ffc9a3; }
+.home-live-learn-mode.is-live .hi { color: #ffe066; }
+.home-live-learn-mode.is-karaoke .hi { color: #99e9f2; }

@@ -27,17 +27,21 @@ const STD = { intensity: "std", reduced: false };
 
 // ---- ダミーのコール（本物のコールではない） ----
 const SHORT = { key: "s", text: "ダミー", start: 10, end: 10.4 };
+const FLASH = { key: "f", text: "ダミー", start: 12, end: 12.25 };
 const SHORT_WORD = { key: "w", text: "Hey！", start: 20, end: 22 };
 const NORMAL = { key: "n", text: "ダミーのコール", start: 30, end: 32 };
 const LONG = { key: "l", text: "ダミーの長いコール", start: 40, end: 46 };
 
 function runKindTests() {
   console.log("--- ライブコール第2版 A：見た目の種類 ---");
-  assertEqual(classifyVisualKind(SHORT), VISUAL_KINDS.SHORT, "A: 1.2秒以下は短い");
-  assertEqual(classifyVisualKind({ text: "ダミー", start: 0, end: 1.2 }), VISUAL_KINDS.SHORT, "A: ちょうど1.2秒も短い");
-  assertEqual(classifyVisualKind(SHORT_WORD), VISUAL_KINDS.SHORT, "A: 確定の短い掛け声（Hey！）で2.5秒以下は短い");
-  assertEqual(classifyVisualKind({ text: "Hey！", start: 0, end: 3 }), VISUAL_KINDS.NORMAL, "A: 掛け声でも2.5秒を超えればふつう（言葉と長さの両方で決める）");
-  assertEqual(classifyVisualKind({ text: "フゥフー", start: 0, end: 2 }), VISUAL_KINDS.NORMAL, "A: 近い書き方（要確認）の言葉は自動では短いにしない");
+  // 【2026-10-31 live-unify・本人の指示】短いコールは長さ（終了 − 開始）だけで3段階：0.3秒以下＝flash／0.5秒以下＝short／それより長い＝ふつう
+  assertEqual(classifyVisualKind(FLASH), VISUAL_KINDS.FLASH, "A: 0.3秒以下は瞬間（flash）");
+  assertEqual(classifyVisualKind({ text: "ダミー", start: 0, end: 0.3 }), VISUAL_KINDS.FLASH, "A: ちょうど0.3秒も瞬間");
+  assertEqual(classifyVisualKind(SHORT), VISUAL_KINDS.SHORT, "A: 0.3秒より長く0.5秒以下は短い（short）");
+  assertEqual(classifyVisualKind({ text: "ダミー", start: 0, end: 0.5 }), VISUAL_KINDS.SHORT, "A: ちょうど0.5秒も短い");
+  assertEqual(classifyVisualKind({ text: "ダミー", start: 0, end: 0.51 }), VISUAL_KINDS.NORMAL, "A: 0.5秒より長ければふつう");
+  assertEqual(classifyVisualKind(SHORT_WORD), VISUAL_KINDS.NORMAL, "A: 掛け声の言葉でも、長さが0.5秒より長ければふつう（言葉では決めない）");
+  assertEqual(classifyVisualKind({ text: "Hey！", start: 0, end: 0.2 }), VISUAL_KINDS.FLASH, "A: 掛け声でも0.3秒以下なら瞬間");
   assertEqual(classifyVisualKind(NORMAL), VISUAL_KINDS.NORMAL, "A: それ以外はふつう");
   assertEqual(classifyVisualKind(LONG), VISUAL_KINDS.LONG, "A: 4秒以上は長い");
   assertEqual(classifyVisualKind({ text: "ダミー\nダミー", start: 0, end: 1.5, hasBreak: true }), VISUAL_KINDS.LONG, "A: 改行のある長いコール（has-break）は長い");
@@ -53,17 +57,26 @@ function runKindTests() {
 
 function runStateTests() {
   console.log("--- ライブコール第2版 B：時刻での見た目 ---");
+  const f = prepareVisual(FLASH);
+  const fStart = visualStateAt(f, 12, STD);
+  assertEqual([fStart.phase, fStart.scale, fStart.flashO, fStart.glowO, fStart.plateO], ["active", 1.08, 1, 1, 1], "B: 瞬間：始まった瞬間にフラッシュ（1）と軽い「ポン」（1.08 倍）");
+  const fEnd = visualStateAt(f, 12.249, STD);
+  assertEqual([fEnd.flashO < 0.05, fEnd.scale < 1.002], [true, true], "B: 瞬間：フラッシュとポンは、光っている時間（0.25秒）の中で終わる");
+  assertEqual(visualStateAt(f, 12.25, STD).phase, "post", "B: 瞬間：本人の終了時刻で光る時間は終わる（延ばさない）");
+  assertEqual(visualStateAt(f, 11.99, STD).flashO, 0, "B: 瞬間：始まる前にフラッシュしない（開始を早めない）");
   const s = prepareVisual(SHORT);
   const atStart = visualStateAt(s, 10, STD);
-  assertEqual([atStart.phase, atStart.scale, atStart.glowO, atStart.plateO], ["active", 1.08, 1, 1], "B: 短い：始まった瞬間は 1.08 倍（第3版で控えめに）・光が一番強い");
+  assertEqual([atStart.phase, atStart.scale, atStart.liftY, atStart.flashO, atStart.glowO, atStart.plateO], ["active", 1, 0, 0, 1, 1], "B: 短い：始まった瞬間は光が一番強い（弾みはこれから。フラッシュは無い）");
+  const bounce = visualStateAt(s, 10.14, STD);
+  assertEqual([bounce.liftY, bounce.scale], [-3, 1.04], "B: 短い：途中で短い弾み（上へ 3px・1.04 倍）");
   const afterPop = visualStateAt(s, 10.3, STD);
-  assertEqual([afterPop.scale, afterPop.glowO], [1, 0.7], "B: 短い：0.28秒で 1.0 倍に戻り、光は落ち着く");
+  assertEqual([afterPop.scale, afterPop.liftY, afterPop.glowO], [1, 0, 0.7], "B: 短い：0.28秒で弾みは戻り、光は落ち着く");
   const sPost = visualStateAt(s, 10.4 + VIS_FADE_SEC / 2, STD);
   // 【2026-10-30 fix-live】終わったら板・光の枠をすぐ外す（消え方のなめらかさは CSS の短いフェード）。一時停止しても「光っている」ように残らない
   assertEqual([sPost.phase, sPost.plateO, sPost.glowO, sPost.scale, sPost.liftY], ["post", 0, 0, 1, 0], "B: 短い：終わったら板・光の枠をすぐ外す（膨らませない）");
   assertEqual(visualStateAt(s, 10.4 + VIS_FADE_SEC, STD).phase, "idle", "B: 消え終わったら何もしない");
   const s2 = prepareVisual({ key: "s2", text: "ダミー", start: 10.5, end: 10.8 });
-  assertEqual([visualStateAt(s, 10.5, STD).phase, visualStateAt(s2, 10.5, STD).scale], ["post", 1.08], "B: 続けて来る短いコールも、それぞれ「ポン」");
+  assertEqual([visualStateAt(s, 10.5, STD).phase, visualStateAt(s2, 10.5, STD).scale], ["post", 1.08], "B: 続けて来る短いコールも、それぞれ「ポン」（前のコールは終わっていて混ざらない）");
 
   const l = prepareVisual(LONG);
   const mid = visualStateAt(l, 43, STD);
@@ -80,12 +93,15 @@ function runStateTests() {
   const longGlow = [40.3, 41, 42.2, 44, 45.5].map((t) => visualStateAt(prepareVisual(LONG), t, STD).glowO);
   assertEqual(new Set(longGlow).size, 1, "B: 長い：光は一定（呼吸しない）");
 
-  const reduced = visualStateAt(s, 10, { intensity: "std", reduced: true });
+  const reduced = visualStateAt(f, 12, { intensity: "std", reduced: true });
   assertEqual([reduced.scale, reduced.liftY, reduced.plateO], [1, 0, 1], "B: 視差効果を減らす設定：動かさない（光るだけ）");
+  assertEqual(visualStateAt(s, 10.14, { intensity: "std", reduced: true }).liftY, 0, "B: 視差効果を減らす設定：短いコールも弾ませない");
   const reducedN = [30.2, 30.6, 31].map((t) => visualStateAt(n, t, { intensity: "std", reduced: true }).glowO);
   assertEqual(new Set(reducedN).size, 1, "B: 視差効果を減らす設定：呼吸も止める");
-  const low = visualStateAt(s, 10, { intensity: "low", reduced: false });
+  const low = visualStateAt(f, 12, { intensity: "low", reduced: false });
   assertEqual(low.scale, 1.032, "B: 控えめ：動きは 0.4 倍");
+  const offFlash = visualStateAt(f, 12, { intensity: "off", reduced: false });
+  assertEqual([offFlash.plateO, offFlash.flashO, offFlash.glowO, offFlash.scale], [1, 0, 0, 1], "B: 演出なし：瞬間のコールも板だけ（フラッシュ・光・動きなし）");
   const off = visualStateAt(l, 43, { intensity: "off", reduced: false });
   assertEqual([off.plateO, off.glowO, off.scale, off.liftY, off.barO, off.ambient], [1, 0, 1, 0, 1, 0], "B: 演出オフ：板とバー（情報）だけ。光・動き・背景の光は出さない");
   assertEqual(visualStateAt(s, 10.41, { intensity: "off", reduced: false }).phase, "idle", "B: 演出オフ：終わったらすぐ消える（余韻なし）");
@@ -97,14 +113,14 @@ function runStateTests() {
 
 function runDeterminismTests() {
   console.log("--- ライブコール第2版 C：一時停止・シークに強い ---");
-  const all = [SHORT, SHORT_WORD, NORMAL, LONG].map((c) => prepareVisual(c));
+  const all = [SHORT, FLASH, SHORT_WORD, NORMAL, LONG].map((c) => prepareVisual(c));
   const times = [];
   for (let t = 8; t <= 48; t += 0.37) times.push(Math.round(t * 100) / 100);
   const forward = times.map((t) => all.map((v) => summarizeVisual(visualStateAt(v, t, STD))).join(" "));
   const shuffled = [...times].map((t, i) => [t, (i * 7919) % times.length]).sort((a, b) => a[1] - b[1]);
   const seekMap = new Map(shuffled.map(([t]) => [t, all.map((v) => summarizeVisual(visualStateAt(v, t, STD))).join(" ")]));
   assertEqual(times.map((t) => seekMap.get(t)), forward, "C: 前後にシークしても（順番を入れ替えても）同じ時刻なら同じ見た目");
-  const paused = [0, 1, 2, 3].map(() => summarizeVisual(visualStateAt(all[3], 43.21, STD)));
+  const paused = [0, 1, 2, 3].map(() => summarizeVisual(visualStateAt(all[4], 43.21, STD)));
   assertEqual(new Set(paused).size, 1, "C: 一時停止中（同じ t を何度描いても）見た目は変わらない");
   // ループ（曲の最後 → 最初）でも、前の状態を持ち越さない
   const loopBack = summarizeVisual(visualStateAt(all[0], 10, STD));

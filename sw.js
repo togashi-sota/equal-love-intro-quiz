@@ -216,6 +216,9 @@ const APP_SHELL_FILES = [
   "./js/data/setlists.js",
   "./js/callTextLayout.js",
   "./js/callTextEdits.js",
+  // 【2026-10-31新設】名前コールの判定（メンバーカラー）
+  "./js/callNameColors.js",
+  "./js/data/callNameDictionary.js",
   "./js/callTextView.js",
   "./js/data/callTextPlacements.js",
   "./js/liveCallTextModeFlag.js",
@@ -230,6 +233,8 @@ const APP_SHELL_FILES = [
   "./js/dataStatusShare.js",
   "./js/liveCallData.js",
   "./js/liveCallScreen.js",
+  "./js/liveCallNames.js",
+  "./js/liveCallModeTabs.js",
   "./js/callEffects.js",
   "./js/callEffectsRenderer.js",
   "./js/shoutWords.js",

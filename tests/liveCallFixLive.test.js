@@ -117,7 +117,8 @@ function runKaraokeTests() {
 function runHeadingTests() {
   console.log("--- fix-live C：3つの入口の見出し ---");
   assertEqual([liveCallListHeading("sheet"), liveCallListHeading("live"), liveCallListHeading("karaoke")], ["コール表を読む", "ライブ中に見る", "カラオケで歌う"], "C: 見出しは押したカードの名前");
-  assertEqual([liveCallListHeading(null), liveCallListHeading(undefined), liveCallListHeading("x")], ["ライブコール", "ライブコール", "ライブコール"], "C: 遊び方を選んでいなければ今までどおり「ライブコール」");
+  // 【2026-10-31 live-unify】入口は「コールを覚える」の1つ。遊び方を選ばずに開いた一覧の見出しも「コールを覚える」
+  assertEqual([liveCallListHeading(null), liveCallListHeading(undefined), liveCallListHeading("x")], ["コールを覚える", "コールを覚える", "コールを覚える"], "C: 遊び方を選んでいなければ「コールを覚える」（入口と同じ名前）");
   assertEqual(Object.keys(LIVE_CALL_ENTRY_LEADS), Object.keys(LIVE_CALL_ENTRY_TITLES), "C: どの入口にも、そのモードが何かの1行がある");
   assertEqual(Object.values(LIVE_CALL_ENTRY_LEADS).every((text) => text.length > 0 && text.length <= 40 && !text.includes("\n")), true, "C: 1行の短い説明（40文字以内）");
 }
@@ -175,7 +176,8 @@ async function runSourceTests() {
     ["index.html", "css/liveCall.css", "css/karaokeStage.css", "css/style.css", "js/main.js", "js/liveCallScreen.js", "js/karaokeSyncScreen.js"].map(fetchText),
   );
   // 見出しの名前はホームのカードと同じ
-  assertEqual(Object.values(LIVE_CALL_ENTRY_TITLES).every((title) => html.includes(`<b>${title}</b>`)), true, "F: 見出しの名前は index.html のホームのカードの名前と同じ");
+  // 【2026-10-31 live-unify】ホームの入口は「コールを覚える」の1つ（3つの入口は無くした）。一覧の見出しは入口と同じ名前
+  assertEqual(html.includes("<b>コールを覚える</b>") && html.includes('<h2 id="live-call-heading">コールを覚える</h2>'), true, "F: 見出しの名前は index.html のホームの入口の名前と同じ");
   // 前の版のライブコールモード：空のときの案内（文言はそのまま残し、ボタンを足す）
   const empty = html.match(/<div id="live-call-mode-list-empty-state"[^>]*hidden>([\s\S]*?)<\/div>\s*<\/div>/);
   assertEqual(Boolean(empty) && empty[1].includes("まだコールが登録された曲がありません。") && empty[1].includes('id="live-call-mode-empty-add-data-button"') && empty[1].includes('id="live-call-mode-empty-new-live-button"'), true, "F: 前の版の一覧が空のとき：今までの文言＋データを足す場所・新しいライブコールへのボタン");
@@ -207,7 +209,7 @@ async function runSourceTests() {
   assertEqual(offsetLines.length > 0 && offsetLines.every((line) => line.includes("if (followDeviceAudio)")), true, "F: 調整の印は、新しいカラオケのときだけ付ける");
   assertEqual(kScreen.includes("const previewLabel = followDeviceAudio ? karaokePreviewLabel : getCallPreviewLabel;"), true, "F: 予告の文字の変更は新しいカラオケだけ（前の版は getCallPreviewLabel のまま）");
   // 「カラオケで歌う」から曲を押したら、コール付きの新しいカラオケ（曲のページのカードと同じ）
-  assertEqual(/direct === "karaoke" && callbacks\?\.openKaraokeWithCalls[\s\S]{0,200}callbacks\.openKaraokeWithCalls\(songId, calls\)/.test(screenJs), true, "F: 「カラオケで歌う」から曲を選んだら、完成版のコール付きの新しいカラオケを開く");
+  assertEqual(/direct === "karaoke" && callbacks\?\.openKaraokeWithCalls[\s\S]{0,200}openKaraokeForCurrentSong\(\)/.test(screenJs) && /function openKaraokeForCurrentSong\(\) \{[\s\S]{0,300}callbacks\.openKaraokeWithCalls\(currentSongId, sheet\?\.ok \? sheet\.calls : \[\]/.test(screenJs), true, "F: 「カラオケで歌う」から曲を選んだら、完成版のコール付きの新しいカラオケを開く");
 }
 
 export async function runLiveCallFixLiveTests() {

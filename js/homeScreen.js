@@ -188,7 +188,7 @@ export function pickCurrentNavIndex(cardTops, line, atBottom) {
 //   mode     … ゲーム画面のモードのカードを押したのと同じ（main.js の openSpecialModeById）
 //   navigate … 画面を開く（navigateWithScrollMemory）
 //   click    … 既存のボタン（id）を押したのと同じ（移した先の画面の入口。戻り先・準備処理はそのボタンの処理のまま）
-//   live     … 新しいライブコールの曲一覧を、その遊び方を選んだ状態で開く
+//   live     … 新しいライブコールの曲一覧を、その遊び方を選んだ状態で開く（今はホームのボタンでは使っていない。呼び出し口は残す）
 //   callback … main.js から受け取った処理を呼ぶ（ownSound：その処理が自分で効果音を鳴らすので、ここでは鳴らさない）
 // ここに無い入口（フレンド・ランキング・実績・プロフィール・検索・ライブ履歴・周年ヒストリー・音楽番組・メンバー）は、
 // 以前と同じ id のボタンを置き、main.js の今までの処理がそのまま動く。
@@ -203,15 +203,12 @@ export const HOME_ACTIONS = {
   "online-battle": { type: "mode", value: "onlineBattle" },
   "party-battle": { type: "mode", value: "partyBattle" },
   "original-quiz": { type: "mode", value: "originalQuiz" },
-  // 【2026-10-29 本人の判断】ライブコール（「コールを覚える」）は前の版（ゲーム画面の「ライブコールモード」と同じ曲一覧）。
+  // 【2026-10-31 live-unify】「コールを覚える」＝ゲーム画面の「コールを覚える」のカードと同じ処理（main.js の openSpecialModeById("liveCallMode")）。
+  // 行き先は新しいライブコール（曲の一覧 → 曲のページ → コール表／ライブコール／カラオケ）。前の版はその一覧のいちばん下から。
   // ゲームのカードとライブのカードの両方にある（同じ行き先。10種類の数には1つとして数える）
-  "live-call-classic": { type: "mode", value: "liveCallMode" },
+  "learn-calls": { type: "mode", value: "liveCallMode" },
   // 「全部のゲーム」→ 役割を変えて「遊び方の説明・記録」（ゲーム画面：各モードの「？」の説明・プレイ履歴）
   "all-games": { type: "navigate", value: "gameHub" },
-  // 新しいライブコール（試験中）：遊び方を選んだ状態で開く（使えない曲は曲のページで理由）
-  "live-call-sheet": { type: "live", value: "sheet" },
-  "live-call-live": { type: "live", value: "live" },
-  "live-call-karaoke": { type: "live", value: "karaoke" },
   "next-live": { type: "click", value: "live-hub-link" },
   "live-guide": { type: "click", value: "live-guide-link" },
   "continuous-play": { type: "click", value: "continuous-play-link" },

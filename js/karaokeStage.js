@@ -13,9 +13,9 @@
 //   進み具合のバー（長いコール・次のコールまで）だけ毎フレーム、値が変わったときに書く。
 //   一時停止中は .kx-paused で CSS のアニメーションも止め、端末の「視差効果を減らす」では動き（粒・輪・弾み）を出さない（css/karaokeStage.css）。
 import { MEMBERS } from "./data/members.js";
-import { MEMBER_PROFILES } from "./data/memberProfiles.js";
-import { buildMemberNameIndex, memberIdForCallText } from "./callEffects.js";
+import { shortCallTier } from "./callEffects.js";
 import { getCallDisplayTier } from "./callSync.js";
+import { describeNameCall, nameCallAccent, renderNameCallText } from "./liveCallNames.js";
 
 export const KX_BURST_WINDOW_SEC = 0.4; // コールの始まりからこの時間の内に描いたときだけ「発光と弾み」を出す（途中へシークしたときは出さない）
 export const KX_COUNTDOWN_SEC = 3; // 次のコールまでの残りを、バーで見せる長さ（「もうすぐ！」の 3・2・1 と同じ）
@@ -122,9 +122,105 @@ export function karaokePreviewLabel(call) {
   return chars.length > KX_PREVIEW_MAX_CHARS ? `${chars.slice(0, KX_PREVIEW_MAX_CHARS).join("")}…` : head;
 }
 
+// ===== 【2026-10-31 live-unify】コール表示 ON：赤いコールを、歌詞の行の間に「コール表に近い並び」で置く =====
+// 並びは本人のコール表（js/callTextLayout.js の layout）のまま：行の前のコールはその行の前に、行の横・後ろのコールはその行の後ろに、
+// 前奏・間奏・後奏のコールは、その位置（前の行の後ろ。前奏は最初の行の前）に1行。
+// 歌詞の行は、カラオケが描く元の歌詞の行（lines。行番号 line）に対応させる（表示用に分けた行は、始まりの元の行・終わりの元の行で決める）。
+// 戻り値：[{ anchor: 元の歌詞の行の番号（配列の位置。-1 は最初の行より前）, place: "before" | "after", block: 前奏・間奏・後奏か, keys: [コールのキー] }]（上から順）
+// 決まり：時刻のあるコール（calls）は、必ずちょうど1回だけ入る（並びに無いものは、時刻で一番近い行の後ろへ）。コールの文字・時刻はここでは扱わない
+export function buildKaraokeCallPlacement(layout, calls, lines) {
+  const timed = new Map((Array.isArray(calls) ? calls : []).map((call) => [call.key, call]));
+  const lineList = Array.isArray(lines) ? lines : [];
+  const indexOfLineNo = new Map(lineList.map((line, index) => [line?.line, index]));
+  const placed = new Set();
+  const rows = [];
+  const push = (anchor, place, list, block = false) => {
+    const keys = [];
+    for (const call of list ?? []) {
+      if (!timed.has(call.key) || placed.has(call.key)) continue;
+      placed.add(call.key);
+      keys.push(call.key);
+    }
+    if (!keys.length) return;
+    // 同じ場所に続けて来たものは1行にまとめる（コールは1件ずつ別の部品のまま）
+    const prev = rows[rows.length - 1];
+    if (prev && prev.anchor === anchor && prev.place === place && prev.block === block) prev.keys.push(...keys);
+    else rows.push({ anchor, place, block, keys });
+  };
+  let lastAnchor = -1;
+  for (const item of layout?.items ?? []) {
+    if (item.kind === "block") {
+      const at = indexOfLineNo.has(item.lineNo) ? indexOfLineNo.get(item.lineNo) : lastAnchor;
+      // 前奏は最初の行の前。間奏・後奏はその行の後ろ
+      if (item.position === "intro") push(at, "before", item.calls, true);
+      else push(at, "after", item.calls, true);
+      continue;
+    }
+    if (item.kind !== "line") continue;
+    // 表示行を作っている元の歌詞の行（並びの parts のうち歌詞の部分）。最初と最後の元の行で、置く場所を決める
+    const pieces = (item.parts ?? []).filter((part) => part.kind === "segment");
+    const firstNo = pieces[0]?.lineNo ?? item.lineNo;
+    const lastNo = pieces[pieces.length - 1]?.lineNo ?? item.lineNo;
+    const first = indexOfLineNo.has(firstNo) ? indexOfLineNo.get(firstNo) : lastAnchor;
+    const last = indexOfLineNo.has(lastNo) ? indexOfLineNo.get(lastNo) : first;
+    push(first, "before", item.before);
+    push(last, "after", [...(item.anchored ?? []).flatMap((group) => group.calls), ...(item.inline ?? []), ...(item.after ?? [])]);
+    lastAnchor = last;
+  }
+  // 並び（layout）に無い・並びが無い曲：時刻で、そのコールより前に始まった最後の行の後ろへ（無ければ最初の行の前）
+  const rest = [...timed.values()].filter((call) => !placed.has(call.key)).sort((a, b) => a.start - b.start);
+  for (const call of rest) {
+    let anchor = -1;
+    lineList.forEach((line, index) => {
+      if (Number.isFinite(line?.start) && line.start <= call.start) anchor = index;
+    });
+    const place = anchor === -1 ? "before" : "after";
+    const target = rows.find((row) => row.anchor === Math.max(anchor, 0) && row.place === place && !row.block);
+    placed.add(call.key);
+    if (target) target.keys.push(call.key);
+    else rows.push({ anchor: Math.max(anchor, 0), place, block: false, keys: [call.key] });
+  }
+  // 上から順（行の位置 → 前／後ろ）に並べ直す。同じ場所の中の順番は、並び（layout）の順のまま
+  const order = (row) => row.anchor * 2 + (row.place === "after" ? 1 : 0);
+  return rows.map((row, index) => ({ row, index })).sort((a, b) => order(a.row) - order(b.row) || a.index - b.index).map(({ row }) => row);
+}
+
+// いま光っているコールのキー（開始 ≦ t ＜ 終了。本人の時刻だけ）と、次に始まるコールのキー（純粋関数）
+export function karaokeCallRowStateAt(calls, t) {
+  const lit = new Set();
+  let next = null;
+  for (const call of calls ?? []) {
+    if (call.start <= t && t < call.end) lit.add(call.key);
+    else if (call.start > t && (!next || call.start < next.start)) next = call;
+  }
+  return { lit, nextKey: next?.key ?? null };
+}
+
+// コール表示の ON／OFF（この端末に保存。前のカラオケ同期では使わない）
+export const KX_CALLS_VISIBLE_KEY = "equalLoveIntroQuiz.karaokeCallsVisible";
+export function loadKaraokeCallsVisible() {
+  try {
+    return localStorage.getItem(KX_CALLS_VISIBLE_KEY) !== "false";
+  } catch {
+    return true;
+  }
+}
+export function saveKaraokeCallsVisible(visible) {
+  try {
+    localStorage.setItem(KX_CALLS_VISIBLE_KEY, String(Boolean(visible)));
+  } catch {
+    // 保存できない環境では、今回だけの設定として使う
+  }
+}
+
+// タイミング調整が「ありえない大きさ」か（±10秒を超える）。値は消さずに、注意を出すだけ
+export const KX_OFFSET_WARN_MS = 10000;
+export function isKaraokeOffsetSuspicious(offsetMs) {
+  return Number.isFinite(offsetMs) && Math.abs(offsetMs) > KX_OFFSET_WARN_MS;
+}
+
 // ===== 画面の部品 =====
 let stage = null; // 使っている間だけ { screen, hudCard, ... }
-let memberNameIndex = null;
 
 function el(tag, className) {
   const node = document.createElement(tag);
@@ -132,21 +228,17 @@ function el(tag, className) {
   return node;
 }
 
-function memberColorForText(text) {
-  memberNameIndex ??= buildMemberNameIndex(MEMBERS, MEMBER_PROFILES);
-  const id = memberIdForCallText(text, memberNameIndex);
-  return id ? MEMBERS.find((m) => m.id === id)?.memberColor?.hex ?? null : null;
-}
-
 function toggle(node, className, on) {
   if (node.classList.contains(className) !== on) node.classList.toggle(className, on);
 }
 
-// 新しいカラオケの演出を始める（部品を作る）。elements：{ screen, hudCard, lyricsPanel }。
-// song：js/data/songs.js の曲、calls：本人の完成版のコール（start 昇順）、lines：歌詞の行（無ければ []）
-export function enableKaraokeStage(elements, { song, calls, lines = [] } = {}) {
+// 新しいカラオケの演出を始める（部品を作る）。elements：{ screen, hudCard, lyricsPanel, hudText }。
+// song：js/data/songs.js の曲、calls：本人の完成版のコール（start 昇順）、lines：歌詞の行（{ line, start, end }。無ければ []）
+// layout：コール表の並び（コール表示 ON で赤いコールを歌詞の間に置くのに使う。無ければ時刻で置く）
+// callsVisible：コール表示 ON か（コールが無い曲は、いつも OFF と同じ動き）
+export function enableKaraokeStage(elements, { song, calls, lines = [], layout = null, callsVisible = true } = {}) {
   disableKaraokeStage();
-  const { screen, hudCard, lyricsPanel } = elements ?? {};
+  const { screen, hudCard, lyricsPanel, hudText } = elements ?? {};
   if (!screen || !hudCard) return null;
   const palette = karaokePaletteForSong(song);
   screen.classList.add("kx-on");
@@ -201,12 +293,20 @@ export function enableKaraokeStage(elements, { song, calls, lines = [] } = {}) {
   hudCard.append(progress, countdown);
   hudCard.classList.add("kx-hud");
 
+  const callList = Array.isArray(calls) ? calls : [];
   stage = {
     screen,
     hudCard,
+    hudText: hudText ?? null,
     lyricsPanel: lyricsPanel ?? null,
-    calls: Array.isArray(calls) ? calls : [],
+    calls: callList,
     lines: Array.isArray(lines) ? lines : [],
+    layout,
+    hasCalls: callList.length > 0,
+    callsVisible: true,
+    callRows: [], // 歌詞の間に置いた赤いコールの行（コール表示 ON のとき見える）
+    callEls: new Map(), // コールのキー → 部品
+    rowFlags: new Map(), // コールのキー → 前に書いた状態（"lit" | "next" | "done" | ""）
     parts: [fx, hudFx, progress, countdown],
     progressFill,
     countdownFill,
@@ -217,7 +317,97 @@ export function enableKaraokeStage(elements, { song, calls, lines = [] } = {}) {
     lastMemberColor: null,
     palette,
   };
+  setKaraokeCallsVisible(callsVisible);
   return stage;
+}
+
+// コール表示 ON／OFF（コールが無い曲は、いつも OFF と同じ）。再生の位置には触れない（見た目のクラスだけ）
+export function setKaraokeCallsVisible(visible) {
+  if (!stage) return false;
+  const on = Boolean(visible) && stage.hasCalls;
+  stage.callsVisible = on;
+  toggle(stage.screen, "kx-calls-off", !on);
+  toggle(stage.screen, "kx-no-calls", !stage.hasCalls);
+  if (!on) {
+    // OFF にした瞬間に、コールの光・弾み・次のコールのバーを外す（残っていると「今言う」ように見えるため）
+    stage.screen.classList.remove("kx-call-now", "kx-long", "kx-soon");
+    stage.hudCard.classList.remove("kx-burst", "kx-member");
+    stage.hudCard.style.removeProperty("--kx-call");
+    stage.lastActive = -2;
+    stage.lastMemberColor = null;
+  }
+  return on;
+}
+export function areKaraokeCallsVisible() {
+  return Boolean(stage?.callsVisible);
+}
+export function karaokeStageHasCalls() {
+  return Boolean(stage?.hasCalls);
+}
+
+// 歌詞の行（js/lyricsSync.js が描いた .synced-lyrics-line）の間に、赤いコールの行を置く（歌詞を描いたあとに1回だけ呼ぶ）。
+// onCallTap(call)：コールを押したとき（その少し前から再生するなど）。戻り値：置いたコールの数（＝時刻のあるコールの数）
+export function mountKaraokeCallRows({ onCallTap } = {}) {
+  if (!stage || !stage.lyricsPanel) return 0;
+  stage.callRows.forEach((row) => row.remove());
+  stage.callRows = [];
+  stage.callEls.clear();
+  stage.rowFlags.clear();
+  if (!stage.hasCalls) return 0;
+  const panel = stage.lyricsPanel;
+  const lineNodes = [...panel.getElementsByClassName("synced-lyrics-line")];
+  if (!lineNodes.length || lineNodes.length !== stage.lines.length) return 0;
+  const byKey = new Map(stage.calls.map((call) => [call.key, call]));
+  const placement = buildKaraokeCallPlacement(stage.layout, stage.calls, stage.lines);
+  for (const row of placement) {
+    const node = el("p", `kx-call-row${row.block ? " is-block" : ""}`);
+    row.keys.forEach((key, index) => {
+      const call = byKey.get(key);
+      if (index > 0) node.appendChild(document.createTextNode(" "));
+      const span = el("span", `kx-call kx-t-${karaokeCallTier(call)}`);
+      span.dataset.callKey = key;
+      if (String(call.text).includes("\n")) span.classList.add("is-pre");
+      const result = describeNameCall(call.text);
+      renderNameCallText(span, call.text, result);
+      const accent = nameCallAccent(result);
+      if (accent) {
+        span.classList.add("kx-member", `kx-names-${result.kind}`);
+        span.style.setProperty("--kx-call", accent.primary);
+        span.style.setProperty("--kx-call-grad", accent.gradient);
+      }
+      if (typeof onCallTap === "function") span.addEventListener("click", () => onCallTap(call));
+      node.appendChild(span);
+      stage.callEls.set(key, span);
+    });
+    const target = row.anchor >= 0 ? lineNodes[row.anchor] : lineNodes[0];
+    if (row.place === "before" || row.anchor < 0) target.before(node);
+    else {
+      // 同じ行の後ろに、すでに置いたコールの行があれば、その後ろへ（並びの順を保つ）
+      let after = target;
+      while (after.nextElementSibling?.classList.contains("kx-call-row")) after = after.nextElementSibling;
+      after.after(node);
+    }
+    stage.callRows.push(node);
+  }
+  return stage.callEls.size;
+}
+
+// コールの見た目の段階（短いコールの3段階・長いコール）。光る時間は本人の開始〜終了のまま
+export function karaokeCallTier(call) {
+  const d = Number(call?.end) - Number(call?.start);
+  if (Number.isFinite(d) && d >= KX_LONG_CALL_SEC) return "long";
+  return shortCallTier(d);
+}
+
+// カードの文字（js/karaokeSyncScreen.js が textContent で書く）に、名前コールの色を付ける。文字は変えない。
+// 書き直されたとき（子の部品が無い＝ただの文字）だけ付け直す
+function decorateHudText() {
+  const node = stage?.hudText;
+  if (!node || node.childElementCount > 0) return;
+  const text = node.textContent;
+  if (!text) return;
+  const result = describeNameCall(text);
+  if (nameCallAccent(result)) renderNameCallText(node, text, result);
 }
 
 // 使っていないときは何もしない（前の「カラオケ同期」で開いたとき・画面を閉じたとき）
@@ -225,8 +415,9 @@ export function disableKaraokeStage() {
   if (!stage) return;
   const { screen, hudCard } = stage;
   stage.parts.forEach((node) => node.remove());
+  stage.callRows.forEach((row) => row.remove());
   stage.lastNextLine?.classList.remove("kx-next-line");
-  screen.classList.remove("kx-on", "kx-call-now", "kx-long", "kx-soon", "kx-paused", "kx-finale", "kx-done", "kx-offset-set");
+  screen.classList.remove("kx-on", "kx-call-now", "kx-long", "kx-soon", "kx-paused", "kx-finale", "kx-done", "kx-offset-set", "kx-calls-off", "kx-no-calls", "kx-offset-warn", "kx-has-audio");
   delete screen.dataset.kxBasis;
   screen.style.removeProperty("--kx-c1");
   screen.style.removeProperty("--kx-c2");
@@ -243,6 +434,8 @@ export function isKaraokeStageEnabled() {
 export function resetKaraokeStage() {
   if (!stage) return;
   stage.screen.classList.remove("kx-call-now", "kx-long", "kx-soon", "kx-paused", "kx-finale", "kx-done");
+  stage.rowFlags.forEach((flag, key) => stage.callEls.get(key)?.classList.remove("is-lit", "is-next", "is-done"));
+  stage.rowFlags.clear();
   stage.hudCard.classList.remove("kx-burst", "kx-member");
   stage.hudCard.style.removeProperty("--kx-call");
   stage.lastNextLine?.classList.remove("kx-next-line");
@@ -255,7 +448,9 @@ export function setKaraokeStagePaused(paused) {
 
 // タイミング調整をしているか（0 以外）。「0に戻す」を、調整していないときは普通の見た目にするための印（css/karaokeStage.css）
 export function setKaraokeStageOffset(offsetMs) {
-  if (stage) toggle(stage.screen, "kx-offset-set", Number(offsetMs) !== 0);
+  if (!stage) return;
+  toggle(stage.screen, "kx-offset-set", Number(offsetMs) !== 0);
+  toggle(stage.screen, "kx-offset-warn", isKaraokeOffsetSuspicious(Number(offsetMs)));
 }
 
 // 曲の終わり（端末の音源が最後まで鳴った）：紙吹雪と光を1回だけ
@@ -268,15 +463,18 @@ export function updateKaraokeStage(t, { ended = false } = {}) {
   if (!stage) return null;
   const s = karaokeStageStateAt(stage.calls, t, stage.lines);
   const { screen, hudCard } = stage;
-  toggle(screen, "kx-call-now", Boolean(s.active));
-  toggle(screen, "kx-long", s.long);
-  toggle(screen, "kx-soon", s.countdown > 0);
+  const callsOn = stage.callsVisible;
+  toggle(screen, "kx-call-now", callsOn && Boolean(s.active));
+  toggle(screen, "kx-long", callsOn && s.long);
+  toggle(screen, "kx-soon", callsOn && s.countdown > 0);
   toggle(screen, "kx-done", s.allCallsDone);
   if (!ended) toggle(screen, "kx-finale", false);
+  updateCallRows(t);
 
-  if (s.activeIndex !== stage.lastActive) {
+  if (callsOn && s.activeIndex !== stage.lastActive) {
     // コールが変わった：名前コールならメンバーカラー（確かに一致したときだけ）。始まった直後なら発光と弾みを1回
-    const color = s.active ? memberColorForText(s.active.text) : null;
+    // 【2026-10-31 live-unify】名前コールの判定は js/liveCallNames.js（1人・複数・or）。光は最初の名前の色
+    const color = s.active ? nameCallAccent(describeNameCall(s.active.text))?.primary ?? null : null;
     if (color !== stage.lastMemberColor) {
       toggle(hudCard, "kx-member", Boolean(color));
       if (color) hudCard.style.setProperty("--kx-call", color);
@@ -290,15 +488,17 @@ export function updateKaraokeStage(t, { ended = false } = {}) {
     }
     stage.lastActive = s.activeIndex;
   }
+  if (callsOn) decorateHudText();
   // 進み具合のバー（長いコールの間だけ）と、次のコールまでのバー：値が変わったときだけ書く
-  const progress = s.long ? s.progress : 0;
+  const progress = callsOn && s.long ? s.progress : 0;
   if (progress !== stage.lastProgress) {
     stage.progressFill.style.transform = `scaleX(${progress})`;
     stage.lastProgress = progress;
   }
-  if (s.countdown !== stage.lastCountdown) {
-    stage.countdownFill.style.transform = `scaleX(${s.countdown})`;
-    stage.lastCountdown = s.countdown;
+  const countdown = callsOn ? s.countdown : 0;
+  if (countdown !== stage.lastCountdown) {
+    stage.countdownFill.style.transform = `scaleX(${countdown})`;
+    stage.lastCountdown = countdown;
   }
   // 次の歌詞の行を控えめに見せる（行単位の時刻で「次に始まる行」。行の中は補間しない）
   const lineNodes = stage.lyricsPanel ? stage.lyricsPanel.getElementsByClassName("synced-lyrics-line") : [];
@@ -309,4 +509,20 @@ export function updateKaraokeStage(t, { ended = false } = {}) {
     stage.lastNextLine = nextLine ?? null;
   }
   return s;
+}
+
+// 歌詞の間の赤いコール：光っている（本人の開始〜終了）・次・終わった、を付け替える（変わったコールだけ書く）
+function updateCallRows(t) {
+  if (!stage.callEls.size) return;
+  const { lit, nextKey } = karaokeCallRowStateAt(stage.calls, t);
+  for (const call of stage.calls) {
+    const flag = lit.has(call.key) ? "lit" : call.key === nextKey ? "next" : t >= call.end ? "done" : "";
+    if (stage.rowFlags.get(call.key) === flag) continue;
+    const node = stage.callEls.get(call.key);
+    if (!node) continue;
+    node.classList.toggle("is-lit", flag === "lit");
+    node.classList.toggle("is-next", flag === "next");
+    node.classList.toggle("is-done", flag === "done");
+    stage.rowFlags.set(call.key, flag);
+  }
 }

@@ -57,6 +57,8 @@
     import { runLiveCallVisualsTests } from "./tests/liveCallVisuals.test.js";
     import { runLiveCallNightTests } from "./tests/liveCallNight.test.js";
     import { runLiveCallFixLiveTests } from "./tests/liveCallFixLive.test.js";
+    // 【2026-10-31新設】「コールを覚える」の統合（1件は1件・時刻・短いコールの段階・名前コール・カラオケのコール表示 ON／OFF・コールの無い曲）
+    import { runLiveCallUnifyTests } from "./tests/liveCallUnify.test.js";
     // 【2026-10-30新設】データ管理の「最新版データを読み込む」（ダミーのデータだけ・偽の端末）
     import { runUnifiedPackImportTests } from "./tests/unifiedPackImport.test.js";
     // 【2026-10-29新設】プレイヤーの登録画面（登録・切り替え・名前の変更・自動で閉じる）／公開プロフィールのデータの曲数
@@ -168,6 +170,8 @@
     import { runLyricsQuizBattleCompatibilityTests, runLyricsQuizBattleCompatibilityRulesTests } from "./tests/lyricsQuizBattleCompatibility.test.js";
     import { runCallTextModeTests, runCallTextModeMarkupTests } from "./tests/callTextMode.test.js";
     import { runCallTextEditsTests } from "./tests/callTextEdits.test.js";
+    // 【2026-10-31新設】名前コールの判定（メンバーカラー）
+    import { runCallNameColorsTests } from "./tests/callNameColors.test.js";
     import { runTimeAttackScoreTests } from "./tests/timeAttackScore.test.js";
     import { runTimeAttackHistoryTests } from "./tests/timeAttackHistory.test.js";
     import { runTimeAttackScreenTests } from "./tests/timeAttackScreen.test.js";
@@ -422,6 +426,7 @@
     runCallTextModeTests();
     await runCallTextModeMarkupTests();
     await runCallTextEditsTests();
+    runCallNameColorsTests();
     runPresenceSecurityRulesTests();
     runRankingCandidateStoreTests();
     runCenterCelebrationTests();
@@ -527,6 +532,7 @@
     await runLiveCallVisualsTests();
     await runLiveCallNightTests();
     await runLiveCallFixLiveTests();
+    await runLiveCallUnifyTests();
     await runUnifiedPackImportTests();
     await runPlayerRegistrationTests();
     await runDataStatusShareTests();

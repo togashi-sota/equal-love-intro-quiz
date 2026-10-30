@@ -1103,3 +1103,164 @@ body[data-screen="liveCall"] .game-frame {
     width: calc(min(100% - 32px, 880px) - 50px);
   }
 }
+
+/* ===== 【2026-10-31 live-unify】3つのモードの切り替え（js/liveCallModeTabs.js。コール表・ライブコール・カラオケの上に同じ形で出す） =====
+   今のモードは塗り（押せない）。使えないモードは薄く（押せない）。押せる所は高さ 40px 以上・文字 13px 以上 */
+.lc-mode-tabs {
+  display: flex;
+  flex: 1 1 100%;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 999px;
+  background: #fbe3ee;
+}
+.lc-mode-tab {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  min-height: 40px;
+  padding: 4px 6px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: #8a1546;
+  font-size: 0.875rem;
+  font-weight: 800;
+  line-height: 1.2;
+  cursor: pointer;
+}
+.lc-mode-tab.is-current {
+  background: #d6246e;
+  color: #fff;
+  cursor: default;
+  box-shadow: 0 2px 6px -2px rgba(138, 21, 70, 0.6);
+}
+/* 使えないモード：薄く（押せない）。理由は title（曲のページのカードにも理由が出る） */
+.lc-mode-tab:disabled:not(.is-current) {
+  color: #8f7a86;
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.lc-mode-tab:focus-visible {
+  outline: 3px solid #ffb3d1;
+  outline-offset: 1px;
+}
+
+/* ===== 【2026-10-31 live-unify】演出 あり／なし（ライブコールの上。いつでも押せる） ===== */
+.lc-effects-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 4px 14px 4px 10px;
+  border: 1px solid #c8b6c1;
+  border-radius: 999px;
+  background: #fff;
+  color: #4a2e42;
+  font-size: 0.875rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+/* 左の小さなスイッチの絵（あり＝ピンクで右、なし＝灰色で左） */
+.lc-effects-switch::before {
+  content: "";
+  width: 30px;
+  height: 18px;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 9px 50%, #fff 0 6px, transparent 6.5px),
+    #b9a8b3;
+  transition: background 0.15s ease;
+}
+.lc-effects-switch.is-on {
+  border-color: #f3b6cd;
+  color: #8a1546;
+}
+.lc-effects-switch.is-on::before {
+  background:
+    radial-gradient(circle at 21px 50%, #fff 0 6px, transparent 6.5px),
+    #d6246e;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lc-effects-switch::before {
+    transition: none;
+  }
+}
+
+/* ===== 【2026-10-31 live-unify】短いコールの3段階（js/callEffects.js の shortCallTier）。光る時間は本人の開始〜終了のまま =====
+   flash（0.3秒以下）：板の上に一瞬の白い光（.cx-flash。JS が opacity を 1 → 0）。
+   short（0.3〜0.5秒）：短い弾み（JS の transform）と光。終わりは少し長めのフェードで自然に消える */
+.lc-stage .cx-flash {
+  position: absolute;
+  inset: -2px -3px;
+  border-radius: 9px;
+  opacity: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 50% 55%, rgba(255, 255, 255, 0.95) 0%, rgba(255, 246, 214, 0.75) 45%, rgba(255, 194, 77, 0) 75%);
+  box-shadow: 0 0 16px 4px rgba(255, 228, 140, 0.75);
+}
+.lc-stage .cx-call.cx-v-short.is-post .cx-plate,
+.lc-stage .cx-call.cx-v-short.is-post .cx-glow {
+  transition-duration: 0.4s;
+}
+.lc-stage.intensity-off .cx-flash {
+  display: none;
+}
+
+/* ===== 【2026-10-31 live-unify】名前コール（js/liveCallNames.js）。文字の装飾だけ（コール1件のまま。順番には光らせない） =====
+   名前の部分：その人の色の太い下線（文字の色は赤のまま＝白・黄色のメンバーカラーでも読める）。光っている間は下線を太く。
+   複数の名前：名前ごとにそれぞれの色の下線。光の輪郭は1人目の色、板の下の帯は全員の色をつないだもの。
+   「or」：あいだの言葉（or など）は小さく・薄く（同時に叫ぶとは扱わない＝候補を分けて見せる） */
+.lc-stage .cx-name-part {
+  text-decoration-line: underline;
+  text-decoration-color: var(--name-color, #ffc24d);
+  text-decoration-thickness: 3px;
+  text-underline-offset: 3px;
+  text-decoration-skip-ink: none;
+}
+.lc-stage .cx-call.is-on .cx-name-part {
+  text-decoration-thickness: 4px;
+}
+.lc-stage .cx-name-sep {
+  color: #8f6b7f;
+  font-size: 0.82em;
+  font-weight: 600;
+}
+.lc-stage .cx-call.is-done .cx-name-part {
+  text-decoration-color: color-mix(in srgb, var(--name-color, #ffc24d) 55%, transparent);
+}
+.lc-stage .cx-call.cx-names-multi .cx-plate,
+.lc-stage .cx-call.cx-names-or .cx-plate {
+  box-shadow: inset 0 0 0 2px #ffc24d;
+}
+.lc-stage .cx-call.cx-names-multi .cx-plate::after,
+.lc-stage .cx-call.cx-names-or .cx-plate::after {
+  content: "";
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  bottom: 2px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--cx-member-grad, #ffc24d);
+}
+
+/* ===== 【2026-10-31 live-unify】一覧・曲のページの小さな追加 ===== */
+.lc-classic {
+  display: grid;
+  gap: 4px;
+  justify-items: start;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px dashed #e7c3d4;
+}
+.lc-classic-note,
+.lc-mode-note {
+  margin: 0;
+  color: var(--lc-muted);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+.lc-song-guide {
+  justify-self: start;
+}

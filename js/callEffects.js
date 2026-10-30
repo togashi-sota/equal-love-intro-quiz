@@ -506,48 +506,60 @@ export function summarizeState(s) {
 // ===== 新しいライブコールの「見た目の種類」（2026-10-30 第2版。見た目だけに使う） =====
 // 【本人の決まり（2026-10-29）】コールは本人の開始〜終了の間、コール全体が光る。時刻は変えない・自動で区切らない・
 //   1語ずつ光らせない・「MIX・進み方は目安」の札は出さない。ここで決めるのは「光り方の味付け」だけ。
-// 分け方は控えめ（迷ったら normal）：
-//   long  ：4秒以上光る、または改行のある長いコール（has-break）→ 全体が光り、下に細い進み具合のバーを1本
-//   short ：1.2秒以下、または確定の短い掛け声（js/shoutWords.js）で 2.5秒以下 → 始まりに小さく「ポン」
-//   normal：それ以外 → やわらかい光・少し浮く（第3版で呼吸はやめた。光は一定）
-// long を先に見る：改行のある塊を 1.15 倍に膨らませると、まわりの行に大きくかぶるため
-export const VISUAL_KINDS = { SHORT: "short", LONG: "long", NORMAL: "normal" };
-export const VIS_SHORT_MAX_SEC = 1.2;
-export const VIS_SHORT_WORD_MAX_SEC = 2.5;
+// 【2026-10-31 live-unify・本人の指示】短いコールは長さ（本人の終了 − 開始）だけで3段階に分ける（言葉では決めない）：
+//   flash ：0.3秒以下      → 瞬間のフラッシュと軽い「ポン」
+//   short ：0.3秒より長く0.5秒以下 → 短い弾みと光（終わりは自然なフェード）
+//   normal：0.5秒より長く4秒未満  → 通常の光（やわらかく光る・少し浮く）
+//   long  ：4秒以上、または改行のある長いコール（has-break）→ 全体の光と、控えめな進み具合のバー
+//   どれも、光る時間は本人の開始〜終了のまま（表示の時間を延ばさない・開始を早めない）。
+// long を先に見る：改行のある塊を膨らませると、まわりの行に大きくかぶるため
+export const VISUAL_KINDS = { FLASH: "flash", SHORT: "short", LONG: "long", NORMAL: "normal" };
+export const VIS_FLASH_MAX_SEC = 0.3;
+export const VIS_SHORT_MAX_SEC = 0.5;
 export const VIS_LONG_MIN_SEC = 4.0;
-export const VIS_POP_SEC = 0.28; // 短いコールの「ポン」（1.15 倍 → 1.0 倍）の長さ
-// 【2026-10-30 夜・第3版】本人「文字とタイミングが見られればいい。演出は控えめでよい」→ 「ポン」を 1.15 倍から 1.08 倍に、
-// ふつう・長いコールの呼吸（光の濃さが 1.6 秒ごとに揺れる）をやめて、光ったら一定の光にする（読むときに揺れない）
+export const VIS_POP_SEC = 0.28; // 「ポン」（拡大 → 1.0 倍）の長さ。光っている時間より長くはしない
+// 【2026-10-30 夜・第3版】本人「文字とタイミングが見られればいい。演出は控えめでよい」→ 「ポン」は 1.08 倍まで、
+// ふつう・長いコールの光は一定（呼吸させない。読むときに揺れない）
 export const VIS_POP_SCALE = 0.08;
+export const VIS_BOUNCE_PX = 3; // 0.3〜0.5秒のコールの「短い弾み」（上へ最大 3px）
 export const VIS_FADE_SEC = 0.45; // 終わったあと静かに消える長さ（時刻は変えない。見た目の余韻だけ）
 export const VIS_NORMAL_LIFT_PX = 1; // ふつうのコールが光るときに浮く量（第2版の 1.5px から少し減らす）
 export const VIS_NORMAL_SCALE = 0.02; // ふつうのコールのやわらかい拡大（第2版の 1.03 倍から 1.02 倍へ）
 export const ANTICIPATE_SEC = 1.5; // 始まる前に「次はここ」とうっすら知らせる長さ
 export const ANTICIPATE_MAX = 0.4; // 知らせの濃さの上限（控えめ）
 
-export function classifyVisualKind({ text, start, end, hasBreak = false } = {}) {
+// 短いコールの段階（純粋関数。長さ＝本人の終了 − 開始）。長いかどうか（4秒以上・改行）はここでは見ない
+export function shortCallTier(durationSec) {
+  const d = Number(durationSec);
+  if (!Number.isFinite(d)) return VISUAL_KINDS.NORMAL;
+  if (d <= VIS_FLASH_MAX_SEC + 1e-9) return VISUAL_KINDS.FLASH;
+  if (d <= VIS_SHORT_MAX_SEC + 1e-9) return VISUAL_KINDS.SHORT;
+  return VISUAL_KINDS.NORMAL;
+}
+
+export function classifyVisualKind({ start, end, hasBreak = false } = {}) {
   const d = Number(end) - Number(start);
   if (!Number.isFinite(d)) return VISUAL_KINDS.NORMAL;
   if (d >= VIS_LONG_MIN_SEC || hasBreak) return VISUAL_KINDS.LONG;
-  if (d <= VIS_SHORT_MAX_SEC) return VISUAL_KINDS.SHORT;
-  if (d <= VIS_SHORT_WORD_MAX_SEC && classifyShoutText(String(text ?? "")).status === "sure") return VISUAL_KINDS.SHORT;
-  return VISUAL_KINDS.NORMAL;
+  return shortCallTier(d);
 }
 
 // 1つのコールの見た目の下ごしらえ（読み込んだときに1回だけ）。start・end は本人の時刻そのもの（書き換えない）
 export function prepareVisual(call, { hasBreak = false } = {}) {
   const start = Number(call.start);
   const end = Number(call.end);
-  return { key: call.key, start, end, d: Math.max(0, end - start), kind: classifyVisualKind({ text: call.text, start, end, hasBreak }) };
+  return { key: call.key, start, end, d: Math.max(0, end - start), kind: classifyVisualKind({ start, end, hasBreak }) };
 }
 
-const VIS_IDLE = Object.freeze({ phase: "idle", p: 0, plateO: 0, glowO: 0, cueO: 0, scale: 1, liftY: 0, barO: 0, barP: 0, ambient: 0 });
+const VIS_IDLE = Object.freeze({ phase: "idle", p: 0, plateO: 0, glowO: 0, cueO: 0, flashO: 0, scale: 1, liftY: 0, barO: 0, barP: 0, ambient: 0 });
 const easeOut = (u) => 1 - (1 - u) * (1 - u);
 
 // いまの時刻 t（秒）での見た目。同じ t なら必ず同じ結果（一時停止・シーク・ループに強い）。
-// opts：{ intensity: "std"|"low"|"off", reduced: 端末の「視差効果を減らす」 }
-// 戻り値：phase（idle／pre＝始まる前の知らせ／active＝光っている間／post＝消えていく余韻）と、
-//   plateO（今ここの板）・glowO（外側の光）・cueO（次の知らせの枠）・scale・liftY（px）・barO・barP（長いコールの進み具合）・ambient（舞台の背景の光）
+// opts：{ intensity: "std"（演出あり）|"low"|"off"（演出なし）, reduced: 端末の「視差効果を減らす」 }
+// 戻り値：phase（idle／pre＝始まる前の知らせ／active＝光っている間／post＝終わった直後）と、
+//   plateO（今ここの板）・glowO（外側の光）・cueO（次の知らせの枠）・flashO（0.3秒以下のコールの瞬間の光）・
+//   scale・liftY（px）・barO・barP（長いコールの進み具合）・ambient（舞台の背景の光）
+// 演出なし（off）：板（コール全体のシンプルな強調）と、長いコールの進み具合のバー（情報）だけ。光・動き・知らせ・背景の光は出さない
 export function visualStateAt(vis, t, opts = {}) {
   const I = INTENSITIES[opts.intensity] ?? INTENSITIES.std;
   const off = I.id === "off";
@@ -559,7 +571,7 @@ export function visualStateAt(vis, t, opts = {}) {
   const fade = off ? 0 : VIS_FADE_SEC;
   if (t < start - cueLen || t >= end + fade) return VIS_IDLE;
   if (t < start) {
-    // 始まる前：うっすら枠を出す（0 → 最大 0.4）。動かさない
+    // 始まる前：うっすら枠を出す（0 → 最大 0.4）。動かさない。光る時間（開始）は早めない
     const q = smoothstep(start - cueLen, start, t);
     const cueMax = I.id === "low" ? ANTICIPATE_MAX * 0.7 : ANTICIPATE_MAX;
     return { ...VIS_IDLE, phase: "pre", cueO: Math.round(cueMax * q * 1000) / 1000 };
@@ -568,14 +580,24 @@ export function visualStateAt(vis, t, opts = {}) {
   const s = { ...VIS_IDLE, phase: "active", p: d > 0 ? clamp(tau / d, 0, 1) : 1 };
   if (t < end) {
     s.plateO = 1;
-    if (kind === VISUAL_KINDS.SHORT) {
-      // 「ポン」：1.15 倍から 1.0 倍へ素早く戻る＋光がぱっと強くなってから落ち着く
-      const u = clamp(tau / VIS_POP_SEC, 0, 1);
+    if (kind === VISUAL_KINDS.FLASH) {
+      // 0.3秒以下：瞬間のフラッシュ（ぱっと光ってすぐ落ち着く）＋軽い「ポン」。どちらも光っている時間の中で終わる
+      const span = Math.max(0.05, Math.min(VIS_POP_SEC, d));
+      const u = clamp(tau / span, 0, 1);
       s.scale = 1 + VIS_POP_SCALE * k * (1 - easeOut(u));
-      s.glowO = off ? 0 : 0.7 + 0.3 * (1 - u);
+      s.flashO = off ? 0 : 1 - u;
+      s.glowO = off ? 0 : 0.75 + 0.25 * (1 - u);
       s.ambient = off ? 0 : 0.55 + 0.25 * (1 - u) * (reduced ? 0 : 1);
+    } else if (kind === VISUAL_KINDS.SHORT) {
+      // 0.3〜0.5秒：短い弾み（上へ少し跳ねて戻る）と光。終わりは CSS の短いフェード（.is-post）で自然に消える
+      const span = Math.max(0.05, Math.min(VIS_POP_SEC, d));
+      const u = clamp(tau / span, 0, 1);
+      s.liftY = -VIS_BOUNCE_PX * k * Math.sin(Math.PI * u);
+      s.scale = 1 + VIS_POP_SCALE * 0.5 * k * Math.sin(Math.PI * u);
+      s.glowO = off ? 0 : 0.7 + 0.3 * (1 - u);
+      s.ambient = off ? 0 : 0.5 + 0.2 * (1 - u) * (reduced ? 0 : 1);
     } else if (kind === VISUAL_KINDS.LONG) {
-      // 全体が光る＋進み具合のバー（バーは演出オフでも出す：どこまで進んだかの情報なので）。大きな塊は膨らませない
+      // 全体が光る＋進み具合のバー（バーは演出なしでも出す：どこまで進んだかの情報なので）。大きな塊は膨らませない
       // 光は一定（呼吸させない）。始まりの 0.15 秒だけ、光がふわっと立ち上がる
       const rise = clamp(tau / 0.15, 0, 1);
       s.liftY = -1 * k * rise;
@@ -601,7 +623,7 @@ export function visualStateAt(vis, t, opts = {}) {
     s.barP = 1;
   }
   const r = (v) => Math.round(v * 1000) / 1000;
-  for (const key of ["p", "plateO", "glowO", "scale", "liftY", "barP", "barO", "ambient"]) s[key] = r(s[key]);
+  for (const key of ["p", "plateO", "glowO", "flashO", "scale", "liftY", "barP", "barO", "ambient"]) s[key] = r(s[key]);
   return s;
 }
 
@@ -614,7 +636,7 @@ export function ambientAt(states, intensity = "std") {
 
 // 見た目の要約（テスト用：同じ時刻なら同じ文字列）
 export function summarizeVisual(s) {
-  return [s.phase, s.p, s.plateO, s.glowO, s.cueO, s.scale, s.liftY, s.barO, s.barP, s.ambient].join("|");
+  return [s.phase, s.p, s.plateO, s.glowO, s.cueO, s.flashO, s.scale, s.liftY, s.barO, s.barP, s.ambient].join("|");
 }
 
 // ===== 名前コールのメンバーカラー（2026-10-30 夜。新しいライブコール・新しいカラオケの見た目だけに使う） =====

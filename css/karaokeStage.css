@@ -560,3 +560,229 @@
     opacity: 0;
   }
 }
+
+/* ===== 【2026-10-31 live-unify】上の帯：3つのモードの切り替えと、コール表示 ON／OFF（js/karaokeSyncScreen.js の buildKaraokeExtras） ===== */
+#live-call-mode-karaoke-screen.kx-on .kx-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  padding: 0 10px 8px;
+}
+#live-call-mode-karaoke-screen.kx-on .kx-toolbar .lc-mode-tabs {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+#live-call-mode-karaoke-screen.kx-on .kx-toolbar .lc-mode-tab {
+  min-height: 38px;
+  padding: 3px 4px;
+  font-size: 0.8125rem;
+}
+/* コール表示 ON／OFF：文字で状態を言う（ON＝ピンクの塗り、OFF＝白に灰色の枠）。押せる高さ 44px */
+#live-call-mode-karaoke-screen.kx-on .kx-calls-switch {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 4px 10px;
+  border: 1.5px solid #b9a8b3;
+  border-radius: 999px;
+  background: #fff;
+  color: #4a2e42;
+  font-size: 0.8125rem;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+}
+#live-call-mode-karaoke-screen.kx-on .kx-calls-switch.is-on {
+  border-color: #d6246e;
+  background: #d6246e;
+  color: #fff;
+}
+#live-call-mode-karaoke-screen.kx-on .kx-calls-switch:disabled {
+  cursor: default;
+  color: #6b5563;
+  border-style: dashed;
+}
+#live-call-mode-karaoke-screen.kx-on .kx-calls-switch:focus-visible {
+  outline: 3px solid #ffb3d1;
+  outline-offset: 2px;
+}
+/* コール表示 ON のカードは、前より少し低く（歌詞の間にも赤いコールが出るので。歌詞を隠しすぎない） */
+#live-call-mode-karaoke-screen.kx-on .karaoke-call-hud-card {
+  height: clamp(160px, 26vh, 400px);
+  height: clamp(160px, 26dvh, 400px);
+}
+#live-call-mode-karaoke-screen.kx-on .kx-no-calls-note {
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+/* ===== 【2026-10-31 live-unify】コール表示 OFF（とコールの無い曲）：赤いコール・NEXT CALL・残り秒数のカードを出さない。歌詞だけのカラオケ =====
+   歌詞の演出（今の行の光・次の行）と、舞台の背景はそのまま。カードの分も歌詞の枠を広げる */
+#live-call-mode-karaoke-screen.kx-on.kx-calls-off .karaoke-call-hud-card,
+#live-call-mode-karaoke-screen.kx-on.kx-calls-off .kx-call-row {
+  display: none;
+}
+#live-call-mode-karaoke-screen.kx-on.kx-calls-off .kx-spot {
+  opacity: 0;
+}
+
+/* ===== 【2026-10-31 live-unify】コール表示 ON：歌詞の間の赤いコール（コール表に近い並び。js/karaokeStage.js の mountKaraokeCallRows） =====
+   コール1件＝部品1つ。光るのは本人の開始〜終了の間（.is-lit）。次のコールは枠でうっすら（.is-next）。終わったコールは落ち着いた色（.is-done）。
+   暗い板の上の赤は明るめのピンクの赤（#ff8fa3。板の上でコントラスト 4.5 以上） */
+#live-call-mode-karaoke-screen.kx-on .kx-call-row {
+  margin: -2px 0 6px;
+  padding: 0 8px 0 14px;
+  color: #ff8fa3;
+  font-size: 0.95rem;
+  font-weight: 800;
+  line-height: 1.6;
+}
+#live-call-mode-karaoke-screen.kx-on .kx-call-row.is-block {
+  margin: 4px 0 8px;
+  padding-left: 8px;
+}
+#live-call-mode-karaoke-screen.kx-on .kx-call {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  padding: 0 6px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease,
+    box-shadow 0.3s ease;
+}
+#live-call-mode-karaoke-screen.kx-on .kx-call.is-pre {
+  white-space: pre-wrap;
+}
+#live-call-mode-karaoke-screen.kx-on .kx-call.is-next {
+  box-shadow: inset 0 0 0 1.5px rgba(255, 143, 163, 0.55);
+}
+#live-call-mode-karaoke-screen.kx-on .kx-call.is-done {
+  color: rgba(255, 170, 185, 0.6);
+}
+/* 光っている間：明るい板＋外側の光（付くときは待たない＝遅れて見えない。外れるときだけ上の transition でなめらかに） */
+#live-call-mode-karaoke-screen.kx-on .kx-call.is-lit {
+  background-color: #fff2bf;
+  color: #a50f17;
+  box-shadow:
+    0 0 0 2px #ffc24d,
+    0 0 14px 4px color-mix(in srgb, var(--kx-call, var(--kx-c1)) 70%, transparent);
+  transition-duration: 0s;
+}
+#live-call-mode-karaoke-screen.kx-on .kx-call.is-lit.kx-t-flash {
+  animation: kxRowFlash 0.3s ease-out 1 both;
+}
+#live-call-mode-karaoke-screen.kx-on .kx-call.is-lit.kx-t-short {
+  animation: kxRowBounce 0.32s ease-out 1 both;
+}
+/* 名前コール：名前の部分にその人の色の下線（文字の色は変えない）。複数の名前は、それぞれの色 */
+#live-call-mode-karaoke-screen.kx-on .kx-call .cx-name-part,
+#live-call-mode-karaoke-screen.kx-on .karaoke-call-hud-text .cx-name-part {
+  text-decoration-line: underline;
+  text-decoration-color: var(--name-color, #ffc24d);
+  text-decoration-thickness: 3px;
+  text-underline-offset: 4px;
+  text-decoration-skip-ink: none;
+}
+#live-call-mode-karaoke-screen.kx-on .kx-call .cx-name-sep,
+#live-call-mode-karaoke-screen.kx-on .karaoke-call-hud-text .cx-name-sep {
+  font-size: 0.8em;
+  font-weight: 600;
+  opacity: 0.75;
+}
+#live-call-mode-karaoke-screen.kx-on .kx-call.kx-names-multi.is-lit,
+#live-call-mode-karaoke-screen.kx-on .kx-call.kx-names-or.is-lit {
+  background-image: linear-gradient(#fff2bf, #fff2bf), var(--kx-call-grad, none);
+  background-size:
+    100% calc(100% - 4px),
+    100% 4px;
+  background-position:
+    top,
+    bottom;
+  background-repeat: no-repeat;
+}
+#live-call-mode-karaoke-screen.kx-on.kx-paused .kx-call {
+  animation-play-state: paused;
+}
+@media (min-height: 1000px), (min-width: 768px) {
+  #live-call-mode-karaoke-screen.kx-on .kx-call-row {
+    font-size: 1.12rem;
+  }
+}
+
+/* ===== 【2026-10-31 live-unify】下：再生の位置のバー（端末の音源があるときだけ）と、調整の注意 ===== */
+#live-call-mode-karaoke-screen.kx-on .kx-seek-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 4px;
+}
+#live-call-mode-karaoke-screen.kx-on .kx-seek {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 36px;
+  accent-color: #d6246e;
+}
+#live-call-mode-karaoke-screen.kx-on .kx-seek-time {
+  flex: none;
+  color: #4a2e42;
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+#live-call-mode-karaoke-screen.kx-on .kx-offset-warning {
+  display: none;
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #fff1d6;
+  color: #6b3a00;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+#live-call-mode-karaoke-screen.kx-on.kx-offset-warn .kx-offset-warning {
+  display: block;
+}
+#live-call-mode-karaoke-screen.kx-on.kx-offset-warn .karaoke-offset-inline-label {
+  color: #b34700;
+  font-weight: 900;
+}
+
+@keyframes kxRowFlash {
+  0% {
+    transform: scale(1.08);
+    box-shadow:
+      0 0 0 2px #ffc24d,
+      0 0 22px 10px rgba(255, 255, 255, 0.85);
+  }
+  100% {
+    transform: none;
+  }
+}
+@keyframes kxRowBounce {
+  0% {
+    transform: translateY(0);
+  }
+  45% {
+    transform: translateY(-3px) scale(1.04);
+  }
+  100% {
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  #live-call-mode-karaoke-screen.kx-on .kx-call.is-lit.kx-t-flash,
+  #live-call-mode-karaoke-screen.kx-on .kx-call.is-lit.kx-t-short {
+    animation: none;
+  }
+  #live-call-mode-karaoke-screen.kx-on .kx-call {
+    transition: none;
+  }
+}

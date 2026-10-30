@@ -9,7 +9,7 @@ import { getScreenElement, findScreenNameOfElement } from "./screens.js";
 import { initAppHistory, resolveBackTarget } from "./appHistory.js";
 import { initHomeScreen, renderHomePlayerStats, setLiveCallEntryHandler, formatIntroBest } from "./homeScreen.js";
 // 【2026-10-30新設・リニューアル第3〜5段階】新しいライブコールと、データ管理の「完成版コールデータを読み込む」
-import { initLiveCallScreen, openLiveCallScreen, goBackInLiveCall, refreshLiveCallAfterDataChange } from "./liveCallScreen.js";
+import { initLiveCallScreen, openLiveCallScreen, goBackInLiveCall, refreshLiveCallAfterDataChange, openLiveCallSongMode } from "./liveCallScreen.js";
 import { initCallReleaseImportUi, onReleasedCallsChanged, notifyReleasedCallsChanged, refreshCallReleaseStatus } from "./callReleaseImportUi.js";
 // 【2026-10-30新設】データ管理の「最新版データを読み込む」（歌詞・完成版コールを1つの ZIP から）
 import { initUnifiedPackImportUi } from "./unifiedPackImportUi.js";
@@ -1998,10 +1998,10 @@ function openSpecialModeById(modeId) {
     // （イントロ／ランダム再生／歌詞クイズ）の選択画面を必ず経由するようにした。
     navigateWithScrollMemory("customQuizTypeSelect");
   } else if (modeId === "liveCallMode") {
-    // 【2026-10-29 本人の判断で前の版に戻す】新しいライブコールの光り方（MIX の目安の進み方など）が本人の意図と違ったため、
-    // ライブコールモードは v383 と同じ曲一覧（同期モード・カラオケ同期）へ。新しい3モードはホームの「新しいライブコール（試験中）」から開く
-    renderLiveCallModeList();
-    navigateWithScrollMemory("liveCallModeList");
+    // 【2026-10-31 live-unify・本人の指示】「コールを覚える」の入口を1つにまとめる：ホームのゲーム欄・ライブ欄・ゲーム画面のカード・
+    // ライブのページ・ガイド・全体検索のどこから来ても、新しいライブコール（曲の一覧 → 曲のページ → コール表／ライブコール／カラオケ）を開く。
+    // 前の版（同期モード・カラオケ同期）の画面とデータは消さずに残し、新しい一覧のいちばん下の［今までの版を開く］からだけ開ける（openClassicLiveCallMode）
+    openLiveCallFrom(document.body.dataset.screen || "start");
   } else if (modeId === "timeAttack") {
     updateTimeAttackBestChip();
     navigateWithScrollMemory("timeAttackSetup");
@@ -2074,6 +2074,12 @@ initLiveCallModeScreen({
 // 直接この画面を開くようになったため、間に古い「特別モード一覧画面」を挟まない）。
 liveCallModeListBackButtonElement.addEventListener("click", () => {
   playSfx(SFX_EVENTS.UI_BACK);
+  // 【2026-10-31 live-unify】新しいライブコールの一覧の［今までの版を開く］から来たときは、その一覧へ戻す
+  if (classicOpenedFromNewList) {
+    classicOpenedFromNewList = false;
+    navigateWithScrollMemory("liveCall");
+    return;
+  }
   navigateWithScrollMemory("start");
 });
 
@@ -2188,13 +2194,22 @@ initKaraokeSyncScreen({
 // 開くたびに、今開いているタブの中身だけを最新の状態で描画し直す
 // （曲を切り替えてから開いた場合でも、今の曲のハイライトが正しく反映されるようにするため）。
 let activeCallGuideTab = "member";
+// 【2026-10-31 live-unify】新しいライブコールから開いたときの曲（undefined＝前の版の再生画面の曲を使う。null＝曲を選ぶ前）
+let callGuideSongOverride;
 
 async function renderActiveCallGuideTab() {
-  await renderCallGuideTab(activeCallGuideTab, callGuideTabPanelElements, getCurrentLiveCallSongId());
+  const songId = callGuideSongOverride === undefined ? getCurrentLiveCallSongId() : callGuideSongOverride;
+  await renderCallGuideTab(activeCallGuideTab, callGuideTabPanelElements, songId);
 }
 
 function openCallGuideModal() {
   playClickSound();
+  callGuideSongOverride = undefined;
+  renderActiveCallGuideTab();
+  callGuideModalElement.hidden = false;
+}
+function openCallGuideModalForSong(songId) {
+  callGuideSongOverride = songId ?? null;
   renderActiveCallGuideTab();
   callGuideModalElement.hidden = false;
 }
@@ -8896,14 +8911,37 @@ initLiveCallScreen(
     heading: document.getElementById("live-call-heading"),
   },
   {
-    async openKaraokeWithCalls(songId, calls) {
+    // extra：{ layout（コール表の並び。赤いコールを歌詞の間に置くのに使う）, hasAudio, availability（3つのモードの使える／使えない） }
+    async openKaraokeWithCalls(songId, calls, extra = {}) {
       document.getElementById("live-call-audio")?.pause();
-      await openKaraokeSyncScreen(songId, { calls });
+      await openKaraokeSyncScreen(songId, {
+        calls,
+        layout: extra.layout ?? null,
+        hasAudio: extra.hasAudio,
+        availability: extra.availability ?? null,
+        // カラオケの上の［コール表／ライブコール］：カラオケを片付けて、新しいライブコールのその曲・そのモードへ
+        onRequestMode: (mode) => {
+          playSfx(SFX_EVENTS.UI_CLICK);
+          closeKaraokeSyncScreen();
+          karaokeReturnScreen = "liveCallModePlayType";
+          showScreen("liveCall");
+          openLiveCallSongMode(songId, mode);
+        },
+      });
       karaokeReturnScreen = "liveCall";
       showScreen("liveCallModeKaraoke");
     },
+    openCallGuide: (songId) => openCallGuideModalForSong(songId),
+    openClassic: () => openClassicLiveCallMode(),
   },
 );
+// 前の版（同期モード・カラオケ同期）の曲一覧。新しい一覧の［今までの版を開く］からだけ開く（画面・保存データは前のまま）
+let classicOpenedFromNewList = false;
+function openClassicLiveCallMode() {
+  classicOpenedFromNewList = true;
+  renderLiveCallModeList();
+  navigateWithScrollMemory("liveCallModeList");
+}
 setLiveCallEntryHandler((mode) => openLiveCallFrom(document.body.dataset.screen || "start", mode));
 // 【2026-10-30 fix-live】ライブコールモード（前の版）の曲一覧が空のときの案内のボタン（行き止まりにしない。前の版の動きそのものは変えない）
 // ・データを追加する：設定・データ管理の「追加データパック」の欄（前の版のコールは、ここで入る）
