@@ -60,6 +60,10 @@ function normalizeEntry(raw) {
     leaderboardMergedAt: toNumberOrNull(raw.leaderboardMergedAt),
     lastError: typeof raw.lastError === "string" ? raw.lastError.slice(0, 200) : null,
     nextRetryAt: toNumberOrNull(raw.nextRetryAt),
+    // 【2026-10-31追加】起動時の自動処理（ランキングの引き継ぎ）もせず、本人がフレンド画面で確認して実行するまで待つ印。
+    // 端末が後から（クラウドのバックアップの previousUids を読み直して）見つけた旧UIDに付ける。
+    // （付いていない記録には項目自体を作らない＝今までの記録の形は変えない）
+    ...(raw.requiresApproval === true ? { requiresApproval: true } : {}),
   };
 }
 
@@ -122,7 +126,7 @@ export function pruneUidMergeQueue(queue) {
 // 旧UIDを列へ加える（純粋関数）。
 //   currentUid … 今のUID（同じなら加えない）
 // 戻り値：{ queue, added: boolean, reason: "added"|"already-queued"|"already-merged"|"invalid"|"same-as-current" }
-export function enqueueUidMerge(queue, { oldUid, backupId = null, currentUid = null, nowMs = Date.now() }) {
+export function enqueueUidMerge(queue, { oldUid, backupId = null, currentUid = null, nowMs = Date.now(), requiresApproval = false }) {
   const list = Array.isArray(queue) ? queue.map((e) => ({ ...e })) : [];
   if (!isUid(oldUid)) return { queue: list, added: false, reason: "invalid" };
   if (currentUid && oldUid === currentUid) return { queue: list, added: false, reason: "same-as-current" };
@@ -133,7 +137,7 @@ export function enqueueUidMerge(queue, { oldUid, backupId = null, currentUid = n
     return { queue: list, added: false, reason: existing.state === UID_MERGE_STATE.MERGED ? "already-merged" : "already-queued" };
   }
   list.push(
-    normalizeEntry({ oldUid, backupId, state: UID_MERGE_STATE.PENDING, recordedAt: nowMs, updatedAt: nowMs, attempts: 0 })
+    normalizeEntry({ oldUid, backupId, state: UID_MERGE_STATE.PENDING, recordedAt: nowMs, updatedAt: nowMs, attempts: 0, requiresApproval })
   );
   return { queue: pruneUidMergeQueue(list).queue, added: true, reason: "added" };
 }
@@ -154,6 +158,21 @@ export function selectActiveUidMerge(queue, { nowMs = Date.now(), currentUid = n
     return entry;
   }
   return null;
+}
+
+// 【2026-10-31追加】起動時の自動処理（ランキングの引き継ぎだけ）の対象を、記録が古い順に返す（純粋関数）。
+//   ・整理済み（merged）と、ランキングの引き継ぎが済んだもの（leaderboardMergedAt あり＝あとは本人の確認待ち）は含めない
+//   ・権限で止まっている（blocked）ものは、再確認の時刻を過ぎたものだけ
+//   ・今のUIDと同じ旧UIDも返す（呼び出し側が「IDが元に戻った」として片付ける）
+// 公開プロフィール・オンライン記録の整理は自動では行わない（本人がフレンド画面の案内から確認して実行する）。
+export function listAutoMigrationTargets(queue, { nowMs = Date.now() } = {}) {
+  return sortByRecorded(Array.isArray(queue) ? queue : []).filter((entry) => {
+    if (entry.state === UID_MERGE_STATE.MERGED) return false;
+    if (entry.leaderboardMergedAt !== null && entry.leaderboardMergedAt !== undefined) return false;
+    if (entry.requiresApproval === true) return false; // 本人の確認待ち（自動では何もしない）
+    if (entry.state === UID_MERGE_STATE.BLOCKED) return entry.nextRetryAt === null || entry.nextRetryAt <= nowMs;
+    return true;
+  });
 }
 
 // 1件の状態を変える（純粋関数）。存在しない旧UIDなら何もしない。

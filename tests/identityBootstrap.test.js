@@ -303,7 +303,9 @@ export async function runIdentityBootstrapWiringTests() {
   const supersession = await fetchText("js/uidSupersession.js");
   assertEqual(supersession.includes("export async function runPendingUidMigration("), true, "uidSupersession: 自動引き継ぎ（ランキング→公開プロフィール→presence）がある");
   assertEqual(supersession.includes('return { status: "leaderboard-incomplete", leaderboard'), true, "uidSupersession: ランキングの引き継ぎが未完了なら明示的に返す");
-  assertEqual(supersession.includes("clearPendingUidMerge(player.playerId, pending.oldUid); // 完了"), true, "uidSupersession: 全て片付いたら確認待ちを消す（completedUidMerges に記録）");
+  // 【2026-10-31改訂】起動時の自動処理では、旧IDの公開プロフィール・オンライン記録を消さない（本人の確認待ちに残す）
+  assertEqual(supersession.includes('status: "awaiting-approval"'), true, "uidSupersession: ランキングの引き継ぎの後は、本人の確認待ちのまま残す");
+  assertEqual(supersession.includes("clearPendingUidMerge(player.playerId, plan.oldUid);"), true, "uidSupersession: 本人が実行した整理が全部済んだときだけ確認待ちを消す（completedUidMerges に記録）");
 
   const profile = await fetchText("js/playerProfile.js");
   assertEqual(profile.includes("export function getCompletedUidMerges(playerId)"), true, "playerProfile: 完了済み旧UIDの記録がある");

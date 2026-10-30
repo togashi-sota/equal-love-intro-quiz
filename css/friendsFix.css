@@ -18,6 +18,15 @@
   overflow-wrap: anywhere;
 }
 
+/* 【2026-10-31追加】自分の以前のIDらしいカード（未確認）・確認済みの以前のIDカード（管理者のみ）は、
+   今の自分や他の人のカードと見分けやすいよう、点線の枠で控えめに出す（色だけに頼らず、補足の文言でも伝える） */
+.fan-profile-card[data-identity-relation="my-old-candidate"],
+.fan-profile-card[data-identity-relation="my-old-verified"],
+.fan-profile-card[data-identity-relation="old-verified"] {
+  border-style: dashed;
+  opacity: 0.85;
+}
+
 /* 「詳細情報」内のIDの変更履歴・管理者判定（既存の接続診断の詳細行と同じ見た目） */
 .fan-profiles-identity-diag {
   margin-top: 8px;
@@ -121,4 +130,24 @@ summary.account-recovery-title {
   border-radius: 8px;
   border: 1px solid rgba(127, 127, 127, 0.4);
   font-size: 16px;
+}
+
+/* 【2026-10-31追加・本人指示】以前のIDの引き継ぎ案内：一覧の下に、たたんだ形で控えめに出す（押すと開く） */
+.fan-profiles-uid-merge-fold {
+  margin: 12px 0;
+}
+.fan-profiles-uid-merge-summary {
+  cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  border: 1px dashed var(--color-card-border);
+  border-radius: 12px;
+  font-size: 0.8rem;
+  color: var(--color-text);
+  opacity: 0.85;
+}
+.fan-profiles-uid-merge-fold[open] > .fan-profiles-uid-merge-summary {
+  margin-bottom: 8px;
 }

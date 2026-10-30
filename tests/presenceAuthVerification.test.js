@@ -129,7 +129,8 @@ async function runWiringTests() {
   assertEqual(hb.includes("decideHeartbeatDenialAction(") && hb.includes('action === "recreate-connection"'), true, "S3: ハートビートが拒否されたら、今の接続のときだけ作り直す");
   assertEqual(src.includes("{ serverNowMs: getPresenceNowMs() }"), true, "S4: 古い接続ノードの掃除はサーバー時刻で判定する");
   assertEqual(src.includes("PRESENCE_LASTSEEN_HEARTBEAT_INTERVAL_MS = 120000"), true, "S5: ハートビート間隔（2分）は変えていない");
-  assertEqual(/visibilityState[^\n]*hidden[^\n]*remove|setVisibility/.test(src), false, "S6: バックグラウンドで自分からオフラインにする処理は入れていない（仕様判断が必要なため）");
+  // 【2026-10-31改訂・本人の判断「アプリを閉じたのにオンラインのまま」を起こさない】画面が隠れたら自分の接続ノードを外す
+  assertEqual(src.includes('if (document.visibilityState === "hidden") {') && src.includes("pausePresenceForBackground()"), true, "S6: 画面が隠れたら、この端末の接続ノードを外す（本人の判断で仕様変更）");
 }
 
 export async function runPresenceAuthVerificationTests() {

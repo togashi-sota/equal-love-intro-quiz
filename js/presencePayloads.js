@@ -359,3 +359,33 @@ export function estimatePresenceWriteBudget({ heartbeatIntervalMs = 120000, conn
   const bytesPerWrite = timestampMode === "supported" ? 110 : 60;
   return { heartbeatsPerHour, writesPerHour, approxBytesPerHour: writesPerHour * bytesPerWrite };
 }
+
+// ---------------------------------------------------------------------------
+// 【2026-10-31追加・本人の実機報告「サブがアプリを閉じたのに、1日ずっとオンライン」】
+// ホーム画面へ戻しただけ（完全には終了していない）の端末は、裏でアプリが動き続け、2分ごとのハートビートで
+// lastSeen を更新し続けるため、ずっと「オンライン」に見えていた。今は画面が隠れたら自分の接続ノードを外し、
+// 画面へ戻ったら付け直す（本人の判断：この仕様で進めてよい）。
+// オンライン対戦・パーティーなど、ルームコードを LINE で送るために少しだけアプリを離れることがある画面では、
+// すぐには外さず、短い猶予（60秒）の後に外す（戻ってくれば何もしない）。
+// ---------------------------------------------------------------------------
+export const PRESENCE_HIDDEN_GRACE_MS = 60 * 1000;
+
+// 画面が隠れたときに、何ミリ秒後に接続ノードを外すか（純粋関数）。0 ならすぐ外す。
+//   reason: "hidden"（visibilitychange）／"pagehide"（ページを離れる・閉じる。猶予なし）
+export function decideHiddenPresenceDelayMs({ screenName = null, reason = "hidden" } = {}) {
+  if (reason === "pagehide") return 0;
+  if (typeof screenName === "string" && (screenName.startsWith("online") || isGameplayScreenName(screenName))) {
+    return PRESENCE_HIDDEN_GRACE_MS;
+  }
+  return 0;
+}
+
+// 【2026-10-31追加・本人の実機報告「ルームを解散したのに、フレンドに『🏠 同じルームにいます』が残る」】
+// 「今いるルームの参加者」を、今いるルーム（currentRoomId）と最後に受け取ったルームの中身（latestRoom）の両方から決める
+// （純粋関数）。ルームを出た・解散した・キックされた後は currentRoomId が無くなるので、古い中身が残っていても空にする。
+// 別のルームの古い中身（ルームIDが違う）も使わない。
+export function selectCurrentRoomPlayerUids({ currentRoomId = null, latestRoom = null } = {}) {
+  if (!currentRoomId || !latestRoom || typeof latestRoom !== "object") return new Set();
+  if (latestRoom.roomId && latestRoom.roomId !== currentRoomId) return new Set();
+  return new Set(Object.keys(latestRoom.players ?? {}));
+}

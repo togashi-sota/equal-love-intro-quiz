@@ -155,10 +155,71 @@ export function collapseSamePlayerProfiles(profiles, options = {}) {
       if (p !== primary && p.uid !== myUid) unverifiedByUid.set(p.uid, primary.uid);
     });
   });
+  // 【2026-10-31追加】代表カードの側にも「未確認の以前のIDらしいカード」があることを記録する（表示の補足だけに使う）
+  const candidatesByPrimary = new Map();
+  unverifiedByUid.forEach((primaryUid, uid) => {
+    if (!candidatesByPrimary.has(primaryUid)) candidatesByPrimary.set(primaryUid, []);
+    candidatesByPrimary.get(primaryUid).push(uid);
+  });
   return {
-    profiles: visible.map((p) => (unverifiedByUid.has(p.uid) ? { ...p, unverifiedSameAsUid: unverifiedByUid.get(p.uid) } : p)),
+    profiles: visible.map((p) => {
+      if (unverifiedByUid.has(p.uid)) return { ...p, unverifiedSameAsUid: unverifiedByUid.get(p.uid) };
+      if (candidatesByPrimary.has(p.uid)) return { ...p, unverifiedOldUids: candidatesByPrimary.get(p.uid) };
+      return p;
+    }),
     hidden,
   };
+}
+
+// ---------------------------------------------------------------------------
+// 【2026-10-31追加・本人の実機報告（フレンドに「がしお #Gr72」と「がしお #PWW2」の2行）】
+// ---------------------------------------------------------------------------
+// 同じUIDのカードは1枚だけにする（純粋関数）。publicProfiles は UID がキーなので本来は重複しないが、
+// 将来の取得経路の追加・再描画の重なりで同じ UID が2回渡されても、行が増えないようにする安全弁。
+// 同じ UID が複数あれば、updatedAt が新しい方を残す（同じなら先に来た方）。並び順は最初に現れた位置のまま。
+export function dedupeProfilesByUid(profiles) {
+  const list = Array.isArray(profiles) ? profiles.filter((p) => p && typeof p.uid === "string" && p.uid) : [];
+  const indexByUid = new Map();
+  const result = [];
+  list.forEach((p) => {
+    if (!indexByUid.has(p.uid)) {
+      indexByUid.set(p.uid, result.length);
+      result.push(p);
+      return;
+    }
+    const index = indexByUid.get(p.uid);
+    const kept = result[index];
+    const keptAt = typeof kept.updatedAt === "number" ? kept.updatedAt : -Infinity;
+    const nextAt = typeof p.updatedAt === "number" ? p.updatedAt : -Infinity;
+    if (nextAt > keptAt) result[index] = p;
+  });
+  return result;
+}
+
+// カードと「見ている人」の関係（純粋関数）。表示の出し分け（補足・「一緒に遊ぶ」の有無）にだけ使う。
+//   "me"                 … 今の自分のカード
+//   "my-old-verified"    … 自分の以前のID（端末の所有権確認、または対応表で確かめた）。管理者にだけ残るカード
+//   "old-verified"       … 他の人の以前のID（対応表で確かめた）。管理者にだけ残るカード
+//   "my-old-candidate"   … 自分の以前のIDかもしれない（本人キーと名前が同じだけ。未確認）
+//   "old-candidate"      … 他の人の以前のIDかもしれない（同上。未確認）
+//   "other"              … 別の人（名前が同じでも、確かめられない限りここ）
+// 表示名だけでは "other" 以外にしない（本人キー＋名前の一致は「未確認」、まとめる・隠すのは確かめた場合だけ）。
+export function classifyProfileRelation(profile, { myUid = null } = {}) {
+  if (!profile || typeof profile.uid !== "string") return "other";
+  if (myUid !== null && profile.uid === myUid) return "me";
+  if (profile.duplicateOfUid) {
+    return profile.duplicateReason === "my-old-uid" || (myUid !== null && profile.duplicateOfUid === myUid) ? "my-old-verified" : "old-verified";
+  }
+  if (profile.unverifiedSameAsUid) {
+    return myUid !== null && profile.unverifiedSameAsUid === myUid ? "my-old-candidate" : "old-candidate";
+  }
+  return "other";
+}
+
+// 「一緒に遊ぶ」を出してよい相手か（純粋関数）。自分自身・自分の以前のID（確かめた／らしい）には出さない。
+export function canInviteProfile(profile, { myUid = null } = {}) {
+  const relation = classifyProfileRelation(profile, { myUid });
+  return relation !== "me" && relation !== "my-old-verified" && relation !== "my-old-candidate";
 }
 
 // 「同じ表示名の別プレイヤー」に印を付ける（純粋関数）。まとめた後の一覧に対して使う。
@@ -166,14 +227,17 @@ export function collapseSamePlayerProfiles(profiles, options = {}) {
 export function annotateSameNameProfiles(profiles) {
   const list = Array.isArray(profiles) ? profiles : [];
   const counts = new Map();
+  // 【2026-10-31改訂】「以前のIDかもしれない（未確認）」のカードも数えない。そのカードには専用の補足が付くため、
+  // 代表カード（本人の今のカードなど）に「同じ名前の別プレイヤーがいます」と誤って出さない（本人の実機報告）。
+  const isCounted = (p) => !p.duplicateOfUid && !p.unverifiedSameAsUid;
   list.forEach((p) => {
-    if (p.duplicateOfUid) return; // 管理者向けに残した旧IDカードは数えない
+    if (!isCounted(p)) return;
     const key = normalizeDisplayNameForCompare(p.displayName);
     counts.set(key, (counts.get(key) ?? 0) + 1);
   });
   return list.map((p) => {
     const key = normalizeDisplayNameForCompare(p.displayName);
-    if (!p.duplicateOfUid && (counts.get(key) ?? 0) >= 2) return { ...p, sameNameSuffix: shortUidSuffix(p.uid) };
+    if (isCounted(p) && (counts.get(key) ?? 0) >= 2) return { ...p, sameNameSuffix: shortUidSuffix(p.uid) };
     return p;
   });
 }
@@ -186,11 +250,19 @@ export function buildProfileIdentityNote(profile, { myUid = null } = {}) {
   }
   // 【2026-10-28追加】本人キーと名前が同じだが、改ざんできない証拠が無いカード（隠さない）
   if (profile.unverifiedSameAsUid) {
+    // 【2026-10-31】見ている本人の以前のIDらしいときは「あなたの」と書く（本人が他人と取り違えないように）
+    if (myUid !== null && profile.unverifiedSameAsUid === myUid) {
+      return `#${shortUidSuffix(profile.uid)}・あなたの以前のIDかもしれません（未確認）`;
+    }
     return `#${shortUidSuffix(profile.uid)}・#${shortUidSuffix(profile.unverifiedSameAsUid)} の以前のIDかもしれません（未確認）`;
   }
+  const isMe = myUid !== null && profile.uid === myUid;
   if (profile.sameNameSuffix) {
-    const isMe = myUid !== null && profile.uid === myUid;
     return isMe ? `#${profile.sameNameSuffix}（あなた）・同じ名前の別プレイヤーがいます` : `#${profile.sameNameSuffix}・同じ名前の別プレイヤー`;
+  }
+  // 【2026-10-31】自分のカードの下に「以前のIDらしいカード」があるときは、どちらが今の自分かを示す
+  if (isMe && Array.isArray(profile.unverifiedOldUids) && profile.unverifiedOldUids.length > 0) {
+    return `#${shortUidSuffix(profile.uid)}（あなた・今のID）`;
   }
   return null;
 }

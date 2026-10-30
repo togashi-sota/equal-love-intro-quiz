@@ -124,7 +124,9 @@ export async function runCommercialsAndFriendsUiTests() {
   assertEqual(doc.getElementById("fan-profiles-details")?.tagName, "DETAILS", "G: ID・診断は折りたたみ（details）の中");
   assertEqual(doc.getElementById("fan-profiles-details").contains(doc.getElementById("fan-profiles-my-uid")), true, "G: あなたのID は詳細情報の中に残っている（削除していない）");
   assertEqual(doc.getElementById("fan-profiles-details").contains(doc.getElementById("fan-profiles-presence-diag")), true, "G: 接続診断は詳細情報の中に残っている");
-  assertEqual(order("fan-profiles-uid-merge-card") < order("fan-profiles-list"), true, "G: 本当に引き継ぎが必要なときの案内は一覧の上（重要な案内は隠さない）");
+  // 【2026-10-31改訂・本人指示「ずっと一番上に出ていて邪魔。確認するだけなら一番下へ」】一覧の下へ、たたんだ形で
+  assertEqual(order("fan-profiles-uid-merge-card") > order("fan-profiles-list"), true, "G: 以前のIDの引き継ぎ案内は一覧の下（一覧を主役にする）");
+  assertEqual(doc.getElementById("fan-profiles-uid-merge-card").tagName, "DETAILS", "G: 引き継ぎ案内はたためる形（押すと開く）");
   assertEqual(doc.getElementById("fan-profiles-uid-merge-card").hasAttribute("hidden"), true, "G: 引き継ぎ案内は必要なときだけ表示（初期は非表示）");
   assertEqual(doc.getElementById("fan-profiles-private-note") !== null, true, "G: 公開OFFの人への短い案内がある");
   assertEqual(doc.getElementById("admin-backup-link").hasAttribute("hidden"), true, "G: 管理者用ボタンは初期非表示（正式な管理者判定で表示）");

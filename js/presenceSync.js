@@ -48,6 +48,7 @@ import {
   shouldTryConnectionTimestamp,
   buildPresenceHeartbeatWrites,
   decideHeartbeatDenialAction,
+  decideHiddenPresenceDelayMs,
   PRESENCE_CONNECTION_TIMESTAMP_UNSUPPORTED_KEY,
 } from "./presencePayloads.js";
 import { setPresenceFact } from "./presenceDiagnostics.js";
@@ -73,6 +74,12 @@ let lastWrittenIsPlaying = null;
 let connectionWriteFailed = false;
 // 直近に lastSeen を書いた時刻（端末時刻）。画面復帰時の即時更新を短時間に何度も行わないため。
 let lastHeartbeatWrittenAtMs = 0;
+// 【2026-10-31追加・本人の実機報告「サブがアプリを閉じたのに、1日ずっとオンライン」】
+// 画面が隠れている間（ホームへ戻した・別のアプリへ切り替えた）は、自分の接続ノードを外してハートビートを止める。
+// backgroundPaused … 外している最中か。true の間は .info/connected が再発火しても接続ノードを作らない。
+// hiddenPauseTimerId … 猶予つきで外すときの予約（オンライン対戦の画面など。戻ってきたら取り消す）。
+let backgroundPaused = false;
+let hiddenPauseTimerId = null;
 
 // 【2026-10-28追加】Firebase のサーバー時刻と端末時刻の差（.info/serverTimeOffset、端末内で計算される値で
 // 読み取り課金は発生しない）。フレンド一覧の「オンライン／最終接続」をサーバー時刻基準で判定するために使う。
@@ -198,8 +205,6 @@ function writeHeartbeat(uid) {
 
 async function armPresenceForUid(uid) {
   const infoConnectedRef = ref(database, ".info/connected");
-  const lastSeenRef = ref(database, `presence/${uid}/lastSeen`);
-  const isPlayingRef = ref(database, `presence/${uid}/isPlaying`);
 
   // 【js/onlineBattle.jsの既存の.info/connected実装と同じ教訓】この監視は「接続が
   // 確立・再確立されるたびに」何度も発火する（切断→自動再接続のたびに再度trueになる）。
@@ -208,6 +213,28 @@ async function armPresenceForUid(uid) {
   const handleValue = (snapshot) => {
     isInfoConnected = snapshot.val() === true;
     if (snapshot.val() !== true) return; // 切断中はここでは何もしない（onDisconnectの予約に任せる）
+    // 【2026-10-31】画面が隠れている間は接続ノードを作らない（戻ったときに resumePresenceFromBackground が作る）
+    if (backgroundPaused) return;
+    armConnectionNode(uid);
+  };
+  onValue(infoConnectedRef, handleValue);
+  infoConnectedUnsubscribe = () => off(infoConnectedRef, "value", handleValue);
+}
+
+// 接続ノードを1つ作り、切断時の後片付け（onDisconnect）を予約する。.info/connected が true になるたび、
+// および画面へ戻ったとき（2026-10-31）に呼ぶ。
+function armConnectionNode(uid) {
+  const lastSeenRef = ref(database, `presence/${uid}/lastSeen`);
+  const isPlayingRef = ref(database, `presence/${uid}/isPlaying`);
+  // 【2026-10-31追加（エミュレータ検証で発見）】このタブが前に作った接続ノードが残っていれば、先に外す。
+  // 画面へ戻った瞬間に通信が実は固まっていた場合、そのとき作った接続ノードの onDisconnect はサーバーに届かず、
+  // 再接続の後に「誰も消さない残骸」になっていた。1つのタブの接続ノードは常に1つだけにする。
+  const previousConnectionRef = currentConnectionRef;
+  if (previousConnectionRef) {
+    onDisconnect(previousConnectionRef).cancel().catch(() => {});
+    remove(previousConnectionRef).catch(() => {});
+  }
+  {
     const connectionRef = push(ref(database, `presence/${uid}/connections`));
     currentConnectionRef = connectionRef;
     onDisconnect(connectionRef).remove();
@@ -242,9 +269,7 @@ async function armPresenceForUid(uid) {
         });
       })
       .catch(() => {});
-  };
-  onValue(infoConnectedRef, handleValue);
-  infoConnectedUnsubscribe = () => off(infoConnectedRef, "value", handleValue);
+  }
 }
 
 // 【2026-11-XX新設・本人指示：「🎮 プレイ中」表示】画面が切り替わるたびに1回だけ呼ばれる
@@ -279,17 +304,10 @@ export async function startFriendPresenceTracking() {
       return;
     }
     setPresenceFact("tracking", true);
+    // 【2026-10-31】起動した時点で画面が隠れていれば（裏で開かれた等）、接続ノードは画面へ戻ったときに作る
+    backgroundPaused = typeof document !== "undefined" && document.visibilityState === "hidden";
     await armPresenceForUid(uid);
-    const lastSeenRef = ref(database, `presence/${uid}/lastSeen`);
-    lastSeenHeartbeatTimerId = setInterval(() => {
-      // 【2026-10-28】接続ごとの生存時刻が使えるときは、lastSeen と一緒に自分の接続ノードも更新する（1回の書き込み）
-      if (connectionTimestampMode === "supported") {
-        writeHeartbeat(uid);
-        return;
-      }
-      lastHeartbeatWrittenAtMs = Date.now();
-      set(lastSeenRef, serverTimestamp()).catch(() => {});
-    }, PRESENCE_LASTSEEN_HEARTBEAT_INTERVAL_MS);
+    if (!backgroundPaused) startHeartbeatTimer(uid);
     // 【実機相当のBrowserペイン確認で発見・修正済みの過去のバグ（js/roomInviteUi.jsの
     // currentScreenName初期化漏れ）と同じ理由】起動時点で既にshowScreen()が呼ばれ終えて
     // いる可能性があるため、以後のonScreenChange通知を待つだけでなく、ここで現在画面を
@@ -306,6 +324,71 @@ export async function startFriendPresenceTracking() {
   }
 }
 
+// 2分ごとのハートビート（lastSeen の更新）を始める。二重には始めない。
+function startHeartbeatTimer(uid) {
+  if (lastSeenHeartbeatTimerId !== null) return;
+  const lastSeenRef = ref(database, `presence/${uid}/lastSeen`);
+  lastSeenHeartbeatTimerId = setInterval(() => {
+    // 【2026-10-28】接続ごとの生存時刻が使えるときは、lastSeen と一緒に自分の接続ノードも更新する（1回の書き込み）
+    if (connectionTimestampMode === "supported") {
+      writeHeartbeat(uid);
+      return;
+    }
+    lastHeartbeatWrittenAtMs = Date.now();
+    set(lastSeenRef, serverTimestamp()).catch(() => {});
+  }, PRESENCE_LASTSEEN_HEARTBEAT_INTERVAL_MS);
+}
+
+function stopHeartbeatTimer() {
+  if (lastSeenHeartbeatTimerId !== null) {
+    clearInterval(lastSeenHeartbeatTimerId);
+    lastSeenHeartbeatTimerId = null;
+  }
+}
+
+function clearHiddenPauseTimer() {
+  if (hiddenPauseTimerId !== null) {
+    clearTimeout(hiddenPauseTimerId);
+    hiddenPauseTimerId = null;
+  }
+}
+
+// 【2026-10-31追加】画面が隠れた：ハートビートを止め、この端末（このタブ）の接続ノードだけを外し、lastSeen を最後に1回書く。
+// 他の端末・他のタブの接続ノードには触れない（同じ人が別の端末で開いていれば、そちらでオンラインのまま）。
+// .info/connected の監視・lastSeen と isPlaying の onDisconnect の予約はそのまま（切断時の後片付けは今までどおり）。
+export function pausePresenceForBackground() {
+  clearHiddenPauseTimer();
+  if (!isTracking || !trackedUid || backgroundPaused) return false;
+  backgroundPaused = true;
+  stopHeartbeatTimer();
+  const connectionRef = currentConnectionRef;
+  currentConnectionRef = null;
+  if (connectionRef) {
+    onDisconnect(connectionRef).cancel().catch(() => {});
+    remove(connectionRef).catch(() => {});
+  }
+  lastHeartbeatWrittenAtMs = Date.now();
+  set(ref(database, `presence/${trackedUid}/lastSeen`), serverTimestamp()).catch(() => {});
+  setPresenceFact("connected", false);
+  return true;
+}
+
+// 【2026-10-31追加】画面へ戻った：接続ノードを付け直し（onDisconnect も付け直す）、ハートビートを再開する。
+export function resumePresenceFromBackground() {
+  clearHiddenPauseTimer();
+  if (!backgroundPaused) return false;
+  backgroundPaused = false;
+  if (!isTracking || !trackedUid) return false;
+  if (isInfoConnected) armConnectionNode(trackedUid); // 切断中なら、再接続（.info/connected）のときに作られる
+  startHeartbeatTimer(trackedUid);
+  return true;
+}
+
+// テスト・診断用：今、画面が隠れているために接続ノードを外しているか
+export function isPresencePausedForBackground() {
+  return backgroundPaused;
+}
+
 // 【Stage1・本人指示】公開プロフィールをOFFにしたとき、および同じ端末で公開OFFの
 // プレイヤーへ切り替えたときに呼ぶ（js/publicProfileSync.jsのsyncFriendPresenceToActivePlayer()・
 // setPublicProfileSharingEnabled()参照）。connections子ノードの削除に加えて、
@@ -318,10 +401,9 @@ export function stopFriendPresenceTracking() {
     infoConnectedUnsubscribe();
     infoConnectedUnsubscribe = null;
   }
-  if (lastSeenHeartbeatTimerId !== null) {
-    clearInterval(lastSeenHeartbeatTimerId);
-    lastSeenHeartbeatTimerId = null;
-  }
+  stopHeartbeatTimer();
+  clearHiddenPauseTimer();
+  backgroundPaused = false;
   if (currentConnectionRef) {
     onDisconnect(currentConnectionRef).cancel().catch(() => {});
     remove(currentConnectionRef).catch(() => {});
@@ -394,10 +476,23 @@ export async function fetchAllPresenceOnce() {
 // iOS ではバックグラウンド中に setInterval が止まるため、復帰直後は lastSeen が最大で数分古いまま
 // 残ることがある。画面が再び表示されたときに1回だけ lastSeen を更新する（30秒以内に書いていれば書かない）。
 // 追加の書き込みは「アプリへ戻った回数」ぶんだけ（1回数十バイト）で、読み取りは増えない。
-// バックグラウンドへ行ったときに自分からオフラインにする処理は、仕様の判断が必要なため入れていない
-// （報告書 tools/feature-research/2026-10-28/id-presence-report.md の「本人判断が必要な点」参照）。
+// 【2026-10-31改訂・本人の判断】バックグラウンドへ行ったら、自分の接続ノードを外す（上の pausePresenceForBackground）。
+// オンライン対戦などの画面では60秒の猶予の後に外す（js/presencePayloads.js の decideHiddenPresenceDelayMs）。
+// 画面へ戻ったら付け直す。ページを離れる・閉じる（pagehide）ときは猶予なしで外す。
 if (typeof document !== "undefined" && typeof document.addEventListener === "function") {
   document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") {
+      if (!isTracking || backgroundPaused) return;
+      const delayMs = decideHiddenPresenceDelayMs({ screenName: document.body?.dataset?.screen ?? null, reason: "hidden" });
+      clearHiddenPauseTimer();
+      if (delayMs <= 0) pausePresenceForBackground();
+      else hiddenPauseTimerId = setTimeout(pausePresenceForBackground, delayMs);
+      return;
+    }
+    if (document.visibilityState === "visible") {
+      clearHiddenPauseTimer();
+      if (resumePresenceFromBackground()) return; // 付け直しで lastSeen も書かれる
+    }
     if (
       shouldWriteResumeHeartbeat({
         visibilityState: document.visibilityState,
@@ -409,4 +504,15 @@ if (typeof document !== "undefined" && typeof document.addEventListener === "fun
       writeHeartbeat(trackedUid);
     }
   });
+  // 【2026-10-31追加】ページを離れる・アプリを閉じる（iOS のホーム画面アプリを上へスワイプして終了した場合など）。
+  // 猶予なしで、この端末の接続ノードを外す（届かなくても、サーバーが切断に気付けば onDisconnect が消す）。
+  if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
+    window.addEventListener("pagehide", () => {
+      if (isTracking) pausePresenceForBackground();
+    });
+    // 戻る・進むのキャッシュ（bfcache）から戻ったときは、画面へ戻ったのと同じ扱い
+    window.addEventListener("pageshow", (event) => {
+      if (event?.persisted && document.visibilityState === "visible") resumePresenceFromBackground();
+    });
+  }
 }

@@ -228,6 +228,8 @@ import {
 // ここに一度だけstopAudio()を足せば、全ての離脱経路（自分から退出／ルーム消滅／再戦）を
 // 個別に直さなくても一括でカバーできる（本人指示：クリーンアップ処理を複数箇所に散らばらせない）。
 import { stopAudio, attemptSilentUnlock } from "./audio.js";
+// 【2026-10-31追加】フレンド一覧の「同じルームにいます」の判定（今いるルームと一致するときだけ）
+import { selectCurrentRoomPlayerUids } from "./presencePayloads.js";
 
 let elements = null;
 let currentRoomId = null;
@@ -430,9 +432,11 @@ export function isCurrentUserRoomHost() {
 // 教える窓口」の設計方針）。ルームにいない・まだ参加者一覧を受信していない場合は
 // 空のSetを返す（安全側：判定できないときは「除外しない」のではなく、呼び出し側が
 // 空集合として扱えるようにするだけで、招待そのものを止めはしない）。
+// 【2026-10-31改訂・本人の実機報告「ルームを解散した後も『🏠 同じルームにいます』が残る」】
+// 退出・解散・キックの後も latestRoom（最後に受け取ったルームの中身）が残る経路があったため、
+// 「今いるルーム（currentRoomId）」と一致するときだけ参加者を返す（js/presencePayloads.js）。
 export function getCurrentOnlineRoomPlayerUids() {
-  if (latestRoom === null) return new Set();
-  return new Set(Object.keys(latestRoom.players ?? {}));
+  return selectCurrentRoomPlayerUids({ currentRoomId, latestRoom });
 }
 
 // 【2026-11-XX新設・本人指示：ルーム招待】招待を受けて参加するときに、js/roomInviteUi.js
@@ -483,6 +487,7 @@ export async function leaveOnlineBattleRoomCompletely() {
   await leaveRoom({ roomId: currentRoomId });
   stopListeningToRoom();
   currentRoomId = null;
+  latestRoom = null; // 【2026-10-31】出たルームの中身を残さない（フレンドの「同じルームにいます」が残らないように）
   isLeavingIntentionally = false;
   resetOnlineBattleMatchState();
   renderLastRoomBanner();
@@ -1828,6 +1833,7 @@ function renderLobbyInner(room) {
     stopListeningToRoom();
     stopCountdownWatching();
     currentRoomId = null;
+    latestRoom = null; // 【2026-10-31】キックされたルームの中身を残さない
     clearLastRoom();
     renderLastRoomBanner();
     elements.entryKickedNotice.hidden = false;
@@ -3501,6 +3507,7 @@ export function initOnlineBattleScreens(newElements) {
     stopListeningToRoom();
     stopCountdownWatching();
     currentRoomId = null;
+    latestRoom = null; // 【2026-10-31】出たルームの中身を残さない
     isLeavingIntentionally = false;
     renderLastRoomBanner();
     elements.navigateTo("onlineBattleEntry");
