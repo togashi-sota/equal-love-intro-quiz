@@ -170,6 +170,8 @@
     import { runLyricsQuizBattleCompatibilityTests, runLyricsQuizBattleCompatibilityRulesTests } from "./tests/lyricsQuizBattleCompatibility.test.js";
     import { runCallTextModeTests, runCallTextModeMarkupTests } from "./tests/callTextMode.test.js";
     import { runCallTextEditsTests } from "./tests/callTextEdits.test.js";
+    // 【2026-10-31新設】名前コールの判定（メンバーカラー）
+    import { runCallNameColorsTests } from "./tests/callNameColors.test.js";
     import { runTimeAttackScoreTests } from "./tests/timeAttackScore.test.js";
     import { runTimeAttackHistoryTests } from "./tests/timeAttackHistory.test.js";
     import { runTimeAttackScreenTests } from "./tests/timeAttackScreen.test.js";
@@ -424,6 +426,7 @@
     runCallTextModeTests();
     await runCallTextModeMarkupTests();
     await runCallTextEditsTests();
+    runCallNameColorsTests();
     runPresenceSecurityRulesTests();
     runRankingCandidateStoreTests();
     runCenterCelebrationTests();
