@@ -22,7 +22,7 @@ import { initGuideScreen, openGuideScreen, revealGuideSection, buildGuideCounts,
 import { initGameGuideScreen, openGameGuideScreen } from "../js/gameGuideScreen.js";
 import { HOME_ACTIONS } from "../js/homeScreen.js";
 import { HOME_SPECIAL_MODES_ORDER } from "../js/specialModesScreen.js";
-import { createNavStack, planScreenChange, applyScreenChange, resolveHubReturn, HUB_OF_SCREEN } from "../js/appNavigationStack.js";
+import { createNavStack, planScreenChange, applyScreenChange, resolveHubReturn, planSystemBack, findFallbackIndex, HUB_OF_SCREEN } from "../js/appNavigationStack.js";
 import { SONGS } from "../js/data/songs.js";
 import { filterSongsByCategory } from "../js/quiz.js";
 import { ACHIEVEMENTS } from "../js/achievementDefinitions.js";
@@ -225,6 +225,31 @@ export async function runGuidesTests() {
   assertEqual(resolveHubReturn(walk(["start", "guide", "settings"]), "settings", "start"), "guide", "E: ガイド → 設定 →［戻る］→ ガイド");
   assertEqual(resolveHubReturn(walk(["start", "guide", "songlist"]), "songlist", "appSearch"), "appSearch", "E: ホーム以外への［戻る］は変えない");
   assertEqual(Object.values(HUB_OF_SCREEN).every((hub) => ["gameHub", "musicHub", "guideHub"].includes(hub)), true, "E: 今までのまとめ画面の対応はそのまま");
+  // 【2026-10-31 guides-fix】ガイド → ランキング →［戻る］→ ガイド（ほかの「開く」と同じ）
+  assertEqual(resolveHubReturn(walk(["start", "guide", "timeAttackLeaderboard"]), "timeAttackLeaderboard", "start"), "guide", "E2: ガイド → ランキング →［戻る］→ ガイド");
+  assertEqual(resolveHubReturn(walk(["start", "timeAttackLeaderboard"]), "timeAttackLeaderboard", "start"), "start", "E2: ホームのランキングから来たときはホームへ");
+  {
+    const mainSource = await fetchText("js/main.js");
+    const homeRank = mainSource.slice(mainSource.indexOf('homeLeaderboardLinkElement.addEventListener("click"'), mainSource.indexOf("initTimeAttackHistoryScreen({"));
+    assertEqual(homeRank.includes("timeAttackLeaderboardReturnScreen = fromScreen") && !homeRank.includes('timeAttackLeaderboardReturnScreen = "start";'), true, "E2: ホーム上の［ランキング］（ガイドの「ランキングを開く」も同じボタン）の戻り先は、押した画面");
+    const onBack = mainSource.slice(mainSource.indexOf("backButton: timeAttackLeaderboardBackButtonElement,"), mainSource.indexOf("adminDeleteOverlay: timeAttackLeaderboardAdminDeleteOverlayElement"));
+    assertEqual(onBack.includes("navigateWithScrollMemory(timeAttackLeaderboardReturnScreen)"), true, "E2: ランキングの［戻る］（端末の戻るも同じボタン）は、スクロールの位置ごと戻す");
+    // ガイド →［イントロクイズへ］：ホームを新しく積む（ガイドの記録を消さない）→ 端末の「戻る」でガイドへ
+    const toIntro = mainSource.slice(mainSource.indexOf("} else if (open.intro) {"), mainSource.indexOf("} else if (open.help) {"));
+    assertEqual(toIntro.indexOf('forcePushNextScreen("start");') >= 0 && toIntro.indexOf('forcePushNextScreen("start");') < toIntro.indexOf('navigateWithScrollMemory("start");'), true, "E2: ［イントロクイズへ］はホームを新しく積んでから移る");
+    const appHistorySource = await fetchText("js/appHistory.js");
+    assertEqual(appHistorySource.includes("export function forcePushNextScreen(screenName)") && appHistorySource.includes("planScreenChange(stack, screenName, { forcePush })"), true, "E2: 次の1回だけ積む仕組み（js/appHistory.js）");
+  }
+  const guideStack = walk(["start", "guide"]);
+  const forced = planScreenChange(guideStack, "start", { forcePush: true });
+  assertEqual([planScreenChange(guideStack, "start").type, forced.type], ["back", "push"], "E2: ふつうはホームへ「戻る」、ガイドの［イントロクイズへ］だけ新しく積む");
+  const introStack = applyScreenChange(guideStack, forced, "start");
+  assertEqual([introStack.entries, introStack.index], [["start", "guide", "start"], 2], "E2: 記録は ホーム → ガイド → ホーム（ガイドが残る）");
+  const homeBack = planSystemBack({ screen: "start", modalOpen: false, hasBackControl: false });
+  assertEqual([homeBack.type, introStack.entries[findFallbackIndex(introStack, introStack.index - 1)]], ["fallback", "guide"], "E2: そのホームで端末の「戻る」→ ガイドへ（アプリの外へ出ない）");
+  assertEqual(resolveHubReturn(applyScreenChange(introStack, planScreenChange(introStack, "songlist"), "songlist"), "songlist", "start"), "start", "E2: 積み直したホームから開いた画面の［戻る］はホームへ（前のガイドへは行かない）");
+  const backHome = applyScreenChange(introStack, planScreenChange(introStack, "quiz"), "quiz");
+  assertEqual(planScreenChange(backHome, "start"), { type: "back", toIndex: 2, steps: 1 }, "E2: クイズのあとホームへは、すぐ前のホームへ戻る");
 
   // ===== F. 配線 =====
   assertEqual(Boolean(doc.querySelector("#game-guide-screen #game-guide-back-button.back-link")) && Boolean(doc.querySelector("#game-guide-screen #game-guide-content")), true, "F: ゲームのガイドの画面（戻る・中身の入れ物）");

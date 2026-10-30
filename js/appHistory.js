@@ -125,8 +125,16 @@ function flushPendingScreenChange() {
   if (screenName !== null && stack) applyScreenChangeNow(screenName);
 }
 
+// 次にその画面へ移るときだけ、記録を「戻る」ではなく新しく積む（ガイドの［イントロクイズへ］→ ホーム。main.js から使う）
+let forcePushScreen = null;
+export function forcePushNextScreen(screenName) {
+  forcePushScreen = screenName;
+}
+
 function applyScreenChangeNow(screenName) {
-  const plan = planScreenChange(stack, screenName);
+  const forcePush = forcePushScreen === screenName;
+  forcePushScreen = null;
+  const plan = planScreenChange(stack, screenName, { forcePush });
   const fromIndex = stack.index;
   stack = applyScreenChange(stack, plan, screenName);
   if (modalEntryActive) {
