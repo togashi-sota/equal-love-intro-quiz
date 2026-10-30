@@ -467,11 +467,11 @@
                   <span class="home-game-icon" aria-hidden="true"><svg class="hi"><use href="#hi-pencil"/></svg></span>
                   <span class="home-game-text"><span class="home-game-title">問題をつくる</span><span class="home-game-desc">好きな曲だけで<wbr>出題</span></span>
                 </button>
-                <!-- ライブコールモード（前の版）。ライブのカードにも同じ入口がある（同じ処理・同じ画面・同じ名前。数は10種類の中で1つ）。
-                     【2026-10-30】新しいライブコール（おためし版）と見分けられるよう「（今までの版）」を付けた -->
-                <button class="home-game home-game--call" type="button" data-home-action="live-call-classic">
+                <!-- 【2026-10-31 live-unify】「コールを覚える」＝新しいライブコール（曲の一覧 → 曲のページ → コール表／ライブコール／カラオケ）。
+                     ライブのカードにも同じ入口がある（同じ処理・同じ画面・同じ名前。数は10種類の中で1つ）。前の版の入口は出さない -->
+                <button class="home-game home-game--call" type="button" data-home-action="learn-calls">
                   <span class="home-game-icon" aria-hidden="true"><svg class="hi"><use href="#hi-mic"/></svg></span>
-                  <span class="home-game-text"><span class="home-game-title">コールを覚える<span class="home-game-title-sub">（今までの版）</span></span><span class="home-game-desc">歌詞とコールが<wbr>流れる</span></span>
+                  <span class="home-game-text"><span class="home-game-title">コールを覚える</span><span class="home-game-desc">コール表・<wbr>ライブ・<wbr>カラオケ</span></span>
                 </button>
               </div>
             </section>
@@ -486,8 +486,7 @@
         </section>
 
         <!-- ② ライブを楽しむ：会場の光（暗い背景に色とりどりの光）。
-             【2026-10-29 本人の判断】「コールを覚える」＝前の版のライブコールモード（同期・カラオケ同期）。
-             新しい3つ（コール表・ライブコール・カラオケ）は試験中として、遊び方を選んだ状態で開く。
+             【2026-10-31 live-unify】「コールを覚える」＝新しいライブコール（コール表・ライブコール・カラオケ）。入口は1つ。
              ライブ履歴＝【ライブ】ページ（id は以前のホームの入口のまま）。 -->
         <section id="home-card-live" class="home-card home-card--live" aria-labelledby="home-card-live-title">
           <div class="home-live-lights" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
@@ -500,30 +499,19 @@
             <span class="home-next-live-text"><b id="home-next-live-title"></b><small id="home-next-live-date"></small></span>
             <span class="home-chevron" aria-hidden="true">›</span>
           </button>
-          <!-- 【2026-10-30 夜間の修正・独立レビューの指摘】下の「新しいライブコール（おためし版）」との違いが分かる名前にし、少し控えめな見た目に -->
-          <button class="home-live-main" type="button" data-home-action="live-call-classic">
+          <!-- 【2026-10-31 live-unify・本人の指示】入口は「コールを覚える」の1つだけ。押すと曲の一覧 → 曲を選んで、コール表／ライブコール／カラオケ。
+               中の3つの札は「何ができるか」を見せる飾り（押す所はボタン全体の1つ）。前の版の入口・「おためし版」の3つの入口はやめた -->
+          <button class="home-live-main home-live-main--learn" type="button" data-home-action="learn-calls">
             <span class="home-live-main-icon" aria-hidden="true"><svg class="hi"><use href="#hi-mic"/></svg></span>
-            <span class="home-live-main-text"><b>コールを覚える<span class="home-live-main-sub">（今までの版）</span></b><small>前からある練習モード。<wbr>曲に合わせて<wbr>歌詞とコールが流れる</small></span>
+            <span class="home-live-main-text"><b>コールを覚える</b><small>曲を選んで、コール表・ライブコール・カラオケで練習</small>
+              <span class="home-live-learn-modes" aria-hidden="true">
+                <span class="home-live-learn-mode is-sheet"><svg class="hi"><use href="#hi-sheet"/></svg>コール表</span>
+                <span class="home-live-learn-mode is-live"><svg class="hi"><use href="#hi-spark"/></svg>ライブコール</span>
+                <span class="home-live-learn-mode is-karaoke"><svg class="hi"><use href="#hi-karaoke"/></svg>カラオケ</span>
+              </span>
+            </span>
             <span class="home-chevron" aria-hidden="true">›</span>
           </button>
-          <div class="home-live-new" role="group" aria-labelledby="home-live-new-title">
-            <p id="home-live-new-title" class="home-live-new-title">新しいライブコール<span class="home-tag">おためし版</span></p>
-            <p class="home-live-new-lead">作り直している新しい画面。3つの見せ方を先に試せます</p>
-            <div class="home-live-new-grid">
-              <button class="home-live-mode home-live-mode--sheet" type="button" data-home-action="live-call-sheet">
-                <svg class="hi" aria-hidden="true"><use href="#hi-sheet"/></svg>
-                <b>コール表を読む</b><small>コールを<wbr>一覧で予習</small>
-              </button>
-              <button class="home-live-mode home-live-mode--live" type="button" data-home-action="live-call-live">
-                <svg class="hi" aria-hidden="true"><use href="#hi-spark"/></svg>
-                <b>ライブ中に見る</b><small>今のコールが<wbr>光る</small>
-              </button>
-              <button class="home-live-mode home-live-mode--karaoke" type="button" data-home-action="live-call-karaoke">
-                <svg class="hi" aria-hidden="true"><use href="#hi-karaoke"/></svg>
-                <b>カラオケで歌う</b><small>派手に光って<wbr>盛り上がる</small>
-              </button>
-            </div>
-          </div>
           <div class="home-live-sub">
             <button id="live-hub-link" class="home-live-row" type="button">
               <svg class="hi" aria-hidden="true"><use href="#hi-ticket"/></svg>
@@ -2604,7 +2592,7 @@
             <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
             LIVE CALL
           </p>
-          <h2 id="live-call-heading">ライブコール</h2>
+          <h2 id="live-call-heading">コールを覚える</h2>
         </div>
       </div>
       <div id="live-call-root" class="lc-root"></div>

@@ -18,6 +18,8 @@ import { hashText } from "./callTextEdits.js";
 import { buildReleasedCallSheet, computeModeAvailability, activeCallKeysAt, buildFollowSong, classifyReleasedCalls, SHEET_STATE } from "./liveCallData.js";
 import { createRunner, panelState } from "./callFollow.js";
 import { prepareVisual, visualStateAt, ambientAt, buildMemberNameIndex, memberIdForCallText } from "./callEffects.js";
+import { describeNameCall, nameCallAccent, renderNameCallText } from "./liveCallNames.js";
+import { buildModeTabs, LIVE_CALL_MODE_TABS } from "./liveCallModeTabs.js";
 import { decorateCallSpan, applyVisualState } from "./callEffectsRenderer.js";
 import { loadLyricsForSong, destroyLyricsSync } from "./lyricsSync.js";
 import { registerPlaybackStopper, notifyPlaybackStarting } from "./playbackCoordinator.js";
@@ -26,11 +28,12 @@ import { SFX_EVENTS, playSfx } from "./soundManager.js";
 
 // ===== はじめに（注意事項）の版 =====
 // 中身を変えたら数字を上げる（上げると、次に開いたときにもう一度表示される）
-export const LIVE_CALL_NOTICE_VERSION = 1;
+// 2：演出の切り替えを「あり／なし」の2つにした（2026-10-31 live-unify）
+export const LIVE_CALL_NOTICE_VERSION = 2;
 const NOTICE_KEY = "equalLoveIntroQuiz.liveCallNoticeSeenVersion";
 const PREFS_KEY = "equalLoveIntroQuiz.liveCallPrefs";
 const FONT_SCALES = [0.85, 1, 1.15, 1.3, 1.5, 1.75];
-const SEEK_SKIP_SECONDS = 5;
+const SEEK_SKIP_SECONDS = 5; // −5秒・＋5秒（前の版の「10秒戻る」より細かく。ライブコールのコールは短いので）
 const PRE_ROLL_SECONDS = 1; // コールをタップしたとき、その少し前から再生する
 
 export function shouldShowLiveCallNotice(seenVersion, currentVersion = LIVE_CALL_NOTICE_VERSION) {
@@ -73,14 +76,21 @@ export function filterLiveCallSongs(songs, { query = "", filter = "all", sheetId
 }
 
 // ===== 表示の好み（この端末だけ） =====
+// effects：ライブコールの演出（"on"＝あり／"off"＝なし）。【2026-10-31 live-unify】以前の intensity（標準・控えめ・オフ）から引き継ぐ：
+//   オフ → なし、標準・控えめ → あり（控えめは「あり」にまとめた）。intensity は前の版の値を消さないよう、そのまま残す
+export function resolveLiveEffectsPref(raw) {
+  if (raw && (raw.effects === "on" || raw.effects === "off")) return raw.effects;
+  return raw?.intensity === "off" ? "off" : "on";
+}
 function loadPrefs() {
-  const defaults = { fontIndex: 1, intensity: "std", panel: true, sort: "gojuon", filter: "all" };
+  const defaults = { fontIndex: 1, intensity: "std", effects: "on", panel: true, sort: "gojuon", filter: "all" };
   try {
     const raw = JSON.parse(localStorage.getItem(PREFS_KEY) ?? "null");
     if (!raw || typeof raw !== "object") return defaults;
     return {
       fontIndex: Number.isInteger(raw.fontIndex) && raw.fontIndex >= 0 && raw.fontIndex < FONT_SCALES.length ? raw.fontIndex : defaults.fontIndex,
       intensity: ["std", "low", "off"].includes(raw.intensity) ? raw.intensity : defaults.intensity,
+      effects: resolveLiveEffectsPref(raw),
       panel: typeof raw.panel === "boolean" ? raw.panel : defaults.panel,
       sort: Object.hasOwn(LIST_SORTS, raw.sort) ? raw.sort : defaults.sort,
       filter: Object.hasOwn(LIST_FILTERS, raw.filter) ? raw.filter : defaults.filter,
@@ -133,12 +143,28 @@ const reducedMotion = typeof matchMedia === "function" ? matchMedia("(prefers-re
 
 const titleOf = (songId) => getSongById(songId)?.title ?? songId;
 const memberColorOf = (id) => MEMBERS.find((member) => member.id === id)?.memberColor?.hex ?? "#ffb3d1";
-// 名前コールのメンバーカラー：コールの文字列がメンバーのデータの名前・愛称と、まるごと1人に一致するときだけ（js/callEffects.js）
+// 名前コールのメンバーカラー：コールの文字列がメンバーのデータの名前・愛称と、まるごと1人に一致するときだけ（js/callEffects.js）。
+// 【2026-10-31 live-unify】画面は js/liveCallNames.js（1人・複数・or・なし）を使う。この関数は前からのテストのために残す
 let memberNameIndex = null;
 export function memberColorForCallText(text) {
   memberNameIndex ??= buildMemberNameIndex(MEMBERS, MEMBER_PROFILES);
   const memberId = memberIdForCallText(text, memberNameIndex);
   return memberId ? { memberId, color: memberColorOf(memberId) } : null;
+}
+
+// 名前コールの飾りを、コールの部品（.cx-call。文字は .cx-text）に付ける。文字は変えない（名前の部分を色の付いた span で包むだけ）。
+// 戻り値：見え方（js/liveCallNames.js の describeNameCall）。名前が無ければ何もしない
+export function applyNameCallDecoration(span, text) {
+  const result = describeNameCall(text);
+  const accent = nameCallAccent(result);
+  if (!accent) return result;
+  const textEl = span.querySelector(".cx-text") ?? span;
+  renderNameCallText(textEl, text, result);
+  span.classList.add("cx-member", `cx-names-${result.kind}`);
+  span.dataset.memberId = result.members.join(" ");
+  span.style.setProperty("--cx-member", accent.primary);
+  span.style.setProperty("--cx-member-grad", accent.gradient);
+  return result;
 }
 
 // 次のコールまでの残り時間（いま／つぎ のパネル）。控えめに、1秒単位。1秒を切ったら「まもなく」（純粋関数）
@@ -215,9 +241,10 @@ export const LIVE_CALL_ENTRY_LEADS = {
   live: "この端末の音源に合わせて、今言うコールが光ります。ライブ中・練習中に。",
   karaoke: "歌詞と次に言うコールを大きく表示。コールの瞬間に派手に光ります。",
 };
-// 一覧（とはじめに）の見出し（純粋関数）。遊び方を選んでいなければ今までどおり「ライブコール」
+// 一覧（とはじめに）の見出し（純粋関数）。遊び方を選んでいなければ「コールを覚える」
 export function liveCallListHeading(mode) {
-  return LIVE_CALL_ENTRY_TITLES[mode] ?? "ライブコール";
+  // 【2026-10-31 live-unify】入口の名前（ホーム・ゲーム画面の「コールを覚える」）と同じ見出し
+  return LIVE_CALL_ENTRY_TITLES[mode] ?? "コールを覚える";
 }
 
 // 一覧で曲を押したとき、選んである遊び方を直接開くか（純粋関数）。avail は computeModeAvailability の戻り値
@@ -286,7 +313,7 @@ function renderNotice() {
     "実際のライブでは、会場・運営の案内とマナーを優先してください。周りの人の迷惑になる大きな声・動きはやめましょう。",
     "ライブコールの光るタイミングは、この端末の音源に合わせたものです。歌詞の行の強調は目安です。",
     "歌詞・音源・コールのデータは、この端末の中だけで使います（インターネットへ送りません）。",
-    "演出（光り方・動き）の強さは、ライブコールの画面で「標準・控えめ・オフ」から選べます。端末の「視差効果を減らす」がオンのときは動きを止めます。",
+    "ライブコールの画面の上の［演出 あり／なし］で、光り方・動きを切り替えられます（なしは、言うコールを枠で強調するだけ）。端末の「視差効果を減らす」がオンのときは動きを止めます。",
   ].forEach((text) => list.appendChild(el("li", "", text)));
   box.appendChild(list);
   box.appendChild(el("p", "lc-notice-version", `注意事項の版：${LIVE_CALL_NOTICE_VERSION}（内容が変わったときは、もう一度表示します）`));
@@ -317,6 +344,15 @@ async function renderList() {
       window.scrollTo(0, 0);
     }),
   );
+  // 【2026-10-31 live-unify】前の版のコールガイド（メンバーコール・曲指定コール・MIX など）を、新しい方からも開けるように
+  if (callbacks?.openCallGuide) {
+    top.appendChild(
+      button("lc-link-button", "コールガイド（MIX・メンバーコール）", () => {
+        playSfx(SFX_EVENTS.UI_CLICK);
+        callbacks.openCallGuide(null);
+      }),
+    );
+  }
   wrap.appendChild(top);
   if (preferredMode) {
     const modeNote = el("div", "lc-preferred-mode");
@@ -360,6 +396,19 @@ async function renderList() {
   wrap.appendChild(count);
   const listBox = el("ul", "lc-song-list");
   wrap.appendChild(listBox);
+  // 【2026-10-31 live-unify】前の版（同期モード・カラオケ同期）は、新しい3つで代わりが務まると確かめられるまで残す。
+  // ホーム・曲のページには出さず、一覧のいちばん下に小さく1つだけ（入口を二重にしない）
+  if (callbacks?.openClassic) {
+    const classic = el("div", "lc-classic");
+    classic.appendChild(el("p", "lc-classic-note", "前の版の画面（同期モード・カラオケ同期・追加データパックのコール）も、しばらく残しています。"));
+    classic.appendChild(
+      button("lc-link-button", "今までの版を開く", () => {
+        playSfx(SFX_EVENTS.UI_CLICK);
+        callbacks.openClassic();
+      }),
+    );
+    wrap.appendChild(classic);
+  }
   root.appendChild(wrap);
 
   let records = new Map();
@@ -464,6 +513,7 @@ function modeCard({ id, title, description, availability, onOpen }) {
   body.appendChild(el("h3", "lc-mode-title", title));
   body.appendChild(el("p", "lc-mode-description", description));
   if (!availability.ok) body.appendChild(el("p", "lc-mode-reason", availability.reason));
+  else if (availability.note) body.appendChild(el("p", "lc-mode-note", availability.note));
   const open = button("lc-mode-open", availability.ok ? `${title}を開く` : "使えません", () => {
     if (!availability.ok) return;
     playSfx(SFX_EVENTS.UI_CLICK);
@@ -508,9 +558,8 @@ async function renderSongPage() {
     // 【2026-10-30 fix-live】「カラオケで歌う」から来たとき：曲のページのカラオケのカードと同じ、本人の完成版のコール付きの新しいカラオケを開く
     // （以前はここだけ、この画面の中の歌詞だけのカラオケを開いていて、コールも演出も出なかった）。［戻る］で曲の一覧へ戻る
     if (direct === "karaoke" && callbacks?.openKaraokeWithCalls) {
-      const calls = songData.sheet?.calls ?? [];
       show("list");
-      callbacks.openKaraokeWithCalls(songId, calls);
+      openKaraokeForCurrentSong();
       return;
     }
     if (direct) {
@@ -564,13 +613,72 @@ async function renderSongPage() {
     modeCard({
       id: "karaoke",
       title: "カラオケ",
-      description: "歌詞と、次に言うコール（完成版）を大きく表示。あと何秒かも出て、コールの瞬間に光ります。",
+      description: sheet.ok
+        ? "歌詞を大きく表示して歌う。赤いコールと「次のコール」も一緒に出せます（コール表示の ON／OFF）。コールの瞬間に光ります。"
+        : "歌詞を大きく表示して歌う（この曲はコール表がまだないので、歌詞だけで表示します）。",
       availability: avail.karaoke,
       // 【2026-10-29 本人の希望】前の「カラオケ同期」と同じ画面（NEXT CALL・あと○秒・タイミング調整）を、本人の完成版のコールで開く
-      onOpen: () => (callbacks.openKaraokeWithCalls ? callbacks.openKaraokeWithCalls(currentSongId, songData?.sheet?.calls ?? []) : show("karaoke")),
+      onOpen: () => openKaraokeForCurrentSong(),
     }),
   );
   page.appendChild(cards);
+  if (callbacks?.openCallGuide) {
+    page.appendChild(
+      button("lc-link-button lc-song-guide", "コールガイド（MIX・メンバーコール）を見る", () => {
+        playSfx(SFX_EVENTS.UI_CLICK);
+        callbacks.openCallGuide(songId);
+      }),
+    );
+  }
+}
+
+// 新しいカラオケ（js/karaokeSyncScreen.js）を、この曲の完成版のコール・並び（コール表が無い曲は空）で開く
+function openKaraokeForCurrentSong() {
+  if (!callbacks?.openKaraokeWithCalls) return show("karaoke");
+  const sheet = songData?.sheet;
+  callbacks.openKaraokeWithCalls(currentSongId, sheet?.ok ? sheet.calls : [], {
+    layout: sheet?.ok ? sheet.layout : null,
+    hasAudio: Boolean(songData?.hasAudio),
+    availability: songData?.avail ?? null,
+  });
+}
+
+// ===== 3つのモードの切り替え（2026-10-31 live-unify。部品は js/liveCallModeTabs.js。カラオケの画面と共通） =====
+function switchMode(mode) {
+  playSfx(SFX_EVENTS.UI_CLICK);
+  if (mode === "karaoke") return openKaraokeForCurrentSong();
+  show(mode);
+  window.scrollTo(0, 0);
+}
+
+// カラオケ（別の画面）のモードの切り替えから戻ってくるとき：その曲の、そのモードを開く（曲のデータが無ければ読み込む）
+export async function openLiveCallSongMode(songId, mode) {
+  if (!LIVE_CALL_MODE_LABELS[mode] || !getSongById(songId)) return false;
+  const keepFromList = openedModeFromList;
+  currentSongId = songId;
+  if (!songData || songData.song?.id !== songId) {
+    try {
+      songData = await loadSongData(songId);
+    } catch {
+      songData = null;
+    }
+  }
+  if (!songData?.avail?.[mode]?.ok) {
+    show("song");
+    return false;
+  }
+  if (mode === "karaoke") {
+    openKaraokeForCurrentSong();
+    return true;
+  }
+  openedModeFromList = keepFromList;
+  show(mode);
+  window.scrollTo(0, 0);
+  return true;
+}
+export { LIVE_CALL_MODE_TABS };
+export function getLiveCallCurrentSongAvailability() {
+  return songData?.avail ?? null;
 }
 
 // ===== コール表モード・ライブコールモードの共通部品 =====
@@ -616,8 +724,8 @@ function renderSheetMode() {
   if (!sheet?.ok) return show("song");
   setHeading(titleOf(currentSongId));
   const toolbar = el("div", "lc-toolbar");
-  const note = el("p", "lc-toolbar-note");
-  note.append(el("span", "lc-mode-chip", "コール表"), "歌詞は黒、コールは赤。");
+  toolbar.appendChild(buildModeTabs("sheet", songData.avail, switchMode));
+  const note = el("p", "lc-toolbar-note", "歌詞は黒、コールは赤。自分のペースでスクロールして読めます。");
   toolbar.appendChild(note);
   const { stage } = buildStage(sheet.layout);
   stage.classList.add("is-sheet");
@@ -627,7 +735,7 @@ function renderSheetMode() {
 
 // ===== ライブコールモード =====
 function effectOptions() {
-  return { design: "c", intensity: prefs.intensity, reduced: reducedMotion.matches, shoutStyle: "combo", shoutFx: true };
+  return { design: "c", intensity: prefs.effects === "off" ? "off" : "std", reduced: reducedMotion.matches, shoutStyle: "combo", shoutFx: true };
 }
 
 function renderLiveMode() {
@@ -685,8 +793,15 @@ function renderLiveMode() {
   // 【2026-10-30 fix-live】上の部分（説明・文字の大きさ・演出・いま／つぎ）は約320px を取っていたので、再生を始めたら折りたたむ
   //   （［表示の設定］で開け閉めできる）。折りたたんだ分、コール表の箱を画面の下まで広げる（fitLiveStage）
   const toolbar = el("div", "lc-toolbar is-live");
+  // 【2026-10-31 live-unify】1行目：3つのモードの切り替え。2行目：［演出 あり／なし］（いつでも押せる。保存して次も使う）と［表示の設定］
+  toolbar.appendChild(buildModeTabs("live", songData.avail, switchMode));
   const toolbarHead = el("div", "lc-toolbar-head");
-  toolbarHead.appendChild(el("span", "lc-mode-chip", "ライブコール"));
+  const effectsSwitch = button("lc-effects-switch", "", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
+    setLiveEffects(prefs.effects === "off" ? "on" : "off");
+  });
+  effectsSwitch.setAttribute("role", "switch");
+  toolbarHead.appendChild(effectsSwitch);
   const settingsToggle = button("lc-settings-toggle", "表示の設定", () => {
     playSfx(SFX_EVENTS.UI_CLICK);
     setLiveToolbarCollapsed(!live.toolbarCollapsed);
@@ -697,29 +812,13 @@ function renderLiveMode() {
   const controls = el("div", "lc-toolbar-controls");
   controls.id = "lc-live-toolbar-controls";
   settingsToggle.setAttribute("aria-controls", controls.id);
-  const modeNote = el("p", "lc-toolbar-note", "光っているコールを、光っている間に言います。コールをタップすると、その少し前から再生します。");
+  const modeNote = el("p", "lc-toolbar-note", "光っているコールを、光っている間に言います。コールをタップすると、その少し前から再生します。演出は上の［演出 あり／なし］で切り替えます。");
   controls.appendChild(modeNote);
   toolbar.appendChild(controls);
   controls.appendChild(buildFontControls(() => {
     stage.style.setProperty("--lc-font", String(fontScale()));
     remeasure();
   }));
-  const intensityLabel = el("label", "lc-select-label", "演出 ");
-  const intensity = el("select", "lc-select");
-  [["std", "標準"], ["low", "控えめ"], ["off", "オフ"]].forEach(([value, label]) => {
-    const option = el("option", "", label);
-    option.value = value;
-    intensity.appendChild(option);
-  });
-  intensity.value = prefs.intensity;
-  intensity.addEventListener("change", () => {
-    prefs.intensity = intensity.value;
-    savePrefs();
-    stage.classList.toggle("intensity-off", prefs.intensity === "off");
-    renderFrame({ force: true });
-  });
-  intensityLabel.appendChild(intensity);
-  controls.appendChild(intensityLabel);
   const panelToggle = button(`lc-chip${prefs.panel ? " is-selected" : ""}`, "いま／つぎ", () => {
     prefs.panel = !prefs.panel;
     savePrefs();
@@ -731,7 +830,6 @@ function renderLiveMode() {
   panelToggle.setAttribute("aria-pressed", String(prefs.panel));
   controls.appendChild(panelToggle);
   if (reducedMotion.matches) controls.appendChild(el("p", "lc-toolbar-note", "端末の「視差効果を減らす」がオンのため、動きを止めています（光り方だけ）。"));
-  stage.classList.toggle("intensity-off", prefs.intensity === "off");
 
   // 自動スクロールを手で止めたときに出す「いまの場所へ戻る」
   const resume = button("lc-resume-button", "いまの場所へ戻る", () => {
@@ -748,6 +846,12 @@ function renderLiveMode() {
     audio.currentTime = Math.max(0, audio.currentTime - SEEK_SKIP_SECONDS);
   });
   back.setAttribute("aria-label", `${SEEK_SKIP_SECONDS}秒戻る`);
+  // 【2026-10-31 live-unify】前の版の全画面表示にあった「先へ送る」を取り込む（同じ秒数）
+  const forward = button("lc-icon-button", `＋${SEEK_SKIP_SECONDS}秒`, () => {
+    const max = Number.isFinite(audio.duration) ? audio.duration : Infinity;
+    audio.currentTime = Math.min(max, audio.currentTime + SEEK_SKIP_SECONDS);
+  });
+  forward.setAttribute("aria-label", `${SEEK_SKIP_SECONDS}秒進む`);
   const play = button("lc-play-button", "再生", togglePlay);
   play.setAttribute("aria-label", "再生");
   const seek = el("input", "lc-seek");
@@ -762,7 +866,7 @@ function renderLiveMode() {
   const time = el("span", "lc-time", "0:00 / 0:00");
   const playError = el("p", "lc-status-message is-warning", "再生できませんでした。もう一度［再生］を押してください。");
   playError.hidden = true;
-  player.append(back, play, seek, time);
+  player.append(back, play, forward, seek, time);
 
   // 舞台の背景の光（ふちだけ、ピンクでうっすら。文字の上には色を重ねない）。舞台はスクロールするので、外側の枠に重ねる
   const stageFrame = el("div", "lc-stage-frame");
@@ -785,13 +889,10 @@ function renderLiveMode() {
       if (!span) return null;
       prep.vis = prepareVisual(callByKey.get(prep.key) ?? prep, { hasBreak: span.classList.contains("has-break") });
       const decorated = decorateCallSpan(span, prep, { memberColorOf });
-      // 名前コール：メンバー名と確かに一致したときだけ、光の輪郭と下線をメンバーカラーに（文字の色は変えない＝読みやすさはそのまま）
-      const member = memberColorForCallText(callByKey.get(prep.key)?.text ?? prep.text);
-      if (member) {
-        span.classList.add("cx-member");
-        span.dataset.memberId = member.memberId;
-        span.style.setProperty("--cx-member", member.color);
-      }
+      // 名前コール（js/liveCallNames.js）：1人＝名前の部分をその人の色の下線・光の輪郭もその色。複数＝名前ごとにそれぞれの色、枠は色をつないだ帯。
+      // 「or」＝候補ごとに色、あいだの「or」は控えめに（同時に叫ぶとは扱わない）。名前ではない言葉は通常の見た目。
+      // どれも文字の装飾だけ（コール1件のまま。区切って光らせない・順番に光らせない）
+      applyNameCallDecoration(span, callByKey.get(prep.key)?.text ?? prep.text);
       return decorated;
     })
     .filter(Boolean);
@@ -802,6 +903,7 @@ function renderLiveMode() {
     stage,
     body,
     toolbar,
+    effectsSwitch,
     settingsToggle,
     toolbarCollapsed: false,
     autoCollapsed: false,
@@ -872,12 +974,29 @@ function renderLiveMode() {
   });
   listen(reducedMotion, "change", () => renderFrame({ force: true }));
 
+  setLiveEffects(prefs.effects, { save: false });
   objectUrl = URL.createObjectURL(blob);
   audio.src = objectUrl;
   requestAnimationFrame(() => {
     remeasure();
     renderFrame({ force: true });
   });
+}
+
+// 【2026-10-31 live-unify】演出 あり／なし。なし：コール全体を板で強調するだけ（光・動き・知らせ・背景の光なし。長いコールの進み具合のバーは情報なので残す）。
+// 再生中でも切り替えられる（見た目は時刻 t だけから決まるので、次のフレームからその時刻の正しい見た目になる）。この端末に保存して次も使う
+export const LIVE_EFFECTS_LABELS = { on: "演出 あり", off: "演出 なし" };
+function setLiveEffects(value, { save = true } = {}) {
+  prefs.effects = value === "off" ? "off" : "on";
+  if (save) savePrefs();
+  if (!live) return;
+  const on = prefs.effects === "on";
+  live.stage.classList.toggle("intensity-off", !on);
+  live.effectsSwitch.textContent = LIVE_EFFECTS_LABELS[prefs.effects];
+  live.effectsSwitch.setAttribute("aria-checked", String(on));
+  live.effectsSwitch.setAttribute("aria-label", on ? "演出：あり（押すと、なしにします）" : "演出：なし（押すと、ありにします）");
+  live.effectsSwitch.classList.toggle("is-on", on);
+  renderFrame({ force: true });
 }
 
 // 【2026-10-30 fix-live】上の部分（説明・設定）を折りたたむ／開く。折りたたんだら、コール表の箱を再生の操作のすぐ上まで広げる

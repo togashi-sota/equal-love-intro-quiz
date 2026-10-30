@@ -82,7 +82,15 @@ import {
   updateKaraokeStage,
   setKaraokeStageOffset,
   karaokePreviewLabel,
+  setKaraokeCallsVisible,
+  areKaraokeCallsVisible,
+  karaokeStageHasCalls,
+  mountKaraokeCallRows,
+  loadKaraokeCallsVisible,
+  saveKaraokeCallsVisible,
+  isKaraokeOffsetSuspicious,
 } from "./karaokeStage.js";
+import { buildModeTabs } from "./liveCallModeTabs.js";
 
 // ===== 設定の保存（端末ごと。既存のsfx設定等と同じ命名規則・保存方式） =====
 const BEGINNER_NAV_STORAGE_KEY = "equalLoveIntroQuiz.karaokeBeginnerNavEnabled";
@@ -222,6 +230,12 @@ function renderSyncStatus() {
   if (offsetLabel !== lastRenderedOffsetLabel) {
     elements.offsetLabel.textContent = offsetLabel;
     lastRenderedOffsetLabel = offsetLabel;
+    // 【2026-10-31 live-unify】新しいカラオケだけ：ありえない大きさ（±10秒を超える）の調整に注意を出す（値は消さない。戻すのは本人が［0に戻す］で）
+    if (followDeviceAudio && kx?.offsetWarning) {
+      kx.offsetWarning.textContent = isKaraokeOffsetSuspicious(syncState.offsetMs)
+        ? `タイミング調整が ${offsetLabel} になっています。ふつうは数秒以内です。歌詞・コールが音とずれているときは［0に戻す］を押してください。`
+        : "";
+    }
   }
   // 【2026-10-30 fix-live】新しいカラオケだけ：調整しているか（「0に戻す」の見た目を、調整なしのときは普通にする）
   if (followDeviceAudio) setKaraokeStageOffset(syncState.offsetMs);
@@ -350,6 +364,7 @@ function tick() {
   renderCallHud(positionSec);
   // 新しいカラオケだけ：演出（js/karaokeStage.js）。見た目はこの時刻だけから決まる
   if (followDeviceAudio) updateKaraokeStage(positionSec, { ended: elements.deviceAudio.ended });
+  if (followDeviceAudio) renderKaraokeSeek();
 }
 
 // 前のカラオケ同期：今までどおり 0.15 秒ごと（setInterval）。
@@ -527,6 +542,14 @@ function handleResyncButtonClick() {
     closeMoreMenu();
     return;
   }
+  if (isFollowingDeviceAudio()) {
+    // 新しいカラオケ（端末の音源が時計）：音源をその位置へ動かすだけ。タイミング調整の値は変えない（下の seekFollowedAudioTo）
+    seekFollowedAudioTo(syncPointCall.start);
+    tick();
+    showToast(`「${syncPointCall.text}」の位置へ移りました`);
+    closeMoreMenu();
+    return;
+  }
   syncState = resyncToPosition(syncState, syncPointCall.start, performance.now());
   if (hasDeviceAudioLoaded()) {
     elements.deviceAudio.currentTime = syncPointCall.start;
@@ -544,6 +567,12 @@ function handleResyncButtonClick() {
 // 別途ゼロへ戻す処理は不要（「今！」ボタンと全く同じ仕組み）。
 function handleLyricTapSeek(line) {
   if (!syncState.isSyncing) return;
+  if (isFollowingDeviceAudio()) {
+    seekFollowedAudioTo(line.start);
+    tick();
+    showToast("この行から再生します");
+    return;
+  }
   const nowMs = performance.now();
   syncState = resyncToPosition(syncState, line.start, nowMs);
   if (hasDeviceAudioLoaded()) {
@@ -552,6 +581,170 @@ function handleLyricTapSeek(line) {
   lastRenderedOffsetLabel = null;
   tick();
   showToast("この位置に合わせました");
+}
+
+// ===== 【2026-10-31 live-unify】新しいカラオケ（端末の音源が時計）のシーク =====
+// 【+54.5秒の原因】新しいカラオケは「音源の再生位置＋タイミング調整」を時計にしている（currentPositionSec）。ところが歌詞の行のタップ・
+// 「今！」は、前のカラオケ同期の決まり（resyncToPosition：［曲スタート］からの経過時間を基準に、調整の値を引き直す）のまま、
+// さらに音源もその行へ動かしていた。音源の位置と調整の両方が動くので、行の時刻の「先へ飛んだ秒数」がそのまま調整に入っていた
+// （例：0:01 から 0:56 の行を押すと、調整が約 +54.5秒になり、歌詞・コールがその分だけ先にずれる）。調整の値は保存していない
+// （この画面を開いている間だけ）ので、開き直すと 0 に戻る。
+// 直し方：新しいカラオケで音源が鳴っているときは、音源の位置だけを動かし、調整の値は変えない（前のカラオケ同期は今までどおり）。
+function isFollowingDeviceAudio() {
+  return followDeviceAudio && syncState.isSyncing && hasDeviceAudioLoaded();
+}
+// 表示の位置 positionSec（歌詞の行・コールの開始の時刻）に合う、音源の位置（純粋関数）。音源の位置＝表示の位置 − 調整（調整の値は変えない）
+export function followedAudioSeekTarget(positionSec, offsetMs, durationSec) {
+  const target = Math.max(0, Number(positionSec) - (Number(offsetMs) || 0) / 1000);
+  return Number.isFinite(durationSec) && durationSec > 0 ? Math.min(target, durationSec) : target;
+}
+function seekFollowedAudioTo(positionSec) {
+  const audio = elements.deviceAudio;
+  audio.currentTime = followedAudioSeekTarget(positionSec, syncState.offsetMs, audio.duration);
+}
+// 赤いコールを押したとき：そのコールの少し前から（ライブコールと同じ 1 秒前）
+const CALL_TAP_PRE_ROLL_SEC = 1;
+function handleCallTapSeek(call) {
+  if (!syncState.isSyncing) return;
+  if (isFollowingDeviceAudio()) {
+    seekFollowedAudioTo(Math.max(0, call.start - CALL_TAP_PRE_ROLL_SEC));
+    tick();
+  }
+}
+
+// ===== 【2026-10-31 live-unify】新しいカラオケだけの部品（モードの切り替え・コール表示 ON／OFF・再生の位置のバー・調整の注意） =====
+let kx = null; // 使っている間だけ { parts, callsSwitch, seek, time, offsetWarning, restore }
+let kxOnRequestMode = null;
+
+export const KARAOKE_CALLS_SWITCH_LABELS = { on: "コール表示 ON", off: "コール表示 OFF", none: "コール表なし" };
+
+function buildKaraokeExtras({ hasAudio, availability, onRequestMode }) {
+  removeKaraokeExtras();
+  const screen = elements.callHudCard.closest(".screen");
+  const header = screen?.querySelector(".karaoke-header-zone");
+  if (!screen || !header) return;
+  kxOnRequestMode = typeof onRequestMode === "function" ? onRequestMode : null;
+  const parts = [];
+  // 上：3つのモードの切り替えと、コール表示 ON／OFF（いつでも押せる。再生の位置は変えない）
+  const bar = document.createElement("div");
+  bar.className = "kx-toolbar";
+  const avail = availability ?? { sheet: { ok: false }, live: { ok: false }, karaoke: { ok: true } };
+  bar.appendChild(buildModeTabs("karaoke", avail, (mode) => kxOnRequestMode?.(mode)));
+  const callsSwitch = document.createElement("button");
+  callsSwitch.type = "button";
+  callsSwitch.className = "kx-calls-switch";
+  callsSwitch.setAttribute("role", "switch");
+  callsSwitch.addEventListener("click", () => {
+    if (!karaokeStageHasCalls()) return;
+    playSfx(SFX_EVENTS.UI_CLICK);
+    const next = !areKaraokeCallsVisible();
+    saveKaraokeCallsVisible(next);
+    setKaraokeCallsVisible(next);
+    syncKaraokeCallsSwitch();
+    tick();
+  });
+  bar.appendChild(callsSwitch);
+  header.appendChild(bar);
+  parts.push(bar);
+
+  // コール表の無い曲：歌詞だけのカラオケとして使えることを、始める前に1行で
+  const noCallsNote = document.createElement("p");
+  noCallsNote.className = "kx-no-calls-note";
+  noCallsNote.textContent = "この曲はコール表がまだないので、歌詞だけのカラオケとして表示します。";
+  noCallsNote.hidden = karaokeStageHasCalls();
+  elements.startPanel.prepend(noCallsNote);
+  parts.push(noCallsNote);
+
+  // 下：再生の位置のバー（端末の音源があるときだけ。音源の位置を動かす。タイミング調整は変えない）
+  let seek = null;
+  let time = null;
+  if (hasAudio) {
+    screen.classList.add("kx-has-audio");
+    const row = document.createElement("div");
+    row.className = "kx-seek-row";
+    time = document.createElement("span");
+    time.className = "kx-seek-time";
+    time.textContent = "0:00 / 0:00";
+    seek = document.createElement("input");
+    seek.type = "range";
+    seek.className = "kx-seek";
+    seek.min = "0";
+    seek.step = "0.1";
+    seek.value = "0";
+    seek.setAttribute("aria-label", "再生の位置");
+    seek.addEventListener("input", () => {
+      const audio = elements.deviceAudio;
+      if (!hasDeviceAudioLoaded()) return;
+      audio.currentTime = seek.valueAsNumber;
+      tick();
+    });
+    row.append(seek, time);
+    if (elements.pauseResumeButton.parentNode === elements.footerZone) elements.footerZone.insertBefore(row, elements.pauseResumeButton);
+    else elements.footerZone.prepend(row);
+    parts.push(row);
+  }
+
+  // タイミング調整の注意（±10秒を超えたときだけ見える。css/karaokeStage.css の .kx-offset-warn）
+  const offsetWarning = document.createElement("p");
+  offsetWarning.className = "kx-offset-warning";
+  offsetWarning.setAttribute("role", "status");
+  elements.footerZone.appendChild(offsetWarning);
+  parts.push(offsetWarning);
+
+  // 開始前の案内：端末の音源で歌うときは、その言い方に（音源が無いときは前の版のまま＝カラオケ店の曲に合わせる）
+  const instruction = elements.startPanel.querySelector(".karaoke-start-instruction");
+  const note = elements.startPanel.querySelector(".karaoke-start-note");
+  const restore = [
+    [instruction, instruction?.textContent],
+    [note, note?.textContent],
+    [elements.startButton, elements.startButton.textContent],
+  ];
+  if (hasAudio) {
+    if (instruction) instruction.textContent = "下のボタンを押すと、この端末の音源で曲が始まります。";
+    if (note) note.textContent = "歌詞の行や赤いコールを押すと、その位置へ移れます。音とずれるときは、画面の下のタイミング調整で直せます。";
+    elements.startButton.textContent = "🎤 曲を再生して歌う";
+  }
+  kx = { parts, callsSwitch, seek, time, offsetWarning, restore, lastSeekKey: "" };
+  syncKaraokeCallsSwitch();
+}
+
+function syncKaraokeCallsSwitch() {
+  if (!kx) return;
+  const has = karaokeStageHasCalls();
+  const on = has && areKaraokeCallsVisible();
+  kx.callsSwitch.textContent = has ? KARAOKE_CALLS_SWITCH_LABELS[on ? "on" : "off"] : KARAOKE_CALLS_SWITCH_LABELS.none;
+  kx.callsSwitch.setAttribute("aria-checked", String(on));
+  kx.callsSwitch.classList.toggle("is-on", on);
+  kx.callsSwitch.disabled = !has;
+  kx.callsSwitch.setAttribute("aria-label", has ? `コール表示：${on ? "ON（押すと、歌詞だけにします）" : "OFF（押すと、赤いコールも出します）"}` : "この曲はコール表がまだありません（歌詞だけで表示します）");
+}
+
+function renderKaraokeSeek() {
+  if (!kx?.seek) return;
+  const audio = elements.deviceAudio;
+  const duration = Number.isFinite(audio.duration) ? audio.duration : 0;
+  const now = audio.currentTime || 0;
+  const key = `${Math.floor(now * 10)}|${Math.floor(duration)}`;
+  if (key === kx.lastSeekKey) return;
+  kx.lastSeekKey = key;
+  kx.seek.max = String(duration);
+  if (document.activeElement !== kx.seek) kx.seek.value = String(now);
+  kx.time.textContent = `${formatKaraokeClock(now)} / ${formatKaraokeClock(duration)}`;
+}
+function formatKaraokeClock(sec) {
+  const safe = Number.isFinite(sec) ? Math.max(0, sec) : 0;
+  return `${Math.floor(safe / 60)}:${String(Math.floor(safe % 60)).padStart(2, "0")}`;
+}
+
+function removeKaraokeExtras() {
+  if (!kx) return;
+  kx.parts.forEach((node) => node.remove());
+  kx.restore.forEach(([node, text]) => {
+    if (node && text !== undefined) node.textContent = text;
+  });
+  elements.callHudCard.closest(".screen")?.classList.remove("kx-has-audio");
+  kx = null;
+  kxOnRequestMode = null;
 }
 
 function handleBeginnerNavToggleClick() {
@@ -627,13 +820,13 @@ export async function openKaraokeSyncScreen(songId, options = {}) {
     let lyricLines = [];
     try {
       const lyricsRecord = await getLyricsData(songId);
-      lyricLines = Array.isArray(lyricsRecord?.lines) ? lyricsRecord.lines.map((line) => ({ start: line.start, end: line.end })) : [];
+      lyricLines = Array.isArray(lyricsRecord?.lines) ? lyricsRecord.lines.map((line) => ({ line: line.line, start: line.start, end: line.end })) : [];
     } catch {
       lyricLines = []; // 歌詞が読めなくても、コールの演出だけで続ける
     }
     enableKaraokeStage(
-      { screen: elements.callHudCard.closest(".screen"), hudCard: elements.callHudCard, lyricsPanel: elements.lyricsContextPanel },
-      { song, calls: allCalls, lines: lyricLines },
+      { screen: elements.callHudCard.closest(".screen"), hudCard: elements.callHudCard, lyricsPanel: elements.lyricsContextPanel, hudText: elements.callHudText },
+      { song, calls: allCalls, lines: lyricLines, layout: options.layout ?? null, callsVisible: loadKaraokeCallsVisible() },
     );
   }
 
@@ -642,8 +835,16 @@ export async function openKaraokeSyncScreen(songId, options = {}) {
   // 何も描画されず、パネルは自動的に非表示のままになる。行タップはhandleLyricTapSeek()へ。
   await loadLyricsForSong(songId, clockSource, elements.lyricsContextPanel, { onLineClick: handleLyricTapSeek });
 
-  elements.startPanel.hidden = allCalls.length === 0;
-  elements.noCallsNotice.hidden = allCalls.length > 0;
+  if (followDeviceAudio) {
+    // 【2026-10-31 live-unify】コール表示 ON：赤いコールを歌詞の行の間へ（コール表に近い並び）。コール1件＝部品1つ
+    mountKaraokeCallRows({ onCallTap: handleCallTapSeek });
+    buildKaraokeExtras({ hasAudio: options.hasAudio !== false, availability: options.availability ?? null, onRequestMode: options.onRequestMode });
+  }
+
+  // 【2026-10-31 live-unify】新しいカラオケは、コールの無い曲でも始められる（歌詞だけのカラオケ。以前は「コールデータを読み込めませんでした」で止まっていた）。
+  // 前のカラオケ同期は今までどおり（コールの無い曲は案内を出して始めない）
+  elements.startPanel.hidden = allCalls.length === 0 && !followDeviceAudio;
+  elements.noCallsNotice.hidden = allCalls.length > 0 || followDeviceAudio;
   elements.syncPanel.hidden = true;
   elements.syncPanel.classList.remove("is-long-call-active");
   elements.footerZone.hidden = true;
@@ -661,6 +862,7 @@ export async function openKaraokeSyncScreen(songId, options = {}) {
 // この画面を離れるとき（戻る・曲を選び直す）に必ず呼ぶ。
 export function closeKaraokeSyncScreen() {
   stopTickLoop();
+  removeKaraokeExtras(); // 新しいカラオケだけの部品（モードの切り替え・コール表示・位置のバー）を外す（作っていなければ何もしない）
   disableKaraokeStage(); // 新しいカラオケの演出の部品を外す（作っていなければ何もしない）
   stopDeviceAudio();
   destroyLyricsSync();

@@ -400,7 +400,10 @@ function runHomePureFunctionTests() {
   assertEqual([...modes].sort(), [...HOME_SPECIAL_MODES_ORDER].sort(), "D: ゲーム画面の10種類と、ホームの10種類が同じ（作っていないものを足さない・漏れもない）");
   assertEqual(modes.every((id) => HOME_SPECIAL_MODES_ORDER.includes(id)), true, "D: どれも実在するモード");
   assertEqual(HOME_ACTIONS["all-games"], { type: "navigate", value: "gameHub" }, "D: 全部のゲーム → ゲーム画面");
-  assertEqual(["live-call-classic", "live-call-sheet", "live-call-live", "live-call-karaoke"].map((name) => `${HOME_ACTIONS[name].type}:${HOME_ACTIONS[name].value}`), ["mode:liveCallMode", "live:sheet", "live:live", "live:karaoke"], "D: コールを覚える＝前の版（ゲーム画面と同じ）／新しいライブコールの3つは、遊び方を選んで開く");
+  // 【2026-10-31 live-unify・本人の指示】入口は「コールを覚える」の1つ（ゲーム画面の「コールを覚える」のカードと同じ処理＝新しいライブコール）。
+  // 前の版の入口・「おためし版」の3つの入口は無くした
+  assertEqual(HOME_ACTIONS["learn-calls"], { type: "mode", value: "liveCallMode" }, "D: コールを覚える＝ゲーム画面の「コールを覚える」と同じ処理（新しいライブコール）");
+  assertEqual(["live-call-classic", "live-call-sheet", "live-call-live", "live-call-karaoke"].filter((name) => name in HOME_ACTIONS), [], "D: 前の版・おためし版の3つの入口は無い（二重にしない）");
   assertEqual(HOME_ACTIONS["about-group"], { type: "callback", value: "openDiscographyAbout", ownSound: true }, "D: ＝LOVEについて →「＝LOVEについて」タブ");
   assertEqual(HOME_ACTIONS["next-live"], { type: "click", value: "live-hub-link" }, "D: 次のライブ →【ライブ】ページ");
   assertEqual(HOME_ACTIONS.guides, { type: "navigate", value: "guideHub" }, "D: 使い方ガイド → ガイド画面");
@@ -516,14 +519,14 @@ async function runHomeIntroSyncTests() {
     calls.modes.length = 0;
     homeRoot.querySelectorAll("#home-games .home-game").forEach((button) => button.click());
     assertEqual(calls.modes, ["randomPlayback", "lyricsQuiz", "outroQuiz", "instantChallenge", "timeAttack", "weakSongs", "onlineBattle", "partyBattle", "originalQuiz", "liveCallMode"], "D3: ホームの10種類を押す → それぞれのモードを1回ずつ開く");
-    // ライブ：コールを覚える＝前の版（モード）・新しい3つ＝遊び方を選んで開く
+    // ライブ：コールを覚える（入口は1つ）＝ゲーム画面の「コールを覚える」と同じ処理
     calls.modes.length = 0;
     setLiveCallEntryHandler((mode) => calls.live.push(mode));
     homeRoot.querySelectorAll("#home-card-live [data-home-action]").forEach((button) => {
-      if (button.dataset.homeAction.startsWith("live-call")) button.click();
+      if (button.dataset.homeAction === "learn-calls" || button.dataset.homeAction.startsWith("live-call")) button.click();
     });
     setLiveCallEntryHandler(null);
-    assertEqual([calls.modes, calls.live], [["liveCallMode"], ["sheet", "live", "karaoke"]], "D3: ライブ：コールを覚える（前の版）・コール表・ライブコール・カラオケ");
+    assertEqual([calls.modes, calls.live], [["liveCallMode"], []], "D3: ライブ：コールを覚える（1つだけ。曲の一覧 → 曲のページ → 3つのモード）");
     // 既存のボタンを押す行き先：同じ id のボタンを押す（ホームの外のボタンは、この箱には無いので偽物で受ける）
     const clicked = [];
     const fakeTargets = ["live-guide-link", "continuous-play-link", "playlist-link", "songlist-favorites-link", "songlist-link", "lyrics-search-link", "history-link"].map((id) => {
@@ -571,9 +574,9 @@ async function runHomeEntryWiringTests() {
   );
   HOME_NAV_SECTIONS.forEach((section) => assertEqual(home.querySelector(`#${section.target}`) !== null && home.querySelector(`#${section.card}`) !== null, true, `E: 目次「${section.label}」の行き先がある`));
   const cardIds = (cardId, selector) => [...home.querySelectorAll(`#${cardId} ${selector}`)].map((element) => element.id || element.dataset.homeAction);
-  assertEqual(cardIds("home-card-game", ".home-game"), ["random-playback", "lyrics-quiz", "outro-quiz", "instant-challenge", "time-attack", "weak-songs", "online-battle", "party-battle", "original-quiz", "live-call-classic"], "E: ゲーム：10種類（ひとりで挑戦6・友達と対戦2・つくる・覚える2）");
+  assertEqual(cardIds("home-card-game", ".home-game"), ["random-playback", "lyrics-quiz", "outro-quiz", "instant-challenge", "time-attack", "weak-songs", "online-battle", "party-battle", "original-quiz", "learn-calls"], "E: ゲーム：10種類（ひとりで挑戦6・友達と対戦2・つくる・覚える2）");
   assertEqual(cardIds("home-card-game", ".home-games-more"), ["all-games"], "E: ゲーム：「遊び方の説明・記録」（ゲーム画面）");
-  assertEqual(cardIds("home-card-live", "button"), ["home-next-live", "live-call-classic", "live-call-sheet", "live-call-live", "live-call-karaoke", "live-hub-link", "live-guide"], "E: ライブ：次のライブ・コールを覚える・新しいライブコール3つ・ライブ履歴・はじめてのライブ");
+  assertEqual(cardIds("home-card-live", "button"), ["home-next-live", "learn-calls", "live-hub-link", "live-guide"], "E: ライブ：次のライブ・コールを覚える（入口は1つ）・ライブ履歴・はじめてのライブ");
   assertEqual(cardIds("home-card-music", "button"), ["continuous-play", "playlists", "favorites", "songlist", "works", "lyrics-search"], "E: 楽曲：聴く（曲を聴く・プレイリスト・お気に入り）・読む（楽曲一覧・シングル・アルバム）・探す（歌詞検索）");
   assertEqual(cardIds("home-card-know", "button"), ["members-link", "centers", "anniversary-home-link", "tv-appearances-home-link", "commercials", "about-group"], "E: ＝LOVE：メンバー・歴代センター・周年ヒストリー・音楽番組・CM・企業コラボ・＝LOVEについて");
   assertEqual(cardIds("home-card-my", ".home-my-link"), ["history", "guides", "settings"], "E: マイページ：プレイ履歴・使い方ガイド・設定（フレンド・ランキング・実績・プロフィールは置かない）");
@@ -709,7 +712,7 @@ async function runHomeNightTests() {
   assertEqual([...home.querySelectorAll(".home-game-group-title")].map((element) => element.textContent), ["ひとりで挑戦", "友達と対戦", "つくる・覚える"], "F: まとまりの見出しは3つだけ");
   const games = [...home.querySelectorAll(".home-game")];
   assertEqual(games.every((button) => button.querySelector(".home-game-title")?.textContent.trim() && button.querySelector(".home-game-desc")?.textContent.trim()), true, "F: どのゲームにも短い題と一言の説明");
-  assertEqual(games.map((button) => button.querySelector(".home-game-title").textContent), ["ランダム再生クイズ", "歌詞クイズ", "アウトロクイズ", "一瞬チャレンジ", "タイムアタック", "苦手曲を練習", "オンライン対戦", "1台で対戦", "問題をつくる", "コールを覚える（今までの版）"], "F: 題名（何をするかが分かる名前）");
+  assertEqual(games.map((button) => button.querySelector(".home-game-title").textContent), ["ランダム再生クイズ", "歌詞クイズ", "アウトロクイズ", "一瞬チャレンジ", "タイムアタック", "苦手曲を練習", "オンライン対戦", "1台で対戦", "問題をつくる", "コールを覚える"], "F: 題名（何をするかが分かる名前）");
   const colorClasses = games.map((button) => [...button.classList].find((name) => name.startsWith("home-game--")));
   assertEqual(new Set(colorClasses).size, 10, "F: 10種類それぞれに別の色の印");
   const homeCss = await fetchText("css/homeRenewal.css");
@@ -719,10 +722,10 @@ async function runHomeNightTests() {
   home.querySelectorAll("[data-home-action]").forEach((element) => {
     actionCount[element.dataset.homeAction] = (actionCount[element.dataset.homeAction] ?? 0) + 1;
   });
-  assertEqual(Object.entries(actionCount).filter(([, count]) => count > 1), [["live-call-classic", 2]], "F: 2か所にあるのは「コールを覚える」（ゲームとライブ）だけ");
+  assertEqual(Object.entries(actionCount).filter(([, count]) => count > 1), [["learn-calls", 2]], "F: 2か所にあるのは「コールを覚える」（ゲームとライブ）だけ");
   assertEqual(
-    home.querySelector('#home-card-game [data-home-action="live-call-classic"] .home-game-title')?.textContent,
-    home.querySelector('#home-card-live [data-home-action="live-call-classic"] b')?.textContent,
+    home.querySelector('#home-card-game [data-home-action="learn-calls"] .home-game-title')?.textContent,
+    home.querySelector('#home-card-live [data-home-action="learn-calls"] b')?.textContent,
     "F: 2か所の「コールを覚える」は同じ名前",
   );
   // アイコン：使っている <use> の行き先がすべてある。カードのアイコンは絵文字ではなく SVG
@@ -740,8 +743,8 @@ async function runHomeNightTests() {
   assertEqual(home.querySelectorAll("#home-card-know img, #home-card-live img, #home-card-music img").length, 0, "F: 写真などの画像は足さない");
   // 楽曲：聴く・読む・探す
   assertEqual([...home.querySelectorAll(".home-music-col-title")].map((element) => element.textContent.trim()), ["聴く", "読む", "探す"], "F: 楽曲は「聴く・読む・探す」に分ける");
-  // ライブ：前の版と新しい3つの違い
-  assertEqual([...home.querySelectorAll(".home-live-mode b")].map((element) => element.textContent), ["コール表を読む", "ライブ中に見る", "カラオケで歌う"], "F: 新しいライブコールの3つの見せ方の名前");
+  // ライブ：入口は1つ。中に3つの見せ方の名前（2026-10-31 live-unify）
+  assertEqual([...home.querySelectorAll(".home-live-learn-mode")].map((element) => element.textContent.trim()), ["コール表", "ライブコール", "カラオケ"], "F: コールを覚えるの3つの見せ方の名前");
   assertEqual(home.querySelector("#home-next-live")?.hasAttribute("hidden"), true, "F: 次のライブは、データがあるときだけ JS が出す（初めは隠す）");
   // CSS：広い画面で広げるのはホームだけ。動きはホームを表示している間だけで、動きを減らす設定では止める
   const frameRules = homeCss.match(/[^{}]*\.game-frame\s*\{[^}]*max-width[^}]*\}/g) ?? [];
@@ -791,15 +794,16 @@ async function runHomeFixTests() {
   const homeCss = await fetchText("css/homeRenewal.css");
   const styleCss = await fetchText("css/style.css");
 
-  // ライブ：今までの「コールを覚える」と新しい3つ（おためし版）の違いが分かる
-  const classicLive = home.querySelector('#home-card-live [data-home-action="live-call-classic"]');
-  assertEqual(classicLive?.querySelector("b")?.textContent, "コールを覚える（今までの版）", "G: ライブの「コールを覚える」は（今までの版）と分かる名前");
-  assertEqual(classicLive?.querySelector("small")?.textContent.includes("前からある練習モード"), true, "G: 説明に「前からある練習モード」");
-  assertEqual(home.querySelector('#home-card-game [data-home-action="live-call-classic"] .home-game-title')?.textContent, "コールを覚える（今までの版）", "G: ゲーム欄の「コールを覚える」も同じ名前");
-  assertEqual(home.querySelector("#home-live-new-title")?.textContent, "新しいライブコールおためし版", "G: 新しい3つは「新しいライブコール（おためし版）」のまま");
-  assertEqual([...home.querySelectorAll(".home-live-new-grid [data-home-action]")].map((button) => button.dataset.homeAction), ["live-call-sheet", "live-call-live", "live-call-karaoke"], "G: 新しい3つの行き先は変えない");
-  const liveMain = lastRuleBody(homeCss, ".home-live-main");
-  assertEqual(liveMain.includes("rgba(214, 40, 110, 0.45)") && liveMain.includes("min-height: 56px"), true, "G: 今までの版の入口は少し控えめ（透ける地・少し低く）");
+  // 【2026-10-31 live-unify】ライブ：入口は「コールを覚える」の1つ。中の3つの札（コール表・ライブコール・カラオケ）は飾り（押す所は1つ）
+  const learnLive = home.querySelector('#home-card-live [data-home-action="learn-calls"]');
+  assertEqual(learnLive?.querySelector("b")?.textContent, "コールを覚える", "G: ライブの入口は「コールを覚える」");
+  assertEqual(learnLive?.querySelector("small")?.textContent.includes("コール表・ライブコール・カラオケ"), true, "G: 説明で3つの見せ方が分かる");
+  assertEqual([...(learnLive?.querySelectorAll(".home-live-learn-mode") ?? [])].map((chip) => chip.textContent.trim()), ["コール表", "ライブコール", "カラオケ"], "G: 3つの見せ方の札");
+  assertEqual(learnLive?.querySelector(".home-live-learn-modes")?.getAttribute("aria-hidden"), "true", "G: 札は飾り（読み上げは説明の1行で）");
+  assertEqual(learnLive?.querySelectorAll("button, a").length, 0, "G: ボタンの中に別のボタンを入れない（押す所は1つ）");
+  assertEqual([home.querySelector("#home-live-new-title"), home.querySelector(".home-live-new-grid"), home.querySelector('[data-home-action="live-call-classic"]')], [null, null, null], "G: 「おためし版」の3つ・前の版の入口はホームに無い");
+  const liveMain = lastRuleBody(homeCss, ".home-live-main.home-live-main--learn");
+  assertEqual(liveMain.includes("#d6286e") && liveMain.includes("min-height: 72px"), true, "G: 入口は主役のボタン（濃いピンク〜紫・高さ 72px）");
 
   // 言葉・改行
   assertEqual(home.querySelector(".home-game--random .home-game-title")?.innerHTML, "ランダム再生クイズ", "G: 「ランダム再生クイズ」の題名の途中に改行の候補（<wbr>）を置かない");

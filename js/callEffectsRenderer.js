@@ -83,6 +83,11 @@ export function decorateCallSpan(span, prep, { memberColorOf = () => "#ffb3d1" }
     parts.glow.setAttribute("aria-hidden", "true");
     parts.cue = root.insertBefore(el("span", "cx-cue"), parts.plate);
     parts.cue.setAttribute("aria-hidden", "true");
+    // 【2026-10-31 live-unify】0.3秒以下のコールの「瞬間のフラッシュ」（板の上に一瞬だけ重なる白い光。文字の後ろ）
+    if (prep.vis.kind === "flash") {
+      parts.flash = root.insertBefore(el("span", "cx-flash"), parts.text);
+      parts.flash.setAttribute("aria-hidden", "true");
+    }
   }
   if (prep.type === "mix" || prep.isLong || prep.vis?.kind === "long") {
     const bar = root.appendChild(el("span", "cx-bar"));
@@ -218,6 +223,7 @@ export function applyVisualState(c, v, t) {
   setStyle(c, parts.plate, "opacity", String(r3(v.plateO)));
   setStyle(c, parts.glow, "opacity", String(r3(v.glowO)));
   setStyle(c, parts.cue, "opacity", String(r3(v.cueO)));
+  setStyle(c, parts.flash, "opacity", String(r3(v.flashO ?? 0)));
   if (parts.bar) {
     setStyle(c, parts.bar, "opacity", String(r3(v.barO)));
     setStyle(c, parts.barFill, "transform", `scaleX(${r3(v.barP)})`);

@@ -149,7 +149,9 @@ function runAvailabilityTests() {
   const ok = computeModeAvailability({ sheet, hasAudio: true, lyricsRecord: { lines: LINES } });
   assertEqual([ok.sheet.ok, ok.live.ok, ok.karaoke.ok], [true, true, true], "B: コール表・時刻・音源・歌詞がそろえば3つとも使える");
   const noAudio = computeModeAvailability({ sheet, hasAudio: false, lyricsRecord: { lines: LINES } });
-  assertEqual([noAudio.sheet.ok, noAudio.live.ok, noAudio.karaoke.ok], [true, false, false], "B: 音源が無い：コール表だけ使える");
+  // 【2026-10-31 live-unify】カラオケは音源が無くても使える（前の版のカラオケ同期の「カラオケ店の曲に合わせる」使い方を取り込んだ）
+  assertEqual([noAudio.sheet.ok, noAudio.live.ok, noAudio.karaoke.ok], [true, false, true], "B: 音源が無い：コール表と、［曲スタート］で合わせるカラオケは使える");
+  assertEqual(noAudio.karaoke.note.includes("［曲スタート］"), true, "B: 音源が無いカラオケは、使い方の注意を出す");
   assertEqual(noAudio.live.reason.includes("音源"), true, "B: 使えない理由（音源）");
   // 採用していない曲：端末に元のコールがあってもコールを出さない。カラオケは使える
   const none = sheetFor(null);
@@ -341,7 +343,9 @@ async function runWiringTests() {
   assertEqual(html.includes('id="data-pack-import-input"'), true, "H: 追加データパックの読み込みはそのまま残っている");
   // 2026-10-30 ホーム案F：差し替え口に遊び方（コール表／ライブコール／カラオケ）を渡せるようにした
   assertEqual(main.includes("setLiveCallEntryHandler((mode) => openLiveCallFrom("), true, "H: ホームのライブコールは差し替え口から新しい流れへ");
-  assertEqual(/modeId === "liveCallMode"\) \{[\s\S]{0,400}renderLiveCallModeList\(\);\s*navigateWithScrollMemory\("liveCallModeList"\)/.test(main), true, "H: ゲーム画面のライブコールモードは前の版の曲一覧へ（2026-10-29 本人の判断）");
+  // 【2026-10-31 live-unify・本人の指示】入口は「コールを覚える」の1つ：ゲーム画面のカードも新しいライブコールへ。前の版は新しい一覧の［今までの版を開く］から
+  assertEqual(/modeId === "liveCallMode"\) \{[\s\S]{0,600}openLiveCallFrom\(document\.body\.dataset\.screen \|\| "start"\);/.test(main), true, "H: ゲーム画面の「コールを覚える」も新しいライブコールへ（入口を1つに）");
+  assertEqual(/function openClassicLiveCallMode\(\) \{[\s\S]{0,200}renderLiveCallModeList\(\);\s*navigateWithScrollMemory\("liveCallModeList"\)/.test(main), true, "H: 前の版の曲一覧（同期モード・カラオケ同期）は消さず、［今までの版を開く］から開ける");
   assertEqual(screens.includes('liveCall: document.getElementById("live-call-screen")'), true, "H: 画面の登録");
   assertEqual(/const DB_VERSION = 2;/.test(storage) && storage.includes('db.createObjectStore(STORE_NAME, { keyPath: "songId" })') && storage.includes("db.createObjectStore(RELEASED_CALLS_STORE_NAME, { keyPath: \"songId\" })"), true, "H: データベースは版2。元の callData ストア（keyPath songId）はそのまま、releasedCalls を足すだけ");
   assertEqual(/if \(!db\.objectStoreNames\.contains\(STORE_NAME\)\)/.test(storage) && /if \(!db\.objectStoreNames\.contains\(RELEASED_CALLS_STORE_NAME\)\)/.test(storage), true, "H: 版を上げるときは、無いストアを作るだけ（今あるストア・記録を消さない）");

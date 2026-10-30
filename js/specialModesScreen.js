@@ -34,8 +34,9 @@ export const SPECIAL_MODES = [
   },
   {
     id: "liveCallMode",
-    title: "ライブコールモード",
-    description: "歌詞と一緒にコールのタイミングを確認できます",
+    // 【2026-10-31 live-unify】行き先は新しいライブコール（コール表・ライブコール・カラオケ）。題名はホームと同じ「コールを覚える」
+    title: "コールを覚える",
+    description: "曲を選んで、コール表・ライブコール・カラオケでコールを練習できます",
     available: true,
   },
   {

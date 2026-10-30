@@ -230,6 +230,8 @@ const APP_SHELL_FILES = [
   "./js/dataStatusShare.js",
   "./js/liveCallData.js",
   "./js/liveCallScreen.js",
+  "./js/liveCallNames.js",
+  "./js/liveCallModeTabs.js",
   "./js/callEffects.js",
   "./js/callEffectsRenderer.js",
   "./js/shoutWords.js",
