@@ -831,10 +831,11 @@ async function runWiringTests() {
   assertEqual(adminSrc.includes("await update(ref(database), { ...writes, [`backupSecrets/${backupId}`]: null });") && adminSrc.includes("await update(ref(database), writes);"), true, "W0: 管理者の復旧承認は backupSecrets も消し、未公開なら従来の形でやり直す");
   const repairSrc = await readSource("js/adminUidRepair.js");
   assertEqual(repairSrc.includes("includeSecretVault: true"), true, "W0: 管理者のUID付け替えも backupSecrets を消す形を先に試す");
-  assertEqual(sync.includes("for (const [oldUid] of candidates) {") && sync.includes("setPendingUidMerge(player.playerId, { oldUid, backupId });"), true, "W1: クラウドの旧UIDを全部（1件だけでなく）列へ足す");
+  assertEqual(sync.includes("for (const [oldUid] of candidates) {") && sync.includes("setPendingUidMerge(player.playerId, { oldUid, backupId, requiresApproval: isSessionRecheck });"), true, "W1: クラウドの旧UIDを全部（1件だけでなく）列へ足す");
   assertEqual(sync.includes("(lastKnownUidBeforeSync === null || applied.claim)"), true, "W1: claim 直後にもクラウドの旧UIDを確認する");
   const sup = await readSource("js/uidSupersession.js");
-  assertEqual(sup.includes("const pending = getPendingUidMerge(player.playerId, { nowMs: now });") && sup.includes("for (let i = 0; i < maxItems; i += 1) {"), true, "W2: 旧UIDを1件ずつ順番に処理する");
+  // 【2026-10-31改訂】公開データの整理は本人の確認待ちで残るため、先頭だけでなく「ランキングの引き継ぎがまだの旧UID」を古い順にたどる
+  assertEqual(sup.includes("listAutoMigrationTargets(getUidMergeQueue(player.playerId), { nowMs: now }).slice(0, maxItems)") && sup.includes("for (const target of targets) {"), true, "W2: 旧UIDを1件ずつ順番に処理する（記録が古い順・最大 maxItems 件）");
   assertEqual(sup.includes("UID_MERGE_STATE.BLOCKED") && sup.includes("UID_MERGE_STATE.MERGING"), true, "W2: 途中・権限拒否の状態を記録する");
   assertEqual(sup.includes('if (one.status === "leaderboard-incomplete") {'), true, "W2: ランキングが途中なら関門を止める（重複を作らない）");
   // 【2026-10-28】UIDが元に戻ったとき（循環になる）は「自分の対応表の取り消し＋新しい対応表」を1回の更新で

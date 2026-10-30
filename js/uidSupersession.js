@@ -25,8 +25,9 @@ import {
   clearPendingUidMerge,
   markPendingUidMergeLeaderboardMerged,
   markUidMergeAttempt,
+  getUidMergeQueue,
 } from "./playerProfile.js";
-import { UID_MERGE_STATE, decideUidMergeOutcome } from "./uidMergeQueue.js";
+import { UID_MERGE_STATE, listAutoMigrationTargets } from "./uidMergeQueue.js";
 import { getMostOshiMemberId } from "./oshiMembers.js";
 import {
   LEADERBOARD_QUESTION_COUNT_VALUES,
@@ -37,6 +38,8 @@ import {
   computeLeaderboardIdentityKey,
 } from "./timeAttackLeaderboard.js";
 import { planLeaderboardMerge, buildCopiedLeaderboardEntry } from "./backupOwnership.js";
+// 【2026-10-31追加】整理の前に「以前のID」と「今のID」の公開データの違いを見せるため（純粋関数）
+import { comparePublicIdentity, describePublicIdentityComparison } from "./identityDataComparison.js";
 
 // ランキングの出題タイプ（js/timeAttackScreen.jsのTIME_ATTACK_VARIANTと同じ3種。DOM依存の
 // timeAttackScreen.js を import しないため、ここに列挙する）。
@@ -233,52 +236,23 @@ async function runSingleUidMigration(player, pending, { identityKey, now }) {
     return { oldUid: pending.oldUid, status: "leaderboard-incomplete", leaderboard, profileDeleted: false, presenceDeleted: false, errors: leaderboard.errors };
   }
 
-  const result = { oldUid: pending.oldUid, status: "completed", leaderboard, profileDeleted: false, presenceDeleted: false, errors: [] };
-  let fb;
-  try {
-    fb = await loadFirebase();
-  } catch {
-    return { ...result, status: "partial", errors: ["通信エラーにより公開プロフィール・presence の整理を保留しました"] };
-  }
-  const { database, uid, ref, get, remove } = fb;
-  if (!uid || pending.oldUid === uid) return { ...result, status: "partial", errors: ["ログインIDを確認できませんでした"] };
-  // 旧UIDのノードを消す権限（後継者）に必要な対応表を確実に用意する（既にあれば Rules で拒否＝正常）
-  await recordUidSupersession(pending.oldUid, pending.backupId);
-
-  let deniedCount = 0;
-  for (const [node, label] of [
-    ["publicProfiles", "旧IDの公開プロフィール"],
-    ["presence", "旧IDのオンライン状態"],
-  ]) {
-    const path = `${node}/${pending.oldUid}`;
-    try {
-      const exists = (await get(ref(database, path))).exists();
-      if (exists) await remove(ref(database, path));
-      if (node === "publicProfiles") result.profileDeleted = true;
-      else result.presenceDeleted = true;
-    } catch (error) {
-      console.warn(`[uidMerge:auto] ${label} の整理に失敗`, error);
-      if (isPermissionDeniedError(error)) deniedCount += 1;
-      result.errors.push(`${label}を整理できませんでした（${error?.code ?? "エラー"}）`);
-    }
-  }
-
-  if (result.errors.length === 0) {
-    clearPendingUidMerge(player.playerId, pending.oldUid); // 完了：整理済みにして（completedUidMerges にも残る）次の旧UIDへ
-    return result;
-  }
-  const state = decideUidMergeOutcome({ completed: false, errors: result.errors, permissionDeniedOnly: deniedCount === result.errors.length });
-  markUidMergeAttempt(player.playerId, pending.oldUid, state, { error: result.errors[0], nowMs: now });
-  return { ...result, status: state === UID_MERGE_STATE.BLOCKED ? "blocked" : "partial" };
+  // 【2026-10-31改訂・本人指示「前のIDの引き継ぎは、違いを見せ、本人の承認なしには統合しない。前のデータは安全を確かめずに消さない」】
+  // 以前はここで旧UIDの公開プロフィール・オンライン記録を自動で消していた。今は消さずに「本人の確認待ち」のまま残し、
+  // フレンド画面の案内（内容を確認する → 違いを見る → 引き継いで整理する）から本人が実行したときだけ消す（executeUidMerge）。
+  // ランキングの引き継ぎ（上。速い方を今のID名義で1件残す・複製を読み戻してから旧を消す）は従来どおり（2026-09-22 第8回）。
+  return { oldUid: pending.oldUid, status: "awaiting-approval", leaderboard, profileDeleted: false, presenceDeleted: false, errors: [] };
 }
 
 export async function runPendingUidMigration({ identityKey = null, now = Date.now(), maxItems = UID_MIGRATION_MAX_ITEMS_PER_RUN } = {}) {
   const player = getActivePlayer();
   const items = [];
-  for (let i = 0; i < maxItems; i += 1) {
-    const pending = getPendingUidMerge(player.playerId, { nowMs: now });
-    if (!pending) break;
-    if (items.some((item) => item.oldUid === pending.oldUid)) break; // 同じ回で同じ旧UIDを二度扱わない（無限ループ防止）
+  // 【2026-10-31改訂】公開データの整理は本人の確認待ちで残るため、列の先頭だけを見ると、後ろの旧UIDのランキングが
+  // 引き継がれない。ランキングの引き継ぎがまだの旧UIDを、記録が古い順に最大 maxItems 件たどる。
+  const targets = listAutoMigrationTargets(getUidMergeQueue(player.playerId), { nowMs: now }).slice(0, maxItems);
+  for (const target of targets) {
+    const pending = getPendingUidMerge(player.playerId, { nowMs: now, onlyOldUid: target.oldUid });
+    if (!pending) continue;
+    if (items.some((item) => item.oldUid === pending.oldUid)) continue; // 同じ回で同じ旧UIDを二度扱わない
     // 旧UIDが今のUIDと同じ（＝IDが元に戻った）なら整理するものは無い
     let currentUid = null;
     try {
@@ -302,8 +276,9 @@ export async function runPendingUidMigration({ identityKey = null, now = Date.no
   const last = items[items.length - 1];
   const anyPartial = items.some((item) => item.status === "partial");
   const anyBlocked = items.some((item) => item.status === "blocked");
+  const anyAwaiting = items.some((item) => item.status === "awaiting-approval");
   return {
-    status: anyPartial ? "partial" : anyBlocked ? "blocked" : "completed",
+    status: anyPartial ? "partial" : anyBlocked ? "blocked" : anyAwaiting ? "awaiting-approval" : "completed",
     leaderboard: last.leaderboard ?? null,
     profileDeleted: last.profileDeleted ?? false,
     presenceDeleted: last.presenceDeleted ?? false,
@@ -320,8 +295,7 @@ export async function runPendingUidMigration({ identityKey = null, now = Date.no
 //                    bestOldCandidate, action: "none"|"copyThenDeleteOld"|"deleteOld", finalClearTimeMs }
 export async function planUidMerge() {
   const player = getActivePlayer();
-  const pending = getPendingUidMerge(player.playerId);
-  if (!pending) return { ok: false, reason: "引き継ぎが必要な旧IDの記録はありません" };
+  if (!getPendingUidMerge(player.playerId)) return { ok: false, reason: "引き継ぎが必要な旧IDの記録はありません" };
 
   let fb;
   try {
@@ -331,6 +305,10 @@ export async function planUidMerge() {
   }
   const { database, uid, ref, get } = fb;
   if (!uid) return { ok: false, reason: "ログイン状態を確認できませんでした" };
+  // 【2026-10-31】今のIDと同じ記録は飛ばして、本当の以前のIDを対象にする（案内の表示と同じ判定）
+  dropSelfUidMergeEntry(uid);
+  const pending = getPendingUidMerge(player.playerId, { currentUid: uid });
+  if (!pending) return { ok: false, reason: "引き継ぎが必要な旧IDの記録はありません" };
   const oldUid = pending.oldUid;
   if (oldUid === uid) return { ok: false, reason: "旧IDと現在のIDが同じです" };
 
@@ -390,15 +368,27 @@ export async function planUidMerge() {
 
   let profile = { oldExists: false, newExists: false };
   let presence = { oldExists: false };
+  // 【2026-10-31追加】中身も読んでおく：①整理の前に違い（名前・推し・称号）を本人に見せる ②消す前に端末へ控えを残す
+  let oldProfileValue = null;
+  let newProfileValue = null;
+  let oldPresenceValue = null;
   try {
-    profile = {
-      oldExists: (await get(ref(database, `publicProfiles/${oldUid}`))).exists(),
-      newExists: (await get(ref(database, `publicProfiles/${uid}`))).exists(),
-    };
-    presence = { oldExists: (await get(ref(database, `presence/${oldUid}`))).exists() };
+    oldProfileValue = (await get(ref(database, `publicProfiles/${oldUid}`))).val();
+    newProfileValue = (await get(ref(database, `publicProfiles/${uid}`))).val();
+    profile = { oldExists: oldProfileValue !== null, newExists: newProfileValue !== null };
+    oldPresenceValue = (await get(ref(database, `presence/${oldUid}`))).val();
+    presence = { oldExists: oldPresenceValue !== null };
   } catch {
     // 読めなくても計画自体は返す（実行時に改めて扱う）
   }
+  const comparison = comparePublicIdentity({
+    oldUid,
+    newUid: uid,
+    oldProfile: oldProfileValue,
+    newProfile: newProfileValue,
+    leaderboardDivisions: divisions,
+    oldPresence: oldPresenceValue,
+  });
 
   const summary = {
     copyCount: divisions.filter((d) => d.action === "copyThenDeleteOld").length,
@@ -406,7 +396,18 @@ export async function planUidMerge() {
     untouchedNewCount: divisions.filter((d) => d.action === "none" && d.newEntry).length,
     legacyOnlyCount: divisions.filter((d) => d.oldEntry === null && d.legacyEntries.length > 0).length,
   };
-  return { ok: true, oldUid, newUid: uid, backupId: pending.backupId, divisions, profile, presence, summary };
+  return {
+    ok: true,
+    oldUid,
+    newUid: uid,
+    backupId: pending.backupId,
+    divisions,
+    profile,
+    presence,
+    summary,
+    comparison,
+    oldValues: { publicProfile: oldProfileValue, presence: oldPresenceValue },
+  };
 }
 
 // 実行前に旧UID側の全記録を端末へ保存する（巻き戻し用）。
@@ -424,6 +425,9 @@ function saveMergeSnapshot(plan) {
         newEntry: d.newEntry,
         legacyEntries: d.legacyEntries,
       })),
+      // 【2026-10-31追加】消す前の公開プロフィール・オンライン記録の控え（万一のときに本人・管理者が見て戻せるように）
+      oldPublicProfile: plan.oldValues?.publicProfile ?? null,
+      oldPresence: plan.oldValues?.presence ?? null,
     };
     localStorage.setItem(`${SNAPSHOT_KEY_PREFIX}${plan.oldUid}`, JSON.stringify(snapshot));
   } catch {
@@ -457,6 +461,9 @@ export async function executeUidMerge(plan) {
   if (uid !== plan.newUid) return { ok: false, reason: "計画を作ったときとログインIDが違います。画面を開き直してください。" };
 
   saveMergeSnapshot(plan);
+  // 【2026-10-31追加】旧IDのカード・記録を消す権限（Rules：uidSupersession/{旧UID}/newUid が自分）に必要な対応表を用意する。
+  // 以前は起動時の自動整理が用意していた。自動整理をやめたので、本人が実行したここで用意する（既にあれば Rules で拒否＝正常）。
+  if (plan.backupId) await recordUidSupersession(plan.oldUid, plan.backupId);
   const player = getActivePlayer();
   const result = { ok: true, copied: 0, deletedOld: 0, profileDeleted: false, presenceDeleted: false, errors: [] };
 
@@ -535,6 +542,8 @@ export function describeUidMergePlan(plan) {
   if (!plan?.ok) return [];
   const sec = (ms) => `${(ms / 1000).toFixed(2)}秒`;
   const lines = [];
+  // 【2026-10-31追加】まず「違い」を見せる（本人が確かめてから整理するため）
+  lines.push(...describeUidMergeDifferences(plan));
   for (const d of plan.divisions) {
     const label = describeLeaderboardDivision(d.variant, d.questionCountValue, d.categoryFilterValue);
     if (d.action === "copyThenDeleteOld") {
@@ -544,8 +553,36 @@ export function describeUidMergePlan(plan) {
       lines.push(`${label}：新IDの ${sec(d.newEntry.clearTimeMs)} を残し、旧IDの ${sec(d.bestOldCandidate.clearTimeMs)} を整理`);
     }
   }
-  if (plan.profile.oldExists) lines.push("旧IDの公開プロフィール（フレンド一覧の重複）を整理");
-  if (plan.presence.oldExists) lines.push("旧IDのオンライン状態を整理");
+  if (plan.profile.oldExists) lines.push(`整理すると消えるもの：以前のID（#${String(plan.oldUid).slice(-4)}）のフレンドのカード（消す前にこの端末へ控えを残します）`);
+  if (plan.presence.oldExists) lines.push(`整理すると消えるもの：以前のID（#${String(plan.oldUid).slice(-4)}）のオンライン表示の記録`);
+  return lines;
+}
+
+// 【2026-10-31追加】以前のIDに、整理するもの（ランキングの記録・旧世代の記録・フレンドのカード・オンライン記録）が
+// もう何も残っていないか（純粋関数）。残っていなければ、案内を出し続ける意味がないので端末の印だけ「整理済み」にする。
+export function isUidMergePlanEmpty(plan) {
+  if (!plan?.ok) return false;
+  const divisions = Array.isArray(plan.divisions) ? plan.divisions : [];
+  const anyOld = divisions.some((d) => d.oldEntry || (Array.isArray(d.legacyEntries) && d.legacyEntries.length > 0));
+  return !anyOld && !plan.profile?.oldExists && !plan.presence?.oldExists;
+}
+
+// 何も残っていない旧IDの案内を閉じる（端末の記録だけを変える。Firebase には何も書かない）
+export function closeEmptyUidMerge(plan) {
+  if (!isUidMergePlanEmpty(plan)) return false;
+  clearPendingUidMerge(getActivePlayer().playerId, plan.oldUid);
+  return true;
+}
+
+// 【2026-10-31追加】整理の前に見せる「以前のID」と「今のID」の違い（純粋関数）。
+// 称号・プレイ記録・推し・設定・自己ベストの正本は、IDではなくこの端末（とバックアップ）にあるので、この整理では変わらない。
+// IDごとに分かれているのは、フレンドのカード・ランキング・オンライン表示だけ（それを比べて見せる）。
+export function describeUidMergeDifferences(plan) {
+  if (!plan?.ok) return [];
+  const lines = [`以前のID #${String(plan.oldUid).slice(-4)} と 今のID #${String(plan.newUid).slice(-4)} の違い：`];
+  const cmp = plan.comparison ?? comparePublicIdentity({ oldUid: plan.oldUid, newUid: plan.newUid, leaderboardDivisions: plan.divisions ?? [] });
+  describePublicIdentityComparison(cmp).forEach((line) => lines.push(`・${line}`));
+  lines.push("・称号・プレイ記録・推し・設定・自己ベストは、IDではなくこの端末に保存されています。この整理では変わりません");
   return lines;
 }
 
@@ -616,7 +653,21 @@ export async function revokeOwnSupersessionIfPresent() {
 }
 
 // backupId を持たない・まだ何も同期していないプレイヤーでは案内を出さない（呼び出し側の補助）。
-export function hasPendingUidMerge() {
+// 【2026-10-31改訂・iPad（サブ）の実機報告「整理待ちが無いのに案内が出る」】今のUIDを渡すと、
+// 「旧UID＝今のUID」（IDが元に戻った・同じIDが列に入った）の記録を整理待ちとして数えない
+// （詳細情報の比較パネルと同じ判定にそろえる。以前はここだけ今のUIDを見ておらず、案内だけが出続けた）。
+export function hasPendingUidMerge({ currentUid = null } = {}) {
   const player = getActivePlayer();
-  return !!getBackupId(player.playerId) && getPendingUidMerge(player.playerId) !== null;
+  return !!getBackupId(player.playerId) && getPendingUidMerge(player.playerId, { currentUid }) !== null;
+}
+
+// 【2026-10-31追加】列の中の「旧UID＝今のUID」の記録を整理済みにする（端末の記録だけ。Firebase には何も書かない）。
+// 今のIDを「以前のID」として整理することは無いので、残しておく意味が無い。戻り値：片付けたら true。
+export function dropSelfUidMergeEntry(currentUid) {
+  if (typeof currentUid !== "string" || !currentUid) return false;
+  const player = getActivePlayer();
+  const self = getUidMergeQueue(player.playerId).find((e) => e.oldUid === currentUid && e.state !== UID_MERGE_STATE.MERGED);
+  if (!self) return false;
+  clearPendingUidMerge(player.playerId, currentUid);
+  return true;
 }

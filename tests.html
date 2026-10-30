@@ -160,6 +160,8 @@
     import { runLyricsQuestionUniquenessTests } from "./tests/lyricsQuestionUniqueness.test.js";
     // 【2026-10-28新設】アカウントの恒久対策（旧UIDの待ち行列・データ比較・整理・アカウント保護・接続ごとの在席）と、歌詞クイズ対戦の互換性
     import { runAccountPermanentFixTests } from "./tests/accountPermanentFix.test.js";
+    // 【2026-10-31新設】フレンドの重複（今のID・以前のID・同じ名前の別の人の区別）と、以前のIDの整理を本人の承認制にした件
+    import { runFriendsIdentity1031Tests } from "./tests/friendsIdentity1031.test.js";
     // 【2026-10-28第3回】整理パネル・公開OFF時の在席の後片付け・在席とアカウント保護の検証・歌詞対戦の性能と版の組み合わせ
     import { runAccountMergePanelTests } from "./tests/accountMergePanel.test.js";
     import { runPresenceSharingOffCleanupTests } from "./tests/presenceSharingOffCleanup.test.js";
@@ -519,6 +521,7 @@
     await runIdentityPresenceFixTests();
     await runLyricsQuestionUniquenessTests();
     await runAccountPermanentFixTests();
+    await runFriendsIdentity1031Tests();
     runLyricsQuizBattleCompatibilityTests();
     await runLyricsQuizBattleCompatibilityRulesTests();
     await runAccountMergePanelTests();

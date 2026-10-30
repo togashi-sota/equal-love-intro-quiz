@@ -46,6 +46,12 @@ const NS = {
   propFixed: `${PROJECT_ID}-propfixed`,
 };
 
+// 【2026-10-31追加】提案（v2.2）は、この検証で分かった接続ノードの行（REQUIRED_CONNECTION_RULE）を既に取り込んでいる。
+// その場合「提案のまま」は「直した提案」と同じ動きになるので、提案のままの不具合を再現する期待は使わない。
+const PROPOSED_ALREADY_FIXED =
+  JSON.parse(readRepoText("firebase/database.rules.proposed.json")).rules.presence.$uid.connections.$connectionId[".validate"] === REQUIRED_CONNECTION_RULE;
+const isUnfixedProposal = (kind) => kind === "propAsIs" && !PROPOSED_ALREADY_FIXED;
+
 function rulesFor(kind) {
   if (kind === "prod") return readRepoText("firebase/database.rules.json");
   const proposed = JSON.parse(readRepoText("firebase/database.rules.proposed.json"));
@@ -113,9 +119,9 @@ async function runRulesAdversarial(kind) {
   check(await allowed(set(ref(dbB, P(a.uid, "/connections/live")), null)), "拒否", `R3(${kind}): 他人は A の接続ノードを1つだけ消すこともできない`);
   check(await allowed(set(ref(dbA, P(a.uid, "/connections/live")), Date.now() + 10 * MIN)), "拒否", `R4(${kind}): 自分でも10分先の時刻は書けない（未来の偽装）`);
   check(await allowed(set(ref(dbA, P(a.uid, "/connections/live")), Date.now() - 60 * MIN)), "拒否", `R4(${kind}): 1時間前の時刻も書けない（過去の偽装）`);
-  check(await allowed(set(ref(dbA, P(a.uid, "/connections/live")), Date.now())), kind === "propAsIs" ? "許可" : "拒否", `R5(${kind}): 端末の時計の数値をそのまま書く（${kind === "propAsIs" ? "提案のままでは±2分まで通る" : "サーバー時刻以外は不可"}）`);
+  check(await allowed(set(ref(dbA, P(a.uid, "/connections/live")), Date.now())), isUnfixedProposal(kind) ? "許可" : "拒否", `R5(${kind}): 端末の時計の数値をそのまま書く（${isUnfixedProposal(kind) ? "提案のままでは±2分まで通る" : "サーバー時刻以外は不可"}）`);
   check(await allowed(set(ref(dbA, P(a.uid, "/connections/live")), serverTimestamp())), kind === "prod" ? "拒否" : "許可", `R6(${kind}): 既存の接続ノードをサーバー時刻へ更新（${kind === "prod" ? "今の本番は true だけ" : "提案は可"}）`);
-  check(await allowed(set(ref(dbA, P(a.uid, "/connections/brandnew")), serverTimestamp())), kind === "propAsIs" ? "許可" : "拒否", `R7(${kind}): 存在しない接続ノードをいきなり時刻で作る（${kind === "propFixed" ? "不可＝消えた接続の書き戻しを防ぐ" : kind === "prod" ? "不可" : "提案のままでは通る＝書き戻しの原因"}）`);
+  check(await allowed(set(ref(dbA, P(a.uid, "/connections/brandnew")), serverTimestamp())), isUnfixedProposal(kind) ? "許可" : "拒否", `R7(${kind}): 存在しない接続ノードをいきなり時刻で作る（${!isUnfixedProposal(kind) && kind !== "prod" ? "不可＝消えた接続の書き戻しを防ぐ" : kind === "prod" ? "不可" : "提案のままでは通る＝書き戻しの原因"}）`);
   check(await allowed(set(ref(dbA, P(a.uid, "/connections/s")), "online")), "拒否", `R8(${kind}): 文字列は書けない`);
   check(await allowed(set(ref(dbA, P(a.uid, "/connections/o")), { at: 1 })), "拒否", `R8(${kind}): オブジェクトは書けない`);
   check(await allowed(set(ref(dbA, P(a.uid, "/lastSeen")), Date.now() + 10 * MIN)), "拒否", `R9(${kind}): lastSeen も10分先は不可`);
@@ -134,8 +140,8 @@ async function runRulesAdversarial(kind) {
     await adminDelete(ns, P(a.uid, "/connections/hb"));
     check(
       await allowed(update(ref(dbA, P(a.uid)), { lastSeen: serverTimestamp(), "connections/hb": serverTimestamp() })),
-      kind === "propFixed" ? "拒否" : "許可",
-      `R13(${kind}): 消えた接続ノードへのハートビートは${kind === "propFixed" ? "拒否（書き戻さない）" : "通ってしまう（書き戻し）"}`
+      !isUnfixedProposal(kind) ? "拒否" : "許可",
+      `R13(${kind}): 消えた接続ノードへのハートビートは${!isUnfixedProposal(kind) ? "拒否（書き戻さない）" : "通ってしまう（書き戻し）"}`
     );
   }
   // 管理者の欄は誰も書けない（自己昇格不可）
@@ -298,9 +304,11 @@ async function runPresenceScenarios(kind) {
     });
     const oldKey = connectionKeys(start)[0];
     const lastAlive = timed ? start.connections[oldKey] : start.lastSeen;
-    // バックグラウンドへ：画面が隠れる（書き込みはしない）＋iOS が通信とタイマーを止める
-    d.setVisibility("hidden");
+    // バックグラウンドへ：iOS が通信とタイマーを止める（ここでは先に通信が固まった場合を再現する）。
+    // 【2026-10-31】画面が隠れると、アプリは自分の接続ノードを外す（js/presenceSync.js の pausePresenceForBackground）。
+    // 通信が先に固まっていれば、その書き込みはサーバーに届かない（＝下の「サーバーが気付かない」状況のまま）。
     proxy.freeze();
+    d.setVisibility("hidden");
     await sleep(1500);
     const frozen = await presenceOf(ns, d.uid);
     check(connectionKeys(frozen).includes(oldKey), true, `P5(${kind}): 通信が固まっている間、サーバーはまだ切断に気付かない（接続ノードが残る）`);
@@ -336,14 +344,14 @@ async function runPresenceScenarios(kind) {
     const settled = await presenceOf(ns, d.uid);
     const resurrected = connectionKeys(settled).includes(oldKey);
     check(Boolean(reconnected), true, `P5(${kind}): 再接続で新しい接続ノードを作る`);
-    check(resurrected, kind === "propAsIs", `P5(${kind}): 消えた古い接続ノードが送り直しで${kind === "propAsIs" ? "書き戻される（＝提案のままの不具合を再現）" : "書き戻されない"}`);
+    check(resurrected, isUnfixedProposal(kind), `P5(${kind}): 消えた古い接続ノードが送り直しで${isUnfixedProposal(kind) ? "書き戻される（＝提案のままの不具合を再現）" : "書き戻されない"}`);
     await closeDevice(d);
     const final = await waitFor(async () => {
       const e = await presenceOf(ns, d.uid);
       return e && connectionKeys(e).filter((k) => k !== oldKey).length === 0 ? e : null;
     });
     const finalState = classifyPresenceEntry(final, Date.now() + PRESENCE_OFFLINE_GRACE_MS + 1000).state;
-    check(finalState, kind === "propAsIs" ? "online" : "offline", `P5(${kind}): アプリを閉じた後の表示は${kind === "propAsIs" ? "「オンライン」のまま（書き戻された残骸のせい。15分後に通信不明、1時間後にオフライン）" : "オフライン"}`);
+    check(finalState, isUnfixedProposal(kind) ? "online" : "offline", `P5(${kind}): アプリを閉じた後の表示は${isUnfixedProposal(kind) ? "「オンライン」のまま（書き戻された残骸のせい。15分後に通信不明、1時間後にオフライン）" : "オフライン"}`);
     proxy.close();
     if (resurrected) await adminDelete(ns, `presence/${d.uid}/connections/${oldKey}`);
   }
@@ -501,7 +509,7 @@ async function runLegacyClientScenario() {
     d.legacy = true;
     await seedProfile(ns, d.uid);
     await d.startPresence();
-    const expectNumber = kind === "propAsIs";
+    const expectNumber = isUnfixedProposal(kind);
     const entry = await waitFor(async () => {
       const e = await presenceOf(ns, d.uid);
       const v = Object.values(e?.connections ?? {})[0];

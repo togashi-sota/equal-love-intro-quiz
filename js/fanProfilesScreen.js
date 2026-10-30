@@ -17,12 +17,12 @@ import { resolveIsAdminUser } from "./adminConfig.js";
 // 【2026-10-28追加】管理者の診断表示（表示だけ。権限は一切与えない）
 import { getLastAdminCheck, getRememberedAdminUids } from "./adminConfig.js";
 import { describeAdminDiagnostics } from "./adminAccess.js";
-import { hasPendingUidMerge, planUidMerge, executeUidMerge, describeUidMergePlan, fetchSupersessionLinks } from "./uidSupersession.js";
+import { hasPendingUidMerge, planUidMerge, executeUidMerge, describeUidMergePlan, fetchSupersessionLinks, closeEmptyUidMerge, dropSelfUidMergeEntry } from "./uidSupersession.js";
 import { getPlayerKeyPrefix, getActivePlayer, getPendingUidMerge, getCompletedUidMerges, getLastKnownUid, getUidMergeQueue, getKnownOldUidsForPlayer } from "./playerProfile.js";
 // 【2026-10-28追加】以前のあなた／現在のあなたの比較・管理者の確認コード・アカウント保護（詳細情報の中に JS で作る）
 import { mountAccountRecoveryPanel, refreshAccountRecoveryPanel } from "./accountRecoveryPanel.js";
 // 【2026-10-28追加】同じプレイヤーの重複カードをまとめる／同じ名前の別プレイヤーを見分ける（純粋関数）
-import { collapseSamePlayerProfiles, annotateSameNameProfiles, collectMyKnownOldUids, shortUidSuffix, selectSupersessionLookupCandidates, describeAdminDeleteTarget, normalizeDisplayNameForCompare } from "./fanProfilesIdentity.js";
+import { collapseSamePlayerProfiles, annotateSameNameProfiles, collectMyKnownOldUids, shortUidSuffix, selectSupersessionLookupCandidates, describeAdminDeleteTarget, normalizeDisplayNameForCompare, dedupeProfilesByUid } from "./fanProfilesIdentity.js";
 import { getAuthUidHistory } from "./firebaseClient.js";
 import { summarizeAuthUidHistory } from "./identityBootstrap.js";
 import { getMemberById } from "./memberUtils.js";
@@ -140,7 +140,8 @@ function buildDisplayProfiles(profiles, nowMs) {
       lastSeen: classified.lastSeen ?? -Infinity,
     };
   });
-  const { profiles: collapsed, hidden } = collapseSamePlayerProfiles(profiles, {
+  // 【2026-10-31】同じUIDは必ず1枚（取得・再描画が重なっても行が増えない安全弁）
+  const { profiles: collapsed, hidden } = collapseSamePlayerProfiles(dedupeProfilesByUid(profiles), {
     myUid,
     myKnownOldUids: getMyKnownOldUids(),
     supersessionLinks,
@@ -198,9 +199,14 @@ function renderIdentityDiagnostics() {
   });
 }
 
+// 【2026-10-31追加】一覧の取得が重なったとき（画面をすばやく開き直した等）、古い取得の結果で上書きしないための番号
+let profileListRequestSeq = 0;
+
 async function renderProfileList() {
+  const requestSeq = ++profileListRequestSeq;
   renderLoadingState();
   const { ok, profiles } = await fetchAllPublicProfiles();
+  if (requestSeq !== profileListRequestSeq) return; // 新しい取得が始まっている：古い結果は捨てる
   if (!ok) {
     renderEmptyState("fetch-failed");
     return;
@@ -486,7 +492,15 @@ export async function renderFanProfilesScreen() {
   await renderMyUidAndAdminState();
   renderUidMergeCard();
   renderProfileList();
-  startPresenceSubscriptionIfNeeded();
+  // 【2026-10-31】上の await の間に別の画面へ移っていたら、購読を始めない
+  // （始めてしまうと、画面を離れたときの停止がもう済んでいるため、購読が残り続ける）
+  if (isFanProfilesScreenActive()) startPresenceSubscriptionIfNeeded();
+}
+
+function isFanProfilesScreenActive() {
+  if (typeof document === "undefined" || !document.body?.dataset) return true;
+  const current = document.body.dataset.screen;
+  return current === undefined || current === "fanProfiles";
 }
 
 // ---- 【2026-09-15新設】旧IDからの引き継ぎ案内（js/uidSupersession.js） ----
@@ -498,7 +512,9 @@ let detailsInitialized = false;
 
 function renderUidMergeCard() {
   if (!elements.uidMergeCard) return;
-  const pending = hasPendingUidMerge();
+  // 【2026-10-31】今のIDが列に入っていたら片付ける（端末の記録だけ）。整理待ちは今のIDを除いて数える
+  dropSelfUidMergeEntry(myUid);
+  const pending = hasPendingUidMerge({ currentUid: myUid });
   elements.uidMergeCard.hidden = !pending;
   if (!pending) {
     currentUidMergePlan = null;
@@ -523,11 +539,17 @@ async function handleUidMergePlanClick() {
     if (!plan.ok) {
       // 【2026-10-23】起動時の自動引き継ぎで既に片付いていた（＝確認待ちが無くなった）場合は、
       // 「必要な記録はありません」と言いながら大きなカードが残り続けないよう、カード自体を閉じる。
-      if (!hasPendingUidMerge()) {
+      if (!hasPendingUidMerge({ currentUid: myUid })) {
         renderUidMergeCard();
         return;
       }
       setUidMergeStatus(plan.reason);
+      return;
+    }
+    // 【2026-10-31】以前のIDに何も残っていなければ（既に片付いている）、端末の印だけ「整理済み」にして案内を閉じる
+    if (closeEmptyUidMerge(plan)) {
+      setUidMergeStatus(`以前のID（#${String(plan.oldUid).slice(-4)}）には整理するものが残っていませんでした`);
+      if (!hasPendingUidMerge({ currentUid: myUid })) renderUidMergeCard();
       return;
     }
     currentUidMergePlan = plan;
@@ -595,7 +617,7 @@ function startPresenceSubscriptionIfNeeded() {
     renderPresenceDiagnostics();
     // 【2026-10-23】起動直後の自動引き継ぎで確認待ちが消えたら、引き継ぎ案内カードも自動で閉じる
     // （計画を立てている途中・提示中は触らない）
-    if (!currentUidMergePlan && !hasPendingUidMerge()) renderUidMergeCard();
+    if (!currentUidMergePlan && !hasPendingUidMerge({ currentUid: myUid })) renderUidMergeCard();
   }, 2000);
 }
 

@@ -494,9 +494,13 @@ function toLegacyPendingShape(entry) {
 }
 
 // 今処理すべき旧UID（列の先頭）。無ければ null。権限で止まっている（blocked）旧UIDは再確認の時刻まで返さない。
-export function getPendingUidMerge(playerId, { nowMs = Date.now(), currentUid = null } = {}) {
+// 【2026-10-31追加】onlyOldUid を渡すと、列の先頭ではなく、その旧UIDの記録（整理済みでなければ）を同じ形で返す
+// （起動時のランキングの自動引き継ぎで、先頭が「本人の確認待ち」でも後ろの旧UIDを処理するため）。
+export function getPendingUidMerge(playerId, { nowMs = Date.now(), currentUid = null, onlyOldUid = null } = {}) {
   const queue = getUidMergeQueue(playerId);
-  const head = selectActiveUidMerge(queue, { nowMs, currentUid });
+  const head = onlyOldUid
+    ? queue.find((e) => e.oldUid === onlyOldUid && e.state !== UID_MERGE_STATE.MERGED && e.oldUid !== currentUid) ?? null
+    : selectActiveUidMerge(queue, { nowMs, currentUid });
   const shaped = toLegacyPendingShape(head);
   if (!shaped) return null;
   shaped.queuedCount = queue.filter((e) => e.state !== UID_MERGE_STATE.MERGED && e.oldUid !== currentUid).length;
@@ -515,11 +519,12 @@ export function markPendingUidMergeLeaderboardMerged(playerId, mergedAt = Date.n
 // 【2026-09-22改訂】既に同じ旧UIDの引き継ぎが完了済み（completedUidMerges）なら、確認待ちを作り直さない
 // （クラウド側の previousUids から旧UIDを再発見するたびに同じ整理を繰り返さないため）。
 // 【2026-10-28改訂】別の旧UIDが整理待ちでも上書きしない。列の末尾へ足す（戻り値：新しく足したら true）。
-export function setPendingUidMerge(playerId, { oldUid, backupId }) {
+// 【2026-10-31】requiresApproval=true なら、起動時の自動処理の対象にせず、本人の確認待ちとして足す。
+export function setPendingUidMerge(playerId, { oldUid, backupId, requiresApproval = false }) {
   if (getCompletedUidMerges(playerId).includes(oldUid)) return false;
   // 今のUIDと同じ旧UIDかどうかは、処理する側（runPendingUidMigration）が今のログインIDで判定する
   const before = getUidMergeQueue(playerId);
-  const { queue, added } = enqueueUidMerge(before, { oldUid, backupId });
+  const { queue, added } = enqueueUidMerge(before, { oldUid, backupId, requiresApproval });
   if (!added) {
     // backupId を後から補えた場合だけ保存する（変化が無ければ書かない＝不要な保存・同期の予約をしない）
     if (JSON.stringify(queue) !== JSON.stringify(before)) saveUidMergeQueue(playerId, queue);

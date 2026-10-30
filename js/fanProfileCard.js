@@ -9,7 +9,7 @@ import { buildAchievementIconMedal } from "./achievementIcons.js";
 import { applyOshiBadgeDecorationsFromState } from "./oshiBadge.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
 import { buildPresenceDisplay } from "./presencePayloads.js";
-import { buildProfileIdentityNote } from "./fanProfilesIdentity.js";
+import { buildProfileIdentityNote, classifyProfileRelation, canInviteProfile } from "./fanProfilesIdentity.js";
 
 export function buildOshiSwatch(members, oshiMemberId, badgeState) {
   const swatch = document.createElement("span");
@@ -105,6 +105,8 @@ export function buildProfileCard(profile, members, onSelect, options = {}) {
   const card = document.createElement("button");
   card.type = "button";
   card.className = "fan-profile-card";
+  // 【2026-10-31追加】見ている人との関係（今の自分／以前の自分（確認済み・未確認）／別の人）。見た目の出し分けとテストに使う
+  card.dataset.identityRelation = classifyProfileRelation(profile, { myUid });
   card.dataset.uid = profile.uid;
 
   const badgeState = {
@@ -190,7 +192,8 @@ export function buildProfileCard(profile, members, onSelect, options = {}) {
   }
 
   // 「一緒に遊ぶ」ボタンが必要な相手（＝自分以外）のときだけ、下に1段追加する。
-  const showPlayInviteButton = onPlayInviteRequest !== null && profile.uid !== myUid;
+  // 【2026-10-31】自分の以前のID（確認済み・未確認とも）には「一緒に遊ぶ」を出さない（自分を招待してしまうため）
+  const showPlayInviteButton = onPlayInviteRequest !== null && profile.uid !== myUid && canInviteProfile(profile, { myUid });
   const playInviteRow = showPlayInviteButton
     ? buildPlayInviteButtonRow(profile, presenceEntry, onPlayInviteRequest, isInMyCurrentRoom, nowMs)
     : null;

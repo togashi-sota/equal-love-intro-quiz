@@ -220,6 +220,8 @@ let legacyRulesDetected = false;
 // 新しい置き場所への書き込みが全部拒否され、従来の書き込みが通った＝まだ公開されていない、と判断し、
 // このセッション中は新しい置き場所を試さない（無駄な失敗を繰り返さない）。次の起動でもう一度試す。
 let vaultRulesUnavailable = false;
+// 【2026-10-31追加】この起動でクラウドの previousUids を読み直したか（読み取りは起動ごとに1回まで）
+let cloudPreviousUidsRecheckedThisSession = false;
 
 // 新しい置き場所への書き込み計画を、通るまで順に試す（js/backupOwnership.js の planVaultOwnershipAttempts）。
 // 作り直す秘密は、書く前に「確定を見届けていない秘密」として端末に控え、拒否されたら控えから消す
@@ -523,7 +525,13 @@ async function performSyncCore() {
     // 【2026-10-28改訂：旧UIDが複数あっても忘れない】以前は最新の1件だけを拾っていた。今は未整理の旧UIDを
     // 古い順に全部、整理待ちの列（js/uidMergeQueue.js）へ足す。claim した直後（UIDが変わった直後）も1回読む
     // （同じ backupId の過去の claim が残した、さらに前の旧UIDを取りこぼさないため）。読み取りは同期1回につき最大1回。
-    const shouldDiscoverCloudPreviousUids = !applied.legacy && (lastKnownUidBeforeSync === null || applied.claim);
+    // 【2026-10-31追加・本人の実機（#Gr72 と #PWW2 の2行）】クラウドの previousUids には以前のIDが記録されているのに、
+    // 端末の整理待ちの列に入っていないことがあった（2026-10-24 の切り替えの直後に、端末の記録か対応表の書き込みが
+    // 途中で終わったと見られる）。起動ごとに1回だけ読み直し（読み取りだけ）、見つかった旧UIDは
+    // 「本人の確認待ち」として列へ足す。この場合は自動では何も書かない・消さない（対応表も作らない）。
+    const isSessionRecheck = !(lastKnownUidBeforeSync === null || applied.claim) && !cloudPreviousUidsRecheckedThisSession;
+    const shouldDiscoverCloudPreviousUids = !applied.legacy && ((lastKnownUidBeforeSync === null || applied.claim) || isSessionRecheck);
+    if (shouldDiscoverCloudPreviousUids) cloudPreviousUidsRecheckedThisSession = true;
     if (shouldDiscoverCloudPreviousUids) {
       try {
         const previousUidsSnap = await get(ref(database, `backups/${backupId}/previousUids`));
@@ -537,9 +545,9 @@ async function performSyncCore() {
           for (const [oldUid] of candidates) {
             if (oldUid === recordedPreviousUid) continue;
             // 列へ足すだけ（同じ旧UIDは2件にならない・整理済みは作り直さない）。対応表は整理の直前に用意する
-            setPendingUidMerge(player.playerId, { oldUid, backupId });
+            setPendingUidMerge(player.playerId, { oldUid, backupId, requiresApproval: isSessionRecheck });
           }
-          if (!recordedPreviousUid && candidates.length > 0) recordedPreviousUid = candidates[candidates.length - 1][0];
+          if (!isSessionRecheck && !recordedPreviousUid && candidates.length > 0) recordedPreviousUid = candidates[candidates.length - 1][0];
         }
       } catch {
         // 読めない（旧Rules等）場合は何もしない

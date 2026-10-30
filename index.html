@@ -2240,24 +2240,6 @@
 
       <p class="special-modes-intro">このゲームを遊んでいるプレイヤーの、表示名・推し・称号と、入れている音源・歌詞・コールの曲数を見られます。</p>
 
-      <!-- 【2026-09-15新設】旧IDからの引き継ぎ案内（js/uidSupersession.js・js/fanProfilesScreen.js）。
-           Firebase匿名認証のIDが本人の操作と無関係に変わったことを、自動バックアップの同期
-           （ownerSecretによる所有権の自己修復）で検知したときだけ表示される。旧IDに残った
-           公開プロフィール・ランキング記録の整理は自動では行わず、ここで内容を確認してから
-           本人が実行する（本人指示：自動的に何でも旧IDのデータを削除する設計にはしない）。 -->
-      <div id="fan-profiles-uid-merge-card" class="fan-profiles-settings-card fan-profiles-uid-merge-card" hidden>
-        <div class="fan-profiles-settings-text">
-          <p class="fan-profiles-settings-title">🔁 以前のIDの記録が見つかりました</p>
-          <p class="fan-profiles-settings-description">この端末のIDが変わったため、フレンド一覧やランキングに「以前のあなた」が残っています。以前の記録を今のIDへ引き継いで、重複を整理できます（速い方の記録が残ります。記録が消えることはありません）。</p>
-          <ul id="fan-profiles-uid-merge-plan" class="modal-category-list" hidden></ul>
-          <p id="fan-profiles-uid-merge-status" class="fan-profiles-ranking-sync-status" hidden></p>
-        </div>
-        <div class="fan-profiles-uid-merge-actions">
-          <button id="fan-profiles-uid-merge-plan-button" class="secondary-button" type="button">内容を確認する</button>
-          <button id="fan-profiles-uid-merge-execute-button" class="primary-button" type="button" hidden>引き継いで整理する</button>
-        </div>
-      </div>
-
       <!-- 【2026-10-23新設】公開設定がOFFの人への短い案内（公開設定カードは一覧の下へ移動したため）。 -->
       <p id="fan-profiles-private-note" class="fan-profiles-private-note" hidden>あなたのプロフィールは非公開です。一覧の下の「公開設定」でONにすると、フレンド一覧に表示されます。</p>
 
@@ -2270,6 +2252,29 @@
 
       <!-- 一覧本体。中身はjs/fanProfilesScreen.jsが組み立てる -->
       <div id="fan-profiles-list"></div>
+
+      <!-- 【2026-09-15新設】旧IDからの引き継ぎ案内（js/uidSupersession.js・js/fanProfilesScreen.js）。
+           Firebase匿名認証のIDが本人の操作と無関係に変わったことを、自動バックアップの同期
+           （ownerSecretによる所有権の自己修復）で検知したときだけ表示される。旧IDに残った
+           公開プロフィール・ランキング記録の整理は自動では行わず、ここで内容を確認してから
+           本人が実行する（本人指示：自動的に何でも旧IDのデータを削除する設計にはしない）。
+           【2026-10-31改訂・本人指示「ずっと一番上に出ていて邪魔。確認するだけなら一番下へ」】
+           一覧の下へ移し、たたんだ形（押すと開く）にした。機能（内容の確認・引き継ぎ）はそのまま。
+           引き継ぎが済むと出なくなる（js/fanProfilesScreen.js の renderUidMergeCard）。 -->
+      <details id="fan-profiles-uid-merge-card" class="fan-profiles-uid-merge-fold" hidden>
+        <summary class="fan-profiles-uid-merge-summary">🔁 以前のIDの記録があります（開くと確認・整理できます）</summary>
+        <div class="fan-profiles-settings-card fan-profiles-uid-merge-card">
+          <div class="fan-profiles-settings-text">
+            <p class="fan-profiles-settings-description">この端末のIDが変わったため、フレンド一覧やランキングに「以前のあなた」が残っていることがあります。「内容を確認する」で違いを見てから、今のIDへ引き継いで重複を整理できます（速い方の記録が残ります。記録が消えることはありません）。</p>
+            <ul id="fan-profiles-uid-merge-plan" class="modal-category-list" hidden></ul>
+            <p id="fan-profiles-uid-merge-status" class="fan-profiles-ranking-sync-status" hidden></p>
+          </div>
+          <div class="fan-profiles-uid-merge-actions">
+            <button id="fan-profiles-uid-merge-plan-button" class="secondary-button" type="button">内容を確認する</button>
+            <button id="fan-profiles-uid-merge-execute-button" class="primary-button" type="button" hidden>引き継いで整理する</button>
+          </div>
+        </div>
+      </details>
 
       <!-- 【2026-10-23変更・本人指示】フレンド一覧を主役にするため、公開設定・詳細情報は一覧の下へ移動した。 -->
       <h3 class="fan-profiles-section-title">公開設定</h3>
