@@ -4,6 +4,9 @@
 // ここでの再生開始・停止はgameStateや採点には一切影響しない。
 
 import { CATEGORY } from "./data/songs.js";
+// 【2026-10-31追加】表題曲の行の「CD売上・チャート記録へ」（数値がある作品だけ）
+import { CD_SALES_SINGLES, CD_SALES_ALBUMS } from "./data/cdSales.js";
+const CD_SALES_WORK_IDS = new Set([...CD_SALES_SINGLES, ...CD_SALES_ALBUMS].map((entry) => entry.workId));
 import { hasAudioSource } from "./data/audioMetadata.js";
 import { getAudioBlob } from "./audioStorage.js";
 import { loadLyricsForSong, destroyLyricsSync } from "./lyricsSync.js";
@@ -580,6 +583,22 @@ export function createTrackRow(song, options = {}) {
     });
     centerElement.appendChild(centersLink);
     infoBlock.appendChild(centerElement);
+  }
+
+  // 【2026-10-31追加】表題曲の行だけ「売上・チャート記録へ」（その作品の数値が js/data/cdSales.js にあるとき）
+  if (song.category === CATEGORY.TITLE_TRACK && song.workId && CD_SALES_WORK_IDS.has(song.workId)) {
+    const salesLine = document.createElement("span");
+    salesLine.className = "track-meta-line track-sales-line";
+    const salesLink = document.createElement("button");
+    salesLink.type = "button";
+    salesLink.className = "track-credit-link track-credit-nav-button track-sales-link";
+    salesLink.textContent = "CD売上・チャート記録へ";
+    salesLink.addEventListener("click", () => {
+      stopSongListPreview();
+      window.dispatchEvent(new CustomEvent("app-navigate", { detail: { screen: "cdSales", workId: song.workId } }));
+    });
+    salesLine.appendChild(salesLink);
+    infoBlock.appendChild(salesLine);
   }
 
   // 補足説明：releaseContext・descriptionのどちらか/両方がある曲のみ、つなげて1〜2文で表示する

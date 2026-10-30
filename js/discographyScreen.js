@@ -17,6 +17,8 @@ import { buildMvThumbnailElement } from "./youtubeThumbnail.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
 import { buildGroupStageSection } from "./memberStageVoiceSection.js";
 import { buildGroupCommercialsSection } from "./commercialsSection.js";
+// 【2026-10-31追加】作品詳細の「売上・チャート」欄（数値は js/data/cdSales.js。ページは js/cdSalesScreen.js）
+import { CD_SALES_SINGLES, CD_SALES_ALBUMS } from "./data/cdSales.js";
 
 // workIdから種別が判定できない場合だけ使う、最後のフォールバック表示。
 const WORK_TYPE_LABELS_FALLBACK = {
@@ -1365,6 +1367,46 @@ function buildOfficialLinksSection(officialLinks) {
   return wrapper;
 }
 
+// 【2026-10-31追加】作品詳細の「売上・チャート」欄：初週（Billboard）とオリコン最高位だけを短く出し、
+// 詳しい記録は「CD売上・チャート記録」ページへ（同じ説明を2か所に持たない）。数値の無い作品では出さない。
+export function findCdSalesEntry(workId) {
+  return [...CD_SALES_SINGLES, ...CD_SALES_ALBUMS].find((entry) => entry.workId === workId) ?? null;
+}
+
+function buildWorkSalesSection(workId) {
+  const sales = findCdSalesEntry(workId);
+  if (!sales) return null;
+  const wrapper = document.createElement("div");
+  wrapper.className = "work-detail-sales";
+  const heading = document.createElement("p");
+  heading.className = "section-heading";
+  heading.textContent = "売上・チャート";
+  wrapper.appendChild(heading);
+  const figures = document.createElement("p");
+  figures.className = "work-detail-sales-figures";
+  const copies = sales.billboardFirstWeek?.copies;
+  [
+    Number.isFinite(copies) ? `初週 ${copies.toLocaleString("ja-JP")}枚（Billboard JAPAN・週間${sales.billboardFirstWeek.rankInWeek}位）` : "初週：未確認",
+    sales.oriconPeak ? `オリコン最高${sales.oriconPeak.rank}位` : null,
+  ]
+    .filter(Boolean)
+    .forEach((text) => {
+      const line = document.createElement("span");
+      line.textContent = text;
+      figures.appendChild(line);
+    });
+  wrapper.appendChild(figures);
+  const link = document.createElement("button");
+  link.type = "button";
+  link.className = "centers-entry-button work-detail-sales-link";
+  link.innerHTML = '<span class="centers-entry-text"><span class="centers-entry-label">CD売上・チャート記録で見る</span><span class="centers-entry-description">初週・最高順位・累計・認定・出典</span></span><span class="centers-entry-arrow" aria-hidden="true">→</span>';
+  link.addEventListener("click", () => {
+    window.dispatchEvent(new CustomEvent("app-navigate", { detail: { screen: "cdSales", workId } }));
+  });
+  wrapper.appendChild(link);
+  return wrapper;
+}
+
 function renderWorkDetail(work) {
   elements.workDetailTitle.textContent = work.title;
 
@@ -1382,12 +1424,21 @@ function renderWorkDetail(work) {
   // センターという概念がない作品（songs.jsのcenterType:"none"）ではvocalLabelがnullになり、
   // 行自体を出さない（「未確認」に見せて情報収集漏れと誤解されないようにするため）。
   if (work.vocalLabel) {
-    factList.appendChild(
-      buildFactRow(work.vocalLabel, work.vocalNames.length > 0 ? work.vocalNames.join("・") : "未確認")
-    );
+    const vocalRow = buildFactRow(work.vocalLabel, work.vocalNames.length > 0 ? work.vocalNames.join("・") : "未確認");
+    // 【2026-10-31追加】センターの注記（discography.js の centerNote。21st の「全員」はアプリ内の決まり 等）
+    if (work.centerNote) {
+      const note = document.createElement("small");
+      note.className = "work-detail-center-note";
+      note.textContent = work.centerNote;
+      vocalRow.querySelector(".fact-row-value").appendChild(note);
+    }
+    factList.appendChild(vocalRow);
   }
   hero.appendChild(factList);
   elements.workDetailContent.appendChild(hero);
+
+  const salesSection = buildWorkSalesSection(work.workId);
+  if (salesSection) elements.workDetailContent.appendChild(salesSection);
 
   // 公式リンクが1件も無い作品では、「準備中」を出さずセクションごと非表示にする
   // （全26作品が「準備中」に見えて未完成感が出るのを避けるため、2026-08-03変更）。

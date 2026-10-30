@@ -44,6 +44,15 @@ export const APP_SEARCH_FEATURES = [
     action: { type: "lyricsSearch" },
   },
   {
+    // 【2026-10-31追加】CD売上・チャート記録
+    id: "feature-cd-sales",
+    category: FEATURE,
+    title: "CD売上・チャート記録",
+    aliases: ["CD売上", "売上", "初週", "初週売上", "チャート", "オリコン", "ビルボード", "Billboard", "ゴールドディスク", "認定"],
+    description: "デビューから今までのシングルの初週の CD 売上（Billboard JAPAN）を、発売順のグラフで見られます。作品ごとに、オリコンの初週・最高順位・累計・RIAJ の認定・出典も見られます。",
+    action: { type: "click", selector: "#cd-sales-home-link" },
+  },
+  {
     id: "feature-favorites",
     category: FEATURE,
     title: "お気に入り",

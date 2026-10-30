@@ -313,6 +313,8 @@ import { initLiveHubScreen, openLiveHubScreen, goBackInLiveHub } from "./liveHub
 import { initCentersScreen, openCentersScreen } from "./centersScreen.js";
 import { initAnniversaryScreen, openAnniversaryScreen } from "./anniversaryScreen.js";
 import { initTvAppearancesScreen, openTvAppearancesScreen } from "./tvAppearancesScreen.js";
+// 【2026-10-31新設】CD売上・チャート記録
+import { initCdSalesScreen, openCdSalesScreen, getCdSalesModel } from "./cdSalesScreen.js";
 import { initFanProfilesScreen, renderFanProfilesScreen } from "./fanProfilesScreen.js";
 import { initAdminBackupScreen, renderAdminBackupScreen } from "./adminBackupScreen.js";
 import { initAdminUidRepairScreen, resetAdminUidRepairScreen } from "./adminUidRepairScreen.js";
@@ -5818,6 +5820,9 @@ window.addEventListener("app-navigate", (event) => {
   } else if (screen === "liveHub") {
     // 【2026-10-28追加】「＝LOVEについて→ライブ」タブの案内ボタンから【ライブ】ページの各表示を開く。「戻る」で元の画面へ
     openLiveHubFrom(document.body.dataset.screen, event.detail ?? {});
+  } else if (screen === "cdSales") {
+    // 【2026-10-31追加】作品詳細・収録曲一覧の「CD売上・チャート記録で見る」：その作品を開き、「戻る」で元の画面へ
+    openCdSalesFrom(document.body.dataset.screen, { workId: event.detail?.workId ?? null });
   }
 });
 
@@ -5958,6 +5963,9 @@ async function openSearchTarget(target) {
     } else if (target.kind === "tvAppearances") {
       // 【2026-10-29追加】音楽番組出演アーカイブのその回
       openTvAppearancesFrom(searchScreen, { focusDate: target.focusDate });
+    } else if (target.kind === "cdSales") {
+      // 【2026-10-31追加】CD売上・チャート記録のその作品
+      openCdSalesFrom(searchScreen, { workId: target.workId, tab: target.tab });
     }
   }
   const landingScreen = document.body.dataset.screen;
@@ -6124,6 +6132,7 @@ initAnniversaryScreen(
         const member = MEMBERS.find((m) => m.id === target.memberId);
         openSearchTarget(member?.status === MEMBER_STATUS.ACTIVE ? { kind: "member", memberId: target.memberId } : { kind: "membersList", memberId: target.memberId });
       } else if (target.kind === "tv") openTvAppearancesFrom("anniversary", { focusDate: target.date });
+      else if (target.kind === "cdSales") openCdSalesFrom("anniversary", { workId: target.workId });
     },
   }
 );
@@ -6164,6 +6173,41 @@ document.getElementById("tv-appearances-back-button").addEventListener("click", 
   playSfx(SFX_EVENTS.UI_BACK);
   navigateWithScrollMemory(tvAppearancesReturnScreen);
 });
+
+// 【2026-10-31新設・本人の依頼】「CD売上・チャート記録」。入口はホーム「＝LOVEをもっと知る」・作品詳細・収録曲一覧・
+// 周年ヒストリー・全体検索・ガイド。作品の行から作品詳細・収録曲一覧へ飛び、「戻る」でこのページへ戻れるようにする
+// （openSearchTarget が「戻る」の行き先を覚える。周年ヒストリーと同じ仕組み）。
+let cdSalesReturnScreen = "start";
+function openCdSalesFrom(returnScreen, options = {}) {
+  cdSalesReturnScreen = returnScreen && returnScreen !== "cdSales" ? returnScreen : "start";
+  navigateWithScrollMemory("cdSales");
+  if (!options.workId) window.scrollTo(0, 0);
+  openCdSalesScreen(options);
+}
+initCdSalesScreen(
+  { container: document.getElementById("cd-sales-content") },
+  {
+    onOpenWork: (workId) => openSearchTarget({ kind: "work", workId }),
+    onOpenSong: (songId) => openSearchTarget({ kind: "song", songId }),
+  }
+);
+document.getElementById("cd-sales-home-link").addEventListener("click", () => {
+  playClickSound();
+  openCdSalesFrom("start");
+});
+document.getElementById("cd-sales-back-button").addEventListener("click", () => {
+  playSfx(SFX_EVENTS.UI_BACK);
+  navigateWithScrollMemory(cdSalesReturnScreen);
+});
+// ホームの札：Billboard 初週の自己最高を「○万枚超え」で（データから数える。例：503,043枚 → 「初週50万枚超え」）
+{
+  const badge = document.getElementById("home-know-sales-badge");
+  const best = Math.max(0, ...getCdSalesModel().singles.map((row) => row.sales.billboardFirstWeek?.copies ?? 0));
+  if (badge && best >= 100000) {
+    badge.textContent = `初週${Math.floor(best / 100000) * 10}万枚超え`;
+    badge.hidden = false;
+  }
+}
 
 // 【2026-10-24新設】全体検索の上部「歌詞検索へ」：入力中の言葉は、歌詞検索の入力欄が空のときだけ引き継ぐ
 document.getElementById("app-search-to-lyrics-button").addEventListener("click", async () => {

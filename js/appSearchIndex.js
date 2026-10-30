@@ -32,6 +32,9 @@ import { formatCastRole } from "./memberStageVoiceSection.js";
 import { describeGroupParticipation, formatCommercialPeriod, getMemberCommercials } from "./commercialsSection.js";
 import { COMMERCIAL_KIND } from "./data/commercials.js";
 import { normalizeSearchText, editDistanceWithin, allowedTypoCount } from "./searchNormalize.js";
+// 【2026-10-31追加】CD売上・チャート記録
+import { CD_SALES_SINGLES, CD_SALES_ALBUMS } from "./data/cdSales.js";
+import { buildCdSalesModel, formatCopies, formatManCopies, latestCertificationLevel } from "./cdSalesModel.js";
 
 // 絞り込みのカテゴリ（表示順もこの順）。一般のファンが分かる言葉にしている。
 export const APP_SEARCH_CATEGORIES = [
@@ -544,6 +547,33 @@ function buildAnniversaryEntries({ anniversaryPeriods = ANNIVERSARY_PERIODS, ann
   );
 }
 
+// ---- CD売上・チャート記録（2026-10-31追加）：1作＝1件。曲名・作品名で、曲・作品の結果の下に出る（曲名は見出しより一段下げる）。
+// 「劇薬中毒 売上」「初週」「オリコン」「プラチナ」などでも見つかり、「CD売上・チャート記録」のその作品を開く ----
+function buildCdSalesEntries({ songs, discographyEntries, cdSalesSingles = CD_SALES_SINGLES, cdSalesAlbums = CD_SALES_ALBUMS }) {
+  const { singles, albums } = buildCdSalesModel({ songs, discography: discographyEntries, singles: cdSalesSingles, albums: cdSalesAlbums });
+  return [...singles, ...albums].map((row) => {
+    const sales = row.sales;
+    const level = latestCertificationLevel(sales.riajCertifications);
+    return createEntry({
+      key: `cdSales:${row.workId}`,
+      category: "song",
+      title: `${row.typeLabel}「${row.title}」の売上・チャート`,
+      subtitle: "CD売上・チャート記録",
+      lines: [
+        `初週（Billboard JAPAN）：${formatCopies(sales.billboardFirstWeek?.copies) ?? "未確認"}${Number.isFinite(sales.billboardFirstWeek?.rankInWeek) ? `・週間${sales.billboardFirstWeek.rankInWeek}位` : ""}`,
+        `初週（オリコン）：${sales.oriconFirstWeek ? formatManCopies(sales.oriconFirstWeek.manCopies) : "未確認"}`,
+        sales.oriconPeak ? `オリコン最高${sales.oriconPeak.rank}位` : null,
+        level ? `RIAJ の認定：${level}` : null,
+      ],
+      action: { label: "CD売上・チャート記録で見る", target: { kind: "cdSales", workId: row.workId } },
+      terms: {
+        secondary: [row.title, ...row.titleTracks.map((track) => track.title), row.typeLabel, "売上", "CD売上", "初週", "チャート"],
+        body: ["オリコン", "ビルボード", "Billboard", "認定", "ゴールドディスク", level, ...(sales.riajCertifications ?? []).map((cert) => cert.level)],
+      },
+    });
+  });
+}
+
 export function buildAppSearchEntries(sources = {}) {
   const resolved = {
     songs: SONGS,
@@ -566,6 +596,7 @@ export function buildAppSearchEntries(sources = {}) {
     ...buildMemberEntries(resolved),
     ...buildSongEntries(resolved),
     ...buildWorkEntries(resolved),
+    ...buildCdSalesEntries(resolved),
     ...buildCommercialEntries(resolved),
     ...buildLiveEntries(resolved),
     ...buildLiveVideoEntries(resolved),

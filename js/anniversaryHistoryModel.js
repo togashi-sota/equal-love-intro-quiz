@@ -75,12 +75,14 @@ export function defaultAnniversaryPeriod(model) {
 }
 
 // 出来事から飛べる先（アプリの中の別のページ）。存在する ID だけを返す（壊れたリンクを作らない）
-export function relatedTargets(event, { liveIds = new Set(), songIds = new Set(), workIds = new Set(), memberIds = new Set() } = {}) {
+// 【2026-10-31追加】salesWorkIds：CD売上・チャート記録に数値がある作品（作品のリンクの隣に「売上・チャート記録」も出す）
+export function relatedTargets(event, { liveIds = new Set(), songIds = new Set(), workIds = new Set(), memberIds = new Set(), salesWorkIds = new Set() } = {}) {
   const related = event?.related ?? {};
   const targets = [];
   if (related.liveHistoryId && liveIds.has(related.liveHistoryId)) targets.push({ kind: "live", liveId: related.liveHistoryId, label: "ライブ履歴" });
   if (related.songId && songIds.has(related.songId)) targets.push({ kind: "song", songId: related.songId, label: "収録曲" });
   if (related.workId && workIds.has(related.workId)) targets.push({ kind: "work", workId: related.workId, label: "作品" });
+  if (related.workId && salesWorkIds.has(related.workId)) targets.push({ kind: "cdSales", workId: related.workId, label: "売上・チャート記録" });
   if (related.memberId && memberIds.has(related.memberId)) targets.push({ kind: "member", memberId: related.memberId, label: "メンバー" });
   if (event?.category === "tv" && related.tvAppearanceDate) targets.push({ kind: "tv", date: related.tvAppearanceDate, label: "音楽番組出演" });
   return targets;

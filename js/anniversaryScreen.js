@@ -7,6 +7,7 @@ import { LIVE_EVENTS } from "./data/liveHistory.js";
 import { SONGS } from "./data/songs.js";
 import { DISCOGRAPHY } from "./data/discography.js";
 import { MEMBERS } from "./data/members.js";
+import { CD_SALES_SINGLES, CD_SALES_ALBUMS } from "./data/cdSales.js";
 import {
   ANNIVERSARY_CATEGORY_LABELS,
   buildAnniversaryModel,
@@ -26,6 +27,8 @@ const knownIds = {
   songIds: new Set(SONGS.map((song) => song.id)),
   workIds: new Set(DISCOGRAPHY.map((work) => work.workId ?? work.id)),
   memberIds: new Set(MEMBERS.map((member) => member.id)),
+  // 【2026-10-31追加】CD売上・チャート記録に数値がある作品
+  salesWorkIds: new Set([...CD_SALES_SINGLES, ...CD_SALES_ALBUMS].map((entry) => entry.workId)),
 };
 
 let container = null;
