@@ -10,21 +10,40 @@
 }
 
 /* 同じ名前の別プレイヤー・旧IDカード（管理者のみ）の短い補足。既存の推し・称号の行と同じ控えめな文字 */
+/* 【2026-10-31改訂・独立レビュー】11.2px・不透明度0.7では読みにくかったため、13px・不透明（文字色 #4a2e42、白地でコントラスト約12） */
 .fan-profile-card-identity-note {
   display: block;
-  font-size: 0.7rem;
-  line-height: 1.4;
-  opacity: 0.7;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--color-text);
   overflow-wrap: anywhere;
 }
 
 /* 【2026-10-31追加】自分の以前のIDらしいカード（未確認）・確認済みの以前のIDカード（管理者のみ）は、
    今の自分や他の人のカードと見分けやすいよう、点線の枠で控えめに出す（色だけに頼らず、補足の文言でも伝える） */
+/* 【2026-10-31改訂・独立レビュー】元の白い枠の点線はほとんど見えなかったため、濃いピンクの点線にした。
+   カード全体を薄くする（opacity）のはやめ、文字のコントラストを下げない。名前の横の札（下）でも見分けられる */
 .fan-profile-card[data-identity-relation="my-old-candidate"],
+.fan-profile-card[data-identity-relation="old-candidate"],
 .fan-profile-card[data-identity-relation="my-old-verified"],
 .fan-profile-card[data-identity-relation="old-verified"] {
-  border-style: dashed;
-  opacity: 0.85;
+  border: 2px dashed #b03a74;
+  background: rgba(255, 240, 246, 0.85);
+}
+
+/* 前のIDの札：濃い文字（#7a1f4f）を淡いピンク地（#fff0f6）に。コントラスト約10 */
+.fan-profile-card-identity-badge {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid #b03a74;
+  background: #fff0f6;
+  color: #7a1f4f;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  line-height: 1.5;
+  white-space: nowrap;
+  vertical-align: middle;
 }
 
 /* 「詳細情報」内のIDの変更履歴・管理者判定（既存の接続診断の詳細行と同じ見た目） */

@@ -11,6 +11,7 @@ import {
   dedupeProfilesByUid,
   classifyProfileRelation,
   canInviteProfile,
+  buildProfileIdentityBadgeText,
 } from "../js/fanProfilesIdentity.js";
 import { buildProfileCard } from "../js/fanProfileCard.js";
 import { listAutoMigrationTargets, UID_MERGE_STATE, enqueueUidMerge, selectActiveUidMerge } from "../js/uidMergeQueue.js";
@@ -139,6 +140,11 @@ function runCardDomTests() {
   assertEqual(oldCard.tagName, "BUTTON", "C1: 自分の以前のIDらしいカードは、オンラインでも「一緒に遊ぶ」の行を付けない");
   assertEqual(oldCard.dataset.identityRelation, "my-old-candidate", "C1: カードに関係（自分の以前のIDらしい）が付く");
   assertEqual(oldCard.querySelector(".fan-profile-card-identity-note")?.textContent, "#PWW2・あなたの以前のIDかもしれません（未確認）", "C1: 補足が画面に出る");
+  // 【2026-10-31・独立レビュー】ひと目で見分けられる札。今の自分・別の人には付けない
+  assertEqual(oldCard.querySelector(".fan-profile-card-identity-badge")?.textContent, "以前のID？", "C2: 前のIDらしいカードに「以前のID？」の札");
+  assertEqual(buildProfileIdentityBadgeText("my-old-verified"), "以前のID（確認済み）", "C2: 確かめた前のIDは「以前のID（確認済み）」");
+  assertEqual(buildProfileIdentityBadgeText("old-candidate"), "以前のID？", "C2: 他の人の前のIDらしいカードにも札");
+  assertEqual([buildProfileIdentityBadgeText("me"), buildProfileIdentityBadgeText("other")], [null, null], "C2: 今の自分・別の人には札を付けない");
   const meCard = buildProfileCard(view.profiles.find((p) => p.uid === GR72), MEMBERS, null, { presenceEntry: online, onPlayInviteRequest: () => {}, myUid: GR72 });
   assertEqual(meCard.dataset.identityRelation, "me", "C1: 自分のカードは「me」");
   const friendCard = buildProfileCard(profile("F1", "ともだち"), MEMBERS, null, { presenceEntry: online, onPlayInviteRequest: () => {}, myUid: GR72 });
@@ -251,6 +257,21 @@ async function runWiringTests() {
   assertEqual(card.includes("canInviteProfile(profile, { myUid })"), true, "W6: カードの「一緒に遊ぶ」は関係を見て出す");
   const css = await fetchText("css/friendsFix.css");
   assertEqual(css.includes('.fan-profile-card[data-identity-relation="my-old-candidate"]'), true, "W6: 自分の以前のIDらしいカードは見た目でも区別する（点線）");
+  // 【2026-10-31・独立レビュー】補足は12.5px以上・薄くしない。札と枠は見える色（コントラスト4.5以上）
+  const noteRule = css.slice(css.indexOf(".fan-profile-card-identity-note {"), css.indexOf("}", css.indexOf(".fan-profile-card-identity-note {")));
+  assertEqual(noteRule.includes("font-size: 0.8125rem;") && !noteRule.includes("opacity"), true, "W6: 補足の文字は13px・不透明");
+  const cardRule = css.slice(css.indexOf('.fan-profile-card[data-identity-relation="my-old-candidate"]'), css.indexOf(".fan-profile-card-identity-badge {"));
+  assertEqual(cardRule.includes("border: 2px dashed #b03a74;") && !cardRule.includes("opacity"), true, "W6: 前のIDのカードは濃い点線の枠で、カード全体を薄くしない");
+  const contrast = (a, b) => {
+    const lum = (hex) => {
+      const c = [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((x) => (x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4));
+      return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+    };
+    const [l1, l2] = [lum(a), lum(b)].sort((x, y) => y - x);
+    return (l1 + 0.05) / (l2 + 0.05);
+  };
+  assertEqual(css.includes("color: #7a1f4f;") && css.includes("background: #fff0f6;") && contrast("7a1f4f", "fff0f6") >= 4.5, true, "W6: 札の文字と地のコントラストは4.5以上");
+  assertEqual(contrast("4a2e42", "fff0f6") >= 4.5, true, "W6: 前のIDのカードの地でも、補足のコントラストは4.5以上");
 }
 
 // 【2026-10-31追加・本人の実機報告「サブがアプリを閉じたのに、1日ずっとオンライン」】
