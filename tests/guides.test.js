@@ -270,7 +270,7 @@ export async function runGuidesTests() {
   assertEqual(main.slice(helpStart, helpStart + 900).includes("openGameGuide(modeId);"), true, "F: 「？」の説明が無いモード（アウトロ・一瞬）の「？」はゲームのガイドを開く（何も起きない、をなくす）");
   const sw = await fetchText("sw.js");
   assertEqual(['"./js/gameGuideScreen.js"', '"./js/data/gameGuideContent.js"', '"./css/guides.css"'].every((file) => sw.includes(file)), true, "F: 新しいファイルはオフラインでも使える（APP_SHELL）");
-  assertEqual(/const CACHE_VERSION = "v405";/.test(sw), true, "F: CACHE_VERSION は変えていない（統合のときに上げる）");
+  assertEqual(Number(/const CACHE_VERSION = "v(\d+)";/.exec(sw)?.[1]) >= 406, true, "F: CACHE_VERSION をガイドの統合で上げた（v406 以上）");
   assertEqual(html.includes('<link rel="stylesheet" href="css/guides.css">'), true, "F: css/guides.css を読み込む");
   const css = await fetchText("css/guides.css");
   assertEqual(css.includes("@media (prefers-reduced-motion: reduce)"), true, "F: 動きを減らす設定に合わせる");
