@@ -216,6 +216,14 @@ export function classifyProfileRelation(profile, { myUid = null } = {}) {
   return "other";
 }
 
+// 【2026-10-31追加】カードの名前の横に付ける小さな札（純粋関数）。null なら付けない。
+//   未確認（本人キーと名前が同じだけ）→「以前のID？」／確かめた以前のID（管理者のみ表示）→「以前のID（確認済み）」
+export function buildProfileIdentityBadgeText(relation) {
+  if (relation === "my-old-candidate" || relation === "old-candidate") return "以前のID？";
+  if (relation === "my-old-verified" || relation === "old-verified") return "以前のID（確認済み）";
+  return null;
+}
+
 // 「一緒に遊ぶ」を出してよい相手か（純粋関数）。自分自身・自分の以前のID（確かめた／らしい）には出さない。
 export function canInviteProfile(profile, { myUid = null } = {}) {
   const relation = classifyProfileRelation(profile, { myUid });

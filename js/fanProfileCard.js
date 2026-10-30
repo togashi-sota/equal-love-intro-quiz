@@ -9,7 +9,7 @@ import { buildAchievementIconMedal } from "./achievementIcons.js";
 import { applyOshiBadgeDecorationsFromState } from "./oshiBadge.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
 import { buildPresenceDisplay } from "./presencePayloads.js";
-import { buildProfileIdentityNote, classifyProfileRelation, canInviteProfile } from "./fanProfilesIdentity.js";
+import { buildProfileIdentityNote, classifyProfileRelation, canInviteProfile, buildProfileIdentityBadgeText } from "./fanProfilesIdentity.js";
 
 export function buildOshiSwatch(members, oshiMemberId, badgeState) {
   const swatch = document.createElement("span");
@@ -126,6 +126,14 @@ export function buildProfileCard(profile, members, onSelect, options = {}) {
   name.className = "fan-profile-card-name";
   name.textContent = profile.displayName;
   nameRow.appendChild(name);
+  // 【2026-10-31追加・独立レビュー「前のIDのカードが今の自分とほとんど同じに見える」】ひと目で見分けられる小さな札
+  const identityBadgeText = buildProfileIdentityBadgeText(card.dataset.identityRelation);
+  if (identityBadgeText) {
+    const badge = document.createElement("span");
+    badge.className = "fan-profile-card-identity-badge";
+    badge.textContent = identityBadgeText;
+    nameRow.appendChild(badge);
+  }
 
   // 【2026-11-XX新設・本人指示：フレンドのオンライン状態】presenceEntryが渡された
   // ときだけ表示する（options自体が省略された既存の呼び出し元・既存テストの見た目は
