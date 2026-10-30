@@ -1,7 +1,7 @@
 // 新しいライブコール・新しいカラオケの「名前コール」の見た目（2026-10-31 live-unify）。
 // 名前の判定そのものは、ここでは作らない。判定は次のどちらかを使い、このファイルは「どう見せるか」だけを受け持つ：
-//   ・js/callNameColors.js の classifyCallNames（別の担当が作る、公式に確かめた名前・愛称の表）… 取り込めたら、こちらを使う
-//   ・取り込めていない間は、今までの判定（js/callEffects.js の memberIdForCallText：文字列がまるごと1人の名前・愛称と一致したときだけ）
+//   ・js/callNameColors.js の classifyCallNames（別の担当が作った、公式に確かめた名前・愛称の表）… 2026-10-31 に取り込んだ。ふだんはこちら
+//   ・それが例外を出したときだけ、今までの判定（js/callEffects.js の memberIdForCallText：文字列がまるごと1人の名前・愛称と一致したときだけ）
 // 【本人の決まり】
 //   ・コール1件は最後まで1件。名前の部分に色を付けるのは「文字の装飾」だけ（区切って別々に光らせない・順番に光らせない）。
 //   ・parts をつなげると、必ず元の文字列に戻る（文字を足したり消したりしない）。戻らないときは、色を付けずに元の文字列のまま出す。
@@ -10,9 +10,8 @@
 import { MEMBERS } from "./data/members.js";
 import { MEMBER_PROFILES } from "./data/memberProfiles.js";
 import { buildMemberNameIndex, memberIdForCallText } from "./callEffects.js";
-// 【取り込み待ち】js/callNameColors.js（ブランチ call-names）を取り込んだら、次の1行を有効にし、下の classifyFromNameTable = null を消す
-// import { classifyCallNames as classifyFromNameTable } from "./callNameColors.js";
-const classifyFromNameTable = null;
+// 【2026-10-31】ブランチ call-names（タグ call-names-ready）を取り込んだ：公式に確かめた名前・愛称の表での判定を使う
+import { classifyCallNames as classifyFromNameTable } from "./callNameColors.js";
 
 export const NAME_KINDS = { NONE: "none", SINGLE: "single", MULTI: "multi", OR: "or" };
 
@@ -84,6 +83,20 @@ export function nameCallAccent(result) {
   return { primary: colors[0], colors, gradient, kind: result.kind };
 }
 
+const OR_MARK = /(?<![A-Za-z])(?:or|OR|Or|／|\/)(?![A-Za-z])/g;
+function appendWithOrMarks(target, text) {
+  let last = 0;
+  for (const match of text.matchAll(OR_MARK)) {
+    if (match.index > last) target.appendChild(document.createTextNode(text.slice(last, match.index)));
+    const sep = document.createElement("span");
+    sep.className = "cx-name-sep";
+    sep.textContent = match[0];
+    target.appendChild(sep);
+    last = match.index + match[0].length;
+  }
+  if (last < text.length) target.appendChild(document.createTextNode(text.slice(last)));
+}
+
 // target の中身を、名前の部分だけ色の付いた span にして描く（文字はそのまま。つなげると元の文字列）。
 // 名前ではない部分は文字のまま。「or」のときは、名前ではない部分（「 or 」など）に印（cx-name-sep）を付けて控えめに見せる
 export function renderNameCallText(target, text, result = describeNameCall(text)) {
@@ -103,11 +116,9 @@ export function renderNameCallText(target, text, result = describeNameCall(text)
       span.textContent = part.text;
       target.appendChild(span);
       named += 1;
-    } else if (result.kind === NAME_KINDS.OR && part.text.trim()) {
-      const sep = document.createElement("span");
-      sep.className = "cx-name-sep";
-      sep.textContent = part.text;
-      target.appendChild(sep);
+    } else if (result.kind === NAME_KINDS.OR) {
+      // 「or」「／」の所だけに印（控えめに見せる）。「！」などほかの文字はそのまま
+      appendWithOrMarks(target, part.text);
     } else {
       target.appendChild(document.createTextNode(part.text));
     }

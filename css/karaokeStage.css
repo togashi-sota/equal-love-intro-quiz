@@ -570,7 +570,8 @@
   padding: 0 10px 8px;
 }
 #live-call-mode-karaoke-screen.kx-on .kx-toolbar .lc-mode-tabs {
-  flex: 1 1 200px;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 #live-call-mode-karaoke-screen.kx-on .kx-toolbar .lc-mode-tab {
   min-height: 38px;
@@ -581,7 +582,7 @@
 #live-call-mode-karaoke-screen.kx-on .kx-calls-switch {
   flex: 0 0 auto;
   min-height: 44px;
-  padding: 4px 12px;
+  padding: 4px 10px;
   border: 1.5px solid #b9a8b3;
   border-radius: 999px;
   background: #fff;

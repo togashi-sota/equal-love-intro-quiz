@@ -899,6 +899,10 @@ export function initKaraokeSyncScreen(newElements) {
 
   elements.startButton.addEventListener("click", handleStartButtonClick);
   elements.deviceAudio.addEventListener("ended", handleDeviceAudioEnded);
+  // 【2026-10-31 live-unify】新しいカラオケだけ：一時停止中に音源の位置が動いたとき（位置のバー・行のタップ・端末の操作）も、すぐその位置の見た目に
+  elements.deviceAudio.addEventListener("seeked", () => {
+    if (followDeviceAudio && syncState.isSyncing) tick();
+  });
   elements.pauseResumeButton.addEventListener("click", handleMainPauseResumeClick);
 
   elements.offsetMinus05Button.addEventListener("click", () => applyOffsetDelta(-OFFSET_STEP_BIG_MS));

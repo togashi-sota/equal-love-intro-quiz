@@ -530,10 +530,12 @@ function modeCard({ id, title, description, availability, onOpen }) {
 // 作り直し：renewal-notes/livecall-visuals/capture_previews.py（Git に入れない）。表示は 140×112（画像は2倍の 280×224）
 // 【2026-10-30 夜】ライブコール（つぎ の残り時間）・カラオケ（新しい演出）を、同じダミーの文字で撮り直した（renewal-notes/night-live/capture_dummy.py）
 export const PREVIEW_IMAGE_SIZE = { width: 280, height: 224 };
+// 【2026-10-31 live-unify】3つとも、今の画面（モードの切り替え・名前コールの色・カラオケの赤いコール）をダミーの文字で撮り直した
+//   （renewal-notes/live-unify/capture_dummy.py。名前はメンバーの呼び名だけ。歌詞・コール本文は入れていない）
 export const LIVE_CALL_MODE_PREVIEWS = {
-  sheet: { src: "./assets/images/live-call-previews/sheet.webp", alt: "コール表の見本：黒い歌詞の行と赤いコール、【間奏】の見出し（文字はダミー）" },
-  live: { src: "./assets/images/live-call-previews/live.webp", alt: "ライブコールの見本：いま／つぎ の表示と、光っている長いコールの進み具合のバー（文字はダミー）" },
-  karaoke: { src: "./assets/images/live-call-previews/karaoke.webp", alt: "カラオケの見本：暗い舞台に歌詞の行（今の行が白く光る）と、光っているコールのカード（文字はダミー）" },
+  sheet: { src: "./assets/images/live-call-previews/sheet.webp", alt: "コール表の見本：黒い歌詞の行と、その間の赤いコール（文字はダミー）" },
+  live: { src: "./assets/images/live-call-previews/live.webp", alt: "ライブコールの見本：いま／つぎ の表示と、光っている名前コール（名前の下にメンバーカラーの線。文字はダミー）" },
+  karaoke: { src: "./assets/images/live-call-previews/karaoke.webp", alt: "カラオケの見本：暗い舞台に歌詞の行と赤いコール。今の行と今のコールが光る（文字はダミー）" },
 };
 
 async function renderSongPage() {
@@ -825,6 +827,7 @@ function renderLiveMode() {
     panel.hidden = !prefs.panel;
     panelToggle.classList.toggle("is-selected", prefs.panel);
     panelToggle.setAttribute("aria-pressed", String(prefs.panel));
+    fitLiveStage();
     remeasure();
   });
   panelToggle.setAttribute("aria-pressed", String(prefs.panel));
@@ -978,6 +981,7 @@ function renderLiveMode() {
   objectUrl = URL.createObjectURL(blob);
   audio.src = objectUrl;
   requestAnimationFrame(() => {
+    fitLiveStage();
     remeasure();
     renderFrame({ force: true });
   });
@@ -1015,16 +1019,20 @@ export function computeLiveStageHeight({ viewportH, stageTop, playerH, gap = 8, 
   if (![viewportH, stageTop, playerH].every(Number.isFinite)) return null;
   return Math.max(min, Math.round(viewportH - stageTop - playerH - gap));
 }
+// 【2026-10-31 live-unify】開いているときも、画面の下の再生の操作に隠れない高さにする（以前は開いている間 CSS の 62dvh のままで、
+//   箱の下の部分が再生の操作の後ろに隠れ、そこで光っているコールが見えないことがあった）。開いているときは少し低くてもよい（最小 200px）
+export const LIVE_STAGE_MIN_OPEN_PX = 200;
 function fitLiveStage() {
   if (!live) return;
   const { stage } = live;
-  if (!live.toolbarCollapsed) {
-    stage.style.removeProperty("height");
-    return;
-  }
   // 画面の一番上から見たときの位置で測る（ページを少しスクロールしていても、同じ高さになるように）
   const stageTop = stage.getBoundingClientRect().top + window.scrollY;
-  const height = computeLiveStageHeight({ viewportH: window.innerHeight, stageTop, playerH: live.player.getBoundingClientRect().height });
+  const height = computeLiveStageHeight({
+    viewportH: window.innerHeight,
+    stageTop,
+    playerH: live.player.getBoundingClientRect().height,
+    min: live.toolbarCollapsed ? LIVE_STAGE_MIN_PX : LIVE_STAGE_MIN_OPEN_PX,
+  });
   if (height !== null) stage.style.height = `${height}px`;
 }
 

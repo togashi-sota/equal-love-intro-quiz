@@ -29,6 +29,7 @@ import {
 import { applyNameCallDecoration, resolveLiveEffectsPref, LIVE_EFFECTS_LABELS } from "../js/liveCallScreen.js";
 import { buildModeTabs, LIVE_CALL_MODE_TABS } from "../js/liveCallModeTabs.js";
 import { MEMBERS } from "../js/data/members.js";
+import { CALL_NAME_ENTRIES } from "../js/data/callNameDictionary.js";
 
 const base = new URL("../", import.meta.url);
 const fetchText = async (file) => (await fetch(new URL(file, base), { cache: "no-store" })).text();
@@ -201,7 +202,21 @@ function runNameTests() {
     renderNameCallText(plain, "オイ！", describeNameCall("オイ！"));
     assertEqual([plain.textContent, plain.children.length], ["オイ！", 0], "D: 名前でないコールは文字だけ（飾りなし）");
   }
-  assertEqual(["callNameColors", "fallback"].includes(NAME_CALL_SOURCE), true, "D: 判定の出どころ（call-names の表／今までの判定）が分かる");
+  assertEqual(NAME_CALL_SOURCE, "callNameColors", "D: 判定は call-names の表（js/callNameColors.js）を使う");
+  // 本物の判定で：名前の表にある書き方を2つ使った「or」と「並べて呼ぶ」（名前だけ。歌詞・コール本文ではない）
+  const [e1, e2] = CALL_NAME_ENTRIES.filter((entry) => MEMBERS.some((m) => m.id === entry.memberId)).slice(0, 2);
+  const nameA = e1.forms[0];
+  const nameB = e2.forms[0];
+  const orReal = describeNameCall(`${nameA}！ or ${nameB}！`);
+  assertEqual([orReal.kind, orReal.members], ["or", [e1.memberId, e2.memberId]], "D: 本物の判定：「A！ or B！」は or（候補）");
+  const multiReal = describeNameCall(`${nameA}！${nameB}！`);
+  assertEqual([multiReal.kind, multiReal.members.length], ["multi", 2], "D: 本物の判定：2人を並べて呼ぶと multi");
+  assertEqual(describeNameCall("わーわー！").kind, "none", "D: 本物の判定：名前ではない言葉は none");
+  if (typeof document !== "undefined") {
+    const box = document.createElement("span");
+    renderNameCallText(box, `${nameA}！ or ${nameB}！`, orReal);
+    assertEqual([box.textContent, [...box.querySelectorAll(".cx-name-sep")].map((n) => n.textContent), box.querySelectorAll(".cx-name-part").length], [`${nameA}！ or ${nameB}！`, ["or"], 2], "D: or：「or」の所だけ控えめに（「！」はそのまま）。名前は2つとも色");
+  }
 }
 
 async function runKaraokeTests() {
