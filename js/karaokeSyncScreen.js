@@ -701,7 +701,11 @@ function buildKaraokeExtras({ hasAudio, availability, onRequestMode }) {
   ];
   if (hasAudio) {
     if (instruction) instruction.textContent = "下のボタンを押すと、この端末の音源で曲が始まります。";
-    if (note) note.textContent = "歌詞の行や赤いコールを押すと、その位置へ移れます。音とずれるときは、画面の下のタイミング調整で直せます。";
+    if (note) {
+      note.textContent = karaokeStageHasCalls()
+        ? "歌詞の行や赤いコールを押すと、その位置へ移れます。音とずれるときは、画面の下のタイミング調整で直せます。"
+        : "歌詞の行を押すと、その位置へ移れます。音とずれるときは、画面の下のタイミング調整で直せます。";
+    }
     elements.startButton.textContent = "🎤 曲を再生して歌う";
   }
   kx = { parts, callsSwitch, seek, time, offsetWarning, restore, lastSeekKey: "" };
