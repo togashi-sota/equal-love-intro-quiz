@@ -8932,6 +8932,8 @@ initLiveCallScreen(
       showScreen("liveCallModeKaraoke");
     },
     openCallGuide: (songId) => openCallGuideModalForSong(songId),
+    // 【2026-10-31 live-polish】曲のページの［データを追加・更新］：ホームの「データを追加・更新」と同じ（設定・データ管理の「最新版データ」）
+    openDataUpdate: () => openSettingsSection([document.getElementById("data-management-section")], document.getElementById("unified-pack-import-section")),
     openClassic: () => openClassicLiveCallMode(),
   },
 );

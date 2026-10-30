@@ -643,7 +643,8 @@ function buildKaraokeExtras({ hasAudio, availability, onRequestMode }) {
     syncKaraokeCallsSwitch();
     tick();
   });
-  bar.appendChild(callsSwitch);
+  // 【2026-10-31 live-polish】スイッチは下の帯の［一時停止／再開］の左に置く（片手で届く・上の帯はモードの3つだけの1段）。
+  // 幅は ON と OFF で同じ（最小幅）なので、押しても画面は跳ねない。下の帯は始めるまで隠れている（始める前は、案内の1行で十分）
   header.appendChild(bar);
   parts.push(bar);
 
@@ -684,6 +685,20 @@ function buildKaraokeExtras({ hasAudio, availability, onRequestMode }) {
     parts.push(row);
   }
 
+  // 下の帯：［コール表示］と［一時停止／再開］を1行に（一時停止のボタンは包むだけ。閉じるときに元の場所へ戻す）
+  const footRow = document.createElement("div");
+  footRow.className = "kx-footer-row";
+  const pause = elements.pauseResumeButton;
+  const pauseHome = pause.parentNode === elements.footerZone ? { next: pause.nextSibling } : null;
+  if (pauseHome) {
+    elements.footerZone.insertBefore(footRow, pause);
+    footRow.append(callsSwitch, pause);
+  } else {
+    footRow.append(callsSwitch);
+    elements.footerZone.prepend(footRow);
+  }
+  parts.push(footRow);
+
   // タイミング調整の注意（±10秒を超えたときだけ見える。css/karaokeStage.css の .kx-offset-warn）
   const offsetWarning = document.createElement("p");
   offsetWarning.className = "kx-offset-warning";
@@ -708,7 +723,7 @@ function buildKaraokeExtras({ hasAudio, availability, onRequestMode }) {
     }
     elements.startButton.textContent = "🎤 曲を再生して歌う";
   }
-  kx = { parts, callsSwitch, seek, time, offsetWarning, restore, lastSeekKey: "" };
+  kx = { parts, callsSwitch, seek, time, offsetWarning, restore, lastSeekKey: "", pauseHome: pauseHome ? footRow : null };
   syncKaraokeCallsSwitch();
 }
 
@@ -742,6 +757,8 @@ function formatKaraokeClock(sec) {
 
 function removeKaraokeExtras() {
   if (!kx) return;
+  // 一時停止のボタンを、包む前の場所（下の帯の中、包みの位置）へ戻してから部品を外す（前のカラオケ同期の並びを変えない）
+  if (kx.pauseHome?.parentNode) kx.pauseHome.parentNode.insertBefore(elements.pauseResumeButton, kx.pauseHome);
   kx.parts.forEach((node) => node.remove());
   kx.restore.forEach(([node, text]) => {
     if (node && text !== undefined) node.textContent = text;

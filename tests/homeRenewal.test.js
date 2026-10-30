@@ -797,9 +797,11 @@ async function runHomeFixTests() {
   // 【2026-10-31 live-unify】ライブ：入口は「コールを覚える」の1つ。中の3つの札（コール表・ライブコール・カラオケ）は飾り（押す所は1つ）
   const learnLive = home.querySelector('#home-card-live [data-home-action="learn-calls"]');
   assertEqual(learnLive?.querySelector("b")?.textContent, "コールを覚える", "G: ライブの入口は「コールを覚える」");
-  assertEqual(learnLive?.querySelector("small")?.textContent.includes("コール表・ライブコール・カラオケ"), true, "G: 説明で3つの見せ方が分かる");
-  assertEqual([...(learnLive?.querySelectorAll(".home-live-learn-mode") ?? [])].map((chip) => chip.textContent.trim()), ["コール表", "ライブコール", "カラオケ"], "G: 3つの見せ方の札");
-  assertEqual(learnLive?.querySelector(".home-live-learn-modes")?.getAttribute("aria-hidden"), "true", "G: 札は飾り（読み上げは説明の1行で）");
+  assertEqual(learnLive?.querySelector("small")?.textContent.includes("3つの見せ方"), true, "G: 説明で3つの見せ方があると分かる");
+  assertEqual([...(learnLive?.querySelectorAll(".home-live-learn-mode") ?? [])].map((chip) => chip.textContent.trim()), ["コール表", "ライブコール", "カラオケ"], "G: 3つの見せ方の名前（読み上げにも入る）");
+  // 【2026-10-31 live-polish】名前はボタンに見えない見た目（枠・地なし）。押す所はボタン全体の1つ
+  const learnModeRule = lastRuleBody(homeCss, ".home-live-learn-mode");
+  assertEqual(learnModeRule.includes("border: none") && learnModeRule.includes("background: none"), true, "G: 3つの名前は枠・地の無い文字（ボタンに見せない）");
   assertEqual(learnLive?.querySelectorAll("button, a").length, 0, "G: ボタンの中に別のボタンを入れない（押す所は1つ）");
   assertEqual([home.querySelector("#home-live-new-title"), home.querySelector(".home-live-new-grid"), home.querySelector('[data-home-action="live-call-classic"]')], [null, null, null], "G: 「おためし版」の3つ・前の版の入口はホームに無い");
   const liveMain = lastRuleBody(homeCss, ".home-live-main.home-live-main--learn");

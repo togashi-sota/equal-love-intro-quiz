@@ -1264,3 +1264,33 @@ body[data-screen="liveCall"] .game-frame {
 .lc-song-guide {
   justify-self: start;
 }
+
+/* ===== 【2026-10-31 live-polish】 ===== */
+/* 一覧の上の2つのリンク：言葉の途中で改行しない（「はじめに（注意事項）を／読む」にしない）。入らなければリンクごと次の行へ */
+.lc-list-top {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 0 16px;
+}
+.lc-list-top .lc-link-button {
+  white-space: nowrap;
+}
+/* 曲のページ：データが足りないときの案内とボタン */
+.lc-data-guide {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid #f3b6cd;
+}
+.lc-data-guide-text {
+  margin: 0;
+  color: var(--lc-text);
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+.lc-data-guide-button {
+  justify-self: start;
+}

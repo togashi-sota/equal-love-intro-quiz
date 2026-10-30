@@ -26,7 +26,8 @@ import {
   KX_CALLS_VISIBLE_KEY,
   KX_OFFSET_WARN_MS,
 } from "../js/karaokeStage.js";
-import { applyNameCallDecoration, resolveLiveEffectsPref, LIVE_EFFECTS_LABELS } from "../js/liveCallScreen.js";
+import { applyNameCallDecoration, resolveLiveEffectsPref, LIVE_EFFECTS_LABELS, songPageGuidance, NO_RELEASED_DATA_MESSAGE } from "../js/liveCallScreen.js";
+import { SHEET_STATE } from "../js/liveCallData.js";
 import { buildModeTabs, LIVE_CALL_MODE_TABS } from "../js/liveCallModeTabs.js";
 import { MEMBERS } from "../js/data/members.js";
 import { CALL_NAME_ENTRIES } from "../js/data/callNameDictionary.js";
@@ -239,7 +240,7 @@ async function runKaraokeTests() {
   await openKaraokeSyncScreen("love", { calls, layout, hasAudio: false, availability: { sheet: { ok: true }, live: { ok: false, reason: "音源なし" }, karaoke: { ok: true } } });
   const toolbar = screen.querySelector(".kx-toolbar");
   const sw = screen.querySelector(".kx-calls-switch");
-  assertEqual([Boolean(toolbar), sw?.textContent, sw?.getAttribute("aria-checked")], [true, "コール表示 ON", "true"], "E: 上に［コール表示 ON］（はじめは ON）");
+  assertEqual([Boolean(toolbar), sw?.textContent, sw?.getAttribute("aria-checked"), sw?.parentElement?.classList.contains("kx-footer-row"), els.pauseResumeButton.parentElement?.classList.contains("kx-footer-row")], [true, "コール表示 ON", "true", true, true], "E: 下の帯に［コール表示 ON］（はじめは ON）。一時停止と同じ1行");
   assertEqual([...toolbar.querySelectorAll(".lc-mode-tab")].map((b) => [b.textContent, b.disabled, b.getAttribute("aria-current")]), [["コール表", false, null], ["ライブコール", true, null], ["カラオケ", false, "page"]], "E: モードの切り替え：今はカラオケ・使えないモードは押せない");
   els.startButton.click();
   await new Promise((resolve) => setTimeout(resolve, 60));
@@ -276,6 +277,7 @@ async function runKaraokeTests() {
   await openKaraokeSyncScreen("no-such-song-id-for-test");
   await openKaraokeSyncScreen("love");
   assertEqual([screen.querySelectorAll(".kx-toolbar, .kx-call, .kx-seek-row, .kx-offset-warning, .kx-no-calls-note").length, els.noCallsNotice.hidden], [0, false], "E: 前のカラオケ同期：新しい部品は作らない・コールの無い曲は今までどおりの案内");
+  assertEqual(els.pauseResumeButton.parentElement, els.footerZone, "E: 前のカラオケ同期では、一時停止のボタンは元の場所（下の帯の中）に戻る");
   closeKaraokeSyncScreen();
   screen.remove();
   try {
@@ -387,7 +389,44 @@ async function runSourceTests() {
   }
 }
 
+// 【2026-10-31 live-polish】独立レビューの「できれば直したい点」
+function contrast(a, b) {
+  const lum = (hex) => {
+    const [r, g, bl] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
+  };
+  const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m);
+  return (x + 0.05) / (y + 0.05);
+}
+async function runPolishTests() {
+  console.log("--- live-polish：曲のページの案内・カラオケの上の帯・小さい画面・再開のコントラスト ---");
+  const base = { sheetOk: false, sheetState: SHEET_STATE.NO_SHEET, sheetMessage: "この曲のコール表はまだありません。", hasAudio: true, lineCount: 10 };
+  const fresh = songPageGuidance({ ...base, releasedCount: 0 });
+  assertEqual([fresh.noReleasedData, fresh.message, fresh.cardReason, fresh.showDataButton], [true, NO_RELEASED_DATA_MESSAGE, "この端末にコール表が入っていません。", true], "P: 完成版のコールが0曲の端末：「この端末にコール表が入っていません（最新版データ…）」と［データを追加・更新］");
+  const unadopted = songPageGuidance({ ...base, releasedCount: 46 });
+  assertEqual([unadopted.noReleasedData, unadopted.message, unadopted.cardReason, unadopted.showDataButton], [false, "この曲のコール表はまだありません。", "この曲のコール表はまだありません。", false], "P: 本当にコールが無い曲（未採用）：今までの文言のまま・データのボタンは出さない");
+  assertEqual(songPageGuidance({ ...base, releasedCount: null }).noReleasedData, false, "P: 件数を読めなかったときは言い過ぎない（今までの文言）");
+  assertEqual(songPageGuidance({ ...base, releasedCount: 46, hasAudio: false }).showDataButton, true, "P: 音源が無い曲は［データを追加・更新］を出す");
+  assertEqual(songPageGuidance({ ...base, releasedCount: 46, lineCount: 0 }).showDataButton, true, "P: 歌詞が無い曲も［データを追加・更新］を出す");
+  assertEqual(songPageGuidance({ sheetOk: true, sheetState: SHEET_STATE.READY, sheetMessage: "", releasedCount: 46, hasAudio: true, lineCount: 10 }), { noReleasedData: false, message: "", cardReason: null, showDataButton: false }, "P: そろっている曲は何も出さない");
+  const [kCss, liveCss, screenJs, main] = await Promise.all(["css/karaokeStage.css", "css/liveCall.css", "js/liveCallScreen.js", "js/main.js"].map(fetchText));
+  const lastRule = (css, sel) => {
+    const i = css.lastIndexOf(`${sel} {`);
+    return i < 0 ? "" : css.slice(i, css.indexOf("}", i));
+  };
+  assertEqual(lastRule(kCss, "#live-call-mode-karaoke-screen.kx-on .kx-toolbar").includes("display: block") && /\.kx-footer-row \{\s*display: flex;/.test(kCss), true, "P: 上の帯はモードの3つだけ。コール表示は下の帯の一時停止の左（押しても上の帯の高さが変わらない）");
+  assertEqual(lastRule(kCss, "#live-call-mode-karaoke-screen.kx-on .kx-toolbar .lc-mode-tab").includes("min-height: 44px"), true, "P: モードのタブの高さは 44px");
+  assertEqual(lastRule(kCss, "#live-call-mode-karaoke-screen.kx-on .kx-calls-switch").includes("min-width: 9.5em"), true, "P: スイッチの幅は ON と OFF で同じ（最小幅）");
+  assertEqual(/@media \(max-height: 720px\)[\s\S]*is-tier-long \.karaoke-call-hud-preview-row \{\s*display: none;/.test(kCss), true, "P: 背の低い画面：長いコールのカードは「そのあと」を出さず、文字を全部見せる");
+  assertEqual(/\.karaoke-call-hud-card\.is-tier-long \.karaoke-call-hud-text \{[^}]*overflow-y: auto;/.test(kCss), true, "P: 長いコールは、どの段階でも読める大きさ（入らなければ箱の中だけスクロール）");
+  const resume = lastRule(kCss, "#live-call-mode-karaoke-screen.kx-on .karaoke-pause-resume-button.is-paused").match(/color: (#[0-9a-f]{6})/i)?.[1];
+  assertEqual(Boolean(resume) && contrast(resume, "#ffd93d") >= 4.5 && contrast(resume, "#ff9f43") >= 4.5, true, "P: 一時停止中の［再開］：黄色〜オレンジの地の上で文字のコントラスト 4.5 以上（新しいカラオケの中だけ）");
+  assertEqual(lastRule(liveCss, ".lc-list-top .lc-link-button").includes("white-space: nowrap"), true, "P: 一覧の上のリンクは言葉の途中で改行しない");
+  assertEqual(screenJs.includes('"データを追加・更新"') && main.includes("openDataUpdate: () => openSettingsSection("), true, "P: 曲のページの［データを追加・更新］は設定のデータ管理（最新版データ）へ");
+}
+
 export async function runLiveCallUnifyTests() {
+  await runPolishTests();
   runCountAndTextTests();
   runPlacementTests();
   runTimingTests();

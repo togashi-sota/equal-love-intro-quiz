@@ -562,25 +562,36 @@
 }
 
 /* ===== 【2026-10-31 live-unify】上の帯：3つのモードの切り替えと、コール表示 ON／OFF（js/karaokeSyncScreen.js の buildKaraokeExtras） ===== */
+/* 【2026-10-31 live-polish】上の帯はモードの3つだけ（1段・高さ 44px）。コール表示 ON／OFF は下の帯の［一時停止／再開］の左へ移した。
+   以前は1行に詰めて、ON ではタブが詰まり、OFF（文字が長い）ではスイッチが次の行へ回って、押すたびに歌詞の枠が上下に跳ねた */
 #live-call-mode-karaoke-screen.kx-on .kx-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: center;
+  display: block;
   padding: 0 10px 8px;
 }
 #live-call-mode-karaoke-screen.kx-on .kx-toolbar .lc-mode-tabs {
-  flex: 1 1 auto;
   min-width: 0;
 }
 #live-call-mode-karaoke-screen.kx-on .kx-toolbar .lc-mode-tab {
-  min-height: 38px;
-  padding: 3px 4px;
+  min-height: 44px;
+  padding: 3px 6px;
   font-size: 0.8125rem;
+}
+#live-call-mode-karaoke-screen.kx-on .kx-footer-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+#live-call-mode-karaoke-screen.kx-on .kx-footer-row .karaoke-pause-resume-button {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+  margin-bottom: 0;
 }
 /* コール表示 ON／OFF：文字で状態を言う（ON＝ピンクの塗り、OFF＝白に灰色の枠）。押せる高さ 44px */
 #live-call-mode-karaoke-screen.kx-on .kx-calls-switch {
   flex: 0 0 auto;
+  min-width: 9.5em;
   min-height: 44px;
   padding: 4px 10px;
   border: 1.5px solid #b9a8b3;
@@ -785,4 +796,77 @@
   #live-call-mode-karaoke-screen.kx-on .kx-call {
     transition: none;
   }
+}
+
+/* ===== 【2026-10-31 live-polish】長いコールのカード：どの段階（NEXT CALL・もうすぐ・コール中）でも、読める大きさで全部見せる =====
+   以前は「コール中」以外は大きな文字のままで、320×640 では下が切れた。入らないときは文字の箱の中だけスクロール */
+#live-call-mode-karaoke-screen.kx-on .karaoke-call-hud-card.is-tier-long .karaoke-call-hud-text {
+  max-height: none;
+  min-height: 0;
+  overflow-y: auto;
+  font-size: clamp(1.05rem, 5vw, 1.45rem);
+  line-height: 1.4;
+  text-align: center;
+  white-space: pre-line;
+}
+#live-call-mode-karaoke-screen.kx-on .karaoke-call-hud-card {
+  justify-content: center;
+}
+#live-call-mode-karaoke-screen.kx-on .karaoke-call-hud-card > * {
+  flex: none;
+}
+#live-call-mode-karaoke-screen.kx-on .karaoke-call-hud-card > .karaoke-call-hud-text {
+  flex: 0 1 auto;
+}
+
+/* ===== 【2026-10-31 live-polish】背の低い画面（高さ 720px 以下。iPhone SE・320×640 など）=====
+   歌詞の枠を広く取るため、下の操作を詰める（押せる高さ 40px 以上は保つ）。カードは低め、長いコールのときは「そのあと」を出さない */
+@media (max-height: 720px) {
+  #live-call-mode-karaoke-screen.kx-on .karaoke-footer-zone {
+    padding-top: 6px;
+  }
+  #live-call-mode-karaoke-screen.kx-on .karaoke-timing-heading {
+    display: none;
+  }
+  #live-call-mode-karaoke-screen.kx-on .karaoke-pause-resume-button {
+    min-height: 44px;
+    margin-bottom: 6px;
+  }
+  #live-call-mode-karaoke-screen.kx-on .karaoke-timing-button,
+  #live-call-mode-karaoke-screen.kx-on .karaoke-timing-reset-button {
+    min-height: 40px;
+  }
+  #live-call-mode-karaoke-screen.kx-on .kx-seek-row {
+    margin-bottom: 0;
+  }
+  #live-call-mode-karaoke-screen.kx-on .kx-seek {
+    min-height: 30px;
+  }
+  #live-call-mode-karaoke-screen.kx-on .karaoke-header-row {
+    min-height: 0;
+  }
+  #live-call-mode-karaoke-screen.kx-on .karaoke-call-hud-card {
+    height: clamp(124px, 21vh, 400px);
+    height: clamp(124px, 21dvh, 400px);
+    padding: 10px 12px 14px;
+    gap: 4px;
+  }
+  #live-call-mode-karaoke-screen.kx-on .karaoke-call-hud-card.is-tier-long .karaoke-call-hud-preview-row {
+    display: none;
+  }
+  #live-call-mode-karaoke-screen.kx-on .karaoke-call-hud-card.is-tier-long .karaoke-call-hud-text {
+    font-size: clamp(0.98rem, 4.6vw, 1.2rem);
+    line-height: 1.35;
+  }
+  #live-call-mode-karaoke-screen.kx-on .karaoke-lyrics-context-panel {
+    min-height: 0;
+  }
+  #live-call-mode-karaoke-screen.kx-on .kx-footer-row {
+    margin-bottom: 6px;
+  }
+}
+
+/* ===== 【2026-10-31 live-polish】一時停止中の［再開］（黄色の地）：文字を濃い色に（コントラスト 4.5 以上）。新しいカラオケの中だけ ===== */
+#live-call-mode-karaoke-screen.kx-on .karaoke-pause-resume-button.is-paused {
+  color: #5c1030;
 }
