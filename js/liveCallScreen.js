@@ -472,16 +472,32 @@ async function renderList() {
 // ===== 曲のページ =====
 async function loadSongData(songId) {
   const song = getSongById(songId);
-  const [record, lyricsRecord, callRecord, blob] = await Promise.all([
+  const [record, lyricsRecord, callRecord, blob, allRecords] = await Promise.all([
     getReleasedCallRecord(songId).catch(() => null),
     getLyricsData(songId).catch(() => null),
     getCallData(songId).catch(() => null),
     getAudioBlob(songId).catch(() => null),
+    getAllReleasedCallRecords().catch(() => null),
   ]);
+  // 【2026-10-31 live-polish】この端末に完成版のコールが1曲分も入っていないか（新しい端末・データを入れる前）。
+  // 読めなかったとき（null）は「入っている」扱い（今までの文言のまま。迷ったら言い過ぎない）
+  const releasedCount = allRecords instanceof Map ? [...allRecords.values()].filter((r) => r?.current).length : null;
   const sheet = buildReleasedCallSheet({ record: record ? { ...record, songId } : null, lyricsRecord, deviceCalls: Array.isArray(callRecord?.calls) ? callRecord.calls : [] });
   const hasAudio = Boolean(blob);
   const avail = computeModeAvailability({ sheet, hasAudio, lyricsRecord });
-  return { song, record, lyricsRecord, sheet, avail, hasAudio, blob };
+  return { song, record, lyricsRecord, sheet, avail, hasAudio, blob, releasedCount };
+}
+
+// 【2026-10-31 live-polish】曲のページの案内（純粋関数）。
+// noReleasedData：この端末に完成版のコールが0曲（新しい端末）。このときの「コール表がまだありません」は、曲にコールが無いのではなく、
+//   データが入っていないだけなので、取り込めば使えると案内する（本当にコールが無い曲＝未採用の曲は、今までの文言のまま）。
+// 戻り値：{ message（上の1行。無ければ ""）, cardReason（カードの理由の短い言い方。無ければ null）, showDataButton（［データを追加・更新］を出すか） }
+export const NO_RELEASED_DATA_MESSAGE = "この端末にコール表が入っていません（最新版データを取り込むと使えます）。";
+export function songPageGuidance({ sheetOk, sheetState, sheetMessage, releasedCount, hasAudio, lineCount }) {
+  const noReleasedData = !sheetOk && sheetState === SHEET_STATE.NO_SHEET && releasedCount === 0;
+  const message = sheetOk ? "" : noReleasedData ? NO_RELEASED_DATA_MESSAGE : sheetMessage;
+  const cardReason = sheetOk ? null : noReleasedData ? "この端末にコール表が入っていません。" : sheetState === SHEET_STATE.NO_SHEET ? "この曲のコール表はまだありません。" : "上の案内のとおり、今は使えません。";
+  return { noReleasedData, message, cardReason, showDataButton: noReleasedData || !hasAudio || !(lineCount > 0) };
 }
 
 async function openSong(songId) {
@@ -576,22 +592,41 @@ async function renderSongPage() {
     page.appendChild(el("p", "lc-status-message", "この曲のデータを読み込めませんでした。もう一度開き直してください。"));
     return;
   }
-  const { sheet, avail, hasAudio, lyricsRecord } = songData;
+  const { sheet, avail, hasAudio, lyricsRecord, releasedCount } = songData;
   // 状態：コール表（本人の採用）と、端末に入っているデータ（音源・歌詞）を分けて出す
   const status = el("dl", "lc-status");
   const addStatus = (label, value, ok) => {
     status.appendChild(el("dt", "", label));
     status.appendChild(el("dd", ok ? "is-ok" : "is-ng", value));
   };
-  const sheetLabel = sheet.ok ? `あり（${sheet.calls.length}件）` : sheet.state === SHEET_STATE.NO_SHEET ? "まだありません" : "この端末のデータでは表示できません";
+  const sheetLabel = sheet.ok
+    ? `あり（${sheet.calls.length}件）`
+    : sheet.state === SHEET_STATE.NO_SHEET
+      ? releasedCount === 0
+        ? "この端末に入っていません"
+        : "まだありません"
+      : "この端末のデータでは表示できません";
   addStatus("コール表", sheetLabel, sheet.ok);
   addStatus("音源", hasAudio ? "この端末にあります" : "この端末にありません", hasAudio);
   const lineCount = Array.isArray(lyricsRecord?.lines) ? lyricsRecord.lines.length : 0;
   addStatus("歌詞", lineCount ? "この端末にあります" : "この端末にありません", lineCount > 0);
   page.appendChild(status);
-  if (!sheet.ok) page.appendChild(el("p", `lc-status-message${sheet.state === SHEET_STATE.NO_SHEET ? "" : " is-warning"}`, sheet.message));
+  const guide = songPageGuidance({ sheetOk: sheet.ok, sheetState: sheet.state, sheetMessage: sheet.message, releasedCount, hasAudio, lineCount });
+  if (guide.message) page.appendChild(el("p", `lc-status-message${sheet.state === SHEET_STATE.NO_SHEET && !guide.noReleasedData ? "" : " is-warning"}`, guide.message));
+  // 【2026-10-31 live-polish】データが足りないとき（新しい端末・音源や歌詞が無い）：行き止まりにしないよう、データを入れる場所へのボタン
+  if (guide.showDataButton && callbacks?.openDataUpdate) {
+    const dataBox = el("div", "lc-data-guide");
+    dataBox.appendChild(el("p", "lc-data-guide-text", "コール表・歌詞・音源は、設定の「データ管理」で、配られた最新版データを読み込むと入ります。"));
+    dataBox.appendChild(
+      button("lc-primary-button lc-data-guide-button", "データを追加・更新", () => {
+        playSfx(SFX_EVENTS.UI_CLICK);
+        callbacks.openDataUpdate();
+      }),
+    );
+    page.appendChild(dataBox);
+  }
   // 同じ長い案内をカードごとに繰り返さない（コール表が出せない理由は上に1回だけ）
-  const short = (availability) => (!sheet.ok && availability.reason === sheet.message ? { ok: false, reason: sheet.state === SHEET_STATE.NO_SHEET ? "この曲のコール表はまだありません。" : "上の案内のとおり、今は使えません。" } : availability);
+  const short = (availability) => (!sheet.ok && availability.reason === sheet.message ? { ok: false, reason: guide.cardReason } : availability);
   const cards = el("div", "lc-mode-cards");
   cards.appendChild(
     modeCard({
@@ -617,7 +652,9 @@ async function renderSongPage() {
       title: "カラオケ",
       description: sheet.ok
         ? "歌詞を大きく表示して歌う。赤いコールと「次のコール」も一緒に出せます（コール表示の ON／OFF）。コールの瞬間に光ります。"
-        : "歌詞を大きく表示して歌う（この曲はコール表がまだないので、歌詞だけで表示します）。",
+        : lineCount > 0
+          ? "歌詞を大きく表示して歌う。コール表が無いので、歌詞だけのカラオケになります。"
+          : "歌詞を大きく表示して歌う（コール表が無い曲でも、歌詞があれば歌詞だけで使えます）。",
       availability: avail.karaoke,
       // 【2026-10-29 本人の希望】前の「カラオケ同期」と同じ画面（NEXT CALL・あと○秒・タイミング調整）を、本人の完成版のコールで開く
       onOpen: () => openKaraokeForCurrentSong(),

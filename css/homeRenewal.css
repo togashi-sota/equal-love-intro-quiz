@@ -1884,21 +1884,27 @@
 .home-live-learn-modes {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
-  margin-top: 8px;
+  gap: 2px 4px;
+  margin-top: 6px;
 }
+/* 【2026-10-31 live-polish】札はボタンに見えない見た目に（枠・地を無くし、アイコン＋文字の「中身の一覧」に）。
+   押す所はボタン全体の1つ（入口は1つ、という本人の指示）。あいだに「・」を置いて、並んだ言葉として読ませる */
 .home-live-learn-mode {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 3px 9px 3px 7px;
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  border-radius: 999px;
-  background: rgba(30, 6, 40, 0.28);
+  gap: 3px;
+  padding: 0;
+  border: none;
+  background: none;
   color: #fff;
   font-size: 0.78125rem;
   font-weight: 800;
   white-space: nowrap;
+}
+.home-live-learn-mode + .home-live-learn-mode::before {
+  content: "・";
+  margin-right: 2px;
+  color: rgba(255, 255, 255, 0.7);
 }
 .home-live-learn-mode .hi {
   width: 0.95rem;
