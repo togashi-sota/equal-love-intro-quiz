@@ -122,7 +122,7 @@ async function runHomeMusicCardTests() {
   const doc = new DOMParser().parseFromString(html, "text/html");
   const card = doc.getElementById("home-card-music");
   const actions = [...card.querySelectorAll("button")].map((button) => button.dataset.homeAction);
-  assertEqual(actions, ["continuous-play", "pick-songs", "playlists", "favorites", "songlist", "works", "lyrics-search"], "楽曲：ボタンの数と並び（行き先）は今までの6つ＋「曲を選んで再生」（2026-11-01 r8-music で追加）");
+  assertEqual(actions, ["continuous-play", "pick-songs", "playlists", "favorites", "songlist", "works", "center-sheet", "lyrics-search"], "楽曲：今までの6つ＋「曲を選んで再生」（r8-music）＋センター1枚表（r8-center）");
   const hero = card.querySelector(".home-music-hero");
   assertEqual(hero?.dataset.homeAction, "continuous-play", "主役は「曲を聴く」（連続再生へ。行き先は今までと同じ）");
   assertEqual(hero?.querySelector("b")?.textContent, "曲を聴く", "主役の題名は「曲を聴く」");
@@ -133,8 +133,8 @@ async function runHomeMusicCardTests() {
   assertEqual([...hero.querySelectorAll(".home-music-hero-disc, .home-music-hero-notes, .home-music-wave, .home-music-play")].every((element) => element.getAttribute("aria-hidden") === "true"), true, "飾りは読み上げない（aria-hidden）");
   assertEqual(card.querySelectorAll("img").length, 0, "画像（他人のアルバム画像など）は使わない");
   assertEqual([...card.querySelectorAll(".home-music-col-title")].map((element) => element.textContent.trim()), ["聴く", "読む・調べる", "探す"], "聴く／読む・調べる／探す に分ける");
-  assertEqual([...card.querySelectorAll(".home-music-col--listen .home-music-item")].map((button) => button.dataset.homeAction), ["pick-songs", "playlists", "favorites"], "曲を選んで再生（2026-11-01 r8-music で追加）・プレイリスト・お気に入りは「聴く」のサブ");
-  assertEqual([...card.querySelectorAll(".home-music-col--read .home-music-item")].map((button) => button.dataset.homeAction), ["songlist", "works"], "楽曲一覧・シングル・アルバムは「読む・調べる」");
+  assertEqual([...card.querySelectorAll(".home-music-col--listen .home-music-item")].map((button) => button.dataset.homeAction), ["pick-songs", "playlists", "favorites"], "曲を選んで再生（r8-music）・プレイリスト・お気に入りは「聴く」のサブ");
+  assertEqual([...card.querySelectorAll(".home-music-col--read .home-music-item")].map((button) => button.dataset.homeAction), ["songlist", "works", "center-sheet"], "楽曲一覧・シングル・アルバム・センター1枚表（r8-center）は「読む・調べる」");
   assertEqual([...card.querySelectorAll(".home-music-col--find .home-music-item")].map((button) => button.dataset.homeAction), ["lyrics-search"], "歌詞検索は「探す」");
   assertEqual([card.querySelector("#home-music-songs-sub") !== null, card.querySelector("#home-music-works-sub") !== null], [true, true], "曲の数・作品の数を入れる所（JS が数えて入れる）は残る");
   const symbols = new Set([...doc.querySelectorAll(".home-icon-sprite symbol")].map((symbol) => symbol.id));

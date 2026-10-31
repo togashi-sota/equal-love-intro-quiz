@@ -1587,6 +1587,17 @@
   width: 30px;
   height: 30px;
 }
+/* 【2026-11-01 R8・本人の依頼 3】読む・調べるの3つめ「センター1枚表」：2つ横に並ぶ幅では、下の段に横いっぱいで置く（半分だけ空かない） */
+.home-music-col--read .home-music-item--center-sheet {
+  grid-column: 1 / -1;
+  min-height: 46px;
+}
+.home-music-item--center-sheet .home-music-item-text {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 8px;
+}
 /* スマホの幅（カードの中が 24rem 未満）：読む・調べるは2つ横に並べるので、アイコンを出さず文字に場所を使う */
 @container (max-width: 24rem) {
   .home-music-col--read .home-music-item-icon {

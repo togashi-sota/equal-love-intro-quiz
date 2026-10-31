@@ -1,0 +1,536 @@
+/* ===== 歴代センターの「1枚表」（2026-11-01 R8・本人の依頼 3。js/centerSheet.js / js/centerSheetView.js） =====
+   本人の参考画像（紙のセンター表）と同じ読み方：縦＝1st〜最新・アルバム・他、横＝表題曲／全員曲／ユニット曲、
+   センターはメンバーカラーの地にメンバー名（2人なら2色）。
+   ・表そのものは 12px の文字・決まった列の幅で組み、画面へは transform: scale で縮めて「スクロールなしで全体」を見せる
+     （列の幅・行の高さは js/centerSheet.js の CENTER_SHEET_SIZE と同じ値にする）
+   ・縮小して文字が小さいときは、押すと拡大ビューア（.cs-viewer）
+   ・動きは「押した曲を少し光らせる」だけ。prefers-reduced-motion では止める */
+
+/* ---- 縮小した1枚（ページの中） ---- */
+.cs-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.cs-panel[hidden] {
+  display: none;
+}
+
+.cs-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.cs-hint {
+  flex: 1 1 14rem;
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.4;
+  color: #7a6170;
+}
+
+.cs-open-viewer {
+  min-height: 36px;
+  padding: 6px 14px;
+  border: 1.5px solid var(--color-primary);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-primary-dark);
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.cs-frame {
+  position: relative;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.cs-frame-inner {
+  transform-origin: 0 0;
+}
+
+/* 文字が小さすぎるとき：表の全体を1つの「押すと拡大」のボタンにする（中の曲名は押せない） */
+.cs-frame-cover {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: zoom-in;
+}
+
+.cs-frame-cover[hidden] {
+  display: none;
+}
+
+.cs-frame-cover:focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: -3px;
+  border-radius: 10px;
+}
+
+/* ---- 表（拡大・縮小する前の1枚） ---- */
+.cs-sheet {
+  box-sizing: border-box;
+  width: max-content;
+  padding: 0 0 4px;
+  background: #ffffff;
+  color: #24151f;
+  font-size: 12px;
+  line-height: 1.2;
+  border-radius: 10px;
+}
+
+.cs-caption {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  height: 30px;
+  margin: 0;
+  padding: 6px 4px 0;
+  box-sizing: border-box;
+}
+
+.cs-caption b {
+  font-size: 15px;
+  font-weight: 900;
+  color: #8a2a6a;
+}
+
+.cs-caption span {
+  font-size: 11px;
+  font-weight: 700;
+  color: #7a6170;
+}
+
+.cs-tables {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.cs-table {
+  table-layout: fixed;
+  border-collapse: collapse;
+  width: max-content;
+  border: 2px solid #3d2a36;
+}
+
+.cs-table th,
+.cs-table td {
+  box-sizing: border-box;
+  height: 20px;
+  padding: 0;
+  border: 1px solid #8f7f8a;
+  vertical-align: middle;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.cs-head {
+  height: 24px;
+  background: #fbf3f8;
+  font-size: 13px;
+  font-weight: 900;
+  text-align: center;
+  letter-spacing: 0.1em;
+  border-bottom: 2px solid #3d2a36 !important;
+}
+
+/* 作品（行）の区切りは太い線 */
+.cs-row {
+  border-top: 2px solid #3d2a36;
+}
+
+.cs-label {
+  background: #fbf3f8;
+  text-align: center;
+  font-weight: 900;
+  border-right: 2px solid #3d2a36 !important;
+}
+
+.cs-label-main {
+  display: block;
+  font-size: 12px;
+}
+
+.cs-label-sub {
+  display: block;
+  margin-top: 1px;
+  font-size: 8px;
+  font-weight: 700;
+  color: #7a6170;
+  white-space: normal;
+  line-height: 1.15;
+}
+
+.cs-row.is-album .cs-label {
+  background: #fff3d9;
+}
+
+.cs-row.is-other .cs-label {
+  background: #eef2ff;
+}
+
+.cs-song-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  width: 100%;
+  height: 100%;
+  min-height: 19px;
+  padding: 0 4px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.cs-song-button:hover .cs-song-title,
+.cs-song-button:focus-visible .cs-song-title {
+  text-decoration: underline;
+  text-decoration-color: var(--color-primary);
+  text-underline-offset: 2px;
+}
+
+.cs-song-button:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
+.cs-song-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 700;
+}
+
+/* 「他」の行の作品の種類（配信／特別） */
+.cs-tag {
+  flex: none;
+  padding: 0 3px;
+  border-radius: 4px;
+  background: #e8ecff;
+  color: #3a4a9a;
+  font-size: 8px;
+  font-weight: 900;
+  line-height: 12px;
+}
+
+/* センターのマス：メンバーカラーの地にメンバー名。2人なら横に2色 */
+.cs-swatches {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-height: 19px;
+}
+
+.cs-swatch {
+  flex: 1 1 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.cs-center.is-multi .cs-swatch + .cs-swatch {
+  border-left: 1px solid rgba(61, 42, 54, 0.45);
+}
+
+/* センターの区別が無いユニット曲（ソロ・2人の曲）：歌うメンバーの色に白い斜線を重ね、センターと見分ける */
+.cs-center.is-singers .cs-swatch {
+  background-image: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.6) 0 3px, transparent 3px 7px);
+  font-weight: 700;
+  text-shadow: 0 0 2px #fff, 0 0 2px #fff;
+  color: #24151f !important;
+}
+
+/* 全員（特定のメンバーの色を使わない。歴代センター一覧の「全員」と同じ色） */
+.cs-center.is-all .cs-swatch {
+  background: linear-gradient(135deg, #ffe4f0 0%, #f6e6ff 55%, #e6efff 100%);
+  color: var(--color-primary-dark);
+  letter-spacing: 0.2em;
+}
+
+.cs-center.is-unknown .cs-swatch,
+.cs-center.is-none .cs-swatch {
+  background: repeating-linear-gradient(135deg, #f3f0f2 0 6px, #e9e4e8 6px 12px);
+  color: #6b5a66;
+  font-weight: 700;
+}
+
+.cs-song.is-empty,
+.cs-center.is-empty {
+  background: #ffffff;
+}
+
+/* 凡例のメンバーを押したとき：その人のマスだけを残し、ほかを薄くする */
+.cs-sheet.has-highlight .cs-center:not(.is-empty):not(.is-hit) .cs-swatch {
+  opacity: 0.18;
+}
+
+.cs-sheet.has-highlight .cs-center.is-hit {
+  outline: 2px solid #24151f;
+  outline-offset: -2px;
+}
+
+/* 収録曲一覧などから来たときの曲のマス */
+.cs-song.is-focus {
+  animation: cs-focus 0.8s ease-in-out 3;
+}
+
+@keyframes cs-focus {
+  50% {
+    background: #ffe066;
+  }
+}
+
+/* ---- 凡例（表の一部として一緒に縮小・拡大する） ---- */
+.cs-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 10px;
+  max-width: 100%;
+  padding: 4px 4px 0;
+  box-sizing: border-box;
+  font-size: 11px;
+}
+
+/* 凡例の幅は表の幅に合わせる（.cs-sheet の幅は表で決まる） */
+.cs-sheet .cs-legend {
+  width: 0;
+  min-width: 100%;
+}
+
+.cs-legend-title {
+  font-weight: 900;
+  color: #8a2a6a;
+}
+
+.cs-legend-member {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 20px;
+  padding: 0 6px 0 2px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.cs-legend-member.is-active {
+  border-color: #24151f;
+  background: #fff6c8;
+}
+
+.cs-legend-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  border: 1px solid rgba(61, 42, 54, 0.35);
+}
+
+.cs-legend-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #5b4553;
+  font-weight: 700;
+}
+
+.cs-legend-sample {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 14px;
+  min-width: 24px;
+  border: 1px solid rgba(61, 42, 54, 0.35);
+  border-radius: 3px;
+  font-size: 9px;
+}
+
+.cs-legend-sample.is-multi i {
+  flex: 1;
+  height: 100%;
+}
+
+.cs-legend-sample.is-multi i:first-child {
+  background: #e0e0e0;
+}
+
+.cs-legend-sample.is-multi i:last-child {
+  background: #9d6fe0;
+}
+
+.cs-legend-sample.is-singer {
+  background: #ff8fc0 repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.6) 0 3px, transparent 3px 7px);
+}
+
+.cs-legend-sample.is-all {
+  padding: 0 4px;
+  background: linear-gradient(135deg, #ffe4f0 0%, #f6e6ff 55%, #e6efff 100%);
+  color: var(--color-primary-dark);
+  font-weight: 800;
+}
+
+/* ---- 拡大ビューア（画面いっぱいの重ね表示） ---- */
+.cs-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 40; /* 歴代センター表の全画面表示と同じ高さ */
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-sizing: border-box;
+  background: linear-gradient(135deg, var(--color-background-start), var(--color-background-end));
+  /* env() と max() を padding のショートハンドに混ぜない（実機の Safari で無効になることがあるため。centersTable.css と同じ） */
+  padding-top: max(10px, calc(env(safe-area-inset-top) + 6px));
+  padding-right: max(8px, env(safe-area-inset-right));
+  padding-bottom: max(8px, env(safe-area-inset-bottom));
+  padding-left: max(8px, env(safe-area-inset-left));
+}
+
+.cs-viewer-header {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.cs-viewer-title {
+  flex: 1 1 auto;
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 900;
+  color: var(--color-primary-dark);
+}
+
+.cs-viewer-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cs-viewer-controls button {
+  min-width: 44px;
+  min-height: 40px;
+  padding: 4px 10px;
+  border: 1.5px solid var(--color-primary-light);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-primary-dark);
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.cs-viewer-controls button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.cs-viewer-controls .cs-viewer-close {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: #ffffff;
+}
+
+.cs-viewer-zoom-label {
+  min-width: 3.2em;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-align: center;
+  color: #7a6170;
+}
+
+.cs-viewer-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  /* 1本の指はスクロール、2本の指の拡大縮小は JS で行う（ブラウザがページごと拡大しないように） */
+  touch-action: pan-x pan-y;
+  border-radius: 12px;
+  border: 1.5px solid var(--color-primary-light);
+  background: #ffffff;
+}
+
+.cs-viewer-canvas {
+  position: relative;
+}
+
+.cs-viewer-canvas .cs-sheet {
+  transform-origin: 0 0;
+}
+
+/* ビューア（CSS の zoom で拡大するとき）：列の見出しは上に、左端の「1st」などの列は左に残す */
+.cs-viewer.uses-css-zoom .cs-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.cs-viewer.uses-css-zoom .cs-label {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+}
+
+.cs-viewer.uses-css-zoom .cs-corner {
+  left: 0;
+  z-index: 3;
+}
+
+.cs-viewer-hint {
+  flex: none;
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #7a6170;
+  text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cs-song.is-focus {
+    animation: none;
+    background: #ffe066;
+  }
+}
+
+/* iPad・PC：1枚表のときだけ、枠（.game-frame）を画面の幅まで広げる（ほかの表示・ほかの画面は 480px の枠のまま） */
+@media (min-width: 768px) {
+  body[data-screen="centers"]:has(.cs-panel:not([hidden])) .game-frame {
+    max-width: min(1400px, 100%);
+  }
+}
+
+/* 1枚表のときは、検索・メンバーの絞り込みを隠す（hidden 属性が display の指定に負けないように） */
+.centers-controls[hidden],
+.centers-intro[hidden] {
+  display: none;
+}
