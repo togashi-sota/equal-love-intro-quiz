@@ -29,6 +29,9 @@ import { ACTIVITY_STATUS } from "./data/memberActivities.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
 import { buildMemberStageVoiceSections } from "./memberStageVoiceSection.js";
 import { buildMemberCommercialsSection } from "./commercialsSection.js";
+// 【2026-11-01追加】テレビ出演（バラエティ・情報番組）の件数
+import { TV_VARIETY_RECORDS } from "./data/tvVariety.js";
+import { countTvVarietyByMember } from "./tvVarietyModel.js";
 
 // この画面が使うDOM要素一式。initMembersScreen()で受け取って保持する。
 let elements = null;
@@ -824,6 +827,26 @@ function renderMemberDetail(songs, members, profiles, activities, member) {
   elements.memberDetailContent.appendChild(buildMemberStageVoiceSections(member.id));
   // 10-3. CM・広告出演（2026-10-23新設。js/data/commercials.js を参照。全員出演は「＝LOVEについて」へ案内）
   elements.memberDetailContent.appendChild(buildMemberCommercialsSection(member.id));
+  // 10-4. テレビ出演（バラエティ・情報番組）への導線（2026-11-01新設）。そのメンバーで絞った一覧を開く。件数が0なら出さない
+  const tvVarietyCount = countTvVarietyByMember(TV_VARIETY_RECORDS, member.id);
+  if (tvVarietyCount > 0 && elements.onOpenTvVariety) {
+    elements.memberDetailContent.appendChild(buildSectionHeading("テレビ出演"));
+    const link = document.createElement("button");
+    link.type = "button";
+    link.className = "member-tv-variety-link";
+    link.dataset.memberId = member.id;
+    const text = document.createElement("span");
+    text.textContent = `バラエティ・情報番組 ${tvVarietyCount}件を見る`;
+    const note = document.createElement("small");
+    note.textContent = "個人名が告知に出た出演だけ。歌の披露は［音楽番組］";
+    text.appendChild(note);
+    const arrow = document.createElement("span");
+    arrow.setAttribute("aria-hidden", "true");
+    arrow.textContent = "→";
+    link.append(text, arrow);
+    link.addEventListener("click", () => elements.onOpenTvVariety(member.id));
+    elements.memberDetailContent.appendChild(link);
+  }
 
   // 11. ファンの愛称・ニックネーム（無ければセクションごと非表示）
   const nicknames = profile?.nicknames ?? [];

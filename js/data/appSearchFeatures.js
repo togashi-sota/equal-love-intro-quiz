@@ -53,6 +53,15 @@ export const APP_SEARCH_FEATURES = [
     action: { type: "click", selector: "#cd-sales-home-link" },
   },
   {
+    // 【2026-11-01追加】テレビ出演（バラエティ・情報番組）
+    id: "feature-tv-variety",
+    category: FEATURE,
+    title: "テレビ出演（バラエティ・情報番組）",
+    aliases: ["テレビ出演", "テレビ", "バラエティ", "情報番組", "TV出演", "出演番組", "テレビ番組"],
+    description: "バラエティ・情報番組などに単発で出演した記録を、新しい順に見られます。出演の形・メンバー・年・放送局で絞り込み、番組名で探せます。歌の披露は「音楽番組」のページです。",
+    action: { type: "click", selector: "#tv-variety-home-link" },
+  },
+  {
     id: "feature-favorites",
     category: FEATURE,
     title: "お気に入り",

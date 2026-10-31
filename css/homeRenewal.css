@@ -1712,12 +1712,10 @@
 .home-know--cm { --know: #c2410c; }
 .home-know--about { --know: #ae3ec9; }
 .home-know--sales { --know: #c2255c; }
-/* 【2026-10-31】「CD売上・チャート」を足して7枚になったので、最後の「＝LOVEについて」を1行全部に広げる
-   （2列でも3列でも、1枚だけ余って空きができないように） */
-.home-know-grid > .home-know--about {
-  grid-column: 1 / -1;
-  min-height: 0;
-}
+.home-know--variety { --know: #2b8a3e; }
+/* 【2026-11-01】「テレビ出演」を足して8枚になった。2列では8枚でちょうど4行になるので、どのカードも同じ大きさにする。
+   3列では「＝LOVEについて」を2列分に広げて、3行に空きが出ないようにする（3＋3＋1＋2）。
+   （2026-10-31 の7枚のときは「＝LOVEについて」を1行全部に広げていた） */
 .home-know-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1727,6 +1725,10 @@
 @container (min-width: 36rem) {
   .home-know-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .home-know-grid > .home-know--about {
+    grid-column: span 2;
+    min-height: 0;
   }
 }
 .home-know {
