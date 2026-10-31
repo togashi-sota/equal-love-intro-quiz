@@ -134,13 +134,18 @@ async function runCssTests() {
     const small3 = buildSandboxSwatch(22, 3, true);
     sandbox.appendChild(small3);
     const visibleSmall = [...small3.querySelectorAll(".oshi-charm")].filter((c) => getComputedStyle(c).display !== "none").map((c) => c.className);
-    assertEqual(visibleSmall.length, 2, "小さい表示：第3段階は主役の飾り2つ（王冠・ダイヤ）だけ");
+    assertEqual(visibleSmall.length, 1, "小さい表示：第3段階は主役の飾り1つ（大きなダイヤ）だけ");
+    assertEqual(visibleSmall[0].includes("oshi-charm--diamond"), true, "小さい表示：第3段階は王冠ではなく宝石（第2段階の王冠と形で見分ける）");
     assertEqual(getComputedStyle(small3.querySelector(".oshi-tier-ring")).animationName, "none", "小さい表示：動かない（一覧で何十個並んでも軽い）");
     const small2 = buildSandboxSwatch(22, 2, true);
     const small1 = buildSandboxSwatch(22, 1, true);
     sandbox.append(small2, small1);
     const visibleCount = (el) => [...el.querySelectorAll(".oshi-charm")].filter((c) => getComputedStyle(c).display !== "none").length;
-    assertEqual([visibleCount(small1), visibleCount(small2), visibleCount(small3)], [1, 1, 2], "小さい表示：第1＝音符／第2＝王冠／第3＝王冠とダイヤ（段階が見分けられる）");
+    assertEqual([visibleCount(small1), visibleCount(small2), visibleCount(small3)], [1, 1, 1], "小さい表示：主役の飾りは1つずつ");
+    const visibleCharm = (el) => [...el.querySelectorAll(".oshi-charm")].find((c) => getComputedStyle(c).display !== "none").className;
+    assertEqual([visibleCharm(small1), visibleCharm(small2), visibleCharm(small3)].map((name) => name.match(/oshi-charm--(\w+)/)[1]), ["note", "crown", "diamond"], "小さい表示：第1＝音符／第2＝王冠／第3＝ダイヤ（形がすべて違う）");
+    const smallRingWidth = (el) => el.querySelector(".oshi-tier-ring").getBoundingClientRect().width;
+    assertEqual(smallRingWidth(small3) > smallRingWidth(small2) * 1.1, true, "小さい表示：第3段階の虹の輪は第2段階よりはっきり大きい");
 
     // 動き：第1段階は動かない。第2・第3段階のリングだけがゆっくり回る
     const mid1 = buildSandboxSwatch(44, 1);
