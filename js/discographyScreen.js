@@ -19,6 +19,7 @@ import { buildGroupStageSection } from "./memberStageVoiceSection.js";
 import { buildGroupCommercialsSection } from "./commercialsSection.js";
 // 【2026-10-31追加】作品詳細の「売上・チャート」欄（数値は js/data/cdSales.js。ページは js/cdSalesScreen.js）
 import { CD_SALES_SINGLES, CD_SALES_ALBUMS } from "./data/cdSales.js";
+import { sortSongsByTrackList, findTrackEntry } from "./data/discography.js";
 
 // workIdから種別が判定できない場合だけ使う、最後のフォールバック表示。
 const WORK_TYPE_LABELS_FALLBACK = {
@@ -100,7 +101,8 @@ export function buildWorkSummaries(songs, discographyEntries) {
   });
 
   return discographyEntries.map((entry) => {
-    const workSongs = songsByWorkId.get(entry.workId) ?? [];
+    // 【2026-11-01 nx-nav】アルバムは公式の収録順に並べる（js/data/discography.js の ALBUM_TRACK_LISTS。無い作品は今までどおり）
+    const workSongs = sortSongsByTrackList(songsByWorkId.get(entry.workId) ?? [], entry.trackList);
     // 表題曲があればそれを代表曲にする。配信限定シングル等、表題曲扱いの曲が
     // 無い作品では、収録曲の1曲目を代わりに使う。
     const titleSong = workSongs.find((song) => song.category === CATEGORY.TITLE_TRACK) ?? workSongs[0] ?? null;
@@ -1310,20 +1312,41 @@ function buildFactRow(label, value) {
   return row;
 }
 
-function buildTrackRow(song) {
+// track：アルバムの収録順のデータの行（{ no, edition }。js/data/discography.js の ALBUM_TRACK_LISTS）。シングルでは null
+function buildTrackRow(song, track = null) {
   const row = document.createElement("div");
   row.className = "discography-track-row";
+
+  // 【2026-11-01 nx-nav】アルバムの曲は、左に収録順の番号（「1」＝1曲目）
+  if (track) {
+    row.classList.add("has-track-no");
+    const number = document.createElement("span");
+    number.className = "track-no";
+    number.textContent = String(track.no);
+    number.setAttribute("aria-label", `${track.no}曲目`);
+    row.appendChild(number);
+  }
 
   const tag = document.createElement("span");
   const isTitleTrack = song.category === CATEGORY.TITLE_TRACK;
   tag.className = `track-tag ${isTitleTrack ? "is-title" : "is-coupling"}`;
-  tag.textContent = isTitleTrack ? "表題" : "c/w";
+  // アルバムの曲は「カップリング（c/w）」ではないので「収録」と書く（シングルは今までどおり）
+  tag.textContent = isTitleTrack ? "表題" : track ? "収録" : "c/w";
   row.appendChild(tag);
 
   const name = document.createElement("span");
   name.className = "track-name";
   name.textContent = song.title;
   row.appendChild(name);
+
+  // 版だけの曲（「Type-A のみ」）・曲の短い説明（songs.js の shortNote。Overture の「ライブのオープニング曲・歌詞なし」）
+  const notes = [track?.edition, song.shortNote].filter(Boolean);
+  if (notes.length > 0) {
+    const note = document.createElement("span");
+    note.className = "track-note";
+    note.textContent = notes.join("・");
+    row.appendChild(note);
+  }
 
   if (Array.isArray(song.center) && song.center.length > 0) {
     const center = document.createElement("span");
@@ -1457,8 +1480,14 @@ function renderWorkDetail(work) {
   elements.workDetailContent.appendChild(tracksHeading);
   const trackList = document.createElement("div");
   trackList.className = "track-list";
-  work.songs.forEach((song) => trackList.appendChild(buildTrackRow(song)));
+  work.songs.forEach((song) => trackList.appendChild(buildTrackRow(song, findTrackEntry(work.trackList, song.id))));
   elements.workDetailContent.appendChild(trackList);
+  if (work.trackList?.numberingNote) {
+    const numberingNote = document.createElement("p");
+    numberingNote.className = "track-list-note";
+    numberingNote.textContent = work.trackList.numberingNote;
+    elements.workDetailContent.appendChild(numberingNote);
+  }
 
   if (work.description) {
     const descHeading = document.createElement("p");
