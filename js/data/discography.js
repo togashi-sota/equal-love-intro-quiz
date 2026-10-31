@@ -6,8 +6,10 @@
 // docs/HANDOFF.md の2-2章を参照。
 //
 // 【重要】現時点（Step1）では実データをまだ入力していない。workIdはsongs.js側から機械的に
-// 洗い出した26件（2026-10-31に single-21 を足して27件）をすべて用意し、officialLinks・descriptionはnullのままにしてある。
+// 洗い出した26件（2026-10-31に single-21 を足して27件。2026-11-01 から songs.js の workId で自動）をすべて用意し、officialLinks・descriptionはnullのままにしてある。
 // Step6で公式サイト・ストア・MV・配信サービスのリンクを確認しながら埋めていく。
+
+import { SONGS } from "./songs.js";
 
 export const WORK_TYPE = {
   SINGLE: "single",
@@ -40,14 +42,28 @@ const CENTER_NOTES = {
   "single-21": "「全員」はアプリ内の決まり（固定のセンターがいないと判断）。公式のセンター発表は未確認",
 };
 
-export const DISCOGRAPHY = [
-  ...Array.from({ length: 21 }, (_, i) => {
-    const entry = buildEmptyDiscographyEntry(`single-${String(i + 1).padStart(2, "0")}`, WORK_TYPE.SINGLE);
-    return CENTER_NOTES[entry.workId] ? { ...entry, centerNote: CENTER_NOTES[entry.workId] } : entry;
-  }),
-  buildEmptyDiscographyEntry("album-01", WORK_TYPE.ALBUM),
-  ...Array.from({ length: 4 }, (_, i) =>
-    buildEmptyDiscographyEntry(`digital-${String(i + 1).padStart(2, "0")}`, WORK_TYPE.DIGITAL)
-  ),
-  buildEmptyDiscographyEntry("special-866", WORK_TYPE.SPECIAL),
-];
+// 【2026-11-01 r7-home】作品の枠は songs.js の workId から自動で作る（以前は「シングル21作」の数を
+// ここに手で書いていたため、21st の曲を songs.js に足しても作品一覧・ホームの「シングル○枚」に出なかった）。
+// 22nd を出すときは、songs.js に workId: "single-22" の曲を足すだけで、作品一覧・作品詳細・年表・全体検索・
+// 周年ヒストリーの作品リンク・ホームの「シングル○枚」が自動で増える（tests/discographyAuto.test.js で確かめる）。
+// 並び順：シングル（番号順）→ アルバム → 配信限定 → 特別枠（それぞれ番号順）。画面の発売日順は各画面で並べ替える。
+const TYPE_ORDER = [WORK_TYPE.SINGLE, WORK_TYPE.ALBUM, WORK_TYPE.DIGITAL, WORK_TYPE.SPECIAL];
+
+// workId の頭（"single-21" の "single"）から作品の種類を決める。知らない頭は null（枠を作らない）
+export function resolveWorkType(workId) {
+  const head = String(workId ?? "").split("-")[0];
+  return TYPE_ORDER.includes(head) ? head : null;
+}
+
+// songs（SONGS 配列）に出てくる workId から、作品の枠（DISCOGRAPHY）を作る。重複は1つにまとめる
+export function buildDiscographyEntries(songs) {
+  const workIds = [...new Set(songs.map((song) => song.workId).filter((workId) => resolveWorkType(workId)))];
+  const numberOf = (workId) => Number(String(workId).split("-")[1]) || 0;
+  workIds.sort((a, b) => TYPE_ORDER.indexOf(resolveWorkType(a)) - TYPE_ORDER.indexOf(resolveWorkType(b)) || numberOf(a) - numberOf(b) || a.localeCompare(b));
+  return workIds.map((workId) => {
+    const entry = buildEmptyDiscographyEntry(workId, resolveWorkType(workId));
+    return CENTER_NOTES[workId] ? { ...entry, centerNote: CENTER_NOTES[workId] } : entry;
+  });
+}
+
+export const DISCOGRAPHY = buildDiscographyEntries(SONGS);

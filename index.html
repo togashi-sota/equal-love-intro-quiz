@@ -286,6 +286,10 @@
         <symbol id="hi-beginner" viewBox="0 0 24 24"><path d="M5.5 3.5 12 7.5v13l-6.5-4Z" fill="#ffd43b" stroke="none"/><path d="M18.5 3.5 12 7.5v13l6.5-4Z" fill="#37b24d" stroke="none"/></symbol>
         <symbol id="hi-headphones" viewBox="0 0 24 24"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4.5" height="6.5" rx="1.6"/><rect x="16.5" y="14" width="4.5" height="6.5" rx="1.6"/></symbol>
         <symbol id="hi-book" viewBox="0 0 24 24"><path d="M5 4.5h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3ZM5 17.5a3 3 0 0 1 3-3h11M9 8.5h6"/></symbol>
+        <symbol id="hi-play" viewBox="0 0 24 24"><path d="M8 5.2v13.6a.8.8 0 0 0 1.2.7l10.6-6.8a.8.8 0 0 0 0-1.4L9.2 4.5A.8.8 0 0 0 8 5.2Z" fill="currentColor" stroke="none"/></symbol>
+        <symbol id="hi-heart" viewBox="0 0 24 24"><path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.4a4.3 4.3 0 0 1 7.5 2.4C19.5 15.4 12 20 12 20Z"/></symbol>
+        <symbol id="hi-playlist" viewBox="0 0 24 24"><path d="M3.5 6h12M3.5 11h12M3.5 16h7M18 18.5V8.5l3.5-1"/><circle cx="16" cy="18.5" r="2"/></symbol>
+        <symbol id="hi-disc" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.6"/><path d="M12 5.8a6.2 6.2 0 0 0-6.2 6.2"/></symbol>
         <symbol id="hi-search-note" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5M9.5 13V8.3l2.8-.7"/><circle cx="8.6" cy="13" r="1" fill="currentColor"/></symbol>
         <symbol id="hi-people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.6"/><path d="M16.2 14.1A5 5 0 0 1 21.5 19"/></symbol>
         <symbol id="hi-crown" viewBox="0 0 24 24"><path d="M3.5 8l4.3 4L12 5l4.2 7 4.3-4-1.8 11H5.3ZM5.5 21h13"/></symbol>
@@ -538,35 +542,44 @@
           </div>
         </section>
 
-        <!-- ③ 楽曲・歌詞を楽しむ：音楽プレイヤーとアルバムの感じ。「聴く・読む・探す」に分ける。
-             行き先は楽曲・歌詞の画面（#music-hub-screen）のボタンと同じ。 -->
+        <!-- ③ 楽曲・歌詞を楽しむ：「曲を聴く」が主役（ピンク〜紫のプレイヤー。レコード・音符・波形・再生マークは CSS と SVG で描く。画像は使わない）。
+             【2026-11-01 r7-home・本人の依頼 6】今までは白い四角が6つ同じ大きさで並び、何から押せばよいか分かりにくかった。
+             聴く（主役＋プレイリスト・お気に入り）／読む・調べる（楽曲一覧・シングル・アルバム）／探す（歌詞検索）に分ける。
+             ボタンの data-home-action と並び順・行き先は今までと同じ（行き先は楽曲・歌詞の画面〈#music-hub-screen〉のボタンと同じ）。 -->
         <section id="home-card-music" class="home-card home-card--music" aria-labelledby="home-card-music-title">
-          <div class="home-music-disc" aria-hidden="true"></div>
           <div class="home-card-head">
             <h2 id="home-card-music-title" class="home-card-title">楽曲・歌詞を楽しむ</h2>
-            <span class="home-card-lead" id="home-music-lead">＝LOVEの曲を聴く・読む・探す</span>
           </div>
           <p class="home-card-note">曲の情報・歌詞は音源なしでも見られます</p>
           <div class="home-music-cols">
-            <div class="home-music-col" role="group" aria-labelledby="home-music-listen">
-              <p id="home-music-listen" class="home-music-col-title"><svg class="hi" aria-hidden="true"><use href="#hi-headphones"/></svg>聴く</p>
-              <div class="home-music-items">
-                <button class="home-music-item" type="button" data-home-action="continuous-play"><b>曲を聴く</b><small>続けて再生</small></button>
-                <button class="home-music-item" type="button" data-home-action="playlists"><b>プレイリスト</b><small>好きな曲を<wbr>まとめる</small></button>
-                <button class="home-music-item" type="button" data-home-action="favorites"><b>お気に入り</b><small>ハートを<wbr>付けた曲</small></button>
+            <div class="home-music-col home-music-col--listen" role="group" aria-labelledby="home-music-listen">
+              <p id="home-music-listen" class="home-music-col-title visually-hidden">聴く</p>
+              <button class="home-music-hero" type="button" data-home-action="continuous-play">
+                <span class="home-music-hero-disc" aria-hidden="true"></span>
+                <svg class="home-music-hero-notes" aria-hidden="true" focusable="false" viewBox="0 0 64 48"><path d="M14 30V9l16-4v19"/><circle cx="10" cy="30" r="4"/><circle cx="26" cy="24" r="4"/><path d="M48 18V4l9 3"/><circle cx="44" cy="18" r="3.5"/></svg>
+                <span class="home-music-hero-text">
+                  <b>曲を聴く</b>
+                  <small>好きな曲を、続けて再生</small>
+                  <span class="home-music-wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+                </span>
+                <span class="home-music-play" aria-hidden="true"><svg class="hi" focusable="false"><use href="#hi-play"/></svg></span>
+              </button>
+              <div class="home-music-items home-music-items--sub">
+                <button class="home-music-item home-music-item--sub" type="button" data-home-action="playlists"><svg class="hi" aria-hidden="true"><use href="#hi-playlist"/></svg><b>プレイリスト</b></button>
+                <button class="home-music-item home-music-item--sub" type="button" data-home-action="favorites"><svg class="hi" aria-hidden="true"><use href="#hi-heart"/></svg><b>お気に入り</b></button>
               </div>
             </div>
-            <div class="home-music-col" role="group" aria-labelledby="home-music-read">
-              <p id="home-music-read" class="home-music-col-title"><svg class="hi" aria-hidden="true"><use href="#hi-book"/></svg>読む</p>
+            <div class="home-music-col home-music-col--read" role="group" aria-labelledby="home-music-read">
+              <p id="home-music-read" class="home-music-col-title"><svg class="hi" aria-hidden="true"><use href="#hi-book"/></svg>読む・調べる</p>
               <div class="home-music-items">
-                <button class="home-music-item" type="button" data-home-action="songlist"><b>楽曲一覧</b><small id="home-music-songs-sub">歌詞・曲の情報</small></button>
-                <button class="home-music-item" type="button" data-home-action="works"><b>シングル・アルバム</b><small id="home-music-works-sub">作品と収録曲</small></button>
+                <button class="home-music-item" type="button" data-home-action="songlist"><span class="home-music-item-icon" aria-hidden="true"><svg class="hi"><use href="#hi-lyrics"/></svg></span><span class="home-music-item-text"><b>楽曲一覧</b><small id="home-music-songs-sub">歌詞・曲の情報</small></span></button>
+                <button class="home-music-item" type="button" data-home-action="works"><span class="home-music-item-icon" aria-hidden="true"><svg class="hi"><use href="#hi-disc"/></svg></span><span class="home-music-item-text"><b>シングル・アルバム</b><small id="home-music-works-sub">作品と収録曲</small></span></button>
               </div>
             </div>
-            <div class="home-music-col" role="group" aria-labelledby="home-music-find">
+            <div class="home-music-col home-music-col--find" role="group" aria-labelledby="home-music-find">
               <p id="home-music-find" class="home-music-col-title"><svg class="hi" aria-hidden="true"><use href="#hi-search-note"/></svg>探す</p>
               <div class="home-music-items">
-                <button class="home-music-item" type="button" data-home-action="lyrics-search"><b>歌詞検索</b><small>覚えている<wbr>フレーズから</small></button>
+                <button class="home-music-item home-music-item--find" type="button" data-home-action="lyrics-search"><span class="home-music-item-icon" aria-hidden="true"><svg class="hi"><use href="#hi-search-note"/></svg></span><span class="home-music-item-text"><b>歌詞検索</b><small>覚えているフレーズから</small></span></button>
               </div>
             </div>
           </div>
@@ -1007,7 +1020,7 @@
              自動判定され、ボタン名を曲・シングルごとに変える必要はない）。 -->
         <div id="data-pack-import-section" class="audio-import-section">
           <p class="lyrics-import-caption">
-            新曲（21枚目以降）を追加するときは、この「追加データパック」を読み込んでください。音源・歌詞・コール・コールガイドがまとめて登録されます。
+            新しいシングルの曲を追加するときは、この「追加データパック」を読み込んでください。音源・歌詞・コール・コールガイドがまとめて登録されます。
           </p>
           <p class="lyrics-import-caption">
             ・はじめてこのアプリを使う方：これまでの曲を含む「全曲パック」を選んでください<br>
