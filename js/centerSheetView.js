@@ -52,9 +52,25 @@ function buildCenterCell(entry, rowSpan) {
   const td = el("td", `cs-center is-${cell.tone}`);
   if (rowSpan > 1) td.rowSpan = rowSpan;
   td.dataset.names = cell.names.join(",");
+  if (cell.basis) td.dataset.basis = cell.basis;
   if (cell.swatches.length >= 2) td.classList.add("is-multi");
   const box = el("div", "cs-swatches");
-  if (cell.swatches.length > 0) {
+  if (cell.shortLabel) {
+    // 3人以上（センターが決まっていない曲の「歌う全員」など）：細い色の帯を並べ、真ん中に短い名前（「全員」「4人」）。
+    // 一人ひとりの名前は読み上げ・マウスを重ねたときの説明に入れる
+    td.classList.add("is-band");
+    const label = `${cell.shortLabel}（${cell.names.join("・")}）`;
+    td.title = label;
+    box.setAttribute("role", "img");
+    box.setAttribute("aria-label", label);
+    cell.swatches.forEach((swatch) => {
+      const span = el("span", "cs-swatch cs-band");
+      span.style.backgroundColor = swatch.hex;
+      span.dataset.name = swatch.name;
+      box.appendChild(span);
+    });
+    box.appendChild(el("span", "cs-band-label", cell.shortLabel));
+  } else if (cell.swatches.length > 0) {
     cell.swatches.forEach((swatch) => {
       const span = el("span", "cs-swatch", swatch.name);
       span.style.backgroundColor = swatch.hex;
@@ -150,6 +166,8 @@ function buildTable(rows) {
 }
 
 function buildLegend(model) {
+  const hasBand = model.rows.some((row) => Object.values(row.columns).some((entries) => entries.some((entry) => entry.cell.shortLabel)));
+  const hasPlainAll = model.rows.some((row) => Object.values(row.columns).some((entries) => entries.some((entry) => entry.cell.tone === "all")));
   const legend = el("div", "cs-legend");
   legend.appendChild(el("span", "cs-legend-title", "凡例"));
   model.legend.forEach((item) => {
@@ -171,8 +189,16 @@ function buildLegend(model) {
   const multi = el("span", "cs-legend-sample is-multi");
   multi.append(el("i"), el("i"));
   note("is-multi-note", multi, "2色＝2人センター");
-  note("is-singer-note", el("span", "cs-legend-sample is-singer"), "斜線＝センターの区別が無い曲（歌うメンバー）");
-  note("is-all-note", el("span", "cs-legend-sample is-all", "全員"), "＝全員がセンター");
+  if (hasBand) {
+    const band = el("span", "cs-legend-sample is-band");
+    ["#ff5c5c", "#ff9f4d", "#ffd93d", "#b5d94a", "#7dd3f0", "#9d6fe0"].forEach((hex) => {
+      const i = el("i");
+      i.style.backgroundColor = hex;
+      band.appendChild(i);
+    });
+    note("is-band-note", band, "細い色の帯＝センターが決まっていない曲は、歌う全員（「全員」＝発売時の在籍メンバー全員）");
+  }
+  if (hasPlainAll) note("is-all-note", el("span", "cs-legend-sample is-all", "全員"), "＝全員（歌うメンバーをデータで決められない曲）");
   return legend;
 }
 
