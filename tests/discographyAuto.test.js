@@ -10,7 +10,9 @@ import { SONGS, CATEGORY, DIFFICULTY } from "../js/data/songs.js";
 import { DISCOGRAPHY, WORK_TYPE, buildDiscographyEntries, resolveWorkType } from "../js/data/discography.js";
 import { buildWorkSummaries } from "../js/discographyScreen.js";
 import { buildHomeInfoStats, HOME_ACTIONS, runHomeAction } from "../js/homeScreen.js";
-import { buildAppSearchEntries, searchAppEntries } from "../js/appSearchIndex.js";
+import { buildAppSearchEntries, searchAppEntries, buildWorkNumberAliases } from "../js/appSearchIndex.js";
+import { initCdSalesScreen, openCdSalesScreen } from "../js/cdSalesScreen.js";
+import { formatCertificationBadge } from "../js/cdSalesModel.js";
 import { buildSongGroups } from "../js/songGrouping.js";
 import { relatedTargets } from "../js/anniversaryHistoryModel.js";
 import { buildCenterTableModel } from "../js/centerTable.js";
@@ -189,9 +191,60 @@ function runHomeMusicClickTests() {
   assertEqual([HOME_ACTIONS.works?.type, HOME_ACTIONS.works?.value], ["callback", "openDiscographyWorks"], "「シングル・アルバム」→ 作品一覧のタブを開く（今までと同じ）");
 }
 
+// 【2026-11-01 r7-home-fix】独立レビューの指摘への直し
+async function runReviewFixTests() {
+  console.log("--- r7-home-fix：番号の言い方で検索・CD売上の札と要約・棒の読み上げ・iPad 縦の段組み ---");
+  // 検索：「21枚目」など
+  assertEqual(buildWorkNumberAliases("single-21", "single"), ["21枚目", "21枚目のシングル", "21枚目シングル", "21作目", "シングル21", "21st"], "番号の言い方（シングル）は workId から自動");
+  assertEqual(buildWorkNumberAliases("album-01", "album"), ["1枚目のアルバム", "1枚目アルバム", "アルバム1", "1st"], "番号の言い方（アルバム。「1枚目」だけは付けない）");
+  assertEqual([buildWorkNumberAliases("digital-02", "digital"), buildWorkNumberAliases("special-866", "special")], [[], []], "配信限定・特別作品には番号の言い方を付けない");
+  const entries = buildAppSearchEntries();
+  const top = (query) => searchAppEntries(entries, query).results.map(({ entry }) => entry.key);
+  assertEqual(top("21枚目")[0], "work:single-21", "「21枚目」で検索すると、先頭が 21st の作品（0件にならない）");
+  assertEqual(top("21枚目").includes("cdSales:single-21"), true, "「21枚目」で 21st の売上・チャートも出る");
+  assertEqual(top("21枚目のシングル")[0], "work:single-21", "「21枚目のシングル」でも 21st");
+  assertEqual(top("2枚目")[0], "work:single-02", "「2枚目」は 2nd（21st・12th などと混ざらない）");
+  assertEqual(top("2枚目").includes("work:single-21") || top("2枚目").includes("work:single-12"), false, "「2枚目」で 12th・21st は出ない");
+  assertEqual(top("1枚目")[0], "work:single-01", "「1枚目」は 1st シングル");
+  assertEqual(top("1枚目のアルバム")[0], "work:album-01", "「1枚目のアルバム」は 1st アルバム");
+  assertEqual(top("21枚目 売上")[0], "cdSales:single-21", "「21枚目 売上」は 21st の売上・チャートが先頭");
+  assertEqual(DISCOGRAPHY.filter((work) => work.type === "single").every((work) => top(`${Number(work.workId.slice(-2))}枚目`)[0] === work.workId.replace(/^/, "work:")), true, "どのシングルも「N枚目」で、その作品が先頭");
+  const grownSongs = [...SONGS, FAKE_22ND];
+  const grownEntries = buildAppSearchEntries({ songs: grownSongs, discographyEntries: buildDiscographyEntries(grownSongs) });
+  assertEqual(searchAppEntries(grownEntries, "22枚目").results[0]?.entry.key, "work:single-22", "仮の 22nd も「22枚目」で見つかる（データから自動）");
+
+  // CD売上：札・要約・棒
+  assertEqual([formatCertificationBadge("ゴールド"), formatCertificationBadge("ダブル・プラチナ"), formatCertificationBadge("プラチナ認定"), formatCertificationBadge(null)], ["ゴールド認定", "ダブル・プラチナ認定", "プラチナ認定", null], "一覧の札は「○○認定」");
+  const container = document.createElement("div");
+  container.hidden = true;
+  document.body.appendChild(container);
+  initCdSalesScreen({ container }, {});
+  openCdSalesScreen();
+  const certs = [...container.querySelectorAll(".cds-item-cert")].map((node) => node.textContent);
+  assertEqual(certs.length > 0 && certs.every((text) => text.endsWith("認定")), true, `一覧の札がすべて「認定」付き（${certs.length}件）`);
+  assertEqual(certs.includes("ゴールド"), false, "「ゴールド」だけの札が無い");
+  const labels = [...container.querySelectorAll(".cds-headline-label")].map((node) => node.textContent);
+  assertEqual(labels, ["デビュー作の初週（Billboard）", "初週の自己最高（Billboard）"], "上の要約に Billboard を添える（オリコンの数と取り違えない）");
+  const values = [...container.querySelectorAll(".cds-headline-value")].map((node) => node.textContent);
+  assertEqual(values[1], "503,043枚", "初週の自己最高は Billboard の 503,043枚のまま");
+  const bars = [...container.querySelectorAll(".cds-bar")];
+  assertEqual(bars.length, 21, "グラフの棒は21本");
+  assertEqual(bars.every((bar) => bar.getAttribute("aria-label")?.includes("初週") && [...bar.children].every((child) => child.getAttribute("aria-hidden") === "true")), true, "棒の名前は aria-label、中の数と番号は読み上げない");
+  assertEqual(bars.some((bar) => /\d(st|nd|rd|th)/.test(bar.textContent.replace(/(\d+\.\d)万枚、/, ""))) && bars.every((bar) => !/\d\.\d\d+(st|nd|rd|th)/.test(bar.textContent)), true, "棒の中の文字が「2.21st」のようにつながらない（数のあとに区切り）");
+  assertEqual(bars[0].textContent, "2.2万枚、1st", "1st の棒の文字：「2.2万枚、1st」");
+  container.remove();
+
+  // iPad 縦（1024px・カード2列）：楽曲のカードを低くし、ライブのカードの空きを埋める
+  const css = await fetchText("css/homeRenewal.css");
+  assertEqual(css.includes("@container (min-width: 26rem) and (max-width: 31.99rem) {\n  .home-music-cols {\n    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);"), true, "中くらいの幅（iPad 縦の2列）は読む・調べると探すを1段に");
+  const wide = css.slice(css.lastIndexOf("@media (min-width: 1024px) {"));
+  assertEqual(wide.includes(".home-card--live {\n    display: flex;\n    flex-direction: column;") && wide.includes(".home-card--live .home-live-main.home-live-main--learn {\n    flex: 1 0 auto;"), true, "1024px 以上：ライブのカードの「コールを覚える」が伸びて、下に紫の空きを作らない");
+}
+
 export async function runDiscographyAutoAndHomeMusicTests() {
   runDiscographyAutoTests();
   await runNoFixedCountTests();
   await runHomeMusicCardTests();
   runHomeMusicClickTests();
+  await runReviewFixTests();
 }
