@@ -215,7 +215,7 @@ async function runWiringTests() {
     [],
     "F: 新しいファイルはオフラインでも使えるよう sw.js に入っている"
   );
-  assertEqual(Number(/const CACHE_VERSION = "v(d+)";/.exec(sw)?.[1]) >= 408, true, "F: CACHE_VERSION を統合で上げた（v408 以上）");
+  assertEqual(Number(/const CACHE_VERSION = "v(\d+)";/.exec(sw)?.[1]) >= 408, true, "F: CACHE_VERSION を統合で上げた（v408 以上）");
   const css = await fetchText("css/songPick.css");
   assertEqual(css.includes("@media (prefers-reduced-motion: no-preference)"), true, "F: 押したときの縮みは「動きを減らす」設定では付けない");
   assertEqual(css.includes("body:has(#mini-player:not([hidden])) .song-pick-bar"), true, "F: ミニプレイヤーが出ているときは帯と重ならない");
