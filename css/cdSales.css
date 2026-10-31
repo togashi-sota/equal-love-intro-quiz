@@ -1,0 +1,758 @@
+/* ===== 「CD売上・チャート記録」（#cd-sales-screen。2026-10-31新設）
+   iPhone の縦画面（幅390px前後）を基準にした作り。グラフは横にスクロールできる（狭い端末）。
+   色はアプリ共通の変数（css/style.css の :root）＋棒の色だけここで決める（1色の濃淡。白地で 3:1 以上）。 ===== */
+
+#cd-sales-screen {
+  --cds-bar: #e0457f;
+  --cds-bar-selected: #a8174f;
+  --cds-ink-sub: #7a6170;
+  --cds-line: #f1dbe6;
+}
+
+.cds-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 32px;
+}
+
+.cds-intro {
+  margin: 2px 0 0;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  text-align: center;
+  color: var(--color-text);
+  opacity: 0.85;
+}
+
+/* 上の数字（デビュー作 → 自己最高） */
+.cds-headline {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.cds-headline-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--cds-line);
+  border-radius: 14px;
+  background: var(--color-surface);
+}
+.cds-headline-tile + .cds-headline-tile {
+  border-color: #f5b8cf;
+  background: linear-gradient(150deg, #fff 0%, #fff0f6 100%);
+}
+.cds-headline-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--cds-ink-sub);
+}
+.cds-headline-value {
+  font-size: 1.25rem;
+  font-weight: 800;
+  line-height: 1.25;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+.cds-headline-sub {
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: var(--cds-ink-sub);
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+/* 区分の切り替え：3つを同じ幅で並べる（狭い端末でも左が切れない・押しやすい高さ） */
+.cds-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  overflow: visible;
+}
+.cds-tabs .tv-chip {
+  min-height: 40px;
+  padding: 5px 6px;
+  line-height: 1.3;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  color: var(--color-text);
+}
+.cds-tabs .tv-chip.is-active {
+  background: var(--cds-bar-selected);
+  border-color: var(--cds-bar-selected);
+  color: #fff;
+  font-weight: 700;
+}
+
+.cds-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+/* display:flex が hidden 属性に勝たないように（区分の切り替え） */
+.cds-panel[hidden],
+.cds-item-body[hidden],
+.cds-scroll-hint[hidden] {
+  display: none;
+}
+
+.cds-card {
+  padding: 12px 12px 14px;
+  border: 1px solid var(--cds-line);
+  border-radius: 16px;
+  background: var(--color-surface);
+}
+.cds-card-title {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.4;
+}
+.cds-card-lead {
+  margin: 4px 0 0;
+  font-size: 0.75rem;
+  line-height: 1.6;
+  color: var(--cds-ink-sub);
+}
+.cds-subtitle {
+  margin: 14px 0 6px;
+  font-size: 0.875rem;
+}
+.cds-record-card .cds-subtitle {
+  margin-top: 0;
+}
+
+/* 選んだ作品の表示 */
+.cds-readout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  column-gap: 8px;
+  min-height: 4.6rem;
+  margin: 10px 0 6px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: var(--color-primary-light);
+}
+.cds-readout-head {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 6px;
+  margin: 0;
+  font-weight: 700;
+}
+.cds-readout-number {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--cds-bar-selected);
+  color: #fff;
+  font-size: 0.72rem;
+}
+.cds-readout-title {
+  font-size: 0.875rem;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.cds-readout-value {
+  margin: 2px 0 0;
+  white-space: nowrap;
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+.cds-readout-sub {
+  grid-column: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 8px;
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--cds-ink-sub);
+}
+.cds-readout-more {
+  grid-column: 2;
+  grid-row: 2 / span 2;
+  align-self: end;
+  min-height: 36px;
+  padding: 6px 10px;
+  border: 1px solid #f0a8c4;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--cds-bar-selected);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* グラフ：左の目盛り（動かない）＋右の棒（横にスクロール） */
+.cds-chart {
+  display: grid;
+  grid-template-columns: 2.4rem minmax(0, 1fr);
+  margin-top: 4px;
+}
+.cds-yaxis {
+  position: relative;
+  height: 200px;
+  margin-top: 18px; /* 棒の上の数の分 */
+}
+.cds-yaxis-label {
+  position: absolute;
+  right: 4px;
+  transform: translateY(50%);
+  font-size: 0.66rem;
+  color: var(--cds-ink-sub);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.cds-plot-scroll {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  border-radius: 6px;
+}
+.cds-plot-scroll:focus-visible {
+  outline: 2px solid var(--cds-bar-selected);
+  outline-offset: 2px;
+}
+.cds-plot {
+  position: relative;
+  /* 1作あたり 30px 以上（押しやすさ）。広い画面では幅いっぱいに広がる */
+  min-width: calc(var(--cds-bars, 21) * 30px);
+  padding-top: 18px;
+}
+.cds-grid {
+  position: absolute;
+  inset: 18px 0 auto 0;
+  height: 200px;
+  pointer-events: none;
+  border-bottom: 1px solid #c9b3bf;
+}
+.cds-grid-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px dashed #ecdbe4;
+}
+.cds-grid-line.is-strong {
+  border-top: 1px dashed #e7a3be;
+}
+.cds-bars {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+}
+.cds-bar {
+  flex: 1 1 0;
+  min-width: 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--color-text);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.cds-bar-column {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  height: 200px;
+}
+.cds-bar-value {
+  margin-bottom: 2px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--cds-ink-sub);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.cds-bar-fill {
+  display: block;
+  width: min(70%, 22px);
+  min-height: 2px;
+  border-radius: 4px 4px 0 0;
+  background: var(--cds-bar);
+  opacity: 0.55;
+}
+.cds-bar.is-best .cds-bar-fill {
+  opacity: 1;
+}
+.cds-bar.is-best .cds-bar-value::before {
+  content: "★";
+  display: block;
+  margin-bottom: 1px;
+  color: #d9a400;
+  font-size: 0.6rem;
+  text-align: center;
+}
+.cds-bar.is-selected .cds-bar-fill {
+  background: var(--cds-bar-selected);
+  opacity: 1;
+}
+.cds-bar.is-selected .cds-bar-value {
+  color: var(--cds-bar-selected);
+  font-size: 0.66rem;
+}
+.cds-bar-label {
+  padding: 4px 0 2px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1.1;
+  text-align: center;
+  color: var(--cds-ink-sub);
+}
+.cds-bar.is-selected .cds-bar-label {
+  color: var(--cds-bar-selected);
+}
+.cds-bar:focus-visible {
+  outline: 2px solid var(--cds-bar-selected);
+  outline-offset: -1px;
+  border-radius: 6px;
+}
+@media (hover: hover) {
+  .cds-bar:hover .cds-bar-fill {
+    opacity: 1;
+  }
+}
+
+@media (max-width: 360px) {
+  .cds-readout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .cds-readout-more {
+    grid-column: 1;
+    grid-row: auto;
+    justify-self: start;
+    margin-top: 6px;
+  }
+  .cds-milestone-button {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .cds-milestone-value {
+    grid-column: 1;
+    grid-row: auto;
+  }
+}
+.cds-readout-sub span {
+  white-space: nowrap;
+}
+.cds-scroll-hint {
+  margin: 4px 0 0;
+  font-size: 0.68rem;
+  color: var(--cds-ink-sub);
+  text-align: right;
+}
+.cds-chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 2px 12px;
+  margin: 6px 0 0;
+  font-size: 0.68rem;
+  color: var(--cds-ink-sub);
+}
+
+/* 節目 */
+.cds-milestones {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cds-milestone-button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1px 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 7px 10px;
+  border: 1px solid var(--cds-line);
+  border-left: 4px solid var(--cds-bar);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.cds-milestone.is-top .cds-milestone-button {
+  border-color: #f0a8c4;
+  border-left-color: var(--cds-bar-selected);
+  background: linear-gradient(150deg, #fff 0%, #fff0f6 100%);
+}
+.cds-milestone-label {
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+.cds-milestone-work {
+  grid-column: 1;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--cds-ink-sub);
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.cds-milestone-value {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+  font-size: 0.8rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 数字の見方 */
+.cds-glossary {
+  border: 1px solid var(--cds-line);
+  border-radius: 14px;
+  background: #fffafc;
+}
+.cds-glossary-summary {
+  padding: 11px 12px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.cds-glossary-list {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 6px 10px;
+  margin: 0;
+  padding: 0 12px 12px;
+  font-size: 0.75rem;
+  line-height: 1.55;
+}
+.cds-glossary-list dt {
+  font-weight: 800;
+}
+.cds-glossary-list dd {
+  margin: 0;
+  color: var(--cds-ink-sub);
+}
+@media (max-width: 360px) {
+  .cds-glossary-list {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .cds-glossary-list dd {
+    margin-bottom: 6px;
+  }
+}
+
+.cds-section-title {
+  margin: 6px 0 0;
+  font-size: 1rem;
+}
+.cds-section-lead {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.6;
+  color: var(--cds-ink-sub);
+}
+
+/* 一覧 */
+.cds-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cds-item {
+  border: 1px solid var(--cds-line);
+  border-radius: 14px;
+  background: var(--color-surface);
+  scroll-margin-top: 72px;
+}
+.cds-item.is-open {
+  border-color: #f0a8c4;
+}
+.cds-item-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 56px;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 14px;
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.cds-item-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.cds-item-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  font-size: 0.7rem;
+  color: var(--cds-ink-sub);
+}
+.cds-item-number {
+  font-weight: 800;
+  color: var(--cds-bar-selected);
+}
+.cds-item-cert {
+  padding: 0 7px;
+  border: 1px solid #e5c76b;
+  border-radius: 999px;
+  background: #fff8db;
+  color: #6b5200;
+  font-weight: 700;
+}
+.cds-item-title {
+  font-size: 0.92rem;
+  font-weight: 800;
+  line-height: 1.35;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.cds-item-figures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.cds-item-figure.is-sub {
+  color: var(--cds-ink-sub);
+  font-weight: 600;
+}
+.cds-item-chevron {
+  flex: none;
+  color: var(--cds-ink-sub);
+  transition: transform 0.15s ease;
+}
+.cds-item.is-open .cds-item-chevron {
+  transform: rotate(180deg);
+}
+.cds-item-body {
+  padding: 0 12px 12px;
+}
+
+/* 詳しい記録 */
+.cds-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--cds-line);
+}
+.cds-fact-group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.cds-fact-title {
+  margin: 0 0 2px;
+  font-size: 0.75rem;
+  color: var(--cds-bar-selected);
+}
+.cds-fact {
+  display: grid;
+  grid-template-columns: minmax(7.5rem, 42%) minmax(0, 1fr);
+  gap: 8px;
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+.cds-fact-key {
+  color: var(--cds-ink-sub);
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.cds-fact-value {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.cds-fact-value.is-unconfirmed {
+  color: #9a8592;
+  font-weight: 600;
+}
+.cds-fact-note {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--cds-ink-sub);
+}
+@media (max-width: 300px) {
+  .cds-fact {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+}
+.cds-detail-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.cds-nav-button {
+  min-height: 40px;
+  padding: 7px 12px;
+  border: 1px solid #f0a8c4;
+  border-radius: 999px;
+  background: #fff0f6;
+  color: var(--cds-bar-selected);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.cds-nav-button.is-sub {
+  background: #fff;
+}
+.cds-sources {
+  font-size: 0.7rem;
+  color: var(--cds-ink-sub);
+}
+.cds-sources-title {
+  margin: 0 0 2px;
+  font-weight: 700;
+}
+.cds-sources-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cds-source-link {
+  color: #1864ab;
+  overflow-wrap: anywhere;
+}
+
+/* 楽曲の記録・認定 */
+.cds-records {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.cds-record {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed var(--cds-line);
+}
+.cds-record:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+.cds-record-main {
+  font-size: 0.84rem;
+  font-weight: 800;
+  line-height: 1.45;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.cds-record-sub {
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--cds-ink-sub);
+}
+.cds-record-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  font-size: 0.7rem;
+}
+.cds-record-song {
+  min-height: 32px;
+  padding: 4px 10px;
+  border: 1px solid #f0a8c4;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--cds-bar-selected);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.cds-note {
+  margin: 4px 0 0;
+  font-size: 0.7rem;
+  line-height: 1.6;
+  color: var(--cds-ink-sub);
+}
+
+/* 広い画面：一覧を2列、グラフは横いっぱい */
+@media (min-width: 768px) {
+  .cds-bar-value {
+    font-size: 0.68rem;
+  }
+  .cds-bar-label {
+    font-size: 0.7rem;
+  }
+}
+@media (min-width: 1024px) {
+  .cds-panel[data-panel="singles"] .cds-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cds-item-chevron {
+    transition: none;
+  }
+}
+
+/* 作品詳細（#work-detail-screen）・収録曲一覧からの入口 */
+.work-detail-sales {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.work-detail-sales-figures span {
+  display: block;
+}
+.work-detail-sales-figures {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.work-detail-center-note {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: #7a6170;
+}

@@ -213,6 +213,11 @@ const APP_SHELL_FILES = [
   "./js/data/anniversaryHistory.js",
   "./js/data/tvAppearances.js",
   "./css/historyPages.css",
+  // 【2026-10-31追加】CD売上・チャート記録
+  "./css/cdSales.css",
+  "./js/cdSalesScreen.js",
+  "./js/cdSalesModel.js",
+  "./js/data/cdSales.js",
   "./js/centerChart.js",
   "./js/setlistView.js",
   "./js/liveSetlistStats.js",

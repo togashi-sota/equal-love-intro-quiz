@@ -121,7 +121,7 @@ export async function runSearchFeaturesTests() {
   assertEqual(entries.filter((entry) => entry.key.startsWith("cm:")).length, COMMERCIALS.length, "C: CM・広告が全件検索対象（データ追加で自動的に増える）");
   assertEqual(entries.filter((entry) => entry.key.startsWith("live:")).length, LIVE_EVENTS.length, "C: ライブが全件検索対象");
   assertEqual(entries.filter((entry) => entry.key.startsWith("mode:")).length, SPECIAL_MODES.filter((mode) => mode.available).length, "C: 特別モードはSPECIAL_MODESから自動で組み立てる");
-  const allTargetsValid = entries.every((entry) => entry.action && ["member", "membersList", "discography", "work", "song", "guide", "feature", "liveHub", "anniversary", "tvAppearances"].includes(entry.action.target.kind));
+  const allTargetsValid = entries.every((entry) => entry.action && ["member", "membersList", "discography", "work", "song", "guide", "feature", "liveHub", "anniversary", "tvAppearances", "cdSales"].includes(entry.action.target.kind));
   assertEqual(allTargetsValid, true, "C: すべての項目に元ページへの移動先がある");
 
   const top = (query, category = "all") => searchAppEntries(entries, query, category).results.map(({ entry }) => entry.title);

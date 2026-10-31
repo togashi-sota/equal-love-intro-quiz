@@ -584,7 +584,7 @@ async function runHomeEntryWiringTests() {
   assertEqual(cardIds("home-card-game", ".home-games-more"), ["all-games"], "E: ゲーム：「ゲームの遊び方・記録」（2026-10-31 から新しいゲームのガイド）");
   assertEqual(cardIds("home-card-live", "button"), ["home-next-live", "learn-calls", "live-hub-link", "live-guide"], "E: ライブ：次のライブ・コールを覚える（入口は1つ）・ライブ履歴・はじめてのライブ");
   assertEqual(cardIds("home-card-music", "button"), ["continuous-play", "playlists", "favorites", "songlist", "works", "lyrics-search"], "E: 楽曲：聴く（曲を聴く・プレイリスト・お気に入り）・読む（楽曲一覧・シングル・アルバム）・探す（歌詞検索）");
-  assertEqual(cardIds("home-card-know", "button"), ["members-link", "centers", "anniversary-home-link", "tv-appearances-home-link", "commercials", "about-group"], "E: ＝LOVE：メンバー・歴代センター・周年ヒストリー・音楽番組・CM・企業コラボ・＝LOVEについて");
+  assertEqual(cardIds("home-card-know", "button"), ["members-link", "centers", "anniversary-home-link", "cd-sales-home-link", "tv-appearances-home-link", "commercials", "about-group"], "E: ＝LOVE：メンバー・歴代センター・周年ヒストリー・CD売上・チャート（2026-10-31追加）・音楽番組・CM・企業コラボ・＝LOVEについて");
   // 【2026-10-31・本人の依頼 A】プレイ履歴・遊び方・機能ガイドはイントロクイズの箱のすぐ下へ移した（2か所に置かない）
   assertEqual(cardIds("home-card-my", ".home-my-link"), ["settings"], "E: マイページ：設定（プレイ履歴・ガイドはイントロの下へ移した。フレンド・ランキング・実績・プロフィールは置かない）");
   assertEqual(cardIds("home-card-game", ".home-intro-link"), ["history", "guides"], "E: イントロクイズの箱のすぐ下：プレイ履歴・遊び方・機能ガイド");
@@ -745,8 +745,8 @@ async function runHomeNightTests() {
   // ＝LOVE：ページの名前と「何が見られるか」
   assertEqual(
     [...home.querySelectorAll(".home-know")].map((button) => [button.querySelector("b").textContent, (button.querySelector(".home-know-hook")?.textContent ?? "").length > 0]),
-    [["メンバー", true], ["歴代センター", true], ["周年ヒストリー", true], ["音楽番組", true], ["CM・企業コラボ", true], ["＝LOVEについて", true]],
-    "F: ＝LOVE の6つのページに名前と見どころ",
+    [["メンバー", true], ["歴代センター", true], ["周年ヒストリー", true], ["CD売上・チャート", true], ["音楽番組", true], ["CM・企業コラボ", true], ["＝LOVEについて", true]],
+    "F: ＝LOVE の7つのページに名前と見どころ（2026-10-31：CD売上・チャートを追加）",
   );
   assertEqual(home.querySelectorAll("#home-card-know img, #home-card-live img, #home-card-music img").length, 0, "F: 写真などの画像は足さない");
   // 楽曲：聴く・読む・探す
@@ -831,7 +831,7 @@ async function runHomeFixTests() {
   assertEqual(wide.includes("align-items: stretch;") && wide.includes(".home-card--music .home-music-cols {\n    flex: 1;"), true, "G: 1024px 以上で、楽曲のカードをライブと同じ高さにし、中のボタンで埋める（下の空きを作らない）");
 
   // ＝LOVE：見どころの札・メンバーカラーの帯
-  assertEqual([...home.querySelectorAll(".home-know")].map((button) => Boolean(button.querySelector(".home-know-badge"))), [true, true, true, true, true, true], "G: ＝LOVE の6つのカードに見どころの札");
+  assertEqual([...home.querySelectorAll(".home-know")].map((button) => Boolean(button.querySelector(".home-know-badge"))), [true, true, true, true, true, true, true], "G: ＝LOVE の7つのカードに見どころの札");
   assertEqual(home.querySelector(".home-know--about .home-know-badge")?.textContent, "はじめに", "G: ＝LOVEについては「はじめに」");
   assertEqual(lastRuleBody(homeCss, ".home-know--members .home-know-colors").includes("position: absolute;"), true, "G: メンバーはメンバーカラーの帯（カードの下）");
 

@@ -1396,6 +1396,13 @@
 .home-know--tv { --know: #1864ab; }
 .home-know--cm { --know: #c2410c; }
 .home-know--about { --know: #ae3ec9; }
+.home-know--sales { --know: #c2255c; }
+/* 【2026-10-31】「CD売上・チャート」を足して7枚になったので、最後の「＝LOVEについて」を1行全部に広げる
+   （2列でも3列でも、1枚だけ余って空きができないように） */
+.home-know-grid > .home-know--about {
+  grid-column: 1 / -1;
+  min-height: 0;
+}
 .home-know-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

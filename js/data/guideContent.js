@@ -49,7 +49,7 @@ export const GUIDE_OVERVIEW = {
     { icon: "🎮", title: "ゲーム", text: "イントロクイズほか、1人用・対戦・問題づくり・コール練習（{count:all}曲から出題）" },
     { icon: "📣", title: "ライブ", text: "コールを覚える（コール表・ライブコール・カラオケ）、ライブ履歴・セトリ、はじめてのライブ" },
     { icon: "🎵", title: "楽曲", text: "曲を聴く・歌詞を読む・歌詞から探す・プレイリスト" },
-    { icon: "💗", title: "＝LOVE情報", text: "メンバー・歴代センター・周年ヒストリー・音楽番組・CM" },
+    { icon: "💗", title: "＝LOVE情報", text: "メンバー・歴代センター・周年ヒストリー・CD売上・音楽番組・CM" },
     { icon: "🛡", title: "マイ・データ", text: "プレイ履歴・称号（{count:achievements}個）・データの追加と引き継ぎ" },
   ],
   storageNote:
@@ -188,7 +188,7 @@ export const GUIDE_CATEGORIES = [
     tocLabel: "＝LOVE|情報",
     icon: "💗",
     lead: "メンバーとグループの歩み。音源が無くても見られます。",
-    sectionIds: ["members", "centers", "anniversary", "tvAppearances", "commercials", "aboutGroup"],
+    sectionIds: ["members", "centers", "anniversary", "cdSales", "tvAppearances", "commercials", "aboutGroup"],
   },
   {
     id: "mydata",
@@ -535,6 +535,21 @@ export const GUIDE_SECTIONS = [
     steps: ["「周年で見る」「年表で見る」を切り替える"],
     point: "",
     actions: [{ label: "周年ヒストリーを開く", open: { click: "anniversary-home-link" } }],
+  },
+  {
+    // 【2026-10-31追加】CD売上・チャート記録
+    id: "cdSales",
+    icon: "📊",
+    title: "CD売上・チャート記録",
+    tagline: "シングルの初週の CD 売上をグラフで。作品ごとの最高順位・累計・認定も。",
+    where: "ホームの「＝LOVEをもっと知る」→［CD売上・チャート］",
+    steps: [
+      "グラフの棒を押すと、作品名と初週の枚数が出る（Billboard JAPAN の数）",
+      "下の一覧の作品を押すと、オリコンの初週・最高順位・累計・RIAJ の認定・出典が出る",
+      "アルバム・楽曲の記録（Hot 100 の1位・ストリーミングの認定など）は上の切り替えから",
+    ],
+    point: "売上・出荷・認定は別の数字です。確かめられなかった数は「未確認」と出します。",
+    actions: [{ label: "CD売上・チャート記録を開く", open: { click: "cd-sales-home-link" } }],
   },
   {
     id: "tvAppearances",

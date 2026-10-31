@@ -63,6 +63,8 @@ const SCREEN_ELEMENTS = {
   // 【2026-10-29新設】周年ヒストリー・音楽番組出演アーカイブ
   anniversary: document.getElementById("anniversary-screen"),
   tvAppearances: document.getElementById("tv-appearances-screen"),
+  // 【2026-10-31新設】CD売上・チャート記録
+  cdSales: document.getElementById("cd-sales-screen"),
   members: document.getElementById("members-screen"),
   memberDetail: document.getElementById("member-detail-screen"),
   playlists: document.getElementById("playlist-screen"),

@@ -40,6 +40,8 @@
   <!-- 【2026-10-28新設】歴代センターの「センター表」・フレンド一覧の重複整理と在席表示 -->
   <link rel="stylesheet" href="css/centersTable.css">
   <link rel="stylesheet" href="css/historyPages.css">
+  <!-- 【2026-10-31追加】CD売上・チャート記録（#cd-sales-screen） -->
+  <link rel="stylesheet" href="css/cdSales.css">
   <link rel="stylesheet" href="css/friendsFix.css">
   <!-- 【2026-10-30新設】ホーム（案B）・まとめ画面・端末の「戻る」の案内 -->
   <link rel="stylesheet" href="css/homeRenewal.css">
@@ -287,6 +289,7 @@
         <symbol id="hi-people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.6"/><path d="M16.2 14.1A5 5 0 0 1 21.5 19"/></symbol>
         <symbol id="hi-crown" viewBox="0 0 24 24"><path d="M3.5 8l4.3 4L12 5l4.2 7 4.3-4-1.8 11H5.3ZM5.5 21h13"/></symbol>
         <symbol id="hi-calendar" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="m12 12.6 1 2 2.2.3-1.6 1.5.4 2.2-2-1-2 1 .4-2.2-1.6-1.5 2.2-.3Z" fill="currentColor" stroke="none"/></symbol>
+        <symbol id="hi-chart" viewBox="0 0 24 24"><path d="M4 20.5h16.5M6.5 17v-3.5M10.5 17v-6M14.5 17V8.5M18.5 17V4.5"/></symbol>
         <symbol id="hi-tv" viewBox="0 0 24 24"><rect x="3" y="6.5" width="18" height="13" rx="2"/><path d="M8 2.8l4 3.7 4-3.7M10 11l4 2.2-4 2.3Z"/></symbol>
         <symbol id="hi-megaphone" viewBox="0 0 24 24"><path d="M3.5 10v4H7l8 5V5L7 10ZM18.5 9a4.2 4.2 0 0 1 0 6M7 14l1.4 5.5h2.6l-1-5"/></symbol>
         <symbol id="hi-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.6v.1"/></symbol>
@@ -591,6 +594,12 @@
               <span class="home-know-icon" aria-hidden="true"><svg class="hi"><use href="#hi-calendar"/></svg></span>
               <span class="home-know-badge" id="home-know-history-badge" hidden></span>
               <span class="home-know-text"><b>周年ヒストリー</b><span class="home-know-hook" id="home-know-history-hook">デビューから<wbr>今まで<wbr>1年ずつ</span></span>
+            </button>
+            <!-- 【2026-10-31追加】CD売上・チャート記録（中身は js/cdSalesScreen.js。札の数は main.js がデータから数えて入れる） -->
+            <button id="cd-sales-home-link" class="home-know home-know--sales" type="button">
+              <span class="home-know-icon" aria-hidden="true"><svg class="hi"><use href="#hi-chart"/></svg></span>
+              <span class="home-know-badge" id="home-know-sales-badge" hidden></span>
+              <span class="home-know-text"><b>CD売上・チャート</b><span class="home-know-hook">初週の枚数で<wbr>成長をたどる</span></span>
             </button>
             <button id="tv-appearances-home-link" class="home-know home-know--tv" type="button">
               <span class="home-know-icon" aria-hidden="true"><svg class="hi"><use href="#hi-tv"/></svg></span>
@@ -5966,6 +5975,26 @@
         </div>
       </div>
       <div id="anniversary-content" class="history-pages-content"></div>
+    </section>
+
+    <!-- 【2026-10-31新設・本人の依頼】CD売上・チャート記録（中身は js/cdSalesScreen.js が js/data/cdSales.js・songs.js から組み立てる） -->
+    <section id="cd-sales-screen" class="screen">
+      <div class="list-header">
+        <button id="cd-sales-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            RECORDS
+          </p>
+          <h2>CD売上・チャート記録</h2>
+        </div>
+      </div>
+      <div id="cd-sales-content" class="cds-content"></div>
     </section>
 
     <!-- 【2026-10-29新設・本人の要望】音楽番組出演アーカイブ（中身は js/tvAppearancesScreen.js が組み立てる） -->
