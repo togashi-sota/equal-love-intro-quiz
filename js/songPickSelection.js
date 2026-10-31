@@ -5,10 +5,12 @@
 //   キー：equalLoveIntroQuiz.<プレイヤーごとの接頭辞>pickedSongs（例：["love", "sayonara-no-imi", ...]）
 //   お気に入り（…favoriteSongs）・プレイリスト（…playlists）とは別のキー。既存のデータの形は変えない。
 //   「選んだ順」＝「順番に再生したときの順」。並びを持たせるために Set ではなく配列で持つ。
-//   クラウドのバックアップ（js/backupSync.js）の対象には入れない（一時的な「かご」なので。お気に入り・
-//   プレイリストへ足した曲は、そちらのキーでバックアップされる）。
+//   【2026-11-01 r8-music2・本人の決定】お気に入り・プレイリストと同じく、クラウドのバックアップ（js/backupSync.js の
+//   BACKUP_KEY_EXACT_NAMES に "pickedSongs"）の対象にする。復元・引き継ぎでも戻る。古いバックアップ（このキーが無い）を
+//   復元したときは、端末の今の値がそのまま残る（読めない値でも loadPickedSongIds は空として扱う）。
 
 import { getPlayerKeyPrefix } from "./playerProfile.js";
+import { scheduleBackupSync } from "./backupSync.js";
 
 function buildPickedSongsKey() {
   return `equalLoveIntroQuiz.${getPlayerKeyPrefix()}pickedSongs`;
@@ -28,6 +30,7 @@ export function loadPickedSongIds() {
 export function savePickedSongIds(songIds) {
   try {
     localStorage.setItem(buildPickedSongsKey(), JSON.stringify(normalizePickedSongIds(songIds)));
+    scheduleBackupSync(); // クラウドバックアップも更新する（お気に入り・プレイリストと同じ。短時間の連続のタップはまとめて1回）
   } catch {
     // 保存できなくても（プライベートブラウズ等）、画面の中の選択はそのまま使える。
   }

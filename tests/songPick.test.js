@@ -29,6 +29,8 @@ import { getPlayerKeyPrefix } from "../js/playerProfile.js";
 import { HOME_ACTIONS } from "../js/homeScreen.js";
 import { listScreenNames } from "../js/screens.js";
 import { HUB_OF_SCREEN, GUIDE_RETURN_HUBS_OF_SCREEN } from "../js/appNavigationStack.js";
+import { isBackupWorthyLogicalKey } from "../js/backupSync.js";
+import { classifyBackupKey } from "../js/identityDataComparison.js";
 import { assertEqual } from "./test-utils.js";
 
 const fetchText = async (file) => (await fetch(file, { cache: "no-store" })).text();
@@ -219,6 +221,15 @@ async function runWiringTests() {
   const css = await fetchText("css/songPick.css");
   assertEqual(css.includes("@media (prefers-reduced-motion: no-preference)"), true, "F: 押したときの縮みは「動きを減らす」設定では付けない");
   assertEqual(css.includes("body:has(#mini-player:not([hidden])) .song-pick-bar"), true, "F: ミニプレイヤーが出ているときは帯と重ならない");
+  // 【2026-11-01 r8-music2・本人の決定】選んだ曲もお気に入り・プレイリストと同じくクラウドへバックアップ（復元は tests/backupSync.test.js）
+  assertEqual(isBackupWorthyLogicalKey("pickedSongs"), true, "D: 選んだ曲（pickedSongs）はバックアップの対象");
+  assertEqual(
+    [classifyBackupKey("favoriteSongs"), classifyBackupKey("pickedSongs")],
+    ["setting", "setting"],
+    "D: 以前のあなた／現在のあなたの整理でも、お気に入りと同じ種類（設定・お気に入り）として扱う"
+  );
+  const selectionScript = await fetchText("js/songPickSelection.js");
+  assertEqual(selectionScript.includes("scheduleBackupSync();"), true, "D: 選んだ曲を保存したら、お気に入りと同じくバックアップを予約する");
   const playScript = await fetchText("js/continuousPlay.js");
   assertEqual(playScript.includes("planPlaybackQueue({ songs, importedIds, shuffle })"), true, "E: 連続再生は共通のキューの組み立て（js/continuousPlayQueuePlan.js）を使う");
 }
