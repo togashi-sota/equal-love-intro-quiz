@@ -2241,3 +2241,69 @@
 .home-live-learn-mode.is-sheet .hi { color: #ffc9a3; }
 .home-live-learn-mode.is-live .hi { color: #ffe066; }
 .home-live-learn-mode.is-karaoke .hi { color: #99e9f2; }
+
+/* ---------- 長いページの「戻る」の浮く札（js/floatingBack.js・2026-11-01 本人の追加依頼 3） ----------
+   画面の［戻る］が上へ隠れたときだけ、左上に小さく出す。上へ戻すと消える。
+   横は外側の枠（.game-frame）の左端に、縦は安全領域（ノッチ）の下にそろえる。貼り付く帯があれば JS が --fb-offset で下へずらす。
+   高さ 44px（iPhone で押しやすい大きさ）。モーダル（z-index 20）より奥、ミニプレイヤー（12）より手前。 */
+.floating-back {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 8px + var(--fb-offset, 0px));
+  left: max(calc(env(safe-area-inset-left, 0px) + 8px), calc(var(--fb-frame-left, 0px) + 8px));
+  z-index: 14;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 44px;
+  max-width: 11em;
+  padding: 0 14px 0 8px;
+  border: 1px solid rgba(255, 79, 150, 0.28);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  color: var(--color-primary-dark);
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: 0 6px 16px -8px rgba(120, 20, 70, 0.45);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  /* ふだんは見えない・押せない（visibility で、隠れている間に指が当たっても反応しない） */
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-6px);
+  pointer-events: none;
+}
+.floating-back.is-shown {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  pointer-events: auto;
+}
+.floating-back-icon {
+  flex: none;
+  width: 20px;
+  height: 20px;
+}
+.floating-back-label {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.floating-back:active {
+  background: #ffe3ef;
+}
+.floating-back:focus-visible {
+  outline: 2px solid var(--color-primary-dark);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .floating-back {
+    transition: opacity 0.18s ease, transform 0.18s ease, visibility 0s linear 0.18s;
+  }
+  .floating-back.is-shown {
+    transition: opacity 0.18s ease, transform 0.18s ease, visibility 0s;
+  }
+}
