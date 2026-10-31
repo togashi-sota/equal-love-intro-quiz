@@ -1,0 +1,543 @@
+/* 「曲を選んで再生」（2026-11-01 r8-music・本人の依頼 R8-2）。
+   画面（#song-pick-screen）・下の帯（#song-pick-bar）・プレイリストの選択（#song-pick-playlist-modal）と、
+   連続再生の再生元「選んだ曲」・ホームの入口の見た目。色はアプリの基本のピンク（--color-primary 系）に合わせる。
+   動きは押したときの小さな縮みだけ（prefers-reduced-motion では付けない）。 */
+
+/* ---- 画面の上の説明・絞り込み ---- */
+.song-pick-lead {
+  margin: 0 0 12px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.6;
+  text-align: center;
+  color: var(--color-text);
+  opacity: 0.8;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.song-pick-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 10px;
+}
+
+.song-pick-filter {
+  flex: 1 1 auto;
+  min-height: 40px;
+  padding: 6px 12px;
+  border: 1.5px solid #f3c6dc;
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.song-pick-filter.is-active {
+  border-color: var(--color-primary-dark);
+  background: var(--color-primary-dark);
+  color: #ffffff;
+}
+
+.song-pick-filter:focus-visible,
+.song-pick-tool-button:focus-visible,
+.song-pick-action:focus-visible,
+.song-pick-clear-button:focus-visible,
+.song-pick-toast-action:focus-visible,
+.song-pick-playlist-option:focus-visible {
+  outline: 3px solid #7b2fa0;
+  outline-offset: 2px;
+}
+
+.song-pick-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+
+.song-pick-visible-count {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-text);
+  opacity: 0.75;
+}
+
+.song-pick-tool-button {
+  min-height: 36px;
+  padding: 4px 12px;
+  border: 1px solid var(--color-primary-dark);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--color-primary-dark);
+  font-family: inherit;
+  font-size: 0.76rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.song-pick-tool-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* ---- 曲の行 ---- */
+.song-pick-group.has-picked {
+  border-color: #f7a8cb;
+}
+
+.song-pick-group .track-count-chip {
+  font-variant-numeric: tabular-nums;
+}
+
+.song-pick-group-bulk {
+  min-height: 32px;
+}
+
+.song-pick-group-bulk.is-full {
+  background: var(--color-primary-light);
+}
+
+.song-pick-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.song-pick-row[hidden] {
+  display: none;
+}
+
+.song-pick-row + .song-pick-row {
+  margin-top: 2px;
+}
+
+.song-pick-row.is-picked {
+  background: rgba(255, 79, 150, 0.1);
+}
+
+/* 本物のチェックボックスは見えない所に置き、読み上げ・キーボード操作には使う（印は .song-pick-mark で描く） */
+.song-pick-check {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  pointer-events: none;
+}
+
+.song-pick-mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 2px solid #e3a7c4;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #ffffff;
+  font-size: 0.82rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.song-pick-row.is-picked .song-pick-mark {
+  border-color: var(--color-primary-dark);
+  background: var(--color-primary-dark);
+  box-shadow: 0 4px 10px -4px rgba(255, 79, 150, 0.7);
+}
+
+.song-pick-check:focus-visible + .song-pick-mark {
+  outline: 3px solid #7b2fa0;
+  outline-offset: 2px;
+}
+
+.song-pick-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.song-pick-title {
+  font-size: 0.92rem;
+  font-weight: 800;
+  line-height: 1.35;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.song-pick-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+}
+
+.song-pick-noaudio,
+.song-pick-fav {
+  display: none;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  font-weight: 800;
+  line-height: 1.6;
+}
+
+.song-pick-noaudio {
+  background: #eeeaf0;
+  color: #6b5a66;
+}
+
+.song-pick-fav {
+  background: rgba(255, 138, 92, 0.14);
+  color: #c4501f;
+}
+
+.song-pick-row.is-noaudio .song-pick-noaudio,
+.song-pick-row.is-favorite .song-pick-fav {
+  display: inline-block;
+}
+
+.song-pick-row.is-noaudio .song-pick-title {
+  opacity: 0.72;
+}
+
+.song-pick-bottom-spacer {
+  height: 180px;
+}
+
+/* ---- 下の帯 ---- */
+.song-pick-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 11; /* ミニプレイヤー（12）の奥（ミニプレイヤーは帯の下の方に乗る）、.game-frame（2）より手前 */
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 16px;
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(var(--blur-glass)) saturate(150%);
+  -webkit-backdrop-filter: blur(var(--blur-glass)) saturate(150%);
+  border-top: 1px solid #f3c6dc;
+  box-shadow: 0 -8px 22px -10px rgba(255, 79, 150, 0.45);
+}
+
+.song-pick-bar[hidden] {
+  display: none;
+}
+
+/* 中身は画面の幅に合わせて真ん中に（iPad・PC で横に伸びすぎない） */
+.song-pick-bar > * {
+  width: 100%;
+  max-width: 480px;
+  margin-inline: auto;
+}
+
+/* ミニプレイヤー（再生中・一時停止中に下に出る）が出ているときは、帯の下の方を空けて、そこにミニプレイヤーを乗せる
+   （帯のボタンとミニプレイヤーが重ならず、間から一覧が透けて見えることもない） */
+body:has(#mini-player:not([hidden])) .song-pick-bar {
+  padding-bottom: calc(56px + max(14px, env(safe-area-inset-bottom)) + 6px);
+}
+
+.song-pick-bar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.song-pick-bar-count {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  margin: 0;
+}
+
+.song-pick-bar-count strong {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  font-variant-numeric: tabular-nums;
+}
+
+.song-pick-bar.is-empty .song-pick-bar-count strong {
+  color: var(--color-text);
+  opacity: 0.75;
+  font-size: 0.85rem;
+}
+
+.song-pick-bar-count small {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #8a5a00;
+}
+
+.song-pick-bar-count small[hidden] {
+  display: none;
+}
+
+.song-pick-clear-button {
+  flex: none;
+  min-height: 36px;
+  padding: 4px 12px;
+  border: 1px solid #d9c2d0;
+  border-radius: 999px;
+  background: #ffffff;
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.song-pick-clear-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.song-pick-bar-actions {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr 1fr 1fr;
+  gap: 6px;
+}
+
+.song-pick-action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 0;
+  min-height: 56px;
+  padding: 6px 4px;
+  border: 1.5px solid #f3c6dc;
+  border-radius: 14px;
+  background: #ffffff;
+  color: var(--color-primary-dark);
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.song-pick-action span {
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
+.song-pick-action svg {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+
+.song-pick-action.is-primary {
+  border-color: transparent;
+  background: linear-gradient(135deg, #ff6fa8, #e0479a);
+  color: #ffffff;
+  font-size: 0.8rem;
+  box-shadow: 0 8px 16px -8px rgba(224, 71, 154, 0.8);
+}
+
+.song-pick-action:disabled {
+  opacity: 0.38;
+  box-shadow: none;
+  cursor: default;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .song-pick-action:not(:disabled):active,
+  .song-pick-filter:active,
+  .song-pick-row:active .song-pick-mark {
+    transform: scale(0.96);
+  }
+}
+
+/* 帯の上の短い案内（追加の結果・元に戻す） */
+.song-pick-toast {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: #4a2e42;
+  color: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.song-pick-toast[hidden] {
+  display: none;
+}
+
+.song-pick-toast-action {
+  flex: none;
+  min-height: 34px;
+  padding: 4px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 999px;
+  background: transparent;
+  color: #ffd1e6;
+  font-family: inherit;
+  font-size: 0.76rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.song-pick-toast-action[hidden] {
+  display: none;
+}
+
+/* ---- プレイリストの選択 ---- */
+.song-pick-playlist-card {
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
+}
+
+.song-pick-playlist-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 4px 0 14px;
+}
+
+.song-pick-playlist-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-height: 54px;
+  padding: 8px 14px;
+  border: 1.5px solid #f3c6dc;
+  border-radius: 14px;
+  background: #ffffff;
+  color: var(--color-text);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.song-pick-playlist-option b {
+  font-size: 0.92rem;
+  overflow-wrap: anywhere;
+}
+
+.song-pick-playlist-option small {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+}
+
+.song-pick-playlist-option:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.song-pick-playlist-option:disabled small {
+  color: var(--color-text);
+}
+
+.song-pick-playlist-none {
+  margin: 0 0 12px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  opacity: 0.8;
+}
+
+.song-pick-playlist-none[hidden] {
+  display: none;
+}
+
+.song-pick-playlist-create {
+  padding-top: 12px;
+  border-top: 1px dashed #f3c6dc;
+}
+
+.song-pick-playlist-create-label {
+  display: block;
+  margin: 0 0 6px;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+/* ---- 連続再生の再生元：4つ（全曲・お気に入り・プレイリスト・選んだ曲）を2列×2段に ---- */
+.continuous-play-source-tabs:has(> .continuous-play-source-button:nth-child(4)) {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.continuous-play-picked-block[hidden] {
+  display: none;
+}
+
+.continuous-play-picked-block .continuous-play-favorites-ok {
+  background: rgba(255, 79, 150, 0.1);
+  color: var(--color-primary-dark);
+}
+
+.continuous-play-picked-block .continuous-play-favorites-ok.is-empty {
+  background: #f4eef2;
+  color: var(--color-text);
+}
+
+.continuous-play-picked-edit-button {
+  width: 100%;
+  margin-top: 8px;
+}
+
+/* ---- ホームの「曲を選んで再生」：主役の「曲を聴く」のすぐ下に、横長で1行 ---- */
+.home-music-items--sub .home-music-item--pick {
+  grid-column: 1 / -1;
+}
+
+.home-music-item--pick .hi {
+  color: #e0479a;
+}
+
+/* ---- 幅の狭いスマホ（320px など）：絞り込みは2列×2段（1つだけ次の行に落ちないように）、帯のボタンは2列×2段（文字が「へ」だけ次の行に落ちないように） ---- */
+@media (max-width: 359px) {
+  .song-pick-filters {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .song-pick-filter {
+    min-height: 36px;
+    padding: 4px 8px;
+    font-size: 0.76rem;
+  }
+  .song-pick-bar-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .song-pick-action {
+    flex-direction: row;
+    gap: 6px;
+    min-height: 44px;
+  }
+  .song-pick-action svg {
+    width: 18px;
+    height: 18px;
+  }
+}

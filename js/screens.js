@@ -73,6 +73,8 @@ const SCREEN_ELEMENTS = {
   playlistDetail: document.getElementById("playlist-detail-screen"),
   playlistAddSongs: document.getElementById("playlist-add-songs-screen"),
   continuousPlay: document.getElementById("continuous-play-screen"),
+  // 【2026-11-01 r8-music】曲を選んで再生（js/songPickScreen.js）
+  songPick: document.getElementById("song-pick-screen"),
   continuousPlayQueue: document.getElementById("continuous-play-queue-screen"),
   battleModeSelect: document.getElementById("battle-mode-select-screen"),
   battleCreateOrJoin: document.getElementById("battle-create-or-join-screen"),

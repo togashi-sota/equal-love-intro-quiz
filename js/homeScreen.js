@@ -213,6 +213,8 @@ export const HOME_ACTIONS = {
   "next-live": { type: "click", value: "live-hub-link" },
   "live-guide": { type: "click", value: "live-guide-link" },
   "continuous-play": { type: "click", value: "continuous-play-link" },
+  // 【2026-11-01 r8-music・本人の依頼 R8-2】曲を選んで再生（楽曲・歌詞の画面の「曲を選んで再生」と同じ処理）
+  "pick-songs": { type: "click", value: "song-pick-link" },
   playlists: { type: "click", value: "playlist-link" },
   favorites: { type: "click", value: "songlist-favorites-link" },
   songlist: { type: "click", value: "songlist-link" },

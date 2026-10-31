@@ -11,6 +11,8 @@ import { getPlaylistById } from "./playlists.js";
 import { getAudioBlob, getImportedSongIds } from "./audioStorage.js";
 import { registerPlaybackStopper, notifyPlaybackStarting } from "./playbackCoordinator.js";
 import { loadLyricsForSong, destroyLyricsSync } from "./lyricsSync.js";
+// キューの組み立て方（重複の除去・音源の無い曲の除外・シャッフル）は、テストできるよう js/continuousPlayQueuePlan.js へ移した（2026-11-01 r8-music）
+import { shuffleSongs, planPlaybackQueue } from "./continuousPlayQueuePlan.js";
 
 const audioElement = document.getElementById("continuous-play-audio");
 const lyricsPanelElement = document.getElementById("continuous-play-lyrics-panel");
@@ -36,10 +38,12 @@ let queue = []; // 実際に再生する曲データの配列（音源が見つ�
 let currentIndex = -1;
 
 // 今アクティブな（実際に再生中/一時停止中の）設定。設定パネルを開いたときの初期値にも使う。
-let activeSource = "all"; // "all" | "favorites" | "playlist"
+let activeSource = "all"; // "all" | "favorites" | "playlist" | "picked"（選んだ曲。2026-11-01 r8-music 追加）
 let activePlaylistId = null;
 let activeShuffle = false;
 let repeatMode = "none"; // "none" | "all" | "one" -- こちらは「即時反映」の設定
+// 「選んだ曲」で再生したときの、選んだ曲の数（音源の無い曲も含む。表示用。2026-11-01 r8-music 追加）
+let activePickedCount = 0;
 
 let unavailableCount = 0; // 音源が端末に見つからず、キューから除外された曲数
 let errorMessage = ""; // 再生元が空だった場合などの案内文（statusが"empty"のときに参照）
@@ -63,6 +67,7 @@ const REPEAT_LABELS = { none: "リピートなし", all: "全体リピート", o
 function resolveSourceLabel() {
   if (activeSource === "all") return `全${SONGS.length}曲`;
   if (activeSource === "favorites") return `お気に入り${getFavoriteSongIds().length}曲`;
+  if (activeSource === "picked") return `選んだ${activePickedCount}曲`;
   const playlist = activePlaylistId ? getPlaylistById(activePlaylistId) : null;
   return playlist ? `プレイリスト：${playlist.playlistName || "名前未設定"}` : "プレイリスト";
 }
@@ -110,16 +115,6 @@ export function onPlaybackStateChange(listener) {
   return () => stateChangeListeners.delete(listener);
 }
 
-// Fisher-Yatesシャッフル。元の配列は変更せず、新しい配列を返す。
-function shuffleSongs(songs) {
-  const result = [...songs];
-  for (let i = result.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [result[i], result[j]] = [result[j], result[i]];
-  }
-  return result;
-}
-
 // 全体リピートで1周し終えたときの再シャッフル。可能な範囲で、直前に流れ終えた曲と
 // 次の1曲目が同じにならないようにする（2曲以上あるときだけ意味のある調整）。
 function reshuffleAvoidingRepeatBoundary(songs, lastSongId) {
@@ -143,24 +138,22 @@ async function buildAndStartQueue({ source, playlistId, songs, shuffle, emptySou
   activePlaylistId = playlistId;
   activeShuffle = shuffle;
 
-  const dedupedById = new Map(songs.map((song) => [song.id, song]));
-  const deduped = [...dedupedById.values()];
-
-  if (deduped.length === 0) {
+  // 候補が0曲なら、音源の確認（IndexedDB）をせずに空の案内を出す（今までと同じ順番）
+  if (songs.length === 0) {
     setEmptyState(emptySourceMessage);
     return;
   }
 
   const importedIds = new Set(await getImportedSongIds());
-  const playable = deduped.filter((song) => importedIds.has(song.id));
-  unavailableCount = deduped.length - playable.length;
+  const plan = planPlaybackQueue({ songs, importedIds, shuffle });
+  unavailableCount = plan.unavailableCount;
 
-  if (playable.length === 0) {
+  if (plan.kind === "no-playable") {
     setEmptyState("この再生元には、音源が読み込まれている曲が1曲もありません。ホームの「データを追加・更新」から追加してください。");
     return;
   }
 
-  queue = shuffle ? shuffleSongs(playable) : playable;
+  queue = plan.queue;
   currentIndex = 0;
   errorMessage = "";
   playCurrentIndex();
@@ -210,6 +203,20 @@ export async function startFromPlaylist(playlistId, shuffle) {
     songs,
     shuffle,
     emptySourceMessage: "このプレイリストにはまだ曲が入っていません。",
+  });
+}
+
+// 「曲を選んで再生」で選んだ曲から再生キューを作る（2026-11-01 r8-music・本人の依頼 R8-2）。
+// songs は選んだ順の曲データ（js/songPickSelection.js の resolvePickedSongs）。
+// 順番再生＝選んだ順。音源の無い曲は、ほかの再生元と同じく buildAndStartQueue が除き、その数を画面に出す。
+export async function startFromPickedSongs(songs, shuffle) {
+  activePickedCount = songs.length;
+  await buildAndStartQueue({
+    source: "picked",
+    playlistId: null,
+    songs,
+    shuffle,
+    emptySourceMessage: "曲がまだ選ばれていません。「曲を選び直す」から選んでください。",
   });
 }
 

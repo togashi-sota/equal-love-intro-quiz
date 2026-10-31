@@ -5,9 +5,10 @@
 // その後2回のUI/UXレビューを経て情報の優先順位・リピートの扱い・お気に入り/プレイリストの
 // 見え方を再設計）。
 
-import { SONGS } from "./data/songs.js";
+import { SONGS, getSongById } from "./data/songs.js";
 import { getPlaylists, getPlaylistById } from "./playlists.js";
 import { getFavoriteSongIds } from "./favoriteSongs.js";
+import { loadPickedSongIds, resolvePickedSongs } from "./songPickSelection.js";
 import { CATEGORY_PILL_INFO } from "./songlist.js";
 import { openFullscreenLyrics } from "./lyricsFullscreen.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
@@ -17,6 +18,7 @@ import {
   startFromAllSongs,
   startFromFavorites,
   startFromPlaylist,
+  startFromPickedSongs,
   setRepeatMode,
   togglePlayPause,
   goToPrevious,
@@ -27,7 +29,7 @@ let elements = null;
 
 // 設定パネルの開閉と、「この内容で再生」を押すまでの下書き（まだ実際の再生には反映しない）。
 let isSettingsOpen = false;
-let draftSource = "all"; // "all" | "favorites" | "playlist"
+let draftSource = "all"; // "all" | "favorites" | "playlist" | "picked"
 let draftPlaylistId = null;
 let draftShuffle = false;
 
@@ -45,11 +47,23 @@ const SOURCE_EXPLAIN = {
   all: `全曲：収録されている${SONGS.length}曲すべてを対象にします`,
   favorites: "お気に入り：♡を付けた曲だけを再生します",
   playlist: "プレイリスト：作成した曲のまとめから選びます",
+  picked: "選んだ曲：自分で選んだ曲だけを、選んだ順に再生します",
 };
 const ORDER_EXPLAIN = {
   sequential: "順番再生：一覧の1曲目から順に再生します",
   shuffle: "シャッフル：曲順をランダムに並べて再生します",
 };
+
+// 「選んだ曲」の数と、「曲を選ぶ」画面への入口（2026-11-01 r8-music）。
+// 1曲も選んでいないときは「この内容で再生」を押せなくし、先に選ぶ画面へ案内する。
+function updatePickedBlock() {
+  const pickedCount = resolvePickedSongs(loadPickedSongIds(), getSongById).length;
+  elements.pickedText.textContent =
+    pickedCount > 0 ? `☑ 選んだ${pickedCount}曲を再生対象にします` : "まだ曲を選んでいません。下のボタンから選べます";
+  elements.pickedText.classList.toggle("is-empty", pickedCount === 0);
+  elements.pickedEditButton.textContent = pickedCount > 0 ? "選んだ曲を見直す・選び直す" : "曲を選ぶ";
+  return pickedCount;
+}
 
 function updateFavoritesBlock() {
   const favoriteCount = getFavoriteSongIds().length;
@@ -119,6 +133,10 @@ function updateDraftSourceUI() {
   const isPlaylistSource = draftSource === "playlist";
   elements.favoritesBlock.hidden = !isFavoritesSource;
   elements.playlistBlock.hidden = !isPlaylistSource;
+  const isPickedSource = draftSource === "picked";
+  elements.pickedBlock.hidden = !isPickedSource;
+  elements.applyButton.disabled = isPickedSource && updatePickedBlock() === 0;
+  updateDraftOrderUI();
 
   if (isFavoritesSource) {
     updateFavoritesBlock();
@@ -132,7 +150,9 @@ function updateDraftOrderUI() {
   elements.orderButtons.forEach((button) => {
     button.classList.toggle("is-active", button.dataset.order === (draftShuffle ? "shuffle" : "sequential"));
   });
-  elements.orderExplain.textContent = ORDER_EXPLAIN[draftShuffle ? "shuffle" : "sequential"];
+  // 「選んだ曲」の順番再生は、一覧の順ではなく選んだ順（2026-11-01 r8-music）
+  elements.orderExplain.textContent =
+    !draftShuffle && draftSource === "picked" ? "順番再生：選んだ順に再生します" : ORDER_EXPLAIN[draftShuffle ? "shuffle" : "sequential"];
 }
 
 // 設定パネルを開く/閉じる。ヘッダーのアイコン・常時表示エリアの控えめな入口、
@@ -166,6 +186,10 @@ async function handleApplyButtonClick() {
   } else if (draftSource === "playlist") {
     if (!draftPlaylistId) return;
     await startFromPlaylist(draftPlaylistId, draftShuffle);
+  } else if (draftSource === "picked") {
+    const songs = resolvePickedSongs(loadPickedSongIds(), getSongById);
+    if (songs.length === 0) return;
+    await startFromPickedSongs(songs, draftShuffle);
   }
   setSettingsOpen(false);
 }
@@ -179,6 +203,7 @@ function shortSourceLabel(state) {
     const playlist = state.playlistId ? getPlaylistById(state.playlistId) : null;
     return playlist ? playlist.playlistName || "プレイリスト" : "プレイリスト";
   }
+  if (state.source === "picked") return "選んだ曲";
   return "";
 }
 
@@ -329,6 +354,8 @@ function wireSeekBar() {
 //   emptyMessage: 再生元が空のときの案内,
 //   onOpenQueue: 「再生キューを見る」・「次に再生」カードが押されたときに呼ばれるコールバック,
 //   onExploreFavorites: 「お気に入りを探す」が押されたときに呼ばれるコールバック,
+//   pickedBlock, pickedText, pickedEditButton: 「選んだ曲」の数と「曲を選ぶ」入口（2026-11-01 r8-music）,
+//   onPickSongs: 「曲を選ぶ」が押されたときに呼ばれるコールバック（「曲を選んで再生」の画面を開く）,
 // }
 export function initContinuousPlayScreen(newElements) {
   elements = newElements;
@@ -373,6 +400,11 @@ export function initContinuousPlayScreen(newElements) {
     updatePlaylistBlockUI();
   });
 
+  elements.pickedEditButton.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
+    elements.onPickSongs();
+  });
+
   elements.favoritesExploreButton.addEventListener("click", () => {
     playSfx(SFX_EVENTS.UI_CLICK);
     elements.onExploreFavorites();
@@ -405,6 +437,16 @@ export function initContinuousPlayScreen(newElements) {
   onPlaybackStateChange(renderState);
 }
 
+// 「曲を選んで再生」の画面から［戻る］で帰ってきたとき（2026-11-01 r8-music）：設定を開き、
+// 再生元を「選んだ曲」にした下書きを見せる（選んだ数がすぐ分かり、そのまま「この内容で再生」を押せる）。
+// 再生中の曲・キューには触らない（「この内容で再生」を押すまで今の再生はそのまま）。
+export function showPickedSourceSettings() {
+  setSettingsOpen(true);
+  draftSource = "picked";
+  updateDraftSourceUI();
+  renderState(getPlaybackState());
+}
+
 // 連続再生画面を開くたびに呼ぶ。
 // prefillを渡すと（プレイリスト詳細・収録曲一覧からの入口）、設定パネルを開かせず、
 // その場で指定の再生元から再生を始める。
@@ -419,6 +461,9 @@ export function refreshContinuousPlayScreen(prefill) {
       startFromFavorites(false);
     } else if (prefill.source === "playlist" && prefill.playlistId) {
       startFromPlaylist(prefill.playlistId, false);
+    } else if (prefill.source === "picked" && Array.isArray(prefill.songs)) {
+      // 「曲を選んで再生」の［順番に再生］［シャッフル］から（2026-11-01 r8-music）
+      startFromPickedSongs(prefill.songs, Boolean(prefill.shuffle));
     }
     return;
   }

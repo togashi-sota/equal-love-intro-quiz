@@ -583,7 +583,7 @@ async function runHomeEntryWiringTests() {
   assertEqual(cardIds("home-card-game", ".home-game"), ["random-playback", "lyrics-quiz", "outro-quiz", "instant-challenge", "time-attack", "weak-songs", "online-battle", "party-battle", "original-quiz", "learn-calls"], "E: ゲーム：10種類（ひとりで挑戦6・友達と対戦2・つくる・覚える2）");
   assertEqual(cardIds("home-card-game", ".home-games-more"), ["all-games"], "E: ゲーム：「ゲームの遊び方・記録」（2026-10-31 から新しいゲームのガイド）");
   assertEqual(cardIds("home-card-live", "button"), ["home-next-live", "learn-calls", "live-hub-link", "live-guide"], "E: ライブ：次のライブ・コールを覚える（入口は1つ）・ライブ履歴・はじめてのライブ");
-  assertEqual(cardIds("home-card-music", "button"), ["continuous-play", "playlists", "favorites", "songlist", "works", "lyrics-search"], "E: 楽曲：聴く（曲を聴く・プレイリスト・お気に入り）・読む・調べる（楽曲一覧・シングル・アルバム）・探す（歌詞検索）");
+  assertEqual(cardIds("home-card-music", "button"), ["continuous-play", "pick-songs", "playlists", "favorites", "songlist", "works", "lyrics-search"], "E: 楽曲：聴く（曲を聴く・曲を選んで再生〈2026-11-01 r8-music で追加〉・プレイリスト・お気に入り）・読む・調べる（楽曲一覧・シングル・アルバム）・探す（歌詞検索）");
   assertEqual(cardIds("home-card-know", "button"), ["members-link", "centers", "anniversary-home-link", "cd-sales-home-link", "tv-appearances-home-link", "tv-variety-home-link", "commercials", "about-group"], "E: ＝LOVE：メンバー・歴代センター・周年ヒストリー・CD売上・チャート（2026-10-31追加）・音楽番組・テレビ出演（2026-11-01追加）・CM・企業コラボ・＝LOVEについて");
   // 【2026-10-31・本人の依頼 A】プレイ履歴・遊び方・機能ガイドはイントロクイズの箱のすぐ下へ移した（2か所に置かない）
   assertEqual(cardIds("home-card-my", ".home-my-link"), ["settings"], "E: マイページ：設定（プレイ履歴・ガイドはイントロの下へ移した。フレンド・ランキング・実績・プロフィールは置かない）");
@@ -603,6 +603,7 @@ async function runHomeEntryWiringTests() {
     "continuous-play-link": "music-hub-screen",
     "playlist-link": "music-hub-screen",
     "songlist-favorites-link": "music-hub-screen",
+    "song-pick-link": "music-hub-screen", // 【2026-11-01 r8-music】曲を選んで再生
     "history-link": "game-hub-screen",
   };
   Object.values(HOME_ACTIONS)

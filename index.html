@@ -55,6 +55,8 @@
   <link rel="stylesheet" href="css/guides.css">
   <!-- 【2026-11-01新設】特別な称号の勲章（4段階：なし／イントロマスター／＝LOVEマスター／＝LOVE完全制覇） -->
   <link rel="stylesheet" href="css/oshiBadgeTiers.css">
+  <!-- 【2026-11-01 r8-music】曲を選んで再生（#song-pick-screen・下の帯・プレイリストの選択） -->
+  <link rel="stylesheet" href="css/songPick.css">
 </head>
 <body data-screen="start">
 
@@ -570,6 +572,8 @@
                 <span class="home-music-play" aria-hidden="true"><svg class="hi" focusable="false"><use href="#hi-play"/></svg></span>
               </button>
               <div class="home-music-items home-music-items--sub">
+                <!-- 【2026-11-01 r8-music・本人の依頼 R8-2】聴きたい曲だけ選んで再生（#song-pick-screen）。主役の「曲を聴く」のすぐ下に横長で置く -->
+                <button class="home-music-item home-music-item--sub home-music-item--pick" type="button" data-home-action="pick-songs"><svg class="hi" aria-hidden="true" viewBox="0 0 24 24" fill="none"><rect x="3.5" y="3.5" width="17" height="17" rx="4.5" stroke="currentColor" stroke-width="2"/><path d="m8 12.3 2.8 2.7L16.2 9" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><b>曲を選んで再生</b></button>
                 <button class="home-music-item home-music-item--sub" type="button" data-home-action="playlists"><svg class="hi" aria-hidden="true"><use href="#hi-playlist"/></svg><b>プレイリスト</b></button>
                 <button class="home-music-item home-music-item--sub" type="button" data-home-action="favorites"><svg class="hi" aria-hidden="true"><use href="#hi-heart"/></svg><b>お気に入り</b></button>
               </div>
@@ -868,6 +872,15 @@
             <span class="listen-tile-desc">通信なしで続けて再生</span>
           </button>
         </div>
+        <!-- 【2026-11-01 r8-music】聴きたい曲だけ選んで再生する画面（#song-pick-screen）への入口 -->
+        <button id="song-pick-link" class="listen-wide-tile" type="button">
+          <span class="listen-tile-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="4.5" stroke="currentColor" stroke-width="2"/><path d="m8 12.3 2.8 2.7L16.2 9" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <span class="listen-wide-tile-text">
+            <span class="listen-tile-label">曲を選んで再生</span>
+            <span class="listen-tile-desc">聴きたい曲だけ選んで続けて再生</span>
+          </span>
+          <span class="listen-wide-tile-arrow" aria-hidden="true">→</span>
+        </button>
         <!-- 【2026-10-23新設・本人資料】歌詞検索の入口。曲名が分からないときに歌詞の一部から探す・
              歌詞クイズの予習に使う、楽曲・歌詞を見る系の機能なので「曲を聴く」のすぐ下に置く。 -->
         <button id="lyrics-search-link" class="listen-wide-tile" type="button">
@@ -1559,6 +1572,8 @@
       <!-- 今見ているタブ（すべて/お気に入り）を再生元にして連続再生画面を開く入口
            （2026-08-04追加）。控えめな文字リンクにして、画面が窮屈にならないようにする。 -->
       <button id="songlist-continuous-play-link" class="rules-link continuous-play-entry-link" type="button">🔁 連続再生で聴く</button>
+      <!-- 【2026-11-01 r8-music】聴きたい曲だけ選んで再生する画面（#song-pick-screen）への入口 -->
+      <button id="songlist-pick-songs-link" class="rules-link continuous-play-entry-link" type="button">☑ 曲を選んで再生</button>
 
       <p class="total-count-chip">全 <strong id="songlist-total-count"></strong> 曲収録</p>
 
@@ -1717,6 +1732,54 @@
       <p id="playlist-add-songs-no-results-notice" class="question-count-notice" hidden>該当する曲が見つかりませんでした</p>
     </section>
 
+    <!-- 「曲を選んで再生」画面（2026-11-01 r8-music・本人の依頼 R8-2）。
+         聴きたい曲だけをタップで選び、下の帯から［順番に再生］［シャッフル］［プレイリストへ］［お気に入りへ］。
+         選んだ順に番号が付き、順番に再生するときはその順。選んだ曲は js/songPickSelection.js が別のキー（…pickedSongs）に保存し、
+         連続再生の再生元「選んだ曲」からも使える。中身（曲の行）は js/songPickScreen.js が組み立てる。
+         下の帯（#song-pick-bar）とプレイリストの選択（#song-pick-playlist-modal）は、ミニプレイヤーと同じ理由で .game-frame の外に置く。 -->
+    <section id="song-pick-screen" class="screen">
+      <div class="list-header">
+        <button id="song-pick-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            PICK &amp; PLAY
+          </p>
+          <h2>曲を選んで再生</h2>
+        </div>
+      </div>
+
+      <p class="song-pick-lead">聴きたい曲をタップして選びます。<wbr>選んだ順に番号が付き、<wbr>その順で再生します。</p>
+
+      <div class="search-field-row">
+        <input type="text" id="song-pick-search-input" class="pill-search-input" placeholder="曲名で検索" aria-label="曲名で検索">
+        <button id="song-pick-search-clear-button" class="search-clear-button" type="button" aria-label="検索語をクリア" hidden>×</button>
+      </div>
+
+      <div class="song-pick-filters" role="group" aria-label="一覧の絞り込み">
+        <button class="song-pick-filter is-active" type="button" data-filter="all" aria-pressed="true">すべて</button>
+        <button class="song-pick-filter" type="button" data-filter="favorites" aria-pressed="false">♡ お気に入り</button>
+        <button class="song-pick-filter" type="button" data-filter="picked" aria-pressed="false">選んだ曲</button>
+        <button class="song-pick-filter" type="button" data-filter="playable" aria-pressed="false">音源あり</button>
+      </div>
+
+      <div class="song-pick-tools">
+        <p id="song-pick-visible-count" class="song-pick-visible-count"></p>
+        <button id="song-pick-select-visible-button" class="song-pick-tool-button" type="button">表示中の曲を全部選ぶ</button>
+      </div>
+
+      <div id="song-pick-groups" class="song-pick-groups"></div>
+
+      <p id="song-pick-no-results-notice" class="question-count-notice" hidden>該当する曲が見つかりませんでした</p>
+      <!-- 下の帯に最後の曲が隠れないよう、帯の高さ分の余白（js/songPickScreen.js が帯の高さに合わせる） -->
+      <div id="song-pick-bottom-spacer" class="song-pick-bottom-spacer" aria-hidden="true"></div>
+    </section>
+
     <!-- 連続再生画面：全曲／お気に入り／プレイリストから再生キューを作り、順に自動再生する。
          設定と再生操作を1画面にまとめ、再生元の変更もこの画面の中だけで完結する。
          中身の組み立て・状態管理はjs/continuousPlay.js（キュー・再生制御）と
@@ -1824,6 +1887,8 @@
           <button class="continuous-play-source-button" data-source="all" type="button">全曲</button>
           <button class="continuous-play-source-button" data-source="favorites" type="button">お気に入り</button>
           <button class="continuous-play-source-button" data-source="playlist" type="button">プレイリスト</button>
+          <!-- 【2026-11-01 r8-music・本人の依頼 R8-2】4つ目の再生元「選んだ曲」（js/songPickScreen.js で選んだ曲だけ） -->
+          <button class="continuous-play-source-button" data-source="picked" type="button">選んだ曲</button>
         </div>
         <p class="continuous-play-explain" id="continuous-play-source-explain"></p>
 
@@ -1849,6 +1914,13 @@
           <p id="continuous-play-playlist-empty-notice" class="question-count-notice" hidden>
             プレイリストがまだありません。スタート画面の「プレイリスト」から作成できます。
           </p>
+        </div>
+
+        <!-- 「選んだ曲」を選んだときだけ表示する、選んだ数と「曲を選ぶ」画面への入口（2026-11-01 r8-music）。
+             選んだ曲は「曲を選んで再生」の画面（#song-pick-screen）で選ぶ。ここでは数を見せて、選び直しへ案内するだけ。 -->
+        <div id="continuous-play-picked-block" class="continuous-play-picked-block" hidden>
+          <p id="continuous-play-picked-text" class="continuous-play-favorites-ok"></p>
+          <button id="continuous-play-picked-edit-button" class="secondary-button continuous-play-picked-edit-button" type="button">曲を選ぶ</button>
         </div>
 
         <p class="continuous-play-section-label">再生方法</p>
@@ -6460,6 +6532,49 @@
         <svg class="chevron" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 5l7 7-7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
       <button id="online-battle-song-picker-sticky-confirm-button" type="button" class="primary-button">この曲で決定する</button>
+    </div>
+  </div>
+
+  <!-- 「曲を選んで再生」の下の帯（2026-11-01 r8-music）。#song-pick-screen を開いている間だけ出す（js/songPickScreen.js）。
+       ミニプレイヤーが出ているときは、その上に重ねずに並べる（css/songPick.css）。 -->
+  <div id="song-pick-bar" class="song-pick-bar" hidden>
+    <p id="song-pick-toast" class="song-pick-toast" role="status" aria-live="polite" hidden>
+      <span id="song-pick-toast-text"></span>
+      <button id="song-pick-toast-action" class="song-pick-toast-action" type="button" hidden></button>
+    </p>
+    <div class="song-pick-bar-head">
+      <p class="song-pick-bar-count" aria-live="polite">
+        <strong id="song-pick-bar-main"></strong>
+        <small id="song-pick-bar-sub"></small>
+      </p>
+      <button id="song-pick-clear-button" class="song-pick-clear-button" type="button">全部解除</button>
+    </div>
+    <div class="song-pick-bar-actions">
+      <button id="song-pick-play-button" class="song-pick-action is-primary" type="button"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7Z"/></svg><span>順番に再生</span></button>
+      <button id="song-pick-shuffle-button" class="song-pick-action" type="button"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h3c4 0 6 10 10 10h3M4 17h3c1.6 0 2.8-1.6 3.9-3.6M14 9.6C15 7.8 16.1 7 17 7h3M17 4l3 3-3 3M17 14l3 3-3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>シャッフル</span></button>
+      <button id="song-pick-playlist-button" class="song-pick-action" type="button"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 6h12M4 12h12M4 18h7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M18 14v6M15 17h6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg><span>プレイリストへ</span></button>
+      <button id="song-pick-favorite-button" class="song-pick-action" type="button"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 20.5 4.6 13.2C2 10.6 2.3 6.4 5.3 4.4c2.3-1.5 5.2-1 6.7 1 1.5-2 4.4-2.5 6.7-1 3 2 3.3 6.2.7 8.8L12 20.5Z"/></svg><span>お気に入りへ</span></button>
+    </div>
+  </div>
+
+  <!-- 「曲を選んで再生」：選んだ曲をまとめてプレイリストへ入れるときの選択（2026-11-01 r8-music）。
+       今あるプレイリストを選ぶか、名前を入れて新しく作る。もう入っている曲は二重に入れない（js/playlists.js の addSongsToPlaylist）。 -->
+  <div id="song-pick-playlist-modal" class="modal-overlay" hidden>
+    <div class="modal-card song-pick-playlist-card" role="dialog" aria-modal="true" aria-labelledby="song-pick-playlist-title">
+      <h2 id="song-pick-playlist-title">プレイリストに追加</h2>
+      <p id="song-pick-playlist-lead" class="modal-lead"></p>
+      <div id="song-pick-playlist-options" class="song-pick-playlist-options"></div>
+      <p id="song-pick-playlist-none" class="song-pick-playlist-none" hidden>まだプレイリストがありません。下で名前を入れて作れます。</p>
+      <div class="song-pick-playlist-create">
+        <label class="song-pick-playlist-create-label" for="song-pick-playlist-new-name">新しいプレイリストを作って追加</label>
+        <div class="playlist-create-row">
+          <input type="text" id="song-pick-playlist-new-name" maxlength="20" placeholder="新しいプレイリスト名" aria-label="新しいプレイリスト名">
+          <button id="song-pick-playlist-create-button" class="secondary-button" type="button" disabled>作って追加</button>
+        </div>
+      </div>
+      <div class="button-row">
+        <button id="song-pick-playlist-cancel-button" class="secondary-button" type="button">やめる</button>
+      </div>
     </div>
   </div>
 
