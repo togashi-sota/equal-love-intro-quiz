@@ -21,7 +21,7 @@
 //   形態違い（Type A〜F・初回限定盤など）は分けない。どの数値も1作（形態の合計）として持つ。
 //
 // 【新しいシングルを足すとき】
-//   1. songs.js に曲（workId: "single-22" など）と、discography.js に作品の枠があることを確かめる
+//   1. songs.js に曲（workId: "single-22" など）があることを確かめる（作品の枠〈discography.js〉は songs.js の workId から自動で作られる）
 //   2. CD_SALES_SINGLES の最後に1件足す。分からない欄は null（配列は []）。分かった値には必ず出典（source.url・publishedAt）を付ける
 //   3. 調べた日を checkedAt に入れる。オリコンの順位・累計・認定は後から変わるので、直したら checkedAt も直す
 //   tests/cdSales.test.js が、21作より増えても「Billboard 初週が数値か」「出典があるか」などを確かめる。
