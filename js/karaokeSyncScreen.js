@@ -89,6 +89,9 @@ import {
   loadKaraokeCallsVisible,
   saveKaraokeCallsVisible,
   isKaraokeOffsetSuspicious,
+  isKaraokeCallsOnly,
+  KX_CALLS_ONLY_LABEL,
+  KX_CALLS_ONLY_NOTE,
 } from "./karaokeStage.js";
 import { callTapSeekTime, lyricTapSeekTime } from "./callTapSeek.js";
 import { buildModeTabs } from "./liveCallModeTabs.js";
@@ -623,7 +626,7 @@ function handleCallTapSeek(call) {
 let kx = null; // 使っている間だけ { parts, callsSwitch, seek, time, offsetWarning, restore }
 let kxOnRequestMode = null;
 
-export const KARAOKE_CALLS_SWITCH_LABELS = { on: "コール表示 ON", off: "コール表示 OFF", none: "コール表なし" };
+export const KARAOKE_CALLS_SWITCH_LABELS = { on: "コール表示 ON", off: "コール表示 OFF", none: "コール表なし", callsOnly: "コールのみ" };
 
 function buildKaraokeExtras({ hasAudio, availability, onRequestMode }) {
   removeKaraokeExtras();
@@ -642,7 +645,7 @@ function buildKaraokeExtras({ hasAudio, availability, onRequestMode }) {
   callsSwitch.className = "kx-calls-switch";
   callsSwitch.setAttribute("role", "switch");
   callsSwitch.addEventListener("click", () => {
-    if (!karaokeStageHasCalls()) return;
+    if (!karaokeStageHasCalls() || isKaraokeCallsOnly()) return;
     playSfx(SFX_EVENTS.UI_CLICK);
     const next = !areKaraokeCallsVisible();
     saveKaraokeCallsVisible(next);
@@ -656,10 +659,19 @@ function buildKaraokeExtras({ hasAudio, availability, onRequestMode }) {
   parts.push(bar);
 
   // コール表の無い曲：歌詞だけのカラオケとして使えることを、始める前に1行で
+  // 【2026-11-01 nx-live】歌詞の無い曲（Overture）：コールだけのカラオケであることを、始める前に1行で（札＋短い説明）
   const noCallsNote = document.createElement("p");
   noCallsNote.className = "kx-no-calls-note";
-  noCallsNote.textContent = "この曲はコール表がまだないので、歌詞だけのカラオケとして表示します。";
-  noCallsNote.hidden = karaokeStageHasCalls();
+  if (isKaraokeCallsOnly()) {
+    noCallsNote.classList.add("is-calls-only");
+    const badge = document.createElement("span");
+    badge.className = "kx-calls-only-badge";
+    badge.textContent = KX_CALLS_ONLY_LABEL;
+    noCallsNote.append(badge, document.createTextNode(KX_CALLS_ONLY_NOTE));
+  } else {
+    noCallsNote.textContent = "この曲はコール表がまだないので、歌詞だけのカラオケとして表示します。";
+  }
+  noCallsNote.hidden = karaokeStageHasCalls() && !isKaraokeCallsOnly();
   elements.startPanel.prepend(noCallsNote);
   parts.push(noCallsNote);
 
@@ -724,9 +736,11 @@ function buildKaraokeExtras({ hasAudio, availability, onRequestMode }) {
   if (hasAudio) {
     if (instruction) instruction.textContent = "下のボタンを押すと、この端末の音源で曲が始まります。";
     if (note) {
-      note.textContent = karaokeStageHasCalls()
-        ? "歌詞の行や赤いコールを押すと、その位置へ移れます。音とずれるときは、画面の下のタイミング調整で直せます。"
-        : "歌詞の行を押すと、その位置へ移れます。音とずれるときは、画面の下のタイミング調整で直せます。";
+      note.textContent = isKaraokeCallsOnly()
+        ? "コールを押すと、その位置へ移れます。音とずれるときは、画面の下のタイミング調整で直せます。"
+        : karaokeStageHasCalls()
+          ? "歌詞の行や赤いコールを押すと、その位置へ移れます。音とずれるときは、画面の下のタイミング調整で直せます。"
+          : "歌詞の行を押すと、その位置へ移れます。音とずれるときは、画面の下のタイミング調整で直せます。";
     }
     elements.startButton.textContent = "🎤 曲を再生して歌う";
   }
@@ -738,11 +752,21 @@ function syncKaraokeCallsSwitch() {
   if (!kx) return;
   const has = karaokeStageHasCalls();
   const on = has && areKaraokeCallsVisible();
-  kx.callsSwitch.textContent = has ? KARAOKE_CALLS_SWITCH_LABELS[on ? "on" : "off"] : KARAOKE_CALLS_SWITCH_LABELS.none;
+  // 【2026-11-01 nx-live】コールだけのカラオケ（歌詞の無い曲）：OFF にすると何も出なくなるので、押せない「コールのみ」
+  const callsOnly = isKaraokeCallsOnly();
+  kx.callsSwitch.textContent = callsOnly ? KARAOKE_CALLS_SWITCH_LABELS.callsOnly : has ? KARAOKE_CALLS_SWITCH_LABELS[on ? "on" : "off"] : KARAOKE_CALLS_SWITCH_LABELS.none;
   kx.callsSwitch.setAttribute("aria-checked", String(on));
-  kx.callsSwitch.classList.toggle("is-on", on);
-  kx.callsSwitch.disabled = !has;
-  kx.callsSwitch.setAttribute("aria-label", has ? `コール表示：${on ? "ON（押すと、歌詞だけにします）" : "OFF（押すと、赤いコールも出します）"}` : "この曲はコール表がまだありません（歌詞だけで表示します）");
+  kx.callsSwitch.classList.toggle("is-on", on && !callsOnly);
+  kx.callsSwitch.classList.toggle("is-calls-only", callsOnly);
+  kx.callsSwitch.disabled = !has || callsOnly;
+  kx.callsSwitch.setAttribute(
+    "aria-label",
+    callsOnly
+      ? "この曲は歌詞が無いので、コールだけを表示します（切り替えはできません）"
+      : has
+        ? `コール表示：${on ? "ON（押すと、歌詞だけにします）" : "OFF（押すと、赤いコールも出します）"}`
+        : "この曲はコール表がまだありません（歌詞だけで表示します）",
+  );
 }
 
 function renderKaraokeSeek() {
@@ -854,7 +878,8 @@ export async function openKaraokeSyncScreen(songId, options = {}) {
     }
     enableKaraokeStage(
       { screen: elements.callHudCard.closest(".screen"), hudCard: elements.callHudCard, lyricsPanel: elements.lyricsContextPanel, hudText: elements.callHudText },
-      { song, calls: allCalls, lines: lyricLines, layout: options.layout ?? null, callsVisible: loadKaraokeCallsVisible() },
+      // 【2026-11-01 nx-live】歌詞の無い曲（Overture）は、コールだけのカラオケ（曲のページの判定をそのまま使う）
+      { song, calls: allCalls, lines: lyricLines, layout: options.layout ?? null, callsVisible: loadKaraokeCallsVisible(), callsOnly: options.availability?.karaoke?.callsOnly === true },
     );
   }
 

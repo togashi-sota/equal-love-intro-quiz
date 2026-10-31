@@ -182,7 +182,8 @@ async function runPreviewAndSourceTests() {
     }),
   );
   assertEqual(sizes.map((size) => size > 0 && size <= 60 * 1024), [true, true, true], "F: 見本画像のファイルがあり、どれも 60KB 以下");
-  assertEqual([PREVIEW_IMAGE_SIZE.width, PREVIEW_IMAGE_SIZE.height], [280, 224], "F: 画像は 280×224（表示 140×112 の2倍）");
+  // 【2026-11-01 nx-live】カードの見本を上に大きく（3:2）にしたので、600×400 に作り直した（tests/liveCallPreviewNx.test.js）
+  assertEqual([PREVIEW_IMAGE_SIZE.width, PREVIEW_IMAGE_SIZE.height], [600, 400], "F: 画像は 600×400（3:2。カードの上に大きく出す）");
   assertEqual(Number(/CACHE_VERSION = "v(\d+)"/.exec(sw)?.[1]) >= 404, true, "F: CACHE_VERSION を上げた（v404 以上）");
   assertEqual(screen.includes('[call.key, { type: "normal" }]'), true, "F: 新しいライブコールは、今までどおり全部「ふつう」の演出データ（MIX の区切り・掛け声の分類を使わない）");
   assertEqual(screen.includes("previewLines"), false, "F: 棒グラフの見本はやめた");

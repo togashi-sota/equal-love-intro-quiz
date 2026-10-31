@@ -300,52 +300,70 @@
 }
 .lc-mode-cards {
   display: grid;
-  gap: 10px;
+  gap: 12px;
 }
+/* 【2026-11-01 nx-live】見本を上に大きく（3:2）、説明とボタンを下に。縮小しても「どこが光るか・どう進むか」が見分けられる大きさにする。
+   iPad・PC（幅 720px 以上）は3枚を横に並べて見比べられるように（ボタンの高さはそろえる） */
 .lc-mode-card {
   display: grid;
-  grid-template-columns: 120px minmax(0, 1fr);
-  gap: 12px;
-  padding: 12px;
+  grid-template-rows: auto 1fr;
+  gap: 10px;
+  padding: 10px 10px 12px;
   border: 1px solid #f6d3e0;
   border-radius: 18px;
   background: #fff;
 }
-@media (min-width: 480px) {
-  .lc-mode-card {
-    grid-template-columns: 140px minmax(0, 1fr);
+@media (min-width: 720px) {
+  .lc-mode-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 .lc-mode-card.is-unavailable .lc-mode-preview {
   opacity: 0.45;
 }
-/* 【2026-10-30 第2版】見本は本物の画面を撮った画像（文字はダミー）。角丸・細い枠・やわらかい影 */
+/* 見本は本物の画面を撮った画像・動画（文字はダミー）。角丸・細い枠・やわらかい影。
+   動画は静止画の上に重ね、実際に再生が始まったとき（.is-playing）だけ見せる（js/liveCallPreviewMotion.js） */
 .lc-mode-preview {
-  align-self: start;
-}
-.lc-mode-preview-image {
-  display: block;
-  width: 100%;
-  height: auto;
-  aspect-ratio: 5 / 4;
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 3 / 2;
   border: 1px solid #f3c6d8;
   border-radius: 12px;
   background: #fff8fb;
   box-shadow: 0 3px 10px -4px rgba(150, 30, 90, 0.28);
 }
-/* 幅の狭い画面（320px など）：見本を上、説明を下にして、説明の文字が細切れにならないように */
-@media (max-width: 359px) {
-  .lc-mode-card {
-    grid-template-columns: 1fr;
-  }
-  .lc-mode-preview {
-    width: min(100%, 168px);
+.lc-mode-preview-image,
+.lc-mode-preview-video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.lc-mode-preview-video {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  pointer-events: none;
+}
+.lc-mode-preview.is-playing .lc-mode-preview-video {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lc-mode-preview-video {
+    display: none;
   }
 }
 .lc-mode-body {
   display: grid;
+  grid-template-rows: auto auto 1fr auto;
   gap: 6px;
   align-content: start;
+  padding: 0 2px;
+}
+.lc-mode-body > .lc-mode-open {
+  grid-row: -2 / -1;
+  align-self: end;
 }
 .lc-mode-title {
   margin: 0;

@@ -238,7 +238,9 @@ function toggle(node, className, on) {
 // song：js/data/songs.js の曲、calls：本人の完成版のコール（start 昇順）、lines：歌詞の行（{ line, start, end }。無ければ []）
 // layout：コール表の並び（コール表示 ON で赤いコールを歌詞の間に置くのに使う。無ければ時刻で置く）
 // callsVisible：コール表示 ON か（コールが無い曲は、いつも OFF と同じ動き）
-export function enableKaraokeStage(elements, { song, calls, lines = [], layout = null, callsVisible = true } = {}) {
+// callsOnly：コールだけのカラオケ（歌詞の無い曲。曲のページの「使えるか」の判定 computeModeAvailability の karaoke.callsOnly）。
+//   歌詞が読めなかっただけの曲を、勝手にコールだけにしないよう、呼ぶ側がはっきり渡したときだけ
+export function enableKaraokeStage(elements, { song, calls, lines = [], layout = null, callsVisible = true, callsOnly = false } = {}) {
   disableKaraokeStage();
   const { screen, hudCard, lyricsPanel, hudText } = elements ?? {};
   if (!screen || !hudCard) return null;
@@ -320,6 +322,11 @@ export function enableKaraokeStage(elements, { song, calls, lines = [], layout =
     lines: Array.isArray(lines) ? lines : [],
     layout,
     hasCalls: callList.length > 0,
+    // 【2026-11-01 nx-live】歌詞の無い曲（Overture）：コールだけのカラオケ。歌詞は作らない（ライブコールと同じ完成版のコールだけを並べる）
+    callsOnly: callsOnly === true && callList.length > 0 && !(Array.isArray(lines) && lines.length > 0),
+    callsOnlyLabel: null,
+    callsOnlyRows: [],
+    lastFocusKey: null,
     callsVisible: true,
     callRows: [], // 歌詞の間に置いた赤いコールの行（コール表示 ON のとき見える）
     callEls: new Map(), // コールのキー → 部品
@@ -336,6 +343,7 @@ export function enableKaraokeStage(elements, { song, calls, lines = [], layout =
     lastMemberColor: null,
     palette,
   };
+  toggle(screen, "kx-calls-only", stage.callsOnly);
   setKaraokeCallsVisible(callsVisible);
   return stage;
 }
@@ -343,7 +351,8 @@ export function enableKaraokeStage(elements, { song, calls, lines = [], layout =
 // コール表示 ON／OFF（コールが無い曲は、いつも OFF と同じ）。再生の位置には触れない（見た目のクラスだけ）
 export function setKaraokeCallsVisible(visible) {
   if (!stage) return false;
-  const on = Boolean(visible) && stage.hasCalls;
+  // コールだけのカラオケ（歌詞の無い曲）は、いつも ON（OFF にすると何も出なくなるため。スイッチも押せない）
+  const on = (Boolean(visible) || stage.callsOnly) && stage.hasCalls;
   stage.callsVisible = on;
   toggle(stage.screen, "kx-calls-off", !on);
   toggle(stage.screen, "kx-no-calls", !stage.hasCalls);
@@ -365,6 +374,49 @@ export function areKaraokeCallsVisible() {
 export function karaokeStageHasCalls() {
   return Boolean(stage?.hasCalls);
 }
+// コールだけのカラオケ（歌詞の無い曲。Overture）か
+export function isKaraokeCallsOnly() {
+  return Boolean(stage?.callsOnly);
+}
+
+// 【2026-11-01 nx-live】コールだけのカラオケの説明（短く。歌詞は作らない・コールはライブコールと同じデータ）
+export const KX_CALLS_ONLY_LABEL = "歌詞なし・コールのみ";
+export const KX_CALLS_ONLY_NOTE = "この曲には歌詞がありません。コールだけを、時刻に合わせて光らせます。";
+
+// コールだけのカラオケの並び（純粋関数）：コール表の並び（layout）の順に、コール1件＝1行。並びに無いものは時刻の順で後ろへ。
+// 歌詞の行が無いので buildKaraokeCallPlacement の「行の前／後ろ」は使わない。戻り値：[{ keys: [キー], block }]（1件ずつ）
+export function buildKaraokeCallsOnlyRows(layout, calls) {
+  const timed = new Map((Array.isArray(calls) ? calls : []).map((call) => [call.key, call]));
+  const order = [];
+  const seen = new Set();
+  const add = (call, block) => {
+    if (!call || !timed.has(call.key) || seen.has(call.key)) return;
+    seen.add(call.key);
+    order.push({ keys: [call.key], block });
+  };
+  for (const item of layout?.items ?? []) {
+    if (item.kind === "block") (item.calls ?? []).forEach((call) => add(call, true));
+    else if (item.kind === "line") [...(item.before ?? []), ...(item.anchored ?? []).flatMap((g) => g.calls), ...(item.inline ?? []), ...(item.after ?? [])].forEach((call) => add(call, false));
+  }
+  [...timed.values()].filter((call) => !seen.has(call.key)).sort((a, b) => a.start - b.start).forEach((call) => add(call, true));
+  return order;
+}
+
+// コールだけのカラオケで、枠の真ん中に置くコール（純粋関数）：光っているコールのうち、並びで最初のもの。無ければ次に始まるコール。
+// どれも無い（曲の終わり）なら並びの最後のコール。rows：buildKaraokeCallsOnlyRows の戻り値
+export function karaokeCallsOnlyFocusKey(rows, calls, t) {
+  const byKey = new Map((calls ?? []).map((call) => [call.key, call]));
+  const keys = (rows ?? []).flatMap((row) => row.keys).filter((key) => byKey.has(key));
+  const lit = keys.find((key) => byKey.get(key).start <= t && t < byKey.get(key).end);
+  if (lit) return lit;
+  let next = null;
+  for (const key of keys) {
+    const call = byKey.get(key);
+    if (call.start > t && (!next || call.start < byKey.get(next).start)) next = key;
+  }
+  if (next) return next;
+  return keys.length ? keys[keys.length - 1] : null;
+}
 
 // 歌詞の行（js/lyricsSync.js が描いた .synced-lyrics-line）の間に、赤いコールの行を置く（歌詞を描いたあとに1回だけ呼ぶ）。
 // onCallTap(call)：コールを押したとき（その少し前から再生するなど）。戻り値：置いたコールの数（＝時刻のあるコールの数）
@@ -378,6 +430,7 @@ export function mountKaraokeCallRows({ onCallTap } = {}) {
   stage.rowFlags.clear();
   if (!stage.hasCalls) return 0;
   const panel = stage.lyricsPanel;
+  if (stage.callsOnly) return mountCallsOnlyRows(panel, onCallTap);
   const lineNodes = [...panel.getElementsByClassName("synced-lyrics-line")];
   if (!lineNodes.length || lineNodes.length !== stage.lines.length) return 0;
   const byKey = new Map(stage.calls.map((call) => [call.key, call]));
@@ -385,24 +438,8 @@ export function mountKaraokeCallRows({ onCallTap } = {}) {
   for (const row of placement) {
     const node = el("p", `kx-call-row${row.block ? " is-block" : ""}`);
     row.keys.forEach((key, index) => {
-      const call = byKey.get(key);
       if (index > 0) node.appendChild(document.createTextNode(" "));
-      const span = el("span", `kx-call kx-t-${karaokeCallTier(call)}`);
-      span.dataset.callKey = key;
-      if (String(call.text).includes("\n")) span.classList.add("is-pre");
-      const result = describeNameCall(call.text);
-      renderNameCallText(span, call.text, result);
-      const accent = nameCallAccent(result);
-      if (accent) {
-        span.classList.add("kx-member", `kx-names-${result.kind}`);
-        span.style.setProperty("--kx-call", accent.primary);
-        span.style.setProperty("--kx-call-grad", accent.gradient);
-        span.style.setProperty("--kx-call-aurora", nameCallAurora(accent));
-      }
-      // 【2026-11-01 r7-live】タップの決まりはライブコールと共通（js/callTapSeek.js：スクロールの指の動きはタップにしない）
-      if (typeof onCallTap === "function") stage.tapUnbind.push(bindTapSeek(span, () => onCallTap(call), { scroller: stage.lyricsPanel }));
-      node.appendChild(span);
-      stage.callEls.set(key, span);
+      node.appendChild(buildCallSpan(byKey.get(key), onCallTap));
     });
     const target = row.anchor >= 0 ? lineNodes[row.anchor] : lineNodes[0];
     if (row.place === "before" || row.anchor < 0) target.before(node);
@@ -415,6 +452,67 @@ export function mountKaraokeCallRows({ onCallTap } = {}) {
     stage.callRows.push(node);
   }
   return stage.callEls.size;
+}
+
+// コール1件の部品（歌詞の間の赤いコール・コールだけのカラオケで共通）
+function buildCallSpan(call, onCallTap) {
+  const span = el("span", `kx-call kx-t-${karaokeCallTier(call)}`);
+  span.dataset.callKey = call.key;
+  if (String(call.text).includes("\n")) span.classList.add("is-pre");
+  const result = describeNameCall(call.text);
+  renderNameCallText(span, call.text, result);
+  const accent = nameCallAccent(result);
+  if (accent) {
+    span.classList.add("kx-member", `kx-names-${result.kind}`);
+    span.style.setProperty("--kx-call", accent.primary);
+    span.style.setProperty("--kx-call-grad", accent.gradient);
+    span.style.setProperty("--kx-call-aurora", nameCallAurora(accent));
+  }
+  // 【2026-11-01 r7-live】タップの決まりはライブコールと共通（js/callTapSeek.js：スクロールの指の動きはタップにしない）
+  if (typeof onCallTap === "function") stage.tapUnbind.push(bindTapSeek(span, () => onCallTap(call), { scroller: stage.lyricsPanel }));
+  stage.callEls.set(call.key, span);
+  return span;
+}
+
+// 【2026-11-01 nx-live】コールだけのカラオケ：歌詞の枠に、コールを1件ずつ1行で並べる（歌詞は作らない）。
+// 枠の上に「歌詞なし・コールのみ」の札。光り方・タップ・名前の色は、歌詞の間の赤いコールと同じ部品
+function mountCallsOnlyRows(panel, onCallTap) {
+  const byKey = new Map(stage.calls.map((call) => [call.key, call]));
+  panel.hidden = false;
+  panel.classList.add("kx-calls-only-panel");
+  const label = el("p", "kx-calls-only-label");
+  label.textContent = KX_CALLS_ONLY_LABEL;
+  panel.appendChild(label);
+  stage.callsOnlyLabel = label;
+  stage.callsOnlyRows = buildKaraokeCallsOnlyRows(stage.layout, stage.calls);
+  for (const row of stage.callsOnlyRows) {
+    const node = el("p", `kx-call-row is-calls-only${row.block ? " is-block" : ""}`);
+    row.keys.forEach((key) => node.appendChild(buildCallSpan(byKey.get(key), onCallTap)));
+    panel.appendChild(node);
+    stage.callRows.push(node);
+  }
+  stage.lastFocusKey = null;
+  return stage.callEls.size;
+}
+
+// コールだけのカラオケ：光っている（無ければ次の）コールを、枠の真ん中へ（変わったときだけ。指でスクロールした位置は次に変わるまで保つ）
+function followCallsOnly(t) {
+  const key = karaokeCallsOnlyFocusKey(stage.callsOnlyRows, stage.calls, t);
+  if (!key || key === stage.lastFocusKey) return;
+  const first = stage.lastFocusKey === null;
+  const node = stage.callEls.get(key)?.parentElement;
+  const panel = stage.lyricsPanel;
+  if (!node || !panel || panel.hidden) return;
+  const p = panel.getBoundingClientRect();
+  const r = node.getBoundingClientRect();
+  if (!p.height) return; // まだ見えていない（始める前）：見えてから合わせる
+  stage.lastFocusKey = key;
+  // 背の高いコール（改行のある長いコール）は、上端を枠の上の方に合わせる（全部入らないときに頭が切れないように）
+  const offset = r.height > p.height * 0.6 ? p.height * 0.12 : (p.height - r.height) / 2;
+  const top = Math.max(0, panel.scrollTop + (r.top - p.top) - offset);
+  const smooth = !first && !reducedMotionQuery.matches && !stage.screen.classList.contains("kx-paused");
+  if (typeof panel.scrollTo === "function") panel.scrollTo({ top, behavior: smooth ? "smooth" : "auto" });
+  else panel.scrollTop = top;
 }
 
 // コールの見た目の段階（短いコールの3段階・長いコール）。光る時間は本人の開始〜終了のまま
@@ -443,8 +541,14 @@ export function disableKaraokeStage() {
   stage.spectacle?.destroy();
   stage.tapUnbind.forEach((off) => off());
   stage.callRows.forEach((row) => row.remove());
+  if (stage.callsOnlyLabel) {
+    // コールだけのカラオケで開いた歌詞の枠を、元の状態（歌詞が無いので隠れている）へ戻す
+    stage.callsOnlyLabel.remove();
+    stage.lyricsPanel?.classList.remove("kx-calls-only-panel");
+    if (stage.lyricsPanel && !stage.lyricsPanel.getElementsByClassName("synced-lyrics-line").length) stage.lyricsPanel.hidden = true;
+  }
   stage.lastNextLine?.classList.remove("kx-next-line");
-  screen.classList.remove("kx-on", "kx-call-now", "kx-long", "kx-soon", "kx-paused", "kx-finale", "kx-done", "kx-offset-set", "kx-calls-off", "kx-no-calls", "kx-offset-warn", "kx-has-audio");
+  screen.classList.remove("kx-on", "kx-calls-only", "kx-call-now", "kx-long", "kx-soon", "kx-paused", "kx-finale", "kx-done", "kx-offset-set", "kx-calls-off", "kx-no-calls", "kx-offset-warn", "kx-has-audio");
   delete screen.dataset.kxBasis;
   screen.style.removeProperty("--kx-c1");
   screen.style.removeProperty("--kx-c2");
@@ -468,7 +572,7 @@ export function resetKaraokeStage() {
   stage.hudCard.style.removeProperty("--kx-call");
   stage.hudCard.style.removeProperty("--kx-call-aurora");
   stage.lastNextLine?.classList.remove("kx-next-line");
-  Object.assign(stage, { lastActive: -2, lastProgress: null, lastCountdown: null, lastNextLine: null, lastMemberColor: null });
+  Object.assign(stage, { lastFocusKey: null, lastActive: -2, lastProgress: null, lastCountdown: null, lastNextLine: null, lastMemberColor: null });
 }
 
 export function setKaraokeStagePaused(paused) {
@@ -560,6 +664,7 @@ export function updateKaraokeStage(t, { ended = false, playing = true } = {}) {
 // 歌詞の間の赤いコール：光っている（本人の開始〜終了）・次・終わった、を付け替える（変わったコールだけ書く）
 function updateCallRows(t) {
   if (!stage.callEls.size) return;
+  if (stage.callsOnly) followCallsOnly(t);
   const { lit, nextKey } = karaokeCallRowStateAt(stage.calls, t);
   for (const call of stage.calls) {
     const flag = lit.has(call.key) ? "lit" : call.key === nextKey ? "next" : t >= call.end ? "done" : "";
