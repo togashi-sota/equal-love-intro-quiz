@@ -262,8 +262,10 @@
 }
 
 /* ---------- 小さい表示（ロビー・対戦の名前の隣、22px）：簡略版 ----------
-   細かい飾りを省き、色の違うリング＋主役の飾り1〜2個で見分ける（第1＝ピンク水色の輪と音符／
-   第2＝金の輪と王冠／第3＝虹色の輪とオーロラの光・王冠・ダイヤ）。何十人並んでも軽いよう動かさない。 */
+   細かい飾りを省き、色の違うリング＋主役の飾り1つで見分ける（第1＝ピンク水色の輪と音符／
+   第2＝金の輪と王冠／第3＝太く鮮やかな虹の輪とオーロラの光・上に大きなダイヤ）。何十人並んでも軽いよう動かさない。
+   【2026-11-01 修正・独立レビュー】22px では第2と第3がどちらも王冠で近かったため、第3は王冠を出さず
+   上の飾りを「宝石（ダイヤ）」に替え、虹の輪を太く・鮮やかにして、形と色の両方で違いが分かるようにした。 */
 .fan-profile-swatch--sm .oshi-charm--minor {
   display: none;
 }
@@ -288,16 +290,19 @@
 }
 
 .fan-profile-swatch--sm .oshi-badge-layer--tier3 .oshi-charm--crown {
-  --y: -22%;
-  --w: 78%;
-  --h: 58.5%;
+  display: none;
 }
 
 .fan-profile-swatch--sm .oshi-badge-layer--tier3 .oshi-charm--diamond {
-  --x: 100%;
-  --y: 96%;
-  --w: 52%;
-  --h: 52%;
+  --x: 50%;
+  --y: -16%;
+  --w: 64%;
+  --h: 64%;
+}
+
+.fan-profile-swatch--sm .oshi-badge-layer--tier3 .oshi-tier-halo {
+  inset: -52%;
+  opacity: 1;
 }
 
 /* 細い輪は 22px だと1px未満になるので、小さい表示だけ輪を太らせる */
@@ -308,12 +313,12 @@
 }
 
 .fan-profile-swatch--sm .oshi-badge-layer--tier3 .oshi-tier-ring {
-  inset: -24%;
-  -webkit-mask: radial-gradient(closest-side, transparent 69%, #000 71%, #000 76%, transparent 78%, #000 80%, #000 97%, transparent 100%);
-  mask: radial-gradient(closest-side, transparent 69%, #000 71%, #000 76%, transparent 78%, #000 80%, #000 97%, transparent 100%);
+  inset: -32%;
+  -webkit-mask: radial-gradient(closest-side, transparent 61%, #000 62.5%, #000 67%, transparent 68.5%, #000 70%, #000 98%, transparent 100%);
+  mask: radial-gradient(closest-side, transparent 61%, #000 62.5%, #000 67%, transparent 68.5%, #000 70%, #000 98%, transparent 100%);
   background:
-    radial-gradient(closest-side, transparent 70%, #fff3c4 71%, #f2c14e 74%, #fff1b8 76%, transparent 77%),
-    conic-gradient(from 0deg, #ff6fb0, #ffa96b, #ffe36b, #7ef0b8, #6cc8ff, #a88bff, #ff7fd0, #ff6fb0);
+    radial-gradient(closest-side, transparent 61.5%, #fff3c4 62.5%, #f2b52e 65%, #fff1b8 67%, transparent 68%),
+    conic-gradient(from 0deg, #ff2f8f, #ff8a3d, #ffd21f, #2fd98a, #22a8ff, #8a5cff, #ff3fbf, #ff2f8f);
 }
 
 /* 視差効果を減らす設定：すべて止める（静止画でも段階が分かるデザインにしてある） */
