@@ -35,6 +35,9 @@ import { normalizeSearchText, editDistanceWithin, allowedTypoCount } from "./sea
 // 【2026-10-31追加】CD売上・チャート記録
 import { CD_SALES_SINGLES, CD_SALES_ALBUMS } from "./data/cdSales.js";
 import { buildCdSalesModel, formatCopies, formatManCopies, latestCertificationLevel } from "./cdSalesModel.js";
+// 【2026-11-01追加】テレビ出演（バラエティ・情報番組）
+import { TV_VARIETY_RECORDS } from "./data/tvVariety.js";
+import { countTvVarietyByMember, groupTvVarietyByProgram } from "./tvVarietyModel.js";
 
 // 絞り込みのカテゴリ（表示順もこの順）。一般のファンが分かる言葉にしている。
 export const APP_SEARCH_CATEGORIES = [
@@ -541,6 +544,48 @@ function buildTvAppearanceEntries({ tvAppearances = TV_APPEARANCES }) {
   });
 }
 
+// ---- テレビ出演（バラエティ・情報番組。2026-11-01追加） ----
+// 1回の放送ごとではなく「番組ごと」に1件（381件をそのまま入れると、メンバー名や局名の検索が番組の結果で埋まるため）。
+// 番組名は「見出し」より一段下げる（secondary）。メンバー名では「○○のテレビ出演」の1件だけが、メンバー本人の結果の下に出る。
+function buildTvVarietyEntries({ tvVarietyRecords = TV_VARIETY_RECORDS, members }) {
+  const nameOf = memberNameById(members);
+  const yearRange = (group) => {
+    const first = group.firstDate.slice(0, 4);
+    const last = group.lastDate.slice(0, 4);
+    return first === last ? `${first}年` : `${first}〜${last}年`;
+  };
+  const programEntries = groupTvVarietyByProgram(tvVarietyRecords).map((group) => {
+    const names = group.memberIds.map(nameOf).filter(Boolean);
+    return createEntry({
+      key: `tvVariety:${group.key}`,
+      category: "program",
+      title: group.program,
+      subtitle: `テレビ出演（バラエティ・情報番組）／${group.count}回・${yearRange(group)}`,
+      lines: [
+        `いちばん新しい出演：${formatJapaneseDate(group.lastDate)}${group.stations[0] ? `（${group.stations[0]}）` : ""}`,
+        names.length ? `出演：${names.slice(0, 4).join("・")}${names.length > 4 ? ` ほか${names.length - 4}人` : ""}` : "出演：＝LOVE 名義（告知に個人名なし）",
+      ],
+      action: { label: "テレビ出演の一覧で見る", target: { kind: "tvVariety", query: group.program } },
+      terms: { secondary: [group.program], body: group.stations },
+    });
+  });
+  const memberEntries = members
+    .map((member) => ({ member, count: countTvVarietyByMember(tvVarietyRecords, member.id) }))
+    .filter(({ count }) => count > 0)
+    .map(({ member, count }) =>
+      createEntry({
+        key: `tvVarietyMember:${member.id}`,
+        category: "program",
+        title: `${member.name}のテレビ出演`,
+        subtitle: `テレビ出演（バラエティ・情報番組）／${count}件`,
+        lines: ["個人名が告知に出た、バラエティ・情報番組などへの単発の出演"],
+        action: { label: "テレビ出演の一覧で見る", target: { kind: "tvVariety", memberId: member.id } },
+        terms: { secondary: [member.name, member.reading, "テレビ出演", "バラエティ"] },
+      })
+    );
+  return [...memberEntries, ...programEntries];
+}
+
 // ---- 周年ヒストリー（2026-10-29追加）：周年ごとに1件。出来事の名前で見つかり、「＝LOVEの歩み」のその周年を開く ----
 function buildAnniversaryEntries({ anniversaryPeriods = ANNIVERSARY_PERIODS, anniversaryEvents = ANNIVERSARY_EVENTS }) {
   return buildAnniversaryModel(anniversaryPeriods, anniversaryEvents).map((entry) =>
@@ -616,6 +661,7 @@ export function buildAppSearchEntries(sources = {}) {
     ...buildLiveVideoEntries(resolved),
     ...buildAnniversaryEntries(resolved),
     ...buildTvAppearanceEntries(resolved),
+    ...buildTvVarietyEntries(resolved),
     ...buildStageVoiceEntries(resolved),
     ...buildActivityEntries(resolved),
     ...buildGuideEntries(resolved),

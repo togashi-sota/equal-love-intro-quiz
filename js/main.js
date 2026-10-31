@@ -316,6 +316,9 @@ import { initAnniversaryScreen, openAnniversaryScreen } from "./anniversaryScree
 import { initTvAppearancesScreen, openTvAppearancesScreen } from "./tvAppearancesScreen.js";
 // 【2026-10-31新設】CD売上・チャート記録
 import { initCdSalesScreen, openCdSalesScreen, getCdSalesModel } from "./cdSalesScreen.js";
+// 【2026-11-01新設】テレビ出演（バラエティ・情報番組）
+import { initTvVarietyScreen, openTvVarietyScreen } from "./tvVarietyScreen.js";
+import { TV_VARIETY_RECORDS } from "./data/tvVariety.js";
 import { initFanProfilesScreen, renderFanProfilesScreen } from "./fanProfilesScreen.js";
 import { initAdminBackupScreen, renderAdminBackupScreen } from "./adminBackupScreen.js";
 import { initAdminUidRepairScreen, resetAdminUidRepairScreen } from "./adminUidRepairScreen.js";
@@ -2296,6 +2299,11 @@ initMembersScreen({
     membersScrollY = window.scrollY;
     openMemberDetail(SONGS, MEMBERS, MEMBER_PROFILES, MEMBER_ACTIVITIES, memberId);
     showScreen("memberDetail");
+  },
+  // 【2026-11-01追加】メンバーのページの「テレビ出演」から、そのメンバーで絞った一覧へ（戻るとメンバーのページ）
+  onOpenTvVariety: (memberId) => {
+    playClickSound();
+    openTvVarietyFrom("memberDetail", { memberId });
   },
 });
 
@@ -5964,6 +5972,9 @@ async function openSearchTarget(target) {
     } else if (target.kind === "tvAppearances") {
       // 【2026-10-29追加】音楽番組出演アーカイブのその回
       openTvAppearancesFrom(searchScreen, { focusDate: target.focusDate });
+    } else if (target.kind === "tvVariety") {
+      // 【2026-11-01追加】テレビ出演（バラエティ・情報番組）：番組名で探した一覧／メンバーで絞った一覧
+      openTvVarietyFrom(searchScreen, { query: target.query, memberId: target.memberId });
     } else if (target.kind === "cdSales") {
       // 【2026-10-31追加】CD売上・チャート記録のその作品
       openCdSalesFrom(searchScreen, { workId: target.workId, tab: target.tab });
@@ -6164,7 +6175,15 @@ function openTvAppearancesFrom(returnScreen, options = {}) {
 }
 initTvAppearancesScreen(
   { container: document.getElementById("tv-appearances-content") },
-  { onOpenSong: (songId) => openSearchTarget({ kind: "song", songId }) }
+  {
+    onOpenSong: (songId) => openSearchTarget({ kind: "song", songId }),
+    // 【2026-11-01追加】歌以外のテレビ出演へ。テレビ出演のページから来ていたら、戻るのと同じにする（行ったり来たりで「戻る」の行き先が輪にならないように）
+    onOpenTvVariety: () => {
+      playClickSound();
+      if (tvAppearancesReturnScreen === "tvVariety") navigateWithScrollMemory("tvVariety");
+      else openTvVarietyFrom("tvAppearances");
+    },
+  }
 );
 document.getElementById("tv-appearances-link").addEventListener("click", () => {
   playClickSound();
@@ -6174,6 +6193,47 @@ document.getElementById("tv-appearances-back-button").addEventListener("click", 
   playSfx(SFX_EVENTS.UI_BACK);
   navigateWithScrollMemory(tvAppearancesReturnScreen);
 });
+
+// 【2026-11-01新設・本人の依頼】「テレビ出演（バラエティ・情報番組）」。入口はホーム「＝LOVEをもっと知る」・「＝LOVEについて」の年表タブ・
+// 音楽番組のページ・メンバーのページ（そのメンバーで絞った一覧）・全体検索（番組名・メンバー名）・使い方ガイド。
+let tvVarietyReturnScreen = "start";
+function openTvVarietyFrom(returnScreen, options = {}) {
+  tvVarietyReturnScreen = returnScreen && returnScreen !== "tvVariety" ? returnScreen : "start";
+  navigateWithScrollMemory("tvVariety");
+  window.scrollTo(0, 0);
+  openTvVarietyScreen(options);
+}
+initTvVarietyScreen(
+  { container: document.getElementById("tv-variety-content") },
+  {
+    // 歌の披露は音楽番組のページへ。音楽番組のページから来ていたら、戻るのと同じにする
+    onOpenMusicShows: () => {
+      playClickSound();
+      if (tvVarietyReturnScreen === "tvAppearances") navigateWithScrollMemory("tvAppearances");
+      else openTvAppearancesFrom("tvVariety");
+    },
+  }
+);
+document.getElementById("tv-variety-home-link").addEventListener("click", () => {
+  playClickSound();
+  openTvVarietyFrom("start");
+});
+document.getElementById("tv-variety-link").addEventListener("click", () => {
+  playClickSound();
+  openTvVarietyFrom("discography");
+});
+document.getElementById("tv-variety-back-button").addEventListener("click", () => {
+  playSfx(SFX_EVENTS.UI_BACK);
+  navigateWithScrollMemory(tvVarietyReturnScreen);
+});
+// ホームの札：件数（データから数える）
+{
+  const badge = document.getElementById("home-know-variety-badge");
+  if (badge && TV_VARIETY_RECORDS.length > 0) {
+    badge.textContent = `${TV_VARIETY_RECORDS.length}件`;
+    badge.hidden = false;
+  }
+}
 
 // 【2026-10-31新設・本人の依頼】「CD売上・チャート記録」。入口はホーム「＝LOVEをもっと知る」・作品詳細・収録曲一覧・
 // 周年ヒストリー・全体検索・ガイド。作品の行から作品詳細・収録曲一覧へ飛び、「戻る」でこのページへ戻れるようにする

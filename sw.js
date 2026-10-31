@@ -226,6 +226,11 @@ const APP_SHELL_FILES = [
   "./js/cdSalesScreen.js",
   "./js/cdSalesModel.js",
   "./js/data/cdSales.js",
+  // 【2026-11-01追加】テレビ出演（バラエティ・情報番組）
+  "./css/tvVariety.css",
+  "./js/tvVarietyScreen.js",
+  "./js/tvVarietyModel.js",
+  "./js/data/tvVariety.js",
   "./js/centerChart.js",
   "./js/setlistView.js",
   "./js/liveSetlistStats.js",

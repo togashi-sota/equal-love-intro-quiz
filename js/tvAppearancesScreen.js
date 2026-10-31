@@ -196,6 +196,14 @@ export function openTvAppearancesScreen(options = {}) {
   if (!container) return;
   if (!listElement) {
     container.innerHTML = "";
+    // 【2026-11-01追加】歌以外のテレビ出演（バラエティ・情報番組）は別のページ。住み分けが分かるように上に案内を置く
+    if (callbacks.onOpenTvVariety) {
+      const varietyLink = el("button", "tvv-music-link tv-variety-crosslink");
+      varietyLink.type = "button";
+      varietyLink.append(el("span", "tvv-music-link-text", "バラエティ・情報番組は［テレビ出演］へ"), el("span", "tvv-music-link-arrow", "→"));
+      varietyLink.addEventListener("click", () => callbacks.onOpenTvVariety());
+      container.appendChild(varietyLink);
+    }
     container.appendChild(el("p", "tv-intro", "＝LOVEが出演した音楽番組と、披露した曲の記録です（新しい順）。曲名を押すと収録曲一覧のその曲へ移動します。"));
     container.appendChild(buildControls());
     listElement = el("div", "tv-results");
@@ -238,8 +246,8 @@ export function openTvAppearancesScreen(options = {}) {
   }
 }
 
-// elements: { container }。options.onOpenSong(songId)
+// elements: { container }。options.onOpenSong(songId)・options.onOpenTvVariety()（2026-11-01：テレビ出演のページへ）
 export function initTvAppearancesScreen(elements, options = {}) {
   container = elements.container;
-  callbacks = { onOpenSong: options.onOpenSong ?? null };
+  callbacks = { onOpenSong: options.onOpenSong ?? null, onOpenTvVariety: options.onOpenTvVariety ?? null };
 }

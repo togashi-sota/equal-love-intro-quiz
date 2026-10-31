@@ -161,6 +161,8 @@
     import { runHistoryPagesTests } from "./tests/historyPages.test.js";
     // 【2026-10-31新設】CD売上・チャート記録
     import { runCdSalesTests } from "./tests/cdSales.test.js";
+    // 【2026-11-01新設】テレビ出演（バラエティ・情報番組）
+    import { runTvVarietyTests } from "./tests/tvVariety.test.js";
     // 【2026-11-01 r7-home】作品の枠を songs.js から自動で（21st・22nd）・ホームの楽曲エリア
     import { runDiscographyAutoAndHomeMusicTests } from "./tests/discographyAuto.test.js";
     // 【2026-10-28新設】ライブページ・ID／在席の修正・歌詞クイズの重複フレーズ対策
@@ -437,6 +439,7 @@
     runCentersAndSetlistsTests();
     runHistoryPagesTests();
     await runCdSalesTests();
+    await runTvVarietyTests();
     await runDiscographyAutoAndHomeMusicTests();
     runCallTextModeTests();
     await runCallTextModeMarkupTests();

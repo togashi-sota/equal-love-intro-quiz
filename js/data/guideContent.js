@@ -49,7 +49,7 @@ export const GUIDE_OVERVIEW = {
     { icon: "🎮", title: "ゲーム", text: "イントロクイズほか、1人用・対戦・問題づくり・コール練習（{count:all}曲から出題）" },
     { icon: "📣", title: "ライブ", text: "コールを覚える（コール表・ライブコール・カラオケ）、ライブ履歴・セトリ、はじめてのライブ" },
     { icon: "🎵", title: "楽曲", text: "曲を聴く・歌詞を読む・歌詞から探す・プレイリスト" },
-    { icon: "💗", title: "＝LOVE情報", text: "メンバー・歴代センター・周年ヒストリー・CD売上・音楽番組・CM" },
+    { icon: "💗", title: "＝LOVE情報", text: "メンバー・歴代センター・周年ヒストリー・CD売上・音楽番組・テレビ出演・CM" },
     { icon: "🛡", title: "マイ・データ", text: "プレイ履歴・称号（{count:achievements}個）・データの追加と引き継ぎ" },
   ],
   storageNote:
@@ -188,7 +188,7 @@ export const GUIDE_CATEGORIES = [
     tocLabel: "＝LOVE|情報",
     icon: "💗",
     lead: "メンバーとグループの歩み。音源が無くても見られます。",
-    sectionIds: ["members", "centers", "anniversary", "cdSales", "tvAppearances", "commercials", "aboutGroup"],
+    sectionIds: ["members", "centers", "anniversary", "cdSales", "tvAppearances", "tvVariety", "commercials", "aboutGroup"],
   },
   {
     id: "mydata",
@@ -562,6 +562,21 @@ export const GUIDE_SECTIONS = [
     actions: [{ label: "音楽番組を開く", open: { click: "tv-appearances-home-link" } }],
   },
   {
+    // 【2026-11-01追加】テレビ出演（バラエティ・情報番組）
+    id: "tvVariety",
+    icon: "📺",
+    title: "テレビ出演（バラエティ・情報番組）",
+    tagline: "バラエティ・情報番組などへの単発の出演。歌の披露は［音楽番組］。",
+    where: "ホームの「＝LOVEをもっと知る」→［テレビ出演］（メンバーのページからも開けます）",
+    steps: [
+      "新しい順に、年ごとに並ぶ（初めはいちばん新しい年だけを開く。年の見出しを押すと開く）",
+      "出演の形（＝LOVE 名義・個人・複数人）・メンバー・年・放送局で絞り込み、番組名で探せる",
+      "1件ごとの［公式の告知］で、＝LOVE 公式サイトの出演のお知らせを開ける",
+    ],
+    point: "「＝LOVE 名義」は告知に個人名が無い出演で、全員とは限りません。レギュラー番組は下の別枠に番組名と期間だけを載せています。",
+    actions: [{ label: "テレビ出演を開く", open: { click: "tv-variety-home-link" } }],
+  },
+  {
     id: "commercials",
     icon: "📣",
     title: "CM・企業コラボ",
@@ -671,7 +686,7 @@ export const GUIDE_SECTIONS = [
     search: {
       where: "ホームの上の「曲・メンバー・ライブ・番組を検索」",
       input: "名前・曲名・番組名・機能の名前など（スペースで区切ると、すべてを含むものだけ）",
-      target: "メンバー・楽曲・作品・CM・ライブと映像・周年・音楽番組・個人活動・このガイド・機能・設定",
+      target: "メンバー・楽曲・作品・CM・ライブと映像・周年・音楽番組・テレビ出演・個人活動・このガイド・機能・設定",
       notTarget: "歌詞の本文・プレイ履歴・苦手曲・フレンド",
       results: "10件ずつ（［もっと見る］で続き）。押すと詳しく開き、「メンバーページで詳しく見る」「この機能を開く」などのボタンでその画面へ",
       filter: "すべて／メンバー／楽曲／CM・広告／ライブ／出演作品／番組・活動／ガイド／機能／設定（それぞれの件数つき）",
@@ -759,7 +774,7 @@ export const GUIDE_SECTIONS = [
     title: "画面の中の検索",
     tagline: "画面ごとの小さな検索。その画面の中だけを探します。",
     search: {
-      where: "歴代センター（曲名で検索・メンバーで絞り込み）／音楽番組（番組名・曲名など・年・シリーズ）／コールを覚えるの曲の一覧（曲名・よみ・コール表あり・音源あり）／問題をつくるのセット一覧（セット名・メモで検索）",
+      where: "歴代センター（曲名で検索・メンバーで絞り込み）／音楽番組（番組名・曲名など・年・シリーズ）／テレビ出演（番組名・出演の形・メンバー・年・放送局）／コールを覚えるの曲の一覧（曲名・よみ・コール表あり・音源あり）／問題をつくるのセット一覧（セット名・メモで検索）",
       input: "その画面に書いてある言葉",
       target: "その画面の一覧だけ",
       notTarget: "ほかの画面の中身",

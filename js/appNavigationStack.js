@@ -111,6 +111,7 @@ const FEATURE_SCREENS_FROM_GUIDE = [
   "anniversary",
   "tvAppearances",
   "cdSales",
+  "tvVariety",
   "fanProfiles",
   "timeAttackLeaderboard",
 ];

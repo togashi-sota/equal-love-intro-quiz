@@ -65,6 +65,8 @@ const SCREEN_ELEMENTS = {
   tvAppearances: document.getElementById("tv-appearances-screen"),
   // 【2026-10-31新設】CD売上・チャート記録
   cdSales: document.getElementById("cd-sales-screen"),
+  // 【2026-11-01新設】テレビ出演（バラエティ・情報番組）
+  tvVariety: document.getElementById("tv-variety-screen"),
   members: document.getElementById("members-screen"),
   memberDetail: document.getElementById("member-detail-screen"),
   playlists: document.getElementById("playlist-screen"),
