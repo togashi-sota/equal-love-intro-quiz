@@ -21,7 +21,8 @@ import {
 } from "./playerProfile.js";
 import { getMemberById } from "./memberUtils.js";
 import { getMostOshiMemberId } from "./oshiMembers.js";
-import { applyOshiBadgeDecorations } from "./oshiBadge.js";
+import { applyOshiBadgeDecorations, applyOshiBadgeDecorationsFromState } from "./oshiBadge.js";
+import { getOshiBadgeStateForPlayer } from "./achievementProgress.js";
 import { getStoragePersistenceStatus } from "./storagePersistence.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
 import { isBackupWorthyLogicalKey } from "./backupSync.js";
@@ -64,6 +65,8 @@ function buildPlayerAvatar(player) {
   avatar.className = "player-row-avatar";
   avatar.setAttribute("aria-hidden", "true");
   avatar.textContent = player.playerName ? player.playerName.charAt(0) : "？";
+  // 【2026-11-01追加】その人の特別な称号の段階の勲章を、フレンド・ランキングと同じ部品で付ける（表示だけ）
+  applyOshiBadgeDecorationsFromState(avatar, getOshiBadgeStateForPlayer(player.playerId));
   return avatar;
 }
 

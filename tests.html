@@ -64,6 +64,7 @@
     // 【2026-10-29新設】プレイヤーの登録画面（登録・切り替え・名前の変更・自動で閉じる）／公開プロフィールのデータの曲数
     import { runPlayerRegistrationTests } from "./tests/playerRegistration.test.js";
     import { runDataStatusShareTests } from "./tests/dataStatusShare.test.js";
+    import { runOshiBadgeTierTests } from "./tests/oshiBadgeTier.test.js";
     import { runQuizTests } from "./tests/quiz.test.js";
     import { runAudioTroubleClassificationTests } from "./tests/audioTroubleClassification.test.js";
     import { runLyricsStorageTests } from "./tests/lyricsStorage.test.js";
@@ -544,6 +545,7 @@
     await runUnifiedPackImportTests();
     await runPlayerRegistrationTests();
     await runDataStatusShareTests();
+    await runOshiBadgeTierTests();
     const { passCount, failCount, failedDetails } = printSummary();
 
     const summaryElement = document.getElementById("test-summary");

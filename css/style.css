@@ -8280,85 +8280,9 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   color: rgba(255, 255, 255, 0.85);
 }
 
-/* ===== 推しアイコンへの特別バッジ装飾（js/oshiBadge.js） =====
-   ＝LOVEマスター取得で王冠、＝LOVE完全制覇取得でダイヤ、イントロマスター取得でメダルを
-   表示する（本人指示）。
-   【2026-11-XX全面改訂・本人指示：3個同時表示】以前はCSSの::before/::afterだけ（最大2つ）で
-   表現し、下位のメダルは上位2つを持っていると隠す「代表1つだけ表示」の仕組みだった。
-   今回「所持している特別バッジは3個すべて同時に表示する」という指示を受け、疑似要素では
-   なく実際のDOM子要素（.oshi-badge-layer配下の.oshi-badge、js/oshiBadge.js参照）へ作り替えた。
-   3個とも常にアイコン本体の外周へのoverlayとして重ね、アイコン本体のサイズには一切触れない
-   （本人指示：「バッジのために推しアイコンを縮小しない」）。クリック操作を邪魔しないよう、
-   レイヤー自体・各バッジともpointer-events:noneにしている。
-   【配置】3個同時が最悪ケースのため、右上（＝LOVE完全制覇・最も豪華）・右下（＝LOVEマスター）・
-   左下（イントロマスター）の3つの角へ分散させ、名前・順位・スコア等が続くことが多い右側の
-   スペースを最小限しか使わないようにしている。 */
-.oshi-badge-layer {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-
-.oshi-badge {
-  position: absolute;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
-  /* 【2026-11-XX改訂・本人指示Q5：52pxプロフィール詳細モーダルでのバッジスケーリング】
-     --badge-scaleは既定で1（＝このファイルの元々の44px基準サイズ）。個別のpx指定を
-     サイズごとに増やすのではなく、アイコンを囲む.fan-profile-swatch側で
-     --badge-scaleだけを設定すれば、下の.oshi-badge--medal/crown/diamondが
-     calc()で自動的に比例スケールする設計にした。22px版（.fan-profile-swatch--sm）は
-     既存の手動調整済み固定pxのままこのルールを上書きするため、この変更による
-     見た目の変化は無い（詳細はそちらのコメント参照）。 */
-  border: calc(1.5px * var(--badge-scale, 1)) solid #ffffff;
-  border-radius: 50%;
-  pointer-events: none;
-}
-
-/* 【2026-11-XX追加・本人指示：実装方式の最終確認】絵文字（OSフォント依存）をやめ、
-   js/achievementIcons.jsと同じ「currentColorで塗るSVGパス」方式にしたことに伴う
-   サイズ指定。svgをバッジ円より一回り小さくして余白を作り、視認性を保つ。 */
-.oshi-badge svg {
-  width: 62%;
-  height: 62%;
-}
-
-/* イントロマスター（メダル）：3つの中で最も控えめな銀灰色・最小サイズ（本人指示の豪華さの
-   順：イントロマスター＜＝LOVEマスター＜＜＝LOVE完全制覇、を大きさと配色で表現）。 */
-.oshi-badge--medal {
-  bottom: calc(-4px * var(--badge-scale, 1));
-  left: calc(-5px * var(--badge-scale, 1));
-  width: calc(16px * var(--badge-scale, 1));
-  height: calc(16px * var(--badge-scale, 1));
-  color: #5c5460;
-  background: radial-gradient(circle at 32% 28%, #f4f1f6 0%, #b9aebd 70%);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-}
-
-/* ＝LOVEマスター（王冠）：金色・中間の豪華さ。 */
-.oshi-badge--crown {
-  bottom: calc(-6px * var(--badge-scale, 1));
-  right: calc(-6px * var(--badge-scale, 1));
-  width: calc(19px * var(--badge-scale, 1));
-  height: calc(19px * var(--badge-scale, 1));
-  color: #5c3a08;
-  background: radial-gradient(circle at 32% 28%, #ffe9a8 0%, #e3ab3c 70%);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
-}
-
-/* ＝LOVE完全制覇（ダイヤ）：3つの中で最も目立つ位置（右上）・最大サイズ・最も強い発光で、
-   「小さく表示されても完全制覇だと分かる」豪華さを表現する（本人指示）。 */
-.oshi-badge--diamond {
-  top: calc(-7px * var(--badge-scale, 1));
-  right: calc(-6px * var(--badge-scale, 1));
-  width: calc(21px * var(--badge-scale, 1));
-  height: calc(21px * var(--badge-scale, 1));
-  color: #ffffff;
-  background: radial-gradient(circle at 32% 26%, #f3e8ff 0%, #b18cf0 45%, #6fa8ff 100%);
-  box-shadow: 0 0 0 2px rgba(177, 140, 240, 0.35), 0 3px 6px -1px rgba(74, 46, 66, 0.4);
-}
+/* ===== 推しアイコンへの特別な称号の勲章（js/oshiBadge.js） =====
+   【2026-11-01】角に丸いバッジを最大3個重ねる方式から、4段階（なし／第1／第2／第3）の
+   外周のリング＋飾りへ作り直した。見た目は css/oshiBadgeTiers.css にまとめている。 */
 
 /* ===== みんなのプロフィール（js/fanProfilesScreen.js、2026-08-07新設） =====
    このアプリを使っているファン同士で、表示名・推し・称号を見せ合える一覧画面。
@@ -8869,33 +8793,6 @@ body[data-screen="liveCallModePlayer"] .game-frame {
   box-shadow: none;
 }
 
-/* 【2026-11-XX改訂・本人指示：3個同時表示】ロビー一覧・スコア表示等の縮小アイコン
-   （22px基準）向けに、.oshi-badge 3種すべてを比例縮小する。3個同時でも角が重ならないよう、
-   フルサイズ版と同じ3隅（右上＝ダイヤ・右下＝王冠・左下＝メダル）の配置は維持する。 */
-.fan-profile-swatch--sm .oshi-badge--medal {
-  width: 9px;
-  height: 9px;
-  bottom: -2px;
-  left: -3px;
-  border-width: 1px;
-}
-
-.fan-profile-swatch--sm .oshi-badge--crown {
-  width: 10px;
-  height: 10px;
-  bottom: -3px;
-  right: -3px;
-  border-width: 1px;
-}
-
-.fan-profile-swatch--sm .oshi-badge--diamond {
-  width: 11px;
-  height: 11px;
-  top: -3px;
-  right: -3px;
-  border-width: 1px;
-}
-
 .fan-profile-card-body {
   flex: 1;
   min-width: 0;
@@ -8967,13 +8864,8 @@ body[data-screen="liveCallModePlayer"] .game-frame {
 .fan-profile-detail-swatch .fan-profile-swatch {
   width: 52px;
   height: 52px;
-  /* 【2026-11-XX追加・本人指示Q5】アイコン本体は52px（44px基準の約1.18倍）だが、
-     以前は特別バッジ（.oshi-badge、上記参照）が44px基準の絶対pxのままだったため、
-     52pxアイコンに対して相対的に小さく見えていた。個別のpxを増やすのではなく、
-     --badge-scaleを1つ設定するだけで.oshi-badge側のcalc()が自動的に比例スケールする。
-     アイコン本体（このルール自身のwidth/height）には触れていないため、
-     「推しアイコン本体は縮小しない」という既存方針とも矛盾しない。 */
-  --badge-scale: 1.1818;
+  /* 【2026-11-01】勲章（css/oshiBadgeTiers.css）は大きさがアバターに対する % なので、
+     以前の --badge-scale による拡大は不要になった。 */
 }
 
 /* 名前・推しのテキスト部分（2026-08-29追加）。flex:1にして「🏅称号一覧」ボタンぶんの
