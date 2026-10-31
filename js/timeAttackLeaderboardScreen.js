@@ -21,6 +21,8 @@ import {
 } from "./timeAttackLeaderboard.js";
 import { fetchPublicProfileBadgeState, getMyUid, isPublicProfileSharingEnabled } from "./publicProfileSync.js";
 import { getPlayerKeyPrefix, getActivePlayer, getKnownOldUidsForPlayer } from "./playerProfile.js";
+import { fetchDisplayBadgeStates, getOwnBadgeIdentity } from "./badgeIdentity.js";
+import { fetchSupersessionLinks } from "./uidSupersession.js";
 import { resolveIsAdminUser } from "./adminConfig.js";
 import { TIME_ATTACK_VARIANT, TIME_ATTACK_RULE } from "./timeAttackScreen.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
@@ -244,22 +246,44 @@ function setStateVisibility({ loading, offline, empty, list }) {
   elements.listContainer.hidden = !list;
 }
 
-// TOP10各行の王冠・ダイヤ装飾を、みんなのプロフィールと同じ見た目で添える（可能なら、の対応）。
-// 本人指示「全ユーザー件数を毎回取得しないこと」を守るため、今回表示する最大10人分だけを
+// TOP10各行の勲章を、みんなのプロフィールと同じ見た目で添える（可能なら、の対応）。
+// 本人指示「全ユーザー件数を毎回取得しないこと」を守るため、今回表示する最大10人分（＋つながりの先）だけを
 // 並行して個別取得する（全件ダウンロードにはしない）。1件でも失敗しても他の行の表示は続ける。
-async function fetchBadgeStatesForEntries(entries) {
-  const results = await Promise.all(
-    entries.map((entry) =>
-      fetchPublicProfileBadgeState(entry.uid).catch(() => ({
-        hasNoMissMaster: false,
-        hasEqualLoveMaster: false,
-        hasEqualLoveComplete: false,
-      }))
-    )
+// 【2026-11-01改訂・本人の依頼 R8 の 4「本人の勲章がランキングだけ出ない」】
+// 以前は publicProfiles/{記録のUID} だけを見ていたため、匿名IDが変わる前に作った記録の行では
+// 前のIDの古いプロフィール（消されている・古い）を見てしまい、普通の丸になっていた。
+// 今は js/badgeIdentity.js の共通処理で「記録のUID → 今のUID（検証済みのつながりだけ）→ 今のプロフィールの称号」の順に解決する。
+// 自分の記録なら、この端末の称号（ホームの勲章と同じ）も合わせる。フレンドの一覧・プロフィールと同じ結果になる。
+// 読み取りの関数を差し替えられるようにしているのは、テストと撮影で Firebase に繋がずに同じ処理を通すため。
+export async function resolveLeaderboardBadgeStates(entries, deps = {}) {
+  const {
+    fetchBadgeState = fetchPublicProfileBadgeState,
+    fetchLinks = fetchSupersessionLinks,
+    selfUid = elements?.currentUid ?? null,
+    ownIdentity = getOwnBadgeIdentity(selfUid),
+  } = deps;
+  return fetchDisplayBadgeStates(
+    (Array.isArray(entries) ? entries : []).map((entry) => entry?.uid),
+    {
+      fetchBadgeState,
+      fetchSupersessionLinks: fetchLinks,
+      selfUid: ownIdentity.selfUid,
+      ownPreviousUids: ownIdentity.ownPreviousUids,
+      ownLocalBadgeState: ownIdentity.ownLocalBadgeState,
+    }
   );
-  const badgeStateByUid = new Map();
-  entries.forEach((entry, index) => badgeStateByUid.set(entry.uid, results[index]));
-  return badgeStateByUid;
+}
+
+async function fetchBadgeStatesForEntries(entries) {
+  // 自分の行を正しく解決するため、今のUIDが未取得なら先に取る（失敗しても続ける）
+  if (!elements.currentUid) {
+    try {
+      elements.currentUid = await getMyUid();
+    } catch {
+      // UIDが分からなくても、公開プロフィールとつながりだけで表示する
+    }
+  }
+  return resolveLeaderboardBadgeStates(entries, { selfUid: elements.currentUid ?? null });
 }
 
 async function loadAndRenderLeaderboard() {

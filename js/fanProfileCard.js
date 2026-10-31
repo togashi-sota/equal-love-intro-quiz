@@ -101,6 +101,9 @@ export function buildProfileCard(profile, members, onSelect, options = {}) {
     // 【2026-10-28追加】オンライン判定に使う「今」。js/fanProfilesScreen.js はサーバー時刻の推定値
     // （js/presenceSync.js の getPresenceNowMs()）を渡す。省略時は従来どおり端末時刻。
     nowMs = Date.now(),
+    // 【2026-11-01追加・R8 の 4】勲章の状態を呼び出し側で決めて渡せる（js/badgeIdentity.js の共通処理の結果）。
+    // 省略時は今までどおり、このプロフィール自身の真偽値で決める。
+    badgeState: badgeStateOverride = null,
   } = options;
   const card = document.createElement("button");
   card.type = "button";
@@ -109,7 +112,7 @@ export function buildProfileCard(profile, members, onSelect, options = {}) {
   card.dataset.identityRelation = classifyProfileRelation(profile, { myUid });
   card.dataset.uid = profile.uid;
 
-  const badgeState = {
+  const badgeState = badgeStateOverride ?? {
     hasNoMissMaster: profile.hasNoMissMaster,
     hasEqualLoveMaster: profile.hasEqualLoveMaster,
     hasEqualLoveComplete: profile.hasEqualLoveComplete,

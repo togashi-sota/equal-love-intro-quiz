@@ -26,6 +26,7 @@ import { collapseSamePlayerProfiles, annotateSameNameProfiles, collectMyKnownOld
 import { getAuthUidHistory } from "./firebaseClient.js";
 import { summarizeAuthUidHistory } from "./identityBootstrap.js";
 import { getMemberById } from "./memberUtils.js";
+import { badgeStateFromProfileValue, resolveDisplayBadgeState, getOwnBadgeIdentity } from "./badgeIdentity.js";
 import {
   buildProfileCard,
   buildOshiSwatch,
@@ -106,6 +107,7 @@ function renderProfileListFromCache() {
         myUid,
         isInMyCurrentRoom: currentRoomPlayerUids.has(profile.uid),
         nowMs,
+        badgeState: resolveProfileDisplayBadgeState(profile),
       })
     )
   );
@@ -344,17 +346,29 @@ function renderDetailDataStatus(profile) {
   }
 }
 
+// 【2026-11-01追加・本人の依頼 R8 の 4】カード・プロフィールの勲章を、ランキングと同じ共通処理（js/badgeIdentity.js）で決める。
+// 前のIDのカードでも、つながり（uidSupersession の対応表・この端末が知っている自分の前のID）の先にある
+// 今のプロフィールの称号を出す。今の自分なら、この端末の称号（ホームの勲章）も合わせる。表示だけ（何も書かない）。
+function resolveProfileDisplayBadgeState(profile) {
+  const badgeStateByUid = new Map(latestProfiles.map((p) => [p.uid, badgeStateFromProfileValue(p)]));
+  if (profile?.uid && !badgeStateByUid.has(profile.uid)) badgeStateByUid.set(profile.uid, badgeStateFromProfileValue(profile));
+  const own = getOwnBadgeIdentity(myUid);
+  return resolveDisplayBadgeState(profile?.uid, {
+    badgeStateByUid,
+    supersessionLinks,
+    selfUid: own.selfUid,
+    ownPreviousUids: own.ownPreviousUids,
+    ownLocalBadgeState: own.ownLocalBadgeState,
+  });
+}
+
 function openDetailModal(profile) {
   elements.detailName.textContent = profile.displayName;
   const oshiMember = profile.oshiMemberId ? getMemberById(members, profile.oshiMemberId) : null;
   elements.detailOshi.textContent = oshiMember ? `推し：${oshiMember.name}` : "推し：未設定";
   elements.detailSwatch.innerHTML = "";
   elements.detailSwatch.appendChild(
-    buildOshiSwatch(members, profile.oshiMemberId, {
-      hasNoMissMaster: profile.hasNoMissMaster,
-      hasEqualLoveMaster: profile.hasEqualLoveMaster,
-      hasEqualLoveComplete: profile.hasEqualLoveComplete,
-    })
+    buildOshiSwatch(members, profile.oshiMemberId, resolveProfileDisplayBadgeState(profile))
   );
 
   // 【2026-08-29再設計・本人指示】ランキング順位は載せず、称号の総数・代表称号（最大3個）に

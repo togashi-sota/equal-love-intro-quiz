@@ -32,6 +32,7 @@ import { getActivePlayer, getPlayerKeyPrefix, getOrCreateBackupId } from "./play
 import { computeLeaderboardIdentityKey } from "./timeAttackLeaderboard.js";
 import { getSharedDataStatusForProfile } from "./dataStatusShare.js";
 import { getMostOshiMemberId } from "./oshiMembers.js";
+import { badgeStateFromProfileValue } from "./badgeIdentity.js";
 import { getAchievementListSnapshot, getOshiBadgeState } from "./achievementProgress.js";
 import {
   isPublicProfileSharingEnabled,
@@ -310,12 +311,9 @@ export async function fetchPublicProfileBadgeState(uid) {
     await authReady;
     const snapshot = await get(ref(database, `publicProfiles/${uid}`));
     if (!snapshot.exists()) return { hasNoMissMaster: false, hasEqualLoveMaster: false, hasEqualLoveComplete: false };
-    const value = snapshot.val();
-    return {
-      hasNoMissMaster: value?.hasNoMissMaster === true,
-      hasEqualLoveMaster: value?.hasEqualLoveMaster === true,
-      hasEqualLoveComplete: value?.hasEqualLoveComplete === true,
-    };
+    // 【2026-11-01改訂・R8 の 4】真偽値が欠けた古い形式でも、取得済みの称号の一覧に入っていれば勲章を出す
+    // （js/badgeIdentity.js の共通の読み方。フレンドの一覧・プロフィールと同じ）
+    return badgeStateFromProfileValue(snapshot.val());
   } catch {
     return { hasNoMissMaster: false, hasEqualLoveMaster: false, hasEqualLoveComplete: false };
   }
