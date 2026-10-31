@@ -261,6 +261,40 @@
   color: #24151f !important;
 }
 
+/* 3人以上（センターが決まっていない曲の「歌う全員」など）：細い色の帯を並べ、真ん中に短い名前を白い札で */
+.cs-center.is-band .cs-swatches {
+  position: relative;
+}
+
+.cs-center.is-band .cs-band {
+  flex: 1 1 0;
+  min-width: 2px;
+}
+
+.cs-center.is-band .cs-band + .cs-band {
+  border-left: 1px solid rgba(255, 255, 255, 0.7);
+}
+
+.cs-band-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 0 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #24151f;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 15px;
+  letter-spacing: 0.1em;
+  box-shadow: 0 0 0 1px rgba(61, 42, 54, 0.25);
+}
+
+.cs-sheet.has-highlight .cs-center.is-band:not(.is-hit) .cs-band-label {
+  opacity: 0.3;
+}
+
 /* 全員（特定のメンバーの色を使わない。歴代センター一覧の「全員」と同じ色） */
 .cs-center.is-all .cs-swatch {
   background: linear-gradient(135deg, #ffe4f0 0%, #f6e6ff 55%, #e6efff 100%);
@@ -384,8 +418,13 @@
   background: #9d6fe0;
 }
 
-.cs-legend-sample.is-singer {
-  background: #ff8fc0 repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.6) 0 3px, transparent 3px 7px);
+.cs-legend-sample.is-band {
+  overflow: hidden;
+}
+
+.cs-legend-sample.is-band i {
+  flex: 1;
+  height: 100%;
 }
 
 .cs-legend-sample.is-all {

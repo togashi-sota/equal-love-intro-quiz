@@ -9,6 +9,8 @@ import { buildCenterTableModel } from "../js/centerTable.js";
 import { classifyCenter, pickReadableTextColor } from "../js/centerChart.js";
 import {
   CENTER_SHEET_SIZE,
+  membersAtDate,
+  resolveSingingMembers,
   buildCenterSheetModel,
   describeSheetCell,
   fitSheetFontSize,
@@ -77,10 +79,10 @@ function runSheetModelTests() {
   const entries = allEntries(model);
   const mismatched = entries.filter((entry) => {
     const center = classifyCenter(entry.song);
-    if (entry.cell.tone === "members") return JSON.stringify(entry.cell.names) !== JSON.stringify(center.centerNames);
+    if (entry.cell.basis === "center") return JSON.stringify(entry.cell.names) !== JSON.stringify(center.centerNames);
     return false;
   });
-  assertEqual(mismatched.map((entry) => entry.song.id), [], "センターの名前は、歴代センター一覧（classifyCenter）と同じ");
+  assertEqual(mismatched.map((entry) => entry.song.id), [], "センターが決まっている曲の名前は、歴代センター一覧（classifyCenter）と同じ");
   const colorMismatch = entries.filter((entry) => entry.cell.swatches.some((swatch) => swatch.hex !== memberColor.get(swatch.name)));
   assertEqual(colorMismatch.map((entry) => entry.song.id), [], "マスの色は members.js のメンバーカラー");
   assertEqual(entries.every((entry) => entry.cell.swatches.every((swatch) => swatch.textColor === pickReadableTextColor(swatch.hex).color)), true, "文字の色は背景から読みやすい方（黒／白）");
@@ -88,14 +90,38 @@ function runSheetModelTests() {
   assertEqual([byId("love").cell.tone, byId("love").cell.names, byId("love").cell.swatches[0].hex], ["members", ["髙松瞳"], "#ff5c5c"], "＝LOVE：髙松瞳（赤）");
   assertEqual(byId("cameo").cell.swatches.map((swatch) => [swatch.name, swatch.hex]), [["大谷映美里", "#c9a8e8"], ["齊藤なぎさ", "#ff8fc0"]], "CAMEO：2人センター → 2色（大谷映美里・齊藤なぎさ）");
   assertEqual(byId("natsumatope").cell.swatches.map((swatch) => swatch.name), ["佐々木舞香", "野口衣織"], "ナツマトペ：佐々木舞香・野口衣織の2色");
-  assertEqual(byId("koi-hajimemashita").cell.tone, "all", "恋、はじめました。：全員（特定の色にしない）");
-  assertEqual([byId("genneki-idol-chu").cell.tone, byId("genneki-idol-chu").cell.names], ["singers", ["齊藤なぎさ"]], "現役アイドルちゅ〜：センターの区別が無い曲は「歌うメンバー」（斜線）");
-  assertEqual(byId("866").cell.tone, "all", "866：全員");
+  // 【R8 本人の決定】センターが決まっていない曲は、歌っている全員をセンターとして全員分の色で
+  const activeTen = MEMBERS.filter((member) => member.status === "active").map((member) => member.name);
+  assertEqual(activeTen.length, 10, "members.js の現役は10人");
+  const koi = byId("koi-hajimemashita").cell;
+  assertEqual([koi.tone, koi.basis, koi.shortLabel, koi.names, koi.swatches.map((swatch) => swatch.hex)], ["members", "group", "全員", activeTen, activeTen.map((name) => memberColor.get(name))], "恋、はじめました。（全員）：発売時（2026-08-26）の在籍10人の色・短い名前「全員」");
+  assertEqual(byId("koi-hajimemashita").cell.names.some((name) => ["佐竹のん乃", "齊藤なぎさ"].includes(name)), false, "21st：卒業したメンバー（佐竹のん乃・齊藤なぎさ）は入れない");
+  assertEqual([byId("yume-no-tsuzuki").cell.basis, byId("yume-no-tsuzuki").cell.names.length], ["group", 10], "夢の続き（全員）：在籍10人");
+  const doko = byId("doko-ga-suki-ka-itte").cell;
+  assertEqual([doko.tone, doko.basis, doko.shortLabel, doko.names], ["members", "unit", "4人", ["大谷映美里", "佐々木舞香", "野口衣織", "諸橋沙夏"]], "どこが好きか言って：ユニットの4人の色・短い名前「4人」");
+  assertEqual([byId("genneki-idol-chu").cell.tone, byId("genneki-idol-chu").cell.basis, byId("genneki-idol-chu").cell.names, byId("genneki-idol-chu").cell.shortLabel], ["members", "unit", ["齊藤なぎさ"], null], "現役アイドルちゅ〜（ソロ）：歌う人をセンターとして色・名前");
+  assertEqual([byId("queens").cell.basis, byId("queens").cell.swatches.map((swatch) => swatch.name)], ["unit", ["齋藤樹愛羅", "野口衣織"]], "Queens（2人の曲）：2人の2色");
+  assertEqual([byId("866").cell.tone, byId("866").cell.names], ["all", []], "866：在籍が決められない人（加入日の無い佐竹のん乃）がいるので、今の表示（全員）のまま");
+  assertEqual(model.unresolved.map((song) => song.id), ["866"], "データで決められない曲は 866 だけ（報告に一覧で書く）");
+  assertEqual(entries.filter((entry) => entry.cell.tone === "singers").length, 0, "センターの区別が無いユニット曲は、すべて歌う人の色になる（斜線の表示は残らない）");
+  assertEqual(entries.filter((entry) => entry.cell.basis !== "center" && entry.cell.tone === "members").every((entry) => Array.isArray(entry.song.members) || ["表題曲", "全員曲"].includes(entry.song.category)), true, "歌う人は songs.js の members か、全員の曲の在籍メンバーからだけ決める");
+
+  // 在籍の判定（members.js の加入日・卒業日だけ）
+  const testMembers = [
+    { name: "A", joinDate: "2017-04-29" },
+    { name: "B", joinDate: "2017-04-29", graduationDate: "2021-03-06" },
+    { name: "C", joinDate: "2024-01-01" },
+    { name: "D", graduationDate: "2020-01-01" },
+  ];
+  assertEqual(membersAtDate(testMembers, "2022-01-01"), { names: ["A"], isCertain: true, unknownNames: [] }, "在籍：卒業した人・まだ加入していない人・加入日が無くても卒業済みの人は数えない");
+  assertEqual(membersAtDate(testMembers, "2019-01-01").isCertain, false, "在籍：加入日が無く、まだ卒業していない人がいると決められない");
+  assertEqual(resolveSingingMembers({ category: CATEGORY.UNIT_SONG, releaseDate: "2020-01-01" }, testMembers), null, "メンバーの書かれていないユニット曲は決めない（推測しない）");
+  assertEqual(resolveSingingMembers({ category: CATEGORY.GROUP_SONG, releaseDate: null }, testMembers), null, "発売日の無い曲は決めない");
 
   // 2人センター：songs.js でセンターが2人の曲は、すべて2色のマス
   const doubleIds = SONGS.filter((song) => song.category !== CATEGORY.SPECIAL && classifyCenter(song).state === "double").map((song) => song.id);
-  const sheetDoubleIds = entries.filter((entry) => entry.cell.tone === "members" && entry.cell.swatches.length === 2).map((entry) => entry.song.id);
-  assertEqual(sheetDoubleIds.slice().sort(), doubleIds.slice().sort(), "2人センターの曲はすべて2色（ほかの曲は1色）");
+  const sheetDoubleIds = entries.filter((entry) => entry.cell.basis === "center" && entry.cell.swatches.length === 2).map((entry) => entry.song.id);
+  assertEqual(sheetDoubleIds.slice().sort(), doubleIds.slice().sort(), "センターが決まっている曲：2人センターはすべて2色（ほかは1色）");
   assertEqual(doubleIds.length, 12, "2人センターは12曲（記憶のどこかで・CAMEO・ナツマトペ・劇薬中毒 など）");
 
   // 凡例：表に出るメンバーだけ（members.js の並び）。センターの回数は表のマスと同じ
@@ -107,7 +133,7 @@ function runSheetModelTests() {
 
   // ---- describeSheetCell ----
   const memberByName = new Map(MEMBERS.map((member) => [member.name, member]));
-  assertEqual(describeSheetCell({ type: "unknown", names: [] }, memberByName), { tone: "unknown", swatches: [], names: [] }, "未確認は色を付けない（推測で埋めない）");
+  assertEqual(describeSheetCell({ type: "unknown", names: [] }, memberByName), { tone: "unknown", swatches: [], names: [], basis: null, shortLabel: null }, "未確認（歌う人も分からない）は色を付けない（推測で埋めない）");
   assertEqual(describeSheetCell({ type: "members", names: ["存在しない人"] }, memberByName).swatches[0].hex, "#eeeeee", "知らない名前は灰色");
 }
 
@@ -192,7 +218,14 @@ async function runSheetDomTests() {
   const cameo = sheet.querySelector('.cs-song[data-song-id="cameo"]').nextElementSibling;
   assertEqual([cameo.classList.contains("is-multi"), [...cameo.querySelectorAll(".cs-swatch")].map((node) => node.textContent)], [true, ["大谷映美里", "齊藤なぎさ"]], "画面：CAMEO のセンターは2色・2人の名前");
   assertEqual(cameo.querySelector(".cs-swatch").style.backgroundColor, "rgb(201, 168, 232)", "画面：大谷映美里のマスは薄紫（#c9a8e8）");
-  assertEqual(sheet.querySelector('.cs-song[data-song-id="koi-hajimemashita"]').nextElementSibling.textContent, "全員", "画面：恋、はじめました。は「全員」");
+  const koiCell = sheet.querySelector('.cs-song[data-song-id="koi-hajimemashita"]').nextElementSibling;
+  assertEqual([koiCell.classList.contains("is-band"), koiCell.querySelectorAll(".cs-band").length, koiCell.querySelector(".cs-band-label")?.textContent], [true, 10, "全員"], "画面：恋、はじめました。は10色の細い帯＋「全員」");
+  assertEqual(koiCell.querySelector(".cs-swatches").getAttribute("aria-label").includes("佐々木舞香"), true, "画面：帯の一人ひとりの名前は読み上げの説明に入る");
+  const dokoCell = sheet.querySelector('.cs-song[data-song-id="doko-ga-suki-ka-itte"]').nextElementSibling;
+  assertEqual([dokoCell.querySelectorAll(".cs-band").length, dokoCell.querySelector(".cs-band-label")?.textContent, dokoCell.dataset.names], [4, "4人", "大谷映美里,佐々木舞香,野口衣織,諸橋沙夏"], "画面：どこが好きか言って は4色の帯＋「4人」");
+  assertEqual(sheet.querySelector('.cs-song[data-song-id="866"]').nextElementSibling.textContent, "全員", "画面：866 は今の表示（全員）のまま");
+  assertEqual(sheet.querySelector(".cs-legend").textContent.includes("細い色の帯"), true, "凡例：細い色の帯の説明");
+  assertEqual(sheet.querySelector(".cs-legend").textContent.includes("斜線"), false, "凡例：斜線の説明は無くなった");
   assertEqual(sheet.querySelectorAll(".cs-legend-member").length, model.legend.length, "凡例：メンバーの数");
   assertEqual(sheet.querySelector(".cs-legend").textContent.includes("2人センター"), true, "凡例：2色＝2人センター の説明");
   assertEqual(renderCenterSheet(model, { layout: "double" }).querySelectorAll(".cs-table").length, 2, "2段のときは表が2つ");
