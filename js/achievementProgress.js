@@ -17,7 +17,7 @@ import {
   evaluateDirectAchievements,
   evaluateCompositeAchievements,
 } from "./achievementEvaluation.js";
-import { getPlayerKeyPrefix } from "./playerProfile.js";
+import { getPlayerKeyPrefix, isDefaultPlayer } from "./playerProfile.js";
 import { scheduleBackupSync } from "./backupSync.js";
 
 const SCHEMA_VERSION = 2;
@@ -26,15 +26,20 @@ function buildStorageKey() {
   return `equalLoveIntroQuiz.${getPlayerKeyPrefix()}achievements`;
 }
 
+// 【2026-11-01追加】使用中でないプレイヤーの保存キー（プレイヤーの切り替えの一覧で、その人の勲章を見せるため。読むだけ）
+function buildStorageKeyForPlayer(playerId) {
+  return `equalLoveIntroQuiz.${isDefaultPlayer(playerId) ? "" : `player.${playerId}.`}achievements`;
+}
+
 function defaultProgress() {
   return { schemaVersion: SCHEMA_VERSION, unlockedAchievementIds: [], unlockedAtById: {} };
 }
 
 // 保存データを読み込む。存在しない・壊れている（JSONとして読めない、想定外の形）場合は、
 // 安全に初期状態へフォールバックする（本人指示：「壊れた保存データから安全に復旧」）。
-function loadProgress() {
+function loadProgress(storageKey = buildStorageKey()) {
   try {
-    const raw = localStorage.getItem(buildStorageKey());
+    const raw = localStorage.getItem(storageKey);
     if (!raw) return defaultProgress();
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object") return defaultProgress();
@@ -242,6 +247,19 @@ export function getAchievementListSnapshot() {
 // この関数を呼んだ瞬間から自動的にtrueになる（移行処理不要）。
 export function getOshiBadgeState() {
   const stored = loadProgress();
+  const unlockedSet = new Set(stored.unlockedAchievementIds);
+  return {
+    hasNoMissMaster: unlockedSet.has("no_miss_master"),
+    hasEqualLoveMaster: unlockedSet.has("equal_love_master"),
+    hasEqualLoveComplete: unlockedSet.has("equal_love_complete"),
+  };
+}
+
+// 【2026-11-01追加】指定したプレイヤー（使用中でなくてもよい）の勲章の判定用の状態。
+// プレイヤーの切り替えの一覧で、その人の段階の勲章を見せるために使う。localStorage を読むだけで、
+// 何も書かない・判定の条件は getOshiBadgeState() と同じ。
+export function getOshiBadgeStateForPlayer(playerId) {
+  const stored = loadProgress(buildStorageKeyForPlayer(playerId));
   const unlockedSet = new Set(stored.unlockedAchievementIds);
   return {
     hasNoMissMaster: unlockedSet.has("no_miss_master"),

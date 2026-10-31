@@ -1,5 +1,7 @@
 // 推しメンアイコンへの「特別バッジ」装飾を、共通の関数・CSSクラスだけで行うファイル。
 // 画面ごとに別々のHTML・SVGを手作業で追加しない（本人指示）。
+// ※2026-11-01：下の「4段階」の改訂で、角に丸いバッジを最大3個重ねる方式（このすぐ下の説明）は、
+//   外周のリング＋飾りを1段階ぶん付ける方式に置き換えた。下の説明は経緯として残している。
 // 対象は3つ：イントロマスター（no_miss_master）・＝LOVEマスター（equal_love_master）・
 // ＝LOVE完全制覇（equal_love_complete）。3つとも取得していれば3つとも同時に表示する
 // （本人指示・2026-11-XX改訂：「上位1つだけ表示ではありません。所持している特別バッジは
@@ -32,79 +34,108 @@
 // Firebaseから取得したbooleanを渡す）の両方が、同じロジックを共有する。
 import { getOshiBadgeState } from "./achievementProgress.js";
 
-// 【2026-11-XX改訂・本人指示：実装方式の最終確認】以前はbadgeEl.textContentへ絵文字
-// （🎖️👑💎）をそのまま入れていたが、絵文字の実際の見た目（線の太さ・立体感・色味・
-// 収まり方）はOS・端末のフォントレンダラーに依存し、iPhoneとAndroidで大きく異なる
-// （本人指示：「iPhoneでもAndroidでも同じ特別バッジとして認識できることが目的」）。
-// js/achievementIcons.jsが称号アイコンで既に使っている「単純な塗りつぶしSVGパスを
-// currentColorで塗る」方式に統一し、端末フォントに依存しない一貫した見た目にした。
-// 王冠の形は、称号一覧のequal_love_masterアイコン（js/achievementIcons.js）と
-// 意図的に同じシルエットを再利用し、「称号一覧で見た王冠と同じもの」というシリーズ感・
-// 一貫性を持たせている。
-const MEDAL_SVG = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 1 14.4 8.8 22 8.8 15.8 13.5 18.2 21.3 12 16.6 5.8 21.3 8.2 13.5 2 8.8 9.6 8.8Z"/></svg>';
-const CROWN_SVG = '<svg viewBox="0 0 24 16" fill="currentColor" aria-hidden="true"><path d="M2 14 1 5 6 9 12 2 18 9 23 5 22 14Z"/></svg>';
-const DIAMOND_SVG = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2 20.5 9.5 12 22 3.5 9.5Z"/></svg>';
+// 【2026-11-01 全面改訂・本人指示（REQUEST の 7）：勲章を「4段階」で作り直す】
+// 以前は、称号ごとの小さな丸いバッジ（銀の星・金の王冠・紫のダイヤ）をアイコンの角へ
+// 最大3個まで重ねていた。本人の iPhone で見ると「小さな銀の星で地味」「上の段ほど豪華に
+// 見えない」ため、持っている中で一番上の称号で決まる「段階」を1つ選び、アバターの外周を
+// 囲むリングと、外周に置く小さな飾り（音符・王冠・ハート・ダイヤ・きらめき）で表す方式にした。
+//   0：称号なし            … 何も付けない
+//   1：イントロマスター      … ピンクと水色の細いリング＋音符・星。控えめな発光
+//   2：＝LOVEマスター        … ピンクとゴールドの太いリング＋王冠・ハート。光がゆっくり回る
+//   3：＝LOVE完全制覇        … 金の細い内輪＋虹色（オーロラ）の外輪＋宝石の王冠・ダイヤ・
+//                              ハート・きらめき。外側にオーロラの光
+// 3つの称号は入れ子（＝LOVEマスターの条件にイントロマスター、完全制覇の条件に＝LOVEマスターが
+// 含まれる。js/achievementDefinitions.js の compositeOf）なので、一番上の段の飾りの中に
+// 下の段の飾り（音符・王冠）も入れて、「全部持っている」ことが引き続き分かるようにしている。
+// 称号の判定・保存データ・Firebase には一切触れない（受け取った真偽値から見た目を選ぶだけ）。
+//
+// 【描き方】飾りの絵は CSS の背景（SVG の data URI）で描く（css/style.css の .oshi-charm--◯◯）。
+// ページの中に <svg> を何十個も置くと、グラデーションの id がぶつかったり、非表示の svg の
+// グラデーションが効かなくなったりするため。リングは conic-gradient を radial-gradient の
+// マスクで輪にしたもの。大きさ・位置はすべてアバターに対する % なので、22px（ロビー）〜
+// 52px（プロフィール）のどのアバターでも、同じ部品のまま比例して大きさが変わる。
 
-// バッジ1種類ごとの定義（本人指示の豪華さの順：イントロマスター＜＝LOVEマスター＜＜
-// ＝LOVE完全制覇。この配列の並び順＝DOM上の重なり順にもなるため、後ろにあるものほど
-// 前面に描画される。最も豪華な＝LOVE完全制覇を一番最後＝一番手前にしている）。
-const BADGE_DEFINITIONS = [
-  { key: "no_miss_master", stateField: "hasNoMissMaster", className: "oshi-badge--medal", svg: MEDAL_SVG },
-  { key: "equal_love_master", stateField: "hasEqualLoveMaster", className: "oshi-badge--crown", svg: CROWN_SVG },
-  { key: "equal_love_complete", stateField: "hasEqualLoveComplete", className: "oshi-badge--diamond", svg: DIAMOND_SVG },
-];
+// 段階ごとに置く部品（クラス名の末尾）。並び順＝重なり順（後ろほど手前）。
+// "minor" は小さい表示（.fan-profile-swatch--sm、22px）では CSS で隠す細かい飾り。
+const TIER_PARTS = {
+  1: [
+    { part: "halo" },
+    { part: "ring" },
+    { part: "charm", charm: "star", minor: true },
+    { part: "charm", charm: "note" },
+  ],
+  2: [
+    { part: "halo" },
+    { part: "ring" },
+    { part: "charm", charm: "sparkle", minor: true },
+    { part: "charm", charm: "heart", minor: true },
+    { part: "charm", charm: "crown" },
+  ],
+  3: [
+    { part: "halo" },
+    { part: "ring" },
+    { part: "charm", charm: "sparkle", minor: true },
+    { part: "charm", charm: "sparkle2", minor: true },
+    { part: "charm", charm: "sparkle3", minor: true },
+    { part: "charm", charm: "heart", minor: true },
+    { part: "charm", charm: "diamond" },
+    { part: "charm", charm: "crown" },
+  ],
+};
 
-// element配下に、このモジュールが管理するバッジ用のラッパー（1つだけ）を用意する。
-// アイコン要素自体の直下の子を増やしすぎないよう、バッジ専用のコンテナを1つ挟む。
-function ensureBadgeLayer(element) {
-  let layer = element.querySelector(":scope > .oshi-badge-layer");
-  if (!layer) {
-    layer = document.createElement("span");
-    layer.className = "oshi-badge-layer";
-    layer.setAttribute("aria-hidden", "true");
-    element.appendChild(layer);
-  }
+// 段階の名前（テスト・説明用。画面の文字には使っていない）
+export const OSHI_BADGE_TIER_NAMES = ["称号なし", "イントロマスター", "＝LOVEマスター", "＝LOVE完全制覇"];
+
+// 称号の取得状況（真偽値3つ）から段階（0〜3）を決める。上の称号を持っていれば、それで決まる。
+// 古いデータで下の称号のフラグだけが欠けていても、上の称号を持っていれば上の段階にする
+// （判定は変えず、見せ方だけを選ぶ）。
+export function resolveOshiBadgeTier(state) {
+  if (!state || typeof state !== "object") return 0;
+  if (state.hasEqualLoveComplete === true) return 3;
+  if (state.hasEqualLoveMaster === true) return 2;
+  if (state.hasNoMissMaster === true) return 1;
+  return 0;
+}
+
+function buildTierLayer(tier) {
+  const layer = document.createElement("span");
+  layer.className = `oshi-badge-layer oshi-badge-layer--tier${tier}`;
+  layer.setAttribute("aria-hidden", "true");
+  layer.dataset.tier = String(tier);
+  TIER_PARTS[tier].forEach(({ part, charm, minor }) => {
+    const el = document.createElement("span");
+    if (part === "charm") {
+      el.className = `oshi-charm oshi-charm--${charm}${minor ? " oshi-charm--minor" : ""}`;
+    } else {
+      el.className = `oshi-tier-${part}`;
+    }
+    layer.appendChild(el);
+  });
   return layer;
 }
 
-// 対象の要素へ、渡された称号取得状態に応じたバッジ（実DOM要素）を過不足なく反映する
-// （純粋な見た目の適用のみ、データの取得元は問わない）。element自体の位置づけは問わない
-// （position:relativeであることを呼び出し側のCSSで保証する）。
-// 【2026-09-14修正・実機回帰バグ】classList.toggle(name, force)は、forceに
-// undefinedを渡すと「force未指定」として扱われ、現在の状態を反転させる（＝毎回
-// トグルする）動作になる。この関数の呼び出し元がhasEqualLoveMaster/hasEqualLoveComplete
-// を省略して{}だけを渡すと、分割代入でundefinedになり、意図せずバッジが表示されて
-// しまっていた（称号を持たない参加者にも常に表示される不具合）。3つとも明示的に
-// falseをデフォルト値にし、Boolean()で真偽値へ確実に変換する（この教訓は今回のDOM方式へ
-// 作り替えても引き継いでいる）。
-export function applyOshiBadgeDecorationsFromState(
-  element,
-  { hasNoMissMaster = false, hasEqualLoveMaster = false, hasEqualLoveComplete = false }
-) {
+// 対象の要素（推しの色の丸）へ、渡された称号の取得状況に合う段階の勲章を付ける。
+// 何度呼んでもよい（段階が同じなら作り直さない。違えば入れ替える。0なら取り除く）。
+// element 自体は position:relative であること（css/style.css の各アイコンのクラスで保証）。
+// 【2026-09-14の教訓を引き継ぐ】省略された項目は false として扱う（undefined を真偽の
+// 「反転」に使わない）。resolveOshiBadgeTier は === true だけを「持っている」とみなす。
+export function applyOshiBadgeDecorationsFromState(element, state = {}) {
   if (!element) return;
-  const stateByField = { hasNoMissMaster, hasEqualLoveMaster, hasEqualLoveComplete };
-  const anyBadge = BADGE_DEFINITIONS.some((def) => Boolean(stateByField[def.stateField]));
-
-  // 1つも持っていなければ、レイヤーごと綺麗に取り除く（無駄な空要素を残さない）。
+  const tier = resolveOshiBadgeTier({
+    hasNoMissMaster: Boolean(state?.hasNoMissMaster),
+    hasEqualLoveMaster: Boolean(state?.hasEqualLoveMaster),
+    hasEqualLoveComplete: Boolean(state?.hasEqualLoveComplete),
+  });
   const existingLayer = element.querySelector(":scope > .oshi-badge-layer");
-  if (!anyBadge) {
+  if (tier === 0) {
     if (existingLayer) existingLayer.remove();
+    delete element.dataset.oshiBadgeTier;
     return;
   }
-
-  const layer = ensureBadgeLayer(element);
-  BADGE_DEFINITIONS.forEach((def) => {
-    const shouldShow = Boolean(stateByField[def.stateField]);
-    let badgeEl = layer.querySelector(`:scope > .${def.className}`);
-    if (shouldShow && !badgeEl) {
-      badgeEl = document.createElement("span");
-      badgeEl.className = `oshi-badge ${def.className}`;
-      badgeEl.innerHTML = def.svg;
-      layer.appendChild(badgeEl);
-    } else if (!shouldShow && badgeEl) {
-      badgeEl.remove();
-    }
-  });
+  element.dataset.oshiBadgeTier = String(tier);
+  if (existingLayer && existingLayer.dataset.tier === String(tier)) return;
+  if (existingLayer) existingLayer.remove();
+  element.appendChild(buildTierLayer(tier));
 }
 
 // 今の端末・今のプレイヤーの称号状態（localStorage）を使って装飾する、従来どおりの入口。

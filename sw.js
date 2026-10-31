@@ -51,6 +51,7 @@ const APP_SHELL_FILES = [
   "./css/karaokeStage.css",
   "./css/callSpectacle.css",
   "./css/guides.css", // 【2026-10-31追加】遊び方・機能ガイド／ゲームの遊び方・記録
+  "./css/oshiBadgeTiers.css", // 【2026-11-01追加】特別な称号の勲章（4段階）
   "./js/homeScreen.js",
   "./js/appHistory.js",
   "./js/appNavigationStack.js",
