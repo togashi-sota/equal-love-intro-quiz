@@ -168,9 +168,14 @@
   white-space: pre-line;
   word-break: keep-all; /* 名前・言葉の途中で折り返さない（空白の所で折り返す。入らないときだけ途中で） */
   overflow-wrap: anywhere;
+  /* 【2026-11-01 r7-live-fix】明るい地でも読めるよう、濃い縁取り（四方の影）を足した */
   text-shadow:
-    0 0 1px rgba(60, 0, 50, 0.9),
-    0 0 4px rgba(60, 0, 50, 0.65),
+    1px 1px 0 rgba(48, 0, 44, 0.85),
+    -1px 1px 0 rgba(48, 0, 44, 0.85),
+    1px -1px 0 rgba(48, 0, 44, 0.85),
+    -1px -1px 0 rgba(48, 0, 44, 0.85),
+    0 0 3px rgba(48, 0, 44, 0.95),
+    0 0 7px rgba(48, 0, 44, 0.7),
     0 0 18px var(--sp-c1),
     0 0 42px color-mix(in srgb, var(--sp-c2) 80%, transparent),
     0 3px 10px rgba(30, 0, 30, 0.6);
@@ -191,14 +196,20 @@
 /* 名前の部分：文字は白のまま、外側にその人の色の光（脈打ちは JS の拡大で）。名前ごとの色のアクセントとして、細い色の下の光を残す */
 .sp-word-text .cx-name-part {
   text-shadow:
-    0 0 2px #fff,
+    1px 1px 0 rgba(48, 0, 44, 0.85),
+    -1px 1px 0 rgba(48, 0, 44, 0.85),
+    1px -1px 0 rgba(48, 0, 44, 0.85),
+    -1px -1px 0 rgba(48, 0, 44, 0.85),
+    0 0 3px rgba(48, 0, 44, 0.95),
     0 0 14px var(--name-color),
     0 0 30px var(--name-color),
     0 0 54px color-mix(in srgb, var(--name-color) 70%, transparent),
     0 3px 10px rgba(30, 0, 30, 0.55);
 }
+/* 「or」：灰色にせず白のまま（縁取りで読める）。少し細くして名前と区別する */
 .sp-word-text .cx-name-sep {
-  color: rgba(255, 255, 255, 0.82);
+  color: #fff;
+  font-weight: 700;
 }
 /* 始まりの光の輪（文字の後ろ。細い輪が外へ広がって消える＝衝撃波） */
 .sp-burst {
@@ -483,4 +494,19 @@
   #live-call-mode-karaoke-screen.kx-on .kx-call.kx-names-single.is-lit::after {
     opacity: 0.7;
   }
+}
+
+/* ===== 【2026-11-01 r7-live-fix】カラオケ：大きな文字は出さず、光の輪をカードの形で出す（カードと同じ文字が2回出ない・歌詞にかぶらない） ===== */
+.sp-front.sp-karaoke .sp-word {
+  width: var(--sp-ww, 80vw);
+  height: var(--sp-wh, 30vh);
+}
+.sp-front.sp-karaoke .sp-word::before,
+.sp-front.sp-karaoke .sp-word-text {
+  display: none;
+}
+.sp-front.sp-karaoke .sp-burst {
+  width: 104%;
+  height: 108%;
+  border-radius: 28px;
 }

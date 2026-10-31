@@ -296,7 +296,18 @@ export function enableKaraokeStage(elements, { song, calls, lines = [], layout =
   hudCard.classList.add("kx-hud");
   // 【2026-11-01 r7-live】大きな演出（画面の中央の大きな文字・ペンライト・画面全体の光。js/callSpectacle.js。ライブコールと共通）
   // 後ろの層（ペンライト）は背景（.kx-fx）のすぐ後ろ＝歌詞・カードの後ろ。前の層（大きな文字）は画面の最後＝歌詞・カードの上、上下の操作の帯の下
-  const spectacle = createSpectacle(screen, { variant: "karaoke", palette: palette.colors, backHost: screen, backBefore: fx.nextSibling });
+  // 【2026-11-01 r7-live-fix】カラオケは、大きな文字を別に出さない（下のカードと同じ文字が2回出て、今の歌詞の行にかぶっていたため）。
+  //   光の輪・画面の光・名前の色のオーロラを、カード（コールの大きな文字）の位置に合わせて出す。カードの文字そのものが主役
+  const spectacle = createSpectacle(screen, {
+    variant: "karaoke",
+    palette: palette.colors,
+    backHost: screen,
+    backBefore: fx.nextSibling,
+    place: (item, { layerTop }) => {
+      const r = hudCard.getBoundingClientRect();
+      return r.height ? { y: (r.top + r.bottom) / 2 - layerTop, w: r.width, h: r.height } : null;
+    },
+  });
   spectacle?.setPlan(planSpectacle(Array.isArray(calls) ? calls : []));
 
   const callList = Array.isArray(calls) ? calls : [];

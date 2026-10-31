@@ -11,7 +11,7 @@
 //       E 盛り上がる区間 … 前後 4 秒（計 8 秒）の中にコールの始まりが 5 件以上ある所（コールの時刻の密度。データで確かめられる）。
 //         背景のペンライトを強くするだけ（サビなどの「意味」は付けない）
 //   ・時刻は本人の開始〜終了のまま。始まりを早めない。大きな文字は終わりのあと最大 0.35 秒でなめらかに消える（次のコールが来たらすぐ切り替える）。
-//     大きな文字は最長 1.4 秒で消す（歌詞を隠し続けない）。長いコールは背景の光がゆっくり広がり続ける。
+//     大きな文字は最長 1.1 秒で消す（歌詞を隠し続けない）。長いコールは背景の光がゆっくり広がり続ける。
 //   ・コール1件は1件のまま。文字列は変えない（大きな文字は、本人のコールの文字をそのまま出す。名前の部分に色の光を付けるだけ）。
 //   ・見た目は「いまの時刻 t」だけから決まる（spectacleStateAt は純粋関数）。一時停止・シーク・曲の切り替え・曲の終わりで残らない・暴走しない。
 //   ・画面全体の光は、続けて来るコール（B）では最初の1件だけ（激しい点滅にしない。1秒に3回を超えない）。
@@ -29,17 +29,43 @@ export const SP_CHAIN_MIN = 3;
 export const SP_HOT_WINDOW_SEC = 8;
 export const SP_HOT_MIN_CALLS = 5;
 export const SP_TAIL_SEC = 0.35;
-export const SP_WORD_HOLD_SEC = 1.4;
+export const SP_WORD_HOLD_SEC = 1.1; // 【2026-11-01 r7-live-fix】1.4 → 1.1 秒（隠す時間を短く。始まりの飛び出しの迫力はそのまま）
 export const SP_FADE_SEC = 0.45;
 export const SP_BEAM_COUNT = 6;
 // 続けて来るコール（B）の文字の置き場所（画面の幅・高さに対する割合）。順番に変えてテンポを出す（同じ順番なら毎回同じ）
+// 【2026-11-01 r7-live-fix】上下には大きく動かさない（上下の位置は chooseSpectacleY で、光っているコールを避けて決めるため）
 export const SP_CHAIN_SPOTS = [
-  [-0.18, -0.04],
-  [0.18, 0.05],
-  [0, -0.08],
-  [-0.13, 0.09],
-  [0.14, -0.01],
+  [-0.18, -0.015],
+  [0.18, 0.015],
+  [0, -0.02],
+  [-0.13, 0.02],
+  [0.14, 0],
 ];
+
+// 【2026-11-01 r7-live-fix】大きな文字の上下の位置（純粋関数）。独立レビュー「演出中の読みやすさ」：
+//   中央に固定すると、光っているコール・その上の歌詞・「いま／つぎ」の札に重なっていた。
+// region：文字を出してよい範囲 { top, bottom }（画面の px）。avoid：重ねたくない範囲の一覧 [{ top, bottom }]。wordH：文字の高さ（px）。
+// 候補（範囲の上寄り・真ん中・下寄り）のうち、どれとも重ならないものを選ぶ。重ならないものが複数なら、避けたい範囲から一番遠いもの。
+// 全部重なるなら、重なりが一番小さいもの。戻り値：文字の中心の y（px）
+export function chooseSpectacleY(region, avoid = [], wordH = 0) {
+  const top = Number(region?.top);
+  const bottom = Number(region?.bottom);
+  if (!Number.isFinite(top) || !Number.isFinite(bottom) || bottom <= top) return null;
+  const half = Math.min(Math.max(0, wordH) / 2, (bottom - top) / 2);
+  const pad = 8;
+  const upper = Math.min(top + half + pad, (top + bottom) / 2);
+  const lower = Math.max(bottom - half - pad, (top + bottom) / 2);
+  const cands = [(top + bottom) / 2, upper, lower];
+  const rects = (avoid ?? []).filter((r) => Number.isFinite(r?.top) && Number.isFinite(r?.bottom) && r.bottom > r.top);
+  const overlap = (c) => rects.reduce((sum, r) => sum + Math.max(0, Math.min(c + half, r.bottom) - Math.max(c - half, r.top)), 0);
+  const distance = (c) => (rects.length ? Math.min(...rects.map((r) => (c < r.top ? r.top - c : c > r.bottom ? c - r.bottom : 0))) : 0);
+  let best = cands[0];
+  for (const c of cands) {
+    const better = overlap(c) < overlap(best) || (overlap(c) === overlap(best) && distance(c) > distance(best) + 0.5);
+    if (better) best = c;
+  }
+  return Math.round(best);
+}
 
 const visibleLength = (text) => [...String(text ?? "").replace(/\s+/g, "")].length;
 
@@ -150,7 +176,7 @@ export function spectacleStateAt(plan, t, { reduced = false } = {}) {
   const age = time - item.start;
   const duration = item.end - item.start;
   const kind = item.kind;
-  // 大きな文字：コールの終わりまで。ただし最長 1.4 秒（長いコール・長い名前コールでも、歌詞を隠し続けない。終わりより後には延ばさない）
+  // 大きな文字：コールの終わりまで。ただし最長 1.1 秒（長いコール・長い名前コールでも、歌詞を隠し続けない。終わりより後には延ばさない）
   const holdEnd = Math.min(item.end, item.start + SP_WORD_HOLD_SEC);
   const fadeEnd = Math.min(holdEnd + SP_FADE_SEC, Math.max(holdEnd, tailEnd));
   const fadeIn = reduced ? 0.16 : 0.05;
@@ -202,12 +228,14 @@ function el(tag, className) {
   return node;
 }
 
+// 【2026-11-01 r7-live-fix】place(item, { wordH })：そのコールの大きな文字を出す位置を返す（無ければ画面の中央の決まった位置）。
+//   戻り値 { y, w?, h? }（画面の px。w・h はカラオケで光の輪をカードの大きさにするとき）
 // 演出の層を作る。層は2枚：
 //   後ろ（back）… ペンライト・長いコールの背景の光。文字（歌詞・コール表）の後ろに置く（読みやすさを保つ）
 //   前（front）… 大きな文字・画面全体の光・名前の色のオーロラ。舞台の上に重ねる（押す操作は下へ通す）
 // host：前の層を入れる所。options：{ variant: "live" | "karaoke", palette: [色1, 色2], backHost, backBefore（後ろの層を入れる所と、その前の部品） }
 // 戻り値：{ layer, back, setPlan(plan), update(t, { playing, enabled, reduced }), destroy(), state() }
-export function createSpectacle(host, { variant = "live", palette = ["#ff6fa8", "#8f7dff"], backHost = null, backBefore = null } = {}) {
+export function createSpectacle(host, { variant = "live", palette = ["#ff6fa8", "#8f7dff"], backHost = null, backBefore = null, place = null } = {}) {
   if (!host) return null;
   const layer = el("div", `sp-layer sp-front sp-${variant}`);
   const back = el("div", `sp-layer sp-back sp-${variant}`);
@@ -229,7 +257,8 @@ export function createSpectacle(host, { variant = "live", palette = ["#ff6fa8", 
   }
   const bloom = back.appendChild(el("div", "sp-bloom"));
   const wash = layer.appendChild(el("div", "sp-wash"));
-  const aurora = layer.appendChild(el("div", "sp-aurora"));
+  // カラオケ：名前の色のオーロラはカードの後ろ（後ろの層）。カードの文字に色を重ねない
+  const aurora = (variant === "karaoke" ? back : layer).appendChild(el("div", "sp-aurora"));
   const word = layer.appendChild(el("div", "sp-word"));
   const burst = word.appendChild(el("span", "sp-burst"));
   const text = word.appendChild(el("span", "sp-word-text"));
@@ -283,6 +312,28 @@ export function createSpectacle(host, { variant = "live", palette = ["#ff6fa8", 
     if (item.kind === SP_KINDS.NAME) renderNameCallText(text, item.text);
     else text.textContent = item.text;
     setColors(item);
+    placeItem(item);
+  }
+
+  // 位置を決める（コールが変わったときに1回だけ。毎フレームは測らない）
+  function placeItem(item) {
+    if (typeof place !== "function") return;
+    let spot = null;
+    try {
+      const layerTop = layer.getBoundingClientRect().top;
+      spot = place(item, { wordH: word.offsetHeight, layerTop });
+    } catch {
+      spot = null;
+    }
+    if (spot && Number.isFinite(spot.y)) setVar("--sp-y", `${Math.round(spot.y)}px`);
+    else {
+      layer.style.removeProperty("--sp-y");
+      back.style.removeProperty("--sp-y");
+    }
+    if (spot && Number.isFinite(spot.w) && Number.isFinite(spot.h)) {
+      layer.style.setProperty("--sp-ww", `${Math.round(spot.w)}px`);
+      layer.style.setProperty("--sp-wh", `${Math.round(spot.h)}px`);
+    }
   }
 
   const api = {
@@ -317,7 +368,7 @@ export function createSpectacle(host, { variant = "live", palette = ["#ff6fa8", 
       set(word, "opacity", String(o));
       set(word, "transform", `translate(-50%, -50%) translate(${r3(x * 100)}vw, ${r3(y * 100)}vh) scale(${scale})`);
       set(burst, "opacity", String(s.burst));
-      set(burst, "transform", `translate(-50%, -50%) scale(${r3(1.4 - 0.6 * s.burst)})`);
+      set(burst, "transform", `translate(-50%, -50%) scale(${r3(1 + 0.35 * (1 - s.burst))})`); // 文字（カラオケはカード）のすぐ外から外へ広がる（内側の文字には重ならない）
       set(wash, "opacity", String(s.wash));
       set(bloom, "opacity", String(s.bloom.o));
       set(bloom, "transform", `translate(-50%, -50%) scale(${s.bloom.s})`);

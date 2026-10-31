@@ -26,7 +26,7 @@ import { registerPlaybackStopper, notifyPlaybackStarting } from "./playbackCoord
 import { normalizeForSearch, songMatchesSearch } from "./songSearch.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
 import { bindTapSeek, callTapSeekTime, lyricTapSeekTime } from "./callTapSeek.js";
-import { createSpectacle, planSpectacle } from "./callSpectacle.js";
+import { createSpectacle, planSpectacle, chooseSpectacleY } from "./callSpectacle.js";
 
 // ===== はじめに（注意事項）の版 =====
 // 中身を変えたら数字を上げる（上げると、次に開いたときにもう一度表示される）
@@ -990,7 +990,26 @@ function renderLiveMode() {
   // 時刻の無いコール（今の完成版には無い）は光らせない（followSong は buildLiveStage が作ったもの）
   // 【2026-11-01 r7-live】大きな演出（演出 ありのときだけ。js/callSpectacle.js。画面に1組だけ）
   //   後ろの層（ペンライト）は舞台の後ろ（root の最初）、前の層（大きな文字・光）は舞台の上・再生の操作の下
-  const spectacle = createSpectacle(root, { variant: "live" });
+  //   【2026-11-01 r7-live-fix】大きな文字は、光っているコール（とその行のまとまり＝上の歌詞）・「いま／つぎ」の札を避けた位置に出す
+  //   （コールが始まったときに1回だけ測る。光っている行が下にあれば上側、上にあれば下側）
+  const spectacle = createSpectacle(root, {
+    variant: "live",
+    place: (item, { wordH, layerTop }) => {
+      const stageRect = stage.getBoundingClientRect();
+      const playerTop = player.getBoundingClientRect().top;
+      const region = { top: Math.max(stageRect.top, 0) - layerTop, bottom: Math.min(stageRect.bottom, playerTop, window.innerHeight) - layerTop };
+      const avoid = [];
+      const span = callSpans.get(item.key);
+      const group = span?.closest(".call-text-group, .call-text-block") ?? span;
+      for (const node of [group, panel.hidden ? null : panel]) {
+        if (!node) continue;
+        const r = node.getBoundingClientRect();
+        avoid.push({ top: r.top - layerTop - 6, bottom: r.bottom - layerTop + 6 });
+      }
+      const y = chooseSpectacleY(region, avoid, wordH);
+      return y === null ? null : { y };
+    },
+  });
   spectacle?.setPlan(planSpectacle(sheet.calls));
 
   live = {

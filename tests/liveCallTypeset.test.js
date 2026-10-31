@@ -19,6 +19,7 @@ import {
   SP_WORD_HOLD_SEC,
   SP_SHORT_MAX_SEC,
   SP_LONG_MIN_SEC,
+  chooseSpectacleY,
 } from "../js/callSpectacle.js";
 import { lyricTapSeekTime, callTapSeekTime, isTapGesture, bindTapSeek, CALL_TAP_PRE_ROLL_SEC } from "../js/callTapSeek.js";
 import { describeNameCall, nameCallAccent, nameCallAurora, NAME_KINDS } from "../js/liveCallNames.js";
@@ -214,14 +215,14 @@ function runSpectacleTimingTests() {
   }
   const tooFast = peaks.some((t, i) => i >= 3 && t - peaks[i - 3] < 1);
   assertEqual(tooFast, false, "S: 画面全体の光は、1秒に3回を超えて強くならない");
-  // 長いコール：大きな文字は最初の 1.4 秒＋消える間だけ。背景の光は広がり続ける
+  // 長いコール：大きな文字は最初の 1.1 秒＋消える間だけ。背景の光は広がり続ける
   assertEqual(at(20.5).word.o, 1, "S: C 長いコールの始まりは大きな文字");
-  assertEqual(at(20 + SP_WORD_HOLD_SEC + 0.5).word.o, 0, "S: C 長いコールの大きな文字は 1.4 秒＋0.45 秒で消える（歌詞を隠し続けない）");
+  assertEqual(at(20 + SP_WORD_HOLD_SEC + 0.5).word.o, 0, "S: C 長いコールの大きな文字は 1.1 秒＋0.45 秒で消える（歌詞を隠し続けない）");
   assertEqual(at(25).bloom.o > 0 && at(25).bloom.s > at(21).bloom.s, true, "S: C 長いコールの間、背景の光はゆっくり広がる");
   assertEqual(at(26 + SP_TAIL_SEC + 0.01).bloom.o, 0, "S: C 終わったら背景の光も消える");
   assertEqual(at(30.5).aurora > 0, true, "S: D 名前コールは色の光（オーロラ）が出る");
   const longName = planSpectacle([{ key: "ln", text: "はなちゃん！", start: 1, end: 5 }]);
-  assertEqual([spectacleStateAt(longName, 2).word.o, spectacleStateAt(longName, 1 + SP_WORD_HOLD_SEC + 0.5).word.o], [1, 0], "S: D 長い名前コールでも、大きな文字は最長 1.4 秒（＋消える間）");
+  assertEqual([spectacleStateAt(longName, 2).word.o, spectacleStateAt(longName, 1 + SP_WORD_HOLD_SEC + 0.5).word.o], [1, 0], "S: D 長い名前コールでも、大きな文字は最長 1.1 秒（＋消える間）");
   assertEqual(at(40.5).aurora, 0, "S: 名前でないコールにオーロラは出ない");
   // 視差効果を減らす：拡大しない・揺れの元（光の輪）を出さない
   assertEqual([at(5.05, { reduced: true }).word.s, at(5.05, { reduced: true }).burst], [1, 0], "S: 視差効果を減らす：拡大・光の輪なし");
@@ -379,6 +380,72 @@ async function runSourceTests() {
   assertEqual(/prefers-reduced-motion: reduce/.test(spCss) && /is-paused[^{]*\{[^}]*animation-play-state: paused/.test(strip(spCss)), true, "R: 新しいアニメーションは、一時停止中・視差効果を減らす設定で止める");
 }
 
+// ---- F：演出中の読みやすさ（2026-11-01 r7-live-fix。独立レビューの指摘） ----
+async function runReadabilityFixTests() {
+  console.log("--- r7-fix F：大きな文字は、光っているコール・いま／つぎを避ける。カラオケはカードと二重にしない ---");
+  const region = { top: 100, bottom: 700 };
+  const overlaps = (y, h, r) => Math.min(y + h / 2, r.bottom) - Math.max(y - h / 2, r.top) > 0;
+  // 光っているコールが下半分 → 上側に出す
+  const low = { top: 480, bottom: 560 };
+  const yLow = chooseSpectacleY(region, [low], 120);
+  assertEqual([yLow < 400, overlaps(yLow, 120, low)], [true, false], "F: 光っているコールが下にあるときは、上側に出して重ねない");
+  // 光っているコールが上半分 → 下側に出す
+  const high = { top: 150, bottom: 260 };
+  const yHigh = chooseSpectacleY(region, [high], 120);
+  assertEqual([yHigh > 400, overlaps(yHigh, 120, high)], [true, false], "F: 光っているコールが上にあるときは、下側に出して重ねない");
+  // 真ん中に光っているコールと「いま／つぎ」の札（上）→ 下側
+  const mid = { top: 360, bottom: 440 };
+  const panel = { top: 90, bottom: 160 };
+  const yMid = chooseSpectacleY(region, [mid, panel], 120);
+  assertEqual([overlaps(yMid, 120, mid), overlaps(yMid, 120, panel)], [false, false], "F: 光っているコールも、いま／つぎの札も避ける");
+  assertEqual(chooseSpectacleY(region, [], 120), 400, "F: 避けるものが無ければ真ん中");
+  assertEqual(chooseSpectacleY({ top: 10, bottom: 5 }, [], 10), null, "F: 範囲がおかしいときは決めない（いつもの位置）");
+  // どこに置いても重なる（範囲いっぱいの長いコール）ときは、重なりが一番小さい所
+  const yFull = chooseSpectacleY({ top: 0, bottom: 300 }, [{ top: 0, bottom: 200 }], 100);
+  assertEqual(yFull >= 200, true, "F: 全部は避けられないときは、重なりが一番小さい所");
+  assertEqual(SP_WORD_HOLD_SEC <= 1.1, true, "F: 大きな文字が出ている時間は最長 1.1 秒（隠す時間を短く）");
+  if (typeof document === "undefined") return;
+  // createSpectacle の place：コールが変わったときに位置を受け取り、層の --sp-y に入れる
+  const host = document.body.appendChild(document.createElement("div"));
+  const asked = [];
+  const sp = createSpectacle(host, { variant: "live", place: (item) => (asked.push(item.key), { y: 123 }) });
+  sp.setPlan(planSpectacle(SP_CALLS));
+  sp.update(5.1, { playing: true, enabled: true });
+  sp.update(5.2, { playing: true, enabled: true });
+  assertEqual([asked, sp.layer.style.getPropertyValue("--sp-y"), sp.back.style.getPropertyValue("--sp-y")], [["a"], "123px", "123px"], "F: 位置はコールが変わったときに1回だけ決める（毎フレーム測らない）");
+  sp.destroy();
+  host.remove();
+  // カラオケ：大きな文字は出さず、光をカードの位置・大きさに合わせる
+  const { layout, calls } = dummySheet();
+  const screen = document.body.appendChild(document.createElement("section"));
+  screen.className = "screen is-active";
+  const panelEl = screen.appendChild(document.createElement("div"));
+  LINES.forEach((line) => {
+    const p2 = panelEl.appendChild(document.createElement("p"));
+    p2.className = "synced-lyrics-line";
+    p2.textContent = line.text;
+  });
+  const hudCard = screen.appendChild(document.createElement("div"));
+  hudCard.style.cssText = "position:fixed;left:10px;top:300px;width:200px;height:100px;";
+  const hudText = hudCard.appendChild(document.createElement("p"));
+  enableKaraokeStage({ screen, hudCard, lyricsPanel: panelEl, hudText }, { song: { id: "x" }, calls, lines: LINES, layout, callsVisible: true });
+  updateKaraokeStage(19.5, { playing: true });
+  const front = screen.querySelector(".sp-front");
+  // テストのページの拡大・縮小に左右されないよう、期待値もその場で測る
+  const layerTop = front.getBoundingClientRect().top;
+  const card = hudCard.getBoundingClientRect();
+  assertEqual(front.style.getPropertyValue("--sp-y"), `${Math.round((card.top + card.bottom) / 2 - layerTop)}px`, "F: カラオケ：光の中心はカードの中心");
+  assertEqual([front.style.getPropertyValue("--sp-ww"), front.style.getPropertyValue("--sp-wh")], [`${Math.round(card.width)}px`, `${Math.round(card.height)}px`], "F: カラオケ：光の輪はカードの大きさ");
+  assertEqual(screen.querySelector(".sp-back .sp-aurora") !== null && front.querySelector(".sp-aurora") === null, true, "F: カラオケ：名前の色のオーロラはカードの後ろ（文字に色を重ねない）");
+  disableKaraokeStage();
+  screen.remove();
+  const spCss = (await fetchText("css/callSpectacle.css")).replace(/\/\*[\s\S]*?\*\//g, "");
+  assertEqual(/\.sp-front\.sp-karaoke \.sp-word::before,\s*\.sp-front\.sp-karaoke \.sp-word-text \{\s*display: none;/.test(spCss), true, "F: カラオケ：大きな文字は出さない（下のカードと同じ文字を2回出さない）");
+  const word = spCss.match(/\.sp-word-text \{[^}]*\}/)?.[0] ?? "";
+  assertEqual((word.match(/rgba\(48, 0, 44, 0\.85\)/g) ?? []).length >= 4, true, "F: 大きな文字は四方に濃い縁取り（明るい地でも読める）");
+  assertEqual(/\.sp-word-text \.cx-name-sep \{\s*color: #fff;/.test(spCss), true, "F: 「or」は灰色にしない");
+}
+
 export async function runLiveCallTypesetTests() {
   await runTypesetTests();
   runSpectaclePlanTests();
@@ -388,4 +455,5 @@ export async function runLiveCallTypesetTests() {
   runTapTests();
   runAuroraTests();
   await runSourceTests();
+  await runReadabilityFixTests();
 }

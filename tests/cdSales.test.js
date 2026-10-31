@@ -245,7 +245,8 @@ async function runMarkupTests() {
   assertEqual(Boolean(doc.querySelector("#cd-sales-screen #cd-sales-back-button.back-link")) && Boolean(doc.querySelector("#cd-sales-content")), true, "画面：戻るボタンと中身の入れ物");
   assertEqual(Boolean(doc.querySelector('link[href="css/cdSales.css"]')), true, "画面：CSS を読み込む");
   assertEqual(["./css/cdSales.css", "./js/cdSalesScreen.js", "./js/cdSalesModel.js", "./js/data/cdSales.js"].every((file) => sw.includes(`"${file}"`)), true, "オフライン：新しいファイルを APP_SHELL に入れた");
-  assertEqual(/const CACHE_VERSION = "v406";/.test(sw), true, "CACHE_VERSION は変えない");
+  // 【2026-11-01 r7-live-fix】統合版（cce0eb1）で親が v407 に上げたため、「v406 のまま」ではなく「v406 以上」を確かめる（担当の作業では変えない）
+  assertEqual(Number(/const CACHE_VERSION = "v(\d+)";/.exec(sw)?.[1]) >= 406, true, "CACHE_VERSION は v406 以上（担当の作業では変えない）");
   assertEqual(main.includes('target.kind === "cdSales"') && main.includes('screen === "cdSales"') && main.includes('openCdSalesFrom("start")'), true, "行き先：検索・作品詳細・ホームから開く処理がある");
 }
 
