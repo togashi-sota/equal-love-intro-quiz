@@ -337,10 +337,12 @@ import { getFavoriteSongIds } from "./favoriteSongs.js";
 import { getPlaylists } from "./playlists.js";
 import { initPlaylistScreen, renderPlaylistList, renderPlaylistDetail } from "./playlistScreen.js";
 import { initPlaylistAddSongsScreen, renderPlaylistAddSongsScreen } from "./playlistAddSongsScreen.js";
-import { initContinuousPlayScreen, refreshContinuousPlayScreen } from "./continuousPlayScreen.js";
+import { initContinuousPlayScreen, refreshContinuousPlayScreen, showPickedSourceSettings } from "./continuousPlayScreen.js";
 import { initContinuousPlayQueueScreen, renderQueueScreen } from "./continuousPlayQueueScreen.js";
 import { initMiniPlayer } from "./miniPlayer.js";
 import { handlePlayerChanged as handleContinuousPlayerChanged } from "./continuousPlay.js";
+// 【2026-11-01 r8-music・本人の依頼 R8-2】曲を選んで再生
+import { initSongPickScreen, openSongPickScreen, setSongPickBarVisible } from "./songPickScreen.js";
 import {
   initNewSingleAnnouncement,
   confirmAnnouncementDone,
@@ -744,6 +746,10 @@ const continuousPlayQueueActionBannerElement = document.getElementById(
   "continuous-play-queue-action-banner"
 );
 const songlistContinuousPlayLinkElement = document.getElementById("songlist-continuous-play-link");
+// 【2026-11-01 r8-music】「曲を選んで再生」の入口（楽曲・歌詞の画面／収録曲一覧）と、その画面の［戻る］
+const songPickLinkElement = document.getElementById("song-pick-link");
+const songlistPickSongsLinkElement = document.getElementById("songlist-pick-songs-link");
+const songPickBackButtonElement = document.getElementById("song-pick-back-button");
 const miniPlayerRootElement = document.getElementById("mini-player");
 const miniPlayerMainElement = document.getElementById("mini-player-main");
 const miniPlayerTitleElement = document.getElementById("mini-player-title");
@@ -756,6 +762,8 @@ const playlistDetailContinuousPlayButtonElement = document.getElementById(
 );
 // 連続再生画面を開く直前の画面名。「戻る」でここへ戻る（10-33章、1画面化に伴い追加）。
 let continuousPlayReturnScreen = "start";
+// 「曲を選んで再生」の画面の［戻る］の行き先（開いた直前の画面。2026-11-01 r8-music）
+let songPickReturnScreen = "start";
 
 // 画面を離れるときのスクロール位置を覚えておき、戻ってきたときに同じ位置へ復元する仕組み。
 // screens.js（showScreen自体）は変更せず、main.js側だけで完結する薄いラッパーとして実装する
@@ -2664,6 +2672,80 @@ initContinuousPlayScreen({
     resetSongListToDefaultView("favorites");
     navigateWithScrollMemory("songlist");
   },
+  // 【2026-11-01 r8-music】再生元「選んだ曲」の［曲を選ぶ］：「曲を選んで再生」の画面を開く（戻ると連続再生の画面）
+  pickedBlock: document.getElementById("continuous-play-picked-block"),
+  pickedText: document.getElementById("continuous-play-picked-text"),
+  pickedEditButton: document.getElementById("continuous-play-picked-edit-button"),
+  onPickSongs: () => openSongPickFrom("continuousPlay"),
+});
+
+// ---- 「曲を選んで再生」（2026-11-01 r8-music・本人の依頼 R8-2） ----
+// 入口：ホームの「曲を選んで再生」・楽曲・歌詞の画面・収録曲一覧・連続再生の再生元「選んだ曲」。
+// どこから開いても同じ画面。［戻る］は開いた直前の画面へ。
+async function openSongPickFrom(returnScreen) {
+  songPickReturnScreen = returnScreen;
+  await openSongPickScreen();
+  navigateWithScrollMemory("songPick");
+  window.scrollTo(0, 0);
+}
+
+initSongPickScreen({
+  groupsContainer: document.getElementById("song-pick-groups"),
+  noResultsNotice: document.getElementById("song-pick-no-results-notice"),
+  visibleCount: document.getElementById("song-pick-visible-count"),
+  selectVisibleButton: document.getElementById("song-pick-select-visible-button"),
+  bottomSpacer: document.getElementById("song-pick-bottom-spacer"),
+  searchInput: document.getElementById("song-pick-search-input"),
+  searchClearButton: document.getElementById("song-pick-search-clear-button"),
+  filterButtons: [...document.querySelectorAll("#song-pick-screen .song-pick-filter")],
+  bar: document.getElementById("song-pick-bar"),
+  barMain: document.getElementById("song-pick-bar-main"),
+  barSub: document.getElementById("song-pick-bar-sub"),
+  clearButton: document.getElementById("song-pick-clear-button"),
+  playButton: document.getElementById("song-pick-play-button"),
+  shuffleButton: document.getElementById("song-pick-shuffle-button"),
+  playlistButton: document.getElementById("song-pick-playlist-button"),
+  favoriteButton: document.getElementById("song-pick-favorite-button"),
+  toast: document.getElementById("song-pick-toast"),
+  toastText: document.getElementById("song-pick-toast-text"),
+  toastAction: document.getElementById("song-pick-toast-action"),
+  playlistModal: document.getElementById("song-pick-playlist-modal"),
+  playlistLead: document.getElementById("song-pick-playlist-lead"),
+  playlistOptions: document.getElementById("song-pick-playlist-options"),
+  playlistNone: document.getElementById("song-pick-playlist-none"),
+  playlistNewName: document.getElementById("song-pick-playlist-new-name"),
+  playlistCreateButton: document.getElementById("song-pick-playlist-create-button"),
+  playlistCancelButton: document.getElementById("song-pick-playlist-cancel-button"),
+  // ［順番に再生］［シャッフル］：選んだ曲だけで連続再生を始め、連続再生の画面へ。
+  // 連続再生の画面から「曲を選ぶ」で来たときは、連続再生の［戻る］の行き先をそのままにする（行き来の輪にしない）。
+  onPlay: (songs, shuffle) => {
+    if (songPickReturnScreen !== "continuousPlay") continuousPlayReturnScreen = "songPick";
+    refreshContinuousPlayScreen({ source: "picked", songs, shuffle });
+    navigateWithScrollMemory("continuousPlay");
+  },
+  // 追加したあとの「見る」：そのプレイリストの詳細へ（戻るとプレイリストの一覧）
+  onOpenPlaylist: (playlistId) => {
+    renderPlaylistDetail(playlistId);
+    navigateWithScrollMemory("playlistDetail");
+  },
+});
+
+// 下の帯は「曲を選んで再生」の画面にいる間だけ出す
+onScreenChange((screenName) => setSongPickBarVisible(screenName === "songPick"));
+
+songPickLinkElement.addEventListener("click", () => {
+  playClickSound();
+  openSongPickFrom(document.body.dataset.screen === "start" ? "start" : "musicHub");
+});
+songlistPickSongsLinkElement.addEventListener("click", () => {
+  playClickSound();
+  stopSongListPreview();
+  openSongPickFrom("songlist");
+});
+songPickBackButtonElement.addEventListener("click", () => {
+  playSfx(SFX_EVENTS.UI_BACK);
+  if (songPickReturnScreen === "continuousPlay") showPickedSourceSettings();
+  navigateWithScrollMemory(songPickReturnScreen);
 });
 
 // 再生キュー画面（UI/UX再設計で新設）。「戻る」は常に連続再生画面へ戻る

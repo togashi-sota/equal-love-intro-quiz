@@ -204,6 +204,7 @@
     import { runGuideContentTests } from "./tests/guideContent.test.js";
     import { runGuidesTests } from "./tests/guides.test.js";
     import { runFloatingBackTests } from "./tests/floatingBack.test.js";
+    import { runSongPickTests } from "./tests/songPick.test.js"; // 【2026-11-01 r8-music】曲を選んで再生
     import { runSonglistTests } from "./tests/songlist.test.js";
     import { runSonglistPlaybackErrorNoteTests } from "./tests/songlistPlaybackErrorNote.test.js";
     import { runPageZoomPreventionTests } from "./tests/pageZoomPrevention.test.js";
@@ -556,6 +557,7 @@
     await runLiveCallPreviewNxTests();
     await runGuidesTests();
     await runFloatingBackTests();
+    await runSongPickTests();
     await runUnifiedPackImportTests();
     await runPlayerRegistrationTests();
     await runDataStatusShareTests();

@@ -74,6 +74,7 @@ export const HUB_OF_SCREEN = {
   songlist: "musicHub",
   playlists: "musicHub",
   continuousPlay: "musicHub",
+  songPick: "musicHub", // 【2026-11-01 r8-music】曲を選んで再生
   lyricsSearch: "musicHub",
   discography: "musicHub",
   // ガイド（#guide-hub-screen）
@@ -101,6 +102,7 @@ const FEATURE_SCREENS_FROM_GUIDE = [
   "songlist",
   "playlists",
   "continuousPlay",
+  "songPick",
   "lyricsSearch",
   "appSearch",
   "discography",
