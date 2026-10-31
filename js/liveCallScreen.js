@@ -27,6 +27,7 @@ import { normalizeForSearch, songMatchesSearch } from "./songSearch.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
 import { bindTapSeek, callTapSeekTime, lyricTapSeekTime } from "./callTapSeek.js";
 import { createSpectacle, planSpectacle, chooseSpectacleY } from "./callSpectacle.js";
+import { mountModePreview } from "./liveCallPreviewMotion.js";
 
 // ===== はじめに（注意事項）の版 =====
 // 中身を変えたら数字を上げる（上げると、次に開いたときにもう一度表示される）
@@ -219,8 +220,16 @@ function teardownPlayback() {
   }
 }
 
+// 曲のページのカードの見本（動く見本の見張り）。画面を作り直すときに必ず片付ける
+let modePreviews = [];
+function destroyModePreviews() {
+  modePreviews.forEach((preview) => preview.destroy());
+  modePreviews = [];
+}
+
 function show(next) {
   if (view === "list" && root) listScrollTop = window.scrollY;
+  destroyModePreviews();
   // モードを出るときは、音・毎フレームの描画・イベントの購読を必ず片付ける
   if (view === "live" || view === "karaoke" || view === "sheet") teardownPlayback();
   view = next;
@@ -500,7 +509,9 @@ export function songPageGuidance({ sheetOk, sheetState, sheetMessage, releasedCo
   const noReleasedData = !sheetOk && sheetState === SHEET_STATE.NO_SHEET && releasedCount === 0;
   const message = sheetOk ? "" : noReleasedData ? NO_RELEASED_DATA_MESSAGE : sheetMessage;
   const cardReason = sheetOk ? null : noReleasedData ? "この端末にコール表が入っていません。" : sheetState === SHEET_STATE.NO_SHEET ? "この曲のコール表はまだありません。" : "上の案内のとおり、今は使えません。";
-  return { noReleasedData, message, cardReason, showDataButton: noReleasedData || !hasAudio || !(lineCount > 0) };
+  // 【2026-11-01 nx-live】歌詞の無い曲（Overture：コール表が歌詞0行で作られている）は、歌詞が無いのが正しい。歌詞を入れる案内はしない
+  const lyricsMissing = !(lineCount > 0) && !sheetOk;
+  return { noReleasedData, message, cardReason, showDataButton: noReleasedData || !hasAudio || lyricsMissing };
 }
 
 async function openSong(songId) {
@@ -517,16 +528,9 @@ function modeCard({ id, title, description, availability, onOpen }) {
   const card = el("div", `lc-mode-card is-${id}${availability.ok ? "" : " is-unavailable"}`);
   const previewBox = el("div", `lc-mode-preview is-${id}`);
   const preview = LIVE_CALL_MODE_PREVIEWS[id];
-  if (preview) {
-    const img = el("img", "lc-mode-preview-image");
-    img.src = preview.src;
-    img.alt = preview.alt;
-    img.width = PREVIEW_IMAGE_SIZE.width;
-    img.height = PREVIEW_IMAGE_SIZE.height;
-    img.loading = "lazy";
-    img.decoding = "async";
-    previewBox.appendChild(img);
-  }
+  // 【2026-11-01 nx-live】ライブコール・カラオケは、静止画の上に数秒の無音ループ（見えている間だけ。js/liveCallPreviewMotion.js）
+  // 使えないモードのカードは動かさない（静止画だけ。薄く表示）
+  if (preview) modePreviews.push(mountModePreview(previewBox, availability.ok ? preview : { ...preview, video: null }, PREVIEW_IMAGE_SIZE));
   card.appendChild(previewBox);
   const body = el("div", "lc-mode-body");
   body.appendChild(el("h3", "lc-mode-title", title));
@@ -548,13 +552,28 @@ function modeCard({ id, title, description, availability, onOpen }) {
 // ダミーの文字（「〜〜歌詞〜〜〜」「Hey！」「○○ちゃーん！」など。本物の歌詞・コールではない）で描いて撮ったもの。
 // 作り直し：renewal-notes/livecall-visuals/capture_previews.py（Git に入れない）。表示は 140×112（画像は2倍の 280×224）
 // 【2026-10-30 夜】ライブコール（つぎ の残り時間）・カラオケ（新しい演出）を、同じダミーの文字で撮り直した（renewal-notes/night-live/capture_dummy.py）
-export const PREVIEW_IMAGE_SIZE = { width: 280, height: 224 };
+// 【2026-11-01 nx-live】3:2・600×400 に作り直した（下）
+export const PREVIEW_IMAGE_SIZE = { width: 600, height: 400 };
 // 【2026-10-31 live-unify】3つとも、今の画面（モードの切り替え・名前コールの色・カラオケの赤いコール）をダミーの文字で撮り直した
 //   （renewal-notes/live-unify/capture_dummy.py。名前はメンバーの呼び名だけ。歌詞・コール本文は入れていない）
+// 【2026-11-01 nx-live 本人の依頼】静止画1枚では「どう表示されるか・どこが光るか・どう進むか」が伝わらない → 作り直し。
+//   ・カードは見本を上に大きく（3:2）。縮小しても文字・光が見分けられるよう、画面の大事な所だけを 2倍で撮った
+//   ・コール表：静止画（黒い歌詞と赤いコールが1枚で読める所）
+//   ・ライブコール・カラオケ：約5秒の無音ループ（video）＋同じ場面の静止画（src。最初・動かせないとき・視差効果を減らす設定のとき）
+//     ライブコール：今のコールが光る・中央に大きな文字・「つぎ」と残り秒数が進む／カラオケ：歌詞の行が進む・赤いコールが光る・カードの 3・2・1 →「コール中！」
+//   作り方：renewal-notes/nx-live/make_previews.py（Git に入れない）。ダミーの文字（歌詞は「〜〜歌詞〜〜」、コールは Hey！・オイ！・メンバーの呼び名だけ）
 export const LIVE_CALL_MODE_PREVIEWS = {
-  sheet: { src: "./assets/images/live-call-previews/sheet.webp", alt: "コール表の見本：黒い歌詞の行と、その間の赤いコール（文字はダミー）" },
-  live: { src: "./assets/images/live-call-previews/live.webp", alt: "ライブコールの見本：いま／つぎ の表示と、光っている名前コール（名前の下にメンバーカラーの線。文字はダミー）" },
-  karaoke: { src: "./assets/images/live-call-previews/karaoke.webp", alt: "カラオケの見本：暗い舞台に歌詞の行と赤いコール。今の行と今のコールが光る（文字はダミー）" },
+  sheet: { src: "./assets/images/live-call-previews/sheet.webp", alt: "コール表の見本：黒い歌詞の行と、その間の赤いコールが1枚に並ぶ（文字はダミー）" },
+  live: {
+    src: "./assets/images/live-call-previews/live.webp",
+    video: "./assets/images/live-call-previews/live.mp4",
+    alt: "ライブコールの見本：言うコールが光り、中央に大きな文字が出る。上の「いま／つぎ」に次のコールと残り秒数（文字はダミー）",
+  },
+  karaoke: {
+    src: "./assets/images/live-call-previews/karaoke.webp",
+    video: "./assets/images/live-call-previews/karaoke.mp4",
+    alt: "カラオケの見本：暗い舞台に歌詞の行と赤いコール。下のカードに次のコールと 3・2・1、コールの瞬間に「コール中！」と大きく光る（文字はダミー）",
+  },
 };
 
 async function renderSongPage() {
@@ -612,7 +631,9 @@ async function renderSongPage() {
   addStatus("コール表", sheetLabel, sheet.ok);
   addStatus("音源", hasAudio ? "この端末にあります" : "この端末にありません", hasAudio);
   const lineCount = Array.isArray(lyricsRecord?.lines) ? lyricsRecord.lines.length : 0;
-  addStatus("歌詞", lineCount ? "この端末にあります" : "この端末にありません", lineCount > 0);
+  // 【2026-11-01 nx-live】歌詞の無い曲（Overture）は「この曲には歌詞がありません」（不足ではないので、赤くしない）
+  const noLyricsSong = sheet.ok && lineCount === 0;
+  addStatus("歌詞", lineCount ? "この端末にあります" : noLyricsSong ? "この曲には歌詞がありません" : "この端末にありません", lineCount > 0 || noLyricsSong);
   page.appendChild(status);
   const guide = songPageGuidance({ sheetOk: sheet.ok, sheetState: sheet.state, sheetMessage: sheet.message, releasedCount, hasAudio, lineCount });
   if (guide.message) page.appendChild(el("p", `lc-status-message${sheet.state === SHEET_STATE.NO_SHEET && !guide.noReleasedData ? "" : " is-warning"}`, guide.message));
@@ -653,11 +674,14 @@ async function renderSongPage() {
     modeCard({
       id: "karaoke",
       title: "カラオケ",
-      description: sheet.ok
-        ? "歌詞を大きく表示して歌う。赤いコールと「次のコール」も一緒に出せます（コール表示の ON／OFF）。コールの瞬間に光ります。"
-        : lineCount > 0
-          ? "歌詞を大きく表示して歌う。コール表が無いので、歌詞だけのカラオケになります。"
-          : "歌詞を大きく表示して歌う（コール表が無い曲でも、歌詞があれば歌詞だけで使えます）。",
+      // 【2026-11-01 nx-live】歌詞の無い曲（Overture）は、コールだけのカラオケ（注意の欄に「歌詞なし・コールのみ」）
+      description: avail.karaoke.callsOnly
+        ? "コールを大きく表示して、一緒に叫ぶ。「次のコール」と残り秒数も出て、コールの瞬間に光ります。"
+        : sheet.ok
+          ? "歌詞を大きく表示して歌う。赤いコールと「次のコール」も一緒に出せます（コール表示の ON／OFF）。コールの瞬間に光ります。"
+          : lineCount > 0
+            ? "歌詞を大きく表示して歌う。コール表が無いので、歌詞だけのカラオケになります。"
+            : "歌詞を大きく表示して歌う（コール表が無い曲でも、歌詞があれば歌詞だけで使えます）。",
       availability: avail.karaoke,
       // 【2026-10-29 本人の希望】前の「カラオケ同期」と同じ画面（NEXT CALL・あと○秒・タイミング調整）を、本人の完成版のコールで開く
       onOpen: () => openKaraokeForCurrentSong(),

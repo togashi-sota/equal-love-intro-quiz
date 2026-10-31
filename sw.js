@@ -39,6 +39,9 @@ const APP_SHELL_FILES = [
   "./assets/images/live-call-previews/sheet.webp",
   "./assets/images/live-call-previews/live.webp",
   "./assets/images/live-call-previews/karaoke.webp",
+  // 【2026-11-01 nx-live】ライブコール・カラオケの動く見本（live.mp4・karaoke.mp4）は、わざと入れない：
+  // iPhone の Safari は動画を範囲の指定つきで読みに来るが、下の fetch はキャッシュの全体を返すので、再生できないことがある。
+  // ネットにつながっていれば普通に読み込み、つながっていなければ上の静止画を出す（js/liveCallPreviewMotion.js）
   "./css/style.css",
   "./css/callText.css",
   // 【2026-10-28追加】ライブページ・センター表・フレンドの重複整理・歌詞クイズの重複フレーズ対策
@@ -248,6 +251,7 @@ const APP_SHELL_FILES = [
   "./js/liveCallScreen.js",
   "./js/liveCallNames.js",
   "./js/liveCallModeTabs.js",
+  "./js/liveCallPreviewMotion.js", // 【2026-11-01 nx-live】曲のページのカードの動く見本（見えている間だけ再生）
   "./js/callEffects.js",
   "./js/callEffectsRenderer.js",
   "./js/shoutWords.js",

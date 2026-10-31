@@ -92,6 +92,9 @@ export function layoutCallsInOrder(layout) {
 //   コール表：コール表がある（state READY）
 //   ライブコール：コール表＋時刻＋音源
 //   カラオケ：歌詞（時刻つき）。音源・コールは無くてもよい（音源が無ければ［曲スタート］で合わせる。コールが無ければ歌詞だけ）
+//     【2026-11-01 nx-live】歌詞の無い曲（Overture：コール表が歌詞0行で作られている）は、コール表とその時刻があれば
+//     「コールだけのカラオケ」（callsOnly）。歌詞は作らない。コールはライブコールと同じ完成版のデータ
+export const KARAOKE_CALLS_ONLY_CARD_NOTE = "歌詞なし・コールのみ：この曲には歌詞が無いので、コールだけが時刻に合わせて光ります。";
 export function computeModeAvailability({ sheet, hasAudio, lyricsRecord }) {
   const lines = Array.isArray(lyricsRecord?.lines) ? lyricsRecord.lines : [];
   const timedLines = lines.filter((line) => Number.isFinite(line.start)).length;
@@ -107,9 +110,12 @@ export function computeModeAvailability({ sheet, hasAudio, lyricsRecord }) {
   // 【2026-10-31 live-unify】カラオケは、音源が無くても使える（前の版の「カラオケ同期」の、カラオケ店の曲に合わせて［曲スタート］を押す使い方を取り込んだ）。
   // コール表が無い曲は、歌詞だけのカラオケになる（js/karaokeSyncScreen.js）。note：使えるけれど知っておいてほしいこと
   let karaoke;
-  if (lines.length === 0) karaoke = { ok: false, reason: "この曲の歌詞データがこの端末にありません。" };
+  const audioNote = "この端末に音源が無いので、カラオケ店などで曲が始まった瞬間に［曲スタート］を押して合わせます。";
+  // コール表が「歌詞0行」で作られている（＝歌詞の無い曲）ときだけ。歌詞が端末に無いだけの曲（LYRICS_MISSING）はコール表が ok にならない
+  if (lines.length === 0 && timed) karaoke = { ok: true, reason: "", callsOnly: true, note: hasAudio ? KARAOKE_CALLS_ONLY_CARD_NOTE : `${KARAOKE_CALLS_ONLY_CARD_NOTE}${audioNote}` };
+  else if (lines.length === 0) karaoke = { ok: false, reason: "この曲の歌詞データがこの端末にありません。" };
   else if (timedLines === 0) karaoke = { ok: false, reason: "この曲の歌詞に時刻がありません。" };
-  else if (!hasAudio) karaoke = { ok: true, reason: "", note: "この端末に音源が無いので、カラオケ店などで曲が始まった瞬間に［曲スタート］を押して合わせます。" };
+  else if (!hasAudio) karaoke = { ok: true, reason: "", note: audioNote };
   else karaoke = { ok: true, reason: "" };
   return { sheet: sheetMode, live, karaoke };
 }
