@@ -1013,15 +1013,23 @@ function renderLiveMode() {
   const { fx } = built;
   // 時刻の無いコール（今の完成版には無い）は光らせない（followSong は buildLiveStage が作ったもの）
   // 【2026-11-01 r7-live】大きな演出（演出 ありのときだけ。js/callSpectacle.js。画面に1組だけ）
-  //   後ろの層（ペンライト）は舞台の後ろ（root の最初）、前の層（大きな文字・光）は舞台の上・再生の操作の下
-  //   【2026-11-01 r7-live-fix】大きな文字は、光っているコール（とその行のまとまり＝上の歌詞）・「いま／つぎ」の札を避けた位置に出す
+  //   後ろの層（光の柱）は舞台の後ろ（root の最初）、前の層（会場の帯・大きな文字）は舞台の上・再生の操作の下
+  //   【2026-11-01 r7-live-fix】光っているコール（とその行のまとまり＝上の歌詞）・「いま／つぎ」の札を避けた位置に出す
   //   （コールが始まったときに1回だけ測る。光っている行が下にあれば上側、上にあれば下側）
+  //   【2026-11-01 r8-fx】本人の依頼「カラオケほど全画面でなくてよいが、今よりかなり派手に。コール中は大きなオーバーレイが終わるまで続く」：
+  //   舞台の幅いっぱいの「会場の帯」（暗幕・光線・ペンライトの群れ）に、帯に収まる一番大きな文字。帯の高さは舞台の 38〜62%
   const spectacle = createSpectacle(root, {
     variant: "live",
-    place: (item, { wordH, layerTop }) => {
+    follow: true, // 自動スクロールで光っている行が動いても、帯で隠し続けない（0.5 秒ごとに位置だけ測り直す）
+    place: (item, { fit, layerTop }) => {
       const stageRect = stage.getBoundingClientRect();
       const playerTop = player.getBoundingClientRect().top;
       const region = { top: Math.max(stageRect.top, 0) - layerTop, bottom: Math.min(stageRect.bottom, playerTop, window.innerHeight) - layerTop };
+      const regionH = region.bottom - region.top;
+      if (!(regionH > 80)) return null;
+      const w = Math.max(200, stageRect.width - 12);
+      const wordH = fit(w - 28, regionH * 0.5, Math.min((window.innerWidth || 390) * 0.2, 130));
+      const h = Math.min(regionH * 0.62, Math.max(wordH + 64, regionH * 0.38));
       const avoid = [];
       const span = callSpans.get(item.key);
       const group = span?.closest(".call-text-group, .call-text-block") ?? span;
@@ -1030,8 +1038,8 @@ function renderLiveMode() {
         const r = node.getBoundingClientRect();
         avoid.push({ top: r.top - layerTop - 6, bottom: r.bottom - layerTop + 6 });
       }
-      const y = chooseSpectacleY(region, avoid, wordH);
-      return y === null ? null : { y };
+      const y = chooseSpectacleY(region, avoid, h);
+      return y === null ? null : { y, x: stageRect.left + (stageRect.width - w) / 2, w, h };
     },
   });
   spectacle?.setPlan(planSpectacle(sheet.calls));

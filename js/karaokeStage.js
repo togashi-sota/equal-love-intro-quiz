@@ -296,18 +296,29 @@ export function enableKaraokeStage(elements, { song, calls, lines = [], layout =
   hudCard.insertBefore(hudFx, hudCard.firstChild);
   hudCard.append(progress, countdown);
   hudCard.classList.add("kx-hud");
-  // 【2026-11-01 r7-live】大きな演出（画面の中央の大きな文字・ペンライト・画面全体の光。js/callSpectacle.js。ライブコールと共通）
-  // 後ろの層（ペンライト）は背景（.kx-fx）のすぐ後ろ＝歌詞・カードの後ろ。前の層（大きな文字）は画面の最後＝歌詞・カードの上、上下の操作の帯の下
-  // 【2026-11-01 r7-live-fix】カラオケは、大きな文字を別に出さない（下のカードと同じ文字が2回出て、今の歌詞の行にかぶっていたため）。
-  //   光の輪・画面の光・名前の色のオーロラを、カード（コールの大きな文字）の位置に合わせて出す。カードの文字そのものが主役
+  // 【2026-11-01 r7-live】大きな演出（js/callSpectacle.js。ライブコールと共通）
+  // 後ろの層（光の柱）は背景（.kx-fx）のすぐ後ろ＝歌詞・カードの後ろ。前の層は画面の最後＝歌詞・カードの上、上下の操作の帯の下
+  // 【2026-11-01 r8-fx】本人の依頼「コール中は本当に全画面でよい・歌詞が隠れてよい・終わるまで飛び出したまま」：
+  //   コールの間は、上下の操作の帯の間いっぱいに会場（暗幕・光線・ペンライトの群れ）と超大きな文字を出す（歌詞・カードは隠れる）。
+  //   文字の大きさは、その間の幅・高さに収まる一番大きな値（コールが変わったときに1回だけ測る）
   const spectacle = createSpectacle(screen, {
     variant: "karaoke",
     palette: palette.colors,
     backHost: screen,
     backBefore: fx.nextSibling,
-    place: (item, { layerTop }) => {
-      const r = hudCard.getBoundingClientRect();
-      return r.height ? { y: (r.top + r.bottom) / 2 - layerTop, w: r.width, h: r.height } : null;
+    place: (item, { fit, layerTop, layerLeft = 0 }) => {
+      const header = screen.querySelector(".karaoke-header-zone");
+      const footer = screen.querySelector(".karaoke-footer-zone");
+      // 幅は画面（カラオケの画面の幅。iPad では画面の真ん中の列）に合わせる
+      const sr = screen.getBoundingClientRect();
+      const vw = sr.width || window.innerWidth || 390;
+      const top = header?.getClientRects().length ? header.getBoundingClientRect().bottom : 0;
+      const footerTop = footer?.getClientRects().length ? footer.getBoundingClientRect().top : 0;
+      const bottom = footerTop > top + 120 ? footerTop : window.innerHeight || top + 600;
+      const height = Math.max(160, bottom - top);
+      fit(vw * 0.92, height * 0.6, Math.min(vw * 0.3, 230));
+      // 会場は上下の操作の帯の間いっぱい。文字は真ん中より少し上（下にペンライトの群れ）
+      return { y: top + height * 0.44 - layerTop, t: top - layerTop, h: height, x: sr.left - layerLeft, w: vw };
     },
   });
   spectacle?.setPlan(planSpectacle(Array.isArray(calls) ? calls : []));

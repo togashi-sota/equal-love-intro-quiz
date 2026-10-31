@@ -4,6 +4,8 @@
 //   S. 大きな演出（js/callSpectacle.js）：種類はデータだけで決まる・時刻は本人の開始〜終了のまま・一時停止／シーク／OFF で残らない
 //   P. タップで移動（js/callTapSeek.js）：時刻がある所だけ・コールは1秒前・スクロールの指の動きはタップにしない
 //   N. 名前コールのオーロラ（全員の色。文字は変えない）
+//   X. 【r8-fx】ド派手な演出：始まりから終わりまで出し続ける（長いコールでも弱くならない）・終わったら消える・
+//      短いコールは爆発してすぐ消える・続けて来るコールの間は点滅させない（1秒に3回まで）・ペンライトの色・部品の数・一時停止・シーク
 import { assertEqual } from "./test-utils.js";
 import { buildCallTextLayout } from "../js/callTextLayout.js";
 import { hashText } from "../js/callTextEdits.js";
@@ -16,9 +18,15 @@ import {
   spectacleSizeClass,
   SP_KINDS,
   SP_TAIL_SEC,
-  SP_WORD_HOLD_SEC,
   SP_SHORT_MAX_SEC,
   SP_LONG_MIN_SEC,
+  SP_BRIDGE_SEC,
+  SP_BRIDGE_LEVEL,
+  SP_CROWD_COUNT,
+  SP_VENUE_COLORS,
+  SP_FOLLOW_SEC,
+  spectacleCrowdColors,
+  spectacleRays,
   chooseSpectacleY,
 } from "../js/callSpectacle.js";
 import { lyricTapSeekTime, callTapSeekTime, isTapGesture, bindTapSeek, CALL_TAP_PRE_ROLL_SEC } from "../js/callTapSeek.js";
@@ -215,15 +223,14 @@ function runSpectacleTimingTests() {
   }
   const tooFast = peaks.some((t, i) => i >= 3 && t - peaks[i - 3] < 1);
   assertEqual(tooFast, false, "S: 画面全体の光は、1秒に3回を超えて強くならない");
-  // 長いコール：大きな文字は最初の 1.1 秒＋消える間だけ。背景の光は広がり続ける
+  // 【r8-fx】長いコール：始まりから終わりまで、ずっと大きな文字と会場（途中で弱くならない）。終わったら消える
   assertEqual(at(20.5).word.o, 1, "S: C 長いコールの始まりは大きな文字");
-  assertEqual(at(20 + SP_WORD_HOLD_SEC + 0.5).word.o, 0, "S: C 長いコールの大きな文字は 1.1 秒＋0.45 秒で消える（歌詞を隠し続けない）");
-  assertEqual(at(25).bloom.o > 0 && at(25).bloom.s > at(21).bloom.s, true, "S: C 長いコールの間、背景の光はゆっくり広がる");
-  assertEqual(at(26 + SP_TAIL_SEC + 0.01).bloom.o, 0, "S: C 終わったら背景の光も消える");
-  assertEqual(at(30.5).aurora > 0, true, "S: D 名前コールは色の光（オーロラ）が出る");
+  // r8-fx は下の runBlastTests で、長いコールの全区間を細かく確かめる
+  assertEqual([at(23).word.o, at(25.9).word.o, at(25.9).stage], [1, 1, 1], "S: C 長いコールの途中・終わり際も、大きな文字と会場を出したまま");
+  assertEqual(at(25).heat > at(21).heat, true, "S: C 長いコールは進むほど熱く（光線が濃く）なる");
+  assertEqual([at(26 + SP_TAIL_SEC + 0.01).word.o, at(26 + SP_TAIL_SEC + 0.01).stage], [0, 0], "S: C 終わったら文字も会場も消える");
   const longName = planSpectacle([{ key: "ln", text: "はなちゃん！", start: 1, end: 5 }]);
-  assertEqual([spectacleStateAt(longName, 2).word.o, spectacleStateAt(longName, 1 + SP_WORD_HOLD_SEC + 0.5).word.o], [1, 0], "S: D 長い名前コールでも、大きな文字は最長 1.1 秒（＋消える間）");
-  assertEqual(at(40.5).aurora, 0, "S: 名前でないコールにオーロラは出ない");
+  assertEqual([spectacleStateAt(longName, 2).word.o, spectacleStateAt(longName, 4.9).word.o, spectacleStateAt(longName, 5 + SP_TAIL_SEC + 0.01).word.o], [1, 1, 0], "S: D 長い名前コールも、終わるまで大きな文字（終わったら消える）");
   // 視差効果を減らす：拡大しない・揺れの元（光の輪）を出さない
   assertEqual([at(5.05, { reduced: true }).word.s, at(5.05, { reduced: true }).burst], [1, 0], "S: 視差効果を減らす：拡大・光の輪なし");
   // 同じ時刻なら同じ結果（シークしても、その時刻の正しい見た目）
@@ -403,7 +410,6 @@ async function runReadabilityFixTests() {
   // どこに置いても重なる（範囲いっぱいの長いコール）ときは、重なりが一番小さい所
   const yFull = chooseSpectacleY({ top: 0, bottom: 300 }, [{ top: 0, bottom: 200 }], 100);
   assertEqual(yFull >= 200, true, "F: 全部は避けられないときは、重なりが一番小さい所");
-  assertEqual(SP_WORD_HOLD_SEC <= 1.1, true, "F: 大きな文字が出ている時間は最長 1.1 秒（隠す時間を短く）");
   if (typeof document === "undefined") return;
   // createSpectacle の place：コールが変わったときに位置を受け取り、層の --sp-y に入れる
   const host = document.body.appendChild(document.createElement("div"));
@@ -415,10 +421,13 @@ async function runReadabilityFixTests() {
   assertEqual([asked, sp.layer.style.getPropertyValue("--sp-y"), sp.back.style.getPropertyValue("--sp-y")], [["a"], "123px", "123px"], "F: 位置はコールが変わったときに1回だけ決める（毎フレーム測らない）");
   sp.destroy();
   host.remove();
-  // カラオケ：大きな文字は出さず、光をカードの位置・大きさに合わせる
+  // 【r8-fx】カラオケ：コールの間は、上下の操作の帯の間いっぱいに会場と超大きな文字（歌詞・カードは隠れてよい：本人の依頼）
   const { layout, calls } = dummySheet();
   const screen = document.body.appendChild(document.createElement("section"));
   screen.className = "screen is-active";
+  const header = screen.appendChild(document.createElement("div"));
+  header.className = "karaoke-header-zone";
+  header.style.cssText = "position:fixed;left:0;top:0;width:300px;height:80px;";
   const panelEl = screen.appendChild(document.createElement("div"));
   LINES.forEach((line) => {
     const p2 = panelEl.appendChild(document.createElement("p"));
@@ -428,22 +437,149 @@ async function runReadabilityFixTests() {
   const hudCard = screen.appendChild(document.createElement("div"));
   hudCard.style.cssText = "position:fixed;left:10px;top:300px;width:200px;height:100px;";
   const hudText = hudCard.appendChild(document.createElement("p"));
+  const footer = screen.appendChild(document.createElement("div"));
+  footer.className = "karaoke-footer-zone";
+  footer.style.cssText = "position:fixed;left:0;top:600px;width:300px;height:100px;";
   enableKaraokeStage({ screen, hudCard, lyricsPanel: panelEl, hudText }, { song: { id: "x" }, calls, lines: LINES, layout, callsVisible: true });
   updateKaraokeStage(19.5, { playing: true });
   const front = screen.querySelector(".sp-front");
-  // テストのページの拡大・縮小に左右されないよう、期待値もその場で測る
   const layerTop = front.getBoundingClientRect().top;
-  const card = hudCard.getBoundingClientRect();
-  assertEqual(front.style.getPropertyValue("--sp-y"), `${Math.round((card.top + card.bottom) / 2 - layerTop)}px`, "F: カラオケ：光の中心はカードの中心");
-  assertEqual([front.style.getPropertyValue("--sp-ww"), front.style.getPropertyValue("--sp-wh")], [`${Math.round(card.width)}px`, `${Math.round(card.height)}px`], "F: カラオケ：光の輪はカードの大きさ");
-  assertEqual(screen.querySelector(".sp-back .sp-aurora") !== null && front.querySelector(".sp-aurora") === null, true, "F: カラオケ：名前の色のオーロラはカードの後ろ（文字に色を重ねない）");
+  const hb = header.getBoundingClientRect().bottom;
+  const ft = footer.getBoundingClientRect().top;
+  assertEqual([front.style.getPropertyValue("--sp-bt"), front.style.getPropertyValue("--sp-bh")], [`${Math.round(hb - layerTop)}px`, `${Math.round(ft - hb)}px`], "F: カラオケ：会場は上下の操作の帯の間いっぱい");
+  assertEqual(front.style.getPropertyValue("--sp-y"), `${Math.round(hb + (ft - hb) * 0.44 - layerTop)}px`, "F: カラオケ：文字は会場の真ん中より少し上（下にペンライトの群れ）");
+  assertEqual(parseFloat(front.style.getPropertyValue("--sp-fs")) > 0, true, "F: カラオケ：文字の大きさは会場に収まる値に決める");
+  assertEqual(front.querySelector(".sp-word-text").textContent.length > 0 && front.querySelector(".sp-word").style.opacity, "1", "F: カラオケ：大きな文字を出す（全画面）");
   disableKaraokeStage();
   screen.remove();
   const spCss = (await fetchText("css/callSpectacle.css")).replace(/\/\*[\s\S]*?\*\//g, "");
-  assertEqual(/\.sp-front\.sp-karaoke \.sp-word::before,\s*\.sp-front\.sp-karaoke \.sp-word-text \{\s*display: none;/.test(spCss), true, "F: カラオケ：大きな文字は出さない（下のカードと同じ文字を2回出さない）");
   const word = spCss.match(/\.sp-word-text \{[^}]*\}/)?.[0] ?? "";
-  assertEqual((word.match(/rgba\(48, 0, 44, 0\.85\)/g) ?? []).length >= 4, true, "F: 大きな文字は四方に濃い縁取り（明るい地でも読める）");
+  assertEqual((word.match(/#1a0330/g) ?? []).length >= 8, true, "F: 大きな文字は太い縁取り（8方向。明るい地でも読める）");
   assertEqual(/\.sp-word-text \.cx-name-sep \{\s*color: #fff;/.test(spCss), true, "F: 「or」は灰色にしない");
+}
+
+// ---- X：【r8-fx】ド派手な演出（本人の依頼 REQUEST_R8 の 1） ----
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+async function runBlastTests() {
+  console.log("--- r8-fx X：コールの始まりから終わりまで飛び出したまま・終わったら消える・点滅させない ---");
+  const plan = planSpectacle(SP_CALLS);
+  const at = (t, opts) => spectacleStateAt(plan, t, opts);
+  // 長いコール（20〜26 秒）：始まって 0.1 秒から終わりまで 1/30 秒ごと、文字の濃さ 1・会場 1・拡大 0.98 以上（途中で弱くならない）
+  let weak = [];
+  for (let t = 20.1; t < 26; t += 1 / 30) {
+    const v = at(t);
+    if (v.key !== "c" || v.word.o !== 1 || v.stage !== 1 || (t > 20.5 && v.word.s < 0.98)) weak.push(Math.round(t * 100) / 100);
+  }
+  assertEqual(weak, [], "X: 長いコール：始まりから終わりまで、ずっと大きな文字と会場（途中で戻さない）");
+  // 名前コール（30〜31 秒）も同じ
+  weak = [];
+  for (let t = 30.1; t < 31; t += 1 / 30) if (at(t).word.o !== 1 || at(t).stage !== 1) weak.push(t);
+  assertEqual(weak, [], "X: 名前コール：終わるまで出したまま");
+  // 長いコールは脈打つ（大きさだけ。終わりまで動き続ける）
+  const scales = [];
+  for (let t = 22; t < 25; t += 0.05) scales.push(at(t).word.s);
+  assertEqual(Math.max(...scales) - Math.min(...scales) > 0.03, true, "X: 長いコール：途中もゆっくり脈打つ（今まさに叫んでいる）");
+  // 終わり：最大 0.35 秒で消える（会場も）。始まる前は出ない
+  assertEqual([at(26.2).word.o < 1, at(26 + SP_TAIL_SEC).word.o, at(26 + SP_TAIL_SEC).stage], [true, 0, 0], "X: 終わったら 0.35 秒で文字も会場も消える");
+  const early = plan.filter((call) => spectacleStateAt(plan, call.start - 0.001).key === call.key).map((call) => call.key);
+  assertEqual(early, [], "X: どのコールも、本人の開始より前には出ない");
+  // 短いコール（おい！）：一気に飛び出して（1.2 倍以上）、すぐ消える（終わり＋0.35 秒で 0）
+  const pops = [];
+  for (let t = 5; t < 5.3; t += 0.01) pops.push(at(t).word.s);
+  assertEqual([Math.max(...pops) >= 1.2, Math.min(...pops) <= 0.6, at(5.02).burst > 0.8, at(5.3 + SP_TAIL_SEC).word.o], [true, true, true, 0], "X: 短いコール：小さな点から爆発して飛び出し、すぐ消える");
+  // 続けて来るコール（10〜12.3 秒）：間も会場を下ろしたまま（暗幕が上下に点滅しない）。画面全体の光は最初だけ
+  const dips = [];
+  for (let t = 10.06; t < 12.3; t += 1 / 60) if (at(t).stage < SP_BRIDGE_LEVEL - 0.001) dips.push(t);
+  assertEqual(dips, [], "X: 続けて来るコールの間は、会場を下ろしたまま（点滅させない）");
+  assertEqual([at(10.02).wash > 0, at(10.52).wash, at(11.02).wash], [true, 0, 0], "X: 続けて来るコール：画面全体の光は最初の1件だけ");
+  // 画面全体の明るさの変化（会場が下りる・始まりの光）が、どの 1 秒の中でも 3 回まで（いろいろな間隔の短いコールで確かめる）
+  const dense = [];
+  let t0 = 1;
+  for (let i = 0; i < 80; i++) {
+    const dur = [0.25, 0.4, 0.3, 1.0, 0.2][i % 5];
+    dense.push({ key: `z${i}`, text: "オイ！", start: t0, end: t0 + dur });
+    t0 += dur + [0.15, 0.6, 0.95, 1.05, 1.4, 0.3, 2.2][i % 7];
+  }
+  const dplan = planSpectacle(dense);
+  const rises = [];
+  let prevStage = 0;
+  let prevWash = 0;
+  for (let t = 0; t < t0 + 1; t += 1 / 60) {
+    const v = spectacleStateAt(dplan, t);
+    if ((v.stage > 0.5 && prevStage <= 0.5) || (v.wash > 0.2 && prevWash <= 0.2)) rises.push(t);
+    prevStage = v.stage;
+    prevWash = v.wash;
+  }
+  const flashy = rises.some((t, i) => i >= 3 && t - rises[i - 3] < 1);
+  assertEqual([flashy, rises.length > 10], [false, true], "X: 画面全体が明るくなる回数は、どの 1 秒の中でも 3 回まで");
+  assertEqual(SP_BRIDGE_SEC >= 0.8, true, "X: 続けて来るコール（0.8 秒以内）は、必ず会場を下ろしたまま");
+  // 視差効果を減らす：拡大・傾き・爆発なし。会場と文字は終わるまで静かに出す
+  const rv = [at(20.03, { reduced: true }), at(24, { reduced: true }), at(10.6, { reduced: true })];
+  assertEqual([rv[0].word.s, rv[1].word.s, rv[1].word.o, rv[1].stage, rv[2].word.r, rv[0].burst], [1, 1, 1, 1, 0, 0], "X: 視差効果を減らす：動かさず、終わるまで静かな大きな表示");
+  // シーク：同じ時刻なら同じ見た目（前後に動かしても）
+  assertEqual(JSON.stringify(at(24.2)), JSON.stringify(spectacleStateAt(plan, 24.2)), "X: 見た目は時刻だけで決まる（シークしても、その時刻の見た目）");
+  // ペンライト・光線の色
+  const nameItem = plan.find((p) => p.key === "d");
+  assertEqual(new Set(spectacleCrowdColors(nameItem, 10)).size === 1 && spectacleCrowdColors(nameItem, 10)[0] === nameItem.colors[0], true, "X: 名前コール（1人）：その人の色のペンライトの群れ");
+  const or3 = { colors: ["#111111", "#222222", "#333333"] };
+  assertEqual(spectacleCrowdColors(or3, 6), ["#111111", "#222222", "#333333", "#111111", "#222222", "#333333"], "X: 複数・or：それぞれの色のペンライトが混ざる");
+  assertEqual(spectacleCrowdColors(plan.find((p) => p.key === "a"), 4), SP_VENUE_COLORS, "X: 名前でないコール：会場の色（ピンク・紫・青・オレンジ）");
+  assertEqual(["#111111", "#222222", "#333333"].every((c) => spectacleRays(or3.colors).includes(c)), true, "X: 光線にも全員の色");
+  if (typeof document === "undefined") return;
+  // 部品：一組だけ・数を抑える・会場が出ている間だけ動かす・一時停止で消える
+  const host = document.body.appendChild(document.createElement("div"));
+  const sp = createSpectacle(host, { variant: "karaoke" });
+  sp.setPlan(plan);
+  assertEqual(host.querySelectorAll(".sp-crowd i").length, SP_CROWD_COUNT.karaoke, "X: カラオケのペンライトは 14 本だけ");
+  assertEqual(host.querySelectorAll(".sp-front *").length <= 30, true, "X: 前の層の部品は 30 個以下（iPhone で重くしない）");
+  sp.update(3, { playing: true, enabled: true });
+  assertEqual(sp.layer.classList.contains("is-on"), false, "X: コールの無い間は、ペンライト・光線を動かさない");
+  sp.update(23, { playing: true, enabled: true });
+  const box = host.querySelector(".sp-box");
+  assertEqual([sp.layer.classList.contains("is-on"), box.style.opacity, host.querySelector(".sp-word").style.opacity], [true, "1", "1"], "X: 長いコールの途中：会場と大きな文字が出ている");
+  sp.update(23, { playing: false, enabled: true });
+  assertEqual([sp.layer.classList.contains("is-paused"), box.style.opacity, host.querySelector(".sp-word").style.opacity], [true, "0", "0"], "X: 一時停止：残さない");
+  sp.update(70, { playing: true, enabled: true });
+  assertEqual([box.style.opacity, host.querySelector(".sp-word").style.opacity, sp.layer.classList.contains("is-on")], ["0", "0", false], "X: 曲の終わり：残さない");
+  sp.update(30.5, { playing: true, enabled: true });
+  const sticks = [...host.querySelectorAll(".sp-crowd i")].map((i) => i.style.getPropertyValue("--c"));
+  assertEqual(sticks.every((c) => c === nameItem.colors[0]), true, "X: 画面でも、名前コールはその人の色のペンライト");
+  sp.destroy();
+  host.remove();
+  // ライブコール：帯の位置（place）を受け取る・コールの間は 0.5 秒ごとに位置だけ測り直す（文字の大きさは変えない）
+  const host2 = document.body.appendChild(document.createElement("div"));
+  const asked = [];
+  const sp2 = createSpectacle(host2, {
+    variant: "live",
+    follow: true,
+    place: (item, { fit }) => {
+      const h = fit(300, 200, 80);
+      asked.push(item.key);
+      return { y: 200 + asked.length, x: 10, w: 320, h: Math.max(120, h + 40) };
+    },
+  });
+  sp2.setPlan(plan);
+  assertEqual(host2.querySelectorAll(".sp-crowd i").length, SP_CROWD_COUNT.live, "X: ライブコールのペンライトは 10 本だけ");
+  sp2.update(21, { playing: true, enabled: true });
+  const fs1 = sp2.layer.style.getPropertyValue("--sp-fs");
+  assertEqual([sp2.layer.style.getPropertyValue("--sp-bx"), sp2.layer.style.getPropertyValue("--sp-bw"), sp2.layer.style.getPropertyValue("--sp-y")], ["10px", "320px", "201px"], "X: ライブコール：帯の位置・幅を受け取る");
+  sp2.update(21.1, { playing: true, enabled: true });
+  assertEqual(asked.length, 1, "X: 位置は毎フレーム測らない");
+  await sleep(SP_FOLLOW_SEC * 1000 + 60);
+  sp2.update(21.7, { playing: true, enabled: true });
+  assertEqual([asked.length, sp2.layer.style.getPropertyValue("--sp-y"), sp2.layer.style.getPropertyValue("--sp-fs"), sp2.layer.classList.contains("is-follow")], [2, "202px", fs1, true], "X: ライブコール：コールの間は 0.5 秒ごとに位置だけ測り直す（文字の大きさは同じ・なめらかに移る）");
+  sp2.update(30.2, { playing: true, enabled: true });
+  assertEqual([asked.length, sp2.layer.classList.contains("is-follow")], [3, false], "X: 次のコールは、その場所にすぐ出す");
+  sp2.destroy();
+  host2.remove();
+  // ソース：ライブコールは follow・光っている行と札を避ける。CSS：動きは .is-on の間だけ・会場の部品にぼかしを使わない
+  const live = await fetchText("js/liveCallScreen.js");
+  assertEqual(/createSpectacle\(root, \{\s*variant: "live",\s*follow: true,/.test(live) && live.includes("chooseSpectacleY(region, avoid, h)"), true, "X: ライブコール：帯は光っているコールの行・いま／つぎの札を避ける（位置を測り直す）");
+  const css = (await fetchText("css/callSpectacle.css")).replace(/\/\*[\s\S]*?\*\//g, "");
+  assertEqual(/\.sp-layer\.is-on \.sp-crowd i \{\s*animation:/.test(css) && /\.sp-layer\.is-on \.sp-rays \{\s*animation:/.test(css), true, "X: ペンライトの振り・光線の回転は、会場が出ている間だけ");
+  const boxCss = css.slice(css.indexOf(".sp-box {"), css.indexOf(".sp-wash {"));
+  assertEqual(/filter\s*:/.test(boxCss), false, "X: 会場の部品にぼかし（filter）を使わない");
+  assertEqual(/prefers-reduced-motion: reduce\) \{[^@]*\.sp-layer\.is-on \.sp-crowd i/.test(css), true, "X: 視差効果を減らす設定では、ペンライトを振らない");
 }
 
 export async function runLiveCallTypesetTests() {
@@ -456,4 +592,5 @@ export async function runLiveCallTypesetTests() {
   runAuroraTests();
   await runSourceTests();
   await runReadabilityFixTests();
+  await runBlastTests();
 }

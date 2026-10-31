@@ -1,11 +1,17 @@
-/* コールの「大きな演出」（2026-11-01 r7-live。js/callSpectacle.js）。新しいライブコール（演出 あり）と新しいカラオケ（コール表示 ON）で共通。
-   画面に1組だけの層（.sp-layer）。押す操作は下へ通す（pointer-events: none）。動かすのは transform・opacity だけ（JS が値の変わったときだけ書く）。
-   繰り返す CSS のアニメーションは、ペンライトの揺れ・名前の色の光（オーロラ・脈打ち）だけ。一時停止中・視差効果を減らす設定では止める。
+/* コールの「大きな演出」（2026-11-01 r7-live → r8-fx で作り直し。js/callSpectacle.js）。新しいライブコール（演出 あり）と新しいカラオケ（コール表示 ON）で共通。
+   画面に1組だけの層（.sp-layer）。押す操作は下へ通す（pointer-events: none）。JS が毎フレーム書くのは transform・opacity だけ（値の変わったときだけ）。
+   【r8-fx の見た目（案 A「ペンライトの海」＋案 C「ステージの爆発」の組み合わせ。renewal-notes/r8-fx.md）】
+   ・会場（.sp-box）：暗幕・放射の光線・サーチライト・ペンライトの群れ。コールの始まりから終わりまで出し続ける。
+     カラオケは画面いっぱい（歌詞・カードは隠れる）。ライブコールは舞台の上の帯（いま／つぎ・光っている行を避けた位置）。
+   ・文字（.sp-word-text）：白い文字に太い縁取り・下へ伸びる立体の影・外の光、軽く手前へ倒すパース。始まりで爆発して飛び出す。
+   ・繰り返す CSS のアニメーション（ペンライトの振り・光線の回転・サーチライト）は、会場が出ている間（.is-on）だけ。
+     一時停止中は止める。視差効果を減らす設定では動かさない。会場の部品にぼかし（filter）は使わない（iPhone で重くしない）。
    後半には、名前コールの発光（ライブコール・カラオケ）とタップの光も置く（css/liveCall.css・css/karaokeStage.css は繰り返すアニメーションを持たないため） */
 .sp-layer {
   --sp-c1: #ff6fa8;
   --sp-c2: #8f7dff;
   --sp-c3: #ffd36b;
+  --sp-ex: #ff2d95;
   --sp-y: 46%;
   position: fixed;
   inset: 0;
@@ -14,24 +20,17 @@
   contain: strict;
   transition: opacity 0.2s ease-out;
 }
-/* 重なりの順：後ろの層（ペンライト）＜ 歌詞・コール表 ＜ 前の層（大きな文字・光）＜ 再生の操作 */
+/* 重なりの順：後ろの層（光の柱）＜ 歌詞・コール表 ＜ 前の層（会場・大きな文字）＜ 再生の操作 */
 .sp-back {
   z-index: 0;
 }
 .sp-front {
   z-index: 2;
 }
-.sp-layer.sp-karaoke {
-  --sp-y: 34%;
-}
-/* 白い舞台の上（ライブコール）は、白い文字の後ろの影を少し濃く */
-.sp-live .sp-word::before {
-  background: radial-gradient(ellipse, rgba(46, 8, 56, 0.66) 0%, rgba(46, 8, 56, 0.4) 45%, transparent 70%);
-}
 .sp-front.sp-karaoke {
   z-index: 1;
 }
-/* 一時停止中：大きな文字・光を出さない（その時刻のまま残さない）。ペンライトも止めて薄く */
+/* 一時停止中：大きな文字・会場を出さない（その時刻のまま残さない）。動きも止める */
 .sp-layer.is-paused {
   opacity: 0;
 }
@@ -41,7 +40,7 @@
   animation-play-state: paused !important;
 }
 
-/* ペンライト：画面の下から伸びる光の柱が、左右にゆっくり揺れる。色は曲・名前の色 */
+/* 背景の光の柱（後ろの層。歌詞の後ろで、コールの無い間も控えめに揺れる） */
 .sp-beams {
   position: absolute;
   inset: 0;
@@ -62,7 +61,6 @@
   animation: spBeamSway var(--d) ease-in-out var(--delay) infinite alternate;
   will-change: transform;
 }
-/* 光の芯（ペンライトの白く明るい中心） */
 .sp-beams i::after {
   content: "";
   position: absolute;
@@ -83,163 +81,332 @@
     transform: rotate(calc(var(--a) * -1));
   }
 }
-/* 盛り上がる区間（コールの密度。js/callSpectacle.js の hot）：柱を少し太く・明るく */
 .sp-layer.is-hot .sp-beams i {
   width: clamp(16px, 4vw, 40px);
   margin-left: calc(clamp(16px, 4vw, 40px) / -2);
 }
 
-/* 画面全体の光（コールの始まりで一瞬強く、すぐ弱まる） */
-.sp-wash {
-  position: absolute;
-  inset: -10%;
-  opacity: 0;
-  background:
-    radial-gradient(ellipse at 50% var(--sp-y), rgba(255, 255, 255, 0.95) 0%, color-mix(in srgb, var(--sp-c1) 70%, transparent) 28%, color-mix(in srgb, var(--sp-c2) 40%, transparent) 55%, transparent 78%);
-}
-/* 長いコール：背景の大きな光が、コールの長さをかけてゆっくり広がる */
-.sp-bloom {
-  position: absolute;
-  left: 50%;
-  top: var(--sp-y);
-  width: 130vmax;
-  height: 130vmax;
-  border-radius: 50%;
-  opacity: 0;
-  background: radial-gradient(circle, color-mix(in srgb, var(--sp-c1) 60%, transparent) 0%, color-mix(in srgb, var(--sp-c2) 35%, transparent) 38%, transparent 66%);
-  transform: translate(-50%, -50%) scale(0.6);
-  will-change: transform, opacity;
-}
-/* 名前コール：メンバーカラーのオーロラ（2人＝2色が混ざる・3人以上＝全員の色が外周を回る）。ぼかした円を回すだけ（塗り直しなし） */
-/* 円を回して色を流し、外側の箱で横長につぶす（回っても形は横長の楕円のまま・中心も動かない） */
-.sp-aurora {
-  position: absolute;
-  left: 50%;
-  top: var(--sp-y);
-  width: min(92vw, 640px);
-  height: min(92vw, 640px);
-  margin: calc(min(92vw, 640px) / -2) 0 0 calc(min(92vw, 640px) / -2);
-  opacity: 0;
-  transform: scaleY(0.6);
-}
-.sp-aurora::before {
-  content: "";
+/* ===== 会場（暗幕・光線・サーチライト・ペンライトの群れ） ===== */
+.sp-box {
   position: absolute;
   inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  opacity: 0;
+  --sp-cy: var(--sp-y);
+}
+/* ライブコール：舞台の上の帯（place が位置と大きさを決める）。縁はネオンの細い光 */
+.sp-live .sp-box {
+  inset: auto;
+  left: var(--sp-bx, 4vw);
+  width: var(--sp-bw, 92vw);
+  top: calc(var(--sp-y) - var(--sp-bh, 34vh) / 2);
+  height: var(--sp-bh, 34vh);
+  border-radius: 22px;
+  --sp-cy: 50%;
+  box-shadow:
+    0 0 0 1.5px color-mix(in srgb, var(--sp-c1) 75%, #fff),
+    0 0 0 4px color-mix(in srgb, var(--sp-c2) 45%, transparent),
+    0 0 26px 4px color-mix(in srgb, var(--sp-c1) 45%, transparent),
+    0 18px 40px -10px rgba(20, 0, 30, 0.6);
+}
+/* カラオケ：会場は上下の操作の帯の間いっぱい（place が上端と高さを決める）。文字の中心は上から 44% */
+.sp-karaoke .sp-box {
+  inset: auto;
+  left: var(--sp-bx, 0px);
+  width: var(--sp-bw, 100%);
+  top: var(--sp-bt, 0px);
+  height: var(--sp-bh, 100%);
+  --sp-cy: 44%;
+}
+/* 暗幕：ステージの奥の暗い紫。真ん中（文字の後ろ）だけ少し明るい */
+.sp-veil {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 85% 55% at 50% var(--sp-cy), color-mix(in srgb, var(--sp-c2) 38%, #2a0a48) 0%, transparent 70%),
+    linear-gradient(180deg, #12041f 0%, #24083d 55%, #3a0c4a 100%);
+  opacity: 0.95;
+}
+/* 放射の光線（文字の後ろから外へ、細い光の筋が会場の色で回る）。
+   大きさは会場の長い辺の 1.3 倍だけ（画面の何倍もの板を回すと iPhone の画像のメモリが大きくなるため） */
+.sp-rays {
+  --sp-rs: calc(max(var(--sp-bw, 100vw), var(--sp-bh, 100vh)) * 1.3);
+  position: absolute;
+  left: 50%;
+  top: var(--sp-cy);
+  width: var(--sp-rs);
+  height: var(--sp-rs);
+  margin: calc(var(--sp-rs) / -2) 0 0 calc(var(--sp-rs) / -2);
   border-radius: 50%;
-  background: var(--sp-aurora, conic-gradient(var(--sp-c1), var(--sp-c2), var(--sp-c1)));
-  filter: blur(28px);
-  animation: spAuroraTurn 5.5s linear infinite;
+  background: var(--sp-rays, conic-gradient(var(--sp-c1), var(--sp-c2), var(--sp-c1)));
+  -webkit-mask-image: radial-gradient(circle closest-side, transparent 0 8%, #000 22%, rgba(0, 0, 0, 0.6) 60%, rgba(0, 0, 0, 0.2) 100%);
+  mask-image: radial-gradient(circle closest-side, transparent 0 8%, #000 22%, rgba(0, 0, 0, 0.6) 60%, rgba(0, 0, 0, 0.2) 100%);
+  opacity: 0.5;
   will-change: transform;
 }
-@keyframes spAuroraTurn {
+.sp-layer.is-on .sp-rays {
+  animation: spRaysTurn 26s linear infinite;
+}
+@keyframes spRaysTurn {
   to {
     transform: rotate(1turn);
   }
 }
+/* サーチライト：上の両端から、光の円すいが左右に振れる */
+.sp-search::before,
+.sp-search::after {
+  content: "";
+  position: absolute;
+  top: -6%;
+  width: 56%;
+  height: 120%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.5) 0%, color-mix(in srgb, var(--sp-c2) 32%, transparent) 38%, transparent 82%);
+  clip-path: polygon(47% 0, 53% 0, 100% 100%, 0 100%);
+  transform-origin: 50% 0;
+  opacity: 0.5;
+  will-change: transform;
+}
+.sp-search::before {
+  left: -14%;
+  transform: rotate(-24deg);
+}
+.sp-search::after {
+  right: -14%;
+  transform: rotate(24deg);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.5) 0%, color-mix(in srgb, var(--sp-c1) 32%, transparent) 38%, transparent 82%);
+}
+.sp-layer.is-on .sp-search::before {
+  animation: spSearchL 3.6s ease-in-out infinite alternate;
+}
+.sp-layer.is-on .sp-search::after {
+  animation: spSearchR 3.6s ease-in-out -1.8s infinite alternate;
+}
+@keyframes spSearchL {
+  from {
+    transform: rotate(-30deg);
+  }
+  to {
+    transform: rotate(4deg);
+  }
+}
+@keyframes spSearchR {
+  from {
+    transform: rotate(30deg);
+  }
+  to {
+    transform: rotate(-4deg);
+  }
+}
+/* ペンライトの群れ：画面の下から、後ろの列（細く・暗く）と前の列（太く・明るい）。色は名前コールならその人の色 */
+.sp-crowd {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 62%;
+}
+/* 客席の上に立ちのぼる光のもや（ペンライトの色が混ざった空気） */
+.sp-crowd::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(0deg, color-mix(in srgb, var(--sp-c1) 55%, transparent) 0%, color-mix(in srgb, var(--sp-c2) 24%, transparent) 50%, transparent 100%);
+}
+.sp-crowd i {
+  --sw: clamp(11px, 3vw, 22px);
+  --sh: 66%;
+  position: absolute;
+  left: var(--x);
+  bottom: -14%;
+  width: var(--sw);
+  height: var(--sh);
+  margin-left: calc(var(--sw) / -2);
+  border-radius: 999px;
+  /* 下は持ち手（暗い）、上が光る筒（芯は白く、まわりがその色） */
+  background: linear-gradient(0deg, #1c0c2a 0 16%, #ffffff 16% 22%, var(--c) 34%, color-mix(in srgb, var(--c) 70%, #fff) 100%);
+  box-shadow:
+    0 0 8px 2px var(--c),
+    0 0 22px 7px color-mix(in srgb, var(--c) 50%, transparent);
+  transform-origin: 50% 100%;
+  transform: rotate(var(--tilt));
+  will-change: transform;
+}
+.sp-crowd i.is-back {
+  --sw: clamp(8px, 2.1vw, 15px);
+  --sh: 76%;
+  bottom: 4%;
+  opacity: 0.58;
+}
+.sp-layer.is-on .sp-crowd i {
+  animation: spWave 0.92s ease-in-out var(--delay) infinite alternate;
+}
+@keyframes spWave {
+  from {
+    transform: rotate(-17deg);
+  }
+  to {
+    transform: rotate(17deg);
+  }
+}
+.sp-live .sp-crowd {
+  height: 72%;
+}
+/* カラオケ：文字は会場の真ん中（iPad ではカラオケの画面の列の真ん中） */
+.sp-karaoke .sp-word {
+  left: calc(var(--sp-bx, 0px) + var(--sp-bw, 100vw) / 2);
+}
+/* ライブコール：文字は帯の真ん中（帯は舞台の幅。iPad などで舞台が画面の真ん中でなくても合う）。
+   光っている行が自動スクロールで動いたら、帯ごとなめらかに移る（位置は 0.5 秒ごとに測り直す） */
+.sp-live .sp-word {
+  left: calc(var(--sp-bx, 4vw) + var(--sp-bw, 92vw) / 2);
+}
+.sp-live.is-follow .sp-word,
+.sp-live.is-follow .sp-box {
+  transition: top 0.32s ease-out;
+}
+/* ライブコール：始まりの爆発は帯の中に収まる大きさ（白い舞台の上へ大きくはみ出さない） */
+.sp-live .sp-burst {
+  width: 92%;
+}
+.sp-live .sp-sparks {
+  width: 112%;
+}
 
-/* 大きな文字：画面の中央。後ろに暗い光（スポットライト）を敷いて、白い文字がどの地でも読めるように */
+/* 画面全体の光（会場が下りてくる始まりだけ、一瞬） */
+.sp-wash {
+  position: absolute;
+  inset: -10%;
+  z-index: 1;
+  opacity: 0;
+  background: radial-gradient(ellipse at 50% var(--sp-y), rgba(255, 255, 255, 0.9) 0%, color-mix(in srgb, var(--sp-c1) 60%, transparent) 26%, transparent 64%);
+}
+
+/* ===== 大きな文字（本人のコールの文字のまま） ===== */
 .sp-word {
   position: absolute;
   left: 50%;
   top: var(--sp-y);
+  z-index: 2;
   width: max-content;
-  max-width: 90vw;
+  max-width: var(--sp-ww, 92vw);
   opacity: 0;
   transform: translate(-50%, -50%);
+  perspective: 900px;
   will-change: transform, opacity;
 }
-/* 文字の後ろの薄い影（白い文字が、明るい地の上でも読めるように。濃い円にはしない） */
-.sp-word::before {
-  content: "";
-  position: absolute;
-  inset: -0.35em -0.5em;
-  z-index: -1;
-  border-radius: 50%;
-  background: radial-gradient(ellipse, rgba(46, 8, 56, 0.5) 0%, rgba(46, 8, 56, 0.28) 45%, transparent 70%);
-}
+/* 白い文字・太い縁取り（濃い紫）・下へ伸びる立体の影（濃いピンク／名前コールはその人の色）・外の光。少し手前へ倒して飛び出して見せる */
 .sp-word-text {
+  --sp-exd: color-mix(in srgb, var(--sp-ex) 62%, #2b0040);
   display: block;
   color: #fff;
+  font-size: var(--sp-fs, 56px);
   font-weight: 900;
-  line-height: 1.18;
+  line-height: 1.14;
   letter-spacing: 0.02em;
   text-align: center;
   white-space: pre-line;
-  word-break: keep-all; /* 名前・言葉の途中で折り返さない（空白の所で折り返す。入らないときだけ途中で） */
+  word-break: keep-all; /* 名前・言葉の途中で折り返さない（空白・改行・「！」の後ろで折り返す） */
+  overflow-wrap: normal;
+  transform: rotateX(12deg);
+  transform-origin: 50% 100%;
+  text-shadow:
+    0.04em 0 0 #1a0330,
+    -0.04em 0 0 #1a0330,
+    0 0.04em 0 #1a0330,
+    0 -0.04em 0 #1a0330,
+    0.03em 0.03em 0 #1a0330,
+    -0.03em 0.03em 0 #1a0330,
+    0.03em -0.03em 0 #1a0330,
+    -0.03em -0.03em 0 #1a0330,
+    0 0.07em 0 var(--sp-exd),
+    0 0.09em 0 var(--sp-exd),
+    0 0.11em 0 var(--sp-exd),
+    0 0.13em 0 color-mix(in srgb, var(--sp-exd) 70%, #000),
+    0 0.15em 0 #1a0330,
+    0 0.2em 0.25em rgba(10, 0, 20, 0.7),
+    0 0 0.45em color-mix(in srgb, var(--sp-ex) 75%, transparent);
+}
+.sp-word.is-tight .sp-word-text {
   overflow-wrap: anywhere;
-  /* 【2026-11-01 r7-live-fix】明るい地でも読めるよう、濃い縁取り（四方の影）を足した */
-  text-shadow:
-    1px 1px 0 rgba(48, 0, 44, 0.85),
-    -1px 1px 0 rgba(48, 0, 44, 0.85),
-    1px -1px 0 rgba(48, 0, 44, 0.85),
-    -1px -1px 0 rgba(48, 0, 44, 0.85),
-    0 0 3px rgba(48, 0, 44, 0.95),
-    0 0 7px rgba(48, 0, 44, 0.7),
-    0 0 18px var(--sp-c1),
-    0 0 42px color-mix(in srgb, var(--sp-c2) 80%, transparent),
-    0 3px 10px rgba(30, 0, 30, 0.6);
 }
-.sp-layer[data-size="s"] .sp-word-text {
-  font-size: min(23vw, 132px);
-}
-.sp-layer[data-size="m"] .sp-word-text {
-  font-size: min(14.5vw, 92px);
-}
-.sp-layer[data-size="l"] .sp-word-text {
-  font-size: min(9.4vw, 62px);
-}
-.sp-layer[data-size="xl"] .sp-word-text {
-  font-size: min(6.6vw, 40px);
-  line-height: 1.3;
-}
-/* 名前の部分：文字は白のまま、外側にその人の色の光（脈打ちは JS の拡大で）。名前ごとの色のアクセントとして、細い色の下の光を残す */
+/* 名前の部分：立体の影と外の光を、その人の色に（白い文字・濃い縁取りはそのまま＝どの色でも読める） */
 .sp-word-text .cx-name-part {
+  --sp-exd: color-mix(in srgb, var(--name-color) 62%, #2b0040);
+  text-decoration-line: none;
   text-shadow:
-    1px 1px 0 rgba(48, 0, 44, 0.85),
-    -1px 1px 0 rgba(48, 0, 44, 0.85),
-    1px -1px 0 rgba(48, 0, 44, 0.85),
-    -1px -1px 0 rgba(48, 0, 44, 0.85),
-    0 0 3px rgba(48, 0, 44, 0.95),
-    0 0 14px var(--name-color),
-    0 0 30px var(--name-color),
-    0 0 54px color-mix(in srgb, var(--name-color) 70%, transparent),
-    0 3px 10px rgba(30, 0, 30, 0.55);
+    0.04em 0 0 #1a0330,
+    -0.04em 0 0 #1a0330,
+    0 0.04em 0 #1a0330,
+    0 -0.04em 0 #1a0330,
+    0.03em 0.03em 0 #1a0330,
+    -0.03em 0.03em 0 #1a0330,
+    0.03em -0.03em 0 #1a0330,
+    -0.03em -0.03em 0 #1a0330,
+    0 0.07em 0 var(--sp-exd),
+    0 0.09em 0 var(--sp-exd),
+    0 0.11em 0 var(--sp-exd),
+    0 0.13em 0 color-mix(in srgb, var(--sp-exd) 70%, #000),
+    0 0.15em 0 #1a0330,
+    0 0.2em 0.25em rgba(10, 0, 20, 0.7),
+    0 0 0.5em var(--name-color);
 }
-/* 「or」：灰色にせず白のまま（縁取りで読める）。少し細くして名前と区別する */
+/* 「or」：灰色にせず白のまま（縁取りで読める）。少し小さくして名前と区別する（大きな文字の中だけ。舞台の行の幅は変えない） */
 .sp-word-text .cx-name-sep {
   color: #fff;
-  font-weight: 700;
+  font-size: 0.62em;
+  font-weight: 800;
 }
-/* 始まりの光の輪（文字の後ろ。細い輪が外へ広がって消える＝衝撃波） */
-.sp-burst {
+/* 始まりの爆発：光の輪が外へ広がり、光の筋が飛び散る（0.45 秒） */
+.sp-burst,
+.sp-sparks {
   position: absolute;
   left: 50%;
   top: 50%;
   z-index: -1;
-  width: 130%;
-  height: 210%;
-  border-radius: 50%;
   opacity: 0;
+  pointer-events: none;
+}
+.sp-burst {
+  width: 115%;
+  aspect-ratio: 1;
+  border-radius: 50%;
   box-shadow:
-    0 0 0 3px color-mix(in srgb, var(--sp-c3) 85%, #fff),
-    0 0 18px 4px color-mix(in srgb, var(--sp-c1) 70%, transparent),
-    inset 0 0 18px 4px color-mix(in srgb, var(--sp-c1) 50%, transparent);
+    0 0 0 2px rgba(255, 255, 255, 0.9),
+    0 0 14px 4px color-mix(in srgb, var(--sp-c1) 80%, transparent),
+    inset 0 0 14px 3px color-mix(in srgb, var(--sp-c2) 55%, transparent);
+}
+.sp-sparks {
+  width: 170%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: repeating-conic-gradient(from 6deg, #fff 0 1.6deg, transparent 1.6deg 11deg, var(--sp-c3) 11deg 12.4deg, transparent 12.4deg 22.5deg);
+  -webkit-mask-image: radial-gradient(circle, transparent 0 30%, #000 34%, #000 46%, transparent 58%);
+  mask-image: radial-gradient(circle, transparent 0 30%, #000 34%, #000 46%, transparent 58%);
 }
 
-/* 視差効果を減らす：揺れ・回転を止める（文字はふわっと出て消えるだけ） */
+/* 視差効果を減らす：揺れ・回転を止める（文字はふわっと出て、終わるまで静かに大きく出したまま） */
 .sp-layer.is-reduced .sp-beams i,
-.sp-layer.is-reduced .sp-aurora::before {
+.sp-layer.is-reduced.is-on .sp-crowd i,
+.sp-layer.is-reduced.is-on .sp-rays,
+.sp-layer.is-reduced.is-on .sp-search::before,
+.sp-layer.is-reduced.is-on .sp-search::after {
   animation: none;
+}
+.sp-layer.is-reduced .sp-word-text {
+  transform: none;
 }
 @media (prefers-reduced-motion: reduce) {
   .sp-beams i,
-  .sp-aurora::before {
+  .sp-layer.is-on .sp-crowd i,
+  .sp-layer.is-on .sp-rays,
+  .sp-layer.is-on .sp-search::before,
+  .sp-layer.is-on .sp-search::after {
     animation: none;
   }
 }
 
-/* ライブコール：ペンライトは舞台（コール表の箱）の後ろ。演出 ありの間だけ、舞台の白を少し透かして、後ろの光が見えるようにする
+/* ライブコール：光の柱は舞台（コール表の箱）の後ろ。演出 ありの間だけ、舞台の白を少し透かして、後ろの光が見えるようにする
    （文字の地はほぼ白のまま。歌詞・コールのコントラストは保つ） */
 #live-call-root .lc-toolbar.is-live,
 #live-call-root .lc-now-panel {
@@ -251,7 +418,11 @@
 #live-call-root:has(.sp-back:not([hidden])) .lc-stage.is-live:not(.intensity-off) .call-text-view {
   background: transparent;
 }
-/* カラオケ：上と下の操作の帯は、前の層（大きな文字・光）より上 */
+/* 【r8-fx】ライブコール：「いま／つぎ」の札は会場の帯より上（帯が近くに出ても札は読める） */
+#live-call-root .lc-now-panel {
+  z-index: 3;
+}
+/* カラオケ：上と下の操作の帯は、前の層（会場・大きな文字）より上 */
 #live-call-mode-karaoke-screen.kx-on .karaoke-header-zone,
 #live-call-mode-karaoke-screen.kx-on .karaoke-footer-zone {
   z-index: 2;
@@ -494,19 +665,4 @@
   #live-call-mode-karaoke-screen.kx-on .kx-call.kx-names-single.is-lit::after {
     opacity: 0.7;
   }
-}
-
-/* ===== 【2026-11-01 r7-live-fix】カラオケ：大きな文字は出さず、光の輪をカードの形で出す（カードと同じ文字が2回出ない・歌詞にかぶらない） ===== */
-.sp-front.sp-karaoke .sp-word {
-  width: var(--sp-ww, 80vw);
-  height: var(--sp-wh, 30vh);
-}
-.sp-front.sp-karaoke .sp-word::before,
-.sp-front.sp-karaoke .sp-word-text {
-  display: none;
-}
-.sp-front.sp-karaoke .sp-burst {
-  width: 104%;
-  height: 108%;
-  border-radius: 28px;
 }
