@@ -134,6 +134,7 @@ const APP_SHELL_FILES = [
   "./js/achievementList.js",
   "./js/achievementIcons.js",
   "./js/oshiBadge.js",
+  "./js/badgeIdentity.js",
   "./js/responseTime.js",
   "./js/speedAchievementProgress.js",
   "./js/history.js",
