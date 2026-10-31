@@ -47,6 +47,7 @@ const APP_SHELL_FILES = [
   // 【2026-10-28追加】ライブページ・センター表・フレンドの重複整理・歌詞クイズの重複フレーズ対策
   "./css/liveHub.css",
   "./css/centersTable.css",
+  "./css/centerSheet.css",
   "./css/friendsFix.css",
   // 【2026-10-30追加】リニューアル第2段階：ホーム（案B）・まとめ画面・端末の「戻る」
   "./css/homeRenewal.css",
@@ -61,6 +62,8 @@ const APP_SHELL_FILES = [
   "./js/floatingBack.js",
   "./js/liveHubScreen.js",
   "./js/centerTable.js",
+  "./js/centerSheet.js",
+  "./js/centerSheetView.js",
   "./js/fanProfilesIdentity.js",
   "./js/lyricsQuestionUniqueness.js",
   "./js/data/lyricsAmbiguityIndex.js",

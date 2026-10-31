@@ -6100,10 +6100,11 @@ document.getElementById("live-hub-back-button").addEventListener("click", () => 
 // 【2026-10-27新設】歴代センター一覧。入口は「＝LOVEについて」の作品一覧タブと、収録曲一覧のセンター欄。
 // 曲名・メンバーをタップした先では、全体検索と同じ openSearchTarget() を使い、「戻る」でこの一覧へ戻す。
 let centersReturnScreen = "discography";
-function openCentersFrom(returnScreen, focusSongId = null) {
+// view："sheet" のとき 1枚表で開く（【2026-11-01 R8・本人の依頼 3】楽曲の側の入口「センター1枚表」から）
+function openCentersFrom(returnScreen, focusSongId = null, view = null) {
   centersReturnScreen = returnScreen && returnScreen !== "centers" ? returnScreen : "discography";
   navigateWithScrollMemory("centers");
-  openCentersScreen({ focusSongId });
+  openCentersScreen({ focusSongId, view });
 }
 initCentersScreen(
   { container: document.getElementById("centers-content") },
@@ -6119,6 +6120,11 @@ initCentersScreen(
 document.getElementById("centers-link").addEventListener("click", () => {
   playClickSound();
   openCentersFrom("discography");
+});
+// 【2026-11-01 R8・本人の依頼 3】楽曲・歌詞の画面の「センター1枚表」（戻る先は楽曲・歌詞の画面）
+document.getElementById("center-sheet-hub-link").addEventListener("click", () => {
+  playClickSound();
+  openCentersFrom("musicHub", null, "sheet");
 });
 document.getElementById("centers-back-button").addEventListener("click", () => {
   playSfx(SFX_EVENTS.UI_BACK);
@@ -9031,6 +9037,8 @@ initHomeScreen(document.getElementById("start-screen"), {
   },
   // 歴代センター：戻る先はホーム
   openCenters: () => openCentersFrom("start"),
+  // 【2026-11-01 R8・本人の依頼 3】ホームの「楽曲・歌詞を楽しむ」→「読む・調べる」の「センター1枚表」：1枚表で開く（戻る先はホーム）
+  openCenterSheet: () => openCentersFrom("start", null, "sheet"),
   // CM・企業コラボ：「＝LOVEについて」の「CM・広告・企業コラボ（＝LOVE名義）」の欄（メンバーの個人ページの案内ボタンと同じ仕組み）
   openGroupCommercials: () =>
     window.dispatchEvent(new CustomEvent("app-navigate", { detail: { screen: "discography", scrollToId: "group-cm-section" } })),

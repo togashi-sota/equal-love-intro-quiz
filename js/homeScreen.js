@@ -219,6 +219,8 @@ export const HOME_ACTIONS = {
   works: { type: "callback", value: "openDiscographyWorks", ownSound: true },
   "lyrics-search": { type: "click", value: "lyrics-search-link" },
   centers: { type: "callback", value: "openCenters" },
+  // 【2026-11-01 R8・本人の依頼 3】センターの1枚表（楽曲の側の主な入口。＝LOVE の側の「歴代センター」は補助として残す）
+  "center-sheet": { type: "callback", value: "openCenterSheet" },
   commercials: { type: "callback", value: "openGroupCommercials", ownSound: true },
   "about-group": { type: "callback", value: "openDiscographyAbout", ownSound: true },
   "data-update": { type: "callback", value: "openDataManagement" },
@@ -258,10 +260,19 @@ export function buildHomeInfoStats({ members = [], periods = [], tvAppearances =
     cmHook: commercials.length > 0 ? "＝LOVE名義の|CM・企業コラボ" : null,
     cmBadge: commercials.length > 0 ? `${commercials.length}件` : null,
     worksSub: singles > 0 ? `シングル${singles}枚${albums > 0 ? `|・アルバム${albums}枚` : ""}` : null,
+    // 1枚表の説明（「1st〜21stを|1枚で」。22nd を足せば自動で「1st〜22nd」）
+    centerSheetSub: singles > 0 ? `1st〜${formatOrdinal(singles)}を|1枚で` : null,
     songsSub: songs.length > 0 ? `${songs.length}曲の|歌詞・曲の情報` : null,
     liveHubSub: setlists.length > 0 ? `${setlists.length}公演の|セットリスト` : null,
     nextLive: nextLive ? { title: nextLive.title, date: formatLiveDates(nextLive.startDate, nextLive.endDate) } : null,
   };
+}
+
+// 1 → "1st"、2 → "2nd"、21 → "21st"、22 → "22nd"、11〜13 → "11th" など（英語の序数）
+export function formatOrdinal(number) {
+  const tens = number % 100;
+  if (tens >= 11 && tens <= 13) return `${number}th`;
+  return `${number}${{ 1: "st", 2: "nd", 3: "rd" }[number % 10] ?? "th"}`;
 }
 
 function formatLiveDates(startDate, endDate) {
@@ -309,6 +320,7 @@ function renderHomeInfoPreviews() {
     badge.hidden = !text;
   });
   put("home-music-works-sub", stats.worksSub);
+  put("home-music-center-sheet-sub", stats.centerSheetSub);
   put("home-music-songs-sub", stats.songsSub);
   put("home-live-hub-sub", stats.liveHubSub);
   const colors = $("#home-know-member-colors");

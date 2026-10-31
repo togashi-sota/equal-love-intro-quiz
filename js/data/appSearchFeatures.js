@@ -147,7 +147,7 @@ export const APP_SEARCH_FEATURES = [
     id: "feature-centers",
     category: FEATURE,
     title: "歴代センター一覧",
-    aliases: ["センター", "歴代センター", "センター一覧", "センター曲", "Wセンター", "ダブルセンター"],
+    aliases: ["センター", "歴代センター", "センター一覧", "センター曲", "Wセンター", "ダブルセンター", "センター1枚表", "1枚表", "センター表"],
     description: "シングル・アルバム・配信曲のセンターを発売順に一覧できます。メンバーで絞り込めて、根拠（公式・報道・ファン資料のみ 等）も表示します。",
     action: { type: "click", selector: "#centers-link" },
   },

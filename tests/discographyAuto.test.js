@@ -122,7 +122,7 @@ async function runHomeMusicCardTests() {
   const doc = new DOMParser().parseFromString(html, "text/html");
   const card = doc.getElementById("home-card-music");
   const actions = [...card.querySelectorAll("button")].map((button) => button.dataset.homeAction);
-  assertEqual(actions, ["continuous-play", "playlists", "favorites", "songlist", "works", "lyrics-search"], "楽曲：ボタンの数と並び（行き先）は今までと同じ6つ");
+  assertEqual(actions, ["continuous-play", "playlists", "favorites", "songlist", "works", "center-sheet", "lyrics-search"], "楽曲：今までの6つ（並び・行き先は同じ）＋ R8 のセンター1枚表");
   const hero = card.querySelector(".home-music-hero");
   assertEqual(hero?.dataset.homeAction, "continuous-play", "主役は「曲を聴く」（連続再生へ。行き先は今までと同じ）");
   assertEqual(hero?.querySelector("b")?.textContent, "曲を聴く", "主役の題名は「曲を聴く」");
@@ -134,7 +134,7 @@ async function runHomeMusicCardTests() {
   assertEqual(card.querySelectorAll("img").length, 0, "画像（他人のアルバム画像など）は使わない");
   assertEqual([...card.querySelectorAll(".home-music-col-title")].map((element) => element.textContent.trim()), ["聴く", "読む・調べる", "探す"], "聴く／読む・調べる／探す に分ける");
   assertEqual([...card.querySelectorAll(".home-music-col--listen .home-music-item")].map((button) => button.dataset.homeAction), ["playlists", "favorites"], "プレイリスト・お気に入りは「聴く」のサブ");
-  assertEqual([...card.querySelectorAll(".home-music-col--read .home-music-item")].map((button) => button.dataset.homeAction), ["songlist", "works"], "楽曲一覧・シングル・アルバムは「読む・調べる」");
+  assertEqual([...card.querySelectorAll(".home-music-col--read .home-music-item")].map((button) => button.dataset.homeAction), ["songlist", "works", "center-sheet"], "楽曲一覧・シングル・アルバム・センター1枚表（R8）は「読む・調べる」");
   assertEqual([...card.querySelectorAll(".home-music-col--find .home-music-item")].map((button) => button.dataset.homeAction), ["lyrics-search"], "歌詞検索は「探す」");
   assertEqual([card.querySelector("#home-music-songs-sub") !== null, card.querySelector("#home-music-works-sub") !== null], [true, true], "曲の数・作品の数を入れる所（JS が数えて入れる）は残る");
   const symbols = new Set([...doc.querySelectorAll(".home-icon-sprite symbol")].map((symbol) => symbol.id));

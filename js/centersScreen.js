@@ -17,9 +17,12 @@ import { buildCenterRows, filterCenterRows, describeCenterState, pickReadableTex
 import { CENTER_TABLE_COLUMNS, buildCenterTableModel, filterCenterTableModel } from "./centerTable.js";
 import { normalizeForSearch } from "./songSearch.js";
 import { applyScrollLock, releaseScrollLock } from "./scrollLock.js";
+// 【2026-11-01 R8・本人の依頼 3】1st〜最新・アルバム・他 をスクロールせずに見渡す「1枚表」
+import { buildCenterSheetModel } from "./centerSheet.js";
+import { createCenterSheetPanel } from "./centerSheetView.js";
 
 const VIEW_MODE_STORAGE_KEY = "equalLoveIntroQuiz.centersViewMode";
-const VIEW_MODES = { CARDS: "cards", TABLE: "table" };
+const VIEW_MODES = { SHEET: "sheet", CARDS: "cards", TABLE: "table" };
 
 let container = null;
 let callbacks = { onOpenSong: null, onOpenMember: null };
@@ -33,9 +36,13 @@ let chipRow = null;
 let noCenterToggleLabel = null;
 let noCenterToggle = null;
 let viewTabs = null;
+let introText = null;
+let controlsElement = null;
+let sheetPanel = null;
 let fullscreenOverlay = null;
 let fullscreenScrollY = 0;
 let built = false;
+let resizeListening = false;
 
 // 絞り込みの状態（同じ利用中だけ覚える。保存はしない）
 const filterState = { memberName: null, query: "", includeNoCenterSongs: false };
@@ -47,12 +54,13 @@ let tableTextSize = "m";
 const allRows = buildCenterRows(SONGS);
 const tableModel = buildCenterTableModel(SONGS, { discography: DISCOGRAPHY });
 const memberByName = new Map(MEMBERS.map((member) => [member.name, member]));
+const sheetModel = buildCenterSheetModel(SONGS, { discography: DISCOGRAPHY });
 
 // localStorage はプライベートモード等で使えない（例外になる）ことがあるため、必ず try/catch で包む
 function loadViewMode() {
   try {
     const saved = localStorage.getItem(VIEW_MODE_STORAGE_KEY);
-    return saved === VIEW_MODES.TABLE ? VIEW_MODES.TABLE : VIEW_MODES.CARDS;
+    return Object.values(VIEW_MODES).includes(saved) ? saved : VIEW_MODES.CARDS;
   } catch {
     return VIEW_MODES.CARDS;
   }
@@ -363,10 +371,30 @@ function handleFullscreenKeydown(event) {
 
 // ---- 表示の更新 ----
 
+// 説明の文（表示ごとに変える）
+const INTRO_TEXTS = {
+  [VIEW_MODES.SHEET]: "シングル・アルバム・配信曲のセンターを1枚の表にしました。色はメンバーカラー、2色のマスは2人センターです。",
+  [VIEW_MODES.CARDS]: "シングル・アルバム・配信曲のセンターを、メンバーカラーで表示しています。曲名をタップすると収録曲一覧、名前をタップするとメンバーのページを開きます。",
+  [VIEW_MODES.TABLE]: "シングル・アルバム・配信曲のセンターを、メンバーカラーで表示しています。曲名をタップすると収録曲一覧、名前をタップするとメンバーのページを開きます。",
+};
+
+// 1枚表を、画面の大きさに合わせて縮める（表示されているときだけ。画面の向き・大きさが変わったときも）
+function fitSheetIfVisible() {
+  if (!sheetPanel || viewMode !== VIEW_MODES.SHEET || !container?.isConnected || sheetPanel.element.hidden) return;
+  sheetPanel.fit();
+}
+
 function render() {
+  const isSheet = viewMode === VIEW_MODES.SHEET;
   const isTable = viewMode === VIEW_MODES.TABLE;
-  listElement.hidden = isTable;
+  listElement.hidden = isTable || isSheet;
   tablePanel.hidden = !isTable;
+  sheetPanel.element.hidden = !isSheet;
+  // 1枚表は全体を1枚で見せるので、検索・メンバーの絞り込みは出さない（凡例の名前を押すと、その人のマスを目立たせる）
+  controlsElement.hidden = isSheet;
+  introText.textContent = INTRO_TEXTS[viewMode];
+  // 1枚表は、画面の高さをできるだけ表に使うため説明の文を隠す（表の中の凡例と、表の上の短い案内で足りる）
+  introText.parentElement.hidden = isSheet;
   // ソロ・2人の曲の切り替えは一覧カードだけのもの（センター表ではユニット曲の列にいつも出す）
   noCenterToggleLabel.hidden = isTable;
   viewTabs.querySelectorAll(".centers-view-tab").forEach((tab) => {
@@ -375,7 +403,10 @@ function render() {
     tab.setAttribute("aria-selected", String(isActive));
   });
 
-  if (isTable) {
+  if (isSheet) {
+    summaryElement.textContent = "";
+    requestAnimationFrame(fitSheetIfVisible);
+  } else if (isTable) {
     const model = filterCenterTableModel(tableModel, { ...filterState, normalize: normalizeForSearch });
     renderTable(model);
     const songCount = model.groups.reduce((sum, group) => sum + group.matchCount, 0);
@@ -403,6 +434,7 @@ function buildViewTabs() {
   viewTabs.setAttribute("role", "tablist");
   viewTabs.setAttribute("aria-label", "表示の切り替え");
   [
+    [VIEW_MODES.SHEET, "1枚表"],
     [VIEW_MODES.CARDS, "一覧カード"],
     [VIEW_MODES.TABLE, "センター表"],
   ].forEach(([mode, label]) => {
@@ -453,6 +485,7 @@ function buildMemberChips() {
 
 function buildControls() {
   const controls = el("div", "centers-controls");
+  controlsElement = controls;
 
   const searchRow = el("div", "search-field-row");
   searchInput = el("input", "pill-search-input");
@@ -498,12 +531,18 @@ function buildControls() {
 
 function buildIntro() {
   const intro = el("div", "centers-intro");
-  intro.appendChild(el("p", "centers-intro-text", "シングル・アルバム・配信曲のセンターを、メンバーカラーで表示しています。曲名をタップすると収録曲一覧、名前をタップするとメンバーのページを開きます。"));
+  introText = el("p", "centers-intro-text", INTRO_TEXTS[viewMode]);
+  intro.appendChild(introText);
   return intro;
 }
 
 function focusSong(songId) {
   if (!songId) return;
+  // 1枚表のときは、その曲のマスを少しのあいだ光らせる（表は動かさない）
+  if (viewMode === VIEW_MODES.SHEET) {
+    requestAnimationFrame(() => sheetPanel.focusSong(songId));
+    return;
+  }
   const findTarget = () =>
     viewMode === VIEW_MODES.TABLE
       ? tableScroll.querySelector(`.ct-song[data-song-id="${CSS.escape(songId)}"]`)
@@ -531,14 +570,27 @@ function focusSong(songId) {
 
 // 画面を開くたびに呼ぶ。中身は初回だけ組み立て、絞り込みの状態はそのまま残す。
 // options.focusSongId：収録曲一覧の「歴代センター一覧へ」から来たとき、その曲の行へスクロールする
+// options.view："sheet"（1枚表）など。楽曲の側の入口「センター1枚表」から来たときは、1枚表で開く（覚えている表示は変えない）
 export function openCentersScreen(options = {}) {
   if (!container) return;
   if (!built) {
     container.innerHTML = "";
     listElement = el("div", "center-row-list");
-    container.append(buildViewTabs(), buildIntro(), buildControls(), listElement, buildTablePanel());
+    sheetPanel = createCenterSheetPanel(sheetModel, {
+      onOpenSong: (songId) => {
+        closeTableFullscreen();
+        callbacks.onOpenSong?.(songId);
+      },
+    });
+    container.append(buildViewTabs(), buildIntro(), buildControls(), listElement, buildTablePanel(), sheetPanel.element);
+    if (!resizeListening) {
+      window.addEventListener("resize", fitSheetIfVisible);
+      window.addEventListener("orientationchange", fitSheetIfVisible);
+      resizeListening = true;
+    }
     built = true;
   }
+  if (options.view && Object.values(VIEW_MODES).includes(options.view)) viewMode = options.view;
   render();
   focusSong(options.focusSongId);
 }
@@ -546,6 +598,8 @@ export function openCentersScreen(options = {}) {
 // elements: { container }。
 // options.onOpenSong(songId)：曲名をタップしたとき。options.onOpenMember(member)：メンバーのマスをタップしたとき。
 export function initCentersScreen(elements, options = {}) {
+  // 別の入れ物を渡されたら（テストで何度か作り直すとき）、次に開いたときに中身を組み直す
+  if (elements.container !== container) built = false;
   container = elements.container;
   callbacks = { onOpenSong: options.onOpenSong ?? null, onOpenMember: options.onOpenMember ?? null };
 }
