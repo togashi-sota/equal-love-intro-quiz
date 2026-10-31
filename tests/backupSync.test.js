@@ -7,7 +7,8 @@
 // 実際のFirebase読み書き・復元動作は、ダミーデータを使ってブラウザ上で手動確認する
 // （docs/HANDOFF.md参照、本人指示のパターンを踏襲）。
 
-import { isBackupWorthyLogicalKey, collectLocalBackupEntries, buildBackupPayload } from "../js/backupSync.js";
+import { isBackupWorthyLogicalKey, collectLocalBackupEntries, buildBackupPayload, writeRestoredEntries } from "../js/backupSync.js";
+import { loadPickedSongIds } from "../js/songPickSelection.js";
 import { setActivePlayerId, addPlayer, deletePlayer, DEFAULT_PLAYER_ID } from "../js/playerProfile.js";
 import { assertEqual } from "./test-utils.js";
 
@@ -21,6 +22,47 @@ const TEST_KEYS_TO_CLEAN = [
 
 function cleanup() {
   TEST_KEYS_TO_CLEAN.forEach((key) => localStorage.removeItem(key));
+}
+
+// 選んだ曲（pickedSongs）のバックアップと復元（Firebase には触れず、localStorage だけで確かめる）。
+// 復元は restoreFromBackup() と同じ書き戻し（writeRestoredEntries）を使う。テストの前の値は最後に戻す。
+function runPickedSongsBackupTests() {
+  const pickedKey = "equalLoveIntroQuiz.pickedSongs";
+  const favoriteKey = "equalLoveIntroQuiz.favoriteSongs";
+  const saved = [pickedKey, favoriteKey].map((key) => localStorage.getItem(key));
+  try {
+    localStorage.setItem(pickedKey, JSON.stringify(["song-b", "song-a"]));
+    const entries = collectLocalBackupEntries();
+    assertEqual(entries.pickedSongs, JSON.stringify(["song-b", "song-a"]), "選んだ曲はバックアップに選んだ順のまま入る");
+
+    // 新しいバックアップ（pickedSongs あり）を復元すると、選んだ曲も戻る（引き継ぎも同じ書き戻し）
+    localStorage.setItem(pickedKey, JSON.stringify(["other"]));
+    writeRestoredEntries({ pickedSongs: JSON.stringify(["song-b", "song-a"]), favoriteSongs: JSON.stringify(["song-c"]) });
+    assertEqual(loadPickedSongIds(), ["song-b", "song-a"], "復元で選んだ曲が選んだ順のまま戻る");
+    assertEqual(localStorage.getItem(favoriteKey), JSON.stringify(["song-c"]), "同じ復元でお気に入りも戻る");
+
+    // 古いバックアップ（pickedSongs が無い）を復元しても壊れない：端末の今の選んだ曲はそのまま
+    localStorage.setItem(pickedKey, JSON.stringify(["keep-me"]));
+    writeRestoredEntries({ favoriteSongs: JSON.stringify(["song-d"]) });
+    assertEqual(loadPickedSongIds(), ["keep-me"], "古いバックアップ（pickedSongs なし）を復元しても、端末の選んだ曲は消えない");
+    localStorage.removeItem(pickedKey);
+    writeRestoredEntries({ favoriteSongs: JSON.stringify(["song-d"]) });
+    assertEqual(loadPickedSongIds(), [], "選んだ曲が無い端末に古いバックアップを復元しても、空として読める");
+
+    // 壊れた値・文字列でない値
+    writeRestoredEntries({ pickedSongs: "{壊れた" });
+    assertEqual(loadPickedSongIds(), [], "復元した値が壊れていても止まらず空として扱う");
+    localStorage.setItem(pickedKey, JSON.stringify(["x"]));
+    writeRestoredEntries({ pickedSongs: ["not", "a", "string"] });
+    assertEqual(loadPickedSongIds(), ["x"], "文字列でない値は書き戻さない（今までの復元と同じ）");
+    writeRestoredEntries(null);
+    assertEqual(loadPickedSongIds(), ["x"], "payload が無いバックアップでも止まらない");
+  } finally {
+    [pickedKey, favoriteKey].forEach((key, index) => {
+      if (saved[index] === null) localStorage.removeItem(key);
+      else localStorage.setItem(key, saved[index]);
+    });
+  }
 }
 
 export function runBackupSyncTests() {
@@ -46,6 +88,13 @@ export function runBackupSyncTests() {
   assertEqual(isBackupWorthyLogicalKey("players"), false, "players一覧そのものはバックアップ対象外（別の仕組みで管理）");
   assertEqual(isBackupWorthyLogicalKey("activePlayerId"), false, "activePlayerIdはバックアップ対象外");
   assertEqual(isBackupWorthyLogicalKey("onboardingCompleted"), false, "初回登録完了フラグ等の端末固有UIフラグは対象外");
+  // 【2026-11-01 r8-music2・本人の決定】「曲を選んで再生」で選んだ曲も、お気に入り・プレイリストと同じくバックアップする
+  assertEqual(
+    ["favoriteSongs", "playlists", "pickedSongs"].map((key) => isBackupWorthyLogicalKey(key)),
+    [true, true, true],
+    "お気に入り・プレイリスト・選んだ曲（pickedSongs）はバックアップ対象"
+  );
+  runPickedSongsBackupTests();
 
   // ---- collectLocalBackupEntries：デフォルトプレイヤーの対象キーだけを集める ----
   cleanup();

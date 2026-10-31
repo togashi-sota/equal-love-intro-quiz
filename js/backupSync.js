@@ -97,6 +97,7 @@ const BACKUP_KEY_EXACT_NAMES = [
   "oshiMembers", // 推しメン・最推し（js/oshiMembers.js）
   "favoriteSongs", // お気に入り曲（js/favoriteSongs.js）
   "playlists", // 自作プレイリスト（js/playlists.js）
+  "pickedSongs", // 【2026-11-01 r8-music2・本人の決定】「曲を選んで再生」で選んだ曲（js/songPickSelection.js。お気に入り・プレイリストと同じ扱い）
   "publicProfile.enabled", // 「みんなのプロフィール」公開設定（js/publicProfilePayloads.js）
   "customQuizPresets", // オリジナル問題作成モードのプリセット（js/customQuizPresets.js、2026-08-29よりプレイヤー単位）
   "titles.equalLoveKaiden", // 旧バージョンの称号進捗（js/achievementProgress.jsが読み取り専用で保持）
@@ -687,6 +688,19 @@ export async function checkRecoveryRequestStatus(code) {
   }
 }
 
+// バックアップの payload（Firebase のキーの形）を、今のプレイヤーの localStorage へ書き戻す。
+// バックアップに入っているキーだけを書き、入っていないキーには触れない（＝古いバックアップに無いキー、
+// たとえば後から足した pickedSongs は、端末の今の値がそのまま残る）。文字列でない値は飛ばす。
+// 【2026-11-01 r8-music2】restoreFromBackup() の中にあった処理を、意味を変えずに関数へ分けた（テストで確かめるため）。
+export function writeRestoredEntries(firebaseEntries) {
+  const prefix = getPlayerKeyPrefix();
+  for (const [firebaseKey, value] of Object.entries(firebaseEntries ?? {})) {
+    if (typeof value !== "string") continue;
+    const logicalKey = decodeKeyFromFirebase(firebaseKey);
+    localStorage.setItem(`${LOCAL_STORAGE_PREFIX}${prefix}${logicalKey}`, value);
+  }
+}
+
 // 管理者が復旧依頼をbackupIdへ紐付けた後、実際にこの端末のローカルデータへ復元する。
 // 【重要】ここだけがクラウド→ローカルの向きにデータを書き込む、唯一の場所。
 // 現在アクティブなプレイヤーのバックアップ対象キーを、バックアップの内容で「置き換える」
@@ -726,13 +740,8 @@ export async function restoreFromBackup(backupId, { keepOwnerSecret = false, own
       return { ok: false, reason: "このバックアップはまだこの端末に引き継がれていません（管理者の対応をお待ちください）" };
     }
 
-    const prefix = getPlayerKeyPrefix();
     const entries = record.payload ?? {};
-    for (const [firebaseKey, value] of Object.entries(entries)) {
-      if (typeof value !== "string") continue;
-      const logicalKey = decodeKeyFromFirebase(firebaseKey);
-      localStorage.setItem(`${LOCAL_STORAGE_PREFIX}${prefix}${logicalKey}`, value);
-    }
+    writeRestoredEntries(entries);
 
     const player = getActivePlayer();
     // このプレイヤーに、復元したbackupIdを覚えさせる（以後の自動バックアップの送り先を固定する）。
