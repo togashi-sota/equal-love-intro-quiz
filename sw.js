@@ -49,6 +49,7 @@ const APP_SHELL_FILES = [
   "./css/homeRenewal.css",
   "./css/liveCall.css",
   "./css/karaokeStage.css",
+  "./css/callSpectacle.css",
   "./css/guides.css", // 【2026-10-31追加】遊び方・機能ガイド／ゲームの遊び方・記録
   "./js/homeScreen.js",
   "./js/appHistory.js",
@@ -149,6 +150,8 @@ const APP_SHELL_FILES = [
   "./js/karaokeSync.js",
   "./js/karaokeSyncScreen.js",
   "./js/karaokeStage.js",
+  "./js/callSpectacle.js",
+  "./js/callTapSeek.js",
   "./js/callGuidePanel.js",
   "./js/callGuideStorage.js",
   "./js/timeAttackScore.js",
