@@ -208,6 +208,19 @@ function buildSongEntries({ songs, members }) {
   );
 }
 
+// 【2026-11-01 r7-home-fix】作品の番号の言い方（「21枚目」で検索して0件だった）。workId の番号から自動で作る。
+//   シングル：「21枚目」「21枚目のシングル」「21枚目シングル」「21作目」「シングル21」「21st」
+//   アルバム：「1枚目のアルバム」「1枚目アルバム」「アルバム1」「1st」（「1枚目」だけはシングルの 1st を指すので付けない）
+//   配信限定・特別作品：番号はデータ上の通し番号なので付けない
+export function buildWorkNumberAliases(workId, type) {
+  const number = Number(/-(\d+)$/.exec(workId ?? "")?.[1]);
+  if (!Number.isInteger(number) || number <= 0) return [];
+  const ordinal = buildWorkTypeLabel(workId, type).replace(/(シングル|アルバム)$/, "");
+  if (type === "single") return [`${number}枚目`, `${number}枚目のシングル`, `${number}枚目シングル`, `${number}作目`, `シングル${number}`, ordinal];
+  if (type === "album") return [`${number}枚目のアルバム`, `${number}枚目アルバム`, `アルバム${number}`, ordinal];
+  return [];
+}
+
 function buildWorkEntries({ songs, discographyEntries }) {
   return buildWorkSummaries(songs, discographyEntries)
     .filter((work) => work.songs.length > 0)
@@ -224,7 +237,7 @@ function buildWorkEntries({ songs, discographyEntries }) {
         ],
         links: [],
         action: { label: "作品ページで詳しく見る", target: { kind: "work", workId: work.workId } },
-        terms: { primary: [work.title, typeLabel], secondary: work.songs.map((song) => song.title), body: [work.description] },
+        terms: { primary: [work.title, typeLabel], aliases: buildWorkNumberAliases(work.workId, work.type), secondary: work.songs.map((song) => song.title), body: [work.description] },
       });
     });
 }
@@ -567,7 +580,8 @@ function buildCdSalesEntries({ songs, discographyEntries, cdSalesSingles = CD_SA
       ],
       action: { label: "CD売上・チャート記録で見る", target: { kind: "cdSales", workId: row.workId } },
       terms: {
-        secondary: [row.title, ...row.titleTracks.map((track) => track.title), row.typeLabel, "売上", "CD売上", "初週", "チャート"],
+        // 番号の言い方は一段下げる（「21枚目」では作品が先、売上はその下。「21枚目 売上」なら売上が先頭）
+        secondary: [row.title, ...row.titleTracks.map((track) => track.title), row.typeLabel, ...buildWorkNumberAliases(row.workId, row.workId.split("-")[0]), "売上", "CD売上", "初週", "チャート"],
         body: ["オリコン", "ビルボード", "Billboard", "認定", "ゴールドディスク", level, ...(sales.riajCertifications ?? []).map((cert) => cert.level)],
       },
     });

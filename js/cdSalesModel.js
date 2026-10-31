@@ -182,6 +182,12 @@ export function latestCertificationLevel(certifications) {
   return [...certifications].sort((a, b) => a.yearMonth.localeCompare(b.yearMonth)).at(-1).level;
 }
 
+// 一覧の札に出す認定の名前（【2026-11-01 r7-home-fix】「ゴールド」だけだと何のことか分からないので「ゴールド認定」と書く）
+export function formatCertificationBadge(level) {
+  if (!level) return null;
+  return level.endsWith("認定") ? level : `${level}認定`;
+}
+
 // ページの上の数字（データから数える）
 export function buildHeadlineStats(rows) {
   const withCopies = rows.filter((row) => Number.isFinite(row.sales.billboardFirstWeek?.copies));

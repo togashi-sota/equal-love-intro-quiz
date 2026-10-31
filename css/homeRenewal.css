@@ -1611,6 +1611,38 @@
     display: none;
   }
 }
+/* 【2026-11-01 r7-home-fix】中くらいの幅（カードの中が 26〜32rem。iPad 縦 1024px でカードが2列のとき）：
+   スマホの形のままだと楽曲のカードが約400px になり、隣のライブのカードが同じ高さに伸びて下に紫の空きができた。
+   読む・調べる（2つ）と探す（1つ）を1段に並べ、高さを抑える */
+@container (min-width: 26rem) and (max-width: 31.99rem) {
+  .home-music-cols {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    grid-template-areas: "listen listen" "read find";
+    column-gap: 6px;
+  }
+  .home-music-col--listen {
+    grid-area: listen;
+  }
+  .home-music-col--read {
+    grid-area: read;
+  }
+  .home-music-col--find {
+    grid-area: find;
+  }
+  .home-music-col--read .home-music-items {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .home-music-col--read .home-music-item-icon,
+  .home-music-col--find .home-music-item-icon {
+    display: none;
+  }
+  .home-music-item--find {
+    min-height: 54px;
+  }
+  .home-music-item--find .home-music-item-text {
+    flex-direction: column;
+  }
+}
 /* カードが広いとき（iPad・PC。カードの中が 32rem 以上）：左に聴く（主役を大きく）、右に読む・調べる／探す */
 @container (min-width: 32rem) {
   .home-music-cols {
@@ -2130,6 +2162,16 @@
   }
   .home-card--music .home-music-cols {
     flex: 1;
+  }
+  /* 【2026-11-01 r7-home-fix】隣の楽曲のカードの方が高いとき、ライブのカードの下に紫の空きが出ないよう、
+     主役の「コールを覚える」を伸ばして空きを埋める（中身は上下の真ん中に） */
+  .home-card--live {
+    display: flex;
+    flex-direction: column;
+  }
+  .home-card--live .home-live-main.home-live-main--learn {
+    flex: 1 0 auto;
+    align-items: center;
   }
 }
 /* 上部バーの「推しメンを登録しよう」（白い文字・ピンクの地。今までは 約2.7:1） */

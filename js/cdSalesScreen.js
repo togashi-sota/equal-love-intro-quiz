@@ -26,6 +26,7 @@ import {
   formatYearMonth,
   groupSongRecords,
   latestCertificationLevel,
+  formatCertificationBadge,
   sourceLabelOf,
 } from "./cdSalesModel.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
@@ -78,8 +79,9 @@ function buildHeadline() {
     return node;
   };
   box.append(
-    tile("デビュー作の初週", stats.first.value, `${stats.first.row.shortLabel}「${stats.first.row.title}」`),
-    tile("初週の自己最高", stats.best.value, `${stats.best.row.shortLabel}「${stats.best.row.title}」`)
+    // 【2026-11-01 r7-home-fix】どちらも Billboard JAPAN の数（オリコンの初週 51.5万枚と取り違えないように）
+    tile("デビュー作の初週（Billboard）", stats.first.value, `${stats.first.row.shortLabel}「${stats.first.row.title}」`),
+    tile("初週の自己最高（Billboard）", stats.best.value, `${stats.best.row.shortLabel}「${stats.best.row.title}」`)
   );
   return box;
 }
@@ -134,11 +136,17 @@ function buildChart() {
     node.setAttribute("aria-label", `${bar.shortLabel}「${bar.title}」 初週 ${formatCopies(bar.copies) ?? UNCONFIRMED}`);
     node.setAttribute("aria-pressed", "false");
     const column = el("span", "cds-bar-column");
+    // 【2026-11-01 r7-home-fix】棒の中の文字（数と番号）が「2.21st」のように1つに読まれないよう、
+    // 数のあとに読み上げ用の区切り（見えない「万枚、」）を入れ、中の文字は読み上げから外す（ボタンの名前は aria-label）
     const value = el("span", "cds-bar-value", Number.isFinite(bar.copies) ? formatChartValue(bar.copies) : "—");
+    value.appendChild(el("span", "visually-hidden", Number.isFinite(bar.copies) ? "万枚、" : "、"));
     const fill = el("span", "cds-bar-fill");
     fill.style.height = `${bar.ratio * 100}%`;
     column.append(value, fill);
-    node.append(column, el("span", "cds-bar-label", bar.shortLabel));
+    column.setAttribute("aria-hidden", "true");
+    const label = el("span", "cds-bar-label", bar.shortLabel);
+    label.setAttribute("aria-hidden", "true");
+    node.append(column, label);
     bars.appendChild(node);
   });
   plot.appendChild(bars);
@@ -364,7 +372,7 @@ function buildListItem(row, { isAlbum = false } = {}) {
   const top = el("span", "cds-item-top");
   top.append(el("span", "cds-item-number", row.shortLabel), el("span", "cds-item-date", formatDotDate(row.releaseDate)));
   const level = latestCertificationLevel(row.sales.riajCertifications);
-  if (level) top.appendChild(el("span", "cds-item-cert", level));
+  if (level) top.appendChild(el("span", "cds-item-cert", formatCertificationBadge(level)));
   main.append(top, el("span", "cds-item-title", row.title));
   const figures = el("span", "cds-item-figures");
   const bb = row.sales.billboardFirstWeek;
