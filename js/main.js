@@ -6,7 +6,8 @@ import { AUDIO_METADATA } from "./data/audioMetadata.js";
 import { showScreen, onScreenChange, scrollToTop } from "./screens.js";
 // 【2026-10-30新設・リニューアル第2段階】ホーム（案B）・ブラウザ／端末の「戻る」
 import { getScreenElement, findScreenNameOfElement } from "./screens.js";
-import { initAppHistory, resolveBackTarget, forcePushNextScreen } from "./appHistory.js";
+import { initAppHistory, resolveBackTarget, forcePushNextScreen, findBackControl } from "./appHistory.js";
+import { initFloatingBack } from "./floatingBack.js";
 import { initHomeScreen, renderHomePlayerStats, setLiveCallEntryHandler, formatIntroBest, runHomeAction } from "./homeScreen.js";
 // 【2026-10-30新設・リニューアル第3〜5段階】新しいライブコールと、データ管理の「完成版コールデータを読み込む」
 import { initLiveCallScreen, openLiveCallScreen, goBackInLiveCall, refreshLiveCallAfterDataChange, openLiveCallSongMode } from "./liveCallScreen.js";
@@ -9123,6 +9124,10 @@ initAppHistory({
   navigate: navigateWithScrollMemory,
   getScreenElement,
 });
+
+// 【2026-11-01新設・本人の追加依頼 3】長いページを下へ動かしたら、左上に小さな「戻る」の札を出す（js/floatingBack.js）。
+// 押すと、その画面の元の［戻る］を押したことにするだけ（戻り先・記録は上の仕組みのまま）。
+initFloatingBack({ onScreenChange, getScreenElement, findBackControl });
 
 // 【2026-10-29追加・本人の希望】読み込み・元に戻すのあとに、公開プロフィールの「データの曲数」を数え直し、
 // 公開がONなら同期する（公開がOFFなら syncPublicProfileIfEnabled は何もしない）。起動のときは、最初の同期が

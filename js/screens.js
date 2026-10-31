@@ -113,6 +113,11 @@ export function getScreenElement(screenName) {
   return SCREEN_ELEMENTS[screenName] ?? null;
 }
 
+// 画面の名前の一覧（js/floatingBack.js のテスト・全画面の確認に使う。2026-11-01追加）
+export function listScreenNames() {
+  return Object.keys(SCREEN_ELEMENTS);
+}
+
 // 要素が入っている画面の名前を返す（見つからなければ null）。全体検索の「設定の欄へ移動」などで、
 // 欄がどの画面にあるかを調べるのに使う（2026-10-30：ホームの欄を別の画面へ移したため）。
 export function findScreenNameOfElement(element) {

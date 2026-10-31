@@ -42,6 +42,49 @@ const CENTER_NOTES = {
   "single-21": "「全員」はアプリ内の決まり（固定のセンターがいないと判断）。公式のセンター発表は未確認",
 };
 
+// 【2026-11-01 nx-nav・本人の追加依頼 2-1】アルバムの収録順（公式の DISCOGRAPHY の曲順）。
+// 作品詳細の「収録曲」をこの順に並べ、番号を添える（以前は songs.js の並び順のままで、1曲目の Overture が最後に出ていた）。
+// アプリでは、シングルの曲はそれぞれのシングルの作品に入れているので、ここに載るのはアルバムの作品（workId）の曲だけ
+// （番号が飛ぶ所には、シングルの曲が入っている）。番号は CD 16曲の Type-A・Type-B のもの。
+//   出典（2026-11-01 確認）：＝LOVE 公式サイト DISCOGRAPHY
+//     https://equal-love.jp/discography/detail/31/ （Type-A VVCL-1856〜1857：10曲目「現役アイドルちゅ～」）
+//     https://equal-love.jp/discography/detail/32/ （Type-B VVCL-1858〜1859：10曲目「拝啓 貴方様」）
+//     https://equal-love.jp/discography/detail/33/ （Type-C VVCL-1860：15曲。10曲目の曲が無く、11曲目以降が1つずつ前へ）
+//   edition：その版だけに入っている曲（曲名の下に添える）。曲そのものの短い説明は songs.js の shortNote
+export const ALBUM_TRACK_LISTS = {
+  "album-01": {
+    trackCount: 16,
+    numberingNote: "曲順の番号は CD（Type-A・Type-B）のもの。番号の飛んでいる所はシングルの曲です",
+    tracks: [
+      { no: 1, songId: "overture" },
+      { no: 2, songId: "sakura-no-saku-oto-ga-shita" },
+      { no: 4, songId: "oh-darling" },
+      { no: 6, songId: "senobi-in-love" },
+      { no: 10, songId: "genneki-idol-chu", edition: "Type-A のみ" },
+      { no: 10, songId: "haikei-anata-sama", edition: "Type-B のみ" },
+      { no: 11, songId: "24-7" },
+      { no: 12, songId: "oneesan-ja-dame-desuka" },
+      { no: 14, songId: "cinema" },
+    ],
+  },
+};
+
+// 作品の曲（songs）を収録順に並べる。収録順のデータが無い作品・載っていない曲は、今までどおり songs.js の並び順のまま
+// （載っていない曲は後ろへ）。並べ替えた新しい配列を返す（元の配列は変えない）
+export function sortSongsByTrackList(songs, trackList) {
+  if (!trackList?.tracks?.length) return songs.slice();
+  const position = new Map(trackList.tracks.map((track, index) => [track.songId, index]));
+  return songs
+    .map((song, index) => ({ song, index }))
+    .sort((a, b) => (position.get(a.song.id) ?? Infinity) - (position.get(b.song.id) ?? Infinity) || a.index - b.index)
+    .map(({ song }) => song);
+}
+
+// 収録順のデータの中の、その曲の行（番号・版・説明）。無ければ null
+export function findTrackEntry(trackList, songId) {
+  return trackList?.tracks?.find((track) => track.songId === songId) ?? null;
+}
+
 // 【2026-11-01 r7-home】作品の枠は songs.js の workId から自動で作る（以前は「シングル21作」の数を
 // ここに手で書いていたため、21st の曲を songs.js に足しても作品一覧・ホームの「シングル○枚」に出なかった）。
 // 22nd を出すときは、songs.js に workId: "single-22" の曲を足すだけで、作品一覧・作品詳細・年表・全体検索・
@@ -61,8 +104,10 @@ export function buildDiscographyEntries(songs) {
   const numberOf = (workId) => Number(String(workId).split("-")[1]) || 0;
   workIds.sort((a, b) => TYPE_ORDER.indexOf(resolveWorkType(a)) - TYPE_ORDER.indexOf(resolveWorkType(b)) || numberOf(a) - numberOf(b) || a.localeCompare(b));
   return workIds.map((workId) => {
-    const entry = buildEmptyDiscographyEntry(workId, resolveWorkType(workId));
-    return CENTER_NOTES[workId] ? { ...entry, centerNote: CENTER_NOTES[workId] } : entry;
+    let entry = buildEmptyDiscographyEntry(workId, resolveWorkType(workId));
+    if (CENTER_NOTES[workId]) entry = { ...entry, centerNote: CENTER_NOTES[workId] };
+    if (ALBUM_TRACK_LISTS[workId]) entry = { ...entry, trackList: ALBUM_TRACK_LISTS[workId] };
+    return entry;
   });
 }
 

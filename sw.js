@@ -58,6 +58,7 @@ const APP_SHELL_FILES = [
   "./js/homeScreen.js",
   "./js/appHistory.js",
   "./js/appNavigationStack.js",
+  "./js/floatingBack.js",
   "./js/liveHubScreen.js",
   "./js/centerTable.js",
   "./js/fanProfilesIdentity.js",

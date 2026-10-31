@@ -1358,6 +1358,10 @@ export const SONGS = [
     difficulty: DIFFICULTY.HARD,
     introLeadInSec: 0,
     description: "ライブやコンサートの開演時、メンバーの登場前に流れるオープニング曲。",
+    // 【2026-11-01 nx-nav・本人の追加依頼 2-1】一覧・作品詳細で曲名に添える短い説明（歌の無い曲だと分かるように）。
+    // 日付（releaseDate）は 1stアルバム「全部、内緒。」の発売日のまま（公式 DISCOGRAPHY で全タイプの1曲目。Overture だけの配信は無い。
+    // 調べた記録：tools/feature-research/2026-11-01/tv-appearances/overture.json）。ライブで初めて使われた日は公式の記録が無いので使わない
+    shortNote: "ライブのオープニング曲・歌詞なし",
   },
   {
     id: "be-selfish",

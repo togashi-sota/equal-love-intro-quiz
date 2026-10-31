@@ -201,6 +201,7 @@
     import { runOnboardingScreenTests } from "./tests/onboardingScreen.test.js";
     import { runGuideContentTests } from "./tests/guideContent.test.js";
     import { runGuidesTests } from "./tests/guides.test.js";
+    import { runFloatingBackTests } from "./tests/floatingBack.test.js";
     import { runSonglistTests } from "./tests/songlist.test.js";
     import { runSonglistPlaybackErrorNoteTests } from "./tests/songlistPlaybackErrorNote.test.js";
     import { runPageZoomPreventionTests } from "./tests/pageZoomPrevention.test.js";
@@ -551,6 +552,7 @@
     await runLiveCallTypesetTests();
     await runLiveCallPreviewNxTests();
     await runGuidesTests();
+    await runFloatingBackTests();
     await runUnifiedPackImportTests();
     await runPlayerRegistrationTests();
     await runDataStatusShareTests();

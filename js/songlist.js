@@ -601,6 +601,14 @@ export function createTrackRow(song, options = {}) {
     infoBlock.appendChild(salesLine);
   }
 
+  // 【2026-11-01 nx-nav】曲の短い説明（songs.js の shortNote。今は Overture の「ライブのオープニング曲・歌詞なし」だけ）
+  if (song.shortNote) {
+    const shortNoteElement = document.createElement("span");
+    shortNoteElement.className = "track-meta-line track-short-note";
+    shortNoteElement.textContent = song.shortNote;
+    infoBlock.appendChild(shortNoteElement);
+  }
+
   // 補足説明：releaseContext・descriptionのどちらか/両方がある曲のみ、つなげて1〜2文で表示する
   const descriptionText = [song.releaseContext, song.description].filter(Boolean).join("");
   if (descriptionText) {
