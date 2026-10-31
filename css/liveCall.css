@@ -660,11 +660,16 @@
 }
 
 /* ===== 演出（デザイン C）。コール表の赤文字の部品（.call-text-call）に .cx-call を足して使う ===== */
+/* 【2026-11-01 r7-live】組版の約束：コールの部品（.cx-call）は、コール表（css/callText.css の .call-text-call）と同じ箱の大きさのまま。
+   以前はここに左右の余白（0 0.22em）があり、1行に2つコールがあると約 14px 広くなって、コール表では1行に入る行が
+   ライブコールでは2行に折り返していた（本人の画面：「もっと！」のあとの「おい！」が次の行へ落ちる）。
+   光の板・枠（.cx-plate・.cx-glow など。position:absolute）は、余白の代わりに外側へ --cx-pad だけはみ出して描く（見た目の板の大きさは前と同じ） */
 .lc-stage .cx-call {
+  --cx-pad: 0.22em;
   position: relative;
   display: inline-block;
   max-width: 100%;
-  padding: 0 0.22em;
+  padding: 0;
   vertical-align: baseline;
 }
 /* 終わったコール：少し落ち着いた色に（以前は opacity 0.78 で、白地のコントラストが約 3.6 まで下がっていた。
@@ -688,7 +693,7 @@
 .lc-stage .cx-plate,
 .lc-stage .cx-ring {
   position: absolute;
-  inset: -1px -2px;
+  inset: -1px calc(-2px - var(--cx-pad, 0px));
   border-radius: 8px;
   opacity: 0;
   pointer-events: none;
@@ -699,7 +704,7 @@
 }
 .lc-stage .cx-build {
   position: absolute;
-  inset: -1px -2px;
+  inset: -1px calc(-2px - var(--cx-pad, 0px));
   border-radius: 8px;
   opacity: 0;
   pointer-events: none;
@@ -707,19 +712,16 @@
   box-shadow: inset 0 0 0 2px var(--lc-pink);
 }
 .lc-stage .cx-ring {
-  inset: -4px;
+  inset: -4px calc(-4px - var(--cx-pad, 0px));
   border: 2px solid var(--lc-pink);
   border-radius: 10px;
 }
-.lc-stage .cx-call.is-long,
-.lc-stage .cx-t-mix {
-  padding-bottom: 7px;
-}
+/* 長いコールの進み具合のバーは、文字の下の行間に重ねる（以前は下に 7px の余白を足していて、行の高さがコール表と変わっていた） */
 .lc-stage .cx-bar {
   position: absolute;
   left: 0.3em;
   right: 0.3em;
-  bottom: 1px;
+  bottom: -5px;
   height: 4px;
   border-radius: 2px;
   background: rgba(224, 38, 45, 0.14);
@@ -976,11 +978,37 @@ body[data-screen="liveCall"] .game-frame {
   overflow: visible;
 }
 
-/* 【2026-10-29 修正】改行のある長いコール（has-break）は、元の CSS で display:inline になり、光る枠が1行目の左端だけに出ていた
-   → ライブコールでは塊（block）として扱い、コール全体を枠で囲む */
+/* 【2026-10-29 修正 → 2026-11-01 r7-live で変更】改行のある長いコール（has-break）：
+   以前はライブコールだけ塊（block）にしていたが、コール表では文章と同じように流れる（inline）ので、改行の位置がずれていた。
+   コール表と同じ inline のまま流し、光は文字の地（.cx-text の背景。行ごとに切れても各行に付く box-decoration-break: clone）で付ける。
+   はみ出して描く板・枠（position:absolute）は、行をまたぐ inline の上では形が決まらないので出さない */
 .lc-stage .call-text-calls .cx-call.has-break,
-.lc-stage .cx-call.has-break {
-  display: block;
+.lc-stage .cx-call.has-break,
+.lc-stage .cx-call.has-break .cx-text {
+  display: inline;
+}
+.lc-stage .cx-call.has-break > .cx-plate,
+.lc-stage .cx-call.has-break > .cx-glow,
+.lc-stage .cx-call.has-break > .cx-cue,
+.lc-stage .cx-call.has-break > .cx-ring,
+.lc-stage .cx-call.has-break > .cx-build,
+.lc-stage .cx-call.has-break > .cx-flash,
+.lc-stage .cx-call.has-break > .cx-bar {
+  display: none;
+}
+.lc-stage .cx-call.has-break .cx-text {
+  border-radius: 6px;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  transition: background-color 0.3s ease-out;
+}
+.lc-stage .cx-call.has-break.is-active .cx-text {
+  background: var(--lc-accent-soft);
+  box-shadow: 0 0 0 2px #ffc24d;
+  transition: none;
+}
+.lc-stage .cx-call.has-break.is-cue .cx-text {
+  box-shadow: 0 0 0 2px rgba(255, 111, 168, 0.4);
 }
 
 /* 【2026-10-30 第2版】新しいライブコールの光り方（js/callEffects.js の visualStateAt・js/callEffectsRenderer.js の applyVisualState）。
@@ -1003,14 +1031,14 @@ body[data-screen="liveCall"] .game-frame {
   pointer-events: none;
 }
 .lc-stage .cx-glow {
-  inset: -2px -3px;
+  inset: -2px calc(-3px - var(--cx-pad, 0px));
   box-shadow:
     0 0 0 2px #ffc24d,
     0 0 12px 3px rgba(255, 111, 168, 0.5),
     0 0 22px 6px rgba(255, 194, 77, 0.25);
 }
 .lc-stage .cx-cue {
-  inset: -1px -2px;
+  inset: -1px calc(-2px - var(--cx-pad, 0px));
   box-shadow: inset 0 0 0 2px var(--lc-pink);
 }
 /* 【2026-10-30 fix-live】終わったコール：本人の終了時刻で板（黄色の地）・光の枠・バーを外す（js/callEffects.js は終了で 0 にする）。
@@ -1035,9 +1063,6 @@ body[data-screen="liveCall"] .game-frame {
   .lc-stage .cx-call.is-post .cx-text {
     transition: none;
   }
-}
-.lc-stage .cx-call.cx-v-long {
-  padding-bottom: 7px;
 }
 .lc-stage .cx-v-long .cx-bar {
   height: 3px;
@@ -1192,7 +1217,7 @@ body[data-screen="liveCall"] .game-frame {
    short（0.3〜0.5秒）：短い弾み（JS の transform）と光。終わりは少し長めのフェードで自然に消える */
 .lc-stage .cx-flash {
   position: absolute;
-  inset: -2px -3px;
+  inset: -2px calc(-3px - var(--cx-pad, 0px));
   border-radius: 9px;
   opacity: 0;
   pointer-events: none;
@@ -1221,10 +1246,9 @@ body[data-screen="liveCall"] .game-frame {
 .lc-stage .cx-call.is-on .cx-name-part {
   text-decoration-thickness: 4px;
 }
+/* 【2026-11-01 r7-live】「or」も文字の大きさ・太さはコール表と同じ（小さくすると幅が変わり、改行の位置がずれる）。色だけ控えめに */
 .lc-stage .cx-name-sep {
   color: #8f6b7f;
-  font-size: 0.82em;
-  font-weight: 600;
 }
 .lc-stage .cx-call.is-done .cx-name-part {
   text-decoration-color: color-mix(in srgb, var(--name-color, #ffc24d) 55%, transparent);
@@ -1293,4 +1317,20 @@ body[data-screen="liveCall"] .game-frame {
 }
 .lc-data-guide-button {
   justify-self: start;
+}
+
+/* ===== 【2026-11-01 r7-live】 ===== */
+/* 組版の約束（続き）：コール表とライブコールで、文字の入る幅を同じにする。
+   ライブコールの舞台はスクロールする箱（overflow-y:auto）なので、PC のブラウザではスクロールバーの分だけ幅が狭くなる。
+   コール表の舞台も同じ溝（scrollbar-gutter）を取り、どちらも同じ幅にする（iPhone・iPad はスクロールバーが重なる表示なので溝は 0） */
+.lc-stage {
+  scrollbar-gutter: stable;
+}
+.lc-stage.is-sheet {
+  overflow: hidden;
+}
+/* タップで移動できる所（時刻がある所だけ。js/callTapSeek.js）。見た目の組版は変えない（カーソルとタップの光だけ） */
+.lc-stage.is-live .call-text-line.is-seekable {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }

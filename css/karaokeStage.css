@@ -870,3 +870,11 @@
 #live-call-mode-karaoke-screen.kx-on .karaoke-pause-resume-button.is-paused {
   color: #5c1030;
 }
+
+/* 【2026-11-01 r7-live】カードの大きな文字・歌詞の間のコールは、名前・言葉の途中で折り返さない（空白の所で折り返す。入らないときだけ途中で）。
+   本人の画面で「さな／つん！」のように名前の途中で切れていたため */
+#live-call-mode-karaoke-screen.kx-on .karaoke-call-hud-text,
+#live-call-mode-karaoke-screen.kx-on .kx-call {
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}

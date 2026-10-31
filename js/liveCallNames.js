@@ -83,6 +83,17 @@ export function nameCallAccent(result) {
   return { primary: colors[0], colors, gradient, kind: result.kind };
 }
 
+// 【2026-11-01 r7-live】名前の色の「オーロラ」（光の輪が流れる帯。純粋関数）。
+// 1人：その色と少し明るい色。2人：2色がなめらかに混ざる（A→B→A）。3人以上：全員の色を順に並べる（等分の帯にせず、色と色の間をなめらかにつなぐ）。
+// 帯を2周分並べるので、CSS で横に半分ずらすと切れ目なく流れる（background-size: 200%）
+export function nameCallAurora(accent) {
+  const colors = accent?.colors?.length ? accent.colors : null;
+  if (!colors) return "none";
+  const cycle = colors.length === 1 ? [colors[0], "#ffffff", colors[0]] : colors.length === 2 ? [colors[0], colors[1], colors[0]] : [...colors, colors[0]];
+  const twice = [...cycle, ...cycle.slice(1)];
+  return `linear-gradient(90deg, ${twice.join(", ")})`;
+}
+
 // 後読み（(?<!…)）は古い iPhone（iOS 16.3 以前）の Safari で読み込めずアプリ全体が止まるので使わない。前の文字は自分で確かめる
 const OR_MARK = /(?:or|OR|Or|／|\/)(?![A-Za-z])/g;
 function appendWithOrMarks(target, text) {

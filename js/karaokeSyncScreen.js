@@ -90,6 +90,7 @@ import {
   saveKaraokeCallsVisible,
   isKaraokeOffsetSuspicious,
 } from "./karaokeStage.js";
+import { callTapSeekTime, lyricTapSeekTime } from "./callTapSeek.js";
 import { buildModeTabs } from "./liveCallModeTabs.js";
 
 // ===== 設定の保存（端末ごと。既存のsfx設定等と同じ命名規則・保存方式） =====
@@ -363,7 +364,9 @@ function tick() {
   renderSyncStatus();
   renderCallHud(positionSec);
   // 新しいカラオケだけ：演出（js/karaokeStage.js）。見た目はこの時刻だけから決まる
-  if (followDeviceAudio) updateKaraokeStage(positionSec, { ended: elements.deviceAudio.ended });
+  // 【2026-11-01 r7-live】大きな演出は、音が進んでいる間だけ（止まっている・読み込み中・曲の終わりでは出さない）
+  const kxPlaying = followDeviceAudio && (hasDeviceAudioLoaded() ? !elements.deviceAudio.paused && !elements.deviceAudio.ended : !syncState.isPaused);
+  if (followDeviceAudio) updateKaraokeStage(positionSec, { ended: elements.deviceAudio.ended, playing: kxPlaying });
   if (followDeviceAudio) renderKaraokeSeek();
 }
 
@@ -568,7 +571,10 @@ function handleResyncButtonClick() {
 function handleLyricTapSeek(line) {
   if (!syncState.isSyncing) return;
   if (isFollowingDeviceAudio()) {
-    seekFollowedAudioTo(line.start);
+    // 【2026-11-01 r7-live】移動先はライブコールと共通の決まり（js/callTapSeek.js：行の開始の時刻。時刻の無い行は動かさない）
+    const time = lyricTapSeekTime(line);
+    if (time === null) return;
+    seekFollowedAudioTo(time);
     tick();
     showToast("この行から再生します");
     return;
@@ -602,12 +608,13 @@ function seekFollowedAudioTo(positionSec) {
   const audio = elements.deviceAudio;
   audio.currentTime = followedAudioSeekTarget(positionSec, syncState.offsetMs, audio.duration);
 }
-// 赤いコールを押したとき：そのコールの少し前から（ライブコールと同じ 1 秒前）
-const CALL_TAP_PRE_ROLL_SEC = 1;
+// 赤いコールを押したとき：そのコールの少し前から（ライブコールと同じ 1 秒前。js/callTapSeek.js の callTapSeekTime）
 function handleCallTapSeek(call) {
   if (!syncState.isSyncing) return;
   if (isFollowingDeviceAudio()) {
-    seekFollowedAudioTo(Math.max(0, call.start - CALL_TAP_PRE_ROLL_SEC));
+    const time = callTapSeekTime(call);
+    if (time === null) return;
+    seekFollowedAudioTo(time);
     tick();
   }
 }

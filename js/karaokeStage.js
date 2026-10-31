@@ -15,7 +15,9 @@
 import { MEMBERS } from "./data/members.js";
 import { shortCallTier } from "./callEffects.js";
 import { getCallDisplayTier } from "./callSync.js";
-import { describeNameCall, nameCallAccent, renderNameCallText } from "./liveCallNames.js";
+import { describeNameCall, nameCallAccent, renderNameCallText, nameCallAurora } from "./liveCallNames.js";
+import { bindTapSeek } from "./callTapSeek.js";
+import { createSpectacle, planSpectacle } from "./callSpectacle.js";
 
 export const KX_BURST_WINDOW_SEC = 0.4; // コールの始まりからこの時間の内に描いたときだけ「発光と弾み」を出す（途中へシークしたときは出さない）
 export const KX_COUNTDOWN_SEC = 3; // 次のコールまでの残りを、バーで見せる長さ（「もうすぐ！」の 3・2・1 と同じ）
@@ -292,6 +294,10 @@ export function enableKaraokeStage(elements, { song, calls, lines = [], layout =
   hudCard.insertBefore(hudFx, hudCard.firstChild);
   hudCard.append(progress, countdown);
   hudCard.classList.add("kx-hud");
+  // 【2026-11-01 r7-live】大きな演出（画面の中央の大きな文字・ペンライト・画面全体の光。js/callSpectacle.js。ライブコールと共通）
+  // 後ろの層（ペンライト）は背景（.kx-fx）のすぐ後ろ＝歌詞・カードの後ろ。前の層（大きな文字）は画面の最後＝歌詞・カードの上、上下の操作の帯の下
+  const spectacle = createSpectacle(screen, { variant: "karaoke", palette: palette.colors, backHost: screen, backBefore: fx.nextSibling });
+  spectacle?.setPlan(planSpectacle(Array.isArray(calls) ? calls : []));
 
   const callList = Array.isArray(calls) ? calls : [];
   stage = {
@@ -308,6 +314,8 @@ export function enableKaraokeStage(elements, { song, calls, lines = [], layout =
     callEls: new Map(), // コールのキー → 部品
     rowFlags: new Map(), // コールのキー → 前に書いた状態（"lit" | "next" | "done" | ""）
     parts: [fx, hudFx, progress, countdown],
+    spectacle,
+    tapUnbind: [],
     progressFill,
     countdownFill,
     lastActive: -2,
@@ -331,10 +339,12 @@ export function setKaraokeCallsVisible(visible) {
   if (!on) {
     // OFF にした瞬間に、コールの光・弾み・次のコールのバーを外す（残っていると「今言う」ように見えるため）
     stage.screen.classList.remove("kx-call-now", "kx-long", "kx-soon");
-    stage.hudCard.classList.remove("kx-burst", "kx-member");
+    stage.hudCard.classList.remove("kx-burst", "kx-member", "kx-names-single", "kx-names-multi", "kx-names-or");
     stage.hudCard.style.removeProperty("--kx-call");
+    stage.hudCard.style.removeProperty("--kx-call-aurora");
     stage.lastActive = -2;
     stage.lastMemberColor = null;
+    stage.spectacle?.update(0, { enabled: false });
   }
   return on;
 }
@@ -351,6 +361,8 @@ export function mountKaraokeCallRows({ onCallTap } = {}) {
   if (!stage || !stage.lyricsPanel) return 0;
   stage.callRows.forEach((row) => row.remove());
   stage.callRows = [];
+  stage.tapUnbind.forEach((off) => off());
+  stage.tapUnbind = [];
   stage.callEls.clear();
   stage.rowFlags.clear();
   if (!stage.hasCalls) return 0;
@@ -374,8 +386,10 @@ export function mountKaraokeCallRows({ onCallTap } = {}) {
         span.classList.add("kx-member", `kx-names-${result.kind}`);
         span.style.setProperty("--kx-call", accent.primary);
         span.style.setProperty("--kx-call-grad", accent.gradient);
+        span.style.setProperty("--kx-call-aurora", nameCallAurora(accent));
       }
-      if (typeof onCallTap === "function") span.addEventListener("click", () => onCallTap(call));
+      // 【2026-11-01 r7-live】タップの決まりはライブコールと共通（js/callTapSeek.js：スクロールの指の動きはタップにしない）
+      if (typeof onCallTap === "function") stage.tapUnbind.push(bindTapSeek(span, () => onCallTap(call), { scroller: stage.lyricsPanel }));
       node.appendChild(span);
       stage.callEls.set(key, span);
     });
@@ -415,14 +429,17 @@ export function disableKaraokeStage() {
   if (!stage) return;
   const { screen, hudCard } = stage;
   stage.parts.forEach((node) => node.remove());
+  stage.spectacle?.destroy();
+  stage.tapUnbind.forEach((off) => off());
   stage.callRows.forEach((row) => row.remove());
   stage.lastNextLine?.classList.remove("kx-next-line");
   screen.classList.remove("kx-on", "kx-call-now", "kx-long", "kx-soon", "kx-paused", "kx-finale", "kx-done", "kx-offset-set", "kx-calls-off", "kx-no-calls", "kx-offset-warn", "kx-has-audio");
   delete screen.dataset.kxBasis;
   screen.style.removeProperty("--kx-c1");
   screen.style.removeProperty("--kx-c2");
-  hudCard.classList.remove("kx-hud", "kx-burst", "kx-member");
+  hudCard.classList.remove("kx-hud", "kx-burst", "kx-member", "kx-names-single", "kx-names-multi", "kx-names-or");
   hudCard.style.removeProperty("--kx-call");
+  hudCard.style.removeProperty("--kx-call-aurora");
   stage = null;
 }
 
@@ -436,8 +453,9 @@ export function resetKaraokeStage() {
   stage.screen.classList.remove("kx-call-now", "kx-long", "kx-soon", "kx-paused", "kx-finale", "kx-done");
   stage.rowFlags.forEach((flag, key) => stage.callEls.get(key)?.classList.remove("is-lit", "is-next", "is-done"));
   stage.rowFlags.clear();
-  stage.hudCard.classList.remove("kx-burst", "kx-member");
+  stage.hudCard.classList.remove("kx-burst", "kx-member", "kx-names-single", "kx-names-multi", "kx-names-or");
   stage.hudCard.style.removeProperty("--kx-call");
+  stage.hudCard.style.removeProperty("--kx-call-aurora");
   stage.lastNextLine?.classList.remove("kx-next-line");
   Object.assign(stage, { lastActive: -2, lastProgress: null, lastCountdown: null, lastNextLine: null, lastMemberColor: null });
 }
@@ -458,8 +476,10 @@ export function showKaraokeStageFinale() {
   if (stage) stage.screen.classList.add("kx-finale");
 }
 
-// 1回分を描く。t：いまの位置（秒）。ended：端末の音源が最後まで鳴り終わっているか
-export function updateKaraokeStage(t, { ended = false } = {}) {
+const reducedMotionQuery = typeof matchMedia === "function" ? matchMedia("(prefers-reduced-motion: reduce)") : { matches: false };
+
+// 1回分を描く。t：いまの位置（秒）。ended：端末の音源が最後まで鳴り終わっているか。playing：音が進んでいるか（大きな演出は進んでいる間だけ）
+export function updateKaraokeStage(t, { ended = false, playing = true } = {}) {
   if (!stage) return null;
   const s = karaokeStageStateAt(stage.calls, t, stage.lines);
   const { screen, hudCard } = stage;
@@ -470,16 +490,31 @@ export function updateKaraokeStage(t, { ended = false } = {}) {
   toggle(screen, "kx-done", s.allCallsDone);
   if (!ended) toggle(screen, "kx-finale", false);
   updateCallRows(t);
+  // 大きな演出：コール表示 ON・この画面が見えている・音が進んでいる間だけ（OFF・一時停止・曲の終わりでは残さない）
+  stage.spectacle?.update(t, {
+    playing: playing && !ended && !screen.classList.contains("kx-paused"),
+    enabled: callsOn && screen.classList.contains("is-active"),
+    reduced: Boolean(reducedMotionQuery.matches),
+  });
 
   if (callsOn && s.activeIndex !== stage.lastActive) {
     // コールが変わった：名前コールならメンバーカラー（確かに一致したときだけ）。始まった直後なら発光と弾みを1回
     // 【2026-10-31 live-unify】名前コールの判定は js/liveCallNames.js（1人・複数・or）。光は最初の名前の色
-    const color = s.active ? nameCallAccent(describeNameCall(s.active.text))?.primary ?? null : null;
-    if (color !== stage.lastMemberColor) {
+    const accent = s.active ? nameCallAccent(describeNameCall(s.active.text)) : null;
+    const color = accent?.primary ?? null;
+    const memberKey = accent ? `${accent.kind}|${accent.colors.join(",")}` : null;
+    if (memberKey !== stage.lastMemberColor) {
       toggle(hudCard, "kx-member", Boolean(color));
-      if (color) hudCard.style.setProperty("--kx-call", color);
-      else hudCard.style.removeProperty("--kx-call");
-      stage.lastMemberColor = color;
+      // 【2026-11-01 r7-live】1人・複数・or で光り方を変える（複数・or は全員の色のオーロラ）
+      ["single", "multi", "or"].forEach((kind) => toggle(hudCard, `kx-names-${kind}`, accent?.kind === kind));
+      if (color) {
+        hudCard.style.setProperty("--kx-call", color);
+        hudCard.style.setProperty("--kx-call-aurora", nameCallAurora(accent));
+      } else {
+        hudCard.style.removeProperty("--kx-call");
+        hudCard.style.removeProperty("--kx-call-aurora");
+      }
+      stage.lastMemberColor = memberKey;
     }
     hudCard.classList.remove("kx-burst");
     if (s.active && s.justStarted) {

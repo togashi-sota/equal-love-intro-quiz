@@ -59,6 +59,8 @@
     import { runLiveCallFixLiveTests } from "./tests/liveCallFixLive.test.js";
     // 【2026-10-31新設】「コールを覚える」の統合（1件は1件・時刻・短いコールの段階・名前コール・カラオケのコール表示 ON／OFF・コールの無い曲）
     import { runLiveCallUnifyTests } from "./tests/liveCallUnify.test.js";
+    // 【2026-11-01新設】コール表とライブコールの組版（改行の位置）・大きな演出・タップで移動・名前コールのオーロラ（ダミーの文字だけ）
+    import { runLiveCallTypesetTests } from "./tests/liveCallTypeset.test.js";
     // 【2026-10-30新設】データ管理の「最新版データを読み込む」（ダミーのデータだけ・偽の端末）
     import { runUnifiedPackImportTests } from "./tests/unifiedPackImport.test.js";
     // 【2026-10-29新設】プレイヤーの登録画面（登録・切り替え・名前の変更・自動で閉じる）／公開プロフィールのデータの曲数
@@ -540,6 +542,7 @@
     await runLiveCallNightTests();
     await runLiveCallFixLiveTests();
     await runLiveCallUnifyTests();
+    await runLiveCallTypesetTests();
     await runGuidesTests();
     await runUnifiedPackImportTests();
     await runPlayerRegistrationTests();

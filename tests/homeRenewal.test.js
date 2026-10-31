@@ -674,7 +674,10 @@ async function runHomeEntryWiringTests() {
   const homeCss = await fetchText("css/homeRenewal.css");
   assertEqual(homeCss.includes("position: sticky;") && homeCss.includes("top: var(--home-sticky-top);") && homeCss.includes("env(safe-area-inset-top, 0px)"), true, "E: 目次は上に貼り付き、安全領域（ノッチ）を避ける");
   const live = await fetchText("js/liveCallScreen.js");
-  assertEqual(/penlight|ペンライト/i.test(live + homeSource), false, "E: ペンライトの機能は入れない");
+  // 【2026-11-01 r7-live】本人の依頼で、ライブコール・カラオケの演出の背景に「ペンライトの光」を足した（js/callSpectacle.js。見た目だけ）。
+  // ここで確かめるのは、ペンライトの「機能」（端末をペンライトにする・色を選ぶなど）をホーム・ライブコールの画面に入れていないこと（コメントの説明は除く）
+  const codeOnly = (src) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+  assertEqual(/penlight|ペンライト/i.test(codeOnly(live) + codeOnly(homeSource)), false, "E: ペンライトの機能は入れない（演出の背景の光は js/callSpectacle.js だけ）");
 }
 
 // ---- F. 2026-10-30 夜間：全部のゲーム・カテゴリのデザイン・iPad / PC ----

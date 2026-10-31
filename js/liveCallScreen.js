@@ -18,13 +18,15 @@ import { hashText } from "./callTextEdits.js";
 import { buildReleasedCallSheet, computeModeAvailability, activeCallKeysAt, buildFollowSong, classifyReleasedCalls, SHEET_STATE } from "./liveCallData.js";
 import { createRunner, panelState } from "./callFollow.js";
 import { prepareVisual, visualStateAt, ambientAt, buildMemberNameIndex, memberIdForCallText } from "./callEffects.js";
-import { describeNameCall, nameCallAccent, renderNameCallText } from "./liveCallNames.js";
+import { describeNameCall, nameCallAccent, renderNameCallText, nameCallAurora } from "./liveCallNames.js";
 import { buildModeTabs, LIVE_CALL_MODE_TABS } from "./liveCallModeTabs.js";
 import { decorateCallSpan, applyVisualState } from "./callEffectsRenderer.js";
 import { loadLyricsForSong, destroyLyricsSync } from "./lyricsSync.js";
 import { registerPlaybackStopper, notifyPlaybackStarting } from "./playbackCoordinator.js";
 import { normalizeForSearch, songMatchesSearch } from "./songSearch.js";
 import { SFX_EVENTS, playSfx } from "./soundManager.js";
+import { bindTapSeek, callTapSeekTime, lyricTapSeekTime } from "./callTapSeek.js";
+import { createSpectacle, planSpectacle } from "./callSpectacle.js";
 
 // ===== はじめに（注意事項）の版 =====
 // 中身を変えたら数字を上げる（上げると、次に開いたときにもう一度表示される）
@@ -34,7 +36,7 @@ const NOTICE_KEY = "equalLoveIntroQuiz.liveCallNoticeSeenVersion";
 const PREFS_KEY = "equalLoveIntroQuiz.liveCallPrefs";
 const FONT_SCALES = [0.85, 1, 1.15, 1.3, 1.5, 1.75];
 const SEEK_SKIP_SECONDS = 5; // −5秒・＋5秒（前の版の「10秒戻る」より細かく。ライブコールのコールは短いので）
-const PRE_ROLL_SECONDS = 1; // コールをタップしたとき、その少し前から再生する
+// コールをタップしたときの「少し前」は js/callTapSeek.js の CALL_TAP_PRE_ROLL_SEC（1秒。カラオケと共通）
 
 export function shouldShowLiveCallNotice(seenVersion, currentVersion = LIVE_CALL_NOTICE_VERSION) {
   const seen = Number(seenVersion);
@@ -164,6 +166,7 @@ export function applyNameCallDecoration(span, text) {
   span.dataset.memberId = result.members.join(" ");
   span.style.setProperty("--cx-member", accent.primary);
   span.style.setProperty("--cx-member-grad", accent.gradient);
+  span.style.setProperty("--cx-member-aurora", nameCallAurora(accent)); // 【2026-11-01 r7-live】複数・or の光の輪（全員の色）
   return result;
 }
 
@@ -749,6 +752,10 @@ function buildFontControls(onChange) {
   return box;
 }
 
+// 【2026-11-01 r7-live】コール表とライブコールは、同じ組版の処理で描く：
+//   どちらも js/callTextView.js の renderCallTextView（同じ DOM の作り方）＋ css/callText.css と .lc-stage の文字の大きさ（同じ CSS のクラス）。
+//   ライブコールは、描いたあとに光らせるための部品（.cx-*）を「箱の大きさを変えない形」で足すだけ（css/liveCall.css の「組版の約束」）。
+//   だから、コール表の並び・文字の組み方を直せば、ライブコールにも同じに反映される。改行の位置が同じことは tests/liveCallTypeset.test.js で確かめる
 function buildStage(layout, options = {}) {
   const stage = el("div", "lc-stage");
   stage.style.setProperty("--lc-font", String(fontScale()));
@@ -758,39 +765,26 @@ function buildStage(layout, options = {}) {
   return { stage, body };
 }
 
-function renderSheetMode() {
-  const { sheet } = songData ?? {};
-  if (!sheet?.ok) return show("song");
-  setHeading(titleOf(currentSongId));
-  const toolbar = el("div", "lc-toolbar");
-  toolbar.appendChild(buildModeTabs("sheet", songData.avail, switchMode));
-  const note = el("p", "lc-toolbar-note", "歌詞は黒、コールは赤。自分のペースでスクロールして読めます。");
-  toolbar.appendChild(note);
-  const { stage } = buildStage(sheet.layout);
+// コール表の舞台（テストからも使う）
+export function buildSheetStage(layout) {
+  const { stage } = buildStage(layout);
   stage.classList.add("is-sheet");
-  toolbar.appendChild(buildFontControls(() => stage.style.setProperty("--lc-font", String(fontScale()))));
-  root.append(toolbar, stage);
+  return stage;
 }
 
-// ===== ライブコールモード =====
-function effectOptions() {
-  return { design: "c", intensity: prefs.effects === "off" ? "off" : "std", reduced: reducedMotion.matches, shoutStyle: "combo", shoutFx: true };
-}
-
-function renderLiveMode() {
-  const { sheet, blob } = songData ?? {};
-  if (!sheet?.ok || !blob) return show("song");
-  setHeading(titleOf(currentSongId));
+// ライブコールの舞台（テストからも使う）。コール表と同じ部品を描いてから、光らせる部品・タップで移動を足す。
+// calls：本人の完成版のコール（key・text・start・end）。lines：歌詞の行（{ line, start, end }。タップの移動先に使う）
+// onSeek(time, { kind, key, node })：タップで移動するとき（時刻がある所だけ呼ぶ）
+export function buildLiveStage(layout, calls, { lines = [], onSeek = null } = {}) {
   const callSpans = new Map();
   const lineEls = new Map();
   const lyricPieces = [];
-  const { stage, body } = buildStage(sheet.layout, {
+  const { stage, body } = buildStage(layout, {
     // 表示の部品はコール表と同じ。光らせる・測るために、どの部品がどのコール・行かを覚えておくだけ（見た目は変えない）
     unitHook: (node, unit) => {
       if (unit.kind === "call") {
         node.dataset.callKey = unit.call.key;
         callSpans.set(unit.call.key, node);
-        node.addEventListener("click", () => seekToCall(unit.call.key));
       } else if ((unit.kind === "lyric" || unit.kind === "joiner") && unit.lineId) {
         // この時点では、部品はまだ行（.call-text-line）に入っていない。描き終わってから行を探す
         lyricPieces.push([node, unit.lineId]);
@@ -806,6 +800,82 @@ function renderLiveMode() {
   });
   stage.classList.add("is-live");
   stage.tabIndex = 0;
+  const callByKey = new Map((calls ?? []).map((call) => [call.key, call]));
+  const followSong = buildFollowSong({ layout, calls, lines, duration: null });
+  // 演出の下ごしらえ（読み込んだときに1回だけ）。分類の優先順位は js/liveCallData.js の classifyReleasedCalls
+  // 【2026-10-29 本人の指示】コールは全部「ふつう」の同じ光り方にする（MIX の目安の区切り・掛け声のポップなどの自動の分類はしない）。
+  // 本人が決めた開始〜終了の間、そのコール全体が光る。区切りは本人がタイミングで分けた所だけ
+  const preps = classifyReleasedCalls((calls ?? []).map((call) => call), Object.fromEntries((calls ?? []).map((call) => [call.key, { type: "normal" }])), hashText);
+  // 【2026-10-30 第2版】見た目の味付けだけ、短い／長い／ふつうに分ける（js/callEffects.js の classifyVisualKind）。
+  // 区切り・1語ずつの光り方はしない。時刻（開始〜終了）はそのまま
+  const fx = preps
+    .map((prep) => {
+      const span = callSpans.get(prep.key);
+      if (!span) return null;
+      prep.vis = prepareVisual(callByKey.get(prep.key) ?? prep, { hasBreak: span.classList.contains("has-break") });
+      const decorated = decorateCallSpan(span, prep, { memberColorOf });
+      // 名前コール（js/liveCallNames.js）：1人＝名前の部分をその人の色の下線・光の輪郭もその色。複数＝名前ごとにそれぞれの色、枠は色をつないだ帯。
+      // 「or」＝候補ごとに色、あいだの「or」は控えめに（同時に叫ぶとは扱わない）。名前ではない言葉は通常の見た目。
+      // どれも文字の装飾だけ（コール1件のまま。区切って光らせない・順番に光らせない）
+      applyNameCallDecoration(span, callByKey.get(prep.key)?.text ?? prep.text);
+      return decorated;
+    })
+    .filter(Boolean);
+  // 【2026-11-01 r7-live】タップで移動（カラオケと共通の js/callTapSeek.js）。時刻がある所だけ押せる
+  //   コール：本人の開始の1秒前から。歌詞の行：その表示行が元の歌詞の行の頭から始まり、その行に開始の時刻があるときだけ、その時刻へ
+  //   （表示のために分けた行の続き・時刻の無い行は押せない＝推測で移動しない）
+  const unbind = [];
+  for (const [key, span] of callSpans) {
+    const time = callTapSeekTime(callByKey.get(key));
+    if (time === null) continue;
+    span.classList.add("is-seekable");
+    unbind.push(bindTapSeek(span, () => onSeek?.(time, { kind: "call", key }), { scroller: stage }));
+  }
+  for (const [lineId, line] of lineEls) {
+    const lyric = followSong.lyrics[`lyric:${lineId}`];
+    const time = lyricTapSeekTime(lyric?.ai ?? null);
+    if (time === null) continue;
+    line.classList.add("is-seekable");
+    line.dataset.seekTime = String(time);
+    unbind.push(
+      bindTapSeek(
+        line,
+        (event) => {
+          if (event.target?.closest?.(".call-text-call")) return; // 行の中のコールを押したときは、コールの方だけ
+          onSeek?.(time, { kind: "lyric", key: lineId, node: line });
+        },
+        { scroller: stage },
+      ),
+    );
+  }
+  return { stage, body, callSpans, lineEls, followSong, fx, unbind: () => unbind.forEach((off) => off()) };
+}
+
+function renderSheetMode() {
+  const { sheet } = songData ?? {};
+  if (!sheet?.ok) return show("song");
+  setHeading(titleOf(currentSongId));
+  const toolbar = el("div", "lc-toolbar");
+  toolbar.appendChild(buildModeTabs("sheet", songData.avail, switchMode));
+  const note = el("p", "lc-toolbar-note", "歌詞は黒、コールは赤。自分のペースでスクロールして読めます。");
+  toolbar.appendChild(note);
+  const stage = buildSheetStage(sheet.layout);
+  toolbar.appendChild(buildFontControls(() => stage.style.setProperty("--lc-font", String(fontScale()))));
+  root.append(toolbar, stage);
+}
+
+// ===== ライブコールモード =====
+function effectOptions() {
+  return { design: "c", intensity: prefs.effects === "off" ? "off" : "std", reduced: reducedMotion.matches, shoutStyle: "combo", shoutFx: true };
+}
+
+function renderLiveMode() {
+  const { sheet, blob } = songData ?? {};
+  if (!sheet?.ok || !blob) return show("song");
+  setHeading(titleOf(currentSongId));
+  const built = buildLiveStage(sheet.layout, sheet.calls, { lines: songData.lyricsRecord?.lines ?? [], onSeek: seekLiveTo });
+  const { stage, body, callSpans, lineEls, followSong } = built;
+  stage.classList.add("is-paused"); // 再生を始めるまでは止まっている扱い（onPlayState が付け外しする）
 
   // いま／つぎ のパネル（小さく固定。切り替えられる）
   const panel = el("div", "lc-now-panel");
@@ -851,7 +921,7 @@ function renderLiveMode() {
   const controls = el("div", "lc-toolbar-controls");
   controls.id = "lc-live-toolbar-controls";
   settingsToggle.setAttribute("aria-controls", controls.id);
-  const modeNote = el("p", "lc-toolbar-note", "光っているコールを、光っている間に言います。コールをタップすると、その少し前から再生します。演出は上の［演出 あり／なし］で切り替えます。");
+  const modeNote = el("p", "lc-toolbar-note", "光っているコールを、光っている間に言います。コールをタップするとその少し前から、歌詞の行をタップするとその行から再生します。演出は上の［演出 あり／なし］で切り替えます。");
   controls.appendChild(modeNote);
   toolbar.appendChild(controls);
   controls.appendChild(buildFontControls(() => {
@@ -916,28 +986,12 @@ function renderLiveMode() {
 
   root.append(toolbar, panel, stageFrame, resume, player, playError);
 
-  // 演出の下ごしらえ（読み込んだときに1回だけ）。分類の優先順位は js/liveCallData.js の classifyReleasedCalls
-  // 【2026-10-29 本人の指示】コールは全部「ふつう」の同じ光り方にする（MIX の目安の区切り・掛け声のポップなどの自動の分類はしない）。
-  // 本人が決めた開始〜終了の間、そのコール全体が光る。区切りは本人がタイミングで分けた所だけ
-  const preps = classifyReleasedCalls(sheet.calls.map((call) => call), Object.fromEntries((sheet.calls ?? []).map((call) => [call.key, { type: "normal" }])), hashText);
-  // 【2026-10-30 第2版】見た目の味付けだけ、短い／長い／ふつうに分ける（js/callEffects.js の classifyVisualKind）。
-  // 区切り・1語ずつの光り方はしない。時刻（開始〜終了）はそのまま
-  const callByKey = new Map(sheet.calls.map((call) => [call.key, call]));
-  const fx = preps
-    .map((prep) => {
-      const span = callSpans.get(prep.key);
-      if (!span) return null;
-      prep.vis = prepareVisual(callByKey.get(prep.key) ?? prep, { hasBreak: span.classList.contains("has-break") });
-      const decorated = decorateCallSpan(span, prep, { memberColorOf });
-      // 名前コール（js/liveCallNames.js）：1人＝名前の部分をその人の色の下線・光の輪郭もその色。複数＝名前ごとにそれぞれの色、枠は色をつないだ帯。
-      // 「or」＝候補ごとに色、あいだの「or」は控えめに（同時に叫ぶとは扱わない）。名前ではない言葉は通常の見た目。
-      // どれも文字の装飾だけ（コール1件のまま。区切って光らせない・順番に光らせない）
-      applyNameCallDecoration(span, callByKey.get(prep.key)?.text ?? prep.text);
-      return decorated;
-    })
-    .filter(Boolean);
-  // 時刻の無いコール（今の完成版には無い）は光らせない
-  const followSong = buildFollowSong({ layout: sheet.layout, calls: sheet.calls, lines: songData.lyricsRecord?.lines ?? [], duration: null });
+  const { fx } = built;
+  // 時刻の無いコール（今の完成版には無い）は光らせない（followSong は buildLiveStage が作ったもの）
+  // 【2026-11-01 r7-live】大きな演出（演出 ありのときだけ。js/callSpectacle.js。画面に1組だけ）
+  //   後ろの層（ペンライト）は舞台の後ろ（root の最初）、前の層（大きな文字・光）は舞台の上・再生の操作の下
+  const spectacle = createSpectacle(root, { variant: "live" });
+  spectacle?.setPlan(planSpectacle(sheet.calls));
 
   live = {
     stage,
@@ -954,6 +1008,8 @@ function renderLiveMode() {
     ambient,
     ambientLast: -1,
     followSong,
+    spectacle,
+    unbindTaps: built.unbind,
     runner: null,
     geom: null,
     rafId: null,
@@ -1108,6 +1164,8 @@ function remeasure() {
 function onPlayState() {
   if (!live) return;
   live.play.classList.toggle("is-playing", !audio.paused);
+  // 止まっている間は、CSS の動き（名前コールの脈打ち・オーロラ）も止める
+  live.stage.classList.toggle("is-paused", audio.paused);
   live.play.textContent = audio.paused ? "再生" : "一時停止";
   live.play.setAttribute("aria-label", audio.paused ? "再生" : "一時停止");
   // 【2026-10-30 fix-live】再生を始めたら、上の部分を1回だけ自動で折りたたむ（あとは［表示の設定］で自由に開け閉め。止めても勝手に開かない＝画面が跳ねない）
@@ -1141,15 +1199,22 @@ function togglePlay() {
   } else audio.pause();
 }
 
-// コールをタップ：そのコールの少し前から（再生状態は変えない）
-function seekToCall(key) {
-  const call = songData?.sheet?.calls.find((c) => c.key === key);
-  if (!call || !audio?.src) return;
-  audio.currentTime = Math.max(0, call.start - PRE_ROLL_SECONDS);
-  if (live) {
-    live.followPaused = false;
-    live.resume.hidden = true;
+// コール・歌詞の行をタップ：その時刻へ（コールは1秒前から。時刻は js/callTapSeek.js で決めたもの）。再生の状態は変えない。
+// 自動スクロールを手で止めていたら再開し、押した行を一瞬だけ光らせて「ここから」が分かるようにする
+function seekLiveTo(time, { kind, node } = {}) {
+  if (!audio?.src || !Number.isFinite(time)) return;
+  const max = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : Infinity;
+  audio.currentTime = Math.min(max, Math.max(0, time));
+  if (!live) return;
+  live.followPaused = false;
+  live.resume.hidden = true;
+  live.seekedPending = true;
+  if (kind === "lyric" && node) {
+    node.classList.remove("is-tapped");
+    void node.offsetWidth; // 付け直しで、CSS の光を最初から
+    node.classList.add("is-tapped");
   }
+  renderFrame({ force: true });
 }
 
 // 1フレーム分を描く。見た目はすべて「いまの再生位置 t」だけから決める（前のフレームの結果は、スクロールの動き以外に使わない）
@@ -1170,6 +1235,8 @@ function renderFrame({ dt = 0, force = false } = {}) {
     applyVisualState(c, v, t);
     if (v.phase === "active" || v.phase === "post") states.push(v);
   }
+  // 大きな演出：演出 ありのときだけ。止まっている間は出さない（js/callSpectacle.js）
+  live.spectacle?.update(t, { playing: !audio.paused && !audio.ended, enabled: prefs.effects !== "off", reduced: Boolean(opts.reduced) });
   // 舞台の背景の光：値が変わったときだけ書く
   const ambientValue = ambientAt(states, opts.reduced ? "low" : opts.intensity);
   if (ambientValue !== live.ambientLast) {
@@ -1226,6 +1293,8 @@ function stopLive() {
   if (!live) return;
   if (live.rafId !== null) cancelAnimationFrame(live.rafId);
   live.listeners.forEach((off) => off());
+  live.unbindTaps?.();
+  live.spectacle?.destroy();
   live = null;
 }
 
