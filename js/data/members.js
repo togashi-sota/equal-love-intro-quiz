@@ -330,6 +330,8 @@ export const MEMBERS = [
     reading: "さたけのんの",
     status: MEMBER_STATUS.GRADUATED,
     memberColor: { name: "青", hex: "#5b9bd9" },
+    // 【2026-11-01 本人】結成メンバー（センター1枚表で、在籍していた曲を「全員」の色に含めるため。activePeriod.start と同じ結成日）
+    joinDate: "2017-04-29",
     activePeriod: { start: "2017-04-29", end: "2021-03-06" },
     graduationDate: "2021-03-06",
     officialLinks: {
@@ -345,6 +347,8 @@ export const MEMBERS = [
     reading: "さいとうなぎさ",
     status: MEMBER_STATUS.GRADUATED,
     memberColor: { name: "ピンク", hex: "#ff8fc0" },
+    // 【2026-11-01 本人】結成メンバー（センター1枚表で、在籍していた曲を「全員」の色に含めるため。activePeriod.start と同じ結成日）
+    joinDate: "2017-04-29",
     activePeriod: { start: "2017-04-29", end: "2023-01-13" },
     graduationDate: "2023-01-13",
     // 卒業後も芸能活動を継続しているため、現在の所属・公式リンクを追加で持たせている

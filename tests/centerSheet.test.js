@@ -101,8 +101,9 @@ function runSheetModelTests() {
   assertEqual([doko.tone, doko.basis, doko.shortLabel, doko.names], ["members", "unit", "4人", ["大谷映美里", "佐々木舞香", "野口衣織", "諸橋沙夏"]], "どこが好きか言って：ユニットの4人の色・短い名前「4人」");
   assertEqual([byId("genneki-idol-chu").cell.tone, byId("genneki-idol-chu").cell.basis, byId("genneki-idol-chu").cell.names, byId("genneki-idol-chu").cell.shortLabel], ["members", "unit", ["齊藤なぎさ"], null], "現役アイドルちゅ〜（ソロ）：歌う人をセンターとして色・名前");
   assertEqual([byId("queens").cell.basis, byId("queens").cell.swatches.map((swatch) => swatch.name)], ["unit", ["齋藤樹愛羅", "野口衣織"]], "Queens（2人の曲）：2人の2色");
-  assertEqual([byId("866").cell.tone, byId("866").cell.names], ["all", []], "866：在籍が決められない人（加入日の無い佐竹のん乃）がいるので、今の表示（全員）のまま");
-  assertEqual(model.unresolved.map((song) => song.id), ["866"], "データで決められない曲は 866 だけ（報告に一覧で書く）");
+  assertEqual([byId("866").cell.tone, byId("866").cell.basis, byId("866").cell.shortLabel, byId("866").cell.names.length], ["members", "group", "全員", 12], "866（2019-09-12）：結成メンバー12人（佐竹のん乃・齊藤なぎさを含む。2026-11-01 本人）の色・短い名前「全員」");
+  assertEqual(["佐竹のん乃", "齊藤なぎさ"].every((name) => byId("866").cell.names.includes(name)), true, "866：卒業した2人も、在籍していたので入る");
+  assertEqual(model.unresolved.map((song) => song.id), [], "データで決められない曲は無い（卒業した2人の加入日を足したため）");
   assertEqual(entries.filter((entry) => entry.cell.tone === "singers").length, 0, "センターの区別が無いユニット曲は、すべて歌う人の色になる（斜線の表示は残らない）");
   assertEqual(entries.filter((entry) => entry.cell.basis !== "center" && entry.cell.tone === "members").every((entry) => Array.isArray(entry.song.members) || ["表題曲", "全員曲"].includes(entry.song.category)), true, "歌う人は songs.js の members か、全員の曲の在籍メンバーからだけ決める");
 
@@ -223,7 +224,8 @@ async function runSheetDomTests() {
   assertEqual(koiCell.querySelector(".cs-swatches").getAttribute("aria-label").includes("佐々木舞香"), true, "画面：帯の一人ひとりの名前は読み上げの説明に入る");
   const dokoCell = sheet.querySelector('.cs-song[data-song-id="doko-ga-suki-ka-itte"]').nextElementSibling;
   assertEqual([dokoCell.querySelectorAll(".cs-band").length, dokoCell.querySelector(".cs-band-label")?.textContent, dokoCell.dataset.names], [4, "4人", "大谷映美里,佐々木舞香,野口衣織,諸橋沙夏"], "画面：どこが好きか言って は4色の帯＋「4人」");
-  assertEqual(sheet.querySelector('.cs-song[data-song-id="866"]').nextElementSibling.textContent, "全員", "画面：866 は今の表示（全員）のまま");
+  const cell866 = sheet.querySelector('.cs-song[data-song-id="866"]').nextElementSibling;
+  assertEqual([cell866.querySelectorAll(".cs-band").length, cell866.querySelector(".cs-band-label")?.textContent], [12, "全員"], "画面：866 は12色の細い帯＋「全員」");
   assertEqual(sheet.querySelector(".cs-legend").textContent.includes("細い色の帯"), true, "凡例：細い色の帯の説明");
   assertEqual(sheet.querySelector(".cs-legend").textContent.includes("斜線"), false, "凡例：斜線の説明は無くなった");
   assertEqual(sheet.querySelectorAll(".cs-legend-member").length, model.legend.length, "凡例：メンバーの数");
