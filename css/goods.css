@@ -1,0 +1,545 @@
+/* ===== 「歴代グッズ図鑑」（#goods-screen・#goods-detail-screen）2026-11-01新設 =====
+   テレビ出演のページ（css/tvVariety.css）と見た目を揃える。iPhone の縦画面（幅390px前後）を基準に、320px でも横にはみ出さない。
+   押す所は高さ44px前後。画像は出さない（カードは文字だけ）。色はアプリ共通の変数（css/style.css の :root）。 */
+
+.gds-subtitle {
+  margin: 2px 0 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #6b5a66;
+}
+
+.gds-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 24px;
+}
+
+.gds-intro,
+.gds-category-lead {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  color: var(--color-text);
+  opacity: 0.85;
+}
+
+.gds-category-lead {
+  margin-top: -4px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #7a4a68;
+  opacity: 1;
+}
+
+/* カテゴリのタブ：狭い画面では横にスクロール（5つを1行に。折り返して2段にしない） */
+.gds-tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  margin: 0 -2px;
+  padding: 2px 2px 4px;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+.gds-tab {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(160, 60, 120, 0.25);
+  background: #fff;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.gds-tab-count {
+  min-width: 1.6em;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(160, 60, 120, 0.1);
+  font-size: 0.72rem;
+  text-align: center;
+}
+
+.gds-tab.is-active {
+  background: var(--color-primary, #e8608c);
+  border-color: var(--color-primary, #e8608c);
+  color: #fff;
+}
+
+.gds-tab.is-active .gds-tab-count {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* 検索・絞り込み */
+.gds-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.gds-search {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  font: inherit;
+  font-size: 16px; /* iPhone で入力時に拡大しないように */
+}
+
+.gds-select-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.gds-select-row > .gds-select,
+.gds-member-row {
+  flex: 1 1 140px;
+  min-width: 0;
+}
+
+.gds-member-row[hidden],
+.gds-reset[hidden],
+.gds-embed-box[hidden],
+.gds-embed-button[hidden],
+.gds-embed-hint[hidden] {
+  display: none;
+}
+
+.gds-select {
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  background: #fff;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 16px;
+}
+
+.gds-count-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.gds-count {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #6b5a66;
+}
+
+.gds-reset {
+  min-height: 36px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  background: #fff;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+/* 一覧 */
+.gds-results {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.gds-year-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 6px;
+  padding: 0 2px;
+  font-size: 1rem;
+  font-weight: 800;
+  color: #5a2a4a;
+}
+
+.gds-year-count {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #8a6a7c;
+}
+
+/* 1枚の幅が 260px 以上とれるときだけ2列以上（iPhone・iPad 縦の枠では1列。広い PC では2列） */
+.gds-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gds-item {
+  min-width: 0;
+}
+
+.gds-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  width: 100%;
+  height: 100%;
+  min-height: 64px;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid rgba(160, 60, 120, 0.16);
+  border-left: 4px solid var(--gds-accent, #e8608c);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.gds-card[data-category="idphoto"] { --gds-accent: #1c7ed6; }
+.gds-card[data-category="fourcut"] { --gds-accent: #f08c00; }
+.gds-card[data-category="acrylic"] { --gds-accent: #2b8a3e; }
+.gds-card[data-category="live"] { --gds-accent: #7048e8; }
+
+.gds-card:active {
+  background: #fff4f8;
+}
+
+.gds-card-title {
+  font-size: 0.92rem;
+  font-weight: 800;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.gds-card-name {
+  font-size: 0.74rem;
+  color: #6b5a66;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.gds-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-top: 2px;
+  font-size: 0.74rem;
+  color: #5a4a55;
+}
+
+.gds-card-period {
+  font-weight: 700;
+}
+
+.gds-tag {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #f3edf1;
+  color: #6b5a66;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.gds-tag.is-estimate {
+  background: #fff4e0;
+  color: #8a5300;
+}
+
+.gds-tag.is-x {
+  background: #eef2f6;
+  color: #24313d;
+}
+
+.gds-more {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 6px;
+  border-radius: 12px;
+  border: 1px dashed rgba(160, 60, 120, 0.35);
+  background: #fffafc;
+  color: #7a3a62;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.gds-empty {
+  margin: 0;
+  padding: 16px;
+  border-radius: 12px;
+  background: #fff;
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.gds-footnote {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.7);
+  font-size: 0.72rem;
+  line-height: 1.6;
+  color: #6b5a66;
+}
+
+.gds-footnote p {
+  margin: 0;
+}
+
+.gds-rights {
+  font-weight: 700;
+  color: #4a3a45;
+}
+
+/* 詳細 */
+.gds-detail-head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid rgba(160, 60, 120, 0.14);
+}
+
+.gds-detail-category {
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: #e8608c;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.gds-detail-category.is-idphoto { background: #1c7ed6; }
+.gds-detail-category.is-fourcut { background: #c36a00; }
+.gds-detail-category.is-acrylic { background: #2b8a3e; }
+.gds-detail-category.is-live { background: #7048e8; }
+
+.gds-detail-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 800;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.gds-detail-title:focus {
+  outline: none;
+}
+
+.gds-detail-name {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #6b5a66;
+  overflow-wrap: anywhere;
+}
+
+.gds-info {
+  margin: 0;
+  padding: 4px 14px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.gds-info-row {
+  display: grid;
+  grid-template-columns: 7.2em minmax(0, 1fr);
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+.gds-info-row:last-child {
+  border-bottom: none;
+}
+
+.gds-info-row dt {
+  font-weight: 700;
+  color: #6b5a66;
+}
+
+.gds-info-row dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.gds-hint {
+  margin: 0;
+  font-size: 0.74rem;
+  line-height: 1.55;
+  color: #7a6170;
+}
+
+/* 公式 X の投稿：押すまで何も読み込まない */
+.gds-embed {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 14px;
+  background: #f6f8fa;
+  border: 1px solid rgba(36, 49, 61, 0.12);
+}
+
+.gds-embed-button {
+  min-height: 48px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: none;
+  background: #14171a;
+  color: #fff;
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.gds-embed-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.gds-embed-hint,
+.gds-embed-none {
+  margin: 0;
+  font-size: 0.74rem;
+  line-height: 1.55;
+  color: #5a6570;
+}
+
+.gds-embed-status {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.55;
+  color: #24313d;
+}
+
+.gds-embed-status:empty {
+  display: none;
+}
+
+.gds-embed.is-failed .gds-embed-status {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid rgba(201, 42, 42, 0.3);
+  color: #8a1c1c;
+  font-weight: 700;
+}
+
+.gds-embed-box {
+  min-height: 120px;
+  display: flex;
+  justify-content: center;
+}
+
+/* X の iframe が幅いっぱいを超えないように */
+.gds-embed-box iframe,
+.gds-embed-box .twitter-tweet {
+  max-width: 100% !important;
+}
+
+.gds-embed-link,
+.gds-shop-link,
+.gds-news-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 8px 14px;
+  border-radius: 12px;
+  font-size: 0.86rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.gds-embed-link {
+  align-self: flex-start;
+  min-height: 36px;
+  padding: 4px 4px;
+  color: #1d4f7a;
+  text-decoration: underline;
+}
+
+.gds-links {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gds-shop-link {
+  background: var(--color-primary, #e8608c);
+  color: #fff;
+}
+
+.gds-shop-link.is-top,
+.gds-news-link {
+  background: #fff;
+  color: #7a3a62;
+  border: 1px solid rgba(160, 60, 120, 0.35);
+}
+
+.gds-external-icon {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.gds-tab:focus-visible,
+.gds-card:focus-visible,
+.gds-more:focus-visible,
+.gds-reset:focus-visible,
+.gds-embed-button:focus-visible,
+.gds-embed-link:focus-visible,
+.gds-shop-link:focus-visible,
+.gds-news-link:focus-visible {
+  outline: 3px solid #1864ab;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gds-card {
+    transition: none;
+  }
+}

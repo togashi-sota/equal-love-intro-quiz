@@ -319,6 +319,8 @@ import { initCdSalesScreen, openCdSalesScreen, getCdSalesModel } from "./cdSales
 // 【2026-11-01新設】テレビ出演（バラエティ・情報番組）
 import { initTvVarietyScreen, openTvVarietyScreen } from "./tvVarietyScreen.js";
 import { TV_VARIETY_RECORDS } from "./data/tvVariety.js";
+import { initGoodsScreen, openGoodsScreen, renderGoodsDetail } from "./goodsScreen.js";
+import { GOODS_ITEMS } from "./data/goods.js";
 import { initFanProfilesScreen, renderFanProfilesScreen } from "./fanProfilesScreen.js";
 import { initAdminBackupScreen, renderAdminBackupScreen } from "./adminBackupScreen.js";
 import { initAdminUidRepairScreen, resetAdminUidRepairScreen } from "./adminUidRepairScreen.js";
@@ -6319,6 +6321,49 @@ document.getElementById("tv-variety-back-button").addEventListener("click", () =
   const badge = document.getElementById("home-know-variety-badge");
   if (badge && TV_VARIETY_RECORDS.length > 0) {
     badge.textContent = `${TV_VARIETY_RECORDS.length}件`;
+    badge.hidden = false;
+  }
+}
+
+// 【2026-11-01新設・本人の決定「投稿カードの形」】「歴代グッズ図鑑」。入口はホーム「＝LOVEをもっと知る」・全体検索・使い方ガイド。
+// 一覧（goods）→ 詳細（goodsDetail）の2つの画面。詳細の［一覧へ］・端末の「戻る」で一覧へ（一覧の条件・位置はそのまま）。
+let goodsReturnScreen = "start";
+function openGoodsFrom(returnScreen, options = {}) {
+  goodsReturnScreen = returnScreen && returnScreen !== "goods" && returnScreen !== "goodsDetail" ? returnScreen : "start";
+  navigateWithScrollMemory("goods");
+  window.scrollTo(0, 0);
+  openGoodsScreen(options);
+}
+initGoodsScreen(
+  { listContainer: document.getElementById("goods-content"), detailContainer: document.getElementById("goods-detail-content") },
+  {
+    onOpenDetail: (itemId) => {
+      playClickSound();
+      renderGoodsDetail(itemId);
+      navigateWithScrollMemory("goodsDetail");
+      window.scrollTo(0, 0);
+      // 読み上げ・キーボードの位置を、詳細の題名へ移す（画面が切り替わったことが分かるように）
+      document.getElementById("goods-detail-title")?.focus({ preventScroll: true });
+    },
+  }
+);
+document.getElementById("goods-home-link").addEventListener("click", () => {
+  playClickSound();
+  openGoodsFrom("start");
+});
+document.getElementById("goods-back-button").addEventListener("click", () => {
+  playSfx(SFX_EVENTS.UI_BACK);
+  navigateWithScrollMemory(goodsReturnScreen);
+});
+document.getElementById("goods-detail-back-button").addEventListener("click", () => {
+  playSfx(SFX_EVENTS.UI_BACK);
+  navigateWithScrollMemory("goods");
+});
+// ホームの札：件数（データから数える）
+{
+  const badge = document.getElementById("home-know-goods-badge");
+  if (badge && GOODS_ITEMS.length > 0) {
+    badge.textContent = `${GOODS_ITEMS.length}件`;
     badge.hidden = false;
   }
 }

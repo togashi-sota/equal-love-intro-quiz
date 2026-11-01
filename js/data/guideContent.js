@@ -188,7 +188,7 @@ export const GUIDE_CATEGORIES = [
     tocLabel: "＝LOVE|情報",
     icon: "💗",
     lead: "メンバーとグループの歩み。音源が無くても見られます。",
-    sectionIds: ["members", "centers", "anniversary", "cdSales", "tvAppearances", "tvVariety", "commercials", "aboutGroup"],
+    sectionIds: ["members", "centers", "anniversary", "cdSales", "tvAppearances", "tvVariety", "goods", "commercials", "aboutGroup"],
   },
   {
     id: "mydata",
@@ -575,6 +575,21 @@ export const GUIDE_SECTIONS = [
     ],
     point: "「＝LOVE 名義」は告知に個人名が無い出演で、全員とは限りません。レギュラー番組は下の別枠に番組名と期間だけを載せています。",
     actions: [{ label: "テレビ出演を開く", open: { click: "tv-variety-home-link" } }],
+  },
+  {
+    // 【2026-11-01追加】歴代グッズ図鑑
+    id: "goods",
+    icon: "🛍",
+    title: "歴代グッズ図鑑",
+    tagline: "公式グッズを、カテゴリと年で振り返る。画像は公式 X の投稿で見る。",
+    where: "ホームの「＝LOVEをもっと知る」→［歴代グッズ図鑑］",
+    steps: [
+      "上のタブで、生写真・証明写真・4カット・アクリル・その他・ライブ・周年を切り替える",
+      "年で絞り込み、商品名・衣装名で探せる（探すときは、すべてのカテゴリから）",
+      "カードを押すと詳細。［公式 X の投稿を表示］を押したときだけ、公式 X の告知の投稿（画像）を読み込む。［公式ショップで見る］で公式ショップのページを開ける",
+    ],
+    point: "画像はアプリには入っていません（公式 X の投稿をそのまま表示します）。オフライン・投稿が消えたときは「表示できません」と出ます。「時期は推測」は、公式の発売日を確かめていないものです。",
+    actions: [{ label: "歴代グッズ図鑑を開く", open: { click: "goods-home-link" } }],
   },
   {
     id: "commercials",
