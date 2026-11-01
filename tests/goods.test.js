@@ -310,7 +310,7 @@ async function runMarkupTests() {
   assertEqual(main.includes('openGoodsFrom("start")') && main.includes('navigateWithScrollMemory("goodsDetail")') && main.includes('navigateWithScrollMemory("goods")'), true, "行き先：ホーム → 一覧 → 詳細 →［一覧へ］");
   // Service Worker
   assertEqual(["./css/goods.css", "./js/goodsScreen.js", "./js/goodsModel.js", "./js/goodsEmbed.js", "./js/data/goods.js"].every((file) => sw.includes(`"${file}"`)), true, "オフライン：新しいファイルを APP_SHELL に入れた");
-  assertEqual(/const CACHE_VERSION = "v409";/.test(sw), true, "CACHE_VERSION は変えていない（v409）");
+  assertEqual(Number(/const CACHE_VERSION = "v(\d+)";/.exec(sw)?.[1]) >= 410, true, "CACHE_VERSION をグッズ図鑑の統合で上げた（v410 以上）");
   const patternSource = /const SW_PASS_THROUGH_HOST_PATTERN = (\/.+\/);/.exec(sw)?.[1];
   const functionStart = sw.indexOf("function shouldPassThroughRequest(url)");
   const functionBody = sw.slice(functionStart, sw.indexOf("\n}\n", functionStart) + 2);
