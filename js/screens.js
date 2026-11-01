@@ -67,6 +67,8 @@ const SCREEN_ELEMENTS = {
   cdSales: document.getElementById("cd-sales-screen"),
   // 【2026-11-01新設】テレビ出演（バラエティ・情報番組）
   tvVariety: document.getElementById("tv-variety-screen"),
+  goods: document.getElementById("goods-screen"), // 【2026-11-01追加】歴代グッズ図鑑
+  goodsDetail: document.getElementById("goods-detail-screen"),
   members: document.getElementById("members-screen"),
   memberDetail: document.getElementById("member-detail-screen"),
   playlists: document.getElementById("playlist-screen"),

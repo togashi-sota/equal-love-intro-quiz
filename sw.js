@@ -231,6 +231,12 @@ const APP_SHELL_FILES = [
   "./js/cdSalesScreen.js",
   "./js/cdSalesModel.js",
   "./js/data/cdSales.js",
+  // 【2026-11-01追加】歴代グッズ図鑑（画像は持たない。公式 X の投稿の埋め込みは下の fetch で素通し）
+  "./css/goods.css",
+  "./js/goodsScreen.js",
+  "./js/goodsModel.js",
+  "./js/goodsEmbed.js",
+  "./js/data/goods.js",
   // 【2026-11-01追加】テレビ出演（バラエティ・情報番組）
   "./css/tvVariety.css",
   "./js/tvVarietyScreen.js",
@@ -415,10 +421,23 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+// 【2026-11-01追加・歴代グッズ図鑑】公式 X の埋め込み（platform.twitter.com の widgets.js・iframe・
+// pbs.twimg.com などの画像）は、Service Worker を通さず素通しにする（respondWith を呼ばない）。
+// 画像をアプリ側に一切ためない約束のため（キャッシュに入れない・横取りしない）。オフラインでは読めず「表示できません」になる。
+const SW_PASS_THROUGH_HOST_PATTERN = /(^|\.)(twitter\.com|x\.com|twimg\.com|t\.co)$/;
+function shouldPassThroughRequest(url) {
+  try {
+    return SW_PASS_THROUGH_HOST_PATTERN.test(new URL(url).hostname);
+  } catch (error) {
+    return false;
+  }
+}
+
 // キャッシュ優先で返し、キャッシュになければネットワークから取得する。
 // POSTなど、GET以外のリクエスト（今のところ存在しないが将来のため）はそのままネットワークに任せる。
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
+  if (shouldPassThroughRequest(event.request.url)) return;
 
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => cachedResponse || fetch(event.request))

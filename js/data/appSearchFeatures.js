@@ -62,6 +62,15 @@ export const APP_SEARCH_FEATURES = [
     action: { type: "click", selector: "#tv-variety-home-link" },
   },
   {
+    // 【2026-11-01追加】歴代グッズ図鑑（画像は公式 X の投稿の埋め込みだけ）
+    id: "feature-goods",
+    category: FEATURE,
+    title: "歴代グッズ図鑑",
+    aliases: ["グッズ", "公式グッズ", "グッズ図鑑", "生写真", "生写真セット", "証明写真", "ID PHOTO", "4カット", "4カットフォトカード", "アクスタ", "アクリルスタンド", "ライブグッズ", "物販"],
+    description: "公式グッズ（生写真・証明写真・4カット・アクリルスタンド・ライブ／周年グッズ）を、カテゴリと年で振り返れます。衣装名で探せて、公式 X の告知の投稿と公式ショップのページを開けます。",
+    action: { type: "click", selector: "#goods-home-link" },
+  },
+  {
     id: "feature-favorites",
     category: FEATURE,
     title: "お気に入り",
