@@ -530,8 +530,10 @@ async function runBlastTests() {
   const host = document.body.appendChild(document.createElement("div"));
   const sp = createSpectacle(host, { variant: "karaoke" });
   sp.setPlan(plan);
-  assertEqual(host.querySelectorAll(".sp-crowd i").length, SP_CROWD_COUNT.karaoke, "X: カラオケのペンライトは 14 本だけ");
-  assertEqual(host.querySelectorAll(".sp-front *").length <= 30, true, "X: 前の層の部品は 30 個以下（iPhone で重くしない）");
+  assertEqual(host.querySelectorAll(".sp-crowd i").length, SP_CROWD_COUNT.karaoke, `X: カラオケのペンライトは ${SP_CROWD_COUNT.karaoke} 本だけ（【r9-fx】太く本物の長さにしたので 14 → 12）`);
+  // 【r9-fx】ペンライトを持ち手・発光部・光の広がり・残像の 4 つの部品にし、スポットライト・光の玉・暗転を足した。文字・回数の印を除いた部品の数で見る
+  const parts = [...host.querySelectorAll(".sp-front *")].filter((n) => !n.closest(".sp-word-text") && !n.closest(".sp-pips"));
+  assertEqual(parts.length <= 90, true, `X: 前の層の部品は 90 個以下（iPhone で重くしない。いま ${parts.length}）`);
   sp.update(3, { playing: true, enabled: true });
   assertEqual(sp.layer.classList.contains("is-on"), false, "X: コールの無い間は、ペンライト・光線を動かさない");
   sp.update(23, { playing: true, enabled: true });
@@ -559,7 +561,7 @@ async function runBlastTests() {
     },
   });
   sp2.setPlan(plan);
-  assertEqual(host2.querySelectorAll(".sp-crowd i").length, SP_CROWD_COUNT.live, "X: ライブコールのペンライトは 10 本だけ");
+  assertEqual(host2.querySelectorAll(".sp-crowd i").length, SP_CROWD_COUNT.live, `X: ライブコールのペンライトは ${SP_CROWD_COUNT.live} 本だけ`);
   sp2.update(21, { playing: true, enabled: true });
   const fs1 = sp2.layer.style.getPropertyValue("--sp-fs");
   assertEqual([sp2.layer.style.getPropertyValue("--sp-bx"), sp2.layer.style.getPropertyValue("--sp-bw"), sp2.layer.style.getPropertyValue("--sp-y")], ["10px", "320px", "201px"], "X: ライブコール：帯の位置・幅を受け取る");
@@ -576,10 +578,12 @@ async function runBlastTests() {
   const live = await fetchText("js/liveCallScreen.js");
   assertEqual(/createSpectacle\(root, \{\s*variant: "live",\s*follow: true,/.test(live) && live.includes("chooseSpectacleY(region, avoid, h)"), true, "X: ライブコール：帯は光っているコールの行・いま／つぎの札を避ける（位置を測り直す）");
   const css = (await fetchText("css/callSpectacle.css")).replace(/\/\*[\s\S]*?\*\//g, "");
-  assertEqual(/\.sp-layer\.is-on \.sp-crowd i \{\s*animation:/.test(css) && /\.sp-layer\.is-on \.sp-rays \{\s*animation:/.test(css), true, "X: ペンライトの振り・光線の回転は、会場が出ている間だけ");
+  // 【r9-fx】ペンライトの振りは JS（いまの時刻から決まる penlightPoseAt）。会場が出ていて、音が進んでいる間だけ書く
+  const spSrc = await fetchText("js/callSpectacle.js");
+  assertEqual(/if \(s\.stage > 0 && playing\) \{\s*sticks\.forEach/.test(spSrc) && /\.sp-layer\.is-on \.sp-rays \{\s*animation:/.test(css), true, "X: ペンライトの振り・光線の回転は、会場が出ている間だけ");
   const boxCss = css.slice(css.indexOf(".sp-box {"), css.indexOf(".sp-wash {"));
   assertEqual(/filter\s*:/.test(boxCss), false, "X: 会場の部品にぼかし（filter）を使わない");
-  assertEqual(/prefers-reduced-motion: reduce\) \{[^@]*\.sp-layer\.is-on \.sp-crowd i/.test(css), true, "X: 視差効果を減らす設定では、ペンライトを振らない");
+  assertEqual(/penlightPoseAt\(plan, t, i, sticks\.length, \{ reduced, row: st\.row \}\)/.test(spSrc) && /prefers-reduced-motion: reduce\) \{[^@]*\.sp-layer\.is-on \.sp-rays/.test(css), true, "X: 視差効果を減らす設定では、ペンライトを振らない（reduced を渡す。CSS の回転も止める）");
 }
 
 export async function runLiveCallTypesetTests() {
