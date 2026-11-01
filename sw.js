@@ -161,6 +161,7 @@ const APP_SHELL_FILES = [
   "./js/karaokeSyncScreen.js",
   "./js/karaokeStage.js",
   "./js/callSpectacle.js",
+  "./js/callKinds.js",
   "./js/callTapSeek.js",
   "./js/callGuidePanel.js",
   "./js/callGuideStorage.js",
