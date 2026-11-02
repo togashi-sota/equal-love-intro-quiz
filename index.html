@@ -50,6 +50,8 @@
   <link rel="stylesheet" href="css/goods.css">
   <!-- 【2026-11-02追加】YouTube 出演図鑑（#youtube-appearances-screen） -->
   <link rel="stylesheet" href="css/youtubeAppearances.css">
+  <!-- 【2026-11-03追加・R11 D】＝LOVE 最新情報（#official-news-screen・ホームの小さな入口 #home-quick-row） -->
+  <link rel="stylesheet" href="css/officialNews.css">
   <!-- 【2026-11-02追加】CD・特典映像図鑑（#cd-bonus-screen・#cd-bonus-detail-screen） -->
   <link rel="stylesheet" href="css/cdBonus.css">
   <link rel="stylesheet" href="css/friendsFix.css">
@@ -327,6 +329,8 @@
         <symbol id="hi-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.6M12 18.6v2.6M2.8 12h2.6M18.6 12h2.6M5.5 5.5l1.8 1.8M16.7 16.7l1.8 1.8M5.5 18.5l1.8-1.8M16.7 7.3l1.8-1.8"/></symbol>
         <symbol id="hi-friends" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.6"/><path d="M16.2 14.1A5 5 0 0 1 21.5 19"/></symbol>
         <symbol id="hi-trophy" viewBox="0 0 24 24"><path d="M7 4h10v4.5a5 5 0 0 1-10 0ZM7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3M12 13.5V17M8.5 20.5h7M10 17h4v3.5h-4Z"/></symbol>
+        <!-- 【2026-11-03追加・R11 D】＝LOVE 最新情報の入口（新聞） -->
+        <symbol id="hi-news" viewBox="0 0 24 24"><path d="M4.5 5.5h12v13a1.5 1.5 0 0 0 1.5 1.5H6a1.5 1.5 0 0 1-1.5-1.5ZM16.5 9h3v9.5a1.5 1.5 0 0 1-3 0M7.5 9h6M7.5 12.5h6M7.5 16h4"/></symbol>
         <symbol id="hi-medal" viewBox="0 0 24 24"><circle cx="12" cy="15" r="5.5"/><path d="M8.5 3l2.2 6.8M15.5 3l-2.2 6.8"/><path d="m12 12.4.9 1.7 1.9.3-1.4 1.3.3 1.9-1.7-.9-1.7.9.3-1.9-1.4-1.3 1.9-.3Z" fill="currentColor" stroke="none"/></symbol>
       </svg>
 
@@ -367,6 +371,18 @@
         <span class="home-search-entry-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="2.2"/><path d="m16 16 4.5 4.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
         <span class="home-search-entry-placeholder">曲・メンバー・ライブ・番組を検索</span>
       </button>
+
+      <!-- 【2026-11-03追加・R11 D】調べる・新しい情報の小さな入口の行（#home-quick-row。大きなカードは増やさない）。
+           1つ目：＝LOVE 最新情報（js/officialNewsScreen.js）。札は直近7日の新しいお知らせの数（main.js がデータから入れる）。
+           【統合のときの目印】質問AIの入口は、この行の2つ目のボタン（class="home-quick"）として足すと、2つが横に並ぶ（css/officialNews.css）。 -->
+      <div id="home-quick-row" class="home-quick-row">
+        <button id="official-news-home-link" class="home-quick home-quick--news" type="button">
+          <span class="home-quick-icon" aria-hidden="true"><svg class="hi"><use href="#hi-news"/></svg></span>
+          <span class="home-quick-text"><b>＝LOVE 最新情報</b><small id="official-news-home-sub">公式の新しいお知らせ</small></span>
+          <span class="home-quick-badge" id="official-news-home-badge" hidden></span>
+          <span class="home-chevron" aria-hidden="true">›</span>
+        </button>
+      </div>
 
       <!-- 必要なときだけの案内（js/homeScreen.js の buildHomeDataAlert）：音源が1曲も無い／バックアップに書き込めていない。
            問題なく遊べるときは何も出さない（「最新版です」とは言わない。端末だけでは判定できないため）。押すとデータの箱へ。 -->
@@ -6211,6 +6227,28 @@
         </div>
       </div>
       <div id="youtube-appearances-content" class="yta-content"></div>
+    </section>
+
+    <!-- 【2026-11-03新設・R11 D】＝LOVE 最新情報（中身は js/officialNewsScreen.js が data/official-news.json から組み立てる）。
+         公式サイトの NEWS のタイトル・発表日・カテゴリ・リンクだけ（本文・画像は持たない）。記事は公式サイトを新しいタブで開く -->
+    <section id="official-news-screen" class="screen">
+      <div class="list-header">
+        <button id="official-news-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            NEWS
+          </p>
+          <h2 id="official-news-title" tabindex="-1">＝LOVE 最新情報</h2>
+          <p class="onews-subtitle">公式サイトの NEWS の新しいお知らせ</p>
+        </div>
+      </div>
+      <div id="official-news-content" class="onews-content"></div>
     </section>
 
     <!-- 【2026-11-01新設・本人の決定「投稿カードの形」】歴代グッズ図鑑の一覧（中身は js/goodsScreen.js が js/data/goods.js から組み立てる）。

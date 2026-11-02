@@ -69,6 +69,7 @@ const SCREEN_ELEMENTS = {
   tvVariety: document.getElementById("tv-variety-screen"),
   goods: document.getElementById("goods-screen"), // 【2026-11-01追加】歴代グッズ図鑑
   youtubeAppearances: document.getElementById("youtube-appearances-screen"), // 【2026-11-02追加】YouTube 出演図鑑
+  officialNews: document.getElementById("official-news-screen"), // 【2026-11-03追加・R11 D】＝LOVE 最新情報
   goodsDetail: document.getElementById("goods-detail-screen"),
   cdBonus: document.getElementById("cd-bonus-screen"), // 【2026-11-02追加】CD・特典映像図鑑
   cdBonusDetail: document.getElementById("cd-bonus-detail-screen"),

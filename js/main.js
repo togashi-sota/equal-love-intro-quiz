@@ -326,6 +326,9 @@ import { GOODS_ITEMS } from "./data/goods.js";
 // 【2026-11-02新設】YouTube 出演図鑑
 import { initYoutubeAppearancesScreen, openYoutubeAppearances } from "./youtubeAppearancesScreen.js";
 import { YOUTUBE_DATA_STATE, loadYoutubeAppearanceData, onYoutubeAppearanceDataChange } from "./youtubeAppearanceData.js";
+// 【2026-11-03追加・R11 D】＝LOVE 最新情報（配線は下の「＝LOVE 最新情報」のまとまり）
+import { countRecentNews, initOfficialNewsScreen, openOfficialNews } from "./officialNewsScreen.js";
+import { OFFICIAL_NEWS_STATE, loadOfficialNewsData, onOfficialNewsDataChange } from "./officialNewsData.js";
 // 【2026-11-02新設】CD・特典映像図鑑
 import { initCdBonusScreen, openCdBonusList, renderCdBonusDetail, goBackInCdBonusDetail, setCdBonusNavigator } from "./cdBonusScreen.js";
 import { CD_BONUS_WORKS } from "./data/cdBonus.js";
@@ -6431,6 +6434,43 @@ onYoutubeAppearanceDataChange((snapshot) => {
   if (document.body.dataset.screen === "members") renderMembersScreen(SONGS, MEMBERS, MEMBER_PROFILES);
 });
 loadYoutubeAppearanceData({ memberIds: new Set(MEMBERS.map((member) => member.id)) });
+
+// 【2026-11-03新設・R11 D】「＝LOVE 最新情報」。入口はホームの小さな行（#home-quick-row）。
+// データ（data/official-news.json：公式サイトの NEWS のタイトル・発表日・カテゴリ・URL）は起動のあとで読む（js/officialNewsData.js）。
+// ここでは画面の切り替え・［戻る］の行き先・ホームの札だけを受け持つ。質問AIからは openOfficialNews({ memberId, category, returnScreen }) で開ける。
+let officialNewsReturnScreen = "start";
+initOfficialNewsScreen(
+  { container: document.getElementById("official-news-content") },
+  {
+    onShow: ({ returnScreen }) => {
+      officialNewsReturnScreen = returnScreen && returnScreen !== "officialNews" ? returnScreen : "start";
+      navigateWithScrollMemory("officialNews");
+      window.scrollTo(0, 0);
+    },
+  }
+);
+document.getElementById("official-news-home-link").addEventListener("click", () => {
+  playClickSound();
+  openOfficialNews({ returnScreen: "start" });
+});
+document.getElementById("official-news-back-button").addEventListener("click", () => {
+  playSfx(SFX_EVENTS.UI_BACK);
+  navigateWithScrollMemory(officialNewsReturnScreen);
+});
+// ホームの札：直近7日の新しいお知らせの数。説明：最終取得の日付／止まっているとき・読めないときはそのこと
+onOfficialNewsDataChange((snapshot) => {
+  const badge = document.getElementById("official-news-home-badge");
+  const sub = document.getElementById("official-news-home-sub");
+  if (!badge || !sub) return;
+  const recent = countRecentNews(snapshot);
+  badge.textContent = recent > 0 ? `新着${recent}` : "";
+  badge.hidden = recent === 0;
+  if (snapshot.state === OFFICIAL_NEWS_STATE.READY) sub.textContent = "公式の新しいお知らせ";
+  else if (snapshot.state === OFFICIAL_NEWS_STATE.STALE) sub.textContent = "更新が止まっています";
+  else if (snapshot.state === OFFICIAL_NEWS_STATE.LOADING || snapshot.state === OFFICIAL_NEWS_STATE.IDLE) sub.textContent = "公式の新しいお知らせ";
+  else sub.textContent = "公式サイトの NEWS へ";
+});
+loadOfficialNewsData({ memberIds: new Set(MEMBERS.map((member) => member.id)) });
 
 // 【2026-11-02新設・本人の依頼 R10-2】「CD・特典映像図鑑」。入口はホーム「＝LOVEをもっと知る」（仮の入口。配置はあとで整理）・全体検索。
 // 一覧（cdBonus）→ 詳細（cdBonusDetail）の2つの画面。詳細の［一覧へ］・端末の「戻る」で一覧へ（一覧の条件・位置はそのまま）。

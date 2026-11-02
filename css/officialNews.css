@@ -1,0 +1,427 @@
+/* ===== 「＝LOVE 最新情報」（#official-news-screen）とホームの小さな入口（#home-quick-row）2026-11-03新設・R11 D =====
+   YouTube 出演図鑑（css/youtubeAppearances.css）と見た目を揃える。幅390px前後を基準に、320px でも横にはみ出さない。
+   押す所は高さ40〜44px を目安にする。色はアプリ共通の変数（css/style.css の :root）。動きは押したときの縮みだけ（prefers-reduced-motion では止める）。 */
+
+/* ---- ホームの小さな入口の行（検索の下）。ボタンが2つになったら（質問AI）横に並ぶ ---- */
+.home-quick-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+  margin: 8px 0 0;
+}
+
+.home-quick {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 7px 10px 7px 12px;
+  border: 1.5px solid var(--color-card-border);
+  border-radius: 14px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.home-quick:active {
+  transform: scale(0.98);
+}
+
+.home-quick-icon {
+  display: inline-flex;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  color: var(--color-primary-dark);
+}
+
+.home-quick-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.home-quick-text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.home-quick-text b {
+  font-size: 0.86rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.home-quick-text small {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #6b5a66;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.home-quick-badge {
+  flex: none;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--color-primary-dark);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.home-quick .home-chevron {
+  flex: none;
+}
+
+/* ---- 画面 ---- */
+.onews-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 24px;
+}
+
+.onews-subtitle {
+  margin: 2px 0 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #6b5a66;
+}
+
+/* いまの状態（最終取得の日時・止まっている・読めない） */
+.onews-status {
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.onews-status--warn {
+  background: #fff8e6;
+  border-color: #e7c36a;
+}
+
+.onews-status--error {
+  background: #fff0f0;
+  border-color: #e59a9a;
+}
+
+.onews-status-title {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.onews-status-line {
+  margin: 4px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.onews-status-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.onews-button {
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 1.5px solid var(--color-card-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.onews-official-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+}
+
+/* 絞り込み */
+.onews-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.onews-label {
+  margin: 2px 0 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #6b5a66;
+}
+
+.onews-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.onews-chip {
+  min-height: 36px;
+  padding: 6px 11px;
+  border: 1.5px solid rgba(214, 51, 132, 0.3); /* 選ばれていないものも「押せる」と分かる枠 */
+  border-radius: 999px;
+  background: #fff;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.onews-chip[aria-pressed="true"] {
+  background: var(--color-primary-dark);
+  border-color: var(--color-primary-dark);
+  color: #fff;
+}
+
+.onews-select {
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  background: #fff;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 16px; /* iPhone で選ぶときに拡大しないように */
+}
+
+.onews-count {
+  margin: 0 2px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #6b5a66;
+}
+
+/* 一覧 */
+.onews-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.onews-item {
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.onews-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  margin: 0;
+  font-size: 0.72rem;
+}
+
+.onews-date {
+  font-weight: 800;
+  color: #4a3a45;
+}
+
+.onews-cat,
+.onews-new,
+.onews-flag {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1.5;
+}
+
+.onews-cat {
+  background: #f1e9f0;
+  color: #5b4253;
+}
+
+.onews-cat--media { background: #e6f0ff; color: #234a85; }
+.onews-cat--live-event { background: #ffe9f1; color: #8a2350; }
+.onews-cat--release { background: #efe7ff; color: #4b2f8a; }
+.onews-cat--goods { background: #e9f6ec; color: #235c33; }
+.onews-cat--meet { background: #fff1e3; color: #7a4510; }
+
+.onews-new {
+  background: var(--color-primary-dark);
+  color: #fff;
+}
+
+.onews-flag {
+  background: #fff3cd;
+  color: #6b4a00;
+  border: 1px solid #e7c36a;
+}
+
+.onews-item-title {
+  display: block;
+  margin: 5px 0 0;
+  font-size: 0.88rem;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--color-text);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.onews-item-title:hover,
+.onews-item-title:focus-visible {
+  text-decoration: underline;
+}
+
+.onews-ext {
+  color: var(--color-primary-dark);
+  font-weight: 800;
+}
+
+.onews-item-people {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin: 6px 0 0;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #4a3a45;
+}
+
+.onews-member {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* メンバーカラーの点（色だけに頼らない：名前を必ず並べる） */
+.onews-member::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--onews-member-color, #ccc);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.18);
+}
+
+.onews-others {
+  color: #6b5a66;
+}
+
+.onews-item-note {
+  margin: 6px 0 0;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: #7a4510;
+}
+
+.onews-more {
+  align-self: center;
+}
+
+.onews-empty {
+  margin: 0;
+  padding: 14px 12px;
+  border-radius: 14px;
+  background: #fff;
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+.onews-empty p {
+  margin: 0 0 8px;
+}
+
+/* 確認待ちの候補 */
+.onews-candidates {
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: #fbf7fa;
+  border: 1px dashed #c9b3c3;
+}
+
+.onews-candidates-summary {
+  min-height: 32px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.onews-candidates-note {
+  margin: 6px 0;
+  font-size: 0.74rem;
+  line-height: 1.55;
+}
+
+.onews-candidates-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.onews-candidate {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  font-size: 0.76rem;
+}
+
+.onews-candidate-date {
+  font-weight: 800;
+}
+
+.onews-candidate-title {
+  flex: 1 1 100%;
+  color: var(--color-text);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.onews-note {
+  margin: 4px 2px 0;
+  font-size: 0.72rem;
+  line-height: 1.6;
+  color: #6b5a66;
+}
+
+@media (min-width: 768px) {
+  .onews-item-title {
+    font-size: 0.95rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-quick:active {
+    transform: none;
+  }
+}
