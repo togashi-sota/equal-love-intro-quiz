@@ -251,6 +251,14 @@ const APP_SHELL_FILES = [
   "./js/cdBonusScreen.js",
   "./js/cdBonusModel.js",
   "./js/data/cdBonus.js",
+  // 【R11-qa】質問AI（オフラインでも答えられるように）
+  "./css/qa.css",
+  "./js/qaScreen.js",
+  "./js/qaEngine.js",
+  "./js/qaText.js",
+  "./js/qaNewsBridge.js",
+  "./js/data/qaPhrases.js",
+  "./js/data/qaSuggestions.js",
   // 【2026-11-03】データの読み込み（データの本体 data/youtube-appearances.json は APP_SHELL に入れない。network-first）
   "./js/youtubeAppearanceData.js",
   // 【2026-11-01追加】テレビ出演（バラエティ・情報番組）

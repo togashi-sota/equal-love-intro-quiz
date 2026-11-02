@@ -327,6 +327,9 @@ import { GOODS_ITEMS } from "./data/goods.js";
 import { initYoutubeAppearancesScreen, openYoutubeAppearances } from "./youtubeAppearancesScreen.js";
 import { YOUTUBE_DATA_STATE, loadYoutubeAppearanceData, onYoutubeAppearanceDataChange } from "./youtubeAppearanceData.js";
 // 【2026-11-02新設】CD・特典映像図鑑
+// 【R11-qa】質問AI
+import { initQaScreen, openQaScreen, focusQaInput } from "./qaScreen.js";
+import { setQaNewsProvider } from "./qaNewsBridge.js";
 import { initCdBonusScreen, openCdBonusList, renderCdBonusDetail, goBackInCdBonusDetail, setCdBonusNavigator } from "./cdBonusScreen.js";
 import { CD_BONUS_WORKS } from "./data/cdBonus.js";
 import { initFanProfilesScreen, renderFanProfilesScreen } from "./fanProfilesScreen.js";
@@ -6143,6 +6146,27 @@ document.getElementById("app-search-link").addEventListener("click", () => {
   navigateWithScrollMemory("appSearch");
   if (shouldFocusAppSearchInput()) focusAppSearchInput();
 });
+// ===== 【R11-qa】質問AI（2026-11-03新設）。全体検索とは別の画面。答えのボタンは全体検索と同じ openSearchTarget で開き、
+// 開いた先の［戻る］で質問AI（最後の質問と答えのまま）へ戻る（searchReturn の仕組みは画面の名前によらない）。
+// 最新情報（r11-news）との連携：統合のときに次の1行を足す（ここではつながっていない＝「最新情報を読み込めていません」と答える）
+//   setQaNewsProvider(getOfficialNewsSnapshot);
+void setQaNewsProvider;
+let qaReturnScreen = "start";
+initQaScreen({ container: document.getElementById("qa-content") }, { onOpenTarget: (target) => openSearchTarget(target) });
+document.getElementById("qa-home-link").addEventListener("click", () => {
+  playClickSound();
+  qaReturnScreen = "start";
+  searchReturn = null;
+  openQaScreen();
+  navigateWithScrollMemory("qa");
+  focusQaInput();
+});
+document.getElementById("qa-back-button").addEventListener("click", () => {
+  playSfx(SFX_EVENTS.UI_BACK);
+  navigateWithScrollMemory(qaReturnScreen);
+});
+// ===== 【R11-qa】ここまで
+
 document.getElementById("app-search-back-button").addEventListener("click", () => {
   playSfx(SFX_EVENTS.UI_BACK);
   navigateWithScrollMemory("start");

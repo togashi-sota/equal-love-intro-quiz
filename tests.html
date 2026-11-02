@@ -172,6 +172,9 @@
     import { runYoutubeAppearancesTests } from "./tests/youtubeAppearances.test.js";
     // 【2026-11-02新設】CD・特典映像図鑑
     import { runCdBonusTests } from "./tests/cdBonus.test.js";
+    // 【R11-qa】質問AI（仕組み・画面／正確性の独立テスト）
+    import { runQaEngineTests } from "./tests/qaEngine.test.js";
+    import { runQaAccuracyTests } from "./tests/qaAccuracy.test.js";
     // 【2026-11-03新設・R10-3】ホームの「メンバーを知る」・＝LOVE の3つのまとまり・個人ページの点検と回遊
     import { runHomeMembersTests } from "./tests/homeMembers.test.js";
     // 【2026-11-03新設】YouTube 出演図鑑の自動更新（30日ルール）
@@ -459,6 +462,8 @@
     await runGoodsTests();
     await runYoutubeAppearancesTests();
     await runCdBonusTests();
+    await runQaEngineTests();
+    await runQaAccuracyTests();
     await runHomeMembersTests();
     await runYoutubeAutomationTests();
     await runDiscographyAutoAndHomeMusicTests();
