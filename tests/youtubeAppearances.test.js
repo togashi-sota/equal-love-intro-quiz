@@ -224,8 +224,8 @@ function runModelTests() {
   assertEqual(formatYoutubeDate(SAMPLE_VIDEOS[0]), "2020年5月1日", "表示：公開日");
   assertEqual(
     [describeYoutubeStatusMark(SAMPLE_VIDEOS[0]), describeYoutubeStatusMark(SAMPLE_VIDEOS[5]), describeYoutubeStatusMark(SAMPLE_VIDEOS[3]), describeYoutubeStatusMark(SAMPLE_VIDEOS[4])],
-    ["", "出演者は推定", "メンバー未確認", "出演者未確認"],
-    "表示：確定は印なし・推定・メンバー未確認・出演者未確認"
+    ["", "推定", "推定", "未確認"],
+    "表示：確かさは4つ（確認済みは印なし・推定・未確認）（R11）"
   );
 }
 
@@ -289,7 +289,7 @@ async function runScreenTests() {
     assertEqual([watch.textContent, watch.getAttribute("href"), watch.target, watch.rel], ["YouTube で見る", "https://www.youtube.com/watch?v=testVid0001", "_blank", "noopener noreferrer"], "カード：［YouTube で見る］は新しいタブ");
     assertEqual(cards()[1].querySelector(".yta-kind")?.textContent, "Shorts", "カード：Shorts の印");
     assertEqual(cards()[1].querySelector("a.yta-watch").getAttribute("href").includes("/shorts/"), true, "カード：Shorts は Shorts の画面で開く");
-    assertEqual(cards()[2].querySelector(".yta-badge.is-estimate")?.textContent, "出演者は推定", "カード：推定の印");
+    assertEqual(cards()[2].querySelector(".yta-badge.is-estimated")?.textContent, "推定", "カード：推定の印");
     assertEqual(cards()[2].querySelector(".yta-member-former")?.textContent, "元", "カード：元メンバーの印");
     assertEqual(card.querySelector(".yta-why-list").textContent.includes("説明欄の公式の出演者の表記"), true, "カード：出演の根拠を見られる");
     // サムネイルの代わりの表示
@@ -334,7 +334,7 @@ async function runScreenTests() {
     const toggle = container.querySelector(".yta-toggle input");
     toggle.click();
     assertEqual(cards().some((item) => item.dataset.id === "testVid0005"), true, "画面：「出演者未確認」も出せる");
-    assertEqual(cards().find((item) => item.dataset.id === "testVid0005").querySelector(".yta-badge.is-unconfirmed")?.textContent, "出演者未確認", "カード：未確認の印");
+    assertEqual(cards().find((item) => item.dataset.id === "testVid0005").querySelector(".yta-badge.is-unconfirmed")?.textContent, "未確認", "カード：未確認の印");
     // 年・並びを指定して開く（開き直すと、ほかの条件は初めに戻る）
     openYoutubeAppearances({ year: 2021, sort: "desc" });
     assertEqual(

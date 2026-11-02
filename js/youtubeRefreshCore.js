@@ -24,6 +24,8 @@ import {
   summarizeDescription,
 } from "./youtubeAppearanceClassifier.js";
 import { toClassifierManual } from "./data/youtubeVerifiedJudgments.js";
+// 【2026-11-03 R11】出演者の確かさ（確認済み・一部確認・推定・未確認）と要確認の印
+import { confidenceOf, reviewFlagsOf, countAuditCategories } from "./youtubeAppearanceAudit.js";
 import { YOUTUBE_DATA_PATH, YOUTUBE_DATA_SCHEMA, YOUTUBE_DATA_MAX_AGE_DAYS, isYoutubeDataExpired, validateYoutubePublishedData } from "./youtubeAppearanceData.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -161,7 +163,7 @@ export function buildYoutubePublishedData({ fetched, verifiedJudgments = [], pre
     }
     if (!STRONG_STATUSES.has(status)) review.push({ id: raw.id, kind: status === APPEARANCE_STATUS.UNCONFIRMED ? "unconfirmed" : "estimate" });
     if (!before && usablePrevious) review.push({ id: raw.id, kind: "new", status });
-    videos.push({
+    const entry = {
       id: raw.id,
       title: raw.title,
       publishedAt: date,
@@ -171,13 +173,19 @@ export function buildYoutubePublishedData({ fetched, verifiedJudgments = [], pre
       status,
       memberIds,
       footageMemberIds,
+      // 説明欄の文を書いたメンバー（出演者とは限らないので memberIds に入れない。R11）
+      writerMemberIds: (result.writerMemberIds ?? []).filter((memberId) => !memberIds.includes(memberId) && !footageMemberIds.includes(memberId)),
       evidence,
       ...(verified ? { verified: { by: verified.verifiedBy, on: verified.verifiedOn } } : {}),
+      ...(verified?.partial ? { partial: true } : {}),
       ...(hold ? { hold } : {}),
       summary: summarizeDescription(raw.description),
       series: playlistTitles,
       privacy: "public",
-    });
+    };
+    entry.confidence = confidenceOf(entry);
+    entry.reviewFlags = reviewFlagsOf(raw, entry);
+    videos.push(entry);
   }
   videos.sort((a, b) => a.publishedAt.localeCompare(b.publishedAt) || String(a.publishedAtTime).localeCompare(String(b.publishedAtTime)) || a.id.localeCompare(b.id));
   // 前に載っていたのに今回の取得に無い（削除・非公開・限定公開になった）動画。数だけを残す（タイトルなどは持ち越さない）
@@ -197,6 +205,9 @@ export function buildYoutubePublishedData({ fetched, verifiedJudgments = [], pre
       unconfirmed,
       excluded: excluded.length,
       ended: endedIds.length,
+      // 【R11】確かさごとの数（確認済み・一部確認・推定・未確認）と、点検の7つの分類
+      byConfidence: Object.fromEntries(["confirmed", "partial", "estimated", "unconfirmed"].map((key) => [key, videos.filter((video) => video.confidence === key).length])),
+      audit: countAuditCategories(videos),
     },
     videos,
   };

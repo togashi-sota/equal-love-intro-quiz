@@ -41,7 +41,7 @@ import { countTvVarietyByMember, groupTvVarietyByProgram } from "./tvVarietyMode
 // 【2026-11-02追加】YouTube 出演図鑑
 // 【2026-11-03】動画のデータは公開のたびに作るファイル（読めて期限内のときだけ。期限切れ・未読み込みなら空）
 import { getYoutubeAppearanceSnapshot } from "./youtubeAppearanceData.js";
-import { YOUTUBE_KIND_LABELS, countYoutubeByMember, formatYoutubeDate, isConfirmedAppearance, youtubeWatchUrl } from "./youtubeAppearancesModel.js";
+import { YOUTUBE_KIND_LABELS, countYoutubeByMember, describeYoutubeStatusMark, formatYoutubeDate, isConfirmedAppearance, youtubeWatchUrl } from "./youtubeAppearancesModel.js";
 // 【2026-11-02追加】CD・特典映像図鑑
 import { CD_BONUS_WORKS } from "./data/cdBonus.js";
 import {
@@ -684,7 +684,8 @@ function buildYoutubeEntries({ members, youtubeVideos = getYoutubeAppearanceSnap
       title: video.title,
       subtitle: `YouTube 出演／${formatYoutubeDate(video)}・${YOUTUBE_KIND_LABELS[video.kind] ?? "動画"}`,
       lines: [
-        names.length ? `出演：${names.slice(0, 5).join("・")}${names.length > 5 ? ` ほか${names.length - 5}人` : ""}` : footageNames.length ? null : "出演：＝LOVE（メンバー未確認）",
+        // 【R11】確認済みでないものは「推定」などと書く（一部しか分からない人を全員確認済みに見せない）
+        names.length ? `出演${describeYoutubeStatusMark(video) ? `（${describeYoutubeStatusMark(video)}）` : ""}：${names.slice(0, 5).join("・")}${names.length > 5 ? ` ほか${names.length - 5}人` : ""}` : footageNames.length ? null : "出演：＝LOVE（出演者は未確認）",
         footageNames.length ? `映像で登場：${footageNames.slice(0, 5).join("・")}${footageNames.length > 5 ? ` ほか${footageNames.length - 5}人` : ""}` : null,
         video.series?.length ? `企画：${video.series.join("・")}` : null,
       ],
