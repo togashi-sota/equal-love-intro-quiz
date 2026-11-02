@@ -7,7 +7,7 @@ import { MEMBERS, MEMBER_STATUS } from "../js/data/members.js";
 import { MEMBER_PROFILES } from "../js/data/memberProfiles.js";
 import { MEMBER_ACTIVITIES, ACTIVITY_STATUS } from "../js/data/memberActivities.js";
 import { SONGS } from "../js/data/songs.js";
-import { buildHomeMemberCardModels, buildHomeMemberCard, renderHomeMembers } from "../js/homeMembersSection.js";
+import { buildHomeMemberCardModels, buildHomeMemberCard, renderHomeMembers, splitLeadPhrases } from "../js/homeMembersSection.js";
 import { initMembersScreen, openMemberDetail, buildGraduatedYoutubeButton, getActivityGroupRank, ACTIVITY_STATUS_LABELS, sortActivitiesByDateDesc, buildMemberActivitySections, isCurrentActivity, getActivityStatusLabel, CURRENT_ACTIVITY_LIMIT } from "../js/membersScreen.js";
 import { assertEqual } from "./test-utils.js";
 import { YOUTUBE_DATA_STATE, setYoutubeAppearanceSnapshotForTest } from "../js/youtubeAppearanceData.js";
@@ -35,6 +35,17 @@ function runHomeMemberCardTests() {
   assertEqual(card.getAttribute("aria-label").startsWith(`${models[0].name}のプロフィールを見る`), true, "カード：読み上げは「○○のプロフィールを見る」");
   card.click();
   assertEqual(selected, models[0].memberId, "カード：押すと、そのメンバーの個人ページを開く");
+
+  // 【2026-11-03 R11-A】ひとことは「・」の区切りごとのまとまりにし、「・」は前のまとまりの最後に付ける（行の頭に「・」が来ない）
+  assertEqual(splitLeadPhrases("グループ最年少・ゲーム好き"), ["グループ最年少・", "ゲーム好き"], "ひとこと：「・」は前のまとまりに付ける");
+  assertEqual(splitLeadPhrases("＝LOVEのリーダー"), ["＝LOVEのリーダー"], "ひとこと：区切りが無ければ1つ");
+  assertEqual(splitLeadPhrases("ファッションブランドを|手がける"), ["ファッションブランドを", "手がける"], "ひとこと：「|」の所でも区切り、「|」は表示しない");
+  assertEqual(models.every((model) => !model.lead.includes("|")), true, "ひとこと：読み上げ・表示の文に「|」が残らない");
+  const leadCard = buildHomeMemberCard(models.find((model) => model.memberId === "saito-kiara"), () => {});
+  assertEqual([...leadCard.querySelectorAll(".home-member-lead-part")].map((part) => part.textContent), ["グループ最年少・", "ゲーム好き"], "カード：ひとことは、まとまりの span に分けて出す");
+  assertEqual([...leadCard.querySelectorAll(".home-member-lead-part")].some((part) => part.textContent.startsWith("・")), false, "カード：まとまりの頭に「・」が無い");
+  assertEqual(models.find((model) => model.memberId === "yamamoto-anna").lead.startsWith("＝LOVEのリーダー"), true, "山本杏奈：ひとことは「＝LOVEのリーダー」が最初（本人の依頼：リーダーであることを最優先）");
+  assertEqual(MEMBER_PROFILES.find((profile) => profile.memberId === "oba-hana").homeLead.text.includes("変わりたい"), false, "大場花菜：以前の伝わりにくいひとことは使わない（個人ページの紹介文には加入の経緯が残る）");
 
   const host = document.createElement("div");
   renderHomeMembers(host, MEMBERS, MEMBER_PROFILES, () => {});

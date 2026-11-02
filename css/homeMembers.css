@@ -29,9 +29,10 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 3px;
+  gap: 2px;
   min-width: 0;
-  min-height: 104px;
+  /* 【2026-11-03 R11-A】高さは中身（ひとことの2行分）でそろえるので、固定の最小の高さは外した（以前は 104px） */
+  min-height: 0;
   padding: 9px 10px 14px;
   overflow: hidden;
   border: 1px solid #eedcf3;
@@ -314,4 +315,28 @@
 }
 .member-activity-history > .activity-list {
   padding: 10px;
+}
+
+/* ---------- 【2026-11-03 R11-A】カードの見直し（本人の iPhone の画面で見つかった折り返しと高さ） ---------- */
+/* 10枚の高さをそろえる：ひとことは2行分の高さを必ず取る（1行の人も2行の人も同じ。カードの高さは上の .home-member で min-height を外した） */
+.home-member-lead {
+  display: block;
+  min-height: calc(2 * 1.45em);
+  margin-top: 2px;
+  font-size: 0.8125rem;
+}
+/* 「・」の区切りごとのまとまり。まとまりの途中では改行しない（長すぎるときだけ中で折り返す） */
+.home-member-lead-part {
+  display: inline-block;
+  max-width: 100%;
+}
+/* 色名：色の点の下ではなく、名前の頭にそろえる（どの色の名前か分かるように。小さすぎない 12px） */
+.home-member-meta {
+  padding-left: calc(0.875rem + 6px);
+  font-size: 0.75rem;
+}
+/* 「プロフィール ›」：少し大きく。押す所はカード全体 */
+.home-member-go {
+  margin-top: 4px;
+  font-size: 0.8125rem;
 }

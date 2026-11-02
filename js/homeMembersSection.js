@@ -20,8 +20,35 @@ export function buildHomeMemberCardModels(members, profiles) {
     colorName: member.memberColor?.name ?? null,
     colorHex: member.memberColor?.hex ?? null,
     role: member.roles?.[0] ?? null,
-    lead: getMemberProfile(profiles, member.id)?.homeLead?.text ?? null,
+    // 「|」は改行してよい所の目印（表示しない）。読み上げ・比べるときは取り除いた文を使う
+    lead: getMemberProfile(profiles, member.id)?.homeLead?.text?.replaceAll("|", "") ?? null,
+    leadPhrases: splitLeadPhrases(getMemberProfile(profiles, member.id)?.homeLead?.text ?? ""),
   }));
+}
+
+// 【2026-11-03 R11-A】ひとこと紹介を「・」の区切りごとのまとまり（span）にする。
+// 「・」は前のまとまりの最後に付けるので、改行しても行の頭に「・」が来ない（以前は「…加入／・愛称は」のようになっていた）。
+// 長い文は、データの「|」（表示しない）の所でも区切る（例：「ファッションブランドを|手がける」）。
+// まとまりは CSS で途中改行しない（inline-block）。1つのまとまりが幅より長いときだけ、その中で折り返す。
+export function splitLeadPhrases(text) {
+  // 「・」の後で区切り（「・」は前のまとまりに付ける）、「|」の所でも区切る（「|」は表示しない）
+  return text
+    .split("・")
+    .filter((part) => part.length > 0)
+    .flatMap((part, index, parts) => {
+      const pieces = part.split("|").filter((piece) => piece.length > 0);
+      if (index < parts.length - 1) pieces[pieces.length - 1] += "・";
+      return pieces;
+    });
+}
+
+function buildLeadPhrases(phrases) {
+  return phrases.map((phrase) => {
+    const span = document.createElement("span");
+    span.className = "home-member-lead-part";
+    span.textContent = phrase;
+    return span;
+  });
 }
 
 // カード1枚（button）。押す所はカード全体の1つだけ（中にボタンを入れない）
@@ -68,7 +95,7 @@ export function buildHomeMemberCard(model, onSelect) {
     const lead = document.createElement("span");
     lead.className = "home-member-lead";
     lead.setAttribute("aria-hidden", "true");
-    lead.textContent = model.lead;
+    lead.append(...buildLeadPhrases(model.leadPhrases ?? splitLeadPhrases(model.lead)));
     button.appendChild(lead);
   }
 
