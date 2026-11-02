@@ -1,0 +1,346 @@
+/* ===== 「質問AI」（#qa-screen）2026-11-03新設・R11-C =====
+   iPhone の縦画面（390px 前後）を基準に、320px でもはみ出さない。押す所は 44px 前後。動きは使わない。
+   ホームの入口（#qa-home-link）は小さく（最新情報の入口と並べて、あとで整理する前提）。 */
+
+/* ---- ホームの入口（【R11-qa】） ---- */
+.home-qa-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(95, 61, 196, 0.25);
+  background: #f6f3ff;
+  color: #3b2a8f;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.home-qa-entry-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+}
+
+.home-qa-entry-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.home-qa-entry-sub {
+  margin-left: auto;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #6c5fa8;
+  white-space: nowrap;
+}
+
+@media (max-width: 359px) {
+  .home-qa-entry-sub {
+    display: none;
+  }
+}
+
+/* ---- 画面 ---- */
+.qa-subtitle {
+  margin: 2px 0 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #5c4fa0;
+}
+
+.qa-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 28px;
+  min-width: 0;
+}
+
+.qa-disclaimer {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #f6f3ff;
+  color: #3b2a8f;
+  font-size: 0.76rem;
+  line-height: 1.55;
+}
+
+.qa-form {
+  display: flex;
+  gap: 6px;
+}
+
+.qa-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1.5px solid rgba(95, 61, 196, 0.35);
+  background: #fff;
+  font: inherit;
+  font-size: 16px; /* iPhone で入力時に拡大しないように */
+}
+
+.qa-submit {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 6px 14px;
+  border-radius: 12px;
+  border: 0;
+  background: #5f3dc4;
+  color: #fff;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.qa-submit:disabled {
+  opacity: 0.6;
+}
+
+.qa-answer[hidden] {
+  display: none;
+}
+
+.qa-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(95, 61, 196, 0.22);
+  background: #fff;
+  min-width: 0;
+}
+
+.qa-card.is-notFound,
+.qa-card.is-unknown {
+  border-color: rgba(0, 0, 0, 0.14);
+  background: #f8f9fa;
+}
+
+.qa-card.is-refuse {
+  border-color: rgba(194, 65, 12, 0.3);
+  background: #fff8f1;
+}
+
+.qa-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.qa-badge {
+  flex: 0 0 auto;
+  padding: 1px 9px;
+  border-radius: 999px;
+  background: #5f3dc4;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.qa-badge.is-candidates { background: #1864ab; }
+.qa-badge.is-notFound,
+.qa-badge.is-unknown { background: #495057; }
+.qa-badge.is-refuse { background: #c2410c; }
+
+.qa-card-question {
+  min-width: 0;
+  font-size: 0.74rem;
+  color: #6c757d;
+  overflow-wrap: anywhere;
+}
+
+.qa-card-text {
+  margin: 0;
+  font-size: 0.98rem;
+  font-weight: 800;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.qa-card-text:focus {
+  outline: none;
+}
+
+.qa-details {
+  margin: 0;
+  padding-left: 1.1em;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.qa-candidates,
+.qa-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.qa-candidate,
+.qa-link {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-height: 40px;
+  max-width: 100%;
+  padding: 6px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(95, 61, 196, 0.3);
+  background: #fff;
+  color: #3b2a8f;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: left;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.qa-candidate-sub {
+  font-size: 0.66rem;
+  font-weight: 600;
+  color: #6c757d;
+}
+
+.qa-link.is-external::after {
+  content: " ↗";
+}
+
+.qa-evidence {
+  font-size: 0.76rem;
+  line-height: 1.5;
+  color: #495057;
+}
+
+.qa-evidence summary {
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.qa-evidence ul {
+  margin: 2px 0 0;
+  padding-left: 1.1em;
+}
+
+.qa-source {
+  color: #3b2a8f;
+}
+
+.qa-note,
+.qa-time {
+  margin: 0;
+  font-size: 0.7rem;
+  line-height: 1.5;
+  color: #6c757d;
+}
+
+.qa-section-title {
+  margin: 0 0 6px;
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: #2b2160;
+}
+
+.qa-suggestions,
+.qa-limits {
+  padding: 10px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  min-width: 0;
+}
+
+.qa-suggest-tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  margin: 0 -2px 8px;
+  padding: 2px 2px 4px;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+.qa-suggest-tab {
+  flex: 0 0 auto;
+  min-height: 38px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(95, 61, 196, 0.28);
+  background: #fff;
+  color: #3b2a8f;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.qa-suggest-tab.is-active {
+  background: #5f3dc4;
+  border-color: #5f3dc4;
+  color: #fff;
+}
+
+.qa-suggest-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.qa-suggest {
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  background: #f8f7ff;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.86rem;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.qa-suggest-note {
+  margin: 6px 0 0;
+  font-size: 0.72rem;
+  color: #6c757d;
+}
+
+.qa-suggest-note[hidden] {
+  display: none;
+}
+
+.qa-limits ul {
+  margin: 0;
+  padding-left: 1.1em;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: #495057;
+}

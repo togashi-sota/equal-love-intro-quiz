@@ -52,6 +52,8 @@
   <link rel="stylesheet" href="css/youtubeAppearances.css">
   <!-- 【2026-11-02追加】CD・特典映像図鑑（#cd-bonus-screen・#cd-bonus-detail-screen） -->
   <link rel="stylesheet" href="css/cdBonus.css">
+  <!-- 【R11-qa】質問AI（#qa-screen・ホームの #qa-home-link）。2026-11-03 -->
+  <link rel="stylesheet" href="css/qa.css">
   <link rel="stylesheet" href="css/friendsFix.css">
   <!-- 【2026-10-30新設】ホーム（案B）・まとめ画面・端末の「戻る」の案内 -->
   <link rel="stylesheet" href="css/homeRenewal.css">
@@ -366,6 +368,12 @@
       <button id="app-search-link" class="home-search-entry" type="button">
         <span class="home-search-entry-icon"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="2.2"/><path d="m16 16 4.5 4.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span>
         <span class="home-search-entry-placeholder">曲・メンバー・ライブ・番組を検索</span>
+      </button>
+      <!-- 【R11-qa】質問AIの入口（小さく。最新情報の入口と並べて、あとで整理する前提）。中身は js/qaScreen.js -->
+      <button id="qa-home-link" class="home-qa-entry" type="button">
+        <span class="home-qa-entry-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M4.5 6.5a2.5 2.5 0 0 1 2.5-2.5h10a2.5 2.5 0 0 1 2.5 2.5v7a2.5 2.5 0 0 1-2.5 2.5H11l-4.5 3.5V16H7a2.5 2.5 0 0 1-2.5-2.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M10 8.6a2 2 0 1 1 2.7 1.9c-.5.2-.7.6-.7 1.1v.3M12 13.6v.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
+        <span class="home-qa-entry-label">質問AIに聞く</span>
+        <span class="home-qa-entry-sub">アプリ内の情報から答えます</span>
       </button>
 
       <!-- 必要なときだけの案内（js/homeScreen.js の buildHomeDataAlert）：音源が1曲も無い／バックアップに書き込めていない。
@@ -6257,6 +6265,27 @@
 
     <!-- 【2026-11-02新設・本人の依頼 R10-2】CD・特典映像図鑑の一覧（中身は js/cdBonusScreen.js が js/data/cdBonus.js から組み立てる）。
          ［作品から探す］と［特典映像から探す］。ジャケットの画像は出さない（TYPE は色の札と文字） -->
+    <!-- 【R11-qa】質問AI（全体検索とは別の画面。中身は js/qaScreen.js。生成AIではなく、アプリの情報から答える） -->
+    <section id="qa-screen" class="screen">
+      <div class="list-header">
+        <button id="qa-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            Q&amp;A
+          </p>
+          <h2>質問AI</h2>
+          <p class="qa-subtitle">アプリ内の情報から答えます</p>
+        </div>
+      </div>
+      <div id="qa-content" class="qa-content"></div>
+    </section>
+
     <section id="cd-bonus-screen" class="screen">
       <div class="list-header">
         <button id="cd-bonus-back-button" class="back-link" type="button">
