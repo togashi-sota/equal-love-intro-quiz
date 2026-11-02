@@ -1,5 +1,5 @@
 /**
- * 【案・まだ使っていない】YouTube 出演図鑑の自動更新の「外からの合図」（Google Apps Script。2026-11-03）
+ * YouTube 出演図鑑の自動更新の「外からの合図」（Google Apps Script。2026-11-03）
  *
  * 本人の Google アカウントの Apps Script で、週1回、GitHub の公開の仕組み（workflow_dispatch）を動かす。
  * GitHub の定期実行（schedule）は、公開リポジトリで60日間動きが無いと止まるが、外からの合図（workflow_dispatch）には

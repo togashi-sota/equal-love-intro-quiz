@@ -1,7 +1,7 @@
 // 【2026-11-03新設】YouTube 出演図鑑の自動更新（30日ルール）の回帰テスト。
 // 判定とデータ作り（js/youtubeRefreshCore.js）・アプリでの読み込みと期限（js/youtubeAppearanceData.js）・
 // 公開の決め方（正常・失敗・期限切れ・削除・壊れたデータ・件数の急減）・前の確定を下げない決まり・
-// 自動更新が YouTube のデータ以外に触れない仕組み（ワークフローの案・スクリプト）・Service Worker（network-first）を確かめる。
+// 自動更新が YouTube のデータ以外に触れない仕組み（公開のワークフロー・スクリプト）・Service Worker（network-first）を確かめる。
 // YouTube の API・GitHub には繋がない（動画はテストの中で作ったダミー）。
 import { MEMBERS } from "../js/data/members.js";
 import { APPEARANCE_STATUS } from "../js/youtubeAppearanceClassifier.js";
@@ -187,9 +187,8 @@ async function runLoaderTests() {
 }
 
 async function runPipelineFilesTests() {
-  const [workflow, currentWorkflow, refresh, fetchScript, appsScript, setup, sw, main, gitignore] = await Promise.all(
+  const [workflow, refresh, fetchScript, appsScript, setup, sw, main, gitignore] = await Promise.all(
     [
-      "./scripts/youtube/github-actions/deploy-pages.yml",
       "./.github/workflows/deploy-pages.yml",
       "./scripts/youtube/refresh.mjs",
       "./scripts/youtube/fetch-youtube.mjs",
@@ -200,16 +199,16 @@ async function runPipelineFilesTests() {
       "./.gitignore",
     ].map(fetchText)
   );
-  // ワークフローの案（まだ .github/workflows に入れていない＝有効化していない）
-  assertEqual(currentWorkflow.includes("youtube") || currentWorkflow.includes("schedule:"), false, "有効化していない：今の公開のワークフローは変えていない");
-  assertEqual(/permissions:\s*\n\s*contents: read\n/.test(workflow) && !/contents:\s*write/.test(workflow), true, "ワークフローの案：リポジトリは読むだけ（contents: read）");
-  assertEqual(/git (push|commit|add)\b/.test(workflow), false, "ワークフローの案：git にコミット・push しない");
-  assertEqual(workflow.includes("pull_request_target"), false, "ワークフローの案：フォークからの PR でキーを使わない");
-  assertEqual(workflow.includes("YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}") && (workflow.match(/secrets\./g) ?? []).length === 1, true, "ワークフローの案：キーは Secrets から環境変数で1か所だけ渡す");
-  assertEqual(workflow.includes("git diff --exit-code") && workflow.includes("data/youtube-appearances.json$"), true, "ワークフローの案：YouTube のデータ以外が変わっていたら止める");
-  assertEqual(/workflow_dispatch:/.test(workflow) && /schedule:/.test(workflow) && /push:\s*\n\s*branches:\s*\n\s*- master/.test(workflow), true, "ワークフローの案：push・外からの合図・予備の定期実行");
-  assertEqual(workflow.includes("gh issue create") && workflow.includes("issues: write") && workflow.includes("failure()"), true, "ワークフローの案：失敗・要確認は Issue で知らせる");
-  assertEqual(workflow.includes("if: needs.build.outputs.deploy == 'true'"), true, "ワークフローの案：公開しないと決めたら deploy しない（前のまま）");
+  // 公開のワークフロー（2026-11-03：本人の許可のあとで .github/workflows に入れた）
+  assertEqual(workflow.includes("scripts/youtube/refresh.mjs") && workflow.includes("rm -rf scripts"), true, "公開のワークフロー：YouTube のデータを作り、scripts/ は公開しない");
+  assertEqual(/permissions:\s*\n\s*contents: read\n/.test(workflow) && !/contents:\s*write/.test(workflow), true, "公開のワークフロー：リポジトリは読むだけ（contents: read）");
+  assertEqual(/git (push|commit|add)\b/.test(workflow), false, "公開のワークフロー：git にコミット・push しない");
+  assertEqual(workflow.includes("pull_request_target"), false, "公開のワークフロー：フォークからの PR でキーを使わない");
+  assertEqual(workflow.includes("YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}") && (workflow.match(/secrets\./g) ?? []).length === 1, true, "公開のワークフロー：キーは Secrets から環境変数で1か所だけ渡す");
+  assertEqual(workflow.includes("git diff --exit-code") && workflow.includes("data/youtube-appearances.json$"), true, "公開のワークフロー：YouTube のデータ以外が変わっていたら止める");
+  assertEqual(/workflow_dispatch:/.test(workflow) && /schedule:/.test(workflow) && /push:\s*\n\s*branches:\s*\n\s*- master/.test(workflow), true, "公開のワークフロー：push・外からの合図・予備の定期実行");
+  assertEqual(workflow.includes("gh issue create") && workflow.includes("issues: write") && workflow.includes("failure()"), true, "公開のワークフロー：失敗・要確認は Issue で知らせる");
+  assertEqual(workflow.includes("if: needs.build.outputs.deploy == 'true'"), true, "公開のワークフロー：公開しないと決めたら deploy しない（前のまま）");
   // スクリプト
   assertEqual((refresh.match(/writeFile\(/g) ?? []).length, 2, "スクリプト：書き出しは2か所だけ（データと、Issue の本文）");
   assertEqual(refresh.includes("isAllowedRefreshOutput(outRelative)") && refresh.includes("const outRelative = YOUTUBE_DATA_PATH;"), true, "スクリプト：書き出し先を決まりで確かめる");
