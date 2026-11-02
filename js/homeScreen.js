@@ -169,7 +169,8 @@ export const HOME_NAV_SECTIONS = [
   { id: "game", label: "ゲーム", card: "home-card-game", target: "home-card-game" },
   { id: "live", label: "ライブ", card: "home-card-live", target: "home-card-live" },
   { id: "music", label: "楽曲", card: "home-card-music", target: "home-card-music" },
-  { id: "know", label: "＝LOVE", card: "home-card-know", target: "home-card-know" },
+  // 【2026-11-03 R10-3】＝LOVE の分類は「メンバーを知る」から始まる（その下に「＝LOVEをもっと知る」）
+  { id: "know", label: "＝LOVE", card: "home-card-members", target: "home-card-members" },
   { id: "my", label: "マイ・データ", card: "home-card-my", target: "home-data-box" },
 ];
 

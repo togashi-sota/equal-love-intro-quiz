@@ -52,7 +52,7 @@ export async function runCommercialsAndFriendsUiTests() {
   const count = (id) => getMemberCommercials(id).length;
   // 【2026-10-23再調査で更新】とくべチューハイ（大谷・佐々木・野口・諸橋）、メイプルストーリー（音嶋・佐々木・野口）、koe×2（音嶋・野口）、
   // ひざつき製菓（＝LOVE名義・大場花菜がパッケージイラスト）を追加
-  assertEqual(count("sasaki-maika"), 9, "C: 佐々木舞香は9件（代アニ・メイプル・OPPO・サムライマック・Galaxy・月見パイ・とくべチューハイ・ザクザクマック・ももチキン）");
+  assertEqual(count("sasaki-maika"), 10, "C: 佐々木舞香は10件（代アニ・メイプル・OPPO・サムライマック・Galaxy・月見パイ・とくべチューハイ・ザクザクマック・ももチキン・ももチキ人生〈2026-11-03追加〉）");
   // 【2026-10-28】大谷映美里にミスド福袋2026のWEB動画を追加して3件
   assertEqual(["otani-emiri", "noguchi-iori"].map(count), [3, 5], "C: 大谷映美里3件（Galaxy・とくべ・ミスド福袋）／野口衣織5件（koe×2・メイプル・Galaxy・とくべ）");
   // 【2026-10-27】齋藤樹愛羅にUSJ「ユニハロ」WebCMを追加して2件
@@ -85,7 +85,7 @@ export async function runCommercialsAndFriendsUiTests() {
   const sasakiHost = mount(buildMemberCommercialsSection("sasaki-maika", COMMERCIALS, TODAY));
   try {
     const cards = [...sasakiHost.querySelectorAll(".commercial-card")];
-    assertEqual(cards.length, 9, "E: 佐々木舞香のカードは9枚");
+    assertEqual(cards.length, 10, "E: 佐々木舞香のカードは10枚（2026-11-03 ももチキ人生を追加）");
     assertEqual(cards.filter((card) => !card.hidden).length, COMMERCIAL_INITIAL_VISIBLE_COUNT, "E: 最初は5件だけ見える");
     assertEqual(cards[0].textContent.includes("開始予定"), true, "E: 先頭は放送開始前のももチキン（開始予定）");
     const more = sasakiHost.querySelector('[data-section="cm"] > .stage-voice-more-button:not(.commercial-group-note-button)');

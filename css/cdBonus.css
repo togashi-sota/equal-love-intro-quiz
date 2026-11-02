@@ -1,0 +1,1080 @@
+/* ===== 「CD・特典映像図鑑」（#cd-bonus-screen・#cd-bonus-detail-screen）2026-11-02新設 =====
+   歴代グッズ図鑑（css/goods.css）と見た目を揃える。iPhone の縦画面（幅390px前後）を基準に、320px でも横にはみ出さない。
+   押す所は高さ44px前後。ジャケットの画像は出さず、TYPE は色の札（A〜F）と文字で見分ける。
+   動き（見つけた映像を光らせる）は prefers-reduced-motion では止める。 */
+
+.cdb-subtitle {
+  margin: 2px 0 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #4a6670;
+}
+
+.cdb-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 24px;
+  min-width: 0;
+  container: cdb / inline-size;
+}
+
+.cdb-intro,
+.cdb-lead {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  color: var(--color-text);
+}
+
+.cdb-intro {
+  opacity: 0.85;
+}
+
+.cdb-lead {
+  margin-top: -2px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: #0b5f6e;
+}
+
+/* TYPE の色（ジャケットの代わりの札。文字と組み合わせるので、色だけで区別しない） */
+.cdb-type-tag,
+.cdb-type-tab {
+  --tone: #6c757d;
+  --tone-soft: #f1f3f5;
+}
+.tone-a { --tone: #c2255c; --tone-soft: #fff0f6; }
+.tone-b { --tone: #1864ab; --tone-soft: #e7f5ff; }
+.tone-c { --tone: #2b8a3e; --tone-soft: #ebfbee; }
+.tone-d { --tone: #b35c00; --tone-soft: #fff4e6; }
+.tone-e { --tone: #6741d9; --tone-soft: #f3f0ff; }
+.tone-f { --tone: #495057; --tone-soft: #f1f3f5; }
+
+.cdb-type-tag {
+  flex: 0 0 auto;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 8px;
+  background: var(--tone);
+  color: #fff;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.cdb-type-tag.is-novideo {
+  background: #fff;
+  color: var(--tone);
+  box-shadow: inset 0 0 0 1.5px var(--tone);
+}
+
+.cdb-type-tag.is-l {
+  width: 4.4rem;
+  height: 4.4rem;
+  border-radius: 12px;
+  gap: 4px;
+  background: linear-gradient(150deg, var(--tone) 0%, color-mix(in srgb, var(--tone) 70%, #000) 100%);
+  box-shadow: 0 3px 10px color-mix(in srgb, var(--tone) 30%, transparent);
+}
+
+.cdb-type-tag.is-l .cdb-type-tag-letter {
+  font-size: 1.6rem;
+}
+
+.cdb-type-tag-format {
+  padding: 0 4px;
+  font-size: 0.56rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-align: center;
+  opacity: 0.95;
+}
+
+/* 一覧の探し方のタブ（2つ。1行に並べる） */
+.cdb-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.cdb-tab {
+  min-height: 46px;
+  padding: 6px 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(11, 114, 133, 0.3);
+  background: #fff;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.cdb-tab.is-active {
+  background: #0b7285;
+  border-color: #0b7285;
+  color: #fff;
+}
+
+.cdb-video-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.cdb-video-controls[hidden],
+.cdb-reset[hidden] {
+  display: none;
+}
+
+/* 分類：狭い画面では1行で横にスクロール（折り返して何段にもしない＝結果が下へ押し出されないように） */
+.cdb-category-chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  margin: 0 -2px;
+  padding: 2px 2px 4px;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+.cdb-category {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+/* 入れ物が広いときは折り返して全部見せる */
+@container cdb (min-width: 560px) {
+  .cdb-category-chips {
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+}
+
+.cdb-category {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 40px;
+  padding: 4px 11px;
+  border-radius: 999px;
+  border: 1px solid rgba(11, 114, 133, 0.28);
+  background: #fff;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.cdb-category-count {
+  min-width: 1.5em;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(11, 114, 133, 0.1);
+  font-size: 0.7rem;
+  text-align: center;
+}
+
+.cdb-category.is-active {
+  background: #0b7285;
+  border-color: #0b7285;
+  color: #fff;
+}
+
+.cdb-category.is-active .cdb-category-count {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.cdb-category-lead {
+  margin: 0;
+  font-size: 0.74rem;
+  line-height: 1.5;
+  color: #0b5f6e;
+}
+
+/* ジャケットの画像（今は使わない。公式が許す表示の方法が見つかったときだけ） */
+.cdb-jacket {
+  flex: 0 0 auto;
+  width: 4.4rem;
+  margin: 0;
+}
+
+.cdb-jacket-image {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 10px;
+}
+
+.cdb-jacket-credit {
+  font-size: 0.56rem;
+  line-height: 1.3;
+  color: #6c757d;
+}
+
+.cdb-search {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  font: inherit;
+  font-size: 16px; /* iPhone で入力時に拡大しないように */
+}
+
+.cdb-order {
+  display: inline-flex;
+  align-self: flex-start;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(11, 114, 133, 0.08);
+}
+
+.cdb-order-button {
+  min-height: 38px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 0;
+  background: transparent;
+  color: #0b5f6e;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.cdb-order-button.is-active {
+  background: #fff;
+  color: #0b5f6e;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.cdb-count-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cdb-count {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #4a5a60;
+}
+
+.cdb-reset {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  background: #fff;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.cdb-empty {
+  margin: 0;
+  padding: 14px;
+  border-radius: 12px;
+  background: #fff;
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+
+/* ===== 作品の一覧 ===== */
+.cdb-work-list,
+.cdb-result-list,
+.cdb-matrix-list,
+.cdb-homes-list,
+.cdb-series-list,
+.cdb-insert-list,
+.cdb-notes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.cdb-work-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+
+/* 画面の幅ではなく、図鑑の入れ物の幅で2列にする（iPad ではアプリが中央の細い列に出るので、画面の幅で決めると窮屈になる） */
+@container cdb (min-width: 640px) {
+  .cdb-work-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.cdb-work-card {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  width: 100%;
+  height: 100%;
+  min-height: 88px;
+  padding: 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(11, 114, 133, 0.18);
+  background: #fff;
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cdb-work-card:hover {
+  border-color: rgba(11, 114, 133, 0.45);
+}
+
+/* ジャケットの代わり：番号の札 */
+.cdb-work-tile {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 64px;
+  border-radius: 10px;
+  background: linear-gradient(150deg, #0b7285 0%, #1c3d5a 100%);
+  color: #fff;
+}
+
+.cdb-work-tile.is-album {
+  background: linear-gradient(150deg, #ae3ec9 0%, #5f3dc4 100%);
+}
+
+.cdb-work-tile-number {
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.cdb-work-tile-kind {
+  font-size: 0.56rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  opacity: 0.9;
+}
+
+.cdb-work-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.cdb-work-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #4a6670;
+}
+
+.cdb-work-title {
+  font-size: 0.98rem;
+  font-weight: 800;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.cdb-work-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.cdb-work-types {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #4a5a60;
+}
+
+.cdb-work-type-tags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.cdb-work-type-tags .cdb-type-tag {
+  min-width: 1.3rem;
+  height: 1.3rem;
+  border-radius: 5px;
+  font-size: 0.68rem;
+}
+
+.cdb-work-bonus {
+  font-size: 0.74rem;
+  line-height: 1.45;
+  color: #0b5f6e;
+  overflow-wrap: anywhere;
+}
+
+.cdb-work-bonus.is-none {
+  color: #6c757d;
+}
+
+/* ===== 特典映像の結果 ===== */
+.cdb-results {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cdb-result-work {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cdb-result-work-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0;
+  padding: 0 2px;
+}
+
+.cdb-result-work-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #4a6670;
+}
+
+.cdb-result-work-title {
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.cdb-result-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cdb-result {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  min-height: 56px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: #fff;
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cdb-result-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.cdb-result-group {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #6c757d;
+  overflow-wrap: anywhere;
+}
+
+.cdb-result-title {
+  font-size: 0.9rem;
+  font-weight: 800;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.cdb-result-where {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #0b5f6e;
+}
+
+.cdb-result-also {
+  font-size: 0.72rem;
+  line-height: 1.45;
+  color: #5f3dc4;
+}
+
+/* 分類の札 */
+.cdb-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.cdb-chip {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #e3fafc;
+  color: #0b5f6e;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+.cdb-chip.is-trip { background: #fff4e6; color: #a34e00; }
+.cdb-chip.is-variety { background: #f3f0ff; color: #5235b5; }
+.cdb-chip.is-event { background: #fff0f6; color: #a61e4d; }
+.cdb-chip.is-live { background: #ffe3e3; color: #a51d1d; }
+.cdb-chip.is-tv { background: #e7f5ff; color: #1659a0; }
+.cdb-chip.is-mv,
+.cdb-chip.is-making { background: #f1f3f5; color: #3d454d; }
+.cdb-chip.is-artist { background: #fff9db; color: #7a5a00; }
+
+/* ===== 詳細 ===== */
+.cdb-detail-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 16px;
+  background: linear-gradient(150deg, #fff 0%, #e3fafc 100%);
+  border: 1px solid rgba(11, 114, 133, 0.18);
+}
+
+.cdb-detail-kind {
+  align-self: flex-start;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: #0b7285;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.cdb-detail-kind.is-album {
+  background: #7048e8;
+}
+
+.cdb-detail-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 800;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.cdb-detail-title:focus {
+  outline: none;
+}
+
+.cdb-detail-sub {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #4a6670;
+}
+
+.cdb-section-heading {
+  margin: 0 0 6px;
+  font-size: 0.86rem;
+  font-weight: 800;
+  color: #1c3d5a;
+}
+
+.cdb-matrix {
+  padding: 10px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.cdb-matrix-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cdb-matrix-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 48px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: #f8f9fa;
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cdb-matrix-row.is-active {
+  border-color: #0b7285;
+  background: #e3fafc;
+}
+
+.cdb-matrix-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.cdb-matrix-format {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #4a5a60;
+}
+
+.cdb-matrix-videos {
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.cdb-matrix-row.is-none .cdb-matrix-videos {
+  color: #868e96;
+  font-weight: 600;
+}
+
+/* TYPE のタブ：多い作品（6種）でも横にスクロールして1行に */
+.cdb-type-tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  margin: 2px -2px 0;
+  padding: 2px 2px 4px;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+  scroll-margin-top: 70px;
+}
+
+.cdb-type-tab {
+  flex: 1 0 auto;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  min-height: 48px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  border: 1.5px solid var(--tone);
+  background: #fff;
+  color: var(--tone);
+  font: inherit;
+  cursor: pointer;
+}
+
+.cdb-type-tab-name {
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.cdb-type-tab-sub {
+  font-size: 0.64rem;
+  font-weight: 700;
+  opacity: 0.85;
+}
+
+.cdb-type-tab.is-active {
+  background: var(--tone);
+  color: #fff;
+}
+
+.cdb-type-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cdb-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.cdb-panel-head-text {
+  min-width: 0;
+}
+
+.cdb-panel-name {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.cdb-panel-sub {
+  margin: 2px 0 0;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: #4a5a60;
+}
+
+.cdb-panel-section {
+  padding: 10px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  min-width: 0;
+}
+
+.cdb-novideo {
+  margin: 0;
+  padding: 10px;
+  border-radius: 10px;
+  background: #f8f9fa;
+  color: #495057;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.cdb-video-group {
+  margin-bottom: 8px;
+  padding: 8px;
+  border-radius: 12px;
+  background: #f8f9fa;
+}
+
+.cdb-video-group-heading {
+  margin: 0 0 6px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #1c3d5a;
+  overflow-wrap: anywhere;
+}
+
+.cdb-video-group-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cdb-video {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: #fff;
+  scroll-margin-top: 80px;
+}
+
+.cdb-videos > .cdb-video + .cdb-video {
+  margin-top: 6px;
+}
+
+.cdb-video:focus {
+  outline: none;
+}
+
+.cdb-video:focus-visible {
+  outline: 2px solid #0b7285;
+  outline-offset: 2px;
+}
+
+.cdb-video.is-focus {
+  border-color: #0b7285;
+  box-shadow: 0 0 0 3px rgba(11, 114, 133, 0.25);
+  animation: cdb-focus-pulse 1.2s ease-out 2;
+}
+
+@keyframes cdb-focus-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(11, 114, 133, 0.45); }
+  100% { box-shadow: 0 0 0 10px rgba(11, 114, 133, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cdb-video.is-focus {
+    animation: none;
+  }
+}
+
+.cdb-video-title {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 800;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.cdb-video-members,
+.cdb-video-note,
+.cdb-muted {
+  margin: 0;
+  font-size: 0.74rem;
+  line-height: 1.5;
+  color: #5c6870;
+}
+
+.cdb-homes,
+.cdb-series {
+  padding: 7px 8px;
+  border-radius: 8px;
+  background: #f3f0ff;
+}
+
+.cdb-series {
+  background: #fff9db;
+}
+
+.cdb-homes-heading,
+.cdb-series-heading {
+  margin: 0 0 4px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #4a3b8f;
+}
+
+.cdb-series-heading {
+  color: #7a5a00;
+}
+
+.cdb-homes-list,
+.cdb-series-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cdb-home {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.cdb-home-link,
+.cdb-series-link {
+  align-self: flex-start;
+  min-height: 36px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: #fff;
+  color: #1c3d5a;
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.cdb-home-external {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  color: #3b2a8f;
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.cdb-home-match {
+  font-size: 0.66rem;
+  color: #6c5fa8;
+}
+
+.cdb-home.is-unverified .cdb-home-match {
+  color: #8a6d00;
+}
+
+.cdb-track-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cdb-track {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.cdb-track-no {
+  flex: 0 0 1.6em;
+  text-align: right;
+  font-weight: 800;
+  color: #868e96;
+  font-variant-numeric: tabular-nums;
+}
+
+.cdb-track-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.cdb-track.is-instrumental {
+  color: #6c757d;
+  font-size: 0.78rem;
+}
+
+.cdb-insert-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.cdb-insert-list li {
+  position: relative;
+  padding-left: 14px;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.cdb-insert-list li::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 0.62em;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #0b7285;
+}
+
+.cdb-info-table {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cdb-info-row {
+  display: grid;
+  grid-template-columns: 3.4em minmax(0, 1fr);
+  gap: 8px;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.cdb-info-row dt {
+  font-weight: 800;
+  color: #4a5a60;
+}
+
+.cdb-info-row dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.cdb-notes {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cdb-notes li {
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: #fff9db;
+  font-size: 0.74rem;
+  line-height: 1.5;
+  color: #5c4700;
+}
+
+.cdb-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.cdb-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(11, 114, 133, 0.35);
+  background: #fff;
+  color: #0b5f6e;
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.cdb-link.is-official {
+  background: #0b7285;
+  border-color: #0b7285;
+  color: #fff;
+}
+
+.cdb-external-icon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.cdb-footnote {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 2px 0;
+  font-size: 0.72rem;
+  line-height: 1.6;
+  color: #6c757d;
+}
+
+.cdb-footnote p {
+  margin: 0;
+}
+
+/* 入れ物が広いとき（PC の広い表示など）：詳細の TYPE の中身を2列に（映像・CD を左、封入・情報を右） */
+@container cdb (min-width: 760px) {
+  .cdb-type-panel {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    align-items: start;
+  }
+  .cdb-panel-head {
+    grid-column: 1 / -1;
+  }
+}

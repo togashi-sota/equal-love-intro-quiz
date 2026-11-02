@@ -1,0 +1,617 @@
+/* ===== 「YouTube 出演図鑑」（#youtube-appearances-screen）2026-11-02新設 =====
+   テレビ出演（css/tvVariety.css）・歴代グッズ図鑑（css/goods.css）と見た目を揃える。iPhone の縦画面（幅390px前後）を基準に、
+   320px でも横にはみ出さないようにする。押す所は高さ36〜44px を目安にする。色はアプリ共通の変数（css/style.css の :root）。
+   動きは押したときの色だけ（prefers-reduced-motion でも変わらない）。 */
+
+.yta-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 24px;
+}
+
+.yta-subtitle {
+  margin: 2px 0 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #6b5a66;
+}
+
+.yta-intro {
+  margin: 2px 0 0;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  color: var(--color-text);
+  opacity: 0.85;
+}
+
+/* 検索・絞り込み */
+.yta-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.yta-search {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  font: inherit;
+  font-size: 16px; /* iPhone で入力時に拡大しないように */
+}
+
+.yta-label {
+  margin: 4px 0 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #6b5a66;
+}
+
+.yta-sublabel {
+  margin: 2px 0 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #8a7381;
+}
+
+.yta-hint {
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: #7a6170;
+}
+
+.yta-hint[hidden],
+.yta-reset[hidden],
+.yta-mode-row[hidden],
+.yta-toggle[hidden] {
+  display: none;
+}
+
+.yta-member-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* メンバーは何人でも選ぶので、横スクロールにせず折り返して全部見せる（選んだ人が隠れないように） */
+.yta-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.yta-chip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 36px;
+  padding: 4px 11px;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  background: #fff;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.yta-chip.is-active {
+  background: var(--color-primary, #e8608c);
+  border-color: var(--color-primary, #e8608c);
+  color: #fff;
+  font-weight: 700;
+}
+
+.yta-chip-count {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #8a7381;
+}
+
+.yta-chip.is-active .yta-chip-count {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.yta-chips--mode .yta-chip {
+  font-size: 0.76rem;
+}
+
+.yta-mode-row {
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: #fff5f9;
+}
+
+/* メンバーカラーの点。白いメンバーカラーでも見えるように縁を付ける */
+.yta-member-dot {
+  display: inline-block;
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.25);
+}
+
+.yta-chip.is-active .yta-member-dot {
+  box-shadow: 0 0 0 1.5px #fff;
+}
+
+.yta-select-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.yta-select {
+  flex: 1 1 130px;
+  min-width: 0;
+  min-height: 40px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  background: #fff;
+  font: inherit;
+  font-size: 16px;
+}
+
+.yta-chips--sort {
+  flex: 1 1 200px;
+  flex-wrap: nowrap;
+}
+
+.yta-chips--sort .yta-chip {
+  flex: 1 1 auto;
+  justify-content: center;
+  font-size: 0.76rem;
+}
+
+.yta-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.yta-toggle input {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--color-primary, #e8608c);
+}
+
+.yta-count-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 36px;
+}
+
+.yta-count {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.yta-reset {
+  min-height: 36px;
+  padding: 4px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 111, 168, 0.5);
+  background: #fff;
+  color: var(--color-primary-dark, #ff4f96);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* 一覧 */
+.yta-results {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.yta-year {
+  margin: 6px 2px 0;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--color-primary, #e8608c);
+}
+
+.yta-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* カード：左にサムネイル（16:9）、右に文字。狭い画面ではサムネイルを小さくする */
+.yta-card {
+  display: grid;
+  grid-template-columns: minmax(0, 42%) minmax(0, 1fr);
+  gap: 10px;
+  padding: 8px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.yta-thumb {
+  position: relative;
+  display: block;
+  align-self: start;
+  aspect-ratio: 16 / 9;
+  max-width: 100%;
+  border-radius: 8px;
+  overflow: hidden;
+  background: linear-gradient(135deg, #ffe3ee, #f3e8ff);
+}
+
+.yta-thumb-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* 画像が読めないとき（オフライン・消えた動画）：画像を隠して、文字の代わりの表示を見せる */
+.yta-thumb-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 4px;
+  text-align: center;
+  color: #8a5a73;
+}
+
+.yta-thumb-fallback-mark {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.yta-thumb-fallback-text {
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.yta-thumb.is-broken .yta-thumb-image {
+  display: none;
+}
+
+.yta-kind {
+  position: absolute;
+  left: 4px;
+  bottom: 4px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.72);
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 700;
+}
+
+.yta-kind--short {
+  background: rgba(204, 0, 0, 0.85);
+}
+
+.yta-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.yta-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  margin: 0;
+  font-size: 0.72rem;
+  color: #6b5a66;
+}
+
+.yta-date {
+  font-weight: 700;
+}
+
+.yta-title {
+  margin: 0;
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.yta-people {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 8px;
+}
+
+.yta-member {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.74rem;
+}
+
+.yta-member-former {
+  padding: 0 4px;
+  border-radius: 4px;
+  background: #f1eaee;
+  color: #7a6170;
+  font-size: 0.6rem;
+  font-weight: 700;
+}
+
+.yta-badge {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  background: #f1eaee;
+  color: #6b5a66;
+}
+
+.yta-badge.is-group {
+  background: #ffe8f1;
+  color: #b0336b;
+}
+
+.yta-badge.is-estimate {
+  background: #fff4d6;
+  color: #7a5a00;
+}
+
+.yta-badge.is-unconfirmed {
+  background: #eceff3;
+  color: #4a5563;
+}
+
+/* 下の段：サムネイルの下まで広げ、［YouTube で見る］と「出演の根拠・内容」を横に並べる。根拠を開いたら下に全幅で出す */
+.yta-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 14px;
+}
+
+.yta-why {
+  font-size: 0.72rem;
+  color: #6b5a66;
+}
+
+.yta-why[open] {
+  flex-basis: 100%;
+}
+
+.yta-why-summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.yta-why-list {
+  margin: 0;
+  padding-left: 1.1em;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.yta-watch,
+.yta-channel-link {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  flex: none;
+  gap: 4px;
+  min-height: 36px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: #cc0000;
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.yta-channel-link {
+  background: #fff;
+  color: #cc0000;
+  border: 1px solid rgba(204, 0, 0, 0.45);
+}
+
+.yta-external-icon {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.yta-more {
+  min-height: 44px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 111, 168, 0.5);
+  background: #fff;
+  color: var(--color-primary-dark, #ff4f96);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.yta-empty {
+  margin: 0;
+  padding: 14px;
+  border-radius: 12px;
+  background: #fff;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.yta-empty p {
+  margin: 0;
+}
+
+.yta-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.yta-note {
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.6;
+  color: #7a6170;
+}
+
+.yta-chip:focus-visible,
+.yta-reset:focus-visible,
+.yta-more:focus-visible,
+.yta-watch:focus-visible,
+.yta-channel-link:focus-visible,
+.yta-why-summary:focus-visible,
+.yta-search:focus-visible,
+.yta-select:focus-visible {
+  outline: 3px solid #1864ab;
+  outline-offset: 2px;
+}
+
+/* 狭い画面（320px）：サムネイルを上に、文字を下に */
+@media (max-width: 359px) {
+  .yta-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* メンバーのページの入口 */
+.member-youtube-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: 48px;
+  padding: 8px 14px;
+  border: 1px solid rgba(204, 0, 0, 0.3);
+  border-radius: 12px;
+  background: #fff6f6;
+  color: #a61e1e;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.member-youtube-link small {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: #7a6170;
+}
+
+.member-youtube-link:focus-visible {
+  outline: 3px solid #1864ab;
+  outline-offset: 2px;
+}
+
+.home-know--youtube { --know: #cc0000; }
+
+/* 全体検索のカテゴリの札「YouTube 出演」 */
+.search-result-category.is-youtube {
+  background: #ffe9e9;
+  color: #b3261e;
+}
+
+/* 【2026-11-03】映像で登場した人（ライブ映像・過去の映像など）。企画の出演者と見分けがつくように、ラベルつきで控えめに */
+.yta-people--footage {
+  align-items: center;
+  opacity: 0.85;
+}
+
+.yta-footage-label {
+  padding: 0 6px;
+  border-radius: 4px;
+  border: 1px dashed rgba(107, 90, 102, 0.5);
+  color: #6b5a66;
+  font-size: 0.64rem;
+  font-weight: 700;
+}
+
+.yta-badge.is-verified {
+  background: #e3f4e8;
+  color: #1f6b3a;
+}
+
+/* 「YouTube のデータについて」 */
+.yta-data-notice {
+  font-size: 0.72rem;
+  color: #6b5a66;
+}
+
+.yta-data-notice-summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.yta-data-notice-summary:focus-visible,
+.yta-text-link:focus-visible {
+  outline: 3px solid #1864ab;
+  outline-offset: 2px;
+}
+
+.yta-data-notice-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 6px 0 0;
+}
+
+.yta-text-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-height: 32px;
+  color: #1864ab;
+  font-weight: 700;
+}

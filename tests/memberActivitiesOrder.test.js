@@ -117,7 +117,8 @@ export function runMemberActivitiesOrderTests() {
     "E: 2026年の新しい活動が、priority付きの2022年の活動より上に来る（日付が主キー）"
   );
   const takamatsuIds = sortActivitiesByDateDesc(getMemberActivities(MEMBER_ACTIVITIES, "takamatsu-hitomi")).map((a) => a.id);
-  assertEqual(takamatsuIds[0], "takamatsu-heather", "E: 髙松瞳は 2026-09-04 の Heather が一番上");
+  // 【2026-11-03】期間中の期間限定（めざましテレビ 11月のプレゼンター）は継続中と同じ上の並びで、開始日が新しいので一番上。その次が Heather
+  assertEqual(takamatsuIds.filter((id) => findActivity(id)?.status !== ACTIVITY_STATUS.LIMITED)[0], "takamatsu-heather", "E: 髙松瞳は（期間限定を除くと）2026-09-04 の Heather が一番上");
   // 【2026-10-28】過去の活動「京美人Award Season3」応援アンバサダー（2024-08-23）が加わったため、終了グループは
   // 始球式（2025-09-22）→ 京美人Award（2024-08-23）の順で一番下に並ぶ
   assertEqual(takamatsuIds.slice(-2), ["takamatsu-first-pitch", "takamatsu-kyobijin-award-s3"], "F: 終了済み（過去の活動）が一番下（その中も新しい順）");
@@ -182,7 +183,8 @@ export function runMemberActivitiesOrderTests() {
       if (value === null || value === undefined) return;
       if (typeof value !== "string" || !DATE_PATTERN.test(value)) badDates.push(`${activity.id}.${key}=${value}`);
       // 開始予定（UPCOMING）の活動は、公式に発表済みの未来の開始日を持つのが正しいので開始日を対象外にする
-      else if (key !== "endDate" && !(key === "startDate" && activity.status === ACTIVITY_STATUS.UPCOMING) && value > today) futureDates.push(`${activity.id}.${key}=${value}`);
+      // 【2026-11-03】期間限定（LIMITED）・単発（SINGLE）も、公式に発表済みの日付（例：11月のプレゼンター・11/14のコンサート）を持てる
+      else if (key !== "endDate" && !(key === "startDate" && [ACTIVITY_STATUS.UPCOMING, ACTIVITY_STATUS.LIMITED, ACTIVITY_STATUS.SINGLE].includes(activity.status)) && value > today) futureDates.push(`${activity.id}.${key}=${value}`);
     });
     if (activity.startDate && activity.endDate) {
       assertEqual(activity.startDate <= activity.endDate, true, `監査: ${activity.id} は開始日 ≦ 終了日`);

@@ -7,7 +7,7 @@
 //
 // 新しいバージョンを配信したいときは、CACHE_VERSIONの値を必ず上げること。
 // 上げないと、ブラウザが「内容が変わっていない」と判断し、更新が反映されない。
-const CACHE_VERSION = "v411";
+const CACHE_VERSION = "v412";
 const CACHE_NAME = `equal-love-intro-quiz-${CACHE_VERSION}`;
 
 // キャッシュするアプリ本体のファイル一覧。
@@ -58,6 +58,8 @@ const APP_SHELL_FILES = [
   "./css/guides.css", // 【2026-10-31追加】遊び方・機能ガイド／ゲームの遊び方・記録
   "./css/oshiBadgeTiers.css", // 【2026-11-01追加】特別な称号の勲章（4段階）
   "./js/homeScreen.js",
+  "./css/homeMembers.css", // 【2026-11-03 R10-3】ホームの「メンバーを知る」
+  "./js/homeMembersSection.js",
   "./js/appHistory.js",
   "./js/appNavigationStack.js",
   "./js/floatingBack.js",
@@ -238,6 +240,19 @@ const APP_SHELL_FILES = [
   "./js/goodsModel.js",
   "./js/goodsEmbed.js",
   "./js/data/goods.js",
+  // 【2026-11-02追加】YouTube 出演図鑑（サムネイルは i.ytimg.com の画像。下の fetch で素通しにしてキャッシュしない）
+  "./css/youtubeAppearances.css",
+  "./js/youtubeAppearancesScreen.js",
+  "./js/youtubeAppearancesModel.js",
+  "./js/youtubeAppearanceClassifier.js",
+  "./js/data/youtubeAppearances.js",
+  // 【2026-11-02追加】CD・特典映像図鑑（ジャケットの画像は持たない）
+  "./css/cdBonus.css",
+  "./js/cdBonusScreen.js",
+  "./js/cdBonusModel.js",
+  "./js/data/cdBonus.js",
+  // 【2026-11-03】データの読み込み（データの本体 data/youtube-appearances.json は APP_SHELL に入れない。network-first）
+  "./js/youtubeAppearanceData.js",
   // 【2026-11-01追加】テレビ出演（バラエティ・情報番組）
   "./css/tvVariety.css",
   "./js/tvVarietyScreen.js",
@@ -417,7 +432,7 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
+      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME && key !== YOUTUBE_DATA_CACHE_NAME).map((key) => caches.delete(key))))
       .then(() => self.clients.claim())
   );
 });
@@ -425,7 +440,8 @@ self.addEventListener("activate", (event) => {
 // 【2026-11-01追加・歴代グッズ図鑑】公式 X の埋め込み（platform.twitter.com の widgets.js・iframe・
 // pbs.twimg.com などの画像）は、Service Worker を通さず素通しにする（respondWith を呼ばない）。
 // 画像をアプリ側に一切ためない約束のため（キャッシュに入れない・横取りしない）。オフラインでは読めず「表示できません」になる。
-const SW_PASS_THROUGH_HOST_PATTERN = /(^|\.)(twitter\.com|x\.com|twimg\.com|t\.co)$/;
+// 【2026-11-02追加・YouTube 出演図鑑】YouTube のサムネイル（i.ytimg.com など ytimg.com）も同じく素通し（アプリにためない）。
+const SW_PASS_THROUGH_HOST_PATTERN = /(^|\.)(twitter\.com|x\.com|twimg\.com|t\.co|ytimg\.com)$/;
 function shouldPassThroughRequest(url) {
   try {
     return SW_PASS_THROUGH_HOST_PATTERN.test(new URL(url).hostname);
@@ -436,9 +452,40 @@ function shouldPassThroughRequest(url) {
 
 // キャッシュ優先で返し、キャッシュになければネットワークから取得する。
 // POSTなど、GET以外のリクエスト（今のところ存在しないが将来のため）はそのままネットワークに任せる。
+// 【2026-11-03追加・YouTube 出演図鑑の30日ルール】data/youtube-appearances.json（公開のたびに作り直すデータ）は
+// APP_SHELL に入れず、network-first にする：まずネットから取り、取れたら専用の箱に入れ直す。オフラインのときだけ箱のものを返す。
+// ネットで「無い」（404：期限切れでデータを外した）と分かったら、箱からも消す。期限の確認はアプリ側（js/youtubeAppearanceData.js）でも行う。
+// CACHE_VERSION を上げなくても、新しいデータが毎回届く。
+const YOUTUBE_DATA_CACHE_NAME = "equal-love-youtube-data";
+const YOUTUBE_DATA_URL_PATTERN = /\/data\/youtube-appearances\.json$/;
+function isYoutubeDataRequest(url) {
+  try {
+    return YOUTUBE_DATA_URL_PATTERN.test(new URL(url).pathname);
+  } catch (error) {
+    return false;
+  }
+}
+async function youtubeDataNetworkFirst(request) {
+  const cache = await caches.open(YOUTUBE_DATA_CACHE_NAME);
+  try {
+    const response = await fetch(request, { cache: "no-store" });
+    if (response.ok) await cache.put(request, response.clone());
+    else if (response.status === 404) await cache.delete(request);
+    return response;
+  } catch (error) {
+    const cached = await cache.match(request);
+    if (cached) return cached;
+    throw error;
+  }
+}
+
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   if (shouldPassThroughRequest(event.request.url)) return;
+  if (isYoutubeDataRequest(event.request.url)) {
+    event.respondWith(youtubeDataNetworkFirst(event.request));
+    return;
+  }
 
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => cachedResponse || fetch(event.request))

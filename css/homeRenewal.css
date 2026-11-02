@@ -1725,17 +1725,15 @@
 .home-know--sales { --know: #c2255c; }
 .home-know--variety { --know: #2b8a3e; }
 .home-know--goods { --know: #b04a8a; }
-/* 【2026-11-01】「歴代グッズ図鑑」を足して9枚になった。2列では「＝LOVEについて」を1行全部に広げて空きを作らない（2×4＋1）。
-   3列では9枚でちょうど3行になるので、どのカードも同じ大きさにする。
-   （8枚のときは、3列で「＝LOVEについて」を2列分に広げていた） */
+.home-know--cd-bonus { --know: #0b7285; }
+/* 【2026-11-02】「CD・特典映像図鑑」を足して10枚になった（仮の入口。カードの配置はあとで別の担当がまとめて整理する）。
+   2列では10枚でちょうど5行になるので、どのカードも同じ大きさにする。
+   3列では「＝LOVEについて」を1行全部に広げて空きを作らない（1＋3×3）。
+   （9枚のときは、2列で「＝LOVEについて」を1行全部に広げていた） */
 .home-know-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
-}
-.home-know-grid > .home-know--about {
-  grid-column: 1 / -1;
-  min-height: 0;
 }
 /* カードが広いとき（iPad 縦の1列など）は3列 */
 @container (min-width: 36rem) {
@@ -1743,8 +1741,8 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
   .home-know-grid > .home-know--about {
-    grid-column: auto;
-    min-height: 96px;
+    grid-column: 1 / -1;
+    min-height: 0;
   }
 }
 .home-know {

@@ -48,9 +48,15 @@
   <link rel="stylesheet" href="css/tvVariety.css">
   <!-- 【2026-11-01追加】歴代グッズ図鑑（#goods-screen・#goods-detail-screen） -->
   <link rel="stylesheet" href="css/goods.css">
+  <!-- 【2026-11-02追加】YouTube 出演図鑑（#youtube-appearances-screen） -->
+  <link rel="stylesheet" href="css/youtubeAppearances.css">
+  <!-- 【2026-11-02追加】CD・特典映像図鑑（#cd-bonus-screen・#cd-bonus-detail-screen） -->
+  <link rel="stylesheet" href="css/cdBonus.css">
   <link rel="stylesheet" href="css/friendsFix.css">
   <!-- 【2026-10-30新設】ホーム（案B）・まとめ画面・端末の「戻る」の案内 -->
   <link rel="stylesheet" href="css/homeRenewal.css">
+  <!-- 【2026-11-03新設・R10-3】ホームの「メンバーを知る」・＝LOVE の3つのまとまり・個人ページの「このメンバーをもっと見る」 -->
+  <link rel="stylesheet" href="css/homeMembers.css">
   <!-- 【2026-10-30新設・リニューアル第3〜5段階】新しいライブコール（はじめに→曲一覧→曲のページ→コール表／ライブコール／カラオケ） -->
   <link rel="stylesheet" href="css/liveCall.css">
   <link rel="stylesheet" href="css/karaokeStage.css">
@@ -308,6 +314,8 @@
         <symbol id="hi-tv" viewBox="0 0 24 24"><rect x="3" y="6.5" width="18" height="13" rx="2"/><path d="M8 2.8l4 3.7 4-3.7M10 11l4 2.2-4 2.3Z"/></symbol>
         <symbol id="hi-tv-smile" viewBox="0 0 24 24"><rect x="3" y="6.5" width="18" height="13" rx="2"/><path d="M8 2.8l4 3.7 4-3.7M9 14.6a4 4 0 0 0 6 0"/><circle cx="9.3" cy="11" r="1" fill="currentColor" stroke="none"/><circle cx="14.7" cy="11" r="1" fill="currentColor" stroke="none"/></symbol>
         <symbol id="hi-goods" viewBox="0 0 24 24"><rect x="7.5" y="3" width="11" height="14.5" rx="1.6"/><path d="M5.5 6.5v12.8a1.2 1.2 0 0 0 1.2 1.2h9.8"/><path d="m9.5 14.2 2.6-3 1.9 2 1.4-1.5 1.6 2.5"/><circle cx="11.2" cy="7.6" r="1.3"/></symbol>
+        <symbol id="hi-youtube" viewBox="0 0 24 24"><rect x="2.8" y="5.5" width="18.4" height="13" rx="3.6"/><path d="M10 9.3v5.4l4.6-2.7Z"/></symbol>
+        <symbol id="hi-disc-video" viewBox="0 0 24 24"><circle cx="10" cy="11" r="7.5"/><circle cx="10" cy="11" r="2.2"/><path d="M10 5.8a5.2 5.2 0 0 0-5.2 5.2"/><path d="M15.5 15.2v6.3l5.4-3.15Z" fill="currentColor"/></symbol>
         <symbol id="hi-megaphone" viewBox="0 0 24 24"><path d="M3.5 10v4H7l8 5V5L7 10ZM18.5 9a4.2 4.2 0 0 1 0 6M7 14l1.4 5.5h2.6l-1-5"/></symbol>
         <symbol id="hi-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.6v.1"/></symbol>
         <symbol id="hi-shield" viewBox="0 0 24 24"><path d="M12 3l7.5 3v5.5c0 4.5-3.2 8.2-7.5 9.5-4.3-1.3-7.5-5-7.5-9.5V6ZM8.7 12l2.4 2.4 4.2-4.6"/></symbol>
@@ -392,7 +400,7 @@
         <button class="home-cat-nav-item" type="button" data-home-jump="home-card-game" aria-current="true">ゲーム</button>
         <button class="home-cat-nav-item" type="button" data-home-jump="home-card-live">ライブ</button>
         <button class="home-cat-nav-item" type="button" data-home-jump="home-card-music">楽曲</button>
-        <button class="home-cat-nav-item" type="button" data-home-jump="home-card-know">＝LOVE</button>
+        <button class="home-cat-nav-item" type="button" data-home-jump="home-card-members">＝LOVE</button>
         <button class="home-cat-nav-item" type="button" data-home-jump="home-data-box">マイ・データ</button>
       </nav>
 
@@ -601,63 +609,100 @@
           </div>
         </section>
 
+        <!-- ③-2 メンバーを知る（2026-11-03 新設・本人の依頼 R10-3）：現役メンバーのカード（正式な順＝出席番号順。スマホは2列×5行）。
+             カードは js/homeMembersSection.js がデータ（members.js・memberProfiles.js の homeLead）から作る。写真は使わない（色と文字だけ）。
+             押すとメンバーの個人ページ、［戻る］でホームの元の位置へ。メンバー一覧（卒業メンバー・推し登録）への入口は下の行（#members-link）。 -->
+        <section id="home-card-members" class="home-card home-card--members" aria-labelledby="home-card-members-title">
+          <div class="home-card-head">
+            <h2 id="home-card-members-title" class="home-card-title">メンバーを知る</h2>
+            <span class="home-card-lead" id="home-members-lead">押すとプロフィールのページへ</span>
+          </div>
+          <div id="home-member-grid" class="home-member-grid"></div>
+          <button id="members-link" class="home-members-all" type="button">
+            <span class="home-members-all-icon" aria-hidden="true"><svg class="hi"><use href="#hi-people"/></svg></span>
+            <span class="home-members-all-text"><b>メンバー一覧</b><small>卒業メンバーも・推しメンの登録</small></span>
+            <span class="home-chevron" aria-hidden="true">›</span>
+          </button>
+        </section>
+
         <!-- ④ ＝LOVEをもっと知る：ページの名前（小さく）＋「何が見られるか」の見出し。数はアプリの中の公開済みのデータから数える（js/homeScreen.js の buildHomeInfoStats）。
-             メンバーの写真は使わない（メンバーカラーの点だけ）。メンバー・周年ヒストリー・音楽番組は以前のホームの入口と同じ id。 -->
+             【2026-11-03 R10-3】3つのまとまりに分けた：グループを知る（3）・メディア・活動（4）・作品・記録（3）。
+             3枚のまとまりは、先頭のカードを横いっぱい（.home-know--wide）にして、2列のときに空き（奇数）を作らない。
+             周年ヒストリー・音楽番組は以前のホームの入口と同じ id。メンバー一覧は上の「メンバーを知る」へ移した。 -->
         <section id="home-card-know" class="home-card home-card--know" aria-labelledby="home-card-know-title">
           <div class="home-card-head">
             <h2 id="home-card-know-title" class="home-card-title">＝LOVEをもっと知る</h2>
-            <span class="home-card-lead">メンバーとグループの歩み</span>
+            <span class="home-card-lead">グループの歩み・出演・作品</span>
           </div>
-          <div class="home-know-grid">
-            <button id="members-link" class="home-know home-know--members" type="button">
-              <span class="home-know-icon" aria-hidden="true"><svg class="hi"><use href="#hi-people"/></svg></span>
-              <span class="home-know-badge" id="home-know-members-badge" hidden></span>
-              <span class="home-know-text"><b>メンバー</b><span class="home-know-hook" id="home-know-members-hook">プロフィールと<wbr>メンバーカラー</span></span>
-              <span id="home-know-member-colors" class="home-know-colors" aria-hidden="true"></span>
-            </button>
-            <button class="home-know home-know--centers" type="button" data-home-action="centers">
-              <span class="home-know-icon" aria-hidden="true"><svg class="hi"><use href="#hi-crown"/></svg></span>
-              <span class="home-know-badge" id="home-know-centers-badge" hidden></span>
-              <span class="home-know-text"><b>歴代センター</b><span class="home-know-hook">どの曲で<wbr>誰がセンター？</span></span>
-            </button>
-            <button id="anniversary-home-link" class="home-know home-know--history" type="button">
-              <span class="home-know-icon" aria-hidden="true"><svg class="hi"><use href="#hi-calendar"/></svg></span>
-              <span class="home-know-badge" id="home-know-history-badge" hidden></span>
-              <span class="home-know-text"><b>周年ヒストリー</b><span class="home-know-hook" id="home-know-history-hook">デビューから<wbr>今まで<wbr>1年ずつ</span></span>
-            </button>
-            <!-- 【2026-10-31追加】CD売上・チャート記録（中身は js/cdSalesScreen.js。札の数は main.js がデータから数えて入れる） -->
-            <button id="cd-sales-home-link" class="home-know home-know--sales" type="button">
-              <span class="home-know-icon" aria-hidden="true"><svg class="hi"><use href="#hi-chart"/></svg></span>
-              <span class="home-know-badge" id="home-know-sales-badge" hidden></span>
-              <span class="home-know-text"><b>CD売上・チャート</b><span class="home-know-hook">初週の枚数で<wbr>成長をたどる</span></span>
-            </button>
-            <button id="tv-appearances-home-link" class="home-know home-know--tv" type="button">
-              <span class="home-know-icon" aria-hidden="true"><svg class="hi"><use href="#hi-tv"/></svg></span>
-              <span class="home-know-badge" id="home-know-tv-badge" hidden></span>
-              <span class="home-know-text"><b>音楽番組</b><span class="home-know-hook" id="home-know-tv-hook">出演した番組と<wbr>披露した曲</span></span>
-            </button>
-            <!-- 【2026-11-01追加】テレビ出演（バラエティ・情報番組。中身は js/tvVarietyScreen.js。札の数は main.js がデータから数えて入れる） -->
-            <button id="tv-variety-home-link" class="home-know home-know--variety" type="button">
-              <span class="home-know-icon" aria-hidden="true"><svg class="hi"><use href="#hi-tv-smile"/></svg></span>
-              <span class="home-know-badge" id="home-know-variety-badge" hidden></span>
-              <span class="home-know-text"><b>テレビ出演</b><span class="home-know-hook">バラエティ・<wbr>情報番組</span></span>
-            </button>
-            <!-- 【2026-11-01追加】歴代グッズ図鑑（中身は js/goodsScreen.js。画像は公式 X の投稿の埋め込みだけ。札の数は main.js がデータから数えて入れる） -->
-            <button id="goods-home-link" class="home-know home-know--goods" type="button">
-              <span class="home-know-icon" aria-hidden="true"><svg class="hi"><use href="#hi-goods"/></svg></span>
-              <span class="home-know-badge" id="home-know-goods-badge" hidden></span>
-              <span class="home-know-text"><b>歴代グッズ図鑑</b><span class="home-know-hook">生写真・アクスタを<wbr>年ごとに</span></span>
-            </button>
-            <button class="home-know home-know--cm" type="button" data-home-action="commercials">
-              <span class="home-know-icon" aria-hidden="true"><svg class="hi"><use href="#hi-megaphone"/></svg></span>
-              <span class="home-know-badge" id="home-know-cm-badge" hidden></span>
-              <span class="home-know-text"><b>CM・企業コラボ</b><span class="home-know-hook" id="home-know-cm-hook">＝LOVEが出た<wbr>CM・広告</span></span>
-            </button>
-            <button class="home-know home-know--about" type="button" data-home-action="about-group">
-              <span class="home-know-icon" aria-hidden="true"><svg class="hi"><use href="#hi-info"/></svg></span>
-              <span class="home-know-badge">はじめに</span>
-              <span class="home-know-text"><b>＝LOVEについて</b><span class="home-know-hook">結成・名前の由来・<wbr>年表</span></span>
-            </button>
+          <div class="home-know-group" role="group" aria-labelledby="home-know-group-about">
+            <p id="home-know-group-about" class="home-know-group-title"><svg class="hi" aria-hidden="true"><use href="#hi-info"/></svg>グループを知る</p>
+            <div class="home-know-grid home-know-grid--3">
+              <button class="home-know home-know--about home-know--wide" type="button" data-home-action="about-group">
+                <span class="home-know-icon" aria-hidden="true"><svg class="hi"><use href="#hi-info"/></svg></span>
+                <span class="home-know-badge">はじめに</span>
+                <span class="home-know-text"><b>＝LOVEについて</b><span class="home-know-hook">結成・名前の由来・<wbr>年表</span></span>
+              </button>
+              <button id="anniversary-home-link" class="home-know home-know--history" type="button">
+                <span class="home-know-icon" aria-hidden="true"><svg class="hi"><use href="#hi-calendar"/></svg></span>
+                <span class="home-know-badge" id="home-know-history-badge" hidden></span>
+                <span class="home-know-text"><b>周年ヒストリー</b><span class="home-know-hook" id="home-know-history-hook">デビューから<wbr>今まで<wbr>1年ずつ</span></span>
+              </button>
+              <button class="home-know home-know--centers" type="button" data-home-action="centers">
+                <span class="home-know-icon" aria-hidden="true"><svg class="hi"><use href="#hi-crown"/></svg></span>
+                <span class="home-know-badge" id="home-know-centers-badge" hidden></span>
+                <span class="home-know-text"><b>歴代センター</b><span class="home-know-hook">どの曲で<wbr>誰がセンター？</span></span>
+              </button>
+            </div>
+          </div>
+          <div class="home-know-group" role="group" aria-labelledby="home-know-group-media">
+            <p id="home-know-group-media" class="home-know-group-title"><svg class="hi" aria-hidden="true"><use href="#hi-tv"/></svg>メディア・活動</p>
+            <div class="home-know-grid home-know-grid--4">
+              <!-- 【2026-11-02追加】YouTube 出演図鑑（中身は js/youtubeAppearancesScreen.js。2026-11-03 R10-3 で「メディア・活動」へ。札の数は main.js がデータから数えて入れる） -->
+              <button id="youtube-appearances-home-link" class="home-know home-know--youtube" type="button">
+                <span class="home-know-icon" aria-hidden="true"><svg class="hi"><use href="#hi-youtube"/></svg></span>
+                <span class="home-know-badge" id="home-know-youtube-badge" hidden></span>
+                <span class="home-know-text"><b>YouTube 出演</b><span class="home-know-hook">公式企画動画を<wbr>推しメン別に探す</span></span>
+              </button>
+              <!-- 【2026-11-01追加】テレビ出演（バラエティ・情報番組。中身は js/tvVarietyScreen.js。札の数は main.js がデータから数えて入れる） -->
+              <button id="tv-variety-home-link" class="home-know home-know--variety" type="button">
+                <span class="home-know-icon" aria-hidden="true"><svg class="hi"><use href="#hi-tv-smile"/></svg></span>
+                <span class="home-know-badge" id="home-know-variety-badge" hidden></span>
+                <span class="home-know-text"><b>テレビ出演</b><span class="home-know-hook">バラエティ・<wbr>情報番組</span></span>
+              </button>
+              <button id="tv-appearances-home-link" class="home-know home-know--tv" type="button">
+                <span class="home-know-icon" aria-hidden="true"><svg class="hi"><use href="#hi-tv"/></svg></span>
+                <span class="home-know-badge" id="home-know-tv-badge" hidden></span>
+                <span class="home-know-text"><b>音楽番組</b><span class="home-know-hook" id="home-know-tv-hook">出演した番組と<wbr>披露した曲</span></span>
+              </button>
+              <button class="home-know home-know--cm" type="button" data-home-action="commercials">
+                <span class="home-know-icon" aria-hidden="true"><svg class="hi"><use href="#hi-megaphone"/></svg></span>
+                <span class="home-know-badge" id="home-know-cm-badge" hidden></span>
+                <span class="home-know-text"><b>CM・企業コラボ</b><span class="home-know-hook" id="home-know-cm-hook">＝LOVEが出た<wbr>CM・広告</span></span>
+              </button>
+            </div>
+          </div>
+          <div class="home-know-group" role="group" aria-labelledby="home-know-group-works">
+            <p id="home-know-group-works" class="home-know-group-title"><svg class="hi" aria-hidden="true"><use href="#hi-disc"/></svg>作品・記録</p>
+            <div class="home-know-grid home-know-grid--3">
+              <!-- 【2026-11-02追加】CD・特典映像図鑑（中身は js/cdBonusScreen.js。ジャケットの画像は出さない。札の数は main.js がデータから数えて入れる）。2026-11-03 R10-3 で「作品・記録」の先頭（横いっぱい）へ -->
+              <button id="cd-bonus-home-link" class="home-know home-know--cd-bonus home-know--wide" type="button">
+                <span class="home-know-icon" aria-hidden="true"><svg class="hi"><use href="#hi-disc-video"/></svg></span>
+                <span class="home-know-badge" id="home-know-cd-bonus-badge" hidden></span>
+                <span class="home-know-text"><b>CD・特典映像図鑑</b><span class="home-know-hook">どの TYPE に<wbr>どの映像？</span></span>
+              </button>
+              <!-- 【2026-10-31追加】CD売上・チャート記録（中身は js/cdSalesScreen.js。札の数は main.js がデータから数えて入れる） -->
+              <button id="cd-sales-home-link" class="home-know home-know--sales" type="button">
+                <span class="home-know-icon" aria-hidden="true"><svg class="hi"><use href="#hi-chart"/></svg></span>
+                <span class="home-know-badge" id="home-know-sales-badge" hidden></span>
+                <span class="home-know-text"><b>CD売上・チャート</b><span class="home-know-hook">初週の枚数で<wbr>成長をたどる</span></span>
+              </button>
+              <!-- 【2026-11-01追加】歴代グッズ図鑑（中身は js/goodsScreen.js。画像は公式 X の投稿の埋め込みだけ。札の数は main.js がデータから数えて入れる） -->
+              <button id="goods-home-link" class="home-know home-know--goods" type="button">
+                <span class="home-know-icon" aria-hidden="true"><svg class="hi"><use href="#hi-goods"/></svg></span>
+                <span class="home-know-badge" id="home-know-goods-badge" hidden></span>
+                <span class="home-know-text"><b>歴代グッズ図鑑</b><span class="home-know-hook">生写真・アクスタを<wbr>年ごとに</span></span>
+              </button>
+            </div>
           </div>
         </section>
 
@@ -6146,6 +6191,28 @@
       <div id="tv-variety-content" class="history-pages-content tvv-content"></div>
     </section>
 
+    <!-- 【2026-11-02新設・本人の依頼 R10-1】YouTube 出演図鑑（中身は js/youtubeAppearancesScreen.js が js/data/youtubeAppearances.js から組み立てる）。
+         サムネイルは YouTube の画像の URL をその場で表示するだけ（保存しない）。［YouTube で見る］は新しいタブ -->
+    <section id="youtube-appearances-screen" class="screen">
+      <div class="list-header">
+        <button id="youtube-appearances-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            YOUTUBE
+          </p>
+          <h2 id="youtube-appearances-title" tabindex="-1">YouTube 出演</h2>
+          <p class="yta-subtitle">公式チャンネルの企画動画を推しメン別に探す</p>
+        </div>
+      </div>
+      <div id="youtube-appearances-content" class="yta-content"></div>
+    </section>
+
     <!-- 【2026-11-01新設・本人の決定「投稿カードの形」】歴代グッズ図鑑の一覧（中身は js/goodsScreen.js が js/data/goods.js から組み立てる）。
          画像はアプリで持たない。詳細で［公式 X の投稿を表示］を押したときだけ、公式 X の投稿の正式な埋め込みを読み込む -->
     <section id="goods-screen" class="screen">
@@ -6186,6 +6253,48 @@
         </div>
       </div>
       <div id="goods-detail-content" class="gds-content gds-detail"></div>
+    </section>
+
+    <!-- 【2026-11-02新設・本人の依頼 R10-2】CD・特典映像図鑑の一覧（中身は js/cdBonusScreen.js が js/data/cdBonus.js から組み立てる）。
+         ［作品から探す］と［特典映像から探す］。ジャケットの画像は出さない（TYPE は色の札と文字） -->
+    <section id="cd-bonus-screen" class="screen">
+      <div class="list-header">
+        <button id="cd-bonus-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            CD &amp; BONUS
+          </p>
+          <h2>CD・特典映像図鑑</h2>
+          <p class="cdb-subtitle">どの TYPE に、どの特典映像？</p>
+        </div>
+      </div>
+      <div id="cd-bonus-content" class="cdb-content"></div>
+    </section>
+
+    <!-- 【2026-11-02新設】CD・特典映像図鑑の詳細（1つの作品。TYPE のタブ。［一覧へ］で一覧へ） -->
+    <section id="cd-bonus-detail-screen" class="screen">
+      <div class="list-header">
+        <button id="cd-bonus-detail-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          一覧へ
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            CD &amp; BONUS
+          </p>
+          <h2>作品の中身</h2>
+        </div>
+      </div>
+      <div id="cd-bonus-detail-content" class="cdb-content cdb-detail"></div>
     </section>
 
     <!-- 【2026-10-29新設・本人の要望】音楽番組出演アーカイブ（中身は js/tvAppearancesScreen.js が組み立てる） -->

@@ -68,7 +68,10 @@ const SCREEN_ELEMENTS = {
   // 【2026-11-01新設】テレビ出演（バラエティ・情報番組）
   tvVariety: document.getElementById("tv-variety-screen"),
   goods: document.getElementById("goods-screen"), // 【2026-11-01追加】歴代グッズ図鑑
+  youtubeAppearances: document.getElementById("youtube-appearances-screen"), // 【2026-11-02追加】YouTube 出演図鑑
   goodsDetail: document.getElementById("goods-detail-screen"),
+  cdBonus: document.getElementById("cd-bonus-screen"), // 【2026-11-02追加】CD・特典映像図鑑
+  cdBonusDetail: document.getElementById("cd-bonus-detail-screen"),
   members: document.getElementById("members-screen"),
   memberDetail: document.getElementById("member-detail-screen"),
   playlists: document.getElementById("playlist-screen"),

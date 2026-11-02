@@ -1,0 +1,317 @@
+/* =====================================================================
+   【2026-11-03 新設・本人の依頼 R10-3】ホームの「メンバーを知る」と「＝LOVEをもっと知る」の3つのまとまり、
+   メンバーの個人ページの「このメンバーをもっと見る」。
+   css/homeRenewal.css のあとに読む（同じ部品の指定をここで上書きする）。
+   ===================================================================== */
+
+/* ---------- メンバーを知る ---------- */
+.home-card.home-card--members {
+  background:
+    radial-gradient(circle at 0% 0%, rgba(255, 214, 232, 0.55), transparent 42%),
+    linear-gradient(150deg, #fff 0%, #fff5fa 55%, #f6f0ff 100%);
+  border-color: #f0d6e6;
+}
+/* スマホ：2列×5行（正式な順＝出席番号順に、左から右・上から下へ） */
+.home-member-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+/* カードが広いとき（iPad 縦・横、PC）：5列×2行 */
+@container (min-width: 36rem) {
+  .home-member-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+.home-member {
+  --member: #d8c8d2; /* メンバーカラーが無いときの控えめな色（JS が上書きする） */
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-width: 0;
+  min-height: 104px;
+  padding: 9px 10px 14px;
+  overflow: hidden;
+  border: 1px solid #eedcf3;
+  border-radius: 16px;
+  background: #fff;
+  /* 下の色の帯（＝LOVEをもっと知る のカードと同じ見せ方。色はメンバーカラー） */
+  box-shadow: inset 0 -5px 0 var(--member);
+  color: var(--color-text);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.12s ease;
+}
+.home-member:active {
+  transform: scale(0.97);
+}
+.home-member:focus-visible {
+  outline: 3px solid #4a9be0;
+  outline-offset: 2px;
+}
+.home-member-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+}
+/* メンバーカラーの丸（白・黄色など明るい色でも見えるよう、薄い縁を付ける） */
+.home-member-dot {
+  flex: none;
+  width: 0.875rem;
+  height: 0.875rem;
+  border-radius: 50%;
+  background: var(--member);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.18);
+}
+.home-member-name {
+  min-width: 0;
+  font-size: 0.9375rem;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.home-member-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--home-sub);
+}
+.home-member-role {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #5b3a78;
+  color: #fff;
+}
+.home-member-lead {
+  font-size: 0.78125rem;
+  font-weight: 700;
+  line-height: 1.45;
+  color: var(--color-text);
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+/* 押すと個人ページへ移ることが分かる表示（下の帯の上の右下） */
+.home-member-go {
+  margin-top: auto;
+  align-self: flex-end;
+  padding-top: 2px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #a3245e;
+  white-space: nowrap;
+}
+
+/* メンバー一覧（卒業メンバー・推し登録）への行 */
+.home-members-all {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 52px;
+  margin-top: 8px;
+  padding: 4px 12px;
+  border: 1.5px solid #ecc6dc;
+  border-radius: 14px;
+  background: #fff;
+  color: var(--color-text);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.12s ease;
+}
+.home-members-all:active {
+  transform: scale(0.98);
+}
+.home-members-all:focus-visible {
+  outline: 3px solid #4a9be0;
+  outline-offset: 2px;
+}
+.home-members-all-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 10px;
+  background: #d6336c;
+  color: #fff;
+}
+.home-members-all-icon .hi {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+.home-members-all-text {
+  flex: 1;
+  min-width: 0;
+}
+.home-members-all-text b {
+  display: block;
+  font-size: 0.9375rem;
+}
+.home-members-all-text small {
+  display: block;
+  font-size: 0.78125rem;
+  font-weight: 700;
+  color: var(--home-sub);
+}
+
+/* ---------- ＝LOVEをもっと知る：3つのまとまり ---------- */
+.home-know-group + .home-know-group {
+  margin-top: 12px;
+}
+/* まとまりの見出し（楽曲の「聴く・読む・調べる・探す」と同じ見せ方） */
+.home-know-group-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 2px 6px;
+  color: #6a2f86;
+  font-size: 0.8125rem;
+  font-weight: 800;
+}
+.home-know-group-title .hi {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+/* 3枚のまとまりは、先頭のカードを横いっぱいにする（2列で空きを作らない）。横いっぱいのカードはアイコンと文字を横に並べる */
+.home-know-grid--3 > .home-know--wide {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  min-height: 0;
+  padding-right: 96px; /* 右上の札と文字が重ならないように */
+}
+/* カードが広いとき（iPad 縦の1列など）：まとまりごとに1行（3枚は3列、4枚は4列）。横いっぱいはやめる */
+@container (min-width: 36rem) {
+  .home-know-grid.home-know-grid--3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .home-know-grid.home-know-grid--4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .home-know-grid--3 > .home-know--wide {
+    grid-column: auto;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
+    min-height: 96px;
+    padding-right: 10px;
+  }
+}
+/* とても狭いとき（文字を大きくした 320px など）：1列。横いっぱいのカードも縦の並びのまま */
+@container (max-width: 17.5rem) {
+  .home-know-grid--3 > .home-know--wide {
+    padding-right: 10px;
+  }
+}
+
+/* ---------- iPad 横・PC（1024 以上）：「メンバーを知る」は横いっぱい（＝LOVE とマイ・データはその下で2列のまま） ---------- */
+@media (min-width: 1024px) {
+  .home-card--members {
+    grid-column: 1 / -1;
+  }
+}
+
+/* ---------- メンバーの個人ページ：このメンバーをもっと見る ---------- */
+.member-explore {
+  display: grid;
+  gap: 8px;
+}
+.member-explore-jumps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 8px;
+}
+.member-explore-jump {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid #e3cfe0;
+  border-radius: 12px;
+  background: #fff;
+  color: #6a2f86;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+.member-explore-jump:focus-visible {
+  outline: 3px solid #1864ab;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-member,
+  .home-members-all {
+    transition: none;
+  }
+  .home-member:active,
+  .home-members-all:active {
+    transform: none;
+  }
+}
+
+/* ---------- メンバー一覧の卒業メンバー：在籍していたころの YouTube 出演動画（2026-11-03） ---------- */
+.graduated-card-youtube {
+  margin-top: 8px;
+  font-size: 0.84rem;
+}
+
+/* ---------- 個人活動の現況の札：期間限定・単発（2026-11-03 追加。ほかの札は css/style.css） ---------- */
+.activity-card-status.is-limited {
+  color: #8a2b6b;
+  background: #fbe4f2;
+}
+.activity-card-status.is-single {
+  color: #4b4f8a;
+  background: #e6e7f7;
+}
+
+/* ---------- 個人活動の3つの欄（2026-11-03 R10 メンバー紹介3） ---------- */
+.activity-card-status.is-unknown {
+  color: #6b6470;
+  background: #f3f0f2;
+  border: 1px dashed #c9bfc5;
+}
+.member-activity-history {
+  margin-top: 14px;
+  border: 1px solid #ead8e6;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.7);
+}
+.member-activity-history > summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 8px 14px;
+  font-size: 0.84rem;
+  font-weight: 800;
+  color: #6a2f86;
+  cursor: pointer;
+}
+.member-activity-history > summary:focus-visible {
+  outline: 3px solid #1864ab;
+  outline-offset: 2px;
+}
+.member-activity-history[open] > summary {
+  border-bottom: 1px solid #ead8e6;
+}
+.member-activity-history > .activity-list {
+  padding: 10px;
+}

@@ -71,6 +71,24 @@ export const APP_SEARCH_FEATURES = [
     action: { type: "click", selector: "#goods-home-link" },
   },
   {
+    // 【2026-11-02追加】YouTube 出演図鑑（公式チャンネルの動画を推しメン別に）
+    id: "feature-youtube-appearances",
+    category: FEATURE,
+    title: "YouTube 出演",
+    aliases: ["YouTube", "ユーチューブ", "YouTube出演", "YouTube出演図鑑", "イコノイジョイチャンネル", "いこのいじょいch", "公式チャンネル", "企画動画", "Shorts", "ショート動画"],
+    description: "公式 YouTube「イコラブ ノイミー ニアジョイ チャンネル」の企画動画のうち、＝LOVE のメンバーが出ている動画を、メンバー・年・種類（通常／Shorts）で探せます。古い順にすると初期の動画から見られます。",
+    action: { type: "click", selector: "#youtube-appearances-home-link" },
+  },
+  {
+    // 【2026-11-02追加】CD・特典映像図鑑（ジャケットの画像は出さない）
+    id: "feature-cd-bonus",
+    category: FEATURE,
+    title: "CD・特典映像図鑑",
+    aliases: ["特典映像", "特典映像図鑑", "CD図鑑", "初回限定盤", "封入特典", "TYPE", "タイプ", "Blu-ray", "DVD", "社員旅行", "品番"],
+    description: "1st〜21st シングルとアルバムの TYPE ごとの中身（特典映像・CD の曲・封入特典・品番）を見られます。特典映像は分類（旅行・ゲーム・ライブなど）と企画名・地名で探せて、どの TYPE に入っているかが分かります。",
+    action: { type: "click", selector: "#cd-bonus-home-link" },
+  },
+  {
     id: "feature-favorites",
     category: FEATURE,
     title: "お気に入り",

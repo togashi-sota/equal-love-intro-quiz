@@ -300,6 +300,8 @@ import { HISTORY_EVENTS } from "./data/historyEvents.js";
 import { LIVE_EVENTS } from "./data/liveHistory.js";
 import { initDiscographyScreen, renderDiscographyScreen, openWorkDetail, activateDiscographyTab } from "./discographyScreen.js";
 import { initMembersScreen, renderMembersScreen, openMemberDetail } from "./membersScreen.js";
+// 【2026-11-03 R10-3】ホームの「メンバーを知る」（現役メンバーのカード）
+import { renderHomeMembers } from "./homeMembersSection.js";
 import { initPlayerScreen, renderPlayerSummary } from "./playerScreen.js";
 import { getPlayerKeyPrefix } from "./playerProfile.js";
 import { needsOnboarding, initOnboardingScreen } from "./onboardingScreen.js";
@@ -321,6 +323,12 @@ import { initTvVarietyScreen, openTvVarietyScreen } from "./tvVarietyScreen.js";
 import { TV_VARIETY_RECORDS } from "./data/tvVariety.js";
 import { initGoodsScreen, openGoodsScreen, renderGoodsDetail } from "./goodsScreen.js";
 import { GOODS_ITEMS } from "./data/goods.js";
+// 【2026-11-02新設】YouTube 出演図鑑
+import { initYoutubeAppearancesScreen, openYoutubeAppearances } from "./youtubeAppearancesScreen.js";
+import { YOUTUBE_DATA_STATE, loadYoutubeAppearanceData, onYoutubeAppearanceDataChange } from "./youtubeAppearanceData.js";
+// 【2026-11-02新設】CD・特典映像図鑑
+import { initCdBonusScreen, openCdBonusList, renderCdBonusDetail, goBackInCdBonusDetail, setCdBonusNavigator } from "./cdBonusScreen.js";
+import { CD_BONUS_WORKS } from "./data/cdBonus.js";
 import { initFanProfilesScreen, renderFanProfilesScreen } from "./fanProfilesScreen.js";
 import { initAdminBackupScreen, renderAdminBackupScreen } from "./adminBackupScreen.js";
 import { initAdminUidRepairScreen, resetAdminUidRepairScreen } from "./adminUidRepairScreen.js";
@@ -1878,6 +1886,9 @@ const membersBackButtonElement = document.getElementById("members-back-button");
 const memberDetailBackButtonElement = document.getElementById("member-detail-back-button");
 // メンバー詳細画面を開く直前の、メンバー一覧画面のスクロール位置。「戻る」で復元する。
 let membersScrollY = 0;
+// 【2026-11-03 R10-3】メンバー詳細の［戻る］の行き先。ホームの「メンバーを知る」から開いたら "start"（ホームの元の位置へ）、
+// それ以外（メンバー一覧・全体検索・周年ヒストリーなど）は今までどおり "members"（全体検索から来たときは、そのあと検索へ戻る）
+let memberDetailReturnScreen = "members";
 const playerHeroSwatchElement = document.getElementById("player-hero-swatch");
 const playerNameChipElement = document.getElementById("player-name-chip");
 const playerNameChipTextElement = document.getElementById("player-name-chip-text");
@@ -2306,6 +2317,7 @@ initMembersScreen({
   memberDetailContent: document.getElementById("member-detail-content"),
   onSelectMember: (memberId) => {
     playClickSound();
+    memberDetailReturnScreen = "members";
     membersScrollY = window.scrollY;
     openMemberDetail(SONGS, MEMBERS, MEMBER_PROFILES, MEMBER_ACTIVITIES, memberId);
     showScreen("memberDetail");
@@ -2314,6 +2326,16 @@ initMembersScreen({
   onOpenTvVariety: (memberId) => {
     playClickSound();
     openTvVarietyFrom("memberDetail", { memberId });
+  },
+  // 【2026-11-02追加】メンバーのページの「YouTube 出演動画を見る」から、そのメンバーで絞った一覧へ（戻るとメンバーのページ）
+  onOpenYoutubeAppearances: (memberId) => {
+    playClickSound();
+    openYoutubeAppearances({ memberIds: [memberId], returnScreen: "memberDetail" });
+  },
+  // 【2026-11-03 R10-3】メンバー一覧の卒業メンバーのカードから、在籍していたころの出演動画へ（戻るとメンバー一覧の同じ位置）
+  onOpenGraduatedYoutubeAppearances: (memberId) => {
+    playClickSound();
+    openYoutubeAppearances({ memberIds: [memberId], returnScreen: "members" });
   },
 });
 
@@ -6013,6 +6035,7 @@ async function openSearchTarget(target) {
   } else {
     playClickSound();
     if (target.kind === "member") {
+      memberDetailReturnScreen = "members";
       membersScrollY = 0;
       openMemberDetail(SONGS, MEMBERS, MEMBER_PROFILES, MEMBER_ACTIVITIES, target.memberId);
       navigateWithScrollMemory("memberDetail");
@@ -6059,9 +6082,15 @@ async function openSearchTarget(target) {
     } else if (target.kind === "tvVariety") {
       // 【2026-11-01追加】テレビ出演（バラエティ・情報番組）：番組名で探した一覧／メンバーで絞った一覧
       openTvVarietyFrom(searchScreen, { query: target.query, memberId: target.memberId });
+    } else if (target.kind === "youtubeAppearances") {
+      // 【2026-11-02追加】YouTube 出演図鑑：タイトル・企画で探した一覧／メンバーで絞った一覧
+      openYoutubeAppearances({ query: target.query, memberIds: target.memberIds, year: target.year, returnScreen: searchScreen });
     } else if (target.kind === "cdSales") {
       // 【2026-10-31追加】CD売上・チャート記録のその作品
       openCdSalesFrom(searchScreen, { workId: target.workId, tab: target.tab });
+    } else if (target.kind === "cdBonus") {
+      // 【2026-11-02追加】CD・特典映像図鑑のその作品（TYPE・映像まで）
+      openCdBonusFrom(searchScreen, { workId: target.workId, typeId: target.typeId, videoId: target.videoId });
     }
   }
   const landingScreen = document.body.dataset.screen;
@@ -6368,6 +6397,107 @@ document.getElementById("goods-detail-back-button").addEventListener("click", ()
   }
 }
 
+// 【2026-11-02新設・本人の依頼 R10-1】「YouTube 出演図鑑」。入口はホーム「＝LOVEをもっと知る」（仮の入口）・メンバーのページ・全体検索。
+// 開くのは js/youtubeAppearancesScreen.js の openYoutubeAppearances({ memberIds, year, sort, query })。
+// ここでは画面の切り替えと［戻る］の行き先だけを受け持つ（条件・表示した件数は画面の側が保つ。スクロールは navigateWithScrollMemory が保つ）。
+let youtubeAppearancesReturnScreen = "start";
+initYoutubeAppearancesScreen(
+  { container: document.getElementById("youtube-appearances-content") },
+  {
+    onShow: ({ returnScreen }) => {
+      youtubeAppearancesReturnScreen = returnScreen && returnScreen !== "youtubeAppearances" ? returnScreen : "start";
+      navigateWithScrollMemory("youtubeAppearances");
+      window.scrollTo(0, 0);
+    },
+  }
+);
+document.getElementById("youtube-appearances-home-link").addEventListener("click", () => {
+  playClickSound();
+  openYoutubeAppearances({ returnScreen: "start" });
+});
+document.getElementById("youtube-appearances-back-button").addEventListener("click", () => {
+  playSfx(SFX_EVENTS.UI_BACK);
+  navigateWithScrollMemory(youtubeAppearancesReturnScreen);
+});
+// ホームの札：収録の本数（出演者未確認を除く）。【2026-11-03】データは公開のたびに作るファイルを、起動のあとで読む。
+// 読めて期限内のときだけ札を出す（期限切れ・データなしは出さない）
+onYoutubeAppearanceDataChange((snapshot) => {
+  const badge = document.getElementById("home-know-youtube-badge");
+  if (!badge) return;
+  const count = snapshot.state === YOUTUBE_DATA_STATE.READY ? snapshot.videos.filter((video) => video.status !== "unconfirmed").length : 0;
+  badge.textContent = count > 0 ? `${count}本` : "";
+  badge.hidden = count === 0;
+  // メンバー一覧を開いている間に読み終えたら、卒業メンバーの「在籍していたころの YouTube 出演動画」を出すために描き直す
+  if (document.body.dataset.screen === "members") renderMembersScreen(SONGS, MEMBERS, MEMBER_PROFILES);
+});
+loadYoutubeAppearanceData({ memberIds: new Set(MEMBERS.map((member) => member.id)) });
+
+// 【2026-11-02新設・本人の依頼 R10-2】「CD・特典映像図鑑」。入口はホーム「＝LOVEをもっと知る」（仮の入口。配置はあとで整理）・全体検索。
+// 一覧（cdBonus）→ 詳細（cdBonusDetail）の2つの画面。詳細の［一覧へ］・端末の「戻る」で一覧へ（一覧の条件・位置はそのまま）。
+// 詳細の中で別の作品へ移ったときは、詳細の［戻る］で元の作品へ戻る（js/cdBonusScreen.js の goBackInCdBonusDetail）。
+let cdBonusReturnScreen = "start";
+function openCdBonusFrom(returnScreen, target = {}) {
+  const current = document.body.dataset.screen;
+  if (returnScreen && returnScreen !== "cdBonus" && returnScreen !== "cdBonusDetail") cdBonusReturnScreen = returnScreen;
+  else if (current !== "cdBonus" && current !== "cdBonusDetail") cdBonusReturnScreen = "start";
+  if (target.workId) {
+    // 一覧を先に作っておく（詳細の［一覧へ］で戻ったときに空にならないように）
+    openCdBonusList({ keep: true });
+    renderCdBonusDetail(target);
+    navigateWithScrollMemory("cdBonusDetail");
+    window.scrollTo(0, 0);
+    if (target.videoId) {
+      document.querySelector(`#cd-bonus-detail-content .cdb-video[data-video-id="${target.videoId}"]`)?.scrollIntoView({ block: "center" });
+    } else {
+      document.getElementById("cd-bonus-detail-title")?.focus({ preventScroll: true });
+    }
+  } else {
+    navigateWithScrollMemory("cdBonus");
+    window.scrollTo(0, 0);
+    openCdBonusList(target);
+  }
+}
+initCdBonusScreen(
+  { listContainer: document.getElementById("cd-bonus-content"), detailContainer: document.getElementById("cd-bonus-detail-content") },
+  {
+    onOpenDetail: (target) => {
+      playClickSound();
+      renderCdBonusDetail(target);
+      navigateWithScrollMemory("cdBonusDetail");
+      window.scrollTo(0, 0);
+      if (target.videoId) {
+        document.querySelector(`#cd-bonus-detail-content .cdb-video[data-video-id="${target.videoId}"]`)?.scrollIntoView({ block: "center" });
+      } else {
+        document.getElementById("cd-bonus-detail-title")?.focus({ preventScroll: true });
+      }
+    },
+  }
+);
+// openCdBonus()（js/cdBonusScreen.js）から呼ばれる、画面の移り方
+setCdBonusNavigator((target, options) => openCdBonusFrom(options.from ?? document.body.dataset.screen, target));
+document.getElementById("cd-bonus-home-link").addEventListener("click", () => {
+  playClickSound();
+  openCdBonusFrom("start");
+});
+document.getElementById("cd-bonus-back-button").addEventListener("click", () => {
+  playSfx(SFX_EVENTS.UI_BACK);
+  navigateWithScrollMemory(cdBonusReturnScreen);
+});
+document.getElementById("cd-bonus-detail-back-button").addEventListener("click", () => {
+  playSfx(SFX_EVENTS.UI_BACK);
+  if (goBackInCdBonusDetail()) return;
+  openCdBonusList({ keep: true });
+  navigateWithScrollMemory("cdBonus");
+});
+// ホームの札：作品の数（データから数える）
+{
+  const badge = document.getElementById("home-know-cd-bonus-badge");
+  if (badge && CD_BONUS_WORKS.length > 0) {
+    badge.textContent = `${CD_BONUS_WORKS.length}作`;
+    badge.hidden = false;
+  }
+}
+
 // 【2026-10-31新設・本人の依頼】「CD売上・チャート記録」。入口はホーム「＝LOVEをもっと知る」・作品詳細・収録曲一覧・
 // 周年ヒストリー・全体検索・ガイド。作品の行から作品詳細・収録曲一覧へ飛び、「戻る」でこのページへ戻れるようにする
 // （openSearchTarget が「戻る」の行き先を覚える。周年ヒストリーと同じ仕組み）。
@@ -6441,6 +6571,16 @@ membersLinkElement.addEventListener("click", () => {
   navigateWithScrollMemory("members");
 });
 
+// 【2026-11-03 R10-3】ホームの「メンバーを知る」：現役メンバーのカードを押すと、その人の個人ページを開く。
+// ホームのスクロールの位置は navigateWithScrollMemory が覚え、個人ページの［戻る］で元の位置へ戻る。
+renderHomeMembers(document.getElementById("home-member-grid"), MEMBERS, MEMBER_PROFILES, (memberId) => {
+  playClickSound();
+  memberDetailReturnScreen = "start";
+  openMemberDetail(SONGS, MEMBERS, MEMBER_PROFILES, MEMBER_ACTIVITIES, memberId);
+  navigateWithScrollMemory("memberDetail");
+  window.scrollTo(0, 0);
+});
+
 membersBackButtonElement.addEventListener("click", () => {
   playSfx(SFX_EVENTS.UI_BACK);
   navigateWithScrollMemory("start");
@@ -6449,6 +6589,13 @@ membersBackButtonElement.addEventListener("click", () => {
 
 memberDetailBackButtonElement.addEventListener("click", () => {
   playSfx(SFX_EVENTS.UI_BACK);
+  // 【2026-11-03 R10-3】ホームの「メンバーを知る」から開いたときは、ホームの元の位置へ戻す
+  // （ホームのスクロールの位置は navigateWithScrollMemory が覚えている）
+  if (memberDetailReturnScreen === "start") {
+    navigateWithScrollMemory("start");
+    renderPlayerSummary(); // 個人ページで推し登録を変えた可能性があるので表示し直す
+    return;
+  }
   // 選択中メンバーの強調表示（is-selected）を反映するため、一覧を描画し直してから戻る。
   renderMembersScreen(SONGS, MEMBERS, MEMBER_PROFILES);
   showScreen("members");

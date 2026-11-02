@@ -55,7 +55,7 @@ export function runCommercialsResearchTests() {
   assertEqual(ORIGINAL_17_IDS.filter((id) => !find(id)), [], "A: 既存の17件を1件も消していない");
   // 【2026-10-27】齋藤樹愛羅のUSJ「ユニハロ」WebCMを1件追加して36件
   // 【2026-10-28】大谷映美里のミスド福袋2026 WEB動画・＝LOVE名義のCoCo壱番屋「CoCo de オフカレー」を追加して38件
-  assertEqual(COMMERCIALS.length, 38, "A: 登録総数は38件（17件＋新規18件＋2026-10-27追加1件＋2026-10-28追加2件）");
+  assertEqual(COMMERCIALS.length, 39, "A: 登録総数は39件（17件＋新規18件＋2026-10-27追加1件＋2026-10-28追加2件＋2026-11-03追加1件〈ももチキ人生〉）");
   assertEqual(new Set(COMMERCIALS.map((cm) => cm.id)).size, COMMERCIALS.length, "A: IDに重複が無い");
   const signature = (cm) => `${cm.brand}|${cm.title}|${cm.date}`;
   assertEqual(new Set(COMMERCIALS.map(signature)).size, COMMERCIALS.length, "A: 同じ企業・タイトル・日付の二重登録が無い");

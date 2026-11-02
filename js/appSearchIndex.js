@@ -38,16 +38,35 @@ import { buildCdSalesModel, formatCopies, formatManCopies, latestCertificationLe
 // 【2026-11-01追加】テレビ出演（バラエティ・情報番組）
 import { TV_VARIETY_RECORDS } from "./data/tvVariety.js";
 import { countTvVarietyByMember, groupTvVarietyByProgram } from "./tvVarietyModel.js";
+// 【2026-11-02追加】YouTube 出演図鑑
+// 【2026-11-03】動画のデータは公開のたびに作るファイル（読めて期限内のときだけ。期限切れ・未読み込みなら空）
+import { getYoutubeAppearanceSnapshot } from "./youtubeAppearanceData.js";
+import { YOUTUBE_KIND_LABELS, countYoutubeByMember, formatYoutubeDate, isConfirmedAppearance, youtubeWatchUrl } from "./youtubeAppearancesModel.js";
+// 【2026-11-02追加】CD・特典映像図鑑
+import { CD_BONUS_WORKS } from "./data/cdBonus.js";
+import {
+  buildCdBonusVideoIndex,
+  cdBonusCategoryLabel,
+  cdBonusCategoryWords,
+  cdBonusMemberNames,
+  cdBonusWorkLabel,
+  describeCdBonusType,
+  describeCdBonusVideoHomes,
+  summarizeCdBonusWork,
+  isBonusVideo,
+} from "./cdBonusModel.js";
 
 // 絞り込みのカテゴリ（表示順もこの順）。一般のファンが分かる言葉にしている。
 export const APP_SEARCH_CATEGORIES = [
   { id: "all", label: "すべて" },
   { id: "member", label: "メンバー" },
   { id: "song", label: "楽曲" },
+  { id: "cdBonus", label: "CD・特典映像" },
   { id: "cm", label: "CM・広告" },
   { id: "live", label: "ライブ" },
   { id: "work", label: "出演作品" },
   { id: "program", label: "番組・活動" },
+  { id: "youtube", label: "YouTube 出演" }, // 【2026-11-02追加】公式チャンネルの動画（YouTube 出演図鑑）
   { id: "guide", label: "ガイド" },
   { id: "feature", label: "機能" },
   { id: "setting", label: "設定" },
@@ -67,6 +86,8 @@ const SCORE = {
   SECONDARY_PREFIX: 45,
   SECONDARY_INCLUDES: 35,
   BODY_INCLUDES: 15,
+  // 関連の言葉（keywords）に「ぴったり」一致（2026-11-02追加。CD・特典映像図鑑の地名・企画名）
+  KEYWORD_EXACT: 70,
 };
 
 // 誤字の候補（「もしかして」）は最大この件数まで（不自然な候補を乱発しないため）
@@ -91,9 +112,11 @@ function aliasTexts(aliases) {
 }
 
 // 検索語との照合用に、各欄を正規化して持っておく（入力のたびに正規化し直さないため）
-function buildTerms({ primary = [], aliases = [], secondary = [], body = [] }) {
+// keywords（2026-11-02追加）：「言葉ぴったり」でだけ当たる関連の言葉（CD・特典映像図鑑の地名・企画名など）。
+//   前方一致・部分一致・誤字の候補（もしかして）には使わない（「富士山」で「富士急」の映像を出さないため）
+function buildTerms({ primary = [], aliases = [], secondary = [], body = [], keywords = [] }) {
   const normalize = (list) => list.filter((text) => typeof text === "string" && text !== "").map(normalizeSearchText).filter(Boolean);
-  return { primary: normalize(primary), aliases: normalize(aliases), secondary: normalize(secondary), body: normalize(body) };
+  return { primary: normalize(primary), aliases: normalize(aliases), secondary: normalize(secondary), body: normalize(body), keywords: normalize(keywords) };
 }
 
 function createEntry({ key, category, title, subtitle = "", lines = [], links = [], action = null, terms }) {
@@ -633,6 +656,100 @@ function buildCdSalesEntries({ songs, discographyEntries, cdSalesSingles = CD_SA
   });
 }
 
+// ---- YouTube 出演図鑑（2026-11-02追加）：動画1本＝1件（出演者未確認の動画は入れない）と、メンバーごとの「○○の YouTube 出演」。
+// タイトル・企画（公式の再生リストの名前）・説明の冒頭・出演メンバーの名前で見つかり、YouTube 出演図鑑のその動画（タイトルで探した一覧）を開く ----
+function buildYoutubeEntries({ members, youtubeVideos = getYoutubeAppearanceSnapshot().videos ?? [] }) {
+  const nameOf = memberNameById(members);
+  const videos = youtubeVideos.filter(isConfirmedAppearance);
+  const memberEntries = members
+    .map((member) => ({ member, count: countYoutubeByMember(videos, member.id) }))
+    .filter(({ count }) => count > 0)
+    .map(({ member, count }) =>
+      createEntry({
+        key: `youtubeMember:${member.id}`,
+        category: "youtube",
+        title: `${member.name}の YouTube 出演`,
+        subtitle: `YouTube 出演／${count}本`,
+        lines: ["公式チャンネル「イコラブ ノイミー ニアジョイ チャンネル」の、出演した動画"],
+        action: { label: "YouTube 出演の一覧で見る", target: { kind: "youtubeAppearances", memberIds: [member.id] } },
+        terms: { secondary: [member.name, member.reading, "YouTube", "ユーチューブ", "YouTube出演"] },
+      })
+    );
+  const videoEntries = videos.map((video) => {
+    const names = (video.memberIds ?? []).map(nameOf).filter(Boolean);
+    const footageNames = (video.footageMemberIds ?? []).map(nameOf).filter(Boolean);
+    return createEntry({
+      key: `youtube:${video.id}`,
+      category: "youtube",
+      title: video.title,
+      subtitle: `YouTube 出演／${formatYoutubeDate(video)}・${YOUTUBE_KIND_LABELS[video.kind] ?? "動画"}`,
+      lines: [
+        names.length ? `出演：${names.slice(0, 5).join("・")}${names.length > 5 ? ` ほか${names.length - 5}人` : ""}` : footageNames.length ? null : "出演：＝LOVE（メンバー未確認）",
+        footageNames.length ? `映像で登場：${footageNames.slice(0, 5).join("・")}${footageNames.length > 5 ? ` ほか${footageNames.length - 5}人` : ""}` : null,
+        video.series?.length ? `企画：${video.series.join("・")}` : null,
+      ],
+      links: [{ label: "YouTube で見る", url: youtubeWatchUrl(video) }],
+      action: { label: "YouTube 出演の一覧で見る", target: { kind: "youtubeAppearances", query: video.title } },
+      terms: {
+        secondary: [video.title, ...(video.series ?? [])],
+        body: [video.summary, ...names, ...footageNames, ...memberReadingsByIds(members, [...(video.memberIds ?? []), ...(video.footageMemberIds ?? [])]), "YouTube", "ユーチューブ"],
+      },
+    });
+  });
+  return [...memberEntries, ...videoEntries];
+}
+
+// ---- CD・特典映像図鑑（2026-11-02追加）：作品1つ＝1件と、映像1本＝1件。カテゴリ「CD・特典映像」 ----
+// 映像は、題名（見出しの下の曲名だけの映像は「見出し＋曲名」）・分類・関連の言葉（ぴったり）で見つかり、
+// 作品 → TYPE → その映像へ直接開く。
+function buildCdBonusEntries({ cdBonusWorks = CD_BONUS_WORKS }) {
+  const workEntries = cdBonusWorks.map((work) => {
+    const summary = summarizeCdBonusWork(work);
+    const label = cdBonusWorkLabel(work);
+    return createEntry({
+      key: `cdBonus:${work.workId}`,
+      category: "cdBonus",
+      title: `${label}「${work.title}」の TYPE と特典映像`,
+      subtitle: "CD・特典映像図鑑",
+      lines: [
+        `TYPE ${summary.typeCount}種（${work.types.map((type) => `${type.id}：${type.videos.length ? type.disc : "CD のみ"}`).join("・")}）`,
+        summary.bonusVideoCount ? `特典映像 ${summary.bonusVideoCount}本` : summary.videoCount ? "映像は MV・メイキング" : "映像特典なし",
+      ],
+      action: { label: "CD・特典映像図鑑で見る", target: { kind: "cdBonus", workId: work.workId } },
+      terms: {
+        // 作品名は見出しの言葉にする（作品名で探したとき、その作品の映像1本ずつより先に、作品の項目を出す）
+        primary: [work.title],
+        secondary: [label, "特典映像", "TYPE", "初回限定盤", "封入特典"],
+        body: work.types.flatMap((type) => [type.catalog, type.name, type.edition]),
+      },
+    });
+  });
+  const videoEntries = buildCdBonusVideoIndex(cdBonusWorks).map(({ video, type, work }) => {
+    // 見出しの下の、曲名だけの映像（MV 集・富士急のライブ）は、見出しと合わせて題名にする（曲名だけの項目が曲の結果と並ばないように）
+    const songOnly = Boolean(video.group) && !/映像|ダイジェスト/.test(video.title);
+    const title = songOnly ? `${video.title}（${video.group}）` : video.title;
+    const others = describeCdBonusVideoHomes(video.id).filter((home) => home.match === "stated" || home.match === "sameTitle");
+    return createEntry({
+      key: `cdBonusVideo:${video.id}`,
+      category: "cdBonus",
+      title,
+      subtitle: `${cdBonusWorkLabel(work)}「${work.title}」${type.name}（${describeCdBonusType(type)}）`,
+      lines: [
+        `分類：${video.categories.map(cdBonusCategoryLabel).join("・")}${video.artist ? `（${video.artist} の映像）` : ""}`,
+        others.length ? `ほかにも収録：${others.map((home) => (home.kind === "release" ? home.release.title : "同じ映像の別の TYPE")).join("・")}` : null,
+      ],
+      action: { label: "この映像の TYPE を開く", target: { kind: "cdBonus", workId: work.workId, typeId: type.id, videoId: video.id } },
+      terms: {
+        primary: songOnly ? [] : [video.title],
+        secondary: [...(songOnly ? [video.title] : []), video.group, ...cdBonusMemberNames(video)],
+        keywords: [...(video.keywords ?? []), ...video.categories.flatMap(cdBonusCategoryWords), ...(isBonusVideo(video) ? ["特典映像"] : [])],
+        body: [work.title, type.name],
+      },
+    });
+  });
+  return [...workEntries, ...videoEntries];
+}
+
 export function buildAppSearchEntries(sources = {}) {
   const resolved = {
     songs: SONGS,
@@ -656,12 +773,14 @@ export function buildAppSearchEntries(sources = {}) {
     ...buildSongEntries(resolved),
     ...buildWorkEntries(resolved),
     ...buildCdSalesEntries(resolved),
+    ...buildCdBonusEntries(resolved),
     ...buildCommercialEntries(resolved),
     ...buildLiveEntries(resolved),
     ...buildLiveVideoEntries(resolved),
     ...buildAnniversaryEntries(resolved),
     ...buildTvAppearanceEntries(resolved),
     ...buildTvVarietyEntries(resolved),
+    ...buildYoutubeEntries(resolved),
     ...buildStageVoiceEntries(resolved),
     ...buildActivityEntries(resolved),
     ...buildGuideEntries(resolved),
@@ -689,6 +808,8 @@ function scoreToken(terms, token) {
     // 1文字の検索語で読み仮名・略称の先頭一致を拾うと、ほぼ全件が引っかかるため2文字以上に限る
     else if (token.length >= 2 && term.startsWith(token)) best = Math.max(best, SCORE.ALIAS_PREFIX);
   });
+  // 関連の言葉は「ぴったり」だけ（前方一致・部分一致にしない）
+  if (terms.keywords?.includes(token)) best = Math.max(best, SCORE.KEYWORD_EXACT);
   terms.secondary.forEach((term) => {
     if (term === token) best = Math.max(best, SCORE.SECONDARY_EXACT);
     else if (term.startsWith(token)) best = Math.max(best, SCORE.SECONDARY_PREFIX);

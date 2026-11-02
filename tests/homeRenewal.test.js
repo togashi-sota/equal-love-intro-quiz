@@ -568,7 +568,7 @@ async function runHomeEntryWiringTests() {
   const doc = new DOMParser().parseFromString(html, "text/html");
   const home = doc.getElementById("start-screen");
   const order = [...home.querySelectorAll(".home-topbar, #app-search-link, #home-data-alert, #home-category-nav, .home-card")].map((element) => element.id || "home-topbar");
-  assertEqual(order, ["home-topbar", "app-search-link", "home-data-alert", "home-category-nav", "home-card-game", "home-card-live", "home-card-music", "home-card-know", "home-card-my"], "E: ホームの並び：上部バー → 検索 → 案内 → 目次 → ゲーム・ライブ・楽曲・＝LOVE・マイページ");
+  assertEqual(order, ["home-topbar", "app-search-link", "home-data-alert", "home-category-nav", "home-card-game", "home-card-live", "home-card-music", "home-card-members", "home-card-know", "home-card-my"], "E: ホームの並び：上部バー → 検索 → 案内 → 目次 → ゲーム・ライブ・楽曲・メンバーを知る（2026-11-03 R10-3）・＝LOVE・マイページ");
   const barIds = ["player-name-chip", "oshi-summary-chip", "player-hero-swatch", "home-player-rank", "home-player-titles", "home-oshi-dot", "fan-profiles-link", "home-leaderboard-link", "title-list-link"];
   assertEqual(barIds.filter((id) => !home.querySelector(`.home-topbar #${id}`)), [], "E: 上部バーに名前・ランク・推し（色の点）・フレンド・ランキング・実績");
   assertEqual([...home.querySelectorAll(".home-topbar-actions .home-tact-label")].map((element) => element.textContent), ["フレンド", "ランキング", "実績"], "E: 右上の3つ");
@@ -584,7 +584,11 @@ async function runHomeEntryWiringTests() {
   assertEqual(cardIds("home-card-game", ".home-games-more"), ["all-games"], "E: ゲーム：「ゲームの遊び方・記録」（2026-10-31 から新しいゲームのガイド）");
   assertEqual(cardIds("home-card-live", "button"), ["home-next-live", "learn-calls", "live-hub-link", "live-guide"], "E: ライブ：次のライブ・コールを覚える（入口は1つ）・ライブ履歴・はじめてのライブ");
   assertEqual(cardIds("home-card-music", "button"), ["continuous-play", "pick-songs", "playlists", "favorites", "songlist", "works", "center-sheet", "lyrics-search"], "E: 楽曲：聴く（曲を聴く・曲を選んで再生〈r8-music〉・プレイリスト・お気に入り）・読む・調べる（楽曲一覧・シングル・アルバム・センター1枚表〈r8-center〉）・探す（歌詞検索）");
-  assertEqual(cardIds("home-card-know", "button"), ["members-link", "centers", "anniversary-home-link", "cd-sales-home-link", "tv-appearances-home-link", "tv-variety-home-link", "goods-home-link", "commercials", "about-group"], "E: ＝LOVE：メンバー・歴代センター・周年ヒストリー・CD売上・チャート（2026-10-31追加）・音楽番組・テレビ出演・歴代グッズ図鑑（2026-11-01追加）・CM・企業コラボ・＝LOVEについて");
+  // 【2026-11-03 R10-3】＝LOVE は3つのまとまり（グループを知る・メディア・活動・作品・記録）。メンバー一覧は「メンバーを知る」の下の行へ
+  assertEqual(cardIds("home-card-know", "button"), ["about-group", "anniversary-home-link", "centers", "youtube-appearances-home-link", "tv-variety-home-link", "tv-appearances-home-link", "commercials", "cd-bonus-home-link", "cd-sales-home-link", "goods-home-link"], "E: ＝LOVE：グループを知る（＝LOVEについて・周年ヒストリー・歴代センター）・メディア・活動（YouTube 出演・テレビ出演・音楽番組・CM・企業コラボ）・作品・記録（CD・特典映像図鑑・CD売上・チャート・歴代グッズ図鑑）");
+  assertEqual([...home.querySelectorAll("#home-card-know .home-know-group-title")].map((element) => element.textContent.trim()), ["グループを知る", "メディア・活動", "作品・記録"], "E: ＝LOVE の3つのまとまりの見出し");
+  assertEqual([...home.querySelectorAll("#home-card-know .home-know-grid")].map((grid) => [grid.children.length, grid.querySelectorAll(".home-know--wide").length]), [[3, 1], [4, 0], [3, 1]], "E: 3枚のまとまりは先頭の1枚を横いっぱいに（2列で空きを作らない）。4枚は2×2");
+  assertEqual(cardIds("home-card-members", "button"), ["members-link"], "E: メンバーを知る：カードは JS が作る。メンバー一覧（卒業メンバー・推し登録）への入口は残す");
   // 【2026-10-31・本人の依頼 A】プレイ履歴・遊び方・機能ガイドはイントロクイズの箱のすぐ下へ移した（2か所に置かない）
   assertEqual(cardIds("home-card-my", ".home-my-link"), ["settings"], "E: マイページ：設定（プレイ履歴・ガイドはイントロの下へ移した。フレンド・ランキング・実績・プロフィールは置かない）");
   assertEqual(cardIds("home-card-game", ".home-intro-link"), ["history", "guides"], "E: イントロクイズの箱のすぐ下：プレイ履歴・遊び方・機能ガイド");
@@ -749,10 +753,10 @@ async function runHomeNightTests() {
   // ＝LOVE：ページの名前と「何が見られるか」
   assertEqual(
     [...home.querySelectorAll(".home-know")].map((button) => [button.querySelector("b").textContent, (button.querySelector(".home-know-hook")?.textContent ?? "").length > 0]),
-    [["メンバー", true], ["歴代センター", true], ["周年ヒストリー", true], ["CD売上・チャート", true], ["音楽番組", true], ["テレビ出演", true], ["歴代グッズ図鑑", true], ["CM・企業コラボ", true], ["＝LOVEについて", true]],
-    "F: ＝LOVE の9つのページに名前と見どころ（2026-10-31：CD売上・チャート、2026-11-01：テレビ出演・歴代グッズ図鑑を追加）",
+    [["＝LOVEについて", true], ["周年ヒストリー", true], ["歴代センター", true], ["YouTube 出演", true], ["テレビ出演", true], ["音楽番組", true], ["CM・企業コラボ", true], ["CD・特典映像図鑑", true], ["CD売上・チャート", true], ["歴代グッズ図鑑", true]],
+    "F: ＝LOVE の10のページに名前と見どころ（2026-11-03 R10-3：メンバー一覧は「メンバーを知る」の下の行へ移し、3つのまとまりに並べ替えた）",
   );
-  assertEqual(home.querySelectorAll("#home-card-know img, #home-card-live img, #home-card-music img").length, 0, "F: 写真などの画像は足さない");
+  assertEqual(home.querySelectorAll("#home-card-know img, #home-card-members img, #home-card-live img, #home-card-music img").length, 0, "F: 写真などの画像は足さない");
   // 楽曲：聴く・読む・探す
   assertEqual([...home.querySelectorAll(".home-music-col-title")].map((element) => element.textContent.trim()), ["聴く", "読む・調べる", "探す"], "F: 楽曲は「聴く・読む・調べる・探す」に分ける（2026-11-01 r7-home：「曲を聴く」が主役。詳しくは tests/discographyAuto.test.js）");
   // ライブ：入口は1つ。中に3つの見せ方の名前（2026-10-31 live-unify）
@@ -835,9 +839,11 @@ async function runHomeFixTests() {
   assertEqual(wide.includes("align-items: stretch;") && wide.includes(".home-card--music .home-music-cols {\n    flex: 1;"), true, "G: 1024px 以上で、楽曲のカードをライブと同じ高さにし、中のボタンで埋める（下の空きを作らない）");
 
   // ＝LOVE：見どころの札・メンバーカラーの帯
-  assertEqual([...home.querySelectorAll(".home-know")].map((button) => Boolean(button.querySelector(".home-know-badge"))), [true, true, true, true, true, true, true, true, true], "G: ＝LOVE の9つのカードに見どころの札（2026-11-01：テレビ出演・歴代グッズ図鑑を追加）");
+  assertEqual([...home.querySelectorAll(".home-know")].map((button) => Boolean(button.querySelector(".home-know-badge"))), [true, true, true, true, true, true, true, true, true, true], "G: ＝LOVE の10のカードに見どころの札（2026-11-03 R10-3：メンバー一覧は「メンバーを知る」へ）");
   assertEqual(home.querySelector(".home-know--about .home-know-badge")?.textContent, "はじめに", "G: ＝LOVEについては「はじめに」");
-  assertEqual(lastRuleBody(homeCss, ".home-know--members .home-know-colors").includes("position: absolute;"), true, "G: メンバーはメンバーカラーの帯（カードの下）");
+  // 【2026-11-03 R10-3】メンバーカラーの帯は、ホームの「メンバーを知る」の1人ずつのカードの下へ（css/homeMembers.css）
+  const membersCss = await fetchText("css/homeMembers.css");
+  assertEqual(lastRuleBody(membersCss, ".home-member").includes("box-shadow: inset 0 -5px 0 var(--member);"), true, "G: メンバーのカードはメンバーカラーの帯（カードの下）");
 
   // コントラスト：ピンクの地に白い文字（4.5 以上。19px の太字の開始ボタンは大きい文字なので 3 以上）。色は CSS の指定から計算
   const hexes = (text) => text.match(/#[0-9a-fA-F]{6}\b/g) ?? [];

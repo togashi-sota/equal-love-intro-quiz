@@ -1,0 +1,53 @@
+// 「YouTube 出演図鑑」の、本人が動画を見て確かめた判定（2026-11-03新設）。git に入れる「自分たちの判定」はこのファイルだけ。
+//
+// 【このファイルに書くもの・書かないもの（YouTube API の規約に合わせるため）】
+// - 書く：本人が YouTube で動画を見て確かめた事実（誰が出ていたか・出演の形・収録するか）と、その鍵の動画 ID
+// - 書かない：YouTube API から取ったデータ（タイトル・説明・公開日・公開状態・再生リストの名前など）と、それを機械で読み取って作った判定。
+//   それらは公開のたびに取り直して作るファイル data/youtube-appearances.json（git に入れない。取得から30日で期限切れ）にだけ入る
+//   （YouTube API Services Developer Policies III.E.4：API のデータは30日を超えて保存しない。Terms of Service §16.1：API のデータの派生物の扱い）
+// - 動画 ID は鍵として必要なので書く（規約に ID の保存期間の明記は無い。ここに書くのは本人が確かめた数本だけ）
+//
+// 【欄】
+// - videoId：動画 ID（11文字）
+// - decision："include"（収録）・"exclude"（除外）・"hold"（確かめられないので保留＝出演者未確認）
+// - memberIds：企画に直接出演した＝LOVE のメンバー（members.js の id）
+// - footageMemberIds：ライブ映像・過去の映像・回想などで、映像に登場したメンバー（企画の出演者とは分けて表示する）
+// - verifiedBy："owner"（本人）／verifiedOn：確かめた日／note：何を確かめたか（自分の言葉で短く。説明欄を写さない）
+// 足し方：1本につき1行足して、手元で `node scripts/youtube/refresh.mjs --from-raw …` を流して確かめる（scripts/youtube/SETUP.md）
+
+const MEMBERS_AT_3RD_ANNIVERSARY = Object.freeze([
+  // 2020年9月（3周年記念コンサート）の＝LOVE の12人
+  "otani-emiri",
+  "oba-hana",
+  "otoshima-risa",
+  "saito-kiara",
+  "saito-nagisa",
+  "sasaki-maika",
+  "satake-nonno",
+  "takamatsu-hitomi",
+  "takiwaki-shoko",
+  "noguchi-iori",
+  "morohashi-sana",
+  "yamamoto-anna",
+]);
+
+export const YOUTUBE_VERIFIED_JUDGMENTS = Object.freeze([
+  {
+    videoId: "tzrxr9c2sRI",
+    decision: "include",
+    memberIds: [],
+    footageMemberIds: [...MEMBERS_AT_3RD_ANNIVERSARY],
+    verifiedBy: "owner",
+    verifiedOn: "2026-11-03",
+    note: "3周年記念コンサートへの潜入の前編。当時の12人全員がライブ映像で登場する（企画の出演者は ≠ME の2人とゲスト）",
+  },
+]);
+
+// 分類の関数（js/youtubeAppearanceClassifier.js の classifyYoutubeVideo）に渡す形に変える
+export function toClassifierManual(judgment) {
+  if (!judgment) return null;
+  const note = `本人が動画で確認（${judgment.verifiedOn}）：${judgment.note ?? ""}`;
+  if (judgment.decision === "exclude") return { exclude: true, note };
+  if (judgment.decision === "hold") return { unconfirmed: true, note };
+  return { memberIds: judgment.memberIds ?? [], footageMemberIds: judgment.footageMemberIds ?? [], groupOnly: true, note };
+}

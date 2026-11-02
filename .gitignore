@@ -74,3 +74,7 @@ data-packs/*.zip
 # 著作権保護コンテンツは含まないが、生成スクリプトさえあればいつでも作り直せるため
 # バイナリ自体をGit管理する必要はない、2026-08-27新設）。
 dist/
+
+# 【2026-11-03】YouTube 出演図鑑の API のデータ（scripts/youtube/refresh.mjs が公開のたびに作る）。
+# YouTube API の規約（30日を超えて保存しない）に合わせて、git には入れない。Pages の公開の成果物にだけ入る。
+data/youtube-appearances.json

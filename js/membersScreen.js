@@ -32,6 +32,9 @@ import { buildMemberCommercialsSection } from "./commercialsSection.js";
 // 【2026-11-01追加】テレビ出演（バラエティ・情報番組）の件数
 import { TV_VARIETY_RECORDS } from "./data/tvVariety.js";
 import { countTvVarietyByMember } from "./tvVarietyModel.js";
+// 【2026-11-02追加】YouTube 出演図鑑への導線
+import { YOUTUBE_DATA_STATE, getYoutubeAppearanceSnapshot } from "./youtubeAppearanceData.js";
+import { countYoutubeByMember } from "./youtubeAppearancesModel.js";
 
 // この画面が使うDOM要素一式。initMembersScreen()で受け取って保持する。
 let elements = null;
@@ -287,6 +290,11 @@ function buildGraduatedCard(songs, members, profiles, member) {
     }
   }
 
+  // 【2026-11-03 R10-3】在籍していたころの、公式チャンネルの出演動画（YouTube 出演図鑑をこのメンバーで絞って開く）。
+  // 今の在籍の状態（卒業）と混同しないよう、「在籍していたころ」「卒業日」を書く。動画が無ければ出さない
+  const youtubeButton = buildGraduatedYoutubeButton(member);
+  if (youtubeButton) info.appendChild(youtubeButton);
+
   card.appendChild(info);
 
   const tag = document.createElement("span");
@@ -295,6 +303,46 @@ function buildGraduatedCard(songs, members, profiles, member) {
   card.appendChild(tag);
 
   return card;
+}
+
+// 【2026-11-03】YouTube 出演図鑑のデータは、公開のたびに作るファイルを起動のあとで読む（js/youtubeAppearanceData.js）。
+// 読めて期限内のときだけ動画の一覧を返す（読み込み中・期限切れ・データなしは空）
+function currentYoutubeVideos() {
+  const snapshot = getYoutubeAppearanceSnapshot();
+  return snapshot.state === YOUTUBE_DATA_STATE.READY ? snapshot.videos : [];
+}
+
+// 卒業メンバーの「在籍していたころの YouTube 出演動画」のボタン。出演の記録が無ければ null
+// 卒業日より後の動画が1本でもあれば「在籍していたころ」とは書かない（記録と在籍の時期を混同させない）
+export function buildGraduatedYoutubeButton(member) {
+  if (!elements?.onOpenGraduatedYoutubeAppearances) return null;
+  const videos = currentYoutubeVideos().filter((video) => (video.memberIds ?? []).includes(member.id));
+  if (videos.length === 0) return null;
+  const endDate = member.graduationDate ?? member.activePeriod?.end ?? null;
+  const allWhileActive = Boolean(endDate) && videos.every((video) => typeof video.publishedAt === "string" && video.publishedAt <= endDate);
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "member-youtube-link graduated-card-youtube";
+  button.dataset.memberId = member.id;
+  const text = document.createElement("span");
+  text.textContent = allWhileActive ? `在籍していたころの YouTube 出演動画（${videos.length}本）` : `YouTube 出演動画（${videos.length}本）`;
+  const note = document.createElement("small");
+  note.textContent = allWhileActive
+    ? `公式チャンネル「イコノイジョイ」の出演（${formatJapaneseDateForCard(endDate)}の卒業まで）`
+    : "公式チャンネル「イコノイジョイ」の出演";
+  text.appendChild(note);
+  const arrow = document.createElement("span");
+  arrow.setAttribute("aria-hidden", "true");
+  arrow.textContent = "→";
+  button.append(text, arrow);
+  button.addEventListener("click", () => elements.onOpenGraduatedYoutubeAppearances(member.id));
+  return button;
+}
+
+// "2021-03-06" → "2021年3月6日"
+function formatJapaneseDateForCard(isoDate) {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  return `${year}年${month}月${day}日`;
 }
 
 function renderGraduatedMembers(songs, members, profiles) {
@@ -378,10 +426,12 @@ function buildColorFactRow(label, colors) {
   return row;
 }
 
-function buildSectionHeading(label) {
+// anchor：ページの中で移る先の目印（data-member-section）。「このメンバーをもっと見る」のボタンが使う
+function buildSectionHeading(label, anchor = null) {
   const heading = document.createElement("p");
   heading.className = "section-heading";
   heading.textContent = label;
+  if (anchor) heading.dataset.memberSection = anchor;
   return heading;
 }
 
@@ -490,11 +540,14 @@ export const ACTIVITY_STATUS_LABELS = {
   irregular: { text: "不定期", className: "is-irregular" },
   ended: { text: "終了", className: "is-ended" },
   past: { text: "過去の活動", className: "is-past" },
+  // 【2026-11-03追加】期間限定・単発（js/data/memberActivities.js の ACTIVITY_STATUS.LIMITED / SINGLE）
+  limited: { text: "期間限定", className: "is-limited" },
+  single: { text: "単発", className: "is-single" },
 };
 
 // カード一覧の並び順（現在も動きがある活動ほど代表的、という考え方で優先度を決める）。
 // 【2026-09-30改訂】並び順の主キーは日付になったため、この順序は表示ラベルの整理用にだけ残す。
-export const ACTIVITY_STATUS_ORDER = ["ongoing", "annual", "irregular", "ended", "past", "unknown"];
+export const ACTIVITY_STATUS_ORDER = ["ongoing", "limited", "annual", "irregular", "ended", "past", "single", "unknown"];
 
 // 活動の「グループ順位」。個人活動・レギュラー企画の表示は必ずこの順位が最優先になる
 // （2026-10-04改訂・本人指示：継続中を必ず上、終了をその下）。
@@ -518,13 +571,18 @@ export function getEffectiveActivityStatus(activity, today = getTodayInJapan()) 
   return status;
 }
 
-export function getActivityGroupRank(activity) {
-  switch (getEffectiveActivityStatus(activity)) {
+// 【2026-11-03追加】期間限定（limited）は、終わりの日（endDate）までは継続中と同じ上の並び、過ぎたら終了の並び。
+// 単発（single）は終了・過去の活動と同じ並び（予定の公演も、日付の新しい順でその並びの上に来る）。
+export function getActivityGroupRank(activity, today = getTodayInJapan()) {
+  switch (getEffectiveActivityStatus(activity, today)) {
     case ACTIVITY_STATUS.UPCOMING:
     case ACTIVITY_STATUS.ONGOING:
       return 0;
+    case ACTIVITY_STATUS.LIMITED:
+      return typeof activity.endDate === "string" && activity.endDate < today ? 2 : 0;
     case ACTIVITY_STATUS.ENDED:
     case ACTIVITY_STATUS.PAST:
+    case ACTIVITY_STATUS.SINGLE:
       return 2;
     default:
       return 1;
@@ -592,7 +650,7 @@ export function buildActivityCard(activity) {
   typeTag.textContent = ACTIVITY_TYPE_LABELS[activity.type] ?? activity.type;
   card.appendChild(typeTag);
 
-  const statusInfo = ACTIVITY_STATUS_LABELS[getEffectiveActivityStatus(activity)];
+  const statusInfo = getActivityStatusLabel(activity);
   if (statusInfo) {
     const statusTag = document.createElement("span");
     statusTag.className = `activity-card-status ${statusInfo.className}`;
@@ -626,6 +684,184 @@ export function buildActivityCard(activity) {
   });
 
   return card;
+}
+
+// ---- 個人活動の3つの欄（2026-11-03 R10 メンバー紹介3） ----
+
+// 今の主な活動の最初の件数（多い人も、最初はこの数まで。残りは「詳しい活動履歴」で全部見られる）
+export const CURRENT_ACTIVITY_LIMIT = 5;
+
+// 表示する札。日付で決まるもの（開始予定→継続中、単発の予定→開催予定）は日本時間の今日で決める
+export function getActivityStatusLabel(activity, today = getTodayInJapan()) {
+  const status = getEffectiveActivityStatus(activity, today);
+  if (status === ACTIVITY_STATUS.SINGLE && typeof activity.startDate === "string" && activity.startDate > today) {
+    return { text: "開催予定", className: "is-upcoming" };
+  }
+  if (status === ACTIVITY_STATUS.UNKNOWN) return { text: "継続状況未確認", className: "is-unknown" };
+  return ACTIVITY_STATUS_LABELS[status] ?? null;
+}
+
+// 今の主な活動に入れるか：継続中・開始予定・年次開催・不定期、期間中（または期間未定）の期間限定、これからの単発
+// 終了・過去の活動・終わった期間限定・終わった単発・継続状況未確認は入れない
+export function isCurrentActivity(activity, today = getTodayInJapan()) {
+  const status = getEffectiveActivityStatus(activity, today);
+  switch (status) {
+    case ACTIVITY_STATUS.ONGOING:
+    case ACTIVITY_STATUS.UPCOMING:
+    case ACTIVITY_STATUS.ANNUAL:
+    case ACTIVITY_STATUS.IRREGULAR:
+      return true;
+    case ACTIVITY_STATUS.LIMITED:
+      return !(typeof activity.endDate === "string" && activity.endDate < today);
+    case ACTIVITY_STATUS.SINGLE:
+      return typeof activity.startDate === "string" && activity.startDate >= today;
+    default:
+      return false;
+  }
+}
+
+function buildActivityList(activities) {
+  const list = document.createElement("div");
+  list.className = "activity-list";
+  activities.forEach((activity) => list.appendChild(buildActivityCard(activity)));
+  return list;
+}
+
+export function buildMemberActivitySections(memberActivities, memberId, today = getTodayInJapan()) {
+  const fragment = document.createDocumentFragment();
+  const sorted = sortActivitiesByDateDesc(memberActivities);
+  const current = sorted.filter((activity) => isCurrentActivity(activity, today)).slice(0, CURRENT_ACTIVITY_LIMIT);
+  // 代表的な活動（データの highlightFor にこのメンバーの理由があるもの）は古い順（その人の歩みの順に読めるように）
+  const highlights = memberActivities
+    .filter((activity) => Boolean(activity.highlightFor?.[memberId]))
+    .sort((a, b) => (a.startDate ?? "9999").localeCompare(b.startDate ?? "9999"));
+
+  // 見出しの目印 "activities" は「このメンバーをもっと見る」の［個人活動 ↓］の行き先（最初の欄に付ける）
+  let anchorUsed = false;
+  const heading = (label) => {
+    const element = buildSectionHeading(label, anchorUsed ? null : "activities");
+    anchorUsed = true;
+    return element;
+  };
+  if (current.length > 0) {
+    fragment.appendChild(heading("今の主な活動"));
+    const list = buildActivityList(current);
+    list.classList.add("is-current");
+    fragment.appendChild(list);
+  }
+  if (highlights.length > 0) {
+    fragment.appendChild(heading("これまでの代表的な活動"));
+    const list = buildActivityList(highlights);
+    list.classList.add("is-highlight");
+    fragment.appendChild(list);
+  }
+  // 詳しい活動履歴：全部の活動（代表に選ばなかったものも隠さない）。長くなるので、たたんでおく
+  const history = document.createElement("details");
+  history.className = "member-activity-history";
+  const summary = document.createElement("summary");
+  summary.textContent = `詳しい活動履歴（全${sorted.length}件）`;
+  history.appendChild(summary);
+  history.appendChild(buildActivityList(sorted));
+  if (!anchorUsed) {
+    fragment.appendChild(heading("個人活動・レギュラー企画"));
+    history.open = true;
+  }
+  fragment.appendChild(history);
+  return fragment;
+}
+
+// ---- メンバー詳細：このメンバーをもっと見る（2026-11-03 新設・本人の依頼 R10-3） ----
+
+// 一覧の画面へ移るボタン（YouTube 出演・テレビ出演）。見た目は今までの導線（css/youtubeAppearances.css・css/tvVariety.css）のまま
+function buildExploreLinkButton(className, memberId, label, noteText, onClick) {
+  const link = document.createElement("button");
+  link.type = "button";
+  link.className = className;
+  link.dataset.memberId = memberId;
+  const text = document.createElement("span");
+  text.textContent = label;
+  const note = document.createElement("small");
+  note.textContent = noteText;
+  text.appendChild(note);
+  const arrow = document.createElement("span");
+  arrow.setAttribute("aria-hidden", "true");
+  arrow.textContent = "→";
+  link.append(text, arrow);
+  link.addEventListener("click", onClick);
+  return link;
+}
+
+// このページの中の見出しへ移るボタン（個人活動・センター曲／ユニット曲）
+function buildExploreJumpButton(anchor, label) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "member-explore-jump";
+  button.dataset.jumpTo = anchor;
+  button.textContent = label;
+  const arrow = document.createElement("span");
+  arrow.setAttribute("aria-hidden", "true");
+  arrow.textContent = "↓";
+  button.appendChild(arrow);
+  button.addEventListener("click", () => {
+    playSfx(SFX_EVENTS.UI_CLICK);
+    const target = elements.memberDetailContent.querySelector(`[data-member-section="${anchor}"]`);
+    if (!target) return;
+    const reduce = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    window.scrollTo({ top: Math.max(0, target.getBoundingClientRect().top + window.scrollY - 12), behavior: reduce ? "auto" : "smooth" });
+  });
+  return button;
+}
+
+export function buildMemberExploreSection(songs, members, member, memberActivities) {
+  const fragment = document.createDocumentFragment();
+  const youtubeState = getYoutubeAppearanceSnapshot().state;
+  const youtubeLoading = youtubeState === YOUTUBE_DATA_STATE.IDLE || youtubeState === YOUTUBE_DATA_STATE.LOADING;
+  const youtubeCount = countYoutubeByMember(currentYoutubeVideos(), member.id);
+  const tvVarietyCount = countTvVarietyByMember(TV_VARIETY_RECORDS, member.id);
+  const songCount = getMemberCenterSongs(songs, members, member.id).length + getMemberUnitSongs(songs, members, member.id).length;
+  const links = [];
+  // YouTube 出演図鑑：公式チャンネルの、そのメンバーが出た動画に絞った一覧を開く。本数が0（まだ動画を集めていないときも）なら出さない
+  // （読み込み中は本数なしで出す。期限切れ・データなしのときは出さない）
+  if ((youtubeCount > 0 || youtubeLoading) && elements.onOpenYoutubeAppearances) {
+    links.push(
+      buildExploreLinkButton(
+        "member-youtube-link",
+        member.id,
+        youtubeCount > 0 ? `YouTube 出演動画を見る（${youtubeCount}本）` : "YouTube 出演動画を見る",
+        "公式チャンネル「イコラブ ノイミー ニアジョイ チャンネル」の企画動画",
+        () => elements.onOpenYoutubeAppearances(member.id)
+      )
+    );
+  }
+  // テレビ出演（バラエティ・情報番組）：そのメンバーで絞った一覧を開く。件数が0なら出さない
+  if (tvVarietyCount > 0 && elements.onOpenTvVariety) {
+    links.push(
+      buildExploreLinkButton(
+        "member-tv-variety-link",
+        member.id,
+        `テレビ出演（バラエティ・情報番組）${tvVarietyCount}件を見る`,
+        "個人名が告知に出た出演だけ。歌の披露は［音楽番組］",
+        () => elements.onOpenTvVariety(member.id)
+      )
+    );
+  }
+  const jumps = [];
+  if (memberActivities.length > 0) jumps.push(buildExploreJumpButton("activities", `個人活動 ${memberActivities.length}件`));
+  if (songCount > 0) jumps.push(buildExploreJumpButton("songs", "センター曲・ユニット曲"));
+  if (links.length === 0 && jumps.length === 0) return fragment;
+
+  fragment.appendChild(buildSectionHeading("このメンバーをもっと見る"));
+  const box = document.createElement("div");
+  box.className = "member-explore";
+  links.forEach((link) => box.appendChild(link));
+  if (jumps.length > 0) {
+    const row = document.createElement("div");
+    row.className = "member-explore-jumps";
+    jumps.forEach((jump) => row.appendChild(jump));
+    box.appendChild(row);
+  }
+  fragment.appendChild(box);
+  return fragment;
 }
 
 // ---- メンバー詳細：画面全体の組み立て ----
@@ -740,7 +976,14 @@ function renderMemberDetail(songs, members, profiles, activities, member) {
   if (profile?.introduction) {
     elements.memberDetailContent.appendChild(buildSectionHeading("紹介"));
     elements.memberDetailContent.appendChild(buildTextCard(profile.introduction));
+    // 【2026-11-03 R10-3】紹介文と出典の種類が違う補足（例：ファンの間で定着している評価）は、別のカードにして札を付ける
+    (profile.introductionNotes ?? []).forEach((note) => elements.memberDetailContent.appendChild(buildTextCard(note)));
   }
+
+  // 2.5. このメンバーをもっと見る（2026-11-03 新設・本人の依頼 R10-3「個人ページからの回遊」）。
+  // YouTube 出演・テレビ出演（そのメンバーで絞った一覧を開く）と、このページの中の個人活動・センター曲／ユニット曲へ移るボタン。
+  // 増やしすぎない（4つまで）。件数が0のものは出さない。
+  elements.memberDetailContent.appendChild(buildMemberExploreSection(songs, members, member, memberActivities));
 
   // 3. 基本プロフィール
   elements.memberDetailContent.appendChild(buildSectionHeading("プロフィール"));
@@ -758,13 +1001,16 @@ function renderMemberDetail(songs, members, profiles, activities, member) {
   const hasHobbies = profile?.hobbies?.items?.length > 0;
   const hasSkills = profile?.skills?.items?.length > 0;
   const hasFavorites = profile?.favoriteThings?.items?.length > 0;
-  if (hasHobbies || hasSkills || hasFavorites) {
+  // 【2026-11-03 R10-3】公式プロフィールの「資格」欄（今は諸橋沙夏だけ）
+  const hasQualifications = profile?.qualifications?.items?.length > 0;
+  if (hasHobbies || hasSkills || hasFavorites || hasQualifications) {
     elements.memberDetailContent.appendChild(buildSectionHeading("趣味・特技・好きなもの"));
     const trivia = document.createElement("div");
     trivia.className = "fact-list";
     if (hasHobbies) trivia.appendChild(buildFactRow("趣味", profile.hobbies.items.join("、")));
     if (hasSkills) trivia.appendChild(buildFactRow("特技", profile.skills.items.join("、")));
     if (hasFavorites) trivia.appendChild(buildFactRow("好きなもの", profile.favoriteThings.items.join("、")));
+    if (hasQualifications) trivia.appendChild(buildFactRow("資格", profile.qualifications.items.join("、")));
     elements.memberDetailContent.appendChild(trivia);
   }
 
@@ -803,7 +1049,7 @@ function renderMemberDetail(songs, members, profiles, activities, member) {
   elements.memberDetailContent.appendChild(activityFacts);
 
   // 8. センター曲一覧
-  elements.memberDetailContent.appendChild(buildSectionHeading("センター曲"));
+  elements.memberDetailContent.appendChild(buildSectionHeading("センター曲", "songs"));
   elements.memberDetailContent.appendChild(
     buildSongChipRow(centerSongs, "センターを務めた曲はまだ確認できていません")
   );
@@ -814,39 +1060,21 @@ function renderMemberDetail(songs, members, profiles, activities, member) {
     buildSongChipRow(unitSongs, "参加しているユニット曲はまだ確認できていません")
   );
 
-  // 10. 個人活動・レギュラー企画（無ければセクションごと非表示）
+  // 10. 個人活動：3つの欄（2026-11-03 R10 メンバー紹介3・本人の採用）。無ければ欄ごと出さない。
+  //   ・今の主な活動：続いているもの・期間中の期間限定・これからの予定（最初の5件まで）
+  //   ・これまでの代表的な活動：データの highlightFor にこのメンバーの理由がある活動（共同の活動も、選んだメンバーのページだけに出る）
+  //   ・詳しい活動履歴：全部（今までの1つの一覧と同じ並び）。たたんでおき、押すと開く
+  // 同じ活動が2つの欄に出るときも、同じ1件のデータを使う（データを二重に持たない）
   if (memberActivities.length > 0) {
-    elements.memberDetailContent.appendChild(buildSectionHeading("個人活動・レギュラー企画"));
-    const activityList = document.createElement("div");
-    activityList.className = "activity-list";
-    sortActivitiesByDateDesc(memberActivities).forEach((activity) => activityList.appendChild(buildActivityCard(activity)));
-    elements.memberDetailContent.appendChild(activityList);
+    elements.memberDetailContent.appendChild(buildMemberActivitySections(memberActivities, member.id));
   }
 
   // 10-2. STAGE（舞台・朗読劇）／VOICE（声優・ボイス出演）。該当が無いメンバーは何も追加されない。
   elements.memberDetailContent.appendChild(buildMemberStageVoiceSections(member.id));
   // 10-3. CM・広告出演（2026-10-23新設。js/data/commercials.js を参照。全員出演は「＝LOVEについて」へ案内）
   elements.memberDetailContent.appendChild(buildMemberCommercialsSection(member.id));
-  // 10-4. テレビ出演（バラエティ・情報番組）への導線（2026-11-01新設）。そのメンバーで絞った一覧を開く。件数が0なら出さない
-  const tvVarietyCount = countTvVarietyByMember(TV_VARIETY_RECORDS, member.id);
-  if (tvVarietyCount > 0 && elements.onOpenTvVariety) {
-    elements.memberDetailContent.appendChild(buildSectionHeading("テレビ出演"));
-    const link = document.createElement("button");
-    link.type = "button";
-    link.className = "member-tv-variety-link";
-    link.dataset.memberId = member.id;
-    const text = document.createElement("span");
-    text.textContent = `バラエティ・情報番組 ${tvVarietyCount}件を見る`;
-    const note = document.createElement("small");
-    note.textContent = "個人名が告知に出た出演だけ。歌の披露は［音楽番組］";
-    text.appendChild(note);
-    const arrow = document.createElement("span");
-    arrow.setAttribute("aria-hidden", "true");
-    arrow.textContent = "→";
-    link.append(text, arrow);
-    link.addEventListener("click", () => elements.onOpenTvVariety(member.id));
-    elements.memberDetailContent.appendChild(link);
-  }
+  // 10-4・10-5. テレビ出演・YouTube 出演への導線は、2026-11-03 R10-3 で紹介のすぐ下の「このメンバーをもっと見る」へ移した
+  // （下まで読まないと見つからなかったため。同じ行き先を2か所に置かない）
 
   // 11. ファンの愛称・ニックネーム（無ければセクションごと非表示）
   const nicknames = profile?.nicknames ?? [];

@@ -56,6 +56,13 @@ export const ACTIVITY_STATUS = {
   // startDate を過ぎると表示上は自動で「継続中」として扱う（membersScreen.js の getEffectiveActivityStatus）。
   // 開始が延期・中止になった場合は、データ側の status を直す。
   UPCOMING: "upcoming",
+  // 【2026-11-03追加・R10 メンバー紹介2】期間が決まっている仕事（例：1か月だけのマンスリープレゼンター）。
+  // ずっと続くレギュラーと区別する。期間中（endDate まで）は「今の活動」の並び（継続中と同じ上の方）に置き、
+  // endDate を過ぎたら終了の並びへ下げる（ラベルは「期間限定」のまま。membersScreen.js の getActivityGroupRank）。
+  LIMITED: "limited",
+  // 【2026-11-03追加】1回きりの出演・公演で、日付が決まっているもの（例：ソロコンサート）。
+  // 「開始予定」と違い、日付を過ぎても「継続中」にはしない。並びは終了・過去の活動と同じ下の方（日付の新しい順）。
+  SINGLE: "single",
 };
 
 export const MEMBER_ACTIVITIES = [
@@ -79,6 +86,10 @@ export const MEMBER_ACTIVITIES = [
   },
   {
     id: "sasaki-yamamoto-youtube",
+    // 【2026-11-03 R10 メンバー紹介3】「これまでの代表的な活動」に出すメンバーと、選んだ理由（知名度では選ばない）
+    highlightFor: {
+      "sasaki-maika": "山本杏奈と2人で続ける YouTube（長く続けた活動・その人らしさ）",
+    },
     memberId: "sasaki-maika",
     relatedMemberIds: ["yamamoto-anna"],
     title: "イコラブのあんまい",
@@ -119,6 +130,10 @@ export const MEMBER_ACTIVITIES = [
   },
   {
     id: "yamamoto-showroom",
+    // 【2026-11-03 R10 メンバー紹介3】「これまでの代表的な活動」に出すメンバーと、選んだ理由（知名度では選ばない）
+    highlightFor: {
+      "yamamoto-anna": "一度はやめるか迷ったが、新しいファンが SHOWROOM から来ていると知って続けると決めた配信（長く続けた活動・その人らしさ）",
+    },
     memberId: "yamamoto-anna",
     relatedMemberIds: [],
     title: "教えて、花便り",
@@ -137,6 +152,10 @@ export const MEMBER_ACTIVITIES = [
     // 今後ほかのメンバーに観光大使・アンバサダーなどの継続的な活動が決まったときも、
     // この形（type: AMBASSADOR）で1件足すだけでよい。
     id: "oba-saitama-tourism-ambassador",
+    // 【2026-11-03 R10 メンバー紹介3】「これまでの代表的な活動」に出すメンバーと、選んだ理由（知名度では選ばない）
+    highlightFor: {
+      "oba-hana": "地元・さいたま市の観光大使。委嘱式で本人が「夢がかなった」と話した（目標の達成）",
+    },
     memberId: "oba-hana",
     relatedMemberIds: [],
     title: "さいたま観光大使",
@@ -156,6 +175,10 @@ export const MEMBER_ACTIVITIES = [
   },
   {
     id: "oba-manga",
+    // 【2026-11-03 R10 メンバー紹介3】「これまでの代表的な活動」に出すメンバーと、選んだ理由（知名度では選ばない）
+    highlightFor: {
+      "oba-hana": "特技のイラストを生かした漫画の連載で、2026年に単行本になった（その人らしさ・目標の達成）",
+    },
     memberId: "oba-hana",
     relatedMemberIds: [],
     title: "はなコミ！～となりにアイドル～",
@@ -247,6 +270,10 @@ export const MEMBER_ACTIVITIES = [
   },
   {
     id: "otoshima-model",
+    // 【2026-11-03 R10 メンバー紹介3】「これまでの代表的な活動」に出すメンバーと、選んだ理由（知名度では選ばない）
+    highlightFor: {
+      "otoshima-risa": "2023年から続くファッション誌のレギュラーモデル（長く続けた活動）",
+    },
     memberId: "otoshima-risa",
     relatedMemberIds: [],
     title: "「S Cawaii!」レギュラーモデル",
@@ -317,6 +344,10 @@ export const MEMBER_ACTIVITIES = [
     // 県公式「魅せます！とちブラ」の出演者一覧（2026-10-01更新）にも掲載。退任・終了の情報は確認できないため継続中として扱う。
     // 大場花菜のさいたま観光大使と同じ type: AMBASSADOR（観光・PR大使）の仕組みで管理している。
     id: "saito-tochigi-future-ambassador",
+    // 【2026-11-03 R10 メンバー紹介3】「これまでの代表的な活動」に出すメンバーと、選んだ理由（知名度では選ばない）
+    highlightFor: {
+      "saito-kiara": "地元・栃木県の大使。本人が「ずっと夢だった」と投稿した（目標の達成）",
+    },
     memberId: "saito-kiara",
     relatedMemberIds: [],
     title: "とちぎ未来大使",
@@ -340,6 +371,8 @@ export const MEMBER_ACTIVITIES = [
       "https://www.pref.tochigi.lg.jp/c05/pref/kouhou/terebi/newtv.html",
       "https://x.com/Equal_LOVE_12/status/1780472508275400783",
       "https://equal-love.jp/news/detail/8279",
+      // 【2026-11-03】委嘱式の報道（県のページの本文には大使の名前が無く、名簿は上の PDF）
+      "https://www.shimotsuke.co.jp/articles/-/882798",
     ],
     lastVerifiedDate: "2026-10-28",
   },
@@ -373,6 +406,11 @@ export const MEMBER_ACTIVITIES = [
   },
   {
     id: "saito-sasaki-einstein-tv",
+    // 【2026-11-03 R10 メンバー紹介3】「これまでの代表的な活動」に出すメンバーと、選んだ理由（知名度では選ばない）
+    highlightFor: {
+      "saito-kiara": "趣味のゲームを生かし、2022年から続くテレビのレギュラー（長く続けた活動・その人らしさ）",
+      "sasaki-maika": "2022年から齋藤樹愛羅と続けるテレビのレギュラー（長く続けた活動）",
+    },
     memberId: "saito-kiara",
     relatedMemberIds: ["sasaki-maika"],
     title: "アイ＝ラブ！げーみんぐ ～〇〇さんがオンラインになりました～",
@@ -415,6 +453,10 @@ export const MEMBER_ACTIVITIES = [
   // 二重登録だったため削除し、VOICE側に1か所でまとめた（黄陽レイカ役・2020年のボイスリニューアルはVOICE側に記載）。
   {
     id: "takiwaki-sasuke",
+    // 【2026-11-03 R10 メンバー紹介3】「これまでの代表的な活動」に出すメンバーと、選んだ理由（知名度では選ばない）
+    highlightFor: {
+      "takiwaki-shoko": "2020年・2021年に SASUKE の本戦に出場（その人らしさが伝わる実績）",
+    },
     memberId: "takiwaki-shoko",
     relatedMemberIds: [],
     title: "SASUKE",
@@ -434,6 +476,10 @@ export const MEMBER_ACTIVITIES = [
   },
   {
     id: "takiwaki-marathon",
+    // 【2026-11-03 R10 メンバー紹介3】「これまでの代表的な活動」に出すメンバーと、選んだ理由（知名度では選ばない）
+    highlightFor: {
+      "takiwaki-shoko": "東京マラソン2023 でサブ4を達成（本人が努力して身につけた強み・目標の達成）",
+    },
     memberId: "takiwaki-shoko",
     relatedMemberIds: [],
     title: "フルマラソン挑戦",
@@ -502,6 +548,10 @@ export const MEMBER_ACTIVITIES = [
   },
   {
     id: "morohashi-tv",
+    // 【2026-11-03 R10 メンバー紹介3】「これまでの代表的な活動」に出すメンバーと、選んだ理由（知名度では選ばない）
+    highlightFor: {
+      "morohashi-sana": "BS日テレの冠番組で、ママ役の MC を務めた（初めての冠番組）",
+    },
     memberId: "morohashi-sana",
     relatedMemberIds: [],
     title: "＝LOVE 諸橋沙夏の『スナック沙夏』",
@@ -565,21 +615,27 @@ export const MEMBER_ACTIVITIES = [
     relatedMemberIds: [],
     title: "マヂラブ・野口衣織のマヂでラブになるTV",
     type: ACTIVITY_TYPE.TV,
-    description: "アニメ専門チャンネル「AT-X」の番組で、マヂカルラブリーと共にMCを務めている（月次配信）。2026年6月10日付で現在の番組名に改題（略称「#マヂラブTV」は変更なし）。",
+    // 【2026-11-03】開始日を＝LOVE公式8330の配信開始日（2024-03-23、配信サービス「AT-DX」）に直した。AT-DX の終了（2026-06-30）後は AT-X での放送と YouTube
+    description: "マヂカルラブリーと共にMCを務めるアニメ・バラエティ番組。2024年3月に配信サービス「AT-DX」で始まり、現在はアニメ専門チャンネル「AT-X」での放送とYouTubeで見られる（月1回程度）。2026年6月10日付で現在の番組名に改題（略称「#マヂラブTV」は変更なし）。",
     url: null,
     status: ACTIVITY_STATUS.ONGOING,
-    startDate: "2024-03-01",
+    startDate: "2024-03-23",
     endDate: null,
     sourceType: "official",
     sourceUrls: [
       "https://equal-love.jp/news/detail/8330",
       "https://equal-love.jp/news/detail/11794",
+      "https://equal-love.jp/news/detail/12266",
       "https://x.com/madilovetv",
     ],
-    lastVerifiedDate: "2026-08-03",
+    lastVerifiedDate: "2026-11-03",
   },
   {
     id: "otani-rose-muse",
+    // 【2026-11-03 R10 メンバー紹介3】「これまでの代表的な活動」に出すメンバーと、選んだ理由（知名度では選ばない）
+    highlightFor: {
+      "otani-emiri": "本人が立ち上げたアパレルブランド。2022年の始動から続け、2026年9月に初の常設店を開いた（長く続けた活動・目標の達成）",
+    },
     memberId: "otani-emiri",
     relatedMemberIds: [],
     priority: 1,
@@ -601,6 +657,10 @@ export const MEMBER_ACTIVITIES = [
   },
   {
     id: "otani-appare-saturday-radio",
+    // 【2026-11-03 R10 メンバー紹介3】「これまでの代表的な活動」に出すメンバーと、選んだ理由（知名度では選ばない）
+    highlightFor: {
+      "otani-emiri": "2020年から2026年10月まで続けたラジオのレギュラー（長く続けた活動）",
+    },
     memberId: "otani-emiri",
     relatedMemberIds: [],
     title: "アッパレやってまーす！～土曜日です～",
@@ -651,7 +711,9 @@ export const MEMBER_ACTIVITIES = [
     priority: 2,
     title: "Ririmew（リリミュウ）プロダクトプロデューサー",
     type: ACTIVITY_TYPE.OTHER,
-    description: "指原莉乃プロデュースのコスメブランド「Ririmew」に、2025年11月にイメージモデルとして参加。2026年7月からはプロダクトプロデューサーとして商品開発・監修を担当している（ブランド自体は指原莉乃が立ち上げたもので、大谷が立ち上げたブランドではない）。",
+    // 【2026-11-03 R10 メンバー紹介2】商品プロデュースは 2026-03-16 に発表され、第1弾は 2026-04-03 発売（PR TIMES）。
+    // 2026-07-03 は＝LOVE のブランドミューズ就任と、プロダクトプロデューサーとしての続投の発表（以前の「7月から」を直した）
+    description: "指原莉乃プロデュースのコスメブランド「Ririmew」に、2025年11月にイメージモデルとして参加。2026年3月に商品プロデュースの担当が発表され（第1弾は2026年4月3日発売）、2026年7月に＝LOVEがブランドミューズに就任した際も、プロダクトプロデューサーとして続投した（ブランド自体は指原莉乃が立ち上げたもので、大谷が立ち上げたブランドではない）。",
     url: "https://www.ririmew.com/",
     status: ACTIVITY_STATUS.ONGOING,
     startDate: "2025-11-05",
@@ -662,6 +724,7 @@ export const MEMBER_ACTIVITIES = [
       "https://prtimes.jp/main/html/rd/p/000000875.000025517.html",
       "https://www.ririmew.com/",
       "https://equal-love.jp/news/detail/10857",
+      "https://equal-love.jp/news/detail/11666",
     ],
     lastVerifiedDate: "2026-10-28",
   },
@@ -782,6 +845,10 @@ export const MEMBER_ACTIVITIES = [
   },
   {
     id: "yamamoto-first-pitch",
+    // 【2026-11-03 R10 メンバー紹介3】「これまでの代表的な活動」に出すメンバーと、選んだ理由（知名度では選ばない）
+    highlightFor: {
+      "yamamoto-anna": "2019年に夢として語ったマツダスタジアムでの始球式が、2025年に実現した（目標の達成）",
+    },
     memberId: "yamamoto-anna",
     relatedMemberIds: [],
     title: "始球式（広島東洋カープ）",
@@ -797,6 +864,10 @@ export const MEMBER_ACTIVITIES = [
   },
   {
     id: "takiwaki-first-pitch",
+    // 【2026-11-03 R10 メンバー紹介3】「これまでの代表的な活動」に出すメンバーと、選んだ理由（知名度では選ばない）
+    highlightFor: {
+      "takiwaki-shoko": "本人が「アイドルになったころからの夢」と話していた、横浜DeNAベイスターズでのセレモニアルピッチ（目標の達成）",
+    },
     memberId: "takiwaki-shoko",
     relatedMemberIds: [],
     title: "始球式（横浜DeNAベイスターズ）",
@@ -812,6 +883,10 @@ export const MEMBER_ACTIVITIES = [
   },
   {
     id: "takamatsu-first-pitch",
+    // 【2026-11-03 R10 メンバー紹介3】「これまでの代表的な活動」に出すメンバーと、選んだ理由（知名度では選ばない）
+    highlightFor: {
+      "takamatsu-hitomi": "ファンだと公言してきた北海道日本ハムファイターズで、初めてのファーストピッチ（目標の達成・その人らしさ）",
+    },
     memberId: "takamatsu-hitomi",
     relatedMemberIds: [],
     title: "始球式（北海道日本ハムファイターズ）",
@@ -847,6 +922,10 @@ export const MEMBER_ACTIVITIES = [
   },
   {
     id: "takamatsu-boatrace-club",
+    // 【2026-11-03 R10 メンバー紹介3】「これまでの代表的な活動」に出すメンバーと、選んだ理由（知名度では選ばない）
+    highlightFor: {
+      "takamatsu-hitomi": "部長として2022年から続ける企画（長く続けた活動・その人らしさ）",
+    },
     memberId: "takamatsu-hitomi",
     relatedMemberIds: [],
     title: "イコラブボートレース部",
@@ -930,6 +1009,10 @@ export const MEMBER_ACTIVITIES = [
     // 番組発のVTuber「青龍（セイ）」「紫狼（シロ）」については、野口衣織の構想から生まれた企画であることだけを書く
     // （どのキャラクターの声を誰が担当したかは公式に明記が無いため、「声を担当」とは書かない）。
     id: "noguchi-nijitsu",
+    // 【2026-11-03 R10 メンバー紹介3】「これまでの代表的な活動」に出すメンバーと、選んだ理由（知名度では選ばない）
+    highlightFor: {
+      "noguchi-iori": "2020年にアシスタントで始まり、のちにメインMCを務めたアニメ・漫画・ゲームの情報番組（初めての大きなレギュラー・転機）",
+    },
     memberId: "noguchi-iori",
     relatedMemberIds: [],
     title: "ジャパコンProject 二次元領域拡大通信",
@@ -1024,14 +1107,15 @@ export const MEMBER_ACTIVITIES = [
     relatedMemberIds: [],
     title: "ラヴィット！ 火曜シーズンレギュラー",
     type: ACTIVITY_TYPE.TV,
-    description: "TBSの朝の情報バラエティ『ラヴィット！』の火曜シーズンレギュラーとして、2025年10月7日放送回から出演。",
+    // 【2026-11-03】2025-12-23 の放送でシーズンレギュラーを終えた（2026年1〜3月の火曜は≠ME 櫻井もも。MANTANWEB）。その後もゲストで出ている
+    description: "TBSの朝の情報バラエティ『ラヴィット！』の火曜シーズンレギュラー（2025年10月7日〜12月23日）。その後もゲストとして出演している。",
     url: "https://equal-love.jp/news/detail/10564",
-    status: ACTIVITY_STATUS.UNKNOWN,
+    status: ACTIVITY_STATUS.ENDED,
     startDate: "2025-10-07",
-    endDate: null,
+    endDate: "2025-12-23",
     sourceType: "official",
-    sourceUrls: ["https://equal-love.jp/news/detail/10564"],
-    lastVerifiedDate: "2026-10-27",
+    sourceUrls: ["https://equal-love.jp/news/detail/10564", "https://mantan-web.jp/article/20251223dog00m200002000c.html", "https://equal-love.jp/news/detail/11608"],
+    lastVerifiedDate: "2026-11-03",
   },
   {
     // ＝LOVE公式ニュース3852（2021-03-27）で番組開始、文化放送の記事（2022-04-22）でレギュラー放送の最終回と
@@ -1072,6 +1156,10 @@ export const MEMBER_ACTIVITIES = [
     // ドラマ（TVで代用）。＝LOVE公式ニュース9754（2025-03-16）・9858（2025-04-05）で確認。
     // 初回放送日は公式ニュースに「2025年4月スタート」とだけあるため、startDate は月初日を並べ替え用の目安として仮置き。
     id: "sasaki-drama-caster",
+    // 【2026-11-03 R10 メンバー紹介3】「これまでの代表的な活動」に出すメンバーと、選んだ理由（知名度では選ばない）
+    highlightFor: {
+      "sasaki-maika": "TBS 日曜劇場への出演（俳優の仕事の転機）",
+    },
     memberId: "sasaki-maika",
     relatedMemberIds: [],
     title: "日曜劇場「キャスター」（ドラマ）",
@@ -1121,6 +1209,10 @@ export const MEMBER_ACTIVITIES = [
     // ドラマ（TVで代用）。＝LOVE公式ニュース692（2018-07-04）で確認。公式ページに役名の記載が無いため役名は書かない。
     // 齊藤なぎさは在籍当時（2018年）の共演なので relatedMemberIds に入れている（卒業メンバーは個人ページを持たないため、検索結果にだけ名前が出る）。
     id: "sasaki-drama-sachiiro",
+    // 【2026-11-03 R10 メンバー紹介3】「これまでの代表的な活動」に出すメンバーと、選んだ理由（知名度では選ばない）
+    highlightFor: {
+      "sasaki-maika": "2018年、加入した翌年の連続ドラマへの出演（初めての大きな仕事）",
+    },
     memberId: "sasaki-maika",
     relatedMemberIds: ["saito-nagisa"],
     title: "ドラマ「幸色のワンルーム」（ドラマ）",
@@ -1185,6 +1277,10 @@ export const MEMBER_ACTIVITIES = [
   {
     // ＝LOVE公式ニュース3694（2021-01-17）で確認。書籍の種別は無いため OTHER。
     id: "otani-photobook-sukinahito",
+    // 【2026-11-03 R10 メンバー紹介3】「これまでの代表的な活動」に出すメンバーと、選んだ理由（知名度では選ばない）
+    highlightFor: {
+      "otani-emiri": "メンバー初期の大きな仕事の1つ、ファースト写真集（初めての大きな仕事）",
+    },
     memberId: "otani-emiri",
     relatedMemberIds: [],
     title: "ファースト写真集『好きな人』",
@@ -1201,6 +1297,10 @@ export const MEMBER_ACTIVITIES = [
   {
     // ＝LOVE公式ニュース4455（2021-09-07）で確認。
     id: "noguchi-photobook",
+    // 【2026-11-03 R10 メンバー紹介3】「これまでの代表的な活動」に出すメンバーと、選んだ理由（知名度では選ばない）
+    highlightFor: {
+      "noguchi-iori": "ファースト写真集。発売1か月半で重版が決まった（初めての大きな仕事）",
+    },
     memberId: "noguchi-iori",
     relatedMemberIds: [],
     title: "ファースト写真集『君にしか教えない』",
@@ -1217,6 +1317,10 @@ export const MEMBER_ACTIVITIES = [
   {
     // ＝LOVE公式ニュース8379（2024-04-12）で確認。WEB連載の期間は公式に記載が無いため書かない。
     id: "noguchi-iohanihoheto",
+    // 【2026-11-03 R10 メンバー紹介3】「これまでの代表的な活動」に出すメンバーと、選んだ理由（知名度では選ばない）
+    highlightFor: {
+      "noguchi-iori": "アニメの名ゼリフを語る連載が書籍になった（その人らしさ）",
+    },
     memberId: "noguchi-iori",
     relatedMemberIds: [],
     title: "「いおはにほへと。～神アニメ×神セリフ＝♡～」",
@@ -1236,6 +1340,10 @@ export const MEMBER_ACTIVITIES = [
     // 連載の開始号そのものは不明なので、startDate は「公式で確認できた最も古い連載中の時点」として 2023-02-15 にした。
     // 改題の正確な時期は2023-11〜2024-09のあいだ（公式告知の間隔のため特定できない）なので、説明文では「告知されている」に留める。
     id: "oba-ex-taishu-creative-bu",
+    // 【2026-11-03 R10 メンバー紹介3】「これまでの代表的な活動」に出すメンバーと、選んだ理由（知名度では選ばない）
+    highlightFor: {
+      "oba-hana": "2023年から続く雑誌の連載で、クリエイティブの現場を体験する企画（長く続けた活動・その人らしさ）",
+    },
     memberId: "oba-hana",
     relatedMemberIds: [],
     title: "『EX大衆』連載「咲かせて！クリエイティ部」",
@@ -1370,6 +1478,10 @@ export const MEMBER_ACTIVITIES = [
   {
     // ＝LOVE公式ニュース5660（2022-08-01、第26号から連載開始）・11574（2026-06-17、第41号は「通常のコラム連載の代わりに」対談を掲載）で確認。
     id: "takiwaki-baysta-column",
+    // 【2026-11-03 R10 メンバー紹介3】「これまでの代表的な活動」に出すメンバーと、選んだ理由（知名度では選ばない）
+    highlightFor: {
+      "takiwaki-shoko": "2022年から続く、ベイスターズの応援紙でのコラム連載（長く続けた活動）",
+    },
     memberId: "takiwaki-shoko",
     relatedMemberIds: [],
     title: "サンケイスポーツ特別版『BAY☆スタ』コラム「BAYSTARS=LOVE」",
@@ -1405,12 +1517,16 @@ export const MEMBER_ACTIVITIES = [
     // 【2026-10-28更新】＝LOVE公式ニュース2155（2019-09-25）の時点で既に「連載中」と告知されていた。連載開始日そのものは不明なので、
     // startDate は「公式で確認できた最も古い時点」として 2019-09-25 を入れた（並べ替え用）。
     id: "morohashi-iwaki-minpo",
+    // 【2026-11-03 R10 メンバー紹介3】「これまでの代表的な活動」に出すメンバーと、選んだ理由（知名度では選ばない）
+    highlightFor: {
+      "morohashi-sana": "2019年から続く、地元の新聞のコラム連載（長く続けた活動・その人らしさ）",
+    },
     memberId: "morohashi-sana",
     relatedMemberIds: [],
     title: "いわき民報 連載コラム",
     type: ACTIVITY_TYPE.OTHER,
     description:
-      "地元・福島県いわき市の新聞「いわき民報」でのコラム連載。毎月22日（つんつんの日）に掲載され、2019年9月の時点で連載中と告知されている。2026年6月22日掲載分まで続いている（最近は2か月に1回のペース）。",
+      "地元・福島県いわき市の新聞「いわき民報」でのコラム連載。毎月22日（つんつんの日）に掲載され、2019年9月の時点で連載中と告知されている。2026年9月22日掲載分まで続いている（最近は2か月に1回のペース。2026-11-03 に公式スケジュールで確認）。",
     url: null,
     links: [
       { label: "＝LOVE公式情報", url: "https://equal-love.jp/news/detail/3008", sourceType: "official" },
@@ -1464,6 +1580,10 @@ export const MEMBER_ACTIVITIES = [
     // 【2026-10-28追加】＝LOVE公式ニュース2812（2020-04-13、新連載）・3332（2020-10-08、第3回）・3969（2021-04-27）で確認
     // （公式では2020-04〜2021-04に6回告知）。最終回は未確認なので UNKNOWN。utteco golf アンバサダー（2022）につながるゴルフ活動の出発点。
     id: "otoshima-popnroll-golf",
+    // 【2026-11-03 R10 メンバー紹介3】「これまでの代表的な活動」に出すメンバーと、選んだ理由（知名度では選ばない）
+    highlightFor: {
+      "otoshima-risa": "ゴルフを始めた様子を伝えた個人の連載（2020年〜）。のちのゴルフのアンバサダーにもつながった（その人らしさ）",
+    },
     memberId: "otoshima-risa",
     relatedMemberIds: [],
     title: "Pop'n'Roll 連載「＝LOVE 音嶋莉沙 ゴルフはじめました！」",
@@ -1482,6 +1602,56 @@ export const MEMBER_ACTIVITIES = [
       "https://popnroll.tv/articles/7642",
     ],
     lastVerifiedDate: "2026-10-28",
+  },
+  // ---- 【2026-11-03追加・R10 メンバー紹介2】2026年11月の時点の新しい活動（＝LOVE公式ニュースで確認） ----
+  {
+    id: "takamatsu-mezamashi-2026-11",
+    memberId: "takamatsu-hitomi",
+    relatedMemberIds: [],
+    title: "めざましテレビ 11月のマンスリーエンタメプレゼンター",
+    type: ACTIVITY_TYPE.TV,
+    description: "フジテレビ系『めざましテレビ』の2026年11月のマンスリーエンタメプレゼンター。11月4日・10日・19日・24日（予定）の4日間、5:25〜9:00に生出演する（1か月だけの期間限定）。",
+    url: "https://equal-love.jp/news/detail/12380",
+    status: ACTIVITY_STATUS.LIMITED,
+    startDate: "2026-11-04",
+    endDate: "2026-11-24",
+    sourceType: "official",
+    sourceUrls: ["https://equal-love.jp/news/detail/12380"],
+    lastVerifiedDate: "2026-11-03",
+  },
+  {
+    id: "morohashi-2nd-solo-concert-2026",
+    memberId: "morohashi-sana",
+    relatedMemberIds: [],
+    title: "2nd Solo concert ～ Serenade For You ～",
+    type: ACTIVITY_TYPE.OTHER,
+    description: "2回目のソロコンサート。2026年11月14日（土）、さいたま市文化センター 大ホールで開催。",
+    url: "https://equal-love.jp/news/detail/12171",
+    status: ACTIVITY_STATUS.SINGLE,
+    startDate: "2026-11-14",
+    endDate: "2026-11-14",
+    sourceType: "official",
+    sourceUrls: ["https://equal-love.jp/news/detail/12171"],
+    lastVerifiedDate: "2026-11-03",
+  },
+  {
+    id: "morohashi-1st-solo-concert-2023",
+    // 【2026-11-03 R10 メンバー紹介3】「これまでの代表的な活動」に出すメンバーと、選んだ理由（知名度では選ばない）
+    highlightFor: {
+      "morohashi-sana": "本人が「長年の夢」と話した初めてのソロコンサート（目標の達成）",
+    },
+    memberId: "morohashi-sana",
+    relatedMemberIds: [],
+    title: "初のソロコンサート（イコノイジョイ大感謝祭 3日目）",
+    type: ACTIVITY_TYPE.OTHER,
+    description: "2023年9月14日、品川ステラボールで開いた初めてのソロコンサート。本人は「長年の夢」だったと話し、新曲「宝物はグリーン」を初めて披露した。",
+    url: "https://www.thefirsttimes.jp/report/0000326233/",
+    status: ACTIVITY_STATUS.SINGLE,
+    startDate: "2023-09-14",
+    endDate: "2023-09-14",
+    sourceType: "reliable",
+    sourceUrls: ["https://www.thefirsttimes.jp/report/0000326233/"],
+    lastVerifiedDate: "2026-11-03",
   },
 ];
 // 【2026-10-23】佐々木舞香「サムライマック」CMは js/data/commercials.js（CM・広告出演）へ移した。

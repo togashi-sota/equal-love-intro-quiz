@@ -476,6 +476,21 @@ export const COMMERCIALS = [
     lastVerifiedDate: "2026-10-28",
   },
   {
+    // 【2026-11-03追加・R10 メンバー紹介2】＝LOVE公式12369（2026-10-28）で確認。公開日は公式に書かれていない（「順次公開予定」）ため、
+    // date は公式の発表日にした。ももチキンのテレビCM・『ザクザクジューシーマック』WebCM とは別の作品。
+    id: "cm-sasaki-mcdonalds-momochiki-jinsei-2026",
+    memberIds: [ID.sasaki],
+    brand: "日本マクドナルド",
+    title: "『ザクザクジューシーももチキン』WebCM「ももチキ人生」",
+    kind: COMMERCIAL_KIND.WEB,
+    date: "2026-10-28",
+    coStars: "櫻井もも（≠ME）",
+    description: "『ザクザクジューシーももチキン』のWebCM。≠MEの櫻井ももと共演（2026年10月28日に発表。動画・画像は順次公開と案内されている）。",
+    links: [{ label: EL, url: "https://equal-love.jp/news/detail/12369" }],
+    sourceUrls: ["https://equal-love.jp/news/detail/12369"],
+    lastVerifiedDate: "2026-11-03",
+  },
+  {
     id: "cm-takamatsu-mcdonalds-390-pair-2026",
     memberIds: [ID.takamatsu],
     brand: "日本マクドナルド",
