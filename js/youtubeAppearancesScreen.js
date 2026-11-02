@@ -476,6 +476,8 @@ export const YOUTUBE_DATA_NOTICE_LINES = Object.freeze([
   "このアプリは YouTube のアカウントを使わず、皆さんの YouTube に関する情報を集めたり保存したりしません。",
   "出演の判定（誰が出ているか）は、このアプリが独自にまとめたものです。YouTube・Google・＝LOVE の公式の情報ではありません。",
   "このアプリは、YouTube・Google・＝LOVE の運営とは関係のない、非公式のファンの制作物です。",
+  // 【2026-11-03】YouTube API Services の規約 III.A.1：利用者が YouTube の利用規約に同意することを、アプリの側で示す
+  "このページ（YouTube 出演図鑑）を使うことで、YouTube の利用規約に同意したものとみなされます。",
 ]);
 
 function buildExternalLink(className, text, href) {

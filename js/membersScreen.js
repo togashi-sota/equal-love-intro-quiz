@@ -731,9 +731,11 @@ export function buildMemberActivitySections(memberActivities, memberId, today = 
   const fragment = document.createDocumentFragment();
   const sorted = sortActivitiesByDateDesc(memberActivities);
   const current = sorted.filter((activity) => isCurrentActivity(activity, today)).slice(0, CURRENT_ACTIVITY_LIMIT);
-  // 代表的な活動（データの highlightFor にこのメンバーの理由があるもの）は古い順（その人の歩みの順に読めるように）
+  // 代表的な活動（データの highlightFor にこのメンバーの理由があるもの）は古い順（その人の歩みの順に読めるように）。
+  // 【2026-11-03 本人の決定】「今の主な活動」に出ているものは、代表的な活動には重ねて出さない（データは消さず、表示だけ分ける）
+  const currentIds = new Set(current.map((activity) => activity.id));
   const highlights = memberActivities
-    .filter((activity) => Boolean(activity.highlightFor?.[memberId]))
+    .filter((activity) => Boolean(activity.highlightFor?.[memberId]) && !currentIds.has(activity.id))
     .sort((a, b) => (a.startDate ?? "9999").localeCompare(b.startDate ?? "9999"));
 
   // 見出しの目印 "activities" は「このメンバーをもっと見る」の［個人活動 ↓］の行き先（最初の欄に付ける）

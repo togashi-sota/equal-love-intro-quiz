@@ -357,6 +357,7 @@ async function runScreenTests() {
     const notice = container.querySelector(".yta-data-notice");
     assertEqual(notice?.querySelector("summary")?.textContent, "YouTube のデータについて", "規約：「YouTube のデータについて」");
     assertEqual([...notice.querySelectorAll("a")].map((link) => link.getAttribute("href")), ["https://www.youtube.com/t/terms", "https://policies.google.com/privacy"], "規約：YouTube 利用規約・Google プライバシーポリシーへのリンク");
+    assertEqual(YOUTUBE_DATA_NOTICE_LINES.some((line) => line.includes("YouTube の利用規約に同意")), true, "規約：YouTube の利用規約への同意を示す（III.A.1）");
     assertEqual(YOUTUBE_DATA_NOTICE_LINES.some((line) => line.includes("非公式")) && YOUTUBE_DATA_NOTICE_LINES.some((line) => line.includes("API を呼ぶことはありません")) && YOUTUBE_DATA_NOTICE_LINES.some((line) => line.includes("IP アドレス")), true, "規約：非公式であること・端末から API を呼ばないこと・サムネイルで IP が届くことを書く");
   } finally {
     container.remove();

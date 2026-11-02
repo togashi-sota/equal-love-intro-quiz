@@ -248,6 +248,7 @@ function runActivitySectionTests() {
   );
   // 3つの欄（10人とも）
   const ids = activeMembers.map((member) => member.id);
+  const highlightCounts = {};
   ids.forEach((memberId) => {
     const activities = MEMBER_ACTIVITIES.filter((activity) => activity.memberId === memberId || activity.relatedMemberIds?.includes(memberId));
     const host = document.createElement("div");
@@ -258,10 +259,15 @@ function runActivitySectionTests() {
     assertEqual(history.length, activities.length, `${memberId}：詳しい活動履歴は全部（${activities.length}件）。代表に選ばなかったものも隠さない`);
     assertEqual(current.length <= CURRENT_ACTIVITY_LIMIT && current.every((card) => isCurrentActivity(byId(card.dataset.activityId), today)), true, `${memberId}：今の主な活動は今のものだけ・${CURRENT_ACTIVITY_LIMIT}件まで`);
     assertEqual(current.some((card) => ["終了", "過去の活動"].includes(card.querySelector(".activity-card-status")?.textContent)), false, `${memberId}：今の主な活動に終了済みを出さない`);
-    assertEqual(highlight.length >= 2 && highlight.length <= 4, true, `${memberId}：これまでの代表的な活動は2〜4件（${highlight.length}件）`);
+    assertEqual(highlight.length <= 4, true, `${memberId}：これまでの代表的な活動は4件まで（${highlight.length}件）`);
+    // 【2026-11-03 本人の決定】今の主な活動に出ているものは、代表的な活動に重ねて出さない
+    const currentIds = new Set(current.map((card) => card.dataset.activityId));
+    assertEqual(highlight.some((card) => currentIds.has(card.dataset.activityId)), false, `${memberId}：今の主な活動と代表的な活動に同じ活動を重ねて出さない`);
+    highlightCounts[memberId] = highlight.length;
     assertEqual(highlight.every((card) => byId(card.dataset.activityId)?.highlightFor?.[memberId]), true, `${memberId}：代表的な活動は、このメンバーの理由があるものだけ（共同の活動も、選んだメンバーだけ）`);
     assertEqual(host.querySelectorAll('[data-member-section="activities"]').length, 1, `${memberId}：［個人活動 ↓］の行き先は1つ`);
   });
+  console.log("代表的な活動の件数（今の主な活動と重ねない）", JSON.stringify(highlightCounts));
   // 同じ活動を2つの欄に出すときも、データは1件（二重に持たない）
   const activityIds = MEMBER_ACTIVITIES.map((activity) => activity.id);
   assertEqual(activityIds.length, new Set(activityIds).size, "個人活動のデータに重複が無い（欄が違っても同じ1件を使う）");
