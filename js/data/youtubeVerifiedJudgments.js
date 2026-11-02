@@ -13,6 +13,7 @@
 // - memberIds：企画に直接出演した＝LOVE のメンバー（members.js の id）
 // - footageMemberIds：ライブ映像・過去の映像・回想などで、映像に登場したメンバー（企画の出演者とは分けて表示する）
 // - verifiedBy："owner"（本人）／verifiedOn：確かめた日／note：何を確かめたか（自分の言葉で短く。説明欄を写さない）
+// - partial：true にすると「一部確認」（書いた人は出ていると確かめたが、ほかにも出ているかは分からない）。省略＝全員を確かめた（R11）
 // 足し方：1本につき1行足して、手元で `node scripts/youtube/refresh.mjs --from-raw …` を流して確かめる（scripts/youtube/SETUP.md）
 
 const MEMBERS_AT_3RD_ANNIVERSARY = Object.freeze([

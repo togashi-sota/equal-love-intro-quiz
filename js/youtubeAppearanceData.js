@@ -26,6 +26,7 @@ export const YOUTUBE_DATA_STATE = Object.freeze({
 const VIDEO_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const KINDS = new Set(["video", "short", "live"]);
+const CONFIDENCES = new Set(["confirmed", "partial", "estimated", "unconfirmed"]);
 const STATUSES = new Set(["manual", "cast-list", "title-name", "description-name", "group-only", "unconfirmed"]);
 
 // 期限：expiresAt と、fetchedAt＋30日の早いほう（expiresAt が書き換えられていても30日を超えない）
@@ -71,6 +72,9 @@ export function validateYoutubePublishedData(data, { now = new Date(), memberIds
     if (!Array.isArray(video.memberIds) || !Array.isArray(video.footageMemberIds ?? [])) errors.push(`${where} のメンバーが配列ではない`);
     else if (memberIds && ids.some((memberId) => !memberIds.has(memberId))) errors.push(`${where} に知らないメンバー`);
     if ("description" in video) errors.push(`${where} に説明の全文がある（要約だけにする）`);
+    // 【R11】確かさ（無い古いデータも読める）
+    if (video.confidence !== undefined && !CONFIDENCES.has(video.confidence)) errors.push(`${where}.confidence`);
+    if (video.writerMemberIds !== undefined && !Array.isArray(video.writerMemberIds)) errors.push(`${where}.writerMemberIds が配列ではない`);
   });
   return { ok: errors.length === 0, errors: errors.slice(0, 20) };
 }

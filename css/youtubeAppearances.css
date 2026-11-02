@@ -615,3 +615,29 @@
   color: #1864ab;
   font-weight: 700;
 }
+
+/* 【2026-11-03 R11】出演者の確かさの印（確認済みは印なし）。推定・一部確認の名前の行は控えめに */
+.yta-badge.is-estimated {
+  background: #fff4d6;
+  color: #7a5a00;
+}
+
+.yta-badge.is-partial {
+  background: #e7f0ff;
+  color: #1d4f91;
+}
+
+.yta-badge.is-unconfirmed {
+  background: #eceff3;
+  color: #4a5563;
+}
+
+.yta-uncertain-note {
+  margin: -2px 0 0;
+  font-size: 0.68rem;
+  color: #7a6170;
+}
+
+.yta-why-technical {
+  color: #8a7381;
+}

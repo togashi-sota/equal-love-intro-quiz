@@ -9,6 +9,7 @@
 // 【2026-11-03】30日ルール：データの取得から30日を過ぎたら、動画の情報を出さずに「更新が止まっています」と案内する。
 //   出演の形：企画に出演（memberIds）と、ライブ映像などで映像に登場（footageMemberIds）を分けて表示する。
 import { YOUTUBE_CHANNEL, YOUTUBE_TERMS_URL, GOOGLE_PRIVACY_POLICY_URL } from "./data/youtubeAppearances.js";
+import { APPEARANCE_CONFIDENCE_LABELS, confidenceOf } from "./youtubeAppearanceAudit.js";
 import { YOUTUBE_DATA_STATE, getYoutubeAppearanceSnapshot, loadYoutubeAppearanceData, onYoutubeAppearanceDataChange } from "./youtubeAppearanceData.js";
 import { MEMBERS, MEMBER_STATUS } from "./data/members.js";
 import {
@@ -20,7 +21,6 @@ import {
   availableYoutubeYears,
   countYoutubeByMember,
   describeYoutubeEvidence,
-  describeYoutubeStatusMark,
   filterYoutubeVideos,
   formatYoutubeDate,
   isDefaultYoutubeFilter,
@@ -123,13 +123,16 @@ function buildCard(video) {
   body.appendChild(meta);
   body.appendChild(el("p", "yta-title", video.title));
 
+  // 【R11】出演者の確かさは4つだけ（確認済み・一部確認・推定・未確認）。確認済みは印を出さず、ほかは印と短い一言を出す
+  const confidence = confidenceOf(video);
   const people = el("div", "yta-people");
+  if (confidence !== "confirmed") people.classList.add("is-uncertain");
   if (video.memberIds?.length) video.memberIds.forEach((memberId) => people.appendChild(buildMemberTag(memberId)));
-  else if (video.status === APPEARANCE_STATUS.GROUP_ONLY) people.appendChild(el("span", "yta-badge is-group", "＝LOVE（メンバー未確認）"));
-  const mark = describeYoutubeStatusMark(video);
-  if (mark && video.status !== APPEARANCE_STATUS.GROUP_ONLY) people.appendChild(el("span", `yta-badge${video.status === APPEARANCE_STATUS.UNCONFIRMED ? " is-unconfirmed" : " is-estimate"}`, mark));
+  else if (confidence !== "unconfirmed") people.appendChild(el("span", "yta-badge is-group", "＝LOVE（出演者は未確認）"));
+  if (confidence !== "confirmed") people.appendChild(el("span", `yta-badge is-${confidence}`, APPEARANCE_CONFIDENCE_LABELS[confidence]));
   if (video.verified) people.appendChild(el("span", "yta-badge is-verified", "本人が確認"));
   body.appendChild(people);
+  if (video.memberIds?.length && (confidence === "estimated" || confidence === "partial")) body.appendChild(el("p", "yta-uncertain-note", "ほかの出演者は分かっていません"));
   // 映像で登場した人（ライブ映像・過去の映像・回想など）。企画の出演者と見分けがつくように、別の行に控えめに出す
   if (video.footageMemberIds?.length) {
     const footage = el("div", "yta-people yta-people--footage");
@@ -150,13 +153,16 @@ function buildCard(video) {
   watch.appendChild(externalIcon());
   actions.appendChild(watch);
   const why = el("details", "yta-why");
-  why.appendChild(el("summary", "yta-why-summary", "出演の根拠・内容"));
+  why.appendChild(el("summary", "yta-why-summary", "くわしく（出演の根拠）"));
   const list = el("ul", "yta-why-list");
-  list.appendChild(el("li", null, `確認の状態：${APPEARANCE_STATUS_LABELS[video.status] ?? "不明"}`));
+  // 一般の人に分かる言葉で、まず「どのくらい確か か」と「なぜそう言えるか」を書く（技術的な言葉は最後の「根拠」の行だけ）
+  list.appendChild(el("li", null, `出演者：${APPEARANCE_CONFIDENCE_LABELS[confidence]}（${describeConfidenceReason(video)}）`));
+  if (confidence !== "confirmed" && video.memberIds?.length) list.appendChild(el("li", null, `名前が分かっている人：${video.memberIds.map((memberId) => memberById.get(memberId)?.name ?? memberId).join("・")}（出演者の全部とは限りません）`));
+  if (video.writerMemberIds?.length) list.appendChild(el("li", null, `説明欄の文を書いた人：${video.writerMemberIds.map((memberId) => memberById.get(memberId)?.name ?? memberId).join("・")}（書いた人で、出演者の全部ではありません）`));
   if (video.footageMemberIds?.length) list.appendChild(el("li", null, "「映像で登場」の人は、ライブ映像・過去の映像などに映る人です（企画そのものの出演者ではありません）"));
   if (video.hold) list.appendChild(el("li", null, "説明欄の出演者の表記が前と変わったため、前の判定のまま確認を待っています"));
   const evidence = describeYoutubeEvidence(video);
-  list.appendChild(el("li", null, `根拠：${evidence.length ? evidence.join("／") : "見つかっていません"}`));
+  list.appendChild(el("li", "yta-why-technical", `根拠の種類：${evidence.length ? evidence.join("／") : "見つかっていません"}`));
   if (video.summary) list.appendChild(el("li", null, `説明の冒頭：${video.summary}`));
   if (video.series?.length) list.appendChild(el("li", null, `公式の再生リスト：${video.series.join("・")}`));
   if (video.kindEstimated) list.appendChild(el("li", null, "種類（通常／Shorts／ライブ配信）は動画の長さなどからの推定です"));
@@ -164,6 +170,24 @@ function buildCard(video) {
   actions.appendChild(why);
   item.appendChild(actions);
   return item;
+}
+
+// 確かさの理由（一般の人向けの言葉）
+function describeConfidenceReason(video) {
+  switch (video.status) {
+    case APPEARANCE_STATUS.MANUAL:
+      return video.partial ? "本人が動画で一部の人を確かめました" : "本人が動画を見て確かめました";
+    case APPEARANCE_STATUS.CAST_LIST:
+      return "説明欄の「出演メンバー」の欄に名前があります";
+    case APPEARANCE_STATUS.TITLE_NAME:
+      return "タイトルに名前があります";
+    case APPEARANCE_STATUS.DESCRIPTION_NAME:
+      return "説明の文に名前があります";
+    case APPEARANCE_STATUS.GROUP_ONLY:
+      return "＝LOVE の動画ですが、出演者の名前は分かっていません";
+    default:
+      return "出演者を確かめられていません";
+  }
 }
 
 function currentFilter() {
@@ -369,7 +393,7 @@ function buildControls() {
   );
   modeRow.appendChild(controls.mode);
   box.appendChild(modeRow);
-  memberHint = el("p", "yta-hint", "メンバーで絞ると、出演者の名前が分からない動画（＝LOVE のメンバー未確認）は出ません。");
+  memberHint = el("p", "yta-hint", "メンバーで絞ると、出演者の名前が分からない動画は出ません。札の数には「推定」も含みます。");
   box.appendChild(memberHint);
 
   box.appendChild(el("p", "yta-label", "種類"));
@@ -452,6 +476,10 @@ function buildPage() {
         `${formatIsoDay(data.fetchedAt)}に公式チャンネルの公開動画${counts.checked}本を調べ、＝LOVE のメンバーが出ている${counts.included}本を載せています（ほかに出演者未確認${counts.unconfirmed}本）。動画の情報は自動で取り直しています。`
       )
     );
+    if (counts.byConfidence) {
+      const by = counts.byConfidence;
+      notes.appendChild(el("p", "yta-note", `出演者の確かさ：確認済み ${by.confirmed}本・一部確認 ${by.partial}本・推定 ${by.estimated}本・未確認 ${by.unconfirmed}本。「推定」は、名前が出ていても出演者の全部とは限りません。`));
+    }
     if (counts.ended > 0) notes.appendChild(el("p", "yta-note", `公開が終わった動画（削除・非公開など）${counts.ended}本は表示していません。`));
   }
   notes.appendChild(

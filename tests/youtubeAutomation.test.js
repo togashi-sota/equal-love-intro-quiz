@@ -60,7 +60,7 @@ function runBuildTests() {
   assertEqual(data.videos.find((video) => video.id === "fixVideo003").status, APPEARANCE_STATUS.UNCONFIRMED, "正常：分からないものは未確認");
   assertEqual(data.videos.every((video) => !("description" in video)), true, "正常：説明の全文は入れない（要約だけ）");
   assertEqual(data.expiresAt, new Date(Date.parse(data.fetchedAt) + 30 * DAY).toISOString(), "正常：期限は取得から30日");
-  assertEqual(data.counts, { channelVideos: 4, checked: 4, included: 2, unconfirmed: 1, excluded: 1, ended: 0 }, "正常：数");
+  assertEqual(data.counts, { channelVideos: 4, checked: 4, included: 2, unconfirmed: 1, excluded: 1, ended: 0, byConfidence: { confirmed: 2, partial: 0, estimated: 0, unconfirmed: 1 }, audit: { 1: 2, 2: 0, 3: 0, 4: 0, 5: 0, 6: 1, 7: 0, estimatedTotal: 0 } }, "正常：数（確かさごと・点検の7つの分類も）");
   assertEqual(report.excluded.map((item) => item.id), ["fixVideo002"], "正常：除外の一覧（理由つき）");
   assertEqual(checkYoutubePublication(data, { now: NOW }).ok, true, "正常：検査に通る");
 

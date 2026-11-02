@@ -48,6 +48,7 @@ export const EVIDENCE_TYPE = Object.freeze({
   DESCRIPTION_NAME: "description-name",
   TITLE_GROUP_TAG: "title-group-tag",
   PLAYLIST_GROUP: "playlist-group",
+  DESCRIPTION_WRITER: "description-writer", // 【2026-11-03 R11】説明欄の文を書いた人（出演者とは限らない）
 });
 
 export const EVIDENCE_TYPE_LABELS = Object.freeze({
@@ -57,7 +58,51 @@ export const EVIDENCE_TYPE_LABELS = Object.freeze({
   [EVIDENCE_TYPE.DESCRIPTION_NAME]: "説明の本文のメンバーの名前",
   [EVIDENCE_TYPE.TITLE_GROUP_TAG]: "タイトルのグループ名",
   [EVIDENCE_TYPE.PLAYLIST_GROUP]: "公式の再生リストの名前",
+  [EVIDENCE_TYPE.DESCRIPTION_WRITER]: "説明欄の文を書いたメンバー（出演者の全部ではない）",
 });
+
+// 説明の本文の、＝LOVE のメンバーの名前の役わけ（2026-11-03 R11）
+// - writers：説明欄の文を書いた人。名前だけの行（署名。「＝LOVE 山本杏奈」「山本杏奈より」も）・「(概要欄：○○)」「文：○○」
+// - selfIntroduced：「＝LOVE の○○です」と名乗って話している人（その回に出ている見込みが高い）
+// - performers：selfIntroduced と、文の中で名前が出た人（「○○と△△が挑戦」など）。出演者の全部とは限らない
+const TIMESTAMP_LINE_PATTERN = /^[^\p{L}\p{N}]*\d{1,2}:\d{2}(?::\d{2})?/u;
+export function analyzeDescriptionNames(description, nameIndex = buildEqualLoveNameIndex()) {
+  const writers = new Set();
+  const selfIntroduced = new Set();
+  const mentioned = new Set();
+  extractDescriptionBody(description)
+    .split(/\r?\n/)
+    .forEach((rawLine) => {
+      const line = rawLine.trim();
+      // かっこの中（「(概要欄：○○)」）の名前も読む（名前の比べ方はかっこの中を消すので、先にかっこだけ外す）
+      const ids = findEqualLoveNamesInText(line.replace(/[()（）]/g, " "), nameIndex);
+      if (!ids.length) return;
+      const bare = normalizePersonName(line)
+        .replace(/[＝=]LOVE|イコラブ/gi, "")
+        .replace(/^[(（［\[【]?(概要欄|文|説明文?|コメント|text|by)[：:]?/i, "")
+        .replace(/(より|から|です|でした)?[)）\]］】!！。、,.♪☆★♡♥💓💗🌸✨〜~ー-]*$/u, "")
+        .replace(/[^\p{L}\p{N}]/gu, "");
+      const nameKeys = ids.map((memberId) => nameIndex.find((entry) => entry.memberId === memberId)?.key ?? "");
+      const isSignature = nameKeys.join("") === bare || nameKeys.some((key) => key === bare);
+      const isCredit = /^[(（［\[]?\s*(概要欄|文|説明文?|コメント)\s*[：:]/.test(line);
+      if (isSignature || isCredit) {
+        ids.forEach((memberId) => writers.add(memberId));
+        return;
+      }
+      if (/^[＝=]?\s*(LOVE|イコラブ)?\s*の?\s*\S+\s*です/i.test(line) && /です/.test(line.slice(0, 40))) {
+        ids.forEach((memberId) => selfIntroduced.add(memberId));
+        return;
+      }
+      ids.forEach((memberId) => mentioned.add(memberId));
+    });
+  // 【R11】目次の時刻の行（「0:10:00：名前」）は、その時刻にその人の場面がある＝出ている見込みが高い（説明欄のどこにあっても読む）
+  String(description ?? "")
+    .split(/\r?\n/)
+    .filter((line) => TIMESTAMP_LINE_PATTERN.test(line.trim()))
+    .forEach((line) => findEqualLoveNamesInText(line, nameIndex).forEach((memberId) => mentioned.add(memberId)));
+  const performers = [...new Set([...selfIntroduced, ...mentioned])];
+  return { writers: [...writers].filter((memberId) => !performers.includes(memberId)), selfIntroduced: [...selfIntroduced], performers };
+}
 
 // 除外の理由（tools の除外の一覧に書く）
 export const EXCLUDE_REASON = Object.freeze({
@@ -144,9 +189,10 @@ export function extractCastNames(description) {
       }
       blankRun = 0;
       // 「♥=LOVE」「◆≠ME」「💓=LOVE」のようなグループの小見出しは並びの中に残す。「♥=LOVE（イコールラブ）公式サイト」のような「公式」の行で終わる
-      if (/^[▼■●★☆【#＃]/.test(line) || /公式|チャンネル登録|お問い合わせ/.test(line) || CAST_HEADING_PATTERN.test(line)) break;
+      // 【R11】「●MC」のような小見出しは並びの中に残す（2020年の生放送で、MC の下の＝LOVE の人を読み落としていた）
+      if (/^[▼■★☆【#＃]/.test(line) || /公式|チャンネル登録|お問い合わせ/.test(line) || CAST_HEADING_PATTERN.test(line)) break;
       if (/^https?:\/\//.test(line) || /^[※＊*]/.test(line)) continue;
-      block.push(...splitInlineNames(line.replace(/^[・･\-－]\s*/, "")));
+      block.push(...splitInlineNames(line.replace(/^[・･●○\-－]\s*/, "")));
     }
     names.push(...block);
     index = next - 1;
@@ -333,23 +379,28 @@ export function classifyYoutubeVideo(video, { manual = null, members = MEMBERS, 
   }
 
   // 4. 説明の本文の名前（決まった文・出演者の表記は除いた本文だけ）
-  const bodyIds = findEqualLoveNamesInText(extractDescriptionBody(video.description), nameIndex);
-  if (bodyIds.length) {
+  // 【2026-11-03 R11 直し】説明欄の文を書いた人（最後の署名の行「山本杏奈」・「(概要欄：○○)」）は、出演者として数えない。
+  //   以前はこの署名を「出演者の全部」として扱い、全員が出るチャンネル始動の回（2020-05-01）を山本杏奈1人と表示していた。
+  //   書いた人は writerMemberIds に分けて記録し、画面では「説明欄の文：○○」として出す（出演者の数・絞り込みには入れない）
+  const bodyNames = analyzeDescriptionNames(video.description, nameIndex);
+  if (bodyNames.performers.length) {
     return {
       included: true,
       status: APPEARANCE_STATUS.DESCRIPTION_NAME,
-      memberIds: bodyIds,
-      evidence: [...evidence, { type: EVIDENCE_TYPE.DESCRIPTION_NAME, detail: "" }, ...playlistEvidence],
+      memberIds: bodyNames.performers,
+      writerMemberIds: bodyNames.writers.filter((memberId) => !bodyNames.performers.includes(memberId)),
+      evidence: [...evidence, { type: EVIDENCE_TYPE.DESCRIPTION_NAME, detail: bodyNames.selfIntroduced.length ? "自己紹介の文" : "" }, ...playlistEvidence],
     };
   }
 
-  // 5. グループ名（タイトル・公式の再生リスト）
+  // 5. グループ名（タイトル・公式の再生リスト）、または説明欄の文を書いた人が＝LOVE のメンバー
   const titleGroups = detectGroupsInText(video.title);
-  if (titleGroups.equalLove || equalLovePlaylists.length) {
+  if (titleGroups.equalLove || equalLovePlaylists.length || bodyNames.writers.length) {
     const groupEvidence = [];
     if (titleGroups.equalLove) groupEvidence.push({ type: EVIDENCE_TYPE.TITLE_GROUP_TAG, detail: "イコラブ／＝LOVE" });
     groupEvidence.push(...playlistEvidence);
-    return { included: true, status: APPEARANCE_STATUS.GROUP_ONLY, memberIds: [], evidence: [...evidence, ...groupEvidence] };
+    if (bodyNames.writers.length) groupEvidence.push({ type: EVIDENCE_TYPE.DESCRIPTION_WRITER, detail: "" });
+    return { included: true, status: APPEARANCE_STATUS.GROUP_ONLY, memberIds: [], writerMemberIds: bodyNames.writers, evidence: [...evidence, ...groupEvidence] };
   }
 
   // 6. ≠ME・≒JOY だけ（タイトルにその人たちの名前だけ／グループ名だけ）

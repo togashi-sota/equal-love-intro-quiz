@@ -6,6 +6,7 @@
 import { MEMBERS } from "./data/members.js";
 import { normalizeSearchText } from "./searchNormalize.js";
 import { APPEARANCE_STATUS, APPEARANCE_STATUS_LABELS, EVIDENCE_TYPE_LABELS } from "./youtubeAppearanceClassifier.js";
+import { APPEARANCE_CONFIDENCE_LABELS, confidenceOf } from "./youtubeAppearanceAudit.js";
 
 export { APPEARANCE_STATUS, APPEARANCE_STATUS_LABELS, EVIDENCE_TYPE_LABELS };
 
@@ -151,19 +152,10 @@ export function countYoutubeByStatus(videos) {
   return counts;
 }
 
-// 確認の状態の短い言葉（カードの印）。確定は印を出さない（推定・未確認だけ目立たせる）
+// 確認の状態の短い言葉（カードの印）。【R11】確かさの4つ（確認済み・一部確認・推定・未確認）で決める。確認済みは印を出さない
 export function describeYoutubeStatusMark(video) {
-  switch (video.status) {
-    case APPEARANCE_STATUS.TITLE_NAME:
-    case APPEARANCE_STATUS.DESCRIPTION_NAME:
-      return "出演者は推定";
-    case APPEARANCE_STATUS.GROUP_ONLY:
-      return "メンバー未確認";
-    case APPEARANCE_STATUS.UNCONFIRMED:
-      return "出演者未確認";
-    default:
-      return "";
-  }
+  const confidence = confidenceOf(video);
+  return confidence === "confirmed" ? "" : APPEARANCE_CONFIDENCE_LABELS[confidence];
 }
 
 // 根拠の行（詳しく見るの中）
