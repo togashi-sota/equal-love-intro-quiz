@@ -73,6 +73,10 @@ export const SP_CHAIN_SPOTS = [
   [-0.05, 3],
   [0.06, -3],
 ];
+// 【r12-calls】本人の時刻で 2 件が重なるとき、両方を出す（後から始まった件が主・先の件は補助）。この長さより短い重なりは出さない
+export const SP_OVERLAP_MIN_SEC = 0.2;
+// 補助の表示が、その件の終わりのあと消えるまでの秒
+export const SP_SUB_TAIL_SEC = 0.25;
 // 【r9-fx】画面全体の光（白い光）：どの 1 秒の中でも 3 回まで。光と光の間は 0.25 秒以上
 export const SP_FLASH_MAX_PER_SEC = 3;
 export const SP_FLASH_MIN_GAP_SEC = 0.25;
@@ -302,6 +306,7 @@ const IDLE = Object.freeze({
   heat: 0,
   beams: 0.22,
   dark: 0,
+  sub: null,
 });
 
 // 時刻 t の演出の状態（純粋関数）。plan は planSpectacle の結果（start の昇順）。
@@ -320,8 +325,18 @@ export function spectacleStateAt(plan, t, { reduced = false } = {}) {
     else break;
   }
   if (index < 0) return IDLE;
+  // 【r12-calls】本人の時刻で 2 件が重なるとき：後から始まった件が終わっても、先の件がまだ続くなら、先の件を主に戻す
+  if (time >= list[index].end) {
+    for (let j = index - 1; j >= 0; j--) {
+      if (list[j].start <= time && list[j].end - time >= SP_OVERLAP_MIN_SEC) {
+        index = j;
+        break;
+      }
+    }
+  }
   const item = list[index];
-  const next = list[index + 1] ?? null;
+  // 次のコール：まだ始まっていない最初の件（重なりで主を戻したときも、すでに始まった件を「次」にしない）
+  const next = list.slice(index + 1).find((x) => x.start > time) ?? null;
   const prev = list[index - 1] ?? null;
   const bridgedOut = Boolean(next && next.start - item.end <= SP_BRIDGE_SEC);
   const bridgedIn = Boolean(prev && item.start - prev.end <= SP_BRIDGE_SEC);
@@ -427,11 +442,34 @@ export function spectacleStateAt(plan, t, { reduced = false } = {}) {
   const heat = duration >= 2 ? clamp01(age / duration) : 0;
   let beams = base + (reduced ? 0 : 0.45 * Math.exp(-age / 0.45));
   if (kind === SP_KINDS.LONG) beams = Math.max(beams, base + 0.35 * heat);
+  // 【r12-calls】重なり：本人の時刻で、先に始まった件がまだ続いている間は、その件の全文を「補助の表示」（小さめ・上）に出す。
+  //   どちらの件も全文のまま・それぞれの開始〜終了のまま（分けない・等分しない）。0.2 秒未満のわずかな重なりは出さない（一瞬の点滅にしない）
+  let sub = null;
+  for (let j = index - 1; j >= 0; j--) {
+    const other = list[j];
+    if (!(other.start <= time && other.end + SP_SUB_TAIL_SEC > time)) continue;
+    if (Math.min(other.end, item.end) - Math.max(other.start, item.start) < SP_OVERLAP_MIN_SEC) continue;
+    // 先の件は、主から補助へ切れ目なく移る（出たままにする。終わりのあと 0.25 秒で消える）
+    const so = time < other.end ? 1 : 1 - clamp01((time - other.end) / SP_SUB_TAIL_SEC);
+    sub = { key: other.key, index: j, o: r3(so) };
+    break;
+  }
+  // 後から始まった件が先に終わったときは、その件を補助に（先の件が主に戻る）
+  if (!sub && index + 1 < list.length) {
+    for (let j = index + 1; j < list.length; j++) {
+      const other = list[j];
+      if (other.start > time) break;
+      if (other.end + SP_SUB_TAIL_SEC > time && other.end <= time && Math.min(other.end, item.end) - other.start >= SP_OVERLAP_MIN_SEC) {
+        sub = { key: other.key, index: j, o: r3(1 - clamp01((time - other.end) / SP_SUB_TAIL_SEC)) };
+      }
+    }
+  }
   return {
     key: item.key,
     kind,
     fx,
     index,
+    sub,
     word: { o: r3(o), s: r3(s), x: r3(x), y: r3(y), r: r3(r) },
     stage: r3(stage),
     wash: r3(wash),
@@ -566,6 +604,10 @@ export function createSpectacle(host, { variant = "live", palette = ["#ff6fa8", 
   const burst = word.appendChild(el("span", "sp-burst"));
   const sparks = word.appendChild(el("span", "sp-sparks"));
   const text = word.appendChild(el("span", "sp-word-text"));
+  // 【r12-calls】重なりの補助の表示（先に始まった件の全文。小さめ・会場の上の端）
+  const subEl = layer.appendChild(el("div", "sp-sub"));
+  const subText = subEl.appendChild(el("span", "sp-sub-text"));
+  let shownSub = null;
   host.appendChild(layer);
   const backParent = backHost ?? host;
   if (backBefore && backBefore.parentNode === backParent) backParent.insertBefore(back, backBefore);
@@ -816,6 +858,16 @@ export function createSpectacle(host, { variant = "live", palette = ["#ff6fa8", 
       set(wash, "opacity", String(s.wash));
       set(beams, "opacity", String(s.beams));
       set(darkEl, "opacity", String(s.dark));
+      // 【r12-calls】重なりの補助の表示：件が変わったときだけ文字を入れ替える（本人の全文のまま）
+      const subKey = s.sub ? s.sub.key : null;
+      if (subKey !== shownSub) {
+        shownSub = subKey;
+        const subItem = s.sub ? plan[s.sub.index] : null;
+        if (subItem?.kind === SP_KINDS.NAME) renderNameCallText(subText, subItem.text);
+        else subText.textContent = subItem ? subItem.text : "";
+        subEl.dataset.fx = subItem?.fx ?? "";
+      }
+      set(subEl, "opacity", String(s.sub ? s.sub.o : 0));
       // 【r12-calls】ペンライトは動かさない（向きは作ったときのまま。毎フレーム書かない）
       return s;
     },

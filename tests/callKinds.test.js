@@ -9,7 +9,8 @@
 //   K7. 種類ごとの見せ方：MIX は全文を 1 つの塊で／短い掛け声は 1 件ごとに 左→右→中央→全体／名前は始まりから全部／ふわふわは弾む
 //   K8. 【2026-11-03 R12】ペンライトは固定（どの時刻でも向き・位置が同じ）。変わるのは色だけ
 //   R12. 【2026-11-03 R12】本人が区切った 1 件を、1 つの塊として、その件の開始〜終了で出す（MIX・連続の「うりゃ！おい！」で、
-//        画面に出る塊の数と時刻が承認済みの件と 1 対 1。1 件の途中で文字が変わらない・1 件の途中の時刻に光を作らない）
+//        画面に出る塊の数と時刻が承認済みの件と 1 対 1。1 件の途中で文字が変わらない・1 件の途中の時刻に光を作らない）。
+//        本人の時刻で 2 件が重なるときは、重なっている間だけ両方を全文で（後の件が主・先の件が補助。0.2 秒未満の重なりは 1 件のまま）
 //   K9. 画面全体の光は、どの 1 秒の中でも 3 回まで（全種類を混ぜて）
 //   K10. 画面の部品：種類（data-fx）・1 件の全文・ペンライトの向きは作ったときのまま・一時停止で消える
 import { assertEqual } from "./test-utils.js";
@@ -186,6 +187,65 @@ function runNoSplitDomTests() {
   host.remove();
 }
 
+
+// ---- R12（追加）：本人の時刻で 2 件が重なるときは、重なっている間、両方を全文で出す ----
+// 架空のデータ（本物の時刻の形だけをまねる：短いコールの途中で長い MIX が始まる／長いコールの終わり近くで短いコールが始まって先に終わる）
+const OVERLAP_CALLS = [
+  { key: "o1", text: "ダミー！", start: 5.58, end: 7.16 },
+  { key: "o2", text: MIX_A, start: 5.63, end: 16.22, type: "mix" },
+  { key: "o3", text: "ダミーの長いコールです！ダミー！", start: 52.54, end: 55.5 },
+  { key: "o4", text: "オイ！オイ！", start: 54.53, end: 55.48 },
+  { key: "o5", text: "ダミー！", start: 60, end: 61 }, // 重ならない
+  { key: "o6", text: "ダミー！", start: 63, end: 65.01 }, // 0.04 秒だけ重なる（出さない）
+  { key: "o7", text: "オイ！", start: 64.97, end: 66 },
+];
+
+function runOverlapTests() {
+  console.log("--- R12：重なる 2 件は、重なっている間、両方を全文で ---");
+  const plan = planSpectacle(OVERLAP_CALLS);
+  const shownAt = (t) => {
+    const v = spectacleStateAt(plan, t);
+    const keys = [];
+    if (v.key !== null && v.word.o >= 0.99) keys.push(v.key);
+    if (v.sub && v.sub.o >= 0.99) keys.push(v.sub.key);
+    return keys;
+  };
+  // どの件も、その件の開始（＋0.15 秒）〜終了の間、主か補助のどちらかで、ずっと出ている
+  const missing = [];
+  // （0.2 秒未満のわずかな重なりは、今までどおり後の件に替わるので、その件は後の件の始まりまで）
+  for (const c of OVERLAP_CALLS) {
+    const tiny = OVERLAP_CALLS.find((o) => o.start > c.start && o.start < c.end && c.end - o.start < 0.2);
+    const until = tiny ? tiny.start : c.end;
+    for (let t = c.start + 0.15; t < until - 0.01; t += 1 / 60) if (!shownAt(t).includes(c.key)) missing.push(`${c.key}@${t.toFixed(2)}`);
+  }
+  assertEqual(missing.slice(0, 5), [], "R12: 重なる件も、それぞれの開始〜終了の間ずっと出る（時刻を変えない・分けない）");
+  // 重なっている間は 2 件・重ならない所は 1 件
+  assertEqual([shownAt(6.5).sort(), shownAt(10), shownAt(55).sort(), shownAt(60.5)], [["o1", "o2"], ["o2"], ["o3", "o4"], ["o5"]], "R12: 重なっている間だけ 2 件、ほかは 1 件");
+  assertEqual([spectacleStateAt(plan, 6.5).key, spectacleStateAt(plan, 6.5).sub?.key], ["o2", "o1"], "R12: 後から始まった件が主・先の件が補助");
+  // わずかな重なり（0.2 秒未満）は補助に出さない（一瞬の点滅にしない）
+  assertEqual([spectacleStateAt(plan, 64.99).sub, spectacleStateAt(plan, 63.5).sub], [null, null], "R12: 0.2 秒未満の重なりは、今までどおり 1 件");
+  // 補助は、その件の終わりのあとすぐ消える（延ばし続けない）
+  assertEqual([spectacleStateAt(plan, 7.16 + 0.3).sub, spectacleStateAt(plan, 55.5 + 0.3).key === "o4" || spectacleStateAt(plan, 55.8).sub === null], [null, true], "R12: 補助は終わりのあとすぐ消える");
+  // 時刻だけで決まる（シーク・一時停止・調整のあとでも同じ）
+  assertEqual(JSON.stringify(spectacleStateAt(plan, 6.33)), JSON.stringify(spectacleStateAt(plan, 6.33)), "R12: 重なりの見た目も時刻だけで決まる");
+  // 本文・時刻を変えない
+  assertEqual(plan.map((p) => [p.key, p.text, p.start, p.end]), OVERLAP_CALLS.map((c) => [c.key, c.text, c.start, c.end]), "R12: 重なりがあっても本文・開始・終了はそのまま");
+  if (typeof document === "undefined") return;
+  const host = document.body.appendChild(document.createElement("div"));
+  const sp = createSpectacle(host, { variant: "karaoke" });
+  sp.setPlan(plan);
+  sp.update(6.5, { playing: true, enabled: true });
+  const main = host.querySelector(".sp-word-text").textContent;
+  const sub = host.querySelector(".sp-sub-text").textContent;
+  assertEqual([main, sub, host.querySelector(".sp-sub").style.opacity], [MIX_A, "ダミー！", "1"], "R12: 画面でも、主（後の件）と補助（先の件）がどちらも全文");
+  sp.update(10, { playing: true, enabled: true });
+  assertEqual(host.querySelector(".sp-sub").style.opacity, "0", "R12: 重ならない所では補助を出さない");
+  sp.update(6.5, { playing: false, enabled: true });
+  assertEqual(sp.layer.classList.contains("is-paused"), true, "R12: 一時停止では、補助も主も残さない（層ごと消える）");
+  sp.destroy();
+  host.remove();
+}
+
 const DEMO = [
   { key: "shout", text: "オイ！", start: 2, end: 2.3 },
   { key: "r1", text: "オイ！", start: 5, end: 5.3 },
@@ -357,4 +417,5 @@ export function runCallKindsTests() {
   runFxDomTests();
   runNoSplitTests();
   runNoSplitDomTests();
+  runOverlapTests();
 }
