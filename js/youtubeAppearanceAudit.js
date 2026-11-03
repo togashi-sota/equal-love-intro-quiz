@@ -66,6 +66,8 @@ const ROMAJI_NAME_LINE = /[(（][A-Za-z][A-Za-z .]+[)）]$/;
 const GROUP_WORDS_PATTERN = /メンバー|みんな|皆で|皆さんと|全員|大集合|[0-9０-９二三四五六七八九十]+人|ふたり|二人|対決|決定戦|王決定|リレー|バトル|女子会|大会|チーム/;
 
 export function confidenceOf(video) {
+  // 【R12】推定の判定（本人が採用した推定）は、本人の確認ではないので「推定」
+  if (video.inferred) return APPEARANCE_CONFIDENCE.ESTIMATED;
   if (video.confidence && Object.hasOwn(APPEARANCE_CONFIDENCE_LABELS, video.confidence)) return video.confidence;
   switch (video.status) {
     case APPEARANCE_STATUS.CAST_LIST:

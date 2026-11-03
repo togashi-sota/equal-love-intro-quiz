@@ -24,6 +24,8 @@ import {
   summarizeDescription,
 } from "./youtubeAppearanceClassifier.js";
 import { toClassifierManual } from "./data/youtubeVerifiedJudgments.js";
+// 【R12】推定の判定（本人が採用した推定。本人の確認ではない）。本人の確認が同じ動画にあれば、そちらが優先
+import { YOUTUBE_INFERRED_JUDGMENTS, inferredToClassifierManual } from "./data/youtubeInferredJudgments.js";
 // 【2026-11-03 R11】出演者の確かさ（確認済み・一部確認・推定・未確認）と要確認の印
 import { confidenceOf, reviewFlagsOf, countAuditCategories } from "./youtubeAppearanceAudit.js";
 import { YOUTUBE_DATA_PATH, YOUTUBE_DATA_SCHEMA, YOUTUBE_DATA_MAX_AGE_DAYS, isYoutubeDataExpired, validateYoutubePublishedData } from "./youtubeAppearanceData.js";
@@ -104,13 +106,14 @@ const STRONG_STATUSES = new Set([APPEARANCE_STATUS.CAST_LIST, APPEARANCE_STATUS.
 //            shortsIds?: string[]|null, liveIds?: string[]|null, playlists?: [{ title, videoIds }] }
 // verifiedJudgments：js/data/youtubeVerifiedJudgments.js の YOUTUBE_VERIFIED_JUDGMENTS
 // previous：前に公開したデータ（無ければ null。期限切れなら使わない）
-export function buildYoutubePublishedData({ fetched, verifiedJudgments = [], previous = null, now = new Date(), members = MEMBERS }) {
+export function buildYoutubePublishedData({ fetched, verifiedJudgments = [], inferredJudgments = YOUTUBE_INFERRED_JUDGMENTS, previous = null, now = new Date(), members = MEMBERS }) {
   const fetchedAt = fetched?.meta?.fetchedAt;
   if (!Number.isFinite(Date.parse(fetchedAt ?? ""))) throw new Error("取得の日時が無い");
   if (!Array.isArray(fetched?.videos)) throw new Error("取得した動画の一覧が無い");
   const usablePrevious = previous && !isYoutubeDataExpired(previous, now) ? previous : null;
   const previousById = new Map((usablePrevious?.videos ?? []).map((video) => [video.id, video]));
   const verifiedById = new Map(verifiedJudgments.map((judgment) => [judgment.videoId, judgment]));
+  const inferredById = new Map(inferredJudgments.map((judgment) => [judgment.videoId, judgment]));
   const shortsSet = Array.isArray(fetched.shortsIds) ? new Set(fetched.shortsIds) : null;
   const liveSet = Array.isArray(fetched.liveIds) ? new Set(fetched.liveIds) : null;
   const playlistTitlesByVideo = new Map();
@@ -131,7 +134,11 @@ export function buildYoutubePublishedData({ fetched, verifiedJudgments = [], pre
     fetchedIds.add(raw.id);
     const playlistTitles = playlistTitlesByVideo.get(raw.id) ?? [];
     const verified = verifiedById.get(raw.id) ?? null;
-    const result = classifyYoutubeVideo({ ...raw, playlistTitles }, { manual: toClassifierManual(verified), members, otherGroupNames, rosterTemplateKeys });
+    const inferred = verified ? null : inferredById.get(raw.id) ?? null;
+    const manual = verified ? toClassifierManual(verified) : inferredToClassifierManual(inferred);
+    const result = classifyYoutubeVideo({ ...raw, playlistTitles }, { manual, members, otherGroupNames, rosterTemplateKeys });
+    // 推定の判定は「本人が確認」の根拠にしない（根拠の種類を inferred にする）
+    if (inferred && result.included) result.evidence = [{ type: "inferred", detail: result.evidence?.[0]?.detail ?? "" }];
     if (!result.included) {
       excluded.push({ id: raw.id, reason: result.excludedReason, reasonLabel: EXCLUDE_REASON_LABELS[result.excludedReason] ?? result.excludedReason });
       continue;
@@ -145,7 +152,7 @@ export function buildYoutubePublishedData({ fetched, verifiedJudgments = [], pre
     let hold = null;
     // 前に確定した判定を下げない（本人の確認が無い動画だけ）
     const before = previousById.get(raw.id);
-    if (!verified && before && STRONG_STATUSES.has(before.status)) {
+    if (!verified && !inferred && before && STRONG_STATUSES.has(before.status) && !before.inferred) {
       const lost = (before.memberIds ?? []).filter((memberId) => !memberIds.includes(memberId));
       const downgraded = !STRONG_STATUSES.has(status) || lost.length > 0;
       if (downgraded) {
@@ -161,7 +168,7 @@ export function buildYoutubePublishedData({ fetched, verifiedJudgments = [], pre
         review.push({ id: raw.id, kind: "downgrade", lost, heldDays: Math.floor(heldDays), keptPrevious: Boolean(hold) });
       }
     }
-    if (!STRONG_STATUSES.has(status)) review.push({ id: raw.id, kind: status === APPEARANCE_STATUS.UNCONFIRMED ? "unconfirmed" : "estimate" });
+    if (!STRONG_STATUSES.has(status) || inferred) review.push({ id: raw.id, kind: status === APPEARANCE_STATUS.UNCONFIRMED ? "unconfirmed" : "estimate" });
     if (!before && usablePrevious) review.push({ id: raw.id, kind: "new", status });
     const entry = {
       id: raw.id,
@@ -176,6 +183,7 @@ export function buildYoutubePublishedData({ fetched, verifiedJudgments = [], pre
       // 【R12】サムネイルに写っているメンバー（本人の確認。本編の出演とは別）
       thumbnailMemberIds: result.thumbnailMemberIds ?? [],
       ...(verified?.basis ? { verifiedBasis: verified.basis } : {}),
+      ...(inferred ? { inferred: { basis: inferred.basis, approvedBy: inferred.approvedBy ?? null, approvedOn: inferred.approvedOn ?? null } } : {}),
       // 説明欄の文を書いたメンバー（出演者とは限らないので memberIds に入れない。R11）
       writerMemberIds: (result.writerMemberIds ?? []).filter((memberId) => !memberIds.includes(memberId) && !footageMemberIds.includes(memberId)),
       evidence,
