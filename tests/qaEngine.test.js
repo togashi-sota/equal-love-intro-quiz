@@ -8,6 +8,12 @@ import { setYoutubeAppearanceSnapshotForTest } from "../js/youtubeAppearanceData
 import { QA_SUGGESTION_CATEGORIES } from "../js/data/qaSuggestions.js";
 import { initQaScreen, openQaScreen, askQaForTest, getQaScreenState, resetQaScreenForTest, QA_DISCLAIMER } from "../js/qaScreen.js";
 import { isFloatingBackScreen } from "../js/floatingBack.js";
+import { MEMBERS } from "../js/data/members.js";
+import { MEMBER_PROFILES } from "../js/data/memberProfiles.js";
+import { MEMBER_ACTIVITIES } from "../js/data/memberActivities.js";
+import { splitJapaneseSentences } from "../js/qaEngine.js";
+import { isCurrentActivity, sortActivitiesByDateDesc } from "../js/membersScreen.js";
+import { getMemberActivities } from "../js/memberUtils.js";
 import { assertEqual } from "./test-utils.js";
 
 const TODAY = "2026-11-03";
@@ -65,6 +71,29 @@ function runAnswerShapeTests() {
   assertEqual(typeof long.text, "string", "答え：長い文字でも壊れない");
   const html = answerQuestion("<img src=x onerror=alert(1)>呪って呪っては何枚目", { today: TODAY });
   assertEqual(html.status, QA_STATUS.ANSWER, "答え：記号の混ざった質問でも答える（HTML としては扱わない）");
+}
+
+// 【R12】「どんな人？」：個人ページの情報から作る。ひとこと紹介（homeLead）に頼らない・データに無い性格を足さない・個人ページと食い違わない
+function runMemberIntroductionTests() {
+  const fabricated = ["明るく", "明るい", "優しい", "天然", "クール", "しっかり者", "努力家", "負けず嫌い", "ムードメーカー", "おっとり"];
+  MEMBERS.forEach((member) => {
+    const answer = answerQuestion(`${member.name}はどんな人？`, { today: TODAY });
+    const profile = MEMBER_PROFILES.find((entry) => entry.memberId === member.id);
+    const source = JSON.stringify([profile, MEMBER_ACTIVITIES.filter((activity) => activity.memberId === member.id || (activity.relatedMemberIds ?? []).includes(member.id))]);
+    assertEqual(answer.status, QA_STATUS.ANSWER, `人物：${member.name}に答える`);
+    assertEqual(answer.links.at(-1)?.label, "詳しいプロフィールを見る", `人物：${member.name}の答えの最後に［詳しいプロフィールを見る］`);
+    if (profile?.homeLead?.text) assertEqual(answer.text.includes(profile.homeLead.text.replaceAll("|", "")), false, `人物：${member.name}はホームのひとこと紹介（homeLead）をそのまま使わない`);
+    assertEqual(fabricated.filter((word) => answer.text.includes(word) && !source.includes(word)), [], `人物：${member.name}の答えに、データに無い性格の言葉が無い`);
+    // 紹介文・加入前から使った文は、データの文そのまま（文の単位）
+    const used = splitJapaneseSentences(answer.text).filter((sentence) => !/^(.+?（.+?）は、＝LOVE の|今の主な活動には、)/.test(sentence)).map((sentence) => sentence.replace(/^＝LOVE 加入前(は)?、/, ""));
+    const pool = [...splitJapaneseSentences(profile?.introduction?.text), ...splitJapaneseSentences(profile?.preDebutActivity?.text)];
+    assertEqual(used.filter((sentence) => !pool.includes(sentence)), [], `人物：${member.name}の答えの文は、紹介文・加入前の活動の文そのまま`);
+    const sentenceCount = splitJapaneseSentences(answer.text).length;
+    assertEqual(sentenceCount >= 2 && sentenceCount <= 5, true, `人物：${member.name}は2〜5文（${sentenceCount}文）`);
+    // 今の主な活動は、個人ページの「今の主な活動」の先頭3つと同じ
+    const current = sortActivitiesByDateDesc(getMemberActivities(MEMBER_ACTIVITIES, member.id)).filter((activity) => isCurrentActivity(activity, TODAY)).slice(0, 3);
+    assertEqual(current.every((activity) => answer.text.includes(activity.title)), true, `人物：${member.name}の「今の主な活動」は個人ページと同じ`);
+  });
 }
 
 function runSuggestionTests() {
@@ -162,6 +191,7 @@ export async function runQaEngineTests() {
   runTextTests();
   runParseTests();
   runAnswerShapeTests();
+  runMemberIntroductionTests();
   runSuggestionTests();
   await runScreenTests();
   await runMarkupTests();

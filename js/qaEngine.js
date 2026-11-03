@@ -24,6 +24,9 @@ import { TV_VARIETY_RECORDS, TV_VARIETY_REGULARS, TV_VARIETY_CHECKED_DATE } from
 import { TV_APPEARANCES } from "./data/tvAppearances.js";
 import { COMMERCIALS } from "./data/commercials.js";
 import { getMemberCommercials } from "./commercialsSection.js";
+// 【R12】「どんな人？」の「今の主な活動」は、個人ページと同じ選び方（js/membersScreen.js）で選ぶ（答えと個人ページを食い違わせない）
+import { isCurrentActivity, sortActivitiesByDateDesc, CURRENT_ACTIVITY_LIMIT } from "./membersScreen.js";
+import { getMemberActivities } from "./memberUtils.js";
 import { STAGE_PRODUCTIONS, VOICE_APPEARANCES } from "./data/memberStageVoice.js";
 import { CD_BONUS_WORKS, CD_BONUS_CHECKED_AT } from "./data/cdBonus.js";
 import { UPCOMING_RELEASE } from "./data/upcomingRelease.js";
@@ -434,33 +437,116 @@ function profileEvidence(field, label) {
   return evidence(label, { checkedAt: field?.lastVerifiedDate ?? null, urls: field?.sourceUrls ?? [] });
 }
 
-function firstSentences(text, limit = 110) {
-  if (!text) return "";
-  // 「。」で区切る（古い iPhone の Safari で読めない「後ろを見る」正規表現は使わない）
-  const sentences = text.split("。").filter(Boolean).map((sentence) => `${sentence}。`);
-  let out = "";
-  for (const sentence of sentences) {
-    if ((out + sentence).length > limit && out) break;
-    out += sentence;
+// ---- 「どんな人？」（2026-11-03 R12 本人の依頼）----
+// ホームのひとこと紹介（homeLead）は使わない。個人ページに登録された情報（紹介文・加入前の活動・役割・今の主な活動）から、
+// 決まった型に「データの中の文を、文の単位のまま」つないで 2〜4文の紹介にする（言い換え・新しい形容をしない）。
+//   1. だれか（＝LOVE のリーダー／メンバー／元メンバー）
+//   2. グループの中での役割の文（紹介文の中の「最年少・最年長・センター・リーダー・愛称」などが出てくる文）
+//   3. 本人の特徴の文（「知られる・大切に・理想・好き」などが出てくる文）
+//   4. 加入前の活動の文（グループ・ユニットの名前が出てくる文を優先。「とされる」で終わる文は後回し）
+//   5. 今の主な活動（個人ページの「今の主な活動」と同じもの・同じ順の先頭3つ）
+const ROLE_WORDS = ["リーダー", "最年少", "最年長", "センター", "デビュー曲", "愛称", "役に回"];
+const TRAIT_WORD_TIERS = [["知られ", "親しまれ"], ["大切に", "心がけ", "理想", "役に回", "支える"], ["大好き", "好きで", "趣味", "ファン"], ["目指"]];
+// 2つ目の特徴の文には「目指した」（加入前のいきさつ）の文を使わない（今の人物像を中心にする）
+const SECOND_TRAIT_WORD_TIERS = TRAIT_WORD_TIERS.slice(0, 3);
+const PRE_DEBUT_WORD_TIERS = [["グループ", "ユニット", "アイドル「"], ["候補生", "ストリート生", "オーディション"]];
+const MAX_SENTENCE_LENGTH = 140;
+
+// 文の単位に分ける（「。」で区切る。かっこの中の「。」では区切らない）
+export function splitJapaneseSentences(text) {
+  const sentences = [];
+  let depth = 0;
+  let current = "";
+  for (const char of String(text ?? "")) {
+    current += char;
+    if ("「『（(【".includes(char)) depth += 1;
+    else if ("」』）)】".includes(char)) depth = Math.max(0, depth - 1);
+    else if (char === "。" && depth === 0) {
+      sentences.push(current.trim());
+      current = "";
+    }
   }
-  return out;
+  if (current.trim()) sentences.push(current.trim());
+  return sentences;
+}
+
+// それだけ読んでも意味が分かる文（「その」「この」で前の文を指していない・長すぎない）
+function isStandalone(sentence) {
+  return sentence.length <= MAX_SENTENCE_LENGTH && !/^(その|この|それ|そこ|そう|これ)/.test(sentence);
+}
+
+function pickByTiers(sentences, tiers, used) {
+  for (const words of tiers) {
+    const hit = sentences.find((sentence) => !used.has(sentence) && isStandalone(sentence) && words.some((word) => sentence.includes(word)));
+    if (hit) return hit;
+  }
+  return null;
+}
+
+export function currentActivitiesForMember(memberId, today) {
+  return sortActivitiesByDateDesc(getMemberActivities(MEMBER_ACTIVITIES, memberId))
+    .filter((activity) => isCurrentActivity(activity, today))
+    .slice(0, CURRENT_ACTIVITY_LIMIT);
+}
+
+export function buildMemberIntroduction(memberId, today) {
+  const member = MEMBER_BY_ID.get(memberId);
+  const profile = PROFILE_BY_ID.get(memberId);
+  const graduated = member.status === MEMBER_STATUS.GRADUATED;
+  const isLeader = (member.roles ?? []).includes("リーダー");
+  const sentences = [];
+  // 1. だれか
+  if (graduated) {
+    sentences.push(`${member.name}（${member.reading}）は、＝LOVE の元メンバーです（${member.joinDate ? `${formatQaDate(member.joinDate)}加入・` : ""}${member.graduationDate ? `${formatQaDate(member.graduationDate)}卒業` : "卒業"}）。`);
+  } else {
+    sentences.push(`${member.name}（${member.reading}）は、＝LOVE の${isLeader ? "リーダー" : "メンバー"}です。`);
+  }
+  // 2・3. 紹介文から、役割の文と特徴の文（紹介文の1文目が「＝LOVEのリーダー。」のような、1. と同じ内容の文は使わない）
+  const intro = splitJapaneseSentences(profile?.introduction?.text).filter((sentence) => !/^＝LOVEのリーダー。$/.test(sentence));
+  const used = new Set();
+  const role = intro.find((sentence) => isStandalone(sentence) && ROLE_WORDS.some((word) => sentence.includes(word)));
+  if (role) used.add(role);
+  const trait = pickByTiers(intro, TRAIT_WORD_TIERS, used);
+  if (trait) used.add(trait);
+  // 役割の文が無いときは、特徴の文をもう1つ（紹介を短くしすぎない）
+  const secondTrait = role ? null : pickByTiers(intro, SECOND_TRAIT_WORD_TIERS, used);
+  // 紹介文の中の順のまま並べる（文の流れを変えない）
+  intro.filter((sentence) => sentence === role || sentence === trait || sentence === secondTrait).forEach((sentence) => sentences.push(sentence));
+  // 4. 加入前の活動
+  const pre = splitJapaneseSentences(profile?.preDebutActivity?.text);
+  const preCandidates = pre.filter((sentence) => !sentence.endsWith("とされる。"));
+  const preSentence = pickByTiers(preCandidates, PRE_DEBUT_WORD_TIERS, new Set()) ?? pickByTiers(pre, PRE_DEBUT_WORD_TIERS, new Set()) ?? pre.find(isStandalone) ?? null;
+  if (preSentence) sentences.push(/^[^、]{1,12}は、/.test(preSentence) ? `＝LOVE 加入前、${preSentence}` : `＝LOVE 加入前は、${preSentence}`);
+  // 5. 今の主な活動（個人ページの「今の主な活動」と同じ）
+  const activities = currentActivitiesForMember(memberId, today);
+  if (activities.length) {
+    // 活動の名前は、個人ページと同じ書き方のまま（「」を足さない。名前の中にも「」があるため）。「／」で区切る
+    const titles = activities.slice(0, 3).map((activity) => activity.title);
+    sentences.push(`今の主な活動には、${titles.join("／")}${activities.length > 3 ? " など" : ""}があります。`);
+  }
+  return { sentences, usedIntroduction: Boolean(role || trait || secondTrait), usedPreDebut: Boolean(preSentence), activities };
 }
 
 function answerMemberProfile(memberId, today) {
   const member = MEMBER_BY_ID.get(memberId);
   const profile = PROFILE_BY_ID.get(memberId);
   const graduated = member.status === MEMBER_STATUS.GRADUATED;
+  const intro = buildMemberIntroduction(memberId, today);
   return result(QA_STATUS.ANSWER, "memberProfile", {
-    text: `${member.name}（${member.reading}）${graduated ? "は＝LOVE の元メンバーです" : "は＝LOVE のメンバーです"}。${profile?.homeLead?.text ? `${profile.homeLead.text.replaceAll("|", "")}。` : ""}`,
+    text: intro.sentences.join(""),
     details: [
-      firstSentences(profile?.introduction?.text),
       member.memberColor ? `メンバーカラー：${member.memberColor.name}` : null,
       member.birthday ? `誕生日：${formatQaDate(member.birthday)}${graduated ? "" : `（${ageOn(member.birthday, today)}歳）`}` : null,
       member.birthplace ? `出身：${member.birthplace}` : null,
-      member.joinDate ? `加入：${formatQaDate(member.joinDate)}` : null,
+      member.joinDate && !graduated ? `加入：${formatQaDate(member.joinDate)}` : null,
     ].filter(Boolean),
-    evidence: [profileEvidence(profile?.introduction, "メンバー紹介（公式・本人のインタビューなど）"), evidence("メンバーのプロフィール（公式サイト）", { checkedAt: member.profileSource?.lastVerifiedDate, urls: member.profileSource?.urls })],
-    links: [memberLink(memberId)],
+    evidence: [
+      intro.usedIntroduction ? profileEvidence(profile?.introduction, "メンバー紹介（公式・本人のインタビューなど）") : null,
+      intro.usedPreDebut ? profileEvidence(profile?.preDebutActivity, "加入前の活動") : null,
+      intro.activities.length ? evidence("今の主な活動（個人ページと同じもの）", { urls: intro.activities.flatMap((activity) => activity.sourceUrls ?? []).slice(0, 2) }) : null,
+      evidence("メンバーのプロフィール（公式サイト）", { checkedAt: member.profileSource?.lastVerifiedDate, urls: member.profileSource?.urls }),
+    ].filter(Boolean),
+    links: [{ ...memberLink(memberId), label: "詳しいプロフィールを見る" }],
   });
 }
 

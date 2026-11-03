@@ -1,4 +1,4 @@
-// 【R11-qa 2026-11-03新設】「質問AI」の正確性のテスト（独立した質問 93問）。
+// 【R11-qa 2026-11-03新設】「質問AI」の正確性のテスト（独立した質問 105問）。
 //
 // 【期待結果の作り方】質問AIのロジック（js/qaEngine.js）を使わず、データ（js/data/songs.js・members.js・liveHistory.js・
 // cdBonus.js など）を人が読んで、答えに含まれるべき言葉を書いた。数（「15曲」など）も一覧を数えて書いた。
@@ -137,6 +137,19 @@ export const QA_ACCURACY_CASES = [
   ["回帰", "齋藤樹愛羅の個人活動", "answer", ["とちぎ未来大使"], []],
   ["回帰", "ライブ映像の特典映像", "answer", ["ソロコンサート"], []],
   ["回帰", "野口衣織と山本杏奈が出ている動画", "answer", ["1本"], []],
+  // ---- 「どんな人？」（R12 2026-11-03：個人ページの紹介文・加入前の活動・役割・今の主な活動から。期待はデータを読んで書いた）----
+  ["人物", "山本杏奈はどんな人？", "answer", ["リーダー", "1列になって進む", "SPL∞ASH", "プロ野球ニュース"], []],
+  ["人物", "大谷映美里はどんな人？", "answer", ["人と比べない", "アキシブproject", "Ririmew"], []],
+  ["人物", "大場花菜ってどんな人", "answer", ["宝塚歌劇", "ドラフト会議", "さいたま観光大使"], ["いじめ"]],
+  ["人物", "音嶋莉沙はどんな人？", "answer", ["『姫』の愛称", "iDOL Street", "S Cawaii!"], []],
+  ["人物", "齋藤樹愛羅はどんな人？", "answer", ["最年少", "ダンスメンバー", "amorecarina"], []],
+  ["人物", "佐々木舞香はどんな人？", "answer", ["センター", "穂の国娘。", "イコラブのあんまい"], []],
+  ["人物", "髙松瞳はどんな人？", "answer", ["デビュー曲「＝LOVE」", "乃木坂46", "めざましテレビ"], []],
+  ["人物", "瀧脇笙古はどんな人？", "answer", ["体力のあるメンバー", "サブ4", "プロ野球ニュース"], []],
+  ["人物", "野口衣織はどんな人？", "answer", ["声優", "Be Selfish", "マヂラブ・野口衣織のマヂでラブになるTV"], []],
+  ["人物", "諸橋沙夏はどんな人？", "answer", ["最年長", "笑顔にする役", "ヤマハミュージックパブリッシング"], []],
+  ["人物", "佐竹のん乃はどんな人？", "answer", ["元メンバー", "2021年3月6日卒業", "GALDOLL"], []],
+  ["人物", "齊藤なぎさはどんな人？", "answer", ["元メンバー", "2023年1月13日卒業", "女優業"], []],
   // ---- 答えてはいけない推測・主観 ----
   ["推測", "次のセンターは誰？", "refuse", [], ["野口衣織", "佐々木舞香"]],
   ["推測", "一番かわいいメンバーは？", "refuse", [], []],
@@ -181,7 +194,7 @@ export async function runQaAccuracyTests() {
     report.rows.forEach((row) => {
       assertEqual(row.correct, true, `正確性［${row.kind}］「${row.question}」：期待 ${row.expect}／実際 ${row.actual}${row.correct ? "" : `／答え：${row.text.slice(0, 120)}`}`);
     });
-    assertEqual(report.count >= 50 && report.count <= 100, true, `正確性：独立の質問は ${report.count}問（50〜100問）`);
+    assertEqual(report.count >= 50 && report.count <= 110, true, `正確性：独立の質問は ${report.count}問（50〜110問）`);
     assertEqual(report.wrongRate, 0, `正確性：誤回答率 ${report.wrongRate}%（間違った答え・答えてはいけないのに答えたもの）`);
     assertEqual(report.maxMs < 100, true, `正確性：いちばん遅い答えも 100ms 未満（${report.maxMs}ms・平均 ${report.averageMs}ms）`);
     console.log(`質問AI 正確性：${report.count}問・正答率 ${report.correctRate}%・誤回答率 ${report.wrongRate}%・回答不能の率 ${report.unansweredRate}%・平均 ${report.averageMs}ms・最大 ${report.maxMs}ms`);

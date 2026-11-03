@@ -172,6 +172,12 @@
   overflow-wrap: anywhere;
 }
 
+.qa-card-text.is-long {
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1.75;
+}
+
 .qa-card-text:focus {
   outline: none;
 }
