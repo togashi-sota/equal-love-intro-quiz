@@ -54,6 +54,8 @@ export function isRecentNews(item, now = new Date()) {
 }
 
 // いまの状態の案内（見出し・説明・注意の度合い）。tone：info／warn／error
+export const OFFICIAL_NEWS_SCOPE_NOTE = "公式サイトの NEWS に載った、最近のお知らせ（自動で取得できた範囲）だけを並べています。X だけの発表や、それより前のお知らせは、公式サイト・公式 X で確かめてください。";
+
 export function describeOfficialNewsStatus(snapshot, now = new Date()) {
   const state = snapshot?.state ?? OFFICIAL_NEWS_STATE.IDLE;
   if (state === OFFICIAL_NEWS_STATE.IDLE || state === OFFICIAL_NEWS_STATE.LOADING) return { tone: "info", title: "読み込んでいます…", lines: [], retry: false };
@@ -63,7 +65,8 @@ export function describeOfficialNewsStatus(snapshot, now = new Date()) {
     return { tone: "error", title: "最新情報を読み込めませんでした", lines: ["通信の状態を確かめて、もう一度お試しください。公式サイトの NEWS は下のリンクから開けます。"], retry: true };
   if (state === OFFICIAL_NEWS_STATE.INVALID)
     return { tone: "error", title: "最新情報のデータが正しくないため、表示していません", lines: ["次の自動の取得で直ります。いちばん新しい情報は、公式サイトの NEWS で確かめてください。"], retry: true };
-  const lines = [`最終取得：${formatJapanDateTime(snapshot.fetchedAt)}`];
+  // 【2026-11-03 R11 最終・本人の依頼】取得の範囲を誤解させない（公式サイトの NEWS の最近の分だけ。X だけの発表・古いお知らせは入らない）
+  const lines = [`最終取得：${formatJapanDateTime(snapshot.fetchedAt)}`, OFFICIAL_NEWS_SCOPE_NOTE];
   let tone = "info";
   let title = "公式サイトの NEWS から自動で集めています";
   const attempt = snapshot.lastAttempt;

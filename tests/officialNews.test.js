@@ -312,6 +312,7 @@ async function runScreenTests() {
   const statusOf = (state, extra = {}) => describeOfficialNewsStatus({ state, items: [], fetchedAt: "2026-11-02T22:55:18.391Z", lastAttempt: null, ageDays: 1, ...extra }, NOW);
   assertEqual([statusOf("missing").title, statusOf("error").retry, statusOf("invalid").tone], ["まだ公式のお知らせを取得できていません", true, "error"], "状態の案内：まだ無い・読めない（もう一度）・壊れた");
   assertEqual([statusOf("ready").title, statusOf("ready").lines[0]], ["公式サイトの NEWS から自動で集めています", "最終取得：2026年11月3日 7:55"], "状態の案内：自動で集めていること・最終取得の日時");
+  assertEqual(statusOf("ready").lines.some((line) => line.includes("最近のお知らせ") && line.includes("X だけの発表")), true, "状態の案内：取得の範囲（公式 NEWS の最近の分だけ・X だけの発表は入らない）を書く");
   assertEqual(statusOf("stale", { ageDays: 12.3 }).lines.some((line) => line.includes("12日")) && statusOf("stale", { ageDays: 12.3 }).title === "最新情報の更新が止まっています", true, "状態の案内：止まっていること・何日たったか");
   assertEqual(statusOf("ready", { lastAttempt: { ok: false, at: "2026-11-09T18:20:00Z" } }).lines.some((line) => line.includes("失敗")), true, "状態の案内：直近の取得が失敗したこと");
   assertEqual(countRecentNews({ state: "ready", items: [{ publishedOn: "2026-11-03" }, { publishedOn: "2026-10-01" }] }, NOW), 1, "ホームの札：直近7日の数");
