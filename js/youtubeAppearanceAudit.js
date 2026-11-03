@@ -10,6 +10,7 @@
 // 【点検の7つの分類（数えるため）】1〜6 はどれか1つ（主な根拠で決める）。7（要確認の印）は 1〜6 と重なって数える
 //   1 全出演者を確認／2 一部だけ確認／3 説明欄から推定／4 タイトルから推定／5 再生リスト・グループ名・説明欄の書き手から推定／6 まったく未確認
 //   7 矛盾・取りこぼしの疑い（reviewFlags が1つ以上）
+import { MEMBERS, MEMBER_STATUS } from "./data/members.js";
 import { APPEARANCE_STATUS, findEqualLoveNamesInText, findGivenNamesInTitle, extractDescriptionBody, extractCastNames, normalizePersonName } from "./youtubeAppearanceClassifier.js";
 
 export const APPEARANCE_CONFIDENCE = Object.freeze({
@@ -70,7 +71,10 @@ export function confidenceOf(video) {
     case APPEARANCE_STATUS.CAST_LIST:
       return APPEARANCE_CONFIDENCE.CONFIRMED;
     case APPEARANCE_STATUS.MANUAL:
-      return video.partial ? APPEARANCE_CONFIDENCE.PARTIAL : APPEARANCE_CONFIDENCE.CONFIRMED;
+      // 【R12】サムネイルだけで確かめたもの（本編の出演者が分からない）は「一部確認」
+      if (video.partial) return APPEARANCE_CONFIDENCE.PARTIAL;
+      if (!(video.memberIds ?? []).length && !(video.footageMemberIds ?? []).length && (video.thumbnailMemberIds ?? []).length) return APPEARANCE_CONFIDENCE.PARTIAL;
+      return APPEARANCE_CONFIDENCE.CONFIRMED;
     case APPEARANCE_STATUS.UNCONFIRMED:
       return APPEARANCE_CONFIDENCE.UNCONFIRMED;
     default:
@@ -109,7 +113,7 @@ function surnameHints(text) {
 // 1本の要確認の印。raw：取得した動画（タイトル・説明）、entry：判定の結果（memberIds・footageMemberIds・writerMemberIds・status）
 export function reviewFlagsOf(raw, entry) {
   const flags = [];
-  const known = new Set([...(entry.memberIds ?? []), ...(entry.footageMemberIds ?? [])]);
+  const known = new Set([...(entry.memberIds ?? []), ...(entry.footageMemberIds ?? []), ...(entry.thumbnailMemberIds ?? [])]);
   const title = String(raw.title ?? "");
   const body = extractDescriptionBody(raw.description);
   const hasCastList = Boolean(extractCastNames(raw.description));
@@ -140,4 +144,17 @@ export function countAuditCategories(videos) {
     if ((video.reviewFlags ?? []).length) counts[7] += 1;
   });
   return { ...counts, estimatedTotal: counts[3] + counts[4] + counts[5] };
+}
+
+// 【R12】その日に在籍していたメンバー（members.js の加入日・在籍期間から。卒業メンバーを含む）
+// 例：2020-05-01 → 12人（佐竹のん乃・齊藤なぎさを含む）。今の10人と混同しないために使う
+export function membersActiveOn(date, members = MEMBERS) {
+  const day = String(date ?? "").slice(0, 10);
+  return members
+    .filter((member) => {
+      const start = member.activePeriod?.start ?? member.joinDate ?? "0000-00-00";
+      const end = member.activePeriod?.end ?? member.graduationDate ?? (member.status === MEMBER_STATUS.GRADUATED ? "0000-00-00" : "9999-12-31");
+      return start <= day && day <= end;
+    })
+    .map((member) => member.id);
 }

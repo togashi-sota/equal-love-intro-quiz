@@ -316,12 +316,15 @@ export function classifyYoutubeVideo(video, { manual = null, members = MEMBERS, 
     const manualIds = unique((manual.memberIds ?? []).filter((memberId) => memberIdSet.has(memberId)));
     // 【2026-11-03】出演の形：ライブ映像・過去の映像・回想で映像に登場した人（企画の出演者とは分けて持つ）
     const footageIds = unique((manual.footageMemberIds ?? []).filter((memberId) => memberIdSet.has(memberId) && !manualIds.includes(memberId)));
-    if (manualIds.length || footageIds.length || manual.groupOnly) {
+    // 【R12】サムネイルに写っている人（本編の出演・映像で登場とは分けて持つ）
+    const thumbnailIds = unique((manual.thumbnailMemberIds ?? []).filter((memberId) => memberIdSet.has(memberId) && !manualIds.includes(memberId) && !footageIds.includes(memberId)));
+    if (manualIds.length || footageIds.length || thumbnailIds.length || manual.groupOnly) {
       return {
         included: true,
-        status: manualIds.length || footageIds.length ? APPEARANCE_STATUS.MANUAL : APPEARANCE_STATUS.GROUP_ONLY,
+        status: manualIds.length || footageIds.length || thumbnailIds.length ? APPEARANCE_STATUS.MANUAL : APPEARANCE_STATUS.GROUP_ONLY,
         memberIds: manualIds,
         footageMemberIds: footageIds,
+        thumbnailMemberIds: thumbnailIds,
         evidence: [{ type: EVIDENCE_TYPE.MANUAL, detail: note }],
       };
     }

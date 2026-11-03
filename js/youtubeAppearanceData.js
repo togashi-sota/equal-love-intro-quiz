@@ -68,7 +68,8 @@ export function validateYoutubePublishedData(data, { now = new Date(), memberIds
     if (!KINDS.has(video.kind)) errors.push(`${where}.kind`);
     if (!STATUSES.has(video.status)) errors.push(`${where}.status`);
     if (video.privacy !== "public") errors.push(`${where} が公開の動画ではない`);
-    const ids = [...(video.memberIds ?? []), ...(video.footageMemberIds ?? [])];
+    const ids = [...(video.memberIds ?? []), ...(video.footageMemberIds ?? []), ...(video.thumbnailMemberIds ?? [])];
+    if (video.thumbnailMemberIds !== undefined && !Array.isArray(video.thumbnailMemberIds)) errors.push(`${where}.thumbnailMemberIds が配列ではない`);
     if (!Array.isArray(video.memberIds) || !Array.isArray(video.footageMemberIds ?? [])) errors.push(`${where} のメンバーが配列ではない`);
     else if (memberIds && ids.some((memberId) => !memberIds.has(memberId))) errors.push(`${where} に知らないメンバー`);
     if ("description" in video) errors.push(`${where} に説明の全文がある（要約だけにする）`);

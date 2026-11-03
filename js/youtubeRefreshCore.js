@@ -173,6 +173,9 @@ export function buildYoutubePublishedData({ fetched, verifiedJudgments = [], pre
       status,
       memberIds,
       footageMemberIds,
+      // 【R12】サムネイルに写っているメンバー（本人の確認。本編の出演とは別）
+      thumbnailMemberIds: result.thumbnailMemberIds ?? [],
+      ...(verified?.basis ? { verifiedBasis: verified.basis } : {}),
       // 説明欄の文を書いたメンバー（出演者とは限らないので memberIds に入れない。R11）
       writerMemberIds: (result.writerMemberIds ?? []).filter((memberId) => !memberIds.includes(memberId) && !footageMemberIds.includes(memberId)),
       evidence,

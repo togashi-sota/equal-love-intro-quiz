@@ -678,6 +678,7 @@ function buildYoutubeEntries({ members, youtubeVideos = getYoutubeAppearanceSnap
   const videoEntries = videos.map((video) => {
     const names = (video.memberIds ?? []).map(nameOf).filter(Boolean);
     const footageNames = (video.footageMemberIds ?? []).map(nameOf).filter(Boolean);
+    const thumbnailNames = (video.thumbnailMemberIds ?? []).map(nameOf).filter(Boolean);
     return createEntry({
       key: `youtube:${video.id}`,
       category: "youtube",
@@ -685,15 +686,16 @@ function buildYoutubeEntries({ members, youtubeVideos = getYoutubeAppearanceSnap
       subtitle: `YouTube 出演／${formatYoutubeDate(video)}・${YOUTUBE_KIND_LABELS[video.kind] ?? "動画"}`,
       lines: [
         // 【R11】確認済みでないものは「推定」などと書く（一部しか分からない人を全員確認済みに見せない）
-        names.length ? `出演${describeYoutubeStatusMark(video) ? `（${describeYoutubeStatusMark(video)}）` : ""}：${names.slice(0, 5).join("・")}${names.length > 5 ? ` ほか${names.length - 5}人` : ""}` : footageNames.length ? null : "出演：＝LOVE（出演者は未確認）",
+        names.length ? `出演${describeYoutubeStatusMark(video) ? `（${describeYoutubeStatusMark(video)}）` : ""}：${names.slice(0, 5).join("・")}${names.length > 5 ? ` ほか${names.length - 5}人` : ""}` : footageNames.length || thumbnailNames.length ? null : "出演：＝LOVE（出演者は未確認）",
         footageNames.length ? `映像で登場：${footageNames.slice(0, 5).join("・")}${footageNames.length > 5 ? ` ほか${footageNames.length - 5}人` : ""}` : null,
+        thumbnailNames.length ? `サムネイルに登場：${thumbnailNames.slice(0, 5).join("・")}${thumbnailNames.length > 5 ? ` ほか${thumbnailNames.length - 5}人` : ""}` : null,
         video.series?.length ? `企画：${video.series.join("・")}` : null,
       ],
       links: [{ label: "YouTube で見る", url: youtubeWatchUrl(video) }],
       action: { label: "YouTube 出演の一覧で見る", target: { kind: "youtubeAppearances", query: video.title } },
       terms: {
         secondary: [video.title, ...(video.series ?? [])],
-        body: [video.summary, ...names, ...footageNames, ...memberReadingsByIds(members, [...(video.memberIds ?? []), ...(video.footageMemberIds ?? [])]), "YouTube", "ユーチューブ"],
+        body: [video.summary, ...names, ...footageNames, ...thumbnailNames, ...memberReadingsByIds(members, [...(video.memberIds ?? []), ...(video.footageMemberIds ?? []), ...(video.thumbnailMemberIds ?? [])]), "YouTube", "ユーチューブ"],
       },
     });
   });

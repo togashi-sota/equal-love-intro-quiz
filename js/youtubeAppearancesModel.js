@@ -34,9 +34,9 @@ export function isConfirmedAppearance(video) {
   return video.status !== APPEARANCE_STATUS.UNCONFIRMED;
 }
 
-// 出演した人と、映像で登場した人を合わせたもの
+// 出演した人と、映像で登場した人と、サムネイルに登場した人（R12）を合わせたもの。メンバーで絞る・探す・数えるときに使う
 export function allAppearingMemberIds(video) {
-  return [...new Set([...(video.memberIds ?? []), ...(video.footageMemberIds ?? [])])];
+  return [...new Set([...(video.memberIds ?? []), ...(video.footageMemberIds ?? []), ...(video.thumbnailMemberIds ?? [])])];
 }
 
 // メンバーの名前で確定・推定しているか（＝LOVE 名義だけ・未確認でない）
