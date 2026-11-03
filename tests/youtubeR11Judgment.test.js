@@ -94,7 +94,8 @@ async function runScreenTests(data) {
     const first = card("r11Video001");
     assertEqual(first.querySelector(".yta-people .yta-badge.is-group")?.textContent, "＝LOVE（出演者は未確認）", "画面：書いた人だけの動画は、出演者を1人に見せない");
     assertEqual(first.querySelectorAll(".yta-people .yta-member").length, 0, "画面：書いた人の名前を出演者の札にしない");
-    assertEqual(first.querySelector(".yta-badge.is-estimated")?.textContent, "推定", "画面：推定の印");
+    // 【2026-11-03 R11 最終・本人の指摘】名前が1人も無い回に「推定」を並べると「未確認」と矛盾して見えるので、印は出さない
+    assertEqual(first.querySelector(".yta-badge.is-estimated"), null, "画面：名前の無い回には「推定」の印を重ねない（「＝LOVE（出演者は未確認）」だけ）");
     assertEqual(first.querySelector(".yta-why-summary")?.textContent, "くわしく（出演の根拠）", "画面：根拠はたたんで、開いて見る");
     const details = first.querySelector(".yta-why-list").textContent;
     assertEqual(details.includes("説明欄の文を書いた人：山本杏奈（書いた人で、出演者の全部ではありません）"), true, "画面：開くと「説明欄の文を書いた人」と分かる");

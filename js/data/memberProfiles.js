@@ -42,12 +42,15 @@
 //   本人の言葉と文脈のまま、今の活動につながる流れとして書く（感動的に飾らない・心理を分析しない・診断を推測しない）。
 // - 【2026-11-03 R11-A・本人の依頼】ホームのひとことは「今どういうメンバーか・特徴・今の活動・＝LOVE での役割」を短く。
 //   苦労話・加入の経緯は個人ページ（紹介・加入前の活動・きっかけ）に残す。「・」の後と「|」（表示しない）の所だけで改行する（言葉の途中で切らない。ホームの画面の setPhrasedText と同じ決まり）。
-// - homeLead は2列のカードで2行まで。1人ずつ違う、初めて見る人に印象に残る事実を選ぶ。褒め言葉・性格の断定は書かない。
+// - homeLead は2列のカードで2行まで。
+// - 【2026-11-03 R11 最終・本人の決定】ホームは「どういう子か・キャラクター・グループでの存在」を一言で（活動の実績は個人ページ）。
+//   ファンの間・メディアでの呼ばれ方（例：「イコラブの太陽」「イコラブの歌姫」）は出典の記事で確かめて使う（公式の肩書きとは混同しない）。
+//   同じ褒め言葉を何人にも使わない。「イコラブの太陽」は記事で髙松瞳を指す呼び方なので、大場花菜には使わない。
 
 export const MEMBER_PROFILES = [
   {
     memberId: "otani-emiri",
-    homeLead: { text: "ファッションブランドを|手がける", sourceType: "self", sourceUrls: ["https://x.com/otani_emiri/status/2075542926420258943", "https://x.com/otani_emiri/status/2083469801931096467"], lastVerifiedDate: "2026-11-03" },
+    homeLead: { text: "イコラブの|ファッションリーダー", sourceType: "reliable", sourceUrls: ["https://www.ticket.co.jp/entx/music/equal-love-members/?page=2"], lastVerifiedDate: "2026-11-03" },
     introduction: {
       text: "子どもの頃はとても人見知りで、アニメ『きらりん☆レボリューション』の月島きらりのまねをするうちに友だちができたという。一度アイドルの活動をやめたあと、＝LOVEで再びステージに立った。加入後は、苦手な部分を隠さずに自分から話すようにしたことで気持ちが楽になったと語り、「人と比べない」ことを大切にしている。メイクやファッションを楽しむことが趣味で、自身がプロデュースするアパレルブランド「Rosé Muse」（2026年9月にルミネエスト新宿に常設店）やカラーコンタクト「melady」、指原莉乃のコスメブランド「Ririmew」の商品プロデュース、個人YouTube「みりにゃと申します。」など、ファッション・コスメの分野で活動している。",
       sourceType: "self",
@@ -94,7 +97,7 @@ export const MEMBER_PROFILES = [
   },
   {
     memberId: "oba-hana",
-    homeLead: { text: "イラストや漫画も描く", sourceType: "official", sourceUrls: ["https://equal-love.jp/feature/oba_hana", "https://www.kadokawa.co.jp/product/322310001490/"], lastVerifiedDate: "2026-11-03" },
+    homeLead: { text: "笑顔を届けたい|「明るい陰キャ」", sourceType: "reliable", sourceUrls: ["https://www.ticket.co.jp/entx/music/equal-love-members/?page=2", "https://realsound.jp/2024/08/post-1728437.html"], lastVerifiedDate: "2026-11-03" },
     introduction: {
       text: "中学時代に学校でいじめを受けて不登校になり、そのころ見たAKB48の姿をきっかけにアイドルを目指した。本人はこの経験を、今のアイドル人生につながった出来事として振り返っている。加入後は、すぐに結果が出なくても積み重ねた努力がいつか輝くと考えるようになり、マイナス思考だった自分を「もっと褒めてあげよう」と思えるようになったと話す。宝塚歌劇をこよなく愛し、元AKB48・高橋みなみのファンとしても知られる。特技のイラスト（#はなすと）を生かした漫画「はなコミ！～となりにアイドル～」は2026年にKADOKAWAから単行本になり、2026年10月からは地元の「さいたま観光大使」、11月からはFM NACK5の冠ラジオ番組『＝LOVE大場花菜の「はなまる！」』を担当している。",
       sourceType: "self",
@@ -152,7 +155,7 @@ export const MEMBER_PROFILES = [
   },
   {
     memberId: "otoshima-risa",
-    homeLead: { text: "「姫」の愛称で|親しまれる", sourceType: "reliable", sourceUrls: ["https://townwork.net/magazine/job/workstyle/123879/"], lastVerifiedDate: "2026-11-03" },
+    homeLead: { text: "「姫」と呼ばれる|愛されキャラ", sourceType: "reliable", sourceUrls: ["https://townwork.net/magazine/job/workstyle/118140/"], lastVerifiedDate: "2026-11-03" },
     introduction: {
       text: "幼稚園のころからアイドルを夢見て、＝LOVEに入るまでに約40回オーディションを受けた。落ちるたびに自分を否定されたように感じたが、自分らしさを生かせばよいと気づいたという。グループ内では『姫』の愛称で親しまれ、楽曲やファン文化を通して『＝LOVEの公式彼女』『お姫様』のようなイメージでも支持されている。「諦めたら終わり」を大切にし、目標は紙に書く。「アイドルになりたい」「お姫様になりたい」と書いて、実際にかなえたと話している。2023年からファッション誌『S Cawaii!』のレギュラーモデルを務め、ブランド「evelyn」のシーズンモデルや、2026年8月に開設した個人YouTube「音嶋莉沙の様子がおかしいチャンネル」でも活動している。",
       sourceType: "reliable",
@@ -209,7 +212,7 @@ export const MEMBER_PROFILES = [
   },
   {
     memberId: "saito-kiara",
-    homeLead: { text: "グループ最年少・ゲーム好き", sourceType: "official", sourceUrls: ["https://equal-love.jp/feature/saito_kiara"], lastVerifiedDate: "2026-11-03" },
+    homeLead: { text: "最年少の|ゲーム好きメンバー", sourceType: "reliable", sourceUrls: ["https://equal-love.jp/feature/saito_kiara"], lastVerifiedDate: "2026-11-03" },
     // 【2026-08-03 本人の方向性】紹介文はダンスメンバー路線（「ファンの間で定着」）。最年少は members.js の公式の生年月日（2004年11月26日）から。
     introduction: {
       text: "中学1年で＝LOVEに加入した、グループ最年少メンバー。加入当初は年上のメンバーに自分から話しかけられなかったという。「Kiara Tiara」（13thシングル収録の初ソロ曲）「Queens」などのダンスナンバーで存在感のあるパフォーマンスを見せ、ファンの間でも屈指のダンスメンバーとして知られている。2023年の「ラストノートしか知らない」で初めて表題曲のセンターを務め、自分と向き合って自信がついたと振り返る。人と比べすぎず「自分のペースで」頑張りたいと話す。2024年に地元・栃木県の「とちぎ未来大使」に就任。趣味のゲームを生かしたテレビ朝日「アイ＝ラブ！げーみんぐ」に佐々木舞香とレギュラー出演し、文化放送では≠MEの櫻井ももとラジオ番組を担当している。",
@@ -259,7 +262,7 @@ export const MEMBER_PROFILES = [
   },
   {
     memberId: "sasaki-maika",
-    homeLead: { text: "表題曲センターや|ドラマ出演も", sourceType: "official", sourceUrls: ["https://equal-love.jp/discography/", "https://equal-love.jp/news/detail/9754"], lastVerifiedDate: "2026-11-03" },
+    homeLead: { text: "歌声と演技が魅力の|実力派", sourceType: "reliable", sourceUrls: ["https://equal-love.jp/discography/", "https://wpb.shueisha.co.jp/gravure/news/20210314-113242/"], lastVerifiedDate: "2026-11-03" },
     introduction: {
       text: "人前が苦手で学校を休みがちだった子どもの頃、アニメに夢中になったことが、声優を目指すきっかけになった。愛知のご当地声優アイドルとしての活動や声優養成所を経て、「声優アイドル」という言葉にひかれて＝LOVEのオーディションを受けた。加入後に初めて本格的なダンスに取り組み、振り入れのたびに泣きながら、「できなくて悔しい」と感じたのは初めてだったと話す。2020年の「しゅきぴ」で初めてセンターを務めて恥ずかしさを振り切れるようになり、2022年の11thシングル「あの子コンプレックス」で表題曲のセンターに。ファンと友達のように対等な関係でいることを理想にしている。山本杏奈とのYouTube「イコラブのあんまい」や、齋藤樹愛羅とレギュラー出演するゲーム番組「アイ＝ラブ！げーみんぐ」のほか、日曜劇場「キャスター」（2025年）などのドラマ、日本マクドナルドのCM（2026年）にも出演している。",
       sourceType: "self",
@@ -310,7 +313,7 @@ export const MEMBER_PROFILES = [
   },
   {
     memberId: "takamatsu-hitomi",
-    homeLead: { text: "デビュー曲|「＝LOVE」のセンター", sourceType: "official", sourceUrls: ["https://equal-love.jp/discography/"], lastVerifiedDate: "2026-11-03" },
+    homeLead: { text: "イコラブの太陽・初代センター", sourceType: "reliable", sourceUrls: ["https://www.ticket.co.jp/entx/music/equal-love-members/?page=2", "https://equal-love.jp/discography/"], lastVerifiedDate: "2026-11-03" },
     introduction: {
       text: "デビュー曲「＝LOVE」でセンターを務め、グループ初期を象徴する存在として多くの表題曲のセンターを担当した。その責任をひとりで感じ、アイドルを辞めることも考えたと、2026年8月の番組で振り返っている。幼い頃から続けたバトントワリングでは日本代表としてロサンゼルスの大会に出た経験があり、振付や立ち位置を覚える力は今のアイドル活動にも生きているという。目指すのは、ライブでは圧倒的に、SNSやイベントでは身近にいる「近くて遠い存在」。北海道日本ハムファイターズのファンで、イコラブボートレース部の部長としても知られる。2026年11月は、フジテレビ『めざましテレビ』のマンスリーエンタメプレゼンターを務める。",
       sourceType: "self",
@@ -370,7 +373,7 @@ export const MEMBER_PROFILES = [
   },
   {
     memberId: "takiwaki-shoko",
-    homeLead: { text: "マラソンで|サブ4を達成", sourceType: "reliable", sourceUrls: ["https://store.alpen-group.jp/Page/Feature/running_260619_02.aspx", "https://www.fmyokohama.jp/r847/2023/12/jog-station-3310.html"], lastVerifiedDate: "2026-11-03" },
+    homeLead: { text: "努力家で|スポーツ大好き", sourceType: "reliable", sourceUrls: ["https://www.ticket.co.jp/entx/music/equal-love-members/?page=2"], lastVerifiedDate: "2026-11-03" },
     introduction: {
       text: "最終審査ではエントリー1番として、指原莉乃の前で長渕剛の曲を歌った。ダンス未経験で加入し、振り入れについていけず朝5時まで練習したこともあった。できない分「誰よりも大きく踊る」ことを心がけるうちに、体力のあるメンバーとして知られるようになった。大切にしているのは「まずやってみる」「続ける」こと。運動能力の高さで知られ、フルマラソンは東京マラソン2022で初めて完走（4時間19分26秒）し、翌年の東京マラソン2023でサブ4（3時間57分06秒）を達成。SASUKEにも2020年・2021年の本戦に出場した。大の横浜DeNAベイスターズファンとしても知られ、応援紙『BAY☆スタ』でコラムを連載し、2026年4月からはフジテレビONE「プロ野球ニュース」の木曜MCを（山本杏奈と隔週で）務めている。",
       sourceType: "reliable",
@@ -422,7 +425,7 @@ export const MEMBER_PROFILES = [
   },
   {
     memberId: "noguchi-iori",
-    homeLead: { text: "アニメ好き・声優としても活動", sourceType: "official", sourceUrls: ["https://equal-love.jp/feature/noguchi_iori", "https://equal-love.jp/news/detail/12162"], lastVerifiedDate: "2026-11-03" },
+    homeLead: { text: "アニメ好きの|クールなパフォーマー", sourceType: "reliable", sourceUrls: ["https://www.ticket.co.jp/entx/music/equal-love-members/?page=2", "https://equal-love.jp/feature/noguchi_iori"], lastVerifiedDate: "2026-11-03" },
     introduction: {
       text: "アニメが大好きで、歌も演技もダンスもできる声優を夢見て＝LOVEに加入した。2022年の「Be Selfish」で初めて表題曲のセンターを務め、「呪って呪って」（2024年）では本人から指原莉乃に姫カットを提案した。メンバーからは、加入前からのダンス経験で初期から振りを教えていたと言われている。二次元の作品に救われて夢をもらったので、今度は自分がステージで誰かに夢を与えたいと話す。声優としてテレビアニメへの出演が続き、マヂカルラブリーとの番組「マヂラブ・野口衣織のマヂでラブになるTV」ではMCを務める。アニメの名ゼリフを語る連載は『いおはにほへと。』（2024年）として書籍になった。",
       sourceType: "self",
@@ -470,7 +473,7 @@ export const MEMBER_PROFILES = [
   },
   {
     memberId: "morohashi-sana",
-    homeLead: { text: "ソロコンサートも開く|最年長メンバー", sourceType: "official", sourceUrls: ["https://equal-love.jp/news/detail/12171", "https://equal-love.jp/feature/morohashi_sana"], lastVerifiedDate: "2026-11-03" },
+    homeLead: { text: "イコラブの歌姫・最年長のお姉さん", sourceType: "reliable", sourceUrls: ["https://www.ticket.co.jp/entx/music/equal-love-members/?page=2"], lastVerifiedDate: "2026-11-03" },
     introduction: {
       text: "地元でのタレントオーディションのグランプリや合唱団のリーダーなど、＝LOVE加入前から歌や芸能の経験を持つ現役メンバー最年長。加入後、指原莉乃に歌を褒められたことで「もっと上手くなりたい」と思うようになったと話す。山本杏奈がリーダーになってからは、メンバーを笑顔にする役に回ってきた。不遇の時期が続いたころには、年齢のことも考えて「グループを離れよう」と両親に相談したこともあったと、2026年8月の番組で明かしている。番組のあとには、最年長としてリーダーを支えるとXに投稿した。グループ活動に加え、ソロで歌唱ステージへ出演する機会も多く、2023年には「長年の夢」だった初のソロコンサートを開き、2026年11月14日には2回目のソロコンサートを開く。地元・福島県いわき市の新聞「いわき民報」でのコラム連載（2019年〜）や、TOKYO FM「Hand in Hand」での福島の現地取材など、故郷に関わる仕事も続けている。",
       sourceType: "reliable",
@@ -522,7 +525,7 @@ export const MEMBER_PROFILES = [
   },
   {
     memberId: "yamamoto-anna",
-    homeLead: { text: "＝LOVEのリーダー", sourceType: "official", sourceUrls: ["https://equal-love.jp/feature/yamamoto_anna"], lastVerifiedDate: "2026-11-03" },
+    homeLead: { text: "メンバーをまとめる|頼れるリーダー", sourceType: "reliable", sourceUrls: ["https://equal-love.jp/feature/yamamoto_anna", "https://www.ticket.co.jp/entx/music/equal-love-members/?page=2"], lastVerifiedDate: "2026-11-03" },
     introduction: {
       text: "＝LOVEのリーダー。完璧なリーダーを目指したがすぐに無理だと気づき、全員が横一列で始まったグループだからこそ、メンバーと「1列になって進む」リーダー像を大切にしている。指原莉乃の「まずメンバーを尊敬できる人に」という言葉をきっかけに、公演の反省やメンバーの好きなところを書く「イコラブノート」を付けている。広島東洋カープの熱心なファンとしても知られ、2019年に夢として語ったマツダスタジアムでの始球式を2025年に果たした。2026年4月からはフジテレビONE「プロ野球ニュース」の木曜MCを瀧脇笙古と隔週で務め、SHOWROOMの企画「教えて、花便り」も続けている。",
       sourceType: "self",

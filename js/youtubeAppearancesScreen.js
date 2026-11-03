@@ -129,7 +129,8 @@ function buildCard(video) {
   if (confidence !== "confirmed") people.classList.add("is-uncertain");
   if (video.memberIds?.length) video.memberIds.forEach((memberId) => people.appendChild(buildMemberTag(memberId)));
   else if (confidence !== "unconfirmed") people.appendChild(el("span", "yta-badge is-group", "＝LOVE（出演者は未確認）"));
-  if (confidence !== "confirmed") people.appendChild(el("span", `yta-badge is-${confidence}`, APPEARANCE_CONFIDENCE_LABELS[confidence]));
+  // 【2026-11-03 R11 最終】名前が1人も無いのに「推定」などを並べると意味が矛盾して見えるので、名前があるときだけ確かさの印を出す
+  if (confidence !== "confirmed" && (video.memberIds?.length || confidence === "unconfirmed")) people.appendChild(el("span", `yta-badge is-${confidence}`, APPEARANCE_CONFIDENCE_LABELS[confidence]));
   if (video.verified) people.appendChild(el("span", "yta-badge is-verified", "本人が確認"));
   body.appendChild(people);
   if (video.memberIds?.length && (confidence === "estimated" || confidence === "partial")) body.appendChild(el("p", "yta-uncertain-note", "ほかの出演者は分かっていません"));

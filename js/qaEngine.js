@@ -451,7 +451,7 @@ function answerMemberProfile(memberId, today) {
   const profile = PROFILE_BY_ID.get(memberId);
   const graduated = member.status === MEMBER_STATUS.GRADUATED;
   return result(QA_STATUS.ANSWER, "memberProfile", {
-    text: `${member.name}（${member.reading}）${graduated ? "は＝LOVE の元メンバーです" : "は＝LOVE のメンバーです"}。${profile?.homeLead?.text ? `${profile.homeLead.text}。` : ""}`,
+    text: `${member.name}（${member.reading}）${graduated ? "は＝LOVE の元メンバーです" : "は＝LOVE のメンバーです"}。${profile?.homeLead?.text ? `${profile.homeLead.text.replaceAll("|", "")}。` : ""}`,
     details: [
       firstSentences(profile?.introduction?.text),
       member.memberColor ? `メンバーカラー：${member.memberColor.name}` : null,

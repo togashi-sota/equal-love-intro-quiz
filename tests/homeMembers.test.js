@@ -42,9 +42,9 @@ function runHomeMemberCardTests() {
   assertEqual(splitLeadPhrases("ファッションブランドを|手がける"), ["ファッションブランドを", "手がける"], "ひとこと：「|」の所でも区切り、「|」は表示しない");
   assertEqual(models.every((model) => !model.lead.includes("|")), true, "ひとこと：読み上げ・表示の文に「|」が残らない");
   const leadCard = buildHomeMemberCard(models.find((model) => model.memberId === "saito-kiara"), () => {});
-  assertEqual([...leadCard.querySelectorAll(".home-member-lead-part")].map((part) => part.textContent), ["グループ最年少・", "ゲーム好き"], "カード：ひとことは、まとまりの span に分けて出す");
+  assertEqual([...leadCard.querySelectorAll(".home-member-lead-part")].map((part) => part.textContent), ["最年少の", "ゲーム好きメンバー"], "カード：ひとことは、まとまりの span に分けて出す");
   assertEqual([...leadCard.querySelectorAll(".home-member-lead-part")].some((part) => part.textContent.startsWith("・")), false, "カード：まとまりの頭に「・」が無い");
-  assertEqual(models.find((model) => model.memberId === "yamamoto-anna").lead.startsWith("＝LOVEのリーダー"), true, "山本杏奈：ひとことは「＝LOVEのリーダー」が最初（本人の依頼：リーダーであることを最優先）");
+  assertEqual(models.find((model) => model.memberId === "yamamoto-anna").lead.includes("リーダー"), true, "山本杏奈：ひとことでリーダーであることが分かる（本人の依頼）");
   assertEqual(MEMBER_PROFILES.find((profile) => profile.memberId === "oba-hana").homeLead.text.includes("変わりたい"), false, "大場花菜：以前の伝わりにくいひとことは使わない（個人ページの紹介文には加入の経緯が残る）");
 
   const host = document.createElement("div");
@@ -66,7 +66,10 @@ function runProfileDataTests() {
   // ひとこと紹介：似た文にしない（「・」で分けた部分が、ほかの人と同じにならない）
   const leadParts = activeProfiles.flatMap((profile) => profile.homeLead.text.split("・"));
   assertEqual(leadParts.length, new Set(leadParts).size, "ひとこと紹介：1人ずつ違う（同じ言い回しを2人に使わない）");
-  assertEqual(activeProfiles.some((profile) => /かわいい|可愛い|人気|大活躍|魅力|天使|最強|唯一無二/.test(profile.homeLead.text)), false, "ひとこと紹介：誰にでも当てはまる褒め言葉・大げさな宣伝を書かない");
+  assertEqual(activeProfiles.some((profile) => /大活躍|天使|最強|唯一無二|世界/.test(profile.homeLead.text)), false, "ひとこと紹介：大げさな宣伝を書かない");
+  // 【2026-11-03 R11 最終・本人の決定】キャラクターを伝える言葉は使ってよいが、同じ言葉を何人にも繰り返さない
+  assertEqual(["かわいい", "愛され", "笑顔", "魅力"].every((word) => activeProfiles.filter((profile) => profile.homeLead.text.includes(word)).length <= 1), true, "ひとこと紹介：「かわいい」「愛され」「笑顔」「魅力」を何人にも使わない");
+  assertEqual(MEMBER_PROFILES.find((profile) => profile.memberId === "oba-hana").homeLead.text.includes("太陽"), false, "大場花菜：「イコラブの太陽」は記事で髙松瞳を指す呼び方なので使わない");
   // 以前の紹介文（本人が 2026-08-03 に確かめた方向性）の要点を削っていない
   // 【2026-11-03 R10 メンバー紹介2】紹介文は「人柄・加入後・今の活動」、加入までの歩みは「加入前の活動」「目指したきっかけ」に分けた。
   // 以前の紹介文の要点は、個人ページのこの3つの文のどこかに残っていればよい（本人の方針：削らない。同じ話を2か所に書かない）
