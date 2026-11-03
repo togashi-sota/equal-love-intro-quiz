@@ -181,6 +181,8 @@
     import { runYoutubeAutomationTests } from "./tests/youtubeAutomation.test.js";
     // 【2026-11-03 R11-B】出演者の判定の直し
     import { runYoutubeR11JudgmentTests } from "./tests/youtubeR11Judgment.test.js";
+    // 【2026-11-03新設・R11 D】＝LOVE 最新情報（公式サイトの NEWS の自動取得）
+    import { runOfficialNewsTests } from "./tests/officialNews.test.js";
     // 【2026-11-01 r7-home】作品の枠を songs.js から自動で（21st・22nd）・ホームの楽曲エリア
     import { runDiscographyAutoAndHomeMusicTests } from "./tests/discographyAuto.test.js";
     // 【2026-10-28新設】ライブページ・ID／在席の修正・歌詞クイズの重複フレーズ対策
@@ -469,6 +471,7 @@
     await runHomeMembersTests();
     await runYoutubeAutomationTests();
     await runYoutubeR11JudgmentTests();
+    await runOfficialNewsTests();
     await runDiscographyAutoAndHomeMusicTests();
     runCallTextModeTests();
     await runCallTextModeMarkupTests();

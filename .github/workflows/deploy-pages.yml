@@ -10,6 +10,11 @@
 # - 取得・検査に失敗したら：定期の更新では公開しない（サイトは前のまま）。push のときは前のデータ（30日以内）でアプリだけ公開する
 # - 前のデータが30日を過ぎていたら、データを外して公開する（アプリは「更新が止まっています」と出す）
 # - 知らせる必要があるとき（失敗・説明欄の変化）は Issue を作る（同じ題の Issue が開いていれば、コメントを足す）
+# 【2026-11-03追加・R11 D】＝LOVE 最新情報（公式サイトの NEWS のタイトル・日付）も、YouTube とは別の手順で作る（scripts/news/）。
+# - data/official-news.json を作り、Pages の成果物にだけ入れる（git にはコミットしない。.gitignore 済み）
+# - ニュースの取得が失敗しても YouTube の更新・公開は止めない（continue-on-error・スクリプトは外の障害で失敗にしない）
+# - YouTube の取得が失敗して「公開しない」と決めても、ニュースが新しく取れたら、YouTube は前のデータ（30日以内）のままで公開する
+# - 知らせる Issue の題は YouTube と分ける（「＝LOVE 最新情報の自動取得：確認が必要です」）
 name: Deploy to GitHub Pages
 
 on:
@@ -41,7 +46,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     outputs:
-      deploy: ${{ steps.youtube.outputs.deploy }}
+      deploy: ${{ steps.publish.outputs.deploy }}
     steps:
       - name: リポジトリを取得
         uses: actions/checkout@v4
@@ -68,13 +73,48 @@ jobs:
             --previous-url "https://togashi-sota.github.io/equal-love-intro-quiz/data/youtube-appearances.json" \
             --report "$RUNNER_TEMP/youtube-issue.md"
 
+      # 【2026-11-03追加・R11 D】ここから＝LOVE 最新情報（YouTube の手順とは独立。失敗してもほかの手順は続ける）
+      - name: ＝LOVE 最新情報のデータを作る
+        id: news
+        continue-on-error: true
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          case "${{ github.event_name }}" in
+            push) TRIGGER=push ;;
+            schedule) TRIGGER=schedule ;;
+            *) TRIGGER=dispatch ;;
+          esac
+          node scripts/news/refresh-news.mjs             --trigger "$TRIGGER"             --previous-url "https://togashi-sota.github.io/equal-love-intro-quiz/data/official-news.json"             --report "$RUNNER_TEMP/news-issue.md"
+
+      - name: ＝LOVE 最新情報だけ新しいときは、YouTube のデータを前のまま入れ直す
+        # YouTube の取得に失敗して「公開しない（keep-live）」と決めたときだけ。前のデータが30日以内なら入れる（API は呼ばない）
+        id: youtube_keep
+        if: steps.youtube.outputs.action == 'keep-live' && steps.news.outputs.fresh == 'true'
+        continue-on-error: true
+        run: |
+          node scripts/youtube/keep-previous.mjs             --previous-url "https://togashi-sota.github.io/equal-love-intro-quiz/data/youtube-appearances.json"
+
+      - name: 公開するかを決める
+        # YouTube が公開すると決めた／YouTube は前のデータを入れ直せて、ニュースが新しい → 公開する
+        id: publish
+        run: |
+          if [ "${{ steps.youtube.outputs.deploy }}" = "true" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          elif [ "${{ steps.youtube_keep.outputs.ok }}" = "true" ] && [ "${{ steps.news.outputs.fresh }}" = "true" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+          fi
+      # 【2026-11-03追加・R11 D】ここまで
+
       - name: 自動の更新が YouTube のデータ以外を変えていないか確かめる
         # git で管理しているファイルは1つも変わっていないこと（data/youtube-appearances.json は .gitignore 済み）。
-        # 無視されているファイルのうち新しくできてよいのは data/youtube-appearances.json だけ
+        # 無視されているファイルのうち新しくできてよいのは data/youtube-appearances.json と data/official-news.json（2026-11-03 R11 D）だけ
         run: |
           git diff --exit-code
           test -z "$(git status --porcelain)"
-          EXTRA=$(git status --porcelain --ignored | grep -v '^!! data/$' | grep -v '^!! data/youtube-appearances.json$' || true)
+          EXTRA=$(git status --porcelain --ignored | grep -v '^!! data/$' | grep -v '^!! data/youtube-appearances.json$' | grep -v '^!! data/official-news.json$' || true)
           if [ -n "$EXTRA" ]; then echo "想定外のファイル：$EXTRA"; exit 1; fi
 
       - name: 知らせる（Issue）
@@ -88,8 +128,21 @@ jobs:
           NUMBER=$(gh issue list --state open --search "$TITLE in:title" --json number --jq '.[0].number')
           if [ -n "$NUMBER" ]; then gh issue comment "$NUMBER" --body-file "$BODY_FILE"; else gh issue create --title "$TITLE" --body-file "$BODY_FILE"; fi
 
+      # 【2026-11-03追加・R11 D】＝LOVE 最新情報の知らせ（YouTube とは別の題。この手順が失敗しても公開は止めない）
+      - name: 知らせる（Issue・＝LOVE 最新情報）
+        if: always() && (steps.news.outputs.alert == 'true' || steps.news.outcome == 'failure')
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TITLE="＝LOVE 最新情報の自動取得：確認が必要です"
+          BODY_FILE="$RUNNER_TEMP/news-issue.md"
+          [ -f "$BODY_FILE" ] || echo "＝LOVE 最新情報の自動取得の途中で失敗しました。実行の記録：${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" > "$BODY_FILE"
+          NUMBER=$(gh issue list --state open --search "$TITLE in:title" --json number --jq '.[0].number')
+          if [ -n "$NUMBER" ]; then gh issue comment "$NUMBER" --body-file "$BODY_FILE"; else gh issue create --title "$TITLE" --body-file "$BODY_FILE"; fi
+
       - name: 公開しないフォルダ・ファイルを除外する
-        if: steps.youtube.outputs.deploy == 'true'
+        if: steps.publish.outputs.deploy == 'true'
         run: |
           rm -rf dev
           rm -rf tests
@@ -97,11 +150,11 @@ jobs:
           rm -rf scripts
 
       - name: Pages用の設定
-        if: steps.youtube.outputs.deploy == 'true'
+        if: steps.publish.outputs.deploy == 'true'
         uses: actions/configure-pages@v5
 
       - name: 公開用データをアップロード
-        if: steps.youtube.outputs.deploy == 'true'
+        if: steps.publish.outputs.deploy == 'true'
         uses: actions/upload-pages-artifact@v4
         with:
           path: .

@@ -7,7 +7,7 @@
 //
 // 新しいバージョンを配信したいときは、CACHE_VERSIONの値を必ず上げること。
 // 上げないと、ブラウザが「内容が変わっていない」と判断し、更新が反映されない。
-const CACHE_VERSION = "v412";
+const CACHE_VERSION = "v413";
 const CACHE_NAME = `equal-love-intro-quiz-${CACHE_VERSION}`;
 
 // キャッシュするアプリ本体のファイル一覧。
@@ -413,6 +413,10 @@ const APP_SHELL_FILES = [
   "./js/data/mixAndKoujouGuide.js",
   "./js/centerCelebration.js",
   "./js/newSingleAnnouncement.js",
+  // 【2026-11-03追加・R11 D】＝LOVE 最新情報（データの本体 data/official-news.json は APP_SHELL に入れない。network-first）
+  "./css/officialNews.css",
+  "./js/officialNewsData.js",
+  "./js/officialNewsScreen.js",
 ];
 
 self.addEventListener("install", (event) => {
@@ -442,7 +446,7 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME && key !== YOUTUBE_DATA_CACHE_NAME).map((key) => caches.delete(key))))
+      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME && key !== YOUTUBE_DATA_CACHE_NAME && key !== OFFICIAL_NEWS_DATA_CACHE_NAME).map((key) => caches.delete(key))))
       .then(() => self.clients.claim())
   );
 });
@@ -489,11 +493,40 @@ async function youtubeDataNetworkFirst(request) {
   }
 }
 
+// 【2026-11-03追加・R11 D】＝LOVE 最新情報のデータ data/official-news.json も、YouTube のデータと同じく network-first
+// （公開のたびに作り直すので APP_SHELL に入れない。オフラインのときだけ箱のものを返す。古さはアプリが fetchedAt から出す）。
+const OFFICIAL_NEWS_DATA_CACHE_NAME = "equal-love-official-news-data";
+const OFFICIAL_NEWS_DATA_URL_PATTERN = /\/data\/official-news\.json$/;
+function isOfficialNewsDataRequest(url) {
+  try {
+    return OFFICIAL_NEWS_DATA_URL_PATTERN.test(new URL(url).pathname);
+  } catch (error) {
+    return false;
+  }
+}
+async function officialNewsDataNetworkFirst(request) {
+  const cache = await caches.open(OFFICIAL_NEWS_DATA_CACHE_NAME);
+  try {
+    const response = await fetch(request, { cache: "no-store" });
+    if (response.ok) await cache.put(request, response.clone());
+    else if (response.status === 404) await cache.delete(request);
+    return response;
+  } catch (error) {
+    const cached = await cache.match(request);
+    if (cached) return cached;
+    throw error;
+  }
+}
+
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   if (shouldPassThroughRequest(event.request.url)) return;
   if (isYoutubeDataRequest(event.request.url)) {
     event.respondWith(youtubeDataNetworkFirst(event.request));
+    return;
+  }
+  if (isOfficialNewsDataRequest(event.request.url)) {
+    event.respondWith(officialNewsDataNetworkFirst(event.request));
     return;
   }
 

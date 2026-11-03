@@ -78,3 +78,7 @@ dist/
 # 【2026-11-03】YouTube 出演図鑑の API のデータ（scripts/youtube/refresh.mjs が公開のたびに作る）。
 # YouTube API の規約（30日を超えて保存しない）に合わせて、git には入れない。Pages の公開の成果物にだけ入る。
 data/youtube-appearances.json
+
+# 【2026-11-03 R11 D】＝LOVE 最新情報のデータ（scripts/news/refresh-news.mjs が公開のたびに公式サイトの NEWS の一覧から作る）。
+# 自動の push をしないため git には入れない。Pages の公開の成果物にだけ入る（過去の分は、公開中のデータから引き継ぐ）。
+data/official-news.json

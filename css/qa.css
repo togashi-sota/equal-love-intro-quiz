@@ -344,3 +344,10 @@
   line-height: 1.55;
   color: #495057;
 }
+
+/* 【2026-11-03 統合】入口を最新情報と同じ小さな行（.home-quick、css/officialNews.css）に並べた。
+   行の中では、上の .home-qa-entry-sub の右寄せ・狭い幅で隠す指定を使わない（「アプリ内の情報から答えます」は必ず見せる） */
+.home-quick .home-qa-entry-sub {
+  display: block;
+  margin-left: 0;
+}
