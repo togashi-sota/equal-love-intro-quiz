@@ -340,3 +340,172 @@
   margin-top: 4px;
   font-size: 0.8125rem;
 }
+
+/* ---------- 【2026-11-03 R12-1・本人の依頼】名前だけのカード ----------
+   メンバーカラーの丸・大きく太い名前・右の「›」・下の色の帯。2列×5行（広い画面は5列×2行）、どのカードも同じ大きさ。
+   ひとこと紹介・色名は出さない（色名・役割は読み上げで分かる。js/homeMembersSection.js の aria-label） */
+.home-member.home-member {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  min-height: 64px;
+  padding: 12px 10px 16px 12px;
+}
+.home-member .home-member-dot {
+  width: 1rem;
+  height: 1rem;
+}
+.home-member .home-member-name {
+  flex: 1;
+  font-size: 1.125rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  line-height: 1.25;
+}
+.home-member .home-member-go {
+  flex: none;
+  margin: 0;
+  align-self: center;
+  font-size: 1.375rem;
+  font-weight: 700;
+  line-height: 1;
+  color: #a3245e;
+}
+@container (min-width: 36rem) {
+  .home-member .home-member-name {
+    font-size: 1.1875rem;
+  }
+}
+/* 320px など（カードの中が 18rem 以下）：5文字の名前（大谷映美里・齋藤樹愛羅・佐々木舞香）が切れないよう、余白と大きさを少し詰める */
+@container (max-width: 18rem) {
+  .home-member.home-member {
+    gap: 6px;
+    padding: 12px 8px 16px 10px;
+  }
+  .home-member .home-member-dot {
+    width: 0.875rem;
+    height: 0.875rem;
+  }
+  .home-member .home-member-name {
+    font-size: 1rem;
+    letter-spacing: 0;
+  }
+  .home-member .home-member-go {
+    font-size: 1.125rem;
+  }
+}
+
+/* =====================================================================
+   【2026-11-03 R12-5・本人の依頼】ホームの「楽曲・歌詞を楽しむ」の下の入口を、見やすく押したくなる形に。
+   本人の iPhone の画面（e610e342）：楽曲一覧・シングル・アルバム・センター1枚表・歌詞検索の入口が薄く地味で、
+   上の「曲を聴く」のカードに比べて弱かった（スマホの幅ではアイコンも出していなかった）。
+   直したこと（CSS だけ。中身・行き先・並びは変えない。「曲を聴く」のカードはそのまま）：
+   ・地を少し濃くし、ボタンは白い地＋濃い枠＋影で浮かせる。右に「›」を付けて押せることを分かりやすく
+   ・見出し（読む・調べる／探す）を大きく濃く。説明の文字の色を濃く（コントラスト 4.5 以上）
+   ・中身が分かる色つきのアイコン（ピンク・紫の仲間。センター1枚表は＝LOVEをもっと知るの「歴代センター」と同じ色）を、スマホでも出す
+     （2つ横に並ぶ幅では、アイコンを題名の上に置き、題名を言葉の途中で折り返さない）
+   ===================================================================== */
+.home-card.home-card--music {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(255, 150, 200, 0.5), transparent 42%),
+    radial-gradient(circle at 0% 100%, rgba(170, 140, 255, 0.4), transparent 45%),
+    linear-gradient(150deg, #ffeef7 0%, #f1e6ff 55%, #e8eeff 100%);
+  border-color: #e2c6ee;
+}
+.home-card--music .home-card-title {
+  color: #4a1f5e;
+}
+.home-card--music .home-card-note {
+  color: #6b4a63;
+  font-weight: 700;
+}
+.home-card--music .home-music-col-title {
+  gap: 6px;
+  margin: 4px 2px 0;
+  color: #5b1f78;
+  font-size: 0.9375rem;
+}
+.home-card--music .home-music-col-title .hi {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+.home-card--music .home-music-item {
+  position: relative;
+  padding-right: 26px; /* 右の「›」の分 */
+  border: 1.5px solid #dcc0ec;
+  background: #fff;
+  box-shadow: 0 6px 14px -10px rgba(110, 40, 150, 0.55);
+}
+.home-card--music .home-music-item::after {
+  content: "›";
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-52%);
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1;
+  color: #a3245e;
+}
+.home-card--music .home-music-item b {
+  font-size: 0.90625rem;
+  color: #2e1a38;
+}
+.home-card--music .home-music-item small {
+  color: #6b4a63;
+}
+/* アイコン：白い記号を、色の地に（中身ごとに色を分ける） */
+.home-card--music .home-music-item-icon {
+  --icon: #7b2fa0;
+  width: 34px;
+  height: 34px;
+  background: var(--icon);
+  color: #fff;
+  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.12);
+}
+.home-card--music .home-music-item[data-home-action="songlist"] .home-music-item-icon { --icon: #d6336c; }
+.home-card--music .home-music-item[data-home-action="works"] .home-music-item-icon { --icon: #7b2fa0; }
+.home-card--music .home-music-item[data-home-action="center-sheet"] .home-music-item-icon { --icon: #a35f00; }
+.home-card--music .home-music-item[data-home-action="lyrics-search"] .home-music-item-icon { --icon: #5f3dc4; }
+/* 聴くのサブ（曲を選んで再生・プレイリスト・お気に入り）：「›」は付けない（中央そろえのボタン）。枠と影だけそろえる */
+.home-card--music .home-music-item--sub {
+  padding-right: 10px;
+  border-color: #e7bcd8;
+}
+.home-card--music .home-music-item--sub::after {
+  content: none;
+}
+.home-card--music .home-music-item--sub b {
+  font-size: 0.9375rem;
+}
+/* スマホの幅（カードの中が 24rem 未満）：アイコンを出し、2つ横の所はアイコンを題名の上に置く */
+@container (max-width: 24rem) {
+  .home-card--music .home-music-col--read .home-music-item-icon {
+    display: grid;
+  }
+  .home-card--music .home-music-col--read .home-music-item:not(.home-music-item--center-sheet) {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    min-height: 0;
+    padding: 10px 26px 10px 10px;
+  }
+}
+/* 中くらいの幅（iPad 縦でカードが2列のとき）も、アイコンを出す */
+@container (min-width: 26rem) and (max-width: 31.99rem) {
+  .home-card--music .home-music-col--read .home-music-item-icon,
+  .home-card--music .home-music-col--find .home-music-item-icon {
+    display: grid;
+  }
+  .home-card--music .home-music-col--read .home-music-item:not(.home-music-item--center-sheet),
+  .home-card--music .home-music-col--find .home-music-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-card--music .home-music-item {
+    transition: none;
+  }
+}

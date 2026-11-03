@@ -2,8 +2,8 @@
 //
 // 【何をするか】
 // 現役メンバー（members.js の status: active）を、正式な順（出席番号順）でカードにして並べる。
-// カードには、名前・メンバーカラー（色の点と下の帯）・ひとことの紹介（memberProfiles.js の homeLead）・
-// 「プロフィール」（押すと個人ページへ移ることが分かる表示）を出す。
+// カードには、名前・メンバーカラー（色の点と下の帯）・押すと個人ページへ移ることが分かる「›」を出す
+// （2026-11-03 R12-1 で名前だけにした。以前はひとことの紹介〈homeLead〉・色名・「プロフィール ›」も出していた）。
 // 写真は使わない（権利が確かめられないため。色と文字だけで作る）。
 //
 // 【なぜ別のファイルか】
@@ -42,71 +42,41 @@ export function splitLeadPhrases(text) {
     });
 }
 
-function buildLeadPhrases(phrases) {
-  return phrases.map((phrase) => {
-    const span = document.createElement("span");
-    span.className = "home-member-lead-part";
-    span.textContent = phrase;
-    return span;
-  });
-}
 
 // カード1枚（button）。押す所はカード全体の1つだけ（中にボタンを入れない）
+// 【2026-11-03 R12-1・本人の依頼】名前だけのカード：メンバーカラーの丸・大きく太い名前・押せると分かる「›」・下の色の帯。
+// ひとこと紹介・色名・役割の札は画面に出さない（ひとこと紹介のデータ homeLead は質問AIの「○○はどんな人？」の答えに使うので残す）。
+// 画面から省いた色名・役割は、読み上げ（aria-label）で分かるようにする。
 export function buildHomeMemberCard(model, onSelect) {
   const button = document.createElement("button");
   button.type = "button";
   button.className = "home-member";
   button.dataset.memberId = model.memberId;
   if (model.colorHex) button.style.setProperty("--member", model.colorHex);
-  // 読み上げ：名前・役割・紹介・行き先をまとめて1つの名前にする
-  const who = model.role ? `${model.name}（${model.role}）` : model.name;
-  button.setAttribute("aria-label", `${who}のプロフィールを見る${model.lead ? `。${model.lead}` : ""}`);
+  // 読み上げ：名前・役割・メンバーカラー・行き先（例：「山本杏奈、リーダー、メンバーカラー 青。プロフィールを見る」）
+  button.setAttribute("aria-label", buildHomeMemberLabel(model));
 
-  const head = document.createElement("span");
-  head.className = "home-member-head";
   const dot = document.createElement("span");
   dot.className = "home-member-dot";
   dot.setAttribute("aria-hidden", "true");
   const name = document.createElement("b");
   name.className = "home-member-name";
   name.textContent = model.name;
-  head.append(dot, name);
-  button.appendChild(head);
-
-  const meta = document.createElement("span");
-  meta.className = "home-member-meta";
-  meta.setAttribute("aria-hidden", "true");
-  // 役割の札（例：リーダー）。ひとこと紹介に同じ言葉があれば、札は重ねて出さない（2026-11-03：山本杏奈のひとことに「リーダー」を入れた）
-  if (model.role && !(model.lead ?? "").includes(model.role)) {
-    const role = document.createElement("span");
-    role.className = "home-member-role";
-    role.textContent = model.role;
-    meta.appendChild(role);
-  }
-  if (model.colorName) {
-    const color = document.createElement("span");
-    color.className = "home-member-color";
-    color.textContent = model.colorName;
-    meta.appendChild(color);
-  }
-  button.appendChild(meta);
-
-  if (model.lead) {
-    const lead = document.createElement("span");
-    lead.className = "home-member-lead";
-    lead.setAttribute("aria-hidden", "true");
-    lead.append(...buildLeadPhrases(model.leadPhrases ?? splitLeadPhrases(model.lead)));
-    button.appendChild(lead);
-  }
-
   const go = document.createElement("span");
   go.className = "home-member-go";
   go.setAttribute("aria-hidden", "true");
-  go.textContent = "プロフィール ›";
-  button.appendChild(go);
+  go.textContent = "›";
+  button.append(dot, name, go);
 
   button.addEventListener("click", () => onSelect(model.memberId));
   return button;
+}
+
+export function buildHomeMemberLabel(model) {
+  const parts = [model.name];
+  if (model.role) parts.push(model.role);
+  if (model.colorName) parts.push(`メンバーカラー ${model.colorName}`);
+  return `${parts.join("、")}。プロフィールを見る`;
 }
 
 // ホームの「メンバーを知る」へカードを並べる（起動時に1回。データはアプリと一緒に配る固定のもの）

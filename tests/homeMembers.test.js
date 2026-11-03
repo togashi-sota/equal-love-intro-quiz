@@ -1,5 +1,5 @@
 // 【2026-11-03新設・本人の依頼 R10-3】ホームの「メンバーを知る」・＝LOVE の3つのまとまり・メンバーの個人ページの点検と回遊の回帰テスト。
-// - 「メンバーを知る」：現役10人・正式な順（出席番号順）・名前・メンバーカラー・ひとこと紹介・プロフィールへ移る表示・写真なし
+// - 「メンバーを知る」：現役10人・正式な順（出席番号順）・名前・メンバーカラー・プロフィールへ移る表示・写真なし（2026-11-03 R12-1 で名前だけのカード）
 // - ひとこと紹介・紹介文：出典がある・公式プロフィールの趣味／特技が埋まっている・紹介文が「きっかけ」と同じ話を繰り返さない
 // - 個人ページの「このメンバーをもっと見る」：YouTube・テレビ・個人活動・センター曲／ユニット曲（増やしすぎない。同じ行き先を2か所に置かない）
 // - 行き先：ホームのカード → 個人ページ →［戻る］→ ホーム（元の位置）
@@ -20,7 +20,7 @@ function runHomeMemberCardTests() {
   assertEqual(models.map((model) => model.name), activeMembers.map((member) => member.name), "メンバーを知る：現役メンバーだけを、正式な順（出席番号順）で");
   assertEqual(models.length, 10, "メンバーを知る：現役10人（スマホで2列×5行）");
   assertEqual(models.every((model) => /^#[0-9a-f]{6}$/i.test(model.colorHex ?? "") && model.colorName), true, "メンバーを知る：全員にメンバーカラー（色と色の名前）");
-  assertEqual(models.every((model) => typeof model.lead === "string" && model.lead.length > 0 && model.lead.length <= 24), true, "メンバーを知る：全員にひとこと紹介（24文字以内。2列のカードで2行まで。英字のブランド名は幅が狭い）");
+  assertEqual(models.every((model) => typeof model.lead === "string" && model.lead.length > 0 && model.lead.length <= 24), true, "メンバーを知る：全員にひとこと紹介のデータ（24文字以内。ホームには出さず、質問AIの答えに使う）");
   assertEqual(models.find((model) => model.memberId === "yamamoto-anna")?.role, "リーダー", "メンバーを知る：役割（リーダー）を出す");
 
   // 押すと、そのメンバーの id で呼ばれる。押す所はカード全体の1つ
@@ -31,8 +31,13 @@ function runHomeMemberCardTests() {
   assertEqual(card.tagName, "BUTTON", "カード：ネイティブの button（キーボードでも押せる）");
   assertEqual(card.querySelectorAll("button, a, img").length, 0, "カード：中にボタン・リンク・写真を入れない");
   assertEqual(card.style.getPropertyValue("--member"), models[0].colorHex, "カード：メンバーカラーを CSS の変数で渡す（色の点・下の帯）");
-  assertEqual(card.querySelector(".home-member-go")?.textContent.includes("プロフィール"), true, "カード：押すとプロフィールへ移ることが分かる表示");
-  assertEqual(card.getAttribute("aria-label").startsWith(`${models[0].name}のプロフィールを見る`), true, "カード：読み上げは「○○のプロフィールを見る」");
+  // 【2026-11-03 R12-1・本人の依頼】名前だけのカード：丸・名前・「›」だけ。ひとこと紹介・色名は画面に出さず、色名と役割は読み上げで分かる
+  assertEqual([...card.children].map((child) => child.className), ["home-member-dot", "home-member-name", "home-member-go"], "カード：メンバーカラーの丸・名前・「›」だけ（名前だけのカード）");
+  assertEqual(card.querySelectorAll(".home-member-lead, .home-member-meta, .home-member-color").length, 0, "カード：ひとこと紹介・色名を画面に出さない");
+  assertEqual(card.querySelector(".home-member-go")?.textContent, "›", "カード：押すと個人ページへ移ることが分かる「›」");
+  assertEqual(card.getAttribute("aria-label"), `${models[0].name}、メンバーカラー ${models[0].colorName}。プロフィールを見る`, "カード：読み上げで名前・メンバーカラーの名前・行き先が分かる");
+  const annaCard = buildHomeMemberCard(models.find((model) => model.memberId === "yamamoto-anna"), () => {});
+  assertEqual(annaCard.getAttribute("aria-label"), "山本杏奈、リーダー、メンバーカラー 青。プロフィールを見る", "カード：役割（リーダー）も読み上げで分かる");
   card.click();
   assertEqual(selected, models[0].memberId, "カード：押すと、そのメンバーの個人ページを開く");
 
@@ -41,9 +46,7 @@ function runHomeMemberCardTests() {
   assertEqual(splitLeadPhrases("＝LOVEのリーダー"), ["＝LOVEのリーダー"], "ひとこと：区切りが無ければ1つ");
   assertEqual(splitLeadPhrases("ファッションブランドを|手がける"), ["ファッションブランドを", "手がける"], "ひとこと：「|」の所でも区切り、「|」は表示しない");
   assertEqual(models.every((model) => !model.lead.includes("|")), true, "ひとこと：読み上げ・表示の文に「|」が残らない");
-  const leadCard = buildHomeMemberCard(models.find((model) => model.memberId === "saito-kiara"), () => {});
-  assertEqual([...leadCard.querySelectorAll(".home-member-lead-part")].map((part) => part.textContent), ["最年少の", "ゲーム好きメンバー"], "カード：ひとことは、まとまりの span に分けて出す");
-  assertEqual([...leadCard.querySelectorAll(".home-member-lead-part")].some((part) => part.textContent.startsWith("・")), false, "カード：まとまりの頭に「・」が無い");
+  // ひとこと紹介のデータ（homeLead）は、ホームでは出さないが残す（質問AIの「○○はどんな人？」の答えに使う。js/qaEngine.js）
   assertEqual(models.find((model) => model.memberId === "yamamoto-anna").lead.includes("リーダー"), true, "山本杏奈：ひとことでリーダーであることが分かる（本人の依頼）");
   assertEqual(MEMBER_PROFILES.find((profile) => profile.memberId === "oba-hana").homeLead.text.includes("変わりたい"), false, "大場花菜：以前の伝わりにくいひとことは使わない（個人ページの紹介文には加入の経緯が残る）");
 
@@ -288,12 +291,30 @@ function runActivitySectionTests() {
   assertEqual(Object.values(byId("saito-sasaki-einstein-tv").highlightFor).length, 2, "共同の活動：選んだ理由はメンバーごと");
 }
 
+// 【2026-11-03 R12-5】ホームの「楽曲・歌詞を楽しむ」の入口：スマホでも色つきのアイコン・押せると分かる「›」・濃い文字
+async function runHomeMusicEntryTests() {
+  const css = await fetchText("css/homeMembers.css");
+  assertEqual(css.includes('.home-card--music .home-music-item::after {\n  content: "›";'), true, "楽曲の入口：右に「›」（押せると分かる）");
+  assertEqual(css.includes("@container (max-width: 24rem) {\n  .home-card--music .home-music-col--read .home-music-item-icon {\n    display: grid;"), true, "楽曲の入口：スマホの幅でもアイコンを出す（以前は消していた）");
+  const hexToLum = (hex) => {
+    const value = hex.replace("#", "");
+    const channel = (i) => { const c = parseInt(value.slice(i, i + 2), 16) / 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
+    return 0.2126 * channel(0) + 0.7152 * channel(2) + 0.0722 * channel(4);
+  };
+  const contrast = (a, b) => { const [hi, lo] = [hexToLum(a), hexToLum(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
+  assertEqual(["#6b4a63", "#5b1f78", "#2e1a38", "#a3245e"].every((color) => contrast(color, "#ffffff") >= 4.5), true, "楽曲の入口：説明・見出し・題名・「›」の文字は白い地で 4.5 以上");
+  assertEqual(["#d6336c", "#7b2fa0", "#a35f00", "#5f3dc4"].every((color) => contrast("#ffffff", color) >= 3), true, "楽曲の入口：アイコンの地と白い記号は 3 以上（図のコントラスト）");
+  const html = await fetchText("index.html");
+  assertEqual(html.includes("<small>覚えている<wbr>フレーズから</small>"), true, "楽曲の入口：歌詞検索の説明は言葉の切れ目で折り返す");
+}
+
 export async function runHomeMembersTests() {
   console.log("--- ホームの「メンバーを知る」・＝LOVE の3つのまとまり・個人ページの点検（2026-11-03 R10-3） ---");
   runHomeMemberCardTests();
   runProfileDataTests();
   runActivityStatusTests();
   runActivitySectionTests();
+  await runHomeMusicEntryTests();
   runMemberDetailExploreTests(await fetchText("js/main.js"));
   await runMarkupTests();
 }

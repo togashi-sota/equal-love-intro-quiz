@@ -177,6 +177,8 @@
     import { runQaAccuracyTests } from "./tests/qaAccuracy.test.js";
     // 【2026-11-03新設・R10-3】ホームの「メンバーを知る」・＝LOVE の3つのまとまり・個人ページの点検と回遊
     import { runHomeMembersTests } from "./tests/homeMembers.test.js";
+    // 【2026-11-03新設・R12-4】iOS で右の端からスワイプしても白い画面（「進む」の記録）が出ない
+    import { runIosForwardHistoryTests } from "./tests/iosForwardHistory.test.js";
     // 【2026-11-03新設】YouTube 出演図鑑の自動更新（30日ルール）
     import { runYoutubeAutomationTests } from "./tests/youtubeAutomation.test.js";
     // 【2026-11-03 R11-B】出演者の判定の直し
@@ -469,6 +471,7 @@
     await runQaEngineTests();
     await runQaAccuracyTests();
     await runHomeMembersTests();
+    await runIosForwardHistoryTests();
     await runYoutubeAutomationTests();
     await runYoutubeR11JudgmentTests();
     await runOfficialNewsTests();

@@ -13,6 +13,18 @@
 //         クイズ中の［タイトルへ］は「やめますか？」の確認が出る）
 //    ④ ［戻る］ボタンが無い画面は、記録にある前の画面（プレイ中の画面は飛ばす）へ戻す
 //
+// 【2026-11-03 R12-4 追加・本人の依頼】iOS（iPhone・iPad）では、ブラウザの履歴に記録を積まない（singleHistoryEntry）。
+//   原因：iOS の Safari とホーム画面の Web アプリは、画面の端からのスワイプで、ブラウザの履歴の「戻る」「進む」が始まる。
+//   このアプリは画面を移るたびに pushState で記録を積み、アプリの［戻る］・モーダルを閉じるときは history.go(-n) で戻るので、
+//   「戻る」「進む」の記録が残る。右の端からのスワイプ（進む）では、その記録の画面（このアプリでは真っ白）が右から滑り込み、
+//   進んだ先として前に開いた画面（例：質問AI）が開いた。左の端からのスワイプ（戻る）でも、記録の画面の写し（白）が出た。
+//   起動時のお祝いを閉じただけでも「進む」の記録が残っていた（本人の iPhone の画面：ed89bce5）。
+//   iOS の端からのスワイプそのものは、ページの側（CSS・JS）では止められない。止められないので、行き先の記録を作らない：
+//   iOS では最初の1件（replaceState）だけにし、画面の移り変わりはアプリの中の記録（stack）だけで持つ。
+//   こうすると、端からスワイプしても行き先が無いので、画面が横にずれて白くなる・別の画面へ飛ぶ、が起きない。
+//   代わりに、iOS では端からのスワイプで「戻る」ことはできない（どの画面にもある［戻る］ボタンで戻る。戻り先・スクロール位置・
+//   検索の状態の復元は今までどおり）。Android・PC は今までどおり（端末の「戻る」ボタン・ブラウザの戻る／進むが使える）。
+//
 // 【注意】history.go() は「すぐには終わらない」（後から popstate が届く）。そのあいだに次の pushState を
 // すると順番が狂うため、履歴の操作はすべて順番待ちの列（operationQueue）に入れて1つずつ実行する。
 
@@ -56,6 +68,7 @@ let handlingSystemBack = false; // 端末の「戻る」を処理している最
 let systemBackScreenChanged = false;
 const operationQueue = [];
 let waitingForPopIndex = null; // history.go() の結果の popstate を待っているとき、その行き先の番号
+let singleHistoryEntry = false; // iOS：ブラウザの履歴に記録を積まない（上の説明）
 let waitTimer = null;
 
 function makeState(index) {
@@ -73,6 +86,10 @@ function runQueue() {
   while (operationQueue.length > 0 && waitingForPopIndex === null) {
     const operation = operationQueue.shift();
     try {
+      if (singleHistoryEntry && (operation.kind === "push" || operation.kind === "go")) {
+        // iOS：記録を積まない・戻さない（ブラウザの履歴は最初の1件のまま。画面の記録は stack だけで持つ）
+        continue;
+      }
       if (operation.kind === "push") {
         historyApi.pushState(operation.state, "", currentUrl());
       } else if (operation.kind === "replace") {
@@ -377,12 +394,14 @@ export function initAppHistory({
   historyApi: historyOverride = null,
   popStateTarget: popStateTargetOverride = null,
   domRoot: domRootOverride = null,
+  singleHistoryEntry: singleOverride = null,
 }) {
   historyApi = historyOverride ?? (typeof history !== "undefined" ? history : null);
   if (!historyApi || typeof historyApi.pushState !== "function") return;
   popStateTarget = popStateTargetOverride ?? window;
   domRoot = domRootOverride ?? document;
   stack = createNavStack(initialScreen);
+  singleHistoryEntry = singleOverride ?? isIosLike();
   navigateFallback = navigate;
   getScreenElement = getElement;
   try {
@@ -399,6 +418,13 @@ export function initAppHistory({
   popStateTarget.addEventListener("popstate", handlePopState);
   watchModals();
   syncModalEntry(); // 起動時にすでに開いているモーダル（お祝いなど）の分
+}
+
+// iPhone・iPad（iPadOS は Mac と同じ名前を名乗るので、タッチの数で見分ける）
+export function isIosLike(nav = typeof navigator !== "undefined" ? navigator : null) {
+  if (!nav) return false;
+  if (/iPhone|iPad|iPod/.test(nav.userAgent ?? "")) return true;
+  return nav.platform === "MacIntel" && (nav.maxTouchPoints ?? 0) > 1;
 }
 
 function currentUrl() {
@@ -419,5 +445,5 @@ export function getNavStackSnapshot() {
 
 // テスト・確認用：履歴の操作の待ち状態
 export function getAppHistoryDebugState() {
-  return { modalEntryActive, waitingForPopIndex, queuedOperations: operationQueue.length, stack: getNavStackSnapshot() };
+  return { modalEntryActive, waitingForPopIndex, queuedOperations: operationQueue.length, stack: getNavStackSnapshot(), singleHistoryEntry };
 }
