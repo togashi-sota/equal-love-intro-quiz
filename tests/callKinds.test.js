@@ -3,25 +3,23 @@
 //   K1. 種類ごとの代表が正しく分かれる（A MIX・B 短い掛け声・C 名前・D ふわふわ・E 連続・F 特殊・G そのほか）
 //   K2. 表記の揺れ（カタカナ・ひらがな・半角・小さい字）が同じ種類になる
 //   K3. 誤分類の例外（名前と歌詞を混同しない・長い文の中のふわふわは口上・1 文字の繰り返しは連続にしない・迷うものはふつう）
-//   K4. 本文の不変：区切りをつなげると元の文字列と同じ・判定で文字列を変えない
+//   K4. 本文の不変：判定・計画で本文・開始・終了を変えない
 //   K5. 並びの例外（前後が口上なら口上・短い掛け声が続くときの番号）
 //   K6. 演出の維持と終わり：どの種類も始まりから終わりまで文字と会場が出たまま（途中で弱くならない）・終わったら消える
-//   K7. 種類ごとの見せ方：MIX は区切りごとに順に・最後で大きく／短い掛け声は 左→右→中央→全体／名前は溜め→名前／連続は回数・左右交互
-//   K8. ペンライト：シュッ（速い振り→止め）・強い種類ほど速い・一斉・視差効果を減らすと動かない・時刻だけで決まる
+//   K7. 種類ごとの見せ方：MIX は全文を 1 つの塊で／短い掛け声は 1 件ごとに 左→右→中央→全体／名前は始まりから全部／ふわふわは弾む
+//   K8. 【2026-11-03 R12】ペンライトは固定（どの時刻でも向き・位置が同じ）。変わるのは色だけ
+//   R12. 【2026-11-03 R12】本人が区切った 1 件を、1 つの塊として、その件の開始〜終了で出す（MIX・連続の「うりゃ！おい！」で、
+//        画面に出る塊の数と時刻が承認済みの件と 1 対 1。1 件の途中で文字が変わらない・1 件の途中の時刻に光を作らない）
 //   K9. 画面全体の光は、どの 1 秒の中でも 3 回まで（全種類を混ぜて）
-//   K10. 画面の部品：種類（data-fx）・区切りの文字・名前の溜め・1 文字ずつの部品は本文のまま・一時停止で消える
+//   K10. 画面の部品：種類（data-fx）・1 件の全文・ペンライトの向きは作ったときのまま・一時停止で消える
 import { assertEqual } from "./test-utils.js";
-import { CALL_KINDS, CALL_KIND_GROUPS, classifyCallKind, classifyCallSequence, splitCallSegments, countCallBeats, normalizeCallText } from "../js/callKinds.js";
+import { CALL_KINDS, CALL_KIND_GROUPS, classifyCallKind, classifyCallSequence, countCallBeats, normalizeCallText } from "../js/callKinds.js";
 import {
   planSpectacle,
   spectacleStateAt,
   penlightPoseAt,
-  flickCurve,
-  segmentAt,
-  nameBlastTime,
   fxCrowdColors,
   createSpectacle,
-  SP_FX,
   SP_SHOUT_SPOTS,
   SP_TAIL_SEC,
   SP_FLASH_MAX_PER_SEC,
@@ -84,18 +82,13 @@ function runVariantAndExceptionTests() {
 function runInvariantTests() {
   console.log("--- r9 K4：本文の不変 ---");
   const samples = [MIX_A, MIX_B, MIX_C, "L・O・V・E", "3 2 1 Go！", "はいせーの！　はーいはい！　はい！×４", "\nオイ！\n", "  ", "", "ダミー", "👏 👏👏 👏\nしゃ～いくぞ！"];
-  for (const mode of ["shout", "dot"]) {
-    assertEqual(samples.every((s) => splitCallSegments(s, mode).join("") === s), true, `K4: 区切り（${mode}）をつなげると元の文字列とまったく同じ`);
-  }
-  assertEqual(splitCallSegments(MIX_B).length, 7, "K4: 「虎(とら)！」は 1 つの区切り（読みのかっこで切らない）");
-  assertEqual(splitCallSegments("タイガー！ファイヤー！").map((s) => s.trim()), ["タイガー！", "ファイヤー！"], "K4: MIX は「！」の後ろで区切る");
   const before = JSON.stringify(samples);
   samples.forEach((s) => classifyCallKind(s));
   classifyCallSequence(samples.map((text, i) => ({ text, start: i, end: i + 0.5 })));
   assertEqual(JSON.stringify(samples), before, "K4: 判定は本文を変えない");
   const calls = [{ key: "a", text: MIX_A, start: 1, end: 12 }];
   const plan = planSpectacle(calls);
-  assertEqual([plan[0].text, plan[0].start, plan[0].end, plan[0].segs.join("")], [MIX_A, 1, 12, MIX_A], "K4: 演出の計画でも本文・開始・終了はそのまま（区切りは見せ方だけ）");
+  assertEqual([plan[0].text, plan[0].start, plan[0].end], [MIX_A, 1, 12], "K4: 演出の計画でも本文・開始・終了はそのまま");
   assertEqual(JSON.stringify(calls), JSON.stringify([{ key: "a", text: MIX_A, start: 1, end: 12 }]), "K4: 渡したコールの配列を書き換えない");
 }
 
@@ -113,6 +106,84 @@ function runSequenceTests() {
   assertEqual([run.map((k) => k.run), run[0].runLen], [[0, 1, 2, 3, 4], 5], "K5: 短い掛け声が続くときは何番目かを持つ");
   const apart = classifyCallSequence([{ text: "オイ！", start: 0, end: 0.3 }, { text: "オイ！", start: 10, end: 10.3 }]);
   assertEqual(apart.map((k) => k.runLen), [1, 1], "K5: 離れた掛け声は続きにしない");
+}
+
+// ---- R12：本人の依頼「本人が切った所以外は、勝手に切って表示しないでほしい」 ----
+// 架空の短いデータ（本物の歌詞・コールではない）。本人が区切った単位＝この配列の 1 件
+const R12_CALLS = [
+  { key: "u1", text: "うりゃ！おい！うりゃ！おい！ うりゃ！おい！うりゃ！おい！", start: 10, end: 14.2 }, // 連続の「うりゃ！おい！」を 1 件にしたもの
+  { key: "u2", text: "うりゃ！おい！", start: 14.4, end: 15.1 }, // 本人が別に区切った 1 件
+  { key: "u3", text: "うりゃ！おい！", start: 15.3, end: 16 },
+  { key: "m1", text: MIX_A, start: 18, end: 29.5, type: "mix" }, // MIX の 1 件（中に「！」がたくさんある）
+  { key: "m2", text: MIX_B, start: 30.2, end: 33 },
+  { key: "r1", text: "はいせーの！　はーいはい！　はい！×４", start: 35, end: 38.9 },
+  { key: "s1", text: "L・O・V・E", start: 40, end: 42.5 },
+  { key: "k1", text: "ダミーのことばがあるんだよ！", start: 44, end: 46.4 },
+  { key: "n1", text: "超絶かわいい！はなちゃん！", start: 48, end: 50.6 },
+];
+
+// 時刻 t に出ている塊（key と、出ている文字）を 1/60 秒ごとに集め、つながった区間にまとめる
+function shownBlocks(plan, from, to) {
+  const blocks = [];
+  for (let t = from; t < to; t += 1 / 60) {
+    const v = spectacleStateAt(plan, t);
+    const on = v.key !== null && v.word.o >= 0.99;
+    const last = blocks[blocks.length - 1];
+    if (on && last && last.key === v.key && last.open) last.end = t;
+    else if (on) blocks.push({ key: v.key, start: t, end: t, open: true });
+    else if (last) last.open = false;
+  }
+  return blocks.map(({ key, start, end }) => ({ key, start: Math.round(start * 100) / 100, end: Math.round(end * 100) / 100 }));
+}
+
+function runNoSplitTests() {
+  console.log("--- R12：1 件は 1 つの塊・本人の開始〜終了のまま（勝手に区切らない） ---");
+  const plan = planSpectacle(R12_CALLS);
+  assertEqual(plan.map((p) => p.key), R12_CALLS.map((c) => c.key), "R12: 計画の件数と順番は、承認済みの件と同じ（足さない・減らさない）");
+  assertEqual(plan.every((p) => p.segs.length === 0), true, "R12: どの件も表示のための区切りを持たない（MIX・連続・1文字ずつでも）");
+  const blocks = shownBlocks(plan, 9, 52);
+  assertEqual(blocks.map((b) => b.key), R12_CALLS.map((c) => c.key), "R12: 画面に出る塊の数と順番は、承認済みの件と 1 対 1");
+  const offs = blocks.map((b, i) => [Math.abs(b.start - R12_CALLS[i].start) <= 0.1, Math.abs(b.end - R12_CALLS[i].end) <= 0.04]);
+  assertEqual(offs.every(([s, e]) => s && e), true, "R12: 塊は、その件の開始（0.1 秒以内に出る）〜終了まで出る（表示の都合で時刻を作り直さない）");
+  // 1 件の中で、状態が「区切り」を持たない（seg・beat・lit が無い。どの時刻でも同じ件・同じ全文）
+  const mix = plan.find((p) => p.key === "m1");
+  const keys = new Set();
+  let hasSub = false;
+  for (let t = mix.start + 0.1; t < mix.end; t += 0.05) {
+    const v = spectacleStateAt(plan, t);
+    keys.add(v.key);
+    if ("seg" in v || "beat" in v || "lit" in v) hasSub = true;
+  }
+  assertEqual([[...keys], hasSub], [["m1"], false], "R12: MIX の 1 件は、始まりから終わりまで同じ 1 件（区切りの番号を持たない）");
+  // 画面全体の光：1 件の始まり以外の時刻に光を作らない
+  const inner = plan.flatMap((p) => (p.flashes ?? []).filter((f) => Math.abs(f.t - p.start) > 1e-9).map((f) => `${p.key}@${f.t}`));
+  assertEqual(inner, [], "R12: 1 件の途中の時刻（区切り・回数・名前の溜め）に光を作らない");
+  // 「うりゃ！おい！」を続けた 3 件：塊は 3 つ・それぞれ本人の時刻
+  const u = blocks.filter((b) => b.key.startsWith("u"));
+  assertEqual([u.length, u.map((b) => b.key)], [3, ["u1", "u2", "u3"]], "R12: 連続の「うりゃ！おい！」は、本人が区切った 3 件のまま（1 件の中を「！」で分けない）");
+}
+
+function runNoSplitDomTests() {
+  console.log("--- R12：画面の文字は 1 件の全文のまま ---");
+  if (typeof document === "undefined") return;
+  const host = document.body.appendChild(document.createElement("div"));
+  const sp = createSpectacle(host, { variant: "karaoke" });
+  const plan = planSpectacle(R12_CALLS);
+  sp.setPlan(plan);
+  const text = () => host.querySelector(".sp-word-text").textContent;
+  const seen = [];
+  for (const call of R12_CALLS) {
+    const texts = new Set();
+    for (let t = call.start + 0.05; t < call.end; t += 0.1) {
+      sp.update(t, { playing: true, enabled: true });
+      texts.add(text());
+    }
+    seen.push([call.key, [...texts]]);
+  }
+  assertEqual(seen.every(([key, texts], i) => texts.length === 1 && texts[0] === R12_CALLS[i].text), true, "R12: どの件も、始まりから終わりまで、本人の全文がそのまま 1 つの塊で出る（途中で文字が変わらない）");
+  assertEqual(host.querySelectorAll(".sp-pips, .sp-probe, .sp-ch.is-lit").length, 0, "R12: 回数の印・区切りの測り・1 文字ずつ灯る部品は無い");
+  sp.destroy();
+  host.remove();
 }
 
 const DEMO = [
@@ -158,98 +229,56 @@ function runSustainTests() {
 }
 
 function runFxShapeTests() {
-  console.log("--- r9 K7：種類ごとの見せ方 ---");
+  console.log("--- r9 K7：種類ごとの見せ方（R12：1 件の中は分けない） ---");
   const plan = planSpectacle(DEMO);
   const at = (t, o) => spectacleStateAt(plan, t, o);
   const mix = plan.find((p) => p.key === "mix");
-  // MIX：区切りが順に（等分）。最後の区切りは一番大きい
-  const segs = [];
-  for (let t = mix.start; t < mix.end; t += 0.05) segs.push(at(t).seg);
-  assertEqual(segs.every((s, i) => i === 0 || s >= segs[i - 1]) && segs[0] === 0 && segs[segs.length - 1] === mix.segs.length - 1, true, "K7: MIX：区切りは前から順に、最後の区切りまで");
-  const sg = segmentAt(mix, mix.start + (mix.end - mix.start) * 0.5);
-  assertEqual(Math.abs(sg.len - (mix.end - mix.start) / mix.segs.length) < 1e-9, true, "K7: MIX：区切りの時間は 1 件の開始〜終了の等分（見せ方だけ）");
-  const lastStart = mix.start + sg.len * (mix.segs.length - 1);
-  const settledFirst = at(mix.start + sg.len * 0.8).word.s;
-  const settledLast = at(lastStart + sg.len * 0.8).word.s;
-  assertEqual(settledLast > settledFirst, true, "K7: MIX：進むほど大きく、最後の区切りが一番大きい");
-  assertEqual(at(lastStart + 0.02).wash > 0, true, "K7: MIX：最後の区切りで画面が光る（最後で大きく）");
-  // 短い掛け声：続くと 左 → 右 → 中央 → 全体
+  // MIX：全文を 1 つの塊で。進むほど少しずつ大きく（1 件の進み具合だけ）
+  assertEqual(at(mix.end - 0.3).word.s >= at(mix.start + 1.2).word.s - 0.05, true, "K7: MIX：終わりまで弱くならない（進むほど少し大きく）");
+  // 短い掛け声：続くと 1 件ごとに 左 → 右 → 中央 → 全体
   const spots = ["r1", "r2", "r3", "r4"].map((k) => at(plan.find((p) => p.key === k).start + 0.25).word);
-  assertEqual([spots[0].x < 0, spots[1].x > 0, spots[2].x === 0, spots[3].x === 0 && spots[3].s > spots[2].s], [true, true, true, true], "K7: 短い掛け声：続くときは 左 → 右 → 中央 → 全体");
+  assertEqual([spots[0].x < 0, spots[1].x > 0, spots[2].x === 0, spots[3].x === 0 && spots[3].s > spots[2].s], [true, true, true, true], "K7: 短い掛け声：続くときは 1 件ごとに 左 → 右 → 中央 → 全体");
   assertEqual(SP_SHOUT_SPOTS.map((s) => s.name), ["left", "right", "center", "all"], "K7: 置き場所の順番");
   const pops = [];
   for (let t = 2; t < 2.3; t += 0.01) pops.push(at(t).word.s);
   assertEqual([Math.min(...pops) <= 0.3, Math.max(...pops) >= 1.3], [true, true], "K7: 短い掛け声：点から一瞬で大きく");
-  // 名前：溜め → 名前で一気に
+  // 名前：始まりから名前まで全部（溜めない）
   const name = plan.find((p) => p.key === "name");
-  const blast = nameBlastTime(name);
-  assertEqual([blast > name.start, blast <= name.start + 0.9 + 1e-9, at(name.start + 0.3).named, at(blast + 0.01).named], [true, true, false, true], "K7: 名前：「超絶かわいい！」で溜めて → 名前で一気に（溜めは 0.9 秒まで）");
-  assertEqual(at(blast + 0.08).word.s > at(blast - 0.05).word.s + 0.2, true, "K7: 名前：名前の瞬間に大きく飛び出す");
-  assertEqual(nameBlastTime(plan.find((p) => p.key === "or")), 29, "K7: 名前の前の言葉が無ければ、始まりから名前");
+  const ns = [];
+  for (let t = name.start; t < name.start + 0.4; t += 0.01) ns.push(at(t).word.s);
+  assertEqual([Math.max(...ns) > 1.1, at(name.start + 0.1).word.o], [true, 1], "K7: 名前：始まりで名前まで全部が飛び出す（溜めて遅らせない）");
   const orColors = fxCrowdColors(plan.find((p) => p.key === "or"), 12);
   assertEqual([new Set(orColors).size, orColors[0] !== orColors[1]], [3, true], "K7: or：ペンライトは候補の全員の色が混ざる（隣が同じ色にならない）");
   const four = fxCrowdColors({ fx: "name", fxColors: ["#1", "#2", "#3", "#4"] }, 8);
-  assertEqual(four.slice(0, 4).join() !== "#1,#2,#3,#4" || four.join() !== "#1,#1,#2,#2,#3,#3,#4,#4", true, "K7: 4 人でも左から順の等分の帯にしない");
-  // 連続：回数に合わせて跳ねる・左右交互・最後は大きく
-  const rep = plan.find((p) => p.key === "repeat");
-  const len = (rep.end - rep.start) / rep.beats;
-  const xs = [0, 1, 2, 3].map((i) => at(rep.start + len * (i + 0.1)).word.x);
-  assertEqual([rep.beats, Math.sign(xs[0]) !== Math.sign(xs[1]), Math.sign(xs[1]) !== Math.sign(xs[2])], [7, true, true], "K7: 連続：回数（7 回）ごとに左右交互に跳ねる");
-  assertEqual(at(rep.start + len * (rep.beats - 0.9)).word.x === 0 && at(rep.start + len * (rep.beats - 0.4)).word.s > at(rep.start + len * 1.6).word.s, true, "K7: 連続：最後の 1 回は真ん中で大きく");
-  // ふわふわ：弾む（上下）・左右
+  assertEqual(four.join() !== "#1,#1,#2,#2,#3,#3,#4,#4", true, "K7: 4 人でも左から順の等分の帯にしない");
+  // ふわふわ：弾む（時刻を作らない一定の動き）
   const fu = plan.find((p) => p.key === "fuwa");
   const ys = [];
   for (let t = fu.start + 0.05; t < fu.end; t += 0.05) ys.push(at(t).word.y);
   assertEqual(Math.min(...ys) < -0.3 && Math.max(...ys) > -0.1, true, "K7: ふわふわ：弾む");
-  // 特殊：暗転 → 爆発
+  // 特殊：始まりで奥から回りながら飛び出す（暗転で遅らせない）
   const sp = plan.find((p) => p.key === "special");
-  assertEqual([at(sp.start + 0.05).dark, at(sp.start + 0.05).word.s < 0.1, at(sp.start + 0.4).dark, at(sp.start + 0.3).word.s > 1.1], [1, true, 0, true], "K7: 特殊：一瞬暗くなって、奥から一気に飛び出す");
+  assertEqual([at(sp.start + 0.05).dark, at(sp.start + 0.2).word.s > 1, at(sp.start + 0.02).wash > 0.3], [0, true, true], "K7: 特殊：始まりで一気に飛び出し、光る");
   assertEqual(Math.abs(at(sp.start + 0.7).word.r) < 1, true, "K7: 特殊：回転は最後に読める向きに戻る");
-  // 口上・1文字ずつ：灯る割合が進む
-  const kj = plan.find((p) => p.key === "kojo");
-  assertEqual([at(kj.start + 0.1).lit < 0.2, at(kj.start + (kj.end - kj.start) * 0.9).lit], [true, 1], "K7: 口上：1 文字ずつ灯り、終わり近くで全部");
-  const sl = plan.find((p) => p.key === "spell");
-  assertEqual([at(sl.start + 0.1).lit, at(sl.end - 0.05).lit], [0.25, 1], "K7: 1文字ずつ：L・O・V・E が 1 つずつ（等分）");
 }
 
 function runPenlightTests() {
-  console.log("--- r9 K8：ペンライト（シュッ！シュッ！） ---");
-  // 1 回の振り：最初の 30% で振り切り、あとは止める（メリハリ）
-  assertEqual([flickCurve(0).pos, flickCurve(0.3).pos > 1, flickCurve(0.6).pos > 0.99, flickCurve(0).vel, flickCurve(0.5).vel], [-1, true, true, 1, 0], "K8: 速く振り切って（少し行き過ぎ）、止める");
+  console.log("--- R12 K8：ペンライトは固定（色だけ変わる） ---");
   const plan = planSpectacle(DEMO);
-  const speed = (key, from = 0, to = 1) => {
-    const item = plan.find((p) => p.key === key);
-    let max = 0;
-    const t0 = item.start + (item.end - item.start) * from;
-    const t1 = item.start + (item.end - item.start) * to;
-    for (let t = t0; t < t1 - 1 / 120; t += 1 / 120) {
-      const a = penlightPoseAt(plan, t, 3, 12).a;
-      const b = penlightPoseAt(plan, t + 1 / 120, 3, 12).a;
-      max = Math.max(max, Math.abs(b - a) * 120);
+  // どの時刻でも、どの種類でも、向き・位置は同じ（振らない・回さない・揺らさない）
+  let moved = [];
+  for (let i = 0; i < 12; i++) {
+    const a0 = penlightPoseAt(plan, 0, i, 12);
+    for (let t = 0; t < 75; t += 0.05) {
+      const p = penlightPoseAt(plan, t, i, 12);
+      if (p.a !== a0.a || p.y !== 0 || p.v !== 0) moved.push(`${i}@${t.toFixed(2)}`);
     }
-    return max;
-  };
-  const sp = speed("special");
-  const sh = speed("shout");
-  const mixEnd = speed("mix", 0.92, 1);
-  const mixStart = speed("mix", 0, 0.3);
-  const nm = speed("name", 0.5, 1);
-  const nr = speed("normal");
-  const sg = speed("sing");
-  assertEqual([sp > 1200, sh > 1000, nr > 600], [true, true, true], "K8: 振る瞬間は速い（1 秒に 600 度以上）");
-  assertEqual([sp >= sh * 0.95, mixEnd > mixStart, nm > sg, sh > sg], [true, true, true, true], "K8: 強い種類ほど速い（特殊 ≧ 短い・MIX は進むほど速い・名前＞歌う）");
-  // 一斉：短い掛け声・特殊・名前は、始まりで全部が同じ向き（ずらさない）
-  const shout = plan.find((p) => p.key === "shout");
-  const poses = Array.from({ length: 12 }, (_, i) => penlightPoseAt(plan, shout.start + 0.01, i, 12));
-  assertEqual(poses.every((p) => p.d === poses[0].d && p.v > 0.5), true, "K8: コールの始まりで一斉に振る");
-  // 視差効果を減らす：動かさない
-  const still = [0.1, 0.5, 1.2].map((dt) => penlightPoseAt(plan, plan[5].start + dt, 2, 12, { reduced: true }));
-  assertEqual(still.every((p) => p.a === still[0].a && p.v === 0), true, "K8: 視差効果を減らす：ペンライトを振らない");
-  // 時刻だけで決まる
-  assertEqual(JSON.stringify(penlightPoseAt(plan, 15.37, 4, 12)), JSON.stringify(penlightPoseAt(plan, 15.37, 4, 12)), "K8: 同じ時刻なら同じ向き（シーク・再開でも）");
-  // コールの無い間（会場を下ろしていない）は休む
-  assertEqual(penlightPoseAt(plan, 0.5, 0, 12).v, 0, "K8: コールの無い間は振らない");
-  assertEqual(SP_FX.special.f0 > SP_FX.normal.f0 && SP_FX.shout.f0 > SP_FX.normal.f0 && SP_FX.mix.f1 > SP_FX.mix.f0, true, "K8: 設定：特殊・短い掛け声はふつうより速い・MIX は進むほど速い");
+  }
+  assertEqual(moved.slice(0, 3), [], "K8: ペンライトの向き・位置は、どの時刻でも同じ（振らない・揺らさない）");
+  // 色は種類・メンバーで変わる
+  const shoutColors = fxCrowdColors(plan.find((p) => p.key === "shout"), 4);
+  const nameColors = fxCrowdColors(plan.find((p) => p.key === "name"), 4);
+  assertEqual(shoutColors.join() !== nameColors.join(), true, "K8: 変わるのは色（種類・メンバーカラー）");
 }
 
 function runFlashTests() {
@@ -278,7 +307,7 @@ function runFlashTests() {
 }
 
 function runFxDomTests() {
-  console.log("--- r9 K10：画面の部品 ---");
+  console.log("--- K10：画面の部品 ---");
   if (typeof document === "undefined") return;
   const host = document.body.appendChild(document.createElement("div"));
   const sp = createSpectacle(host, { variant: "karaoke" });
@@ -286,37 +315,32 @@ function runFxDomTests() {
   sp.setPlan(plan);
   const text = () => host.querySelector(".sp-word-text").textContent;
   const fx = () => sp.layer.dataset.fx;
+  const sticks = () => [...host.querySelectorAll(".sp-crowd i")].map((i) => i.style.transform);
+  const firstSticks = sticks();
   sp.update(2.1, { playing: true, enabled: true });
   assertEqual([fx(), text()], ["shout", "オイ！"], "K10: 短い掛け声：data-fx と文字");
   const mix = plan.find((p) => p.key === "mix");
-  sp.update(mix.start + 0.01, { playing: true, enabled: true });
-  assertEqual([fx(), text()], ["mix", mix.segs[0]], "K10: MIX：最初の区切りの文字");
-  const len = (mix.end - mix.start) / mix.segs.length;
-  sp.update(mix.start + len * 5.5, { playing: true, enabled: true });
-  assertEqual(text(), mix.segs[5], "K10: MIX：その時刻の区切りの文字（本人の文字のまま）");
-  assertEqual(host.querySelectorAll(".sp-pips i.is-lit").length > 0, true, "K10: MIX：区切りの印が進む");
-  sp.update(mix.end - 0.01, { playing: true, enabled: true });
-  assertEqual([text(), host.querySelector(".sp-word").classList.contains("is-finale")], [mix.segs[mix.segs.length - 1], true], "K10: MIX：最後の区切りは一番大きな見せ方");
+  for (const t of [mix.start + 0.01, mix.start + 5, mix.end - 0.01]) {
+    sp.update(t, { playing: true, enabled: true });
+    assertEqual([fx(), text()], ["mix", mix.text], `K10: MIX：+${(t - mix.start).toFixed(2)} 秒でも 1 件の全文`);
+  }
   const name = plan.find((p) => p.key === "name");
-  sp.update(name.start + 0.2, { playing: true, enabled: true });
+  sp.update(name.start + 0.05, { playing: true, enabled: true });
   const word = host.querySelector(".sp-word");
-  assertEqual([fx(), text(), word.classList.contains("is-build"), Boolean(host.querySelector(".sp-lead"))], ["name", name.text, true, true], "K10: 名前：溜めの間（本文はそのまま）");
-  sp.update(nameBlastTime(name) + 0.05, { playing: true, enabled: true });
-  assertEqual([word.classList.contains("is-named"), word.classList.contains("is-build")], [true, false], "K10: 名前：名前で一気に");
+  assertEqual([fx(), text(), word.classList.contains("is-named"), word.classList.contains("is-build")], ["name", name.text, true, false], "K10: 名前：始まりから全文・名前の光");
   const kj = plan.find((p) => p.key === "kojo");
   sp.update(kj.start + 1, { playing: true, enabled: true });
-  const lit = host.querySelectorAll(".sp-ch.is-lit").length;
-  assertEqual([text(), lit > 0, lit < host.querySelectorAll(".sp-ch").length], [kj.text, true, true], "K10: 口上：1 文字ずつの部品をつなげると本文と同じ・途中まで灯る");
+  assertEqual([text(), host.querySelectorAll(".sp-ch").length], [kj.text, 0], "K10: 口上：1 文字ずつの部品にしない（全文そのまま）");
   const fu = plan.find((p) => p.key === "fuwa");
   sp.update(fu.start + 0.1, { playing: true, enabled: true });
-  assertEqual([fx(), text(), host.querySelectorAll(".sp-word-text .sp-wd").length >= 1], ["fuwa", fu.text, true], "K10: ふわふわ：言葉の途中で折り返さない箱");
+  assertEqual([fx(), text(), host.querySelectorAll(".sp-word-text .sp-wd").length >= 1], ["fuwa", fu.text, true], "K10: ふわふわ：言葉の途中で折り返さない箱（文字は本人のまま）");
+  assertEqual(sticks(), firstSticks, "K10: 再生しても、ペンライトの向き（transform）は作ったときのまま");
   sp.update(fu.start + 0.1, { playing: false, enabled: true });
   assertEqual([sp.layer.classList.contains("is-paused"), word.style.opacity], [true, "0"], "K10: 一時停止で消える");
   sp.update(fu.start + 0.1, { playing: true, enabled: false });
   assertEqual(sp.layer.hidden, true, "K10: 演出なし・コール表示 OFF で出さない");
-  // ペンライトの部品：持ち手・発光部・光の広がり・残像
   const stick = host.querySelector(".sp-crowd i");
-  assertEqual(["sp-grip", "sp-tube", "sp-halo", "sp-trail"].every((c) => stick.querySelector(`.${c}`)), true, "K10: ペンライトは持ち手・発光部・光の広がり・残像の部品");
+  assertEqual([["sp-grip", "sp-tube", "sp-halo"].every((c) => stick.querySelector(`.${c}`)), Boolean(stick.querySelector(".sp-trail"))], [true, false], "K10: ペンライトは持ち手・発光部・光の広がり（振らないので残像は無い）");
   sp.destroy();
   host.remove();
 }
@@ -331,4 +355,6 @@ export function runCallKindsTests() {
   runPenlightTests();
   runFlashTests();
   runFxDomTests();
+  runNoSplitTests();
+  runNoSplitDomTests();
 }

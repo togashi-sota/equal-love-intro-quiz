@@ -12,8 +12,8 @@
 //     動作の合図（タオル・ペンライトを上げる 等）・一緒に歌う（英語のフレーズ・ハミング）・ふつう（どれにも当てはまらない）
 //
 // 【守ること】
-//   ・コールの文字・時刻・区切りは変えない。ここは「どう見せるか」を決めるだけ。
-//     splitCallSegments が返す区切りは、つなげると元の文字列とまったく同じ（テストで保証）。
+//   ・コールの文字・時刻・区切りは変えない。ここは「どう見せるか」（色・飛び出し方）を決めるだけ。
+//     【r12-calls】1 件を表示のために区切る関数（splitCallSegments）は消した。回数（countCallBeats）は情報だけで、時刻には使わない。
 //   ・キーワードだけで決めない：MIX は「MIX の言葉が 3 種類以上」、連続は「同じ短い言葉の繰り返し・×回数」、
 //     名前は確かめた名前の表（js/callNameColors.js）、口上は「8 文字以上の文」、手拍子は「👏 だけ」のように、
 //     文字の並び（データの構造）と長さで決める。
@@ -113,45 +113,6 @@ function countMixWords(norm) {
   let rest = norm;
   for (const re of SPECIAL_PATTERNS) rest = rest.replace(re, " ");
   return MIX_WORDS.filter((w) => rest.includes(w)).length;
-}
-
-// ===== 区切り（表示の区切り。つなげると元の文字列と同じ） =====
-// mode "shout"：「！」「!」「？」の後ろ・改行・空白の並びで区切る（「虎(とら)！」は1つ）。区切りの空白・改行は前の区切りに付ける。
-// mode "dot"：「・」と空白で区切る（L・O・V・E → L・／O・／V・／E）
-export function splitCallSegments(text, mode = "shout") {
-  const source = String(text ?? "");
-  const chars = [...source];
-  const segments = [];
-  let current = "";
-  const isEnd = mode === "dot" ? (ch) => ch === "・" || /\s/.test(ch) : (ch) => /[!！?？\n]/.test(ch) || /\s/.test(ch);
-  for (let i = 0; i < chars.length; i++) {
-    const ch = chars[i];
-    current += ch;
-    if (!isEnd(ch)) continue;
-    // 続く記号・空白・回数（×４）は同じ区切りに含める
-    while (i + 1 < chars.length && (/[!！?？\s・]/.test(chars[i + 1]) || chars[i + 1] === "×")) {
-      if (chars[i + 1] === "×") {
-        current += chars[++i];
-        while (i + 1 < chars.length && /[0-9０-９]/.test(chars[i + 1])) current += chars[++i];
-        continue;
-      }
-      current += chars[++i];
-    }
-    if (current.trim() === "" && segments.length) segments[segments.length - 1] += current;
-    else segments.push(current);
-    current = "";
-  }
-  if (current) {
-    if (current.trim() === "" && segments.length) segments[segments.length - 1] += current;
-    else segments.push(current);
-  }
-  // 見える文字の無い区切り（空白だけ）は前に付ける
-  const out = [];
-  for (const seg of segments) {
-    if (out.length && visibleChars(normalizeCallText(seg)).length === 0) out[out.length - 1] += seg;
-    else out.push(seg);
-  }
-  return out.length ? out : [source];
 }
 
 // ===== 回数（連続・手拍子） =====

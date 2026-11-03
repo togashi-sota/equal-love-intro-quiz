@@ -364,8 +364,8 @@ export const GAME_GUIDE_MODES = [
     helpModalId: null,
     images: [
       { src: "assets/images/live-call-previews/sheet.webp", alt: "コール表の見本。歌詞（黒）とコール（赤）が1枚に並ぶ（文字はダミー）", caption: "コール表" },
-      { src: "assets/images/live-call-previews/live.webp", alt: "ライブコールの見本。言うコールが光り、中央に大きな文字が出る（文字はダミー）", caption: "ライブコール" },
-      { src: "assets/images/live-call-previews/karaoke.webp", alt: "カラオケの見本。歌詞と赤いコール、下のカードに「コール中！」と大きな文字（文字はダミー）", caption: "カラオケ" },
+      { src: "assets/images/live-call-previews/live.webp", alt: "ライブコールの見本。上に今と次のコール、舞台の上の帯にコールが1件まるごと大きく出る（文字はダミー）", caption: "ライブコール" },
+      { src: "assets/images/live-call-previews/karaoke.webp", alt: "カラオケの見本。コールの間は画面いっぱいの会場にコールが大きく出て、ペンライトがメンバーカラーに光る（文字はダミー）", caption: "カラオケ" },
     ],
   },
 ];
