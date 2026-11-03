@@ -54,6 +54,8 @@ function renderAnswer() {
   card.appendChild(head);
   const text = el("p", "qa-card-text", answer.text);
   text.id = "qa-answer-text";
+  // 長い答え（「どんな人？」の紹介など）は、太字をやめて読みやすくする
+  if (answer.text.length > 80) text.classList.add("is-long");
   text.tabIndex = -1;
   card.appendChild(text);
   if (answer.details.length) {
