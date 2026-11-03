@@ -162,4 +162,14 @@ export async function runIosForwardHistoryTests() {
     [true, true, false, false],
     "見分け方：iPhone・iPad（Mac を名乗る iPadOS も）だけ。Mac・Android は含めない"
   );
+  // 【本人の確認 4】記録を積まないのは、ホーム画面に追加した Web アプリ（standalone）のときだけ。Safari のタブでは今までどおり
+  const { isStandaloneDisplay } = await import("../js/appHistory.js");
+  const fakeWindow = (standalone, displayMode) => ({ navigator: { standalone }, matchMedia: (query) => ({ matches: query === "(display-mode: standalone)" && displayMode }) });
+  assertEqual(
+    [isStandaloneDisplay(fakeWindow(true, false)), isStandaloneDisplay(fakeWindow(undefined, true)), isStandaloneDisplay(fakeWindow(false, false))],
+    [true, true, false],
+    "見分け方：ホーム画面の Web アプリ（iOS の navigator.standalone・display-mode: standalone）だけ。Safari のタブは含めない"
+  );
+  const source = await (await fetch("js/appHistory.js", { cache: "no-store" })).text();
+  assertEqual(source.includes("singleHistoryEntry = singleOverride ?? (isIosLike() && isStandaloneDisplay());"), true, "記録を積まないのは「iOS かつ ホーム画面の Web アプリ」のときだけ（Safari のタブでは Safari の［戻る］でアプリの前の画面へ戻れる）");
 }

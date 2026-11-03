@@ -13,7 +13,7 @@
 //         クイズ中の［タイトルへ］は「やめますか？」の確認が出る）
 //    ④ ［戻る］ボタンが無い画面は、記録にある前の画面（プレイ中の画面は飛ばす）へ戻す
 //
-// 【2026-11-03 R12-4 追加・本人の依頼】iOS（iPhone・iPad）では、ブラウザの履歴に記録を積まない（singleHistoryEntry）。
+// 【2026-11-03 R12-4 追加・本人の依頼】iOS（iPhone・iPad）のホーム画面に追加した Web アプリでは、ブラウザの履歴に記録を積まない（singleHistoryEntry）。
 //   原因：iOS の Safari とホーム画面の Web アプリは、画面の端からのスワイプで、ブラウザの履歴の「戻る」「進む」が始まる。
 //   このアプリは画面を移るたびに pushState で記録を積み、アプリの［戻る］・モーダルを閉じるときは history.go(-n) で戻るので、
 //   「戻る」「進む」の記録が残る。右の端からのスワイプ（進む）では、その記録の画面（このアプリでは真っ白）が右から滑り込み、
@@ -24,6 +24,9 @@
 //   こうすると、端からスワイプしても行き先が無いので、画面が横にずれて白くなる・別の画面へ飛ぶ、が起きない。
 //   代わりに、iOS では端からのスワイプで「戻る」ことはできない（どの画面にもある［戻る］ボタンで戻る。戻り先・スクロール位置・
 //   検索の状態の復元は今までどおり）。Android・PC は今までどおり（端末の「戻る」ボタン・ブラウザの戻る／進むが使える）。
+//   【同じ日・本人の確認 4】iOS の Safari のタブ（ホーム画面に追加していない）では今までどおり記録を積む。
+//   記録を積まないと、Safari の［戻る］ボタン・左の端からのスワイプで、アプリの前の画面ではなく、アプリより前に見ていた
+//   ページへ出てしまうため（Safari には［戻る］ボタンがあり、利用者はそれで画面を戻ると考えるのが自然）。
 //
 // 【注意】history.go() は「すぐには終わらない」（後から popstate が届く）。そのあいだに次の pushState を
 // すると順番が狂うため、履歴の操作はすべて順番待ちの列（operationQueue）に入れて1つずつ実行する。
@@ -401,7 +404,7 @@ export function initAppHistory({
   popStateTarget = popStateTargetOverride ?? window;
   domRoot = domRootOverride ?? document;
   stack = createNavStack(initialScreen);
-  singleHistoryEntry = singleOverride ?? isIosLike();
+  singleHistoryEntry = singleOverride ?? (isIosLike() && isStandaloneDisplay());
   navigateFallback = navigate;
   getScreenElement = getElement;
   try {
@@ -425,6 +428,17 @@ export function isIosLike(nav = typeof navigator !== "undefined" ? navigator : n
   if (!nav) return false;
   if (/iPhone|iPad|iPod/.test(nav.userAgent ?? "")) return true;
   return nav.platform === "MacIntel" && (nav.maxTouchPoints ?? 0) > 1;
+}
+
+// ホーム画面に追加した Web アプリ（standalone）として動いているか（iOS は navigator.standalone、ほかは display-mode）
+export function isStandaloneDisplay(win = typeof window !== "undefined" ? window : null) {
+  if (!win) return false;
+  if (win.navigator?.standalone === true) return true;
+  try {
+    return win.matchMedia?.("(display-mode: standalone)")?.matches === true;
+  } catch {
+    return false;
+  }
 }
 
 function currentUrl() {
