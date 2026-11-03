@@ -49,6 +49,7 @@ export const EVIDENCE_TYPE = Object.freeze({
   TITLE_GROUP_TAG: "title-group-tag",
   PLAYLIST_GROUP: "playlist-group",
   DESCRIPTION_WRITER: "description-writer", // 【2026-11-03 R11】説明欄の文を書いた人（出演者とは限らない）
+  INFERRED: "inferred", // 【R12】サムネイルの人数・公式の説明などからの推定を、本人が採用したもの（本人の確認ではない）
 });
 
 export const EVIDENCE_TYPE_LABELS = Object.freeze({
@@ -59,6 +60,7 @@ export const EVIDENCE_TYPE_LABELS = Object.freeze({
   [EVIDENCE_TYPE.TITLE_GROUP_TAG]: "タイトルのグループ名",
   [EVIDENCE_TYPE.PLAYLIST_GROUP]: "公式の再生リストの名前",
   [EVIDENCE_TYPE.DESCRIPTION_WRITER]: "説明欄の文を書いたメンバー（出演者の全部ではない）",
+  [EVIDENCE_TYPE.INFERRED]: "推定（本人が採用。一人ずつの確認はまだ）",
 });
 
 // 説明の本文の、＝LOVE のメンバーの名前の役わけ（2026-11-03 R11）

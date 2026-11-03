@@ -688,7 +688,7 @@ function buildYoutubeEntries({ members, youtubeVideos = getYoutubeAppearanceSnap
         // 【R11】確認済みでないものは「推定」などと書く（一部しか分からない人を全員確認済みに見せない）
         names.length ? `出演${describeYoutubeStatusMark(video) ? `（${describeYoutubeStatusMark(video)}）` : ""}：${names.slice(0, 5).join("・")}${names.length > 5 ? ` ほか${names.length - 5}人` : ""}` : footageNames.length || thumbnailNames.length ? null : "出演：＝LOVE（出演者は未確認）",
         footageNames.length ? `映像で登場：${footageNames.slice(0, 5).join("・")}${footageNames.length > 5 ? ` ほか${footageNames.length - 5}人` : ""}` : null,
-        thumbnailNames.length ? `サムネイルに登場：${thumbnailNames.slice(0, 5).join("・")}${thumbnailNames.length > 5 ? ` ほか${thumbnailNames.length - 5}人` : ""}` : null,
+        thumbnailNames.length ? `サムネイルに登場${video.inferred ? "（推定）" : ""}：${thumbnailNames.slice(0, 5).join("・")}${thumbnailNames.length > 5 ? ` ほか${thumbnailNames.length - 5}人` : ""}` : null,
         video.series?.length ? `企画：${video.series.join("・")}` : null,
       ],
       links: [{ label: "YouTube で見る", url: youtubeWatchUrl(video) }],

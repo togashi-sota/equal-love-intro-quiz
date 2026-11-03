@@ -133,6 +133,7 @@ function buildCard(video) {
   // 【2026-11-03 R11 最終】名前が1人も無いのに「推定」などを並べると意味が矛盾して見えるので、名前があるときだけ確かさの印を出す
   if (confidence !== "confirmed" && (video.memberIds?.length || confidence === "unconfirmed")) people.appendChild(el("span", `yta-badge is-${confidence}`, APPEARANCE_CONFIDENCE_LABELS[confidence]));
   // 【R12】サムネイルだけで確かめたものは、本編まで確かめたと誤認しないように「サムネイルで確認」と書く
+  if (video.inferred) people.appendChild(el("span", "yta-badge is-estimated", "推定"));
   if (video.verified) people.appendChild(el("span", "yta-badge is-verified", video.verifiedBasis === "thumbnail" ? "本人がサムネイルで確認" : "本人が確認"));
   body.appendChild(people);
   if (video.memberIds?.length && (confidence === "estimated" || confidence === "partial")) body.appendChild(el("p", "yta-uncertain-note", "ほかの出演者は分かっていません"));
@@ -146,7 +147,8 @@ function buildCard(video) {
   // 【R12】サムネイル（表紙の画像）に写っている人。本編の出演と誤認しないように、別の行にラベルつきで出す
   if (video.thumbnailMemberIds?.length) {
     const thumbnailRow = el("div", "yta-people yta-people--footage yta-people--thumbnail");
-    thumbnailRow.appendChild(el("span", "yta-footage-label", "サムネイルに登場"));
+    // 【R12 最終】本人が一人ずつ確かめていない推定は「サムネイルに登場（推定）」と書く
+    thumbnailRow.appendChild(el("span", "yta-footage-label", video.inferred ? "サムネイルに登場（推定）" : "サムネイルに登場"));
     video.thumbnailMemberIds.forEach((memberId) => thumbnailRow.appendChild(buildMemberTag(memberId)));
     body.appendChild(thumbnailRow);
   }
@@ -170,7 +172,17 @@ function buildCard(video) {
   if (confidence !== "confirmed" && video.memberIds?.length) list.appendChild(el("li", null, `名前が分かっている人：${video.memberIds.map((memberId) => memberById.get(memberId)?.name ?? memberId).join("・")}（出演者の全部とは限りません）`));
   if (video.writerMemberIds?.length) list.appendChild(el("li", null, `説明欄の文を書いた人：${video.writerMemberIds.map((memberId) => memberById.get(memberId)?.name ?? memberId).join("・")}（書いた人で、出演者の全部ではありません）`));
   if (video.footageMemberIds?.length) list.appendChild(el("li", null, "「映像で登場」の人は、ライブ映像・過去の映像などに映る人です（企画そのものの出演者ではありません）"));
-  if (video.thumbnailMemberIds?.length) list.appendChild(el("li", null, "「サムネイルに登場」の人は、動画の表紙の画像に写っている人です（本人がサムネイルで確かめました。本編に出ているかは確かめていません）"));
+  if (video.thumbnailMemberIds?.length) {
+    list.appendChild(
+      el(
+        "li",
+        null,
+        video.inferred
+          ? `「サムネイルに登場（推定）」の${video.thumbnailMemberIds.length}人は、動画の表紙の画像の人数と公式の説明から推定した人です（一人ずつの確認はまだ。本編に出ているかも確かめていません）`
+          : "「サムネイルに登場」の人は、動画の表紙の画像に写っている人です（本人がサムネイルで確かめました。本編に出ているかは確かめていません）"
+      )
+    );
+  }
   if (video.hold) list.appendChild(el("li", null, "説明欄の出演者の表記が前と変わったため、前の判定のまま確認を待っています"));
   const evidence = describeYoutubeEvidence(video);
   list.appendChild(el("li", "yta-why-technical", `根拠の種類：${evidence.length ? evidence.join("／") : "見つかっていません"}`));
@@ -187,6 +199,7 @@ function buildCard(video) {
 function describeConfidenceReason(video) {
   switch (video.status) {
     case APPEARANCE_STATUS.MANUAL:
+      if (video.inferred) return "サムネイルの人数と公式の説明から推定しました。一人ずつの確認はまだです";
       if (video.verifiedBasis === "thumbnail" || (!video.memberIds?.length && !video.footageMemberIds?.length && video.thumbnailMemberIds?.length)) return "本人がサムネイルで確かめました。本編の出演者はまだ確かめていません";
       return video.partial ? "本人が動画で一部の人を確かめました" : "本人が動画を見て確かめました";
     case APPEARANCE_STATUS.CAST_LIST:
