@@ -580,10 +580,12 @@ async function runBlastTests() {
   const css = (await fetchText("css/callSpectacle.css")).replace(/\/\*[\s\S]*?\*\//g, "");
   // 【r9-fx】ペンライトの振りは JS（いまの時刻から決まる penlightPoseAt）。会場が出ていて、音が進んでいる間だけ書く
   const spSrc = await fetchText("js/callSpectacle.js");
-  assertEqual(/if \(s\.stage > 0 && playing\) \{\s*sticks\.forEach/.test(spSrc) && /\.sp-layer\.is-on \.sp-rays \{\s*animation:/.test(css), true, "X: ペンライトの振り・光線の回転は、会場が出ている間だけ");
+  // 【R12】本人の依頼でペンライトは固定（update でペンライトの向きを書かない）。光線の回転は会場が出ている間だけ
+  const updateSrc = spSrc.slice(spSrc.indexOf("    update(t, {"), spSrc.indexOf("    destroy() {"));
+  assertEqual(!/sticks\.forEach|\.stick\.style\.transform/.test(updateSrc) && /\.sp-layer\.is-on \.sp-rays \{\s*animation:/.test(css), true, "X: ペンライトは毎フレーム動かさない・光線の回転は会場が出ている間だけ");
   const boxCss = css.slice(css.indexOf(".sp-box {"), css.indexOf(".sp-wash {"));
   assertEqual(/filter\s*:/.test(boxCss), false, "X: 会場の部品にぼかし（filter）を使わない");
-  assertEqual(/penlightPoseAt\(plan, t, i, sticks\.length, \{ reduced, row: st\.row \}\)/.test(spSrc) && /prefers-reduced-motion: reduce\) \{[^@]*\.sp-layer\.is-on \.sp-rays/.test(css), true, "X: 視差効果を減らす設定では、ペンライトを振らない（reduced を渡す。CSS の回転も止める）");
+  assertEqual(/prefers-reduced-motion: reduce\) \{[^@]*\.sp-layer\.is-on \.sp-rays/.test(css), true, "X: 視差効果を減らす設定では、光線の回転も止める（ペンライトはいつも固定）");
 }
 
 export async function runLiveCallTypesetTests() {

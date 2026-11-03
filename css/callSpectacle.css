@@ -199,8 +199,7 @@
   }
 }
 /* 【r9-fx】ペンライトの群れ：本物に近い形（持ち手＋先の丸い発光部・光の広がり）。前の列（大きい）と後ろの列（小さく暗い）。
-   向き（transform）は JS が「いまの時刻」から毎フレーム決める（js/callSpectacle.js の penlightPoseAt。持ち手の下が軸）。
-   振る瞬間だけ、後ろに扇形の残像（.sp-trail）が出て、光の広がり（.sp-halo）が強くなる。ぼかし（filter）は使わない */
+   【r12-calls】向きは作ったときに 1 回だけ決めて動かさない（振らない・残像なし）。変わるのは色（--c）と会場の明るさだけ。ぼかし（filter）は使わない */
 .sp-crowd {
   position: absolute;
   left: 0;
@@ -285,20 +284,7 @@
   height: 86%;
   border-radius: 50%;
   background: radial-gradient(closest-side, color-mix(in srgb, var(--c) 72%, transparent) 0%, color-mix(in srgb, var(--c) 30%, transparent) 45%, transparent 100%);
-  opacity: 0.55;
-}
-/* 残像：振ってきた側に、少し遅れた発光部の影（光の尾）。持ち手の下を軸に、JS が振る向きの後ろへ傾ける。
-   マスク（mask-image）は使わない（12 本ぶんの重い描画を避ける。グラデーションだけ） */
-.sp-trail {
-  position: absolute;
-  left: -35%;
-  right: -35%;
-  top: 0;
-  bottom: 0;
-  transform-origin: 50% 96%;
-  border-radius: 999px 999px 0 0 / calc(var(--sw) * 0.8) calc(var(--sw) * 0.8) 0 0;
-  background: linear-gradient(90deg, transparent 0%, color-mix(in srgb, var(--c) 55%, transparent) 30%, color-mix(in srgb, var(--c) 80%, #fff) 50%, color-mix(in srgb, var(--c) 55%, transparent) 70%, transparent 100%) top / 100% 72% no-repeat;
-  opacity: 0;
+  opacity: 0.7;
 }
 .sp-live .sp-crowd {
   height: 72%;
@@ -643,34 +629,7 @@
     transform: translateY(-0.2em) scale(0.97, 1.05);
   }
 }
-/* 口上・歌う・1文字ずつ：まだの文字はうっすら → 灯ると白く大きく（読める濃さは保つ） */
-.sp-layer[data-fx="kojo"] .sp-ch,
-.sp-layer[data-fx="sing"] .sp-ch,
-.sp-layer[data-fx="spell"] .sp-ch {
-  opacity: 0.42;
-  transition:
-    opacity 0.12s ease-out,
-    transform 0.16s ease-out;
-}
-.sp-layer[data-fx="kojo"] .sp-ch.is-lit,
-.sp-layer[data-fx="sing"] .sp-ch.is-lit {
-  opacity: 1;
-}
-.sp-layer[data-fx="spell"] .sp-ch.is-lit {
-  opacity: 1;
-  transform: scale(1.08);
-}
-/* 名前：溜め（超絶かわいい！）の間、名前はうっすら → 名前で一気に */
-.sp-word.is-build .cx-name-part {
-  opacity: 0.38;
-}
-.sp-word.is-named .cx-name-part {
-  opacity: 1;
-}
-.sp-word.is-build .sp-lead {
-  color: #fff6c8;
-}
-/* 名前：文字の後ろにその人の色の光が広がる（溜めの間は弱く → 名前で一気に） */
+/* 名前：文字の後ろにその人の色の光が広がる（【r12-calls】始まりから終わりまで同じ。溜めは無い） */
 .sp-layer[data-fx="name"] .sp-word::before {
   content: "";
   position: absolute;
@@ -687,16 +646,6 @@
 }
 .sp-layer[data-fx="name"] .sp-word.is-named::before {
   opacity: 0.95;
-}
-.sp-word.is-build .sp-lead {
-  text-shadow:
-    0.04em 0 0 #1a0330,
-    -0.04em 0 0 #1a0330,
-    0 0.04em 0 #1a0330,
-    0 -0.04em 0 #1a0330,
-    0 0.07em 0 #7a5a00,
-    0 0.11em 0 #1a0330,
-    0 0 0.4em #ffd84d;
 }
 /* 名前：「超絶かわいい！」は少し小さく、名前を大きく（名前が主役） */
 .sp-layer[data-fx="name"] .sp-lead {
@@ -723,20 +672,6 @@
     0 0 0.7em var(--name-color),
     0 0 1.3em color-mix(in srgb, var(--name-color) 70%, transparent);
 }
-/* MIX：大きさを決めるとき、区切りを 1 度に並べて幅を測る（その場だけ。すぐ消す） */
-.sp-probe {
-  display: block;
-  width: max-content;
-  white-space: nowrap;
-}
-/* MIX：区切りは 1 行で（どの区切りも収まる大きさにしてある） */
-.sp-word.is-oneline .sp-word-text {
-  white-space: nowrap;
-}
-/* MIX の最後の区切り：金の影で一番大きく */
-.sp-word.is-finale .sp-word-text {
-  --sp-ex: #ffd400;
-}
 /* 合図：文字は札（LED の看板）のように */
 .sp-layer[data-fx="cue"] .sp-word-text {
   padding: 0.18em 0.5em;
@@ -756,31 +691,6 @@
   background: #000;
   opacity: 0;
 }
-/* 回数・区切りの印（点）：いま何回目か */
-.sp-pips {
-  display: flex;
-  justify-content: center;
-  gap: 0.18em;
-  margin-top: 0.12em;
-  font-size: calc(var(--sp-fs, 56px) * 0.22);
-}
-.sp-pips[hidden] {
-  display: none;
-}
-.sp-pips i {
-  width: 0.55em;
-  height: 0.55em;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.28);
-  box-shadow: 0 0 0 1.5px rgba(26, 3, 48, 0.8);
-}
-.sp-pips i.is-lit {
-  background: var(--sp-c1);
-  box-shadow:
-    0 0 0 1.5px #fff,
-    0 0 8px 2px var(--sp-c1);
-}
-
 /* 視差効果を減らす：揺れ・回転を止める（文字はふわっと出て、終わるまで静かに大きく出したまま） */
 .sp-layer.is-reduced .sp-beams i,
 .sp-layer.is-reduced.is-on .sp-rays,

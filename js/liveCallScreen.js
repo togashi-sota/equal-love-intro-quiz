@@ -562,17 +562,20 @@ export const PREVIEW_IMAGE_SIZE = { width: 600, height: 400 };
 //   ・ライブコール・カラオケ：約5秒の無音ループ（video）＋同じ場面の静止画（src。最初・動かせないとき・視差効果を減らす設定のとき）
 //     ライブコール：今のコールが光る・中央に大きな文字・「つぎ」と残り秒数が進む／カラオケ：歌詞の行が進む・赤いコールが光る・カードの 3・2・1 →「コール中！」
 //   作り方：renewal-notes/nx-live/make_previews.py（Git に入れない）。ダミーの文字（歌詞は「〜〜歌詞〜〜」、コールは Hey！・オイ！・メンバーの呼び名だけ）
+// 【2026-11-03 R12 本人の依頼「3つのモードの紹介の動画が昔のままでダサい」】今の本物の画面（r8・r9 の会場の演出、1 件まるごとの表示、固定のペンライト）で撮り直した。
+//   中身：「超絶かわいい！はなちゃん！」→「きあら！ or しょこちゃん！ or さなつん！」（ダミー。名前はメンバーの呼び名だけ）。約 6 秒の無音ループ・600×400。
+//   作り方：renewal-notes/r12-calls/make_previews_r12.py（Git に入れない）
 export const LIVE_CALL_MODE_PREVIEWS = {
-  sheet: { src: "./assets/images/live-call-previews/sheet.webp", alt: "コール表の見本：黒い歌詞の行と、その間の赤いコールが1枚に並ぶ（文字はダミー）" },
+  sheet: { src: "./assets/images/live-call-previews/sheet.webp", alt: "コール表の見本：黒い歌詞の行と、その間の赤いコール（名前はメンバーカラーの下線）が1枚に並ぶ（文字はダミー）" },
   live: {
     src: "./assets/images/live-call-previews/live.webp",
     video: "./assets/images/live-call-previews/live.mp4",
-    alt: "ライブコールの見本：言うコールが光り、中央に大きな文字が出る。上の「いま／つぎ」に次のコールと残り秒数（文字はダミー）",
+    alt: "ライブコールの見本：上の「いま／つぎ」に今のコールと次のコール・残り秒数。コールの間、舞台の上の帯にコールが1件まるごと大きく出て、会場がメンバーカラーに光る（文字はダミー）",
   },
   karaoke: {
     src: "./assets/images/live-call-previews/karaoke.webp",
     video: "./assets/images/live-call-previews/karaoke.mp4",
-    alt: "カラオケの見本：暗い舞台に歌詞の行と赤いコール。下のカードに次のコールと 3・2・1、コールの瞬間に「コール中！」と大きく光る（文字はダミー）",
+    alt: "カラオケの見本：コールの間は画面いっぱいの会場にコールが1件まるごと大きく出て、会場がメンバーカラーに光る。コールの無い間は歌詞の行と、下のカードに次のコールと 3・2・1（文字はダミー）",
   },
 };
 
