@@ -5,7 +5,8 @@
 /* ---- ホームの小さな入口の行（検索の下）。ボタンが2つになったら（質問AI）横に並ぶ ---- */
 .home-quick-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  /* 【2026-11-03 統合】150px だと幅390で2つの名前が「＝LOV…」と切れたので、スマホでは1列、iPad などで2列に並べる */
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 8px;
   margin: 8px 0 0;
 }
