@@ -443,8 +443,11 @@ function profileEvidence(field, label) {
 //   1. だれか（＝LOVE のリーダー／メンバー／元メンバー）
 //   2. グループの中での役割の文（紹介文の中の「最年少・最年長・センター・リーダー・愛称」などが出てくる文）
 //   3. 本人の特徴の文（「知られる・大切に・理想・好き」などが出てくる文）
-//   4. 加入前の活動の文（グループ・ユニットの名前が出てくる文を優先。「とされる」で終わる文は後回し）
-//   5. 今の主な活動（個人ページの「今の主な活動」と同じもの・同じ順の先頭3つ）
+//   4. 代表的な活動（【R12 本人の決定】新しい順ではなく、そのメンバーを知るのに大事な活動）：
+//      個人ページの「これまでの代表的な活動」と同じ印（memberActivities.js の highlightFor）の付いた活動から、
+//      今も続いているもの（始まりの古い＝長く続けている順）→ 終わったもの（新しい順）で3つまで。印が無い人は「今の主な活動」
+//   加入前の活動・オーディションのいきさつは、ここには入れない（「なぜ入ったの？」「昔はどんな活動？」の答えで詳しく出す）。
+//   元メンバー（紹介文が無い）は、登録の範囲（加入前の活動・今の活動）で答える
 const ROLE_WORDS = ["リーダー", "最年少", "最年長", "センター", "デビュー曲", "愛称", "役に回"];
 const TRAIT_WORD_TIERS = [["知られ", "親しまれ"], ["大切に", "心がけ", "理想", "役に回", "支える"], ["大好き", "好きで", "趣味", "ファン"], ["目指"]];
 // 2つ目の特徴の文には「目指した」（加入前のいきさつ）の文を使わない（今の人物像を中心にする）
@@ -489,6 +492,14 @@ export function currentActivitiesForMember(memberId, today) {
     .slice(0, CURRENT_ACTIVITY_LIMIT);
 }
 
+// 代表的な活動（個人ページの「これまでの代表的な活動」と同じ印 highlightFor）。今も続くもの（長く続けている順）→ 終わったもの（新しい順）
+export function representativeActivitiesForMember(memberId, today, limit = 3) {
+  const marked = getMemberActivities(MEMBER_ACTIVITIES, memberId).filter((activity) => Boolean(activity.highlightFor?.[memberId]));
+  const current = marked.filter((activity) => isCurrentActivity(activity, today)).sort((a, b) => (a.startDate ?? "9999").localeCompare(b.startDate ?? "9999"));
+  const others = marked.filter((activity) => !isCurrentActivity(activity, today)).sort((a, b) => (b.startDate ?? "0000").localeCompare(a.startDate ?? "0000"));
+  return [...current, ...others].slice(0, limit);
+}
+
 export function buildMemberIntroduction(memberId, today) {
   const member = MEMBER_BY_ID.get(memberId);
   const profile = PROFILE_BY_ID.get(memberId);
@@ -512,19 +523,22 @@ export function buildMemberIntroduction(memberId, today) {
   const secondTrait = role ? null : pickByTiers(intro, SECOND_TRAIT_WORD_TIERS, used);
   // 紹介文の中の順のまま並べる（文の流れを変えない）
   intro.filter((sentence) => sentence === role || sentence === trait || sentence === secondTrait).forEach((sentence) => sentences.push(sentence));
-  // 4. 加入前の活動
-  const pre = splitJapaneseSentences(profile?.preDebutActivity?.text);
-  const preCandidates = pre.filter((sentence) => !sentence.endsWith("とされる。"));
-  const preSentence = pickByTiers(preCandidates, PRE_DEBUT_WORD_TIERS, new Set()) ?? pickByTiers(pre, PRE_DEBUT_WORD_TIERS, new Set()) ?? pre.find(isStandalone) ?? null;
-  if (preSentence) sentences.push(/^[^、]{1,12}は、/.test(preSentence) ? `＝LOVE 加入前、${preSentence}` : `＝LOVE 加入前は、${preSentence}`);
-  // 5. 今の主な活動（個人ページの「今の主な活動」と同じ）
-  const activities = currentActivitiesForMember(memberId, today);
+  // 元メンバー（紹介文が無い）だけ、登録の範囲として加入前の活動の文を使う
+  let preSentence = null;
+  if (!intro.length) {
+    const pre = splitJapaneseSentences(profile?.preDebutActivity?.text);
+    const preCandidates = pre.filter((sentence) => !sentence.endsWith("とされる。"));
+    preSentence = pickByTiers(preCandidates, PRE_DEBUT_WORD_TIERS, new Set()) ?? pickByTiers(pre, PRE_DEBUT_WORD_TIERS, new Set()) ?? pre.find(isStandalone) ?? null;
+    if (preSentence) sentences.push(/^[^、]{1,12}は、/.test(preSentence) ? `＝LOVE 加入前、${preSentence}` : `＝LOVE 加入前は、${preSentence}`);
+  }
+  // 4. 代表的な活動（印が無い人は、今の主な活動）
+  const representative = representativeActivitiesForMember(memberId, today);
+  const activities = representative.length ? representative : currentActivitiesForMember(memberId, today).slice(0, 3);
   if (activities.length) {
     // 活動の名前は、個人ページと同じ書き方のまま（「」を足さない。名前の中にも「」があるため）。「／」で区切る
-    const titles = activities.slice(0, 3).map((activity) => activity.title);
-    sentences.push(`今の主な活動には、${titles.join("／")}${activities.length > 3 ? " など" : ""}があります。`);
+    sentences.push(`${representative.length ? "代表的な活動" : "今の主な活動"}には、${activities.map((activity) => activity.title).join("／")}があります。`);
   }
-  return { sentences, usedIntroduction: Boolean(role || trait || secondTrait), usedPreDebut: Boolean(preSentence), activities };
+  return { sentences, usedIntroduction: Boolean(role || trait || secondTrait), usedPreDebut: Boolean(preSentence), activities, representative: representative.length > 0 };
 }
 
 function answerMemberProfile(memberId, today) {
@@ -543,21 +557,34 @@ function answerMemberProfile(memberId, today) {
     evidence: [
       intro.usedIntroduction ? profileEvidence(profile?.introduction, "メンバー紹介（公式・本人のインタビューなど）") : null,
       intro.usedPreDebut ? profileEvidence(profile?.preDebutActivity, "加入前の活動") : null,
-      intro.activities.length ? evidence("今の主な活動（個人ページと同じもの）", { urls: intro.activities.flatMap((activity) => activity.sourceUrls ?? []).slice(0, 2) }) : null,
+      intro.activities.length ? evidence(intro.representative ? "これまでの代表的な活動（個人ページと同じ印）" : "今の主な活動（個人ページと同じもの）", { urls: intro.activities.flatMap((activity) => activity.sourceUrls ?? []).slice(0, 2) }) : null,
       evidence("メンバーのプロフィール（公式サイト）", { checkedAt: member.profileSource?.lastVerifiedDate, urls: member.profileSource?.urls }),
     ].filter(Boolean),
     links: [{ ...memberLink(memberId), label: "詳しいプロフィールを見る" }],
   });
 }
 
-function answerProfileField(memberId, field, intent, label, emptyText) {
+function firstSentence(text) {
+  return splitJapaneseSentences(text)[0] ?? "";
+}
+
+// 「なぜ＝LOVE に入ったの？」「加入までの経緯は？」「昔はどんな活動？」：本人が公表したオーディション・過去の経験を詳しく（R12）
+function answerJoinStory(memberId, focus) {
   const member = MEMBER_BY_ID.get(memberId);
-  const value = PROFILE_BY_ID.get(memberId)?.[field];
-  if (!value?.text) return notFound(intent, `${QA_NOT_FOUND_TEXT}${member.name}の${emptyText}は、アプリに登録されていません。`, { links: [memberLink(memberId)] });
+  const profile = PROFILE_BY_ID.get(memberId);
+  const isPre = focus === "preDebut";
+  const main = isPre ? profile?.preDebutActivity : profile?.auditionMotivation;
+  const sub = isPre ? profile?.auditionMotivation : profile?.preDebutActivity;
+  const mainLabel = isPre ? "加入前の活動" : "＝LOVE に入ったきっかけ";
+  const subLabel = isPre ? "＝LOVE に入ったきっかけ" : "加入前の活動";
+  const intent = isPre ? "memberPreDebut" : "memberJoinReason";
+  const profileLink = { ...memberLink(memberId), label: "詳しいプロフィールを見る" };
+  if (!main?.text && !sub?.text) return notFound(intent, `${QA_NOT_FOUND_TEXT}${member.name}の${mainLabel}は、アプリに登録されていません。`, { links: [profileLink] });
   return result(QA_STATUS.ANSWER, intent, {
-    text: `${member.name}の${label}：${value.text}`,
-    evidence: [profileEvidence(value, value.sourceType === "self" ? "メンバー紹介（本人のインタビューなど）" : "メンバー紹介")],
-    links: [memberLink(memberId)],
+    text: main?.text ? `${member.name}の${mainLabel}：${main.text}` : `${QA_NOT_FOUND_TEXT}${member.name}の${mainLabel}は登録されていません。`,
+    details: [sub?.text ? `${subLabel}：${sub.text}` : null, member.joinDate ? `加入：${formatQaDate(member.joinDate)}` : null].filter(Boolean),
+    evidence: [main?.text ? profileEvidence(main, mainLabel) : null, sub?.text ? profileEvidence(sub, subLabel) : null].filter(Boolean),
+    links: [profileLink],
   });
 }
 
@@ -678,13 +705,14 @@ function activeActivities(memberId, today = todayForActivities) {
   return MEMBER_ACTIVITIES.filter((activity) => (activity.memberId === memberId || (activity.relatedMemberIds ?? []).includes(memberId)) && isActiveActivity(activity, today));
 }
 
+// 「今何をしている？」「今の仕事は？」「個人活動は？」：個人ページの「今の主な活動」と同じもの・同じ順（R12）
 function answerActivities(memberId, today) {
   const name = nameOf(memberId);
-  const list = activeActivities(memberId, today);
-  if (!list.length) return notFound("memberActivities", `${QA_NOT_FOUND_TEXT}${name}の今の個人活動は、アプリに登録されていません。`, { links: [memberLink(memberId)] });
+  const list = currentActivitiesForMember(memberId, today);
+  if (!list.length) return notFound("memberActivities", `${QA_NOT_FOUND_TEXT}${name}の今の活動は、アプリに登録されていません。`, { links: [memberLink(memberId)] });
   return result(QA_STATUS.ANSWER, "memberActivities", {
-    text: `${name}の今の主な個人活動（登録上）は${list.length}件です。`,
-    details: [list.slice(0, 6).map((activity) => activity.title).join("、")],
+    text: `${name}の今の主な活動は、個人ページの「今の主な活動」と同じ${list.length}件です。`,
+    details: list.map((activity) => `${activity.title}${activity.description ? `：${firstSentence(activity.description)}` : ""}`),
     evidence: [evidence("個人活動の記録（公式・本人の発表など）", { urls: list.flatMap((activity) => activity.sourceUrls ?? []).slice(0, 3) })],
     links: [memberLink(memberId)],
   });
@@ -1088,8 +1116,8 @@ function decide(parsed, today) {
       const member = MEMBER_BY_ID.get(memberId);
       if (member.joinDate) return result(QA_STATUS.ANSWER, "memberJoinDate", { text: `${member.name}の＝LOVE への加入は${formatQaDate(member.joinDate)}です。`, evidence: [evidence("メンバーのデータ（加入日）")], links: [memberLink(memberId)] });
     }
-    if (has("preDebut")) return answerProfileField(memberId, "preDebutActivity", "memberPreDebut", "加入前の活動", "加入前の活動");
-    if (has("joinReason")) return answerProfileField(memberId, "auditionMotivation", "memberJoinReason", "＝LOVE に入ったきっかけ", "加入の理由・きっかけ");
+    if (has("preDebut")) return answerJoinStory(memberId, "preDebut");
+    if (has("joinReason")) return answerJoinStory(memberId, "joinReason");
     if (has("color")) return answerMemberBasic(memberId, "color", today);
     if (has("birthday")) return answerMemberBasic(memberId, "birthday", today);
     if (has("birthplace")) return answerMemberBasic(memberId, "birthplace", today);
@@ -1113,7 +1141,7 @@ function decide(parsed, today) {
     if (has("voice")) return answerWorks(memberId, "voice");
     if (has("drama")) return answerDrama(memberId);
     if (has("tv")) return answerMemberTv(memberId, parsed);
-    if (has("activities")) return answerActivities(memberId, today);
+    if (has("activities") || has("nowWork")) return answerActivities(memberId, today);
     return answerMemberProfile(memberId, today);
   }
   const program = findRegularProgram(parsed);

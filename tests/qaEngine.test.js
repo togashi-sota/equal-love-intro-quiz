@@ -73,26 +73,54 @@ function runAnswerShapeTests() {
   assertEqual(html.status, QA_STATUS.ANSWER, "答え：記号の混ざった質問でも答える（HTML としては扱わない）");
 }
 
-// 【R12】「どんな人？」：個人ページの情報から作る。ひとこと紹介（homeLead）に頼らない・データに無い性格を足さない・個人ページと食い違わない
+// 【R12】人物の答えを質問の種類で分ける（本人の決定 2026-11-03）
+//   「どんな人？」：今の特徴・役割と代表的な活動（highlightFor の印）。加入前・オーディションの話は入れない。3〜5文
+//   「なぜ入ったの？」「昔は？」：加入のきっかけ・加入前の活動を、データの文のまま全部
+//   「今何をしている？」：個人ページの「今の主な活動」と同じ
 function runMemberIntroductionTests() {
   const fabricated = ["明るく", "明るい", "優しい", "天然", "クール", "しっかり者", "努力家", "負けず嫌い", "ムードメーカー", "おっとり"];
   MEMBERS.forEach((member) => {
     const answer = answerQuestion(`${member.name}はどんな人？`, { today: TODAY });
     const profile = MEMBER_PROFILES.find((entry) => entry.memberId === member.id);
-    const source = JSON.stringify([profile, MEMBER_ACTIVITIES.filter((activity) => activity.memberId === member.id || (activity.relatedMemberIds ?? []).includes(member.id))]);
+    const activities = MEMBER_ACTIVITIES.filter((activity) => activity.memberId === member.id || (activity.relatedMemberIds ?? []).includes(member.id));
+    const source = JSON.stringify([profile, activities]);
+    const active = member.status !== "graduated";
     assertEqual(answer.status, QA_STATUS.ANSWER, `人物：${member.name}に答える`);
     assertEqual(answer.links.at(-1)?.label, "詳しいプロフィールを見る", `人物：${member.name}の答えの最後に［詳しいプロフィールを見る］`);
     if (profile?.homeLead?.text) assertEqual(answer.text.includes(profile.homeLead.text.replaceAll("|", "")), false, `人物：${member.name}はホームのひとこと紹介（homeLead）をそのまま使わない`);
     assertEqual(fabricated.filter((word) => answer.text.includes(word) && !source.includes(word)), [], `人物：${member.name}の答えに、データに無い性格の言葉が無い`);
-    // 紹介文・加入前から使った文は、データの文そのまま（文の単位）
-    const used = splitJapaneseSentences(answer.text).filter((sentence) => !/^(.+?（.+?）は、＝LOVE の|今の主な活動には、)/.test(sentence)).map((sentence) => sentence.replace(/^＝LOVE 加入前(は)?、/, ""));
-    const pool = [...splitJapaneseSentences(profile?.introduction?.text), ...splitJapaneseSentences(profile?.preDebutActivity?.text)];
-    assertEqual(used.filter((sentence) => !pool.includes(sentence)), [], `人物：${member.name}の答えの文は、紹介文・加入前の活動の文そのまま`);
-    const sentenceCount = splitJapaneseSentences(answer.text).length;
-    assertEqual(sentenceCount >= 2 && sentenceCount <= 5, true, `人物：${member.name}は2〜5文（${sentenceCount}文）`);
-    // 今の主な活動は、個人ページの「今の主な活動」の先頭3つと同じ
-    const current = sortActivitiesByDateDesc(getMemberActivities(MEMBER_ACTIVITIES, member.id)).filter((activity) => isCurrentActivity(activity, TODAY)).slice(0, 3);
-    assertEqual(current.every((activity) => answer.text.includes(activity.title)), true, `人物：${member.name}の「今の主な活動」は個人ページと同じ`);
+    const sentences = splitJapaneseSentences(answer.text);
+    // 紹介文（元メンバーは加入前の活動）から使った文は、データの文そのまま（文の単位）
+    const used = sentences.filter((sentence) => !/^(.+?（.+?）は、＝LOVE の|代表的な活動には、|今の主な活動には、)/.test(sentence)).map((sentence) => sentence.replace(/^＝LOVE 加入前(は)?、/, ""));
+    const pool = [...splitJapaneseSentences(profile?.introduction?.text), ...(active ? [] : splitJapaneseSentences(profile?.preDebutActivity?.text))];
+    assertEqual(used.filter((sentence) => !pool.includes(sentence)), [], `人物：${member.name}の答えの文は、データの文そのまま`);
+    if (active) {
+      assertEqual(sentences.length >= 3 && sentences.length <= 5, true, `人物：${member.name}は3〜5文（${sentences.length}文）`);
+      // 加入前の活動の文は入れない
+      const preSentences = splitJapaneseSentences(profile?.preDebutActivity?.text);
+      assertEqual(preSentences.filter((sentence) => answer.text.includes(sentence)), [], `人物：${member.name}の「どんな人？」に加入前の活動の文を入れない`);
+      // 代表的な活動：個人ページの「これまでの代表的な活動」と同じ印（highlightFor）の活動だけ
+      const marked = activities.filter((activity) => activity.highlightFor?.[member.id]);
+      if (marked.length) {
+        const shown = activities.filter((activity) => answer.text.includes(activity.title));
+        assertEqual(shown.length > 0 && shown.every((activity) => Boolean(activity.highlightFor?.[member.id])), true, `人物：${member.name}の代表的な活動は、個人ページの代表的な活動の印のもの`);
+      }
+    }
+    // 「今何をしている？」は、個人ページの「今の主な活動」と同じ
+    const now = answerQuestion(`${member.name}は今何をしている？`, { today: TODAY });
+    const current = sortActivitiesByDateDesc(getMemberActivities(MEMBER_ACTIVITIES, member.id)).filter((activity) => isCurrentActivity(activity, TODAY)).slice(0, 5);
+    if (current.length) {
+      assertEqual(now.details.map((line) => line.split("：")[0]), current.map((activity) => activity.title), `人物：${member.name}の「今何をしている？」は個人ページの「今の主な活動」と同じ`);
+    }
+  });
+  // 大谷映美里の代表的な活動に Rosé Muse（本人の例）
+  assertEqual(answerQuestion("大谷映美里はどんな人？", { today: TODAY }).text.includes("Rosé Muse"), true, "人物：大谷映美里の代表的な活動に Rosé Muse");
+  // 大場・髙松：「どんな人？」の先頭にオーディションの話が来ない。「なぜ入ったの？」では詳しく出る
+  ["大場花菜", "髙松瞳"].forEach((name) => {
+    const who = answerQuestion(`${name}はどんな人？`, { today: TODAY });
+    assertEqual(/オーディション|落ち/.test(who.text), false, `人物：${name}の「どんな人？」にオーディションに落ちた話が無い`);
+    const why = answerQuestion(`${name}はなぜ入ったの？`, { today: TODAY });
+    assertEqual([why.intent, /オーディション/.test([why.text, ...why.details].join(""))], ["memberJoinReason", true], `人物：${name}の「なぜ入ったの？」では、オーディションの話を詳しく出す`);
   });
 }
 
