@@ -9,7 +9,7 @@
 
 ## 全体の形
 ```
-毎週月曜 3時（Apps Script の合図）・毎週木曜（予備の定期実行）・master への push
+毎週月曜 3時（Apps Script の合図）・毎日 3時台（GitHub の定期実行。2026-11-09 から）・master への push
         ▼
 GitHub Actions「Deploy to GitHub Pages」
   1. YouTube のデータを作る（前のまま・変えていない）

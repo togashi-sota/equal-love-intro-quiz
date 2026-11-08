@@ -206,6 +206,7 @@ async function runPipelineFilesTests() {
   assertEqual(workflow.includes("pull_request_target"), false, "公開のワークフロー：フォークからの PR でキーを使わない");
   assertEqual(workflow.includes("YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}") && (workflow.match(/secrets\./g) ?? []).length === 1, true, "公開のワークフロー：キーは Secrets から環境変数で1か所だけ渡す");
   assertEqual(workflow.includes("git diff --exit-code") && workflow.includes("data/youtube-appearances.json$"), true, "公開のワークフロー：YouTube のデータ以外が変わっていたら止める");
+  assertEqual(workflow.includes('cron: "23 18 * * *"'), true, "公開のワークフロー：毎日の定期実行（2026-11-09 本人の依頼で毎日に）");
   assertEqual(/workflow_dispatch:/.test(workflow) && /schedule:/.test(workflow) && /push:\s*\n\s*branches:\s*\n\s*- master/.test(workflow), true, "公開のワークフロー：push・外からの合図・予備の定期実行");
   assertEqual(workflow.includes("gh issue create") && workflow.includes("issues: write") && workflow.includes("failure()"), true, "公開のワークフロー：失敗・要確認は Issue で知らせる");
   assertEqual(workflow.includes("if: needs.build.outputs.deploy == 'true'"), true, "公開のワークフロー：公開しないと決めたら deploy しない（前のまま）");

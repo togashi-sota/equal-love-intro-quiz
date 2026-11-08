@@ -27,10 +27,11 @@ on:
         description: "実行の理由（外からの合図は scheduled-dispatch）"
         required: false
         default: "manual"
-  # 予備の定期実行（毎週木曜 03:23 JST）。主な合図は外（Google Apps Script）から毎週月曜に来る。
+  # 毎日の定期実行（毎日 03:23 JST。2026-11-09 本人の依頼で毎週木曜→毎日。GitHub が混むと数時間遅れることがある）。
+  # 60日止まらない土台の合図は、外（Google Apps Script）から毎週月曜に来る。
   # 公開リポジトリでは、60日間リポジトリに動きが無いとこの定期実行だけが止まる（外からの合図は止まらない）
   schedule:
-    - cron: "23 18 * * 3"
+    - cron: "23 18 * * *"
 
 concurrency:
   group: pages

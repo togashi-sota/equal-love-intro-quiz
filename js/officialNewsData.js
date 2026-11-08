@@ -16,7 +16,7 @@
 //   - fetchedAt（各項目）：その記事を初めて取得した日時。全体の fetchedAt：最後に取得に成功した日時
 export const OFFICIAL_NEWS_DATA_PATH = "data/official-news.json";
 export const OFFICIAL_NEWS_SCHEMA = 1;
-// 最後の取得の成功からこの日数を過ぎたら「更新が止まっています」（自動の取得は週2回＝最大4日ほど空く）
+// 最後の取得の成功からこの日数を過ぎたら「更新が止まっています」（自動の取得は毎日。毎日の定期実行が止まっても月曜の合図で週1回は取れる）
 export const OFFICIAL_NEWS_STALE_DAYS = 8;
 export const OFFICIAL_SITE_ORIGIN = "https://equal-love.jp";
 export const OFFICIAL_NEWS_LIST_URL = "https://equal-love.jp/news/";
