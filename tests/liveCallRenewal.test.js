@@ -378,6 +378,13 @@ async function runWiringTests() {
   }
 }
 
+// 【2026-11-23 本人の依頼】曲一覧の「コール表なし」の曲は、薄くして押せない（どこから開いても）
+async function runNoSheetDisabledTests() {
+  const [js, css] = await Promise.all([fetchText("./js/liveCallScreen.js"), fetchText("./css/liveCall.css")]);
+  assertEqual(/const hasSheet = sheetIds\.has\(song\.id\);[\s\S]{0,400}if \(!hasSheet\) return;[\s\S]{0,300}row\.disabled = true;/.test(js), true, "一覧：コール表なしの曲は押せない（disabled）");
+  assertEqual(/\.lc-song-row\.is-nosheet,\s*\.lc-song-row:disabled \{[^}]*opacity: 0\.55;/.test(css), true, "一覧：コール表なしの曲は薄く出す");
+}
+
 export async function runLiveCallRenewalTests() {
   runImportTests();
   runAvailabilityTests();
@@ -386,4 +393,5 @@ export async function runLiveCallRenewalTests() {
   runOverlapTests();
   runListTests();
   await runWiringTests();
+  await runNoSheetDisabledTests();
 }

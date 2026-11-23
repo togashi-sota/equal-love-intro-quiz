@@ -179,6 +179,20 @@ export async function getCallData(songId) {
   return record;
 }
 
+// 全曲分のコールデータ（元のコール）を songId → レコード の Map で返す（2026-11-23追加）。
+// 「最新版データを読み込む」が、元のコールを入れるかどうか決めるのに使う（読むだけ）。
+export async function getAllCallDataMap() {
+  const db = await openDatabase();
+  const records = await new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readonly");
+    const request = tx.objectStore(STORE_NAME).getAll();
+    request.onsuccess = () => resolve(request.result || []);
+    request.onerror = () => reject(request.error);
+  });
+  db.close();
+  return new Map(records.filter((record) => record && typeof record.songId === "string").map((record) => [record.songId, record]));
+}
+
 // 登録済みのコールデータを持つsongId一覧を取得する。
 // 「コールがある曲だけコール関連ボタンを表示する」といった判定に使う想定。
 export async function getSongIdsWithCallData() {

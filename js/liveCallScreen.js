@@ -454,10 +454,17 @@ async function renderList() {
     listBox.textContent = "";
     songs.forEach((song) => {
       const item = el("li", "lc-song-item");
-      const row = button("lc-song-row", "", () => {
+      const hasSheet = sheetIds.has(song.id);
+      const row = button(`lc-song-row${hasSheet ? "" : " is-nosheet"}`, "", () => {
+        if (!hasSheet) return;
         playSfx(SFX_EVENTS.UI_CLICK);
         openSong(song.id);
       });
+      // 【2026-11-23 本人の依頼】コール表なしの曲は、薄くして押せないようにする（押しても使えるものが無いため）
+      if (!hasSheet) {
+        row.disabled = true;
+        row.setAttribute("aria-disabled", "true");
+      }
       row.appendChild(el("span", "lc-song-title", song.title));
       const badges = el("span", "lc-song-badges");
       badges.appendChild(el("span", `lc-badge ${sheetIds.has(song.id) ? "is-sheet" : "is-nosheet"}`, sheetIds.has(song.id) ? "コール表あり" : "コール表なし"));

@@ -9,6 +9,8 @@ import { computeLyricsContentHash, validateLyricsData } from "../js/lyricsStorag
 import { computeLyricsLineFingerprint } from "../js/callReleaseImport.js";
 import { planCallReleaseImport, applyPlanItem } from "../js/callReleasePack.js";
 import { validateManifest } from "../js/dataPackImport.js";
+import { computeCallsFingerprint } from "../js/callTextEdits.js";
+import { computeCallContentHash } from "../js/callStorage.js";
 import {
   readUnifiedPackFiles,
   planUnifiedImport,
@@ -435,6 +437,87 @@ async function testAudio() {
 }
 
 // ---------------- つなぎ込み ----------------
+// ---------------- 元のコール（コール表の土台。2026-11-23）----------------
+// 全部入りのパックに元のコールが入っていなかったため、新しい端末では多くの曲でコール表が出なかった。
+// 「最新版データを読み込む」1回で、元のコールも入ることを確かめる（ダミーのコールだけ）。
+const BASE_A = [{ type: "unique", text: "ダミーの元コールA", start: 10.2, end: 11 }];
+const BASE_B = [{ type: "unique", text: "ダミーの元コールB（別の版）", start: 12.4, end: 13 }];
+function baseEntry(lyricsLines, base) {
+  return { ...callEntry(lyricsLines, "（土台つき）"), baseFingerprint: computeCallsFingerprint(base) };
+}
+const baseFile = (songs) => jsonFile("calls-export.json", { type: "equal-love-call-data", schemaVersion: 1, exportedAt: "2026-08-06T00:00:00.000Z", songs: Object.entries(songs).map(([songId, calls]) => ({ songId, calls })) });
+async function baseStateOf(device) {
+  const state = await stateOf(device);
+  state.baseCalls = device.baseCalls === null ? null : new Map([...device.baseCalls].map(([songId, calls]) => [songId, { songId, calls, contentHash: device.baseHashes.get(songId) }]));
+  return state;
+}
+function baseIoOf(device) {
+  return {
+    ...ioOf(device),
+    saveBaseCalls: async (entry) => {
+      device.writes += 1;
+      device.baseCalls.set(entry.songId, JSON.parse(JSON.stringify(entry.calls)));
+      device.baseHashes.set(entry.songId, entry.contentHash);
+    },
+  };
+}
+async function withBase(device, base) {
+  device.baseCalls = new Map(Object.entries(base));
+  device.baseHashes = new Map();
+  for (const [songId, calls] of Object.entries(base)) device.baseHashes.set(songId, await computeCallContentHash({ songId, calls }));
+  return device;
+}
+async function baseRun(files, device) {
+  const parsed = await readUnifiedPackFiles(files);
+  const plan = planUnifiedImport(parsed, await baseStateOf(device), { knownSongIds: KNOWN, appSupersededHashes: {} });
+  const result = await applyUnifiedPlan(plan, baseIoOf(device));
+  return { parsed, plan, result };
+}
+async function testBaseCalls() {
+  // 1 空の端末：全部入り1つで、歌詞・完成版コール・元のコールが全部入る
+  const device = await withBase(await makeDevice(), {});
+  const before = snapshotUntouched(device);
+  const pack = [...(await makePack({ lyrics: { [S1]: L_NEW, [S2]: L_NEW }, calls: artifact(NEW_TIME, { [S1]: baseEntry(L_NEW, BASE_A), [S2]: callEntry(L_NEW) }) })), baseFile({ [S1]: BASE_A })];
+  const { parsed, plan, result } = await baseRun(pack, device);
+  assertEqual([parsed.baseCalls.length, parsed.ignored.length], [1, 0], "土台1：元のコールのファイルを読む（「使わないファイル」にしない）");
+  assertEqual([plan.counts.newSongs, plan.counts.baseCalls, actionOf(plan, S1, "baseCalls")], [2, 1, PART_ACTION.NEW], "土台1：空の端末では、元のコールも入る予定になる（新規追加の曲数は2曲のまま）");
+  assertEqual(describeUnifiedPlan(plan).some((line) => line.startsWith("コール表の土台（元のコール）が入る曲（1曲）")), true, "土台1：確認画面に「コール表の土台（元のコール）が入る曲」");
+  assertEqual([result.baseCallsSaved, result.errors.length, device.baseCalls.get(S1)], [[S1], 0, BASE_A], "土台1：元のコールを保存した");
+  assertEqual(describeUnifiedResult(result).includes("コール表の土台（元のコール）を入れた曲：1曲"), true, "土台1：結果に「コール表の土台（元のコール）を入れた曲：1曲」");
+  assertInvariants(device, before, "土台1");
+  // 2 同じパックをもう一度：何もしない（すでに最新）
+  const again = await baseRun(pack, device);
+  assertEqual([actionOf(again.plan, S1, "baseCalls"), again.plan.counts.baseCalls, again.result.baseCallsSaved.length], [PART_ACTION.SAME, 0, 0], "土台2：同じものは入れ直さない");
+  assertEqual(describeUnifiedPlan(again.plan).includes("この端末に入れるものはありません（すでに最新です）。"), true, "土台2：すでに最新");
+  // 3 全部入り（土台なし）を入れたあとの端末：土台だけが入る（「すでに最新」にならない）
+  const d3 = await withBase(await makeDevice({ lyrics: { [S1]: L_NEW }, calls: { [S1]: callRecord(S1, baseEntry(L_NEW, BASE_A), NEW_TIME) } }), {});
+  const p3 = [...(await makePack({ lyrics: { [S1]: L_NEW }, calls: artifact(NEW_TIME, { [S1]: baseEntry(L_NEW, BASE_A) }) })), baseFile({ [S1]: BASE_A })];
+  const r3 = await baseRun(p3, d3);
+  assertEqual([actionOf(r3.plan, S1, "lyrics"), actionOf(r3.plan, S1, "calls"), actionOf(r3.plan, S1, "baseCalls"), r3.plan.counts.baseCalls, r3.plan.counts.unchanged], [PART_ACTION.SAME, PART_ACTION.SAME, PART_ACTION.NEW, 1, 0], "土台3：歌詞・コールは同じで、土台だけ入る（変更なしに数えない）");
+  assertEqual(d3.baseCalls.get(S1), BASE_A, "土台3：土台が入った");
+  // 4 端末の土台が違う版で、今コール表が出ている：上書きしない（本人の端末など）
+  const d4 = await withBase(await makeDevice({ lyrics: { [S1]: L_NEW }, calls: { [S1]: callRecord(S1, baseEntry(L_NEW, BASE_B), NEW_TIME) } }), { [S1]: BASE_B });
+  const p4 = [...(await makePack({ lyrics: { [S1]: L_NEW } })), baseFile({ [S1]: BASE_A })];
+  const r4 = await baseRun(p4, d4);
+  assertEqual([actionOf(r4.plan, S1, "baseCalls"), d4.baseCalls.get(S1)], [PART_ACTION.OLDER, BASE_B], "土台4：今のコール表に合っている端末の元のコールは上書きしない");
+  // 5 端末の土台が違う版で、コール表が出ていない／パックの版なら出る：入れ替える
+  const d5 = await withBase(await makeDevice({ lyrics: { [S1]: L_NEW }, calls: { [S1]: callRecord(S1, baseEntry(L_NEW, BASE_A), NEW_TIME) } }), { [S1]: BASE_B });
+  const r5 = await baseRun(p4, d5);
+  assertEqual([actionOf(r5.plan, S1, "baseCalls"), d5.baseCalls.get(S1)], [PART_ACTION.UPDATE, BASE_A], "土台5：コール表が出ない端末の土台は、出る版に入れ替える");
+  // 6 端末の元のコールを読めなかった：入れない（取り違えて上書きしない）
+  const d6 = await makeDevice();
+  d6.baseCalls = null;
+  d6.baseHashes = new Map();
+  const plan6 = planUnifiedImport(await readUnifiedPackFiles([...(await makePack({ lyrics: { [S1]: L_NEW } })), baseFile({ [S1]: BASE_A })]), await baseStateOf(d6), { knownSongIds: KNOWN, appSupersededHashes: {} });
+  assertEqual(actionOf(plan6, S1, "baseCalls"), PART_ACTION.HELD, "土台6：端末の元のコールを読めないときは入れない");
+  // 7 アプリに無い曲・形の悪い曲は使わない
+  const parsed7 = await readUnifiedPackFiles([baseFile({ [S1]: [{ type: "unique", text: "", start: 1, end: 2 }] })]);
+  assertEqual([parsed7.baseCalls.length, parsed7.ignored.length > 0], [0, true], "土台7：中身の悪い元のコールは使わない");
+  // 8 元のコールのファイルが2つ：読み込まない
+  const parsed8 = await readUnifiedPackFiles([baseFile({ [S1]: BASE_A }), jsonFile("calls-export-2.json", { type: "equal-love-call-data", schemaVersion: 1, songs: [] })]);
+  assertEqual(parsed8.fatalErrors.some((m) => m.includes("元のコール")), true, "土台8：元のコールのファイルが2つあると止める");
+}
+
 async function testWiring() {
   const fetchText = async (file) => (await fetch(file, { cache: "no-store" })).text();
   const [html, main, sw] = await Promise.all([fetchText("./index.html"), fetchText("./js/main.js"), fetchText("./sw.js")]);
@@ -451,7 +534,7 @@ async function testWiring() {
 }
 
 export async function runUnifiedPackImportTests() {
-  for (const test of [testA, testB, testC, testD, testE, testF, testG, testH, testI, testJ, testK, testAudio, testWiring]) {
+  for (const test of [testA, testB, testC, testD, testE, testF, testG, testH, testI, testJ, testK, testAudio, testBaseCalls, testWiring]) {
     try {
       await test();
     } catch (error) {

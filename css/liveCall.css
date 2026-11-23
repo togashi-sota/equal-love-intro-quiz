@@ -220,6 +220,14 @@
   text-align: left;
   cursor: pointer;
 }
+/* 【2026-11-23】コール表なしの曲：薄くして押せない */
+.lc-song-row.is-nosheet,
+.lc-song-row:disabled {
+  border-color: #eee6ea;
+  background: #faf8f9;
+  opacity: 0.55;
+  cursor: default;
+}
 .lc-song-title {
   flex: 1 1 10em;
   font-size: 1rem;

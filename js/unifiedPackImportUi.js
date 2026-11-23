@@ -32,7 +32,8 @@ function showLines(box, lines, { error = false } = {}) {
 
 function hasChanges(plan) {
   const c = plan.counts;
-  return plan.ok && c.newSongs + c.lyricsUpdates + c.callUpdates + c.audioUpdates > 0;
+  // 【2026-11-23】元のコール（コール表の土台）だけが入る場合も、読み込めるようにする（全部入りを入れたあとの端末など）
+  return plan.ok && c.newSongs + c.lyricsUpdates + c.callUpdates + c.audioUpdates + (c.baseCalls ?? 0) > 0;
 }
 
 async function analyse(parsed) {

@@ -31,7 +31,8 @@ import { computeSha256Hex } from "./contentHash.js";
 import { computeLyricsLineFingerprint } from "./callReleaseImport.js";
 import { classifyCallReleaseJson, planCallReleaseImport, applyPlanItem, undoReleasedSong, RELEASE_ACTION } from "./callReleasePack.js";
 import { importAudioFiles, getImportedSongIds, getAudioContentHashes } from "./audioStorage.js";
-import { getAllReleasedCallRecords, getReleasedCallRecord, saveReleasedCallRecord } from "./callStorage.js";
+import { getAllReleasedCallRecords, getReleasedCallRecord, saveReleasedCallRecord, getAllCallDataMap, validateCallDataBackupFile, validateCallData, computeCallContentHash, importCallDataSongs } from "./callStorage.js";
+import { resolveApprovedCallText } from "./callTextEdits.js";
 import { backupCurrentLyrics, restoreLyricsBackupById, prepareRestoreRecord } from "./lyricsBackupStorage.js";
 
 // マニフェストの中の「最新版データ」用の項目（manifest.unified）の版
@@ -80,6 +81,7 @@ export async function readUnifiedPackFiles(files) {
   const lyricsFiles = [];
   const audio = [];
   const ignored = [];
+  const baseCallFiles = [];
   for (const file of files) {
     if (/\.mp3$/i.test(file.name)) {
       audio.push({ fileName: file.name, songId: file.name.replace(/\.mp3$/i, ""), file });
@@ -100,13 +102,16 @@ export async function readUnifiedPackFiles(files) {
     else if (classifyCallReleaseJson(data) === "artifact") artifacts.push(data);
     else if (classifyCallReleaseJson(data) === "display") displays.push(data);
     else if (data && (typeof data.songId === "string" || typeof data.song_id === "string")) lyricsFiles.push(file);
-    else if (data && (data.type === "equal-love-call-data" || data.type === "equal-love-call-guide-data")) ignored.push({ fileName: file.name, reason: "以前の形式のコール・コールガイド（「追加データパック」で読み込めます）" });
+    // 【2026-11-23】元のコール（コール表の土台）も、ここで読む。全部入りのパック1つで、どの曲もコール表が出るようにするため
+    else if (data && data.type === "equal-love-call-data") baseCallFiles.push({ fileName: file.name, data });
+    else if (data && data.type === "equal-love-call-guide-data") ignored.push({ fileName: file.name, reason: "以前の形式のコールガイド（「追加データパック」で読み込めます）" });
     else ignored.push({ fileName: file.name, reason: "知らない形式の JSON" });
   }
   const fatalErrors = [];
   if (manifests.length > 1) fatalErrors.push("マニフェストが複数入っています");
   if (artifacts.length > 1) fatalErrors.push("完成版コールデータ（コール表）が複数入っています");
   if (displays.length > 1) fatalErrors.push("表示用の歌詞のファイルが複数入っています");
+  if (baseCallFiles.length > 1) fatalErrors.push("元のコール（コール表の土台）のファイルが複数入っています");
   const manifest = manifests[0] ?? null;
   const manifestErrors = manifest ? validateManifest(manifest).errors : [];
   if (manifest?.unified !== undefined && manifest.unified?.formatVersion > UNIFIED_PACK_FORMAT_VERSION) manifestErrors.push("新しい形式の最新版データです。アプリを更新してください");
@@ -132,7 +137,25 @@ export async function readUnifiedPackFiles(files) {
     }
   });
   for (const entry of audio) entry.contentHash = await computeSha256Hex(entry.file);
-  return { manifest, manifestErrors, lyrics, audio, artifact: artifacts[0] ?? null, display: displays[0] ?? null, ignored, fatalErrors };
+  // 元のコール：ファイル全体の形と曲ごとの中身を、今までの「追加データパック」と同じ点検で見る（使えない曲だけ外す）
+  const baseCalls = [];
+  if (baseCallFiles.length === 1) {
+    const { fileName, data } = baseCallFiles[0];
+    const fileCheck = validateCallDataBackupFile(data);
+    if (!fileCheck.valid) ignored.push({ fileName, reason: fileCheck.reason });
+    else {
+      for (const songEntry of data.songs) {
+        const record = { songId: typeof songEntry?.songId === "string" ? songEntry.songId : null, calls: songEntry?.calls ?? null };
+        const { valid, errors } = validateCallData(record);
+        if (!valid) {
+          ignored.push({ fileName, reason: `元のコール ${record.songId ?? "(不明)"}：${errors.join(" / ")}` });
+          continue;
+        }
+        baseCalls.push({ songId: record.songId, calls: record.calls, contentHash: await computeCallContentHash(record) });
+      }
+    }
+  }
+  return { manifest, manifestErrors, lyrics, audio, artifact: artifacts[0] ?? null, display: displays[0] ?? null, baseCalls, ignored, fatalErrors };
 }
 
 // ===== 2. 端末の今の様子（読むだけ） =====
@@ -164,7 +187,12 @@ export async function loadUnifiedDeviceState({ needAudioHashes = false } = {}) {
     }
     return null;
   };
-  const [lyricsRecords, audioIds, releasedCalls] = await Promise.all([getAllLyricsData().catch(() => []), readAudioIds(), getAllReleasedCallRecords().catch(() => new Map())]);
+  const [lyricsRecords, audioIds, releasedCalls, baseCalls] = await Promise.all([
+    getAllLyricsData().catch(() => []),
+    readAudioIds(),
+    getAllReleasedCallRecords().catch(() => new Map()),
+    getAllCallDataMap().catch(() => null), // 読めなかったときは null（「無い」と取り違えて上書きしない）
+  ]);
   const lyricsHashes = new Map();
   const lyricsFingerprints = new Map();
   for (const record of lyricsRecords ?? []) {
@@ -174,7 +202,7 @@ export async function loadUnifiedDeviceState({ needAudioHashes = false } = {}) {
     lyricsFingerprints.set(record.songId, computeLyricsLineFingerprint(record.lines));
   }
   const audioHashes = needAudioHashes ? await getAudioContentHashes().catch(() => new Map()) : new Map();
-  return { lyricsHashes, lyricsFingerprints, lyricsProvenance: readJsonFromLocalStorage(LYRICS_PROVENANCE_STORAGE_KEY), audioSongIds: new Set(audioIds ?? []), audioKnown: Array.isArray(audioIds), audioHashes, releasedCalls };
+  return { lyricsHashes, lyricsFingerprints, lyricsProvenance: readJsonFromLocalStorage(LYRICS_PROVENANCE_STORAGE_KEY), audioSongIds: new Set(audioIds ?? []), audioKnown: Array.isArray(audioIds), audioHashes, releasedCalls, baseCalls };
 }
 
 // ===== 3. 計画（純粋関数。何も書き換えない） =====
@@ -243,7 +271,7 @@ function heldCallReason(lyricsDecision, deviceHasLyrics) {
 export function planUnifiedImport(parsed, device, { knownSongIds = new Set(SONGS.map((song) => song.id)), appSupersededHashes = LYRICS_SUPERSEDED_CONTENT_HASHES } = {}) {
   const errors = [...(parsed.fatalErrors ?? [])];
   if (parsed.manifestErrors?.length) errors.push(...parsed.manifestErrors.map((message) => `マニフェスト：${message}`));
-  const hasContent = parsed.lyrics.length > 0 || parsed.audio.length > 0 || parsed.artifact;
+  const hasContent = parsed.lyrics.length > 0 || parsed.audio.length > 0 || parsed.artifact || (parsed.baseCalls ?? []).length > 0;
   if (!hasContent) errors.push("このファイルには、歌詞・コール・音源のどれも入っていません");
   const pack = describePackInfo(parsed);
   if (errors.length) return { ok: false, errors, warnings: [], pack, songs: [], counts: countUnified([]), ignored: parsed.ignored ?? [] };
@@ -255,7 +283,7 @@ export function planUnifiedImport(parsed, device, { knownSongIds = new Set(SONGS
     if (!songs.has(songId)) {
       // callsWorkNow：今この端末でコール表が出ている（完成版コールの歌詞の指紋が、端末の歌詞と同じ）
       const currentFp = device.releasedCalls.get(songId)?.current?.entry?.lyricsFingerprint;
-      songs.set(songId, { songId, title: titleOf(songId), audio: null, lyrics: null, calls: null, audioMissing: false, callsWorkNow: sameFingerprint(currentFp, device.lyricsFingerprints.get(songId)) });
+      songs.set(songId, { songId, title: titleOf(songId), audio: null, lyrics: null, calls: null, baseCalls: null, audioMissing: false, callsWorkNow: sameFingerprint(currentFp, device.lyricsFingerprints.get(songId)) });
     }
     return songs.get(songId);
   };
@@ -328,6 +356,34 @@ export function planUnifiedImport(parsed, device, { knownSongIds = new Set(SONGS
     }
   }
 
+  // 元のコール（コール表の土台。2026-11-23）。完成版コールは、端末の元のコールの上に重ねて出す作りのため、
+  // これが無い端末では、多くの曲でコール表が出ない（「コール表を作ったときと違います」）。
+  //   ・端末に無い → 入れる
+  //   ・同じ → 何もしない
+  //   ・違う → 「端末のままではコール表が出ず、パックの版なら出る」ときだけ入れ替える（今コール表が出ている端末の元のコールは上書きしない）
+  //   ・端末の元のコールを読めなかった → 何もしない（取り違えて上書きしない）
+  for (const entry of parsed.baseCalls ?? []) {
+    if (!knownSongIds.has(entry.songId)) continue;
+    const song = songOf(entry.songId);
+    if (device.baseCalls === null || device.baseCalls === undefined) {
+      song.baseCalls = { action: PART_ACTION.HELD, reason: "この端末の元のコールを確かめられなかったので、今回は入れません", entry };
+      continue;
+    }
+    const existing = device.baseCalls.get(entry.songId) ?? null;
+    if (!existing) {
+      song.baseCalls = { action: PART_ACTION.NEW, entry };
+      continue;
+    }
+    if (existing.contentHash && existing.contentHash === entry.contentHash) {
+      song.baseCalls = { action: PART_ACTION.SAME, entry };
+      continue;
+    }
+    const item = callItemOf(callPlan, entry.songId);
+    const releaseEntry = item && (item.action === RELEASE_ACTION.ADD || item.action === RELEASE_ACTION.UPDATE) ? item.next.entry : device.releasedCalls.get(entry.songId)?.current?.entry ?? null;
+    const works = (calls) => Boolean(releaseEntry && resolveApprovedCallText(calls ?? [], { baseFingerprint: releaseEntry.baseFingerprint, calls: releaseEntry.calls, added: releaseEntry.added ?? [] }).approved);
+    song.baseCalls = !works(existing.calls) && works(entry.calls) ? { action: PART_ACTION.UPDATE, entry } : { action: PART_ACTION.OLDER, reason: "この端末の元のコールのままにします（今のコール表に合っています）", entry };
+  }
+
   // 音源が無い曲（この端末にも、パックにも無い）。歌詞・コールは音源が無くても入る
   for (const song of songs.values()) {
     song.audioMissing = Boolean(device.audioKnown !== false && song.audio === null && !device.audioSongIds.has(song.songId) && knownSongIds.has(song.songId) && (song.lyrics || song.calls));
@@ -341,9 +397,18 @@ const changes = (part) => part && (part.action === PART_ACTION.NEW || part.actio
 
 // 確認画面・結果の集計（曲の数）。1曲が「歌詞更新」と「コール更新」の両方に入ることがある
 export function countUnified(songs) {
-  const counts = { newSongs: 0, lyricsUpdates: 0, callUpdates: 0, audioUpdates: 0, unchanged: 0, audioMissing: 0, incompatible: 0, held: 0, older: 0, total: songs.length };
+  const counts = { newSongs: 0, lyricsUpdates: 0, callUpdates: 0, audioUpdates: 0, baseCalls: 0, unchanged: 0, audioMissing: 0, incompatible: 0, held: 0, older: 0, total: songs.length };
   for (const song of songs) {
+    // 元のコールは「新規追加」などの数には入れない（曲が増えるわけではない）。入れる曲の数は baseCalls に別に数える
+    const baseChanges = song.baseCalls?.action === PART_ACTION.NEW || song.baseCalls?.action === PART_ACTION.UPDATE;
+    if (baseChanges) counts.baseCalls += 1;
+    if (song.baseCalls?.action === PART_ACTION.HELD) counts.held += 1;
     const parts = [song.audio, song.lyrics, song.calls].filter(Boolean);
+    if (!parts.length) {
+      if (song.baseCalls && !baseChanges && song.baseCalls.action !== PART_ACTION.HELD) counts.unchanged += 1;
+      continue;
+    }
+    if (baseChanges && parts.every((part) => part.action === PART_ACTION.SAME)) continue; // 土台だけ入る曲は「変更なし」に数えない
     if (parts.some((part) => part.action === PART_ACTION.NEW)) counts.newSongs += 1;
     if (song.lyrics?.action === PART_ACTION.UPDATE) counts.lyricsUpdates += 1;
     if (song.calls?.action === PART_ACTION.UPDATE || song.calls?.action === PART_ACTION.WITHDRAW) counts.callUpdates += 1;
@@ -376,16 +441,17 @@ export function describeUnifiedPlan(plan) {
   add("コールが新しくなる曲", names((song) => song.calls?.action === PART_ACTION.UPDATE));
   add("コール表なしになる曲（新しい完成版で採用されていない）", names((song) => song.calls?.action === PART_ACTION.WITHDRAW));
   add("音源が入れ替わる曲", names((song) => song.audio?.action === PART_ACTION.UPDATE));
+  add("コール表の土台（元のコール）が入る曲", names((song) => song.baseCalls?.action === PART_ACTION.NEW || song.baseCalls?.action === PART_ACTION.UPDATE));
   if (c.audioMissing) lines.push(`この端末に音源が無い曲：${c.audioMissing}曲（このパックに音源は入っていません。音源は別のパックで入れてください。歌詞・コールはこのまま入ります）：${shortList(names((song) => song.audioMissing))}`);
   const older = names((song) => [song.lyrics, song.calls].some((part) => part?.action === PART_ACTION.OLDER));
   if (older.length) lines.push(`この端末の方が新しいので入れない（${older.length}曲）：${older.join("、")}`);
-  const held = plan.songs.flatMap((song) => [song.lyrics, song.calls].filter((part) => part?.action === PART_ACTION.HELD).map((part) => `${song.title}：${part.reason}`));
+  const held = plan.songs.flatMap((song) => [song.lyrics, song.calls, song.baseCalls].filter((part) => part?.action === PART_ACTION.HELD).map((part) => `${song.title}：${part.reason}`));
   if (held.length) lines.push(`今回は入れないもの（${held.length}件）：${held.join(" ／ ")}`);
   const invalid = plan.songs.flatMap((song) => [song.audio, song.lyrics, song.calls].filter((part) => part?.action === PART_ACTION.INVALID).map((part) => `${song.title}：${part.reason}`));
   if (invalid.length) lines.push(`使えないデータ（${invalid.length}件）：${invalid.join(" ／ ")}`);
   plan.warnings.forEach((message) => lines.push(message));
   if (plan.ignored.length) lines.push(`使わないファイル：${plan.ignored.map((item) => `${item.fileName}（${item.reason}）`).join("、")}`);
-  if (c.newSongs + c.lyricsUpdates + c.callUpdates + c.audioUpdates === 0) lines.push("この端末に入れるものはありません（すでに最新です）。");
+  if (c.newSongs + c.lyricsUpdates + c.callUpdates + c.audioUpdates + c.baseCalls === 0) lines.push("この端末に入れるものはありません（すでに最新です）。");
   return lines;
 }
 
@@ -405,6 +471,10 @@ export function createDeviceIo() {
     },
     getReleasedCall: (songId) => getReleasedCallRecord(songId),
     saveReleasedCall: (record) => saveReleasedCallRecord(record),
+    saveBaseCalls: async (entry) => {
+      const { savedSongIds, saveFailures } = await importCallDataSongs([entry]);
+      if (!savedSongIds.includes(entry.songId)) throw new Error(saveFailures[0]?.reason || "元のコールを保存できませんでした");
+    },
     readProvenance: () => readJsonFromLocalStorage(LYRICS_PROVENANCE_STORAGE_KEY),
     writeProvenance: (value) => writeJsonToLocalStorage(LYRICS_PROVENANCE_STORAGE_KEY, value),
     readUndo: () => readJsonFromLocalStorage(UNIFIED_UNDO_STORAGE_KEY),
@@ -420,7 +490,7 @@ const BACKUP_FAILED = "元の歌詞を控えられなかったため、上書き
 // 計画を当てはめる。曲ごとに 音源 → 歌詞 → コール。
 // 戻り値：{ newSongs, lyricsUpdated, callsUpdated, audioUpdated, unchanged, errors: [{ songId, title, part, message }], restoredLyrics }
 export async function applyUnifiedPlan(plan, io) {
-  const result = { newSongs: [], lyricsUpdated: [], callsUpdated: [], audioUpdated: [], unchanged: [], errors: [], restoredLyrics: [] };
+  const result = { newSongs: [], lyricsUpdated: [], callsUpdated: [], audioUpdated: [], baseCallsSaved: [], unchanged: [], errors: [], restoredLyrics: [] };
   if (!plan?.ok) return result;
   let provenance = io.readProvenance();
   let undo = io.readUndo();
@@ -428,7 +498,7 @@ export async function applyUnifiedPlan(plan, io) {
   const fail = (song, part, error) => result.errors.push({ songId: song.songId, title: song.title, part, message: typeof error === "string" ? error : describeSaveError(error), quota: isQuotaError(error) });
 
   for (const song of plan.songs) {
-    const done = { audio: null, lyrics: null, calls: false };
+    const done = { audio: null, lyrics: null, calls: false, baseCalls: false };
     let isNew = false;
     // 音源（パックに違う音源があるときだけ）
     if (song.audio && (song.audio.action === PART_ACTION.NEW || song.audio.action === PART_ACTION.UPDATE)) {
@@ -468,6 +538,19 @@ export async function applyUnifiedPlan(plan, io) {
       provenance = { ...provenance, [song.songId]: { packId: plan.pack.packId, createdAt: plan.pack.createdAt, contentHash: song.lyrics.entry.normalized.contentHash } };
       provenanceDirty = true;
     }
+    // 元のコール（コール表の土台）。完成版コールより先に入れる（失敗しても、ほかは続ける）
+    if (song.baseCalls && (song.baseCalls.action === PART_ACTION.NEW || song.baseCalls.action === PART_ACTION.UPDATE)) {
+      if (typeof io.saveBaseCalls !== "function") fail(song, "元のコール", "元のコールを保存する準備ができていません");
+      else {
+        try {
+          await io.saveBaseCalls(song.baseCalls.entry);
+          done.baseCalls = true;
+          result.baseCallsSaved.push(song.songId);
+        } catch (error) {
+          fail(song, "元のコール", error);
+        }
+      }
+    }
     // コール
     if (song.calls && (song.calls.action === PART_ACTION.NEW || song.calls.action === PART_ACTION.UPDATE || song.calls.action === PART_ACTION.WITHDRAW)) {
       if (song.calls.needsNewLyrics && !lyricsOk) {
@@ -498,7 +581,7 @@ export async function applyUnifiedPlan(plan, io) {
       }
     }
     // 結果と「元に戻す」の記録
-    const changed = Boolean(done.audio || done.lyrics || done.calls);
+    const changed = Boolean(done.audio || done.lyrics || done.calls || done.baseCalls);
     if (isNew) result.newSongs.push(song.songId);
     if (done.lyrics?.action === PART_ACTION.UPDATE) result.lyricsUpdated.push(song.songId);
     if (done.calls && song.calls.action !== PART_ACTION.NEW) result.callsUpdated.push(song.songId);
@@ -531,6 +614,7 @@ export function describeUnifiedResult(result) {
   if (result.lyricsUpdated.length) lines.push(`歌詞を新しくした曲：${name(result.lyricsUpdated)}（前の歌詞は端末に控えてあります）`);
   if (result.callsUpdated.length) lines.push(`コールを新しくした曲：${name(result.callsUpdated)}（前の版は残してあります）`);
   if (result.audioUpdated.length) lines.push(`音源を入れ替えた曲：${name(result.audioUpdated)}`);
+  if (result.baseCallsSaved?.length) lines.push(`コール表の土台（元のコール）を入れた曲：${result.baseCallsSaved.length}曲`);
   if (result.restoredLyrics.length) lines.push(`コールを入れられなかったので歌詞を元に戻した曲：${name(result.restoredLyrics)}`);
   result.errors.forEach((error) => lines.push(`エラー：${error.title}（${error.part}）：${error.message}`));
   if (result.errors.length) lines.push("もう一度同じファイルを読み込むと、済んだ曲は飛ばして、残りだけを入れます。");
