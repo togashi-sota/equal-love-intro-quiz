@@ -382,6 +382,7 @@ async function runWiringTests() {
 async function runNoSheetDisabledTests() {
   const [js, css] = await Promise.all([fetchText("./js/liveCallScreen.js"), fetchText("./css/liveCall.css")]);
   assertEqual(/const hasSheet = sheetIds\.has\(song\.id\);[\s\S]{0,400}if \(!hasSheet\) return;[\s\S]{0,300}row\.disabled = true;/.test(js), true, "一覧：コール表なしの曲は押せない（disabled）");
+  assertEqual(js.includes('"コール表あり" : "代表的なコールなし"'), true, "一覧：コール表なしの曲の印は「代表的なコールなし」");
   assertEqual(/\.lc-song-row\.is-nosheet,\s*\.lc-song-row:disabled \{[^}]*opacity: 0\.55;/.test(css), true, "一覧：コール表なしの曲は薄く出す");
 }
 

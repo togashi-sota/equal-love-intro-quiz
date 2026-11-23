@@ -467,7 +467,7 @@ async function renderList() {
       }
       row.appendChild(el("span", "lc-song-title", song.title));
       const badges = el("span", "lc-song-badges");
-      badges.appendChild(el("span", `lc-badge ${sheetIds.has(song.id) ? "is-sheet" : "is-nosheet"}`, sheetIds.has(song.id) ? "コール表あり" : "コール表なし"));
+      badges.appendChild(el("span", `lc-badge ${sheetIds.has(song.id) ? "is-sheet" : "is-nosheet"}`, sheetIds.has(song.id) ? "コール表あり" : "代表的なコールなし")); // 【2026-11-23 本人の依頼】「コール表なし」→「代表的なコールなし」
       if (!audioIds.has(song.id)) badges.appendChild(el("span", "lc-badge is-missing", "音源なし"));
       if (!lyricsIds.has(song.id) && song.id !== "overture") badges.appendChild(el("span", "lc-badge is-missing", "歌詞なし"));
       row.appendChild(badges);
