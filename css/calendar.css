@@ -1,0 +1,581 @@
+/* ===== 「＝LOVEカレンダー」（#calendar-screen）2026-11-24新設 =====
+   幅390px前後を基準に、320px でも横にはみ出さない。押す所は高さ44px 前後。色はアプリ共通の変数（css/style.css の :root）。
+   スマホ：日付のマスには色の点だけ（文字が小さくなりすぎないように）。720px 以上：マスに予定の名前を2件まで。 */
+
+#calendar-screen {
+  --cal-live: #ff4f96;
+  --cal-meet: #ff8a3d;
+  --cal-tv: #3d9be0;
+  --cal-radio: #8a63d2;
+  --cal-media: #2fa89a;
+  --cal-release: #43a047;
+  --cal-birthday: #e0a800;
+  --cal-other: #9a8f98;
+}
+
+[data-cat="live"] { --cat-color: var(--cal-live); }
+[data-cat="meet"] { --cat-color: var(--cal-meet); }
+[data-cat="tv"] { --cat-color: var(--cal-tv); }
+[data-cat="radio"] { --cat-color: var(--cal-radio); }
+[data-cat="media"] { --cat-color: var(--cal-media); }
+[data-cat="release"] { --cat-color: var(--cal-release); }
+[data-cat="birthday"] { --cat-color: var(--cal-birthday); }
+[data-cat="other"] { --cat-color: var(--cal-other); }
+
+.cal-content {
+  container: calendar / inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.cal-subtitle {
+  margin: 2px 0 0;
+  font-size: 0.82rem;
+  opacity: 0.8;
+}
+
+/* ---- 上の案内 ---- */
+.cal-status p {
+  margin: 0;
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+
+.cal-status-line {
+  opacity: 0.75;
+}
+
+.cal-status-warn {
+  margin-top: 4px !important;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: var(--color-accent-soft);
+  font-weight: 600;
+}
+
+/* ---- 月の切り替え ---- */
+.cal-nav {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 44px auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.cal-nav-arrow,
+.cal-today-button {
+  min-height: 44px;
+  border: 1.5px solid var(--color-card-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+  color: var(--color-primary-dark);
+  font-family: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.cal-nav-arrow {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.cal-nav-arrow:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.cal-today-button {
+  padding: 0 12px;
+  font-size: 0.86rem;
+}
+
+.cal-month-picker {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.cal-select {
+  min-height: 44px;
+  min-width: 0;
+  padding: 0 8px;
+  border: 1.5px solid var(--color-card-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 1rem; /* iPhone で押したときに拡大されないように 16px */
+  font-weight: 700;
+}
+
+.cal-month-picker label {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  font-weight: 700;
+}
+
+.cal-year {
+  width: 5.2em;
+}
+
+.cal-month {
+  width: 3.6em;
+}
+
+/* ---- 絞り込み ---- */
+.cal-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.cal-chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+
+.cal-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.cal-chip {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1.5px solid var(--color-card-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.cal-chip[data-cat]::before {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--cat-color, transparent);
+  content: "";
+}
+
+.cal-chip[data-cat="all"]::before,
+.cal-chip[data-cat="solo"]::before {
+  display: none;
+}
+
+.cal-chip[aria-pressed="true"] {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+}
+
+.cal-member {
+  width: 100%;
+  font-weight: 600;
+}
+
+/* ---- 月のカレンダー ---- */
+.cal-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 6px;
+  border: 1.5px solid var(--color-card-border);
+  border-radius: 16px;
+  background: var(--color-surface-glass);
+}
+
+.cal-week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 3px;
+}
+
+.cal-head-cell {
+  padding: 2px 0 4px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-align: center;
+  opacity: 0.75;
+}
+
+.cal-head-cell.is-sat,
+.cal-cell.is-sat .cal-day-number {
+  color: #3d7fd0;
+}
+
+.cal-head-cell.is-sun,
+.cal-cell.is-sun .cal-day-number {
+  color: #e0475f;
+}
+
+.cal-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  min-height: 50px;
+  padding: 5px 1px 4px;
+  border: 1.5px solid transparent;
+  border-radius: 10px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.cal-cell.is-blank {
+  background: transparent;
+  cursor: default;
+}
+
+.cal-cell.is-past:not(.is-today) .cal-day-number {
+  opacity: 0.7;
+}
+
+.cal-day-number {
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.cal-cell.is-today {
+  border-color: var(--color-primary-dark);
+}
+
+.cal-cell.is-today .cal-day-number {
+  color: var(--color-primary-dark);
+}
+
+.cal-cell[aria-pressed="true"] {
+  border-color: var(--color-primary-dark);
+  background: var(--color-primary);
+}
+
+.cal-cell[aria-pressed="true"] .cal-day-number {
+  color: #fff;
+  opacity: 1;
+}
+
+.cal-dots {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
+}
+
+.cal-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--cat-color);
+}
+
+.cal-cell[aria-pressed="true"] .cal-dot {
+  box-shadow: 0 0 0 1.5px #fff;
+}
+
+.cal-more {
+  font-size: 0.6rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.cal-cell[aria-pressed="true"] .cal-more {
+  color: #fff;
+}
+
+.cal-cell-titles {
+  display: none;
+}
+
+/* 件数（広い画面だけ） */
+.cal-count {
+  display: none;
+  font-size: 0.66rem;
+  font-weight: 700;
+  opacity: 0.7;
+}
+
+.cal-cell[aria-pressed="true"] .cal-count {
+  color: #fff;
+  opacity: 1;
+}
+
+.cal-coverage-note {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--color-accent-soft);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+/* ---- 選んだ日の予定 ---- */
+.cal-day {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  scroll-margin-top: 72px; /* 上に浮かぶ「戻る」に隠れないように */
+}
+
+.cal-day-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 0;
+  font-size: 1.05rem;
+}
+
+.cal-today-tag {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 0.72rem;
+}
+
+.cal-day-count {
+  margin: -4px 0 0;
+  font-size: 0.78rem;
+  opacity: 0.75;
+}
+
+.cal-empty {
+  margin: 0;
+  padding: 14px 12px;
+  border-radius: 12px;
+  background: var(--color-surface-glass);
+  font-size: 0.86rem;
+  line-height: 1.6;
+}
+
+.cal-event {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 12px 12px 12px 14px;
+  border: 1.5px solid var(--color-card-border);
+  border-left: 5px solid var(--cat-color);
+  border-radius: 14px;
+  background: var(--color-surface);
+}
+
+.cal-event-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.cal-event-cat {
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--cat-color);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.cal-badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #f1ecf0;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.cal-badge.is-cancelled,
+.cal-badge.is-postponed {
+  background: var(--color-danger-soft);
+  color: #c4384a;
+}
+
+.cal-badge.is-pending,
+.cal-badge.is-changed,
+.cal-badge.is-missing {
+  background: var(--color-accent-soft);
+  color: #8a6400;
+}
+
+.cal-event-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.cal-event-info {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 3px 10px;
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+.cal-event-info dt {
+  font-weight: 700;
+  opacity: 0.7;
+  white-space: nowrap;
+}
+
+.cal-event-info dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.cal-event-note {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: #8a6400;
+}
+
+.cal-event-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.cal-link-official,
+.cal-link-app {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 0 12px;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.cal-link-official {
+  border: 1.5px solid var(--color-primary);
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+}
+
+.cal-link-official::after {
+  margin-left: 4px;
+  content: "↗";
+}
+
+.cal-link-app {
+  border: 1.5px solid #ead7e1;
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.cal-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 0.74rem;
+  line-height: 1.6;
+  opacity: 0.85;
+}
+
+.cal-footer p {
+  margin: 0;
+}
+
+.cal-nav-arrow:active,
+.cal-today-button:active,
+.cal-chip:active,
+.cal-cell:not(.is-blank):active,
+.cal-link-app:active {
+  transform: scale(0.97);
+}
+
+/* ---- 320px：月の選び方を詰める ---- */
+@media (max-width: 359px) {
+  .cal-nav {
+    grid-template-columns: 40px minmax(0, 1fr) 40px auto;
+    gap: 4px;
+  }
+
+  .cal-today-button {
+    padding: 0 8px;
+  }
+
+  /* 320px：年・月の選択の「▼」を消して、数字が切れないようにする（押すと選べるのは同じ） */
+  .cal-month-picker .cal-select {
+    width: auto;
+    padding: 0 6px;
+    appearance: none;
+    -webkit-appearance: none;
+    text-align: center;
+  }
+
+  .cal-cell {
+    min-height: 46px;
+  }
+
+  .cal-dot {
+    width: 6px;
+    height: 6px;
+  }
+}
+
+/* ---- iPad・PC：アプリの枠は広くても約670px なので、マスに名前を入れると「＝L…」としか読めない。
+   名前は出さず、マスを高くして点と件数を大きく見せる（名前は下の一覧で読む）。幅は画面ではなく、中身の幅で決める ---- */
+@container calendar (min-width: 560px) {
+  .cal-cell {
+    min-height: 72px;
+    gap: 6px;
+    padding-top: 8px;
+  }
+
+  .cal-day-number {
+    font-size: 1.05rem;
+  }
+
+  .cal-dot {
+    width: 9px;
+    height: 9px;
+  }
+
+  .cal-count {
+    display: block;
+  }
+
+  .cal-chips {
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cal-nav-arrow:active,
+  .cal-today-button:active,
+  .cal-chip:active,
+  .cal-cell:not(.is-blank):active,
+  .cal-link-app:active {
+    transform: none;
+  }
+}

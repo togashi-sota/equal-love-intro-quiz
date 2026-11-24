@@ -7,7 +7,7 @@
 //
 // 新しいバージョンを配信したいときは、CACHE_VERSIONの値を必ず上げること。
 // 上げないと、ブラウザが「内容が変わっていない」と判断し、更新が反映されない。
-const CACHE_VERSION = "v415";
+const CACHE_VERSION = "v416";
 const CACHE_NAME = `equal-love-intro-quiz-${CACHE_VERSION}`;
 
 // キャッシュするアプリ本体のファイル一覧。
@@ -417,6 +417,13 @@ const APP_SHELL_FILES = [
   "./css/officialNews.css",
   "./js/officialNewsData.js",
   "./js/officialNewsScreen.js",
+  // 【2026-11-24新設】＝LOVEカレンダー（データの本体 data/official-schedule.json・土台は APP_SHELL に入れない。network-first）
+  "./css/calendar.css",
+  "./js/calendarCore.js",
+  "./js/calendarData.js",
+  "./js/calendarModel.js",
+  "./js/calendarScreen.js",
+  "./js/qaCalendar.js",
 ];
 
 self.addEventListener("install", (event) => {
@@ -496,7 +503,7 @@ async function youtubeDataNetworkFirst(request) {
 // 【2026-11-03追加・R11 D】＝LOVE 最新情報のデータ data/official-news.json も、YouTube のデータと同じく network-first
 // （公開のたびに作り直すので APP_SHELL に入れない。オフラインのときだけ箱のものを返す。古さはアプリが fetchedAt から出す）。
 const OFFICIAL_NEWS_DATA_CACHE_NAME = "equal-love-official-news-data";
-const OFFICIAL_NEWS_DATA_URL_PATTERN = /\/data\/official-news\.json$/;
+const OFFICIAL_NEWS_DATA_URL_PATTERN = /\/data\/(?:official-news\.json|official-schedule\.json|calendar\/official-schedule-seed\.json)$/; // 【2026-11-24】カレンダーのデータも同じ network-first
 function isOfficialNewsDataRequest(url) {
   try {
     return OFFICIAL_NEWS_DATA_URL_PATTERN.test(new URL(url).pathname);

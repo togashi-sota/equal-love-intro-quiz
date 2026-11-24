@@ -52,6 +52,8 @@
   <link rel="stylesheet" href="css/youtubeAppearances.css">
   <!-- 【2026-11-03追加・R11 D】＝LOVE 最新情報（#official-news-screen・ホームの小さな入口 #home-quick-row） -->
   <link rel="stylesheet" href="css/officialNews.css">
+  <!-- 【2026-11-24新設】＝LOVEカレンダー（#calendar-screen） -->
+  <link rel="stylesheet" href="css/calendar.css">
   <!-- 【2026-11-02追加】CD・特典映像図鑑（#cd-bonus-screen・#cd-bonus-detail-screen） -->
   <link rel="stylesheet" href="css/cdBonus.css">
   <!-- 【R11-qa】質問AI（#qa-screen・ホームの #qa-home-link）。2026-11-03 -->
@@ -388,6 +390,12 @@
           <span class="home-quick-icon" aria-hidden="true"><svg class="hi"><use href="#hi-news"/></svg></span>
           <span class="home-quick-text"><b>＝LOVE 最新情報</b><small id="official-news-home-sub">公式の新しいお知らせ</small></span>
           <span class="home-quick-badge" id="official-news-home-badge" hidden></span>
+          <span class="home-chevron" aria-hidden="true">›</span>
+        </button>
+        <!-- 【2026-11-24新設】＝LOVEカレンダー（js/calendarScreen.js。公式 SCHEDULE の予定と過去の活動） -->
+        <button id="calendar-home-link" class="home-quick home-quick--calendar" type="button">
+          <span class="home-quick-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="3.5" y="5" width="17" height="15" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 9.5h17M8 3v4M16 3v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="8.5" cy="14" r="1.3" fill="currentColor"/><circle cx="12.5" cy="14" r="1.3" fill="currentColor"/></svg></span>
+          <span class="home-quick-text"><b>＝LOVEカレンダー</b><small id="calendar-home-sub">今日の予定・過去の活動</small></span>
           <span class="home-chevron" aria-hidden="true">›</span>
         </button>
       </div>
@@ -6235,6 +6243,28 @@
         </div>
       </div>
       <div id="youtube-appearances-content" class="yta-content"></div>
+    </section>
+
+    <!-- 【2026-11-24新設】＝LOVEカレンダー（中身は js/calendarScreen.js が data/official-schedule.json から組み立てる）。
+         公式サイトの SCHEDULE の日付・種類・タイトル・時間・出演だけ（本文・画像は持たない）。詳しい内容は公式サイトを新しいタブで開く -->
+    <section id="calendar-screen" class="screen">
+      <div class="list-header">
+        <button id="calendar-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            SCHEDULE
+          </p>
+          <h2 id="calendar-title" tabindex="-1">＝LOVEカレンダー</h2>
+          <p class="cal-subtitle">公式の予定と、これまでの活動</p>
+        </div>
+      </div>
+      <div id="calendar-content" class="cal-content"></div>
     </section>
 
     <!-- 【2026-11-03新設・R11 D】＝LOVE 最新情報（中身は js/officialNewsScreen.js が data/official-news.json から組み立てる）。

@@ -39,4 +39,11 @@ export const QA_SUGGESTION_CATEGORIES = [
     questions: ["22枚目のシングルについて何か発表された？", "最近の公式の発表は？"],
     needs: "news",
   },
+  // 【2026-11-24追加】＝LOVEカレンダー（公式 SCHEDULE）。tests/calendar.test.js・tests/qaEngine.test.js で答えられることを確かめた質問だけ
+  {
+    id: "calendar",
+    label: "予定",
+    questions: ["今週のイコラブの予定は？", "次のライブはいつ？", "野口衣織の今後の予定は？", "2025年8月に何があった？"],
+    needs: "calendar",
+  },
 ];

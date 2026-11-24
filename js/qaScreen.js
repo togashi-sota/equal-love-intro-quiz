@@ -3,7 +3,7 @@
 // ・おすすめ質問（カテゴリ別）：押すとその質問で答える。答えられることをテストした質問だけ（js/data/qaSuggestions.js）
 // ・質問は外に送らず、保存もしない（履歴を持たない）。画面を離れて戻ったときは、最後の質問と答えをそのまま出す
 // 文字はすべて textContent で入れる（HTML として解釈しない）。開く先の移動は main.js（openSearchTarget）が行う。
-import { answerQuestion, prepareQaSearch, QA_STATUS, formatQaDate } from "./qaEngine.js";
+import { answerQuestion, prepareQaSearch, prepareCalendarForQuestion, QA_STATUS, formatQaDate } from "./qaEngine.js";
 import { QA_SUGGESTION_CATEGORIES } from "./data/qaSuggestions.js";
 
 export const QA_TITLE = "質問AI";
@@ -127,6 +127,8 @@ async function ask(question) {
   } catch (error) {
     // 全体検索を読み込めなくても、型に当たる質問には答えられる（候補だけが出なくなる）
   }
+  // 【2026-11-24追加】予定の質問のときだけ、カレンダーのデータを読み終えるまで待つ
+  await prepareCalendarForQuestion(text);
   state.answer = answerQuestion(text);
   parts.submit.disabled = false;
   renderAnswer();
@@ -153,7 +155,9 @@ function renderSuggestions() {
     ? "YouTube 出演のデータを読み込めたときに答えます。"
     : category.needs === "news"
       ? "最新情報（公式 NEWS）を読み込めたときに答えます。読み込めないときは、そう答えます。"
-      : "";
+      : category.needs === "calendar"
+        ? "＝LOVEカレンダー（公式 SCHEDULE）に収録された予定から答えます。未発表の予定は答えません。"
+        : "";
   parts.suggestNote.hidden = !parts.suggestNote.textContent;
 }
 

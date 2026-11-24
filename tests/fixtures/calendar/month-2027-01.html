@@ -1,0 +1,267 @@
+<!-- ＝LOVE 公式サイト SCHEDULE の月のカレンダーの写し（2026-11-24 取得。カレンダーの部分だけを切り出し、空白を詰めた） -->
+<ul class="calendarHeader clearfix">
+<li>
+	<a href="" onclick="return send('calender', 2026, 12);">
+	<svg><use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#more"></use></svg><span class="cMonth">12</span>
+	</a>
+</li>
+<li>
+<span class="year">2027</span>
+<span class="month">01</span>
+<span class="month_en">January</span>
+</li>
+<li>
+<a href="" onclick="return send('calender', 2027, 2);"><span class="cMonth">2</span><svg><use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#more"></use></svg></a>
+</li>
+</ul>
+<div class="calendar">
+<div class="weekHeader">
+<div>Mon</div>
+<div>Tue</div>
+<div>Wed</div>
+<div>Thu</div>
+<div>Fri</div>
+<div>Sat</div>
+<div>Sun</div>
+</div>
+<div class="calendarBody">
+	<div class="week">
+	<div class="cell">
+		<span class="date"></span>
+	</div>
+	<div class="cell">
+		<span class="date"></span>
+	</div>
+	<div class="cell">
+		<span class="date"></span>
+	</div>
+	<div class="cell">
+		<span class="date"></span>
+	</div>
+	<div class="cell">
+		<span class="date">1</span>
+	</div>
+	<div class="cell">
+		<span class="date">2</span>
+	</div>
+	<div class="cell">
+		<span class="date">3</span>
+	</div>
+		</div>
+	<div class="week">
+	<div class="cell">
+		<span class="date">4</span>
+	</div>
+	<div class="cell">
+		<span class="date">5</span>
+	</div>
+	<div class="cell">
+		<span class="date">6</span>
+	</div>
+	<div class="cell">
+		<span class="date">7</span>
+	</div>
+	<div class="cell">
+		<span class="date">8</span>
+	</div>
+	<div class="cell">
+		<span class="date">9</span>
+	</div>
+	<div class="cell">
+		<span class="date">10</span>
+	<!-- 子カテゴリ―IDごとでclass分け -->
+	<div class="live03 cat12">
+	<a href="/schedule/detail/12390">
+	<div>
+	<span class="cat"> ライブ/イベント</span><br>
+	<span class="tit">TVアニメ『ガチャを回して仲間を増やす 最強の美少女軍団を作り上げろ』キャスト舞台挨拶付き先行上映会※野口衣織</span>
+	</div><!--cate-icon-->
+	</a>
+	</div><!--entry-->
+	</div>
+		</div>
+	<div class="week">
+	<div class="cell">
+		<span class="date">11</span>
+	</div>
+	<div class="cell">
+		<span class="date">12</span>
+	</div>
+	<div class="cell">
+		<span class="date">13</span>
+	</div>
+	<div class="cell">
+		<span class="date">14</span>
+	</div>
+	<div class="cell">
+		<span class="date">15</span>
+	</div>
+	<div class="cell">
+		<span class="date">16</span>
+	</div>
+	<div class="cell">
+		<span class="date">17</span>
+	</div>
+		</div>
+	<div class="week">
+	<div class="cell">
+		<span class="date">18</span>
+	</div>
+	<div class="cell">
+		<span class="date">19</span>
+	<!-- 子カテゴリ―IDごとでclass分け -->
+	<div class="live03 cat12">
+	<a href="/schedule/detail/11617">
+	<div>
+	<span class="cat"> ライブ/イベント</span><br>
+	<span class="tit">＝LOVE in TOKYO DOME「全ては＝LOVE」東京都・東京ドーム</span>
+	</div><!--cate-icon-->
+	</a>
+	</div><!--entry-->
+	</div>
+	<div class="cell">
+		<span class="date">20</span>
+	<!-- 子カテゴリ―IDごとでclass分け -->
+	<div class="live03 cat12">
+	<a href="/schedule/detail/11618">
+	<div>
+	<span class="cat"> ライブ/イベント</span><br>
+	<span class="tit">＝LOVE in TOKYO DOME「全ては＝LOVE」 東京都・東京ドーム</span>
+	</div><!--cate-icon-->
+	</a>
+	</div><!--entry-->
+	</div>
+	<div class="cell">
+		<span class="date">21</span>
+	</div>
+	<div class="cell">
+		<span class="date">22</span>
+	</div>
+	<div class="cell">
+		<span class="date">23</span>
+	</div>
+	<div class="cell">
+		<span class="date">24</span>
+	</div>
+		</div>
+	<div class="week">
+	<div class="cell">
+		<span class="date">25</span>
+	</div>
+	<div class="cell">
+		<span class="date">26</span>
+	</div>
+	<div class="cell">
+		<span class="date">27</span>
+	</div>
+	<div class="cell">
+		<span class="date">28</span>
+	</div>
+	<div class="cell">
+		<span class="date">29</span>
+	</div>
+	<div class="cell">
+		<span class="date">30</span>
+	</div>
+	<div class="cell">
+		<span class="date">31</span>
+	</div>
+		</div>
+</div>
+</div>
+<script>
+ function send(type, year, month){
+  var i = 0;
+  var live = "";
+  var h = 0;
+  var media = "";
+	//チェックが付いているliveカテゴリを取得
+	$('[name="live"]').each(function() {
+	if($(this).prop("checked") === true) {
+	if (live === "") {
+	live = $(this).val();
+	} else {
+	live += "," + $(this).val();
+	}
+	i++;
+	}
+	});
+	//チェックが付いているmediaカテゴリを取得
+	$('[name="media"]').each(function() {
+	if($(this).prop("checked") === true) {
+	if (media === "") {
+	media = $(this).val();
+	} else {
+	media += ',' + $(this).val();
+	}
+	h++;
+	}
+	});
+	var str;
+	if(i==5 && h==5){
+	//全てチェックされている場合
+	str = '';
+	} else {
+	if (i!=0 || h!=0){
+	if(i==5){
+	//liveカテゴリがすべてチェックされている場合
+	str = '?cat=live'
+	if (h!=0){
+	str += ',' + media;
+	}
+	} else if (h==5) {
+	//mediaカテゴリが全てチェックされている場合
+	str = '?cat=media'
+	if (i!=0){
+	str += ',' + live;
+	}
+	} else {
+	if (i!=0){
+	str = '?cat=' + live;
+	if (h!=0){
+	str += ',' + media;
+	}
+	} else {
+	str = '?cat=' + media;
+	}
+	}
+	} else {
+	str = '';
+	}
+	}
+	console.log(str);
+	// リスト表示に変更
+	if(type != 'calender') {
+	var list = 'list';
+	if (str === undefined || str === '') {
+	str = '';
+	}else{
+	str += '';
+	}
+		}
+	// 年月変更
+	if (year === undefined || year === ''){
+	year = 2027;
+	}
+	if (month === undefined || month === ''){
+	month = 1;
+	}
+	var url;
+	if(list === undefined || list === '') {
+	if (str === undefined || str === '') {
+	//url ="https://equal-love.jp/schedule/calender/" + year + "/" + month + "/?tag=true";
+	url ="https://equal-love.jp/schedule/calender/" + year + "/" + month + "/";
+	} else {
+	//url ="https://equal-love.jp/schedule/calender/" + year + "/" + month + "/" + str + "&tag=true";
+	url ="https://equal-love.jp/schedule/calender/" + year + "/" + month + "/" + str + "";
+	}
+	}else if (str === undefined || str === '') {
+	url ="https://equal-love.jp/schedule/" + list + "/" + year + "/" + month + "/";
+	}else{
+	url ="https://equal-love.jp/schedule/" + list + "/" + year + "/" + month + "/" + str;
+	}
+	location.href = url;
+	console.log(url);
+		return false;
+  }
+</script>

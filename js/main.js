@@ -329,6 +329,8 @@ import { YOUTUBE_DATA_STATE, loadYoutubeAppearanceData, onYoutubeAppearanceDataC
 // 【2026-11-03追加・R11 D】＝LOVE 最新情報（配線は下の「＝LOVE 最新情報」のまとまり）
 import { countRecentNews, initOfficialNewsScreen, openOfficialNews } from "./officialNewsScreen.js";
 import { OFFICIAL_NEWS_STATE, getOfficialNewsSnapshot, loadOfficialNewsData, onOfficialNewsDataChange } from "./officialNewsData.js";
+// 【2026-11-24新設】＝LOVEカレンダー
+import { initCalendarScreen, openCalendar } from "./calendarScreen.js";
 // 【2026-11-02新設】CD・特典映像図鑑
 // 【R11-qa】質問AI
 import { initQaScreen, openQaScreen, focusQaInput } from "./qaScreen.js";
@@ -6096,7 +6098,9 @@ async function openSearchTarget(target) {
       openCdSalesFrom(searchScreen, { workId: target.workId, tab: target.tab });
     } else if (target.kind === "cdBonus") {
       // 【2026-11-02追加】CD・特典映像図鑑のその作品（TYPE・映像まで）
-      openCdBonusFrom(searchScreen, { workId: target.workId, typeId: target.typeId, videoId: target.videoId });
+      openCdBonusFrom(searchScreen, { workId: target.workId, typeId: target.typeId, videoId: target.videoId });    } else if (target.kind === "calendar") {
+      // 【2026-11-24追加】＝LOVEカレンダーのその日（質問AIの「カレンダーで見る」）
+      openCalendar({ date: target.date ?? null, memberId: target.memberId ?? null, category: target.category ?? null, returnScreen: searchScreen });
     }
   }
   const landingScreen = document.body.dataset.screen;
@@ -6498,6 +6502,30 @@ onOfficialNewsDataChange((snapshot) => {
   else sub.textContent = "公式サイトの NEWS へ";
 });
 loadOfficialNewsData({ memberIds: new Set(MEMBERS.map((member) => member.id)) });
+
+// 【2026-11-24新設】「＝LOVEカレンダー」。入口はホームの小さな行（#home-quick-row）の3つ目。
+// データ（data/official-schedule.json：公式サイトの SCHEDULE の日付・種類・タイトル・時間・出演）は、開いたときに読む（js/calendarData.js）。
+// 予定の中のボタン（メンバー・ライブ・CD の図鑑）は、全体検索と同じ openSearchTarget で開く（戻るとカレンダーへ）。
+let calendarReturnScreen = "start";
+initCalendarScreen(
+  { container: document.getElementById("calendar-content") },
+  {
+    onShow: ({ returnScreen }) => {
+      calendarReturnScreen = returnScreen && returnScreen !== "calendar" ? returnScreen : "start";
+      navigateWithScrollMemory("calendar");
+      window.scrollTo(0, 0);
+    },
+    onOpenTarget: (target) => openSearchTarget(target),
+  }
+);
+document.getElementById("calendar-home-link").addEventListener("click", () => {
+  playClickSound();
+  openCalendar({ returnScreen: "start" });
+});
+document.getElementById("calendar-back-button").addEventListener("click", () => {
+  playSfx(SFX_EVENTS.UI_BACK);
+  navigateWithScrollMemory(calendarReturnScreen);
+});
 
 // 【2026-11-02新設・本人の依頼 R10-2】「CD・特典映像図鑑」。入口はホーム「＝LOVEをもっと知る」（仮の入口。配置はあとで整理）・全体検索。
 // 一覧（cdBonus）→ 詳細（cdBonusDetail）の2つの画面。詳細の［一覧へ］・端末の「戻る」で一覧へ（一覧の条件・位置はそのまま）。

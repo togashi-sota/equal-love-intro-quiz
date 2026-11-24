@@ -15,6 +15,20 @@ import { splitJapaneseSentences } from "../js/qaEngine.js";
 import { isCurrentActivity, sortActivitiesByDateDesc } from "../js/membersScreen.js";
 import { getMemberActivities } from "../js/memberUtils.js";
 import { assertEqual } from "./test-utils.js";
+// 【2026-11-24追加】おすすめ「予定」を確かめるためのダミーのカレンダー
+import { buildCalendarData, toStoredCalendarData } from "../js/calendarCore.js";
+import { interpretCalendarData, setCalendarSnapshotForTest } from "../js/calendarData.js";
+
+// TODAY（2026-11-03）の前後に予定を置いたダミー（公式 SCHEDULE と同じ形）
+function fakeCalendarSnapshot() {
+  const now = new Date("2026-11-02T00:00:00Z");
+  const item = (sourceId, date, siteCategory, title) => ({ sourceId, date, siteCategory, title });
+  const fetchedMonths = [
+    { ok: true, monthKey: "2025-08", items: [item(901, "2025-08-02", "live-event", "ダミーフェス※＝LOVE")] },
+    { ok: true, monthKey: "2026-11", items: [item(902, "2026-11-04", "media", "フジテレビ系「ダミー」※野口衣織"), item(903, "2026-11-20", "live-event", "ダミー公演")] },
+  ];
+  return interpretCalendarData(toStoredCalendarData(buildCalendarData({ fetchedMonths, now }).data), { now });
+}
 
 const TODAY = "2026-11-03";
 const fetchText = async (file) => (await fetch(file, { cache: "no-store" })).text();
@@ -127,8 +141,9 @@ function runMemberIntroductionTests() {
 function runSuggestionTests() {
   setYoutubeAppearanceSnapshotForTest(FAKE_YOUTUBE);
   setQaNewsProvider(() => FAKE_NEWS);
+  setCalendarSnapshotForTest(fakeCalendarSnapshot());
   try {
-    assertEqual(QA_SUGGESTION_CATEGORIES.map((category) => category.label), ["楽曲", "メンバー", "CD・特典映像", "テレビ・CM", "YouTube", "ライブ", "最新情報"], "おすすめ：カテゴリ");
+    assertEqual(QA_SUGGESTION_CATEGORIES.map((category) => category.label), ["楽曲", "メンバー", "CD・特典映像", "テレビ・CM", "YouTube", "ライブ", "最新情報", "予定"], "おすすめ：カテゴリ");
     QA_SUGGESTION_CATEGORIES.forEach((category) => {
       category.questions.forEach((question) => {
         const answer = answerQuestion(question, { today: TODAY });
@@ -138,6 +153,7 @@ function runSuggestionTests() {
   } finally {
     setYoutubeAppearanceSnapshotForTest(null);
     setQaNewsProvider(null);
+    setCalendarSnapshotForTest(null);
   }
   assertEqual(getQaNewsSnapshot(), { state: "unavailable", items: [] }, "最新情報：つながっていないときは unavailable");
   setQaNewsProvider(() => {

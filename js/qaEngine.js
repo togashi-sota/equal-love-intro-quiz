@@ -36,6 +36,9 @@ import { cdBonusCategoryLabel, cdBonusWorkLabel, filterCdBonusVideos, describeCd
 import { getYoutubeAppearanceSnapshot } from "./youtubeAppearanceData.js";
 import { isConfirmedAppearance, allAppearingMemberIds, youtubeVideoYear } from "./youtubeAppearancesModel.js";
 import { getQaNewsSnapshot, QA_NEWS_STATE } from "./qaNewsBridge.js";
+// 【2026-11-24追加】＝LOVEカレンダー（公式 SCHEDULE）から予定に答える
+import { detectCalendarQuestion, answerCalendarQuestion } from "./qaCalendar.js";
+import { loadCalendarData } from "./calendarData.js";
 import { normalizeSearchText, findApproximateSubstring } from "./searchNormalize.js";
 
 export const QA_STATUS = Object.freeze({ ANSWER: "answer", CANDIDATES: "candidates", NOT_FOUND: "notFound", REFUSE: "refuse", UNKNOWN: "unknown" });
@@ -963,6 +966,9 @@ let searchEntries = null;
 let searchModule = null;
 // 全体検索は大きいので、要るときだけ読み込む（質問AIの最初の表示を軽くする）
 export async function prepareQaSearch() {
+  // 【2026-11-24追加】カレンダーのデータは裏で読み始めるだけ（ほかの質問の答えを待たせない）。
+  // 予定の質問のときだけ、画面（js/qaScreen.js）が prepareCalendarForQuestion で読み終わるのを待つ
+  loadCalendarData();
   if (searchEntries) return;
   searchModule = await import("./appSearchIndex.js");
   searchEntries = searchModule.buildAppSearchEntries();
@@ -1089,6 +1095,12 @@ function decide(parsed, today) {
   // 特典映像・TYPE の中身
   const bonusKeyword = has("bonus") || (parsed.typeLetter && (song || workFromEntity || parsed.workNumber)) || (has("whichCd") && !song && !memberId);
   if (bonusKeyword && !has("musicTv")) return answerBonus(parsed);
+  // 【2026-11-24追加】予定（今週・来月・次のライブ・○○の今後の予定・2026年11月に何があった）→ ＝LOVEカレンダー
+  const calendarQuestion = bonusKeyword ? null : detectCalendarQuestion(parsed.raw, today, { memberId, hasNews: has("news"), hasSong: Boolean(song) });
+  if (calendarQuestion) {
+    const answer = answerCalendarQuestion(calendarQuestion, today);
+    return result(answer.status, answer.intent, answer);
+  }
   if (has("news") && !song) return answerNews(parsed);
   // センター
   if (has("center")) {
@@ -1191,6 +1203,14 @@ export function answerQuestion(text, options = {}) {
   }
   const ended = typeof performance !== "undefined" ? performance.now() : Date.now();
   return { ...answer, question: parsed.raw, tookMs: Math.round((ended - started) * 10) / 10 };
+}
+
+// 【2026-11-24追加】予定の質問なら、カレンダーのデータを読み終えるまで待つ（ほかの質問はすぐ答える）
+export async function prepareCalendarForQuestion(text, options = {}) {
+  const today = options.today ?? getTodayInJapan();
+  const parsed = parseQuestion(text);
+  const question = detectCalendarQuestion(parsed.raw, today, { memberId: parsed.memberIds[0] ?? null, hasNews: parsed.has("news"), hasSong: parsed.songIds.length > 0 });
+  if (question) await loadCalendarData();
 }
 
 export { parseQuestion as parseQaQuestion, normalizeSearchText as qaNormalizeSearchText };

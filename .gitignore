@@ -82,3 +82,6 @@ data/youtube-appearances.json
 # 【2026-11-03 R11 D】＝LOVE 最新情報のデータ（scripts/news/refresh-news.mjs が公開のたびに公式サイトの NEWS の一覧から作る）。
 # 自動の push をしないため git には入れない。Pages の公開の成果物にだけ入る（過去の分は、公開中のデータから引き継ぐ）。
 data/official-news.json
+# 【2026-11-24新設】＝LOVEカレンダーの毎日のデータ（公開のたびに GitHub Actions が作り、Pages にだけ載せる）。
+# 過去の分の土台 data/calendar/official-schedule-seed.json は git に入れる（事実だけ：日付・種類・タイトル・時間・出演・公式URL）
+data/official-schedule.json

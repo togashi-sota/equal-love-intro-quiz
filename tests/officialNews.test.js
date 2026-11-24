@@ -411,7 +411,7 @@ async function runPipelineTests() {
   const doc = new DOMParser().parseFromString(html, "text/html");
   const home = doc.getElementById("start-screen");
   const row = home.querySelector("#home-quick-row");
-  assertEqual([row?.previousElementSibling?.id, row?.querySelectorAll(".home-quick").length, row?.querySelector("#official-news-home-link b")?.textContent], ["app-search-link", 2, "＝LOVE 最新情報"], "ホーム：検索の下の小さな行に［＝LOVE 最新情報］（大きなカードを増やさない。質問AIの入口を2つ目に足せる）");
+  assertEqual([row?.previousElementSibling?.id, row?.querySelectorAll(".home-quick").length, row?.querySelector("#official-news-home-link b")?.textContent], ["app-search-link", 3, "＝LOVE 最新情報"], "ホーム：検索の下の小さな行に［＝LOVE 最新情報］（大きなカードを増やさない。質問AI・【2026-11-24】＝LOVEカレンダーの入口も同じ行）");
   assertEqual(row?.closest(".home-card"), null, "ホーム：カードの枚数・中身は変えない");
   // 【2026-11-03 統合】質問AIの入口も同じ行に並べ、質問AIは最新情報のデータで答える
   assertEqual(Boolean(row?.querySelector("#qa-home-link.home-quick")), true, "ホーム：質問AIの入口も同じ小さな行に並べる");
