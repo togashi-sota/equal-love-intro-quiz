@@ -1610,14 +1610,15 @@ export const MEMBER_ACTIVITIES = [
     relatedMemberIds: [],
     title: "めざましテレビ 11月のマンスリーエンタメプレゼンター",
     type: ACTIVITY_TYPE.TV,
-    description: "フジテレビ系『めざましテレビ』の2026年11月のマンスリーエンタメプレゼンター。11月4日・10日・19日・24日（予定）の4日間、5:25〜9:00に生出演する（1か月だけの期間限定）。",
+    // 【2026-11-25】4日間とも公式 SCHEDULE に載り、終わったので「（予定）」を外した（24日は 05:25〜9:00。schedule/detail/12485）
+    description: "フジテレビ系『めざましテレビ』の2026年11月のマンスリーエンタメプレゼンター。11月4日・10日・19日・24日の4日間、5:25〜9:00に生出演した（1か月だけの期間限定）。",
     url: "https://equal-love.jp/news/detail/12380",
     status: ACTIVITY_STATUS.LIMITED,
     startDate: "2026-11-04",
     endDate: "2026-11-24",
     sourceType: "official",
-    sourceUrls: ["https://equal-love.jp/news/detail/12380"],
-    lastVerifiedDate: "2026-11-03",
+    sourceUrls: ["https://equal-love.jp/news/detail/12380", "https://equal-love.jp/schedule/detail/12485"],
+    lastVerifiedDate: "2026-11-25",
   },
   {
     id: "morohashi-2nd-solo-concert-2026",

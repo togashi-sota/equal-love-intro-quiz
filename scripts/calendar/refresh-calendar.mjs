@@ -34,6 +34,9 @@ const hasFlag = (name) => process.argv.includes(name);
 const trigger = argValue("--trigger") ?? "push";
 const fromHtml = argValue("--from-html");
 const previousUrl = argValue("--previous-url");
+// 【2026-11-25追加】長く残す記録（git の枝 calendar-data のファイル）。URL かファイルで渡す
+const archiveUrl = argValue("--archive-url");
+const archiveFile = argValue("--archive-file");
 const reportFile = argValue("--report");
 const backfill = argValue("--backfill");
 const seedDetails = hasFlag("--seed-details");
@@ -96,17 +99,19 @@ async function readJson(file) {
   }
 }
 
-async function loadPreviousLive() {
-  if (!previousUrl) return null;
+async function loadJsonUrl(url, label) {
+  if (!url) return null;
   try {
-    const response = await fetch(previousUrl, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(TIMEOUT_MS) });
+    const response = await fetch(url, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(TIMEOUT_MS) });
     if (response.ok) return core.fromStoredCalendarData(await response.json());
-    console.log(`公開中のデータは無い（HTTP ${response.status}）`);
+    console.log(`${label}は無い（HTTP ${response.status}）`);
   } catch (error) {
-    console.log(`公開中のデータは読めませんでした（${error?.name ?? "エラー"}）`);
+    console.log(`${label}は読めませんでした（${error?.name ?? "エラー"}）`);
   }
   return null;
 }
+const loadPreviousLive = () => loadJsonUrl(previousUrl, "公開中のデータ");
+const loadArchive = async () => (archiveFile ? readJson(archiveFile) : loadJsonUrl(archiveUrl, "長く残す記録（calendar-data）"));
 
 const valid = (data) => (data && core.validateCalendarData(data).ok ? data : null);
 
@@ -188,8 +193,11 @@ if (seedOnly) {
 
 // ---- 定期の取得 ----
 const live = valid(await loadPreviousLive());
-const merged = core.mergePreviousSources(seed, live);
-const previous = merged.events.length ? { schema: core.CALENDAR_SCHEMA, source: core.CALENDAR_SOURCE_LABEL, fetchedAt: live?.fetchedAt ?? seed?.fetchedAt ?? null, lastAttempt: live?.lastAttempt ?? null, coverage: null, months: merged.months, events: merged.events } : null;
+// 【2026-11-25】前のデータ ＝ 土台（git）＋ 公開中のデータ（Pages）＋ 長く残す記録（git の枝 calendar-data）。どれかが欠けても、ほかから引き継ぐ
+const archive = valid(await loadArchive());
+console.log(`前のデータ：土台 ${seed?.events.length ?? 0} 件・公開中 ${live?.events.length ?? "なし"}・記録 ${archive?.events.length ?? "なし"}`);
+const merged = core.mergePreviousSources(seed, live, archive);
+const previous = merged.events.length ? { schema: core.CALENDAR_SCHEMA, source: core.CALENDAR_SOURCE_LABEL, fetchedAt: live?.fetchedAt ?? archive?.fetchedAt ?? seed?.fetchedAt ?? null, lastAttempt: live?.lastAttempt ?? null, coverage: null, months: merged.months, events: merged.events } : null;
 const previousValid = valid(previous);
 let fresh;
 let check = null;

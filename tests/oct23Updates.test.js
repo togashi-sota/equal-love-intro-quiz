@@ -119,7 +119,9 @@ export function runOct23UpdatesTests() {
   assertEqual(dome.status, LIVE_STATUS.ANNOUNCED, "G: 東京ドーム（2027-01）は開催予定のまま");
 
   // ===== H. 全データの監査：「予定」を含む説明なのに開始日が過ぎているもの・開催予定のまま日程が過ぎた公演 =====
-  const today = getTodayInJapan();
+  // 【2026-11-25修正】題名どおり「2026-10-23時点」で調べる（前は実行した日の今日を使っていたため、
+  // 11/03 に足した「11月24日（予定）」の活動が、11/04 を過ぎると毎日失敗していた。時間がたつと結果が変わるテストにしない）
+  const today = "2026-10-23";
   const staleActivities = MEMBER_ACTIVITIES.filter(
     (activity) => /予定/.test(activity.description ?? "") && typeof activity.startDate === "string" && activity.startDate < today && activity.status !== ACTIVITY_STATUS.UPCOMING
   ).map((activity) => activity.id);

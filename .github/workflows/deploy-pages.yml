@@ -102,7 +102,36 @@ jobs:
             schedule) TRIGGER=schedule ;;
             *) TRIGGER=dispatch ;;
           esac
-          node scripts/calendar/refresh-calendar.mjs --trigger "$TRIGGER" --previous-url "https://togashi-sota.github.io/equal-love-intro-quiz/data/official-schedule.json" --report "$RUNNER_TEMP/calendar-issue.md"
+          node scripts/calendar/refresh-calendar.mjs --trigger "$TRIGGER" --previous-url "https://togashi-sota.github.io/equal-love-intro-quiz/data/official-schedule.json" --archive-url "https://raw.githubusercontent.com/togashi-sota/equal-love-intro-quiz/calendar-data/calendar/official-schedule-archive.json" --report "$RUNNER_TEMP/calendar-issue.md"
+
+      # 【2026-11-25追加】カレンダーのデータが作れなかった日（手順が途中で落ちた等）も、取得済みの予定を公開から消さない：
+      # 公開中のデータ → 長く残す記録（calendar-data の枝）→ git の土台 の順で、前のものをそのまま入れる（公式サイトには行かない）
+      - name: ＝LOVEカレンダーのデータが無いときは、前のデータを入れ直す
+        id: calendar_keep
+        if: always()
+        continue-on-error: true
+        run: |
+          OUT=data/official-schedule.json
+          if [ ! -s "$OUT" ]; then
+            curl -fsS --max-time 30 "https://togashi-sota.github.io/equal-love-intro-quiz/data/official-schedule.json" -o "$OUT"               || curl -fsS --max-time 30 "https://raw.githubusercontent.com/togashi-sota/equal-love-intro-quiz/calendar-data/calendar/official-schedule-archive.json" -o "$OUT"               || node scripts/calendar/refresh-calendar.mjs --seed-only
+          fi
+          # 形を確かめる（壊れていれば消して、アプリは git の土台を読む）
+          if node -e 'import("./js/calendarCore.js").then(c=>{const d=c.fromStoredCalendarData(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")));process.exit(c.validateCalendarData(d).ok?0:1)})' "$OUT"; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            rm -f "$OUT"; echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # 長く残す記録のワークフロー（.github/workflows/calendar-archive.yml）へ、今回のデータを渡す。
+      # このワークフローは読むだけのまま（git には書かない）。書くのは別のワークフローが、カレンダーの記録の枝にだけ
+      - name: ＝LOVEカレンダーのデータを記録の仕事へ渡す
+        if: always() && steps.calendar_keep.outputs.ready == 'true'
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: calendar-data
+          path: data/official-schedule.json
+          retention-days: 3
 
       - name: ＝LOVE 最新情報だけ新しいときは、YouTube のデータを前のまま入れ直す
         # YouTube の取得に失敗して「公開しない（keep-live）」と決めたときだけ。前のデータが30日以内なら入れる（API は呼ばない）

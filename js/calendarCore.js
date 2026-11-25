@@ -547,6 +547,30 @@ export function decideCalendarPublication({ fresh, previous, now = new Date() })
   return { action: "skip", data: null, alert: true, reason: `公開できるデータが無い（${error}）` };
 }
 
+// ---- 長く残す記録（git の専用の枝 calendar-data。2026-11-25 追加） ----
+// 毎日のデータ（Pages）だけだと、公開の作り直し・取得の失敗の日に「土台のあとに増えた予定」を失うことがある。
+// そこで、予定に本当の変化があった日だけ、専用の枝の1つのファイルに書く（日々変わる取得日時だけの違いでは書かない）。
+export const CALENDAR_ARCHIVE_BRANCH = "calendar-data";
+export const CALENDAR_ARCHIVE_FILE = "calendar/official-schedule-archive.json";
+export const CALENDAR_ARCHIVE_URL = `https://raw.githubusercontent.com/togashi-sota/equal-love-intro-quiz/${CALENDAR_ARCHIVE_BRANCH}/${CALENDAR_ARCHIVE_FILE}`;
+
+// 中身の比べ方：予定（保存の形）と、収録した月の名前だけ（最後に読んだ日時は比べない）
+export function archiveSignature(data) {
+  return JSON.stringify({ events: (data?.events ?? []).map(compactEvent), months: Object.keys(data?.months ?? {}).sort() });
+}
+
+// 記録を書き直すか。archive：今の記録（無ければ null）／next：今回のデータ（中で使う形）
+export function decideArchiveUpdate({ archive, next }) {
+  if (!next || !validateCalendarData(next).ok) return { update: false, reason: "今回のデータの形が正しくない" };
+  if (!archive) return { update: true, reason: "記録がまだ無い（初めて作る）" };
+  if (!validateCalendarData(archive).ok) return { update: false, reason: "今の記録の形が正しくない（上書きしない。確かめが必要）" };
+  const nextIds = new Set(next.events.map((event) => event.id));
+  const lost = archive.events.filter((event) => !nextIds.has(event.id)).map((event) => event.id);
+  if (lost.length) return { update: false, reason: `記録にある予定が今回のデータに無い（${lost.length}件。消さないために書かない）`, lost };
+  if (archiveSignature(archive) === archiveSignature(next)) return { update: false, reason: "変化なし" };
+  return { update: true, reason: `変化あり（${archive.events.length} → ${next.events.length} 件）` };
+}
+
 // 短い印（FNV-1a）
 export function noticeKey(text) {
   let hash = 0x811c9dc5;

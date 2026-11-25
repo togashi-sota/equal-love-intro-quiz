@@ -7,6 +7,8 @@ import {
   checkCalendarPublication,
   classifyEvent,
   compactEvent,
+  decideArchiveUpdate,
+  mergePreviousSources,
   daysInMonth,
   decideCalendarPublication,
   detectEventMembers,
@@ -327,6 +329,59 @@ async function runScreenTests() {
   setCalendarSnapshotForTest(null);
 }
 
+// ---- 10. 取得済みの予定を長く失わない（2026-11-25 本人の確認の依頼） ----
+// 前のデータ＝土台（git）＋公開中のデータ（Pages）＋長く残す記録（git の枝 calendar-data）。どれかが欠けても、ほかから引き継ぐ
+function previousFrom(...sources) {
+  const merged = mergePreviousSources(...sources);
+  return merged.events.length ? { schema: 1, source: "test", fetchedAt: null, lastAttempt: null, coverage: null, months: merged.months, events: merged.events } : null;
+}
+
+function runPersistenceTests() {
+  const t0 = new Date("2026-11-24T00:00:00Z");
+  // 土台（git）：2026年11月までの予定
+  const seed = buildCalendarData({ fetchedMonths: [parsed(2026, 11, { 3: [[1, "cat13", "メディア", "番組A"]] })], now: t0 }).data;
+  // 2027年4月に100件が新しく発表された日の取得（毎日の手順）
+  const april = Object.fromEntries(Array.from({ length: 25 }, (_, i) => [i + 1, Array.from({ length: 4 }, (_, k) => [10000 + i * 4 + k, "cat13", "メディア", `新しい番組${i}-${k}`])]));
+  const t1 = new Date("2027-03-20T00:00:00Z");
+  const day1 = buildCalendarData({ previous: previousFrom(seed), fetchedMonths: [parsed(2027, 4, april)], now: t1 }).data;
+  assertEqual(day1.events.length, 101, "長く残す：2027年4月に100件が追加された（土台の1件＋100件）");
+  // その日の記録（calendar-data）を書く
+  const archiveUpdate = decideArchiveUpdate({ archive: seed, next: day1 });
+  assertEqual(archiveUpdate.update, true, "長く残す：予定が増えた日は、記録の枝に書く");
+  const archive = day1;
+  // 新しい版を公開 → Pages が作り直され、公開中のデータが一時的に無い・壊れている
+  const t2 = new Date("2027-05-10T00:00:00Z");
+  const afterRedeploy = buildCalendarData({ previous: previousFrom(seed, null, archive), fetchedMonths: [parsed(2027, 5, {})], now: t2 }).data;
+  assertEqual(afterRedeploy.events.filter((event) => event.sourceId >= 10000).length, 100, "長く残す：Pages のデータが無くなっても、記録から100件を引き継ぐ");
+  // 公式サイトに繋がらない日（取得の失敗）：前のデータのまま
+  const failDay = decideCalendarPublication({ fresh: { ok: false, error: "通信の失敗" }, previous: previousFrom(seed, afterRedeploy, archive), now: t2 });
+  assertEqual(failDay.data.events.length, 101, "長く残す：取得に失敗した日も、取得済みの予定は全部残る");
+  // 前の版へ戻した（カレンダーの無い版を公開して、Pages からデータが消えた）→ また戻したとき、記録から全部戻る
+  const restored = buildCalendarData({ previous: previousFrom(seed, null, archive), fetchedMonths: [parsed(2027, 6, {})], now: new Date("2027-06-01T00:00:00Z") }).data;
+  assertEqual(restored.events.length, 101, "長く残す：前の版に戻して Pages のデータが消えても、記録から全部戻る");
+  // 何か月も更新が止まっても、記録・公開中のデータは消さない（古いと出すだけ）
+  assertEqual(interpretCalendarData(toStoredCalendarData(archive), { now: new Date("2027-12-01T00:00:00Z") }).events.length, 101, "長く残す：何か月も更新が止まっても、出す予定は減らない（「更新が止まっています」と出す）");
+  // 記録の書き方：取得日時だけが違う日は書かない／記録より予定が減るデータでは書かない／壊れたデータでは書かない
+  const sameAgain = buildCalendarData({ previous: day1, fetchedMonths: [parsed(2027, 4, april)], now: new Date("2027-03-21T00:00:00Z") }).data;
+  assertEqual(decideArchiveUpdate({ archive: day1, next: sameAgain }).update, false, "記録：中身が同じ日（取得日時だけが違う）は書かない（無意味なコミットを作らない）");
+  assertEqual(decideArchiveUpdate({ archive: day1, next: seed }).update, false, "記録：記録より予定が少ないデータでは書かない（消さない）");
+  assertEqual(decideArchiveUpdate({ archive: day1, next: { schema: 1, events: [{ id: "bad" }] } }).update, false, "記録：形の壊れたデータでは書かない");
+  assertEqual(decideArchiveUpdate({ archive: null, next: seed }).update, true, "記録：まだ記録が無いときは作る");
+}
+
+async function runWorkflowTests() {
+  const deploy = await fetchText("./.github/workflows/deploy-pages.yml");
+  const archive = await fetchText("./.github/workflows/calendar-archive.yml");
+  assertEqual(/contents:\s*write/.test(deploy) || /git (push|commit)/.test(deploy), false, "ワークフロー：公開のワークフローは読むだけのまま（git に書かない）");
+  assertEqual(deploy.includes("--archive-url \"https://raw.githubusercontent.com/togashi-sota/equal-love-intro-quiz/calendar-data/calendar/official-schedule-archive.json\""), true, "ワークフロー：毎日の取得は、長く残す記録も前のデータとして読む");
+  assertEqual(deploy.includes("＝LOVEカレンダーのデータが無いときは、前のデータを入れ直す"), true, "ワークフロー：データが作れなかった日も、前のデータを入れ直して公開から消さない");
+  const pushes = archive.match(/git push[^\n]*/g) ?? [];
+  assertEqual(pushes, ["git push origin calendar-data"], "記録のワークフロー：送る先は calendar-data の枝だけ（master には書かない）");
+  assertEqual(archive.includes('test "$(git diff --cached --name-only)" = "calendar/official-schedule-archive.json"'), true, "記録のワークフロー：コミットするのは記録の1ファイルだけ（ほかのファイルが混ざったら止まる）");
+  assertEqual(/youtube/i.test(archive.replace(/YouTube のデータは入れない/g, "")), false, "記録のワークフロー：YouTube のデータ・キーに触れない");
+  assertEqual(archive.includes("workflows: [\"Deploy to GitHub Pages\"]") && archive.includes("ref: master"), true, "記録のワークフロー：公開のあとに、master のスクリプトで動く");
+}
+
 export async function runCalendarTests() {
   console.log("\n=== ＝LOVEカレンダー ===");
   await runFixtureTests();
@@ -340,4 +395,6 @@ export async function runCalendarTests() {
   await runLoaderTests();
   runQaTests();
   await runScreenTests();
+  runPersistenceTests();
+  await runWorkflowTests();
 }

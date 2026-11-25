@@ -1,0 +1,77 @@
+# ＝LOVEカレンダーの「長く残す記録」（2026-11-25新設）
+#
+# 公開のワークフロー「Deploy to GitHub Pages」が終わったあとに動く。公開のワークフローは読むだけのまま（contents: read）。
+# 何をするか：
+# - 公開のワークフローが作った ＝LOVEカレンダーのデータ（成果物 calendar-data）を受け取る
+# - 予定に本当の変化があった日だけ、専用の枝 calendar-data の1ファイル（calendar/official-schedule-archive.json）を書き直してコミットする
+#   （取得日時だけが変わった日は書かない。記録の予定を1件も減らさない。scripts/calendar/archive-calendar.mjs）
+# - master・ほかの枝・ほかのファイルには書かない。入れるのは事実だけの予定のデータ（YouTube のデータは入れない）
+# - 毎日の取得は、この記録も「前のデータ」として読む（Pages のデータが欠けても、取得済みの予定を失わない）
+# - GitHub の仕組みで、この push からは次のワークフローは始まらない
+name: Calendar archive
+
+on:
+  workflow_run:
+    workflows: ["Deploy to GitHub Pages"]
+    types: [completed]
+
+concurrency:
+  group: calendar-archive
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: master のスクリプトを取得
+        uses: actions/checkout@v4
+        with:
+          ref: master
+
+      - name: Node を用意
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: 公開のワークフローが作ったカレンダーのデータを受け取る
+        id: download
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: calendar-data
+          path: ${{ runner.temp }}/calendar-current
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+
+      - name: 記録の枝を用意する（無ければ、履歴の無い新しい枝を作る）
+        if: steps.download.outcome == 'success'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git ls-remote --exit-code --heads origin calendar-data > /dev/null; then
+            git fetch --depth 1 origin calendar-data
+            git worktree add "$RUNNER_TEMP/archive" FETCH_HEAD
+            git -C "$RUNNER_TEMP/archive" switch -c calendar-data
+          else
+            git worktree add --detach "$RUNNER_TEMP/archive"
+            git -C "$RUNNER_TEMP/archive" switch --orphan calendar-data
+          fi
+
+      - name: 変化があれば記録を書く
+        id: archive
+        if: steps.download.outcome == 'success'
+        run: |
+          node scripts/calendar/archive-calendar.mjs --current "$RUNNER_TEMP/calendar-current/official-schedule.json" --archive "$RUNNER_TEMP/archive/calendar/official-schedule-archive.json"
+
+      - name: 記録をコミットして送る（変化があった日だけ。カレンダーの記録の1ファイルだけ）
+        if: steps.archive.outputs.changed == 'true'
+        run: |
+          cd "$RUNNER_TEMP/archive"
+          git add calendar/official-schedule-archive.json
+          test "$(git diff --cached --name-only)" = "calendar/official-schedule-archive.json"
+          git commit -m "＝LOVEカレンダーの記録を更新（公式 SCHEDULE の事実データ・$(date -u +%Y-%m-%d)）"
+          git push origin calendar-data
