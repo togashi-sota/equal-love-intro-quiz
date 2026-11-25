@@ -189,6 +189,8 @@
     import { runOfficialNewsTests } from "./tests/officialNews.test.js";
     // 【2026-11-24新設】＝LOVEカレンダー（公式 SCHEDULE の自動取得・画面・質問AI）
     import { runCalendarTests } from "./tests/calendar.test.js";
+    // 【2026-11-25新設】記念ポップアップ（起動時に出さない・一覧から見返す）
+    import { runCelebrationArchiveTests } from "./tests/celebrationArchive.test.js";
     // 【2026-11-01 r7-home】作品の枠を songs.js から自動で（21st・22nd）・ホームの楽曲エリア
     import { runDiscographyAutoAndHomeMusicTests } from "./tests/discographyAuto.test.js";
     // 【2026-10-28新設】ライブページ・ID／在席の修正・歌詞クイズの重複フレーズ対策
@@ -481,6 +483,7 @@
     await runYoutubeR12ThumbnailTests();
     await runOfficialNewsTests();
     await runCalendarTests();
+    await runCelebrationArchiveTests();
     await runDiscographyAutoAndHomeMusicTests();
     runCallTextModeTests();
     await runCallTextModeMarkupTests();

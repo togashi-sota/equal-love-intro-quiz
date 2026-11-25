@@ -25,7 +25,10 @@ import {
   applyCelebrationQueryOverride,
   isCelebrationSuppressed,
   setCelebrationSuppressed,
+  showCelebrationFromArchive,
 } from "./centerCelebration.js";
+// 【2026-11-25新設】記念ポップアップの一覧
+import { initCelebrationArchiveScreen, focusCelebrationArchiveItem } from "./celebrationArchiveScreen.js";
 import {
   gameState,
   resetGameState,
@@ -6525,6 +6528,28 @@ document.getElementById("calendar-home-link").addEventListener("click", () => {
 document.getElementById("calendar-back-button").addEventListener("click", () => {
   playSfx(SFX_EVENTS.UI_BACK);
   navigateWithScrollMemory(calendarReturnScreen);
+});
+
+// 【2026-11-25新設・本人の依頼】記念ポップアップの一覧。起動時の自動表示は止め（js/centerCelebration.js の autoShowOnLaunch）、
+// ホーム「＝LOVEをもっと知る」の一番下の小さな入口から、前のポップアップを見返せるようにした。
+// 「見る」→ 前と同じポップアップ（centerCelebrationElements）を開く。「見た！」で閉じると一覧へ戻る（既読・起動時の記録は変えない）。
+initCelebrationArchiveScreen(
+  { container: document.getElementById("celebration-archive-content") },
+  {
+    onOpen: (celebrationId) => {
+      playClickSound();
+      showCelebrationFromArchive(celebrationId, centerCelebrationElements, { onClose: () => focusCelebrationArchiveItem(celebrationId) });
+    },
+  }
+);
+document.getElementById("celebration-archive-home-link").addEventListener("click", () => {
+  playClickSound();
+  navigateWithScrollMemory("celebrationArchive");
+  window.scrollTo(0, 0);
+});
+document.getElementById("celebration-archive-back-button").addEventListener("click", () => {
+  playSfx(SFX_EVENTS.UI_BACK);
+  navigateWithScrollMemory("start");
 });
 
 // 【2026-11-02新設・本人の依頼 R10-2】「CD・特典映像図鑑」。入口はホーム「＝LOVEをもっと知る」（仮の入口。配置はあとで整理）・全体検索。

@@ -24,6 +24,11 @@
 // される）。お祝いの終了は日付等で自動判定せず、本人が今後CELEBRATIONS配列から該当の
 // エントリを取り除くまで表示を続ける。
 //
+// 【2026-11-25 改訂・本人の依頼（企業の採用担当者が初めて開いたときも、すぐホームを使えるように）】
+// 起動時の自動表示は、各お祝いの autoShowOnLaunch が true のものだけ。今の2件は false（自動では出さない）。
+// お祝い（画像・MV のリンク・「見た！」）は消さず、ホームの「記念ポップアップ」の一覧から見返せる（listCelebrationArchive・
+// showCelebrationFromArchive）。一覧から開いたときは、既読・起動時の記録を変えない。
+//
 // 【複数プレイヤー運用時の注意】既読フラグはプレイヤーごとに別キーで保存するため、
 // 1台の端末を複数プレイヤーで使い分けている場合、プレイヤーごとに独立して表示される。
 
@@ -87,6 +92,11 @@ export function applyCelebrationQueryOverride(search = typeof location !== "unde
 const CELEBRATIONS = [
   {
     id: "obaCenterNatsunagori",
+    // 【2026-11-25追加・本人の依頼】記念ポップアップ一覧（アーカイブ）で出す名前・説明。起動時の自動表示は止めた（autoShowOnLaunch: false）
+    title: "祝！はなちゃんセンターおめでとう！",
+    description: "21stシングル カップリング曲『夏名残サマーチューン』（センター：大場花菜）の MV 公開のお祝い",
+    autoShowOnLaunch: false,
+    archive: { visible: true, order: 1 },
     songId: "natsunagori-summer-tune",
     centerMemberName: "大場花菜",
     backgroundImageSrc: "assets/images/center-celebration-oba-natsunagori.webp",
@@ -105,6 +115,11 @@ const CELEBRATIONS = [
   },
   {
     id: "yumeNoTsuzuki",
+    // 【2026-11-25追加・本人の依頼】記念ポップアップ一覧で出す名前・説明。起動時の自動表示は止めた
+    title: "『夢の続き』MV公開！",
+    description: "21stシングル カップリング曲『夢の続き』の MV 公開のお知らせ（国立競技場の背景）",
+    autoShowOnLaunch: false,
+    archive: { visible: true, order: 2 },
     // songId/centerMemberNameを指定しない＝曲データの有無やセンターと無関係に、常に対象と
     // なる「お知らせ系」のお祝い（21stシングル カップリング曲「夢の続き」のMV公開案内）。
     // songs.jsにまだ「夢の続き」自体を登録していなくても表示できるようにする
@@ -191,8 +206,9 @@ function buildLastShownStorageKey(playerKeyPrefix, celebrationId) {
 }
 
 // 表示できる候補（条件を満たし、この起動中にまだ見ていないもの）を、CELEBRATIONS の並び順で返す
-export function listEligibleCelebrations(songs, playerKeyPrefix) {
-  return CELEBRATIONS.filter((celebration) => {
+// list：調べるお祝い（省略時はすべて。起動時は autoShowOnLaunch のものだけを渡す）
+export function listEligibleCelebrations(songs, playerKeyPrefix, list = CELEBRATIONS) {
+  return list.filter((celebration) => {
     if (celebration.songId) {
       const song = songs.find((s) => s.id === celebration.songId);
       if (!song) return false;
@@ -264,9 +280,18 @@ export function resetCelebrationLaunchStateForTest() {
 }
 
 // この起動で表示するお祝いを1件選ぶ（すでにこの起動で1件出していれば null）
-export function pickLaunchCelebration(songs, playerKeyPrefix) {
+// 【2026-11-25改訂・本人の依頼】起動時に自動で出すのは、autoShowOnLaunch: true のお祝いだけ。
+// 今の2件（はなちゃんセンター・夢の続き）は false＝起動時には出さない（初めての人・前から使っている人・アップデートの後も）。
+// お祝いそのものは消さず、記念ポップアップ一覧（showCelebrationFromArchive）から本人の意思で見返せる。
+// 新しいお祝いを足すときも、本人が希望しない限り autoShowOnLaunch は false にする。
+// options.entries：テスト用（並び順・ローテーションの決まりを、ダミーのお祝いで確かめる）
+export function isLaunchAutoShow(celebration) {
+  return celebration?.autoShowOnLaunch === true;
+}
+
+export function pickLaunchCelebration(songs, playerKeyPrefix, { entries = null } = {}) {
   if (shownThisPageLoad || hasShownCelebrationThisLaunch()) return null;
-  const candidates = listEligibleCelebrations(songs, playerKeyPrefix);
+  const candidates = listEligibleCelebrations(songs, playerKeyPrefix, entries ?? CELEBRATIONS.filter(isLaunchAutoShow));
   const lastShownAtById = {};
   candidates.forEach((celebration) => {
     lastShownAtById[celebration.id] = readLastShownAt(playerKeyPrefix, celebration.id);
@@ -405,6 +430,16 @@ export function initCenterCelebration(elements, songs) {
     playSfx(SFX_EVENTS.UI_CLICK);
     const celebrationId = elements.overlay.dataset.celebrationId;
     const playerKeyPrefix = elements.overlay.dataset.playerKeyPrefix;
+    // 【2026-11-25】記念ポップアップ一覧から開いたとき：既読・起動時の記録を変えずに閉じて、一覧へ戻る
+    if (elements.overlay.dataset.mode === "archive") {
+      elements.overlay.hidden = true;
+      delete elements.overlay.dataset.mode;
+      unlockBackgroundScroll();
+      const onClose = archiveCloseHandler;
+      archiveCloseHandler = null;
+      onClose?.();
+      return;
+    }
     if (celebrationId) {
       markCelebrationSeen(playerKeyPrefix, celebrationId);
     }
@@ -431,5 +466,36 @@ export function showCenterCelebrationIfEligible(songs, playerKeyPrefix, elements
   markCelebrationShownThisLaunch();
   writeLastShownAt(playerKeyPrefix, celebration.id, Date.now());
   renderCelebration(celebration, playerKeyPrefix, elements);
+  return true;
+}
+
+// ---- 【2026-11-25新設・本人の依頼】記念ポップアップ一覧（アーカイブ） ----
+// 起動時には出さなくなったお祝いを、利用者が自分の意思で見返すための入口（js/celebrationArchiveScreen.js）。
+// 新しいお祝いを足すときは、CELEBRATIONS に1件足して title・description・archive（visible・order）を書くだけで一覧に出る。
+let archiveCloseHandler = null;
+
+// 一覧に出すお祝い（archive.visible のもの、archive.order の順）。画面に出すのに必要な項目だけを返す
+export function listCelebrationArchive() {
+  return CELEBRATIONS.filter((celebration) => celebration.archive?.visible)
+    .slice()
+    .sort((a, b) => (a.archive.order ?? 0) - (b.archive.order ?? 0))
+    .map((celebration) => ({
+      id: celebration.id,
+      title: celebration.title ?? celebration.ariaLabel,
+      description: celebration.description ?? "",
+      imageSrc: celebration.backgroundImageSrc,
+      youtubeUrl: celebration.youtubeUrl,
+      autoShowOnLaunch: isLaunchAutoShow(celebration),
+    }));
+}
+
+// 一覧から1件を開く。既読（sessionStorage）・起動時の記録（celebrationLastShownAt・この起動で出したか）は変えない。
+// options.onClose：「見た！」（閉じる）を押したとき（一覧へ戻す）。戻り値：開けたら true
+export function showCelebrationFromArchive(celebrationId, elements, { onClose = null } = {}) {
+  const celebration = CELEBRATIONS.find((entry) => entry.id === celebrationId && entry.archive?.visible);
+  if (!celebration || !elements?.overlay) return false;
+  archiveCloseHandler = onClose;
+  renderCelebration(celebration, elements.overlay.dataset.playerKeyPrefix ?? "", elements);
+  elements.overlay.dataset.mode = "archive";
   return true;
 }

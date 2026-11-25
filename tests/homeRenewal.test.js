@@ -321,11 +321,27 @@ function runCelebrationQueueTests() {
     });
   };
   cleanup();
-  assertEqual(pickLaunchCelebration(songs, prefix)?.id, "obaCenterNatsunagori", "C: 起動時は1件目");
-  localStorage.setItem(`equalLoveIntroQuiz.${prefix}celebrationLastShownAt.obaCenterNatsunagori`, String(Date.now()));
-  assertEqual(pickLaunchCelebration(songs, prefix)?.id, "yumeNoTsuzuki", "C: 前回1件目を出していれば、次の起動は2件目");
+  // 【2026-11-25 本人の依頼で仕様を変更】今の2件（はなちゃんセンター・夢の続き）は、起動時には自動で出さない（記念ポップアップの一覧から見る）
+  assertEqual(pickLaunchCelebration(songs, prefix), null, "C: 今のお祝い2件は、起動時に自動で出さない（2026-11-25〜）");
+  // 起動時に出すと決めたお祝い（autoShowOnLaunch: true）が今後できたときの決まりは、ダミーのお祝いで確かめる（前と同じ決まり）
+  const entries = [
+    { id: "dummyFirst", autoShowOnLaunch: true },
+    { id: "dummySecond", autoShowOnLaunch: true },
+  ];
+  const cleanupDummy = () => {
+    resetCelebrationLaunchStateForTest();
+    entries.forEach(({ id }) => {
+      sessionStorage.removeItem(`equalLoveIntroQuiz.${prefix}seenCelebration.${id}`);
+      localStorage.removeItem(`equalLoveIntroQuiz.${prefix}celebrationLastShownAt.${id}`);
+    });
+  };
+  cleanupDummy();
+  assertEqual(pickLaunchCelebration(songs, prefix, { entries })?.id, "dummyFirst", "C: 起動時は1件目");
+  localStorage.setItem(`equalLoveIntroQuiz.${prefix}celebrationLastShownAt.dummyFirst`, String(Date.now()));
+  assertEqual(pickLaunchCelebration(songs, prefix, { entries })?.id, "dummySecond", "C: 前回1件目を出していれば、次の起動は2件目");
   sessionStorage.setItem("equalLoveIntroQuiz.celebrationShownThisLaunch", "true");
-  assertEqual(pickLaunchCelebration(songs, prefix), null, "C: この起動ですでに1件出していれば、もう出さない（2枚続けて出ない）");
+  assertEqual(pickLaunchCelebration(songs, prefix, { entries }), null, "C: この起動ですでに1件出していれば、もう出さない（2枚続けて出ない）");
+  cleanupDummy();
   cleanup();
 }
 
@@ -585,7 +601,7 @@ async function runHomeEntryWiringTests() {
   assertEqual(cardIds("home-card-live", "button"), ["home-next-live", "learn-calls", "live-hub-link", "live-guide"], "E: ライブ：次のライブ・コールを覚える（入口は1つ）・ライブ履歴・はじめてのライブ");
   assertEqual(cardIds("home-card-music", "button"), ["continuous-play", "pick-songs", "playlists", "favorites", "songlist", "works", "center-sheet", "lyrics-search"], "E: 楽曲：聴く（曲を聴く・曲を選んで再生〈r8-music〉・プレイリスト・お気に入り）・読む・調べる（楽曲一覧・シングル・アルバム・センター1枚表〈r8-center〉）・探す（歌詞検索）");
   // 【2026-11-03 R10-3】＝LOVE は3つのまとまり（グループを知る・メディア・活動・作品・記録）。メンバー一覧は「メンバーを知る」の下の行へ
-  assertEqual(cardIds("home-card-know", "button"), ["about-group", "anniversary-home-link", "centers", "youtube-appearances-home-link", "tv-variety-home-link", "tv-appearances-home-link", "commercials", "cd-bonus-home-link", "cd-sales-home-link", "goods-home-link"], "E: ＝LOVE：グループを知る（＝LOVEについて・周年ヒストリー・歴代センター）・メディア・活動（YouTube 出演・テレビ出演・音楽番組・CM・企業コラボ）・作品・記録（CD・特典映像図鑑・CD売上・チャート・歴代グッズ図鑑）");
+  assertEqual(cardIds("home-card-know", "button"), ["about-group", "anniversary-home-link", "centers", "youtube-appearances-home-link", "tv-variety-home-link", "tv-appearances-home-link", "commercials", "cd-bonus-home-link", "cd-sales-home-link", "goods-home-link", "celebration-archive-home-link"], "E: ＝LOVE：グループを知る（＝LOVEについて・周年ヒストリー・歴代センター）・メディア・活動（YouTube 出演・テレビ出演・音楽番組・CM・企業コラボ）・作品・記録（CD・特典映像図鑑・CD売上・チャート・歴代グッズ図鑑）・【2026-11-25】一番下に小さな「記念ポップアップ」");
   assertEqual([...home.querySelectorAll("#home-card-know .home-know-group-title")].map((element) => element.textContent.trim()), ["グループを知る", "メディア・活動", "作品・記録"], "E: ＝LOVE の3つのまとまりの見出し");
   assertEqual([...home.querySelectorAll("#home-card-know .home-know-grid")].map((grid) => [grid.children.length, grid.querySelectorAll(".home-know--wide").length]), [[3, 1], [4, 0], [3, 1]], "E: 3枚のまとまりは先頭の1枚を横いっぱいに（2列で空きを作らない）。4枚は2×2");
   assertEqual(cardIds("home-card-members", "button"), ["members-link"], "E: メンバーを知る：カードは JS が作る。メンバー一覧（卒業メンバー・推し登録）への入口は残す");

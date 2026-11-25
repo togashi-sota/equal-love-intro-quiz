@@ -1,0 +1,186 @@
+/* ===== 「記念ポップアップ」の一覧（#celebration-archive-screen）とホームの小さな入口 2026-11-25新設 =====
+   幅390px前後を基準に、320px でも横にはみ出さない。押す所は高さ44px 前後。色はアプリ共通の変数（css/style.css の :root）。 */
+
+/* ---- ホーム「＝LOVEをもっと知る」の一番下の、小さな文字の入口（大きなカードは足さない） ---- */
+.home-know-more-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 10px;
+  padding: 6px 12px;
+  border: 1.5px dashed #f2c6d9;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 0.86rem;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.home-know-more-link .hi {
+  width: 18px;
+  height: 18px;
+  color: var(--color-primary-dark);
+}
+
+.home-know-more-link small {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.74rem;
+  font-weight: 500;
+  opacity: 0.7;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.home-know-more-link:active {
+  transform: scale(0.98);
+}
+
+/* ---- 一覧 ---- */
+.cel-archive-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.cel-archive-subtitle {
+  margin: 2px 0 0;
+  font-size: 0.82rem;
+  opacity: 0.8;
+}
+
+.cel-archive-note,
+.cel-archive-empty {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--color-surface-glass);
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+
+.cel-archive-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cel-archive-item {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  min-width: 0;
+  padding: 12px;
+  border: 1.5px solid var(--color-card-border);
+  border-radius: 16px;
+  background: var(--color-surface);
+}
+
+.cel-archive-thumb {
+  display: block;
+  width: 96px;
+  aspect-ratio: 2 / 3;
+  max-width: 100%;
+  border-radius: 10px;
+  background: var(--color-primary-light);
+  object-fit: cover;
+}
+
+.cel-archive-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.cel-archive-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.cel-archive-desc {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  opacity: 0.8;
+  overflow-wrap: anywhere;
+}
+
+.cel-archive-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.cel-archive-open,
+.cel-archive-mv {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 0.84rem;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.cel-archive-open {
+  border: none;
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.cel-archive-mv {
+  border: 1.5px solid #ead7e1;
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.cel-archive-mv::after {
+  margin-left: 4px;
+  content: "↗";
+}
+
+.cel-archive-open:active,
+.cel-archive-mv:active {
+  transform: scale(0.97);
+}
+
+/* 320px：画像を少し小さく */
+@media (max-width: 359px) {
+  .cel-archive-item {
+    grid-template-columns: 76px minmax(0, 1fr);
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .cel-archive-thumb {
+    width: 76px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-know-more-link:active,
+  .cel-archive-open:active,
+  .cel-archive-mv:active {
+    transform: none;
+  }
+}

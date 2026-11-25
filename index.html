@@ -54,6 +54,8 @@
   <link rel="stylesheet" href="css/officialNews.css">
   <!-- 【2026-11-24新設】＝LOVEカレンダー（#calendar-screen） -->
   <link rel="stylesheet" href="css/calendar.css">
+  <!-- 【2026-11-25新設】記念ポップアップの一覧（#celebration-archive-screen） -->
+  <link rel="stylesheet" href="css/celebrationArchive.css">
   <!-- 【2026-11-02追加】CD・特典映像図鑑（#cd-bonus-screen・#cd-bonus-detail-screen） -->
   <link rel="stylesheet" href="css/cdBonus.css">
   <!-- 【R11-qa】質問AI（#qa-screen・ホームの #qa-home-link）。2026-11-03 -->
@@ -736,6 +738,13 @@
               </button>
             </div>
           </div>
+          <!-- 【2026-11-25新設・本人の依頼】記念ポップアップの一覧への小さな入口（起動時には出さなくなったお祝いを見返す。大きなカードは足さない） -->
+          <button id="celebration-archive-home-link" class="home-know-more-link" type="button">
+            <svg class="hi" aria-hidden="true"><use href="#hi-spark"/></svg>
+            <span>記念ポップアップ</span>
+            <small>これまでのお祝いを見返す</small>
+            <span class="home-chevron" aria-hidden="true">›</span>
+          </button>
         </section>
 
         <!-- ⑤ マイページ・データ：データの箱（データを追加・更新／データの状態／引き継ぎ・復旧・バックアップの状態）＋設定
@@ -6243,6 +6252,27 @@
         </div>
       </div>
       <div id="youtube-appearances-content" class="yta-content"></div>
+    </section>
+
+    <!-- 【2026-11-25新設・本人の依頼】記念ポップアップの一覧（中身は js/celebrationArchiveScreen.js。一覧のデータは js/centerCelebration.js） -->
+    <section id="celebration-archive-screen" class="screen">
+      <div class="list-header">
+        <button id="celebration-archive-back-button" class="back-link" type="button">
+          <svg class="back-link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M15 5 8 12l7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          戻る
+        </button>
+        <div class="title-block">
+          <p class="eyebrow-chip">
+            <svg class="mini-star" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0 9.4 6.6 16 8 9.4 9.4 8 16 6.6 9.4 0 8 6.6 6.6Z"/></svg>
+            MEMORIES
+          </p>
+          <h2 id="celebration-archive-title" tabindex="-1">記念ポップアップ</h2>
+          <p class="cel-archive-subtitle">これまでのお祝い・お知らせ</p>
+        </div>
+      </div>
+      <div id="celebration-archive-content" class="cel-archive-content"></div>
     </section>
 
     <!-- 【2026-11-24新設】＝LOVEカレンダー（中身は js/calendarScreen.js が data/official-schedule.json から組み立てる）。

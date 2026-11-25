@@ -7,7 +7,7 @@
 //
 // 新しいバージョンを配信したいときは、CACHE_VERSIONの値を必ず上げること。
 // 上げないと、ブラウザが「内容が変わっていない」と判断し、更新が反映されない。
-const CACHE_VERSION = "v417";
+const CACHE_VERSION = "v418";
 const CACHE_NAME = `equal-love-intro-quiz-${CACHE_VERSION}`;
 
 // キャッシュするアプリ本体のファイル一覧。
@@ -424,6 +424,9 @@ const APP_SHELL_FILES = [
   "./js/calendarModel.js",
   "./js/calendarScreen.js",
   "./js/qaCalendar.js",
+  // 【2026-11-25新設】記念ポップアップの一覧
+  "./css/celebrationArchive.css",
+  "./js/celebrationArchiveScreen.js",
 ];
 
 self.addEventListener("install", (event) => {

@@ -71,6 +71,7 @@ const SCREEN_ELEMENTS = {
   youtubeAppearances: document.getElementById("youtube-appearances-screen"), // 【2026-11-02追加】YouTube 出演図鑑
   officialNews: document.getElementById("official-news-screen"), // 【2026-11-03追加・R11 D】＝LOVE 最新情報
   calendar: document.getElementById("calendar-screen"), // 【2026-11-24新設】＝LOVEカレンダー
+  celebrationArchive: document.getElementById("celebration-archive-screen"), // 【2026-11-25新設】記念ポップアップの一覧
   goodsDetail: document.getElementById("goods-detail-screen"),
   qa: document.getElementById("qa-screen"), // 【R11-qa】質問AI
   cdBonus: document.getElementById("cd-bonus-screen"), // 【2026-11-02追加】CD・特典映像図鑑
