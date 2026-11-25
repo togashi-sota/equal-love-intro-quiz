@@ -682,7 +682,7 @@ export async function runPartyBattleWiringTests() {
   // 【2026-10-31】ゲームの説明は js/data/gameGuideContent.js（全体のガイドと共通）へ移したので、2つを合わせて確かめる
   const guideOnly = await fetchText("js/data/guideContent.js");
   const guide = guideOnly + (await fetchText("js/data/gameGuideContent.js"));
-  assertEqual(guideOnly.split("https://www.youtube.com/watch?v=2__t1a39MTg").length - 1, 1, "動画URLはguideContent.jsに1箇所");
+  assertEqual(guideOnly.split("https://youtu.be/nT0mQX3un7o").length - 1, 1, "動画URLはguideContent.jsに1箇所");
   assertEqual(guide.includes('id: "partyBattle"'), true, "ガイドにパーティー対戦の項目がある");
   assertEqual(guide.includes('id: "localBattle"'), false, "ガイドから旧1台対戦の項目は消えている");
   assertEqual(guide.includes("間違えた曲だけ復習する"), true, "ガイドに復習クイズの記述がある");
