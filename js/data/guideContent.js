@@ -26,17 +26,16 @@
 import { GAME_GUIDE_MODES, LYRICS_BATTLE_RULES, ONLINE_BATTLE_MODES, getGameGuideModeById } from "./gameGuideContent.js";
 
 // 【2026-09-15新設・本人指示：アプリ紹介動画への導線】ガイドの上の「アプリ紹介動画」カードのデータ。
-// 動画はポートフォリオ制作用の別チャットで完成した5分44秒版（V6_15_FULL_FINAL・2026-09-17に差し替え）で、
-// YouTubeへ限定公開したもの。動画自体はこのリポジトリでは編集・管理しない（勝手に消さない）。
 // URLはここに1箇所だけ持ち、カードのhrefはjs/guideScreen.jsがこの値から設定する。
-// 【2026-10-31】動画は2026年9月の画面。その後ホーム（案F）・コールを覚える（3つのモード）・データの入れ方（最新版データ）が
-// 変わったので、注意書きを今の違いに合わせた（差し替えの候補として本人へ報告済み）。
+// 動画自体はこのリポジトリでは編集・管理しない（YouTube の動画を勝手に消さない）。
+// 【2026-11-25・本人指示】就活提出用の作品紹介動画 第13版（4分41秒・v414 の画面・YouTube 限定公開）に差し替え。
+// 企画書・WORK01・詳細仕様書・README と同じ動画。前の動画（2026年9月の5分44秒版）は YouTube に残している。
 export const GUIDE_VIDEO = {
-  url: "https://www.youtube.com/watch?v=2__t1a39MTg",
+  url: "https://youtu.be/nT0mQX3un7o",
   title: "アプリ紹介動画",
-  durationLabel: "約5分44秒",
-  description: "約5分44秒で主な機能をひと通り見られます。",
-  note: "※2026年9月の画面です。ホームの見た目・「コールを覚える」・データの入れ方などは今と違います。後半は制作の裏側です。",
+  durationLabel: "約4分41秒",
+  description: "約4分41秒で主な機能をひと通り見られます。",
+  note: "※2026年11月（v414）の画面です。動画に曲の音は入っていません。",
   ctaLabel: "動画を見る",
   externalLabel: "YouTube・新しいタブで開きます",
   offlineMessage: "オフラインのため動画を開けません",

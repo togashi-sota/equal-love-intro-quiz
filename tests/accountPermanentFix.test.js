@@ -709,7 +709,7 @@ async function runAccountTests() {
   }
   // A6. 入力チェック・表示
   assertEqual(validateEmailPasswordInput("x", "short", "other").errors.length, 3, "A6: メールの形・8文字・確認の一致");
-  assertEqual(maskEmail("gashio@icloud.com"), "ga****@icloud.com", "A6: メールは一部を隠して表示");
+  assertEqual(maskEmail("player@example.com"), "pl****@example.com", "A6: メールは一部を隠して表示");
   assertEqual(describeAuthErrorJa("auth/network-request-failed").includes("何も変更していません"), true, "A6: 通信エラーの説明");
   assertEqual(describeProtectionStatus(null).signedIn, false, "A6: 未ログイン");
   // A7. 管理者の復旧手順（表示だけ。権限は与えない）

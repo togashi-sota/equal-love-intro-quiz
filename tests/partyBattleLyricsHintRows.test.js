@@ -14,13 +14,13 @@ import { computeStealHintProgress } from "../js/lyricsQuizBattleTiming.js";
 import { resolveReviewPlaybackPlan } from "../js/partyBattleEngine.js";
 
 const HINTS = [
-  { hintLevel: 1, startLine: 20, segment: { text: "寄せる波にちょっと焦って" } },
-  { hintLevel: 2, startLine: 30, segment: { text: "秋が来てもサマーチューン" } },
-  { hintLevel: 3, startLine: 10, segment: { text: "ベタつく風 なびくストレート" } },
-  { hintLevel: 4, startLine: 40, segment: { text: "（でも）僕のもの" } },
+  { hintLevel: 1, startLine: 20, segment: { text: "ダミーの歌詞・一つ目です" } },
+  { hintLevel: 2, startLine: 30, segment: { text: "ダミーの歌詞・二つ目です" } },
+  { hintLevel: 3, startLine: 10, segment: { text: "ダミー歌詞 三つ目のテストだ" } },
+  { hintLevel: 4, startLine: 40, segment: { text: "（四）ダミー歌詞" } },
 ];
 const SLOT_ORDER = [3, 1, 2, 4]; // 曲中の登場位置順（startLine 10,20,30,40）
-const QUESTION = { song: { id: "s1", title: "夏名残サマーチューン" }, choices: [], hints: HINTS, revealStartTimeSec: 10, revealStartTimeSecByHintLevel: { 1: 10, 2: 20, 3: 30, 4: 40 } };
+const QUESTION = { song: { id: "s1", title: "テスト用の曲" }, choices: [], hints: HINTS, revealStartTimeSec: 10, revealStartTimeSecByHintLevel: { 1: 10, 2: 20, 3: 30, 4: 40 } };
 
 const ELEMENT_IDS = {
   root: "party-play-root", seats: "party-play-seats", questionLabel: "party-play-question-label", lyrics: "party-play-lyrics",
