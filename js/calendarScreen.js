@@ -2,7 +2,9 @@
 // データは js/calendarData.js、決まりは js/calendarModel.js。外から来た文字は textContent でだけ入れる（HTML として入れない）。
 // マスには色の点だけ（広い画面では件数も）。予定の名前は、日付を押したときの一覧で読む（css/calendar.css）。
 import { CALENDAR_STATE, getCalendarSnapshot, loadCalendarData, onCalendarDataChange } from "./calendarData.js";
-import { SCHEDULE_EARLIEST_MONTH, addMonths, parseMonthKey } from "./calendarCore.js";
+import { addMonths, parseMonthKey } from "./calendarCore.js";
+// 【2026-11-26】見られる一番古い月。公式 SCHEDULE は 2017年9月からだが、結成（4月29日）などの記念日を見られるように 2017年1月から
+const VIEW_EARLIEST_MONTH = "2017-01";
 import {
   CATEGORY_FILTERS,
   buildMonthGrid,
@@ -18,6 +20,7 @@ import {
   isMonthCovered,
   japanToday,
   memberOptions,
+  withGeneratedEvents,
 } from "./calendarModel.js";
 
 const OFFICIAL_SCHEDULE_URL = "https://equal-love.jp/schedule/";
@@ -74,7 +77,7 @@ function renderNav(coverage) {
   const prev = el("button", "cal-nav-arrow", "‹");
   prev.type = "button";
   prev.setAttribute("aria-label", "前の月");
-  prev.disabled = state.monthKey <= SCHEDULE_EARLIEST_MONTH;
+  prev.disabled = state.monthKey <= VIEW_EARLIEST_MONTH;
   prev.addEventListener("click", () => moveMonth(-1));
 
   const picker = el("div", "cal-month-picker");
@@ -82,7 +85,7 @@ function renderNav(coverage) {
   const lastYear = Math.max(Number((coverage?.to ?? state.monthKey).slice(0, 4)), Number(today().slice(0, 4)) + 1);
   const yearSelect = el("select", "cal-select cal-year");
   yearSelect.setAttribute("aria-label", "年");
-  for (let value = Number(SCHEDULE_EARLIEST_MONTH.slice(0, 4)); value <= lastYear; value += 1) {
+  for (let value = Number(VIEW_EARLIEST_MONTH.slice(0, 4)); value <= lastYear; value += 1) {
     const option = el("option", null, String(value));
     option.value = String(value);
     option.selected = value === year;
@@ -98,7 +101,7 @@ function renderNav(coverage) {
   }
   const jump = () => {
     let key = `${yearSelect.value}-${String(monthSelect.value).padStart(2, "0")}`;
-    if (key < SCHEDULE_EARLIEST_MONTH) key = SCHEDULE_EARLIEST_MONTH;
+    if (key < VIEW_EARLIEST_MONTH) key = VIEW_EARLIEST_MONTH;
     setMonth(key);
   };
   yearSelect.addEventListener("change", jump);
@@ -249,11 +252,15 @@ function renderEventCard(event, date) {
   if (event.pendingReason) card.appendChild(el("p", "cal-event-note", "公式の表示に食い違いがあるため、確認待ちです。日付は公式サイトで確かめてください。"));
 
   const links = el("div", "cal-event-links");
-  const official = el("a", "cal-link-official", "公式サイトで見る");
-  official.href = event.url;
-  official.target = "_blank";
-  official.rel = "noopener noreferrer";
-  links.appendChild(official);
+  // 【2026-11-26】アプリのデータから作った予定（誕生日・記念日）は、そのことを書く
+  if (event.note) card.appendChild(el("p", "cal-event-note cal-event-note--soft", event.note));
+  if (event.url) {
+    const official = el("a", "cal-link-official", event.linkLabel ?? "公式サイトで見る");
+    official.href = event.url;
+    official.target = "_blank";
+    official.rel = "noopener noreferrer";
+    links.appendChild(official);
+  }
   eventAppLinks(event).forEach((link) => {
     const button = el("button", "cal-link-app", link.label);
     button.type = "button";
@@ -278,6 +285,8 @@ function renderDay(snapshot) {
   const events = eventsOnDate(snapshot.events, date, { category: state.category, member: state.member });
   if (!isMonthCovered(snapshot.months, state.monthKey)) {
     section.appendChild(el("p", "cal-empty", "この期間の公式情報は、まだ収録できていません（予定が無かったという意味ではありません）。"));
+    // 誕生日・記念日（アプリのデータから）は、公式の予定を収録していない月でも出す
+    events.forEach((event) => section.appendChild(renderEventCard(event, date)));
   } else if (!events.length) {
     const filtered = state.category !== "all" || state.member !== "all";
     section.appendChild(el("p", "cal-empty", filtered ? "この条件に合う予定は、収録されている公式の予定にはありません。" : "収録されている公式の予定はありません。"));
@@ -290,7 +299,7 @@ function renderDay(snapshot) {
 
 function renderFooter() {
   const footer = el("div", "cal-footer");
-  footer.appendChild(el("p", null, "出典：＝LOVE 公式サイトの SCHEDULE（日付・種類・タイトル・時間・出演だけを、毎日自動で取得）。詳しい内容は公式サイトで見てください。"));
+  footer.appendChild(el("p", null, "出典：＝LOVE 公式サイトの SCHEDULE（日付・種類・タイトル・時間・出演だけを、毎日自動で取得）。詳しい内容は公式サイトで見てください。メンバーの誕生日・＝LOVE の記念日は、アプリのメンバー情報と年表から出しています。"));
   const link = el("a", "cal-link-official", "公式サイトの SCHEDULE を開く");
   link.href = OFFICIAL_SCHEDULE_URL;
   link.target = "_blank";
@@ -310,7 +319,8 @@ export function renderCalendar({ keepScroll = false } = {}) {
   container.appendChild(renderNav(coverageOf(snapshot.months)));
   container.appendChild(renderFilters());
   const usable = snapshot.state === CALENDAR_STATE.READY || snapshot.state === CALENDAR_STATE.STALE;
-  const view = usable ? snapshot : { ...snapshot, events: [], months: {} };
+  // 【2026-11-26】メンバーの誕生日・＝LOVE の記念日（アプリのデータから）も出す
+  const view = usable ? { ...snapshot, events: withGeneratedEvents(snapshot.events, today()) } : { ...snapshot, events: [], months: {} };
   container.appendChild(renderGrid(view));
   if (usable && !isMonthCovered(snapshot.months, state.monthKey)) container.appendChild(el("p", "cal-coverage-note", "この月の公式情報は、まだ収録できていません。"));
   if (usable) container.appendChild(renderDay(view));
@@ -328,7 +338,7 @@ function setMonth(key) {
 
 function moveMonth(delta) {
   const key = addMonths(state.monthKey, delta);
-  if (key < SCHEDULE_EARLIEST_MONTH) return;
+  if (key < VIEW_EARLIEST_MONTH) return;
   setMonth(key);
 }
 

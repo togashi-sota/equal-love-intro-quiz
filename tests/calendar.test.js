@@ -26,7 +26,7 @@ import {
   toStoredCalendarData,
   validateCalendarData,
 } from "../js/calendarCore.js";
-import { buildMonthGrid, describeTime, eventAppLinks, eventBadges, findEvents, matchesFilter, resolveDateRange, uncoveredMonths } from "../js/calendarModel.js";
+import { buildMonthGrid, describeTime, eventAppLinks, eventBadges, eventsOnDate, findEvents, matchesFilter, resolveDateRange, uncoveredMonths, withGeneratedEvents } from "../js/calendarModel.js";
 import { CALENDAR_STATE, getCalendarSnapshot, interpretCalendarData, loadCalendarData, setCalendarSnapshotForTest } from "../js/calendarData.js";
 import { answerQuestion } from "../js/qaEngine.js";
 import { initCalendarScreen, openCalendar, resetCalendarScreenStateForTest } from "../js/calendarScreen.js";
@@ -270,19 +270,19 @@ function runQaTests() {
   qaSnapshot();
   const ask = (text) => answerQuestion(text, { today: "2026-11-24" });
   const week = ask("今週のイコラブの予定は？");
-  assertEqual([week.intent, week.status, week.details.length], ["calendar", "answer", 3], "質問AI：今週の予定（11月23日〜29日の3件。30日は来週）");
+  assertEqual([week.intent, week.status, week.details.length], ["calendar", "answer", 4], "質問AI：今週の予定（11月23日〜29日の3件＋26日の齋藤樹愛羅の誕生日。30日は来週）");
   const nextWeek = ask("来週のライブは？");
   assertEqual([nextWeek.status, nextWeek.details.length], ["answer", 2], "質問AI：来週のライブ（月をまたいで11月30日〜12月6日。中止の予定も【中止】と付けて出す）");
   assertEqual(nextWeek.details[0].includes("【中止】"), true, "質問AI：中止の予定は【中止】と分かるように");
   const tv = ask("今月のテレビ出演は？");
   assertEqual([tv.status, tv.details.length, /フジテレビ/.test(tv.details[0])], ["answer", 1, true], "質問AI：今月のテレビ（ラジオは数えない）");
   const noguchi = ask("野口衣織の今後の予定は？");
-  assertEqual([noguchi.intent, noguchi.status, noguchi.details.length], ["calendar", "answer", 1], "質問AI：メンバーの今後の予定（ほかのメンバーの予定を混ぜない）");
+  assertEqual([noguchi.intent, noguchi.status, noguchi.details.length], ["calendar", "answer", 2], "質問AI：メンバーの今後の予定（11月24日の番組＋2027年4月26日の誕生日。ほかのメンバーの予定を混ぜない）");
   const nextLive = ask("次のライブはいつ？");
   assertEqual([nextLive.status, nextLive.text.includes("2026年11月27日")], ["answer", true], "質問AI：次のライブ（中止の予定は飛ばす）");
   const past = ask("2026年11月に何があった？");
-  assertEqual([past.status, past.text.includes("4件")], ["answer", true], "質問AI：過去の年月に何があったか");
-  const none = ask("明後日の予定は？");
+  assertEqual([past.status, past.text.includes("6件")], ["answer", true], "質問AI：過去の年月に何があったか（予定4件＋誕生日2件：26日 齋藤樹愛羅・30日 山本杏奈）");
+  const none = ask("明日の予定は？");
   assertEqual([none.status, none.text.startsWith("現在収録されている公式予定では")], ["notFound", true], "質問AI：予定が無い日：推測せず「収録されている公式予定では確認できません」");
   const old = ask("2016年5月に何があった？");
   assertEqual([old.status, old.details.some((line) => line.includes("まだ収録できていません"))], ["notFound", true], "質問AI：収録していない期間は、そう言う（予定が無かったとは言わない）");
@@ -382,6 +382,38 @@ async function runWorkflowTests() {
   assertEqual(archive.includes("workflows: [\"Deploy to GitHub Pages\"]") && archive.includes("ref: master"), true, "記録のワークフロー：公開のあとに、master のスクリプトで動く");
 }
 
+// ---- 11. メンバーの誕生日・＝LOVE の記念日（2026-11-26 本人の依頼） ----
+// 期待値は、公式プロフィール（js/data/members.js の生年月日）・公式 ABOUT（結成 2017-04-29）・1stシングルの発売日（2017-09-06）から人が書いた
+function runGeneratedEventsTests() {
+  const t0 = new Date("2026-11-20T00:00:00Z");
+  // 公式 SCHEDULE の 2021年の誕生日（齋藤樹愛羅）が入っているデータ
+  const data = buildCalendarData({ fetchedMonths: [parsed(2021, 11, { 26: [[7001, "cat15", "誕生日", "齋藤 樹愛羅 Birthday"]] }), parsed(2026, 11, { 26: [[7002, "cat13", "メディア", "ダミー番組"]] })], now: t0 }).data;
+  const all = withGeneratedEvents(data.events, "2026-11-26");
+  const titles = (date, filter = {}) => eventsOnDate(all, date, filter).map((event) => event.title);
+  assertEqual(titles("2026-11-26").includes("齋藤樹愛羅の誕生日（22歳）"), true, "誕生日：2026年11月26日は齋藤樹愛羅の誕生日（2004年生まれ・22歳）");
+  assertEqual(titles("2021-11-26"), ["齋藤 樹愛羅 Birthday"], "誕生日：公式 SCHEDULE に同じ日の誕生日があれば、そちらだけ（二重にしない）");
+  assertEqual([titles("2017-02-04"), titles("2018-02-04")], [[], ["大場花菜の誕生日（18歳）"]], "誕生日：加入（2017年4月29日）より前の日には出さない");
+  assertEqual(all.some((event) => event.category === "birthday" && event.memberIds.includes("satake-nonno")), false, "誕生日：生年月日のデータが無いメンバー（佐竹のん乃）には推測で付けない");
+  assertEqual(titles("2026-11-30", { member: "yamamoto-anna" }), ["山本杏奈の誕生日（29歳）"], "誕生日：メンバーで絞り込める");
+  assertEqual(titles("2026-11-26", { category: "solo" }).some((title) => title.includes("誕生日")), false, "誕生日は「個人活動」の絞り込みには入れない");
+  assertEqual(titles("2026-11-26", { category: "birthday" }), ["齋藤樹愛羅の誕生日（22歳）"], "誕生日：種類「誕生日」で絞り込める");
+  assertEqual(titles("2017-04-29", { category: "anniversary" }), ["＝LOVE 結成（最終審査でメンバー決定・グループ名「＝LOVE」を発表）"], "記念日：2017年4月29日は結成の日");
+  assertEqual([titles("2026-04-29", { category: "anniversary" }), titles("2026-09-06", { category: "anniversary" }), titles("2027-09-06", { category: "anniversary" })], [["＝LOVE 結成記念日（結成9周年）"], ["＝LOVE デビュー記念日（デビュー9周年）"], ["＝LOVE デビュー記念日（デビュー10周年）"]], "記念日：毎年の結成記念日・デビュー記念日（周年の数）");
+  assertEqual(titles("2017-09-06", { category: "anniversary" }), [], "記念日：デビューの日（2017年9月6日）そのものは、公式の発売日の予定と重ねない（記念日は2018年から）");
+  assertEqual([titles("2017-01-28", { category: "anniversary" }).length, titles("2017-08-05", { category: "anniversary" })[0]], [1, "TOKYO IDOL FESTIVAL 2017でお披露目（メンバー初ステージ）"], "記念日：オーディションの開催発表・初ステージ（年表にあるもの）");
+  const formation = eventsOnDate(all, "2026-04-29", { category: "anniversary" })[0];
+  assertEqual([formation.url, eventAppLinks(formation).map((link) => link.target.kind), eventBadges(formation, "2026-11-26")], ["https://equal-love.jp/feature/about", ["anniversary"], []], "記念日：公式 ABOUT へのリンク・周年ヒストリーへのリンク・「終了」を付けない");
+  assertEqual(withGeneratedEvents(data.events, "2026-11-26") === all, true, "同じデータからは作り直さない（速さ）");
+  assertEqual(validateCalendarData(data).ok && data.events.every((event) => !event.derived), true, "誕生日・記念日は保存するデータ（公式 SCHEDULE）には混ぜない");
+  // 質問AI
+  setCalendarSnapshotForTest(interpretCalendarData(toStoredCalendarData(data), { now: new Date("2026-11-26T00:00:00Z") }));
+  const today = answerQuestion("今日の予定は？", { today: "2026-11-26" });
+  assertEqual(today.details.some((line) => line.includes("齋藤樹愛羅の誕生日")), true, "質問AI：今日の予定に誕生日も入る");
+  const nextAnniv = answerQuestion("次の記念日は？", { today: "2026-11-26" });
+  assertEqual(nextAnniv.text.includes("2027年4月29日"), true, "質問AI：次の記念日（2027年4月29日の結成記念日）");
+  setCalendarSnapshotForTest(null);
+}
+
 export async function runCalendarTests() {
   console.log("\n=== ＝LOVEカレンダー ===");
   await runFixtureTests();
@@ -397,4 +429,5 @@ export async function runCalendarTests() {
   await runScreenTests();
   runPersistenceTests();
   await runWorkflowTests();
+  runGeneratedEventsTests();
 }

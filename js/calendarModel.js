@@ -3,6 +3,7 @@
 import { MEMBERS } from "./data/members.js";
 import { LIVE_EVENTS } from "./data/liveHistory.js";
 import { CD_BONUS_WORKS } from "./data/cdBonus.js";
+import { HISTORY_EVENTS } from "./data/historyEvents.js";
 import {
   CALENDAR_CATEGORIES,
   EVENT_STATUS,
@@ -33,6 +34,7 @@ export const CATEGORY_FILTERS = Object.freeze([
   { key: "media", label: "メディア" },
   { key: "solo", label: "個人活動" },
   { key: "birthday", label: "誕生日" },
+  { key: "anniversary", label: "記念日" },
   { key: "other", label: "その他" },
 ]);
 
@@ -58,7 +60,8 @@ export function memberOptions() {
 
 export function matchesFilter(event, { category = "all", member = "all" } = {}) {
   if (category === "solo") {
-    if (event.scope !== "members") return false;
+    // 個人活動：メンバーの名前がある予定（誕生日は活動ではないので入れない）
+    if (event.scope !== "members" || event.category === "birthday") return false;
   } else if (category !== "all" && event.category !== category) return false;
   if (member === "group") return event.scope === "group";
   if (member !== "all") return event.memberIds.includes(member);
@@ -140,7 +143,8 @@ export function eventBadges(event, today) {
   else if (event.status === EVENT_STATUS.CHANGED) badges.push({ key: "changed", label: "日時変更あり" });
   if (event.missing) badges.push({ key: "missing", label: "公式の予定表に見当たらない" });
   const called = event.status === EVENT_STATUS.CANCELLED || event.status === EVENT_STATUS.POSTPONED;
-  if (today && !called && event.dates.at(-1) < today) badges.push({ key: "done", label: "終了" });
+  // 誕生日は「終了」を付けない（毎年の記念日のため）
+  if (today && !called && event.category !== "birthday" && event.category !== "anniversary" && event.dates.at(-1) < today) badges.push({ key: "done", label: "終了" });
   return badges;
 }
 
@@ -164,7 +168,7 @@ export function describeMembers(event) {
 
 // アプリの中の開く先（main.js の openSearchTarget と同じ形）。対応するページが無ければ作らない
 export function eventAppLinks(event) {
-  const links = [];
+  const links = [...(event.appLinks ?? [])];
   if (event.category === "live") {
     const live = LIVE_EVENTS.find((entry) => (entry.venues ?? []).some((venue) => event.dates.includes(venue.date)) || event.dates.includes(entry.startDate));
     if (live) links.push({ label: "ライブの記録を見る", target: { kind: "liveHub", view: "history", liveId: live.id } });
@@ -242,6 +246,117 @@ export function uncoveredMonths(months, from, to) {
     if (!isMonthCovered(months, key)) list.push(key);
     if (list.length > 24) break;
   }
+  return list;
+}
+
+// ---- メンバーの誕生日（2026-11-26追加・本人の依頼） ----
+// 公式 SCHEDULE には誕生日が2021年の分しか載っていないため、アプリのメンバー情報の生年月日（公式プロフィール。js/data/members.js）から、
+// 毎年の誕生日をカレンダーに出す。保存はしない（表示のたびに作る）。
+// - 生年月日のデータがあるメンバーだけ（無いメンバーに推測で付けない）
+// - ＝LOVE に在籍していた期間の日だけ（加入日〜卒業日）
+// - 公式 SCHEDULE に同じ日・同じメンバーの誕生日の予定があれば、そちらだけ出す（二重にしない）
+export const BIRTHDAY_FIRST_YEAR = 2017;
+
+export function memberBirthdayEvents({ toYear }) {
+  const list = [];
+  for (const member of MEMBERS) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(member.birthday ?? "")) continue;
+    const [birthYear, month, day] = member.birthday.split("-").map(Number);
+    const profileUrl = member.profileSource?.urls?.find((url) => url.startsWith("https://equal-love.jp/")) ?? null;
+    for (let year = BIRTHDAY_FIRST_YEAR; year <= toYear; year += 1) {
+      // 2月29日生まれの人は、うるう年でない年は2月28日に出す
+      const safeDay = month === 2 && day === 29 && daysInMonth(year, 2) === 28 ? 28 : day;
+      const date = `${year}-${String(month).padStart(2, "0")}-${String(safeDay).padStart(2, "0")}`;
+      if (member.joinDate && date < member.joinDate) continue;
+      if (member.graduationDate && date > member.graduationDate) continue;
+      list.push({
+        id: `birthday-${member.id}-${year}`,
+        sourceId: -1,
+        dates: [date],
+        title: `${member.name}の誕生日（${year - birthYear}歳）`,
+        siteCategory: "birthday",
+        category: "birthday",
+        memberIds: [member.id],
+        scope: "members",
+        otherGroups: [],
+        time: null,
+        detail: null,
+        status: EVENT_STATUS.SCHEDULED,
+        missing: false,
+        history: [],
+        url: profileUrl,
+        derived: "member-profile",
+        note: "メンバーのプロフィール（公式サイト）の生年月日から出しています。",
+        linkLabel: "公式プロフィールを見る",
+      });
+    }
+  }
+  return list;
+}
+
+// ---- ＝LOVE の記念日（2026-11-26追加・本人の依頼） ----
+// アプリのデータ（年表 js/data/historyEvents.js・CD 図鑑の1stシングルの発売日）から作る。日付を推測で作らない。
+// - 2017年の始まりの出来事：オーディションの開催発表・結成（グループ名の発表）・初ステージ（年表にあり、出典のあるものだけ）
+// - 毎年：結成記念日（結成の日）・デビュー記念日（1stシングルの発売日）。2018年から、周年の数を付ける
+const ABOUT_URL = "https://equal-love.jp/feature/about";
+const ANNIVERSARY_NOTE = "アプリの＝LOVE の年表（公式サイトの ABOUT など）から出しています。";
+
+function historyEvent(predicate) {
+  return HISTORY_EVENTS.find((event) => /^\d{4}-\d{2}-\d{2}$/.test(event.date ?? "") && predicate(event)) ?? null;
+}
+
+function anniversaryEvent({ id, date, title, url, linkLabel = "公式サイトで見る" }) {
+  return {
+    id,
+    sourceId: -2,
+    dates: [date],
+    title,
+    siteCategory: "other",
+    category: "anniversary",
+    memberIds: [],
+    scope: "group",
+    otherGroups: [],
+    time: null,
+    detail: null,
+    status: EVENT_STATUS.SCHEDULED,
+    missing: false,
+    history: [],
+    url,
+    derived: "group-history",
+    note: ANNIVERSARY_NOTE,
+    linkLabel,
+    appLinks: [{ label: "周年ヒストリーを見る", target: { kind: "anniversary" } }],
+  };
+}
+
+export function groupAnniversaryEvents({ toYear }) {
+  const list = [];
+  const audition = historyEvent((event) => event.title.includes("オーディションの開催を発表") && (event.sourceUrls ?? []).length);
+  const formation = historyEvent((event) => event.title.includes("グループ名") && (event.sourceUrls ?? []).length);
+  const firstStage = historyEvent((event) => event.title.includes("初ステージ") && (event.sourceUrls ?? []).length);
+  const debutDate = CD_BONUS_WORKS.find((work) => work.workId === "single-01")?.releaseDate ?? null;
+  if (audition) list.push(anniversaryEvent({ id: "anniv-audition", date: audition.date, title: "声優アイドルオーディションの開催を発表（＝LOVE のはじまり）", url: ABOUT_URL }));
+  if (formation) list.push(anniversaryEvent({ id: "anniv-formation", date: formation.date, title: "＝LOVE 結成（最終審査でメンバー決定・グループ名「＝LOVE」を発表）", url: ABOUT_URL }));
+  if (firstStage) list.push(anniversaryEvent({ id: "anniv-first-stage", date: firstStage.date, title: firstStage.title, url: firstStage.sourceUrls[0], linkLabel: "出典の記事を見る" }));
+  const startYear = Number((formation?.date ?? "2017").slice(0, 4));
+  for (let year = startYear + 1; year <= toYear; year += 1) {
+    const count = year - startYear;
+    if (formation) list.push(anniversaryEvent({ id: `anniv-formation-${year}`, date: `${year}${formation.date.slice(4)}`, title: `＝LOVE 結成記念日（結成${count}周年）`, url: ABOUT_URL }));
+    if (debutDate) list.push(anniversaryEvent({ id: `anniv-debut-${year}`, date: `${year}${debutDate.slice(4)}`, title: `＝LOVE デビュー記念日（デビュー${count}周年）`, url: ABOUT_URL }));
+  }
+  return list;
+}
+
+// 公式の予定＋メンバーの誕生日＋＝LOVE の記念日（同じ配列からは同じ結果を返す。日付ごとの引き方の速さを保つため）
+const generatedCache = new WeakMap();
+export function withGeneratedEvents(events, today) {
+  const toYear = Number(String(today).slice(0, 4)) + 1;
+  const cached = generatedCache.get(events);
+  if (cached && cached.toYear === toYear) return cached.list;
+  const official = new Set(events.filter((event) => event.category === "birthday").flatMap((event) => event.dates.flatMap((date) => event.memberIds.map((id) => `${id}|${date}`))));
+  const birthdays = memberBirthdayEvents({ toYear }).filter((event) => !official.has(`${event.memberIds[0]}|${event.dates[0]}`));
+  const list = [...events, ...birthdays, ...groupAnniversaryEvents({ toYear })];
+  generatedCache.set(events, { toYear, list });
   return list;
 }
 

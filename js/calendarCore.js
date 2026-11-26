@@ -61,6 +61,7 @@ export const CALENDAR_CATEGORIES = Object.freeze([
   { key: "media", label: "雑誌・Web・そのほかのメディア", short: "メディア" },
   { key: "release", label: "リリース", short: "リリース" },
   { key: "birthday", label: "誕生日", short: "誕生日" },
+  { key: "anniversary", label: "＝LOVE の記念日", short: "記念日" }, // 【2026-11-26】結成・デビューの記念日（アプリのデータから作る。公式 SCHEDULE には無い）
   { key: "other", label: "その他", short: "その他" },
 ]);
 const CATEGORY_KEYS = new Set(CALENDAR_CATEGORIES.map((category) => category.key));

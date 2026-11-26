@@ -11,6 +11,7 @@
   --cal-release: #43a047;
   --cal-birthday: #e0a800;
   --cal-other: #9a8f98;
+  --cal-anniversary: #c2185b;
 }
 
 [data-cat="live"] { --cat-color: var(--cal-live); }
@@ -21,6 +22,7 @@
 [data-cat="release"] { --cat-color: var(--cal-release); }
 [data-cat="birthday"] { --cat-color: var(--cal-birthday); }
 [data-cat="other"] { --cat-color: var(--cal-other); }
+[data-cat="anniversary"] { --cat-color: var(--cal-anniversary); }
 
 .cal-content {
   container: calendar / inline-size;
@@ -449,6 +451,11 @@
   font-size: 0.8rem;
   line-height: 1.5;
   color: #8a6400;
+}
+
+.cal-event-note--soft {
+  color: inherit;
+  opacity: 0.7;
 }
 
 .cal-event-links {

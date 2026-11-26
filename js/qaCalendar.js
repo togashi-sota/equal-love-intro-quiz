@@ -3,7 +3,7 @@
 // 日付は日本時間（js/calendarModel.js の resolveDateRange）。未発表の予定を推測しない・収録していない期間は「収録できていない」と言う。
 // DOM に触れない。js/qaEngine.js が detectCalendarQuestion → answerCalendarQuestion の順に呼ぶ。
 import { CALENDAR_STATE, getCalendarSnapshot } from "./calendarData.js";
-import { categoryLabel, describeTime, findEvents, formatDateJa, formatMonthJa, memberName, resolveDateRange, uncoveredMonths } from "./calendarModel.js";
+import { categoryLabel, describeTime, findEvents, formatDateJa, formatMonthJa, memberName, resolveDateRange, uncoveredMonths, withGeneratedEvents } from "./calendarModel.js";
 import { EVENT_STATUS } from "./calendarCore.js";
 
 const OFFICIAL_SCHEDULE_URL = "https://equal-love.jp/schedule/";
@@ -17,6 +17,7 @@ const KIND_WORDS = [
   { category: "tv", pattern: /テレビ|TV|番組/ },
   { category: "release", pattern: /リリース|発売|CD|シングル|アルバム/ },
   { category: "birthday", pattern: /誕生日/ },
+  { category: "anniversary", pattern: /記念日|周年|結成日|デビュー日/ },
   { category: "media", pattern: /雑誌/ },
 ];
 const RELATIVE = /今日|きょう|本日|明日|あした|明後日|あさって|昨日|きのう|今週|来週|先週|再来週|今月|来月|先月/;
@@ -85,7 +86,7 @@ export function answerCalendarQuestion(question, today) {
   const calendarLink = (date) => ({ label: "カレンダーで見る", target: { kind: "calendar", date, memberId: question.memberId ?? null, category: question.kind ?? null } });
 
   if (question.mode === "next" || question.mode === "future") {
-    const found = findEvents(snapshot.events, { from: today, filter, includeCancelled: question.mode === "future" });
+    const found = findEvents(withGeneratedEvents(snapshot.events, today), { from: today, filter, includeCancelled: question.mode === "future" });
     if (!found.length) {
       return {
         status: "notFound",
@@ -119,7 +120,7 @@ export function answerCalendarQuestion(question, today) {
 
   const { from, to, label } = question.range;
   const missing = uncoveredMonths(snapshot.months, from, to);
-  const found = findEvents(snapshot.events, { from, to, filter });
+  const found = findEvents(withGeneratedEvents(snapshot.events, today), { from, to, filter });
   const coverageNote = missing.length ? [`${missing.slice(0, 3).map(formatMonthJa).join("・")}${missing.length > 3 ? "など" : ""}の公式情報は、まだ収録できていません。`] : [];
   if (!found.length) {
     return {
